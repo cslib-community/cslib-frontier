@@ -248,6 +248,20 @@ theorem IsBestResponse₂.le_payoff₂ (h : G.IsBestResponse₂ y x) (j : N) :
   simpa only [payoff₁_swap, swap_A, mulVec_transpose] using
     (isBestResponse₁_swap.2 h).le_payoff₁ j
 
+/-- A mixed strategy is a best response to `y` iff no row earns more against `y` than it does. -/
+theorem isBestResponse₁_iff_le_payoff₁ :
+    G.IsBestResponse₁ x y ↔ IsMixedStrategy x ∧ ∀ i, (G.A *ᵥ y) i ≤ G.payoff₁ x y := by
+  refine ⟨fun h => ⟨h.isMixedStrategy, h.le_payoff₁⟩, fun h => ⟨h.1, fun x' hx' => ?_⟩⟩
+  rw [payoff₁_eq_dotProduct x' y]
+  exact hx'.dotProduct_le_of_forall_le h.2
+
+/-- A mixed strategy is a best response to `x` iff no column earns more against `x` than it
+does. -/
+theorem isBestResponse₂_iff_le_payoff₂ :
+    G.IsBestResponse₂ y x ↔ IsMixedStrategy y ∧ ∀ j, (x ᵥ* G.B) j ≤ G.payoff₂ x y := by
+  rw [← isBestResponse₁_swap, isBestResponse₁_iff_le_payoff₁]
+  simp only [payoff₁_swap, swap_A, mulVec_transpose]
+
 /-- With positive payoffs, player 1 earns a positive expected payoff. -/
 theorem payoff₁_pos (hA : ∀ i j, 0 < G.A i j) (hx : IsMixedStrategy x) (hy : IsMixedStrategy y) :
     0 < G.payoff₁ x y :=
@@ -259,8 +273,7 @@ theorem payoff₁_pos (hA : ∀ i j, 0 < G.A i j) (hx : IsMixedStrategy x) (hy :
 /-- With positive payoffs, player 2 earns a positive expected payoff. -/
 theorem payoff₂_pos (hB : ∀ i j, 0 < G.B i j) (hx : IsMixedStrategy x) (hy : IsMixedStrategy y) :
     0 < G.payoff₂ x y := by
-  rw [← payoff₁_swap]
-  exact G.swap.payoff₁_pos (fun j i => hB i j) hy hx
+  exact payoff₁_swap G y x ▸ G.swap.payoff₁_pos (fun j i => hB i j) hy hx
 
 private theorem IsNash.ncard_support_le (hG : G.IsNondegenerate) (h : G.IsNash x y) :
     (Function.support x).ncard ≤ (Function.support y).ncard :=
@@ -351,12 +364,8 @@ theorem exists_addConst_pos [Finite M] [Finite N] :
   obtain ⟨c, hc⟩ :=
     (Set.toFinite (Set.range fun p : M × N => max (-G.A p.1 p.2) (-G.B p.1 p.2))).bddAbove
   refine ⟨c + 1, fun i j => ?_, fun i j => ?_⟩
-  · have : -G.A i j ≤ c := (le_max_left _ _).trans (hc ⟨(i, j), rfl⟩)
-    rw [addConst_A_apply]
-    linarith
-  · have : -G.B i j ≤ c := (le_max_right _ _).trans (hc ⟨(i, j), rfl⟩)
-    rw [addConst_B_apply]
-    linarith
+  · linarith [G.addConst_A_apply (c + 1) i j, (le_max_left _ _).trans (hc ⟨(i, j), rfl⟩)]
+  · linarith [G.addConst_B_apply (c + 1) i j, (le_max_right _ _).trans (hc ⟨(i, j), rfl⟩)]
 
 end BimatrixGame
 

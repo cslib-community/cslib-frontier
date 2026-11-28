@@ -80,32 +80,23 @@ noncomputable def verifier (k : ℕ) (q : TMSATInstance × List Bool) : Bool :=
 
 theorem computableInPolyTime_verifier (k : ℕ) :
     ComputableInPolyTime (verifier k) (encPair encTMSATInstance encBits) encBool := by
-  have htake : ComputableInPolyTime
-      (fun q : TMSATInstance × List Bool =>
-        takeBlocks (List.replicate k (q.1.witnessLength, (encTMSATInstance q.1).length)) q.2)
-      (encPair encTMSATInstance encBits) encBits := by
-    simpa only [List.map_replicate] using
-      computableInPolyTime_takeBlocks
-        (List.replicate k (fun q : TMSATInstance × List Bool => q.1.witnessLength,
-          fun q => (encTMSATInstance q.1).length))
-        (fun l hl => by
-          obtain rfl := List.eq_of_mem_replicate hl
-          exact ⟨by fun_prop,
-            (ComputableInPolyTime.encoding_length encTMSATInstance).comp (.fst _ _)⟩)
-        (.snd _ _)
-  exact TMSATInstance.computableInPolyTime_decide_accepts (.fst _ _) htake
+  refine TMSATInstance.computableInPolyTime_decide_accepts (.fst _ _) ?_
+  simpa only [List.map_replicate] using computableInPolyTime_takeBlocks
+    (List.replicate k (fun q : TMSATInstance × List Bool => q.1.witnessLength,
+      fun q => (encTMSATInstance q.1).length))
+    (fun _ hl => List.eq_of_mem_replicate hl ▸ ⟨by fun_prop,
+      (ComputableInPolyTime.encoding_length encTMSATInstance).comp (.fst _ _)⟩)
+    (.snd _ _)
 
 theorem isAlternatingVerifier (k : ℕ) :
     IsAlternatingVerifier encTMSATInstance true (List.replicate k Polynomial.X)
       (verifier k) (TMSigmaSAT k) := fun a => by
   rw [mem_iff]
-  have htake := alternation_takeBlocks
-    (ls := List.replicate k (a.witnessLength, (encTMSATInstance a).length))
-    (q := true) (P := a.Accepts)
-    (fun l hl => by
-      obtain rfl := List.eq_of_mem_replicate hl
-      exact TMSAT.witnessLength_le a)
-  simpa only [List.map_replicate, Polynomial.eval_X, verifier, decide_eq_true_iff] using htake.symm
+  simpa only [List.map_replicate, Polynomial.eval_X, verifier, decide_eq_true_iff] using
+    (alternation_takeBlocks
+      (ls := List.replicate k (a.witnessLength, (encTMSATInstance a).length))
+      (q := true) (P := a.Accepts)
+      fun _ hl => List.eq_of_mem_replicate hl ▸ TMSAT.witnessLength_le a).symm
 
 /-- **`TMSigmaSAT k` is in `Σₖ`.** -/
 theorem mem_SigmaP (k : ℕ) : TMSigmaSAT k ∈ SigmaP k encTMSATInstance :=
@@ -120,9 +111,8 @@ theorem sigmaPHard (k : ℕ) : SigmaPHard k encTMSATInstance (TMSigmaSAT k) := b
   obtain ⟨f, hf, hlen, hacc⟩ := TMSATInstance.exists_polyTime_accepts hV p k
   refine ⟨f, hf, fun a => ?_⟩
   rw [hAV a, mem_iff, hlen a, List.map_replicate]
-  refine alternation_congr_of_length fun w hw => ?_
-  rw [List.sum_replicate, smul_eq_mul] at hw
-  exact (hacc a w hw).symm
+  exact alternation_congr_of_length fun w hw =>
+    (hacc a w (by simpa [List.sum_replicate, smul_eq_mul] using hw)).symm
 
 /-- **`TMSigmaSAT k` is `Σₖ`-complete.** -/
 theorem sigmaPComplete (k : ℕ) : SigmaPComplete k encTMSATInstance (TMSigmaSAT k) :=

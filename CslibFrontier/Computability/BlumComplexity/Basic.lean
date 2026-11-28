@@ -102,18 +102,12 @@ theorem forall_mem_cost_iff_exists_of_total {f : ℕ → ℕ} {c : Code} (hc : �
 unbounded search. -/
 theorem partrec_cost : Partrec₂ Φ.cost := by
   obtain ⟨b, hb, hpb⟩ := ComputablePred.computable_iff.1 Φ.computablePred_mem_cost
-  have hp : Partrec₂ fun (x : Code × ℕ) (m : ℕ) => Part.some (b ((x.1, x.2), m)) :=
-    (hb.comp ((Computable.fst.comp Computable.fst).pair (Computable.snd.comp Computable.fst)
-      |>.pair Computable.snd)).partrec
-  have hbm : ∀ c n m, b ((c, n), m) = true ↔ m ∈ Φ.cost c n := fun c n m => by
-    rw [show (m ∈ Φ.cost c n) = (fun (((c, n), m) : (Code × ℕ) × ℕ) => m ∈ Φ.cost c n)
-      ((c, n), m) from rfl, hpb]
-  refine (Partrec.rfind hp).of_eq fun x => Part.ext fun k => Nat.mem_rfind.trans ?_
-  simp only [Part.mem_some_iff]
-  rw [eq_comm, hbm]
-  refine ⟨fun h => h.1, fun h => ⟨h, fun {j} hj => ?_⟩⟩
-  rw [eq_comm, Bool.eq_false_iff, ne_eq, hbm]
-  exact fun hj' => absurd (Part.mem_unique hj' h) hj.ne
+  have hp : Partrec₂ fun (x : Code × ℕ) (m : ℕ) => Part.some (b (x, m)) := hb.partrec
+  refine (Partrec.rfind hp).of_eq fun ⟨c, n⟩ => Part.ext fun k => Nat.mem_rfind.trans ?_
+  have hbm (m : ℕ) : (b ((c, n), m) = true) = (m ∈ Φ.cost c n) := (congrFun hpb ((c, n), m)).symm
+  simp only [Part.mem_some_iff, eq_comm (a := true), eq_comm (a := false), Bool.eq_false_iff,
+    ne_eq, hbm]
+  exact ⟨fun h => h.1, fun h => ⟨h, fun hj hj' => hj.ne (Part.mem_unique hj' h)⟩⟩
 
 /-- The predicate `Φ c n ≤ b` is computable. In particular, whether `c` halts on `n` within cost
 `b` is decidable. -/
@@ -124,8 +118,7 @@ theorem computablePred_cost_le :
     (Φ.computablePred_mem_cost_comp (Computable.fst.comp (Computable.fst.comp Computable.fst))
       (Computable.snd.comp (Computable.fst.comp Computable.fst)) Computable.snd)
     (Computable.succ.comp Computable.snd)).of_eq fun _ => ?_
-  simp only [Nat.lt_succ_iff]
-  exact ⟨fun ⟨m, hm, h⟩ => ⟨m, h, hm⟩, fun ⟨m, h, hm⟩ => ⟨m, hm, h⟩⟩
+  simp only [Nat.lt_succ_iff, and_comm]
 
 /-- The **complexity class** `C_t` of a bound `t`: total functions `f` computed by some program `c`
 (`f n ∈ c.eval n` for every `n`) whose cost satisfies `Φ c n ≤ t n` for all sufficiently large `n`

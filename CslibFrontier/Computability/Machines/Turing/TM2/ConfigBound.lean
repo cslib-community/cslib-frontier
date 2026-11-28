@@ -43,35 +43,26 @@ private theorem mem_boundedWords (word : List Bool) (width : ℕ) (h : word.leng
     word ∈ boundedWords width := by
   induction width generalizing word with
   | zero =>
-    have hword : word = [] := List.length_eq_zero_iff.mp (Nat.eq_zero_of_le_zero h)
-    subst word
+    obtain rfl : word = [] := List.length_eq_zero_iff.mp (Nat.eq_zero_of_le_zero h)
     exact Finset.mem_singleton_self _
   | succ width ih =>
     cases word with
     | nil => exact Finset.mem_insert_self _ _
     | cons bit word =>
-      have hword := ih word (by simpa only [List.length_cons, Nat.add_le_add_iff_right] using h)
-      apply Finset.mem_insert_of_mem
+      have hword := ih word (Nat.le_of_succ_le_succ h)
       cases bit
-      · exact Finset.mem_union_left _ (Finset.mem_image_of_mem _ hword)
-      · exact Finset.mem_union_right _ (Finset.mem_image_of_mem _ hword)
+      · exact Finset.mem_insert_of_mem (Finset.mem_union_left _ (Finset.mem_image_of_mem _ hword))
+      · exact Finset.mem_insert_of_mem (Finset.mem_union_right _ (Finset.mem_image_of_mem _ hword))
 
 private theorem card_boundedWords_lt (width : ℕ) :
     (boundedWords width).card < 2 ^ (width + 1) := by
   induction width with
   | zero => decide
   | succ width ih =>
-    have hcard := Finset.card_insert_le ([] : List Bool)
-      (((boundedWords width).image (List.cons false)) ∪
-        ((boundedWords width).image (List.cons true)))
-    have hunion := Finset.card_union_le
-      ((boundedWords width).image (List.cons false))
-      ((boundedWords width).image (List.cons true))
-    have hfalse : ((boundedWords width).image (List.cons false)).card ≤
-        (boundedWords width).card := Finset.card_image_le
-    have htrue : ((boundedWords width).image (List.cons true)).card ≤
-        (boundedWords width).card := Finset.card_image_le
-    simp only [boundedWords, pow_succ] at *
+    rw [boundedWords, pow_succ]
+    refine ((Finset.card_insert_le _ _).trans
+      (Nat.add_le_add_right ((Finset.card_union_le _ _).trans
+        (Nat.add_le_add Finset.card_image_le Finset.card_image_le)) 1)).trans_lt ?_
     omega
 
 private theorem iterate_eq_of_bounded_encoding {α : Type} (f : α → α) (enc : α ↪ List Bool)
@@ -85,16 +76,13 @@ private theorem iterate_eq_of_bounded_encoding {α : Type} (f : α → α) (enc 
   have hmin : ∀ n < first, f^[n] initial ≠ final := fun n hn => Nat.find_min hterm hn
   have hinj : Set.InjOn (fun n => enc (f^[n] initial)) (Finset.range (first + 1)) := by
     intro i hi j hj heq
-    have hi' : i ≤ first := by
-      simpa only [Finset.mem_coe, Finset.mem_range, Nat.lt_succ_iff] using hi
-    have hj' : j ≤ first := by
-      simpa only [Finset.mem_coe, Finset.mem_range, Nat.lt_succ_iff] using hj
+    rw [Finset.mem_coe, Finset.mem_range, Nat.lt_succ_iff] at hi hj
     have hcfg : f^[i] initial = f^[j] initial := enc.injective heq
     suffices hle : ∀ i j, i < j → j ≤ first → f^[i] initial = f^[j] initial → False by
       rcases lt_trichotomy i j with h | h | h
-      · exact False.elim (hle i j h hj' hcfg)
+      · exact False.elim (hle i j h hj hcfg)
       · exact h
-      · exact False.elim (hle j i h hi' hcfg.symm)
+      · exact False.elim (hle j i h hi hcfg.symm)
     intro i j hij hj hcfg
     have hearlier : f^[first - j + i] initial = final := by
       rw [Function.iterate_add_apply, hcfg, ← Function.iterate_add_apply,
@@ -121,13 +109,10 @@ theorem exists_exponential_clock (tm : FinTM2) [∀ k, Finite (tm.Γ k)] : ∃ C
       (∀ i k, (((stepTotal tm.m)^[i] (initList tm input)).stk k).length ≤ space) →
       (stepTotal tm.m)^[2 ^ (C * (space + 1) + 1)] (initList tm input) = haltList tm output := by
   obtain ⟨C, hC⟩ := length_encCfg_le (Γ := tm.Γ) (Λ := tm.Λ) (σ := tm.σ)
-  refine ⟨C, ?_⟩
-  intro input output space hterm hspace
-  have htime : TM2OutputsInTime tm input (some output) hterm.steps :=
-    ⟨hterm, le_rfl⟩
+  refine ⟨C, fun input output space hterm hspace => ?_⟩
   exact iterate_eq_of_bounded_encoding (stepTotal tm.m) encCfg
     (initList tm input) (haltList tm output) (C * (space + 1)) rfl
-    ⟨hterm.steps, iterate_stepTotal_of_evals tm input output hterm.steps htime⟩
+    ⟨hterm.steps, iterate_stepTotal_of_evals tm input output hterm.steps ⟨hterm, le_rfl⟩⟩
     (fun i => hC _ space (hspace i))
 
 end Turing.TM2

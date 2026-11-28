@@ -45,9 +45,8 @@ theorem lowest_subset (k : ℕ) (S : Finset α) : lowest k S ⊆ S :=
 private lemma card_below_strictMonoOn (S : Finset α) :
     StrictMonoOn (fun ℓ => (S.filter fun x => x < ℓ).card) S := by
   intro ℓ hℓ ℓ' _ hlt
-  refine card_lt_card ⟨fun x hx => ?_, fun hsub => ?_⟩
-  · exact mem_filter.2 ⟨(mem_filter.1 hx).1, (mem_filter.1 hx).2.trans hlt⟩
-  · exact lt_irrefl ℓ (mem_filter.1 (hsub (mem_filter.2 ⟨hℓ, hlt⟩))).2
+  exact card_lt_card ⟨fun x hx => mem_filter.2 ⟨(mem_filter.1 hx).1, (mem_filter.1 hx).2.trans hlt⟩,
+    fun hsub => lt_irrefl ℓ (mem_filter.1 (hsub (mem_filter.2 ⟨hℓ, hlt⟩))).2⟩
 
 /-- Every selected element precedes every unselected element of the set. -/
 theorem lowest_lt {k : ℕ} {S : Finset α} {ℓ ℓ' : α} (hℓ : ℓ ∈ lowest k S)
@@ -65,15 +64,13 @@ theorem eq_lowest_of_lt {S T : Finset α} (hT : T ⊆ S)
   rw [mem_lowest]
   constructor
   · -- Predecessors of a selected element belong to the initial subset.
-    refine fun hℓ => ⟨hT hℓ, card_lt_card ⟨fun x hx => ?_, fun hsub => ?_⟩⟩
-    · by_contra hxT
-      exact lt_asymm (mem_filter.1 hx).2 (h ℓ hℓ x (mem_sdiff.2 ⟨(mem_filter.1 hx).1, hxT⟩))
-    · exact lt_irrefl ℓ (mem_filter.1 (hsub hℓ)).2
+    refine fun hℓ => ⟨hT hℓ, card_lt_card ⟨fun x hx => ?_,
+      fun hsub => lt_irrefl ℓ (mem_filter.1 (hsub hℓ)).2⟩⟩
+    exact Classical.byContradiction fun hxT =>
+      lt_asymm (mem_filter.1 hx).2 (h ℓ hℓ x (mem_sdiff.2 ⟨(mem_filter.1 hx).1, hxT⟩))
   · -- All selected elements precede an omitted element.
-    rintro ⟨hℓS, hcard⟩
-    by_contra hℓT
-    refine absurd (card_le_card fun x hx => ?_) (not_le.2 hcard)
-    exact mem_filter.2 ⟨hT hx, h x hx ℓ (mem_sdiff.2 ⟨hℓS, hℓT⟩)⟩
+    exact fun ⟨hℓS, hcard⟩ => Classical.byContradiction fun hℓT => hcard.not_ge
+      (card_le_card fun x hx => mem_filter.2 ⟨hT hx, h x hx ℓ (mem_sdiff.2 ⟨hℓS, hℓT⟩)⟩)
 
 private lemma image_card_below (S : Finset α) :
     (S.image fun ℓ => (S.filter fun x => x < ℓ).card) = range S.card := by
@@ -86,9 +83,8 @@ private lemma image_card_below (S : Finset α) :
 /-- Selection saturates at the size of the original set. -/
 theorem card_lowest (k : ℕ) (S : Finset α) : (lowest k S).card = min k S.card := by
   have hinj := (card_below_strictMonoOn S).injOn.mono (coe_subset.2 (lowest_subset k S))
-  have hrange : ((range S.card).filter fun n => n < k) = range (min k S.card) := by
-    ext n
-    simp only [mem_filter, mem_range, lt_min_iff, and_comm]
+  have hrange : ((range S.card).filter fun n => n < k) = range (min k S.card) :=
+    Finset.ext fun _ => by simp [lt_min_iff, and_comm]
   rw [← card_image_of_injOn hinj, ← card_range (min k S.card), ← hrange, ← image_card_below,
     filter_image]
   rfl

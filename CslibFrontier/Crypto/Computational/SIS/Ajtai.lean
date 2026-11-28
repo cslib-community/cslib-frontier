@@ -91,23 +91,20 @@ def ajtaiHash (A : Matrix (Fin n) (Fin m) (ZMod q)) (x : Fin m → ℤ) : Fin n 
 theorem ajtaiHash_sub (A : Matrix (Fin n) (Fin m) (ZMod q)) (x y : Fin m → ℤ) :
     ajtaiHash A (x - y) = ajtaiHash A x - ajtaiHash A y := by
   rw [ajtaiHash, ajtaiHash, ajtaiHash, ← Matrix.mulVec_sub]
-  congr 1
-  funext i
-  exact Int.cast_sub (x i) (y i)
+  exact congrArg (A *ᵥ ·) (funext fun i => Int.cast_sub (x i) (y i))
 
 /-- Distinct inputs in `[-β, β]^m` with the same Ajtai hash differ by a short integer solution
 with bound `2 * β`. -/
 theorem isSolution_sub_of_abs_le {A : Matrix (Fin n) (Fin m) (ZMod q)} {β : ℕ}
     {x y : Fin m → ℤ} (hxy : x ≠ y) (hx : ∀ i, |x i| ≤ β) (hy : ∀ i, |y i| ≤ β)
     (h : ajtaiHash A x = ajtaiHash A y) :
-    SIS.IsSolution A (2 * β) (x - y) := by
-  refine ⟨sub_ne_zero.mpr hxy, fun i => ?_, ?_⟩
-  · have hxi := abs_le.mp (hx i)
-    have hyi := abs_le.mp (hy i)
+    SIS.IsSolution A (2 * β) (x - y) :=
+  ⟨sub_ne_zero.mpr hxy, fun i => by
+    have hx' := abs_le.mp (hx i)
+    have hy' := abs_le.mp (hy i)
     simp only [Pi.sub_apply, Nat.cast_mul, Nat.cast_ofNat, abs_le]
-    omega
-  · change ajtaiHash A (x - y) = 0
-    rw [ajtaiHash_sub, h, sub_self]
+    omega,
+    show ajtaiHash A (x - y) = 0 by rw [ajtaiHash_sub, h, sub_self]⟩
 
 /-- `(x, y)` is a collision of Ajtai's hash function for `A` in `[0, β]^m`: distinct inputs in
 `[0, β]^m` with the same hash. -/
@@ -121,15 +118,14 @@ instance (A : Matrix (Fin n) (Fin m) (ZMod q)) (β : ℕ) (x y : Fin m → ℤ) 
 
 /-- A collision in `[0, β]^m` differs by a short integer solution with bound `β`. -/
 theorem IsAjtaiCollision.isSolution_sub {A : Matrix (Fin n) (Fin m) (ZMod q)} {β : ℕ}
-    {x y : Fin m → ℤ} (h : IsAjtaiCollision A β x y) : SIS.IsSolution A β (x - y) := by
-  obtain ⟨hxy, hx, hy, hxy'⟩ := h
-  refine ⟨sub_ne_zero.mpr hxy, fun i => ?_, ?_⟩
-  · have hxi := hx i
-    have hyi := hy i
+    {x y : Fin m → ℤ} (h : IsAjtaiCollision A β x y) : SIS.IsSolution A β (x - y) :=
+  let ⟨hxy, hx, hy, hxy'⟩ := h
+  ⟨sub_ne_zero.mpr hxy, fun i => by
+    have hx' := hx i
+    have hy' := hy i
     simp only [Pi.sub_apply, abs_le]
-    omega
-  · change ajtaiHash A (x - y) = 0
-    rw [ajtaiHash_sub, hxy', sub_self]
+    omega,
+    show ajtaiHash A (x - y) = 0 by rw [ajtaiHash_sub, hxy', sub_self]⟩
 
 /-- The SIS solver built from a collision finder: run the finder and return the difference of
 its pair. -/
@@ -168,11 +164,9 @@ theorem ajtaiAdvantage_le_sisAdvantage (β : ℕ)
   refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_
   simp only [ajtaiCollisionExperiment, sisExperiment, collisionToSIS, bind_assoc,
     ProbComp.eval_bind]
-  refine PMF.bind_apply_mono_on_support _ _ fun A _ => ?_
-  refine PMF.bind_apply_mono_on_support _ _ fun ⟨x, y⟩ _ => ?_
-  by_cases h : IsAjtaiCollision A β x y
-  · simp [h, h.isSolution_sub]
-  · simp [h]
+  exact PMF.bind_apply_mono_on_support _ _ fun A _ =>
+    PMF.bind_apply_mono_on_support _ _ fun ⟨x, y⟩ _ => by
+      by_cases h : IsAjtaiCollision A β x y <;> simp [h, IsAjtaiCollision.isSolution_sub]
 
 end Experiment
 
@@ -186,13 +180,12 @@ def binaryVec (m : ℕ) (s : List Bool) : Fin m → ℤ :=
 /-- Words of length `m` are determined by their 0/1 vectors. -/
 theorem binaryVec_injOn {m : ℕ} {s₁ s₂ : List Bool} (h₁ : s₁.length = m) (h₂ : s₂.length = m)
     (h : binaryVec m s₁ = binaryVec m s₂) : s₁ = s₂ := by
-  have hbits : BitString.ofList m s₁ = BitString.ofList m s₂ := by
-    funext i
-    have hi := congrFun h i
-    simp only [binaryVec, Nat.cast_inj] at hi
-    revert hi
-    cases BitString.ofList m s₁ i <;> cases BitString.ofList m s₂ i <;> simp
-  rw [← BitString.ofFn_ofList h₁, ← BitString.ofFn_ofList h₂, hbits]
+  rw [← BitString.ofFn_ofList h₁, ← BitString.ofFn_ofList h₂]
+  refine congrArg List.ofFn (funext fun i => ?_)
+  have hi := congrFun h i
+  simp only [binaryVec, Nat.cast_inj] at hi
+  revert hi
+  cases BitString.ofList m s₁ i <;> cases BitString.ofList m s₂ i <;> simp
 
 /-- Two distinct words of length `m` with the same Ajtai hash form a collision in `[0, β]^m` for
 every `β ≥ 1`. -/
@@ -201,9 +194,7 @@ private theorem isAjtaiCollision_binaryVec {A : Matrix (Fin n) (Fin m) (ZMod q)}
     (h : ajtaiHash A (binaryVec m s₁) = ajtaiHash A (binaryVec m s₂)) :
     IsAjtaiCollision A β (binaryVec m s₁) (binaryVec m s₂) := by
   have hbox (s : List Bool) (i : Fin m) : 0 ≤ binaryVec m s i ∧ binaryVec m s i ≤ β := by
-    have hβ' : (1 : ℤ) ≤ β := by exact_mod_cast hβ
-    unfold binaryVec
-    cases BitString.ofList m s i <;> simp [hβ']
+    cases hb : BitString.ofList m s i <;> simp [binaryVec, hb, (by exact_mod_cast hβ : (1 : ℤ) ≤ β)]
   exact ⟨fun hv => hne (binaryVec_injOn h₁ h₂ hv), hbox s₁, hbox s₂, h⟩
 
 section Family
@@ -263,26 +254,23 @@ private theorem computableInPolyTime_encodeVec_binaryVec_sub :
     ComputableInPolyTime (fun p : ℕ × List Bool × List Bool =>
         SIS.encodeVec (binaryVec p.1 p.2.1 - binaryVec p.1 p.2.2))
       (encPair encUnary (encPair encBits encBits)) encBits := by
-  have hbit : ComputableInPolyTime (fun b : Bool => (b.toNat : ℤ)) encBool encIntBin :=
-    ComputableInPolyTime.of_finite _
+  have hbit : ComputableInPolyTime (fun b : Bool => (b.toNat : ℤ)) encBool encIntBin := .of_finite _
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair (encPair encUnary (encPair encBits encBits)) encUnary)
+  have hleft := hp.fst'.snd'.fst'.bitsGetDWithInput hp.snd' false
+  have hright := hp.fst'.snd'.snd'.bitsGetDWithInput hp.snd' false
   have h : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool =>
       (List.range p.1).map fun i =>
         ((p.2.1.getD i false).toNat : ℤ) - ((p.2.2.getD i false).toNat : ℤ))
       (encPair encUnary (encPair encBits encBits)) (encList encIntBin) :=
-    by
-      have hp := ComputableInPolyTime.id'
-        (encIn := encPair (encPair encUnary (encPair encBits encBits)) encUnary)
-      have hleft := hp.fst'.snd'.fst'.bitsGetDWithInput hp.snd' false
-      have hright := hp.fst'.snd'.snd'.bitsGetDWithInput hp.snd' false
-      exact ComputableInPolyTime.mapWithInput
-        (f := fun p i => ((p.2.1.getD i false).toNat : ℤ) -
-          ((p.2.2.getD i false).toNat : ℤ))
-        (ComputableInPolyTime.range.comp
-          (ComputableInPolyTime.fst encUnary (encPair encBits encBits)))
-        (ComputableInPolyTime.intBin_sub' (hbit.comp hleft) (hbit.comp hright))
+    ComputableInPolyTime.mapWithInput
+      (f := fun p i => ((p.2.1.getD i false).toNat : ℤ) - ((p.2.2.getD i false).toNat : ℤ))
+      (ComputableInPolyTime.range.comp
+        (ComputableInPolyTime.fst encUnary (encPair encBits encBits)))
+      (ComputableInPolyTime.intBin_sub' (hbit.comp hleft) (hbit.comp hright))
   convert h.encoding_comp using 1
   funext ⟨m, s₁, s₂⟩
-  refine congrArg (encList encIntBin) (List.ext_getElem (by simp) fun i _ _ => ?_)
+  refine congrArg (encList encIntBin) (List.ext_getElem (by simp) fun _ _ _ => ?_)
   simp [binaryVec, BitString.ofList]
 
 /-- `ajtaiWordCollisionToSIS` is a PPT SIS solver when the collision finder is uniform strict PPT
@@ -292,18 +280,16 @@ theorem isPPT_ajtaiWordCollisionToSIS (hm : ComputableInPolyTime P.m encUnary en
     (hF : IsPPTOn (encPair encUnary P.encInput) (encPair encBits encBits) fun p => F p.1 p.2) :
     (ajtaiWordCollisionToSIS P F).IsPPT := by
   have hsec := SISParams.computableInPolyTime_secParam (P := P)
-  have hrun : IsPPTOn P.encInput (encPair encBits encBits) fun x => F x.secParam x :=
-    hF.preprocess (hsec.prod ComputableInPolyTime.id')
   have hpost : ComputableInPolyTime
       (fun p : P.Input × List Bool × List Bool =>
         SIS.encodeVec (binaryVec (P.m p.1.secParam) p.2.1 - binaryVec (P.m p.1.secParam) p.2.2))
       (encPair P.encInput (encPair encBits encBits)) encBits :=
     computableInPolyTime_encodeVec_binaryVec_sub.comp
       (((hm.comp hsec).comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _))
-  refine (hrun.map_with (f := fun x w =>
-    SIS.encodeVec (binaryVec (P.m x.secParam) w.1 - binaryVec (P.m x.secParam) w.2)) hpost).congr
-      fun x => ?_
-  simp [ajtaiWordCollisionToSIS, collisionToSIS]
+  exact ((hF.preprocess (hsec.prod ComputableInPolyTime.id')).map_with
+    (f := fun x w =>
+      SIS.encodeVec (binaryVec (P.m x.secParam) w.1 - binaryVec (P.m x.secParam) w.2)) hpost).congr
+    fun _ => by simp [ajtaiWordCollisionToSIS, collisionToSIS]
 
 /-- **Ajtai's hash family is collision resistant under SIS** ([GoldreichGoldwasserHalevi1996],
 Theorem 2, p. 4). Let `P` be a SIS parameter family whose column count `P.m` is computable in

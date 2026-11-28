@@ -85,14 +85,8 @@ theorem powerProductCoefficient_cast {p n : ℕ} [Fact p.Prime]
       eval (fun k : Fin n => (((gridPoint p n s)[k.val]?.getD 0 : ℕ) : ZMod p)) (r i)) :
     (powerProductCoefficient p n β js value rvalue : ZMod p) =
       (v * ∏ i, r i ^ j i).coeff e := by
-  unfold powerProductCoefficient
-  apply multivariateCoefficientResidue_cast _ e β _ hdeg he hβ
-  intro s hs
-  rw [ZMod.natCast_mod, Nat.cast_mul, hv s hs, indexedPowerProduct_cast,
-    map_mul, map_prod]
-  congr 1
-  apply Finset.prod_congr rfl
-  intro i _
-  rw [hj i, hr i s hs, map_pow]
+  refine multivariateCoefficientResidue_cast _ e β _ hdeg he hβ fun s hs => ?_
+  rw [ZMod.natCast_mod, Nat.cast_mul, hv s hs, indexedPowerProduct_cast, map_mul, map_prod]
+  exact congrArg (_ * ·) (Finset.prod_congr rfl fun i _ => by rw [hj i, hr i s hs, map_pow])
 
 end Cslib.Complexity.RealAlgebraic

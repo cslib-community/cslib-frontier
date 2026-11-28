@@ -58,18 +58,12 @@ private theorem computableInPolyTime_index :
     ComputableInPolyTime (fun p : AndOrGraph × ℕ =>
       if p.2 < p.1.edgeCount then checkEdge (p.1.vertices.flatMap Vertex.ports) p.2 else true)
       (encPair encAndOrGraph encUnary) encBool := by
-  have hi : ComputableInPolyTime (fun p : AndOrGraph × ℕ => p.2)
-      (encPair encAndOrGraph encUnary) encUnary := by fun_prop
   have hi' : ComputableInPolyTime (fun p : AndOrGraph × ℕ => p.2)
       (encPair encAndOrGraph encUnary) encNat :=
-    ComputableInPolyTime.unary_to_binary.comp hi
+    ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
   have hg : ComputableInPolyTime (fun p : AndOrGraph × ℕ => p.1)
       (encPair encAndOrGraph encUnary) encAndOrGraph := by fun_prop
-  have hp := computableInPolyTime_portList.comp hg
-  have hw : ComputableInPolyTime (fun g : AndOrGraph => g.edgeCount)
-      encAndOrGraph encNat := by fun_prop
-  have hw' := hw.comp hg
-  have he := computableInPolyTime_checkEdge hp hi'
+  have he := computableInPolyTime_checkEdge (computableInPolyTime_portList.comp hg) hi'
   have hc : ComputableInPolyTime (fun p : AndOrGraph × ℕ => decide (p.2 < p.1.edgeCount))
       (encPair encAndOrGraph encUnary) encBool := by fun_prop
   fun_prop
@@ -81,24 +75,10 @@ theorem computableInPolyTime_checkIncidences :
   have hp := computableInPolyTime_portList
   have hn : ComputableInPolyTime (fun g : AndOrGraph => (g.vertices.flatMap Vertex.ports).length)
       encAndOrGraph encUnary := by fun_prop
-  have hn' : ComputableInPolyTime (fun g : AndOrGraph => (g.vertices.flatMap Vertex.ports).length)
-      encAndOrGraph encNat :=
-    ComputableInPolyTime.unary_to_binary.comp hn
-  have hrange : ComputableInPolyTime
-      (fun g : AndOrGraph => List.range (g.vertices.flatMap Vertex.ports).length)
-      encAndOrGraph (encList encUnary) := by fun_prop
-  have hs : ComputableInPolyTime (fun g : AndOrGraph =>
-      (List.range (g.vertices.flatMap Vertex.ports).length).all
-        (fun e => if e < g.edgeCount then checkEdge (g.vertices.flatMap Vertex.ports) e else true))
-      encAndOrGraph encBool :=
-    ComputableInPolyTime.allWithEncoding computableInPolyTime_index (by fun_prop) hrange
-  have hw : ComputableInPolyTime (fun g : AndOrGraph => g.edgeCount)
-      encAndOrGraph encNat := by fun_prop
-  have hc : ComputableInPolyTime (fun g : AndOrGraph =>
-      decide (g.edgeCount ≤ (g.vertices.flatMap Vertex.ports).length))
-      encAndOrGraph encBool := by fun_prop
+  have hn' := ComputableInPolyTime.unary_to_binary.comp hn
   unfold checkIncidences
-  exact ComputableInPolyTime.bool_and' hc hs
+  exact ComputableInPolyTime.bool_and' (by fun_prop)
+    (ComputableInPolyTime.allWithEncoding computableInPolyTime_index (by fun_prop) (by fun_prop))
 
 /-- Every structural condition defining a valid AND/OR graph is polynomial-time decidable. -/
 @[fun_prop]

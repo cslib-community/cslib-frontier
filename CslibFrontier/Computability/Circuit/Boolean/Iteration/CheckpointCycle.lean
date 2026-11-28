@@ -64,35 +64,26 @@ private theorem exists_markerPayload (f : BitString n → BitString n)
   let src := s ∪ (Set.range (fun j x => decide (repKey j = rep x)) ∪
     Set.range (fun j x => decide (blockKey j = BitString.equivBitVec.symm (address x))))
   have hm : Synthesis interpretation src (Set.range marked) (Fintype.card ↥rows) := by
-    have h := Synthesis.family (I := interpretation) (s := src) marked (fun _ => 1) fun j =>
+    simpa using Synthesis.family (I := interpretation) (s := src) marked (fun _ => 1) fun j =>
       (Synthesis.of_mem (Or.inr (Or.inl ⟨j, rfl⟩))).and
         (Synthesis.of_mem (Or.inr (Or.inr ⟨j, rfl⟩)))
-    simpa using h
   have hv := synthesis_tablePayload (src ∪ Set.range marked) marked (fun j => Or.inr ⟨j, rfl⟩)
     stored
   refine ⟨value, ((hr'.union hb').trans (hm.trans hv)).mono
     Set.Subset.rfl Set.Subset.rfl ?_, ?_⟩
-  · simp only [Fintype.card_coe]
-    lia
+  · simp only [Fintype.card_coe]; omega
   · intro x z j hrow hrep haddr
     have match_iff (i) : marked i x = true ↔ row i = (z, j) := by
       have hbit : blockKey i = BitString.equivBitVec.symm (address x) ↔ (row i).2 = j := by
-        change BitString.equivBitVec.symm (BitVec.ofNat n (row i).2) =
-          BitString.equivBitVec.symm (address x) ↔ _
-        rw [BitString.equivBitVec.symm.apply_eq_iff_eq, ← BitVec.toNat_inj,
-          BitVec.toNat_ofNat, Nat.mod_eq_of_lt (hrows _ (e.symm i).property), haddr]
-      simp only [marked, Bool.and_eq_true, decide_eq_true_eq, hbit, hrep, repKey,
-        Prod.ext_iff]
+        rw [BitString.equivBitVec.symm.apply_eq_iff_eq, ← BitVec.toNat_inj, BitVec.toNat_ofNat,
+          Nat.mod_eq_of_lt (hrows _ (e.symm i).property), haddr]
+      simp only [marked, Bool.and_eq_true, decide_eq_true_eq, hbit, hrep, repKey, Prod.ext_iff]
     funext bit
-    apply Bool.eq_iff_iff.mpr
+    have hi : row (e ⟨(z, j), hrow⟩) = (z, j) := congrArg Subtype.val (e.symm_apply_apply _)
+    refine Bool.eq_iff_iff.mpr ?_
     simp only [value, decide_eq_true_eq, match_iff]
-    constructor
-    · rintro ⟨i, hi, hb⟩
-      simpa [stored, hi] using hb
-    · intro hb
-      let i := e ⟨(z, j), hrow⟩
-      have hi : row i = (z, j) := congrArg Subtype.val (e.symm_apply_apply _)
-      exact ⟨i, hi, by simpa [stored, hi] using hb⟩
+    exact ⟨fun ⟨i, hi, hb⟩ => by simpa [stored, hi] using hb,
+      fun hb => ⟨_, hi, by simpa [stored, hi] using hb⟩⟩
 
 /-- Select a cycle marker by its representative and the high bits of the phase, then advance
 by the value of the low `b` bits. -/
@@ -134,12 +125,10 @@ private theorem exists_cycleBlockQuery (c : Circuit signature n n)
   have ha' : (address x).toNat = p / 2 ^ b := by
     simp only [address, BitVec.toNat_setWidth, BitVec.toNat_ushiftRight,
       Nat.shiftRight_eq_div_pow, p, Nat.mod_eq_of_lt hfit]
-  have hstart' := hstart x (canonicalCycle f h) (p / 2 ^ b) (hcover h hh p hp) hrep ha'
-  change selectBits (low x) (fun j : Fin (2 ^ b) => f^[j.val] (start x)) = f^[p] (rep x)
-  rw [selectBits_of_toNat_lt _ _ (low x).isLt, hstart', ← hrep, ← iterate_add_apply]
-  change f^[(low x).toNat + p / 2 ^ b * 2 ^ b] (rep x) = f^[p] (rep x)
-  rw [show (low x).toNat = p % 2 ^ b from BitVec.toNat_setWidth _ _, Nat.mul_comm,
-    Nat.mod_add_div]
+  have hlo' : (low x).toNat = p % 2 ^ b := BitVec.toNat_setWidth _ _
+  simp only [selectBits_of_toNat_lt _ _ (low x).isLt,
+    hstart x (canonicalCycle f h) (p / 2 ^ b) (hcover h hh p hp) hrep ha', ← hrep,
+    ← iterate_add_apply, hlo', Nat.mul_comm (p / 2 ^ b), Nat.mod_add_div, f, p]
 
 private theorem cycleQueryBudget_le (n w D g L : ℕ) (hL : 0 < L) (hLN : L ≤ 2 ^ n) :
     let b := Nat.log 2 L
@@ -149,13 +138,12 @@ private theorem cycleQueryBudget_le (n w D g L : ℕ) (hL : 0 < L) (hLN : L ≤ 
       (w * (22 * (n + 3) + 3) + (100 * (n + 3 + 1) +
         (5 * (D + 2 ^ n / 2 ^ b) + 24 * h + 2 ^ b * g + n * (2 ^ b * (2 * b + 3) + 1)))) ≤
       2000 * (D + 2 ^ n / L + h + L * (g + (n + 1) ^ 2) + (n + 1) * (w + 1)) := by
-  dsimp only
-  let b := Nat.log 2 L
+  intro b h h'
   have hB : 2 ^ b ≤ L := Nat.pow_log_le_self _ hL.ne'
   have hbn : b ≤ n := (Nat.pow_le_pow_iff_right (by decide : 1 < 2)).mp (hB.trans hLN)
   have hBL : L ≤ 2 * 2 ^ b := by
     simpa only [b, pow_succ, Nat.mul_comm] using (Nat.lt_pow_succ_log_self (by decide : 1 < 2) L).le
-  have hhalf : 2 ^ ((n + 3 + 1) / 2) ≤ 4 * 2 ^ ((n + 1) / 2) := calc
+  have hhalf : h' ≤ 4 * h := calc
     _ ≤ 2 ^ ((n + 1) / 2 + 2) := Nat.pow_le_pow_right (by decide) (by lia)
     _ = _ := by rw [pow_add]; ring
   have htable : 2 ^ n / 2 ^ b < 2 * (2 ^ n / L + 1) := by
@@ -166,7 +154,6 @@ private theorem cycleQueryBudget_le (n w D g L : ℕ) (hL : 0 < L) (hLN : L ≤ 
       _ = _ := by ring
   have hsel : n * (2 ^ b * (2 * b + 3) + 1) ≤ n * (L * (2 * n + 3) + 1) := by gcongr
   have hstep := Nat.mul_le_mul_right g hB
-  dsimp only [b] at hsel hstep htable
   grw [hhalf, htable.le, hsel, hstep]
   ring_nf
   lia
@@ -201,8 +188,8 @@ theorem exists_checkpointCyclePower {n : ℕ} (c : Circuit signature n n)
       wordWires (fun x => BitString.equivBitVec (field x)) ⊆ s₁ := by
     rintro _ ⟨i, rfl⟩
     simpa only [BitString.getLsbD_equivBitVec] using hf ⟨i, rfl⟩
-  have hphi : wordWires phi ⊆ s₁ := hword phaseBits fun _ hi =>
-    Or.inr (Or.inl (Or.inl (Or.inr hi)))
+  have hphi : wordWires phi ⊆ s₁ :=
+    hword phaseBits fun _ hi => Or.inr (Or.inl (Or.inl (Or.inr hi)))
   have hell : wordWires ell ⊆ s₁ := hword lengthBits fun _ hi => Or.inr (Or.inl (Or.inr hi))
   have hrep : wires rep ⊆ s₁ := fun _ hi => Or.inr (Or.inl (Or.inl (Or.inl hi)))
   have hz : (fun _ => false) ∈ s₁ := Or.inr (Or.inr rfl)
@@ -225,29 +212,22 @@ theorem exists_checkpointCyclePower {n : ℕ} (c : Circuit signature n n)
   have htime : time x = BitString.equivBitVec.symm u := funext fun i => Fin.append_right _ _ i
   have hvalid : key x ∈ H := hkey ▸ hh
   have hl' : (ell x).toNat = cycleLength f h := by
-    change (BitString.equivBitVec (lengthBits x)).toNat = _
-    rw [hl_spec x hvalid, hkey, Equiv.apply_symm_apply, toNat_ofNat_cycleLength]
+    simp only [ell, hl_spec x hvalid, hkey, Equiv.apply_symm_apply, toNat_ofNat_cycleLength]
   have hp' : (phi x).toNat = phase f h := by
-    change (BitString.equivBitVec (phaseBits x)).toNat = _
-    rw [hp_spec x hvalid, hkey, Equiv.apply_symm_apply, toNat_ofNat_phase]
+    simp only [phi, hp_spec x hvalid, hkey, Equiv.apply_symm_apply, toNat_ofNat_phase]
   have hr' := (hr_spec x hvalid).trans (congrArg (canonicalCycle f) hkey)
   have hroom : 2 * (ell x).toNat ≤ 2 ^ (n + 3) := by
-    rw [hl', pow_add]
     have := cycleLength_le_two_pow f h
-    lia
+    rw [hl', pow_add]; omega
   have hrem' : (rem x).toNat = u.toNat % cycleLength f h := by
-    have hremnat := toNat_streamRemainder (ell x) (time x) (hl' ▸ cycleLength_pos f h) hroom
-    change (rem x).toNat = (BitString.equivBitVec (time x)).toNat % (ell x).toNat at hremnat
-    simpa only [htime, Equiv.apply_symm_apply, hl'] using hremnat
+    simpa only [rem, htime, Equiv.apply_symm_apply, hl'] using
+      toNat_streamRemainder (ell x) (time x) (hl' ▸ cycleLength_pos f h) hroom
   have ht : (target x).toNat = (phase f h + u.toNat) % cycleLength f h := by
-    unfold target
     rw [toNat_addResidue _ _ _ (by simpa only [hp', hl'] using phase_lt f h)
       (by simpa only [hrem', hl'] using Nat.mod_lt u.toNat (cycleLength_pos f h)),
       hp', hrem', hl', Nat.add_mod_mod]
-  change d.eval interpretation x = _
-  rw [hd x]
-  change out x = _
-  rw [hout_spec x h hh hr' (ht ▸ Nat.mod_lt _ (cycleLength_pos f h)), hr', ht]
-  exact (iterate_eq_iterate_phase f h hcyc).symm
+  exact (hd x).trans <| by
+    simpa only [hout_spec x h hh hr' (ht ▸ Nat.mod_lt _ (cycleLength_pos f h)), hr', ht] using
+      (iterate_eq_iterate_phase f h hcyc).symm
 
 end Cslib.Circuits.Boolean.Iteration

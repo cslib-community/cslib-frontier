@@ -231,10 +231,9 @@ private theorem poly_recordAt :
     ComputableInPolyTime (fun p : CSP Table ℕ × ℕ => recordAt p.1 p.2)
       (encPair (encCSP encTable encNat) encUnary) encRecord := by
   unfold recordAt
-  exact (ComputableInPolyTime.listGetD_binary (0, 0, 0)
-    (poly_records.comp (ComputableInPolyTime.fst (encCSP encTable encNat) encUnary))
-    (ComputableInPolyTime.unary_to_binary.comp
-      (ComputableInPolyTime.snd (encCSP encTable encNat) encUnary)))
+  exact ComputableInPolyTime.listGetD_binary (0, 0, 0)
+    (poly_records.comp (by fun_prop))
+    (ComputableInPolyTime.unary_to_binary.comp (by fun_prop))
 
 attribute [local fun_prop] poly_findStart poly_flipped poly_recordAt
 
@@ -242,10 +241,8 @@ private theorem poly_finish :
     ComputableInPolyTime (fun p : Input × WalkCode => finish p.1 p.2)
       (encPair encInput encWalkCodeWork) encNat := by
   unfold finish
-  apply ComputableInPolyTime.optionElimWithInput (encB := encPair encUnary encUnary)
-  · fun_prop
-  · fun_prop
-  · fun_prop
+  exact ComputableInPolyTime.optionElimWithInput (encB := encPair encUnary encUnary)
+    (by fun_prop) (by fun_prop) (by fun_prop)
 
 attribute [local fun_prop] poly_finish
 
@@ -459,24 +456,13 @@ private theorem repair_iter (input : Input) (n : ℕ) (g : List Bool) (k : ℕ)
   | zero => simp [EdgeInstance.repair]
   | succ n ih =>
     rw [Function.iterate_succ_apply]
-    have hstep : repairStep input (g, k) =
-        ((EdgeInstance.findPair input.body (EdgeInstance.RepairMove Table.sem
-          (labeling input.body input.labels) (labeling input.body g))).map
-          (fun (a : Occurrence input.body × Occurrence input.body) =>
-            (a.1.record, a.2.record))).elim (g, k) fun a =>
-            (flip g [(CSP.occurrences input.body).idxOf a.1,
-              (CSP.occurrences input.body).idxOf a.2], k + 1) := by
-      simp only [repairStep, repairPair_eq _ _ _ hg]
-    rw [hstep]
+    simp only [repairStep, repairPair_eq _ _ _ hg]
     cases hs : EdgeInstance.findPair input.body (EdgeInstance.RepairMove Table.sem
         (labeling input.body input.labels) (labeling input.body g)) with
     | none =>
-      have hfixed : ∀ n, (repairStep input)^[n] (g, k) = (g, k) := by
-        intro n
-        apply Function.iterate_fixed
+      have hfixed : repairStep input (g, k) = (g, k) := by
         simp [repairStep, repairPair_eq _ _ _ hg, hs]
-      simp only [Option.map_none, Option.elim_none, hfixed, EdgeInstance.repair, hs,
-        Nat.add_zero, and_self]
+      simp [Function.iterate_fixed hfixed, EdgeInstance.repair, hs]
     | some a =>
       rcases a with ⟨o, p⟩
       have hl := labeling_flip g [o, p] hg
@@ -563,30 +549,20 @@ private theorem buildWalk_iter (input : Input) (g : List Bool) (n : ℕ)
   | zero => rfl
   | succ n ih =>
     rw [Function.iterate_succ_apply]
-    have hstep : walkStep input g (code w, false) =
-        ((EdgeInstance.findPair input.body (EdgeInstance.WalkMove Table.sem
-          (labeling input.body g) (w.flip (labeling input.body input.labels)) w.finish)).map
-          (fun a => (a.1.record, a.2.record))).elim (code w, false) fun a =>
-            (⟨(code w).start, (code w).steps ++ [((CSP.occurrences input.body).idxOf a.1,
-              (CSP.occurrences input.body).idxOf a.2)]⟩,
-              inconsistent input.body input.labels a.2.2.2) := by
-      simp only [walkStep, Bool.false_eq_true, ite_false, walkPair_eq _ _ _ hlen]
-    rw [hstep]
+    simp only [walkStep, Bool.false_eq_true, ite_false, walkPair_eq _ _ _ hlen]
     cases hs : EdgeInstance.findPair input.body (EdgeInstance.WalkMove Table.sem
         (labeling input.body g) (w.flip (labeling input.body input.labels)) w.finish) with
     | none =>
-      have hfixed : (walkStep input g) (code w, false) = (code w, false) := by
+      have hfixed : walkStep input g (code w, false) = (code w, false) := by
         simp [walkStep, walkPair_eq _ _ _ hlen, hs]
-      simp only [Option.map_none, Option.elim_none, Function.iterate_fixed hfixed]
-      simp [EdgeInstance.buildWalk, hs]
+      simp [Function.iterate_fixed hfixed, EdgeInstance.buildWalk, hs]
     | some a =>
       rcases a with ⟨o, p⟩
       have he : (⟨(code w).start, (code w).steps ++
           [(occurrenceIndex o, occurrenceIndex p)]⟩ : WalkCode) = code (w.snoc o p) := by
         simp [code, Walk.snoc, List.map_append]
       simp only [Option.map_some, Option.elim_some, record_index, he, inconsistent_eq]
-      have hvar : p.record.2.2 = p.var := rfl
-      rw [hvar]
+      rw [show p.record.2.2 = p.var from rfl]
       by_cases hp : Inconsistent (labeling input.body input.labels) p.var
       · simp [hp, walkStep_stopped, EdgeInstance.buildWalk, hs]
       · simpa only [hp, decide_false, EdgeInstance.buildWalk, hs, ite_false] using
@@ -654,17 +630,13 @@ theorem run_spec (input : Input)
   obtain ⟨w, hw, ha, hx, hb⟩ := hedge.augmentingWalk_spec heven hf hg hlt input.excluded
   refine ⟨w, ?_, decode_code w, ha, hx, ?_⟩
   · rw [run_eq input hfwidth hgwidth, hw, Option.map_some]
-  · have hk := (repair_iter input (distance input.labels input.comparison)
-        input.comparison 0 hgwidth).2
-    simp only [Nat.zero_add, distance_eq _ _ hfwidth hgwidth] at hk
-    change 2 * ((repair input).2 + w.steps.length) ≤ _
-    have hk' : (repair input).2 =
+  · have hk : (repair input).2 =
         (EdgeInstance.repair Table.sem (labeling input.body input.labels)
           (hammingDist (labeling input.body input.labels) (labeling input.body input.comparison))
           (labeling input.body input.comparison)).2 := by
-      simpa only [repair, distance_eq _ _ hfwidth hgwidth] using hk
-    rw [hk']
-    exact hb
+      simpa only [repair, Nat.zero_add, distance_eq _ _ hfwidth hgwidth] using
+        (repair_iter input (distance input.labels input.comparison) input.comparison 0 hgwidth).2
+    simpa only [hk] using hb
 
 /-- Repair flips bits without changing the comparison buffer's width, on every input. -/
 theorem length_repair (input : Input) : (repair input).1.length = input.comparison.length :=
@@ -697,16 +669,12 @@ theorem run_steps_length_le (input : Input) {w : WalkCode} (hw : run input = som
       unfold buildWalk at hw
       dsimp only at hw
       split at hw
-      · have he := Option.some.inj hw
-        rw [← he]
+      · obtain rfl := Option.some.inj hw
         have hb := walk_length input (repair input).1
           (distance input.labels (repair input).1) (⟨o.2.2, []⟩, false)
         have hc : distance input.labels (repair input).1 ≤ input.labels.length :=
           List.countP_le_length.trans (by simp)
-        have hb' : ((walkStep input (repair input).1)^[distance input.labels (repair input).1]
-            ((⟨o.2.2, []⟩ : WalkCode), false)).1.steps.length ≤
-              distance input.labels (repair input).1 := by simpa using hb
-        exact hb'.trans hc
+        exact (by simpa using hb : _ ≤ distance input.labels (repair input).1).trans hc
       · cases hw
   · cases hw
 

@@ -117,12 +117,10 @@ theorem uniformWitness_toOuterMeasure_some {W : Finset (List Bool)} (h : W.Nonem
   classical
   rw [uniformWitness_of_nonempty h, PMF.toOuterMeasure_map_apply,
     Set.preimage_image_eq _ (Option.some_injective _), PMF.toOuterMeasure_apply,
-    tsum_eq_sum (s := W) (fun w hw => by simp [Set.indicator, hw])]
-  have hsum : ∑ w ∈ W, E.indicator (PMF.uniformOfFinset W h) w =
-      ∑ w ∈ W.filter (· ∈ E), ((W.card : ENNReal)⁻¹) := by
-    rw [Finset.sum_filter]
-    exact Finset.sum_congr rfl fun w hw => by simp [Set.indicator, hw]
-  rw [hsum, Finset.sum_const, nsmul_eq_mul, ENNReal.toReal_mul, ENNReal.toReal_inv]
+    tsum_eq_sum (s := W) (fun w hw => by simp [Set.indicator, hw]),
+    Finset.sum_congr (g := fun w => if w ∈ E then ((W.card : ENNReal)⁻¹) else 0) rfl
+      (fun w hw => by simp [Set.indicator, hw]),
+    ← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul, ENNReal.toReal_mul, ENNReal.toReal_inv]
   simp [div_eq_mul_inv]
 
 open Cslib.Probability
@@ -150,15 +148,11 @@ theorem closeTo_uniformWitness_of_le {μ : PMF (Option (List Bool))} {W : Finset
     rw [hμ, hW, uniformWitness_empty]
     exact (CloseTo.refl _).mono zero_le
   · refine CloseTo.of_le_apply hε fun o => ?_
-    rw [uniformWitness_of_nonempty hW]
     cases o with
-    | none =>
-      have : (PMF.uniformOfFinset W hW).map some none = 0 := by
-        simp [PMF.map_apply]
-      rw [this, mul_zero]
-      exact zero_le
+    | none => simp [uniformWitness_none hW]
     | some v =>
-      rw [Probability.PMF.map_apply_of_injective _ (Option.some_injective _)]
+      rw [uniformWitness_of_nonempty hW,
+        Probability.PMF.map_apply_of_injective _ (Option.some_injective _)]
       by_cases hv : v ∈ W
       · refine le_trans ?_ (hle v hv)
         simp only [Probability.PMF.uniformOfFinset_apply, hv, ↓reduceIte]

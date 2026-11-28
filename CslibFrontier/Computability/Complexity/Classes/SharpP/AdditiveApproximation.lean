@@ -104,8 +104,7 @@ theorem additiveEstimate_error (R : NPRelation enc) (a : α) {k : ℕ} (hk : 0 <
   let μ := (ProbComp.eval (R.countingTrial a) true).toReal
   let B : ℝ := 2 ^ R.certLength.eval (enc a).length
   have hkR : (0 : ℝ) < k := by exact_mod_cast hk
-  have hm : 0 < m := by dsimp [m]; positivity
-  have hmR : (0 : ℝ) < m := by exact_mod_cast hm
+  have hmR : (0 : ℝ) < m := by dsimp [m]; positivity
   have hB : 0 < B := by dsimp [B]; positivity
   have hμ : μ * B = searchCount R.IsWitness a := by
     dsimp only [μ, B]
@@ -113,7 +112,10 @@ theorem additiveEstimate_error (R : NPRelation enc) (a : α) {k : ℕ} (hk : 0 <
   have hconc := Probability.PMF.pi_sum_abs_sub_mean_ge_card_mul
     (fun _ : Fin m => ProbComp.eval (R.countingTrial a))
     (fun _ bit => (bit.toNat : ℝ))
-    (by intro i bit _; cases bit <;> norm_num) (γ := 1 / k) (by positivity)
+    (by
+      intro _ bit _
+      cases bit <;> norm_num)
+    (γ := 1 / k) (by positivity)
   have hcount : ((ProbComp.eval (OracleComp.countTrue m (R.countingTrial a))).toOuterMeasure
       {s | (m : ℝ) / k ≤ |(s : ℝ) - m * μ|}).toReal ≤
       2 * Real.exp (-2 * m * (1 / (k : ℝ)) ^ 2) := by
@@ -121,33 +123,25 @@ theorem additiveEstimate_error (R : NPRelation enc) (a : α) {k : ℕ} (hk : 0 <
     simpa [μ, Set.preimage_ofPred_eq, Nat.cast_sum, Fintype.sum_bool, div_eq_mul_inv] using hconc
   have hsub : (fun s : ℕ => (s * 2 ^ R.certLength.eval (enc a).length, m)) ⁻¹'
       {out : ℕ × ℕ | B / k < |(out.1 : ℝ) / out.2 - searchCount R.IsWitness a|} ⊆
-      {s | (m : ℝ) / k ≤ |(s : ℝ) - m * μ|} := by
-    intro s hs
+      {s | (m : ℝ) / k ≤ |(s : ℝ) - m * μ|} := fun s hs => by
     change B / k < |((s * 2 ^ R.certLength.eval (enc a).length : ℕ) : ℝ) / m -
       searchCount R.IsWitness a| at hs
     have heq : ((s * 2 ^ R.certLength.eval (enc a).length : ℕ) : ℝ) / m -
         searchCount R.IsWitness a = ((s : ℝ) - m * μ) * B / m := by
       push_cast
       rw [← hμ]
-      field_simp
-      ring
-    rw [heq, abs_div, abs_mul, abs_of_pos hB, abs_of_pos hmR,
-      div_lt_div_iff₀ hkR hmR] at hs
-    change (m : ℝ) / k ≤ |(s : ℝ) - m * μ|
-    apply (div_le_iff₀ hkR).2
-    nlinarith
+      field_simp; ring
+    rw [heq, abs_div, abs_mul, abs_of_pos hB, abs_of_pos hmR, div_lt_div_iff₀ hkR hmR] at hs
+    exact (div_le_iff₀ hkR).2 (by nlinarith)
   rw [additiveEstimate, ProbComp.eval_map, PMF.toOuterMeasure_map_apply]
-  apply (Probability.PMF.toOuterMeasure_toReal_mono _ hsub).trans_lt
-  apply hcount.trans_lt
+  refine (Probability.PMF.toOuterMeasure_toReal_mono _ hsub).trans_lt (hcount.trans_lt ?_)
   have hexp : -2 * (m : ℝ) * (1 / (k : ℝ)) ^ 2 = -((t + 2 : ℕ) : ℝ) - (3 * t + 2) := by
     dsimp [m]
     push_cast
-    field_simp
-    ring
+    field_simp; ring
   have hbound : -2 * (m : ℝ) * (1 / (k : ℝ)) ^ 2 ≤ -((t + 2 : ℕ) : ℝ) := by
     rw [hexp]
-    have : (0 : ℝ) ≤ t := Nat.cast_nonneg t
-    linarith
+    linarith [Nat.cast_nonneg (α := ℝ) t]
   calc 2 * Real.exp (-2 * (m : ℝ) * (1 / (k : ℝ)) ^ 2)
       ≤ 2 * (1 / 2 : ℝ) ^ (t + 2) := by
         gcongr

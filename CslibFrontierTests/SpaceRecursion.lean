@@ -5,6 +5,7 @@ Authors: Christian Reitwiessner
 -/
 
 import CslibFrontier.Computability.Complexity.Classes.Space.Quantitative
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NestedLoop
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.InputBit
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Recursion
@@ -83,7 +84,7 @@ theorem body_inSpace : ComputableInSpace body (encPair encConfig encBits)
   have hconst {β : Type} (encB : β ↪ List Bool) (b : β) :
       ComputableInSpace (fun _ : (Frame × Option Bool) × List Bool => b)
         (encPair encConfig encBits) encB budget :=
-    (ComputableInSpace.constZero b).mono_le fun _ => Nat.zero_le _
+    ComputableInSpace.budget_const b
   have hh := encFrame_height_budget hc.fst'
   have hi := encFrame_index_budget hc.fst'
   have ho := hc.snd'
@@ -227,8 +228,8 @@ theorem tree_inSpace :
     val (fun _ => rank) (fun w c => (c.1.height + 1) * (10 * Nat.log2 w.length + 20))
     (fun w => Reach (Nat.log2 w.length))
     (encFrame_mk_budget hheight
-      ((ComputableInSpace.constZero 0).mono_le fun _ => Nat.zero_le _)
-      ((ComputableInSpace.constZero false).mono_le fun _ => Nat.zero_le _))
+      (ComputableInSpace.budget_const 0)
+      (ComputableInSpace.budget_const false))
     body_inSpace
     (fun w => ⟨by simp, fun _ => rfl, le_rfl, by simp⟩)
     (fun w c saved child hc hb => by
@@ -255,5 +256,19 @@ theorem tree_inSpace :
 example : {w : List Bool | tree w (Nat.log2 w.length) 0 = true} ∈
     Cslib.Complexity.DSPACE encBits fun n => (Nat.log2 n + 1) ^ 2 :=
   Cslib.Complexity.setOf_mem_DSPACE_of_computableInSpace tree_inSpace fun _ => le_rfl
+
+-- The second query at each positive level depends on the first reply. At level two the
+-- outer register moves from 0 to 4, then to 24. Both children run their own two iterations.
+private def dependentQueries : NestedLoop Unit ℕ ℕ ℕ where
+  base _ j := j
+  start _ _ j := j
+  rounds _ _ := 2
+  query _ _ _ r := r
+  update _ _ _ r reply := r + reply + 1
+  finish _ _ _ r := r
+
+example : dependentQueries.run () 2 0 = 24 := by decide
+
+example : dependentQueries.body ((⟨1, 0, 0, 4⟩, some 7), ()) = .inr 12 := rfl
 
 end SpaceRecursionTest

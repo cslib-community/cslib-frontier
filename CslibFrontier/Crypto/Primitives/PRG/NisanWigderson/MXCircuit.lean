@@ -117,12 +117,8 @@ private theorem eval_parityLiterals_natAdd (x : BitString ℓ) (k : Fin m) :
 private theorem eval_parityLiterals (x : BitString ℓ) (b : Bool) (k : Fin m) :
     (parityLiterals S).eval (extInterpretation (modGate 2)) x (parityLiteral b k) =
       decide (parityOn (S k) x = b) := by
-  cases b
-  · change (parityLiterals S).eval _ x (Fin.natAdd m k) = _
-    rw [eval_parityLiterals_natAdd]
-    cases parityOn (S k) x <;> rfl
-  · change (parityLiterals S).eval _ x (Fin.castAdd m k) = _
-    rw [eval_parityLiterals_castAdd]
+  cases b <;> simp only [parityLiteral, ↓reduceIte, Bool.false_eq_true,
+    eval_parityLiterals_natAdd, eval_parityLiterals_castAdd] <;>
     cases parityOn (S k) x <;> rfl
 
 private theorem size_parityLiterals : (parityLiterals S).size = m + m := by
@@ -233,9 +229,8 @@ private theorem eval_mxInput_mxLiteral (i : BitString ℓ)
     (mxInput n ℓ).eval (extInterpretation (modGate 2)) (Fin.append i z) (mxLiteral n b j c) =
       decide (parityOn (expSet n ℓ j c) i = b) := by
   simp only [circuit_simps, mxInput, mxLiteral]
-  have : Fin.append i z ∘ Fin.castAdd (n * 2 ^ binaryFieldDegree n) = i :=
-    funext fun t => Fin.append_left _ _ t
-  rw [this, eval_parityLiterals, Equiv.symm_apply_apply]
+  rw [show Fin.append i z ∘ Fin.castAdd _ = i from funext (Fin.append_left i z),
+    eval_parityLiterals, Equiv.symm_apply_apply]
 
 private theorem eval_mxInput_natAdd (i : BitString ℓ)
     (z : Fin (n * 2 ^ binaryFieldDegree n) → Bool) (p : Fin (n * 2 ^ binaryFieldDegree n)) :

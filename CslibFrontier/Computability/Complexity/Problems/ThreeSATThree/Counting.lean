@@ -65,28 +65,19 @@ theorem SharpThreeSAT.mem_ThreeSAT_iff {φ : CNF ℕ} :
 /-- Membership in `ThreeSATThree` is equivalent to a positive guarded model count. -/
 theorem SharpThreeSATThree.mem_ThreeSATThree_iff {φ : CNF ℕ} :
     φ ∈ ThreeSATThree ↔ 0 < SharpThreeSATThree φ := by
-  by_cases hg : ThreeSATThree.syntaxCheck φ = true
-  · obtain ⟨hw, hv⟩ := (ThreeSATThree.syntaxCheck_iff φ).mp hg
-    simp only [ThreeSATThree, Set.mem_ofPred_eq, SharpThreeSATThree, hg, ↓reduceIte,
-      SharpSAT, CNF.modelCount_pos_iff]
-    exact ⟨fun h => h.2.2, fun hs => ⟨hw, hv, hs⟩⟩
-  · simp only [ThreeSATThree, Set.mem_ofPred_eq, SharpThreeSATThree, hg, Bool.false_eq_true,
-      ite_false, Nat.lt_irrefl, iff_false]
-    rintro ⟨hw, hv, _⟩
-    exact hg ((ThreeSATThree.syntaxCheck_iff φ).mpr ⟨hw, hv⟩)
+  rw [ThreeSATThree, Set.mem_ofPred_eq, ← and_assoc, ← ThreeSATThree.syntaxCheck_iff,
+    SharpThreeSATThree]
+  split_ifs with hg <;> simp [hg, SharpSAT, CNF.modelCount_pos_iff]
 
 /-- The total occurrence compiler preserves the count, including rejected inputs. -/
 theorem sharpThreeSATThree_toThreeSATThree (φ : CNF ℕ) :
     SharpThreeSATThree (toThreeSATThree φ) = SharpThreeSAT φ := by
   have hout := (ThreeSATThree.syntaxCheck_iff (toThreeSATThree φ)).2
     ⟨width_toThreeSATThree φ, count_vars_toThreeSATThree_le φ⟩
-  simp only [SharpThreeSATThree, hout, ↓reduceIte, SharpSAT]
-  by_cases hw : φ.all (fun c => decide (c.length ≤ 3)) = true
-  · have hwidth : ∀ c ∈ φ, c.length ≤ 3 := by
-      simpa only [List.all_eq_true, decide_eq_true_eq] using hw
-    rw [modelCount_toThreeSATThree φ hwidth]
-    simp only [SharpThreeSAT, hw, ↓reduceIte, SharpSAT]
-  · simp only [SharpThreeSAT, toThreeSATThree, hw, Bool.false_eq_true, ite_false]
+  simp only [SharpThreeSATThree, SharpThreeSAT, hout, ↓reduceIte, SharpSAT]
+  split_ifs with hw
+  · exact modelCount_toThreeSATThree φ (by simpa [List.all_eq_true] using hw)
+  · simp only [toThreeSATThree, hw, Bool.false_eq_true, ↓reduceIte]
     decide
 
 /-- The already-certified polynomial-time 3SAT-to-3SAT-3 compiler is parsimonious. -/

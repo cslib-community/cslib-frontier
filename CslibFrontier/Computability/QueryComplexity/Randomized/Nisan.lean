@@ -96,8 +96,7 @@ private theorem one_le_err_add_err {t : DecisionTree (Fin n) Bool} {x : BitStrin
   rw [heval]
   by_cases h : t.eval x = f x
   · simp [h, Ne.symm hB]
-  · simp only [h, ↓reduceIte]
-    split_ifs <;> norm_num
+  · split_ifs <;> norm_num
 
 end QueryComplexity
 
@@ -143,10 +142,9 @@ theorem Computes.exists_one_sub_two_mul_mul_blockSensitivity_le_cost (h : μ.Com
         (mem_filter.1 hB).2).trans ?_
       exact sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun B _ _ =>
         add_nonneg (he t x) (he t _)
-    have hsplit := card_filter_add_card_filter_not (s := F) fun B => Disjoint B Q
-    have : (#F : ℝ) = #(F.filter fun B => Disjoint B Q) + #(F.filter fun B => ¬Disjoint B Q) := by
-      rw [← Nat.cast_add, hsplit]
-    rw [this]
+    have hsplit : (#F : ℝ) = #(F.filter fun B => Disjoint B Q) +
+        #(F.filter fun B => ¬Disjoint B Q) := by
+      exact_mod_cast (card_filter_add_card_filter_not (s := F) fun B => Disjoint B Q).symm
     have hhit' : (#(F.filter fun B => ¬Disjoint B Q) : ℝ) ≤ t.cost x := by exact_mod_cast hhit
     linarith
   -- average over the tree drawn from `μ`
@@ -158,12 +156,9 @@ theorem Computes.exists_one_sub_two_mul_mul_blockSensitivity_le_cost (h : μ.Com
       μ.weights t * (t.cost x + ∑ B ∈ F, (e t x + e t (flipBlock B x))) =
       ∑ t ∈ μ.weights.support, μ.weights t * t.cost x +
         ∑ B ∈ F, (μ.errorProb f x + μ.errorProb f (flipBlock B x)) := by
-    rw [Finset.sum_congr rfl fun t _ => mul_add _ _ _, Finset.sum_add_distrib]
-    congr 1
-    simp only [Finset.mul_sum]
-    rw [Finset.sum_comm]
-    refine Finset.sum_congr rfl fun B _ => ?_
-    simp only [mul_add, Finset.sum_add_distrib, errorProb_eq_sum, Finsupp.sum, e]
+    simp only [mul_add, Finset.mul_sum]
+    rw [Finset.sum_add_distrib, Finset.sum_comm]
+    simp only [Finset.sum_add_distrib, errorProb_eq_sum, Finsupp.sum, e]
   have herr : ∑ B ∈ F, (μ.errorProb f x + μ.errorProb f (flipBlock B x)) ≤ 2 * ε * #F := by
     refine (sum_le_sum fun B _ => add_le_add (h x) (h (flipBlock B x))).trans_eq ?_
     rw [sum_const, nsmul_eq_mul]
@@ -202,12 +197,10 @@ theorem Computes.exists_div_two_add_one_le_three_mul_cost_majority (hn : 1 ≤ n
     (h : μ.Computes (1 / 3) (majority n)) :
     ∃ x, ∃ t ∈ μ.weights.support, n / 2 + 1 ≤ 3 * t.cost x := by
   obtain ⟨x, t, ht, hle⟩ := h.exists_one_sub_two_mul_mul_blockSensitivity_le_cost
-  have hbs : n / 2 + 1 ≤ blockSensitivity (majority n) :=
-    (BitString.sensitivity_majority hn).symm.trans_le (sensitivity_le_blockSensitivity _)
-  have hbs' : ((n / 2 + 1 : ℕ) : ℝ) ≤ blockSensitivity (majority n) := by exact_mod_cast hbs
-  refine ⟨x, t, ht, ?_⟩
-  have : ((n / 2 + 1 : ℕ) : ℝ) ≤ 3 * (t.cost x : ℝ) := by linarith
-  exact_mod_cast this
+  have hbs : ((n / 2 + 1 : ℕ) : ℝ) ≤ blockSensitivity (majority n) := by
+    exact_mod_cast (BitString.sensitivity_majority hn).symm.trans_le
+      (sensitivity_le_blockSensitivity _)
+  exact ⟨x, t, ht, by exact_mod_cast (by linarith : ((n / 2 + 1 : ℕ) : ℝ) ≤ 3 * (t.cost x : ℝ))⟩
 
 /-- A randomized decision tree computing `f` with error `ε` gives a real function of degree at most
 its depth within `ε` of `f`: the probability that the tree drawn outputs `1`. -/
@@ -255,8 +248,7 @@ theorem blockSensitivity_le_three_mul_randomizedComplexity (f : BooleanFunction 
   have := one_sub_two_mul_mul_blockSensitivity_le_randomizedComplexity
     (ε := 1 / 3) f
   norm_num only [NNReal.coe_div, NNReal.coe_one, NNReal.coe_ofNat] at this
-  have h : (blockSensitivity f : ℝ) ≤ 3 * randomizedComplexity (1 / 3) f := by linarith
-  exact_mod_cast h
+  exact_mod_cast (by linarith : (blockSensitivity f : ℝ) ≤ 3 * randomizedComplexity (1 / 3) f)
 
 /-- Deciding majority with error `1/3` has randomized query complexity at least `(⌊n/2⌋ + 1) / 3`,
 for `n ≥ 1`: the complexity form of
@@ -304,8 +296,7 @@ theorem complexity_le_mul_randomizedComplexity_pow_three (f : BooleanFunction n)
     complexity f ≤ 27 * randomizedComplexity (1 / 3) f ^ 3 := by
   have := one_sub_two_mul_pow_three_mul_complexity_le (ε := 1 / 3) f
   norm_num only [NNReal.coe_div, NNReal.coe_one, NNReal.coe_ofNat] at this
-  have h : (complexity f : ℝ) ≤ 27 * (randomizedComplexity (1 / 3) f : ℝ) ^ 3 := by linarith
-  exact_mod_cast h
+  exact_mod_cast (by linarith : (complexity f : ℝ) ≤ 27 * (randomizedComplexity (1 / 3) f : ℝ) ^ 3)
 
 end DecisionTree
 

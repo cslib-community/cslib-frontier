@@ -31,15 +31,11 @@ theorem idxOf_map_injOn (l : List V) (f : V → W)
     (hf : Set.InjOn f {v | v ∈ l}) {v : V} (hv : v ∈ l) :
     (l.map f).idxOf (f v) = l.idxOf v := by
   induction l with
-  | nil => exact False.elim (List.not_mem_nil hv)
+  | nil => cases hv
   | cons a l ih =>
-    by_cases h : a = v
-    · subst a
-      simp
-    · have hv' : v ∈ l := List.mem_of_ne_of_mem (Ne.symm h) hv
-      have hfa : f a ≠ f v := fun heq => h (hf (by simp) hv heq)
-      rw [List.map_cons, List.idxOf_cons_ne _ hfa, List.idxOf_cons_ne _ h]
-      exact congrArg Nat.succ (ih
-        (fun _ hx _ hy => hf (List.mem_cons_of_mem a hx) (List.mem_cons_of_mem a hy)) hv')
+    rcases eq_or_ne a v with rfl | h
+    · simp
+    · rw [map_cons, idxOf_cons_ne _ fun heq => h (hf mem_cons_self hv heq), idxOf_cons_ne _ h]
+      exact congrArg (· + 1) (ih (hf.mono fun _ => mem_cons_of_mem a) (mem_of_ne_of_mem h.symm hv))
 
 end List

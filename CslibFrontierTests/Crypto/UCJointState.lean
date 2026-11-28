@@ -486,4 +486,52 @@ theorem backdoor_creation_witness :
   · rw [← exec_compose_toJoint_multiSession]
     exact hInd
 
+/-! ### End-to-end joint-state composition -/
+
+/-- Non-vacuous reverse joint-state corollary on `orOuter`, `faultyRelay`, and `idealRelay`:
+two sessions of `faultyRelay` emulate `orOuter.toJoint` composed with
+`idealRelay.multiSession (Fin 2)`. -/
+theorem orOuter_faultyRelay_emulates_toJoint :
+    Emulates (composeMulti orOuter faultyRelay)
+      (compose orOuter.toJoint (idealRelay.multiSession (Fin 2)).toProtocol) :=
+  Realizes.composeMulti_toJoint orOuter_polyBounded faultyRelay_polyBounded
+    idealRelay_polyBounded faultyRelay_realizes
+
+/-- At `κ = 0`, for the fixed dummy adversary and the fixed simulator
+`jointMux (multiHybridSim fun _ => dummyAdversary 2 _ _)`, the distinguishing advantage between
+the two worlds of `orOuter_faultyRelay_emulates_toJoint` is `3 / 4`. This shows the two worlds
+differ (the error is not identically zero); it does not refute `Emulates` (the flip probability is
+`1 / 2 ^ (κ + 1)`, so the error is negligible in `κ`). -/
+theorem orOuter_faultyRelay_toJoint_advantage_zero :
+    advantage (composeMulti orOuter faultyRelay)
+      (compose orOuter.toJoint (idealRelay.multiSession (Fin 2)).toProtocol)
+      (dummyAdversary 2 _ _) (jointMux (multiHybridSim fun _ => dummyAdversary 2 _ _))
+      ∅ (zOr 0) 0 [] = 3 / 4 := by
+  simp only [advantage, Game.advantage]
+  rw [← exec_composeMulti_toJoint]
+  exact (composeMulti_orOuter_nonvacuity ∅ 0 (by simp)).1
+
+/-- Signature check for `Realizes.compose_toJoint` with identity `ρHat` via `Emulates.refl`
+(not a non-trivial security witness). -/
+example :
+    Emulates (compose orOuter.toJoint (idealRelay.multiSession (Fin 2)).toProtocol)
+      (composeMulti orOuter idealRelay.toProtocol) :=
+  Realizes.compose_toJoint orOuter_polyBounded (Emulates.refl _)
+
+/-- Signature check for `Realizes.compose_toJoint_trans` on `orOuter` and `idealRelay` with a
+hypothetical outer realization `hρG` (not a security witness). -/
+example {GQ GR : Type} (G : IdealFunctionality 2 Bool Bool GQ GR)
+    (hρG : Realizes (composeMulti orOuter idealRelay.toProtocol) G) :
+    Realizes (compose orOuter.toJoint (idealRelay.multiSession (Fin 2)).toProtocol) G :=
+  Realizes.compose_toJoint_trans orOuter_polyBounded (Emulates.refl _) hρG
+
+/-- Signature check for `RealizesWithin.compose_toJoint` with identity `ρHat` via
+`EmulatesWithin.refl`, confirming the explicit overhead polynomial (not a security witness). -/
+example :
+    EmulatesWithin (compose orOuter.toJoint (idealRelay.multiSession (Fin 2)).toProtocol)
+      (composeMulti orOuter idealRelay.toProtocol)
+      (Polynomial.X + compSimPoly (Polynomial.X.comp (Polynomial.X + 1) + 1))
+      (fun _ _ _ => 0) :=
+  RealizesWithin.compose_toJoint orOuter_polyBounded (EmulatesWithin.refl _)
+
 end CslibFrontierTests.Crypto.UCJointState

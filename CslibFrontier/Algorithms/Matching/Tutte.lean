@@ -84,7 +84,6 @@ def tutteEval (r : Sym2 V → R) : Matrix V V R := fun i j =>
 /-- An entry of the Tutte matrix at values. -/
 theorem tutteEval_apply (r : Sym2 V → R) (i j : V) :
     tutteEval G r i j = if G.Adj i j then (if i < j then r s(i, j) else -r s(i, j)) else 0 := by
-  unfold tutteEval
   rfl
 
 /-- The **Tutte matrix** of a simple graph `G`: `X s(i, j)` at each edge with `i < j`,
@@ -97,8 +96,7 @@ theorem transpose_tutteEval (r : Sym2 V → R) : (tutteEval G r)ᵀ = -tutteEval
   ext i j
   rw [transpose_apply, Matrix.neg_apply, tutteEval_apply, tutteEval_apply]
   by_cases h : G.Adj j i
-  · have hs : s(j, i) = s(i, j) := Sym2.eq_swap
-    rw [ite_eq_left h, ite_eq_left h.symm, hs]
+  · rw [ite_eq_left h, ite_eq_left h.symm, Sym2.eq_swap]
     rcases lt_trichotomy i j with hij | rfl | hij
     · rw [ite_eq_right (not_lt.2 hij.le), ite_eq_left hij]
     · exact (G.irrefl h).elim
@@ -136,14 +134,10 @@ theorem exists_isPerfectMatching_of_det_tutteEval_ne_zero {r : Sym2 V → R}
     (h : (tutteEval G r).det ≠ 0) : ∃ M : G.Subgraph, M.IsPerfectMatching := by
   rw [det_eq_sum_even_cycleType_of_transpose_eq_neg (transpose_tutteEval G r)] at h
   obtain ⟨σ, hσ, hne⟩ := exists_ne_zero_of_sum_ne_zero h
-  rw [mem_filter] at hσ
-  have hadj : ∀ i, G.Adj i (σ i) := by
-    intro i
-    by_contra hi
-    refine hne ?_
-    rw [prod_eq_zero (mem_univ i) (by rw [tutteEval_apply, ite_eq_right fun h' => hi h'.symm]),
-      smul_zero]
-  exact SimpleGraph.exists_isPerfectMatching_of_perm σ hadj hσ.2
+  refine SimpleGraph.exists_isPerfectMatching_of_perm σ (fun i => by_contra fun hi => hne ?_)
+    (mem_filter.1 hσ).2
+  rw [prod_eq_zero (mem_univ i) (by rw [tutteEval_apply, ite_eq_right fun h' => hi h'.symm]),
+    smul_zero]
 
 /-- **No false positives**: without a perfect matching, the Tutte matrix has determinant `0` at
 all values. -/
@@ -163,43 +157,34 @@ theorem det_tutteMatrix_ne_zero [Nontrivial R] {M : G.Subgraph} (hM : M.IsPerfec
     (tutteMatrix (R := R) G).det ≠ 0 := by
   classical
   have hu := SimpleGraph.Subgraph.isPerfectMatching_iff.1 hM
-  let τ : V → V := fun v => (hu v).choose
-  have hτ : ∀ v w, M.Adj v w ↔ τ v = w := fun v w =>
+  let τ (v : V) : V := (hu v).choose
+  have hτ (v w : V) : M.Adj v w ↔ τ v = w :=
     ⟨fun h => ((hu v).choose_spec.2 w h).symm, fun h => h ▸ (hu v).choose_spec.1⟩
   have hinv : Function.Involutive τ := fun v => (hτ _ _).1 ((hτ v (τ v)).2 rfl).symm
   let p : Perm V := hinv.toPerm
-  have hp : ∀ i, p i = τ i := fun _ => rfl
-  let r : Sym2 V → R := fun e => if e ∈ M.edgeSet then 1 else 0
-  have hentry : ∀ i j, tutteEval G r i j = if τ i = j then (if i < j then 1 else -1) else 0 := by
-    intro i j
+  let r (e : Sym2 V) : R := if e ∈ M.edgeSet then 1 else 0
+  have hentry (i j : V) :
+      tutteEval G r i j = if τ i = j then (if i < j then 1 else -1) else 0 := by
     by_cases h : τ i = j
-    · have hM' := (hτ i j).2 h
-      simp [tutteEval_apply, r, hM', M.adj_sub hM', h]
-    · have hn : ¬ M.Adj i j := fun h' => h ((hτ i j).1 h')
-      simp [tutteEval_apply, r, hn, h]
+    · simp [tutteEval_apply, r, (hτ i j).2 h, M.adj_sub ((hτ i j).2 h), h]
+    · simp [tutteEval_apply, r, show ¬ M.Adj i j from h ∘ (hτ i j).1, h]
   intro h0
   have hdet := det_tutteEval G r
   rw [h0, map_zero, det_apply, sum_eq_single p] at hdet
-  · have hf : ∀ i, tutteEval G r (p i) i * tutteEval G r (p i) i = 1 := by
-      intro i
-      rw [hp, hentry, ite_eq_left (hinv i)]
+  · have hprod : (∏ i, tutteEval G r (p i) i) * ∏ i, tutteEval G r (p i) i = 1 := by
+      rw [← prod_mul_distrib]
+      refine prod_eq_one fun i _ => ?_
+      rw [show p i = τ i from rfl, hentry, ite_eq_left (hinv i)]
       split_ifs <;> simp
-    have hprod : (∏ i, tutteEval G r (p i) i) * ∏ i, tutteEval G r (p i) i = 1 := by
-      rw [← prod_mul_distrib, prod_congr rfl fun i _ => hf i, prod_const_one]
-    have hne : ∏ i, tutteEval G r (p i) i ≠ 0 := fun h => by
-      rw [h, zero_mul] at hprod
-      exact zero_ne_one hprod
+    have hne : ∏ i, tutteEval G r (p i) i ≠ 0 :=
+      fun h => zero_ne_one (by rwa [h, zero_mul] at hprod)
     rcases Int.units_eq_one_or (Perm.sign p) with hs | hs <;> simp [hs, hne] at hdet
   · intro σ _ hσ
     obtain ⟨i, hi⟩ : ∃ i, τ (σ i) ≠ i := by
       by_contra! hall
-      refine hσ (Equiv.ext fun i => ?_)
-      have := congrArg τ (hall i)
-      rw [hinv] at this
-      exact this
+      exact hσ (Equiv.ext fun i => hinv (σ i) ▸ congrArg τ (hall i))
     rw [prod_eq_zero (mem_univ i) (by rw [hentry, ite_eq_right hi]), smul_zero]
-  · intro h
-    exact absurd (mem_univ p) h
+  · exact fun h => absurd (mem_univ p) h
 
 /-- **Tutte's matrix theorem** [Tutte1947]: the determinant of the Tutte matrix of a simple graph
 is a nonzero polynomial exactly when the graph has a perfect matching. The sources state it over a

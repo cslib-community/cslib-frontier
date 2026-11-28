@@ -55,11 +55,9 @@ lemma tapeOfList_cons_of_ne (x : Symbol) (l : List Symbol) {z : ℤ} (hz : z ≠
     tapeOfList (x :: l) z = tapeOfList l (z - 1) := by
   rcases z with (_ | n) | n
   · exact absurd rfl hz
-  · change tapeOfList (x :: l) ((n + 1 : ℕ) : ℤ) = tapeOfList l (((n + 1 : ℕ) : ℤ) - 1)
-    have h : ((n + 1 : ℕ) : ℤ) - 1 = (n : ℤ) := by omega
-    rw [h]
+  · rw [Int.ofNat_eq_natCast, Nat.cast_succ, add_sub_cancel_right]
     rfl
-  · rw [tapeOfList_negSucc, ((tapeOfList_eq_none_iff _ _).mpr (Or.inl (by omega)))]
+  · rw [tapeOfList_negSucc, (tapeOfList_eq_none_iff _ _).mpr (Or.inl (by omega))]
 
 /-- Writing after the end of a shifted word appends to it. -/
 lemma update_shifted_append (w : List Symbol) (x : Symbol) (o : ℤ) :
@@ -363,12 +361,12 @@ theorem runFrom_popFrame_loop (w rest u acc acc' : List Bool) (oS oS' oR hR' : �
     · simp only [popFrame, tr_ofTr, Matrix.cons_val_zero, tapeOfList_cons_sub_self]
     · intro i
       fin_cases i
-      · dsimp only [Fin.zero_eta, Matrix.cons_val_zero]
-        exact update_shifted_cons_none _ _ _
-      · dsimp only [Fin.mk_one, Matrix.cons_val_one, Matrix.cons_val_zero]
-        exact update_shifted_append _ _ _
+      · exact update_shifted_cons_none _ _ _
+      · exact update_shifted_append _ _ _
     · intro i
-      fin_cases i <;> simp; omega
+      fin_cases i
+      · simp
+      · simp; omega
   | cons b w ih =>
     subst hu
     rw [frame_cons, show 2 * (b :: w).length + 1 = 2 * w.length + 1 + 1 + 1 by simp; omega,
@@ -379,10 +377,8 @@ theorem runFrom_popFrame_loop (w rest u acc acc' : List Bool) (oS oS' oR hR' : �
         (by simp only [popFrame, tr_ofTr, Matrix.cons_val_zero, tapeOfList_cons_sub_self]) rfl rfl
         (fun i => by
           fin_cases i
-          · dsimp only [Fin.zero_eta, Matrix.cons_val_zero]
-            exact update_shifted_cons_none _ _ _
-          · dsimp only [Fin.mk_one, Matrix.cons_val_one, Matrix.cons_val_zero]
-            exact update_shifted_append _ _ _)
+          · exact update_shifted_cons_none _ _ _
+          · exact update_shifted_append _ _ _)
         (fun i => by fin_cases i <;> simp; omega),
       step_tapesCfg (a := ⟨0, ![(some none, 1), (some (some b), 1)], none, some .loop⟩)
         (ws' := ![frame w ++ rest, acc ++ [true] ++ [b]]) (o' := ![oS + 1 + 1, oR])
@@ -390,10 +386,8 @@ theorem runFrom_popFrame_loop (w rest u acc acc' : List Bool) (oS oS' oR hR' : �
         (by simp only [popFrame, tr_ofTr, Matrix.cons_val_zero, tapeOfList_cons_sub_self]) rfl rfl
         (fun i => by
           fin_cases i
-          · dsimp only [Fin.zero_eta, Matrix.cons_val_zero]
-            exact update_shifted_cons_none _ _ _
-          · dsimp only [Fin.mk_one, Matrix.cons_val_one, Matrix.cons_val_zero]
-            exact update_shifted_append _ _ _)
+          · exact update_shifted_cons_none _ _ _
+          · exact update_shifted_append _ _ _)
         (fun i => by fin_cases i <;> simp; omega)]
     exact ih _ _ (oS + 1 + 1) rfl (by simp [hacc, frame_cons]) (by simp [hS]; omega)
 
@@ -403,16 +397,13 @@ theorem runsBetween_popFrame_nil (oS oR : ℤ) {input : List Bool} (out : List B
       (tapesCfg input ![[], [false]] ![oS, oR] ![oS, oR + 1] out) 1 (2 * (1 + 1)) := by
   refine RunsBetween.of_runFrom ?_
   rw [runFrom_one]
-  refine step_tapesCfg (a := ⟨0, ![(none, 0), (some (some false), 1)], none, none⟩) ?_ rfl rfl ?_
-    ?_
-  · have : tapeOfList ([] : List Bool) (oS - oS) = none := by rw [tapeOfList_nil]
-    simp only [popFrame, tr_ofTr, q₀_ofTr, Matrix.cons_val_zero, this]
-  · intro i
-    fin_cases i
-    · rfl
-    · simpa using update_shifted_append ([] : List Bool) false oR
-  · intro i
-    fin_cases i <;> simp
+  refine step_tapesCfg (a := ⟨0, ![(none, 0), (some (some false), 1)], none, none⟩)
+    (by simp only [popFrame, tr_ofTr, q₀_ofTr, Matrix.cons_val_zero, tapeOfList_nil]) rfl rfl ?_
+    (fun i => by fin_cases i <;> simp)
+  intro i
+  fin_cases i
+  · rfl
+  · simpa using update_shifted_append ([] : List Bool) false oR
 
 /-- On a framed word `frame w` at the head of tape `0`, `popFrame` moves it to tape `1` as
 `frame (true :: w)`. -/

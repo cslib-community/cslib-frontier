@@ -239,23 +239,13 @@ private theorem sum_belowVertex_succ {F₀ F₁ : List WeightedEdge → ℕ}
   | [] => by simp [hnil₀, hnil₁]
   | e :: es => by
     have ih := sum_belowVertex_succ z hnil₀ hnil₁ hcons₀ hcons₁ hbelow hnew habove es
-    simp only [List.map_cons, List.sum_cons]
-    by_cases hlt : e.u < z ∧ e.v < z
+    simp only [List.filter_cons, List.map_cons, List.sum_cons, belowVertex, decide_eq_true_eq]
+    split_ifs with hlt1 hlt
     · obtain ⟨hf, hg⟩ := hbelow e hlt
-      have hb0 : belowVertex z e = true := decide_eq_true hlt
-      have hb1 : belowVertex (z + 1) e = true := decide_eq_true ⟨by omega, by omega⟩
-      rw [List.filter_cons_of_pos hb0, List.filter_cons_of_pos hb1, hcons₁, hcons₀, ih, hf, hg]
-      omega
-    · have hb0 : ¬belowVertex z e = true := by simp [belowVertex, hlt]
-      rw [List.filter_cons_of_neg hb0]
-      by_cases hlt1 : e.u < z + 1 ∧ e.v < z + 1
-      · have hb1 : belowVertex (z + 1) e = true := decide_eq_true hlt1
-        rw [List.filter_cons_of_pos hb1, hcons₁, ih, hnew e hlt hlt1]
-        omega
-      · have hb1 : ¬belowVertex (z + 1) e = true := by
-          simp only [belowVertex, decide_eq_true_eq]; exact hlt1
-        rw [List.filter_cons_of_neg hb1, ih, habove e hlt1]
-        omega
+      rw [hcons₁, hcons₀, ih, hf, hg]; omega
+    · rw [hcons₁, ih, hnew e hlt hlt1]; omega
+    · omega
+    · rw [ih, habove e hlt1]; omega
 
 private theorem nonLoop_belowVertex_succ (side : ℕ → Bool) (z : ℕ) (edges : List WeightedEdge) :
     nonLoopWeight (edges.filter (belowVertex (z + 1))) =

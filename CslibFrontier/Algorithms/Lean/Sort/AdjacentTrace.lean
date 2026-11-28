@@ -69,12 +69,11 @@ private theorem range_replay {α : Type*} (a : α) (xs : List α) (t : ℕ)
   induction t generalizing xs with
   | zero => simp
   | succ t ih =>
-    cases xs with
-    | nil => simp only [List.length_nil] at ht; omega
-    | cons b xs =>
-      rw [List.range_succ_eq_map, List.foldl_cons]
+    rcases xs with _ | ⟨b, xs⟩
+    · simp at ht
+    · rw [List.range_succ_eq_map, List.foldl_cons]
       simp only [List.swap, List.getElem?_cons_zero, Option.getD_some, List.set_cons_zero]
-      rw [shifted_replay, ih xs (by simp only [List.length_cons] at ht; omega)]
+      rw [shifted_replay, ih xs (Nat.le_of_succ_le_succ ht)]
       simp
 
 /-- Exact sorted original keys, at most `choose P 2` requests, and every emitted request
@@ -87,24 +86,20 @@ theorem components_compute (keys : List ℕ) :
   | nil => simp [compute]
   | cons a keys ih =>
     rw [compute_cons]
-    have hs : (compute keys).sortedKeys.length = keys.length := by
-      rw [ih.1, List.length_insertionSort]
-    have ht : ((compute keys).sortedKeys.takeWhile (fun b => b<a)).length ≤ keys.length :=
-      (List.takeWhile_sublist _).length_le.trans hs.le
-    refine ⟨?_, ?_, ?_⟩
+    have ht : ((compute keys).sortedKeys.takeWhile (· < a)).length ≤ keys.length :=
+      (List.takeWhile_sublist _).length_le.trans (ih.1 ▸ List.length_insertionSort ..).le
+    refine ⟨?_, ?_, fun j hj => ?_⟩
     · change List.orderedInsert (· ≤ ·) a (compute keys).sortedKeys = _
       rw [ih.1, List.insertionSort_cons]
-    · simp only [insert, List.length_append, List.length_map, List.length_range,
-        List.length_cons]
-      have hc : (keys.length+1).choose 2 = keys.length.choose 2 + keys.length := by
-        simp [Nat.choose_succ_succ, Nat.choose_one_right, Nat.add_comm]
-      rw [hc]
+    · simp only [insert, List.length_append, List.length_map, List.length_range, List.length_cons]
+      rw [Nat.choose_succ_succ keys.length 1, Nat.choose_one_right]
+      change _ ≤ keys.length + keys.length.choose 2
+      have := ih.2.1
       omega
-    · intro j hj
-      simp only [insert, List.mem_append, List.mem_map, List.mem_range] at hj
+    · simp only [insert, List.mem_append, List.mem_map, List.mem_range] at hj
       rcases hj with ⟨k, hk, rfl⟩ | hj
-      · have := ih.2.2 k hk; simp only [List.length_cons]; omega
-      · simp only [List.length_cons]; omega
+      · exact Nat.succ_lt_succ (ih.2.2 k hk)
+      · exact Nat.succ_lt_succ (lt_of_lt_of_le hj ht)
 
 /-- The literal requests replay stable insertion sort on any accompanying payload. Only
 its original key map is inspected; payloads, including equal-key occurrences, are retained. -/
@@ -115,19 +110,13 @@ theorem replay_compute {α : Type*} (key : α → ℕ) (xs : List α) :
   | nil => simp [compute]
   | cons a xs ih =>
     rw [List.map_cons, compute_cons]
-    simp only [insert, List.foldl_append]
-    rw [shifted_replay, ih]
-    have hk := (components_compute (xs.map key)).1
-    have hm : (xs.insertionSort (fun a b => key a ≤ key b)).map key =
-        (xs.map key).insertionSort (· ≤ ·) :=
-      List.map_insertionSort (fun a b => key a ≤ key b) (· ≤ ·) key xs (by intros; rfl)
-    rw [hk, ← hm]
-    simp only [List.takeWhile_map, List.length_map, Function.comp_def]
-    rw [range_replay a _ _ (List.takeWhile_sublist _).length_le,
-      List.insertionSort_cons, List.orderedInsert_eq_take_drop]
-    simp only [Nat.not_le, List.takeWhile_eq_take_findIdx_not,
-      List.dropWhile_eq_drop_findIdx_not, List.length_take,
-      Nat.min_eq_left List.findIdx_le_length]
+    simp only [insert, List.foldl_append, shifted_replay, ih, (components_compute (xs.map key)).1,
+      ← List.map_insertionSort (fun a b => key a ≤ key b) (· ≤ ·) key xs (fun _ _ _ _ => Iff.rfl),
+      List.takeWhile_map, List.length_map, Function.comp_def]
+    rw [range_replay a _ _ (List.takeWhile_sublist _).length_le, List.insertionSort_cons,
+      List.orderedInsert_eq_take_drop]
+    simp only [Nat.not_le, List.takeWhile_eq_take_findIdx_not, List.dropWhile_eq_drop_findIdx_not,
+      List.length_take, Nat.min_eq_left List.findIdx_le_length]
 
 /-- The computed index word is a permutation of all original indices. Applying the SAME
 requests to any indexed payload gives that word mapped by the payload, not a chosen sorting
@@ -142,24 +131,17 @@ theorem indices_payload (keys : List ℕ) :
           ((List.range keys.length).map f) = ids.map f) ∧
       ∀ i j, [i,j] <+ List.range keys.length → keys.getD i 0=keys.getD j 0 →
         [i,j] <+ ids := by
-  dsimp only
-  constructor
-  · generalize (compute keys).requests = js
-    have h : ∀ xs : List ℕ, (js.foldl (fun ys k => ys.swap k (k+1)) xs).Perm xs := by
-      intro xs
-      induction js generalizing xs with
-      | nil => exact List.Perm.refl _
-      | cons k ks ih =>
-        exact (ih (xs.swap k (k+1))).trans (List.swap_perm xs k (k+1))
-    exact h _
-  · constructor
-    · intro α f
-      exact List.foldl_hom (List.map f) (fun ys j => (List.map_swap f ys j (j+1)).symm)
-    · intro i j hp he
-      have hr := replay_compute (fun i => keys.getD i 0) (List.range keys.length)
-      rw [List.map_getD_range keys 0] at hr
-      rw [hr]
-      exact List.pair_sublist_insertionSort (by simp only [he, le_refl]) hp
+  refine ⟨?_, fun f => List.foldl_hom (List.map f) fun ys j => (List.map_swap f ys j (j + 1)).symm,
+    fun i j hp he => ?_⟩
+  · suffices ∀ (js xs : List ℕ), (js.foldl (fun ys k => ys.swap k (k + 1)) xs).Perm xs from
+      this _ _
+    intro js
+    induction js with
+    | nil => exact fun _ => .refl _
+    | cons k ks ih => exact fun xs => (ih _).trans (List.swap_perm xs k (k + 1))
+  · have hr := replay_compute (keys.getD · 0) (List.range keys.length)
+    rw [List.map_getD_range keys 0] at hr
+    exact hr.symm ▸ List.pair_sublist_insertionSort (by simp only [he, le_refl]) hp
 
 /-- Already sorted keys produce no requests at all; execution therefore preserves the
 ENTIRE raw payload State, rather than just canceling its value permutation. -/
@@ -169,16 +151,11 @@ theorem requests_eq_nil_of_pairwise (keys : List ℕ) (h : keys.Pairwise (· ≤
   | nil => rfl
   | cons a keys ih =>
     obtain ⟨ha, hk⟩ := List.pairwise_cons.mp h
-    have hs := hk.insertionSort_eq
     rw [compute_cons]
-    change (compute keys).requests.map Nat.succ ++
-      List.range ((compute keys).sortedKeys.takeWhile (fun b => b<a)).length = []
-    rw [ih hk, (components_compute keys).1, hs]
-    simp only [List.map_nil, List.nil_append]
-    cases keys with
-    | nil => rfl
-    | cons b keys =>
-      have hab := ha b (by simp)
-      simp [Nat.not_lt.mpr hab]
+    simp only [insert, ih hk, (components_compute keys).1, hk.insertionSort_eq, List.map_nil,
+      List.nil_append, List.range_eq_nil, List.length_eq_zero_iff]
+    rcases keys with _ | ⟨b, keys⟩
+    · rfl
+    · simp [Nat.not_lt.mpr (ha b List.mem_cons_self)]
 
 end Cslib.AdjacentSortTrace

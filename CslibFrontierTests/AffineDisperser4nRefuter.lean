@@ -92,6 +92,16 @@ def xor3Circuit : Circuit (fullSignature 2 Bool) 3 1 :=
 
 #guard (chooseStep? (initialState xor3Circuit)).isSome
 
+/-! `refuterRun` counts the steps of the loop `refute` runs: none from the terminal
+`proj100Circuit`, at least one from the nonterminal `xor3Circuit`. -/
+
+#guard (refuterRun (initialState proj100Circuit) (refuterMeasure (initialState proj100Circuit))
+  0).2 == 0
+#guard 1 ≤ (refuterRun (initialState xor3Circuit) (refuterMeasure (initialState xor3Circuit))
+  0).2
+#guard (refuterRun (initialState xor3Circuit) (refuterMeasure (initialState xor3Circuit))
+  0).2 ≤ refuterMeasure (initialState xor3Circuit)
+
 /-- Opposite-bias paired Case 5a state (`pairs = {(0, false, 1, false), (2, true, 3, false)}`,
 `gate 4 = x₀ ∧ x₂`, `gate 5 = x₁ ∧ x₃`, `gate 6 = gate 4 ∧ gate 5`): `chooseStep?` selects
 `.andOnPair 4 0` and `applyStep` deletes all three gates (`4`, `6`, `5`) in one step (`Δs = -3`). -/
@@ -151,5 +161,17 @@ def terminalAndOnPairState : State 4 :=
       terminalAndOnPairState with
   | some x => terminalAndOnPairCircuit.eval fullInterpretation x 0 != x ⟨2, by decide⟩
   | none => false
+
+/-! The final search tries the `2^d` candidates of the terminal state in order: here `2^1`, and
+one of them is a disagreement. The search returns the first such candidate. -/
+
+#guard (candidates 1 terminalAndOnPairState).length == 2
+#guard (candidates 1 terminalAndOnPairState).any fun x =>
+  terminalAndOnPairCircuit.eval fullInterpretation x 0 != x ⟨2, by decide⟩
+#guard (candidates 3 terminalAndOnPairState).length == 8
+#guard findCounterexample terminalAndOnPairCircuit (fun x => x ⟨2, by decide⟩) 1
+    terminalAndOnPairState ==
+  (candidates 1 terminalAndOnPairState).find? fun x =>
+    terminalAndOnPairCircuit.eval fullInterpretation x 0 != x ⟨2, by decide⟩
 
 end CslibFrontierTests.AffineDisperser4nRefuter

@@ -150,18 +150,16 @@ theorem exists_complexity_universal_lt_of_computable {f : ℕ → ℕ} (hf : Com
       (Primrec.nat_double.to_comp.comp (Computable.list_length.comp Computable.fst))
       (hf.comp Computable.snd)
   have hF : Partrec F := Partrec.rfind hdec.partrec₂
-  have hdom (q : List Bool) : (F q).Dom := by
-    obtain ⟨x, hx⟩ := hunb (2 * q.length)
-    obtain ⟨n, hn, -⟩ := Nat.rfind_min' (p := fun x => decide (2 * q.length ≤ f x)) (m := x)
-      (decide_eq_true hx)
-    exact Part.dom_iff_mem.mpr ⟨n, hn⟩
+  have hdom (q : List Bool) : (F q).Dom :=
+    let ⟨x, hx⟩ := hunb (2 * q.length)
+    Nat.rfind_dom.mpr ⟨x, Part.mem_some_iff.mpr (decide_eq_true hx).symm, fun _ => trivial⟩
   let g (q : List Bool) : ℕ := (F q).get (hdom q)
   have hg : Computable g := hF.of_eq fun q => (Part.some_get (hdom q)).symm
   obtain ⟨c, hc⟩ := exists_complexity_universal_le_length_add hg
   let q : List Bool := List.replicate (c + 1) true
   have hq : q.length = c + 1 := List.length_replicate
-  have hspec : 2 * q.length ≤ f (g q) := by
-    simpa using Nat.rfind_spec (Part.get_mem (hdom q))
+  have hspec : 2 * q.length ≤ f (g q) :=
+    of_decide_eq_true (Part.mem_some_iff.mp (Nat.rfind_spec (Part.get_mem (hdom q)))).symm
   have := hle (g q)
   have := hc q
   omega
@@ -187,10 +185,8 @@ theorem frequently_complexity_universal_lt_of_computable {f : ℕ → ℕ} (hf :
     · simp only [g, h, ↓reduceIte]
       omega
   obtain ⟨x, hx⟩ := exists_complexity_universal_lt_of_computable hg hgunb
-  by_cases h : x < N
-  · simp [g, h] at hx
-  · simp only [g, h, ↓reduceIte] at hx
-    exact ⟨x, by omega, hx⟩
+  have hN : ¬ x < N := fun h => by simp [g, h] at hx
+  exact ⟨x, not_lt.mp hN, by simpa only [g, hN, ↓reduceIte] using hx⟩
 
 /-- **The plain Kolmogorov complexity is not computable.** -/
 theorem not_computable_complexity_universal : ¬ Computable universal.complexity := fun h =>

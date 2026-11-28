@@ -43,14 +43,9 @@ open Turing.MultiTapeTM
 def count (p : ℕ × ℕ) : ℕ := (2 * p.2 + 1) ^ p.1
 
 private theorem radix_polyTime :
-    ComputableInPolyTime (fun D : ℕ => 2 * D + 1) encNat encNat := by
-  have hbits : ComputableInPolyTime Nat.bits encNat encBits :=
-    ComputableInPolyTime.of_eq fun _ => rfl
-  have h := ComputableInPolyTime.bitsCons (ComputableInPolyTime.const true) hbits
-  apply h.of_enc_eq
-  intro D
-  change (2 * D + 1).bits = true :: D.bits
-  exact Nat.bit1_bits D
+    ComputableInPolyTime (fun D : ℕ => 2 * D + 1) encNat encNat :=
+  (ComputableInPolyTime.bitsCons (.const true)
+    (ComputableInPolyTime.of_eq (f := Nat.bits) fun _ => rfl)).of_enc_eq Nat.bit1_bits
 
 /-- Prepare the visit count in binary, charging the unary dimension and binary radius. -/
 theorem count_polyTime : ComputableInPolyTime count (encPair encUnary encNat) encNat := by

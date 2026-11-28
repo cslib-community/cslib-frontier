@@ -196,15 +196,10 @@ theorem firstHalting_append_singleton (choices : List Bool) (choice : Bool) {s :
     (hlive : M.halted (M.replay input choices s) = false)
     (hhalt : M.halted (M.replay input (choices ++ [choice]) s) = true) :
     M.FirstHalting input (choices ++ [choice]) s := by
-  refine ⟨hhalt, fun n hn => ?_⟩
-  have hle : n ≤ choices.length := by simpa using hn
-  rw [List.take_append_of_le_length hle]
-  by_contra h
-  have hprefix := Bool.eq_true_of_not_eq_false h
-  have heq := M.replay_append input (choices.take n) (choices.drop n) s
-  rw [List.take_append_drop, M.replay_of_halted input hprefix] at heq
-  rw [heq, hprefix] at hlive
-  contradiction
+  refine ⟨hhalt, fun n hn => Bool.eq_false_iff.mpr fun h => ?_⟩
+  rw [List.take_append_of_le_length (by simpa using hn)] at h
+  rw [← List.take_append_drop n choices, M.replay_append, M.replay_of_halted input h, h] at hlive
+  cases hlive
 
 /-- A replay ending halted has a unique prefix that first halts at its end. That prefix
 reaches the same state as the full replay. If the starting state is halted, the prefix is
@@ -239,16 +234,10 @@ theorem existsUnique_firstHalting_prefix {s : σ} {choices : List Bool}
 theorem accepts_iff_exists_firstHalting :
     M.Accepts input ↔ ∃ choices : List Bool,
       M.FirstHalting input choices M.init ∧ M.accept (M.run input choices) = true := by
-  constructor
-  · rintro ⟨choices, hhalt, haccept⟩
-    obtain ⟨first, ⟨_, hfirst, hstate⟩, _⟩ :=
-      M.existsUnique_firstHalting_prefix input hhalt
-    refine ⟨first, hfirst, ?_⟩
-    change M.accept (M.replay input first M.init) = true
-    rw [hstate]
-    exact haccept
-  · rintro ⟨choices, hfirst, haccept⟩
-    exact ⟨choices, hfirst.1, haccept⟩
+  refine ⟨fun ⟨choices, hhalt, haccept⟩ => ?_, fun ⟨choices, hfirst, haccept⟩ =>
+    ⟨choices, hfirst.1, haccept⟩⟩
+  obtain ⟨first, ⟨_, hfirst, hstate⟩, _⟩ := M.existsUnique_firstHalting_prefix input hhalt
+  exact ⟨first, hfirst, by rwa [run, hstate]⟩
 
 /-- Every finite relational path is a choice replay of the same length, and conversely. -/
 theorem exists_runPath_iff {s s' : σ} {n : ℕ} :
@@ -260,20 +249,14 @@ theorem exists_runPath_iff {s s' : σ} {n : ℕ} :
     | singleton s => exact ⟨[], rfl, rfl⟩
     | snoc p s hs ih =>
       obtain ⟨choices, hlen, hchoices⟩ := ih
-      obtain ⟨choice, hchoice⟩ := (show M.Step input p.last s from hs)
-      refine ⟨choices ++ [choice], ?_, ?_⟩
-      · change (choices ++ [choice]).length = p.length + 1
-        simp [hlen]
-      · rw [RelSeries.head_snoc, RelSeries.last_snoc]
-        rw [replay_append, hchoices]
-        exact hchoice
+      obtain ⟨choice, rfl⟩ := (show M.Step input p.last s from hs)
+      exact ⟨choices ++ [choice], by simp [hlen], by simp [replay_append, replay_cons, hchoices]⟩
   · rintro ⟨choices, rfl, rfl⟩
     induction choices generalizing s with
     | nil => exact ⟨RelSeries.singleton _ s, rfl, rfl, rfl⟩
     | cons choice choices ih =>
       obtain ⟨p, hhead, hlen, hlast⟩ := ih (s := M.step input s choice)
-      have hstep : M.Step input s p.head := ⟨choice, hhead.symm⟩
-      exact ⟨p.cons s hstep, rfl, by simp [hlen], by simp [hlast, replay_cons]⟩
+      exact ⟨p.cons s ⟨choice, hhead.symm⟩, rfl, by simp [hlen], by simp [hlast, replay_cons]⟩
 
 theorem reachable_init : M.Reachable input M.init := ⟨[], rfl⟩
 
@@ -304,13 +287,8 @@ theorem accepts_iff_length {t : ℕ} (h : M.HaltsWithin input t) :
       rw [M.run_append_of_halted input hhalt]
       exact haccept
     · have htake : (choices.take t).length = t := by simp only [List.length_take]; omega
-      have hp := h _ htake
       refine ⟨choices.take t, htake, ?_⟩
-      have heq : M.run input choices = M.run input (choices.take t) := by
-        conv_lhs => rw [← List.take_append_drop t choices]
-        exact M.run_append_of_halted input hp _
-      rw [← heq]
-      exact haccept
+      rwa [← List.take_append_drop t choices, M.run_append_of_halted input (h _ htake)] at haccept
   · rintro ⟨choices, hlen, haccept⟩
     exact ⟨choices, h _ hlen, haccept⟩
 
@@ -329,21 +307,13 @@ by the simulator, encoded in a state, or stored on a tape. -/
 theorem exists_bound_on_reachable {t : ℕ} (h : M.HaltsWithin input t) (cost : σ → ℕ) :
     ∃ bound, ∀ s, M.Reachable input s → cost s ≤ bound := by
   classical
-  let choices : Finset (Σ n : Fin (t + 1), Fin n.val → Bool) := Finset.univ
   let value (p : Σ n : Fin (t + 1), Fin n.val → Bool) : ℕ :=
     cost (M.run input (List.ofFn p.2))
-  refine ⟨choices.sup value, ?_⟩
+  refine ⟨Finset.univ.sup value, ?_⟩
   rintro s ⟨coins, rfl⟩
-  let coins₀ := coins.take t
-  have hlen : coins₀.length < t + 1 := by simp [coins₀, List.length_take]
-  let p : Σ n : Fin (t + 1), Fin n.val → Bool := ⟨⟨coins₀.length, hlen⟩, coins₀.get⟩
-  have hp := Finset.le_sup (f := value) (show p ∈ choices from Finset.mem_univ p)
-  have hcost : value p = cost (M.run input coins) := by
-    dsimp only [value, p]
-    rw [List.ofFn_get]
-    exact congrArg cost (M.run_take_of_haltsWithin input h coins)
-  rw [hcost] at hp
-  exact hp
+  have hlen : (coins.take t).length < t + 1 := by simp [List.length_take]
+  simpa only [value, List.ofFn_get, M.run_take_of_haltsWithin input h coins] using
+    Finset.le_sup (f := value) (Finset.mem_univ ⟨⟨(coins.take t).length, hlen⟩, (coins.take t).get⟩)
 
 /-- Every branch of `t` steps from the supplied abstract state has halted. -/
 def HaltsFrom (s : σ) (t : ℕ) : Prop :=
@@ -448,7 +418,7 @@ theorem next_withChoice_inSpace {σ : Type} {encS : σ ↪ List Bool}
   apply ComputableInSpace.budget_comp_linear hnext
   exact ComputableInSpace.budget_prod (.fst _ _)
     (ComputableInSpace.budget_prod (.snd _ _)
-      (ComputableInSpace.budget_const choice (.refl _)))
+      (ComputableInSpace.budget_const choice))
 
 /-- The input-scan callback is the deterministic one and does not depend on the choice. -/
 theorem passNext_inSpace {σ : Type} {encS : σ ↪ List Bool}

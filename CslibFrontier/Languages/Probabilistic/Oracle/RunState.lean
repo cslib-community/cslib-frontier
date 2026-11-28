@@ -54,8 +54,8 @@ the oracle state by at most its cost, a run raises it by at most the program's c
 * `Cslib.ProbOracleComp.IsQueryBounded.length_runLogWith_le`,
   `Cslib.ProbOracleComp.IsQueryBounded.length_runLog_le`: a program with at most `n` queries
   leaves a log of length at most `n`.
-* `Cslib.ProbOracleComp.forall_mem_runLogWith`: every logged pair is a reply that the oracle's
-  answering program can produce.
+* `Cslib.ProbOracleComp.forall_mem_runLogWith`, `Cslib.ProbOracleComp.forall_mem_runLog`: every
+  logged pair is a reply that the oracle's answering program can produce.
 -/
 
 public section
@@ -219,15 +219,12 @@ theorem IsQueryBounded.length_runLogWith_le [Inhabited R] {A : ProbOracleComp (f
 `n`. -/
 theorem IsQueryBounded.length_runLog_le {A : ProbOracleComp (fun _ : Q => R) α} {n : ℕ}
     (h : A.IsQueryBounded n) (O : Q → ProbComp R) :
-    ∀ z ∈ (ProbComp.eval (A.runLog O)).support, z.2.length ≤ n := by
-  intro z hz
-  have hbound := measure_runState_le (cost := fun _ => 1) h
-    (fun q log => (fun r => (r, log ++ [(q, r)])) <$> O q) List.length
-    (fun q log z hz => ?_) [] z hz
-  · simpa using hbound
-  · simp only [StateT.run, ProbComp.eval_map, PMF.support_map, Set.mem_image] at hz
-    obtain ⟨r, -, rfl⟩ := hz
-    simp
+    ∀ z ∈ (ProbComp.eval (A.runLog O)).support, z.2.length ≤ n := fun z hz => by
+  rcases hlog : z.2 with _ | ⟨p, _⟩
+  · simp
+  · have : Inhabited R := ⟨p.2⟩
+    rw [← runLogWith_some] at hz
+    exact hlog ▸ h.length_runLogWith_le (fun _ q => some (O q)) z hz
 
 /-- **Every logged pair is a possible reply**: a property of query-reply pairs that holds for
 every reply of every program the oracle runs holds for every pair in the log of `runLogWith`. -/
@@ -252,5 +249,15 @@ theorem forall_mem_runLogWith [Inhabited R] {O : List (Q × R) → Q → Option 
     rcases List.mem_append.mp hp with hp | hp
     · exact hlog p hp
     · exact List.mem_singleton.mp hp ▸ hO log q program hprog r' hr'
+
+/-- **Every logged pair is a possible reply**: a property of query-reply pairs that holds for
+every reply of a memoryless oracle `O` holds for every pair in the log of `runLog`. -/
+theorem forall_mem_runLog {Q R α : Type} {O : Q → ProbComp R} {P : Q × R → Prop}
+    (hO : ∀ q, ∀ r ∈ (ProbComp.eval (O q)).support, P (q, r))
+    (A : ProbOracleComp (fun _ : Q => R) α) {z : α × List (Q × R)}
+    (hz : z ∈ (ProbComp.eval (A.runLog O)).support) : ∀ p ∈ z.2, P p := fun p hp => by
+  have : Inhabited R := ⟨p.2⟩
+  rw [← runLogWith_some] at hz
+  exact forall_mem_runLogWith (fun _ q _ h => Option.some.inj h ▸ hO q) A hz p hp
 
 end Cslib.ProbOracleComp

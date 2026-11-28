@@ -168,10 +168,9 @@ theorem isSelfTargetSolution_of_verify (hP : P.Valid) {H : Hash P} {pk : PublicK
   simp only [verify, Bool.and_eq_true, decide_eq_true_eq] at h
   obtain ⟨⟨hz, hc⟩, hH⟩ := h
   have hγq : (2 * P.γ₂ : ℤ) < P.q := by
-    have h1 := hP.one_lt_q
-    have h2 := Nat.le_of_dvd (by omega) hP.two_mul_γ₂_dvd
-    have : 2 * P.γ₂ < P.q := by omega
-    exact_mod_cast this
+    have := hP.one_lt_q
+    have := Nat.le_of_dvd (by omega) hP.two_mul_γ₂_dvd
+    exact_mod_cast (by omega : 2 * P.γ₂ < P.q)
   refine ⟨fun i j => ?_, fun i j => ?_, hc, ?_⟩
   · -- `‖u‖_∞ ≤ γ₂`.
     set b := lowBits P.q P.γ₂ (verifierCommitment P pk σ.z σ.c i j)
@@ -181,13 +180,10 @@ theorem isSelfTargetSolution_of_verify (hP : P.Valid) {H : Hash P} {pk : PublicK
     · rw [abs_neg]
       exact hb.trans (by exact_mod_cast le_max_right _ _)
     · rw [abs_le] at hb
-      simp only [Set.mem_Ioc]
-      constructor <;> linarith [hb.1, hb.2]
+      exact ⟨by linarith, by linarith⟩
   · -- `‖z‖_∞ < γ₁ - β ≤ γ₁`.
-    have := hz i j
     have hγ : ((P.γ₁ : ℕ) : ℤ) ≤ (max P.γ₁ P.γ₂ : ℕ) := by exact_mod_cast le_max_left _ _
-    have hβ : (0 : ℤ) ≤ P.β := Int.natCast_nonneg _
-    exact le_of_lt (by linarith)
+    exact le_of_lt (by linarith [hz i j, Int.natCast_nonneg P.β])
   · -- The hash of `2 γ₂ · HighBits(w')` is the hash of `HighBits(w')`, which is `c`.
     rw [selfTargetHash, selfTargetMap_forgeryLowPart]
     convert hH using 3

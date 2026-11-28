@@ -105,12 +105,8 @@ theorem card_of_mem_negatedHeartUnits {H : Finset (Literal V)} {C : Finset (Lite
 
 private theorem card_negatedHeartUnits (H : Finset (Literal V)) :
     (negatedHeartUnits H).card = H.card := by
-  refine card_image_of_injective H fun a b hab => ?_
-  have hneg : Std.Sat.Literal.negate a = Std.Sat.Literal.negate b := singleton_inj.mp hab
-  rcases a with ⟨va, ba⟩
-  rcases b with ⟨vb, bb⟩
-  simp only [Std.Sat.Literal.negate, Prod.mk.injEq] at hneg
-  exact Prod.ext hneg.1 (Bool.not_inj_iff.mp hneg.2)
+  refine card_image_of_injective H fun ⟨va, ba⟩ ⟨vb, bb⟩ hab => ?_
+  simpa [Std.Sat.Literal.negate] using singleton_inj.mp hab
 
 private theorem potential_negatedHeartUnits (H : Finset (Literal V)) :
     potential (negatedHeartUnits H) = 2 * H.card := by
@@ -131,21 +127,16 @@ strictly contains its petal `C \ H`. -/
 theorem disjoint_flower_countingChild (ψ : ClauseSet V) {c : ℕ} {H : Finset (Literal V)}
     (h1 : 1 ≤ H.card) (hlt : H.card < c) (b : Bool) :
     Disjoint (flower ψ c H) (countingChild ψ c H b) := by
-  rw [Finset.disjoint_left]
-  intro C hC hCchild
+  refine Finset.disjoint_left.mpr fun C hC hCchild => ?_
   obtain ⟨-, hcard, hHC⟩ := mem_flower.mp hC
   cases b with
   | false =>
-    have hmin := (mem_reduce.mp hCchild).2
-    refine hmin H (mem_union_right _ (by simp only [intro, mem_singleton]))
-      (ssubset_of_subset_of_ne hHC ?_)
-    intro heq
-    rw [heq, hcard] at hlt
-    exact lt_irrefl _ hlt
+    exact (mem_reduce.mp hCchild).2 H (mem_union_right _ (by simp [intro]))
+      (ssubset_of_subset_of_ne hHC fun heq => hlt.ne (heq ▸ hcard))
   | true =>
-    have hmin := (mem_reduce.mp hCchild).2
-    refine hmin (C \ H) ?_ (sdiff_ssubset hHC (card_pos.mp h1))
-    exact mem_union_left _ (mem_union_right _ (mem_petals.mpr ⟨C, hC, rfl⟩))
+    exact (mem_reduce.mp hCchild).2 (C \ H)
+      (mem_union_left _ (mem_union_right _ (mem_petals.mpr ⟨C, hC, rfl⟩)))
+      (sdiff_ssubset hHC (card_pos.mp h1))
 
 /-- Counting children keep the clause width `≤ k` when the flower `flower ψ c H` is nonempty. -/
 theorem card_le_of_mem_countingChild {ψ : ClauseSet V} {c k : ℕ} {H : Finset (Literal V)}
@@ -156,28 +147,19 @@ theorem card_le_of_mem_countingChild {ψ : ClauseSet V} {c k : ℕ} {H : Finset 
   have hck : c ≤ k := (mem_flower.mp hD₀).2.1 ▸ hk D₀ (flower_subset ψ c H hD₀)
   cases b with
   | false =>
-    rcases mem_union.mp (child_subset ψ c H false hC) with hCψ | hCH
-    · exact hk C hCψ
-    · simp only [intro, mem_singleton] at hCH
-      subst hCH
-      omega
+    refine (mem_union.mp (child_subset ψ c H false hC)).elim (hk C) fun hCH => ?_
+    obtain rfl : C = H := by simpa [intro] using hCH
+    omega
   | true =>
     rcases mem_union.mp (reduce_subset _ hC) with hC' | hCneg
-    · rcases mem_union.mp hC' with hCψ | hCpet
-      · exact hk C hCψ
-      · have hp := card_of_mem_petals hCpet
-        omega
-    · have hu := card_of_mem_negatedHeartUnits hCneg
-      omega
+    · exact (mem_union.mp hC').elim (hk C) fun hCpet => by rw [card_of_mem_petals hCpet]; omega
+    · rw [card_of_mem_negatedHeartUnits hCneg]; omega
 
 private theorem petal_unit_potential_bound {c h z : ℕ} (h1 : 1 ≤ h) (hlt : h < c) (hz : 2 ≤ z) :
     z * 2 ^ (c - h) + 2 * h < z * 2 ^ c := by
-  have hj_le : c - h ≤ c - 1 := by omega
-  have hpow_j : 2 ^ (c - h) ≤ 2 ^ (c - 1) := Nat.pow_le_pow_right (by omega) hj_le
+  have hpow_j : 2 ^ (c - h) ≤ 2 ^ (c - 1) := Nat.pow_le_pow_right (by omega) (by omega)
   have hh_lt : h < 2 ^ (c - 1) := lt_of_le_of_lt (by omega : h ≤ c - 1) Nat.lt_two_pow_self
-  have hc_pow : 2 ^ c = 2 ^ (c - 1) + 2 ^ (c - 1) := by
-    conv_lhs => rw [show c = (c - 1) + 1 by omega, Nat.pow_succ]
-    omega
+  have hc_pow : 2 ^ c = 2 * 2 ^ (c - 1) := by rw [← pow_succ', Nat.sub_add_cancel (by omega)]
   calc z * 2 ^ (c - h) + 2 * h
       ≤ z * 2 ^ (c - 1) + 2 * h :=
         Nat.add_le_add_right (Nat.mul_le_mul_left z hpow_j) _
@@ -185,7 +167,7 @@ private theorem petal_unit_potential_bound {c h z : ℕ} (h1 : 1 ≤ h) (hlt : h
         Nat.add_lt_add_left (Nat.mul_lt_mul_of_pos_left hh_lt (by omega)) _
     _ ≤ z * 2 ^ (c - 1) + z * 2 ^ (c - 1) :=
         Nat.add_le_add_left (Nat.mul_le_mul_right _ hz) _
-    _ = z * 2 ^ c := by rw [hc_pow, Nat.mul_add]
+    _ = z * 2 ^ c := by rw [hc_pow, Nat.two_mul, Nat.mul_add]
 
 /-- **Strict potential decrease for `countingChild`.** When `1 ≤ |H| < c` and `flower ψ c H` has at
 least two clauses, both counting branches strictly decrease `potential`. On the petal branch
@@ -230,10 +212,7 @@ theorem potential_countingChild_lt_pow {M : ℕ} (hM : 2 ≤ M)
     {ψ : ClauseSet V} {c : ℕ} {H : Finset (Literal V)}
     (h : Heavy (M ^ ·) ψ c H) (b : Bool) :
     potential (countingChild ψ c H b) < potential ψ :=
-  potential_countingChild_lt
-    (fun _ hj => hM.trans
-      (by simpa only [pow_one] using Nat.pow_le_pow_right (by omega : 0 < M) hj))
-    h b
+  potential_countingChild_lt (fun _ hj => hM.trans (Nat.le_self_pow (by omega) M)) h b
 
 /-! ### Finite characterization of sparsity and unique choices -/
 
@@ -243,11 +222,10 @@ theorem sparse_iff_forall_mem_powerset {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ j 
     (ψ : ClauseSet V) :
     Sparse θ ψ ↔ ∀ C ∈ ψ, ∀ H ∈ C.powerset, ¬ Heavy θ ψ C.card H := by
   refine ⟨fun hs C _ H _ => hs C.card H, fun h c H hheavy => ?_⟩
-  have hpos : 0 < (flower ψ c H).card :=
-    lt_of_lt_of_le (hθ (c - H.card) (by have := hheavy.2.1; omega)) hheavy.2.2
-  obtain ⟨C, hC⟩ := card_pos.mp hpos
-  obtain ⟨hCψ, hCcard, hHC⟩ := mem_flower.mp hC
-  exact h C hCψ H (mem_powerset.mpr hHC) (hCcard ▸ hheavy)
+  obtain ⟨C, hC⟩ := card_pos.mp
+    (lt_of_lt_of_le (hθ (c - H.card) (Nat.sub_pos_of_lt hheavy.2.1)) hheavy.2.2)
+  obtain ⟨hCψ, rfl, hHC⟩ := mem_flower.mp hC
+  exact h C hCψ H (mem_powerset.mpr hHC) hheavy
 
 /-- If `(c, H)` is a valid `Choice` and no other heavy heart at width `c` has size at least `|H|`,
 `chooseBranch` must select `(c, H)`. -/
@@ -259,9 +237,8 @@ theorem chooseBranch_eq_of_choice_unique {θ : ℕ → ℕ} {ψ : ClauseSet V} {
   have hcb : Choice θ ψ (chooseBranch θ ψ).1 (chooseBranch θ ψ).2 := choice_chooseBranch hns
   have hc_eq : (chooseBranch θ ψ).1 = c :=
     le_antisymm (hcb.2.1 c H hch.1) (hch.2.1 _ _ hcb.1)
-  have hH_heavy : Heavy θ ψ c (chooseBranch θ ψ).2 := hc_eq ▸ hcb.1
   have hH_le : H.card ≤ (chooseBranch θ ψ).2.card := (hc_eq ▸ hcb.2.2) H hch.1
-  exact Prod.ext hc_eq (huniq _ hH_heavy hH_le)
+  exact Prod.ext hc_eq (huniq _ (hc_eq ▸ hcb.1) hH_le)
 
 /-! ### Recursive leaf enumeration -/
 
@@ -297,10 +274,8 @@ theorem countingLeaves_of_not_sparse {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ j �
     countingLeaves θ ψ =
       countingLeaves θ (countingChild ψ (chooseBranch θ ψ).1 (chooseBranch θ ψ).2 false) ++
         countingLeaves θ (countingChild ψ (chooseBranch θ ψ).1 (chooseBranch θ ψ).2 true) := by
-  have hz : 2 ≤ (flower ψ (chooseBranch θ ψ).1 (chooseBranch θ ψ).2).card :=
-    two_le_card_flower_of_heavy hθ (choice_chooseBranch h).1
   rw [countingLeaves]
-  exact ite_eq_left ⟨h, hz⟩
+  exact ite_eq_left ⟨h, two_le_card_flower_of_heavy hθ (choice_chooseBranch h).1⟩
 
 /-- Unfolding `countingLeaves` when the valid `Choice` at `ψ` is uniquely `(c, H)` and
 `flower ψ c H` has at least two clauses. -/
@@ -310,13 +285,8 @@ theorem countingLeaves_of_choice_unique {θ : ℕ → ℕ} {ψ : ClauseSet V} {c
     countingLeaves θ ψ =
       countingLeaves θ (countingChild ψ c H false) ++
         countingLeaves θ (countingChild ψ c H true) := by
-  have hns : ¬ Sparse θ ψ := fun hs => hs c H hch.1
   have hcb := chooseBranch_eq_of_choice_unique hch huniq
-  have hcond : ¬ Sparse θ ψ ∧
-      2 ≤ (flower ψ (chooseBranch θ ψ).1 (chooseBranch θ ψ).2).card := by
-    rw [hcb]
-    exact ⟨hns, hz⟩
-  rw [countingLeaves, ite_eq_left hcond, hcb]
+  rw [countingLeaves, ite_eq_left ⟨fun hs => hs c H hch.1, hcb ▸ hz⟩, hcb]
 
 /-- Finite criterion for unfolding `countingLeaves` at a unique valid choice `(c, H)` when
 `1 ≤ θ j` for `1 ≤ j`, inspecting only clauses `C ∈ ψ` and subsets `H' ∈ C.powerset`. -/
@@ -330,27 +300,18 @@ theorem countingLeaves_of_mem_powerset_unique {θ : ℕ → ℕ} (hθ : ∀ j, 1
       countingLeaves θ (countingChild ψ c H false) ++
         countingLeaves θ (countingChild ψ c H true) := by
   have hex_clause : ∀ {c' : ℕ} {H' : Finset (Literal V)}, Heavy θ ψ c' H' →
-      ∃ C ∈ ψ, C.card = c' ∧ H' ∈ C.powerset := by
-    intro c' H' hh
-    have hpos : 0 < (flower ψ c' H').card :=
-      lt_of_lt_of_le (hθ (c' - H'.card) (by have := hh.2.1; omega)) hh.2.2
-    obtain ⟨C, hC⟩ := card_pos.mp hpos
+      ∃ C ∈ ψ, C.card = c' ∧ H' ∈ C.powerset := fun hh => by
+    obtain ⟨C, hC⟩ := card_pos.mp (lt_of_lt_of_le (hθ _ (Nat.sub_pos_of_lt hh.2.1)) hh.2.2)
     obtain ⟨hCψ, hCcard, hHC⟩ := mem_flower.mp hC
     exact ⟨C, hCψ, hCcard, mem_powerset.mpr hHC⟩
-  have huniq' : ∀ H', Heavy θ ψ c H' → H.card ≤ H'.card → H' = H := by
-    intro H' hh hle
-    obtain ⟨C, hCψ, hCcard, hH'pow⟩ := hex_clause hh
-    exact huniq C hCψ hCcard H' hH'pow hh hle
-  have hch : Choice θ ψ c H := by
-    refine ⟨hheavy, fun c' H' hh => ?_, fun H' hh => ?_⟩
-    · by_contra hlt
-      obtain ⟨C, hCψ, hCcard, hH'pow⟩ := hex_clause hh
-      exact hmin C hCψ (by omega) H' hH'pow (hCcard ▸ hh)
-    · by_contra hlt
-      have heq := huniq' H' hh (by omega)
-      rw [heq] at hlt
-      exact hlt le_rfl
-  exact countingLeaves_of_choice_unique hch hz huniq'
+  have huniq' : ∀ H', Heavy θ ψ c H' → H.card ≤ H'.card → H' = H := fun H' hh hle =>
+    let ⟨C, hCψ, hCcard, hH'pow⟩ := hex_clause hh
+    huniq C hCψ hCcard H' hH'pow hh hle
+  refine countingLeaves_of_choice_unique ⟨hheavy, fun c' H' hh => by_contra fun hlt => ?_,
+    fun H' hh => by_contra fun hlt => ?_⟩ hz huniq'
+  · obtain ⟨C, hCψ, hCcard, hH'pow⟩ := hex_clause hh
+    exact hmin C hCψ (by omega) H' hH'pow (hCcard ▸ hh)
+  · exact hlt (huniq' H' hh (Nat.le_of_not_ge hlt) ▸ le_rfl)
 
 /-- `countingLeaves` never returns the empty list. -/
 theorem countingLeaves_ne_nil (θ : ℕ → ℕ) (ψ : ClauseSet V) :
@@ -376,10 +337,7 @@ theorem sparse_of_mem_countingLeaves {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ j �
 /-- **Leaf sparsity for geometric thresholds `θ j = M ^ j` (`2 ≤ M`).** -/
 theorem sparse_of_mem_countingLeaves_pow {M : ℕ} (hM : 2 ≤ M)
     {ψ L : ClauseSet V} (hL : L ∈ countingLeaves (M ^ ·) ψ) : Sparse (M ^ ·) L :=
-  sparse_of_mem_countingLeaves
-    (fun _ hj => hM.trans
-      (by simpa only [pow_one] using Nat.pow_le_pow_right (by omega : 0 < M) hj))
-    hL
+  sparse_of_mem_countingLeaves (fun _ hj => hM.trans (Nat.le_self_pow (by omega) M)) hL
 
 /-- **Invariant inheritance.** A property of clause sets that holds at the root `ψ` and passes from
 a node to both counting children at every branching step of `countingLeaves` (a valid `Choice` whose
@@ -391,9 +349,8 @@ theorem of_mem_countingLeaves {θ : ℕ → ℕ} {P : ClauseSet V → Prop}
   fun_induction countingLeaves θ ψ with
   | case1 ψ h ch ih₀ ih₁ =>
     have hch := choice_chooseBranch h.1
-    rcases List.mem_append.mp hL with hL | hL
-    · exact ih₀ (step _ _ _ hch h.2 hψ false) hL
-    · exact ih₁ (step _ _ _ hch h.2 hψ true) hL
+    exact (List.mem_append.mp hL).elim (ih₀ (step _ _ _ hch h.2 hψ false))
+      (ih₁ (step _ _ _ hch h.2 hψ true))
   | case2 ψ h => exact List.mem_singleton.mp hL ▸ hψ
 
 /-- **Variable-support preservation.** If all variables occurring in `ψ` belong to `declared`, then
@@ -403,7 +360,7 @@ theorem support_of_mem_countingLeaves {θ : ℕ → ℕ} {ψ L : ClauseSet V} {d
     ∀ C ∈ L, ∀ l ∈ C, l.1 ∈ declared := by
   refine of_mem_countingLeaves (P := fun L => ∀ C ∈ L, ∀ l ∈ C, l.1 ∈ declared)
     (fun ψ c H _ hz hψ b => ?_) hψ hL
-  obtain ⟨D, hD⟩ := card_pos.mp (lt_of_lt_of_le (by omega : 0 < 2) hz)
+  obtain ⟨D, hD⟩ := card_pos.mp (Nat.zero_lt_two.trans_le hz)
   obtain ⟨hDψ, -, hHD⟩ := mem_flower.mp hD
   exact support_countingChild ψ c H declared hψ (fun l hl => hψ D hDψ l (hHD hl)) b
 
@@ -411,11 +368,12 @@ theorem support_of_mem_countingLeaves {θ : ℕ → ℕ} {ψ L : ClauseSet V} {d
 of every leaf `L ∈ countingLeaves θ ψ` has width at most `k`. -/
 theorem card_le_of_mem_countingLeaves {θ : ℕ → ℕ} {ψ L : ClauseSet V} {k : ℕ}
     (hk : ∀ C ∈ ψ, C.card ≤ k) (hL : L ∈ countingLeaves θ ψ) :
-    ∀ C ∈ L, C.card ≤ k := by
-  refine of_mem_countingLeaves (P := fun L => ∀ C ∈ L, C.card ≤ k)
-    (fun ψ c H hch hz hk b C hC => ?_) hk hL
-  exact card_le_of_mem_countingChild hch.1.1 hch.1.2.1
-    (card_pos.mp (lt_of_lt_of_le (by omega : 0 < 2) hz)) hk hC
+    ∀ C ∈ L, C.card ≤ k :=
+  of_mem_countingLeaves (P := fun L => ∀ C ∈ L, C.card ≤ k)
+    (fun _ _ _ hch hz hk _ _ =>
+      card_le_of_mem_countingChild hch.1.1 hch.1.2.1
+        (card_pos.mp (Nat.zero_lt_two.trans_le hz)) hk)
+    hk hL
 
 /-- **Reducedness preservation.** From a reduced root `ψ`, every leaf in `countingLeaves θ ψ` is
 reduced. -/
@@ -436,29 +394,14 @@ theorem countP_sat_countingLeaves (θ : ℕ → ℕ) (ψ : ClauseSet V) (x : V �
     rw [List.countP_append, ih₀, ih₁]
     by_cases hsat : ψ.Sat x
     · by_cases hH : ∃ l ∈ ch.2, x l.1 = l.2
-      · have h₀ : (countingChild ψ ch.1 ch.2 false).Sat x :=
-          (sat_countingChild_false_iff ψ ch.1 ch.2 x).mpr ⟨hsat, hH⟩
-        have h₁ : ¬ (countingChild ψ ch.1 ch.2 true).Sat x := fun ht =>
-          not_sat_both_countingChild ψ ch.1 ch.2 x ⟨h₀, ht⟩
-        rw [ite_eq_left hsat, ite_eq_left h₀, ite_eq_right h₁]
-      · have h₁ : (countingChild ψ ch.1 ch.2 true).Sat x :=
-          (sat_countingChild_true_iff ψ ch.1 ch.2 x).mpr ⟨hsat, hH⟩
-        have h₀ : ¬ (countingChild ψ ch.1 ch.2 false).Sat x := fun hf =>
-          not_sat_both_countingChild ψ ch.1 ch.2 x ⟨hf, h₁⟩
-        rw [ite_eq_left hsat, ite_eq_right h₀, ite_eq_left h₁]
-    · have h₀ : ¬ (countingChild ψ ch.1 ch.2 false).Sat x := fun hf =>
-        hsat ((sat_countingChild_false_iff ψ ch.1 ch.2 x).mp hf).1
-      have h₁ : ¬ (countingChild ψ ch.1 ch.2 true).Sat x := fun ht =>
-        hsat ((sat_countingChild_true_iff ψ ch.1 ch.2 x).mp ht).1
-      rw [ite_eq_right hsat, ite_eq_right h₀, ite_eq_right h₁]
+      · have h₀ := (sat_countingChild_false_iff ψ ch.1 ch.2 x).mpr ⟨hsat, hH⟩
+        simp [hsat, h₀, not_and.mp (not_sat_both_countingChild ψ ch.1 ch.2 x) h₀]
+      · have h₁ := (sat_countingChild_true_iff ψ ch.1 ch.2 x).mpr ⟨hsat, hH⟩
+        simp [hsat, h₁, not_and'.mp (not_sat_both_countingChild ψ ch.1 ch.2 x) h₁]
+    · simp [hsat, mt (fun hf => ((sat_countingChild_false_iff ψ ch.1 ch.2 x).mp hf).1) hsat,
+        mt (fun ht => ((sat_countingChild_true_iff ψ ch.1 ch.2 x).mp ht).1) hsat]
   | case2 ψ h =>
-    let p : ClauseSet V → Bool := fun L => decide (L.Sat x)
-    change [ψ].countP p = if ψ.Sat x then 1 else 0
-    by_cases hsat : ψ.Sat x
-    · rw [List.countP_cons_of_pos (p := p) (decide_eq_true hsat), List.countP_nil,
-        ite_eq_left hsat]
-    · rw [List.countP_cons_of_neg (p := p) (by simpa only [p, decide_eq_true_eq] using hsat),
-        List.countP_nil, ite_eq_right hsat]
+    by_cases hsat : ψ.Sat x <;> simp [hsat]
 
 /-- **Exact assignment partition (indexed leaf occurrence form).** An assignment `x` satisfies `ψ`
 if and only if there is a unique index `i` into `countingLeaves θ ψ` whose leaf is satisfied by
@@ -466,15 +409,11 @@ if and only if there is a unique index `i` into `countingLeaves θ ψ` whose lea
 theorem sat_iff_existsUnique_fin_countingLeaves (θ : ℕ → ℕ) (ψ : ClauseSet V) (x : V → Bool) :
     ψ.Sat x ↔ ∃! i : Fin (countingLeaves θ ψ).length, ((countingLeaves θ ψ)[i]).Sat x := by
   have hc := countP_sat_countingLeaves θ ψ x
-  constructor
-  · intro hsat
-    rw [ite_eq_left hsat] at hc
-    obtain ⟨i, hi, huniq⟩ := List.existsUnique_fin_of_countP_eq_one hc
-    exact Exists.intro i (And.intro (of_decide_eq_true hi) fun j hj => huniq j (decide_eq_true hj))
-  · rintro ⟨i, hi, -⟩
-    by_contra hnsat
-    rw [ite_eq_right hnsat, List.countP_eq_zero] at hc
-    exact hc ((countingLeaves θ ψ)[i]) (List.getElem_mem i.isLt) (decide_eq_true hi)
+  refine ⟨fun hsat => ?_, fun ⟨i, hi, _⟩ => by_contra fun hnsat => ?_⟩
+  · obtain ⟨i, hi, huniq⟩ := List.existsUnique_fin_of_countP_eq_one (ite_eq_left hsat ▸ hc)
+    exact ⟨i, of_decide_eq_true hi, fun j hj => huniq j (decide_eq_true hj)⟩
+  · rw [ite_eq_right hnsat, List.countP_eq_zero] at hc
+    exact hc _ (List.getElem_mem i.isLt) (decide_eq_true hi)
 
 /-- **Exact assignment partition (leaf membership form).** Because any satisfiable leaf occurs at
 most once in `countingLeaves θ ψ`, `x` satisfies `ψ` if and only if there is a unique clause set
@@ -482,16 +421,11 @@ most once in `countingLeaves θ ψ`, `x` satisfies `ψ` if and only if there is 
 theorem sat_iff_existsUnique_mem_countingLeaves (θ : ℕ → ℕ) (ψ : ClauseSet V) (x : V → Bool) :
     ψ.Sat x ↔ ∃! L, L ∈ countingLeaves θ ψ ∧ L.Sat x := by
   have hc := countP_sat_countingLeaves θ ψ x
-  constructor
-  · intro hsat
-    rw [ite_eq_left hsat] at hc
-    obtain ⟨L, ⟨hLm, hLs⟩, huniq⟩ := List.existsUnique_mem_of_countP_eq_one hc
-    exact Exists.intro L (And.intro ⟨hLm, of_decide_eq_true hLs⟩ fun L' ⟨hL'm, hL's⟩ =>
-      huniq L' ⟨hL'm, decide_eq_true hL's⟩)
-  · rintro ⟨L, ⟨hLm, hLs⟩, -⟩
-    by_contra hnsat
-    rw [ite_eq_right hnsat, List.countP_eq_zero] at hc
-    exact hc L hLm (decide_eq_true hLs)
+  refine ⟨fun hsat => ?_, fun ⟨L, ⟨hLm, hLs⟩, _⟩ => by_contra fun hnsat => ?_⟩
+  · obtain ⟨L, ⟨hLm, hLs⟩, huniq⟩ := List.existsUnique_mem_of_countP_eq_one (ite_eq_left hsat ▸ hc)
+    exact ⟨L, ⟨hLm, of_decide_eq_true hLs⟩, fun L' ⟨hL'm, hL's⟩ =>
+      huniq L' ⟨hL'm, decide_eq_true hL's⟩⟩
+  · exact List.countP_eq_zero.mp (ite_eq_right hnsat ▸ hc) L hLm (decide_eq_true hLs)
 
 /-- **Additive model-count conservation.** Summing `CNF.modelCountOn declared` over all leaves in
 `countingLeaves θ ψ` recovers `ψ.toCNF.modelCountOn declared` on the same declared variable set,
@@ -525,13 +459,9 @@ theorem countP_eval_toCNF_countingLeaves_of_sat_iff (θ : ℕ → ℕ) {ψ : Cla
     {x : V → Bool} (h : ψ.Sat x ↔ φ.eval x = true) :
     ((countingLeaves θ ψ).map ClauseSet.toCNF).countP (fun F => F.eval x) =
       if φ.eval x then 1 else 0 := by
-  rw [List.countP_map]
-  have hcongr : (Function.comp (fun F : CNF V => F.eval x) ClauseSet.toCNF) =
-      fun L : ClauseSet V => decide (L.Sat x) := by
-    funext L
-    exact Bool.eq_iff_iff.mpr
-      ((ClauseSet.eval_toCNF_eq_true_iff L x).trans decide_eq_true_iff.symm)
-  rw [hcongr, countP_sat_countingLeaves]
+  have hcongr : (fun F : CNF V => F.eval x) ∘ ClauseSet.toCNF = fun L => decide (L.Sat x) :=
+    funext fun L => Bool.eq_iff_iff.mpr (by simp [ClauseSet.eval_toCNF_eq_true_iff])
+  rw [List.countP_map, hcongr, countP_sat_countingLeaves]
   exact if_congr h rfl rfl
 
 /-- **CNF assignment partition.** Evaluating `L.toCNF` across `countingLeaves θ φ.toClauseSet`
@@ -548,17 +478,13 @@ theorem vars_toCNF_subset_of_mem_countingLeaves {θ : ℕ → ℕ} {φ : CNF V} 
     (hvars : φ.vars.toFinset ⊆ declared) {L : ClauseSet V}
     (hL : L ∈ countingLeaves θ φ.toClauseSet) :
     L.toCNF.vars.toFinset ⊆ declared := by
-  have hroot : ∀ C ∈ φ.toClauseSet, ∀ l ∈ C, l.1 ∈ declared := by
-    intro C hC l hl
-    simp only [CNF.toClauseSet, List.mem_toFinset, List.mem_map] at hC
-    obtain ⟨c, hc, rfl⟩ := hC
-    exact hvars (List.mem_toFinset.mpr (CNF.mem_vars.mpr ⟨c, hc, l.2, List.mem_toFinset.mp hl⟩))
-  have hleaf := support_of_mem_countingLeaves hroot hL
   intro v hv
   obtain ⟨c, hc, b, hvb⟩ := CNF.mem_vars.mp (List.mem_toFinset.mp hv)
-  simp only [ClauseSet.toCNF, List.mem_map, Finset.mem_toList] at hc
-  obtain ⟨C, hC, rfl⟩ := hc
-  exact hleaf C hC (v, b) (Finset.mem_toList.mp hvb)
+  obtain ⟨C, hC, rfl⟩ := List.mem_map.mp hc
+  refine support_of_mem_countingLeaves (fun D hD l hl => ?_) hL
+    C (Finset.mem_toList.mp hC) (v, b) (Finset.mem_toList.mp hvb)
+  obtain ⟨d, hd, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hD)
+  exact hvars (List.mem_toFinset.mpr (CNF.mem_vars.mpr ⟨d, hd, l.2, List.mem_toFinset.mp hl⟩))
 
 /-- **CNF additive model-count conservation.** Summing `modelCountOn declared` over the leaf
 formulas of `countingLeaves θ φ.toClauseSet` recovers `φ.modelCountOn declared`. -/

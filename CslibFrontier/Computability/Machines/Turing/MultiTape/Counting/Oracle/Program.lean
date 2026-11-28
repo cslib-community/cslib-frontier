@@ -134,8 +134,7 @@ theorem interpret_runOccurrenceProgram_succ
   dsimp only [occurrenceTraceHandler, StateT.run]
   simp only [List.map_eq_map, List.ofFn_eq_map, List.map_map,
     List.bind_eq_flatMap, List.flatMap_map]
-  apply List.flatMap_congr
-  intro index _
+  refine List.flatMap_congr fun index _ => ?_
   simp only [Function.comp_apply, id_eq]
   cases (machine.tr state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
     cfg.answerSymbols)[index.val] with
@@ -170,15 +169,12 @@ theorem interpret_occurrenceTraceHandler_erase {S α : Type}
     simp only [interp_norm]
     cases q with
     | inl n =>
-      dsimp only [occurrenceTraceHandler, occurrenceHandler, StateT.run]
-      simp only [List.bind_eq_flatMap, List.ofFn_eq_map, List.flatMap_map, List.map_flatMap]
-      apply List.flatMap_congr
-      intro index _
-      exact ih index (trace ++ [index.val]) s
+      simp only [occurrenceTraceHandler, occurrenceHandler, StateT.run,
+        List.bind_eq_flatMap, List.ofFn_eq_map, List.flatMap_map, List.map_flatMap]
+      exact List.flatMap_congr fun index _ => ih index (trace ++ [index.val]) s
     | inr q =>
-      dsimp only [occurrenceTraceHandler, occurrenceHandler, StateT.run]
-      simpa only [List.bind_eq_flatMap, List.flatMap_cons, List.flatMap_nil, List.append_nil,
-        StateT.run] using
+      simpa only [occurrenceTraceHandler, occurrenceHandler, StateT.run,
+        List.bind_eq_flatMap, List.flatMap_cons, List.flatMap_nil, List.append_nil] using
         ih (oracle q s).1 trace (oracle q s).2
 
 /-- The recorded run differs from the ordinary shared-program interpretation only by its log. -/

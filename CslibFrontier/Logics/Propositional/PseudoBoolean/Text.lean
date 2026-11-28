@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Data.Nat.ToDigits
 public import CslibFrontier.Logics.Propositional.CNF.LRAT
-public import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Fast
 
 /-!
 # A text front end for the VeriPB kernel-proof checker
@@ -24,7 +24,10 @@ extended as described below, producing the abstract syntax checked by
   preserved-set line `preserved: x₁ … xₙ;`, in either order, before the constraints
   (`Cslib.Logic.PL.VeriPB.Objective`), then one constraint `∑ aᵢ ℓᵢ ⋈ A;` per line with `⋈` one
   of `>=`, `<=`, `=`, an equality counting as the two constraints `≥` and `≤` in this order; lines
-  starting with `*` are comments;
+  starting with `*` are comments. A constraint line may start with labels `@l`, one for each
+  constraint it stands for, as VeriPB 3.0.2 reads them; they name the constraints for a proof in
+  the augmented format, and do not change the instance
+  (`Cslib.Logic.PL.VeriPB.Text.parseOPBLabelled`);
 * a DIMACS CNF formula (`Cslib.Logic.PL.VeriPB.Text.parseDIMACS`): the header `p cnf V C`, then
   exactly `C` clauses over the variables `1, …, V`, its clause `1 -2 3 0` read as the constraint
   `x1 + ~x2 + x3 >= 1` (`Cslib.Logic.PL.Clause.toPB`);
@@ -85,17 +88,41 @@ and `eord_loaded` (§5.11.3), the solution-logging steps `sol`, `soli` and `solx
 `obji` (§5.8), the objective update `obju new` or `obju diff` with an objective in the OPB syntax,
 an optional constant included, and an optional subproof of `proofgoal #1` and `#2` (§5.9), the
 changes of the preserved set `preserved_add x : C` and `preserved_rm x : C` with an optional
-subproof of `proofgoal #1` and `#2`, closed by `qed [preserved_add];` (`rm`) (§5.10), the check
-`epreserved` (§5.11.4), `core id` (§5.1), `strengthening_to_core on` and `off` (§5.6), and the
-deletions (§5.7.1): `deld` of derived constraints, the unchecked `delc` of core constraints, and the
-checked `delc id : ω` of one core constraint, with an optional subproof. Orders, `dom`, deletion,
-`core`, strengthening-to-core, solution logging, `obji`, `obju` and the preserved-set rules are
-accepted only at top level, as the format requires. Two steps of the augmented format are also
+subproof of `proofgoal #1` and `#2`, closed by `qed [preserved_add];` (`rm`) (§5.10), the checks
+`epreserved` (§5.11.4) and `e C : j`, that the constraint `j` is `C` after normalization up to the
+order of terms (§5.11.1; CaDiCaL writes it after each `pol` derivation, and CakePB requires `j`),
+`core id` (§5.1), `strengthening_to_core on` and `off` (§5.6), and the deletions (§5.7.1):
+`deld` of derived constraints, the unchecked `delc` of core constraints, and the checked
+`delc id : ω` of one core constraint, with an optional subproof. Orders, `dom`, deletion,
+`core`, strengthening-to-core, solution logging, `obji`, `obju`, the preserved-set rules and `e`
+are accepted only at top level, as the format requires. Two steps of the augmented format are also
 accepted: `del id`, read as the untyped deletion `Cslib.Logic.PL.VeriPB.Step.del` (§5.7.2; a
 deletion of a core constraint counts as unchecked), and `rup` without hints, read as
-`Cslib.Logic.PL.VeriPB.Step.rupSearch`. Everything else (`pol` operations `c`, `m`, `n` and `-`,
-relative constraint numbers, `i` and `ia`, `del spec`, levels, and the conclusion `UNSAT` without an
-ID) is rejected.
+`Cslib.Logic.PL.VeriPB.Step.rupSearch`. The implication `ia C : j;`, which VeriPB's elaborator
+writes in kernel proofs and CakePB checks as an implication by the constraint `j`, is read as
+`rup C : ~ j;`: unit propagation from the negation of `C` and then `j`. That is sound, and accepts
+every `ia` whose constraint `C` is a clause (coefficients and degree `1`), for which an implication
+by `j` is exactly a conflict of `j` under the negation of `C`; for other constraints it may reject
+an implication that CakePB accepts. Everything else (`pol` operations `c`, `m`, `n` and `-`,
+relative constraint numbers, `i`, `ia` and `e` without a constraint number, `e` in a subproof,
+`del spec`, levels, and the conclusion `UNSAT` without an ID) is rejected.
+
+**Constraint labels.** Constraint labels of the augmented format (§5, "Constraint Labels") are
+also accepted, as VeriPB 3.0.2 reads them; CakePB rejects them in a proof. A label `@l`
+(`Cslib.Logic.PL.VeriPB.Text.isLabel`) before a rule names the constraint the rule adds, or the
+constraint `j` of `e C : j` (§5.11.1), and may then stand for its number wherever a constraint
+number may: in `pol`, the hints of `rup`, `ia`, the closing contradiction of a subproof, a
+`proofgoal`, the deletions, `core id`, `e` and the conclusion. A label before a rule that adds no
+constraint, two labels before one rule, and an undefined label are rejected, as by VeriPB. The
+labels of an OPB instance (`Cslib.Logic.PL.VeriPB.Text.parseOPBLabelled`) are in scope from the
+start. A label given again names its new constraint from then on, and a label given in a
+subproof stays in scope after it, as in VeriPB. The specification, the transitivity proof and
+the reflexivity proof of `def_order` each have labels of their own, as in the augmented path
+(`Cslib.Logic.PL.VeriPB.Elab.checkAugmented`). The parser numbers the constraints as
+`Cslib.Logic.PL.VeriPB.checkRed` does, so a label names the constraint that VeriPB's elaboration
+of the proof refers to by number. Labels are resolved by the parser alone: the
+checker and the soundness theorems below are those of proofs without labels, and the labels of
+an instance do not change it (`Cslib.Logic.PL.VeriPB.Text.parseOPB_eq_some_of_parseOPBLabelled`).
 
 **Output sections.** `Cslib.Logic.PL.VeriPB.Text.checkOPBOutput` takes the output formula of
 `output g FILE;` as a third text, and checks the section with
@@ -132,12 +159,14 @@ value itself (`Cslib.Logic.PL.VeriPB.Text.not_satisfiable_of_checkOPB_printOPB` 
 
 * `Cslib.Logic.PL.VeriPB.Text.parseOPB`, `Cslib.Logic.PL.VeriPB.Text.parseOPBWith`,
   `Cslib.Logic.PL.VeriPB.Text.parseDIMACS`: instances, with their own names or given ones, and
-  formulas.
+  formulas; `Cslib.Logic.PL.VeriPB.Text.parseOPBLabelled`: an instance and the labels of its
+  constraints.
 * `Cslib.Logic.PL.VeriPB.Text.parseProof`: proofs in the supported fragment.
 * `Cslib.Logic.PL.VeriPB.Text.checkOPB`, `Cslib.Logic.PL.VeriPB.Text.checkOPBOutput`,
   `Cslib.Logic.PL.VeriPB.Text.checkDIMACS`: the checkers.
 * `Cslib.Logic.PL.VeriPB.Text.isOPBName`, `Cslib.Logic.PL.VeriPB.Text.isName`: the variable
   names of an instance, and those of a proof, which may also name auxiliary variables `$a`.
+* `Cslib.Logic.PL.VeriPB.Text.isLabel`: the constraint labels `@l` of an instance.
 * `Cslib.Logic.PL.VeriPB.Text.Names`, `Cslib.Logic.PL.VeriPB.Text.opbNames`,
   `Cslib.Logic.PL.VeriPB.Text.proofNames`: variable names, those of an OPB text, and those of a
   proof and its output text.
@@ -172,9 +201,11 @@ namespace Cslib.Logic.PL.VeriPB.Text
 
 /-! ### Tokens -/
 
-/-! The lexer works on the characters of a text by structural recursion, without `String.splitOn`,
-`String.toNat?` and the other `String` operations that the kernel cannot evaluate, so that
-`decide` can check concrete texts. -/
+/-! The lexer works on the characters of a text, without `String.splitOn`, `String.toNat?` and
+the other `String` operations that the kernel cannot evaluate, so that `decide` can check concrete
+texts. It is one tail-recursive pass over the characters (`lexChars`, `linesAux`), linear in the
+text; the structurally recursive specification (`splitChars`, `lexLine`) computes the same tokens
+(`tokens_eq_spec`, `lines_eq_spec`). -/
 
 /-- The pieces of a list of characters between the characters satisfying `p`. -/
 def splitChars (p : Char → Bool) : List Char → List (List Char)
@@ -185,9 +216,6 @@ def splitChars (p : Char → Bool) : List Char → List (List Char)
       match splitChars p cs with
       | l :: ls => (c :: l) :: ls
       | [] => [[c]]
-
-/-- The lines of a text. -/
-private def lines (s : String) : List String := (splitChars (· == '\n') s.toList).map String.ofList
 
 /-- The token in progress, its characters reversed, if any. -/
 private def flushToken (cur : List Char) : List String :=
@@ -202,10 +230,141 @@ private def lexLine : List Char → List Char → List String
     else if c == ';' then flushToken cur ++ ";" :: lexLine cs []
     else lexLine cs (c :: cur)
 
+/-- The token in progress `cur`, reversed, if any, onto the tokens `acc`, reversed. -/
+private def flushTo (cur : List Char) (acc : List String) : List String :=
+  if cur.isEmpty then acc else String.ofList cur.reverse :: acc
+
+/-- The tokens of the characters `cs`, in one pass: `cur` is the token in progress, reversed,
+`com` says that the rest of the line is a comment, and `acc` holds the tokens so far, reversed. -/
+private def lexChars : List Char → List Char → Bool → List String → List String
+  | [], cur, _, acc => (flushTo cur acc).reverse
+  | c :: cs, cur, com, acc =>
+    if c == '\n' then lexChars cs [] false (flushTo cur acc)
+    else if com then lexChars cs [] true acc
+    else if c == '%' then lexChars cs [] true (flushTo cur acc)
+    else if c.isWhitespace then lexChars cs [] false (flushTo cur acc)
+    else if c == ';' then lexChars cs [] false (";" :: flushTo cur acc)
+    else lexChars cs (c :: cur) false acc
+
 /-- The tokens of a text: whitespace-separated, with `;` a token of its own and everything after
 `%` on a line a comment. -/
-def tokens (s : String) : List String :=
-  (splitChars (· == '\n') s.toList).flatMap fun line => lexLine (line.takeWhile (· != '%')) []
+def tokens (s : String) : List String := lexChars s.toList [] false []
+
+/-- The lines of the characters `cs`, in one pass: `cur` is the line in progress, reversed, and
+`acc` holds the lines so far, reversed. -/
+private def linesAux : List Char → List Char → List String → List String
+  | [], cur, acc => (String.ofList cur.reverse :: acc).reverse
+  | c :: cs, cur, acc =>
+    if c == '\n' then linesAux cs [] (String.ofList cur.reverse :: acc)
+    else linesAux cs (c :: cur) acc
+
+/-- The lines of a text. -/
+private def lines (s : String) : List String := linesAux s.toList [] []
+
+private theorem splitChars_ne_nil (p : Char → Bool) (cs : List Char) : splitChars p cs ≠ [] := by
+  cases cs with
+  | nil => simp [splitChars]
+  | cons c cs =>
+    unfold splitChars
+    split
+    · simp
+    · split <;> simp
+
+private theorem linesAux_eq (cs cur : List Char) (acc : List String) :
+    linesAux cs cur acc = acc.reverse ++
+      ((splitChars (· == '\n') cs).modifyHead (cur.reverse ++ ·)).map String.ofList := by
+  induction cs generalizing cur acc with
+  | nil => simp [linesAux, splitChars]
+  | cons c cs ih =>
+    unfold linesAux splitChars
+    by_cases hc : c = '\n'
+    · subst hc
+      simp only [beq_self_eq_true, ↓reduceIte, ih, List.reverse_nil, List.nil_append,
+        List.reverse_cons, List.append_assoc, List.cons_append]
+      cases splitChars (· == '\n') cs <;> simp
+    · have hc' : (c == '\n') = false := by simpa using hc
+      simp only [hc', Bool.false_eq_true, ↓reduceIte, ih]
+      have := splitChars_ne_nil (· == '\n') cs
+      rcases h : splitChars (· == '\n') cs with _ | ⟨l, ls⟩
+      · exact absurd h this
+      · simp
+
+private theorem lines_eq_spec (s : String) :
+    lines s = (splitChars (· == '\n') s.toList).map String.ofList := by
+  rw [lines, linesAux_eq]
+  have := splitChars_ne_nil (· == '\n') s.toList
+  rcases h : splitChars (· == '\n') s.toList with _ | ⟨l, ls⟩
+  · exact absurd h this
+  · simp
+
+/-- The tokens of the lines of `ls`, comments removed. -/
+private def lineTokens (ls : List (List Char)) : List String :=
+  ls.flatMap fun line => lexLine (line.takeWhile (· != '%')) []
+
+private theorem reverse_flushTo (cur : List Char) (acc : List String) :
+    (flushTo cur acc).reverse = acc.reverse ++ flushToken cur := by
+  unfold flushTo flushToken
+  split <;> simp
+
+private theorem lexChars_eq (cs cur : List Char) (acc : List String) :
+    lexChars cs cur false acc = acc.reverse ++
+        (match splitChars (· == '\n') cs with
+          | [] => []
+          | l :: ls => lexLine (l.takeWhile (· != '%')) cur ++ lineTokens ls) ∧
+      lexChars cs [] true acc = acc.reverse ++
+        (match splitChars (· == '\n') cs with
+          | [] => []
+          | _ :: ls => lineTokens ls) := by
+  induction cs generalizing cur acc with
+  | nil => simp [lexChars, splitChars, lexLine, reverse_flushTo, lineTokens, flushToken]
+  | cons c cs ih =>
+    have hne := splitChars_ne_nil (· == '\n') cs
+    by_cases hn : c = '\n'
+    · subst hn
+      have h₀ : ∀ acc, lexChars cs [] false acc = acc.reverse ++ lineTokens
+          (splitChars (· == '\n') cs) := fun acc => by
+        rw [(ih [] acc).1]
+        rcases h : splitChars (· == '\n') cs with _ | ⟨l, ls⟩
+        · exact absurd h hne
+        · simp [lineTokens]
+      refine ⟨?_, ?_⟩
+      · simp only [lexChars, splitChars, beq_self_eq_true, ↓reduceIte, h₀, reverse_flushTo,
+          List.takeWhile_nil, lexLine]
+        simp [lineTokens, List.append_assoc]
+      · have := h₀ acc
+        simp only [lexChars, splitChars, beq_self_eq_true, ↓reduceIte, flushTo, List.isEmpty_nil]
+        simpa [lineTokens] using this
+    · have hn' : (c == '\n') = false := by simpa using hn
+      rcases h : splitChars (· == '\n') cs with _ | ⟨l, ls⟩
+      · exact absurd h hne
+      have hsplit : splitChars (· == '\n') (c :: cs) = (c :: l) :: ls := by
+        simp [splitChars, hn', h]
+      rw [hsplit]
+      refine ⟨?_, ?_⟩
+      · simp only [lexChars, hn', Bool.false_eq_true, ↓reduceIte]
+        by_cases hp : c = '%'
+        · subst hp
+          simp [(ih [] _).2, h, reverse_flushTo, lexLine]
+        · have hp' : (c == '%') = false := by simpa using hp
+          have htw : (c :: l).takeWhile (· != '%') = c :: l.takeWhile (· != '%') := by
+            simp [hp]
+          simp only [hp', Bool.false_eq_true, ↓reduceIte, htw, lexLine]
+          by_cases hw : c.isWhitespace
+          · simp [hw, (ih [] _).1, h, reverse_flushTo]
+          · by_cases hs : c = ';'
+            · subst hs
+              simp [hw, (ih [] _).1, h, reverse_flushTo]
+            · have hs' : (c == ';') = false := by simpa using hs
+              simp [hw, hs', (ih _ _).1, h]
+      · simp only [lexChars, hn', Bool.false_eq_true, ↓reduceIte, (ih [] acc).2, h]
+
+private theorem tokens_eq_spec (s : String) :
+    tokens s = lineTokens (splitChars (· == '\n') s.toList) := by
+  rw [tokens, (lexChars_eq _ [] []).1]
+  have := splitChars_ne_nil (· == '\n') s.toList
+  rcases h : splitChars (· == '\n') s.toList with _ | ⟨l, ls⟩
+  · exact absurd h this
+  · simp [lineTokens]
 
 /-- A natural number: one or more decimal digits (`Nat.ofDecimal?`). -/
 private def nat? (t : String) : Option ℕ := Nat.ofDecimal? t.toList
@@ -455,25 +614,21 @@ theorem Names.var?_name {N : Names} (hN : N.WF) {v : ℕ} (hv : v < N.next) :
   unfold Names.name Names.nameChars
   split
   · rename_i hlt
-    obtain ⟨n, rfl⟩ : ∃ n, v = n := ⟨v, rfl⟩
     rw [Names.var?, stdVar?_std]
     simp [hlt]
   · rename_i hle
     have hi : v - N.base < N.others.length := by unfold Names.next at hv; omega
     rw [List.getElem?_eq_getElem hi]
     simp only [String.ofList_toList]
-    have hidx : N.others.idxOf? N.others[v - N.base] = some (v - N.base) := by
-      rw [List.idxOf?_eq_some_iff]
-      exact ⟨hi, rfl, fun j hj h => by
-        have := (hN.nodup.getElem_inj_iff (i := j) (j := v - N.base)).1 h
-        omega⟩
+    have hidx : N.others.idxOf? N.others[v - N.base] = some (v - N.base) :=
+      List.idxOf?_eq_some_iff.2 ⟨hi, rfl, fun j hj h =>
+        hj.ne ((hN.nodup.getElem_inj_iff (i := j) (j := v - N.base)).1 h)⟩
     have hmap : (N.others.idxOf? N.others[v - N.base]).map (N.base + ·) = some v := by
       rw [hidx]; simp; omega
     unfold Names.var?
     split
     · rename_i u hu
-      have := hN.base_le _ (List.getElem_mem hi) u hu
-      simp [show ¬ u < N.base by omega, hmap]
+      simp [Nat.not_lt.2 (hN.base_le _ (List.getElem_mem hi) u hu), hmap]
     · exact hmap
 
 /-- A standard name is written without leading zeros: it is `x(n + 1)` for its variable `n`. -/
@@ -511,7 +666,7 @@ theorem Names.name_of_var? {N : Names} {t : String} {w : ℕ} (h : N.var? t = so
     intro w hw
     obtain ⟨i, hi, rfl⟩ := Option.map_eq_some_iff.1 hw
     obtain ⟨hlt, hget, -⟩ := List.idxOf?_eq_some_iff.1 hi
-    simp only [Names.name, Names.nameChars, show ¬ N.base + i < N.base by omega, ↓reduceIte,
+    simp only [Names.name, Names.nameChars, Nat.not_lt.2 (Nat.le_add_right N.base i), ↓reduceIte,
       Nat.add_sub_cancel_left, List.getElem?_eq_getElem hlt, hget, String.ofList_toList]
   unfold Names.var? at h
   split at h
@@ -595,12 +750,9 @@ theorem Names.name_injective {N : Names} (hN : N.WF) : Function.Injective N.name
 /-- A name read as a variable is read below `next`. -/
 theorem Names.lt_next_of_var? {N : Names} {t : String} {w : ℕ} (h : N.var? t = some w) :
     w < N.next := by
-  have hlook : ∀ {w}, (N.others.idxOf? t).map (N.base + ·) = some w → w < N.next := by
-    intro w hw
+  have hlook : ∀ {w}, (N.others.idxOf? t).map (N.base + ·) = some w → w < N.next := fun hw => by
     obtain ⟨i, hi, rfl⟩ := Option.map_eq_some_iff.1 hw
-    have := (List.idxOf?_eq_some_iff.1 hi).1
-    unfold Names.next
-    omega
+    exact Nat.add_lt_add_left (List.idxOf?_eq_some_iff.1 hi).1 N.base
   unfold Names.var? at h
   split at h
   · split at h
@@ -627,32 +779,36 @@ objective, a final constant term, with the literals read by `lit` (`Names.lit?` 
 `Names.opbLit?` in an instance). A constraint never ends in `;` or `:` before its relation, so
 `constr` still rejects a constant there. -/
 private def terms (lit : String → Option (Literal ℕ)) :
-    ℕ → List String → List (ℕ × ℤ) → ℤ → Option (List (ℕ × ℤ) × ℤ × List String)
-  | 0, _, _, _ => none
-  | fuel + 1, t :: ts, L, k =>
+    List String → List (ℕ × ℤ) → ℤ → Option (List (ℕ × ℤ) × ℤ × List String)
+  | [], _, _ => none
+  | t :: ts, L, k =>
     if t == ">=" || t == "<=" || t == "=" || t == ";" || t == ":" then some (L, k, t :: ts)
     else
-      -- A coefficient and a literal, or a literal with coefficient `1`.
-      let (a, rest) := match int? t with
-        | some a => (a, ts)
-        | none => (1, t :: ts)
-      match rest with
-      | u :: rest =>
-        -- A coefficient before `;` or `:` is the constant of an objective.
-        if (int? t).isSome && (u == ";" || u == ":") then some (L, k + a, u :: rest)
-        else
-          match lit u with
-          | some (v, true) => terms lit fuel rest (PBConstr.insertCoeff v a L) k
-          | some (v, false) => terms lit fuel rest (PBConstr.insertCoeff v (-a) L) (k + a)
-          | none => none
-      | [] => none
-  | _ + 1, [], _, _ => none
+      match int? t with
+      | some a =>
+        -- A coefficient and a literal; a coefficient before `;` or `:` is the constant of an
+        -- objective.
+        match ts with
+        | u :: rest =>
+          if u == ";" || u == ":" then some (L, k + a, u :: rest)
+          else
+            match lit u with
+            | some (v, true) => terms lit rest (PBConstr.insertCoeff v a L) k
+            | some (v, false) => terms lit rest (PBConstr.insertCoeff v (-a) L) (k + a)
+            | none => none
+        | [] => none
+      | none =>
+        -- A literal with coefficient `1`.
+        match lit t with
+        | some (v, true) => terms lit ts (PBConstr.insertCoeff v 1 L) k
+        | some (v, false) => terms lit ts (PBConstr.insertCoeff v (-1) L) (k + 1)
+        | none => none
 
 /-- A constraint `∑ aᵢ ℓᵢ ⋈ A`, its literals read by `lit`: one or two constraints `≥` (`=` gives
 two), and the rest. -/
 private def constr (lit : String → Option (Literal ℕ)) (ts : List String) :
     Option (List PBConstr × List String) :=
-  match terms lit (ts.length + 1) ts [] 0 with
+  match terms lit ts [] 0 with
   | some (L, k, rel :: d :: rest) =>
     match int? d with
     | none => none
@@ -676,22 +832,40 @@ private def geq (N : Names) (ts : List String) : Option (PBConstr × List String
 
 /-! ### Formulas -/
 
-/-- The constraints of OPB lines, given as token lists, with OPB names. -/
-private def opbLines (N : Names) : List (List String) → Option (List PBConstr)
-  | [] => some []
-  | [] :: ls => opbLines N ls
+/-- **A constraint label** `@l` of an instance (§5 of the documentation; VeriPB 3.0.2 also
+reads them in instances): `@` followed by one or more name characters
+(`Cslib.Logic.PL.VeriPB.Text.isNameChar`). This is the rule `@[a-zA-Z0-9_\-\^\[\]\{\}]+` of
+`OPBToken::Label` in `opb_token.rs` of `veripb-parser` 0.1.2. -/
+def isLabel (t : String) : Bool :=
+  match t.toList with
+  | '@' :: c :: cs => (c :: cs).all isNameChar
+  | _ => false
+
+/-- The constraints of OPB lines, given as token lists, with OPB names, and their labels, each
+with the number of the constraint it names, the first constraint having the number `k`. A line
+carries no label or one label for each constraint it stands for, in the order of the
+constraints (two for an equality), as in `parse_opb_from_file_given_var_manager` of
+`veripb-parser` 0.1.2. -/
+private def opbLines (N : Names) (k : ℕ) :
+    List (List String) → Option (List PBConstr × List (String × ℕ))
+  | [] => some ([], [])
+  | [] :: ls => opbLines N k ls
   | (t :: ts) :: ls =>
-    if startsWithChar '*' t then opbLines N ls
+    if startsWithChar '*' t then opbLines N k ls
     else
-      match constr N.opbLit? (t :: ts), opbLines N ls with
-      | some (cs, [";"]), some F => some (cs ++ F)
-      | _, _ => none
+      let (lb, body) := (t :: ts).span isLabel
+      match constr N.opbLit? body with
+      | some (cs, [";"]) =>
+        if lb.isEmpty || lb.length == cs.length then
+          (opbLines N (k + cs.length) ls).map fun (F, L) => (cs ++ F, lb.zipIdx k ++ L)
+        else none
+      | _ => none
 
 /-- An objective `∑ wᵢ ℓᵢ [k]` with an optional constant `k`, its literals read by `lit`, up to
 `;` or `:`, and the rest from there: the OPB objective syntax, which `obju` reuses (§5.9). -/
 private def objTerms (lit : String → Option (Literal ℕ)) (ts : List String) :
     Option (Objective × List String) :=
-  match terms lit (ts.length + 1) ts [] 0 with
+  match terms lit ts [] 0 with
   | some (L, k, t :: rest) => if t == ";" || t == ":" then some (⟨L, k⟩, t :: rest) else none
   | _ => none
 
@@ -709,29 +883,52 @@ private def presVars (N : Names) : List String → Option (List ℕ)
     (if isOPBName t then N.var? t else none).bind fun v => (presVars N ts).map (v :: ·)
   | [] => none
 
-/-- **An OPB instance with the names `N`** (`Cslib.Logic.PL.VeriPB.Instance`): comment lines
-starting with `*`, an optional objective line `min: …;` and an optional preserved-set line
-`preserved: …;`, in either order, before the constraints, and one constraint per line. Its
-variables have OPB names (`Cslib.Logic.PL.VeriPB.Text.isOPBName`, read by
+/-- **An OPB instance with the names `N`, and the labels of its constraints**
+(`Cslib.Logic.PL.VeriPB.Instance`): comment lines starting with `*`, an optional objective line
+`min: …;` and an optional preserved-set line `preserved: …;`, in either order, before the
+constraints, and one constraint per line, which may start with labels
+(`Cslib.Logic.PL.VeriPB.Text.isLabel`): none, or one for each constraint the line stands for.
+Its variables have OPB names (`Cslib.Logic.PL.VeriPB.Text.isOPBName`, read by
 `Cslib.Logic.PL.VeriPB.Text.Names.opbLit?`), so a name `$a` of an auxiliary variable is
-rejected even when `N` knows it. An input is read with its own names
-(`Cslib.Logic.PL.VeriPB.Text.parseOPB`), an output formula with the names of its proof. -/
-def parseOPBWith (N : Names) (s : String) : Option Instance :=
+rejected even when `N` knows it. The labels come in the order of the text, each with the
+number of the constraint it names, the constraints being numbered from `1` (§5.1), so a later
+label of the same name takes precedence, as in VeriPB. They do not change the instance; a proof
+in the augmented format may refer to them (`Cslib.Logic.PL.VeriPB.Elab.checkAugmented`). CakePB
+(CakeML `14856fcf`) reads an instance with any number of labels on a line, and ignores them. -/
+def parseOPBLabelled (N : Names) (s : String) : Option (Instance × List (String × ℕ)) :=
   match opbTokenLines s with
   | ("min:" :: ts) :: ("preserved:" :: ps) :: ls
   | ("preserved:" :: ps) :: ("min:" :: ts) :: ls =>
     (objective N ts).bind fun f => (presVars N ps).bind fun P =>
-      (opbLines N ls).map (⟨·, some f, some P⟩)
+      (opbLines N 1 ls).map fun (F, L) => (⟨F, some f, some P⟩, L)
   | ("min:" :: ts) :: ls =>
-    (objective N ts).bind fun f => (opbLines N ls).map (⟨·, some f, none⟩)
+    (objective N ts).bind fun f => (opbLines N 1 ls).map fun (F, L) => (⟨F, some f, none⟩, L)
   | ("preserved:" :: ps) :: ls =>
-    (presVars N ps).bind fun P => (opbLines N ls).map (⟨·, none, some P⟩)
-  | ls => (opbLines N ls).map (⟨·, none, none⟩)
+    (presVars N ps).bind fun P => (opbLines N 1 ls).map fun (F, L) => (⟨F, none, some P⟩, L)
+  | ls => (opbLines N 1 ls).map fun (F, L) => (⟨F, none, none⟩, L)
+
+/-- **An OPB instance with the names `N`** (`Cslib.Logic.PL.VeriPB.Text.parseOPBLabelled`,
+without the labels). An input is read with its own names
+(`Cslib.Logic.PL.VeriPB.Text.parseOPB`), an output formula with the names of its proof. -/
+def parseOPBWith (N : Names) (s : String) : Option Instance :=
+  (parseOPBLabelled N s).map (·.1)
 
 /-- **An OPB instance** (`Cslib.Logic.PL.VeriPB.Text.parseOPBWith`), read with its own names
 (`Cslib.Logic.PL.VeriPB.Text.opbNames`): the variable `v` is named
 `(opbNames s).name v`. An instance with standard names `xN` only has the variables `N - 1`. -/
 def parseOPB (s : String) : Option Instance := parseOPBWith (opbNames s) s
+
+/-- **The labels do not change the instance**: an instance read with the labels of its
+constraints (`Cslib.Logic.PL.VeriPB.Text.parseOPBLabelled`) is the one
+`Cslib.Logic.PL.VeriPB.Text.parseOPB` reads. -/
+theorem parseOPB_eq_some_of_parseOPBLabelled {s : String} {I : Instance}
+    {L : List (String × ℕ)} (h : parseOPBLabelled (opbNames s) s = some (I, L)) :
+    parseOPB s = some I := by
+  simp [parseOPB, parseOPBWith, h]
+
+/-- An OPB instance is read with the names of its own text. -/
+theorem parseOPB_eq_parseOPBWith (s : String) : parseOPB s = parseOPBWith (opbNames s) s := by
+  unfold parseOPB; rfl
 
 /-- The clauses of a DIMACS body over the variables `1, …, V`: nonzero integers of magnitude at
 most `V`, each clause ended by `0`. -/
@@ -758,18 +955,52 @@ def parseDIMACS (s : String) : Option (CNF ℕ) :=
 
 /-! ### Proofs -/
 
-/-- Constraint numbers and `~` up to `;`, as RUP hints. -/
-private def hints : List String → Option (List Hint × List String)
+/-- **How a proof being read numbers and labels its constraints** (§5 of the documentation,
+"Constraint Labels"): the labels in scope, the number the next constraint takes, and the sizes of
+the orders, which fix how many numbers the scopes and the goal `#N + 1` of `dom` take. The numbers
+follow `Cslib.Logic.PL.VeriPB.checkRed`. -/
+private structure Numbering where
+  /-- The labels in scope with the numbers of their constraints, the most recent first. -/
+  labels : List (String × ℕ)
+  /-- The number of the next constraint. -/
+  next : ℕ
+  /-- The defined orders, with the numbers of constraints of their specification and their
+  definition. -/
+  orders : List (String × ℕ × ℕ) := []
+  /-- Those of the loaded order, `(0, 0)` without one. -/
+  loaded : ℕ × ℕ := (0, 0)
+
+/-- `k` constraints take the next numbers. -/
+private def Numbering.skip (c : Numbering) (k : ℕ) : Numbering := { c with next := c.next + k }
+
+/-- A constraint reference: a positive number, or a label in scope (§5). -/
+private def Numbering.ref? (c : Numbering) (t : String) : Option ℕ :=
+  if isLabel t then c.labels.lookup t else id? t
+
+/-- Define the label `l`, if any, as the constraint `n` that its rule names; `none` when there is
+a label and the rule names no constraint. -/
+private def Numbering.labelAs (c : Numbering) : Option String → Option ℕ → Option Numbering
+  | none, _ => some c
+  | some l, some n => some { c with labels := (l, n) :: c.labels }
+  | some _, none => none
+
+/-- A label before a rule, if any, and the rest. -/
+private def splitLabel : List String → Option String × List String
+  | t :: ts => if isLabel t then (some t, ts) else (none, t :: ts)
+  | [] => (none, [])
+
+/-- Constraint references and `~` up to `;`, as RUP hints. -/
+private def hints (c : Numbering) : List String → Option (List Hint × List String)
   | ";" :: ts => some ([], ";" :: ts)
   | t :: ts =>
-    (if t == "~" then some Hint.neg else (id? t).map Hint.id).bind fun h =>
-      (hints ts).map fun (hs, rest) => (h :: hs, rest)
+    (if t == "~" then some Hint.neg else (c.ref? t).map Hint.id).bind fun h =>
+      (hints c ts).map fun (hs, rest) => (h :: hs, rest)
   | [] => none
 
-/-- Constraint numbers up to `;`. -/
-private def ids : List String → Option (List ℕ × List String)
+/-- Constraint references up to `;`. -/
+private def ids (c : Numbering) : List String → Option (List ℕ × List String)
   | ";" :: ts => some ([], ";" :: ts)
-  | t :: ts => (id? t).bind fun n => (ids ts).map fun (ns, rest) => (n :: ns, rest)
+  | t :: ts => (c.ref? t).bind fun n => (ids c ts).map fun (ns, rest) => (n :: ns, rest)
   | [] => none
 
 /-- Prepend an operation to the result of parsing the rest. -/
@@ -779,20 +1010,20 @@ private def consOp (op : PolOp) :
 
 /-- The operations of a `pol` step, up to `;`. A number followed by `*` or `d` is the operand of
 that operation, and a variable followed by `w` the variable of a weakening. -/
-private def polOps (N : Names) : List String → Option (List PolOp × List String)
+private def polOps (N : Names) (c : Numbering) : List String → Option (List PolOp × List String)
   | ";" :: ts => some ([], ";" :: ts)
-  | "+" :: ts => consOp .add (polOps N ts)
-  | "s" :: ts => consOp .sat (polOps N ts)
-  | t :: "*" :: ts => (nat? t).bind fun k => consOp (.mul k) (polOps N ts)
-  | t :: "d" :: ts => (nat? t).bind fun k => consOp (.div k) (polOps N ts)
+  | "+" :: ts => consOp .add (polOps N c ts)
+  | "s" :: ts => consOp .sat (polOps N c ts)
+  | t :: "*" :: ts => (nat? t).bind fun k => consOp (.mul k) (polOps N c ts)
+  | t :: "d" :: ts => (nat? t).bind fun k => consOp (.div k) (polOps N c ts)
   | t :: "w" :: ts =>
     match N.lit? t with
-    | some (v, true) => consOp (.weaken v) (polOps N ts)
+    | some (v, true) => consOp (.weaken v) (polOps N c ts)
     | _ => none
   | t :: ts =>
-    match id? t with
-    | some n => consOp (.id n) (polOps N ts)
-    | none => (N.lit? t).bind fun l => consOp (.lit l) (polOps N ts)
+    match c.ref? t with
+    | some n => consOp (.id n) (polOps N c ts)
+    | none => (N.lit? t).bind fun l => consOp (.lit l) (polOps N c ts)
   | [] => none
 
 /-- The pairs `x -> b` of a witness, up to `:` or `;`; `b` is `0`, `1` or a literal. -/
@@ -805,24 +1036,24 @@ private def witness (N : Names) : List String → Option (Witness × List String
   | ts => some ([], ts)
 
 /-- The end `qed [label] : id;` of a subproof, with the number of its contradiction. -/
-private def qedId : List String → Option (ℕ × List String)
-  | "qed" :: ":" :: n :: ";" :: ts => (id? n).map (·, ts)
-  | "qed" :: _ :: ":" :: n :: ";" :: ts => (id? n).map (·, ts)
+private def qedId (c : Numbering) : List String → Option (ℕ × List String)
+  | "qed" :: ":" :: n :: ";" :: ts => (c.ref? n).map (·, ts)
+  | "qed" :: _ :: ":" :: n :: ";" :: ts => (c.ref? n).map (·, ts)
   | _ => none
 
 /-- The end `qed [label] [: id];` of a `red` subproof. -/
-private def qedOpt : List String → Option (Option ℕ × List String)
+private def qedOpt (c : Numbering) : List String → Option (Option ℕ × List String)
   | "qed" :: ";" :: ts => some (none, ts)
-  | "qed" :: ":" :: n :: ";" :: ts => (id? n).map (some ·, ts)
+  | "qed" :: ":" :: n :: ";" :: ts => (c.ref? n).map (some ·, ts)
   | "qed" :: _ :: ";" :: ts => some (none, ts)
-  | "qed" :: _ :: ":" :: n :: ";" :: ts => (id? n).map (some ·, ts)
+  | "qed" :: _ :: ":" :: n :: ";" :: ts => (c.ref? n).map (some ·, ts)
   | _ => none
 
-/-- A proof goal label: `#k` or a constraint number. -/
-private def goalId (t : String) : Option GoalId :=
+/-- A proof goal label: `#k` or a constraint reference. -/
+private def goalId (c : Numbering) (t : String) : Option GoalId :=
   match dropChar? '#' t with
   | some k => (id? k).map .hash
-  | none => (id? t).map .db
+  | none => (c.ref? t).map .db
 
 /-- The literals of a logged solution, up to `;`. -/
 private def lits (N : Names) : List String → Option (List (Literal ℕ) × List String)
@@ -832,40 +1063,52 @@ private def lits (N : Names) : List String → Option (List (Literal ℕ) × Lis
 
 mutual
 
-/-- An implicational step: `pol`, `rup`, or `pbc` with its subproof; `fuel` bounds the
-nesting. -/
-private def step (N : Names) : ℕ → List String → Option (Step × List String)
-  | 0, _ => none
-  | _ + 1, "pol" :: ts =>
-    match polOps N ts with
-    | some (ops, ";" :: rest) => some (.pol ops, rest)
+/-- An implicational step: `pol`, `rup`, or `pbc` with its subproof, numbered by `c`, with the
+numbering after it; `fuel` bounds the nesting. The step derives the constraint before the next
+number, and `¬C` of `pbc` takes the first number of its subproof. -/
+private def step (N : Names) :
+    ℕ → Numbering → List String → Option (Step × Numbering × List String)
+  | 0, _, _ => none
+  | _ + 1, c, "pol" :: ts =>
+    match polOps N c ts with
+    | some (ops, ";" :: rest) => some (.pol ops, c.skip 1, rest)
     | _ => none
-  | _ + 1, "rup" :: ts =>
+  | _ + 1, c, "rup" :: ts =>
     match geq N ts with
-    | some (c, ";" :: rest) => some (.rupSearch c, rest)
-    | some (c, ":" :: rest) =>
-      match hints rest with
-      | some (hs, ";" :: rest) => some (.rup c hs, rest)
+    | some (d, ";" :: rest) => some (.rupSearch d, c.skip 1, rest)
+    | some (d, ":" :: rest) =>
+      match hints c rest with
+      | some (hs, ";" :: rest) => some (.rup d hs, c.skip 1, rest)
       | _ => none
     | _ => none
-  | fuel + 1, "pbc" :: ts =>
+  | _ + 1, c, "ia" :: ts =>
     match geq N ts with
-    | some (c, ":" :: "subproof" :: rest) =>
-      match steps N fuel rest with
-      | some (sub, rest) => (qedId rest).map fun (q, rest) => (.pbc c sub q, rest)
+    | some (d, ":" :: n :: ";" :: rest) =>
+      (c.ref? n).map fun j => (.rup d [.neg, .id j], c.skip 1, rest)
+    | _ => none
+  | fuel + 1, c, "pbc" :: ts =>
+    match geq N ts with
+    | some (d, ":" :: "subproof" :: rest) =>
+      match steps N fuel (c.skip 1) rest with
+      | some (sub, c', rest) =>
+        (qedId c' rest).map fun (q, rest) => (.pbc d sub q, c'.skip 1, rest)
       | none => none
     | _ => none
-  | _, _ => none
+  | _, _, _ => none
 
-/-- Implicational steps, up to a `qed` or a `proofgoal`. -/
-private def steps (N : Names) : ℕ → List String → Option (List Step × List String)
-  | 0, _ => none
-  | fuel + 1, ts =>
+/-- Implicational steps, each with an optional label, up to a `qed` or a `proofgoal`. -/
+private def steps (N : Names) :
+    ℕ → Numbering → List String → Option (List Step × Numbering × List String)
+  | 0, _, _ => none
+  | fuel + 1, c, ts =>
     match ts with
-    | "qed" :: _ | "proofgoal" :: _ => some ([], ts)
+    | "qed" :: _ | "proofgoal" :: _ => some ([], c, ts)
     | _ =>
-      match step N fuel ts with
-      | some (s, rest) => (steps N fuel rest).map fun (ss, rest) => (s :: ss, rest)
+      let (l, ts) := splitLabel ts
+      match step N fuel c ts with
+      | some (s, c', rest) =>
+        (c'.labelAs l (some (c'.next - 1))).bind fun c' =>
+          (steps N fuel c' rest).map fun (ss, c'', rest) => (s :: ss, c'', rest)
       | none => none
 
 end
@@ -877,26 +1120,34 @@ private def endScope (k : String) : List String → Option (List String)
   | _ => none
 
 /-- The items of a `red` subproof, up to its closing `qed` (or, in a scope, its `end`):
-derivation steps, `proofgoal` blocks, and the scopes `scope leq` and `scope geq` (§5.4). -/
-private def redItems (N : Names) : ℕ → List String → Option (List RedItem × List String)
-  | 0, _ => none
-  | fuel + 1, "proofgoal" :: g :: ts =>
-    (goalId g).bind fun g =>
-      match steps N fuel ts with
-      | some (sub, rest) =>
-        (qedId rest).bind fun (q, rest) =>
-          (redItems N fuel rest).map fun (items, rest) => (.goal g sub q :: items, rest)
+derivation steps, `proofgoal` blocks, and the scopes `scope leq` and `scope geq` (§5.4). The
+premises of the goal `g` take `goal g` numbers, and those of a scope `scope` numbers. -/
+private def redItems (N : Names) (goal : GoalId → ℕ) (scope : ℕ) :
+    ℕ → Numbering → List String → Option (List RedItem × Numbering × List String)
+  | 0, _, _ => none
+  | fuel + 1, c, "proofgoal" :: g :: ts =>
+    (goalId c g).bind fun g =>
+      match steps N fuel (c.skip (goal g)) ts with
+      | some (sub, c', rest) =>
+        (qedId c' rest).bind fun (q, rest) =>
+          (redItems N goal scope fuel c' rest).map fun (items, c'', rest) =>
+            (.goal g sub q :: items, c'', rest)
       | none => none
-  | fuel + 1, "scope" :: k :: ts =>
+  | fuel + 1, c, "scope" :: k :: ts =>
     (if k == "leq" then some false else if k == "geq" then some true else none).bind fun geq =>
-      (redItems N fuel ts).bind fun (inner, rest) =>
+      (redItems N goal scope fuel (c.skip scope) ts).bind fun (inner, c', rest) =>
         (endScope k rest).bind fun rest =>
-          (redItems N fuel rest).map fun (items, rest) => (.scope geq inner :: items, rest)
-  | _ + 1, "qed" :: ts => some ([], "qed" :: ts)
-  | _ + 1, "end" :: ts => some ([], "end" :: ts)
-  | fuel + 1, ts =>
-    match step N fuel ts with
-    | some (s, rest) => (redItems N fuel rest).map fun (items, rest) => (.step s :: items, rest)
+          (redItems N goal scope fuel c' rest).map fun (items, c'', rest) =>
+            (.scope geq inner :: items, c'', rest)
+  | _ + 1, c, "qed" :: ts => some ([], c, "qed" :: ts)
+  | _ + 1, c, "end" :: ts => some ([], c, "end" :: ts)
+  | fuel + 1, c, ts =>
+    let (l, ts) := splitLabel ts
+    match step N fuel c ts with
+    | some (s, c', rest) =>
+      (c'.labelAs l (some (c'.next - 1))).bind fun c' =>
+        (redItems N goal scope fuel c' rest).map fun (items, c'', rest) =>
+          (.step s :: items, c'', rest)
     | none => none
 
 /-- Variables up to `;`, and the rest after it. -/
@@ -920,35 +1171,41 @@ private def defConstrs (N : Names) : ℕ → List String → Option (List PBCons
     | some (c, ";" :: rest) => (defConstrs N fuel rest).map fun (cs, rest) => (c :: cs, rest)
     | _ => none
 
-/-- A `proof … qed [proof] [: id];` block of a transitivity or reflexivity proof. -/
-private def orderProof (N : Names) (fuel : ℕ) : List String → Option (OrderProof × List String)
+/-- A `proof … qed [proof] [: id];` block of a transitivity or reflexivity proof, numbered from
+`next`, with labels of its own (as in `order_proof` of VeriPB 3.0.2's parser); with the next
+number after it. -/
+private def orderProof (N : Names) (fuel next : ℕ) :
+    List String → Option ((OrderProof × ℕ) × List String)
   | "proof" :: ts =>
-    (redItems N fuel ts).bind fun (items, rest) =>
-      (qedOpt rest).map fun (q, rest) => (⟨items, q⟩, rest)
+    (redItems N (fun _ => 1) 0 fuel ⟨[], next, [], (0, 0)⟩ ts).bind fun (items, c, rest) =>
+      (qedOpt c rest).map fun (q, rest) => ((⟨items, q⟩, c.next), rest)
   | _ => none
 
 /-- The witness and optional subproof after the first `:` of `red`, `dom` and a checked `delc`:
 `ω;`, or `ω : subproof … qed [label] [: n];`, with the subproof's items and closing
-contradiction. -/
-private def witnessTail (N : Names) (fuel : ℕ) (ts : List String) :
-    Option ((Witness × Option (List RedItem) × Option ℕ) × List String) :=
+contradiction, numbered from `c` after `¬C`, and the numbering after it. The premises of the
+goal `g` take `goal g` numbers, and those of a scope `scope` numbers. -/
+private def witnessTail (N : Names) (goal : GoalId → ℕ) (scope fuel : ℕ) (c : Numbering)
+    (ts : List String) :
+    Option ((Witness × Option (List RedItem) × Option ℕ) × Numbering × List String) :=
   match witness N ts with
-  | some (ω, ";" :: rest) => some ((ω, none, none), rest)
+  | some (ω, ";" :: rest) => some ((ω, none, none), c, rest)
   | some (ω, ":" :: "subproof" :: rest) =>
-    (redItems N fuel rest).bind fun (items, rest) =>
-      (qedOpt rest).map fun (q, rest) => ((ω, some items, q), rest)
+    (redItems N goal scope fuel (c.skip 1) rest).bind fun (items, c', rest) =>
+      (qedOpt c' rest).map fun (q, rest) => ((ω, some items, q), c', rest)
   | _ => none
 
 /-- The optional subproof after the constraint or objective of `obju`, `preserved_add` and
-`preserved_rm`: `;`, or `: subproof … qed [label];`, with no closing contradiction. -/
-private def subproofTail (label : String) (N : Names) (fuel : ℕ) :
-    List String → Option (Option (List RedItem) × List String)
-  | ";" :: rest => some (none, rest)
+`preserved_rm`: `;`, or `: subproof … qed [label];`, with no closing contradiction, numbered from
+`c`, and the numbering after it. -/
+private def subproofTail (label : String) (N : Names) (fuel : ℕ) (c : Numbering) :
+    List String → Option (Option (List RedItem) × Numbering × List String)
+  | ";" :: rest => some (none, c, rest)
   | ":" :: "subproof" :: rest =>
-    (redItems N fuel rest).bind fun (items, rest) =>
+    (redItems N (fun _ => 1) 0 fuel c rest).bind fun (items, c', rest) =>
       match rest with
-      | "qed" :: ";" :: rest => some (some items, rest)
-      | "qed" :: k :: ";" :: rest => if k == label then some (some items, rest) else none
+      | "qed" :: ";" :: rest => some (some items, c', rest)
+      | "qed" :: k :: ";" :: rest => if k == label then some (some items, c', rest) else none
       | _ => none
   | _ => none
 
@@ -966,33 +1223,39 @@ private def orderVars (N : Names) (ts : List String) :
   let ts ← endOf "vars" ts
   pure ((u, v, a), ts)
 
-/-- The lines of a `spec` section of `def_order` (§5.3), up to its `end`:
-`red C : ω : subproof … qed [: n];`, the constraint and its justification. As in CakePB's
+/-- The lines of a `spec` section of `def_order` (§5.3), up to its `end`, numbered by `c`:
+`[@l] red C : ω : subproof … qed [: n];`, the constraint and its justification. As in CakePB's
 parser, each line needs its subproof, possibly empty; `red C : ω;` is rejected. -/
-private def specLines (N : Names) : ℕ → List String →
+private def specLines (N : Names) : ℕ → Numbering → List String →
     Option (List (PBConstr × SpecStep) × List String)
-  | 0, _ => none
-  | _ + 1, "end" :: ts => some ([], "end" :: ts)
-  | fuel + 1, "red" :: ts =>
-    match geq N ts with
-    | some (c, ":" :: rest) =>
-      (witnessTail N fuel rest).bind fun ((ω, sub, q), rest) =>
-        if sub.isSome then
-          (specLines N fuel rest).map fun (ls, rest) => ((c, ⟨ω, sub, q⟩) :: ls, rest)
-        else none
+  | 0, _, _ => none
+  | _ + 1, _, "end" :: ts => some ([], "end" :: ts)
+  | fuel + 1, c, ts =>
+    match splitLabel ts with
+    | (l, "red" :: ts) =>
+      match geq N ts with
+      | some (d, ":" :: rest) =>
+        (witnessTail N (fun _ => 1) 0 fuel c rest).bind fun ((ω, sub, q), c', rest) =>
+          if sub.isSome then
+            (c'.labelAs l (some c'.next)).bind fun c'' =>
+              (specLines N fuel (c''.skip 1) rest).map fun (ls, rest) =>
+                ((d, ⟨ω, sub, q⟩) :: ls, rest)
+          else none
+      | _ => none
     | _ => none
-  | _ + 1, _ => none
 
 /-- The body of `def_order name`, after its name (§5.3): the `vars` section, an optional `spec`
 section, the `def` section, the `transitivity` section with its `fresh_right` variables, the
 `fresh_aux_1` and `fresh_aux_2` variables if any, and its proof, an optional `reflexivity`
-section, and `end [def_order];`. -/
+section, and `end [def_order];`. The specification, the transitivity proof and the reflexivity
+proof are numbered as `Cslib.Logic.PL.VeriPB.Order.defCheck` numbers them, each with labels of
+its own, as in VeriPB 3.0.2. -/
 private def defOrderBody (N : Names) (fuel : ℕ) (ts : List String) :
     Option ((Order × List SpecStep × TransVars × OrderProof × OrderProof) × List String) := do
   let ((u, v, a), ts) ← orderVars N ts
   let (spec, ts) ← match ts with
     | "spec" :: ts => do
-      let (ls, ts) ← specLines N fuel ts
+      let (ls, ts) ← specLines N fuel ⟨[], 1, [], (0, 0)⟩ ts
       let ts ← endOf "spec" ts
       pure (ls, ts)
     | ts => pure ([], ts)
@@ -1009,11 +1272,13 @@ private def defOrderBody (N : Names) (fuel : ℕ) (ts : List String) :
       pure (b, c, ts)
     | ts => pure ([], [], ts)
   let ts ← endOf "vars" ts
-  let (tp, ts) ← orderProof N fuel ts
+  -- The premises of the transitivity proof are three instances of the specification and two of
+  -- the definition, and those of the reflexivity proof one of the specification.
+  let ((tp, n), ts) ← orderProof N fuel (3 * spec.length + 2 * defn.length + 1) ts
   let ts ← endOf "transitivity" ts
   let (rp, ts) ← match ts with
     | "reflexivity" :: ts => do
-      let (rp, ts) ← orderProof N fuel ts
+      let ((rp, _), ts) ← orderProof N fuel (n + spec.length) ts
       let ts ← endOf "reflexivity" ts
       pure (rp, ts)
     | ts => pure (⟨[], none⟩, ts)
@@ -1037,81 +1302,113 @@ private def eordDefBody (N : Names) (fuel : ℕ) (ts : List String) :
   let ts ← endOf "eord_def" ts
   pure (⟨u, v, a, spec, defn⟩, ts)
 
+/-- The number of premises of each goal of `dom` with an order whose definition has `d`
+constraints: `d` for the negated order `#d + 1`, and one for the others
+(`Cslib.Logic.PL.VeriPB.domHashPremises`). -/
+private def domGoal (d : ℕ) : GoalId → ℕ
+  | .hash k => if k == d + 1 then d else 1
+  | .db _ => 1
+
 /-- A top-level step: a `red` or `dom` step, an order definition or loading, a deletion, `core id`,
 `strengthening_to_core`, solution logging, or an implicational step. These steps other than the
 implicational ones are top-level only: subproof scopes are specified in §5.5 of the format
 documentation, the orders in §5.3, `core id` in §5.1,
 strengthening-to-core mode in §5.6, and the kernel deletions in §5.7.1. A checked deletion
-`delc id : ω [: subproof … qed [delc] [: n]];` deletes one constraint. -/
-private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopStep × List String)
+`delc id : ω [: subproof … qed [delc] [: n]];` deletes one constraint. Numbered by `c`, with the
+number of the constraint that a label before the step names, if any, and the numbering after it:
+the constraint the step adds, or the constraint `j` of `e C : j`, as in VeriPB 3.0.2 (§5.11.1). -/
+private def topStep (N : Names) (fuel : ℕ) (c : Numbering) :
+    List String → Option (List TopStep × Option ℕ × Numbering × List String)
   | k@"red" :: ts | k@"dom" :: ts =>
     let mk := if k == "red" then TopStep.red else TopStep.dom
+    let goal : GoalId → ℕ := if k == "red" then fun _ => 1 else domGoal c.loaded.2
     match geq N ts with
-    | some (c, ";" :: rest) => some ([mk c [] none none], rest)
-    | some (c, ":" :: rest) =>
-      (witnessTail N fuel rest).map fun ((ω, sub, q), rest) => ([mk c ω sub q], rest)
+    | some (d, ";" :: rest) => some ([mk d [] none none], some c.next, c.skip 1, rest)
+    | some (d, ":" :: rest) =>
+      (witnessTail N goal c.loaded.1 fuel c rest).map fun ((ω, sub, q), c', rest) =>
+        ([mk d ω sub q], some c'.next, c'.skip 1, rest)
     | _ => none
   | "def_order" :: name :: ts =>
     (defOrderBody N fuel ts).map fun ((O, sp, w, tp, rp), rest) =>
-      ([.defOrder name O sp w tp rp], rest)
+      ([.defOrder name O sp w tp rp], none,
+        { c with orders := (name, O.spec.length, O.defn.length) :: c.orders }, rest)
   | "eord_def" :: name :: ts =>
-    (eordDefBody N fuel ts).map fun (O, rest) => ([.eordDef name O], rest)
+    (eordDefBody N fuel ts).map fun (O, rest) => ([.eordDef name O], none, c, rest)
   | "eord_loaded" :: name :: ts =>
     match lits N ts with
-    | some (z, ";" :: rest) => some ([.eordLoaded name z], rest)
+    | some (z, ";" :: rest) => some ([.eordLoaded name z], none, c, rest)
     | _ => none
-  | "load_order" :: ";" :: rest => some ([.unloadOrder], rest)
+  | "load_order" :: ";" :: rest => some ([.unloadOrder], none, { c with loaded := (0, 0) }, rest)
   | "load_order" :: name :: ts =>
     match lits N ts with
-    | some (z, ";" :: rest) => some ([.loadOrder name z], rest)
+    | some (z, ";" :: rest) =>
+      some ([.loadOrder name z], none,
+        { c with loaded := (c.orders.lookup name).getD (0, 0) }, rest)
     | _ => none
   | "deld" :: ts =>
-    match ids ts with
-    | some (ns, ";" :: rest) => some ([.deld ns], rest)
+    match ids c ts with
+    | some (ns, ";" :: rest) => some ([.deld ns], none, c, rest)
     | _ => none
   | "delc" :: n :: ":" :: ts =>
-    (id? n).bind fun i =>
-      (witnessTail N fuel ts).map fun ((ω, sub, q), rest) => ([.delcChecked i ω sub q], rest)
+    (c.ref? n).bind fun i =>
+      (witnessTail N (fun _ => 1) c.loaded.1 fuel c ts).map fun ((ω, sub, q), c', rest) =>
+        ([.delcChecked i ω sub q], none, c', rest)
   | "delc" :: ts =>
-    match ids ts with
-    | some (ns, ";" :: rest) => some ([.delc ns], rest)
+    match ids c ts with
+    | some (ns, ";" :: rest) => some ([.delc ns], none, c, rest)
     | _ => none
   | "del" :: "id" :: ts =>
-    match ids ts with
-    | some (ns, ";" :: rest) => some ([.step (.del ns)], rest)
+    match ids c ts with
+    | some (ns, ";" :: rest) => some ([.step (.del ns)], none, c, rest)
     | _ => none
-  | "strengthening_to_core" :: "on" :: ";" :: rest => some ([.strengthenToCore true], rest)
-  | "strengthening_to_core" :: "off" :: ";" :: rest => some ([.strengthenToCore false], rest)
-  | k@"sol" :: ts | k@"solx" :: ts | k@"soli" :: ts =>
+  | "strengthening_to_core" :: "on" :: ";" :: rest =>
+    some ([.strengthenToCore true], none, c, rest)
+  | "strengthening_to_core" :: "off" :: ";" :: rest =>
+    some ([.strengthenToCore false], none, c, rest)
+  | "sol" :: ts =>
+    match lits N ts with
+    | some (ρ, ";" :: rest) => some ([.sol ρ], none, c, rest)
+    | _ => none
+  | k@"solx" :: ts | k@"soli" :: ts =>
     match lits N ts with
     | some (ρ, ";" :: rest) =>
-      some ([if k == "sol" then .sol ρ else if k == "solx" then .solx ρ else .soli ρ], rest)
+      some ([if k == "solx" then .solx ρ else .soli ρ], some c.next, c.skip 1, rest)
     | _ => none
-  | "obji" :: v :: ";" :: rest => (int? v).map fun v => ([.obji v], rest)
+  | "obji" :: v :: ";" :: rest => (int? v).map fun v => ([.obji v], some c.next, c.skip 1, rest)
   | "obju" :: kind :: ts =>
     (if kind == "new" then some false else if kind == "diff" then some true else none).bind
       fun diff =>
         (objTerms N.lit? ts).bind fun (g, rest) =>
-          (subproofTail "obju" N fuel rest).map fun (sub, rest) => ([.obju diff g sub], rest)
+          (subproofTail "obju" N fuel c rest).map fun (sub, c', rest) =>
+            ([.obju diff g sub], none, c', rest)
   | k@"preserved_add" :: x :: ":" :: ts | k@"preserved_rm" :: x :: ":" :: ts =>
     (N.var? x).bind fun v =>
-      (geq N ts).bind fun (c, rest) =>
-        (subproofTail k N fuel rest).map fun (sub, rest) =>
-          ([.presChange (k == "preserved_add") v c sub], rest)
-  | "epreserved" :: ts => (varList N ts).map fun (vs, rest) => ([.epreserved vs], rest)
-  | "core" :: "id" :: ts =>
-    match ids ts with
-    | some (ns, ";" :: rest) => some ([.core ns], rest)
+      (geq N ts).bind fun (d, rest) =>
+        (subproofTail k N fuel c rest).map fun (sub, c', rest) =>
+          ([.presChange (k == "preserved_add") v d sub], none, c', rest)
+  | "epreserved" :: ts => (varList N ts).map fun (vs, rest) => ([.epreserved vs], none, c, rest)
+  | "e" :: ts =>
+    match geq N ts with
+    | some (d, ":" :: n :: ";" :: rest) =>
+      (c.ref? n).map fun j => ([.econstr d j], some j, c, rest)
     | _ => none
-  | ts => (step N fuel ts).map fun (s, rest) => ([.step s], rest)
+  | "core" :: "id" :: ts =>
+    match ids c ts with
+    | some (ns, ";" :: rest) => some ([.core ns], none, c, rest)
+    | _ => none
+  | ts => (step N fuel c ts).map fun (s, c', rest) => ([.step s], some (c'.next - 1), c', rest)
 
-/-- The top-level steps, up to `output`. -/
-private def topSteps (N : Names) : ℕ → List String → Option (List TopStep × List String)
-  | 0, _ => none
-  | _ + 1, "output" :: ts => some ([], "output" :: ts)
-  | fuel + 1, ts =>
-    (topStep N fuel ts).bind fun (ss, rest) =>
-      (topSteps N fuel rest).map fun (ss', rest) => (ss ++ ss', rest)
+/-- The top-level steps, each with an optional label, up to `output`; with the numbering after
+them. -/
+private def topSteps (N : Names) :
+    ℕ → Numbering → List String → Option (List TopStep × Numbering × List String)
+  | 0, _, _ => none
+  | _ + 1, c, "output" :: ts => some ([], c, "output" :: ts)
+  | fuel + 1, c, ts =>
+    let (l, ts) := splitLabel ts
+    (topStep N fuel c ts).bind fun (ss, n, c', rest) =>
+      (c'.labelAs l n).bind fun c' =>
+        (topSteps N fuel c' rest).map fun (ss', c'', rest) => (ss ++ ss', c'', rest)
 
 /-- A bound of `BOUNDS`: an integer, or `INF` as `none`. -/
 private def bound? (t : String) : Option (Option ℤ) :=
@@ -1126,17 +1423,17 @@ private def asgOpt (N : Names) : List String → Option (Option (List (Literal �
     | _ => none
   | _ => none
 
-/-- The conclusion section, after `conclusion`: `UNSAT : id`, `SAT [: ρ]`,
-`BOUNDS lb : id ub [: ρ]` or `NONE` (§4.3). -/
-private def conclusion (N : Names) : List String → Option Conclusion
-  | ["UNSAT", ":", q, ";"] => (id? q).map .unsat
+/-- The conclusion section, after `conclusion`, with the labels of `c`: `UNSAT : id`,
+`SAT [: ρ]`, `BOUNDS lb : id ub [: ρ]` or `NONE` (§4.3). -/
+private def conclusion (N : Names) (c : Numbering) : List String → Option Conclusion
+  | ["UNSAT", ":", q, ";"] => (c.ref? q).map .unsat
   | ["NONE", ";"] => some .noClaim
   | ["ENUMERATION_PARTIAL", n, ";"] => (nat? n).map .enumPartial
   | ["ENUMERATION_COMPLETE", n, ":", q, ";"] =>
-    (nat? n).bind fun n => (id? q).map (.enumComplete n)
+    (nat? n).bind fun n => (c.ref? q).map (.enumComplete n)
   | "SAT" :: ts => (asgOpt N ts).map .sat
   | "BOUNDS" :: lb :: ":" :: q :: ub :: ts =>
-    (bound? lb).bind fun lb => (id? q).bind fun q => (bound? ub).bind fun ub =>
+    (bound? lb).bind fun lb => (c.ref? q).bind fun q => (bound? ub).bind fun ub =>
       (asgOpt N ts).map (.bounds lb q ub ·)
   | _ => none
 
@@ -1159,9 +1456,9 @@ private def outputSection : List String → Option (Option (Guarantee × Bool) �
       else none
   | _ => none
 
-/-- A proof given as tokens, read with the names `N`, for a formula with `m` constraints: the
-proof and its output section, `none` for `output NONE;`. -/
-private def proofIn (m : ℕ) (N : Names) (ts : List String) :
+/-- A proof given as tokens, read with the names `N`, for a formula with `m` constraints labelled
+by `L`, the most recent first: the proof and its output section, `none` for `output NONE;`. -/
+private def proofIn (m : ℕ) (N : Names) (L : List (String × ℕ)) (ts : List String) :
     Option (RedProof × Option (Guarantee × Bool)) :=
   match ts with
   | "pseudo-Boolean" :: "proof" :: "version" :: "3.0" :: rest =>
@@ -1169,23 +1466,23 @@ private def proofIn (m : ℕ) (N : Names) (ts : List String) :
       | "f" :: n :: ";" :: rest => if nat? n == some m then some rest else none
       | rest => some rest
     rest.bind fun rest =>
-      match topSteps N (ts.length + 1) rest with
-      | some (ss, "output" :: rest) =>
+      match topSteps N (ts.length + 1) ⟨L, m + 1, [], (0, 0)⟩ rest with
+      | some (ss, c, "output" :: rest) =>
         match outputSection rest with
         | some (out, "conclusion" :: rest) =>
           match rest.reverse with
           | ";" :: "proof" :: "pseudo-Boolean" :: "end" :: concl =>
-            (conclusion N concl.reverse).map fun c => (⟨ss, c⟩, out)
+            (conclusion N c concl.reverse).map fun c => (⟨ss, c⟩, out)
           | _ => none
         | _ => none
       | _ => none
   | _ => none
 
-/-- **A proof** in the supported fragment (kernel proofs, with `f N;` optional) with the output
-section `output NONE;`, for a formula with `m` constraints over the variables below `nvars`, named
-by their standard names. -/
+/-- **A proof** in the supported fragment (kernel proofs, with `f N;` optional and constraint
+labels) with the output section `output NONE;`, for a formula with `m` constraints over the
+variables below `nvars`, named by their standard names. -/
 def parseProof (m nvars : ℕ) (s : String) : Option RedProof :=
-  match proofIn m ((⟨[], nvars⟩ : Names).extend (tokens s)) (tokens s) with
+  match proofIn m ((⟨[], nvars⟩ : Names).extend (tokens s)) [] (tokens s) with
   | some (P, none) => some P
   | _ => none
 
@@ -1214,12 +1511,13 @@ theorem proofNames_wf (opb pbp : String) (out : Option String) : (proofNames opb
 with the output formula `out` for `output g FILE;`: the conclusion and the output, `none` for
 `output NONE;`, if the proof is accepted (`Cslib.Logic.PL.VeriPB.checkRedOutput`). The output
 formula is read with the names of the proof (`Cslib.Logic.PL.VeriPB.Text.proofNames`). `FILE`
-needs an output formula and `IMPLICIT` none; `NONE` ignores it. -/
+needs an output formula and `IMPLICIT` none; `NONE` ignores it. The proof may refer to the
+constraints of the instance by their labels (`Cslib.Logic.PL.VeriPB.Text.parseOPBLabelled`). -/
 def checkOPBOutput (opb pbp : String) (out : Option String := none) :
     Option (Conclusion × Option Output) :=
-  (parseOPB opb).bind fun I =>
+  (parseOPBLabelled (opbNames opb) opb).bind fun (I, L) =>
     let N := proofNames opb pbp out
-    (proofIn I.constraints.length N (tokens pbp)).bind fun (P, sec) =>
+    (proofIn I.constraints.length N L.reverse (tokens pbp)).bind fun (P, sec) =>
       match sec, out with
       | none, _ =>
         if checkRed I.constraints I.objective P I.preserved then some (P.conclusion, none) else none
@@ -1253,7 +1551,8 @@ private theorem of_checkOPBOutput {opb pbp : String} {out : Option String} {c : 
         ⟨g, O⟩ = some o' ∧ ∀ t ∈ out, ∃ O', O = some O' ∧
           parseOPBWith (proofNames opb pbp out) t = some O' := by
   simp only [checkOPBOutput, Option.bind_eq_some_iff] at h
-  obtain ⟨I, hI, ⟨P, sec⟩, -, h⟩ := h
+  obtain ⟨⟨I, L⟩, hI, ⟨P, sec⟩, -, h⟩ := h
+  replace hI := parseOPB_eq_some_of_parseOPBLabelled hI
   split at h
   · split at h
     · cases h
@@ -1277,8 +1576,7 @@ theorem exists_checkRed_of_checkOPBOutput {opb pbp : String} {out : Option Strin
     {concl : Conclusion} (h : (checkOPBOutput opb pbp out).map (·.1) = some concl) :
     ∃ I P, parseOPB opb = some I ∧ checkRed I.constraints I.objective P I.preserved = true ∧
       P.conclusion = concl := by
-  rw [Option.map_eq_some_iff] at h
-  obtain ⟨⟨c', o⟩, h', rfl⟩ := h
+  obtain ⟨⟨c', o⟩, h', rfl⟩ := Option.map_eq_some_iff.1 h
   obtain ⟨I, P, hI, hP, hc, -⟩ := of_checkOPBOutput h'
   exact ⟨I, P, hI, hP, hc⟩
 

@@ -124,15 +124,12 @@ private theorem arccos_le_tangent {x x₀ s₀ : ℝ} (hx : x ∈ Icc 0 1)
     obtain ⟨c, ⟨hxc, hcx₀⟩, hc⟩ :=
       exists_deriv_eq_slope arccos hlt continuous_arccos.continuousOn hdiff
     rw [deriv_arccos] at hc
-    have hc0 : 0 ≤ c := le_trans hx.1 hxc.le
-    have h1c : 1 - x₀ ^ 2 < 1 - c ^ 2 := by nlinarith
-    have h1x₀ : 0 < 1 - x₀ ^ 2 := by nlinarith
-    have hsqrt_lt : s₀ < √(1 - c ^ 2) := by
-      rw [← hs_eq]
-      exact sqrt_lt_sqrt h1x₀.le h1c
-    have hinv : 1 / √(1 - c ^ 2) ≤ 1 / s₀ := one_div_le_one_div_of_le hs₀_pos hsqrt_lt.le
-    have hslope : -(1 / s₀) ≤ (arccos x₀ - arccos x) / (x₀ - x) := by linarith
-    have hmul := (le_div_iff₀ (sub_pos.mpr hlt)).mp hslope
+    have hc0 : 0 ≤ c := hx.1.trans hxc.le
+    have h1x₀ : 0 ≤ 1 - x₀ ^ 2 := by nlinarith
+    have hsqrt_lt : s₀ < √(1 - c ^ 2) := hs_eq ▸ sqrt_lt_sqrt h1x₀ (by nlinarith)
+    have hinv := one_div_le_one_div_of_le hs₀_pos hsqrt_lt.le
+    have hmul := (le_div_iff₀ (sub_pos.mpr hlt)).mp
+      (show -(1 / s₀) ≤ (arccos x₀ - arccos x) / (x₀ - x) by linarith)
     rw [neg_mul, one_div_mul_eq_div] at hmul
     have hrew : -((x₀ - x) / s₀) = (x - x₀) / s₀ := by ring
     linarith
@@ -144,16 +141,12 @@ private theorem arccos_le_tangent {x x₀ s₀ : ℝ} (hx : x ∈ Icc 0 1)
     obtain ⟨c, ⟨hx₀c, hcx⟩, hc⟩ :=
       exists_deriv_eq_slope arccos hgt continuous_arccos.continuousOn hdiff
     rw [deriv_arccos] at hc
-    have hc1 : c < 1 := lt_of_lt_of_le hcx hx.2
+    have hc1 : c < 1 := hcx.trans_le hx.2
     have h1c : 0 < 1 - c ^ 2 := by nlinarith
-    have h1lt : 1 - c ^ 2 < 1 - x₀ ^ 2 := by nlinarith
-    have hsqrt_lt : √(1 - c ^ 2) < s₀ := by
-      rw [← hs_eq]
-      exact sqrt_lt_sqrt h1c.le h1lt
-    have hinv : 1 / s₀ ≤ 1 / √(1 - c ^ 2) :=
-      one_div_le_one_div_of_le (sqrt_pos.mpr h1c) hsqrt_lt.le
-    have hslope : (arccos x - arccos x₀) / (x - x₀) ≤ -(1 / s₀) := by linarith
-    have hmul := (div_le_iff₀ (sub_pos.mpr hgt)).mp hslope
+    have hsqrt_lt : √(1 - c ^ 2) < s₀ := hs_eq ▸ sqrt_lt_sqrt h1c.le (by nlinarith)
+    have hinv := one_div_le_one_div_of_le (sqrt_pos.mpr h1c) hsqrt_lt.le
+    have hmul := (div_le_iff₀ (sub_pos.mpr hgt)).mp
+      (show (arccos x - arccos x₀) / (x - x₀) ≤ -(1 / s₀) by linarith)
     rw [neg_mul, one_div_mul_eq_div] at hmul
     linarith
 
@@ -412,6 +405,19 @@ private theorem indicator_pairBothEvent_le {M : Set E} {e ea eb ec ed : E} (he :
     simp [bothDiff, hab_d, hcd_d]
   · unfold bothDiff; split_ifs <;> norm_num
 
+omit [Fintype V] in
+private theorem exists_outer_incident_pair (h3 : ∀ v, (G.incidenceSet v).ncard = 3)
+    {e : E} {w : V} (hw : e ∈ G.incidenceSet w) :
+    ∃ e₁ e₂, G.incidenceSet w \ {e} = {e₁, e₂} ∧
+      e₁ ∈ G.incidenceSet w ∧ e₂ ∈ G.incidenceSet w := by
+  have hw2 : (G.incidenceSet w \ {e}).ncard = 2 := by
+    have := ncard_sdiff_singleton_add_one hw (G.incidenceSet w).toFinite
+    have := h3 w
+    omega
+  obtain ⟨e₁, e₂, -, heq⟩ := ncard_eq_two.mp hw2
+  exact ⟨e₁, e₂, heq, (heq ▸ mem_insert e₁ {e₂}).1,
+    (heq ▸ mem_insert_of_mem e₁ (mem_singleton e₂)).1⟩
+
 /-- At any matched edge `e ∈ M` in a loopless cubic multigraph, `pairAny + pairBoth` is bounded in
 expectation by the sum of the two endpoint `straddleEvent` probabilities. -/
 private theorem measureReal_pairOne_le_straddle_add (_hloop : G.Loopless)
@@ -424,20 +430,10 @@ private theorem measureReal_pairOne_le_straddle_add (_hloop : G.Loopless)
   intro P
   set u := G.src e
   set v := G.tgt e
-  have hu2 : (G.incidenceSet u \ {e}).ncard = 2 := by
-    have he_u : e ∈ G.incidenceSet u := Or.inl rfl
-    have := ncard_sdiff_singleton_add_one he_u (toFinite _)
-    have := h3 u; omega
-  have hv2 : (G.incidenceSet v \ {e}).ncard = 2 := by
-    have he_v : e ∈ G.incidenceSet v := Or.inr rfl
-    have := ncard_sdiff_singleton_add_one he_v (toFinite _)
-    have := h3 v; omega
-  obtain ⟨ea, eb, _, hab_eq⟩ := ncard_eq_two.mp hu2
-  obtain ⟨ec, ed, _, hcd_eq⟩ := ncard_eq_two.mp hv2
-  have hea_u : ea ∈ G.incidenceSet u := (hab_eq ▸ mem_insert ea {eb}).1
-  have heb_u : eb ∈ G.incidenceSet u := (hab_eq ▸ mem_insert_of_mem ea (mem_singleton eb)).1
-  have hec_v : ec ∈ G.incidenceSet v := (hcd_eq ▸ mem_insert ec {ed}).1
-  have hed_v : ed ∈ G.incidenceSet v := (hcd_eq ▸ mem_insert_of_mem ec (mem_singleton ed)).1
+  obtain ⟨ea, eb, hab_eq, hea_u, heb_u⟩ :=
+    exists_outer_incident_pair h3 (Or.inl rfl : e ∈ G.incidenceSet u)
+  obtain ⟨ec, ed, hcd_eq, hec_v, hed_v⟩ :=
+    exists_outer_incident_pair h3 (Or.inr rfl : e ∈ G.incidenceSet v)
   set A_ev := pairAnyEvent G M q R t e
   set B_ev := pairBothEvent G M q R t e
   set Su := straddleEvent G q R t u
@@ -452,37 +448,31 @@ private theorem measureReal_pairOne_le_straddle_add (_hloop : G.Loopless)
       B_ev.indicator (1 : (V → ℝ) → ℝ) ω ≤
       Su.indicator (1 : (V → ℝ) → ℝ) ω + Sv.indicator (1 : (V → ℝ) → ℝ) ω := by
     set sc := edgeScore G q R ω
-    set ba := decide (sc ea < t)
-    set bb := decide (sc eb < t)
-    set bc := decide (sc ec < t)
-    set bd := decide (sc ed < t)
-    set bm := decide (sc e < t)
     have hA_le := indicator_pairAnyEvent_le he hab_eq hcd_eq q R t ω
     have hB_le := indicator_pairBothEvent_le he hab_eq hcd_eq q R t ω
     have hstar_le {f₁ f₂ : E} {w : V} (hf₁ : f₁ ∈ G.incidenceSet w)
         (hf₂ : f₂ ∈ G.incidenceSet w) (hw : e ∈ G.incidenceSet w) :
-        (starCost (decide (sc f₁ < t)) (decide (sc f₂ < t)) bm : ℝ) ≤
+        (starCost (decide (sc f₁ < t)) (decide (sc f₂ < t)) (decide (sc e < t)) : ℝ) ≤
           (straddleEvent G q R t w).indicator (1 : (V → ℝ) → ℝ) ω := by
       simp only [starCost, indicator_apply, Pi.one_apply]
-      by_cases heq : decide (sc f₁ < t) = decide (sc f₂ < t) ∧ decide (sc f₂ < t) = bm
+      by_cases heq : decide (sc f₁ < t) = decide (sc f₂ < t) ∧
+          decide (sc f₂ < t) = decide (sc e < t)
       · rw [ite_eq_left heq, Nat.cast_zero]
         split_ifs <;> norm_num
       · rw [ite_eq_right heq, Nat.cast_one]
         by_cases hstr : ω ∈ straddleEvent G q R t w
         · simp [hstr]
-        · exfalso; apply hstr
-          by_cases h1 : sc f₁ < t <;> by_cases h2 : sc f₂ < t <;> by_cases hm : sc e < t
-          · exfalso; apply heq; simp [bm, h1, h2, hm]
-          · exact ⟨⟨f₁, hf₁, h1⟩, ⟨e, hw, not_lt.mp hm⟩⟩
-          · exact ⟨⟨f₁, hf₁, h1⟩, ⟨f₂, hf₂, not_lt.mp h2⟩⟩
-          · exact ⟨⟨f₁, hf₁, h1⟩, ⟨f₂, hf₂, not_lt.mp h2⟩⟩
-          · exact ⟨⟨f₂, hf₂, h2⟩, ⟨f₁, hf₁, not_lt.mp h1⟩⟩
-          · exact ⟨⟨f₂, hf₂, h2⟩, ⟨f₁, hf₁, not_lt.mp h1⟩⟩
-          · exact ⟨⟨e, hw, hm⟩, ⟨f₁, hf₁, not_lt.mp h1⟩⟩
-          · exfalso; apply heq; simp [bm, h1, h2, hm]
+        · exfalso
+          have hsame {g₁ g₂ : E} (hg₁ : g₁ ∈ G.incidenceSet w) (hg₂ : g₂ ∈ G.incidenceSet w) :
+              decide (sc g₁ < t) = decide (sc g₂ < t) := by
+            by_cases h1 : sc g₁ < t <;> by_cases h2 : sc g₂ < t <;> simp only [h1, h2]
+            · exact absurd ⟨⟨g₁, hg₁, h1⟩, ⟨g₂, hg₂, not_lt.mp h2⟩⟩ hstr
+            · exact absurd ⟨⟨g₂, hg₂, h2⟩, ⟨g₁, hg₁, not_lt.mp h1⟩⟩ hstr
+          exact heq ⟨hsame hf₁ hf₂, hsame hf₂ hw⟩
     have hsu := hstar_le hea_u heb_u (Or.inl rfl : e ∈ G.incidenceSet u)
     have hsv := hstar_le hec_v hed_v (Or.inr rfl : e ∈ G.incidenceSet v)
-    have h1 := costOne_le_starCost_add ba bb bc bd bm
+    have h1 := costOne_le_starCost_add (decide (sc ea < t)) (decide (sc eb < t))
+      (decide (sc ec < t)) (decide (sc ed < t)) (decide (sc e < t))
     linarith
   rw [← integral_indicator_one hA_m, ← integral_indicator_one hB_m,
     ← integral_indicator_one hSu_m, ← integral_indicator_one hSv_m,
@@ -508,20 +498,10 @@ theorem measureReal_pairHalf_le (hloop : G.Loopless) (h3 : ∀ v, (G.incidenceSe
   have hdeg : G.MaxDegreeLE 3 := fun w => (h3 w).le
   set u := G.src e
   set v := G.tgt e
-  have hu2 : (G.incidenceSet u \ {e}).ncard = 2 := by
-    have he_u : e ∈ G.incidenceSet u := Or.inl rfl
-    have := ncard_sdiff_singleton_add_one he_u (toFinite _)
-    have := h3 u; omega
-  have hv2 : (G.incidenceSet v \ {e}).ncard = 2 := by
-    have he_v : e ∈ G.incidenceSet v := Or.inr rfl
-    have := ncard_sdiff_singleton_add_one he_v (toFinite _)
-    have := h3 v; omega
-  obtain ⟨ea, eb, -, hab_eq⟩ := ncard_eq_two.mp hu2
-  obtain ⟨ec, ed, -, hcd_eq⟩ := ncard_eq_two.mp hv2
-  have hea_u : ea ∈ G.incidenceSet u := (hab_eq ▸ mem_insert ea {eb}).1
-  have heb_u : eb ∈ G.incidenceSet u := (hab_eq ▸ mem_insert_of_mem ea (mem_singleton eb)).1
-  have hec_v : ec ∈ G.incidenceSet v := (hcd_eq ▸ mem_insert ec {ed}).1
-  have hed_v : ed ∈ G.incidenceSet v := (hcd_eq ▸ mem_insert_of_mem ec (mem_singleton ed)).1
+  obtain ⟨ea, eb, hab_eq, hea_u, heb_u⟩ :=
+    exists_outer_incident_pair h3 (Or.inl rfl : e ∈ G.incidenceSet u)
+  obtain ⟨ec, ed, hcd_eq, hec_v, hed_v⟩ :=
+    exists_outer_incident_pair h3 (Or.inr rfl : e ∈ G.incidenceSet v)
   set A_ev := pairAnyEvent G M q R t e
   set B_ev := pairBothEvent G M q R t e
   set Sep : E → E → Set (V → ℝ) := fun f₁ f₂ =>
@@ -583,41 +563,21 @@ theorem measureReal_pairHalf_le (hloop : G.Loopless) (h3 : ∀ v, (G.incidenceSe
   have hshep (f₁ f₂ : E) : P.real (Sep f₁ f₂) ≤
       InnerProductGeometry.angle (edgeVector G q R f₁) (edgeVector G q R f₂) / π :=
     measureReal_mem_uIoc_le ((hunit f₁).trans (hunit f₂).symm) t
-  have hstep1 : P.real A_ev + (1 / 2) * P.real B_ev ≤
-      ((1 / 2) * (InnerProductGeometry.angle (edgeVector G q R ea) (edgeVector G q R eb) +
-          InnerProductGeometry.angle (edgeVector G q R ec) (edgeVector G q R ed)) +
-        (1 / 4) * (InnerProductGeometry.angle (edgeVector G q R ea) (edgeVector G q R ec) +
-          InnerProductGeometry.angle (edgeVector G q R ea) (edgeVector G q R ed) +
-          InnerProductGeometry.angle (edgeVector G q R eb) (edgeVector G q R ec) +
-          InnerProductGeometry.angle (edgeVector G q R eb) (edgeVector G q R ed))) / π := by
-    have hs1 := hshep ea eb; have hs2 := hshep ec ed
-    have hs3 := hshep ea ec; have hs4 := hshep ea ed
-    have hs5 := hshep eb ec; have hs6 := hshep eb ed
-    have hdiv_id : (1 / 2) * (InnerProductGeometry.angle (edgeVector G q R ea)
-          (edgeVector G q R eb) / π +
-        InnerProductGeometry.angle (edgeVector G q R ec) (edgeVector G q R ed) / π) +
-      (1 / 4) * (InnerProductGeometry.angle (edgeVector G q R ea) (edgeVector G q R ec) / π +
-        InnerProductGeometry.angle (edgeVector G q R ea) (edgeVector G q R ed) / π +
-        InnerProductGeometry.angle (edgeVector G q R eb) (edgeVector G q R ec) / π +
-        InnerProductGeometry.angle (edgeVector G q R eb) (edgeVector G q R ed) / π) =
-      ((1 / 2) * (InnerProductGeometry.angle (edgeVector G q R ea) (edgeVector G q R eb) +
-          InnerProductGeometry.angle (edgeVector G q R ec) (edgeVector G q R ed)) +
-        (1 / 4) * (InnerProductGeometry.angle (edgeVector G q R ea) (edgeVector G q R ec) +
-          InnerProductGeometry.angle (edgeVector G q R ea) (edgeVector G q R ed) +
-          InnerProductGeometry.angle (edgeVector G q R eb) (edgeVector G q R ec) +
-          InnerProductGeometry.angle (edgeVector G q R eb) (edgeVector G q R ed))) / π := by ring
-    linarith
   have huv_corr : ρ₀ ≤
       ⟪unitKernelRow G.toSimpleGraph q R u, unitKernelRow G.toSimpleGraph q R v⟫ := by
     have h := le_inner_unitKernelRow_src_tgt hloop (d := 3) (by norm_num) hdeg hq R e
     norm_num at h
     linarith
-  exact hstep1.trans (two_cap_six_angle_bound (norm_unitKernelRow q R u)
-    (norm_unitKernelRow q R v) (hunit ea) (hunit eb) (hunit ec) (hunit ed) hρ_lo huv_corr
-    (le_inner_edgeVector hloop hdeg hq (by linarith) hρ hea_u)
-    (le_inner_edgeVector hloop hdeg hq (by linarith) hρ heb_u)
-    (le_inner_edgeVector hloop hdeg hq (by linarith) hρ hec_v)
-    (le_inner_edgeVector hloop hdeg hq (by linarith) hρ hed_v))
+  have hρ_nonneg : 0 ≤ ρ₀ := by linarith
+  refine hint_le.trans (le_trans ?_
+    (two_cap_six_angle_bound (norm_unitKernelRow q R u) (norm_unitKernelRow q R v)
+      (hunit ea) (hunit eb) (hunit ec) (hunit ed) hρ_lo huv_corr
+      (le_inner_edgeVector hloop hdeg hq hρ_nonneg hρ hea_u)
+      (le_inner_edgeVector hloop hdeg hq hρ_nonneg hρ heb_u)
+      (le_inner_edgeVector hloop hdeg hq hρ_nonneg hρ hec_v)
+      (le_inner_edgeVector hloop hdeg hq hρ_nonneg hρ hed_v)))
+  simp only [add_div, mul_div_assoc]
+  gcongr <;> apply hshep
 
 end PairExpectations
 
@@ -686,39 +646,6 @@ private theorem clean_pair_convex_mix_le :
   linarith
 
 /-! ### Concentration of `weightedMatchingCost` and `u2CubicPairBound_gaussian` -/
-
-private theorem ncard_matchedVertices_eq_two_mul {V E : Type*}
-    {G : Multigraph V E} (hloop : G.Loopless) {M : Set E} (hM : G.IsMatching M) :
-    (G.matchedVertices M).ncard = 2 * M.ncard := by
-  classical
-  let f : M × Bool → G.matchedVertices M := fun ⟨e, b⟩ =>
-    if b then ⟨G.src e.1, e.1, e.2, Or.inl rfl⟩ else ⟨G.tgt e.1, e.1, e.2, Or.inr rfl⟩
-  have hbij : Function.Bijective f := by
-    refine ⟨?_, ?_⟩
-    · rintro ⟨e₁, b₁⟩ ⟨e₂, b₂⟩ heq
-      have hval := congrArg Subtype.val heq
-      have he_eq : e₁ = e₂ := by
-        by_contra hne
-        have hdis := hM e₁.2 e₂.2 fun h => hne (Subtype.ext h)
-        have hm₁ : (f ⟨e₁, b₁⟩).1 ∈ ({G.src e₁.1, G.tgt e₁.1} : Set V) := by
-          cases b₁ <;> simp [f]
-        have hm₂ : (f ⟨e₁, b₁⟩).1 ∈ ({G.src e₂.1, G.tgt e₂.1} : Set V) := by
-          rw [hval]; cases b₂ <;> simp [f]
-        exact Set.disjoint_left.mp hdis hm₁ hm₂
-      subst he_eq
-      cases b₁ <;> cases b₂
-      · rfl
-      · exfalso; exact hloop e₁.1 (by simpa [f] using hval.symm)
-      · exfalso; exact hloop e₁.1 (by simpa [f] using hval)
-      · rfl
-    · rintro ⟨v, e, heM, hev⟩
-      rcases hev with rfl | rfl
-      · exact ⟨⟨⟨e, heM⟩, true⟩, rfl⟩
-      · exact ⟨⟨⟨e, heM⟩, false⟩, rfl⟩
-  have hcard := Nat.card_congr (Equiv.ofBijective f hbij)
-  rw [Nat.card_prod, Nat.card_eq_fintype_card (α := Bool), Fintype.card_bool,
-    Nat.card_coe_set_eq, Nat.card_coe_set_eq] at hcard
-  omega
 
 /-- **Unconditional Gaussian `U2CubicPairBound` (`B_{U₂} = 271212 / 1000000`).** Every large cubic
 graph `G` with matching `M` and clean sub-matching `M_clean ⊆ M` admits Gaussian edge scores and a
@@ -841,7 +768,7 @@ theorem u2CubicPairBound_gaussian :
   have hcardV_eq : (Nat.card V : ℝ) = h := by
     dsimp only [h]; exact_mod_cast Nat.card_eq_fintype_card
   have hm_clean_le_half : 2 * (M_clean.ncard : ℝ) ≤ h := by
-    have hmv := ncard_matchedVertices_eq_two_mul hloop (hM.mono hclean)
+    have hmv := G.ncard_matchedVertices_eq_two_mul hloop (hM.mono hclean)
     have hle : (G.matchedVertices M_clean).ncard ≤ Fintype.card V := by
       rw [← Nat.card_eq_fintype_card]
       exact (ncard_le_ncard (subset_univ _) (toFinite _)).trans_eq (ncard_univ V)
@@ -939,7 +866,12 @@ theorem u2CubicPairBound_gaussian :
           (if e ∈ M \ M_clean then cd else 0) + (if e ∈ M_clean then cc else 0) := by
         intro e
         by_cases heM : e ∈ M
-        · by_cases heC : e ∈ M_clean
+        · have hρ_nonneg : 0 ≤ ρ₀ := by linarith only [hρ_lo]
+          have hone := (measureReal_pairOne_le_straddle_add hloop h3 heM q R t0).trans
+            (add_le_add
+              (measureReal_straddleEvent_le hloop h3 hq hρ_nonneg hρ_ker t0 _)
+              (measureReal_straddleEvent_le hloop h3 hq hρ_nonneg hρ_ker t0 _))
+          by_cases heC : e ∈ M_clean
           · have heD : e ∉ M \ M_clean := fun h => h.2 heC
             have hboth0 : P_meas.real (pairBothEvent G (M \ M_clean) q R t0 e) = 0 := by
               simp [pairBothEvent, heD]
@@ -947,17 +879,14 @@ theorem u2CubicPairBound_gaussian :
               simp [pairBothEvent, heC, heM]
             rw [hboth0, add_zero, hboth_eq, ite_eq_right heD, zero_add, ite_eq_left heC]
             have hhalf := measureReal_pairHalf_le hloop h3 heM hq hρ_lo hρ_ker t0
-            have hone := (measureReal_pairOne_le_straddle_add hloop h3 heM q R t0).trans
-              (add_le_add
-                (measureReal_straddleEvent_le hloop h3 hq (by linarith only [hρ_lo]) hρ_ker t0 _)
-                (measureReal_straddleEvent_le hloop h3 hq (by linarith only [hρ_lo]) hρ_ker t0 _))
             have hid : P_meas.real (pairAnyEvent G M q R t0 e) +
                 lam * P_meas.real (pairBothEvent G M q R t0 e) =
                 (2 - 2 * lam) * (P_meas.real (pairAnyEvent G M q R t0 e) +
                   (1 / 2) * P_meas.real (pairBothEvent G M q R t0 e)) +
                 (2 * lam - 1) * (P_meas.real (pairAnyEvent G M q R t0 e) +
                   P_meas.real (pairBothEvent G M q R t0 e)) := by ring
-            rw [hid]; dsimp only [cc]
+            rw [hid]
+            dsimp only [cc]
             have hle1 := mul_le_mul_of_nonneg_left hhalf
               (show 0 ≤ 2 - 2 * lam by linarith only [hlam1])
             have hle2 := mul_le_mul_of_nonneg_left hone
@@ -969,27 +898,26 @@ theorem u2CubicPairBound_gaussian :
             have hboth_eq : pairBothEvent G (M \ M_clean) q R t0 e =
                 pairBothEvent G M q R t0 e := by simp [pairBothEvent, heD, heM]
             rw [hboth0, mul_zero, add_zero, hboth_eq, ite_eq_left heD, ite_eq_right heC, add_zero]
-            have hone := (measureReal_pairOne_le_straddle_add hloop h3 heM q R t0).trans
-              (add_le_add
-                (measureReal_straddleEvent_le hloop h3 hq (by linarith only [hρ_lo]) hρ_ker t0 _)
-                (measureReal_straddleEvent_le hloop h3 hq (by linarith only [hρ_lo]) hρ_ker t0 _))
-            dsimp only [cd]; linarith only [hone]
+            dsimp only [cd]
+            linarith only [hone]
         · have heC : e ∉ M_clean := fun h => heM (hclean h)
           have heD : e ∉ M \ M_clean := fun h => heM h.1
           simp [pairAnyEvent, pairBothEvent, heM, heC, heD]
       refine (Finset.sum_le_sum fun e _ => hpt_e e).trans_eq ?_
+      have hcard_mem (S : Set E) [DecidablePred (· ∈ S)] :
+          ((Finset.univ.filter (· ∈ S)).card : ℝ) = S.ncard := by
+        rw [← ncard_coe_finset]
+        congr 2
+        ext e
+        simp
       rw [Finset.sum_add_distrib, Finset.sum_ite, Finset.sum_const_zero, add_zero, Finset.sum_const,
         nsmul_eq_mul, Finset.sum_ite, Finset.sum_const_zero, add_zero, Finset.sum_const,
-        nsmul_eq_mul]
-      have hc1 : ((Finset.univ.filter (· ∈ M \ M_clean) : Finset E) : Set E) = M \ M_clean := by
-        ext e; simp
-      have hc2 : ((Finset.univ.filter (· ∈ M_clean) : Finset E) : Set E) = M_clean := by
-        ext e; simp
-      rw [← ncard_coe_finset, hc1, ← ncard_coe_finset, hc2]
-      dsimp only [cd, cc]; ring
+        nsmul_eq_mul, hcard_mem, hcard_mem]
+      dsimp only [cd, cc]
+      ring
     have hcount_id : ({v : V | v ∉ G.matchedVertices M}.ncard : ℝ) +
         2 * ((M \ M_clean).ncard : ℝ) = h - 2 * (M_clean.ncard : ℝ) := by
-      have hmv := ncard_matchedVertices_eq_two_mul hloop hM
+      have hmv := G.ncard_matchedVertices_eq_two_mul hloop hM
       have hcompl : (G.matchedVertices M).ncard + {v : V | v ∉ G.matchedVertices M}.ncard =
           Fintype.card V := by
         have hc : (G.matchedVertices M)ᶜ = {v : V | v ∉ G.matchedVertices M} := rfl

@@ -989,13 +989,29 @@ def retain_matching_ltars(backup: Path, staged: Path) -> int:
     return retained
 
 
-def install_build(root: Path, staged: Path, backup: Path) -> int:
+def _remove_tree(path: Path) -> None:
+    """Remove a staging directory tree, preferring native `rm -rf` on POSIX for 100k-inode builds."""
+    if os.name == "posix" and os.path.isabs(path) and Path("/bin/rm").is_file():
+        result = subprocess.run(["/bin/rm", "-rf", "--", str(path)], capture_output=True)
+        if result.returncode == 0 and not path.exists():
+            return
+    shutil.rmtree(path)
+
+
+def _record_restored(env: dict) -> None:
+    output = env.get("GITHUB_OUTPUT")
+    if output:
+        with Path(output).open("a", encoding="utf-8") as handle:
+            handle.write("restored=true\n")
+
+
+def install_build(root: Path, staged: Path, backup: Path, *, retain_ltars: bool = True) -> int:
     directory(root / ".lake")
     build = root / ".lake/build"
     if build.exists() or build.is_symlink():
         directory(build)
         build.rename(backup)
-    retained = retain_matching_ltars(backup, staged) if backup.exists() else 0
+    retained = retain_matching_ltars(backup, staged) if retain_ltars and backup.exists() else 0
     try:
         staged.rename(build)
     except BaseException:
@@ -1018,7 +1034,8 @@ def authoritative_workflow(api, repository: str) -> int:
 
 
 def install_handoff(root: Path, context: dict, workflow_id: int, run: dict, artifact: dict,
-                    recheck, restored: str, *, api, downloader) -> None:
+                    recheck, restored: str, *, api, downloader,
+                    retain_ltars: bool = True) -> None:
     """Download, validate and install `artifact`; `recheck` recomputes `context` afterwards."""
     directory(root / ".lake")
     stage = Path(tempfile.mkdtemp(prefix="handoff-", dir=root / ".lake"))
@@ -1028,13 +1045,15 @@ def install_handoff(root: Path, context: dict, workflow_id: int, run: dict, arti
         download.mkdir()
         downloader(context["repository"], run["id"], artifact["name"], download)
         staged = unpack(download, stage / "unpacked", context, run)
+        # Reclaim the ~2.6 GB compressed archive before swapping `.lake/build`.
+        (download / "build.tar.gz").unlink(missing_ok=True)
         current = latest_success(api, context, workflow_id)
         require((current["id"], current["run_attempt"]) == (run["id"], run["run_attempt"]),
                 "Merge-group run changed during download")
         require(find_artifact(api, context, current)["id"] == artifact["id"],
                 "Artifact changed during download")
         require(recheck() == context, "Checkout changed during download")
-        retained = install_build(root, staged, backup)
+        retained = install_build(root, staged, backup, retain_ltars=retain_ltars)
         installed = True
         archives = f" (retained {retained} matching .ltar archives)" if retained else ""
         print(f"Build handoff restored from {restored}run {run['id']} attempt "
@@ -1045,7 +1064,7 @@ def install_handoff(root: Path, context: dict, workflow_id: int, run: dict, arti
         if backup.exists() and not installed:
             print(f"Build handoff retained original outputs at {backup}")
         else:
-            shutil.rmtree(stage)
+            _remove_tree(stage)
 
 
 def pr_base_context(root: Path, env: dict) -> dict:
@@ -1070,13 +1089,17 @@ def restore(root: Path, env: dict, *, pr_base=False, api=gh_get, downloader=down
     context = current_context()
     if pr_base and env.get("RESTORED_LAKE_KEY", "").endswith("-" + context["source_sha"]):
         print("The Actions .lake snapshot already matches the PR base; skipping the build handoff")
+        _record_restored(env)
         return
     workflow_id = authoritative_workflow(api, context["repository"])
     run = latest_success(api, context, workflow_id)
     artifact = find_artifact(api, context, run)
+    # Only `push` to `main` runs `publish.py stage` and consumes `.ltar` archives; pull requests
+    # skip scanning and copying ~14k `.ltar` files from the displaced `.lake/build`.
     install_handoff(root, context, workflow_id, run, artifact, current_context,
                     f"PR base {context['source_sha']}, " if pr_base else "",
-                    api=api, downloader=downloader)
+                    api=api, downloader=downloader, retain_ltars=not pr_base)
+    _record_restored(env)
 
 
 def restore_ancestor(root: Path, env: dict, *, api=gh_get, downloader=download_handoff,
@@ -1106,9 +1129,11 @@ def restore_ancestor(root: Path, env: dict, *, api=gh_get, downloader=download_h
         def recheck(ancestor=context["source_sha"]):
             return next((item for item in ancestor_contexts(root, env)
                          if item["source_sha"] == ancestor), None)
+        # Merge-group `pack()` omits `.ltar` archives, so carrying them over here is pure overhead.
         install_handoff(root, context, workflow_id, run, artifact, recheck,
                         f"ancestor {context['source_sha']} ({back} first-parent commits back), ",
-                        api=api, downloader=downloader)
+                        api=api, downloader=downloader, retain_ltars=False)
+        _record_restored(env)
         return
     raise Rejected(f"None of the {len(contexts)} nearest first-parent ancestors has a usable "
                    f"merge-group build (nearest: {nearest})")

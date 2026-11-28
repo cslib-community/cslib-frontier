@@ -69,14 +69,8 @@ boundaries and every explicitly stored work-window cell. -/
 theorem toView_rawResult (s : Config k Q) (width : ℕ) [NeZero width]
     (hwidth : s.width = width) :
     (rawResult s).toView width = result width s := by
-  apply Prod.ext
-  · apply Prod.ext
-    · rfl
-    · apply Prod.ext
-      · funext h
-        cases h <;> simp [RawResult.toView, rawResult, result, hwidth]
-      · rfl
-  · rfl
+  refine Prod.ext (Prod.ext rfl (Prod.ext (funext fun h => ?_) rfl)) rfl
+  cases h <;> simp [RawResult.toView, rawResult, result, hwidth]
 
 /-- The guarded work residue never exceeds the runtime block width. -/
 theorem workResidue_le (width position : ℕ) : workResidue width position ≤ width := by
@@ -106,7 +100,7 @@ private theorem workResidue_inSpace : ComputableInSpace
     (fun p => (encPair encNat encNat p).length) := by
   have hw := fst encNat encNat
   have hp := snd encNat encNat
-  refine (budget_ite (budget_natIsZero hw) (budget_const 0 (.refl _))
+  refine (budget_ite (budget_natIsZero hw) (budget_const 0)
     (budget_natMod hp hw)).of_enc_eq ?_
   intro p
   simp only [workResidue, Bool.decide_iff]
@@ -116,7 +110,7 @@ private theorem inputResidue_inSpace : ComputableInSpace
     (fun p => (encPair encNat encNat p).length) := by
   have hw := fst encNat encNat
   have hp := snd encNat encNat
-  refine (budget_ite (budget_natIsZero hw) (budget_const 0 (.refl _))
+  refine (budget_ite (budget_natIsZero hw) (budget_const 0)
     (budget_ite (budget_natIsZero hp) (budget_natPred hw)
       (budget_natMod (budget_natPred hp) hw))).of_enc_eq ?_
   intro p

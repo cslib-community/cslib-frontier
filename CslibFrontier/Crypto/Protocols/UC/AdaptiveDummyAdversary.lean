@@ -170,9 +170,8 @@ theorem compAdaptiveSim_polyBounded
     {A : AdaptiveAdversary n In Out NetQ₁ NetR₁ View₁ AdvQ AdvR}
     {pD pA : Polynomial ℕ} (hS : S_D.PolyBounded pD) (hA : A.PolyBounded pA) :
     (compAdaptiveSim S_D A).PolyBounded (pA * (pD + 1) + pD) := fun κ => by
-  have h := (hA κ).comp (hS κ)
-  simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one]
-  exact h
+  simpa only [AdaptiveAdversary.PolyBounded, compAdaptiveSim, Polynomial.eval_add,
+    Polynomial.eval_mul, Polynomial.eval_one] using (hA κ).comp (hS κ)
 
 /-- Absorbing an adaptive adversary with budget `pA` into an environment with budget `pZ` gives
 budget `absorbPoly pZ pA`. -/
@@ -180,11 +179,10 @@ theorem absorbAdaptiveAdversary_polyBounded
     {A : AdaptiveAdversary n In Out NetQ NetR View AdvQ AdvR}
     {Z : AdaptiveEnvironment n In Out AdvQ AdvR} {pA pZ : Polynomial ℕ}
     (hA : A.PolyBounded pA) (hZ : Z.PolyBounded pZ) :
-    (absorbAdaptiveAdversary A Z).PolyBounded (absorbPoly pZ pA) := fun κ z => by
-  have h := Machine.isQueryBounded_link
-    (Machine.isBounded_liftRight (adaptivePartySpec n In Out) (hA κ)) (hZ κ z)
-  refine h.mono (le_of_eq ?_)
-  rw [eval_absorbPoly]
+    (absorbAdaptiveAdversary A Z).PolyBounded (absorbPoly pZ pA) := fun κ z =>
+  (Machine.isQueryBounded_link
+    (Machine.isBounded_liftRight (adaptivePartySpec n In Out) (hA κ)) (hZ κ z)).mono
+    (eval_absorbPoly pZ pA κ).ge
 
 /-! ### Completeness of the adaptive dummy adversary -/
 
@@ -208,14 +206,14 @@ lets `S_D.initial` match `C₀`, which `.status` makes observable. -/
             adaptiveAdvantage mode P Q (adaptiveDummyAdversary C₀ NetQ₁ NetR₁) S_D Z κ z ≤ ε pZ κ
 
 /-- Completeness of the adaptive dummy adversary (concrete): simulating the dummy adversary implies
-general adaptive emulation with simulator overhead `X * (pD + 1) + pD` and error evaluated at the
+general adaptive emulation with simulator overhead `compSimPoly pD` and error evaluated at the
 absorbed environment budget `absorbPoly pZ pA`. -/
 theorem AdaptiveEmulatesDummyWithin.emulatesWithin {mode : CorruptionMode}
     {P : AdaptiveProtocol n In Out NetQ₁ NetR₁ View₁}
     {Q : AdaptiveProtocol n In Out NetQ₂ NetR₂ View₂}
     {pD : Polynomial ℕ} {ε : Polynomial ℕ → ℕ → ℝ≥0}
     (h : AdaptiveEmulatesDummyWithin mode P Q pD ε) :
-    AdaptiveEmulatesWithin mode P Q (Polynomial.X * (pD + 1) + pD)
+    AdaptiveEmulatesWithin mode P Q (compSimPoly pD)
       (fun pA pZ => ε (absorbPoly pZ pA)) := by
   intro AdvQ AdvR A pA hA
   obtain ⟨S_D, hS, hadv⟩ := h A.initial
@@ -262,18 +260,15 @@ adaptive dummy adversary (call-bounded adaptation of [Canetti2020], Claim 11, p.
 theorem adaptiveEmulates_iff_adaptiveEmulatesDummy (mode : CorruptionMode)
     (P : AdaptiveProtocol n In Out NetQ₁ NetR₁ View₁)
     (Q : AdaptiveProtocol n In Out NetQ₂ NetR₂ View₂) :
-    AdaptiveEmulates mode P Q ↔ AdaptiveEmulatesDummy mode P Q := by
-  constructor
-  · intro h C₀
-    exact h _ _ (adaptiveDummyAdversary C₀ NetQ₁ NetR₁) 1
-      (adaptiveDummyAdversary_polyBounded C₀ NetQ₁ NetR₁)
-  · intro h AdvQ AdvR A pA hA
-    obtain ⟨S_D, pD, hS, hadv⟩ := h A.initial
-    refine ⟨compAdaptiveSim S_D A, pA * (pD + 1) + pD,
-      compAdaptiveSim_polyBounded hS hA, fun pZ => ?_⟩
-    obtain ⟨ν, hν, hbound⟩ := hadv (absorbPoly pZ pA)
-    refine ⟨ν, hν, fun Z hZ κ z => ?_⟩
-    rw [adaptiveAdvantage_compAdaptiveSim]
-    exact hbound _ (absorbAdaptiveAdversary_polyBounded hA hZ) κ z
+    AdaptiveEmulates mode P Q ↔ AdaptiveEmulatesDummy mode P Q :=
+  ⟨fun h C₀ => h _ _ _ 1 (adaptiveDummyAdversary_polyBounded C₀ NetQ₁ NetR₁),
+    fun h _ _ A pA hA => by
+      obtain ⟨S_D, pD, hS, hadv⟩ := h A.initial
+      refine ⟨compAdaptiveSim S_D A, pA * (pD + 1) + pD,
+        compAdaptiveSim_polyBounded hS hA, fun pZ => ?_⟩
+      obtain ⟨ν, hν, hbound⟩ := hadv (absorbPoly pZ pA)
+      refine ⟨ν, hν, fun Z hZ κ z => ?_⟩
+      rw [adaptiveAdvantage_compAdaptiveSim]
+      exact hbound _ (absorbAdaptiveAdversary_polyBounded hA hZ) κ z⟩
 
 end Cslib.Crypto.Protocols.UC

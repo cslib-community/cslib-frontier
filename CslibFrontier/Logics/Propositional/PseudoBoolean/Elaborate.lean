@@ -33,7 +33,10 @@ other conclusions follow from the kernel checker's theorems
 `Cslib.Logic.PL.VeriPB.Text.checkOPB`.
 
 **Completeness** is not proved: the elaborator may fail on a valid proof (its limitations are
-listed in `Cslib.Logic.PL.VeriPB.Elab`), and then the checker rejects. Output sections are
+listed in `Cslib.Logic.PL.VeriPB.Elab`), and then the checker rejects. For the clausal and `pol`
+fragment that CaDiCaL writes, validity has a declarative definition,
+`Cslib.Logic.PL.VeriPB.Elab.AugValid`, sound by the kernel's soundness; that the elaborator accepts
+exactly the valid proofs of the fragment is not proved yet (#8782). Output sections are
 accepted with `NONE` and `IMPLICIT`, as for `Cslib.Logic.PL.VeriPB.Text.checkOPB`.
 
 ## Main definitions
@@ -71,11 +74,13 @@ def checkResult (F : List PBConstr) (obj : Option Objective) (pres : Option (Lis
   | _ => none
 
 /-- **Check an augmented proof for an OPB instance**: parse the instance, elaborate the proof and
-check the kernel proof; the conclusion, if accepted. -/
+check the kernel proof; the conclusion, if accepted. The proof may refer to the constraints of
+the instance by their labels (`Cslib.Logic.PL.VeriPB.Text.parseOPBLabelled`). -/
 def checkAugmented (opb pbp : String) : Option Conclusion :=
-  (parseOPB opb).bind fun I =>
+  let N := opbNames opb
+  (parseOPBLabelled N opb).bind fun (I, L) =>
     checkResult I.constraints I.objective I.preserved
-      (elaborate I.constraints I.objective I.preserved pbp)
+      (elaborate I.constraints I.objective I.preserved pbp N L)
 
 /-- **Check an augmented proof for a DIMACS CNF formula**, its clause `1 -2 3 0` read as the
 constraint `x1 + ~x2 + x3 >= 1`. -/
@@ -107,9 +112,9 @@ theorem exists_checkRed_of_checkAugmented {opb pbp : String} {c : Conclusion}
     (h : checkAugmented opb pbp = some c) :
     ∃ I P, parseOPB opb = some I ∧ checkRed I.constraints I.objective P I.preserved = true ∧
       P.conclusion = c := by
-  obtain ⟨I, hI, h⟩ := Option.bind_eq_some_iff.1 h
+  obtain ⟨⟨I, L⟩, hI, h⟩ := Option.bind_eq_some_iff.1 h
   obtain ⟨P, hP, hc⟩ := exists_checkRed_of_checkResult h
-  exact ⟨I, P, hI, hP, hc⟩
+  exact ⟨I, P, parseOPB_eq_some_of_parseOPBLabelled hI, hP, hc⟩
 
 /-- **An accepted augmented proof for a DIMACS formula gives an accepted kernel proof** for its
 clauses read as constraints. -/

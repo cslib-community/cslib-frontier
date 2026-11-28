@@ -9,6 +9,8 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.MvPolynomial.ParameterDegree
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
+import CslibFrontier.Foundations.Data.MvPolynomial.LastVariable
+import CslibFrontier.Foundations.Data.MvPolynomial.LowestComponent
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Charpoly.ParameterDegree
 import Mathlib.Algebra.Polynomial.BigOperators
 import Mathlib.Algebra.Polynomial.Degree.Lemmas
@@ -20,10 +22,14 @@ The degrees in the coefficient parameter are bounded using the finite residue fo
 the power traces. Only residue indices whose sum is at most the spatial degree of the
 numerator can contribute. For a positive power trace, the Jacobian's fixed degree cost can
 be absorbed into a bound linear in the power. Newton's identity then gives a linear bound
-in the reversed characteristic coefficient index.
+in the reversed characteristic coefficient index. Scaling the retained parameters by a
+fresh indeterminate transfers the same bound to their multivariate total degree.
+The decreasing coefficient bound also controls the degree after joining the
+critical-value variable to the retained variables.
 
 Adapted from `QuotientParameterDegree`, `SeparatedPotentialDegree`, and
-`ParametricCriticalBounds` in lean-canny at
+`ParametricCriticalBounds`, `MultivariateQuotientDegree`, and `RelativeCharacteristicBounds`
+in lean-canny at
 `970f28a5ecefc1327402ade16c068aa4b1b2c183`.
 -/
 
@@ -33,12 +39,12 @@ namespace MvPolynomial.PurePower
 
 open scoped BigOperators
 
-variable {n : ℕ}
+variable {n : ℕ} {R : Type*} [CommRing R]
 
 private theorem natDegree_residue_le {ell B H K : ℕ} (hell : 1 ≤ ell)
-    (r : Fin n → MvPolynomial (Fin n) (Polynomial ℤ))
+    (r : Fin n → MvPolynomial (Fin n) (Polynomial R))
     (hr : ∀ i, (r i).totalDegree < ell) (hparam : ∀ i, HasParameterDegree (r i) H)
-    (v : MvPolynomial (Fin n) (Polynomial ℤ)) (hv : HasParameterDegree v K)
+    (v : MvPolynomial (Fin n) (Polynomial R)) (hv : HasParameterDegree v K)
     (hB : v.totalDegree ≤ B) : (residue ell r v).natDegree ≤ K + B * H := by
   classical
   rw [residue_eq_truncated hell r hr v hB]
@@ -55,13 +61,13 @@ private theorem natDegree_residue_le {ell B H K : ℕ} (hell : 1 ≤ ell)
     exact Nat.zero_le _
 
 private theorem jacobian_hasParameterDegree {ell H : ℕ}
-    (r : Fin n → MvPolynomial (Fin n) (Polynomial ℤ))
+    (r : Fin n → MvPolynomial (Fin n) (Polynomial R))
     (hr : ∀ i, HasParameterDegree (r i) H) :
     HasParameterDegree (jacobian ell r) (n * H) := by
   classical
   have he (i j : Fin n) :
       HasParameterDegree (pderiv j (X i ^ ell - r i)) H := by
-    have hx := ((HasParameterDegree.X (R := ℤ) i).pow ell).mono
+    have hx := ((HasParameterDegree.X (R := R) i).pow ell).mono
       (show ell * 0 ≤ H by simp)
     simpa only [max_self] using (hx.sub (hr i)).pderiv j
   unfold jacobian
@@ -82,9 +88,10 @@ private theorem jacobian_hasParameterDegree {ell H : ℕ}
 parameter degree at most its reversed index times a bound from the lower relations and
 the multiplier. The input bounds `H` and `K` refer to degrees in the parameter, while
 `d` and `Ω` bound spatial total degrees. -/
-theorem natDegree_multiplicationMatrix_charpoly_coeff_le {d Ω H K : ℕ} (hd : 1 ≤ d)
-    (r : Fin n → MvPolynomial (Fin n) (Polynomial ℤ)) (hr : ∀ i, (r i).totalDegree ≤ d)
-    (hparam : ∀ i, HasParameterDegree (r i) H) (v : MvPolynomial (Fin n) (Polynomial ℤ))
+theorem natDegree_multiplicationMatrix_charpoly_coeff_le [IsDomain R] [CharZero R]
+    {d Ω H K : ℕ} (hd : 1 ≤ d)
+    (r : Fin n → MvPolynomial (Fin n) (Polynomial R)) (hr : ∀ i, (r i).totalDegree ≤ d)
+    (hparam : ∀ i, HasParameterDegree (r i) H) (v : MvPolynomial (Fin n) (Polynomial R))
     (hdeg : v.totalDegree ≤ Ω) (hv : HasParameterDegree v K) (k : ℕ) :
     ((multiplicationMatrix (by omega : 1 ≤ d + 1) r
         (fun i => (hr i).trans_lt (Nat.lt_succ_self d)) v).charpoly.coeff k).natDegree ≤
@@ -107,6 +114,41 @@ theorem natDegree_multiplicationMatrix_charpoly_coeff_le {d Ω H K : ℕ} (hd : 
       _ = j * A := by dsimp only [A]; ring
   simpa [NormalIndex, A] using Matrix.natDegree_charpoly_coeff_le_of_trace_pow M A
     (fun j hj _ => ht j hj) k
+
+/-- For multivariate coefficient parameters, the same pure-power quotient bound
+controls total degree in those parameters. Scaling the parameters turns total degree
+into a univariate degree while leaving the witness degree bounds valid. -/
+theorem totalDegree_multiplicationMatrix_charpoly_coeff_le {τ : Type*}
+    [IsDomain R] [CharZero R] {d Ω H K : ℕ} (hd : 1 ≤ d)
+    (r : Fin n → MvPolynomial (Fin n) (MvPolynomial τ R))
+    (hr : ∀ i, (r i).totalDegree ≤ d) (hparam : ∀ i s, ((r i).coeff s).totalDegree ≤ H)
+    (v : MvPolynomial (Fin n) (MvPolynomial τ R)) (hdeg : v.totalDegree ≤ Ω)
+    (hv : ∀ s, (v.coeff s).totalDegree ≤ K) (k : ℕ) :
+    ((multiplicationMatrix (by omega : 1 ≤ d + 1) r
+        (fun i => (hr i).trans_lt (Nat.lt_succ_self d)) v).charpoly.coeff k).totalDegree ≤
+      ((d + 1) ^ n - k) * (K + (Ω + n * (d + 1)) * H) := by
+  let φ : MvPolynomial τ R →+* Polynomial (MvPolynomial τ R) :=
+    (aeval fun i => Polynomial.X * Polynomial.C (X i)).toRingHom
+  have hscaled (p : MvPolynomial (Fin n) (MvPolynomial τ R)) (b : ℕ)
+      (hp : ∀ s, (p.coeff s).totalDegree ≤ b) : HasParameterDegree (p.map φ) b := by
+    intro s
+    rw [coeff_map]
+    exact (natDegree_aeval_scale_X (p.coeff s)).trans_le (hp s)
+  let r' (i : Fin n) := (r i).map φ
+  let v' := v.map φ
+  have hr' (i : Fin n) : (r' i).totalDegree ≤ d :=
+    (totalDegree_map_le φ (r i)).trans (hr i)
+  have hdegree := natDegree_multiplicationMatrix_charpoly_coeff_le hd r' hr'
+    (fun i => hscaled (r i) H (hparam i)) v' ((totalDegree_map_le φ v).trans hdeg)
+    (hscaled v K hv) k
+  have hchar :
+      (multiplicationMatrix (by omega : 1 ≤ d + 1) r
+        (fun i => (hr i).trans_lt (Nat.lt_succ_self d)) v).charpoly.map φ =
+      (multiplicationMatrix (by omega : 1 ≤ d + 1) r'
+        (fun i => (hr' i).trans_lt (Nat.lt_succ_self d)) v').charpoly := by
+    rw [← Matrix.charpoly_map, multiplicationMatrix_map]
+  rw [← hchar, Polynomial.coeff_map] at hdegree
+  exact (natDegree_aeval_scale_X _).symm.trans_le hdegree
 
 end MvPolynomial.PurePower
 
@@ -171,5 +213,58 @@ theorem natDegree_parametricValuePolynomial_coeff_le {n ell : ℕ} (hell : 2 ≤
       congr 1
       change 1 + ((d + 1 + 1) + n * (d + 1)) * 1 = (d + 1) + 2 + n * (d + 1)
       ring
+
+/-- The total degree of a relative critical-value coefficient in the retained parameters
+and penalty variable is bounded by a factor linear in its reversed characteristic index.
+The witness relation exponent is `ell`, and the source has total degree at most `ell`. -/
+theorem totalDegree_relativeValuePolynomial_coeff_le {n ell : ℕ} {κ : Type*} (hell : 2 ≤ ell)
+    (F : MvPolynomial (Fin n ⊕ κ) ℤ) (hF : F.totalDegree ≤ ell) (k : ℕ) :
+    ((relativeValuePolynomial (by omega : 1 ≤ ell) F hF).coeff k).totalDegree ≤
+      (ell ^ n - k) * ((ell + 2 + n * ell) * (F.totalDegree + 1)) := by
+  obtain ⟨d, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : ell ≠ 0)
+  let G := relativeSource F
+  let a : Fin n → MvPolynomial (Option κ) ℤ := fun _ => 0
+  let u : MvPolynomial (Option κ) ℤ := X none
+  let r := criticalLower (d + 1) a u G
+  let v := deformedPolynomial (d + 1) a u G
+  have hG : G.totalDegree ≤ d + 1 := (totalDegree_relativeSource_le F).trans hF
+  have hr (i : Fin n) : (r i).totalDegree ≤ d :=
+    Nat.le_of_lt_succ (criticalLower_degree _ (by omega) a u G hG i)
+  have hrparam (i : Fin n) (s : Fin n →₀ ℕ) :
+      ((r i).coeff s).totalDegree ≤ F.totalDegree + 1 :=
+    totalDegree_coeff_relativeCriticalLower_le (ell := d + 1) (by omega) F i s
+  have hvparam (s : Fin n →₀ ℕ) : (v.coeff s).totalDegree ≤ F.totalDegree + 1 :=
+    totalDegree_coeff_relativeDeformedPolynomial_le (d + 1) F s
+  calc
+    _ ≤ ((d + 1) ^ n - k) *
+        (F.totalDegree + 1 + (d + 1 + 1 + n * (d + 1)) * (F.totalDegree + 1)) :=
+      totalDegree_multiplicationMatrix_charpoly_coeff_le (by omega) r hr hrparam v
+        (totalDegree_deformedPolynomial_le _ a u G (hG.trans (Nat.le_succ _))) hvparam k
+    _ = _ := by
+      simp only [Nat.succ_eq_add_one]
+      ring
+
+/-- Bound the total degree in the critical value, penalty, and retained parameters together.
+A higher critical-value exponent leaves less degree available in its coefficient. -/
+theorem totalDegree_flattenedRelativeValuePolynomial_le {n ell : ℕ} {κ : Type*} (hell : 2 ≤ ell)
+    (F : MvPolynomial (Fin n ⊕ κ) ℤ) (hF : F.totalDegree ≤ ell) :
+    (flattenedRelativeValuePolynomial (by omega : 1 ≤ ell) F hF).totalDegree ≤
+      ell ^ n * ((ell + 2 + n * ell) * (F.totalDegree + 1)) := by
+  let D := ell ^ n
+  let A := (ell + 2 + n * ell) * (F.totalDegree + 1)
+  let p := relativeValuePolynomial (by omega : 1 ≤ ell) F hF
+  change ((optionEquivLeft ℤ (Option κ)).symm p).totalDegree ≤ D * A
+  apply totalDegree_optionEquivLeft_symm_le
+  intro k hk
+  have hD : p.natDegree = D := valuePolynomial_natDegree _ _ _ _ _
+  have hkD := (Polynomial.le_natDegree_of_mem_supp k hk).trans_eq hD
+  have hA : 1 ≤ A := Nat.succ_le_of_lt (by dsimp only [A]; positivity)
+  have hcoeff : (p.coeff k).totalDegree ≤ (D - k) * A :=
+    totalDegree_relativeValuePolynomial_coeff_le hell F hF k
+  calc
+    _ ≤ (D - k) * A + k := Nat.add_le_add_right hcoeff _
+    _ ≤ (D - k) * A + k * A := by
+      simpa only [mul_one] using Nat.add_le_add_left (Nat.mul_le_mul_left k hA) ((D - k) * A)
+    _ = D * A := by rw [← Nat.add_mul, Nat.sub_add_cancel hkD]
 
 end MvPolynomial.CriticalSystem

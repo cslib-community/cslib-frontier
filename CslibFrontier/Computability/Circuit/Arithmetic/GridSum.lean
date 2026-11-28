@@ -7,6 +7,7 @@ Authors: Anthropic, PBC, Christian Reitwiessner
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Circuit.Arithmetic.ClauseSum
 public import CslibFrontier.Computability.Circuit.Arithmetic.ComputedWithin
 public import CslibFrontier.Computability.Circuit.Arithmetic.HamiltonianCycle
 import CslibFrontier.Foundations.Data.Matrix.HamiltonianCycle.Grid
@@ -35,7 +36,6 @@ sums, hence affine projections of every family complete for grid sums
 
 * `Cslib.Circuits.Arithmetic.affineIn`: the polynomials affine in a given variable.
 * `Cslib.Circuits.Arithmetic.GridComplete`: completeness for grid sums.
-* `Cslib.Circuits.Arithmetic.clauseSum`: sums of products of clauses.
 
 ## Main results
 
@@ -65,9 +65,7 @@ the constants and `X i` for `o = some i`. -/
 
 /-- The constant `1` is affine in every variable. -/
 theorem one_mem_affineIn (o : Option ι) : (1 : MvPolynomial ι K) ∈ affineIn o := by
-  cases o
-  · exact Submodule.subset_span rfl
-  · exact Submodule.subset_span (by simp)
+  cases o <;> exact Submodule.subset_span (by simp)
 
 /-- Constants are affine in every variable. -/
 theorem C_mem_affineIn (o : Option ι) (b : K) : (C b : MvPolynomial ι K) ∈ affineIn o := by
@@ -118,11 +116,9 @@ theorem gridComplete_permFamily (h2 : (2 : K) ≠ 0) : GridComplete (permFamily 
   rcases hM (finProdFinEquiv.symm q).1 (finProdFinEquiv.symm q).2 with h | ⟨k, h⟩
   · simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at h
     rcases h with h | h | h | h | h
-    · exact Or.inl ⟨0, h.trans C_0.symm⟩
-    · exact Or.inl ⟨1, h.trans C_1.symm⟩
-    · exact Or.inl ⟨-1, h.trans (by rw [map_neg, C_1])⟩
-    · exact Or.inl ⟨2⁻¹, h⟩
-    · exact Or.inl ⟨-2⁻¹, h.trans (map_neg C _).symm⟩
+    exacts [Or.inl ⟨0, h.trans C_0.symm⟩, Or.inl ⟨1, h.trans C_1.symm⟩,
+      Or.inl ⟨-1, h.trans (by rw [map_neg, C_1])⟩, Or.inl ⟨2⁻¹, h⟩,
+      Or.inl ⟨-2⁻¹, h.trans (map_neg C _).symm⟩]
   · refine IsAffine.of_mem_affineIn (o := o k)
       ((AddSubmonoid.closure_le (S := (affineIn (o k)).toAddSubmonoid)).2 ?_ h)
     rintro _ ⟨n, x, r, rfl, rfl⟩
@@ -137,20 +133,12 @@ theorem gridComplete_hcFamily : GridComplete (hcFamily K) 40 := by
   refine ⟨entries M, fun q => ?_, by
     change aeval _ (genericMatrix K S).hamiltonianCycleSum = _
     rw [AlgHom.map_hamiltonianCycleSum, map_aeval_genericMatrix, hp]⟩
+  dsimp only [entries]
   rcases hM (finProdFinEquiv.symm q).1 (finProdFinEquiv.symm q).2 with h | h | ⟨n, x, r, h⟩
-  · exact Or.inl ⟨0, h.trans C_0.symm⟩
-  · exact Or.inl ⟨1, h.trans C_1.symm⟩
-  · change IsAffine (M _ _)
-    rw [h]
-    exact IsAffine.of_mem_affineIn (hW n x r)
+  exacts [Or.inl ⟨0, h.trans C_0.symm⟩, Or.inl ⟨1, h.trans C_1.symm⟩,
+    h ▸ IsAffine.of_mem_affineIn (hW n x r)]
 
 /-! ### Clause sums -/
-
-/-- A *clause sum*: the sum, over the bits `x`, of the product over the clauses `κ` of the weight
-of `κ` if all its literals hold, and `1` otherwise. A literal `(b, e)` holds when `x b = e`. -/
-noncomputable def clauseSum {R V Θ : Type*} [CommRing R] [Fintype V] [DecidableEq V]
-    [Fintype Θ] (lits : Θ → List (V × Bool)) (wt : Θ → R) : R :=
-  ∑ x : V → Bool, ∏ κ, if ∀ l ∈ lits κ, x l.1 = l.2 then wt κ else 1
 
 /-- **Clause sums are affine projections** of every family complete for grid sums
 [Claude, *VP ≠ VNP over every field*][AnthropicVPVNP2026], Corollary cor:clauses. Let every clause
@@ -172,45 +160,36 @@ theorem GridComplete.isAffineProjection_clauseSum {G : PolynomialFamily K} {c : 
   let o : Θ → Option ι := fun κ => if h : ∃ i, wt κ = X i then some h.choose else none
   have hwt' (κ : Θ) : wt κ ∈ affineIn (o κ) := by
     by_cases h : ∃ i, wt κ = X i
-    · have key (i : ι) (e : wt κ = X i) : wt κ ∈ affineIn (some i) := by
-        rw [e]
-        exact Submodule.subset_span (by simp)
-      simpa only [o, dite_eq_left_of_eq_true (eq_true h)] using key _ h.choose_spec
+    · simp only [o, h, ↓reduceDIte]
+      exact Submodule.subset_span (Set.mem_insert_iff.2 (.inl h.choose_spec))
     · obtain ⟨a, ha⟩ := (hwt κ).resolve_left h
       rw [ha]
       exact C_mem_affineIn _ _
-  have hv : Function.Surjective v := by
-    intro b
+  have hv : Function.Surjective v := fun b => by
     obtain ⟨κ, l, hl, rfl⟩ := hocc b
     obtain ⟨i, rfl⟩ := List.mem_iff_get.1 hl
     exact ⟨⟨κ, i⟩, rfl⟩
   have hW (n : N) (x r : Bool) : W n x r ∈ affineIn (o n.1) := by
     simp only [W]
     split_ifs
-    · exact Submodule.sub_mem _ (hwt' _) (one_mem_affineIn _)
-    · exact one_mem_affineIn _
-    · exact Submodule.zero_mem _
-    · exact one_mem_affineIn _
+    exacts [Submodule.sub_mem _ (hwt' _) (one_mem_affineIn _), one_mem_affineIn _,
+      Submodule.zero_mem _, one_mem_affineIn _]
   obtain ⟨M, hM, he⟩ := hG v (fun n : N => n.1) hv
     (fun κ => ⟨⟨κ, ⟨0, List.length_pos_iff.2 (hne κ)⟩⟩, rfl⟩) W o hW S (by simpa [N] using hS)
   refine ⟨M, hM, he.trans (Finset.sum_congr rfl fun x _ => ?_)⟩
-  have hp (r : Θ → Bool) : ∏ n : N, W n (x (v n)) (r n.1) =
-      ∏ κ, ∏ i : Fin (lits κ).length, W ⟨κ, i⟩ (x (v ⟨κ, i⟩)) (r κ) := Fintype.prod_sigma _
-  simp only [hp]
+  have hprod (r : Θ → Bool) : ∏ n : N, W n (x (v n)) (r n.1) =
+      ∏ κ, ∏ i : Fin (lits κ).length, W ⟨κ, i⟩ (x (v ⟨κ, i⟩)) (r κ) :=
+    Fintype.prod_sigma _
+  simp only [hprod]
   rw [← Fintype.prod_sum fun κ b => ∏ i : Fin (lits κ).length, W ⟨κ, i⟩ (x (v ⟨κ, i⟩)) b]
   refine Finset.prod_congr rfl fun κ _ => ?_
-  have hpos := List.length_pos_iff.2 (hne κ)
   rw [Fintype.sum_bool]
   simp only [W, Bool.false_eq_true, ↓reduceIte, Finset.prod_const_one]
   by_cases hall : ∀ l ∈ lits κ, x l.1 = l.2
   · rw [ite_eq_left hall]
-    have (i : Fin (lits κ).length) : x ((lits κ).get i).1 = ((lits κ).get i).2 :=
-      hall _ (List.get_mem _ _)
-    simp only [v, this, ↓reduceIte]
-    rw [Finset.prod_eq_single (⟨0, hpos⟩ : Fin (lits κ).length)]
-    · simp
-    · exact fun i _ hi => ite_eq_right fun h => hi (Fin.ext h)
-    · simp
+    simp only [v, fun i => hall _ (List.get_mem (lits κ) i), ↓reduceIte]
+    rw [Finset.prod_eq_single (⟨0, List.length_pos_iff.2 (hne κ)⟩ : Fin (lits κ).length)]
+    exacts [by simp, fun i _ hi => ite_eq_right fun h => hi (Fin.ext h), by simp]
   · rw [ite_eq_right hall]
     push Not at hall
     obtain ⟨l, hl, hne'⟩ := hall

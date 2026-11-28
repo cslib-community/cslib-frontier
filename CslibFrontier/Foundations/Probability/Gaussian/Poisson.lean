@@ -48,21 +48,17 @@ theorem gaussianMass_eq_tsum_dual (s : ℝ) (hs : 0 < s) (c : E) :
     (gaussianMass L s c : ℂ) = (s : ℂ) ^ finrank ℝ E / (covolume L : ℂ) *
       ∑' w : LinearMap.BilinForm.dualSubmodule (innerₗ E) L,
         (gaussianWeight (1 / s) (w : E) : ℂ) * (Real.fourierChar (-⟪c, (w : E)⟫) : ℂ) := by
-  let D := LinearMap.BilinForm.dualSubmodule (innerₗ E) L
-  have : DiscreteTopology D := discreteTopology_dualSubmodule L
+  have := discreteTopology_dualSubmodule L
   let f : C(E, ℂ) := ⟨fun x ↦ (gaussianWeight s x : ℂ),
     Complex.continuous_ofReal.comp (continuous_gaussianWeight s)⟩
   have hd : f =O[cocompact E] (fun x ↦ ‖x‖ ^ (-((finrank ℤ L : ℝ) + 1))) := by
     simpa only [f, ContinuousMap.coe_mk, Asymptotics.isBigO_iff, Complex.norm_real] using
       isBigO_gaussianWeight_cocompact (E := E) s hs (-((finrank ℤ L : ℝ) + 1))
-  have h := tsum_eq_tsum_fourier_of_rpow_decay L f
-    (r := (finrank ℤ L : ℝ) + 1) (by linarith) hd
-    (integrable_gaussianWeight s hs) (summable_fourier_gaussianWeight D s hs) (-c)
+  have h := tsum_eq_tsum_fourier_of_rpow_decay L f (r := (finrank ℤ L : ℝ) + 1) (by linarith) hd
+    (integrable_gaussianWeight s hs) (summable_fourier_gaussianWeight _ s hs) (-c)
   simp only [f, ContinuousMap.coe_mk, neg_add_eq_sub, inner_neg_left,
-    fourier_gaussianWeight s hs] at h
-  change (↑(∑' z : L, gaussianWeight s ((z : E) - c)) : ℂ) = _
-  rw [Complex.ofReal_tsum, h]
-  simp only [mul_assoc, tsum_mul_left]
+    fourier_gaussianWeight s hs, mul_assoc, tsum_mul_left] at h
+  rw [gaussianMass, Complex.ofReal_tsum, h]
   ring
 
 end ZLattice

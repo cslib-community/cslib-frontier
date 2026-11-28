@@ -111,12 +111,9 @@ theorem answer_preserve_isPartialBijection (q : Query Key Block) (st : Key → C
     (hst : ∀ k, IsPartialBijection (st k)) (a : Block) (st' : Key → Cache Block)
     (hmem : (a, st') ∈ (answer q st).support) (k : Key) : IsPartialBijection (st' k) := by
   supp_cases hmem [answer] with ⟨⟨b, c'⟩, hmem, rfl, rfl⟩
-  by_cases h : k = q.1
-  · subst h
-    simp only [Function.update_self]
-    exact RandomPermutation.answer_preserve_isPartialBijection q.2 (st q.1) (hst q.1) b c' hmem
-  · simp only [Function.update_of_ne h]
-    exact hst k
+  rcases eq_or_ne k q.1 with rfl | h
+  · simpa using RandomPermutation.answer_preserve_isPartialBijection q.2 _ (hst q.1) b c' hmem
+  · simpa [Function.update_of_ne h] using hst k
 
 /-- Single-step simulation law for `answer` against `complete`: when every key's cache in `st` is
 a partial bijection, answering `q` lazily and completing the updated caches yields the same joint
@@ -127,20 +124,12 @@ theorem answer_complete (q : Query Key Block) (st : Key → Cache Block)
     (answer q st).bind (fun (a, st') => (complete st').map (a, ·)) =
       (complete st).bind (fun P => (fun x => (x, P)) <$> PMF.pure (evalPerm (P q.1) q.2)) := by
   let p : Key → PMF (Equiv.Perm Block) := fun k => RandomPermutation.complete (st k)
-  have hupdate (c : Cache Block) :
-      (fun k => RandomPermutation.complete (Function.update st q.1 c k)) =
-        Function.update p q.1 (RandomPermutation.complete c) := by
-    ext k
-    by_cases h : k = q.1
-    · subst h; simp [p]
-    · simp [p, h]
   have hcomplete_update (c : Cache Block) :
       complete (Function.update st q.1 c) =
         (RandomPermutation.complete c).bind fun v =>
           PMF.pi (Function.update p q.1 (PMF.pure v)) := by
-    change PMF.pi (fun k => RandomPermutation.complete (Function.update st q.1 c k)) = _
-    rw [hupdate c]
-    simpa only [Function.update_self, Function.update_idem] using
+    simpa only [complete, Function.apply_update (fun _ => RandomPermutation.complete) st q.1 c,
+      Function.update_self, Function.update_idem] using
       (PMF.pi_bind_update (Function.update p q.1 (RandomPermutation.complete c)) q.1).symm
   calc
     (answer q st).bind (fun (a, st') => (complete st').map (a, ·))
@@ -152,10 +141,8 @@ theorem answer_complete (q : Query Key Block) (st : Key → Cache Block)
             (RandomPermutation.complete c).map (b, ·)).bind fun (b, v) =>
               (PMF.pi (Function.update p q.1 (PMF.pure v))).map (b, ·) := by
           rw [PMF.bind_bind]
-          congr 1 with ⟨b, c⟩ : 1
-          dsimp only
-          rw [PMF.map_bind, PMF.bind_map]
-          rfl
+          exact congrArg _ (funext fun ⟨b, c⟩ => by
+            simp [PMF.map_bind, PMF.bind_map, Function.comp_def])
       _ = (RandomPermutation.complete (st q.1)).bind fun v =>
             (PMF.pi (Function.update p q.1 (PMF.pure v))).map (evalPerm v q.2, ·) := by
           rw [RandomPermutation.answer_complete q.2 (st q.1) (hst q.1)]
@@ -174,33 +161,21 @@ theorem uniform_interpret_eq_lazy {α : Type} (program : OracleComp (Spec Key Bl
       let P ← PMF.pi (fun _ : Key => PMF.uniformOfFintype (Equiv.Perm Block))
       OracleComp.interpret (fun (q : Query Key Block) => PMF.pure (evalPerm (P q.1) q.2)) program) =
     ((OracleComp.interpret answer program).run (fun _ => [])).map Prod.fst := by
-  have h := OracleComp.run_interpret_simulation_of_invariant answer
-    lazyEvalPerm complete (fun s => ∀ k, IsPartialBijection (s k))
-    (fun q s hs a s' hmem => answer_preserve_isPartialBijection q s hs a s' hmem)
-    (fun q s hs => answer_complete q s hs)
-    program (fun _ => []) (fun _ => isPartialBijection_nil)
-  have h2 := congrArg (PMF.map Prod.fst) h
-  have h3 : ((complete (fun _ : Key => [])).bind fun t =>
-      (OracleComp.interpret lazyEvalPerm program).run t).map Prod.fst =
-    (do let P ← PMF.pi (fun _ : Key => PMF.uniformOfFintype (Equiv.Perm Block))
-        OracleComp.interpret (fun (q : Query Key Block) =>
-          PMF.pure (evalPerm (P q.1) q.2)) program) := by
-    simp only [complete, RandomPermutation.complete_nil, pmf_norm, PMF.map_bind]
-    apply congrArg
-    ext1 P
-    have h_ro := OracleComp.run_interpret_readOnly (fun (q : Query Key Block)
-      (P : Key → Equiv.Perm Block) => PMF.pure (evalPerm (P q.1) q.2)) program P
-    have h_ro2 := congrArg (PMF.map Prod.fst) h_ro
-    change PMF.map Prod.fst _ = _
-    have h4 : PMF.map Prod.fst (PMF.map (fun a => (a, P))
-      (interpret (fun q => PMF.pure (evalPerm (P q.1) q.2)) program)) =
-      interpret (fun q => PMF.pure (evalPerm (P q.1) q.2)) program := by
-      rw [PMF.map_comp]
-      change PMF.map id _ = _
-      exact PMF.map_id _
-    exact h_ro2.trans h4
-  rw [← h3]
-  simpa only [pmf_norm, complete, PMF.map, PMF.bind_const] using h2.symm
+  have h2 : ((OracleComp.interpret answer program).run (fun _ => [])).map Prod.fst =
+      ((complete (fun _ : Key => [])).bind fun t =>
+        (OracleComp.interpret lazyEvalPerm program).run t).map Prod.fst := by
+    simpa only [pmf_norm, complete, PMF.map, PMF.bind_const] using congrArg (PMF.map Prod.fst) <|
+      OracleComp.run_interpret_simulation_of_invariant answer lazyEvalPerm complete
+        (fun s => ∀ k, IsPartialBijection (s k)) answer_preserve_isPartialBijection
+        answer_complete program (fun _ => []) (fun _ => isPartialBijection_nil)
+  rw [h2]
+  simp only [complete, RandomPermutation.complete_nil, pmf_norm, PMF.map_bind]
+  refine congrArg _ (funext fun P => ((congrArg (PMF.map Prod.fst)
+    (OracleComp.run_interpret_readOnly
+      (fun (q : Query Key Block) (P : Key → Equiv.Perm Block) => PMF.pure (evalPerm (P q.1) q.2))
+      program P)).trans ?_).symm)
+  rw [PMF.monad_map_eq_map, PMF.map_comp]
+  exact PMF.map_id _
 
 omit [Fintype Key] in
 /-- `exactWithBad` and `forgetfulWithBad` are identical until the bad flag becomes `true`. -/
@@ -208,35 +183,25 @@ theorem identicalUntilBad_exactWithBad_forgetfulWithBad :
     IdenticalUntilBad (spec := Spec Key Block) exactWithBad forgetfulWithBad
       (fun st : (Key → Cache Block) × Bool => st.2 = true) where
   absorb_first a st h_bad st' hmem := by
-    rcases st with ⟨st_map, bad⟩
-    rcases st' with ⟨_, _, _⟩
+    rcases st, st' with ⟨⟨st_map, bad⟩, _, _, _⟩
     supp_cases hmem [exactWithBad] with ⟨⟨b, c, bad_new⟩, hmem3, rfl, rfl, rfl⟩
     exact RandomPermutation.identicalUntilBad_exactWithBad_forgetfulWithBad.absorb_first
       a.2 (st_map a.1, bad) h_bad (b, (c, bad_new)) hmem3
   absorb_second a st h_bad st' hmem := by
-    rcases st with ⟨st_map, bad⟩
-    rcases st' with ⟨_, _, _⟩
+    rcases st, st' with ⟨⟨st_map, bad⟩, _, _, _⟩
     supp_cases hmem [forgetfulWithBad] with ⟨⟨b, c, bad_new⟩, hmem3, rfl, rfl, rfl⟩
     exact RandomPermutation.identicalUntilBad_exactWithBad_forgetfulWithBad.absorb_second
       a.2 (st_map a.1, bad) h_bad (b, (c, bad_new)) hmem3
   agree a st hst b st' hst' := by
-    obtain ⟨st_map, bad⟩ := st
-    obtain ⟨st'_map, bad'⟩ := st'
-    cases bad
-    · cases bad'
-      · dsimp [exactWithBad, forgetfulWithBad]
-        simp only [PMF.map_apply]
-        apply tsum_congr
-        intro ⟨b_out, ⟨c_out, bad_out⟩⟩
-        split_ifs with h
-        · injection h with h1 h2
-          injection h2 with h3 h4
-          subst h4
-          exact RandomPermutation.identicalUntilBad_exactWithBad_forgetfulWithBad.agree a.2
-            (st_map a.1, false) Bool.noConfusion b_out (c_out, false) Bool.noConfusion
-        · rfl
-      · exact (hst' rfl).elim
-    · exact (hst rfl).elim
+    rcases st, st' with ⟨⟨st_map, _ | _⟩, ⟨st'_map, _ | _⟩⟩
+    · simp only [exactWithBad, forgetfulWithBad, PMF.map_apply]
+      refine tsum_congr fun ⟨b_out, c_out, bad_out⟩ => ?_
+      split_ifs with h
+      · obtain ⟨-, -, rfl⟩ := h
+        exact RandomPermutation.identicalUntilBad_exactWithBad_forgetfulWithBad.agree a.2
+          (st_map a.1, false) Bool.noConfusion b_out (c_out, false) Bool.noConfusion
+      · rfl
+    all_goals first | exact (hst rfl).elim | exact (hst' rfl).elim
 
 /-- Quadratic birthday bound on the bad-flag probability of `forgetfulWithBad`: starting from
 initial key caches `cache` with `bad = false`, an `n`-query-bounded program sets `bad = true`
@@ -253,8 +218,7 @@ theorem toOuterMeasure_bad_forgetfulWithBad_le {β : Type}
     (fun st : (Key → Cache Block) × Bool => Finset.univ.sum (fun k => (st.1 k).length))
     (Fintype.card Block : ℝ≥0∞)⁻¹ ?_ ?_ hn Bool.noConfusion
   · intro q ⟨c, b⟩ hb
-    have hb' : b = false := Bool.eq_false_iff.mpr hb
-    subst hb'
+    obtain rfl : b = false := Bool.eq_false_iff.mpr hb
     simp only [forgetfulWithBad, PMF.toOuterMeasure_map_apply, Set.preimage_ofPred_eq]
     cases hq : cachedAnswer (c q.1) q.2 with
     | some a => simp [RandomPermutation.forgetfulWithBad, hq, PMF.toOuterMeasure_pure_apply]
@@ -262,9 +226,7 @@ theorem toOuterMeasure_bad_forgetfulWithBad_le {β : Type}
       have hpre : (fun a : Block => (a, (PermQuery.toCacheEntry ⟨q.2, a⟩ :: c q.1,
           false || decide (a ∉ freshAnswers (c q.1) q.2)))) ⁻¹'
           {x : Block × (Cache Block × Bool) | x.2.2 = true} =
-          {a : Block | a ∉ freshAnswers (c q.1) q.2} := by
-        ext a
-        simp
+          {a : Block | a ∉ freshAnswers (c q.1) q.2} := by ext a; simp
       have hcard : (Finset.univ.filter fun a : Block => a ∉ freshAnswers (c q.1) q.2).card
           ≤ (c q.1).length := by
         cases h_q2 : q.2 with
@@ -283,17 +245,11 @@ theorem toOuterMeasure_bad_forgetfulWithBad_le {β : Type}
     supp_cases hp [forgetfulWithBad] with ⟨⟨a₀, c₀, b₀⟩, hx, rfl, rfl, rfl⟩
     rcases RandomPermutation.mem_support_forgetfulWithBad hx with ⟨_, rfl, _⟩ | ⟨_, rfl, _⟩
     · simp [Function.update_eq_self]
-    · have h1 := Finset.add_sum_erase Finset.univ
-        (fun k => (Function.update c q.1
-          (PermQuery.toCacheEntry ⟨q.2, a₀⟩ :: c q.1) k).length) (Finset.mem_univ q.1)
-      have h2 := Finset.add_sum_erase Finset.univ (fun k => (c k).length) (Finset.mem_univ q.1)
-      have heq : ∑ k ∈ Finset.univ.erase q.1,
-          (Function.update c q.1 (PermQuery.toCacheEntry ⟨q.2, a₀⟩ :: c q.1) k).length =
-          ∑ k ∈ Finset.univ.erase q.1, (c k).length :=
-        Finset.sum_congr rfl fun k hk => by simp [(Finset.mem_erase.mp hk).1]
-      simp only [Function.update_self, List.length_cons] at h1
-      dsimp only
-      omega
+    · have hlen (k) : (Function.update c q.1
+          (PermQuery.toCacheEntry ⟨q.2, a₀⟩ :: c q.1) k).length =
+          (c k).length + if k = q.1 then 1 else 0 := by
+        by_cases hk : k = q.1 <;> simp [hk]
+      simp [hlen, Finset.sum_add_distrib]
 
 omit [Fintype Key] in
 /-- A query step of `exactWithBad` preserves the invariant that every key's cache is a partial
@@ -304,13 +260,10 @@ theorem exactWithBad_preserve_isPartialBijection (q : Query Key Block)
     (hmem : (a, st') ∈ (exactWithBad q st).support) (k : Key) : IsPartialBijection (st'.1 k) := by
   rcases st' with ⟨_, _⟩
   supp_cases hmem [exactWithBad] with ⟨⟨b, c', bad'⟩, hmem, rfl, rfl, rfl⟩
-  by_cases h : k = q.1
-  · subst h
-    simp only [Function.update_self]
-    exact RandomPermutation.exactWithBad_preserve_isPartialBijection q.2 (st.1 q.1, st.2)
+  rcases eq_or_ne k q.1 with rfl | h
+  · simpa using RandomPermutation.exactWithBad_preserve_isPartialBijection q.2 (st.1 q.1, st.2)
       (hst q.1) b (c', bad') hmem
-  · simp only [Function.update_of_ne h]
-    exact hst k
+  · simpa [Function.update_of_ne h] using hst k
 
 omit [Fintype Key] in
 /-- Dropping the bad flag after a step of `exactWithBad` recovers the law of `answer`, provided
@@ -318,22 +271,18 @@ every key's cache in `st.1` is a partial bijection. -/
 theorem exactWithBad_map_fst (q : Query Key Block) (st : (Key → Cache Block) × Bool)
     (hcache : ∀ k, IsPartialBijection (st.1 k)) :
     (exactWithBad q st).map (fun (a, st') => (a, st'.1)) = answer q st.1 := by
-  simp only [exactWithBad, answer, PMF.map_comp]
-  have h := congrArg (PMF.map (fun (b, c) => (b, Function.update st.1 q.1 c)))
-    (RandomPermutation.exactWithBad_map_fst q.2 (st.1 q.1, st.2) (hcache q.1))
-  rw [PMF.map_comp] at h
-  exact h
+  simpa only [exactWithBad, answer, PMF.map_comp, Function.comp_def] using
+    congrArg (PMF.map fun x => (x.1, Function.update st.1 q.1 x.2))
+      (RandomPermutation.exactWithBad_map_fst q.2 (st.1 q.1, st.2) (hcache q.1))
 
 omit [Fintype Key] in
 /-- Dropping the bad flag after a step of `forgetfulWithBad` recovers the law of
 `forgetfulAnswer`. -/
 theorem forgetfulWithBad_map_fst (q : Query Key Block) (st : (Key → Cache Block) × Bool) :
     (forgetfulWithBad q st).map (fun (a, st') => (a, st'.1)) = forgetfulAnswer q st.1 := by
-  simp only [forgetfulWithBad, forgetfulAnswer, PMF.map_comp]
-  have h := congrArg (PMF.map (fun (b, c) => (b, Function.update st.1 q.1 c)))
-    (RandomPermutation.forgetfulWithBad_map_fst q.2 (st.1 q.1, st.2))
-  rw [PMF.map_comp] at h
-  exact h
+  simpa only [forgetfulWithBad, forgetfulAnswer, PMF.map_comp, Function.comp_def] using
+    congrArg (PMF.map fun x => (x.1, Function.update st.1 q.1 x.2))
+      (RandomPermutation.forgetfulWithBad_map_fst q.2 (st.1 q.1, st.2))
 
 omit [Fintype Key] in
 /-- Dropping the final bad flag after running `program` under `exactWithBad` recovers the run
@@ -346,8 +295,7 @@ theorem run_interpret_exactWithBad_map_fst {β : Type}
     (OracleComp.interpret answer program).run cache :=
   OracleComp.run_interpret_map_state_of_invariant exactWithBad answer Prod.fst
     (fun s => ∀ k, IsPartialBijection (s.1 k))
-    (fun q s hs a s' hmem k => exactWithBad_preserve_isPartialBijection q s hs a s' hmem k)
-    (fun q s hs => exactWithBad_map_fst q s hs)
+    exactWithBad_preserve_isPartialBijection exactWithBad_map_fst
     program (cache, bad) hcache
 
 omit [Fintype Key] in
@@ -389,8 +337,7 @@ theorem abs_sub_uniformPerm_forgetful_le {β γ : Type}
   rw [identicalUntilBad_exactWithBad_forgetfulWithBad.bad_eq] at hdiff
   refine hdiff.trans ?_
   have hbad := toOuterMeasure_bad_forgetfulWithBad_le hQ (fun _ => [])
-  have h_len : Finset.univ.sum (fun (k : Key) => ([] : Cache Block).length) = 0 := by simp
-  rw [h_len, mul_zero, zero_add] at hbad
+  simp only [List.length_nil, Finset.sum_const_zero, mul_zero, zero_add] at hbad
   have htop : ((Q.choose 2 : ℕ) : ℝ≥0∞) * (Fintype.card Block : ℝ≥0∞)⁻¹ ≠ ⊤ :=
     ENNReal.mul_ne_top (ENNReal.natCast_ne_top _)
       (ENNReal.inv_ne_top.mpr (Nat.cast_ne_zero.mpr Fintype.card_ne_zero))

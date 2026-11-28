@@ -56,7 +56,6 @@ namespace Cslib
 
 open Finset
 
-
 namespace Logic.PL
 
 open BitString
@@ -93,8 +92,7 @@ def Meets (C : Finset (Literal (Fin N))) (T : Finset (Fin N)) : Prop :=
 clause satisfies. -/
 private theorem mem_solutions_of_agree {ψ : ClauseSet (Fin N)} {w : BitString N}
     (h : ∀ C ∈ ψ, ∃ z ∈ ψ.solutions, ∀ l ∈ C, z l.1 = w l.1) : w ∈ ψ.solutions := by
-  rw [mem_solutions]
-  intro C hC
+  refine mem_solutions.mpr fun C hC => ?_
   obtain ⟨z, hz, hagree⟩ := h C hC
   obtain ⟨l, hl, htrue⟩ := mem_solutions.mp hz C hC
   exact ⟨l, hl, (hagree l hl).symm.trans htrue⟩
@@ -124,40 +122,29 @@ theorem flipOn_biUnion_mem_solutions_of_separated {ι : Type*} {ψ : ClauseSet (
   refine mem_solutions_of_agree fun C hC => ?_
   by_cases hmeet : ∃ j ∈ J, Meets C (T j)
   · obtain ⟨j, hj, hjmeet⟩ := hmeet
-    refine ⟨flipOn (T j) x, hmove j (hJ hj), fun l hl => flipOn_apply_eq_of_iff ?_⟩
-    refine ⟨fun h => mem_biUnion.mpr ⟨j, hj, h⟩, fun h => ?_⟩
+    refine ⟨flipOn (T j) x, hmove j (hJ hj), fun l hl => flipOn_apply_eq_of_iff
+      ⟨fun h => mem_biUnion.mpr ⟨j, hj, h⟩, fun h => by_contra fun hlj => ?_⟩⟩
     obtain ⟨j', hj', hlj'⟩ := mem_biUnion.mp h
-    by_contra hlj
     exact hsep C hC j (hJ hj) j' (hJ hj') (fun hjj => hlj (hjj ▸ hlj')) hjmeet ⟨l, hl, hlj'⟩
-  · push Not at hmeet
-    refine ⟨x, hx, fun l hl => (flipOn_apply_of_notMem fun h => ?_).symm⟩
-    obtain ⟨j, hj, hlj⟩ := mem_biUnion.mp h
-    exact hmeet j hj ⟨l, hl, hlj⟩
+  · exact ⟨x, hx, fun l hl => (flipOn_apply_of_notMem fun h =>
+      (mem_biUnion.mp h).elim fun j ⟨hj, hlj⟩ => hmeet ⟨j, hj, l, hl, hlj⟩).symm⟩
 
 /-- Pairwise non-adjacent single-bit moves span a subcube of solutions. -/
 private theorem flipOn_mem_solutions_of_independent {ψ : ClauseSet (Fin N)} {x : BitString N}
     {M : Finset (Fin N)} (hx : x ∈ ψ.solutions) (hmove : ∀ i ∈ M, flipOn {i} x ∈ ψ.solutions)
     (hind : ∀ u ∈ M, ∀ w ∈ M, u ≠ w → w ∉ ψ.neighbors u) {T : Finset (Fin N)} (hT : T ⊆ M) :
     flipOn T x ∈ ψ.solutions := by
-  have h := flipOn_biUnion_mem_solutions_of_separated (T := fun i => {i}) hx hmove
-    (fun C hC j hj j' hj' hne hmeet hmeet' => by
-      obtain ⟨l, hl, hlj⟩ := hmeet
-      obtain ⟨l', hl', hlj'⟩ := hmeet'
-      rw [mem_singleton] at hlj hlj'
-      apply hind j hj j' hj' hne
-      simp only [neighbors, mem_filter, mem_univ, true_and]
-      exact ⟨Ne.symm hne, C, hC, ⟨l, hl, hlj⟩, l', hl', hlj'⟩) hT
-  simpa using h
+  simpa using flipOn_biUnion_mem_solutions_of_separated (T := fun i => {i}) hx hmove
+    (fun C hC j hj j' hj' hne ⟨l, hl, hlj⟩ ⟨l', hl', hlj'⟩ =>
+      hind j hj j' hj' hne (mem_filter.mpr ⟨mem_univ _, Ne.symm hne, C, hC,
+        ⟨l, hl, mem_singleton.mp hlj⟩, l', hl', mem_singleton.mp hlj'⟩)) hT
 
 /-- Co-occurrence adjacency in `neighbors` is symmetric. -/
 theorem mem_neighbors_comm {ψ : ClauseSet (Fin N)} {u w : Fin N} :
     w ∈ ψ.neighbors u ↔ u ∈ ψ.neighbors w := by
   simp only [neighbors, mem_filter, mem_univ, true_and]
-  constructor
-  · rintro ⟨hne, C, hC, hu, hw⟩
-    exact ⟨Ne.symm hne, C, hC, hw, hu⟩
-  · rintro ⟨hne, C, hC, hw, hu⟩
-    exact ⟨Ne.symm hne, C, hC, hu, hw⟩
+  exact ⟨fun ⟨hne, C, hC, hu, hw⟩ => ⟨hne.symm, C, hC, hw, hu⟩,
+    fun ⟨hne, C, hC, hw, hu⟩ => ⟨hne.symm, C, hC, hu, hw⟩⟩
 
 /-- **Few non-isolated directions**: if every variable has at most `Δ` neighbours and the
 solutions contain no subcube of dimension `D`, every solution has at most `(D - 1)(Δ + 1)`
@@ -170,48 +157,34 @@ theorem card_compl_isolatedDirections_le {ψ : ClauseSet (Fin N)} {Δ D : ℕ}
     (hx : x ∈ ψ.solutions) :
     (univ \ isolatedDirections ψ.solutions x).card ≤ (D - 1) * (Δ + 1) := by
   set NI := univ \ isolatedDirections ψ.solutions x with hNI
-  have hmemNI : ∀ i, i ∈ NI ↔ flipOn {i} x ∈ ψ.solutions := by
-    intro i
+  have hmemNI : ∀ i, i ∈ NI ↔ flipOn {i} x ∈ ψ.solutions := fun i => by
     simp [hNI, isolatedDirections]
   let Ind : Finset (Finset (Fin N)) := NI.powerset.filter fun M =>
     ∀ u ∈ M, ∀ w ∈ M, u ≠ w → w ∉ ψ.neighbors u
-  have hInd : (∅ : Finset (Fin N)) ∈ Ind := by simp [Ind]
-  obtain ⟨M, hM, hmax⟩ := Ind.exists_max_image card ⟨∅, hInd⟩
-  simp only [Ind, mem_filter, mem_powerset] at hM
-  obtain ⟨hMNI, hMind⟩ := hM
+  obtain ⟨M, hM, hmax⟩ := Ind.exists_max_image card ⟨∅, by simp [Ind]⟩
+  obtain ⟨hMNI, hMind⟩ := by simpa only [Ind, mem_filter, mem_powerset] using hM
   have hmove : ∀ i ∈ M, flipOn {i} x ∈ ψ.solutions := fun i hi => (hmemNI i).mp (hMNI hi)
   -- the independent set is small
   have hMcard : M.card ≤ D - 1 := by
-    by_contra hlt
-    push Not at hlt
+    by_contra! hlt
     obtain ⟨J, hJM, hJcard⟩ := exists_subset_card_eq (s := M) (n := D) (by omega)
     exact hfree ⟨x, J, hJcard, fun T hT =>
       flipOn_mem_solutions_of_independent hx hmove hMind (hT.trans hJM)⟩
   -- every non-isolated direction is in its closed neighbourhood
-  have hcover : NI ⊆ M ∪ M.biUnion ψ.neighbors := by
-    intro i hi
+  have hcover : NI ⊆ M ∪ M.biUnion ψ.neighbors := fun i hi => by
     by_cases hiM : i ∈ M
     · exact mem_union_left _ hiM
-    · refine mem_union_right _ (mem_biUnion.mpr ?_)
-      by_contra hnone
+    · refine mem_union_right _ (mem_biUnion.mpr (by_contra fun hnone => ?_))
       push Not at hnone
-      have hins : insert i M ∈ Ind := by
-        simp only [Ind, mem_filter, mem_powerset]
-        refine ⟨insert_subset hi hMNI, fun u hu w hw hne => ?_⟩
-        rw [mem_insert] at hu hw
-        by_cases hui : u = i
-        · subst hui
-          rcases hw with hwi | hwM
-          · exact absurd hwi.symm hne
-          · exact fun h => hnone w hwM (mem_neighbors_comm.mp h)
-        · have huM : u ∈ M := hu.resolve_left hui
-          by_cases hwi : w = i
-          · subst hwi
-            exact hnone u huM
-          · exact hMind u huM w (hw.resolve_left hwi) hne
+      have hins : insert i M ∈ Ind := mem_filter.mpr ⟨mem_powerset.mpr (insert_subset hi hMNI),
+        fun u hu w hw hne => by
+          rcases mem_insert.mp hu with rfl | huM <;> rcases mem_insert.mp hw with rfl | hwM
+          · exact absurd rfl hne
+          · exact mt mem_neighbors_comm.mp (hnone w hwM)
+          · exact hnone u huM
+          · exact hMind u huM w hwM hne⟩
       have := hmax _ hins
-      rw [card_insert_of_notMem hiM] at this
-      omega
+      rw [card_insert_of_notMem hiM] at this; omega
   calc NI.card ≤ (M ∪ M.biUnion ψ.neighbors).card := card_le_card hcover
     _ ≤ M.card + (M.biUnion ψ.neighbors).card := card_union_le _ _
     _ ≤ M.card + ∑ m ∈ M, (ψ.neighbors m).card := by gcongr; exact card_biUnion_le
@@ -247,18 +220,13 @@ private theorem sum_two_rpow_card_isolatedDirections_div_le {ψ : ClauseSet (Fin
     (hk1 : 1 ≤ k) (hk : ∀ C ∈ ψ, C.card ≤ k) :
     ∑ x ∈ ψ.solutions, (2 : ℝ) ^ (((isolatedDirections ψ.solutions x).card : ℝ) / k) ≤
       2 ^ N := by
-  have h := CNF.sum_two_rpow_card_isolated_div_le (φ := ψ.toCNF) hk1
-    fun c hc => ClauseSet.length_le_of_mem_toCNF hk hc
-  have hsol : ψ.solutions = ({x | ψ.toCNF.eval x = true} : Finset (BitString N)) := by
-    ext x
-    simp [eval_toCNF_eq_true_iff]
-  refine le_of_eq_of_le (sum_congr hsol fun x _ => ?_) h
-  have hiso : isolatedDirections ψ.solutions x =
-      ({i | ψ.toCNF.eval (Function.update x i (!x i)) = false} : Finset (Fin N)) := by
-    ext i
-    simp only [isolatedDirections, flipOn_singleton, mem_filter, mem_univ, true_and,
-      mem_solutions, ← eval_toCNF_eq_true_iff, Bool.not_eq_true]
-  rw [hiso]
+  refine le_of_eq_of_le
+    (sum_congr (Finset.ext fun _ => by simp [eval_toCNF_eq_true_iff]) fun x _ => ?_)
+    (CNF.sum_two_rpow_card_isolated_div_le hk1 fun c => ClauseSet.length_le_of_mem_toCNF hk)
+  suffices isolatedDirections ψ.solutions x =
+      ({i | ψ.toCNF.eval (Function.update x i (!x i)) = false} : Finset (Fin N)) by rw [this]
+  ext i
+  simp [isolatedDirections, flipOn_singleton, ← eval_toCNF_eq_true_iff]
 
 /-- **Few solutions in bounded degree**: if every clause of `ψ` has at most `k ≥ 1` literals, every
 variable has at most `Δ` neighbours, and the solutions contain no subcube of dimension `D`, then
@@ -274,16 +242,11 @@ theorem card_solutions_le_of_neighbors {ψ : ClauseSet (Fin N)} {k Δ D : ℕ} (
   have hiso : ∀ x ∈ ψ.solutions,
       ((N : ℝ) - m) / k ≤ ((isolatedDirections ψ.solutions x).card : ℝ) / k := by
     intro x hx
-    refine div_le_div_of_nonneg_right ?_ hkpos.le
+    refine div_le_div_of_nonneg_right (sub_le_iff_le_add'.mpr ?_) hkpos.le
     have hle := card_compl_isolatedDirections_le hdeg hfree hx
-    have hsplit : (univ \ isolatedDirections ψ.solutions x).card +
-        (isolatedDirections ψ.solutions x).card = N := by
-      rw [card_sdiff_add_card_eq_card (subset_univ _), card_univ, Fintype.card_fin]
-    have : (N : ℝ) = ((univ \ isolatedDirections ψ.solutions x).card : ℝ) +
-        (isolatedDirections ψ.solutions x).card := by exact_mod_cast hsplit.symm
-    have hle' : ((univ \ isolatedDirections ψ.solutions x).card : ℝ) ≤ m := by
-      exact_mod_cast hle
-    linarith
+    have hsplit := card_sdiff_add_card_eq_card (subset_univ (isolatedDirections ψ.solutions x))
+    rw [card_univ, Fintype.card_fin] at hsplit
+    exact_mod_cast (by omega : N ≤ m + (isolatedDirections ψ.solutions x).card)
   have hlower : (ψ.solutions.card : ℝ) * (2 : ℝ) ^ (((N : ℝ) - m) / k) ≤ 2 ^ N := by
     calc (ψ.solutions.card : ℝ) * (2 : ℝ) ^ (((N : ℝ) - m) / k)
         = ∑ _x ∈ ψ.solutions, (2 : ℝ) ^ (((N : ℝ) - m) / k) := by
@@ -294,10 +257,9 @@ theorem card_solutions_le_of_neighbors {ψ : ClauseSet (Fin N)} {k Δ D : ℕ} (
       _ ≤ 2 ^ N := sum_two_rpow_card_isolatedDirections_div_le hk1 hk
   have hpos : (0 : ℝ) < (2 : ℝ) ^ (((N : ℝ) - m) / k) := by positivity
   rw [← le_div_iff₀ hpos, ← Real.rpow_natCast, ← Real.rpow_sub (by norm_num)] at hlower
-  refine hlower.trans (le_of_eq ?_)
+  refine hlower.trans_eq ?_
   congr 1
-  field_simp
-  ring
+  field_simp; ring
 
 /-- **Formulas without large subcubes of solutions have few solutions**: for every width `k ≥ 1`
 and every `ε > 0` there is a constant `C` such that every clause set of width `k` over `N`
@@ -320,16 +282,11 @@ theorem card_solutions_le_of_not_containsSubcube (k : ℕ) (hk : 1 ≤ k) {ε : 
       (card_neighbors_le hwidth u).trans (Nat.mul_le_mul_right _ (hocc u))
     have hfree' : ¬ ContainsSubcube (ψ.solutions : Set (BitString N)) D :=
       fun h => hfree (h.mono (by exact_mod_cast hsol))
-    refine (card_solutions_le_of_neighbors hk hwidth hdeg hfree').trans ?_
-    refine Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_
-    simp only [E]
+    refine (card_solutions_le_of_neighbors hk hwidth hdeg hfree').trans
+      (Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_)
+    simp only [E, div_mul_eq_mul_div]
     gcongr
-    rw [div_mul_eq_mul_div]
-    gcongr
-    have : (D - 1) * (c * (k - 1) + 1) ≤ (c * (k - 1) + 1) * D := by
-      rw [mul_comm]
-      exact Nat.mul_le_mul_left _ (Nat.sub_le D 1)
-    exact_mod_cast this
+    exact_mod_cast (mul_comm (D - 1) _).trans_le (Nat.mul_le_mul_left _ (Nat.sub_le D 1))
   calc (φ.solutions.card : ℝ) ≤ ((Ψ.biUnion solutions).card : ℝ) := by
         exact_mod_cast card_le_card hcover
     _ ≤ ∑ ψ ∈ Ψ, (ψ.solutions.card : ℝ) := by exact_mod_cast card_biUnion_le
@@ -339,8 +296,7 @@ theorem card_solutions_le_of_not_containsSubcube (k : ℕ) (hk : 1 ≤ k) {ε : 
     _ = 2 ^ ((1 - 1 / (k : ℝ) + ε) * N + ((c * (k - 1) + 1 : ℕ) : ℝ) / k * D) := by
         rw [← Real.rpow_add (by norm_num)]
         congr 1
-        simp only [E]
-        ring
+        simp only [E]; ring
 
 end ClauseSet
 
@@ -355,9 +311,8 @@ theorem CNF.card_filter_eval_le_of_not_containsSubcube (k : ℕ) (hk : 1 ≤ k) 
       (#{x : BitString N | φ.eval x = true} : ℝ) ≤ 2 ^ ((1 - 1 / (k : ℝ) + ε) * N + C * D) := by
   obtain ⟨C, hC, h⟩ := ClauseSet.card_solutions_le_of_not_containsSubcube k hk hε
   refine ⟨C, hC, fun N φ D hφ hfree => ?_⟩
-  have hsol : φ.toClauseSet.solutions = ({x | φ.eval x = true} : Finset (BitString N)) := by
-    ext x
-    simp [CNF.sat_toClauseSet_iff]
+  have hsol : φ.toClauseSet.solutions = ({x | φ.eval x = true} : Finset (BitString N)) :=
+    Finset.ext fun _ => by simp [CNF.sat_toClauseSet_iff]
   rw [← hsol]
   refine h N φ.toClauseSet D (fun C hC => ?_) ?_
   · obtain ⟨c, hc, hle⟩ := CNF.exists_card_le_of_mem_toClauseSet hC

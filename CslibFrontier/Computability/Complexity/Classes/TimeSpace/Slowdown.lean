@@ -112,27 +112,18 @@ theorem SigmaTwoTIME_subset_NTIME {t t' τ : ℕ → ℕ} (ht : TimeConstructibl
   obtain ⟨D, hD⟩ := hτ (2 * c + 3)
   have hbound (n : ℕ) : c * t n + c ≤ c * 2 ^ Nat.size (t n) ∧
       c * 2 ^ Nat.size (t n) ≤ 2 * c * t n + c := by
-    have h₁ := Nat.lt_size_self (t n)
-    have h₂ := Nat.two_pow_size_le (t n)
-    constructor
-    · have := Nat.mul_le_mul_left c (Nat.succ_le_of_lt h₁)
-      rw [Nat.mul_succ] at this
-      exact this
-    · have := Nat.mul_le_mul_left c h₂
-      rw [Nat.mul_add, Nat.mul_one, ← Nat.mul_assoc, Nat.mul_comm c 2] at this
-      exact this
+    have := Nat.mul_le_mul_left c (Nat.succ_le_of_lt (Nat.lt_size_self (t n)))
+    have := Nat.mul_le_mul_left c (Nat.two_pow_size_le (t n))
+    exact ⟨by linarith, by linarith⟩
   have hN₂ := setOf_exists_mem_NTIME (t := τ) (C := D) hL hV₂ fun y u hu => by
-    obtain ⟨-, hup⟩ := hbound y.length
     have hlen : (frame y ++ u).length ≤ (2 * c + 3) * (y.length + t y.length) + (2 * c + 3) := by
-      rw [List.length_append, length_frame, hu]
-      nlinarith
+      rw [List.length_append, length_frame, hu]; nlinarith [(hbound y.length).2]
     have := hD y.length _ hlen
     simp only [Function.comp_apply, encBits_apply]
     omega
   convert hN₂ using 1
   refine Set.ext fun y => ?_
-  obtain ⟨hlow, -⟩ := hbound y.length
-  rw [hmem y _ hlow]
+  rw [hmem y _ (hbound y.length).1]
   refine exists_congr fun u => and_congr_right fun hu => ?_
   have hind (z : List Bool) {B : Set (List Bool)} : indicator B z = true ↔ z ∈ B := by
     unfold indicator

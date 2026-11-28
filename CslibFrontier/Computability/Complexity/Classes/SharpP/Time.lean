@@ -111,34 +111,24 @@ This is the forward native-machine correspondence, with its affine polynomial cl
 theorem SharpTIME.subset_SharpP (d : ℕ) : SharpTIME enc (· ^ d) ⊆ SharpP enc := by
   rintro f ⟨c₁, c₂, k, State, hfinite, machine, _, hm⟩
   let p : Polynomial ℕ := Polynomial.C c₁ * Polynomial.X ^ d + Polynomial.C c₂
-  have hp (n : ℕ) : p.eval n = c₁ * n ^ d + c₂ := by simp [p]
   have heq : f = fun a => machine.acceptCount (p.eval (enc a).length)
-      (Cfg.init machine.initial (enc a)) := by
-    funext a
-    rw [hp]
-    exact (hm a).2.symm
-  rw [heq]
-  exact machine.acceptCount_mem_SharpP enc p
+      (Cfg.init machine.initial (enc a)) :=
+    funext fun a => by simpa [p] using (hm a).2.symm
+  exact heq ▸ machine.acceptCount_mem_SharpP enc p
 
 /-- The existing verifier-defined `#P` is the union of the polynomial-time native counting
 classes. The all-branches clock can be enlarged to an affine power without changing the count. -/
 theorem mem_SharpP_iff_exists_mem_SharpTIME :
     f ∈ SharpP enc ↔ ∃ d, f ∈ SharpTIME enc (· ^ d) := by
-  constructor
-  · intro hf
-    obtain ⟨k, State, hfinite, machine, p, hnon, hm⟩ :=
-      mem_SharpP_iff_exists_machine.mp hf
-    obtain ⟨c, d, hbound⟩ :=
-      polynomiallyBounded_iff_le.mp (PolynomiallyBounded.polynomial_eval p)
-    refine ⟨d, c * 2 ^ d, c, k, State, hfinite, machine, hnon, fun a => ?_⟩
-    obtain ⟨hhalt, hcount⟩ := hm a
-    have hle : p.eval (enc a).length ≤ c * 2 ^ d * (enc a).length ^ d + c :=
-      (hbound _).trans (Nat.mul_add_one_pow_le_two_pow c d _)
-    refine ⟨hhalt.mono hle, ?_⟩
-    change machine.branchCount (· == [true]) _ _ = f a
-    rw [hhalt.branchCount_eq hle]
-    exact hcount
-  · rintro ⟨d, hf⟩
-    exact SharpTIME.subset_SharpP d hf
+  refine ⟨fun hf => ?_, fun ⟨d, hf⟩ => SharpTIME.subset_SharpP d hf⟩
+  obtain ⟨k, State, hfinite, machine, p, hnon, hm⟩ :=
+    mem_SharpP_iff_exists_machine.mp hf
+  obtain ⟨c, d, hbound⟩ :=
+    polynomiallyBounded_iff_le.mp (PolynomiallyBounded.polynomial_eval p)
+  refine ⟨d, c * 2 ^ d, c, k, State, hfinite, machine, hnon, fun a => ?_⟩
+  obtain ⟨hhalt, hcount⟩ := hm a
+  have hle : p.eval (enc a).length ≤ c * 2 ^ d * (enc a).length ^ d + c :=
+    (hbound _).trans (Nat.mul_add_one_pow_le_two_pow c d _)
+  exact ⟨hhalt.mono hle, (hhalt.branchCount_eq hle _).trans hcount⟩
 
 end Cslib.Complexity

@@ -94,21 +94,18 @@ private theorem sat_wire_iff {n : E → ℕ} (w : ℕ) (hw : 0 < w)
     (a b : Segment n) (s : Segment n → Bool) :
     (wire w a b).Sat s ↔ s b ≤ s a := by
   change w ≤ (if s a = true then w else 0) + ((if s b = false then w else 0) + 0) ↔ _
-  cases ha : s a <;> cases hb : s b <;>
+  cases s a <;> cases s b <;>
     simp only [Bool.false_eq_true, Bool.true_eq_false, ite_true, ite_false,
       Nat.add_zero, Nat.zero_add]
   all_goals first
-    | exact ⟨fun _ => by decide +kernel, fun _ => by omega⟩
-    | exact ⟨fun h => False.elim (by omega), fun h => False.elim (by simpa using h rfl)⟩
+    | exact ⟨fun _ => by decide, fun _ => by omega⟩
+    | exact ⟨fun _ => by omega, fun h => absurd (h rfl) Bool.false_ne_true⟩
 
 private theorem legal_enc (G : ConstraintGraph V E) (n w : E → ℕ) {s : E → Bool}
     (hs : G.Legal s) : (graph G n w).Legal (enc n s) := by
-  intro v
-  cases v with
-  | inl v => exact (sat_vertex_enc n (G v) s).2 (hs v)
-  | inr j =>
-    rcases j with ⟨e, j⟩
-    change (wire (w e) _ _).Sat (enc n s)
+  rintro (v | ⟨e, j⟩)
+  · exact (sat_vertex_enc n (G v) s).2 (hs v)
+  · change (wire (w e) _ _).Sat (enc n s)
     cases h : s e <;> simp [wire, Vertex.Sat, Vertex.inflow, Port.In, enc, h]
 
 private theorem adjacent_le (G : ConstraintGraph V E) (n w : E → ℕ) (hw : ∀ e, 0 < w e)
@@ -126,22 +123,13 @@ private theorem segment_le_first (G : ConstraintGraph V E) (n w : E → ℕ) (hw
     exact (adjacent_le G n w hw hs e ⟨j, by omega⟩).trans (ih (by omega))
 
 private theorem legal_abs (G : ConstraintGraph V E) (n w : E → ℕ) (hw : ∀ e, 0 < w e)
-    {s : Segment n → Bool} (hs : (graph G n w).Legal s) : G.Legal (abs n s) := by
-  intro v
-  apply (sat_vertex_enc n (G v) (abs n s)).1
-  apply Vertex.Sat.mono (s := s) _ (hs (.inl v))
-  intro p hp hin
-  obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hp
-  rcases q with ⟨⟨e, d⟩, wt⟩
-  cases d with
-  | false => exact hin
-  | true =>
-    have hle := segment_le_first G n w hw hs e (Fin.last (n e))
-    change s (last n e) ≤ s (first n e) at hle
-    change s (last n e) = true at hin
-    change s (first n e) = true
-    rw [hin] at hle
-    exact Bool.eq_true_of_true_le hle
+    {s : Segment n → Bool} (hs : (graph G n w).Legal s) : G.Legal (abs n s) := fun v =>
+  (sat_vertex_enc n (G v) (abs n s)).1 <| Vertex.Sat.mono (s := s) (fun p hp hin => by
+    rcases List.mem_map.mp hp with ⟨⟨⟨e, false | true⟩, _⟩, _, rfl⟩
+    · exact hin
+    · exact Bool.eq_true_of_true_le
+        ((le_of_eq hin.symm).trans (segment_le_first G n w hw hs e (Fin.last (n e)))))
+    (hs (.inl v))
 
 private theorem abs_enc (n : E → ℕ) (s : E → Bool) : abs n (enc n s) = s := rfl
 
@@ -155,21 +143,14 @@ private theorem port_edge_fst (n : E → ℕ) (p : Port E) : (port n p).edge.1 =
 /-- Subdivision preserves the condition that no vertex repeats an edge. -/
 theorem loopFree (G : ConstraintGraph V E) (n w : E → ℕ) (hl : G.LoopFree) :
     (graph G n w).LoopFree := by
-  intro v
-  cases v with
-  | inl v =>
-    apply List.Nodup.of_map Sigma.fst
+  rintro (v | ⟨e, j⟩)
+  · refine List.Nodup.of_map Sigma.fst ?_
     change ((vertex n (G v)).ports.map (fun p => p.port.edge)).map Sigma.fst |>.Nodup
     simpa only [vertex, List.map_map, Function.comp_def, port_edge_fst] using hl v
-  | inr j =>
-    rcases j with ⟨e, j⟩
-    have hne : (⟨e, j.castSucc⟩ : Segment n) ≠ ⟨e, j.succ⟩ := by
-      intro h
-      have hv := congrArg (fun i : Segment n => i.2.val) h
-      change j.val = j.val + 1 at hv
-      omega
-    change ([⟨e, j.castSucc⟩, ⟨e, j.succ⟩] : List (Segment n)).Nodup
-    simp [hne]
+  · change ([⟨e, j.castSucc⟩, ⟨e, j.succ⟩] : List (Segment n)).Nodup
+    simp only [List.nodup_cons, List.mem_singleton, Sigma.mk.injEq, heq_eq_eq, true_and,
+      List.not_mem_nil, not_false_eq_true, List.nodup_nil, and_true]
+    exact fun h => (Nat.lt_succ_self j.val).ne (congrArg Fin.val h)
 
 private def portMap (n : E → ℕ) :
     Multiset (WeightedPort E) →+ Multiset (WeightedPort (Segment n)) :=
@@ -187,10 +168,7 @@ private theorem graph_ports [Fintype V] [Fintype E] (G : ConstraintGraph V E) (n
         ({⟨⟨⟨e, j.castSucc⟩, true⟩, w e⟩} +
           {⟨⟨⟨e, j.succ⟩, false⟩, w e⟩} : Multiset (WeightedPort (Segment n))) := by
   rw [ConstraintGraph.portMultiset, Fintype.sum_sum_type]
-  apply congrArg₂ (· + ·)
-  · exact source_ports G n
-  · rw [Fintype.sum_sigma]
-    rfl
+  exact congrArg₂ (· + ·) (source_ports G n) (by rw [Fintype.sum_sigma]; rfl)
 
 private theorem chain_ports (n w : E → ℕ) (e : E) :
     ({⟨⟨first n e, false⟩, w e⟩} + {⟨⟨last n e, true⟩, w e⟩} :
@@ -199,9 +177,9 @@ private theorem chain_ports (n w : E → ℕ) (e : E) :
       ∑ j : Fin (n e + 1), ({⟨⟨⟨e, j⟩, false⟩, w e⟩} + {⟨⟨⟨e, j⟩, true⟩, w e⟩}) := by
   simp only [Finset.sum_add_distrib]
   rw [Fin.sum_univ_succ (fun j : Fin (n e + 1) =>
-    ({⟨⟨⟨e, j⟩, false⟩, w e⟩} : Multiset (WeightedPort (Segment n))))]
-  rw [Fin.sum_univ_castSucc (fun j : Fin (n e + 1) =>
-    ({⟨⟨⟨e, j⟩, true⟩, w e⟩} : Multiset (WeightedPort (Segment n))))]
+      ({⟨⟨⟨e, j⟩, false⟩, w e⟩} : Multiset (WeightedPort (Segment n)))),
+    Fin.sum_univ_castSucc (fun j : Fin (n e + 1) =>
+      ({⟨⟨⟨e, j⟩, true⟩, w e⟩} : Multiset (WeightedPort (Segment n))))]
   unfold first last
   ac_rfl
 
@@ -214,13 +192,9 @@ theorem wellFormed_of_portMultiset [Fintype V] [Fintype E]
   refine ⟨fun i => w i.1, ?_⟩
   rw [graph_ports, hG, map_sum]
   change (∑ e, ({⟨⟨first n e, false⟩, w e⟩} + {⟨⟨last n e, true⟩, w e⟩} :
-      Multiset (WeightedPort (Segment n)))) +
-      ∑ e, ∑ j : Fin (n e), ({⟨⟨⟨e, j.castSucc⟩, true⟩, w e⟩} +
-        {⟨⟨⟨e, j.succ⟩, false⟩, w e⟩} : Multiset (WeightedPort (Segment n))) = _
+      Multiset (WeightedPort (Segment n)))) + _ = _
   rw [← Finset.sum_add_distrib, Fintype.sum_sigma]
-  apply Finset.sum_congr rfl
-  intro e _
-  exact chain_ports n w e
+  exact Finset.sum_congr rfl fun e _ => chain_ports n w e
 
 /-- The subdivision contains one more segment than joint on each old edge. -/
 theorem card_segment [Fintype E] (n : E → ℕ) :
@@ -238,15 +212,11 @@ private theorem step_abs (G : ConstraintGraph V E) (n w : E → ℕ) (hw : ∀ e
     Relation.ReflGen G.Step (abs n s) (abs n t) := by
   obtain ⟨hs, ht, ⟨⟨e, j⟩, rfl⟩⟩ := h
   by_cases hj : j.val = 0
-  · have he : j = 0 := Fin.ext hj
-    subst j
-    apply Relation.ReflGen.single
-    refine ⟨legal_abs G n w hw hs, legal_abs G n w hw ht, e, ?_⟩
-    exact reverse_comp_of_injective (first_injective n) s e
-  · have heq : abs n (reverse s ⟨e, j⟩) = abs n s :=
-      reverse_comp_of_not_mem_range s
-        (fun f h => hj (congrArg (fun i : Segment n => i.2.val) h).symm)
-    rw [heq]
+  · obtain rfl : j = 0 := Fin.ext hj
+    exact .single ⟨legal_abs G n w hw hs, legal_abs G n w hw ht, e,
+      reverse_comp_of_injective (first_injective n) s e⟩
+  · change Relation.ReflGen G.Step (s ∘ first n) (reverse s ⟨e, j⟩ ∘ first n)
+    rw [reverse_comp_of_not_mem_range s fun _ h => hj (congrArg (·.2.val) h).symm]
 
 private def ramp (n : E → ℕ) (s : E → Bool) (e : E) (k : ℕ) : Segment n → Bool :=
   fun i => if i.1 = e then decide (i.2.val < k) else s i.1
@@ -261,12 +231,8 @@ private theorem ramp_adjacent (n : E → ℕ) (s : E → Bool) (e : E) (k : ℕ)
     ramp n s e k ⟨f, j.succ⟩ ≤ ramp n s e k ⟨f, j.castSucc⟩ := by
   by_cases hf : f = e
   · simp only [ramp, hf, ite_true]
-    intro h
-    have hlt : j.val + 1 < k := of_decide_eq_true h
-    change decide (j.val < k) = true
-    exact decide_eq_true (by omega)
-  · simp only [ramp, hf, ite_false]
-    exact Bool.le_refl _
+    exact fun h => decide_eq_true (Nat.lt_of_succ_lt (of_decide_eq_true h))
+  · simp [ramp, hf]
 
 private theorem sat_ramp (v : Vertex E) (n : E → ℕ)
     (hl : (v.ports.map (fun p => p.port.edge)).Nodup) (s : E → Bool) (e : E) (he : s e = false)
@@ -274,52 +240,34 @@ private theorem sat_ramp (v : Vertex E) (n : E → ℕ)
     (vertex n v).Sat (ramp n s e k) := by
   classical
   by_cases hneg : ∃ q ∈ v.ports, q.port.edge = e ∧ q.port.dir = false
-  · apply Vertex.Sat.mono (s := enc n (reverse s e)) _
+  · refine Vertex.Sat.mono (s := enc n (reverse s e)) (fun p hp hin => ?_)
       ((sat_vertex_enc n v _).2 ht)
-    intro p hp hin
     obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hp
-    have hin' := (port_in_enc n (reverse s e) q.port).1 hin
+    have hin' : reverse s e q.port.edge = q.port.dir := (port_in_enc n _ q.port).1 hin
     by_cases hqe : q.port.edge = e
     · obtain ⟨q₀, hq₀, hqe₀, hdir⟩ := hneg
-      have hqeq := List.inj_on_of_nodup_map hl hq hq₀ (hqe.trans hqe₀.symm)
-      rw [hqeq] at hin'
-      change reverse s e q₀.port.edge = q₀.port.dir at hin'
-      rw [hqe₀, hdir, reverse_self, he] at hin'
+      rw [List.inj_on_of_nodup_map hl hq hq₀ (hqe.trans hqe₀.symm), hqe₀, hdir,
+        reverse_self, he] at hin'
       cases hin'
-    · apply (ramp_port_of_ne n s e k q.port hqe).2
-      change s q.port.edge = q.port.dir
-      change reverse s e q.port.edge = q.port.dir at hin'
-      rwa [reverse_of_ne s hqe] at hin'
-  · apply Vertex.Sat.mono (s := enc n s) _ ((sat_vertex_enc n v s).2 hs)
-    intro p hp hin
+    · exact (ramp_port_of_ne n s e k q.port hqe).2 (by rwa [reverse_of_ne s hqe] at hin')
+  · refine Vertex.Sat.mono (s := enc n s) (fun p hp hin => ?_) ((sat_vertex_enc n v s).2 hs)
     obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hp
-    have hin' := (port_in_enc n s q.port).1 hin
-    have hqe : q.port.edge ≠ e := by
-      intro hqe
-      apply hneg
-      refine ⟨q, hq, hqe, ?_⟩
-      change s q.port.edge = q.port.dir at hin'
-      rw [← hin', hqe, he]
-    exact (ramp_port_of_ne n s e k q.port hqe).2 hin'
+    have hin' : s q.port.edge = q.port.dir := (port_in_enc n s q.port).1 hin
+    exact (ramp_port_of_ne n s e k q.port fun hqe =>
+      hneg ⟨q, hq, hqe, hin'.symm.trans (hqe ▸ he)⟩).2 hin'
 
 private theorem legal_ramp (G : ConstraintGraph V E) (n w : E → ℕ) (hw : ∀ e, 0 < w e)
     (hl : G.LoopFree) (s : E → Bool) (e : E) (he : s e = false)
     (hs : G.Legal s) (ht : G.Legal (reverse s e)) (k : ℕ) :
     (graph G n w).Legal (ramp n s e k) := by
-  intro v
-  cases v with
-  | inr j =>
-    rcases j with ⟨f, j⟩
-    exact (sat_wire_iff (w f) (hw f) _ _ _).2 (ramp_adjacent n s e k f j)
-  | inl v => exact sat_ramp (G v) n (hl v) s e he (hs v) (ht v) k
+  rintro (v | ⟨f, j⟩)
+  · exact sat_ramp (G v) n (hl v) s e he (hs v) (ht v) k
+  · exact (sat_wire_iff (w f) (hw f) _ _ _).2 (ramp_adjacent n s e k f j)
 
 private theorem ramp_zero (n : E → ℕ) (s : E → Bool) (e : E) (he : s e = false) :
     ramp n s e 0 = enc n s := by
-  funext ⟨f, j⟩
-  by_cases hf : f = e
-  · subst f
-    simp [ramp, enc, he]
-  · simp [ramp, enc, hf]
+  funext ⟨f, _⟩
+  by_cases hf : f = e <;> simp [ramp, enc, hf, he]
 
 private theorem ramp_end (n : E → ℕ) (s : E → Bool) (e : E) (he : s e = false) :
     ramp n s e (n e + 1) = enc n (reverse s e) := by
@@ -336,20 +284,11 @@ private theorem ramp_succ (n : E → ℕ) (s : E → Bool) (e : E) (k : ℕ)
   by_cases hf : f = e
   · subst f
     by_cases hj : j.val = k
-    · have hj' : j = ⟨k, hk⟩ := Fin.ext hj
-      subst j
+    · obtain rfl : j = ⟨k, hk⟩ := Fin.ext hj
       simp [ramp, reverse_self]
-    · have hne : (⟨e, j⟩ : Segment n) ≠ ⟨e, ⟨k, hk⟩⟩ := by
-        intro h
-        exact hj (congrArg (fun i : Segment n => i.2.val) h)
-      rw [reverse_of_ne _ hne]
-      simp only [ramp, ite_true, eq_self]
-      have hiff : j.val < k + 1 ↔ j.val < k := by omega
-      simp only [hiff]
-  · have hne : (⟨f, j⟩ : Segment n) ≠ ⟨e, ⟨k, hk⟩⟩ := by
-      intro h
-      exact hf (congrArg Sigma.fst h)
-    rw [reverse_of_ne _ hne]
+    · rw [reverse_of_ne _ fun h => hj (congrArg (·.2.val) h)]
+      simp only [ramp, ↓reduceIte, Nat.lt_succ_iff, le_iff_lt_or_eq, hj, or_false]
+  · rw [reverse_of_ne _ fun h => hf (congrArg Sigma.fst h)]
     simp [ramp, hf]
 
 private theorem reachable_ramp (G : ConstraintGraph V E) (n w : E → ℕ) (hw : ∀ e, 0 < w e)
