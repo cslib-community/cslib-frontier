@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinaryPrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Arithmetic
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.ZipTransducer
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.ZipTransducer
 import Mathlib.Data.Nat.Bitwise
 import Mathlib.Tactic.Linarith
 import CslibFrontier.Tactic.EncLen
@@ -46,7 +46,7 @@ public section
 namespace Turing.MultiTapeTM
 
 /-- Binary addition as a zip transducer; the state is the carry. -/
-private def addZip : ZipTransducer Bool where
+@[expose] def NatAdd.zipTransducer : ZipTransducer Bool where
   q₀ := false
   step c x := (NatAdd.carry (x.1.getD false) (x.2.getD false) c,
     [x.1.getD false ^^ (x.2.getD false ^^ c)])
@@ -54,23 +54,25 @@ private def addZip : ZipTransducer Bool where
   length_step_le _ _ := by simp
   length_final_le c := by cases c <;> simp
 
-private lemma run_addZip (c : Bool) (u v : List Bool) :
-    addZip.run c u v = NatAdd.addBits c u v := by
+theorem NatAdd.run_zipTransducer (c : Bool) (u v : List Bool) :
+    NatAdd.zipTransducer.run c u v = NatAdd.addBits c u v := by
   induction u generalizing c v with
   | nil =>
     rw [NatAdd.addBits]
     induction v generalizing c with
-    | nil => cases c <;> simp [addZip, NatSucc.incr]
+    | nil => cases c <;> simp [NatAdd.zipTransducer, NatSucc.incr]
     | cons b v ih =>
       rw [ZipTransducer.run_nil_cons, ih]
-      cases b <;> cases c <;> simp [addZip, NatSucc.incr, NatAdd.carry]
+      cases b <;> cases c <;> simp [NatAdd.zipTransducer, NatSucc.incr, NatAdd.carry]
   | cons a u ih =>
     cases v <;> simp only [ZipTransducer.run_cons_nil, ZipTransducer.run_cons_cons, ih] <;>
-      simp [addZip, NatAdd.addBits]
+      simp [NatAdd.zipTransducer, NatAdd.addBits]
 
 private lemma encNat_natAdd (p : ℕ × ℕ) :
-    encNat (p.1 + p.2) = addZip.run addZip.q₀ (encNat p.1) (encNat p.2) := by
-  rw [encNat_apply, encNat_apply, encNat_apply, run_addZip, NatAdd.addBits_bits]
+    encNat (p.1 + p.2) = NatAdd.zipTransducer.run NatAdd.zipTransducer.q₀
+      (encNat p.1) (encNat p.2) := by
+  rw [encNat_apply, encNat_apply, encNat_apply, NatAdd.run_zipTransducer,
+    NatAdd.addBits_bits]
   rfl
 
 /-- **Binary addition in linear time.** One zip transducer computes `a + b` from
@@ -79,12 +81,12 @@ private lemma encNat_natAdd (p : ℕ × ℕ) :
 public theorem computableInTimeAndSpace_natAdd :
     ComputableInTimeAndSpace (fun p : ℕ × ℕ => p.1 + p.2) (encPair encNat encNat) encNat
       (fun p => 3 * (encPair encNat encNat p).length + 1) (fun p => (encNat p.1).length + 2) :=
-  addZip.computableInTimeAndSpace encNat_natAdd
+  NatAdd.zipTransducer.computableInTimeAndSpace encNat_natAdd
 
 /-- Binary addition in linear time and work space, from `computableInTimeAndSpace_natAdd`. -/
 public theorem ComputableInDegree.natAdd :
     ComputableInDegree (fun p : ℕ × ℕ => p.1 + p.2) (encPair encNat encNat) encNat 1 1 :=
-  addZip.computableInDegree encNat_natAdd
+  NatAdd.zipTransducer.computableInDegree encNat_natAdd
 
 /-- Bitwise disjunction as a zip transducer with a single state. -/
 private def orZip : ZipTransducer Unit where

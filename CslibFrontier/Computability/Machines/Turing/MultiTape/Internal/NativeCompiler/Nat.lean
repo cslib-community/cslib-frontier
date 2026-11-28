@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler.Codec
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Reverse
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DecoderWordMachines
 
 /-!
 # Named native binary-natural primitives
@@ -23,11 +25,36 @@ they do not extract a witness from the existential complexity certificates.
 * `Turing.MultiTapeTM.Internal.NativeCompiler.natPred`: retained saturating binary predecessor.
 * `Turing.MultiTapeTM.Internal.NativeCompiler.natIsZeroBool`, `.natIsZeroTest`: retained binary
   zero tests in Boolean and branch-test encodings.
+* `Turing.MultiTapeTM.Internal.NativeCompiler.bitsToNat`: retained canonicalization of an
+  arbitrary little-endian bit word.
 -/
 
 public section
 
 namespace Turing.MultiTapeTM.Internal.NativeCompiler
+
+/-- Canonicalize an arbitrary little-endian bit word by reversing it, dropping its high zero
+digits, and reversing it back. The retained composition computes `ofBits`, including on empty and
+noncanonical input words. -/
+@[expose] def bitsToNat :
+    NativeCompiler ofBits encBits encNat := by
+  let reverseBits : NativeCompiler List.reverse encBits encBits :=
+    { tapeCount := 0
+      State := Bool
+      table := MultiTapeMachine.reverseInput Bool
+      stateEncoding := Universal.eBit
+      time := fun word => 2 * word.length + 2
+      workspace := fun _ => 0
+      computes := fun word => by
+        simpa only [encBits_apply, reverseInput] using ReverseInput.computesTidily word }
+  let dropLeadingFalses :
+      NativeCompiler (fun word : List Bool => word.dropWhile (!·)) encBits encBits :=
+    ofTransducer dropFalsesT Universal.eBit fun word => by
+      change dropFalsesT.run false word = word.dropWhile (!·)
+      exact dropFalsesT_run word
+  exact (reverseBits.comp (dropLeadingFalses.comp reverseBits)).ofOutputEq fun word => by
+    rw [encNat_apply, bits_ofBits]
+    rfl
 
 /-- Binary successor through the public carry transducer. -/
 @[expose] def natSucc :

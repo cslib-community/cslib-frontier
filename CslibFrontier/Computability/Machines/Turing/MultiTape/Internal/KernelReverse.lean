@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Deterministic
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Equivalence
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Defs
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Run.FirstStep
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
@@ -30,6 +31,7 @@ and halts.
 
 ## Main definitions
 
+* `Turing.MultiTapeMachine.reverseInput`: the explicit effect-free transition table.
 * `Turing.MultiTapeTM.reverseInput`: the two-state zero-work-tape reversal machine.
 * `Turing.MultiTapeTM.ReverseInput.cfg`: configurations of `reverseInput`.
 
@@ -44,14 +46,11 @@ and halts.
   in `2 * input.length + 2` steps and zero space.
 -/
 
-namespace Turing.MultiTapeTM
+namespace Turing.MultiTapeMachine
 
-variable {Symbol : Type*} {input : List Symbol}
-
-/-- The input-reversal machine: two states (`Bool`) and no work tapes. State `false` scans right to
-the blank after the input and steps left into state `true`; state `true` walks left emitting each
-input symbol until the blank before the input, then steps right to position `1` and halts. -/
-public def reverseInput (Symbol : Type*) : MultiTapeTM 0 Symbol Bool :=
+/-- The input-reversal machine as an explicit effect-free transition table. -/
+@[expose] public def reverseInput (Symbol : Type*) :
+    MultiTapeMachine 0 Symbol Bool Empty Id :=
   ofTr false fun q s _ =>
     match q, s with
     | false, some _ =>
@@ -62,6 +61,18 @@ public def reverseInput (Symbol : Type*) : MultiTapeTM 0 Symbol Bool :=
       { inputTape := -1, workTapes := Fin.elim0, output := some b, state := some true }
     | true, none =>
       { inputTape := 1, workTapes := Fin.elim0, output := none, state := none }
+
+end Turing.MultiTapeMachine
+
+namespace Turing.MultiTapeTM
+
+variable {Symbol : Type*} {input : List Symbol}
+
+/-- The input-reversal machine: two states (`Bool`) and no work tapes. State `false` scans right to
+the blank after the input and steps left into state `true`; state `true` walks left emitting each
+input symbol until the blank before the input, then steps right to position `1` and halts. -/
+@[expose] public def reverseInput (Symbol : Type*) : MultiTapeTM 0 Symbol Bool :=
+  (MultiTapeMachine.reverseInput Symbol).toTM
 
 namespace ReverseInput
 
@@ -81,7 +92,12 @@ lemma step_scan {n : ℕ} (hn : n < input.length) :
   have hsym : (cfg input (some false) ⟨n + 1, by omega⟩ tapes heads out).inputSymbol =
       some input[n] :=
     inputSymbolInner n (by simp only [cfg]; omega) hn
-  tm_step [reverseInput, cfg, ↓hsym]
+  rw [step_of_state rfl, hsym]
+  simp only [reverseInput, MultiTapeMachine.reverseInput, MultiTapeMachine.toTM,
+    MultiTapeMachine.ofTr, tr_ofTr, MultiTapeMachine.Action.emptyOracleEquiv_step]
+  refine Cfg.ext_zero_tapes rfl ?_ (by simp [cfg, Action.apply])
+  simp only [cfg, Action.apply]
+  exact moveInputPos_pos_of_ne_right _ (by simp only; omega)
 
 /-- After `n ≤ input.length` steps in state `false` from position `1`, the input head is at
 `n + 1` and the output is unchanged. -/
@@ -103,7 +119,12 @@ lemma step_turn :
   have hsym : (cfg input (some false) ⟨input.length + 1, by omega⟩ tapes heads out).inputSymbol =
       none :=
     inputSymbol_eq_none_of_boundary (.inr rfl)
-  tm_step [reverseInput, cfg, ↓hsym]
+  rw [step_of_state rfl, hsym]
+  simp only [reverseInput, MultiTapeMachine.reverseInput, MultiTapeMachine.toTM,
+    MultiTapeMachine.ofTr, tr_ofTr, MultiTapeMachine.Action.emptyOracleEquiv_step]
+  refine Cfg.ext_zero_tapes rfl ?_ (by simp [cfg, Action.apply])
+  simp only [cfg, Action.apply]
+  exact moveInputPos_neg_of_ne_left _ (by intro h; have := congrArg Fin.val h; simp at this)
 
 /-- Over an input symbol in state `true`, `reverseInput` emits that symbol and moves one cell
 left. -/
@@ -113,7 +134,12 @@ lemma step_walk {j : ℕ} (hj : j < input.length) (out : List Symbol) :
   have hsym : (cfg input (some true) ⟨j + 1, by omega⟩ tapes heads out).inputSymbol =
       some input[j] :=
     inputSymbolInner j (by simp only [cfg]; omega) hj
-  tm_step [reverseInput, cfg, ↓hsym]
+  rw [step_of_state rfl, hsym]
+  simp only [reverseInput, MultiTapeMachine.reverseInput, MultiTapeMachine.toTM,
+    MultiTapeMachine.ofTr, tr_ofTr, MultiTapeMachine.Action.emptyOracleEquiv_step]
+  refine Cfg.ext_zero_tapes rfl ?_ (by simp [cfg, Action.apply])
+  simp only [cfg, Action.apply]
+  exact moveInputPos_neg_of_ne_left _ (by intro h; have := congrArg Fin.val h; simp at this)
 
 /-- At the left boundary blank in state `true`, `reverseInput` steps right to position `1` and
 halts. -/
@@ -122,7 +148,12 @@ lemma step_halt (out : List Symbol) :
       cfg input none 1 tapes heads out := by
   have hsym : (cfg input (some true) ⟨0, by omega⟩ tapes heads out).inputSymbol = none :=
     inputSymbol_eq_none_of_boundary (.inl rfl)
-  tm_step [reverseInput, cfg, ↓hsym]
+  rw [step_of_state rfl, hsym]
+  simp only [reverseInput, MultiTapeMachine.reverseInput, MultiTapeMachine.toTM,
+    MultiTapeMachine.ofTr, tr_ofTr, MultiTapeMachine.Action.emptyOracleEquiv_step]
+  refine Cfg.ext_zero_tapes rfl ?_ (by simp [cfg, Action.apply])
+  simp only [cfg, Action.apply]
+  exact (moveInputPos_pos_of_ne_right _ (by simp only; omega)).trans (Fin.ext rfl)
 
 /-- From state `true` at position `j ≤ input.length`, `reverseInput` halts at position `1` after
 `j + 1` steps, having appended `(input.take j).reverse` to `out`. -/
