@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.ListProd
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+import CslibFrontier.Foundations.Data.List.Blocks
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.BigOperators.Group.List.Basic
 
@@ -168,7 +169,7 @@ The total modulus-zero value is the unreduced natural sum. -/
 theorem unaryModularSum_eq (n p : ℕ) (v : ℕ → ℕ) :
     unaryModularSum n p v = (∑ i ∈ Finset.range n, v i) % p := by
   have h := List.sum_nat_mod ((List.range n).map v) p
-  rw [← List.sum_toFinset _ List.nodup_range, List.toFinset_range] at h
+  rw [List.sum_map_range_eq_sum_range] at h
   simpa only [unaryModularSum, unaryModularList, List.map_map,
     Function.comp_def] using h.symm
 

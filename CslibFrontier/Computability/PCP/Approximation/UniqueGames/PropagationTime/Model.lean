@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.PCP.Approximation.UniqueGames.Propagation
 public import CslibFrontier.Computability.WordRAM.ListOutput
+import CslibFrontier.Foundations.Data.List.Counting
 import all CslibFrontier.Computability.PCP.Approximation.UniqueGames.Propagation
 import Mathlib.Data.List.GetD
 
@@ -132,8 +133,8 @@ constraint (L - 1)`. -/
 /-- Total word length of `encode g`. -/
 @[simp] theorem length_encode {L : ℕ} (g : Graph (Fin L → Fin L)) :
     (encode g).length = 3 + g.edges.length * (L + 2) := by
-  simp only [encode, List.length_cons, List.length_flatMap, length_encodeEdge,
-    List.map_const', List.sum_replicate, smul_eq_mul]
+  simp only [encode, List.length_cons]
+  rw [List.length_flatMap_of_forall_length_eq (fun e _ => length_encodeEdge e)]
   omega
 
 /-- Length-prefixed output words representing `Option (ℕ → Fin L)` on the `n` vertex slots:

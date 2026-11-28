@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.CYK.Basic
 public import CslibFrontier.Computability.WordRAM.Function
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Computability.WordRAM.Notation
@@ -87,9 +88,7 @@ private theorem length_encodeRule {V : ℕ} (r : ChomskyNormalFormRule ℕ (Fin 
 private theorem flatMap_encodeRule_length {V : ℕ}
     (rs : List (ChomskyNormalFormRule ℕ (Fin V))) :
     (rs.flatMap encodeRule).length = 4 * rs.length := by
-  simp only [List.length_flatMap, length_encodeRule, List.map_const', List.sum_replicate,
-    Nat.nsmul_eq_mul]
-  omega
+  rw [List.length_flatMap_of_forall_length_eq (fun r _ => length_encodeRule r), Nat.mul_comm]
 
 /-- An encoded Chomsky normal form membership instance for the Word-RAM: nonterminals
 `Fin numNTs`, natural-number terminal words, a rule list satisfying the standard `nilRule`

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.PowerProductCoefficients
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Residue
+import CslibFrontier.Foundations.Data.List.Blocks
 import Mathlib.Tactic.Ring
 
 /-!
@@ -118,7 +119,7 @@ private theorem grid_sum (b n s : ℕ) :
     (gridPoint b n s).sum =
       (∑ i : Fin n, (gridPoint b n s)[i.val]?.getD 0) := by
   change ((List.range n).map (fun i => s / b ^ i % b)).sum = _
-  rw [← List.sum_toFinset _ List.nodup_range, List.toFinset_range, Finset.sum_range]
+  rw [List.sum_map_range_eq_sum_range, Finset.sum_range]
   exact Finset.sum_congr rfl fun i _ => (gridPoint_get i.isLt).symm
 
 /-- The constructed evaluator computes the actual residue, using only

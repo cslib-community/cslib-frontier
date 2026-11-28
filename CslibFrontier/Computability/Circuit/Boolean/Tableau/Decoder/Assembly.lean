@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Boolean.Tableau.Decoder.Circuit
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Foundations.Data.List.RowMajor
 import CslibFrontier.Foundations.Data.Nat.Div
 import CslibFrontier.Foundations.Data.Nat.Doubling
@@ -290,9 +291,8 @@ theorem ofFn_eval_decoder {x : List Bool} {n T : ℕ} (hn : n < 2 * T) (hx : x.l
         Nat.mod_eq_of_lt (show idx / 16 < 2 ^ Nat.size x.length by omega)]
       simp [show idx / 16 ≤ x.length - 1 by omega]
   · rw [dite_eq_right ho, eq_comm, List.getElem?_eq_none]
-    rw [List.length_flatMap, List.map_congr_left (fun a _ => show (litBits
-      (2 + (s + cb + tb)) a).length = lw by simp [litBits]; rfl)]
-    simp only [List.map_const', List.sum_replicate, smul_eq_mul, List.length_map, hlen]
+    rw [List.length_flatMap_of_forall_length_eq (k := lw) (fun _ _ => by simp [litBits]; rfl)]
+    simp only [List.length_map, hlen]
     omega
 
 /-! ### The decoder of the succinct tableau -/

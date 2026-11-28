@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.MaxFlow.ChainCover
 public import CslibFrontier.Algorithms.WordRAM.HopcroftKarp
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Computability.WordRAM.Allocation
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.InputArray
@@ -141,9 +142,9 @@ theorem length_antichainList_ofEnum {α : Type*} {n : ℕ} [LT α] [DecidableLT 
 
 theorem encode_length (inst : PosetInstance) :
     inst.encode.length = 1 + inst.n * inst.n := by
-  simp only [encode, List.length_cons, List.length_flatMap, List.length_map, List.length_finRange,
-    List.map_const', List.sum_replicate, smul_eq_mul]
-  omega
+  rw [encode, List.length_cons,
+    List.length_flatMap_of_forall_length_eq (k := inst.n) (fun _ _ => by simp),
+    List.length_finRange, Nat.add_comm]
 
 private theorem init_mem_n {reg : ℕ} (inst : PosetInstance) :
     (Data.init inst.encode : Data reg).mem 1 = inst.n := rfl

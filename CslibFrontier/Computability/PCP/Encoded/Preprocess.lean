@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.PCP.Encoded.DegreeReduction
 public import CslibFrontier.Computability.PCP.Encoded.AddTrivial
 public import CslibFrontier.Computability.PCP.Preprocess
+import CslibFrontier.Foundations.Data.List.Counting
 
 /-!
 # Executable preprocessing of constraint graphs
@@ -90,7 +91,9 @@ theorem isPolyTime_preprocess (fallback truth : C) (rotate : ℕ × (ℕ × D) �
 @[simp]
 theorem length_rotationEdges (rotate : ℕ × (ℕ × D) → ℕ × D) (labels : List D)
     (vertices : ℕ) : (rotationEdges rotate labels vertices).length = vertices * labels.length := by
-  simp [rotationEdges, List.length_flatMap, List.sum_replicate]
+  rw [rotationEdges,
+    List.length_flatMap_of_forall_length_eq (k := labels.length) (fun _ _ => List.length_map _),
+    List.length_range]
 
 /-- The output has two vertices per input edge. -/
 @[simp]

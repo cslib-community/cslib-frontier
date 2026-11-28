@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Data.Fintype.Card
 public import Mathlib.Order.FixedPoints
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Foundations.Order.FiniteFixedPoint
 import Mathlib.Algebra.BigOperators.Group.List.Basic
 import Mathlib.Data.BitVec
@@ -192,7 +193,8 @@ theorem mem_facts (f : Fact r H) : f ∈ facts r H := by
 
 /-- There are `r * 2 ^ H` ground facts. -/
 theorem facts_length (r H : ℕ) : (facts r H).length = r * 2 ^ H := by
-  simp [facts, List.length_flatMap, List.map_const', List.sum_replicate]
+  rw [facts, List.length_flatMap_of_forall_length_eq (k := 2 ^ H) (fun _ _ => by simp),
+    List.length_finRange]
 
 /-- The order homomorphism on sets of ground facts induced by a relation program. -/
 def consequence (P : Program r H) : Set (Fact r H) →o Set (Fact r H) where

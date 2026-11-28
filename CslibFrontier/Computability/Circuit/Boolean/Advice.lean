@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Advice
 public import CslibFrontier.Computability.Circuit.Boolean.Encoding.Certificate
 public import CslibFrontier.Computability.Circuit.Boolean.PolynomialTime
 public import CslibFrontier.Computability.Circuit.Boolean.Substitution
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Computability.Circuit.Complexity
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -117,9 +118,8 @@ private theorem length_familyAdvice_block (hs : ∀ m ≤ N, (C m).size ≤ s) {
 bits. -/
 theorem length_familyAdvice (hs : ∀ m ≤ N, (C m).size ≤ s) :
     (familyAdvice N s C).length = (N + 1) * certLength N s := by
-  rw [familyAdvice, List.length_flatMap, List.map_congr_left fun m hm =>
-    length_familyAdvice_block hs (Nat.lt_succ_iff.1 (List.mem_range.1 hm)), List.map_const',
-    List.length_range, List.sum_replicate, smul_eq_mul]
+  rw [familyAdvice, List.length_flatMap_of_forall_length_eq (fun m hm =>
+    length_familyAdvice_block hs (Nat.lt_succ_iff.1 (List.mem_range.1 hm))), List.length_range]
 
 /-- Block `m` of the advice string of a family starts with the certificate of `C m`. -/
 private theorem drop_familyAdvice (hs : ∀ m ≤ N, (C m).size ≤ s) {m : ℕ} (hm : m ≤ N) :
@@ -130,9 +130,9 @@ private theorem drop_familyAdvice (hs : ∀ m ≤ N, (C m).size ≤ s) {m : ℕ}
       certificate j s (C j).code.1 ((C j).outputs 0).toNat ++
         List.replicate (certLength (m + k) s - certLength j s) false).length =
       m * certLength (m + k) s := by
-    rw [List.length_flatMap, List.map_congr_left fun j hj =>
-      length_familyAdvice_block hs (by have := List.mem_range.1 hj; omega), List.map_const',
-      List.length_range, List.sum_replicate, smul_eq_mul]
+    rw [List.length_flatMap_of_forall_length_eq (fun j hj =>
+      length_familyAdvice_block hs ((List.mem_range.1 hj).le.trans (Nat.le_add_right m k))),
+      List.length_range]
   rw [familyAdvice, show m + k + 1 = m + (k + 1) by omega, List.range_add, List.flatMap_append,
     List.drop_left' hprefix, List.range_succ_eq_map, List.map_cons, List.flatMap_cons,
     Nat.add_zero, List.append_assoc]

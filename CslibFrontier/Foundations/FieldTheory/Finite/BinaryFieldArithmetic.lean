@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldTable
 public import CslibFrontier.Foundations.Data.Nat.FindCode
+import CslibFrontier.Foundations.Data.List.OfFnGetD
 import Mathlib.Data.List.GetD
 
 /-!
@@ -94,9 +95,8 @@ theorem fieldOfBits_fieldMulMod {w : ℕ} (hw : w ≠ 0) (a b : List Bool) :
   let word (x : List Bool) := List.ofFn fun i : Fin w => x.getD i false
   obtain ⟨-, hmlen, hprod⟩ := modMulBits_spec l (word a) (word b) (by simp [word, hlen])
   have hword : word (modMulBits (l ++ [true]) (word a) (word b)) =
-      modMulBits (l ++ [true]) (word a) (word b) := by
-    apply List.ext_getElem (by simpa [word, hlen] using hmlen.symm) fun i hi hi' => ?_
-    rw [List.getElem_ofFn, List.getD_eq_getElem _ _ hi']
+      modMulBits (l ++ [true]) (word a) (word b) :=
+    List.ofFn_getD_eq_of_length false (by simpa [hlen] using hmlen)
   have hp : polyOfBits (l ++ [true]) = leastIrreducible w := hl ▸ polyOfBits_modulusBits hw
   rw [hp, map_mul, mk_polyOfBits_word hw a, mk_polyOfBits_word hw b] at hprod
   rw [fieldMulMod, length_modulusBits hw, Nat.add_sub_cancel, ← mk_polyOfBits_word hw, hl]

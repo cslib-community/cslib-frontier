@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.Polynomial.CoeffList
 public import Mathlib.Algebra.Polynomial.Derivative
+import CslibFrontier.Foundations.Data.List.Blocks
 import Mathlib.Algebra.BigOperators.NatAntidiagonal
 import Mathlib.Algebra.Polynomial.Degree.Lemmas
 import Mathlib.Data.List.GetD
@@ -290,12 +291,6 @@ private theorem length_zipWithAll {α β γ : Type*} (f : Option α → Option �
   | nil => simp
   | cons a p ih => cases q <;> simp [ih, Nat.succ_max_succ]
 
-private theorem sum_map_range {M : Type*} [AddCommMonoid M] (f : ℕ → M) (n : ℕ) :
-    ((List.range n).map f).sum = ∑ i ∈ Finset.range n, f i := by
-  induction n with
-  | zero => simp
-  | succ n ih => simp [List.range_succ, Finset.sum_range_succ, ih]
-
 section Semiring
 
 variable {R : Type*} [Semiring R] [DecidableEq R]
@@ -403,7 +398,7 @@ theorem length_mul_le (p q : List R) : (mul p q).length ≤ p.length + q.length 
     simp_rw [coeff_ofCoeffList]
     by_cases hk : k < p.length + q.length - 1
     · rw [List.getD_eq_getElem _ _ (by simpa using hk), List.getElem_map, List.getElem_range,
-        sum_map_range]
+        List.sum_map_range_eq_sum_range]
     · rw [List.getD_eq_default _ _ (by simp only [List.length_map, List.length_range]; omega)]
       refine (Finset.sum_eq_zero fun i hi => ?_).symm
       by_cases hip : i < p.length

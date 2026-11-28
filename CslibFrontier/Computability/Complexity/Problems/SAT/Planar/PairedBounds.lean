@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.PathBou
 public import CslibFrontier.Computability.Complexity.Problems.Graph.OrthogonalDrawing
 import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.PathGeometry
 import CslibFrontier.Computability.Complexity.Problems.Graph.OrthogonalPath
+import CslibFrontier.Foundations.Data.List.Blocks
 import CslibFrontier.Foundations.Data.List.GetD
 import Mathlib.Data.List.GetD
 import Mathlib.Tactic.FinCases
@@ -318,8 +319,7 @@ private theorem total_route_cost (φ : CNF ℕ) (cost : Route → ℕ)
     ((routes φ).map cost).sum = source * φ.vars.length +
       ordinary * (ordinaryCells φ).length + crossing * (crossingSites φ).length +
         seam * PlanarCompile.linkCount φ := by
-  simp only [routes, placedClauses, List.flatMap, List.map_flatten, List.sum_flatten,
-    List.map_append, List.sum_append, List.map_map, Function.comp_def]
+  simp only [routes, placedClauses, List.sum_map_flatMap, List.map_append, List.sum_append]
   simp_rw [hs, ho, hc, hl]
   simp [PlanarCompile.linkCount, List.sum_map_mul_left, Nat.mul_comm, Nat.add_assoc]
 

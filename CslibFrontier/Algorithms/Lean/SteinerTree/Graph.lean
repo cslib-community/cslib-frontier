@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.SteinerTree.Metric
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
+import CslibFrontier.Foundations.Data.List.Blocks
 public import Mathlib.Combinatorics.SimpleGraph.Connectivity.Connected
 public import Mathlib.Combinatorics.SimpleGraph.Walk.Maps
 
@@ -213,8 +214,7 @@ theorem sum_expandEdges_le (P : ∀ u v : V, G.Walk u v) (T : List (V × V)) :
     (expandEdges P T).sum w ≤ edgeCost (fun u v => walkWeight w (P u v)) T := by
   have hL : ((T.flatMap fun e => (P e.1 e.2).edges).map w).sum =
       edgeCost (fun u v => walkWeight w (P u v)) T := by
-    simp only [edgeCost, walkWeight, List.flatMap_def, List.map_flatten, List.sum_flatten,
-      List.map_map, Function.comp_def]
+    simp only [edgeCost, walkWeight, List.sum_map_flatMap]
   unfold expandEdges
   rw [← hL, ← List.toFinset_dedup, List.sum_toFinset _ (List.nodup_dedup _)]
   exact List.Sublist.sum_le_sum ((List.dedup_sublist _).map w) fun _ _ => Nat.zero_le _

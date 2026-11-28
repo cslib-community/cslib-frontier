@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.Propositional.CNF.ImplicationCycle
 public import CslibFrontier.Logics.Propositional.CNF.ModelCount
+import CslibFrontier.Foundations.Data.List.Blocks
 import CslibFrontier.Logics.Propositional.CNF.Vars
 import Mathlib.Data.List.Dedup
 import Mathlib.Data.List.Enum
@@ -271,8 +272,7 @@ theorem length_vars_toThreeOccurrence [DecidableEq V] (φ : CNF V) :
     · intro n hn
       obtain ⟨c, hc, rfl⟩ := List.mem_map.1 hn
       exact length_of_mem_implicationCycle vs hc
-  simp only [List.flatMap, List.map_flatten, List.sum_flatten, List.map_map,
-    Function.comp_def]
+  simp only [List.sum_map_flatMap]
   simp_rw [hc, length_occurrenceCopies]
   rw [List.sum_map_mul_left, sum_count_distinctVars]
   omega

@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Distributed.SelfStabilization.Basic
 public import Mathlib.Data.Finset.Card
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
+import Mathlib.Algebra.BigOperators.Intervals
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Fintype.Card
@@ -587,17 +588,6 @@ theorem dijkstraRing_token_circulates {n K : ℕ} [NeZero n] [NeZero K] (hK : 2 
 
 /-! ### Discrepancy potential and worst-case finite stabilization -/
 
-private theorem two_mul_sum_range (m : ℕ) :
-    2 * ∑ k ∈ Finset.range m, k = m * (m - 1) := by
-  induction m with
-  | zero => rfl
-  | succ m ih =>
-    rw [Finset.sum_range_succ, mul_add, ih]
-    rcases m with _ | m
-    · rfl
-    · simp only [Nat.add_sub_cancel]
-      ring
-
 private def dijkstraPotential {n K : ℕ} [NeZero n] (s : Fin n → Fin K) : ℕ :=
   ∑ i : Fin n, if 0 < i.val ∧ s i ≠ s (i - 1) then n - i.val else 0
 
@@ -618,7 +608,7 @@ private theorem dijkstraPotential_le {n K : ℕ} [NeZero n] (s : Fin n → Fin K
   have hsum : ∑ i : Fin n, (rev i).val = ∑ j : Fin n, j.val :=
     Fintype.sum_bijective rev hbij _ _ fun _ => rfl
   have hrange : 2 * ∑ j : Fin n, j.val = n * (n - 1) := by
-    rw [Fin.sum_univ_eq_sum_range (fun k => k) n, two_mul_sum_range]
+    rw [Fin.sum_univ_eq_sum_range (fun k => k) n, Nat.mul_comm 2, Finset.sum_range_id_mul_two]
   omega
 
 private theorem dijkstraPotential_distStep_le {n K : ℕ} [NeZero n] [NeZero K]

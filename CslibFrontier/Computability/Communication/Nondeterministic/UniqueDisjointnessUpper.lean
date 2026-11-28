@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Computability.Communication.Nondeterministic.PartitionCover
 public import CslibFrontier.Computability.Communication.Nondeterministic.UniqueDisjointness
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import Mathlib.Algebra.BigOperators.Intervals
+import Mathlib.Order.Interval.Finset.Fin
 import CslibFrontier.Foundations.Combinatorics.CentralBinomial
 import CslibFrontier.Foundations.Combinatorics.LovaszSteinCover
 import CslibFrontier.Foundations.Data.Code.HammingCode
@@ -279,14 +281,6 @@ private theorem partitionCoverNumber_weightSlice_le_third {α : Type*} [Fintype 
     exact (partitionCoverNumber_weightSlice_le_code hpq).trans
       (by exact_mod_cast Nat.mul_le_mul_left _ hch)
 
-private theorem two_mul_sum_range_succ (m : ℕ) :
-    2 * ∑ i ∈ range m, (i + 1) = m * (m + 1) := by
-  induction m with
-  | zero => rfl
-  | succ m ih =>
-    rw [sum_range_succ, mul_add, ih]
-    ring
-
 private theorem sum_pairs_le_mul_max_le_cube (n : ℕ) :
     (∑ p : Fin (n + 1), ∑ q : Fin (n + 1),
       if p.val + q.val ≤ n then max 1 (2 * n) else 0) ≤ (n + 1) ^ 3 := by
@@ -296,13 +290,14 @@ private theorem sum_pairs_le_mul_max_le_cube (n : ℕ) :
     intro p
     rw [← sum_filter]
     have hfilt : (univ.filter fun q : Fin (n + 1) => p.val + q.val ≤ n).card = n + 1 - p.val := by
-      rw [← card_range (n + 1 - p.val)]
-      refine card_bij (fun (q : Fin (n + 1)) _ => q.val) (fun q hq => ?_)
-        (fun q₁ _ q₂ _ h => Fin.ext h) (fun j hj => ?_)
-      · rw [mem_filter] at hq
-        exact mem_range.2 (by omega)
-      · rw [mem_range] at hj
-        exact ⟨⟨j, by omega⟩, mem_filter.2 ⟨mem_univ _, by dsimp; omega⟩, rfl⟩
+      let b : Fin (n + 1) := ⟨n - p.val, by omega⟩
+      have h : univ.filter (fun q : Fin (n + 1) => p.val + q.val ≤ n) = Iic b := by
+        ext q
+        simp only [mem_filter, mem_univ, true_and, mem_Iic, Fin.le_iff_val_le_val, b]
+        omega
+      rw [h, Fin.card_Iic]
+      dsimp only [b]
+      omega
     rw [sum_const, hfilt, smul_eq_mul]
   simp_rw [hrow, ← sum_mul, Fin.sum_univ_eq_sum_range (fun i => n + 1 - i)]
   have hrev : ∑ i ∈ range (n + 1), (n + 1 - i) = ∑ i ∈ range (n + 1), (i + 1) := by
@@ -311,7 +306,9 @@ private theorem sum_pairs_le_mul_max_le_cube (n : ℕ) :
     rw [mem_range] at hj
     omega
   have htri : 2 * ∑ i ∈ range (n + 1), (n + 1 - i) = (n + 1) * (n + 2) := by
-    rw [hrev, two_mul_sum_range_succ]
+    have hshift := sum_range_succ' (fun i : ℕ => i) (n + 1)
+    simp only [Nat.add_zero] at hshift
+    rw [hrev, ← hshift, Nat.mul_comm 2, sum_range_id_mul_two, Nat.mul_comm, Nat.add_sub_cancel]
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simp
   · have hmax : max 1 (2 * n) = 2 * n := max_eq_right (by omega)

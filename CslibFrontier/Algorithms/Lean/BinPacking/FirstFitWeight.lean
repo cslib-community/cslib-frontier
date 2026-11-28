@@ -455,12 +455,6 @@ private theorem core {C : ℕ} {bins : List (List ℕ)} (hp : bins.Pairwise (Lat
         simp only [List.sum_cons, List.sum_nil] at h1 h2 hgle
         omega
 
-/-- A weight summed over the items of bins that hold exactly `l` is its sum over `l`. -/
-private theorem sum_map_eq_of_perm {f : ℕ → ℕ} {l : List ℕ} {F : List (List ℕ)}
-    (h : F.flatten ~ l) : (l.map f).sum = (F.map fun b => (b.map f).sum).sum := by
-  rw [← (h.map f).sum_eq, List.map_flatten, List.sum_flatten, List.map_map]
-  rfl
-
 /-- **First Fit uses at most `17/10 * OPT + 4/5` bins**: against any packing `Q` of the same
 items, `10 * FF ≤ 17 * Q.length + 8`. This is the asymptotic `17/10` bound of
 [Johnson, Demers, Ullman, Garey and Graham][JohnsonDemersUllmanGareyGraham1974] with the additive
@@ -477,7 +471,7 @@ theorem ten_mul_length_firstFit_le {C : ℕ} {l : List ℕ} {Q : List (List ℕ)
       omega
   have hW := hQ.sum_map_le_mul_length (firstFitWeight C) fun b hb => sum_map_firstFitWeight_le hb
   have hB := hQ.sum_map_le_mul_length (bigInd C) fun b hb => sum_map_bigInd_le hb
-  rw [sum_map_eq_of_perm hF.perm] at hW hB
+  rw [hF.sum_map_eq] at hW hB
   rcases core (pairwise_forall_lt_sum_add_firstFit C l) (fun b hb => ne_nil_of_mem_firstFit hb)
     hF.sum_le with h | h
   · rcases Nat.eq_zero_or_pos C with rfl | hC

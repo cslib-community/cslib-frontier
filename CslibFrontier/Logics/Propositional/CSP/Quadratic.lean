@@ -11,6 +11,7 @@ public import CslibFrontier.Logics.Propositional.CNF
 public import Mathlib.Algebra.BigOperators.Group.List.Basic
 public import Mathlib.Algebra.Ring.BooleanRing
 public import Mathlib.Algebra.BigOperators.Fin
+import CslibFrontier.Foundations.Data.List.Blocks
 import Mathlib.Algebra.CharP.Two
 
 /-!
@@ -197,8 +198,7 @@ theorem holds_linearCombination_iff (F : QuadSystem V) (r : List Bool) (a : V �
       ∑ i : Fin F.length, if r.getD i false then (F[i].terms.map fun p => a p.1 * a p.2).sum
         else 0 := by
     rw [← sum_map_filter_zip (fun e : QuadEquation V => (e.terms.map fun p => a p.1 * a p.2).sum)]
-    simp only [linearCombination, List.flatMap, List.map_flatten, List.sum_flatten, List.map_map]
-    rfl
+    simp only [linearCombination, List.sum_map_flatMap]
   have hrhs : (F.linearCombination r).rhs =
       ∑ i : Fin F.length, if r.getD i false then F[i].rhs else 0 := by
     rw [← sum_map_filter_zip QuadEquation.rhs F r]

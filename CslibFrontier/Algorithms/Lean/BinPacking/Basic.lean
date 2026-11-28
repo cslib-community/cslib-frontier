@@ -12,6 +12,7 @@ public import Mathlib.Algebra.Order.BigOperators.Group.List
 public import Mathlib.Algebra.Order.Group.Nat
 public import Mathlib.Data.List.Chain
 public import Mathlib.Data.List.Perm.Basic
+import CslibFrontier.Foundations.Data.List.Blocks
 
 /-!
 # Bin packing
@@ -69,9 +70,14 @@ namespace IsPacking
 
 variable {C : ℕ} {l : List ℕ} {bins : List (List ℕ)}
 
+/-- The total weight of the items is the sum of the weights of the bins. -/
+theorem sum_map_eq {M : Type*} [AddCommMonoid M] (h : IsPacking C l bins) (f : ℕ → M) :
+    (l.map f).sum = (bins.map fun b => (b.map f).sum).sum := by
+  rw [← (h.perm.map f).sum_eq, ← List.flatMap_id', List.sum_map_flatMap]
+
 /-- The items' total size is the sum of the bins' loads. -/
 theorem sum_eq (h : IsPacking C l bins) : l.sum = (bins.map List.sum).sum := by
-  rw [← h.perm.sum_eq, List.sum_flatten]
+  simpa only [List.map_id] using h.sum_map_eq id
 
 /-- **Volume bound**: the items' total size is at most `C` times the number of bins. -/
 theorem sum_le_mul_length (h : IsPacking C l bins) : l.sum ≤ C * bins.length := by
@@ -84,10 +90,10 @@ the number of bins. -/
 theorem sum_map_le_mul_length (h : IsPacking C l bins) (f : ℕ → ℕ) {K : ℕ}
     (hK : ∀ b : List ℕ, b.sum ≤ C → (b.map f).sum ≤ K) :
     (l.map f).sum ≤ K * bins.length := by
-  rw [Nat.mul_comm, ← (h.perm.map f).sum_eq, List.map_flatten, List.sum_flatten, List.map_map]
-  simpa using List.sum_le_length_nsmul (bins.map (List.sum ∘ List.map f)) K fun x hx => by
-    obtain ⟨b, hb, rfl⟩ := List.mem_map.1 hx
-    exact hK b (h.sum_le b hb)
+  rw [h.sum_map_eq f, Nat.mul_comm]
+  simpa using
+    List.sum_le_length_nsmul (bins.map fun b => (b.map f).sum) K
+      (List.forall_mem_map.mpr fun b hb => hK b (h.sum_le b hb))
 
 /-- **Counting bound**: if every list of items of total size at most `C` holds at most `k` copies
 of an item `x`, then a packing holds at most `k` copies of `x` per bin. -/

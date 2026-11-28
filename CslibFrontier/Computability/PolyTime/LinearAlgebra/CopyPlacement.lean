@@ -19,6 +19,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Foundations.Data.List.GetD
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Foundations.Data.List.Blocks
 import CslibFrontier.Foundations.Data.List.OfFn
 import Mathlib.Data.Finset.Disjoint
 import Mathlib.Data.List.GetD
@@ -433,14 +434,7 @@ private theorem sum_range_groupVars_eq_toFinset {M : Type*} [AddCommMonoid M]
     {groupVars : List ℕ} (hnodup : groupVars.Nodup) (g : ℕ → M) :
     (∑ j ∈ Finset.range groupVars.length, g (groupVars.getD j 0)) =
       ∑ v ∈ groupVars.toFinset, g v := by
-  refine Finset.sum_bij (fun j _ => groupVars.getD j 0)
-    (fun j hj => List.mem_toFinset.mpr (List.getD_mem 0 (Finset.mem_range.mp hj))) ?_ ?_
-    fun _ _ => rfl
-  · exact fun j₁ hj₁ j₂ hj₂ heq =>
-      getD_inj_of_nodup hnodup 0 (Finset.mem_range.mp hj₁) (Finset.mem_range.mp hj₂) heq
-  · intro v hv
-    obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp (List.mem_toFinset.mp hv)
-    exact ⟨j, Finset.mem_range.mpr hj, List.getD_eq_getElem _ _ hj⟩
+  rw [List.sum_range_getD_eq_sum_map, List.sum_toFinset _ hnodup]
 
 /-- When `placements.Nodup`, the copy-embedding at an occupied slot `placements[e]` equals
 `x (incVars[e])`, matching the piecewise definition on p. 32 of [OpenAI2026ETH]. -/
@@ -745,12 +739,7 @@ theorem sum_abs_pullbackMeasurementRow_le {n D : ℕ} {placements : List (ℕ ×
 
 private theorem sum_map_natAbs_eq_sum_abs (row : List ℤ) :
     (((row.map Int.natAbs).sum : ℕ) : ℤ) = ∑ i ∈ Finset.range row.length, |row.getD i 0| := by
-  have hmap : row.map Int.natAbs = (List.range row.length).map fun i => (row.getD i 0).natAbs := by
-    refine List.ext_getElem (by simp) fun i hi _ => ?_
-    have hi' : i < row.length := by simpa only [List.length_map] using hi
-    simp only [List.getElem_map, List.getElem_range, List.getD_eq_getElem _ _ hi']
-  rw [hmap, List.sum_map_range,
-    Fin.sum_univ_eq_sum_range (fun i => (row.getD i 0).natAbs) _, Nat.cast_sum]
+  rw [← List.sum_range_getD_eq_sum_map row 0 Int.natAbs, Nat.cast_sum]
   exact Finset.sum_congr rfl fun _ _ => Int.natCast_natAbs _
 
 /-- Executable `Int.natAbs`-sum form of `sum_abs_pullbackMeasurementRow_le` when `placements.Nodup`

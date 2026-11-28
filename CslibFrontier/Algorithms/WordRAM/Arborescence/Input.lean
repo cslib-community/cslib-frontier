@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.Arborescence.Branching
 public import CslibFrontier.Computability.WordRAM.Signed.Encoding
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Foundations.Data.List.RowMajor
 
 /-!
@@ -71,15 +72,13 @@ public section
 
 @[simp] theorem length_flattenBoolMatrix (n : ℕ) (a : Fin n → Fin n → Bool) :
     (flattenBoolMatrix n a).length = n * n := by
-  unfold flattenBoolMatrix
-  rw [List.length_flatMap]
-  simp [List.map_const', List.sum_replicate]
+  rw [flattenBoolMatrix,
+    List.length_flatMap_of_forall_length_eq (k := n) (fun _ _ => by simp), List.length_finRange]
 
 @[simp] theorem length_flattenSignedMatrix (n : ℕ) (c : Fin n → Fin n → ℤ) :
     (flattenSignedMatrix n c).length = n * n := by
-  unfold flattenSignedMatrix
-  rw [List.length_flatMap]
-  simp [List.map_const', List.sum_replicate]
+  rw [flattenSignedMatrix,
+    List.length_flatMap_of_forall_length_eq (k := n) (fun _ _ => by simp), List.length_finRange]
 
 theorem getD_flattenBoolMatrix (n : ℕ) (a : Fin n → Fin n → Bool) (u v : Fin n) :
     (flattenBoolMatrix n a).getD (u.val * n + v.val) 0 = if a u v then 1 else 0 := by

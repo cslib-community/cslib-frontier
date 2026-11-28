@@ -430,8 +430,8 @@ theorem length_toSparseIndependentSet_le {k : ℕ} {φ : CNF ℕ} (hφ : ∀ c �
     refine (List.length_flatMap_le (l := φ.zipIdx) (k := k * k) fun c hc => ?_).trans_eq
       (by rw [List.length_zipIdx])
     have := hzip c hc
-    simp only [List.length_flatMap, List.length_map, List.length_range, List.map_const',
-      List.sum_replicate, smul_eq_mul]
+    rw [List.length_flatMap_of_forall_length_eq (k := c.1.length) (fun _ _ => by simp),
+      List.length_range]
     exact Nat.mul_le_mul this this
   have hE₃ : (conflictEdges φ).length ≤ φ.length * k :=
     (List.length_flatMap_le (l := φ.zipIdx) (k := k) fun c hc => by simpa using hzip c hc).trans_eq

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+import CslibFrontier.Foundations.Data.List.Counting
 import Mathlib.Algebra.Group.Action.Defs
 import Mathlib.Algebra.Order.BigOperators.Group.List
 import Mathlib.Data.List.Nodup
@@ -67,8 +68,8 @@ theorem length_listsUpTo_le (l : List α) (r : ℕ) :
   induction r with
   | zero => simp [listsUpTo]
   | succ r ih =>
-    simp only [listsUpTo, length_cons, length_flatMap, length_map, map_const', sum_replicate,
-      smul_eq_mul]
+    rw [listsUpTo, length_cons,
+      length_flatMap_of_forall_length_eq (fun _ _ => length_map _)]
     calc l.length * (listsUpTo l r).length + 1
         ≤ l.length * (l.length + 1) ^ r + (l.length + 1) ^ r := by
           gcongr

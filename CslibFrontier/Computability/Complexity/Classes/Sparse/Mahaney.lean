@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.Sparse.Fortune
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Computability.Complexity.CookLevin.Completeness
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
@@ -372,8 +373,9 @@ theorem length_encCNF_disj_le {φ : CNF ℕ} {a b : List (Literal ℕ)} (ha : �
     have h₂ := length_encNat_le_of_mem_vars (hb m hm)
     enc_len [List.append_nil, List.length_singleton]
   have hcross := length_encList_le _ _ hclause
-  simp only [List.length_flatMap, List.length_map, List.map_const', List.sum_replicate,
-    smul_eq_mul] at hcross
+  rw [List.length_flatMap_of_forall_length_eq (k := b.length)
+    (fun _ _ => by simp only [List.length_map])]
+    at hcross
   rw [disj, length_encCNF_append]
   dsimp only [encCNF] at hcross ⊢
   ring_nf at hcross ⊢; omega

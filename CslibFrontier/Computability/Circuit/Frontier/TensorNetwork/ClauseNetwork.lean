@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ExplicitTables
 public import CslibFrontier.Logics.Propositional.CNF.ModelCount
 import CslibFrontier.Foundations.Data.List.Boole
+import CslibFrontier.Foundations.Data.List.SumIndicator
 import Mathlib.Data.List.GetD
 
 /-!
@@ -395,16 +396,9 @@ theorem vertices_network (B m : ℕ) : (network os B m row).2.vertices =
 
 private theorem sum_range_ite (m a : ℕ) (c : Prop) [Decidable c] :
     ((List.range m).map fun i => if c ∧ a = i then 1 else 0).sum = if c ∧ a < m then 1 else 0 := by
-  induction m with
-  | zero => simp
-  | succ m ih =>
-    rw [List.range_succ, List.map_append, List.sum_append, ih]
-    by_cases hc : c
-    · rcases lt_trichotomy a m with h | rfl | h
-      · simp [hc, h, Nat.lt_succ_of_lt h, h.ne]
-      · simp [hc]
-      · simp [hc, show ¬ a < m by omega, show ¬ a < m + 1 by omega, show a ≠ m by omega]
-    · simp [hc]
+  rw [List.sum_map_ite_and]
+  simp only [eq_comm (a := a), List.sum_map_range_ite_eq]
+  by_cases hc : c <;> simp [hc]
 
 private theorem sum_range_ite' (m a : ℕ) :
     ((List.range m).map fun i => if a = i then 1 else 0).sum = if a < m then 1 else 0 := by

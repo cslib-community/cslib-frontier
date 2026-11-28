@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.PCP.Approximation.LabelCover
 public import CslibFrontier.Computability.PCP.Encoded.ParallelEdges
 public import CslibFrontier.Computability.PCP.ParallelRepetition
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Computability.PCP.Encoded.Count
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Product
@@ -135,8 +136,8 @@ def tuples {α : Type*} : (k : ℕ) → List α → List (Fin k → α)
 theorem length_tuples {α : Type*} (l : List α) : ∀ k, (tuples k l).length = l.length ^ k
   | 0 => rfl
   | k + 1 => by
-    simp [tuples, List.length_flatMap, length_tuples l k, List.map_const', List.sum_replicate,
-      pow_succ, Nat.mul_comm]
+    rw [tuples, List.length_flatMap_of_forall_length_eq (fun _ _ => List.length_map _),
+      length_tuples l k, pow_succ, Nat.mul_comm]
 
 /-- Counting tuples by a predicate counts tuples of positions in the list. -/
 theorem countP_tuples {α : Type*} (l : List α) :
