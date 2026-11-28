@@ -1600,8 +1600,20 @@ substituted and maps pushed into the continuations: the shape that `PMF.bind_con
 `PMF.bind_apply` and the support lemmas expect. The set is curated, so later steps may rely on its
 normal form; it does not unfold support membership or probability masses. The checked examples in
 [PMFNorm.lean](../../CslibFrontierTests/PMFNorm.lean) show the normal form of each kind of term.
-To prove that two normal forms differ only in the order of independent samples, use `pmf_swap`
-([Reorder independent samples](../design-and-assurance/automation.md#reorder-independent-samples)).
+To prove that two sampling chains differ only in the order of independent samples, use `pmf_swap`.
+It normalizes visible monadic notation, nested binds, maps, and `ProbComp.eval` itself, along the
+path to each sample it strips, and leaves the rest of each chain as written; named programs still
+need to be unfolded explicitly. `peel_binds` uses the same normalization and can
+align an independent draw from anywhere in the opposite chain, keeping its support witness for
+the remaining equality or game bound. Matching leading draws keep their original order.
+To select a different coupling explicitly, use `pmf_hoist q`, or
+`pmf_hoist [commutation_rule] sampler` for a custom sampler. For example,
+`pmf_hoist [Game.bind_runStatelessOracle_comm] (Game.runStatelessOracle _ _)` moves an independent
+stateless-oracle run ahead of the PMF draws in
+[CramerShoup/Scheme.lean](../../CslibFrontier/Crypto/Computational/CramerShoup/Scheme.lean).
+The checked interfaces and failure cases are in
+[PMFSwap.lean](../../CslibFrontierTests/PMFSwap.lean) and
+[GameHopTactic.lean](../../CslibFrontierTests/GameHopTactic.lean).
 
 ## Bind a program inside a distribution
 

@@ -147,6 +147,13 @@ example (μ : PMF ℕ) (ν : ℕ → PMF Bool) (f g : ℕ → Bool → Game) (ε
   peel_binds x b
   exact h x x_mem b
 
+/-- A distribution may be written using the `Game` type abbreviation. -/
+example (μ : Game) (f g : Bool → Game) (ε : ℝ≥0)
+    (h : ∀ b ∈ μ.support, Game.advantage (f b) (g b) ≤ ε) :
+    Game.advantage (μ.bind f) (μ.bind g) ≤ ε := by
+  peel_binds b
+  exact h b b_mem
+
 /-- Omitting binder names peels all shared leading stages, retaining original binder names. -/
 example (μ : PMF ℕ) (ν : PMF Bool) (f g : ℕ → Bool → Game) (ε : ℝ)
     (h : ∀ a ∈ μ.support, ∀ b ∈ ν.support, (Game.advantage (f a b) (g a b) : ℝ) ≤ ε) :
@@ -180,6 +187,41 @@ example (μ : PMF ℕ) (ν : PMF Bool) (f : ℕ → Bool → PMF ℕ) (g : ℕ �
     (ν.bind fun b => μ.bind fun x => f x b) = μ.bind g := by
   peel_binds x
   exact h x x_mem
+
+/-- A matching draw may be more than one stage away; every support witness is retained. -/
+example (μ : PMF ℕ) (ν : PMF Bool) (ξ : PMF (Fin 2))
+    (f g : ℕ → Bool → Fin 2 → Game) (ε : ℝ≥0)
+    (h : ∀ x ∈ μ.support, ∀ b ∈ ν.support, ∀ c ∈ ξ.support,
+      Game.advantage (f x b c) (g x b c) ≤ ε) :
+    Game.advantage
+      (μ.bind fun x => ν.bind fun b => ξ.bind fun c => f x b c)
+      (ξ.bind fun c => ν.bind fun b => μ.bind fun x => g x b c) ≤ ε := by
+  peel_binds x b c
+  exact h x x_mem b b_mem c c_mem
+
+/-- Aligning a draw that is exposed by rewriting a map keeps that rewrite in the proof, which the
+kernel checks. -/
+example (μ : PMF ℕ) (ν : PMF Bool) (h : Bool → Fin 2) (f : Bool → ℕ → PMF ℕ)
+    (g : ℕ → Fin 2 → PMF ℕ) (hfg : ∀ b x, f b x = g x (h b)) :
+    (ν.bind fun b => μ.bind fun x => f b x) = μ.bind fun x => (ν.map h).bind fun c => g x c := by
+  peel_binds b x
+  exact hfg b x
+
+/-- Deep alignment leaves an unmatched monadic tail in its original form for a supplied bound. -/
+example (μ : PMF ℕ) (ν : PMF Bool) (ξ : PMF (Fin 2))
+    (m₁ : ProbComp ℕ) (m₂ : ProbComp Bool)
+    (f : ℕ → Bool → Fin 2 → ℕ → ProbComp Bool)
+    (g : ℕ → Bool → Fin 2 → Bool → ProbComp Bool) (ε : ℝ≥0)
+    (h : ∀ x ∈ μ.support, ∀ b ∈ ν.support, ∀ c ∈ ξ.support,
+      Game.advantage (ProbComp.eval (do let a ← m₁; f x b c a))
+        (ProbComp.eval (do let a ← m₂; g x b c a)) ≤ ε) :
+    Game.advantage
+      (μ.bind fun x => ν.bind fun b => ξ.bind fun c =>
+        ProbComp.eval (do let a ← m₁; f x b c a))
+      (ξ.bind fun c => ν.bind fun b => μ.bind fun x =>
+        ProbComp.eval (do let a ← m₂; g x b c a)) ≤ ε := by
+  peel_binds x b c
+  exact h x x_mem b b_mem c c_mem
 
 /-- Peeling and one-step independent swapping across `Game.runStatelessOracle` stages. -/
 example (o₁ o₂ : List Bool → List Bool)
@@ -303,7 +345,7 @@ example (g₀ g₁ : Game) (h : Game.advantage g₀ g₁ ≤ 1) : Game.advantage
 -- on the outer binder `a`, so no independent swap exists. Dependence makes the swap ineligible
 -- before it is attempted, so the user-facing message is the generic alignment error.
 /--
-error: peel_binds: leading stages do not match and cannot be aligned by a single independent swap
+error: peel_binds: leading stages do not match and cannot be aligned by independent reordering
   Game.advantage (d₁.bind fun a => (d₂ a).bind fun b => f a b) ((d₂ 0).bind g) ≤ 1
 -/
 #guard_msgs in
@@ -311,9 +353,9 @@ example (d₁ : PMF ℕ) (d₂ : ℕ → PMF Bool) (f : ℕ → Bool → Game) (
     Game.advantage (d₁.bind fun a => (d₂ a).bind fun b => f a b) ((d₂ 0).bind g) ≤ 1 := by
   peel_binds
 
--- Leading distributions differ and neither side has a matching independent second stage.
+-- Leading distributions differ and neither side has a matching independent stage.
 /--
-error: peel_binds: leading stages do not match and cannot be aligned by a single independent swap
+error: peel_binds: leading stages do not match and cannot be aligned by independent reordering
   Game.advantage (d₁.bind fun a => f a true) (d₃.bind fun b => g b 0) ≤ 1
 -/
 #guard_msgs in
@@ -324,7 +366,7 @@ example (d₁ : PMF ℕ) (d₃ : PMF Bool) (f : ℕ → Bool → Game) (g : Bool
 -- The named form reports which requested stage could not be peeled.
 /--
 error: peel_binds: could not peel stage `a`; leading distributions do not match and cannot be
-aligned by a single independent swap
+aligned by independent reordering
   Game.advantage (d₁.bind fun a => f a true) (d₃.bind fun b => g b 0) ≤ 1
 -/
 #guard_msgs in

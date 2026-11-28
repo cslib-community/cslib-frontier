@@ -13,6 +13,7 @@ public import CslibFrontier.Crypto.Game.Order
 public import CslibFrontier.Crypto.Game.UntilBad
 public import CslibFrontier.Languages.Probabilistic.Norm
 public import CslibFrontier.Probability.PMF.Bind
+public import CslibFrontier.Tactic.BindChain
 public meta import Lean.Elab.Tactic
 
 /-!
@@ -28,11 +29,11 @@ bind-coupling plumbing:
   explicit list of intermediate games or distributions, with optional `using [...]` hop discharge
   handling symmetry (`Game.advantage_comm`, `CloseTo.symm`), equality (`Game.advantage_self`,
   `CloseTo.refl`), and `ℝ≥0 → ℝ` coercion.
-* `peel_binds`: normalize outer `ProbComp.eval` monadic binds at the head and peel shared leading
-  `PMF.bind` and `Game.runStatelessOracle` stages on `Game.advantage`, `CloseTo`, or `PMF` equality
-  goals, introducing each draw `x` together with `x_mem : x ∈ μ.support` and performing a one-step
-  independent `PMF.bind_comm` / `Game.bind_runStatelessOracle_comm` / `Game.runStatelessOracle_comm`
-  swap when the leading draw matches the opposite side's second draw.
+* `peel_binds`: normalize visible monadic sampling chains and peel shared `PMF.bind` and
+  `Game.runStatelessOracle` stages on `Game.advantage`, `CloseTo`, or `PMF` equality goals,
+  introducing each draw `x` together with `x_mem : x ∈ μ.support`. A leading draw can align with
+  any independent later draw using the same bind-chain engine as `pmf_swap` and `pmf_hoist`, with
+  the stateless-oracle commutation rules supplied by this module.
 
 ## Main definitions
 
@@ -137,166 +138,9 @@ namespace Cslib.Tactic.GameHop
 
 open Lean Meta Elab Tactic
 open Cslib.Crypto Cslib.Probability
+open BindChain
 
-/-! ### Expression inspection and head normalization helpers -/
-
-/-- Head-beta-reduce and substitute top-level `let` bindings (and local `let` `fvar`s of
-`PMF`/`Game` type) at the root of `e` (definitionally equal by `beta`/`zeta`/`zetaDelta`). -/
-private meta partial def stripSpineLetsM (e : Expr) : MetaM Expr := do
-  match e.cleanupAnnotations.headBeta with
-  | .letE _ _ val body _ => stripSpineLetsM (body.instantiate1 val)
-  | .fvar fvarId =>
-    let decl ← fvarId.getDecl
-    if let some val := decl.value? then
-      if (← whnfR decl.type).isAppOf ``PMF then
-        return ← stripSpineLetsM val
-    return e.cleanupAnnotations.headBeta
-  | e' => return e'
-
-/-- Cast a proof `h : a' = b'` to `a = b` when `a ≡ a'` and `b ≡ b'` definitionally. -/
-private meta def castEqProof (a b h : Expr) : MetaM Expr := do
-  mkExpectedTypeHint h (← mkEq a b)
-
-/-- Compose optional equality proofs `e₀ = e₁` and `e₁ = e₂`. -/
-private meta def chainEqOpt (e₀ e₂ : Expr) (h₁? h₂? : Option Expr) : MetaM (Option Expr) := do
-  match h₁?, h₂? with
-  | none, none => return none
-  | some h₁, none => return some (← castEqProof e₀ e₂ h₁)
-  | none, some h₂ => return some (← castEqProof e₀ e₂ h₂)
-  | some h₁, some h₂ => return some (← castEqProof e₀ e₂ (← mkEqTrans h₁ h₂))
-
-/-- Normalize only the outer head of a `PMF` expression into `PMF.bind` or `runStatelessOracle`
-without unfolding named user definitions or traversing continuation bodies. -/
-private meta partial def normalizeBindHead (e : Expr) : MetaM (Expr × Option Expr) := do
-  let e0 ← stripSpineLetsM e
-  if e0.isAppOfArity ``Bind.bind 6 then
-    let args := e0.getAppArgs
-    if args[0]!.cleanupAnnotations.isConstOf ``PMF then
-      let eBind ← mkAppM ``PMF.bind #[args[4]!, args[5]!]
-      let (eFinal, h?) ← normalizeBindHead eBind
-      let h? ← match h? with
-        | some h => pure (some (← castEqProof e eFinal h))
-        | none =>
-          if e == eFinal then pure none
-          else pure (some (← castEqProof e eFinal (← mkEqRefl eFinal)))
-      return (eFinal, h?)
-  if e0.isAppOfArity ``Cslib.ProbComp.eval 2 then
-    let prog0 ← stripSpineLetsM (e0.getAppArgs[1]!)
-    if prog0.isAppOfArity ``Bind.bind 6 then
-      let pargs := prog0.getAppArgs
-      let m := pargs[4]!
-      let k := pargs[5]!
-      let hStep ← mkAppM ``Cslib.ProbComp.eval_bind #[m, k]
-      let xName := match k.cleanupAnnotations with
-        | .lam n _ _ _ => n
-        | _ => `x
-      let α₀ := pargs[2]!
-      let evalM ← mkAppM ``Cslib.ProbComp.eval #[m]
-      let newLam ← withLocalDecl xName .default α₀ fun x => do
-        let kx := (mkApp k x).headBeta
-        let evalKx ← mkAppM ``Cslib.ProbComp.eval #[kx]
-        mkLambdaFVars #[x] evalKx
-      let rhs ← mkAppM ``PMF.bind #[evalM, newLam]
-      let hStep ← castEqProof e rhs hStep
-      let (eFinal, hRest?) ← normalizeBindHead rhs
-      return (eFinal, ← chainEqOpt e eFinal (some hStep) hRest?)
-    return (e, none)
-  if e0.isAppOfArity ``PMF.bind 4 then
-    let args := e0.getAppArgs
-    let p := args[2]!
-    let f := args[3]!
-    let (p', hp?) ← normalizeBindHead p
-    let mut cur := e0
-    let mut hCur? : Option Expr := none
-    if let some hp := hp? then
-      let cur' ← mkAppM ``PMF.bind #[p', f]
-      let hCongr ← mkCongrArg (mkApp2 e0.getAppFn args[0]! args[1]!) hp
-      let hStep ← mkCongrFun hCongr f
-      hCur? := some (← castEqProof e cur' hStep)
-      cur := cur'
-    let p0 ← stripSpineLetsM p'
-    if p0.isAppOfArity ``PMF.bind 4 then
-      let pargs := p0.getAppArgs
-      let q := pargs[2]!
-      let g := pargs[3]!
-      let hAssoc ← mkAppM ``PMF.bind_bind #[q, g, f]
-      -- Preserve `g`'s user binder name in the reassociated lambda.
-      let xName := match g.cleanupAnnotations with
-        | .lam n _ _ _ => n
-        | _ => `x
-      let α₀ := pargs[0]!
-      let newLam ← withLocalDecl xName .default α₀ fun x => do
-        let gx := (mkApp g x).headBeta
-        let inner ← mkAppM ``PMF.bind #[gx, f]
-        mkLambdaFVars #[x] inner
-      let rhs ← mkAppM ``PMF.bind #[q, newLam]
-      let hAssoc ← castEqProof cur rhs hAssoc
-      let hTot? ← chainEqOpt e rhs hCur? (some hAssoc)
-      let (eFinal, hRest?) ← normalizeBindHead rhs
-      return (eFinal, ← chainEqOpt e eFinal hTot? hRest?)
-    if p0.isAppOfArity ``PMF.pure 2 then
-      let a := p0.getAppArgs[1]!
-      let hPure ← mkAppM ``PMF.pure_bind #[a, f]
-      let rhs := (mkApp f a).headBeta
-      let hPure ← castEqProof cur rhs hPure
-      let hTot? ← chainEqOpt e rhs hCur? (some hPure)
-      let (eFinal, hRest?) ← normalizeBindHead rhs
-      return (eFinal, ← chainEqOpt e eFinal hTot? hRest?)
-    if p0.isAppOfArity ``PMF.map 4 then
-      let margs := p0.getAppArgs
-      let α₀ := margs[0]!
-      let g := margs[2]!
-      let q := margs[3]!
-      let hMap ← mkAppM ``PMF.bind_map #[q, g, f]
-      let xName := match g.cleanupAnnotations with
-        | .lam n _ _ _ => n
-        | _ => match f.cleanupAnnotations with
-          | .lam n _ _ _ => n
-          | _ => `x
-      let compName := if xName.isAnonymous then `x else xName
-      let newLam ← withLocalDecl compName .default α₀ fun x => do
-        let gx := (mkApp g x).headBeta
-        let fgx := (mkApp f gx).headBeta
-        mkLambdaFVars #[x] fgx
-      let rhs ← mkAppM ``PMF.bind #[q, newLam]
-      let hMap ← castEqProof cur rhs hMap
-      let hTot? ← chainEqOpt e rhs hCur? (some hMap)
-      let (eFinal, hRest?) ← normalizeBindHead rhs
-      return (eFinal, ← chainEqOpt e eFinal hTot? hRest?)
-    if p0.isAppOfArity ``Cslib.ProbComp.eval 2 then
-      let innerProg ← stripSpineLetsM (p0.getAppArgs[1]!)
-      if innerProg.isAppOfArity ``Functor.map 6 then
-        let fargs := innerProg.getAppArgs
-        let g := fargs[4]!
-        let m := fargs[5]!
-        let hEvalMap ← mkAppM ``Cslib.ProbComp.eval_map #[g, m]
-        let mapped := (← inferType hEvalMap).getAppArgs[2]!
-        let curMapped ← mkAppM ``PMF.bind #[mapped, f]
-        let hCongr ← mkCongrFun (← mkCongrArg (mkApp2 cur.getAppFn args[0]! args[1]!)
-          (← castEqProof p' mapped hEvalMap)) f
-        let h1? ← chainEqOpt e curMapped hCur? (some hCongr)
-        let (eFinal, hRest?) ← normalizeBindHead curMapped
-        return (eFinal, ← chainEqOpt e eFinal h1? hRest?)
-      if innerProg.isAppOfArity ``Pure.pure 4 then
-        let a := innerProg.getAppArgs[3]!
-        let hEvalPure ← mkAppM ``Cslib.ProbComp.eval_pure #[a]
-        let pured := (← inferType hEvalPure).getAppArgs[2]!
-        let curPured ← mkAppM ``PMF.bind #[pured, f]
-        let hCongr ← mkCongrFun (← mkCongrArg (mkApp2 cur.getAppFn args[0]! args[1]!)
-          (← castEqProof p' pured hEvalPure)) f
-        let h1? ← chainEqOpt e curPured hCur? (some hCongr)
-        let (eFinal, hRest?) ← normalizeBindHead curPured
-        return (eFinal, ← chainEqOpt e eFinal h1? hRest?)
-    if cur != e && hCur?.isNone then
-      return (cur, some (← castEqProof e cur (← mkEqRefl cur)))
-    return (cur, hCur?)
-  if e0.isAppOfArity ``Game.runStatelessOracle 4 then
-    if e0 != e then
-      return (e0, some (← castEqProof e e0 (← mkEqRefl e0)))
-    return (e, none)
-  return (e, none)
-
-/-! ### Bind-stage representation and adjacent-stage commutation -/
+/-! ### Bind-stage representation and independent-stage commutation -/
 
 private inductive StageHead where
   | pmfBind (α β μ : Expr)
@@ -304,113 +148,53 @@ private inductive StageHead where
 
 private structure ParsedStage where
   head : StageHead
-  binderType : Expr
   binderName : Name
   cont : Expr
 
-private meta def parseStage? (e : Expr) : MetaM (Option ParsedStage) := do
-  let e0 ← stripSpineLetsM e
-  if e0.isAppOfArity ``PMF.bind 4 then
-    let args := e0.getAppArgs
-    let α := args[0]!
-    let β := args[1]!
-    let μ := args[2]!
-    let f := args[3]!
-    let bName := match f.cleanupAnnotations with
-      | .lam n _ _ _ => n
-      | _ => .anonymous
-    return some { head := .pmfBind α β μ, binderType := α, binderName := bName, cont := f }
-  if e0.isAppOfArity ``Bind.bind 6 then
-    let args := e0.getAppArgs
-    if args[0]!.cleanupAnnotations.isConstOf ``PMF then
-      let α := args[2]!
-      let β := args[3]!
-      let μ := args[4]!
-      let f := args[5]!
-      let bName := match f.cleanupAnnotations with
-        | .lam n _ _ _ => n
-        | _ => .anonymous
-      return some { head := .pmfBind α β μ, binderType := α, binderName := bName, cont := f }
-  if e0.isAppOfArity ``Game.runStatelessOracle 4 then
-    let args := e0.getAppArgs
-    let α := args[0]!
-    let o := args[1]!
-    let prog := args[2]!
-    let next := args[3]!
-    let bName := match next.cleanupAnnotations with
-      | .lam n _ _ _ => n
-      | _ => .anonymous
-    return some { head := .statelessOracle α o prog, binderType := α, binderName := bName,
-                  cont := next }
+/-- Read relation-specific stage metadata from the shared sampler parser. -/
+private meta def parseStage? (ctx : BindChain.Context) (e : Expr) :
+    MetaM (Option ParsedStage) := do
+  let some sample ← sample? ctx (← stripSpineLetsM e) | return none
+  let bName := match sample.cont.cleanupAnnotations with
+    | .lam n _ _ _ => n
+    | _ => .anonymous
+  if sample.comm?.isNone then
+    let α ← outcomeType sample.head
+    let β ← outcomeType e
+    return some {
+      head := .pmfBind α β sample.head
+      binderName := bName
+      cont := sample.cont }
+  if sample.head.isAppOfArity ``Game.runStatelessOracle 3 then
+    let args := sample.head.getAppArgs
+    return some {
+      head := .statelessOracle args[0]! args[1]! args[2]!
+      binderName := bName
+      cont := sample.cont }
   return none
 
-private meta def StageHead.mentionsFVar (h : StageHead) (fvarId : FVarId) : Bool :=
-  match h with
-  | .pmfBind α _ μ => α.containsFVar fvarId || μ.containsFVar fvarId
+/-- Commutation rules for the samplers understood by `peel_binds`. -/
+private meta def bindContext : MetaM BindChain.Context := do
+  let rule ← commOfExpr (← mkConstWithFreshMVarLevels ``Game.bind_runStatelessOracle_comm)
+    (mkIdent ``Game.bind_runStatelessOracle_comm)
+  return {
+    comms := #[rule]
+    swapSamplers? := some fun left right k => do
+      let ls := left.getAppArgs
+      let rs := right.getAppArgs
+      mkAppM ``Game.runStatelessOracle_comm #[ls[1]!, ls[2]!, rs[1]!, rs[2]!, k]
+  }
+
+/-- The sampler pattern of a stage, for the shared independent-draw search. -/
+private meta def ParsedStage.toPat (ctx : BindChain.Context) (stage : ParsedStage) :
+    MetaM Pat := do
+  match stage.head with
+  | .pmfBind _ _ μ => return { head := μ }
   | .statelessOracle α o prog =>
-    α.containsFVar fvarId || o.containsFVar fvarId || prog.containsFVar fvarId
-
-private meta def mkStageApp (h : StageHead) (lam : Expr) : MetaM Expr :=
-  match h with
-  | .pmfBind _ _ μ => mkAppM ``PMF.bind #[μ, lam]
-  | .statelessOracle _ o prog => mkAppM ``Game.runStatelessOracle #[o, prog, lam]
-
-private meta def mkStagePrefix (h : StageHead) : MetaM Expr := do
-  match h with
-  | .pmfBind α β μ =>
-    mkAppOptM ``PMF.bind #[some α, some β, some μ]
-  | .statelessOracle α o prog =>
-    mkAppOptM ``Game.runStatelessOracle #[some α, some o, some prog]
-
-/-- Swap two adjacent independent bind stages `s₀` (outer, binder `y`) and `s₁` (inner, binder
-`x`), constructing `(swappedExpr, proof : orig = swappedExpr)` and preserving user binder names. -/
-private meta def swapAdjacentStages (orig : Expr) (s₀ : ParsedStage) : MetaM (Expr × Expr) := do
-  let yName := if s₀.binderName.isAnonymous then `y else s₀.binderName
-  withLocalDecl yName .default s₀.binderType fun y => do
-    let innerRaw := (mkApp s₀.cont y).headBeta
-    let (innerNorm, hNorm?) ← normalizeBindHead innerRaw
-    let some s₁ ← parseStage? innerNorm
-      | throwError "peel_binds: expected an inner `PMF.bind` or `runStatelessOracle` stage"
-    let xName := if s₁.binderName.isAnonymous then `x else s₁.binderName
-    if s₁.head.mentionsFVar y.fvarId! then
-      throwError "peel_binds: cannot swap `{xName}` past `{yName}` because its distribution \
-        depends on `{yName}`"
-    let mut curOrig := orig
-    let mut hPre? : Option Expr := none
-    if let some hN := hNorm? then
-      let lamNorm ← mkLambdaFVars #[y] innerNorm
-      let midOrig ← mkStageApp s₀.head lamNorm
-      let pref₀ ← mkStagePrefix s₀.head
-      let hCongr ← mkCongrArg pref₀ (← mkFunExt (← mkLambdaFVars #[y] hN))
-      hPre? := some (← castEqProof orig midOrig hCongr)
-      curOrig := midOrig
-    let f2 ← withLocalDecl xName .default s₁.binderType fun x => do
-      let body := (mkApp s₁.cont x).headBeta
-      mkLambdaFVars #[y, x] body
-    let swappedLam ← withLocalDecl xName .default s₁.binderType fun x => do
-      let innerAfter ← withLocalDecl yName .default s₀.binderType fun y' => do
-        let b := (f2.beta #[y', x]).headBeta
-        mkLambdaFVars #[y'] b
-      let wrapped₀ ← mkStageApp s₀.head innerAfter
-      mkLambdaFVars #[x] wrapped₀
-    let swapped ← mkStageApp s₁.head swappedLam
-    let hSwapRaw ← match s₀.head, s₁.head with
-      | .pmfBind _ _ μ₀, .pmfBind _ _ μ₁ =>
-        mkAppM ``PMF.bind_comm #[μ₀, μ₁, f2]
-      | .pmfBind _ _ μ₀, .statelessOracle _ o₁ prog₁ =>
-        mkAppM ``Game.bind_runStatelessOracle_comm #[μ₀, o₁, prog₁, f2]
-      | .statelessOracle _ o₀ prog₀, .pmfBind _ _ μ₁ =>
-        let f2Flip ← withLocalDecl xName .default s₁.binderType fun x =>
-          withLocalDecl yName .default s₀.binderType fun y' => do
-            mkLambdaFVars #[x, y'] ((f2.beta #[y', x]).headBeta)
-        let hSymm ← mkAppM ``Game.bind_runStatelessOracle_comm #[μ₁, o₀, prog₀, f2Flip]
-        mkEqSymm hSymm
-      | .statelessOracle _ o₀ prog₀, .statelessOracle _ o₁ prog₁ =>
-        mkAppM ``Game.runStatelessOracle_comm #[o₀, prog₀, o₁, prog₁, f2]
-    let hSwap ← castEqProof curOrig swapped hSwapRaw
-    let some hTot ← chainEqOpt orig swapped hPre? (some hSwap)
-      | return (swapped, hSwap)
-    return (swapped, hTot)
+    let head ← mkAppOptM ``Game.runStatelessOracle #[some α, some o, some prog]
+    let some pat ← samplerPat? ctx head
+      | throwError "peel_binds: internal error: unrecognized stateless-oracle sampler"
+    return pat
 
 /-! ### Target decomposition for relational PMF / Game goals -/
 
@@ -543,19 +327,15 @@ private meta def stagesDirectlyMatch (sL sR : ParsedStage) : MetaM Bool := do
       withReducibleAndInstances (isDefEq αL αR <&&> isDefEq oL oR <&&> isDefEq progL progR)
   | _, _ => return false
 
-/-- Check whether `e` has a 2nd stage that is independent of its 1st stage and matches `target`,
-returning `some (eSwapped, hEq : e = eSwapped)` when so. -/
-private meta def tryOneStepSwapMatch? (target : ParsedStage) (e : Expr) (s₀ : ParsedStage) :
+/-- Bring an independent stage matching `target` to the front of `e`, preserving the
+support-restricted relation for the caller to peel. -/
+private meta def trySwapMatch? (ctx : BindChain.Context) (target : ParsedStage) (e : Expr) :
     MetaM (Option (Expr × Expr)) := do
-  let canSwap ← withLocalDeclD `y s₀.binderType fun y => do
-    let innerRaw := (mkApp s₀.cont y).headBeta
-    let (innerNorm, _) ← normalizeBindHead innerRaw
-    let some s₁ ← parseStage? innerNorm | return false
-    if s₁.head.mentionsFVar y.fvarId! then return false
-    stagesDirectlyMatch target s₁
-  unless canSwap do return none
-  let (swapped, hSwap) ← swapAdjacentStages e s₀
-  return some (swapped, hSwap)
+  let pat ← target.toPat ctx
+  for depth in ← findDepths ctx pat e do
+    if depth == 0 then continue
+    if let some result ← observing? (hoistAt ctx pat e depth) then return some result
+  return none
 
 /-- Inner implementation of `peelOneStage?`; callers wrap this in `saveState`/`restore` so any
 speculative target replacement is rolled back cleanly when returning `none`. -/
@@ -563,6 +343,7 @@ private meta def peelOneStageCore? (goal : MVarId) (reqName? : Option Name) :
     MetaM (Option MVarId) := goal.withContext do
   let origTarget ← instantiateMVars (← goal.getType)
   let some (mode, dec) ← classifyPeelGoal? origTarget | return none
+  let ctx ← bindContext
   let (LNorm, hLNorm?) ← normalizeBindHead dec.lhs
   let (RNorm, hRNorm?) ← normalizeBindHead dec.rhs
   let mut curGoal := goal
@@ -572,26 +353,26 @@ private meta def peelOneStageCore? (goal : MVarId) (reqName? : Option Name) :
       (· == ``Cslib.Crypto.Encryption.advantage)) != origTarget then
     let (normProp, hNormEq) ← mkRebuildEq origTarget dec LNorm RNorm hLNorm? hRNorm?
     curGoal ← curGoal.replaceTargetEq normProp hNormEq
-  let some sLInit ← parseStage? curL | return none
-  let some sRInit ← parseStage? curR | return none
+  let some sLInit ← parseStage? ctx curL | return none
+  let some sRInit ← parseStage? ctx curR | return none
   let mut sL := sLInit
   let mut sR := sRInit
   if !(← stagesDirectlyMatch sL sR) then
-    if let some (RSwapped, hRSwap) ← tryOneStepSwapMatch? sL curR sR then
+    if let some (RSwapped, hRSwap) ← trySwapMatch? ctx sL curR then
       let curProp ← instantiateMVars (← curGoal.getType)
       let some (_, decCur) ← classifyPeelGoal? curProp | return none
       let (swappedProp, hPropEq) ← mkRebuildEq curProp decCur curL RSwapped none (some hRSwap)
       curGoal ← curGoal.replaceTargetEq swappedProp hPropEq
       curR := RSwapped
-      let some sR' ← parseStage? curR | return none
+      let some sR' ← parseStage? ctx curR | return none
       sR := sR'
-    else if let some (LSwapped, hLSwap) ← tryOneStepSwapMatch? sR curL sL then
+    else if let some (LSwapped, hLSwap) ← trySwapMatch? ctx sR curL then
       let curProp ← instantiateMVars (← curGoal.getType)
       let some (_, decCur) ← classifyPeelGoal? curProp | return none
       let (swappedProp, hPropEq) ← mkRebuildEq curProp decCur LSwapped curR (some hLSwap) none
       curGoal ← curGoal.replaceTargetEq swappedProp hPropEq
       curL := LSwapped
-      let some sL' ← parseStage? curL | return none
+      let some sL' ← parseStage? ctx curL | return none
       sL := sL'
     else
       return none
@@ -671,10 +452,14 @@ syntax peelBinder := ident <|> "_"
 `Encryption.advantage`, `CloseTo`, or `PMF` equality goals, introducing each draw `x` and its
 support witness `x_mem : x ∈ μ.support`.
 
-* `peel_binds` peels all shared leading stages (performing a one-step independent `PMF.bind_comm`
-  swap when a leading distribution matches the opposite side's second stage).
+* `peel_binds` peels all shared leading stages. When they differ, it brings a matching
+  independent stage to the front from anywhere in the opposite sampling chain. Matching leading
+  draws keep their original order, including repeated draws of the same distribution.
 * `peel_binds x₁ x₂ ...` peels exactly those stages using the given binder names (`_` names the
-  draw `x` and leaves its support witness inaccessible). -/
+  draw `x` and leaves its support witness inaccessible).
+
+Normalization follows the alignment path. An unmatched continuation stays in its original form
+so that a supplied continuation bound still applies directly. -/
 syntax (name := peelBinds) "peel_binds" (ppSpace colGt peelBinder)* : tactic
 
 elab_rules : tactic
@@ -693,8 +478,8 @@ elab_rules : tactic
           count := count + 1
         | none => break
       if count == 0 then
-        throwError "peel_binds: leading stages do not match and cannot be aligned by a single \
-          independent swap{indentExpr (← goal.getType)}"
+        throwError "peel_binds: leading stages do not match and cannot be aligned by independent \
+          reordering{indentExpr (← goal.getType)}"
       replaceMainGoal [goal]
     else
       for bStx in binders do
@@ -706,7 +491,7 @@ elab_rules : tactic
         | some g' => goal := g'
         | none =>
           throwError "peel_binds: could not peel stage `{bName}`; leading distributions do not \
-            match and cannot be aligned by a single independent swap\
+            match and cannot be aligned by independent reordering\
             {indentExpr (← goal.getType)}"
       replaceMainGoal [goal]
 

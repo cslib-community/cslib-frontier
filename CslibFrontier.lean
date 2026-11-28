@@ -2980,6 +2980,7 @@ public import CslibFrontier.DataStructure.FusionTree.Compression
 public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph.DistinguishedPoints
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Capabilities
 public import CslibFrontier.Computability.Circuit.Monotone.BipartiteMatching.Asymptotic
+public import CslibFrontier.Tactic.BindChain
 public import CslibFrontier.Computability.Circuit.Boolean.Layered.Compile.Size
 public import CslibFrontier.Computability.GenericRAM.Native.MeasurementFold
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.MetadataRuns

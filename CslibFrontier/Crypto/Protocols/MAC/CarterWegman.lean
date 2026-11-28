@@ -29,6 +29,7 @@ import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.Uniform
+import CslibFrontier.Tactic.GameHop
 import CslibFrontier.Tactic.PMFSwap
 
 /-!
@@ -1155,11 +1156,9 @@ theorem eval_prfRealGame_prfLogDistinguisher {Entry Out : Type}
   simp only [pmf_norm, prfRealGame, id_eq, ProbOracleComp.run, prfLogDistinguisher,
     carterWegmanKeyGen, Functor.map_map, OracleComp.interpret_bind, OracleComp.interpret_map,
     ProbOracleComp.interpret_sample, ProbOracleComp.interpret_query, ProbComp.interpret_unifFin]
-  pmf_hoist (ProbComp.eval (seed n))
-  refine PMF.bind_congr_on_support _ _ _ fun k _ => ?_
-  refine PMF.bind_congr_on_support _ _ _ fun prfKey hprfKey => ?_
-  rw [BitString.eval_sampleList] at hprfKey
-  have hprfLen : prfKey.length = n := BitString.length_of_mem_support_uniformList hprfKey
+  peel_binds prfKey k
+  rw [BitString.eval_sampleList] at prfKey_mem
+  have hprfLen : prfKey.length = n := BitString.length_of_mem_support_uniformList prfKey_mem
   rw [interpret_deterministic_run_interpret, ProbOracleComp.eval_run_interpret_eq_runWith,
     ProbOracleComp.eval_run_interpret_eq_runWith,
     show (fun request state =>

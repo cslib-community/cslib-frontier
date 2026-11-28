@@ -15,6 +15,7 @@ import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Tactic.PMFSwap
 import Mathlib.Data.Nat.Choose.Basic
 
 /-!
@@ -147,27 +148,18 @@ theorem poissonBinomial_append (ps qs : List I) :
       (poissonBinomial ps).bind fun a => (poissonBinomial qs).map fun b => a + b := by
   induction ps with
   | nil =>
-    simp only [List.nil_append, poissonBinomial_nil, PMF.pure_bind, zero_add]
-    exact (PMF.map_id _).symm
+    simp only [List.nil_append, poissonBinomial_nil, PMF.pure_bind, Nat.zero_add]
+    exact (PMF.map_id (poissonBinomial qs)).symm
   | cons p ps ih =>
-    rw [List.cons_append, poissonBinomial_cons, ih, poissonBinomial_cons, PMF.bind_bind]
-    refine congr_arg (PMF.bind (coin p)) (funext fun b => ?_)
-    cases b
-    · simp only [Bool.false_eq_true, ↓reduceIte, show (fun k : ℕ => k) = id from rfl,
-        PMF.map_id, PMF.map_bind]
-    · simp only [↓reduceIte, PMF.map_bind, PMF.bind_map, PMF.map_comp]
-      exact congr_arg (PMF.bind (poissonBinomial ps))
-        (funext fun a => congr_arg (fun f => PMF.map f (poissonBinomial qs))
-          (funext fun c => Nat.add_right_comm a c 1))
+    simp only [List.cons_append, poissonBinomial_cons, ih]
+    pmf_swap with b a c
+    cases b <;> simp only [Bool.false_eq_true, ↓reduceIte, Nat.add_right_comm]
 
 private theorem poissonBinomial_swap (p q : I) (ps : List I) :
     poissonBinomial (p :: q :: ps) = poissonBinomial (q :: p :: ps) := by
-  simp only [poissonBinomial_cons, PMF.map_bind, PMF.map_comp]
-  rw [PMF.bind_comm (coin p) (coin q)]
-  refine congr_arg (PMF.bind (coin q)) (funext fun b₂ =>
-    congr_arg (PMF.bind (coin p)) (funext fun b₁ =>
-      congr_arg (fun f => PMF.map f (poissonBinomial ps)) (funext fun k => ?_)))
-  cases b₁ <;> cases b₂ <;> simp only [Function.comp_apply, Bool.false_eq_true, ↓reduceIte]
+  simp only [poissonBinomial_cons]
+  pmf_swap with b₂ b₁ k
+  cases b₁ <;> cases b₂ <;> rfl
 
 /-- Reordering the trial probabilities does not change `poissonBinomial`. -/
 theorem poissonBinomial_perm {ps qs : List I} (h : ps.Perm qs) :

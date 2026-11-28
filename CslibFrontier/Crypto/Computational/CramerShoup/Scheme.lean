@@ -26,6 +26,7 @@ import CslibFrontier.Probability.StatisticalDistance
 import CslibFrontier.Probability.Uniform.Translate
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.GameHop
+import CslibFrontier.Tactic.PMFSwap
 
 /-!
 # Multiplicative Cramer–Shoup Encryption Scheme and Adaptive Projective-Hash Rejection
@@ -1713,19 +1714,7 @@ theorem advantage_cramerShoupGame3Half_game4_le
   let U := PMF.uniformOfFintype (ZMod (F.order d))
   rw [advantage_bind_comm U U]
   peel_binds δ₂
-  have hcomm (k : ZMod (F.order d) → ZMod (F.order d) → ((Msg × Msg) × AD) × List Bool → Game) :
-      (U.bind fun τ₁ => U.bind fun τ₂ =>
-        runStatelessOracle (F.cramerShoupDHPhase1Reply hasAD H isElem d α δ δ₁ δ₂)
-          (adversary.choose n (F.encodeCramerShoupPublicKey d (F.encode d (α • F.generator d))
-            (F.skNatOfZMod d δ 0 δ₁ 0 δ₂ 0))) (k τ₁ τ₂)) =
-      runStatelessOracle (F.cramerShoupDHPhase1Reply hasAD H isElem d α δ δ₁ δ₂)
-        (adversary.choose n (F.encodeCramerShoupPublicKey d (F.encode d (α • F.generator d))
-          (F.skNatOfZMod d δ 0 δ₁ 0 δ₂ 0))) fun choice =>
-        U.bind fun τ₁ => U.bind fun τ₂ => k τ₁ τ₂ choice := by
-    rw [show (fun τ₁ => U.bind fun τ₂ => _) = _ from
-      funext fun τ₁ => bind_runStatelessOracle_comm _ _ _ (k τ₁)]
-    exact bind_runStatelessOracle_comm _ _ _ _
-  rw [hcomm, hcomm]
+  pmf_hoist [bind_runStatelessOracle_comm] (runStatelessOracle _ _)
   peel_binds choiceOut
   by_cases hvalid : (isElem (d, encodeMsg (d, csChoiceMsg₀ choiceOut.1)) &&
       isElem (d, encodeMsg (d, csChoiceMsg₁ choiceOut.1))) = true
