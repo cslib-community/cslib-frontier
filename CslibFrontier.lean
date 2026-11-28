@@ -8665,6 +8665,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.BGW
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastBaseProg.SliceBuf
 public import CslibFrontier.Probability.Fooling.DecisionTree
 public import CslibFrontier.Foundations.BooleanAnalysis.FourierBitVal
+public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.TableGeneratorList
 public import CslibFrontier.GameTheory.SocialChoice.Ranking
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.Primal.Graph
 public import CslibFrontier.Probability.Product.Event
@@ -9901,6 +9902,7 @@ public import CslibFrontier.Crypto.Protocols.PolynomialCommitment.LigeroBatchIOP
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched.MinBound
 public import CslibFrontier.Foundations.BooleanAnalysis.Bonami
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute.EpochParams
+public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.TableGeneratorListPolyTime
 public import CslibFrontier.DataStructure.Memory.Field
 public import CslibFrontier.Crypto.Negligible.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.EncodedTree
