@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Logics.Propositional.DNF
 public import CslibFrontier.Logics.Propositional.CNF.Compact
 public import CslibFrontier.Logics.Propositional.CNF.Encoding
 public import CslibFrontier.Logics.Propositional.CNF.ExactlyOne
@@ -87,6 +88,30 @@ theorem Literal.computableInPolyTime_negate (enc : V ↪ List Bool) :
     ComputableInPolyTime Std.Sat.Literal.negate
       (encPair enc encBool) (encPair enc encBool) := by
   fun_prop [Std.Sat.Literal.negate]
+
+/-- Change each literal of a clause into its opposite sign. -/
+@[fun_prop]
+theorem Clause.computableInPolyTime_negate (enc : V ↪ List Bool) :
+    ComputableInPolyTime Clause.negate (encClause enc) (encClause enc) :=
+  map (Literal.computableInPolyTime_negate enc)
+
+/-- Change each literal of a term into its opposite sign. -/
+@[fun_prop]
+theorem Term.computableInPolyTime_negate (enc : V ↪ List Bool) :
+    ComputableInPolyTime Term.negate (encClause enc) (encClause enc) :=
+  map (Literal.computableInPolyTime_negate enc)
+
+/-- Convert the negation of a CNF into DNF in polynomial time. -/
+@[fun_prop]
+theorem CNF.computableInPolyTime_negate (enc : V ↪ List Bool) :
+    ComputableInPolyTime CNF.negate (encCNFOver enc) (encCNFOver enc) :=
+  map (Clause.computableInPolyTime_negate enc)
+
+/-- Convert the negation of a DNF into CNF in polynomial time. -/
+@[fun_prop]
+theorem DNF.computableInPolyTime_negate (enc : V ↪ List Bool) :
+    ComputableInPolyTime DNF.negate (encCNFOver enc) (encCNFOver enc) :=
+  map (Term.computableInPolyTime_negate enc)
 
 /-- Construct an implication from literals, with a positive conclusion. -/
 @[fun_prop]

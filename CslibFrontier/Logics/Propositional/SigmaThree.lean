@@ -125,9 +125,6 @@ theorem isPiThree_iff_isSigmaThree_map_negate {k : ℕ} {f : BitString N → Boo
     simp only [Function.comp_def, DNF.eval_negate, List.any_eq_not_all_not, Bool.not_not]
     cases f x <;> cases Gs.all fun G => G.eval x <;> simp
 
-private theorem DNF.negate_negate (G : CNF (Fin N)) : DNF.negate (CNF.negate G) = G := by
-  simp [DNF.negate, CNF.negate, Term.negate, Clause.negate, Function.comp_def]
-
 /-- `Π₃^k(f) = Σ₃^k(¬f)`. -/
 theorem piThreeSize_eq_sigmaThreeSize_not (k : ℕ) (f : BitString N → Bool) :
     piThreeSize k f = sigmaThreeSize k (fun x => !f x) := by
@@ -140,7 +137,7 @@ theorem piThreeSize_eq_sigmaThreeSize_not (k : ℕ) (f : BitString N → Bool) :
       List.length_map _⟩
   · rintro ⟨Fs, hFs, rfl⟩
     refine ⟨Fs.map CNF.negate, (isPiThree_iff_isSigmaThree_map_negate _).mpr ?_, List.length_map _⟩
-    rwa [List.map_map, show DNF.negate ∘ CNF.negate = id from funext DNF.negate_negate,
+    rwa [List.map_map, show DNF.negate ∘ CNF.negate = id from funext CNF.negate_negate,
       List.map_id]
 
 /-- **The finite bound**: for `k ≥ 1` and `ε > 0` there is `C ≥ 0` such that every OR of `t`

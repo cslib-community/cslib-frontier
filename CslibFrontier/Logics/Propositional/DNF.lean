@@ -158,4 +158,24 @@ def CNF.negate (φ : CNF V) : DNF V :=
     simp only [CNF.negate, List.map_cons, DNF.eval_cons, CNF.eval_cons] at ih ⊢
     rw [ih, Clause.eval_negate, Bool.not_and]
 
+/-- Negating a clause and then the resulting term preserves its literals. -/
+@[simp] theorem Clause.negate_negate (c : Clause V) :
+    Term.negate (Clause.negate c) = c := by
+  simp [Clause.negate, Term.negate, List.map_map, Function.comp_def]
+
+/-- Negating a term and then the resulting clause preserves its literals. -/
+@[simp] theorem Term.negate_negate (t : Term V) :
+    Clause.negate (Term.negate t) = t := by
+  simp [Clause.negate, Term.negate, List.map_map, Function.comp_def]
+
+/-- Taking the Boolean dual twice preserves the CNF. -/
+@[simp] theorem CNF.negate_negate (p : CNF V) :
+    DNF.negate (CNF.negate p) = p := by
+  simp [CNF.negate, DNF.negate, List.map_map, Function.comp_def]
+
+/-- Taking the Boolean dual twice preserves the DNF. -/
+@[simp] theorem DNF.negate_negate (p : DNF V) :
+    CNF.negate (DNF.negate p) = p := by
+  simp [CNF.negate, DNF.negate, List.map_map, Function.comp_def]
+
 end Cslib.Logic.PL

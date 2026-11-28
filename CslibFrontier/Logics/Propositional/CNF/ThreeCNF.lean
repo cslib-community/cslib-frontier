@@ -243,4 +243,47 @@ theorem CNF.countUnsat_comp_inl_le_countUnsat_to3CNF (φ : CNF V) (τ : V ⊕ (�
   rw [Clause.eval_relabel] at h
   simp [h] at hx
 
+private theorem splitAux_old (fresh : Nat → Nat × Nat) (j : Nat)
+    (carry : Literal (V ⊕ (Nat × Nat)))
+    (rest : Clause (V ⊕ (Nat × Nat))) (v : V) :
+    Sum.inl v ∈ (Clause.splitAux (Sum.inr ∘ fresh) j carry rest).vars →
+      ∃ b, (Sum.inl v, b) ∈ carry :: rest := by
+  fun_induction Clause.splitAux (Sum.inr ∘ fresh) j carry rest with
+  | case1 j carry a b c rest ih =>
+    rw [CNF.mem_vars]
+    rintro ⟨clause, hc, sign, hm⟩
+    rcases List.mem_cons.mp hc with rfl | hc
+    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
+      rcases hm with e | e | e
+      · exact ⟨sign, List.mem_cons.mpr (Or.inl e)⟩
+      · exact ⟨sign, List.mem_cons.mpr (Or.inr (List.mem_cons.mpr (Or.inl e)))⟩
+      · cases e
+    · obtain ⟨bit, he⟩ := ih (CNF.mem_vars.mpr ⟨clause, hc, sign, hm⟩)
+      rcases List.mem_cons.mp he with h | h
+      · cases h
+      · exact ⟨bit, List.mem_cons_of_mem _ (List.mem_cons_of_mem _ h)⟩
+  | case2 j carry rest hrest =>
+    simp [CNF.mem_vars]
+
+/-- An original variable in the width-three expansion was present in the input formula. -/
+theorem CNF.mem_vars_of_inl_mem_vars_to3CNF (φ : CNF V) (v : V) (hv : Sum.inl v ∈ φ.to3CNF.vars) :
+    v ∈ φ.vars := by
+  obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.mp hv
+  obtain ⟨⟨orig, i⟩, horig, hc⟩ := List.mem_flatMap.mp hc
+  have hsrc : orig ∈ φ := by
+    exact List.mem_of_getElem? (List.mem_zipIdx_iff_getElem?.mp horig)
+  have hsplit : ∃ sign, (Sum.inl v, sign) ∈ orig.relabel (Sum.inl (β := Nat × Nat)) := by
+    cases h : orig.relabel (Sum.inl (β := Nat × Nat)) with
+    | nil =>
+      simp only [h, Clause.split3, List.mem_singleton] at hc
+      subst c
+      simp at hb
+    | cons r rs =>
+      rw [h, Clause.split3] at hc
+      exact splitAux_old (fun j => (i, j)) 0 r rs v (CNF.mem_vars.mpr ⟨c, hc, b, hb⟩)
+  obtain ⟨sign, hsign⟩ := hsplit
+  obtain ⟨lit, hl, he⟩ := List.mem_map.mp hsign
+  have eq : lit.1 = v := Sum.inl.inj (congrArg Prod.fst he)
+  exact CNF.mem_vars.mpr ⟨orig, hsrc, lit.2, by rwa [← eq]⟩
+
 end Cslib.Logic.PL
