@@ -4838,6 +4838,7 @@ public import CslibFrontier.Computability.Automata.Weighted.Hat
 public import CslibFrontier.Foundations.Combinatorics.FewBadRounds
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg.Internal.RebScan
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordWitness.Width
+public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.LowerBound
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Recursion
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Cases
 public import CslibFrontier.Computability.PointerMachine.Randomized
