@@ -82,8 +82,6 @@ cost, and leaves the postcondition of the step.
   predicate.
 * `Cslib.DataStructure.Memory.FramedTriple.iterate_sum`: bounded iteration whose step `k` costs
   `cost k`, for a total of `∑ k ∈ Finset.range n, cost k`.
-* `Cslib.DataStructure.Memory.FramedTriple.iterate_potential`: amortized bounded iteration, each
-  step paying its cost and the change of a potential out of a fixed budget.
 * `Cslib.DataStructure.Memory.FramedTriple.call`, `Cslib.DataStructure.Memory.FramedTriple.call_eq`,
   `Cslib.DataStructure.Memory.FramedTriple.seq`,
   `Cslib.DataStructure.Memory.FramedTriple.call_eq_tail`: calling a sub-program through its triple.
@@ -198,32 +196,6 @@ theorem iterate_sum {δ σ : Type} {body : δ × σ → Prog σ} {safe : ℕ →
     a₀ s ⟨h₀, Modifies.refl S s⟩
   exact ⟨hsafe, framedTriple_iff_realization.mpr
     ⟨hv, by simpa using hc, hm, hpost _ _ hi hm'⟩⟩
-
-/-- **Amortized bounded iteration.** Step `k`, run from `(a, t)`, meets a framed triple of cost
-`cost k a t` that re-establishes the invariant and pays `cost k a t` plus the new potential out of
-the old potential and the budget `B`. The loop then meets its safety predicate, a framed triple of
-cost `Φ 0 a₀ s + B * n`, and the amortized bound with the final potential. -/
-theorem iterate_potential {δ σ : Type} {body : δ × σ → Prog σ}
-    {safe : ℕ → δ × σ → State → Prop} {d : δ} {n B : ℕ} {a₀ : σ} {Q : σ → State → Prop}
-    (Φ cost : ℕ → σ → State → ℕ) (inv : ℕ → σ → State → Prop) (h₀ : inv 0 a₀ s)
-    (hstep : ∀ k < n, ∀ a t, inv k a t → Memory.Modifies S s t →
-      safe w (d, a) t ∧ FramedTriple w t (body (d, a)) (cost k a t) S
-        fun a' t' => inv (k + 1) a' t' ∧ cost k a t + Φ (k + 1) a' t' ≤ Φ k a t + B)
-    (hpost : ∀ a t, inv n a t → Memory.Modifies S s t → Q a t) :
-    iterationSafe body safe w d n a₀ s ∧
-      FramedTriple w s (Realization.iterate body d n a₀) (Φ 0 a₀ s + B * n) S Q ∧
-      memoryCost (Realization.iterate body d n a₀) s +
-          Φ n ((spec 0).clientResult s (Realization.iterate body d n a₀))
-            ((spec 0).clientState s (Realization.iterate body d n a₀)) ≤
-        Φ 0 a₀ s + B * n := by
-  obtain ⟨hsafe, hv, hc, hm, hi, hm'⟩ := iterate_potential_spec body safe w d B n
-    (fun k a t => inv k a t ∧ Memory.Modifies S s t) Φ S
-    (fun k hk a t ⟨hi, hm⟩ => by
-      obtain ⟨hs, hft⟩ := hstep k hk a t hi hm
-      obtain ⟨hv, hc, hm', hi', hle⟩ := framedTriple_iff_realization.mp hft
-      exact ⟨hs, hv, by omega, hm', hi', hm.trans hm'⟩)
-    a₀ s ⟨h₀, Modifies.refl S s⟩
-  exact ⟨hsafe, framedTriple_iff_realization.mpr ⟨hv, by omega, hm, hpost _ _ hi hm'⟩, hc⟩
 
 /-- Allocate a dirty block of `k` cells at a frontier `fr` known by an equation, then continue
 from the enlarged state with the block `⟨fr, k⟩`. Stating the frontier as `fr` avoids rewriting a
