@@ -73,8 +73,8 @@ private theorem eventually_chebyshevFactor_le :
   -- `64 (3 L + 3) ≤ 384 (s + 1) ^ 2 ≤ 2 ^ s`
   have h2 : 64 * (3 * L + 3) ≤ 2 ^ s := by nlinarith [hS s hq'.2.2]
   have h3 : s + q * (8 * s + 10) ≤ L := by nlinarith
-  calc 64 * (3 * L + 3) * (4 * L + 1) ^ (8 * s + 10) ≤ 2 ^ s * (2 ^ q) ^ (8 * s + 10) :=
-        Nat.mul_le_mul h2 (Nat.pow_le_pow_left h1 _)
+  calc 64 * (3 * L + 3) * (4 * L + 1) ^ (8 * s + 10) ≤ 2 ^ s * (2 ^ q) ^ (8 * s + 10) := by
+        gcongr
     _ = 2 ^ (s + q * (8 * s + 10)) := by rw [← pow_mul, ← pow_add]
     _ ≤ 2 ^ L := Nat.pow_le_pow_right two_pos h3
 
@@ -153,7 +153,7 @@ private theorem four_mul_numBlocks_le_of_prod_le {N : ℕ}
   have h8 : 8 * (ℓ + 1) * r ^ 2 ≤ N := by
     refine Nat.le_of_mul_le_mul_right ?_ (by positivity : 0 < P ^ 2)
     calc 8 * (ℓ + 1) * r ^ 2 * P ^ 2 = 8 * (ℓ + 1) * (r * P) ^ 2 := by ring
-      _ ≤ 8 * (ℓ + 1) * N ^ 2 := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hrP 2)
+      _ ≤ 8 * (ℓ + 1) * N ^ 2 := by gcongr
       _ = 8 * (ℓ + 1) * N * N := by ring
       _ ≤ P ^ 2 * N := Nat.mul_le_mul_right _ hNP
       _ = N * P ^ 2 := by ring

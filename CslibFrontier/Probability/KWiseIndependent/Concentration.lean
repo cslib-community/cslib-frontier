@@ -270,7 +270,7 @@ theorem expect_sum_sub_expect_pow_le {ι X Y : Type*} [Fintype ι] [Fintype Y] [
     rcases mem_Icc.mp hr with ⟨hr1, hrm⟩
     have hr_pow : r ^ (2 * m) ≤ 3 ^ r * r.factorial * m ^ (2 * m - r) := by
       rw [← Nat.add_sub_cancel' (by omega : r ≤ 2 * m), pow_add, Nat.add_sub_cancel_left]
-      exact Nat.mul_le_mul (Nat.pow_self_le_three_pow_mul_factorial r) (Nat.pow_le_pow_left hrm _)
+      gcongr; exact Nat.pow_self_le_three_pow_mul_factorial r
     have hdiv : ∑ t ∈ {t ∈ piFinset (fun _ : Fin (2 * m) => R) | #(univ.image t) = r},
           ∏ z ∈ univ.image t, p z ≤
         (3 : ℝ) ^ r * (m : ℝ) ^ (2 * m - r) * μ ^ r := by

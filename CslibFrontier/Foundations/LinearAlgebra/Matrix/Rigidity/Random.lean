@@ -493,10 +493,9 @@ theorem one_sub_lt_card_rigidity_eq_mul_sub_div (r : ℕ) :
     have hV : (∑ j ∈ range s, (M * N).choose j * (q - 1) ^ j) ≤
         2 ^ (M * N) * q ^ (s - 1) := by
       calc (∑ j ∈ range s, (M * N).choose j * (q - 1) ^ j)
-          ≤ ∑ j ∈ range s, (M * N).choose j * q ^ (s - 1) :=
-            sum_le_sum fun j hj => Nat.mul_le_mul_left _
-              ((Nat.pow_le_pow_left (Nat.sub_le q 1) j).trans
-                (Nat.pow_le_pow_right (by omega) (Nat.le_sub_one_of_lt (mem_range.mp hj))))
+          ≤ ∑ j ∈ range s, (M * N).choose j * q ^ (s - 1) := by
+            gcongr with j hj
+            all_goals first | exact Nat.le_sub_one_of_lt (mem_range.mp hj) | omega
         _ ≤ (∑ j ∈ range (M * N + 1), (M * N).choose j) * q ^ (s - 1) := by
             rw [← sum_mul]
             gcongr

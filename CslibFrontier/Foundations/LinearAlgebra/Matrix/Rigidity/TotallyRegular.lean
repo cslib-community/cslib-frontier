@@ -243,7 +243,7 @@ theorem IsTotallyRegular.le_rigidity_of_le_two_pow {A : Matrix n n K} (hA : A.Is
           rw [show (4 : ℝ) * (r + 1) = 2 * (2 * (r + 1)) by ring, ← div_div]; ring
       _ ≤ N * (N - r : ℕ) / (2 * (r + 1)) * Real.logb 2 (N / r) := by gcongr
   · calc 2 ^ r = 1 * 2 ^ r := (one_mul _).symm
-      _ ≤ r * 2 ^ (r + 1) := Nat.mul_le_mul hr0 (Nat.pow_le_pow_right two_pos (Nat.le_succ r))
+      _ ≤ r * 2 ^ (r + 1) := by gcongr <;> omega
 
 variable {F : Type*} [Field F]
 

@@ -148,11 +148,10 @@ private theorem card_filter_card_sdiff_le_real (S : Finset U) (j : ℕ) :
     (#{x ∈ S.powerset | #(S \ x) ≤ j} : ℝ) ≤ 2 ^ #S * (2 ^ j * (3 / 4) ^ #S) := by
   have hcount : 2 ^ #S * #{x ∈ S.powerset | #(S \ x) ≤ j} ≤ 2 ^ j * 3 ^ #S :=
     calc 2 ^ #S * #{x ∈ S.powerset | #(S \ x) ≤ j}
-        ≤ 2 ^ j * 2 ^ (#S - j) * #{x ∈ S.powerset | #(S \ x) ≤ j} :=
-          Nat.mul_le_mul_right _ (pow_add 2 j (#S - j) ▸ Nat.pow_le_pow_right two_pos (by omega))
-      _ ≤ 2 ^ j * 3 ^ #S :=
-          (mul_assoc _ _ _).trans_le
-            (Nat.mul_le_mul_left _ (two_pow_mul_card_filter_card_sdiff_le S j))
+        ≤ 2 ^ j * (2 ^ (#S - j) * #{x ∈ S.powerset | #(S \ x) ≤ j}) := by
+          rw [← mul_assoc, ← pow_add]
+          gcongr; omega
+      _ ≤ 2 ^ j * 3 ^ #S := Nat.mul_le_mul_left _ (two_pow_mul_card_filter_card_sdiff_le S j)
   have hcountR : (2 : ℝ) ^ #S * #{x ∈ S.powerset | #(S \ x) ≤ j} ≤ 2 ^ j * 3 ^ #S := by
     exact_mod_cast hcount
   have h34 : (2 : ℝ) ^ #S * (2 ^ #S * (2 ^ j * (3 / 4) ^ #S)) = 2 ^ j * 3 ^ #S := by

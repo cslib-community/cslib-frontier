@@ -233,6 +233,6 @@ theorem card_perfectHashFamily_le (n r : ℕ) : #(perfectHashFamily n r) ≤ n *
     _ ≤ n * (2 ^ 25) ^ (r - 1) := card_splitHash_mul_le (by norm_num) r n (by omega)
     _ ≤ n * 2 ^ (25 * r) := by
       rw [← pow_mul]
-      exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right two_pos (by omega))
+      gcongr; omega
 
 end Cslib
