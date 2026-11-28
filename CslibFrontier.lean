@@ -503,6 +503,7 @@ public import CslibFrontier.Computability.MCSP.MultiNPHard.WindowCount
 public import CslibFrontier.Computability.Probabilistic.Oracle
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.EmptyChild
 public import CslibFrontier.Foundations.Data.Nat.ResidueSum
+public import CslibFrontier.Algorithms.Lean.Query.Select.SecondMin.Spec
 public import CslibFrontier.Algorithms.ShortestPaths.FloydWarshall
 public import CslibFrontier.Computability.PolyTime.GaloisRingUnits
 public import CslibFrontier.Computability.TreeEval.Instance
@@ -2132,6 +2133,7 @@ public import CslibFrontier.Probability.PairwiseIndependentHash.RetentionChannel
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.BoxRecordWitness.Record
 public import CslibFrontier.Foundations.Analysis.Convex.FirstOrder
 public import CslibFrontier.Init
+public import CslibFrontier.Algorithms.Lean.Query.Bounds.DistinctInputs
 public import CslibFrontier.Computability.PCP.TwoProverGame.EntangledRepetition
 public import CslibFrontier.Algorithms.WordRAM.DFS
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Nondeterministic
@@ -4045,6 +4047,7 @@ public import CslibFrontier.Logics.Propositional.CSP.Occurrence
 public import CslibFrontier.Logics.FirstOrder.Encoding
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Expansion
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.TailSlabOps.SlotPush
+public import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.Adversary
 public import CslibFrontier.Computability.PolyTime.CSP.BoundaryFusion
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.SoftHeap.Standard
 public import CslibFrontier.GameTheory.Contract.CombinatorialAgency
@@ -4597,6 +4600,7 @@ public import CslibFrontier.Foundations.Combinatorics.WeightedCut.MAOrdering
 public import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.CountingBounds
 public import CslibFrontier.Algorithms.WordRAM.DFS.Kosaraju
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.EasySearch
+public import CslibFrontier.Algorithms.Lean.Query.Select.SecondMin.Certificate
 public import CslibFrontier.Probability.HashFamily
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBox.Width
 public import CslibFrontier.DataStructure.DisjointSet.Spec
@@ -4626,6 +4630,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Cuts.Law
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.GLAmp
 public import CslibFrontier.Computability.Complexity.Problems.SelfClosingDoor.RegisterCompiler
 public import CslibFrontier.Computability.Circuit.Frontier.Closure
+public import CslibFrontier.Algorithms.Lean.Query.Select.SecondMin.LowerBound
 public import CslibFrontier.Foundations.Geometry.Polygonal.PlateauShear
 public import CslibFrontier.Computability.PolyTime.BitString.TannerSearch
 public import CslibFrontier.MachineLearning.OnlineLearning.ConstantSum
@@ -7075,6 +7080,7 @@ public import CslibFrontier.Foundations.Data.Nat.Bitwise.PackedCount
 public import CslibFrontier.Computability.Circuit.Boolean.AltFormula
 public import CslibFrontier.Foundations.Combinatorics.Bregman
 public import CslibFrontier.Computability.PCP.Approximation.SetCover.LundYannakakis
+public import CslibFrontier.Algorithms.Lean.Query.Select.SecondMin.Tournament
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.State
 public import CslibFrontier.Foundations.Data.MvPolynomial.DegreePiecePolynomial
 public import CslibFrontier.Crypto.Computational.GMW.Sequential
@@ -9993,6 +9999,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.ROABP
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Record
 public import CslibFrontier.Computability.LogSpaceDerandomization.NormalizedAtomRows.ActualMoment
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Finish
+public import CslibFrontier.Algorithms.Lean.Query.Select.SecondMin.Trace
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Amplify
 public import CslibFrontier.DataStructure.BPlusTree.Insert
 public import CslibFrontier.Computability.Communication.Lifting.Volume

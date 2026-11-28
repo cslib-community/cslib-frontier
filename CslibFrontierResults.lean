@@ -91,6 +91,7 @@ import CslibFrontierResults.Entries.NetworkUtilityMax
 import CslibFrontierResults.Entries.SamplableNotComputable
 import CslibFrontierResults.Entries.DHKEM
 import CslibFrontierResults.Entries.ACC0Simulation
+import CslibFrontierResults.Entries.SecondSmallest
 import CslibFrontierResults.Entries.KellyMarketClearing
 import CslibFrontierResults.Entries.SelfClosingDoor
 import CslibFrontierResults.Entries.EvolutionaryRoutingDynamics
