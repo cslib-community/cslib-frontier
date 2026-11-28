@@ -36,10 +36,15 @@ the squared bound `(∫ y)² ≤ ‖p‖₁² W E_T` is a rational inequality.
   pulse straight through, and its window output also contains `D p`, which this bound ignores.
 * The output is the zero-state response `y t = ∫ s, h⁺ (t - s) * p s`, with the causal kernel
   `h⁺ = (Set.Ici 0).indicator h`: the state is zero before the pulse arrives, and there are no
-  other inputs. For an input continuous on `[0, ∞)`, this is the output of every solution of
-  the state equation with `x 0 = 0`, by `LTISystem.IsSolutionOn.output_eq_integral_indicator`;
-  for a pulse with jumps, such as a rectangular pulse, it is the usual (Carathéodory) zero-state
-  response, which the ODE layer does not formalize as a solution.
+  other inputs. The ODE layer connects this to solutions of the state equation only for an
+  input that starts at time `0`: if `S.D = 0`, `u` is continuous on `[0, ∞)`, and `x` solves the
+  state equation on `[0, ∞)` with `x 0 = 0`, then for `t ≥ 0` the output `C x t` is this
+  convolution with `p` the causal extension `(Set.Ici 0).indicator u` of the input
+  (`LTISystem.IsSolutionOn.output_eq_integral_indicator`). The bound below allows any `p`, but
+  for a `p` that is nonzero before time `0` the convolution also contains the response to that
+  history, which a solution started from `x 0 = 0` does not see. For a pulse with jumps, such
+  as a rectangular pulse, the convolution is the usual (Carathéodory) zero-state response, which
+  the ODE layer does not formalize as a solution.
 * `p` is integrable and `p s = 0` for `s > a`. No sign, smoothness or bounded support to the
   left is required.
 * The model is a mathematical idealization: noise, nonlinearity, and coupling not represented
@@ -55,20 +60,11 @@ namespace LTISystem
 variable {n : Type*} [Fintype n] [DecidableEq n] {S : LTISystem n (Fin 1) (Fin 1)}
 
 /-- The causal scalar kernel `(Set.Ici 0).indicator h` of a SISO system is a.e. strongly
-measurable, since `h` is continuous on `[0, ∞)`. -/
+measurable, since `h` is continuous (`LTISystem.continuous_responseKernel_apply`). -/
 private theorem aestronglyMeasurable_indicator_responseKernel :
-    AEStronglyMeasurable (fun t => (Ici 0).indicator (fun τ => S.responseKernel τ 0 0) t) := by
-  have he : ∀ t : ℝ, S.responseKernel t 0 0 =
-      (S.C *ᵥ (exp (t • S.A) *ᵥ (S.B *ᵥ Pi.single 0 1))) 0 := fun t => by
-    rw [mulVec_mulVec, mulVec_mulVec, ← responseKernel_eq, mulVec_single_one, col_apply]
-  have hx : ContinuousOn (fun t : ℝ => exp (t • S.A) *ᵥ (S.B *ᵥ Pi.single 0 1)) (Ici 0) :=
-    fun (t : ℝ) ht => (Matrix.hasDerivWithinAt_exp_smul_mulVec S.A _ t ht).continuousWithinAt
-  have hc : ContinuousOn (fun t : ℝ => S.responseKernel t 0 0) (Ici 0) :=
-    ((continuous_apply 0).comp_continuousOn
-      ((continuous_const.matrix_mulVec continuous_id).comp_continuousOn hx)).congr
-      fun t _ => he t
-  exact (aestronglyMeasurable_indicator_iff measurableSet_Ici).2
-    (hc.aestronglyMeasurable measurableSet_Ici)
+    AEStronglyMeasurable (fun t => (Ici 0).indicator (fun τ => S.responseKernel τ 0 0) t) :=
+  (aestronglyMeasurable_indicator_iff measurableSet_Ici).2
+    (S.continuous_responseKernel_apply 0 0).aestronglyMeasurable.restrict
 
 /-- **Inter-pulse contamination bound.** Let `S` be a single-input, single-output system whose
 response kernel has finite tail energy `∫_T^∞ ‖h t‖_F² ≤ E` for some `T ≥ 0` (for a SISO system
@@ -98,9 +94,8 @@ theorem window_integral_bounds_of_tail {p : ℝ → ℝ} {a T W E : ℝ} (hT : 0
   have hg2 := htail.congr_fun hk.symm measurableSet_Ioi
   have hE' : ∫ t in Ioi T, (Ici 0).indicator (fun τ => S.responseKernel τ 0 0) t ^ 2 ≤ E := by
     rwa [setIntegral_congr_fun measurableSet_Ioi hk]
-  have hm := aestronglyMeasurable_indicator_responseKernel (S := S)
-  exact ⟨(intervalIntegrable_and_integral_abs_le_of_tail hm hg2 hE' hp hpa hW).1,
-    (intervalIntegrable_and_integral_abs_le_of_tail hm hg2 hE' hp hpa hW).2,
-    abs_integral_le_of_tail hm hg2 hE' hp hpa hW⟩
+  have h := intervalIntegrable_and_integral_abs_le_of_tail
+    (aestronglyMeasurable_indicator_responseKernel (S := S)) hg2 hE' hp hpa hW
+  exact ⟨h.1, h.2, (intervalIntegral.abs_integral_le_integral_abs (by linarith)).trans h.2⟩
 
 end LTISystem

@@ -20,16 +20,16 @@ Let `g p : ℝ → ℝ`, with `p` integrable and `p s = 0` for `s > a`, and put
 `y t = ∫ s, g (t - s) * p s` (Mathlib's convolution `p ⋆ g` for the multiplication pairing). For
 `t` in a window `[a + T, a + T + W]`, only the values of `g` on `(T, ∞)` enter `y t`, since
 `t - s > T` whenever `s ≤ a` and `t > a + T`. If `g` is square integrable on `(T, ∞)` with
-`∫_T^∞ g² ≤ E`, then (`MeasureTheory.intervalIntegrable_and_integral_abs_le_of_tail`,
-`MeasureTheory.abs_integral_le_of_tail`)
+`∫_T^∞ g² ≤ E`, then (`MeasureTheory.intervalIntegrable_and_integral_abs_le_of_tail`)
 
-`|∫_{a+T}^{a+T+W} y| ≤ ∫_{a+T}^{a+T+W} |y| ≤ ‖p‖₁ √(W E)`,
+`∫_{a+T}^{a+T+W} |y| ≤ ‖p‖₁ √(W E)`,
 
-and `y` is integrable on the window. The proof is Tonelli's theorem, which exchanges the window
-integral with the integral over `s`, followed by the Cauchy–Schwarz inequality on each shifted
-window `[a + T - s, a + T + W - s] ⊆ (T, ∞)`, of length `W`:
-`∫_{window - s} |g| ≤ √W (∫_T^∞ g²)^{1/2}`. No integrability of `g` itself is assumed, so `g` may
-be a kernel that is only square integrable away from the origin.
+and `y` is integrable on the window; the signed bound `|∫_{a+T}^{a+T+W} y| ≤ ‖p‖₁ √(W E)` follows
+by `intervalIntegral.abs_integral_le_integral_abs`. The proof is Tonelli's theorem, which
+exchanges the window integral with the integral over `s`, followed by the Cauchy–Schwarz
+inequality on each shifted window `[a + T - s, a + T + W - s] ⊆ (T, ∞)`, of length `W`:
+`∫_{window - s} |g| ≤ √W (∫_T^∞ g²)^{1/2}`. No integrability of `g` itself is assumed, so `g`
+may be a kernel that is only square integrable away from the origin.
 
 The intended reading is a causal linear filter with impulse response `g` (zero on `(-∞, 0)`),
 driven by an input `p` that ends at time `a`: the bound controls how much of the input still
@@ -147,15 +147,5 @@ theorem intervalIntegrable_and_integral_abs_le_of_tail (hg : AEStronglyMeasurabl
   rw [hn]
   exact ENNReal.toReal_le_of_le_ofReal
     (mul_nonneg (integral_nonneg fun _ => abs_nonneg _) (Real.sqrt_nonneg _)) hlin
-
-/-- **Window bound for a convolution with a past-supported input, signed form.** Under the
-hypotheses of `MeasureTheory.intervalIntegrable_and_integral_abs_le_of_tail`,
-`|∫_{a+T}^{a+T+W} y| ≤ ‖p‖₁ √(W E)` for `y t = ∫ s, g (t - s) * p s`. -/
-theorem abs_integral_le_of_tail (hg : AEStronglyMeasurable g)
-    (hg2 : IntegrableOn (fun t => g t ^ 2) (Ioi T)) (hE : ∫ t in Ioi T, g t ^ 2 ≤ E)
-    (hp : Integrable p) (hpa : ∀ s, a < s → p s = 0) (hW : 0 ≤ W) :
-    |∫ t in (a + T)..(a + T + W), ∫ s, g (t - s) * p s| ≤ (∫ s, |p s|) * √(W * E) :=
-  (intervalIntegral.abs_integral_le_integral_abs (by linarith)).trans
-    (intervalIntegrable_and_integral_abs_le_of_tail hg hg2 hE hp hpa hW).2
 
 end MeasureTheory

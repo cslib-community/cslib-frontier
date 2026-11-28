@@ -93,6 +93,7 @@ input does not produce a system of this form.
   with initial state, feedthrough and convolution terms, on `[0, T]`, resp. `[0, ∞)`.
 * `LTISystem.IsSolutionOn.output_eq_integral_indicator`: for `D = 0` and zero initial state, the
   output is the convolution over `ℝ` of the causal kernel with the causal input.
+* `LTISystem.continuous_responseKernel_apply`: every entry of `h` is continuous on `ℝ`.
 * `LTISystem.responseKernel_mulVec_eq`: the response of the unforced system from the state
   `B *ᵥ v` is `h t *ᵥ v`.
 * `LTISystem.responseKernel_eq_of_hasDerivWithinAt`: certification of a closed form of `h`.
@@ -109,6 +110,19 @@ input does not produce a system of this form.
 public section
 
 open Set NormedSpace Matrix MeasureTheory
+
+/-- The entries of the real flow `t ↦ exp (t • A)` are continuous in time, for all real `t`. -/
+theorem Matrix.continuous_exp_smul_apply {n : Type*} [Fintype n] [DecidableEq n]
+    (A : Matrix n n ℝ) (i j : n) : Continuous fun t : ℝ => exp (t • A) i j := by
+  have hc : Continuous fun t : ℝ => exp (t • toEuclideanCLM (𝕜 := ℝ) A) :=
+    (differentiable_exp_smul_const ℝ (toEuclideanCLM (𝕜 := ℝ) A)).continuous
+  have e : (fun t : ℝ => exp (t • A) i j) = fun t =>
+      (exp (t • toEuclideanCLM (𝕜 := ℝ) A) (WithLp.toLp 2 (Pi.single j 1))).ofLp i := by
+    funext t
+    rw [ofLp_exp_smul_toEuclideanCLM_apply, WithLp.ofLp_toLp, mulVec_single_one]
+    rfl
+  rw [e]
+  exact (continuous_apply i).comp ((PiLp.continuous_ofLp 2 _).comp (hc.clm_apply continuous_const))
 
 /-- A finite-dimensional real continuous-time linear time-invariant state-space system
 `ẋ = A x + B u`, `y = C x + D u`, with state index `n`, input index `m` and output index `p`. -/
@@ -140,6 +154,13 @@ theorem responseKernel_eq (t : ℝ) : S.responseKernel t = S.C * exp (t • S.A)
 @[simp]
 theorem responseKernel_zero : S.responseKernel 0 = S.C * S.B := by
   simp [responseKernel_eq]
+
+/-- Every entry of the response kernel is continuous in time, for all real `t`. -/
+theorem continuous_responseKernel_apply (i : p) (j : m) :
+    Continuous fun t => S.responseKernel t i j := by
+  simp_rw [responseKernel_eq, Matrix.mul_apply]
+  exact continuous_finsetSum _ fun l _ => (continuous_finsetSum _ fun k _ =>
+    continuous_const.mul (Matrix.continuous_exp_smul_apply S.A k l)).mul continuous_const
 
 variable {S}
 
