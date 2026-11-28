@@ -31,8 +31,6 @@ needs beyond the primitive ones of `Cslib.DataStructure.Memory.TripleFrame`:
   `FramedTriple.seq` continues at the concrete state and result that the sub-program reaches, as
   safety predicates that name intermediate states require.
 * `FramedTriple.ite_max` and `FramedTriple.dite_max` combine branch costs by `max`.
-* `framedTriple_iff_frontier_eq` relates a framed triple whose postcondition keeps the frontier to
-  the conjunction (history, cost, frontier, frame, postcondition) of older specifications.
 
 The tactic `framed_triple` walks a `do` block with these rules. It synthesizes the cost and compares
 it with the stated bound at the end; it applies a primitive rule for each read, write, allocation
@@ -87,8 +85,6 @@ cost, and leaves the postcondition of the step.
 * `Cslib.DataStructure.Memory.FramedTriple.ite_max`,
   `Cslib.DataStructure.Memory.FramedTriple.dite_max`: conditionals with branch costs combined by
   `max`.
-* `Cslib.WordRAM.Realization.framedTriple_iff_frontier_eq`: framed triples that keep the frontier
-  as frontier-and-frame conjunctions.
 
 ## Main definitions
 
@@ -170,31 +166,6 @@ theorem iterate {δ σ : Type} {body : δ × σ → Prog σ} {safe : ℕ → δ 
   exact ⟨hsafe, h.mono le_rfl fun a t ⟨hi, hm⟩ => hpost a t hi hm⟩
 
 end Cslib.DataStructure.Memory.FramedTriple
-
-namespace Cslib.WordRAM.Realization
-
-open Cslib.DataStructure
-
-/-- A framed triple whose postcondition keeps the frontier is the conjunction of an admissible
-history, a cost bound, an unchanged frontier, a frame over every cell outside `{x | mod x}` and
-the postcondition, read through the realization interpreter. -/
-theorem framedTriple_iff_frontier_eq {α : Type} {w : ℕ} {s : Memory.State} {p : Memory.Prog α}
-    {c : ℕ} {mod : ℕ → Prop} {Q : α → Memory.State → Prop} :
-    Memory.FramedTriple w s p c {x | mod x} (fun a t => t.frontier = s.frontier ∧ Q a t) ↔
-      (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s p) ∧
-      memoryCost p s ≤ c ∧ ((Memory.spec 0).clientState s p).frontier = s.frontier ∧
-      (∀ x, ¬mod x → ((Memory.spec 0).clientState s p).mem x = s.mem x) ∧
-      Q ((Memory.spec 0).clientResult s p) ((Memory.spec 0).clientState s p) := by
-  rw [framedTriple_iff_realization]
-  refine ⟨fun ⟨hv, hc, hm, hfr, hq⟩ => ⟨hv, hc, hfr, fun x hx => ?_, hq⟩,
-    fun ⟨hv, hc, hfr, hx, hq⟩ => ⟨hv, hc, ⟨hfr.ge, fun x _ h => hx x h⟩, hfr, hq⟩⟩
-  by_cases hlt : x < s.frontier
-  · exact hm.2 x hlt hx
-  · rw [← clientState_width w]
-    exact Memory.mem_clientState_of_frontier_le s p hv
-      (by rw [clientState_width w, hfr]; omega)
-
-end Cslib.WordRAM.Realization
 
 public meta section
 
@@ -304,8 +275,9 @@ author in the order of the program. A sub-program call is taken through a triple
 local context; a call whose continuation needs the sub-program's postcondition at an arbitrary
 result is composed with `FramedTriple.call` by hand. -/
 macro (name := framedTriple) "framed_triple" : tactic => `(tactic|
-  (eapply Cslib.DataStructure.Memory.FramedTriple.mono (hQ := fun _ _ => id)
-   on_goal 1 => (try dsimp only); repeat' framed_triple_step
-   all_goals try first | omega | trivial))
+  focus
+    eapply Cslib.DataStructure.Memory.FramedTriple.mono (hQ := fun _ _ => id)
+    on_goal 1 => (try dsimp only); repeat' framed_triple_step
+    all_goals try first | omega | trivial)
 
 end Cslib.WordRAM.Realization.FramedLoop
