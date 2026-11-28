@@ -12,6 +12,7 @@ public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 public import Mathlib.Data.Nat.ModEq
 import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
+import Mathlib.Algebra.Order.Ring.GeomSum
 
 /-!
 # Dividing repeatedly by a power and quotient-remainder arithmetic
@@ -22,6 +23,7 @@ and exact quotient identities for division by `m` with remainder strictly below 
 ## Main results
 
 * `Nat.le_div_pow_of_mul_pow_le`: lower bound on `n / b ^ j` when `a * b ^ d ≤ n` and `j ≤ d`.
+* `Nat.sum_range_le_of_pow_mul_le`: a geometric bound for nonnegative integer terms.
 * `Nat.mul_div_pow_succ_le`: `b * (n / b ^ (j + 1)) ≤ n / b ^ j`.
 * `Nat.mul_div_le_mul_of_le_mul`: a bound `c ≤ L * d` gives `c * (v / d) ≤ L * v`.
 * `Nat.mul_add_div_of_lt`, `Nat.add_mul_div_of_lt`: dividing `k * m + i` or `i + k * m` by `m`
@@ -51,6 +53,19 @@ theorem le_div_pow_of_mul_pow_le {a b d j n : ℕ} (hb : 0 < b) (hj : j ≤ d) (
     a ≤ n / b ^ j := by
   rw [Nat.le_div_iff_mul_le (Nat.pow_pos hb)]
   exact Nat.le_trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hb hj)) h
+
+/-- When `b ^ (i + d) * f i ≤ c` on the range, compare the sum with the geometric series
+starting at `c / b ^ d`. -/
+theorem sum_range_le_of_pow_mul_le {b c n d : ℕ} {f : ℕ → ℕ} (hb : 2 ≤ b)
+    (h : ∀ i < n, b ^ (i + d) * f i ≤ c) :
+    ∑ i ∈ Finset.range n, f i ≤ (c / b ^ d) * b / (b - 1) := by
+  calc
+    _ ≤ ∑ i ∈ Finset.range n, c / b ^ d / b ^ i := by
+      refine Finset.sum_le_sum fun i hi => ?_
+      rw [Nat.div_div_eq_div_mul, mul_comm (b ^ d), ← pow_add,
+        Nat.le_div_iff_mul_le (Nat.pow_pos (by omega)), mul_comm (f i)]
+      exact h i (Finset.mem_range.mp hi)
+    _ ≤ _ := Nat.geom_sum_le hb _ _
 
 /-- Dividing by one more power of `b`: `b (n / b ^ (j + 1)) ≤ n / b ^ j`. -/
 theorem mul_div_pow_succ_le (n b j : ℕ) : b * (n / b ^ (j + 1)) ≤ n / b ^ j := by

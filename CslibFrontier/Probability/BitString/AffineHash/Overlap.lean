@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Probability.BitString.AffineHash.Word
 import CslibFrontier.Foundations.Data.BitString.Basic
 import CslibFrontier.Foundations.Data.BitString.WordCount
+import CslibFrontier.Foundations.Data.Nat.Div
 import Mathlib.Algebra.Order.Ring.GeomSum
 import Mathlib.Tactic.Linarith
 
@@ -131,20 +132,6 @@ private theorem card_commonHashHits_zero (S T : Finset (BitString n)) (hs : S.No
   rw [hf, card_univ, ← Fintype.card_congr (affineSeedEquiv 0 n), BitString.card]
   simp
 
-/-- Summing integer counts whose upper bounds halve at each successive level. -/
-private theorem sum_dyadic_tail (m A : ℕ) (f : ℕ → ℕ)
-    (hf : ∀ i < m, 2 ^ i * f i ≤ A) : ∑ i ∈ range m, f i ≤ 2 * A := by
-  induction m generalizing f with
-  | zero => simp
-  | succ m ih =>
-    have h0 := hf 0 (Nat.zero_lt_succ _)
-    have hrest := ih (fun i => 2 * f (i + 1)) fun i hi => by
-      simpa only [pow_succ, mul_assoc] using hf (i + 1) (Nat.succ_lt_succ hi)
-    rw [← mul_sum] at hrest
-    rw [sum_range_succ']
-    simp only [pow_zero, one_mul] at h0
-    omega
-
 private theorem overlap_upper (n a B : ℕ) (h : ℕ → ℕ) (ha : a ≠ 0) (han : a ≤ 2 ^ n)
     (hB : ∀ j ≤ n, h j ≤ B) (hsmall : ∀ j ≤ n, h j * 2 ^ j ≤ a * B) :
     ∑ j ∈ range (n + 1), 2 ^ j * h j ^ 2 ≤ 4 * B ^ 2 * a := by
@@ -165,8 +152,9 @@ private theorem overlap_upper (n a B : ℕ) (h : ℕ → ℕ) (ha : a ≠ 0) (ha
     _ ≤ _ := by rw [pow_succ]; nlinarith [Nat.mul_le_mul_right (B ^ 2) hl]
   -- Above that level, squaring the hit probability leaves a summable geometric tail.
   have hhigh : ∑ i ∈ range (n - k), f (k + 1 + i) ≤ 2 * (a * B ^ 2) := by
-    apply sum_dyadic_tail
-    intro i hi
+    refine (Nat.sum_range_le_of_pow_mul_le (b := 2) (c := a * B ^ 2) (d := 0)
+      (by decide) fun i hi => ?_).trans_eq (by simp [mul_comm])
+    simp only [Nat.add_zero]
     let j := k + 1 + i
     have hj : j ≤ n := by dsimp [j]; omega
     have hsq := Nat.pow_le_pow_left (hsmall j hj) 2

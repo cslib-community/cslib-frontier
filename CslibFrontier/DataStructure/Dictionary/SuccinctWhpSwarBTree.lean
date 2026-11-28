@@ -13,6 +13,7 @@ public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 public import Mathlib.Data.Finset.Lattice.Fold
 public import Mathlib.Data.Fintype.Basic
 import Mathlib.Algebra.BigOperators.Ring.Finset
+import Mathlib.Algebra.Ring.GeomSum
 import Mathlib.Data.Nat.Bitwise
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -270,20 +271,9 @@ theorem wordUpdateAt_lt {W j m v word : ℕ} (hj : j < m) (hv : v < 2 ^ W)
 
 theorem swarOnes_eq_sum {W : ℕ} (hW : 1 ≤ W) (n : ℕ) :
     swarOnes W n = ∑ j ∈ range n, 2 ^ (j * W) := by
-  have hpos : 0 < 2 ^ W - 1 := Nat.sub_pos_of_lt (Nat.one_lt_two_pow (by omega))
-  have hgeom (k : ℕ) : (∑ j ∈ range k, 2 ^ (j * W)) * (2 ^ W - 1) = 2 ^ (k * W) - 1 := by
-    induction k with
-    | zero => simp
-    | succ k ih =>
-      rw [sum_range_succ, Nat.add_mul, ih]
-      have h1 : 1 ≤ 2 ^ (k * W) := Nat.one_le_two_pow
-      have h2 : 2 ^ (k * W) * (2 ^ W - 1) = 2 ^ ((k + 1) * W) - 2 ^ (k * W) := by
-        rw [Nat.mul_sub, mul_one, ← Nat.pow_add, Nat.add_mul, one_mul]
-      have h3 : 2 ^ (k * W) ≤ 2 ^ ((k + 1) * W) :=
-        Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right W (Nat.le_succ k))
-      omega
   unfold swarOnes
-  rw [← hgeom n, Nat.mul_div_cancel _ hpos]
+  simp_rw [pow_mul']
+  exact (Nat.geomSum_eq (Nat.one_lt_two_pow (by omega : W ≠ 0)) n).symm
 
 private theorem ltMask_eq_sum (fpBits m q keysWord : ℕ)
     (hq : q < 2 ^ fpBits) (hkw : keysWord < 2 ^ (m * (fpBits + 2)))

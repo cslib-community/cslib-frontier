@@ -13,6 +13,7 @@ public import CslibFrontier.Algorithms.Lean.Query.Submodular.ValueQuery
 public import CslibFrontier.Algorithms.Lean.Query.SumQuery
 public import CslibFrontier.Algorithms.Lean.Submodular.MatroidGreedy
 public import Cslib.Algorithms.Lean.Query.Bounds
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import CslibFrontier.Foundations.Data.List.EraseDups
 import Mathlib.Algebra.BigOperators.Intervals
 import Mathlib.Combinatorics.Matroid.Minor.Restrict
@@ -335,9 +336,9 @@ theorem two_mul_countInr_submodularMatroidGreedyQuery_le (xs : List α) :
   have hmono : ∑ t ∈ Finset.range (G.card + 1), (n - t) ≤ ∑ t ∈ Finset.range (n + 1), t :=
     (Finset.sum_le_sum_of_subset (Finset.range_mono (Nat.succ_le_succ hG))).trans_eq
       (by simpa using Finset.sum_range_reflect id (n + 1))
-  have hgauss := Finset.sum_range_id_mul_two (n + 1)
-  simp only [Nat.add_sub_cancel, Nat.mul_comm _ n] at hgauss
-  omega
+  exact (Nat.mul_le_mul_left 2 hmono).trans_eq (by
+    rw [Finset.sum_range_succ', Nat.add_zero]
+    exact Finset.two_mul_sum_range_natCast_succ (R := ℕ) n)
 
 /-- At most `n (n + 1) / 2` value queries, `n = xs.toFinset.card`, stated without division. -/
 theorem two_mul_countInl_submodularMatroidGreedyQuery_le (xs : List α) :

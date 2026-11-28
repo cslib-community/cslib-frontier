@@ -387,13 +387,6 @@ theorem evalInt_parityAmplifier_eq_sum {A : Type*} [CommRing A] (ℓ : ℕ) (y :
 
 /-! ### 3. Coefficient and `ℓ₁`-norm bounds (Lemma B.1) -/
 
-private theorem sum_range_choose_add (m k : ℕ) :
-    ∑ j ∈ range (k + 1), Nat.choose (m + j) j = Nat.choose (m + k + 1) k := by
-  induction k with
-  | zero => simp only [zero_add, range_one, sum_singleton, add_zero, Nat.choose_zero_right]
-  | succ k ih =>
-    rw [sum_range_succ, ih, ← add_assoc m k 1, Nat.choose_succ_succ (m + k + 1) k]
-
 /-- The `ℓ₁` norm of `parityKernel ℓ` is at most `2 ^ (2 * ℓ)`. -/
 theorem coeffNorm1_parityKernel_le (ℓ : ℕ) :
     coeffNorm1 (parityKernel ℓ) ≤ 2 ^ (2 * ℓ) := by
@@ -404,7 +397,9 @@ theorem coeffNorm1_parityKernel_le (ℓ : ℕ) :
   rcases ℓ with _ | k
   · exact (hsum 0).trans (by simp only [range_zero, sum_empty, zero_le])
   · refine (hsum (k + 1)).trans ?_
-    rw [add_tsub_cancel_right, sum_range_choose_add k k]
+    rw [add_tsub_cancel_right,
+      sum_congr rfl (fun j _ => by rw [← Nat.choose_symm_add (a := k), Nat.add_comm k j]),
+      Nat.sum_range_add_choose]
     exact (Nat.choose_le_two_pow _ _).trans (Nat.pow_le_pow_right (by omega) (by omega))
 
 /-- **Lemma B.1 (`ℓ₁`-norm of `p_ℓ`)**: `‖p_ℓ‖₁ ≤ 2 ^ (3 * ℓ)`. -/

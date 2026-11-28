@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Data.BitString.Sign
 public import Mathlib.Analysis.InnerProductSpace.PiL2
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Foundations.Data.Finset.Expect
 import CslibFrontier.Probability.BitString.Rademacher
@@ -420,11 +421,9 @@ private theorem sum_card_Ioi_mul_two (n : ℕ) :
   rw [Fin.sum_univ_eq_sum_range (fun i => n - 1 - i) n, sum_range_reflect (fun i => i) n]
   rcases n with _ | n
   · simp
-  · have h : ((∑ j ∈ range (n + 1), j : ℕ) : ℝ) * 2 = ((n + 1) * n : ℕ) := by
-      exact_mod_cast (Nat.add_sub_cancel n 1 ▸ sum_range_id_mul_two (n + 1))
-    rw [h]
-    push_cast
-    ring
+  · rw [Nat.cast_sum, sum_range_succ']
+    simp only [Nat.cast_zero, add_zero, Nat.cast_succ, add_sub_cancel_right]
+    rw [mul_comm _ (2 : ℝ), Finset.two_mul_sum_range_natCast_succ, mul_comm]
 
 /-- **The Johnson–Lindenstrauss union bound** [Achlioptas2003]: for `n` points and `0 ≤ ε`, a
 random sign projection keeps every squared pairwise distance in `[1 - ε, 1 + ε]` times its original
