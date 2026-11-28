@@ -154,8 +154,7 @@ theorem scanClause_spec (F : Literal ℕ → Bool) (c : Clause ℕ) (x : Data 28
   obtain ⟨hlen, hlits⟩ := holdsList_cons_iff.mp hcl
   have : Fits w (x.regs cl + 1) := hlw.of_le (by omega)
   refine WP.exists_execWithin ?_
-  unfold scanClause
-  wram_exec [hlen, hone, hzero]
+  wram_exec [scanClause, hlen, hone, hzero]
   wram_call (litLoop_spec (w := w) F c ⟨false, 0, false⟩ _ M)
     [hzero, hone, hlits, hM, hw, hlw]
     with y ⟨hym, hyh, hyu, hyb, -, hy0, hy1, hyt, hys, -⟩
@@ -289,8 +288,7 @@ theorem propagate_spec (db : List (ℕ × Clause ℕ)) (hints : List ℕ) (trail
       y.regs zero = 0 ∧ y.regs one = 1 ∧ y.regs tbase = T ∧ y.regs stamp = s := by
   obtain ⟨hlen, hrest⟩ := holdsList_cons_iff.mp hl
   refine WP.exists_execWithin ?_
-  unfold propagate
-  wram_exec [hlen, hone, hzero]
+  wram_exec [propagate, hlen, hone, hzero]
   wram_call (hintLoop_spec (w := w) db hints trail _ M T s)
     [hzero, hone, hT, hst, hrest, htab, htr, hhM, hdbM, hw]
     with y ⟨hyres, hyptr, hyoa, hytr, hy0, hy1, hyT, hys, -⟩

@@ -341,8 +341,7 @@ theorem popLoop_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs : 
     obtain ⟨hz, h1, h2, htb, hce, hsb, hob, hnv, hgo, htp, hmem⟩ := hs
     have hst : ¬x.regs sb < x.regs tp := by rw [hsb, htp]; simp
     refine WP.exists_execWithin (WP.loop_iter (by simp [Cond.holds_eq, haux, h1]) ?_)
-    unfold popBody
-    wram_exec [hst]
+    wram_exec [popBody, hst]
     refine WP.of_execWithin (ExecWithin.loop_exit (by wram_simp [Cond.holds_eq, h1, hz])) ?_
     wram_simp [*, dropSecond]
     exact fun _ _ => trivial
@@ -384,8 +383,7 @@ theorem backtrack_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs 
       ∀ a, T + 4 * N + 2 ≤ a → y.mem a = x.mem a := by
   obtain ⟨hz, h1, h2, htb, hce, hsb, hob, hnv, hgo, htp, hmem⟩ := id hs
   refine WP.exists_execWithin ?_
-  unfold backtrack
-  wram_exec [h1]
+  wram_exec [backtrack, h1]
   wram_call (popLoop_spec (w := w) φ N T t _ ..) framed [*] with v m ⟨⟨htp', hm'⟩, ha', hfr⟩
   have hdl := length_dropSecond_le t
   rw [backtrack_eq]
@@ -393,8 +391,7 @@ theorem backtrack_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs 
   | nil =>
     rw [hd] at htp' hm'
     have hst : ¬T + 2 * N < v tp := by rw [htp']; simp
-    unfold outUnsat
-    wram_exec [*]
+    wram_exec [outUnsat, *]
     refine ⟨⟨by wram_simp [*], by wram_simp [*], ?_⟩, fun a ha => ?_⟩
     · rw [outputList_eq_iff]
       wram_simp [*]
@@ -445,8 +442,7 @@ theorem outLoop_spec (π : List (Literal ℕ)) (N T : ℕ) (x : Data 32)
     have hlit : x.mem (T + (v var + v var + 1)) = (π.contains (v var, true)).toNat := by
       rw [← litCode_true]; exact hπ (v var, true) hvN
     refine ⟨by omega, ?_⟩
-    unfold outBody
-    wram_exec [*]
+    wram_exec [outBody, *]
     refine ⟨by wram_simp; omega, fun i hi => ?_, fun a ha => ?_⟩
     · wram_simp at hi
       rcases Nat.lt_or_ge i (v var) with h | h
@@ -467,8 +463,7 @@ theorem outSat_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs : S
   have hπ := (hmem.lits.update_ge (a := T + 4 * N) (by omega) (N + 1)).update_ge
     (a := T + 4 * N + 1) (by omega) 1
   refine WP.exists_execWithin ?_
-  unfold outSat
-  wram_exec [*]
+  wram_exec [outSat, *]
   wram_call (outLoop_spec (w := w) (Trail.lits t) N T _ ..) framed [*] with v m ⟨hw, hm⟩
   wram_exec [*]
   refine ⟨by wram_simp [*], by wram_simp [*], ?_⟩

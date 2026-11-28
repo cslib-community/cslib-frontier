@@ -70,8 +70,7 @@ theorem exec_exactBin {w r : ℕ} {f : BinOp} {dst i j : Fin r} {d : Data r} {v 
 theorem maxCode_exec {w n : ℕ} (dst a b : Fin n) (x : Data n) :
     Exec w (maxCode dst a b) x (x.set dst (max (x.regs a) (x.regs b))) 3 := by
   refine WP.Exact.exec ?_
-  unfold maxCode
-  wram_exec
+  wram_exec [maxCode]
   · rw [Data.set_set, max_eq_right hc.le]
   · rw [max_eq_left (not_lt.mp hc)]
 
@@ -103,8 +102,7 @@ theorem log2Loop_exec {w : ℕ} (rem : ℕ) {acc : ℕ} {x : Data 3}
         Nat.log_of_one_lt_of_le (by decide) (by omega)
       have hfit_div : Fits w (rem / 2) := hfit_rem.of_le (Nat.div_le_self rem 2)
       refine WP.Exact.exec (WP.Exact.loop_iter (by simp [Cond.Holds, hrem, hone, hlt]) ?_)
-      unfold log2Body
-      wram_exec [hrem, hacc, hone, Nat.shiftRight_eq_div_pow]
+      wram_exec [log2Body, hrem, hacc, hone, Nat.shiftRight_eq_div_pow]
       refine WP.Exact.of_exec (ih (rem / 2) (by omega) (acc := acc + 1) (by wram_simp)
         (by wram_simp) (by wram_simp [hone]) hfit_div (hfit_acc.of_le (by omega)))
         ⟨by omega, ?_⟩
@@ -150,8 +148,7 @@ theorem clog2Loop_exec {w : ℕ} (rem : ℕ) {acc : ℕ} {x : Data 3}
       have hfit_div1 : Fits w ((rem + 1) / 2 + 1) := hfit_rem1.of_le (by omega)
       have hfit_div : Fits w ((rem + 1) / 2) := hfit_div1.of_le (by omega)
       refine WP.Exact.exec (WP.Exact.loop_iter (by simp [Cond.Holds, hrem, hone, hlt]) ?_)
-      unfold clog2Body
-      wram_exec [hrem, hacc, hone, Nat.shiftRight_eq_div_pow]
+      wram_exec [clog2Body, hrem, hacc, hone, Nat.shiftRight_eq_div_pow]
       refine WP.Exact.of_exec (ih ((rem + 1) / 2) (by omega) (acc := acc + 1) (by wram_simp)
         (by wram_simp) (by wram_simp [hone]) hfit_div1 (hfit_acc.of_le (by omega)))
         ⟨by omega, ?_⟩

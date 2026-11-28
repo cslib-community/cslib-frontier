@@ -179,15 +179,13 @@ theorem exec_compileOp {w W b : ℕ} {o : Op .standard r} {x x' : Data r}
     obtain rfl := Option.some.inj he
     have ha : Fits W (b + x.regs a) := hfit.of_le (by wram_omega [hx.1 a])
     have hfm : Fits W (x.mem (x.regs a)) := (hx.2 (x.regs a)).mono hw
-    unfold compileOp
-    wram_exec [hxy.base_eq, hxy.regs, hxy.modulus_eq, hxy.mem, ha, hfm]
+    wram_exec [compileOp, hxy.base_eq, hxy.regs, hxy.modulus_eq, hxy.mem, ha, hfm]
     rw [Data.set_set]
     exact ⟨(hxy.address _).set d _, fun _ _ => rfl⟩
   | store a s =>
     obtain rfl := Option.some.inj he
     have ha : Fits W (b + x.regs a) := hfit.of_le (by wram_omega [hx.1 a])
-    unfold compileOp
-    wram_exec [hxy.base_eq, hxy.regs, ha]
+    wram_exec [compileOp, hxy.base_eq, hxy.regs, ha]
     exact ⟨(hxy.address _).write _ _ (hx.1 s),
       fun j hj => Function.update_of_ne (by wram_omega [hx.1 a]) _ _⟩
 

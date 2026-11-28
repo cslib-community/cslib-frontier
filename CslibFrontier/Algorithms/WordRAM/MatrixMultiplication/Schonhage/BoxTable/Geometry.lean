@@ -58,8 +58,7 @@ theorem exec_constants {w : ℕ} (x : Data registers) (hfit : Fits w 10) :
     refine ⟨y, he, h0, h1, h10, h9, h3, hm, fun i hi0 hi1 hi10 hi9 hi3 =>
       he.regs_eq (by simp [constants, Code.Preserves, Op.dest,
         Ne.symm hi0, Ne.symm hi1, Ne.symm hi10, Ne.symm hi9, Ne.symm hi3])⟩
-  unfold constants
-  wram_exec
+  wram_exec [constants]
   wram_simp
 
 /-- Actual extent setup and its complete persistent parameter readback. -/
@@ -75,8 +74,7 @@ theorem exec_geometrySetup {w L m t D : ℕ} (x : Data registers)
       y.regs Reg.slot = 0 ∧ y.regs Reg.count = 0 ∧ y.mem = x.mem := by
   have h1le : m - t + 1 ≤ (m - t + 1) * 10 ^ L :=
     Nat.le_mul_of_pos_right _ (Nat.pow_pos (by decide))
-  unfold geometrySetup
-  wram_exec *
+  wram_exec * [geometrySetup]
   exact ⟨by constructor <;> wram_simp [*], by wram_simp, by wram_simp, by wram_simp⟩
 
 /-- Actual shared setup, including all digit scans and descriptor writes. -/

@@ -178,8 +178,7 @@ theorem exec {w : ℕ} (x : Data 14) (hn : 2 ≤ x.regs n)
     wram_exec [hy₂p, hy₂n, hy₂o, hy₂k] <;>
       { wram_simp [P, hT₀, hy₁k, hy₂n, hy₂o, hy₂t, hy₂l, hy₂f, hy₂m', hb, hyn, hgood]
         simp [hc]; omega }
-  unfold program
-  wram_exec [hN]
+  wram_exec [program, hN]
   wram_call (NatLog.exec (w := w)) renamed
     [hL, h2, hfitN, hfitN.of_le (by omega : L + 1 ≤ N)]
     with y₁ ⟨⟨hy₁r, hy₁m, hy₁o, hy₁t⟩, hout₁⟩

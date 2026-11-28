@@ -64,8 +64,7 @@ theorem exec_readRecord {W n D g i records heap out : ℕ} (x : Data 400) (v : F
   have hv3 : x.mem (r + 1 + 1 + 1) = v 3 := by
     simpa +decide [r, heq, Nat.add_assoc] using hv ⟨3, by decide⟩
   dsimp only [r, stride] at hmul hv1 hv2 hv3
-  unfold readRecord
-  wram_exec [hD, hg, hn, hi, hrecords, hout, hv1, hv2, hv3]
+  wram_exec [readRecord, hD, hg, hn, hi, hrecords, hout, hv1, hv2, hv3]
   exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
     by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
     by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
@@ -153,8 +152,7 @@ theorem exec_header {W n D g i records heap out : ℕ} (x : Data 400) (v : Fin 6
       y.regs Reg.witnessC = 0 ∧ y.regs Reg.scans = 0 ∧ y.regs Reg.index = 0 ∧
       ∀ j : Fin 400, j.val < 320 → y.regs j = x.regs j := by
   have hsqrt := Nat.sqrt_le_self D
-  unfold header
-  wram_exec
+  wram_exec [header]
   wram_call (exec_readRecord x v hD hg hn hi hrecords hout hrec hv (hfit.of_le (by omega)))
     with a ⟨am, aD, an, ag, ao, ak, aq, aQ, af, aa, ab, ac, as, ai, a1, a0, ar⟩
   wram_exec

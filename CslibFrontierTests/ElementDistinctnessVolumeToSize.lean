@@ -7,13 +7,14 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (tests)
 
-public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.VolumeToSize
+public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.NoPortsVolume
 import CslibFrontier.Computability.Circuit.Frontier.Compiler.OpenBitNetwork
 import CslibFrontier.Computability.Circuit.InnerSize
 import Mathlib.Data.ZMod.Basic
 
 /-! Pin four three-bit records down to two one-bit records. This uses all two available fixed
-names, both Boolean answers, and coefficients in characteristic two. -/
+names, both Boolean answers, and coefficients in characteristic two. The field-without-ports
+case also exceeds every fixed linear gate bound at arbitrary sufficiently large record counts. -/
 
 open Cslib.Circuits Cslib.Circuits.Boolean Cslib.Circuits.Boolean.ElementDistinctness
   Cslib.Circuits.Frontier
@@ -35,3 +36,12 @@ example :
     rfl
   · rw [h, show elementDistinctness 2 1 ![true, true] = false by decide]
     rfl
+
+
+open Filter in
+example (K : Type) [Field K] (hno : ¬Cslib.PartyTensor.HasPorts K) (A : ℝ) :
+    ∀ᶠ m : ℕ in atTop, A * (m * (2 * Nat.clog 2 m) : ℕ) <
+      complexity (fullInterpretation (k := 2))
+        (single (elementDistinctness m (2 * Nat.clog 2 m))) :=
+  eventually_gt_mul_of_log_power (ε := 1 / 4) (by norm_num) (by norm_num)
+    (eventually_complexity_of_not_hasPorts K hno (by norm_num)) A

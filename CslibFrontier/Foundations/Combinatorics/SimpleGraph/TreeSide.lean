@@ -71,6 +71,11 @@ theorem self_mem_treeSide_of_adj {u v : ι} (huv : T.Adj u v) : u ∈ hT.treeSid
   | nil => exact absurd rfl huv.ne'
   | cons _ _ => exact Nat.succ_pos _
 
+/-- For an edge `T.Adj u v`, `v` does not lie on `u`'s side `treeSide u v`. -/
+theorem not_mem_treeSide_other {u v : ι} (huv : T.Adj u v) : v ∉ hT.treeSide u v := by
+  have hm := hT.self_mem_treeSide_of_adj huv.symm
+  rwa [hT.treeSide_compl_of_adj huv] at hm
+
 /-- Subtrees attached to distinct neighbours `u ≠ v` of `t` are disjoint. -/
 theorem disjoint_treeSide_of_adj {t u v : ι} (hu : T.Adj t u) (hv : T.Adj t v) (huv : u ≠ v) :
     Disjoint (hT.treeSide u t) (hT.treeSide v t) := by

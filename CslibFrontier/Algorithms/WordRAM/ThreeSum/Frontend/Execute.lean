@@ -81,12 +81,11 @@ theorem setup_exec {w U : ℕ} (l : Layout) (k : ℕ) (x : Data 48)
       y.regs current = 0 ∧ y.regs heap = l.pointer 0 ∧ y.mem = x.mem := by
   have hf (v : ℕ) (hv : v ≤ budget l U) : Fits w v := hfit.of_le hv
   refine WP.exists_execWithin ?_
-  unfold setup
   wram_exec (disch := (
     try dsimp only [budget, Layout.endpoint, Layout.pointer, Layout.payloads,
       Layout.descriptors, Layout.capacity, Layout.arrays, Layout.count, Layout.splits]
     try ring_nf
-    omega)) [hn, hΛ, hd, hf]
+    omega)) [setup, hn, hΛ, hd, hf]
   wram_simp
   refine ⟨?_, ?_⟩
   · constructor

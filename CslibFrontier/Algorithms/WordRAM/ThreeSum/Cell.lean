@@ -165,8 +165,7 @@ private theorem exec_prepare {w q t : ℕ} {F : ℤ} (x : Data 28)
       y.regs row = q / t ∧ y.regs col = q % t ∧
       y.regs saved = encode F ∧ y.regs negFill = encode (-F) := by
   refine WP.exists_execWithin ?_
-  unfold prepare prepareSetup
-  wram_exec [hq, ht, hf]
+  wram_exec [prepare, prepareSetup, hq, ht, hf]
   wram_call (exec_subtract (GenericRAM.Signed.fits_zero hF.1) hF _
     (by wram_simp [encode]; decide) (by wram_simp)) framed with v m ⟨hur, hum, _⟩
   wram_exec [hur, hum]
@@ -184,8 +183,7 @@ private theorem exec_AB {w N b d q : ℕ} {μ : ℕ → ℤ} {F : ℤ} (x : Data
   have hqfit : Fits (w + 2) (q + q) := by
     simpa only [encode_nat] using (encode_fits hq).mono (by omega : w + 1 ≤ w + 2)
   refine WP.exists_execWithin ?_
-  unfold putAB setupAB
-  wram_exec [hcell, hmat]
+  wram_exec [putAB, setupAB, hcell, hmat]
   wram_call (exec_weight (d := d + q) false _
     (by wram_simp [encode_nat]) (by wram_simp [hlen]) (by wram_simp [hbase])
     (by wram_simp [hfiller]) (by wram_simp) (by wram_simp; exact hmem)
@@ -209,8 +207,7 @@ private theorem exec_BC {w N b d q r c t s : ℕ} {μ : ℕ → ℤ} {F : ℤ} (
     simpa only [encode_nat] using (encode_fits hidx).mono (by omega : w + 1 ≤ w + 2)
   have h3 : Fits (w + 2) 3 := (show Fits 2 3 from by decide).mono (by omega)
   refine WP.exists_execWithin ?_
-  unfold putBC setupBC
-  wram_exec [hcell, hmat, hrow, hcol, ht, hs]
+  wram_exec [putBC, setupBC, hcell, hmat, hrow, hcol, ht, hs]
   · have hix : GenericRAM.Signed.Fits w (-1 : ℤ) :=
       ⟨hidx.1, by have := hidx.2.1; have := hidx.2.2; omega, by have := hidx.2.2; omega⟩
     wram_call (exec_weight (d := d + q) (z := -1) false _
@@ -248,8 +245,7 @@ private theorem exec_AC {w N b d q r c t s : ℕ} {μ : ℕ → ℤ} {F : ℤ} (
     simpa only [encode_nat] using (encode_fits hidx).mono (by omega : w + 1 ≤ w + 2)
   have hrc_le : r + c ≤ a := by dsimp [a]; nlinarith
   refine WP.exists_execWithin ?_
-  unfold putAC setupAC
-  wram_exec [hcell, hmat, hrow, hcol, ht, hs, hneg]
+  wram_exec [putAC, setupAC, hcell, hmat, hrow, hcol, ht, hs, hneg]
   wram_call (exec_weight (d := d + q) (z := (a : ℤ)) true _
     (by wram_simp [encode_nat, a]) (by wram_simp [hlen]) (by wram_simp [hbase])
     (by wram_simp) (by wram_simp) (by wram_simp; exact hmem)
@@ -297,8 +293,7 @@ theorem exec_step {w N b ab bc ac q t s : ℕ} {μ : ℕ → ℤ} {F : ℤ} (x :
         (ac + q) (encode (-pick N μ (-F) ((q / t + q % t) * t + s : ℕ))) ∧
       y.regs filler = x.regs filler := by
     refine WP.exists_execWithin ?_
-    unfold step
-    wram_exec
+    wram_exec [step]
     wram_call (exec_prepare x hcell ht hf
       (hfits _ (Nat.le_trans (Nat.div_le_self _ _) (by omega)))
       (hfits _ (Nat.le_trans (Nat.mod_le _ _) (by omega))) hF)

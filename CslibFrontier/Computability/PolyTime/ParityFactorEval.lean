@@ -1028,7 +1028,7 @@ section PolyTime
 
 open Turing MultiTapeTM MultiTapeTM.ComputableInPolyTime
 
-attribute [local irreducible] ComputableInPolyTime encIntBin encNat encUnary
+attribute [local irreducible] encIntBin encNat encUnary
 
 variable {α : Type} {encIn : α ↪ List Bool}
 

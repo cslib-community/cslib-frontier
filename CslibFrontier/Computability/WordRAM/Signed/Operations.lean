@@ -115,8 +115,7 @@ theorem exec_address {w : ℕ} {s : GenericRAM.Data model r} {x : WordRAM.Data (
     omega
   have hf : WordRAM.Fits (w + 2) ((s.regs a).toNat) :=
     (encoded_fits (hx.fits a)).of_le (by unfold encode; split_ifs <;> omega)
-  unfold addressCode
-  wram_exec [hx.regs, hv, two_fits, hf]
+  wram_exec [addressCode, hx.regs, hv, two_fits, hf]
   exact ⟨by wram_simp, (hx.scratch (i := two) (by dsimp [two]; omega) _).scratch
     (i := left) (by dsimp [left]; omega) _⟩
 
@@ -125,8 +124,7 @@ theorem exec_operands {w : ℕ} {s : GenericRAM.Data model r} {x : WordRAM.Data 
     (hx : Represents w s x) (a b : Fin r) :
     ∃ y, ExecWithin (w + 2) (operandsCode a b) x y 2 ∧
       y.regs left = encode (s.regs a) ∧ y.regs right = encode (s.regs b) ∧ Represents w s y := by
-  unfold operandsCode
-  wram_exec [hx.regs]
+  wram_exec [operandsCode, hx.regs]
   exact ⟨by wram_simp, by wram_simp,
     (hx.scratch (i := left) (by dsimp [left]; omega) _).scratch (i := right) (by simp) _⟩
 

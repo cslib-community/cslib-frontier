@@ -86,8 +86,7 @@ theorem exec_readCell {w L m N : ℕ} (side : Bool) (a : Fin (7 ^ L)) (β : ℕ)
       unfold tableBase; have := hp.1; omega)
   have hsmall : Fits w 256 := small_fits hfit le_rfl
   by_cases hq : q = 0
-  · unfold readCell
-    wram_exec * [hq]
+  · wram_exec * [readCell, hq]
     refine ⟨?_, rfl⟩
     change _ = encode (if q = 0 then 0 else _)
     rw [ite_eq_left hq]

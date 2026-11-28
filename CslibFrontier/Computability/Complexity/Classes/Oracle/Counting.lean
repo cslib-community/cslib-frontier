@@ -108,21 +108,15 @@ theorem bitGraph_mem_P {encβ : β ↪ List Bool} {g : β → ℕ} (D : Decoder 
   let D' := D.pair Decoder.nat
   have hdec : ComputableInPolyTime D'.decode encBits (encPair encβ encNat) :=
     D'.computableInPolyTime
-  have henc : ComputableInPolyTime (encPair encβ encNat) (encPair encβ encNat) encBits := .id'
   have hval : ComputableInPolyTime (fun w => g (D'.decode w).1) encBits encNat :=
     hg.comp ((ComputableInPolyTime.fst _ _).comp hdec)
-  have hsize : ComputableInPolyTime (fun w => (g (D'.decode w).1).size) encBits encUnary := by
-    have hbits := (ComputableInPolyTime.of_eq (encIn := encNat) (encOut := encBits)
-      (f := Nat.bits) fun _ => rfl).comp hval
-    simpa only [Function.comp_def, Nat.size_eq_bits_len] using
-      ComputableInPolyTime.length_bits_comp hbits
   have hidx : ComputableInPolyTime (fun w => min (g (D'.decode w).1).size (D'.decode w).2)
       encBits encUnary :=
-    ComputableInPolyTime.binary_min_unary' hsize ((ComputableInPolyTime.snd _ _).comp hdec)
+    ComputableInPolyTime.binary_min_unary' (ComputableInPolyTime.binary_size.comp hval) hdec.snd'
   have hbit := ComputableInPolyTime.binary_testBit hval hidx
   refine ⟨fun w => decide (encPair encβ encNat (D'.decode w) = w) &&
     (g (D'.decode w).1).testBit (min (g (D'.decode w).1).size (D'.decode w).2),
-    by fun_prop, fun w => ?_⟩
+    (hdec.encoding_comp.decide_eq' .id').bool_and' hbit, fun w => ?_⟩
   have hmin (n i : ℕ) : n.testBit (min n.size i) = n.testBit i := by
     rcases le_total i n.size with h | h
     · rw [min_eq_right h]

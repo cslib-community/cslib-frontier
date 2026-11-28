@@ -327,8 +327,7 @@ private theorem computeScaleCode_execWithin {w c_exp n_max : ℕ} {x : Data 19}
   have hM_lt : tableBits n_max < tableSize n_max := Nat.lt_two_pow_self
   have hsp : space c_exp n_max =
       20 + hashPairSpace c_exp n_max + 2 * tableSize n_max + 2 * n_max := rfl
-  unfold computeScaleCode
-  wram_exec
+  wram_exec [computeScaleCode]
   exact ⟨rfl, fun r hr => by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
     by wram_simp, by wram_simp⟩
 
@@ -422,8 +421,7 @@ private theorem writeHeaderAndAdvanceCode_exec {w base c_exp n_max U : ℕ} {x :
       y.mem (base + 19) = base + space c_exp n_max ∧
       (∀ a, (a < base ∨ base + 20 ≤ a) → y.mem a = x.mem a) := by
   have hle_sp := le_space c_exp n_max
-  unfold writeHeaderAndAdvanceCode
-  wram_exec [h0, h1, h3, h4, h6, h8, h9, h10, h11]
+  wram_exec [writeHeaderAndAdvanceCode, h0, h1, h3, h4, h6, h8, h9, h10, h11]
   refine ⟨by wram_simp [hashBase], by wram_simp, by wram_simp, by wram_simp, ?_, by wram_simp,
     by wram_simp, fun a ha => by mem_frame⟩
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> wram_simp <;> rfl
@@ -762,8 +760,7 @@ theorem loadHeaderCode_exec {w base off : ℕ} (dst : Fin 19) {x : Data 19}
     (hfit_addr : Fits w (base + off)) :
     Exec w (loadHeaderCode dst off) x
       (((x.set 15 off).set dst (base + off)).set dst (x.mem (base + off))) 3 := by
-  unfold loadHeaderCode
-  wram_exec [h0]
+  wram_exec [loadHeaderCode, h0]
 
 /-- Helper subprogram that stores `reg src` into `mem[base + off]` using `reg 15, 16` as scratch. -/
 @[expose]
@@ -779,8 +776,7 @@ theorem storeHeaderCode_exec {w base off : ℕ} (src : Fin 19) {x : Data 19}
     (hfit_addr : Fits w (base + off)) :
     Exec w (storeHeaderCode off src) x
       (((x.set 15 off).set 16 (base + off)).write (base + off) (x.regs src)) 3 := by
-  unfold storeHeaderCode
-  wram_exec [h0]
+  wram_exec [storeHeaderCode, h0]
 
 /-- Helper subprogram that stores constant `val` into `mem[base + off]` using `reg 15, 16, 18` as
 scratch. -/
@@ -1409,8 +1405,7 @@ private theorem syncEvictCondCode_exec {w base c_exp n_max act fuel : ℕ} {x : 
   have hle_sp := le_space c_exp n_max
   have hfit_prod : Fits w (act * fuel) :=
     hfit_fuel.of_le ((Nat.mul_le_mul_right fuel hact).trans_eq (Nat.one_mul fuel))
-  unfold syncEvictCondCode loadHeaderCode
-  wram_exec [h0, hm15, hm16]
+  wram_exec [syncEvictCondCode, loadHeaderCode, h0, hm15, hm16]
   exact ⟨by regs_frame, by wram_simp, by wram_simp, rfl⟩
 
 private def evictLoopInner (c_exp n_max : ℕ) : Code .exact 19 :=

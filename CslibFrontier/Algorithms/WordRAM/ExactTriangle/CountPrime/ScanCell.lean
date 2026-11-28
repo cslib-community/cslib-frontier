@@ -64,8 +64,7 @@ theorem exec_countStep {w n p k i r value total : ℕ} (x : Data 128)
     rw [Nat.succ_mul] at he; omega
   have kv : encode (value : ℤ) / 2 = value := by simp [encode_div_two]
   refine WP.exists_execWithin_preserves (fun j hj => countStep_preserves j hj) ?_
-  unfold countStep
-  wram_exec [hi, hn]
+  wram_exec [countStep, hi, hn]
   wram_call (exec_morton (k := k) _ (by wram_simp [h2])
     (by wram_simp; exact hrow.trans_le hpadding)
     (by wram_simp; exact hcol.trans_le hpadding)

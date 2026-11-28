@@ -155,7 +155,7 @@ noncomputable def Desc.tableCompiler :
     Desc.tail₂Compiler).ofOutputEq fun _ => rfl
 
 /-- Retained projection of the nested optional control. -/
-private noncomputable def ICfg.controlCompiler :
+noncomputable opaque ICfg.controlCompiler :
     NativeCompiler ICfg.control eICfg (encOption (encOption encUnary)) :=
   (NativeCompiler.first (encOption (encOption encUnary)) eICfgTail₄).ofInputEq (encIn := eICfg)
     (fun cfg => (cfg.control, cfg.inputPos, cfg.workTapes, cfg.output, cfg.channels)) fun _ => rfl
@@ -190,7 +190,7 @@ private noncomputable def ICfg.tail₂Compiler :
     ICfg.tail₃Compiler).ofOutputEq fun _ => rfl
 
 /-- Retained projection of accumulated output. -/
-private noncomputable def ICfg.outputCompiler :
+noncomputable opaque ICfg.outputCompiler :
     NativeCompiler ICfg.output eICfg (encList encUnary) :=
   ((NativeCompiler.first (encList encUnary) (encList eChannel)).comp
     ICfg.tail₂Compiler).ofOutputEq fun _ => rfl
@@ -763,9 +763,9 @@ private noncomputable def ICfg.commandAtKeyCompiler :
   exact ICfg.keyCompiler.comp (word.pair (cfg.pair state))
 
 /-- Retained first-match lookup stage on the complete `commandAt` input layout. -/
-private noncomputable def ICfg.commandAtLookupCompiler :
+noncomputable opaque ICfg.commandAtLookupCompiler :
     NativeCompiler
-      (fun input : CommandAtInput =>
+      (fun input : Desc × (List ℕ × (ICfg × Bool)) =>
         let (description, word, cfg, _coin) := input
         NativeCompiler.firstMatch
           (description.table, cfg.key word ((cfg.control.getD none).getD 0)))
@@ -789,7 +789,7 @@ def commandAtFromLookup (r : ℕ) :
           | some branches => cfg.command r description word (branches.get coin)
 
 /-- The source `commandAt` function factors through one captured first-match result. -/
-private theorem commandAtFromLookup_firstMatch (r : ℕ)
+theorem commandAtFromLookup_firstMatch (r : ℕ)
     (input : Desc × (List ℕ × (ICfg × Bool))) :
     let (description, word, cfg, coin) := input
     commandAtFromLookup r (input, NativeCompiler.firstMatch

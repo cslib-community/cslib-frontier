@@ -13,9 +13,6 @@ import CslibFrontier.Tactic.PPT
 
 namespace CslibFrontierTests.LinearHash
 
--- Keep certificate search at the function-level API, without expanding machine witnesses.
-attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
-
 open Cslib Cslib.BitString Cslib.BitString.LinearHash Cslib.Probability
 open Cslib.Probability.PMF Turing.MultiTapeTM
 

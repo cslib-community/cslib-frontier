@@ -181,8 +181,7 @@ theorem exec_input {w z : ℕ} (hw : 2 ≤ w) (hz : Fits w z) (d : Fin n) :
   have hnot : inputReg (n := n) ∉ regs d := fun hi => by
     have hh := mem_regs hi; dsimp only [inputReg] at hh; omega
   refine WP.Exact.exists_exec ?_
-  unfold input
-  wram_exec [fits_one (by omega : w ≠ 0), hmem1]
+  wram_exec [input, fits_one (by omega : w ≠ 0), hmem1]
   refine WP.Exact.name fun u hux => ?_
   have hzero (i : Fin (capacity n + 4)) (hi : 44 ≤ i.val) : u.regs i = 0 := by
     have : i ≠ inputReg := by fin_index

@@ -77,7 +77,7 @@ theorem exec_initial {w n q a : ℕ} {keys : Fin n → ℕ} (p : NodeParameters 
   have hrz := hrt.frame hfz
   let y := ((z.set chosen (keys j)).set divergence (keys j ^^^ q)).set zero 0
   have hey : Exec w saveNeighbor z y 3 := by
-    unfold saveNeighbor; wram_exec [hj, hd]
+    wram_exec [saveNeighbor, hj, hd]
   have hry : Ready p q a y :=
     ((hrz.set_scratch chosen _ (by decide) (by decide)).set_scratch divergence _
       (by decide) (by decide)).set_scratch zero _ (by decide) (by decide)

@@ -109,8 +109,7 @@ theorem exec {w : ℕ} (x : Data 10) (h4 : Fits w 4)
         z.regs idx = y.regs idx + 1 := by
     obtain ⟨hr, h1, hfour, hm⟩ := hy
     refine WP.exists_execWithin ?_
-    unfold body
-    wram_exec [h1, hfour, hr dst (by decide), hr pad0 (by decide), hr pad1 (by decide),
+    wram_exec [body, h1, hfour, hr dst (by decide), hr pad0 (by decide), hr pad1 (by decide),
       hr pad2 (by decide), hr pad3 (by decide)]
     refine ⟨⟨fun i hi => by
       simp only [Data.set_regs, Data.write_regs, Function.update_apply, Fin.ext_iff,
@@ -120,8 +119,7 @@ theorem exec {w : ℕ} (x : Data 10) (h4 : Fits w 4)
     wram_simp
     rw [hm, memory_succ]
   refine WP.exists_execWithin ?_
-  unfold program
-  wram_exec
+  wram_exec [program]
   wram_call (ExecWithin.loop_count P (fun y hy => hy.1 len (by decide)) hbody
     (by wram_simp; omega) ⟨fun i hi => by
       simp only [Data.set_regs, Function.update_apply, Fin.ext_iff, idx, one, four]

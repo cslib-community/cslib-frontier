@@ -85,8 +85,8 @@ public theorem exec_tileArguments {w L m N Q t a b : ℕ} (x : Data 160)
   have fn : Fits w (b - a) := allocated_fits hfit (by omega)
   dsimp only [B, H, C] at frow fcol frowH fleft fcb fcbH fright
   refine WP.exists_execWithin ?_
-  unfold tileArguments
-  wram_exec * [ha, hb, foffset, fnext, frow, fcol, frowH, fleft, fcb, fcbH, fright, fq, fo, fn]
+  wram_exec * [tileArguments,
+    ha, hb, foffset, fnext, frow, fcol, frowH, fleft, fcb, fcbH, fright, fq, fo, fn]
   refine ⟨by regs_frame, rfl, ?_⟩
   simp only [Data.comap_regs]
   wram_simp [hx]

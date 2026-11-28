@@ -423,8 +423,7 @@ private theorem SetupState.denStep₁ {φ : CNF (Fin n)} {k c A w : ℕ} {ds : L
     rw [ceilStep, length_divDigits]
   rw [hlen] at hfit ⊢
   refine WP.exists_execWithin ?_
-  unfold Schoening.denStep₁
-  wram_exec [h.frame.one_eq, h.kReg_eq]
+  wram_exec [Schoening.denStep₁, h.frame.one_eq, h.kReg_eq]
   wram_call (((h.set (by decide) _).set (by decide) _).mulAdd (a := 1) (cy := k - 1) (Bd := k)
     ..) framed with v m hyS
   wram_exec [hyS.kReg_eq]
@@ -441,8 +440,7 @@ private theorem SetupState.denStep₂ {φ : CNF (Fin n)} {k c A w : ℕ} {ds : L
     rw [ceilStep, length_divDigits]
   rw [hlen] at hfit ⊢
   refine WP.exists_execWithin ?_
-  unfold Schoening.denStep₂
-  wram_exec [h.frame.one_eq, h.kReg_eq]
+  wram_exec [Schoening.denStep₂, h.frame.one_eq, h.kReg_eq]
   wram_call ((((h.set (by decide) _).set (by decide) _).set (by decide) _).mulAdd
     (a := 1) (cy := k - 1 - 1) (Bd := k) ..) framed with v m hyS
   wram_exec [hyS.kReg_eq, hyS.frame.one_eq]

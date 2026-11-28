@@ -73,10 +73,6 @@ namespace Cslib.AffineDisperser
 
 open Turing.MultiTapeTM ComputableInPolyTime Explicit
 
--- `fun_prop` tries lemmas whose encodings do not match the goal; keep each failed attempt from
--- unfolding `ComputableInPolyTime` down to the machine semantics.
-attribute [local irreducible] ComputableInPolyTime
-
 /-! ### Lists of unary naturals -/
 
 /-- The product of a computed list of positive unary naturals, when the product is polynomially

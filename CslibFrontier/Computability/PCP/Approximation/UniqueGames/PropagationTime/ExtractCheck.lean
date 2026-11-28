@@ -134,8 +134,7 @@ theorem extractCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x
           have h0 : 0 = labVal v := by
             simp only [labVal, labelling, hgv, Option.elim_none, default, Fin.val_zero]
           have hpws := prefix_write_step hzOut hzFr (congrArg _ h0)
-          unfold extractBody
-          wram_exec [hzC.zero, hzC.one, hzC.two, hzC.visB, hzC.outB, hv_reg, hvis0]
+          wram_exec [extractBody, hzC.zero, hzC.one, hzC.two, hzC.visB, hzC.outB, hv_reg, hvis0]
           refine ⟨⟨by wram_simp [hzC], hpws⟩, ?_⟩
           wram_simp
         | some fn =>
@@ -151,8 +150,8 @@ theorem extractCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x
           have hfn : (fn default).val = labVal v := by
             simp only [labVal, labelling, hgv, Option.elim_some]
           have hpws := prefix_write_step hzOut hzFr (congrArg _ hfn)
-          unfold extractBody
-          wram_exec [hzC.one, hzC.two, hzC.regL, hzC.visB, hzC.tabB, hzC.outB, hv_reg, hvis1',
+          wram_exec [extractBody,
+            hzC.one, hzC.two, hzC.regL, hzC.visB, hzC.tabB, hzC.outB, hv_reg, hvis1',
             hf0_mem]
           refine ⟨⟨by wram_simp [hzC], hpws⟩, ?_⟩
           wram_simp)
@@ -177,8 +176,7 @@ theorem checkCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x :
   have hewb := edges_lt_wordBound g
   obtain ⟨x0, hx0, hc0, hok0, hidx0, hm0⟩ : ∃ x0, ExecWithin w checkInit x x0 2 ∧
       ConstRegs g x0 ∧ x0.regs ok = 1 ∧ x0.regs rOuterIdx = 0 ∧ x0.mem = x.mem := by
-    unfold checkInit
-    wram_exec [hc.zero, hc.one]
+    wram_exec [checkInit, hc.zero, hc.one]
     exact ⟨by wram_simp [hc], by wram_simp, by wram_simp, by wram_simp⟩
   set σ := labelling (List.finRange L) g
   let P (k : ℕ) (z : Data 34) : Prop :=
@@ -223,14 +221,12 @@ theorem checkCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x :
           rw [List.take_succ_eq_append_getElem hj, List.all_append, List.all_cons, List.all_nil,
             Bool.and_true]
         by_cases heq_v : (e.constraint (σ e.src)).val = (σ e.dst).val
-        · unfold checkBody
-          wram_exec [hzC.one, hzC.two, hzC.stride, hzC.edgeB, hzC.outB, hj_reg,
+        · wram_exec [checkBody, hzC.one, hzC.two, hzC.stride, hzC.edgeB, hzC.outB, hj_reg,
             hsrc_mem, hdst_mem, hlv e.src hs_lt, hlv e.dst hd_lt, hc_mem, heq_v]
           refine ⟨⟨by wram_simp [hzC], ?_, by wram_simp [hzMem]⟩, by wram_simp⟩
           wram_simp [hzOk]
           rw [hall_next, decide_eq_true (Fin.ext heq_v), Bool.and_true]
-        · unfold checkBody
-          wram_exec [hzC.zero, hzC.one, hzC.two, hzC.stride, hzC.edgeB, hzC.outB, hj_reg,
+        · wram_exec [checkBody, hzC.zero, hzC.one, hzC.two, hzC.stride, hzC.edgeB, hzC.outB, hj_reg,
             hsrc_mem, hdst_mem, hlv e.src hs_lt, hlv e.dst hd_lt, hc_mem, heq_v]
           refine ⟨⟨by wram_simp [hzC], ?_, by wram_simp [hzMem]⟩, by wram_simp⟩
           wram_simp
@@ -263,8 +259,7 @@ theorem finishCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x 
     have hok1 : x.regs ok = 1 := by simp only [hok, hchk, Bool.toNat_true]
     have hsolve : solve (List.finRange L) g = some (labelling (List.finRange L) g) := by
       simp only [solve, hchk, ↓reduceIte]
-    unfold finishCode
-    wram_exec [hc.one, hc.regN, hc.outB, hok1]
+    wram_exec [finishCode, hc.one, hc.regN, hc.outB, hok1]
     refine ⟨by wram_simp [hc.outB], ?_, ?_, ?_⟩
     · wram_simp [hok1, hsolve, Option.isSome_some, Bool.toNat_true]
     · wram_simp [hc.outB]
@@ -281,8 +276,7 @@ theorem finishCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x 
     have hok0 : x.regs ok = 0 := by simp only [hok, hchk, Bool.toNat_false]
     have hsolve : solve (List.finRange L) g = none := by
       simp only [solve, hchk, Bool.false_eq_true, ↓reduceIte]
-    unfold finishCode
-    wram_exec [hc.zero, hc.one, hc.outB, hok0]
+    wram_exec [finishCode, hc.zero, hc.one, hc.outB, hok0]
     refine ⟨by wram_simp [hc.outB], ?_, ?_, ?_⟩
     · wram_simp [hok0, hsolve, Option.isSome_none, Bool.toNat_false]
     · wram_simp [hc.outB]

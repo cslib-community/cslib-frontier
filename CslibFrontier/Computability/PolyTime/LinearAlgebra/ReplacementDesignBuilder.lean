@@ -571,7 +571,6 @@ def ReplacementDesignData.lookupReplacementRow (data : ReplacementDesignData) (f
 
 section PolyTime
 open ComputableInPolyTime
-attribute [local irreducible] ComputableInPolyTime
 variable {Input : Type} {encIn : Input ↪ List Bool}
 
 private theorem rdb_two_mul_unary :

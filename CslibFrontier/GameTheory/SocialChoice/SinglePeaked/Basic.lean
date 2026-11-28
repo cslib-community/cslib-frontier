@@ -499,6 +499,22 @@ theorem IsStrategyProof.atLeast_of_mem_optionSet (hf : f.IsStrategyProof)
   rcases hx with ⟨Q, hQ, rfl⟩
   exact hf P Q i hQ
 
+private theorem IsStrategyProof.atLeast_update_rev [DecidableEq ι] (hf : f.IsStrategyProof)
+    (P : Profile ι a b) (i : ι) (R' : Preference a b) :
+    R'.AtLeast (f (Function.update P i R')) (f P) := by
+  simpa only [Function.update_self] using
+    hf (Function.update P i R') P i fun _ hji => Function.update_of_ne hji R' P
+
+private theorem IsStrategyProof.eq_of_update_comparisons [Finite ι] (hf : f.IsStrategyProof)
+    {P Q : Profile ι a b} {x : Set.Icc a b} (hx : f P = x)
+    (h : ∀ i, P i ≠ Q i → ∀ y, (P i).AtLeast x y → (Q i).AtLeast y x → y = x) :
+    f Q = x := by
+  classical
+  refine Function.update_induction (P := fun R => f R = x) hx ?_
+  intro R _ hR i hRi hne
+  exact h i (hRi ▸ hne) _
+    (hR ▸ hRi ▸ hf.atLeast_update R i (Q i)) (hR ▸ hf.atLeast_update_rev R i (Q i))
+
 /-! ### Pareto-optimality and Lemma 10.1 -/
 
 /-- On single-peaked profiles with finitely many agents, `f` is Pareto-optimal iff at every profile
@@ -559,13 +575,10 @@ theorem IsStrategyProof.isUnanimous_of_surjective [Finite ι]
   classical
   intro Q x hpeaks
   obtain ⟨P, hP⟩ := hsurj x
-  refine Function.update_induction (x := P) (y := Q) (P := fun R => f R = x) hP ?_
-  intro R _ hR i _ _
-  have hsp : (Q i).AtLeast (f (Function.update R i (Q i))) (f R) := by
-    have h := hf (Function.update R i (Q i)) R i fun j hji => Function.update_of_ne hji (Q i) R
-    simpa only [Function.update_self] using h
-  rw [hR, ← hpeaks i] at hsp
-  rw [(Q i).eq_peak_of_atLeast_peak hsp, hpeaks i]
+  apply hf.eq_of_update_comparisons hP
+  intro i _ y _ hy
+  rw [← hpeaks i] at hy ⊢
+  exact (Q i).eq_peak_of_atLeast_peak hy
 
 /-- Strategy-proofness and unanimity imply Pareto-optimality ([SchummerVohra2007], Lemma 10.1,
 pp. 245–246). -/
@@ -579,13 +592,9 @@ theorem IsStrategyProof.isParetoOptimal_of_isUnanimous [Finite ι] [Nonempty ι]
       Finset.exists_min_image Finset.univ (fun i => ((P i).peak : ℝ)) Finset.univ_nonempty
     let p₁ := (P i₀).peak
     let Q : Profile ι a b := fun _ => Preference.preferLeft p₁
-    have hQ : f Q = f P := Function.update_induction (x := P) (y := Q)
-      (P := fun R => f R = f P) rfl fun R _ hR i hRi _ => by
-      set y := f (Function.update R i (Q i))
-      have hsp1 : (P i).AtLeast (f P) y := hR ▸ hRi ▸ hf.atLeast_update R i (Q i)
-      have hsp2 : (Q i).AtLeast y (f P) := by
-        simpa only [Function.update_self, hR] using
-          hf (Function.update R i (Q i)) R i fun _ hji => Function.update_of_ne hji _ _
+    have hQ : f Q = f P := by
+      apply hf.eq_of_update_comparisons (P := P) rfl
+      intro i _ y hsp1 hsp2
       have hy_ge : (f P : ℝ) ≤ y := not_lt.mp fun hlt =>
         (Q i).prefers_of_between_left hlt (h i₀).le hsp2
       have hy_le : (y : ℝ) ≤ p₁ := not_lt.mp fun hgt =>
@@ -599,13 +608,9 @@ theorem IsStrategyProof.isParetoOptimal_of_isUnanimous [Finite ι] [Nonempty ι]
       Finset.exists_max_image Finset.univ (fun i => ((P i).peak : ℝ)) Finset.univ_nonempty
     let pₙ := (P j₀).peak
     let Q : Profile ι a b := fun _ => Preference.preferRight pₙ
-    have hQ : f Q = f P := Function.update_induction (x := P) (y := Q)
-      (P := fun R => f R = f P) rfl fun R _ hR i hRi _ => by
-      set y := f (Function.update R i (Q i))
-      have hsp1 : (P i).AtLeast (f P) y := hR ▸ hRi ▸ hf.atLeast_update R i (Q i)
-      have hsp2 : (Q i).AtLeast y (f P) := by
-        simpa only [Function.update_self, hR] using
-          hf (Function.update R i (Q i)) R i fun _ hji => Function.update_of_ne hji _ _
+    have hQ : f Q = f P := by
+      apply hf.eq_of_update_comparisons (P := P) rfl
+      intro i _ y hsp1 hsp2
       have hy_le : (y : ℝ) ≤ f P := not_lt.mp fun hgt =>
         (Q i).prefers_of_between_right (h j₀).le hgt hsp2
       have hy_ge : (pₙ : ℝ) ≤ y := not_lt.mp fun hlt =>
@@ -747,11 +752,9 @@ theorem IsStrategyProof.optionSet_eq_Icc [Finite ι] [DecidableEq ι]
           rw [Function.update_of_ne fun h => hnot (.inl h), ite_eq_right hnot]
         set yL := f (Function.update R j (Q_L j))
         refine not_lt.mp fun hgt => Preference.preferLeft_prefers_of_le_of_gt hR hgt ?_
-        have h := hf (Function.update R j (Q_L j)) R j fun _ hkj => Function.update_of_ne hkj _ _
-        change (Function.update R j (Q_L j) j).AtLeast yL (f R) at h
-        rw [Function.update_self, show Q_L j = Preference.preferLeft z from ite_eq_left hj_cond]
-          at h
-        exact h
+        change (Preference.preferLeft z).AtLeast yL (f R)
+        rw [← show Q_L j = Preference.preferLeft z from ite_eq_left hj_cond]
+        exact hf.atLeast_update_rev R j (Q_L j)
       obtain ⟨⟨j₀, hj₀⟩, _⟩ := (isParetoOptimal_iff_peaks_bounds.mp hPO) Q_L
       have hzj₀ : (z : ℝ) ≤ (Q_L j₀).peak := by
         dsimp only [Q_L]
@@ -760,39 +763,24 @@ theorem IsStrategyProof.optionSet_eq_Icc [Finite ι] [DecidableEq ι]
         · push Not at hc
           exact hc.2.le
       have hfQL_eq : f Q_L = z := Subtype.ext (le_antisymm hfQL_le (hzj₀.trans hj₀))
-      have hfQR_eq_z : f Q_R = z := Function.update_induction (x := Q_L) (y := Q_R)
-        (P := fun R => f R = z) hfQL_eq fun R _ hR j hjQL hjne => by
+      have hfQR_eq_z : f Q_R = z := hf.eq_of_update_comparisons hfQL_eq fun j hjne y _ h => by
         have hj_cond : j = i ∨ ((P j).peak : ℝ) ≤ z := by_contra fun hnot => hjne <| by
-          rw [hjQL]
           dsimp only [Q_L, Q_R]
           rw [ite_eq_right hnot, ite_eq_right hnot]
-        set yR := f (Function.update R j (Q_R j))
-        have h := hf (Function.update R j (Q_R j)) R j fun _ hkj => Function.update_of_ne hkj _ _
-        change (Function.update R j (Q_R j) j).AtLeast yR (f R) at h
-        rw [Function.update_self, hR,
-          show Q_R j = Preference.preferRight z from ite_eq_left hj_cond] at h
+        have hQRj : Q_R j = Preference.preferRight z := ite_eq_left hj_cond
+        rw [hQRj] at h
         exact (Preference.preferRight z).eq_peak_of_atLeast_peak
           ((Preference.preferRight_peak z).symm ▸ h)
-      have hfQR_eq_xR : f Q_R = f P_R := Function.update_induction (x := P_R) (y := Q_R)
-        (P := fun R => f R = f P_R) rfl fun R _ hR j hjPR hjne => by
+      have hfQR_eq_xR : f Q_R = f P_R := hf.eq_of_update_comparisons
+          (P := P_R) (Q := Q_R) rfl fun j hjne y hsp1 hsp2 => by
         have hj_not_i : j ≠ i := fun h => hjne <| by
           subst h
-          rw [hjPR]
-          dsimp only [P_R, Q_R]
-          rw [Function.update_self, ite_eq_left (.inl rfl)]
+          simp [P_R, Q_R]
         have hj_le : ((P j).peak : ℝ) ≤ z := by_contra fun hgt => hjne <| by
-          rw [hjPR]
           dsimp only [P_R, Q_R]
           rw [Function.update_of_ne hj_not_i, ite_eq_right (not_or.mpr ⟨hj_not_i, hgt⟩)]
-        have hQRj : Q_R j = Preference.preferRight z := ite_eq_left (.inr hj_le)
-        set y := f (Function.update R j (Q_R j))
-        have hsp1 : (P j).AtLeast (f P_R) y := by
-          have hRj : R j = P j := hjPR.trans (Function.update_of_ne hj_not_i _ _)
-          exact hR ▸ hRj ▸ hf.atLeast_update R j (Q_R j)
-        have hsp2 : (Preference.preferRight z).AtLeast y (f P_R) := by
-          have h := hf (Function.update R j (Q_R j)) R j fun _ hkj => Function.update_of_ne hkj _ _
-          change (Function.update R j (Q_R j) j).AtLeast y (f R) at h
-          rwa [Function.update_self, hR, hQRj] at h
+        rw [show P_R j = P j from Function.update_of_ne hj_not_i _ _] at hsp1
+        rw [show Q_R j = Preference.preferRight z from ite_eq_left (.inr hj_le)] at hsp2
         have hy_ge_z : (z : ℝ) ≤ y := not_lt.mp fun hlt =>
           Preference.preferRight_prefers_of_ge_of_lt hxR_ge hlt hsp2
         exact Subtype.ext <| le_antisymm
