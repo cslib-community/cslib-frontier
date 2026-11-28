@@ -1600,6 +1600,7 @@ public import CslibFrontier.Foundations.Combinatorics.SetFamily.PairwiseIntersec
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Prime
 public import CslibFrontier.Foundations.Data.MvPolynomial.HessianRank
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.SumDomain
+public import CslibFrontier.GameTheory.RationalCrypto.NonCooperativeComputation
 public import CslibFrontier.Probability.IID.FirstSome
 public import CslibFrontier.Computability.PolyTime.BooleanAnalysis.IncidenceBranching
 public import CslibFrontier.Algorithms.Lean.GomoryHu.Gusfield
