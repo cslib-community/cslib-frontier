@@ -598,17 +598,15 @@ theorem gale_dominance_nodup {M : Matroid α} {indep : Finset α → Bool}
   · exact hgy ▸ refl g
   · have hsorted' : (P_G ++ g :: (M_mid ++ y :: S_I)).Pairwise R := by
       rwa [← hSG, ← hxs_G]
-    have htail : (g :: (M_mid ++ y :: S_I)).Pairwise R :=
-      (List.pairwise_append.mp hsorted').2.1
-    exact (List.pairwise_cons.mp htail).1 y (by simp)
+    exact List.rel_of_pairwise_cons
+      (hsorted'.sublist (List.sublist_append_right _ _)) (by simp)
   · exfalso
     set A_P := greedySelect indep P_G
     have hnodup_G : (P_G ++ g :: S_G).Nodup := hxs_G ▸ hnodup
-    have hdisj : List.Disjoint P_G (g :: S_G) := fun z hz1 hz2 =>
-      (List.nodup_append.mp hnodup_G).2.2 z hz1 z hz2 rfl
+    have hdisj := hnodup_G.disjoint
     have hG_eq : G = (g :: S_G).foldl (greedyStep indep) A_P := by
       simp [G, A_P, greedySelect, hxs_G, List.foldl_append]
-    have hPG_nodup : P_G.Nodup := (List.nodup_append.mp hnodup_G).1
+    have hPG_nodup := hnodup_G.of_append_left
     have hfilter_eq : P_G.filter (· ∈ A_P) = P_G.filter (· ∈ G) :=
       List.filter_congr fun z hz => by
         rw [hG_eq, decide_eq_decide]

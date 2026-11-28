@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.Euler.Circuit
 public import Mathlib.Algebra.Ring.Parity
+import CslibFrontier.Foundations.Data.List.Blocks
 
 /-!
 # The handshake lemma for list multigraphs
@@ -44,11 +45,8 @@ variable {α : Type*} [DecidableEq α]
 
 private theorem sum_map_ite_eq_count (V : List α) (y : α) :
     (V.map fun x => if x = y then 1 else 0).sum = V.count y := by
-  induction V with
-  | nil => rfl
-  | cons a V ih =>
-    simp only [List.map_cons, List.sum_cons, ih, List.count_cons, beq_iff_eq]
-    omega
+  simp only [List.count_eq_length_filter, List.length_filter_eq_sum,
+    Bool.beq_eq_decide_eq, decide_eq_true_eq]
 
 /-- **Degree sum** for list multigraphs: summed over a duplicate-free list of vertices containing
 every endpoint, the degrees count each edge twice. -/

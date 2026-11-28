@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.NCL.ConstraintGraph.SelectorNetwork.Template
 public import CslibFrontier.Computability.Complexity.Problems.NCL.ConstraintGraph.SelectorNetwork.Sparse
+import CslibFrontier.Foundations.Data.List.IdxOf
 import Mathlib.Data.List.GetD
 
 /-!
@@ -160,15 +161,6 @@ private theorem names_eq : names N A order budget =
   simp only [names, Numbering.edgeList, Numbering.localEdges, List.map_flatMap,
     List.map_append, List.map_map, Cell.template, Function.comp_def, code_private]
 
-private theorem idxOf_map_injective {E : Type*} [BEq E] [LawfulBEq E] (f : E → ℕ)
-    (hf : Function.Injective f) (xs : List E) (e : E) :
-    (xs.map f).idxOf (f e) = xs.idxOf e := by
-  classical
-  induction xs with
-  | nil => rfl
-  | cons x xs ih =>
-    by_cases hx : x = e <;> simp [hx, hf.eq_iff, ih]
-
 /-- The explicit standard graph program, with sparse addresses compacted by first-index lookup. -/
 @[expose] def data : AndOrGraph where
   vertices := (rawVertices N A order budget).map
@@ -182,7 +174,7 @@ theorem data_eq_ofFinite [DecidableEq R]
   apply AndOrGraph.ext
   · rw [data, rawVertices_eq N A order budget hbudget, names_eq]
     simp only [List.map_map, Vertex.map_map, Function.comp_def]
-    simp_rw [idxOf_map_injective _ (code_injective N A order budget hbudget)]
+    simp_rw [List.idxOf_map_of_injective (code_injective N A order budget hbudget)]
     exact (Numbering.serialize_vertices N A order).symm
   · rw [data, names_eq, List.length_map]
     rfl

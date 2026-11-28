@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Data.Finset.Card
 import Mathlib.Data.List.GetD
+import Mathlib.Data.List.Sigma
 
 /-!
 # Selecting distinct list entries by a mask
@@ -64,13 +65,7 @@ theorem mem_selectDistinct {l : List γ} {w : List Bool} {v : γ} :
 
 /-- `selectDistinct l w` contains no duplicate entries. -/
 theorem nodup_selectDistinct (l : List γ) (w : List Bool) : (selectDistinct l w).Nodup := by
-  have hzip : l.zipIdx.Nodup := by
-    rw [List.Nodup, List.pairwise_iff_getElem]
-    intro i j hi hj hij h
-    have := congrArg Prod.snd h
-    simp only [List.getElem_zipIdx, Nat.zero_add] at this
-    omega
-  refine (hzip.filter _).map_on ?_
+  refine ((List.nodup_zipIdx_map_snd l).of_map.filter _).map_on ?_
   rintro ⟨u, i⟩ hu ⟨v, j⟩ hv (rfl : u = v)
   simp only [List.mem_filter, Bool.and_eq_true, decide_eq_true_eq] at hu hv
   rw [← hu.2.2, ← hv.2.2]

@@ -55,16 +55,6 @@ private theorem decide_eq_rowsTest (r : ℕ) (d : DescribedNetwork T) :
   simp only [rowsTest, IsRowsFirstBipartite, decide_eq_true_eq, Bool.and_eq_true,
     List.all_eq_true, List.mem_range, List.count_flatMap, Function.comp_def]
 
-/-- Taking or dropping `min |l| r` elements is taking or dropping `r`. -/
-private theorem take_drop_min {α : Type} (l : List α) (r : ℕ) :
-    l.take (min l.length r) = l.take r ∧ l.drop (min l.length r) = l.drop r := by
-  rcases le_total l.length r with hle | hle
-  · rw [min_eq_left hle, List.take_length, List.take_of_length_le hle, List.drop_length,
-      List.drop_of_length_le hle]
-    exact ⟨rfl, rfl⟩
-  · rw [min_eq_right hle]
-    exact ⟨rfl, rfl⟩
-
 /-- **Rows-first bipartiteness is decidable in polynomial time**, from the number of rows and the
 network. -/
 theorem rowsFirst_polyTime :
@@ -119,9 +109,9 @@ theorem rowsFirst_polyTime :
     ComputableInPolyTime.allWithInput (ComputableInPolyTime.range.comp hm)
       (ComputableInPolyTime.bool_and.comp ((hcount (hflat htake)).prod (hcount (hflat hdrop))))
   refine (ComputableInPolyTime.bool_and.comp (h1.prod h2)).of_enc_eq fun ⟨r, d⟩ => ?_
-  obtain ⟨ht, hdr⟩ := take_drop_min d.vertices r
   dsimp only
   rw [decide_eq_rowsTest, rowsTest]
-  simp only [Function.comp_apply, ht, hdr]
+  simp only [Function.comp_apply, Nat.min_comm d.vertices.length r,
+    ← List.take_eq_take_min, ← List.drop_eq_drop_min]
 
 end Cslib.Circuits.Frontier.DescribedNetwork

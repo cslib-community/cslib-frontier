@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.FaceParity
 public import CslibFrontier.Computability.PolyTime.CSP.CyclicDifference.WhiteChains
+import CslibFrontier.Foundations.Data.List.Lookup
 import Mathlib.Data.List.GetD
 
 /-!
@@ -169,10 +170,8 @@ theorem satisfiable_body_of_source (arity : Rel → ℕ) (sem : Rel → List Boo
   obtain ⟨source, hsource⟩ := hsat
   let spin (v : ℕ) := source (F.distinctVars.getD v 0)
   let σ (n : ℕ) := (List.ofFn ((polygonGraph F).edgeGradient spin)).getD n false
-  have hspin (o : F.Occurrence) : spin (F.distinctVars.idxOf o.var) = source o.var := by
-    unfold spin
-    rw [List.getD_eq_getElem _ _ (List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr o.var_mem)),
-      List.getElem_idxOf (List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr o.var_mem))]
+  have hspin (o : F.Occurrence) : spin (F.distinctVars.idxOf o.var) = source o.var :=
+    congrArg source (List.getD_idxOf (CSP.mem_distinctVars.mpr o.var_mem) 0)
   have hσ (i : Fin (polygonGraph F).edges.length) :
       σ i.val = (polygonGraph F).edgeGradient spin i := by
     unfold σ

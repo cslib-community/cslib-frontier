@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
+import CslibFrontier.Foundations.Data.List.Lookup
 
 /-!
 # Directed Hamiltonian paths and cycles are NP-hard
@@ -159,9 +160,7 @@ theorem satisfiable_diamondDetours_iff (φ : CNF ℕ) :
     obtain ⟨l, hl, hσl⟩ := (Clause.eval_eq_true_iff _ _).1
       ((CNF.eval_eq_true_iff _ _).1 hσ φ[j] (List.getElem_mem hj))
     refine ⟨_, mem_diamondDetours.2 ⟨j, hj, l, hl, rfl⟩, rfl, ?_⟩
-    simp only
-    rw [List.getD_eq_getElem?_getD, List.getElem?_idxOf (fst_mem_vars hj hl), Option.getD_some]
-    exact hσl
+    simpa only [List.getD_idxOf (fst_mem_vars hj hl)] using hσl
 
 /-- **Correctness of the diamond construction.** A formula is satisfiable exactly when its
 diamond graph has a Hamiltonian path from the top of the first diamond to the bottom of the last.

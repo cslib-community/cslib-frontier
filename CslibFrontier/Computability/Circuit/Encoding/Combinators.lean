@@ -28,6 +28,7 @@ import CslibFrontier.Tactic.EncLen
 import Mathlib.Data.List.GetD
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import Mathlib.Data.List.TakeDrop
+import Mathlib.Algebra.Order.BigOperators.Group.List
 
 /-!
 # Signature-generic circuit code combinators and typed `fun_prop` bridges
@@ -932,16 +933,6 @@ private theorem referenceCode_bounds {Op : Type} {encOp : Op ↪ List Bool}
       dsimp only [D]
       nlinarith
 
-private theorem le_sum_map_of_mem {α : Type*} (f : α → ℕ) {a : α} {l : List α}
-    (ha : a ∈ l) : f a ≤ (l.map f).sum := by
-  induction l with
-  | nil => simp at ha
-  | cons b l ih =>
-    simp only [List.map_cons, List.sum_cons]
-    rcases List.mem_cons.mp ha with rfl | h
-    · omega
-    · have := ih h; omega
-
 private theorem length_encoding_of_bounds {Op : Type} {encOp : Op ↪ List Bool}
     {c : List (Op × List ℕ) × List ℕ} {B M W : ℕ}
     (ht : OpBitsLe encOp c B) (hm : codeMass c ≤ M) (hw : WireBitsLe c W) :
@@ -951,7 +942,7 @@ private theorem length_encoding_of_bounds {Op : Type} {encOp : Op ↪ List Bool}
       (encGate encOp g).length ≤ 2 * B + 1 + M * (2 * W + 1) := by
     have htag := ht g hg
     have hargs : g.2.length ≤ M := by
-      have h := le_sum_map_of_mem (fun g : Op × List ℕ => g.2.length + 1) hg
+      have h := List.le_sum_of_mem (List.mem_map_of_mem (f := fun g => g.2.length + 1) hg)
       dsimp only [codeMass] at hm
       omega
     have hwords := length_encList_le encNat g.2 (hw.1 g hg)

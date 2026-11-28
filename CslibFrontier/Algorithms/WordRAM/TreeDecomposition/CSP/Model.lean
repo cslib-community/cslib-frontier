@@ -588,10 +588,7 @@ private theorem maxTableExp_le_width_succ {T : NiceTree ℕ} (hval : T.LocalVali
   | forget v child ih =>
     have hv_mem : v ∈ bagList child :=
       List.mem_toFinset.1 ((toFinset_bagList hval.2).symm ▸ hval.1)
-    have hlen_er : ((bagList child).erase v).length + 1 = (bagList child).length := by
-      have := List.length_pos_of_mem hv_mem
-      have := List.length_erase_of_mem hv_mem
-      omega
+    have hlen_er := List.length_erase_add_one hv_mem
     exact max_le (hlen_er.trans_le ((length_bagList_le hval.2).trans
         (Nat.add_le_add_right (width_child_le_forget v child) 1)))
       ((ih hval.2).trans (Nat.add_le_add_right (width_child_le_forget v child) 1))

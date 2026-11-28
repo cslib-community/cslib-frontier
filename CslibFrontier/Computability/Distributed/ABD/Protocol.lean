@@ -1678,10 +1678,9 @@ private lemma pairwise_lt_index_of_key_lt {α β : Type*} [Preorder β] {key : �
     {seq : List α} (hsorted : seq.Pairwise fun a b => key a < key b)
     {i j : ℕ} (hi : i < seq.length) (hj : j < seq.length)
     (hlt : key seq[i] < key seq[j]) : i < j := by
-  rcases lt_trichotomy i j with h | rfl | h
-  · exact h
-  · exact False.elim (lt_irrefl _ hlt)
-  · exact False.elim (lt_asymm hlt (List.pairwise_iff_getElem.mp hsorted j i hj hi h))
+  have hs : StrictMono (fun p : Fin seq.length => key (seq.get p)) := fun i j hij =>
+    hsorted.rel_getElem_of_lt i.isLt j.isLt hij
+  exact (hs.lt_iff_lt (a := ⟨i, hi⟩) (b := ⟨j, hj⟩)).mp hlt
 
 private lemma abdLinKey_lt_of_prec {P V : Type*} [Fintype P] [LinearOrder P]
     {v₀ : V} {t : ℕ} {s : State P (ABDState P V) (ABDMsg P V) V}
@@ -1751,12 +1750,8 @@ theorem abd_linearizable {P V : Type*} [Fintype P] [DecidableEq P] [LinearOrder 
       cand
   have hsorted : List.Pairwise
       (fun a b => abdLinKey opTag s.history a < abdLinKey opTag s.history b) seq := by
-    have hnd_get := List.pairwise_iff_getElem.mp hnd
-    rw [List.pairwise_iff_getElem] at hsorted_le ⊢
-    intro i j hi hj hij
-    have hle : abdLinKey opTag s.history seq[i] ≤ abdLinKey opTag s.history seq[j] := by
-      simpa [leKey] using hsorted_le i j hi hj hij
-    exact lt_of_le_of_ne hle fun heq => hnd_get i j hi hj hij (abdLinKey_injective heq)
+    exact hsorted_le.imp₂ (S := (· ≠ ·)) (fun _ _ hab hne =>
+      lt_of_le_of_ne (of_decide_eq_true hab) (fun heq => hne (abdLinKey_injective heq))) hnd
   refine ⟨seq, hnd, ?_, ?_, ?_⟩
   · intro i hi hcomp
     rw [hmem_seq]
@@ -1820,11 +1815,7 @@ theorem abd_linearizable {P V : Type*} [Fintype P] [DecidableEq P] [LinearOrder 
         pairwise_lt_index_of_key_lt hsorted hiw hk
           (by simpa [List.getElem_idxOf] using
             abdLinKey_write_lt_read hw_lt hi_k hkw hkr hτ_w hτ_r le_rfl)
-      have htake_len : seq.idxOf w < (seq.take k).length := by rw [List.length_take]; omega
-      have hw_in_take : w ∈ seq.take k := by
-        have hget_take : (seq.take k)[seq.idxOf w] = w := by
-          rw [List.getElem_take, List.getElem_idxOf hiw]
-        exact hget_take ▸ List.getElem_mem htake_len
+      have hw_in_take : w ∈ seq.take k := (List.mem_take_iff_idxOf_lt hw_seq).mpr hlt_k
       obtain ⟨before, after, hsplit⟩ := List.append_of_mem hw_in_take
       have hafter_gt : ∀ x ∈ after, abdLinKey opTag s.history w < abdLinKey opTag s.history x :=
         (List.pairwise_append.mp (hsplit ▸ hsorted.take)).2.1 |> List.pairwise_cons.mp |>.1

@@ -28,6 +28,7 @@ import CslibFrontier.Tactic.SuppCases
 import CslibFrontier.Tactic.UniformRelabel
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.Foundations.Data.List.Blocks
 
 /-!
 # The Even–Mansour cipher in the ideal-permutation model
@@ -1016,11 +1017,8 @@ private theorem length_filterMap_eq_sum_cost {G : Type}
     (hstep : ∀ entry, (if (proj entry).isSome then 1 else 0) = cost entry.1)
     (T : Transcript (EvenMansourSpec G)) :
     (T.filterMap proj).length = (T.map fun entry => cost entry.1).sum := by
-  induction T with
-  | nil => rfl
-  | cons entry rest ih =>
-    rw [List.filterMap_cons, List.map_cons, List.sum_cons, ← hstep entry]
-    cases proj entry <;> simpa [Nat.add_comm] using ih
+  rw [List.length_filterMap_eq_countP, List.countP_eq_length_filter, List.length_filter_eq_sum]
+  simp only [hstep]
 
 /-- The length of `transcriptCipher T` equals the total `cipherCost` of `T`. -/
 @[simp] theorem length_transcriptCipher_eq_sum_cipherCost {G : Type}

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.Kruskal.Basic
 public import CslibFrontier.Algorithms.Lean.TSP.Walk
+import Mathlib.Algebra.Order.BigOperators.Group.List
 import Mathlib.Algebra.Order.Group.Nat
 import Mathlib.Data.Fintype.Card
 import Mathlib.Data.List.Zip
@@ -220,19 +221,15 @@ theorem mem_growTour {W : Type} {F : List (WeightedEdge n W)}
 private def insideWeight (F : List (WeightedEdge n ℕ)) (t : List (Fin n)) : ℕ :=
   (F.map fun e => if e.u ∈ t ∧ e.v ∈ t then e.weight else 0).sum
 
-private theorem sum_map_le {α : Type*} {f g : α → ℕ} (h : ∀ a, f a ≤ g a) :
-    ∀ L : List α, (L.map f).sum ≤ (L.map g).sum
-  | [] => le_rfl
-  | a :: L => Nat.add_le_add (h a) (sum_map_le h L)
-
 private theorem insideWeight_mono {t t' : List (Fin n)} (hsub : t ⊆ t')
-    (L : List (WeightedEdge n ℕ)) : insideWeight L t ≤ insideWeight L t' :=
-  sum_map_le (fun f => by
+    (L : List (WeightedEdge n ℕ)) : insideWeight L t ≤ insideWeight L t' := by
+  unfold insideWeight
+  exact List.sum_le_sum (fun f _ => by
     split_ifs with h1 h2
     · exact le_rfl
     · exact absurd ⟨hsub h1.1, hsub h1.2⟩ h2
     · exact Nat.zero_le _
-    · exact le_rfl) L
+    · exact le_rfl)
 
 private theorem insideWeight_add_le {F : List (WeightedEdge n ℕ)} {t t' : List (Fin n)}
     (hsub : t ⊆ t') {e : WeightedEdge n ℕ} (he : e ∈ F) (hin : ¬(e.u ∈ t ∧ e.v ∈ t))
@@ -245,8 +242,9 @@ private theorem insideWeight_add_le {F : List (WeightedEdge n ℕ)} {t t' : List
   omega
 
 private theorem insideWeight_le_totalWeight (F : List (WeightedEdge n ℕ)) (t : List (Fin n)) :
-    insideWeight F t ≤ totalWeight F :=
-  sum_map_le (fun f => by split_ifs <;> omega) F
+    insideWeight F t ≤ totalWeight F := by
+  unfold insideWeight totalWeight
+  exact List.sum_le_sum (fun f _ => by split_ifs <;> omega)
 
 /-- The charging invariant: once the tour has two vertices, it costs at most twice the tree
 edges inside it. -/
