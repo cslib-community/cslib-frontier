@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.PointerMachine.Local
+public import CslibFrontier.Computability.WordRAM.Compile
 import Mathlib.Data.Nat.Log
 
 /-!
@@ -24,11 +25,14 @@ reads the numeric permutation from the buffer named by `resultReg` after the las
 
 * `code`: the structured local-address sorter.
 * `inputState`, `resultReg`, `permutation`: the prepared input and the numeric output.
+* `wordRAMProgram`, `wordRAMInput`: the ordinary word-RAM program and its prepared input.
 
 ## Main results
 
 * `code_exec`, `pointer_exec`, and `pointer_exec_small`: instruction bounds for the
   structured sorter and its compiled pointer-machine program.
+* `wordRAM_address_arithmetic`, `wordRAM_offsets`: fixed-offset arithmetic in the
+  ordinary word-RAM program.
 -/
 
 public section
@@ -742,5 +746,153 @@ theorem pointer_exec_small (keys : List ℕ) (hn : keys.length ≤ 2) :
   obtain ⟨_, t, ht, he⟩ := hrun
   refine ⟨_, t + 1, executes_compile he, ?_⟩
   by_cases h : keys.length < 2 <;> simp [h] at ht ⊢ <;> omega
+
+section WordRAM
+
+open Cslib.WordRAM
+
+private abbrev FlatCode := Cslib.Program.Code (GenericOp .standard 20) (Cond 20)
+
+private def ptrReg (i : Fin 8) : Fin 20 := i.castLE (by decide)
+
+private def scalarReg (i : Fin 11) : Fin 20 := ⟨8 + i.val, by omega⟩
+
+private def fieldAddr : Fin 20 := 19
+
+private def wordOp (o : Cslib.WordRAM.Op .standard 20) : FlatCode := .op (.inl o)
+
+-- Keys occupy one word each. Buffer entries occupy two adjacent words.
+private def lowerWordOp : Cslib.WordRAM.Local.Op model 8 11 → FlatCode
+  | .null dst => wordOp (.const (ptrReg dst) 0)
+  | .copyAddr dst src => wordOp (.copy (ptrReg dst) (ptrReg src))
+  | .move dir dst src =>
+    let stride := if src = key then one else two
+    let op := match dir with
+      | .next => BinOp.add
+      | .prev => BinOp.sub
+    wordOp (.bin op (ptrReg dst) (ptrReg src) (scalarReg stride))
+  | .copyData dst src => wordOp (.copy (scalarReg dst) (scalarReg src))
+  | .scalar op dst a b =>
+    let bin := match op with
+      | .add => BinOp.add
+      | .sub => BinOp.sub
+    wordOp (.bin bin (scalarReg dst) (scalarReg a) (scalarReg b))
+  | .loadData dst src => wordOp (.load (scalarReg dst) (ptrReg src))
+  | .storeData dst src => wordOp (.store (ptrReg dst) (scalarReg src))
+  | .loadAddr dst src =>
+    wordOp (.bin .add fieldAddr (ptrReg src) (scalarReg one)) ▷
+      wordOp (.load (ptrReg dst) fieldAddr)
+  | .storeAddr dst src =>
+    wordOp (.bin .add fieldAddr (ptrReg dst) (scalarReg one)) ▷
+      wordOp (.store fieldAddr (ptrReg src))
+
+private def lowerWordTest : Cslib.WordRAM.Local.Test model 8 11 → Cond 20
+  | .addrEq a b => .eq (ptrReg a) (ptrReg b)
+  | .scalar _ a b => .lt (scalarReg a) (scalarReg b)
+
+private def lowerWordCode : SortCode → FlatCode
+  | .skip => .skip
+  | .op o => lowerWordOp o
+  | .seq a b => .seq (lowerWordCode a) (lowerWordCode b)
+  | .branch t a b => .branch (lowerWordTest t) (lowerWordCode a) (lowerWordCode b)
+  | .loop t b => .loop (lowerWordTest t) (lowerWordCode b)
+  | .loopUntil t b => .loopUntil (lowerWordTest t) (lowerWordCode b)
+
+/-- Standard word-RAM code for the sorter on interleaved index/reference buffers.
+The halt returns the base address of the active permutation buffer. -/
+def wordRAMProgram : Cslib.WordRAM.Program .standard 20 :=
+  (lowerWordCode code).assemble (flatMachine 0 .standard 20) 0 ++ [.halt (ptrReg resultReg)]
+
+/-- Prepare the three slices for the ordinary word-RAM program. Each key occupies one
+word, followed by two buffers of two-word entries. -/
+def wordRAMInput (keys : List ℕ) : Cslib.WordRAM.State 20 :=
+  let n := keys.length
+  ⟨0, ⟨fun i =>
+    if i = ptrReg src then n else if i = ptrReg dst then 3 * n else
+    if i = scalarReg len then n else if i = scalarReg one then 1 else
+    if i = scalarReg two then 2 else 0,
+    fun a => keys[a]?.getD 0⟩⟩
+
+private def localArithmetic (i : Instr .standard 20) : Bool :=
+  match i with
+  | .op (.alu (.bin op) dst args) =>
+    let args : Fin 2 → Fin 20 := args
+    if dst.val < 8 ∨ dst = fieldAddr then
+      decide ((op = .add ∨ op = .sub) ∧ (args 0).val < 8 ∧
+        (args 1 = scalarReg one ∨ args 1 = scalarReg two))
+    else
+      decide (8 ≤ (args 0).val ∧ (args 0).val < 19 ∧
+        8 ≤ (args 1).val ∧ (args 1).val < 19)
+  | .op (.alu .width _ _) => false
+  | _ => true
+
+/-- All arithmetic that produces an address uses a cursor and one of the two fixed
+offset registers. The other arithmetic uses only scalar operands. -/
+theorem wordRAM_address_arithmetic {op : BinOp} {d a b : Fin 20}
+    (h : Instr.op (Cslib.WordRAM.Op.bin op d a b) ∈ wordRAMProgram)
+    (hd : d.val < 8 ∨ d.val = 19) :
+    (op = .add ∨ op = .sub) ∧ a.val < 8 ∧ (b.val = 9 ∨ b.val = 18) := by
+  have check : wordRAMProgram.all localArithmetic = true := by decide
+  have hl := List.all_eq_true.mp check _ h
+  have hd' : d.val < 8 ∨ d = fieldAddr := hd.imp_right fun he => Fin.ext he
+  simp only [localArithmetic, Cslib.WordRAM.Op.bin, ite_eq_left hd', decide_eq_true_eq] at hl
+  obtain ⟨ho, ha, hb⟩ := hl
+  exact ⟨ho, ha, hb.imp (congrArg Fin.val) (congrArg Fin.val)⟩
+
+private def destination : Cslib.WordRAM.Op .standard 20 → Option (Fin 20)
+  | .const d _ | .copy d _ | .load d _ | .alu _ d _ => some d
+  | .store _ _ => none
+
+private theorem eval_keeps_register {w : ℕ} {x y : Cslib.WordRAM.Data 20}
+    {o : Cslib.WordRAM.Op .standard 20} {i : Fin 20}
+    (h : o.eval w x = some y) (hi : destination o ≠ some i) : y.regs i = x.regs i := by
+  cases o with
+  | const =>
+    obtain ⟨_, rfl⟩ := Cslib.WordRAM.Data.put_eq_some.mp h
+    simp only [destination] at hi
+    exact Function.update_of_ne (fun h => hi (congrArg some h.symm)) _ _
+  | alu =>
+    obtain ⟨_, _, _, rfl⟩ := Cslib.WordRAM.Op.eval_alu_eq_some.mp h
+    simp only [destination] at hi
+    exact Function.update_of_ne (fun h => hi (congrArg some h.symm)) _ _
+  | copy | load =>
+    cases h
+    simp only [destination] at hi
+    exact Function.update_of_ne (fun h => hi (congrArg some h.symm)) _ _
+  | store =>
+    cases h
+    rfl
+
+private theorem step_offsets {w : ℕ} {x y : Cslib.WordRAM.State 20}
+    (h : Next w wordRAMProgram x y) (i : Fin 20)
+    (hi : i = scalarReg one ∨ i = scalarReg two) : y.data.regs i = x.data.regs i := by
+  let keeps (i : Fin 20) : Instr .standard 20 → Bool
+    | .op op => decide (destination op ≠ some i)
+    | _ => true
+  have check : wordRAMProgram.all (keeps i) = true := by
+    rcases hi with rfl | rfl <;> decide
+  unfold Next Cslib.WordRAM.step at h
+  split at h
+  · cases h
+  · next o ho =>
+    have hold := List.all_eq_true.mp check _ (List.mem_of_getElem? ho)
+    split at h
+    · next z hz =>
+      cases h
+      exact eval_keeps_register hz (of_decide_eq_true hold)
+    · cases h
+  all_goals first | (cases h; rfl) | cases h
+
+/-- A run from the prepared input preserves the two fixed address offsets. -/
+theorem wordRAM_offsets {w t : ℕ} {keys : List ℕ} {y : Cslib.WordRAM.State 20}
+    (h : Runs w wordRAMProgram (wordRAMInput keys) y t) :
+    y.data.regs 9 = 1 ∧ y.data.regs 18 = 2 := by
+  induction h with
+  | refl => exact ⟨rfl, rfl⟩
+  | tail _ _ _ _ hs ih =>
+    exact ⟨(step_offsets hs 9 (Or.inl rfl)).trans ih.1,
+      (step_offsets hs 18 (Or.inr rfl)).trans ih.2⟩
+
+end WordRAM
 
 end Cslib.Algorithms.WordRAM.MergeSort.LocalRef

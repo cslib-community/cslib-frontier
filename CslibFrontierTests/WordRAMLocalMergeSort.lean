@@ -100,4 +100,34 @@ private meta def checksCompiledResult (keys : List ℕ) (expectedBase : ℕ) : B
 #guard checksCompiledResult duplicateKeys 14
 #guard checksCompiledResult [3, 1, 2, 1] 4
 
+private meta def runWordRAM (w : ℕ) (program : Array (Instr .standard 20)) :
+    ℕ → ℕ → FastData 20 → ℕ → Option (FastData 20 × ℕ × ℕ)
+  | 0, _, _, _ => none
+  | fuel + 1, pc, x, steps =>
+    match program[pc]? with
+    | some (.op o) => do
+      let y ← o.evalFast w x
+      runWordRAM w program fuel (pc + 1) y (steps + 1)
+    | some (.jump t) => runWordRAM w program fuel t x (steps + 1)
+    | some (.branch c t) =>
+      runWordRAM w program fuel (if c.holdsFast x then t else pc + 1) x (steps + 1)
+    | some (.halt i) => some (x, x.reg i, steps + 1)
+    | _ => none
+
+private meta def directResult (keys : List ℕ) : Option (List ℕ × ℕ) := do
+  let n := keys.length
+  let w := Nat.log2 (max (5 * n + 2) (keys.foldl max 0)) + 2
+  let input := LocalRef.wordRAMInput keys
+  let (y, base, t) ← runWordRAM w LocalRef.wordRAMProgram.toArray (100 * (n + 1) ^ 2)
+    input.pc (.ofData input.data) 0
+  pure ((List.range n).map (fun i => y.read (base + 2 * i)), t)
+
+#guard (List.range 7).all fun n =>
+  (listsOver [0, 1, 2] n).all fun keys =>
+    match directResult keys, indexedResult keys with
+    | some (direct, t), some (indexed, u) => direct == indexed && t < u + 1
+    | _, _ => false
+
+#guard (directResult (mixed 128)).map Prod.snd == some 19865
+
 end CslibFrontierTests.WordRAMLocalMergeSort
