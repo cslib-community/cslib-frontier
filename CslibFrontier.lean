@@ -747,6 +747,7 @@ public import CslibFrontier.Computability.QueryComplexity.Quantum.BernsteinVazir
 public import CslibFrontier.Computability.Complexity.Problems.NCL.HWord.AndOr
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.MultiPass
 public import CslibFrontier.Tactic.SuppCases.Init
+public import CslibFrontier.Computability.Complexity.Classes.IP.AdviceProver
 public import CslibFrontier.Computability.LogSpaceDerandomization.NormalizedAtomRows.ClippedTail
 public import CslibFrontier.Probability.MarkovChain.RotationSmoothing
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.Symbols
@@ -8947,6 +8948,7 @@ public import CslibFrontier.MachineLearning.OnlineLearning.AdaGrad
 public import CslibFrontier.Computability.Machines.ReadMachine.Tidy
 public import CslibFrontier.MachineLearning.LossMinimization.Hinge
 public import CslibFrontier.Computability.Circuit.Rational.Determinant
+public import CslibFrontier.Computability.Complexity.Classes.IP.BestReply
 public import CslibFrontier.Foundations.Data.Polynomial.CoeffList.DivMod
 public import CslibFrontier.Computability.Complexity.Problems.LongPath.Hardness
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.MultiGaussian
