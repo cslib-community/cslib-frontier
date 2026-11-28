@@ -2587,6 +2587,7 @@ public import CslibFrontier.Computability.Circuit.Prefix.OptimalDepth.SegmentTre
 public import CslibFrontier.Foundations.Algebra.BigOperators.PiFinset
 public import CslibFrontier.GameTheory.Mechanism.CombinatorialAuction.SingleMinded
 public import CslibFrontier.Logics.FirstOrder.Ordered.Addition
+public import CslibFrontier.Computability.Complexity.CookLevin.Quasilinear.Satisfiable
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.WalshRigidity
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Spec
@@ -3439,6 +3440,7 @@ public import CslibFrontier.Foundations.Data.MvPolynomial.Shift
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.ClosureKernel
 public import CslibFrontier.Computability.Complexity.CookLevin.Correctness
 public import CslibFrontier.DataStructure.PriorityQueue.FibonacciHeap.Allocation
+public import CslibFrontier.Computability.Complexity.CookLevin.Quasilinear.Soundness
 public import CslibFrontier.Algorithms.PlantedClique.Program
 public import CslibFrontier.Computability.Circuit.Frontier.Ledger.Basic
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.VertexReader
@@ -6391,6 +6393,7 @@ public import CslibFrontier.Algorithms.Lean.Karger.Memory.Layout
 public import CslibFrontier.GameTheory.Mechanism.SmoothAuction
 public import CslibFrontier.Probability.UniformOrder
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product.Reconstruct
+public import CslibFrontier.Computability.Complexity.CookLevin.Quasilinear.Completeness
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.ConfigurationGraph.FairCoin.PairedPorts
 public import CslibFrontier.Foundations.Data.Code.ReedSolomon
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.TaperedRecovery
