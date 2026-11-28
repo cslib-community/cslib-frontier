@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.GameTheory.Market.BalancedFlow
+import CslibFrontier.Foundations.Analysis.BernoulliInequality
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -54,6 +55,11 @@ and rationality infrastructure of `CslibFrontier.GameTheory.Market.BalancedFlow`
   `Cslib.GameTheory.Market.LinearFisherMarket.surplusSqNorm_le_sub_sq_of_isBalancedFlow`
   (**Lemma 5.15**, p. 119): any feasible flow whose surplus on buyer `i` differs from a balanced
   flow by `δ` exceeds the balanced squared `ℓ₂` surplus norm by at least `δ ^ 2`.
+* `Cslib.GameTheory.Market.LinearFisherMarket.mem_activeGoods`,
+  `Cslib.GameTheory.Market.LinearFisherMarket.event2Ratio_eq_none_iff`,
+  `Cslib.GameTheory.Market.LinearFisherMarket.one_lt_event2Ratio`, and
+  `Cslib.GameTheory.Market.LinearFisherMarket.le_event2Ratio_iff`: membership and bound
+  characterizations of `activeGoods` and `event2Ratio` for applying Lemmas 5.17, 5.18, and 5.20.
 * `Cslib.GameTheory.Market.LinearFisherMarket.isEqualityFlow_scaleActivePrices`
   (**Lemma 5.17**, p. 120),
   `Cslib.GameTheory.Market.LinearFisherMarket.surplusSqNorm_scaleActivePrices_le`
@@ -163,7 +169,8 @@ private theorem exists_isEqualityEdge [Finite G] [Nonempty G] (M : LinearFisherM
 /-- **Zero-surplus equilibrium recovery** ([Vazirani2007], Lemma 5.2, p. 109; Section 5.6, p. 111):
 if `p` is positive and satisfies the Invariant and `f` is a maximum equality flow in `N(p)` whose
 buyer surpluses all vanish, then `(moneyFlowToAlloc f p, p)` is a market equilibrium. -/
-theorem isEquilibrium_of_surplus_eq_zero [Fintype I] [Fintype G] [DecidableEq I] [DecidableEq G]
+private theorem isEquilibrium_of_surplus_eq_zero [Fintype I] [Fintype G]
+    [DecidableEq I] [DecidableEq G]
     {M : LinearFisherMarket I G} {p : G → ℝ} (hp : ∀ g, 0 < p g)
     (hbuyer : ∀ i, ∃ g, 0 < M.utility i g) (hgood : ∀ g, ∃ i, 0 < M.utility i g)
     (hinv : M.SatisfiesInvariant p) {f : G → I → ℝ}
@@ -508,7 +515,9 @@ noncomputable def activeGoods [Fintype G] (M : LinearFisherMarket I G) (p : G �
     (H : Finset I) : Finset G :=
   open scoped Classical in Finset.univ.filter fun g => ∃ i ∈ H, M.IsEqualityEdge p i g
 
-private theorem mem_activeGoods [Fintype G] {M : LinearFisherMarket I G} {p : G → ℝ}
+/-- Membership in `M.activeGoods p H`: good `g` is active iff some buyer `i ∈ H` has an equality
+edge to `g` at prices `p`. -/
+theorem mem_activeGoods [Fintype G] {M : LinearFisherMarket I G} {p : G → ℝ}
     {H : Finset I} {g : G} :
     g ∈ M.activeGoods p H ↔ ∃ i ∈ H, M.IsEqualityEdge p i g := by
   classical
@@ -585,7 +594,32 @@ private theorem no_flow_from_activeGoods_outside [Fintype I] [Fintype G]
   refine le_antisymm (not_lt.1 fun hpos => hk ?_) (hf.1 g k)
   exact hclosed k i (Relation.ReflTransGen.single ⟨g, hpos, hE⟩) hiH
 
-private theorem one_lt_event2Ratio [Fintype G] [DecidableEq G]
+/-- `M.event2Ratio p H J = none` iff no buyer `i ∈ H` derives positive utility from any good
+`g ∉ J`. -/
+theorem event2Ratio_eq_none_iff [Fintype G] [DecidableEq G] {M : LinearFisherMarket I G}
+    {p : G → ℝ} {H : Finset I} {J : Finset G} :
+    M.event2Ratio p H J = none ↔ ∀ i ∈ H, ∀ g ∉ J, M.utility i g = 0 := by
+  classical
+  unfold event2Ratio
+  constructor
+  · intro h i hi g hg
+    split_ifs at h with hne
+    rw [Finset.not_nonempty_iff_eq_empty] at hne
+    have hnot : (i, g) ∉ event2Pairs M H J := by rw [hne]; exact Finset.notMem_empty _
+    have hle : ¬ 0 < M.utility i g := fun hu => hnot <| Finset.mem_filter.2
+      ⟨Finset.mem_product.2 ⟨hi, Finset.mem_sdiff.2 ⟨Finset.mem_univ _, hg⟩⟩, hu⟩
+    exact le_antisymm (not_lt.1 hle) (M.utility_nonneg i g)
+  · intro h
+    have hempty : ¬ (event2Pairs M H J).Nonempty := by
+      rintro ⟨⟨i, g⟩, hig⟩
+      obtain ⟨hmem, hu⟩ := Finset.mem_filter.1 hig
+      obtain ⟨hi, hg⟩ := Finset.mem_product.1 hmem
+      exact hu.ne' (h i hi g (Finset.mem_sdiff.1 hg).2)
+    simp [hempty]
+
+/-- At positive prices `p`, every Event-2 scale ratio `r` returned by
+`M.event2Ratio p H (M.activeGoods p H)` satisfies `1 < r`. -/
+theorem one_lt_event2Ratio [Fintype G] [DecidableEq G]
     {M : LinearFisherMarket I G} {p : G → ℝ} (hp : ∀ g, 0 < p g)
     {H : Finset I} {x2 : ℝ} (hx2 : M.event2Ratio p H (M.activeGoods p H) = some x2) :
     1 < x2 := by
@@ -606,22 +640,46 @@ private theorem one_lt_event2Ratio [Fintype G] [DecidableEq G]
     rw [bangPerBuck_eq, div_lt_iff₀ (hp ig.2)] at hlt
     exact (one_lt_div hu_pos).2 (by linarith)
 
-private theorem le_event2_bound [Fintype G] [DecidableEq G]
-    {M : LinearFisherMarket I G} {p : G → ℝ} {H : Finset I} {x : ℝ}
-    (hx_le : ∀ r, M.event2Ratio p H (M.activeGoods p H) = some r → x ≤ r)
-    {i : I} (hi : i ∈ H) {g : G} (hg : g ∉ M.activeGoods p H) (hu : 0 < M.utility i g) :
-    x * M.utility i g ≤ maxBangPerBuck M p i * p g := by
+/-- Characterization of upper bounds on `M.event2Ratio p H J` at positive prices `p`: `x` does not
+exceed the Event-2 ratio (vacuously when `M.event2Ratio p H J = none`) iff for every active buyer
+`i ∈ H` and inactive good `g ∉ J` with `0 < M.utility i g`, there exists a good `g'` such that
+`x * M.bangPerBuck p i g ≤ M.bangPerBuck p i g'`. -/
+theorem le_event2Ratio_iff [Fintype G] [DecidableEq G] {M : LinearFisherMarket I G}
+    {p : G → ℝ} (hp : ∀ g, 0 < p g) {H : Finset I} {J : Finset G} {x : ℝ} :
+    (∀ r, M.event2Ratio p H J = some r → x ≤ r) ↔
+      ∀ i ∈ H, ∀ g ∉ J, 0 < M.utility i g →
+        ∃ g' : G, x * M.bangPerBuck p i g ≤ M.bangPerBuck p i g' := by
   classical
-  have hmem : (i, g) ∈ event2Pairs M H (M.activeGoods p H) :=
-    Finset.mem_filter.2 ⟨Finset.mem_product.2 ⟨hi, Finset.mem_sdiff.2 ⟨Finset.mem_univ _, hg⟩⟩, hu⟩
-  have hne : (event2Pairs M H (M.activeGoods p H)).Nonempty := ⟨(i, g), hmem⟩
-  have hratio : M.event2Ratio p H (M.activeGoods p H) =
-      some ((event2Pairs M H (M.activeGoods p H)).inf' hne fun ig =>
-        maxBangPerBuck M p ig.1 * p ig.2 / M.utility ig.1 ig.2) := by
-    simp [event2Ratio, hne]
-  have hle : x ≤ maxBangPerBuck M p i * p g / M.utility i g :=
-    (hx_le _ hratio).trans (Finset.inf'_le _ hmem)
-  exact (le_div_iff₀ hu).1 hle
+  constructor
+  · intro hx i hi g hg hu
+    have hmem : (i, g) ∈ event2Pairs M H J := Finset.mem_filter.2
+      ⟨Finset.mem_product.2 ⟨hi, Finset.mem_sdiff.2 ⟨Finset.mem_univ _, hg⟩⟩, hu⟩
+    have hne : (event2Pairs M H J).Nonempty := ⟨(i, g), hmem⟩
+    have hratio : M.event2Ratio p H J =
+        some ((event2Pairs M H J).inf' hne fun ig =>
+          maxBangPerBuck M p ig.1 * p ig.2 / M.utility ig.1 ig.2) := by
+      simp [event2Ratio, hne]
+    have hle : x ≤ maxBangPerBuck M p i * p g / M.utility i g :=
+      (hx _ hratio).trans (Finset.inf'_le _ hmem)
+    have hmul : x * M.utility i g ≤ maxBangPerBuck M p i * p g := (le_div_iff₀ hu).1 hle
+    have : Nonempty G := ⟨g⟩
+    obtain ⟨g', hE'⟩ := exists_isEqualityEdge M p i
+    refine ⟨g', ?_⟩
+    rw [(isEqualityEdge_iff_eq_maxBangPerBuck i g').1 hE', bangPerBuck_eq, ← mul_div_assoc]
+    exact (div_le_iff₀ (hp g)).2 hmul
+  · intro h r hr
+    unfold event2Ratio at hr
+    split_ifs at hr with hne
+    · injection hr with hr
+      rw [← hr, Finset.le_inf'_iff]
+      intro ig hig
+      obtain ⟨hmem, hu⟩ := Finset.mem_filter.1 hig
+      obtain ⟨hi, hg⟩ := Finset.mem_product.1 hmem
+      obtain ⟨g', hg'⟩ := h ig.1 hi ig.2 (Finset.mem_sdiff.1 hg).2 hu
+      have hmax : x * M.bangPerBuck p ig.1 ig.2 ≤ maxBangPerBuck M p ig.1 :=
+        hg'.trans (bangPerBuck_le_maxBangPerBuck ig.1 g')
+      rw [bangPerBuck_eq, ← mul_div_assoc, div_le_iff₀ (hp ig.2)] at hmax
+      exact (le_div_iff₀ hu).2 hmax
 
 /-- Equality-edge characterization for active buyers `i ∈ H` when scaling `J = M.activeGoods p H`
 by `1 ≤ x` not exceeding `event2Ratio`. -/
@@ -652,9 +710,11 @@ private theorem active_buyer_equalityEdge_scale [Fintype G] [DecidableEq G]
       rcases (M.utility_nonneg i g).eq_or_lt with hu0 | hu_pos
       · rw [← hu0, zero_div]
         exact div_nonneg hα_pos.le hx_pos.le
-      · have hbd := le_event2_bound hx_le hi hgJ hu_pos
-        rw [div_le_div_iff₀ (hp g) hx_pos]
-        linarith
+      · obtain ⟨g', hg'⟩ := (le_event2Ratio_iff hp).1 hx_le i hi g hgJ hu_pos
+        have h1 : x * M.bangPerBuck p i g ≤ maxBangPerBuck M p i :=
+          hg'.trans (bangPerBuck_le_maxBangPerBuck i g')
+        rw [bangPerBuck_eq] at h1
+        exact (le_div_iff₀ hx_pos).2 (by linarith)
   have hex_att : ∃ g₀ : G, M.bangPerBuck p' i g₀ = maxBangPerBuck M p i / x := by
     have : Nonempty G := by obtain ⟨g, _⟩ := hG; exact ⟨g⟩
     obtain ⟨g₀, hE₀⟩ := exists_isEqualityEdge M p i
@@ -1865,30 +1925,6 @@ noncomputable def dpsvProgram (M : LinearFisherMarket I G) :
     else pure ⟨0, 0, 0⟩
   else pure ⟨0, 0, 0⟩
 
-/-- Elementary decay bound: for every `k ≥ 1`, `(1 - 1 / k) ^ k < 1 / 2`. -/
-private theorem one_sub_inv_pow_lt_half {k : ℕ} (hk : 1 ≤ k) :
-    (1 - 1 / (k : ℝ)) ^ k < 1 / 2 := by
-  rcases eq_or_lt_of_le hk with rfl | hk2
-  · norm_num
-  · have hk_r : (2 : ℝ) ≤ (k : ℝ) := by exact_mod_cast hk2
-    have hkm1_pos : (0 : ℝ) < (k : ℝ) - 1 := by linarith
-    have hk_pos : (0 : ℝ) < (k : ℝ) := by linarith
-    set x : ℝ := 1 / ((k : ℝ) - 1)
-    have hx_pos : 0 < x := div_pos one_pos hkm1_pos
-    have hbern : 1 + (k : ℝ) * x ≤ (1 + x) ^ k :=
-      one_add_mul_le_pow (by linarith) k
-    have hkx : (1 : ℝ) < (k : ℝ) * x := by
-      dsimp only [x]
-      rw [mul_one_div, one_lt_div hkm1_pos]
-      linarith
-    have hpow_gt2 : (2 : ℝ) < (1 + x) ^ k := by linarith
-    have hinv_eq : 1 - 1 / (k : ℝ) = (1 + x)⁻¹ := by
-      dsimp only [x]
-      field_simp [hk_pos.ne', hkm1_pos.ne']
-      ring
-    rw [hinv_eq, inv_pow, one_div]
-    exact inv_strictAnti₀ zero_lt_two hpow_gt2
-
 /-- Helper for `dpsvLoop_endgame`: under low starting gap `< 1 / Δ^2`, any non-terminal phase
 produces a genuine tight set `res.tightSet` at `res.price` whose goods cannot already lie in
 `seen` (by Lemma 5.13). -/
@@ -2323,9 +2359,16 @@ theorem dpsvProgram_spec {M : LinearFisherMarket I G}
           have h1 : (1 : ℝ) ≤ (m : ℝ) * (n : ℝ) := by exact_mod_cast hmn_pos
           rw [sub_nonneg, div_le_one (by linarith)]
           exact h1
-        have hblock : (1 - 1 / ((m : ℝ) * (n : ℝ))) ^ (m * n) < 1 / 2 := by
-          have := one_sub_inv_pow_lt_half hmn_pos
-          simpa [Nat.cast_mul] using this
+        have hblock : (1 - 1 / ((m : ℝ) * (n : ℝ))) ^ (m * n) ≤ 1 / 2 := by
+          have hmn_r : (1 : ℝ) ≤ (m : ℝ) * (n : ℝ) := by exact_mod_cast hmn_pos
+          have hp0 : (0 : ℝ) ≤ 1 / ((m : ℝ) * (n : ℝ)) := by positivity
+          have hp1 : 1 / ((m : ℝ) * (n : ℝ)) ≤ 1 := (div_le_one (by linarith)).2 hmn_r
+          have h1 := Real.one_sub_pow_le_one_div_one_add_mul hp0 hp1 (m * n)
+          have hmul : ((m * n : ℕ) : ℝ) * (1 / ((m : ℝ) * (n : ℝ))) = 1 := by
+            push_cast
+            exact mul_one_div_cancel (by linarith)
+          rw [hmul] at h1
+          linarith
         have hlt_pow : ((m * Δm ^ 4 * Mtot ^ 2 : ℕ) : ℝ) < (2 : ℝ) ^ K := by
           have hnat : m * Δm ^ 4 * Mtot ^ 2 < 2 ^ K :=
             Nat.lt_pow_succ_log_self (by decide : 1 < 2) _
@@ -2337,7 +2380,7 @@ theorem dpsvProgram_spec {M : LinearFisherMarket I G}
           (1 - 1 / ((m : ℝ) * (n : ℝ))) ^ T1
             = ((1 - 1 / ((m : ℝ) * (n : ℝ))) ^ (m * n)) ^ K := by
                 dsimp only [T1]; rw [pow_mul]
-          _ ≤ (1 / 2 : ℝ) ^ K := pow_le_pow_left₀ (pow_nonneg hbase_nn _) hblock.le K
+          _ ≤ (1 / 2 : ℝ) ^ K := pow_le_pow_left₀ (pow_nonneg hbase_nn _) hblock K
           _ = 1 / (2 : ℝ) ^ K := by rw [one_div_pow]
           _ < 1 / ((m * Δm ^ 4 * Mtot ^ 2 : ℕ) : ℝ) :=
               one_div_lt_one_div_of_lt hN_pos hlt_pow

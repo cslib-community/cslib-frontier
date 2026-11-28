@@ -31,6 +31,12 @@ for every main result of [Vazirani2007], Sections 5.8 and 5.10:
      with surplus `![1, 5]` to the balanced flow with surplus `![3, 3]`), and Lemma 5.13
      (`price_sub_ge_inv_sq_of_isTightSet` on `splitFisher` comparing tight set `{0}` at `![3, 2]`
      with `{0, 1}` at equilibrium `![5, 5]`).
+   * Public `module` interface witness for `activeGoods`, `event2Ratio`, **Lemma 5.17**,
+     **Corollary 5.18**, and **Lemma 5.20** (`splitFisher_event2_iteration_witness`): on
+     `splitFisher` at `p = ![3, 2]` with `H = {1}` and `f = ![![3, 0], ![0, 2]]`, scaling active
+     good `J = {1}` by the exact Event-2 ratio `x = 3 / 2` to `p' = ![3, 3]` preserves feasibility
+     of `f` and drops `surplusSqNorm` from `25` to `8 ≤ 25 - (5 - 2) ^ 2` at the balanced flow
+     `f' = ![![1, 2], ![0, 3]]`.
 3. **Phase potential drop & zero-spending boundary witness (Section 5.8, p. 116; Lemmas 5.14 &
    5.21, pp. 119, 121):**
    * On `splitFisher` at `![2, 2]`, `dpsvPhaseProgram` executes `1 ≤ iters ≤ 2` iterations using
@@ -334,6 +340,141 @@ theorem splitFisher_lemma5_15_and_phase_witness :
     simp only [Fintype.card_fin, hsq18] at hdrop
     linarith
   exact ⟨h515, hp', hinv', hit1, by simpa using hit2, by simpa using hq, hdrop', hSne, hSstr⟩
+
+/-- **Public `module` client witness for `activeGoods`, `event2Ratio`, Lemma 5.17, Corollary 5.18,
+and Lemma 5.20:** on `splitFisher` at `p = ![3, 2]` with active buyer set `H = {1}` and flow
+`f = ![![3, 0], ![0, 2]]` (surplus `![0, 5]`), `activeGoods ![3, 2] {1} = {1}`, `event2Ratio` is
+`none` on `{0, 1}` and bounded below by `3 / 2 > 1` on `{1}`, scaling `{1}` by `x = 3 / 2` to
+`![3, 3]` keeps `f` feasible (Lemma 5.17), and balancing to `f' = ![![1, 2], ![0, 3]]` (surplus
+`![2, 2]`, expanding `H'` to `{0, 1}`) satisfies Corollary 5.18 (`8 ≤ 25`) and Lemma 5.20
+(`8 ≤ 25 - (5 - 2) ^ 2`). -/
+theorem splitFisher_event2_iteration_witness :
+    let p : Fin 2 → ℝ := ![3, 2]
+    let H : Finset (Fin 2) := {1}
+    let f : Fin 2 → Fin 2 → ℝ := ![![3, 0], ![0, 2]]
+    let p' : Fin 2 → ℝ := scaleActivePrices p (splitFisher.activeGoods p H) (3 / 2)
+    let f' : Fin 2 → Fin 2 → ℝ := ![![1, 2], ![0, 3]]
+    splitFisher.activeGoods p H = {1} ∧
+      splitFisher.event2Ratio p H {0, 1} = none ∧
+      (∀ r, splitFisher.event2Ratio p H (splitFisher.activeGoods p H) = some r → 1 < r) ∧
+      splitFisher.IsEqualityFlow p' f ∧
+      splitFisher.surplusSqNorm f' ≤ splitFisher.surplusSqNorm f ∧
+      splitFisher.surplusSqNorm f' ≤ splitFisher.surplusSqNorm f - (5 - 2) ^ 2 := by
+  set p : Fin 2 → ℝ := ![3, 2]
+  set H : Finset (Fin 2) := {1}
+  set f : Fin 2 → Fin 2 → ℝ := ![![3, 0], ![0, 2]]
+  set f' : Fin 2 → Fin 2 → ℝ := ![![1, 2], ![0, 3]]
+  have hp : ∀ g : Fin 2, 0 < p g := by simp [p, Fin.forall_fin_two]
+  have h00 : splitFisher.IsEqualityEdge p 0 0 := by
+    intro g'; rcases fin_two_cases g' with rfl | rfl
+    · exact le_rfl
+    · simp [p, splitFisher, bangPerBuck_eq]; norm_num
+  have h10 : ¬ splitFisher.IsEqualityEdge p 1 0 := by
+    intro h; have := h 1; simp [p, splitFisher, bangPerBuck_eq] at this; norm_num at this
+  have h11 : splitFisher.IsEqualityEdge p 1 1 := by
+    intro g'; rcases fin_two_cases g' with rfl | rfl
+    · simp [p, splitFisher, bangPerBuck_eq]; norm_num
+    · exact le_rfl
+  have hJ : splitFisher.activeGoods p H = {1} := by
+    ext g; rcases fin_two_cases g with rfl | rfl <;> simp [H, mem_activeGoods, h10, h11]
+  have hnone : splitFisher.event2Ratio p H {0, 1} = none := by
+    rw [event2Ratio_eq_none_iff]
+    intro i _ g hg
+    rcases fin_two_cases g with rfl | rfl <;> simp at hg
+  have hgt1 : ∀ r, splitFisher.event2Ratio p H (splitFisher.activeGoods p H) = some r → 1 < r :=
+    fun _ hr => one_lt_event2Ratio hp hr
+  have hx_le : ∀ r, splitFisher.event2Ratio p H (splitFisher.activeGoods p H) = some r →
+      (3 / 2 : ℝ) ≤ r := by
+    rw [le_event2Ratio_iff hp, hJ]
+    intro i hi g hg _
+    have hi1 : i = 1 := by simpa [H] using hi
+    have hg0 : g = 0 := by
+      rcases fin_two_cases g with rfl | rfl
+      · rfl
+      · simp at hg
+    subst hi1; subst hg0
+    refine ⟨1, ?_⟩
+    simp [p, splitFisher, bangPerBuck_eq]
+  have hf_feas : splitFisher.IsEqualityFlow p f := by
+    refine ⟨by simp [f, Fin.forall_fin_two], fun g i hpos => ?_,
+      by simp [p, f, splitFisher, Fin.forall_fin_two, Fin.sum_univ_two],
+      by simp [f, splitFisher, Fin.forall_fin_two, Fin.sum_univ_two]; norm_num⟩
+    rcases fin_two_cases g with rfl | rfl <;> rcases fin_two_cases i with rfl | rfl <;>
+      simp [f] at hpos
+    · exact h00
+    · exact h11
+  have hclosed : ∀ u v, splitFisher.ResidualReachable p f u v → v ∈ H → u ∈ H := by
+    intro u v hreach
+    induction hreach with
+    | refl => exact id
+    | @tail b c _ hstep ih =>
+      intro hc
+      apply ih
+      have hc1 : c = 1 := by simpa [H] using hc
+      subst hc1
+      obtain ⟨g, hpos, hEg⟩ := hstep
+      rcases fin_two_cases g with rfl | rfl
+      · exact (h10 hEg).elim
+      · rcases fin_two_cases b with rfl | rfl
+        · simp [f] at hpos
+        · simp [H]
+  have hp'_eq : scaleActivePrices p (splitFisher.activeGoods p H) (3 / 2) = ![3, 3] := by
+    funext g; rw [hJ]
+    rcases fin_two_cases g with rfl | rfl <;> simp [p, scaleActivePrices]
+  have hf'_feas : splitFisher.IsEqualityFlow ![3, 3] f' := by
+    refine ⟨by simp [f', Fin.forall_fin_two], fun g i hpos => ?_,
+      by simp [f', splitFisher, Fin.forall_fin_two, Fin.sum_univ_two]; norm_num,
+      by simp [f', splitFisher, Fin.forall_fin_two, Fin.sum_univ_two]; norm_num⟩
+    rcases fin_two_cases g with rfl | rfl <;> rcases fin_two_cases i with rfl | rfl <;>
+      simp [f'] at hpos
+    · intro g'; rcases fin_two_cases g' with rfl | rfl
+      · exact le_rfl
+      · simp [splitFisher, bangPerBuck_eq]; norm_num
+    · intro g'; rcases fin_two_cases g' with rfl | rfl <;> simp [splitFisher, bangPerBuck_eq]
+    · intro g'; rcases fin_two_cases g' with rfl | rfl <;> simp [splitFisher, bangPerBuck_eq]
+  have hf'_max : splitFisher.IsMaxEqualityFlow ![3, 3] f' := by
+    refine ⟨hf'_feas, fun f'' hf'' => ?_⟩
+    have hle : flowValue f'' ≤ ∑ g : Fin 2, (![(3 : ℝ), 3] g) * splitFisher.supply g :=
+      Finset.sum_le_sum fun g _ => hf''.2.2.1 g
+    have hval : flowValue f' = 6 := by simp [f', flowValue, Fin.sum_univ_two]; norm_num
+    have hsum : ∑ g : Fin 2, (![(3 : ℝ), 3] g) * splitFisher.supply g = 6 := by
+      simp [splitFisher, Fin.sum_univ_two]; norm_num
+    linarith
+  have hsurp_f' : splitFisher.surplus f' = ![2, 2] := by
+    funext i; rcases fin_two_cases i with rfl | rfl <;>
+      norm_num [f', surplus, splitFisher, Fin.sum_univ_two]
+  have hf'_bal : splitFisher.IsBalancedFlow
+      (scaleActivePrices p (splitFisher.activeGoods p H) (3 / 2)) f' := by
+    rw [hp'_eq, isBalancedFlow_iff_satisfiesPropertyOne hf'_max]
+    intro j i hlt
+    rw [hsurp_f'] at hlt
+    rcases fin_two_cases j with rfl | rfl <;> rcases fin_two_cases i with rfl | rfl <;>
+      simp at hlt
+  have h517 : splitFisher.IsEqualityFlow
+      (scaleActivePrices p (splitFisher.activeGoods p H) (3 / 2)) f :=
+    isEqualityFlow_scaleActivePrices hp splitFisher_isNonDegenerate.buyer_nonsatiated
+      hf_feas hclosed (by norm_num) hx_le
+  have h518 : splitFisher.surplusSqNorm f' ≤ splitFisher.surplusSqNorm f :=
+    surplusSqNorm_scaleActivePrices_le hp splitFisher_isNonDegenerate.buyer_nonsatiated
+      hf_feas hclosed (by norm_num) hx_le hf'_bal
+  have hH_ne : H.Nonempty := ⟨1, by simp [H]⟩
+  have h520_raw := surplusSqNorm_drop_of_minSurplus_lt hp
+    splitFisher_isNonDegenerate.buyer_nonsatiated hf_feas hH_ne hclosed (by norm_num) hx_le hf'_bal
+  have hinf_H : H.inf' hH_ne (splitFisher.surplus f) = 5 := by
+    simp [H, f, surplus, splitFisher, Fin.sum_univ_two]; norm_num
+  have h520 : splitFisher.surplusSqNorm f' ≤ splitFisher.surplusSqNorm f - (5 - 2) ^ 2 := by
+    dsimp only at h520_raw
+    have hinf_H' : ∀ (S : Finset (Fin 2)) (hS : S.Nonempty),
+        S.inf' hS (splitFisher.surplus f') = 2 := fun S hS => by
+      apply le_antisymm
+      · obtain ⟨u, hu⟩ := hS
+        refine (Finset.inf'_le (splitFisher.surplus f') hu).trans ?_
+        rw [hsurp_f']; rcases fin_two_cases u with rfl | rfl <;> rfl
+      · refine Finset.le_inf' hS _ fun u _ => ?_
+        rw [hsurp_f']; rcases fin_two_cases u with rfl | rfl <;> rfl
+    rw [hinf_H', hinf_H] at h520_raw
+    exact h520_raw (by norm_num)
+  exact ⟨hJ, hnone, hgt1, h517, h518, h520⟩
 
 /-! ### 3. Zero-spending buyer boundary witness (`Z_t ≠ ∅`) and Theorem 5.22 -/
 
