@@ -7,8 +7,9 @@ Authors: Karn Seth
 module
 -- upstream: candidate
 
-public import CslibFrontier.Crypto.Computational.Encryption.Authenticated
+public import CslibFrontier.Crypto.Computational.Encryption.EncForge
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Crypto.Computational.Encryption.PlaintextIntegrity
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
@@ -21,18 +22,14 @@ import CslibFrontier.Tactic.PPT
 /-!
 # Real/Ideal Authenticated Encryption
 
-This module formalizes the single-oracle real-versus-ideal definition of authenticated encryption
-([Katz and Lindell, Definition 5.4][KatzLindell2020]) for a `SymmetricCipher`, and proves that it is
-equivalent to adaptive chosen-ciphertext security together with ciphertext integrity
-([Katz and Lindell, Theorem 5.5][KatzLindell2020]).
+For encryption queries on `n`-bit messages, real/ideal authenticated encryption is equivalent to
+adaptive left-or-right CCA security together with fresh-plaintext unforgeability. This is a
+fixed-length variant of [Katz and Lindell, Theorem 5.5][KatzLindell2020].
 
-The adversary is a `CCAAdversary`: it queries one oracle with an encryption channel (`false`) and a
-decryption channel (`true`). In the real world, an encryption query on an `n`-bit message returns a
-fresh encryption of that message, and a decryption query returns the encoded decryption
-`encOption encBits (E.decrypt n k ct)`. In the ideal world, an encryption query on an `n`-bit
-message returns an encryption of the all-zero message, and every decryption query returns `[]`, the
-encoding of rejection. A cipher satisfies `RealIdealAE` when no oracle-PPT adversary tells the two
-worlds apart with non-negligible advantage.
+A uniform strict oracle-PPT adversary has encryption and decryption channels. A real encryption
+query returns a fresh encryption of the message. The real decryption channel rejects ciphertexts
+returned by earlier encryptions and otherwise returns the encoded result of `E.decrypt`. The ideal
+encryption channel encrypts the all-zero message, and ideal decryption always rejects.
 
 ## Main definitions
 
@@ -52,29 +49,34 @@ worlds apart with non-negligible advantage.
   ciphertext-integrity winning probability equals a real/ideal advantage.
 * `Cslib.Crypto.SymmetricCipher.advantage_aeRealGame_aeIdealGame_le`: the real/ideal advantage is
   at most a CCA advantage plus a polynomial multiple of a ciphertext-integrity winning probability.
-* `Cslib.Crypto.SymmetricCipher.realIdealAE_iff_indcca_and_ciphertextIntegrity`,
-  `Cslib.Crypto.SymmetricCipher.realIdealAE_iff_authenticatedEncryption`: the two definitions of
-  authenticated encryption are equivalent ([Katz and Lindell, Theorem 5.5][KatzLindell2020]).
+* `Cslib.Crypto.SymmetricCipher.realIdealAE_iff_indcca_and_encForge`: real/ideal security is
+  equivalent to `INDCCA` together with unforgeability for a fresh plaintext (`EncForge`).
+* `Cslib.Crypto.SymmetricCipher.realIdealAE_iff_indcca_and_ciphertextIntegrity` and
+  `Cslib.Crypto.SymmetricCipher.realIdealAE_iff_authenticatedEncryption` characterize real/ideal
+  security using ciphertext integrity.
 
-## Implementation notes
+## Relation to Katz and Lindell
 
-* Katz and Lindell select the world with a hidden bit and bound the probability of guessing it by
-  `1/2` plus a negligible function. This is equivalent to the two-world indistinguishability used
-  here, which is also how `INDCPA` and `INDCCA` are stated.
-* Katz and Lindell forbid decryption queries on ciphertexts returned by the encryption oracle. Here
-  the real oracle records every ciphertext it returns and answers such a query with `[]`, the same
-  reply as the ideal oracle, so these queries carry no information.
-* Messages have length `n`, so the all-zero message is `List.replicate n false`. Encryption
-  queries on messages of any other length return `[]` in both worlds.
-* Katz and Lindell state Theorem 5.5 with unforgeability, where a forgery must decrypt to a message
-  that was never queried. The equivalence here uses the library's `CiphertextIntegrity`, where a
-  forgery only has to be a fresh ciphertext that decrypts. By decryption completeness every
-  unforgeability break is also a ciphertext-integrity break.
+* Definition 3.7 permits a fixed plaintext length `ℓ(n)`. Here `ℓ(n) = n`, and encryption queries
+  of other lengths return `[]` in both worlds.
+* The experiment in Definition 5.4 forbids decrypting earlier encryption replies. Both
+  worlds answer such a replay with the public rejection `[]`. The source bounds the probability
+  of guessing a uniform hidden world bit by `1/2` plus a negligible function. The two-world
+  advantage is twice the absolute deviation of that probability from `1/2`
+  (`Game.advantage_eq_two_mul_guessingAdvantage_uniform_bool_beq`). Complementing an adversary's
+  guess exchanges the signs of the deviation.
+* Definition 5.3 combines CCA security with Definition 5.2's unforgeability. A winning ciphertext
+  decrypts to a plaintext never queried for encryption. Here this condition is `EncForge`.
+  Definition 5.1 gives one equal-length challenge pair and ordinary encryption and decryption
+  oracles, with decryption of the challenge ciphertext forbidden. Here `INDCCA` allows adaptive
+  left-or-right queries under a common bit and rejects decryption of every returned ciphertext.
+  The book remarks after Definition 5.1 that CCA security also protects multiple encryptions.
 
 ## References
 
-* [J. Katz, Y. Lindell, *Introduction to Modern Cryptography*, Definition 5.4 and Theorem 5.5
-  (pp. 152–153)][KatzLindell2020]
+* [J. Katz, Y. Lindell, *Introduction to Modern Cryptography*, 3rd ed.][KatzLindell2020],
+  Definition 3.7 (p. 52), Definition 5.1 (pp. 149–150), and §5.2.1, Definitions 5.2–5.4 and
+  Theorem 5.5 (pp. 151–153).
 -/
 
 public section
@@ -151,9 +153,11 @@ noncomputable def aeIdealGame (E : SymmetricCipher) (adversary : CCAAdversary) (
       (E.aeIdealOracle n k)) (adversary n [])).run ()
   return out.1
 
-/-- Real/ideal authenticated encryption ([Katz and Lindell, Definition 5.4][KatzLindell2020]):
-every `IsOraclePPT encBool` adversary distinguishes `aeRealGame` from `aeIdealGame` with only
-negligible advantage. -/
+/-- Real/ideal authenticated encryption for `n`-bit encryption queries, following [Katz and
+Lindell, §5.2.1, Definition 5.4, pp. 152–153][KatzLindell2020]. Every uniform strict oracle-PPT
+adversary has negligible two-world advantage. Both worlds reject decryption of earlier encryption
+replies, which the source forbids querying, and the advantage is twice the absolute deviation of
+the source's hidden-bit guessing probability from `1/2`. -/
 @[expose]
 def RealIdealAE (E : SymmetricCipher) : Prop :=
   Game.Indistinguishable
@@ -273,8 +277,7 @@ private theorem map_runWith_cpaToAEHandler (E : SymmetricCipher) (ctBound : ℕ 
     simp only [Bool.and_eq_true, beq_iff_eq] at hlenEq
     have hmbLen : (if bit then dropFrame request.2 else unframe request.2).length = n := by
       cases bit <;> simp [hlenEq]
-    simp only [hmbLen, beq_self_eq_true, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
-      PMF.map_bind, PMF.pure_map, Prod.map_apply, id_eq]
+    simp only [hmbLen, beq_self_eq_true, ↓reduceIte, Prod.map_apply, id_eq, pmf_norm]
     apply PMF.bind_congr_on_support
     intro ct hct
     rw [List.take_of_length_le (hctBound _ hmbLen ct hct)]
@@ -290,18 +293,17 @@ theorem eval_aeRealGame_cpaToAEAdversary (E : SymmetricCipher) (ctBound : ℕ �
     (hctBound : E.CiphertextLengthLE n (ctBound n)) :
     ProbComp.eval (E.aeRealGame (cpaToAEAdversary ctBound bit adversary) n) =
       ProbComp.eval (E.cpaGame adversary bit n) := by
-  simp only [aeRealGame, cpaGame, symmetricCPAGameOn, ProbOracleComp.run, cpaToAEAdversary,
-    runWith_norm, pmf_norm]
+  simp only [aeRealGame, cpaGame, symmetricCPAGameOn, cpaToAEAdversary, runWith_norm, pmf_norm]
   peel_binds k
-  have hsim := ProbOracleComp.runWith_map_state _
-    (fun q (u : Unit) =>
-      (ProbComp.eval (symmetricCPAReplyOn (fun n m₀ m₁ => (m₀.length == n) && (m₁.length == n))
-        E.encrypt n k bit q)).map (·, u))
-    (fun _ => ()) (map_runWith_cpaToAEHandler E ctBound bit n k (hctBound k k_mem))
-    (adversary n []) ((), [])
-  rw [ProbOracleComp.runWith_memoryless] at hsim
-  have hsim' := congrArg (PMF.map Prod.fst) hsim
-  simpa only [pmf_norm, PMF.map, Function.comp_def, PMF.bind_pure] using hsim'
+  have hsim := congrArg (PMF.map Prod.fst) <|
+    ProbOracleComp.runWith_map_state _
+      (fun q (u : Unit) =>
+        (ProbComp.eval (symmetricCPAReplyOn (fun n m₀ m₁ => (m₀.length == n) && (m₁.length == n))
+          E.encrypt n k bit q)).map (·, u))
+      (fun _ => ()) (map_runWith_cpaToAEHandler E ctBound bit n k (hctBound k k_mem))
+      (adversary n []) ((), [])
+  exact (PMF.bind_pure_comp Prod.fst _).trans
+    (by simpa only [runWith_norm, pmf_norm] using hsim)
 
 /-- Against the ideal oracle, one step of `cpaToAEHandler` does not depend on the fixed bit: both
 selectable messages have length `n`, and the ideal oracle encrypts the all-zero message. -/
@@ -427,8 +429,7 @@ private theorem map_ciEncryptionOracle_eq_runWith_ciToAEHandler (E : SymmetricCi
     ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, aeRealOracle, Bool.false_eq_true,
     ↓reduceIte]
   by_cases hlen : (request.2.length == n) = true
-  · simp only [hlen, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind,
-      PMF.pure_map, Prod.map_apply, id_eq]
+  · simp only [hlen, ↓reduceIte, Prod.map_apply, id_eq, pmf_norm]
     apply PMF.bind_congr_on_support
     intro ct hct
     rw [List.take_of_length_le (hctBound _ (beq_iff_eq.mp hlen) ct hct)]
@@ -478,8 +479,7 @@ private theorem eval_run_aeIdealOracle_true (E : SymmetricCipher) (n : ℕ) (k c
 theorem eval_aeIdealGame_ciToAEAdversary (E : SymmetricCipher) (ctBound : ℕ → ℕ)
     (adversary : CIAdversary) (n : ℕ) :
     ProbComp.eval (E.aeIdealGame (ciToAEAdversary ctBound adversary) n) = PMF.pure false := by
-  simp [aeIdealGame, ciToAEAdversary, eval_run_aeIdealOracle_true,
-    ProbOracleComp.eval_run_interpret_eq_runWith]
+  simp [aeIdealGame, ciToAEAdversary, eval_run_aeIdealOracle_true, runWith_norm, pmf_norm]
 
 /-- The CI winning probability of `adversary` equals the real/ideal advantage of
 `ciToAEAdversary ctBound adversary`, when `ctBound n` bounds the ciphertext lengths of `n`-bit
@@ -558,11 +558,16 @@ private theorem isOraclePPTOn_aeToCCAHandler {ctBound : ℕ → ℕ} {decBound :
         (fun reply => (reply, ())) <$>
           (List.take (decBound p.1.1 p.2.1.2) <$> ProbOracleComp.query (true, p.2.1.2))) := by
     ppt
+  have hp := ComputableInPolyTime.id' (encIn := EIn)
+  have hrequest := ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.frame.comp hp.snd'.fst'.snd')
+    ((ComputableInPolyTime.bitsReplicate false).comp hp.fst'.fst')
   have hencQuery : IsOraclePPTOn EIn (encPair encBits (encFinEnum Unit))
       (fun p : (ℕ × List Bool) × ((Bool × List Bool) × Unit) =>
         (fun ct => (ct, ())) <$> (List.take (ctBound p.1.1) <$>
-          ProbOracleComp.query (false, frame p.2.1.2 ++ List.replicate p.1.1 false))) := by
-    ppt
+          ProbOracleComp.query (false, frame p.2.1.2 ++ List.replicate p.1.1 false))) :=
+    (IsOraclePPTOn.query_take false hrequest (hctBound.comp hp.fst'.fst')).map
+      ((ComputableInPolyTime.id' (encIn := encBits)).prod (ComputableInPolyTime.const ()))
   unfold aeToCCAHandler
   exact IsOraclePPTOn.cond hop hdecQuery hencQuery
 
@@ -574,15 +579,12 @@ private theorem length_of_mem_support_aeToCCAHandler {ctBound : ℕ → ℕ}
       result.1.length ≤ ctBound n + decBound n request.2 := by
   intro result hresult
   unfold aeToCCAHandler at hresult
-  cases hreq : request.1
-  · simp only [hreq, Bool.false_eq_true, ↓reduceIte] at hresult
-    obtain ⟨ct, hct, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
-    obtain ⟨rawCt, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hct
-    exact (List.length_take_le _ _).trans (by lia)
-  · simp only [hreq, ↓reduceIte] at hresult
-    obtain ⟨reply, hrep, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
-    obtain ⟨rawReply, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hrep
-    exact (List.length_take_le _ _).trans (by lia)
+  cases hreq : request.1 <;>
+    simp only [hreq, Bool.false_eq_true, ↓reduceIte, OracleComp.mem_supportWith_map_iff] at hresult
+  · rcases hresult with ⟨_, ⟨_, _, rfl⟩, rfl⟩
+    exact (List.length_take_le _ _).trans (Nat.le_add_right _ _)
+  · rcases hresult with ⟨_, ⟨_, _, rfl⟩, rfl⟩
+    exact (List.length_take_le _ _).trans (Nat.le_add_left _ _)
 
 /-- `aeToCCAAdversary` preserves strict oracle-PPT admissibility (`IsOraclePPT`). -/
 theorem isOraclePPT_aeToCCAAdversary {ctBound : ℕ → ℕ} {decBound : ℕ → List Bool → ℕ}
@@ -591,18 +593,16 @@ theorem isOraclePPT_aeToCCAAdversary {ctBound : ℕ → ℕ} {decBound : ℕ →
       (encPair encUnary encBits) encUnary)
     {adversary : CCAAdversary} (hadversary : IsOraclePPT encBool adversary) :
     IsOraclePPT encBool (aeToCCAAdversary ctBound decBound adversary) := by
-  have hresCtArg : ComputableInPolyTime (fun pair : (ℕ × List Bool) × List Bool => pair.1.1)
-      (encPair (encPair encUnary encBits) encBits) encUnary := by
-    fun_prop
-  have hresDecArg : ComputableInPolyTime
-      (fun pair : (ℕ × List Bool) × List Bool => (pair.1.1, pair.2))
-      (encPair (encPair encUnary encBits) encBits) (encPair encUnary encBits) := by
-    fun_prop
   have hrun := isOraclePPTOn_run_unitHandler
     (handler := fun n => aeToCCAHandler n (ctBound n) decBound)
     (bound := fun n word => ctBound n + decBound n word) hadversary
     (isOraclePPTOn_aeToCCAHandler hctBound hdecBound)
-    (ComputableInPolyTime.unary_add' (hctBound.comp hresCtArg) (hdecBound.comp hresDecArg))
+    (ComputableInPolyTime.unary_add'
+      (hctBound.comp (show ComputableInPolyTime (fun pair : (ℕ × List Bool) × List Bool => pair.1.1)
+        (encPair (encPair encUnary encBits) encBits) encUnary by fun_prop))
+      (hdecBound.comp (show ComputableInPolyTime
+        (fun pair : (ℕ × List Bool) × List Bool => (pair.1.1, pair.2))
+        (encPair (encPair encUnary encBits) encBits) (encPair encUnary encBits) by fun_prop)))
     length_of_mem_support_aeToCCAHandler
   unfold aeToCCAAdversary
   simpa only [bind_pure_comp] using (hrun.map (ComputableInPolyTime.fst _ _)).isOraclePPT
@@ -625,8 +625,7 @@ private theorem map_aeRealOracle_eq_runWith_aeToCCAHandler (E : SymmetricCipher)
       unframe_frame_append, dropFrame_frame_append, List.length_replicate, beq_self_eq_true,
       Bool.and_true]
     by_cases hlen : (request.2.length == n) = true
-    · simp only [hlen, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind,
-        PMF.pure_map, Prod.map_apply, id_eq]
+    · simp only [hlen, ↓reduceIte, Prod.map_apply, id_eq, pmf_norm]
       apply PMF.bind_congr_on_support
       intro ct hct
       rw [List.take_of_length_le (hctBound _ (beq_iff_eq.mp hlen) ct hct)]
@@ -652,18 +651,9 @@ theorem eval_ccaGame_aeToCCAAdversary (E : SymmetricCipher) (ctBound : ℕ → �
       ProbComp.eval (E.aeRealGame adversary n) := by
   simp only [ccaGame, aeRealGame, aeToCCAAdversary, runWith_norm, pmf_norm]
   peel_binds k
-  have hsim := ProbOracleComp.runWith_map_state
-    (fun request queried => ProbComp.eval (E.aeRealOracle n k request queried))
-    (fun request state =>
-      (ProbOracleComp.runWith (fun q s => ProbComp.eval (E.ccaOracle n k false q s))
-          ((aeToCCAHandler n (ctBound n) decBound request).run state.1) state.2).map
-        (fun result => (result.1.1, result.1.2, result.2)))
-    (fun queried : List (List Bool) => ((), queried))
-    (fun request queried =>
-      map_aeRealOracle_eq_runWith_aeToCCAHandler E ctBound decBound n k (hctBound k k_mem)
-        (hdecBound k k_mem) request queried)
-    (adversary n []) []
-  rw [← hsim]
+  rw [← ProbOracleComp.runWith_map_state _ _ (fun queried : List (List Bool) => ((), queried))
+    (map_aeRealOracle_eq_runWith_aeToCCAHandler E ctBound decBound n k (hctBound k k_mem)
+      (hdecBound k k_mem)) (adversary n []) []]
   simp only [pmf_norm]
 
 /-- One step of `aeToCCAHandler` against the all-reject CCA oracle with challenge bit `true`, after
@@ -683,8 +673,7 @@ private theorem map_runWith_aeToCCAHandler_eq_aeIdealOracle (E : SymmetricCipher
       unframe_frame_append, dropFrame_frame_append, List.length_replicate, beq_self_eq_true,
       Bool.and_true]
     by_cases hlen : (request.2.length == n) = true
-    · simp only [hlen, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind,
-        PMF.pure_map, Prod.map_apply, id_eq]
+    · simp only [hlen, ↓reduceIte, Prod.map_apply, id_eq, pmf_norm]
       apply PMF.bind_congr_on_support
       intro ct hct
       rw [List.take_of_length_le (hctBound _ (by simp) ct hct)]
@@ -704,18 +693,9 @@ theorem eval_ccaRejectGame_aeToCCAAdversary (E : SymmetricCipher) (ctBound : ℕ
       ProbComp.eval (E.aeIdealGame adversary n) := by
   simp only [ccaRejectGame, aeIdealGame, aeToCCAAdversary, runWith_norm, pmf_norm]
   peel_binds k
-  have hsim := ProbOracleComp.runWith_map_state
-    (fun request state =>
-      (ProbOracleComp.runWith (fun q s => ProbComp.eval (E.ccaRejectOracle n k true q s))
-          ((aeToCCAHandler n (ctBound n) decBound request).run state.1) state.2).map
-        (fun result => (result.1.1, result.1.2, result.2)))
-    (fun request u => ProbComp.eval (E.aeIdealOracle n k request u))
-    (fun _ : Unit × List (List Bool) => ())
-    (fun request state =>
-      map_runWith_aeToCCAHandler_eq_aeIdealOracle E ctBound decBound n k (hctBound k k_mem)
-        request state)
-    (adversary n []) ((), [])
-  rw [← hsim]
+  rw [← ProbOracleComp.runWith_map_state _ _ (fun _ : Unit × List (List Bool) => ())
+    (map_runWith_aeToCCAHandler_eq_aeIdealOracle E ctBound decBound n k (hctBound k k_mem))
+    (adversary n []) ((), [])]
   simp only [pmf_norm]
 
 /-- **Real/ideal advantage bound.** If `aeToCCAAdversary ctBound decBound adversary` makes at most
@@ -751,8 +731,7 @@ theorem advantage_aeRealGame_aeIdealGame_le (E : SymmetricCipher) (ctBound Qd : 
            hhop,
            eval_ccaRejectGame_aeToCCAAdversary E ctBound decBound adversary n hctBound]
 
-/-- **CCA security and ciphertext integrity imply real/ideal security**: the reverse direction of
-[KatzLindell2020] Theorem 5.5, with `CiphertextIntegrity` in place of unforgeability. -/
+/-- CCA security and ciphertext integrity imply real/ideal security. -/
 theorem realIdealAE_of_indcca_of_ciphertextIntegrity {E : SymmetricCipher} (hcca : E.INDCCA)
     (hci : E.CiphertextIntegrity) : E.RealIdealAE := by
   intro adversary hadversary
@@ -783,8 +762,7 @@ theorem RealIdealAE.authenticatedEncryption {E : SymmetricCipher} (h : E.RealIde
     E.AuthenticatedEncryption :=
   ⟨h.indcpa, h.ciphertextIntegrity⟩
 
-/-- Real/ideal security implies CCA security: with `RealIdealAE.ciphertextIntegrity`, this is the
-forward direction of [KatzLindell2020] Theorem 5.5. -/
+/-- Real/ideal security implies adaptive left-or-right CCA security. -/
 theorem RealIdealAE.indcca {E : SymmetricCipher} (h : E.RealIdealAE) : E.INDCCA :=
   h.authenticatedEncryption.indcca
 
@@ -793,12 +771,20 @@ theorem AuthenticatedEncryption.realIdealAE {E : SymmetricCipher}
     (hAE : E.AuthenticatedEncryption) : E.RealIdealAE :=
   realIdealAE_of_indcca_of_ciphertextIntegrity hAE.indcca hAE.2
 
-/-- **Katz–Lindell Theorem 5.5**, in the form used by this library: a cipher is secure in the
-real/ideal sense if and only if it is CCA secure and has ciphertext integrity. -/
+/-- Real/ideal security is equivalent to CCA security and integrity against fresh ciphertexts. -/
 theorem realIdealAE_iff_indcca_and_ciphertextIntegrity (E : SymmetricCipher) :
     E.RealIdealAE ↔ E.INDCCA ∧ E.CiphertextIntegrity :=
   ⟨fun h => ⟨h.indcca, h.ciphertextIntegrity⟩,
     fun h => realIdealAE_of_indcca_of_ciphertextIntegrity h.1 h.2⟩
+
+/-- Fixed-length variant of [Katz and Lindell, §5.2.1, Theorem 5.5, p. 153][KatzLindell2020].
+Real/ideal security on `n`-bit encryption queries is equivalent to adaptive left-or-right CCA
+security and unforgeability for a fresh plaintext. Definition 5.1 uses a single challenge pair
+with ordinary encryption and decryption oracles. -/
+theorem realIdealAE_iff_indcca_and_encForge (E : SymmetricCipher) :
+    E.RealIdealAE ↔ E.INDCCA ∧ E.EncForge :=
+  E.realIdealAE_iff_indcca_and_ciphertextIntegrity.trans <|
+    and_congr_right fun hcca => ⟨CiphertextIntegrity.encForge, hcca.ciphertextIntegrity⟩
 
 /-- Real/ideal security is equivalent to the library's `AuthenticatedEncryption`. -/
 theorem realIdealAE_iff_authenticatedEncryption (E : SymmetricCipher) :

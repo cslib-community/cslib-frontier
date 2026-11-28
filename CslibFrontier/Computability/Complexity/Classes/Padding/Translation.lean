@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OPrimitives
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 
 /-!
 # Translation of deterministic time collapses
@@ -55,14 +56,12 @@ private def pad (L : ℕ) (x : List Bool) : List Bool :=
 private def unpad (y : List Bool) : List Bool :=
   (y.dropWhile (· = true)).tail
 
-private theorem unpad_replicate_append (k : ℕ) (x : List Bool) :
-    unpad (List.replicate k true ++ false :: x) = x := by
+private theorem unpad_pad (L : ℕ) (x : List Bool) : unpad (pad L x) = x := by
+  suffices ∀ k, unpad (List.replicate k true ++ false :: x) = x from this _
+  intro k
   induction k with
   | zero => rfl
-  | succ k ih => simp [unpad, List.replicate_succ]
-
-private theorem unpad_pad (L : ℕ) (x : List Bool) : unpad (pad L x) = x :=
-  unpad_replicate_append _ x
+  | succ k _ => simp [unpad, List.replicate_succ]
 
 private theorem length_pad {L : ℕ} {x : List Bool} (h : x.length < L) :
     (pad L x).length = L := by
@@ -86,35 +85,24 @@ private def unpadT : Transducer Bool Bool where
 private theorem run_unpadT_true (y : List Bool) : unpadT.run true y = y := by
   induction y with
   | nil => rfl
-  | cons b y ih =>
-    rw [Transducer.run_cons]
-    change [b] ++ unpadT.run true y = _
-    rw [ih]
-    rfl
+  | cons b y ih => exact congrArg (b :: ·) ih
 
 private theorem run_unpadT (y : List Bool) : unpadT.run false y = unpad y := by
   induction y with
   | nil => rfl
   | cons b y ih =>
-    rw [Transducer.run_cons]
     cases b
-    · change [] ++ unpadT.run true y = _
-      rw [run_unpadT_true]
-      rfl
-    · change [] ++ unpadT.run false y = _
-      rw [ih]
-      simp [unpad]
+    · exact run_unpadT_true y
+    · simpa [unpad, unpadT, Transducer.run_cons] using ih
 
 private theorem computableInO_unpad :
     ComputableInO unpad encBits encBits (fun y => y.length) fun y => y.length := by
-  refine .of_tidy (ComputableTidilyInO.of_bounds
-    (unpadT.computableTidilyInTimeAndSpace fun y => (run_unpadT y).symm) 12
-    (fun y => ?_) (fun _ => Nat.zero_le _) fun y => ?_)
-  · simp only [encBits_apply]
-    omega
-  · have := length_unpad_le y
-    simp only [encBits_apply]
-    omega
+  refine ComputableInO.of_bounds
+    (unpadT.computableInTimeAndSpace fun y => (run_unpadT y).symm) 12
+    (fun y => by simp only [encBits_apply]; omega) (fun _ => Nat.zero_le _) fun y => ?_
+  have := length_unpad_le y
+  simp only [encBits_apply]
+  omega
 
 variable {G : ℕ → ℕ}
 
@@ -148,13 +136,12 @@ theorem DTIME_comp_subset_of_subset {f₁ f₂ : ℕ → ℕ} (hf₁ : Monotone 
   intro A hA
   classical
   let guard (y : List Bool) := decide (G (unpad y).length ≤ y.length)
-  let B : Set (List Bool) :=
-    {y | (if guard y then indicator A (unpad y) else false) = true}
-  have hle : ComputableInPolyTime (fun p : ℕ × ℕ => decide (G p.1 ≤ p.2))
-      (encPair encNat encNat) encBool :=
-    (ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.binary_le).comp
-      ((hG.comp (.fst encNat encNat)).prod (.snd encNat encNat))
+  let B : Set (List Bool) := {y | (if guard y then indicator A (unpad y) else false) = true}
   have hguard : ComputableInO guard encBits encBool (fun y => y.length) fun y => y.length := by
+    have hle : ComputableInPolyTime (fun p : ℕ × ℕ => decide (G p.1 ≤ p.2))
+        (encPair encNat encNat) encBool :=
+      ComputableInPolyTime.binary_le.comp
+        ((hG.comp (.fst encNat encNat)).prod (.snd encNat encNat))
     have hlens := (ComputableInO.lengthNat.comp computableInO_unpad).prod ComputableInO.lengthNat
     refine (hle.natPair_inO.comp hlens).mono 5 (fun y => ?_) fun y => ?_
     all_goals
@@ -177,14 +164,13 @@ theorem DTIME_comp_subset_of_subset {f₁ f₂ : ℕ → ℕ} (hf₁ : Monotone 
       · omega
   have hpre : A = (fun x => pad (G x.length) x) ⁻¹' B := by
     ext x
-    have hg : guard (pad (G x.length) x) = true := by
-      simp only [guard, unpad_pad, length_pad (hlt x.length), le_refl, decide_true]
-    simp only [Set.mem_preimage, B, Set.mem_ofPred_eq, hg, ↓reduceIte, unpad_pad]
+    simp only [Set.mem_preimage, B, Set.mem_ofPred_eq, guard, unpad_pad, length_pad (hlt x.length),
+      le_refl, decide_true, ↓reduceIte]
     simp [indicator]
   rw [hpre]
   refine preimage_mem_DTIME (C := 2) (h hB) (computableInO_pad hG hlt) fun x => ?_
-  simp only [encBits_apply, length_pad (hlt x.length), Function.comp_apply]
   have := hf₂n (G x.length)
+  simp only [encBits_apply, length_pad (hlt x.length), Function.comp_apply]
   omega
 
 end Cslib.Complexity

@@ -99,10 +99,8 @@ namespace SwitchGate
 /-- Weighted sums agree for value maps that agree on every listed wire. -/
 theorem termSum_congr {M : Type} [AddCommMonoid M] [SMul R M] {a a' : Fin n ⊕ Fin N → M}
     (terms : List ((Fin n ⊕ Fin N) × R)) (h : ∀ p ∈ terms, a p.1 = a' p.1) :
-    termSum a terms = termSum a' terms := by
-  simp only [termSum]
-  congr 1
-  exact List.map_congr_left fun p hp => by rw [h p hp]
+    termSum a terms = termSum a' terms :=
+  congrArg List.sum (List.map_congr_left fun p hp => by rw [h p hp])
 
 /-- The constraint of a gate on an assignment of values to wires. -/
 @[expose] def Holds [Semiring R] (σ : Fin n ⊕ Fin N → R) : SwitchGate n N R → Prop
@@ -234,10 +232,9 @@ private theorem agrees_update {σ : Fin n ⊕ Fin N → R} {st : Fin n ⊕ Fin N
     (h : Agrees σ st) {w : Fin n ⊕ Fin N} {v : R} (hv : v = σ w) :
     Agrees σ (Function.update st w (some v)) := by
   intro u a hu
-  by_cases huw : u = w
-  · subst huw
-    rw [Function.update_self, Option.some.injEq] at hu
-    rw [← hu, hv]
+  rcases eq_or_ne u w with rfl | huw
+  · rw [Function.update_self, Option.some.injEq] at hu
+    exact hu.symm.trans hv
   · rw [Function.update_of_ne huw] at hu
     exact h u a hu
 
@@ -248,16 +245,13 @@ theorem _root_.Cslib.Crypto.Garbling.SwitchGate.knownSum_sound {σ : Fin n ⊕ F
     {st : Fin n ⊕ Fin N → Option R} (h : ∀ w v, st w = some v → v = σ w) :
     ∀ (ts : List ((Fin n ⊕ Fin N) × R)) (s : R), SwitchGate.knownSum st ts = some s →
       s = SwitchGate.termSum σ ts
-  | [], s, hs => by
-    simp only [SwitchGate.knownSum, Option.some.injEq] at hs
-    simp [← hs, SwitchGate.termSum]
+  | [], s, hs => by simp [← Option.some.inj hs, SwitchGate.termSum]
   | (w, c) :: ts, s, hs => by
     simp only [SwitchGate.knownSum] at hs
     split at hs
     · rename_i a t ha ht
-      simp only [Option.some.injEq] at hs
-      rw [← hs, h w a ha, SwitchGate.knownSum_sound h ts t ht]
-      simp [SwitchGate.termSum]
+      simp [← Option.some.inj hs, h w a ha, SwitchGate.knownSum_sound h ts t ht,
+        SwitchGate.termSum]
     · exact absurd hs (by simp)
 
 variable [DecidableEq R]
@@ -274,8 +268,7 @@ private theorem agrees_propagate {σ : Fin n ⊕ Fin N → R} {st : Fin n ⊕ Fi
   | switch x y c =>
     simp only [SwitchGate.propagate]
     split_ifs with hc
-    · have hc0 : σ c = 0 := (h c 0 hc).symm
-      have hxy := hg.2 hc0
+    · have hxy := hg.2 (h c 0 hc).symm
       split
       · rename_i v hx _
         exact agrees_update h (by rw [h x v hx, hxy])
@@ -287,9 +280,9 @@ private theorem agrees_propagate {σ : Fin n ⊕ Fin N → R} {st : Fin n ⊕ Fi
     simp only [SwitchGate.propagate]
     split
     · rename_i v hx _
-      exact agrees_update h (by rw [h x v hx]; exact hg)
+      exact agrees_update h ((h x v hx).trans hg)
     · rename_i v _ hy
-      exact agrees_update h (by rw [h y v hy]; exact hg.symm)
+      exact agrees_update h ((h y v hy).trans hg.symm)
     · exact h
 
 /-- One propagation step through a gate whose constraint `σ` satisfies keeps the known values in
@@ -316,16 +309,13 @@ every satisfying assignment. -/
 theorem solve_sound {S : SwitchSystem n m N R} {x : Fin n → R} {σ : Fin n ⊕ Fin N → R}
     (hσ : S.Satisfies x σ) (w : Fin n ⊕ Fin N) (v : R) (hw : S.solve x w = some v) :
     v = σ w := by
-  have key : ∀ t, ∀ w v, S.sweep^[t] (initState x) w = some v → v = σ w := by
-    intro t
+  have key : ∀ t w v, S.sweep^[t] (initState x) w = some v → v = σ w := fun t => by
     induction t with
     | zero =>
-      rintro (i | j) a ha
-      · simp only [Function.iterate_zero_apply, initState, Sum.elim_inl,
-          Option.some.injEq] at ha
-        rw [← ha, hσ.1 i]
-      · simp [initState] at ha
-    | succ t ih =>
+      rintro (i | _) _ ha
+      · exact (Option.some.inj ha).symm.trans (hσ.1 i).symm
+      · exact absurd ha (by simp [initState])
+    | succ _ ih =>
       rw [Function.iterate_succ_apply']
       exact sweepGates_sound S.gates hσ.2 _ ih
   exact key (n + N) w v hw

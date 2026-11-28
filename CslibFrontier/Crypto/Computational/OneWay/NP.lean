@@ -118,19 +118,15 @@ theorem isVerifier_preimagePrefixVerifier (f : List Bool → List Bool) :
   · rw [Polynomial.eval_X] at hw
     have hn := le_length_encPreimagePrefix (n, y, u)
     simp only [preimagePrefixVerifier, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] at h
-    rw [mem_preimagePrefix]
-    refine ⟨u ++ w.take (n - u.length), ?_, List.prefix_append _ _, h.2⟩
-    enc_len [List.length_take] at hw ⊢
-  · obtain ⟨x, hx, ⟨v, rfl⟩, hfx⟩ := mem_preimagePrefix.mp hmem
+    exact mem_preimagePrefix.mpr ⟨u ++ w.take (n - u.length), by enc_len [List.length_take] at hw ⊢,
+      List.prefix_append _ _, h.2⟩
+  · obtain ⟨_, hx, ⟨v, rfl⟩, hfx⟩ := mem_preimagePrefix.mp hmem
     have hn := le_length_encPreimagePrefix (n, y, u)
     simp only [List.length_append] at hx
-    refine ⟨v, ?_, fun k => ?_⟩
-    · rw [Polynomial.eval_X]
-      omega
-    · have hv : n - u.length = v.length := by omega
-      simp only [preimagePrefixVerifier, hv, List.take_left, hfx, beq_self_eq_true,
-        Bool.and_true, decide_eq_true_eq]
-      omega
+    refine ⟨v, by rw [Polynomial.eval_X]; omega, fun _ => ?_⟩
+    simp only [preimagePrefixVerifier, show n - u.length = v.length by omega, List.take_left,
+      hfx, beq_self_eq_true, Bool.and_true, decide_eq_true_eq]
+    omega
 
 /-- The verifier is polynomial-time when `f` is. -/
 @[fun_prop]
@@ -143,7 +139,13 @@ theorem computableInPolyTime_preimagePrefixVerifier
       decide (p.1.2.2.length ≤ p.1.1) &&
         f (p.1.2.2 ++ p.2.take (p.1.1 - p.1.2.2.length)) == p.1.2.1)
     (encPair encPreimagePrefix encBits) encBool
-  fun_prop
+  have hp := ComputableInPolyTime.id' (encIn := encPair encPreimagePrefix encBits)
+  have hlength := ComputableInPolyTime.length_bits.comp hp.fst'.snd'.snd'
+  exact ComputableInPolyTime.bool_and'
+    (ComputableInPolyTime.unary_le.comp (hlength.prod hp.fst'.fst'))
+    ((hf.comp (ComputableInPolyTime.bitsAppend hp.fst'.snd'.snd'
+      (ComputableInPolyTime.bitsTakeWithInput hp.snd'
+        (ComputableInPolyTime.unary_sub' hp.fst'.fst' hlength)))).beq hp.fst'.snd'.fst')
 
 /-- **The preimage-prefix problem is in `NP`** for every function computable in polynomial
 time. -/
@@ -181,14 +183,11 @@ theorem preimageSearchStep_mem {D : ℕ × List Bool × List Bool → Bool}
     (n, y, preimageSearchStep D (n, y) u) ∈ preimagePrefix f := by
   rw [preimageSearchStep]
   cases hb : D (n, y, u ++ [false])
-  · obtain ⟨x, hx, ⟨v, rfl⟩, hfx⟩ := mem_preimagePrefix.mp hu
+  · obtain ⟨_, hx, ⟨v, rfl⟩, hfx⟩ := mem_preimagePrefix.mp hu
     simp only [List.length_append] at hx
-    obtain ⟨b, v, rfl⟩ : ∃ b v', v = b :: v' := List.exists_cons_of_length_pos (by omega)
-    cases b
-    · have hmem : (n, y, u ++ [false]) ∈ preimagePrefix f :=
-        mem_preimagePrefix.mpr ⟨u ++ false :: v, by simpa using hx, ⟨v, by simp⟩, hfx⟩
-      rw [hD, hb] at hmem
-      exact absurd hmem Bool.false_ne_true
+    obtain ⟨_ | _, v, rfl⟩ := List.exists_cons_of_length_pos (by omega : 0 < v.length)
+    · exact absurd ((hD (n, y, u ++ [false])).1 (mem_preimagePrefix.mpr
+        ⟨u ++ false :: v, by simpa using hx, ⟨v, by simp⟩, hfx⟩)) (by simp [hb])
     · exact mem_preimagePrefix.mpr ⟨u ++ true :: v, by simpa using hx, ⟨v, by simp⟩, hfx⟩
   · exact (hD _).2 hb
 
@@ -197,9 +196,8 @@ for a preimage of length `x.length` of `f x` finds a preimage of `f x`. -/
 theorem apply_preimageSearch {D : ℕ × List Bool × List Bool → Bool}
     (hD : ∀ p, p ∈ preimagePrefix f ↔ D p = true) (x : List Bool) :
     f (preimageSearch D (x.length, f x)) = f x := by
-  have hmem : ∀ i ≤ x.length,
+  have hmem (i : ℕ) (hi : i ≤ x.length) :
       (x.length, f x, (preimageSearchStep D (x.length, f x))^[i] []) ∈ preimagePrefix f := by
-    intro i hi
     induction i with
     | zero => exact mem_preimagePrefix.mpr ⟨x, rfl, List.nil_prefix, rfl⟩
     | succ i ih =>
@@ -207,10 +205,9 @@ theorem apply_preimageSearch {D : ℕ × List Bool × List Bool → Bool}
       exact preimageSearchStep_mem hD (ih (by omega))
         (by rw [length_iterate_preimageSearchStep]; omega)
   obtain ⟨x', hx', hpre, hfx'⟩ := mem_preimagePrefix.mp (hmem x.length le_rfl)
-  have heq := hpre.eq_of_length (by rw [length_iterate_preimageSearchStep]; exact hx'.symm)
-  change f ((preimageSearchStep D (x.length, f x))^[x.length] []) = f x
-  rw [heq]
-  exact hfx'
+  exact (congrArg f (hpre.eq_of_length (by
+    rw [length_iterate_preimageSearchStep]
+    exact hx'.symm))).trans hfx'
 
 /-- The search with `D'` follows the search with `D` as long as `D'` answers the queries of the
 search with `D` as `D` does. -/

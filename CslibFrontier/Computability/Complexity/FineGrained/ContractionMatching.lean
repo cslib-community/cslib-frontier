@@ -119,13 +119,11 @@ theorem partitionFunction_guarded {d : ℕ} {F : CSP Unit ℕ} (hF : ∀ c ∈ F
   unfold guarded
   split_ifs with hg
   · rfl
-  · rw [partitionFunction_zeroInstance]
-    simp only [List.all_eq_true, decide_eq_true_eq, not_forall] at hg
+  · simp only [List.all_eq_true, decide_eq_true_eq, not_forall] at hg
     obtain ⟨c, hc, hlen⟩ := hg
-    have h0 : c.scope = [] := List.eq_nil_of_length_eq_zero (by have := hF c hc; omega)
-    refine (CSP.partitionFunction_eq_zero_of_mem hc fun w hw => ?_).symm
-    rw [h0, List.length_nil, List.length_eq_zero_iff] at hw
-    rw [hw]
+    refine partitionFunction_zeroInstance.trans
+      (CSP.partitionFunction_eq_zero_of_mem hc fun w hw => ?_).symm
+    rw [List.eq_nil_of_length_eq_zero (l := w) (by have := hF c hc; omega)]
     rfl
 
 private theorem length_mem_guarded {d : ℕ} {F : CSP Unit ℕ} {c : Constraint Unit ℕ}
@@ -135,8 +133,7 @@ private theorem length_mem_guarded {d : ℕ} {F : CSP Unit ℕ} {c : Constraint 
   · simp only [List.all_eq_true, decide_eq_true_eq] at hg
     have := hg c hc
     omega
-  · simp only [zeroInstance, List.mem_singleton] at hc
-    subst hc
+  · obtain rfl := List.mem_singleton.mp hc
     simp
 
 private theorem count_vars_guarded {d : ℕ} {F : CSP Unit ℕ} (hF : ∀ v, F.vars.count v ≤ 2)
@@ -220,14 +217,52 @@ private theorem boolTableMatrix_ne_zero_iff_rowEntry {rows : List (List Bool)}
   rw [boolTableMatrix_eq_rowEntry, Matrix.of_apply]
   cases rowEntry rows i j <;> simp
 
+-- Read rows as a framed list and each row as an unframed bit string.
+private theorem rowEntry_polyTime {γ : Type} {input : γ ↪ List Bool}
+    {rows : γ → List (List Bool)} {i j : γ → ℕ}
+    (hrows : ComputableInPolyTime rows input (encList encBits))
+    (hi : ComputableInPolyTime i input encUnary)
+    (hj : ComputableInPolyTime j input encUnary) :
+    ComputableInPolyTime (fun a => rowEntry (rows a) (i a) (j a)) input encBool :=
+  (listGetDWithInput hrows hi []).bitsGetDWithInput hj false
+
+-- Certify the two constraint traversals separately, fixing unary variable indices throughout.
+private theorem permanentRow_polyTime :
+    ComputableInPolyTime
+      (fun p : List (List Bool) × ℕ => (⟨(),
+        ((List.range p.1.length).filter (rowEntry p.1 p.2)).map
+          fun j => p.2 * p.1.length + j⟩ : Constraint Unit ℕ))
+      (encPair (encList encBits) encUnary) (encConstraint encUnit encUnary) := by
+  have hlen := (length_list encBits).comp (fst (encList encBits) encUnary)
+  have hp := id' (encIn := encPair (encPair (encList encBits) encUnary) encUnary)
+  exact encConstraint_mk_polyTime (const ()) (mapWithInput (filterWithInput
+    (test := fun (p : List (List Bool) × ℕ) j => rowEntry p.1 p.2 j) (range.comp hlen)
+    (rowEntry_polyTime hp.fst'.fst' hp.fst'.snd' hp.snd'))
+    (unary_add' (unary_mul' hp.fst'.snd' (hlen.comp hp.fst')) hp.snd'))
+
+private theorem permanentColumn_polyTime :
+    ComputableInPolyTime
+      (fun p : List (List Bool) × ℕ => (⟨(),
+        ((List.range p.1.length).filter fun i => rowEntry p.1 i p.2).map
+          fun i => i * p.1.length + p.2⟩ : Constraint Unit ℕ))
+      (encPair (encList encBits) encUnary) (encConstraint encUnit encUnary) := by
+  have hlen := (length_list encBits).comp (fst (encList encBits) encUnary)
+  have hp := id' (encIn := encPair (encPair (encList encBits) encUnary) encUnary)
+  exact encConstraint_mk_polyTime (const ()) (mapWithInput (filterWithInput
+    (test := fun (p : List (List Bool) × ℕ) i => rowEntry p.1 i p.2) (range.comp hlen)
+    (rowEntry_polyTime hp.fst'.fst' hp.snd' hp.fst'.snd'))
+    (unary_add' (unary_mul' hp.snd' (hlen.comp hp.fst')) hp.fst'.snd'))
+
 /-- Building the permanent instance of the matrix with rows `rows` is polynomial-time. -/
 theorem computableInPolyTime_permanentInstance :
     ComputableInPolyTime (fun rows : List (List Bool) =>
         CSP.permanentInstance rows.length (rowEntry rows))
       (encList encBits) (encCSP encUnit encNat) := by
   refine (Complexity.CSP.computableInPolyTime_unary_to_binary encUnit).comp ?_
-  unfold rowEntry
-  fun_prop
+  have hindices := range.comp (length_list encBits)
+  exact listAppend'
+    (mapWithInput (encA := encUnary) hindices permanentRow_polyTime)
+    (mapWithInput (encA := encUnary) hindices permanentColumn_polyTime)
 
 open Finset in
 /-- Under the degree promise, every constraint of the permanent instance has at most `d`
@@ -237,11 +272,10 @@ private theorem length_le_of_mem_permanentInstance {d : ℕ} {rows : List (List 
     (hcol : ∀ j, #{i | boolTableMatrix rows i j ≠ 0} ≤ d) {c : Constraint Unit ℕ}
     (hc : c ∈ CSP.permanentInstance rows.length (rowEntry rows)) : c.scope.length ≤ d := by
   simp only [CSP.permanentInstance, List.mem_append, List.mem_map, List.mem_range] at hc
-  rcases hc with ⟨i, hi, rfl⟩ | ⟨j, hj, rfl⟩
-  · rw [List.length_map, ← List.countP_eq_length_filter, List.countP_range_eq_card_filter]
-    simpa only [boolTableMatrix_ne_zero_iff_rowEntry] using hrow ⟨i, hi⟩
-  · rw [List.length_map, ← List.countP_eq_length_filter, List.countP_range_eq_card_filter]
-    simpa only [boolTableMatrix_ne_zero_iff_rowEntry] using hcol ⟨j, hj⟩
+  rcases hc with ⟨i, hi, rfl⟩ | ⟨j, hj, rfl⟩ <;>
+    rw [List.length_map, ← List.countP_eq_length_filter, List.countP_range_eq_card_filter]
+  · simpa only [boolTableMatrix_ne_zero_iff_rowEntry] using hrow ⟨i, hi⟩
+  · simpa only [boolTableMatrix_ne_zero_iff_rowEntry] using hcol ⟨j, hj⟩
 
 open Finset in
 /-- **The `0/1` permanent with at most `d` nonzero entries per row and column in time

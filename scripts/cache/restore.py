@@ -23,6 +23,10 @@ SCOPE = "cslib-community/complexitylib"
 ROOT = Path(__file__).resolve().parents[2]
 MAX_REVISIONS = 100
 STALLED_FALLBACK_REVISIONS = 20
+# The module-output format emitted by the pinned Lake and accepted by cache-origin.
+MAPPING_VERSION = b'"2026-03-17"'
+INPUT_HASH = re.compile(r"[0-9a-f]{16}")
+ARCHIVE_NAME = re.compile(r"[0-9a-f]{16}\.ltar")
 # Exit status of an origin attempt that found no ancestor worth asking any origin for.
 NO_COMPATIBLE_ANCESTOR = 3
 
@@ -187,6 +191,31 @@ def same_mathlib(root, revisions):
     return kept
 
 
+def read_output_mapping(path):
+    """Validate the published module-output format before handing it to Lake."""
+    with path.open("rb") as stream:
+        header = stream.readline()
+        if header.rstrip(b"\r\n") != MAPPING_VERSION:
+            raise ValueError("missing or unsupported mapping version")
+        entries = {}
+        for number, line in enumerate(stream, 2):
+            try:
+                row = json.loads(line)
+            except (ValueError, RecursionError) as error:
+                raise ValueError(f"invalid mapping row {number}") from error
+            if (not isinstance(row, list) or len(row) != 2
+                    or not isinstance(row[0], str) or not INPUT_HASH.fullmatch(row[0])
+                    or not isinstance(row[1], str) or not ARCHIVE_NAME.fullmatch(row[1])):
+                raise ValueError(f"unsupported mapping row {number}")
+            input_hash = row[0]
+            if input_hash in entries:
+                raise ValueError(f"duplicate input hash in mapping row {number}")
+            entries[input_hash] = line
+    if not entries:
+        raise ValueError("empty mapping")
+    return header, entries
+
+
 def one_origin(root, origin, work, missing):
     """This worker and all curl/Lake children share the parent's supervised group."""
     env = {**os.environ, "LAKE_CACHE_ARTIFACT_ENDPOINT": origin + "/a0",
@@ -233,6 +262,13 @@ def one_origin(root, origin, work, missing):
               f"({detail})", flush=True)
         return 1
     back, revision = found
+    # Native Lake can warn about a non-mapping HTTP response and still exit successfully.
+    try:
+        header, entries = read_output_mapping(mapping)
+    except (OSError, ValueError) as error:
+        print(f"Unusable cached mapping for {revision} at {origin}: {error}", flush=True)
+        return 1
+    total = len(entries)
     if missing:
         current = set()
         for trace in (root / ".lake/build").rglob("*.trace"):
@@ -240,39 +276,20 @@ def one_origin(root, origin, work, missing):
                 current.update(re.findall(r'"depHash": *"([0-9a-f]+)"', trace.read_text()))
             except (OSError, UnicodeError):
                 pass
-        try:
-            lines = mapping.read_text().splitlines(keepends=True)
-        except UnicodeError:
-            print(f"Unreadable cached mapping for {revision} at {origin}", flush=True)
-            return 1
-
-        def already_current(line):
-            try:
-                row = json.loads(line)
-            except ValueError:
-                return False
-            # Preserve unknown/malformed rows for Lake's parser, even if they
-            # start with an input fingerprint already present in a local trace.
-            return (isinstance(row, list) and len(row) == 2 and isinstance(row[0], str)
-                    and row[0] in current and isinstance(row[1], str)
-                    and re.fullmatch(r"[0-9a-f]{16}\.ltar", row[1]) is not None)
-
-        needed = [line for line in lines if not already_current(line)]
-        # Match the existing optimization: retain the original version/header and JSON rows;
-        # native Lake still parses/verifies the mapping and output archives.
+        needed = [line for input_hash, line in entries.items() if input_hash not in current]
         mapping = work / "missing.jsonl"
-        mapping.write_text("".join(needed))
-        count = sum(line.startswith('["') for line in needed)
-        total = sum(line.startswith('["') for line in lines)
+        mapping.write_bytes(header + b"".join(needed))
         print(f"Remote cache: {revision} (candidate {back + 1}/{len(revisions)}) has outputs for "
-              f"{total} modules; {count} of them are not current in .lake.", flush=True)
+              f"{total} modules; {len(needed)} of them are not current in .lake.", flush=True)
     else:
-        total = sum(line.startswith(b'["') for line in mapping.read_bytes().splitlines())
         print(f"Remote cache: {revision} (candidate {back + 1}/{len(revisions)}) has outputs for "
               f"{total} modules.", flush=True)
-    # Even an empty filtered mapping must pass Lake's version/syntax parser;
-    # a 200 HTML error page must not suppress the next mirror.
-    args = ["lake", "cache", "get", "--repo=" + SCOPE, str(mapping)]
+    # Lake still owns mapping ingestion, artifact downloads, and cache hash checks.
+    lake_mapping = str(mapping)
+    if sys.platform == "cygwin":
+        # Native Windows Lake cannot open a Cygwin absolute path.
+        lake_mapping = subprocess.check_output(["cygpath", "-am", lake_mapping], text=True).strip()
+    args = ["lake", "cache", "get", "--repo=" + SCOPE, lake_mapping]
     return subprocess.run(args, cwd=root, env=env).returncode
 
 

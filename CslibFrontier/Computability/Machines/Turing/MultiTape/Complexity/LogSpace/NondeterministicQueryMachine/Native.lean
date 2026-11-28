@@ -9,11 +9,12 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Nondeterministic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.RepeatUntilBlank
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Native control for binary-choice query passes
 
-An initializer runs once, followed by one or more passes. At each pass boundary one native
+An initializer runs once, followed by zero or more passes. At each pass boundary one native
 binary choice selects a deterministic pass routine. A blank continuation tape selects the
 finalizer; a nonblank one starts another pass. All routing steps preserve every tape and head.
 
@@ -45,7 +46,7 @@ inductive State (SI : Type) (SP : Bool → Type) (SF : Type) where
   | choose
   /-- The selected deterministic pass is running. -/
   | pass (choice : Bool) (q : SP choice)
-  /-- Read the continuation tape after a pass. -/
+  /-- Read the continuation tape after initialization or a pass. -/
   | check
   /-- The finalizer is running. -/
   | finish (q : SF)
@@ -74,9 +75,9 @@ def relabelAction {S S' : Type} (φ : Option S → Option S') (a : Turing.Action
 def routeAction {S : Type} (q : Option S) : Turing.Action k Bool S :=
   ⟨0, fun _ => (none, 0), none, q⟩
 
-/-- Embed initializer states, sending its halt to the first binary-choice boundary. -/
+/-- Embed initializer states, sending its halt to the deterministic continuation check. -/
 def initState : Option SI → Option (State SI SP SF) :=
-  fun q => some (q.elim .choose .init)
+  fun q => some (q.elim .check .init)
 
 /-- Embed pass states, sending the halt to the continuation check. -/
 def passState (b : Bool) : Option (SP b) → Option (State SI SP SF) :=
@@ -139,7 +140,7 @@ theorem apply_relabelAction {S S' : Type} {input : List Bool}
 
 theorem apply_routeAction {S : Type} {input : List Bool} (q : Option S)
     (c : Cfg k Bool S input) : (routeAction q).apply c = c.withState q := by
-  apply Cfg.ext <;> simp [routeAction, Action.apply, SignType.cast, Cfg.withState]
+  tm_step [routeAction]
 
 /-- The initializer is simulated step for step until its first halt. -/
 theorem step_init {input : List Bool} (choice : Bool) (c : Cfg k Bool SI input)
@@ -147,9 +148,8 @@ theorem step_init {input : List Bool} (choice : Bool) (c : Cfg k Bool SI input)
     ((table I P F C).withCoin choice).toTM.step (c.mapState initState) =
       (I.step c).mapState initState := by
   obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp h
-  have hs : (c.mapState (initState (SP := SP) (SF := SF))).state = some (.init q) := by
-    simp [initState, hq]
-  rw [MultiTapeTM.step_of_state hs, MultiTapeTM.step_of_state hq, tr_withCoin]
+  rw [MultiTapeTM.step_of_state (q := .init q) (by simp [initState, hq]),
+    MultiTapeTM.step_of_state hq, tr_withCoin]
   rfl
 
 /-- A selected pass is deterministic until its first halt, regardless of subsequent coins. -/
@@ -158,9 +158,8 @@ theorem step_pass {input : List Bool} (coin b : Bool) (c : Cfg k Bool (SP b) inp
     ((table I P F C).withCoin coin).toTM.step (c.mapState (passState b)) =
       ((P b).step c).mapState (passState b) := by
   obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp h
-  have hs : (c.mapState (passState (SI := SI) (SF := SF) b)).state = some (.pass b q) := by
-    simp [passState, hq]
-  rw [MultiTapeTM.step_of_state hs, MultiTapeTM.step_of_state hq, tr_withCoin]
+  rw [MultiTapeTM.step_of_state (q := .pass b q) (by simp [passState, hq]),
+    MultiTapeTM.step_of_state hq, tr_withCoin]
   rfl
 
 /-- The finalizer is simulated step for step, with its halt preserved. -/
@@ -169,9 +168,8 @@ theorem step_finish {input : List Bool} (choice : Bool) (c : Cfg k Bool SF input
     ((table I P F C).withCoin choice).toTM.step (c.mapState finishState) =
       (F.step c).mapState finishState := by
   obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp h
-  have hs : (c.mapState (finishState (SI := SI) (SP := SP))).state = some (.finish q) := by
-    simp [finishState, hq]
-  rw [MultiTapeTM.step_of_state hs, MultiTapeTM.step_of_state hq, tr_withCoin]
+  rw [MultiTapeTM.step_of_state (q := .finish q) (by simp [finishState, hq]),
+    MultiTapeTM.step_of_state hq, tr_withCoin]
   rfl
 
 /-- The choice step selects a routine without storing any earlier choices or moving a head. -/
@@ -195,27 +193,21 @@ theorem step_pass_iff {input : List Bool} (b : Bool) (c : Cfg k Bool (SP b) inpu
     (h : ¬c.Halted) (c' : Cfg k Bool (State SI SP SF) input) :
     (machine I P F C).Step (c.mapState (passState b)) c' ↔
       c' = ((P b).step c).mapState (passState b) := by
-  rw [step_iff]
-  simp only [step_pass I P F C _ b c h]
-  exact ⟨fun ⟨_, h⟩ => h.symm, fun h => ⟨false, h.symm⟩⟩
+  simp only [step_iff, step_pass I P F C _ b c h, exists_const, eq_comm]
 
 /-- Every native successor inside the live initializer is its deterministic successor. -/
 theorem step_init_iff {input : List Bool} (c : Cfg k Bool SI input) (h : ¬c.Halted)
     (c' : Cfg k Bool (State SI SP SF) input) :
     (machine I P F C).Step (c.mapState initState) c' ↔
       c' = (I.step c).mapState initState := by
-  rw [step_iff]
-  simp only [step_init I P F C _ c h]
-  exact ⟨fun ⟨_, h⟩ => h.symm, fun h => ⟨false, h.symm⟩⟩
+  simp only [step_iff, step_init I P F C _ c h, exists_const, eq_comm]
 
 /-- Every native successor inside the live finalizer is its deterministic successor. -/
 theorem step_finish_iff {input : List Bool} (c : Cfg k Bool SF input) (h : ¬c.Halted)
     (c' : Cfg k Bool (State SI SP SF) input) :
     (machine I P F C).Step (c.mapState finishState) c' ↔
       c' = (F.step c).mapState finishState := by
-  rw [step_iff]
-  simp only [step_finish I P F C _ c h]
-  exact ⟨fun ⟨_, h⟩ => h.symm, fun h => ⟨false, h.symm⟩⟩
+  simp only [step_iff, step_finish I P F C _ c h, exists_const, eq_comm]
 
 private theorem follows_routine {S NS : Type} {input : List Bool}
     {D : MultiTapeTM k Bool S} {N : MultiTapeNTM k Bool NS}
@@ -229,15 +221,11 @@ private theorem follows_routine {S NS : Type} {input : List Bool}
   induction n with
   | zero => exact hhead
   | succ n ih =>
-    have hnp : n < p.length := by omega
-    have hnq : n < q.length := by omega
-    have hsource := q.step ⟨n, hnq⟩
-    have hp := p.step ⟨n, hnp⟩
-    change N.Step (p ⟨n, by omega⟩) (p ⟨n + 1, hn⟩) at hp
+    have hsource := q.step ⟨n, by omega⟩
+    have hp : N.Step (p ⟨n, by omega⟩) (p ⟨n + 1, hn⟩) := p.step ⟨n, by omega⟩
     rw [ih (by omega) (by omega)] at hp
-    have ht := (hstep _ hsource.1 _).mp hp
-    rw [ht, MultiTapeTM.step_iff.mp hsource.2]
-    rfl
+    exact ((hstep _ hsource.1 _).mp hp).trans
+      (congrArg (Cfg.mapState φ) (MultiTapeTM.step_iff.mp hsource.2))
 
 /-- **Every native pass prefix is the deterministic pass prefix.** This is the reverse direction
 needed for space bounds on all native computation paths, rather than only a selected replay.
@@ -318,39 +306,33 @@ theorem exists_round {input : List Bool} (b : Bool)
   obtain ⟨q, hqhead, hqlast, hqlen, hqmem⟩ := p.exists_running (by rw [hlast]; rfl)
   let f := passHom I P F C (input := input) b
   have hfirst : (machine I P F C).Step
-      (wordsCfg input (some .choose) ws out) (q.map f).head := by
-    apply (step_iff I P F C).mpr
-    refine ⟨b, ?_⟩
-    rw [step_choose I P F C b _ rfl]
-    simp [f, hqhead, hhead, passState, wordsCfg, Cfg.mapState, Cfg.withState]
-  have hcheck : (machine I P F C).Step (q.map f).last
+      (wordsCfg input (some .choose) ws out) (q.map f).head :=
+    (step_iff I P F C).mpr ⟨b, by
+      rw [step_choose I P F C b _ rfl]
+      simp [f, hqhead, hhead, passState, wordsCfg, Cfg.mapState, Cfg.withState]⟩
+  let qp := (q.map f).cons (wordsCfg input (some .choose) ws out) hfirst
+  have hcheck : (machine I P F C).Step qp.last
       (wordsCfg input
         (some (if ws' C = [] then .finish F.q₀ else .choose)) ws' (out ++ e)) := by
-    apply (step_iff I P F C).mpr
-    refine ⟨false, ?_⟩
-    have heq : (q.map f).last = wordsCfg input (some .check) ws' (out ++ e) := by
-      simp [f, hqlast, hlast, passState, wordsCfg, Cfg.mapState]
+    refine (step_iff I P F C).mpr ⟨false, ?_⟩
+    have heq : qp.last = wordsCfg input (some .check) ws' (out ++ e) := by
+      simp [qp, f, hqlast, hlast, passState, wordsCfg, Cfg.mapState]
     rw [heq, step_check I P F C false _ rfl]
     cases hc : ws' C <;>
-      simp [Cfg.workTapeSymbols, wordsCfg, tapeOfList_zero,
-        Cfg.withState, hc]
-  let qp := (q.map f).cons (wordsCfg input (some .choose) ws out) hfirst
-  have hcheck' : (machine I P F C).Step qp.last
-      (wordsCfg input (some (if ws' C = [] then .finish F.q₀ else .choose)) ws' (out ++ e)) := by
-    simpa [qp] using hcheck
-  refine ⟨ws', e, hPost, qp.snoc _ hcheck', by simp [qp], by simp,
-    by simp only [qp, RelSeries.snoc_length, RelSeries.cons_length, RelSeries.map_length,
-      MultiTapeNTM.RunPath.time] at htime ⊢; omega, ?_⟩
-  have hwin := MultiTapeNTM.RunPath.inWindow_of_space_le (p := p) (by simp [hhead]) hspace
-  intro c hc
-  rcases RelSeries.mem_snoc.mp hc with hc | rfl
-  · change c ∈ (q.map f).cons _ hfirst at hc
-    have hlist := RelSeries.mem_toList.mpr hc
-    rw [RelSeries.toList_cons] at hlist
-    rcases List.mem_cons.mp hlist with rfl | hc
+      simp [Cfg.workTapeSymbols, wordsCfg, tapeOfList_zero, Cfg.withState, hc]
+  refine ⟨ws', e, hPost, qp.snoc _ hcheck, by simp [qp], by simp, ?_, ?_⟩
+  · simp only [qp, RelSeries.snoc_length, RelSeries.cons_length, RelSeries.map_length,
+      MultiTapeNTM.RunPath.time] at htime ⊢
+    omega
+  · have hwin := MultiTapeNTM.RunPath.inWindow_of_space_le (p := p) (by simp [hhead]) hspace
+    intro c hc
+    rcases RelSeries.mem_snoc.mp hc with hc | rfl
+    · have hlist := RelSeries.mem_toList.mpr hc
+      rw [RelSeries.toList_cons] at hlist
+      rcases List.mem_cons.mp hlist with rfl | hc
+      · simp [wordsCfg, mem_window]
+      · obtain ⟨c₀, hc₀, rfl⟩ := RelSeries.exists_of_mem_map (RelSeries.mem_toList.mp hc)
+        exact hwin c₀ (hqmem c₀ hc₀)
     · simp [wordsCfg, mem_window]
-    · obtain ⟨c₀, hc₀, rfl⟩ := RelSeries.exists_of_mem_map (RelSeries.mem_toList.mp hc)
-      exact hwin c₀ (hqmem c₀ hc₀)
-  · simp [wordsCfg, mem_window]
 
 end Turing.NondeterministicQueryMachine.Native

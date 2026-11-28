@@ -84,40 +84,31 @@ theorem bijective_iterateByLength (hlen : ∀ word, (f word).length = word.lengt
   refine ⟨fun x y hxy => ?_, fun y => ?_⟩
   · have hlength : x.length = y.length := by
       simpa only [iterateByLength, length_iterate hlen] using congrArg List.length hxy
-    simp only [iterateByLength, hlength] at hxy
-    exact (hf.iterate _).injective hxy
+    exact (hf.iterate _).injective (by simpa only [iterateByLength, hlength] using hxy)
   · obtain ⟨x, hx⟩ := (hf.iterate (k y.length)).surjective y
-    refine ⟨x, ?_⟩
-    have hlength : x.length = y.length := by
-      rw [← hx, length_iterate hlen]
-    simpa only [iterateByLength, hlength] using hx
+    have hlength : x.length = y.length := by rw [← hx, length_iterate hlen]
+    exact ⟨x, by simpa only [iterateByLength, hlength] using hx⟩
 
 /-- A length-preserving polynomial-time function iterated a polynomial-time number of times, the
 count computed from the input length, is polynomial time. -/
 theorem computableInPolyTime_iterateByLength (hf : ComputableInPolyTime f encBits encBits)
     (hlen : ∀ word, (f word).length = word.length)
     (hk : ComputableInPolyTime k encUnary encUnary) :
-    ComputableInPolyTime (iterateByLength f k) encBits encBits := by
-  have hcount : ComputableTidilyInPolyTime (fun x : List Bool => k x.length) encBits encUnary :=
-    hk.tidy.comp ComputableTidilyInPolyTime.length_bits
-  exact (ComputableTidilyInPolyTime.iterate_of_bounded_growth (growth := 0) hcount
-    ComputableTidilyInPolyTime.id' hf.tidy fun state => by
-      simp [encBits, hlen]).computableInPolyTime
+    ComputableInPolyTime (iterateByLength f k) encBits encBits :=
+  ComputableInPolyTime.iterate_of_bounded_growth (growth := 0)
+    (hk.comp ComputableInPolyTime.length_bits) ComputableInPolyTime.id' hf
+    fun _ => by simp [encBits, hlen]
 
 /-- The derived inverter is uniform strict PPT when the iterate's inverter is. -/
 theorem isPPT_iterateInverter (hf : ComputableInPolyTime f encBits encBits)
     (hlen : ∀ word, (f word).length = word.length)
     (hk : ComputableInPolyTime k encUnary encUnary) {adversary : Inverter}
     (hadversary : IsPPT encBits adversary) : IsPPT encBits (iterateInverter f k adversary) := by
-  have hkt := hk.tidy
-  have hcount : ComputableTidilyInPolyTime (fun p : ℕ × List Bool => k p.1 - 1)
+  have hcount : ComputableInPolyTime (fun p : ℕ × List Bool => k p.1 - 1)
       (encPair encUnary encBits) encUnary := by fun_prop
-  have hiterate : ComputableTidilyInPolyTime (fun p : ℕ × List Bool => f^[k p.1 - 1] p.2)
-      (encPair encUnary encBits) encBits :=
-    ComputableTidilyInPolyTime.iterate_of_bounded_growth (growth := 0) hcount
-      (ComputableTidilyInPolyTime.snd encUnary encBits) hf.tidy fun state => by simp [encBits, hlen]
   exact hadversary.preprocess (ComputableInPolyTime.fst encUnary encBits)
-    (ComputableInPolyTime.of_tidy hiterate)
+    (ComputableInPolyTime.iterate_of_bounded_growth (growth := 0) hcount
+      (ComputableInPolyTime.snd encUnary encBits) hf fun _ => by simp [encBits, hlen])
 
 /-- **The reduction is exact.** At every length `n` with `k n ≠ 0`, the derived inverter inverts
 `f` exactly as often as the given inverter inverts the iterate. -/
@@ -129,10 +120,9 @@ theorem eval_inversionGame_iterateByLength (hlen : ∀ word, (f word).length = w
     inversionGame_eq_of_injective _ hf.injective]
   simp only [ProbComp.eval_bind, BitString.eval_sampleList]
   refine PMF.bind_congr_on_support _ _ _ fun x hx => ?_
-  have hx : x.length = n := BitString.length_of_mem_support_uniformList hx
   obtain ⟨m, hm⟩ := Nat.exists_eq_succ_of_ne_zero hn
-  simp only [iterateByLength, iterateInverter, hx, hm, Nat.succ_sub_one,
-    Function.iterate_succ_apply]
+  simp only [iterateByLength, iterateInverter, BitString.length_of_mem_support_uniformList hx, hm,
+    Nat.succ_sub_one, Function.iterate_succ_apply]
 
 /-- **Iterates of a one-way permutation are one-way** ([AroraBarak07], Chapter 10, Exercise 3).
 For a one-way permutation `f` and a polynomial-time computable `k` (unary in, unary out) with
@@ -142,15 +132,13 @@ supplies for every rational `c`. -/
 theorem OneWayPermutation.iterateByLength (hf : OneWayPermutation f)
     (hk : ComputableInPolyTime k encUnary encUnary) (hpos : ∀ᶠ n in Filter.atTop, k n ≠ 0) :
     OneWayPermutation (iterateByLength f k) := by
-  have hpoly := hf.oneWay.polyTime
-  refine ⟨.of_inversion_negligible (computableInPolyTime_iterateByLength hpoly hf.length_eq hk)
-      fun adversary hadversary => ?_, fun x => ?_, bijective_iterateByLength hf.length_eq
-      hf.bijective k⟩
-  · refine (hf.oneWay.inversion_negligible _
-      (isPPT_iterateInverter hpoly hf.length_eq hk hadversary)).congr' ?_
-    filter_upwards [hpos] with n hn
-    rw [eval_inversionGame_iterateByLength hf.length_eq hf.bijective adversary hn]
-  · exact length_iterate hf.length_eq _ x
+  refine ⟨.of_inversion_negligible (computableInPolyTime_iterateByLength hf.oneWay.polyTime
+      hf.length_eq hk) fun adversary hadversary => ?_, fun x => length_iterate hf.length_eq _ x,
+      bijective_iterateByLength hf.length_eq hf.bijective k⟩
+  refine (hf.oneWay.inversion_negligible _
+    (isPPT_iterateInverter hf.oneWay.polyTime hf.length_eq hk hadversary)).congr' ?_
+  filter_upwards [hpos] with n hn
+  rw [eval_inversionGame_iterateByLength hf.length_eq hf.bijective adversary hn]
 
 /-- **The exercise for rational exponents** ([AroraBarak07], Chapter 10, Exercise 3): for a
 one-way permutation `f` and naturals `p` and `q ≠ 0`, the map `x ↦ f^[⌈|x| ^ (p / q)⌉] x` is a

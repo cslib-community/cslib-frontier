@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Recursive
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.RecursiveParser
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Partial
@@ -441,25 +441,31 @@ def elabRecursiveInductive (doc : Option (TSyntax ``Lean.Parser.Command.docComme
       arityAlts := arityAlts.push
         (← `(Lean.Parser.Term.matchAltExpr| | $tokenPattern => $(quote k)))
     elabCommand (← `(/-- Preorder constructor stream; children occur in recursive-field order. -/
-      @[expose] public def $tokens:ident $params* : $T → List $tokenTy :=
+      @[expose, nolint defsWithUnderscore]
+      public def $tokens:ident $params* : $T → List $tokenTy :=
         fun value => match value with $alts:matchAlt*))
     elabCommand (← `(/-- Number of constructor occurrences, including leaves. -/
-      @[expose] public def $(suffix eT.getId "_nodes"):ident $params* : $T → ℕ :=
+      @[expose, nolint defsWithUnderscore]
+      public def $(suffix eT.getId "_nodes"):ident $params* : $T → ℕ :=
         fun value => match value with $nodeAlts:matchAlt*))
     elabCommand (← `(/-- Sum of the unframed scalar encoding lengths at all nodes. -/
-      @[expose] public def $(suffix eT.getId "_leafSize"):ident $params* : $T → ℕ :=
+      @[expose, nolint defsWithUnderscore]
+      public def $(suffix eT.getId "_leafSize"):ident $params* : $T → ℕ :=
         fun value => match value with $leafAlts:matchAlt*))
     let arity := suffix eT.getId "_arity"
     elabCommand (← `(/-- Recursive arity of a constructor token. -/
-      @[expose, nolint unusedArguments] public def $arity:ident $params* : $tokenTy → ℕ :=
+      @[expose, nolint unusedArguments defsWithUnderscore]
+      public def $arity:ident $params* : $tokenTy → ℕ :=
         fun token => match token with $arityAlts:matchAlt*))
     let makeNode := suffix eT.getId "_make"
     elabCommand (← `(/-- Reconstruct a node from its scalar token and recursive operands. -/
-      @[expose, nolint unusedArguments] public def $makeNode:ident $params* :
+      @[expose, nolint unusedArguments defsWithUnderscore]
+      public def $makeNode:ident $params* :
           (token : $tokenTy) → (Fin ($(ref "_arity") token) → $T) → $T :=
         fun token => match token with $makeAlts:matchAlt*))
     elabCommand (← `(/-- Read a constructor token and its fixed number of operands. -/
-      @[expose, nolint unusedArguments] public def $readToken:ident $params* :=
+      @[expose, nolint unusedArguments defsWithUnderscore]
+      public def $readToken:ident $params* :=
         RecursiveEncoding.readNode $(ref "_arity") $(ref "_make")))
     let mut arityProofs : Array (TSyntax ``Lean.Parser.Term.matchAlt) := #[]
     let mut boundProofs : Array (TSyntax ``Lean.Parser.Term.matchAlt) := #[]
@@ -555,7 +561,8 @@ def elabRecursiveInductive (doc : Option (TSyntax ``Lean.Parser.Command.docComme
             $tokEnc:ident, length_encList, List.map_append, List.sum_append,
             Nat.mul_add, Nat.add_mul] <;> omega))
     elabCommand (← `(/-- Parse exactly one tree from typed tokens; reject trailing tokens. -/
-      @[expose] public def $(suffix eT.getId "_decodeTokens"):ident $params* :=
+      @[expose, nolint defsWithUnderscore]
+      public def $(suffix eT.getId "_decodeTokens"):ident $params* :=
         Cslib.PrefixParser.decode $(ref "_readToken")))
     elabCommand (← `(@[simp] public theorem $(suffix eT.getId "_decodeTokens_tokens"):ident
         $params* (value : $T) : $(ref "_decodeTokens") ($(ref "_tokens") value) = some value :=
@@ -601,7 +608,8 @@ def elabRecursiveInductive (doc : Option (TSyntax ``Lean.Parser.Command.docComme
     for d in payloadDecoders.pop.reverse do tokenD ← `(PartialDecoder.sum $d $tokenD)
     elabCommand (← `(/-- Strict bit-word decoder, conditional on explicitly supplied native
       partial decoders for every scalar field. Empty scalar types are supported. -/
-      @[expose] public def $(suffix eT.getId "_decoder"):ident $params* $db* :
+      @[expose, nolint defsWithUnderscore]
+      public def $(suffix eT.getId "_decoder"):ident $params* $db* :
           PartialDecoder $(applied eT) :=
         PartialDecoder.checked
           (fun word => ((PartialDecoder.list $tokenD).decode word).bind $(ref "_decodeTokens"))

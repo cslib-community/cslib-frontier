@@ -86,12 +86,9 @@ theorem mem_of_check {P : IntegerProgram} {w : List ℤ} (h : check (P, w) = tru
   simpa only [ListMatrix.dotProduct_eq, _root_.dotProduct, ofList_apply] using h c hc
 
 private theorem length_le (P : IntegerProgram) :
-    P.numVars ≤ (enc P).length ∧ P.constraints.length ≤ (enc P).length := by
-  constructor
-  · have h := enc_numVars_length_le P
-    change (List.replicate P.numVars true).length ≤ _ at h
-    simpa only [List.length_replicate] using h
-  · exact (length_le_length_encList _ _).trans (enc_constraints_length_le P)
+    P.numVars ≤ (enc P).length ∧ P.constraints.length ≤ (enc P).length :=
+  ⟨(List.length_replicate (n := P.numVars) (a := true)).symm.trans_le (enc_numVars_length_le P),
+    (length_le_length_encList _ _).trans (enc_constraints_length_le P)⟩
 
 private theorem abs_entry_le {P : IntegerProgram} {c : Inequality} (hc : c ∈ P.constraints)
     {z : ℤ} (hz : z ∈ c.coeffs ∨ z = c.rhs) : |z| ≤ (2 ^ (enc P).length : ℕ) := by
@@ -101,10 +98,8 @@ private theorem abs_entry_le {P : IntegerProgram} {c : Inequality} (hc : c ∈ P
     · exact (length_le_encList_of_mem _ hz).trans (encInequality_coeffs_length_le c)
     · exact encInequality_rhs_length_le c
   rw [length_encIntBin] at hlen
-  have hsize : z.natAbs < 2 ^ (enc P).length :=
-    (Nat.lt_size_self _).trans_le (Nat.pow_le_pow_right (by omega) (by omega))
   rw [Int.abs_eq_natAbs]
-  exact_mod_cast hsize.le
+  exact_mod_cast ((Nat.lt_size_self _).trans_le (Nat.pow_le_pow_right (by omega) (by omega))).le
 
 private noncomputable def witnessPoly : Polynomial ℕ :=
   let k := (3 * Polynomial.X) ^ 2 + 2 +
@@ -121,43 +116,35 @@ private theorem exists_check {P : IntegerProgram} (hP : P ∈ Feasible) :
   let A : Matrix (Fin P.constraints.length) (Fin P.numVars) ℤ :=
     fun i j => P.constraints[i.val].coeffs.getD j.val 0
   let b : Fin P.constraints.length → ℤ := fun i => P.constraints[i.val].rhs
-  have hA : ∀ i j, |A i j| ≤ (2 ^ L : ℕ) := by
-    intro i j
-    rcases List.getD_mem_or P.constraints[i.val].coeffs j.val 0 with h | h
-    · exact abs_entry_le (List.getElem_mem i.isLt) (Or.inl h)
-    · simp only [A, h, abs_zero]
-      positivity
+  have hA : ∀ i j, |A i j| ≤ (2 ^ L : ℕ) := fun i j =>
+    (List.getD_mem_or P.constraints[i.val].coeffs j.val 0).elim
+      (fun h => abs_entry_le (List.getElem_mem i.isLt) (Or.inl h))
+      fun h => by simp only [A, h, abs_zero]; positivity
   have hb : ∀ i, |b i| ≤ (2 ^ L : ℕ) := fun i =>
     abs_entry_le (List.getElem_mem i.isLt) (Or.inr rfl)
   obtain ⟨x₀, hx₀⟩ := hP
-  have hAx₀ : A *ᵥ x₀ ≤ b := fun i => hx₀ _ (List.getElem_mem i.isLt)
-  obtain ⟨x, hx, hxB⟩ := exists_int_mulVec_le_abs_le hA hb hAx₀
+  obtain ⟨x, hx, hxB⟩ := exists_int_mulVec_le_abs_le hA hb fun i => hx₀ _ (List.getElem_mem i.isLt)
   let D := nonnegIntSolutionBound P.constraints.length (2 * P.numVars + P.constraints.length)
     (2 ^ L + 1)
   let E := nonnegIntSolutionBits L (3 * L) (L + 2)
   have hdim := length_le P
-  have hbits : D.size ≤ E := by
-    have h := size_nonnegIntSolutionBound_le P.constraints.length
-      (2 * P.numVars + P.constraints.length) (2 ^ L + 1)
-    apply h.trans
+  have hbits : D.size ≤ E := (size_nonnegIntSolutionBound_le P.constraints.length
+      (2 * P.numVars + P.constraints.length) (2 ^ L + 1)).trans <| by
     dsimp only [nonnegIntSolutionBits, E]
-    gcongr
-    all_goals first | omega | simpa [Nat.size_pow] using Nat.size_add_le_max (2 ^ L) 1
+    gcongr <;> first | omega | simpa [Nat.size_pow] using Nat.size_add_le_max (2 ^ L) 1
   refine ⟨List.ofFn x, ?_, ?_⟩
   · simp only [check, List.all_eq_true, decide_eq_true_eq]
     intro c hc
     obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hc
     simpa only [ListMatrix.dotProduct_eq, _root_.dotProduct, ofList_apply,
       List.getD_ofFn, A, b, mulVec, dotProduct] using hx ⟨i, hi⟩
-  · have hlen : ∀ z ∈ List.ofFn x, (encIntBin z).length ≤ E + 1 := by
-      intro z hz
+  · have hlen : ∀ z ∈ List.ofFn x, (encIntBin z).length ≤ E + 1 := fun z hz => by
       obtain ⟨j, rfl⟩ := (List.mem_ofFn' _ _).mp hz
-      rw [length_encIntBin]
-      have h := hxB j
-      simp only [Fintype.card_fin] at h
       have habs : (x j).natAbs ≤ D := by
-        rw [Int.abs_eq_natAbs] at h
+        have h := hxB j
+        simp only [Fintype.card_fin, Int.abs_eq_natAbs] at h
         exact_mod_cast h
+      rw [length_encIntBin]
       exact Nat.add_le_add_right ((Nat.size_le_size habs).trans hbits) 1
     have hlen' := length_encList_le encIntBin (List.ofFn x) hlen
     rw [List.length_ofFn] at hlen'

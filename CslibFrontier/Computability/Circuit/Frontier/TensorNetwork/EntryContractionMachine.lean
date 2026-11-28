@@ -88,7 +88,7 @@ public section
 
 namespace Cslib.Circuits.Frontier
 
-open GaloisRingArith Cslib.GenericRAM Cslib.GenericRAM.StackRecursion Turing.MultiTapeTM
+open GaloisRingArith Cslib.GenericRAM Cslib.Algorithms.StackRecursion Turing.MultiTapeTM
   ContractionSchedule
 
 variable {T : Type}
@@ -151,14 +151,13 @@ theorem guard_polyTime : ComputableInPolyTime (guard (T := T)) (encInput encT) e
   have hvs := (DescribedNetwork.vertices_polyTime (encT := encT)).comp network_polyTime
   have hdeg : ComputableInPolyTime (fun ((_, _, _, G) : ℕ × List ℕ × ℕ × DescribedNetwork T) =>
       G.vertices.all (fun v => decide (v.1.length ≤ degreeBound G.numEdges)))
-      (encInput encT) encBool := by
-    refine ComputableInPolyTime.allWithInput hvs ?_
-    exact ComputableInPolyTime.binary_le'
+      (encInput encT) encBool :=
+    ComputableInPolyTime.allWithInput hvs <| ComputableInPolyTime.binary_le'
       (ComputableInPolyTime.unary_to_binary.comp ((ComputableInPolyTime.length_list _).comp
         ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _))))
       (degreeBound_polyTime.comp (hm.comp (ComputableInPolyTime.fst _ _)))
   refine (ComputableInPolyTime.bool_and.comp (hfl.prod (ComputableInPolyTime.bool_and.comp
-    (hrows.prod hdeg)))).of_enc_eq fun ⟨P, fl, r, G⟩ => ?_
+    (hrows.prod hdeg)))).of_enc_eq fun ⟨_, _, _, _⟩ => ?_
   simp only [guard, Function.comp_apply, Bool.decide_and, List.all_eq, decide_eq_true_eq]
 
 /-- **Admissible inputs pass the guard** at the modulus of the number of edges: their degree is at
@@ -222,14 +221,11 @@ of `G` keep its rows-first ports. -/
 theorem wf_rootCall {x : ℕ × List ℕ × ℕ × DescribedNetwork T} (hg : guard x = true) :
     FastContraction.WF (rootCall x) := by
   obtain ⟨P, fl, r, G⟩ := x
-  simp only [guard, decide_eq_true_eq] at hg
-  obtain ⟨hfl, ⟨h1, h2⟩, -⟩ := hg
+  obtain ⟨hfl, ⟨h1, h2⟩, -⟩ := of_decide_eq_true hg
   refine ⟨?_, fun v hv i hi => ?_, fun i hi => ?_⟩
   · change Irreducible ((monicOf fl).map (Int.castRingHom (ZMod 2)))
-    rw [hfl]
-    exact irreducible_modulus _
-  · simp only [rootCall, rootNet, List.mem_map] at hv
-    obtain ⟨w, hw, rfl⟩ := hv
+    exact hfl ▸ irreducible_modulus _
+  · obtain ⟨w, hw, rfl⟩ := List.mem_map.mp hv
     exact h1 w hw i hi
   · simp only [rootCall, rootNet, ← List.map_take, ← List.map_drop, List.map_map,
       Function.comp_def] at hi ⊢

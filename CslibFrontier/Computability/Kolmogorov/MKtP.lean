@@ -8,18 +8,15 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.EXP
-public import CslibFrontier.Computability.Complexity.Classes.Ladner.PolyTime
 public import CslibFrontier.Computability.Complexity.Classes.Promise.Basic
 public import CslibFrontier.Computability.Complexity.Reduction
 public import CslibFrontier.Computability.Kolmogorov.TimeBounded
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
+import CslibFrontier.Computability.Complexity.Classes.Ladner.PolyTime
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.TwoPow
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
-import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
-import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -47,8 +44,9 @@ Kolmogorov complexity `Cslib.Kolmogorov.levinKt` ($\mathrm{Kt}$):
   `levinKt_le_length_add`
   ($\mathrm{Kt}(x) \le |x| + \mathrm{copyOverhead} + \lceil \log_2(|x| + 1) \rceil$).
 * **`MKtP ∈ E ⊆ EXP` (`MKtP.mem_E`, `MKtP.mem_EXP`, `MKtPAt.mem_EXP`):**
-  `Cslib.Kolmogorov.MKtP` is the set of pairs `(x, k) : List Bool × ℕ` with `levinKt x ≤ k`, and
-  `Cslib.Kolmogorov.MKtPAt s` is the fixed-threshold language `{x | levinKt x ≤ s x.length}`
+  `Cslib.Kolmogorov.MKtP` is the set of instances `i : MKtPInstance` with
+  `levinKt i.word ≤ i.threshold`, and `Cslib.Kolmogorov.MKtPAt s` is the fixed-threshold language
+  `{x | levinKt x ≤ s x.length}`
   ([Liu and Pass, Section 2.2][LiuPass2021Crypto];
   [Oliveira and Santhanam, Appendix A, Definition 44, p. 34][OliveiraSanthanam2018]; compare
   `R_Kt ∈ E` in
@@ -57,15 +55,16 @@ Kolmogorov complexity `Cslib.Kolmogorov.levinKt` ($\mathrm{Kt}$):
   $\lceil \log_2 n \rceil$-bit integer (in their model Fact 2.1 gives $\mathrm{Kt}(x) \le |x| + c$,
   and in ours `levinKt_le_length_add` gives
   $\mathrm{Kt}(x) \le |x| + \mathrm{copyOverhead} + \lceil \log_2(|x| + 1) \rceil$), here `MKtP` is
-  paired with the unary threshold encoding `encPair encBits encUnary` so that
-  $k + 1 \le |(x, 1^k)|$ holds unconditionally for arbitrary $k \in \mathbb{N}$ without a syntactic
-  $k < 2 |x|$ side condition; for nontrivial thresholds $k \le O(|x|)$ and for every
-  polynomial-time unary threshold $s$ in `MKtPAt s`, the unary encoding has polynomial length and
-  `EXP` membership transfers via `PolyTimeReducible.mem_EXP`.
-  Enumerating candidate programs `Ladner.word j` of length at most `k` and running
-  `universalTMRunFor` for $2^{k - |p|}$ steps places `MKtP` in `E (encPair encBits encUnary)` and
-  `EXP (encPair encBits encUnary)`, and places `MKtPAt s` in `EXP encBits` whenever `s` is
-  computable in polynomial time in unary.
+  paired with the unary threshold encoding `encMKtP` (`encPair encBits encUnary` on
+  `(i.word, i.threshold)`) so that `i.threshold + 1 ≤ (encMKtP i).length` holds unconditionally for
+  arbitrary `i.threshold ∈ ℕ` without a syntactic $k < 2 |x|$ side condition; for nontrivial
+  thresholds $k \le O(|x|)$ and for every polynomial-time unary threshold $s$ in `MKtPAt s`, the
+  unary encoding has polynomial length and `EXP` membership transfers via
+  `PolyTimeReducible.mem_EXP`.
+  Enumerating candidate programs `Ladner.word j` of length at most `i.threshold` and running
+  `universalTMRunFor` for $2^{\mathtt{i.threshold} - |p|}$ steps places `MKtP` in `E encMKtP` and
+  `EXP encMKtP`, and places `MKtPAt s` in `EXP encBits` whenever `s` is computable in polynomial
+  time in unary.
 * **Promise problem `GapMKtP` (`Cslib.Kolmogorov.GapMKtP`):**
   The promise problem separating $\mathrm{Kt}(x) \le s_1(|x|)$ from $\mathrm{Kt}(x) > s_2(|x|)$
   for $s_1 \le s_2$
@@ -73,7 +72,8 @@ Kolmogorov complexity `Cslib.Kolmogorov.levinKt` ($\mathrm{Kt}$):
 
 ## Main definitions
 
-* `Cslib.Kolmogorov.MKtP`: the language $\{(x, k) \mid \mathrm{Kt}(x) \le k\}$.
+* `Cslib.Kolmogorov.MKtPInstance`, `Cslib.Kolmogorov.encMKtP`, `Cslib.Kolmogorov.MKtP`: instances,
+  unary-threshold encoding, and yes-set of the Minimum `Kt` Problem.
 * `Cslib.Kolmogorov.MKtP.boundedSearch`: polynomial-time bounded search for a `Kt`-witness up to
   word-index and step cap `N`.
 * `Cslib.Kolmogorov.MKtPAt`: the fixed-threshold language $\{x \mid \mathrm{Kt}(x) \le s(|x|)\}$.
@@ -95,7 +95,8 @@ Kolmogorov complexity `Cslib.Kolmogorov.levinKt` ($\mathrm{Kt}$):
 * `Cslib.Kolmogorov.MKtP.computableInPolyTime_boundedSearch`,
   `Cslib.Kolmogorov.MKtP.boundedSearch_eq_true_iff_of_two_pow_le`: polynomial-time certificate and
   exactness of `MKtP.boundedSearch`.
-* `Cslib.Kolmogorov.MKtP.mem_E`, `Cslib.Kolmogorov.MKtP.mem_EXP`: `MKtP` is in `E` and `EXP`.
+* `Cslib.Kolmogorov.MKtP.mem_E`, `Cslib.Kolmogorov.MKtP.mem_EXP`: `MKtP` is in `E encMKtP` and
+  `EXP encMKtP`.
 * `Cslib.Kolmogorov.MKtPAt.polyTimeReducible_MKtP`, `Cslib.Kolmogorov.MKtPAt.mem_EXP`,
   `Cslib.Kolmogorov.MKtPAt.mem_EXP_polynomial`: `MKtPAt s ∈ EXP encBits` for polynomial-time unary
   thresholds `s`.
@@ -114,7 +115,7 @@ Kolmogorov complexity `Cslib.Kolmogorov.levinKt` ($\mathrm{Kt}$):
   Problems*][OliveiraSanthanam2018]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Kolmogorov
 
@@ -133,8 +134,8 @@ theorem levinKt_le_natCast_iff_exists_runFor_two_pow {x : List Bool} {k : ℕ} :
 /-- `ℕ`-valued exponential-step characterization of `levinKtNat`. -/
 theorem levinKtNat_le_iff_exists_runFor_two_pow {x : List Bool} {k : ℕ} :
     levinKtNat x ≤ k ↔
-      ∃ p : List Bool, p.length ≤ k ∧ x ∈ (universalTM.run p).runFor (2 ^ (k - p.length)) := by
-  rw [levinKtNat_le_iff, levinKt_le_natCast_iff_exists_runFor_two_pow]
+      ∃ p : List Bool, p.length ≤ k ∧ x ∈ (universalTM.run p).runFor (2 ^ (k - p.length)) :=
+  levinKtNat_le_iff.trans levinKt_le_natCast_iff_exists_runFor_two_pow
 
 /-- Every string `x` admits an optimal `Kt`-witness `(p, s)` with `0 < s`,
 `x ∈ (universalTM.run p).runFor s`, and `p.length + Nat.clog 2 s = levinKtNat x`. -/
@@ -142,16 +143,12 @@ theorem exists_length_add_clog_eq_levinKtNat (x : List Bool) :
     ∃ (p : List Bool) (s : ℕ),
       0 < s ∧ x ∈ (universalTM.run p).runFor s ∧ p.length + Nat.clog 2 s = levinKtNat x := by
   obtain ⟨p, s, hp, hle⟩ := levinKt_le_natCast_iff.mp (natCast_levinKtNat x).symm.le
-  have hs : 0 < s := by
-    rcases Nat.eq_zero_or_pos s with rfl | hs
-    · simp [universalTM_runFor] at hp
-    · exact hs
-  have hge : levinKtNat x ≤ p.length + Nat.clog 2 s := by
-    rw [levinKtNat_le_iff]
-    refine (levinKt_le_timeBoundedAt_add s x).trans ?_
-    rw [Nat.cast_add]
-    exact add_le_add_left (etimeBoundedComplexity_le_length hp) _
-  exact ⟨p, s, hs, hp, le_antisymm hle hge⟩
+  rcases Nat.eq_zero_or_pos s with rfl | hs
+  · simp [universalTM_runFor, universalTMRunFor_zero] at hp
+  refine ⟨p, s, hs, hp, le_antisymm hle (levinKtNat_le_iff.mpr ?_)⟩
+  refine (levinKt_le_timeBoundedAt_add s x).trans ?_
+  rw [Nat.cast_add]
+  exact add_le_add_left (etimeBoundedComplexity_le_length hp) _
 
 /-- Every string `x` admits an optimal `Kt`-witness `(p, s)` in `ℕ∞` with `0 < s`,
 `x ∈ (universalTM.run p).runFor s`, and `(p.length + Nat.clog 2 s : ℕ) = levinKt x`. -/
@@ -160,8 +157,7 @@ theorem exists_length_add_clog_eq_levinKt (x : List Bool) :
       0 < s ∧ x ∈ (universalTM.run p).runFor s ∧
         ((p.length + Nat.clog 2 s : ℕ) : ℕ∞) = levinKt x := by
   obtain ⟨p, s, hs, hp, heq⟩ := exists_length_add_clog_eq_levinKtNat x
-  refine ⟨p, s, hs, hp, ?_⟩
-  rw [heq, natCast_levinKtNat]
+  exact ⟨p, s, hs, hp, by rw [heq, natCast_levinKtNat]⟩
 
 /-- **[Liu and Pass, Section 3.1, Fact 3.1, p. 10][LiuPass2021Crypto]:**
 If $(p, s)$ outputs $x$ within $s$ steps with $|p| + \lceil \log_2 s \rceil \le \mathrm{Kt}(x)$, and
@@ -176,13 +172,10 @@ theorem plain_lt_of_levinKtNat_witness_two_pow_lt {x p : List Bool} {s m : ℕ}
     (hopt : p.length + Nat.clog 2 s ≤ levinKtNat x)
     (hs : 2 ^ (copyOverhead + Nat.clog 2 (x.length + 1) + m) < s) :
     plain x < (x.length - m : ℕ) := by
-  have hkt : levinKtNat x ≤ x.length + copyOverhead + Nat.clog 2 (x.length + 1) :=
-    levinKtNat_le_iff.mpr (levinKt_le_length_add x)
-  have hclog : copyOverhead + Nat.clog 2 (x.length + 1) + m < Nat.clog 2 s :=
-    (Nat.lt_clog_iff_pow_lt one_lt_two).mpr hs
-  have hplen : p.length < x.length - m := by omega
-  have hprod : universalTM.Produces p x := .of_mem_runFor hp
-  exact (ecomplexity_le_length hprod).trans_lt (by exact_mod_cast hplen)
+  have := levinKtNat_le_iff.mpr (levinKt_le_length_add x)
+  have := (Nat.lt_clog_iff_pow_lt one_lt_two).mpr hs
+  exact (ecomplexity_le_length (.of_mem_runFor hp)).trans_lt
+    (by exact_mod_cast (by omega : p.length < x.length - m))
 
 /-- **[Liu and Pass, Section 3.1, Fact 3.1, p. 10][LiuPass2021Crypto]:**
 For $m \le n$, fewer than $2^{n - m}$ strings $x \in \{0, 1\}^n$ have the property that every
@@ -213,157 +206,145 @@ theorem two_pow_lt_ncard_setOf_exists_optimal_levinKt_le_two_pow {n m : ℕ} (hm
           x ∈ (universalTM.run p).runFor s ∧
             p.length + Nat.clog 2 s ≤ levinKtNat x ∧
               s ≤ 2 ^ (copyOverhead + Nat.clog 2 (n + 1) + m)}.ncard + 2 ^ (n - m) := by
-  have hsub : {x : List Bool | x.length = n ∧ ((n - m : ℕ) : ℕ∞) ≤ plain x} ⊆
-      {x : List Bool | x.length = n ∧
-        ∃ (p : List Bool) (s : ℕ),
-          x ∈ (universalTM.run p).runFor s ∧
-            p.length + Nat.clog 2 s ≤ levinKtNat x ∧
-              s ≤ 2 ^ (copyOverhead + Nat.clog 2 (n + 1) + m)} := by
-    rintro x ⟨rfl, hplain⟩
-    obtain ⟨p, s, _, hp, hopt⟩ := exists_length_add_clog_eq_levinKtNat x
-    refine ⟨rfl, p, s, hp, hopt.le, ?_⟩
-    by_contra! hlt
-    exact not_lt_of_ge hplain (plain_lt_of_levinKtNat_witness_two_pow_lt hm hp hopt.le hlt)
   have hfin : {x : List Bool | x.length = n ∧
       ∃ (p : List Bool) (s : ℕ),
         x ∈ (universalTM.run p).runFor s ∧
           p.length + Nat.clog 2 s ≤ levinKtNat x ∧
             s ≤ 2 ^ (copyOverhead + Nat.clog 2 (n + 1) + m)}.Finite :=
     (Set.finite_of_encard_eq_coe (BitString.encard_setOf_length_eq n)).subset fun _ hx => hx.1
-  exact (universalTM.two_pow_lt_ncard_setOf_length_eq_le_ecomplexity_add n m).trans_le
-    (Nat.add_le_add_right (Set.ncard_le_ncard hsub hfin) _)
+  refine (universalTM.two_pow_lt_ncard_setOf_length_eq_le_ecomplexity_add n m).trans_le
+    (Nat.add_le_add_right (Set.ncard_le_ncard ?_ hfin) _)
+  rintro x ⟨rfl, hplain⟩
+  obtain ⟨p, s, _, hp, hopt⟩ := exists_length_add_clog_eq_levinKtNat x
+  refine ⟨rfl, p, s, hp, hopt.le, le_of_not_gt fun hlt => ?_⟩
+  exact not_lt_of_ge hplain (plain_lt_of_levinKtNat_witness_two_pow_lt hm hp hopt.le hlt)
 
 /-! ### The Minimum `Kt` Problem (`MKtP`) and `MKtP ∈ E ⊆ EXP` -/
 
+/-- An instance of the Minimum `Kt` Problem (`MKtP`)
+([Liu and Pass, Section 2.2][LiuPass2021Crypto];
+[Oliveira and Santhanam, Appendix A, Definition 44, p. 34][OliveiraSanthanam2018]): a target binary
+string `word` paired with an upper-bound threshold `threshold` on Levin's time-bounded Kolmogorov
+complexity `levinKt word`. -/
+@[ext]
+structure MKtPInstance where
+  /-- The target binary string `x` whose Levin `Kt` complexity is bounded. -/
+  word : List Bool
+  /-- The upper-bound threshold `k` on `levinKt word` (encoded in unary by `encMKtP`). -/
+  threshold : ℕ
+  deriving DecidableEq
+
+/-- Unary-threshold encoding of `MKtPInstance`: frames `word : List Bool` (`encBits`) followed by
+`1^threshold` in unary (`encUnary`), with the exact encoded words of
+`encPair encBits encUnary (i.word, i.threshold)`. -/
+enc_structure encMKtP : MKtPInstance where
+  word : encBits, threshold : encUnary
+
 /-- **The Minimum `Kt` Problem (`MKtP`)**
 ([Liu and Pass, Section 2.2][LiuPass2021Crypto];
-[Oliveira and Santhanam, Appendix A, Definition 44, p. 34][OliveiraSanthanam2018]): the set of pairs
-`(x, k) : List Bool × ℕ` such that `levinKt x ≤ k`. In cslib-frontier's complexity-class statements
-below (`MKtP.mem_E`, `MKtP.mem_EXP`), `MKtP` is encoded by `encPair encBits encUnary` (with the
-threshold `k` in unary rather than the $\lceil \log_2 n \rceil$-bit binary representation of
-[Liu and Pass, Section 2.2][LiuPass2021Crypto]) so that $k + 1 \le |(x, 1^k)|$ holds for all
-$k \in \mathbb{N}$ without a side condition bounding $k$. -/
-def MKtP : Set (List Bool × ℕ) :=
-  {xk | levinKt xk.1 ≤ xk.2}
+[Oliveira and Santhanam, Appendix A, Definition 44, p. 34][OliveiraSanthanam2018]): the set of
+instances `i : MKtPInstance` such that `levinKt i.word ≤ i.threshold`. In the complexity-class
+statements below (`MKtP.mem_E`, `MKtP.mem_EXP`), `MKtP` is encoded by `encMKtP` (with `i.threshold`
+in unary rather than the $\lceil \log_2 n \rceil$-bit binary representation of
+[Liu and Pass, Section 2.2][LiuPass2021Crypto]) so that `i.threshold + 1 ≤ (encMKtP i).length`
+holds for all `i.threshold ∈ ℕ` without a side condition bounding `i.threshold`. -/
+def MKtP : Set MKtPInstance :=
+  {i | levinKt i.word ≤ i.threshold}
 
 namespace MKtP
 
-/-- A pair `xk` belongs to `MKtP` iff `levinKt xk.1 ≤ xk.2`. -/
-theorem mem_iff {xk : List Bool × ℕ} : xk ∈ MKtP ↔ levinKt xk.1 ≤ xk.2 :=
+/-- An instance `i` belongs to `MKtP` iff `levinKt i.word ≤ i.threshold`. -/
+theorem mem_iff {i : MKtPInstance} : i ∈ MKtP ↔ levinKt i.word ≤ i.threshold :=
   Iff.rfl
 
-/-- `(x, k) ∈ MKtP` iff `levinKt x ≤ k`. -/
+/-- `⟨x, k⟩ ∈ MKtP` iff `levinKt x ≤ k`. -/
 @[simp]
-theorem pair_mem_iff {x : List Bool} {k : ℕ} : (x, k) ∈ MKtP ↔ levinKt x ≤ k :=
+theorem mk_mem_iff {x : List Bool} {k : ℕ} :
+    (⟨x, k⟩ : MKtPInstance) ∈ MKtP ↔ levinKt x ≤ k :=
   Iff.rfl
 
-/-- `(x, k) ∈ MKtP` iff `levinKtNat x ≤ k`. -/
-theorem pair_mem_iff_levinKtNat_le {x : List Bool} {k : ℕ} :
-    (x, k) ∈ MKtP ↔ levinKtNat x ≤ k :=
+/-- An instance `i` belongs to `MKtP` iff `levinKtNat i.word ≤ i.threshold`. -/
+theorem mem_iff_levinKtNat_le {i : MKtPInstance} :
+    i ∈ MKtP ↔ levinKtNat i.word ≤ i.threshold :=
   levinKtNat_le_iff.symm
 
-/-- `(x, k) ∈ MKtP` iff some program `p` of length at most `k` outputs `x` within `2 ^ (k - |p|)`
-steps under `universalTM`. -/
-theorem pair_mem_iff_exists_runFor_two_pow {x : List Bool} {k : ℕ} :
-    (x, k) ∈ MKtP ↔
-      ∃ p : List Bool, p.length ≤ k ∧ x ∈ (universalTM.run p).runFor (2 ^ (k - p.length)) :=
+/-- An instance `i` belongs to `MKtP` iff some program `p` of length at most `i.threshold` outputs
+`i.word` within `2 ^ (i.threshold - |p|)` steps under `universalTM`. -/
+theorem mem_iff_exists_runFor_two_pow {i : MKtPInstance} :
+    i ∈ MKtP ↔
+      ∃ p : List Bool, p.length ≤ i.threshold ∧
+        i.word ∈ (universalTM.run p).runFor (2 ^ (i.threshold - p.length)) :=
   levinKt_le_natCast_iff_exists_runFor_two_pow
 
 /-- Monotonicity of `MKtP` in the threshold `k`. -/
-theorem mem_of_le {x : List Bool} {k₁ k₂ : ℕ} (h : (x, k₁) ∈ MKtP) (hk : k₁ ≤ k₂) :
-    (x, k₂) ∈ MKtP :=
-  pair_mem_iff.mpr ((pair_mem_iff.mp h).trans (Nat.cast_le.mpr hk))
+theorem mem_of_le {x : List Bool} {k₁ k₂ : ℕ}
+    (h : (⟨x, k₁⟩ : MKtPInstance) ∈ MKtP) (hk : k₁ ≤ k₂) :
+    (⟨x, k₂⟩ : MKtPInstance) ∈ MKtP :=
+  mk_mem_iff.mpr ((mk_mem_iff.mp h).trans (Nat.cast_le.mpr hk))
 
-/-- Bounded brute-force search for a `Kt`-witness of `(x, k)` up to word-index and step cap `N`:
-checks whether some word `p = Ladner.word j` with `j < N` has `p.length ≤ k` and outputs `x` within
-`min (2 ^ (k - p.length)) N` steps. -/
-def boundedSearch (x : List Bool) (k N : ℕ) : Bool :=
+/-- Bounded brute-force search for a `Kt`-witness of an `MKtPInstance` `i` up to word-index and
+step cap `N`: checks whether some word `p = Ladner.word j` with `j < N` has
+`p.length ≤ i.threshold` and outputs `i.word` within `min (2 ^ (i.threshold - p.length)) N`
+steps. -/
+def boundedSearch (i : MKtPInstance) (N : ℕ) : Bool :=
   (List.range N).any fun j =>
-    decide ((Ladner.word j).length ≤ k) &&
+    decide ((Ladner.word j).length ≤ i.threshold) &&
       decide (universalTMRunFor (Ladner.word j)
-        (Ladner.capPow 2 (k - (Ladner.word j).length) N) = some x)
+        (Ladner.capPow 2 (i.threshold - (Ladner.word j).length) N) = some i.word)
 
-/-- Whenever $2^{k + 1} \le N$, `boundedSearch x k N = true` iff `(x, k) ∈ MKtP`. -/
-theorem boundedSearch_eq_true_iff_of_two_pow_le {x : List Bool} {k N : ℕ}
-    (hN : 2 ^ (k + 1) ≤ N) :
-    boundedSearch x k N = true ↔ (x, k) ∈ MKtP := by
-  rw [boundedSearch, List.any_eq_true, pair_mem_iff_exists_runFor_two_pow]
-  constructor
-  · rintro ⟨j, _, hj⟩
-    simp only [Bool.and_eq_true, decide_eq_true_eq] at hj
-    refine ⟨Ladner.word j, hj.1, ?_⟩
-    rw [universalTM_runFor]
-    exact universalTMRunFor_mono _ (Nat.min_le_left _ _) hj.2
-  · rintro ⟨p, hplen, hp⟩
-    refine ⟨Ladner.index p, List.mem_range.mpr ?_, ?_⟩
-    · have hind := Ladner.index_add_two_le p
-      have hpow : 2 ^ (p.length + 1) ≤ 2 ^ (k + 1) := by gcongr
-      omega
-    · simp only [Ladner.word_index, Bool.and_eq_true, decide_eq_true_eq]
-      refine ⟨hplen, ?_⟩
-      have hcap : Ladner.capPow 2 (k - p.length) N = 2 ^ (k - p.length) :=
-        Nat.min_eq_left ((Nat.pow_le_pow_right (by norm_num) (by omega)).trans hN)
-      rw [hcap]
-      exact hp
+/-- Whenever $2^{\mathtt{i.threshold} + 1} \le N$, `boundedSearch i N = true` iff `i ∈ MKtP`. -/
+theorem boundedSearch_eq_true_iff_of_two_pow_le {i : MKtPInstance} {N : ℕ}
+    (hN : 2 ^ (i.threshold + 1) ≤ N) :
+    boundedSearch i N = true ↔ i ∈ MKtP := by
+  dsimp only [boundedSearch]
+  simp only [List.any_eq_true, List.mem_range, Bool.and_eq_true, decide_eq_true_eq,
+    mem_iff_exists_runFor_two_pow]
+  refine ⟨fun ⟨j, _, h1, h2⟩ => ⟨Ladner.word j, h1,
+    universalTM_runFor _ _ ▸ universalTMRunFor_mono _ (Nat.min_le_left _ _) h2⟩, ?_⟩
+  rintro ⟨p, hplen, hp⟩
+  refine ⟨Ladner.index p, ?_, ?_⟩
+  · have := Ladner.index_add_two_le p
+    have : 2 ^ (p.length + 1) ≤ 2 ^ (i.threshold + 1) := by gcongr
+    omega
+  · simpa only [Ladner.word_index, Ladner.capPow, Nat.min_eq_left
+      ((Nat.pow_le_pow_right (by norm_num) ((Nat.sub_le _ _).trans (Nat.le_succ _))).trans hN)]
+      using ⟨hplen, hp⟩
 
-/-- `boundedSearch` is computable in polynomial time when `k` and `N` are encoded in unary. -/
+/-- `boundedSearch` is computable in polynomial time when the instance is encoded by `encMKtP` and
+the search cap `N` is encoded in unary. -/
 @[fun_prop]
-theorem computableInPolyTime_boundedSearch :
-    ComputableInPolyTime (fun q : List Bool × (ℕ × ℕ) => boundedSearch q.1 q.2.1 q.2.2)
-      (encPair encBits (encPair encUnary encUnary)) encBool := by
+theorem computableInPolyTime_boundedSearch {α : Type} {encIn : α ↪ List Bool}
+    {f : α → MKtPInstance} {N : α → ℕ}
+    (hf : ComputableInPolyTime f encIn encMKtP)
+    (hN : ComputableInPolyTime N encIn encUnary) :
+    ComputableInPolyTime (fun a => boundedSearch (f a) (N a)) encIn encBool := by
   -- A `==` comparison of the run is much cheaper for `fun_prop` than a `decide` atom.
-  simp only [boundedSearch, ← beq_eq_decide]
+  dsimp only [boundedSearch]
+  simp only [← beq_eq_decide]
   fun_prop
 
-/-- **`MKtP` is in linear exponential time `E`** with respect to `encPair encBits encUnary`. -/
-theorem mem_E : MKtP ∈ E (encPair encBits encUnary) := by
-  let Ψ : List Bool × ℕ → Bool := fun yN =>
-    boundedSearch (unframe yN.1) (dropFrame yN.1).length yN.2
-  have hΨ : ComputableInPolyTime Ψ (encPair encBits encUnary) encBool := by
-    open ComputableInPolyTime in
-    have hy := fst encBits encUnary
-    have hN := snd encBits encUnary
-    have hunf : ComputableInPolyTime (fun yN : List Bool × ℕ => unframe yN.1)
-        (encPair encBits encUnary) encBits :=
-      unframe.comp hy
-    have hdrop : ComputableInPolyTime (fun yN : List Bool × ℕ => (dropFrame yN.1).length)
-        (encPair encBits encUnary) encUnary :=
-      (encoding_length encBits).comp (dropFrame.comp hy)
-    exact computableInPolyTime_boundedSearch.comp (hunf.prod (hdrop.prod hN))
-  obtain ⟨c, hc⟩ := mem_E_iff.mp (setOf_mem_E_of_computableInPolyTime_pad hΨ)
-  let g : List Bool × ℕ → List Bool := fun xk => encPair encBits encUnary xk
-  have hgO : ComputableInO g (encPair encBits encUnary) encBits
-      (fun xk => (encPair encBits encUnary xk).length)
-      (fun xk => (encPair encBits encUnary xk).length) :=
-    ComputableInO.of_eq fun _ => rfl
-  have hpre : g ⁻¹' {y : List Bool | Ψ (y, 2 ^ y.length) = true} ∈
-      DTIME (encPair encBits encUnary) (fun n => 2 ^ ((c + 1) * n)) := by
-    refine preimage_mem_DTIME (C := 2) hc hgO fun xk => ?_
-    set n := (encPair encBits encUnary xk).length
-    have hlen : (encBits (g xk)).length = n := rfl
-    rw [hlen]
-    have h1 : n ≤ 2 ^ ((c + 1) * n) := by
-      have : n ≤ (c + 1) * n := Nat.le_mul_of_pos_left n (by omega)
-      exact this.trans (Nat.lt_two_pow_self.le)
-    have h2 : 2 ^ (c * n) ≤ 2 ^ ((c + 1) * n) :=
-      Nat.pow_le_pow_right (by norm_num) (by nlinarith)
-    omega
-  have heq : MKtP = g ⁻¹' {y : List Bool | Ψ (y, 2 ^ y.length) = true} := by
-    ext ⟨x, k⟩
-    simp only [Set.mem_preimage, Set.mem_ofPred_eq, Ψ, g]
-    have hdrop : (dropFrame (encPair encBits encUnary (x, k))).length = k := by
-      rw [dropFrame_encPair]; simp
-    have hpow : 2 ^ (k + 1) ≤ 2 ^ (encPair encBits encUnary (x, k)).length := by
-      refine Nat.pow_le_pow_right (by norm_num) ?_
-      enc_len
-    rw [unframe_encPair_encBits, hdrop, boundedSearch_eq_true_iff_of_two_pow_le hpow]
+/-- **`MKtP` is in linear exponential time `E`** with respect to `encMKtP`. -/
+theorem mem_E : MKtP ∈ E encMKtP := by
+  obtain ⟨C, D, h⟩ := ComputableInPolyTime.exists_computableInO_pad
+    (f := fun q : MKtPInstance × ℕ => boundedSearch q.1 q.2)
+    (ν := fun i => i.threshold + 1) (by fun_prop) (by fun_prop)
+  have heq : MKtP = {i | boundedSearch i (2 ^ (i.threshold + 1)) = true} :=
+    Set.ext fun _ => (boundedSearch_eq_true_iff_of_two_pow_le le_rfl).symm
   rw [heq]
-  exact mem_E_iff.mpr ⟨c + 1, hpre⟩
+  refine mem_E_iff.mpr ⟨2 * D, DTIME_mono_of_le_mul_add (C := C) (fun _ => le_rfl)
+    (setOf_mem_DTIME_of_computableInO (t := fun n => C * 2 ^ (2 * D * n) + C) h fun i => ?_)⟩
+  have hn : i.threshold + 1 ≤ (encMKtP i).length := by enc_len [encMKtP_apply]
+  calc C * 2 ^ (D * (i.threshold + 1)) * ((encMKtP i).length + 1) ^ D
+      ≤ C * 2 ^ (D * (encMKtP i).length) * (2 ^ (encMKtP i).length) ^ D := by
+        gcongr
+        exact Nat.lt_two_pow_self
+    _ = C * 2 ^ (2 * D * (encMKtP i).length) := by ring
+    _ ≤ _ := Nat.le_add_right _ _
 
-/-- **`MKtP` is in `EXP`** with respect to `encPair encBits encUnary`
+/-- **`MKtP` is in `EXP`** with respect to `encMKtP`
 ([Liu and Pass, Section 2.2][LiuPass2021Crypto]; compare `R_Kt ∈ E` in
 [Allender et al., Definition 6][AllenderBuhrmanKouckyVanMelkebeekRonneburger2006]). -/
-theorem mem_EXP : MKtP ∈ EXP (encPair encBits encUnary) :=
+theorem mem_EXP : MKtP ∈ EXP encMKtP :=
   E_subset_EXP mem_E
 
 end MKtP
@@ -382,10 +363,10 @@ theorem mem_MKtPAt_iff {s : ℕ → ℕ} {x : List Bool} :
     x ∈ MKtPAt s ↔ levinKt x ≤ s x.length :=
   Iff.rfl
 
-/-- `x ∈ MKtPAt s` iff `(x, s x.length) ∈ MKtP`. -/
+/-- `x ∈ MKtPAt s` iff `⟨x, s x.length⟩ ∈ MKtP`. -/
 @[simp]
 theorem mem_MKtPAt_iff_mem_MKtP {s : ℕ → ℕ} {x : List Bool} :
-    x ∈ MKtPAt s ↔ (x, s x.length) ∈ MKtP :=
+    x ∈ MKtPAt s ↔ (⟨x, s x.length⟩ : MKtPInstance) ∈ MKtP :=
   Iff.rfl
 
 /-- `x ∈ MKtPAt s` iff `levinKtNat x ≤ s x.length`. -/
@@ -399,10 +380,8 @@ namespace MKtPAt
 many-one reducible to `MKtP`. -/
 theorem polyTimeReducible_MKtP {s : ℕ → ℕ}
     (hs : ComputableInPolyTime s encUnary encUnary) :
-    PolyTimeReducible encBits (encPair encBits encUnary) (MKtPAt s) MKtP := by
-  refine ⟨fun x => (x, s x.length), ?_, fun _ => Iff.rfl⟩
-  open ComputableInPolyTime in
-  exact id'.prod (hs.comp (encoding_length encBits))
+    PolyTimeReducible encBits encMKtP (MKtPAt s) MKtP :=
+  ⟨fun x => ⟨x, s x.length⟩, by fun_prop, fun _ => Iff.rfl⟩
 
 /-- **Fixed-threshold `MKtPAt s` is in `EXP`** whenever `s` is computable in polynomial time in
 unary. -/
@@ -457,7 +436,7 @@ theorem disjoint_yesSet_noSet {s₁ s₂ : ℕ → ℕ} (hs : ∀ n, s₁ n ≤ 
 /-- When `s₁ = s₂`, `GapMKtP.noSet s` is the complement of `MKtPAt s`. -/
 theorem noSet_eq_compl (s : ℕ → ℕ) : noSet s = (MKtPAt s)ᶜ := by
   ext x
-  simp [noSet, MKtPAt]
+  simp only [mem_noSet_iff, Set.mem_compl_iff, mem_MKtPAt_iff, not_le]
 
 end GapMKtP
 
@@ -476,12 +455,14 @@ variable {s₁ s₂ : ℕ → ℕ} (hs : ∀ n, s₁ n ≤ s₂ n)
 
 /-- The yes-instances of `GapMKtP s₁ s₂ hs` are `MKtPAt s₁`. -/
 @[simp]
-theorem yes_eq : (GapMKtP s₁ s₂ hs).yes = MKtPAt s₁ :=
+theorem yes_eq : (GapMKtP s₁ s₂ hs).yes = MKtPAt s₁ := by
+  ext
   rfl
 
 /-- The no-instances of `GapMKtP s₁ s₂ hs` are `GapMKtP.noSet s₂`. -/
 @[simp]
-theorem no_eq : (GapMKtP s₁ s₂ hs).no = noSet s₂ :=
+theorem no_eq : (GapMKtP s₁ s₂ hs).no = noSet s₂ := by
+  ext
   rfl
 
 /-- With zero gap (`s₁ = s₂ = s`), `GapMKtP` is the decision problem `MKtPAt s` viewed as a promise

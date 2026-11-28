@@ -52,11 +52,7 @@ def minCutBetweenSet (W : V → V → K) (s t : V) : Finset K :=
 
 theorem minCutBetweenSet_nonempty (W : V → V → K) {s t : V} (hst : s ≠ t) :
     (minCutBetweenSet W s t).Nonempty := by
-  use cutWeight W {s}
-  unfold minCutBetweenSet
-  rw [Finset.mem_image]
-  use {s}
-  simp [Ne.symm hst]
+  exact ⟨cutWeight W {s}, Finset.mem_image.mpr ⟨{s}, by simp [Ne.symm hst], rfl⟩⟩
 
 /-- The minimum `s`–`t` cut weight `λ(s, t)` of a weighted multigraph `W`: the least weight of a
 vertex set containing `s` and missing `t`, and `0` when `s = t`. -/
@@ -66,40 +62,27 @@ noncomputable def minRealCutBetween (W : V → V → K) (s t : V) : K :=
 
 theorem exists_cutWeight_eq_minRealCutBetween (W : V → V → K) {s t : V} (hst : s ≠ t) :
     ∃ X : Finset V, s ∈ X ∧ t ∉ X ∧ cutWeight W X = minRealCutBetween W s t := by
-  rw [minRealCutBetween]
-  split_ifs with h
-  · exact (hst h).elim
-  · have hmem := Finset.min'_mem (minCutBetweenSet W s t) (minCutBetweenSet_nonempty W hst)
-    unfold minCutBetweenSet at hmem
-    rcases Finset.mem_image.mp hmem with ⟨X, hX, hXeq⟩
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hX
-    exact ⟨X, hX.1, hX.2, hXeq⟩
+  rw [minRealCutBetween, dite_eq_right hst]
+  obtain ⟨X, hX, hXeq⟩ := Finset.mem_image.mp
+    (Finset.min'_mem (minCutBetweenSet W s t) (minCutBetweenSet_nonempty W hst))
+  simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hX
+  exact ⟨X, hX.1, hX.2, hXeq⟩
 
 theorem minRealCutBetween_le_cutWeight (W : V → V → K) {s t : V} {X : Finset V} (hs : s ∈ X)
     (ht : t ∉ X) : minRealCutBetween W s t ≤ cutWeight W X := by
   rw [minRealCutBetween]
   split_ifs with hst
-  · rcases hst with rfl
-    exact (ht hs).elim
-  · have hmem : cutWeight W X ∈ minCutBetweenSet W s t := by
-      unfold minCutBetweenSet
-      rw [Finset.mem_image]
-      use X
-      simp [hs, ht]
-    exact Finset.min'_le _ _ hmem
+  · exact absurd (hst ▸ hs) ht
+  · exact Finset.min'_le _ _ (Finset.mem_image.mpr ⟨X, by simp [hs, ht], rfl⟩)
 
 @[simp]
 theorem minRealCutBetween_self (W : V → V → K) (s : V) : minRealCutBetween W s s = 0 := by
-  rw [minRealCutBetween]
-  split_ifs with h
-  · rfl
-  · exact (h rfl).elim
+  simp [minRealCutBetween]
 
 theorem le_minRealCutBetween_iff (W : V → V → K) {s t : V} (hst : s ≠ t) (m : K) :
     m ≤ minRealCutBetween W s t ↔ ∀ X : Finset V, s ∈ X → t ∉ X → m ≤ cutWeight W X := by
   constructor
-  · intro hm X hs ht
-    exact hm.trans (minRealCutBetween_le_cutWeight W hs ht)
+  · exact fun hm X hs ht => hm.trans (minRealCutBetween_le_cutWeight W hs ht)
   · intro h
     obtain ⟨X, hs, ht, hX⟩ := exists_cutWeight_eq_minRealCutBetween W hst
     exact hX ▸ h X hs ht
@@ -108,19 +91,11 @@ theorem minRealCutBetween_comm {W : V → V → K} (hW : ∀ u v, W u v = W v u)
     minRealCutBetween W s t = minRealCutBetween W t s := by
   by_cases hst : s = t
   · rw [hst]
-  · apply le_antisymm
-    · rw [le_minRealCutBetween_iff _ (Ne.symm hst)]
-      intro X ht hs
-      have hX_s : s ∈ Finset.univ \ X := by simp [hs]
-      have hX_t : t ∉ Finset.univ \ X := by simp [ht]
-      exact (minRealCutBetween_le_cutWeight W hX_s hX_t).trans_eq
-        (cutWeight_univ_sdiff_of_symm hW X)
-    · rw [le_minRealCutBetween_iff _ hst]
-      intro X hs ht
-      have hX_t : t ∈ Finset.univ \ X := by simp [ht]
-      have hX_s : s ∉ Finset.univ \ X := by simp [hs]
-      exact (minRealCutBetween_le_cutWeight W hX_t hX_s).trans_eq
-        (cutWeight_univ_sdiff_of_symm hW X)
+  · have half {u v : V} (huv : u ≠ v) : minRealCutBetween W u v ≤ minRealCutBetween W v u :=
+      (le_minRealCutBetween_iff W huv.symm _).mpr fun X hv hu =>
+        (minRealCutBetween_le_cutWeight W (X := Finset.univ \ X) (by simp [hu])
+          (by simp [hv])).trans_eq (cutWeight_univ_sdiff_of_symm hW X)
+    exact le_antisymm (half hst) (half (Ne.symm hst))
 
 theorem min_le_minRealCutBetween (W : V → V → K) {u w : V} (huw : u ≠ w) (v : V) :
     min (minRealCutBetween W u v) (minRealCutBetween W v w) ≤ minRealCutBetween W u w := by

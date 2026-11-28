@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctLayout
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Slab/Tail Slot-Store Invariant for Succinct Dictionaries
@@ -67,78 +69,78 @@ theorem one_le_n_max_of_bucketBits_pos {n_max : ℕ} (hb : 0 < bucketBits n_max)
   simp [bucketBits] at hb
 
 /-- `GlobalMeta` index `4 + 3 * b` holding `q_b` (number of full slabs in bucket `b`). -/
-@[expose]
+@[expose, wram_arith]
 def gmQIdx (b : ℕ) : ℕ :=
   4 + 3 * b
 
 /-- `GlobalMeta` index `4 + 3 * b + 1` holding `r_b` (number of tail items in bucket `b`). -/
-@[expose]
+@[expose, wram_arith]
 def gmRIdx (b : ℕ) : ℕ :=
   4 + 3 * b + 1
 
 /-- `GlobalMeta` index `4 + 3 * b + 2` holding `slabTop_b` (physical slab index of the top slab
 `s = q_b - 1` of bucket `b`). -/
-@[expose]
+@[expose, wram_arith]
 def gmSlabTopIdx (b : ℕ) : ℕ :=
   4 + 3 * b + 2
 
 /-- Base index `4 + 3 * numBuckets n_max` of the `slabDir` table in `GlobalMeta`. -/
-@[expose]
+@[expose, wram_arith]
 def gmSlabDirBase (n_max : ℕ) : ℕ :=
   4 + 3 * numBuckets n_max
 
 /-- `GlobalMeta` index of `slabDir(b, s)` (`s < dirSlabsPerBucket n_max`). -/
-@[expose]
+@[expose, wram_arith]
 def gmSlabDirIdx (n_max b s : ℕ) : ℕ :=
   gmSlabDirBase n_max + b * dirSlabsPerBucket n_max + s
 
 /-- Base index of the `tailPtr` table in `GlobalMeta`. -/
-@[expose]
+@[expose, wram_arith]
 def gmTailPtrBase (n_max : ℕ) : ℕ :=
   gmSlabDirBase n_max + numBuckets n_max * dirSlabsPerBucket n_max
 
 /-- `GlobalMeta` index of flat tail descriptor `d < maxTailItems n_max`. -/
-@[expose]
+@[expose, wram_arith]
 def gmTailPtrFlatIdx (n_max d : ℕ) : ℕ :=
   gmTailPtrBase n_max + d
 
 /-- `GlobalMeta` index of `tailPtr(b, r)` (`r < tailCapPerBucket n_max`). -/
-@[expose]
+@[expose, wram_arith]
 def gmTailPtrIdx (n_max b r : ℕ) : ℕ :=
   gmTailPtrFlatIdx n_max (b * tailCapPerBucket n_max + r)
 
 /-- Base index of the `tailOwner` table in `GlobalMeta`. -/
-@[expose]
+@[expose, wram_arith]
 def gmTailOwnerBase (n_max : ℕ) : ℕ :=
   gmTailPtrBase n_max + maxTailItems n_max
 
 /-- `GlobalMeta` index of `tailOwner(t)` (`t < maxTailItems n_max`). -/
-@[expose]
+@[expose, wram_arith]
 def gmTailOwnerIdx (n_max t : ℕ) : ℕ :=
   gmTailOwnerBase n_max + t
 
 /-- Base index of the per-physical-slab metadata table in `GlobalMeta`. -/
-@[expose]
+@[expose, wram_arith]
 def gmSlabMetaBase (n_max : ℕ) : ℕ :=
   gmTailOwnerBase n_max + maxTailItems n_max
 
 /-- `GlobalMeta` index of `slabOwnerB(p)` (`p < maxFullSlabs n_max`). -/
-@[expose]
+@[expose, wram_arith]
 def gmSlabOwnerBIdx (n_max p : ℕ) : ℕ :=
   gmSlabMetaBase n_max + 4 * p
 
 /-- `GlobalMeta` index of `slabOwnerS(p)` (`p < maxFullSlabs n_max`). -/
-@[expose]
+@[expose, wram_arith]
 def gmSlabOwnerSIdx (n_max p : ℕ) : ℕ :=
   gmSlabMetaBase n_max + 4 * p + 1
 
 /-- `GlobalMeta` index of `slabBelow(p)` (`p < maxFullSlabs n_max`). -/
-@[expose]
+@[expose, wram_arith]
 def gmSlabBelowIdx (n_max p : ℕ) : ℕ :=
   gmSlabMetaBase n_max + 4 * p + 2
 
 /-- `GlobalMeta` index of `slabAbove(p)` (`p < maxFullSlabs n_max`). -/
-@[expose]
+@[expose, wram_arith]
 def gmSlabAboveIdx (n_max p : ℕ) : ℕ :=
   gmSlabMetaBase n_max + 4 * p + 3
 
@@ -153,20 +155,17 @@ theorem gmSlabMetaBase_add_eq_globalMetaLen {n_max : ℕ} (hb : 0 < bucketBits n
 theorem gmQIdx_lt {n_max b : ℕ} (hb : 0 < bucketBits n_max) (hb_lt : b < numBuckets n_max) :
     gmQIdx b < globalMetaLen n_max := by
   rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmQIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase gmSlabDirBase
-  omega
+  wram_omega
 
 theorem gmRIdx_lt {n_max b : ℕ} (hb : 0 < bucketBits n_max) (hb_lt : b < numBuckets n_max) :
     gmRIdx b < globalMetaLen n_max := by
   rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmRIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase gmSlabDirBase
-  omega
+  wram_omega
 
 theorem gmSlabTopIdx_lt {n_max b : ℕ} (hb : 0 < bucketBits n_max) (hb_lt : b < numBuckets n_max) :
     gmSlabTopIdx b < globalMetaLen n_max := by
   rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmSlabTopIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase gmSlabDirBase
-  omega
+  wram_omega
 
 theorem gmSlabDirIdx_lt {n_max b s : ℕ} (hb : 0 < bucketBits n_max)
     (hb_lt : b < numBuckets n_max) (hs_lt : s < dirSlabsPerBucket n_max) :
@@ -176,15 +175,13 @@ theorem gmSlabDirIdx_lt {n_max b s : ℕ} (hb : 0 < bucketBits n_max)
     have h1 : (b + 1) * dirSlabsPerBucket n_max ≤ numBuckets n_max * dirSlabsPerBucket n_max :=
       Nat.mul_le_mul_right _ hb_lt
     nlinarith
-  unfold gmSlabDirIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase
-  omega
+  wram_omega
 
 theorem gmTailPtrFlatIdx_lt {n_max d : ℕ} (hb : 0 < bucketBits n_max)
     (hd_lt : d < maxTailItems n_max) :
     gmTailPtrFlatIdx n_max d < globalMetaLen n_max := by
   rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmTailPtrFlatIdx gmSlabMetaBase gmTailOwnerBase
-  omega
+  wram_omega
 
 /-- The flat tail descriptor `b * tailCapPerBucket n_max + r` of a bucket `b < numBuckets n_max`
 and a position `r < tailCapPerBucket n_max` indexes the `maxTailItems n_max` tail tables. -/
@@ -204,36 +201,31 @@ theorem gmTailOwnerIdx_lt {n_max t : ℕ} (hb : 0 < bucketBits n_max)
     (ht_lt : t < maxTailItems n_max) :
     gmTailOwnerIdx n_max t < globalMetaLen n_max := by
   rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmTailOwnerIdx gmSlabMetaBase
-  omega
+  wram_omega
 
 theorem gmSlabOwnerBIdx_lt {n_max p : ℕ} (hb : 0 < bucketBits n_max)
     (hp_lt : p < maxFullSlabs n_max) :
     gmSlabOwnerBIdx n_max p < globalMetaLen n_max := by
   rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmSlabOwnerBIdx
-  omega
+  wram_omega
 
 theorem gmSlabOwnerSIdx_lt {n_max p : ℕ} (hb : 0 < bucketBits n_max)
     (hp_lt : p < maxFullSlabs n_max) :
     gmSlabOwnerSIdx n_max p < globalMetaLen n_max := by
   rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmSlabOwnerSIdx
-  omega
+  wram_omega
 
 theorem gmSlabBelowIdx_lt {n_max p : ℕ} (hb : 0 < bucketBits n_max)
     (hp_lt : p < maxFullSlabs n_max) :
     gmSlabBelowIdx n_max p < globalMetaLen n_max := by
   rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmSlabBelowIdx
-  omega
+  wram_omega
 
 theorem gmSlabAboveIdx_lt {n_max p : ℕ} (hb : 0 < bucketBits n_max)
     (hp_lt : p < maxFullSlabs n_max) :
     gmSlabAboveIdx n_max p < globalMetaLen n_max := by
   rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmSlabAboveIdx
-  omega
+  wram_omega
 
 /-- Number of items currently stored in bucket `b` according to `gm : ℕ → ℕ`. -/
 @[expose]
@@ -371,21 +363,10 @@ theorem slotStoreInv_of_zero (n_max : ℕ) {gm : ℕ → ℕ} (hzero : ∀ i, gm
   refine ⟨⟨?_, ?_, ?_, ?_, ?_⟩, ?_, ?_⟩
   · intro _; rw [hzero 0]; exact Nat.zero_le n_max
   · intro hb
-    refine ⟨rfl, by rw [hzero 1]; exact Nat.zero_le _, ?_, ?_, ?_, ?_⟩
-    · intro b _; rw [hzero]; exact Nat.zero_le _
-    · intro b _ r hr; rw [hzero] at hr; omega
-    · intro b _ r hr; rw [hzero] at hr; omega
-    · intro t ht; rw [hzero 1] at ht; omega
+    refine ⟨rfl, by rw [hzero 1]; exact Nat.zero_le _, ?_, ?_, ?_, ?_⟩ <;> intros <;> simp_all
   · intro hb
-    refine ⟨rfl, by rw [hzero 0]; exact Nat.zero_le _, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · intro b _ s hs; rw [hzero] at hs; omega
-    · intro b _ s hs; rw [hzero] at hs; omega
-    · intro b _ s hs; rw [hzero] at hs; omega
-    · intro p hp; rw [hzero 0] at hp; omega
-    · intro b _ s hs; rw [hzero] at hs; omega
-    · intro b _ s hs; rw [hzero] at hs; omega
-    · intro b _ s hs; rw [hzero] at hs; omega
-    · intro b _ s hs; rw [hzero] at hs; omega
+    refine ⟨rfl, by rw [hzero 0]; exact Nat.zero_le _, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      intros <;> simp_all
   · intro hb b _
     rw [hzero, hzero]
     have hK := slabSize_pos n_max
@@ -405,6 +386,13 @@ theorem slotStoreInv_of_zero (n_max : ℕ) {gm : ℕ → ℕ} (hzero : ∀ i, gm
       intro b _
       simp [hzero, bucketPotential]
 
+/-- Quotients agree when `a * K + r₁ = b * K + r₂` with both remainders below `K`. -/
+private theorem eq_of_mul_add_eq {K a b r₁ r₂ : ℕ} (h₁ : r₁ < K) (h₂ : r₂ < K)
+    (h : a * K + r₁ = b * K + r₂) : a = b := by
+  by_contra hne
+  rcases Nat.lt_or_gt_of_ne hne with hab | hab <;>
+  · have := Nat.mul_le_mul_right K hab; rw [Nat.add_one_mul] at this; omega
+
 /-- Key slot-store theorem: under `SlotStoreInv n_max gm`, every logical slot `(b, j)` with
 `b < numBuckets n_max` and `j < bCount n_max gm b` maps to a valid physical slot
 `slotOf n_max gm b j < n_max`, and `slotOf n_max gm` is injective across all active `(b, j)`. -/
@@ -416,30 +404,16 @@ theorem slotOf_lt_and_injective {n_max : ℕ} {gm : ℕ → ℕ} (hinv : SlotSto
   rcases Nat.eq_zero_or_pos (bucketBits n_max) with hb0 | hb_pos
   · have hB1 : numBuckets n_max = 1 := by simp [numBuckets, hb0]
     have hc0 : gm 0 ≤ n_max := hinv.single_valid hb0
-    refine ⟨?_, ?_⟩
-    · intro b hb j hj
-      have hb_eq : b = 0 := by omega
-      subst hb_eq
-      unfold bCount at hj
-      simp only [hb0, ↓reduceIte] at hj
-      unfold slotOf
-      simp only [hb0, ↓reduceIte]
-      omega
-    · intro b₁ hb₁ j₁ _ b₂ hb₂ j₂ _ heq
-      have hb1 : b₁ = 0 := by omega
-      have hb2 : b₂ = 0 := by omega
-      unfold slotOf at heq
-      simp only [hb0, ↓reduceIte] at heq
-      exact ⟨by omega, heq⟩
+    simp only [slotOf, bCount, hb0, ↓reduceIte]
+    refine ⟨fun b hb j hj => ?_, fun b₁ hb₁ j₁ _ b₂ hb₂ j₂ _ heq => ⟨by omega, heq⟩⟩
+    obtain rfl : b = 0 := by omega
+    simp only [↓reduceIte] at hj
+    omega
   · have hb_ne : bucketBits n_max ≠ 0 := by omega
     have htail := hinv.multi_tail hb_pos
     have hslab := hinv.multi_slab hb_pos
     have htot := hinv.multi_total_le hb_pos
     have hK : 0 < slabSize n_max := slabSize_pos n_max
-    have hTcap : 0 < tailCapPerBucket n_max := by
-      unfold tailCapPerBucket
-      rw [ite_eq_right hb_ne]
-      omega
     have hslot_dichot : ∀ b < numBuckets n_max, ∀ j < bCount n_max gm b,
         (j < gm (gmQIdx b) * slabSize n_max ∧
           slotOf n_max gm b j < gm 0 * slabSize n_max) ∨
@@ -459,12 +433,9 @@ theorem slotOf_lt_and_injective {n_max : ℕ} {gm : ℕ → ℕ} (hinv : SlotSto
           rw [hslab.nslabs_eq]
           exact hslab.ptr_lt b hb _ hs_lt
         have hmod_lt : j % slabSize n_max < slabSize n_max := Nat.mod_lt j hK
-        refine ⟨hj_slab, ?_⟩
-        have h1 : (slabPtrOf n_max gm b (j / slabSize n_max) + 1) * slabSize n_max ≤
-            gm 0 * slabSize n_max :=
-          Nat.mul_le_mul_right _ hp_lt
+        have h1 := Nat.mul_le_mul_right (slabSize n_max) hp_lt
         rw [Nat.add_one_mul] at h1
-        omega
+        exact ⟨hj_slab, by omega⟩
       · right
         have hj_ge : gm (gmQIdx b) * slabSize n_max ≤ j := by omega
         have hr_lt : j - gm (gmQIdx b) * slabSize n_max < gm (gmRIdx b) := by omega
@@ -474,9 +445,7 @@ theorem slotOf_lt_and_injective {n_max : ℕ} {gm : ℕ → ℕ} (hinv : SlotSto
         refine ⟨hj_ge, by omega, by omega⟩
     refine ⟨?_, ?_⟩
     · intro b hb j hj
-      rcases hslot_dichot b hb j hj with ⟨_, hlt⟩ | ⟨_, _, hlt⟩
-      · omega
-      · exact hlt
+      rcases hslot_dichot b hb j hj with ⟨_, hlt⟩ | ⟨_, _, hlt⟩ <;> omega
     · intro b₁ hb₁ j₁ hj₁ b₂ hb₂ j₂ hj₂ heq
       rcases hslot_dichot b₁ hb₁ j₁ hj₁ with ⟨hj1_lt, hs1_lt⟩ | ⟨hj1_ge, hs1_ge, _⟩ <;>
       rcases hslot_dichot b₂ hb₂ j₂ hj₂ with ⟨hj2_lt, hs2_lt⟩ | ⟨hj2_ge, hs2_ge, _⟩
@@ -485,15 +454,7 @@ theorem slotOf_lt_and_injective {n_max : ℕ} {gm : ℕ → ℕ} (hinv : SlotSto
         simp only [hb_ne, ↓reduceIte, hj1_lt, hj2_lt] at heq
         have hmod1 : j₁ % slabSize n_max < slabSize n_max := Nat.mod_lt j₁ hK
         have hmod2 : j₂ % slabSize n_max < slabSize n_max := Nat.mod_lt j₂ hK
-        have hp_eq : slabPtrOf n_max gm b₁ (j₁ / slabSize n_max) =
-            slabPtrOf n_max gm b₂ (j₂ / slabSize n_max) := by
-          rcases lt_trichotomy (slabPtrOf n_max gm b₁ (j₁ / slabSize n_max))
-              (slabPtrOf n_max gm b₂ (j₂ / slabSize n_max)) with hlt | hlt | hlt
-          · have := Nat.mul_le_mul_right (slabSize n_max) hlt
-            rw [Nat.add_one_mul] at this; omega
-          · exact hlt
-          · have := Nat.mul_le_mul_right (slabSize n_max) hlt
-            rw [Nat.add_one_mul] at this; omega
+        have hp_eq := eq_of_mul_add_eq (by omega) (by omega) heq
         have hrem_eq : j₁ % slabSize n_max = j₂ % slabSize n_max := by
           rw [hp_eq] at heq
           omega
@@ -534,16 +495,7 @@ theorem slotOf_lt_and_injective {n_max : ℕ} {gm : ℕ → ℕ} (hinv : SlotSto
           lt_of_lt_of_le hr1_lt (htail.r_le b₁ hb₁)
         have hr2_cap : j₂ - gm (gmQIdx b₂) * slabSize n_max < tailCapPerBucket n_max :=
           lt_of_lt_of_le hr2_lt (htail.r_le b₂ hb₂)
-        have hb_eq : b₁ = b₂ := by
-          rcases lt_trichotomy b₁ b₂ with hlt | hlt | hlt
-          · have := Nat.mul_le_mul_right (tailCapPerBucket n_max) hlt
-            rw [Nat.add_one_mul] at this; omega
-          · exact hlt
-          · have := Nat.mul_le_mul_right (tailCapPerBucket n_max) hlt
-            rw [Nat.add_one_mul] at this; omega
-        subst hb_eq
-        have hr_eq : j₁ - gm (gmQIdx b₁) * slabSize n_max =
-            j₂ - gm (gmQIdx b₁) * slabSize n_max := by omega
+        obtain rfl := eq_of_mul_add_eq hr1_cap hr2_cap hown
         exact ⟨rfl, by omega⟩
 
 theorem r_le_ntails_of_tailBijection {n_max : ℕ} {gm r_fn : ℕ → ℕ} {n_tails : ℕ}
@@ -583,13 +535,11 @@ theorem TailBijection.congr {n_max : ℕ} {gm gm' : ℕ → ℕ} {r_fn r_fn' : �
       gm' (gmTailPtrIdx n_max b r) = gm (gmTailPtrIdx n_max b r) := by
     intro b hb r hr
     have hd := mul_tailCapPerBucket_add_lt_maxTailItems hb hr
-    exact hmeta _ (by unfold gmTailPtrIdx gmTailPtrFlatIdx; omega)
-      (by unfold gmTailPtrIdx gmTailPtrFlatIdx gmSlabMetaBase gmTailOwnerBase; omega)
+    exact hmeta _ (by wram_omega) (by wram_omega)
   have hown_eq : ∀ t < n_tails, gm' (gmTailOwnerIdx n_max t) = gm (gmTailOwnerIdx n_max t) := by
     intro t ht
     have ht_max := lt_of_lt_of_le ht htail.ntails_le
-    exact hmeta _ (by unfold gmTailOwnerIdx gmTailOwnerBase; omega)
-      (by unfold gmTailOwnerIdx gmSlabMetaBase; omega)
+    exact hmeta _ (by wram_omega) (by wram_omega)
   have hnt : gm' 1 = n_tails := h1.trans htail.ntails_eq
   rw [hnt]
   refine ⟨hnt, htail.ntails_le, ?_, ?_, ?_, ?_⟩
@@ -610,8 +560,7 @@ theorem TailBijection.congr {n_max : ℕ} {gm gm' : ℕ → ℕ} {r_fn r_fn' : �
     dsimp only
     rw [hown_eq t ht, hr_fn _ hb]
     refine ⟨hb, hr, Eq.trans ?_ hptr⟩
-    exact hmeta _ (by unfold gmTailPtrFlatIdx; omega)
-      (by unfold gmTailPtrFlatIdx gmSlabMetaBase gmTailOwnerBase; omega)
+    exact hmeta _ (by wram_omega) (by wram_omega)
 
 theorem q_le_nslabs_of_slabBijection {n_max : ℕ} {gm q_fn : ℕ → ℕ} {n_slabs : ℕ}
     (hslab : SlabBijection n_max gm q_fn n_slabs) {b : ℕ} (hb : b < numBuckets n_max) :
@@ -634,8 +583,8 @@ theorem q_le_nslabs_of_slabBijection {n_max : ℕ} {gm q_fn : ℕ → ℕ} {n_sl
 theorem slabPtrOf_congr_of_slabMeta {n_max : ℕ} {gm gm' : ℕ → ℕ} (h0 : gm' 0 = gm 0)
     (hmeta : ∀ idx, gmSlabMetaBase n_max ≤ idx → gm' idx = gm idx) (b s : ℕ) :
     slabPtrOf n_max gm' b s = slabPtrOf n_max gm b s :=
-  slabPtrOf_congr h0 (fun p _ => hmeta _ (by unfold gmSlabOwnerBIdx; omega))
-    (fun p _ => hmeta _ (by unfold gmSlabOwnerSIdx; omega)) b s
+  slabPtrOf_congr h0 (fun p _ => hmeta _ (by wram_omega))
+    (fun p _ => hmeta _ (by wram_omega)) b s
 
 /-- `SlabBijection` reads `gm` only through the slab count `gm 0`, the per-bucket slab counts
 `q_fn`, the `slabTop`/`slabDir` entries, and the per-slab metadata above `gmSlabMetaBase n_max`, so
@@ -649,53 +598,23 @@ theorem SlabBijection.congr {n_max : ℕ} {gm gm' : ℕ → ℕ} {q_fn q_fn' : �
     (hmeta : ∀ idx, gmSlabMetaBase n_max ≤ idx → gm' idx = gm idx) :
     SlabBijection n_max gm' q_fn' (gm' 0) := by
   have hptr := slabPtrOf_congr_of_slabMeta h0 hmeta
-  have hB_ge : ∀ p, gmSlabMetaBase n_max ≤ gmSlabOwnerBIdx n_max p :=
-    fun _ => by unfold gmSlabOwnerBIdx; omega
-  have hS_ge : ∀ p, gmSlabMetaBase n_max ≤ gmSlabOwnerSIdx n_max p :=
-    fun _ => by unfold gmSlabOwnerSIdx; omega
-  have hBel_ge : ∀ p, gmSlabMetaBase n_max ≤ gmSlabBelowIdx n_max p :=
-    fun _ => by unfold gmSlabBelowIdx; omega
-  have hAbv_ge : ∀ p, gmSlabMetaBase n_max ≤ gmSlabAboveIdx n_max p :=
-    fun _ => by unfold gmSlabAboveIdx; omega
   have hn : gm' 0 = n_slabs := h0.trans hslab.nslabs_eq
   rw [hn]
-  refine ⟨hn, hslab.nslabs_le, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · intro b hb s hs
-    rw [hq_fn b hb] at hs
-    rw [hptr]
-    exact hslab.ptr_lt b hb s hs
-  · intro b hb s hs
-    rw [hq_fn b hb] at hs
-    rw [hptr, hmeta _ (hB_ge _)]
-    exact hslab.ownerB_ptr b hb s hs
-  · intro b hb s hs
-    rw [hq_fn b hb] at hs
-    rw [hptr, hmeta _ (hS_ge _)]
-    exact hslab.ownerS_ptr b hb s hs
-  · intro p hp
-    rw [hmeta _ (hB_ge p), hmeta _ (hS_ge p)]
+  refine ⟨hn, hslab.nslabs_le, fun b hb s hs => ?_, fun b hb s hs => ?_, fun b hb s hs => ?_,
+    fun p hp => ?_, fun b hb s hs hs_dir => ?_, fun b hb s hs hs_top => ?_,
+    fun b hb s hs hs_pos => ?_, fun b hb s hs hs_abv => ?_⟩
+  all_goals try rw [hq_fn b hb] at hs
+  · rw [hptr]; exact hslab.ptr_lt b hb s hs
+  · rw [hptr, hmeta _ (by wram_omega)]; exact hslab.ownerB_ptr b hb s hs
+  · rw [hptr, hmeta _ (by wram_omega)]; exact hslab.ownerS_ptr b hb s hs
+  · rw [hmeta _ (by wram_omega), hmeta (gmSlabOwnerSIdx n_max p) (by wram_omega)]
     obtain ⟨hb_p, hs_p, hptr_p⟩ := hslab.owner_valid p hp
-    refine ⟨hb_p, ?_, ?_⟩
-    · rw [hq_fn _ hb_p]
-      exact hs_p
-    · rw [hptr]
-      exact hptr_p
-  · intro b hb s hs hs_dir
-    rw [hq_fn b hb] at hs
-    rw [hptr, hdir b hb s hs_dir]
-    exact hslab.dir_eq b hb s hs hs_dir
-  · intro b hb s hs hs_top
-    rw [hq_fn b hb] at hs hs_top
-    rw [hptr, htop b hb]
-    exact hslab.top_eq b hb s hs hs_top
-  · intro b hb s hs hs_pos
-    rw [hq_fn b hb] at hs
-    rw [hptr, hptr, hmeta _ (hBel_ge _)]
-    exact hslab.below_eq b hb s hs hs_pos
-  · intro b hb s hs hs_abv
-    rw [hq_fn b hb] at hs hs_abv
-    rw [hptr, hptr, hmeta _ (hAbv_ge _)]
-    exact hslab.above_eq b hb s hs hs_abv
+    exact ⟨hb_p, by rwa [hq_fn _ hb_p], (hptr _ _).trans hptr_p⟩
+  · rw [hptr, hdir b hb s hs_dir]; exact hslab.dir_eq b hb s hs hs_dir
+  · rw [hq_fn b hb] at hs_top; rw [hptr, htop b hb]; exact hslab.top_eq b hb s hs hs_top
+  · rw [hptr, hptr, hmeta _ (by wram_omega)]; exact hslab.below_eq b hb s hs hs_pos
+  · rw [hq_fn b hb] at hs_abv
+    rw [hptr, hptr, hmeta _ (by wram_omega)]; exact hslab.above_eq b hb s hs hs_abv
 
 theorem bCount_le_n_max {n_max : ℕ} {gm : ℕ → ℕ} (hinv : SlotStoreInv n_max gm) (b : ℕ) :
     bCount n_max gm b ≤ n_max := by

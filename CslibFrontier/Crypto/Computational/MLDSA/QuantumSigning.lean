@@ -48,15 +48,26 @@ structure QuantumSigningForger where
 
 namespace QuantumSigningForger
 
-private abbrev Width (C : QuantumSigningForger) :=
+/-- Qubits occupied by the address, response and work registers of the forger. -/
+abbrev Width (C : QuantumSigningForger) :=
   C.addressBits + 2 + 8 * C.responseBytes + C.workQubits
 
-private abbrev Device (C : QuantumSigningForger) := DeviceState (Width C) Unit Unit
+/-- State of the retained quantum registers between instructions and signing calls. -/
+abbrev Device (C : QuantumSigningForger) := DeviceState (Width C) Unit Unit
+
+/-- An adaptive program on the forger's quantum registers and classical signing service. -/
+abbrev Program (C : QuantumSigningForger) := ProbOracleComp (OracleSpec.sum
+  (fun _ : DeviceRequest (Width C) Empty => List Bool)
+  (fun _ : SigningQuery => Option (List Byte)))
+
+/-- The all-zero registers at the start of a native forgery experiment. -/
+noncomputable abbrev initialDevice (C : QuantumSigningForger) : Device C :=
+  ⟨pureState (ket ((fun _ => false), ())), isDensityMatrix_pureState (norm_ket _), ()⟩
 
 private abbrev State (C : QuantumSigningForger) := Device C × List Forgery
 
 private noncomputable def initial (C : QuantumSigningForger) : State C :=
-  (⟨pureState (ket ((fun _ => false), ())), isDensityMatrix_pureState (norm_ket _), ()⟩, [])
+  (C.initialDevice, [])
 
 private noncomputable def deviceCommand (C : QuantumSigningForger) (H : Xofs) {σ : Type}
     (cmd : DeviceRequest (Width C) Empty) : StateT (Device C × σ) PMF (List Bool) :=
@@ -65,13 +76,18 @@ private noncomputable def deviceCommand (C : QuantumSigningForger) (H : Xofs) {�
       (fun p : Empty × List Bool => p.1.elim (C := StateT Unit PMF (Fin 0 → Bool))) cmd st.1).map
       fun (reply, device) => (reply, device, st.2)
 
-private noncomputable def commands (C : QuantumSigningForger) (H : Xofs) (s : Level)
-    (sk : List Byte) := OracleComp.sumHandler (m := StateT (State C) PMF)
+-- The classical service changes its own state and leaves the quantum register untouched.
+private noncomputable abbrev statefulSigningCommands (C : QuantumSigningForger) {σ : Type}
+    (raw : σ → Xofs) (sign : SigningQuery → σ → PMF (Option (List Byte) × σ)) :=
+  OracleComp.sumHandler (m := StateT (Device C × σ) PMF)
     (spec₁ := fun _ : DeviceRequest (Width C) Empty => List Bool)
     (spec₂ := fun _ : SigningQuery => Option (List Byte))
-    (C.deviceCommand H)
-    (fun (q : SigningQuery) (st : State C) => (H.signingOracle s sk q st.2).map
-      fun (reply, log) => (reply, st.1, log))
+    (fun cmd st => C.deviceCommand (raw st.2) cmd st)
+    (fun q st => (sign q st.2).map fun (r, hist) => (r, st.1, hist))
+
+private noncomputable def commands (C : QuantumSigningForger) (H : Xofs) (s : Level)
+    (sk : List Byte) :=
+  C.statefulSigningCommands (fun _ => H) (H.signingOracle s sk)
 
 /-- The forger receives its classical replies and its conditional post-measurement state.
 The final output and signing log are retained, and the residual device is discarded only
@@ -97,15 +113,11 @@ theorem verify_of_mem_transcript (C : QuantumSigningForger) {H : Xofs} {s : Leve
   dsimp only [inv] at ih ⊢
   cases q with
   | inl cmd =>
-    obtain ⟨⟨_, dev⟩, _, eq⟩ := (PMF.mem_support_map_iff ..).mp hs
-    have logEq := congrArg (fun r => r.2.2) eq
-    change current.2 = next.2 at logEq
-    exact logEq ▸ ih
+    rcases (PMF.mem_support_map_iff ..).mp hs with ⟨⟨_, _⟩, _, ⟨⟩⟩
+    exact ih
   | inr sign =>
-    obtain ⟨⟨sig, log'⟩, hs', eq⟩ := (PMF.mem_support_map_iff ..).mp hs
-    have logEq := congrArg (fun r => r.2.2) eq
-    change log' = next.2 at logEq
-    exact logEq ▸ signingOracle_preserves_verified hg sign current.2 ih hs'
+    rcases (PMF.mem_support_map_iff ..).mp hs with ⟨⟨_, _⟩, hs', ⟨⟩⟩
+    exact signingOracle_preserves_verified hg sign current.2 ih hs'
 
 /-- Strong forgery against seeded FIPS at a fixed pair of raw XOFs. The seed and all signing
 hedges are random, and a failed setup loses. The parameter `H` may be the concrete FIPS sponges. -/

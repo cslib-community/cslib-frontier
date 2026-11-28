@@ -371,7 +371,7 @@ private theorem fri257_rbrError_eq :
       congrArg ENNReal.ofNNReal hnn
   have hcard : (Fintype.card (ZMod 257) : ℝ≥0∞) = 257 := by
     simp only [ZMod.card, Nat.cast_ofNat]
-  simp only [friRBRError, params257, hcard,
+  simp only [friRBRError, friSmoothRBRError, params257, hcard,
     (by norm_num : ((2 ^ (3 - 1) : ℕ) : ℝ≥0∞) = 4),
     (by norm_num : ((2 ^ 3 - 2 - 1 : ℕ) : ℝ≥0∞) = 5),
     (by norm_num : (2 : ℝ≥0∞) ^ 3 = 8), hpow]
@@ -612,7 +612,7 @@ private theorem fri65537_rbrError_eq :
       congrArg ENNReal.ofNNReal hnn
   have hcard : (Fintype.card (ZMod 65537) : ℝ≥0∞) = 65537 := by
     simp only [ZMod.card, Nat.cast_ofNat]
-  simp only [friRBRError, params65537, hcard,
+  simp only [friRBRError, friSmoothRBRError, params65537, hcard,
     (by norm_num : ((2610 : ℕ) : ℝ≥0∞) = 2610),
     (by norm_num : ((2 ^ 4 - 5 - 1 : ℕ) : ℝ≥0∞) = 10),
     (by norm_num : (2 : ℝ≥0∞) ^ 4 = 16), hpow]
@@ -834,7 +834,7 @@ private theorem fri998_rbrError_eq :
       congrArg ENNReal.ofNNReal hnn
   have hcard : (Fintype.card (ZMod 998244353) : ℝ≥0∞) = 998244353 := by
     simp only [ZMod.card, Nat.cast_ofNat]
-  simp only [friRBRError, params998, hcard,
+  simp only [friRBRError, friSmoothRBRError, params998, hcard,
     (by norm_num : ((21270 : ℕ) : ℝ≥0∞) = 21270),
     (by norm_num : ((2 ^ 4 - 8 - 1 : ℕ) : ℝ≥0∞) = 7),
     (by norm_num : (2 : ℝ≥0∞) ^ 4 = 16), hpow]
@@ -1104,7 +1104,7 @@ private theorem friGoldilocks_rbrError_eq :
   have hcard : (Fintype.card (ZMod goldilocksP) : ℝ≥0∞) = 18446744069414584321 := by
     simp only [ZMod.card, goldilocksP, Nat.cast_ofNat]
   rw [show friJohnsonCommitBound paramsGoldilocks 2 = 5374771200 from rfl]
-  simp only [friRBRError, hcard, paramsGoldilocks,
+  simp only [friRBRError, friSmoothRBRError, hcard, paramsGoldilocks,
     (by norm_num : ((5374771200 : ℕ) : ℝ≥0∞) = 5374771200),
     (by norm_num : ((2 ^ 5 - 17 - 1 : ℕ) : ℝ≥0∞) = 14),
     (by norm_num : (2 : ℝ≥0∞) ^ 5 = 32), hpow]

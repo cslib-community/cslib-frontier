@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.PCP.TwoProverGame
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.Uniform
 
 /-!
 # The CHSH game
@@ -56,6 +57,14 @@ instance (x y a b : Bool) : Decidable (chsh.accepts x y a b) :=
 
 theorem chsh_questions_apply (x y : Bool) : (chsh.questions (x, y)).toReal = 1 / 4 := by
   simp [chsh, Cslib.Probability.PMF.uniformOfFintype_apply]
+
+/-- Bob's question in CHSH is a uniform bit. -/
+theorem chsh_questions_snd_toReal (y : Bool) :
+    ((chsh.questions.map Prod.snd) y).toReal = 1 / 2 := by
+  change (((Cslib.Probability.PMF.uniformOfFintype (Bool × Bool)).map Prod.snd) y).toReal = _
+  rw [Cslib.Probability.PMF.uniformOfFintype_prod_map_snd,
+    Cslib.Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv]
+  norm_num
 
 /-- Answering `0` to every question wins CHSH with probability `3/4`. -/
 theorem winProb_chsh_const : chsh.winProb (fun _ => false) (fun _ => false) = 3 / 4 := by

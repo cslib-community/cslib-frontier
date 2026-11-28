@@ -395,15 +395,10 @@ private theorem runFrom_parLiftAdversary_liftMultiParty {m n : ℕ}
   refine Machine.runFrom_interpret_of_forward (parLiftAdversary S) _ _ (fun q s => ?_) program s
   cases q with
   | inl k => exact runFrom_query_sample _ k s
-  | inr c =>
-    change (parLiftAdversary S).runFrom
-      (ProbOracleComp.query (c.session, Sum.inl (c.party, c.input))) s = _
-    rw [Machine.runFrom_query]
-    change (StateT.lift (ProbOracleComp.query _)).run s = _
-    rw [StateT.run_lift, bind_pure_comp]
-    rfl
+  | inr c => simp only [sumHandler, parLiftAdversary]; rfl
 
-private theorem liftMultiParty_map {m n : ℕ} {SubIn SubOut NQ NR α β : Type} (f : α → β)
+/-- Mapping over a multi-session party-interface program commutes with `liftMultiParty`. -/
+theorem liftMultiParty_map {m n : ℕ} {SubIn SubOut NQ NR α β : Type} (f : α → β)
     (program : ProbOracleComp (multiPartySpec m n SubIn SubOut) α) :
     liftMultiParty (NQ := NQ) (NR := NR) (f <$> program) = f <$> liftMultiParty program :=
   OracleComp.interpret_map _ _ _
@@ -501,9 +496,7 @@ private theorem runFrom_routeCorrupt_liftNet_liftMultiSubNet {m n : ℕ}
   refine Machine.runFrom_interpret_of_forward (routeCorrupt C (multiHybridWrap M)) _ _
     (fun q s => ?_) program s
   cases q with
-  | inl k =>
-    simp only [OracleComp.interpret_query]
-    exact runFrom_query_sample _ k s
+  | inl k => simpa only [OracleComp.interpret_query] using runFrom_query_sample _ k s
   | inr q =>
     simp only [OracleComp.interpret_map, ProbOracleComp.interpret_query, Machine.runFrom_map,
       Machine.runFrom_query]
@@ -540,25 +533,21 @@ private theorem handle_swap {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ₁ NR�
   rcases q with ⟨i, x⟩ | ⟨i, x⟩ | q | ⟨j, q⟩
   · erw [liftAdversary_handle_inl, Machine.runFrom_map, Machine.runFrom_query,
       routeCorrupt_handle_inl, routeCorrupt_handle_inl]
-    by_cases hi : i ∈ C
-    · simp only [hi, ↓reduceIte]
-      rfl
-    · simp only [hi, ↓reduceIte]
-      erw [multiHybridWrap_handle_inl, multiHybridWrap_handle_inl,
+    by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte]
+    · rfl
+    · erw [multiHybridWrap_handle_inl, multiHybridWrap_handle_inl,
         runFrom_parLiftAdversary_liftMultiParty]
       repeat erw [Functor.map_map]
       rfl
   · erw [liftAdversary_handle_inr, multiHybridSimMachine_handle_inl, Machine.liftRightProgram_map,
       Machine.liftRightProgram_query, Machine.runFrom_map, Machine.runFrom_query,
       routeCorrupt_handle_inr_inl, routeCorrupt_handle_inr_inl]
-    by_cases hi : i ∈ C
-    · simp only [hi, ↓reduceIte]
-      erw [multiHybridWrap_handle_inl, multiHybridWrap_handle_inl, Machine.runFrom_map,
+    by_cases hi : i ∈ C <;> simp only [hi, ↓reduceIte]
+    · erw [multiHybridWrap_handle_inl, multiHybridWrap_handle_inl, Machine.runFrom_map,
         runFrom_parLiftAdversary_liftMultiParty]
       repeat erw [Functor.map_map]
       rfl
-    · simp only [hi, ↓reduceIte]
-      rfl
+    · rfl
   · erw [liftAdversary_handle_inr, multiHybridSimMachine_handle_inr_outer,
       Machine.liftRightProgram_map, Machine.liftRightProgram_query, Machine.runFrom_map,
       Machine.runFrom_query, routeCorrupt_handle_inr_inr, routeCorrupt_handle_inr_inr,
@@ -605,8 +594,7 @@ private theorem runFrom_sessionRouter_liftSessionNet {m n : ℕ} {SubIn SubOut N
           (OracleComp.query (spec := probOracleSpec (netSpec (RoutedNetQ n SubIn NQ)
             (RoutedNetR SubOut NR))) (Sum.inl k)) =
           ProbOracleComp.sample (ProbComp.unifFin k) := by
-        rw [liftNet, ← Machine.liftRightProgram_sample (partySpec n SubIn SubOut)]
-        rfl
+        rw [liftNet, ← Machine.liftRightProgram_sample (partySpec n SubIn SubOut)]; rfl
       simp only [liftSessionNet, liftNet]
       change (sessionRouter C φ).runFrom
           (liftSessionNet j (OracleComp.query (.inl k)) >>= fun a =>
@@ -627,9 +615,7 @@ private theorem runFrom_sessionRouter_liftSessionNet {m n : ℕ} {SubIn SubOut N
       refine bind_congr fun x => ?_
       rw [ih x.1 (Function.update s j x.2)]
       erw [Function.update_self]
-      congr 1
-      funext y
-      erw [Function.update_idem]
+      exact congrArg (· <$> _) (funext fun y => by erw [Function.update_idem])
 
 private theorem eval_run_parLiftAdversary_comp_sessionRouter {m n : ℕ}
     {SubIn SubOut NQ₁ NR₁ NQ₂ NR₂ α : Type}
@@ -656,50 +642,31 @@ private theorem eval_run_parLiftAdversary_comp_sessionRouter {m n : ℕ}
     simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map]
     exact hpair.symm
   · rintro ⟨j, q⟩ ⟨sS, sφ⟩
+    conv_lhs =>
+      enter [2, 1, 1]
+      change Equiv.prodAssoc _ _ _ <$>
+        (sessionRouter C φ).runFrom (((parLiftAdversary S).handle (j, q)).run sS) sφ
     rcases q with p | nq
     on_goal 1 =>
-      change (Machine.closeProgram (Equiv.prodAssoc _ _ _ <$>
-          (sessionRouter C φ).runFrom
-            ((StateT.lift (ProbOracleComp.query (j, Sum.inl p))).run sS) sφ)).eval.map
-          (fun x => (x.1, fun i => (x.2.1 i, x.2.2 i))) =
-        (Machine.closeProgram (((SSP.parFin fun i => (liftAdversary (S i)).comp
-          (corruptRouter C (φ i))).handle (j, Sum.inl p)).run fun i => (sS i, sφ i))).eval
-      rw [StateT.run_lift, bind_pure_comp]
-      erw [Machine.runFrom_map, Machine.runFrom_query, SSP.parFin_handle]
-      erw [SSP.parFin_handle]
+      erw [StateT.run_lift, bind_pure_comp, Machine.runFrom_map, Machine.runFrom_query,
+        SSP.parFin_handle, SSP.parFin_handle]
       simp only [Machine.comp, liftAdversary, Machine.liftRight, StateT.run, StateT.lift,
         bind_pure_comp]
       erw [Machine.runFrom_map, Machine.runFrom_query]
     on_goal 2 =>
-      change (Machine.closeProgram (Equiv.prodAssoc _ _ _ <$>
-          (sessionRouter C φ).runFrom
-            (liftSessionNet j ((fun x => (x.1, Function.update sS j x.2)) <$>
-              ((S j).handle nq).run (sS j))) sφ)).eval.map
-          (fun x => (x.1, fun i => (x.2.1 i, x.2.2 i))) =
-        (Machine.closeProgram (((SSP.parFin fun i => (liftAdversary (S i)).comp
-          (corruptRouter C (φ i))).handle (j, Sum.inr nq)).run fun i => (sS i, sφ i))).eval
-      rw [liftSessionNet_map]
-      erw [Machine.runFrom_map, runFrom_sessionRouter_liftSessionNet]
-      erw [SSP.parFin_handle]
+      erw [parLiftAdversary_handle_inr, liftSessionNet_map, Machine.runFrom_map,
+        runFrom_sessionRouter_liftSessionNet, SSP.parFin_handle]
       simp only [Machine.comp, liftAdversary, Machine.liftRight, StateT.run]
     all_goals
       repeat erw [Machine.closeProgram_map]
       repeat erw [ProbComp.eval_map]
       repeat erw [PMF.map_comp]
-      refine congrArg (PMF.map · _) (funext fun x => ?_)
-      dsimp only [sessionRouter, parLiftAdversary, SSP.parFin] at x sS sφ ⊢
-      repeat erw [Function.comp_apply]
-      repeat erw [Equiv.prodAssoc_apply]
-      repeat erw [Prod.map_apply]
-      dsimp only [id_eq]
-      rcases x with ⟨r, sφ'⟩
+      refine congrArg (PMF.map · _) (funext fun ⟨r, sφ'⟩ => ?_)
+      dsimp only [sessionRouter, parLiftAdversary, SSP.parFin, Function.comp_apply,
+        Prod.map_apply, id_eq] at r sφ' sS sφ ⊢
+      erw [Equiv.prodAssoc_apply]
       refine Prod.ext rfl (funext fun i => ?_)
-      by_cases hi : i = j
-      · subst hi
-        dsimp only
-        simp only [Function.update_self]
-      · dsimp only
-        simp only [Function.update_of_ne hi]
+      obtain rfl | hi := eq_or_ne i j <;> simp [*]
 
 end Swap
 
@@ -761,15 +728,7 @@ theorem advantage_composeFamily_le_sum {m n : ℕ}
       ∑ j : Fin m,
         advantage (π j) (φ j) (dummyAdversary n _ _) (S j) C
           (sessionHopEnv C ρ π φ S Z j) κ z := by
-  have hcongr :
-      advantage (composeFamily ρ π) (composeFamily ρ φ)
-          (dummyAdversary n _ _) (multiHybridSim S) C Z κ z =
-        SSP.advantage (absorbMultiHybrid C ρ Z κ z)
-          (sessionRouter C fun j => π j κ C)
-          (SSP.parFin fun j => execMachine (φ j) (S j) κ C) := by
-    simp only [advantage, SSP.advantage]
-    rw [exec_composeFamily_dummy, eval_exec_composeFamily_multiHybridSim]
-  rw [hcongr]
+  rw [advantage, exec_composeFamily_dummy, eval_exec_composeFamily_multiHybridSim]
   refine (SSP.advantage_parFin_le_sum
     (fun j => corruptRouter C (π j κ C))
     (fun j => execMachine (φ j) (S j) κ C)
@@ -806,9 +765,8 @@ theorem isBounded_multiHybridWrap {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ 
       ProbOracleComp.query (spec := SSP.sessionSpec m (protocolSpec n SubIn SubOut NQ NR))
         (j, Sum.inr q))).run s) (t + 1)
     rw [StateT.run_lift, bind_pure_comp, Functor.map_map, ← bind_pure_comp]
-    refine ((OracleComp.IsCostBounded.query (Sum.inr (j, Sum.inr q))).bind fun _ =>
-      OracleComp.IsCostBounded.pure _ 0).mono ?_
-    exact Nat.le_add_left 1 t
+    exact ((OracleComp.IsCostBounded.query (Sum.inr (j, Sum.inr q))).bind fun _ =>
+      OracleComp.IsCostBounded.pure _ 0).mono (Nat.le_add_left 1 t)
 
 /-- Absorbing a `pρ`-bounded multi-session hybrid protocol into a `pZ`-bounded environment gives
 query bound `(absorbPoly pZ pρ).eval κ`. -/
@@ -821,11 +779,8 @@ theorem absorbMultiHybrid_polyBounded {m n : ℕ} {In Out NetQ NetR SubIn SubOut
     {pρ pZ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ) (hZ : Z.PolyBounded pZ) :
     ∀ κ z, (absorbMultiHybrid C ρ Z κ z).IsQueryBounded ((absorbPoly pZ pρ).eval κ) := by
   intro κ z
-  have hM : (routeCorrupt C
-      (multiHybridWrap (NQ := RoutedNetQ n SubIn NQ) (NR := RoutedNetR SubOut NR)
-        (ρ κ C))).IsBounded (pρ.eval κ + 1) :=
-    isBounded_routeCorrupt C (isBounded_multiHybridWrap (hρ κ C))
-  refine (Machine.isQueryBounded_link hM (hZ κ z)).mono (le_of_eq ?_)
+  refine (Machine.isQueryBounded_link
+    (isBounded_routeCorrupt C (isBounded_multiHybridWrap (hρ κ C))) (hZ κ z)).mono (le_of_eq ?_)
   simp [absorbPoly, Polynomial.eval_ofNat]
 
 /-- Composing a `pρ`-bounded multi-session hybrid protocol with a family of `pσ`-bounded
@@ -836,16 +791,9 @@ theorem composeFamily_polyBounded {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ 
     {σ : Fin m → Protocol n SubIn SubOut NQ NR} {pρ pσ : Polynomial ℕ}
     (hρ : ρ.PolyBounded pρ) (hσ : ∀ j, (σ j).PolyBounded pσ) :
     (composeFamily ρ σ).PolyBounded
-      ((pρ + 1) * (Polynomial.C m * pσ + 1) + Polynomial.C m * pσ) := by
-  intro κ C
-  have hwrap :
-      (multiHybridWrap (NQ := RoutedNetQ n SubIn NQ) (NR := RoutedNetR SubOut NR)
-        (ρ κ C)).IsBounded (pρ.eval κ + 1) :=
-    isBounded_multiHybridWrap (hρ κ C)
-  have hrouter : (sessionRouter C fun j => σ j κ C).IsBounded (m * pσ.eval κ) :=
-    SSP.isBounded_parFin fun j => isBounded_routeCorrupt C (hσ j κ C)
-  refine (hwrap.comp hrouter).mono (le_of_eq ?_)
-  simp [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one]
+      ((pρ + 1) * (Polynomial.C m * pσ + 1) + Polynomial.C m * pσ) := fun κ C =>
+  ((isBounded_multiHybridWrap (hρ κ C)).comp
+    (SSP.isBounded_parFin fun j => isBounded_routeCorrupt C (hσ j κ C))).mono (le_of_eq (by simp))
 
 /-- Parallel composition `multiHybridSim S` of `pS`-bounded simulators has polynomial call budget
 `Polynomial.C m * pS + 1`. -/
@@ -859,44 +807,29 @@ theorem multiHybridSim_polyBounded {m n : ℕ}
       (Polynomial.C m * pS + 1) := by
   intro κ C
   refine ⟨?_, fun q s => ?_⟩
-  · have hpi := OracleComp.isCostBounded_pi (fun j => (hS j κ C).1)
-    dsimp only [multiHybridSim, multiHybridSimMachine]
-    convert hpi.mono (Nat.le_succ (m * pS.eval κ)) using 1
-    simp [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one]
+  · simpa [multiHybridSim, multiHybridSimMachine] using
+      (OracleComp.isCostBounded_pi fun j => (hS j κ C).1).mono (Nat.le_succ (m * pS.eval κ))
   · rcases q with p | outer | ⟨j, q⟩
-    · dsimp only [multiHybridSim, multiHybridSimMachine] at s ⊢
+    -- outer and environment-facing queries are forwarded with one call
+    iterate 2
+      dsimp only [multiHybridSim, multiHybridSimMachine] at s ⊢
       rw [StateT.run_lift, bind_pure_comp, Functor.map_map, ← bind_pure_comp]
-      refine ((OracleComp.IsCostBounded.query
-          (Sum.inr (Sum.inl p : RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₂))))).bind
-        fun _ => OracleComp.IsCostBounded.pure _ 0).mono ?_
-      simp [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one]
-    · dsimp only [multiHybridSim, multiHybridSimMachine] at s ⊢
-      rw [StateT.run_lift, bind_pure_comp, Functor.map_map, ← bind_pure_comp]
-      refine ((OracleComp.IsCostBounded.query
-          (Sum.inr (Sum.inr (MultiNetQ.outer outer) :
-            RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₂))))).bind
-        fun _ => OracleComp.IsCostBounded.pure _ 0).mono ?_
-      simp [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one]
-    · dsimp only [multiHybridSim, multiHybridSimMachine, StateT.run] at s ⊢
-      rw [liftMultiSubNet_map, ← bind_pure_comp]
-      have hsub : OracleComp.IsQueryBounded
-          (liftMultiSubNet (In := In) (Out := Out) (NetQ := NetQ) (NetR := NetR) j
-            (((S j κ C).handle q).run (s j))) (pS.eval κ) := by
-        refine OracleComp.IsCostBounded.interpret (fun r => ?_) ((hS j κ C).2 q (s j))
-        cases r with
-        | inl k => exact OracleComp.IsCostBounded.query (Sum.inl k)
-        | inr q' =>
-          dsimp only [sumHandler]
-          rw [← bind_pure_comp]
-          exact (OracleComp.IsCostBounded.query
-            (Sum.inr (Sum.inr (MultiNetQ.sub j q') :
-              RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₂))))).bind
-            fun _ => OracleComp.IsCostBounded.pure _ 0
-      refine (hsub.bind fun _ => OracleComp.IsCostBounded.pure _ 0).mono ?_
-      have hmpos : 0 < m := Nat.lt_of_le_of_lt (Nat.zero_le _) j.isLt
-      have hle : pS.eval κ ≤ m * pS.eval κ := Nat.le_mul_of_pos_left (pS.eval κ) hmpos
-      simpa [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one] using
-        hle.trans (Nat.le_succ _)
+      exact ((OracleComp.IsCostBounded.query _).bind fun _ =>
+        OracleComp.IsCostBounded.pure _ 0).mono (by simp)
+    dsimp only [multiHybridSim, multiHybridSimMachine, StateT.run] at s ⊢
+    rw [liftMultiSubNet_map, ← bind_pure_comp]
+    have hsub : OracleComp.IsQueryBounded
+        (liftMultiSubNet (In := In) (Out := Out) (NetQ := NetQ) (NetR := NetR) j
+          (((S j κ C).handle q).run (s j))) (pS.eval κ) := by
+      refine OracleComp.IsCostBounded.interpret (fun r => ?_) ((hS j κ C).2 q (s j))
+      cases r with
+      | inl k => exact OracleComp.IsCostBounded.query (Sum.inl k)
+      | inr q' =>
+        dsimp only [sumHandler]
+        rw [← bind_pure_comp]
+        exact (OracleComp.IsCostBounded.query _).bind fun _ => OracleComp.IsCostBounded.pure _ 0
+    refine (hsub.bind fun _ => OracleComp.IsCostBounded.pure _ 0).mono ?_
+    simpa using (Nat.le_mul_of_pos_left (pS.eval κ) j.pos).trans (Nat.le_succ _)
 
 /-- Pointwise monotonicity of `sessionHopPoly` in the simulator polynomial bound `pD`. -/
 theorem eval_sessionHopPoly_mono {m : ℕ} {pZ pρ pπ pφ pD pD' : Polynomial ℕ}
@@ -930,17 +863,12 @@ theorem sessionHopEnv_polyBounded {m n : ℕ}
       (corruptRouter C (π j κ C)).IsBounded ((sessionUnitPoly pπ pφ pD).eval κ) := fun j =>
     (isBounded_routeCorrupt C (hπ j κ C)).mono (by simp [sessionUnitPoly])
   have hideal : ∀ j : Fin m,
-      (execMachine (φ j) (S j) κ C).IsBounded ((sessionUnitPoly pπ pφ pD).eval κ) := fun j => by
-    have hcomp := (Machine.isBounded_liftRight (partySpec n SubIn SubOut) (hS j κ C)).comp
-      (isBounded_routeCorrupt C (hφ j κ C))
-    refine hcomp.mono ?_
-    simp [sessionUnitPoly, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one]
-  have habs := absorbMultiHybrid_polyBounded C hρ hZ κ z
-  have hdist := SSP.isQueryBounded_hybridDistinguisher
-    (fun j => corruptRouter C (π j κ C))
-    (fun j => execMachine (φ j) (S j) κ C)
-    j₀ hreal hideal habs
-  refine hdist.mono (le_of_eq ?_)
+      (execMachine (φ j) (S j) κ C).IsBounded ((sessionUnitPoly pπ pφ pD).eval κ) := fun j =>
+    ((Machine.isBounded_liftRight (partySpec n SubIn SubOut) (hS j κ C)).comp
+      (isBounded_routeCorrupt C (hφ j κ C))).mono (by simp [sessionUnitPoly])
+  refine (SSP.isQueryBounded_hybridDistinguisher
+    (fun j => corruptRouter C (π j κ C)) (fun j => execMachine (φ j) (S j) κ C)
+    j₀ hreal hideal (absorbMultiHybrid_polyBounded C hρ hZ κ z)).mono (le_of_eq ?_)
   simp only [sessionHopPoly, sessionUnitPoly, absorbPoly, Polynomial.eval_add, Polynomial.eval_mul,
     Polynomial.eval_one, Polynomial.eval_C, Polynomial.eval_ofNat]
 
@@ -974,10 +902,8 @@ theorem EmulatesDummyWithin.composeFamily {m n : ℕ}
       (fun pZ κ => ∑ j : Fin m, ε j (sessionHopPoly m pZ pρ pπ pφ pD) κ) := by
   choose S_D hSD hadv using h
   refine ⟨multiHybridSim S_D, multiHybridSim_polyBounded hSD, fun C Z pZ hZ κ z => ?_⟩
-  refine (advantage_composeFamily_le_sum ρ π φ S_D C Z κ z).trans ?_
-  refine Finset.sum_le_sum fun j _ => ?_
-  exact hadv j C (sessionHopEnv C ρ π φ S_D Z j) (sessionHopPoly m pZ pρ pπ pφ pD)
-    (sessionHopEnv_polyBounded C hρ hπ hφ hSD hZ j) κ z
+  refine (advantage_composeFamily_le_sum ρ π φ S_D C Z κ z).trans (Finset.sum_le_sum fun j _ => ?_)
+  exact hadv j C _ _ (sessionHopEnv_polyBounded C hρ hπ hφ hSD hZ j) κ z
 
 /-- Fixed-session homogeneous composition step for `EmulatesDummyWithin`, this library's own
 call-bounded dummy-adversary emulation relation, specializing `EmulatesDummyWithin.composeFamily`
@@ -1012,8 +938,7 @@ theorem EmulatesWithin.composeMulti {m n : ℕ}
     (hρ : ρ.PolyBounded pρ) (hπ : π.PolyBounded pπ) (hφ : φ.PolyBounded pφ)
     (h : EmulatesWithin π φ g ε) :
     EmulatesWithin (composeMulti ρ π) (composeMulti ρ φ)
-      (Polynomial.X * (Polynomial.C m * g.comp (Polynomial.X + 1) + 1 + 1) +
-        (Polynomial.C m * g.comp (Polynomial.X + 1) + 1))
+      (compSimPoly (Polynomial.C m * g.comp (Polynomial.X + 1) + 1))
       (fun pA pZ κ =>
         m • ε 1 (sessionHopPoly m (absorbPoly pZ pA) pρ pπ pφ
           (g.comp (Polynomial.X + 1))) κ) := by
@@ -1043,22 +968,17 @@ theorem Emulates.composeFamily {m n : ℕ}
   choose S_D pD hSD hadv using
     fun j => h j _ _ (dummyAdversary n _ _) 1 (dummyAdversary_polyBounded n _ _)
   let pD_max : Polynomial ℕ := ∑ j : Fin m, pD j
-  have hdummy : ∀ j : Fin m, ∃ ε : Polynomial ℕ → ℕ → ℝ≥0,
+  have hdummy (j : Fin m) : ∃ ε : Polynomial ℕ → ℕ → ℝ≥0,
       (∀ pZ, Negligible (ε pZ)) ∧ EmulatesDummyWithin (π j) (φ j) pD_max ε := by
-    intro j
     choose ε hε hε_adv using hadv j
     refine ⟨ε, hε, S_D j, (hSD j).mono fun κ => ?_, fun C Z pZ hZ κ z => hε_adv pZ C Z hZ κ z⟩
-    have heval : pD_max.eval κ = ∑ i : Fin m, (pD i).eval κ :=
-      map_sum (Polynomial.evalRingHom κ) pD Finset.univ
-    rw [heval]
-    exact Finset.single_le_sum (f := fun i => (pD i).eval κ) (fun _ _ => Nat.zero_le _)
-      (Finset.mem_univ j)
+    exact (Finset.single_le_sum (f := fun i => (pD i).eval κ) (fun _ _ => Nat.zero_le _)
+      (Finset.mem_univ j)).trans_eq (map_sum (Polynomial.evalRingHom κ) pD Finset.univ).symm
   choose ε hε hD using hdummy
   refine (EmulatesDummyWithin.composeFamily hρ hπ hφ hD).emulatesWithin.emulates fun pA pZ => ?_
-  convert Negligible.sum Finset.univ fun j _ =>
-    hε j (sessionHopPoly m (absorbPoly pZ pA) pρ pπ pφ pD_max) using 1
-  funext κ
-  simp [Finset.sum_apply]
+  rw [← Finset.sum_fn]
+  exact Negligible.sum Finset.univ fun j _ =>
+    hε j (sessionHopPoly m (absorbPoly pZ pA) pρ pπ pφ pD_max)
 
 /-- Fixed-session homogeneous composition step for `Emulates`, this library's own call-bounded
 emulation relation, specializing `Emulates.composeFamily` to `m` instances of `π` replaced by `φ`.

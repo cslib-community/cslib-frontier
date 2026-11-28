@@ -13,7 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.B
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Bounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunProp
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 public meta import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeLifts
 public meta import Lean.Elab.Command
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.RecursiveParser

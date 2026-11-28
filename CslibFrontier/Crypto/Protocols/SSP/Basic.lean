@@ -182,7 +182,7 @@ private theorem isMonadHom_closeProgram :
 
 /-- The output distribution of a program run against a closed package: sample the initial state,
 then interpret the program with each activation read as a distribution. -/
-private theorem eval_run (N : Machine OracleSpec.empty E) (program : ProbOracleComp E α) :
+theorem eval_run (N : Machine OracleSpec.empty E) (program : ProbOracleComp E α) :
     (N.run program).eval = N.init.eval.bind fun s =>
       ((OracleComp.interpret (m := StateT N.State PMF)
         (fun q state => (Machine.closeProgram (N.handler q state)).eval) program).run s).map

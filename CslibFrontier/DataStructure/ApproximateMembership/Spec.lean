@@ -186,13 +186,8 @@ theorem validOpSeq_nil {U : ℕ} (n : ℕ) : ValidOpSeq n ([] : List (Op U)) := 
 theorem card_stepSet_le {U : ℕ} {n : ℕ} {S : Finset (Fin U)} {o : Op U}
     (hS : #S ≤ n) (ho : ValidOp n S o) : #(stepSet S o) ≤ n := by
   cases o with
-  | insert u =>
-    dsimp only [stepSet]
-    rw [Finset.card_insert_of_notMem ho.1]
-    exact Nat.succ_le_of_lt ho.2
-  | delete u =>
-    dsimp only [stepSet]
-    exact (Finset.card_erase_le).trans hS
+  | insert u => exact (Finset.card_insert_of_notMem ho.1).trans_le ho.2
+  | delete u => exact Finset.card_erase_le.trans hS
   | query u => exact hS
 
 theorem card_activeSetFrom_le {U : ℕ} {n : ℕ} {S : Finset (Fin U)} {ops : List (Op U)}
@@ -214,10 +209,8 @@ theorem validOpSeqFrom_take {U : ℕ} {n : ℕ} {S : Finset (Fin U)} {ops : List
   | nil => simp
   | cons o rest ih =>
     cases idx with
-    | zero => simp
-    | succ idx =>
-      simp only [List.take_succ_cons, validOpSeqFrom_cons]
-      exact ⟨hv.1, ih hv.2 idx⟩
+    | zero => trivial
+    | succ idx => exact ⟨hv.1, ih hv.2 idx⟩
 
 theorem card_activeSetBefore_le {U : ℕ} {n : ℕ} {ops : List (Op U)}
     (hv : ValidOpSeq n ops) (idx : ℕ) : #(activeSetBefore ops idx) ≤ n :=

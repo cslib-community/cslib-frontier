@@ -70,10 +70,12 @@ theorem computableInPolyTime_clause_count :
     ComputableInPolyTime
       (fun p : (CNF ℕ × List Bool) × Clause ℕ =>
         p.2.countP (Literal.eval (SAT.assignment p.1.1 p.1.2)))
-      (encPair (encPair encCNF encBits) (encClause encNat)) encUnary := by
-  apply ComputableInPolyTime.countPWithInput
-  · fun_prop
-  · fun_prop [SAT.assignment]
+      (encPair (encPair encCNF encBits) (encClause encNat)) encUnary :=
+  ComputableInPolyTime.countPWithInput (encA := encPair encNat encBool) (by fun_prop)
+    (SAT.computableInPolyTime_literal.comp
+      (g := fun p : ((CNF ℕ × List Bool) × Clause ℕ) × Literal ℕ => (p.1.1, p.2))
+      (encIn := encPair (encPair (encPair encCNF encBits) (encClause encNat))
+        (encPair encNat encBool)) (by fun_prop))
 
 /-- An exact-one clause is verified in polynomial time. -/
 @[fun_prop]
@@ -89,7 +91,9 @@ theorem computableInPolyTime_clause :
 @[fun_prop]
 theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier (encPair encCNF encBits) encBool := by
-  fun_prop [verifier, CNF.evalOne]
+  unfold verifier CNF.evalOne
+  exact ComputableInPolyTime.allWithInput (encA := encClause encNat)
+    (ComputableInPolyTime.fst encCNF encBits) computableInPolyTime_clause
 
 /-- Exact-one satisfiability belongs to NP. -/
 theorem mem_NP : OneSAT ∈ NP encCNF :=
@@ -273,11 +277,8 @@ theorem syntaxCheck_iff (φ : CNF ℕ) :
         OneSAT.positiveCheck φ = true ∧ ∀ v, φ.vars.count v ≤ 3 := by
   rw [syntaxCheck, Bool.and_eq_true, PositiveOneInExactThreeSAT.syntaxCheck_iff,
     ThreeSATThree.syntaxCheck_iff]
-  constructor
-  · rintro ⟨⟨hc, hp⟩, _, hv⟩
-    exact ⟨hc, hp, hv⟩
-  · rintro ⟨hc, hp, hv⟩
-    exact ⟨⟨hc, hp⟩, (fun c h => (hc c h).1.le), hv⟩
+  exact ⟨fun ⟨⟨hc, hp⟩, _, hv⟩ => ⟨hc, hp, hv⟩,
+    fun ⟨hc, hp, hv⟩ => ⟨⟨hc, hp⟩, fun c h => (hc c h).1.le, hv⟩⟩
 
 /-- Membership is the syntax guard together with exact-one satisfiability. -/
 theorem mem_iff_syntaxCheck (φ : CNF ℕ) :

@@ -10,6 +10,7 @@ import CslibFrontier.Crypto.Protocols.BCS.ROM
 import CslibFrontier.Languages.Probabilistic.QueryCount.Support
 import CslibFrontier.Probability.PMF.UniformBound
 import CslibFrontierTests.Crypto.MerkleTestHash
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 
 /-!
 # Tests for BCS ROM soundness and straight-line knowledge soundness

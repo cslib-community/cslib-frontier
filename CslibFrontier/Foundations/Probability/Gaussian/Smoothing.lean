@@ -10,92 +10,41 @@ module
 public import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
 public import CslibFrontier.Foundations.Probability.Gaussian.CenteredTail
 
-import Mathlib.MeasureTheory.Measure.Real
 import Mathlib.Analysis.SpecialFunctions.Exp
 
 /-!
 # Width criteria for small nonzero dual Gaussian mass
 
-An explicit lower bound on the norm of every nonzero dual vector yields a sufficient width
-criterion for the actual nonzero dual mass. The criterion follows from the proved centered
-Gaussian tail estimate and the probability of the zero lattice point. Discreteness supplies
-a positive gap, so every positive error tolerance is attained at all sufficiently large widths.
-No minimum smoothing parameter or small-tail assumption is introduced as a definition.
+Discreteness of the dual lattice supplies a positive norm gap, so the quantitative width criterion
+`ZLattice.gaussianMass_dual_sub_one_le_of_gap` (proved in `Gaussian.CenteredTail` and re-exported
+here) implies that every positive error tolerance is attained at all sufficiently large widths.
+No minimum smoothing parameter or small-tail assumption is introduced as a definition here.
 
 ## Main results
 
-* `ZLattice.gaussianMass_dual_sub_one_le_of_gap`: a quantitative sufficient width criterion.
-* `ZLattice.eventually_gaussianMass_dual_sub_one_le`: the criterion is eventually satisfiable
-  for every full-rank discrete lattice and every positive error tolerance.
+* `ZLattice.eventually_gaussianMass_dual_sub_one_le`: the dual-gap criterion is eventually
+  satisfiable for every full-rank discrete lattice and every positive error tolerance.
 
 ## References
 
 These are supporting consequences of the centered Gaussian tail estimate for the explicit
 dual-tail condition in [Regev2009], Claim 3.8, printed page 22 of the May 2, 2009 author version.
-The numerical width criterion is derived here; it is not a definition of the source's minimum
-smoothing parameter. Uniform shifted mass estimates are in `Gaussian.ShiftBounds`.
+The numerical width criterion is proved in `Gaussian.CenteredTail`; uniform shifted mass estimates
+are in `Gaussian.ShiftBounds`.
 -/
 
 public section
 
 noncomputable section
 
-open Module ProbabilityTheory MeasureTheory Filter
+open Module Filter
 open scoped RealInnerProductSpace Topology
 
 namespace ZLattice
 
 variable {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
 variable [FiniteDimensional ℝ E] [MeasurableSpace E] [BorelSpace E]
-
-private theorem discreteGaussian_nonzero_toReal
-    (L : Submodule ℤ E) [DiscreteTopology L] (s : ℝ) (hs : 0 < s) :
-    ((discreteGaussian L s hs 0).toOuterMeasure {z : L | z ≠ 0}).toReal =
-      1 - 1 / gaussianMass L s 0 := by
-  let p := discreteGaussian L s hs 0
-  have hevent : {z : L | z ≠ 0} = ({0} : Set L)ᶜ := rfl
-  rw [hevent, ← PMF.toMeasure_apply_eq_toOuterMeasure_apply p
-    (measurableSet_singleton 0).compl]
-  change p.toMeasure.real ({0} : Set L)ᶜ = _
-  rw [probReal_compl_eq_one_sub (measurableSet_singleton 0), Measure.real,
-    PMF.toMeasure_apply_singleton p 0 (measurableSet_singleton 0)]
-  simp [p, discreteGaussian_apply_toReal, gaussianWeight]
-
 variable (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
-
-/-- An explicit dual gap and exponential width criterion bound the actual nonzero dual mass.
-The error `ε` is arbitrary and positive; it is not assumed to bound the desired mass. -/
-theorem gaussianMass_dual_sub_one_le_of_gap (s : ℝ) (hs : 0 < s) (a : ℝ) (ha : 0 < a)
-    (hgap : ∀ w : LinearMap.BilinForm.dualSubmodule (innerₗ E) L,
-      w ≠ 0 → a ≤ ‖(w : E)‖)
-    (ε : ℝ) (hε : 0 < ε)
-    (hwidth : 2 ^ finrank ℝ E * Real.exp (-3 * Real.pi * s ^ 2 * a ^ 2 / 4) ≤
-      ε / (1 + ε)) :
-    gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ E) L) (1 / s) 0 - 1 ≤ ε := by
-  let D := LinearMap.BilinForm.dualSubmodule (innerₗ E) L
-  have : DiscreteTopology D := discreteTopology_dualSubmodule L
-  have : IsZLattice ℝ D := isZLattice_dualSubmodule L
-  have hs' : 0 < 1 / s := one_div_pos.mpr hs
-  have htail := discreteGaussian_zero_norm_ge_le D (1 / s) hs' a ha.le
-  have hexp : -3 * Real.pi * a ^ 2 / (4 * (1 / s) ^ 2) =
-      -3 * Real.pi * s ^ 2 * a ^ 2 / 4 := by
-    field_simp
-  rw [hexp] at htail
-  have hsubset : {w : D | w ≠ 0} ⊆ {w : D | a ≤ ‖(w : E)‖} := fun w hw ↦ hgap w hw
-  have hprob := ((discreteGaussian D (1 / s) hs' 0).toOuterMeasure.mono hsubset).trans
-    (htail.trans (ENNReal.ofReal_le_ofReal hwidth))
-  have hreal := ENNReal.toReal_mono ENNReal.ofReal_ne_top hprob
-  rw [OuterMeasure.measureOf_eq_coe, discreteGaussian_nonzero_toReal D (1 / s) hs',
-    ENNReal.toReal_ofReal (by positivity)] at hreal
-  have hm : 0 < gaussianMass D (1 / s) 0 := gaussianMass_pos D (1 / s) hs' 0
-  have he : 0 < 1 + ε := by positivity
-  have hr : 1 - 1 / gaussianMass D (1 / s) 0 =
-      (gaussianMass D (1 / s) 0 - 1) / gaussianMass D (1 / s) 0 := by
-    field_simp
-  rw [hr] at hreal
-  have hmul := (div_le_div_iff₀ hm he).mp hreal
-  change gaussianMass D (1 / s) 0 - 1 ≤ ε
-  nlinarith
 
 /-- Every positive error tolerance eventually bounds the actual nonzero dual mass at
 reciprocal width. The conclusion includes positivity of the original width, and dimension zero
@@ -105,14 +54,9 @@ theorem eventually_gaussianMass_dual_sub_one_le (ε : ℝ) (hε : 0 < ε) :
       gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ E) L) (1 / s) 0 - 1 ≤ ε := by
   let D := LinearMap.BilinForm.dualSubmodule (innerₗ E) L
   have : DiscreteTopology D := discreteTopology_dualSubmodule L
-  obtain ⟨a, ha, hball⟩ := Metric.isOpen_iff.mp
-    (isOpen_discrete ({0} : Set D)) 0 (by simp)
-  have hgap : ∀ w : D, w ≠ 0 → a ≤ ‖(w : E)‖ := by
-    intro w hw
-    apply le_of_not_gt
-    intro hnorm
-    apply hw
-    exact hball (by simpa [Metric.mem_ball, dist_zero_right] using hnorm)
+  obtain ⟨a, ha, hball⟩ := Metric.isOpen_iff.mp (isOpen_discrete ({0} : Set D)) 0 (by simp)
+  have hgap (w : D) (hw : w ≠ 0) : a ≤ ‖(w : E)‖ :=
+    le_of_not_gt fun hnorm => hw (hball (by simpa [Metric.mem_ball, dist_zero_right] using hnorm))
   have hc : -3 * Real.pi * a ^ 2 / 4 < 0 := by
     exact div_neg_of_neg_of_pos
       (mul_neg_of_neg_of_pos (by nlinarith [Real.pi_pos]) (sq_pos_of_pos ha)) (by norm_num)

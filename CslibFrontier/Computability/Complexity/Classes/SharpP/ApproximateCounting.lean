@@ -550,8 +550,7 @@ private theorem card_witnessSet_pow_le (a : α) :
   have : #(R.witnessSet a) ≤ 2 ^ R.certLength.eval (enc a).length := by
     simpa only [BitString.card] using card_le_univ (R.witnessSet a)
   calc #(R.witnessSet a) ^ copies q (enc a).length
-      ≤ (2 ^ R.certLength.eval (enc a).length) ^ copies q (enc a).length :=
-        Nat.pow_le_pow_left this _
+      ≤ (2 ^ R.certLength.eval (enc a).length) ^ copies q (enc a).length := by gcongr
     _ = 2 ^ tupleLength R q (enc a).length := by rw [← pow_mul, mul_comm]
 
 /-- **The estimator is accurate with high probability**: for a positive precision `q(n)`, the
@@ -617,48 +616,47 @@ private theorem unary_seedLength : ComputableInPolyTime (seedLength R q) encUnar
   unary_of_eval ((Polynomial.C 7 * q * R.certLength) * (Polynomial.C 7 * q * R.certLength) +
     Polynomial.C 7 * q * R.certLength) fun n => by simp
 
+/-- The `k`-th root of `16` times Stockmeyer's estimate from polynomial-time levels `D` is
+computable in polynomial time. -/
+private theorem computableInPolyTime_nthRoot_estimate {β : Type} {encB : β ↪ List Bool}
+    {M k : β → ℕ} {D : β × ℕ → Bool} (hM : ComputableInPolyTime M encB encUnary)
+    (hk : ComputableInPolyTime k encB encUnary)
+    (hD : ComputableInPolyTime D (encPair encB encUnary) encBool) :
+    ComputableInPolyTime (fun b => Nat.nthRoot (k b)
+      (16 * Probability.ApproximateCounting.estimate (M b) fun j => D (b, j) = true))
+      encB encNat := by
+  have hfind := ComputableInPolyTime.findGreatest (predicate := fun b j => D (b, j) = true) hM
+    (hD.of_enc_eq fun _ => by simp only [Bool.decide_eq_true])
+  have hzero : ComputableInPolyTime (fun b => D (b, 0)) encB encBool :=
+    hD.comp (ComputableInPolyTime.id'.prod (.const 0))
+  have hest : ComputableInPolyTime (fun b =>
+      Probability.ApproximateCounting.estimate (M b) fun j => D (b, j) = true) encB encNat := by
+    unfold Probability.ApproximateCounting.estimate
+    exact hzero.ite' (ComputableInPolyTime.binary_pow' (.const 2) hfind) (.const 0)
+  exact ComputableInPolyTime.binary_nthRoot' hk (ComputableInPolyTime.binary_mul' (.const 16) hest)
+
 /-- The estimate from the answers is computable in polynomial time. -/
 private theorem computableInPolyTime_estimateOf :
     ComputableInPolyTime (fun x : α × List Bool => estimateOf R q x.1 x.2)
       (encPair enc encBits) encNat := by
   have hn : ComputableInPolyTime (fun x : α × List Bool => (enc x.1).length)
       (encPair enc encBits) encUnary := by fun_prop
-  have hM : ComputableInPolyTime (fun x : α × List Bool => tupleLength R q (enc x.1).length)
-      (encPair enc encBits) encUnary := (unary_tupleLength R q).comp hn
-  have hk : ComputableInPolyTime (fun x : α × List Bool => copies q (enc x.1).length)
-      (encPair enc encBits) encUnary := (unary_copies q).comp hn
   have hyes : ComputableInPolyTime
       (fun p : (α × List Bool) × ℕ => levelYes R q p.1.1 p.1.2 p.2)
       (encPair (encPair enc encBits) encUnary) encBool := by
-    have hn' : ComputableInPolyTime (fun p : (α × List Bool) × ℕ => (enc p.1.1).length)
-        (encPair (encPair enc encBits) encUnary) encUnary := hn.comp (.fst _ _)
-    have hmaj : ComputableInPolyTime
-        (fun p : (α × List Bool) × ℕ => majority R q (enc p.1.1).length)
-        (encPair (encPair enc encBits) encUnary) encUnary := (unary_majority R q).comp hn'
-    have htr : ComputableInPolyTime (fun p : (α × List Bool) × ℕ => trials R q (enc p.1.1).length)
-        (encPair (encPair enc encBits) encUnary) encUnary := (unary_trials R q).comp hn'
+    have hn' := hn.comp (.fst _ encUnary)
     have hrow : ComputableInPolyTime (fun p : (α × List Bool) × ℕ =>
         listRow (trials R q (enc p.1.1).length) p.2 p.1.2)
         (encPair (encPair enc encBits) encUnary) encBits :=
-      ComputableInPolyTime.bitsRowWithInput htr (.snd _ _) ((ComputableInPolyTime.snd _ _).comp
-        (.fst _ _))
+      ComputableInPolyTime.bitsRowWithInput ((unary_trials R q).comp hn') (.snd _ _)
+        ((ComputableInPolyTime.snd _ _).comp (.fst _ _))
     unfold levelYes
-    exact ComputableInPolyTime.unary_lt' hmaj
+    exact ComputableInPolyTime.unary_lt' ((unary_majority R q).comp hn')
       (ComputableInPolyTime.bitsCountWithInput hrow (.const true))
-  have hfind := ComputableInPolyTime.findGreatest
-    (predicate := fun x j => levelYes R q x.1 x.2 j = true) hM
-    (hyes.of_enc_eq fun _ => by simp only [Bool.decide_eq_true])
-  have hzero : ComputableInPolyTime (fun x : α × List Bool => levelYes R q x.1 x.2 0)
-      (encPair enc encBits) encBool :=
-    hyes.comp (ComputableInPolyTime.id'.prod (.const 0))
-  have hest : ComputableInPolyTime (fun x : α × List Bool =>
-      Probability.ApproximateCounting.estimate (tupleLength R q (enc x.1).length)
-        fun j => levelYes R q x.1 x.2 j = true) (encPair enc encBits) encNat := by
-    unfold Probability.ApproximateCounting.estimate
-    exact hzero.ite' (ComputableInPolyTime.binary_pow' (.const 2) hfind) (.const 0)
   unfold estimateOf
-  exact ComputableInPolyTime.binary_nthRoot' hk
-    (ComputableInPolyTime.binary_mul' (.const 16) hest)
+  have h := computableInPolyTime_nthRoot_estimate ((unary_tupleLength R q).comp hn)
+    ((unary_copies q).comp hn) hyes
+  exact h
 
 /-- The queries are computable in polynomial time. -/
 private theorem computableInPolyTime_query :
@@ -1049,17 +1047,8 @@ theorem exists_deterministic_approxCount_of_NP_subset_P
     (16 * Probability.ApproximateCounting.estimate (tupleLength R q (enc a).length)
       fun j => D (a, j) = true), ?_, fun a => ?_⟩
   · have hn : ComputableInPolyTime (fun a : α => (enc a).length) enc encUnary := by fun_prop
-    have hfind := ComputableInPolyTime.findGreatest (predicate := fun a j => D (a, j) = true)
-      ((unary_tupleLength R q).comp hn) (hD.of_enc_eq fun _ => by simp only [Bool.decide_eq_true])
-    have hzero : ComputableInPolyTime (fun a : α => D (a, 0)) enc encBool :=
-      hD.comp (ComputableInPolyTime.id'.prod (.const 0))
-    have hest : ComputableInPolyTime (fun a : α =>
-        Probability.ApproximateCounting.estimate (tupleLength R q (enc a).length)
-          fun j => D (a, j) = true) enc encNat := by
-      unfold Probability.ApproximateCounting.estimate
-      exact hzero.ite' (ComputableInPolyTime.binary_pow' (.const 2) hfind) (.const 0)
-    exact ComputableInPolyTime.binary_nthRoot' ((unary_copies q).comp hn)
-      (ComputableInPolyTime.binary_mul' (.const 16) hest)
+    exact computableInPolyTime_nthRoot_estimate ((unary_tupleLength R q).comp hn)
+      ((unary_copies q).comp hn) hD
   · rw [hfV a, ← R.card_witnessSet a]
     exact le_and_mul_le_nthRoot_estimate R q a (hq _) fun j => (hDL (a, j)).symm
 

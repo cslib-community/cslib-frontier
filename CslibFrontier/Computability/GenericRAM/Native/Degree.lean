@@ -101,9 +101,12 @@ theorem length_of_space (c : NativeCertificate f ei em)
   obtain ⟨k, -, hl⟩ := c.computes
   obtain ⟨C, hC⟩ := hs
   refine ⟨k * (C + 1), fun a => (hl a).trans ?_⟩
-  have := hC a
-  simp only [pow_one] at this ⊢
-  nlinarith
+  have h1 : c.space a + 1 ≤ (C + 1) * ((ei a).length + 1) := by
+    have := hC a
+    simp only [pow_one] at this
+    calc c.space a + 1 ≤ C * ((ei a).length + 1) + ((ei a).length + 1) := by omega
+      _ = (C + 1) * ((ei a).length + 1) := by ring
+  simpa only [pow_one, mul_assoc] using Nat.mul_le_mul_left k h1
 
 /-- A certificate whose time has degree `d ≥ 1` and whose space is linear has degree `d`. -/
 theorem hasDegree_of_space_linear (c : NativeCertificate f ei em)
@@ -218,37 +221,28 @@ theorem option_hasDegree {value : α → Option β} {fallback : α → γ} {body
   obtain ⟨ct, hyt⟩ := hyes.time
   obtain ⟨cs, hys⟩ := hyes.space
   obtain ⟨cl, hyl⟩ := hyes.length
+  have hbranch {u : α × β → ℕ} {k C : ℕ}
+      (hu : ∀ p, u p ≤ C * ((encPair ei em p).length + 1) ^ k) (f₀ : ℕ) (a : α) :
+      (value a).elim f₀ (fun b => u (a, b)) ≤
+        f₀ + C * (2 * (ei a).length + (encOption em (value a)).length + 1) ^ k := by
+    cases hv : value a with
+    | none => exact Nat.le_add_right _ _
+    | some b =>
+      exact Nat.le_trans (by simpa only [Option.elim_some, hpair a b hv, hv] using hu (a, b))
+        (Nat.le_add_left _ _)
   refine ⟨((hc.time.smul 2).add (DegreeBounded.self.mono_deg hd) |>.add
       (hno.time.add (hsub (C := ct)))).mono fun a => ?_,
     ((hc.space.smul 2).add (DegreeBounded.self.mono_deg hd) |>.add
       (hno.space.add (hsub (C := cs)))).mono fun a => ?_,
     (hno.length.add (hsub (C := cl))).mono fun a => ?_⟩
-  · simp only [option_time]
-    cases hv : value a with
-    | none => simp
-    | some b =>
-      have := hyt (a, b)
-      dsimp only at this
-      rw [hpair a b hv, hv] at this
-      simp only [Option.elim_some]
-      omega
-  · simp only [option_space]
-    cases hv : value a with
-    | none => simp
-    | some b =>
-      have := hys (a, b)
-      dsimp only at this
-      rw [hpair a b hv, hv] at this
-      simp only [Option.elim_some]
-      omega
-  · cases hv : value a with
-    | none => simp
-    | some b =>
-      have := hyl (a, b)
-      dsimp only at this
-      rw [hpair a b hv, hv] at this
-      simp only [Option.elim_some, pow_one] at this ⊢
-      omega
+  · have := hbranch hyt (no.time a) a
+    simp only [option_time]
+    omega
+  · have := hbranch hys (no.space a) a
+    simp only [option_space]
+    omega
+  · have h := hbranch hyl (eo (fallback a)).length a
+    cases hv : value a <;> simpa only [hv, Option.elim_none, Option.elim_some, pow_one] using h
 
 end Cslib.GenericRAM.NativeCertificate
 

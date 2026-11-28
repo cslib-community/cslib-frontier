@@ -27,7 +27,6 @@ the plain polynomial-space calculus is in
 ## Main results
 
 * `Turing.MultiTapeTM.ComputableInDegree.increment`: the binary counter in linear time.
-* `Turing.MultiTapeTM.ComputableTidilyInPolyTime.increment`: the binary counter in polynomial time.
 -/
 
 @[expose] public section
@@ -71,16 +70,5 @@ theorem ComputableInDegree.increment :
     ComputableInDegree Cslib.BitString.increment encBits encBits 1 1 :=
   ComputableInDegree.of_transducer incrementT fun w => by
     rw [show incrementT.q₀ = true from rfl, incrementT_run]; rfl
-
-/-- **The binary counter in linear time.** -/
-theorem ComputableTidilyInDegree.increment :
-    ComputableTidilyInDegree Cslib.BitString.increment encBits encBits 1 1 :=
-  .of_linear ComputableInDegree.increment
-
-/-- The binary counter in polynomial time. -/
-@[fun_prop]
-theorem ComputableTidilyInPolyTime.increment :
-    ComputableTidilyInPolyTime Cslib.BitString.increment encBits encBits :=
-  ComputableTidilyInDegree.increment.computableTidilyInPolyTime
 
 end Turing.MultiTapeTM

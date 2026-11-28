@@ -59,11 +59,6 @@ unit clause `a` the arc `¬a → a`. -/
 def CNF.Implies (φ : CNF V) (ℓ ℓ' : Literal V) : Prop :=
   ∃ c ∈ φ, ℓ.negate ∈ c ∧ ℓ' ∈ c ∧ ∀ m ∈ c, m = ℓ.negate ∨ m = ℓ'
 
-@[simp]
-theorem negate_negate (ℓ : Literal V) : ℓ.negate.negate = ℓ := by
-  obtain ⟨v, b⟩ := ℓ
-  simp [Std.Sat.Literal.negate]
-
 /-- The negation of a literal holds exactly when the literal does not. -/
 theorem holds_negate (σ : V → Bool) (ℓ : Literal V) :
     σ ℓ.negate.1 = ℓ.negate.2 ↔ ¬ σ ℓ.1 = ℓ.2 := by
@@ -124,26 +119,18 @@ theorem CNF.not_satisfiable_of_reach {φ : CNF V} {ℓ : Literal V}
 /-- The empty clause refutes a formula. -/
 theorem CNF.not_satisfiable_of_nil_mem {φ : CNF V} (h : [] ∈ φ) : ¬ φ.Satisfiable := by
   rintro ⟨σ, hσ⟩
-  have := (CNF.eval_eq_true_iff σ φ).mp hσ [] h
-  simp [Clause.eval] at this
+  simpa [Clause.eval] using (CNF.eval_eq_true_iff σ φ).mp hσ [] h
 
 /-- In a clause of width at most two containing `m`, some literal `b` is all that remains besides
 `m`. -/
 private theorem exists_other {c : Clause V} {m : Literal V} (hc : c.length ≤ 2) (hm : m ∈ c) :
     ∃ b ∈ c, ∀ y ∈ c, y = m ∨ y = b := by
   rcases c with _ | ⟨a, _ | ⟨a', _ | ⟨a'', l⟩⟩⟩
-  · exact absurd hm List.not_mem_nil
-  · rw [List.mem_singleton] at hm
-    subst hm
-    exact ⟨m, List.mem_singleton_self m, fun y hy => .inl (List.mem_singleton.mp hy)⟩
+  · simp at hm
+  · exact ⟨a, by simp, by simp⟩
   · simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
     rcases hm with rfl | rfl
-    · exact ⟨a', by simp, fun y hy => by simpa using hy⟩
-    · refine ⟨a, by simp, fun y hy => ?_⟩
-      simp only [List.mem_cons, List.not_mem_nil, or_false] at hy
-      rcases hy with rfl | rfl
-      · exact .inr rfl
-      · exact .inl rfl
+    exacts [⟨a', by simp, by simp⟩, ⟨a, by simp, by simp⟩]
   · simp at hc
 
 open scoped Classical in
@@ -160,16 +147,10 @@ theorem CNF.satisfiable_of_width_le_two {φ : CNF V} (hw : ∀ c ∈ φ, c.lengt
   | _ n ih =>
   by_cases hvars : φ.vars = []
   · -- without variables every clause is empty, so there is none
-    have hφ : φ = [] := by
-      rcases φ with _ | ⟨c, φ⟩
-      · rfl
-      · have hc : c ≠ [] := fun h => hnil (h ▸ List.mem_cons_self)
-        obtain ⟨l, hl⟩ := List.exists_mem_of_ne_nil c hc
-        have : l.1 ∈ CNF.vars (c :: φ) := CNF.mem_vars.mpr ⟨c, List.mem_cons_self, l.2, hl⟩
-        rw [hvars] at this
-        exact absurd this (List.not_mem_nil)
-    subst hφ
-    exact ⟨fun _ => true, rfl⟩
+    refine ⟨fun _ => true, (CNF.eval_eq_true_iff _ φ).mpr fun c hc => ?_⟩
+    obtain ⟨l, hl⟩ := List.exists_mem_of_ne_nil c fun h => hnil (h ▸ hc)
+    have : l.1 ∈ φ.vars := CNF.mem_vars.mpr ⟨c, hc, l.2, hl⟩
+    simp [hvars] at this
   obtain ⟨x, hx⟩ := List.exists_mem_of_ne_nil _ hvars
   -- a literal of `x` with no path to its negation
   obtain ⟨ℓ, hℓx, hℓ⟩ : ∃ ℓ : Literal V, ℓ.1 = x ∧
@@ -179,11 +160,8 @@ theorem CNF.satisfiable_of_width_le_two {φ : CNF V} (hw : ∀ c ∈ φ, c.lengt
     · exact ⟨(x, true), rfl, h⟩
   -- the literals reachable from `ℓ` are made true
   let R : Literal V → Prop := fun m => Relation.ReflTransGen φ.Implies ℓ m
-  have hcons : ∀ m, R m → ¬ R m.negate := by
-    intro m hm hm'
-    have h' := CNF.reach_negate hm'
-    rw [negate_negate] at h'
-    exact hℓ (hm.trans h')
+  have hcons : ∀ m, R m → ¬ R m.negate := fun m hm hm' =>
+    hℓ (hm.trans (by simpa only [negate_negate] using CNF.reach_negate hm'))
   -- the remaining clauses
   let ψ : CNF V := φ.filter fun c => ∀ m ∈ c, ¬ R m ∧ ¬ R m.negate
   have hψφ : ∀ c ∈ ψ, c ∈ φ := fun c hc => (List.mem_filter.mp hc).1
@@ -191,16 +169,11 @@ theorem CNF.satisfiable_of_width_le_two {φ : CNF V} (hw : ∀ c ∈ φ, c.lengt
     rw [Finset.ssubset_iff_of_subset]
     · refine ⟨x, List.mem_toFinset.mpr hx, fun hx' => ?_⟩
       obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.mp (List.mem_toFinset.mp hx')
-      have hall := of_decide_eq_true (List.mem_filter.mp hc).2
-      have hm := hall _ hb
-      have : (x, b) = ℓ ∨ (x, b) = ℓ.negate := by
-        obtain ⟨y, b'⟩ := ℓ
-        simp only at hℓx
-        subst hℓx
-        cases b <;> cases b' <;> simp [Std.Sat.Literal.negate]
-      rcases this with h | h
-      · exact hm.1 (h ▸ .refl)
-      · exact hm.2 (by rw [h, negate_negate])
+      have hm := (of_decide_eq_true (List.mem_filter.mp hc).2) _ hb
+      obtain ⟨_, b'⟩ := ℓ
+      cases hℓx
+      cases b <;> cases b'
+      exacts [hm.1 .refl, hm.2 .refl, hm.2 .refl, hm.1 .refl]
     · intro y hy
       obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.mp (List.mem_toFinset.mp hy)
       exact List.mem_toFinset.mpr (CNF.mem_vars.mpr ⟨c, hψφ c hc, b, hb⟩)
@@ -226,10 +199,7 @@ theorem CNF.satisfiable_of_width_le_two {φ : CNF V} (hw : ∀ c ∈ φ, c.lengt
     refine (Clause.eval_eq_true_iff σ c).mpr ⟨m, hm, ?_⟩
     obtain ⟨v, b⟩ := m
     have h := hcψ _ hm
-    have h₁₂ : ¬ R (v, true) ∧ ¬ R (v, false) := by
-      cases b
-      · exact ⟨h.2, h.1⟩
-      · exact h
+    have h₁₂ : ¬ R (v, true) ∧ ¬ R (v, false) := by cases b; exacts [⟨h.2, h.1⟩, h]
     simpa [σ, h₁₂.1, h₁₂.2] using hmσ
   · -- a clause with a literal made true or false
     push Not at hcψ
@@ -250,8 +220,7 @@ theorem CNF.not_satisfiable_iff_of_width_le_two {φ : CNF V} (hw : ∀ c ∈ φ,
       Relation.ReflTransGen φ.Implies (v, false) (v, true) := by
   constructor
   · intro h
-    by_contra h'
-    push Not at h'
+    by_contra! h'
     exact h (CNF.satisfiable_of_width_le_two hw h'.1 fun v hv => h'.2 v hv.1 hv.2)
   · rintro (h | ⟨v, h₁, h₂⟩)
     · exact CNF.not_satisfiable_of_nil_mem h

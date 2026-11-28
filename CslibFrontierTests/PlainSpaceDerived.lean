@@ -9,7 +9,7 @@ module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.Reachability
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.SavitchWalk
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace
 import Lean

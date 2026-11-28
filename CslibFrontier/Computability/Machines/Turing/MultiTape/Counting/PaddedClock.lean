@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Det
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Sequential
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.AcceptCount
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Nondeterministic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Padded coin counts as terminal-path counts
@@ -151,33 +152,14 @@ theorem apply_lift (action : Turing.Action k Bool State) (c : Cfg k Bool State i
     (clock : ℤ → Option Bool) (pos : ℤ) :
     (lift (r := r) action).apply (config r c clock pos) =
       config r (action.apply c) clock (pos + 1) := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext j <;> induction j using Fin.lastCases with
-  | last => simp [lift, config, Action.apply]
-  | cast j =>
-    induction j using Fin.addCases with
-    | left i =>
-      simp only [lift, config, Action.apply, Fin.lastCases_castSucc, Fin.addCases_left]
-    | right i =>
-      simp only [lift, config, Action.apply, Fin.lastCases_castSucc, Fin.addCases_right,
-        SignType.coe_zero, add_zero]
+  tm_step [lift, config]
 
 /-- After the source halts, a tick only advances the clock head. -/
 theorem apply_tick {c : Cfg k Bool State input} (hc : c.state = none)
     (clock : ℤ → Option Bool) (pos : ℤ) :
     (tick (k := k) (r := r) (State := State)).apply (config r c clock pos) =
       config r c clock (pos + 1) := by
-  refine Cfg.ext (by simp [tick, config, hc]) (by simp [tick, config])
-    ?_ ?_ (by simp [tick, config, Action.apply]) <;>
-    funext j <;> induction j using Fin.lastCases with
-  | last => simp [tick, config, Action.apply]
-  | cast j =>
-    induction j using Fin.addCases with
-    | left i =>
-      simp only [tick, config, Action.apply, Fin.lastCases_castSucc, Fin.addCases_left,
-        SignType.coe_zero, add_zero]
-    | right i =>
-      simp only [tick, config, Action.apply, Fin.lastCases_castSucc, Fin.addCases_right,
-        SignType.coe_zero, add_zero]
+  tm_step [tick, config, hc]
 
 /-- The fixed-coin step of the source, in the notation of the coin replay. -/
 private theorem step_withCoin_of_state (M : MultiTapePTM k Bool State)
@@ -243,12 +225,10 @@ theorem haltsWithin_acceptCount_machine (M : MultiTapePTM k Bool State) (r n : �
     have hact : (machine M r).actions (config r c clock pos) = [stop] := by
       rw [actions_config]
       simp [choices, hpos]
-    have hhalt : (stop (k := k) (r := r) (State := State)).apply (config r c clock pos)
-        |>.Halted := rfl
-    refine ⟨.step (by simp [hact]) fun index => ?_, ?_⟩
-    · have hindex : ((machine M r).actions (config r c clock pos))[index] = stop :=
-        List.mem_singleton.mp (hact ▸ List.getElem_mem index.isLt)
-      exact .halt (by rw [hindex]; exact hhalt)
+    refine ⟨.step (by simp [hact]) fun index => .halt ?_, ?_⟩
+    · rw [Fin.getElem_fin,
+        List.mem_singleton.mp ((congrArg (_ ∈ ·) hact).mp (List.getElem_mem index.isLt))]
+      rfl
     · rw [acceptCount, ← countP_runList, runList_succ _ _ _ _ rfl, hact,
         Complexity.acceptCount_zero]
       by_cases hout : c.output = [true] <;> simp [stop, config, Action.apply, hout]
@@ -256,19 +236,14 @@ theorem haltsWithin_acceptCount_machine (M : MultiTapePTM k Bool State) (r n : �
     have hpos : clock pos = some true := by simpa using hclock 0 (Nat.succ_pos n)
     have hnext (bit : Bool) := ih ((M.withCoin bit).toTM.step c) (pos + 1)
       (fun i hi => by
-        have := hclock (i + 1) (by omega)
-        rwa [Nat.cast_add, Nat.cast_one, add_comm (i : ℤ) 1, ← add_assoc] at this)
-      (by
-        have := hstop
-        rwa [Nat.cast_add, Nat.cast_one, add_comm (n : ℤ) 1, ← add_assoc] at this)
+        simpa only [Nat.cast_add, Nat.cast_one, add_comm (i : ℤ) 1, ← add_assoc] using
+          hclock (i + 1) (by omega))
+      (by simpa only [Nat.cast_add, Nat.cast_one, add_comm (n : ℤ) 1, ← add_assoc] using hstop)
     obtain ⟨g, hact, hg⟩ := actions_config_of_clock (r := r) M c clock pos hpos
     refine ⟨.step (by simp [hact]) fun index => ?_, ?_⟩
-    · have hmem : ((machine M r).actions (config r c clock pos))[index] ∈
-          [false, true].map g := by
-        rw [← hact]
-        exact List.getElem_mem index.isLt
-      obtain ⟨bit, -, hbit⟩ := List.mem_map.mp hmem
-      rw [← hbit, hg]
+    · obtain ⟨bit, -, hbit⟩ := List.mem_map.mp
+        ((congrArg (_ ∈ ·) hact).mp (List.getElem_mem index.isLt))
+      rw [Fin.getElem_fin, ← hbit, hg]
       exact (hnext bit).1
     · rw [acceptCount_stepCoins_succ, acceptCount, ← countP_runList,
         runList_succ _ _ _ _ rfl, hact, List.flatMap_map]
@@ -294,16 +269,7 @@ private theorem start_eq (M : MultiTapePTM k Bool State) (input : List Bool) (τ
         (Function.update (fun _ => []) (Fin.last (k + r)) (List.replicate τ true)) []).withState
         (some (machine M r).initial) =
       config r (Cfg.init M.initial input) (tapeOfList (List.replicate τ true)) 0 := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext j <;> induction j using Fin.lastCases with
-  | last => simp [config, wordsCfg, Cfg.withState]
-  | cast j =>
-    induction j using Fin.addCases with
-    | left i =>
-      simp only [config, wordsCfg, Cfg.withState, Fin.lastCases_castSucc, Fin.addCases_left,
-        Cfg.init, Function.update_of_ne (Fin.castSucc_ne_last _), tapeOfList_nil]
-    | right i =>
-      simp only [config, wordsCfg, Cfg.withState, Fin.lastCases_castSucc, Fin.addCases_right,
-        Function.update_of_ne (Fin.castSucc_ne_last _), tapeOfList_nil]
+  tm_step [config]
 
 /-- **Padded counts from a prepared clock.** If the preparation halts after `time` steps with
 exactly `τ` true cells on the last work tape, every other tape blank and nothing emitted, then
@@ -332,8 +298,7 @@ theorem haltsWithin_acceptCount_compile (M : MultiTapePTM k Bool State)
   have hsecond : ∀ result ∈ first.runList time cfg.tapes,
       (machine M r).HaltsWithin (τ + 1) (result.withState (some (machine M r).initial)) := by
     intro result hresult
-    rw [hrun, List.mem_singleton] at hresult
-    rw [hresult, start_eq]
+    rw [List.mem_singleton.mp ((congrArg (result ∈ ·) hrun).mp hresult), start_eq]
     exact hclock.1
   have hstart : Cfg.init (compile M prepare).initial input =
       (Sequential.left (machine M r) cfg).tapes := rfl

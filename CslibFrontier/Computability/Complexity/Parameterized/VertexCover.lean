@@ -20,7 +20,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import Mathlib.Data.Nat.Bitwise
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
 
 /-!
 # Fixed-parameter tractability of vertex cover
@@ -157,31 +156,22 @@ private theorem exists_foldBranch_subset (G : Graph) {S : Finset ℕ}
       set e := (uncoveredEdges G C).headD (0, 0)
       obtain ⟨he, he₁, he₂, hne, he₁C, he₂C⟩ :=
         mem_uncoveredEdges_iff.mp (headD_mem_uncoveredEdges h)
-      have hadj : G.toSimpleGraph.Adj e.1 e.2 := ⟨hne, Or.inl he⟩
-      have heS : e.1 ∈ S ∨ e.2 ∈ S := hS e.1 he₁ e.2 he₂ hadj
+      have heS : e.1 ∈ S ∨ e.2 ∈ S := hS e.1 he₁ e.2 he₂ ⟨hne, Or.inl he⟩
       let b : Bool := decide (e.1 ∉ S)
       have hwS : (if b then e.2 else e.1) ∈ S := by grind
       have hwC : (if b then e.2 else e.1) ∉ C := by
         split_ifs <;> assumption
       have hstep : foldBranch G (bs ++ [b]) = (if b then e.2 else e.1) :: C := by
-        rw [foldBranch_append_singleton]
-        simp [C, branchStep, h, e]
-      refine ⟨bs ++ [b], by simp [hbs], ?_, ?_, Or.inr ?_⟩
-      · rw [hstep]
-        intro v hv
-        rcases List.mem_cons.mp hv with rfl | hv
-        · exact hwS
-        · exact hsub v hv
-      · rw [hstep]
-        exact List.nodup_cons.mpr ⟨hwC, hnodup⟩
-      · rw [hstep, List.length_cons, hlen]
+        simp [foldBranch_append_singleton, C, branchStep, h, e]
+      refine ⟨bs ++ [b], by simp [hbs], ?_⟩
+      rw [hstep]
+      exact ⟨List.forall_mem_cons.mpr ⟨hwS, hsub⟩, List.nodup_cons.mpr ⟨hwC, hnodup⟩,
+        Or.inr (by simp [hlen])⟩
     · have hstep : foldBranch G (bs ++ [false]) = C := by
-        rw [foldBranch_append_singleton]
-        simp [C, branchStep, h]
-      refine ⟨bs ++ [false], by simp [hbs], ?_, ?_, Or.inl ?_⟩
-      · rwa [hstep]
-      · rwa [hstep]
-      · rwa [hstep]
+        simp [foldBranch_append_singleton, C, branchStep, h]
+      refine ⟨bs ++ [false], by simp [hbs], ?_⟩
+      rw [hstep]
+      exact ⟨hsub, hnodup, Or.inl h⟩
 
 /-- If `G` has a vertex cover of at most `m` vertices, some branching word `bs` of length `m`
 produces a cover. -/
@@ -194,13 +184,10 @@ private theorem exists_isCover_foldBranch {G : Graph} {S : Finset ℕ}
   · refine ⟨bs, hbs, isCover_eq_true_iff.mpr fun u hu v hv hadj => ?_⟩
     have hsub' : (foldBranch G bs).toFinset ⊆ S :=
       fun w hw => hsub w (List.mem_toFinset.mp hw)
-    have hcard : S.card ≤ (foldBranch G bs).toFinset.card := by
-      rw [List.toFinset_card_of_nodup hnodup, hlen]
-      exact hm
-    have heq := (Finset.eq_of_subset_of_card_le hsub' hcard).symm
-    rcases hS u hu v hv hadj with huS | hvS
-    · exact Or.inl (List.mem_toFinset.mp (heq ▸ huS))
-    · exact Or.inr (List.mem_toFinset.mp (heq ▸ hvS))
+    have heq : (foldBranch G bs).toFinset = S :=
+      Finset.eq_of_subset_of_card_le hsub'
+        (by simpa [List.toFinset_card_of_nodup hnodup, hlen] using hm)
+    simpa only [← heq, List.mem_toFinset] using hS u hu v hv hadj
 
 /-- **Completeness of the bounded search tree.** A graph `G` has a vertex cover of at most `m`
 declared vertices if and only if some `i < 2 ^ m` leads to a cover along the path of length `m`
@@ -376,11 +363,7 @@ theorem VertexCover_decidableInExpTime_one :
     rw [← VertexCover.search_eq_true_iff, VertexCover.search]
     simp only [Bool.and_eq_true, decide_eq_true_eq, List.any_eq_true, List.mem_range,
       Set.mem_ofPred_eq]
-    constructor
-    · rintro ⟨hcap, i, hi, hcov⟩
-      exact ⟨i, hi, hcap, hcov⟩
-    · rintro ⟨i, hi, hcap, hcov⟩
-      exact ⟨hcap, i, hi, hcov⟩
+    grind
   simpa using hB.of_exhaustiveSearch hf VertexCover.computableInPolyTime_cap hfA
     (c := 0) (fun _ _ => Nat.zero_le _) (M := 1) (K := 0)
     (fun x => by simpa using VertexCover.cap_le_snd x) le_rfl

@@ -12,6 +12,7 @@ public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelStackLoop
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelFacts
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 
 /-!
 # Loops with a stack of frames
@@ -183,139 +184,7 @@ private theorem total_space_arith {K cI cH d0 kk kI kH Ti Si H R E A0 An Sh0 S0 
       _ ≤ K * (E + Ti + Si + H + R + 1) := Nat.mul_le_mul_right _ hK
   omega
 
-/-- The tidy version of `Turing.MultiTapeTM.ComputableInO.stackLoop`. -/
-private theorem ComputableTidilyInO.stackLoop {δ α γ : Type} {encIn : δ ↪ List Bool}
-    {encA : α ↪ List Bool} {encG : γ ↪ List Bool} (L : StackLoop α γ)
-    {init : δ → α} {Ti Si : δ → ℕ} {Th Sh : α → ℕ} {Tr Sr : Option γ × α → ℕ} (n : δ → ℕ)
-    (hinit : ComputableTidilyInO init encIn encA Ti Si)
-    (hhalt : ComputableTidilyInO L.halt encA encBool Th Sh)
-    (hround : ComputableTidilyInO L.round (encPair (encOption encG) encA)
-      (encPair (encList encG) encA) Tr Sr)
-    (hrun : ∀ x, ∀ i < n x, L.halt (L.step^[i] (init x, [])).1 = false)
-    (hstop : ∀ x, L.halt (L.step^[n x] (init x, [])).1 = true)
-    (hempty : ∀ x, (L.step^[n x] (init x, [])).2 = []) :
-    ComputableTidilyInO (fun x => (L.step^[n x] (init x, [])).1) encIn encA
-      (fun x => (encIn x).length + Ti x + Si x +
-        ∑ i ∈ Finset.range (n x + 1),
-          (Th (L.step^[i] (init x, [])).1 + Sh (L.step^[i] (init x, [])).1 +
-            (encA (L.step^[i] (init x, [])).1).length) +
-        ∑ i ∈ Finset.range (n x),
-          (Tr (roundInput (L.step^[i] (init x, []))) + Sr (roundInput (L.step^[i] (init x, []))) +
-            (encPair (encOption encG) encA (roundInput (L.step^[i] (init x, [])))).length +
-            (encPair (encList encG) encA (L.round (roundInput (L.step^[i] (init x, []))))).length))
-      (fun x => (encIn x).length + Ti x + Si x +
-        ∑ i ∈ Finset.range (n x + 1),
-          (Th (L.step^[i] (init x, [])).1 + Sh (L.step^[i] (init x, [])).1 +
-            (encA (L.step^[i] (init x, [])).1).length) +
-        ∑ i ∈ Finset.range (n x),
-          (Tr (roundInput (L.step^[i] (init x, []))) + Sr (roundInput (L.step^[i] (init x, []))) +
-            (encPair (encOption encG) encA (roundInput (L.step^[i] (init x, [])))).length +
-            (encPair (encList encG) encA
-              (L.round (roundInput (L.step^[i] (init x, []))))).length)) := by
-  obtain ⟨cI, ⟨kI, SI, _, tI, hI⟩, lI⟩ := hinit
-  obtain ⟨cH, ⟨kH, SH, _, tH, hH⟩, -⟩ := hhalt
-  obtain ⟨cP, ⟨kP, SP, _, tP, hP⟩, -⟩ := hround.fst'
-  obtain ⟨cN, ⟨kN, SN, _, tN, hN⟩, -⟩ := hround.snd'
-  -- the four machines, padded to a common number of work tapes
-  set kk := max (max kI kH) (max kP kN) with hkk
-  have hkI : kI ≤ kk := (le_max_left _ _).trans (le_max_left _ _)
-  have hkH : kH ≤ kk := (le_max_right _ _).trans (le_max_left _ _)
-  have hkP : kP ≤ kk := (le_max_left _ _).trans (le_max_right _ _)
-  have hkN : kN ≤ kk := (le_max_right _ _).trans (le_max_right _ _)
-  have key := fun x => StackLoopKernel.runs_stackLoop (kk := kk) (input := encIn x)
-    (encA := encA) (encG := encG) (halt := L.halt) (round := L.round)
-    (tI := tI.extendTapes (Fin.castLEEmb hkI)) (tH := tH.extendTapes (Fin.castLEEmb hkH))
-    (tP := tP.extendTapes (Fin.castLEEmb hkP)) (tN := tN.extendTapes (Fin.castLEEmb hkN))
-    (TH := fun a => cH * (Th a + 1)) (SH' := fun a => cH * (Sh a + 1) + (kk - kH))
-    (TP := fun z => cP * (Tr z + 1)) (SP' := fun z => cP * (Sr z + 1) + (kk - kP))
-    (TN := fun z => cN * (Tr z + 1)) (SN' := fun z => cN * (Sr z + 1) + (kk - kN))
-    (fun a => (hH a).extendTapes (Fin.castLEEmb hkH))
-    (fun z => (hP z).extendTapes (Fin.castLEEmb hkP))
-    (fun z => (hN z).extendTapes (Fin.castLEEmb hkN))
-    (fun i => L.step^[i] (init x, [])) (n x) ((hI x).extendTapes (Fin.castLEEmb hkI)) rfl
-    (fun i => Function.iterate_succ_apply' _ _ _) (hrun x) (hstop x) (hempty x)
-  set c0 := cP + cN + cH + 100 with hc0
-  set d0 := cP + cN + cH + 25 * kk + 300 with hd0
-  -- the costs of the halting tests and of the rounds
-  have hH0 (x : δ) : Th (L.step^[0] (init x, [])).1 + Sh (L.step^[0] (init x, [])).1 +
-      (encA (L.step^[0] (init x, [])).1).length ≤
-      ∑ i ∈ Finset.range (n x + 1), (Th (L.step^[i] (init x, [])).1 +
-        Sh (L.step^[i] (init x, [])).1 + (encA (L.step^[i] (init x, [])).1).length) :=
-    Finset.single_le_sum (f := fun i => Th (L.step^[i] (init x, [])).1 +
-      Sh (L.step^[i] (init x, [])).1 + (encA (L.step^[i] (init x, [])).1).length)
-      (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr (Nat.succ_pos _))
-  have hHn (x : δ) : Th (L.step^[n x] (init x, [])).1 + Sh (L.step^[n x] (init x, [])).1 +
-      (encA (L.step^[n x] (init x, [])).1).length ≤
-      ∑ i ∈ Finset.range (n x + 1), (Th (L.step^[i] (init x, [])).1 +
-        Sh (L.step^[i] (init x, [])).1 + (encA (L.step^[i] (init x, [])).1).length) :=
-    Finset.single_le_sum (f := fun i => Th (L.step^[i] (init x, [])).1 +
-      Sh (L.step^[i] (init x, [])).1 + (encA (L.step^[i] (init x, [])).1).length)
-      (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr (Nat.lt_succ_self _))
-  refine ComputableTidilyInO.of_bounds ⟨kk + 6, _, by infer_instance, _,
-    fun x => computesTidily_of_runsBetween (key x)⟩
-    (4 * (cI + cH + c0 + 50) + 8 * (cI + cH + d0 + 20 * kk + 200) + 1) ?_ ?_ ?_
-  · intro x
-    have hsum := sum_le_of_round (n := n x) (c := c0)
-      (u := fun i => StackLoopKernel.roundTime encA encG L.round (fun a => cH * (Th a + 1))
-        (fun z => cP * (Tr z + 1)) (fun z => cN * (Tr z + 1)) (fun i => L.step^[i] (init x, []))
-        i + 1)
-      (v := fun i => Tr (roundInput (L.step^[i] (init x, []))) +
-        Sr (roundInput (L.step^[i] (init x, []))) +
-        (encPair (encOption encG) encA (roundInput (L.step^[i] (init x, [])))).length +
-        (encPair (encList encG) encA (L.round (roundInput (L.step^[i] (init x, []))))).length)
-      (w := fun i => Th (L.step^[i] (init x, [])).1 + Sh (L.step^[i] (init x, [])).1 +
-        (encA (L.step^[i] (init x, [])).1).length)
-      (fun i _ => by
-        simp only [StackLoopKernel.roundTime, StackLoopKernel.zIn, roundInput,
-          Function.iterate_succ_apply', StackLoop.step]
-        generalize L.step^[i] (init x, []) = st
-        generalize L.round (st.2.head?, st.1) = rr
-        exact round_time_arith (by omega) (by simp) (length_encPair _) (by simp [length_frame]))
-    have h0 := hH0 x
-    have hn := hHn x
-    exact total_time_arith (by omega) hsum (lI x) (by omega) (by omega)
-  · intro x
-    have hsum := sum_le_of_round (n := n x) (c := d0)
-      (u := fun i => StackLoopKernel.roundSpace encA encG L.round
-        (fun a => cH * (Sh a + 1) + (kk - kH)) (fun z => cP * (Sr z + 1) + (kk - kP))
-        (fun z => cN * (Sr z + 1) + (kk - kN)) kk (fun i => L.step^[i] (init x, [])) i + (kk + 6))
-      (v := fun i => Tr (roundInput (L.step^[i] (init x, []))) +
-        Sr (roundInput (L.step^[i] (init x, []))) +
-        (encPair (encOption encG) encA (roundInput (L.step^[i] (init x, [])))).length +
-        (encPair (encList encG) encA (L.round (roundInput (L.step^[i] (init x, []))))).length)
-      (w := fun i => Th (L.step^[i] (init x, [])).1 + Sh (L.step^[i] (init x, [])).1 +
-        (encA (L.step^[i] (init x, [])).1).length)
-      (fun i _ => by
-        simp only [StackLoopKernel.roundSpace, StackLoopKernel.zIn, roundInput,
-          Function.iterate_succ_apply', StackLoop.step]
-        generalize L.step^[i] (init x, []) = st
-        generalize L.round (st.2.head?, st.1) = rr
-        exact round_space_arith (by omega) (by simp) (length_encPair _) (by simp [length_frame]))
-    have h0 := hH0 x
-    have hn := hHn x
-    exact total_space_arith (by omega) hsum (lI x) (by omega) (by omega)
-  · intro x
-    have hn := hHn x
-    have hK := Nat.le_mul_of_pos_left ((encIn x).length + Ti x + Si x +
-        ∑ i ∈ Finset.range (n x + 1),
-          (Th (L.step^[i] (init x, [])).1 + Sh (L.step^[i] (init x, [])).1 +
-            (encA (L.step^[i] (init x, [])).1).length) +
-        ∑ i ∈ Finset.range (n x),
-          (Tr (roundInput (L.step^[i] (init x, []))) + Sr (roundInput (L.step^[i] (init x, []))) +
-            (encPair (encOption encG) encA (roundInput (L.step^[i] (init x, [])))).length +
-            (encPair (encList encG) encA (L.round (roundInput (L.step^[i] (init x, []))))).length) +
-          1)
-      (show 0 < 4 * (cI + cH + c0 + 50) + 8 * (cI + cH + d0 + 20 * kk + 200) + 1 by omega)
-    omega
-
-/-- **Stack loops.** If the initial value, the halting test and the round of a stack loop are
-computable, and from the initial value with an empty stack the loop halts after `n x`
-rounds with an empty stack, then the halting value is computable. The time and space are
-the costs of the initialization, plus, for every round and the final halting test, the costs of
-the halting test and of the round together with the lengths of the words they read and write.
-
-The frames are kept on a separate work tape: a round pays for the popped and pushed frames only,
-not for the rest of the stack. -/
+/-- Execute a stack loop within independent time and charged workspace bounds. -/
 theorem ComputableInO.stackLoop {δ α γ : Type} {encIn : δ ↪ List Bool}
     {encA : α ↪ List Bool} {encG : γ ↪ List Bool} (L : StackLoop α γ)
     {init : δ → α} {Ti Si : δ → ℕ} {Th Sh : α → ℕ} {Tr Sr : Option γ × α → ℕ} (n : δ → ℕ)
@@ -343,8 +212,84 @@ theorem ComputableInO.stackLoop {δ α γ : Type} {encIn : δ ↪ List Bool}
           (Tr (roundInput (L.step^[i] (init x, []))) + Sr (roundInput (L.step^[i] (init x, []))) +
             (encPair (encOption encG) encA (roundInput (L.step^[i] (init x, [])))).length +
             (encPair (encList encG) encA
-              (L.round (roundInput (L.step^[i] (init x, []))))).length)) :=
-  (ComputableTidilyInO.stackLoop L n hinit.tidy hhalt.tidy hround.tidy hrun hstop
-    hempty).computableInO
+              (L.round (roundInput (L.step^[i] (init x, []))))).length)) := by
+  obtain ⟨cI, ⟨kI, SI, _, tI, hI⟩, lI⟩ := Internal.NormalForm.inO (hinit)
+  obtain ⟨cH, ⟨kH, SH, _, tH, hH⟩, -⟩ := Internal.NormalForm.inO (hhalt)
+  obtain ⟨cP, ⟨kP, SP, _, tP, hP⟩, -⟩ := Internal.NormalForm.inO (hround.fst')
+  obtain ⟨cN, ⟨kN, SN, _, tN, hN⟩, -⟩ := Internal.NormalForm.inO (hround.snd')
+  -- the four machines, padded to a common number of work tapes
+  set kk := max (max kI kH) (max kP kN) with hkk
+  have hkI : kI ≤ kk := (le_max_left _ _).trans (le_max_left _ _)
+  have hkH : kH ≤ kk := (le_max_right _ _).trans (le_max_left _ _)
+  have hkP : kP ≤ kk := (le_max_left _ _).trans (le_max_right _ _)
+  have hkN : kN ≤ kk := (le_max_right _ _).trans (le_max_right _ _)
+  have key := fun x => StackLoopKernel.runs_stackLoop (kk := kk) (input := encIn x)
+    (encA := encA) (encG := encG) (halt := L.halt) (round := L.round)
+    (tI := tI.extendTapes (Fin.castLEEmb hkI)) (tH := tH.extendTapes (Fin.castLEEmb hkH))
+    (tP := tP.extendTapes (Fin.castLEEmb hkP)) (tN := tN.extendTapes (Fin.castLEEmb hkN))
+    (TH := fun a => cH * (Th a + 1)) (SH' := fun a => cH * (Sh a + 1) + (kk - kH))
+    (TP := fun z => cP * (Tr z + 1)) (SP' := fun z => cP * (Sr z + 1) + (kk - kP))
+    (TN := fun z => cN * (Tr z + 1)) (SN' := fun z => cN * (Sr z + 1) + (kk - kN))
+    (fun a => (hH a).extendTapes (Fin.castLEEmb hkH))
+    (fun z => (hP z).extendTapes (Fin.castLEEmb hkP))
+    (fun z => (hN z).extendTapes (Fin.castLEEmb hkN))
+    (fun i => L.step^[i] (init x, [])) (n x) ((hI x).extendTapes (Fin.castLEEmb hkI)) rfl
+    (fun i => Function.iterate_succ_apply' _ _ _) (hrun x) (hstop x) (hempty x)
+  set c0 := cP + cN + cH + 100 with hc0
+  set d0 := cP + cN + cH + 25 * kk + 300 with hd0
+  -- the costs of the halting tests and of the rounds
+  let wCost (x : δ) (i : ℕ) := Th (L.step^[i] (init x, [])).1 +
+    Sh (L.step^[i] (init x, [])).1 + (encA (L.step^[i] (init x, [])).1).length
+  let vCost (x : δ) (i : ℕ) := Tr (roundInput (L.step^[i] (init x, []))) +
+    Sr (roundInput (L.step^[i] (init x, []))) +
+    (encPair (encOption encG) encA (roundInput (L.step^[i] (init x, [])))).length +
+    (encPair (encList encG) encA (L.round (roundInput (L.step^[i] (init x, []))))).length
+  have hH0 (x : δ) : wCost x 0 ≤ ∑ i ∈ Finset.range (n x + 1), wCost x i :=
+    Finset.single_le_sum (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr (Nat.succ_pos _))
+  have hHn (x : δ) : wCost x (n x) ≤ ∑ i ∈ Finset.range (n x + 1), wCost x i :=
+    Finset.single_le_sum (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr (Nat.lt_succ_self _))
+  refine ComputableInO.of_bounds ⟨kk + 6, _, by infer_instance, _,
+    fun x => (computesTidily_of_runsBetween (key x)).computesInTimeAndSpace⟩
+    (4 * (cI + cH + c0 + 50) + 8 * (cI + cH + d0 + 20 * kk + 200) + 1) ?_ ?_ ?_
+  · intro x
+    have hsum := sum_le_of_round (n := n x) (c := c0)
+      (u := fun i => StackLoopKernel.roundTime encA encG L.round (fun a => cH * (Th a + 1))
+        (fun z => cP * (Tr z + 1)) (fun z => cN * (Tr z + 1)) (fun i => L.step^[i] (init x, []))
+        i + 1)
+      (v := vCost x) (w := wCost x)
+      (fun i _ => by
+        simp only [StackLoopKernel.roundTime, StackLoopKernel.zIn, roundInput,
+          Function.iterate_succ_apply', StackLoop.step, vCost, wCost]
+        generalize L.step^[i] (init x, []) = st
+        generalize L.round (st.2.head?, st.1) = rr
+        exact round_time_arith (by omega) (by simp) (length_encPair _) (by simp [length_frame]))
+    have h0 := hH0 x
+    have hn := hHn x
+    dsimp only [wCost] at h0 hn
+    exact total_time_arith (by omega) hsum (lI x) (by omega) (by omega)
+  · intro x
+    have hsum := sum_le_of_round (n := n x) (c := d0)
+      (u := fun i => StackLoopKernel.roundSpace encA encG L.round
+        (fun a => cH * (Sh a + 1) + (kk - kH)) (fun z => cP * (Sr z + 1) + (kk - kP))
+        (fun z => cN * (Sr z + 1) + (kk - kN)) kk (fun i => L.step^[i] (init x, [])) i + (kk + 6))
+      (v := vCost x) (w := wCost x)
+      (fun i _ => by
+        simp only [StackLoopKernel.roundSpace, StackLoopKernel.zIn, roundInput,
+          Function.iterate_succ_apply', StackLoop.step, vCost, wCost]
+        generalize L.step^[i] (init x, []) = st
+        generalize L.round (st.2.head?, st.1) = rr
+        exact round_space_arith (by omega) (by simp) (length_encPair _) (by simp [length_frame]))
+    have h0 := hH0 x
+    have hn := hHn x
+    dsimp only [wCost] at h0 hn
+    exact total_space_arith (by omega) hsum (lI x) (by omega) (by omega)
+  · intro x
+    have hn := hHn x
+    have hK := Nat.le_mul_of_pos_left
+      ((encIn x).length + Ti x + Si x + ∑ i ∈ Finset.range (n x + 1), wCost x i +
+        ∑ i ∈ Finset.range (n x), vCost x i + 1)
+      (show 0 < 4 * (cI + cH + c0 + 50) + 8 * (cI + cH + d0 + 20 * kk + 200) + 1 by omega)
+    dsimp only [wCost, vCost] at hn hK
+    omega
 
 end Turing.MultiTapeTM

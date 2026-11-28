@@ -20,6 +20,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Work
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.ExtendTapes
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.InputFromTape
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.OutputToTape
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.WordsCfg
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-! # The existing composition machine and its run theorem
 
@@ -48,17 +50,14 @@ variable {k : ℕ} {State : Type} {input : List Symbol}
 private theorem outCfg_wordsCfg (state : Option State) :
     MultiTapeTM.outCfg (Turing.wordsCfg input state (fun _ : Fin k => []) []) =
       Turing.wordsCfg input state (fun _ => []) [] := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext tape <;>
-    induction tape using Fin.lastCases <;>
-    simp [MultiTapeTM.outCfg, Turing.wordsCfg]
+  tm_step [MultiTapeTM.outCfg]
 
 private theorem oneTapeCfg_outCfg_wordsCfg (state : Option State)
     (tapes : Fin k → List Symbol) (out : List Symbol) :
     MultiTapeTM.oneTapeCfg (Fin.last k)
         (MultiTapeTM.outCfg (Turing.wordsCfg input state tapes out)) =
       ⟨state, 1, fun _ => Turing.tapeOfList out, fun _ => (out.length : ℤ), []⟩ := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext _ <;>
-    simp [MultiTapeTM.oneTapeCfg]
+  tm_step [MultiTapeTM.oneTapeCfg]
 
 private theorem exists_runPath_rewindLast (out : List Symbol) :
     ∃ path : ((rewindWork Symbol).toTM.extendTapes
@@ -78,8 +77,7 @@ private theorem exists_runPath_rewindLast (out : List Symbol) :
       ((rewindWork Symbol).toTM.runFrom (MultiTapeTM.oneTapeCfg _ cfg) (out.length + 2)) _ _ = _
     rw [oneTapeCfg_outCfg_wordsCfg, runFrom_rewindWork_none (Symbol := Symbol)
       _ _ _ rfl le_rfl, MultiTapeTM.embed_tapeEmb]
-    refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext tape <;>
-      induction tape using Fin.lastCases <;> simp [cfg, Turing.wordsCfg]
+    tm_step [cfg]
   · have hspace : run.space ≤ 1 * (out.length + 2 + 1) :=
       run.space_le_mul_time_add_one
     exact (MultiTapeTM.space_map_embedHom_le ..).trans (by omega)
@@ -145,8 +143,7 @@ private theorem oneTapeCfg_flag (write : Option Symbol) (tapes : Fin k → ℤ �
           Fin.append tapes ![virtualInput, flag], fun _ => 0, out⟩ :
           Cfg (k + 2) Symbol MultiTapeTM.MarkWorkState input) =
       ⟨some (markWork Symbol write).initial, inputPos, fun _ => flag, fun _ => 0, out⟩ := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext _ <;>
-    simp [MultiTapeTM.oneTapeCfg, Fin.append_right]
+  tm_step [MultiTapeTM.oneTapeCfg]
 
 private theorem exists_runPath_markFlag (write : Option Symbol)
     (tapes : Fin k → ℤ → Option Symbol) (virtualInput flag : ℤ → Option Symbol)
@@ -175,17 +172,6 @@ private theorem exists_runPath_markFlag (write : Option Symbol)
       simp [cfg, Function.update_apply]
   · have hspace : run.space ≤ 1 * (2 + 1) := run.space_le_mul_time_add_one
     exact (MultiTapeTM.space_map_embedHom_le ..).trans (by omega)
-
-private theorem wordsCfg_append_words {State' : Type} {outer : List Symbol}
-    (state : Option State') (tapes : Fin k → List Symbol) (word out : List Symbol) :
-    Turing.wordsCfg outer state (Fin.append tapes ![word, []]) out =
-      ⟨state, 1, Fin.append (fun tape => Turing.tapeOfList (tapes tape))
-        ![Turing.tapeOfList word, fun _ => none], fun _ => 0, out⟩ := by
-  refine Cfg.ext rfl rfl
-    ((Fin.comp_append Turing.tapeOfList tapes ![word, []]).trans
-      (congrArg _ (funext fun i => ?_))) rfl rfl
-  match i with
-  | 0 | 1 => simp
 
 private theorem exists_runPath_setFlag (mark : Symbol) (tapes : Fin k → List Symbol)
     (word out outer : List Symbol) :
@@ -463,12 +449,7 @@ public theorem ComputesTidilyInTimeAndSpace.comp {tm₁ : MultiTapeTM k₁ Symbo
     (fun _ _ hws => hws.trans hA.symm) (fun _ _ _ _ _ ⟨hws', he⟩ => ⟨hws'.trans hA, he⟩)
     le_rfl le_rfl
   -- phase 3: clear `A`
-  have hclear : Function.update (Function.update (fun _ => []) A w) A [] = fun _ => [] := by grind
-  have hp₃ := (transformsTapes_clearWork_tapeEmb (Symbol := Symbol) A w).imp
-    (P' := fun _ ws => ws = Function.update (fun _ => []) A w)
-    (Q' := fun _ _ ws' e => ws' = (fun _ => []) ∧ e = [])
-    (fun _ _ hws => by rw [hws, Function.update_self])
-    (fun _ _ _ _ hws ⟨hws', he⟩ => ⟨by rw [hws', hws, hclear], he⟩) le_rfl le_rfl
+  have hp₃ := transformsTapes_clearWork_only (Symbol := Symbol) A w
   refine (transformsTapes_seq hp₁ (transformsTapes_seq hp₂ hp₃ fun _ _ _ _ _ hQ => hQ.1)
     fun _ _ _ _ _ hQ => hQ.1).imp (fun _ _ h => h) ?_ (by omega) (by omega)
   rintro _ _ _ _ _ ⟨_, _, _, ⟨-, rfl⟩, ⟨_, _, _, ⟨-, rfl⟩, ⟨hws, rfl⟩, rfl⟩, rfl⟩

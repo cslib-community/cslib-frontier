@@ -14,6 +14,7 @@ Use editor or MCP diagnostics and goal inspection. A partial diagnostic response
 | A loop leaves obligations | Iteration count, invariant, encoded state growth | Prove the growth/count premise and use the appropriate iteration rule |
 | A projection fails despite a supplied certificate | Its input/output representations | Match the encodings or supply the conversion certificate |
 | `Expected a definition with an exposed body`, or `omega`, `decide` or a projection cannot see through an imported definition | Whether the definition's module exposes its body | Use the module's characterizing lemmas, or add `@[expose]` to that definition alone ([module surface](../../CONTRIBUTING.md#public-surface-under-the-module-system)) |
+| A `ComputableInPolyTime` proof produces an encoded pair and the goal asks for a record | Whether the pair and record produce the same word on each input | Use `h.of_enc_eq fun _ => rfl` when the words agree by definition, or supply their pointwise equality |
 | `ppt` fails after a bind | Sampled-value and continuation encodings | Find a common encoding and the continuation's joint certificate |
 | `ppt` is slow or exhausts Aesop's rule limit on a sample-then-call routine | Whether every definition the program unfolds through was passed as a hint | Pass the hints, or [compose the rules explicitly](probabilistic-workflows.md#certify-a-closed-randomized-routine) |
 | `ppt` fails on an oracle goal | Whether the program is unfolded, and each query keeps a bounded `List.take` prefix | Pass the program's definition as a hint (`ppt [handler]`); for handler substitution or adaptive loops, apply the explicit rule and its invariant |
@@ -51,17 +52,17 @@ specifies stamps, retries and seeding.
 
 If a small change causes a large rebuild, inspect its imports and exported interface. Public declarations and exposed definition bodies can invalidate dependents. The [build fan-out case study](../history/case-studies.md) explains why widely imported hubs can be costly. A slow rebuild alone does not demonstrate a cache defect.
 
-The output-based audits (`audit_queries.py`, `check_changed_files.py`, `check_tidy_surface.py`
-and `check_tidy_usage.py`) need a complete build of the library and tests. Their shared
-[`lean_outputs.py`](../../scripts/lean_outputs.py) preflight checks the physical output inventory
-before invoking Lake: current source modules, including the root aggregate and glob-built tests,
-must have their recorded module artifacts. The test-inclusive inventory also includes its
-root-package `CslibFrontierResults` dependency, its aggregate and current result source modules.
-Ordinary single-part modules and split module-system
-outputs are distinguished by their traces. A cache entry or local `.ltar` archive does not count
-as an unpacked artifact. A cold or partial tree is refused as missing or stale without asking
-Lake to restore its missing outputs. `parallel_defs.py` uses the same guard with its existing
-library-only scope; it does not require test or results outputs. Run `scripts/check.sh` explicitly when the checkout and
+The test-inclusive output-based audits (`audit_queries.py`, `check_changed_files.py` and
+`check_tidy_usage.py`) need a complete build of the library and tests, whereas
+`check_tidy_surface.py` and `parallel_defs.py` check only `CslibFrontier` and do not require test
+or results outputs. Their shared [`lean_outputs.py`](../../scripts/lean_outputs.py) preflight
+checks the physical output inventory before invoking Lake: current source modules for the
+requested roots, including the root aggregate and any glob-built tests, must have their recorded
+module artifacts. The test-inclusive inventory also includes its root-package
+`CslibFrontierResults` dependency, its aggregate and current result source modules. Ordinary
+single-part modules and split module-system outputs are distinguished by their traces. A cache
+entry or local `.ltar` archive does not count as an unpacked artifact. A cold or partial tree is
+refused as missing or stale without asking Lake to restore its missing outputs. Run `scripts/check.sh` explicitly when the checkout and
 resources are ready for full validation, then retry the audit. `--no-build-check` disables
 freshness verification; it does not repair missing artifacts or certify a partial audit.
 `check_changed_files.py --source-only` skips its output-based module-doc name lint and needs

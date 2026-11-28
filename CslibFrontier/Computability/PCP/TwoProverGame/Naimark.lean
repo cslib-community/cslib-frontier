@@ -76,16 +76,24 @@ theorem isProjective_bob_dilate (S : QuantumStrategy X Y A B ι κ) (a₀ : A) (
     ((S.dilate a₀ b₀).bob y).toMeasurement.IsProjective :=
   (S.bob y).isProjective_dilate b₀
 
+/-- Expectations in the dilated state can be computed by compressing each
+tensor factor to its prepared ancilla. -/
+theorem tensorMatrixCoeff_dilate (S : QuantumStrategy X Y A B ι κ) (a₀ : A) (b₀ : B)
+    (E : Matrix (ι × A) (ι × A) ℂ) (F : Matrix (κ × B) (κ × B) ℂ) :
+    star (S.dilate a₀ b₀).state.ofLp ⬝ᵥ ((E ⊗ₖ F) *ᵥ (S.dilate a₀ b₀).state.ofLp) =
+      star S.state.ofLp ⬝ᵥ ((E.submatrix (ancillaBasis a₀) (ancillaBasis a₀) ⊗ₖ
+        F.submatrix (ancillaBasis b₀) (ancillaBasis b₀)) *ᵥ S.state.ofLp) := by
+  change star (dilateEmbed a₀ b₀ *ᵥ S.state.ofLp) ⬝ᵥ
+    ((E ⊗ₖ F) *ᵥ (dilateEmbed a₀ b₀ *ᵥ S.state.ofLp)) = _
+  rw [star_mulVec, ← dotProduct_mulVec, mulVec_mulVec, mulVec_mulVec, dilateEmbed,
+    conjTranspose_kronecker, ← mul_kronecker_mul, ← mul_kronecker_mul,
+    compress_ancillaEmbed, compress_ancillaEmbed]
+
 /-- The dilation has the same correlations. -/
 theorem prob_dilate (S : QuantumStrategy X Y A B ι κ) (a₀ : A) (b₀ : B) (x : X) (y : Y) (a : A)
     (b : B) : (S.dilate a₀ b₀).prob x y a b = S.prob x y a b := by
-  rw [prob_eq, prob_eq]
-  change (star (dilateEmbed a₀ b₀ *ᵥ S.state.ofLp) ⬝ᵥ
-    ((((S.alice x).dilate a₀).effect a ⊗ₖ ((S.bob y).dilate b₀).effect b) *ᵥ
-      (dilateEmbed a₀ b₀ *ᵥ S.state.ofLp))).re = _
-  rw [star_mulVec, ← dotProduct_mulVec, mulVec_mulVec, mulVec_mulVec, dilateEmbed,
-    conjTranspose_kronecker, ← mul_kronecker_mul, ← mul_kronecker_mul,
-    POVM.compress_dilate, POVM.compress_dilate]
+  rw [prob_eq, prob_eq, tensorMatrixCoeff_dilate, ← compress_ancillaEmbed, ← compress_ancillaEmbed]
+  simp only [dilate, POVM.compress_dilate]
 
 /-- **The dilation has the same answer distribution.** -/
 theorem answers_dilate (S : QuantumStrategy X Y A B ι κ) (a₀ : A) (b₀ : B) (x : X) (y : Y) :

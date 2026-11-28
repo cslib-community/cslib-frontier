@@ -36,19 +36,19 @@ variable {α β : Type} {enc : α ↪ List Bool}
 
 /-- A generated runtime input; the proof changes neither the encoding nor the input length. -/
 @[expose] def prepare (w : α → List Bool) (d : α → Data)
-    (hc : ∀ a, (d a).1 ≤ (w a).length) (a : α) : Simulation.Input :=
-  ⟨(d a, w a), hc a⟩
+    (hc : ∀ a, (d a).cut ≤ (w a).length) (a : α) : Simulation.Input :=
+  ⟨⟨d a, w a⟩, hc a⟩
 
 /-- Exact streamed bytes: a framed binary metadata header and the unchanged generated tail. -/
 theorem enc_prepare (w : α → List Bool) (d : α → Data)
-    (hc : ∀ a, (d a).1 ≤ (w a).length) (a : α) :
+    (hc : ∀ a, (d a).cut ≤ (w a).length) (a : α) :
     Simulation.encInput (prepare w d hc a) = frame (encData (d a)) ++ w a := rfl
 
 /-- Generate the frame from actual component programs. Pairing runs the header generator and
 then the tail generator, emitting their outputs without allocating a polynomial-sized word. -/
 theorem prepare_logSpace {w : α → List Bool} {d : α → Data}
     (hw : ComputableInLogSpace w enc encBits) (hd : ComputableInLogSpace d enc encData)
-    (hc : ∀ a, (d a).1 ≤ (w a).length) :
+    (hc : ∀ a, (d a).cut ≤ (w a).length) :
     ComputableInLogSpace (prepare w d hc) enc Simulation.encInput :=
   (hd.pair hw).congr fun _ => rfl
 
@@ -65,13 +65,13 @@ The consumer may itself emit a polynomial word: composition does not retain its 
 theorem consume {w : α → List Bool} {d : α → Data} {f : List Bool → β}
     {encOut : β ↪ List Bool}
     (hw : ComputableInLogSpace w enc encBits) (hd : ComputableInLogSpace d enc encData)
-    (hc : ∀ a, (d a).1 ≤ (w a).length)
+    (hc : ∀ a, (d a).cut ≤ (w a).length)
     (hf : ComputableInLogSpace f encBits encOut)
     (H V D : ℕ)
     (hheader : ∀ a, (encData (d a)).length ≤ H * (Nat.log2 (enc a).length + 1))
-    (hvirtual : ∀ a, (word (w a) (d a).1 (d a).2.1).length ≤
+    (hvirtual : ∀ a, (word (w a) (d a).cut (d a).suffix).length ≤
       V * ((enc a).length + 1) ^ D) :
-    ComputableInLogSpace (fun a => f (word (w a) (d a).1 (d a).2.1)) enc encOut := by
+    ComputableInLogSpace (fun a => f (word (w a) (d a).cut (d a).suffix)) enc encOut := by
   have hg := prepare_logSpace hw hd hc
   obtain ⟨A, B, hlen⟩ := hg.polyBounded_length.exists_le
   obtain ⟨tg, cg, hg⟩ := hg
@@ -84,7 +84,7 @@ theorem consume {w : α → List Bool} {d : α → Data} {f : List Bool → β}
   have hphys := length_encNat_le_of_le_mul_pow (hlen x)
   have hv := length_encNat_le_of_le_mul_pow (hvirtual x)
   have hp := (log_le_binary (Simulation.encInput (prepare w d hc x)).length).trans hphys
-  have hv' := (log_le_binary (word (w x) (d x).1 (d x).2.1).length).trans hv
+  have hv' := (log_le_binary (word (w x) (d x).cut (d x).suffix).length).trans hv
   have hpos := length_encNat_le_log2_add_two
     (j := (enc x).length + 1) (N := (enc x).length) le_rfl
   have hmid := length_encNat_le_log2_add_two
@@ -94,18 +94,18 @@ theorem consume {w : α → List Bool} {d : α → Data} {f : List Bool → β}
   rw [Nat.mul_assoc]
   apply Nat.mul_le_mul_left
   dsimp only [Function.comp_apply, prepare] at *
-  have hv1 : (word (w x) (d x).1 (d x).2.1).length.log2 + 1 ≤
+  have hv1 : (word (w x) (d x).cut (d x).suffix).length.log2 + 1 ≤
       (L + 1) * (Nat.log2 (enc x).length + 1) := by dsimp only [L]; nlinarith only [hv']
   have hconsumer : c * (C *
-      (a * ((word (w x) (d x).1 (d x).2.1).length.log2 + 1) +
-        (word (w x) (d x).1 (d x).2.1).length.log2 + 1) +
+      (a * ((word (w x) (d x).cut (d x).suffix).length.log2 + 1) +
+        (word (w x) (d x).cut (d x).suffix).length.log2 + 1) +
         (encData (d x)).length +
         (Simulation.encInput (prepare w d hc x)).length.log2 + 1) ≤
       c * (C * (a + 1) * (L + 1) + H + K + 1) *
         (Nat.log2 (enc x).length + 1) := by
     calc
       _ = c * (C * ((a + 1) *
-          ((word (w x) (d x).1 (d x).2.1).length.log2 + 1)) +
+          ((word (w x) (d x).cut (d x).suffix).length.log2 + 1)) +
           (encData (d x)).length +
           (Simulation.encInput (prepare w d hc x)).length.log2 + 1) := by ring
       _ ≤ c * (C * ((a + 1) * ((L + 1) * (Nat.log2 (enc x).length + 1))) +

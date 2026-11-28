@@ -13,6 +13,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Li
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.StreamFold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinaryPrimitives
@@ -122,10 +124,10 @@ private theorem inputSymbol_pair_inO :
       (encPair encNat (encList encUnary)) (encOption encUnary)
       (fun q => ((encList encUnary q.2).length + 1) * ((encNat q.1).length + 1) ^ 2)
       (fun q => (encPair encNat (encList encUnary) q).length) := by
-  obtain ⟨cN, hN, -⟩ := inputNext_inO.tidy
-  obtain ⟨cE, hE, -⟩ := inputEmit_inO.tidy
-  obtain ⟨cF, hF, -⟩ := (ComputableInO.const (encIn := encNat)
-    (encMid := encOption encUnary) none).tidy
+  obtain ⟨cN, hN, -⟩ := Internal.NormalForm.inO inputNext_inO
+  obtain ⟨cE, hE, -⟩ := Internal.NormalForm.inO inputEmit_inO
+  obtain ⟨cF, hF, -⟩ := Internal.NormalForm.inO (ComputableInO.const (encIn := encNat)
+    (encMid := encOption encUnary) none)
   let B (q : ℕ × List ℕ) := (encNat q.1).length
   let N (q : ℕ × List ℕ) := (encList encUnary q.2).length
   let K := 3 * cN + 3 * cE + 3
@@ -158,7 +160,7 @@ private theorem inputSymbol_pair_inO :
       rw [← Finset.mul_sum, ← Finset.mul_sum, hsum]
       ring
     let C := c * (cF + K + 2 * (cN + cE) + 16) + 1
-    refine ComputableInO.of_bounds h.computableInTimeAndSpace C
+    refine ComputableInO.of_bounds (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h) C
       (fun q => ?_) (fun q => ?_) (fun q => ?_)
     · let Z := (N q + 1) * (B q + 1) ^ 2
       have hb : B q + 1 ≤ (B q + 1) ^ 2 := Nat.le_self_pow two_ne_zero _
@@ -222,10 +224,8 @@ private theorem inputSymbol_pair_inO :
     let V := (B q + 1) ^ 2 * (2 * q.2[j] + 1)
     have hv : (B q + 1) ^ 2 ≤ V := Nat.le_mul_of_pos_right _ (by omega)
     have ha : q.2[j] + 1 ≤ V := by
-      have hp : 1 ≤ (B q + 1) ^ 2 := by nlinarith
-      have := Nat.mul_le_mul_right (2 * q.2[j] + 1) hp
       dsimp only [V]
-      nlinarith
+      nlinarith [Nat.pow_pos (a := B q + 1) (n := 2) (by omega)]
     have hp := (Nat.pow_le_pow_left (Nat.add_le_add_right hb 1) 2).trans hv
     have hl : B q + 1 ≤ V := (Nat.le_self_pow two_ne_zero _).trans hv
     have hn := Nat.mul_le_mul_left cN (show
@@ -247,8 +247,7 @@ private theorem inputSymbol_pair_inO :
       (encPair encNat encUnary (streamState q.1 inputNext q.2 j, q.2[j])).length + 1 ≤
         2 * B q + N q + 2 by enc_len)
     dsimp only
-    rw [Nat.add_mul]
-    omega
+    rw [Nat.add_mul]; omega
   · intro q j _
     exact (hstate q j).trans (Nat.le_add_right _ _)
   · intro q j hj
@@ -270,10 +269,8 @@ public theorem inputSymbol_stream_inO :
   refine ((inputSymbol_pair_inO.comp hswap).mono 8 (fun q => ?_) (fun q => ?_)).of_enc_eq
     (fun _ => rfl)
   · simp only [length_encPair]
-    have hb : (encNat q.2).length + 1 ≤ ((encNat q.2).length + 1) ^ 2 :=
-      Nat.le_self_pow two_ne_zero _
-    have hn := Nat.mul_le_mul_left ((encList encUnary q.1).length + 1) hb
-    nlinarith
+    nlinarith [Nat.mul_le_mul_left ((encList encUnary q.1).length + 1)
+      (Nat.le_self_pow two_ne_zero ((encNat q.2).length + 1))]
   · enc_len
 
 end Turing.MultiTapeTM.Universal

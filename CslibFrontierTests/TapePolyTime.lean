@@ -45,8 +45,8 @@ example {Symbol : Type} (enc : Symbol ↪ List Bool) (tape : BiTape Bool) :
       (fun tape : BiTape (List Bool) =>
         if tape.left.toList.isEmpty then tape.moveRight else tape.moveLeft)
       (encBiTape encBits) (encBiTape encBits) :=
-  ⟨by unfold writeWordAndMove; fun_prop, by fun_prop, by fun_prop, .of_tidy (by polytime),
+  ⟨by unfold writeWordAndMove; fun_prop, by fun_prop, by fun_prop, by polytime,
     by fun_prop, by decide, by decide, length_encBiTape_le encBool tape (bound := 1) (by simp),
-    by fun_prop, by fun_prop, by fun_prop, .of_tidy (by polytime), by fun_prop⟩
+    by fun_prop, by fun_prop, by fun_prop, by polytime, by fun_prop⟩
 
 end CslibFrontierTests.TapePolyTime

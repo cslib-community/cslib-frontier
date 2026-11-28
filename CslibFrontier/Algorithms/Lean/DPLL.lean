@@ -8,7 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.Resolution.LRAT
+public import CslibFrontier.Logics.Propositional.CNF.LRATRat
 public import CslibFrontier.Logics.Propositional.CNF.UnitPropagation
+public import CslibFrontier.Foundations.Data.List.EraseDups
 
 /-! # A DPLL solver with LRAT certificates
 
@@ -56,9 +58,12 @@ can be exponentially longer than what clause learning needs.
 
 * `Cslib.Algorithms.Lean.DPLL.solve_sat`, `Cslib.Algorithms.Lean.DPLL.solve_unsat`: both answers
   are correct.
+* `Cslib.Algorithms.Lean.DPLL.Result.isSat_iff`: an answer whose model satisfies the formula and
+  whose certificate the LRAT checker accepts decides satisfiability.
 * `Cslib.Algorithms.Lean.DPLL.isSat_solve_iff`: the solver decides satisfiability.
 * `Cslib.Algorithms.Lean.DPLL.OpenVars.fresh`: the search branches only on unassigned variables.
 * `Cslib.Algorithms.Lean.DPLL.exists_checkLRAT_iff`: the checker is complete.
+* `Cslib.Algorithms.Lean.DPLL.exists_checkLRATRat_iff`: so is the checker with RAT steps.
 
 ## References
 
@@ -238,10 +243,11 @@ def search (φ : CNF ℕ) : (fuel : ℕ) → (π : List (Literal ℕ)) → (vs :
               else .unsat c₁ d₁ fun l hl =>
                 Literal.negate_mem_of_mem_cons (h₁ l hl) (by rintro rfl; exact hc₁ hl)
 
-/-- The search from the empty partial assignment, with the variables of the formula open. -/
+/-- The search from the empty partial assignment, with the variables of the formula open, in the
+order of their first occurrences. -/
 def dpll (φ : CNF ℕ) : Outcome φ [] :=
-  search φ φ.vars.dedup.length [] φ.vars.dedup
-    ⟨fun _ hx => .inl (List.mem_dedup.2 hx), by simp, List.nodup_dedup _⟩ le_rfl
+  search φ φ.vars.eraseDups.length [] φ.vars.eraseDups
+    ⟨fun _ hx => .inl (List.mem_eraseDups.2 hx), by simp, List.nodup_eraseDups _⟩ le_rfl
 
 /-! ### The solver -/
 
@@ -256,6 +262,19 @@ inductive Result : Type
 def Result.isSat : Result → Bool
   | .sat _ => true
   | .unsat _ => false
+
+/-- **A sound answer decides satisfiability**: if a model in the answer satisfies `φ` and a
+certificate in it is accepted by the LRAT checker on `φ`, the answer is a model exactly when `φ` is
+satisfiable. -/
+theorem Result.isSat_iff {φ : CNF ℕ} {r : Result}
+    (hsat : ∀ σ, r = .sat σ → φ.eval σ = true)
+    (hunsat : ∀ cert, r = .unsat cert → φ.checkLRAT cert = true) :
+    r.isSat = true ↔ φ.Satisfiable := by
+  cases r with
+  | sat σ => exact ⟨fun _ => ⟨σ, hsat σ rfl⟩, fun _ => rfl⟩
+  | unsat cert =>
+    exact ⟨fun h => absurd h Bool.false_ne_true,
+      fun h => absurd h (not_satisfiable_of_checkLRAT (hunsat cert rfl))⟩
 
 /-- A derivation of a clause falsified by the empty partial assignment derives the empty
 clause. -/
@@ -290,16 +309,8 @@ theorem solve_unsat {φ : CNF ℕ} {cert : Array LRAT.IntAction} (h : solve φ =
     exact (refutationOf c d hc).checkLRAT_toLRAT
 
 /-- **The solver decides satisfiability.** -/
-theorem isSat_solve_iff (φ : CNF ℕ) : (solve φ).isSat = true ↔ φ.Satisfiable := by
-  constructor
-  · intro h
-    cases hs : solve φ with
-    | sat σ => exact ⟨σ, solve_sat hs⟩
-    | unsat cert => simp [hs, Result.isSat] at h
-  · intro h
-    cases hs : solve φ with
-    | sat σ => rfl
-    | unsat cert => exact absurd h (not_satisfiable_of_checkLRAT (solve_unsat hs))
+theorem isSat_solve_iff (φ : CNF ℕ) : (solve φ).isSat = true ↔ φ.Satisfiable :=
+  Result.isSat_iff (fun _ => solve_sat) (fun _ => solve_unsat)
 
 /-- **The LRAT checker is complete**: a formula has a certificate that the checker accepts exactly
 when it is unsatisfiable. -/
@@ -309,5 +320,13 @@ theorem exists_checkLRAT_iff (φ : CNF ℕ) :
   cases hs : solve φ with
   | sat σ => exact absurd ⟨σ, solve_sat hs⟩ h
   | unsat cert => exact ⟨cert, solve_unsat hs⟩
+
+/-- **The LRAT checker with RAT steps is complete**: a formula has a certificate that it accepts
+exactly when it is unsatisfiable. -/
+theorem exists_checkLRATRat_iff (φ : CNF ℕ) :
+    (∃ cert, φ.checkLRATRat cert = true) ↔ ¬ φ.Satisfiable :=
+  ⟨fun ⟨_, h⟩ => not_satisfiable_of_checkLRATRat h, fun h =>
+    let ⟨cert, hc⟩ := (exists_checkLRAT_iff φ).2 h
+    ⟨cert, checkLRATRat_of_checkLRAT hc⟩⟩
 
 end Cslib.Algorithms.Lean.DPLL

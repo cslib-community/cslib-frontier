@@ -62,24 +62,23 @@ private theorem SamplablePair.exists_generator (pair : SamplablePair) {gap : ℕ
         IndistinguishableWithAdvice advice
           (fun n => (BitString.uniformList (length n)).map (generator n))
           (fun n => BitString.uniformList (length n + 1)) := by
-  have hdensity := hdensity.tidy
   obtain ⟨saved⟩ := pair.exists_seedRealization
   obtain ⟨bound, hbound, hfits⟩ := pair.exists_observationBound
   obtain ⟨common, hcommon, _, hge, hsize⟩ := EntropyGrid.exists_common_seedLength
     (sourceBits := saved.length) (observationBound := bound) (densityBound := densityBound)
-    saved.length_isPolyTime hbound (.of_tidy hdensity)
-  have htotal := ComputableTidilyInPolyTime.unary_mul.comp
-    ((EntropyGrid.isPolyTime_size saved.length_isPolyTime (.of_tidy hdensity)).tidy.prod
-      hcommon.tidy)
+    saved.length_isPolyTime hbound (hdensity)
+  have htotal := ComputableInPolyTime.unary_mul.comp
+    ((EntropyGrid.isPolyTime_size saved.length_isPolyTime (hdensity)).prod
+      hcommon)
   refine ⟨fun n => EntropyGrid.size (saved.length n) (densityBound n) * common n,
     fun n => EntropyGrid.combinedGenerate n (saved.length n) (bound n) (densityBound n)
-      (common n) (saved.evaluate n), .of_tidy htotal,
+      (common n) (saved.evaluate n), htotal,
     fun n => (hge n).trans (Nat.le_mul_of_pos_left _ (EntropyGrid.size_pos ..)),
-    EntropyGrid.isPolyTime_combinedGenerate saved hbound (.of_tidy hdensity) hcommon,
+    EntropyGrid.isPolyTime_combinedGenerate saved hbound (hdensity) hcommon,
     fun n seed _ => EntropyGrid.length_combinedGenerate .., fun advice hpair => ?_⟩
   exact EntropyGrid.combinedGenerate_indistinguishableWithAdvice hpair saved
     (observationBound := bound) (densityBound := densityBound) (common := common)
-    ⟨hbound, .of_tidy hdensity, hcommon, hfits, hsize⟩ hgap
+    ⟨hbound, hdensity, hcommon, hfits, hsize⟩ hgap
 
 /-- A samplable pseudoentropy pair with an efficiently resolved gap gives a uniform PRG
 expanding every seed length by one bit. -/

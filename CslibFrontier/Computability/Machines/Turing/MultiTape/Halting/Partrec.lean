@@ -99,9 +99,9 @@ def intEquivNatSumNat : ℤ ≃ ℕ ⊕ ℕ where
 /-- Equivalence between `Key` and its tuple of fields. -/
 def Key.equivTuple : Key ≃ ℕ × Option ℕ × List (Option ℕ) where
   toFun k := (k.state, k.input, k.work)
-  invFun p := ⟨p.1, p.2.1, p.2.2⟩
+  invFun := fun (state, input, work) => ⟨state, input, work⟩
   left_inv k := by cases k; rfl
-  right_inv p := by rcases p with ⟨_, _, _⟩; rfl
+  right_inv := fun (_, _, _) => rfl
 
 instance : Primcodable Key :=
   Primcodable.ofEquiv _ Key.equivTuple
@@ -110,9 +110,9 @@ instance : Primcodable Key :=
 def Act.equivTuple :
     Act ≃ SignType × List (Option (Option ℕ) × SignType) × Option ℕ × Option ℕ where
   toFun a := (a.inputTape, a.workTapes, a.output, a.state)
-  invFun p := ⟨p.1, p.2.1, p.2.2.1, p.2.2.2⟩
+  invFun := fun (inputTape, workTapes, output, state) => ⟨inputTape, workTapes, output, state⟩
   left_inv a := by cases a; rfl
-  right_inv p := by rcases p with ⟨_, _, _, _⟩; rfl
+  right_inv := fun (_, _, _, _) => rfl
 
 instance : Primcodable Act :=
   Primcodable.ofEquiv _ Act.equivTuple
@@ -120,9 +120,9 @@ instance : Primcodable Act :=
 /-- Equivalence between `Desc` and its tuple of fields. -/
 def Desc.equivTuple : Desc ≃ ℕ × ℕ × List (Key × Act) where
   toFun d := (d.tapes, d.q₀, d.table)
-  invFun p := ⟨p.1, p.2.1, p.2.2⟩
+  invFun := fun (tapes, q₀, table) => ⟨tapes, q₀, table⟩
   left_inv d := by cases d; rfl
-  right_inv p := by rcases p with ⟨_, _, _⟩; rfl
+  right_inv := fun (_, _, _) => rfl
 
 instance : Primcodable Desc :=
   Primcodable.ofEquiv _ Desc.equivTuple
@@ -130,9 +130,9 @@ instance : Primcodable Desc :=
 /-- Equivalence between `Universal.Tape` and its tuple of fields (with `ℤ` encoded as `ℕ ⊕ ℕ`). -/
 def Tape.equivTuple : Tape ≃ (ℕ ⊕ ℕ) × List (Option ℕ) × List (Option ℕ) where
   toFun t := (intEquivNatSumNat t.head, t.left, t.right)
-  invFun p := ⟨intEquivNatSumNat.symm p.1, p.2.1, p.2.2⟩
+  invFun := fun (head, left, right) => ⟨intEquivNatSumNat.symm head, left, right⟩
   left_inv t := by rcases t with ⟨_, _, _⟩; simp
-  right_inv p := by rcases p with ⟨_, _, _⟩; simp
+  right_inv := fun (_, _, _) => by simp
 
 instance : Primcodable Tape :=
   Primcodable.ofEquiv _ Tape.equivTuple
@@ -140,9 +140,9 @@ instance : Primcodable Tape :=
 /-- Equivalence between `SCfg` and its tuple of fields. -/
 def SCfg.equivTuple : SCfg ≃ Option ℕ × ℕ × List Tape where
   toFun c := (c.state, c.inputPos, c.workTapes)
-  invFun p := ⟨p.1, p.2.1, p.2.2⟩
+  invFun := fun (state, inputPos, workTapes) => ⟨state, inputPos, workTapes⟩
   left_inv c := by cases c; rfl
-  right_inv p := by rcases p with ⟨_, _, _⟩; rfl
+  right_inv := fun (_, _, _) => rfl
 
 instance : Primcodable SCfg :=
   Primcodable.ofEquiv _ SCfg.equivTuple
@@ -175,9 +175,7 @@ theorem primrec_intSubOne :
   refine (Primrec.sumCasesOn .id hinl hinr).of_eq fun s => ?_
   rcases s with (_ | n) | n
   · rfl
-  · change Sum.inl n = intEquivNatSumNat (Int.ofNat (n + 1) - 1)
-    rw [Int.ofNat_eq_natCast, Nat.cast_add, Nat.cast_one, add_sub_cancel_right]
-    rfl
+  · simp [intEquivNatSumNat, Int.ofNat_eq_natCast]
   · rfl
 
 theorem primrec_tape_head : Primrec fun t : Tape => intEquivNatSumNat t.head :=
@@ -246,7 +244,7 @@ theorem primrec_inputSymbol : Primrec₂ inputSymbol := by
     by_cases hp : p = 0 <;> simp [hp]
 
 theorem primrec_moveInput :
-    Primrec fun p : ℕ × Option ℕ × SignType => moveInput p.1 p.2.1 p.2.2 := by
+    Primrec fun ((pos, sym, dir) : ℕ × Option ℕ × SignType) => moveInput pos sym dir := by
   have hisPos : Primrec fun p : ℕ × Option ℕ × SignType => decide (p.2.2 = .pos) :=
     (Primrec.eq.comp (Primrec.snd.comp Primrec.snd) (Primrec.const SignType.pos)).decide
   have hisNeg : Primrec fun p : ℕ × Option ℕ × SignType => decide (p.2.2 = .neg) :=
@@ -337,39 +335,36 @@ theorem primrec_act_state : Primrec Act.state :=
   Primrec.snd.comp (Primrec.snd.comp (Primrec.snd.comp (Primrec.of_equiv (e := Act.equivTuple))))
 
 theorem primrec_act_apply :
-    Primrec fun p : Act × List ℕ × SCfg => p.1.apply p.2.1 p.2.2 := by
+    Primrec fun ((act, x, cfg) : Act × List ℕ × SCfg) => act.apply x cfg := by
   have hc : Primrec fun p : Act × List ℕ × SCfg => p.2.2 := Primrec.snd.comp Primrec.snd
   have hx : Primrec fun p : Act × List ℕ × SCfg => p.2.1 := Primrec.fst.comp Primrec.snd
-  have hinp : Primrec fun p : Act × List ℕ × SCfg =>
-      inputSymbol p.2.1 p.2.2.inputPos :=
-    primrec_inputSymbol.comp hx (primrec_scfg_inputPos.comp hc)
-  have hmove : Primrec fun p : Act × List ℕ × SCfg =>
-      moveInput p.2.2.inputPos (inputSymbol p.2.1 p.2.2.inputPos) p.1.inputTape :=
-    primrec_moveInput.comp (Primrec.pair (primrec_scfg_inputPos.comp hc)
+  have hinp := primrec_inputSymbol.comp hx (primrec_scfg_inputPos.comp hc)
+  have hmove := primrec_moveInput.comp
+    (Primrec.pair (primrec_scfg_inputPos.comp hc)
       (Primrec.pair hinp (primrec_act_inputTape.comp Primrec.fst)))
-  have hwork : Primrec fun p : Act × List ℕ × SCfg =>
-      applyTapes p.2.2.workTapes p.1.workTapes :=
-    primrec_applyTapes.comp (primrec_scfg_workTapes.comp hc)
-      (primrec_act_workTapes.comp Primrec.fst)
-  exact (primrec_scfg_mk (primrec_act_state.comp Primrec.fst) hmove hwork).of_eq fun _ => rfl
+  have hwork := primrec_applyTapes.comp
+    (primrec_scfg_workTapes.comp hc) (primrec_act_workTapes.comp Primrec.fst)
+  exact (primrec_scfg_mk (primrec_act_state.comp Primrec.fst) hmove hwork).of_eq
+    fun ⟨_, _, _⟩ => rfl
 
 theorem primrec_scfg_key :
-    Primrec fun p : SCfg × List ℕ × ℕ => p.1.key p.2.1 p.2.2 := by
-  have hinp : Primrec fun p : SCfg × List ℕ × ℕ => inputSymbol p.2.1 p.1.inputPos :=
-    primrec_inputSymbol.comp (Primrec.fst.comp Primrec.snd)
-      (primrec_scfg_inputPos.comp Primrec.fst)
-  have hwork : Primrec fun p : SCfg × List ℕ × ℕ => p.1.workTapes.map Tape.read :=
-    Primrec.list_map (primrec_scfg_workTapes.comp Primrec.fst)
-      (primrec_tape_read.comp Primrec.snd).to₂
+    Primrec fun ((cfg, x, q) : SCfg × List ℕ × ℕ) => cfg.key x q := by
+  have hp : Primrec (id : SCfg × List ℕ × ℕ → _) := Primrec.id
+  have hinp := primrec_inputSymbol.comp (Primrec.fst.comp (Primrec.snd.comp hp))
+    (primrec_scfg_inputPos.comp (Primrec.fst.comp hp))
+  have hwork := Primrec.list_map (primrec_scfg_workTapes.comp (Primrec.fst.comp hp))
+    (primrec_tape_read.comp Primrec.snd).to₂
   exact ((Primrec.of_equiv_symm (e := Key.equivTuple)).comp
-    (Primrec.pair (Primrec.snd.comp Primrec.snd) (Primrec.pair hinp hwork))).of_eq fun _ => rfl
+    (Primrec.pair (Primrec.snd.comp (Primrec.snd.comp hp)) (Primrec.pair hinp hwork))).of_eq
+      fun ⟨_, _, _⟩ => rfl
 
-theorem primrec_find_table :
-    Primrec₂ fun (table : List (Key × Act)) (k : Key) => table.find? (·.1 = k) := by
-  have hstep : Primrec₂ fun (p : List (Key × Act) × Key)
-      (ea : (Key × Act) × Option (Key × Act)) =>
+/-- A table lookup by a scanned-symbol key is primitive recursive in the table and key. -/
+theorem primrec_find_table {Entry : Type*} [Primcodable Entry] :
+    Primrec₂ fun (table : List (Key × Entry)) (k : Key) => table.find? (·.1 = k) := by
+  have hstep : Primrec₂ fun (p : List (Key × Entry) × Key)
+      (ea : (Key × Entry) × Option (Key × Entry)) =>
       if ea.1.1 = p.2 then some ea.1 else ea.2 := by
-    have heq : Primrec fun q : (List (Key × Act) × Key) × (Key × Act) × Option (Key × Act) =>
+    have heq : Primrec fun q : (List (Key × Entry) × Key) × (Key × Entry) × Option (Key × Entry) =>
         decide (q.2.1.1 = q.1.2) :=
       (Primrec.eq.comp (Primrec.fst.comp (Primrec.fst.comp Primrec.snd))
         (Primrec.snd.comp Primrec.fst)).decide
@@ -395,7 +390,7 @@ theorem primrec_desc_table : Primrec Desc.table :=
   Primrec.snd.comp (Primrec.snd.comp (Primrec.of_equiv (e := Desc.equivTuple)))
 
 theorem primrec_step :
-    Primrec fun p : Desc × List ℕ × SCfg => step p.1 p.2.1 p.2.2 := by
+    Primrec fun ((d, x, cfg) : Desc × List ℕ × SCfg) => step d x cfg := by
   have hd : Primrec fun p : Desc × List ℕ × SCfg => p.1 := Primrec.fst
   have hx : Primrec fun p : Desc × List ℕ × SCfg => p.2.1 := Primrec.fst.comp Primrec.snd
   have hc : Primrec fun p : Desc × List ℕ × SCfg => p.2.2 := Primrec.snd.comp Primrec.snd
@@ -436,36 +431,35 @@ theorem primrec_step :
       cases p.1.table.find? (·.1 = p.2.2.key p.2.1 q) <;> rfl
   exact (Primrec.option_casesOn (primrec_scfg_state.comp hc) hnone hsome).of_eq
     fun ⟨d, x, c⟩ => by
+      dsimp only
       unfold step
       cases c.state <;> rfl
 
+/-- Append the emitted symbol, if there is one, to a finite output word. -/
+theorem primrec_output_append :
+    Primrec₂ fun (out : List ℕ) (symbol : Option ℕ) => out ++ symbol.toList :=
+  Primrec.list_append.comp Primrec.fst (Primrec.optionToList.comp Primrec.snd)
+
 theorem primrec_stepOut :
-    Primrec fun p : (Desc × List ℕ) × (SCfg × List ℕ) => stepOut p.1.1 p.1.2 p.2 := by
-  have hst : Primrec fun p : (Desc × List ℕ) × (SCfg × List ℕ) =>
-      step p.1.1 p.1.2 p.2.1 :=
-    primrec_step.comp
-      (g := fun p : (Desc × List ℕ) × (SCfg × List ℕ) => (p.1.1, p.1.2, p.2.1))
-      (Primrec.pair (Primrec.fst.comp Primrec.fst)
-        (Primrec.pair (Primrec.snd.comp Primrec.fst) (Primrec.fst.comp Primrec.snd)))
-  have htoList : Primrec fun o : Option ℕ => o.toList :=
-    (Primrec.option_casesOn .id (Primrec.const [])
-      (Primrec.list_cons.comp Primrec.snd (Primrec.const [])).to₂).of_eq fun o => by
-      cases o <;> rfl
+    Primrec fun (((d, x), out) : (Desc × List ℕ) × (SCfg × List ℕ)) => stepOut d x out := by
+  have hst := primrec_step.comp
+    (g := fun p : (Desc × List ℕ) × (SCfg × List ℕ) => (p.1.1, p.1.2, p.2.1))
+    (Primrec.pair (Primrec.fst.comp Primrec.fst)
+      (Primrec.pair (Primrec.snd.comp Primrec.fst) (Primrec.fst.comp Primrec.snd)))
   exact (Primrec.pair (Primrec.fst.comp hst)
-    (Primrec.list_append.comp (Primrec.snd.comp Primrec.snd)
-      (htoList.comp (Primrec.snd.comp hst)))).of_eq fun _ => rfl
+    (primrec_output_append.comp (Primrec.snd.comp Primrec.snd)
+      (Primrec.snd.comp hst))).of_eq fun ⟨⟨_, _⟩, _⟩ => rfl
 
 theorem primrec_init : Primrec init := by
   have hrep : Primrec fun d : Desc => List.replicate d.tapes (⟨0, [], []⟩ : Tape) :=
     (Primrec.list_map (Primrec.list_range.comp primrec_desc_tapes)
-      (Primrec.const (⟨0, [], []⟩ : Tape)).to₂).of_eq fun d => by
-      simp
+      (Primrec.const (⟨0, [], []⟩ : Tape)).to₂).of_eq fun _ => by simp
   exact (primrec_scfg_mk (Primrec.option_some.comp primrec_desc_q₀)
     (Primrec.const 1) hrep).of_eq fun _ => rfl
 
 /-- The universal simulator `Universal.simulate` is primitive recursive. -/
 theorem primrec_simulate :
-    Primrec fun p : Desc × List ℕ × ℕ => simulate p.1 p.2.1 p.2.2 := by
+    Primrec fun ((d, x, steps) : Desc × List ℕ × ℕ) => simulate d x steps := by
   have hiter : Primrec fun p : Desc × List ℕ × ℕ =>
       (stepOut p.1 p.2.1)^[p.2.2] (init p.1, []) :=
     Primrec.nat_iterate (Primrec.snd.comp Primrec.snd)
@@ -477,7 +471,8 @@ theorem primrec_simulate :
   have hisNone : Primrec fun o : Option ℕ => o.isNone :=
     (Primrec.not.comp Primrec.option_isSome).of_eq fun o => by cases o <;> rfl
   exact (Primrec.pair (Primrec.snd.comp hiter)
-    (hisNone.comp (primrec_scfg_state.comp (Primrec.fst.comp hiter)))).of_eq fun _ => rfl
+    (hisNone.comp (primrec_scfg_state.comp (Primrec.fst.comp hiter)))).of_eq
+      fun ⟨_, _, _⟩ => rfl
 
 /-! ## Partial recursive evaluation of `Desc` -/
 
@@ -602,21 +597,13 @@ theorem runFor_eq_simulate [Fintype State] (eS : State ↪ ℕ) (x : List Bool) 
     tm.runFor x t =
       let r := simulate (desc eS eBit tm) (x.map eBit) t
       if r.2 then some (r.1.map (· != 0)) else none := by
+  unfold runFor Cfg.Halted
   rw [simulate_desc]
-  change (if (tm.runFrom (tm.initCfg x) t).state = none then
-      some (tm.runFrom (tm.initCfg x) t).output else none) =
-    if (tm.runFrom (tm.initCfg x) t).state.isNone = true then
-      some (List.map (· != 0) (List.map eBit (tm.runFrom (tm.initCfg x) t).output)) else none
-  cases h : (tm.runFrom (tm.initCfg x) t).state with
+  cases (tm.runFrom (tm.initCfg x) t).state with
   | none =>
-    simp only [Option.isNone_none, ↓reduceIte, Option.some.injEq]
-    rw [List.map_map]
-    conv_lhs => rw [← List.map_id (tm.runFrom (tm.initCfg x) t).output]
-    congr 1
-    funext b
-    cases b <;> rfl
-  | some q =>
-    simp only [reduceCtorEq, Option.isNone_some, Bool.false_eq_true, ↓reduceIte]
+    simp only [Option.isNone_none, ↓reduceIte, Option.some.injEq, List.map_map]
+    exact (List.map_id'' (fun b => by cases b <;> rfl) _).symm
+  | some _ => simp
 
 /-- For every finite-state binary `MultiTapeTM`, its clocked run `tm.runFor` is primitive
 recursive. -/
@@ -625,17 +612,13 @@ theorem primrec_runFor : Primrec₂ tm.runFor := by
   let eS : State ↪ ℕ := (Fintype.equivFin State).toEmbedding.trans Fin.valEmbedding
   let d := desc eS eBit tm
   have heBit : Primrec eBit := Primrec.dom_finite _
-  have hmapIn : Primrec fun x : List Bool => x.map eBit :=
-    Primrec.list_map .id (heBit.comp Primrec.snd).to₂
-  have hsim : Primrec fun p : List Bool × ℕ => simulate d (p.1.map eBit) p.2 :=
-    primrec_simulate.comp (g := fun p : List Bool × ℕ => (d, p.1.map eBit, p.2))
-      (Primrec.pair (Primrec.const d)
-        (Primrec.pair (hmapIn.comp Primrec.fst) Primrec.snd))
+  have hmapIn := Primrec.list_map (f := fun x : List Bool => x) .id (heBit.comp Primrec.snd).to₂
+  have hsim := primrec_simulate.comp (g := fun p : List Bool × ℕ => (d, p.1.map eBit, p.2))
+    (Primrec.pair (Primrec.const d) (Primrec.pair (hmapIn.comp Primrec.fst) Primrec.snd))
   have hneZero : Primrec fun n : ℕ => n != 0 :=
     (Primrec.not.comp ((Primrec.eq.comp .id (Primrec.const 0)).decide)).of_eq fun n => by
       cases n <;> rfl
-  have hmapOut : Primrec fun l : List ℕ => l.map (· != 0) :=
-    Primrec.list_map .id (hneZero.comp Primrec.snd).to₂
+  have hmapOut := Primrec.list_map (f := fun l : List ℕ => l) .id (hneZero.comp Primrec.snd).to₂
   exact Primrec₂.mk <| (Primrec.cond (Primrec.snd.comp hsim)
     (Primrec.option_some.comp (hmapOut.comp (Primrec.fst.comp hsim)))
     (Primrec.const none)).of_eq fun ⟨x, t⟩ => by

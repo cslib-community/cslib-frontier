@@ -69,14 +69,14 @@ only the checked original rotation, with no positivity or semantic assumption. -
 theorem edgeInstance_body (arity : Rel → ℕ) (sem : Rel → List Bool → Bool)
     (cert : Graph.RotationCertificate) (h : verifyRotation (incidenceGraph F) cert = true) :
     EdgeInstance (body arity sem F cert) := by
-  have hbound : ∀ scope ∈ whiteScopes F cert, ∀ v ∈ scope, v < F.occurrences.length := by
-    intro scope hs
-    obtain ⟨edge, _, rfl⟩ := List.mem_map.mp hs
-    exact (whiteScope_bounds F cert edge).2.2
-  have hnd : ∀ scope ∈ whiteScopes F cert, scope.Nodup := by
-    intro scope hs
-    obtain ⟨edge, _, rfl⟩ := List.mem_map.mp hs
-    exact (whiteScope_bounds F cert edge).1
+  have hbound : ∀ scope ∈ whiteScopes F cert, ∀ v ∈ scope, v < F.occurrences.length :=
+    fun _ hs =>
+      let ⟨edge, _, h⟩ := List.mem_map.mp hs
+      h ▸ (whiteScope_bounds F cert edge).2.2
+  have hnd : ∀ scope ∈ whiteScopes F cert, scope.Nodup :=
+    fun _ hs =>
+      let ⟨edge, _, h⟩ := List.mem_map.mp hs
+      h ▸ (whiteScope_bounds F cert edge).1
   apply edgeInstance_of_count_eq_two
   · intro constraint hc
     rcases List.mem_append.mp hc with hc | hc
@@ -92,12 +92,8 @@ theorem edgeInstance_compile (arity : Rel → ℕ) (sem : Rel → List Bool → 
     (input : CSP Rel ℕ × Graph.RotationCertificate) : EdgeInstance (compile arity sem input) := by
   unfold compile
   split_ifs with hg
-  · have hp : (validArity arity input.1 = true ∧
-        verifyRotationCertificate input.1 input.2 = true) ∧
-        input.1.all (fun c => nonemptySymbol arity sem c.rel) = true := by
-      simpa only [Bool.and_eq_true] using hg
-    obtain ⟨h, _, _⟩ := (verifyRotationCertificate_eq_true_iff input.1 input.2).mp hp.1.2
-    exact edgeInstance_body arity sem input.2 h
+  · simp only [Bool.and_eq_true, verifyRotationCertificate_eq_true_iff] at hg
+    exact edgeInstance_body arity sem input.2 hg.1.2.1
   · exact edgeInstance_rejectEdge
 
 /-- Widths and actual explicit-table relations of the guarded body. Empty symbols need not
@@ -131,12 +127,9 @@ theorem compile_tables (arity : Rel → ℕ) (sem : Rel → List Bool → Bool)
         IsEvenDeltaMatroid (booleanRelation Table.arity Table.sem constraint.rel) := by
   unfold compile
   split_ifs with hg
-  · have hp : (WellFormed arity input.1 ∧ verifyRotationCertificate input.1 input.2 = true) ∧
-        (∀ c ∈ input.1, nonemptySymbol arity sem c.rel = true) := by
-      simpa only [Bool.and_eq_true, validArity_eq_true_iff, List.all_eq_true] using hg
-    exact body_tables arity sem hdelta input.2 hp.1.1 hp.2
-  · intro constraint hc
-    exact ⟨(wellFormed_rejectEdge constraint hc).symm, rejectEdge_tables constraint hc⟩
+  · simp only [Bool.and_eq_true, validArity_eq_true_iff, List.all_eq_true] at hg
+    exact body_tables arity sem hdelta input.2 hg.1.1 hg.2
+  · exact fun c hc => ⟨(wellFormed_rejectEdge c hc).symm, rejectEdge_tables c hc⟩
 
 /-- Every emitted explicit row has the declared width. Together with `compile_tables`, this
 also gives exact actual scope widths; no malformed table is used as a rejection shortcut. -/
@@ -161,19 +154,12 @@ theorem compile_correct (arity : Rel → ℕ) (sem : Rel → List Bool → Bool)
       ((WellFormed arity input.1 ∧ verifyRotationCertificate input.1 input.2 = true ∧
         input.1.Satisfiable sem) ↔ (compile arity sem input).Satisfiable Table.sem) := by
   have ht := compile_tables arity sem hdelta input
-  refine ⟨edgeInstance_compile arity sem input, fun c hc => (ht c hc).1.symm, ?_,
+  refine ⟨edgeInstance_compile arity sem input, fun c hc => (ht c hc).1.symm, fun i => ?_,
     (satisfiable_compile_iff arity sem hself input).symm⟩
-  intro i
-  have hw := (ht _ (List.getElem_mem i.isLt)).1
-  have hm := (ht _ (List.getElem_mem i.isLt)).2
+  obtain ⟨hw, hm⟩ := ht _ (List.getElem_mem i.isLt)
   change IsEvenDeltaMatroid {t : Fin (compile arity sem input)[i.val].rel.arity → Bool |
     Table.sem (compile arity sem input)[i.val].rel (List.ofFn t) = true} at hm
-  have htransport (n : ℕ) (hn : (compile arity sem input)[i.val].rel.arity = n) :
-      IsEvenDeltaMatroid {t : Fin n → Bool |
-        Table.sem (compile arity sem input)[i.val].rel (List.ofFn t) = true} := by
-    subst n
-    exact hm
-  exact htransport _ hw
+  exact hw ▸ hm
 
 /-- Combined ordinary native fixed-language endpoint: no correct-translation certificate,
 solver/recognizer, geometric realization, or input-validity premise is a runtime assumption. -/

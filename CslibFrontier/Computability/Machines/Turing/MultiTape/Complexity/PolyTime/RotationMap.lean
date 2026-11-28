@@ -8,11 +8,12 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option
 public import CslibFrontier.Foundations.Combinatorics.Expander.AffinePlane
 public import CslibFrontier.Foundations.Combinatorics.Expander.Contraction
 public import CslibFrontier.Foundations.Combinatorics.Expander.Zigzag
 public import CslibFrontier.Foundations.Combinatorics.Expander.Reindex
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 
 /-!
 # Compositional certificates for graph rotations

@@ -14,7 +14,7 @@ import CslibFrontier.Computability.Circuit.Boolean.Advice
 import CslibFrontier.Computability.Circuit.Boolean.PolynomialTime
 import CslibFrontier.Computability.Complexity.Classes.Hierarchy.Nondeterministic
 import CslibFrontier.Computability.Complexity.Classes.Padding
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -28,7 +28,7 @@ circuit witnesses do not enter these arithmetic goals. These are not the explici
 composition proofs. No missing-certificate negative is invented for a closed arithmetic function.
 -/
 open Turing.MultiTapeTM Cslib.MCSP Cslib.Circuits.Boolean
-open ComputableTidilyInPolyTime
+open ComputableInPolyTime
 
 set_option maxHeartbeats 200000 in
 -- Pin the original default as the regression budget; do not raise it.

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordGame
 public import CslibFrontier.Computability.Probabilistic.Oracle.ReplayParameter
+import CslibFrontier.Languages.Probabilistic.Norm
 import Mathlib.Data.Set.Finite.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.QueryBounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.Substitution
@@ -690,11 +691,7 @@ private theorem simFilterWordHandler_G
         simHashG (CT := List Bool) (K := List Bool) (BitString.sampleList (P.coinLen n)) w
       else pure [] := by
   funext st
-  by_cases h : w.length = P.msgLen n
-  · simp only [simFilterWordHandler, h, ↓reduceIte]
-    rfl
-  · simp only [simFilterWordHandler, h, ↓reduceIte]
-    rfl
+  by_cases h : w.length = P.msgLen n <;> simp only [simFilterWordHandler, h, ↓reduceIte] <;> rfl
 
 private theorem simFilterWordHandler_H
     (d : ℕ → List Bool → List (List Bool × List Bool) → List Bool → Bool) (n : ℕ)
@@ -983,22 +980,11 @@ private theorem exists_savedCoins (hP : P.IsEfficient)
 /-- Each typed query makes at most one call. -/
 private theorem isQueryBounded_typedQuery (n : ℕ) (op : CCAOp) (w : List Bool) :
     OracleComp.IsQueryBounded (P.typedQuery keyLen n op w) 1 := by
-  cases op with
-  | G =>
-    simp only [typedQuery]
-    split
-    · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
-    · exact .pure _ _
-  | H =>
-    simp only [typedQuery]
-    split
-    · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
-    · exact .pure _ _
-  | decaps =>
-    simp only [typedQuery]
-    split
-    · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
-    · exact .pure _ _
+  cases op <;> simp only [typedQuery] <;> split
+  all_goals
+    first
+    | exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
+    | exact .pure _ _
 
 /-- **Query bounds of the saved-coin view.** Every coin value and challenge makes at most
 `savedCoinBudget c d keyC keyD n` queries to `G`, as many to `H` and as many to decapsulation. -/
@@ -1035,11 +1021,7 @@ private theorem eval_keyGenNotBot (n : ℕ) :
       (ProbComp.eval (P.finiteScheme keyLen n).keyGenNotBot).map
         fun x => (x.1, skRep P n x.2) := by
   simp only [keyGenNotBot, Scheme.keyGenNotBot, scheme, toExplicitCoin, finiteScheme, finitePKE,
-    ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, BitString.eval_sampleList,
-    uniformList_eq_map_ofFn, PMF.bind_map]
-  congr 1
-  funext ⟨pk, sk⟩
-  simp [PMF.pure_map, skRep, Function.comp_def]
+    BitString.eval_sampleList, uniformList_eq_map_ofFn, skRep, pmf_norm]
 
 private theorem eval_roHashG_nil {M R CT K : Type} [DecidableEq M] (d : ProbComp R) (m : M)
     (h : List ((Bool × M × CT) × K)) :
@@ -1104,10 +1086,8 @@ private theorem mem_support_finiteKeyGenNotBot {n : ℕ} {pk : List Bool}
     dk.pk = pk ∧ (pk, dk.sk) ∈ (ProbComp.eval (P.keyGen n)).support := by
   simp only [Scheme.keyGenNotBot, finiteScheme, finitePKE, ProbComp.eval_bind,
     ProbComp.eval_pure, PMF.support_bind, PMF.support_pure, Set.mem_iUnion,
-    Set.mem_singleton_iff, exists_prop] at h
-  obtain ⟨⟨pk', sk'⟩, hkeys, s, -, heq⟩ := h
-  simp only [Prod.mk.injEq] at heq
-  obtain ⟨rfl, rfl⟩ := heq
+    Set.mem_singleton_iff, exists_prop, Prod.mk.injEq] at h
+  obtain ⟨⟨_, _⟩, hkeys, _, -, rfl, rfl⟩ := h
   exact ⟨rfl, hkeys⟩
 
 /-- **A word experiment is the typed experiment** of the saved-coin view, at a parameter where
@@ -1149,10 +1129,9 @@ private theorem eval_romIndCcaExperimentWord_eq {n : ℕ} (hfit : P.CiphertextFi
   have hfit' := hfit n pk sk hkeys'
   simp only [Function.comp_def]
   rw [eval_run_withRO_encaps hfit']
-  simp only [PMF.bind_bind, PMF.pure_bind, BitString.eval_sampleList, uniformList_eq_map_ofFn,
-    PMF.bind_map, Function.comp_def, ProbOracleComp.eval_run_interpret_eq_runWith,
-    finiteScheme_pke, finiteScheme_sampleMsg, finiteScheme_sampleKey, finitePKE_sampleCoins,
-    ProbComp.eval_pure]
+  simp only [BitString.eval_sampleList, uniformList_eq_map_ofFn,
+    ProbOracleComp.eval_run_interpret_eq_runWith, finiteScheme_pke, finiteScheme_sampleMsg,
+    finiteScheme_sampleKey, finitePKE_sampleCoins, pmf_norm]
   have hite (x y : BitString (keyLen n)) :
       (if b = true then List.ofFn x else List.ofFn y) = List.ofFn (if b = true then x else y) := by
     split <;> rfl
@@ -1255,9 +1234,9 @@ private theorem eval_gameOn_romFilterCpaReductionWord_eq {n : ℕ} (hfit : P.Cip
     simp [IsMessagePair]
   simp only [Encryption.ChoiceOut.msg₀_mk, Encryption.ChoiceOut.msg₁_mk, hvalid, Decoder.decode_enc,
     ↓reduceIte, encrypt, ExplicitCoinPKE.encrypt, simFilterWordHit, Scheme.simFilterHit,
-    ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, uniformList_eq_map_ofFn,
-    PMF.bind_map, PMF.bind_bind, PMF.pure_bind, Function.comp_def, finiteScheme_sampleKey,
-    finiteScheme_sampleMsg, finitePKE_sampleCoins, ProbOracleComp.eval_run_interpret_eq_runWith]
+    BitString.eval_sampleList, uniformList_eq_map_ofFn, finiteScheme_sampleKey,
+    finiteScheme_sampleMsg, finitePKE_sampleCoins, ProbOracleComp.eval_run_interpret_eq_runWith,
+    pmf_norm]
   have hsel (m₀ m₁ : BitString (P.msgLen n)) :
       (if bit = true then List.ofFn m₁ else List.ofFn m₀) =
         List.ofFn (({ msg₀ := m₀, msg₁ := m₁ } : MessagePair _).select bit) := by

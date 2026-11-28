@@ -149,9 +149,9 @@ theorem isPPT_lengthStrengthenedWrapper {h : List Bool → List Bool → List Bo
     (ha : IsPPT (encPair encBits encBits) adversary) :
     IsPPT (encPair encBits encBits) (lengthStrengthenedWrapper h valid adversary) := by
   have hCol := (computableInPolyTime_isCollision
-    (computableInPolyTime_lengthStrengthenedMD hh hlen) hvalid).tidy
-  have hExt := (computableInPolyTime_extractChainCollision hh hlen).tidy
-  have hBlk := computableInPolyTime_mdLengthBlocks.tidy
+    (computableInPolyTime_lengthStrengthenedMD hh hlen) hvalid)
+  have hExt := (computableInPolyTime_extractChainCollision hh hlen)
+  have hBlk := computableInPolyTime_mdLengthBlocks
   unfold lengthStrengthenedWrapper
   ppt
 
@@ -171,22 +171,17 @@ private theorem eval_collisionGame_lengthStrengthenedMD_eq
   subst hklen
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun pair _ => ?_
   congr 1
-  by_cases hcol : isCollision (lengthStrengthenedMD h) valid k.length k pair.1 pair.2 = true
-  · simp only [hcol, ↓reduceIte]
-    rw [isCollision_eq_true_iff] at hcol
-    rcases hcol with ⟨hv₁, hv₂, hne, hdigest⟩
-    have hns₁ : ¬ mdLengthBlocks k.length pair.1 <:+ mdLengthBlocks k.length pair.2 :=
-      (mdLengthBlocks_suffix_iff (hbound pair.2 hv₂)).not.mpr hne
-    have hns₂ : ¬ mdLengthBlocks k.length pair.2 <:+ mdLengthBlocks k.length pair.1 :=
-      (mdLengthBlocks_suffix_iff (hbound pair.1 hv₁)).not.mpr hne.symm
+  cases hcol : isCollision (lengthStrengthenedMD h) valid k.length k pair.1 pair.2
+  · simp only [Bool.false_eq_true, ↓reduceIte, isCollision_self]
+  · simp only [↓reduceIte]
+    rcases isCollision_eq_true_iff.mp hcol with ⟨hv₁, hv₂, hne, hdigest⟩
     exact (isCollision_extractChainCollision_of_not_suffix (fun x hx => hlen k x rfl hx)
       List.length_replicate
       (fun _ hb => length_of_mem_mdLengthBlocks hb)
       (fun _ hb => length_of_mem_mdLengthBlocks hb)
-      hdigest hns₁ hns₂).symm
-  · have hcolF : isCollision (lengthStrengthenedMD h) valid k.length k pair.1 pair.2 = false :=
-      Bool.eq_false_iff.mpr hcol
-    simp only [hcolF, Bool.false_eq_true, ↓reduceIte, isCollision_self]
+      hdigest
+      ((mdLengthBlocks_suffix_iff (hbound pair.2 hv₂)).not.mpr hne)
+      ((mdLengthBlocks_suffix_iff (hbound pair.1 hv₁)).not.mpr hne.symm)).symm
 
 /-- **Boneh–Shoup Theorem 8.3 (concrete equality):** when `h` preserves `n`-bit output lengths and
 every `valid n`-accepted message satisfies `mdLengthBlockCount n m < 2 ^ (n / 2)`, `adversary`
@@ -243,39 +238,21 @@ theorem CompressionFamily.collisionResistant_lengthStrengthenedMD
     have hpair_in : ((encPair encUnary encBits) (n, k)).length + 1 = 3 * n + 2 := by
       simp only [length_encPair, encUnary_apply, encBits_apply, List.length_replicate, hklen]
       omega
-    have henc := hlen_out (n, k) pair hp
-    rw [hpair_in] at henc
-    have hm₁ : pair.1.length ≤ bound n := by
-      simpa only [encBits_apply] using (length_le_encPair_left encBits encBits pair).trans henc
-    have hm₂ : pair.2.length ≤ bound n := by
-      simpa only [encBits_apply] using (length_le_encPair_right encBits encBits pair).trans henc
-    have hv₁ : validBound n pair.1 = true := decide_eq_true hm₁
-    have hv₂ : validBound n pair.2 = true := decide_eq_true hm₂
+    have henc := hpair_in ▸ hlen_out (n, k) pair hp
+    have hv₁ : validBound n pair.1 = true :=
+      decide_eq_true ((length_le_encPair_left encBits encBits pair).trans henc)
+    have hv₂ : validBound n pair.2 = true :=
+      decide_eq_true ((length_le_encPair_right encBits encBits pair).trans henc)
     congr 1
-    refine Bool.eq_iff_iff.mpr ?_
+    rw [Bool.eq_iff_iff]
     simp only [isCollision_eq_true_iff, hv₁, hv₂, true_and]
-  have hsuccEq :
-      Game.succProbability
-          (ProbComp.eval (collisionGame (lengthStrengthenedMD h) (fun _ _ => true) adversary n)) =
-        Game.succProbability
-          (ProbComp.eval
-            (collisionGame h validCompressionInput
-              (lengthStrengthenedWrapper h validBound adversary) n)) := by
-    rw [hgame]
-    refine succProbability_collisionGame_lengthStrengthenedMD_eq h validBound adversary n
-      (fun k x hk hx => by
-        have hlenx : x.length = 2 * k.length := by omega
-        simpa only [hk] using hCF.length_eq k x hlenx)
-      fun m hm => ?_
-    have hmlen : m.length ≤ bound n := of_decide_eq_true (by simpa [validBound] using hm)
-    have hcount : mdLengthBlockCount n m ≤ bound n + n + 1 := by
-      unfold mdLengthBlockCount
-      calc
-        (m.length + n / 2) / n + 1 ≤ m.length + n / 2 + 1 := by
-          exact Nat.add_le_add_right (Nat.div_le_self _ _) 1
-        _ ≤ bound n + n + 1 := by omega
-    exact lt_of_le_of_lt hcount hn
-  rw [hsuccEq]
+  rw [hgame]
+  refine le_of_eq (succProbability_collisionGame_lengthStrengthenedMD_eq h validBound adversary n
+    (fun k x hk hx => hk ▸ hCF.length_eq k x (hk ▸ hx)) fun m hm => ?_)
+  have hmlen : m.length ≤ bound n := of_decide_eq_true hm
+  have hdiv := Nat.div_le_self (m.length + n / 2) n
+  unfold mdLengthBlockCount
+  omega
 
 /-- Every `2n → n` collision-resistant compression family `h` induces a collision-resistant
 hash family `HashFamily (lengthStrengthenedMD h)` on arbitrary bit strings. -/

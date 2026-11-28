@@ -22,7 +22,7 @@ theorem count_spec :
     (ComputableInPolySpace.of_polyTime (ComputableInPolyTime.const 0))
     (ComputableInPolySpace.of_polyTime (by fun_prop))
     (fun _ k a => a = k) (fun _ => rfl) (fun _ _ _ _ h => congrArg (· + 1) h)
-    ComputableInPolyTime.id'.tidy.polyBounded_length
+    ComputableInPolyTime.id'.polyBounded_length
   intro n k a hk ha
   rw [ha]
   exact length_encNat_mono hk

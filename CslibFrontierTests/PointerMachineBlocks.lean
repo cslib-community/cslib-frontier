@@ -7,7 +7,7 @@ Authors: Stefan Langerman
 module
 -- upstream: local-only (regression tests)
 
-import CslibFrontier.Computability.PointerMachine.Blocks
+import CslibFrontier.Computability.PointerMachine.Program
 
 /-! Compose two independently proved blocks at nonzero offsets. The second block branches
 over allocation, so incorrect branch relocation would change termination or the heap. -/
@@ -92,3 +92,22 @@ private def sequenced : State model layout :=
 example : sequenced.pc = 5 := by decide
 example : sequenced.ptr 0 = none ∧ sequenced.ptr 1 = initial.ptr 1 := by decide
 example : sequenced.heap.length = 1 ∧ sequenced.data 0 = initial.data 0 := by decide
+
+-- Fixed-size assembly embeds a certified routine after another block and skips padding.
+private def padded (_ : ℕ) (_ : Bool) : List (Instr model layout) :=
+  [.null 0, .goto 9, .goto 99]
+
+example (s : State model layout) (pc : s.pc = 0) :
+    Runs (Cslib.Program.compileBlocks padded 4 [false, true])
+      { s with pc := 3 } { s.setPtr 0 none with pc := 9 } 2 := by
+  let finish : State model layout := { s.setPtr 0 none with pc := 1 }
+  have run : Executes first s finish 2 :=
+    ⟨1, .single (by simp [step, first, pc, finish, Instr.effect, Instr.next]), rfl, rfl⟩
+  have embedded := run.inCompiledBlock (block := padded) (k := 3)
+    (start := 4) (j := 1) (next := 9) (source := [false, true])
+    (suffix := [.goto 99]) (fun _ _ _ => rfl) (by rfl) (by rfl)
+  simpa [pc, finish] using embedded
+
+example : (Cslib.Program.compileBlocks padded 4 [false, true])[4]? = some (.goto 9) := by
+  exact Cslib.Program.getElem?_compileBlocks (block := padded) (k := 3)
+    (start := 4) (j := 1) (n := 1) (fun _ _ _ => rfl) (by rfl) (by rfl)

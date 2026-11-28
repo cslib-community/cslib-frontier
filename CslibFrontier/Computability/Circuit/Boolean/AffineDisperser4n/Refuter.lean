@@ -13,27 +13,34 @@ public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n
 public import CslibFrontier.Computability.Complexity.Problems.XORSAT.Dense
 
 /-!
-# Deterministic refuter for `4n - 10d` circuits
+# Deterministic refuter for `4n - 9d` circuits
 
 The refuter `refute` takes a full-basis circuit `C` and a Boolean function `f` and returns an
-input. `RefuterProofs.lean` proves (`refute_correct`) that `C` and `f` disagree on that input
-whenever `C.size + 10 * d < 4 * n` and `f` is a `d`-affine disperser. The `poly(n, 2^d)` running
-time of the source is not formalized here.
+input. `RefuterProofs.lean` proves (`refute_correct_of_cost_lt`, `refute_correct`) that `C` and `f`
+disagree on that input whenever `C.program.cost binaryB2Cost + 9 * d < 4 * n` (and hence whenever
+`C.size + 9 * d < 4 * n`) and `f` is a `d`-affine disperser. The `poly(n, 2^d)` running time is not
+formalized here.
 
-`refute` runs gate elimination from `initialState C`. At each state `chooseStep?` selects one of
-the cases of `State.Valid.exists_step`, and `applyStep` performs the concrete successor that the
+`refute` runs gate elimination from `initialState C` (`ofCircuitBinary C`, folding constants and
+unary gates into literals at zero gate cost). At each state `chooseStep?` selects one of the cases
+of `State.Valid.exists_step`, and `applyStep` performs the concrete successor that the
 corresponding lemma proves to be a step (`State.deleteConstraint`, `State.partnersShareChildStep`,
 `State.andOnPairStep`, …). None of these needs the disperser property. Where the existence proof
 uses it, `chooseStep?` stops instead: when the output is a constant, a parameter, an auxiliary
-variable over no gates, or the minimal gate. `findCounterexample` then searches `2^d` inputs of an
-affine subspace of dimension `d` on which the output is constant (affine representations of
-auxiliary variables are computed by dense `XORSAT` elimination, `evaluateAux`).
+variable over no gates, the Case 5a gate (`findAndOnPair`), or the minimal gate.
+`findCounterexample` then searches the `2^d` candidate inputs (`candidates`) of an affine subspace
+of dimension `d` on which the output is constant (affine representations of auxiliary variables are
+computed by dense `XORSAT` elimination, `evaluateAux`).
 
 ## Main definitions
 
 * `Cslib.Circuits.Boolean.AffineDisperser4n.chooseStep?`,
   `Cslib.Circuits.Boolean.AffineDisperser4n.applyStep`: choosing and performing a step.
-* `Cslib.Circuits.Boolean.AffineDisperser4n.refuterLoop`,
+* `Cslib.Circuits.Boolean.AffineDisperser4n.refuterRun`,
+  `Cslib.Circuits.Boolean.AffineDisperser4n.refuterLoop`,
+  `Cslib.Circuits.Boolean.AffineDisperser4n.candidateFamily`,
+  `Cslib.Circuits.Boolean.AffineDisperser4n.candidatePoint`,
+  `Cslib.Circuits.Boolean.AffineDisperser4n.candidates`,
   `Cslib.Circuits.Boolean.AffineDisperser4n.findCounterexample`,
   `Cslib.Circuits.Boolean.AffineDisperser4n.refute`: the refuter.
 -/
@@ -159,7 +166,8 @@ def chooseStep? {n} (S : State n) : Option StepChoice :=
     else if let some p := findDegeneratePair S then some (.degeneratePair p)
     else if let some p := findPartnersShareChild S then some (.partnersShareChild p)
     else if let some p := findPairInSystem S then some (.pairInSystem p)
-    else if let some (G, p) := findAndOnPair S then some (.andOnPair G p)
+    else if let some (G, p) := findAndOnPair S then
+      if u = G then none else some (.andOnPair G p)
     else if hne : S.gates.Nonempty then
       let G := S.gates.min' hne
       if 0 < S.auxIn G then some (.swapAuxIn G)
@@ -281,8 +289,13 @@ def applyStep {n} (S : State n) (choice : StepChoice) : State n :=
       match getChildren S (pr.partner p) with
       | Hr :: _ =>
         let w := otherArg (S.gate G) p
+        let K := ((S.gates.sort (· ≤ ·)).find?
+          (fun K => decide (K ≠ G ∧ (S.gate K).Reads G))).getD 0
+        let Hw' := match findPair S w with
+          | some q => (getChildren S (q.partner w)).headD Hr
+          | none => Hr
         S.andOnPairStep G pr p w (findPair S w) (fixArg (S.gate G) w).1 (fixArg (S.gate G) w).2
-          Hr
+          Hr K Hw'
       | [] => S
     | none => S
   | .swapAuxIn G =>
@@ -340,21 +353,19 @@ def allAssignments : ℕ → List (List Bool)
   | 0 => [[]]
   | m + 1 => let r := allAssignments m; r.map (false :: ·) ++ r.map (true :: ·)
 
-/-- Search the `2^d` assignments of a terminal state for an input on which `C` and `f` disagree. -/
-def findCounterexample {n} (C : Circuit (fullSignature 2 Bool) n 1) (f : BitString n → Bool)
-    (d : ℕ) (S : State n) : Option (BitString n) :=
+/-- The input `Φ(val)` for the parameter values `σ`: every auxiliary variable takes the value of
+its affine representation over the parameters. -/
+def candidatePoint {n} (S : State n) (σ : ℕ → Bool) : BitString n :=
+  S.phi fun y => if decide (y ∈ S.params) then σ y else evaluateAux S y σ
+
+/-- The parameter values searched on a terminal state, one assignment for each list `A` of `d`
+bits, or `none` when the terminal state has no search. -/
+def candidateFamily {n} (d : ℕ) (S : State n) : Option (List Bool → ℕ → Bool) :=
   match S.out.arg with
   | .const _b =>
     let F := (S.params.sort (· ≤ ·)).filter (fun x => !(isFstOfAnyPair S x))
     let d_params := F.take d
-    (allAssignments d).findSome? fun A =>
-      let val_param := terminalVal S d_params A
-      let val_all := fun y =>
-        if decide (y ∈ S.params) then val_param y else evaluateAux S y val_param
-      let x_vec : BitString n := S.phi val_all
-      if C.eval fullInterpretation x_vec 0 != f x_vec then
-        some x_vec
-      else none
+    some fun A => terminalVal S d_params A
   | .node u =>
     let F := (S.params.sort (· ≤ ·)).filter (fun x => !(isFstOfAnyPair S x))
     if decide (u ∈ S.params) || S.gates.card == 0 then
@@ -363,46 +374,65 @@ def findCounterexample {n} (C : Circuit (fullSignature 2 Bool) n 1) (f : BitStri
       match F.find? (fun v => decide (v ∈ T_out)) with
       | some pivot =>
         let d_params := (F.filter (· ≠ pivot)).take d
-        (allAssignments d).findSome? fun A =>
+        some fun A =>
           let val_param_part := terminalVal S d_params A
           let T_erase := T_out.filter (· ≠ pivot)
           let xorSum := (T_erase.sort (· ≤ ·)).foldl (fun acc y => acc ^^ val_param_part y) false
           let pivot_val := c_out ^^ S.out.neg ^^ xorSum
-          let val_param := fun y => if y = pivot then pivot_val else val_param_part y
-          let val_all := fun y =>
-            if decide (y ∈ S.params) then val_param y else evaluateAux S y val_param
-          let x_vec : BitString n := S.phi val_all
-          if C.eval fullInterpretation x_vec 0 != f x_vec then some x_vec else none
+          fun y => if y = pivot then pivot_val else val_param_part y
       | none =>
         let d_params := F.take d
-        (allAssignments d).findSome? fun A =>
-          let val_param := terminalVal S d_params A
-          let val_all := fun y =>
-            if decide (y ∈ S.params) then val_param y else evaluateAux S y val_param
-          let x_vec : BitString n := S.phi val_all
-          if C.eval fullInterpretation x_vec 0 != f x_vec then some x_vec else none
+        some fun A => terminalVal S d_params A
+    else if let some (G, p) := findAndOnPair S then
+      match findPair S p with
+      | some pr =>
+        let bp := (fixArg (S.gate G) p).1
+        let r := pr.partner p
+        let br := pr.partnerBias p
+        let d_params := (F.filter (· ≠ pr.snd)).take d
+        some fun A =>
+          let val_param_part := terminalVal S d_params A
+          fun y => if y = p then bp else if y = r then br else val_param_part y
+      | none => none
     else if hne : S.gates.Nonempty then
       let G := S.gates.min' hne
       let α := decide ((S.gate G).op true false == (S.gate G).op true true)
       let t1 := match (S.gate G).left with | .node x => x | _ => 0
       let d_params := (F.filter (· ≠ t1)).take d
-      (allAssignments d).findSome? fun A =>
+      some fun A =>
         let val_param_part := terminalVal S d_params A
-        let val_param := fun y => if y = t1 then α else val_param_part y
-        let val_all := fun y =>
-          if decide (y ∈ S.params) then val_param y else evaluateAux S y val_param
-        let x_vec : BitString n := S.phi val_all
-        if C.eval fullInterpretation x_vec 0 != f x_vec then some x_vec else none
+        fun y => if y = t1 then α else val_param_part y
     else none
+
+/-- The candidate inputs of the final search of a terminal state: `candidatePoint` of each of the
+`2^d` parameter assignments of `candidateFamily`, in the order of `allAssignments d`. This list is
+the specification of the search; `findCounterexample` does not build it. -/
+def candidates {n} (d : ℕ) (S : State n) : List (BitString n) :=
+  match candidateFamily d S with
+  | some σ => (allAssignments d).map fun A => candidatePoint S (σ A)
+  | none => []
+
+/-- The first candidate of a terminal state on which `C` and `f` disagree. Each candidate is built
+only when it is tried, and the search stops at the first disagreement. -/
+def findCounterexample {n} (C : Circuit (fullSignature 2 Bool) n 1) (f : BitString n → Bool)
+    (d : ℕ) (S : State n) : Option (BitString n) :=
+  (candidateFamily d S).bind fun σ =>
+    (allAssignments d).findSome? fun A =>
+      Option.guard (fun x => C.eval fullInterpretation x 0 != f x) (candidatePoint S (σ A))
+
+/-- Apply refuter steps until a terminal state is reached or `fuel` runs out, and add the number of
+steps applied to `steps`. -/
+def refuterRun {n} (S : State n) (fuel steps : ℕ) : State n × ℕ :=
+  match fuel with
+  | 0 => (S, steps)
+  | fuel' + 1 =>
+    match chooseStep? S with
+    | some choice => refuterRun (applyStep S choice) fuel' (steps + 1)
+    | none => (S, steps)
 
 /-- Apply refuter steps until a terminal state is reached or `fuel` runs out. -/
 def refuterLoop {n} (S : State n) (fuel : ℕ) : State n :=
-  match fuel with
-  | 0 => S
-  | fuel' + 1 =>
-    match chooseStep? S with
-    | some choice => refuterLoop (applyStep S choice) fuel'
-    | none => S
+  (refuterRun S fuel 0).1
 
 /-- The refuter: run gate elimination from the initial state of `C`, then search the terminal state
 for an input on which `C` and `f` disagree. -/

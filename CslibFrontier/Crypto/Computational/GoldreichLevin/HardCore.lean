@@ -13,6 +13,7 @@ import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.Dot
 
 /-!
@@ -68,8 +69,11 @@ def paddedPredicate (seed : List Bool) : Bool :=
 theorem polyTime_paddedFunction {f : List Bool → List Bool}
     (hf : ComputableInPolyTime f encBits encBits) :
     ComputableInPolyTime (paddedFunction f) encBits encBits := by
-  unfold paddedFunction
-  polytime
+  have hhalf := (ComputableInPolyTime.unary_div_const 2).comp
+    ComputableInPolyTime.length_bits
+  exact ComputableInPolyTime.bitsAppend
+    (hf.comp (ComputableInPolyTime.id'.bitsTakeWithInput hhalf))
+    (ComputableInPolyTime.id'.bitsDropWithInput hhalf)
 
 /-- The hard-core predicate is an efficient dot product of the two halves. -/
 @[fun_prop]
@@ -83,15 +87,13 @@ theorem paddedFunction_chunks (f : List Bool → List Bool) {n : ℕ} (x r : Bit
     (extra : List Bool) (hextra : extra.length ≤ 1) :
     paddedFunction f (List.ofFn x ++ List.ofFn r ++ extra) =
       f (List.ofFn x) ++ List.ofFn r ++ extra := by
-  have hhalf : (n + (n + extra.length)) / 2 = n := by lia
-  simp [paddedFunction, hhalf, List.append_assoc]
+  simp [paddedFunction, show (n + (n + extra.length)) / 2 = n by lia, List.append_assoc]
 
 /-- The spare bit is retained by the function but does not enter the parity. -/
 theorem paddedPredicate_chunks {n : ℕ} (x r : BitString n)
     (extra : List Bool) (hextra : extra.length ≤ 1) :
     paddedPredicate (List.ofFn x ++ List.ofFn r ++ extra) = x ⬝ᵥ r := by
-  have hhalf : (n + (n + extra.length)) / 2 = n := by lia
-  simp [paddedPredicate, hhalf, List.append_assoc]
+  simp [paddedPredicate, show (n + (n + extra.length)) / 2 = n by lia, List.append_assoc]
 
 /-- A length-preserving function leaves the complete padded seed length unchanged. -/
 theorem paddedFunction_length {f : List Bool → List Bool}
@@ -105,10 +107,8 @@ theorem paddedFunction_uniform {f : List Bool → List Bool}
     (hf : ∀ n, (uniformList n).map f = uniformList n) (n : ℕ) :
     (uniformList n).map (paddedFunction f) = uniformList n := by
   have hsplit : uniformList n = (uniformList (n / 2)).bind
-      (fun left => (uniformList (n - n / 2)).map (left ++ ·)) := by
-    convert uniformList_add (n / 2) (n - n / 2) using 1
-    congr 1
-    lia
+      (fun left => (uniformList (n - n / 2)).map (left ++ ·)) :=
+    congrArg uniformList (by lia : n = n / 2 + (n - n / 2)) ▸ uniformList_add (n / 2) (n - n / 2)
   rw [hsplit, PMF.map_bind]
   simp only [PMF.map_comp, Function.comp_def]
   trans ((uniformList (n / 2)).map f).bind
@@ -119,13 +119,12 @@ theorem paddedFunction_uniform {f : List Bool → List Bool}
     simp only [PMF.map, Function.comp_def]
     apply PMF.bind_congr_on_support
     intro right hright
-    congr 1
-    have hleft := length_of_mem_support_uniformList hleft
-    have hright := length_of_mem_support_uniformList hright
+    have hl := length_of_mem_support_uniformList hleft
+    have hr := length_of_mem_support_uniformList hright
     have hlen : (left ++ right).length = n := by
-      simp only [List.length_append, hleft, hright]
+      simp only [List.length_append, hl, hr]
       lia
-    simp [paddedFunction, hlen, ← hleft]
+    exact congrArg PMF.pure (by simp [paddedFunction, hlen, ← hl])
   · rw [hf]
 
 /-- Translate a predictor for a padded seed to a parity predictor, sampling its spare bits. -/
@@ -163,13 +162,11 @@ theorem padded_hardCore {f : List Bool → List Bool} (hf : OneWay f) :
     HardCore (paddedFunction f) paddedPredicate := by
   apply HardCore.of_unpredictable polyTime_paddedPredicate
   intro adversary hPPT
-  have heven := negligible_parityPrediction hf _ (isPPT_paddedPredictor hPPT 0)
-  have hodd := negligible_parityPrediction hf _ (isPPT_paddedPredictor hPPT 1)
-  apply negligible_of_le ((heven.add hodd).div_const two_pos)
-  intro n
+  refine negligible_of_le (((negligible_parityPrediction hf _
+    (isPPT_paddedPredictor hPPT 0)).add (negligible_parityPrediction hf _
+    (isPPT_paddedPredictor hPPT 1))).div_const two_pos) fun n => ?_
   have hgame := eval_paddedPrediction f adversary (n / 2) (n % 2) (by lia)
-  have hlen : 2 * (n / 2) + n % 2 = n := by lia
-  rw [hlen] at hgame
+  rw [show 2 * (n / 2) + n % 2 = n by lia] at hgame
   simp only [predictionAdvantage, hgame]
   rcases Nat.mod_two_eq_zero_or_one n with heven | hodd
   · rw [heven]

@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Christian Reitwiessner. All rights reserved.
+Copyright (c) 2026 Christian Reitwiessner, Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Christian Reitwiessner
+Authors: Christian Reitwiessner, Samuel Schlesinger
 -/
 
 module
@@ -9,7 +9,9 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Analysis.SpecialFunctions.Sqrt
+public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
+import Mathlib.Analysis.Complex.Exponential
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 
@@ -19,6 +21,18 @@ Cauchy–Schwarz bounds the mean square root by the square root of an upper boun
 (`Finset.sum_sqrt_le_card_mul_sqrt`), and `Real.sqrt_mul_div_self` rescales square-root regret
 bounds to time averages. `Real.natCeil_sqrt_eq` writes `⌈√m⌉₊` with the integer square root, the
 ceiling counterpart of Mathlib's `Real.nat_floor_real_sqrt_eq_nat_sqrt`.
+
+`Real.log_add_one_le_sqrt` is the bound `log (x + 1) ≤ √x` for `x ≥ 0`, which turns a product of
+`deg v + 1` choices into a sum of square roots of degrees. [KhannaPuttermanSong2026] uses it in
+the count of successful admissibility tests in batch processing (§3.2, p. 16) and in the proof of
+Lemma 3.10 (§3.4, p. 20); the paper's `log` is the natural logarithm (§2, p. 11). Mathlib's
+Cauchy–Schwarz inequality `Real.sum_sqrt_mul_sqrt_le` with one factor constant then gives
+`∑ v ∈ s, √(d v) ≤ √#s * √(∑ v ∈ s, d v)`.
+
+## References
+
+* [S. Khanna, A. Putterman, J. Song, *A Deterministic Linear Time Algorithm for Minimum Spanning
+  Tree*][KhannaPuttermanSong2026]
 -/
 
 public section
@@ -46,6 +60,19 @@ theorem Real.sqrt_mul_div_self {T L : ℝ} (hT : 0 < T) : √(T * L) / T = √(L
   have hs0 : 0 < √T := Real.sqrt_pos.mpr hT
   rw [Real.sqrt_mul hT.le, Real.sqrt_div' L hT.le, div_eq_div_iff hT.ne' hs0.ne']
   linear_combination √L * hs
+
+/-- `log (x + 1) ≤ √x` for `x ≥ 0`, the bound used in [KhannaPuttermanSong2026] for the count of
+successful admissibility tests in batch processing (§3.2, p. 16) and in the proof of Lemma 3.10
+(§3.4, p. 20). With `s = √x`, the cubic Taylor polynomial
+`1 + s + s² / 2 + s³ / 6 ≤ exp s` already dominates `1 + s²`. -/
+theorem Real.log_add_one_le_sqrt {x : ℝ} (hx : 0 ≤ x) : Real.log (x + 1) ≤ √x := by
+  have hs : 0 ≤ √x := Real.sqrt_nonneg x
+  have hxs : x = √x ^ 2 := (Real.sq_sqrt hx).symm
+  rw [Real.log_le_iff_le_exp (by positivity)]
+  have h := Real.sum_le_exp_of_nonneg hs 4
+  simp only [Finset.sum_range_succ, Finset.sum_range_zero, Nat.factorial] at h
+  norm_num at h
+  nlinarith [mul_nonneg hs (sq_nonneg (√x - 3 / 2))]
 
 /-- The ceiling of `√m` as an integer square root: `⌈√m⌉₊ = Nat.sqrt (m - 1) + 1` for `m ≠ 0`. -/
 theorem Real.natCeil_sqrt_eq (m : ℕ) :

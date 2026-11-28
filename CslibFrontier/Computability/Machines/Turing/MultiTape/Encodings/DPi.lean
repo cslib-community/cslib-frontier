@@ -33,7 +33,6 @@ noncomputable equivalence `Fintype.equivFin`.
 * `Turing.MultiTapeTM.length_encDPi_le`: bound the table from the encoded sizes of its entries.
 * `Turing.MultiTapeTM.length_encDPi`: the exact sum of the framed entry sizes.
 * `Turing.MultiTapeTM.length_encDPi_update_le`: changing one entry only charges its size growth.
-* `Turing.MultiTapeTM.encFinEnum_fin_apply`: `encFinEnum (Fin count) i` equals `encUnary i.val`.
 * `Turing.MultiTapeTM.length_encFinFn`, `Turing.MultiTapeTM.length_encFinFn_le`: exact and bounded
   table lengths for `encFinFn`.
 
@@ -93,12 +92,6 @@ theorem length_encDPi_update_le [DecidableEq Index]
       · simp only [Function.update_of_ne h, ite_eq_right h, Nat.add_zero]
         exact le_rfl
     _ = _ := by simp [Finset.sum_add_distrib]
-
-/-- `encFinEnum (Fin count)` encodes `i : Fin count` in unary by `i.val`. -/
-@[simp] theorem encFinEnum_fin_apply {count : ℕ} (i : Fin count) :
-    encFinEnum (Fin count) i = encUnary i.val := by
-  dsimp [encFinEnum, FinEnum.equiv, FinEnum.fin, FinEnum.ofList, FinEnum.ofNodupList]
-  simp [List.dedup_eq_self.mpr (List.nodup_finRange count)]
 
 /-- Computably encode a finite family `Fin count → Value` in canonical index order
 `0, …, count - 1` as `encList enc (List.ofFn values)`. Unlike `encPi`, which reorders indices along

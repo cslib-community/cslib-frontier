@@ -198,11 +198,8 @@ theorem readRow_scan (row : BitString (k + k)) (t i : ℕ) :
     rw [scan, Circuit.eval_comp, readRow_step]
     by_cases hi : i < k
     · rw [ite_eq_left hi, ih, ih, pow_succ, Nat.mul_two, rangeSummary_add]
-    · rw [ite_eq_right hi]
-      symm
-      apply rangeSummary_eq_unit
-      intro j hj
-      simp [readRow, show ¬ j < k by omega]
+    · exact (ite_eq_right hi).trans
+        (rangeSummary_eq_unit _ (fun j _ => by simp [readRow, show ¬ j < k by omega]) _).symm
 
 /-- Input bit `i` of the first word. -/
 def leftInput (w : ℕ) (i : Fin w) : Fin (w + w + 1) :=
@@ -277,7 +274,8 @@ def finish (w : ℕ) :
 
 /-- The arithmetic carry into bit `i`, used only as the specification. -/
 def inputCarry {w : ℕ} (u : BitString (w + w + 1)) (i : ℕ) : Bool :=
-  BitVec.carry i (word (u ∘ leftInput w)) (word (u ∘ rightInput w)) (u (Fin.last (w + w)))
+  BitVec.carry i (BitString.equivBitVec (u ∘ leftInput w))
+    (BitString.equivBitVec (u ∘ rightInput w)) (u (Fin.last (w + w)))
 
 private theorem readRow_initial {w : ℕ} (u : BitString (w + w + 1)) (i : Fin (w + 1)) :
     readRow ((initial w).eval interpretation u) i.val =
@@ -300,21 +298,17 @@ private theorem rangeSummary_initial {w : ℕ} (u : BitString (w + w + 1)) (i : 
     rw [rangeSummary, rangeSummary, combine_unit_right]
     simpa [inputCarry] using readRow_initial u (Fin.last w)
   | succ i ih =>
-    rw [rangeSummary]
-    have hs : w - (i + 1) + 1 = w - i := by omega
-    rw [hs, ih (by omega)]
     have hr := readRow_initial u ⟨w - (i + 1), by omega⟩
-    have hj : w - (i + 1) < w := by omega
-    have hidx : w - 1 - (w - (i + 1)) = i := by omega
-    simp only [hj, ↓reduceDIte, hidx] at hr
-    rw [hr]
+    simp only [show w - (i + 1) < w by omega, ↓reduceDIte,
+      show w - 1 - (w - (i + 1)) = i by omega] at hr
+    rw [rangeSummary, show w - (i + 1) + 1 = w - i by omega, ih (by omega), hr]
     simp only [combine, Bool.and_false, inputCarry, BitVec.carry_succ,
-      getLsbD_word (u ∘ leftInput w) ⟨i, by omega⟩,
-      getLsbD_word (u ∘ rightInput w) ⟨i, by omega⟩, Function.comp_apply]
+      BitString.getLsbD_equivBitVec (u ∘ leftInput w) ⟨i, by omega⟩,
+      BitString.getLsbD_equivBitVec (u ∘ rightInput w) ⟨i, by omega⟩, Function.comp_apply]
     cases u (leftInput w ⟨i, by omega⟩) <;>
       cases u (rightInput w ⟨i, by omega⟩) <;>
-      cases BitVec.carry i (word (u ∘ leftInput w)) (word (u ∘ rightInput w))
-        (u (Fin.last (w + w))) <;> rfl
+      cases BitVec.carry i (BitString.equivBitVec (u ∘ leftInput w))
+        (BitString.equivBitVec (u ∘ rightInput w)) (u (Fin.last (w + w))) <;> rfl
 
 /-- The generate output at reversed index `w-i` is exactly carry `i`, including both endpoints. -/
 theorem eval_carries {w : ℕ} (u : BitString (w + w + 1)) (i : Fin (w + 1)) :
@@ -323,15 +317,11 @@ theorem eval_carries {w : ℕ} (u : BitString (w + w + 1)) (i : Fin (w + 1)) :
   have h := readRow_scan ((initial w).eval interpretation u) (Nat.clog 2 (w + 1)) (w - i.val)
   have he : 2 ^ Nat.clog 2 (w + 1) = (i.val + 1) +
       (2 ^ Nat.clog 2 (w + 1) - (i.val + 1)) := by omega
-  rw [he, rangeSummary_add, rangeSummary_initial u i.val (by omega)] at h
-  have hz : rangeSummary (readRow ((initial w).eval interpretation u))
-      (w - i.val + (i.val + 1)) (2 ^ Nat.clog 2 (w + 1) - (i.val + 1)) = (false, true) := by
-    apply rangeSummary_eq_unit
-    intro j hj
-    simp [readRow, show ¬j < w + 1 by omega]
-  rw [hz, combine_unit_right] at h
-  have hg := congrArg Prod.fst h
-  simpa [readRow, show w - i.val < w + 1 by omega, carries, Circuit.eval_comp] using hg
+  rw [he, rangeSummary_add, rangeSummary_initial u i.val (by omega),
+    rangeSummary_eq_unit _ (fun j _ => by simp [readRow, show ¬j < w + 1 by omega]),
+    combine_unit_right] at h
+  simpa [readRow, show w - i.val < w + 1 by omega, carries, Circuit.eval_comp] using
+    congrArg Prod.fst h
 
 end CarryLookahead
 
@@ -370,14 +360,15 @@ theorem size_carryLookahead_le (w : ℕ) :
 /-- Each low output bit is the sum bit with the specified incoming carry. -/
 theorem eval_carryLookahead_sum {w : ℕ} (u : BitString (w + w + 1)) (i : Fin w) :
     (carryLookahead w).eval interpretation u i.castSucc =
-      (word (u ∘ CarryLookahead.leftInput w) + word (u ∘ CarryLookahead.rightInput w) +
+      (BitString.equivBitVec (u ∘ CarryLookahead.leftInput w) +
+        BitString.equivBitVec (u ∘ CarryLookahead.rightInput w) +
         BitVec.setWidth w (BitVec.ofBool (u (Fin.last (w + w))))).getLsbD i.val := by
   simp only [circuit_simps, carryLookahead, CarryLookahead.finish,
     show i.castSucc = Fin.castAdd 1 i from rfl, CarryLookahead.sumFormula]
   rw [CarryLookahead.eval_carries u ⟨i.val, by omega⟩]
   rw [BitVec.getLsbD_add_add_bool i.isLt,
-    getLsbD_word (u ∘ CarryLookahead.leftInput w) i,
-    getLsbD_word (u ∘ CarryLookahead.rightInput w) i]
+    BitString.getLsbD_equivBitVec (u ∘ CarryLookahead.leftInput w) i,
+    BitString.getLsbD_equivBitVec (u ∘ CarryLookahead.rightInput w) i]
   exact Bool.xor_assoc _ _ _
 
 /-- The last output is the final carry, also at width zero. -/
@@ -400,18 +391,19 @@ theorem val_eval_carryLookahead {w : ℕ} (a b : BitString w) (c : Bool) :
     ext i
     simp only [u, Function.comp_apply, CarryLookahead.rightInput, Fin.append_left, Fin.append_right]
   have hc : u (Fin.last (w + w)) = c := Fin.append_right _ _ 0
-  have hs : word (Fin.init ((carryLookahead w).eval interpretation u)) =
-      word a + word b + BitVec.setWidth w (BitVec.ofBool c) := by
+  have hs : BitString.equivBitVec (Fin.init ((carryLookahead w).eval interpretation u)) =
+      BitString.equivBitVec a + BitString.equivBitVec b +
+        BitVec.setWidth w (BitVec.ofBool c) := by
     apply BitVec.eq_of_getLsbD_eq
     intro i hi
-    rw [getLsbD_word _ ⟨i, hi⟩]
+    rw [BitString.getLsbD_equivBitVec _ ⟨i, hi⟩]
     simpa only [Fin.init, hl, hr, hc] using eval_carryLookahead_sum u ⟨i, hi⟩
   have hout := eval_carryLookahead_carry u
   simp only [CarryLookahead.inputCarry, hl, hr, hc, BitVec.carry_width] at hout
   change (BitString.equivFin (w + 1) ((carryLookahead w).eval interpretation u) : ℕ) = _
-  rw [BitString.val_equivFin_succ, ← toNat_word_eq_equivFin, hs, hout]
+  rw [BitString.val_equivFin_succ, ← BitString.toNat_equivBitVec_eq_equivFin, hs, hout]
   simp only [BitVec.toNat_add, BitVec.toNat_setWidth, BitVec.toNat_ofBool,
-    Nat.mod_add_mod, Nat.add_mod_mod, toNat_word_eq_equivFin]
+    Nat.mod_add_mod, Nat.add_mod_mod, BitString.toNat_equivBitVec_eq_equivFin]
   have ha := (BitString.equivFin w a).isLt
   have hb := (BitString.equivFin w b).isLt
   have hcb := Bool.toNat_le c
@@ -432,11 +424,9 @@ def carryLookaheadAdd (w : ℕ) : Circuit signature (w + w) w :=
 theorem val_eval_carryLookaheadAdd {w : ℕ} (a b : BitString w) :
     (BitString.equivFin w ((carryLookaheadAdd w).eval interpretation (Fin.append a b)) : ℕ) =
       ((BitString.equivFin w a : ℕ) + (BitString.equivFin w b : ℕ)) % 2 ^ w := by
-  have h := val_eval_carryLookahead a b false
-  rw [BitString.val_equivFin_succ] at h
-  simp only [Bool.toNat_false, Nat.add_zero] at h
-  have hm := congrArg (· % 2 ^ w) h
-  rw [Nat.add_mul_mod_self_right] at hm
+  have hm := congrArg (· % 2 ^ w) (val_eval_carryLookahead a b false)
+  simp only [BitString.val_equivFin_succ, Bool.toNat_false, Nat.add_zero,
+    Nat.add_mul_mod_self_right] at hm
   have he : (carryLookaheadAdd w).eval interpretation (Fin.append a b) =
       Fin.init ((carryLookahead w).eval interpretation
         (Fin.append (Fin.append a b) (fun _ => false))) := by

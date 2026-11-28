@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Defs
 public import CslibFrontier.Computability.GenericRAM.Simulation.Run
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Pi
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
@@ -172,13 +172,10 @@ theorem checkedShiftLeft_eq (w x y : ℕ) :
   · rw [Nat.min_eq_left h.le]
     rcases Nat.eq_zero_or_pos x with rfl | hx
     · simp
-    · have h1 : ¬Fits w (x * 2 ^ y) := by
-        rw [fits_iff, not_lt]
-        exact (Nat.pow_le_pow_right Nat.two_pos h.le).trans (Nat.le_mul_of_pos_left _ hx)
-      have h2 : ¬Fits w (x * 2 ^ w) := by
-        rw [fits_iff, not_lt]
-        exact Nat.le_mul_of_pos_left _ hx
-      simp [h1, h2]
+    · have h2 : 2 ^ w ≤ x * 2 ^ w := Nat.le_mul_of_pos_left _ hx
+      have h1 : 2 ^ w ≤ x * 2 ^ y :=
+        (Nat.pow_le_pow_right Nat.two_pos h.le).trans (Nat.le_mul_of_pos_left _ hx)
+      simp [fits_iff, not_lt.2 h1, not_lt.2 h2]
 
 /-- Checked addition is polynomial in the full encoding: unary width and binary operands. -/
 @[fun_prop, program_certificate]
@@ -212,10 +209,9 @@ theorem checkedBinOp_polyTime (f : BinOp) :
   · exact checkFits_polyTime (binary_and' hx hy)
   · exact checkFits_polyTime (binary_or' hx hy)
   · exact checkFits_polyTime (binary_xor' hx hy)
-  · have h := checkFits_polyTime
-      (binary_mul' hx (binary_two_pow.comp (binary_min_unary' hw hy)))
-    refine h.of_enc_eq fun ⟨w, x⟩ => congrArg (encOption encNat) ?_
-    exact checkedShiftLeft_eq w (x 0) (x 1)
+  · exact (checkFits_polyTime (binary_mul' hx
+      (binary_two_pow.comp (binary_min_unary' hw hy)))).of_enc_eq fun ⟨w, x⟩ =>
+      congrArg (encOption encNat) (checkedShiftLeft_eq w (x 0) (x 1))
   · exact checkFits_polyTime (binary_shiftRight' hx hy)
 
 /-- Reading the word size in `Basis.standard` is polynomial-time. -/
@@ -247,17 +243,17 @@ theorem checkedExactOp_polyTime (op : StandardOp) :
     have hy := (pi_apply encNat (1 : Fin 2)).comp (snd encUnary (encPi encNat))
     cases f
     · exact checkedBinOp_polyTime .add
-    · have h := (binary_le' hy hx).ite (checkedBinOp_polyTime .sub) (const none)
-      refine h.of_enc_eq fun ⟨w, x⟩ => congrArg (encOption encNat) ?_
+    · refine ((binary_le' hy hx).ite (checkedBinOp_polyTime .sub) (const none)).of_enc_eq
+        fun ⟨w, x⟩ => congrArg (encOption encNat) ?_
       by_cases hle : x 1 ≤ x 0 <;>
         simp [Model.checkedOp, Basis.genericModel, StandardOp.evalExact, StandardOp.eval, hle]
     · exact checkedBinOp_polyTime .mul
-    · have h := (hy.decide_eq' (const 0)).ite (const none) (checkedBinOp_polyTime .div)
-      refine h.of_enc_eq fun ⟨w, x⟩ => congrArg (encOption encNat) ?_
+    · refine ((hy.decide_eq' (const 0)).ite (const none) (checkedBinOp_polyTime .div)).of_enc_eq
+        fun ⟨w, x⟩ => congrArg (encOption encNat) ?_
       by_cases hz : x 1 = 0 <;>
         simp [Model.checkedOp, Basis.genericModel, StandardOp.evalExact, StandardOp.eval, hz]
-    · have h := (hy.decide_eq' (const 0)).ite (const none) (checkedBinOp_polyTime .mod)
-      refine h.of_enc_eq fun ⟨w, x⟩ => congrArg (encOption encNat) ?_
+    · refine ((hy.decide_eq' (const 0)).ite (const none) (checkedBinOp_polyTime .mod)).of_enc_eq
+        fun ⟨w, x⟩ => congrArg (encOption encNat) ?_
       by_cases hz : x 1 = 0 <;>
         simp [Model.checkedOp, Basis.genericModel, StandardOp.evalExact, StandardOp.eval, hz]
     · exact checkedBinOp_polyTime .and
@@ -276,13 +272,10 @@ theorem Basis.Hom.checkedOp_polyTime {B B' : Basis} (φ : B.Hom B')
       encWidthOperands (encOption encNat) := by
   have hargs : ComputableInPolyTime
       (fun (p : ℕ × (Fin (B.Arity op) → ℕ)) (a : Fin (B'.Arity (φ.map op))) =>
-        p.2 (Fin.cast (φ.arity_map op) a))
-      encWidthOperands (encPi encNat) :=
-    pi fun a => (pi_apply encNat (Fin.cast (φ.arity_map op) a)).comp
-      (snd encUnary (encPi encNat))
-  have h := (hop (φ.map op)).comp ((fst encUnary (encPi encNat)).prod hargs)
-  refine h.of_enc_eq fun ⟨w, x⟩ => congrArg (encOption encNat) ?_
-  simp only [Function.comp_apply, Model.checkedOp, Basis.genericModel, φ.interp_map]
+        p.2 (Fin.cast (φ.arity_map op) a)) encWidthOperands (encPi encNat) :=
+    pi fun a => (pi_apply encNat (Fin.cast (φ.arity_map op) a)).comp (snd encUnary (encPi encNat))
+  exact ((hop (φ.map op)).comp ((fst encUnary (encPi encNat)).prod hargs)).of_enc_eq fun ⟨_, _⟩ =>
+    by simp only [Function.comp_apply, Model.checkedOp, Basis.genericModel, φ.interp_map]
 
 /-- Restricting a basis preserves polynomial-time checked-operation certificates definitionally. -/
 theorem Basis.restrict_checkedOp_polyTime (B : Basis) (P : B.Op → Prop)
@@ -439,10 +432,9 @@ theorem transport_polyTime (enc : B.genericModel.Encoding)
         (FiniteState.run (cfg a) p.toGeneric j (initState a))).length ≤ bound a) :
     ComputableInPolyTime f ei enc.value :=
   FiniteState.transport_polyTime enc N p.toGeneric cSteps cCfg cInit
-    (fun a => by
-      obtain ⟨m, hm, hex⟩ := hExec a
-      rw [hden a]
-      exact ⟨m, hm, executes_toGeneric_iff.mpr hex⟩)
+    (fun a =>
+      let ⟨m, hm, hex⟩ := hExec a
+      ⟨m, hm, hden a ▸ executes_toGeneric_iff.mpr hex⟩)
     hN hSteps hCfg hInit hStepsBound hB hOutLen
 
 /-- Automatic `ComputableInPolyTime` transport corollary from `WordRAM.Executes` under a
@@ -461,10 +453,9 @@ theorem transport_polyTime_of_le_const (enc : B.genericModel.Encoding)
     (K : ℕ) (hStepsLe : ∀ a, steps a ≤ K) :
     ComputableInPolyTime f ei enc.value :=
   FiniteState.transport_polyTime_of_le_const enc N p.toGeneric cSteps cCfg cInit
-    (fun a => by
-      obtain ⟨m, hm, hex⟩ := hExec a
-      rw [hden a]
-      exact ⟨m, hm, executes_toGeneric_iff.mpr hex⟩)
+    (fun a =>
+      let ⟨m, hm, hex⟩ := hExec a
+      ⟨m, hm, hden a ▸ executes_toGeneric_iff.mpr hex⟩)
     hN hSteps hCfg hInit K hStepsLe
 
 end

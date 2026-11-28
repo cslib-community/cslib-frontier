@@ -112,11 +112,8 @@ theorem HasGapWithAdvice.indexed_extracted_advantage_negligible_of_isPPTOn {pair
   apply (Asymptotics.superpolynomialDecay_iff_abs_isBoundedUnder _
     tendsto_natCast_atTop_atTop).mpr
   intro degree
-  have herror' : Asymptotics.SuperpolynomialDecay atTop (fun n : ℕ => (n : ℝ)) error := by
-    apply (negligible_iff_coe.mp herror).congr
-    intro n
-    apply Real.coe_toNNReal
-    positivity
+  have herror' : Asymptotics.SuperpolynomialDecay atTop (fun n : ℕ => (n : ℝ)) error :=
+    (negligible_iff_coe.mp herror).congr fun _ => Real.coe_toNNReal _ (by positivity)
   let inverseGap := fun n => dyadicSize (count n) * (n + 1) ^ degree
   have hinverseGap : ComputableInPolyTime inverseGap encUnary encUnary :=
     (hcount.trans .unary_dyadicSize).unary_mul'
@@ -127,8 +124,8 @@ theorem HasGapWithAdvice.indexed_extracted_advantage_negligible_of_isPPTOn {pair
     hnumerator hdensity hinverseGap hgap
   have hbound : PolynomiallyBounded
       (fun n => 2 * inverseGap n * dyadicSize (densityBound n)) :=
-    ((PolynomiallyBounded.const 2).mul hinverseGap.tidy.polynomiallyBounded).mul
-      (hdensity.trans .unary_dyadicSize).tidy.polynomiallyBounded
+    ((PolynomiallyBounded.const 2).mul hinverseGap.polynomiallyBounded).mul
+      (hdensity.trans .unary_dyadicSize).polynomiallyBounded
   have hmass := maskedSample_dyadic_mass_ge_eventually
     (fun n => pair.latentSample n) (fun _ => id) (fun _ => Prod.snd)
     realization.length (fun n => 2 * inverseGap n * dyadicSize (densityBound n)) hbound
@@ -149,26 +146,18 @@ theorem HasGapWithAdvice.indexed_extracted_advantage_negligible_of_isPPTOn {pair
     (maskedSample (pair.latentSample n)
       (fun value => pair.encode n value.1) Prod.snd mask)
     (count n) (seed n (choose n)) (hash n (choose n)) (test (n, advice n) (choose n)) _ hclose
-  have htotal : (Game.advantage
-      (ProbComp.eval
-        (OracleComp.replicate (count n) (pair.sample n) >>= reduced (n, advice n) (choose n)))
-      ((extractLabelsIdeal ((fun value => pair.encode n value.1) <$>
-        pair.latentSample n) (count n) (seed n (choose n))).bind
-          (fun output => ProbComp.eval (test (n, advice n) (choose n) output))) : ℝ) ≤
-        (dyadicSize (count n) : ℝ) / inverseGap n + error n := by
-    change _ - error n ≤ _ at hcompare
-    exact le_of_lt ((sub_lt_iff_lt_add.mp (hcompare.trans_lt hdistinguish)))
+  change _ - error n ≤ _ at hcompare
+  have htotal := (sub_lt_iff_lt_add.mp (hcompare.trans_lt hdistinguish)).le
   rw [abs_of_nonneg (mul_nonneg (pow_nonneg (Nat.cast_nonneg n) _) (Game.advantage _ _).coe_nonneg)]
   have hprecision : (n : ℝ) ^ degree * ((dyadicSize (count n) : ℝ) / inverseGap n) ≤ 1 := by
     have hdyadic : (dyadicSize (count n) : ℝ) ≠ 0 := by exact_mod_cast (dyadicSize_pos _).ne'
     simp only [inverseGap, Nat.cast_mul, Nat.cast_pow, Nat.cast_add, Nat.cast_one,
       div_mul_eq_div_div, div_self hdyadic, mul_one_div]
-    apply (div_le_one (by positivity)).mpr
+    refine (div_le_one (by positivity)).mpr ?_
     gcongr
     linarith
   have h := mul_le_mul_of_nonneg_left htotal (pow_nonneg (Nat.cast_nonneg n : (0 : ℝ) ≤ n) degree)
   rw [mul_add] at h
-  dsimp only [reduced] at h
   change (n : ℝ) ^ degree * error n ≤ 1 at hsmall
   linarith only [h, hprecision, hsmall]
 

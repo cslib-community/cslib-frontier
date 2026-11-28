@@ -192,11 +192,9 @@ theorem computableInPolyTime_schnorrForkStep :
       (fun (banks, request, state) => schnorrForkStep banks request state)
       (encPair encSchnorrForkBanks (encPair (encPair encBool encBits) encSchnorrForkState))
       (encPair encBits encSchnorrForkState) := by
-  have h : (fun x : StepInput =>
-      match x with | (banks, request, state) => schnorrForkStep banks request state) =
-      forkStepProj := funext schnorrForkStep_eq_proj
-  change ComputableInPolyTime (fun x : StepInput =>
-      match x with | (banks, request, state) => schnorrForkStep banks request state)
+  have h : (fun (banks, request, state) => schnorrForkStep banks request state) = forkStepProj :=
+    funext schnorrForkStep_eq_proj
+  change ComputableInPolyTime (fun (banks, request, state) => schnorrForkStep banks request state)
     encStepInput (encPair encBits encSchnorrForkState)
   rw [h]
   have hsign : ComputableInPolyTime forkSignFrom
@@ -205,15 +203,13 @@ theorem computableInPolyTime_schnorrForkStep :
     have hsig : ComputableInPolyTime
         (fun p : StepInput × (List Bool × List Bool × List Bool) =>
           (encPair encBits encBits) (p.2.1, p.2.2.2))
-        (encPair encStepInput (encPair encBits (encPair encBits encBits))) encBits := by
-      apply ComputableInPolyTime.encoding_comp
-      fun_prop
+        (encPair encStepInput (encPair encBits (encPair encBits encBits))) encBits :=
+      ComputableInPolyTime.encoding_comp (by fun_prop)
     have hpoint : ComputableInPolyTime
         (fun p : StepInput × (List Bool × List Bool × List Bool) =>
           (encPair encBits encBits) (p.1.2.1.2, p.2.1))
-        (encPair encStepInput (encPair encBits (encPair encBits encBits))) encBits := by
-      apply ComputableInPolyTime.encoding_comp
-      fun_prop
+        (encPair encStepInput (encPair encBits (encPair encBits encBits))) encBits :=
+      ComputableInPolyTime.encoding_comp (by fun_prop)
     unfold forkSignFrom
     fun_prop
   have hfresh : ComputableInPolyTime forkFreshFrom (encPair encStepInput encBits)
@@ -226,36 +222,30 @@ theorem computableInPolyTime_schnorrForkStep :
     fun_prop
   have hid : ComputableInPolyTime (fun x : StepInput => x) encStepInput encStepInput := by
     fun_prop
-  have htable : ComputableInPolyTime (fun x : StepInput => x.2.2.table) encStepInput
-      (encList encSchnorrForkEntry) := by fun_prop
-  have htest : ComputableInPolyTime
-      (fun p : StepInput × SchnorrForkEntry => p.2.point == p.1.2.1.2)
-      (encPair encStepInput encSchnorrForkEntry) encBool := by fun_prop
   have hfind := ComputableInPolyTime.findWithInput
-    (test := fun x (entry : SchnorrForkEntry) => entry.point == x.2.1.2) htable htest
-  have hanswers : ComputableInPolyTime (fun x : StepInput => x.1.answers) encStepInput
-      (encList encBits) := by fun_prop
-  have hcount : ComputableInPolyTime (fun x : StepInput => x.2.2.count)
-      encStepInput encUnary := by fun_prop
-  have hanswer := ComputableTidilyInPolyTime.getElem? (encA := encBits) hanswers.tidy hcount.tidy
-  have hmiss := ComputableInPolyTime.optionElimWithInput hanswer.computableInPolyTime
+    (test := fun x (entry : SchnorrForkEntry) => entry.point == x.2.1.2)
+    (show ComputableInPolyTime (fun x : StepInput => x.2.2.table) encStepInput
+      (encList encSchnorrForkEntry) by fun_prop)
+    (by fun_prop)
+  have hanswer := ComputableInPolyTime.getElem? (encA := encBits)
+    (show ComputableInPolyTime (fun x : StepInput => x.1.answers) encStepInput
+      (encList encBits) by fun_prop)
+    (show ComputableInPolyTime (fun x : StepInput => x.2.2.count) encStepInput
+      encUnary by fun_prop)
+  have hmiss := ComputableInPolyTime.optionElimWithInput hanswer
     (hskip.comp (hid.prod (ComputableInPolyTime.const [])))
     (body := fun x c => forkFreshFrom (x, c)) hfresh
-  have hhit : ComputableInPolyTime (fun p : StepInput × SchnorrForkEntry =>
-      forkSkipWith (p.1, p.2.challenge))
-      (encPair encStepInput encSchnorrForkEntry) (encPair encBits encSchnorrForkState) :=
-    hskip.comp (by fun_prop)
   have hhash := ComputableInPolyTime.optionElimWithInput hfind hmiss
-    (body := fun x entry => forkSkipWith (x, entry.challenge)) hhit
-  have htranscripts : ComputableInPolyTime (fun x : StepInput => x.1.transcripts) encStepInput
-      (encList (encPair encBits (encPair encBits encBits))) := by fun_prop
-  have hused : ComputableInPolyTime (fun x : StepInput => x.2.2.used) encStepInput
-      encUnary := by fun_prop
-  have hread := ComputableInPolyTime.listGetDWithInput htranscripts hused ([], [], [])
-  have hsign' := hsign.comp (hid.prod hread)
-  have hguard : ComputableInPolyTime (fun x : StepInput => x.2.1.1) encStepInput
-      encBool := by fun_prop
-  exact .of_tidy (ComputableTidilyInPolyTime.cond hguard.tidy hhash.tidy hsign'.tidy)
+    (body := fun x entry => forkSkipWith (x, entry.challenge)) (hskip.comp (by fun_prop))
+  have hread := ComputableInPolyTime.listGetDWithInput
+    (show ComputableInPolyTime (fun x : StepInput => x.1.transcripts) encStepInput
+      (encList (encPair encBits (encPair encBits encBits))) by fun_prop)
+    (show ComputableInPolyTime (fun x : StepInput => x.2.2.used) encStepInput
+      encUnary by fun_prop)
+    ([], [], [])
+  exact ComputableInPolyTime.ite'
+    (show ComputableInPolyTime (fun x : StepInput => x.2.1.1) encStepInput encBool by fun_prop)
+    hhash (hsign.comp (hid.prod hread))
 
 /-! ### The native pass -/
 
@@ -364,23 +354,15 @@ theorem isPPTOn_schnorrForkRun {k : ℕ} {Control : Type} [Finite Control]
     (machine : _root_.Turing.MultiTapePTM k Bool Control Bool) (c e keyC keyD : ℕ) :
     IsPPTOn encSchnorrForkPassInput (encPair (encPair encBits encBits) encSchnorrForkState)
       (schnorrForkRun machine c e keyC keyD) := by
-  have hstep := computableInPolyTime_schnorrForkStep
   have hhandler : IsPPTOn
       (encPair encSchnorrForkPassInput (encPair (encPair encBool encBits) encSchnorrForkState))
       (encPair encBits encSchnorrForkState)
-      (fun (caller, request, state) => pure (schnorrForkStep caller.banks request state)) := by
-    have hprep : ComputableInPolyTime
+      (fun (caller, request, state) => pure (schnorrForkStep caller.banks request state)) :=
+    (computableInPolyTime_schnorrForkStep.comp
+      (show ComputableInPolyTime
         (fun x : SchnorrForkPassInput × (Bool × List Bool) × SchnorrForkState =>
-          (x.1.banks, x.2.1, x.2.2))
-        (encPair encSchnorrForkPassInput (encPair (encPair encBool encBits) encSchnorrForkState))
-        (encPair encSchnorrForkBanks (encPair (encPair encBool encBits) encSchnorrForkState)) := by
-      fun_prop
-    exact (hstep.comp hprep).isPPTOn
-  have hprepare : ComputableInPolyTime
-      (fun caller : SchnorrForkPassInput => (caller.secParam, caller.publicKey, caller.tape))
-      encSchnorrForkPassInput encReplayInput := by
-    fun_prop
-  have hrun := (isOraclePPTOn_savedWordReplay machine c e keyC keyD).run_interpret_preprocess
+          (x.1.banks, x.2.1, x.2.2)) _ _ by fun_prop)).isPPTOn
+  refine (isOraclePPTOn_savedWordReplay machine c e keyC keyD).run_interpret_preprocess
     (input := encSchnorrForkPassInput) (operationEncoding := encBool)
     (stateEncoding := encSchnorrForkState)
     (handler := fun caller request state => pure (schnorrForkStep caller.banks request state))
@@ -389,23 +371,18 @@ theorem isPPTOn_schnorrForkRun {k : ℕ} {Control : Type} [Finite Control]
     (initial := fun _ => (⟨[], [], 0, 0⟩ : SchnorrForkState))
     (resources := fun caller word =>
       40 * ((encSchnorrForkPassInput caller).length + word.length + 1))
-    hprepare hhandler (ComputableInPolyTime.const _)
+    (by fun_prop) hhandler (ComputableInPolyTime.const _)
     (fun caller state => ForkInvariant caller.banks state) (fun _ _ => by simp)
     (by fun_prop) ?_
-  · exact hrun
-  · intro caller request state hstate result hresult
-    simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
-    subst hresult
-    obtain ⟨hinv, hreply, hgrowth⟩ :=
-      forkInvariant_schnorrForkStep caller.banks request state hstate
-    have hbanks : (encSchnorrForkBanks caller.banks).length ≤
-        (encSchnorrForkPassInput caller).length := by
-      enc_len [encSchnorrForkPassInput_apply]
-    refine ⟨hinv, ?_, ?_⟩
-    · omega
-    · have : 40 * ((encSchnorrForkBanks caller.banks).length + request.2.length + 1) ≤
-          40 * ((encSchnorrForkPassInput caller).length + request.2.length + 1) := by omega
-      omega
+  intro caller request state hstate result hresult
+  simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
+  subst hresult
+  obtain ⟨hinv, hreply, hgrowth⟩ :=
+    forkInvariant_schnorrForkStep caller.banks request state hstate
+  have hbanks : (encSchnorrForkBanks caller.banks).length ≤
+      (encSchnorrForkPassInput caller).length := by
+    enc_len [encSchnorrForkPassInput_apply]
+  exact ⟨hinv, by omega, by omega⟩
 
 /-! ### The final check -/
 
@@ -515,21 +492,11 @@ private theorem computableInPolyTime_schnorrForkFinish_proj :
     unfold forkFinishLookup
     exact ComputableInPolyTime.optionElimWithInput hfind hmiss
       (body := fun x entry => (entry.challenge, entry.tag, x.2.2.count)) hhit
-  have hverify := F.computableInPolyTime_schnorrSigVerifyBits
   let encP := encPair (encFinishInput F) (encPair encBits (encPair encUnary encUnary))
   have htzP : ComputableInPolyTime
       (fun p : FinishInput F × (List Bool × ℕ × ℕ) =>
         (Decoder.bits.pair Decoder.bits).decode p.1.2.1.2) encP (encPair encBits encBits) :=
     hdecode.comp (by fun_prop)
-  have hverifyP : ComputableInPolyTime
-      (fun p : FinishInput F × (List Bool × ℕ × ℕ) =>
-        F.schnorrSigVerifyBits (p.1.1.1, p.1.1.2.1, [],
-          (Decoder.bits.pair Decoder.bits).decode p.1.2.1.2, p.2.1)) encP encBool :=
-    hverify.comp ((show ComputableInPolyTime (fun p : FinishInput F × (List Bool × ℕ × ℕ) =>
-      p.1.1.1) encP F.encDesc by fun_prop).prod
-      ((show ComputableInPolyTime (fun p : FinishInput F × (List Bool × ℕ × ℕ) =>
-        p.1.1.2.1) encP encBits by fun_prop).prod
-        ((ComputableInPolyTime.const ([] : List Bool)).prod (htzP.prod (by fun_prop)))))
   have hfrom : ComputableInPolyTime (forkFinishFrom F) encP
       (encPair encUnary (encPair encBits encBits)) := by
     unfold forkFinishFrom
@@ -543,15 +510,8 @@ theorem computableInPolyTime_schnorrForkFinish :
     ComputableInPolyTime (fun ((d, pk, answers), out) => F.schnorrForkFinish d pk answers out)
       (encPair (encPair F.encDesc (encPair encBits (encList encBits)))
         (encPair (encPair encBits encBits) encSchnorrForkState))
-      (encPair encUnary (encPair encBits encBits)) := by
-  have h : (fun x : FinishInput F =>
-      match x with | ((d, pk, answers), out) => F.schnorrForkFinish d pk answers out) =
-      fun x => F.schnorrForkFinish x.1.1 x.1.2.1 x.1.2.2 x.2 := funext fun _ => rfl
-  change ComputableInPolyTime (fun x : FinishInput F =>
-      match x with | ((d, pk, answers), out) => F.schnorrForkFinish d pk answers out)
-    (encFinishInput F) (encPair encUnary (encPair encBits encBits))
-  rw [h]
-  exact computableInPolyTime_schnorrForkFinish_proj F
+      (encPair encUnary (encPair encBits encBits)) :=
+  computableInPolyTime_schnorrForkFinish_proj F
 
 /-- **One native pass of the Schnorr forking reduction**: run the forger's guarded saved-coin
 replay against `schnorrForkStep`, then make the final check `schnorrForkFinish`. -/
@@ -570,20 +530,14 @@ theorem isPPTOn_schnorrForkPass {k : ℕ} {Control : Type} [Finite Control]
   have hrun := (isPPTOn_schnorrForkRun machine c e keyC keyD).preprocess
     (input := encPair F.encDesc encSchnorrForkPassInput)
     (prepare := fun x : F.Desc × SchnorrForkPassInput => x.2) (by fun_prop)
-  have hfinish := computableInPolyTime_schnorrForkFinish_proj F
   have hprep : ComputableInPolyTime
       (fun p : (F.Desc × SchnorrForkPassInput) × ((List Bool × List Bool) × SchnorrForkState) =>
         ((p.1.1, p.1.2.publicKey, p.1.2.banks.answers), p.2))
       (encPair (encPair F.encDesc encSchnorrForkPassInput)
         (encPair (encPair encBits encBits) encSchnorrForkState))
       (encFinishInput F) := by fun_prop
-  have hf := hfinish.comp hprep
-  simp only [Function.comp_def] at hf
-  have h := hrun.map_with
-    (f := fun (x : F.Desc × SchnorrForkPassInput) out =>
-      F.schnorrForkFinish x.1 x.2.publicKey x.2.banks.answers out)
-    hf
-  exact h.congr fun _ => rfl
+  exact (hrun.map_with ((computableInPolyTime_schnorrForkFinish_proj F).comp hprep)).congr
+    fun _ => rfl
 
 /-! ### Agreement with the typed forking program -/
 
@@ -826,14 +780,8 @@ private theorem forkIndexCode_validIndex (q count j : ℕ) (won : Bool) :
       then j + 1 else 0 := by
   cases won
   · simp [OracleComp.validIndex, forkIndexCode]
-  · simp only [OracleComp.validIndex, ite_true, Option.bind_some, Bool.true_and]
-    by_cases h : j < q ∧ j < count
-    · rw [dite_eq_left_of_eq_true (eq_true h)]
-      simp only [forkIndexCode]
-      rw [ite_eq_left_of_eq_true _ _ (eq_true (by simp; omega))]
-    · rw [dite_eq_right_of_eq_false (eq_false h)]
-      simp only [forkIndexCode]
-      rw [ite_eq_right_of_eq_false _ _ (eq_false (by simp; omega))]
+  · by_cases h : j < q ∧ j < count <;>
+      simp [OracleComp.validIndex, forkIndexCode, h]
 
 section Agreement
 

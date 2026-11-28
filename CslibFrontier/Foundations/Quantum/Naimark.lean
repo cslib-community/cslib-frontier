@@ -8,9 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.Algebra.Measurement
+public import CslibFrontier.Foundations.Quantum.POVM.Restriction
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Polar
 public import Mathlib.Analysis.InnerProductSpace.PiL2
-public import Mathlib.Analysis.SpecialFunctions.ContinuousFunctionalCalculus.Rpow.Basic
+public import CslibFrontier.Foundations.Quantum.POVM.OutcomeVector
 public import Mathlib.LinearAlgebra.UnitaryGroup
 import CslibFrontier.Foundations.Analysis.InnerProductSpace.PiL2
 
@@ -36,6 +37,7 @@ basis (`Matrix.exists_unitary_extension`); and `P_a = Uᴴ (1 ⊗ |a⟩⟨a|) U`
 
 * `Cslib.Quantum.POVM.isProjective_dilate`: the dilation is projective.
 * `Cslib.Quantum.POVM.compress_dilate`: the dilation compresses to the POVM.
+* `Cslib.Quantum.POVM.restrictBasis_dilate`: restriction to the prepared ancilla recovers the POVM.
 
 ## References
 
@@ -64,6 +66,20 @@ theorem conjTranspose_ancillaEmbed_mul (a₀ : A) :
     simp [ancillaEmbed, ite_and]
   · simp [ancillaEmbed, ite_and, h, Ne.symm h]
 
+omit [Fintype ι] [DecidableEq ι] [Fintype A] [DecidableEq A] in
+/-- The basis coordinates with the ancilla fixed to `a₀`. -/
+def ancillaBasis (a₀ : A) : ι ↪ ι × A :=
+  ⟨fun i => (i, a₀), fun _ _ h => congrArg Prod.fst h⟩
+
+/-- Compression to the prepared ancilla selects a principal submatrix. -/
+theorem compress_ancillaEmbed (a₀ : A) (M : Matrix (ι × A) (ι × A) ℂ) :
+    (ancillaEmbed a₀)ᴴ * M * ancillaEmbed a₀ =
+      M.submatrix (ancillaBasis a₀) (ancillaBasis a₀) := by
+  rw [Matrix.mul_assoc]
+  ext i j
+  change ((ancillaEmbed (ι := ι) a₀)ᴴ * (M * ancillaEmbed (ι := ι) a₀)) i j = M (i, a₀) (j, a₀)
+  simp [Matrix.mul_apply, ancillaEmbed, ite_mul, mul_ite]
+
 /-- The projection `1 ⊗ |a⟩⟨a|` onto the ancilla value `a`. -/
 def ancillaProj (a : A) : Matrix (ι × A) (ι × A) ℂ :=
   1 ⊗ₖ Matrix.single a a 1
@@ -86,11 +102,9 @@ theorem sum_ancillaProj : ∑ a, ancillaProj (ι := ι) (A := A) a = 1 := by
   by_cases h : c = c'
   · subst h
     simp [Matrix.one_apply]
-  · have hne : ((i, c) : ι × A) ≠ (i', c') := fun hp => h (Prod.mk.inj hp).2
-    rw [Matrix.one_apply_ne hne]
+  · rw [Matrix.one_apply_ne fun hp => h (Prod.mk.inj hp).2]
     refine Finset.sum_eq_zero fun x _ => ?_
-    have hx : ¬ (x = c ∧ x = c') := fun ⟨h₁, h₂⟩ => h (h₁.symm.trans h₂)
-    simp [hx]
+    by_cases hx : x = c <;> simp [hx, h]
 
 private theorem ancillaProj_conjTranspose_mul_self (a : A) :
     (ancillaProj (ι := ι) a)ᴴ * ancillaProj a = ancillaProj a := by
@@ -102,18 +116,6 @@ open scoped MatrixOrder ComplexOrder
 
 variable (M : POVM A ι)
 
-/-- The square root `√E_a` of an effect. -/
-noncomputable def sqrtEffect (a : A) : Matrix ι ι ℂ :=
-  CFC.sqrt (M.effect a)
-
-omit [DecidableEq A] in
-theorem sqrtEffect_mul_self (a : A) : M.sqrtEffect a * M.sqrtEffect a = M.effect a :=
-  CFC.sqrt_mul_sqrt_self _ (Matrix.nonneg_iff_posSemidef.mpr (M.posSemidef a))
-
-omit [DecidableEq A] in
-theorem conjTranspose_sqrtEffect (a : A) : (M.sqrtEffect a)ᴴ = M.sqrtEffect a :=
-  (CFC.sqrt_nonneg (M.effect a)).isSelfAdjoint.star_eq
-
 /-- The **Naimark isometry** `V ψ = ∑_a √E_a ψ ⊗ |a⟩`. -/
 noncomputable def naimarkIsometry : Matrix (ι × A) ι ℂ :=
   fun p j => M.sqrtEffect p.2 p.1 j
@@ -123,9 +125,7 @@ private theorem sum_conj_sqrtEffect (a : A) (j j' : ι) :
     ∑ i, star (M.sqrtEffect a i j) * M.sqrtEffect a i j' = M.effect a j j' := by
   rw [← M.sqrtEffect_mul_self a, Matrix.mul_apply]
   refine Finset.sum_congr rfl fun i _ => ?_
-  have h := congrFun (congrFun (M.conjTranspose_sqrtEffect a) j) i
-  rw [conjTranspose_apply] at h
-  rw [h]
+  rw [← conjTranspose_apply, M.conjTranspose_sqrtEffect]
 
 omit [DecidableEq A] in
 theorem conjTranspose_naimarkIsometry_mul : (M.naimarkIsometry)ᴴ * M.naimarkIsometry = 1 := by
@@ -146,8 +146,7 @@ theorem naimarkIsometry_compress (a : A) :
     · subst hc
       simp [ancillaProj, kroneckerMap_apply, Matrix.single_apply, Matrix.one_apply,
         naimarkIsometry]
-    · have hc' : ¬ a = c := Ne.symm hc
-      simp [ancillaProj, kroneckerMap_apply, hc, hc']
+    · simp [ancillaProj, kroneckerMap_apply, hc, Ne.symm hc]
   rw [Matrix.mul_assoc, hW]
   ext j j'
   rw [Matrix.mul_apply, Fintype.sum_prod_type, ← M.sum_conj_sqrtEffect a]
@@ -222,6 +221,18 @@ theorem compress_dilate (a : A) :
   rw [dilate_effect, ← M.naimarkIsometry_compress a, ← M.naimarkUnitary_mul_ancillaEmbed a₀,
     conjTranspose_mul]
   simp only [Matrix.mul_assoc]
+
+/-- Restricting the dilation of a POVM recovers the original POVM. -/
+@[simp] theorem restrictBasis_dilate :
+    (M.dilate a₀).restrictBasis (ancillaBasis a₀) = M := by
+  have h : ((M.dilate a₀).restrictBasis (ancillaBasis a₀)).effect = M.effect := by
+    funext a
+    rw [restrictBasis_effect, ← compress_ancillaEmbed, compress_dilate]
+  generalize (M.dilate a₀).restrictBasis (ancillaBasis a₀) = N at h ⊢
+  cases N
+  cases M
+  cases h
+  rfl
 
 end POVM
 

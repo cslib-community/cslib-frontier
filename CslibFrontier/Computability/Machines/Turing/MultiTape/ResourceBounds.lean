@@ -49,12 +49,10 @@ The space-charge condition accounts for values kept on work tapes by the machine
 It costs nothing for decision problems, whose values are single bits. For polynomial space it is
 the usual requirement that the value have polynomial length.
 
-`Turing.MultiTapeTM.ComputableTidilyInO` and `Turing.MultiTapeTM.ComputableTidilyInSpace`
-ask for a machine that also clears its work tapes and rewinds its heads before halting.
-Their plain counterparts agree with them with the same bounds
-(`Turing.MultiTapeTM.computableInO_iff_computableTidilyInO`,
-`Turing.MultiTapeTM.ComputableInSpace.tidy` and `Turing.MultiTapeTM.ComputableInSpace.of_tidy`).
-Polynomial space uses only the plain predicate `Turing.MultiTapeTM.ComputableInPolySpace`.
+The public resource calculus uses plain machine certificates. Internal construction proofs can
+normalize a realizing machine to clear its work tapes and rewind its heads, preserving independent
+asymptotic time and workspace bounds. Polynomial space uses the plain predicate
+`Turing.MultiTapeTM.ComputableInPolySpace`.
 
 ## Main definitions
 
@@ -83,7 +81,7 @@ value has length `O(S a)`: for a constant `c`, some machine computes `f` within 
 and space `c (S a + 1)`, and `encOut (f a)` has length at most `c (S a + 1)`.
 
 Unlike the textbook convention and `Turing.MultiTapeTM.ComputableInLogSpace`, the value is charged
-to the space bound, as in `Turing.MultiTapeTM.ComputableTidilyInO`; see the module documentation.
+to the space bound; see the module documentation.
 -/
 def ComputableInO (f : α → β) (encIn : α ↪ List Bool) (encOut : β ↪ List Bool) (T S : α → ℕ) :
     Prop :=
@@ -95,7 +93,7 @@ has length `O(S a)`: for a constant `c`, some machine computes `f` within some t
 `c (S a + 1)`, and `encOut (f a)` has length at most `c (S a + 1)`.
 
 Unlike the textbook convention and `Turing.MultiTapeTM.ComputableInLogSpace`, the value is charged
-to the space bound, as in `Turing.MultiTapeTM.ComputableTidilyInSpace`. At sublinear bounds this
+to the space bound. At sublinear bounds this
 notion is strictly stronger than transducer space: with the bound
 `fun a => Nat.log2 (encIn a).length` it implies `Turing.MultiTapeTM.ComputableInLogSpace`, but
 not conversely. See the module documentation.

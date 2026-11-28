@@ -121,12 +121,8 @@ private def groundCoordEquiv : (t : Φ.GroundTag) → t.Coord ≃ Fin (Φ.ground
 noncomputable def groundPayloadDim : ℕ :=
   ((allGroundTags Φ).map Φ.groundCoordArity).foldr max 0
 
-private theorem le_foldr_max_of_mem : ∀ {l : List ℕ} {a : ℕ}, a ∈ l → a ≤ l.foldr max 0
-  | _, _, .head _ => Nat.le_max_left _ _
-  | _ :: _, _, .tail _ h => Nat.le_trans (le_foldr_max_of_mem h) (Nat.le_max_right _ _)
-
 theorem groundCoordArity_le (t : Φ.GroundTag) : Φ.groundCoordArity t ≤ Φ.groundPayloadDim :=
-  le_foldr_max_of_mem (List.mem_map_of_mem (mem_allGroundTags Φ t))
+  List.le_max_of_le' 0 (List.mem_map_of_mem (mem_allGroundTags Φ t)) le_rfl
 
 /-- Full-tuple dimension `groundTagCard Φ + groundPayloadDim Φ` of `Φ.groundQFInterpretation`. -/
 noncomputable abbrev groundDim : ℕ :=
@@ -341,9 +337,7 @@ private theorem isQF_clauseZeroFormula (s : Φ.Subformula) (b : Bool) :
       · exact (QFNumeric.isAtomic_le _ _).isQF
       · exact (QFNumeric.isAtomic_le _ _).isQF.not
     · exact isQF_uncondTemplatesFormula Φ _ b
-  | falsum => exact isQF_uncondTemplatesFormula Φ _ b
-  | imp _ _ => exact isQF_uncondTemplatesFormula Φ _ b
-  | all _ => exact isQF_uncondTemplatesFormula Φ _ b
+  | falsum | imp _ _ | all _ => exact isQF_uncondTemplatesFormula Φ _ b
 
 private noncomputable def activeTagFormula (t : Φ.GroundTag) (b : Bool) :
     ProjectionFormula qfNumericLanguage L (Fin 2 × Fin Φ.groundDim) :=
@@ -401,13 +395,8 @@ noncomputable def groundQFInterpretation :
 theorem isQFProjection_groundQFInterpretation :
     Φ.groundQFInterpretation.IsQFProjection := by
   refine FullTupleInterpretation.isQFProjection_ofQFProjection _ fun R => ?_
-  cases R with
-  | pos =>
-    exact isQF_dispatchBinaryTag 0 (groundTagCode Φ) (allGroundTags Φ)
-      (fun t _ => isQF_tagBranch Φ t true) (isQF_selfTautology Φ)
-  | neg =>
-    exact isQF_dispatchBinaryTag 0 (groundTagCode Φ) (allGroundTags Φ)
-      (fun t _ => isQF_tagBranch Φ t false) (isQF_selfTautology Φ)
+  cases R <;> exact isQF_dispatchBinaryTag 0 (groundTagCode Φ) (allGroundTags Φ)
+    (fun t _ => isQF_tagBranch Φ t _) (isQF_selfTautology Φ)
 
 /-! ### Active-tuple embedding and clause semantics -/
 
@@ -543,31 +532,17 @@ private theorem guard_eq_top_of_mem_clauseTemplates_succ (s : Φ.Subformula) (i 
   | 0 => exact absurd rfl hi
   | 1 =>
     intro τ hτ
-    cases ψ with
-    | falsum | equal _ _ =>
-      cases b <;> exact False.elim (List.not_mem_nil hτ)
-    | rel R ts =>
-      rcases R with R_in | r_var
-      · cases b <;> exact False.elim (List.not_mem_nil hτ)
-      · cases b <;> obtain rfl := List.mem_singleton.mp hτ <;> rfl
-    | imp _ _ =>
-      cases b
-      · exact False.elim (List.not_mem_nil hτ)
-      · rcases List.mem_cons.mp hτ with rfl | hτ'
-        · rfl
-        · obtain rfl := List.mem_singleton.mp hτ'
-          rfl
-    | all _ =>
-      cases b <;> obtain rfl := List.mem_singleton.mp hτ <;> rfl
+    rcases ψ with _ | ⟨_, _⟩ | ⟨_ | _, _⟩ | ⟨_, _⟩ | ⟨_⟩ <;> cases b <;>
+      first
+      | exact (List.not_mem_nil hτ).elim
+      | exact List.mem_singleton.mp hτ ▸ rfl
+      | exact (List.mem_cons.mp hτ).elim (· ▸ rfl) (List.mem_singleton.mp · ▸ rfl)
   | 2 =>
     intro τ hτ
-    cases ψ with
-    | falsum | equal _ _ | all _ =>
-      cases b <;> exact False.elim (List.not_mem_nil hτ)
-    | rel R _ =>
-      rcases R with _ | _ <;> cases b <;> exact False.elim (List.not_mem_nil hτ)
-    | imp _ _ =>
-      cases b <;> obtain rfl := List.mem_singleton.mp hτ <;> rfl
+    rcases ψ with _ | ⟨_, _⟩ | ⟨_ | _, _⟩ | ⟨_, _⟩ | ⟨_⟩ <;> cases b <;>
+      first
+      | exact (List.not_mem_nil hτ).elim
+      | exact List.mem_singleton.mp hτ ▸ rfl
 
 private theorem guard_eq_top_of_mem_clauseTemplates_zero (s : Φ.Subformula) (b : Bool)
     (hψ : match s with
@@ -577,27 +552,14 @@ private theorem guard_eq_top_of_mem_clauseTemplates_zero (s : Φ.Subformula) (b 
     ∀ τ ∈ clauseTemplates s 0 b, τ.guard = ⊤ := by
   rcases s with ⟨⟨k, ψ⟩, hs⟩
   intro τ hτ
-  cases ψ with
-  | equal _ _ => exact hψ.elim
-  | rel R ts =>
-    rcases R with R_in | r_var
-    · exact hψ.elim
-    · cases b <;> obtain rfl := List.mem_singleton.mp hτ <;> rfl
-  | falsum =>
-    cases b
-    · obtain rfl := List.mem_singleton.mp hτ
-      rfl
-    · exact False.elim (List.not_mem_nil hτ)
-  | imp _ _ =>
-    cases b
-    · rcases List.mem_cons.mp hτ with rfl | hτ'
-      · rfl
-      · obtain rfl := List.mem_singleton.mp hτ'
-        rfl
-    · obtain rfl := List.mem_singleton.mp hτ
-      rfl
-  | all _ =>
-    cases b <;> obtain rfl := List.mem_singleton.mp hτ <;> rfl
+  rcases ψ with _ | ⟨_, _⟩ | ⟨_ | _, _⟩ | ⟨_, _⟩ | ⟨_⟩ <;>
+    first
+    | exact hψ.elim
+    | (cases b <;>
+        first
+        | exact (List.not_mem_nil hτ).elim
+        | exact List.mem_singleton.mp hτ ▸ rfl
+        | exact (List.mem_cons.mp hτ).elim (· ▸ rfl) (List.mem_singleton.mp · ▸ rfl))
 
 private theorem realize_uncondTemplatesFormula_of_guard_top (t : Φ.GroundTag) (b : Bool)
     (htop : ∀ τ ∈ Φ.groundTemplates t b, τ.guard = ⊤)
@@ -636,19 +598,14 @@ private theorem realize_activeTagFormula (t : Φ.GroundTag) (b : Bool)
           (_ : (Φ.groundInterpretation.domain τ.target).Realize y),
           v = embedGroundSigma M τ.target y ∧ τ.Compat (extractCoords M t u) y := by
   cases t with
-  | var s =>
-    exact realize_uncondTemplatesFormula_of_guard_top M (.var s) b
-      (fun τ hτ => by obtain rfl := List.mem_singleton.mp hτ; rfl) u v
-  | relVar r =>
-    exact realize_uncondTemplatesFormula_of_guard_top M (.relVar r) b
-      (fun τ hτ => by obtain rfl := List.mem_singleton.mp hτ; rfl) u v
+  | var s | relVar s =>
+    exact realize_uncondTemplatesFormula_of_guard_top M _ b
+      (fun _ hτ => List.mem_singleton.mp hτ ▸ rfl) u v
   | top =>
-    exact realize_uncondTemplatesFormula_of_guard_top M .top b
-      (fun τ hτ => by
-        cases b
-        · exact False.elim (List.not_mem_nil hτ)
-        · obtain rfl := List.mem_singleton.mp hτ
-          rfl) u v
+    refine realize_uncondTemplatesFormula_of_guard_top M .top b (fun _ hτ => ?_) u v
+    cases b
+    · exact (List.not_mem_nil hτ).elim
+    · exact List.mem_singleton.mp hτ ▸ rfl
   | clause s i =>
     by_cases hi : i = 0
     · subst hi
@@ -661,24 +618,16 @@ private theorem realize_activeTagFormula (t : Φ.GroundTag) (b : Bool)
         simp only [clauseZeroFormula, ProjectionFormula.realize_guardAnd,
           ProjectionFormula.realize_const_true, and_true, Formula.realize_inf]
         refine realize_singletonTemplate_iff (t := tEq) (b := b) M rfl ?_
-        cases b
-        · simp only [Bool.false_eq_true, ↓reduceIte, Formula.realize_not,
-            QFNumeric.realize_varEq, Matrix.cons_val_zero]
-          rfl
-        · simp only [↓reduceIte, QFNumeric.realize_varEq, Matrix.cons_val_zero]
-          rfl
+        cases b <;> simp only [Bool.false_eq_true, ↓reduceIte, Formula.realize_not,
+          QFNumeric.realize_varEq, Matrix.cons_val_zero] <;> rfl
       | rel R ts =>
         rcases R with (R_in | ⟨⟨⟩, hr⟩) | r_var
         · let sRel : Φ.Subformula := ⟨⟨k, .rel (.inl (.inl R_in)) ts⟩, hs⟩
           let tRel : Φ.GroundTag := .clause sRel 0
           simp only [clauseZeroFormula, ProjectionFormula.realize_guardAnd]
           refine realize_singletonTemplate_iff (t := tRel) (b := b) M rfl ?_
-          cases b
-          · simp only [Bool.false_eq_true, ↓reduceIte, ProjectionFormula.realize_negLit,
-              Matrix.cons_val_zero]
-            rfl
-          · simp only [↓reduceIte, ProjectionFormula.realize_posLit, Matrix.cons_val_zero]
-            rfl
+          cases b <;> simp only [Bool.false_eq_true, ↓reduceIte, ProjectionFormula.realize_negLit,
+            ProjectionFormula.realize_posLit, Matrix.cons_val_zero] <;> rfl
         · subst hr
           let sOrd : Φ.Subformula := ⟨⟨k, .rel (.inl (.inr ⟨(), rfl⟩)) ts⟩, hs⟩
           let tOrd : Φ.GroundTag := .clause sOrd 0
@@ -700,13 +649,7 @@ private theorem realize_activeTagFormula (t : Φ.GroundTag) (b : Bool)
               (not_le.trans hlt_realize.symm))
         · exact realize_uncondTemplatesFormula_of_guard_top M _ b
             (guard_eq_top_of_mem_clauseTemplates_zero _ b trivial) u v
-      | falsum =>
-        exact realize_uncondTemplatesFormula_of_guard_top M _ b
-          (guard_eq_top_of_mem_clauseTemplates_zero _ b trivial) u v
-      | imp _ _ =>
-        exact realize_uncondTemplatesFormula_of_guard_top M _ b
-          (guard_eq_top_of_mem_clauseTemplates_zero _ b trivial) u v
-      | all _ =>
+      | falsum | imp _ _ | all _ =>
         exact realize_uncondTemplatesFormula_of_guard_top M _ b
           (guard_eq_top_of_mem_clauseTemplates_zero _ b trivial) u v
     · simp only [activeTagFormula, hi, ↓reduceIte]
@@ -777,9 +720,7 @@ private theorem relMap_lit_embedGroundModel (b : Bool)
           groundTagCode_injective Φ (matchBinaryTag_unique htag' htag)
         subst htt'
         simp only [tagBranch, hdom, ↓reduceIte, ProjectionFormula.realize_toFormula_branch] at hbr
-        rcases hbr with ⟨-, hact⟩ | ⟨hnpad, -⟩
-        · exact hact
-        · exact absurd hpad hnpad
+        grind
       · exact absurd htag (hall t (mem_allGroundTags Φ t))
     · intro hact
       refine Or.inl ⟨t, mem_allGroundTags Φ t, htag, ?_⟩

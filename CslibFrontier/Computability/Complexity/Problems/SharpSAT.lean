@@ -99,8 +99,7 @@ def verifier (x : CNF ℕ × List Bool) : Bool := SAT.verifier x && canonical x.
 /-- The first occurrence of an occurring variable in `φ.vars` is a first-occurrence position. -/
 theorem isFirst_idxOf {φ : CNF ℕ} {v : ℕ} (hv : v ∈ φ.vars) :
     isFirst φ (φ.vars.idxOf v) = true := by
-  have hlt := List.idxOf_lt_length_iff.2 hv
-  simp [isFirst, hlt]
+  simp [isFirst, List.idxOf_lt_length_iff.2 hv]
 
 private theorem getD_mem_of_isFirst {φ : CNF ℕ} {i : ℕ} (h : isFirst φ i = true) :
     φ.vars.getD i 0 ∈ φ.vars ∧ φ.vars.idxOf (φ.vars.getD i 0) = i := by
@@ -111,8 +110,7 @@ theorem canonical_eq_true_iff {φ : CNF ℕ} {w : List Bool} :
     canonical φ w = true ↔ ∀ i < w.length, w.getD i false = true → isFirst φ i = true := by
   simp only [canonical, List.all_eq_true, List.mem_range, Bool.or_eq_true, Bool.not_eq_eq_eq_not,
     Bool.not_true]
-  refine forall₂_congr fun i _ => ?_
-  cases w.getD i false <;> simp
+  exact forall₂_congr fun i _ => by cases w.getD i false <;> simp
 
 /-- **The counting verifier accepts one certificate for each satisfying assignment**: the
 certificates of length `|encCNF φ|` it accepts are as many as the satisfying assignments of `φ`. -/
@@ -125,32 +123,26 @@ theorem acceptCount_verifier (φ : CNF ℕ) :
     (fun σ (i : Fin (encCNF φ).length) => isFirst φ i && σ (φ.vars.getD i 0))
     (fun w => verifier (φ, List.ofFn w) = true) (fun σ τ _ _ => ⟨fun h v hv => ?_,
       fun h => funext fun i => ?_⟩) fun w => ⟨fun hw => ?_, ?_⟩
-  · have := congrFun h ⟨_, hlt hv⟩
-    simp only [isFirst_idxOf hv, List.getD_idxOf hv 0, Bool.true_and] at this
-    exact this
+  · simpa only [isFirst_idxOf hv, List.getD_idxOf hv 0, Bool.true_and] using
+      congrFun h ⟨_, hlt hv⟩
   · cases hi : isFirst φ i
     · rfl
     · simp only [Bool.true_and]
       exact h _ (getD_mem_of_isFirst hi).1
   · simp only [verifier, Bool.and_eq_true] at hw
-    obtain ⟨hsat, hcan⟩ := hw
-    refine ⟨SAT.assignment φ (List.ofFn w), hsat, funext fun i => ?_⟩
+    refine ⟨SAT.assignment φ (List.ofFn w), hw.1, funext fun i => ?_⟩
     cases hi : isFirst φ i
     · rw [Bool.false_and]
       cases hwi : w i
       · rfl
-      · have := canonical_eq_true_iff.1 hcan i (by simp) (by rw [List.getD_ofFn, hwi])
-        rw [hi] at this
-        exact absurd this Bool.false_ne_true
+      · exact absurd (hi ▸ canonical_eq_true_iff.1 hw.2 i (by simp)
+          (by rw [List.getD_ofFn, hwi])) Bool.false_ne_true
     · rw [Bool.true_and, SAT.assignment, (getD_mem_of_isFirst hi).2, List.getD_ofFn]
   · rintro ⟨σ, hσ, rfl⟩
     simp only [verifier, Bool.and_eq_true]
-    refine ⟨?_, canonical_eq_true_iff.2 fun i hi h => ?_⟩
-    · change φ.eval (SAT.assignment φ _) = true
-      refine (CNF.eval_congr fun v hv => ?_).trans hσ
-      rw [SAT.assignment, List.getD_ofFn_of_lt _ (hlt hv) false]
-      dsimp only
-      rw [isFirst_idxOf hv, List.getD_idxOf hv 0, Bool.true_and]
+    refine ⟨(CNF.eval_congr fun v hv => ?_).trans hσ, canonical_eq_true_iff.2 fun i hi h => ?_⟩
+    · rw [SAT.assignment, List.getD_ofFn_of_lt _ (hlt hv) false]
+      simp only [isFirst_idxOf hv, List.getD_idxOf hv 0, Bool.true_and]
     · rw [List.length_ofFn] at hi
       rw [List.getD_ofFn_of_lt _ hi false, Bool.and_eq_true] at h
       exact h.1
@@ -174,7 +166,16 @@ theorem computableInPolyTime_card_vars :
 @[fun_prop]
 theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier (encPair encCNF encBits) encBool := by
-  fun_prop [verifier, canonical]
+  refine ComputableInPolyTime.bool_and' SAT.computableInPolyTime_verifier ?_
+  unfold canonical
+  refine ComputableInPolyTime.allWithInput (encA := encUnary) (by fun_prop) ?_
+  exact ComputableInPolyTime.bool_or.comp
+    ((ComputableInPolyTime.bool_not.comp (ComputableInPolyTime.bitsGetDWithInput
+        (ComputableInPolyTime.fst (encPair encCNF encBits) encUnary).snd'
+        (ComputableInPolyTime.snd (encPair encCNF encBits) encUnary) false)).prod
+      (computableInPolyTime_isFirst.comp
+        ((ComputableInPolyTime.fst (encPair encCNF encBits) encUnary).fst'.prod
+          (ComputableInPolyTime.snd (encPair encCNF encBits) encUnary))))
 
 /-- **`#SAT` belongs to `#P`**, with certificates as long as the encoded formula. -/
 theorem mem_SharpP : SharpSAT ∈ SharpP encCNF :=

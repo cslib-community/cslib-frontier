@@ -327,12 +327,10 @@ private theorem liuPassCore_plant {t : ℕ → ℕ} (ht : ∀ n, n + 1 ≤ t n) 
   have hdec : decodeLen y.length (plant t ht y.length y) = i := by
     rw [decodeLen, hplant_eq, List.take_left' hbw_len, BitString.boundedBinaryValue_eq,
       BitString.binaryValue_binaryWord, Nat.min_eq_right hi_le]
-  have hprog : decodeProg y.length (plant t ht y.length y) = prog := by
-    rw [decodeProg, hdec, hplant_eq, List.drop_left' hbw_len, List.take_left' hprog_spec.2]
   refine ⟨hdec, ?_⟩
-  rw [hprog]
-  have hmem := hprog_spec.1
-  rwa [DescriptionMethod.universalTM_runFor, Option.mem_def] at hmem
+  rw [decodeProg, hdec, hplant_eq, List.drop_left' hbw_len, List.take_left' hprog_spec.2,
+    ← Option.mem_def, ← DescriptionMethod.universalTM_runFor]
+  exact hprog_spec.1
 
 /-- Every $n$-bit string $y$ has a canonical `inputSchedule n`-bit preimage under `liuPassCore t n`
 for the framed output `targetImage (timeBoundedNat t y) y` whenever $t(n) \ge n + 1$. -/
@@ -386,28 +384,17 @@ private theorem heuristicCand_eq_of_tryComplexity {t : ℕ → ℕ}
   set k₀ := maxComplexity n - timeBoundedNat t y
   have hk₀_le : k₀ ≤ maxComplexity n := Nat.sub_le _ _
   have hsub_k₀ : maxComplexity n - k₀ = timeBoundedNat t y := Nat.sub_sub_self hi_le
-  have hk₀_try : tryComplexity t evalA n y coins (maxComplexity n - k₀) = true := by
-    simpa [hsub_k₀] using htry
-  have hk₀_best : k₀ ≤ bestSlack t evalA n y coins :=
-    Nat.le_findGreatest hk₀_le hk₀_try
-  have hbest_le : bestSlack t evalA n y coins ≤ k₀ := by
-    have hprop :
-        tryComplexity t evalA n y coins
-          (maxComplexity n - bestSlack t evalA n y coins) = true :=
-      Nat.findGreatest_spec
-        (P := fun k => tryComplexity t evalA n y coins (maxComplexity n - k) = true)
-        hk₀_le hk₀_try
-    have heq :
-        liuPassCore t n
-          ((evalA (n, targetImage (maxComplexity n - bestSlack t evalA n y coins) y) coins).take
-            (inputSchedule n)) =
-          targetImage (maxComplexity n - bestSlack t evalA n y coins) y :=
-      beq_iff_eq.mp hprop
-    have hle := timeBoundedNat_le_of_liuPassCore_eq_targetImage hy ht heq
-    have hbest_max : bestSlack t evalA n y coins ≤ maxComplexity n :=
-      Nat.findGreatest_le (maxComplexity n)
-    omega
-  have hbest_eq : bestSlack t evalA n y coins = k₀ := le_antisymm hbest_le hk₀_best
+  have hk₀_try : tryComplexity t evalA n y coins (maxComplexity n - k₀) = true :=
+    hsub_k₀.symm ▸ htry
+  have hprop : tryComplexity t evalA n y coins
+      (maxComplexity n - bestSlack t evalA n y coins) = true :=
+    Nat.findGreatest_spec
+      (P := fun k => tryComplexity t evalA n y coins (maxComplexity n - k) = true) hk₀_le hk₀_try
+  have hle := timeBoundedNat_le_of_liuPassCore_eq_targetImage hy ht (beq_iff_eq.mp hprop)
+  have hk₀_best : k₀ ≤ bestSlack t evalA n y coins := Nat.le_findGreatest hk₀_le hk₀_try
+  have hbest_max : bestSlack t evalA n y coins ≤ maxComplexity n :=
+    Nat.findGreatest_le (maxComplexity n)
+  have hbest_eq : bestSlack t evalA n y coins = k₀ := by omega
   rw [heuristicCand, hy, hbest_eq, hsub_k₀]
 
 private noncomputable def coinBudget (cA dA n : ℕ) : ℕ :=
@@ -599,14 +586,9 @@ private theorem heuristic_fail_mul_le_family_fail {t : ℕ → ℕ} (ht : ∀ n,
     refine tsum_le_tsum fun coins => ?_
     split_ifs with h1 h2
     · rfl
-    · exfalso
-      have h2' :
-          tryComplexity t evalA n (List.ofFn y) coins (timeBoundedNat t (List.ofFn y)) = true := by
-        cases hb : tryComplexity t evalA n (List.ofFn y) coins (timeBoundedNat t (List.ofFn y))
-        · exact False.elim (h2 hb.symm)
-        · rfl
-      have hcand := heuristicCand_eq_of_tryComplexity hy (ht n) h2'
-      simp [hcand] at h1
+    · cases hb : tryComplexity t evalA n (List.ofFn y) coins (timeBoundedNat t (List.ofFn y))
+      · exact (h2 hb.symm).elim
+      · exact absurd (heuristicCand_eq_of_tryComplexity hy (ht n) hb) (by simpa using h1)
     · exact zero_le
     · rfl
   calc
@@ -685,23 +667,15 @@ theorem weakOneWay_reindex_liuPassCore
   have hfailH_ge : 1 / ((p.eval n : ℕ) : ℝ) ≤ (distH false).toReal := by linarith
   have hfail_real := heuristic_fail_mul_le_family_fail ht hlawA n
   ennreal_to_real at hfail_real
-  have hpow_le :
-      (2 : ℝ) ^ (lenWidth n + Kolmogorov.copyOverhead) ≤
-        (C : ℝ) * ((n + (Kolmogorov.copyOverhead + 1) : ℕ) : ℝ) := by
-    have h1 : 2 ^ (lenWidth n + Kolmogorov.copyOverhead) =
-        2 ^ lenWidth n * 2 ^ Kolmogorov.copyOverhead := pow_add 2 _ _
-    have h2 : 2 ^ lenWidth n ≤ 2 * (maxComplexity n + 1) := two_pow_lenWidth_le n
-    have h3 : 2 ^ (lenWidth n + Kolmogorov.copyOverhead) ≤
-        C * (n + (Kolmogorov.copyOverhead + 1)) := by
-      have hmul := Nat.mul_le_mul_right (2 ^ Kolmogorov.copyOverhead) h2
-      have heq : 2 * (maxComplexity n + 1) * 2 ^ Kolmogorov.copyOverhead =
-          C * (n + (Kolmogorov.copyOverhead + 1)) := by
-        dsimp [C, maxComplexity]
-        rw [pow_succ']
-        ring
-      rw [h1, ← heq]
-      exact hmul
-    exact_mod_cast h3
+  have hpow_nat : 2 ^ (lenWidth n + Kolmogorov.copyOverhead) ≤
+      C * (n + (Kolmogorov.copyOverhead + 1)) := by
+    rw [pow_add]
+    refine (Nat.mul_le_mul_right _ (two_pow_lenWidth_le n)).trans_eq ?_
+    dsimp [C, maxComplexity]
+    rw [pow_succ']
+    ring
+  have hpow_le : (2 : ℝ) ^ (lenWidth n + Kolmogorov.copyOverhead) ≤
+      (C : ℝ) * ((n + (Kolmogorov.copyOverhead + 1) : ℕ) : ℝ) := by exact_mod_cast hpow_nat
   have hinv_ge :
       1 / ((C : ℝ) * ((n + (Kolmogorov.copyOverhead + 1) : ℕ) : ℝ)) ≤
         ((2 : ℝ) ^ (lenWidth n + Kolmogorov.copyOverhead))⁻¹ := by
@@ -715,11 +689,7 @@ theorem weakOneWay_reindex_liuPassCore
       ring
     rw [hq_cast, ← one_div_mul_one_div]
     exact (mul_le_mul hinv_ge hfailH_ge (by positivity) (by positivity)).trans hfail_real
-  have htrueA :
-      (Game.succProbability
-        (ProbComp.eval
-          (OneWayReindex.familyInversionGame inputSchedule (liuPassCore t) A n)) : ℝ) =
-        (distA true).toReal := rfl
+  change (distA true).toReal ≤ _
   linarith
 
 /-- **[Liu and Pass, Theorem 4.1, §4, p. 10 of `arXiv:2009.11514v1`][LiuPass2020]

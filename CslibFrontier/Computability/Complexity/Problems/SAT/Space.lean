@@ -127,7 +127,7 @@ theorem computableInPolySpace_numVars :
   have h : (fun φ : CNF ℕ => acceptCount SAT.distinctVerifier φ φ.numVars) = SharpSAT :=
     funext SAT.acceptCount_distinctVerifier
   rw [← h]
-  exact computableInPolySpace_acceptCount SAT.computableInPolyTime_distinctVerifier
+  exact computableInPolySpace_acceptCount (.of_polyTime SAT.computableInPolyTime_distinctVerifier)
     SAT.computableInPolyTime_numVars
 
 /-- Explicit space certificate for `SharpSAT`: there is a polynomially bounded space bound `S`

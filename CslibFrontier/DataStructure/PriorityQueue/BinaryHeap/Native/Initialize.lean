@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.Absorb
 public import CslibFrontier.Computability.WordRAM.Realization.Witness
 public import CslibFrontier.DataStructure.PriorityQueue.BinaryHeap.Native.Encoding
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Compact heap initialization primitives
@@ -42,9 +43,7 @@ open Cslib.DataStructure Cslib.DataStructure.Memory
 open Cslib.WordRAM Cslib.WordRAM.Realization
 open Cslib.DataStructure.PriorityQueue.BinaryHeap (space)
 
-private theorem space_add (n : ℕ) : space n = (n + n) + n + 1 := by
-  unfold space
-  omega
+private theorem space_add (n : ℕ) : space n = (n + n) + n + 1 := by wram_omega
 
 /-- Reserve the exact original span. The addition spelling avoids materializing a constant
 three, which need not fit in an admitted one-bit zero-handle initialization. -/
@@ -55,7 +54,7 @@ theorem realizes_reserve : Realizes .exact (fun n : ℕ => Memory.allocDirty (sp
       (WordEncoding.encode (α := ℕ)) (WordEncoding.encode (α := ℕ))
       (fun w n s => Fits w (s.frontier + space n)) (fun _ _ => 0) := by
     realize
-    exact h.of_le (by unfold space; omega)
+    exact h.of_le (by wram_omega)
   exact h.congr (fun n => by rw [space_add])
 
 /-- One selected reservation emitter returns the old frontier, preserves every cell and moves
@@ -110,14 +109,14 @@ theorem realizes_metadata : Realizes .exact
   let g : Fin 3 → (Fin 2 → ℕ) → ℕ := ![fun v => v 0, fun v => v 1 + v 0, fun _ => 1]
   let bound : (Fin 2 → ℕ) → ℕ := fun v => v 1 + space (v 0)
   have hp0 : GlueComputable .exact (fun v : Fin 2 → ℕ => v 0) (fun _ => True) bound :=
-    GlueComputable.proj 0 (fun v _ => by dsimp only [bound]; unfold space; omega)
+    GlueComputable.proj 0 (fun v _ => by wram_omega)
   have hp1 : GlueComputable .exact (fun v : Fin 2 → ℕ => v 1) (fun _ => True) bound :=
-    GlueComputable.proj 1 (fun v _ => by dsimp only [bound]; unfold space; omega)
+    GlueComputable.proj 1 (fun v _ => by wram_omega)
   have hcoord (i : Fin 3) : GlueComputable .exact (g i) (fun _ => True) bound := by
     fin_cases i
     · exact hp0
-    · exact hp1.add hp0 (fun v _ => by dsimp only [bound]; unfold space; omega)
-    · exact GlueComputable.const 1 (fun v _ => by dsimp only [bound]; unfold space; omega)
+    · exact hp1.add hp0 (fun v _ => by wram_omega)
+    · exact GlueComputable.const 1 (fun v _ => by wram_omega)
   refine (Realizes.pure₀ (WordEncoding.encode (α := ℕ × ℕ)) (.refl (Fin 3 → ℕ))
     (fun p => ![p.1, p.2 + p.1, 1]) g (fun w v => Fits w (bound v))
     (fun p i => by fin_cases i <;> rfl) hcoord (fun _ _ _ _ h => h)).consequence ?_
@@ -169,7 +168,7 @@ theorem realizes_allocLayout : Realizes .exact
       (WordEncoding.encode (α := ℕ)) layoutWords
       (fun w n s => Fits w (s.frontier + 1 + space n)) (fun _ _ => 0) := by
     realize
-    all_goals exact h.of_le (by unfold space; omega)
+    all_goals exact h.of_le (by wram_omega)
   exact h.congr (fun n => by
     simp only [BinaryHeap.Memory.allocLayout, space_add, bind_assoc, pure_bind])
 

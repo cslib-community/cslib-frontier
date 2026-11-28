@@ -100,9 +100,8 @@ theorem computableInPolyTime_pkeSeedDigest :
       encByteStringLE encByteStringLE := by
   have happended : ComputableInPolyTime
       (fun seed : List (Fin 256) => seed ++ [0x02]) encByteStringLE encByteStringLE :=
-    ComputableInPolyTime.of_tidy <|
-      Turing.MultiTapeTM.ComputableTidilyInPolyTime.listAppend encByteLE |>.comp
-        ((id' (encIn := encByteStringLE)).tidy.prod (const [0x02]).tidy)
+      Turing.MultiTapeTM.ComputableInPolyTime.listAppend encByteLE |>.comp
+        ((id' (encIn := encByteStringLE)).prod (const [0x02]))
   change ComputableInPolyTime (fun seed : List (Fin 256) => sha3512 (seed ++ [0x02]))
     encByteStringLE encByteStringLE
   exact computableInPolyTime_sha3512.comp happended
@@ -128,34 +127,8 @@ private theorem computableInPolyTime_pkeSeedPrefixInputs :
       (fun input : List (Fin 256) × (ℕ × ℕ) =>
         (((pkeSeeds input.1).1, input.2.1), ((pkeSeeds input.1).2, input.2.2)))
       encPkeSeedPrefixInput (encPair encByteXofInput encByteXofInput) := by
-  have hseed : ComputableInPolyTime
-      (fun input : List (Fin 256) × (ℕ × ℕ) => input.1)
-      encPkeSeedPrefixInput encByteStringLE := fst encByteStringLE (encPair encUnary encUnary)
-  have hseeds : ComputableInPolyTime
-      (fun input : List (Fin 256) × (ℕ × ℕ) => pkeSeeds input.1)
-      encPkeSeedPrefixInput (encPair encByteStringLE encByteStringLE) :=
-    computableInPolyTime_pkeSeeds.comp hseed
-  have hdkSeed : ComputableInPolyTime
-      (fun input : List (Fin 256) × (ℕ × ℕ) => (pkeSeeds input.1).1)
-      encPkeSeedPrefixInput encByteStringLE :=
-    (fst encByteStringLE encByteStringLE).comp hseeds
-  have hekSeed : ComputableInPolyTime
-      (fun input : List (Fin 256) × (ℕ × ℕ) => (pkeSeeds input.1).2)
-      encPkeSeedPrefixInput encByteStringLE :=
-    (snd encByteStringLE encByteStringLE).comp hseeds
-  have hcounts : ComputableInPolyTime
-      (fun input : List (Fin 256) × (ℕ × ℕ) => input.2)
-      encPkeSeedPrefixInput (encPair encUnary encUnary) :=
-    snd encByteStringLE (encPair encUnary encUnary)
-  have hdkCount : ComputableInPolyTime
-      (fun input : List (Fin 256) × (ℕ × ℕ) => input.2.1)
-      encPkeSeedPrefixInput encUnary :=
-    (fst encUnary encUnary).comp hcounts
-  have hekCount : ComputableInPolyTime
-      (fun input : List (Fin 256) × (ℕ × ℕ) => input.2.2)
-      encPkeSeedPrefixInput encUnary :=
-    (snd encUnary encUnary).comp hcounts
-  exact (hdkSeed.prod hdkCount).prod (hekSeed.prod hekCount)
+  have := computableInPolyTime_pkeSeeds
+  fun_prop
 
 /-- The two requested one-shot SHAKE256 seed prefixes are uniformly polynomial-time in the
 framed seed and the two unary output lengths. -/

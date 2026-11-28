@@ -160,6 +160,32 @@ it has `2 k + 3` bits, and its label is read back by `labelOfWord k`. A label re
       omega
   encodeReply q := (labelCodec k).encodeReply q.tweak
 
+/-- The cost of a word request for the tweak `t` at level `k`: one when it has `2 k + 3` bits, the
+length of a query's request, and its bits `k + 2` to `2 k + 1` are `t`. -/
+@[expose] def tweakCost (k : ℕ) (t : BitString k) (request : Unit × List Bool) : ℕ :=
+  if request.2.length = 2 * k + 3 ∧ (request.2.drop (k + 2)).take k = List.ofFn t then 1 else 0
+
+/-- A query with the tweak `t` costs one on its request. -/
+theorem tweakCost_encodeQuery (k : ℕ) (t : BitString k)
+    (q : Query (BitString (k + 1) × Bool) (BitString k)) :
+    (if q.tweak = t then 1 else 0) ≤ tweakCost k t ((codec k).encodeQuery q) := by
+  obtain ⟨x, t', b⟩ := q
+  dsimp only
+  split_ifs with h
+  · subst h
+    have hlen : (labelBits x ++ (List.ofFn t' ++ [b])).length = 2 * k + 3 := by simp; omega
+    simp [codec, tweakCost, hlen, List.drop_left' (length_labelBits x)]
+  · exact Nat.zero_le _
+
+/-- The word oracle of a fixed typed oracle answers a query's request with the query's label. -/
+theorem wordOracle_codec_encodeQuery {k : ℕ}
+    (O : Query (BitString (k + 1) × Bool) (BitString k) → BitString (k + 1) × Bool)
+    (q : Query (BitString (k + 1) × Bool) (BitString k)) :
+    (codec k).wordOracle (fun q => (pure (O q) : ProbComp _)) ((codec k).encodeQuery q) =
+      pure (labelBits (O q)) := by
+  rw [OracleCodec.wordOracle_encodeQuery, map_pure]
+  rfl
+
 end Garbling.CCR
 
 /-- **Circular correlation robustness** of a hash family on words: the hash is evaluated in

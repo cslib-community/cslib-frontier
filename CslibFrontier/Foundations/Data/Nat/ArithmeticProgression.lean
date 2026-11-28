@@ -43,41 +43,37 @@ theorem arithmeticProgressionCount_spec (d p T : ℕ) :
       arithmeticProgressionCount d p T := by
   classical
   have hset : {t : ℕ | t ≤ T ∧ ∃ k, t = d + k * p} =
-      ↑((Finset.range (T + 1)).filter (fun t => ∃ k, t = d + k * p)) := by
-    ext t
-    simp only [Set.mem_ofPred_eq, Finset.mem_coe, Finset.mem_filter, Finset.mem_range,
-      Nat.lt_succ_iff]
+      ↑((Finset.range (T + 1)).filter fun t => ∃ k, t = d + k * p) :=
+    Set.ext fun _ => by simp
   rw [hset, Set.ncard_coe_finset]
   unfold arithmeticProgressionCount
   split_ifs with hT hp
-  · have he : (Finset.range (T + 1)).filter (fun t => ∃ k, t = d + k * p) = ∅ := by
-      apply Finset.eq_empty_iff_forall_notMem.mpr
-      intro t ht
-      obtain ⟨ht, k, rfl⟩ := Finset.mem_filter.mp ht
-      have hlt := Finset.mem_range.mp ht
-      lia
+  · have he : ((Finset.range (T + 1)).filter fun t => ∃ k, t = d + k * p) = ∅ :=
+      Finset.eq_empty_iff_forall_notMem.mpr fun t ht => by
+        obtain ⟨ht, _, rfl⟩ := Finset.mem_filter.mp ht
+        have := Finset.mem_range.mp ht
+        lia
     rw [he, Finset.card_empty]
-  · have he : (Finset.range (T + 1)).filter (fun t => ∃ k, t = d + k * p) = {d} := by
-      ext t
+  · have he : ((Finset.range (T + 1)).filter fun t => ∃ k, t = d + k * p) = {d} := by
+      ext
       simp only [hp, Nat.mul_zero, Nat.add_zero, exists_const, Finset.mem_filter,
         Finset.mem_range, Finset.mem_singleton]
       lia
     rw [he, Finset.card_singleton]
   · have hpos : 0 < p := by lia
-    have he : (Finset.range (T + 1)).filter (fun t => ∃ k, t = d + k * p) =
-        (Finset.range ((T - d) / p + 1)).image (fun k => d + k * p) := by
+    have he : ((Finset.range (T + 1)).filter fun t => ∃ k, t = d + k * p) =
+        (Finset.range ((T - d) / p + 1)).image fun k => d + k * p := by
       ext t
       simp only [Finset.mem_filter, Finset.mem_range, Finset.mem_image]
       constructor
       · rintro ⟨ht, k, rfl⟩
         refine ⟨k, ?_, rfl⟩
-        have hh : k ≤ (T - d) / p := (Nat.le_div_iff_mul_le hpos).mpr (by lia)
+        have : k ≤ (T - d) / p := (Nat.le_div_iff_mul_le hpos).mpr (by lia)
         lia
       · rintro ⟨k, hk, rfl⟩
-        have hh : k * p ≤ T - d :=
-          (Nat.le_div_iff_mul_le hpos).mp (show k ≤ (T - d) / p by lia)
+        have : k * p ≤ T - d := (Nat.le_div_iff_mul_le hpos).mp (by lia)
         exact ⟨by lia, k, rfl⟩
-    rw [he, Finset.card_image_of_injective _ (show Function.Injective
-      (fun k : ℕ => d + k * p) from by intro a b hab; nlinarith), Finset.card_range]
+    rw [he, Finset.card_image_of_injective _ fun a b hab =>
+      Nat.eq_of_mul_eq_mul_right hpos (Nat.add_left_cancel hab), Finset.card_range]
 
 end Cslib

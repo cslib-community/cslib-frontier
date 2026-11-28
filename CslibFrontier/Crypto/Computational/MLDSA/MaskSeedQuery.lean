@@ -8,11 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
+-- Reads private `representativeBad`, `rowCommand`, and `run_eq_rows`.
 import all CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningMaskSeeds
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import CslibFrontier.Probability.PMF.DensityBounds
 import CslibFrontier.Tactic.PMFSwap
 
@@ -35,11 +32,9 @@ namespace Cslib.Crypto.MLDSA.FIPS204.QuantumSigningForger
 
 open Cslib.Probability Cslib.Quantum ExtendableOutput
 
-private abbrev Program (C : QuantumSigningForger) := ProbOracleComp (OracleSpec.sum
-  (fun _ : DeviceRequest (Width C) Empty => List Bool)
-  (fun _ : SigningQuery => Option (List Byte)))
-
-private def isXofQuery {C : QuantumSigningForger} : Request C → Bool
+/-- A coherent raw XOF query, charged once against the device query budget. -/
+@[expose] def isXofQuery {width : ℕ} :
+    ℕ ⊕ DeviceRequest width Empty ⊕ SigningQuery → Bool
   | .inr (.inl .query) => true
   | _ => false
 
@@ -48,8 +43,8 @@ private def queryPrefix {C : QuantumSigningForger} {α : Type} :
     Program C α → ℕ → Program C Bool
   | .pure _, _ => .pure false
   | .liftBind q k, j =>
-    if isXofQuery (C := C) q && j == 0 then .pure true
-    else .liftBind q fun a => queryPrefix (C := C) (k a) (j - (isXofQuery (C := C) q).toNat)
+    if isXofQuery q && j == 0 then .pure true
+    else .liftBind q fun a => queryPrefix (C := C) (k a) (j - (isXofQuery q).toNat)
 
 private theorem queryPrefix_bounded {C : QuantumSigningForger} {α : Type} {p : Program C α}
     {n : ℕ} (h : OracleComp.IsCostBounded (fun q => (isSigningCall q).toNat) p n) (j : ℕ) :
@@ -113,11 +108,9 @@ private theorem actualAddress_eq {C : QuantumSigningForger} {base : Xofs} {s : L
     cases p.background.expandA s (keys.publicKey.take 32) with
     | none => rfl
     | some A =>
-      apply congrArg (fun law => PMF.bind law (addressRead C))
-      apply run_eq_rows C hp hg _ (queryPrefix_bounded (C := C) (hn keys.publicKey) j)
-      intro m
-      by_contra ne
-      exact good ⟨keys, hg, m, ne⟩
+      exact congrArg (PMF.bind · (addressRead C))
+        (run_eq_rows C hp hg (fun m => by_contra fun ne => good ⟨keys, hg, m, ne⟩)
+          (queryPrefix_bounded (C := C) (hn keys.publicKey) j))
 
 private def differs (C : QuantumSigningForger) (p : SigningMaskSeedOracles) :
     Option (Address C) → Bool
@@ -135,11 +128,7 @@ private noncomputable def targetHedge {C : QuantumSigningForger} (key : List Byt
     word = some (maskSeedInput key r (List.ofFn μ)) then h.choose else fun _ => 0
 
 private def queryKeyPrefix {C : QuantumSigningForger} (addr : Option (Address C)) :
-    Option (List Bool) := do
-  let a ← addr
-  guard (a 0)
-  let x ← Xofs.unpad (List.ofFn fun i : Fin (C.addressBits + 1) => a i.succ)
-  return x.take 256
+    Option (List Bool) := (Xofs.shake256QueryInput addr).map (·.take 256)
 
 private theorem seed_hedge_of_differs {C : QuantumSigningForger} {base : Xofs} {s : Level}
     {seed : FixedBytes 32} {a b n : ℕ} {t : Fin n ↪ FixedBytes 32} {ha : 1024 ≤ a}
@@ -151,48 +140,35 @@ private theorem seed_hedge_of_differs {C : QuantumSigningForger} {base : Xofs} {
     targetHedge (C := C) ((p.background.expandKeySeed s seed).drop 96) addr ∈ Set.range t := by
   classical
   obtain ⟨same128, off⟩ := agree_off_sampleSigningMaskSeeds hp
-  cases addr with
-  | none => contradiction
-  | some addr =>
-    replace hd := of_decide_eq_true hd
-    simp only [Xofs.queryTable] at hd
-    cases hx : Xofs.unpad (List.ofFn (fun i : Fin (C.addressBits + 1) => addr i.succ)) with
-    | none => exact (hd (by rw [hx])).elim
-    | some x =>
-      rw [hx] at hd
-      cases strength : addr 0 with
-      | false => exact (hd (by simp [strength, same128])).elim
-      | true =>
-        let key := (p.background.expandKeySeed s seed).drop 96
-        have hit : ∃ (i : Fin n) (μ : BitString 512),
-            maskSeedInput key (t i) (List.ofFn μ) = x := by
-          by_contra! miss
-          have same := read_eq_of_byteAt_eq (n := C.responseBytes) (fun k _ => off x k (.inr miss))
-          exact hd (by simp only [strength, ↓reduceIte, same])
-        obtain ⟨i, μ, eq⟩ := hit
-        refine ⟨?_, i, ?_⟩
-        · have len : (Keccak.bytesToBitsLE key).length = 256 := by
-            change (Keccak.bytesToBitsLE (signingSeedBytes p.background s seed)).length = 256
-            rw [Keccak.length_bytesToBitsLE, signingSeedBytes_length]
-          simp only [queryKeyPrefix, Option.bind_eq_bind, Option.bind_some, strength, guard,
-            ↓reduceIte, Option.pure_def, hx]
-          rw [← eq]
-          change some ((Keccak.bytesToBitsLE (key ++ (t i).toList) ++ List.ofFn μ).take 256) = _
-          rw [show Keccak.bytesToBitsLE (key ++ (t i).toList) =
-              Keccak.bytesToBitsLE key ++ Keccak.bytesToBitsLE (t i).toList from
-                List.flatMap_append,
-            List.append_assoc]
-          apply congrArg some
-          simpa only [len] using (List.take_left (l₁ := Keccak.bytesToBitsLE key)
-            (l₂ := Keccak.bytesToBitsLE (t i).toList ++ List.ofFn μ))
-        unfold targetHedge
-        simp only [Option.bind_some, hx, Option.some.injEq]
-        split
-        next h =>
-          obtain ⟨ν, hv⟩ := h.choose_spec
-          exact hedge_eq_of_maskSeedInput_eq (eq.trans hv)
-        next h => exact (h ⟨t i, μ, eq.symm⟩).elim
-
+  have diff : addr.any (fun v => decide (p.shared.queryTable C.addressBits C.responseBytes v ≠
+      p.background.queryTable C.addressBits C.responseBytes v)) = true := by cases addr <;> exact hd
+  obtain ⟨x, decoded, ne⟩ := Xofs.shake256QueryInput_of_queryTable_ne same128 diff
+  let key := (p.background.expandKeySeed s seed).drop 96
+  obtain ⟨i, μ, eq⟩ : ∃ (i : Fin n) (μ : BitString 512),
+      maskSeedInput key (t i) (List.ofFn μ) = x := by
+    by_contra! miss
+    exact ne (read_eq_of_byteAt_eq fun k _ => off x k (.inr miss))
+  have word : (addr.bind fun v => Xofs.unpad (List.ofFn fun j : Fin (C.addressBits + 1) =>
+      v j.succ)) = some x := by
+    rcases addr with _ | v
+    · contradiction
+    · cases tag : v 0 <;> simp_all only [Xofs.shake256QueryInput, Option.bind_some,
+        Bool.false_eq_true, ↓reduceIte, reduceCtorEq]
+  refine ⟨?_, i, ?_⟩
+  · have len : (Keccak.bytesToBitsLE key).length = 256 :=
+      (Keccak.length_bytesToBitsLE _).trans (congrArg (8 * ·) (signingSeedBytes_length ..))
+    have hbits : Keccak.bytesToBitsLE (key ++ (t i).toList) =
+        Keccak.bytesToBitsLE key ++ Keccak.bytesToBitsLE (t i).toList := List.flatMap_append
+    simp only [queryKeyPrefix, decoded, Option.map_some, ← eq, maskSeedInput, hbits,
+      List.append_assoc, List.take_left' len]
+    rfl
+  · unfold targetHedge
+    simp only [word, Option.some.injEq]
+    split
+    next h =>
+      obtain ⟨ν, hv⟩ := h.choose_spec
+      exact hedge_eq_of_maskSeedInput_eq (eq.trans hv)
+    next h => exact (h ⟨t i, μ, eq.symm⟩).elim
 
 private noncomputable def fixedQueryGame (C : QuantumSigningForger) (s : Level) (base : Xofs)
     (seed : FixedBytes 32) {a b n : ℕ} (ha : 1024 ≤ a) (hb : 64 ≤ b)
@@ -273,36 +249,29 @@ private theorem fixedQueryGame_le (C : QuantumSigningForger) (s : Level) (base :
       ((C.actualAddress s seed t p j).map (differs C p)) true ≤ report p.background t true := by
     by_cases bad : representativeBad s seed p
     · have h : covers p.background t := representative_collision hp bad
-      exact (PMF.coe_le_one _ _).trans (by
-        simp only [report, h, true_or, decide_true]
-        change 1 ≤ ((C.rowAddress s (p.background.keyGen s seed) rows p.background j).bind
-          fun _ => PMF.pure true) true
-        rw [PMF.bind_const, PMF.pure_apply_self])
+      exact (PMF.coe_le_one _ _).trans_eq (by simp [report, h, PMF.map, Function.comp_def])
     · rw [actualAddress_eq hp bad hn j]
-      apply PMF.map_true_mono
-      exact fun addr _ diff => decide_eq_true (Or.inr (seed_hedge_of_differs hp diff))
+      exact PMF.map_true_mono _ fun addr _ diff =>
+        decide_eq_true (Or.inr (seed_hedge_of_differs hp diff))
   have ref : C.fixedQueryGame s base seed ha hb rows j true ≤
       (tapes.bind fun t => (base.uniformPrefixes a b).bind fun H => report H t) true := by
-    apply PMF.bind_apply_mono_on_support tapes
-    intro t _
+    refine PMF.bind_apply_mono_on_support tapes _ fun t _ => ?_
     rw [← base.background_sampleSigningMaskSeeds s seed t ha hb rows, PMF.bind_map]
     exact PMF.bind_apply_mono_on_support (draw t) true (compare t)
-  apply ref.trans
+  refine ref.trans ?_
   rw [PMF.bind_comm]
-  apply PMF.bind_apply_le_mul_bind_apply
-  intro H
+  refine PMF.bind_apply_le_mul_bind_apply _ fun H => ?_
   change (tapes.bind fun t => (C.rowAddress s (H.keyGen s seed) rows H j).bind fun addr =>
     PMF.pure (decide (covers H t ∨ atQuery H addr t))) true ≤ _
   rw [PMF.bind_comm]
-  apply PMF.bind_apply_le_mul_bind_apply
-  intro addr
+  refine PMF.bind_apply_le_mul_bind_apply _ fun addr => ?_
   let R := ENNReal.ofReal ((n : ℝ) / 2 ^ 256)
   have single (v : FixedBytes 32) :
       (tapes.map (fun t : Fin n ↪ FixedBytes 32 => decide (v ∈ Set.range t))) true ≤ R := by
     change (tapes.bind (fun t => PMF.pure (decide (v ∈ Set.range t)))) true ≤ _
     rw [PMF.bind_pure_decide_apply_true, ENNReal.le_ofReal_iff_toReal_le
       (PMF.toOuterMeasure_ne_top _ _) (by positivity), prob_uniformOfFintype_embedding_mem_range]
-    simp only [Fintype.card_fin, card_hedge, Nat.cast_pow, Nat.cast_ofNat, le_refl]
+    simp only [Fintype.card_fin, FixedBytes.card, Nat.cast_pow, Nat.cast_ofNat, le_refl]
   simp only [Function.comp_apply]
   by_cases guess : (signingSeedCandidates (C := C) (hash H) addr).contains
       (Keccak.bytesToBitsLE (key H))
@@ -310,43 +279,27 @@ private theorem fixedQueryGame_le (C : QuantumSigningForger) (s : Level) (base :
     have publicBound : (tapes.map (fun t => decide (covers H t))) true ≤ R := by
       by_cases existsTarget : ∃ r : FixedBytes 32, hash H = some (key H ++ r.toList)
       · obtain ⟨r, eq⟩ := existsTarget
-        apply le_trans _ (single r)
-        apply PMF.map_true_mono
-        intro t _ h
+        refine le_trans (PMF.map_true_mono _ fun t _ h => ?_) (single r)
         obtain ⟨i, hi⟩ := of_decide_eq_true h
         exact decide_eq_true ⟨i, List.ofFn_inj.mp
           (List.append_cancel_left (Option.some.inj (hi.symm.trans eq)))⟩
       · have no (t) : ¬ covers H t := fun ⟨i, h⟩ => existsTarget ⟨t i, h⟩
-        simp only [no, decide_false]
-        change ((tapes.bind fun _ => PMF.pure false) true) ≤ R
-        rw [PMF.bind_const]
-        simp
-    have queryBound : (tapes.map (fun t => decide (atQuery H addr t))) true ≤ R := by
-      apply le_trans _ (single (targetHedge (C := C) (key H) addr))
-      apply PMF.map_true_mono
-      exact fun t _ h => decide_eq_true (of_decide_eq_true h).2
-    apply (PMF.map_true_le_add tapes (E := fun t => decide (covers H t ∨ atQuery H addr t))
-      (A := fun t => decide (covers H t))
-      (B := fun t => decide (atQuery H addr t)) fun t _ h =>
+        simp [PMF.map, no]
+    have queryBound : (tapes.map (fun t => decide (atQuery H addr t))) true ≤ R :=
+      (PMF.map_true_mono _ fun t _ h => decide_eq_true (of_decide_eq_true h).2).trans
+        (single (targetHedge (C := C) (key H) addr))
+    refine (PMF.map_true_le_add tapes (E := fun t => decide (covers H t ∨ atQuery H addr t))
+      (A := fun t => decide (covers H t)) (B := fun t => decide (atQuery H addr t)) fun t _ h =>
         (of_decide_eq_true h).imp decide_eq_true decide_eq_true).trans
-    apply (add_le_add publicBound queryBound).trans
+      ((add_le_add publicBound queryBound).trans ?_)
     rw [← ENNReal.ofReal_add (by positivity) (by positivity)]
     exact ENNReal.ofReal_le_ofReal (by linarith)
   · have no t : ¬ (covers H t ∨ atQuery H addr t) := by
-      intro hit
-      apply guess
-      rw [List.contains_iff_mem, signingSeedCandidates, List.mem_append]
-      rcases hit with ⟨i, eq⟩ | ⟨eq, _⟩
-      · left
-        rw [eq]
-        simp only [Option.map_some, Option.toList_some, List.mem_singleton]
-        apply congrArg Keccak.bytesToBitsLE
-        simpa only [key, signingSeedBytes_length] using
-          (List.take_left (l₁ := signingSeedBytes H s seed) (l₂ := (t i).toList)).symm
-      · right
-        simp [eq]
-    simp only [no, decide_false, PMF.bind_const]
-    simp
+      rintro (⟨i, eq⟩ | ⟨eq, _⟩)
+      · exact guess (List.contains_iff_mem.mpr <| List.mem_append_left _ <| by
+          simp [eq, key, List.take_left' (signingSeedBytes_length ..)])
+      · exact guess (List.contains_iff_mem.mpr <| List.mem_append_right _ <| by simp [eq])
+    simp [no]
 
 /-- Detecting a changed row requires the hedge tape to cover a candidate and the private
 signing seed `K` to match one of two predicted prefixes in the independent background execution. -/
@@ -367,15 +320,12 @@ theorem maskSeedQueryHit_le_signingSeedPrediction (C : QuantumSigningForger) (s 
   have h : C.maskSeedQueryHit s base ha hb hsize j true ≤
       ENNReal.ofReal (2 * n / 2 ^ 256) * C.signingSeedPredictionGame s base a b n j true := by
     rw [law]
-    apply PMF.bind_apply_le_mul_bind_apply
-    intro seed
-    exact PMF.bind_apply_le_mul_bind_apply _ fun rows =>
-      fixedQueryGame_le C s base seed ha hb hn rows j
-  have real := ENNReal.toReal_mono
-    (ENNReal.mul_ne_top ENNReal.ofReal_ne_top (PMF.apply_ne_top _ _)) h
+    exact PMF.bind_apply_le_mul_bind_apply _ fun seed =>
+      PMF.bind_apply_le_mul_bind_apply _ fun rows =>
+        fixedQueryGame_le C s base seed ha hb hn rows j
   simpa only [Game.coe_succProbability, ENNReal.toReal_mul,
-    ENNReal.toReal_ofReal (by positivity : (0 : ℝ) ≤ 2 * n / 2 ^ 256)]
-    using real
+    ENNReal.toReal_ofReal (by positivity : (0 : ℝ) ≤ 2 * n / 2 ^ 256)] using
+    ENNReal.toReal_mono (ENNReal.mul_ne_top ENNReal.ofReal_ne_top (PMF.apply_ne_top _ _)) h
 
 /-- For every adaptive forger and every fixed coherent query index, the probability of
 measuring an address at which the two actual XOR tables differ is at most twice the signing
@@ -385,9 +335,8 @@ theorem maskSeedQueryHit_le (C : QuantumSigningForger) (s : Level) (base : Xofs)
     (hsize : n ≤ 2 ^ 256) (j : ℕ) :
     (Game.succProbability (C.maskSeedQueryHit s base (n := n) ha hb hsize j) : ℝ) ≤
       2 * n / 2 ^ 256 := by
-  apply (C.maskSeedQueryHit_le_signingSeedPrediction s base ha hb hn hsize j).trans
-  apply mul_le_of_le_one_right (by positivity)
-  exact_mod_cast Game.succProbability_le_one _
+  exact (C.maskSeedQueryHit_le_signingSeedPrediction s base ha hb hn hsize j).trans
+    (mul_le_of_le_one_right (by positivity) (by exact_mod_cast Game.succProbability_le_one _))
 
 
 end Cslib.Crypto.MLDSA.FIPS204.QuantumSigningForger

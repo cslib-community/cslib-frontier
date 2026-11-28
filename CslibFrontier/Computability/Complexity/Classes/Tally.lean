@@ -14,7 +14,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Pair
 import Mathlib.Data.Set.Finite.List
 import Mathlib.NumberTheory.Chebyshev
 import CslibFrontier.Tactic.EncLen
@@ -134,8 +133,7 @@ private theorem foldl_residue (m : ℕ) (u : List Bool) (r v : ℕ) (hrv : r = v
   | nil => simpa using hrv
   | cons b u ih =>
     simp only [List.foldl_cons]
-    refine ih _ _ ?_
-    rw [hrv, Nat.add_mod, Nat.mul_mod, Nat.mod_mod, ← Nat.mul_mod, ← Nat.add_mod]
+    exact ih _ _ (by rw [hrv, Nat.add_mod, Nat.mul_mod, Nat.mod_mod, ← Nat.mul_mod, ← Nat.add_mod])
 
 /-- The residue is that of the binary value. -/
 theorem residue_eq (m : ℕ) (u : List Bool) : residue m u = binaryValue u % (m + 1) :=
@@ -231,13 +229,9 @@ theorem exists_polyTimeCTTReducible_encUnary_of_mem_SPARSE {β : Type} {encB : �
   refine ⟨Tally.fingerprints (encB '' S), fun b => P.eval (encB b).length,
     fun p => Tally.fingerprint (encB p.1) p.2, ⟨(unary_eval P).comp (encoding_length encB), ?_⟩,
     fun b => ⟨fun hb i _ => ⟨encB b, ⟨b, hb, rfl⟩, i, rfl⟩, fun h => ?_⟩⟩
-  · have hlen : ComputableInPolyTime (fun p : β × ℕ => (encB p.1).length) (encPair encB encUnary)
-        encUnary := (encoding_length encB).comp (fst _ _)
-    have hres : ComputableInPolyTime (fun p : β × ℕ => Tally.residue p.2 (encB p.1))
-        (encPair encB encUnary) encUnary :=
-      computableInPolyTime_residue (snd _ _) (hencB.comp (fst _ _))
-    exact unary_pair.comp
-      (hlen.prod (unary_pair.comp ((snd _ _).prod hres)))
+  · exact unary_pair.comp (((encoding_length encB).comp (fst _ _)).prod
+      (unary_pair.comp ((snd _ _).prod
+        (computableInPolyTime_residue (snd _ _) (hencB.comp (fst _ _))))))
   · by_contra hb
     have hu : encB b ∉ encB '' S := fun hmem => hb (encB.injective.mem_set_image.1 hmem)
     obtain ⟨m, hm, hnot⟩ := Tally.exists_fingerprint_notMem
@@ -265,10 +259,8 @@ unanswerable one otherwise. -/
 theorem exists_polyTimeCTTReducible_encUnary_of_mem_P (h : L ∈ P encA) :
     ∃ A : Set ℕ, PolyTimeCTTReducible encA encUnary L A := by
   obtain ⟨f, hf, hL⟩ := mem_P.mp h
-  refine ⟨∅, fun a => if f a then 0 else 1, fun _ => 0, ⟨?_, const _⟩, fun a => ?_⟩
-  · exact ite' hf (const 0) (const 1)
-  · rw [hL a]
-    rcases hfa : f a <;> simp [hfa]
+  refine ⟨∅, fun a => if f a then 0 else 1, fun _ => 0, ⟨ite' hf (const 0) (const 1), const _⟩,
+    fun a => by cases hfa : f a <;> simp [hL a, hfa]⟩
 
 /-- **Conjunctive reductions to tally problems are closed under intersection**: ask the queries of
 both reductions, tagged by the reduction they come from. -/
@@ -281,16 +273,13 @@ theorem PolyTimeCTTReducible.exists_encUnary_inter (h₁ : PolyTimeCTTReducible 
       ((Nat.unpair c).1 = 1 ∧ (Nat.unpair c).2 ∈ A₂)}, fun a => r₁ a + r₂ a,
     fun p => if p.2 < r₁ p.1 then Nat.pair 0 (q₁ p) else Nat.pair 1 (q₂ (p.1, p.2 - r₁ p.1)),
     ⟨by fun_prop, ?_⟩, fun a => ?_⟩
-  · have hfst : ComputableInPolyTime (fun p : α × ℕ => p.1) (encPair encA encUnary) encA :=
-      fst _ _
-    have hsnd : ComputableInPolyTime (fun p : α × ℕ => p.2) (encPair encA encUnary) encUnary :=
-      snd _ _
-    have hq₂' : ComputableInPolyTime (fun p : α × ℕ => q₂ (p.1, p.2 - r₁ p.1))
-        (encPair encA encUnary) encUnary := hq₂.comp (hfst.prod (unary_sub' hsnd (hr₁.comp hfst)))
-    have h := ite' (unary_lt' hsnd (hr₁.comp hfst))
-      (unary_pair.comp ((const 0).prod hq₁))
-      (unary_pair.comp ((const 1).prod hq₂'))
-    simpa only [Function.comp_def, decide_eq_true_eq] using h
+  · have hfst := fst encA encUnary
+    have hsnd := snd encA encUnary
+    have hq₂' := hq₂.comp (hfst.prod (unary_sub' hsnd (hr₁.comp hfst)))
+    simpa only [Function.comp_def, decide_eq_true_eq] using
+      ite' (unary_lt' hsnd (hr₁.comp hfst))
+        (unary_pair.comp ((const 0).prod hq₁))
+        (unary_pair.comp ((const 1).prod hq₂'))
   · simp only [Set.mem_inter_iff, hL₁ a, hL₂ a]
     constructor
     · rintro ⟨h₁, h₂⟩ i hi
@@ -312,14 +301,10 @@ theorem PolyTimeCTTReducible.exists_encUnary_union (h₁ : PolyTimeCTTReducible 
   refine ⟨{c | (Nat.unpair c).1 ∈ A₁ ∨ (Nat.unpair c).2 ∈ A₂}, fun a => r₁ a * r₂ a,
     fun p => Nat.pair (q₁ (p.1, p.2 / r₂ p.1)) (q₂ (p.1, p.2 % r₂ p.1)), ⟨by fun_prop, ?_⟩,
     fun a => ?_⟩
-  · have hfst : ComputableInPolyTime (fun p : α × ℕ => p.1) (encPair encA encUnary) encA :=
-      fst _ _
-    have hdiv : ComputableInPolyTime (fun p : α × ℕ => p.2 / r₂ p.1) (encPair encA encUnary)
-        encUnary := unary_div.comp ((snd _ _).prod (hr₂.comp hfst))
-    have hmod : ComputableInPolyTime (fun p : α × ℕ => p.2 % r₂ p.1) (encPair encA encUnary)
-        encUnary := unary_mod.comp ((snd _ _).prod (hr₂.comp hfst))
-    exact unary_pair.comp
-      ((hq₁.comp (hfst.prod hdiv)).prod (hq₂.comp (hfst.prod hmod)))
+  · have hfst := fst encA encUnary
+    have hr₂' := hr₂.comp hfst
+    exact unary_pair.comp ((hq₁.comp (hfst.prod (unary_div.comp ((snd _ _).prod hr₂')))).prod
+      (hq₂.comp (hfst.prod (unary_mod.comp ((snd _ _).prod hr₂')))))
   · simp only [Set.mem_union, hL₁ a, hL₂ a, Set.mem_ofPred_eq, Nat.unpair_pair]
     constructor
     · intro h i hi
@@ -354,10 +339,8 @@ theorem PolyTimeCTTReducible.exists_encUnary_biUnion {ι : Type*} {L : ι → Se
     obtain ⟨A₂, h₂⟩ := ih fun i' hi' => h i' (List.mem_cons_of_mem i hi')
     have hunion : (⋃ i' ∈ i :: l, L i') = L i ∪ ⋃ i' ∈ l, L i' := by
       ext a
-      simp only [Set.mem_iUnion, List.mem_cons, Set.mem_union, exists_prop, or_and_right,
-        exists_or, exists_eq_left]
-    rw [hunion]
-    exact h₁.exists_encUnary_union h₂
+      simp
+    exact hunion ▸ h₁.exists_encUnary_union h₂
 
 /-- **Asking a computed list of queries of a problem with a conjunctive reduction to a tally
 problem**: if `B` reduces conjunctively to a set `A` of natural numbers written in unary, so do the
@@ -377,9 +360,7 @@ theorem PolyTimeCTTReducible.forall_mem {β : Type} {encB : β ↪ List Bool} {B
       and_imp]
     exact ⟨fun h w b hb i hi hw => hw ▸ h b hb i hi, fun h b hb i hi => h _ b hb i hi rfl⟩
   rw [Set.mem_ofPred_eq, hmem, List.forall_mem_iff_getElem]
-  refine forall_congr' fun i => ⟨fun h hi => ?_, fun h hi => ?_⟩
-  · simpa [List.getElem?_eq_getElem hi] using h hi
-  · simpa [List.getElem?_eq_getElem hi] using h hi
+  exact forall_congr' fun i => forall_congr' fun hi => by simp [List.getElem?_eq_getElem hi]
 
 end Closure
 

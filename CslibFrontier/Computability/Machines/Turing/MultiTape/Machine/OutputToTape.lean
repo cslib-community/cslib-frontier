@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Simulation
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.OutputToTape
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Buffering an effectful machine's output
@@ -89,13 +90,7 @@ def config (cfg : Config k Symbol State Oracle input) : Config (k + 1) Symbol St
 theorem step_config (cfg : Config k Symbol State Oracle input) (a : Turing.Action k Symbol State)
     (symbol : Oracle → Option Symbol) (move : Oracle → SignType) :
     (config cfg).step (action a) symbol move = config (cfg.step a symbol move) := by
-  refine Config.ext ?_ rfl
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;> induction i using Fin.lastCases with
-  | cast i => simp [config, action, Config.step, Turing.Action.apply, MultiTapeTM.outCfg]
-  | last =>
-    cases h : a.output <;>
-      simp [config, action, Config.step, Turing.Action.apply, MultiTapeTM.outCfg, h,
-        tapeOfList_append_single, SignType.cast]
+  tm_step [config, action, Config.step, MultiTapeTM.outCfg, tapeOfList_append_single]
 
 theorem receive_config [DecidableEq Oracle] (cfg : Config k Symbol State Oracle input)
     (oracle : Oracle) (next : State) (answer : List Symbol) :
@@ -148,9 +143,7 @@ omit hchoose [DecidableEq Oracle] in
 theorem initialConfig_outputToTape (input : List Symbol) :
     machine.outputToTape.initialConfig input =
       OutputToTape.config (machine.initialConfig input) := by
-  refine Config.ext ?_ rfl
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;> induction i using Fin.lastCases <;>
-    simp [initialConfig, OutputToTape.config, MultiTapeTM.outCfg, Cfg.init]
+  tm_step [initialConfig, OutputToTape.config, MultiTapeTM.outCfg]
 
 omit hchoose in
 /-- Effect-free deterministic output redirection is exactly upstream's compiler. -/

@@ -76,7 +76,7 @@ the enumeration `Cslib.BitString.enumList` (`Cslib.BitString.enumList_eq_ofFn`).
 
 namespace Cslib.Crypto.KabanetsCai
 
-open Probability Turing.MultiTapeTM ComputableTidilyInPolyTime Circuits Circuits.Boolean
+open Probability Turing.MultiTapeTM ComputableInPolyTime Circuits Circuits.Boolean
 
 /-! ### Asking an oracle for a truth table -/
 
@@ -98,24 +98,20 @@ def queryTable (words : List (List Bool)) : WordOracleComp Unit (List Bool) :=
 and reads one reply bit. -/
 @[fun_prop]
 theorem isOraclePPTOn_queryTable : IsOraclePPTOn (encList encBits) encBits queryTable := by
-  unfold queryTable
   refine IsOraclePPTOn.map (IsOraclePPTOn.iterate_of_bounded_growth
     (stateEncoding := encPair (encList encBits) encBits) (by fun_prop) (by fun_prop) ?_
     (growth := 0) ?_) (by fun_prop)
-  · unfold queryTableStep
-    refine IsOraclePPTOn.cond (by fun_prop) ComputableInPolyTime.id'.isOraclePPTOn ?_
-    exact IsOraclePPTOn.map_with (IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop))
-      (by fun_prop)
-  · intro state next hnext
-    obtain ⟨words, acc⟩ := state
+  · refine IsOraclePPTOn.cond (by fun_prop) ComputableInPolyTime.id'.isOraclePPTOn <|
+      IsOraclePPTOn.map_with (IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop))
+        (by fun_prop)
+  · rintro ⟨words, acc⟩ next hnext
     cases words with
     | nil =>
       simp only [queryTableStep, List.isEmpty_nil, ite_true] at hnext
-      rw [OracleComp.eq_of_mem_supportWith_pure hnext]
-      simp
+      simp [OracleComp.eq_of_mem_supportWith_pure hnext]
     | cons word words =>
       simp only [queryTableStep, List.isEmpty_cons, Bool.false_eq_true, ite_false] at hnext
-      obtain ⟨reply, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
+      obtain ⟨_, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
       enc_len [List.tail_cons]
 
 /-- Against a deterministic oracle, `queryTable` returns the first bits of the replies. -/
@@ -124,27 +120,25 @@ theorem interpret_queryTable {m : Type → Type*} [Monad m] [LawfulMonad m]
     (words : List (List Bool)) :
     OracleComp.interpret (OracleComp.sumHandler random fun request => pure (oracle request.2))
       (queryTable words) = pure (words.map fun word => (oracle word).headD false) := by
-  have key : ∀ (words : List (List Bool)) (acc : List Bool),
+  suffices ∀ (words : List (List Bool)) (acc : List Bool),
       OracleComp.interpret (OracleComp.sumHandler random fun request => pure (oracle request.2))
         (OracleComp.iterate words.length queryTableStep (words, acc)) =
-        pure ([], acc ++ words.map fun word => (oracle word).headD false) := by
-    intro words
-    induction words with
-    | nil => intro acc; simp
-    | cons word words ih =>
-      intro acc
-      rw [List.length_cons, OracleComp.iterate_succ_bind, OracleComp.interpret_bind]
-      have hstep : OracleComp.interpret
-          (OracleComp.sumHandler random fun request => pure (oracle request.2))
-          (queryTableStep (word :: words, acc)) =
-            pure (words, acc ++ [(oracle word).headD false]) := by
-        simp only [queryTableStep, List.isEmpty_cons, Bool.false_eq_true, ite_false,
-          OracleComp.interpret_map, ProbOracleComp.interpret_query, map_pure, List.tail_cons,
-          List.headD_cons]
-        cases oracle word <;> rfl
-      rw [hstep, pure_bind, ih]
-      simp
-  simp [queryTable, key]
+        pure ([], acc ++ words.map fun word => (oracle word).headD false) by
+    simp [queryTable, this]
+  intro words
+  induction words with
+  | nil => simp
+  | cons word words ih =>
+    intro acc
+    have hstep : OracleComp.interpret
+        (OracleComp.sumHandler random fun request => pure (oracle request.2))
+        (queryTableStep (word :: words, acc)) =
+          pure (words, acc ++ [(oracle word).headD false]) := by
+      simp only [queryTableStep, List.isEmpty_cons, Bool.false_eq_true, ite_false,
+        OracleComp.interpret_map, ProbOracleComp.interpret_query, map_pure, List.tail_cons,
+        List.headD_cons]
+      cases oracle word <;> rfl
+    simp [List.length_cons, OracleComp.iterate_succ_bind, OracleComp.interpret_bind, hstep, ih]
 
 /-! ### Restrictions of word functions -/
 
@@ -176,9 +170,8 @@ theorem exists_complexity_restriction_le {family : List Bool → List Bool → L
     ∃ c : ℕ, ∀ (key : List Bool) (m : ℕ), m ≤ key.length →
       complexity interpretation (single (restriction (family key) key.length m)) ≤
         c * (3 * key.length + 2) ^ c + 2 := by
-  have hfamily := hfamily.tidy
   obtain ⟨L, hL, hg⟩ := PPoly.exists_of_polyTime
-    (.of_tidy ((ComputableTidilyInPolyTime.headD (encA := encBool) false).comp hfamily))
+    ((ComputableInPolyTime.headD (encA := encBool) false).comp hfamily)
   obtain ⟨c, hc⟩ := mem_PPoly_iff_exists_mem_SIZE.1 hL
   refine ⟨c, fun key m hm => ?_⟩
   set t : List (Fin m ⊕ Bool) :=
@@ -186,22 +179,17 @@ theorem exists_complexity_restriction_le {family : List Bool → List Bool → L
   have hlen : t.length = 3 * key.length + 1 := by
     enc_len [t, List.length_map, List.length_ofFn]
   have hfun : restriction (family key) key.length m =
-      fun z => L.slice t.length (substitute (fun j => t[j]) z) := by
-    funext z
-    rw [Bool.eq_iff_iff, Language.slice_eq_true_iff]
-    have hword : List.ofFn (substitute (fun j : Fin t.length => t[j]) z) =
-        frame key ++ (List.replicate (key.length - m) false ++ List.ofFn z) := by
-      have : List.ofFn (substitute (fun j : Fin t.length => t[j]) z) =
-          t.map (fun e => e.elim z id) :=
-        List.ext_getElem (by simp) fun i _ _ => by simp [substitute]
-      rw [this]
-      simp [t, List.map_ofFn, Function.comp_def]
-    rw [hword, restriction]
-    have := hg (key, List.replicate (key.length - m) false ++ List.ofFn z)
-    simpa only [Function.comp_apply, encPair_apply, encBits_apply] using this
-  rw [hfun]
-  refine (complexity_substitute_le _ _).trans (Nat.add_le_add_right ((hc _).trans ?_) 2)
-  rw [hlen]
+      fun z => L.slice t.length (substitute (fun j => t[j]) z) := funext fun z => by
+    have hsub : List.ofFn (substitute (fun j : Fin t.length => t[j]) z) =
+        frame key ++ (List.replicate (key.length - m) false ++ List.ofFn z) :=
+      (show List.ofFn (substitute (fun j : Fin t.length => t[j]) z) =
+          t.map (fun e => e.elim z id) from
+        List.ext_getElem (by simp) fun _ _ _ => by simp [substitute]).trans
+        (by simp [t, List.map_ofFn, Function.comp_def])
+    rw [Bool.eq_iff_iff, Language.slice_eq_true_iff, hsub]
+    simpa only [restriction, Function.comp_apply, encPair_apply, encBits_apply] using
+      hg (key, List.replicate (key.length - m) false ++ List.ofFn z)
+  exact hfun ▸ (complexity_substitute_le _ _).trans (Nat.add_le_add_right (hlen ▸ hc _) 2)
 
 /-- Reading the first bit of a table at the words of length `n` with `n - m` leading `false`
 bits is additive in the table. -/
@@ -237,17 +225,14 @@ theorem uniformOfFintype_map_restrictTable {n m : ℕ} (hn : 0 < n) (hm : m ≤ 
   refine PMF.uniformOfFintype_map_addHom _ fun φ => ?_
   let emb : BitString m → BitString n := fun z =>
     BitString.ofList n (List.replicate (n - m) false ++ List.ofFn z)
-  have hemb : Function.Injective emb := fun z z' h => by
-    have := congrArg List.ofFn h
-    simp only [emb] at this
-    have hlen (z : BitString m) : (List.replicate (n - m) false ++ List.ofFn z).length = n := by
-      enc_len [List.length_ofFn]
-    rw [BitString.ofFn_ofList (hlen z), BitString.ofFn_ofList (hlen z')] at this
-    exact List.ofFn_injective (List.append_cancel_left this)
+  have hlen (z : BitString m) : (List.replicate (n - m) false ++ List.ofFn z).length = n := by
+    enc_len [List.length_ofFn]
+  have hemb : Function.Injective emb := fun z z' h => List.ofFn_injective <|
+    List.append_cancel_left <| by
+      simpa only [emb, BitString.ofFn_ofList (hlen _)] using congrArg List.ofFn h
   refine ⟨fun x _ => if h : ∃ z, emb z = x then φ h.choose else false, funext fun z => ?_⟩
   have hz : ∃ z', emb z' = emb z := ⟨z, rfl⟩
   change (if h : ∃ z', emb z' = emb z then φ h.choose else false) = φ z
-  simp only [hz, dite_true]
-  rw [hemb hz.choose_spec]
+  simp only [hz, dite_true, hemb hz.choose_spec]
 
 end Cslib.Crypto.KabanetsCai

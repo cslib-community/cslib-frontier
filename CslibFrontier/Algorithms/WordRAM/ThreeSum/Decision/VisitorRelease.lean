@@ -70,12 +70,8 @@ theorem release_frontier {r : ℕ} {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
     (em : Emission Q Λ e x q false)
     (hr : ∀ i, v.regs (preprocessingRegisters r i) = q.regs i) :
     (releaseState v).regs (preprocessingRegisters r heap) = x.regs heap + 3 +
-      (x.regs (slot 2) + x.regs (slot 4) + x.regs (slot 6)) := by
-  have hp : v.regs (preprocessingRegisters r packed) = (recordLayout x em.M).packed :=
-    (hr packed).trans em.packedPointer
-  change v.regs (preprocessingRegisters r packed) = _
-  rw [hp]
-  rfl
+      (x.regs (slot 2) + x.regs (slot 4) + x.regs (slot 6)) :=
+  (hr packed).trans em.packedPointer
 
 /-- Releasing a dead tail retains a monotonically advancing persistent heavy-array frontier. -/
 theorem release_heap_mono {r : ℕ} {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
@@ -116,25 +112,17 @@ theorem release_children_ends {r : ℕ} {Q : Finset ℕ} {Λ : ℕ} {e : Entry}
     (hr : ∀ i, v.regs (preprocessingRegisters r i) = q.regs i) (hl : e.Loaded x)
     (hend : ∀ j, e.source j + (e.data j).length ≤ x.regs heap) :
     ∀ d ∈ em.children, ∀ j, d.source j + (d.data j).length ≤
-      (releaseState v).regs (preprocessingRegisters r heap) := by
-  have hp : v.regs (preprocessingRegisters r packed) = (recordLayout x em.M).packed :=
-    (hr packed).trans em.packedPointer
-  change ∀ d ∈ em.children, ∀ j, d.source j + (d.data j).length ≤
-    v.regs (preprocessingRegisters r packed)
-  rw [hp]
-  exact em.children_ends_packed hl hend
+      (releaseState v).regs (preprocessingRegisters r heap) :=
+  fun d hd j => (em.children_ends_packed hl hend d hd j).trans_eq
+    ((hr packed).trans em.packedPointer).symm
 
 /-- All persistent traversal controls survive; the heap is not one of those fixed parameters. -/
 theorem release_controls {r : ℕ} {a : Arena} {v : Data (registerCount r)}
     (hc : a.Controls (v.comap (preprocessingRegisters r))) :
-    a.Controls ((releaseState v).comap (preprocessingRegisters r)) := by
-  apply hc.congr
-  intro i hi
-  apply releaseState_regs
-  intro he
-  have hei := (preprocessing_injective r) he
-  subst i
-  norm_num [List.mem_cons, heap] at hi
+    a.Controls ((releaseState v).comap (preprocessingRegisters r)) :=
+  hc.congr fun i hi => releaseState_regs v _ fun he => by
+    cases preprocessing_injective r he
+    norm_num [List.mem_cons, heap] at hi
 
 /-- All child descriptor words survive the copy, including zero-length column pointers. -/
 theorem release_childWords {r : ℕ} (v : Data (registerCount r)) (j : Fin 3) :
@@ -149,8 +137,7 @@ theorem release_stack {r w base capacity : ℕ} {vs : List ℕ} {v : Data (regis
       ((v.comap (preprocessingRegisters r)).comap registers)) :
     WordStack.Rep w base capacity vs
       (((releaseState v).comap (preprocessingRegisters r)).comap registers) := by
-  have hne : ∀ i : Fin 9, registers i ≠ heap := by decide
-  rw [releaseState_pre, Data.comap_set_of_forall_ne _ _ _ hne]
+  rw [releaseState_pre, Data.comap_set_of_forall_ne _ _ _ (by decide)]
   exact hs
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Decision.Visitor

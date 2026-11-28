@@ -16,11 +16,11 @@ import CslibFrontier.Computability.Probabilistic.PPT.Extension
 import CslibFrontier.Computability.Probabilistic.Repeat
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Foundations.Data.BitString.Basic
-import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Pointwise reduction and zero-knowledge simulation for the 3-copy GMW protocol
@@ -195,24 +195,19 @@ private theorem eval_bind_runTwoRound_reply1 {α β : Type} (μ : ProbComp β)
       have h1 (b : β) := runTwoRound_query_inr (f₁ b) r2 q k .init id
       have h2 (b : β) := runTwoRound_query_inr (f₂ b) r2 q k .init id
       simp only [id_map, twoRoundStep, beq_self_eq_true, ↓reduceIte] at h1 h2
-      have hcongr1 (b : β) :
-          runTwoRound (f₁ b) r2 (k (f₁ b q.2)) ⟨1, [false, false, false]⟩ =
-            runTwoRound (fun _ => []) r2 (k (f₁ b q.2)) ⟨1, [false, false, false]⟩ :=
-        runTwoRound_congr_reply1_of_one_le _ _ r2 _ le_rfl
-      have hcongr2 (b : β) :
-          runTwoRound (f₂ b) r2 (k (f₂ b q.2)) ⟨1, [false, false, false]⟩ =
-            runTwoRound (fun _ => []) r2 (k (f₂ b q.2)) ⟨1, [false, false, false]⟩ :=
+      have hcongr (f : β → List Bool → List Bool) (b : β) :
+          runTwoRound (f b) r2 (k (f b q.2)) ⟨1, [false, false, false]⟩ =
+            runTwoRound (fun _ => []) r2 (k (f b q.2)) ⟨1, [false, false, false]⟩ :=
         runTwoRound_congr_reply1_of_one_le _ _ r2 _ le_rfl
       change ProbComp.eval (μ >>= fun b =>
           runTwoRound (f₁ b) r2 (OracleComp.query (Sum.inr q) >>= k) .init) =
         ProbComp.eval (μ >>= fun b =>
           runTwoRound (f₂ b) r2 (OracleComp.query (Sum.inr q) >>= k) .init)
-      simp only [h1, h2, hcongr1, hcongr2]
-      have hmap := congrArg
-        (fun d => d.bind (fun ans => ProbComp.eval
-          (runTwoRound (fun _ => []) r2 (k ans) ⟨1, [false, false, false]⟩)))
+      simp only [h1, h2, hcongr]
+      simpa only [pmf_norm] using congrArg
+        (fun d => d.bind fun ans => ProbComp.eval
+          (runTwoRound (fun _ => []) r2 (k ans) ⟨1, [false, false, false]⟩))
         (hf q.2)
-      simpa only [pmf_norm] using hmap
 
 private theorem eval_runTwoRound_of_two_le {β : Type} (r1 r2 : List Bool → List Bool)
     (ch_guess : List Bool) (prog : WordOracleComp Unit β) {s : TwoRoundState}
@@ -284,39 +279,30 @@ private theorem uniformList_map_beq_eq_guessCoin {ch₀ : List Bool} (hch₀ : c
   have hzero : BitString.ofList 3 [false, false, false] = 0 := by
     funext i
     fin_cases i <;> rfl
-  have hiff : (ch₀ = BitString.listXor 3 [u, ch₀]) ↔ ([false, false, false] = u) := by
-    constructor
-    · intro h
-      have h1 := congrArg (fun l => BitString.ofList 3 l + BitString.ofList 3 ch₀) h
-      simp only [BitString.ofList_listXor_pair 3 u ch₀, add_assoc, BitString.add_self,
-        add_zero] at h1
-      have h2 := congrArg List.ofFn h1
-      rw [← hzero, BitString.ofFn_ofList (by simp), BitString.ofFn_ofList hu_len] at h2
-      exact h2
-    · rintro rfl
-      have h1 : BitString.ofList 3 (BitString.listXor 3 [[false, false, false], ch₀]) =
-          BitString.ofList 3 ch₀ := by
-        rw [BitString.ofList_listXor_pair, hzero, zero_add]
-      have h2 := congrArg List.ofFn h1
-      rw [BitString.ofFn_ofList (by simp), BitString.ofFn_ofList hch₀] at h2
-      exact h2.symm
+  have hofList_inj {l₁ l₂ : List Bool} (h₁ : l₁.length = 3) (h₂ : l₂.length = 3) :
+      l₁ = l₂ ↔ BitString.ofList 3 l₁ = BitString.ofList 3 l₂ :=
+    ⟨congrArg _, fun h => by
+      simpa only [BitString.ofFn_ofList h₁, BitString.ofFn_ofList h₂] using congrArg List.ofFn h⟩
   have hbeq : (ch₀ == BitString.listXor 3 [u, ch₀]) = ([false, false, false] == u) := by
-    rw [Bool.eq_iff_iff, beq_iff_eq, beq_iff_eq, hiff]
+    have hxor : BitString.ofList 3 ch₀ = BitString.ofList 3 u + BitString.ofList 3 ch₀ ↔
+        BitString.ofList 3 [false, false, false] = BitString.ofList 3 u :=
+      ⟨fun h => by
+          simpa [hzero, add_assoc, BitString.add_self] using
+            congrArg (fun x => x + BitString.ofList 3 ch₀) h,
+        fun h => by rw [← h, hzero, zero_add]⟩
+    rw [Bool.eq_iff_iff, beq_iff_eq, beq_iff_eq,
+      hofList_inj hch₀ (BitString.length_listXor 3 _), hofList_inj (by simp) hu_len,
+      BitString.ofList_listXor_pair, hxor]
   simp only [Function.comp_apply, hbeq]
 
 /-- A uniform 3-bit guess misses a fixed challenge with probability `7 / 8`. -/
 theorem guessCoin_apply_false : guessCoin false = 7 / 8 := by
   have h : guessCoin = (PMF.uniformOfFintype (BitString 3)).map fun v => decide (v = 0) := by
     rw [guessCoin, BitString.uniformList, PMF.map_comp]
-    congr 1 with v : 1
-    rw [Function.comp_apply, Bool.eq_iff_iff, beq_iff_eq, decide_eq_true_iff]
-    constructor
-    · intro hv
-      funext i
-      have hi := congrArg (fun l => l.getD i.val false) hv
-      fin_cases i <;> exact hi.symm
-    · rintro rfl
-      rfl
+    congr 1
+    funext v
+    revert v
+    decide
   rw [h, PMF.map_apply, tsum_fintype]
   simp only [PMF.uniformOfFintype_apply, Fintype.card_fun, Fintype.card_fin, Fintype.card_bool]
   rw [Finset.sum_ite, Finset.sum_const_zero, add_zero, Finset.sum_const, nsmul_eq_mul]
@@ -457,7 +443,7 @@ theorem eval_game0Pads_eq_eval_game0 {β : Type} (generator : List Bool → List
     proverReply1_eq_naorSelectPads generator m, length_realBits]
   exact hselect
 
-/-! ### Eliminating the witness: masking unopened committed bits and eliminating the witness -/
+/-! ### Masking unopened committed bits and eliminating the witness -/
 
 private theorem uniformList_bind_ite_listXor {α : Type} (d : ℕ) (b : Bool) (w : List Bool)
     (k : List Bool → PMF α) :
@@ -475,16 +461,19 @@ private theorem uniformList_bind_ite_listXor {α : Type} (d : ℕ) (b : Bool) (w
 
 private theorem uniformList_bind_ite_listXor_three {α : Type} (d : ℕ) (b₀ b₁ b₂ : Bool)
     (w : List Bool) (f : List Bool → List Bool → List Bool → PMF α) :
-    ((BitString.uniformList d).bind fun m₀ =>
-      (BitString.uniformList d).bind fun m₁ =>
-        (BitString.uniformList d).bind fun m₂ =>
-          f (if b₀ then BitString.listXor d [w, m₀] else m₀)
-            (if b₁ then BitString.listXor d [w, m₁] else m₁)
-            (if b₂ then BitString.listXor d [w, m₂] else m₂)) =
-    ((BitString.uniformList d).bind fun r₀ =>
-      (BitString.uniformList d).bind fun r₁ =>
-        (BitString.uniformList d).bind fun r₂ =>
-          f r₀ r₁ r₂) := by
+    (do
+      let m₀ ← BitString.uniformList d
+      let m₁ ← BitString.uniformList d
+      let m₂ ← BitString.uniformList d
+      f (if b₀ then BitString.listXor d [w, m₀] else m₀)
+        (if b₁ then BitString.listXor d [w, m₁] else m₁)
+        (if b₂ then BitString.listXor d [w, m₂] else m₂)) =
+    (do
+      let r₀ ← BitString.uniformList d
+      let r₁ ← BitString.uniformList d
+      let r₂ ← BitString.uniformList d
+      f r₀ r₁ r₂) := by
+  simp only [PMF.monad_bind_eq_bind]
   rw [uniformList_bind_ite_listXor d b₀ w (fun r₀ =>
     (BitString.uniformList d).bind fun m₁ =>
       (BitString.uniformList d).bind fun m₂ =>
@@ -511,8 +500,10 @@ private theorem eval_bind_gmwSimWithPads {β : Type} (d_pads : ProbComp (List (L
         let r₀ ← BitString.sampleList φ.vars.length
         let r₁ ← BitString.sampleList φ.vars.length
         let r₂ ← BitString.sampleList φ.vars.length
-        let bits := simBits φ ch_guess r₀ r₁ r₂; let openFlags := allOpenFlags φ ch_guess bits
-        let seeds ← OracleComp.replicate (totalLen φ) (BitString.sampleList s); let pads ← d_pads
+        let bits := simBits φ ch_guess r₀ r₁ r₂
+        let openFlags := allOpenFlags φ ch_guess bits
+        let seeds ← OracleComp.replicate (totalLen φ) (BitString.sampleList s)
+        let pads ← d_pads
         acceptGuess ch_guess <$> runTwoRound
           (fun r => proverReply1 generator m r openFlags bits seeds pads)
           (fun _ => proverReply2 s φ ch_guess bits seeds) prog .init) := by
@@ -558,7 +549,8 @@ theorem eval_game1_eq_eval_gmwSimAttempt {β : Type} (generator : List Bool → 
       ProbComp.eval (gmwSimAttempt generator s m φ prog) := by
   rw [gmwRealUniformPads, eval_bind_gameWithPads, gmwSimAttempt, eval_bind_gmwSimWithPads]
   let simCont (ch_guess r₀ r₁ r₂ : List Bool) : PMF (Option β) :=
-    let sbits := simBits φ ch_guess r₀ r₁ r₂; let sflags := allOpenFlags φ ch_guess sbits
+    let sbits := simBits φ ch_guess r₀ r₁ r₂
+    let sflags := allOpenFlags φ ch_guess sbits
     ProbComp.eval (do
       let seeds ← OracleComp.replicate (totalLen φ) (BitString.sampleList s)
       let pads ← OracleComp.replicate (totalLen φ) (BitString.sampleList m)
@@ -567,7 +559,8 @@ theorem eval_game1_eq_eval_gmwSimAttempt {β : Type} (generator : List Bool → 
         (fun _ => proverReply2 s φ ch_guess sbits seeds) prog .init)
   have hinner (ch_guess m₀ m₁ m₂ : List Bool) :
       ProbComp.eval (do
-        let bits := realBits φ w m₀ m₁ m₂; let openFlags := allOpenFlags φ ch_guess bits
+        let bits := realBits φ w m₀ m₁ m₂
+        let openFlags := allOpenFlags φ ch_guess bits
         let seeds ← OracleComp.replicate (totalLen φ) (BitString.sampleList s)
         let pads ← OracleComp.replicate (totalLen φ) (BitString.sampleList m)
         acceptGuess ch_guess <$> runTwoRound
@@ -577,7 +570,8 @@ theorem eval_game1_eq_eval_gmwSimAttempt {β : Type} (generator : List Bool → 
         (if ch_guess.getD 0 false then BitString.listXor φ.vars.length [w, m₀] else m₀)
         (if ch_guess.getD 1 false then BitString.listXor φ.vars.length [w, m₁] else m₁)
         (if ch_guess.getD 2 false then BitString.listXor φ.vars.length [w, m₂] else m₂) := by
-    let bits := realBits φ w m₀ m₁ m₂; let openFlags := allOpenFlags φ ch_guess bits
+    let bits := realBits φ w m₀ m₁ m₂
+    let openFlags := allOpenFlags φ ch_guess bits
     let r₀ := if ch_guess.getD 0 false then BitString.listXor φ.vars.length [w, m₀] else m₀
     let r₁ := if ch_guess.getD 1 false then BitString.listXor φ.vars.length [w, m₁] else m₁
     let r₂ := if ch_guess.getD 2 false then BitString.listXor φ.vars.length [w, m₂] else m₂
@@ -599,22 +593,13 @@ theorem eval_game1_eq_eval_gmwSimAttempt {β : Type} (generator : List Bool → 
     refine congrArg (PMF.bind _) (funext fun seeds => ?_)
     have hpad := eval_pads_runTwoRound_mask generator s m φ ch_guess openFlags bits seeds prog
     rw [hbits_len] at hpad
-    have hpad_rhs :
-        ProbComp.eval (do
-          let pads ← OracleComp.replicate (totalLen φ) (BitString.sampleList m)
-          acceptGuess ch_guess <$> runTwoRound
-            (fun r => proverReply1 generator m r openFlags (naorMaskBits openFlags bits) seeds pads)
-            (fun _ => proverReply2 s φ ch_guess bits seeds) prog .init) =
-        ProbComp.eval (do
-          let pads ← OracleComp.replicate (totalLen φ) (BitString.sampleList m)
-          acceptGuess ch_guess <$> runTwoRound
-            (fun r => proverReply1 generator m r (allOpenFlags φ ch_guess sbits) sbits seeds pads)
-            (fun _ => proverReply2 s φ ch_guess sbits seeds) prog .init) := by
+    conv at hpad =>
+      rhs
       rw [hmask, hflags, hrep2 seeds]
-    simpa only [ProbComp.eval_bind] using hpad.trans hpad_rhs
+    simpa only [ProbComp.eval_bind] using hpad
   simp only [ProbComp.eval_bind, BitString.eval_sampleList, hinner]
   refine congrArg (PMF.bind _) (funext fun ch_guess => ?_)
-  simpa only [simCont, ProbComp.eval_bind] using
+  simpa only [simCont, ProbComp.eval_bind, PMF.monad_bind_eq_bind] using
     uniformList_bind_ite_listXor_three φ.vars.length
       (ch_guess.getD 0 false) (ch_guess.getD 1 false) (ch_guess.getD 2 false) w (simCont ch_guess)
 
@@ -1021,17 +1006,11 @@ theorem AdvicePRG.gmwView_negligible {α : Type} {enc : α ↪ List Bool}
     simp only [length_encPair, encBits_apply]
     exact (((PolynomiallyBounded.const 2).mul hz).add (.const 1)).add hz'
   have hneg := hAdv.negligible_encoded hclock ha hw haux
-  have hcount_poly :=
-    (((computableInPolyTime_totalLen hf).tidy.polyBounded).comp
+  dsimp only at hneg
+  have hcount_poly : PolynomiallyBounded (fun n => totalLen (f (a n))) :=
+    (((computableInPolyTime_totalLen hf).polyBounded).comp
       ⟨_, ha, fun _ => le_rfl⟩).polynomiallyBounded
-  have hloss : PolynomiallyBounded
-      (fun n => dyadicSize (n + 1) * dyadicSize (totalLen (f (a n)))) :=
-    (dyadicSize_polynomiallyBounded.comp (PolynomiallyBounded.id.add (.const 1))).mul
-      (dyadicSize_polynomiallyBounded.comp hcount_poly)
-  have herr := (negligible_geometric (by norm_num : (7 / 8 : ℝ≥0) < 1)).shift 1
-  apply negligible_of_le (herr.add_fun (hneg.polynomiallyBounded_mul hloss))
-  intro n
-  simpa only [ProbComp.eval_bind, Nat.cast_mul] using
+  negligible using fun n =>
     gmwView_advantage_le generator length f Vstar
       (fun m a _ view => adversary m a (z' n) view) n (a n) (w n) (z n) (hw_sat n)
 
@@ -1118,17 +1097,12 @@ theorem gmwView_indistinguishable_gmwSimulator {α : Type} {enc : α ↪ List Bo
       ((hfst.prod ((ha.comp hfst).prod ((hw_comp.comp hfst).prod (hz.comp hfst)))).prod
         (.snd encUnary encBits))
   have hneg := (hG.indistinguishable.shift 7) red hred
-  have hcount_poly := ((computableInPolyTime_totalLen (hf.comp ha)).tidy).polynomiallyBounded
-  have hloss : PolynomiallyBounded
-      (fun n => dyadicSize (n + 1) * dyadicSize (totalLen (f (a n)))) :=
-    (dyadicSize_polynomiallyBounded.comp (PolynomiallyBounded.id.add (.const 1))).mul
-      (dyadicSize_polynomiallyBounded.comp hcount_poly)
-  have herr := (negligible_geometric (by norm_num : (7 / 8 : ℝ≥0) < 1)).shift 1
-  apply negligible_of_le (herr.add_fun (hneg.polynomiallyBounded_mul hloss))
-  intro n
-  simpa only [pmf_norm, distinguishingGame_eq_bind, BitString.eval_sampleList, generatorEnsemble,
-    Nat.cast_mul, red] using
-    gmwView_advantage_le generator length f Vstar (fun n _ _ view => adversary n view)
-      n (a n) (w n) (z n) (hw_sat n)
+  simp only [pmf_norm, distinguishingGame_eq_bind, generatorEnsemble, red] at hneg
+  have hcount_poly : PolynomiallyBounded (fun n => totalLen (f (a n))) :=
+    (computableInPolyTime_totalLen (hf.comp ha)).polynomiallyBounded
+  negligible using fun n => by
+    simpa only [pmf_norm, BitString.eval_sampleList] using
+      gmwView_advantage_le generator length f Vstar (fun n _ _ view => adversary n view)
+        n (a n) (w n) (z n) (hw_sat n)
 
 end Cslib.Crypto.GMW

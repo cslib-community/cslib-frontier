@@ -127,9 +127,8 @@ example : BitString.binaryValue (13 : ℕ).bits.reverse = 13 :=
   BitString.binaryValue_reverse_bits 13
 
 example : ComputableInPolyTime (fun n : ℕ => n + 1) encUnary encUnary := by
-  refine .of_tidy ?_
-  apply ComputableTidilyInPolyTime.binary_to_unary_bounded (bound := fun n => n + 2)
-  · exact ComputableTidilyInPolyTime.unary_to_binary.comp (by fun_prop)
+  apply ComputableInPolyTime.binary_to_unary_bounded (bound := fun n => n + 2)
+  · exact ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
   · fun_prop
   · intro n
     lia

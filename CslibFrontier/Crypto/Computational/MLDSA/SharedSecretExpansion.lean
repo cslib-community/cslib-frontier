@@ -1,0 +1,353 @@
+/-
+Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Samuel Schlesinger
+-/
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
+-- Reads private `PostKey`, `observePair`, `separate_secret`, and `Xofs.withExpandSStream`.
+import all CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
+import CslibFrontier.Probability.PMF.UniformExtend
+
+/-!
+# Coupling private and shared ML-DSA key expansion
+
+[FIPS 204][NISTFIPS204], Algorithm 6, derives both a 32-byte public matrix seed and a 64-byte
+secret expansion seed from one SHAKE256 read. Algorithm 33 reads the rows of both short vectors
+at that second seed with successive two-byte counters. The same inputs are available to the
+forger through its quantum XOF interface.
+
+`QuantumSigningForger.secretExpansionViews_games` expresses both online games as continuations of
+one random setup. Resampling the secret rows preserves the whole oracle distribution because
+their 528-bit addresses differ from the 272-bit input that determines those addresses.
+`SecretExpansionViews.agree_of_mem` locates every byte at which the two online oracles can differ.
+-/
+
+public section
+
+namespace Cslib.Crypto.MLDSA.FIPS204
+open Cslib.Probability ExtendableOutput
+
+private def matrixSeed (H : Xofs) (s : Level) (seed : FixedBytes 32) : FixedBytes 32 :=
+  fun i => ((H.expandKeySeed s seed).take 32)[i.val]!
+
+private theorem matrixSeed_bytes (H : Xofs) (s : Level) (seed : FixedBytes 32) :
+    (matrixSeed H s seed).toList = (H.expandKeySeed s seed).take 32 := by
+  have len : (H.expandKeySeed s seed).length = 128 := H.h256.length_read ..
+  refine List.ext_getElem (by simp [FixedBytes.toList, len]) fun i _ h2 => ?_
+  simp only [FixedBytes.toList, List.getElem_ofFn, matrixSeed,
+    getElem!_pos ((H.expandKeySeed s seed).take 32) i h2]
+
+private def expansionSeed (H : Xofs) (s : Level) (seed : FixedBytes 32) : FixedBytes 64 :=
+  fun j => ((H.expandKeySeed s seed).drop 32)[j.val]!
+
+private theorem expansionSeed_bytes (H : Xofs) (s : Level) (seed : FixedBytes 32) :
+    (expansionSeed H s seed).toList = ((H.expandKeySeed s seed).drop 32).take 64 := by
+  have len : (H.expandKeySeed s seed).length = 128 := H.h256.length_read ..
+  refine List.ext_getElem (by simp [len]) fun i _ h2 => ?_
+  have hd : i < ((H.expandKeySeed s seed).drop 32).length := by
+    simp only [List.length_take, List.length_drop, len] at h2 ⊢; omega
+  simp only [FixedBytes.toList, List.getElem_ofFn, expansionSeed, List.getElem_take,
+    getElem!_pos ((H.expandKeySeed s seed).drop 32) i hd]
+
+private def atTable {a b : ℕ} (base : Xofs) (T : Table a b) : Xofs :=
+  {base with h256 := install base.h256 T}
+
+private def slots {a b : ℕ} (s : Level) (base : Xofs) (seed : FixedBytes 32)
+    (ha : 528 ≤ a) (hb : 481 ≤ b) (T : Table a b) :=
+  secretPoint s (expansionSeed (atTable base T) s seed) ha hb
+
+private theorem read_off_slots {a b : ℕ} (s : Level) (base : Xofs) (seed : FixedBytes 32)
+    (ha : 528 ≤ a) (hb : 481 ≤ b) (T : Table a b) (fresh : Nonce s × Fin 481 → Byte)
+    (x : List Bool) (away : ∀ j, x ≠ nonceWord s (expansionSeed (atTable base T) s seed) j)
+    (n : ℕ) :
+    (atTable base (Function.extend (slots s base seed ha hb T) fresh T)).h256.read x n =
+      (atTable base T).h256.read x n := by
+  refine read_eq_of_byteAt_eq fun i _ => ?_
+  simp only [atTable, byteAt_install]
+  split
+  · next h =>
+    exact Function.extend_apply' _ _ _ fun ⟨j, eq⟩ =>
+      away j.1 (word_inj (hx := (length_nonceInput_bits _ _).le.trans ha) (hy := h.1)
+        (congrArg Prod.fst eq)).symm
+  · rfl
+
+private theorem fixed_expansion {a b : ℕ} (s : Level) (base : Xofs) (seed : FixedBytes 32)
+    (ha : 528 ≤ a) (hb : 481 ≤ b) (T : Table a b) (v : Nonce s × Fin 481 → Byte) :
+    (atTable base (Function.extend (slots s base seed ha hb T) v T)).expandKeySeed s seed =
+      (atTable base T).expandKeySeed s seed := by
+  refine read_off_slots s base seed ha hb T v _ (fun j h => ?_) _
+  have len := congrArg List.length h
+  simp only [nonceWord, length_keySeedInput, length_nonceInput_bits] at len
+  nomatch len
+
+private theorem uniform_secret_resample {a b : ℕ} (s : Level) (base : Xofs)
+    (seed : FixedBytes 32) (ha : 528 ≤ a) (hb : 481 ≤ b) {α : Type} (run : Xofs → PMF α) :
+    ((PMF.uniformOfFintype (Table a b)).bind fun T =>
+      (PMF.uniformOfFintype (Nonce s × Fin 481 → Byte)).bind fun v =>
+        run (atTable base (Function.extend (slots s base seed ha hb T) v T))) =
+      (PMF.uniformOfFintype (Table a b)).bind fun T => run (atTable base T) :=
+  PMF.uniformOfFintype_bind_bind_adaptiveExtend (slots s base seed ha hb)
+    (fun T v => congrArg (secretPoint s · ha hb) (funext fun i =>
+      congrArg (fun l : List Byte => (l.drop 32)[i.val]!) (fixed_expansion s base seed ha hb T v)))
+    fun T => run (atTable base T)
+
+private noncomputable def atSeed {s : Level} (H : Xofs) (seed : FixedBytes 32)
+    (run : PostKey s) : Game :=
+  let ex := H.expandKeySeed s seed
+  let rho := ex.take 32
+  observePair (H.expandA s rho) (H.expandS s ((ex.drop 32).take 64))
+    (run H (fun j => rho[j.val]!))
+
+/-- The coupled FIPS setup before the signing adversary runs. Both games receive the
+same public seed and pair. The distinguishing experiment determines which oracle they read. -/
+structure SecretExpansionViews (s : Level) where
+  /-- Raw XOFs with the sampled secret rows installed. -/
+  shared : Xofs
+  /-- Original raw XOFs, before installing those rows. -/
+  background : Xofs
+  /-- Original 32-byte key-generation seed, retained by the challenger. -/
+  keySeed : FixedBytes 32
+  /-- Secret 64-byte prefix derived at the actual key-generation input. -/
+  secretSeed : FixedBytes 64
+  /-- Matrix seed passed to the signer and encoded in the public key. -/
+  publicSeed : FixedBytes 32
+  /-- Matrix and full vector, absent on either native expansion failure. -/
+  pair : Option (MLDSA.PublicKey s.params)
+
+private def generatedPair {s : Level} (matrix : Option (PublicMatrix s))
+    (short : Option ((Fin s.params.ℓ → Poly) × (Fin s.params.k → Poly))) :
+    Option (MLDSA.PublicKey s.params) := do
+  let A ← matrix
+  let (x, e) ← short
+  return ⟨A, ModuleLWE.sample A x e⟩
+
+private theorem observe_generatedPair {s : Level} (matrix : Option (PublicMatrix s))
+    (short : Option ((Fin s.params.ℓ → Poly) × (Fin s.params.k → Poly)))
+    (run : MLDSA.PublicKey s.params → Game) :
+    ((generatedPair matrix short).map run).getD (PMF.pure false) =
+      observePair matrix short run := by
+  cases matrix <;> cases short <;> rfl
+
+private noncomputable def viewsAt {a b : ℕ} (s : Level) (base : Xofs) (seed : FixedBytes 32)
+    (ha : 528 ≤ a) (hb : 481 ≤ b) (T : Table a b) (rows : Nonce s × Fin 481 → Byte) :
+    SecretExpansionViews s :=
+  let H := atTable base T
+  let rho := (H.expandKeySeed s seed).take 32
+  { shared := atTable base (Function.extend (slots s base seed ha hb T) rows T)
+    background := H
+    keySeed := seed
+    secretSeed := expansionSeed H s seed
+    publicSeed := matrixSeed H s seed
+    pair := generatedPair (H.expandA s rho) (vectors s (rowPair s rows)) }
+
+/-- Joint distribution of the two online XOFs, derived seeds and the actual (possibly failed)
+key-generation pair. The experiment resamples only the first 481 bytes in each of the secret
+and error rows selected by Algorithm 6. -/
+noncomputable def Xofs.sampleSecretExpansionViews (base : Xofs) (s : Level) {a b : ℕ}
+    (ha : 528 ≤ a) (hb : 481 ≤ b) : PMF (SecretExpansionViews s) :=
+  let U := PMF.uniformOfFintype (Table a b)
+  U.bind fun T => U.bind fun M =>
+    (PMF.uniformOfFintype (FixedBytes 32)).bind fun seed =>
+      (PMF.uniformOfFintype (Nonce s × Fin 481 → Byte)).map fun rows =>
+        viewsAt s {base with h128 := install base.h128 M} seed ha hb T rows
+
+private noncomputable def observeViews {s : Level} (share : Bool) (run : PostKey s)
+    (v : SecretExpansionViews s) : Game :=
+  (v.pair.map (run (if share then v.shared else v.background) v.publicSeed)).getD (PMF.pure false)
+
+private theorem patched_trial {a b : ℕ} (s : Level) (base : Xofs) (seed : FixedBytes 32)
+    (ha : 528 ≤ a) (hb : 481 ≤ b) (T : Table a b) (rows : Nonce s × Fin 481 → Byte)
+    (run : PostKey s) :
+    atSeed (atTable base (Function.extend (slots s base seed ha hb T) rows T)) seed run =
+      observeViews true run (viewsAt s base seed ha hb T rows) := by
+  let H := atTable base T
+  let e := slots s base seed ha hb T
+  let r := expansionSeed H s seed
+  have val : (atTable base (Function.extend e rows T)).expandS s r.toList =
+      vectors s (rowPair s rows) := by
+    have get (p : Nonce s × Fin 481) :
+        Function.extend e rows T (secretPoint s r ha hb p) = rows p :=
+      e.injective.extend_apply rows T p
+    simpa only [atTable, get] using expandS_install s r ha hb base (Function.extend e rows T)
+  unfold atSeed observeViews viewsAt
+  dsimp only [↓reduceIte]
+  rw [fixed_expansion]
+  change observePair _ ((atTable base (Function.extend e rows T)).expandS s
+    (((H.expandKeySeed s seed).drop 32).take 64)) _ = _
+  rw [← expansionSeed_bytes, val, ← observe_generatedPair]
+  rfl
+
+private theorem shared_law {s : Level} (base : Xofs) {a b : ℕ}
+    (ha : 528 ≤ a) (hb : 481 ≤ b) (run : PostKey s) :
+    ((base.uniformPrefixes a b).bind fun H => H.fullPairExperiment s (run H)) =
+      (base.sampleSecretExpansionViews s ha hb).bind (observeViews true run) := by
+  let U := PMF.uniformOfFintype (Table a b)
+  let S := PMF.uniformOfFintype (FixedBytes 32)
+  simp_rw [show ∀ H : Xofs, H.fullPairExperiment s (run H) = S.bind fun seed => atSeed H seed run
+    from fun _ => Xofs.fullPairExperiment_eq_expand ..]
+  rw [independent_tables]
+  simp only [Xofs.sampleSecretExpansionViews, PMF.bind_bind, PMF.bind_map, Function.comp_def]
+  change (U.bind fun T => U.bind fun M => S.bind fun seed =>
+      atSeed (atTable {base with h128 := install base.h128 M} T) seed run) =
+    U.bind fun T => U.bind fun M => S.bind fun seed =>
+      (PMF.uniformOfFintype (Nonce s × Fin 481 → Byte)).bind fun v =>
+        observeViews true run (viewsAt s {base with h128 := install base.h128 M} seed ha hb T v)
+  conv_lhs => rw [PMF.bind_comm U U]
+  conv_rhs => rw [PMF.bind_comm U U]
+  refine congrArg (PMF.bind U ·) (funext fun M => ?_)
+  conv_lhs => rw [PMF.bind_comm U S]
+  conv_rhs => rw [PMF.bind_comm U S]
+  refine congrArg (PMF.bind S ·) (funext fun seed => ?_)
+  let B : Xofs := {base with h128 := install base.h128 M}
+  change (U.bind fun T => atSeed (atTable B T) seed run) = _
+  exact (uniform_secret_resample s B seed ha hb fun H => atSeed H seed run).symm.trans
+    (by simp only [patched_trial, U, B])
+
+private theorem detached_at_seed {s : Level} (base : Xofs) {a b : ℕ} (ha : 528 ≤ a)
+    (hb : 481 ≤ b) (H : Xofs) (seed : FixedBytes 32) (run : PostKey s) :
+    let ex := H.expandKeySeed s seed
+    let A := H.expandA s (ex.take 32)
+    let finish := run H (fun j => (ex.take 32)[j.val]!)
+    ((base.uniformPrefixes a b).bind fun G =>
+      observePair A (G.expandS s ((ex.drop 32).take 64)) finish) =
+      (PMF.uniformOfFintype (Nonce s × Fin 481 → Byte)).bind fun rows =>
+        observePair A (vectors s (rowPair s rows)) finish := by
+  intro ex A finish
+  have row := uniformPrefixes_secretRows base s (expansionSeed H s seed) ha hb
+  rw [PMF.uniformOfFintype_bind_map (fun x y => vectors s (x, y)),
+    ← PMF.uniformOfFintype_map_equiv (rowPair s), PMF.map_comp] at row
+  simpa only [PMF.bind_map, Function.comp_def, expansionSeed_bytes] using
+    congrArg (PMF.bind · fun v => observePair A v finish) row
+
+private theorem detached_law (C : QuantumSigningForger) (s : Level) (base : Xofs) {a b : ℕ}
+    (ha : 528 ≤ a) (hb : 481 ≤ b) :
+    C.independentExpandSGame s base a b =
+      (base.sampleSecretExpansionViews s ha hb).bind (observeViews false
+        (fun H rho pk => (C.publicPairSigning s H rho pk).map (·.trial.newDigestWin))) := by
+  let run : PostKey s := fun H rho pk =>
+    (C.publicPairSigning s H rho pk).map (·.trial.newDigestWin)
+  let R := base.uniformPrefixes a b
+  let S := PMF.uniformOfFintype (FixedBytes 32)
+  let V := PMF.uniformOfFintype (Nonce s × Fin 481 → Byte)
+  have atH (H : Xofs) :
+      (R.bind fun G => (H.withExpandSStream G).fullPairExperiment s (run H)) =
+        S.bind fun seed => V.bind fun rows =>
+          let rho := (H.expandKeySeed s seed).take 32
+          observePair (H.expandA s rho) (vectors s (rowPair s rows))
+            (run H (fun j => rho[j.val]!)) := by
+    simp_rw [Xofs.fullPairExperiment_eq_expand, seed_keep]
+    rw [PMF.bind_comm]
+    refine congrArg (PMF.bind S ·) (funext fun seed => ?_)
+    have len : (H.expandKeySeed s seed).length = 128 := H.h256.length_read ..
+    have hr : (((H.expandKeySeed s seed).drop 32).take 64).length = 64 := by simp [len]
+    change (R.bind fun G => observePair _ ((H.withExpandSStream G).expandS s _) _) = _
+    simp_rw [separate_secret H _ s _ hr]
+    exact detached_at_seed base ha hb H seed run
+  change (R.bind fun H => R.bind fun G => (H.withExpandSStream G).fullPairExperiment s (run H)) = _
+  simp_rw [atH]
+  simp only [R, independent_tables, Xofs.sampleSecretExpansionViews, PMF.bind_bind, PMF.bind_map,
+    Function.comp_def, observeViews, viewsAt, observe_generatedPair]
+  rfl
+
+/-- The native public-pair signing game and the independent private-expansion game share
+one setup distribution. They use its identical pair and published key. Only the XOFs passed
+to adaptive signing, quantum queries and the final byte verifier differ. -/
+theorem QuantumSigningForger.secretExpansionViews_games (C : QuantumSigningForger) (s : Level)
+    (base : Xofs) {a b : ℕ} (ha : 528 ≤ a) (hb : 481 ≤ b) :
+    let run := fun H rho pk => (C.publicPairSigning s H rho pk).map (·.trial.newDigestWin)
+    let V := base.sampleSecretExpansionViews s ha hb
+    (((base.uniformPrefixes a b).bind fun H => H.fullPairExperiment s (run H)) =
+      V.bind fun v => (v.pair.map (run v.shared v.publicSeed)).getD (PMF.pure false)) ∧
+    (C.independentExpandSGame s base a b =
+      V.bind fun v => (v.pair.map (run v.background v.publicSeed)).getD (PMF.pure false)) :=
+  ⟨shared_law base ha hb _, detached_law C s base ha hb⟩
+
+/-- The coupled views expand the same original 32-byte key seed to the same 128 bytes.
+Their published seed and private row prefix are the first 32 and following 64 of these bytes. -/
+theorem SecretExpansionViews.seeds_of_mem {base : Xofs} {s : Level} {a b : ℕ}
+    {ha : 528 ≤ a} {hb : 481 ≤ b} {v : SecretExpansionViews s}
+    (hv : v ∈ (base.sampleSecretExpansionViews s ha hb).support) :
+    let ex := v.background.expandKeySeed s v.keySeed
+    v.shared.expandKeySeed s v.keySeed = ex ∧ v.publicSeed.toList = ex.take 32 ∧
+      v.secretSeed.toList = (ex.drop 32).take 64 := by
+  obtain ⟨T, _, M, _, seed, _, rows, _, rfl⟩ := (by
+    simpa only [Xofs.sampleSecretExpansionViews, PMF.mem_support_bind_iff,
+      PMF.mem_support_map_iff] using hv)
+  let B : Xofs := {base with h128 := install base.h128 M}
+  let H := atTable B T
+  exact ⟨fixed_expansion s B seed ha hb T rows, matrixSeed_bytes H s seed,
+    expansionSeed_bytes H s seed⟩
+
+/-- The coupled views have identical SHAKE128 streams and identical SHAKE256 bytes except at
+the first 481 positions of an Algorithm 33 row. The nonce range includes both vectors. -/
+theorem SecretExpansionViews.agree_of_mem {base : Xofs} {s : Level} {a b : ℕ}
+    {ha : 528 ≤ a} {hb : 481 ≤ b} {v : SecretExpansionViews s}
+    (hv : v ∈ (base.sampleSecretExpansionViews s ha hb).support) :
+    v.shared.h128 = v.background.h128 ∧
+    ∀ (x : List Bool) (i : ℕ), (481 ≤ i ∨ ∀ j : Fin (s.params.ℓ + s.params.k),
+      x ≠ Keccak.bytesToBitsLE (nonceInput v.secretSeed.toList j.val)) →
+      v.shared.h256.byteAt x i = v.background.h256.byteAt x i := by
+  obtain ⟨T, _, M, _, seed, _, rows, _, rfl⟩ := (by
+    simpa only [Xofs.sampleSecretExpansionViews, PMF.mem_support_bind_iff,
+      PMF.mem_support_map_iff] using hv)
+  refine ⟨rfl, fun x i apart => ?_⟩
+  change byteAt (install base.h256 (Function.extend _ rows T)) x i =
+    byteAt (install base.h256 T) x i
+  simp only [byteAt_install]
+  split
+  · next h =>
+    exact Function.extend_apply' _ _ _ fun ⟨p, hp⟩ => apart.elim
+      (fun late => Nat.not_lt.mpr late ((congrArg (·.2.val) hp : p.2.val = i) ▸ p.2.isLt))
+      (fun miss => miss (finSumFinEquiv p.1) (word_inj
+        (hx := (length_nonceInput_bits _ _).le.trans ha) (hy := h.1) (congrArg Prod.fst hp)).symm)
+  · rfl
+
+/-- A pure-mode representative can coincide with a private expansion address only on the empty
+message and empty context. In that case the public-key hash must equal the private seed and the
+little-endian nonce must be zero. -/
+theorem representativeInput_eq_nonceInput_iff (tr r : FixedBytes 64)
+    (ctx : List Byte) (msg : List Bool) (j : Fin 65536) :
+    representativeInput tr.toList (formatMessage msg ctx) =
+        Keccak.bytesToBitsLE (nonceInput r.toList j.val) ↔
+      tr = r ∧ ctx = [] ∧ msg = [] ∧ j = 0 := by
+  refine ⟨fun eq => ?_, ?_⟩
+  · have len := congrArg List.length eq
+    have trLen : tr.toList.length = 64 := FixedBytes.length_toList tr
+    rw [length_nonceInput_bits] at len
+    simp only [representativeInput, formatMessage, List.length_append,
+      Keccak.length_bytesToBitsLE, trLen, List.length_cons] at len
+    obtain rfl : ctx = [] := List.length_eq_zero_iff.mp (by lia)
+    obtain rfl : msg = [] := List.length_eq_zero_iff.mp (by lia)
+    have bs : nonceInput tr.toList 0 = nonceInput r.toList j.val :=
+      Keccak.bytesToBitsLE_injective (Eq.trans
+        (by simp only [representativeInput, formatMessage, List.append_nil]
+            exact List.flatMap_append) eq)
+    have seeds := congrArg (List.take 64) bs
+    simp only [nonceInput, List.take_left' (FixedBytes.length_toList _)] at seeds
+    obtain rfl : tr = r := List.ofFn_inj.mp seeds
+    exact ⟨rfl, rfl, rfl, Fin.ext (eq_of_nonceInput_eq (by decide : 0 < 65536) j.isLt bs).symm⟩
+  · rintro ⟨rfl, rfl, rfl, rfl⟩
+    simp only [representativeInput, formatMessage, List.append_nil]
+    exact List.flatMap_append.symm
+
+/-- All honest pure-mode representative reads agree outside the single potential
+public-key-hash collision for the empty request. The equality is pointwise in the message and
+context on the two sampled XOFs. -/
+theorem SecretExpansionViews.representative_of_mem {base : Xofs} {s : Level} {a b : ℕ}
+    {ha : 528 ≤ a} {hb : 481 ≤ b} {v : SecretExpansionViews s}
+    (hv : v ∈ (base.sampleSecretExpansionViews s ha hb).support)
+    (tr : FixedBytes 64) (ctx : List Byte) (msg : List Bool)
+    (away : tr ≠ v.secretSeed ∨ ctx ≠ [] ∨ msg ≠ []) :
+    v.shared.representativeFromTr tr.toList (formatMessage msg ctx) =
+      v.background.representativeFromTr tr.toList (formatMessage msg ctx) := by
+  refine congrArg Keccak.bytesToBitsLE (read_eq_of_byteAt_eq fun i _ =>
+    (agree_of_mem hv).2 _ i (Or.inr fun j hit => ?_))
+  obtain ⟨htr, hc, hm, _⟩ := (representativeInput_eq_nonceInput_iff tr v.secretSeed ctx msg
+    (j.castLE (by cases s <;> decide))).mp hit
+  exact away.elim (· htr) (·.elim (· hc) (· hm))
+
+end Cslib.Crypto.MLDSA.FIPS204

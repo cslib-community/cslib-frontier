@@ -356,7 +356,7 @@ private theorem friBatch257_rbrError_eq :
       ENNReal.coe_div (by norm_num : (262144 : ℝ≥0) ≠ 0), ENNReal.coe_ofNat] using
       congrArg ENNReal.ofNNReal hnn
   have hcard : (Fintype.card (ZMod 257) : ℝ≥0∞) = 257 := by simp only [ZMod.card, Nat.cast_ofNat]
-  simp only [friBatchRBRError, friRBRError, params257, hcard,
+  simp only [friBatchRBRError, friSmoothBatchRBRError, friSmoothRBRError, params257, hcard,
     (by norm_num : ((2 ^ (3 - 1) : ℕ) : ℝ≥0∞) = 4),
     (by norm_num : ((2 ^ 3 - 2 - 1 : ℕ) : ℝ≥0∞) = 5),
     (by norm_num : (2 : ℝ≥0∞) ^ 3 = 8), hpow, max_eq_right h1, max_eq_right h2]
@@ -540,7 +540,7 @@ private theorem friBatch786_rbrError_eq :
       congrArg ENNReal.ofNNReal hnn
   have hcard : (Fintype.card (ZMod 786433) : ℝ≥0∞) = 786433 := by
     simp only [ZMod.card, Nat.cast_ofNat]
-  simp only [friBatchRBRError, friRBRError, params786, hcard,
+  simp only [friBatchRBRError, friSmoothBatchRBRError, friSmoothRBRError, params786, hcard,
     (by norm_num : ((17476 : ℕ) : ℝ≥0∞) = 17476),
     (by norm_num : ((2 ^ 4 - 7 - 1 : ℕ) : ℝ≥0∞) = 8),
     (by norm_num : (2 : ℝ≥0∞) ^ 4 = 16), hpow, max_eq_left h1, max_eq_left h2]
@@ -675,7 +675,7 @@ private theorem friBatch26M_rbrError_eq :
       congrArg ENNReal.ofNNReal hnn
   have hcard : (Fintype.card (ZMod 26214401) : ℝ≥0∞) = 26214401 := by
     simp only [ZMod.card, Nat.cast_ofNat]
-  simp only [friBatchRBRError, friRBRError, params26M, hcard,
+  simp only [friBatchRBRError, friSmoothBatchRBRError, friSmoothRBRError, params26M, hcard,
     (by norm_num : ((21270 : ℕ) : ℝ≥0∞) = 21270),
     (by norm_num : ((2 ^ 4 - 8 - 1 : ℕ) : ℝ≥0∞) = 7),
     (by norm_num : (2 : ℝ≥0∞) ^ 4 = 16), hpow, max_eq_right h1, max_eq_left h2]

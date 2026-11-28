@@ -94,9 +94,9 @@ example : (winternitzDigitList 3 2 2 6)[2]'(by simp [winternitzDigitList_length]
 -- Caller of `winternitzDigitList_polyTime` at fixed `d = 15`, `n0 = 64`, `n1 = 3`.
 example : ComputableInPolyTime (fun m : ℕ => winternitzDigitList 15 64 3 m) encNat
     (encList encNat) :=
-  ComputableInPolyTime.of_tidy <| winternitzDigitList_polyTime.tidy.comp
-    ((ComputableTidilyInPolyTime.const 15).prod ((ComputableTidilyInPolyTime.const 64).prod
-      ((ComputableTidilyInPolyTime.const 3).prod ComputableTidilyInPolyTime.id')))
+  winternitzDigitList_polyTime.comp
+    ((ComputableInPolyTime.const 15).prod ((ComputableInPolyTime.const 64).prod
+      ((ComputableInPolyTime.const 3).prod ComputableInPolyTime.id')))
 
 -- Dropping `hf_inj` breaks `winternitzDigits_dominationFree`.
 example : ¬ DominationFree (fun _ : Fin 2 => winternitzDigits 1 1 1 0) :=

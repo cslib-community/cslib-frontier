@@ -89,10 +89,9 @@ theorem HasGapWithAdvice.eventually_exists_indexed_mask {pair : SamplablePair} {
   classical
   let source : ℕ → ProbComp (List Bool × Bool) := fun n => (fun value : pair.Observation n × Bool =>
     (pair.encode n value.1, value.2)) <$> pair.latentSample n
-  have hsource : IsPPTOn encUnary (encPair encBits encBool) source := by
-    apply pair.efficient.congr
-    intro n
-    simp only [source, pair.eval_sample, ProbComp.eval_map, pair.eval_latentSample]
+  have hsource : IsPPTOn encUnary (encPair encBits encBool) source :=
+    pair.efficient.congr fun n => by
+      simp only [source, pair.eval_sample, ProbComp.eval_map, pair.eval_latentSample]
   obtain ⟨sizeCoeff, sizeDegree, hsize⟩ := hsource.length_le
   let width := fun n => sizeCoeff * (n + 1) ^ sizeDegree
   have hwidth : ComputableInPolyTime width encUnary encUnary :=
@@ -150,8 +149,8 @@ theorem HasGapWithAdvice.eventually_exists_indexed_mask {pair : SamplablePair} {
     (fun n => Nat.mul_pos (by decide) (params (n, []) 0).predictionInverseTolerance_pos)
   have hsmall := SequenceLearner.failureBound_eventually_le (params := fun n => params (n, []) 0)
     (inverseGap := inverseGap) (by change PolynomiallyBounded id; exact .id)
-    hdensity.tidy.polynomiallyBounded hrate.tidy.polynomiallyBounded
-    hinverseGap.tidy.polynomiallyBounded (fun _ => le_rfl)
+    hdensity.polynomiallyBounded hrate.polynomiallyBounded
+    hinverseGap.polynomiallyBounded (fun _ => le_rfl)
   filter_upwards [hsmall, hhard] with n hsmall hhard
   intro i hi hnum hnumBound hthreshold
   specialize hhard i hi
@@ -184,12 +183,9 @@ theorem HasGapWithAdvice.eventually_exists_indexed_mask {pair : SamplablePair} {
       rw [ProbComp.eval_bind, pair.eval_latentSample, bind_apply_toReal]
       simpa only [mask, SequenceLearner.mask_probability, density, State.margin, State.votes]
         using hdense
-    have hnot := fun h => hnone ⟨mask, hdense', hmass, h⟩
-    apply le_of_not_gt
-    intro hgap
-    apply hnot
     have hsourceEq : ProbComp.eval (source n) = ProbComp.eval (pair.sample n) := by
       simp only [source, ProbComp.eval_map, pair.eval_latentSample, pair.eval_sample]
+    refine le_of_not_gt fun hgap => hnone ⟨mask, hdense', hmass, ?_⟩
     simpa only [ProbComp.eval_bind,
       ProbComp.eval_replicate_congr hsourceEq (count n)] using hgap
   have hprediction := SequenceLearner.predict_error (pair.latentSample n)
@@ -214,27 +210,17 @@ theorem HasGapWithAdvice.eventually_exists_indexed_mask {pair : SamplablePair} {
       pair.eval_latentSample]
     rfl
   rw [hlaw] at hhard
-  change (PMF.conditionalEntropy (pair.joint n) + gap n) / 2 ≤ _ at hhard
+  change (PMF.conditionalEntropy (pair.joint n) + gap n) / 2 ≤ _ +
+    1 / ↑(4 * (params (n, advice n) i).predictionInverseTolerance) at hhard
   change (params (n, advice n) i).delta ≤ _ at hthreshold
-  have htolerance : (0 : ℝ) < (params (n, advice n) i).predictionInverseTolerance := by
-    exact_mod_cast (params (n, advice n) i).predictionInverseTolerance_pos
-  change (ProbComp.eval (do
-    let value ← pair.latentSample n
-    (fun answer => answer == value.2) <$>
-      adversary (n, advice n) i (pair.encode n value.1)) false).toReal ≤
-      (params (n, advice n) i).delta / 2 -
-        1 / (params (n, advice n) i).predictionInverseTolerance +
-        (SequenceLearner.failureBound (params (n, advice n) i) (inverseGap n) : ℝ) at hprediction
+  change _ ≤ (params (n, advice n) i).delta / 2 -
+    1 / ((params (n, advice n) i).predictionInverseTolerance : ℝ) +
+    (SequenceLearner.failureBound (params (n, advice n) i) (inverseGap n) : ℝ) at hprediction
   change (SequenceLearner.failureBound (params (n, advice n) i) (inverseGap n) : ℝ) ≤
-    1 / (2 * (params (n, advice n) i).predictionInverseTolerance) at hsmall
-  simp only [Nat.cast_mul, Nat.cast_ofNat] at hhard
-  change _ ≤ _ + 1 / (4 * ((params (n, advice n) i).predictionInverseTolerance : ℝ)) at hhard
-  have hpositive : (0 : ℝ) < 1 / (4 * (params (n, advice n) i).predictionInverseTolerance) := by
-    positivity
-  have hhalf : (1 : ℝ) / (2 * (params (n, advice n) i).predictionInverseTolerance) =
-      2 * (1 / (4 * (params (n, advice n) i).predictionInverseTolerance)) := by ring
-  have hwhole : (1 : ℝ) / (params (n, advice n) i).predictionInverseTolerance =
-      4 * (1 / (4 * (params (n, advice n) i).predictionInverseTolerance)) := by ring
+    1 / (2 * ((params (n, advice n) i).predictionInverseTolerance : ℝ)) at hsmall
+  simp only [Nat.cast_mul, Nat.cast_ofNat, one_div, mul_inv_rev] at hhard hprediction hsmall
+  have hinv_pos : (0 : ℝ) < ((params (n, advice n) i).predictionInverseTolerance : ℝ)⁻¹ :=
+    inv_pos.mpr (Nat.cast_pos.mpr (params (n, advice n) i).predictionInverseTolerance_pos)
   linarith
 
 /-- Every advised sequence test eventually admits a dense soft mask with small distinguishing gap.

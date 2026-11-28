@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Data.BitString.Hamming
 public import CslibFrontier.Foundations.Data.Code.Basic
 public import Mathlib.Data.Matrix.Mul
 import CslibFrontier.Foundations.Data.Finset.Expect
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 
@@ -103,9 +104,7 @@ theorem card_filter_selfCorrect_ne_le (f : (ι → Bool) → Bool) (S : Finset �
     #{y | selfCorrect f x y ≠ parityOn S x} ≤ 2 * hammingDist f (parityOn S) := by
   have htrans : #{y : ι → Bool | f (x + y) ≠ parityOn S (x + y)} =
       hammingDist f (parityOn S) :=
-    card_equiv (Equiv.addLeft x) fun y => by
-      simp only [mem_filter, mem_univ, true_and]
-      exact Iff.rfl
+    card_equiv (Equiv.addLeft x) fun _ => by simp
   calc #{y | selfCorrect f x y ≠ parityOn S x}
       ≤ #(({y | f y ≠ parityOn S y} : Finset (ι → Bool)) ∪
           ({y | f (x + y) ≠ parityOn S (x + y)} : Finset _)) := by
@@ -193,11 +192,8 @@ theorem exists_eq_hadamardCode_iff {f : (ι → Bool) → Bool} :
     (∃ x, f = hadamardCode x) ↔ ∀ x y, f (x + y) = (f x ^^ f y) := by
   classical
   rw [← exists_eq_parityOn_iff]
-  constructor
-  · rintro ⟨x, rfl⟩
-    exact ⟨_, hadamardCode_eq_parityOn x⟩
-  · rintro ⟨S, rfl⟩
-    exact ⟨_, (hadamardCode_decide_mem S).symm⟩
+  exact ⟨fun ⟨x, hx⟩ => ⟨_, hx.trans (hadamardCode_eq_parityOn x)⟩,
+    fun ⟨S, hS⟩ => ⟨_, hS.trans (hadamardCode_decide_mem S).symm⟩⟩
 
 /-- The Hadamard code is injective. -/
 theorem hadamardCode_injective : Function.Injective (hadamardCode (ι := ι)) := fun x y h => by
@@ -219,12 +215,9 @@ zero string with none. -/
 theorem two_mul_card_dotProduct_eq_true_add (x : ι → Bool) :
     2 * #{y | x ⬝ᵥ y = true} + (if x = 0 then 2 ^ Fintype.card ι else 0) = 2 ^ Fintype.card ι := by
   split_ifs with hx
-  · subst hx
-    simp [zero_dotProduct]
-  · have h := two_mul_hammingDist_hadamardCode hx
-    rw [hammingDist] at h
-    simpa [zero_dotProduct,
-      show ∀ b : Bool, ¬b = 0 ↔ b = true by decide] using h
+  · simp [hx, zero_dotProduct]
+  · simpa [hammingDist, zero_dotProduct, Bool.zero_eq_false] using
+      two_mul_hammingDist_hadamardCode hx
 
 /-- The inner product is `true` on `2 ^ (k - 1) (2 ^ k - 1)` pairs of `k`-bit strings, in the form
 `2 c + 2 ^ k = 2 ^ k 2 ^ k`. -/
@@ -247,13 +240,11 @@ theorem eq_of_hammingDist_hadamardCode_le {f : (ι → Bool) → Bool} {x y : ι
     (hy : (hammingDist f (hadamardCode y) : ℝ) / 2 ^ Fintype.card ι ≤ δ) : x = y := by
   by_contra hxy
   have hpos : (0 : ℝ) < 2 ^ Fintype.card ι := by positivity
-  have hdist : (2 * hammingDist (hadamardCode x) (hadamardCode y) : ℝ) = 2 ^ Fintype.card ι := by
-    exact_mod_cast two_mul_hammingDist_hadamardCode hxy
   have htri : (hammingDist (hadamardCode x) (hadamardCode y) : ℝ) ≤
       hammingDist f (hadamardCode x) + hammingDist f (hadamardCode y) := by
     exact_mod_cast hammingDist_triangle_left _ _ f
   rw [div_le_iff₀ hpos] at hx hy
-  nlinarith
+  cast_nlinarith [two_mul_hammingDist_hadamardCode hxy]
 
 /-- **Local correction for the Hadamard code**: if `f` is within relative distance `ε` of the
 encoding of `x`, then for every `a`, self-correction at `a` returns the codeword's value at `a`

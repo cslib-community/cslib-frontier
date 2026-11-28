@@ -24,7 +24,7 @@ variable {f : List Bool → List Bool}
 /-- Natural exponents `c ≥ 0`, through the general count theorem. -/
 example (hf : OneWayPermutation f) (c : ℕ) : OneWayPermutation (fun x => f^[x.length ^ c] x) :=
   hf.iterateByLength (k := fun n => n ^ c)
-    (ComputableTidilyInPolyTime.unary_pow c).computableInPolyTime
+    (ComputableInPolyTime.unary_pow c)
     (Filter.eventually_atTop.2 ⟨1, fun n hn => pow_ne_zero c (by omega)⟩)
 
 /-- The fractional exponent `c = 1 / 2`: iterate `⌈√|x|⌉` times. -/

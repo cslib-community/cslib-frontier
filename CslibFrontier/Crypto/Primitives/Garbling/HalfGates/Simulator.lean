@@ -140,10 +140,8 @@ private theorem andRank_mono (f : ConventionalCircuit) {g g' : ℕ} (h : g ≤ g
 /-- An AND gate comes before every later gate in `andRank`. -/
 private theorem andRank_lt (f : ConventionalCircuit) (g : Fin f.q) {g' : ℕ}
     (hg : f.G g true true = true) (h : (g : ℕ) < g') : andRank f g < andRank f g' := by
-  have hsucc := andRank_succ f g
-  rw [hg] at hsucc
   have := andRank_mono f (show (g : ℕ) + 1 ≤ g' from h)
-  simp only [Bool.toNat_true] at hsucc
+  rw [andRank_succ, hg, Bool.toNat_true] at this
   omega
 
 /-- `andRank` of all gates counts the AND gates. -/
@@ -209,18 +207,14 @@ private theorem simIndex_bijective (f : XorAndCircuit) : Function.Bijective (sim
       have hrank : andRank f.circuit g = andRank f.circuit g' := by omega
       have hss : s.toNat = s'.toNat := by omega
       have hgg : g = g' := by
-        have ha := (op_toCircuit_eq_and_iff f g).mp hg
-        have ha' := (op_toCircuit_eq_and_iff f g').mp hg'
+        have key {a b : Fin (toCircuit f).size} (ha : op (toCircuit f) a = .and)
+            (hab : (a : ℕ) < b) : andRank f.circuit a < andRank f.circuit b := by
+          simpa only [Fin.val_cast] using andRank_lt f.circuit (a.cast (size_toCircuit f))
+            ((op_toCircuit_eq_and_iff f a).mp ha) hab
         rcases lt_trichotomy (g : ℕ) g' with hlt | heq | hgt
-        · have := andRank_lt f.circuit (g.cast (size_toCircuit f)) ha
-            (show ((g.cast (size_toCircuit f) : Fin _) : ℕ) < g' from hlt)
-          simp only [Fin.val_cast] at this
-          omega
+        · exact absurd hrank (key hg hlt).ne
         · exact Fin.ext heq
-        · have := andRank_lt f.circuit (g'.cast (size_toCircuit f)) ha'
-            (show ((g'.cast (size_toCircuit f) : Fin _) : ℕ) < g from hgt)
-          simp only [Fin.val_cast] at this
-          omega
+        · exact absurd hrank (key hg' hgt).ne'
       subst hgg
       have : s = s' := by cases s <;> cases s' <;> simp_all
       subst this
@@ -453,17 +447,27 @@ private theorem simRow_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n rank
     (hi : ComputableInPolyTime i encIn encUnary) :
     ComputableInPolyTime (fun x => simRow (k x) (n x) (coins x) (isAnd x) (rank x) (i x)) encIn
       encBits := by
-  polytime [simRow, BitString.listRow]
+  have hwidth := ComputableInPolyTime.unary_add' hk (ComputableInPolyTime.const 2)
+  have hrow := ComputableInPolyTime.unary_add' hn
+    (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hrank)
+  have hfirst := ComputableInPolyTime.bitsRowWithInput hwidth hrow hcoins
+  have hsecond := ComputableInPolyTime.bitsRowWithInput hwidth
+    (ComputableInPolyTime.unary_add' hrow (ComputableInPolyTime.const 1)) hcoins
+  have hbit := ComputableInPolyTime.bitsCons hisAnd (ComputableInPolyTime.const [])
+  simpa only [simRow] using ComputableInPolyTime.ite_decide
+    (hi.decide_eq' (ComputableInPolyTime.const 0)) hbit
+    (hisAnd.ite
+      (ComputableInPolyTime.ite_decide (hi.decide_eq' (ComputableInPolyTime.const 1)) hfirst
+        (ComputableInPolyTime.ite_decide (hi.decide_eq' (ComputableInPolyTime.const 2)) hsecond
+          (ComputableInPolyTime.const [])))
+      (ComputableInPolyTime.const []))
 
 private theorem simCoinLen_polyTime :
     ComputableInPolyTime (fun x : ℕ × List Bool × XorAndCircuit => simCoinLen x.1 x.2.2.circuit)
       encSimInput encUnary := by
   have hk := ComputableInPolyTime.fst encUnary (encPair encBits encXorAndCircuit)
-  have hn : ComputableInPolyTime (fun x : ℕ × List Bool × XorAndCircuit => x.2.2.circuit.n)
-      encSimInput encUnary := simData_polyTime.fst'
-  have hgates : ComputableInPolyTime (fun x : ℕ × List Bool × XorAndCircuit =>
-      x.2.2.circuit.gateList) encSimInput (encList (encPair encNat (encPair encNat encBits))) :=
-    simData_polyTime.snd'.snd'
+  have hn := simData_polyTime.fst'
+  have hgates := simData_polyTime.snd'.snd'
   have ha := andCount_polyTime hgates ((ComputableInPolyTime.length_list _).comp hgates)
   have heq : (fun x : ℕ × List Bool × XorAndCircuit => simCoinLen x.1 x.2.2.circuit) = fun x =>
       (x.2.2.circuit.n + 2 * (x.2.2.circuit.gateList.take x.2.2.circuit.gateList.length).countP
@@ -513,26 +517,13 @@ private theorem simViewWord_polyTime :
       simViewWord hash p.1.1 p.1.2.1 p.1.2.2.circuit p.2) (encPair encSimInput encBits)
       encPrvView := by
   have hfst := ComputableInPolyTime.fst encSimInput encBits
-  have hcoins : ComputableInPolyTime (fun p : (ℕ × List Bool × XorAndCircuit) × List Bool => p.2)
-      (encPair encSimInput encBits) encBits := ComputableInPolyTime.snd encSimInput encBits
-  have hk : ComputableInPolyTime (fun p : (ℕ × List Bool × XorAndCircuit) × List Bool => p.1.1)
-      (encPair encSimInput encBits) encUnary :=
-    (ComputableInPolyTime.fst encUnary (encPair encBits encXorAndCircuit)).comp hfst
-  have hy : ComputableInPolyTime (fun p : (ℕ × List Bool × XorAndCircuit) × List Bool =>
-      p.1.2.1) (encPair encSimInput encBits) encBits :=
-    (ComputableInPolyTime.snd encUnary (encPair encBits encXorAndCircuit)).fst'.comp hfst
-  have hn : ComputableInPolyTime (fun p : (ℕ × List Bool × XorAndCircuit) × List Bool =>
-      p.1.2.2.circuit.n) (encPair encSimInput encBits) encUnary := simData_polyTime.fst'.comp hfst
-  have hm : ComputableInPolyTime (fun p : (ℕ × List Bool × XorAndCircuit) × List Bool =>
-      p.1.2.2.circuit.m) (encPair encSimInput encBits) encUnary :=
-    simData_polyTime.snd'.fst'.comp hfst
-  have hgates : ComputableInPolyTime (fun p : (ℕ × List Bool × XorAndCircuit) × List Bool =>
-      p.1.2.2.circuit.gateList) (encPair encSimInput encBits)
-      (encList (encPair encNat (encPair encNat encBits))) :=
-    simData_polyTime.snd'.snd'.comp hfst
-  have hq : ComputableInPolyTime (fun p : (ℕ × List Bool × XorAndCircuit) × List Bool =>
-      p.1.2.2.circuit.gateList.length) (encPair encSimInput encBits) encUnary :=
-    (ComputableInPolyTime.length_list _).comp hgates
+  have hcoins := ComputableInPolyTime.snd encSimInput encBits
+  have hk := (ComputableInPolyTime.fst encUnary (encPair encBits encXorAndCircuit)).comp hfst
+  have hy := (ComputableInPolyTime.snd encUnary (encPair encBits encXorAndCircuit)).fst'.comp hfst
+  have hn := simData_polyTime.fst'.comp hfst
+  have hm := simData_polyTime.snd'.fst'.comp hfst
+  have hgates := simData_polyTime.snd'.snd'.comp hfst
+  have hq := (ComputableInPolyTime.length_list _).comp hgates
   have hbody := simBody_polyTime hk hn hgates hcoins
   have henc : ComputableInPolyTime (fun z : (ℕ × ℕ × ℕ × ℕ) × List Bool => PointPermute.encFn z)
       PointPermute.encFn encBits := .of_eq fun _ => rfl

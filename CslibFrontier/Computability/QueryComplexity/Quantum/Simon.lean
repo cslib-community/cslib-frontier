@@ -102,45 +102,60 @@ variable {N n m : ℕ}
 
 /-- The workspace of Simon's algorithm with `m` rounds: the input register `xs` and the output
 register `ys`, each holding `m` strings of `n` bits. -/
-abbrev SimonWork (m n : ℕ) := (Fin m × Fin n → Bool) × (Fin m × Fin n → Bool)
+@[ext] structure SimonWork (m n : ℕ) where
+  /-- The input register holding `m` query strings of `n` bits. -/
+  xs : Fin m × Fin n → Bool
+  /-- The output register holding `m` answer strings of `n` bits. -/
+  ys : Fin m × Fin n → Bool
+  deriving DecidableEq
+
+/-- Equivalence between `SimonWork m n` and the pair `(xs, ys)`. -/
+def SimonWork.equiv {m n : ℕ} :
+    SimonWork m n ≃ (Fin m × Fin n → Bool) × (Fin m × Fin n → Bool) where
+  toFun w := (w.xs, w.ys)
+  invFun | (xs, ys) => ⟨xs, ys⟩
+  left_inv | ⟨_, _⟩ => rfl
+  right_inv | ⟨_, _⟩ => rfl
+
+instance : Fintype (SimonWork m n) :=
+  Fintype.ofEquiv _ SimonWork.equiv.symm
 
 /-- The basis of Simon's algorithm regrouped for the Hadamard transform on the input register:
-`(i, b, xs, ys) ↦ (xs, (i, b, ys))`. -/
+`(i, b, ⟨xs, ys⟩) ↦ (xs, (i, b, ys))`. -/
 def simonEquiv : Fin N × Bool × SimonWork m n ≃
     (Fin m × Fin n → Bool) × (Fin N × Bool × (Fin m × Fin n → Bool)) where
-  toFun p := (p.2.2.1, p.1, p.2.1, p.2.2.2)
-  invFun q := (q.2.1, q.2.2.1, q.1, q.2.2.2)
-  left_inv _ := rfl
-  right_inv _ := rfl
+  toFun | (i, b, w) => (w.xs, i, b, w.ys)
+  invFun | (xs, i, b, ys) => (i, b, ⟨xs, ys⟩)
+  left_inv | ⟨_, _, ⟨_, _⟩⟩ => rfl
+  right_inv | ⟨_, _, _, _⟩ => rfl
 
-@[simp] theorem simonEquiv_apply (p : Fin N × Bool × SimonWork m n) :
-    simonEquiv p = (p.2.2.1, p.1, p.2.1, p.2.2.2) := by rfl
+@[simp] theorem simonEquiv_apply (i : Fin N) (b : Bool) (w : SimonWork m n) :
+    simonEquiv (i, b, w) = (w.xs, i, b, w.ys) := by rfl
 
 @[simp] theorem simonEquiv_symm_apply
-    (q : (Fin m × Fin n → Bool) × (Fin N × Bool × (Fin m × Fin n → Bool))) :
-    simonEquiv.symm q = (q.2.1, q.2.2.1, q.1, q.2.2.2) := by rfl
+    (xs : Fin m × Fin n → Bool) (i : Fin N) (b : Bool) (ys : Fin m × Fin n → Bool) :
+    simonEquiv.symm (xs, i, b, ys) = (i, b, ⟨xs, ys⟩) := by rfl
 
 /-- The routing permutation of query `k = (r, j)` with resting query index `i₀`: it exchanges the
 query index `i₀` with the position `E⁻¹(xs_r, j)` of the bit `f(xs_r)_j`, and the control bit with
 the output bit `ys_{r,j}`. It is an involution. -/
 def simonRoute (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ : Fin N) (k : Fin m × Fin n) :
     Equiv.Perm (Fin N × Bool × SimonWork m n) where
-  toFun p := (Equiv.swap i₀ (E.symm (Function.curry p.2.2.1 k.1, k.2)) p.1, p.2.2.2 k, p.2.2.1,
-    Function.update p.2.2.2 k p.2.1)
-  invFun p := (Equiv.swap i₀ (E.symm (Function.curry p.2.2.1 k.1, k.2)) p.1, p.2.2.2 k, p.2.2.1,
-    Function.update p.2.2.2 k p.2.1)
-  left_inv p := by
-    obtain ⟨i, b, xs, ys⟩ := p
-    simp
-  right_inv p := by
-    obtain ⟨i, b, xs, ys⟩ := p
-    simp
+  toFun := fun (i, b, w) =>
+    (Equiv.swap i₀ (E.symm (Function.curry w.xs k.1, k.2)) i, w.ys k,
+      ⟨w.xs, Function.update w.ys k b⟩)
+  invFun := fun (i, b, w) =>
+    (Equiv.swap i₀ (E.symm (Function.curry w.xs k.1, k.2)) i, w.ys k,
+      ⟨w.xs, Function.update w.ys k b⟩)
+  left_inv | ⟨i, b, ⟨xs, ys⟩⟩ => by simp
+  right_inv | ⟨i, b, ⟨xs, ys⟩⟩ => by simp
 
 /-- A bit query between two routing permutations writes `f(xs_r)_j` into `ys_{r,j}`. -/
 private theorem simonRoute_conj (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ : Fin N)
     (k : Fin m × Fin n) (X : Fin N → Bool) (xs ys : Fin m × Fin n → Bool) :
-    (simonRoute E i₀ k * bitFlip X * simonRoute E i₀ k : Equiv.Perm _) (i₀, false, xs, ys) =
-      (i₀, false, xs, Function.update ys k (ys k ^^ X (E.symm (Function.curry xs k.1, k.2)))) := by
+    (simonRoute E i₀ k * bitFlip X * simonRoute E i₀ k : Equiv.Perm _) (i₀, false, ⟨xs, ys⟩) =
+      (i₀, false,
+        ⟨xs, Function.update ys k (ys k ^^ X (E.symm (Function.curry xs k.1, k.2)))⟩) := by
   simp [simonRoute]
 
 /-- The order of the queries of Simon's algorithm. -/
@@ -167,7 +182,7 @@ noncomputable def simonAlg (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ : Fin
     (hadamardTransform simonEquiv)
 
 /-- The initial state `|i₀, 0, 0, 0⟩` of Simon's algorithm. -/
-noncomputable def simonInit (i₀ : Fin N) : State N (SimonWork m n) := ket (i₀, false, 0, 0)
+noncomputable def simonInit (i₀ : Fin N) : State N (SimonWork m n) := ket (i₀, false, ⟨0, 0⟩)
 
 @[simp] theorem norm_simonInit (i₀ : Fin N) : ‖(simonInit i₀ : State N (SimonWork m n))‖ = 1 :=
   norm_ket _
@@ -199,105 +214,98 @@ private theorem bitQueryPerm_simonPerm (E : Fin N ≃ (Fin n → Bool) × Fin n)
 
 private theorem simonAcc_apply (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ : Fin N)
     (X : Fin N → Bool) {t : ℕ} (ht : t ≤ m * n) (xs : Fin m × Fin n → Bool) :
-    simonAcc E i₀ X t (i₀, false, xs, 0) = (i₀, false, xs, fun k =>
-      decide (((simonOrd m n).symm k : ℕ) < t) && simonG E X xs k) := by
+    simonAcc E i₀ X t (i₀, false, ⟨xs, 0⟩) = (i₀, false, ⟨xs, fun k =>
+      decide (((simonOrd m n).symm k : ℕ) < t) && simonG E X xs k⟩) := by
   induction t with
   | zero =>
-    refine Prod.ext rfl (Prod.ext rfl (Prod.ext rfl (funext fun k => ?_)))
+    refine Prod.ext rfl (Prod.ext rfl (SimonWork.ext rfl (funext fun k => ?_)))
     simp [simonAcc, Bool.zero_eq_false]
   | succ t ih =>
     have h : t < m * n := by omega
     rw [simonAcc, Equiv.Perm.mul_apply, ih (by omega), simonSigma, dite_eq_left h,
       simonRoute_conj]
-    refine Prod.ext rfl (Prod.ext rfl (Prod.ext rfl (funext fun k => ?_)))
+    refine Prod.ext rfl (Prod.ext rfl (SimonWork.ext rfl (funext fun k => ?_)))
     by_cases hk : k = simonOrd m n ⟨t, h⟩
     · subst hk
       simp [simonG, simonFun]
-    · have hne : ((simonOrd m n).symm k : ℕ) ≠ t := fun h' => hk <| by
-        rw [← (simonOrd m n).apply_symm_apply k]
-        exact congrArg _ (Fin.ext h')
-      have hlt : ((simonOrd m n).symm k : ℕ) < t + 1 ↔ ((simonOrd m n).symm k : ℕ) < t := by
-        omega
-      simp only [Function.update_of_ne hk, hlt]
+    · have hne : ((simonOrd m n).symm k : ℕ) ≠ t :=
+        fun h' => hk ((simonOrd m n).symm_apply_eq.mp (Fin.ext h'))
+      simp only [Function.update_of_ne hk, Nat.lt_succ_iff_lt_or_eq, hne, or_false]
 
 /-- **The bit queries of Simon's algorithm compute `f` rowwise**: from `|i₀, 0, xs, 0⟩` they reach
 `|i₀, 0, xs, f(xs)⟩`. -/
 private theorem bitQueryPerm_simonPerm_apply (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ : Fin N)
     (X : Fin N → Bool) (xs : Fin m × Fin n → Bool) :
-    bitQueryPerm (simonPerm E i₀) X (m * n) (i₀, false, xs, 0) =
-      (i₀, false, xs, simonG E X xs) := by
+    bitQueryPerm (simonPerm E i₀) X (m * n) (i₀, false, ⟨xs, 0⟩) =
+      (i₀, false, ⟨xs, simonG E X xs⟩) := by
   rw [bitQueryPerm_simonPerm, simonSigma, dite_eq_right (lt_irrefl _), one_mul,
     simonAcc_apply _ _ _ le_rfl]
-  refine Prod.ext rfl (Prod.ext rfl (Prod.ext rfl (funext fun k => ?_)))
-  simp
+  exact Prod.ext rfl (Prod.ext rfl (SimonWork.ext rfl (funext fun _ => by simp)))
 
 private theorem home_iff {P : Equiv.Perm (Fin N × Bool × SimonWork m n)} {i₀ : Fin N}
     {G : (Fin m × Fin n → Bool) → Fin m × Fin n → Bool}
-    (hP : ∀ xs, P (i₀, false, xs, 0) = (i₀, false, xs, G xs))
+    (hP : ∀ xs, P (i₀, false, ⟨xs, 0⟩) = (i₀, false, ⟨xs, G xs⟩))
     (q : Fin N × Bool × SimonWork m n) :
-    ((P.symm q).1 = i₀ ∧ (P.symm q).2.1 = false ∧ (P.symm q).2.2.2 = 0) ↔
-      (q.1 = i₀ ∧ q.2.1 = false ∧ q.2.2.2 = G q.2.2.1) := by
-  constructor
-  · rintro ⟨h1, h2, h3⟩
-    have e : P.symm q = (i₀, false, (P.symm q).2.2.1, 0) :=
-      Prod.ext h1 (Prod.ext h2 (Prod.ext rfl h3))
-    have hq := congrArg P e
+    ((P.symm q).1 = i₀ ∧ (P.symm q).2.1 = false ∧ (P.symm q).2.2.ys = 0) ↔
+      (q.1 = i₀ ∧ q.2.1 = false ∧ q.2.2.ys = G q.2.2.xs) := by
+  refine ⟨fun ⟨h1, h2, h3⟩ => ?_, ?_⟩
+  · have hq := congrArg P (show P.symm q = (i₀, false, ⟨(P.symm q).2.2.xs, 0⟩) from
+      Prod.ext h1 (Prod.ext h2 (SimonWork.ext rfl h3)))
     rw [P.apply_symm_apply, hP] at hq
-    rw [hq]
-    exact ⟨rfl, rfl, rfl⟩
-  · obtain ⟨i, b, xs, ys⟩ := q
-    rintro ⟨h1, h2, h3⟩
-    simp only at h1 h2 h3
-    subst h1 h2 h3
-    rw [← hP, P.symm_apply_apply]
-    exact ⟨rfl, rfl, rfl⟩
+    exact hq ▸ ⟨rfl, rfl, rfl⟩
+  · rcases q with ⟨i, b, ⟨xs, ys⟩⟩
+    dsimp only
+    rintro ⟨rfl, rfl, rfl⟩
+    simp [← hP]
+
+private theorem simonEquiv_snd (r : Fin N × Bool × SimonWork m n) :
+    (simonEquiv r).2 = (r.1, r.2.1, r.2.2.ys) :=
+  rfl
 
 /-- **The final state of Simon's algorithm**: the amplitude of `|i₀, 0, z, y⟩` is
 `2^{-mn} ∑_{a : f(a) = y} (-1)^{a ⬝ z}`, with `f` applied rowwise, and every other amplitude is
 `0`. -/
 theorem run_simonAlg_apply (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ : Fin N) (X : Fin N → Bool)
-    (p : Fin N × Bool × SimonWork m n) :
-    (run (simonAlg m E i₀) (simonInit i₀) X (m * n)).ofLp p =
-      if p.1 = i₀ ∧ p.2.1 = false then
+    (i : Fin N) (b : Bool) (w : SimonWork m n) :
+    (run (simonAlg m E i₀) (simonInit i₀) X (m * n)).ofLp (i, b, w) =
+      if i = i₀ ∧ b = false then
         (((Real.sqrt (2 ^ Fintype.card (Fin m × Fin n)))⁻¹ : ℝ) : ℂ) *
         (((Real.sqrt (2 ^ Fintype.card (Fin m × Fin n)))⁻¹ : ℝ) : ℂ) *
-          ∑ a with simonG E X a = p.2.2.2, ((signVal (a ⬝ᵥ p.2.2.1) : ℝ) : ℂ)
+          ∑ a with simonG E X a = w.ys, ((signVal (a ⬝ᵥ w.xs) : ℝ) : ℂ)
       else 0 := by
   have hP := bitQueryPerm_simonPerm_apply E i₀ X (m := m)
-  have hcond : ∀ a, ((simonEquiv (i₀, false, (0 : Fin m × Fin n → Bool),
-      (0 : Fin m × Fin n → Bool))).2 = (simonEquiv ((bitQueryPerm (simonPerm E i₀) X (m * n)).symm
-        (simonEquiv.symm (a, (simonEquiv p).2)))).2) ↔
-      (p.1 = i₀ ∧ p.2.1 = false ∧ simonG E X a = p.2.2.2) := by
+  have hcond : ∀ a, ((simonEquiv (i₀, false, (⟨0, 0⟩ : SimonWork m n))).2 =
+      (simonEquiv ((bitQueryPerm (simonPerm E i₀) X (m * n)).symm
+        (simonEquiv.symm (a, (simonEquiv (i, b, w)).2)))).2) ↔
+      (i = i₀ ∧ b = false ∧ simonG E X a = w.ys) := by
     intro a
-    have h := home_iff hP (simonEquiv.symm (a, (simonEquiv p).2))
+    have h := home_iff hP (simonEquiv.symm (a, (simonEquiv (i, b, w)).2))
+    rw [simonEquiv_snd ((bitQueryPerm (simonPerm E i₀) X (m * n)).symm _)]
     simp only [simonEquiv_apply, simonEquiv_symm_apply, Prod.mk.injEq] at h ⊢
     rw [eq_comm (a := i₀), eq_comm (a := false), eq_comm (a := (0 : Fin m × Fin n → Bool)), h,
-      eq_comm (a := p.2.2.2)]
+      eq_comm (a := w.ys)]
   rw [simonAlg, run_bitQueryAlg, hadamardTransform_apply]
   simp only [permute_apply, simonInit, hadamardTransform_ket, hcond]
   simp only [simonEquiv_apply, zero_dotProduct, Bool.zero_eq_false,
     signVal_false, Complex.ofReal_one, mul_one]
-  by_cases h : p.1 = i₀ ∧ p.2.1 = false
+  by_cases h : i = i₀ ∧ b = false
   · simp only [h, true_and, ite_true, mul_ite, mul_zero, sum_filter, mul_sum]
     exact sum_congr rfl fun a _ => by split_ifs <;> ring
-  · rw [ite_eq_right_iff.mpr fun h' => absurd h' h]
-    refine (mul_eq_zero_of_right _ (sum_eq_zero fun a _ => ?_))
-    rw [ite_eq_right_iff.mpr fun h' => absurd ⟨h'.1, h'.2.1⟩ h, mul_zero]
+  · simp only [← and_assoc, h, false_and, ↓reduceIte, mul_zero, sum_const_zero]
 
 /-- The accepting outcomes of Simon's algorithm: the measured rows `z_r` (of the input register)
 have a common nonzero orthogonal vector `w`, so they do not span `{0,1}^n`. -/
 def simonAccept (m n : ℕ) : Finset (Fin N × Bool × SimonWork m n) :=
-  univ.filter fun p => ∃ w : Fin n → Bool, w ≠ 0 ∧ ∀ r, Function.curry p.2.2.1 r ⬝ᵥ w = false
+  univ.filter fun (_, _, w) =>
+    ∃ u : Fin n → Bool, u ≠ 0 ∧ ∀ r, Function.curry w.xs r ⬝ᵥ u = false
 
-@[simp] theorem mem_simonAccept {p : Fin N × Bool × SimonWork m n} :
-    p ∈ simonAccept m n ↔
-      ∃ w : Fin n → Bool, w ≠ 0 ∧ ∀ r, Function.curry p.2.2.1 r ⬝ᵥ w = false := by
+@[simp] theorem mem_simonAccept {i : Fin N} {b : Bool} {w : SimonWork m n} :
+    (i, b, w) ∈ simonAccept m n ↔
+      ∃ u : Fin n → Bool, u ≠ 0 ∧ ∀ r, Function.curry w.xs r ⬝ᵥ u = false := by
   simp [simonAccept]
 
 private theorem signVal_add_true (x : Bool) : signVal (x + true) = -signVal x := by
-  cases x
-  · simp [show (false + true : Bool) = true from rfl]
-  · simp [show (true + true : Bool) = false from rfl]
+  cases x <;> dsimp only [HAdd.hAdd, Add.add] <;> norm_num [signVal]
 
 /-- Under Simon's promise with hidden string `s`, the amplitude of a row matrix with a row `z_r`
 with `z_r ⬝ s = 1` vanishes. -/
@@ -312,24 +320,16 @@ private theorem sum_signVal_eq_zero {E : Fin N ≃ (Fin n → Bool) × Fin n} {X
     rw [sum_eq_single r₀ (fun r _ hr => sum_eq_zero fun j _ => by simp only [hr, ite_false]; rfl)
       (by simp)]
     exact sum_congr rfl fun j _ => by simp [mul_comm]
-  have hG : ∀ a, simonG E X (a + δ) = simonG E X a := by
-    intro a
-    funext k
+  have hG (a) : simonG E X (a + δ) = simonG E X a := funext fun ⟨r, j⟩ => by
     simp only [simonG]
-    by_cases hk : k.1 = r₀
-    · have hc : Function.curry (a + δ) k.1 = Function.curry a k.1 + s := by
-        funext j
-        simp [hδ, hk]
-      have hf := (hX (Function.curry a k.1) (Function.curry a k.1 + s)).mpr (Or.inr rfl)
-      rw [hc, ← hf]
-    · have hc : Function.curry (a + δ) k.1 = Function.curry a k.1 := by
-        funext j
-        simp [hδ, hk, Bool.zero_eq_false]
-      rw [hc]
+    by_cases hk : r = r₀
+    · subst hk
+      have hc : Function.curry (a + δ) r = Function.curry a r + s := funext fun i => by simp [hδ]
+      rw [hc, ← (hX (Function.curry a r) (Function.curry a r + s)).mpr (Or.inr rfl)]
+    · exact congrArg (simonFun E X · j) (funext fun i => by simp [hδ, hk, Bool.zero_eq_false])
   set F : (Fin m × Fin n → Bool) → ℂ := fun a =>
     if simonG E X a = ys then ((signVal (a ⬝ᵥ zs) : ℝ) : ℂ) else 0 with hF
-  have hFδ : ∀ a, F (a + δ) = -F a := by
-    intro a
+  have hFδ (a) : F (a + δ) = -F a := by
     simp only [hF, hG, add_dotProduct, hδz, signVal_add_true, Complex.ofReal_neg]
     split_ifs <;> simp
   have hS : ∑ a, F a = -∑ a, F a := by
@@ -346,21 +346,18 @@ theorem measureProb_simonAlg_of_ne_zero (E : Fin N ≃ (Fin n → Bool) × Fin n
   have h1 : measureProb (run (simonAlg m E i₀) (simonInit i₀) X (m * n)) univ = 1 := by
     rw [measureProb_univ, norm_run, simonInit, norm_ket, one_pow]
   rw [← h1, measureProb, measureProb]
-  refine sum_subset (subset_univ _) fun p _ hp => ?_
-  obtain ⟨r₀, hr⟩ : ∃ r, Function.curry p.2.2.1 r ⬝ᵥ s = true := by
+  refine sum_subset (subset_univ _) fun ⟨i, b, w⟩ _ hp => ?_
+  obtain ⟨r₀, hr⟩ : ∃ r, Function.curry w.xs r ⬝ᵥ s = true := by
     by_contra h
     push Not at h
     exact hp (mem_simonAccept.mpr ⟨s, hs, fun r => by simpa using h r⟩)
-  rw [run_simonAlg_apply, sum_signVal_eq_zero hX hr]
-  simp
+  simp [run_simonAlg_apply, sum_signVal_eq_zero hX hr]
 
 private theorem simonG_injective {E : Fin N ≃ (Fin n → Bool) × Fin n} {X : Fin N → Bool}
-    (hf : Function.Injective (simonFun E X)) : Function.Injective (simonG (m := m) E X) := by
-  intro a b h
-  funext k
-  have hrow : Function.curry a k.1 = Function.curry b k.1 :=
-    hf (funext fun j => congrFun h (k.1, j))
-  exact congrFun hrow k.2
+    (hf : Function.Injective (simonFun E X)) : Function.Injective (simonG (m := m) E X) :=
+  fun a b h => funext fun k =>
+    congrFun (hf (a₁ := Function.curry a k.1) (a₂ := Function.curry b k.1)
+      (funext fun j => congrFun h (k.1, j))) k.2
 
 /-- Few row matrices have a nonzero kernel vector: at most `(2^n - 1) 2^{nm} / 2^m`. -/
 private theorem card_kernel_rows_mul_le :
@@ -391,11 +388,8 @@ private theorem card_kernel_rows_mul_le :
 
 private theorem norm_sq_sum_signVal_le (S : Finset (Fin m × Fin n → Bool))
     (zs : Fin m × Fin n → Bool) :
-    ‖∑ a ∈ S, ((signVal (a ⬝ᵥ zs) : ℝ) : ℂ)‖ ^ 2 ≤ (#S : ℝ) ^ 2 := by
-  have h : ‖∑ a ∈ S, ((signVal (a ⬝ᵥ zs) : ℝ) : ℂ)‖ ≤ #S := by
-    refine (norm_sum_le _ _).trans_eq ?_
-    simp
-  exact pow_le_pow_left₀ (norm_nonneg _) h 2
+    ‖∑ a ∈ S, ((signVal (a ⬝ᵥ zs) : ℝ) : ℂ)‖ ^ 2 ≤ (#S : ℝ) ^ 2 :=
+  pow_le_pow_left₀ (norm_nonneg _) ((norm_sum_le _ _).trans_eq (by simp)) 2
 
 /-- **Outcome probabilities of Simon's algorithm.** Under Simon's promise with hidden string `s`,
 if every fiber of the rowwise `f` has at most `K` elements, then the measured rows lie in a set `Z`
@@ -405,48 +399,47 @@ theorem measureProb_simonAlg_le (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ 
     {X : Fin N → Bool} {s : Fin n → Bool} (hX : SimonPromise (simonFun E X) s) {K : ℕ}
     (hK : ∀ ys, #{a | simonG (m := m) E X a = ys} ≤ K) (Z : Finset (Fin m × Fin n → Bool)) :
     measureProb (run (simonAlg m E i₀) (simonInit i₀) X (m * n))
-        (univ.filter fun p => p.2.2.1 ∈ Z) ≤
+        (univ.filter fun (_, _, w) => w.xs ∈ Z) ≤
       K * #(Z.filter fun zs => ∀ r, Function.curry zs r ⬝ᵥ s = false) / 2 ^ (m * n) := by
   classical
   set c : ℝ := (Real.sqrt (2 ^ Fintype.card (Fin m × Fin n)))⁻¹ with hc
   set Z' := Z.filter fun zs => ∀ r, Function.curry zs r ⬝ᵥ s = false with hZ'
   have hc0 : 0 ≤ c := by positivity
-  set B : Fin N × Bool × SimonWork m n → ℝ := fun p =>
-    if p.1 = i₀ ∧ p.2.1 = false ∧ p.2.2.1 ∈ Z' then c ^ 4 * K * #{a | simonG E X a = p.2.2.2}
+  set B : Fin N × Bool × SimonWork m n → ℝ := fun (i, b, w) =>
+    if i = i₀ ∧ b = false ∧ w.xs ∈ Z' then c ^ 4 * K * #{a | simonG E X a = w.ys}
     else 0 with hBdef
-  have hBnn : ∀ p, 0 ≤ B p := fun p => by
+  have hBnn : ∀ p, 0 ≤ B p := fun ⟨_, _, _⟩ => by
     simp only [hBdef]
     split_ifs <;> positivity
-  have hpt : ∀ p ∈ univ.filter fun p : Fin N × Bool × SimonWork m n => p.2.2.1 ∈ Z,
+  have hpt : ∀ p ∈ univ.filter fun (_, _, w) => (w : SimonWork m n).xs ∈ Z,
       ‖(run (simonAlg m E i₀) (simonInit i₀) X (m * n)).ofLp p‖ ^ 2 ≤ B p := by
-    intro p hp
-    have hpZ : p.2.2.1 ∈ Z := (mem_filter.mp hp).2
+    rintro ⟨i, b, w⟩ hp
+    have hpZ : w.xs ∈ Z := (mem_filter.mp hp).2
     rw [run_simonAlg_apply]
-    by_cases h : p.1 = i₀ ∧ p.2.1 = false
-    · by_cases hs : ∀ r, Function.curry p.2.2.1 r ⬝ᵥ s = false
-      · have hB : B p = c ^ 4 * K * #{a | simonG E X a = p.2.2.2} := by
+    by_cases h : i = i₀ ∧ b = false
+    · by_cases hs : ∀ r, Function.curry w.xs r ⬝ᵥ s = false
+      · have hB : B (i, b, w) = c ^ 4 * K * #{a | simonG E X a = w.ys} := by
           simp only [hBdef, h.1, h.2, hZ', mem_filter, hpZ, hs, implies_true, and_self, ite_true]
         rw [hB, ite_eq_left h, norm_mul, norm_mul, Complex.norm_real,
           Real.norm_eq_abs, abs_of_nonneg hc0]
-        have h1 := norm_sq_sum_signVal_le {a | simonG E X a = p.2.2.2} p.2.2.1
-        have h2 : ((#{a | simonG E X a = p.2.2.2} : ℕ) : ℝ) ^ 2 ≤
-            K * #{a | simonG E X a = p.2.2.2} := by
+        have h2 : ((#{a | simonG E X a = w.ys} : ℕ) : ℝ) ^ 2 ≤
+            K * #{a | simonG E X a = w.ys} := by
           rw [sq]
-          exact mul_le_mul_of_nonneg_right (by exact_mod_cast hK p.2.2.2) (by positivity)
-        calc (c * c * ‖∑ a with simonG E X a = p.2.2.2, ((signVal (a ⬝ᵥ p.2.2.1) : ℝ) : ℂ)‖) ^ 2
+          exact mul_le_mul_of_nonneg_right (by exact_mod_cast hK w.ys) (by positivity)
+        calc (c * c * ‖∑ a with simonG E X a = w.ys, ((signVal (a ⬝ᵥ w.xs) : ℝ) : ℂ)‖) ^ 2
             = c ^ 4 *
-                ‖∑ a with simonG E X a = p.2.2.2, ((signVal (a ⬝ᵥ p.2.2.1) : ℝ) : ℂ)‖ ^ 2 := by
+                ‖∑ a with simonG E X a = w.ys, ((signVal (a ⬝ᵥ w.xs) : ℝ) : ℂ)‖ ^ 2 := by
               ring
-          _ ≤ c ^ 4 * (#{a | simonG E X a = p.2.2.2} : ℝ) ^ 2 := by gcongr
-          _ ≤ c ^ 4 * (K * #{a | simonG E X a = p.2.2.2}) := by gcongr
-          _ = c ^ 4 * K * #{a | simonG E X a = p.2.2.2} := by ring
-      · push Not at hs
-        obtain ⟨r₀, hr⟩ := hs
+          _ ≤ c ^ 4 * (K * #{a | simonG E X a = w.ys}) := by
+              gcongr
+              exact (norm_sq_sum_signVal_le _ w.xs).trans h2
+          _ = c ^ 4 * K * #{a | simonG E X a = w.ys} := by ring
+      · obtain ⟨r₀, hr⟩ : ∃ r, Function.curry w.xs r ⬝ᵥ s ≠ false := not_forall.mp hs
         rw [ite_eq_left h, sum_signVal_eq_zero hX (r₀ := r₀) (by simpa using hr), mul_zero,
           norm_zero, sq, mul_zero]
-        exact hBnn p
+        exact hBnn (i, b, w)
     · rw [ite_eq_right h, norm_zero, sq, mul_zero]
-      exact hBnn p
+      exact hBnn (i, b, w)
   have hfibsum : ∑ ys : Fin m × Fin n → Bool, (#{a | simonG E X a = ys} : ℝ) = 2 ^ (m * n) := by
     have := card_eq_sum_card_fiberwise (f := simonG (m := m) E X) (s := univ) (t := univ)
       fun _ _ => mem_univ _
@@ -455,32 +448,27 @@ theorem measureProb_simonAlg_le (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ 
     exact_mod_cast this.symm
   have hsum : ∑ p, B p = c ^ 4 * K * (#Z' * 2 ^ (m * n)) := by
     rw [Fintype.sum_prod_type, Fintype.sum_eq_single i₀ fun i hi =>
-      sum_eq_zero fun q _ => by simp [hBdef, hi]]
-    rw [Fintype.sum_prod_type, Fintype.sum_eq_single false fun b hb =>
-      sum_eq_zero fun w _ => by simp [hBdef, hb]]
-    rw [Fintype.sum_prod_type]
-    have hrow : ∀ zs : Fin m × Fin n → Bool, ∑ ys, B (i₀, false, zs, ys) =
+        sum_eq_zero fun ⟨_, _⟩ _ => by simp [hBdef, hi],
+      Fintype.sum_prod_type, Fintype.sum_eq_single false fun b hb =>
+        sum_eq_zero fun _ _ => by simp [hBdef, hb],
+      Fintype.sum_equiv SimonWork.equiv _ (fun q => B (i₀, false, ⟨q.1, q.2⟩))
+        (fun ⟨_, _⟩ => rfl), Fintype.sum_prod_type]
+    have hrow (zs : Fin m × Fin n → Bool) : ∑ ys, B (i₀, false, ⟨zs, ys⟩) =
         if zs ∈ Z' then c ^ 4 * K * 2 ^ (m * n) else 0 := by
-      intro zs
-      simp only [hBdef, true_and]
-      split_ifs
-      · rw [← mul_sum, hfibsum]
-      · exact sum_const_zero
+      simp only [hBdef, true_and, sum_ite_irrel, sum_const_zero, ← mul_sum, hfibsum]
     rw [sum_congr rfl fun zs _ => hrow zs, ← sum_filter, sum_const, nsmul_eq_mul,
       filter_mem_eq_inter, univ_inter]
     ring
-  have hc2 : c ^ 2 = ((2 : ℝ) ^ (m * n))⁻¹ := by
-    rw [hc, inv_pow, Real.sq_sqrt (by positivity), Fintype.card_prod, Fintype.card_fin,
-      Fintype.card_fin]
+  have hc4 : c ^ 4 = (((2 : ℝ) ^ (m * n))⁻¹) ^ 2 := by
+    rw [(pow_mul c 2 2 : c ^ 4 = (c ^ 2) ^ 2), hc, inv_pow, Real.sq_sqrt (by positivity),
+      Fintype.card_prod, Fintype.card_fin, Fintype.card_fin]
   calc measureProb (run (simonAlg m E i₀) (simonInit i₀) X (m * n))
-        (univ.filter fun p => p.2.2.1 ∈ Z)
-      ≤ ∑ p ∈ univ.filter fun p : Fin N × Bool × SimonWork m n => p.2.2.1 ∈ Z, B p :=
+        (univ.filter fun (_, _, w) => w.xs ∈ Z)
+      ≤ ∑ p ∈ univ.filter fun (_, _, w) => (w : SimonWork m n).xs ∈ Z, B p :=
         sum_le_sum hpt
     _ ≤ ∑ p, B p := sum_le_sum_of_subset_of_nonneg (subset_univ _) fun p _ _ => hBnn p
     _ = c ^ 4 * K * (#Z' * 2 ^ (m * n)) := hsum
-    _ = K * #Z' / 2 ^ (m * n) := by
-      rw [show c ^ 4 = (c ^ 2) ^ 2 by ring, hc2]
-      field_simp
+    _ = K * #Z' / 2 ^ (m * n) := by rw [hc4]; field_simp
 
 /-- **Simon's algorithm rarely accepts when `f` is injective**: with probability at most
 `(2^n - 1) / 2^m`. -/
@@ -491,28 +479,21 @@ theorem measureProb_simonAlg_le_of_injective (E : Fin N ≃ (Fin n → Bool) × 
   classical
   set A : Finset (Fin m × Fin n → Bool) := {zs | ∃ w : Fin n → Bool, w ≠ 0 ∧
     ∀ r, Function.curry zs r ⬝ᵥ w = false} with hA
-  have hnat : #A * 2 ^ m ≤ (2 ^ n - 1) * 2 ^ (m * n) := card_kernel_rows_mul_le
   have hG := simonG_injective (m := m) hf
   have hfib : ∀ ys, #{a | simonG (m := m) E X a = ys} ≤ 1 := fun ys =>
     card_le_one.mpr fun a ha b hb => hG ((mem_filter.mp ha).2.trans (mem_filter.mp hb).2.symm)
-  have hacc : simonAccept m n = (univ.filter fun p : Fin N × Bool × SimonWork m n =>
-      p.2.2.1 ∈ A) := by
-    ext p
+  have hacc : (simonAccept m n : Finset (Fin N × Bool × SimonWork m n)) =
+      univ.filter fun (_, _, w) => w.xs ∈ A := by
+    ext ⟨i, b, w⟩
     simp [hA]
   have hA' : (A.filter fun zs => ∀ r, Function.curry zs r ⬝ᵥ (0 : Fin n → Bool) = false) = A :=
     filter_true_of_mem fun zs _ r => by simp [Bool.zero_eq_false]
   have h := measureProb_simonAlg_le E i₀ ((simonPromise_zero_iff _).mpr hf) hfib A
   rw [hA', Nat.cast_one, one_mul, ← hacc] at h
   have hreal : (#A : ℝ) * 2 ^ m ≤ (2 ^ n - 1) * 2 ^ (m * n) := by
-    have h1 : ((2 ^ n - 1 : ℕ) : ℝ) = 2 ^ n - 1 := by
-      rw [Nat.cast_sub Nat.one_le_two_pow]
-      push_cast
-      ring
-    rw [← h1]
-    exact_mod_cast hnat
-  refine h.trans ?_
-  rw [div_le_div_iff₀ (by positivity) (by positivity)]
-  linarith
+    simpa [Nat.cast_sub Nat.one_le_two_pow] using
+      (Nat.cast_le (α := ℝ)).2 (card_kernel_rows_mul_le (m := m) (n := n))
+  exact h.trans ((div_le_div_iff₀ (by positivity) (by positivity)).2 (by linarith))
 
 /-- With `n + 2` rounds, Simon's algorithm accepts an injective `f` with probability below `1/4`. -/
 private theorem measureProb_simonAlg_lt_of_injective (E : Fin N ≃ (Fin n → Bool) × Fin n)
@@ -575,10 +556,8 @@ theorem simon_separation_inputLength (E : Fin N ≃ (Fin n → Bool) × Fin n) (
       N ≤ Nat.log 2 N * μ.depth ^ 2 := by
   have hN : N = 2 ^ n * n := by
     simpa [Fintype.card_prod, Fintype.card_fun] using Fintype.card_congr E
-  have hlog : n ≤ Nat.log 2 N := by
-    refine Nat.le_log_of_pow_le (by norm_num) ?_
-    rw [hN]
-    exact Nat.le_mul_of_pos_right _ hn
+  have hlog : n ≤ Nat.log 2 N :=
+    Nat.le_log_of_pow_le (by norm_num) (hN ▸ Nat.le_mul_of_pos_right _ hn)
   refine ⟨(simonAlg_spec E i₀).2, ?_, fun μ F hF hμ => ?_⟩
   · calc (n + 2) * n ≤ (3 * n) * n := Nat.mul_le_mul_right _ (by omega)
       _ = 3 * n ^ 2 := by ring

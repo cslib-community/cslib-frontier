@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 public import CslibFrontier.Computability.WordRAM.Notation
 public import Mathlib.Data.Nat.GCD.Basic
 
@@ -54,37 +55,24 @@ stays below `max a b`, so no fit hypothesis beyond the arguments is needed. -/
 theorem exec {w : ℕ} (x : Data 4) (ha : Fits w (x.regs a)) (hb : Fits w (x.regs b)) :
     ∃ y, ExecWithin w program x y (5 * x.regs b + 3) ∧
       y.regs a = Nat.gcd (x.regs a) (x.regs b) ∧ y.mem = x.mem := by
-  let g := Nat.gcd (x.regs a) (x.regs b)
-  let I (y : Data 4) : Prop := y.regs zero = 0 ∧ Nat.gcd (y.regs a) (y.regs b) = g ∧
+  unfold program
+  wram_exec
+  let I (y : Data 4) : Prop := y.regs zero = 0 ∧
+    Nat.gcd (y.regs a) (y.regs b) = Nat.gcd (x.regs a) (x.regs b) ∧
     Fits w (y.regs a) ∧ Fits w (y.regs b) ∧ y.mem = x.mem
-  have hbody (y : Data 4) (hy : I y) (hc : (Cond.lt zero b).Holds y) :
-      ∃ z, ExecWithin w body y z 3 ∧ I z ∧ z.regs b < y.regs b := by
-    obtain ⟨hz, hg, hfa, hfb, hm⟩ := hy
+  refine WP.of_spec (ExecWithin.loop_invariant (T := 3) I (fun y => y.regs b) ?_ ?_) ?_
+  · rintro y ⟨hz, hg, hfa, hfb, hm⟩ hc
     have hpos : 0 < y.regs b := by simpa only [Cond.holds_lt, hz] using hc
-    have hmod : Fits w (y.regs a % y.regs b) := hfb.of_le (Nat.mod_lt _ hpos).le
-    refine ⟨?z, ?run, ?inv, ?dec⟩
-    case run => ram_eval [body, hmod]
-    case inv =>
-      refine ⟨?_, ?_, ?_, ?_, hm⟩
-      · simpa +decide [Function.update_apply] using hz
-      · simp +decide only [Data.set_regs, Function.update_apply, ↓reduceIte]
-        rw [← hg, Nat.gcd_comm (y.regs b), ← Nat.gcd_rec, Nat.gcd_comm]
-      · simpa +decide [Function.update_apply] using hfb
-      · simpa +decide [Function.update_apply] using hmod
-    case dec =>
-      simp +decide only [Data.set_regs, Function.update_apply, ↓reduceIte]
-      exact Nat.mod_lt _ hpos
-  let x₀ := x.set zero 0
-  have hx₀ : I x₀ := by
-    refine ⟨by simp [x₀], rfl, ?_, ?_, rfl⟩ <;> simpa +decide [x₀, Function.update_apply]
-  obtain ⟨y, he, hy, hc⟩ := ExecWithin.loop_invariant I (fun y => y.regs b) hbody hx₀
-  obtain ⟨hz, hg, -, -, hm⟩ := hy
-  have hb0 : y.regs b = 0 := by simp only [Cond.holds_lt, hz] at hc; omega
-  refine ⟨y, ?_, by rw [hb0, Nat.gcd_zero_right] at hg; exact hg, hm⟩
-  have hinit : ExecWithin (B := .standard) w (ram[ zero ← #0 ]) x x₀ 1 :=
-    ExecWithin.const (fits_zero w)
-  have hb₀ : x₀.regs b = x.regs b := by simp +decide [x₀]
-  exact (hinit.seq he).mono (by rw [hb₀]; omega)
+    unfold body
+    wram_exec
+    dsimp only [I]
+    wram_simp [hz, hfb, hm]
+    refine ⟨⟨?_, by fits⟩, Nat.mod_lt _ hpos⟩
+    rw [← hg, Nat.gcd_comm (y.regs b), ← Nat.gcd_rec, Nat.gcd_comm]
+  · dsimp only [I]; wram_simp [ha, hb]
+  · rintro y ⟨⟨hz, hg, -, -, hm⟩, hc⟩
+    have hb0 : y.regs b = 0 := by simp only [Cond.holds_lt, hz] at hc; omega
+    exact ⟨by wram_simp; omega, by rwa [hb0, Nat.gcd_zero_right] at hg, hm⟩
 
 /-- Run Euclid's algorithm on any injectively chosen registers. -/
 theorem exec_rename {r w : ℕ} (f : Fin 4 → Fin r) (hf : f.Injective) (x : Data r)

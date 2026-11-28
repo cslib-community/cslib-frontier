@@ -85,14 +85,10 @@ theorem computableInPolyTime_natTableTriples :
 theorem computableInPolyTime_natChainLength :
     ComputableInPolyTime natChainLength encNatTable encUnary := by
   unfold natChainLength
-  have h := computableInPolyTime_natTableTriples
-  have hw : ComputableInPolyTime (fun A => (natTableTriples A).map fun t : WeightedEdge => t.weight)
-      encNatTable (encList encNat) := mapWithInput h (by fun_prop)
-  have hs : ComputableInPolyTime
-      (fun A => ((natTableTriples A).map fun t : WeightedEdge => t.weight).sum) encNatTable
-      encNat := by
-    fun_prop
-  exact binary_size.comp hs
+  have hw : ComputableInPolyTime (fun A => (natTableTriples A).map WeightedEdge.weight)
+      encNatTable (encList encNat) :=
+    mapWithInput computableInPolyTime_natTableTriples (by fun_prop)
+  exact binary_size.comp (by fun_prop)
 
 /-- `tableChain` as one `flatMap` over the indexed entries. -/
 theorem tableChain_eq_flatMap (L : ℕ) (ts : List WeightedEdge) :
@@ -114,21 +110,6 @@ theorem computableInPolyTime_chainLevel :
     ComputableInPolyTime (fun x : (ℕ × ℕ × ℕ × ℕ) × ℕ =>
         chainLevel x.1.1 x.1.2.1 x.1.2.2.1 x.1.2.2.2 x.2)
       encChainLevelInput encWeightedEdgeList := by
-  have hN : ComputableInPolyTime (fun x : (ℕ × ℕ × ℕ × ℕ) × ℕ => x.1.1)
-      encChainLevelInput encUnary := by
-    fun_prop
-  have hu : ComputableInPolyTime (fun x : (ℕ × ℕ × ℕ × ℕ) × ℕ => x.1.2.1)
-      encChainLevelInput encUnary := by
-    fun_prop
-  have hv : ComputableInPolyTime (fun x : (ℕ × ℕ × ℕ × ℕ) × ℕ => x.1.2.2.1)
-      encChainLevelInput encUnary := by
-    fun_prop
-  have hw : ComputableInPolyTime (fun x : (ℕ × ℕ × ℕ × ℕ) × ℕ => x.1.2.2.2)
-      encChainLevelInput encNat := by
-    fun_prop
-  have hk : ComputableInPolyTime (fun x : (ℕ × ℕ × ℕ × ℕ) × ℕ => x.2)
-      encChainLevelInput encUnary := by
-    fun_prop
   have hd : ComputableInPolyTime (fun x : (ℕ × ℕ × ℕ × ℕ) × ℕ => x.1.1 + 2 * x.2)
       encChainLevelInput encUnary := by fun_prop
   have hr : ComputableInPolyTime (fun x : (ℕ × ℕ × ℕ × ℕ) × ℕ => x.1.1 + 2 * x.2 + 1)
@@ -138,26 +119,21 @@ theorem computableInPolyTime_chainLevel :
     fun_prop
   have hbit : ComputableInPolyTime (fun x : (ℕ × ℕ × ℕ × ℕ) × ℕ =>
       if x.1.2.2.2.testBit x.2 then 1 else 0) encChainLevelInput encNat := by
-    have h := ComputableInPolyTime.of_tidy
-      ((ComputableTidilyInPolyTime.of_finite (encA := encBool) (encB := encNat)
-        Bool.toNat).comp (ComputableTidilyInPolyTime.binary_testBit hw.tidy hk.tidy))
-    convert h using 2 with x
+    have hw : ComputableInPolyTime (fun x : (ℕ × ℕ × ℕ × ℕ) × ℕ => x.1.2.2.2)
+        encChainLevelInput encNat := by fun_prop
+    convert (of_finite (encIn := encBool) (encOut := encNat) Bool.toNat).comp
+      (binary_testBit hw (snd _ _)) using 2 with x
     simp only [Function.comp_apply]
     cases x.1.2.2.2.testBit x.2 <;> rfl
-  have hone : ComputableInPolyTime (fun _ : (ℕ × ℕ × ℕ × ℕ) × ℕ => 1)
-      encChainLevelInput encNat := by
-    fun_prop
-  have he : ∀ {a b c : (ℕ × ℕ × ℕ × ℕ) × ℕ → ℕ},
-      ComputableInPolyTime a encChainLevelInput encUnary →
-      ComputableInPolyTime b encChainLevelInput encUnary →
-      ComputableInPolyTime c encChainLevelInput encNat →
-      ComputableTidilyInPolyTime (fun x => (⟨a x, b x, c x⟩ : WeightedEdge)) encChainLevelInput
-        encWeightedEdge := fun ha hb hc => (encWeightedEdge_mk_polyTime ha hb hc).tidy
-  refine ComputableInPolyTime.of_tidy ?_
+  have he {a b c : (ℕ × ℕ × ℕ × ℕ) × ℕ → ℕ}
+      (ha : ComputableInPolyTime a encChainLevelInput encUnary)
+      (hb : ComputableInPolyTime b encChainLevelInput encUnary)
+      (hc : ComputableInPolyTime c encChainLevelInput encNat) :=
+    encWeightedEdge_mk_polyTime ha hb hc
   unfold chainLevel
-  open ComputableTidilyInPolyTime in
-  exact cons' (he hu htgt hbit) (cons' (he hd hd hone) (cons' (he hd htgt hone)
-    (cons' (he hr hr hone) (cons' (he hd hr hone) (cons' (he hr htgt hone) (const _))))))
+  exact cons' (he (by fun_prop) htgt hbit) (cons' (he hd hd (const 1))
+    (cons' (he hd htgt (const 1)) (cons' (he hr hr (const 1))
+      (cons' (he hd hr (const 1)) (cons' (he hr htgt (const 1)) (const _))))))
 
 theorem natTableEdges_eq (A : List (List ℕ)) :
     natTableEdges A = ((natTableTriples A).zipIdx).flatMap fun p =>
@@ -168,32 +144,20 @@ theorem natTableEdges_eq (A : List (List ℕ)) :
 
 theorem computableInPolyTime_natTableEdges :
     ComputableInPolyTime natTableEdges encNatTable encWeightedEdgeList := by
-  have hts := computableInPolyTime_natTableTriples
   have hL := computableInPolyTime_natChainLength
-  have hz : ComputableInPolyTime (fun A => (natTableTriples A).zipIdx) encNatTable
-      (encList (encPair encWeightedEdge encUnary)) :=
-    ((ComputableInPolyTime.zipIdx _).comp hts)
-  have hlevel := computableInPolyTime_chainLevel
   rw [show natTableEdges = _ from funext natTableEdges_eq]
-  refine flatMapWithInput hz ?_
+  refine flatMapWithInput ((zipIdx _).comp computableInPolyTime_natTableTriples) ?_
   unfold entryChain
-  refine flatMapWithInput (range.comp (hL.comp (show ComputableInPolyTime
-    (fun x : List (List ℕ) × (WeightedEdge × ℕ) => x.1)
-    (encPair encNatTable (encPair encWeightedEdge encUnary))
-    encNatTable by fun_prop))) ?_
+  refine flatMapWithInput (range.comp (hL.comp (fst _ _))) ?_
+  have := hL.comp ((fst encNatTable (encPair encWeightedEdge encUnary)).comp
+    (fst (encPair encNatTable (encPair encWeightedEdge encUnary)) encUnary))
   have hargs : ComputableInPolyTime
       (fun x : (List (List ℕ) × (WeightedEdge × ℕ)) × ℕ =>
         ((x.1.1.length + 2 * natChainLength x.1.1 * x.1.2.2, x.1.2.1.src, x.1.2.1.dst,
           x.1.2.1.weight), x.2))
       (encPair (encPair encNatTable (encPair encWeightedEdge encUnary)) encUnary)
-      encChainLevelInput := by
-    have := hL.comp (show ComputableInPolyTime (fun x : (List (List ℕ) × (WeightedEdge × ℕ)) × ℕ
-      => x.1.1) (encPair (encPair encNatTable (encPair encWeightedEdge encUnary)) encUnary)
-      encNatTable by fun_prop)
-    fun_prop
-  have h := hlevel.comp hargs
-  simp only [Function.comp_def] at h
-  exact h
+      encChainLevelInput := by fun_prop
+  simpa only [Function.comp_def] using computableInPolyTime_chainLevel.comp hargs
 
 theorem computableInPolyTime_natTableDim :
     ComputableInPolyTime natTableDim encNatTable encUnary := by
@@ -224,33 +188,34 @@ theorem computableInPolyTime_intTableAbsSum :
   have hl : ComputableInPolyTime (fun A : List (List ℤ) =>
       (List.range A.length).flatMap fun i =>
         (List.range A.length).map fun j => ((A.getD i []).getD j 0).natAbs)
-      encIntTable (encList encNat) := by
-    refine flatMapWithInput (range.comp (by fun_prop)) ?_
-    refine mapWithInput (range.comp (by fun_prop)) ?_
-    fun_prop
+      encIntTable (encList encNat) :=
+    flatMapWithInput (range.comp (by fun_prop))
+      (mapWithInput (range.comp (by fun_prop)) (by fun_prop))
   fun_prop
 
 theorem computableInPolyTime_permanentModulus :
     ComputableInPolyTime permanentModulus encIntTable encNat := by
-  have hS := computableInPolyTime_intTableAbsSum
-  unfold permanentModulus
-  fun_prop
+  change ComputableInPolyTime (fun A => permanentModulus A) _ _
+  have hlength := length_list (encList encIntBin)
+  simpa only [Function.comp_def, permanentModulus] using
+    binary_add' (binary_mul' (binary_mul' (const 2) (binary_factorial.comp hlength))
+      (binary_pow' computableInPolyTime_intTableAbsSum hlength)) (const 1)
 
 theorem computableInPolyTime_reduceIntTable :
     ComputableInPolyTime reduceIntTable encIntTable encNatTable := by
-  have hQ := computableInPolyTime_permanentModulus
   unfold reduceIntTable intTableEntry
-  refine mapWithInput (range.comp (by fun_prop)) ?_
-  refine mapWithInput (range.comp (by fun_prop)) ?_
-  refine intBin_emodNat' (by fun_prop) (hQ.comp (by fun_prop))
+  refine mapWithInput (range.comp (by fun_prop))
+    (mapWithInput (range.comp (by fun_prop)) ?_)
+  exact intBin_emodNat' (by fun_prop) (computableInPolyTime_permanentModulus.comp (by fun_prop))
 
 theorem computableInPolyTime_recoverPermanent :
     ComputableInPolyTime recoverPermanent (encPair encIntTable encNat) encIntBin := by
-  have hQ := computableInPolyTime_permanentModulus.comp
-    (show ComputableInPolyTime (fun x : List (List ℤ) × ℕ => x.1) (encPair encIntTable encNat)
-      encIntTable by fun_prop)
+  have hQ := computableInPolyTime_permanentModulus.comp (fst encIntTable encNat)
+  have hresidue := binary_mod' (snd encIntTable encNat) hQ
   unfold recoverPermanent
-  fun_prop
+  exact ite_decide (binary_lt' (binary_mul' (const 2) hresidue) hQ)
+    (intBin_natCast.comp hresidue)
+    (intBin_sub.comp ((intBin_natCast.comp hresidue).prod (intBin_natCast.comp hQ)))
 
 /-- The permanent of a table of natural numbers. -/
 def NatPermanent (A : List (List ℕ)) : ℕ :=

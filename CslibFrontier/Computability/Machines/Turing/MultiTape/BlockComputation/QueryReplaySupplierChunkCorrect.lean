@@ -39,7 +39,7 @@ theorem answer_runFrom_prepare {q r m : ℕ} (M : MultiTapeTM k Bool Q) (e : Q �
       (fun h δ => (Encoding.NativeChecked.parse (k := k) e (b, words.providers h δ)).map
         fun raw => raw.toView b)
     answer M e ((machine M e).runFrom w
-      (prepare e ((m, chunk), (w.length, b, σ, i, limit, counter, stride))) b) =
+      (prepare e ((m, chunk), ⟨w.length, b, σ, i, limit, counter, stride⟩)) b) =
       (Packed.packBits hb (Encoding.encode e value) chunk).val := by
   rw [prepare, runFrom_eq]
   dsimp only [answer]

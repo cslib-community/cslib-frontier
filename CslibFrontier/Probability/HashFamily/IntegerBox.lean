@@ -41,16 +41,11 @@ theorem intCast_injective_intBox {m q r : ℕ} (hr : 2 * r < q) :
     Function.Injective (fun x : intBox (Fin m) r =>
       (Int.cast ∘ (x : Fin m → ℤ) : Fin m → ZMod q)) := by
   intro x y h
-  apply Subtype.ext
-  funext i
-  have hd : (q : ℤ) ∣ (y : Fin m → ℤ) i - (x : Fin m → ℤ) i :=
-    (ZMod.intCast_eq_intCast_iff_dvd_sub _ _ _).mp (congrFun h i)
+  ext i
+  have hd := (ZMod.intCast_eq_intCast_iff_dvd_sub _ _ _).mp (congrFun h i)
   have hx := abs_le.mp (mem_intBox.mp x.property i)
   have hy := abs_le.mp (mem_intBox.mp y.property i)
-  have hq : 2 * (r : ℤ) < q := by exact_mod_cast hr
-  have habs : |(y : Fin m → ℤ) i - (x : Fin m → ℤ) i| < q :=
-    abs_lt.mpr ⟨by omega, by omega⟩
-  exact (sub_eq_zero.mp (Int.eq_zero_of_abs_lt_dvd hd habs)).symm
+  exact (sub_eq_zero.mp (Int.eq_zero_of_abs_lt_dvd hd (abs_lt.mpr ⟨by omega, by omega⟩))).symm
 
 /-- The public matrix is retained in the box-image leftover-hash bound. The bound averages over
 the ideal uniform matrix; it need not hold after conditioning on a particular matrix. -/

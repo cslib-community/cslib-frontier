@@ -69,32 +69,28 @@ variable {α : Type} {enc : α ↪ List Bool} {S : α → ℕ} {B n T u : α →
 
 /-- Computing the polynomial clock preserves any common native space budget for the input
 length. The exponent is fixed with the source machine. -/
-theorem polyClock_budget (d : ℕ) (hn : ComputableInSpace n enc encNat S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+theorem polyClock_budget (d : ℕ) (hn : ComputableInSpace n enc encNat S) :
     ComputableInSpace (fun a => polyClock d (n a)) enc encNat S := by
-  have htwo : ComputableInSpace (fun _ : α => 2) enc encNat S := budget_const 2 hin
-  exact budget_natMul htwo (budget_natPow (budget_natMul htwo (budget_natSucc hn)) hin d)
+  have htwo : ComputableInSpace (fun _ : α => 2) enc encNat S := budget_const 2
+  exact budget_natMul htwo (budget_natPow (budget_natMul htwo (budget_natSucc hn)) d)
 
 /-- Computing the clocked dimension preserves any common native space budget for the input
 length. The exponents are fixed with the source machine. -/
-theorem clockedVertexBound_budget (D d : ℕ) (hn : ComputableInSpace n enc encNat S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+theorem clockedVertexBound_budget (D d : ℕ) (hn : ComputableInSpace n enc encNat S) :
     ComputableInSpace (fun a => clockedVertexBound (k := k) D d (n a)) enc encNat S :=
-  budget_natMul (budget_natSucc (polyClock_budget d hn hin))
-    (vertexBound_budget (k := k)
-      (budget_natPow (budget_natAdd hn (budget_const 2 hin)) hin D) hin)
+  budget_natMul (budget_natSucc (polyClock_budget d hn))
+    (vertexBound_budget (k := k) (radix_budget D hn))
 
 /-- The terminal reward test preserves the native space budget of its binary arguments. -/
 theorem clockedAccept_budget {State : Type} [Fintype State]
     (hB : ComputableInSpace B enc encNat S) (hn : ComputableInSpace n enc encNat S)
-    (hT : ComputableInSpace T enc encNat S) (hu : ComputableInSpace u enc encNat S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hT : ComputableInSpace T enc encNat S) (hu : ComputableInSpace u enc encNat S) :
     ComputableInSpace (fun a => clockedAccept (k := k) (State := State)
       (B a) (n a) (T a) (u a)) enc encBool S := by
-  have hN := vertexBound_budget (k := k) hB hin
+  have hN := vertexBound_budget (k := k) hB
   simpa only [clockedAccept, decide_eq_true_eq] using
     budget_ite (budget_natEq (budget_natDiv hu hN) hT)
-      (bad_budget (State := State) hB hn (budget_natMod hu hN) hin) (budget_const false hin)
+      (bad_budget (State := State) hB hn (budget_natMod hu hN)) (budget_const false)
 
 end Turing.MultiTapeNTM.ConfigurationGraph
 
@@ -156,14 +152,13 @@ variable {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
 theorem clockedCoinCountWithSymbol_budget (machine : MultiTapePTM k Bool State)
     (hB : ComputableInSpace B enc encNat S) (hn : ComputableInSpace n enc encNat S)
     (hu : ComputableInSpace u enc encNat S) (hv : ComputableInSpace v enc encNat S)
-    (hs : ComputableInSpace symbol enc (encOption encBool) S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    (hs : ComputableInSpace symbol enc (encOption encBool) S) :
     ComputableInSpace (fun a => clockedCoinCountWithSymbol machine
       (B a) (n a) (u a) (v a) (symbol a)) enc encNat S := by
-  have hN := vertexBound_budget (k := k) hB hin
+  have hN := vertexBound_budget (k := k) hB
   simpa only [clockedCoinCountWithSymbol, decide_eq_true_eq] using
     budget_ite (budget_natEq (budget_natSucc (budget_natDiv hu hN)) (budget_natDiv hv hN))
       (coinCountWithSymbol_budget machine hB hn (budget_natMod hu hN)
-        (budget_natMod hv hN) hs hin) (budget_const 0 hin)
+        (budget_natMod hv hN) hs) (budget_const 0)
 
 end Turing.MultiTapePTM.ConfigurationGraph

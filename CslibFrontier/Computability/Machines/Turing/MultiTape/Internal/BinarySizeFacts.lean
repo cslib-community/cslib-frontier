@@ -13,8 +13,7 @@ import Mathlib.Tactic.Linarith
 /-! # Pure binary-size facts
 
 Moved from the legacy binary calculus. No computability predicate is imported or introduced here.
-`length_encNat_add_le` keeps its legacy qualified name in `ComputableTidilyInO`, a staged cleanup
-item.
+The size lemmas are independent of the computability predicates.
 -/
 
 namespace Turing.MultiTapeTM
@@ -35,7 +34,6 @@ public theorem two_pow_size_le_two_mul {n : ℕ} (hn : 0 < n) : 2 ^ n.size ≤ 2
     _ ≤ n * 2 := Nat.mul_le_mul_right 2 hlo
     _ = 2 * n := Nat.mul_comm _ _
 
-namespace ComputableTidilyInO
 
 -- upstream: vendored crei:crei/tidy-universal @9cce4cc7 (unsubmitted)
 -- vendored: `length_encNat_add_le` below, from that revision's `CslibFrontier/Binary`
@@ -53,6 +51,5 @@ public lemma length_encNat_add_le (n i : ℕ) : (encNat (n + i)).length ≤ (enc
     omega
 
 
-end ComputableTidilyInO
 
 end Turing.MultiTapeTM

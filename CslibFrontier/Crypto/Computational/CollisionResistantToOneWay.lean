@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.CollisionResistant
 public import CslibFrontier.Crypto.Computational.OneWay
 public import CslibFrontier.Crypto.Computational.Signature
 public import CslibFrontier.Crypto.Computational.WordSignature
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Crypto.Computational.MerkleDamgard
 import CslibFrontier.Crypto.Computational.Rompel
 import CslibFrontier.Crypto.Negligible
@@ -89,8 +90,11 @@ theorem polyTime_keyDigest {H : List Bool → List Bool → List Bool}
     (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
       (encPair encBits encBits) encBits) :
     ComputableInPolyTime (keyDigest H) encBits encBits := by
-  unfold keyDigest
-  polytime
+  have hsplit := (ComputableInPolyTime.unary_div_const 3).comp
+    ComputableInPolyTime.length_bits
+  have hkey := ComputableInPolyTime.id'.bitsTakeWithInput hsplit
+  have hmessage := ComputableInPolyTime.id'.bitsDropWithInput hsplit
+  exact ComputableInPolyTime.bitsAppend hkey (hH.comp (hkey.prod hmessage))
 
 /-- The collision finder built from an inverter. On key `k` at parameter `n`, it samples a message
 `x` of length `2 n + r`, asks the inverter for a preimage of `k ++ H k x` at parameter `3 n + r`,
@@ -109,9 +113,21 @@ theorem isPPT_finder {H : List Bool → List Bool → List Bool} {adversary : In
       (encPair encBits encBits) encBits)
     (hadversary : IsPPT encBits adversary) (r : ℕ) :
     IsPPT (encPair encBits encBits) (finder H adversary r) := by
-  have hHt := hH.tidy
-  unfold finder
-  ppt
+  change IsPPTOn (encPair encUnary encBits) (encPair encBits encBits)
+    (fun p => finder H adversary r p.1 p.2)
+  have hp := ComputableInPolyTime.id' (encIn := encPair encUnary encBits)
+  have hsample := ComputableInPolyTime.sampleList
+    (.unary_add' (.unary_mul' (.const 2) hp.fst') (.const r))
+  let middle := encPair (encPair encUnary encBits) encBits
+  have hm := ComputableInPolyTime.id' (encIn := middle)
+  have hprepare := (ComputableInPolyTime.unary_add'
+    (.unary_mul' (.const 3) hm.fst'.fst') (.const r)).prod
+    (.bitsAppend hm.fst'.snd' (hH.comp (hm.fst'.snd'.prod hm.snd')))
+  have hq := ComputableInPolyTime.id' (encIn := encPair middle encBits)
+  have hreturn := hq.fst'.snd'.prod (hq.snd'.bitsDropWithInput
+    ((ComputableInPolyTime.unary_div_const 3).comp (ComputableInPolyTime.length_bits.comp hq.snd')))
+  simpa only [finder, bind_pure_comp] using
+    IsPPTOn.bind_with hsample (IsPPTOn.map_with (IsPPTOn.preprocess hadversary hprepare) hreturn)
 
 /-- On a key followed by a message of length `2 |k| + r` with `r < 3`, the construction outputs
 the key followed by the message's digest. -/
@@ -136,9 +152,8 @@ theorem isCollision_or_eq_of_keyDigest_eq {H : List Bool → List Bool → List 
   have hlength := congrArg List.length h
   simp only [List.length_append, hlen] at hlength
   obtain ⟨rfl, hdigest⟩ := List.append_inj h (by omega)
-  by_cases hmessage : message' = message
-  · exact Or.inr hmessage
-  · exact Or.inl (isCollision_eq_true_iff.2 ⟨rfl, rfl, Ne.symm hmessage, hdigest.symm⟩)
+  exact (em (message' = message)).symm.imp_left fun hm =>
+    isCollision_eq_true_iff.2 ⟨rfl, rfl, Ne.symm hm, hdigest.symm⟩
 
 /-- Comparing a function of a sample with a fixed word accepts with the probability that the image
 distribution gives that word. -/
@@ -173,17 +188,16 @@ theorem succProbability_inversionGame_le {H : List Bool → List Bool → List B
       (fun key => (BitString.uniformList (2 * n + r)).map (key ++ ·)) := by
     rw [show 3 * n + r = n + (2 * n + r) by ring]
     exact BitString.uniformList_add n (2 * n + r)
-  have hguess : ∀ key ∈ (BitString.uniformList n).support,
+  have hguess (key) (hkey : key ∈ (BitString.uniformList n).support) :
       (BitString.uniformList (2 * n + r)).bind (fun message =>
         (ProbComp.eval (adversary (3 * n + r) (key ++ H key message))).bind fun candidate =>
           PMF.pure (candidate.drop (candidate.length / 3) == message)) true ≤
         ((1 / 2 : ℝ≥0) ^ n : ℝ≥0) := by
-    intro key hkey
-    have hklen := BitString.length_of_mem_support_uniformList hkey
     rw [PMF.bind_apply]
     simp only [bind_pure_beq_apply]
     exact (PMF.tsum_uniformList_mul_apply_le (H key)
-      (fun message _ => (hlen key message).trans hklen)
+      (fun message _ =>
+        (hlen key message).trans (BitString.length_of_mem_support_uniformList hkey))
       (fun digest => (ProbComp.eval (adversary (3 * n + r) (key ++ digest))).map
         fun candidate => candidate.drop (candidate.length / 3))).trans
       (two_pow_mul_one_div_two_pow_le n r)
@@ -196,17 +210,15 @@ theorem succProbability_inversionGame_le {H : List Bool → List Bool → List B
     refine (PMF.bind_apply_le_add_on_support _ true fun key hkey => ?_).trans
       (add_le_add le_rfl (PMF.bind_apply_le_on_support _ hguess))
     refine PMF.bind_apply_le_add_on_support _ true fun message hmessage => ?_
-    have hklen := BitString.length_of_mem_support_uniformList hkey
-    have hmlen := BitString.length_of_mem_support_uniformList hmessage
-    rw [keyDigest_append H (by rw [hmlen, hklen]) hr]
+    rw [keyDigest_append H (by
+      rw [BitString.length_of_mem_support_uniformList hmessage,
+        BitString.length_of_mem_support_uniformList hkey]) hr]
     refine PMF.bind_apply_le_add_on_support _ true fun candidate _ => ?_
     cases hwin : (keyDigest H candidate == key ++ H key message)
     · simp
-    · rcases isCollision_or_eq_of_keyDigest_eq hlen n (beq_iff_eq.1 hwin) with hcol | hguess
-      · rw [hcol]
-        exact le_add_right le_rfl
-      · rw [hguess, beq_self_eq_true]
-        exact le_add_left le_rfl
+    · rcases isCollision_or_eq_of_keyDigest_eq hlen n (beq_iff_eq.1 hwin) with hcol | rfl
+      · simpa only [hcol] using le_add_right le_rfl
+      · simpa only [beq_self_eq_true] using le_add_left le_rfl
   unfold Game.succProbability
   refine (ENNReal.toNNReal_mono (by finiteness) key).trans_eq ?_
   rw [ENNReal.toNNReal_add (PMF.apply_ne_top _ _) ENNReal.coe_ne_top, ENNReal.toNNReal_coe]
@@ -235,9 +247,8 @@ theorem HashFamily.oneWay_keyDigest {H : List Bool → List Bool → List Bool} 
   refine (succProbability_inversionGame_le hH.length_eq adversary n r hr).trans ?_
   gcongr
   interval_cases r
-  · exact le_add_right le_rfl
-  · exact le_add_left (le_add_right le_rfl)
-  · exact le_add_left (le_add_left le_rfl)
+  exacts [le_add_right le_rfl, le_add_left (le_add_right le_rfl),
+    le_add_left (le_add_left le_rfl)]
 
 /-- **Collision-resistant hash families yield one-way functions** ([KatzLindell2020],
 Exercise 8.4). -/

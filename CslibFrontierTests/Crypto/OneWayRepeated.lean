@@ -16,9 +16,11 @@ import CslibFrontier.Probability.PMF.Bind
 /-!
 # Tests for `Cslib.Crypto.OneWay.Repeated`
 
-Client instantiations of `OneWay.repeatedInversion_negligible` under polynomial-time repetition
-schedules, a zero-instance boundary check on `repeatedInversionGame`, and a concrete evaluation
-comparison against `repeatedInverter` at `dyadicSize 2 = 4`.
+Client instantiations of `OneWayOn.repeatedInversion_negligible` under polynomial-time repetition
+schedules, on Definition 8.6's domain `{0,1}ⁿ` and from a `OneWay` hypothesis on the domain that
+accepts every answer. Boundary checks on `repeatedInversionGameOn`: no instances, a winning
+answer of the wrong length that the `{0,1}ⁿ` game rejects, and a concrete evaluation comparison
+against `repeatedInverter` at `dyadicSize 2 = 4`.
 -/
 
 public section
@@ -30,65 +32,81 @@ open scoped NNReal
 
 /-! ### Asymptotic clients -/
 
-theorem repeatedInversion_negligible_two_mul {f : List Bool → List Bool} (hf : OneWay f)
-    (adversary : RevealInverter)
+/-- Lemma 13.5 on Definition 8.6's domain `X = {0,1}ⁿ`, with `2n` instances. -/
+theorem repeatedInversion_negligible_two_mul {f : List Bool → List Bool}
+    (hf : OneWayOn f fun n w => decide (w.length = n)) (adversary : RevealInverter)
     (hadversary : IsOraclePPT (encPair encBits encBits) adversary) :
     Negligible fun n =>
-      Game.succProbability (ProbComp.eval (repeatedInversionGame f (fun n => 2 * n) adversary n)) :=
-  hf.repeatedInversion_negligible
+      Game.succProbability (ProbComp.eval
+        (repeatedInversionGameOn f (fun n w => decide (w.length = n)) (fun n => 2 * n)
+          adversary n)) :=
+  hf.repeatedInversion_negligible (fun _ _ => decide_eq_true)
     (ComputableInPolyTime.unary_mul' (.const 2) (by fun_prop)) adversary hadversary
 
+/-- From `OneWay`, the game that accepts answers of any length, with `n² + 1` instances. -/
 theorem repeatedInversion_negligible_sq_add_one {f : List Bool → List Bool} (hf : OneWay f)
     (adversary : RevealInverter)
     (hadversary : IsOraclePPT (encPair encBits encBits) adversary) :
     Negligible fun n =>
-      Game.succProbability
-        (ProbComp.eval (repeatedInversionGame f (fun n => n * n + 1) adversary n)) :=
-  hf.repeatedInversion_negligible
+      Game.succProbability (ProbComp.eval
+        (repeatedInversionGameOn f (fun _ _ => true) (fun n => n * n + 1) adversary n)) :=
+  hf.oneWayOn.repeatedInversion_negligible (fun _ _ _ => rfl)
     (ComputableInPolyTime.unary_add'
       (ComputableInPolyTime.unary_mul' (by fun_prop) (by fun_prop)) (.const 1))
     adversary hadversary
 
-/-! ### Zero-instance and concrete evaluation checks -/
+/-! ### Zero-instance, domain and concrete evaluation checks -/
 
-theorem succProbability_repeatedInversionGame_zero (f : List Bool → List Bool)
-    (adversary : RevealInverter) (n : ℕ) :
-    Game.succProbability (ProbComp.eval (repeatedInversionGame f (fun _ => 0) adversary n)) =
-      0 := by
-  simp [repeatedInversionGame, repeatedInversionExperiment, forgeExperiment,
-    OracleComp.replicate_zero, Game.succProbability]
+theorem succProbability_repeatedInversionGameOn_zero (f : List Bool → List Bool)
+    (valid : ℕ → List Bool → Bool) (adversary : RevealInverter) (n : ℕ) :
+    Game.succProbability
+        (ProbComp.eval (repeatedInversionGameOn f valid (fun _ => 0) adversary n)) = 0 := by
+  simp [repeatedInversionGameOn, forgeExperiment, OracleComp.replicate_zero,
+    Game.succProbability]
 
 private def guessFirstTrue : RevealInverter := fun _ _ => return ([], [true])
 
 example :
-    Game.succProbability
-      (ProbComp.eval (repeatedInversionGame (fun _ => []) (fun _ => 2) guessFirstTrue 0)) = 1 := by
-  simp [repeatedInversionGame, repeatedInversionExperiment, forgeExperiment, guessFirstTrue,
+    Game.succProbability (ProbComp.eval
+      (repeatedInversionGameOn (fun _ => []) (fun _ _ => true) (fun _ => 2) guessFirstTrue 0)) =
+      1 := by
+  simp [repeatedInversionGameOn, forgeExperiment, guessFirstTrue,
+    RevealInverter.toTyped, requestSlot, ProbOracleComp.runLogWith, ProbOracleComp.runState_pure,
+    OracleComp.replicate_succ, OracleComp.replicate_zero, ProbComp.eval_bind,
+    BitString.eval_sampleList, BitString.uniformList_zero, Game.succProbability]
+
+/-- The same claim, a preimage of length `1` at `n = 0`, lies outside `X = {0,1}⁰` and loses the
+game of Attack Game 13.3. -/
+example :
+    Game.succProbability (ProbComp.eval
+      (repeatedInversionGameOn (fun _ => []) (fun n w => decide (w.length = n)) (fun _ => 2)
+        guessFirstTrue 0)) = 0 := by
+  simp [repeatedInversionGameOn, forgeExperiment, guessFirstTrue,
     RevealInverter.toTyped, requestSlot, ProbOracleComp.runLogWith, ProbOracleComp.runState_pure,
     OracleComp.replicate_succ, OracleComp.replicate_zero, ProbComp.eval_bind,
     BitString.eval_sampleList, BitString.uniformList_zero, Game.succProbability]
 
 example :
-    Game.succProbability
-      (ProbComp.eval (repeatedInversionGame id (fun _ => 2) guessFirstTrue 1)) = 1 / 2 := by
-  simp only [repeatedInversionGame, repeatedInversionExperiment, forgeExperiment, guessFirstTrue,
+    Game.succProbability (ProbComp.eval
+      (repeatedInversionGameOn id (fun _ _ => true) (fun _ => 2) guessFirstTrue 1)) = 1 / 2 := by
+  simp only [repeatedInversionGameOn, forgeExperiment, guessFirstTrue,
     RevealInverter.toTyped, requestSlot, ProbOracleComp.runLogWith, ProbOracleComp.runState_map,
     ProbOracleComp.runState_pure, OracleComp.replicate_succ, OracleComp.replicate_zero,
     ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_map, BitString.eval_sampleList,
     BitString.uniformList_succ, BitString.uniformList_zero, PMF.bind_map, PMF.bind_bind,
     PMF.pure_bind, Game.succProbability]
-  simp [PMF.bind_apply, PMF.uniformOfFintype_apply, Fintype.card_bool]
+  simp [PMF.uniformOfFintype_apply, Fintype.card_bool]
   norm_num [ENNReal.toNNReal_ofNat]
 
 example :
-    Game.succProbability
-      (ProbComp.eval (inversionGame id (repeatedInverter id (fun _ => 2) guessFirstTrue) 1)) =
-      1 / 8 := by
+    Game.succProbability (ProbComp.eval
+      (inversionGameOn id (fun _ _ => true)
+        (repeatedInverter id (fun _ => 2) guessFirstTrue) 1)) = 1 / 8 := by
   have hdy : dyadicSize 2 = 4 := by decide
   have hsum (f : Fin (dyadicSize 2) → ENNReal) :
       (∑ a : Fin (dyadicSize 2), f a) = ∑ i : Fin 4, f (Fin.cast hdy.symm i) :=
     Fintype.sum_equiv (finCongr hdy) f (fun i => f (Fin.cast hdy.symm i)) fun _ => rfl
-  simp only [inversionGame, inversionExperiment, repeatedInverter, ProbComp.eval_bind,
+  simp only [inversionGameOn, repeatedInverter, ProbComp.eval_bind,
     ProbComp.eval_sampleDyadicIndex, BitString.eval_sampleList, BitString.uniformList_succ,
     BitString.uniformList_zero, PMF.bind_map, PMF.bind_bind, PMF.pure_bind,
     ProbComp.eval_pure, Game.succProbability, PMF.bind_apply, PMF.uniformOfFintype_apply,

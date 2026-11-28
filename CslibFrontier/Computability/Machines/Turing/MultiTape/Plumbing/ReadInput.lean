@@ -10,6 +10,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Cursor
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.WorkCursor
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Reading from the input at the input head
@@ -106,22 +107,18 @@ lemma core_step_of_lt (q : Q) {j : ℕ} (hj : j < input.length) (u out : List Sy
     (moveInputPos_pos_of_ne_right _ (by simp; omega)).trans (Fin.ext (by simp; omega))
   cases he : (r.step q input[j]).2 with
   | none =>
-    refine Cfg.ext ?_ ?_ ?_ ?_ ?_ <;>
-      simp [core, coreTable, MultiTapeMachine.toTM, MultiTapeMachine.ofTr,
-        MultiTapeMachine.Action.emptyOracleEquiv_step, coreCfg, Action.apply, he, hpos]
+    tm_step [core, coreTable, MultiTapeMachine.toTM, MultiTapeMachine.ofTr,
+      MultiTapeMachine.Action.emptyOracleEquiv_step, coreCfg, he, hpos]
   | some s =>
-    refine Cfg.ext ?_ ?_ ?_ ?_ ?_ <;>
-      simp [core, coreTable, MultiTapeMachine.toTM, MultiTapeMachine.ofTr,
-        MultiTapeMachine.Action.emptyOracleEquiv_step, coreCfg, Action.apply, he, hpos,
-        tapeOfList_append_single]
+    tm_step [core, coreTable, MultiTapeMachine.toTM, MultiTapeMachine.ofTr,
+      MultiTapeMachine.Action.emptyOracleEquiv_step, coreCfg, he, hpos, tapeOfList_append_single]
 
 lemma core_step_end (q : Q) (u out : List Symbol) :
     r.core.step (coreCfg (input := input) (some q) input.length le_rfl u out) =
       coreCfg none input.length le_rfl u out := by
   rw [step_of_state rfl, inputSymbol_eq_none_of_boundary (.inr (by simp [coreCfg]; omega))]
-  refine Cfg.ext ?_ ?_ ?_ ?_ ?_ <;>
-    simp [core, coreTable, MultiTapeMachine.toTM, MultiTapeMachine.ofTr,
-      MultiTapeMachine.Action.emptyOracleEquiv_step, coreCfg, Action.apply, moveInputPos_zero]
+  tm_step [core, coreTable, MultiTapeMachine.toTM, MultiTapeMachine.ofTr,
+    MultiTapeMachine.Action.emptyOracleEquiv_step, coreCfg]
 
 /-- The run of `core` from state `q` at position `j`, where the rest of the input is `w`: after
 reading `n` symbols and emitting `e`, where `(e, n) = r.read q w`, it halts within `n + 1` steps. -/
@@ -134,13 +131,10 @@ lemma core_runFrom (w : List Symbol) (q : Q) (j : ℕ) (hj : j ≤ input.length)
   | nil =>
     obtain rfl : j = input.length := by
       have := congrArg List.length hw; simp at this; omega
-    refine ⟨by simp [read], ?_⟩
-    simp only [read, List.append_nil]
-    exact r.core_step_end q u out
+    exact ⟨by simp [read],
+      by simpa [read, runFrom_one] using r.core_step_end q u out⟩
   | cons a w ih =>
-    have hlen := congrArg List.length hw
-    simp only [List.length_drop, List.length_cons] at hlen
-    have hj' : j < input.length := by omega
+    have hj' : j < input.length := Nat.lt_of_sub_pos (by simp [← List.length_drop, hw])
     obtain ⟨ha, hw'⟩ := List.cons_eq_cons.mp ((List.drop_eq_getElem_cons hj').symm.trans hw)
     have h1 : r.core.runFrom (coreCfg (some q) j hj u out) 1 =
         coreCfg (r.step q a).1 (j + 1) hj' (u ++ (r.step q a).2.toList) out := by
@@ -158,8 +152,7 @@ lemma core_runFrom (w : List Symbol) (q : Q) (j : ℕ) (hj : j ≤ input.length)
       refine ⟨by simp; omega, ?_⟩
       rw [show ((r.step q a).2.toList ++ (r.read q' w).1, (r.read q' w).2 + 1).2 + 1 =
         1 + ((r.read q' w).2 + 1) by simp; omega, runFrom_add, h1, h]
-      refine Cfg.ext rfl (Fin.ext ?_) ?_ ?_ rfl <;> simp [coreCfg]
-      omega
+      tm_step [coreCfg]
 
 /-- The head of `core` never moves left. -/
 lemma core_workTapePos_le_step (c : Cfg 1 Symbol Q input) :
@@ -188,9 +181,7 @@ lemma core_workTapePos_mem (q : Q) (j : ℕ) (hj : j ≤ input.length) (u out : 
   obtain ⟨hn, h⟩ := r.core_runFrom _ q j hj rfl u out
   refine ⟨r.core_workTapePos_mono _ (Nat.zero_le m), ?_⟩
   rcases Nat.le_total m ((r.read q (input.drop j)).2 + 1) with hm | hm
-  · refine (r.core_workTapePos_mono _ hm).trans ?_
-    rw [h]
-    simp [coreCfg]
+  · exact (r.core_workTapePos_mono _ hm).trans (h ▸ by simp [coreCfg])
   · rw [runFrom_eq_of_halt _ _ hm (by rw [h]; rfl), h]
     simp [coreCfg]
 
@@ -240,7 +231,7 @@ lemma withState_eq_coreCfg (p : Fin (input.length + 2)) (hp : p.val ≠ 0) (v ou
     (⟨none, p, fun _ => tapeOfList v, fun _ => (v.length : ℤ), out⟩ :
       Cfg 1 Symbol Unit input).withState (some r.core.q₀) =
         coreCfg (some r.q₀) (p.val - 1) (by have := p.isLt; omega) v out :=
-  Cfg.ext rfl (Fin.ext (by simp [coreCfg]; omega)) rfl rfl rfl
+  by tm_step [coreCfg]
 
 private lemma appendOne_runFrom_of (forward : MultiTapeTM 1 Symbol Unit)
     (rewind : MultiTapeTM 1 Symbol RewindWorkState)
@@ -323,15 +314,13 @@ private lemma appendOne_space_le_of (forward : MultiTapeTM 1 Symbol Unit)
               hn w out).withState (some rewind.q₀) =
             (⟨some rewind.q₀, ip, fun _ => tapeOfList w,
               fun _ => (w.length : ℤ), out⟩ : Cfg 1 Symbol RewindWorkState input) :=
-          Cfg.ext rfl (Fin.ext (by simp [coreCfg, ip])) rfl rfl rfl
-        simp only [Cfg.withState_workTapePos]
-        rw [hstart]
-        have := hrewindPos ip (v ++ (r.read r.q₀ (input.drop (p.val - 1))).1) n
-        simpa only [L] using this
+          by tm_step
+        rw [Cfg.withState_workTapePos, hstart]
+        simpa only [L] using hrewindPos ip w n
   rw [MultiTapeNTM.RunPath.space, Fin.sum_univ_one]
-  refine (spaceUsedByTape_le_card _ (S := .Icc (-1) (L : ℤ)) fun m _ => ?_).trans ?_
-  · exact Finset.mem_Icc.mpr (hinv m)
-  · rw [Int.card_Icc]; omega
+  refine (spaceUsedByTape_le_card _ (S := .Icc (-1) (L : ℤ))
+    fun m _ => Finset.mem_Icc.mpr (hinv m)).trans ?_
+  rw [Int.card_Icc]; omega
 
 lemma appendOne_runFrom (p : Fin (input.length + 2)) (hp : p.val ≠ 0) (v out : List Symbol)
     (rd : List Symbol × ℕ) (hrd : rd = r.read r.q₀ (input.drop (p.val - 1))) :
@@ -409,14 +398,12 @@ public theorem transformsTapesAt_appendRead (r : InputReader Symbol Q) (i : Fin 
   obtain ⟨p', hp', hrun⟩ := r.appendOne_runFrom p hp₀ v out rd rfl
   have hcfg : oneTapeCfg i (wordsCfgAt input p (some (appendRead r i).q₀) ws out) =
       ⟨some r.appendOne.q₀, p, fun _ => tapeOfList v, fun _ => 0, out⟩ := by
-    refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext _ <;> simp [oneTapeCfg, wordsCfgAt, hv]
+    tm_step [oneTapeCfg, wordsCfgAt, hv]
   refine ⟨p', Function.update ws i (v ++ rd.1), [], ?_, ⟨hp', rfl, rfl⟩, ?_⟩
   · rw [appendRead, runFrom_tapeEmb, ← appendRead, hcfg, hrun]
-    refine Cfg.ext rfl rfl ?_ ?_ (by simp [embed]) <;> funext l <;> by_cases hl : l = i <;>
-      simp [embed, hl, partialInv_tapeEmb, wordsCfgAt]
-  · refine (space_tapeEmb_le _ _ _ _).trans (Nat.add_le_add_right ?_ _)
-    rw [hcfg]
-    exact r.appendOne_space_le p hp₀ v out _
+    tm_step [embed, partialInv_tapeEmb, wordsCfgAt]
+  · exact (space_tapeEmb_le _ _ _ _).trans
+      (Nat.add_le_add_right (hcfg ▸ r.appendOne_space_le p hp₀ v out _) _)
 
 /-- The explicit table `appendReadTable r i` has the same exact semantics and resource bounds as
 the universe-polymorphic legacy machine `appendRead r i`. -/
@@ -438,15 +425,13 @@ public theorem transformsTapesAt_appendReadTable {k : ℕ} {Symbol Q : Type}
       (wordsCfgAt input p
         (some (r.appendOneTable.toTM.extendTapes (tapeEmb i)).q₀) ws out) =
       ⟨some r.appendOneTable.toTM.q₀, p, fun _ => tapeOfList v, fun _ => 0, out⟩ := by
-    refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext _ <;> simp [oneTapeCfg, wordsCfgAt, hv]
+    tm_step [oneTapeCfg, wordsCfgAt, hv]
   refine ⟨p', Function.update ws i (v ++ rd.1), [], ?_, ⟨hp', rfl, rfl⟩, ?_⟩
   · rw [InputReader.appendReadTable, MultiTapeMachine.toTM_extendTapes,
       runFrom_tapeEmb, hcfg, hrun]
-    refine Cfg.ext rfl rfl ?_ ?_ (by simp [embed]) <;> funext l <;> by_cases hl : l = i <;>
-      simp [embed, hl, partialInv_tapeEmb, wordsCfgAt]
+    tm_step [embed, partialInv_tapeEmb, wordsCfgAt]
   · rw [InputReader.appendReadTable, MultiTapeMachine.toTM_extendTapes]
-    refine (space_tapeEmb_le _ _ _ _).trans (Nat.add_le_add_right ?_ _)
-    rw [hcfg]
-    exact r.appendOneTable_space_le p hp₀ v out _
+    exact (space_tapeEmb_le _ _ _ _).trans
+      (Nat.add_le_add_right (hcfg ▸ r.appendOneTable_space_le p hp₀ v out _) _)
 
 end Turing.MultiTapeTM

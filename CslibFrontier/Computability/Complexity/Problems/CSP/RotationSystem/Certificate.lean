@@ -66,14 +66,11 @@ relation arities are never used as clocks. -/
 omit [DecidableEq V] in
 /-- Distinct occurrences have distinct position pairs, even with repeated variable labels. -/
 theorem argumentPositions_nodup (F : CSP Rel V) : (argumentPositions F).Nodup := by
-  apply F.occurrences_nodup.map_on
-  intro a ha b hb hab
+  refine F.occurrences_nodup.map_on fun a ha b hb hab => ?_
   obtain ⟨⟨i, j⟩, rfl⟩ := CSP.mem_occurrences.mp ha
   obtain ⟨⟨k, l⟩, rfl⟩ := CSP.mem_occurrences.mp hb
-  have hi : i = k := Fin.ext (congrArg Prod.fst hab)
-  subst k
-  have hj : j = l := Fin.ext (congrArg Prod.snd hab)
-  subst l
+  obtain rfl : i = k := Fin.ext (congrArg Prod.fst hab)
+  obtain rfl : j = l := Fin.ext (congrArg Prod.snd hab)
   rfl
 
 private theorem getElem_argumentPositions (o : F.Occurrence) :
@@ -88,9 +85,8 @@ omit [DecidableEq V] in
 /-- The executable length reader uses the occurrence's actual scope. -/
 theorem scopeLength_occurrence (o : F.Occurrence) :
     scopeLength F o.1 = F[o.1.val].scope.length := by
-  unfold scopeLength
-  rw [List.getD_eq_getElem _ _ (by simpa only [List.length_map] using o.1.isLt)]
-  simp only [List.getElem_map]
+  rw [scopeLength, List.getD_eq_getElem _ _ (by simpa only [List.length_map] using o.1.isLt),
+    List.getElem_map]
 
 private theorem nextPosition_finRotate {n : ℕ} (j : Fin n) :
     (if j.val + 1 < n then j.val + 1 else 0) = (finRotate n j).val := by
@@ -132,38 +128,26 @@ theorem verifyArgumentOrder_eq_true_iff {c : Graph.RotationCertificate}
     verifyArgumentOrder F c = true ↔
       RespectsArgumentOrder (Graph.RotationCertificate.decode (incidenceGraph F) c h) := by
   simp only [verifyArgumentOrder, List.all_eq_true, decide_eq_true_eq, RespectsArgumentOrder]
-  constructor
-  · intro hc o
-    have hm : (o.record, incidenceEdgeIndex o) ∈ F.occurrences.zipIdx := by
-      apply List.mem_zipIdx_iff_getElem?.mpr
-      simp only [incidenceEdgeIndex]
-      exact List.getElem?_idxOf (CSP.mem_occurrences.mpr ⟨o, rfl⟩)
-    have he := hc _ hm
-    dsimp only [CSP.Occurrence.record] at he
-    rw [argumentNextIndex_occurrence] at he
+  refine ⟨fun hc o => ?_, fun hc entry he => ?_⟩
+  · have hm : (o.record, incidenceEdgeIndex o) ∈ F.occurrences.zipIdx :=
+      List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_idxOf (CSP.mem_occurrences.mpr ⟨o, rfl⟩))
     apply (Graph.Dart.indexEquiv _).injective
     apply Fin.ext
     change Graph.Dart.index ((Graph.RotationCertificate.decode _ _ h).rotate
       (incidenceDart o true)) = Graph.Dart.index (incidenceDart (argumentSuccessor o) true)
     rw [Graph.RotationCertificate.index_decode_rotate]
-    exact he
-  · intro hc entry he
-    obtain ⟨hi, hrecord⟩ := List.getElem?_eq_some_iff.mp
-      (List.mem_zipIdx_iff_getElem?.mp he)
+    simpa only [CSP.Occurrence.record, argumentNextIndex_occurrence, Graph.Dart.index,
+      incidenceDart, Bool.toNat_true] using hc _ hm
+  · obtain ⟨hi, hrecord⟩ := List.getElem?_eq_some_iff.mp (List.mem_zipIdx_iff_getElem?.mp he)
     obtain ⟨o, ho⟩ := CSP.mem_occurrences.mp (List.getElem_mem hi)
     have hk : incidenceEdgeIndex o = entry.2 := by
-      unfold incidenceEdgeIndex
-      rw [ho]
-      exact F.occurrences_nodup.idxOf_getElem _ _
-    have hr : o.record = entry.1 := ho.trans hrecord
+      simpa only [incidenceEdgeIndex, ho] using F.occurrences_nodup.idxOf_getElem _ _
     have hh := congrArg Graph.Dart.index (hc o)
     rw [Graph.RotationCertificate.index_decode_rotate] at hh
     dsimp only [Graph.Dart.index, incidenceDart, Bool.toNat_true] at hh
-    change c.successor.getD (2 * entry.2 + 1) 0 =
-      2 * argumentNextIndex F entry.1.1 entry.1.2.1 + 1
-    rw [← hr, ← hk]
-    dsimp only [CSP.Occurrence.record]
-    rw [argumentNextIndex_occurrence]
+    rw [← argumentNextIndex_occurrence] at hh
+    change c.successor.getD (2 * entry.2 + 1) 0 = 2 * argumentNextIndex F entry.1.1 entry.1.2.1 + 1
+    rw [← ho.trans hrecord, ← hk]
     exact hh
 
 /-- Exact finite verification on the existing ordered incidence rotation, with no geometric
@@ -173,14 +157,10 @@ theorem verifyRotationCertificate_eq_true_iff (F : CSP Rel V) (c : Graph.Rotatio
       ∃ h : Graph.RotationCertificate.verifyRotation (incidenceGraph F) c = true,
         (Graph.RotationCertificate.decode (incidenceGraph F) c h).NumericalGenusZero ∧
           RespectsArgumentOrder (Graph.RotationCertificate.decode (incidenceGraph F) c h) := by
-  simp only [verifyRotationCertificate, Bool.and_eq_true]
-  constructor
-  · rintro ⟨hg, ho⟩
-    obtain ⟨h, he⟩ := (Graph.RotationCertificate.verifyGenusZero_eq_true_iff _ _).mp hg
-    exact ⟨h, he, (verifyArgumentOrder_eq_true_iff h).mp ho⟩
-  · rintro ⟨h, he, ho⟩
-    exact ⟨(Graph.RotationCertificate.verifyGenusZero_eq_true_iff _ _).mpr ⟨h, he⟩,
-      (verifyArgumentOrder_eq_true_iff h).mpr ho⟩
+  simp only [verifyRotationCertificate, Bool.and_eq_true,
+    Graph.RotationCertificate.verifyGenusZero_eq_true_iff]
+  exact ⟨fun ⟨⟨h, he⟩, ho⟩ => ⟨h, he, (verifyArgumentOrder_eq_true_iff h).mp ho⟩,
+    fun ⟨h, he, ho⟩ => ⟨⟨h, he⟩, (verifyArgumentOrder_eq_true_iff h).mpr ho⟩⟩
 
 /-- Every existing ordered numerical genus-zero incidence rotation has an accepted finite
 certificate. Original scope positions are retained; no embedding construction is assumed. -/
@@ -188,8 +168,8 @@ theorem verifyRotationCertificate_ofRotation
     (r : Graph.RotationSystem (incidenceGraph F)) (hg : r.NumericalGenusZero)
     (ho : RespectsArgumentOrder r) :
     verifyRotationCertificate F (Graph.RotationCertificate.ofRotation r) = true := by
-  apply (verifyRotationCertificate_eq_true_iff _ _).mpr
-  refine ⟨Graph.RotationCertificate.verifyRotation_ofRotation r (incidenceVertices_declared F), ?_⟩
+  refine (verifyRotationCertificate_eq_true_iff _ _).mpr
+    ⟨Graph.RotationCertificate.verifyRotation_ofRotation r (incidenceVertices_declared F), ?_⟩
   rw [Graph.RotationCertificate.decode_ofRotation r (incidenceVertices_declared F)]
   exact ⟨hg, ho⟩
 
@@ -202,14 +182,10 @@ theorem exists_bounded_rotationCertificate_iff (F : CSP Rel V) :
         (Graph.encRotationCertificate c).length ≤
           10 * ((encGraph (incidenceGraph F)).length + 1) ^ 2 ∧
           verifyRotationCertificate F c = true := by
-  constructor
-  · rintro ⟨r, hg, ho⟩
-    exact ⟨Graph.RotationCertificate.ofRotation r,
-      Graph.RotationCertificate.length_enc_ofRotation_le r,
-      verifyRotationCertificate_ofRotation r hg ho⟩
-  · rintro ⟨c, -, hc⟩
-    obtain ⟨h, hg, ho⟩ := (verifyRotationCertificate_eq_true_iff _ _).mp hc
-    exact ⟨Graph.RotationCertificate.decode _ _ h, hg, ho⟩
+  refine ⟨fun ⟨r, hg, ho⟩ => ⟨_, Graph.RotationCertificate.length_enc_ofRotation_le r,
+    verifyRotationCertificate_ofRotation r hg ho⟩, fun ⟨c, _, hc⟩ => ?_⟩
+  obtain ⟨h, hg, ho⟩ := (verifyRotationCertificate_eq_true_iff _ _).mp hc
+  exact ⟨_, hg, ho⟩
 
 /-- The concrete incidence-certificate bound is polynomial in the source CSP bit length for
 any fixed relation and variable encodings, including binary natural variable names. -/
@@ -259,14 +235,12 @@ actual constraint, scope and occurrence lists, independently of relation arities
       verifyArgumentOrder p.1 p.2) (encCSPRotationCertificate encRel encV) encBool := by
   have ho := computableInPolyTime_occurrences encRel encV
   have hn := argumentNextIndex_polyTime encRel encV
-  have hs := Graph.RotationCertificate.computableInPolyTime_successor
   unfold verifyArgumentOrder
-  have hz : ComputableInPolyTime (fun p : CSP Rel V × Graph.RotationCertificate =>
-      p.1.occurrences.zipIdx) (encCSPRotationCertificate encRel encV)
-      (encList (encPair (encOccurrenceRecord encV) encUnary)) :=
-    ((ComputableInPolyTime.zipIdx (encOccurrenceRecord encV)).comp
-      (ho.comp (by fun_prop)))
-  apply ComputableInPolyTime.allWithInput hz
+  apply ComputableInPolyTime.allWithInput ((ComputableInPolyTime.zipIdx
+    (encOccurrenceRecord encV)).comp (ho.comp (by fun_prop)) : ComputableInPolyTime
+      (fun p : CSP Rel V × Graph.RotationCertificate => p.1.occurrences.zipIdx)
+      (encCSPRotationCertificate encRel encV)
+      (encList (encPair (encOccurrenceRecord encV) encUnary)))
   have hk : ComputableInPolyTime
       (fun p : (CSP Rel V × Graph.RotationCertificate) × ((ℕ × ℕ × V) × ℕ) => 2 * p.2.2 + 1)
       (encPair (encCSPRotationCertificate encRel encV)
@@ -281,11 +255,9 @@ actual constraint, scope and occurrence lists, independently of relation arities
     hn.comp (g := fun p : (CSP Rel V × Graph.RotationCertificate) × ((ℕ × ℕ × V) × ℕ) =>
       ((p.1.1, p.2.1.1), p.2.1.2.1)) (by unfold encOccurrenceRecord; fun_prop)
   apply ComputableInPolyTime.decide_eq'
-  · exact ComputableInPolyTime.listGetDWithInput (hs.comp (by fun_prop)) hk 0
-  · exact .of_tidy (ComputableTidilyInPolyTime.unary_to_binary.comp
-      (ComputableInPolyTime.unary_add'
-        (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hnext)
-        (ComputableInPolyTime.const 1)).tidy)
+  · unfold encCSPRotationCertificate
+    fun_prop
+  · exact ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
 
 /-- Native polynomial-time verification of the supplied incidence rotation, componentwise
 numerical genus zero and the CSP's actual cyclic argument order. This supplies no solver or
@@ -294,10 +266,9 @@ recognizer on a bare instance. -/
     (encV : V ↪ List Bool) :
     ComputableInPolyTime (fun p : CSP Rel V × Graph.RotationCertificate =>
       verifyRotationCertificate p.1 p.2) (encCSPRotationCertificate encRel encV) encBool := by
-  unfold verifyRotationCertificate
-  apply ComputableInPolyTime.bool_and'
-  · exact Graph.RotationCertificate.computableInPolyTime_verifyGenusZero.comp
-      (((computableInPolyTime_incidenceGraph encRel encV).comp (by fun_prop)).prod (by fun_prop))
-  · exact computableInPolyTime_verifyArgumentOrder encRel encV
+  have hg := computableInPolyTime_incidenceGraph encRel encV
+  have ho := computableInPolyTime_verifyArgumentOrder encRel encV
+  unfold verifyRotationCertificate encCSPRotationCertificate at ho ⊢
+  fun_prop
 
 end Cslib.Complexity.CSP

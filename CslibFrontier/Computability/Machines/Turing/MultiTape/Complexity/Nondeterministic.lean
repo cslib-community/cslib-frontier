@@ -43,7 +43,7 @@ which *recognize* a language when they may loop and *decide* it when they halt o
 
 `Turing.MultiTapeNTM.DecidableInPolyTime` asks for one machine with a binary alphabet and finitely
 many states, and one polynomially bounded time bound, for all instances. Like
-`Turing.MultiTapeTM.ComputableTidilyInPolyTime`, it is relative to the encoding of instances.
+`Turing.MultiTapeTM.ComputableInPolyTime`, it is relative to the encoding of instances.
 
 ## Main definitions
 

@@ -43,15 +43,27 @@ noncomputable def adaptiveVerifier (_n : ℕ) (_φ : CNF ℕ) (z : List Bool) :
 theorem adaptiveVerifier_isOraclePPTOn :
     IsOraclePPTOn (encPair encUnary (encPair encCNF encBits)) encBits
       (fun p => adaptiveVerifier p.1 p.2.1 p.2.2) := by
+  let input := encPair encUnary (encPair encCNF encBits)
+  have hp := ComputableInPolyTime.id' (encIn := encPair input encBits)
+  have hfirst := IsOraclePPTOn.query_take () hp.fst'.snd'.snd'
+    (ComputableInPolyTime.const 1)
+  have hq := ComputableInPolyTime.id' (encIn := encPair (encPair input encBits) encBits)
+  have hch := ((hq.snd'.bitsAppend hq.fst'.snd').bitsAppend
+    (ComputableInPolyTime.const [false, false, false])).bitsTakeWithInput
+      (ComputableInPolyTime.const 3)
+  have hsecond := IsOraclePPTOn.query_take () hch (ComputableInPolyTime.const 2)
+  have hr := ComputableInPolyTime.id'
+    (encIn := encPair (encPair (encPair input encBits) encBits) encBits)
+  have hout := (((hr.fst'.fst'.snd'.bitsAppend hr.fst'.snd').bitsAppend
+    (hch.comp hr.fst')).bitsAppend hr.snd').bitsAppend hr.fst'.fst'.fst'.snd'.snd'
   unfold adaptiveVerifier
   apply IsOraclePPTOn.bind_with (middle := encBits)
-  · exact (isPPTOn_sampleList.preprocess (.const 1)).isOraclePPTOn
+  · exact (ComputableInPolyTime.const (encIn := input) 1).sampleList.isOraclePPTOn
   · apply IsOraclePPTOn.bind_with (middle := encBits)
-    · exact IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)
-    · dsimp only
-      apply IsOraclePPTOn.bind_with (middle := encBits)
-      · exact IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)
-      · fun_prop
+    · exact hfirst
+    · simpa only [Function.comp_def, bind_pure_comp] using
+        hsecond.map_with (f := fun p opened => p.1.2 ++ p.2 ++
+          List.take 3 (p.2 ++ p.1.2 ++ [false, false, false]) ++ opened ++ p.1.1.2.2) hout
 
 /-- A deterministic two-round handler exposes the verifier's complete output jointly with the
 recorded challenge. Private randomness is still sampled and appears unchanged in the output. -/
@@ -91,8 +103,8 @@ example {α : Type} (left right : ProbComp α) :
 def tripleGen (seed : List Bool) : List Bool := seed ++ seed ++ seed ++ [false]
 
 theorem tripleGen_polyTime : ComputableInPolyTime tripleGen encBits encBits := by
-  unfold tripleGen
-  fun_prop
+  have hp := ComputableInPolyTime.id' (encIn := encBits)
+  exact ((hp.bitsAppend hp).bitsAppend hp).bitsAppend (ComputableInPolyTime.const [false])
 
 theorem length_tripleGen (seed : List Bool) : (tripleGen seed).length = 3 * seed.length + 1 := by
   simp only [tripleGen, List.length_append, List.length_cons, List.length_nil]

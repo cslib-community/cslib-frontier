@@ -110,26 +110,22 @@ theorem chsh_approx (φ : AlgState A) {A₀ A₁ B₀ B₁ : A} (hA₀ : IsSelfA
       (A₁ ≈[φ; √(√2 * η)] ((√2)⁻¹ : ℂ) • (B₀ - B₁)) ∧
       (1 - B₀ * B₀ ≈[φ; √(√2 * η)] 0) ∧ (1 - B₁ * B₁ ≈[φ; √(√2 * η)] 0) := by
   have hr := φ.chsh_rigidity hA₀ hA₁ h
-  have n₀ := φ.norm_le_one hA₀'
-  have n₁ := φ.norm_le_one hA₁'
-  have m₀ := φ.norm_le_one hB₀'
-  have m₁ := φ.norm_le_one hB₁'
-  have p₀ := φ.norm_nonneg A₀
-  have p₁ := φ.norm_nonneg A₁
-  have q₀ := φ.norm_nonneg B₀
-  have q₁ := φ.norm_nonneg B₁
+  have hsq (X : A) (hX : star X * X ≤ 1) : φ.norm X ^ 2 ≤ 1 :=
+    pow_le_one₀ (φ.norm_nonneg X) (φ.norm_le_one hX)
+  have n₀ := hsq A₀ hA₀'
+  have n₁ := hsq A₁ hA₁'
+  have m₀ := hsq B₀ hB₀'
+  have m₁ := hsq B₁ hB₁'
   have s₀ := sq_nonneg (φ.norm (A₀ - ((√2)⁻¹ : ℂ) • (B₀ + B₁)))
   have s₁ := sq_nonneg (φ.norm (A₁ - ((√2)⁻¹ : ℂ) • (B₀ - B₁)))
   have b₀ := φ.norm_one_sub_mul_self_sq_le hB₀ hB₀'
   have b₁ := φ.norm_one_sub_mul_self_sq_le hB₁ hB₁'
-  have key : ∀ x : ℝ, 0 ≤ x → x ^ 2 ≤ √2 * η → x ≤ √(√2 * η) := fun x hx hle =>
-    Real.le_sqrt_of_sq_le hle
-  refine ⟨key _ (φ.norm_nonneg _) (by nlinarith), key _ (φ.norm_nonneg _) (by nlinarith),
-    ?_, ?_⟩
-  · rw [Approx, sub_zero]
-    exact key _ (φ.norm_nonneg _) (by nlinarith)
-  · rw [Approx, sub_zero]
-    exact key _ (φ.norm_nonneg _) (by nlinarith)
+  refine ⟨approx_iff.mpr (Real.le_sqrt_of_sq_le (by linarith)),
+    approx_iff.mpr (Real.le_sqrt_of_sq_le (by linarith)), ?_, ?_⟩
+  · rw [approx_iff, sub_zero]
+    exact Real.le_sqrt_of_sq_le (by linarith)
+  · rw [approx_iff, sub_zero]
+    exact Real.le_sqrt_of_sq_le (by linarith)
 
 omit [TopologicalSpace A] [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint]
   [NonnegSpectrumClass ℝ A] in

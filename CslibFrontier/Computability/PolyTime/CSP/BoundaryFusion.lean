@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Tactic.PolyTime
 import Mathlib.Logic.Function.Basic
 
 /-!
@@ -47,84 +48,37 @@ open Cslib.Logic.PL Cslib.Logic.PL.CSP OrderedBoundary Graph Turing.MultiTapeTM
 
 variable {Rel : Type}
 
+attribute [local fun_prop] OrderedBoundary.computableInPolyTime_restrictPrefix
+  RotationCertificate.computableInPolyTime_swapSuccessors
+
 /-- Fuse the first two boundary wires in native polynomial time on every raw state.
 Names and table entries are binary; all counts are computed in unary from actual lists.
 The residual boundary length varies with the input, with no acceptance or arity premise. -/
 theorem computableInPolyTime_fuseHead (encRel : Rel ↪ List Bool) :
     ComputableInPolyTime (fuseHead (Rel := Rel)) (encState encRel) (encState encRel) := by
+  open scoped State in
   let input := encState encRel
-  have hbody : ComputableInPolyTime (State.body (Rel := Rel)) input
-      (encCSP encRel encNat) := encState_body_polyTime encRel .id'
-  have hports : ComputableInPolyTime (State.ports (Rel := Rel)) input
-      (encList encNat) := encState_ports_polyTime encRel .id'
-  have hrot : ComputableInPolyTime (State.rotation (Rel := Rel)) input
-      encRotationCertificate := encState_rotation_polyTime encRel .id'
-  have htail := (ComputableInPolyTime.tail (encA := encNat)).comp hports
-  have hrest := (ComputableInPolyTime.tail (encA := encNat)).comp htail
-  have hfirst := (ComputableInPolyTime.headD (encA := encNat) 0).comp hports
-  have hsecond := (ComputableInPolyTime.headD (encA := encNat) 0).comp htail
   let update (I : State Rel) := Function.update id (I.ports.tail.headD 0) (I.ports.headD 0)
   have hupdate : ComputableInPolyTime (fun p : State Rel × ℕ => update p.1 p.2)
       (encPair input encNat) encNat := by
     dsimp only [update]
     simp only [Function.update_apply, id_eq]
-    apply ComputableInPolyTime.ite_decide
-    · exact ComputableInPolyTime.decide_eq' (ComputableInPolyTime.snd input encNat)
-        (hsecond.comp (ComputableInPolyTime.fst input encNat))
-    · exact hfirst.comp (ComputableInPolyTime.fst input encNat)
-    · exact ComputableInPolyTime.snd input encNat
+    polytime
   have hrenamed : ComputableInPolyTime (fun I : State Rel => I.body.relabel (update I))
       input (encCSP encRel encNat) := by
     unfold CSP.relabel Constraint.relabel
-    apply ComputableInPolyTime.mapWithInput (encA := encConstraint encRel encNat) hbody
-    apply encConstraint_mk_polyTime
-    · exact encConstraint_rel_polyTime
-        (ComputableInPolyTime.snd input (encConstraint encRel encNat))
-    · apply ComputableInPolyTime.mapWithInput (encA := encNat)
-        (encConstraint_scope_polyTime
-          (ComputableInPolyTime.snd input (encConstraint encRel encNat)))
-      exact hupdate.comp (g := fun p : (State Rel × Constraint Rel ℕ) × ℕ => (p.1.1, p.2))
-        (by fun_prop)
-  have hsurvivors := ComputableInPolyTime.mapWithInput htail hupdate
-  let m (I : State Rel) := I.body.occurrences.length
-  let n (I : State Rel) := I.ports.tail.tail.length
-  have hm : ComputableInPolyTime m input encUnary := by
-    have h := (computableInPolyTime_length_vars encRel encNat).comp hbody
-    simpa only [m, Function.comp_def, CSP.vars_length_eq_occurrences] using h
-  have hn : ComputableInPolyTime n input encUnary :=
-    (ComputableInPolyTime.length_list encNat).comp hrest
-  have hcount : ComputableInPolyTime (fun I => 2 * (m I + (n I + 1)))
-      input encUnary := by fun_prop
-  have hleft : ComputableInPolyTime (fun I => 2 * (m I + n I + 1))
-      input encUnary := by fun_prop
-  have hquery : ComputableInPolyTime (fun I => 2 * (m I + n I))
-      input encUnary := by fun_prop
-  have hidx := ComputableInPolyTime.idxOfWithInput
-    (RotationCertificate.computableInPolyTime_successor.comp hrot)
-    (ComputableInPolyTime.unary_to_binary.comp hquery)
-  have hswap := RotationCertificate.computableInPolyTime_swapSuccessors hrot
-    (ComputableInPolyTime.unary_to_binary.comp hleft)
-    (ComputableInPolyTime.unary_to_binary.comp hidx)
+    polytime
   have hcertificate : ComputableInPolyTime (fun I : State Rel =>
-      equalDropCertificate I.body (I.ports.tail.tail.length) I.rotation)
+      equalDropCertificate I.body I.ports.tail.tail.length I.rotation)
       input encRotationCertificate := by
-    simpa only [equalDropCertificate, m, n, Function.comp_def] using
-      OrderedBoundary.computableInPolyTime_restrictPrefix hswap hcount
-  have houtput := encState_mk_polyTime encRel hrenamed hsurvivors hcertificate
-  have hshort := ComputableInPolyTime.binary_lt'
-    (ComputableInPolyTime.unary_to_binary.comp
-      ((ComputableInPolyTime.length_list encNat).comp hports)) (ComputableInPolyTime.const 2)
-  have hbranch := ComputableInPolyTime.ite_decide hshort
-    (ComputableInPolyTime.id' (encIn := input)) houtput
-  apply hbranch.of_enc_eq
-  intro I
-  apply congrArg (encState encRel)
-  rcases I with ⟨F, ports, c⟩
-  cases ports with
-  | nil => rfl
-  | cons x ports =>
-    cases ports with
-    | nil => rfl
-    | cons y ps => simp [fuseHead, update]
+    simp only [equalDropCertificate, ← CSP.vars_length_eq_occurrences]
+    polytime
+  have hbranch : ComputableInPolyTime
+      (fun I : State Rel => if I.ports.length < 2 then I else
+        ⟨I.body.relabel (update I), I.ports.tail.map (update I),
+          equalDropCertificate I.body I.ports.tail.tail.length I.rotation⟩)
+      input input := by polytime
+  refine hbranch.of_enc_eq fun I => congrArg (encState encRel) ?_
+  rcases I with ⟨F, _ | ⟨x, _ | ⟨y, ps⟩⟩, c⟩ <;> simp [fuseHead, update]
 
 end Cslib.Complexity.CSP.CrossInsertion

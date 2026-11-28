@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Arithmetic.FormulaInterpolation
 public import CslibFrontier.Foundations.Data.MvPolynomial.LowDegreeRoot
+import CslibFrontier.Foundations.Data.MvPolynomial.LastVariable
 
 /-!
 # Roots of formulas of constant product-depth
@@ -71,59 +72,12 @@ variable {K : Type*} [Field K] {n : ℕ}
 
 /-! ### Polynomials in the last variable -/
 
-/-- A polynomial in `n + 1` variables as a polynomial in its last variable over the polynomials in
-the other variables. -/
-private noncomputable def toPolyLast (n : ℕ) :
-    MvPolynomial (Fin (n + 1)) K →ₐ[K] Polynomial (MvPolynomial (Fin n) K) :=
-  aeval (Fin.lastCases Polynomial.X fun k => Polynomial.C (X k))
-
-private theorem toPolyLast_X_last :
-    toPolyLast n (X (Fin.last n) : MvPolynomial (Fin (n + 1)) K) = Polynomial.X := by
-  simp [toPolyLast]
-
-private theorem toPolyLast_X_castSucc (k : Fin n) :
-    toPolyLast n (X k.castSucc : MvPolynomial (Fin (n + 1)) K) = Polynomial.C (X k) := by
-  simp [toPolyLast]
-
-private theorem toPolyLast_C (a : K) :
-    toPolyLast n (C a : MvPolynomial (Fin (n + 1)) K) = Polynomial.C (C a) := by
-  rw [toPolyLast, aeval_C, Polynomial.algebraMap_apply, algebraMap_eq]
-
-/-- Evaluating the last variable at `g` is substituting `g` for it. -/
-private theorem eval_toPolyLast (g : MvPolynomial (Fin n) K)
-    (p : MvPolynomial (Fin (n + 1)) K) :
-    (toPolyLast n p).eval g = aeval (Fin.lastCases g X : Fin (n + 1) → _) p := by
-  have h : (Polynomial.evalRingHom g).comp (toPolyLast (K := K) n).toRingHom =
-      (aeval (Fin.lastCases g X : Fin (n + 1) → MvPolynomial (Fin n) K)).toRingHom :=
-    ringHom_ext (fun a => by simp) fun i => by
-      refine Fin.lastCases ?_ (fun k => ?_) i <;> simp [toPolyLast_X_last, toPolyLast_X_castSucc]
-  exact RingHom.congr_fun h p
-
-/-- Substituting `x_{n}` back for the last variable inverts `toPolyLast`. -/
-private theorem toPolyLast_injective :
-    Function.Injective (toPolyLast (K := K) n) := by
-  have h : (Polynomial.eval₂RingHom (rename Fin.castSucc : MvPolynomial (Fin n) K →ₐ[K]
-      MvPolynomial (Fin (n + 1)) K).toRingHom (X (Fin.last n))).comp
-      (toPolyLast (K := K) n).toRingHom = RingHom.id _ :=
-    ringHom_ext (fun a => by simp) fun i => by
-      refine Fin.lastCases ?_ (fun k => ?_) i <;> simp [toPolyLast_X_last, toPolyLast_X_castSucc]
-  exact Function.LeftInverse.injective (g := Polynomial.eval₂RingHom _ _) (RingHom.congr_fun h)
-
-/-- The degree in the last variable is at most the total degree. -/
-private theorem natDegree_toPolyLast_le (p : MvPolynomial (Fin (n + 1)) K) :
-    (toPolyLast n p).natDegree ≤ p.totalDegree := by
-  have hg (i : Fin (n + 1)) : ((Fin.lastCases Polynomial.X fun k => Polynomial.C (X k) :
-      Fin (n + 1) → Polynomial (MvPolynomial (Fin n) K)) i).natDegree ≤ 1 := by
-    refine Fin.lastCases ?_ (fun k => ?_) i
-    · simp
-    · simp
-  exact (natDegree_aeval_le_mul hg p).trans_eq (mul_one _)
-
 /-- `coeffLast i F.nodeCount F` computes the coefficient of `y ^ i` of the polynomial of `F`. -/
 private theorem polynomial_coeffLast_nodeCount [CharZero K] (i : ℕ) (F : SPFormula K (n + 1)) :
-    (coeffLast i F.nodeCount F).polynomial = (toPolyLast n F.polynomial).coeff i :=
-  polynomial_coeffLast (fun α => (eval_toPolyLast (C α) F.polynomial).symm)
-    ((natDegree_toPolyLast_le _).trans (totalDegree_polynomial_le_nodeCount F)) i
+    (coeffLast i F.nodeCount F).polynomial = (lastVariableEquiv K n F.polynomial).coeff i :=
+  polynomial_coeffLast (fun α => (eval_lastVariableEquiv (C α) F.polynomial).symm)
+    (by rw [natDegree_lastVariableEquiv]
+        exact (degreeOf_le_totalDegree _ _).trans (totalDegree_polynomial_le_nodeCount F)) i
 
 /-- The homogeneous components of degree at most `D` sum to the truncation to degree `D`. -/
 private theorem sum_homogeneousComponent_eq_truncateTotalDegree {σ : Type*} (D : ℕ)
@@ -137,22 +91,22 @@ private theorem sum_homogeneousComponent_eq_truncateTotalDegree {σ : Type*} (D 
 /-- Substituting `x_i + a i` for every input `x_i` computes the shift by `a`. -/
 private theorem polynomial_substFormula_shift (a : Fin n → K) (F : SPFormula K n) :
     (substFormula (affineInput id (fun _ => 1) a) F).polynomial = shift a F.polynomial := by
-  simp only [polynomial_substFormula, polynomial_affineInput, id, C_1, one_mul]
-  rfl
+  simp only [polynomial_substFormula, polynomial_affineInput, id, C_1, one_mul]; rfl
 
 /-- Shifting `x` by `x₀` and `y` by `α` shifts the coefficients by `x₀` and the variable by
 `α`. -/
-private theorem toPolyLast_shift (x₀ : Fin n → K) (α : K) (p : MvPolynomial (Fin (n + 1)) K) :
-    toPolyLast n (shift (Fin.lastCases α x₀) p) =
-      Polynomial.taylor (C α) ((toPolyLast n p).map (shift x₀ : _ →ₐ[K] _).toRingHom) := by
-  have h : (toPolyLast (K := K) n).toRingHom.comp
+private theorem lastVariableEquiv_shift (x₀ : Fin n → K) (α : K)
+    (p : MvPolynomial (Fin (n + 1)) K) :
+    lastVariableEquiv K n (shift (Fin.lastCases α x₀) p) =
+      Polynomial.taylor (C α) ((lastVariableEquiv K n p).map (shift x₀ : _ →ₐ[K] _).toRingHom) := by
+  have h : (lastVariableEquiv K n).toRingHom.comp
       (shift (Fin.lastCases α x₀) : _ →ₐ[K] MvPolynomial (Fin (n + 1)) K).toRingHom =
       (Polynomial.taylorAlgHom (C α)).toRingHom.comp ((Polynomial.mapRingHom
         (shift x₀ : _ →ₐ[K] MvPolynomial (Fin n) K).toRingHom).comp
-        (toPolyLast (K := K) n).toRingHom) :=
+        (lastVariableEquiv K n).toRingHom) :=
     ringHom_ext (fun a => by simp) fun i => by
       refine Fin.lastCases ?_ (fun k => ?_) i <;>
-        simp [toPolyLast_X_last, toPolyLast_X_castSucc, shift_X]
+        simp [lastVariableEquiv_X_last, lastVariableEquiv_X_castSucc, shift_X]
   exact RingHom.congr_fun h p
 
 /-! ### Derivatives in the last variable -/
@@ -169,26 +123,30 @@ private noncomputable def derivLast (j : ℕ) (F : SPFormula K (n + 1)) : SPForm
   add ![(j.factorial : K)]
     ![coeffLast j (substFormula addLastInput F).nodeCount (substFormula addLastInput F)]
 
-private theorem toPolyLast_derivLast [CharZero K] (j : ℕ) (F : SPFormula K (n + 1)) :
-    toPolyLast n (derivLast j F).polynomial =
-      Polynomial.derivative^[j] (toPolyLast n F.polynomial) := by
-  have h : (Polynomial.mapRingHom (toPolyLast (K := K) n).toRingHom).comp
-      ((toPolyLast (K := K) (n + 1)).toRingHom.comp
+private theorem lastVariableEquiv_derivLast [CharZero K] (j : ℕ) (F : SPFormula K (n + 1)) :
+    lastVariableEquiv K n (derivLast j F).polynomial =
+      Polynomial.derivative^[j] (lastVariableEquiv K n F.polynomial) := by
+  have h : (Polynomial.mapRingHom (lastVariableEquiv K n).toRingHom).comp
+      ((lastVariableEquiv K (n + 1)).toRingHom.comp
         (aeval fun i => (addLastInput i).polynomial :
           MvPolynomial (Fin (n + 1)) K →ₐ[K] MvPolynomial (Fin (n + 2)) K).toRingHom) =
       (Polynomial.taylorAlgHom (Polynomial.X : Polynomial (MvPolynomial (Fin n) K))).toRingHom.comp
-        ((Polynomial.mapRingHom Polynomial.C).comp (toPolyLast (K := K) n).toRingHom) :=
+        ((Polynomial.mapRingHom Polynomial.C).comp (lastVariableEquiv K n).toRingHom) :=
     ringHom_ext (fun a => by simp) fun i => by
-      refine Fin.lastCases ?_ (fun k => ?_) i
-      · simp [addLastInput, toPolyLast_X_last, toPolyLast_X_castSucc, Fin.sum_univ_two, add_comm]
-      · simp [addLastInput, toPolyLast_X_castSucc]
+      refine Fin.lastCases ?_ (fun k => ?_) i <;>
+        simp [addLastInput, lastVariableEquiv_X_last, lastVariableEquiv_X_castSucc,
+          Fin.sum_univ_two, add_comm]
   have hj := congrArg (fun q => q.coeff j) (RingHom.congr_fun h F.polynomial)
   simp only [AlgHom.toRingHom_eq_coe, RingHom.coe_comp, Function.comp_apply, RingHom.coe_coe,
     Polynomial.coe_mapRingHom, Polynomial.coeff_map, Polynomial.taylorAlgHom_apply,
     Polynomial.taylor_coeff, Polynomial.hasseDeriv_map, Polynomial.eval_map,
     Polynomial.eval₂_C_X] at hj
+  change lastVariableEquiv K n
+      ((lastVariableEquiv K (n + 1)
+        (aeval (fun i => (addLastInput i).polynomial) F.polynomial)).coeff j) =
+    (Polynomial.hasseDeriv j) (lastVariableEquiv K n F.polynomial) at hj
   rw [derivLast, polynomial_add, Fin.sum_univ_one, Matrix.cons_val_zero, Matrix.cons_val_zero,
-    polynomial_coeffLast_nodeCount, polynomial_substFormula, map_mul, toPolyLast_C, hj,
+    polynomial_coeffLast_nodeCount, polynomial_substFormula, map_mul, lastVariableEquiv_C, hj,
     ← Polynomial.factorial_smul_hasseDeriv, LinearMap.smul_apply, nsmul_eq_mul, map_natCast,
     map_natCast]
 
@@ -199,24 +157,19 @@ private theorem productDepth_derivLast_le (j : ℕ) (F : SPFormula K (n + 1)) :
   fin_cases i
   refine (productDepth_coeffLast_le _ _ _).trans <|
     (productDepth_substFormula_le (B := 0) (fun k => ?_) F).trans_eq (add_zero _)
-  refine Fin.lastCases ?_ (fun k => ?_) k
-  · rw [addLastInput, Fin.lastCases_last, productDepth_add]
-    exact Finset.sup_le fun i _ => by fin_cases i <;> simp
-  · simp [addLastInput]
+  refine Fin.lastCases ?_ (fun k => by simp [addLastInput]) k
+  simp [addLastInput, productDepth_add, Fin.forall_fin_two]
 
 private theorem nodeCount_derivLast_le (j : ℕ) (F : SPFormula K (n + 1)) :
     (derivLast j F).nodeCount ≤ (3 * F.nodeCount + 1) * (3 * F.nodeCount) + 2 := by
-  have hH : (substFormula addLastInput F).nodeCount ≤ 3 * F.nodeCount := by
-    refine (nodeCount_substFormula_le (S := 3) (fun k => ?_) (by norm_num) F).trans_eq
-      (mul_comm _ _)
-    refine Fin.lastCases ?_ (fun k => ?_) k
-    · simp [addLastInput, Fin.sum_univ_two]
-    · simp [addLastInput]
+  have hH : (substFormula addLastInput F).nodeCount ≤ 3 * F.nodeCount :=
+    (nodeCount_substFormula_le (S := 3)
+      (Fin.lastCases (by simp [addLastInput, Fin.sum_univ_two]) fun _ => by simp [addLastInput])
+      (by norm_num) F).trans_eq (mul_comm _ _)
   rw [derivLast, Formula.nodeCount_gate, Fin.sum_univ_one, Matrix.cons_val_zero]
   have := nodeCount_coeffLast_le j (substFormula addLastInput F).nodeCount
     (substFormula addLastInput F)
-  have := Nat.mul_le_mul (Nat.add_le_add_right hH 1) hH
-  omega
+  nlinarith
 
 /-! ### Roots -/
 
@@ -238,26 +191,24 @@ theorem exists_formula_of_root [CharZero K] {N Δ : ℕ} {F : SPFormula K (N + 1
       G.nodeCount ≤ rootCost F.nodeCount f.totalDegree := by
   classical
   set D := f.totalDegree
-  have hP : toPolyLast N F.polynomial ≠ 0 := fun h =>
-    hF (toPolyLast_injective (h.trans (map_zero _).symm))
-  have hPf : (toPolyLast N F.polynomial).eval f = 0 := by
-    rw [eval_toPolyLast]
-    exact hroot
+  have hP : lastVariableEquiv K N F.polynomial ≠ 0 := fun h =>
+    hF ((lastVariableEquiv K N).injective (h.trans (map_zero _).symm))
+  have hPf : (lastVariableEquiv K N F.polynomial).eval f = 0 := by rwa [eval_lastVariableEquiv]
   obtain ⟨j, x₀, -, hshift⟩ := exists_shift_eq_truncate_sum_of_root hP hPf
   set α := eval x₀ f
-  set Q := Polynomial.taylor (C α) ((Polynomial.derivative^[j] (toPolyLast N F.polynomial)).map
-    (shift x₀ : _ →ₐ[K] _).toRingHom)
+  set Q := Polynomial.taylor (C α)
+    ((Polynomial.derivative^[j] (lastVariableEquiv K N F.polynomial)).map
+      (shift x₀ : _ →ₐ[K] _).toRingHom)
   set c := constantCoeff (Q.coeff 1)
   -- The shifted derivative `Q`, of product-depth at most `Δ`.
   set QF := substFormula (affineInput id (fun _ => 1) (Fin.lastCases α x₀)) (derivLast j F)
     with hQF
-  have hQFp : toPolyLast N QF.polynomial = Q := by
-    rw [hQF, polynomial_substFormula_shift, toPolyLast_shift, toPolyLast_derivLast]
+  have hQFp : lastVariableEquiv K N QF.polynomial = Q := by
+    rw [hQF, polynomial_substFormula_shift, lastVariableEquiv_shift, lastVariableEquiv_derivLast]
   -- `y - Q / c`.
   set G₀ : SPFormula K (N + 1) := add ![1, -c⁻¹] ![.input (Fin.last N), QF] with hG₀
-  have hG₀p : toPolyLast N G₀.polynomial = Polynomial.X - Polynomial.C (C c⁻¹) * Q := by
-    simp [hG₀, Fin.sum_univ_two, toPolyLast_X_last, hQFp]
-    ring
+  have hG₀p : lastVariableEquiv K N G₀.polynomial = Polynomial.X - Polynomial.C (C c⁻¹) * Q := by
+    simp [hG₀, Fin.sum_univ_two, lastVariableEquiv_X_last, hQFp]; ring
   -- Its powers, the only product gates added.
   set Pm : ℕ → SPFormula K (N + 1) := fun m => prodOn (range (m + 1)) fun _ => G₀ with hPm
   set S : SPFormula K N := sumOn (range (2 * (D + 1))) (fun m => ((m : K) + 1)⁻¹) fun m =>
@@ -272,9 +223,9 @@ theorem exists_formula_of_root [CharZero K] {N Δ : ℕ} {F : SPFormula K (N + 1
       rw [polynomial_coeffLast_nodeCount, hPm, polynomial_prodOn, map_prod, prod_const,
         card_range, hG₀p, smul_eq_C_mul]
     have hTp : T.polynomial = shift x₀ f := by
-      rw [hshift D le_rfl, hT, polynomial_add, Fin.sum_univ_two]
-      simp only [Matrix.cons_val_zero, Matrix.cons_val_one, C_1, one_mul, polynomial_const]
-      rw [hL, polynomial_lowPartFormula (totalDegree_polynomial_le_nodeCount S),
+      simp only [hshift D le_rfl, hT, polynomial_add, Fin.sum_univ_two, Matrix.cons_val_zero,
+        Matrix.cons_val_one, C_1, one_mul, polynomial_const, hL,
+        polynomial_lowPartFormula (totalDegree_polynomial_le_nodeCount S),
         sum_homogeneousComponent_eq_truncateTotalDegree, hSp]
       exact add_comm _ _
     rw [polynomial_substFormula_shift, hTp, shift_neg_shift]
@@ -282,30 +233,23 @@ theorem exists_formula_of_root [CharZero K] {N Δ : ℕ} {F : SPFormula K (N + 1
         (fun k => (productDepth_affineInput _ _ _ k).le) _).trans
         ((add_zero _).trans_le ((productDepth_derivLast_le j F).trans hΔ))
     have hG₀d : G₀.productDepth ≤ Δ := by
-      rw [hG₀, productDepth_add]
-      exact Finset.sup_le fun i _ => by fin_cases i <;> simp [hQFd]
+      simp [hG₀, productDepth_add, Fin.forall_fin_two, hQFd]
     have hSd : S.productDepth ≤ Δ + 1 := productDepth_sumOn_le _ fun m _ =>
       (productDepth_coeffLast_le _ _ _).trans (productDepth_prodOn_le fun _ _ => hG₀d)
+    have hLd : L.productDepth ≤ Δ + 1 := (productDepth_lowPartFormula_le _ _ _).trans hSd
     have hTd : T.productDepth ≤ Δ + 1 := by
-      rw [hT, productDepth_add]
-      refine Finset.sup_le fun i _ => ?_
-      fin_cases i
-      · exact (productDepth_lowPartFormula_le _ _ _).trans hSd
-      · simp
+      simp [hT, productDepth_add, Fin.forall_fin_two, hLd]
     exact ((productDepth_substFormula_le (B := 0)
       (fun k => (productDepth_affineInput _ _ _ k).le) _).trans_eq (add_zero _)).trans hTd
   · set s := F.nodeCount with hs
     have hpos : 0 < (D + 1) * (s + 1) ^ 2 := by positivity
-    have hDer := nodeCount_derivLast_le j F
-    rw [← hs] at hDer
+    have hDer : _ ≤ (3 * s + 1) * (3 * s) + 2 := nodeCount_derivLast_le j F
     have hQFn : QF.nodeCount ≤ (derivLast j F).nodeCount * 3 :=
       nodeCount_substFormula_le (fun k => (nodeCount_affineInput _ _ _ k).le) (by norm_num) _
-    have hG₀n : G₀.nodeCount = QF.nodeCount + 2 := by
-      simp [hG₀, Formula.nodeCount_gate, Fin.sum_univ_two]
-      omega
     have hG₀b : G₀.nodeCount ≤ 44 * (s + 1) ^ 2 := by
-      have : (3 * s + 1) * (3 * s) + 2 ≤ 14 * (s + 1) ^ 2 := by nlinarith
-      omega
+      simp only [hG₀, Formula.nodeCount_gate, Fin.sum_univ_two, Matrix.cons_val_zero,
+        Matrix.cons_val_one, Formula.nodeCount_input]
+      nlinarith
     have hcL : ∀ m ∈ range (2 * (D + 1)), (coeffLast m (Pm m).nodeCount (Pm m)).nodeCount ≤
         3 * (89 * ((D + 1) * (s + 1) ^ 2)) ^ 2 := by
       intro m hm
@@ -324,13 +268,9 @@ theorem exists_formula_of_root [CharZero K] {N Δ : ℕ} {F : SPFormula K (N + 1
       rw [hS, nodeCount_sumOn]
       calc _ ≤ #(range (2 * (D + 1))) • (3 * (89 * ((D + 1) * (s + 1) ^ 2)) ^ 2) + 1 :=
             Nat.add_le_add_right (sum_le_card_nsmul _ _ _ hcL) 1
-        _ = 47526 * ((D + 1) ^ 3 * (s + 1) ^ 4) + 1 := by
-          rw [card_range, smul_eq_mul]
-          ring
+        _ = 47526 * ((D + 1) ^ 3 * (s + 1) ^ 4) + 1 := by rw [card_range, smul_eq_mul]; ring
         _ ≤ _ := by omega
-    have hS1 : 1 ≤ S.nodeCount := by
-      rw [hS, nodeCount_sumOn]
-      omega
+    have hS1 : 1 ≤ S.nodeCount := by simp [hS, nodeCount_sumOn]
     have hTn : T.nodeCount = L.nodeCount + 2 := by
       simp [hT, Formula.nodeCount_gate, Fin.sum_univ_two]
     have hLn : L.nodeCount ≤ (S.nodeCount + 1) * (3 * S.nodeCount) + 1 :=
@@ -342,8 +282,6 @@ theorem exists_formula_of_root [CharZero K] {N Δ : ℕ} {F : SPFormula K (N + 1
       _ ≤ 27 * (47527 * ((D + 1) ^ 3 * (s + 1) ^ 4)) ^ 2 := by gcongr
       _ = (27 * 47527 ^ 2) * ((s + 1) ^ 8 * (D + 1) ^ 6) := by ring
       _ ≤ 2 ^ 36 * ((s + 1) ^ 8 * (D + 1) ^ 6) := Nat.mul_le_mul_right _ (by norm_num)
-      _ = rootCost s D := by
-        rw [rootCost]
-        ring
+      _ = rootCost s D := by simp only [rootCost]; ring
 
 end Cslib.Circuits.Arithmetic.SPFormula

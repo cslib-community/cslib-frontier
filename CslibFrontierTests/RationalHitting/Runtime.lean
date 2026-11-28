@@ -18,7 +18,7 @@ specification.
 namespace CslibFrontierTests.RationalHitting.Runtime
 
 open Cslib.Circuits Cslib.Circuits.Rational
-open Turing MultiTapeTM MultiTapeTM.ComputableTidilyInPolyTime
+open Turing MultiTapeTM MultiTapeTM.ComputableInPolyTime
 
 /-! ### Unary input format and parser -/
 

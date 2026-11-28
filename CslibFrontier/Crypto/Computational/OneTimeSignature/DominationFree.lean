@@ -110,10 +110,7 @@ theorem dominationFree_of_append_checksum {M : Type*} {n0 n1 d : ℕ}
   obtain ⟨-, j, hj⟩ := Pi.lt_def.mp (lt_of_le_of_ne hle0 fun h => hne (h0 h))
   have hlt : ∑ i, (P0 m i).val < ∑ i, (P0 m' i).val :=
     Finset.sum_lt_sum (fun i _ => hle0 i) ⟨j, Finset.mem_univ j, hj⟩
-  have := hmono hle1
-  have := hsum m
-  have := hsum m'
-  lia
+  linarith [hmono hle1, hsum m, hsum m']
 
 /-- Little-endian base-`(d + 1)` digit representation of `x` in `width` digits, taking digit `i`
 to `(x / (d + 1) ^ i) % (d + 1)`. -/
@@ -129,21 +126,14 @@ private theorem finFunctionFinEquiv_symm_eq_radixDigits {d width x : ℕ}
 /-- Positional reconstruction of `x < (d + 1) ^ width` from `radixDigits d width x`. -/
 theorem sum_radixDigits_mul_pow {d width x : ℕ} (hx : x < (d + 1) ^ width) :
     ∑ i : Fin width, (radixDigits d width x i).val * (d + 1) ^ i.val = x := by
-  have h := congrArg Fin.val
-    (finFunctionFinEquiv.apply_symm_apply (⟨x, hx⟩ : Fin ((d + 1) ^ width)))
-  rw [finFunctionFinEquiv_symm_eq_radixDigits hx, finFunctionFinEquiv_apply] at h
-  exact h
+  simpa only [finFunctionFinEquiv_symm_eq_radixDigits hx, finFunctionFinEquiv_apply] using
+    congrArg Fin.val (finFunctionFinEquiv.apply_symm_apply (⟨x, hx⟩ : Fin ((d + 1) ^ width)))
 
 /-- `radixDigits d width` is injective on `{x | x < (d + 1) ^ width}`. -/
 theorem radixDigits_injOn (d width : ℕ) :
     Set.InjOn (radixDigits d width) {x | x < (d + 1) ^ width} := by
   intro x hx y hy hxy
-  have hsymm :
-      finFunctionFinEquiv.symm (⟨x, hx⟩ : Fin ((d + 1) ^ width)) =
-        finFunctionFinEquiv.symm (⟨y, hy⟩ : Fin ((d + 1) ^ width)) := by
-    rw [finFunctionFinEquiv_symm_eq_radixDigits hx,
-      finFunctionFinEquiv_symm_eq_radixDigits hy, hxy]
-  exact congrArg Fin.val (finFunctionFinEquiv.symm.injective hsymm)
+  rw [← sum_radixDigits_mul_pow hx, ← sum_radixDigits_mul_pow hy, hxy]
 
 /-- Coordinatewise order on `radixDigits` implies numeric order below `(d + 1) ^ width`. -/
 theorem le_of_radixDigits_le {d width x y : ℕ}
@@ -205,13 +195,10 @@ private theorem radixDigitList_length (d width x : ℕ) :
 
 private theorem sum_radixDigitList_eq (d n0 m : ℕ) :
     (radixDigitList d n0 m).sum = ∑ i : Fin n0, (radixDigits d n0 m i).val := by
-  dsimp only [radixDigitList, radixDigits]
-  rw [Fin.sum_univ_eq_sum_range (fun i => m / (d + 1) ^ i % (d + 1))]
-  induction n0 with
-  | zero => simp
-  | succ k ih =>
-    rw [List.range_succ, List.map_append, List.map_singleton, List.sum_append, List.sum_singleton,
-      Finset.sum_range_succ, ih]
+  rw [← List.sum_ofFn]
+  congr 1
+  refine List.ext_getElem (by simp [radixDigitList]) fun _ _ _ => ?_
+  simp [radixDigitList, radixDigits]
 
 private theorem checksum_eq_sub_sum_radixDigitList (d n0 m : ℕ) :
     ∑ i : Fin n0, (d - (radixDigits d n0 m i).val) =
@@ -240,60 +227,36 @@ theorem getElem_winternitzDigitList (d n0 n1 m : ℕ) (i : ℕ)
     have hidx : (⟨i, hi'⟩ : Fin (n0 + n1)) = Fin.castAdd n1 ⟨i, h0⟩ := rfl
     rw [hidx, Fin.append_left]
     simp [radixDigitList, radixDigits]
-  · have hge : (radixDigitList d n0 m).length ≤ i := by
-      simpa [radixDigitList_length] using Nat.le_of_not_lt h0
-    rw [List.getElem_append_right hge]
-    have hsub : i - n0 < n1 := by lia
-    have hidx : (⟨i, hi'⟩ : Fin (n0 + n1)) = Fin.natAdd n0 ⟨i - n0, hsub⟩ := by
-      ext
-      dsimp
-      lia
+  · rw [List.getElem_append_right (by simpa [radixDigitList_length] using Nat.le_of_not_lt h0)]
+    have hidx : (⟨i, hi'⟩ : Fin (n0 + n1)) = Fin.natAdd n0 ⟨i - n0, by lia⟩ :=
+      Fin.ext (Nat.add_sub_of_le (Nat.le_of_not_lt h0)).symm
     rw [hidx, Fin.append_right, checksum_eq_sub_sum_radixDigitList]
     simp [radixDigitList, radixDigits]
 
 /-- `winternitzDigitList d n0 n1 m` as `List.ofFn` of `winternitzDigits d n0 n1 m`. -/
 theorem winternitzDigitList_eq_ofFn (d n0 n1 m : ℕ) :
     winternitzDigitList d n0 n1 m = List.ofFn fun i => (winternitzDigits d n0 n1 m i).val := by
-  apply List.ext_getElem
-  · simp [winternitzDigitList_length]
-  · intro i h1 h2
-    simp [getElem_winternitzDigitList]
+  refine List.ext_getElem (by simp [winternitzDigitList_length]) fun _ _ _ => ?_
+  simp [getElem_winternitzDigitList]
 
 private theorem radixDigitList_polyTime :
-    ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ => radixDigitList p.1 p.2.1 p.2.2)
+    ComputableInPolyTime (fun p : ℕ × ℕ × ℕ => radixDigitList p.1 p.2.1 p.2.2)
       (encPair encNat (encPair encUnary encNat)) (encList encNat) := by
   let encIn := encPair encNat (encPair encUnary encNat)
-  have hd : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ => p.1) encIn encNat :=
-    ComputableTidilyInPolyTime.fst encNat (encPair encUnary encNat)
-  have hwidth : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ => p.2.1) encIn encUnary :=
-    (ComputableTidilyInPolyTime.fst encUnary encNat).comp
-      (ComputableTidilyInPolyTime.snd encNat (encPair encUnary encNat))
-  have hx : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ => p.2.2) encIn encNat :=
-    (ComputableTidilyInPolyTime.snd encUnary encNat).comp
-      (ComputableTidilyInPolyTime.snd encNat (encPair encUnary encNat))
-  have hrange : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ => List.range p.2.1)
-      encIn (encList encUnary) :=
-    ComputableTidilyInPolyTime.range.comp hwidth
-  refine ComputableTidilyInPolyTime.mapWithInput hrange ?_
-  have hd1 : ComputableTidilyInPolyTime
-      (fun q : (ℕ × ℕ × ℕ) × ℕ => q.1.1 + 1) (encPair encIn encUnary) encNat :=
-    ComputableTidilyInPolyTime.binary_add'
-      (hd.comp (ComputableTidilyInPolyTime.fst encIn encUnary))
-      (ComputableTidilyInPolyTime.const 1)
-  have hi : ComputableTidilyInPolyTime
-      (fun q : (ℕ × ℕ × ℕ) × ℕ => q.2) (encPair encIn encUnary) encUnary :=
-    ComputableTidilyInPolyTime.snd encIn encUnary
-  have hpow : ComputableTidilyInPolyTime
-      (fun q : (ℕ × ℕ × ℕ) × ℕ => (q.1.1 + 1) ^ q.2) (encPair encIn encUnary) encNat :=
-    ComputableTidilyInPolyTime.binary_pow' hd1 hi
-  have hxq : ComputableTidilyInPolyTime
-      (fun q : (ℕ × ℕ × ℕ) × ℕ => q.1.2.2) (encPair encIn encUnary) encNat :=
-    hx.comp (ComputableTidilyInPolyTime.fst encIn encUnary)
-  have hdiv : ComputableTidilyInPolyTime
-      (fun q : (ℕ × ℕ × ℕ) × ℕ => q.1.2.2 / (q.1.1 + 1) ^ q.2)
+  have hwidth : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ => p.2.1) encIn encUnary := by fun_prop
+  refine ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hwidth) ?_
+  have hd1 : ComputableInPolyTime (fun q : (ℕ × ℕ × ℕ) × ℕ => q.1.1 + 1)
       (encPair encIn encUnary) encNat :=
-    ComputableTidilyInPolyTime.binary_div.comp (hxq.prod hpow)
-  exact ComputableTidilyInPolyTime.binary_mod.comp (hdiv.prod hd1)
+    ComputableInPolyTime.binary_add' (by fun_prop) (ComputableInPolyTime.const 1)
+  have hpow : ComputableInPolyTime (fun q : (ℕ × ℕ × ℕ) × ℕ => (q.1.1 + 1) ^ q.2)
+      (encPair encIn encUnary) encNat :=
+    ComputableInPolyTime.binary_pow' hd1 (by fun_prop)
+  have hxq : ComputableInPolyTime (fun q : (ℕ × ℕ × ℕ) × ℕ => q.1.2.2)
+      (encPair encIn encUnary) encNat := by fun_prop
+  have hdiv : ComputableInPolyTime (fun q : (ℕ × ℕ × ℕ) × ℕ => q.1.2.2 / (q.1.1 + 1) ^ q.2)
+      (encPair encIn encUnary) encNat :=
+    ComputableInPolyTime.binary_div.comp (hxq.prod hpow)
+  exact ComputableInPolyTime.binary_mod.comp (hdiv.prod hd1)
 
 /-- `winternitzDigitList` is computable in polynomial time when `d` and `m` are encoded in
 binary (`encNat`) and the digit counts `n0` and `n1` are encoded in unary (`encUnary`). -/
@@ -301,41 +264,21 @@ theorem winternitzDigitList_polyTime :
     ComputableInPolyTime
       (fun p : ℕ × ℕ × ℕ × ℕ => winternitzDigitList p.1 p.2.1 p.2.2.1 p.2.2.2)
       (encPair encNat (encPair encUnary (encPair encUnary encNat))) (encList encNat) := by
-  refine ComputableInPolyTime.of_tidy ?_
   let encIn := encPair encNat (encPair encUnary (encPair encUnary encNat))
-  have hd : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ × ℕ => p.1) encIn encNat :=
-    ComputableTidilyInPolyTime.fst encNat (encPair encUnary (encPair encUnary encNat))
-  have hn0 : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ × ℕ => p.2.1) encIn encUnary :=
-    (ComputableTidilyInPolyTime.fst encUnary (encPair encUnary encNat)).comp
-      (ComputableTidilyInPolyTime.snd encNat (encPair encUnary (encPair encUnary encNat)))
-  have hn1 : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ × ℕ => p.2.2.1) encIn encUnary :=
-    (ComputableTidilyInPolyTime.fst encUnary encNat).comp
-      ((ComputableTidilyInPolyTime.snd encUnary (encPair encUnary encNat)).comp
-        (ComputableTidilyInPolyTime.snd encNat (encPair encUnary (encPair encUnary encNat))))
-  have hm : ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ × ℕ => p.2.2.2) encIn encNat :=
-    (ComputableTidilyInPolyTime.snd encUnary encNat).comp
-      ((ComputableTidilyInPolyTime.snd encUnary (encPair encUnary encNat)).comp
-        (ComputableTidilyInPolyTime.snd encNat (encPair encUnary (encPair encUnary encNat))))
-  have hm0 : ComputableTidilyInPolyTime
-      (fun p : ℕ × ℕ × ℕ × ℕ => radixDigitList p.1 p.2.1 p.2.2.2) encIn (encList encNat) :=
-    radixDigitList_polyTime.comp (hd.prod (hn0.prod hm))
-  have hsum : ComputableTidilyInPolyTime
-      (fun p : ℕ × ℕ × ℕ × ℕ => (radixDigitList p.1 p.2.1 p.2.2.2).sum) encIn encNat :=
-    ComputableInPolyTime.binary_sum.tidy.comp hm0
-  have hdn0 : ComputableTidilyInPolyTime
-      (fun p : ℕ × ℕ × ℕ × ℕ => p.1 * p.2.1) encIn encNat :=
-    ComputableTidilyInPolyTime.binary_mul'
-      hd (ComputableTidilyInPolyTime.unary_to_binary.comp hn0)
-  have hcs : ComputableTidilyInPolyTime
+  have hd : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ × ℕ => p.1) encIn encNat := by fun_prop
+  have hn0 : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ × ℕ => p.2.1) encIn encUnary := by fun_prop
+  have hn1 : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ × ℕ => p.2.2.1) encIn encUnary := by fun_prop
+  have hm0 : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ × ℕ => radixDigitList p.1 p.2.1 p.2.2.2)
+      encIn (encList encNat) :=
+    radixDigitList_polyTime.comp (hd.prod (hn0.prod (by fun_prop)))
+  have hcs : ComputableInPolyTime
       (fun p : ℕ × ℕ × ℕ × ℕ => p.1 * p.2.1 - (radixDigitList p.1 p.2.1 p.2.2.2).sum)
       encIn encNat :=
-    ComputableTidilyInPolyTime.binary_sub' hdn0 hsum
-  have hm1 : ComputableTidilyInPolyTime
-      (fun p : ℕ × ℕ × ℕ × ℕ =>
-        radixDigitList p.1 p.2.2.1 (p.1 * p.2.1 - (radixDigitList p.1 p.2.1 p.2.2.2).sum))
-      encIn (encList encNat) :=
-    radixDigitList_polyTime.comp (hd.prod (hn1.prod hcs))
-  exact ComputableTidilyInPolyTime.listAppend' hm0 hm1
+    ComputableInPolyTime.binary_sub'
+      (ComputableInPolyTime.binary_mul' hd (ComputableInPolyTime.unary_to_binary.comp hn0))
+      (ComputableInPolyTime.binary_sum.comp hm0)
+  exact ComputableInPolyTime.listAppend' hm0
+    (radixDigitList_polyTime.comp (hd.prod (hn1.prod hcs)))
 
 private theorem radixDigits_one_val (n x : ℕ) (i : Fin n) :
     (radixDigits 1 n x i).val = (x.testBit i.val).toNat := by
@@ -353,18 +296,14 @@ theorem winternitzDigits_one_eq_one_iff_mem_optSet {v w : ℕ} (m : BitString v)
     winternitzDigits 1 v w (lsbValue (List.ofFn m)) k = 1 ↔ k ∈ optSet v w m := by
   have hm (i : Fin v) :
       (radixDigits 1 v (lsbValue (List.ofFn m)) i).val = (m i).toNat := by
-    rw [radixDigits_one_val, testBit_lsbValue, List.getD_eq_getElem?_getD,
-      List.getElem?_eq_getElem (by simp only [List.length_ofFn, i.isLt]),
-      List.getElem_ofFn, Option.getD_some]
+    simp [radixDigits_one_val, testBit_lsbValue, i.isLt]
   have hsum :
       (∑ i : Fin v, (1 - (radixDigits 1 v (lsbValue (List.ofFn m)) i).val)) =
         (List.ofFn m).count false := by
-    have hadd :
-        (∑ i : Fin v, (m i).toNat) + ∑ i : Fin v, (1 - (m i).toNat) = v := by
-      simpa only [hm, Nat.one_mul] using sum_radixDigits_add_sum_sub 1 v (lsbValue (List.ofFn m))
+    have hadd := sum_radixDigits_add_sum_sub 1 v (lsbValue (List.ofFn m))
     have hcount := List.count_true_add_count_false (List.ofFn m)
-    rw [List.length_ofFn, count_true_ofFn, weight_eq_sum_toNat] at hcount
-    simp only [hm]
+    simp only [hm, Nat.one_mul, List.length_ofFn, count_true_ofFn, weight_eq_sum_toNat]
+      at hadd hcount ⊢
     lia
   induction k using Fin.addCases with
   | left i =>

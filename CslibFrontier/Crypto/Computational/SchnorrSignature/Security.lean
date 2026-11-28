@@ -178,14 +178,13 @@ theorem computableInPolyTime_schnorrForkOutput :
       (ℕ × List Bool × List Bool) × (ℕ × List Bool × List Bool) → List Bool}
       (hf : ComputableInPolyTime f E encBits) :
       ComputableInPolyTime (fun x => ofBits (f x)) E encNat :=
-    .of_tidy (ComputableTidilyInPolyTime.bitsToNat.comp hf.tidy)
+    (ComputableInPolyTime.bitsToNat.comp hf)
   have hextract := computableInPolyTime_extractNat hd
     (hnat (f := fun x => x.2.2.2.1.2.1) (by fun_prop))
     (hnat (f := fun x => x.2.2.2.1.2.2) (by fun_prop))
     (hnat (f := fun x => x.2.2.2.2.2.1) (by fun_prop))
     (hnat (f := fun x => x.2.2.2.2.2.2) (by fun_prop))
-  have hbits := ComputableInPolyTime.of_tidy
-    (ComputableTidilyInPolyTime.natBits.comp hextract.tidy)
+  have hbits := (ComputableInPolyTime.natBits.comp hextract)
   have hi : ComputableInPolyTime (fun x : F.Desc × List (List Bool) × List (List Bool) ×
       (ℕ × List Bool × List Bool) × (ℕ × List Bool × List Bool) => x.2.2.2.1.1 - 1)
       E encUnary := by
@@ -297,16 +296,6 @@ theorem isPPTOn_schnorrForkingAdversary {k : ℕ} {Control : Type} [Finite Contr
           p.1.1.2.take (p.2.1 - 1) ++ p.1.2.drop (p.2.1 - 1)⟩⟩ : SchnorrForkPassInput)))
       E₅ (encPair F.encDesc encSchnorrForkPassInput) := by fun_prop
   refine (hpass.preprocess hprep₂).bind_with ?_
-  have hout := F.computableInPolyTime_schnorrForkOutput
-  have hshape : (fun x : F.Desc × List (List Bool) × List (List Bool) ×
-      (ℕ × List Bool × List Bool) × (ℕ × List Bool × List Bool) =>
-      match x with
-      | (d, answers, answers', first, second) =>
-        F.schnorrForkOutput d answers answers' first second) =
-      fun x => F.schnorrForkOutput x.1 x.2.1 x.2.2.1 x.2.2.2.1 x.2.2.2.2 := by
-    funext ⟨_, _, _, _, _⟩
-    rfl
-  rw [hshape] at hout
   have hprep₃ : ComputableInPolyTime
       (fun p : ((((((ℕ × F.Desc × List Bool) × List Bool) ×
         List (List Bool × List Bool × List Bool)) × List (List Bool)) × List (List Bool)) ×
@@ -316,9 +305,7 @@ theorem isPPTOn_schnorrForkingAdversary {k : ℕ} {Control : Type} [Finite Contr
       (encPair F.encDesc (encPair (encList encBits) (encPair (encList encBits)
         (encPair (encPair encUnary (encPair encBits encBits))
           (encPair encUnary (encPair encBits encBits)))))) := by fun_prop
-  have hf := hout.comp hprep₃
-  simp only [Function.comp_def] at hf
-  exact hf.isPPTOn
+  exact (F.computableInPolyTime_schnorrForkOutput.comp hprep₃).isPPTOn
 
 /-! ### The adversary's law -/
 
@@ -447,10 +434,8 @@ theorem map_eval_schnorrForkingAdversary {k : ℕ} {Control : Type}
         obtain ⟨_, ⟨_, outcome₂⟩, _⟩ := r₂
         dsimp only at hc₁ hc₂ ⊢
         have hdiff : ((ofBits (List.ofFn outcome₁.challenge) : ℕ) : ZMod (F.order d)) ≠
-            ofBits (List.ofFn outcome₂.challenge) := by
-          have := (F.challengeEmbedding d hm).injective.ne
-            (show outcome₁.challenge ≠ outcome₂.challenge by rw [hc₁, hc₂]; exact hne)
-          exact this
+            ofBits (List.ofFn outcome₂.challenge) :=
+          (F.challengeEmbedding d hm).injective.ne (hc₁.trans_ne (hne.trans_eq hc₂.symm))
         rw [extractNat_cast hdiff]
         simp only [schnorrWordExtract, linearExtract, smul_eq_mul]
         rfl

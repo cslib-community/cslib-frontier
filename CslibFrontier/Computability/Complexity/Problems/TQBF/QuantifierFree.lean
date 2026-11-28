@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.Space.TQBF.PolyTime
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
@@ -82,18 +83,12 @@ def QuantifierFree : QBF V → Prop
 theorem quantifierFree_iff_tokens {φ : QBF ℕ} :
     φ.QuantifierFree ↔ ∀ t ∈ φ.tokens, t.1.isQuantifier = false := by
   induction φ with
-  | var v => simp [QuantifierFree, tokens, Kind.isQuantifier]
-  | top => simp [QuantifierFree, tokens, Kind.isQuantifier]
-  | bot => simp [QuantifierFree, tokens, Kind.isQuantifier]
-  | not φ ih => simp [QuantifierFree, tokens, Kind.isQuantifier, ih]
-  | and φ ψ ihφ ihψ | or φ ψ ihφ ihψ =>
-    simp only [QuantifierFree, tokens, ihφ, ihψ, List.mem_cons, List.mem_append]
-    refine ⟨fun ⟨h₁, h₂⟩ t ht => ?_, fun h => ⟨fun t ht => h t (.inr (.inl ht)),
-      fun t ht => h t (.inr (.inr ht))⟩⟩
-    rcases ht with rfl | ht | ht
-    exacts [rfl, h₁ t ht, h₂ t ht]
-  | ex v φ => simp [QuantifierFree, tokens, Kind.isQuantifier]
-  | all v φ => simp [QuantifierFree, tokens, Kind.isQuantifier]
+  | var | top | bot | ex | all => simp [QuantifierFree, tokens, Kind.isQuantifier]
+  | not _ ih => simp [QuantifierFree, tokens, Kind.isQuantifier, ih]
+  | and _ _ ihφ ihψ | or _ _ ihφ ihψ =>
+    simp only [QuantifierFree, tokens, ihφ, ihψ, List.mem_cons, List.mem_append,
+      or_imp, forall_and]
+    exact (and_iff_right fun _ h => h ▸ rfl).symm
 
 instance : DecidablePred (QuantifierFree : QBF ℕ → Prop) := fun _ =>
   decidable_of_iff _ quantifierFree_iff_tokens.symm
@@ -102,20 +97,13 @@ instance : DecidablePred (QuantifierFree : QBF ℕ → Prop) := fun _ =>
 theorem mem_tokens_of_mem_freeVars {φ : QBF ℕ} {x : ℕ} (hx : x ∈ φ.freeVars) :
     (Kind.var, x) ∈ φ.tokens := by
   induction φ with
-  | var v => simp_all [tokens]
-  | top => simp at hx
-  | bot => simp at hx
-  | not φ ih => exact List.mem_cons_of_mem _ (ih hx)
-  | and φ ψ ihφ ihψ =>
-    rw [freeVars_and, Finset.mem_union] at hx
-    simp only [tokens, List.mem_cons, List.mem_append]
-    exact .inr (hx.imp ihφ ihψ)
-  | or φ ψ ihφ ihψ =>
-    rw [freeVars_or, Finset.mem_union] at hx
-    simp only [tokens, List.mem_cons, List.mem_append]
-    exact .inr (hx.imp ihφ ihψ)
-  | ex v φ ih => exact List.mem_cons_of_mem _ (ih (Finset.mem_of_mem_erase hx))
-  | all v φ ih => exact List.mem_cons_of_mem _ (ih (Finset.mem_of_mem_erase hx))
+  | var => simp_all [tokens]
+  | top | bot => simp at hx
+  | not _ ih => exact List.mem_cons_of_mem _ (ih hx)
+  | and _ _ ihφ ihψ | or _ _ ihφ ihψ =>
+    simp only [freeVars_and, freeVars_or, Finset.mem_union] at hx
+    exact List.mem_cons_of_mem _ (List.mem_append.mpr (hx.imp ihφ ihψ))
+  | ex _ _ ih | all _ _ ih => exact List.mem_cons_of_mem _ (ih (Finset.mem_of_mem_erase hx))
 
 /-- One step of the evaluating scan of the tokens from right to left, for a token of kind `k` and
 variable `v`, on the stack of the values of the subformulas read so far. Quantifiers leave the
@@ -138,19 +126,15 @@ def evalStep (σ : ℕ → Bool) (stack : List Bool) (t : Kind × ℕ) : List Bo
 theorem foldl_evalStep {φ : QBF ℕ} (hφ : φ.QuantifierFree) (σ : ℕ → Bool) (stack : List Bool) :
     φ.tokens.reverse.foldl (evalStep σ) stack = φ.eval σ :: stack := by
   induction φ generalizing stack with
-  | var v => rfl
-  | top => rfl
-  | bot => rfl
-  | not φ ih =>
-    simp only [tokens, List.reverse_cons, List.foldl_append, ih hφ, List.foldl_cons,
-      List.foldl_nil]
+  | var | top | bot => rfl
+  | not _ ih =>
+    simp only [tokens, List.reverse_cons, List.foldl_append, ih hφ, List.foldl_cons, List.foldl_nil]
     rfl
-  | and φ ψ ihφ ihψ | or φ ψ ihφ ihψ =>
+  | and _ _ ihφ ihψ | or _ _ ihφ ihψ =>
     simp only [tokens, List.reverse_cons, List.reverse_append, List.foldl_append, ihψ hφ.2,
       ihφ hφ.1, List.foldl_cons, List.foldl_nil]
     rfl
-  | ex v φ => exact hφ.elim
-  | all v φ => exact hφ.elim
+  | ex | all => exact hφ.elim
 
 end Cslib.Logic.PL.QBF
 
@@ -176,14 +160,14 @@ assignment, is polynomial-time. -/
 private theorem evalStepAt_pt (k : QBF.Kind) :
     ComputableInPolyTime (fun p : (List ℕ × List Bool) × (QBF.Kind × ℕ) =>
       QBF.evalStepAt (fun v => p.1.1.contains v) k p.2.2 p.1.2)
-      (encFoldStep (encList encNat) (encList encBool) encToken) (encList encBool) := by
+      (encPair (encPair (encList encNat) (encList encBool)) encToken) (encList encBool) := by
   cases k <;> simp only [QBF.evalStepAt] <;> fun_prop
 
 /-- A step of the scan is polynomial-time. -/
 private theorem evalStep_pt :
     ComputableInPolyTime (fun p : (List ℕ × List Bool) × (QBF.Kind × ℕ) =>
       QBF.evalStep (fun v => p.1.1.contains v) p.1.2 p.2)
-      (encFoldStep (encList encNat) (encList encBool) encToken) (encList encBool) :=
+      (encPair (encPair (encList encNat) (encList encBool)) encToken) (encList encBool) :=
   finite_cases (tagEncoding := encKind)
     (tag := fun p : (List ℕ × List Bool) × (QBF.Kind × ℕ) => p.2.1)
     (branch := fun k p => QBF.evalStepAt (fun v => p.1.1.contains v) k p.2.2 p.1.2)

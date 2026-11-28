@@ -17,7 +17,7 @@ words, checked by the kernel and compiled, agreeing with `ExecutableGenerator.at
 namespace CslibFrontierTests.RationalHitting.Point
 
 open Cslib.Circuits Cslib.Circuits.Rational
-open Turing MultiTapeTM MultiTapeTM.ComputableTidilyInPolyTime
+open Turing MultiTapeTM MultiTapeTM.ComputableInPolyTime
 
 /-! ### Column replacement and Cramer normalization -/
 

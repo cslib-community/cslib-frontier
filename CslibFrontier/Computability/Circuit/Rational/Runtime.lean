@@ -277,7 +277,11 @@ theorem computableInPolyTime_outputWord {n N M Dg H : α → ℕ}
     ComputableInPolyTime
       (fun x => outputWord (n x) (N x) (M x) (Dg x) (H x))
       encIn encBits := by
-  fun_prop [outputWord]
+  have hwords := computableInPolyTime_gridPointWords hn hN hM hDg hH
+  exact bitsAppend
+    (bitsAppend (encodeNat_of_unary (unary_mul' hM hDg))
+      (encodeNat_of_unary ((length_list encBits).comp hwords)))
+    (bitsFlatten hwords)
 
 /-- Computing `hittingListWord` from unary `(n, s)` is polynomial-time. -/
 @[fun_prop]

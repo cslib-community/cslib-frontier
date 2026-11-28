@@ -91,30 +91,22 @@ private theorem layer_diff {X : Type*} [DecidableEq X] {L : X → Prop} {M M' : 
   by_cases hab : a = b
   · subst hab
     have hM (x : X) (hx : L x) : M' x = M x := by have := e₁ x hx; omega
-    have hcd : c = d := by
-      by_contra h
+    obtain rfl : c = d := by_contra fun h => by
       have := e₂ d hd
-      rw [hM d hd, ite_eq_left rfl, ite_eq_right h] at this
-      omega
-    subst hcd
+      rw [hM d hd, ite_eq_left rfl, ite_eq_right h] at this; omega
     rw [hM a ha, hM c hd, ite_eq_left rfl, ite_eq_left rfl]
     exact ⟨rfl, by ring⟩
   · have h₁ := e₁ b hb
     have h₂ := e₁ a ha
     rw [ite_eq_left rfl, ite_eq_right hab] at h₁
     rw [ite_eq_right (Ne.symm hab), ite_eq_left rfl] at h₂
-    have hbd : b = d := by
-      by_contra h
+    obtain rfl : b = d := by_contra fun h => by
       have := e₂ b hb
       rw [ite_eq_right (Ne.symm h)] at this
       split_ifs at this <;> omega
-    subst hbd
-    have hac : a = c := by
-      by_contra h
+    obtain rfl : a = c := by_contra fun h => by
       have := e₂ a ha
-      rw [ite_eq_right (Ne.symm hab), ite_eq_right (Ne.symm h)] at this
-      omega
-    subst hac
+      rw [ite_eq_right (Ne.symm hab), ite_eq_right (Ne.symm h)] at this; omega
     rw [ite_eq_right hab, ite_eq_right hab, show M' b = M b + 1 by omega]
     exact ⟨⟨rfl, rfl⟩, by ring⟩
 
@@ -129,30 +121,22 @@ private theorem layer_mul {X : Type*} [DecidableEq X] {L : X → Prop} {M M' : X
   by_cases hab : a = b
   · subst hab
     have hM (x : X) (hx : L x) : M' x = M x := by have := e₁ x hx; omega
-    have hcd : c = d := by
-      by_contra h
+    obtain rfl : c = d := by_contra fun h => by
       have := e₂ c hc
-      rw [hM c hc, ite_eq_left rfl, ite_eq_right (Ne.symm h)] at this
-      omega
-    subst hcd
+      rw [hM c hc, ite_eq_left rfl, ite_eq_right (Ne.symm h)] at this; omega
     rw [hM a ha, hM c hc, ite_eq_left rfl, ite_eq_left rfl]
     exact ⟨rfl, by ring⟩
   · have h₁ := e₁ a ha
     have h₂ := e₁ b hb
     rw [ite_eq_left rfl, ite_eq_right (Ne.symm hab)] at h₁
     rw [ite_eq_right hab, ite_eq_left rfl] at h₂
-    have hac : a = c := by
-      by_contra h
+    obtain rfl : a = c := by_contra fun h => by
       have := e₂ a ha
       rw [ite_eq_right (Ne.symm h)] at this
       split_ifs at this <;> omega
-    subst hac
-    have hbd : b = d := by
-      by_contra h
+    obtain rfl : b = d := by_contra fun h => by
       have := e₂ b hb
-      rw [ite_eq_right hab, ite_eq_right (Ne.symm h)] at this
-      omega
-    subst hbd
+      rw [ite_eq_right hab, ite_eq_right (Ne.symm h)] at this; omega
     rw [ite_eq_right hab, ite_eq_right hab, show M' b + 1 = M b by omega]
     exact ⟨⟨rfl, rfl⟩, by ring⟩
 
@@ -211,11 +195,7 @@ private theorem local_sq (W : Quad p.n) {M M' : Fin p.n × Fin p.n × Fin p.n �
       split_ifs <;> simp_all
   refine ⟨fun t => ?_, ?_⟩
   · have := (key t).1
-    by_cases h : W.1.1.edge t = W.1.2.edge t
-    · simp only [Quad.type, h, ne_eq, not_true_eq_false, decide_false, ite_true] at this ⊢
-      exact ⟨trivial, this⟩
-    · simpa only [Quad.type, h, ne_eq, not_false_eq_true, decide_true, ite_false, ite_true]
-        using this
+    by_cases h : W.1.1.edge t = W.1.2.edge t <;> simpa [Quad.HasType, Quad.type, h] using this
   · simp only [Path.coeff, ← Finset.prod_mul_distrib, ← Finset.prod_pow]
     exact Finset.prod_congr rfl fun t _ => (key t).2
 
@@ -238,7 +218,7 @@ private theorem gram_le (M M' : Slice p (p.a, p.b)) :
     rw [Finset.sum_eq_single N (fun N' _ hN' => ?_) (fun h => absurd (Finset.mem_univ _) h),
       ite_eq_left hN₁, ite_eq_left hN₂, ite_eq_left hl]
     rw [ite_eq_right fun h' => hN' (Subtype.ext (add_right_cancel (h'.trans hN₁.symm))), zero_mul]
-  · refine le_trans (le_of_eq (Finset.sum_eq_zero fun N _ => ?_)) (by split_ifs <;> positivity)
+  · refine (Finset.sum_eq_zero fun N _ => ?_).le.trans (by split_ifs <;> positivity)
     by_cases h₁ : N.1 + PQ.1.vPart p = M.1 + PQ.1.uPart p
     · rw [ite_eq_right fun h₂ => h ⟨N, h₁, h₂⟩, mul_zero]
     · rw [ite_eq_right h₁, zero_mul]
@@ -272,7 +252,7 @@ theorem second_trace_le_sum_local :
         refine Finset.sum_le_sum fun M' _ => ?_
         rw [hsymm M M']
         refine (mul_le_mul (gram_le M M') (gram_le M M') (gram_nonneg M M')
-          ((gram_nonneg M M').trans (gram_le M M'))).trans (le_of_eq ?_)
+          ((gram_nonneg M M').trans (gram_le M M'))).trans_eq ?_
         rw [Finset.sum_mul_sum, ← Finset.sum_product', Finset.univ_product_univ]
     _ ≤ _ := by
         rw [Finset.sum_comm]
@@ -284,17 +264,16 @@ theorem second_trace_le_sum_local :
             ite_eq_left h₁, ite_eq_left h₂, ite_eq_left hty, mul_mul_mul_comm,
             ← Real.sqrt_mul (Nat.cast_nonneg _), ← Real.sqrt_mul (Nat.cast_nonneg _),
             ← Real.sqrt_mul (by positivity)]
-          · refine le_of_eq ?_
-            rw [← Real.sqrt_sq (Nat.cast_nonneg (∏ t, W.local p M.1 t))]
-            congr 1
+          · rw [← Real.sqrt_sq (Nat.cast_nonneg (∏ t, W.local p M.1 t))]
+            refine le_of_eq (congrArg Real.sqrt ?_)
             rw [mul_mul_mul_comm]
             exact_mod_cast hsq
-          · rw [ite_eq_right fun h' => hN' (Subtype.ext (add_right_cancel
-              (a := N'.1) (b := W.1.2.uPart p + W.1.1.vPart p) (c := M'.1) (by
-                rw [← add_assoc, ← add_assoc]
-                exact h'.symm.trans h₁))), zero_mul]
-        · refine le_trans (le_of_eq (Finset.sum_eq_zero fun M' _ => ?_))
-            (by split_ifs <;> positivity)
+          · have hcancel (h' : Link W.1 M.1 N'.1) : N' = M' := by
+              refine Subtype.ext (add_right_cancel (b := W.1.2.uPart p + W.1.1.vPart p) ?_)
+              rw [← add_assoc, ← add_assoc]
+              exact h'.symm.trans h₁
+            rw [ite_eq_right fun h' => hN' (hcancel h'), zero_mul]
+        · refine (Finset.sum_eq_zero fun M' _ => ?_).le.trans (by split_ifs <;> positivity)
           by_cases h₁ : Link W.1 M.1 M'.1
           · rw [ite_eq_right fun h₂ => h ⟨M', h₁, h₂⟩, mul_zero]
           · rw [ite_eq_right h₁, zero_mul]

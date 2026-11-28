@@ -15,6 +15,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
+
 /-!
 # Hardness of bounded-alternation quantified SAT
 
@@ -45,21 +47,16 @@ private theorem even_verifier {α : Type} {enc : α ↪ List Bool} {A : Set α} 
     trimUniformBlocks (List.replicate i p) (enc x.1).length (2 * p'.eval (enc x.1).length) x.2
   have hn : ComputableInPolyTime (fun x : α × List Bool => (enc x.1).length)
       (encPair enc encBits) encUnary := (encoding_length enc).comp (fst _ _)
-  have htrim : ComputableInPolyTime trim (encPair enc encBits) encBits :=
-    computableInPolyTime_trimUniformBlocks _ hn
-      (unary_mul.comp ((const 2).prod ((unary_eval p').comp hn))) (snd _ _)
-  refine ⟨p', fun x => V (x.1, trim x), ?_, hV.comp ((fst _ _).prod htrim), fun a => ?_⟩
-  · intro n
-    simp [p']
-  · rw [hAV a]
-    simp only [List.map_replicate]
-    have ht := alternation_trimUniformBlocks (q := true) (ps := List.replicate i p)
-      (n := (enc a).length) (M := 2 * p'.eval (enc a).length)
-      (P := fun w => V (a, w) = true) (by
-        intro p₀ hp₀
+  refine ⟨p', fun x => V (x.1, trim x), fun _ => by simp [p'],
+    hV.comp ((fst _ _).prod (computableInPolyTime_trimUniformBlocks _ hn
+      (unary_mul.comp ((const 2).prod ((unary_eval p').comp hn))) (snd _ _))), fun a => ?_⟩
+  rw [hAV a]
+  simpa only [List.length_replicate, List.map_replicate, trim] using
+    (alternation_trimUniformBlocks (q := true) (ps := List.replicate i p) (n := (enc a).length)
+      (M := 2 * p'.eval (enc a).length) (P := fun w => V (a, w) = true) fun p₀ hp₀ => by
         obtain rfl := List.eq_of_mem_replicate hp₀
-        simp [p']; omega)
-    simpa only [List.length_replicate, List.map_replicate, trim] using ht.symm
+        simp [p']
+        omega).symm
 
 /-- Every native `Σᵢ` verifier has a polynomial-time reduction to well-formed, nonempty-block
 prenex formulas at the same positive level. This invariant also supports the dual reduction. -/
@@ -74,8 +71,8 @@ theorem exists_tableauReduction {α : Type} {enc : α ↪ List Bool} {A : Set α
   have hW : ComputableInPolyTime W (encPair enc encBits) encBool := by
     unfold W
     cases r <;> fun_prop
-  obtain ⟨t, s, ht, _, k, State, hfinite, tm, htm⟩ := hW.tidy
-  obtain ⟨c, d, hbound⟩ := ht.exists_le
+  obtain ⟨c, d, k, State, hfinite, tm, htm⟩ :=
+    Turing.MultiTapeTM.Internal.NormalForm.polyTime hW
   have := Fintype.ofFinite State
   classical
   let width (a : α) := i * p.eval (enc a).length
@@ -91,22 +88,18 @@ theorem exists_tableauReduction {α : Type} {enc : α ↪ List Bool} {A : Set α
     have hframe := bitsFrame enc
     unfold tab time
     fun_prop
-  refine ⟨f, instanceOfTableau_polyTime i r htab hw
-    (unary_mul.comp ((const 2).prod hn)), fun a => ?_⟩
+  refine ⟨f, instanceOfTableau_polyTime i r htab hw (unary_mul.comp ((const 2).prod hn)),
+    fun a => ?_⟩
   have hmul : i * (2 * p.eval (enc a).length) = 2 * width a := by dsimp only [width]; ring
-  have hwell := instanceOfTableau_wellFormed (tab a) (width a) _ i hi hmul r
-  have hnonempty := instanceOfTableau_nonempty (tab a) (width a) (2 * p.eval (enc a).length) i hi
-    (by have := hp (enc a).length; omega) r
-  refine ⟨hwell, hnonempty, ?_⟩
+  refine ⟨instanceOfTableau_wellFormed (tab a) (width a) _ i hi hmul r,
+    instanceOfTableau_nonempty (tab a) (width a) (2 * p.eval (enc a).length) i hi
+      (by have := hp (enc a).length; omega) r, ?_⟩
   rw [hAV a, eval_instanceOfTableau (tab a) (width a) _ i hi true r
     (by simp only [r, Bool.not_not])]
-  symm
-  apply eval_certBlocks (width a) _ i hmul true
-  intro σ
+  refine (eval_certBlocks (width a) _ i hmul true _ fun σ => ?_).symm
   let z := block σ (width a) 0 0 ++ block σ (width a) 1 0
-  have hz : z.length = 2 * width a := by
-    simp only [z, List.length_append, length_block]; omega
-  have hrun := ((htm (a, z)).mono (hbound _) le_rfl).runFrom_initCfg
+  have hz : z.length = 2 * width a := by simp [z, length_block, two_mul]
+  have hrun := (htm (a, z)).runFrom_initCfg
   have hlen : (encPair enc encBits (a, z)).length = 2 * (enc a).length + 2 * width a + 1 := by
     simp only [length_encPair, encBits_apply, hz]
     omega
@@ -114,13 +107,10 @@ theorem exists_tableauReduction {α : Type} {enc : α ↪ List Bool} {A : Set α
   have hbase : (baseFormula (tab a) (width a)).eval σ = W (a, z) := by
     rw [Bool.eq_iff_iff, eval_baseFormula]
     change (∃ τ, CookLevin.certWord τ (2 * width a) = z ∧ (tab a).eval τ = true) ↔ _
-    rw [← hz]
-    rw [show tab a = CookLevin.tableau tm (frame (enc a)) z.length (time a) by rw [hz]]
-    rw [CookLevin.exists_eval_tableau_iff]
-    have heq : time a = c * (2 * (enc a).length + 2 * width a + 1 + 1) ^ d := rfl
-    rw [heq, hrun.2]
-    simp only [encBool_apply, List.cons.injEq, and_true]
-    exact ⟨fun h => h.2, fun h => ⟨hrun.1, h⟩⟩
+    rw [← hz, show tab a = CookLevin.tableau tm (frame (enc a)) z.length (time a) by rw [hz],
+      CookLevin.exists_eval_tableau_iff,
+      show time a = c * (2 * (enc a).length + 2 * width a + 1 + 1) ^ d from rfl, hrun.2]
+    simpa only [encBool_apply, List.cons.injEq, and_true] using and_iff_right hrun.1
   cases hr : r <;> simp [hr, QBF.eval_not, hbase, W, z]
 
 end Cslib.Complexity.QuantifiedSAT

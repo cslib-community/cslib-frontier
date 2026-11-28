@@ -11,7 +11,6 @@ public import CslibFrontier.Computability.LogSpaceDerandomization.StochasticAtom
 import CslibFrontier.Foundations.Data.Finset.Markov
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Algebra.BigOperators.Field
-import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 
@@ -61,8 +60,6 @@ such sources would all have score one, which closes the incoming gate
 ## Main results
 
 * `Matrix.correctionAtom_nonneg`: nonnegativity from nonnegative cutoffs and gates.
-
-* `Finset.expect_mul_div_clip_eq`: the normalization principle.
 * `Finset.card_filter_le_card_filter_mul_le`: few draws retain many members of a sparse set.
 * `Matrix.card_filter_incomingGate_lt_one_mul_le`: the incoming gate rarely fails.
 * `Matrix.expect_correctionAtom`: the correction atom identity.
@@ -83,32 +80,6 @@ open scoped BigOperators
 
 namespace Finset
 
-variable {Ω : Type*}
-
-/-- **The normalization principle** [OpenAI2026LogSpace, Section 5.1]. Let a gate `γ` take values
-in `[0, 1]` on a nonempty finite set `S` of draws, and be below one on at most half of them. Then
-dividing by its clipped mean `c(q) = max (1/2) (min 1 q)` removes the gate's bias:
-`𝔼_S [m · γ / c(𝔼_S γ)] = m`. -/
-theorem expect_mul_div_clip_eq {S : Finset Ω} (hS : S.Nonempty) {γ : Ω → ℝ}
-    (hγ0 : ∀ s ∈ S, 0 ≤ γ s) (hγ1 : ∀ s ∈ S, γ s ≤ 1) (hfail : 2 * (#{s ∈ S | γ s < 1} : ℝ) ≤ #S)
-    (m : ℝ) : 𝔼 s ∈ S, m * γ s / max (1 / 2) (min 1 (𝔼 s ∈ S, γ s)) = m := by
-  have hSr : (0 : ℝ) < #S := by exact_mod_cast hS.card_pos
-  have hγ : ∀ s ∈ S, 1 - (if γ s < 1 then 1 else 0) ≤ γ s := fun s hs => by
-    split_ifs with h
-    · rw [sub_self]; exact hγ0 s hs
-    · simpa using not_lt.mp h
-  have hlo : 1 / 2 ≤ 𝔼 s ∈ S, γ s := by
-    rw [expect_eq_sum_div_card, le_div_iff₀ hSr]
-    calc 1 / 2 * (#S : ℝ) ≤ #S - #{s ∈ S | γ s < 1} := by linarith
-      _ = ∑ s ∈ S, (1 - (if γ s < 1 then 1 else 0)) := by
-          rw [sum_sub_distrib, sum_boole, sum_const, nsmul_eq_mul, mul_one]
-      _ ≤ ∑ s ∈ S, γ s := sum_le_sum hγ
-  have hhi : 𝔼 s ∈ S, γ s ≤ 1 := expect_le hS hγ1
-  have hpos : 0 < 𝔼 s ∈ S, γ s := lt_of_lt_of_le (by norm_num) hlo
-  rw [min_eq_right hhi, max_eq_right hlo]
-  simp only [mul_div_assoc]
-  rw [← mul_expect, ← expect_div, div_self hpos.ne', mul_one]
-
 variable {V : Type*}
 
 /-- **Few draws retain many members of a sparse set** (Markov's inequality). Let every member
@@ -127,13 +98,9 @@ theorem card_filter_le_card_filter_mul_le {ι : Type*} (X : ι → V → Prop) [
     exact sum_comm
   have hterm : ∀ w ∈ D, (#{s ∈ S | X s w} : ℝ) ≤ (if x = w then (#S : ℝ) else 0) + p * #S := by
     intro w hw
-    by_cases hxw : x = w
-    · have hle : (#{s ∈ S | X s w} : ℝ) ≤ #S := by exact_mod_cast card_filter_le _ _
-      have : 0 ≤ p * #S := by positivity
-      simp only [hxw, ↓reduceIte]
-      linarith
-    · simp only [hxw, ↓reduceIte, zero_add]
-      exact hpair w hw (Ne.symm hxw)
+    split_ifs with hxw
+    · exact (Nat.cast_le.mpr (card_filter_le _ _)).trans (le_add_of_nonneg_right (by positivity))
+    · simpa only [zero_add] using hpair w hw (Ne.symm hxw)
   calc (#{s ∈ S | K ≤ #{w ∈ D | X s w}} : ℝ) * K
       ≤ ∑ w ∈ D, ((if x = w then (#S : ℝ) else 0) + p * #S) :=
         hMarkov.trans (hswap ▸ sum_le_sum hterm)
@@ -247,19 +214,9 @@ theorem abs_correctionAtom_le (hρ0 : ∀ r, 0 ≤ ρ r) (hρ1 : ∀ r, ρ r ≤
     |correctionAtom I τ K Kc f G X Y Yt Q h ρ g₀ d x y| ≤ 2 * |Q (G x y / f)| * |g₀ y| := by
   rw [correctionAtom]
   split_ifs
-  · set γ := rowGate ρ K f G {w | Y d.2 w} x *
-      incomingGate I τ K Kc f G {w | X d.1 w} {w | Y d.2 w} y
-    have hγ0 : 0 ≤ γ := mul_nonneg (hρ0 _) (hτ0 _)
-    have hγ1 : γ ≤ 1 := mul_le_one_of_gate (hρ1 _) (hτ0 _) (hτ1 _)
-    set c := max (1 / 2) (min 1 (correctionNormalizer I τ K Kc f G X Y Yt h ρ x y))
-    have hc : (1 / 2 : ℝ) ≤ c := le_max_left _ _
-    have hc0 : 0 < c := lt_of_lt_of_le (by norm_num) hc
-    rw [abs_mul, abs_div, abs_mul, abs_of_nonneg hγ0, abs_of_pos hc0]
-    refine mul_le_mul_of_nonneg_right ?_ (abs_nonneg _)
-    rw [div_le_iff₀ hc0]
-    calc |Q (G x y / f)| * γ ≤ |Q (G x y / f)| * 1 := mul_le_mul_of_nonneg_left hγ1 (abs_nonneg _)
-      _ = 2 * |Q (G x y / f)| * (1 / 2) := by ring
-      _ ≤ _ := mul_le_mul_of_nonneg_left hc (by positivity)
+  · rw [abs_mul]
+    exact mul_le_mul_of_nonneg_right (Cslib.abs_mul_div_clip_le (mul_nonneg (hρ0 _) (hτ0 _))
+      (mul_le_one_of_gate (hρ1 _) (hτ0 _) (hτ1 _)) _) (abs_nonneg _)
   · rw [abs_zero]; positivity
 
 /-- **Row support** [OpenAI2026LogSpace, Lemma 5.6]: if `Q` vanishes through `e ≥ 0` and `ρ`
@@ -274,9 +231,7 @@ theorem card_filter_correctionAtom_row_ne_zero_lt (hK : 0 < K) {e g : ℝ} (he :
   rw [mem_filter] at hy ⊢
   refine ⟨hy.1, fun h0 => hy.2 ?_⟩
   rw [correctionAtom]
-  split_ifs
-  · rw [← mul_assoc, h0, zero_mul, zero_div, zero_mul]
-  · rfl
+  split_ifs <;> simp [← mul_assoc, h0]
 
 /-- **Column support: the incoming cap** [OpenAI2026LogSpace, (5.18), Lemma 5.6]. Suppose the
 auxiliary score is one wherever `Q` and `ρ` are both nonzero, and `τ` vanishes from `g ≤ 1` on.
@@ -287,8 +242,7 @@ theorem card_filter_correctionAtom_col_ne_zero_lt (hKc : 0 < Kc)
     (hτ : ∀ r, g ≤ r → τ r = 0) (d : ι × κ) (y : V) :
     #{x ∈ ({w | X d.1 w} : Finset V) | correctionAtom I τ K Kc f G X Y Yt Q h ρ g₀ d x y ≠ 0} <
       Kc := by
-  by_contra hle
-  rw [not_lt] at hle
+  by_contra! hle
   have hgate : incomingGate I τ K Kc f G {w | X d.1 w} {w | Y d.2 w} y = 0 := by
     refine incomingGate_eq_zero hKc hg hτ (hle.trans (card_le_card fun x hx => ?_))
     rw [mem_filter] at hx ⊢
@@ -296,8 +250,7 @@ theorem card_filter_correctionAtom_col_ne_zero_lt (hKc : 0 < Kc)
     · rw [correctionAtom]; split_ifs <;> simp [hQ]
     · rw [correctionAtom]; split_ifs <;> simp [rowGate, hρ]
   obtain ⟨x, hx⟩ := card_pos.mp (hKc.trans_le hle)
-  rw [mem_filter, correctionAtom, hgate] at hx
-  split_ifs at hx <;> simp at hx
+  simp [correctionAtom, hgate] at hx
 
 /-- **The correction atom identity, including zero multipliers** [OpenAI2026LogSpace, Lemma 5.3].
 Let `h = 1` wherever `Q ≠ 0`; let `ρ, τ ∈ [0, 1]`, with `ρ` one through `η > 0` and `τ` one
@@ -329,29 +282,19 @@ theorem expect_correctionAtom {x y : V} (hSx : ({s | X s x} : Finset ι).Nonempt
   by_cases hz : Q (G x y / f) * g₀ y = 0
   · rw [hz]
     refine expect_eq_zero fun d _ => ?_
-    rw [correctionAtom]
-    split_ifs
-    · rcases mul_eq_zero.mp hz with h0 | h0 <;> simp [h0]
-    · rfl
+    rcases mul_eq_zero.mp hz with h0 | h0 <;> simp [correctionAtom, h0]
   obtain ⟨hQ0, hg0⟩ := mul_ne_zero_iff.mp hz
   have hh1 : h (G x y / f) = 1 := hQh _ hQ0
   have hSxr : (0 : ℝ) < #Sx := by exact_mod_cast hSx.card_pos
   have hSyr : (0 : ℝ) < #Sy := by exact_mod_cast hSy.card_pos
   have hM : 0 ≤ M := (sum_nonneg fun w _ => hG0 w).trans hGM
-  have hKr : (0 : ℝ) < K := by
-    have : 0 ≤ c * M / η := by positivity
-    linarith
-  have hBnn : 0 ≤ B := (by positivity : (0 : ℝ) ≤ p * #({w | e < G w y / f} : Finset V)).trans
-    (hB hg0)
-  have hKcr : (0 : ℝ) < Kc := by linarith
+  have hKr : (0 : ℝ) < K := by linarith [div_nonneg (mul_nonneg hc hM) hη.le]
+  have hKcr : (0 : ℝ) < Kc := by
+    linarith [hB hg0, mul_nonneg hp (Nat.cast_nonneg #({w | e < G w y / f} : Finset V))]
   -- the row gate fails on at most a quarter of the terminal draws
   have hR : (#{t ∈ Sy | rowGate ρ K f G {w | Y t w} x < 1} : ℝ) * 4 ≤ #Sy := by
-    have h := card_filter_rowGate_lt_one_mul_le Sy x hf hη hρη hG0 hGM (by exact_mod_cast hKr) hc
-      fun w hwy => by
-        have hset : ({t ∈ Sy | Y t w} : Finset κ) = ({t | Yt t y ∧ Y t w} : Finset κ) := by
-          ext t; simp only [Sy, mem_filter, mem_univ, true_and]
-        rw [hset]
-        exact hpairY w hwy
+    have h := card_filter_rowGate_lt_one_mul_le (Y := Y) Sy x hf hη hρη hG0 hGM
+      (by exact_mod_cast hKr) hc fun w hwy => by simpa only [Sy, filter_filter] using hpairY w hwy
     nlinarith
   -- the incoming gate fails on at most a quarter of the start draws, for every terminal set
   have hT : ∀ T : Finset V,
@@ -359,15 +302,8 @@ theorem expect_correctionAtom {x y : V} (hSx : ({s | X s x} : Finset ι).Nonempt
     intro T
     have h := card_filter_incomingGate_lt_one_mul_le (τ := τ) (K := K) (f := f) (G := G) X Sx T x
       y (by exact_mod_cast hKcr) hτ₀ hττ
-      hI hp fun w _ hwx => by
-        have hset : ({s ∈ Sx | X s w} : Finset ι) = ({s | X s x ∧ X s w} : Finset ι) := by
-          ext s; simp only [Sx, mem_filter, mem_univ, true_and]
-        rw [hset]
-        exact hpairX w hwx
-    have h1 : #Sx * (1 + p * #({w | e < G w y / f} : Finset V)) ≤ #Sx * (1 + B) := by
-      have := hB hg0
-      gcongr
-    nlinarith
+      hI hp fun w _ hwx => by simpa only [Sx, filter_filter] using hpairX w hwx
+    nlinarith [mul_le_mul_of_nonneg_left (hB hg0) hSxr.le]
   -- so the product gate fails on at most half of the conditioning draws
   have hfail : 2 * (#{d ∈ C | γ d < 1} : ℝ) ≤ #C := by
     have hsplit : ∀ d, (if γ d < 1 then (1 : ℝ) else 0) ≤
@@ -378,11 +314,9 @@ theorem expect_correctionAtom {x y : V} (hSx : ({s | X s x} : Finset ι).Nonempt
       · split_ifs <;> norm_num
       by_cases h2 : incomingGate I τ K Kc f G {w | X d.1 w} {w | Y d.2 w} y < 1
       · split_ifs <;> norm_num
-      have hr : rowGate ρ K f G {w | Y d.2 w} x = 1 := le_antisymm (hρ1 _) (not_lt.mp h1)
-      have ht : incomingGate I τ K Kc f G {w | X d.1 w} {w | Y d.2 w} y = 1 :=
-        le_antisymm (hτ1 _) (not_lt.mp h2)
-      simp only [γ, hr, ht, mul_one, lt_irrefl, ↓reduceIte]
-      norm_num
+      have hγ : ¬γ d < 1 :=
+        not_lt.mpr (one_le_mul_of_one_le_of_one_le (not_lt.mp h1) (not_lt.mp h2))
+      simp only [hγ, h1, h2, ↓reduceIte, add_zero, le_refl]
     have hcount : (#{d ∈ C | γ d < 1} : ℝ) ≤
         #Sx * #{t ∈ Sy | rowGate ρ K f G {w | Y t w} x < 1} +
           ∑ t ∈ Sy, (#{s ∈ Sx | incomingGate I τ K Kc f G {w | X s w} {w | Y t w} y < 1} : ℝ) := by
@@ -394,9 +328,7 @@ theorem expect_correctionAtom {x y : V} (hSx : ({s | X s x} : Finset ι).Nonempt
         (#{s ∈ Sx | incomingGate I τ K Kc f G {w | X s w} {w | Y t w} y < 1} : ℝ)) * 4 ≤
           #Sy * #Sx := by
       rw [sum_mul]
-      calc ∑ t ∈ Sy, (#{s ∈ Sx | incomingGate I τ K Kc f G {w | X s w} {w | Y t w} y < 1} :
-            ℝ) * 4 ≤ ∑ _t ∈ Sy, (#Sx : ℝ) := sum_le_sum fun t _ => hT _
-        _ = #Sy * #Sx := by rw [sum_const, nsmul_eq_mul]
+      exact (sum_le_sum fun t _ => hT _).trans_eq (by rw [sum_const, nsmul_eq_mul])
     have hC : (#C : ℝ) = #Sx * #Sy := by rw [card_product]; push_cast; ring
     rw [hC]
     nlinarith [mul_le_mul_of_nonneg_left hR hSxr.le]
@@ -425,9 +357,8 @@ theorem correctionAtom_nonneg {G : Matrix V V ℝ} {g₀ : V → ℝ}
     0 ≤ correctionAtom I τ K Kc f G X Z Zt Q h ρ g₀ d x z := by
   rw [correctionAtom]
   split_ifs
-  · refine mul_nonneg (div_nonneg (mul_nonneg (hQ0 _) (mul_nonneg (hρ0 _) (hτ0 _))) ?_)
-      (hg₀ z)
-    exact le_trans (by norm_num : (0 : ℝ) ≤ 1 / 2) (le_max_left _ _)
+  · exact mul_nonneg (div_nonneg (mul_nonneg (hQ0 _) (mul_nonneg (hρ0 _) (hτ0 _)))
+      (le_trans (by norm_num : (0 : ℝ) ≤ 1 / 2) (le_max_left _ _))) (hg₀ z)
   · exact le_rfl
 
 end Nonneg

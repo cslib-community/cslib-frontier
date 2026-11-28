@@ -11,7 +11,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n.Redu
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Basic
 
 /-!
-# Deletion steps `(D1)`–`(D4)` for `4n - 10d` gate elimination
+# Deletion steps `(D1)`–`(D4)` for `4n - 9d` gate elimination
 
 Whenever any of the four deletion rules `(D1)`–`(D4)` of [Mishra and Santhanam][MishraSanthanam2027]
 applies to a valid state `S` for a `d`-affine disperser with `d < S.a`, one step reduces `m + s`
@@ -36,7 +36,7 @@ while keeping `Δa = 0` and `ΔW ≤ -1`.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.State.Valid.exists_unit_delete`: performing `(D4)` on a
   unit-degree unpaired parameter.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.State.Valid.step_of_deletion`: every available
-  deletion yields a valid step with `ΔW ≤ 10 Δa`.
+  deletion yields a valid step with `ΔW ≤ 9 Δa`.
 
 ## References
 
@@ -74,57 +74,44 @@ theorem Valid.unitDelete {S : State n} {f : BooleanFunction n} (hS : S.Valid f)
     (hout : ¬ S.out.Reads x) (hQaux : Q ∈ S.aux) (haff : S.AffineIn Q c T) (hxT : x ∈ T) :
     let S' := (S.swap x Q c T).dropEqn e x
     S'.Valid f ∧ S'.m = S.m ∧ S'.s + 1 = S.s ∧ S'.q = S.q ∧ S'.a = S.a ∧ S'.W + 1 ≤ S.W := by
-  have hxpar : x ∈ S.params := (mem_unpaired.1 hx).1
-  have hxu : ¬ S.Paired x := (mem_unpaired.1 hx).2
-  obtain ⟨he, hxe⟩ := (SemiCircuit.inr_mem_children _).1 (by
-    rw [hcx]; exact Finset.mem_singleton_self _)
+  obtain ⟨hxpar, hxu⟩ := mem_unpaired.1 hx
+  obtain ⟨he, hxe⟩ := (SemiCircuit.inr_mem_children _).1 (hcx.symm ▸ Finset.mem_singleton_self _)
   let S₁ := S.swap x Q c T
   have hswap : S.SwapOK x Q c T := ⟨hxpar, hxu, hQaux, haff, hxT⟩
-  have hS₁ : S₁.Valid f := Valid.swap hS hswap
-  have hm₁ : S₁.m = S.m := hS.swap_m hswap
-  have hq₁ : S₁.q = S.q := rfl
-  have hs₁ : S₁.s = S.s := swap_size S x Q c T
   have hW₁ : S₁.W ≤ S.W := Valid.swap_W_le hS hswap (by simp [deg, hcx])
   have hdrop : S₁.DropEqnOK e x :=
     { mem := he
       aux := Finset.mem_insert_self _ _
       mem_terms := hxe
-      only := fun e' he' hee hmem => by
-        have : Sum.inr e' ∈ S.children x := (SemiCircuit.inr_mem_children _).2 ⟨he', hmem⟩
-        rw [hcx, Finset.mem_singleton, Sum.inr.injEq] at this
-        exact hee this
-      gates := fun K hK hread => by
-        have : Sum.inl K ∈ S.children x := (SemiCircuit.inl_mem_children _).2 ⟨hK, hread⟩
-        rw [hcx, Finset.mem_singleton] at this
-        cases this
+      only := fun e' he' hee hmem =>
+        hee <| Sum.inr.inj <| Finset.mem_singleton.mp <| hcx ▸
+          (SemiCircuit.inr_mem_children _).2 ⟨he', hmem⟩
+      gates := fun K hK hread =>
+        Sum.inl_ne_inr <| Finset.mem_singleton.mp <| hcx ▸
+          (SemiCircuit.inl_mem_children _).2 ⟨hK, hread⟩
       out := hout }
   let S₂ := S₁.dropEqn e x
-  have hS₂ : S₂.Valid f := hS₁.dropEqn hdrop
   have hm₂ : S₂.m = S.m := by
-    change S₂.params.card = S.params.card
-    rw [show S₂.params = S₁.params from dropEqn_params S₁ e x]
-    exact hm₁
-  have hs₂ : S₂.s + 1 = S.s := by rw [← hs₁]; exact dropEqn_size hdrop
-  have hq₂ : S₂.q = S.q := rfl
-  have ha₂ : S₂.a = S.a := by simp only [a, hm₂, hq₂]
+    rw [m, dropEqn_params]; exact hS.swap_m hswap
+  have hs₂ : S₂.s + 1 = S.s := (dropEqn_size hdrop).trans (swap_size S x Q c T)
+  have ha₂ : S₂.a = S.a := by simp only [a, hm₂]; rfl
   have hW₂ : S₂.W + 1 ≤ S.W := by
     have h := W_add_le (S := S₁) (S' := S₂) (N := S₁.params) le_rfl
       (by rw [dropEqn_params]) (fun _ => 0) (fun _ => 0) fun u hu => by
         simp only [add_zero]
         by_cases hup : S₁.Paired u
-        · have hup₂ : S₂.Paired u := (paired_congr (dropEqn_pairs S₁ e x)).2 hup
-          rw [wt_of_paired hup₂, wt_of_paired hup]
+        · rw [wt_of_paired ((paired_congr (dropEqn_pairs S₁ e x)).2 hup), wt_of_paired hup]
         · have hu2 : u ∈ S₂.unpaired := mem_unpaired.2
             ⟨by rwa [dropEqn_params], fun hp => hup ((paired_congr (dropEqn_pairs S₁ e x)).1 hp)⟩
-          have hu1 : u ∈ S₁.unpaired := mem_unpaired.2 ⟨hu, hup⟩
-          rw [wt_of_mem hu2, wt_of_mem hu1]
+          rw [wt_of_mem hu2, wt_of_mem (mem_unpaired.2 ⟨hu, hup⟩)]
           exact weight_mono (by
             unfold deg
             rw [dropEqn_children]
             exact Finset.card_le_card (Finset.erase_subset _ _))
-    simp only [Finset.sum_const_zero, add_zero, hq₂, ← hq₁] at h
+    simp only [Finset.sum_const_zero, add_zero, show S₂.q = S₁.q from rfl] at h
+    have hs₁ : S₁.s = S.s := swap_size S x Q c T
     omega
-  exact ⟨hS₂, hm₂, hs₂, hq₂, ha₂, hW₂⟩
+  exact ⟨(Valid.swap hS hswap).dropEqn hdrop, hm₂, hs₂, rfl, ha₂, hW₂⟩
 
 /-- `(D4)` (unit delete): an unpaired parameter `x` with `S.children x = {.inr e}` swaps with an
 auxiliary variable occurring in `e`, and then drops `e` and `x`, lowering `s` and `W` by `1`

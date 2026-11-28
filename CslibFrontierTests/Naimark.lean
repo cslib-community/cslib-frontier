@@ -43,6 +43,37 @@ example {ι A : Type} [Fintype ι] [DecidableEq ι] [Fintype A] [DecidableEq A] 
       (ancillaEmbed a₀)ᴴ * (M.dilate a₀).effect a * ancillaEmbed a₀ = M.effect a :=
   ⟨M.dilate_effect_mul_self a₀ a, M.compress_dilate a₀ a⟩
 
+private noncomputable def halfEffect : POVM Bool Unit where
+  effect _ := (1 / 2 : ℝ) • (1 : Matrix Unit Unit ℂ)
+  posSemidef _ := (PosSemidef.one : (1 : Matrix Unit Unit ℂ).PosSemidef).smul (by norm_num)
+  sum_effect := by rw [Fintype.sum_bool, ← add_smul]; norm_num
+
+/-- The fair binary POVM has zero observable. Its dilated observable sends the embedded
+one-dimensional register entirely into the complementary ancilla subspace. -/
+example :
+    let e := ancillaEmbed (ι := Unit) false
+    let P := e * eᴴ
+    let A := (halfEffect.dilate false).observable
+    P * A * e = 0 ∧ (1 - P) * A * e ≠ 0 := by
+  intro e P A
+  have hc : eᴴ * A * e = 0 := by
+    dsimp only [A, POVM.observable]
+    rw [Matrix.mul_sub, Matrix.sub_mul,
+      halfEffect.compress_dilate false false, halfEffect.compress_dilate false true]
+    exact sub_self _
+  have hp : P * A * e = 0 := by
+    change (e * eᴴ) * A * e = 0
+    rw [Matrix.mul_assoc, Matrix.mul_assoc e, ← Matrix.mul_assoc eᴴ A e, hc, Matrix.mul_zero]
+  refine ⟨hp, fun hz => ?_⟩
+  rw [Matrix.sub_mul, Matrix.sub_mul, Matrix.one_mul, hp, sub_zero] at hz
+  have hA : A * A = 1 := Measurement.observable_mul_self (halfEffect.isProjective_dilate false)
+  have he : e = 0 := by
+    have h := congrArg (A * ·) hz
+    rwa [← Matrix.mul_assoc, hA, Matrix.one_mul, Matrix.mul_zero] at h
+  have h : eᴴ * e = 1 := conjTranspose_ancillaEmbed_mul false
+  rw [he, Matrix.mul_zero] at h
+  exact zero_ne_one h
+
 /-- The projective dilation of the optimal CHSH strategy is still optimal. -/
 example : chsh.quantumWinProb (chshEPR.dilate false false) = Real.cos (π / 8) ^ 2 := by
   rw [quantumWinProb_dilate, quantumWinProb_chsh_chshEPR]

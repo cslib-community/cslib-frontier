@@ -8,10 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Encoded
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Optimization
-public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph
-public import Cslib.Computability.Circuit.Composition
+import CslibFrontier.Computability.Circuit.Boolean.Iteration.Encoded
+import CslibFrontier.Foundations.Combinatorics.FunctionalGraph
+import Cslib.Computability.Circuit.Composition
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
 
@@ -26,11 +27,11 @@ input, separate unbounded work tapes, and a write-only output, this fixed-length
 configuration map is formalized as a standalone finite dynamical system rather than an instance of
 `Turing.Cfg`/`Turing.Action`.
 
-This module defines configurations `(w, p, q)` with `w : Fin n → Γ`, `p : Fin h → Fin n`, and
-`q : Q`, the one-step map `Machine.step`, and the finite set `reach M n` of configurations
-reachable from initial configurations `M.init x` (`x : BitString n`). It proves the configuration
-count `|Γ|^n * n^h * |Q|` (`card_config`), the bounds on `(reach M n).card`
-(`reach_card_le_configs`, `reach_card_le_time` under a halting-time bound, and
+This module defines configurations `Config Q Γ n h` with named fields `tape : Fin n → Γ`,
+`heads : Fin h → Fin n`, and `state : Q`, the one-step map `Machine.step`, and the finite set
+`reach M n` of configurations reachable from initial configurations `M.init x` (`x : BitString n`).
+It proves the configuration count `|Γ|^n * n^h * |Q|` (`card_config`), the bounds on
+`(reach M n).card` (`reach_card_le_configs`, `reach_card_le_time` under a halting-time bound, and
 `reach_card_le_round` for a machine that returns to an initial configuration every `τ` steps), and
 the conditional halting characterization after `|Γ|^n * n^h * |Q|` steps under absorbing halting
 states (`iterate_card_halting`): the configuration at step `|Γ|^n * n^h * |Q|` is halting if and
@@ -53,9 +54,15 @@ projection `tape : Fin m → Fin w` satisfying `∀ x, e (M.init x) ∘ tape = x
 
 ## Main definitions
 
-* `Cslib.Circuits.Boolean.Iteration.InPlace.Move`: clamped head moves (`left`, `stay`, `right`).
+* `Cslib.Circuits.Boolean.Iteration.InPlace.Move`,
+  `Cslib.Circuits.Boolean.Iteration.InPlace.Move.apply`: clamped head moves (`left`, `stay`,
+  `right`) and boundary-clamped position update.
 * `Cslib.Circuits.Boolean.Iteration.InPlace.Machine`: an in-place multi-head machine.
-* `Cslib.Circuits.Boolean.Iteration.InPlace.Config`: machine configuration `(w, p, q)`.
+* `Cslib.Circuits.Boolean.Iteration.InPlace.Config`,
+  `Cslib.Circuits.Boolean.Iteration.InPlace.Config.equivTuple`: machine configuration record
+  (`tape`, `heads`, `state`) and its equivalence with the field tuple.
+* `Cslib.Circuits.Boolean.Iteration.InPlace.writeHeads`: simultaneous multi-head tape update where
+  the highest head index wins on collisions.
 * `Cslib.Circuits.Boolean.Iteration.InPlace.Machine.init`,
   `Cslib.Circuits.Boolean.Iteration.InPlace.Machine.step`,
   `Cslib.Circuits.Boolean.Iteration.InPlace.Machine.HaltingAbsorbing`: initial configuration,
@@ -70,11 +77,12 @@ projection `tape : Fin m → Fin w` satisfying `∀ x, e (M.init x) ∘ tape = x
 * `Cslib.Circuits.Boolean.Iteration.InPlace.iterate_card_halting`: after
   `Fintype.card (Config Q Γ n h)` steps under absorbing halting states, the configuration is
   halting iff the run ever halts, and equals the halting configuration when it does.
-* `Cslib.Circuits.Boolean.Iteration.InPlace.inplace_fixed_power_optimized`,
+* `Cslib.Circuits.Boolean.Iteration.InPlace.inplace_fixed_power`,
+  `Cslib.Circuits.Boolean.Iteration.InPlace.inplace_fixed_power_optimized`,
   `Cslib.Circuits.Boolean.Iteration.InPlace.inplace_configs_optimized`,
   `Cslib.Circuits.Boolean.Iteration.InPlace.inplace_time_optimized`,
-  `Cslib.Circuits.Boolean.Iteration.InPlace.inplace_halting`: square-root circuit bounds for
-  in-place machines.
+  `Cslib.Circuits.Boolean.Iteration.InPlace.inplace_halting`: fixed-power and square-root circuit
+  bounds for in-place machines.
 * `Cslib.Circuits.Boolean.Iteration.InPlace.round_lower_bound_of_hard`,
   `Cslib.Circuits.Boolean.Iteration.InPlace.round_bounds_of_hard`: transfer of round lower bounds
   and matching reachable-state upper bounds.
@@ -86,7 +94,7 @@ projection `tape : Fin m → Fin w` satisfying `∀ x, e (M.init x) ∘ tape = x
   *Square-root circuit bounds for iterated functions*][Schlesinger2026IteratedFunctions].
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Boolean.Iteration
 
@@ -96,6 +104,8 @@ namespace InPlace
 
 universe u v
 
+@[expose] section
+
 /-- A head move. Moves past either end of the tape leave the head in place. -/
 inductive Move
   | left
@@ -103,8 +113,10 @@ inductive Move
   | right
   deriving DecidableEq
 
+end
+
 /-- Apply a clamped move to a head position. -/
-def Move.apply {n : ℕ} : Move → Fin n → Fin n
+@[expose] def Move.apply {n : ℕ} : Move → Fin n → Fin n
   | .left, p => if hp : 0 < p.val then ⟨p.val - 1, by omega⟩ else p
   | .stay, p => p
   | .right, p => if hp : p.val + 1 < n then ⟨p.val + 1, hp⟩ else p
@@ -122,13 +134,34 @@ structure Machine (Q : Type u) (Γ : Type v) (h : ℕ) where
   /-- The input map from `{0, 1}` into `Γ`. -/
   embed : Bool → Γ
 
-/-- Configurations: tape contents, head positions, and control state. -/
-abbrev Config (Q : Type u) (Γ : Type v) (n h : ℕ) := (Fin n → Γ) × (Fin h → Fin n) × Q
+/-- Configuration of an in-place machine: tape contents, head positions, and control state. -/
+@[ext]
+structure Config (Q : Type u) (Γ : Type v) (n h : ℕ) where
+  /-- The symbol on each of the `n` tape cells. -/
+  tape : Fin n → Γ
+  /-- The cell index of each of the `h` heads. -/
+  heads : Fin h → Fin n
+  /-- The control state. -/
+  state : Q
+
+/-- Configurations are in bijection with triples of tape contents, head positions, and state. -/
+@[expose] def Config.equivTuple (Q : Type u) (Γ : Type v) (n h : ℕ) :
+    Config Q Γ n h ≃ (Fin n → Γ) × (Fin h → Fin n) × Q where
+  toFun z := (z.tape, z.heads, z.state)
+  invFun := fun (tape, heads, state) => ⟨tape, heads, state⟩
+  left_inv _ := rfl
+  right_inv _ := rfl
 
 variable {Q : Type u} {Γ : Type v} {n h : ℕ}
 
+instance [DecidableEq Q] [DecidableEq Γ] : DecidableEq (Config Q Γ n h) :=
+  Equiv.decidableEq (Config.equivTuple Q Γ n h)
+
+instance [Fintype Q] [Fintype Γ] : Fintype (Config Q Γ n h) :=
+  Fintype.ofEquiv _ (Config.equivTuple Q Γ n h).symm
+
 /-- Write under the heads in order of increasing index, so the largest index wins. -/
-def writeHeads (w : Fin n → Γ) (p : Fin h → Fin n) (σ : Fin h → Γ) : Fin n → Γ :=
+@[expose] def writeHeads (w : Fin n → Γ) (p : Fin h → Fin n) (σ : Fin h → Γ) : Fin n → Γ :=
   Fin.foldl h (fun w j => Function.update w (p j) (σ j)) w
 
 /-- A cell under no head is unchanged. -/
@@ -137,9 +170,8 @@ theorem writeHeads_of_forall_ne (w : Fin n → Γ) (p : Fin h → Fin n) (σ : F
   induction h with
   | zero => rfl
   | succ h ih =>
-    unfold writeHeads at ih ⊢
-    rw [Fin.foldl_succ_last, Function.update_of_ne (hi _).symm]
-    exact ih (fun j => p j.castSucc) (fun j => σ j.castSucc) (fun j => hi _)
+    simp only [writeHeads, Fin.foldl_succ_last, Function.update_of_ne (hi _).symm]
+    exact ih (fun j => p j.castSucc) (fun j => σ j.castSucc) fun j => hi j.castSucc
 
 /-- Rewriting the symbols read leaves the tape unchanged. -/
 private theorem writeHeads_read (w : Fin n → Γ) (p : Fin h → Fin n) :
@@ -148,35 +180,46 @@ private theorem writeHeads_read (w : Fin n → Γ) (p : Fin h → Fin n) :
   | zero => rfl
   | succ h ih =>
     unfold writeHeads at ih ⊢
-    rw [Fin.foldl_succ_last]
-    rw [ih (fun j => p j.castSucc)]
-    exact Function.update_eq_self _ _
+    rw [Fin.foldl_succ_last, ih (fun j => p j.castSucc), Function.update_eq_self]
 
 /-- The one-step map of an in-place machine. -/
-def Machine.step (M : Machine Q Γ h) (z : Config Q Γ n h) : Config Q Γ n h :=
-  let out := M.δ z.2.2 (fun j => z.1 (z.2.1 j)) (fun j => decide ((z.2.1 j).val = 0))
-    (fun j => decide ((z.2.1 j).val + 1 = n))
-  (writeHeads z.1 z.2.1 out.2.1, fun j => (out.2.2 j).apply (z.2.1 j), out.1)
+@[expose] def Machine.step (M : Machine Q Γ h) (z : Config Q Γ n h) : Config Q Γ n h :=
+  let (state, write, moves) := M.δ z.state (fun j => z.tape (z.heads j))
+    (fun j => decide ((z.heads j).val = 0)) (fun j => decide ((z.heads j).val + 1 = n))
+  { tape := writeHeads z.tape z.heads write
+    heads := fun j => (moves j).apply (z.heads j)
+    state }
 
 /-- The initial configuration: the input on the tape, every head on the first cell. -/
-def Machine.init [NeZero n] (M : Machine Q Γ h) (x : BitString n) : Config Q Γ n h :=
-  (fun i => M.embed (x i), fun _ => 0, M.start)
+@[expose] def Machine.init [NeZero n] (M : Machine Q Γ h) (x : BitString n) : Config Q Γ n h where
+  tape i := M.embed (x i)
+  heads _ := 0
+  state := M.start
 
 /-- Halting states are absorbing: they write the symbols read, do not move, and keep the state. -/
-def Machine.HaltingAbsorbing (M : Machine Q Γ h) : Prop :=
+@[expose] def Machine.HaltingAbsorbing (M : Machine Q Γ h) : Prop :=
   ∀ q, M.halting q → ∀ r a b, M.δ q r a b = (q, r, fun _ => Move.stay)
 
 /-- Under `HaltingAbsorbing`, any configuration in a halting control state is a fixed point of
 `Machine.step`. -/
 theorem Machine.step_of_halting {M : Machine Q Γ h} (hM : M.HaltingAbsorbing)
-    (z : Config Q Γ n h) (hz : M.halting z.2.2) : M.step z = z := by
-  obtain ⟨w, p, q⟩ := z
-  simp only [Machine.step, hM q hz, writeHeads_read, Move.apply]
+    (z : Config Q Γ n h) (hz : M.halting z.state) : M.step z = z := by
+  obtain ⟨tape, heads, state⟩ := z
+  simp only [Machine.step, hM state hz, writeHeads_read, Move.apply]
+
+/-- Once a run under `HaltingAbsorbing` reaches a halting state at step `s`, every step `r ≥ s`
+remains at that configuration. -/
+private theorem Machine.iterate_of_halting {M : Machine Q Γ h} (hM : M.HaltingAbsorbing)
+    {z : Config Q Γ n h} {s r : ℕ} (hs : M.halting (M.step^[s] z).state) (hsr : s ≤ r) :
+    M.step^[r] z = M.step^[s] z := by
+  rw [← Nat.sub_add_cancel hsr, Function.iterate_add_apply,
+    Function.iterate_fixed (M.step_of_halting hM _ hs)]
 
 /-- The number of configurations `|Γ|^n * n^h * |Q|`. -/
 theorem card_config [Fintype Q] [Fintype Γ] :
     Fintype.card (Config Q Γ n h) = Fintype.card Γ ^ n * n ^ h * Fintype.card Q := by
-  simp only [Config, Fintype.card_prod, Fintype.card_fun, Fintype.card_fin, Nat.mul_assoc]
+  rw [Fintype.ofEquiv_card (Config.equivTuple Q Γ n h).symm]
+  simp only [Fintype.card_prod, Fintype.card_fun, Fintype.card_fin, Nat.mul_assoc]
 
 section Reach
 
@@ -191,10 +234,9 @@ variable (M : Machine Q Γ h)
 
 /-- A configuration belongs to `reach M n` iff it is reached in some number of steps from some
 initial configuration `M.init x`. -/
-theorem mem_reach {z : Config Q Γ n h} :
+@[simp] theorem mem_reach {z : Config Q Γ n h} :
     z ∈ reach M n ↔ ∃ x t, M.step^[t] (M.init x) = z := by
-  unfold reach
-  simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+  simp only [reach, Finset.mem_filter, Finset.mem_univ, true_and]
 
 /-- Every initial configuration `M.init x` belongs to `reach M n`. -/
 theorem init_mem_reach (x : BitString n) : M.init x ∈ reach M n :=
@@ -207,8 +249,7 @@ theorem iterate_mem_reach (x : BitString n) (t : ℕ) : M.step^[t] (M.init x) �
 /-- The reachable set is forward invariant. -/
 theorem step_mem_reach {z : Config Q Γ n h} (hz : z ∈ reach M n) : M.step z ∈ reach M n := by
   obtain ⟨x, t, rfl⟩ := (mem_reach M).mp hz
-  refine (mem_reach M).mpr ⟨x, t + 1, ?_⟩
-  rw [Function.iterate_succ_apply']
+  exact (mem_reach M).mpr ⟨x, t + 1, Function.iterate_succ_apply' M.step t (M.init x)⟩
 
 /-- Every configuration is counted in the configuration bound. -/
 theorem reach_card_le_configs :
@@ -221,27 +262,25 @@ private theorem reach_card_le_of_cover (B : ℕ)
       ∃ y, ∃ j < B, M.step^[t] (M.init x) = M.step^[j] (M.init y)) :
     (reach M n).card ≤ 2 ^ n * B := by
   classical
-  have hsub : reach M n ⊆ (Finset.univ ×ˢ Finset.range B).image
-      (fun xj : BitString n × ℕ => M.step^[xj.2] (M.init xj.1)) := by
-    intro z hz
-    obtain ⟨x, t, rfl⟩ := (mem_reach M).mp hz
+  refine (Finset.card_le_card (t := (Finset.univ ×ˢ Finset.range B).image
+      fun (x, j) => M.step^[j] (M.init x)) fun z hz => ?_).trans
+    (Finset.card_image_le.trans ?_)
+  · obtain ⟨x, t, rfl⟩ := (mem_reach M).mp hz
     obtain ⟨y, j, hj, he⟩ := hcover x t
-    exact Finset.mem_image.mpr ⟨(y, j), by simp [hj], he.symm⟩
-  refine (Finset.card_le_card hsub).trans (Finset.card_image_le.trans ?_)
-  simp
+    exact Finset.mem_image.mpr
+      ⟨(y, j), Finset.mem_product.mpr ⟨Finset.mem_univ _, Finset.mem_range.mpr hj⟩, he.symm⟩
+  · simp only [Finset.card_product, Finset.card_univ, Fintype.card_fun, Fintype.card_fin,
+      Fintype.card_bool, Finset.card_range, le_refl]
 
 /-- Under a halting-time bound `t`, at most `2 ^ n * (t + 1)` configurations are reachable. -/
 theorem reach_card_le_time (hM : M.HaltingAbsorbing) (t : ℕ)
-    (ht : ∀ x : BitString n, ∃ s ≤ t, M.halting (M.step^[s] (M.init x)).2.2) :
+    (ht : ∀ x : BitString n, ∃ s ≤ t, M.halting (M.step^[s] (M.init x)).state) :
     (reach M n).card ≤ 2 ^ n * (t + 1) := by
   refine reach_card_le_of_cover M (t + 1) fun x r => ?_
   obtain ⟨s, hs, hh⟩ := ht x
-  by_cases hrs : r ≤ s
+  rcases le_or_gt r s with hrs | hsr
   · exact ⟨x, r, by omega, rfl⟩
-  · refine ⟨x, s, by omega, ?_⟩
-    have hfix := Function.iterate_fixed (M.step_of_halting hM _ hh) (r - s)
-    rw [← Function.iterate_add_apply, Nat.sub_add_cancel (by omega)] at hfix
-    exact hfix
+  · exact ⟨x, s, by omega, M.iterate_of_halting hM hh hsr.le⟩
 
 omit [Fintype Q] [Fintype Γ] in
 /-- Running `τ * m` steps of a machine with rounds of length `τ` runs `m` rounds. -/
@@ -269,28 +308,19 @@ end Reach
 if and only if the run ever halts, and equals any halting configuration reached along the run. -/
 theorem iterate_card_halting [Fintype Q] [Fintype Γ] (M : Machine Q Γ h)
     (hM : M.HaltingAbsorbing) (z : Config Q Γ n h) :
-    (M.halting (M.step^[Fintype.card (Config Q Γ n h)] z).2.2 ↔
-        ∃ t, M.halting (M.step^[t] z).2.2) ∧
-      ∀ t, M.halting (M.step^[t] z).2.2 →
+    (M.halting (M.step^[Fintype.card (Config Q Γ n h)] z).state ↔
+        ∃ t, M.halting (M.step^[t] z).state) ∧
+      ∀ t, M.halting (M.step^[t] z).state →
         M.step^[Fintype.card (Config Q Γ n h)] z = M.step^[t] z := by
   classical
-  let H : Config Q Γ n h → Prop := fun z => M.halting z.2.2
-  have ha : absorb M.step H = M.step := by
-    funext y
-    unfold absorb
+  let H : Config Q Γ n h → Prop := fun z => M.halting z.state
+  have ha : absorb M.step H = M.step := funext fun y => by
+    simp only [absorb]
     split_ifs with hy
-    · exact (M.step_of_halting hM y hy).symm
-    · rfl
-  refine ⟨?_, fun t ht => ?_⟩
-  · have := absorb_iterate_card_eq_iff M.step H z
-    rwa [ha] at this
-  · obtain ⟨t₀, _, hp, hfirst, he⟩ := absorb_iterate_card M.step H z ⟨t, ht⟩
-    rw [ha] at he
-    rw [he]
-    have ht₀ : t₀ ≤ t := by grind
-    have hfix := Function.iterate_fixed (M.step_of_halting hM _ hp) (t - t₀)
-    rw [← Function.iterate_add_apply, Nat.sub_add_cancel ht₀] at hfix
-    exact hfix.symm
+    exacts [(M.step_of_halting hM y hy).symm, rfl]
+  refine ⟨by simpa only [ha] using absorb_iterate_card_eq_iff M.step H z, fun t ht => ?_⟩
+  obtain ⟨t₀, _, hp, hfirst, he⟩ := absorb_iterate_card M.step H z ⟨t, ht⟩
+  exact (ha ▸ he).trans (M.iterate_of_halting hM hp (not_lt.mp fun h => hfirst t h ht)).symm
 
 /-- The real budget is monotone in the storage count. -/
 theorem optimizedBudget_mono {w s M M' : ℕ} (hM : M ≤ M') :
@@ -308,7 +338,8 @@ private theorem reach_card_le_two_pow (e : Config Q Γ n h → BitString w)
     (reach M n).card ≤ 2 ^ w := by
   classical
   rw [← Finset.card_image_of_injOn he]
-  simpa using Finset.card_le_univ ((reach M n).image e)
+  simpa only [Fintype.card_fun, Fintype.card_fin, Fintype.card_bool] using
+    Finset.card_le_univ ((reach M n).image e)
 
 /-- Every fixed power on the initial configurations, with any upper bound `R` on the number of
 reachable configurations in the storage term. The initial-encoding circuit `ι` is charged. -/
@@ -338,15 +369,12 @@ theorem inplace_fixed_power_optimized (e : Config Q Γ n h → BitString w)
     (R : ℕ) (hR : (reach M n).card ≤ R) (T : ℕ) :
     ∃ out : Circuit signature n w,
       (∀ x, out.eval interpretation x = e (M.step^[T] (M.init x))) ∧
-      (out.size : ℝ) ≤ ι.size + 120000 * optimizedBudget w c.size R := by
+      (out.size : ℝ) ≤ ι.size + 80000 * optimizedBudget w c.size R := by
   obtain ⟨L, hL, -, hopt⟩ := exists_powerBudget_le_optimizedBudget w c.size (reach M n).card
     (reach_card_le_two_pow M e he)
   obtain ⟨out, hout, hs⟩ := inplace_fixed_power M e c hstep ι hι _ le_rfl T L hL
   refine ⟨out, hout, ?_⟩
-  have hs' : (out.size : ℝ) ≤ ι.size + 40000 * (powerBudget w c.size (reach M n).card L : ℝ) := by
-    exact_mod_cast hs
-  have hm := optimizedBudget_mono (w := w) (s := c.size) hR
-  linarith
+  cast_linarith [optimizedBudget_mono (w := w) (s := c.size) hR, hs]
 
 /-- The alphabet bound: the storage term is the number of configurations. -/
 theorem inplace_configs_optimized (e : Config Q Γ n h → BitString w)
@@ -356,14 +384,14 @@ theorem inplace_configs_optimized (e : Config Q Γ n h → BitString w)
     (hι : ∀ x, ι.eval interpretation x = e (M.init x)) (T : ℕ) :
     ∃ out : Circuit signature n w,
       (∀ x, out.eval interpretation x = e (M.step^[T] (M.init x))) ∧
-      (out.size : ℝ) ≤ ι.size + 120000 *
+      (out.size : ℝ) ≤ ι.size + 80000 *
         optimizedBudget w c.size (Fintype.card Γ ^ n * n ^ h * Fintype.card Q) :=
   inplace_fixed_power_optimized M e he c hstep ι hι _ (reach_card_le_configs M) T
 
 /-- The time bound: under absorbing halting states and a halting time `t`, the storage term is
 `2 ^ n * (t + 1)`. -/
 theorem inplace_time_optimized (hM : M.HaltingAbsorbing) (t : ℕ)
-    (ht : ∀ x : BitString n, ∃ s ≤ t, M.halting (M.step^[s] (M.init x)).2.2)
+    (ht : ∀ x : BitString n, ∃ s ≤ t, M.halting (M.step^[s] (M.init x)).state)
     (e : Config Q Γ n h → BitString w)
     (he : Set.InjOn e (reach M n)) (c : Circuit signature w w)
     (hstep : ∀ z ∈ reach M n, c.eval interpretation (e z) = e (M.step z))
@@ -371,7 +399,7 @@ theorem inplace_time_optimized (hM : M.HaltingAbsorbing) (t : ℕ)
     (hι : ∀ x, ι.eval interpretation x = e (M.init x)) (T : ℕ) :
     ∃ out : Circuit signature n w,
       (∀ x, out.eval interpretation x = e (M.step^[T] (M.init x))) ∧
-      (out.size : ℝ) ≤ ι.size + 120000 * optimizedBudget w c.size (2 ^ n * (t + 1)) :=
+      (out.size : ℝ) ≤ ι.size + 80000 * optimizedBudget w c.size (2 ^ n * (t + 1)) :=
   inplace_fixed_power_optimized M e he c hstep ι hι _ (reach_card_le_time M hM t ht) T
 
 /-- Halting, the halting state, and the final configuration of a machine that need not halt:
@@ -384,9 +412,9 @@ theorem inplace_halting (hM : M.HaltingAbsorbing) (e : Config Q Γ n h → BitSt
     (hι : ∀ x, ι.eval interpretation x = e (M.init x)) :
     ∃ (out : Circuit signature n w) (final : BitString n → Config Q Γ n h),
       (∀ x, out.eval interpretation x = e (final x) ∧
-        (M.halting (final x).2.2 ↔ ∃ t, M.halting (M.step^[t] (M.init x)).2.2) ∧
-        ∀ t, M.halting (M.step^[t] (M.init x)).2.2 → final x = M.step^[t] (M.init x)) ∧
-      (out.size : ℝ) ≤ ι.size + 120000 *
+        (M.halting (final x).state ↔ ∃ t, M.halting (M.step^[t] (M.init x)).state) ∧
+        ∀ t, M.halting (M.step^[t] (M.init x)).state → final x = M.step^[t] (M.init x)) ∧
+      (out.size : ℝ) ≤ ι.size + 80000 *
         optimizedBudget w c.size (Fintype.card Γ ^ n * n ^ h * Fintype.card Q) := by
   obtain ⟨out, hout, hs⟩ := inplace_configs_optimized M e he c hstep ι hι
     (Fintype.card (Config Q Γ n h))
@@ -412,10 +440,9 @@ theorem round_lower_bound_of_hard (τ T q : ℕ) (P : BitString m → BitString 
     (out : Circuit signature m w)
     (hout : ∀ x, out.eval interpretation x = e (M.step^[τ * T] (M.init x))) :
     q < out.size := by
-  have hc : ((Circuit.wiring signature tape).comp out).Computes interpretation P^[T] := by
-    intro x
+  have hc : ((Circuit.wiring signature tape).comp out).Computes interpretation P^[T] := fun x => by
     rw [Circuit.eval_comp, hout, iterate_rounds M τ P hround, Circuit.eval_wiring, htape]
-  simpa using hhard _ hc
+  simpa only [Circuit.size_comp, Circuit.size_wiring, add_zero] using hhard _ hc
 
 /-- Both sides for a round machine: any circuit lower bound `q` for `P^[T]` transfers to the
 `(τ * T)`-th step of `M`, while every step `T'` has a circuit within the reachable-set upper bound
@@ -434,7 +461,7 @@ theorem round_bounds_of_hard [Fintype Q] [Fintype Γ] (τ T q : ℕ) (hτ : 0 < 
       (∀ x, out.eval interpretation x = e (M.step^[τ * T] (M.init x))) → q < out.size) ∧
     ∀ T', ∃ out : Circuit signature m w,
       (∀ x, out.eval interpretation x = e (M.step^[T'] (M.init x))) ∧
-      (out.size : ℝ) ≤ ι.size + 120000 * optimizedBudget w c.size (2 ^ m * τ) :=
+      (out.size : ℝ) ≤ ι.size + 80000 * optimizedBudget w c.size (2 ^ m * τ) :=
   ⟨round_lower_bound_of_hard M τ T q P hround e tape htape hhard, fun T' =>
     inplace_fixed_power_optimized M e he c hstep ι hι _
       (reach_card_le_round M τ hτ P hround) T'⟩

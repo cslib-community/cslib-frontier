@@ -10,13 +10,15 @@ module
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.IndexedSignature
 public import CslibFrontier.Computability.Probabilistic.PPT.Capture
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
-import CslibFrontier.Computability.Probabilistic.Sampling
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
+import CslibFrontier.Computability.Probabilistic.Oracle.SubstitutionGrowth
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Doubling the capacity of an indexed signature scheme
@@ -130,43 +132,13 @@ def double (S : IndexedSignatureScheme) (hcap : ∀ n, 1 ≤ S.capacity n) :
   sign := S.doubleSign
   verify := S.doubleVerify
   capacity_polyTime := ComputableInPolyTime.const 2
-  keyGen_ppt := by
-    let EKg := encPair (encPair encUnary (encPair encBits encBits)) (encPair encBits encBits)
-    have hp := ComputableInPolyTime.id' (encIn := EKg)
-    have hret := (hp.fst'.snd'.fst'.prod hp.snd'.fst').encoding_comp.prod
-      (hp.fst'.snd'.snd'.prod hp.snd'.snd').encoding_comp
-    exact S.keyGen_ppt.bind_with
-      ((S.keyGen_ppt.preprocess (ComputableInPolyTime.fst _ _)).bind_with hret.isPPTOn)
+  keyGen_ppt := by ppt [doubleKeyGen]
   sign_ppt := by
-    let ESign := encPair encBits (encPair encUnary encBits)
-    have hp := ComputableInPolyTime.id' (encIn := ESign)
-    have hdec := doubleKeyDecoder.computableInPolyTime.comp hp.fst'
-    have hu := hp.snd'.fst'
-    have hmsg := hp.snd'.snd'
-    have heq : (fun p : List Bool × ℕ × List Bool => S.doubleSign p.1 p.2.1 p.2.2) =
-        fun p =>
-          if (p.2.1 == 0) = true then S.sign (doubleKeyDecoder.decode p.1).1 0 p.2.2
-          else if (p.2.1 == 1) = true then S.sign (doubleKeyDecoder.decode p.1).2 0 p.2.2
-          else pure [] := by
-      funext p; simp only [doubleSign, beq_iff_eq]
-    rw [heq]
-    have h0msg := (ComputableInPolyTime.const (encOut := encUnary) 0).prod hmsg
-    exact IsPPTOn.cond (ComputableInPolyTime.unary_beq' hu (.const 0))
-      (S.sign_ppt.preprocess (hdec.fst'.prod h0msg))
-      (IsPPTOn.cond (ComputableInPolyTime.unary_beq' hu (.const 1))
-        (S.sign_ppt.preprocess (hdec.snd'.prod h0msg))
-        (ComputableInPolyTime.const []).isPPTOn)
+    have := doubleKeyDecoder.computableInPolyTime
+    ppt [doubleSign]
   verify_polyTime := by
-    let EVer := encPair encBits (encPair encUnary (encPair encBits encBits))
-    have hp := ComputableInPolyTime.id' (encIn := EVer)
-    have hdec := doubleKeyDecoder.computableInPolyTime.comp hp.fst'
-    have hu := hp.snd'.fst'
-    have hms := hp.snd'.snd'
-    have h0 := (ComputableInPolyTime.unary_beq' hu (.const 0)).bool_and'
-      (S.verify_polyTime.comp (hdec.fst'.prod ((ComputableInPolyTime.const 0).prod hms)))
-    have h1 := (ComputableInPolyTime.unary_beq' hu (.const 1)).bool_and'
-      (S.verify_polyTime.comp (hdec.snd'.prod ((ComputableInPolyTime.const 0).prod hms)))
-    exact ComputableInPolyTime.bool_or.comp (h0.prod h1)
+    have := doubleKeyDecoder.computableInPolyTime
+    polytime [doubleVerify]
   verify_sign := by
     intro n keys hkeys u hu msg sig hsig
     simp only [doubleKeyGen, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
@@ -266,12 +238,11 @@ private theorem doubleJointOracle_planted {S : IndexedSignatureScheme} {b : Bool
       (ProbComp.eval (S.sign challengeSk 0 (requestDecoder.decode w).2)).bind fun σ =>
         PMF.pure (List.take (bound n (requestDecoder.decode w).2.length) σ,
           requestDecoder.decode w :: signed, (0, (requestDecoder.decode w).2) :: ext) := by
-  have hpos : 0 < S.capacity n := hcap
   have hnot0 : 0 ∉ ext.map Prod.fst := fun h0 => hfresh.2 (hslot ▸ hinv.1.mp h0)
   simp only [doubleJointOracle, doubleHandler, hfresh.1, hfresh.2, not_false_eq_true, and_self,
     ↓reduceIte]
-  simp only [hslot, ↓reduceIte, indexedSigningOracle, requestDecoder.decode_enc, hpos, hnot0,
-    not_false_eq_true, and_self, runWith_norm, pmf_norm]
+  simp only [hslot, ↓reduceIte, indexedSigningOracle, requestDecoder.decode_enc,
+    Nat.succ_le_iff.mp hcap, hnot0, not_false_eq_true, and_self, runWith_norm, pmf_norm]
 
 private theorem doubleJointOracle_unplanted {S : IndexedSignatureScheme} {b : Bool}
     {challengeSk otherSk : List Bool} {bound : ℕ → ℕ → ℕ} {n : ℕ}
@@ -307,27 +278,14 @@ private theorem doubleLogInv_preserve {S : IndexedSignatureScheme} {b : Bool}
   by_cases hfresh :
       (requestDecoder.decode w).1 < 2 ∧ (requestDecoder.decode w).1 ∉ signed.map Prod.fst
   · by_cases hslot : (requestDecoder.decode w).1 = b.toNat
-    · rw [doubleJointOracle_planted hcap hinv hfresh hslot] at hmem
-      simp only [PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-      obtain ⟨σ, -, -, rfl, rfl⟩ := hmem
-      refine ⟨?_, ?_⟩
-      · simp only [List.map_cons, List.mem_cons, true_or, hslot.symm]
-      · intro m hm
-        rcases List.mem_cons.mp hm with heq | hm
-        · rcases Prod.mk.inj heq with ⟨-, rfl⟩
-          exact List.mem_cons.mpr (Or.inl (Prod.ext hslot.symm rfl))
-        · exact List.mem_cons_of_mem _ (hinv.2 m hm)
-    · rw [doubleJointOracle_unplanted hfresh hslot] at hmem
-      simp only [PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-      obtain ⟨σ, -, -, rfl, rfl⟩ := hmem
-      have hne : b.toNat ≠ (requestDecoder.decode w).1 := Ne.symm hslot
-      refine ⟨?_, ?_⟩
-      · simpa only [doubleLogInv, List.map_cons, List.mem_cons, hne, false_or] using hinv.1
-      · intro m hm
-        exact List.mem_cons_of_mem _ (hinv.2 m hm)
-  · rw [doubleJointOracle_refused hfresh] at hmem
-    simp only [PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-    obtain ⟨-, rfl⟩ := hmem
+    · supp_cases hmem [doubleJointOracle_planted hcap hinv hfresh hslot]
+      refine ⟨by simp [hslot.symm], fun m hm => ?_⟩
+      rcases List.mem_cons.mp hm with ⟨-, rfl⟩ | hm
+      exacts [List.mem_cons.mpr (.inl (Prod.ext hslot.symm rfl)), .tail _ (hinv.2 m hm)]
+    · supp_cases hmem [doubleJointOracle_unplanted hfresh hslot]
+      exact ⟨by simpa [Ne.symm hslot] using hinv.1,
+        fun m hm => List.mem_cons_of_mem _ (hinv.2 m hm)⟩
+  · supp_cases hmem [doubleJointOracle_refused hfresh]
     exact hinv
 
 /-- Projecting the joint run onto `(output, signed)` recovers `(S.double hcap).indexedSigningOracle`
@@ -350,21 +308,12 @@ private theorem map_run_doubleJointOracle {S : IndexedSignatureScheme}
         ([], [])).support,
       doubleLogInv b r.2 := by
   intro bundledSk
-  have hinvAll : ∀ r ∈ (ProbOracleComp.runWith (doubleJointOracle S b challengeSk otherSk bound n)
-      program ([], [])).support,
-      doubleLogInv b r.2 := by
-    intro r hr
-    exact ProbOracleComp.runWith_invariant
-      (oracle := doubleJointOracle S b challengeSk otherSk bound n)
-      (invariant := doubleLogInv b)
-      (fun q st hst a next hmem => doubleLogInv_preserve (hcap n) q st hst a next hmem)
-      program ([], []) ⟨by simp, by simp⟩ r.1 r.2 hr
-  refine ⟨?_, hinvAll⟩
+  refine ⟨?_, fun r hr => ProbOracleComp.runWith_invariant
+    (oracle := doubleJointOracle S b challengeSk otherSk bound n) (invariant := doubleLogInv b)
+    (doubleLogInv_preserve (hcap n)) program ([], []) ⟨by simp, by simp⟩ r.1 r.2 hr⟩
   rw [ProbOracleComp.eval_run_interpret_eq_runWith]
-  refine ProbOracleComp.runWith_map_state_of_invariant _ _
-    Prod.fst (doubleLogInv b)
-    (fun q st hst a next hmem => doubleLogInv_preserve (hcap n) q st hst a next hmem)
-    ?_ program ([], []) ⟨by simp, by simp⟩
+  refine ProbOracleComp.runWith_map_state_of_invariant _ _ Prod.fst (doubleLogInv b)
+    (doubleLogInv_preserve (hcap n)) ?_ program ([], []) ⟨by simp, by simp⟩
   rintro ⟨⟨⟩, w⟩ ⟨signed, ext⟩ hinv
   by_cases hfresh :
       (requestDecoder.decode w).1 < 2 ∧ (requestDecoder.decode w).1 ∉ signed.map Prod.fst
@@ -373,33 +322,20 @@ private theorem map_run_doubleJointOracle {S : IndexedSignatureScheme}
       have hdouble :
           (S.double hcap).sign bundledSk (requestDecoder.decode w).1 (requestDecoder.decode w).2 =
             S.sign challengeSk 0 (requestDecoder.decode w).2 := by
-        cases b
-        · have h0 : (requestDecoder.decode w).1 = 0 := hslot
-          simp only [bundledSk, Bool.false_eq_true, ↓reduceIte, double, doubleSign,
-            doubleKeyDecoder.decode_enc, h0]
-        · have h1 : (requestDecoder.decode w).1 = 1 := hslot
-          simp only [bundledSk, ↓reduceIte, double, doubleSign, doubleKeyDecoder.decode_enc, h1,
-            Nat.one_ne_zero]
+        cases b <;> simp [bundledSk, double, doubleSign, doubleKeyDecoder.decode_enc, hslot,
+          -encPair_apply]
       simp only [indexedSigningOracle, capacity_double, hfresh.1, hfresh.2, not_false_eq_true,
         and_self, ↓reduceIte, hdouble, pmf_norm]
       refine PMF.bind_congr_on_support _ _ _ fun σ hσ => ?_
       rw [List.take_of_length_le (hbound _ σ hσ)]
     · rw [doubleJointOracle_unplanted hfresh hslot]
+      have hob : (requestDecoder.decode w).1 = (!b).toNat := by
+        cases b <;> (have := hfresh.1; simp at hslot ⊢; omega)
       have hdouble :
           (S.double hcap).sign bundledSk (requestDecoder.decode w).1 (requestDecoder.decode w).2 =
             S.sign otherSk 0 (requestDecoder.decode w).2 := by
-        cases b
-        · have hne0 : (requestDecoder.decode w).1 ≠ 0 := hslot
-          have h1 : (requestDecoder.decode w).1 = 1 := by
-            have := hfresh.1
-            omega
-          simp only [bundledSk, Bool.false_eq_true, ↓reduceIte, double, doubleSign,
-            doubleKeyDecoder.decode_enc, h1, Nat.one_ne_zero]
-        · have hne1 : (requestDecoder.decode w).1 ≠ 1 := hslot
-          have h0 : (requestDecoder.decode w).1 = 0 := by
-            have := hfresh.1
-            omega
-          simp only [bundledSk, ↓reduceIte, double, doubleSign, doubleKeyDecoder.decode_enc, h0]
+        cases b <;> simp [bundledSk, double, doubleSign, doubleKeyDecoder.decode_enc, hob,
+          -encPair_apply]
       simp only [indexedSigningOracle, capacity_double, hfresh.1, hfresh.2, not_false_eq_true,
         and_self, ↓reduceIte, hdouble, pmf_norm]
   · rw [doubleJointOracle_refused hfresh]
@@ -434,22 +370,18 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
     Game.succProbability (ProbComp.eval ((S.double hcap).indexedEufCmaGame adversary n)) ≤
       2 * Game.succProbability
         (ProbComp.eval (S.indexedEufCmaGame (S.doubleForger bound adversary) n)) := by
-  have hsplit :
-      ProbComp.eval (S.indexedEufCmaGame (S.doubleForger bound adversary) n) =
-        (ProbComp.eval (ProbComp.uniform Bool)).bind fun b =>
-          ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary b) n) := by
-    simp only [indexedEufCmaGame, doubleForger, runWith_norm, pmf_norm]
-    exact PMF.bind_comm _ _ _
+  have hsplit : ProbComp.eval (S.indexedEufCmaGame (S.doubleForger bound adversary) n) =
+      (ProbComp.eval (ProbComp.uniform Bool)).bind fun b =>
+        ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary b) n) := by
+    simpa only [indexedEufCmaGame, doubleForger, runWith_norm, pmf_norm] using PMF.bind_comm _ _ _
   have htwo :
       (2 : ℝ≥0∞) * (ProbComp.eval (S.indexedEufCmaGame (S.doubleForger bound adversary) n)) true =
         (ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary false) n)) true +
           (ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary true) n)) true := by
     rw [hsplit, PMF.bind_apply, tsum_fintype, Fintype.sum_bool]
-    have hunif : ∀ b : Bool, (ProbComp.eval (ProbComp.uniform Bool)) b = (2 : ℝ≥0∞)⁻¹ := by
-      intro b
-      simp [ProbComp.eval_uniform, PMF.uniformOfFintype_apply]
-    rw [hunif false, hunif true, ← mul_add, ← mul_assoc,
-      ENNReal.mul_inv_cancel (by norm_num) (by norm_num), one_mul, add_comm]
+    simp only [ProbComp.eval_uniform, PMF.uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat]
+    rw [← mul_add, ← mul_assoc, ENNReal.mul_inv_cancel two_ne_zero ENNReal.ofNat_ne_top,
+      one_mul, add_comm]
   let slotEvent (b : Bool) (k₀ k₁ : List Bool × List Bool) : PMF Bool :=
     (ProbComp.eval ((OracleComp.interpret
       (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
@@ -466,112 +398,66 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
     cases hwin : !r.2.1.contains (r.1.1, r.1.2.1) && (r.1.1 == b.toNat) &&
         S.verify vk 0 r.1.2.1 r.1.2.2
     · simp
-    · simp only [Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true, beq_iff_eq,
-        ← Bool.not_eq_true, List.contains_iff_mem] at hwin
-      obtain ⟨⟨hfresh, hu⟩, hv⟩ := hwin
-      have hwin' : (!r.2.2.contains (0, r.1.2.1) && S.verify vk 0 r.1.2.1 r.1.2.2) = true := by
-        simp only [Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true,
-          ← Bool.not_eq_true, List.contains_iff_mem]
-        exact ⟨fun hmem => hfresh (hu ▸ hinv.2 _ hmem), hv⟩
-      rw [hwin']
-  have hslot0 :
+    · simp only [Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true', ← Bool.not_eq_true,
+        List.contains_iff_mem] at hwin
+      suffices (!r.2.2.contains (0, r.1.2.1) && S.verify vk 0 r.1.2.1 r.1.2.2) = true by rw [this]
+      simpa [← Bool.not_eq_true, List.contains_iff_mem, hwin.2] using
+        fun hm => hwin.1.1 (hwin.1.2 ▸ hinv.2 _ hm)
+  have hslot_pair (b : Bool) (kc ko : List Bool × List Bool)
+      (hkc : kc ∈ (ProbComp.eval (S.keyGen n)).support) :
+      slotEvent b (if b then ko else kc) (if b then kc else ko) true ≤
+        ((ProbOracleComp.runWith (doubleJointOracle S b kc.2 ko.2 bound n)
+            (adversary n (doublePlantPk b kc.1 ko.1)) ([], [])).map fun r =>
+            !r.2.2.contains (0, r.1.2.1) && S.verify kc.1 0 r.1.2.1 r.1.2.2) true := by
+    obtain ⟨heq, hinv⟩ := map_run_doubleJointOracle hcap b (otherSk := ko.2) (hbound kc hkc)
+      (adversary n (doublePlantPk b kc.1 ko.1))
+    cases b <;> simp only [slotEvent, doublePlantPk, Bool.false_eq_true, ↓reduceIte] at heq ⊢ <;>
+      rw [← heq, PMF.map_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp] <;>
+      exact PMF.bind_apply_mono_on_support _ _ fun r hr => hslot_step _ (hinv r hr)
+  have hslot (b : Bool) :
       ((ProbComp.eval (S.keyGen n)).bind fun k₀ =>
-        (ProbComp.eval (S.keyGen n)).bind fun k₁ => slotEvent false k₀ k₁) true ≤
-      (ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary false) n)) true := by
+        (ProbComp.eval (S.keyGen n)).bind fun k₁ => slotEvent b k₀ k₁) true ≤
+      (ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary b) n)) true := by
     rw [eval_indexedEufCmaGame_doubleForgerAt _ _ _ _ (hcap n)]
-    apply PMF.bind_apply_mono_on_support; intro k₀ hk₀
-    apply PMF.bind_apply_mono_on_support; intro k₁ _
-    obtain ⟨heq, hinv⟩ := map_run_doubleJointOracle hcap false (otherSk := k₁.2) (hbound k₀ hk₀)
-      (adversary n (encPair encBits encBits (k₀.1, k₁.1)))
-    dsimp only [slotEvent, doublePlantPk]
-    simp only [Bool.false_eq_true, ↓reduceIte] at heq ⊢
-    rw [← heq, PMF.map_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp]
-    apply PMF.bind_apply_mono_on_support; intro r hr
-    exact hslot_step false (hinv r hr)
-  have hslot1 :
-      ((ProbComp.eval (S.keyGen n)).bind fun k₀ =>
-        (ProbComp.eval (S.keyGen n)).bind fun k₁ => slotEvent true k₀ k₁) true ≤
-      (ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary true) n)) true := by
-    rw [eval_indexedEufCmaGame_doubleForgerAt _ _ _ _ (hcap n)]
-    conv_rhs => rw [PMF.bind_comm]
-    apply PMF.bind_apply_mono_on_support; intro k₀ _
-    apply PMF.bind_apply_mono_on_support; intro k₁ hk₁
-    obtain ⟨heq, hinv⟩ := map_run_doubleJointOracle hcap true (otherSk := k₀.2) (hbound k₁ hk₁)
-      (adversary n (encPair encBits encBits (k₀.1, k₁.1)))
-    dsimp only [slotEvent, doublePlantPk]
-    simp only [↓reduceIte] at heq ⊢
-    rw [← heq, PMF.map_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp]
-    apply PMF.bind_apply_mono_on_support; intro r hr
-    exact hslot_step true (hinv r hr)
+    cases b
+    · refine PMF.bind_apply_mono_on_support _ _ fun k₀ hk₀ =>
+        PMF.bind_apply_mono_on_support _ _ fun k₁ _ => hslot_pair false k₀ k₁ hk₀
+    · conv_rhs => rw [PMF.bind_comm]
+      refine PMF.bind_apply_mono_on_support _ _ fun k₀ _ =>
+        PMF.bind_apply_mono_on_support _ _ fun k₁ hk₁ => hslot_pair true k₁ k₀ hk₁
   have hgame :
       (ProbComp.eval ((S.double hcap).indexedEufCmaGame adversary n)) true ≤
         ((ProbComp.eval (S.keyGen n)).bind fun k₀ =>
           (ProbComp.eval (S.keyGen n)).bind fun k₁ => slotEvent false k₀ k₁) true +
         ((ProbComp.eval (S.keyGen n)).bind fun k₀ =>
           (ProbComp.eval (S.keyGen n)).bind fun k₁ => slotEvent true k₀ k₁) true := by
-    simp only [indexedEufCmaGame, double, doubleKeyGen, pmf_norm]
-    rw [PMF.bind_apply, PMF.bind_apply, PMF.bind_apply, ← tsum_add]
-    refine tsum_le_tsum fun k₀ => ?_
-    rw [← mul_add, PMF.bind_apply, PMF.bind_apply, PMF.bind_apply, ← tsum_add]
-    refine mul_le_mul_right (tsum_le_tsum fun k₁ => ?_) _
-    rw [← mul_add]
-    refine mul_le_mul_right ?_ _
-    dsimp only [slotEvent]
-    -- `doubleVerify` already rejects every index `u ≥ 2`, so the capacity guard is redundant.
-    erw [show (fun x : (ℕ × List Bool × List Bool) × List (ℕ × List Bool) =>
-        PMF.pure (decide (x.1.1 < 2) && !x.2.contains (x.1.1, x.1.2.1) &&
-          S.doubleVerify (encPair encBits encBits (k₀.1, k₁.1)) x.1.1 x.1.2.1 x.1.2.2)) =
-      fun x => PMF.pure (!x.2.contains (x.1.1, x.1.2.1) &&
-        ((x.1.1 == 0 && S.verify k₀.1 0 x.1.2.1 x.1.2.2) ||
-          (x.1.1 == 1 && S.verify k₁.1 0 x.1.2.1 x.1.2.2))) by
-      funext x
-      simp only [doubleVerify, doubleKeyDecoder.decode_enc]
-      by_cases hu : x.1.1 < 2
-      · simp only [hu, decide_true, Bool.true_and]
-      · have h0 : (x.1.1 == 0) = false := beq_false_of_ne (by omega)
-        have h1 : (x.1.1 == 1) = false := beq_false_of_ne (by omega)
-        simp only [hu, decide_false, Bool.false_and, h0, h1, Bool.or_self, Bool.and_false]]
-    rw [← PMF.bind_pure_comp, ← PMF.bind_pure_comp, PMF.bind_apply, PMF.bind_apply, PMF.bind_apply,
-      ← tsum_add]
-    refine tsum_le_tsum fun out => ?_
-    rw [← mul_add]
-    refine mul_le_mul_right ?_ _
-    dsimp only [Function.comp_def]
-    cases hfresh : !out.2.contains (out.1.1, out.1.2.1)
+    simp only [indexedEufCmaGame, double, doubleKeyGen, slotEvent, ← PMF.bind_pure_comp, pmf_norm]
+    refine PMF.bind_apply_le_add_on_support _ true fun k₀ _ =>
+      PMF.bind_apply_le_add_on_support _ true fun k₁ _ =>
+        PMF.bind_apply_le_add_on_support _ true fun out _ => ?_
+    dsimp only [Function.comp_def, doubleVerify]
+    cases !out.2.contains (out.1.1, out.1.2.1)
     · simp
-    · by_cases hu0 : out.1.1 = 0
-      · cases hv0 : S.verify k₀.1 0 out.1.2.1 out.1.2.2 <;> simp [hu0, hv0]
-      · by_cases hu1 : out.1.1 = 1
-        · cases hv1 : S.verify k₁.1 0 out.1.2.1 out.1.2.2 <;> simp [hu1, hv1]
-        · have hb0 : (out.1.1 == 0) = false := beq_false_of_ne hu0
-          have hb1 : (out.1.1 == 1) = false := beq_false_of_ne hu1
-          simp [hb0, hb1]
-  have htotal :
-      (ProbComp.eval ((S.double hcap).indexedEufCmaGame adversary n)) true ≤
-        (2 : ℝ≥0∞) *
-          (ProbComp.eval (S.indexedEufCmaGame (S.doubleForger bound adversary) n)) true := by
-    rw [htwo]
-    exact hgame.trans (add_le_add hslot0 hslot1)
+    · rcases out with ⟨⟨_ | _ | u, msg, σ⟩, signed⟩ <;>
+        simp [doubleKeyDecoder.decode_enc, -encPair_apply]
   have hne : (2 : ℝ≥0∞) *
       (ProbComp.eval (S.indexedEufCmaGame (S.doubleForger bound adversary) n)) true ≠ ⊤ :=
     ENNReal.mul_ne_top ENNReal.ofNat_ne_top (PMF.apply_ne_top _ _)
-  unfold Game.succProbability
-  simpa only [ENNReal.toNNReal_mul, ENNReal.toNNReal_ofNat] using
-    ENNReal.toNNReal_mono hne htotal
+  simpa only [Game.succProbability, ENNReal.toNNReal_mul, ENNReal.toNNReal_ofNat] using
+    ENNReal.toNNReal_mono hne (htwo ▸ hgame.trans (add_le_add (hslot false) (hslot true)))
 
 /-! ### Strict oracle-PPT efficiency of `doubleForger` -/
 
 private abbrev DoubleCaller := (ℕ × Bool) × (List Bool × List Bool)
 
-private noncomputable def encDoubleCaller : DoubleCaller ↪ List Bool :=
+private noncomputable abbrev encDoubleCaller : DoubleCaller ↪ List Bool :=
   encPair (encPair encUnary encBool) (encPair encBits encBits)
 
 private abbrev DoubleHandlerIn :=
   DoubleCaller × ((Unit × List Bool) × List (ℕ × List Bool))
 
-private noncomputable def encDoubleHandlerIn : DoubleHandlerIn ↪ List Bool :=
-  encPair encDoubleCaller
-    (encPair (encPair (encFinEnum Unit) encBits) (encList (encPair encUnary encBits)))
+private noncomputable abbrev encDoubleHandlerIn : DoubleHandlerIn ↪ List Bool :=
+  encHandlerCall encDoubleCaller (encFinEnum Unit) (encList (encPair encUnary encBits))
 
 private theorem isOraclePPTOn_doubleHandler (S : IndexedSignatureScheme) {bound : ℕ → ℕ → ℕ}
     (hboundPoly : ComputableInPolyTime (fun p : ℕ × ℕ => bound p.1 p.2)
@@ -580,86 +466,30 @@ private theorem isOraclePPTOn_doubleHandler (S : IndexedSignatureScheme) {bound 
       (encPair encBits (encList (encPair encUnary encBits)))
       (fun pair : DoubleHandlerIn =>
         S.doubleHandler pair.1.1.2 pair.1.2.2 bound pair.1.1.1 pair.2.1 pair.2.2) := by
-  have hp := ComputableInPolyTime.id' (encIn := encDoubleHandlerIn)
-  have hn := hp.fst'.fst'.fst'
-  have hbFlag := hp.fst'.fst'.snd'
-  have hotherSk := hp.fst'.snd'.snd'
-  have hsigned := hp.snd'.snd'
-  have hr := requestDecoder.computableInPolyTime.comp hp.snd'.fst'.snd'
-  have hr1 := hr.fst'
-  have hr2 := hr.snd'
+  have hdec := requestDecoder.computableInPolyTime
   have hfreshDec : ComputableInPolyTime
       (fun pair : DoubleHandlerIn =>
         decide ((requestDecoder.decode pair.2.1.2).1 < 2 ∧
           (requestDecoder.decode pair.2.1.2).1 ∉ pair.2.2.map Prod.fst))
       encDoubleHandlerIn encBool := by
-    have hused := ComputableInPolyTime.anyWithInput
-      (test := fun (pair : DoubleHandlerIn) (e : ℕ × List Bool) =>
-        (requestDecoder.decode pair.2.1.2).1 == e.1) hsigned
-      (ComputableInPolyTime.unary_beq'
-        (hr1.comp (ComputableInPolyTime.fst encDoubleHandlerIn (encPair encUnary encBits)))
-        (ComputableInPolyTime.snd encDoubleHandlerIn (encPair encUnary encBits)).fst')
-    have hlt2 := hr1.unary_lt' (.const 2)
-    have heq : (fun pair : DoubleHandlerIn =>
-        decide ((requestDecoder.decode pair.2.1.2).1 < 2 ∧
-          (requestDecoder.decode pair.2.1.2).1 ∉ pair.2.2.map Prod.fst)) =
-      fun pair =>
-        decide ((requestDecoder.decode pair.2.1.2).1 < 2) &&
-          !(pair.2.2.any fun e => (requestDecoder.decode pair.2.1.2).1 == e.1) := by
-      funext pair; rw [Bool.eq_iff_iff]
+    convert (?_ : ComputableInPolyTime (fun pair : DoubleHandlerIn =>
+      decide ((requestDecoder.decode pair.2.1.2).1 < 2) &&
+        !(pair.2.2.any fun e => (requestDecoder.decode pair.2.1.2).1 == e.1))
+      encDoubleHandlerIn encBool) using 1
+    · funext pair
+      rw [Bool.eq_iff_iff]
       simp only [decide_eq_true_eq, Bool.and_eq_true, Bool.not_eq_true', List.any_eq_false,
-        List.mem_map, not_exists, not_and, beq_iff_eq]
-      exact ⟨fun ⟨h1, h2⟩ => ⟨h1, fun e he h => h2 e he h.symm⟩,
-        fun ⟨h1, h2⟩ => ⟨h1, fun e he h => h2 e he h.symm⟩⟩
-    rw [heq]
-    exact hlt2.bool_and' (ComputableInPolyTime.bool_not.comp hused)
+        List.mem_map, not_exists, not_and, beq_iff_eq, eq_comm (a := (requestDecoder.decode _).1)]
+    · polytime
   have hslotDec : ComputableInPolyTime
       (fun pair : DoubleHandlerIn =>
         decide ((requestDecoder.decode pair.2.1.2).1 = pair.1.1.2.toNat))
       encDoubleHandlerIn encBool := by
-    have htarget : ComputableInPolyTime (fun pair : DoubleHandlerIn => pair.1.1.2.toNat)
-        encDoubleHandlerIn encUnary := by
-      have heq : (fun pair : DoubleHandlerIn => pair.1.1.2.toNat) =
-          fun pair => if pair.1.1.2 then 1 else 0 := by
-        funext pair; cases pair.1.1.2 <;> rfl
-      rw [heq]
-      exact ComputableInPolyTime.ite' hbFlag (.const 1) (.const 0)
-    have heq : (fun pair : DoubleHandlerIn =>
-        decide ((requestDecoder.decode pair.2.1.2).1 = pair.1.1.2.toNat)) =
-      fun pair => (requestDecoder.decode pair.2.1.2).1 == pair.1.1.2.toNat := by
-      funext pair; rw [Bool.eq_iff_iff]; simp only [decide_eq_true_eq, beq_iff_eq]
-    rw [heq]
-    exact ComputableInPolyTime.unary_beq' hr1 htarget
-  have hb := hboundPoly.comp (hn.prod (ComputableInPolyTime.length_bits.comp hr2))
-  have hq := ComputableInPolyTime.id' (encIn := encPair encDoubleHandlerIn encBits)
-  have hconsLog : ComputableInPolyTime
-      (fun p : DoubleHandlerIn × List Bool =>
-        (p.2, requestDecoder.decode p.1.2.1.2 :: p.1.2.2))
-      (encPair encDoubleHandlerIn encBits)
-      (encPair encBits (encList (encPair encUnary encBits))) :=
-    hq.snd'.prod ((hr.comp hq.fst').cons' (hsigned.comp hq.fst'))
-  change IsOraclePPTOn encDoubleHandlerIn (encPair encBits (encList (encPair encUnary encBits)))
-    (fun pair =>
-      if (requestDecoder.decode pair.2.1.2).1 < 2 ∧
-          (requestDecoder.decode pair.2.1.2).1 ∉ pair.2.2.map Prod.fst then
-        if (requestDecoder.decode pair.2.1.2).1 = pair.1.1.2.toNat then
-          (fun sig => (sig, requestDecoder.decode pair.2.1.2 :: pair.2.2)) <$>
-            (List.take (bound pair.1.1.1 (requestDecoder.decode pair.2.1.2).2.length) <$>
-              ProbOracleComp.query
-                ((), encPair encUnary encBits (0, (requestDecoder.decode pair.2.1.2).2)))
-        else
-          (fun sig => (sig, requestDecoder.decode pair.2.1.2 :: pair.2.2)) <$>
-            ProbOracleComp.sample (S.sign pair.1.2.2 0 (requestDecoder.decode pair.2.1.2).2)
-      else pure ([], pair.2.2))
-  refine IsOraclePPTOn.ite hfreshDec (IsOraclePPTOn.ite hslotDec ?_ ?_)
-    (((ComputableInPolyTime.const []).prod hsigned).isOraclePPTOn)
-  · have hqword := ((ComputableInPolyTime.const (encOut := encUnary) 0).prod hr2).encoding_comp
-    exact (IsOraclePPTOn.query_take () hqword hb).map_with hconsLog
-  · have hsignLocal := (S.sign_ppt.preprocess
-      (hotherSk.prod ((ComputableInPolyTime.const 0).prod hr2))).map_with
-      (f := fun pair sig => (sig, requestDecoder.decode pair.2.1.2 :: pair.2.2)) hconsLog
-    simpa only [ProbOracleComp.sample_map, Function.comp_apply] using
-      hsignLocal.isOraclePPTOn (Operation := Unit)
+    convert (by polytime : ComputableInPolyTime (fun p : DoubleHandlerIn =>
+        (requestDecoder.decode p.2.1.2).1 == if p.1.1.2 then 1 else 0)
+      encDoubleHandlerIn encBool) using 1
+    exact funext fun p => Bool.eq_iff_iff.mpr (by cases p.1.1.2 <;> simp)
+  ppt [doubleHandler]
 
 /-- `S.doubleForger bound adversary` is uniformly strict oracle PPT for every strict oracle-PPT
 `adversary` and every plain polynomial-time bound `bound`. -/
@@ -670,24 +500,6 @@ theorem isOraclePPT_doubleForger (S : IndexedSignatureScheme) {bound : ℕ → �
     (hadversary : IsOraclePPT (encPair encUnary (encPair encBits encBits)) adversary) :
     IsOraclePPT (encPair encUnary (encPair encBits encBits))
       (S.doubleForger bound adversary) := by
-  obtain ⟨cs, ds, hlens⟩ := S.sign_ppt.length_le
-  have hdec := requestDecoder.computableInPolyTime
-  let resources (caller : DoubleCaller) (w : List Bool) : ℕ :=
-    bound caller.1.1 (requestDecoder.decode w).2.length +
-      cs * (2 * caller.2.2.length + w.length + 4) ^ ds + 2 * w.length + 12
-  have hresources : ComputableInPolyTime
-      (fun pair : DoubleCaller × List Bool => resources pair.1 pair.2)
-      (encPair encDoubleCaller encBits) encUnary := by
-    have hp := ComputableInPolyTime.id' (encIn := encPair encDoubleCaller encBits)
-    have hr2Len := ComputableInPolyTime.length_bits.comp (hdec.comp hp.snd').snd'
-    have hb := hboundPoly.comp (hp.fst'.fst'.fst'.prod hr2Len)
-    dsimp only [resources]
-    fun_prop
-  have hprepare : ComputableInPolyTime
-      (fun caller : DoubleCaller => (caller.1.1, caller.2.1))
-      encDoubleCaller (encPair encUnary encBits) := by
-    have hp := ComputableInPolyTime.id' (encIn := encDoubleCaller)
-    exact hp.fst'.fst'.prod hp.snd'.fst'
   have hrun : IsOraclePPTOn encDoubleCaller
       (encPair (encPair encUnary (encPair encBits encBits))
         (encList (encPair encUnary encBits)))
@@ -697,93 +509,29 @@ theorem isOraclePPT_doubleForger (S : IndexedSignatureScheme) {bound : ℕ → �
             (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
             (S.doubleHandler caller.1.2 caller.2.2 bound caller.1.1))
           (adversary caller.1.1 caller.2.1)).run []) := by
-    refine hadversary.run_interpret_preprocess_open
+    refine hadversary.run_interpret_preprocess_open_of_bounded_growth
       (prepare := fun caller : DoubleCaller => (caller.1.1, caller.2.1))
       (initial := fun _ => ([] : List (ℕ × List Bool)))
-      (resources := resources)
-      hprepare (isOraclePPTOn_doubleHandler S hboundPoly)
-      (ComputableInPolyTime.const []) (fun _ _ => True) (fun _ => trivial) hresources ?_
+      (growth := fun _ w => 2 * w.length + 12)
+      (by fun_prop) (isOraclePPTOn_doubleHandler S hboundPoly) (.const [])
+      (fun _ _ => True) (fun _ => trivial) (by growth_poly) ?_
     intro caller request signed _ result hresult
     have hmsg : (requestDecoder.decode request.2).2.length ≤ request.2.length :=
       length_dropFrame_le request.2
     unfold doubleHandler at hresult; dsimp only at hresult
-    split_ifs at hresult with hfresh hslot
-    · obtain ⟨sig, hsig, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
-      obtain ⟨raw, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hsig
-      have htake := List.length_take_le
-        (bound caller.1.1 (requestDecoder.decode request.2).2.length) raw
-      have hu2 : (requestDecoder.decode request.2).1 < 2 := hfresh.1
-      refine ⟨trivial, by dsimp only [resources]; omega, ?_⟩
-      simp only [encList_cons, List.length_append, length_frame, length_encPair, encUnary_apply,
-        encBits_apply, List.length_replicate, resources]; omega
-    · obtain ⟨sig, hsig, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
-      have hsigMem : sig ∈ (ProbComp.eval
-          (S.sign caller.2.2 0 (requestDecoder.decode request.2).2)).support :=
-        (ProbOracleComp.support_sample _).subset hsig
-      have hsigLen := hlens (caller.2.2, 0, (requestDecoder.decode request.2).2) sig hsigMem
-      simp only [length_encPair, encBits_apply, encUnary_apply, List.length_replicate] at hsigLen
-      have hpow :
-          cs * (2 * caller.2.2.length + 1 + (2 * 0 + 1 +
-            (requestDecoder.decode request.2).2.length) + 1) ^ ds ≤
-          cs * (2 * caller.2.2.length + request.2.length + 4) ^ ds :=
-        Nat.mul_le_mul_left cs (Nat.pow_le_pow_left (by omega) ds)
-      have hu2 : (requestDecoder.decode request.2).1 < 2 := hfresh.1
-      refine ⟨trivial, by dsimp only [resources]; omega, ?_⟩
-      simp only [encList_cons, List.length_append, length_frame, length_encPair, encUnary_apply,
-        encBits_apply, List.length_replicate, resources]; omega
-    · obtain rfl := OracleComp.eq_of_mem_supportWith_pure hresult
-      exact ⟨trivial, by simp, by dsimp only [resources]; omega⟩
-  have hpost : ComputableInPolyTime
-      (fun pair : DoubleCaller ×
-          ((ℕ × List Bool × List Bool) × List (ℕ × List Bool)) =>
-        (0, pair.2.1.2.1, pair.2.1.2.2))
-      (encPair encDoubleCaller
-        (encPair (encPair encUnary (encPair encBits encBits))
-          (encList (encPair encUnary encBits))))
-      (encPair encUnary (encPair encBits encBits)) := by
-    have hout := (ComputableInPolyTime.snd encDoubleCaller
-      (encPair (encPair encUnary (encPair encBits encBits))
-        (encList (encPair encUnary encBits)))).fst'
-    exact (ComputableInPolyTime.const 0).prod hout.snd'
-  have hstep3 : IsOraclePPTOn encDoubleCaller (encPair encUnary (encPair encBits encBits))
-      (fun caller : DoubleCaller => do
-        let out ← (OracleComp.interpret
-          (OracleComp.sumHandler
-            (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
-            (S.doubleHandler caller.1.2 caller.2.2 bound caller.1.1))
-          (adversary caller.1.1 caller.2.1)).run []
-        return (0, out.1.2.1, out.1.2.2)) :=
-    hrun.bind_with
-      (second := fun (_ : DoubleCaller) out =>
-        (pure (0, out.1.2.1, out.1.2.2) : WordOracleComp Unit (ℕ × List Bool × List Bool)))
-      (hpost.isOraclePPTOn (Operation := Unit))
-  have hstep2 : IsOraclePPTOn (encPair (encPair encUnary encBits) encBool)
-      (encPair encUnary (encPair encBits encBits))
-      (fun p : (ℕ × List Bool) × Bool => S.doubleForgerAt bound adversary p.2 p.1.1 p.1.2) := by
-    let encP := encPair (encPair (encPair encUnary encBits) encBool) (encPair encBits encBits)
-    have hp := ComputableTidilyInPolyTime.id' (encIn := encP)
-    have hb := hp.fst'.snd'
-    have hvk := hp.fst'.fst'.snd'
-    have hopk := hp.snd'.fst'
-    have hplant := hb.ite' (hopk.prod hvk).encoded (hvk.prod hopk).encoded
-    have hotherClosed : IsPPTOn (encPair (encPair encUnary encBits) encBool)
-        encDoubleCaller
-        (fun p : (ℕ × List Bool) × Bool =>
-          (fun other => ((p.1.1, p.2), (doublePlantPk p.2 p.1.2 other.1, other.2))) <$>
-            S.keyGen p.1.1) :=
-      (S.keyGen_ppt.preprocess
-        (ComputableInPolyTime.fst (encPair encUnary encBits) encBool).fst').map_with
-        (.of_tidy ((hp.fst'.fst'.fst'.prod hb).prod (hplant.prod hp.snd'.snd')))
-    have hother : IsOraclePPTOn (Operation := Unit) (encPair (encPair encUnary encBits) encBool)
-        encDoubleCaller
-        (fun p : (ℕ × List Bool) × Bool =>
-          (fun other => ((p.1.1, p.2), (doublePlantPk p.2 p.1.2 other.1, other.2))) <$>
-            ProbOracleComp.sample (S.keyGen p.1.1)) := by
-      simpa only [ProbOracleComp.sample_map] using hotherClosed.isOraclePPTOn (Operation := Unit)
-    refine (hother.bind hstep3).congr fun p State oracle st => ?_
-    simp only [doubleForgerAt, StateT.run, bind_map_left]
-  exact ((isPPTOn_uniform_bool (encPair encUnary encBits)).isOraclePPTOn
-    (Operation := Unit)).bind_with hstep2
+    by_cases hfresh :
+        (requestDecoder.decode request.2).1 < 2 ∧
+          (requestDecoder.decode request.2).1 ∉ signed.map Prod.fst
+    · rw [ite_eq_left hfresh] at hresult
+      have hres : result.2 = requestDecoder.decode request.2 :: signed := by
+        split_ifs at hresult <;>
+          (obtain ⟨_, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult; rfl)
+      have := hfresh.1
+      exact ⟨trivial, by rw [hres]; enc_len⟩
+    · rw [ite_eq_right hfresh] at hresult
+      obtain rfl := OracleComp.eq_of_mem_supportWith_pure hresult
+      exact ⟨trivial, Nat.le_add_right _ _⟩
+  ppt [doubleForger, doubleForgerAt, doublePlantPk]
 
 /-! ### Security preservation -/
 
@@ -798,14 +546,12 @@ theorem IndexedEUFCMA.double {S : IndexedSignatureScheme} (hS : S.IndexedEUFCMA)
     (hcap : ∀ n, 1 ≤ S.capacity n) :
     (S.double hcap).IndexedEUFCMA := by
   obtain ⟨bound, hboundPoly, hbound⟩ := S.exists_sign_length_bound
-  apply IndexedEUFCMA.of_negligible
-  intro adversary hadversary
-  have hneg := hS.negligible (S.doubleForger bound adversary)
-    (isOraclePPT_doubleForger S hboundPoly hadversary)
-  refine negligible_of_le (hneg.const_mul 2) fun n => ?_
-  simpa only [Pi.mul_apply] using
-    succProbability_indexedEufCmaGame_double_le hcap
-      (fun keys hkeys => hbound n keys hkeys 0 (hcap n)) adversary
+  refine IndexedEUFCMA.of_negligible fun adversary hadversary => ?_
+  refine negligible_of_le
+    ((hS.negligible (S.doubleForger bound adversary)
+      (isOraclePPT_doubleForger S hboundPoly hadversary)).const_mul 2) fun n => ?_
+  simpa only [Pi.mul_apply] using succProbability_indexedEufCmaGame_double_le hcap
+    (fun keys hkeys => hbound n keys hkeys 0 (hcap n)) adversary
 
 end IndexedSignatureScheme
 

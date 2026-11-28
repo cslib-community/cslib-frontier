@@ -9,13 +9,12 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.BinaryDiv
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 public import Mathlib.NumberTheory.LegendreSymbol.JacobiSymbol
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Gcd
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -49,9 +48,11 @@ loop by `decide` on concrete inputs.
 
 ## Main definitions
 
-* `Turing.MultiTapeTM.BinaryJacobi.jacobiStep`: one reduction step on `(a, n, flip)`.
+* `Turing.MultiTapeTM.BinaryJacobi.State`, `.encState`: state `⟨num, mod, flip⟩` of the
+  Jacobi-symbol loop and its framed binary encoding.
+* `Turing.MultiTapeTM.BinaryJacobi.jacobiStep`: one reduction step on `State`.
 * `Turing.MultiTapeTM.BinaryJacobi.jacobiInit`, `.jacobiCount`, `.jacobiReadout`: the initial
-  state `(a % n, n, false)`, the step count `2 * Nat.size n`, and the final readout.
+  state `⟨a % n, n, false⟩`, the step count `2 * Nat.size n`, and the final readout.
 
 ## Main results
 
@@ -73,28 +74,44 @@ public section
 
 namespace Turing.MultiTapeTM.BinaryJacobi
 
-/-- One step of the Jacobi-symbol loop on a state `(a, n, flip)`, which stands for
-`(-1) ^ flip · J(a | n)` and satisfies `a < n`. -/
-@[expose] def jacobiStep (s : ℕ × ℕ × Bool) : ℕ × ℕ × Bool :=
-  if s.1 = 0 then s
-  else if s.2.1 % 2 = 0 then
-    if s.1 % 2 = 0 then (0, s.2.1, s.2.2) else (s.1 % (s.2.1 / 2), s.2.1 / 2, s.2.2)
-  else if s.1 % 2 = 0 then
-    (s.1 / 2, s.2.1, s.2.2 ^^ (decide (s.2.1 % 8 = 3) || decide (s.2.1 % 8 = 5)))
-  else (s.2.1 % s.1, s.1, s.2.2 ^^ (decide (s.1 % 4 = 3) && decide (s.2.1 % 4 = 3)))
+/-- State of the Jacobi-symbol loop: current numerator `num`, modulus `mod`, and accumulated sign
+flip `flip`, representing `(-1) ^ flip · J(num | mod)` with `num < mod`. -/
+@[ext] structure State where
+  /-- Current numerator `a`, below `mod`. -/
+  num : ℕ
+  /-- Current modulus `n`. -/
+  mod : ℕ
+  /-- Whether the accumulated sign is `-1`. -/
+  flip : Bool
+  deriving DecidableEq, Repr
 
-/-- The initial state `(a % n, n, false)` for `J(a | n)`, or `(0, 1, false)` when `n = 0`,
+/-- Binary numerator and modulus, each framed, followed by the sign-flip bit. -/
+enc_structure encState : State where
+  num : encNat, mod : encNat, flip : encBool
+
+/-- One step of the Jacobi-symbol loop on a state `s`, which stands for
+`(-1) ^ s.flip · J(s.num | s.mod)` and satisfies `s.num < s.mod`. -/
+@[expose] def jacobiStep (s : State) : State :=
+  if s.num = 0 then s
+  else if s.mod % 2 = 0 then
+    if s.num % 2 = 0 then ⟨0, s.mod, s.flip⟩ else ⟨s.num % (s.mod / 2), s.mod / 2, s.flip⟩
+  else if s.num % 2 = 0 then
+    ⟨s.num / 2, s.mod, s.flip ^^ (decide (s.mod % 8 = 3) || decide (s.mod % 8 = 5))⟩
+  else ⟨s.mod % s.num, s.num, s.flip ^^ (decide (s.num % 4 = 3) && decide (s.mod % 4 = 3))⟩
+
+/-- The initial state `⟨a % n, n, false⟩` for `J(a | n)`, or `⟨0, 1, false⟩` when `n = 0`,
 since `J(a | 0) = 1`. -/
-@[expose] def jacobiInit (p : ℕ × ℕ) : ℕ × ℕ × Bool :=
-  if p.2 = 0 then (0, 1, false) else (p.1 % p.2, p.2, false)
+@[expose] def jacobiInit (p : ℕ × ℕ) : State :=
+  if p.2 = 0 then ⟨0, 1, false⟩ else ⟨p.1 % p.2, p.2, false⟩
 
 /-- The number of loop steps for `J(a | n)`: `2 * Nat.size n`. -/
 @[expose] def jacobiCount (p : ℕ × ℕ) : ℕ :=
   2 * p.2.size
 
-/-- The value `(-1) ^ flip · J(0 | n)` of a final state `(0, n, flip)` with `n ≥ 1`. -/
-@[expose] def jacobiReadout (s : ℕ × ℕ × Bool) : ℤ :=
-  if s.2.1 = 1 then (if s.2.2 then -1 else 1) else 0
+/-- The value `(-1) ^ s.flip · J(0 | s.mod)` of a final state `⟨0, s.mod, s.flip⟩` with
+`s.mod ≥ 1`. -/
+@[expose] def jacobiReadout (s : State) : ℤ :=
+  if s.mod = 1 then (if s.flip then -1 else 1) else 0
 
 /-- The sign `(-1) ^ b`. -/
 private def sign (b : Bool) : ℤ :=
@@ -105,8 +122,8 @@ private theorem sign_xor (b c : Bool) : sign (b ^^ c) = sign b * sign c := by
 
 /-- The loop invariant for the input `p`: the state stands for `J(p.1 | p.2)`, its numerator is
 below its modulus, and the modulus is at most `max p.2 1`. -/
-private def Invariant (p : ℕ × ℕ) (s : ℕ × ℕ × Bool) : Prop :=
-  J((p.1 : ℤ) | p.2) = sign s.2.2 * J((s.1 : ℤ) | s.2.1) ∧ s.1 < s.2.1 ∧ s.2.1 ≤ max p.2 1
+private def Invariant (p : ℕ × ℕ) (s : State) : Prop :=
+  J((p.1 : ℤ) | p.2) = sign s.flip * J((s.num : ℤ) | s.mod) ∧ s.num < s.mod ∧ s.mod ≤ max p.2 1
 
 private theorem invariant_jacobiInit (p : ℕ × ℕ) : Invariant p (jacobiInit p) := by
   obtain ⟨a, n⟩ := p
@@ -119,9 +136,9 @@ private theorem invariant_jacobiInit (p : ℕ × ℕ) : Invariant p (jacobiInit 
     rw [jacobiSym.mod_left, Int.natCast_mod]
 
 /-- One step preserves the signed symbol. -/
-private theorem sign_mul_jacobiSym_jacobiStep {s : ℕ × ℕ × Bool} (hs : s.1 < s.2.1) :
-    sign (jacobiStep s).2.2 * J(((jacobiStep s).1 : ℤ) | (jacobiStep s).2.1) =
-      sign s.2.2 * J((s.1 : ℤ) | s.2.1) := by
+private theorem sign_mul_jacobiSym_jacobiStep {s : State} (hs : s.num < s.mod) :
+    sign (jacobiStep s).flip * J(((jacobiStep s).num : ℤ) | (jacobiStep s).mod) =
+      sign s.flip * J((s.num : ℤ) | s.mod) := by
   obtain ⟨a, n, f⟩ := s
   simp only at hs
   unfold jacobiStep
@@ -163,39 +180,23 @@ private theorem sign_mul_jacobiSym_jacobiStep {s : ℕ × ℕ × Bool} (hs : s.1
       jacobiSym.mod_left (n : ℤ) a, ← Int.natCast_mod]
     split_ifs with h4
     · simp [sign, h4.1, h4.2]
-    · by_cases h1 : a % 4 = 3
-      · have h2 : ¬ n % 4 = 3 := fun h2 => h4 ⟨h1, h2⟩
-        simp [sign, h1, h2]
-      · simp [sign, h1]
+    · simp only [not_and] at h4
+      by_cases h1 : a % 4 = 3 <;> simp [sign, h1, h4]
 
-private theorem lt_jacobiStep {s : ℕ × ℕ × Bool} (hs : s.1 < s.2.1) :
-    (jacobiStep s).1 < (jacobiStep s).2.1 := by
-  obtain ⟨a, n, f⟩ := s
-  simp only at hs
+private theorem lt_jacobiStep {s : State} (hs : s.num < s.mod) :
+    (jacobiStep s).num < (jacobiStep s).mod := by
   unfold jacobiStep
-  simp only
-  split_ifs with ha0 hn2 ha2 ha2'
-  · exact hs
-  · dsimp only
-    omega
-  · exact Nat.mod_lt _ (by omega)
-  · dsimp only
-    omega
-  · exact Nat.mod_lt _ (by omega)
+  split_ifs <;> first | exact hs | exact Nat.zero_lt_of_lt hs | exact Nat.mod_lt _ (by omega) |
+    exact (Nat.div_le_self _ 2).trans_lt hs
 
-private theorem snd_jacobiStep_le {s : ℕ × ℕ × Bool} (hs : s.1 < s.2.1) :
-    (jacobiStep s).2.1 ≤ s.2.1 := by
+private theorem mod_jacobiStep_le {s : State} (hs : s.num < s.mod) :
+    (jacobiStep s).mod ≤ s.mod := by
   unfold jacobiStep
-  split_ifs
-  · exact le_rfl
-  · exact le_rfl
-  · exact Nat.div_le_self _ _
-  · exact le_rfl
-  · exact hs.le
+  split_ifs <;> first | exact le_rfl | exact Nat.div_le_self _ _ | exact hs.le
 
-/-- Every step at least halves the product `a * n`. -/
-private theorem two_mul_mul_jacobiStep_le {s : ℕ × ℕ × Bool} (hs : s.1 < s.2.1) :
-    2 * ((jacobiStep s).1 * (jacobiStep s).2.1) ≤ s.1 * s.2.1 := by
+/-- Every step at least halves the product `s.num * s.mod`. -/
+private theorem two_mul_mul_jacobiStep_le {s : State} (hs : s.num < s.mod) :
+    2 * ((jacobiStep s).num * (jacobiStep s).mod) ≤ s.num * s.mod := by
   obtain ⟨a, n, f⟩ := s
   simp only at hs
   unfold jacobiStep
@@ -203,20 +204,17 @@ private theorem two_mul_mul_jacobiStep_le {s : ℕ × ℕ × Bool} (hs : s.1 < s
   split_ifs with ha0 hn2 ha2 ha2'
   · simp [ha0]
   · simp
-  · have hn : 2 * (n / 2) = n := by omega
-    calc 2 * (a % (n / 2) * (n / 2)) = a % (n / 2) * (2 * (n / 2)) := by ring
-      _ = a % (n / 2) * n := by rw [hn]
+  · calc 2 * (a % (n / 2) * (n / 2)) = a % (n / 2) * n := by
+          rw [mul_left_comm, show 2 * (n / 2) = n by omega]
       _ ≤ a * n := Nat.mul_le_mul_right n (Nat.mod_le a (n / 2))
-  · have ha : 2 * (a / 2) = a := by omega
-    rw [← mul_assoc, ha]
-  · calc 2 * (n % a * a) = 2 * (a * (n % a)) := by rw [mul_comm (n % a)]
-      _ ≤ a * n := BinaryGcd.gcd_product_halving (by omega) hs.le
+  · rw [← mul_assoc, show 2 * (a / 2) = a by omega]
+  · exact mul_comm (n % a) a ▸ BinaryGcd.gcd_product_halving (by omega) hs.le
 
-/-- After `i` steps the invariant holds and `2 ^ i` times the product `a * n` is still below
+/-- After `i` steps the invariant holds and `2 ^ i` times the product `num * mod` is still below
 `2 ^ jacobiCount p`. -/
 private theorem invariant_iterate_jacobiStep (p : ℕ × ℕ) (i : ℕ) :
     Invariant p (jacobiStep^[i] (jacobiInit p)) ∧
-      2 ^ i * ((jacobiStep^[i] (jacobiInit p)).1 * (jacobiStep^[i] (jacobiInit p)).2.1) <
+      2 ^ i * ((jacobiStep^[i] (jacobiInit p)).num * (jacobiStep^[i] (jacobiInit p)).mod) <
         2 ^ jacobiCount p := by
   induction i with
   | zero =>
@@ -235,10 +233,10 @@ private theorem invariant_iterate_jacobiStep (p : ℕ × ℕ) (i : ℕ) :
     rw [Function.iterate_succ_apply']
     set s := jacobiStep^[i] (jacobiInit p)
     refine ⟨⟨hJ.trans (sign_mul_jacobiSym_jacobiStep hlt).symm, lt_jacobiStep hlt,
-      (snd_jacobiStep_le hlt).trans hle⟩, ?_⟩
-    calc 2 ^ (i + 1) * ((jacobiStep s).1 * (jacobiStep s).2.1)
-        = 2 ^ i * (2 * ((jacobiStep s).1 * (jacobiStep s).2.1)) := by ring
-      _ ≤ 2 ^ i * (s.1 * s.2.1) := Nat.mul_le_mul_left _ (two_mul_mul_jacobiStep_le hlt)
+      (mod_jacobiStep_le hlt).trans hle⟩, ?_⟩
+    calc 2 ^ (i + 1) * ((jacobiStep s).num * (jacobiStep s).mod)
+        = 2 ^ i * (2 * ((jacobiStep s).num * (jacobiStep s).mod)) := by ring
+      _ ≤ 2 ^ i * (s.num * s.mod) := Nat.mul_le_mul_left _ (two_mul_mul_jacobiStep_le hlt)
       _ < 2 ^ jacobiCount p := hprod
 
 /-- **Correctness and step bound.** For all `a n : ℕ`, running `jacobiStep` for
@@ -247,21 +245,21 @@ theorem jacobiReadout_iterate_jacobiStep (p : ℕ × ℕ) :
     jacobiReadout (jacobiStep^[jacobiCount p] (jacobiInit p)) = J((p.1 : ℤ) | p.2) := by
   obtain ⟨⟨hJ, hlt, -⟩, hprod⟩ := invariant_iterate_jacobiStep p (jacobiCount p)
   set s := jacobiStep^[jacobiCount p] (jacobiInit p)
-  have hzero : s.1 = 0 := by
+  have hzero : s.num = 0 := by
     by_contra h
-    have hpos : 1 ≤ s.1 * s.2.1 := Nat.one_le_iff_ne_zero.2 (Nat.mul_ne_zero h (by omega))
+    have hpos : 1 ≤ s.num * s.mod := Nat.one_le_iff_ne_zero.2 (Nat.mul_ne_zero h (by omega))
     have := Nat.le_mul_of_pos_right (2 ^ jacobiCount p) hpos
     omega
-  have hread : jacobiReadout s = if s.2.1 = 1 then sign s.2.2 else 0 := rfl
+  have hread : jacobiReadout s = if s.mod = 1 then sign s.flip else 0 := rfl
   rw [hread, hJ, hzero, Nat.cast_zero]
   split_ifs with h1
   · rw [h1, jacobiSym.one_right, mul_one]
-  · have hn : 1 < s.2.1 := by omega
+  · have hn : 1 < s.mod := by omega
     rw [jacobiSym.zero_left hn, mul_zero]
 
 /-- Every reachable state has encoding length at most `4 * |(a, n)| + 4`. -/
-private theorem length_encPair_iterate_jacobiStep_le (p : ℕ × ℕ) (i : ℕ) :
-    (encPair encNat (encPair encNat encBool) (jacobiStep^[i] (jacobiInit p))).length ≤
+private theorem length_encState_iterate_jacobiStep_le (p : ℕ × ℕ) (i : ℕ) :
+    (encState (jacobiStep^[i] (jacobiInit p))).length ≤
       4 * (encPair encNat encNat p).length + 4 := by
   obtain ⟨⟨-, hlt, hle⟩, -⟩ := invariant_iterate_jacobiStep p i
   set s := jacobiStep^[i] (jacobiInit p)
@@ -271,9 +269,10 @@ private theorem length_encPair_iterate_jacobiStep_le (p : ℕ × ℕ) (i : ℕ) 
       simp
     · rw [max_eq_left h]
       omega
-  have hs1 : s.1.size ≤ p.2.size + 1 := (Nat.size_le_size (hlt.le.trans hle)).trans hm
-  have hs2 : s.2.1.size ≤ p.2.size + 1 := (Nat.size_le_size hle).trans hm
-  enc_len [encNat_apply, List.length_singleton, Nat.size_eq_bits_len] at hs1 hs2 ⊢
+  have hs1 : s.num.size ≤ p.2.size + 1 := (Nat.size_le_size (hlt.le.trans hle)).trans hm
+  have hs2 : s.mod.size ≤ p.2.size + 1 := (Nat.size_le_size hle).trans hm
+  enc_len [encState_apply, encStateFields, encNat_apply, List.length_singleton,
+    Nat.size_eq_bits_len] at hs1 hs2 ⊢
 
 end Turing.MultiTapeTM.BinaryJacobi
 
@@ -289,22 +288,30 @@ theorem binary_jacobiSym : ComputableInPolyTime (fun p : ℕ × ℕ => J((p.1 : 
   have hcount : ComputableInPolyTime jacobiCount (encPair encNat encNat) encUnary := by
     unfold jacobiCount
     fun_prop
-  have hinit : ComputableInPolyTime jacobiInit (encPair encNat encNat)
-      (encPair encNat (encPair encNat encBool)) := by
+  have hinit : ComputableInPolyTime jacobiInit (encPair encNat encNat) encState := by
+    have hmod := binary_mod' (fst encNat encNat) (snd encNat encNat)
     unfold jacobiInit
     fun_prop
-  have hstep : ComputableInPolyTime jacobiStep (encPair encNat (encPair encNat encBool))
-      (encPair encNat (encPair encNat encBool)) := by
+  have hstep : ComputableInPolyTime jacobiStep encState encState := by
+    have ha : ComputableInPolyTime State.num encState encNat := by fun_prop
+    have hn : ComputableInPolyTime State.mod encState encNat := by fun_prop
+    have ha2 := binary_mod' ha (const 2)
+    have hn2 := binary_mod' hn (const 2)
+    have hn4 := binary_mod' hn (const 4)
+    have ha4 := binary_mod' ha (const 4)
+    have hn8 := binary_mod' hn (const 8)
+    have hhalf := binary_div' hn (const 2)
+    have hamod := binary_mod' ha hhalf
+    have hswap := binary_mod' hn ha
     unfold jacobiStep
     fun_prop
-  have hread : ComputableInPolyTime jacobiReadout (encPair encNat (encPair encNat encBool))
-      encIntBin := by
+  have hread : ComputableInPolyTime jacobiReadout encState encIntBin := by
     unfold jacobiReadout
     fun_prop
   have hiter := iterate hcount hinit hstep
     (bound := fun p => 4 * (encPair encNat encNat p).length + 4)
     (((PolyBounded.const 4).mul .self).add (.const 4))
-    (fun p i _ => length_encPair_iterate_jacobiStep_le p i)
+    (fun p i _ => length_encState_iterate_jacobiStep_le p i)
   simpa only [Function.comp_def, jacobiReadout_iterate_jacobiStep] using hread.comp hiter
 
 /-- The Jacobi symbol of computed binary naturals, fixing their intermediate encodings for proof

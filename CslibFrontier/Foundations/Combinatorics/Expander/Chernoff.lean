@@ -68,7 +68,7 @@ private theorem expect_sub_expect_sq_le (f : V → ℝ) (c : ℝ) :
   simp only [this, expect_add_distrib, ← mul_expect, hb]
   rcases isEmpty_or_nonempty V with hV | hV
   · simp [univ_eq_empty]
-  · rw [Fintype.expect_const]; nlinarith [sq_nonneg (α - c)]
+  · rw [Fintype.expect_const]; linarith only [sq_nonneg (α - c)]
 
 /-- A function bounded by `ε` has root mean square at most `ε`. -/
 private theorem sqrt_expect_sq_le {f : V → ℝ} {ε : ℝ} (hε : 0 ≤ ε) (hf : ∀ v, |f v| ≤ ε) :
@@ -114,12 +114,9 @@ private theorem mean_rms_mul_walk_le [Nonempty D] {P : V → ℝ} {ε : ℝ} (hP
     rw [hsplit]
     have hm : 0 ≤ 𝔼 v, P v := expect_nonneg fun v _ => hP₀ v
     have hcs : |𝔼 v, (P v - 1) * w v| ≤ ε * (ℓ * Y) := by
-      refine abs_le.2 ⟨?_, ?_⟩
-      · have := Real.expect_mul_le_sqrt_mul_sqrt univ (fun v => -(P v - 1)) w
-        simp only [neg_mul, expect_neg_distrib, neg_sq] at this
-        nlinarith [mul_le_mul hP1 hw (Real.sqrt_nonneg _) hε]
-      · exact (Real.expect_mul_le_sqrt_mul_sqrt univ _ w).trans
-          (mul_le_mul hP1 hw (Real.sqrt_nonneg _) hε)
+      have := Real.expect_mul_le_sqrt_mul_sqrt univ (fun v => |P v - 1|) fun v => |w v|
+      simp only [sq_abs, ← abs_mul] at this
+      exact (abs_expect_le _ _).trans (this.trans (mul_le_mul hP1 hw (Real.sqrt_nonneg _) hε))
     calc |(𝔼 v, P v) * a + 𝔼 v, (P v - 1) * w v|
         ≤ |(𝔼 v, P v) * a| + |𝔼 v, (P v - 1) * w v| := abs_add_le _ _
       _ ≤ (𝔼 v, P v) * |a| + ε * ℓ * Y := by
@@ -141,7 +138,7 @@ private theorem mean_rms_mul_walk_le [Nonempty D] {P : V → ℝ} {ε : ℝ} (hP
               refine expect_le_expect fun v _ => ?_
               rw [mul_pow]
               gcongr
-              all_goals first | exact hP₀ v | linarith [(abs_le.1 (hP v)).2]
+              all_goals first | exact hP₀ v | linarith only [(abs_le.1 (hP v)).2]
           _ = (1 + ε) ^ 2 * 𝔼 v, w v ^ 2 := by rw [mul_expect]
           _ ≤ (1 + ε) ^ 2 * (ℓ * Y) ^ 2 := by
               gcongr
@@ -163,14 +160,8 @@ private theorem abs_expect_weightedWalk_const_le [Nonempty D] {P : V → ℝ} {�
     |𝔼 v, G.weightedWalk t (fun _ => P) v| +
         θ * √(𝔼 v, (G.weightedWalk t (fun _ => P) v - 𝔼 u, G.weightedWalk t (fun _ => P) u) ^ 2)
       ≤ ρ ^ (t + 1) := by
-  rcases isEmpty_or_nonempty V with hV | hV
-  · simp only [univ_eq_empty, expect_empty, abs_zero, sub_zero, Real.sqrt_zero, mul_zero,
-      add_zero]
-    have hm : 𝔼 v, P v = 0 := by simp [univ_eq_empty]
-    have hρ : 0 ≤ ρ := by nlinarith
-    positivity
   have hm : 0 ≤ 𝔼 v, P v := expect_nonneg fun v _ => hP₀ v
-  have hρ : 0 ≤ ρ := by nlinarith
+  have hρ : 0 ≤ ρ := (add_nonneg hm (mul_nonneg hθ hε)).trans h₁
   induction t with
   | zero =>
     simp only [weightedWalk_zero, zero_add, pow_one]
@@ -213,9 +204,9 @@ theorem expect_exp_mul_sum_walkAt_le [Nonempty D] {g : V → ℝ} (hg : 𝔼 v, 
     rw [expect_weightedWalk]
     exact expect_congr rfl fun p _ => by rw [mul_sum, Real.exp_sum]
   rw [hmgf]
-  rcases eq_or_lt_of_le (show 0 ≤ s by linarith) with hs | hs
+  rcases eq_or_lt_of_le (b := s) (sub_nonneg.2 hℓ₁) with hs | hs
   · -- `λ(G) = 1` forces `r = 0`, and every weight is `1`.
-    have hr0 : r = 0 := by linarith
+    have hr0 : r = 0 := by linarith only [hr, hrl, hs]
     have hP : P = fun _ => 1 := funext fun v => by simp [P, hr0]
     have h1 := G.abs_expect_weightedWalk_const_le (P := P) (ε := 0) (θ := 0) (ρ := 1)
       (fun v => (exp_pos _).le) (fun v => by simp [hP]) le_rfl le_rfl
@@ -226,24 +217,19 @@ theorem expect_exp_mul_sum_walkAt_le [Nonempty D] {g : V → ℝ} (hg : 𝔼 v, 
       not_false_eq_true, zero_pow, div_zero, exp_zero] at h1 ⊢
     exact (le_abs_self _).trans h1
   -- The scalar estimates for `P = exp (r g)`.
-  have hr₁ : r ≤ 1 / 4 := by linarith
-  have hexp (v : V) : |P v - 1 - r * g v| ≤ r ^ 2 := by
-    have hx : |r * g v| ≤ 1 := by
-      rw [abs_mul, abs_of_nonneg hr]; nlinarith [hg₁ v, abs_nonneg (g v)]
-    refine (Real.abs_exp_sub_one_sub_id_le hx).trans ?_
-    have hg2 : g v ^ 2 ≤ 1 := by
-      rw [← sq_abs]; nlinarith [abs_nonneg (g v), hg₁ v]
-    rw [mul_pow]
-    nlinarith [mul_le_mul_of_nonneg_left hg2 (sq_nonneg r)]
+  have hr₁ : r ≤ 1 / 4 := by linarith only [hrl, hℓ]
   have hrg (v : V) : |r * g v| ≤ r := by
-    rw [abs_mul, abs_of_nonneg hr]; nlinarith [hg₁ v]
+    rw [abs_mul, abs_of_nonneg hr]; exact mul_le_of_le_one_right hr (hg₁ v)
+  have hexp (v : V) : |P v - 1 - r * g v| ≤ r ^ 2 :=
+    (Real.abs_exp_sub_one_sub_id_le ((hrg v).trans (by linarith only [hr₁]))).trans
+      ((mul_pow r (g v) 2).trans_le
+        (mul_le_of_le_one_right (sq_nonneg r) ((sq_le_one_iff_abs_le_one _).2 (hg₁ v))))
   have hP1 (v : V) : |P v - 1| ≤ 2 * r := by
-    have h1 := abs_le.1 (hexp v)
-    have h2 := abs_le.1 (hrg v)
-    exact abs_le.2 ⟨by nlinarith, by nlinarith⟩
+    have hr2_le : r ^ 2 ≤ r := by rw [sq]; exact mul_le_of_le_one_right hr (by linarith only [hr₁])
+    linarith only [abs_sub_abs_le_abs_sub (P v - 1) (r * g v), hexp v, hrg v, hr2_le]
   have hm : 𝔼 v, P v ≤ 1 + r ^ 2 := by
     calc 𝔼 v, P v ≤ 𝔼 v, (1 + r * g v + r ^ 2) :=
-          expect_le_expect fun v _ => by linarith [(abs_le.1 (hexp v)).2]
+          expect_le_expect fun v _ => by linarith only [(abs_le.1 (hexp v)).2]
       _ ≤ 1 + r ^ 2 := by
           rw [expect_add_distrib, expect_add_distrib, ← mul_expect, hg]
           rcases isEmpty_or_nonempty V with hV | hV
@@ -255,19 +241,16 @@ theorem expect_exp_mul_sum_walkAt_le [Nonempty D] {g : V → ℝ} (hg : 𝔼 v, 
   have hθ₁ : θ ≤ 1 := by rw [div_le_one hs]; exact hrl
   set ρ := 1 + 9 * r ^ 2 / s
   have hρ : 1 ≤ ρ := le_add_of_nonneg_right (by positivity)
-  have hr2 : r ^ 2 ≤ r ^ 2 / s := le_div_self (sq_nonneg r) hs (by linarith)
+  have hr2 : r ^ 2 ≤ r ^ 2 / s := le_div_self (sq_nonneg r) hs (sub_le_self _ hℓ)
   have h₁ : 𝔼 v, P v + θ * (2 * r) ≤ ρ := by
-    have : θ * (2 * r) = 8 * r ^ 2 / s := by
-      field_simp; linear_combination (2 * r) * hθs
-    rw [this]
-    have : 9 * r ^ 2 / s = r ^ 2 / s + 8 * r ^ 2 / s := by ring
-    simp only [ρ, this]
-    linarith
+    have : θ * (2 * r) = 8 * r ^ 2 / s := by field_simp; linear_combination (2 * r) * hθs
+    rw [this, show ρ = 1 + r ^ 2 / s + 8 * r ^ 2 / s by simp only [ρ]; ring]
+    linarith only [hm, hr2]
   have h₂ : 2 * r * ℓ + θ * ((1 + 2 * r) * ℓ) ≤ ρ * θ := by
-    have hθ' : θ ≤ ρ * θ := le_mul_of_one_le_left hθ hρ
-    refine le_trans ?_ hθ'
-    nlinarith [mul_nonneg hr hℓ, mul_nonneg (mul_nonneg hr hℓ) (sub_nonneg.2 hθ₁),
-      mul_nonneg hr (sub_nonneg.2 hℓ₁)]
+    refine le_trans ?_ (le_mul_of_one_le_left hθ hρ)
+    rw [← sub_nonneg, show θ - (2 * r * ℓ + θ * ((1 + 2 * r) * ℓ)) =
+      4 * r * s + 2 * r * ℓ * (1 - θ) by linear_combination hθs]
+    exact add_nonneg (by positivity) (mul_nonneg (by positivity) (sub_nonneg.2 hθ₁))
   have hW := G.abs_expect_weightedWalk_const_le (fun v => (exp_pos _).le) hP1 (by positivity) hθ
     h₁ h₂ t
   calc 𝔼 v, G.weightedWalk t (fun _ => P) v
@@ -275,7 +258,7 @@ theorem expect_exp_mul_sum_walkAt_le [Nonempty D] {g : V → ℝ} (hg : 𝔼 v, 
     _ ≤ ρ ^ (t + 1) := le_trans (le_add_of_nonneg_right (by positivity)) hW
     _ ≤ exp (9 * r ^ 2 / s) ^ (t + 1) := by
         gcongr
-        linarith [Real.add_one_le_exp (9 * r ^ 2 / s)]
+        linarith only [Real.add_one_le_exp (9 * r ^ 2 / s)]
     _ = exp (9 * r ^ 2 * (t + 1) / s) := by
         rw [← Real.exp_nat_mul]; push_cast; ring_nf
 
@@ -288,24 +271,21 @@ private theorem dens_filter_le_sum_walkAt_le [Nonempty D] {g : V → ℝ} (hg : 
   set s := 1 - ℓ
   have hℓ := G.spectralExpansion_nonneg
   have hℓ₁ := G.spectralExpansion_le_one
-  have hs : 0 ≤ s := by linarith
+  have hs : 0 ≤ s := sub_nonneg.2 hℓ₁
   have ht : (0 : ℝ) < t + 1 := by positivity
   rcases le_or_gt δ 1 with hδ₁ | hδ₁
   swap
   · -- For `δ > 1` the event is empty.
-    have hempty : ({p : V × (Fin t → D) |
-        δ * (t + 1) ≤ ∑ i ∈ range (t + 1), g (G.walkAt p i)} : Finset _) = ∅ := by
-      refine filter_eq_empty_iff.2 fun p _ => not_le.2 ?_
-      calc ∑ i ∈ range (t + 1), g (G.walkAt p i) ≤ ∑ i ∈ range (t + 1), (1 : ℝ) :=
-            sum_le_sum fun i _ => (abs_le.1 (hg₁ _)).2
-        _ = 1 * (t + 1) := by simp
-        _ < δ * (t + 1) := by gcongr
-    simp only [hempty, dens_empty, NNRat.cast_zero]
-    exact (exp_pos _).le
+    refine le_of_eq_of_le ?_ (exp_pos _).le
+    rw [NNRat.cast_eq_zero, dens_eq_zero, filter_eq_empty_iff]
+    refine fun p _ => not_le.2 ?_
+    refine (sum_le_card_nsmul _ _ 1 fun i _ => (abs_le.1 (hg₁ _)).2).trans_lt ?_
+    simpa only [card_range, nsmul_eq_mul, Nat.cast_add, Nat.cast_one, mul_one] using
+      lt_mul_of_one_lt_left ht hδ₁
   set r := δ * s / 18
   have hr : 0 ≤ r := by positivity
   have hrl : 4 * r ≤ s := by
-    simp only [r]; nlinarith
+    simp only [r]; linarith only [hs, mul_le_of_le_one_left hs hδ₁]
   have hmgf := G.expect_exp_mul_sum_walkAt_le hg hg₁ hr hrl t
   have hmarkov := Fintype.mul_dens_filter_le_expect (𝕜 := ℝ)
     (f := fun p : V × (Fin t → D) => exp (r * ∑ i ∈ range (t + 1), g (G.walkAt p i)))
@@ -347,12 +327,11 @@ theorem dens_filter_le_abs_sum_walkAt_le [Nonempty D] {g : V → ℝ} (hg : 𝔼
     intro p hp
     simp only [S, T, mem_filter, mem_univ, true_and, mem_union, sum_neg_distrib] at hp ⊢
     rcases le_abs'.1 hp with h | h
-    · right; linarith
+    · right; linarith only [h]
     · left; exact h
-  have h₁ : (dens (S ∪ T) : ℝ) ≤ dens S + dens T := by exact_mod_cast dens_union_le S T
-  have h₂ : (dens {p : V × (Fin t → D) | δ * (t + 1) ≤ |∑ i ∈ range (t + 1), g (G.walkAt p i)|} :
-      ℝ) ≤ dens (S ∪ T) := by exact_mod_cast dens_le_dens hsub
-  linarith
+  calc _ ≤ (dens (S ∪ T) : ℝ) := by exact_mod_cast dens_le_dens hsub
+    _ ≤ dens S + dens T := by exact_mod_cast dens_union_le S T
+    _ ≤ _ := by linarith only [hup, hlow]
 
 variable [DecidableEq V]
 
@@ -375,7 +354,7 @@ theorem dens_filter_abs_visitCount_div_sub_dens_gt_le [Nonempty D] (B : Finset V
   have hg : 𝔼 v, g v = 0 := by
     simp only [g, expect_sub_distrib, Fintype.expect_boole_mem, Fintype.expect_const, β, sub_self]
   have hg₁ (v : V) : |g v| ≤ 1 := by
-    simp only [g]; split_ifs <;> rw [abs_le] <;> constructor <;> linarith
+    simp only [g]; split_ifs <;> rw [abs_le] <;> constructor <;> linarith only [hβ₀, hβ₁]
   have ht : (0 : ℝ) < t + 1 := by positivity
   have hsum (p : V × (Fin t → D)) :
       ∑ i ∈ range (t + 1), g (G.walkAt p i) = G.visitCount B p - (t + 1) * β := by
@@ -384,11 +363,9 @@ theorem dens_filter_abs_visitCount_div_sub_dens_gt_le [Nonempty D] (B : Finset V
   refine le_trans ?_ (G.dens_filter_le_abs_sum_walkAt_le hg hg₁ hδ t)
   gcongr with p
   intro hp
-  rw [hsum]
-  have : (G.visitCount B p : ℝ) - (t + 1) * β =
-      (t + 1) * ((G.visitCount B p : ℝ) / (t + 1) - β) := by
-    field_simp
-  rw [this, abs_mul, abs_of_pos ht, mul_comm]
+  rw [hsum, show (G.visitCount B p : ℝ) - (t + 1) * β =
+      (t + 1) * ((G.visitCount B p : ℝ) / (t + 1) - β) by field_simp, abs_mul, abs_of_pos ht,
+    mul_comm]
   exact mul_le_mul_of_nonneg_left hp.le ht.le
 
 /-- **Arora–Barak Theorem 7.41**, the expander Chernoff bound, in the draft's form with the sign
@@ -410,17 +387,16 @@ theorem dens_filter_abs_visitCount_div_sub_gt_lt [Nonempty D] (B : Finset V) {la
     have hd : (dens {p : V × (Fin t → D) |
         δ < |(G.visitCount B p : ℝ) / (t + 1) - dens B|} : ℝ) ≤ 1 := by
       exact_mod_cast dens_le_one
-    have : 1 ≤ exp (-(1 - lam) * δ ^ 2 * (t + 1) / 60) :=
-      Real.one_le_exp (by have : 0 ≤ lam - 1 := by linarith
-                          have : 0 ≤ (lam - 1) * δ ^ 2 * (t + 1) := by positivity
-                          linarith)
-    linarith
+    have : 1 ≤ exp (-(1 - lam) * δ ^ 2 * (t + 1) / 60) := by
+      rw [neg_sub]
+      have : 0 ≤ lam - 1 := by linarith only [hℓ, hlam]
+      exact Real.one_le_exp (by positivity)
+    linarith only [hd, this]
   · refine h.trans_lt (mul_lt_mul_of_pos_left (exp_lt_exp.2 ?_) two_pos)
-    have : 0 < (1 - G.spectralExpansion) * δ ^ 2 * (t + 1) := by
-      have : 0 < 1 - G.spectralExpansion := by linarith
-      positivity
-    have : (1 - lam) * δ ^ 2 * (t + 1) ≤ (1 - G.spectralExpansion) * δ ^ 2 * (t + 1) := by
+    have hpos : 0 < (1 - G.spectralExpansion) * δ ^ 2 * (t + 1) :=
+      mul_pos (mul_pos (sub_pos.2 hℓ) (sq_pos_of_pos hδ)) ht
+    have hle : (1 - lam) * δ ^ 2 * (t + 1) ≤ (1 - G.spectralExpansion) * δ ^ 2 * (t + 1) := by
       gcongr
-    linarith
+    linarith only [hpos, hle]
 
 end Cslib.RotationMap

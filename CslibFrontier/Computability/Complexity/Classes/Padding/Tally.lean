@@ -103,19 +103,16 @@ theorem tallyOf_mem_TALLY (B : Set (List Bool)) : tallyOf B ∈ TALLY :=
 
 theorem computableInPolyTime_tallyDecode :
     ComputableInPolyTime tallyDecode encUnary encBits := by
-  have hbits : ComputableInPolyTime (fun n : ℕ => n.bits) encUnary encBits :=
-    .of_tidy (ComputableTidilyInPolyTime.natBits.comp ComputableTidilyInPolyTime.unary_to_binary)
-  have hu : ComputableInPolyTime (fun N : ℕ => N.unpair.1.bits.reverse.tail.reverse)
-      encUnary encBits := by
-    have hp : ComputableInPolyTime (fun N : ℕ => N.unpair.1) encUnary encUnary := by fun_prop
-    have := hbits.comp hp
-    fun_prop
-  have h : tallyDecode = fun N => frame N.unpair.1.bits.reverse.tail.reverse ++
-      List.replicate N.unpair.2 true := by
-    funext N
-    rw [tallyDecode, List.tail_reverse, List.reverse_reverse]
-  rw [h]
-  fun_prop
+  change ComputableInPolyTime (fun n => tallyDecode n) encUnary encBits
+  have hp := ComputableInPolyTime.unary_unpair
+  have hbits := ComputableInPolyTime.natBits.comp
+    (ComputableInPolyTime.unary_to_binary.comp hp.fst')
+  have hdrop := ComputableInPolyTime.bitsReverse.comp
+    (ComputableInPolyTime.bitsTail.comp (ComputableInPolyTime.bitsReverse.comp hbits))
+  have h := ComputableInPolyTime.bitsAppend (ComputableInPolyTime.frame.comp hdrop)
+    ((ComputableInPolyTime.bitsReplicate true).comp hp.snd')
+  simpa only [tallyDecode, Function.comp_def, List.tail_reverse,
+    List.reverse_reverse] using h
 
 /-- The capped code, read most significant digit first with a saturating accumulator. -/
 private theorem min_tallyCode_eq (L : ℕ) (u : List Bool) :

@@ -17,14 +17,15 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.BitString.ZModTwo
 import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 import CslibFrontier.Tactic.EncLen
 import Mathlib.Data.List.GetD
-import Mathlib.Data.Nat.Size
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 
 /-!
 # Streaming polynomial-space exhaustive counting and finite-threshold fallback absorption
@@ -118,12 +119,30 @@ open Cslib.BitString Cslib.Complexity Cslib.Logic.PL Turing.MultiTapeTM
 
 /-! ### Streaming Boolean-Cube Predicate Counter Infrastructure -/
 
+/-- Decoded `n`-bit word `s.1.2` in a `BooleanFold` callback input `((n, word), ((n, p), z))`. -/
+abbrev stepWord {P : Type} (s : (ℕ × List Bool) × ((ℕ × P) × ℕ)) : List Bool := s.1.2
+
+/-- Retained `(n, payload)` pair `s.2.1` in a `BooleanFold` callback input. -/
+abbrev stepInput {P : Type} (s : (ℕ × List Bool) × ((ℕ × P) × ℕ)) : ℕ × P := s.2.1
+
+/-- Retained problem payload `s.2.1.2` in a `BooleanFold` callback input. -/
+abbrev stepPayload {P : Type} (s : (ℕ × List Bool) × ((ℕ × P) × ℕ)) : P := s.2.1.2
+
+/-- Running match counter `s.2.2` in a `BooleanFold` callback input. -/
+abbrev stepCount {P : Type} (s : (ℕ × List Bool) × ((ℕ × P) × ℕ)) : ℕ := s.2.2
+
+/-- Retained input pair `r.2.2.1` in a `BooleanFold` outer state `(idx, (width, (x, count)))`. -/
+abbrev foldPayload {α : Type} (r : ℕ × (ℕ × (α × ℕ))) : α := r.2.2.1
+
+/-- Running match count `r.2.2.2` in a `BooleanFold` outer state `(idx, (width, (x, count)))`. -/
+abbrev foldCount {α : Type} (r : ℕ × (ℕ × (α × ℕ))) : ℕ := r.2.2.2
+
 /-- One streaming `BooleanFold` callback step for counting `n`-bit words satisfying `pred`: retains
-the captured input `s.2.1 = (n, payload)` and increments the binary counter `s.2.2` when
-`pred payload word` holds on the current decoded `n`-bit word `s.1.2`. -/
+the captured input `stepInput s = (n, payload)` and increments the binary counter `stepCount s` when
+`pred payload word` holds on the current decoded `n`-bit word `stepWord s`. -/
 def countStep {P : Type} (pred : P → List Bool → Bool)
     (s : (ℕ × List Bool) × ((ℕ × P) × ℕ)) : (ℕ × P) × ℕ :=
-  (s.2.1, if pred s.2.1.2 s.1.2 then s.2.2 + 1 else s.2.2)
+  (stepInput s, if pred (stepPayload s) (stepWord s) then stepCount s + 1 else stepCount s)
 
 section StreamingCore
 
@@ -185,7 +204,7 @@ theorem computableInPolyTime_countStep {pred : P → List Bool → Bool}
 noncomputable def countPredicateCertificate {pred : P → List Bool → Bool}
     (hpred : ComputableInPolyTime (fun q : P × List Bool => pred q.1 q.2) (encPair encP encBits)
       encBool) :
-    NativeCertificate (fun x : ℕ × P => (BooleanFold.run (countStep pred) x.1 (x, 0)).2.2.2)
+    NativeCertificate (fun x : ℕ × P => foldCount (BooleanFold.run (countStep pred) x.1 (x, 0)))
       (encPair encUnary encP) encNat :=
   NativeCertificate.snd (NativeCertificate.snd (NativeCertificate.snd
     (BooleanFold.certificate
@@ -201,13 +220,7 @@ private theorem length_prefix_accumulator_le (pred : P → List Bool → Bool) (
   have hx_le : x.1 ≤ (encPair encUnary encP x).length := by enc_len
   have hz_le : (BooleanFold.runPrefix (countStep pred) x.1 j (x, 0)).2.2.2 ≤ 2 ^ x.1 :=
     (prefix_count_le_index pred x j).trans hj
-  have hlen_z :
-      (encNat (BooleanFold.runPrefix (countStep pred) x.1 j (x, 0)).2.2.2).length ≤ x.1 + 1 := by
-    have hm : (encNat (BooleanFold.runPrefix (countStep pred) x.1 j (x, 0)).2.2.2).length ≤
-        (encNat (2 ^ x.1)).length := by
-      simpa [Nat.size_eq_bits_len] using Nat.size_le_size hz_le
-    rw [BooleanFold.length_clock] at hm
-    exact hm
+  have hlen_z := length_encNat_le_of_le_two_pow hz_le
   enc_len [prefix_payload_eq]
 
 private theorem countPredicateCertificate_bounds {pred : P → List Bool → Bool}
@@ -244,8 +257,8 @@ iterates over `0 ≤ idx < 2 ^ n` via `BooleanFold.run` without materializing `e
 live state `((n, sys), Z)` and incrementing `Z` whenever every equation in `sys` evaluates to
 `false` (`0 ∈ 𝔽₂`) under `(lowBits n idx).getD v false` (variables `v ≥ n` default to `false`). -/
 def countSystemExhaustive (x : ℕ × List (List (List ℕ))) : ℕ :=
-  (BooleanFold.run
-    (countStep fun sys word => evalSystem sys (fun v => word.getD v false)) x.1 (x, 0)).2.2.2
+  foldCount (BooleanFold.run
+    (countStep fun sys word => evalSystem sys (fun v => word.getD v false)) x.1 (x, 0))
 
 /-- Project a sparse equation `eq : List (List ℕ)` onto `Finset (Finset (Fin n))` by intersecting
 each monomial with `{0, …, n - 1}`. -/
@@ -254,25 +267,25 @@ def equationToFinset (n : ℕ) (eq : List (List ℕ)) : Finset (Finset (Fin n)) 
 
 /-- At every prefix `j`, the retained payload in `countSystemPrefix x j` equals `x = (n, sys)`. -/
 @[simp] theorem countSystemPrefix_payload (x : ℕ × List (List (List ℕ))) (j : ℕ) :
-    (countSystemPrefix x j).2.2.1 = x :=
+    foldPayload (countSystemPrefix x j) = x :=
   prefix_payload_eq _ x j
 
 /-- At every prefix `j`, the running count `Z` equals the number of indices `idx < j` whose decoded
 `n`-bit word satisfies `evalSystem`. -/
 theorem countSystemPrefix_count_eq (x : ℕ × List (List (List ℕ))) (j : ℕ) :
-    (countSystemPrefix x j).2.2.2 =
+    foldCount (countSystemPrefix x j) =
       ((List.range j).map (lowBits x.1)).countP
         (fun word => evalSystem x.2 (fun v => word.getD v false)) :=
   prefix_count_eq _ x j
 
 /-- Unconditional prefix count bound `Z ≤ j` for `countSystemPrefix`. -/
 theorem countSystemPrefix_le_index (x : ℕ × List (List (List ℕ))) (j : ℕ) :
-    (countSystemPrefix x j).2.2.2 ≤ j :=
+    foldCount (countSystemPrefix x j) ≤ j :=
   prefix_count_le_index _ x j
 
 /-- **Prefix invariant `Z ≤ j ≤ 2 ^ n`** for `countSystemPrefix` along the `2 ^ n` traversal. -/
 theorem countSystemPrefix_invariant (x : ℕ × List (List (List ℕ))) {j : ℕ} (hj : j ≤ 2 ^ x.1) :
-    (countSystemPrefix x j).2.2.2 ≤ j ∧ j ≤ 2 ^ x.1 :=
+    foldCount (countSystemPrefix x j) ≤ j ∧ j ≤ 2 ^ x.1 :=
   ⟨countSystemPrefix_le_index x j, hj⟩
 
 /-- `countSystemExhaustive (n, sys)` equals the cardinality of the `BitString n` assignments whose
@@ -293,16 +306,8 @@ private theorem monomialSum_equationToFinset_eq_zero_iff {n : ℕ} {eq : List (L
     ext v
     simp only [List.mem_toFinset]
     constructor <;> intro hv
-    · have hvn : v < n := hvars m₁ hm₁ v hv
-      have hmem : (⟨v, hvn⟩ : Fin n) ∈ f m₁ :=
-        Finset.mem_filter.mpr ⟨Finset.mem_univ _, hv⟩
-      rw [h] at hmem
-      exact (Finset.mem_filter.mp hmem).2
-    · have hvn : v < n := hvars m₂ hm₂ v hv
-      have hmem : (⟨v, hvn⟩ : Fin n) ∈ f m₂ :=
-        Finset.mem_filter.mpr ⟨Finset.mem_univ _, hv⟩
-      rw [← h] at hmem
-      exact (Finset.mem_filter.mp hmem).2
+    · simpa [f] using (Finset.ext_iff.mp h ⟨v, hvars m₁ hm₁ v hv⟩).1 (by simpa [f] using hv)
+    · simpa [f] using (Finset.ext_iff.mp h ⟨v, hvars m₂ hm₂ v hv⟩).2 (by simpa [f] using hv)
   have hnd_s : (eq.map List.toFinset).Nodup :=
     heq.1.map_on fun m₁ hm₁ m₂ hm₂ h => (heq.2 m₁ hm₁).eq_of_toFinset_eq (heq.2 m₂ hm₂) h
   have hterm (m : List ℕ) (hm : m ∈ eq) :
@@ -468,30 +473,30 @@ live state `((n, φ), Z)` and incrementing `Z` when `φ.eval (fun v => (lowBits 
 is `true`. Variable indices `v ≥ n` default to `false`; to interpret `countCNFExhaustive (n, φ)` as
 the satisfying-assignment count on `n` declared variables, require `∀ v ∈ φ.vars, v < n`. -/
 def countCNFExhaustive (x : ℕ × CNF ℕ) : ℕ :=
-  (BooleanFold.run
-    (countStep fun φ word => φ.eval (fun v => word.getD v false)) x.1 (x, 0)).2.2.2
+  foldCount (BooleanFold.run
+    (countStep fun φ word => φ.eval (fun v => word.getD v false)) x.1 (x, 0))
 
 /-- At every prefix `j`, the retained payload in `countCNFPrefix x j` equals `x = (n, φ)`. -/
 @[simp] theorem countCNFPrefix_payload (x : ℕ × CNF ℕ) (j : ℕ) :
-    (countCNFPrefix x j).2.2.1 = x :=
+    foldPayload (countCNFPrefix x j) = x :=
   prefix_payload_eq _ x j
 
 /-- At every prefix `j`, the running count `Z` equals the number of indices `idx < j` whose decoded
 `n`-bit word satisfies `φ`. -/
 theorem countCNFPrefix_count_eq (x : ℕ × CNF ℕ) (j : ℕ) :
-    (countCNFPrefix x j).2.2.2 =
+    foldCount (countCNFPrefix x j) =
       ((List.range j).map (lowBits x.1)).countP
         (fun word => x.2.eval (fun v => word.getD v false)) :=
   prefix_count_eq _ x j
 
 /-- Unconditional prefix count bound `Z ≤ j` for `countCNFPrefix`. -/
 theorem countCNFPrefix_le_index (x : ℕ × CNF ℕ) (j : ℕ) :
-    (countCNFPrefix x j).2.2.2 ≤ j :=
+    foldCount (countCNFPrefix x j) ≤ j :=
   prefix_count_le_index _ x j
 
 /-- **Prefix invariant `Z ≤ j ≤ 2 ^ n`** for `countCNFPrefix` along the `2 ^ n` traversal. -/
 theorem countCNFPrefix_invariant (x : ℕ × CNF ℕ) {j : ℕ} (hj : j ≤ 2 ^ x.1) :
-    (countCNFPrefix x j).2.2.2 ≤ j ∧ j ≤ 2 ^ x.1 :=
+    foldCount (countCNFPrefix x j) ≤ j ∧ j ≤ 2 ^ x.1 :=
   ⟨countCNFPrefix_le_index x j, hj⟩
 
 /-- `countCNFExhaustive (n, φ)` equals the cardinality of the `BitString n` assignments whose
@@ -682,9 +687,7 @@ theorem polyBounded_branch_space {ok : α → Bool} {f_fast f_exhaust : α → �
     (hex : PolyBounded (fun x => (ei x).length) c_exhaust.space) :
     PolyBounded (fun x => (ei x).length)
       (NativeCertificate.branch c_ok c_fast c_exhaust).space := by
-  refine (hok.add (hfast.add hex)).mono fun x => ?_
-  simp only [NativeCertificate.branch_space]
-  split_ifs <;> omega
+  growth_poly
 
 /-- **Finite-threshold fallback time absorption on `NativeCertificate.branch`** (§5.5 p. 39,
 §6.4 p. 44): if `ok x = false → μ x < N₀` for a constant threshold `N₀` and `c_exhaust.time x ≤
@@ -708,8 +711,8 @@ theorem exists_branch_time_le_of_finite_threshold {ok : α → Bool} {f_fast f_e
       (if ok x then c_fast.time x else 0) + C * ((ei x).length + 1) ^ d := by
   refine ⟨polyBounded_branch_space c_ok c_fast c_exhaust hok.2 hs_fast hs_ex, ?_⟩
   have hpoly : PolyBounded (fun x => (ei x).length)
-      (fun x => c_ok.time x + ((2 ^ N₀ + 1) * P_ex x + Q_ex x)) :=
-    hok.1.add (((PolyBounded.const (2 ^ N₀ + 1)).mul hP).add hQ)
+      (fun x => c_ok.time x + ((2 ^ N₀ + 1) * P_ex x + Q_ex x)) := by
+    growth_poly
   obtain ⟨C, d, hCd⟩ := hpoly.exists_le
   refine ⟨C, d, fun x => ?_⟩
   simp only [NativeCertificate.branch_time]
@@ -792,10 +795,8 @@ theorem exists_nat_exp_bound_of_guarded_fallback {ok : α → Bool} {f_fast f_ex
     have hp2 : ((ei x).length + 1) ^ d ≤ ((ei x).length + 1) ^ (d_f + d) :=
       Nat.pow_le_pow_right (Nat.succ_pos _) (Nat.le_add_left _ _)
     have htwo : 1 ≤ 2 ^ E x := Nat.one_le_two_pow
-    have hC : C * ((ei x).length + 1) ^ d ≤ C * ((ei x).length + 1) ^ (d_f + d) * 2 ^ E x := by
-      calc C * ((ei x).length + 1) ^ d
-          ≤ C * ((ei x).length + 1) ^ (d_f + d) := Nat.mul_le_mul_left C hp2
-        _ ≤ C * ((ei x).length + 1) ^ (d_f + d) * 2 ^ E x := Nat.le_mul_of_pos_right _ htwo
+    have hC : C * ((ei x).length + 1) ^ d ≤ C * ((ei x).length + 1) ^ (d_f + d) * 2 ^ E x :=
+      (Nat.mul_le_mul_left C hp2).trans (Nat.le_mul_of_pos_right _ htwo)
     change (NativeCertificate.branch (NativeCertificate.ofPolyTime hok) c_fast c_exhaust).time x ≤ _
     cases h : ok x
     · simp only [h, Bool.false_eq_true, ↓reduceIte, zero_add] at hx
@@ -862,16 +863,10 @@ theorem exists_real_exp_bound_of_guarded_fallback {ok : α → Bool} {f_fast f_e
     have hp2 : (((ei x).length + 1) ^ d : ℝ) ≤ ((ei x).length + 1 : ℝ) ^ (d_f + d) := by
       exact_mod_cast Nat.pow_le_pow_right (Nat.succ_pos _) (Nat.le_add_left d d_f)
     have htwo : (1 : ℝ) ≤ (2 : ℝ) ^ E x := Real.one_le_rpow (by norm_num) (hE x)
-    have hpow_nonneg : (0 : ℝ) ≤ ((ei x).length + 1 : ℝ) ^ (d_f + d) := by positivity
     have hC : (C : ℝ) * ((ei x).length + 1 : ℝ) ^ d ≤
-        (C : ℝ) * ((ei x).length + 1 : ℝ) ^ (d_f + d) * (2 : ℝ) ^ E x := by
-      have h1 : (C : ℝ) * ((ei x).length + 1 : ℝ) ^ d ≤
-          (C : ℝ) * ((ei x).length + 1 : ℝ) ^ (d_f + d) :=
-        mul_le_mul_of_nonneg_left hp2 (Nat.cast_nonneg C)
-      have h2 : (C : ℝ) * ((ei x).length + 1 : ℝ) ^ (d_f + d) * 1 ≤
-          (C : ℝ) * ((ei x).length + 1 : ℝ) ^ (d_f + d) * (2 : ℝ) ^ E x :=
-        mul_le_mul_of_nonneg_left htwo (mul_nonneg (Nat.cast_nonneg C) hpow_nonneg)
-      linarith
+        (C : ℝ) * ((ei x).length + 1 : ℝ) ^ (d_f + d) * (2 : ℝ) ^ E x :=
+      (mul_le_mul_of_nonneg_left hp2 (Nat.cast_nonneg C)).trans
+        (le_mul_of_one_le_right (by positivity) htwo)
     cases h : ok x
     · simp only [h, Bool.false_eq_true, ↓reduceIte, Nat.cast_zero, zero_add] at hx
       have hCF : (0 : ℝ) ≤ (C_f : ℝ) * ((ei x).length + 1 : ℝ) ^ (d_f + d) * (2 : ℝ) ^ E x := by

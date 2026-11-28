@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.RotationMap.TowerTable.Family
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.RotationMap.Tower
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Fin
@@ -66,30 +67,26 @@ theorem polytime_contract (hb : 0 < b) (label : D ↪ List Bool)
         contract hb p.1 p.2.1 p.2.2)
       (encPair (encoding label) (encRotationQuery slot))
       (encPair encUnary slot) := by
-  have htable := ComputableInPolyTime.fst (encoding label)
-    (encPair encUnary (encPair encUnary slot))
-  have hrest := ComputableInPolyTime.snd (encoding label)
-    (encPair encUnary (encPair encUnary slot))
+  have htable := ComputableInPolyTime.fst (encoding label) (encRotationQuery slot)
+  have hrest := ComputableInPolyTime.snd (encoding label) (encRotationQuery slot)
   have hsize := hrest.fst'
   have hvertex := hrest.snd'.fst'
   have hlabel := hrest.snd'.snd'
-  have hparts : ComputableInPolyTime (fun edge : Fin b × (D × D) =>
-      (edge.1.val, edge.2)) slot (encPair encUnary (encPair label label)) := .of_finite _
-  have hdecoded := hparts.comp hlabel
-  have hindex := ComputableInPolyTime.unary_add.comp (hvertex.prod
-    (ComputableInPolyTime.unary_mul.comp (hsize.prod hdecoded.fst')))
-  have htarget := (polytime_lookup label).comp
-    (htable.prod (hindex.prod hdecoded.snd'))
+  have hdecoded := (ComputableInPolyTime.of_finite
+    (encIn := slot) (encOut := encPair encUnary (encPair label label))
+    fun edge : Fin b × (D × D) => (edge.1.val, edge.2)).comp hlabel
+  have hindex := ComputableInPolyTime.unary_add.comp
+    (hvertex.prod (ComputableInPolyTime.unary_mul.comp (hsize.prod hdecoded.fst')))
+  have htarget := (polytime_lookup label).comp (htable.prod (hindex.prod hdecoded.snd'))
   have hslot := (ComputableInPolyTime.unary_finMod hb (encFinEnum (Fin b))).comp
     (ComputableInPolyTime.unary_div.comp (htarget.fst'.prod hsize))
   have hencode : ComputableInPolyTime (id : (Fin b × (D × D)) → _)
       (encPair (encFinEnum (Fin b)) (encPair label label)) slot := .of_finite _
-  have hresult := (ComputableInPolyTime.unary_mod.comp
-    (htarget.fst'.prod hsize)).prod (hencode.comp (hslot.prod htarget.snd'))
-  have hlength := (ComputableInPolyTime.length_list
-    (encPi (encPair encUnary (encPair label label)))).comp htable
-  exact (ComputableInPolyTime.unary_lt.comp (hindex.prod hlength)).ite_decide
-    hresult (hvertex.prod hlabel)
+  have hresult := (ComputableInPolyTime.unary_mod.comp (htarget.fst'.prod hsize)).prod
+    (hencode.comp (hslot.prod htarget.snd'))
+  exact (ComputableInPolyTime.unary_lt.comp (hindex.prod
+    ((ComputableInPolyTime.length_list (encPi (encPair encUnary (encPair label label)))).comp
+      htable))).ite_decide hresult (hvertex.prod hlabel)
 
 omit [Fintype D] in
 /-- The full contracted lazy family has one uniform polynomial-time rotation program.
@@ -101,31 +98,27 @@ theorem polytime_rotateFamily [Finite D] (H : RotationMap (Fin b) D)
     ComputableInPolyTime (rotateFamily H e (by lia))
       (encRotationQuery edge) (encPair encUnary edge) := by
   let _ := Fintype.ofFinite D
-  let label := encFinite D
-  let slot := encFinite (Fin b × (D × D))
   have hsize := ComputableInPolyTime.fst encUnary (encPair encUnary edge)
-  have hvertex := (ComputableInPolyTime.snd encUnary (encPair encUnary edge)).fst'
-  have hlabel := (ComputableInPolyTime.snd encUnary (encPair encUnary edge)).snd'
-  have hbound := ComputableInPolyTime.unary_le.comp
-    ((ComputableInPolyTime.const 2).prod hsize)
+  have hrest := ComputableInPolyTime.snd encUnary (encPair encUnary edge)
+  have hvertex := hrest.fst'
+  have hbound := ComputableInPolyTime.unary_le.comp ((ComputableInPolyTime.const 2).prod hsize)
   have hbranches (choice : (Fin b × (D × D)) ⊕ (Fin b × (D × D))) :
-      ComputableInPolyTime (fun p : ℕ × (ℕ × _ ) =>
+      ComputableInPolyTime (fun p : ℕ × (ℕ × _) =>
         rotateFamily H e (by lia) (p.1, p.2.1, choice))
         (encPair encUnary (encPair encUnary edge)) (encPair encUnary edge) := by
     cases choice with
     | inl choice =>
-      have hcall := (polytime_contract (by lia) label slot).comp
-        (((polytime_build H e hb label).comp hsize).prod
+      have hcall := (polytime_contract (by lia) (encFinite D) (encFinite (Fin b × (D × D)))).comp
+        (((polytime_build H e hb (encFinite D)).comp hsize).prod
           (hsize.prod (hvertex.prod (ComputableInPolyTime.const choice))))
-      have hinl : ComputableInPolyTime (Sum.inl : (Fin b × (D × D)) → _)
-          slot edge := .of_finite _
-      exact hbound.ite_decide (hcall.fst'.prod (hinl.comp hcall.snd'))
+      exact hbound.ite_decide (hcall.fst'.prod
+          ((ComputableInPolyTime.of_finite (encIn := encFinite (Fin b × (D × D)))
+            (encOut := edge) Sum.inl).comp hcall.snd'))
         (hvertex.prod (ComputableInPolyTime.const (encOut := edge) (Sum.inl choice)))
     | inr choice =>
-      exact hbound.ite_decide
-        (hvertex.prod (ComputableInPolyTime.const (encOut := edge) (Sum.inr choice)))
-        (hvertex.prod (ComputableInPolyTime.const (encOut := edge) (Sum.inr choice)))
-  exact hlabel.finite_cases hbranches
+      have hv := hvertex.prod (ComputableInPolyTime.const (encOut := edge) (Sum.inr choice))
+      exact hbound.ite_decide hv hv
+  exact hrest.snd'.finite_cases hbranches
 
 end Efficiency
 

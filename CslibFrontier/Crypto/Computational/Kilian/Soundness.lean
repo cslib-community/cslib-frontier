@@ -9,11 +9,13 @@ module
 
 public import CslibFrontier.Crypto.Computational.Kilian
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Probability
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.Rewinding.Consistency
+import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Tactic.SuppCases
@@ -51,12 +53,11 @@ length of the key.
 
 **Asymptotics.** For a polynomial-time PCP verifier for `L` with `O(log n)` random bits and a
 `HashFamily H`, every efficient prover outputs statements of polynomial length, so `M` is
-polynomial, and Kilian's protocol is computationally sound (`HashFamily.kilianSound`). With the
-PCP theorem, every `L ∈ NP` has such a verifier (`CslibFrontier.Crypto.Computational.Kilian.NP`):
-an interactive argument whose honest prover is efficient on the compact tables accepted by
-`PCPVerifier.tableVerifier`, an NP relation for `L`. Prover efficiency for an arbitrary given NP
-relation would need a polynomial-time map from its witnesses to PCP proofs, which the library does
-not have.
+polynomial, and Kilian's protocol is computationally sound (`HashFamily.kilianSound`), while the
+generated verifier input—and hence verifier time and space—is polynomial in `n`
+(`length_kilianVerifierInput_of_isPPT_le`, `computableInTimeAndSpace_kilianVerify_of_isPPT`). With
+the PCP theorem, every NP relation has such a verifier together with a polynomial-time honest
+witness compiler (`CslibFrontier.Crypto.Computational.Kilian.NP`).
 
 **Relation to [BarakGoldreich2001].** Construction 3.4 is analysed there in Lemma 3.5 as a weak
 proof of knowledge against non-uniform provers, with a reverse-sampling extractor for oracles of
@@ -90,6 +91,9 @@ verifier time) is in `CslibFrontier.Crypto.Computational.Kilian.Succinct`.
 * `Cslib.Crypto.succProbability_kilianSoundnessGame_le_collision`: the same bound in terms of
   collision finding.
 * `Cslib.Crypto.HashFamily.kilianSound`: computational soundness from collision resistance.
+* `Cslib.Crypto.length_kilianVerifierInput_of_isPPT_le`,
+  `Cslib.Crypto.computableInTimeAndSpace_kilianVerify_of_isPPT`: polynomial-in-`n` verifier input
+  and machine runtime bounds against any uniform strict PPT cheating prover.
 
 ## References
 
@@ -240,12 +244,9 @@ theorem merkleBreaksBinding_kilianBindingOutput {n : ℕ} {k : List Bool} {x : �
     simpa [hpos] using hb
   obtain ⟨⟨p₁, p₂⟩, hfind⟩ := Option.isSome_iff_exists.mp hsome
   have hp := List.find?_some hfind
-  obtain ⟨q₁, hq₁, hq⟩ := List.mem_flatMap.mp (List.mem_of_find?_eq_some hfind)
-  obtain ⟨q₂, hq₂, hqeq⟩ := List.mem_map.mp hq
-  simp only [Prod.mk.injEq] at hqeq
-  obtain ⟨rfl, rfl⟩ := hqeq
-  obtain ⟨c₁, o₁'⟩ := q₁
-  obtain ⟨c₂, o₂'⟩ := q₂
+  obtain ⟨⟨c₁, o₁'⟩, hq₁, hq⟩ := List.mem_flatMap.mp (List.mem_of_find?_eq_some hfind)
+  obtain ⟨⟨c₂, o₂'⟩, hq₂, hqeq⟩ := List.mem_map.mp hq
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj hqeq
   have v₁ := merkleVerify_of_mem_kilianOpenings h₁ hq₁
   have v₂ := merkleVerify_of_mem_kilianOpenings h₂ hq₂
   simp only [bne_iff_ne, ne_eq, Bool.and_eq_true, beq_iff_eq] at hp
@@ -361,20 +362,18 @@ private theorem disagreement_le_merkleBindingGame (L : Set α) (P : KilianProver
   refine Probability.PMF.bind_apply_mono_on_support _ _ fun response₁ _ => ?_
   refine Probability.PMF.bind_apply_mono_on_support _ _ fun ρs₂ _ => ?_
   refine Probability.PMF.bind_apply_mono_on_support _ _ fun response₂ _ => ?_
-  by_cases hE : (kilianWins H V L (k, out) (ρs₁, response₁) &&
+  cases hE : (kilianWins H V L (k, out) (ρs₁, response₁) &&
       kilianWins H V L (k, out) (ρs₂, response₂) && (List.range M).any fun j =>
         kilianOpens V (k, out) (ρs₁, response₁) j false &&
-          kilianOpens V (k, out) (ρs₂, response₂) j true) = true
-  · rw [hE]
-    simp only [kilianWins, kilianOpens, Bool.and_eq_true, decide_eq_true_eq, List.any_eq_true,
+          kilianOpens V (k, out) (ρs₂, response₂) j true)
+  · simp
+  · simp only [kilianWins, kilianOpens, Bool.and_eq_true, decide_eq_true_eq, List.any_eq_true,
       beq_iff_eq] at hE
     obtain ⟨⟨⟨-, h₁⟩, -, h₂⟩, j, -, ⟨⟨a₁, o₁⟩, ho₁, hj₁, hb₁⟩,
       ⟨⟨a₂, o₂⟩, ho₂, hj₂, hb₂⟩⟩ := hE
+    dsimp only at hb₁ hb₂
     rw [merkleBreaksBinding_kilianBindingOutput h₁ h₂ ho₁ ho₂ (hj₁.trans hj₂.symm)
-      (by simp only at hb₁ hb₂; rw [hb₁, hb₂]; decide)]
-  · rw [Bool.not_eq_true] at hE
-    rw [hE]
-    simp
+      (by simp [hb₁, hb₂])]
 
 variable {H V}
 
@@ -499,10 +498,13 @@ private abbrev AddressedOpening := ℕ × MerkleOpening Bool
 /-- The encoding of an opening together with its address. -/
 private abbrev encAddressed : AddressedOpening ↪ List Bool := encPair encNat encKilianOpening
 
-private theorem computableInPolyTime_kilianOpenings (hV : V.PolyTime enc) :
+/-- Polynomial-time opening-extraction helper `kilianOpenings` for any poly-time PCP verifier
+`V`. -/
+theorem computableInPolyTime_kilianOpenings (hV : V.PolyTime enc) :
     ComputableInPolyTime
       (fun p : α × List (List Bool) × KilianResponse => kilianOpenings V p.1 p.2.1 p.2.2)
-      (encPair enc (encPair (encList encBits) encKilianResponse)) (encList encAddressed) := by
+      (encPair enc (encPair (encList encBits) encKilianResponse))
+      (encList (encPair encNat encKilianOpening)) := by
   have hx := ComputableInPolyTime.fst enc (encPair (encList encBits) encKilianResponse)
   have hrest := ComputableInPolyTime.snd enc (encPair (encList encBits) encKilianResponse)
   have hρs := (ComputableInPolyTime.fst (encList encBits) encKilianResponse).comp hrest
@@ -523,9 +525,6 @@ private theorem computableInPolyTime_kilianOpenings (hV : V.PolyTime enc) :
       (hρs.prod hresponse))
     ((ComputableInPolyTime.zip encNat encKilianOpening).comp (hqueries.prod hanswers))
 
--- Keeping `ComputableInPolyTime` folded stops the final `exact` from checking defeq by unfolding
--- it and evaluating the conflict search under the grouped output encoding.
-attribute [local irreducible] ComputableInPolyTime in
 private theorem computableInPolyTime_kilianBindingOutput (hV : V.PolyTime enc)
     (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1)) :
     ComputableInPolyTime
@@ -722,5 +721,106 @@ theorem HashFamily.kilianSound (hH : HashFamily H) {enc : α ↪ List Bool} {L :
   refine negligible_of_le ((negligible_geometric (by norm_num : (1 / 2 : NNReal) < 1)).add
     (hbind.sqrt.polynomiallyBounded_mul hpoly)) fun n => ?_
   exact succProbability_kilianSoundnessGame_le L P n _ hpcp.sound (hM n)
+
+/-- **Verifier input size against strict PPT provers**: for a PCP verifier using
+`O(log |enc x|)` random bits and any uniform strict PPT cheating prover `P`, every verifier view
+supported in `kilianSoundnessGame` at security parameter `n` has encoded length bounded by a
+polynomially bounded function of `n`. -/
+theorem length_kilianVerifierInput_of_isPPT_le {enc : α ↪ List Bool} {c : ℕ}
+    (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1))
+    {P : KilianProver α} (hP : P.IsPPT enc) :
+    ∃ p : ℕ → ℕ, PolynomiallyBounded p ∧
+      ∀ (n : ℕ) (k : List Bool), k.length = n →
+        ∀ cm ∈ (ProbComp.eval (P.commit n k)).support,
+          ∀ ρs ∈ (ProbComp.eval (kilianChallenges V n cm.stmt)).support,
+            ∀ resp ∈ (ProbComp.eval (P.answer n cm.state ρs)).support,
+              (encKilianView enc
+                { key := k, stmt := cm.stmt, root := cm.root,
+                  challenges := ρs, response := resp }).length ≤ p n := by
+  obtain ⟨c₁, d₁, hlen₁⟩ := hP.commit.on.length_le
+  obtain ⟨c₂, d₂, hlen₂⟩ := hP.answer.length_le
+  let B₁ : ℕ → ℕ := fun n => c₁ * (3 * n + 2) ^ d₁
+  let B₂ : ℕ → ℕ := fun n =>
+    2 * (2 * n + 1) + 1 + (2 * B₁ n + 1 + n * (2 * (c * (B₁ n + 1)) + 1)) + 1
+  let Bresp : ℕ → ℕ := fun n => c₂ * (B₂ n) ^ d₂
+  let pBound : ℕ → ℕ := fun n =>
+    2 * (2 * (2 * (2 * n + 1) + 1 + (2 * B₁ n + 1 + B₁ n)) + 1) + 1 +
+      (2 * (n * (2 * (c * (B₁ n + 1)) + 1)) + 1 + Bresp n)
+  refine ⟨pBound, ?_, fun n k hk cm hcm_mem ρs hρs_mem resp hresp_mem => ?_⟩
+  · dsimp only [pBound, Bresp, B₂, B₁]
+    fun_prop
+  · have hcm : (encKilianCommitment enc cm).length ≤ B₁ n := by
+      have h₁ := hlen₁ (n, k) cm hcm_mem
+      have hin : (encPair encUnary encBits (n, k)).length + 1 = 3 * n + 2 := by
+        simp [hk]
+        ring
+      rwa [hin] at h₁
+    obtain ⟨hx, hroot, hstate⟩ :
+        (enc cm.stmt).length ≤ B₁ n ∧ cm.root.length ≤ B₁ n ∧ cm.state.length ≤ B₁ n := by
+      simp only [encKilianCommitment_apply, encKilianMessage_apply, length_encPair,
+        encBits_apply] at hcm
+      omega
+    rw [kilianChallenges, ProbComp.mem_support_replicate_iff] at hρs_mem
+    have hchal_elem : ∀ ρ ∈ ρs, ρ.length ≤ c * (B₁ n + 1) := by
+      intro ρ hρ
+      have hlen_eq : ρ.length = V.coins cm.stmt :=
+        BitString.length_of_mem_support_uniformList (by simpa using hρs_mem.2 ρ hρ)
+      rw [hlen_eq]
+      exact (hcoins cm.stmt).trans
+        (Nat.mul_le_mul_left c (Nat.succ_le_succ ((Nat.log_le_self 2 _).trans hx)))
+    have hchallenges : (encList encBits ρs).length ≤ n * (2 * (c * (B₁ n + 1)) + 1) :=
+      (length_encList_le encBits ρs hchal_elem).trans (by rw [hρs_mem.1])
+    have hresp : (encKilianResponse resp).length ≤ Bresp n := by
+      have ha := hlen₂ (n, cm.state, ρs) resp hresp_mem
+      refine ha.trans (Nat.mul_le_mul_left c₂ (Nat.pow_le_pow_left ?_ d₂))
+      simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
+      dsimp only [B₂]
+      omega
+    simp only [encKilianView_apply, encKilianClaim_apply, length_encPair, encBits_apply, hk]
+    dsimp only [pBound]
+    omega
+
+/-- **Machine-level verifier runtime and space against strict PPT provers**: under a
+polynomial-time hash with `n`-bit digests and a polynomial-time PCP verifier using `O(log |enc x|)`
+random bits, the fixed binary machine computing `kilianVerify` runs on every transcript supported
+in `kilianSoundnessGame` against a strict PPT prover `P` within time and space bounded by
+polynomially bounded functions of `n`. -/
+theorem computableInTimeAndSpace_kilianVerify_of_isPPT {enc : α ↪ List Bool} {c : ℕ}
+    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
+      (encPair encBits encBits) encBits)
+    (hlen : ∀ k x, (H k x).length = k.length) (hV : V.PolyTime enc)
+    (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1))
+    {P : KilianProver α} (hP : P.IsPPT enc) :
+    ∃ (k : ℕ) (State : Type) (_ : Finite State) (tm : Turing.MultiTapeTM k Bool State)
+      (tAdv sAdv : ℕ → ℕ),
+      PolynomiallyBounded tAdv ∧ PolynomiallyBounded sAdv ∧
+      ∀ (n : ℕ) (key : List Bool), key.length = n →
+        ∀ cm ∈ (ProbComp.eval (P.commit n key)).support,
+          ∀ ρs ∈ (ProbComp.eval (kilianChallenges V n cm.stmt)).support,
+            ∀ resp ∈ (ProbComp.eval (P.answer n cm.state ρs)).support,
+              let view : KilianView α :=
+                { key := key, stmt := cm.stmt, root := cm.root,
+                  challenges := ρs, response := resp }
+              tm.ComputesInTimeAndSpace (encKilianView enc view)
+                (encBool (kilianVerify H V key cm.stmt cm.root ρs resp))
+                (tAdv n) (sAdv n) := by
+  obtain ⟨pBound, hpBound, hlen_view⟩ := length_kilianVerifierInput_of_isPPT_le hcoins hP
+  obtain ⟨kTM, State, hfin, tm, _, _, tAdv, sAdv, _, _, ht_pb, hs_pb, _, hbound⟩ :=
+    computableInTimeAndSpace_kilianVerify_of_bound hH hlen hV hcoins
+      (fun v => ∃ cm ∈ (ProbComp.eval (P.commit v.key.length v.key)).support,
+        v.stmt = cm.stmt ∧ v.root = cm.root ∧
+        v.challenges ∈ (ProbComp.eval (kilianChallenges V v.key.length cm.stmt)).support ∧
+        v.response ∈ (ProbComp.eval (P.answer v.key.length cm.state v.challenges)).support)
+      (fun v => v.key.length) pBound hpBound fun ⟨⟨k, stmt, root⟩, challenges, response⟩
+          ⟨cm, hcm, hstmt, hroot, hρs, hresp⟩ => by
+        dsimp only at hstmt hroot
+        subst hstmt hroot
+        exact hlen_view k.length k rfl cm hcm challenges hρs response hresp
+  refine ⟨kTM, State, hfin, tm, tAdv, sAdv, ht_pb, hs_pb,
+    fun n key hk cm hcm ρs hρs resp hresp => ?_⟩
+  simpa [hk] using (hbound
+    { key := key, stmt := cm.stmt, root := cm.root, challenges := ρs, response := resp }
+    ⟨cm, by simpa [hk] using hcm, rfl, rfl, by simpa [hk] using hρs,
+      by simpa [hk] using hresp⟩).2.2
 
 end Cslib.Crypto

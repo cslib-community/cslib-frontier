@@ -187,7 +187,7 @@ example (P : InteractiveIOPProver 3 (ZMod 257) (FRIBatchChal (ZMod 257) 3 6 2)) 
       congrArg ENNReal.ofNNReal hnn
   refine ⟨(friBatchCommitGame_le_of_escape params257 2 hb hc badStmt257_not_mem P).trans_eq hsum,
     (friBatchIOP_interactiveGame_le_of_escape params257 2 hb hc badStmt257_not_mem P).trans_eq ?_⟩
-  rw [friBatchSumError, friSumError, ← add_assoc, hsum]
+  rw [friBatchSumError, friSmoothBatchSumError, friSmoothSumError, ← add_assoc, hsum]
   simp only [params257]
   norm_num
 
@@ -328,7 +328,7 @@ private theorem friBatch257_rbrError_eq :
       ENNReal.coe_div (by norm_num : (262144 : ℝ≥0) ≠ 0), ENNReal.coe_ofNat] using
       congrArg ENNReal.ofNNReal hnn
   have hcard : (Fintype.card (ZMod 257) : ℝ≥0∞) = 257 := by simp only [ZMod.card, Nat.cast_ofNat]
-  simp only [friBatchRBRError, friRBRError, params257, hcard,
+  simp only [friBatchRBRError, friSmoothBatchRBRError, friSmoothRBRError, params257, hcard,
     (by norm_num : ((2 ^ (3 - 1) : ℕ) : ℝ≥0∞) = 4),
     (by norm_num : ((2 ^ 3 - 2 - 1 : ℕ) : ℝ≥0∞) = 5),
     (by norm_num : (2 : ℝ≥0∞) ^ 3 = 8), hpow, max_eq_right h1, max_eq_right h2]
@@ -514,7 +514,7 @@ private theorem friBatch786_rbrError_eq :
       congrArg ENNReal.ofNNReal hnn
   have hcard : (Fintype.card (ZMod 786433) : ℝ≥0∞) = 786433 := by
     simp only [ZMod.card, Nat.cast_ofNat]
-  simp only [friBatchRBRError, friRBRError, params786, hcard,
+  simp only [friBatchRBRError, friSmoothBatchRBRError, friSmoothRBRError, params786, hcard,
     (by norm_num : ((17476 : ℕ) : ℝ≥0∞) = 17476),
     (by norm_num : ((2 ^ 4 - 7 - 1 : ℕ) : ℝ≥0∞) = 8),
     (by norm_num : (2 : ℝ≥0∞) ^ 4 = 16), hpow, max_eq_left h1, max_eq_left h2]
@@ -1088,7 +1088,7 @@ private theorem batchGoldilocks_rbr_johnson_le :
               (Fintype.card (ZMod goldilocksP) : ℝ))))
         44 (friJohnsonCommitBound paramsBatchGoldilocks 2) ≤
       (1 : ℝ≥0∞) / 1000 := by
-  simp only [friBatchRBRError, friRBRError]
+  simp only [friBatchRBRError, friSmoothBatchRBRError, friSmoothRBRError]
   refine max_le ?_ (max_le ?_ ?_)
   · have hlt :
         1800 * (((2 : ℕ) + 1 : ℝ) ^ 6) * ((2 ^ paramsBatchGoldilocks.d : ℝ) ^ 2) /
@@ -1125,7 +1125,7 @@ private theorem batchGoldilocks_rbr_eta_le :
               ((1 / 16 : ℝ) ^ 6) * (Fintype.card (ZMod goldilocksP) : ℝ))))
         44 (friJohnsonEtaCommitBound paramsBatchGoldilocks (1 / 16)) ≤
       (1 : ℝ≥0∞) / 100 := by
-  simp only [friBatchRBRError, friRBRError]
+  simp only [friBatchRBRError, friSmoothBatchRBRError, friSmoothRBRError]
   refine max_le ?_ (max_le ?_ ?_)
   · have hlt :
         115200 * ((2 ^ paramsBatchGoldilocks.d : ℝ) ^ 2) /
@@ -1164,7 +1164,7 @@ private theorem batchGoldilocks_rbr_corrAgree_le :
           (ENNReal.ofReal ((5 / 16 : ℝ) ^ paramsBatchGoldilocks.q))) ≤
       (1 : ℝ≥0∞) / 1000 := by
   have hrbr := batchGoldilocks_rbr_johnson_le
-  simp only [friBatchRBRError, friRBRError] at hrbr
+  simp only [friBatchRBRError, friSmoothBatchRBRError, friSmoothRBRError] at hrbr
   refine max_le ((le_max_left _ _).trans hrbr) (max_le ((le_max_left _ _).trans
     ((le_max_right _ _).trans hrbr)) ?_)
   have hle : ((5 / 16 : ℝ) ^ paramsBatchGoldilocks.q) ≤ (1 : ℝ) / 1000 := by

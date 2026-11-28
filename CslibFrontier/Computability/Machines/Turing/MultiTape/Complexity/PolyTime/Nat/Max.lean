@@ -33,18 +33,6 @@ public section
 
 namespace Turing.MultiTapeTM.ComputableInPolyTime
 
-/-- Take the smaller of two unary naturals. -/
-@[fun_prop]
-theorem unary_min : ComputableInPolyTime (fun p : ℕ × ℕ => min p.1 p.2)
-    (encPair encUnary encUnary) encUnary :=
-  .of_tidy ComputableTidilyInPolyTime.unary_min
-
-/-- Take the larger of two unary naturals. -/
-@[fun_prop]
-theorem unary_max : ComputableInPolyTime (fun p : ℕ × ℕ => max p.1 p.2)
-    (encPair encUnary encUnary) encUnary :=
-  .of_tidy ComputableTidilyInPolyTime.unary_max
-
 /-- Take the smaller of two computed unary naturals with the same full input context. Kept explicit
 so `Min.min` search on `encUnary` does not branch against `binary_min_unary'`. -/
 theorem unary_min' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}

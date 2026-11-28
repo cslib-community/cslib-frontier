@@ -424,10 +424,19 @@ theorem soplPpad_end
   -- distinguished source without a pigeon is a proper source `y` of the end-of-line graph. A
   -- pigeon without a hole is a sink `y`. All other strings with `y = 0 ^ (n₂ a)` are isolated.
   unfold sinkOfPotentialLineRel endOfLineRel
-  cases b <;> by_cases hy0 : y = zeroVertex (n₂ a) <;> by_cases hx0 : x = zeroVertex (n₁ a) <;>
-    cases hpo : hasPotentialOut n₁ P₁ S₁ V₁ a x <;> cases hpi : hasPotentialIn n₁ P₁ S₁ V₁ a x <;>
-    cases hout : hasOut n₂ P₂ S₂ a y <;> cases hin : hasIn n₂ P₂ S₂ a y <;>
-    simp_all [soplPpadSuccCore, soplPpadPredCore]
+  cases b <;> by_cases hy0 : y = zeroVertex (n₂ a) <;> by_cases hx0 : x = zeroVertex (n₁ a)
+  · cases hout : hasOut n₂ P₂ S₂ a y <;> simp_all [soplPpadSuccCore, soplPpadPredCore]
+  · simp_all [soplPpadSuccCore, soplPpadPredCore]
+  · cases hout : hasOut n₂ P₂ S₂ a y <;> cases hin : hasIn n₂ P₂ S₂ a y <;>
+      simp_all [soplPpadSuccCore, soplPpadPredCore]
+  · cases hpo : hasPotentialOut n₁ P₁ S₁ V₁ a x <;> cases hpi : hasPotentialIn n₁ P₁ S₁ V₁ a x <;>
+      simp_all [soplPpadSuccCore, soplPpadPredCore]
+  · simp_all [soplPpadSuccCore, soplPpadPredCore]
+  · simp_all [soplPpadSuccCore, soplPpadPredCore]
+  · cases hout : hasOut n₂ P₂ S₂ a y <;> cases hin : hasIn n₂ P₂ S₂ a y <;>
+      simp_all [soplPpadSuccCore, soplPpadPredCore]
+  · cases hpo : hasPotentialOut n₁ P₁ S₁ V₁ a x <;> cases hpi : hasPotentialIn n₁ P₁ S₁ V₁ a x <;>
+      simp_all [soplPpadSuccCore, soplPpadPredCore]
 
 /-! ### Lengths and polynomial-time computability -/
 
@@ -468,8 +477,47 @@ theorem computableInPolyTime_soplPpadSucc
     (hP₂ : ComputableInPolyTime P₂ (encPair enc encBits) encBits)
     (hS₂ : ComputableInPolyTime S₂ (encPair enc encBits) encBits) :
     ComputableInPolyTime (soplPpadSucc n₁ P₁ S₁ V₁ n₂ P₂ S₂) (encPair enc encBits) encBits := by
+  have ha := fst enc encBits
+  have hw := snd enc encBits
+  have hn := hn₂.comp ha
+  have ht : ComputableInPolyTime (fun p : α × List Bool => p.2.tail)
+      (encPair enc encBits) encBits := by fun_prop
+  have hy := bitsTake.comp (ht.prod hn)
+  have hx := bitsDropWithInput ht hn
+  have hax := ha.prod hx
+  have hay := ha.prod hy
+  have hb : ComputableInPolyTime (fun p : α × List Bool => p.2.headD false)
+      (encPair enc encBits) encBool := headD false |>.comp hw
+  have hzY : ComputableInPolyTime
+      (fun p : α × List Bool => decide (p.2.tail.take (n₂ p.1) = zeroVertex (n₂ p.1)))
+      (encPair enc encBits) encBool := by fun_prop
+  have hzX : ComputableInPolyTime
+      (fun p : α × List Bool => decide (p.2.tail.drop (n₂ p.1) = zeroVertex (n₁ p.1)))
+      (encPair enc encBits) encBool := by fun_prop
+  have hpo : ComputableInPolyTime
+      (fun p : α × List Bool => hasPotentialOut n₁ P₁ S₁ V₁ p.1 (p.2.tail.drop (n₂ p.1)))
+      (encPair enc encBits) encBool := by fun_prop
+  have hpi : ComputableInPolyTime
+      (fun p : α × List Bool => hasPotentialIn n₁ P₁ S₁ V₁ p.1 (p.2.tail.drop (n₂ p.1)))
+      (encPair enc encBits) encBool := by fun_prop
+  have hout : ComputableInPolyTime
+      (fun p : α × List Bool => hasOut n₂ P₂ S₂ p.1 (p.2.tail.take (n₂ p.1)))
+      (encPair enc encBits) encBool := by fun_prop
+  have hin : ComputableInPolyTime
+      (fun p : α × List Bool => hasIn n₂ P₂ S₂ p.1 (p.2.tail.take (n₂ p.1)))
+      (encPair enc encBits) encBool := by fun_prop
+  have hword := bitsAppend hy hx
+  have htrue := bitsCons (const true) hword
+  have hfalse := bitsCons (const false) hword
   unfold soplPpadSucc soplPpadSuccCore
-  fun_prop
+  exact hb.ite'
+    (hzY.ite' htrue (hpo.ite' (bitsCons (const true) (bitsAppend hy (hS₁.comp hax))) htrue))
+    (hzX.ite'
+      (hout.ite' (bitsCons (const true) (bitsAppend (hS₂.comp hay) hx))
+        ((bool_and' (bool_not.comp hzY) (bool_not.comp hin)).ite' htrue hfalse))
+      (hzY.ite' hfalse
+        (hpi.ite' (bitsCons (const false) (bitsAppend hy (hP₁.comp hax)))
+          (hpo.ite' htrue hfalse))))
 
 theorem computableInPolyTime_soplPpadPred
     (hn₁ : ComputableInPolyTime n₁ enc encUnary)
@@ -480,8 +528,48 @@ theorem computableInPolyTime_soplPpadPred
     (hP₂ : ComputableInPolyTime P₂ (encPair enc encBits) encBits)
     (hS₂ : ComputableInPolyTime S₂ (encPair enc encBits) encBits) :
     ComputableInPolyTime (soplPpadPred n₁ P₁ S₁ V₁ n₂ P₂ S₂) (encPair enc encBits) encBits := by
+  have ha := fst enc encBits
+  have hw := snd enc encBits
+  have hn := hn₂.comp ha
+  have ht : ComputableInPolyTime (fun p : α × List Bool => p.2.tail)
+      (encPair enc encBits) encBits := by fun_prop
+  have hy := bitsTake.comp (ht.prod hn)
+  have hx := bitsDropWithInput ht hn
+  have hax := ha.prod hx
+  have hay := ha.prod hy
+  have hb : ComputableInPolyTime (fun p : α × List Bool => p.2.headD false)
+      (encPair enc encBits) encBool := headD false |>.comp hw
+  have hzY : ComputableInPolyTime
+      (fun p : α × List Bool => decide (p.2.tail.take (n₂ p.1) = zeroVertex (n₂ p.1)))
+      (encPair enc encBits) encBool := by fun_prop
+  have hzX : ComputableInPolyTime
+      (fun p : α × List Bool => decide (p.2.tail.drop (n₂ p.1) = zeroVertex (n₁ p.1)))
+      (encPair enc encBits) encBool := by fun_prop
+  have hpo : ComputableInPolyTime
+      (fun p : α × List Bool => hasPotentialOut n₁ P₁ S₁ V₁ p.1 (p.2.tail.drop (n₂ p.1)))
+      (encPair enc encBits) encBool := by fun_prop
+  have hpi : ComputableInPolyTime
+      (fun p : α × List Bool => hasPotentialIn n₁ P₁ S₁ V₁ p.1 (p.2.tail.drop (n₂ p.1)))
+      (encPair enc encBits) encBool := by fun_prop
+  have hout : ComputableInPolyTime
+      (fun p : α × List Bool => hasOut n₂ P₂ S₂ p.1 (p.2.tail.take (n₂ p.1)))
+      (encPair enc encBits) encBool := by fun_prop
+  have hin : ComputableInPolyTime
+      (fun p : α × List Bool => hasIn n₂ P₂ S₂ p.1 (p.2.tail.take (n₂ p.1)))
+      (encPair enc encBits) encBool := by fun_prop
+  have hword := bitsAppend hy hx
+  have htrue := bitsCons (const true) hword
+  have hfalse := bitsCons (const false) hword
   unfold soplPpadPred soplPpadPredCore
-  fun_prop
+  exact hb.ite'
+    (hzY.ite' htrue
+      (hzX.ite'
+        (hin.ite' (bitsCons (const false) (bitsAppend (hP₂.comp hay) hx))
+          ((bool_not.comp hout).ite' hfalse htrue))
+        (hpi.ite' (bitsCons (const true) (bitsAppend hy (hP₁.comp hax)))
+          (hpo.ite' hfalse htrue))))
+    (hzY.ite' hfalse
+      (hpo.ite' (bitsCons (const false) (bitsAppend hy (hS₁.comp hax))) hfalse))
 
 theorem computableInPolyTime_soplPpadPotential
     (hV₁ : ComputableInPolyTime V₁ (encPair enc encBits) encNat)

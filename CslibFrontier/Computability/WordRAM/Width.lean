@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Structured
 import Mathlib.Data.List.GetD
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Width-independent native program prefixes
@@ -48,23 +49,14 @@ theorem Runs.prefix_at_smaller_width {B : Basis} {w w' r : ℕ} {p : Program B r
   induction hwide using Relation.RelatesInSteps.head_induction_on generalizing total with
   | hrefl => exact .refl _
   | @hhead a c k hstep hrest ih =>
-    obtain ⟨z, m, hm, hz, _⟩ := hlow
-    cases m with
-    | zero =>
-      have he := hm.zero
-      subst z
-      have hh : step w' p a = .halt v := step_halt_mono_width hz
-      rw [show step w' p a = .next c from hstep] at hh
-      cases hh
-    | succ m =>
-      obtain ⟨u, hu, htail⟩ := hm.succ'
-      have he : u = c := by
-        have hmono := hu.mono_width hp hw
-        change step w' p a = .next u at hmono
-        rw [show step w' p a = .next c from hstep] at hmono
-        exact Outcome.next.inj hmono.symm
-      subst u
-      exact (ih (total := m + 1) ⟨z, m, htail, hz, rfl⟩).head a c t k hu
+    obtain ⟨z, _ | m, hm, hz, _⟩ := hlow
+    · cases hm.zero
+      exact absurd ((hstep : step w' p a = .next c).symm.trans (step_halt_mono_width hz))
+        (by simp)
+    · obtain ⟨u, hu, htail⟩ := hm.succ'
+      obtain rfl : u = c := Outcome.next.inj
+        ((hstep : step w' p a = .next c).symm.trans (hu.mono_width hp hw)).symm
+      exact (ih (total := m + 1) ⟨z, m, htail, hz, rfl⟩).head a u t k hu
 
 /-- A native instruction cannot write memory above the admitted address-word universe. -/
 theorem Op.eval_mem_above {B : Basis} {r w a : ℕ} {o : Op B r} {x y : Data r}
@@ -73,12 +65,12 @@ theorem Op.eval_mem_above {B : Basis} {r w a : ℕ} {o : Op B r} {x y : Data r}
   cases o with
   | const => obtain ⟨_, rfl⟩ := Data.put_eq_some.1 h; rfl
   | alu => obtain ⟨_, _, _, rfl⟩ := Op.eval_alu_eq_some.1 h; rfl
-  | copy => cases h; rfl
-  | load => cases h; rfl
+  | copy | load =>
+    cases h
+    rfl
   | store d s =>
     cases h
-    change Function.update x.mem (x.regs d) (x.regs s) a = x.mem a
-    exact Function.update_of_ne (by have := hx.1 d; dsimp only [Fits] at this; omega) _ _
+    exact Function.update_of_ne (by have := hx.1 d; wram_omega [this]) _ _
 
 /-- A complete native step preserves memory beyond the admitted address-word universe. -/
 theorem Next.mem_above {B : Basis} {r w a : ℕ} {p : Program B r} {s t : State r}
@@ -87,8 +79,7 @@ theorem Next.mem_above {B : Basis} {r w a : ℕ} {p : Program B r} {s t : State 
   unfold Next WordRAM.step at h
   split at h
   · cases h
-  · next o _ =>
-    split at h
+  · split at h
     · next x hx => cases h; exact Op.eval_mem_above hx hs ha
     · cases h
   all_goals first | (cases h; rfl) | cases h
@@ -122,15 +113,11 @@ theorem Runs.prefix_bounds_init {B : Basis} {r w W P v total k : ℕ}
     (∀ i, s.data.regs i < P) ∧ (∀ a, s.data.mem a < P) ∧
       ∀ a, P ≤ a → s.data.mem a = 0 := by
   obtain ⟨regs, mem, frame⟩ := hr.prefix_bounds hp hw (Data.Bounded.init hi) he hP
-  refine ⟨regs, mem, fun a ha => ?_⟩
-  rw [frame a ha]
-  cases a with
-  | zero => have := Nat.two_pow_pos w; omega
-  | succ a =>
-    change input.getD a 0 = 0
-    apply List.getD_eq_default
-    have hlen := hi.1
-    dsimp only [Fits] at hlen
-    omega
+  refine ⟨regs, mem, fun a ha => (frame a ha).trans ?_⟩
+  rcases a with _ | a
+  · exact absurd (Nat.two_pow_pos w) (by omega)
+  · exact List.getD_eq_default _ _ <| by
+      have hlen := hi.1
+      wram_omega [hlen]
 
 end Cslib.WordRAM

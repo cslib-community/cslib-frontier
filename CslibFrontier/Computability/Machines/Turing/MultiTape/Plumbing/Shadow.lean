@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Equivalence
 public import Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas
 public import Mathlib.Data.Fin.Tuple.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Run.FirstStep
 import Mathlib.Algebra.BigOperators.Fin
 
 /-!
@@ -231,7 +232,7 @@ theorem runFrom_succ_initCfg {u : ℕ} (h : ∀ m < u, ¬(tm.runFrom (tm.initCfg
     {m : ℕ} (hm : m ≤ u) :
     (shadow m₀ m₁ tm).runFrom ((shadow m₀ m₁ tm).initCfg input) (m + 1) =
       cfg m₀ m₁ (tm.runFrom (tm.initCfg input) m) (visited tm (tm.initCfg input) m) := by
-  rw [Nat.add_comm m 1, runFrom_add, runFrom_one, step_initCfg,
+  rw [runFrom_succ_eq_step, step_initCfg,
     runFrom_cfg _ _ _ fun m' hm' => h m' (by omega)]
   simp only [Finset.empty_union]
 

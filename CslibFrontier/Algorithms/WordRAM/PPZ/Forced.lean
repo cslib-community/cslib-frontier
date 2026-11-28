@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.ListLoop
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.Schoening.Scan
 public import CslibFrontier.Computability.Complexity.FineGrained.PPZ
@@ -54,9 +54,9 @@ if needed, for `false`, and stores the word of `Cslib.Complexity.PPZ.forced φ �
 namespace Cslib.Algorithms.WordRAM.PPZ
 
 open Cslib.WordRAM Cslib.WordRAM.Block Cslib.Logic.PL Cslib.Complexity.PPZ
-open Cslib.Algorithms.WordRAM.Schoening (litCode encodeClause encodeClauses litCode_shiftRight
-  litCode_and_one length_encodeClause encodeClauses_cons encodeClauses_nil litCode_lt
-  one_sub_toNat_xor toNat_or toNat_xor_le_one)
+open Cslib.Algorithms.WordRAM.Schoening (litCode encodeClause encodeClause_eq encodeClauses
+  litCode_shiftRight litCode_and_one length_encodeClause encodeClauses_cons encodeClauses_nil
+  litCode_lt one_sub_toNat_xor toNat_or toNat_xor_le_one)
 
 variable {n : ℕ}
 
@@ -67,10 +67,7 @@ def optCode : Option Bool → ℕ
   | some b => b.toNat
   | none => 2
 
-theorem optCode_le_two (o : Option Bool) : optCode o ≤ 2 := by
-  rcases o with _ | b
-  · exact le_rfl
-  · cases b <;> decide
+theorem optCode_le_two (o : Option Bool) : optCode o ≤ 2 := by rcases o with _ | _ | _ <;> decide
 
 /-- The partial assignment `τ` is stored as the words `optCode (τ i)` from address `base`. -/
 def PartialAt (mem : ℕ → ℕ) (base : ℕ) (τ : Fin n → Option Bool) : Prop :=
@@ -107,8 +104,7 @@ theorem forced_eq_ite (φ : CNF (Fin n)) (τ : Fin n → Option Bool) (x : Fin n
       else none := by
   have key (b : Bool) : (∃ c ∈ φ, IsUnitOn τ x b c) ↔ φ.any (unitTest τ x b) = true := by
     simp only [isUnitOn_iff, unitTest, List.any_eq_true, Bool.and_eq_true]
-  unfold forced
-  simp only [key]
+  simp only [forced, key]
 
 private theorem toNat_and (a b : Bool) : a.toNat &&& b.toNat = (a && b).toNat := by
   cases a <;> cases b <;> rfl
@@ -117,9 +113,7 @@ private theorem toNat_and (a b : Bool) : a.toNat &&& b.toNat = (a && b).toNat :=
 `1 - s`. -/
 theorem optCode_eq_one_sub_iff (o : Option Bool) (s : Bool) :
     optCode o = 1 - s.toNat ↔ o = some (!s) := by
-  rcases o with _ | a
-  · cases s <;> simp [optCode]
-  · cases a <;> cases s <;> simp [optCode]
+  rcases o with _ | _ | _ <;> cases s <;> decide
 
 /-! ### Registers -/
 
@@ -216,7 +210,9 @@ section Specs
 
 variable {w : ℕ}
 
-/-- The registers the scan relies on. -/
+/-- The registers the scan relies on. The scan writes none of them and leaves memory unchanged, so
+a call of one of its parts proves the frame from the caller's (`scanFrame_iff`). -/
+@[mk_iff]
 structure ScanFrame (w : ℕ) (τ : Fin n → Option Bool) (x : Fin n) (y : Data 32) : Prop where
   zero_eq : y.regs zero = 0
   one_eq : y.regs one = 1
@@ -225,6 +221,8 @@ structure ScanFrame (w : ℕ) (τ : Fin n → Option Bool) (x : Fin n) (y : Data
   stored : PartialAt y.mem (y.regs tBase) τ
   fits : Fits w (y.regs tBase + 2 * n)
   pos : 1 ≤ y.regs tBase
+
+attribute [local wram_simps] scanFrame_iff
 
 /-- **One literal.** -/
 theorem litBody_spec (τ : Fin n → Option Bool) (x : Fin n) (b : Bool) (l : Literal (Fin n))
@@ -267,37 +265,6 @@ theorem litBody_spec (τ : Fin n → Option Bool) (x : Fin n) (b : Bool) (l : Li
       exact ⟨rfl, by wram_simp [hh]; simp +decide [litHas, hbx],
         by wram_simp [hf.zero_eq]; simp +decide [litOk, hvx, hτf], by wram_simp⟩
 
-/-- Code that writes none of the registers of `ScanFrame`. -/
-def PreservesScan (c : Code .standard 32) : Prop :=
-  c.Preserves zero ∧ c.Preserves one ∧ c.Preserves two ∧ c.Preserves xReg ∧ c.Preserves tBase
-
-instance (c : Code .standard 32) : Decidable (PreservesScan c) :=
-  inferInstanceAs (Decidable (_ ∧ _))
-
-/-- A run of code that keeps the scan registers and memory keeps the scan frame. -/
-theorem ScanFrame.of_exec {τ : Fin n → Option Bool} {x : Fin n} {c : Code .standard 32}
-    {y z : Data 32} {T : ℕ} (hf : ScanFrame w τ x y) (hc : PreservesScan c)
-    (he : ExecWithin w c y z T) (hm : z.mem = y.mem) : ScanFrame w τ x z where
-  zero_eq := (he.regs_eq hc.1).trans hf.zero_eq
-  one_eq := (he.regs_eq hc.2.1).trans hf.one_eq
-  two_eq := (he.regs_eq hc.2.2.1).trans hf.two_eq
-  x_eq := (he.regs_eq hc.2.2.2.1).trans hf.x_eq
-  stored := by rw [hm, he.regs_eq hc.2.2.2.2]; exact hf.stored
-  fits := by rw [he.regs_eq hc.2.2.2.2]; exact hf.fits
-  pos := by rw [he.regs_eq hc.2.2.2.2]; exact hf.pos
-
-/-- The scan frame after setting a register outside it. -/
-theorem ScanFrame.set {τ : Fin n → Option Bool} {x : Fin n} {y : Data 32} (hf : ScanFrame w τ x y)
-    {i : Fin 32} (hi : i ≠ zero ∧ i ≠ one ∧ i ≠ two ∧ i ≠ xReg ∧ i ≠ tBase) (v : ℕ) :
-    ScanFrame w τ x (y.set i v) where
-  zero_eq := by wram_simp [hi.1.symm, hf.zero_eq]
-  one_eq := by wram_simp [hi.2.1.symm, hf.one_eq]
-  two_eq := by wram_simp [hi.2.2.1.symm, hf.two_eq]
-  x_eq := by wram_simp [hi.2.2.2.1.symm, hf.x_eq]
-  stored := by simpa [Function.update_of_ne hi.2.2.2.2.symm] using hf.stored
-  fits := by simpa [Function.update_of_ne hi.2.2.2.2.symm] using hf.fits
-  pos := by simpa [Function.update_of_ne hi.2.2.2.2.symm] using hf.pos
-
 /-- **The literal loop.** From `hasLit = h` and `ok = o`, the loop over the literals `ls` ends with
 `hasLit = h || ls.any (litHas x b)` and `ok = o && ls.all (litOk τ x b)`, and unchanged memory. -/
 theorem litLoop_spec (τ : Fin n → Option Bool) (x : Fin n) (b : Bool) (ls : Clause (Fin n))
@@ -307,47 +274,38 @@ theorem litLoop_spec (τ : Fin n → Option Bool) (x : Fin n) (b : Bool) (ls : C
     (ho : y.regs ok = o.toNat) (hle : Fits w (y.regs lend)) :
     ∃ z, ExecWithin w litLoop y z (14 * ls.length + 2) ∧ z.mem = y.mem ∧
       z.regs hasLit = (h || ls.any (litHas x b)).toNat ∧
-      z.regs ok = (o && ls.all (litOk τ x b)).toNat ∧ z.regs lptr = y.regs lend ∧
-      ScanFrame w τ x z ∧ z.regs bReg = b.toNat ∧ z.regs lend = y.regs lend := by
-  induction ls generalizing y h o with
-  | nil =>
-    refine ⟨y, (ExecWithin.loop_exit ?_).mono (by omega), rfl, by simpa using hh,
-      by simpa using ho, by simp [hend], hf, hb, rfl⟩
-    simp [Cond.holds_lt, hend]
-  | cons l ls ih =>
-    have hc : (Cond.lt lptr lend).Holds y := by
-      simp only [Cond.holds_lt, hend, List.length_cons]; omega
-    have hlit : y.mem (y.regs lptr) = litCode l := by
-      simpa using hl.get 0 (by simp)
-    have hrest : HoldsList (y.regs lptr + 1) (ls.map litCode) y.mem := by
-      have := (holdsList_append_iff (xs := [litCode l]) (ys := ls.map litCode)).mp
-        (by simpa using hl)
-      simpa using this.2
-    obtain ⟨z₁, he₁, hm₁, hh₁, ho₁, hp₁⟩ := litBody_spec τ x b l h o y hf hb hlit hh ho
-      (hle.of_le (by simp only [List.length_cons] at hend; omega))
-    have hf₁ := hf.of_exec (by decide) he₁ hm₁
-    have hb₁ : z₁.regs bReg = b.toNat := by rw [he₁.regs_eq (by decide)]; exact hb
-    have hlend₁ : z₁.regs lend = y.regs lend := he₁.regs_eq (by decide)
-    obtain ⟨z, he, hm, hhz, hoz, hpz, hfz, hbz, hlz⟩ := ih (h || litHas x b l)
-      (o && litOk τ x b l) z₁ hf₁ hb₁ (by rw [hp₁, hm₁]; exact hrest)
-      (by rw [hlend₁, hp₁, hend, List.length_cons]; omega) hh₁ ho₁ (by rw [hlend₁]; exact hle)
-    refine ⟨z, (ExecWithin.loop_iter hc he₁ he).mono (by simp only [List.length_cons]; omega),
-      hm.trans hm₁, ?_, ?_, by rw [hpz, hlend₁], hfz, hbz, hlz.trans hlend₁⟩
-    · rw [hhz, List.any_cons, Bool.or_assoc]
-    · rw [hoz, List.all_cons, Bool.and_assoc]
+      z.regs ok = (o && ls.all (litOk τ x b)).toNat ∧ z.regs lptr = y.regs lend := by
+  obtain ⟨hz, h1, h2, hx, hst, hfit, hpos⟩ := hf
+  wram_fold (fun rest z => ∃ h' o' : Bool, z.mem = y.mem ∧
+      z.regs lptr + rest.length = y.regs lend ∧
+      HoldsList (z.regs lptr) (rest.map litCode) y.mem ∧ z.regs hasLit = h'.toNat ∧
+      z.regs ok = o'.toNat ∧ (h' || rest.any (litHas x b)) = (h || ls.any (litHas x b)) ∧
+      (o' && rest.all (litOk τ x b)) = (o && ls.all (litOk τ x b)))
+    over ls cost (fun _ => 12)
+  case init => exact ⟨h, o, rfl, hend.symm, hl, hh, ho, rfl, rfl⟩
+  case exit => rintro v m ⟨-, -, -, he, -⟩; omega
+  case step =>
+    rintro l rest v m ⟨h', o', rfl, he, hl', hh', ho', hha, hoa⟩
+    obtain ⟨hlit, hrest⟩ := holdsList_cons_iff.mp (by simpa using hl')
+    refine ⟨by omega, ?_⟩
+    wram_call (litBody_spec τ x b l h' o' _ ..) framed [*] with v' m' ⟨rfl, hh₁, ho₁, hp₁⟩
+    exact ⟨_, _, rfl, by omega, hp₁ ▸ hrest, hh₁, ho₁,
+      by rw [← hha, List.any_cons, Bool.or_assoc], by rw [← hoa, List.all_cons, Bool.and_assoc]⟩
+  case post =>
+    rintro v m ⟨h', o', rfl, he, -, hh', ho', hha, hoa⟩
+    simp only [List.any_nil, Bool.or_false, List.all_nil, Bool.and_true] at hha hoa
+    subst hha hoa
+    exact ⟨by simp only [List.map_const', List.sum_replicate, smul_eq_mul]; omega, rfl, hh', ho',
+      he⟩
 
-/-- Preserving the registers of `ScanFrame` and memory preserves `ScanFrame`. -/
-private theorem ScanFrame.of_regs {τ : Fin n → Option Bool} {x : Fin n} {y z : Data 32}
-    (hf : ScanFrame w τ x y) (hz : z.regs zero = y.regs zero) (ho : z.regs one = y.regs one)
-    (ht : z.regs two = y.regs two) (hx : z.regs xReg = y.regs xReg)
-    (hb : z.regs tBase = y.regs tBase) (hm : z.mem = y.mem) : ScanFrame w τ x z where
-  zero_eq := hz.trans hf.zero_eq
-  one_eq := ho.trans hf.one_eq
-  two_eq := ht.trans hf.two_eq
-  x_eq := hx.trans hf.x_eq
-  stored := by rw [hm, hb]; exact hf.stored
-  fits := by rw [hb]; exact hf.fits
-  pos := by rw [hb]; exact hf.pos
+private theorem sum_clause_cost (ψ : CNF (Fin n)) :
+    (ψ.map fun c => 14 * c.length + 10 + 2).sum ≤ 14 * (encodeClauses ψ).length := by
+  induction ψ with
+  | nil => simp
+  | cons c ψ ih =>
+    simp only [List.map_cons, List.sum_cons, encodeClauses_cons, List.length_append,
+      length_encodeClause]
+    omega
 
 /-- **The clause loop.** From `ptr` at the encoding of the clauses `ψ`, which end at `cEnd`, and
 `fnd = f`, the loop ends with `fnd = f || ψ.any (unitTest τ x b)` and unchanged memory. -/
@@ -357,61 +315,42 @@ theorem clauseLoop_spec (τ : Fin n → Option Bool) (x : Fin n) (b : Bool) (ψ 
     (hend : y.regs ptr + (encodeClauses ψ).length = y.regs cEnd) (hfnd : y.regs fnd = f.toNat)
     (hce : Fits w (y.regs cEnd)) :
     ∃ z, ExecWithin w clauseLoop y z (14 * (encodeClauses ψ).length + 2) ∧ z.mem = y.mem ∧
-      z.regs fnd = (f || ψ.any (unitTest τ x b)).toNat ∧ ScanFrame w τ x z ∧
-      z.regs bReg = b.toNat ∧ z.regs cEnd = y.regs cEnd ∧ z.regs cBeg = y.regs cBeg := by
-  induction ψ generalizing y f with
-  | nil =>
-    refine ⟨y, (ExecWithin.loop_exit ?_).mono le_rfl, rfl, by simpa using hfnd, hf, hb, rfl, rfl⟩
-    simp only [encodeClauses_nil, List.length_nil, Nat.add_zero] at hend
-    simp [Cond.holds_lt, hend]
-  | cons c ψ ih =>
-    rw [encodeClauses_cons] at hp hend ⊢
-    obtain ⟨hpc, hpψ⟩ := holdsList_append_iff.mp hp
-    simp only [List.length_append, length_encodeClause] at hend hpψ ⊢
-    have hlen : y.mem (y.regs ptr) = c.length := by
-      simpa [encodeClause] using hpc.get 0 (by simp)
-    have hlits : HoldsList (y.regs ptr + 1) (c.map litCode) y.mem :=
-      ((holdsList_append_iff (xs := [c.length]) (ys := c.map litCode)).mp
-        (by simpa [encodeClause] using hpc)).2
-    have hf2 : Fits w (y.regs ptr + 1 + c.length) := hce.of_le (by omega)
+      z.regs fnd = (f || ψ.any (unitTest τ x b)).toNat := by
+  obtain ⟨hz, h1, h2, hx, hst, hfit, hpos⟩ := hf
+  wram_fold (fun rest z => ∃ f' : Bool, z.mem = y.mem ∧
+      z.regs ptr + (encodeClauses rest).length = y.regs cEnd ∧
+      HoldsList (z.regs ptr) (encodeClauses rest) y.mem ∧ z.regs fnd = f'.toNat ∧
+      (f' || rest.any (unitTest τ x b)) = (f || ψ.any (unitTest τ x b)))
+    over ψ cost (fun c => 14 * c.length + 10)
+  case init => exact ⟨f, rfl, hend, hp, hfnd, rfl⟩
+  case exit => rintro v m ⟨-, -, he, -⟩; simp only [encodeClauses_nil, List.length_nil] at he; omega
+  case step =>
+    rintro c rest v m ⟨f', rfl, he, hp', hfnd', hfa⟩
+    rw [encodeClauses_cons] at he hp'
+    obtain ⟨hpc, hpψ⟩ := holdsList_append_iff.mp hp'
+    obtain ⟨hlen, hlits⟩ := holdsList_cons_iff.mp (encodeClause_eq c ▸ hpc)
+    simp only [List.length_append, length_encodeClause] at he hpψ
     have hu : Fits w ((c.any (litHas x b)).toNat &&& (c.all (litOk τ x b)).toNat) :=
-      hf.fits.of_le (by rw [toNat_and]; have := Bool.toNat_le (c.any (litHas x b) &&
-        c.all (litOk τ x b)); have := hf.pos; omega)
-    have hu' : Fits w (f.toNat ||| ((c.any (litHas x b)).toNat &&& (c.all (litOk τ x b)).toNat)) :=
-      hf.fits.of_le (by rw [toNat_and, toNat_or]; have := Bool.toNat_le (f ||
-        (c.any (litHas x b) && c.all (litOk τ x b))); have := hf.pos; omega)
-    refine WP.exists_execWithin (WP.loop_iter (by simp only [Cond.holds_lt]; omega) ?_)
+      hfit.of_le (by rw [toNat_and]; have := Bool.toNat_le (c.any (litHas x b) &&
+        c.all (litOk τ x b)); omega)
+    have hu' : Fits w (f'.toNat ||| ((c.any (litHas x b)).toNat &&& (c.all (litOk τ x b)).toNat)) :=
+      hfit.of_le (by rw [toNat_and, toNat_or]; have := Bool.toNat_le (f' ||
+        (c.any (litHas x b) && c.all (litOk τ x b))); omega)
+    refine ⟨by omega, ?_⟩
     unfold clauseBody clauseInit clauseDone
-    wram_exec [hlen, hf.one_eq, hf.zero_eq]
-    refine WP.name fun y₁ hy₁ => ?_
-    obtain ⟨z₂, he₂, hm₂, hh₂, ho₂, hp₂, hf₂, hb₂, hl₂⟩ := litLoop_spec τ x b c false true y₁
-      (hf.of_regs (by wram_simp [hy₁]) (by wram_simp [hy₁]) (by wram_simp [hy₁])
-        (by wram_simp [hy₁]) (by wram_simp [hy₁]) (by simp [hy₁]))
-      (by wram_simp [hy₁, hb]) (by wram_simp [hy₁]; exact hlits)
-      (by wram_simp [hy₁, List.length_map]) (by wram_simp [hy₁]; rfl)
-      (by wram_simp [hy₁]; rfl) (by wram_simp [hy₁]; exact hf2)
+    wram_exec [hlen, h1, hz]
+    wram_call (litLoop_spec τ x b c false true _ ..) framed [*] with v₂ m₂ ⟨rfl, hh₂, ho₂, hp₂⟩
     simp only [Bool.false_or, Bool.true_and] at hh₂ ho₂
-    have hfnd₂ : z₂.regs fnd = f.toNat :=
-      (he₂.regs_eq (by decide)).trans (by wram_simp [hy₁, hfnd])
-    have hcEnd₂ : z₂.regs cEnd = y.regs cEnd :=
-      (he₂.regs_eq (by decide)).trans (by wram_simp [hy₁])
-    have hcBeg₂ : z₂.regs cBeg = y.regs cBeg :=
-      (he₂.regs_eq (by decide)).trans (by wram_simp [hy₁])
-    have hl₂' : z₂.regs lend = y.regs ptr + 1 + c.length := hl₂.trans (by wram_simp [hy₁])
-    replace hm₂ : z₂.mem = y.mem := hm₂.trans (by simp [hy₁])
-    refine WP.of_execWithin he₂ ?_
-    wram_exec [hh₂, ho₂, hfnd₂, hl₂']
-    wram_call (ih (f || unitTest τ x b c) _
-      (hf₂.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) rfl)
-      (by wram_simp [hb₂])
-      (by simpa only [Data.set_regs, Function.update_self, Data.set_mem, hm₂,
-        show y.regs ptr + 1 + c.length = y.regs ptr + (c.length + 1) by omega] using hpψ)
-      (by wram_simp [hcEnd₂]; omega)
-      (by wram_simp; simp [unitTest, toNat_and, toNat_or])
-      (by wram_simp [hcEnd₂]; exact hce))
-      with z ⟨hm, hfz, hfrz, hbz, hcz, hcbz⟩
-    exact ⟨by omega, by wram_simp [hm, hm₂], by rw [hfz, List.any_cons, Bool.or_assoc], hfrz, hbz,
-      by wram_simp [hcz, hcEnd₂], by wram_simp [hcbz, hcBeg₂]⟩
+    wram_exec [hh₂, ho₂, hfnd']
+    refine ⟨f' || unitTest τ x b c, ?_⟩
+    wram_simp
+    exact ⟨by omega, (show v ptr + (c.length + 1) = v ptr + 1 + c.length by omega) ▸ hpψ,
+      by simp [unitTest, toNat_and, toNat_or], by rw [← hfa, List.any_cons, Bool.or_assoc]⟩
+  case post =>
+    rintro v m ⟨f', rfl, he, -, hfnd', hfa⟩
+    simp only [List.any_nil, Bool.or_false] at hfa
+    subst hfa
+    exact ⟨by have := sum_clause_cost ψ; omega, rfl, hfnd'⟩
 
 /-- **The unit-clause scan.** From the clauses of `φ` stored in `[cBeg, cEnd)`, the scan reports
 whether `φ` has a unit clause on `x` with polarity `b` under `τ`, within `14 E + 4` instructions,
@@ -421,18 +360,13 @@ theorem unitScan_spec (τ : Fin n → Option Bool) (x : Fin n) (b : Bool) (φ : 
     (hcl : HoldsList (y.regs cBeg) (encodeClauses φ) y.mem)
     (hend : y.regs cBeg + (encodeClauses φ).length = y.regs cEnd) (hce : Fits w (y.regs cEnd)) :
     ∃ z, ExecWithin w unitScan y z (14 * (encodeClauses φ).length + 4) ∧ z.mem = y.mem ∧
-      z.regs fnd = (φ.any (unitTest τ x b)).toNat ∧ ScanFrame w τ x z ∧
-      z.regs bReg = b.toNat ∧ z.regs cEnd = y.regs cEnd ∧ z.regs cBeg = y.regs cBeg := by
+      z.regs fnd = (φ.any (unitTest τ x b)).toNat := by
+  obtain ⟨hz, h1, h2, hx, hst, hfit, hpos⟩ := hf
   refine WP.exists_execWithin ?_
   unfold unitScan
-  wram_exec [hf.zero_eq]
-  wram_call (clauseLoop_spec τ x b φ false _
-    (hf.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) rfl)
-    (by wram_simp [hb]) (by wram_simp; exact hcl) (by wram_simp [hend]) (by wram_simp; rfl)
-    (by wram_simp; exact hce))
-    with z ⟨hm, hfz, hfr, hbz, hcz, hcbz⟩
-  exact ⟨by omega, by wram_simp [hm], by simpa using hfz, hfr, hbz, by wram_simp [hcz],
-    by wram_simp [hcbz]⟩
+  wram_exec [hz]
+  wram_call (clauseLoop_spec τ x b φ false _ ..) framed [*] with v m ⟨rfl, hfz⟩
+  exact ⟨by omega, rfl, by simpa using hfz⟩
 
 /-- **The forced value.** From the clauses of `φ` stored in `[cBeg, cEnd)` and the partial
 assignment `τ` stored at `tBase`, `forcedCode` stores `optCode (forced φ τ x)` in `res` within
@@ -441,34 +375,22 @@ theorem forcedCode_spec (φ : CNF (Fin n)) (τ : Fin n → Option Bool) (x : Fin
     (hf : ScanFrame w τ x y) (hcl : HoldsList (y.regs cBeg) (encodeClauses φ) y.mem)
     (hend : y.regs cBeg + (encodeClauses φ).length = y.regs cEnd) (hce : Fits w (y.regs cEnd)) :
     ∃ z, ExecWithin w forcedCode y z (28 * (encodeClauses φ).length + 15) ∧ z.mem = y.mem ∧
-      z.regs res = optCode (forced φ τ x) ∧ ScanFrame w τ x z ∧ z.regs cEnd = y.regs cEnd ∧
-      z.regs cBeg = y.regs cBeg := by
+      z.regs res = optCode (forced φ τ x) := by
+  obtain ⟨hz, h1, h2, hx, hst, hfit, hpos⟩ := hf
   rw [forced_eq_ite]
   refine WP.exists_execWithin ?_
   unfold forcedCode
-  wram_exec [hf.one_eq]
-  wram_call (unitScan_spec τ x true φ _
-    (hf.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) rfl)
-    (by wram_simp; rfl) (by exact hcl) (by wram_simp [hend]) (by wram_simp; exact hce))
-    with z₁ ⟨hm₁, hfnd₁, hf₁, -, hce₁, hcb₁⟩
+  wram_exec [h1]
+  wram_call (unitScan_spec τ x true φ _ ..) framed [*] with v₁ m₁ ⟨rfl, hfnd₁⟩
   by_cases ht : φ.any (unitTest τ x true) = true
-  · wram_exec [hfnd₁, ht, hf₁.one_eq]
-    exact ⟨by wram_simp [hm₁], by wram_simp; simp [ht, optCode],
-      hf₁.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) rfl,
-      by wram_simp [hce₁], by wram_simp [hcb₁]⟩
-  · wram_exec [hfnd₁, ht, hf₁.one_eq, hf₁.zero_eq]
-    wram_call (unitScan_spec τ x false φ _
-      (hf₁.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) rfl)
-      (by wram_simp; rfl)
-      (by wram_simp [hm₁, hcb₁]; exact hcl) (by wram_simp [hce₁, hcb₁, hend])
-      (by wram_simp [hce₁]; exact hce))
-      with z₂ ⟨hm₂, hfnd₂, hf₂, -, hce₂, hcb₂⟩
-    simp only [ht, Bool.false_eq_true, ↓reduceIte]
+  · wram_exec [hfnd₁, ht, h1]
+    exact ⟨by wram_simp, by wram_simp; simp [ht, optCode]⟩
+  · wram_exec [hfnd₁, ht, h1, hz]
+    wram_call (unitScan_spec τ x false φ _ ..) framed [*] with v₂ m₂ ⟨rfl, hfnd₂⟩
+    simp only [Bool.false_eq_true, ↓reduceIte]
     by_cases hf' : φ.any (unitTest τ x false) = true <;>
-      wram_exec [hfnd₂, hf', hf₂.one_eq, hf₂.zero_eq, hf₂.two_eq] <;>
-      exact ⟨by wram_simp [hm₂, hm₁], by wram_simp; simp [hf', optCode],
-        hf₂.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) rfl,
-        by wram_simp [hce₂, hce₁], by wram_simp [hcb₂, hcb₁]⟩
+      wram_exec [hfnd₂, hf', h1, hz, h2] <;>
+      exact ⟨by wram_simp, by wram_simp; simp [hf', optCode]⟩
 
 end Specs
 

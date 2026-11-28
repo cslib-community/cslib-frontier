@@ -103,6 +103,11 @@ example {I : Type} {C : I → Type} {encIn : I ↪ List Bool}
       let x ← enc i <$> sample i
       let y ← enc i <$> sample i
       return post i (x ++ y) := by
+  have hp := ComputableInPolyTime.id' (encIn := encPair (encPair encIn encBits) encBits)
+  have hpostJoin : ComputableInPolyTime
+      (fun p : (I × List Bool) × List Bool => post p.1.1 (p.1.2 ++ p.2))
+      (encPair (encPair encIn encBits) encBits) encBits :=
+    hpost.comp (hp.fst'.fst'.prod (hp.fst'.snd'.bitsAppend hp.snd'))
   ppt
 
 example {I : Type} {C : I → Type} {encIn : I ↪ List Bool}

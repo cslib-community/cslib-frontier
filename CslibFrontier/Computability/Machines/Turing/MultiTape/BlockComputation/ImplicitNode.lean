@@ -42,14 +42,11 @@ abbrev Args := ImplicitPath.WalkArgs
 theorem classify_inSpace (k : ℕ) :
     ComputableInSpace (classify k) ImplicitPath.encWalkArgs encNat
       (fun a => (ImplicitPath.encWalkArgs a).length) := by
+  let c := budget_const (Bs := fun a => (ImplicitPath.encWalkArgs a).length)
+    (encIn := ImplicitPath.encWalkArgs) (encB := encNat)
   have hrest := snd encNat (encPair encNat (encList encNat))
-  have hq := hrest.fst'
-  have hlength := budget_length hrest.snd'
-  have heq := budget_natEq hlength hq
-  have hleaf := budget_const (encIn := ImplicitPath.encWalkArgs) (encB := encNat) 1 (.refl _)
-  have hgate := budget_const (encIn := ImplicitPath.encWalkArgs) (encB := encNat) 2 (.refl _)
-  have hinvalid := budget_const (encIn := ImplicitPath.encWalkArgs) (encB := encNat) 0 (.refl _)
-  exact (budget_ite (ImplicitPath.valid_inSpace k) (budget_ite heq hleaf hgate)
-    hinvalid).of_enc_eq fun ⟨σ, q, path⟩ => by simp only [classify, decide_eq_true_eq]
+  have heq := budget_natEq (budget_length hrest.snd') hrest.fst'
+  exact (budget_ite (ImplicitPath.valid_inSpace k) (budget_ite heq (c 1) (c 2))
+    (c 0)).of_enc_eq fun ⟨σ, q, path⟩ => by simp only [classify, decide_eq_true_eq]
 
 end Turing.MultiTapePTM.BlockComputation.ImplicitNode

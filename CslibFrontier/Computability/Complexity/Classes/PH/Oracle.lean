@@ -99,10 +99,14 @@ theorem oracleTranscriptNo_mem_PiP {t : ℕ} {Control Operation : Type}
   have hreq := machine.replayPrefix_pendingRequest_pt.comp hreplay
   let G : Set ((α × List Bool) × ℕ) := {y | y.1.2.getD y.2 false = true ∨
     (machine.pendingQuery (machine.replayPrefix (enc y.1.1) y.1.2 y.2)).isSome = false}
+  have hbit := ComputableInPolyTime.bitsGetDWithInput
+    (ComputableInPolyTime.fst (encPair enc encBits) encUnary).snd'
+    (ComputableInPolyTime.snd (encPair enc encBits) encUnary) false
   have hG : G ∈ P (encPair (encPair enc encBits) encUnary) :=
     ⟨fun y => y.1.2.getD y.2 false ||
       !(machine.pendingQuery (machine.replayPrefix (enc y.1.1) y.1.2 y.2)).isSome,
-      by fun_prop, by simp [G]⟩
+      ComputableInPolyTime.bool_or' hbit (ComputableInPolyTime.bool_not.comp hquery),
+      by simp [G]⟩
   have hR := (show PolyTimeReducible _ encBits
     {y : (α × List Bool) × ℕ |
       machine.pendingRequest (machine.replayPrefix (enc y.1.1) y.1.2 y.2) ∈ Aᶜ} Aᶜ from
@@ -130,7 +134,6 @@ theorem ComputableInPolyTimeWithOracle.encoded_mem_SigmaP_succ {f : α → β}
   let good : Set (α × List Bool) :=
     {x | P (x.1, machine.replayOutput (enc x.1) x.2) = true}
   have hgood : good ∈ SigmaP (k + 1) (encPair enc encBits) := by
-    have hinput : ComputableInPolyTime (fun a : α => enc a) enc encBits := ComputableInPolyTime.id'
     have hgoodP : good ∈ Complexity.P (encPair enc encBits) :=
       ⟨fun x => P (x.1, machine.replayOutput (enc x.1) x.2), hP.comp
         ((ComputableInPolyTime.fst _ _).prod
@@ -190,7 +193,7 @@ theorem SigmaP_union_PiP_subset_iUnion_PWithOracle (k : ℕ) (enc : α ↪ List 
     obtain ⟨O, hO, rfl⟩ := exists_mem_SigmaP_encBits_preimage hB
     exact Set.mem_iUnion₂.mpr ⟨O, hO,
       (show PolyTimeReducible enc encBits (enc ⁻¹' O) O from
-        ⟨enc, .id', fun _ => Iff.rfl⟩).mem_PWithOracle (mem_PWithOracle_self O)⟩
+        ⟨enc, by fun_prop, fun _ => Iff.rfl⟩).mem_PWithOracle (mem_PWithOracle_self O)⟩
   rintro B (hB | hB)
   · exact hs hB
   · obtain ⟨O, hO, hBO⟩ := Set.mem_iUnion₂.mp (hs (compl_mem_SigmaP_of_mem_PiP hB))

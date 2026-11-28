@@ -8,7 +8,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.Constructible.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.NatPolynomial
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant

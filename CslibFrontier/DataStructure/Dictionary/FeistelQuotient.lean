@@ -24,6 +24,8 @@ import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # One-round Feistel quotienting and universal succinct bit accounting
@@ -92,7 +94,7 @@ def keyBits (U : ℕ) : ℕ :=
   Nat.clog 2 U
 
 /-- Number of bits `⌈log₂ V⌉` needed to represent values in `Fin V`. -/
-@[expose]
+@[expose, wram_arith]
 def valBits (V : ℕ) : ℕ :=
   Nat.clog 2 V
 
@@ -103,7 +105,7 @@ def slabScale (n : ℕ) : ℕ :=
   2 ^ Dynamic.logLogFactor n
 
 /-- Number of bucket index bits `b = ⌊log₂ n⌋ - 3 * logLogFactor n`. -/
-@[expose]
+@[expose, wram_arith]
 def bucketBits (n : ℕ) : ℕ :=
   Nat.log 2 n - 3 * Dynamic.logLogFactor n
 
@@ -113,21 +115,17 @@ def numBuckets (n : ℕ) : ℕ :=
   2 ^ bucketBits n
 
 /-- Number of stored quotient bits per key `q_bits = ⌈log₂ U⌉ - bucketBits n`. -/
-@[expose]
+@[expose, wram_arith]
 def quotientBits (U n : ℕ) : ℕ :=
   keyBits U - bucketBits n
 
 /-- `slabScale n` is always at least `2`. -/
-theorem two_le_slabScale (n : ℕ) : 2 ≤ slabScale n := by
-  unfold slabScale
-  calc 2 = 2 ^ 1 := by decide
-    _ ≤ 2 ^ Dynamic.logLogFactor n :=
-      Nat.pow_le_pow_right (by decide) (Dynamic.one_le_logLogFactor n)
+theorem two_le_slabScale (n : ℕ) : 2 ≤ slabScale n :=
+  Nat.le_self_pow (Nat.one_le_iff_ne_zero.mp (Dynamic.one_le_logLogFactor n)) 2
 
 /-- `slabScale n` is always positive. -/
-theorem slabScale_pos (n : ℕ) : 0 < slabScale n := by
-  have := two_le_slabScale n
-  omega
+theorem slabScale_pos (n : ℕ) : 0 < slabScale n :=
+  Nat.lt_of_lt_of_le (by decide) (two_le_slabScale n)
 
 /-- `numBuckets n` is always positive. -/
 theorem numBuckets_pos (n : ℕ) : 0 < numBuckets n := by
@@ -138,9 +136,8 @@ theorem numBuckets_pos (n : ℕ) : 0 < numBuckets n := by
 theorem bucketBits_le_keyBits {U n : ℕ} (hnU : n ≤ U) :
     bucketBits n ≤ keyBits U := by
   unfold bucketBits keyBits
-  have h1 : Nat.log 2 n - 3 * Dynamic.logLogFactor n ≤ Nat.log 2 n := Nat.sub_le _ _
-  have h2 : Nat.log 2 n ≤ Nat.log 2 U := Nat.log_mono_right hnU
-  have h3 : Nat.log 2 U ≤ Nat.clog 2 U := Nat.log_le_clog 2 U
+  have := Nat.log_mono_right (b := 2) hnU
+  have := Nat.log_le_clog 2 U
   omega
 
 /-- Whenever `n ≤ U`, `quotientBits U n + bucketBits n = keyBits U`. -/
@@ -166,14 +163,9 @@ theorem le_two_pow_bucketBits_add (n : ℕ) :
 /-- For every `n`, `n ≤ 2 * numBuckets n * (slabScale n) ^ 3`. -/
 theorem le_two_mul_numBuckets_mul_slabScale_cubed (n : ℕ) :
     n ≤ 2 * numBuckets n * (slabScale n) ^ 3 := by
-  have h := le_two_pow_bucketBits_add n
-  have heq : 2 ^ (bucketBits n + 3 * Dynamic.logLogFactor n + 1) =
-      2 * numBuckets n * (slabScale n) ^ 3 := by
-    unfold numBuckets slabScale
-    rw [← Nat.pow_mul, Nat.mul_comm (Dynamic.logLogFactor n) 3, Nat.pow_add, Nat.pow_add,
-      Nat.pow_one]
-    ring
-  omega
+  refine (le_two_pow_bucketBits_add n).trans_eq ?_
+  unfold numBuckets slabScale
+  ring
 
 /-! ## Section 2: One-round Feistel quotienting and exact key reconstruction -/
 
@@ -223,10 +215,7 @@ theorem feistelReconstruct_feistelBucket (b : ℕ) (h1 : ℕ → ℕ) (u : ℕ) 
   unfold feistelReconstruct
   rw [Nat.mod_eq_of_lt (feistelBucket_lt b h1 u)]
   unfold feistelBucket keyQuotient keyLow
-  have hxor :
-      (h1 (u / 2 ^ b) % 2 ^ b) ^^^ ((h1 (u / 2 ^ b) % 2 ^ b) ^^^ (u % 2 ^ b)) = u % 2 ^ b := by
-    rw [← Nat.xor_assoc, Nat.xor_self, Nat.zero_xor]
-  rw [hxor, Nat.div_add_mod']
+  rw [← Nat.xor_assoc, Nat.xor_self, Nat.zero_xor, Nat.div_add_mod']
 
 /-- Reconstructing any `(bucket, q)` with `bucket < 2 ^ b` produces a key whose Feistel bucket is
 `bucket` and whose quotient is `q`. -/
@@ -253,10 +242,7 @@ theorem eq_of_feistelBucket_eq_of_keyQuotient_eq {b : ℕ} {h1 : ℕ → ℕ} {u
     (hb : feistelBucket b h1 u₁ = feistelBucket b h1 u₂)
     (hq : keyQuotient b u₁ = keyQuotient b u₂) :
     u₁ = u₂ := by
-  calc u₁ = feistelReconstruct b h1 (feistelBucket b h1 u₁) (keyQuotient b u₁) :=
-        (feistelReconstruct_feistelBucket b h1 u₁).symm
-    _ = feistelReconstruct b h1 (feistelBucket b h1 u₂) (keyQuotient b u₂) := by rw [hb, hq]
-    _ = u₂ := feistelReconstruct_feistelBucket b h1 u₂
+  rw [← feistelReconstruct_feistelBucket b h1 u₁, hb, hq, feistelReconstruct_feistelBucket]
 
 /-- Two distinct keys that share the same quotient `keyQuotient b u₁ = keyQuotient b u₂` always map
 to distinct Feistel buckets for every hash function `h1`. -/
@@ -282,9 +268,7 @@ theorem quotient_bits_le_choose {U n : ℕ} :
   · have hll : 1 ≤ Dynamic.logLogFactor n := Dynamic.one_le_logLogFactor n
     have hkey : keyBits U ≤ Nat.log 2 n + 1 := Nat.clog_le_of_le_pow
       (hUn.le.trans (Nat.lt_pow_succ_log_self (by decide) n).le)
-    have hq : quotientBits U n ≤ 3 * Dynamic.logLogFactor n + 1 := by
-      unfold quotientBits bucketBits
-      omega
+    have hq : quotientBits U n ≤ 3 * Dynamic.logLogFactor n + 1 := by wram_omega
     rw [Nat.choose_eq_zero_of_lt hUn, Nat.clog_zero_right, Nat.zero_add]
     nlinarith [Nat.mul_le_mul_left n hq]
   · have hexp : n * keyBits U ≤
@@ -392,9 +376,8 @@ private theorem filter_feistelXor_eq_filter_qOf_ne [DecidableEq Q] {U b m : ℕ}
   refine ⟨fun ⟨⟨hne, hxS⟩, hcoll⟩ => ⟨⟨⟨hne, hxS⟩, ?_⟩, hcoll⟩,
     fun ⟨⟨h1, _⟩, hcoll⟩ => ⟨h1, hcoll⟩⟩
   intro hqq
-  have hx_mem : x ∈ insert u (S.erase u) := mem_insert_of_mem (mem_erase.mpr ⟨hne, hxS⟩)
-  have hu_mem : u ∈ insert u (S.erase u) := mem_insert_self u (S.erase u)
-  exact feistelXor_ne_of_qOf_eq_pt hbm qOf H i (hq x hx_mem u hu_mem hqq) hne hqq hcoll
+  exact feistelXor_ne_of_qOf_eq_pt hbm qOf H i
+    (hq x (mem_insert_of_mem (mem_erase.mpr ⟨hne, hxS⟩)) u (mem_insert_self u _) hqq) hne hqq hcoll
 
 /-- For a pairwise independent hash family `H` and distinct quotients `q₁ ≠ q₂`, the probability
 that `H i q₁ = e (H i q₂)` is `1 / |Y|`. -/
@@ -513,9 +496,7 @@ theorem expect_boole_apply_eq_equiv_two {Y 𝕜 : Type*} [Fintype Y] [DecidableE
   rcases Nat.eq_zero_or_pos (Fintype.card Y) with h0 | hpos
   · simp [h0]
   · have hne_zero : (Fintype.card Y : 𝕜) ≠ 0 := Nat.cast_ne_zero.mpr hpos.ne'
-    have hpow : (Fintype.card Y : 𝕜) ^ 3 = (Fintype.card Y : 𝕜) * (Fintype.card Y : 𝕜) ^ 2 := by
-      ring
-    rw [hpow, mul_inv, ← mul_assoc, mul_inv_cancel₀ hne_zero, one_mul]
+    rw [pow_succ', mul_inv, ← mul_assoc, mul_inv_cancel₀ hne_zero, one_mul]
 
 /-- Under a 3-wise independent hash `H : ι → Q → Fin (2 ^ m)`, when `qOf` is quotient-injective on
 `insert u (S.erase u)`, the second factorial moment of the number of keys in `S.erase u` colliding
@@ -567,13 +548,10 @@ theorem expect_feistelXor_mul_sub_one_le_on [DecidableEq Q] {U b m : ℕ}
             0 := by
         rw [ite_eq_right]
         rintro ⟨h1, h2⟩
-        have hp1_mem : p.1 ∈ insert u (S.erase u) := mem_insert_of_mem (mem_filter.mp hp1).1
-        have hp2_mem : p.2 ∈ insert u (S.erase u) := mem_insert_of_mem (mem_filter.mp hp2).1
-        exact feistelXor_ne_of_qOf_eq_pt hbm qOf H i
-          (hq p.1 hp1_mem p.2 hp2_mem hqq) hne12 hqq (h1.trans h2.symm)
-      simp only [hzero]
-      have hexp0 : (𝔼 _i : ι, (0 : ℚ)) = 0 := by simp
-      rw [hexp0]
+        exact feistelXor_ne_of_qOf_eq_pt hbm qOf H i (hq p.1 (mem_insert_of_mem
+          (mem_filter.mp hp1).1) p.2 (mem_insert_of_mem (mem_filter.mp hp2).1) hqq) hne12 hqq
+          (h1.trans h2.symm)
+      simp only [hzero, expect_const_zero]
       positivity
     · simp only [feistelXor_eq_iff hbm qOf H _ p.1 u, feistelXor_eq_iff hbm qOf H _ p.2 u]
       exact (expect_boole_apply_eq_equiv_two (𝕜 := ℚ) hh hq1 hq2 hqq _ _).trans_le
@@ -582,8 +560,7 @@ theorem expect_feistelXor_mul_sub_one_le_on [DecidableEq Q] {U b m : ℕ}
         𝔼 i, (if feistelXor b m hbm qOf H i p.1 = feistelXor b m hbm qOf H i u ∧
             feistelXor b m hbm qOf H i p.2 = feistelXor b m hbm qOf H i u then (1 : ℚ) else 0)
       ≤ ∑ _p ∈ S'.offDiag, (((2 ^ m : ℕ) : ℚ) ^ 2)⁻¹ := sum_le_sum hpair
-    _ = (#S'.offDiag : ℚ) * (((2 ^ m : ℕ) : ℚ) ^ 2)⁻¹ := by
-        rw [sum_const, nsmul_eq_mul]
+    _ = (#S'.offDiag : ℚ) * (((2 ^ m : ℕ) : ℚ) ^ 2)⁻¹ := by rw [sum_const, nsmul_eq_mul]
     _ ≤ ((#S' : ℚ) ^ 2) * (((2 ^ m : ℕ) : ℚ) ^ 2)⁻¹ := by
         gcongr
         rw [offDiag_card, sq]
@@ -627,8 +604,7 @@ theorem expect_feistelXor_overflow_le_on {U b m D : ℕ}
   have hμD : μ ≤ (D : ℚ) := by
     dsimp only [μ]
     rw [div_le_iff₀ (by positivity)]
-    have hcard : #S' ≤ D * 2 ^ m := (card_filter_le _ _).trans hS
-    exact_mod_cast hcard
+    exact_mod_cast (card_filter_le _ _).trans hS
   have hhpw : IsPairwiseIndependentHash H := hh.isPairwiseIndependentHash (by decide)
   have hexp1 : 𝔼 i, (N i : ℚ) = μ :=
     expect_card_feistelXor_eq_on (𝕜 := ℚ) hbm hhpw S u hq
@@ -636,17 +612,13 @@ theorem expect_feistelXor_overflow_le_on {U b m D : ℕ}
     expect_feistelXor_mul_sub_one_le_on hbm hh S u hq
   have hsq (i : ι) :
       ((N i : ℚ) - μ) ^ 2 =
-        (N i : ℚ) * ((N i : ℚ) - 1) + (1 - 2 * μ) * (N i : ℚ) + μ ^ 2 := by
-    ring
+        (N i : ℚ) * ((N i : ℚ) - 1) + (1 - 2 * μ) * (N i : ℚ) + μ ^ 2 := by ring
   have hvar : 𝔼 i, ((N i : ℚ) - μ) ^ 2 ≤ (D : ℚ) := by
     simp only [hsq]
     rw [expect_add_distrib, expect_add_distrib, ← mul_expect, Fintype.expect_const, hexp1]
     linarith
-  have hpt : 𝔼 i, ((N i - 2 * D : ℕ) : ℚ) * (D : ℚ) ≤ (D : ℚ) := by
-    calc 𝔼 i, ((N i - 2 * D : ℕ) : ℚ) * (D : ℚ)
-        ≤ 𝔼 i, ((N i : ℚ) - μ) ^ 2 :=
-          expect_le_expect fun i _ => nat_sub_two_mul_le_sq hμ0 hμD
-      _ ≤ (D : ℚ) := hvar
+  have hpt : 𝔼 i, ((N i - 2 * D : ℕ) : ℚ) * (D : ℚ) ≤ (D : ℚ) :=
+    (expect_le_expect fun i _ => nat_sub_two_mul_le_sq hμ0 hμD).trans hvar
   rw [← expect_mul] at hpt
   have hD_pos : (0 : ℚ) < (D : ℚ) := by exact_mod_cast hD
   nlinarith

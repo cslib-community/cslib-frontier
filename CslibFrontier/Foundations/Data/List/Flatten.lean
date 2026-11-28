@@ -24,6 +24,7 @@ off.
 
 * `List.drop_flatten_take`: the flattened list from the start of block `j`.
 * `List.length_flatten_take_succ`: the boundary after block `j`.
+* `List.getElem?_flatten_replicate`: the entries of a list repeated `r` times.
 -/
 
 public section
@@ -49,5 +50,23 @@ theorem length_flatten_take_succ (L : List (List α)) {j : ℕ} (hj : j < L.leng
     (L.take (j + 1)).flatten.length = (L.take j).flatten.length + L[j].length := by
   rw [take_succ_eq_append_getElem hj, flatten_append, length_append]
   simp
+
+/-- The entries of a list repeated `r` times: entry `j` is entry `j % l.length` of `l`. -/
+theorem getElem?_flatten_replicate (l : List α) (r j : ℕ) :
+    (replicate r l).flatten[j]? = if j < r * l.length then l[j % l.length]? else none := by
+  induction r generalizing j with
+  | zero => simp
+  | succ r ih =>
+    rw [replicate_succ, flatten_cons]
+    by_cases hj : j < l.length
+    · have : j < (r + 1) * l.length := by
+        rw [Nat.succ_mul]
+        omega
+      simp only [getElem?_append_left hj, this, ↓reduceIte, Nat.mod_eq_of_lt hj]
+    · rw [getElem?_append_right (by omega), ih, Nat.mod_eq_sub_mod (show l.length ≤ j by omega)]
+      have : j - l.length < r * l.length ↔ j < (r + 1) * l.length := by
+        rw [Nat.succ_mul]
+        omega
+      simp only [this]
 
 end List

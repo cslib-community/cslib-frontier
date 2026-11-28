@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 
 /-!
 # Binary-counted folds in polynomial space
@@ -64,7 +65,8 @@ theorem natFold [Inhabited α] [Inhabited β]
   have hinput := of_polyTime (ComputableInPolyTime.fst encIn (encPair encNat encState))
   have hrest := of_polyTime (ComputableInPolyTime.snd encIn (encPair encNat encState))
   have hindex := (of_polyTime (ComputableInPolyTime.fst encNat encState)).comp hrest
-  have hsucc := of_polyTime computableTidilyInPolyTime_succ.computableInPolyTime
+  have hsucc : ComputableInPolySpace Nat.succ encNat encNat :=
+    of_polyTime (ComputableInPolyTime.binary_add' .id' (.const 1))
   have hadvance : ComputableInPolySpace (advance step)
       (encPair encIn (encPair encNat encState)) (encPair encIn (encPair encNat encState)) :=
     hinput.prod ((hsucc.comp hindex).prod hstep)

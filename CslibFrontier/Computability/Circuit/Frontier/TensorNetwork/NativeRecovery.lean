@@ -120,9 +120,7 @@ recovery is polynomial-time with the precision, the shift, the parameters and `2
 namespace Cslib.Circuits.Frontier.NativeRecovery
 
 open Cslib.GaloisRingArith Polynomial Finset
-
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local macro "ℤ₍₂₎" : term => `(Valuation.integer (Rat.padicValuation 2))
+open scoped TensorNetwork
 
 /-! ### Nodes -/
 
@@ -1015,8 +1013,6 @@ end Hermite
 section PolyTime
 
 open Turing.MultiTapeTM
-
-attribute [local irreducible] ComputableInPolyTime
 
 variable {α : Type} {encIn : α ↪ List Bool}
 

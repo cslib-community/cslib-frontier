@@ -20,6 +20,7 @@ import CslibFrontier.Foundations.Data.List.Lookup
 import Mathlib.Data.List.GetD
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Uniform polynomial-time construction of small-bias families
@@ -113,12 +114,7 @@ theorem poweringWord_eq {w : ℕ} (hw : w ≠ 0) (n : ℕ) (x y : BitString w) :
     have h := congrFun (congrArg (equivBits hw)
       (fieldOfBits_powerWord hw (List.ofFn x) i)) ⟨j, hjw⟩
     rw [equivBits_fieldOfBits] at h
-    have hx : fieldOfBits (basis hw) (List.ofFn x) = (equivBits hw).symm x := by
-      rw [fieldOfBits_basis]
-      congr 1
-      funext u
-      simp
-    rw [hx] at h
+    rw [fieldOfBits_ofFn] at h
     rw [← getD_listRow_zero w _ _ hjw] at h
     rw [List.getD_eq_getElem (listRow w 0 (powerWord (fieldTable w) (List.ofFn x) i)) false
       (by simpa using hjw)] at h
@@ -190,10 +186,8 @@ theorem poweringMasks_polyTime :
     unfold smallBiasDegree
     fun_prop
   have hsize : PolyBounded (fun p : ℕ × ℕ => (enc p).length)
-      (fun p => 2 ^ smallBiasDegree p.1 p.2) :=
-    (((PolyBounded.const 2).mul
-      (((fst encUnary encUnary).polyBounded.mul (snd encUnary encUnary).polyBounded).add
-        (.const 1)))).mono fun p => (fieldSize_bounds p.1 p.2).2
+      (fun p => 2 ^ smallBiasDegree p.1 p.2) := by
+    growth_poly [fun p : ℕ × ℕ => (fieldSize_bounds p.1 p.2).2]
   have hbound : ComputableInPolyTime
       (fun p : ℕ × ℕ => 2 ^ (smallBiasDegree p.1 p.2 + 1)) enc encUnary :=
     binary_to_unary_bounded (binary_two_pow.comp (unary_add' hw (const 1)))

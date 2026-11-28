@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Machines that diverge on a verdict
@@ -73,10 +74,7 @@ theorem verdict_append (out : List Bool) (o : Option Bool) :
 theorem strip_append (out : List Bool) (o : Option Bool) :
     strip (out ++ o.toList) =
       strip out ++ (if verdict out = some false then o else none).toList := by
-  rcases out with _ | ⟨_ | _, out⟩
-  · rcases o with _ | _ | _ <;> rfl
-  · simp [strip, verdict]
-  · simp [strip, verdict]
+  rcases out with _ | ⟨_ | _, out⟩ <;> rcases o with _ | _ | _ <;> rfl
 
 end Partialize
 
@@ -126,14 +124,13 @@ theorem step_liftCfg (tm : MultiTapeTM k Bool State) (c : Cfg k Bool State input
   · rw [step_of_halt (show Cfg.Halted ⟨none, ip, wt, wp, out⟩ from rfl)]
     by_cases hv : verdict out = some true
     · rw [step_of_state (q := (none, some true)) (by simp [liftCfg, liftState, hv])]
-      refine Cfg.ext ?_ ?_ ?_ ?_ ?_ <;>
-        simp [liftCfg, liftState, hv, partialize, Action.apply]
+      tm_step [liftCfg, hv, partialize]
     · exact step_of_halt (by simp [liftCfg, liftState, hv])
   · rw [step_of_state (q := q) rfl, step_of_state (q := (some q, verdict out)) rfl,
       inputSymbol_liftCfg, workTapeSymbols_liftCfg]
     simp only [partialize, tr_ofTr]
     generalize tm.tr q _ _ = a
-    refine Cfg.ext ?_ ?_ ?_ ?_ ?_ <;> simp [liftCfg, Action.apply, verdict_append, strip_append]
+    tm_step [liftCfg, verdict_append, strip_append]
 
 /-- `tm.partialize` has halted when `tm` has, unless the verdict is `true`. -/
 theorem liftCfg_halted_iff (c : Cfg k Bool State input) :

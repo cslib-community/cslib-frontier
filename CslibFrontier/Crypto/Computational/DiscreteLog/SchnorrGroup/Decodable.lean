@@ -95,47 +95,29 @@ theorem mem_zpowers_of_pow_eq_one (d : Desc) (u : (ZMod d.modulus)ˣ)
     (Finset.univ : Finset (Subgroup.zpowers (generatorUnit d))).image
       fun (x : Subgroup.zpowers (generatorUnit d)) => ((x : (ZMod d.modulus)ˣ) : ZMod d.modulus)
   let f : Polynomial (ZMod d.modulus) := Polynomial.X ^ d.order - 1
-  have hf : f ≠ 0 := by
-    intro h0
-    have hc := congrArg (fun p : Polynomial (ZMod d.modulus) => p.coeff d.order) h0
-    have hq0 : d.order ≠ 0 := d.2.prime_order.ne_zero
-    simp only [f, Polynomial.coeff_sub, Polynomial.coeff_X_pow, ↓reduceIte,
-      Polynomial.coeff_one, hq0, sub_zero, Polynomial.coeff_zero] at hc
-    exact one_ne_zero hc
+  have hf : f ≠ 0 := fun h0 => by
+    simpa [f, Polynomial.coeff_one, d.2.prime_order.ne_zero] using congrArg (·.coeff d.order) h0
   have hsub : S ⊆ f.roots.toFinset := by
     intro r hr
     rcases Finset.mem_image.mp hr with ⟨x, _, rfl⟩
     rw [Multiset.mem_toFinset, Polynomial.mem_roots hf, Polynomial.IsRoot.def]
-    simp only [f, Polynomial.eval_sub, Polynomial.eval_pow, Polynomial.eval_X,
-      Polynomial.eval_one, sub_eq_zero]
-    have hx := pow_order d x
-    have hx' := congrArg (fun z : Subgroup.zpowers (generatorUnit d) =>
-      ((z : (ZMod d.modulus)ˣ) : ZMod d.modulus)) hx
-    simpa using hx'
+    simpa [f, sub_eq_zero] using congrArg (fun z : Subgroup.zpowers (generatorUnit d) =>
+      ((z : (ZMod d.modulus)ˣ) : ZMod d.modulus)) (pow_order d x)
   have hcardS : S.card = d.order := by
     rw [Finset.card_image_of_injective _ fun x y hxy =>
       Subtype.ext (Units.ext hxy), Finset.card_univ, ← Nat.card_eq_fintype_card]
     exact card_carrier d
   have hcardR : f.roots.toFinset.card ≤ S.card := by
     rw [hcardS]
-    refine (Multiset.toFinset_card_le _).trans ((Polynomial.card_roots' f).trans ?_)
-    refine (Polynomial.natDegree_sub_le _ _).trans (max_le ?_ ?_)
-    · exact Polynomial.natDegree_X_pow_le d.order
-    · simp
-  have heq := Finset.eq_of_subset_of_card_le hsub hcardR
-  have hur : (u : ZMod d.modulus) ∈ f.roots.toFinset := by
-    rw [Multiset.mem_toFinset, Polynomial.mem_roots hf, Polynomial.IsRoot.def]
-    simp only [f, Polynomial.eval_sub, Polynomial.eval_pow, Polynomial.eval_X,
-      Polynomial.eval_one, sub_eq_zero]
-    have hu' := congrArg (fun z : (ZMod d.modulus)ˣ => (z : ZMod d.modulus)) hu
-    simpa using hu'
-  rw [← heq] at hur
+    exact (Multiset.toFinset_card_le _).trans <| (Polynomial.card_roots' f).trans <|
+      (Polynomial.natDegree_sub_le _ _).trans
+        (max_le (Polynomial.natDegree_X_pow_le d.order) (by simp))
+  have hur : (u : ZMod d.modulus) ∈ S := by
+    rw [Finset.eq_of_subset_of_card_le hsub hcardR, Multiset.mem_toFinset,
+      Polynomial.mem_roots hf, Polynomial.IsRoot.def]
+    simpa [f, sub_eq_zero] using congrArg (fun z : (ZMod d.modulus)ˣ => (z : ZMod d.modulus)) hu
   rcases Finset.mem_image.mp hur with ⟨x, _, hx⟩
-  have hxu : (x : (ZMod d.modulus)ˣ) = u := by
-    ext
-    exact hx
-  rw [← hxu]
-  exact SetLike.coe_mem x
+  exact Units.ext hx ▸ SetLike.coe_mem x
 
 /-- Decode a candidate bit string as an element of `Carrier d` if `isElem (d, w)` holds. -/
 def decode (d : Desc) (w : List Bool) : Option (Carrier d) :=
@@ -170,19 +152,13 @@ theorem isElem_encode (d : Desc) (x : Carrier d) : isElem (d, encode d x) = true
   have hne : NeZero d.modulus := ⟨d.2.prime_modulus.ne_zero⟩
   have h1lt : Fact (1 < d.modulus) := ⟨d.2.prime_modulus.one_lt⟩
   let u : (ZMod d.modulus)ˣ := (Additive.toMul x : Subgroup.zpowers (generatorUnit d))
-  have hval_ne : (u : ZMod d.modulus).val ≠ 0 := by
-    intro hv0
-    have h0 : (u : ZMod d.modulus) = 0 := by
-      rw [← ZMod.natCast_zmod_val (u : ZMod d.modulus), hv0, Nat.cast_zero]
-    exact Units.ne_zero u h0
+  have hval_ne : (u : ZMod d.modulus).val ≠ 0 := fun hv0 =>
+    Units.ne_zero u (by rw [← ZMod.natCast_zmod_val (u : ZMod d.modulus), hv0, Nat.cast_zero])
   have hpow : (u : ZMod d.modulus).val ^ d.order % d.modulus = 1 := by
     rw [← ZMod.val_natCast, Nat.cast_pow, ZMod.natCast_zmod_val, ← Units.val_pow_eq_pow_val]
-    have h1 := pow_order d (Additive.toMul x)
-    have h1' := congrArg (fun z : Subgroup.zpowers (generatorUnit d) =>
-      (((z : (ZMod d.modulus)ˣ) : ZMod d.modulus)).val) h1
-    change (((u ^ d.order : (ZMod d.modulus)ˣ) : ZMod d.modulus)).val =
-      (1 : ZMod d.modulus).val at h1'
-    rwa [ZMod.val_one_eq_one_mod, Nat.mod_eq_of_lt d.2.prime_modulus.one_lt] at h1'
+    have h1 := congrArg (fun z : Subgroup.zpowers (generatorUnit d) =>
+      (((z : (ZMod d.modulus)ˣ) : ZMod d.modulus)).val) (pow_order d (Additive.toMul x))
+    simpa [u, ZMod.val_one_eq_one_mod, Nat.mod_eq_of_lt d.2.prime_modulus.one_lt] using h1
   change isElem (d, ((u : ZMod d.modulus).val).bits) = true
   simp only [isElem, ofBits_bits, Bool.and_eq_true, decide_eq_true_eq]
   exact ⟨beq_iff_eq.mpr rfl, Nat.pos_of_ne_zero hval_ne, ZMod.val_lt _, hpow⟩
@@ -203,43 +179,38 @@ theorem decode_encode (d : Desc) (x : Carrier d) : decode d (encode d x) = some 
 /-- `SchnorrGroup.isElem` is computable in polynomial time. -/
 theorem computableInPolyTime_isElem :
     ComputableInPolyTime isElem (encPair encDesc encBits) encBool := by
-  have hval : ComputableTidilyInPolyTime (Subtype.val : Desc → ℕ × ℕ × ℕ) encDesc
+  have hval : ComputableInPolyTime (Subtype.val : Desc → ℕ × ℕ × ℕ) encDesc
       (encPair encNat (encPair encNat encNat)) :=
-    ComputableTidilyInPolyTime.of_eq fun _ => rfl
-  have hdesc := hval.comp (ComputableTidilyInPolyTime.fst encDesc encBits)
-  have hmod : ComputableTidilyInPolyTime (fun p : Desc × List Bool => p.1.modulus)
+    ComputableInPolyTime.of_eq fun _ => rfl
+  have hdesc := hval.comp (ComputableInPolyTime.fst encDesc encBits)
+  have hmod : ComputableInPolyTime (fun p : Desc × List Bool => p.1.modulus)
       (encPair encDesc encBits) encNat :=
     hdesc.fst'.of_enc_eq fun _ => rfl
-  have hord : ComputableTidilyInPolyTime (fun p : Desc × List Bool => p.1.order)
+  have hord : ComputableInPolyTime (fun p : Desc × List Bool => p.1.order)
       (encPair encDesc encBits) encNat :=
     hdesc.snd'.fst'.of_enc_eq fun _ => rfl
-  have ha : ComputableTidilyInPolyTime (fun p : Desc × List Bool => ofBits p.2)
+  have ha : ComputableInPolyTime (fun p : Desc × List Bool => ofBits p.2)
       (encPair encDesc encBits) encNat :=
-    ComputableTidilyInPolyTime.bitsToNat.comp (ComputableTidilyInPolyTime.snd encDesc encBits)
-  have hbeq : ComputableTidilyInPolyTime (fun p : Desc × List Bool => encNat (ofBits p.2) == p.2)
+    ComputableInPolyTime.bitsToNat.comp (ComputableInPolyTime.snd encDesc encBits)
+  have hbeq : ComputableInPolyTime (fun p : Desc × List Bool => encNat (ofBits p.2) == p.2)
       (encPair encDesc encBits) encBool :=
-    ComputableTidilyInPolyTime.beq
-      ((ComputableTidilyInPolyTime.encode encNat).comp ha)
-      (ComputableTidilyInPolyTime.snd encDesc encBits)
-  have h0 : ComputableTidilyInPolyTime (fun p : Desc × List Bool => decide (0 < ofBits p.2))
+    ComputableInPolyTime.beq
+      (((ComputableInPolyTime.of_eq (encIn := encNat) (encOut := encBits) (fun _ => rfl))).comp ha)
+      (ComputableInPolyTime.snd encDesc encBits)
+  have h0 : ComputableInPolyTime (fun p : Desc × List Bool => decide (0 < ofBits p.2))
       (encPair encDesc encBits) encBool :=
-    ComputableTidilyInPolyTime.binary_lt.comp
-      ((ComputableTidilyInPolyTime.const 0).prod ha)
-  have hlt : ComputableTidilyInPolyTime
+    ComputableInPolyTime.binary_lt.comp
+      ((ComputableInPolyTime.const 0).prod ha)
+  have hlt : ComputableInPolyTime
       (fun p : Desc × List Bool => decide (ofBits p.2 < p.1.modulus))
       (encPair encDesc encBits) encBool :=
-    ComputableTidilyInPolyTime.binary_lt.comp (ha.prod hmod)
+    ComputableInPolyTime.binary_lt.comp (ha.prod hmod)
   have hpow : ComputableInPolyTime
       (fun p : Desc × List Bool => ofBits p.2 ^ p.1.order % p.1.modulus)
       (encPair encDesc encBits) encNat :=
-    ComputableInPolyTime.binary_powMod ha.computableInPolyTime hord.computableInPolyTime
-      hmod.computableInPolyTime fun p => p.1.2.prime_modulus.pos
-  have heq1 : ComputableTidilyInPolyTime
-      (fun p : Desc × List Bool => decide (ofBits p.2 ^ p.1.order % p.1.modulus = 1))
-      (encPair encDesc encBits) encBool :=
-    (ComputableTidilyInPolyTime.decide_eq encNat).comp
-      (hpow.tidy.prod (ComputableTidilyInPolyTime.const 1))
-  exact (hbeq.bool_and' (h0.decide_and (hlt.decide_and heq1))).computableInPolyTime.of_enc_eq
+    ComputableInPolyTime.binary_powMod ha hord
+      hmod fun p => p.1.2.prime_modulus.pos
+  exact (hbeq.bool_and' (h0.decide_and (hlt.decide_and (hpow.decide_eq' (.const 1))))).of_enc_eq
     fun p => by simp only [isElem]
 
 end SchnorrGroup
@@ -264,9 +235,7 @@ produces, so that `rw` and `simp` find it in goals stated through that API. -/
 
 /-- `SchnorrGroup.isElem` accepts exactly the encodings of Schnorr group elements. -/
 theorem SchnorrGroup.isElem_eq_true_iff (d : SchnorrGroup.Desc) (w : List Bool) :
-    SchnorrGroup.isElem (d, w) = true ↔ w ∈ Set.range (SchnorrGroup.encode d) := by
-  have h := schnorrDecodableGroups.isElem_eq_true_iff d w
-  rw [schnorrDecodableGroups_isElem] at h
-  exact h
+    SchnorrGroup.isElem (d, w) = true ↔ w ∈ Set.range (SchnorrGroup.encode d) :=
+  schnorrDecodableGroups_isElem (d, w) ▸ schnorrDecodableGroups.isElem_eq_true_iff d w
 
 end Cslib.Crypto

@@ -6,6 +6,7 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Computability.GenericRAM.Native.BooleanFold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimePrimitives
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 
 /-! Concrete runtime-width and native controls. Only these tiny specifications materialize
 assignment lists; the implementation streams a binary index and one captured accumulator. -/
@@ -31,7 +32,7 @@ example : run (fun p : (ℕ × List Bool) × (ℕ × ℕ) =>
     2 (7, 0) = (4, (2, (7, 22))) := by decide
 
 -- The binary visit count is exponentially large but its construction/output are linear size.
-example (n : ℕ) : (encNat (2 ^ n)).length = n + 1 := length_clock n
+example (n : ℕ) : (encNat (2 ^ n)).length = n + 1 := length_encNat_two_pow n
 example (n : ℕ) : clock.time n = n ∧ clock.space n = n := by simp [clock]
 example : (encNat (2 ^ 8)).length = 9 := by decide
 

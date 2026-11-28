@@ -164,11 +164,6 @@ private theorem embed_eq_fieldOfBits (hw : w ≠ 0) {b : ℕ} (hbw : b ≤ w) (a
   · exact (List.getD_ofFn_of_lt a hj false).symm
   · exact (List.getD_eq_default _ _ (by simp; omega)).symm
 
-/-- The element with the bits of `v` as coordinates. -/
-theorem fieldOfBits_ofFn (hw : w ≠ 0) (v : BitString w) :
-    fieldOfBits (𝔅 hw) (List.ofFn v) = (BinaryField.equivBits hw).symm v := by
-  simp [fieldOfBits_basis]
-
 /-- The numerator of a Lagrange basis polynomial: the product of `t - a'` over the other nodes. -/
 private theorem fieldOfBits_lagrangeNum (hw : w ≠ 0) {b : ℕ} (hbw : b ≤ w) (a : BitString b)
     (t : List Bool) :

@@ -83,17 +83,14 @@ theorem run_modSumStep {c : C} {j : ℕ} (hj : j ≤ count c) :
 /-- **The streamed sum is the sum modulo the modulus.** -/
 theorem modSum_eq_sum_mod (r : C × ℕ → ℕ) (modulus count : C → ℕ) (c : C) :
     modSum r modulus count c = (∑ i ∈ Finset.range (count c), r (c, i)) % modulus c := by
-  have h := Nat.foldl_range_add_mod (fun i => r (c, i)) (modulus c) 0 (count c)
-  rw [Nat.zero_mod, Nat.zero_add] at h
-  rw [modSum, run_modSumStep le_rfl, h]
+  rw [modSum, run_modSumStep le_rfl]
+  simpa using Nat.foldl_range_add_mod (fun i => r (c, i)) (modulus c) 0 (count c)
 
 private theorem foldl_add_mod_lt {f : ℕ → ℕ} {m : ℕ} (hm : 0 < m) (j : ℕ) :
     (List.range j).foldl (fun acc i => (acc + f i) % m) 0 < m := by
   cases j with
   | zero => exact hm
-  | succ j =>
-    rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
-    exact Nat.mod_lt _ hm
+  | succ j => simpa [List.range_succ] using Nat.mod_lt _ hm
 
 /-- **Resource bound of the streamed sum.** Suppose the number of terms and the modulus are
 computable in polynomial time, the modulus is positive, every summed term lies below it, and a
@@ -114,29 +111,23 @@ theorem exists_computableInO_modSum {encC : C ↪ List Bool}
   -- The polynomial-time pieces of a round.
   have htest : ComputableInPolyTime (fun p : ℕ × (C × ℕ) => decide (p.1 < count p.2.1))
       (encPair encNat (encPair encC encNat)) encBool := by fun_prop
-  have hctx : ComputableInPolyTime (fun p : ℕ × (C × ℕ) => p.2.1)
-      (encPair encNat (encPair encC encNat)) encC := by fun_prop
-  have hacc : ComputableInPolyTime (fun p : ℕ × (C × ℕ) => p.2.2)
-      (encPair encNat (encPair encC encNat)) encNat := by fun_prop
-  have hswap : ComputableInPolyTime (fun p : ℕ × (C × ℕ) => (p.2.1, p.1))
-      (encPair encNat (encPair encC encNat)) (encPair encC encNat) := by fun_prop
-  have hmod : ComputableInPolyTime (fun p : ℕ × (C × ℕ) => modulus p.2.1)
-      (encPair encNat (encPair encC encNat)) encNat := by fun_prop
   have hno : ComputableInPolyTime (fun p : ℕ × (C × ℕ) => p.2)
       (encPair encNat (encPair encC encNat)) (encPair encC encNat) := by fun_prop
-  have hadd : ComputableInPolyTime (fun q : ℕ × ℕ × ℕ => (q.1 + q.2.1) % q.2.2)
-      (encPair encNat (encPair encNat encNat)) encNat := by fun_prop
+  have hswap : ComputableInPolyTime (fun p : ℕ × (C × ℕ) => (p.2.1, p.1))
+      (encPair encNat (encPair encC encNat)) (encPair encC encNat) := by fun_prop
+  have hpost : ComputableInPolyTime
+      (fun q : (C × ℕ) × ℕ => (q.1.1, (q.1.2 + q.2) % modulus q.1.1))
+      (encPair (encPair encC encNat) encNat) (encPair encC encNat) :=
+    ComputableInPolyTime.prod (by fun_prop)
+      (ComputableInPolyTime.binary_mod' (by fun_prop) (by fun_prop))
   have hinit : ComputableInPolyTime (fun c : C => (c, 0)) encC (encPair encC encNat) := by
     fun_prop
-  -- The round: a test, then either the addition or nothing.
+  -- The round: a test, then either evaluate `r` and update the accumulator, or keep the state.
   let yes : NativeCertificate
       (fun p : ℕ × (C × ℕ) => (p.2.1, (p.2.2 + r (p.2.1, p.1)) % modulus p.2.1))
       (encPair encNat (encPair encC encNat)) (encPair encC encNat) :=
-    (NativeCertificate.ofPolyTime hctx).prod
-      ((NativeCertificate.ofPolyTime hadd).comp
-        ((NativeCertificate.ofPolyTime hacc).prod
-          ((cr.comp (NativeCertificate.ofPolyTime hswap)).prod
-            (NativeCertificate.ofPolyTime hmod))))
+    (NativeCertificate.ofPolyTime hpost).comp
+      ((NativeCertificate.ofPolyTime hno).prod (cr.comp (NativeCertificate.ofPolyTime hswap)))
   let cstep : NativeCertificate (modSumStep r modulus count)
       (encPair encNat (encPair encC encNat)) (encPair encC encNat) :=
     (NativeCertificate.branch (NativeCertificate.ofPolyTime htest) yes
@@ -144,28 +135,21 @@ theorem exists_computableInO_modSum {encC : C ↪ List Bool}
         simp only [modSumStep, decide_eq_true_eq]
   -- Monotone polynomial bounds of the pieces.
   obtain ⟨pT, hpT, mT, bT⟩ := exists_mono_poly_cert htest
-  obtain ⟨pC, hpC, mC, bC⟩ := exists_mono_poly_cert hctx
-  obtain ⟨pA, hpA, mA, bA⟩ := exists_mono_poly_cert hacc
-  obtain ⟨pW, hpW, mW, bW⟩ := exists_mono_poly_cert hswap
-  obtain ⟨pM, hpM, mM, bM⟩ := exists_mono_poly_cert hmod
   obtain ⟨pN, hpN, mN, bN⟩ := exists_mono_poly_cert hno
-  obtain ⟨pD, hpD, mD, bD⟩ := exists_mono_poly_cert hadd
+  obtain ⟨pW, hpW, mW, bW⟩ := exists_mono_poly_cert hswap
+  obtain ⟨pP, hpP, mP, bP⟩ := exists_mono_poly_cert hpost
   obtain ⟨pI, hpI, -, bI⟩ := exists_mono_poly_cert hinit
   obtain ⟨pK, hpK, -, bK⟩ := exists_mono_poly_cert hcount
   -- Sizes: the context, the modulus and the number of terms.
   set L : C → ℕ := fun c => (encC c).length with hL
   set lm : C → ℕ := fun c => (encNat (modulus c)).length with hlm
   set lk : C → ℕ := fun c => (encNat (count c)).length with hlk
-  have hLp : PolyBounded L L := PolyBounded.self
-  have hlmp : PolyBounded L lm := hmodulus.polyBounded_length
-  have hlkp : PolyBounded L lk := hcount.polyBounded_length
   -- A state `(j, (c, acc))` with `j ≤ count c` and `acc < modulus c` has length at most `S c`; the
-  -- input of the addition has length at most `S' c`; the accumulator pair at most `B c`.
+  -- input of `hpost` has length at most `S' c`; the accumulator pair at most `B c`.
   let S : C → ℕ := fun c => 2 * lk c + 2 * L c + lm c + 2
-  let S' : C → ℕ := fun c => 5 * lm c + 2
+  let S' : C → ℕ := fun c => 4 * L c + 3 * lm c + 3
   let B : C → ℕ := fun c => 2 * L c + 1 + lm c
-  let U : C → ℕ := fun c => pT (S c) + pC (S c) + pA (S c) + pW (S c) + pM (S c) + pD (S' c) +
-    pN (S c)
+  let U : C → ℕ := fun c => pT (S c) + pN (S c) + pW (S c) + pP (S' c)
   have hstate (c : C) (j : ℕ) (hj : j ≤ count c) :
       (encPair encNat (encPair encC encNat)
         (IndexFold.run (modSumStep r modulus count) j (c, 0))).length ≤ S c := by
@@ -183,27 +167,21 @@ theorem exists_computableInO_modSum {encC : C ↪ List Bool}
     simp only [cstep, yes, NativeCertificate.congr, NativeCertificate.branch_time,
       NativeCertificate.branch_space, NativeCertificate.prod_time, NativeCertificate.prod_space,
       NativeCertificate.comp_time, NativeCertificate.comp_space, Function.comp_apply]
-    have h1 := (bT (j, (c, acc))).imp (·.trans (mT hs)) (·.trans (mT hs))
+    have hT := (bT (j, (c, acc))).imp (·.trans (mT hs)) (·.trans (mT hs))
+    have hN := (bN (j, (c, acc))).imp (·.trans (mN hs)) (·.trans (mN hs))
     split_ifs with hlt
     · have hjc : j < count c := of_decide_eq_true hlt
-      have hacc_lt : acc < modulus c := foldl_add_mod_lt (hpos c) j
-      have hrj := hr c j hjc
-      have hq : (encPair encNat (encPair encNat encNat)
-          (acc, r (c, j), modulus c)).length ≤ S' c := by
-        have := length_encNat_mono hacc_lt.le
-        have := length_encNat_mono hrj.le
-        enc_len [S', lm] at *
-      have h2 := (bC (j, (c, acc))).imp (·.trans (mC hs)) (·.trans (mC hs))
-      have h3 := (bA (j, (c, acc))).imp (·.trans (mA hs)) (·.trans (mA hs))
-      have h4 := (bW (j, (c, acc))).imp (·.trans (mW hs)) (·.trans (mW hs))
-      have h5 := (bM (j, (c, acc))).imp (·.trans (mM hs)) (·.trans (mM hs))
-      have h6 := (bD (acc, r (c, j), modulus c)).imp (·.trans (mD hq)) (·.trans (mD hq))
-      have h7 := hR c j hjc
-      have h8 := hQ c j hjc
+      have hq : (encPair (encPair encC encNat) encNat ((c, acc), r (c, j))).length ≤ S' c := by
+        have ha := length_encNat_mono (show acc < modulus c from foldl_add_mod_lt (hpos c) j).le
+        have := length_encNat_mono (hr c j hjc).le
+        enc_len [S', L, lm] at *
+      have hW := (bW (j, (c, acc))).imp (·.trans (mW hs)) (·.trans (mW hs))
+      have hP := (bP ((c, acc), r (c, j))).imp (·.trans (mP hq)) (·.trans (mP hq))
+      have := hR c j hjc
+      have := hQ c j hjc
       simp only [U]
       omega
-    · have h2 := (bN (j, (c, acc))).imp (·.trans (mN hs)) (·.trans (mN hs))
-      simp only [U]
+    · simp only [U]
       omega
   have hacc_len (c : C) (j : ℕ) (hj : j ≤ count c) :
       (encPair encC encNat (IndexFold.run (modSumStep r modulus count) j (c, 0)).2).length ≤
@@ -219,20 +197,15 @@ theorem exists_computableInO_modSum {encC : C ↪ List Bool}
   -- Collect the polynomial overhead.
   let V : C → ℕ := fun c => pK (L c) + (L c + pI (L c)) + 2 * (2 * lk c + 1 + B c) +
     2 * (lk c + 1) ^ 2 + (lk c + 1) + lk c + U c
-  have hSp : PolyBounded L S := by growth_poly
-  have hS'p : PolyBounded L S' := ((PolyBounded.const 5).mul hlmp).add (PolyBounded.const 2)
-  have hBp : PolyBounded L B := by growth_poly
-  have hUp : PolyBounded L U := by growth_poly
   have hVp : PolyBounded L V := by growth_poly
   obtain ⟨a, d, hV⟩ := hVp.exists_le
   refine ⟨a, d, (hout.mono_le (fun c => ?_) fun c => ?_).of_enc_eq fun c => rfl⟩
   · have hK := (bK c).1
     have hI := (bI c).1
     have hVc := hV c
-    have hone : 1 ≤ count c + 1 := by omega
-    have hmul : V c + R c ≤ (count c + 1) * (V c + R c) := Nat.le_mul_of_pos_left _ hone
+    have hmul := Nat.le_mul_of_pos_left (V c + R c) (Nat.succ_pos (count c))
     have hmono : (count c + 1) * (V c + R c) ≤ (count c + 1) * (a * (L c + 1) ^ d + R c) :=
-      Nat.mul_le_mul_left _ (by omega)
+      Nat.mul_le_mul_left _ (Nat.add_le_add_right hVc _)
     simp only [V, L, lk] at hK hI hVc hmul hmono ⊢
     nlinarith
   · have hK := (bK c).2

@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
+import CslibFrontier.Tactic.WramOmega
+import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # Metadata and Circular-Window `Memory.Prog` Primitives
@@ -52,8 +54,9 @@ open Cslib.DataStructure.HashFamily.WordRAM
 
 attribute [local simp] Realization.memoryCost_bind'
 attribute [local simp] prog_clientResult_bind prog_runClient_state_bind prog_clientResult_pure
-attribute [local simp] prog_runClient_state_pure prog_clientResult_map prog_runClient_state_map
-attribute [local simp] prog_memoryCost_map prog_clientResult_read prog_runClient_state_read
+attribute [local simp] prog_runClient_state_pure StateTransitionSpec.clientResult_map
+  StateTransitionSpec.fst_snd_runClient_map
+attribute [local simp] Realization.memoryCost_map prog_clientResult_read prog_runClient_state_read
 attribute [local simp] prog_memoryCost_read prog_clientResult_write prog_runClient_state_write
 attribute [local simp] prog_memoryCost_write
 
@@ -67,10 +70,14 @@ def copyCompItemGenProg : (CompParams × ℕ) × (ℕ × ℕ) → Memory.Prog Un
     writeCompQuotGenProg (((cp, itemBase), dst), q)
     writeCompValGenProg (((cp, itemBase), dst), v)
 
+/-- `copyCompItemGenProg` returns `()`. -/
 @[simp] theorem clientResult_copyCompItemGenProg
     (d : (CompParams × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
     (Memory.spec 0).clientResult s (copyCompItemGenProg d) = () := by
   rcases d with ⟨⟨cp, itemBase⟩, ⟨src, dst⟩⟩; simp [copyCompItemGenProg]
+
+/-- Copying dense item slot `src` (`src < m_items`) to `dst` writes its quotient and value into
+`dst` and preserves `s.frontier`. -/
 theorem clientState_copyCompItemGenProg {U V w N m_items itemBase src dst : ℕ}
     (hsrc : src < m_items) (s : Memory.State) :
     (Memory.spec 0).clientState s
@@ -79,19 +86,21 @@ theorem clientState_copyCompItemGenProg {U V w N m_items itemBase src dst : ℕ}
           (writeCompQuot itemBase U V w N s.mem dst (compQuotAt itemBase U V w N m_items s.mem src))
           dst (compValAt itemBase U V w N m_items s.mem src),
         frontier := s.frontier } := by
-  unfold StateTransitionSpec.clientState
-  simp only [copyCompItemGenProg, prog_runClient_state_bind, StateTransitionSpec.clientState,
-    clientResult_readCompQuotGenProg hsrc, runClient_state_readCompQuotGenProg,
-    clientResult_readCompValGenProg hsrc, runClient_state_readCompValGenProg,
-    runClient_state_writeCompQuotGenProg, runClient_state_writeCompValGenProg]
+  simp [StateTransitionSpec.clientState, copyCompItemGenProg,
+    clientResult_readCompQuotGenProg hsrc, clientResult_readCompValGenProg hsrc]
+
+/-- `copyCompItemGenProg` issues `12` memory operations. -/
 @[simp] theorem memoryCost_copyCompItemGenProg
     (d : (CompParams × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
     memoryCost (copyCompItemGenProg d) s = 12 := by
   rcases d with ⟨⟨cp, itemBase⟩, ⟨src, dst⟩⟩; simp [copyCompItemGenProg]
+
 /-- Precondition for copying an item between two compacted item slots. -/
 @[expose] def CopyCompItemPre (w : ℕ) : (CompParams × ℕ) × (ℕ × ℕ) → Memory.State → Prop
   | ((cp, itemBase), (src, dst)), s =>
     ∃ m_items, CompItemEnv w cp itemBase m_items s ∧ src < m_items ∧ dst < m_items
+
+/-- Exact, width-independent realization certificate for `copyCompItemGenProg`. -/
 theorem realizesBounded_copyCompItemGen :
     RealizesBounded .exact copyCompItemGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
@@ -115,24 +124,27 @@ def clearCompItemGenProg : (CompParams × ℕ) × ℕ → Memory.Prog Unit
     writeCompQuotGenProg (((cp, itemBase), d), z)
     writeCompValGenProg (((cp, itemBase), d), z)
 
+/-- `clearCompItemGenProg` returns `()`. -/
 @[simp] theorem clientResult_clearCompItemGenProg
     (d : (CompParams × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientResult s (clearCompItemGenProg d) = () := by
   rcases d with ⟨⟨cp, itemBase⟩, idx⟩; simp [clearCompItemGenProg]
 
+/-- Clearing dense slot `d` writes `0` to both its quotient and value, preserving `s.frontier`. -/
 theorem clientState_clearCompItemGenProg (U V w N itemBase d : ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s
         (clearCompItemGenProg ((mkCompParams U V w N, itemBase), d)) =
       { mem := writeCompVal itemBase U V w N (writeCompQuot itemBase U V w N s.mem d 0) d 0,
         frontier := s.frontier } := by
-  unfold StateTransitionSpec.clientState
-  simp [clearCompItemGenProg]
+  simp [StateTransitionSpec.clientState, clearCompItemGenProg]
 
+/-- `clearCompItemGenProg` issues `8` memory operations. -/
 @[simp] theorem memoryCost_clearCompItemGenProg
     (d : (CompParams × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (clearCompItemGenProg d) s = 8 := by
   rcases d with ⟨⟨cp, itemBase⟩, idx⟩; simp [clearCompItemGenProg]
 
+/-- Exact, width-independent realization certificate for `clearCompItemGenProg`. -/
 theorem realizesBounded_clearCompItemGen :
     RealizesBounded .exact clearCompItemGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
@@ -154,6 +166,7 @@ def readCompLMGenProg (c : Fin 9) : (CompParams × ℕ) × ℕ → Memory.Prog �
     let wVal ← pure (cpW cp)
     readPackedCompGenProg (((metaBase, off), (k, wVal)), idx)
 
+/-- Reading `LocalMeta[c, idx]` returns `compLmAt metaBase U w N s.mem (c.val, idx)`. -/
 @[simp] theorem clientResult_readCompLMGenProg (c : Fin 9) {U V w N metaBase idx : ℕ}
     (hidx : idx < totalMicroBuckets N) (s : Memory.State) :
     (Memory.spec 0).clientResult s
@@ -161,37 +174,56 @@ def readCompLMGenProg (c : Fin 9) : (CompParams × ℕ) × ℕ → Memory.Prog �
       compLmAt metaBase U w N s.mem (c.val, idx) := by
   simp [readCompLMGenProg, cpOffLMSub_mk, compLmAt, c.isLt, hidx]
 
+/-- `readCompLMGenProg` leaves the memory state unchanged. -/
 theorem clientState_readCompLMGenProg (c : Fin 9) (d : (CompParams × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (readCompLMGenProg c d) = s := by
   rcases d with ⟨⟨cp, metaBase⟩, idx⟩; unfold StateTransitionSpec.clientState
   simp [readCompLMGenProg]
+
+/-- `simp`-indexed projection form of `clientState_readCompLMGenProg` (`clientState` unfolds to a
+`match` that `simp` cannot index directly). -/
 @[simp] theorem runClient_state_readCompLMGenProg
     (c : Fin 9) (d : (CompParams × ℕ) × ℕ) (s : Memory.State) :
     Prod.fst (Prod.snd ((Memory.spec 0).runClient s (readCompLMGenProg c d))) = s :=
   clientState_readCompLMGenProg c d s
+
+/-- `readCompLMGenProg` issues `2` memory operations. -/
 @[simp] theorem memoryCost_readCompLMGenProg
     (c : Fin 9) (d : (CompParams × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (readCompLMGenProg c d) s = 2 := by
   rcases d with ⟨⟨cp, metaBase⟩, idx⟩; simp [readCompLMGenProg]
 
+private theorem packedCompPre_of_metaEnv {w metaBase idx : ℕ} {cp : CompParams} {s : Memory.State}
+    {off k len : CompParams → ℕ}
+    (h : CompMetaEnv w cp metaBase s ∧ idx < len cp)
+    (hk_le : ∀ {U V N}, N ≤ U → U < 2 ^ w → k (mkCompParams U V w N) ≤ w)
+    (hend : ∀ U V N, off (mkCompParams U V w N) +
+        packedWords (len (mkCompParams U V w N)) (k (mkCompParams U V w N)) w ≤
+      offCompItems U w N := by
+        intro U V N
+        simp only [cpOffLMSub_mk, cpLmBits_mk, cpOffGM_mk, cpGmBits_mk, cpOffTD_mk, cpOffDT_mk,
+          cpMaxTail_mk, cpN_mk]
+        wram_omega) :
+    ReadPackedCompPre w (((metaBase, off cp), (k cp, cpW cp)), idx) s := by
+  obtain ⟨⟨U, V, N, hw, _, hnU, hU, _, rfl, hfr⟩, hidx⟩ := h
+  refine ⟨len (mkCompParams U V w N), hw, rfl, hk_le hnU hU, hidx, ?_⟩
+  have := hend U V N
+  omega
+
 /-- Precondition for reading from local metadata array `LM`. -/
 @[expose] def CompLMPre (w : ℕ) : (CompParams × ℕ) × ℕ → Memory.State → Prop
   | ((cp, metaBase), idx), s => CompMetaEnv w cp metaBase s ∧ idx < totalMicroBuckets (cpN cp)
 
+/-- Exact, width-independent realization certificate for `readCompLMGenProg c`. -/
 theorem realizesBounded_readCompLMGen (c : Fin 9) :
     RealizesBounded .exact (readCompLMGenProg c)
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
       CompLMPre (fun _ _ => 0) := by
   have hrp := realizesBounded_readPackedCompGen
   fin_cases c <;>
-  · realize
-    rcases d with ⟨⟨cp, metaBase⟩, idx⟩
-    obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-    simp only [cpOffLMSub_mk, cpLmBits_mk, cpW_mk, cpN_mk] at *
-    refine ⟨totalMicroBuckets N, hw, rfl, effBucketPosBits_le_of_lt_pow hnU hU, hidx, ?_⟩
-    unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLMSub offCompLM at *
-    change _ + lmSubWords N w ≤ s.frontier
-    omega
+    (realize; rcases d with ⟨⟨cp, metaBase⟩, idx⟩; dsimp only at *
+     exact packedCompPre_of_metaEnv (len := fun cp => totalMicroBuckets (cpN cp)) h
+       effBucketPosBits_le_of_lt_pow)
 
 /-- Write `val` into `LocalMeta[c, idx]` at `metaBase` in `Memory.Prog`. -/
 def writeCompLMGenProg (c : Fin 9) : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Unit
@@ -201,10 +233,13 @@ def writeCompLMGenProg (c : Fin 9) : ((CompParams × ℕ) × ℕ) × ℕ → Mem
     let wVal ← pure (cpW cp)
     writePackedCompGenProg ((((metaBase, off), (k, wVal)), idx), val)
 
+/-- `writeCompLMGenProg` returns `()`. -/
 @[simp] theorem clientResult_writeCompLMGenProg
     (c : Fin 9) (d : ((CompParams × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientResult s (writeCompLMGenProg c d) = () := by
   rcases d with ⟨⟨⟨cp, metaBase⟩, idx⟩, val⟩; simp [writeCompLMGenProg]
+
+/-- Writing `val` to `LocalMeta[c, idx]` updates that packed slot and preserves `s.frontier`. -/
 theorem clientState_writeCompLMGenProg
     (c : Fin 9) (U V w N metaBase idx val : ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s
@@ -213,6 +248,8 @@ theorem clientState_writeCompLMGenProg
           (effBucketPosBits N) w s.mem idx val,
         frontier := s.frontier } := by
   unfold StateTransitionSpec.clientState; simp [writeCompLMGenProg, cpOffLMSub_mk]
+
+/-- `simp`-indexed projection form of `clientState_writeCompLMGenProg`. -/
 @[simp] theorem runClient_state_writeCompLMGenProg
     (c : Fin 9) (U V w N metaBase idx val : ℕ) (s : Memory.State) :
     Prod.fst (Prod.snd ((Memory.spec 0).runClient s
@@ -221,6 +258,8 @@ theorem clientState_writeCompLMGenProg
           (effBucketPosBits N) w s.mem idx val,
         frontier := s.frontier } :=
   clientState_writeCompLMGenProg c U V w N metaBase idx val s
+
+/-- `writeCompLMGenProg` issues `4` memory operations. -/
 @[simp] theorem memoryCost_writeCompLMGenProg
     (c : Fin 9) (d : ((CompParams × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (writeCompLMGenProg c d) s = 4 := by
@@ -231,20 +270,16 @@ theorem clientState_writeCompLMGenProg
   | (((cp, metaBase), idx), _val), s =>
     CompMetaEnv w cp metaBase s ∧ idx < totalMicroBuckets (cpN cp)
 
+/-- Exact, width-independent realization certificate for `writeCompLMGenProg c`. -/
 theorem realizesBounded_writeCompLMGen (c : Fin 9) :
     RealizesBounded .exact (writeCompLMGenProg c)
       (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
       WriteCompLMPre (fun _ _ => 0) := by
   have hwp := realizesBounded_writePackedCompGen
   fin_cases c <;>
-  · realize
-    rcases d with ⟨⟨⟨cp, metaBase⟩, idx⟩, val⟩
-    obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-    simp only [cpOffLMSub_mk, cpLmBits_mk, cpW_mk, cpN_mk] at *
-    refine ⟨totalMicroBuckets N, hw, rfl, effBucketPosBits_le_of_lt_pow hnU hU, hidx, ?_⟩
-    unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLMSub offCompLM at *
-    change _ + lmSubWords N w ≤ s.frontier
-    omega
+    (realize; rcases d with ⟨⟨⟨cp, metaBase⟩, idx⟩, _⟩; dsimp only at *
+     exact packedCompPre_of_metaEnv (len := fun cp => totalMicroBuckets (cpN cp)) h
+       effBucketPosBits_le_of_lt_pow)
 
 /-- Read `GlobalMeta[idx]` at `metaBase` in `Memory.Prog`. -/
 def readCompGMGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
@@ -254,6 +289,7 @@ def readCompGMGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
     let wVal ← pure (cpW cp)
     readPackedCompGenProg (((metaBase, off), (k, wVal)), idx)
 
+/-- Reading `GlobalMeta[idx]` returns `compGmAt metaBase U w N s.mem idx`. -/
 @[simp] theorem clientResult_readCompGMGenProg {U V w N metaBase idx : ℕ}
     (hidx : idx < globalMetaLen N) (s : Memory.State) :
     (Memory.spec 0).clientResult s
@@ -261,13 +297,18 @@ def readCompGMGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
       compGmAt metaBase U w N s.mem idx := by
   simp [readCompGMGenProg, compGmAt, hidx]
 
+/-- `readCompGMGenProg` leaves the memory state unchanged. -/
 theorem clientState_readCompGMGenProg (d : (CompParams × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (readCompGMGenProg d) = s := by
   rcases d with ⟨⟨cp, metaBase⟩, idx⟩; unfold StateTransitionSpec.clientState
   simp [readCompGMGenProg]
+
+/-- `simp`-indexed projection form of `clientState_readCompGMGenProg`. -/
 @[simp] theorem runClient_state_readCompGMGenProg (d : (CompParams × ℕ) × ℕ) (s : Memory.State) :
     Prod.fst (Prod.snd ((Memory.spec 0).runClient s (readCompGMGenProg d))) = s :=
   clientState_readCompGMGenProg d s
+
+/-- `readCompGMGenProg` issues `2` memory operations. -/
 @[simp] theorem memoryCost_readCompGMGenProg (d : (CompParams × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (readCompGMGenProg d) s = 2 := by
   rcases d with ⟨⟨cp, metaBase⟩, idx⟩; simp [readCompGMGenProg]
@@ -276,18 +317,15 @@ theorem clientState_readCompGMGenProg (d : (CompParams × ℕ) × ℕ) (s : Memo
 @[expose] def CompGMPre (w : ℕ) : (CompParams × ℕ) × ℕ → Memory.State → Prop
   | ((cp, metaBase), idx), s => CompMetaEnv w cp metaBase s ∧ idx < globalMetaLen (cpN cp)
 
+/-- Exact, width-independent realization certificate for `readCompGMGenProg`. -/
 theorem realizesBounded_readCompGMGen :
     RealizesBounded .exact readCompGMGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
       CompGMPre (fun _ _ => 0) := by
   have hrp := realizesBounded_readPackedCompGen
-  realize
-  rcases d with ⟨⟨cp, metaBase⟩, idx⟩
-  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-  simp only [cpOffGM_mk, cpGmBits_mk, cpW_mk, cpN_mk] at *
-  refine ⟨globalMetaLen N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hidx, ?_⟩
-  unfold offCompItems offDenseToTail offTailToDense at *
-  omega
+  realize; rcases d with ⟨⟨cp, metaBase⟩, idx⟩; dsimp only at *
+  exact packedCompPre_of_metaEnv (len := fun cp => globalMetaLen (cpN cp)) h
+    globalPtrBits_le_of_lt_pow
 
 /-- Write `val` into `GlobalMeta[idx]` at `metaBase` in `Memory.Prog`. -/
 def writeCompGMGenProg : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Unit
@@ -297,16 +335,21 @@ def writeCompGMGenProg : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Uni
     let wVal ← pure (cpW cp)
     writePackedCompGenProg ((((metaBase, off), (k, wVal)), idx), val)
 
+/-- `writeCompGMGenProg` returns `()`. -/
 @[simp] theorem clientResult_writeCompGMGenProg
     (d : ((CompParams × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientResult s (writeCompGMGenProg d) = () := by
   rcases d with ⟨⟨⟨cp, metaBase⟩, idx⟩, val⟩; simp [writeCompGMGenProg]
+
+/-- Writing `val` to `GlobalMeta[idx]` updates that packed slot and preserves `s.frontier`. -/
 theorem clientState_writeCompGMGenProg (U V w N metaBase idx val : ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s
         (writeCompGMGenProg (((mkCompParams U V w N, metaBase), idx), val)) =
       { mem := writePacked (metaBase + offCompGM U w N) (globalPtrBits N) w s.mem idx val,
         frontier := s.frontier } := by
   unfold StateTransitionSpec.clientState; simp [writeCompGMGenProg]
+
+/-- `simp`-indexed projection form of `clientState_writeCompGMGenProg`. -/
 @[simp] theorem runClient_state_writeCompGMGenProg
     (U V w N metaBase idx val : ℕ) (s : Memory.State) :
     Prod.fst (Prod.snd ((Memory.spec 0).runClient s
@@ -314,6 +357,8 @@ theorem clientState_writeCompGMGenProg (U V w N metaBase idx val : ℕ) (s : Mem
       { mem := writePacked (metaBase + offCompGM U w N) (globalPtrBits N) w s.mem idx val,
         frontier := s.frontier } :=
   clientState_writeCompGMGenProg U V w N metaBase idx val s
+
+/-- `writeCompGMGenProg` issues `4` memory operations. -/
 @[simp] theorem memoryCost_writeCompGMGenProg
     (d : ((CompParams × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (writeCompGMGenProg d) s = 4 := by
@@ -324,18 +369,15 @@ theorem clientState_writeCompGMGenProg (U V w N metaBase idx val : ℕ) (s : Mem
   | (((cp, metaBase), idx), _val), s =>
     CompMetaEnv w cp metaBase s ∧ idx < globalMetaLen (cpN cp)
 
+/-- Exact, width-independent realization certificate for `writeCompGMGenProg`. -/
 theorem realizesBounded_writeCompGMGen :
     RealizesBounded .exact writeCompGMGenProg
       (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
       WriteCompGMPre (fun _ _ => 0) := by
   have hwp := realizesBounded_writePackedCompGen
-  realize
-  rcases d with ⟨⟨⟨cp, metaBase⟩, idx⟩, val⟩
-  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-  simp only [cpOffGM_mk, cpGmBits_mk, cpW_mk, cpN_mk] at *
-  refine ⟨globalMetaLen N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hidx, ?_⟩
-  unfold offCompItems offDenseToTail offTailToDense at *
-  omega
+  realize; rcases d with ⟨⟨⟨cp, metaBase⟩, idx⟩, _⟩; dsimp only at *
+  exact packedCompPre_of_metaEnv (len := fun cp => globalMetaLen (cpN cp)) h
+    globalPtrBits_le_of_lt_pow
 
 /-- Read `TailToDense[t]` at `metaBase` in `Memory.Prog`. -/
 def readCompTDGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
@@ -345,6 +387,7 @@ def readCompTDGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
     let wVal ← pure (cpW cp)
     readPackedCompGenProg (((metaBase, off), (k, wVal)), t)
 
+/-- Reading `TailToDense[t]` (`t < maxTailItems N`) returns `compTDAt metaBase U w N s.mem t`. -/
 @[simp] theorem clientResult_readCompTDGenProg {U V w N metaBase t : ℕ}
     (ht : t < maxTailItems N) (s : Memory.State) :
     (Memory.spec 0).clientResult s
@@ -352,13 +395,18 @@ def readCompTDGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
       compTDAt metaBase U w N s.mem t := by
   simp [readCompTDGenProg, compTDAt, ht]
 
+/-- `readCompTDGenProg` leaves the memory state unchanged. -/
 theorem clientState_readCompTDGenProg (d : (CompParams × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (readCompTDGenProg d) = s := by
   rcases d with ⟨⟨cp, metaBase⟩, t⟩; unfold StateTransitionSpec.clientState
   simp [readCompTDGenProg]
+
+/-- `simp`-indexed projection form of `clientState_readCompTDGenProg`. -/
 @[simp] theorem runClient_state_readCompTDGenProg (d : (CompParams × ℕ) × ℕ) (s : Memory.State) :
     Prod.fst (Prod.snd ((Memory.spec 0).runClient s (readCompTDGenProg d))) = s :=
   clientState_readCompTDGenProg d s
+
+/-- `readCompTDGenProg` issues `2` memory operations. -/
 @[simp] theorem memoryCost_readCompTDGenProg (d : (CompParams × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (readCompTDGenProg d) s = 2 := by
   rcases d with ⟨⟨cp, metaBase⟩, t⟩; simp [readCompTDGenProg]
@@ -367,18 +415,14 @@ theorem clientState_readCompTDGenProg (d : (CompParams × ℕ) × ℕ) (s : Memo
 @[expose] def CompTailMapPre (w : ℕ) : (CompParams × ℕ) × ℕ → Memory.State → Prop
   | ((cp, metaBase), idx), s => CompMetaEnv w cp metaBase s ∧ idx < cpMaxTail cp
 
+/-- Exact, width-independent realization certificate for `readCompTDGenProg`. -/
 theorem realizesBounded_readCompTDGen :
     RealizesBounded .exact readCompTDGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
       CompTailMapPre (fun _ _ => 0) := by
   have hrp := realizesBounded_readPackedCompGen
-  realize
-  rcases d with ⟨⟨cp, metaBase⟩, t⟩
-  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, ht⟩ := h
-  simp only [cpOffTD_mk, cpGmBits_mk, cpW_mk, cpMaxTail_mk] at *
-  refine ⟨maxTailItems N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, ht, ?_⟩
-  unfold offCompItems offDenseToTail at *
-  omega
+  realize; rcases d with ⟨⟨cp, metaBase⟩, idx⟩
+  exact packedCompPre_of_metaEnv h globalPtrBits_le_of_lt_pow
 
 /-- Write `val` into `TailToDense[t]` at `metaBase` in `Memory.Prog`. -/
 def writeCompTDGenProg : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Unit
@@ -388,16 +432,21 @@ def writeCompTDGenProg : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Uni
     let wVal ← pure (cpW cp)
     writePackedCompGenProg ((((metaBase, off), (k, wVal)), t), val)
 
+/-- `writeCompTDGenProg` returns `()`. -/
 @[simp] theorem clientResult_writeCompTDGenProg
     (d : ((CompParams × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientResult s (writeCompTDGenProg d) = () := by
   rcases d with ⟨⟨⟨cp, metaBase⟩, t⟩, val⟩; simp [writeCompTDGenProg]
+
+/-- Writing `val` to `TailToDense[t]` updates that packed slot and preserves `s.frontier`. -/
 theorem clientState_writeCompTDGenProg (U V w N metaBase t val : ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s
         (writeCompTDGenProg (((mkCompParams U V w N, metaBase), t), val)) =
       { mem := writePacked (metaBase + offTailToDense U w N) (globalPtrBits N) w s.mem t val,
         frontier := s.frontier } := by
   unfold StateTransitionSpec.clientState; simp [writeCompTDGenProg]
+
+/-- `simp`-indexed projection form of `clientState_writeCompTDGenProg`. -/
 @[simp] theorem runClient_state_writeCompTDGenProg
     (U V w N metaBase t val : ℕ) (s : Memory.State) :
     Prod.fst (Prod.snd ((Memory.spec 0).runClient s
@@ -405,6 +454,8 @@ theorem clientState_writeCompTDGenProg (U V w N metaBase t val : ℕ) (s : Memor
       { mem := writePacked (metaBase + offTailToDense U w N) (globalPtrBits N) w s.mem t val,
         frontier := s.frontier } :=
   clientState_writeCompTDGenProg U V w N metaBase t val s
+
+/-- `writeCompTDGenProg` issues `4` memory operations. -/
 @[simp] theorem memoryCost_writeCompTDGenProg
     (d : ((CompParams × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (writeCompTDGenProg d) s = 4 := by
@@ -414,18 +465,14 @@ theorem clientState_writeCompTDGenProg (U V w N metaBase t val : ℕ) (s : Memor
 @[expose] def WriteCompTailMapPre (w : ℕ) : ((CompParams × ℕ) × ℕ) × ℕ → Memory.State → Prop
   | (((cp, metaBase), idx), _val), s => CompMetaEnv w cp metaBase s ∧ idx < cpMaxTail cp
 
+/-- Exact, width-independent realization certificate for `writeCompTDGenProg`. -/
 theorem realizesBounded_writeCompTDGen :
     RealizesBounded .exact writeCompTDGenProg
       (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
       WriteCompTailMapPre (fun _ _ => 0) := by
   have hwp := realizesBounded_writePackedCompGen
-  realize
-  rcases d with ⟨⟨⟨cp, metaBase⟩, t⟩, val⟩
-  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, ht⟩ := h
-  simp only [cpOffTD_mk, cpGmBits_mk, cpW_mk, cpMaxTail_mk] at *
-  refine ⟨maxTailItems N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, ht, ?_⟩
-  unfold offCompItems offDenseToTail at *
-  omega
+  realize; rcases d with ⟨⟨⟨cp, metaBase⟩, idx⟩, _⟩
+  exact packedCompPre_of_metaEnv h globalPtrBits_le_of_lt_pow
 
 /-- Read `DenseToTail[r]` at `metaBase` in `Memory.Prog`. -/
 def readCompDTGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
@@ -435,6 +482,7 @@ def readCompDTGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
     let wVal ← pure (cpW cp)
     readPackedCompGenProg (((metaBase, off), (k, wVal)), r)
 
+/-- Reading `DenseToTail[r]` (`r < maxTailItems N`) returns `compDTAt metaBase U w N s.mem r`. -/
 @[simp] theorem clientResult_readCompDTGenProg {U V w N metaBase r : ℕ}
     (hr : r < maxTailItems N) (s : Memory.State) :
     (Memory.spec 0).clientResult s
@@ -442,29 +490,30 @@ def readCompDTGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
       compDTAt metaBase U w N s.mem r := by
   simp [readCompDTGenProg, compDTAt, hr]
 
+/-- `readCompDTGenProg` leaves the memory state unchanged. -/
 theorem clientState_readCompDTGenProg (d : (CompParams × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (readCompDTGenProg d) = s := by
   rcases d with ⟨⟨cp, metaBase⟩, r⟩; unfold StateTransitionSpec.clientState
   simp [readCompDTGenProg]
+
+/-- `simp`-indexed projection form of `clientState_readCompDTGenProg`. -/
 @[simp] theorem runClient_state_readCompDTGenProg (d : (CompParams × ℕ) × ℕ) (s : Memory.State) :
     Prod.fst (Prod.snd ((Memory.spec 0).runClient s (readCompDTGenProg d))) = s :=
   clientState_readCompDTGenProg d s
+
+/-- `readCompDTGenProg` issues `2` memory operations. -/
 @[simp] theorem memoryCost_readCompDTGenProg (d : (CompParams × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (readCompDTGenProg d) s = 2 := by
   rcases d with ⟨⟨cp, metaBase⟩, r⟩; simp [readCompDTGenProg]
 
+/-- Exact, width-independent realization certificate for `readCompDTGenProg`. -/
 theorem realizesBounded_readCompDTGen :
     RealizesBounded .exact readCompDTGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
       CompTailMapPre (fun _ _ => 0) := by
   have hrp := realizesBounded_readPackedCompGen
-  realize
-  rcases d with ⟨⟨cp, metaBase⟩, r⟩
-  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hr⟩ := h
-  simp only [cpOffDT_mk, cpGmBits_mk, cpW_mk, cpMaxTail_mk] at *
-  refine ⟨maxTailItems N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hr, ?_⟩
-  unfold offCompItems at *
-  omega
+  realize; rcases d with ⟨⟨cp, metaBase⟩, idx⟩
+  exact packedCompPre_of_metaEnv h globalPtrBits_le_of_lt_pow
 
 /-- Write `val` into `DenseToTail[r]` at `metaBase` in `Memory.Prog`. -/
 def writeCompDTGenProg : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Unit
@@ -474,16 +523,21 @@ def writeCompDTGenProg : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Uni
     let wVal ← pure (cpW cp)
     writePackedCompGenProg ((((metaBase, off), (k, wVal)), r), val)
 
+/-- `writeCompDTGenProg` returns `()`. -/
 @[simp] theorem clientResult_writeCompDTGenProg
     (d : ((CompParams × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientResult s (writeCompDTGenProg d) = () := by
   rcases d with ⟨⟨⟨cp, metaBase⟩, r⟩, val⟩; simp [writeCompDTGenProg]
+
+/-- Writing `val` to `DenseToTail[r]` updates that packed slot and preserves `s.frontier`. -/
 theorem clientState_writeCompDTGenProg (U V w N metaBase r val : ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s
         (writeCompDTGenProg (((mkCompParams U V w N, metaBase), r), val)) =
       { mem := writePacked (metaBase + offDenseToTail U w N) (globalPtrBits N) w s.mem r val,
         frontier := s.frontier } := by
   unfold StateTransitionSpec.clientState; simp [writeCompDTGenProg]
+
+/-- `simp`-indexed projection form of `clientState_writeCompDTGenProg`. -/
 @[simp] theorem runClient_state_writeCompDTGenProg
     (U V w N metaBase r val : ℕ) (s : Memory.State) :
     Prod.fst (Prod.snd ((Memory.spec 0).runClient s
@@ -491,35 +545,47 @@ theorem clientState_writeCompDTGenProg (U V w N metaBase r val : ℕ) (s : Memor
       { mem := writePacked (metaBase + offDenseToTail U w N) (globalPtrBits N) w s.mem r val,
         frontier := s.frontier } :=
   clientState_writeCompDTGenProg U V w N metaBase r val s
+
+/-- `writeCompDTGenProg` issues `4` memory operations. -/
 @[simp] theorem memoryCost_writeCompDTGenProg
     (d : ((CompParams × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (writeCompDTGenProg d) s = 4 := by
   rcases d with ⟨⟨⟨cp, metaBase⟩, r⟩, val⟩; simp [writeCompDTGenProg]
 
+/-- Exact, width-independent realization certificate for `writeCompDTGenProg`. -/
 theorem realizesBounded_writeCompDTGen :
     RealizesBounded .exact writeCompDTGenProg
       (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
       WriteCompTailMapPre (fun _ _ => 0) := by
   have hwp := realizesBounded_writePackedCompGen
-  realize
-  rcases d with ⟨⟨⟨cp, metaBase⟩, r⟩, val⟩
-  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hr⟩ := h
-  simp only [cpOffDT_mk, cpGmBits_mk, cpW_mk, cpMaxTail_mk] at *
-  refine ⟨maxTailItems N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hr, ?_⟩
-  unfold offCompItems at *
-  omega
+  realize; rcases d with ⟨⟨⟨cp, metaBase⟩, idx⟩, _⟩
+  exact packedCompPre_of_metaEnv h globalPtrBits_le_of_lt_pow
 
 /-! ## Section 2: Circular-Window Transitions, Owner-Bucket Recovery, and `fits_mkCompParams` -/
 
+/-- When positive, the tail-capacity bound `maxTailItems N` is at most `N`. -/
 theorem maxTailItems_le_of_pos {N : ℕ} (hM : 0 < maxTailItems N) : maxTailItems N ≤ N := by
-  have hb_pos : 0 < bucketBits N := by
-    rcases Nat.eq_zero_or_pos (bucketBits N) with hb0 | hb
-    · simp [maxTailItems, tailCapPerBucket, hb0] at hM
-    · exact hb
+  have hb_pos : 0 < bucketBits N :=
+    Nat.pos_of_ne_zero fun hb0 => by simp [maxTailItems, tailCapPerBucket, hb0] at hM
   have h1 := gmSlabMetaBase_add_eq_globalMetaLen hb_pos
   have h2 := globalMetaLen_le_of_bucketBits_pos hb_pos
-  unfold gmSlabMetaBase gmTailOwnerBase at h1
-  omega
+  wram_omega [h1]
+
+private theorem denseOfCirc_eq_ite {M b_win c : ℕ} (hc : 0 < M → c < M) :
+    denseOfCirc M b_win c =
+      if M = 0 then b_win
+      else if c < b_win % M then b_win + (c + (M - b_win % M))
+      else b_win + (c - b_win % M) := by
+  dsimp only [denseOfCirc]
+  split_ifs with hM0 hlt
+  · rfl
+  · have := hc (Nat.pos_of_ne_zero hM0)
+    have := Nat.mod_lt b_win (Nat.pos_of_ne_zero hM0)
+    rw [show c + M - b_win % M = c + (M - b_win % M) by omega, Nat.mod_eq_of_lt (by omega)]
+  · have := hc (Nat.pos_of_ne_zero hM0)
+    have := Nat.mod_lt b_win (Nat.pos_of_ne_zero hM0)
+    rw [show c + M - b_win % M = (c - b_win % M) + 1 * M by omega,
+      Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt (by omega)]
 
 /-- Overflow-free evaluation of `denseOfCirc (cpMaxTail cp) b_win c` in `Memory.Prog`. -/
 def denseOfCircGenProg : CompParams × (ℕ × ℕ) → Memory.Prog ℕ
@@ -534,41 +600,32 @@ def denseOfCircGenProg : CompParams × (ℕ × ℕ) → Memory.Prog ℕ
       else
         pure (b_win + (c - rem))
 
+/-- `denseOfCircGenProg` returns `denseOfCirc (maxTailItems N) b_win c` when
+`0 < maxTailItems N → c < maxTailItems N`. -/
 theorem clientResult_denseOfCircGenProg {U V w N b_win c : ℕ}
     (hc : 0 < maxTailItems N → c < maxTailItems N) (s : Memory.State) :
     (Memory.spec 0).clientResult s
         (denseOfCircGenProg (mkCompParams U V w N, (b_win, c))) =
       denseOfCirc (maxTailItems N) b_win c := by
-  dsimp only [denseOfCircGenProg, denseOfCirc]
+  rw [denseOfCirc_eq_ite hc]
+  dsimp only [denseOfCircGenProg]
   simp only [pure_bind, cpMaxTail_mk]
-  by_cases hM0 : maxTailItems N = 0
-  · rw [ite_eq_left hM0, ite_eq_left hM0]; rfl
-  · rw [ite_eq_right hM0, ite_eq_right hM0]
-    have hM_pos : 0 < maxTailItems N := Nat.pos_of_ne_zero hM0
-    have hc_lt : c < maxTailItems N := hc hM_pos
-    have hrem_lt : b_win % maxTailItems N < maxTailItems N := Nat.mod_lt _ hM_pos
-    by_cases hlt : c < b_win % maxTailItems N
-    · rw [ite_eq_left hlt, prog_clientResult_pure]
-      have heq : c + maxTailItems N - b_win % maxTailItems N =
-          c + (maxTailItems N - b_win % maxTailItems N) := by omega
-      rw [heq, Nat.mod_eq_of_lt (a := c + (maxTailItems N - b_win % maxTailItems N)) (by omega)]
-    · rw [ite_eq_right hlt, prog_clientResult_pure]
-      have heq : c + maxTailItems N - b_win % maxTailItems N =
-          (c - b_win % maxTailItems N) + 1 * maxTailItems N := by omega
-      rw [heq, Nat.add_mul_mod_self_right,
-        Nat.mod_eq_of_lt (a := c - b_win % maxTailItems N) (by omega)]
+  split_ifs <;> rfl
 
+/-- `denseOfCircGenProg` leaves the memory state unchanged. -/
 theorem clientState_denseOfCircGenProg (d : CompParams × (ℕ × ℕ)) (s : Memory.State) :
     (Memory.spec 0).clientState s (denseOfCircGenProg d) = s := by
   rcases d with ⟨cp, ⟨b_win, c⟩⟩
   unfold StateTransitionSpec.clientState; dsimp only [denseOfCircGenProg]
   simp only [pure_bind]; split_ifs <;> rfl
 
+/-- `simp`-indexed projection form of `clientState_denseOfCircGenProg`. -/
 @[simp] theorem runClient_state_denseOfCircGenProg
     (d : CompParams × (ℕ × ℕ)) (s : Memory.State) :
     Prod.fst (Prod.snd ((Memory.spec 0).runClient s (denseOfCircGenProg d))) = s :=
   clientState_denseOfCircGenProg d s
 
+/-- `denseOfCircGenProg` issues `0` memory operations. -/
 @[simp] theorem memoryCost_denseOfCircGenProg (d : CompParams × (ℕ × ℕ)) (s : Memory.State) :
     memoryCost (denseOfCircGenProg d) s = 0 := by
   rcases d with ⟨cp, ⟨b_win, c⟩⟩
@@ -583,6 +640,7 @@ theorem clientState_denseOfCircGenProg (d : CompParams × (ℕ × ℕ)) (s : Mem
       (0 < maxTailItems N →
         c < maxTailItems N ∧ denseOfCirc (maxTailItems N) b_win c ≤ N)
 
+/-- Exact, width-independent realization certificate for `denseOfCircGenProg`. -/
 theorem realizesBounded_denseOfCircGen :
     RealizesBounded .exact denseOfCircGenProg
       (WordEncoding.encode (α := CompParams × (ℕ × ℕ))) (WordEncoding.encode (α := ℕ))
@@ -597,17 +655,11 @@ theorem realizesBounded_denseOfCircGen :
     obtain ⟨hc_lt, hd_le⟩ := hM_cond hM_pos
     have hMN : maxTailItems N ≤ N := maxTailItems_le_of_pos hM_pos
     have hrem_lt : b_win % maxTailItems N < maxTailItems N := Nat.mod_lt _ hM_pos
-    unfold denseOfCirc at hd_le
-    rw [ite_eq_right hM_ne] at hd_le)
+    rw [denseOfCirc_eq_ite (fun _ => hc_lt), ite_eq_right hM_ne] at hd_le)
   all_goals try omega
-  · have heq : c + maxTailItems N - b_win % maxTailItems N =
-        c + (maxTailItems N - b_win % maxTailItems N) := by omega
-    rw [heq, Nat.mod_eq_of_lt (by omega)] at hd_le
-    exact lt_of_le_of_lt (by omega) hU
-  · have heq : c + maxTailItems N - b_win % maxTailItems N =
-        (c - b_win % maxTailItems N) + 1 * maxTailItems N := by omega
-    rw [heq, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt (by omega)] at hd_le
-    exact lt_of_le_of_lt (by omega) hU
+  all_goals (
+    split_ifs at hd_le
+    exact lt_of_le_of_lt (by omega) hU)
 
 /-- Map physical slot `g < N` to dense index `denseOfPhys N gm td g` in `Memory.Prog`. -/
 def denseOfPhysGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
@@ -623,6 +675,8 @@ def denseOfPhysGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
         let c ← readCompTDGenProg ((cp, metaBase), t)
         denseOfCircGenProg (cp, (b_tail, c))
 
+/-- `denseOfPhysGenProg` returns `denseOfPhys N` applied to the packed `GlobalMeta` and
+`TailToDense` arrays at `metaBase`. -/
 theorem clientResult_denseOfPhysGenProg {U V w N metaBase g : ℕ} {s : Memory.State}
     (ht_lt : 0 < bucketBits N → ¬(g < compGmAt metaBase U w N s.mem 0 * slabSize N) →
       N - 1 - g < maxTailItems N ∧
@@ -633,31 +687,25 @@ theorem clientResult_denseOfPhysGenProg {U V w N metaBase g : ℕ} {s : Memory.S
   dsimp only [denseOfPhysGenProg, denseOfPhys, cpBucketBits_mk, cpSlabSize_mk, cpNSubOne_mk]
   simp only [pure_bind]
   by_cases hb0 : bucketBits N = 0
-  · rw [ite_eq_left hb0, ite_eq_left hb0]; rfl
-  · rw [ite_eq_right hb0, ite_eq_right hb0]
-    have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
-    have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
-    rw [prog_clientResult_bind, clientResult_readCompGMGenProg h0_lt,
-      clientState_readCompGMGenProg]
+  · simp [hb0]
+  · have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
+    have h0_lt : 0 < globalMetaLen N := by wram_omega
+    simp only [hb0, ↓reduceIte, prog_clientResult_bind, clientResult_readCompGMGenProg h0_lt]
     by_cases hg_lt : g < compGmAt metaBase U w N s.mem 0 * slabSize N
-    · rw [ite_eq_left hg_lt, ite_eq_left hg_lt]; rfl
-    · rw [ite_eq_right hg_lt, ite_eq_right hg_lt]
-      obtain ⟨ht1, ht2⟩ := ht_lt hb_pos hg_lt
-      rw [prog_clientResult_bind, clientResult_readCompTDGenProg ht1,
-        clientState_readCompTDGenProg]
-      exact clientResult_denseOfCircGenProg (fun _ => ht2) s
+    · simp [hg_lt]
+    · obtain ⟨ht1, ht2⟩ := ht_lt hb_pos hg_lt
+      simp [hg_lt, ht1, clientResult_denseOfCircGenProg (fun _ => ht2)]
 
+/-- `denseOfPhysGenProg` leaves the memory state unchanged. -/
 theorem clientState_denseOfPhysGenProg (d : (CompParams × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (denseOfPhysGenProg d) = s := by
   rcases d with ⟨⟨cp, metaBase⟩, g⟩
-  unfold StateTransitionSpec.clientState; dsimp only [denseOfPhysGenProg]
-  simp only [pure_bind]
-  by_cases hb0 : cpBucketBits cp = 0
-  · rw [ite_eq_left hb0]; rfl
-  · rw [ite_eq_right hb0, prog_runClient_state_bind]
-    simp only [StateTransitionSpec.clientState, runClient_state_readCompGMGenProg]
-    split_ifs <;> simp
+  simp only [StateTransitionSpec.clientState, denseOfPhysGenProg, pure_bind]
+  split_ifs <;> simp only [prog_runClient_state_bind, prog_runClient_state_pure,
+    runClient_state_readCompGMGenProg]
+  split_ifs <;> simp
 
+/-- `simp`-indexed projection form of `clientState_denseOfPhysGenProg`. -/
 @[simp] theorem runClient_state_denseOfPhysGenProg
     (d : (CompParams × ℕ) × ℕ) (s : Memory.State) :
     Prod.fst (Prod.snd ((Memory.spec 0).runClient s (denseOfPhysGenProg d))) = s :=
@@ -678,6 +726,7 @@ theorem clientState_denseOfPhysGenProg (d : (CompParams × ℕ) × ℕ) (s : Mem
           denseOfCirc (maxTailItems N) (compGmAt metaBase U w N s.mem 0 * slabSize N)
             (compTDAt metaBase U w N s.mem (N - 1 - g)) ≤ N))
 
+/-- Exact, width-independent realization certificate for `denseOfPhysGenProg`. -/
 theorem realizesBounded_denseOfPhysGen :
     RealizesBounded .exact denseOfPhysGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
@@ -691,7 +740,7 @@ theorem realizesBounded_denseOfPhysGen :
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hg_lt, hb_cond⟩ := h
     simp only [cpBucketBits_mk, cpSlabSize_mk, cpNSubOne_mk] at *
     have hb_pos : 0 < bucketBits N := by omega
-    have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
+    have h0_lt : 0 < globalMetaLen N := by wram_omega
     obtain ⟨hb_tail_le, htail_cond⟩ := hb_cond hb_pos
     try simp only [StateTransitionSpec.clientState, clientResult_readCompGMGenProg h0_lt,
       runClient_state_readCompGMGenProg] at *)
@@ -712,6 +761,7 @@ def winGrowRightGenProg : (CompParams × ℕ) × (ℕ × ℕ) → Memory.Prog Un
     writeCompTDGenProg (((cp, metaBase), n_win), c)
     writeCompDTGenProg (((cp, metaBase), c), n_win)
 
+/-- `winGrowRightGenProg` issues `8` memory operations. -/
 @[simp] theorem memoryCost_winGrowRightGenProg
     (d : (CompParams × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
     memoryCost (winGrowRightGenProg d) s = 8 := by
@@ -722,6 +772,7 @@ def winGrowRightGenProg : (CompParams × ℕ) × (ℕ × ℕ) → Memory.Prog Un
   | ((cp, metaBase), (b_win, n_win)), s =>
     CompMetaEnv w cp metaBase s ∧ n_win < cpMaxTail cp ∧ b_win + n_win ≤ cpN cp
 
+/-- Exact, width-independent realization certificate for `winGrowRightGenProg`. -/
 theorem realizesBounded_winGrowRightGen :
     RealizesBounded .exact winGrowRightGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
@@ -740,6 +791,8 @@ theorem realizesBounded_winGrowRightGen :
   all_goals try exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hn_lt⟩
   exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, Nat.mod_lt _ hM_pos⟩
 
+/-- Growing the circular window on the right links `TailToDense[n_win]` and `DenseToTail[c]` for
+`c = (b_win + n_win) % maxTailItems N`, preserving `s.frontier`. -/
 theorem clientState_winGrowRightGenProg (U V w N metaBase b_win n_win : ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s
         (winGrowRightGenProg ((mkCompParams U V w N, metaBase), (b_win, n_win))) =
@@ -757,6 +810,7 @@ def winGrowLeftGenProg : (CompParams × ℕ) × (ℕ × ℕ) → Memory.Prog Uni
     writeCompTDGenProg (((cp, metaBase), n_win), c)
     writeCompDTGenProg (((cp, metaBase), c), n_win)
 
+/-- `winGrowLeftGenProg` issues `8` memory operations. -/
 @[simp] theorem memoryCost_winGrowLeftGenProg
     (d : (CompParams × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
     memoryCost (winGrowLeftGenProg d) s = 8 := by
@@ -767,6 +821,7 @@ def winGrowLeftGenProg : (CompParams × ℕ) × (ℕ × ℕ) → Memory.Prog Uni
   | ((cp, metaBase), (b_win, n_win)), s =>
     CompMetaEnv w cp metaBase s ∧ n_win < cpMaxTail cp ∧ b_win ≤ cpN cp
 
+/-- Exact, width-independent realization certificate for `winGrowLeftGenProg`. -/
 theorem realizesBounded_winGrowLeftGen :
     RealizesBounded .exact winGrowLeftGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
@@ -784,6 +839,8 @@ theorem realizesBounded_winGrowLeftGen :
   all_goals try exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hn_lt⟩
   exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, Nat.mod_lt _ hM_pos⟩
 
+/-- Growing the circular window on the left links `TailToDense[n_win]` and `DenseToTail[c]` for
+`c = b_win % maxTailItems N`, preserving `s.frontier`. -/
 theorem clientState_winGrowLeftGenProg (U V w N metaBase b_win n_win : ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s
         (winGrowLeftGenProg ((mkCompParams U V w N, metaBase), (b_win, n_win))) =
@@ -803,6 +860,7 @@ def winShrinkRightGenProg : (CompParams × ℕ) × (ℕ × ℕ) → Memory.Prog 
     writeCompTDGenProg (((cp, metaBase), t_rem), c_last)
     writeCompDTGenProg (((cp, metaBase), c_last), t_rem)
 
+/-- `winShrinkRightGenProg` issues `12` memory operations. -/
 @[simp] theorem memoryCost_winShrinkRightGenProg
     (d : (CompParams × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
     memoryCost (winShrinkRightGenProg d) s = 12 := by
@@ -819,6 +877,7 @@ def winShrinkRightGenProg : (CompParams × ℕ) × (ℕ × ℕ) → Memory.Prog 
       compDTAt metaBase U w N s.mem ((b_win + n_win) % maxTailItems N) < maxTailItems N ∧
       compTDAt metaBase U w N s.mem n_win < maxTailItems N
 
+/-- Exact, width-independent realization certificate for `winShrinkRightGenProg`. -/
 theorem realizesBounded_winShrinkRightGen :
     RealizesBounded .exact winShrinkRightGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
@@ -850,6 +909,7 @@ def winShrinkLeftGenProg : (CompParams × ℕ) × (ℕ × ℕ) → Memory.Prog U
     writeCompTDGenProg (((cp, metaBase), t_rem), c_last)
     writeCompDTGenProg (((cp, metaBase), c_last), t_rem)
 
+/-- `winShrinkLeftGenProg` issues `12` memory operations. -/
 @[simp] theorem memoryCost_winShrinkLeftGenProg
     (d : (CompParams × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
     memoryCost (winShrinkLeftGenProg d) s = 12 := by
@@ -866,6 +926,7 @@ def winShrinkLeftGenProg : (CompParams × ℕ) × (ℕ × ℕ) → Memory.Prog U
       compDTAt metaBase U w N s.mem (b_win % maxTailItems N) < maxTailItems N ∧
       compTDAt metaBase U w N s.mem n_win < maxTailItems N
 
+/-- Exact, width-independent realization certificate for `winShrinkLeftGenProg`. -/
 theorem realizesBounded_winShrinkLeftGen :
     RealizesBounded .exact winShrinkLeftGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
@@ -887,6 +948,8 @@ theorem realizesBounded_winShrinkLeftGen :
   all_goals try omega
   all_goals exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, by assumption⟩
 
+/-- Final memory state of `winShrinkRightGenProg`, linking `DenseToTail[c_rem]` with
+`TailToDense[n_win]` for `c_rem = (b_win + n_win) % maxTailItems N` and preserving `s.frontier`. -/
 theorem clientState_winShrinkRightGenProg {U V w N metaBase b_win n_win : ℕ} {s : Memory.State}
     (hc : (b_win + n_win) % maxTailItems N < maxTailItems N) (hn : n_win < maxTailItems N) :
     (Memory.spec 0).clientState s
@@ -898,9 +961,10 @@ theorem clientState_winShrinkRightGenProg {U V w N metaBase b_win n_win : ℕ} {
           (compTDAt metaBase U w N s.mem n_win)
           (compDTAt metaBase U w N s.mem ((b_win + n_win) % maxTailItems N)),
         frontier := s.frontier } := by
-  unfold StateTransitionSpec.clientState
-  simp [winShrinkRightGenProg, hc, hn]
+  simp [StateTransitionSpec.clientState, winShrinkRightGenProg, hc, hn]
 
+/-- Final memory state of `winShrinkLeftGenProg`, linking `DenseToTail[c_rem]` with
+`TailToDense[n_win]` for `c_rem = b_win % maxTailItems N` and preserving `s.frontier`. -/
 theorem clientState_winShrinkLeftGenProg {U V w N metaBase b_win n_win : ℕ} {s : Memory.State}
     (hc : b_win % maxTailItems N < maxTailItems N) (hn : n_win < maxTailItems N) :
     (Memory.spec 0).clientState s
@@ -912,7 +976,6 @@ theorem clientState_winShrinkLeftGenProg {U V w N metaBase b_win n_win : ℕ} {s
           (compTDAt metaBase U w N s.mem n_win)
           (compDTAt metaBase U w N s.mem (b_win % maxTailItems N)),
         frontier := s.frontier } := by
-  unfold StateTransitionSpec.clientState
-  simp [winShrinkLeftGenProg, hc, hn]
+  simp [StateTransitionSpec.clientState, winShrinkLeftGenProg, hc, hn]
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

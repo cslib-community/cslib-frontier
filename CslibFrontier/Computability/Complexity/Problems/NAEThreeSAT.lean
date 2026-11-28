@@ -83,8 +83,11 @@ theorem computableInPolyTime_complementClause :
     ComputableInPolyTime
       (fun p : (CNF ℕ × List Bool) × Clause ℕ =>
         p.2.eval (fun v => !SAT.assignment p.1.1 p.1.2 v))
-      (encPair (encPair encCNF encBits) (encList (encPair encNat encBool))) encBool := by
-  fun_prop [SAT.assignment]
+      (encPair (encPair encCNF encBits) (encList (encPair encNat encBool))) encBool :=
+  Clause.computableInPolyTime_eval (encV := encNat) (by fun_prop) <|
+    ComputableInPolyTime.bool_not.comp <| SAT.computableInPolyTime_assignment.comp
+      (encIn := encPair (encPair (encPair encCNF encBits) (encClause encNat)) encNat)
+      (g := fun p => (p.1.1, p.2)) (by fun_prop)
 
 /-- NAE evaluation of an arbitrary certificate takes native polynomial time. -/
 @[fun_prop]
@@ -163,17 +166,14 @@ theorem eval_formula (σ : ℕ → Bool) (hσ : σ 0 = true) (φ : CNF ℕ)
 /-- Global complement symmetry removes the need to pin the fresh reference variable. -/
 theorem naeSatisfiable_formula (φ : CNF ℕ) (hw : φ.IsExactThreeDistinct) :
     CNF.NAESatisfiable (φ.flatMap clause) ↔ φ.OneSatisfiable := by
-  constructor
-  · rintro ⟨σ, hσ⟩
-    cases h0 : σ 0 with
-    | false =>
-      refine ⟨fun v => !σ (v + 1), ?_⟩
-      exact (eval_formula (fun v => !σ v) (by simp [h0]) φ hw).mp
-        (by simpa using hσ)
-    | true => exact ⟨fun v => σ (v + 1), (eval_formula σ h0 φ hw).mp hσ⟩
-  · rintro ⟨σ, hσ⟩
-    let τ : ℕ → Bool := Nat.rec true (fun n _ => σ n)
-    exact ⟨τ, (eval_formula τ rfl φ hw).mpr hσ⟩
+  refine ⟨?_, fun ⟨σ, hσ⟩ =>
+    ⟨Nat.rec true (fun n _ => σ n), (eval_formula _ rfl φ hw).mpr hσ⟩⟩
+  rintro ⟨σ, hσ⟩
+  cases h0 : σ 0 with
+  | false =>
+    exact ⟨fun v => !σ (v + 1), (eval_formula (fun v => !σ v) (by simp [h0]) φ hw).mp
+      (by simpa using hσ)⟩
+  | true => exact ⟨fun v => σ (v + 1), (eval_formula σ h0 φ hw).mp hσ⟩
 
 end NAEEUThreeSAT
 

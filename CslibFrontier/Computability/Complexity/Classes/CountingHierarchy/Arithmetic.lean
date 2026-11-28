@@ -31,7 +31,7 @@ variable {α : Type} {enc : α ↪ List Bool} {a : ℕ} {f g : α → ℕ}
 theorem nat_mul (hf : f ∈ CountingFunction a enc encNat)
     (hg : g ∈ CountingFunction a enc encNat) :
     (fun w => f w * g w) ∈ CountingFunction a enc encNat :=
-  map (prod hf hg) (ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.binary_mul)
+  map (prod hf hg) (ComputableInPolyTime.binary_mul)
 
 /-- Binary natural remainder preserves the common function level, including the total value
 `n % 0 = n`. -/

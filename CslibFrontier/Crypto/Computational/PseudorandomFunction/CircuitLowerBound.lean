@@ -26,16 +26,20 @@ import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.Uniform
 import CslibFrontier.Probability.PMF.Finiteness
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Unconditional `2n - 2` `B₂`-circuit size lower bound for pseudorandom functions
 
-This module formalizes Sections 4.2 and 7.1 (Definitions 4.4–4.5, Definition 7.1, Lemmas 7.2–7.4,
-and Theorem 7.5) of Fan, Li, and Yang [FanLiYang2022]: every pseudorandom function ensemble
-`D = {D_n}` over `BooleanFunction n` satisfies
-`Pr_{f ← D_n}[complexity (fullInterpretation (k := 2)) (single f) < 2 * n - 2] ≤ negl(n)`,
-where circuit size counts binary gates over the complete two-input Boolean basis `B₂`
-(`Cslib.Circuits.fullInterpretation (k := 2) (Carrier := Bool)`).
+For every Boolean-output PRF ensemble, at all sufficiently large input lengths `n`, some
+function in its support requires at least `2 * n - 2` gates. This gives the worst-case bound
+of [FanLiYang2022, Theorem 7.5, p. 41] over the complete two-input Boolean basis `B₂`.
+Definition 4.9 (p. 28) takes the maximum of the minimum gate counts over the collection `Fₙ`
+supporting the distribution. A witness in the support belongs to every such collection.
+
+The proof establishes the stronger distributional bound that the probability of sampling a
+function below the threshold is negligible. The keyed corollaries apply this bound to the first
+output bit of a word-valued PRF and then to circuits computing all its output bits.
 
 ## Proof architecture and design notes
 
@@ -99,19 +103,20 @@ where circuit size counts binary gates over the complete two-input Boolean basis
   `Cslib.Crypto.succProbability_criticalPathDistinguisher_of_not_disjoint_criticalPath`,
   `Cslib.Crypto.succProbability_booleanPRFIdealGame_criticalPathDistinguisher_le`,
   `Cslib.Crypto.negligible_booleanPRFIdealGame_criticalPathDistinguisher`: Lemma 7.2.
-* `Cslib.Crypto.BooleanPRF.negligible_complexity_lt_two_mul_sub_two`,
-  `Cslib.Crypto.BooleanPRF.eventually_exists_mem_support_two_mul_sub_two_le_complexity`:
-  **Fan–Li–Yang Theorem 7.5** for `BooleanPRF` ensembles.
+* `Cslib.Crypto.BooleanPRF.eventually_exists_mem_support_two_mul_sub_two_le_complexity`:
+  the eventual worst-case gate lower bound of [FanLiYang2022, Theorem 7.5].
+* `Cslib.Crypto.BooleanPRF.negligible_complexity_lt_two_mul_sub_two`: the probability of sampling
+  a function below this bound is negligible.
 * `Cslib.Crypto.PseudorandomFunction.negligible_complexity_restriction_lt_two_mul_sub_two`,
   `Cslib.Crypto.PseudorandomFunction.negligible_complexity_lt_two_mul_sub_two`,
   `Cslib.Crypto.PseudorandomFunction.eventually_exists_key_two_mul_sub_two_le_complexity`:
-  **Fan–Li–Yang Theorem 7.5** for `Cslib.Crypto.PseudorandomFunction`.
+  keyed corollaries for the first output bit and the full word-valued function.
 
 ## References
 
 * [Z. Fan, J. Li, and T. Yang, *The Exact Complexity of Pseudorandom Functions and the Black-Box
   Natural Proof Barrier for Bootstrapping Results in Computational Complexity*][FanLiYang2022],
-  Sections 4.2 and 7.1.
+  ECCC TR21-125, Revision 1, §§4.1–4.2, 4.4 and 7.1.
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], Chapter 4.
 -/
 
@@ -143,11 +148,12 @@ returning `[]` on malformed queries. -/
 @[expose] noncomputable def booleanPRFIdealGame (adversary : OracleDistinguisher) (n : ℕ) : Game :=
   (PMF.uniformOfFintype (BooleanFunction n)).bind (evalBooleanOracle adversary n)
 
-/-- A Boolean-output pseudorandom function ensemble ([FanLiYang2022], Definitions 4.4–4.5):
-no uniform strict oracle-PPT adversary distinguishes `D n` from a uniformly random `n`-bit Boolean
-function with non-negligible advantage. As in [FanLiYang2022], Definition 4.5, this definition
-imposes no efficient sampling or evaluation condition on `D n`, so the uniform ensemble
-`fun n => PMF.uniformOfFintype (BooleanFunction n)` satisfies it unconditionally. -/
+/-- A Boolean-output PRF ensemble [FanLiYang2022, Definitions 4.4–4.5, pp. 26–27]. Every uniform
+strict oracle-PPT adversary on unary parameter `n` has negligible distinguishing advantage between
+a single function drawn from `D n` and a uniform Boolean function on `n` bits. The source takes
+`n ≥ 1`. Here `n = 0` is immaterial to negligibility, and both word oracles return `[]` on queries
+of other lengths. The distribution and its functions may be inefficient to sample and evaluate.
+In particular, the uniform function ensemble satisfies this condition. -/
 @[expose] def BooleanPRF (D : ∀ n, PMF (BooleanFunction n)) : Prop :=
   Game.Indistinguishable (booleanPRFRealGame D) booleanPRFIdealGame (IsOraclePPT encBool)
 
@@ -191,6 +197,18 @@ theorem isOraclePPT_firstBitDistinguisher {adversary : OracleDistinguisher}
       obtain ⟨raw, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
       exact List.length_take_le _ _).isOraclePPT
 
+private theorem evalBooleanOracle_eq_run_firstBit (adversary : OracleDistinguisher) {n : ℕ}
+    {f : BooleanFunction n} (oracle : List Bool → List Bool)
+    (hagree : ∀ q, booleanOracle n f q = (oracle q).take 1) :
+    evalBooleanOracle adversary n f =
+      ProbComp.eval ((firstBitDistinguisher adversary n []).run
+        fun request => pure (oracle request.2)) := by
+  unfold evalBooleanOracle ProbOracleComp.run
+  rw [interpret_firstBitDistinguisher]
+  refine congrArg (fun h => ProbComp.eval (OracleComp.interpret
+    (OracleComp.sumHandler ProbComp.unifFin h) (adversary n []))) (funext fun request => ?_)
+  simp only [map_pure, hagree]
+
 /-- For `0 < n`, the real `BooleanPRF` game on `prfFirstBitEnsemble family` agrees with the real
 `PseudorandomFunction` game of `firstBitDistinguisher adversary`. -/
 theorem booleanPRFRealGame_prfFirstBitEnsemble_eq {family : List Bool → List Bool → List Bool}
@@ -202,23 +220,13 @@ theorem booleanPRFRealGame_prfFirstBitEnsemble_eq {family : List Bool → List B
     ProbOracleComp.run, ProbComp.eval_bind, BitString.eval_sampleList]
   refine PMF.bind_congr_on_support _ _ _ fun key hkey => ?_
   have hklen := BitString.length_of_mem_support_uniformList hkey
-  unfold evalBooleanOracle ProbOracleComp.run
-  rw [interpret_firstBitDistinguisher]
-  refine congrArg (fun h => ProbComp.eval (OracleComp.interpret
-    (OracleComp.sumHandler ProbComp.unifFin h) (adversary n []))) (funext fun request => ?_)
-  simp only [map_pure, prfOracle, booleanOracle]
-  by_cases hq : request.2.length = n
-  · simp only [hq, ↓reduceIte, KabanetsCai.restriction, Nat.sub_self, List.replicate_zero,
-      List.nil_append, BitString.ofFn_ofList hq]
-    have hout : (family key request.2).length = n := by
-      rw [← hklen]
-      exact hlen key request.2 (hq.trans hklen.symm)
-    cases hfam : family key request.2 with
-    | nil =>
-      rw [hfam, List.length_nil] at hout
-      omega
-    | cons b bs => rfl
-  · simp only [hq, ↓reduceIte, List.take_nil]
+  refine evalBooleanOracle_eq_run_firstBit adversary (prfOracle family n key) fun q => ?_
+  by_cases hq : q.length = n
+  · simp only [booleanOracle, hq, ↓reduceIte, KabanetsCai.restriction, Nat.sub_self,
+      List.replicate_zero, List.nil_append, BitString.ofFn_ofList hq, prfOracle]
+    have hout : (family key q).length = n := hklen ▸ hlen key q (hq.trans hklen.symm)
+    cases hfam : family key q <;> simp_all
+  · simp only [booleanOracle, prfOracle, hq, ↓reduceIte, List.take_nil]
 
 /-- For `0 < n`, the ideal `BooleanPRF` game agrees with the ideal `PseudorandomFunction` game of
 `firstBitDistinguisher adversary`. -/
@@ -230,18 +238,15 @@ theorem booleanPRFIdealGame_eq_prfIdealGame (adversary : OracleDistinguisher) {n
     PMF.bind_map]
   simp only [prfIdealGame, id_eq, ProbComp.eval_bind, ProbComp.eval_uniform]
   refine PMF.bind_congr_on_support _ _ _ fun table _ => ?_
-  unfold evalBooleanOracle ProbOracleComp.run
-  rw [interpret_firstBitDistinguisher]
-  refine congrArg (fun h => ProbComp.eval (OracleComp.interpret
-    (OracleComp.sumHandler ProbComp.unifFin h) (adversary n []))) (funext fun request => ?_)
-  simp only [map_pure, randomFunctionOracle, booleanOracle]
-  by_cases hq : request.2.length = n
-  · simp only [hq, ↓reduceIte, KabanetsCai.restrictTable, AddMonoidHom.coe_mk, ZeroHom.coe_mk,
-      Nat.sub_self, List.replicate_zero, List.nil_append, BitString.ofList_ofFn]
+  refine evalBooleanOracle_eq_run_firstBit adversary (randomFunctionOracle n table) fun q => ?_
+  by_cases hq : q.length = n
+  · simp only [booleanOracle, hq, ↓reduceIte, KabanetsCai.restrictTable, AddMonoidHom.coe_mk,
+      ZeroHom.coe_mk, Nat.sub_self, List.replicate_zero, List.nil_append, BitString.ofList_ofFn,
+      randomFunctionOracle]
     obtain ⟨k, rfl⟩ : ∃ k, n = k + 1 := ⟨n - 1, by omega⟩
     simp only [List.ofFn_succ, List.take_succ_cons, List.take_zero]
     rfl
-  · simp only [hq, ↓reduceIte, List.take_nil]
+  · simp only [booleanOracle, randomFunctionOracle, hq, ↓reduceIte, List.take_nil]
 
 /-- **First-bit projection of a PRF is a `BooleanPRF`**: any `PseudorandomFunction` induces a
 `BooleanPRF` via its first output bit on `n`-bit inputs. -/
@@ -304,6 +309,13 @@ private theorem getD_insertBitAt_of_gt {w : List Bool} {k i : ℕ} (hi : i ≤ w
     show i + 1 + d - i = d + 1 by omega, List.getElem?_cons_succ, List.getElem?_drop,
     show i + d = i + 1 + d - 1 by omega]
 
+private theorem getD_insertBitAt_ne {w : List Bool} {k i : ℕ} (hi : i ≤ w.length) (hne : k ≠ i)
+    (b b' : Bool) :
+    (insertBitAt w i b).getD k false = (insertBitAt w i b').getD k false := by
+  rcases lt_or_gt_of_ne hne with hlt | hgt
+  · rw [getD_insertBitAt_of_lt hlt hi, getD_insertBitAt_of_lt hlt hi]
+  · rw [getD_insertBitAt_of_gt hi hgt, getD_insertBitAt_of_gt hi hgt]
+
 private theorem ofList_insertBitAt {n : ℕ} {w : List Bool} (hw : w.length = n - 1) (x : Fin n)
     (b : Bool) :
     BitString.ofList n (insertBitAt w x.val b) =
@@ -311,30 +323,22 @@ private theorem ofList_insertBitAt {n : ℕ} {w : List Bool} (hw : w.length = n 
   have hxle : x.val ≤ w.length := by omega
   funext j
   by_cases hj : j = x
-  · subst hj
-    simp only [BitString.ofList, Function.update_self, getD_insertBitAt_eq hxle]
-  · have hjv : j.val ≠ x.val := Fin.val_ne_of_ne hj
-    simp only [Function.update_of_ne hj, BitString.ofList]
-    rcases lt_or_gt_of_ne hjv with hlt | hgt
-    · rw [getD_insertBitAt_of_lt hlt hxle, getD_insertBitAt_of_lt hlt hxle]
-    · rw [getD_insertBitAt_of_gt hxle hgt, getD_insertBitAt_of_gt hxle hgt]
+  · subst hj; simp only [BitString.ofList, Function.update_self, getD_insertBitAt_eq hxle]
+  · simp only [Function.update_of_ne hj, BitString.ofList]
+    exact getD_insertBitAt_ne hxle (Fin.val_ne_of_ne hj) b false
 
 private theorem le_two_pow_sub_one {n : ℕ} (hn : 2 ≤ n) : n ≤ 2 ^ (n - 1) := by
-  obtain ⟨k, rfl⟩ : ∃ k, n = k + 2 := ⟨n - 2, by omega⟩
-  simp only [show k + 2 - 1 = k + 1 by omega]
-  induction k with
-  | zero => decide
-  | succ k ih =>
-    rw [show k + 1 + 1 = (k + 1) + 1 by omega, Nat.pow_succ]
-    omega
+  have := Nat.lt_two_pow_self (n := n - 1)
+  omega
 
 private theorem le_two_pow_sub_two {n : ℕ} (hn : 5 ≤ n) : n ≤ 2 ^ (n - 2) := by
   obtain ⟨k, rfl⟩ : ∃ k, n = k + 5 := ⟨n - 5, by omega⟩
-  simp only [show k + 5 - 2 = k + 3 by omega]
+  clear hn
   induction k with
   | zero => decide
   | succ k ih =>
-    rw [show k + 1 + 3 = (k + 3) + 1 by omega, Nat.pow_succ]
+    rw [show k + 5 - 2 = k + 3 by omega] at ih
+    rw [show k + 1 + 5 - 2 = k + 3 + 1 by omega, Nat.pow_succ]
     omega
 
 /-- Splicing one bit `b` at coordinate `x` into the `(n - 1)`-bit restriction `t`. -/
@@ -383,37 +387,25 @@ private theorem ofList_spliceTwo {n : ℕ} {x y : Fin n} (hxy : x < y) (t : ℕ)
     BitString.ofList n (spliceTwo n x.val y.val t bx by_) =
       Function.update (Function.update
         (BitString.ofList n (spliceTwo n x.val y.val t false false)) x bx) y by_ := by
-  have hn : 2 ≤ n := by omega
   have hxle : x.val ≤ (BitString.lowBits (n - 2) t).length := by
-    simp only [BitString.length_lowBits]
-    omega
-  have hyle : ∀ b : Bool, y.val ≤ (insertBitAt (BitString.lowBits (n - 2) t) x.val b).length := by
-    intro b
-    simp only [length_insertBitAt, BitString.length_lowBits]
-    omega
+    simp only [BitString.length_lowBits]; omega
+  have hyle (b : Bool) : y.val ≤ (insertBitAt (BitString.lowBits (n - 2) t) x.val b).length := by
+    simp only [length_insertBitAt, BitString.length_lowBits]; omega
   funext j
   by_cases hjy : j = y
   · subst hjy
     simp only [Function.update_self, BitString.ofList, spliceTwo, getD_insertBitAt_eq (hyle bx)]
-  · have hjyv : j.val ≠ y.val := Fin.val_ne_of_ne hjy
-    simp only [Function.update_of_ne hjy]
+  · simp only [Function.update_of_ne hjy]
     by_cases hjx : j = x
     · subst hjx
-      have hlt : j.val < y.val := hxy
       simp only [Function.update_self, BitString.ofList, spliceTwo,
-        getD_insertBitAt_of_lt hlt (hyle bx), getD_insertBitAt_eq hxle]
-    · have hjxv : j.val ≠ x.val := Fin.val_ne_of_ne hjx
-      simp only [Function.update_of_ne hjx, BitString.ofList, spliceTwo]
-      rcases lt_or_gt_of_ne hjyv with hlty | hgty
+        getD_insertBitAt_of_lt hxy (hyle bx), getD_insertBitAt_eq hxle]
+    · simp only [Function.update_of_ne hjx, BitString.ofList, spliceTwo]
+      rcases lt_or_gt_of_ne (Fin.val_ne_of_ne hjy) with hlty | hgty
       · rw [getD_insertBitAt_of_lt hlty (hyle bx), getD_insertBitAt_of_lt hlty (hyle false)]
-        rcases lt_or_gt_of_ne hjxv with hltx | hgtx
-        · rw [getD_insertBitAt_of_lt hltx hxle, getD_insertBitAt_of_lt hltx hxle]
-        · rw [getD_insertBitAt_of_gt hxle hgtx, getD_insertBitAt_of_gt hxle hgtx]
-      · have hgt' : x.val < j.val - 1 := by
-          have : x.val < y.val := hxy
-          omega
-        rw [getD_insertBitAt_of_gt (hyle bx) hgty, getD_insertBitAt_of_gt (hyle false) hgty,
-          getD_insertBitAt_of_gt hxle hgt', getD_insertBitAt_of_gt hxle hgt']
+        exact getD_insertBitAt_ne hxle (Fin.val_ne_of_ne hjx) bx false
+      · rw [getD_insertBitAt_of_gt (hyle bx) hgty, getD_insertBitAt_of_gt (hyle false) hgty]
+        exact getD_insertBitAt_ne hxle (by have : x.val < y.val := hxy; omega) bx false
 
 private theorem ofList_spliceTwo_injective {n : ℕ} (hn : 5 ≤ n) {x y : Fin n} (hxy : x < y) :
     Function.Injective fun p : Fin n × Bool × Bool =>
@@ -422,22 +414,15 @@ private theorem ofList_spliceTwo_injective {n : ℕ} (hn : 5 ≤ n) {x y : Fin n
   have hlist := congrArg List.ofFn h
   rw [BitString.ofFn_ofList (length_spliceTwo (by omega) _ _ _ _ _),
     BitString.ofFn_ofList (length_spliceTwo (by omega) _ _ _ _ _)] at hlist
-  dsimp only [spliceTwo] at hlist
-  have hxle : ∀ t : ℕ, x.val ≤ (BitString.lowBits (n - 2) t).length := by
-    intro t
-    simp only [BitString.length_lowBits]
-    have : x.val < y.val := hxy
-    omega
-  have hyle : ∀ (t : ℕ) (b : Bool),
-      y.val ≤ (insertBitAt (BitString.lowBits (n - 2) t) x.val b).length := by
-    intro t b
-    simp only [length_insertBitAt, BitString.length_lowBits]
-    omega
-  obtain ⟨hmid, rfl⟩ := insertBitAt_inj (hyle t₁.val bx₁) (hyle t₂.val bx₂) hlist
-  obtain ⟨hlow, rfl⟩ := insertBitAt_inj (hxle t₁.val) (hxle t₂.val) hmid
+  have hlowLen : ∀ t : ℕ, x.val ≤ (BitString.lowBits (n - 2) t).length := fun t => by
+    simp only [BitString.length_lowBits]; have : x.val < y.val := hxy; omega
+  have hmidLen : ∀ t b, y.val ≤ (insertBitAt (BitString.lowBits (n - 2) t) x.val b).length :=
+    fun t b => by simp only [length_insertBitAt, BitString.length_lowBits]; omega
+  obtain ⟨hmid, rfl⟩ := insertBitAt_inj (hmidLen t₁.val bx₁) (hmidLen t₂.val bx₂) hlist
+  obtain ⟨hlow, rfl⟩ := insertBitAt_inj (hlowLen t₁.val) (hlowLen t₂.val) hmid
   have hpow := le_two_pow_sub_two hn
-  have ht := BitString.lowBits_injective_of_lt (t₁.isLt.trans_le hpow) (t₂.isLt.trans_le hpow) hlow
-  exact Prod.ext (Fin.ext ht) rfl
+  exact Prod.ext (Fin.ext (BitString.lowBits_injective_of_lt
+    (t₁.isLt.trans_le hpow) (t₂.isLt.trans_le hpow) hlow)) rfl
 
 /-! ### Polynomial-time certificates and uniform finite-probability helpers -/
 
@@ -486,28 +471,34 @@ private theorem uniformOfFintype_exists_le {α ι : Type*} [Fintype α] [Nonempt
         exact ⟨i, Finset.mem_univ i, hi⟩)
   rwa [ENNReal.toNNReal_sum fun i _ => PMF.apply_ne_top _ _] at h
 
-private theorem uniformOfFintype_forall_fin_eq {β : Type*} [Fintype β] [Nonempty β]
-    (q : β → Bool) (n : ℕ) :
-    ((PMF.uniformOfFintype (Fin n → β)).map
-      (fun T => decide (∀ t : Fin n, q (T t) = true)) true).toNNReal =
-      (((Finset.univ.filter fun b : β => q b = true).card : ℝ≥0) / Fintype.card β) ^ n := by
+private theorem uniformOfFintype_hom_forall_fin_eq {α β : Type*} [AddGroup α] [Fintype α]
+    [AddGroup β] [Fintype β] {n : ℕ} (hom : α →+ Fin n → β)
+    (hs : Function.Surjective hom) (q : β → Bool) (c : ℕ)
+    (hc : (Finset.univ.filter fun b : β => q b = true).card = c) :
+    ((PMF.uniformOfFintype α).map
+      (fun f => decide (∀ t : Fin n, q (hom f t) = true)) true).toNNReal =
+      ((c : ℝ≥0) / Fintype.card β) ^ n := by
   classical
-  rw [PMF.uniformOfFintype_map_apply, ENNReal.toNNReal_div, ENNReal.toNNReal_natCast,
+  have hcomp : (fun f : α => decide (∀ t : Fin n, q (hom f t) = true)) =
+      (fun T : Fin n → β => decide (∀ t : Fin n, q (T t) = true)) ∘ hom := rfl
+  rw [hcomp, ← _root_.PMF.map_comp, PMF.uniformOfFintype_map_addHom hom hs,
+    PMF.uniformOfFintype_map_apply, ENNReal.toNNReal_div, ENNReal.toNNReal_natCast,
     ENNReal.toNNReal_natCast]
-  have hnum : Nat.card {T : Fin n → β // decide (∀ t : Fin n, q (T t) = true) = true} =
-      (Finset.univ.filter fun b : β => q b = true).card ^ n := by
-    have hequiv : {T : Fin n → β // decide (∀ t : Fin n, q (T t) = true) = true} ≃
-        (Fin n → {b : β // q b = true}) :=
-      (Equiv.subtypeEquivRight
-        (p := fun T : Fin n → β => decide (∀ t : Fin n, q (T t) = true) = true)
-        (q := fun T : Fin n → β => ∀ t : Fin n, q (T t) = true)
-        fun _ => decide_eq_true_iff).trans
-        (Equiv.subtypePiEquivPi (β := fun _ : Fin n => β) (p := fun _ b => q b = true))
-    rw [Nat.card_congr hequiv, Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_fin,
-      Fintype.card_subtype]
-  rw [hnum, Fintype.card_fun, Fintype.card_fin]
+  have hequiv : {T : Fin n → β // decide (∀ t : Fin n, q (T t) = true) = true} ≃
+      (Fin n → {b : β // q b = true}) :=
+    (Equiv.subtypeEquivRight (fun _ => decide_eq_true_iff)).trans
+      (Equiv.subtypePiEquivPi (β := fun _ : Fin n => β) (p := fun _ b => q b = true))
+  rw [Nat.card_congr hequiv, Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_fin,
+    Fintype.card_subtype, hc, Fintype.card_fun, Fintype.card_fin]
   push_cast
   rw [div_pow]
+
+private theorem listRow_range_flatMap {n w : ℕ} (f : ℕ → List Bool)
+    (hf : ∀ i < n, (f i).length = w) {i : ℕ} (hi : i < n) :
+    BitString.listRow w i ((List.range n).flatMap f) = f i := by
+  have hrow := BitString.listRow_flatMap_append (width := w) f (List.range n)
+    (fun k hk => hf k (List.mem_range.mp hk)) [] i (by simpa only [List.length_range])
+  simpa only [List.append_nil, List.getElem_range] using hrow
 
 /-! ### Lemma 7.3: Distinguishing isolated variables -/
 
@@ -595,35 +586,24 @@ private theorem checkIsoAnswers_map_isoQueries {n : ℕ} (hn : 1 ≤ n) (f : Boo
       (booleanOracle n f (spliceOne n x t b)).headD false =
         f (BitString.ofList n (spliceOne n x t b)) := by
     simp only [booleanOracle, length_spliceOne hn, ↓reduceIte, List.headD_cons]
-  have houter (x : Fin n) :
-      BitString.listRow (2 * n) x.val answers = (List.range n).flatMap (rowT x.val) := by
+  have houter (x : ℕ) (hx : x < n) :
+      BitString.listRow (2 * n) x answers = (List.range n).flatMap (rowT x) := by
     have hmap : answers =
         (List.range n).flatMap fun x' => (List.range n).flatMap (rowT x') := by
       simp only [answers, isoQueries, List.map_flatMap, List.map_cons, List.map_nil, hg, rowT]
     rw [hmap]
-    have hrow := BitString.listRow_flatMap_append (width := 2 * n)
-      (fun x' => (List.range n).flatMap (rowT x')) (List.range n)
-      (fun x' _ => by
-        rw [List.length_flatMap]
-        simp only [rowT, List.length_cons, List.length_nil, Nat.reduceAdd, List.map_const',
-          List.length_range, List.sum_replicate, smul_eq_mul, Nat.mul_comm])
-      [] x.val (by simp only [List.length_range, x.isLt])
-    simpa only [List.append_nil, List.getElem_range] using hrow
-  have hinner (x t : Fin n) :
-      BitString.listRow 2 t.val (BitString.listRow (2 * n) x.val answers) = rowT x.val t.val := by
-    rw [houter x]
-    have hrow := BitString.listRow_flatMap_append (width := 2) (rowT x.val) (List.range n)
-      (fun _ _ => rfl) [] t.val (by simp only [List.length_range, t.isLt])
-    simpa only [List.append_nil, List.getElem_range] using hrow
+    refine listRow_range_flatMap _ (fun x' _ => ?_) hx
+    simp only [List.length_flatMap, rowT, List.length_cons, List.length_nil, Nat.reduceAdd,
+      List.map_const', List.length_range, List.sum_replicate, smul_eq_mul, Nat.mul_comm]
+  have hinner (x t : ℕ) (hx : x < n) (ht : t < n) :
+      BitString.listRow 2 t (BitString.listRow (2 * n) x answers) = rowT x t := by
+    rw [houter x hx]
+    exact listRow_range_flatMap (rowT x) (fun _ _ => rfl) ht
   rw [Bool.eq_iff_iff]
   simp only [checkIsoAnswers, rowEq2, List.any_eq_true, List.mem_range, List.all_eq_true,
-    beq_iff_eq, decide_eq_true_eq]
-  refine ⟨fun ⟨x, hx, hall⟩ => ⟨⟨x, hx⟩, fun t => ?_⟩,
-    fun ⟨x, hall⟩ => ⟨x.val, x.isLt, fun t ht => ?_⟩⟩
-  · simpa only [hinner ⟨x, hx⟩ t, rowT, List.getD_cons_zero, List.getD_cons_succ] using
-      hall t.val t.isLt
-  · simpa only [hinner x ⟨t, ht⟩, rowT, List.getD_cons_zero, List.getD_cons_succ] using
-      hall ⟨t, ht⟩
+    beq_iff_eq, decide_eq_true_eq, Fin.exists_iff, Fin.forall_iff, exists_prop]
+  refine exists_congr fun x => and_congr_right fun hx => forall₂_congr fun t ht => ?_
+  simp only [hinner x t hx ht, rowT, List.getD_cons_zero, List.getD_cons_succ]
 
 /-- **Fan–Li–Yang Lemma 7.3 (completeness)**: if `C` computes `single f` (`1 ≤ n`) and has an
 isolated variable, `isolatedVarDistinguisher` accepts `f` with probability `1`. -/
@@ -658,23 +638,13 @@ private def evalSingleHom (n : ℕ) (x : Fin n) : BooleanFunction n →+ (Fin n 
 
 private theorem evalSingleHom_surjective {n : ℕ} (hn : 2 ≤ n) (x : Fin n) :
     Function.Surjective (evalSingleHom n x) := by
-  classical
   intro φ
   let emb : Fin n × Bool → BitString n :=
     fun p => BitString.ofList n (spliceOne n x.val p.1.val p.2)
-  have hemb := ofList_spliceOne_injective hn x
-  refine ⟨fun z => if h : ∃ p, emb p = z then
-    (if h.choose.2 then (φ h.choose.1).2 else (φ h.choose.1).1) else false, ?_⟩
-  funext t
-  have h0 : ∃ p, emb p = emb (t, false) := ⟨(t, false), rfl⟩
-  have h1 : ∃ p, emb p = emb (t, true) := ⟨(t, true), rfl⟩
-  have hc0 : h0.choose = (t, false) := hemb h0.choose_spec
-  have hc1 : h1.choose = (t, true) := hemb h1.choose_spec
-  ext
-  · change (if h : ∃ p, emb p = emb (t, false) then _ else false) = (φ t).1
-    simp only [h0, ↓reduceDIte, hc0, Bool.false_eq_true, ↓reduceIte]
-  · change (if h : ∃ p, emb p = emb (t, true) then _ else false) = (φ t).2
-    simp only [h1, ↓reduceDIte, hc1, ↓reduceIte]
+  let g : Fin n × Bool → Bool := fun p => if p.2 then (φ p.1).2 else (φ p.1).1
+  have hext := (ofList_spliceOne_injective hn x).extend_apply g (fun _ => false)
+  exact ⟨Function.extend emb g (fun _ => false),
+    funext fun t => Prod.ext (hext (t, false)) (hext (t, true))⟩
 
 /-- **Fan–Li–Yang Lemma 7.3 (soundness against random functions)**: for `2 ≤ n`,
 `isolatedVarDistinguisher` accepts a uniformly random Boolean function with probability at most
@@ -697,23 +667,14 @@ theorem succProbability_booleanPRFIdealGame_isolatedVarDistinguisher_le {n : ℕ
   refine (uniformOfFintype_exists_le (fun (x : Fin n) (f : BooleanFunction n) =>
     decide (∀ t : Fin n,
       ((evalSingleHom n x f t).1 == (evalSingleHom n x f t).2) = true))).trans ?_
-  have hterm : ∀ x : Fin n,
+  have hterm (x : Fin n) :
       ((PMF.uniformOfFintype (BooleanFunction n)).map
         (fun f => decide (∀ t : Fin n,
           ((evalSingleHom n x f t).1 == (evalSingleHom n x f t).2) = true)) true).toNNReal =
         (1 / 2 : ℝ≥0) ^ n := by
-    intro x
-    have hcomp : (fun f : BooleanFunction n =>
-        decide (∀ t : Fin n, ((evalSingleHom n x f t).1 == (evalSingleHom n x f t).2) = true)) =
-        (fun T : Fin n → Bool × Bool =>
-          decide (∀ t : Fin n, ((T t).1 == (T t).2) = true)) ∘ evalSingleHom n x := rfl
-    rw [hcomp, ← _root_.PMF.map_comp,
-      PMF.uniformOfFintype_map_addHom (evalSingleHom n x) (evalSingleHom_surjective hn x),
-      uniformOfFintype_forall_fin_eq (fun p : Bool × Bool => p.1 == p.2) n]
-    have hc1 : (Finset.univ.filter fun p : Bool × Bool => (p.1 == p.2) = true).card = 2 := by
-      decide
-    have hc2 : Fintype.card (Bool × Bool) = 4 := by decide
-    rw [hc1, hc2]
+    rw [uniformOfFintype_hom_forall_fin_eq (evalSingleHom n x) (evalSingleHom_surjective hn x)
+      (fun p : Bool × Bool => p.1 == p.2) 2 (by decide),
+      (by decide : Fintype.card (Bool × Bool) = 4)]
     norm_num
   simp only [hterm, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
   exact le_rfl
@@ -722,12 +683,8 @@ theorem succProbability_booleanPRFIdealGame_isolatedVarDistinguisher_le {n : ℕ
 theorem negligible_booleanPRFIdealGame_isolatedVarDistinguisher :
     Negligible
       (fun n => Game.succProbability (booleanPRFIdealGame isolatedVarDistinguisher n)) := by
-  have hgeom : Negligible (fun n => (n : ℝ≥0) * (1 / 2 : ℝ≥0) ^ n) :=
-    (negligible_geometric (by norm_num : (1 / 2 : ℝ≥0) < 1)).polynomiallyBounded_mul
-      PolynomiallyBounded.id
-  refine negligible_of_eventually_le hgeom ?_
-  filter_upwards [Filter.eventually_ge_atTop 2] with n hn
-  exact succProbability_booleanPRFIdealGame_isolatedVarDistinguisher_le hn
+  negligible eventually (Filter.eventually_ge_atTop 2).mono fun _ hn =>
+    succProbability_booleanPRFIdealGame_isolatedVarDistinguisher_le hn
 
 /-! ### Lemma 7.2: Distinguishing intersecting critical paths -/
 
@@ -899,59 +856,41 @@ private theorem checkCritAnswers_map_critQueries {n : ℕ} (hn : 2 ≤ n) (f : B
         f (BitString.ofList n (spliceTwo n x y t bx by_)) := by
     simp only [booleanOracle, length_spliceTwo hn, ↓reduceIte, List.headD_cons]
   have hlenY (x' y : ℕ) : ((List.range n).flatMap (rowT x' y)).length = 4 * n := by
-    rw [List.length_flatMap]
-    simp only [rowT, List.length_cons, List.length_nil, Nat.reduceAdd, List.map_const',
-      List.length_range, List.sum_replicate, smul_eq_mul, Nat.mul_comm]
-  have hrowX (x : Fin n) :
-      BitString.listRow (n * (4 * n)) x.val answers =
-        (List.range n).flatMap fun y => (List.range n).flatMap (rowT x.val y) := by
+    simp only [List.length_flatMap, rowT, List.length_cons, List.length_nil, Nat.reduceAdd,
+      List.map_const', List.length_range, List.sum_replicate, smul_eq_mul, Nat.mul_comm]
+  have hrowX (x : ℕ) (hx : x < n) :
+      BitString.listRow (n * (4 * n)) x answers =
+        (List.range n).flatMap fun y => (List.range n).flatMap (rowT x y) := by
     have hmap : answers = (List.range n).flatMap fun x' =>
         (List.range n).flatMap fun y => (List.range n).flatMap (rowT x' y) := by
       simp only [answers, critQueries, List.map_flatMap, List.map_cons, List.map_nil, hg, rowT]
     rw [hmap]
-    have hrow := BitString.listRow_flatMap_append (width := n * (4 * n))
-      (fun x' => (List.range n).flatMap fun y => (List.range n).flatMap (rowT x' y))
-      (List.range n)
-      (fun x' _ => by
-        rw [List.length_flatMap, List.map_congr_left (fun y _ => hlenY x' y)]
-        simp only [List.map_const', List.length_range, List.sum_replicate, smul_eq_mul])
-      [] x.val (by simp only [List.length_range, x.isLt])
-    simpa only [List.append_nil, List.getElem_range] using hrow
-  have hrowXY (x y : Fin n) :
-      BitString.listRow (4 * n) y.val (BitString.listRow (n * (4 * n)) x.val answers) =
-        (List.range n).flatMap (rowT x.val y.val) := by
-    rw [hrowX x]
-    have hrow := BitString.listRow_flatMap_append (width := 4 * n)
-      (fun y' => (List.range n).flatMap (rowT x.val y')) (List.range n)
-      (fun y' _ => hlenY x.val y') [] y.val (by simp only [List.length_range, y.isLt])
-    simpa only [List.append_nil, List.getElem_range] using hrow
-  have hrowXYT (x y t : Fin n) :
-      BitString.listRow 4 t.val
-          (BitString.listRow (4 * n) y.val (BitString.listRow (n * (4 * n)) x.val answers)) =
-        [(quadAt n x y f t).1, (quadAt n x y f t).2.1,
-         (quadAt n x y f t).2.2.1, (quadAt n x y f t).2.2.2] := by
-    rw [hrowXY x y]
-    have hrow := BitString.listRow_flatMap_append (width := 4) (rowT x.val y.val) (List.range n)
-      (fun _ _ => rfl) [] t.val (by simp only [List.length_range, t.isLt])
-    simpa only [List.append_nil, List.getElem_range, quadAt, rowT] using hrow
+    refine listRow_range_flatMap _ (fun x' _ => ?_) hx
+    rw [List.length_flatMap, List.map_congr_left fun y _ => hlenY x' y]
+    simp only [List.map_const', List.length_range, List.sum_replicate, smul_eq_mul]
+  have hrowXY (x y : ℕ) (hx : x < n) (hy : y < n) :
+      BitString.listRow (4 * n) y (BitString.listRow (n * (4 * n)) x answers) =
+        (List.range n).flatMap (rowT x y) := by
+    rw [hrowX x hx]
+    exact listRow_range_flatMap _ (fun y' _ => hlenY x y') hy
+  have hrowXYT (x y t : ℕ) (hx : x < n) (hy : y < n) (ht : t < n) :
+      BitString.listRow 4 t
+          (BitString.listRow (4 * n) y (BitString.listRow (n * (4 * n)) x answers)) =
+        rowT x y t := by
+    rw [hrowXY x y hx hy]
+    exact listRow_range_flatMap (rowT x y) (fun _ _ => rfl) ht
   rw [Bool.eq_iff_iff]
   simp only [checkCritAnswers, rowNotAnd4, rowNotXor4, List.any_eq_true, List.mem_range,
     Bool.and_eq_true, Bool.or_eq_true, decide_eq_true_eq, List.all_eq_true]
   constructor
-  · rintro ⟨x, hx, y, hy, hlt, hand | hxor⟩
-    · refine ⟨⟨x, hx⟩, ⟨y, hy⟩, hlt, Or.inl fun t => ?_⟩
-      simpa only [hrowXYT ⟨x, hx⟩ ⟨y, hy⟩ t, List.getD_cons_zero, List.getD_cons_succ] using
-        hand t.val t.isLt
-    · refine ⟨⟨x, hx⟩, ⟨y, hy⟩, hlt, Or.inr fun t => ?_⟩
-      simpa only [hrowXYT ⟨x, hx⟩ ⟨y, hy⟩ t, List.getD_cons_zero, List.getD_cons_succ] using
-        hxor t.val t.isLt
-  · rintro ⟨x, y, hlt, hand | hxor⟩
-    · refine ⟨x.val, x.isLt, y.val, y.isLt, hlt, Or.inl fun t ht => ?_⟩
-      simpa only [hrowXYT x y ⟨t, ht⟩, List.getD_cons_zero, List.getD_cons_succ] using
-        hand ⟨t, ht⟩
-    · refine ⟨x.val, x.isLt, y.val, y.isLt, hlt, Or.inr fun t ht => ?_⟩
-      simpa only [hrowXYT x y ⟨t, ht⟩, List.getD_cons_zero, List.getD_cons_succ] using
-        hxor ⟨t, ht⟩
+  · rintro ⟨x, hx, y, hy, hlt, hor⟩
+    refine ⟨⟨x, hx⟩, ⟨y, hy⟩, hlt, hor.imp (fun h t => ?_) (fun h t => ?_)⟩ <;>
+    · simpa only [hrowXYT x y t.val hx hy t.isLt, rowT, quadAt, List.getD_cons_zero,
+        List.getD_cons_succ] using h t.val t.isLt
+  · rintro ⟨x, y, hlt, hor⟩
+    refine ⟨x.val, x.isLt, y.val, y.isLt, hlt, hor.imp (fun h t ht => ?_) (fun h t ht => ?_)⟩ <;>
+    · simpa only [hrowXYT x.val y.val t x.isLt y.isLt ht, rowT, quadAt, List.getD_cons_zero,
+        List.getD_cons_succ] using h ⟨t, ht⟩
 
 /-- **Fan–Li–Yang Lemma 7.2 (completeness)**: if `C` is a single-output `B₂` circuit with
 `NoDeadGates` (*normalized* in [FanLiYang2022]) computing `single f` (`2 ≤ n`) whose critical paths
@@ -967,20 +906,12 @@ theorem succProbability_criticalPathDistinguisher_of_not_disjoint_criticalPath {
   unfold Pairwise at hnotDisj
   push Not at hnotDisj
   obtain ⟨x₀, y₀, hne, hinter⟩ := hnotDisj
-  have hpair : ∃ x y : Fin n, x < y ∧
-      ((∀ ρ : BitString n,
-          ¬ IsAndType fun bx by_ => f (Function.update (Function.update ρ x bx) y by_)) ∨
-       (∀ ρ : BitString n,
-          ¬ IsXorType fun bx by_ => f (Function.update (Function.update ρ x bx) y by_))) := by
-    rcases lt_or_gt_of_ne hne with hlt | hgt
-    · refine ⟨x₀, y₀, hlt, ?_⟩
-      simpa only [hfeq] using
-        not_isAndType_or_not_isXorType_of_not_disjoint_criticalPath C hnoDead hne hinter
-    · refine ⟨y₀, x₀, hgt, ?_⟩
-      simpa only [hfeq] using
-        not_isAndType_or_not_isXorType_of_not_disjoint_criticalPath C hnoDead hne.symm
-          (fun hd => hinter hd.symm)
-  obtain ⟨x, y, hxy, hor⟩ := hpair
+  obtain ⟨x, y, hxy, hne', hinter'⟩ : ∃ x y : Fin n, x < y ∧ x ≠ y ∧
+      ¬ Disjoint (C.criticalPath x).toFinset (C.criticalPath y).toFinset :=
+    (lt_or_gt_of_ne hne).elim (fun h => ⟨x₀, y₀, h, hne, hinter⟩)
+      (fun h => ⟨y₀, x₀, h, hne.symm, fun hd => hinter hd.symm⟩)
+  have hor := not_isAndType_or_not_isXorType_of_not_disjoint_criticalPath C hnoDead hne' hinter'
+  simp only [hfeq] at hor
   have htrue :
       checkCritAnswers n ((critQueries n).map fun word => (booleanOracle n f word).headD false) =
         true := by
@@ -991,12 +922,9 @@ theorem succProbability_criticalPathDistinguisher_of_not_disjoint_criticalPath {
            f (Function.update (Function.update ρ x bx) y by_)
          (h false false, h true false, h false true, h true true)) := by
       simp only [quadAt, ← ofList_spliceTwo hxy]
-    refine ⟨x, y, hxy, ?_⟩
-    rcases hor with hand | hxor
-    · exact Or.inl fun t => by
-        rw [hq t]; dsimp only; exact (not_isAnd4_eq_true_iff _).mpr (hand _)
-    · exact Or.inr fun t => by
-        rw [hq t]; dsimp only; exact (not_isXor4_eq_true_iff _).mpr (hxor _)
+    refine ⟨x, y, hxy, hor.imp (fun hand t => ?_) (fun hxor t => ?_)⟩
+    · rw [hq t]; dsimp only; exact (not_isAnd4_eq_true_iff _).mpr (hand _)
+    · rw [hq t]; dsimp only; exact (not_isXor4_eq_true_iff _).mpr (hxor _)
   rw [evalBooleanOracle_criticalPathDistinguisher, htrue]
   simp only [Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one]
 
@@ -1011,23 +939,15 @@ private theorem evalPairHom_apply (n : ℕ) (x y : Fin n) (f : BooleanFunction n
 
 private theorem evalPairHom_surjective {n : ℕ} (hn : 5 ≤ n) {x y : Fin n} (hxy : x < y) :
     Function.Surjective (evalPairHom n x y) := by
-  classical
   intro φ
   let emb : Fin n × Bool × Bool → BitString n :=
     fun p => BitString.ofList n (spliceTwo n x.val y.val p.1.val p.2.1 p.2.2)
-  have hemb := ofList_spliceTwo_injective hn hxy
-  let pick : QuadBool → Bool → Bool → Bool := fun q bx by_ =>
-    match bx, by_ with
-    | false, false => q.1 | true, false => q.2.1 | false, true => q.2.2.1 | true, true => q.2.2.2
-  refine ⟨fun z => if h : ∃ p, emb p = z then
-    pick (φ h.choose.1) h.choose.2.1 h.choose.2.2 else false, funext fun t => ?_⟩
-  have hAt (bx by_ : Bool) :
-      (if h : ∃ p, emb p = emb (t, bx, by_) then
-        pick (φ h.choose.1) h.choose.2.1 h.choose.2.2 else false) = pick (φ t) bx by_ := by
-    have hex : ∃ p, emb p = emb (t, bx, by_) := ⟨(t, bx, by_), rfl⟩
-    simp only [hex, ↓reduceDIte, hemb hex.choose_spec]
-  exact Prod.ext (hAt false false)
-    (Prod.ext (hAt true false) (Prod.ext (hAt false true) (hAt true true)))
+  let g : Fin n × Bool × Bool → Bool := fun p => match p.2.1, p.2.2 with
+    | false, false => (φ p.1).1 | true, false => (φ p.1).2.1
+    | false, true => (φ p.1).2.2.1 | true, true => (φ p.1).2.2.2
+  have hext := (ofList_spliceTwo_injective hn hxy).extend_apply g (fun _ => false)
+  exact ⟨Function.extend emb g (fun _ => false), funext fun t => Prod.ext (hext (t, false, false))
+    (Prod.ext (hext (t, true, false)) (Prod.ext (hext (t, false, true)) (hext (t, true, true))))⟩
 
 /-- **Fan–Li–Yang Lemma 7.2 (soundness against random functions)**: for `5 ≤ n`,
 `criticalPathDistinguisher` accepts a uniformly random Boolean function with probability at most
@@ -1036,19 +956,10 @@ theorem succProbability_booleanPRFIdealGame_criticalPathDistinguisher_le {n : �
     Game.succProbability (booleanPRFIdealGame criticalPathDistinguisher n) ≤
       (n : ℝ≥0) ^ 2 * ((1 / 2 : ℝ≥0) ^ n + (7 / 8 : ℝ≥0) ^ n) := by
   let PairLt := {p : Fin n × Fin n // p.1 < p.2}
+  let test : Bool → QuadBool → Bool := fun b q =>
+    if b then !isXor4 q.1 q.2.1 q.2.2.1 q.2.2.2 else !isAnd4 q.1 q.2.1 q.2.2.1 q.2.2.2
   let P : PairLt × Bool → BooleanFunction n → Bool := fun idx f =>
-    if idx.2 then
-      decide (∀ t : Fin n,
-        (!isXor4 (evalPairHom n idx.1.1.1 idx.1.1.2 f t).1
-          (evalPairHom n idx.1.1.1 idx.1.1.2 f t).2.1
-          (evalPairHom n idx.1.1.1 idx.1.1.2 f t).2.2.1
-          (evalPairHom n idx.1.1.1 idx.1.1.2 f t).2.2.2) = true)
-    else
-      decide (∀ t : Fin n,
-        (!isAnd4 (evalPairHom n idx.1.1.1 idx.1.1.2 f t).1
-          (evalPairHom n idx.1.1.1 idx.1.1.2 f t).2.1
-          (evalPairHom n idx.1.1.1 idx.1.1.2 f t).2.2.1
-          (evalPairHom n idx.1.1.1 idx.1.1.2 f t).2.2.2) = true)
+    decide (∀ t : Fin n, test idx.2 (evalPairHom n idx.1.1.1 idx.1.1.2 f t) = true)
   have heq : booleanPRFIdealGame criticalPathDistinguisher n =
       (PMF.uniformOfFintype (BooleanFunction n)).map fun f =>
         decide (∃ idx : PairLt × Bool, P idx f = true) := by
@@ -1059,51 +970,31 @@ theorem succProbability_booleanPRFIdealGame_criticalPathDistinguisher_le {n : �
     dsimp only [Function.comp_apply]
     congr 1
     rw [Bool.eq_iff_iff]
-    simp only [decide_eq_true_eq, P, evalPairHom_apply, Bool.not_eq_true']
+    simp only [decide_eq_true_eq, P, test, evalPairHom_apply]
     refine ⟨?_, ?_⟩
     · rintro ⟨x, y, hxy, hand | hxor⟩
-      · exact ⟨(⟨(x, y), hxy⟩, false),
-          by simp only [Bool.false_eq_true, ↓reduceIte, decide_eq_true_eq]; exact hand⟩
-      · exact ⟨(⟨(x, y), hxy⟩, true),
-          by simp only [↓reduceIte, decide_eq_true_eq]; exact hxor⟩
+      · exact ⟨(⟨(x, y), hxy⟩, false), by simpa using hand⟩
+      · exact ⟨(⟨(x, y), hxy⟩, true), by simpa using hxor⟩
     · rintro ⟨⟨⟨⟨x, y⟩, hxy⟩, false | true⟩, hb⟩
-      · exact ⟨x, y, hxy, Or.inl (by
-          simpa only [Bool.false_eq_true, ↓reduceIte, decide_eq_true_eq] using hb)⟩
-      · exact ⟨x, y, hxy, Or.inr (by
-          simpa only [↓reduceIte, decide_eq_true_eq] using hb)⟩
+      · exact ⟨x, y, hxy, Or.inl (by simpa using hb)⟩
+      · exact ⟨x, y, hxy, Or.inr (by simpa using hb)⟩
   rw [Game.succProbability, heq]
   refine (uniformOfFintype_exists_le P).trans ?_
   have hc2 : Fintype.card QuadBool = 16 := by decide
   have hAnd (p : PairLt) :
       ((PMF.uniformOfFintype (BooleanFunction n)).map (P (p, false)) true).toNNReal =
         (1 / 2 : ℝ≥0) ^ n := by
-    change ((PMF.uniformOfFintype (BooleanFunction n)).map
-      ((fun T : Fin n → QuadBool =>
-        decide (∀ t : Fin n, (!isAnd4 (T t).1 (T t).2.1 (T t).2.2.1 (T t).2.2.2) = true)) ∘
-        evalPairHom n p.1.1 p.1.2) true).toNNReal = _
-    rw [← _root_.PMF.map_comp, PMF.uniformOfFintype_map_addHom _ (evalPairHom_surjective hn p.2),
-      uniformOfFintype_forall_fin_eq (fun q : QuadBool => !isAnd4 q.1 q.2.1 q.2.2.1 q.2.2.2) n,
-      (by decide : (Finset.univ.filter fun q : QuadBool =>
-        (!isAnd4 q.1 q.2.1 q.2.2.1 q.2.2.2) = true).card = 8), hc2]
+    rw [uniformOfFintype_hom_forall_fin_eq (evalPairHom n p.1.1 p.1.2)
+      (evalPairHom_surjective hn p.2) (test false) 8 (by decide), hc2]
     norm_num
   have hXor (p : PairLt) :
       ((PMF.uniformOfFintype (BooleanFunction n)).map (P (p, true)) true).toNNReal =
         (7 / 8 : ℝ≥0) ^ n := by
-    change ((PMF.uniformOfFintype (BooleanFunction n)).map
-      ((fun T : Fin n → QuadBool =>
-        decide (∀ t : Fin n, (!isXor4 (T t).1 (T t).2.1 (T t).2.2.1 (T t).2.2.2) = true)) ∘
-        evalPairHom n p.1.1 p.1.2) true).toNNReal = _
-    rw [← _root_.PMF.map_comp, PMF.uniformOfFintype_map_addHom _ (evalPairHom_surjective hn p.2),
-      uniformOfFintype_forall_fin_eq (fun q : QuadBool => !isXor4 q.1 q.2.1 q.2.2.1 q.2.2.2) n,
-      (by decide : (Finset.univ.filter fun q : QuadBool =>
-        (!isXor4 q.1 q.2.1 q.2.2.1 q.2.2.2) = true).card = 14), hc2]
+    rw [uniformOfFintype_hom_forall_fin_eq (evalPairHom n p.1.1 p.1.2)
+      (evalPairHom_surjective hn p.2) (test true) 14 (by decide), hc2]
     norm_num
   rw [Fintype.sum_prod_type]
-  have hsumPair (p : PairLt) :
-      (∑ b : Bool, ((PMF.uniformOfFintype (BooleanFunction n)).map (P (p, b)) true).toNNReal) =
-        (1 / 2 : ℝ≥0) ^ n + (7 / 8 : ℝ≥0) ^ n := by
-    rw [Fintype.sum_bool, hXor p, hAnd p, add_comm]
-  simp_rw [hsumPair]
+  simp_rw [Fintype.sum_bool, hXor, hAnd, add_comm]
   rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
   have hcard : Fintype.card PairLt ≤ n ^ 2 :=
     (Fintype.card_subtype_le _).trans_eq (by simp only [Fintype.card_prod, Fintype.card_fin, sq])
@@ -1113,35 +1004,57 @@ theorem succProbability_booleanPRFIdealGame_criticalPathDistinguisher_le {n : �
 theorem negligible_booleanPRFIdealGame_criticalPathDistinguisher :
     Negligible
       (fun n => Game.succProbability (booleanPRFIdealGame criticalPathDistinguisher n)) := by
-  have h1 : Negligible (fun n => (n ^ 2 : ℕ) * (1 / 2 : ℝ≥0) ^ n) :=
-    (negligible_geometric (by norm_num : (1 / 2 : ℝ≥0) < 1)).polynomiallyBounded_mul
-      (PolynomiallyBounded.id.pow 2)
-  have h2 : Negligible (fun n => (n ^ 2 : ℕ) * (7 / 8 : ℝ≥0) ^ n) :=
-    (negligible_geometric (by norm_num : (7 / 8 : ℝ≥0) < 1)).polynomiallyBounded_mul
-      (PolynomiallyBounded.id.pow 2)
-  refine negligible_of_eventually_le (h1.add h2) ?_
-  filter_upwards [Filter.eventually_ge_atTop 5] with n hn
-  simpa only [Pi.add_apply, Nat.cast_pow, mul_add] using
+  negligible eventually (Filter.eventually_ge_atTop 5).mono fun _ hn =>
     succProbability_booleanPRFIdealGame_criticalPathDistinguisher_le hn
 
 /-! ### Theorem 7.5: `2n - 2` `B₂`-circuit lower bound for PRFs -/
 
 private theorem succProbability_le_advantage_add (g₁ g₂ : Game) :
     Game.succProbability g₁ ≤ Game.advantage g₁ g₂ + Game.succProbability g₂ := by
-  rw [← NNReal.coe_le_coe, NNReal.coe_add, Game.coe_advantage]
-  linarith [le_abs_self ((Game.succProbability g₁ : ℝ) - Game.succProbability g₂)]
+  simpa only [Game.advantage_pure_false] using Game.advantage_triangle g₁ g₂ (PMF.pure false)
 
-/-- **Fan–Li–Yang Theorem 7.5** (for `BooleanPRF` ensembles): for every `BooleanPRF D`, the
-probability that `f ← D n` has `B₂`-circuit complexity strictly less than `2 * n - 2` is
-negligible in `n`. -/
+private theorem evalBooleanOracle_true_eq_one {d : OracleDistinguisher} {n : ℕ}
+    {f : BooleanFunction n} (h : Game.succProbability (evalBooleanOracle d n f) = 1) :
+    evalBooleanOracle d n f true = 1 := by
+  simpa only [Game.succProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _),
+    ENNReal.coe_one] using congrArg (fun x : ℝ≥0 => (x : ℝ≥0∞)) h
+
+private theorem lt_two_mul_sub_two_distinguishers_ge_one {n : ℕ} (hn : 2 ≤ n)
+    {f : BooleanFunction n}
+    (hlt : complexity (fullInterpretation (k := 2)) (single f) < 2 * n - 2) :
+    1 ≤ evalBooleanOracle isolatedVarDistinguisher n f true +
+      evalBooleanOracle criticalPathDistinguisher n f true := by
+  obtain ⟨C₀, hC₀comp, hC₀size⟩ :=
+    exists_computes_size_eq_complexity (I := fullInterpretation (k := 2)) (f := single f)
+  obtain ⟨C, hCnoDead, hCsize, hCeval, -⟩ := C₀.exists_noDeadGates
+  have hCcomp : C.Computes fullInterpretation (single f) := by
+    rw [Circuit.computes_single_iff]
+    exact fun z => (congrFun (hCeval fullInterpretation z) 0).trans
+      (Circuit.computes_single_iff.mp hC₀comp z)
+  by_cases hiso : C.HasIsolatedVar
+  · rw [evalBooleanOracle_true_eq_one
+      (succProbability_isolatedVarDistinguisher_of_hasIsolatedVar (by omega : 1 ≤ n)
+        hCcomp hiso)]
+    exact le_self_add
+  · have hnotDisj :
+        ¬ Pairwise fun x y =>
+          Disjoint (C.criticalPath x).toFinset (C.criticalPath y).toFinset := fun hdisj => by
+      have := C.two_mul_sub_two_mul_le_size C.fanInAtMost_fullSignature hCnoDead hiso hdisj
+      omega
+    rw [evalBooleanOracle_true_eq_one
+      (succProbability_criticalPathDistinguisher_of_not_disjoint_criticalPath
+        hn hCcomp hCnoDead hnotDisj)]
+    exact le_add_self
+
+/-- Distributional strengthening of [FanLiYang2022, Theorem 7.5]. For every Boolean PRF
+ensemble, the probability of sampling a function with `B₂`-circuit complexity strictly below
+`2 * n - 2` is negligible in `n`. -/
 theorem BooleanPRF.negligible_complexity_lt_two_mul_sub_two {D : ∀ n, PMF (BooleanFunction n)}
     (hD : BooleanPRF D) :
     Negligible (fun n =>
       ((D n).map (fun f =>
         decide (complexity (fullInterpretation (k := 2)) (single f) < 2 * n - 2))
         true).toNNReal) := by
-  have hadvIso := hD isolatedVarDistinguisher isOraclePPT_isolatedVarDistinguisher
-  have hadvCrit := hD criticalPathDistinguisher isOraclePPT_criticalPathDistinguisher
   have hbound : Negligible (fun n =>
       (Game.advantage (booleanPRFRealGame D isolatedVarDistinguisher n)
           (booleanPRFIdealGame isolatedVarDistinguisher n) +
@@ -1149,78 +1062,37 @@ theorem BooleanPRF.negligible_complexity_lt_two_mul_sub_two {D : ∀ n, PMF (Boo
       (Game.advantage (booleanPRFRealGame D criticalPathDistinguisher n)
           (booleanPRFIdealGame criticalPathDistinguisher n) +
         Game.succProbability (booleanPRFIdealGame criticalPathDistinguisher n))) :=
-    (hadvIso.add negligible_booleanPRFIdealGame_isolatedVarDistinguisher).add
-      (hadvCrit.add negligible_booleanPRFIdealGame_criticalPathDistinguisher)
+    ((hD isolatedVarDistinguisher isOraclePPT_isolatedVarDistinguisher).add
+      negligible_booleanPRFIdealGame_isolatedVarDistinguisher).add
+      ((hD criticalPathDistinguisher isOraclePPT_criticalPathDistinguisher).add
+        negligible_booleanPRFIdealGame_criticalPathDistinguisher)
   refine negligible_of_eventually_le hbound ?_
   filter_upwards [Filter.eventually_ge_atTop 2] with n hn
-  have hrealIso := succProbability_le_advantage_add
-    (booleanPRFRealGame D isolatedVarDistinguisher n)
-    (booleanPRFIdealGame isolatedVarDistinguisher n)
-  have hrealCrit := succProbability_le_advantage_add
-    (booleanPRFRealGame D criticalPathDistinguisher n)
-    (booleanPRFIdealGame criticalPathDistinguisher n)
-  suffices hle :
-      ((D n).map (fun f =>
-        decide (complexity (fullInterpretation (k := 2)) (single f) < 2 * n - 2)) true).toNNReal ≤
-      Game.succProbability (booleanPRFRealGame D isolatedVarDistinguisher n) +
-        Game.succProbability (booleanPRFRealGame D criticalPathDistinguisher n) from
-    hle.trans (add_le_add hrealIso hrealCrit)
-  have hpt : ∀ f : BooleanFunction n,
-      PMF.pure (decide (complexity (fullInterpretation (k := 2)) (single f) < 2 * n - 2)) true ≤
-        evalBooleanOracle isolatedVarDistinguisher n f true +
-          evalBooleanOracle criticalPathDistinguisher n f true := by
-    intro f
-    by_cases hlt : complexity (fullInterpretation (k := 2)) (single f) < 2 * n - 2
-    · simp only [hlt, decide_true, PMF.pure_apply_self]
-      obtain ⟨C₀, hC₀comp, hC₀size⟩ :=
-        exists_computes_size_eq_complexity (I := fullInterpretation (k := 2)) (f := single f)
-      obtain ⟨C, hCnoDead, hCsize, hCeval, -⟩ := C₀.exists_noDeadGates
-      have hCcomp : C.Computes fullInterpretation (single f) := by
-        rw [Circuit.computes_single_iff]
-        intro z
-        exact (congrFun (hCeval fullInterpretation z) 0).trans
-          (Circuit.computes_single_iff.mp hC₀comp z)
-      by_cases hiso : C.HasIsolatedVar
-      · have h1 := succProbability_isolatedVarDistinguisher_of_hasIsolatedVar
-          (by omega : 1 ≤ n) hCcomp hiso
-        have h1' : evalBooleanOracle isolatedVarDistinguisher n f true = 1 := by
-          have := congrArg (fun x : ℝ≥0 => (x : ℝ≥0∞)) h1
-          simpa only [Game.succProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _),
-            ENNReal.coe_one] using this
-        rw [h1']
-        exact le_self_add
-      · have hnotDisj :
-            ¬ Pairwise fun x y =>
-              Disjoint (C.criticalPath x).toFinset (C.criticalPath y).toFinset := by
-          intro hdisj
-          have hge := C.two_mul_sub_two_mul_le_size
-            C.fanInAtMost_fullSignature hCnoDead hiso hdisj
-          omega
-        have h1 := succProbability_criticalPathDistinguisher_of_not_disjoint_criticalPath
-          hn hCcomp hCnoDead hnotDisj
-        have h1' : evalBooleanOracle criticalPathDistinguisher n f true = 1 := by
-          have := congrArg (fun x : ℝ≥0 => (x : ℝ≥0∞)) h1
-          simpa only [Game.succProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _),
-            ENNReal.coe_one] using this
-        rw [h1']
-        exact le_add_self
-    · simp only [hlt, decide_false, PMF.pure_apply, Bool.true_eq_false, ↓reduceIte, zero_le]
+  refine le_trans ?_ (add_le_add
+    (succProbability_le_advantage_add (booleanPRFRealGame D isolatedVarDistinguisher n)
+      (booleanPRFIdealGame isolatedVarDistinguisher n))
+    (succProbability_le_advantage_add (booleanPRFRealGame D criticalPathDistinguisher n)
+      (booleanPRFIdealGame criticalPathDistinguisher n)))
   have htsum :
       ((D n).map (fun f =>
         decide (complexity (fullInterpretation (k := 2)) (single f) < 2 * n - 2))) true ≤
       booleanPRFRealGame D isolatedVarDistinguisher n true +
         booleanPRFRealGame D criticalPathDistinguisher n true := by
-    rw [← _root_.PMF.bind_pure_comp, booleanPRFRealGame, booleanPRFRealGame,
-      PMF.bind_apply, PMF.bind_apply, PMF.bind_apply, ← tsum_add]
-    refine tsum_le_tsum fun f => ?_
-    rw [← mul_add]
-    exact mul_le_mul_of_nonneg_left (hpt f) zero_le
-  have hnn := ENNReal.toNNReal_mono (by finiteness) htsum
+    refine PMF.bind_apply_le_add_on_support (D n) true fun f _ => ?_
+    by_cases hlt : complexity (fullInterpretation (k := 2)) (single f) < 2 * n - 2
+    · simpa only [Function.comp_apply, hlt, decide_true, PMF.pure_apply_self] using
+        lt_two_mul_sub_two_distinguishers_ge_one hn hlt
+    · simp only [Function.comp_apply, hlt, decide_false, PMF.pure_apply, Bool.true_eq_false,
+        ↓reduceIte, zero_le]
   simpa only [Game.succProbability,
-    ENNReal.toNNReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)] using hnn
+    ENNReal.toNNReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)] using
+    ENNReal.toNNReal_mono (by finiteness) htsum
 
-/-- For every `BooleanPRF D` and all sufficiently large `n`, some function in the support of `D n`
-requires at least `2 * n - 2` binary gates over `B₂`. -/
+/-- The worst-case lower bound of [FanLiYang2022, §7.1, Theorem 7.5, p. 41]. For every
+`BooleanPRF D` and all sufficiently large `n`, a function in the support of `D n` needs at least
+`2 * n - 2` gates. Inputs and output wires are free. Each binary Boolean gate and each nullary
+constant costs one gate. For `n ≥ 2`, a constant binary gate on two input wires realizes the same
+constant at the same cost in the source’s `B₂` basis. -/
 theorem BooleanPRF.eventually_exists_mem_support_two_mul_sub_two_le_complexity
     {D : ∀ n, PMF (BooleanFunction n)} (hD : BooleanPRF D) :
     ∀ᶠ n in Filter.atTop,
@@ -1240,7 +1112,8 @@ theorem BooleanPRF.eventually_exists_mem_support_two_mul_sub_two_le_complexity
   rw [hmap, PMF.pure_apply_self, ENNReal.toNNReal_one, NNReal.coe_one] at hn
   norm_num at hn
 
-/-- **Fan–Li–Yang Theorem 7.5** for the first-output-bit ensemble of a `PseudorandomFunction`. -/
+/-- For a uniform key of a word-valued PRF, the probability that its first output bit is
+computable with fewer than `2 * n - 2` gates is negligible. -/
 theorem PseudorandomFunction.negligible_complexity_restriction_lt_two_mul_sub_two
     {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) :
     Negligible (fun n =>
@@ -1250,9 +1123,9 @@ theorem PseudorandomFunction.negligible_complexity_restriction_lt_two_mul_sub_tw
   simpa only [prfFirstBitEnsemble, _root_.PMF.map_comp, Function.comp_def] using
     hF.booleanPRF.negligible_complexity_lt_two_mul_sub_two
 
-/-- **Fan–Li–Yang Theorem 7.5** for `Cslib.Crypto.PseudorandomFunction`: under a uniformly sampled
-`n`-bit key, the `n`-output function `x ↦ BitString.ofList n (family key (List.ofFn x))` has
-`B₂`-circuit complexity strictly less than `2 * n - 2` with negligible probability. -/
+/-- Under a uniform `n`-bit PRF key, the probability that the full `n`-output function has
+`B₂`-circuit complexity below `2 * n - 2` is negligible. A circuit for all outputs also computes
+the first bit by selecting that output wire. -/
 theorem PseudorandomFunction.negligible_complexity_lt_two_mul_sub_two
     {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) :
     Negligible (fun n =>
@@ -1280,29 +1153,13 @@ theorem PseudorandomFunction.negligible_complexity_lt_two_mul_sub_two
       simp only [Function.comp_apply, F, w, BitString.ofList, single_apply, KabanetsCai.restriction,
         Nat.sub_self, List.replicate_zero, List.nil_append]
       cases family key (List.ofFn x) <;> rfl
-    rw [hfun, complexity_wiring w, Nat.add_zero] at hcomp
-    exact hcomp
-  have hle :
-      ((BitString.uniformList n).map (fun key =>
-        decide (complexity (fullInterpretation (k := 2))
-          (fun x : BitString n => BitString.ofList n (family key (List.ofFn x))) < 2 * n - 2)))
-        true ≤
-      ((BitString.uniformList n).map (fun key =>
-        decide (complexity (fullInterpretation (k := 2))
-          (single (KabanetsCai.restriction (family key) n n)) < 2 * n - 2))) true := by
-    rw [← _root_.PMF.bind_pure_comp, ← _root_.PMF.bind_pure_comp, PMF.bind_apply, PMF.bind_apply]
-    refine tsum_le_tsum fun key => mul_le_mul_of_nonneg_left ?_ zero_le
-    by_cases hlt : complexity (fullInterpretation (k := 2))
-        (fun x : BitString n => BitString.ofList n (family key (List.ofFn x))) < 2 * n - 2
-    · have hlt' := (hproj key).trans_lt hlt
-      simp only [Function.comp_apply, hlt, hlt', decide_true, le_refl]
-    · simp only [Function.comp_apply, hlt, decide_false, PMF.pure_apply, Bool.true_eq_false,
-        ↓reduceIte, zero_le]
-  exact ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) hle
+    rwa [hfun, complexity_wiring w, Nat.add_zero] at hcomp
+  refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _)
+    (PMF.map_true_mono _ fun key _ hlt =>
+      decide_eq_true ((hproj key).trans_lt (of_decide_eq_true hlt)))
 
 /-- For every `PseudorandomFunction family` and all sufficiently large `n`, there exists an `n`-bit
-key `key : BitString n` whose induced Boolean function (and hence whose `n`-output function) has
-`B₂`-circuit complexity at least `2 * n - 2`. -/
+key whose first-output-bit function has `B₂`-circuit complexity at least `2 * n - 2`. -/
 theorem PseudorandomFunction.eventually_exists_key_two_mul_sub_two_le_complexity
     {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) :
     ∀ᶠ n in Filter.atTop,

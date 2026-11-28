@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Distributed.Byzantine.NodeBound
 public import CslibFrontier.Foundations.Data.BitString.MajorityVote
+import CslibFrontier.Tactic.FinsetCard
 
 /-!
 # Byzantine agreement against one fault
@@ -90,9 +91,7 @@ variable {P : Type*} [Fintype P] [DecidableEq P]
 theorem om1_state_add_two (F : Finset P) (adv : ℕ → P → P → P → Bool) (x : P → Bool) (i : P) :
     ∀ r, (om1 P).state F adv x (r + 2) i = (om1 P).state F adv x 2 i
   | 0 => rfl
-  | r + 1 => by
-    rw [← om1_state_add_two F adv x i r]
-    rfl
+  | r + 1 => om1_state_add_two F adv x i r
 
 private theorem om1_heard (F : Finset P) (adv : ℕ → P → P → P → Bool) (x : P → Bool)
     (i j : P) (hj : j ∉ F) : ((om1 P).state F adv x 1 i).heard j = x j := by
@@ -112,23 +111,17 @@ theorem solvesByzantineAgreement_om1 (hn : 4 ≤ Fintype.card P) {R : ℕ} (hR :
     (om1 P).SolvesByzantineAgreement 1 R := by
   obtain ⟨R, rfl⟩ := Nat.exists_eq_add_of_le' hR
   -- A correct process estimates the input of a correct `k` correctly.
-  have hw : ∀ (F : Finset P), F.card ≤ 1 → ∀ adv x, ∀ i ∉ F, ∀ k ∉ F,
+  have hw (F : Finset P) (hF : F.card ≤ 1) (adv) (x) (i) (_ : i ∉ F) (k) (hk : k ∉ F) :
       strictMajorityOn (univ.erase k) (fun j => ((om1 P).state F adv x 2 i).report j k) =
         x k := by
-    intro F hF adv x i hi k hk
-    refine strictMajorityOn_eq_of_forall_notMem (F := F) (fun j _ hj => ?_) ?_
-    · rw [om1_report F adv x i j k hj, om1_heard F adv x j k hk]
-    · rw [Finset.card_erase_of_mem (Finset.mem_univ k), Finset.card_univ]
-      omega
-  have hdec : ∀ (F : Finset P) adv x i, (om1 P).decision F adv x (R + 2) i =
+    refine strictMajorityOn_eq_of_forall_notMem (F := F) (fun j _ hj => ?_) (by finset_card)
+    rw [om1_report F adv x i j k hj, om1_heard F adv x j k hk]
+  have hdec (F : Finset P) (adv) (x) (i) : (om1 P).decision F adv x (R + 2) i =
       strictMajorityOn univ fun k =>
         strictMajorityOn (univ.erase k) fun j => ((om1 P).state F adv x 2 i).report j k := by
-    intro F adv x i
-    rw [Protocol.decision, om1_state_add_two]
-    rfl
-  constructor
-  · intro F hF adv x i hi i' hi'
-    rw [hdec, hdec]
+    rw [Protocol.decision, om1_state_add_two]; rfl
+  refine ⟨fun F hF adv x i hi i' hi' => ?_, fun F hF adv x v hv i hi => ?_⟩
+  · rw [hdec, hdec]
     congr 1 with k : 1
     by_cases hk : k ∈ F
     · -- A faulty `k` is relayed only by correct processes, identically to everyone.
@@ -137,12 +130,9 @@ theorem solvesByzantineAgreement_om1 (hn : 4 ≤ Fintype.card P) {R : ℕ} (hR :
         Finset.ne_of_mem_erase hj (Finset.card_le_one.1 hF j hjF k hk)
       rw [om1_report F adv x i j k hjF, om1_report F adv x i' j k hjF]
     · rw [hw F hF adv x i hi k hk, hw F hF adv x i' hi' k hk]
-  · intro F hF adv x v hv i hi
-    rw [hdec]
-    refine strictMajorityOn_eq_of_forall_notMem (F := F) (fun k _ hk => ?_) ?_
-    · rw [hw F hF adv x i hi k hk, hv k hk]
-    · rw [Finset.card_univ]
-      omega
+  · rw [hdec]
+    refine strictMajorityOn_eq_of_forall_notMem (F := F) (fun k _ hk => ?_) (by finset_card)
+    rw [hw F hF adv x i hi k hk, hv k hk]
 
 /-- **The single-fault case.** For `R ≥ 2`, some protocol on `n` processes solves Byzantine
 agreement against one fault in `R` rounds exactly when `n ≤ 1` or `n ≥ 4`: `ownInput` and `om1`
@@ -151,14 +141,12 @@ solve it, and the node bound
 theorem exists_solvesByzantineAgreement_one_iff (n : ℕ) {R : ℕ} (hR : 2 ≤ R) :
     (∃ (S M : Type) (π : Protocol (Fin n) S M), π.SolvesByzantineAgreement 1 R) ↔
       n ≤ 1 ∨ 4 ≤ n := by
-  constructor
-  · rintro ⟨S, M, π, h⟩
-    by_contra hn
-    exact π.not_solvesByzantineAgreement (by simp only [Fintype.card_fin]; omega)
-      (by simp only [Fintype.card_fin]; omega) h
-  · rintro (hn | hn)
-    · have : Subsingleton (Fin n) := Fin.subsingleton_iff_le_one.2 hn
-      exact ⟨_, _, _, Protocol.solvesByzantineAgreement_ownInput 1 R⟩
-    · exact ⟨_, _, _, solvesByzantineAgreement_om1 (by simp only [Fintype.card_fin]; omega) hR⟩
+  refine ⟨fun ⟨_, _, π, h⟩ => by_contra fun hn => π.not_solvesByzantineAgreement
+    (by simp only [Fintype.card_fin]; omega)
+    (by simp only [Fintype.card_fin]; omega) h, ?_⟩
+  rintro (hn | hn)
+  · have := Fin.subsingleton_iff_le_one.2 hn
+    exact ⟨_, _, _, Protocol.solvesByzantineAgreement_ownInput 1 R⟩
+  · exact ⟨_, _, _, solvesByzantineAgreement_om1 (by simp only [Fintype.card_fin]; omega) hR⟩
 
 end Cslib.Distributed.Byzantine

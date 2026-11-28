@@ -117,14 +117,12 @@ theorem PRG.wordFamily_secure_iff {generator : List Bool → List Bool} {length 
       ComputationallyIndistinguishable (generatorEnsemble generator)
         (fun n => BitString.uniformList (length n)) := by
   rw [Family.secure_iff_indistinguishable]
-  constructor
-  · intro h adversary ha
-    simpa only [wordFamily_realExperiment hlen, wordFamily_idealExperiment] using
+  refine ⟨fun h adversary ha => ?_, ?_⟩
+  · simpa only [wordFamily_realExperiment hlen, wordFamily_idealExperiment] using
       h (fun n bits => ProbComp.eval (adversary n (List.ofFn bits)))
         ⟨adversary, ha, fun _ _ => rfl⟩
-  · rintro h test ⟨adversary, ha, heq⟩
-    have heq := funext fun n => funext (heq n)
-    subst test
+  · rintro h _ ⟨adversary, ha, heq⟩
+    rw [← funext₂ heq]
     simpa only [wordFamily_realExperiment hlen, wordFamily_idealExperiment] using h adversary ha
 
 /-- Sample a uniform seed, evaluate the generator, and run the distinguisher. -/
@@ -195,8 +193,7 @@ theorem PseudorandomGenerator.of_indistinguishable
     (hstretch : ∀ n, n < length n)
     (hsecure : ComputationallyIndistinguishable (generatorEnsemble generator)
       (fun n => BitString.uniformList (length n))) : PseudorandomGenerator generator length := by
-  have hg := hg.tidy
-  exact ⟨.of_tidy hg, hlen, hstretch, (PRG.wordFamily_secure_iff hlen).mpr hsecure⟩
+  exact ⟨hg, hlen, hstretch, (PRG.wordFamily_secure_iff hlen).mpr hsecure⟩
 
 /-- The generated words are computationally indistinguishable from uniform words. -/
 theorem PseudorandomGenerator.indistinguishable
@@ -230,7 +227,6 @@ theorem PseudorandomGenerator.length_le {generator : List Bool → List Bool} {l
     (h : PseudorandomGenerator generator length) :
     ∃ c d : ℕ, ∀ n, length n ≤ c * (n + 1) ^ d := by
   obtain ⟨c, d, hbound⟩ := h.polyTime.polyBounded_length.exists_le
-  refine ⟨c, d, fun n => ?_⟩
-  simpa [h.length_eq] using hbound (List.replicate n false)
+  exact ⟨c, d, fun n => by simpa [h.length_eq] using hbound (List.replicate n false)⟩
 
 end Cslib.Crypto

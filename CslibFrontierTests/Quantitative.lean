@@ -20,76 +20,76 @@ namespace CslibFrontierTests.Quantitative
 
 -- Quadratic computation with linear output feeds a cubic consumer without a degree-six bound.
 example (f g : List Bool → List Bool)
-    (hg : ComputableTidilyInDegree g encBits encBits 2 1)
-    (hf : ComputableTidilyInDegree f encBits encBits 3 1) :
-    ComputableTidilyInDegree (fun x => f (g x)) encBits encBits 3 1 := by
+    (hg : ComputableInDegree g encBits encBits 2 1)
+    (hf : ComputableInDegree f encBits encBits 3 1) :
+    ComputableInDegree (fun x => f (g x)) encBits encBits 3 1 := by
   fail_if_success (clear hg; fun_prop (disch := lia))
   fail_if_success (clear hf; fun_prop (disch := lia))
   fail_if_success
-    have : ComputableTidilyInDegree (fun x => f (g x)) encBits encBits 3 0 := by
+    have : ComputableInDegree (fun x => f (g x)) encBits encBits 3 0 := by
       fun_prop (disch := lia)
   fun_prop (disch := lia)
 
 example (f g : List Bool → List Bool)
-    (hg : ComputableTidilyInDegree g encBits encBits 2 1)
-    (hf : ComputableTidilyInDegree f encBits encBits 3 1) :
-    ComputableTidilyInDegree (f ∘ g) encBits encBits 3 1 := by
+    (hg : ComputableInDegree g encBits encBits 2 1)
+    (hf : ComputableInDegree f encBits encBits 3 1) :
+    ComputableInDegree (f ∘ g) encBits encBits 3 1 := by
   fun_prop (disch := lia)
 
 -- An alternative intermediate encoding and let spelling retain the same degrees.
 example (f g : List Bool → List Bool)
-    (hg : ComputableTidilyInDegree g encBits (encFramed encBits) 2 1)
-    (hf : ComputableTidilyInDegree f (encFramed encBits) encBits 3 1) :
-    ComputableTidilyInDegree (fun x => let y := g x; f y) encBits encBits 3 1 := by
+    (hg : ComputableInDegree g encBits (encFramed encBits) 2 1)
+    (hf : ComputableInDegree f (encFramed encBits) encBits 3 1) :
+    ComputableInDegree (fun x => let y := g x; f y) encBits encBits 3 1 := by
   fun_prop (disch := lia)
 
 -- Pairing preserves linear output even when the components take longer to compute.
 example (f g : List Bool → List Bool)
-    (hf : ComputableTidilyInDegree f encBits encBits 2 1)
-    (hg : ComputableTidilyInDegree g encBits encBits 3 1) :
-    ComputableTidilyInDegree (fun x => (f x, g x)) encBits (encPair encBits encBits) 3 1 := by
+    (hf : ComputableInDegree f encBits encBits 2 1)
+    (hg : ComputableInDegree g encBits encBits 3 1) :
+    ComputableInDegree (fun x => (f x, g x)) encBits (encPair encBits encBits) 3 1 := by
   fun_prop (disch := lia)
 
 example (f g : List Bool → List Bool) (h : List Bool × List Bool → List Bool)
-    (hf : ComputableTidilyInDegree f encBits encBits 2 1)
-    (hg : ComputableTidilyInDegree g encBits encBits 2 1)
-    (hh : ComputableTidilyInDegree h (encPair encBits encBits) encBits 3 1) :
-    ComputableTidilyInDegree (fun x => h (f x, g x)) encBits encBits 3 1 := by
+    (hf : ComputableInDegree f encBits encBits 2 1)
+    (hg : ComputableInDegree g encBits encBits 2 1)
+    (hh : ComputableInDegree h (encPair encBits encBits) encBits 3 1) :
+    ComputableInDegree (fun x => h (f x, g x)) encBits encBits 3 1 := by
   fun_prop (disch := lia)
 
 -- Reusing a let-bound value and expanding the binding must give the same resource bound.
 example (f g : List Bool → List Bool)
-    (hg : ComputableTidilyInDegree g encBits encBits 2 1)
-    (hf : ComputableTidilyInDegree f encBits encBits 3 1) :
-    ComputableTidilyInDegree (fun x => let y := g x; (f y, y)) encBits
+    (hg : ComputableInDegree g encBits encBits 2 1)
+    (hf : ComputableInDegree f encBits encBits 3 1) :
+    ComputableInDegree (fun x => let y := g x; (f y, y)) encBits
       (encPair encBits encBits) 3 1 := by
   fun_prop (disch := lia)
 
 example (f g : List Bool → List Bool)
-    (hg : ComputableTidilyInDegree g encBits encBits 2 1)
-    (hf : ComputableTidilyInDegree f encBits encBits 3 1) :
-    ComputableTidilyInDegree (fun x => (f (g x), g x)) encBits
+    (hg : ComputableInDegree g encBits encBits 2 1)
+    (hf : ComputableInDegree f encBits encBits 3 1) :
+    ComputableInDegree (fun x => (f (g x), g x)) encBits
       (encPair encBits encBits) 3 1 := by
   fun_prop (disch := lia)
 
 -- Sharing also works when the intermediate encoding differs from the input encoding.
 example (f g : List Bool → List Bool)
-    (hg : ComputableTidilyInDegree g encBits (encFramed encBits) 2 1)
-    (hf : ComputableTidilyInDegree f (encFramed encBits) encBits 3 1) :
-    ComputableTidilyInDegree (fun x => let y := g x; (f y, y)) encBits
+    (hg : ComputableInDegree g encBits (encFramed encBits) 2 1)
+    (hf : ComputableInDegree f (encFramed encBits) encBits 3 1) :
+    ComputableInDegree (fun x => let y := g x; (f y, y)) encBits
       (encPair encBits (encFramed encBits)) 3 1 := by
   fun_prop (disch := lia)
 
 -- Constructors, nested projections and branching infer their payload encodings. The element
 -- encoding is arbitrary: this also covers framed and nonstandard representations.
 example {α : Type} (enc : α ↪ List Bool) (fallback : α) :
-    ComputableTidilyInDegree (fun q : Bool × List α =>
+    ComputableInDegree (fun q : Bool × List α =>
       if q.1 then q.2.headD fallback :: q.2.tail else q.2)
       (encPair encBool (encList enc)) (encList enc) 1 1 := by
   fun_prop (disch := first | apply le_refl | lia)
 
 example {α : Type} (enc : α ↪ List Bool) (fallback : α) :
-    ComputableTidilyInDegree (fun q : Bool × List α =>
+    ComputableInDegree (fun q : Bool × List α =>
       let word := q.2
       if q.1 then List.cons (List.headD word fallback) (List.tail word) else word)
       (encPair encBool (encList enc)) (encList enc) 1 1 := by
@@ -97,41 +97,45 @@ example {α : Type} (enc : α ↪ List Bool) (fallback : α) :
 
 -- A costly producer with linear output still gives degree three after testing and projecting.
 example (f : List Bool → ℕ × Option ℕ × Bool)
-    (hf : ComputableTidilyInDegree f encBits
+    (hf : ComputableInDegree f encBits
       (encPair encUnary (encPair (encOption encUnary) encBool)) 3 1) :
-    ComputableTidilyInDegree (fun x =>
+    ComputableInDegree (fun x =>
       if (f x).2.1.isSome then (f x).2.1.getD 0 else (f x).1) encBits encUnary 3 1 := by
   fail_if_success
-    have : ComputableTidilyInDegree (fun x =>
+    have : ComputableInDegree (fun x =>
         if (f x).2.1.isSome then (f x).2.1.getD 0 else (f x).1) encBits encUnary 3 0 := by
       fun_prop (disch := first | apply le_refl | lia)
   fun_prop (disch := first | apply le_refl | lia)
 
 -- The same certificates still imply ordinary polynomial time when requested.
 example (f g : List Bool → List Bool)
-    (hg : ComputableTidilyInDegree g encBits encBits 2 1)
-    (hf : ComputableTidilyInDegree f encBits encBits 3 1) :
-    ComputableTidilyInPolyTime (fun x => f (g x)) encBits encBits :=
-  (show ComputableTidilyInDegree (fun x => f (g x)) encBits encBits 3 1 by
-    fun_prop (disch := lia)).computableTidilyInPolyTime
+    (hg : ComputableInDegree g encBits encBits 2 1)
+    (hf : ComputableInDegree f encBits encBits 3 1) :
+    ComputableInPolyTime (fun x => f (g x)) encBits encBits :=
+  (show ComputableInDegree (fun x => f (g x)) encBits encBits 3 1 by
+    fun_prop (disch := lia)).computableInPolyTime
 
 -- A recognizably functional scan gets linear time and constant workspace, and emitting each
 -- mapped bit uses no work-tape cells even though the output grows.
 example {σ : Type} [Finite σ] (enc : σ ↪ List Bool) (step : σ → Bool → σ) (init : σ)
     (f : Bool → Bool) :
-    ComputableTidilyInO (fun l : List Bool => l.foldl (· ^^ ·) false)
+    ComputableInO (fun l : List Bool => l.foldl (· ^^ ·) false)
       encBits encBool List.length (fun _ => 0) ∧
-    ComputableTidilyInO (List.foldl (fun state bit => state ^^ bit) false)
+    ComputableInO (List.foldl (fun state bit => state ^^ bit) false)
       encBits (encFramed encBool) (fun l => l.length) (fun _ => 0) ∧
-    ComputableTidilyInO (fun l => l.foldl step init) encBits enc List.length (fun _ => 0) ∧
+    ComputableInO (fun l => l.foldl step init) encBits enc List.length (fun _ => 0) ∧
     ComputableInTimeAndSpace (fun l : List Bool => l.map f) encBits encBits
       (fun l => 4 * l.length + 8) (fun _ => 0) ∧
     ComputableInTimeAndSpace (fun l : List Bool =>
       l.foldl (fun acc b => acc ++ [f b]) []) encBits encBits
       (fun l => 4 * l.length + 8) (fun _ => 0) := by
-  refine ⟨by fun_prop, by fun_prop, by fun_prop, by fun_prop, ?_⟩
-  simpa only [List.foldl_append_eq_append, List.nil_append, ← List.flatMap_def,
-    ← List.map_eq_flatMap] using ComputableInTimeAndSpace.map_bits f
+  refine ⟨?_, ?_, ?_, by fun_prop, ?_⟩
+  · exact ComputableInO.foldl_bits_finite encBool (· ^^ ·) false
+  · exact ComputableInO.foldl_bits_finite
+      (encFramed encBool) (fun state bit => state ^^ bit) false
+  · exact ComputableInO.foldl_bits_finite enc step init
+  · simpa only [List.foldl_append_eq_append, List.nil_append, ← List.flatMap_def,
+      ← List.map_eq_flatMap] using ComputableInTimeAndSpace.map_bits f
 
 -- The numerical loop contract also handles a genuinely growing stored accumulator.
 -- Its invariant is one stored bit per consumed input bit. The cost at index i uses i, not the
@@ -148,8 +152,8 @@ example : (∃ c, ComputableInTimeAndSpace (fun l : List Bool =>
       (fun p : List Bool × Bool => p.1 ++ [p.2]) (encPair encBits encBool) encBits 1 1 :=
     hfst.append
       hsnd (fun _ => rfl)
-  obtain ⟨k, hk⟩ := Internal.NormalForm.linear hstep
-  obtain ⟨⟨c, h⟩, hpost⟩ := ComputableTidilyInTimeAndSpace.foldl_bits_stream_sum_spec
+  obtain ⟨k, hk, -⟩ := hstep.inO_one
+  obtain ⟨⟨c, h⟩, hpost⟩ := ComputableInTimeAndSpace.foldl_bits_stream_sum_spec
     (hstep := hk) (step := fun acc b => acc ++ [b]) []
     (fun _ i state => state.length = i) (by simp)
     (by intro l i hi state hs; simpa using hs)
@@ -162,7 +166,8 @@ example : (∃ c, ComputableInTimeAndSpace (fun l : List Bool =>
         List.length_append, hs]
       exact ⟨by lia, Nat.mul_le_mul_left k (by lia)⟩)
     (by intro l i hi state hs; simpa [hs] using hi)
-  refine ⟨⟨c * (3 * k + 3), h.computableInTimeAndSpace.mono (fun l => ?_) (fun l => ?_)⟩, hpost⟩
+  refine ⟨⟨c * (3 * k + 3), h.mono
+    (fun l => ?_) (fun l => ?_)⟩, hpost⟩
   · have hsum (n : ℕ) : (∑ i ∈ Finset.range n, (k * (2 * i + 3) + 2 * i + 2)) =
         (k + 1) * n ^ 2 + (2 * k + 1) * n := by
       induction n with
@@ -181,7 +186,7 @@ example : (∃ c, ComputableInTimeAndSpace (fun l : List Bool =>
 private def resetStep (state : List Bool) (bit : Bool) : List Bool :=
   if bit then [] else state ++ [false]
 
-example : ∃ c, ComputableTidilyInTimeAndSpace (fun l => l.foldl resetStep []) encBits encBits
+example : ∃ c, ComputableInTimeAndSpace (fun l => l.foldl resetStep []) encBits encBits
     (fun l => c * ((∑ i ∈ Finset.range l.length,
       (((l.take i).foldl resetStep []).length + 1)) + 1))
     (fun l => c * (l.length + 1)) := by
@@ -208,8 +213,8 @@ example : ∃ c, ComputableTidilyInTimeAndSpace (fun l => l.foldl resetStep []) 
       (fun p : List Bool × Bool => resetStep p.1 p.2) (encPair encBits encBool) encBits 1 1 :=
     hsnd.ite
       ((ComputableInDegree.const []).restrict _) (happend.restrict _)
-  obtain ⟨k, hk⟩ := Internal.NormalForm.linear hstep
-  obtain ⟨c, h⟩ := ComputableTidilyInTimeAndSpace.foldl_bits_stream_sum
+  obtain ⟨k, hk, -⟩ := hstep.inO_one
+  obtain ⟨c, h⟩ := ComputableInTimeAndSpace.foldl_bits_stream_sum
     (hstep := hk) (step := resetStep) []
     (R := fun l i => (3 * k + 2) * (((l.take i).foldl resetStep []).length + 1))
     (Q := fun l => k * (2 * l.length + 3)) (B := List.length)
@@ -287,13 +292,13 @@ example : ComputableInDegree (List.getLast? (α := Bool)) encBits
 -- `O(Q + seed.length + 1)` independent of the query depth `query.length`.
 theorem ggm_eval_quantitative {generator : List Bool → List Bool}
     {tChild sChild : List Bool × Bool → ℕ}
-    (hchild : ComputableTidilyInTimeAndSpace
+    (hchild : ComputableInTimeAndSpace
       (fun p : List Bool × Bool => Cslib.Crypto.GGM.child generator p.1 p.2)
       (encPair encBits encBool) encBits tChild sChild)
     {Q : List Bool × List Bool → ℕ}
     (hspace : ∀ p : List Bool × List Bool, ∀ i < p.2.length,
       sChild (Cslib.Crypto.GGM.eval generator p.1 (p.2.take i), p.2[i]?.getD false) ≤ Q p) :
-    (∃ c, ComputableTidilyInTimeAndSpace
+    (∃ c, ComputableInTimeAndSpace
       (fun p : List Bool × List Bool => Cslib.Crypto.GGM.eval generator p.1 p.2)
       (encPair encBits encBits) encBits
       (fun p => c * (p.1.length + p.2.length +

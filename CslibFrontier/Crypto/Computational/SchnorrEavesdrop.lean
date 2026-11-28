@@ -301,11 +301,8 @@ theorem eval_schnorrSimulatedTranscript_eq_map (n : ℕ) (d : F.Desc) (m : ℕ) 
       (SigmaProtocol.simulateConversation (schnorrSampledSimulate n d (m := m)) u).map
         transcriptWords := by
   rw [eval_schnorrSimulatedTranscript, BitString.uniformList, PMF.bind_map]
-  simp only [SigmaProtocol.simulateConversation, schnorrSampledSimulate, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.map_bind, PMF.bind_map, PMF.pure_map, Function.comp_def]
+  simp only [SigmaProtocol.simulateConversation, schnorrSampledSimulate, pmf_norm]
   congr 1 with c : 1
-  rw [← PMF.bind_pure_comp, PMF.bind_map]
-  rfl
 
 /-- `k` strict-PPT simulated transcripts are `k` typed simulated conversations, written as
 words. -/
@@ -366,13 +363,11 @@ theorem closeTo_schnorrRealTranscript_simulated (n : ℕ) (d : F.Desc)
     CloseTo (ProbComp.eval (F.schnorrRealTranscript n d α m))
       (ProbComp.eval (F.schnorrSimulatedTranscript n d (F.encode d (α • F.generator d)) m))
       (2 / 2 ^ n : ℝ≥0) := by
-  have h := (F.closeTo_schnorrRealTranscript_honest n d α m).trans
-    (F.closeTo_schnorrHonestTranscript_simulated n d α m)
-  have hadd : ((1 / 2 ^ n : ℝ≥0) : ℝ≥0∞) + ((1 / 2 ^ n : ℝ≥0) : ℝ≥0∞) = (2 / 2 ^ n : ℝ≥0) := by
-    rw [← ENNReal.coe_add]
-    congr 1
-    ring
-  rwa [hadd] at h
+  convert (F.closeTo_schnorrRealTranscript_honest n d α m).trans
+    (F.closeTo_schnorrHonestTranscript_simulated n d α m) using 1
+  rw [← ENNReal.coe_add]
+  congr 1
+  ring
 
 variable (F) in
 /-- `Q` independent ideal honest Schnorr conversations are within statistical distance `Q / 2 ^ n`
@@ -383,10 +378,8 @@ theorem closeTo_iid_schnorrHonestTranscript_replicate_simulated (n : ℕ) (d : F
       (ProbComp.eval (OracleComp.replicate Q
         (F.schnorrSimulatedTranscript n d (F.encode d (α • F.generator d)) m)))
       (Q / 2 ^ n : ℝ≥0) := by
-  have h := (F.closeTo_schnorrHonestTranscript_simulated n d α m).iid_replicate Q
-  have hmul : (Q : ℝ≥0∞) * ((1 / 2 ^ n : ℝ≥0) : ℝ≥0∞) = (Q / 2 ^ n : ℝ≥0) := by
-    rw [← ENNReal.coe_natCast, ← ENNReal.coe_mul, mul_one_div]
-  rwa [hmul] at h
+  convert (F.closeTo_schnorrHonestTranscript_simulated n d α m).iid_replicate Q using 1
+  rw [← ENNReal.coe_natCast, ← ENNReal.coe_mul, mul_one_div]
 
 variable (F) in
 /-- `Q` independent strict-PPT honest Schnorr conversations are within statistical distance
@@ -398,12 +391,10 @@ theorem closeTo_replicate_schnorrRealTranscript_simulated (n : ℕ) (d : F.Desc)
       (ProbComp.eval (OracleComp.replicate Q
         (F.schnorrSimulatedTranscript n d (F.encode d (α • F.generator d)) m)))
       (2 * Q / 2 ^ n : ℝ≥0) := by
-  have h := (F.closeTo_schnorrRealTranscript_simulated n d α m).eval_replicate Q
-  have hmul : (Q : ℝ≥0∞) * ((2 / 2 ^ n : ℝ≥0) : ℝ≥0∞) = (2 * Q / 2 ^ n : ℝ≥0) := by
-    rw [← ENNReal.coe_natCast, ← ENNReal.coe_mul]
-    congr 1
-    ring
-  rwa [hmul] at h
+  convert (F.closeTo_schnorrRealTranscript_simulated n d α m).eval_replicate Q using 1
+  rw [← ENNReal.coe_natCast, ← ENNReal.coe_mul]
+  congr 1
+  ring
 
 /-! ### Eavesdropping games and reduction to direct attacks -/
 
@@ -527,10 +518,9 @@ theorem isPPTOn_schnorrSimulatedTranscript {γ : Type} {encIn : γ ↪ List Bool
     (hm : ComputableInPolyTime m encIn encUnary) :
     IsPPTOn encIn encTranscript
       (fun a => F.schnorrSimulatedTranscript (n a) (d a) (u a) (m a)) := by
-  have hsim := F.isPPTOn_schnorrSimulateWord
   unfold schnorrSimulatedTranscript
   refine hm.sampleList.bind_with ?_
-  refine (hsim.preprocess
+  refine (F.isPPTOn_schnorrSimulateWord.preprocess
     (prepare := fun p : γ × List Bool => ((n p.1, d p.1), u p.1, p.2))
     (by fun_prop)).bind_with ?_
   exact ComputableInPolyTime.isPPTOn (by fun_prop)
@@ -544,20 +534,15 @@ theorem isPPT_toDirect {k Q : ℕ → ℕ}
     (A.toDirect k Q).IsPPT := by
   refine ⟨?_, hA.2⟩
   let encIn := encPair encUnary (encPair F.encDesc encBits)
-  have hn : ComputableInPolyTime (fun p : ℕ × F.Desc × List Bool => p.1) encIn encUnary := by
-    fun_prop
-  have hd : ComputableInPolyTime (fun p : ℕ × F.Desc × List Bool => p.2.1) encIn F.encDesc := by
-    fun_prop
-  have hu : ComputableInPolyTime (fun p : ℕ × F.Desc × List Bool => p.2.2) encIn encBits := by
-    fun_prop
-  have hm : ComputableInPolyTime (fun p : ℕ × F.Desc × List Bool => k p.1) encIn encUnary := by
-    fun_prop
-  have hcount : ComputableInPolyTime (fun p : ℕ × F.Desc × List Bool => Q p.1) encIn encUnary := by
-    fun_prop
-  have hrep := (F.isPPTOn_schnorrSimulatedTranscript hn hd hu hm).replicate hcount
-  change IsPPTOn encIn (encPair encBits encBits) fun p =>
-    OracleComp.replicate (Q p.1) (F.schnorrSimulatedTranscript p.1 p.2.1 p.2.2 (k p.1)) >>=
-      fun views => A.commit p.1 (p.2.1, p.2.2, views)
+  have hrep : IsPPTOn encIn (encList encTranscript)
+      (fun p : ℕ × F.Desc × List Bool =>
+        OracleComp.replicate (Q p.1)
+          (F.schnorrSimulatedTranscript p.1 p.2.1 p.2.2 (k p.1))) :=
+    (F.isPPTOn_schnorrSimulatedTranscript
+      (by fun_prop)
+      (by fun_prop)
+      (by fun_prop)
+      (by fun_prop)).replicate (by fun_prop)
   exact hrep.bind_with (hA.1.preprocess
     (prepare := fun p : (ℕ × F.Desc × List Bool) × List (List Bool × List Bool × List Bool) =>
       (p.1.1, (p.1.2.1, p.1.2.2, p.2))) (by fun_prop))
@@ -608,9 +593,8 @@ theorem bind_eval_schnorrDirectProbExperiment (setup : ℕ → PMF F.Desc) (k : 
     ((setup n).bind fun d => ProbComp.eval (F.schnorrDirectProbExperiment k A n d)) =
       F.schnorrDirectProbGame setup k A n := by
   simp only [schnorrDirectProbExperiment, schnorrDirectProbGame, schnorrSigKeyGen,
-    ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, F.smul_encode,
-    F.encodeSchnorrVerify_encode, ofBits_bits, ZMod.natCast_mod]
+    BitString.eval_sampleList, F.smul_encode, F.encodeSchnorrVerify_encode, ofBits_bits,
+    ZMod.natCast_mod, pmf_norm]
 
 /-- `schnorrDirectProbExperiment` is uniformly strict PPT in `(n, d)` whenever `k` is computable in
 polynomial time and `A` is a uniform strict PPT `SchnorrImpersonator`. -/
@@ -624,7 +608,7 @@ theorem isPPTOn_schnorrDirectProbExperiment {k : ℕ → ℕ}
   let E2 := encPair E1 (encPair encBits encBits)
   let E3 := encPair E2 encBits
   let E4 := encPair E3 encBits
-  have hk_t := hk.tidy
+  have hk_t := hk
   have hcommit : IsPPTOn E1 (encPair encBits encBits)
       (fun p : (ℕ × F.Desc) × (List Bool × List Bool) => A.commit p.1.1 (p.1.2, p.2.1)) :=
     hA.1.preprocess
@@ -678,15 +662,11 @@ theorem succProbability_schnorrDirectProbGame_le (setup : ℕ → PMF F.Desc) (k
     (Game.succProbability (F.schnorrDirectProbGame setup k A n) : ℝ) ≤
       1 / 2 ^ n + 1 / 2 ^ k n +
         √(Game.succProbability (F.discreteLogGame setup (A.rewind k) n)) := by
-  have hhop : Game.succProbability (F.schnorrDirectProbGame setup k A n) ≤
-      Game.succProbability (F.schnorrDirectGame setup k A n) + 1 / 2 ^ n :=
-    Game.succProbability_le_add_of_advantage_le
-      (F.advantage_schnorrDirectProbGame_schnorrDirectGame_le setup k A n)
-  have hhopR : (Game.succProbability (F.schnorrDirectProbGame setup k A n) : ℝ) ≤
+  have hhop : (Game.succProbability (F.schnorrDirectProbGame setup k A n) : ℝ) ≤
       (Game.succProbability (F.schnorrDirectGame setup k A n) : ℝ) + 1 / 2 ^ n := by
-    exact_mod_cast hhop
-  have hdir := succProbability_schnorrDirectGame_le_ideal setup k A n hkq
-  linarith
+    exact_mod_cast Game.succProbability_le_add_of_advantage_le
+      (F.advantage_schnorrDirectProbGame_schnorrDirectGame_le setup k A n)
+  linarith [succProbability_schnorrDirectGame_le_ideal setup k A n hkq]
 
 /-- **Schnorr identification is secure against direct attacks under the discrete-logarithm
 assumption** ([BonehShoup2023], Theorem 19.1), with its native key generator `schnorrSigKeyGen`.
@@ -749,9 +729,8 @@ theorem bind_eval_schnorrEavesdropProbExperiment (setup : ℕ → PMF F.Desc) (k
     ((setup n).bind fun d => ProbComp.eval (F.schnorrEavesdropProbExperiment k Q A n d)) =
       F.schnorrEavesdropProbGame setup k Q A n := by
   simp only [schnorrEavesdropProbExperiment, schnorrEavesdropProbGame, schnorrSigKeyGen,
-    ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind, F.smul_encode,
-    F.encodeSchnorrVerify_encode, ofBits_bits, ZMod.natCast_mod]
+    BitString.eval_sampleList, F.smul_encode, F.encodeSchnorrVerify_encode, ofBits_bits,
+    ZMod.natCast_mod, pmf_norm]
 
 /-- `schnorrEavesdropProbExperiment` is uniformly strict PPT in `(n, d)` whenever `k` and `Q` are
 computable in polynomial time and `A` is a uniform strict PPT `SchnorrEavesdropAdversary`. -/
@@ -767,13 +746,13 @@ theorem isPPTOn_schnorrEavesdropProbExperiment {k Q : ℕ → ℕ}
   let E3 := encPair E2 (encPair encBits encBits)
   let E4 := encPair E3 encBits
   let E5 := encPair E4 encBits
-  have hk_t := hk.tidy
-  have hQ_t := hQ.tidy
+  have hk_t := hk
+  have hQ_t := hQ
   have hsk_nat : ComputableInPolyTime
       (fun p : (ℕ × F.Desc) × (List Bool × List Bool) => ofBits p.2.2) E1 encNat :=
-    .of_tidy (ComputableTidilyInPolyTime.bitsToNat.comp
+    (ComputableInPolyTime.bitsToNat.comp
       (by fun_prop : ComputableInPolyTime
-        (fun p : (ℕ × F.Desc) × (List Bool × List Bool) => p.2.2) E1 encBits).tidy)
+        (fun p : (ℕ × F.Desc) × (List Bool × List Bool) => p.2.2) E1 encBits))
   have hviews : IsPPTOn E1 (encList encTranscript)
       (fun p : (ℕ × F.Desc) × (List Bool × List Bool) =>
         OracleComp.replicate (Q p.1.1)
@@ -864,17 +843,12 @@ theorem succProbability_schnorrEavesdropProbGame_le
     (Game.succProbability (F.schnorrEavesdropProbGame setup k Q A n) : ℝ) ≤
       (2 * Q n + 1) / 2 ^ n + 1 / 2 ^ k n +
         √(Game.succProbability (F.discreteLogGame setup ((A.toDirect k Q).rewind k) n)) := by
-  have hhop : Game.succProbability (F.schnorrEavesdropProbGame setup k Q A n) ≤
-      Game.succProbability (F.schnorrDirectGame setup k (A.toDirect k Q) n) +
-        (2 * Q n + 1) / 2 ^ n :=
-    Game.succProbability_le_add_of_advantage_le
-      (F.advantage_schnorrEavesdropProbGame_schnorrDirectGame_le setup k Q A n)
-  have hhopR : (Game.succProbability (F.schnorrEavesdropProbGame setup k Q A n) : ℝ) ≤
+  have hhop : (Game.succProbability (F.schnorrEavesdropProbGame setup k Q A n) : ℝ) ≤
       (Game.succProbability (F.schnorrDirectGame setup k (A.toDirect k Q) n) : ℝ) +
         (2 * Q n + 1) / 2 ^ n := by
-    exact_mod_cast hhop
-  have hdir := succProbability_schnorrDirectGame_le_ideal setup k (A.toDirect k Q) n hkq
-  linarith
+    exact_mod_cast Game.succProbability_le_add_of_advantage_le
+      (F.advantage_schnorrEavesdropProbGame_schnorrDirectGame_le setup k Q A n)
+  linarith [succProbability_schnorrDirectGame_le_ideal setup k (A.toDirect k Q) n hkq]
 
 variable (F) in
 /-- Schnorr identification with challenge length `k` is secure against eavesdropping attacks

@@ -140,21 +140,13 @@ section Arithmetic
 private theorem sq_le_rpow {r n e : ℕ} (he : 0 < e) (hr : r ^ (2 * e) ≤ n) {ε : ℝ}
     (hε : 1 / (e : ℝ) ≤ ε) : ((r ^ 2 : ℕ) : ℝ) ≤ (n : ℝ) ^ ε := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
-  · have : r = 0 := by
-      by_contra h
-      have := pow_pos (Nat.pos_of_ne_zero h) (2 * e)
-      omega
-    subst this
-    simp only [ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, CharP.cast_eq_zero]
-    exact Real.rpow_nonneg le_rfl ε
-  have hr' : (((r ^ 2) ^ e : ℕ) : ℝ) ≤ n := by
-    rw [← pow_mul]; exact_mod_cast hr
-  have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast hn
+  · obtain rfl : r = 0 := by simpa [he.ne'] using hr
+    simpa using Real.rpow_nonneg (le_refl (0 : ℝ)) ε
   calc ((r ^ 2 : ℕ) : ℝ) = ((((r ^ 2 : ℕ) : ℝ)) ^ e) ^ ((e : ℝ)⁻¹) :=
         (Real.pow_rpow_inv_natCast (by positivity) he.ne').symm
-    _ ≤ (n : ℝ) ^ ((e : ℝ)⁻¹) := by
-        refine Real.rpow_le_rpow (by positivity) (by exact_mod_cast hr') (by positivity)
-    _ ≤ (n : ℝ) ^ ε := Real.rpow_le_rpow_of_exponent_le hn1 (by simpa using hε)
+    _ ≤ (n : ℝ) ^ ((e : ℝ)⁻¹) :=
+        Real.rpow_le_rpow (by positivity) (mod_cast pow_mul r 2 e ▸ hr) (by positivity)
+    _ ≤ (n : ℝ) ^ ε := Real.rpow_le_rpow_of_exponent_le (mod_cast hn) (by simpa using hε)
 
 /-- The integer `d`-th root `⌊n ^ (1 / d)⌋`, the greatest `j ≤ n` with `j ^ d ≤ n`. -/
 private def rootFloor (d n : ℕ) : ℕ := Nat.findGreatest (fun j => j ^ d ≤ n) n
@@ -163,11 +155,11 @@ private theorem findGreatest_root_spec {d : ℕ} (hd : 1 ≤ d) (n : ℕ) :
     rootFloor d n ^ d ≤ n ∧ n + 1 ≤ (rootFloor d n + 1) ^ d := by
   set r := rootFloor d n
   refine ⟨Nat.findGreatest_spec (P := fun j => j ^ d ≤ n) (Nat.zero_le n)
-    (by simp [Nat.zero_pow (by omega : 0 < d)]), ?_⟩
+    (by simp [Nat.zero_pow hd]), ?_⟩
   by_contra h
   have hle : (r + 1) ^ d ≤ n := by omega
-  have hr1 : r + 1 ≤ n := (Nat.le_self_pow (by omega) _).trans hle
-  exact Nat.findGreatest_is_greatest (Nat.lt_succ_self r) hr1 hle
+  exact Nat.findGreatest_is_greatest (Nat.lt_succ_self r)
+    ((Nat.le_self_pow (by omega) _).trans hle) hle
 
 /-- `⌊n ^ (1 / d)⌋` grows: it is at least `R` once `n ≥ R ^ d`. -/
 private theorem le_findGreatest_root {d R n : ℕ} (hd : 1 ≤ d) (hn : R ^ d ≤ n) :
@@ -190,7 +182,6 @@ theorem exists_rootSeed_DTIME_subset {ε : ℝ} (hε : 0 < ε) :
           DTIME enc fun n => 2 ^ ⌈(n : ℝ) ^ ε⌉₊ := by
   -- `d = 2 e` with `1 / e ≤ ε`
   obtain ⟨e, he, hεe⟩ := Real.exists_nat_pos_inv_lt hε
-  have hεe : 1 / (e : ℝ) ≤ ε := by simpa only [one_div] using hεe.le
   set d := 2 * e with hd_def
   have hd : 1 ≤ d := by omega
   refine ⟨d, rootFloor d, hd, ?_,
@@ -205,10 +196,9 @@ theorem exists_rootSeed_DTIME_subset {ε : ℝ} (hε : 0 < ε) :
     have hR := le_findGreatest_root hd hn
     set ρ := rootFloor d n
     have hsq : ρ * ρ ≤ ⌈(n : ℝ) ^ ε⌉₊ := by
-      have h₁ := sq_le_rpow he (r := ρ) (n := n) (by rw [← hd_def]; exact hρd) hεe
-      have h₂ := h₁.trans (Nat.le_ceil _)
       rw [← sq]
-      exact_mod_cast h₂
+      exact_mod_cast (sq_le_rpow he (r := ρ) (hd_def ▸ hρd)
+        ((one_div (e : ℝ)).symm ▸ hεe.le)).trans (Nat.le_ceil _)
     have hpow : (n + 1) ^ D ≤ 2 ^ (ρ * d * D) :=
       calc (n + 1) ^ D ≤ ((ρ + 1) ^ d) ^ D := Nat.pow_le_pow_left hroot D
         _ ≤ ((2 ^ ρ) ^ d) ^ D :=
@@ -254,12 +244,11 @@ theorem exists_complexity_verifierTest_le (p : Polynomial ℕ) {V : α × List B
   have hBpoly : PolynomiallyBounded fun N => p.eval N + Tc N + 2 := by fun_prop
   obtain ⟨c, a, hB⟩ := polynomiallyBounded_iff_le.1 hBpoly
   refine ⟨c, a, fun x => ⟨by have := hB (enc x).length; omega, fun L hL => ?_⟩⟩
-  have h := complexity_le_of_append_take L' (frame (enc x)) hL
+  have h := length_frame (enc x) ▸ complexity_le_of_append_take L' (frame (enc x)) hL
     (f := fun y : BitString L => V (x, (List.ofFn y).take (p.eval (enc x).length))) fun y => by
       rw [hVL', encPair_apply, encBits_apply]
-  rw [length_frame] at h
   have := hB (enc x).length
-  simp only [Tc] at this
+  dsimp only [Tc] at this
   omega
 
 /-- **Seed enumeration is correct for a generator that fools the verifier.** Let `V` answer whether
@@ -278,19 +267,17 @@ theorem seedDecider_eq_true_iff_of_advantage_lt {A : Set α} {V : α × List Boo
       (fun y => PMF.pure (V (x, (List.ofFn y).take m))) < 1 / 6) :
     seedDecider V gen seed x = true ↔ x ∈ A := by
   set k := seed x
-  set test : BooleanFunction (ℓ k) := fun y => V (x, (List.ofFn y).take m) with htest_def
+  set test : BooleanFunction (ℓ k) := fun y => V (x, (List.ofFn y).take m)
   rw [Generator.advantage_pure_eq] at hadv
   have hseeds : #{z : BitString k | test (wordFamily G ℓ k z) = true} =
-      #{z : Fin k → Bool | V (x, gen x (List.ofFn z)) = true} := by
-    refine congrArg _ (filter_congr fun z _ => ?_)
-    simp only [test, hgen]
-    rw [show wordFamily G ℓ k z = fun i : Fin (ℓ k) => (G (List.ofFn z)).getD i false from rfl,
-      List.ofFn_getD_eq_of_length false (by rw [hlen, List.length_ofFn])]
+      #{z : Fin k → Bool | V (x, gen x (List.ofFn z)) = true} :=
+    congrArg _ (filter_congr fun z _ => by
+      have hwf : wordFamily G ℓ k z = fun i : Fin (ℓ k) => (G (List.ofFn z)).getD i false := rfl
+      have hlen_z : (G (List.ofFn z)).length = ℓ k := by rw [hlen, List.length_ofFn]
+      simp only [test, hgen, hwf, List.ofFn_getD_eq_of_length false hlen_z])
   have hstrings : (#{y : BitString (ℓ k) | test y = true} : ℝ) / 2 ^ ℓ k =
       #{r : Fin m → Bool | V (x, List.ofFn r) = true} / 2 ^ m := by
-    have hcount := BitString.card_filter_take hm fun w => V (x, w) = true
-    simp only [test]
-    rw [hcount, ← pow_sub_mul_pow 2 hm]
+    rw [BitString.card_filter_take hm fun w => V (x, w) = true, ← pow_sub_mul_pow 2 hm]
     push_cast
     field_simp
   rw [hseeds, hstrings] at hadv
@@ -332,14 +319,8 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
   set gen : α → List Bool → List Bool := fun x z => (G z).take (p.eval (enc x).length)
   -- the running time
   have hgen : ComputableInPolyTime (fun q : α × List Bool => gen q.1 q.2) (encPair enc encBits)
-      encBits := by
-    have h₁ : ComputableInPolyTime (fun q : α × List Bool => G q.2) (encPair enc encBits)
-        encBits := hG.polyTime.comp (ComputableInPolyTime.snd enc encBits)
-    have h₂ : ComputableInPolyTime (fun q : α × List Bool => p.eval (enc q.1).length)
-        (encPair enc encBits) encUnary :=
-      (ComputableInPolyTime.unary_eval p).comp
-        ((ComputableInPolyTime.encoding_length enc).comp (ComputableInPolyTime.fst enc encBits))
-    exact .of_tidy (ComputableTidilyInPolyTime.bitsTakeWithInput h₁.tidy h₂.tidy)
+      encBits :=
+    ComputableInPolyTime.bitsTakeWithInput (hG.polyTime.comp (by fun_prop)) (by fun_prop)
   have hseed : ComputableInPolyTime seed enc encUnary := by
     have hlen := hr.comp (ComputableInPolyTime.encoding_length enc)
     fun_prop
@@ -360,7 +341,7 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
     have hk1 : 1 ≤ k := by omega
     have hnk : (enc x).length + 1 ≤ k ^ d :=
       (hroot _).trans (Nat.pow_le_pow_left (by simp only [hk, seed]; omega) d)
-    have hsize : c₁ * ((enc x).length + 1) ^ a₁ ≤ k ^ c := by
+    have hsize : c₁ * ((enc x).length + 1) ^ a₁ ≤ k ^ c :=
       calc c₁ * ((enc x).length + 1) ^ a₁
           ≤ k * (k ^ d) ^ a₁ := Nat.mul_le_mul (by omega) (Nat.pow_le_pow_left hnk a₁)
         _ = k ^ (d * a₁ + 1) := by rw [← pow_mul, pow_succ, mul_comm]
@@ -372,12 +353,9 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
         PMF.pure (V (x, (List.ofFn y).take (p.eval (enc x).length))) :=
       ⟨_, (hcB _ hmℓ).trans hsize, rfl⟩
     have hadv := hsec _ htest
-    have h7 : (((k : ℝ≥0) ^ 1)⁻¹ : ℝ≥0) ≤ 7⁻¹ := by
-      rw [pow_one]
-      exact inv_anti₀ (by norm_num) (by exact_mod_cast (show 7 ≤ k by omega))
     have h7' : ((((k : ℝ≥0) ^ 1)⁻¹ : ℝ≥0) : ℝ) ≤ 1 / 7 := by
-      have := NNReal.coe_le_coe.2 h7
-      simpa using this
+      simpa only [pow_one, one_div, NNReal.coe_inv, NNReal.coe_natCast] using
+        inv_anti₀ (by norm_num) (by exact_mod_cast Nat.le_of_add_left_le hk7)
     exact (seedDecider_eq_true_iff_of_advantage_lt (hA x).1
       (fun hx => boundedErrorAt_false_iff.1 ((hA x).2 hx)) hG.length_eq gen seed (fun _ => rfl) hmℓ
       (by linarith)).symm
@@ -410,54 +388,38 @@ theorem _root_.Cslib.Crypto.NonuniformPRG.circuitSecurePRG {G : List Bool → Li
         (((k : ℝ≥0) ^ c')⁻¹ : ℝ) < (wordFamily G ℓ k).advantage
           fun y => PMF.pure (C.eval interpretation y 0)) := by
     have hcirc (f : BooleanFunction (ℓ k)) : ∃ C : Circuit signature (ℓ k) 1,
-        C.size = complexity interpretation (single f) ∧ ∀ y, C.eval interpretation y 0 = f y := by
-      obtain ⟨C, hC, hsize⟩ := exists_computes_size_eq_complexity (I := interpretation)
-        (f := single f)
-      exact ⟨C, hsize, Circuit.computes_single_iff.1 hC⟩
+        C.size = complexity interpretation (single f) ∧ ∀ y, C.eval interpretation y 0 = f y :=
+      let ⟨C, hC, hsize⟩ := exists_computes_size_eq_complexity (I := interpretation) (f := single f)
+      ⟨C, hsize, Circuit.computes_single_iff.1 hC⟩
     by_cases hk : (wordFamily G ℓ k).Secure (IsCircuitTest (k ^ c)) ((k : ℝ≥0) ^ c')⁻¹
     · obtain ⟨C, hC, -⟩ := hcirc fun y => y ⟨0, by have := hG.stretch k; omega⟩
       exact ⟨C, by simp [hC], fun h => absurd hk h⟩
     · simp only [Generator.Secure, not_forall, not_le] at hk
       obtain ⟨adv, ⟨f, hf, rfl⟩, hlt⟩ := hk
       obtain ⟨C, hC, hCf⟩ := hcirc f
-      refine ⟨C, hC ▸ hf, fun _ => ?_⟩
-      rw [show (fun y => PMF.pure (C.eval interpretation y 0)) = fun y => PMF.pure (f y) from
-        funext fun y => by rw [hCf]]
-      exact hlt
+      exact ⟨C, hC ▸ hf, fun _ => by simp only [hCf]; exact hlt⟩
   choose C hCsize hbreak using hex
   set advice : ℕ → List Bool := fun k =>
     certificate (ℓ k) (k ^ c) (C k).code.1 ((C k).outputs 0).toNat
   -- the output length is polynomial-time and polynomially bounded
   have hℓ : ComputableInPolyTime ℓ encUnary encUnary := by
-    have h : ℓ = fun k => (G (List.replicate k false)).length :=
-      funext fun k => by rw [hG.length_eq, List.length_replicate]
-    rw [h]
-    exact ComputableInPolyTime.length_bits.comp
-      (hG.polyTime.comp (ComputableInPolyTime.bitsReplicate false))
-  have hℓpoly : PolynomiallyBounded ℓ := ComputableTidilyInPolyTime.polynomiallyBounded hℓ.tidy
+    simpa only [Function.comp_def, hG.length_eq, List.length_replicate] using
+      ComputableInPolyTime.length_bits.comp
+        (hG.polyTime.comp (ComputableInPolyTime.bitsReplicate false))
+  have hℓpoly : PolynomiallyBounded ℓ := hℓ.polynomiallyBounded
   have hadvice : PolynomiallyBounded fun k => (advice k).length := by
-    have hlen : (fun k => (advice k).length) = fun k => certLength (ℓ k) (k ^ c) :=
-      funext fun k => length_certificate_code (C k) (hCsize k)
-    rw [hlen]
-    simp only [certLength]
+    simp only [advice, length_certificate_code _ (hCsize _), certLength]
     fun_prop
   -- the advised test reads the certificate and evaluates its circuit on the challenge
   set test : (ℕ × List Bool) × List Bool → ProbComp Bool := fun q =>
     pure (evalOutput q.2 (readCertificate q.2.length (q.1.1 ^ c) q.1.2).1
       (readCertificate q.2.length (q.1.1 ^ c) q.1.2).2)
   have htest : IsPPTOn encAdvisedInput encBool test := by
-    have hk : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.1.1)
-        encAdvisedInput encUnary :=
-      (ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _)
-    have hw : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.1.2)
-        encAdvisedInput encBits :=
-      (ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)
-    have hx : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.2)
-        encAdvisedInput encBits := ComputableInPolyTime.snd _ _
-    have hread := computableInPolyTime_readCertificate (ComputableInPolyTime.length_bits.comp hx)
-      (by fun_prop : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.1.1 ^ c)
-        encAdvisedInput encUnary) hw
-    exact (computableInPolyTime_evalOutput hx ((ComputableInPolyTime.fst _ _).comp hread)
+    have hread := computableInPolyTime_readCertificate
+      (ComputableInPolyTime.length_bits.comp (.snd _ _))
+      (by fun_prop : ComputableInPolyTime (fun q => q.1.1 ^ c) encAdvisedInput encUnary)
+      ((ComputableInPolyTime.snd _ _).comp (.fst _ _))
+    exact (computableInPolyTime_evalOutput (.snd _ _) ((ComputableInPolyTime.fst _ _).comp hread)
       ((ComputableInPolyTime.snd _ _).comp hread)).isPPTOn
   have hneg := hG.secure advice hadvice test htest
   -- its advantage at seed length `k` is that of the chosen circuit
@@ -468,27 +430,18 @@ theorem _root_.Cslib.Crypto.NonuniformPRG.circuitSecurePRG {G : List Bool → Li
     rw [← PRG.wordFamily_realExperiment hG.length_eq (fun n w => test ((n, advice n), w)),
       ← PRG.wordFamily_idealExperiment ℓ (fun n w => test ((n, advice n), w)),
       ← Generator.advantage_eq_game]
-    congr 1
-    funext bits
-    simp only [test, advice, List.length_ofFn]
-    rw [ProbComp.eval_pure, ← List.append_nil (certificate _ _ _ _),
+    refine congrArg _ (funext fun bits => ?_)
+    dsimp only [test, advice]
+    rw [List.length_ofFn, ProbComp.eval_pure, ← List.append_nil (certificate _ _ _ _),
       readCertificate_certificate_code_append (C k) (hCsize k), ← Circuit.eval_eq_evalOutput]
   -- negligible advantage contradicts the frequent breaks
   obtain ⟨m, hm⟩ := (Crypto.negligible_iff _).1 hneg c' 1 one_pos
   obtain ⟨k, hk, hkm⟩ := (hbad.and_eventually (eventually_ge_atTop (m + 1))).exists
-  have hlt := hbreak k hk
-  rw [← hadv k] at hlt
-  have hmk := hm k (by omega)
-  have hmk' : (k : ℝ) ^ c' * (Game.advantage
-      (distinguishingGame (generatorEnsemble G k) fun w => test ((k, advice k), w))
-      (distinguishingGame (BitString.uniformList (ℓ k)) fun w => test ((k, advice k), w)) : ℝ) <
-        1 := by
-    exact_mod_cast hmk
-  have hpos : (0 : ℝ) < (k : ℝ) ^ c' := by
-    have : (1 : ℝ) ≤ k := by exact_mod_cast (show 1 ≤ k by omega)
-    positivity
-  rw [NNReal.coe_natCast, inv_lt_iff_one_lt_mul₀ hpos] at hlt
-  linarith
+  have hlt := (hadv k).symm ▸ hbreak k hk
+  have hmk := NNReal.coe_lt_coe.2 (hm k (by omega))
+  have hpos : (0 : ℝ) < (k : ℝ) ^ c' := pow_pos (mod_cast (by omega : 0 < k)) _
+  push_cast at hmk hlt
+  linarith [(inv_lt_iff_one_lt_mul₀ hpos).1 hlt]
 
 /-- **Goldreich, Theorem 8.13** [Goldreich, Theorem 8.13][Goldreich2007DraftR4] (draft r4, printed
 page 334, PDF page 70): *if there exist non-uniformly strong pseudorandom generators, then
@@ -506,10 +459,8 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_nonuniformPRG {G : List Bool → List B
     {ℓ : ℕ → ℕ} (hG : Crypto.NonuniformPRG G ℓ) {α : Type} (enc : α ↪ List Bool) :
     BPP enc ⊆ ⋂ (ε : ℝ) (_ : 0 < ε), DTIME enc fun n => 2 ^ ⌈(n : ℝ) ^ ε⌉₊ := by
   refine BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG (fun c _ => ?_) enc
-  have h₁ := hG.truncate (fun n => n + 1) (by fun_prop) (fun n => hG.stretch n)
-    fun n => Nat.lt_succ_self n
-  have h₂ := Crypto.NonuniformPRG.amplify h₁ (fun n => n ^ c + n + 1) (by fun_prop)
-    fun n => by omega
+  have h₁ := hG.truncate (· + 1) (by fun_prop) hG.stretch Nat.lt_succ_self
+  have h₂ := h₁.amplify (fun n => n ^ c + n + 1) (by fun_prop) fun n => by omega
   exact ⟨_, _, Eventually.of_forall fun k => by omega, h₂.circuitSecurePRG c⟩
 
 end Nonuniform

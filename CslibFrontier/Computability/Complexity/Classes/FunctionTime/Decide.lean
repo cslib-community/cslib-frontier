@@ -11,7 +11,6 @@ public import CslibFrontier.Computability.Complexity.Classes.FunctionTime
 public import CslibFrontier.Computability.Complexity.Classes.Time
 import CslibFrontier.Computability.Complexity.Classes.FunctionTime.Bounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators

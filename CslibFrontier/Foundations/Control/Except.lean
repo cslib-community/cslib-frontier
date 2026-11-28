@@ -228,10 +228,8 @@ theorem Spec.filterMapM {l : List α} {f : α → Except ε (Option β)} {R : α
     cases o with
     | none => exact ih'.mono lift fun _ => id
     | some b₀ =>
-      refine ih'.bind fun bs _ hbs b hb => ?_
-      rcases List.mem_cons.mp hb with rfl | hb
-      · exact ⟨a, List.mem_cons_self, ho b rfl⟩
-      · exact lift bs hbs b hb
+      exact ih'.bind fun bs _ hbs b hb => (List.mem_cons.mp hb).elim
+        (fun h => h ▸ ⟨a, List.mem_cons_self, ho b₀ rfl⟩) (lift bs hbs b)
 
 end Spec
 

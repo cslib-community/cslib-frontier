@@ -213,8 +213,6 @@ end
 
 /-! ### Private streaming `IndexFold` and matrix-search combinators -/
 private abbrev pOf := @PolyBounded.of_polynomiallyBounded
-private theorem add_mul_le_mul_add (A K B : ℕ) (hK : 1 ≤ K) : A + K * B ≤ K * (A + B) := by
-  rw [Nat.mul_add]; exact Nat.add_le_add_right (Nat.le_mul_of_pos_left A hK) _
 private theorem equivFin_symm_eq_zero_iff {width : ℕ} (k : Fin (2 ^ width)) :
     (equivFin width).symm k = 0 ↔ k.val = 0 := by
   rw [Equiv.symm_apply_eq, Fin.ext_iff, show (0 : BitString width) = fun _ => false from rfl,
@@ -223,115 +221,6 @@ private theorem length_encList_listRows (count width : ℕ) (word : List Bool) :
     (encList encBits (listRows count width word)).length = count * (2 * width + 1) := by
   simp only [length_encList, listRows, List.map_map, Function.comp_def, encBits_apply,
     length_listRow, List.map_const', List.length_range, List.sum_replicate, smul_eq_mul]
-private def HasKPolyCert {α β : Type} (f : α → β) (ei : α ↪ List Bool) (eo : β ↪ List Bool)
-    (K : α → ℕ) : Prop :=
-  ∃ (c : NativeCertificate f ei eo) (pT pS : ℕ → ℕ), Cslib.PolynomiallyBounded pT ∧
-    Cslib.PolynomiallyBounded pS ∧ (∀ a, c.time a ≤ K a * pT (ei a).length) ∧
-    (∀ a, c.space a ≤ pS (ei a).length)
-private abbrev exists_polyCert := @NativeCertificate.exists_polynomial
-private theorem HasKPolyCert.of_polyTime {α β : Type} {f : α → β} {ei : α ↪ List Bool}
-    {eo : β ↪ List Bool} (hf : ComputableInPolyTime f ei eo) : HasKPolyCert f ei eo (fun _ => 1) :=
-  let ⟨c, ⟨pT, hpT, hT⟩, pS, hpS, hS⟩ := exists_polyCert hf
-  ⟨c, pT, pS, hpT, hpS, fun a => by simpa only [one_mul] using hT a, hS⟩
-private theorem HasKPolyCert.congr {α β : Type} {f g : α → β} {ei : α ↪ List Bool}
-    {eo : β ↪ List Bool} {K : α → ℕ} (hf : HasKPolyCert f ei eo K) (h : ∀ a, f a = g a) :
-    HasKPolyCert g ei eo K := by
-  obtain ⟨c, pT, pS, hpT, hpS, hT, hS⟩ := hf; exact ⟨c.congr h, pT, pS, hpT, hpS, hT, hS⟩
-private theorem HasKPolyCert.snd {α β γ : Type} {f : α → β × γ} {ei : α ↪ List Bool}
-    {em : β ↪ List Bool} {eo : γ ↪ List Bool} {K : α → ℕ}
-    (hf : HasKPolyCert f ei (encPair em eo) K) : HasKPolyCert (fun a => (f a).2) ei eo K := by
-  obtain ⟨c, pT, pS, hpT, hpS, hT, hS⟩ := hf; exact ⟨c.snd, pT, pS, hpT, hpS, hT, hS⟩
-private theorem HasKPolyCert.mono_const {α β : Type} {f : α → β} {ei : α ↪ List Bool}
-    {eo : β ↪ List Bool} {K₁ K₂ : α → ℕ} (hf : HasKPolyCert f ei eo K₁) (C : ℕ)
-    (hK : ∀ a, K₁ a ≤ C * K₂ a) : HasKPolyCert f ei eo K₂ := by
-  obtain ⟨c, pT, pS, hpT, hpS, hT, hS⟩ := hf
-  refine ⟨c, fun n => C * pT n, pS, .mul (.const C) hpT, hpS, fun a => ?_, hS⟩
-  exact (hT a).trans ((Nat.mul_le_mul_right _ (hK a)).trans (by ring_nf; exact le_rfl))
-private theorem HasKPolyCert.comp_polyPre {α β γ : Type} {g : α → β} {f : β → γ}
-    {ei : α ↪ List Bool} {em : β ↪ List Bool} {eo : γ ↪ List Bool} {K : β → ℕ}
-    (hK : ∀ b, 1 ≤ K b) (hg : ComputableInPolyTime g ei em) (hf : HasKPolyCert f em eo K) :
-    HasKPolyCert (fun a => f (g a)) ei eo (fun a => K (g a)) := by
-  obtain ⟨cf, pTf, pSf, hpTf, hpSf, hTf, hSf⟩ := hf; obtain ⟨cg, hcg⟩ := exists_polyCert hg
-  have hgLen := hg.polyBounded_length
-  obtain ⟨pT, hpT, hT⟩ := hcg.1.add ((pOf id hpTf).comp hgLen)
-  obtain ⟨pS, hpS, hS⟩ := (hcg.2.add ((pOf id hpSf).comp hgLen)).mono (u := (cf.comp cg).space)
-    fun a => Nat.add_le_add_left (hSf (g a)) _
-  refine ⟨cf.comp cg, pT, pS, hpT, hpS, fun a => ?_, hS⟩
-  exact (Nat.add_le_add_left (hTf (g a)) (cg.time a)).trans
-    ((add_mul_le_mul_add _ _ _ (hK (g a))).trans (Nat.mul_le_mul_left _ (hT a)))
-private theorem HasKPolyCert.polyPost {α β γ : Type} {g : α → β} {f : β → γ}
-    {ei : α ↪ List Bool} {em : β ↪ List Bool} {eo : γ ↪ List Bool} {K : α → ℕ}
-    (hK : ∀ a, 1 ≤ K a) (hg : HasKPolyCert g ei em K) (hf : ComputableInPolyTime f em eo) :
-    HasKPolyCert (fun a => f (g a)) ei eo K := by
-  let len (a : α) : ℕ := (ei a).length; obtain ⟨cg, pTg, pSg, hpTg, hpSg, hTg, hSg⟩ := hg
-  obtain ⟨k, _, hl⟩ := cg.computes
-  have hgLen : PolyBounded len (fun a => (em (g a)).length) :=
-    ((PolyBounded.const k).mul ((pOf len hpSg).add (.const 1))).mono
-      fun a => (hl a).trans (Nat.mul_le_mul_left k (Nat.add_le_add_right (hSg a) 1))
-  obtain ⟨cf, hcf⟩ := exists_polyCert hf
-  obtain ⟨pT, hpT, hT⟩ := (hcf.1.comp hgLen).add (pOf len hpTg)
-  obtain ⟨pS, hpS, hS⟩ := ((pOf len hpSg).add (hcf.2.comp hgLen)).mono (u := (cf.comp cg).space)
-    fun a => Nat.add_le_add_right (hSg a) _
-  refine ⟨cf.comp cg, pT, pS, hpT, hpS, fun a => ?_, hS⟩
-  change cg.time a + cf.time (g a) ≤ _; rw [Nat.add_comm]
-  exact (Nat.add_le_add_left (hTg a) (cf.time (g a))).trans
-    ((add_mul_le_mul_add _ _ _ (hK a)).trans (Nat.mul_le_mul_left _ (hT a)))
-private theorem HasKPolyCert.prod {α β γ : Type} {f : α → β} {g : α → γ}
-    {ei : α ↪ List Bool} {em : β ↪ List Bool} {eo : γ ↪ List Bool} {K₁ K₂ : α → ℕ}
-    (hf : HasKPolyCert f ei em K₁) (hg : HasKPolyCert g ei eo K₂) :
-    HasKPolyCert (fun a => (f a, g a)) ei (encPair em eo) (fun a => K₁ a + K₂ a) := by
-  let len (a : α) : ℕ := (ei a).length; obtain ⟨cf, pTf, pSf, hpTf, hpSf, hTf, hSf⟩ := hf
-  obtain ⟨cg, pTg, pSg, hpTg, hpSg, hTg, hSg⟩ := hg
-  obtain ⟨pT, hpT, hT⟩ := (pOf len hpTf).add (pOf len hpTg)
-  obtain ⟨pS, hpS, hS⟩ := ((pOf len hpSf).add (pOf len hpSg)).mono (u := (cf.prod cg).space)
-    fun a => Nat.add_le_add (hSf a) (hSg a)
-  refine ⟨cf.prod cg, pT, pS, hpT, hpS, fun a => ?_, hS⟩
-  have hp1 := (Nat.le_add_right (pTf (len a)) (pTg (len a))).trans (hT a)
-  have hp2 := (Nat.le_add_left (pTg (len a)) (pTf (len a))).trans (hT a)
-  exact (Nat.add_le_add ((hTf a).trans (Nat.mul_le_mul_left _ hp1))
-    ((hTg a).trans (Nat.mul_le_mul_left _ hp2))).trans_eq (Nat.add_mul _ _ _).symm
-private theorem HasKPolyCert.indexFold {α β : Type} {encIn : α ↪ List Bool} {encB : β ↪ List Bool}
-    {count : α → ℕ} {initial : α → β} {body : ℕ × β → β} {Kbody : ℕ × β → ℕ} {K B : α → ℕ}
-    (hK : ∀ a, 1 ≤ K a) (hcount : ComputableInPolyTime count encIn encNat)
-    (hinit : ComputableInPolyTime initial encIn encB)
-    (hbody : HasKPolyCert body (encPair encNat encB) encB Kbody)
-    (hBP : PolyBounded (fun a => (encIn a).length) B)
-    (hKB : ∀ a j, j ≤ count a → Kbody (IndexFold.run body j (initial a)) ≤ K a)
-    (hB : ∀ a j, j ≤ count a → (encB (IndexFold.run body j (initial a)).2).length ≤ B a) :
-    HasKPolyCert (fun a => (IndexFold.run body (count a) (initial a)).2) encIn encB
-      (fun a => (count a + 1) * K a) := by
-  let len (a : α) : ℕ := (encIn a).length; obtain ⟨cb, pTb, pSb, hpTb, hpSb, hTb, hSb⟩ := hbody
-  obtain ⟨pM, hpM, hmM, hleM⟩ := exists_mono_poly ((pOf id hpTb).add (pOf id hpSb))
-  obtain ⟨cn, hcnP⟩ := exists_polyCert hcount; obtain ⟨ci, hciP⟩ := exists_polyCert hinit
-  let stLen (a : α) : ℕ := 2 * (encNat (count a)).length + 1 + B a
-  let rBase (a : α) : ℕ := pM (stLen a); have hCntP := hcount.polyBounded_length
-  have hStP := (((PolyBounded.const 2).mul hCntP).add (.const 1)).add hBP
-  have hrP : PolyBounded len rBase := (pOf id hpM).comp hStP
-  have hCntSq := NativeCertificate.polyBounded_pow_of_polyBounded hCntP 1 2
-  have hRun := IndexFold.computableInO cn ci cb (fun a => K a * rBase a) rBase B
-    (fun a j hj => (hTb _).trans (Nat.mul_le_mul (hKB a j hj) ((Nat.le_add_right _ _).trans
-      ((hleM _).trans (hmM (IndexFold.length_run_le body _ hj (hB a j hj)))))))
-    (fun a j hj => (hSb _).trans ((Nat.le_add_left _ _).trans
-      ((hleM _).trans (hmM (IndexFold.length_run_le body _ hj (hB a j hj)))))) hB
-  let cert := (NativeCertificate.mk _ _ hRun).snd
-  obtain ⟨pT, hpT, hBaseT⟩ := (hcnP.1.add (PolyBounded.self.add hciP.1)).add
-    ((((hStP.add hCntSq).add hStP).add hCntSq).add hrP)
-  obtain ⟨pS, hpS, hS⟩ := ((((hcnP.2.add (PolyBounded.self.add hciP.2)).add
-    ((hStP.add (hCntP.add (.const 1))).add hrP)).add hStP).add hCntP).mono
-    (u := cert.space) fun _ => le_rfl
-  refine ⟨cert, pT, pS, hpT, hpS, fun a => ?_, hS⟩; set K1 := count a + 1
-  set U := (stLen a + ((encNat (count a)).length + 1) ^ 2) +
-    stLen a + ((encNat (count a)).length + 1) ^ 2
-  have hrew : cert.time a = (cn.time a + (len a + ci.time a)) + K1 * (U + K a * rBase a) := by
-    change cn.time a + (len a + ci.time a) + K1 * ((stLen a + ((encNat (count a)).length + 1) ^ 2 +
-      K a * rBase a) + stLen a + ((encNat (count a)).length + 1) ^ 2) = _; ring
-  have h1 : cert.time a ≤ (cn.time a + (len a + ci.time a)) + (K1 * K a) * (U + rBase a) := by
-    rw [hrew, Nat.mul_assoc]
-    exact Nat.add_le_add_left (Nat.mul_le_mul_left K1 (add_mul_le_mul_add _ _ _ (hK a))) _
-  have hBT : cn.time a + (len a + ci.time a) + (U + rBase a) ≤ pT (encIn a).length := by
-    have := hBaseT a; dsimp only [U, len, rBase, stLen] at this ⊢; omega
-  exact (h1.trans (add_mul_le_mul_add _ (K1 * K a) _ (Nat.mul_pos (Nat.succ_pos _) (hK a)))).trans
-    (Nat.mul_le_mul_left _ hBT)
 private abbrev allPositiveIndices {γ : Type} (width : ℕ) (ctx : γ) (initOk : Bool)
     (test : γ → ℕ → Bool) : Bool :=
   (IndexFold.run (fun p : ℕ × (γ × Bool) => (p.2.1, p.2.2 && (decide (p.1 = 0) || test p.2.1 p.1)))
@@ -377,26 +266,28 @@ private theorem allPositiveIndices_lowBits_eq_true_iff {γ : Type} (widthOf : γ
     rw [lowBits_eq_ofFn_equivFin_symm _ k]
     exact hall _ hw0
 private theorem allPositiveIndices_cert {α γ : Type} {encIn : α ↪ List Bool}
-    {encCtx : γ ↪ List Bool} (width : α → ℕ) (ctx : α → γ) (initOk : α → Bool)
+    {encCtx : γ ↪ List Bool} {f : α → Bool} (width : α → ℕ) (ctx : α → γ) (initOk : α → Bool)
     (test : γ → ℕ → Bool) (hw : ComputableInPolyTime width encIn encUnary)
     (hctx : ComputableInPolyTime ctx encIn encCtx)
     (hinit : ComputableInPolyTime initOk encIn encBool)
     (htest : ComputableInPolyTime (fun q : γ × ℕ => test q.1 q.2)
-      (encPair encCtx encNat) encBool) :
-    HasKPolyCert (fun a => allPositiveIndices (width a) (ctx a) (initOk a) test) encIn encBool
-      (fun a => 2 ^ width a + 1) := by
+      (encPair encCtx encNat) encBool)
+    (hf : ∀ a, allPositiveIndices (width a) (ctx a) (initOk a) test = f a) :
+    ∃ c : NativeCertificate f encIn encBool,
+      c.FactorTimePolySpace (fun a => 2 ^ width a + 1) := by
   have hp1 := fst encNat (encPair encCtx encBool)
   have hp2 := snd encNat (encPair encCtx encBool)
   have hbody := hp2.fst'.prod (.bool_and' hp2.snd' (bool_or.comp'
     ((decide_eq' hp1 (.const 0)).prod (htest.comp' (hp2.fst'.prod hp1)))))
-  have hFold := HasKPolyCert.indexFold (K := fun _ => 1)
-    (B := fun a => 2 * (encCtx (ctx a)).length + 2) (fun _ => le_rfl) (binary_two_pow.comp' hw)
-    (hctx.prod hinit) (.of_polyTime hbody)
-    (((PolyBounded.const 2).mul hctx.polyBounded_length).add (.const 2)) (fun _ _ _ => le_rfl)
-    fun a j _ => by
-      rw [length_encPair, run_allIndex_fst test]; simp only [encBool_apply, List.length_singleton]
-      omega
-  exact hFold.snd.mono_const 1 (fun _ => by omega)
+  refine ⟨_, (((IndexFold.certificate_factorTimePolySpace
+    (NativeCertificate.ofPolyTime_isPolynomial (binary_two_pow.comp' hw))
+    (NativeCertificate.ofPolyTime_isPolynomial (hctx.prod hinit))
+    (.ofPolyTime hbody) (K := fun _ => 1)
+    (B := fun a => 2 * (encCtx (ctx a)).length + 2)
+    (fun _ => le_rfl) (by growth_poly)
+    (fun _ _ _ => le_rfl) fun a j _ => ?_).snd.snd).mono_const 1 fun _ => by omega).congr hf⟩
+  rw [length_encPair, run_allIndex_fst test]; simp only [encBool_apply, List.length_singleton]
+  omega
 private abbrev searchMatrixStep {Q : Type} (rowsOf colsOf : Q → ℕ)
     (check : Q → List (List Bool) → Bool)
     (p : ℕ × (Q × (Bool × List (List Bool)))) : Q × (Bool × List (List Bool)) :=
@@ -455,10 +346,14 @@ private theorem searchMatrix_cert {α Q : Type} {encIn : α ↪ List Bool} {encQ
     {rowsOf colsOf wCheck : Q → ℕ} {qOf : α → Q} {check : Q → List (List Bool) → Bool}
     (hq : ComputableInPolyTime qOf encIn encQ) (hrows : ComputableInPolyTime rowsOf encQ encUnary)
     (hcols : ComputableInPolyTime colsOf encQ encUnary)
-    (hCheck : HasKPolyCert (fun x : Q × List (List Bool) => check x.1 x.2)
-      (encPair encQ (encList encBits)) encBool (fun x => 2 ^ wCheck x.1 + 1)) :
-    HasKPolyCert (fun a => searchMatrix rowsOf colsOf check (qOf a)) encIn (encList encBits)
-      (fun a => (2 ^ (rowsOf (qOf a) * colsOf (qOf a)) + 1) * (2 ^ wCheck (qOf a) + 1)) := by
+    (hCheck : ∃ c : NativeCertificate (fun x : Q × List (List Bool) => check x.1 x.2)
+      (encPair encQ (encList encBits)) encBool,
+      c.FactorTimePolySpace (fun x => 2 ^ wCheck x.1 + 1)) :
+    ∃ c : NativeCertificate
+        (fun a => searchMatrix rowsOf colsOf check (qOf a)) encIn (encList encBits),
+      c.FactorTimePolySpace
+        (fun a => (2 ^ (rowsOf (qOf a) * colsOf (qOf a)) + 1) * (2 ^ wCheck (qOf a) + 1)) := by
+  obtain ⟨_, hCheck⟩ := hCheck
   let encPay := encPair encBool (encList encBits)
   let encSt := encPair encQ encPay; let encFull := encPair encNat encSt
   have hra := hrows.comp hq; have hca := hcols.comp hq; have hrcQ := unary_mul' hrows hcols
@@ -471,13 +366,13 @@ private theorem searchMatrix_cert {α Q : Type} {encIn : α ↪ List Bool} {encQ
   have hx2 := snd (encPair encPay (encList encBits)) encBool
   have hSel := hx1.fst'.fst'.ite hx1.fst'
     (hx2.ite ((ComputableInPolyTime.const (encOut := encBool) true).prod hx1.snd') hx1.fst')
-  have hPayStep := ((HasKPolyCert.of_polyTime (hpPay.prod hcand)).prod
-    (hCheck.comp_polyPre (fun _ => Nat.le_add_left 1 _) (hpQ.prod hcand))).polyPost
-    (fun _ => Nat.le_add_right 1 _) hSel
-  have hStep : HasKPolyCert (searchMatrixStep rowsOf colsOf check) encFull encSt
-      (fun p => 2 ^ wCheck p.2.1 + 1) :=
-    (((HasKPolyCert.of_polyTime hpQ).prod hPayStep).mono_const 3
-      (fun p => by dsimp only; generalize 2 ^ wCheck p.2.1 = z; omega)).congr (fun _ => rfl)
+  have hPayStep := (((NativeCertificate.FactorTimePolySpace.ofPolyTime (hpPay.prod hcand)).mono
+      fun _ => Nat.le_add_left 1 _).prod_same
+    (hCheck.comp_polyPre (hpQ.prod hcand) fun _ => Nat.le_add_left 1 _)).comp_ofPolyTime
+    (fun _ => Nat.le_add_left 1 _) hSel
+  have hStep := (((NativeCertificate.FactorTimePolySpace.ofPolyTime hpQ).mono
+      fun _ => Nat.le_add_left 1 _).prod_same hPayStep).congr
+    (f' := searchMatrixStep rowsOf colsOf check) (fun _ => rfl)
   let B (a : α) : ℕ :=
     2 * (encQ (qOf a)).length + 1 + (3 + rowsOf (qOf a) * (2 * colsOf (qOf a) + 1))
   have hBP : PolyBounded (fun a => (encIn a).length) B := by growth_poly
@@ -486,10 +381,13 @@ private theorem searchMatrix_cert {α Q : Type} {encIn : α ↪ List Bool} {encQ
         (qOf a, (false, listRows (rowsOf (qOf a)) (colsOf (qOf a)) []))).2).length ≤ B a := by
     obtain ⟨hq_eq, ⟨w, hw⟩, -, -⟩ := run_searchMatrixStep_inv rowsOf colsOf check j (qOf a)
     enc_len [encSt, encPay, List.length_singleton, hq_eq, hw, length_encList_listRows, B]
-  exact (HasKPolyCert.indexFold (K := fun a => 2 ^ wCheck (qOf a) + 1) (B := B)
-    (fun _ => Nat.le_add_left 1 _) (binary_two_pow.comp (hrcQ.comp hq)) hinit hStep hBP
+  exact ⟨_, (IndexFold.certificate_factorTimePolySpace
+    (NativeCertificate.ofPolyTime_isPolynomial (binary_two_pow.comp (hrcQ.comp hq)))
+    (NativeCertificate.ofPolyTime_isPolynomial hinit) hStep
+    (K := fun a => 2 ^ wCheck (qOf a) + 1) (B := B)
+    (fun _ => Nat.le_add_left 1 _) hBP
     (fun a j _ => Nat.le_of_eq (congrArg (fun x => 2 ^ wCheck x + 1)
-      (run_searchMatrixStep_inv rowsOf colsOf check j (qOf a)).1)) hB).snd.snd
+      (run_searchMatrixStep_inv rowsOf colsOf check j (qOf a)).1)) hB).snd.snd.snd⟩
 
 /-! ### Polynomial-time and streaming checkers -/
 private theorem checkMatrixShape_polyTime {α : Type} {encIn : α ↪ List Bool} (r c : α → ℕ)
@@ -588,8 +486,10 @@ theorem checkSmallBiasShifts_eq_true_iff {ell d maxBiasNum maxBiasDen : ℕ} [Ne
     exact (hbias_iff _).2 (hbias _ ⟨i₀, mem_filter.mpr ⟨mem_univ i₀,
       Bool.eq_true_of_not_eq_false hi₀⟩⟩)
 private theorem checkSmallBiasShifts_cert_aux :
-    HasKPolyCert (fun q : BiasQ => checkSmallBiasShifts q.1.1 q.1.2.1 q.1.2.2.1 q.1.2.2.2 q.2)
-      encBiasQ encBool (fun q => 2 ^ q.1.1 + 1) := by
+    ∃ c : NativeCertificate
+        (fun q : BiasQ => checkSmallBiasShifts q.1.1 q.1.2.1 q.1.2.2.1 q.1.2.2.2 q.2)
+        encBiasQ encBool,
+      c.FactorTimePolySpace (fun q => 2 ^ q.1.1 + 1) := by
   have hq1 := fst encBiasHdr (encList encBits); have hq2 := snd encBiasHdr (encList encBits)
   have hellQ := hq1.fst'; have hdQ := hq1.snd'.fst'
   have hshape := checkMatrixShape_polyTime (encIn := encBiasQ) (fun q => q.1.2.1) (fun q => q.1.1)
@@ -609,9 +509,9 @@ private theorem checkSmallBiasShifts_cert_aux :
   have htest := binary_le.comp ((binary_mul' (unary_to_binary.comp hdiff)
     hhdrP.snd'.snd'.snd').prod (binary_mul' hhdrP.snd'.snd'.fst'
       (unary_to_binary.comp hdP)))
-  exact (allPositiveIndices_cert (fun q => q.1.1) id
+  exact allPositiveIndices_cert (fun q => q.1.1) id
     (fun q => (q.2.length == q.1.2.1) && q.2.all (fun row => row.length == q.1.1)) testFn
-    hellQ (.of_eq fun _ => rfl) hshape htest).congr fun _ => rfl
+    hellQ (.of_eq fun _ => rfl) hshape htest fun _ => rfl
 /-- Native `ComputableInO` certificate for `checkSmallBiasShifts`. -/
 theorem checkSmallBiasShifts_computableInO :
     ∃ pT pS : ℕ → ℕ, Cslib.PolynomiallyBounded pT ∧ Cslib.PolynomiallyBounded pS ∧
@@ -620,9 +520,9 @@ theorem checkSmallBiasShifts_computableInO :
       ComputableInO (fun ((ell, d, maxBiasNum, maxBiasDen), shifts) =>
           checkSmallBiasShifts ell d maxBiasNum maxBiasDen shifts) encQ encBool
         (fun q => let ((ell, _), _) := q; (2 ^ ell + 1) * pT (encQ q).length)
-        (fun q => pS (encQ q).length) := by
-  obtain ⟨cert, pT, pS, hpT, hpS, hT, hS⟩ := checkSmallBiasShifts_cert_aux
-  exact ⟨pT, pS, hpT, hpS, cert.computes.mono_le hT hS⟩
+        (fun q => pS (encQ q).length) :=
+  let ⟨_, h⟩ := checkSmallBiasShifts_cert_aux
+  let ⟨p, hp, hc⟩ := h.exists_poly_computableInO; ⟨p, p, hp, hp, hc⟩
 /-- Plain polynomial-time certificate for `checkSmallBiasShifts` when `2 ^ ell` is poly-bounded. -/
 theorem checkSmallBiasShifts_polyTime {α : Type} {encIn : α ↪ List Bool}
     {ell d maxBiasNum maxBiasDen : α → ℕ} {shifts : α → List (List Bool)}
@@ -634,10 +534,9 @@ theorem checkSmallBiasShifts_polyTime {α : Type} {encIn : α ↪ List Bool}
     ComputableInPolyTime
       (fun a => checkSmallBiasShifts (ell a) (d a) (maxBiasNum a) (maxBiasDen a) (shifts a))
       encIn encBool := by
-  obtain ⟨c, pT, pS, hpT, hpS, hT, hS⟩ :=
-    checkSmallBiasShifts_cert_aux.comp_polyPre (fun _ => Nat.le_add_left 1 _)
-      ((hell.prod (hd.prod (hnum.prod hden))).prod hshifts)
-  exact c.polyTime ⟨((hq.add (.const 1)).mul (pOf _ hpT)).mono hT, (pOf _ hpS).mono hS⟩
+  obtain ⟨_, h⟩ := checkSmallBiasShifts_cert_aux
+  exact (h.comp_polyPre ((hell.prod (hd.prod (hnum.prod hden))).prod hshifts)
+    fun _ => Nat.le_add_left 1 _).polyTime (hq.add (.const 1))
 /-- Specialization of `checkSmallBiasShifts_polyTime` when `2 ^ ell ≤ 2 * m + 1`. -/
 theorem checkSmallBiasShifts_polyTime_of_two_pow_le {α : Type} {encIn : α ↪ List Bool}
     {m ell d maxBiasNum maxBiasDen : α → ℕ} {shifts : α → List (List Bool)}
@@ -702,8 +601,10 @@ theorem checkLocalCodeDistance_eq_true_iff (c d minDist : ℕ) (H0 : List (List 
       exact hdist w hw0 ((hker_iff hlen hrows w).1 hkerList)
     · rw [Bool.eq_false_iff.mpr hkerList]; rfl
 private theorem checkLocalCodeDistance_cert_aux :
-    HasKPolyCert (fun q : LocalQ => checkLocalCodeDistance q.1.1 q.1.2.1 q.1.2.2 q.2)
-      encLocalQ encBool (fun q => 2 ^ q.1.2.1 + 1) := by
+    ∃ c : NativeCertificate
+        (fun q : LocalQ => checkLocalCodeDistance q.1.1 q.1.2.1 q.1.2.2 q.2)
+        encLocalQ encBool,
+      c.FactorTimePolySpace (fun q => 2 ^ q.1.2.1 + 1) := by
   have hq1 := fst encLocalCodeParams (encList encBits)
   have hq2 := snd encLocalCodeParams (encList encBits)
   have hdQ := hq1.snd'.fst'
@@ -719,9 +620,9 @@ private theorem checkLocalCodeDistance_cert_aux :
     (hq2.comp' hp1) (bool_not.comp' (bitsListDot hr2 (hw.comp' hr1)))
   have htest := bool_or.comp ((bool_not.comp hall).prod
     (unary_le' (hq1.snd'.snd'.comp hp1) (bitsCountWithInput hw (.const true))))
-  exact (allPositiveIndices_cert (fun q => q.1.2.1) id
+  exact allPositiveIndices_cert (fun q => q.1.2.1) id
     (fun q => (q.2.length == q.1.1) && q.2.all (fun row => row.length == q.1.2.1)) testFn
-    hdQ (.of_eq fun _ => rfl) hshape htest).congr fun _ => rfl
+    hdQ (.of_eq fun _ => rfl) hshape htest fun _ => rfl
 /-- Native `ComputableInO` certificate for `checkLocalCodeDistance`. -/
 theorem checkLocalCodeDistance_computableInO :
     ∃ pT pS : ℕ → ℕ, Cslib.PolynomiallyBounded pT ∧ Cslib.PolynomiallyBounded pS ∧
@@ -729,9 +630,9 @@ theorem checkLocalCodeDistance_computableInO :
       ComputableInO (fun ((c, d, minDist), H0) =>
           checkLocalCodeDistance c d minDist H0) encQ encBool
         (fun q => let ((_, d, _), _) := q; (2 ^ d + 1) * pT (encQ q).length)
-        (fun q => pS (encQ q).length) := by
-  obtain ⟨cert, pT, pS, hpT, hpS, hT, hS⟩ := checkLocalCodeDistance_cert_aux
-  exact ⟨pT, pS, hpT, hpS, cert.computes.mono_le hT hS⟩
+        (fun q => pS (encQ q).length) :=
+  let ⟨_, h⟩ := checkLocalCodeDistance_cert_aux
+  let ⟨p, hp, hc⟩ := h.exists_poly_computableInO; ⟨p, p, hp, hp, hc⟩
 /-! ### Sequential `IndexFold` searchers -/
 /-- Sequential `IndexFold` search ([OpenAI2026ETH], Lemma 6.1) over `0 .. 2 ^ (d * ell) - 1`,
 returning the first `d × ell` shift table passing `checkSmallBiasShifts`, or the total all-`false`
@@ -768,14 +669,16 @@ private theorem findSmallBiasShifts_cert_aux {α : Type} {encIn : α ↪ List Bo
     (ell d num den : α → ℕ) (hell : ComputableInPolyTime ell encIn encUnary)
     (hd : ComputableInPolyTime d encIn encUnary) (hnum : ComputableInPolyTime num encIn encNat)
     (hden : ComputableInPolyTime den encIn encNat) :
-    HasKPolyCert (fun a => findSmallBiasShifts (ell a) (d a) (num a) (den a))
-      encIn (encList encBits) (fun a => (2 ^ (d a * ell a) + 1) * (2 ^ ell a + 1)) :=
-  (searchMatrix_cert (wCheck := fun q : BiasHdr => q.1)
+    ∃ c : NativeCertificate
+        (fun a => findSmallBiasShifts (ell a) (d a) (num a) (den a)) encIn (encList encBits),
+      c.FactorTimePolySpace (fun a => (2 ^ (d a * ell a) + 1) * (2 ^ ell a + 1)) := by
+  obtain ⟨_, h⟩ := searchMatrix_cert (wCheck := fun q : BiasHdr => q.1)
     (check := fun q : BiasHdr => checkSmallBiasShifts q.1 q.2.1 q.2.2.1 q.2.2.2)
     (hell.prod (hd.prod (hnum.prod hden)))
     (snd encUnary (encPair encUnary (encPair encNat encNat))).fst'
     (fst encUnary (encPair encUnary (encPair encNat encNat)))
-    checkSmallBiasShifts_cert_aux).congr fun _ => rfl
+    checkSmallBiasShifts_cert_aux
+  exact ⟨_, h.congr fun _ => rfl⟩
 /-- Native `ComputableInO` certificate for `findSmallBiasShifts`. -/
 theorem findSmallBiasShifts_computableInO :
     ∃ pT pS : ℕ → ℕ, Cslib.PolynomiallyBounded pT ∧ Cslib.PolynomiallyBounded pS ∧
@@ -786,10 +689,10 @@ theorem findSmallBiasShifts_computableInO :
         (fun p => let (ell, d, _, _) := p; (2 ^ (d * ell) + 1) * (2 ^ ell + 1) * pT (encH p).length)
         (fun p => pS (encH p).length) := by
   have hp2 := snd encUnary (encPair encUnary (encPair encNat encNat))
-  obtain ⟨cert, pT, pS, hpT, hpS, hT, hS⟩ := findSmallBiasShifts_cert_aux (encIn := encBiasHdr)
+  obtain ⟨_, h⟩ := findSmallBiasShifts_cert_aux (encIn := encBiasHdr)
     (fun p => p.1) (fun p => p.2.1) (fun p => p.2.2.1) (fun p => p.2.2.2)
     (fst encUnary (encPair encUnary (encPair encNat encNat))) hp2.fst' hp2.snd'.fst' hp2.snd'.snd'
-  exact ⟨pT, pS, hpT, hpS, cert.computes.mono_le hT hS⟩
+  obtain ⟨p, hp, hc⟩ := h.exists_poly_computableInO; exact ⟨p, p, hp, hp, hc⟩
 /-- Sequential `IndexFold` search ([OpenAI2026ETH], Lemma 6.1) over `0 .. 2 ^ (c * d) - 1`,
 returning the first `c × d` check matrix passing `checkLocalCodeDistance`, or the total all-`false`
 fallback `listRows c d []` when no candidate passes. -/
@@ -822,12 +725,14 @@ theorem weight_le_of_findLocalCheckMatrix {c d minDist : ℕ}
 private theorem findLocalCheckMatrix_cert_aux {α : Type} {encIn : α ↪ List Bool}
     (c d md : α → ℕ) (hc : ComputableInPolyTime c encIn encUnary)
     (hd : ComputableInPolyTime d encIn encUnary) (hmin : ComputableInPolyTime md encIn encUnary) :
-    HasKPolyCert (fun a => findLocalCheckMatrix (c a) (d a) (md a)) encIn (encList encBits)
-      (fun a => (2 ^ (c a * d a) + 1) * (2 ^ d a + 1)) :=
-  (searchMatrix_cert (wCheck := fun q : LocalHdr => q.2.1)
+    ∃ cert : NativeCertificate
+        (fun a => findLocalCheckMatrix (c a) (d a) (md a)) encIn (encList encBits),
+      cert.FactorTimePolySpace (fun a => (2 ^ (c a * d a) + 1) * (2 ^ d a + 1)) := by
+  obtain ⟨_, h⟩ := searchMatrix_cert (wCheck := fun q : LocalHdr => q.2.1)
     (check := fun q : LocalHdr => checkLocalCodeDistance q.1 q.2.1 q.2.2) (hc.prod (hd.prod hmin))
     (fst encUnary (encPair encUnary encUnary)) (snd encUnary (encPair encUnary encUnary)).fst'
-    checkLocalCodeDistance_cert_aux).congr fun _ => rfl
+    checkLocalCodeDistance_cert_aux
+  exact ⟨_, h.congr fun _ => rfl⟩
 /-- Native `ComputableInO` certificate for `findLocalCheckMatrix`. -/
 theorem findLocalCheckMatrix_computableInO :
     ∃ pT pS : ℕ → ℕ, Cslib.PolynomiallyBounded pT ∧ Cslib.PolynomiallyBounded pS ∧
@@ -837,11 +742,10 @@ theorem findLocalCheckMatrix_computableInO :
         (fun p => let (c, d, _) := p; (2 ^ (c * d) + 1) * (2 ^ d + 1) * pT (encH p).length)
         (fun p => pS (encH p).length) := by
   have hp2 := snd encUnary (encPair encUnary encUnary)
-  obtain ⟨cert, pT, pS, hpT, hpS, hT, hS⟩ :=
-    findLocalCheckMatrix_cert_aux (encIn := encLocalCodeParams)
-      (fun p => p.1) (fun p => p.2.1) (fun p => p.2.2)
-      (fst encUnary (encPair encUnary encUnary)) hp2.fst' hp2.snd'
-  exact ⟨pT, pS, hpT, hpS, cert.computes.mono_le hT hS⟩
+  obtain ⟨_, h⟩ := findLocalCheckMatrix_cert_aux (encIn := encLocalCodeParams)
+    (fun p => p.1) (fun p => p.2.1) (fun p => p.2.2)
+    (fst encUnary (encPair encUnary encUnary)) hp2.fst' hp2.snd'
+  obtain ⟨p, hp, hc⟩ := h.exists_poly_computableInO; exact ⟨p, p, hp, hp, hc⟩
 
 /-! ### Shortened Tanner parity-check matrix builder -/
 private def edgeEmbedding {m ell d : ℕ} (hd : 0 < d) (hm : m ≤ 2 ^ ell * d) :
@@ -988,11 +892,9 @@ theorem le_mul_weight_of_buildShortenedTannerRows_params {n m B : ℕ}
       (greedyRowListLength B m : ℝ) = (dG m B : ℝ) * ((qG m B * dG m B : ℕ) : ℝ) := by
     dsimp only [D]; unfold greedyRowListLength qG mu; push_cast; field_simp; ring
   rw [hP_ident] at hmulP
-  have hle : ((qG m B * dG m B : ℕ) : ℝ) ≤ ((greedyRowListLength B m * weight z : ℕ) : ℝ) :=
-    le_of_mul_le_mul_left (hmulP.trans_eq (show (dG m B : ℝ) * (weight z : ℝ) *
-      (greedyRowListLength B m : ℝ) = (dG m B : ℝ) * ((greedyRowListLength B m * weight z : ℕ) : ℝ)
-        by push_cast; ring)) (by exact_mod_cast hd)
-  exact (le_qG_mul_dG hm hB).trans (Nat.cast_le.mp hle)
+  have := le_of_mul_le_mul_left (hmulP.trans_eq ((mul_right_comm _ _ _).trans (mul_assoc _ _ _)))
+    (by exact_mod_cast hd : (0 : ℝ) < dG m B)
+  exact (le_qG_mul_dG hm hB).trans (by exact_mod_cast this)
 /-- Plain polynomial-time certificate for `buildShortenedTannerRows` when `2 ^ ell ≤ bound`. -/
 theorem buildShortenedTannerRows_polyTime {α : Type} {encIn : α ↪ List Bool}
     {m ell d c bound : α → ℕ} {shifts H0 : α → List (List Bool)}
@@ -1051,14 +953,11 @@ private theorem exists_shifts_params {m B : ℕ} [NeZero (dG m B)] (hB : 1 ≤ B
       push_cast; field_simp; ring
     rw [Fintype.card_fin, hexp, Real.exp_neg, mul_inv_lt_iff₀ (Real.exp_pos _), one_mul]
     have hell_mu := ellG_le_mu m B
-    have h8 : (2 : ℝ) * 2 ^ ellG m B ≤ (8 : ℝ) ^ mu m :=
-      calc (2 : ℝ) * 2 ^ ellG m B = (2 : ℝ) ^ (ellG m B + 1) := by rw [pow_succ']
-        _ ≤ (2 : ℝ) ^ (3 * mu m) := pow_le_pow_right₀ (by norm_num) (by omega)
-        _ = (8 : ℝ) ^ mu m := by rw [pow_mul]; norm_num
+    have h8 : (2 : ℝ) * 2 ^ ellG m B ≤ (8 : ℝ) ^ mu m := by
+      rw [← pow_succ', show (8 : ℝ) = 2 ^ 3 by norm_num, ← pow_mul]
+      exact pow_le_pow_right₀ (by norm_num) (by omega)
     have he4 : (8 : ℝ) < Real.exp 4 := by
-      rw [show Real.exp 4 = Real.exp 1 ^ 4 by rw [← Real.exp_nat_mul]; norm_num]
-      exact (by norm_num : (8 : ℝ) < 2 ^ 4).trans
-        (pow_lt_pow_left₀ Real.exp_one_gt_two (by norm_num) (by decide : (4 : ℕ) ≠ 0))
+      linarith [Real.quadratic_le_exp_of_nonneg (by norm_num : (0 : ℝ) ≤ 4)]
     rw [show (4 : ℝ) * (mu m : ℝ) = (mu m : ℝ) * 4 by ring, Real.exp_nat_mul]
     exact h8.trans_lt (pow_lt_pow_left₀ he4 (by norm_num) (by omega))
 private theorem exists_localMatrix_params {m B : ℕ} (hm : 1 ≤ m) (hB : 1 ≤ B) :
@@ -1137,11 +1036,8 @@ theorem div_greedyRowListLength_le_weight_of_initialTestsRows {n m B : ℕ} (hn 
   have hP : (0 : ℝ) < greedyRowListLength B m := by unfold greedyRowListLength; positivity
   rw [div_le_iff₀ hP, mul_comm]; exact_mod_cast (initialTestsRows_spec hn hB hmn).2.2 z hz0 hz
 
-private theorem two_pow_add_one_le (a : ℕ) : 2 ^ a + 1 ≤ 2 ^ (a + 1) := by
-  have := @Nat.one_le_two_pow a; rw [Nat.pow_succ]; omega
-private theorem mul_two_pow_add_one_le (a b : ℕ) : (2 ^ a + 1) * (2 ^ b + 1) ≤ 2 ^ (a + b + 2) :=
-  (Nat.mul_le_mul (two_pow_add_one_le a) (two_pow_add_one_le b)).trans_eq
-    (by rw [← Nat.pow_add]; congr 1; omega)
+private theorem mul_two_pow_succ_le (a b : ℕ) : (2 ^ a + 1) * (2 ^ b + 1) ≤ 4 * 2 ^ (a + b) := by
+  have := @Nat.one_le_two_pow a; have := @Nat.one_le_two_pow b; rw [Nat.pow_add]; nlinarith
 private theorem linear_mb_le_two_pow (m B : ℕ) :
     2 * m + 2 + B ≤ 2 ^ (B + Nat.log 2 (m + 2) + 4) := by
   set X := B + Nat.log 2 (m + 2)
@@ -1149,21 +1045,16 @@ private theorem linear_mb_le_two_pow (m B : ℕ) :
     (Nat.pow_le_pow_right (by decide : 0 < 2) (by dsimp only [X]; omega))
   have hB : B < 2 ^ (X + 1) := Nat.lt_two_pow_self.trans_le
     (Nat.pow_le_pow_right (by decide : 0 < 2) (by dsimp only [X]; omega))
-  have : 2 ^ (X + 4) = 8 * 2 ^ (X + 1) := by
-    rw [show X + 4 = (X + 1) + 3 by omega, Nat.pow_add]; ring
+  have : 2 ^ (X + 4) = 8 * 2 ^ (X + 1) := by ring
   omega
 private theorem exists_pow_of_polyBounded_mb {u : ℕ × ℕ → ℕ}
     (hu : PolyBounded (fun p => (encMB p).length) u) :
     ∃ E : ℕ × ℕ → ℕ, PolyBounded (fun p => p.2 + Nat.log 2 (p.1 + 2)) E ∧ ∀ p, u p ≤ 2 ^ E p := by
   obtain ⟨c, d, hle⟩ := hu.exists_le
-  refine ⟨fun p => c + d * (p.2 + Nat.log 2 (p.1 + 2) + 4),
-    (PolyBounded.const c).add ((PolyBounded.const d).mul (PolyBounded.self.add (.const 4))),
-    fun p => ?_⟩
-  have hlen : (encMB p).length + 1 = 2 * p.1 + 2 + p.2 := by
-    enc_len [encMB]
+  refine ⟨fun p => c + d * (p.2 + Nat.log 2 (p.1 + 2) + 4), by growth_poly, fun p => ?_⟩
+  have hlen : (encMB p).length + 1 = 2 * p.1 + 2 + p.2 := by enc_len [encMB]
   rw [Nat.pow_add]; refine (hle p).trans (Nat.mul_le_mul Nat.lt_two_pow_self.le ?_)
   rw [Nat.mul_comm, Nat.pow_mul, hlen]; exact Nat.pow_le_pow_left (linear_mb_le_two_pow p.1 p.2) d
-private abbrev encMid := encPair encMB (encPair (encList encBits) (encList encBits))
 
 /-- Native `ComputableInO` certificate for `initialTestsRows` on unary `(m, B)`, proving pure
 `2 ^ q (B + Nat.log 2 (m + 2))` time and `S (m + B)` space. -/
@@ -1174,14 +1065,18 @@ theorem initialTestsRows_computableInO :
         (fun p => 2 ^ q (p.2 + Nat.log 2 (p.1 + 2))) (fun p => S (p.1 + p.2)) := by
   let lenMB (p : ℕ × ℕ) : ℕ := (encMB p).length; let X (p : ℕ × ℕ) : ℕ := p.2 + Nat.log 2 (p.1 + 2)
   have hm_mb := fst encUnary encUnary; have hB_mb := snd encUnary encUnary
-  have hSh := findSmallBiasShifts_cert_aux (encIn := encMB)
+  obtain ⟨cSh, hSh0⟩ := findSmallBiasShifts_cert_aux (encIn := encMB)
     (fun p => ellG p.1 p.2) (fun p => dG p.1 p.2) (fun _ => 1) (fun p => biasDen p.1 p.2)
     (ellG_polyTime hm_mb hB_mb) (dG_polyTime hm_mb hB_mb) (.const 1)
     (unary_to_binary.comp (biasDen_polyTime hm_mb hB_mb))
-  have hLo := findLocalCheckMatrix_cert_aux (encIn := encMB)
+  obtain ⟨cLo, hLo0⟩ := findLocalCheckMatrix_cert_aux (encIn := encMB)
     (fun p => cG p.1 p.2) (fun p => dG p.1 p.2) (fun p => hDist p.1 p.2 + 1)
     (cG_polyTime hm_mb hB_mb) (dG_polyTime hm_mb hB_mb)
     (unary_add' (hDist_polyTime hm_mb hB_mb) (.const 1))
+  have hSh : cSh.ExpTimePolySpace (fun p => dG p.1 p.2 * ellG p.1 p.2 + ellG p.1 p.2) :=
+    hSh0.mono_const 4 fun _ => mul_two_pow_succ_le _ _
+  have hLo : cLo.ExpTimePolySpace (fun p => cG p.1 p.2 * dG p.1 p.2 + dG p.1 p.2) :=
+    hLo0.mono_const 4 fun _ => mul_two_pow_succ_le _ _
   have hMid1 := fst encMB (encPair (encList encBits) (encList encBits))
   have hMid2 := snd encMB (encPair (encList encBits) (encList encBits))
   have hm_mid := hm_mb.comp' hMid1; have hB_mid := hB_mb.comp' hMid1
@@ -1191,41 +1086,34 @@ theorem initialTestsRows_computableInO :
     ((fst (encList encBits) (encList encBits)).comp' hMid2)
     ((snd (encList encBits) (encList encBits)).comp' hMid2)
     (fun x => qG_le_two_mul_add_one x.1.1 x.1.2)
-  obtain ⟨cFull, pT, pS, hpT, hpS, hT, hS⟩ :=
-    (((HasKPolyCert.of_polyTime (of_eq fun _ => rfl)).prod
-      (hSh.prod hLo)).polyPost (fun _ => Nat.le_add_right 1 _) hBuild).congr (fun _ => rfl)
+  have hFull : NativeCertificate.ExpTimePolySpace _ _ :=
+    NativeCertificate.FactorTimePolySpace.congr
+      (((NativeCertificate.expTimePolySpace_ofPolyTime (of_eq fun _ => rfl) (fun _ => 0)).prod
+        (hSh.prod hLo)).comp_ofPolyTime hBuild)
+      (f' := fun p : ℕ × ℕ => initialTestsRows p.1 p.2) fun _ => rfl
+  obtain ⟨e, hcFull⟩ := hFull.computableInO
+  have hpM : Cslib.PolynomiallyBounded (fun n => (n + 1) ^ e) :=
+    (Cslib.PolynomiallyBounded.id.add (.const 1)).pow e
   have hLenSum : PolyBounded (fun p : ℕ × ℕ => p.1 + p.2) lenMB :=
     (((PolyBounded.const 2).mul PolyBounded.self).add (.const 1)).mono fun p => by
       enc_len [lenMB, encMB]
-  obtain ⟨S, hS_poly, hSpace⟩ := ((pOf lenMB hpS).mono hS).comp hLenSum
-  obtain ⟨Ep, hEpP, hEp⟩ := exists_pow_of_polyBounded_mb (pOf lenMB hpT)
+  obtain ⟨S, hS_poly, hSpace⟩ := (pOf lenMB hpM).comp hLenSum
+  obtain ⟨Ep, hEpP, hEp⟩ := exists_pow_of_polyBounded_mb (pOf lenMB hpM)
   have hB_X : PolyBounded X Prod.snd := PolyBounded.self.mono fun _ => by dsimp only [X]; omega
   have hmu_X : PolyBounded X (fun p => mu p.1) :=
     (PolyBounded.self.add (.const 1)).mono fun p => by
       have := Nat.add_le_add_right (Nat.log_mono_right (by omega : p.1 ≤ p.1 + 2) (b := 2)) 1
       dsimp only [X, mu] at this ⊢; omega
-  have hdG_X : PolyBounded X (fun p => dG p.1 p.2) :=
-    (((PolyBounded.const 320000).mul (hB_X.mul hB_X)).mul
-      (hmu_X.mul (hmu_X.mul hmu_X))).mono fun p => by
-      refine (Nat.min_le_right _ _).trans ?_; unfold initialRowWeightBound mu; ring_nf; exact le_rfl
-  have hell_X : PolyBounded X (fun p => ellG p.1 p.2) := hmu_X.mono fun p => ellG_le_mu p.1 p.2
-  have hcG_X : PolyBounded X (fun p => cG p.1 p.2) :=
-    (hdG_X.add (.const 1)).mono fun p => cG_le_dG_add_one p.1 p.2
-  let E1 (p : ℕ × ℕ) : ℕ := dG p.1 p.2 * ellG p.1 p.2 + ellG p.1 p.2 + 2
-  let E2 (p : ℕ × ℕ) : ℕ := cG p.1 p.2 * dG p.1 p.2 + dG p.1 p.2 + 2
-  obtain ⟨q, hq_poly, hEq⟩ := (((((hdG_X.mul hell_X).add hell_X).add (.const 2)).add
-    (((hcG_X.mul hdG_X).add hdG_X).add (.const 2))).add hEpP).add (.const 2)
-  refine ⟨q, S, hq_poly, hS_poly, cFull.computes.mono_le (fun p => ?_) hSpace⟩
-  have h1le := (mul_two_pow_add_one_le (dG p.1 p.2 * ellG p.1 p.2) (ellG p.1 p.2)).trans
-    (Nat.pow_le_pow_right (by decide : 0 < 2) (by dsimp only [E1, E2]; omega : _ ≤ E1 p + E2 p))
-  have h2le := (mul_two_pow_add_one_le (cG p.1 p.2 * dG p.1 p.2) (dG p.1 p.2)).trans
-    (Nat.pow_le_pow_right (by decide : 0 < 2) (by dsimp only [E1, E2]; omega : _ ≤ E1 p + E2 p))
-  have hKsum : 1 + ((2 ^ (dG p.1 p.2 * ellG p.1 p.2) + 1) * (2 ^ ellG p.1 p.2 + 1) +
-      (2 ^ (cG p.1 p.2 * dG p.1 p.2) + 1) * (2 ^ dG p.1 p.2 + 1)) ≤ 2 ^ (E1 p + E2 p + 2) := by
-    rw [Nat.pow_add]; have h0 := @Nat.one_le_two_pow (E1 p + E2 p); omega
-  refine ((hT p).trans (Nat.mul_le_mul hKsum (hEp p))).trans ?_
+  have hdG_X : PolyBounded X (fun p => dG p.1 p.2) := by
+    growth_poly [fun p : ℕ × ℕ => Nat.min_le_right (64 * p.1) (initialRowWeightBound p.1 p.2)]
+  obtain ⟨q, hq_poly, hEq⟩ := (show PolyBounded X
+      (fun p => dG p.1 p.2 * ellG p.1 p.2 + ellG p.1 p.2 +
+        (cG p.1 p.2 * dG p.1 p.2 + dG p.1 p.2) + Ep p) by
+    growth_poly [ellG_le_mu, cG_le_dG_add_one])
+  refine ⟨q, S, hq_poly, hS_poly, hcFull.mono_le (fun p => ?_) hSpace⟩
+  refine (Nat.mul_le_mul_left _ (hEp p)).trans ?_
   rw [← Nat.pow_add]; exact Nat.pow_le_pow_right (by decide : 0 < 2)
-    (by have hEqp := hEq p; dsimp only [X, E1, E2] at hEqp ⊢; omega)
+    (by have := hEq p; dsimp only [X] at this ⊢; omega)
 /-- Triple-input `(n, m, B)` form of `initialTestsRows_computableInO` on unary `(n, m, B)`,
 proving `n + 2 ^ q (B + Nat.log 2 (m + 2))` time (where `+ n` scans past the unary `n` prefix on
 the input tape) and `S (n + m + B)` space. -/
@@ -1252,8 +1140,7 @@ theorem initialTestsRows_computableInO_nmb :
       enc_len [encNMB, encMB]
     have h1 := Nat.pow_le_pow_right (by decide : 0 < 2) (by omega : X + 4 ≤ q X + (X + 4))
     have h2 := Nat.pow_le_pow_right (by decide : 0 < 2) (by omega : q X ≤ q X + (X + 4))
-    have h3 : 2 ^ q' X = 2 * 2 ^ (q X + (X + 4)) := by
-      dsimp only [q']; rw [show q X + (X + 5) = (q X + (X + 4)) + 1 by omega, Nat.pow_succ']
+    have h3 : 2 ^ q' X = 2 * 2 ^ (q X + (X + 4)) := by dsimp only [q']; ring
     have hmb : 2 * p.2.1 + 2 + p.2.2 ≤ 2 ^ (X + 4) := linear_mb_le_two_pow p.2.1 p.2.2; omega
   · change (encNMB p).length + S (p.2.1 + p.2.2) ≤ 2 * (S' (p.1 + p.2.1 + p.2.2) + 1)
     have hs : (encNMB p).length + S (p.2.1 + p.2.2) ≤ S' (p.1 + p.2.1 + p.2.2) := hSpace p; omega

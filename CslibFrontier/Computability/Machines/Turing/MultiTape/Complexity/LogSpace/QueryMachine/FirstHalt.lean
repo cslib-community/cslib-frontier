@@ -29,16 +29,12 @@ theorem exists_first_halt_le {σ : Type} (M : QueryMachine σ) (w : List Bool) (
       (∀ t < T, M.halted (M.runFrom w start t) = false) ∧
       M.runFrom w start T = M.runFrom w start bound := by
   have hex : ∃ t, M.halted (M.runFrom w start t) = true := ⟨bound, hbound⟩
-  let T := Nat.find hex
-  have hT : M.halted (M.runFrom w start T) = true := Nat.find_spec hex
-  have hle : T ≤ bound := Nat.find_min' hex hbound
-  refine ⟨T, hle, hT, ?_, ?_⟩
-  · intro t ht
-    exact Bool.eq_false_iff.mpr (Nat.find_min hex ht)
-  · have hstable := ({ M with init := start } : QueryMachine σ).run_add_of_halted
-      w hT (bound - T)
-    change M.runFrom w start (T + (bound - T)) = M.runFrom w start T at hstable
-    rw [Nat.add_sub_of_le hle] at hstable
-    exact hstable.symm
+  have hT : M.halted (M.runFrom w start (Nat.find hex)) = true := Nat.find_spec hex
+  have hle : Nat.find hex ≤ bound := Nat.find_min' hex hbound
+  refine ⟨Nat.find hex, hle, hT, fun _ ht => Bool.eq_false_iff.mpr (Nat.find_min hex ht), ?_⟩
+  have hstable : M.runFrom w start (Nat.find hex + (bound - Nat.find hex)) =
+      M.runFrom w start (Nat.find hex) :=
+    ({ M with init := start } : QueryMachine σ).run_add_of_halted w hT (bound - Nat.find hex)
+  rwa [Nat.add_sub_of_le hle, eq_comm] at hstable
 
 end Turing.QueryMachine

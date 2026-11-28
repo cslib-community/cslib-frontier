@@ -90,8 +90,8 @@ theorem isPPT_trapdoorHalfPredictor : trapdoorHalfPredictor.IsPPT := by
       (ComputableInPolyTime.const 33)
   have hbit : ComputableInPolyTime
       (fun x : RSAInput => (2 * rsaInvert 33 7 x.challenge % 33).testBit 0) encRSAInput encBool :=
-    .of_tidy (ComputableTidilyInPolyTime.binary_testBit hval.tidy
-      (ComputableTidilyInPolyTime.const 0))
+    (ComputableInPolyTime.binary_testBit hval
+      (ComputableInPolyTime.const 0))
   exact hbit.isPPTOn
 
 -- On the constant generator of `desc33`, the inverter built from the half oracle wins the RSA

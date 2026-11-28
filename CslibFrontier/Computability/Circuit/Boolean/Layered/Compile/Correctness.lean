@@ -50,15 +50,13 @@ private theorem valid_prepareLayer (p : Program signature n g) (k width : ℕ)
     (hready : ∀ w : Wire n g, p.wireDepths w ≤ k → w.toNat < width) :
     ∀ node ∈ prepareLayer n p.code (wireDepthsCode n p.code) (k + 1), node.Valid width := by
   have hargs (j : ℕ) (hj : j < p.code.length)
-      (hlevel : (wireDepthsCode n p.code).getD (n + j) 0 = k + 1) :
-      ∀ a, ((p.lines ⟨j, hj.trans_eq p.length_code⟩).wires a).toNat < width := by
-    let index : Fin g := ⟨j, hj.trans_eq p.length_code⟩
-    have hdepth := wireDepthsCode_getD_toNat p (.gate index)
-    change (wireDepthsCode n p.code).getD (n + j) 0 = p.depths index at hdepth
-    intro a
-    apply hready
-    exact Nat.le_of_lt_succ ((p.wireDepths_lines_lt index a).trans_eq
-      (hdepth.symm.trans hlevel))
+      (hlevel : (wireDepthsCode n p.code).getD (n + j) 0 = k + 1) (a) :
+      ((p.lines ⟨j, hj.trans_eq p.length_code⟩).wires a).toNat < width := by
+    let idx : Fin g := ⟨j, hj.trans_eq p.length_code⟩
+    have hdepth : (wireDepthsCode n p.code).getD (n + j) 0 = p.depths idx :=
+      wireDepthsCode_getD_toNat p (.gate idx)
+    exact hready _ (Nat.le_of_lt_succ
+      ((p.wireDepths_lines_lt idx a).trans_eq (hdepth.symm.trans hlevel)))
   intro node hnode
   simp only [prepareLayer, List.mem_append, List.mem_map, List.mem_range] at hnode
   rcases hnode with (⟨i, hi, rfl⟩ | ⟨j, hj, rfl⟩) | ⟨j, hj, rfl⟩
@@ -67,16 +65,15 @@ private theorem valid_prepareLayer (p : Program signature n g) (k width : ℕ)
     · let w : Wire n g := Wire.ofNat i (hi.trans_eq (congrArg (n + ·) p.length_code))
       have hdepth := wireDepthsCode_getD_toNat p w
       simp only [w, Wire.toNat_ofNat] at hdepth
-      have := hready w (Nat.le_of_lt_succ (hdepth ▸ h))
-      simpa only [Node.Valid, w, Wire.toNat_ofNat] using this
+      simpa only [Node.Valid, w, Wire.toNat_ofNat] using hready w (Nat.le_of_lt_succ (hdepth ▸ h))
     · trivial
   · split_ifs with h
-    · rw [Program.getD_code p ⟨j, hj.trans_eq p.length_code⟩ (.const false, [])]
-      exact valid_prepareFirst _ (hargs j hj h)
+    · exact Program.getD_code p ⟨j, hj.trans_eq p.length_code⟩ (.const false, []) ▸
+        valid_prepareFirst _ (hargs j hj h)
     · trivial
   · split_ifs with h
-    · rw [Program.getD_code p ⟨j, hj.trans_eq p.length_code⟩ (.const false, [])]
-      exact valid_prepareSecond _ (hargs j hj h)
+    · exact Program.getD_code p ⟨j, hj.trans_eq p.length_code⟩ (.const false, []) ▸
+        valid_prepareSecond _ (hargs j hj h)
     · trivial
 
 private theorem valid_finishLayer (inputCount : ℕ) (gates : List (Op × List ℕ))
@@ -87,8 +84,7 @@ private theorem valid_finishLayer (inputCount : ℕ) (gates : List (Op × List �
   simp only [finishLayer, List.mem_append, List.mem_map, List.mem_range,
     List.mem_replicate] at hnode
   rcases hnode with (⟨i, hi, rfl⟩ | ⟨j, hj, rfl⟩) | ⟨_, rfl⟩
-  · change i < inputCount + 3 * gates.length
-    omega
+  · exact Nat.lt_add_right _ hi
   · split_ifs with h
     · exact valid_finish _ _ hj _
     · unfold carry
@@ -109,33 +105,26 @@ private theorem eval_round (p : Program signature n g) (x : Fin n → Bool)
   intro w hw
   cases w with
   | input i =>
+    have hdepth : (wireDepthsCode n p.code).getD i 0 = 0 := wireDepthsCode_getD_toNat p (.input i)
     rw [Wire.toNat_input, getD_eval_finishLayer_input _ _ _ _ _ i.isLt,
-      getD_eval_prepareLayer_main _ _ _ _ _ (by omega)]
-    have hdepth := wireDepthsCode_getD_toNat p (.input i)
-    change (wireDepthsCode n p.code).getD i 0 = 0 at hdepth
-    rw [carry, hdepth, ite_eq_left (by omega), Node.eval]
+      getD_eval_prepareLayer_main _ _ _ _ _ (by omega), carry, hdepth, ite_eq_left (by omega)]
     exact hvalues (.input i) (Nat.zero_le _)
   | gate j =>
     have hj : j.val < p.code.length := j.isLt.trans_eq p.length_code.symm
-    have hdepth := wireDepthsCode_getD_toNat p (.gate j)
-    change (wireDepthsCode n p.code).getD (n + j.val) 0 = p.depths j at hdepth
-    change p.depths j ≤ k + 1 at hw
+    have hdepth : (wireDepthsCode n p.code).getD (n + j.val) 0 = p.depths j :=
+      wireDepthsCode_getD_toNat p (.gate j)
     rw [Wire.toNat_gate, getD_eval_finishLayer_gate _ _ _ _ _ hj, hdepth]
     by_cases hactive : p.depths j = k + 1
-    · rw [ite_eq_left hactive, Program.getD_code p j (.const false, []), Line.code_fst]
-      rw [finish_prepare_eq _ _ _ _ hj (p.lines j)
-        (Program.getD_code p j (.const false, [])) (hdepth.trans hactive)]
-      have hargs : (fun a => inputs.getD ((p.lines j).wires a).toNat false) =
-          (fun a => p.trace interpretation x ((p.lines j).wires a)) := by
-        funext a
-        apply hvalues
-        exact Nat.le_of_lt_succ ((p.wireDepths_lines_lt j a).trans_eq hactive)
-      rw [hargs]
+    · have hargs : (fun a => inputs.getD ((p.lines j).wires a).toNat false) =
+          fun a => p.trace interpretation x ((p.lines j).wires a) :=
+        funext fun a => hvalues _ (Nat.le_of_lt_succ ((p.wireDepths_lines_lt j a).trans_eq hactive))
+      rw [ite_eq_left hactive, Program.getD_code p j (.const false, []), Line.code_fst,
+        finish_prepare_eq _ _ _ _ hj (p.lines j) (Program.getD_code p j (.const false, []))
+          (hdepth.trans hactive), hargs]
       exact p.lines_eval interpretation x j
-    · have hlt : p.depths j < k + 1 := by omega
+    · have hlt : p.depths j < k + 1 := Nat.lt_of_le_of_ne hw hactive
       rw [ite_eq_right hactive, carry, hdepth, ite_eq_left hlt, Node.eval,
-        getD_eval_prepareLayer_main _ _ _ _ _ (by omega), carry, hdepth,
-        ite_eq_left hlt, Node.eval]
+        getD_eval_prepareLayer_main _ _ _ _ _ (by omega), carry, hdepth, ite_eq_left hlt]
       exact hvalues (.gate j) (Nat.le_of_lt_succ hlt)
 
 /-- Once a positive number of rounds has run, the row has the full working width. -/
@@ -157,25 +146,21 @@ private theorem schedule_correct (p : Program signature n g) (x : Fin n → Bool
     refine ⟨trivial, fun w hw => ?_⟩
     cases w with
     | input i => simp [schedule_zero, eval_nil, Wire.toNat_input, Program.trace_input]
-    | gate j =>
-      have := p.depths_pos j
-      change p.depths j ≤ 0 at hw
-      omega
+    | gate j => exact absurd hw (not_le_of_gt (p.depths_pos j))
   | succ k ih =>
-    have hprepare := valid_prepareLayer p k _ (fun w hw => (ih.2 w hw).1)
-    have hfinish := valid_finishLayer n p.code (wireDepthsCode n p.code) (k + 1)
-    have hvalues := eval_round p x k _ (fun w hw => (ih.2 w hw).2)
+    have hprepare := valid_prepareLayer p k _ fun w hw => (ih.2 w hw).1
     refine ⟨?_, fun w hw => ⟨?_, ?_⟩⟩
     · rw [schedule_succ, wellFormed_append]
       refine ⟨ih.1, ?_⟩
       simpa only [wellFormed_cons, wellFormed_nil, and_true, length_prepareLayer,
-        length_eval, List.length_ofFn] using And.intro hprepare hfinish
+        length_eval, List.length_ofFn] using
+          And.intro hprepare (valid_finishLayer n p.code (wireDepthsCode n p.code) (k + 1))
     · rw [length_eval_schedule]
       have := w.toNat_lt
       have := p.length_code
       omega
     · rw [schedule_succ, eval_append, eval_cons, eval_cons, eval_nil]
-      exact hvalues w hw
+      exact eval_round p x k _ (fun w hw => (ih.2 w hw).2) w hw
 
 /-- Every compiled reference reads an available preceding-layer wire, including at depth zero. -/
 private theorem wellFormed_schedule (p : Program signature n g) (k : ℕ) :
@@ -211,12 +196,12 @@ theorem outputs_valid_compile (c : Circuit signature n m) :
     ∀ i ∈ (compile n c.code).2, i < outputWidth n (compile n c.code).1 := by
   intro i hi
   obtain ⟨j, rfl⟩ := List.mem_ofFn.1 hi
-  have h := toNat_lt_length_eval_schedule c.program (fun _ => false) c.depth (c.outputs j)
-    (output_depth_le c j)
   change (c.outputs j).toNat < outputWidth n
     (schedule n c.program.code (wireDepthsCode n c.program.code) (depthCode n c.code))
   rw [depthCode_code]
-  simpa only [length_eval, List.length_ofFn] using h
+  simpa only [length_eval, List.length_ofFn] using
+    toNat_lt_length_eval_schedule c.program (fun _ => false) c.depth (c.outputs j)
+      (output_depth_le c j)
 
 /-- Compilation preserves every output's Boolean value, in order and with repetitions. -/
 theorem readPositions_eval_compile (c : Circuit signature n m) (x : Fin n → Bool) :

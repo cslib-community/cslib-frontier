@@ -44,8 +44,8 @@ theorem size_boundaryIndexMap_le (M N : ℕ) (shift : ℕ → ℕ) (h : ∀ j, s
       max v.size (2 * (M + N)).size := by
   unfold boundaryIndexMap
   split_ifs
-  · have hs := h (v / 2 - M)
-    have hb := Nat.mod_lt v (by decide : 0 < 2)
+  · have := h (v / 2 - M)
+    have := Nat.mod_lt v (by decide : 0 < 2)
     exact (Nat.size_le_size (by omega)).trans (le_max_right _ _)
   · exact le_max_left _ _
 
@@ -64,48 +64,37 @@ private theorem blockMove_up_slot (M N : ℕ) (hN : 1 < N) (j : Fin N)
     Nat.blockMove (2 * M) (2 * (N - 1)) 2 (2 * (M + j.val) + bit) =
       2 * (M + ((j.val + 1) % N)) + bit := by
   let k : Fin (2 * (N - 1) + 2) := ⟨2 * j.val + bit, by have := j.isLt; omega⟩
-  have hindex : 2 * M + k.val = 2 * (M + j.val) + bit := by dsimp [k]; omega
-  rw [← hindex, Nat.blockMove_eq_finAddFlip]
+  rw [show 2 * (M + j.val) + bit = 2 * M + k.val by dsimp [k]; omega, Nat.blockMove_eq_finAddFlip]
   by_cases hj : j.val + 1 = N
-  · have hcut : 2 * (N - 1) ≤ k.val := by dsimp [k]; omega
-    rw [finAddFlip_apply_mk_right hcut k.isLt]
-    change 2 * M + (k.val - 2 * (N - 1)) =
-      2 * (M + ((j.val + 1) % N)) + bit
-    rw [hj, Nat.mod_self]
-    dsimp [k]
-    omega
+  · rw [finAddFlip_apply_mk_right (by dsimp [k]; omega) k.isLt, hj, Nat.mod_self]
+    change 2 * M + (k.val - 2 * (N - 1)) = _
+    dsimp [k]; omega
   · have hcut : k.val < 2 * (N - 1) := by
       have := j.isLt
-      dsimp [k]
-      omega
-    rw [finAddFlip_apply_mk_left hcut]
-    change 2 * M + (2 + k.val) = 2 * (M + ((j.val + 1) % N)) + bit
-    rw [Nat.mod_eq_of_lt (by have := j.isLt; omega)]
-    dsimp [k]
-    omega
+      dsimp [k]; omega
+    rw [finAddFlip_apply_mk_left hcut,
+      Nat.mod_eq_of_lt (by have := j.isLt; omega)]
+    change 2 * M + (2 + k.val) = _
+    dsimp [k]; omega
 
 private theorem blockMove_down_slot (M N : ℕ) (hN : 1 < N) (j : Fin N)
     (bit : ℕ) (hbit : bit < 2) :
     Nat.blockMove (2 * M) 2 (2 * (N - 1)) (2 * (M + j.val) + bit) =
       2 * (M + ((j.val + N - 1) % N)) + bit := by
   let k : Fin (2 + 2 * (N - 1)) := ⟨2 * j.val + bit, by have := j.isLt; omega⟩
-  have hindex : 2 * M + k.val = 2 * (M + j.val) + bit := by dsimp [k]; omega
-  rw [← hindex, Nat.blockMove_eq_finAddFlip]
+  rw [show 2 * (M + j.val) + bit = 2 * M + k.val by dsimp [k]; omega, Nat.blockMove_eq_finAddFlip]
   by_cases hj : j.val = 0
   · have hcut : k.val < 2 := by dsimp [k]; omega
-    rw [finAddFlip_apply_mk_left hcut]
-    change 2 * M + (2 * (N - 1) + k.val) =
-      2 * (M + ((j.val + N - 1) % N)) + bit
-    rw [hj, Nat.zero_add, Nat.mod_eq_of_lt (by omega)]
-    dsimp [k]
-    omega
+    rw [finAddFlip_apply_mk_left hcut, hj, Nat.zero_add,
+      Nat.mod_eq_of_lt (by omega)]
+    change 2 * M + (2 * (N - 1) + k.val) = _
+    dsimp [k]; omega
   · have hcut : 2 ≤ k.val := by dsimp [k]; omega
-    rw [finAddFlip_apply_mk_right hcut k.isLt]
-    change 2 * M + (k.val - 2) = 2 * (M + ((j.val + N - 1) % N)) + bit
-    have he : j.val + N - 1 = N + (j.val - 1) := by omega
-    rw [he, Nat.add_mod_left, Nat.mod_eq_of_lt (by have := j.isLt; omega)]
-    dsimp [k]
-    omega
+    rw [finAddFlip_apply_mk_right hcut k.isLt,
+      show j.val + N - 1 = N + (j.val - 1) by omega, Nat.add_mod_left,
+      Nat.mod_eq_of_lt (by have := j.isLt; omega)]
+    change 2 * M + (k.val - 2) = _
+    dsimp [k]; omega
 
 private theorem blockMove_window (M N : ℕ) (hN : 1 < N) (i : ℕ) :
     Nat.blockMove (2 * M) (2 * (N - 1)) 2 i =
@@ -155,9 +144,7 @@ theorem rotateBoundaryCertificateRight_eq_reindex_mod (M N : ℕ)
   unfold rotateBoundaryCertificateRight
   split_ifs with hshort
   · rfl
-  · have hN : 1 < N := by omega
-    have hu := funext fun i => (blockMove_window M N hN i).1
-    have hd := funext fun i => (blockMove_window M N hN i).2
-    rw [hu, hd]
+  · rw [funext fun i => (blockMove_window M N (by omega) i).1,
+      funext fun i => (blockMove_window M N (by omega) i).2]
 
 end Cslib.Complexity.CSP.OrderedBoundary

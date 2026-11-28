@@ -13,6 +13,8 @@ public import CslibFrontier.Foundations.Probability.Gaussian.Measure
 public import CslibFrontier.Foundations.Probability.Gaussian.Smoothing
 public import Mathlib.MeasureTheory.Measure.TotalVariation.Basic
 
+import CslibFrontier.Foundations.MeasureTheory.Measure.TotalVariation.Map
+
 /-!
 # Continuous Gaussian distributions modulo a lattice
 
@@ -25,15 +27,24 @@ measurability and the existing nonzero dual Gaussian mass.
 * `ZLattice.automorphize_gaussianWeight_coe`: the representative-to-center convention.
 * `ZLattice.map_gaussianWeight_eq_withDensity`: the density of the actual Gaussian pushforward.
 * `ZLattice.tvDist_gaussian_quotient_le`: its full-L1 error is at most the actual nonzero dual mass.
+* `ZLattice.tvDist_gaussian_shift_quotient_le`: arbitrary-center uniformity modulo `L`
+  ([MicciancioRegev2007], Lemma 4.1, dual-mass form in full-L1 `tvDist`).
 * `ZLattice.eventually_tvDist_gaussian_quotient_le`: every positive error is eventually achieved.
+* `ZLattice.tvDist_gaussian_shift_quotient_le_of_smoothingParameter_le`: smoothing-parameter
+  conversion of `tvDist_gaussian_shift_quotient_le` ([MicciancioRegev2007], Lemma 4.1, arbitrary
+  center `c`, full-L1 `tvDist ≤ ε`).
 
 ## References
 
 The Gaussian is the normalized density of [Regev2009], equation (5), printed page 13 of the
 May 2, 2009 author version. The source's statistical distance on that page is full L1, with
-range `[0, 2]`, matching Mathlib's `tvDist`. The quotient statement is a precise consequence
-of Claim 3.8 (page 22) and its informal motivation (page 17), not a uniform probability on
-all of real space, a minimum smoothing parameter, a sampler, or the quantum reduction.
+range `[0, 2]`, matching Mathlib's `tvDist`. The arbitrary-center quotient bound formalizes
+[MicciancioRegev2007], Lemma 4.1 (p. 12 of the December 27, 2005 author version), where the
+source's half-L1 statistical distance `Δ ≤ (1 / 2) * ρ_{1/s}(L* \ {0})` corresponds to
+`tvDist = 2 * Δ ≤ ρ_{1/s}(L* \ {0})`. The centered quotient bound is stated in dual-mass form
+(`tvDist_gaussian_quotient_le`, used for [Regev2009]), while the arbitrary-center quotient bound is
+stated in dual-mass form and restated under `η_ε(L) ≤ s` via `ZLattice.smoothingParameter`
+([MicciancioRegev2007], Definition 3.1, p. 10). They are not a sampler or the quantum reduction.
 -/
 
 public section
@@ -99,13 +110,9 @@ theorem map_gaussianWeight_eq_withDensity (s : ℝ) (hs : 0 < s) {F : Set E}
   rw [QuotientAddGroup.map_withDensity_eq_withDensity_automorphize hF hf,
     withDensity_smul_measure, ← withDensity_smul' _ _
       (ENNReal.inv_ne_top.mpr (ENNReal.ofReal_pos.mpr hc).ne')]
-  apply congrArg (fun f : E ⧸ L.toAddSubgroup → ℝ≥0∞ ↦
-    (Measure.map (QuotientAddGroup.mk : E → E ⧸ L.toAddSubgroup)
-      (volume.restrict F)).withDensity f)
-  funext y
-  simp only [Pi.smul_apply, smul_eq_mul]
-  rw [automorphize_gaussianWeight_div L s hs y, ← ENNReal.ofReal_inv_of_pos hc,
-    ← ENNReal.ofReal_mul (inv_nonneg.mpr hc.le)]
+  refine congrArg _ (funext fun y => ?_)
+  rw [Pi.smul_apply, smul_eq_mul, automorphize_gaussianWeight_div L s hs y,
+    ← ENNReal.ofReal_inv_of_pos hc, ← ENNReal.ofReal_mul (inv_nonneg.mpr hc.le)]
   congr 1
   field_simp
 
@@ -129,46 +136,87 @@ theorem tvDist_gaussian_quotient_le (s : ℝ) (hs : 0 < s) {F : Set E}
   have : IsProbabilityMeasure U := isProbabilityMeasure_normalized_quotient L volume hF
   have hmap : Measure.map q ν = U.withDensity f := map_gaussianWeight_eq_withDensity L s hs hF
   have : IsProbabilityMeasure (U.withDensity f) := by rw [← hmap]; infer_instance
-  have hA : Measurable A := by
-    apply QuotientAddGroup.measurable_from_quotient.mpr
-    change Measurable (fun x : E ↦ covolume L / s ^ finrank ℝ E *
-      QuotientAddGroup.automorphize (gaussianWeight s)
-        (QuotientAddGroup.mk x : E ⧸ L.toAddSubgroup))
-    simp only [automorphize_gaussianWeight_coe]
-    exact (continuous_const.mul
-      ((continuous_gaussianMass L s hs).comp continuous_neg)).measurable
+  have hA : Measurable A := QuotientAddGroup.measurable_from_quotient.mpr <| by
+    simpa only [Function.comp_def, A, automorphize_gaussianWeight_coe] using
+      (((continuous_gaussianMass L s hs).comp continuous_neg).const_mul _).measurable
   have hf : Measurable f := hA.ennreal_ofReal
   have hlin : ∫⁻ y, f y ∂U = 1 := by
     simpa only [withDensity_apply f MeasurableSet.univ, Measure.restrict_univ] using
       (measure_univ (μ := U.withDensity f))
-  have hfi : Integrable f U := by
-    refine ⟨hf.aestronglyMeasurable, ?_⟩
-    rw [hasFiniteIntegral_iff_eNorm]
-    simpa only [eNorm_eq_self, hlin] using (show (1 : ℝ≥0∞) < ∞ by simp)
+  have hfi : Integrable f U :=
+    ⟨hf.aestronglyMeasurable, hasFiniteIntegral_iff_eNorm.mpr (by simp [hlin])⟩
   have hbound (y : E ⧸ L.toAddSubgroup) : |1 - (f y).toReal| ≤
       gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ E) L) (1 / s) 0 - 1 := by
     induction y using Quotient.inductionOn with | _ x
-    have hpos : 0 ≤ A (QuotientAddGroup.mk x : E ⧸ L.toAddSubgroup) := by
-      dsimp only [A]
-      rw [automorphize_gaussianWeight_coe]
-      exact mul_nonneg (div_pos (covolume_pos L volume) (pow_pos hs _)).le
-        (gaussianMass_pos L s hs (-x)).le
-    rw [show (f (QuotientAddGroup.mk x : E ⧸ L.toAddSubgroup)).toReal =
-      A (QuotientAddGroup.mk x : E ⧸ L.toAddSubgroup) from ENNReal.toReal_ofReal hpos,
-      abs_sub_comm]
-    simpa only [A, automorphize_gaussianWeight_coe] using
-      abs_gaussianMass_normalized_sub_one_le L s hs (-x)
+    have hpos : 0 ≤ covolume L / s ^ finrank ℝ E * gaussianMass L s (-x) := by
+      positivity [covolume_pos L volume, gaussianMass_pos L s hs (-x)]
+    simpa only [f, A, automorphize_gaussianWeight_coe, ENNReal.toReal_ofReal hpos, abs_sub_comm]
+      using abs_gaussianMass_normalized_sub_one_le L s hs (-x)
   change tvDist (Measure.map q ν) U ≤ _
   rw [hmap, tvDist_withDensity_self_eq_integral hfi]
-  calc
-    _ ≤ ∫ _ : E ⧸ L.toAddSubgroup,
-        gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ E) L) (1 / s) 0 - 1 ∂U := by
-      apply integral_mono
-      · exact ((integrable_const (1 : ℝ)).sub
-          (integrable_toReal_of_lintegral_ne_top hf.aemeasurable (by rw [hlin]; simp))).abs
-      · exact integrable_const _
-      · exact hbound
-    _ = _ := by simp
+  refine (integral_mono ((integrable_const (1 : ℝ)).sub
+    (integrable_toReal_of_lintegral_ne_top hf.aemeasurable (by rw [hlin]; simp))).abs
+    (integrable_const _) hbound).trans_eq (by simp)
+
+/-- Shifting the center of the continuous Gaussian density is pushing forward by translation. -/
+private theorem map_add_gaussianWeight_withDensity (s : ℝ) (c : E) :
+    Measure.map (fun x : E ↦ x + c)
+      (volume.withDensity
+        (fun x : E ↦ ENNReal.ofReal (gaussianWeight s x / s ^ finrank ℝ E))) =
+    volume.withDensity
+      (fun x : E ↦ ENNReal.ofReal (gaussianWeight s (x - c) / s ^ finrank ℝ E)) := by
+  ext A hA
+  rw [Measure.map_apply (measurable_add_const c) hA,
+    withDensity_apply _ ((measurable_add_const c) hA), withDensity_apply _ hA,
+    ← lintegral_indicator ((measurable_add_const c) hA), ← lintegral_sub_right_eq_self _ c,
+    ← lintegral_indicator hA]
+  congr 1 with y
+  by_cases hy : y ∈ A <;> simp [hy]
+
+/-- Dual-mass form of [MicciancioRegev2007], Lemma 4.1 (p. 12 of the December 27, 2005 author
+version): for any width `s > 0` and arbitrary center `c : E`, the full-L1 distance
+(`tvDist = 2 * Δ ∈ [0, 2]`) between the shifted continuous Gaussian `D_{s, c}` modulo `L` and
+normalized quotient Haar measure is at most the nonzero reciprocal-width dual Gaussian mass
+`ρ_{1/s}(L* \ {0})`. In [MicciancioRegev2007]'s half-L1 convention `Δ = (1 / 2) * tvDist`, this
+yields `Δ ≤ (1 / 2) * ρ_{1/s}(L* \ {0}) ≤ ε / 2` whenever `s ≥ η_ε(L)`. -/
+theorem tvDist_gaussian_shift_quotient_le (s : ℝ) (hs : 0 < s) (c : E) {F : Set E}
+    (hF : IsAddFundamentalDomain L.toAddSubgroup.op F volume) :
+    tvDist
+      (Measure.map (QuotientAddGroup.mk : E → E ⧸ L.toAddSubgroup)
+        (volume.withDensity
+          (fun x : E ↦ ENNReal.ofReal (gaussianWeight s (x - c) / s ^ finrank ℝ E))))
+      ((ENNReal.ofReal (covolume L))⁻¹ •
+        Measure.map (QuotientAddGroup.mk : E → E ⧸ L.toAddSubgroup) (volume.restrict F)) ≤
+      gaussianMass (LinearMap.BilinForm.dualSubmodule (innerₗ E) L) (1 / s) 0 - 1 := by
+  let q : E → E ⧸ L.toAddSubgroup := QuotientAddGroup.mk
+  let ν₀ := volume.withDensity
+    (fun x : E ↦ ENNReal.ofReal (gaussianWeight s x / s ^ finrank ℝ E))
+  let U := (ENNReal.ofReal (covolume L))⁻¹ • Measure.map q (volume.restrict F)
+  have _ : IsProbabilityMeasure ν₀ := isProbabilityMeasure_gaussianWeight s hs
+  have _ : IsProbabilityMeasure U := isProbabilityMeasure_normalized_quotient L volume hF
+  have _ : Measure.IsAddLeftInvariant U := isAddLeftInvariant_normalized_quotient L volume hF
+  have hq : Measurable q := QuotientAddGroup.measurable_coe
+  have hshift :
+      Measure.map q
+        (volume.withDensity
+          (fun x : E ↦ ENNReal.ofReal (gaussianWeight s (x - c) / s ^ finrank ℝ E))) =
+      Measure.map (fun y : E ⧸ L.toAddSubgroup ↦ q c + y) (Measure.map q ν₀) := by
+    rw [← map_add_gaussianWeight_withDensity s c,
+      Measure.map_map hq (measurable_add_const c),
+      Measure.map_map (measurable_const_add (q c)) hq]
+    exact congrArg₂ Measure.map
+      (funext fun x => by simp [q, QuotientAddGroup.mk_add, add_comm]) rfl
+  have hU : Measure.map (fun y : E ⧸ L.toAddSubgroup ↦ q c + y) U = U :=
+    map_add_left_eq_self U (q c)
+  change tvDist
+    (Measure.map q
+      (volume.withDensity
+        (fun x : E ↦ ENNReal.ofReal (gaussianWeight s (x - c) / s ^ finrank ℝ E)))) U ≤ _
+  rw [hshift, ← hU]
+  have _ : IsProbabilityMeasure (Measure.map q ν₀) :=
+    ⟨by rw [Measure.map_apply hq MeasurableSet.univ, Set.preimage_univ, measure_univ]⟩
+  exact (tvDist_map_le (Measure.map q ν₀) U (measurable_const_add (q c))).trans
+    (tvDist_gaussian_quotient_le L s hs hF)
 
 /-- Every positive full-L1 error is achieved by all sufficiently large positive Gaussian widths. -/
 theorem eventually_tvDist_gaussian_quotient_le {F : Set E}
@@ -181,5 +229,21 @@ theorem eventually_tvDist_gaussian_quotient_le {F : Set E}
           Measure.map (QuotientAddGroup.mk : E → E ⧸ L.toAddSubgroup) (volume.restrict F)) ≤ ε := by
   filter_upwards [eventually_gaussianMass_dual_sub_one_le L ε hε] with s hs
   exact ⟨hs.1, (tvDist_gaussian_quotient_le L s hs.1 hF).trans hs.2⟩
+
+/-- Smoothing-parameter conversion of `tvDist_gaussian_shift_quotient_le`: full-`L¹` distance of an
+arbitrary-center continuous Gaussian modulo `L` from normalized quotient Haar measure above the
+smoothing parameter ([MicciancioRegev2007], Lemma 4.1, p. 12 of the December 27, 2005 author's
+copy; full-`L¹` `tvDist ≤ ε` corresponds to half-`L¹` statistical distance `Δ ≤ ε / 2`). -/
+theorem tvDist_gaussian_shift_quotient_le_of_smoothingParameter_le (s : ℝ) (hs : 0 < s) (c : E)
+    {F : Set E} (hF : IsAddFundamentalDomain L.toAddSubgroup.op F volume)
+    (ε : ℝ) (hε : 0 < ε) (hη : smoothingParameter L ε ≤ s) :
+    tvDist
+      (Measure.map (QuotientAddGroup.mk : E → E ⧸ L.toAddSubgroup)
+        (volume.withDensity
+          (fun x : E ↦ ENNReal.ofReal (gaussianWeight s (x - c) / s ^ finrank ℝ E))))
+      ((ENNReal.ofReal (covolume L))⁻¹ •
+        Measure.map (QuotientAddGroup.mk : E → E ⧸ L.toAddSubgroup) (volume.restrict F)) ≤ ε :=
+  (tvDist_gaussian_shift_quotient_le L s hs c hF).trans
+    ((smoothingParameter_le_iff L hs hε).mp hη)
 
 end ZLattice

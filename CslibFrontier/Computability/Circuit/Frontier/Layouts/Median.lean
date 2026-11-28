@@ -45,6 +45,7 @@ bounds the width.
 
 ## Main definitions
 
+* `Cslib.Circuits.Frontier.StraddlesOn`: scores straddle a threshold on a set.
 * `Cslib.Circuits.Frontier.Multigraph.EdgeStraddles`: a vertex straddles a threshold.
 * `Cslib.Circuits.Frontier.Multigraph.IsMedian`: a median of the scores of the edges at a
   vertex.
@@ -63,6 +64,18 @@ namespace Cslib.Circuits.Frontier
 
 open Set
 
+/-- Scores `score` *straddle* a threshold `t` on a set `S`: some element of `S` scores below `t`
+and some element of `S` scores at least `t`. -/
+def StraddlesOn {ι α : Type*} [LinearOrder α] (score : ι → α) (t : α) (S : Set ι) : Prop :=
+  (∃ f ∈ S, score f < t) ∧ (∃ f ∈ S, t ≤ score f)
+
+/-- Whether `score` straddles `t` on `S` depends only on the values of `score` on `S`. -/
+theorem straddlesOn_congr {ι α : Type*} [LinearOrder α] {score score' : ι → α} {t : α}
+    {S : Set ι} (h : ∀ f ∈ S, score f = score' f) :
+    StraddlesOn score t S ↔ StraddlesOn score' t S :=
+  and_congr (exists_congr fun f => and_congr_right fun hf => by rw [h f hf])
+    (exists_congr fun g => and_congr_right fun hg => by rw [h g hg])
+
 namespace Multigraph
 
 variable {V E : Type*} (G : Multigraph V E) {α : Type*} [LinearOrder α]
@@ -70,7 +83,7 @@ variable {V E : Type*} (G : Multigraph V E) {α : Type*} [LinearOrder α]
 /-- The vertex `v` *straddles* the threshold `t` under the edge scores `score`: an edge at `v`
 scores below `t` and another scores at least `t`. -/
 def EdgeStraddles (score : E → α) (t : α) (v : V) : Prop :=
-  ∃ e ∈ G.incidenceSet v, score e < t ∧ ∃ e' ∈ G.incidenceSet v, t ≤ score e'
+  StraddlesOn score t (G.incidenceSet v)
 
 /-- `m` is a *median* of the scores of the edges at `v`: at least two edges at `v` score at most
 `m`, and at least two score at least `m`. -/
@@ -83,10 +96,8 @@ variable {G}
 /-- Whether `v` straddles `t` depends only on the scores of the edges at `v`. -/
 theorem edgeStraddles_congr {score score' : E → α} {t : α} {v : V}
     (h : ∀ e ∈ G.incidenceSet v, score e = score' e) :
-    G.EdgeStraddles score t v ↔ G.EdgeStraddles score' t v := by
-  constructor <;> rintro ⟨e, he, hlt, e', he', hle⟩
-  · exact ⟨e, he, by rwa [← h e he], e', he', by rwa [← h e' he']⟩
-  · exact ⟨e, he, by rwa [h e he], e', he', by rwa [h e' he']⟩
+    G.EdgeStraddles score t v ↔ G.EdgeStraddles score' t v :=
+  straddlesOn_congr h
 
 /-- **Medians exist.** At a vertex with three edges, the median of their three scores is a
 median. -/
@@ -97,14 +108,12 @@ theorem exists_isMedian {v : V} (hv : (G.incidenceSet v).ncard = 3) (score : E �
   -- Counting the edges at `v` with a property.
   have hcount (p : E → Prop) [DecidablePred p] : {e ∈ G.incidenceSet v | p e}.ncard =
       (if p e₀ then 1 else 0) + (if p e₁ then 1 else 0) + (if p e₂ then 1 else 0) := by
-    have : {e ∈ G.incidenceSet v | p e} = ↑(({e₀, e₁, e₂} : Finset E).filter p) := by
-      ext e
-      simp [hs]
+    have : {e ∈ G.incidenceSet v | p e} = ↑(({e₀, e₁, e₂} : Finset E).filter p) :=
+      Set.ext fun e => by simp [hs]
     rw [this, ncard_coe_finset, Finset.card_filter, Finset.sum_insert (by simp [h01, h02]),
       Finset.sum_insert (by simp [h12]), Finset.sum_singleton, add_assoc]
-  obtain ⟨h₁, h₂⟩ := two_le_median3 (score e₀) (score e₁) (score e₂)
-  refine ⟨median3 (score e₀) (score e₁) (score e₂), ?_, ?_⟩ <;> rw [hcount]
-  exacts [h₁, h₂]
+  refine ⟨median3 (score e₀) (score e₁) (score e₂), ?_⟩
+  simpa only [IsMedian, hcount] using two_le_median3 (score e₀) (score e₁) (score e₂)
 
 namespace IsMedian
 
@@ -112,17 +121,13 @@ variable {score : E → α} {v : V} {m : α}
 
 /-- Some edge at `v` scores at most a median. -/
 theorem exists_score_le (h : G.IsMedian score v m) :
-    ∃ e ∈ G.incidenceSet v, score e ≤ m := by
-  obtain ⟨e, he⟩ := nonempty_of_ncard_ne_zero (s := {e ∈ G.incidenceSet v | score e ≤ m})
-    (by have := h.1; omega)
-  exact ⟨e, he⟩
+    ∃ e ∈ G.incidenceSet v, score e ≤ m :=
+  nonempty_of_ncard_ne_zero (s := {e ∈ G.incidenceSet v | score e ≤ m}) (by have := h.1; omega)
 
 /-- Some edge at `v` scores at least a median. -/
 theorem exists_le_score (h : G.IsMedian score v m) :
-    ∃ e ∈ G.incidenceSet v, m ≤ score e := by
-  obtain ⟨e, he⟩ := nonempty_of_ncard_ne_zero (s := {e ∈ G.incidenceSet v | m ≤ score e})
-    (by have := h.2; omega)
-  exact ⟨e, he⟩
+    ∃ e ∈ G.incidenceSet v, m ≤ score e :=
+  exists_score_le (α := αᵒᵈ) (score := OrderDual.toDual ∘ score) ⟨h.2, h.1⟩
 
 variable [Finite E]
 
@@ -131,30 +136,18 @@ private theorem eq_of_score_lt (h : G.IsMedian score v m) (hv : (G.incidenceSet 
     {e e' : E} (he : e ∈ G.incidenceSet v) (he' : e' ∈ G.incidenceSet v) (hlt : score e < m)
     (hlt' : score e' < m) : e = e' := by
   by_contra hne
-  have hsub : {f ∈ G.incidenceSet v | m ≤ score f} ⊆ G.incidenceSet v \ {e, e'} := by
-    rintro f ⟨hf, hmf⟩
-    refine ⟨hf, ?_⟩
-    rintro (rfl | rfl)
-    exacts [hmf.not_gt hlt, hmf.not_gt hlt']
-  have := ncard_le_ncard hsub
-  rw [ncard_sdiff (by simp [insert_subset_iff, he, he']), ncard_pair hne, hv] at this
-  have := h.2
-  omega
+  have hsub : {f ∈ G.incidenceSet v | m ≤ score f} ⊆ G.incidenceSet v \ {e, e'} :=
+    fun f ⟨hf, hmf⟩ => ⟨hf, fun h => (Set.mem_insert_iff.mp h).elim
+      (fun heq => (hmf.trans_eq (congrArg score heq)).not_gt hlt)
+      (fun heq => (hmf.trans_eq (congrArg score (Set.mem_singleton_iff.mp heq))).not_gt hlt')⟩
+  have := h.2.trans (ncard_le_ncard hsub)
+  rw [ncard_sdiff (by simp [insert_subset_iff, he, he']), ncard_pair hne, hv] at this; omega
 
 /-- At a vertex with three edges, at most one edge scores above a median. -/
 private theorem eq_of_lt_score (h : G.IsMedian score v m) (hv : (G.incidenceSet v).ncard = 3)
     {e e' : E} (he : e ∈ G.incidenceSet v) (he' : e' ∈ G.incidenceSet v) (hlt : m < score e)
-    (hlt' : m < score e') : e = e' := by
-  by_contra hne
-  have hsub : {f ∈ G.incidenceSet v | score f ≤ m} ⊆ G.incidenceSet v \ {e, e'} := by
-    rintro f ⟨hf, hmf⟩
-    refine ⟨hf, ?_⟩
-    rintro (rfl | rfl)
-    exacts [hmf.not_gt hlt, hmf.not_gt hlt']
-  have := ncard_le_ncard hsub
-  rw [ncard_sdiff (by simp [insert_subset_iff, he, he']), ncard_pair hne, hv] at this
-  have := h.1
-  omega
+    (hlt' : m < score e') : e = e' :=
+  eq_of_score_lt (α := αᵒᵈ) (score := OrderDual.toDual ∘ score) ⟨h.2, h.1⟩ hv he he' hlt hlt'
 
 end IsMedian
 
@@ -209,14 +202,12 @@ private theorem ncard_edgeCut_score_lt_le [Finite V] (h3 : ∀ v, (G.incidenceSe
   · rintro e ⟨he, hlt⟩
     obtain ⟨hv, hev⟩ := exists_notMem_of_mem_edgeCut he
     obtain ⟨e', he', hle⟩ := (hmed _).exists_le_score
-    exact ⟨hv, e, hev, hlt, e', he', ht.trans ((hPc _ hv).trans hle)⟩
+    exact ⟨hv, ⟨e, hev, hlt⟩, ⟨e', he', ht.trans ((hPc _ hv).trans hle)⟩⟩
   · rintro e ⟨he, hlt⟩ e' ⟨he', hlt'⟩ heq
     obtain ⟨hv, hev⟩ := exists_notMem_of_mem_edgeCut he
-    obtain ⟨-, hev'⟩ := exists_notMem_of_mem_edgeCut he'
-    simp only at heq
-    rw [← heq] at hev'
-    exact (hmed _).eq_of_score_lt (h3 _) hev hev' (hlt.trans_le (ht.trans (hPc _ hv)))
-      (hlt'.trans_le (ht.trans (hPc _ hv)))
+    dsimp only at heq
+    exact (hmed _).eq_of_score_lt (h3 _) hev (heq ▸ (exists_notMem_of_mem_edgeCut he').2)
+      (hlt.trans_le (ht.trans (hPc _ hv))) (hlt'.trans_le (ht.trans (hPc _ hv)))
 
 /-- **Charging high edges.** If the medians inside `P` are at most `m`, the edges leaving `P`
 that score at least a threshold `t > m` are no more than the vertices inside `P` with an edge
@@ -233,11 +224,9 @@ private theorem ncard_edgeCut_le_score_le [Finite V] (h3 : ∀ v, (G.incidenceSe
     exact ⟨hu, e, heu, hle⟩
   · rintro e ⟨he, hle⟩ e' ⟨he', hle'⟩ heq
     obtain ⟨hu, heu⟩ := exists_mem_of_mem_edgeCut he
-    obtain ⟨-, heu'⟩ := exists_mem_of_mem_edgeCut he'
-    simp only at heq
-    rw [← heq] at heu'
-    exact (hmed _).eq_of_lt_score (h3 _) heu heu' (((hP _ hu).trans_lt ht).trans_le hle)
-      (((hP _ hu).trans_lt ht).trans_le hle')
+    dsimp only at heq
+    exact (hmed _).eq_of_lt_score (h3 _) heu (heq ▸ (exists_mem_of_mem_edgeCut he').2)
+      (((hP _ hu).trans_lt ht).trans_le hle) (((hP _ hu).trans_lt ht).trans_le hle')
 
 /-- The endpoints of a set of edges number at most twice the edges. -/
 theorem ncard_endpoints_le (F : Set E) :
@@ -266,11 +255,8 @@ theorem ncard_edgeCut_le_of_isMedian [Finite V] (h3 : ∀ v, (G.incidenceSet v).
   have hsub (p : ℝ → Prop) : {e ∈ G.edgeCut P | p (score e)}.ncard ≤ {e | p (score e)}.ncard :=
     ncard_le_ncard fun e he => he.2
   -- The empty window between a threshold and itself.
-  have hempty (t : ℝ) : {e ∈ G.edgeCut P | t ≤ score e ∧ score e < t}.ncard = 0 := by
-    rw [ncard_eq_zero]
-    ext e
-    simp only [mem_sep_iff, mem_empty_iff_false, iff_false]
-    exact fun h => h.2.1.not_gt h.2.2
+  have hempty (t : ℝ) : {e ∈ G.edgeCut P | t ≤ score e ∧ score e < t}.ncard = 0 :=
+    (ncard_eq_zero).mpr (eq_empty_of_forall_notMem fun e h => h.2.1.not_gt h.2.2)
   rcases lt_or_ge m a with hlow | hge
   · -- Below the grid: the vertices of `P` charged by high edges are endpoints of low edges.
     have hU : {u | u ∈ P ∧ ∃ e ∈ G.incidenceSet u, a ≤ score e} ⊆
@@ -280,8 +266,7 @@ theorem ncard_edgeCut_le_of_isMedian [Finite V] (h3 : ∀ v, (G.incidenceSet v).
       exact ⟨e, (hle.trans (hP u hu)).trans_lt hlow, he⟩
     have := ncard_le_add_add (G.edgeCut P) score a a
     have := G.ncard_edgeCut_le_score_le h3 hmed hP hlow
-    have := ncard_le_ncard hU
-    have := G.ncard_endpoints_le {e | score e < a}
+    have := (ncard_le_ncard hU).trans (G.ncard_endpoints_le {e | score e < a})
     have := hsub (· < a)
     have := hempty a
     have hnat : (G.edgeCut P).ncard ≤ 3 * {e | score e < a}.ncard := by omega
@@ -296,8 +281,7 @@ theorem ncard_edgeCut_le_of_isMedian [Finite V] (h3 : ∀ v, (G.incidenceSet v).
       exact ⟨e, htop.trans ((hPc v hv).trans hle), he⟩
     have := ncard_le_add_add (G.edgeCut P) score top top
     have := G.ncard_edgeCut_score_lt_le h3 hmed hPc htop
-    have := ncard_le_ncard hV
-    have := G.ncard_endpoints_le {e | top ≤ score e}
+    have := (ncard_le_ncard hV).trans (G.ncard_endpoints_le {e | top ≤ score e})
     have := hsub (top ≤ ·)
     have := hempty top
     have hnat : (G.edgeCut P).ncard ≤ 3 * {e | top ≤ score e}.ncard := by omega
@@ -315,7 +299,7 @@ theorem ncard_edgeCut_le_of_isMedian [Finite V] (h3 : ∀ v, (G.incidenceSet v).
     rintro u ⟨hu, e, he, hle⟩
     obtain ⟨f, hf, hfle⟩ := (hmed u).exists_score_le
     by_cases hft : score f < t
-    · exact Or.inl ⟨hu, f, hf, hft, e, he, by linarith⟩
+    · exact Or.inl ⟨hu, ⟨f, hf, hft⟩, ⟨e, he, by linarith⟩⟩
     · exact Or.inr ⟨f, ⟨not_lt.mp hft, by linarith [hP u hu]⟩, hf⟩
   -- The straddling vertices inside and outside `P` are all the straddling vertices.
   have hS : {v | v ∉ P ∧ G.EdgeStraddles score t v}.ncard +

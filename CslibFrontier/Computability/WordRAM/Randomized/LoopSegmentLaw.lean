@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Randomized.LoopSegment
 public import CslibFrontier.Computability.WordRAM.Randomized.Law
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Observation laws for randomized loop segments
@@ -55,12 +56,10 @@ variable {w : ℕ} {cond : Cond r} {body : Code B r} {x : Data r}
   {P Q : Data r → Prop} {T T' T₁ T₂ R R' R₁ R₂ : ℕ} {f : Data r → α} {μ : PMF α}
 
 /-- Zero iterations observe the starting data and use no instructions or random calls. -/
-theorem nil (hx : P x) : LoopSegmentLaw w cond body x P 0 0 f (PMF.pure (f x)) := by
-  refine ⟨pure (x, 0), .nil x, .pure _ 0, ?_, ?_⟩
-  · intro z hz
-    cases OracleComp.eq_of_mem_supportWith_pure hz
-    exact ⟨hx, le_rfl⟩
-  · rw [map_pure, ProbComp.eval_pure]
+theorem nil (hx : P x) : LoopSegmentLaw w cond body x P 0 0 f (PMF.pure (f x)) :=
+  ⟨pure (x, 0), .nil x, .pure _ 0,
+    fun _ hz => OracleComp.eq_of_mem_supportWith_pure hz ▸ ⟨hx, le_rfl⟩,
+    by rw [map_pure, ProbComp.eval_pure]⟩
 
 /-- Enlarge budgets and weaken the supported-path postcondition. -/
 theorem mono (h : LoopSegmentLaw w cond body x P T R f μ)
@@ -78,12 +77,10 @@ theorem congr_law {μ' : PMF α} (h : LoopSegmentLaw w cond body x P T R f μ)
 theorem single (hc : cond.Holds x) (h : ExecRandLaw w body x P T R f μ) :
     LoopSegmentLaw w cond body x P (T + 2) R f μ := by
   obtain ⟨m, hm, hq, hsup, hlaw⟩ := h
-  refine ⟨_, LoopSegment.single hc hm, (OracleComp.isCostBounded_map_iff _ _ _).mpr hq,
-    ?_, ?_⟩
-  · intro z hz
-    obtain ⟨a, ha, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-    exact ⟨(hsup a ha).1, Nat.add_le_add_right (hsup a ha).2 2⟩
-  · simpa only [Functor.map_map] using hlaw
+  refine ⟨_, .single hc hm, (OracleComp.isCostBounded_map_iff _ _ _).mpr hq, fun _ hz => ?_,
+    by simpa only [Functor.map_map] using hlaw⟩
+  obtain ⟨a, ha, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
+  exact ⟨(hsup a ha).1, Nat.add_le_add_right (hsup a ha).2 2⟩
 
 /-- Segment laws compose through the observed intermediate state. The continuation witness is
 chosen per state; no uniqueness of partial loop segments is assumed. -/
@@ -93,22 +90,18 @@ theorem trans {g : Data r → β} {ν : PMF β} {κ : β → PMF α}
     LoopSegmentLaw w cond body x Q (T₁ + T₂) (R₁ + R₂) f (ν.bind κ) := by
   classical
   obtain ⟨m₁, hm₁, hq₁, hsup₁, hlaw₁⟩ := h₁
-  let m₂ : Data r → ProbComp (Data r × ℕ) := fun y =>
+  let m₂ (y : Data r) : ProbComp (Data r × ℕ) :=
     if hy : P y then (h₂ y hy).choose else pure (y, 0)
   have hstep (y : Data r) (hy : P y) :
       LoopSegment w cond body y (m₂ y) ∧ (m₂ y).IsQueryBounded R₂ ∧
         (∀ z ∈ (m₂ y).support, Q z.1 ∧ z.2 ≤ T₂) ∧
         ((fun z => f z.1) <$> m₂ y).eval = κ (g y) := by
-    simp only [m₂, hy, ↓reduceDIte]
-    exact (h₂ y hy).choose_spec
-  refine ⟨_, hm₁.trans (fun z hz => (hstep z.1 (hsup₁ z hz).1).1), ?_, ?_, ?_⟩
-  · refine OracleComp.IsCostBounded.bind_on_support hq₁ fun z hz => ?_
-    simpa only [Nat.add_zero] using
-      (hstep z.1 (hsup₁ z hz).1).2.1.bind fun _ => .pure _ 0
-  · intro z hz
-    obtain ⟨a, ha, hrest⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
-    obtain ⟨b, hb, hfinal⟩ := OracleComp.mem_supportWith_bind_iff.mp hrest
-    cases OracleComp.eq_of_mem_supportWith_pure hfinal
+    simpa only [m₂, hy, ↓reduceDIte] using (h₂ y hy).choose_spec
+  refine ⟨_, hm₁.trans (fun z hz => (hstep z.1 (hsup₁ z hz).1).1),
+    OracleComp.IsCostBounded.bind_on_support hq₁ fun z hz => by
+      simpa only [Nat.add_zero] using (hstep z.1 (hsup₁ z hz).1).2.1.bind fun _ => .pure _ 0,
+    fun z hz => ?_, ?_⟩
+  · supp_cases hz with ⟨a, ha, b, hb, rfl⟩
     exact ⟨((hstep a.1 (hsup₁ a ha).1).2.2.1 b hb).1,
       Nat.add_le_add (hsup₁ a ha).2 ((hstep a.1 (hsup₁ a ha).1).2.2.1 b hb).2⟩
   · rw [← hlaw₁]
@@ -116,8 +109,7 @@ theorem trans {g : Data r → β} {ν : PMF β} {κ : β → PMF α}
       PMF.bind_map]
     refine Probability.PMF.bind_congr_on_support _ _ _ fun z hz => ?_
     rw [ProbComp.support_eval] at hz
-    rw [Function.comp_apply, ← (hstep z.1 (hsup₁ z hz).1).2.2.2, ProbComp.eval_map]
-    rfl
+    rw [Function.comp_apply, ← (hstep z.1 (hsup₁ z hz).1).2.2.2, ProbComp.eval_map]; rfl
 
 /-- An explicit supported exit condition closes the loop and pays its final exit check. -/
 theorem finish (h : LoopSegmentLaw w cond body x P T R f μ)
@@ -125,11 +117,10 @@ theorem finish (h : LoopSegmentLaw w cond body x P T R f μ)
     ExecRandLaw w (.loop cond body) x P (T + 2) R f μ := by
   obtain ⟨m, hm, hq, hsup, hlaw⟩ := h
   refine ⟨_, hm.finish (fun z hz => hexit z.1 (hsup z hz).1),
-    (OracleComp.isCostBounded_map_iff _ _ _).mpr hq, ?_, ?_⟩
-  · intro z hz
-    obtain ⟨a, ha, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-    exact ⟨(hsup a ha).1, Nat.add_le_add_right (hsup a ha).2 2⟩
-  · simpa only [Functor.map_map] using hlaw
+    (OracleComp.isCostBounded_map_iff _ _ _).mpr hq, fun _ hz => ?_,
+    by simpa only [Functor.map_map] using hlaw⟩
+  obtain ⟨a, ha, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
+  exact ⟨(hsup a ha).1, Nat.add_le_add_right (hsup a ha).2 2⟩
 
 end LoopSegmentLaw
 

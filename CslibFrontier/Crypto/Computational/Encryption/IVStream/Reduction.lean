@@ -126,37 +126,28 @@ private theorem isOraclePPTOn_ivModePrfHandler
       (fun pair : (ℕ × List Bool) × (Unit × List Bool) =>
         ivModePrfHandler bodyQueries pair.1.1 bit pair.2) := by
   let E := encPair (encPair encUnary encBits) (encPair (encFinEnum Unit) encBits)
-  let EIv := encPair E encBits
   have hn : ComputableInPolyTime (fun p : (ℕ × List Bool) × (Unit × List Bool) => p.1.1)
-      E encUnary := by dsimp only [E]; fun_prop
-  have hm0 : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × (Unit × List Bool) => unframe p.2.2) E encBits :=
-    ComputableInPolyTime.unframe.comp (by dsimp only [E]; fun_prop)
-  have hm1 : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × (Unit × List Bool) => dropFrame p.2.2) E encBits :=
-    ComputableInPolyTime.dropFrame.comp (by dsimp only [E]; fun_prop)
+      E encUnary := by
+    dsimp only [E]
+    fun_prop
   have hcond : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × (Unit × List Bool) =>
         blockPairValid p.1.1 (unframe p.2.2) (dropFrame p.2.2)) E encBool := by
-    unfold blockPairValid; fun_prop
+    dsimp only [E]
+    unfold blockPairValid
+    fun_prop
   have hmsg : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × (Unit × List Bool) =>
         if bit then dropFrame p.2.2 else unframe p.2.2) E encBits := by
-    cases bit
-    · exact hm0
-    · exact hm1
-  have hbodyIv : IsOraclePPTOn (Operation := Unit) EIv encBits
-      (fun q : ((ℕ × List Bool) × (Unit × List Bool)) × List Bool =>
-        bodyQueries q.1.1.1 q.2 (if bit then dropFrame q.1.2.2 else unframe q.1.2.2)) :=
-    hbody.preprocess ((hn.comp (ComputableInPolyTime.fst _ _)).prod
-      ((ComputableInPolyTime.snd _ _).prod (hmsg.comp (ComputableInPolyTime.fst _ _))))
-  have hyes : IsOraclePPTOn (Operation := Unit) EIv encBits
+    cases bit <;> dsimp only [E] <;> fun_prop
+  have hyes : IsOraclePPTOn (Operation := Unit) (encPair E encBits) encBits
       (fun q : ((ℕ × List Bool) × (Unit × List Bool)) × List Bool =>
         (q.2 ++ ·) <$>
           bodyQueries q.1.1.1 q.2 (if bit then dropFrame q.1.2.2 else unframe q.1.2.2)) :=
-    hbodyIv.map_with (f := fun q body => q.2 ++ body)
-      (ComputableInPolyTime.bitsAppend (by dsimp only [EIv]; fun_prop)
-        (ComputableInPolyTime.snd _ _))
+    (hbody.preprocess ((hn.comp (ComputableInPolyTime.fst _ _)).prod
+      ((ComputableInPolyTime.snd _ _).prod (hmsg.comp (ComputableInPolyTime.fst _ _))))).map_with
+      (f := fun q body => q.2 ++ body)
+      (ComputableInPolyTime.bitsAppend (by fun_prop) (ComputableInPolyTime.snd _ _))
   unfold ivModePrfHandler
   exact IsOraclePPTOn.cond hcond
     (IsOraclePPTOn.bind_with ((isPPTOn_sampleList.preprocess hn).isOraclePPTOn) hyes)
@@ -177,19 +168,13 @@ private theorem length_le_of_mem_support_ivModePrfHandler
   · obtain ⟨iv, hiv, hreply⟩ := OracleComp.mem_supportWith_bind_iff.mp hreply
     change iv ∈ OracleComp.support (ProbOracleComp.sample (BitString.sampleList n)) at hiv
     rw [ProbOracleComp.support_sample, BitString.eval_sampleList] at hiv
-    have hivLen : iv.length = n := BitString.length_of_mem_support_uniformList hiv
     obtain ⟨body, hbody, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
     have hmsg : (if bit then dropFrame request.2 else unframe request.2).length ≤
-        request.2.length := by
-      cases bit
-      · exact length_unframe_le _
-      · exact length_dropFrame_le _
-    have hbodyLe := hbodyLen _ _ _ _ hbody
-    simp only [List.length_append, hivLen]
+        request.2.length := by cases bit <;> simp [length_unframe_le, length_dropFrame_le]
+    have := hbodyLen _ _ _ _ hbody
+    simp only [List.length_append, BitString.length_of_mem_support_uniformList hiv]
     omega
-  · have hreplyEq := OracleComp.eq_of_mem_supportWith_pure hreply
-    subst hreplyEq
-    simp
+  · simp [OracleComp.eq_of_mem_supportWith_pure hreply]
 
 /-- **Efficiency of the reduction at a reindexed block length.** When `blockLen` is computable in
 polynomial time in unary, running `ivModeToPrfDistinguisher` at block width `blockLen n` on
@@ -208,16 +193,12 @@ theorem isOraclePPT_ivModeToPrfDistinguisher_blockLen
   let EReq := encPair (encFinEnum Unit) encBits
   have hprepHandler : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × (Unit × List Bool) => ((blockLen p.1.1, p.1.2), p.2))
-      (encPair ECaller EReq) (encPair ECaller EReq) :=
-    (((hblock.comp (by dsimp only [ECaller]; fun_prop)).prod
-      (by dsimp only [ECaller]; fun_prop)).comp (ComputableInPolyTime.fst _ _)).prod
-      (ComputableInPolyTime.snd _ _)
+      (encPair ECaller EReq) (encPair ECaller EReq) := by
+    dsimp only [ECaller, EReq]; fun_prop
   have hres : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List Bool => blockLen p.1.1 + p.2.length)
-      (encPair ECaller encBits) encUnary :=
-    ComputableInPolyTime.unary_add'
-      (hblock.comp ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _)))
-      (ComputableInPolyTime.length_bits.comp (ComputableInPolyTime.snd _ _))
+      (encPair ECaller encBits) encUnary := by
+    dsimp only [ECaller]; fun_prop
   change IsOraclePPTOn ECaller encBool
     (fun caller : ℕ × List Bool => ProbOracleComp.simulate
       (ivModePrfHandler bodyQueries (blockLen caller.1) bit) (adversary caller.1 []))
@@ -252,11 +233,9 @@ theorem isOraclePPT_ivModeToPrfDistinguisher
 private theorem length_select_mod_of_blockPairValid {n : ℕ} {m₀ m₁ : List Bool}
     (hvalid : blockPairValid n m₀ m₁ = true) (bit : Bool) :
     (if bit then m₁ else m₀).length % n = 0 := by
-  simp only [blockPairValid, Bool.and_eq_true, beq_iff_eq] at hvalid
-  obtain ⟨hlenEq, hmod⟩ := hvalid
-  cases bit
-  · exact hmod
-  · simp [← hlenEq, hmod]
+  obtain ⟨hlenEq, hmod⟩ := (by
+    simpa only [blockPairValid, Bool.and_eq_true, beq_iff_eq] using hvalid)
+  cases bit <;> simp [← hlenEq, hmod]
 
 /-- Under a key `k`, if the body queries answered by the keyed oracle compute `body n k iv msg`
 from every `n`-bit initial value `iv` on whole-block messages, the handler answers each request
@@ -304,11 +283,11 @@ theorem eval_prfRealGame_ivModeToPrfDistinguisher
         (ivModeEncrypt body) adversary bit n) := by
   simp only [prfRealGame, id_eq, symmetricCPAGameOn, ivModeToPrfDistinguisher,
     ProbOracleComp.run_simulate, ProbComp.eval_bind, BitString.eval_sampleList]
-  refine PMF.bind_congr_on_support _ _ _ fun k hk => ?_
-  have hkLen : k.length = n := BitString.length_of_mem_support_uniformList hk
-  exact (ProbOracleComp.QueriesSatisfy.of_forall (p := fun _ => True) (fun _ => trivial)
-    (adversary n [])).eval_run_congr fun request _ =>
-      eval_run_ivModePrfHandler (hbody k hkLen) bit request
+  exact PMF.bind_congr_on_support _ _ _ fun k hk =>
+    (ProbOracleComp.QueriesSatisfy.of_forall (p := fun _ => True) (fun _ => trivial)
+      (adversary n [])).eval_run_congr fun request _ =>
+        eval_run_ivModePrfHandler (hbody k (BitString.length_of_mem_support_uniformList hk))
+          bit request
 
 /-! ### The ideal game -/
 
@@ -327,7 +306,7 @@ private theorem eval_run_ivModePrfHandler_randomFunction
     (hprogram : ∀ q, (program q).run (fun x => pure (f x)) = blockModeOracle bodyBlocks ℓ bit q)
     (hword : ∀ iv m, m.length % n = 0 → (bodyQueries n (List.ofFn iv) m).run
         (fun request => pure (randomFunctionOracle n f request.2)) =
-          pure ((bodyBlocks iv (BitString.padBlocks n m.length m)).flatMap List.ofFn))
+          pure ((bodyBlocks iv (BitString.toBlocks n m)).flatMap List.ofFn))
     (request : Unit × List Bool) (hℓ : (unframe request.2).length / n ≤ ℓ) :
     ProbComp.eval ((ivModePrfHandler bodyQueries n bit request).run
         fun r => pure (randomFunctionOracle n f r.2)) =
@@ -337,7 +316,7 @@ private theorem eval_run_ivModePrfHandler_randomFunction
   dsimp only
   by_cases hvalid : blockPairValid n (unframe request.2) (dropFrame request.2) = true
   · have hmod := length_select_mod_of_blockPairValid hvalid bit
-    have hsel := blockModeSelect_padBlocks bit hvalid hℓ
+    have hsel := blockModeSelect_toBlocks bit hvalid hℓ
     simp only [hvalid, ↓reduceIte, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
       ProbOracleComp.run_map, ProbOracleComp.run_query, hprogram, blockModeOracle, hsel,
       ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, ProbComp.eval_uniform,
@@ -364,7 +343,7 @@ theorem eval_prfIdealGame_ivModeToPrfDistinguisher
       blockModeOracle (bodyBlocks f) ℓ bit q)
     (hword : ∀ f iv m, m.length % n = 0 → (bodyQueries n (List.ofFn iv) m).run
         (fun request => pure (randomFunctionOracle n f request.2)) =
-          pure ((bodyBlocks f iv (BitString.padBlocks n m.length m)).flatMap List.ofFn))
+          pure ((bodyBlocks f iv (BitString.toBlocks n m)).flatMap List.ofFn))
     (adversary : OracleDistinguisher)
     (hℓ : (adversary n []).QueriesSatisfy fun request => (unframe request.2).length / n ≤ ℓ) :
     ProbComp.eval (prfIdealGame id id (ivModeToPrfDistinguisher bodyQueries adversary bit) n) =
@@ -465,7 +444,7 @@ theorem eval_prfIdealGame_ivStreamToPrfDistinguisher
     (fun f iv m hm => by
       rw [ivStreamBodyQueries, ProbOracleComp.run_map, hword, map_pure,
         BitString.flatMap_ofFn_zipWith_add _ _ (by rw [hlen]),
-        BitString.flatMap_ofFn_padBlocks (Nat.dvd_of_mod_eq_zero hm), BitString.length_padBlocks])
+        BitString.flatMap_ofFn_toBlocks (Nat.dvd_of_mod_eq_zero hm), BitString.length_toBlocks])
     adversary (hℓ.mono fun _ h => (Nat.div_le_self _ _).trans ((length_unframe_le _).trans h))
 
 end Cslib.Crypto

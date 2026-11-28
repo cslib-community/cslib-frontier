@@ -49,6 +49,8 @@ full-rank lattice in `ℝⁿ` with the supremum norm this gives `λ₁(L) ≤ de
 * `ZLattice.exists_norm_eq_minimum`: a discrete nonzero lattice has a shortest nonzero vector.
 * `ZLattice.successiveMinimum_one`: `λ₁` agrees with the first minimum.
 * `ZLattice.successiveMinimum_mono`: `λ_j(L) ≤ λ_k(L)` for `j ≤ k ≤ n`.
+* `ZLattice.exists_linearIndependent_norm_le_successiveMinimum`: a full-rank discrete lattice has
+  `k` linearly independent vectors of norm at most `λ_k(L)`.
 * `ZLattice.exists_ne_zero_mem_norm_le`: Minkowski's first theorem for closed balls.
 * `ZLattice.minimum_le_sqrt_mul_covolume_rpow`: `λ₁(L) ≤ √n · det(L)^{1/n}` in the Euclidean
   norm.
@@ -93,9 +95,7 @@ theorem minimum_le_norm_sub {L : Submodule ℤ E} {u v : E} (hu : u ∈ L) (hv :
 
 @[simp]
 theorem minimum_bot : minimum (⊥ : Submodule ℤ E) = 0 := by
-  have h : {v : E | v ∈ (⊥ : Submodule ℤ E) ∧ v ≠ 0} = ∅ := by
-    ext v; simp [Submodule.mem_bot]
-  rw [minimum, h, Set.image_empty, Real.sInf_empty]
+  simp [minimum]
 
 /-- A lower bound for every nonzero lattice vector bounds the first minimum. -/
 theorem le_minimum_iff {L : Submodule ℤ E} (hL : L ≠ ⊥) {r : ℝ} :
@@ -107,21 +107,23 @@ theorem le_minimum_iff {L : Submodule ℤ E} (hL : L ≠ ⊥) {r : ℝ} :
 
 variable [ProperSpace E]
 
+private theorem finite_mem_and_norm_le (L : Submodule ℤ E) [DiscreteTopology L] (r : ℝ) :
+    {v : E | v ∈ L ∧ ‖v‖ ≤ r}.Finite :=
+  (finite_isBounded_inter_isClosed DiscreteTopology.isDiscrete
+    (isBounded_closedBall (x := (0 : E)) (r := r))
+    L.toAddSubgroup.isClosed_of_discreteTopology).subset fun _ hv =>
+    ⟨by simpa only [mem_closedBall, dist_zero_right] using hv.2, hv.1⟩
+
 /-- A discrete nonzero lattice in a proper space has a shortest nonzero vector. -/
 theorem exists_norm_eq_minimum {L : Submodule ℤ E} [DiscreteTopology L] (hL : L ≠ ⊥) :
     ∃ v ∈ L, v ≠ 0 ∧ ‖v‖ = minimum L := by
   obtain ⟨w, hw, hw0⟩ := Submodule.exists_mem_ne_zero_of_ne_bot hL
-  have hfin : (closedBall (0 : E) ‖w‖ ∩ (L : Set E)).Finite :=
-    finite_isBounded_inter_isClosed DiscreteTopology.isDiscrete isBounded_closedBall
-      L.toAddSubgroup.isClosed_of_discreteTopology
-  let S : Set E := {v | v ∈ L ∧ v ≠ 0 ∧ ‖v‖ ≤ ‖w‖}
-  have hS : S.Finite := hfin.subset fun v hv => ⟨by simpa using hv.2.2, hv.1⟩
-  obtain ⟨v, hvS, hmin⟩ := S.exists_min_image norm hS ⟨w, hw, hw0, le_rfl⟩
-  refine ⟨v, hvS.1, hvS.2.1, le_antisymm ?_ (minimum_le_norm hvS.1 hvS.2.1)⟩
-  refine (le_minimum_iff hL).2 fun u hu hu0 => ?_
-  by_cases huw : ‖u‖ ≤ ‖w‖
-  · exact hmin u ⟨hu, hu0, huw⟩
-  · exact hvS.2.2.trans (le_of_not_ge huw)
+  obtain ⟨v, ⟨hvL, hv0, hvw⟩, hmin⟩ := Set.exists_min_image
+    {v | v ∈ L ∧ v ≠ 0 ∧ ‖v‖ ≤ ‖w‖} norm
+    ((finite_mem_and_norm_le L ‖w‖).subset fun _ h => ⟨h.1, h.2.2⟩) ⟨w, hw, hw0, le_rfl⟩
+  refine ⟨v, hvL, hv0, le_antisymm ((le_minimum_iff hL).2 fun u hu hu0 => ?_)
+    (minimum_le_norm hvL hv0)⟩
+  exact if huw : ‖u‖ ≤ ‖w‖ then hmin u ⟨hu, hu0, huw⟩ else hvw.trans (le_of_not_ge huw)
 
 /-- The first minimum of a discrete nonzero lattice is positive. -/
 theorem minimum_pos {L : Submodule ℤ E} [DiscreteTopology L] (hL : L ≠ ⊥) : 0 < minimum L := by
@@ -166,11 +168,9 @@ theorem successiveMinimum_le_of_linearIndependent {L : Submodule ℤ E} {k : ℕ
     (hli : LinearIndependent ℝ v) (hvL : ∀ i, v i ∈ L) {r : ℝ} (hr : 0 ≤ r)
     (hvr : ∀ i, ‖v i‖ ≤ r) : successiveMinimum L k ≤ r := by
   refine csInf_le ⟨0, fun _ hs => hs.1⟩ ⟨hr, ?_⟩
-  have hsub : Set.range v ⊆ {w : E | w ∈ L ∧ ‖w‖ ≤ r} := by
-    rintro _ ⟨i, rfl⟩; exact ⟨hvL i, hvr i⟩
-  calc k = finrank ℝ (Submodule.span ℝ (Set.range v)) := by
-        rw [finrank_span_eq_card hli, Fintype.card_fin]
-    _ ≤ _ := Submodule.finrank_mono (Submodule.span_mono hsub)
+  rw [← Fintype.card_fin k, ← finrank_span_eq_card hli]
+  exact Submodule.finrank_mono
+    (Submodule.span_mono (Set.range_subset_iff.2 fun i => ⟨hvL i, hvr i⟩))
 
 /-- For a full-rank lattice, some radius makes the short lattice vectors span the whole space. -/
 private theorem exists_radius_finrank (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
@@ -178,12 +178,10 @@ private theorem exists_radius_finrank (L : Submodule ℤ E) [DiscreteTopology L]
     ∃ r, 0 ≤ r ∧ k ≤ finrank ℝ (Submodule.span ℝ {v : E | v ∈ L ∧ ‖v‖ ≤ r}) := by
   let b := (Free.chooseBasis ℤ L).ofZLatticeBasis ℝ L
   refine ⟨∑ i, ‖b i‖, Finset.sum_nonneg fun i _ => norm_nonneg _, ?_⟩
-  have hsub : Set.range b ⊆ {v : E | v ∈ L ∧ ‖v‖ ≤ ∑ i, ‖b i‖} := by
-    rintro _ ⟨i, rfl⟩
-    refine ⟨?_, Finset.single_le_sum (fun j _ => norm_nonneg (b j)) (Finset.mem_univ i)⟩
-    simp [b]
   have htop : Submodule.span ℝ {v : E | v ∈ L ∧ ‖v‖ ≤ ∑ i, ‖b i‖} = ⊤ :=
-    eq_top_iff.2 (b.span_eq ▸ Submodule.span_mono hsub)
+    eq_top_iff.2 (b.span_eq.symm.le.trans (Submodule.span_mono <| by
+      rintro _ ⟨i, rfl⟩
+      exact ⟨by simp [b], Finset.single_le_sum (fun j _ => norm_nonneg (b j)) (Finset.mem_univ i)⟩))
   rwa [htop, finrank_top]
 
 /-- Successive minima are monotone up to the rank of a full-rank lattice. -/
@@ -192,6 +190,39 @@ theorem successiveMinimum_mono (L : Submodule ℤ E) [DiscreteTopology L] [IsZLa
     successiveMinimum L j ≤ successiveMinimum L k := by
   obtain ⟨r, hr⟩ := exists_radius_finrank L k hk
   exact csInf_le_csInf ⟨0, fun _ hs => hs.1⟩ ⟨r, hr⟩ fun s hs => ⟨hs.1, hjk.trans hs.2⟩
+
+/-- A full-rank discrete lattice has `k` linearly independent vectors of norm at most `λ_k(L)`
+for every `k ≤ finrank ℝ E`. -/
+theorem exists_linearIndependent_norm_le_successiveMinimum
+    (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]
+    {k : ℕ} (hk : k ≤ finrank ℝ E) :
+    ∃ v : Fin k → E, LinearIndependent ℝ v ∧ (∀ i, v i ∈ L) ∧
+      ∀ i, ‖v i‖ ≤ successiveMinimum L k := by
+  classical
+  have : ProperSpace E := FiniteDimensional.proper ℝ E
+  let A : Set E := {v : E | v ∈ L ∧ ‖v‖ ≤ successiveMinimum L k}
+  have hspan : k ≤ finrank ℝ (Submodule.span ℝ A) := by
+    obtain ⟨R, hR0, hRk⟩ := exists_radius_finrank L k hk
+    let T : Set E := {v : E | (v ∈ L ∧ ‖v‖ ≤ R) ∧ successiveMinimum L k < ‖v‖}
+    by_cases hTe : T.Nonempty
+    · obtain ⟨u, ⟨huR, hsu⟩, humin⟩ := T.exists_min_image norm
+        ((finite_mem_and_norm_le L R).subset fun _ hv => hv.1) hTe
+      rw [successiveMinimum] at hsu
+      obtain ⟨r, ⟨_, hrk⟩, hru⟩ := exists_lt_of_csInf_lt
+        (⟨R, hR0, hRk⟩ : {r : ℝ | 0 ≤ r ∧
+          k ≤ finrank ℝ (Submodule.span ℝ {v : E | v ∈ L ∧ ‖v‖ ≤ r})}.Nonempty) hsu
+      exact hrk.trans <| Submodule.finrank_mono <| Submodule.span_mono fun v ⟨hvL, hvr⟩ =>
+        ⟨hvL, le_of_not_gt fun hgt =>
+          (hvr.trans_lt hru).not_ge (humin v ⟨⟨hvL, (hvr.trans hru.le).trans huR.2⟩, hgt⟩)⟩
+    · exact hRk.trans <| Submodule.finrank_mono <| Submodule.span_mono fun v hv =>
+        ⟨hv.1, le_of_not_gt fun hgt => hTe ⟨v, hv, hgt⟩⟩
+  obtain ⟨B, hBA, hspB, hliB⟩ := exists_linearIndependent ℝ A
+  have := hliB.finite
+  have : Fintype B := Fintype.ofFinite B
+  have hkB : k ≤ Fintype.card B := by
+    rwa [← hspB, ← Subtype.range_coe (s := B), finrank_span_eq_card hliB] at hspan
+  let f : Fin k ↪ B := (Fin.castLEEmb hkB).trans (Fintype.equivFin B).symm.toEmbedding
+  exact ⟨fun i => f i, hliB.comp f f.injective, fun i => (hBA (f i).2).1, fun i => (hBA (f i).2).2⟩
 
 variable [ProperSpace E]
 
@@ -266,19 +297,16 @@ theorem exists_ne_zero_mem_norm_le_sqrt_mul_covolume_rpow {ι : Type*} [Fintype 
     ∃ v ∈ L, v ≠ 0 ∧
       ‖v‖ ≤ Real.sqrt (Fintype.card ι) * covolume L ^ ((Fintype.card ι : ℝ)⁻¹) := by
   let e : (ι → ℝ) ≃L[ℝ] EuclideanSpace ℝ ι := (EuclideanSpace.equiv ι ℝ).symm
-  have he : MeasurePreserving e := PiLp.volume_preserving_toLp ι
   obtain ⟨u, hu, hu0, hur⟩ :=
     exists_ne_zero_mem_norm_le_covolume_rpow (ZLattice.comap ℝ L e.toLinearMap)
-  rw [covolume_comap L volume volume he] at hur
+  rw [covolume_comap L volume volume (PiLp.volume_preserving_toLp ι)] at hur
   refine ⟨e u, hu, by simpa [e] using hu0, ?_⟩
-  have hcoord : ∀ i, ‖u i‖ ^ 2 ≤ ‖u‖ ^ 2 := fun i =>
-    pow_le_pow_left₀ (norm_nonneg _) (norm_le_pi_norm u i) 2
   calc ‖e u‖ = Real.sqrt (∑ i, ‖u i‖ ^ 2) := by simp [e, EuclideanSpace.norm_eq]
-    _ ≤ Real.sqrt (Fintype.card ι * ‖u‖ ^ 2) := by
-        gcongr
-        simpa using Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => hcoord i
+    _ ≤ Real.sqrt (∑ _i : ι, ‖u‖ ^ 2) :=
+        Real.sqrt_le_sqrt (Finset.sum_le_sum fun i _ =>
+          pow_le_pow_left₀ (norm_nonneg _) (norm_le_pi_norm u i) 2)
     _ = Real.sqrt (Fintype.card ι) * ‖u‖ := by
-        rw [Real.sqrt_mul (Nat.cast_nonneg _), Real.sqrt_sq (norm_nonneg _)]
+        simp [Real.sqrt_mul (Nat.cast_nonneg _), Real.sqrt_sq (norm_nonneg _)]
     _ ≤ _ := by gcongr
 
 /-- `λ₁(L) ≤ √n · det(L)^{1/n}` for a full-rank lattice in `EuclideanSpace ℝ ι` of dimension

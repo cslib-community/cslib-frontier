@@ -94,18 +94,17 @@ attribute [local fun_prop] poly_visitedWith poly_parentWith
 private theorem poly_root : ComputableInPolyTime (fun p : WorkLog × ℕ => root p.1 p.2)
     (encPair encWorkLog encNat) encNat := by
   unfold root
-  apply ComputableInPolyTime.of_tidy
-  apply ComputableTidilyInPolyTime.foldlWithInput_of_bounded_growth
+  apply ComputableInPolyTime.foldlWithInput_of_bounded_growth
     (encA := encWorkExpansion) (encL := encWorkLog)
     (growth := fun p => (encWorkLog p.1).length)
-    (ComputableInPolyTime.snd encWorkLog encNat).tidy
-  · refine ⟨(ComputableInPolyTime.fst encWorkLog encNat).tidy, ?_, inferInstance,
+    (ComputableInPolyTime.snd encWorkLog encNat)
+  · refine ⟨(ComputableInPolyTime.fst encWorkLog encNat), ?_, inferInstance,
       inferInstance⟩
     exact (show ComputableInPolyTime
       (fun p : ((WorkLog × ℕ) × ℕ) × WorkExpansion =>
         if (p.2.2.find? (fun o => o.2.2 == p.1.2)).isSome then p.2.1.2.2 else p.1.2)
       (encPair (encPair (encPair encWorkLog encNat) encNat) encWorkExpansion) encNat
-      from by fun_prop).tidy
+      from by fun_prop)
   · refine ⟨(ComputableInPolyTime.fst encWorkLog encNat).polyBounded_length, ?_⟩
     intro p v e he
     rcases e with ⟨⟨constraint, port, parentVariable⟩, outputs⟩
@@ -182,16 +181,15 @@ private theorem poly_scan : ComputableInPolyTime
     (fun p : ScanArgs × List Record × List Record =>
       scan p.1.1 p.1.2.1 p.1.2.2 p.2.1 p.2.2) encScanInput encScanState := by
   unfold scan
-  apply ComputableInPolyTime.of_tidy
-  apply ComputableTidilyInPolyTime.foldlWith_of_bounded_growth
+  apply ComputableInPolyTime.foldlWith_of_bounded_growth
     (step := fun p s b => scanStep p.1 p.2.1 p.2.2 s b)
     (α := Record) (β := ScanState) (γ := ScanArgs × List Record × List Record)
     (π := ScanArgs) (encIn := encScanInput) (encP := encScanArgs)
     (encB := encScanState) (encA := encRecord) (encL := encList encRecord)
     (ComputableInPolyTime.fst encScanArgs
-      (encPair (encList encRecord) (encList encRecord))).tidy
-    poly_scanList.tidy
-    poly_scanInit.tidy poly_scanStep.tidy
+      (encPair (encList encRecord) (encList encRecord)))
+    poly_scanList
+    poly_scanInit poly_scanStep
     (growth := fun p => 4 * (encList encRecord p.2.2).length + 4)
   · exact ((PolyBounded.const 4).mul poly_scanList.polyBounded_length).add (.const 4)
   · intro p s b hb
@@ -247,7 +245,7 @@ private theorem step_size (input : Input) (s : State) :
       next ha =>
         have ha' := length_le_encList_of_mem encRecord ha
         have hp : (encList encRecord (partners input a)).length ≤ B :=
-          ComputableTidilyInDegree.length_encList_filter_le _ _ _
+          ComputableInDegree.length_encList_filter_le _ _ _
         have hs := scan_size (roots input) log a (partners input a) ([], none)
         change (encScanState (scan (roots input) log a [] (partners input a))).length ≤
           (encScanState ([], none)).length + 2 * _ at hs
@@ -259,7 +257,7 @@ private theorem step_size (input : Input) (s : State) :
           omega
         cases event with
         | none =>
-          have hf := ComputableTidilyInDegree.length_encList_filter_le encRecord
+          have hf := ComputableInDegree.length_encList_filter_le encRecord
             (fun b => decide (b ∉ used ((a, os) :: log))) remaining
           simp only [Option.elim_none]
           calc
@@ -271,8 +269,7 @@ private theorem step_size (input : Input) (s : State) :
               ring
             _ ≤ 2 * (encWorkLog log).length + 4 * (encWorkExpansion (a, os)).length +
                 2 * (encList encRecord remaining).length + 4 :=
-              Nat.add_le_add_right
-                (Nat.add_le_add_left (Nat.mul_le_mul_left 2 hf) _) 4
+              by gcongr
             _ ≤ (encState (log, remaining, status)).length + 32 * B + 32 := by
               enc_len [encState, encWorkExpansion]
         | some b =>
@@ -285,13 +282,12 @@ private theorem step_size (input : Input) (s : State) :
 private theorem poly_loop : ComputableInPolyTime
     (fun input => (step input)^[(CSP.occurrences input.body).length + 1]
       ([], CSP.occurrences input.body, none)) encInput encState := by
-  apply ComputableInPolyTime.of_tidy
-  apply ComputableTidilyInPolyTime.iterateWithInput_of_bounded_growth
+  apply ComputableInPolyTime.iterateWithInput_of_bounded_growth
     (show ComputableInPolyTime (fun input : Input =>
-      (CSP.occurrences input.body).length + 1) encInput encUnary from by fun_prop).tidy
+      (CSP.occurrences input.body).length + 1) encInput encUnary from by fun_prop)
     (show ComputableInPolyTime (fun input : Input =>
-      ([], CSP.occurrences input.body, none)) encInput encState from by fun_prop).tidy
-    poly_step.tidy
+      ([], CSP.occurrences input.body, none)) encInput encState from by fun_prop)
+    poly_step
     (growth := fun input => 32 * (encList encRecord (CSP.occurrences input.body)).length + 32)
   refine ⟨?_, step_size⟩
   exact ((PolyBounded.const 32).mul

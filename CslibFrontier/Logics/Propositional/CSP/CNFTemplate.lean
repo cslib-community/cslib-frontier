@@ -65,14 +65,10 @@ theorem Constraint.eval_instantiateCNF {arity : Rel → ℕ} {sem : Rel → List
     {c : Constraint Rel V} (hc : c.scope.length = arity c.rel) (σ : V → Bool) :
     (c.instantiateCNF fallback template).eval σ = c.eval sem σ := by
   obtain ⟨R, vs⟩ := c
-  simp only [instantiateCNF, CNF.eval_relabel]
-  rw [h R]
-  change sem R (List.ofFn (fun i : Fin (arity R) => σ (vs.getD i fallback))) = sem R (vs.map σ)
-  congr 1
+  simp only [instantiateCNF, CNF.eval_relabel, h R]
+  refine congrArg (sem R) ?_
   rw [← hc]
-  convert List.ofFn_getElem_eq_map vs σ using 1
-  congr 1 with i : 1
-  rw [List.getD_eq_getElem vs fallback i.isLt]
+  simp only [Function.comp_apply, List.getD_eq_getElem, Fin.isLt, List.ofFn_getElem_eq_map]
 
 /-- Instantiate and concatenate a fixed CNF template for every constraint. -/
 @[expose] def CSP.instantiateCNF (fallback : V) (template : Rel → CNF ℕ)

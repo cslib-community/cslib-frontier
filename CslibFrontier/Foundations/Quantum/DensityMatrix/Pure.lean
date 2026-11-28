@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.DensityMatrix
+import CslibFrontier.Foundations.Analysis.InnerProductSpace.PiL2
 
 /-!
 # Scalar invariance of pure-state density matrices
@@ -28,11 +29,27 @@ namespace Cslib.Quantum
 
 variable {ι : Type*}
 
+/-- The outer product of a unit vector is idempotent. -/
+theorem pureState_mul_self_of_norm_eq_one [Fintype ι] (ψ : EuclideanSpace ℂ ι) (hψ : ‖ψ‖ = 1) :
+    pureState ψ * pureState ψ = pureState ψ := by
+  have h : pureState ψ = Matrix.vecMulVec ψ.ofLp (star ψ.ofLp) := by
+    ext i j
+    simp only [pureState_apply, Matrix.vecMulVec_apply, Pi.star_apply]
+  rw [h, Matrix.vecMulVec_mul_vecMulVec, EuclideanSpace.star_dotProduct_self_eq_norm_sq,
+    hψ, Complex.ofReal_one, one_pow, one_smul]
+
 /-- Multiplying a vector by a scalar scales its projector by the squared scalar modulus. -/
 theorem pureState_smul (c : ℂ) (ψ : EuclideanSpace ℂ ι) :
     pureState (c • ψ) = (c * star c) • pureState ψ := by
   ext i j
   simp [pureState_apply, mul_mul_mul_comm]
+
+/-- A real scalar multiplies the pure-state matrix by its square. -/
+theorem pureState_real_smul (r : ℝ) (ψ : EuclideanSpace ℂ ι) :
+    pureState (r • ψ) = r ^ 2 • pureState ψ := by
+  rw [← algebraMap_smul ℂ r ψ, pureState_smul, ← algebraMap_smul ℂ (r ^ 2) (pureState ψ)]
+  change (((r : ℂ) * star (r : ℂ)) • pureState ψ) = ((↑(r ^ 2) : ℂ) • pureState ψ)
+  rw [Complex.star_def, Complex.conj_ofReal, Complex.ofReal_pow, pow_two]
 
 /-- A global phase has no effect on a pure-state density matrix. -/
 theorem pureState_smul_of_norm_eq_one (c : ℂ) (hc : ‖c‖ = 1)

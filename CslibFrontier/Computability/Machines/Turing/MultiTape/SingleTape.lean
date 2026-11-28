@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.SingleTape.PostTuringM
 public import CslibFrontier.Foundations.Data.BiTape
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.ReadInput
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Simulation of `SingleTapeTM` by `MultiTapeTM`
@@ -96,9 +97,7 @@ theorem runFrom_copyInputToWork (x : List Symbol) :
         ⟨none, p', fun _ => tapeOfList x, fun _ => 0, []⟩ := by
   have hinit : (copyInputToWork Symbol).initCfg x =
       wordsCfgAt x 1 (some (copyInputToWork Symbol).q₀) (fun _ => []) [] := by
-    refine Cfg.ext rfl rfl ?_ rfl rfl
-    funext i
-    simp [MultiTapeNTM.initCfg, Cfg.init, wordsCfgAt]
+    tm_step
   have hval : ((1 : Fin (x.length + 2)) : ℕ) = 1 :=
     (Fin.val_one' _).trans (Nat.mod_eq_of_lt (by omega))
   have hp₀ : ((1 : Fin (x.length + 2)) : ℕ) ≠ 0 := by omega
@@ -121,10 +120,7 @@ theorem runFrom_copyInputToWork (x : List Symbol) :
   change (appendRead (copyReader Symbol) 0).runFrom
       (wordsCfgAt x 1 (some (appendRead (copyReader Symbol) 0).q₀) (fun _ => []) []) _ = _
   rw [hrun, hws', he]
-  refine Cfg.ext rfl rfl ?_ rfl rfl
-  funext i
-  rw [Fin.fin_one_eq_zero i, hval]
-  simp [wordsCfgAt]
+  tm_step [wordsCfgAt]
 
 /-- `BiTape.mk₁ xs` represents `tapeOfList xs` with head at `0`. -/
 theorem represents_tapeOfList (xs : List Symbol) :
@@ -236,14 +232,8 @@ lemma runFrom_walk {y : List Symbol} {contents : ℤ → Option Symbol} {head : 
       have hread := (hrep n).symm
       rw [BiTape.read_mk₁] at hread
       simpa [List.getElem?_eq_getElem hlt] using hread
-    rw [runFrom, Function.iterate_succ_apply', ← runFrom, ih (by omega), step_of_state rfl]
-    simp only [emitWork, tr_ofTr, Cfg.workTapeSymbols, hsym]
-    refine Cfg.ext rfl (by simp [Action.apply, moveInputPos_zero]) rfl ?_ ?_
-    · funext _
-      simp only [Action.apply_workTapePos, SignType.coe_one, Nat.cast_add, Nat.cast_one]
-      omega
-    · rw [List.take_add_one, List.getElem?_eq_getElem hlt]
-      simp [Action.apply]
+    rw [runFrom_succ, ih (by omega)]
+    tm_step [emitWork, hsym]
 
 end EmitWork
 
@@ -255,7 +245,7 @@ theorem runFrom_emitWork {input y : List Symbol} (mcfg : Cfg 1 Symbol Unit input
       ((emitWork Symbol).runFrom mcfg (y.length + 1)).output = mcfg.output ++ y := by
   have hmcfg : mcfg = ⟨some (), mcfg.inputPos, fun _ => mcfg.workTapes 0,
       fun _ => mcfg.workTapePos 0, mcfg.output⟩ := by
-    refine Cfg.ext hstate rfl ?_ ?_ rfl <;> funext i <;> rw [Fin.fin_one_eq_zero i]
+    tm_step [hstate, Fin.fin_one_eq_zero]
   have hwalk := runFrom_walk (inpos := mcfg.inputPos) hrep mcfg.output y.length le_rfl
   have hblank : mcfg.workTapes 0 (mcfg.workTapePos 0 + y.length) = none := by
     have hread := (hrep y.length).symm
@@ -266,12 +256,8 @@ theorem runFrom_emitWork {input y : List Symbol} (mcfg : Cfg 1 Symbol Unit input
       (y.length + 1) =
     ⟨none, mcfg.inputPos, fun _ => mcfg.workTapes 0, fun _ => mcfg.workTapePos 0 + y.length,
       mcfg.output ++ y⟩ := by
-    rw [runFrom, Function.iterate_succ_apply', ← runFrom, hwalk, step_of_state rfl]
-    simp only [emitWork, tr_ofTr, Cfg.workTapeSymbols, hblank]
-    refine Cfg.ext rfl (by simp [Action.apply, moveInputPos_zero]) rfl ?_ ?_
-    · funext _
-      simp [Action.apply]
-    · simp [Action.apply]
+    rw [runFrom_succ, hwalk]
+    tm_step [emitWork, hblank]
   rw [← hmcfg] at htotal
   rw [htotal]
   exact ⟨rfl, rfl⟩
@@ -299,44 +285,28 @@ theorem runFrom_ofSingleTapeTM_of_outputsWithinTime (tm : SingleTapeTM Symbol)
       ((ofSingleTapeTM tm).runFrom ((ofSingleTapeTM tm).initCfg x) T).output = y := by
   intro T
   rcases runFrom_copyInputToWork x with ⟨p', hcopy⟩
-  let mid₁ : Cfg 1 Symbol CopyInputState x :=
-    ⟨none, p', fun _ => tapeOfList x, fun _ => 0, []⟩
-  have hmid₁_halt : mid₁.Halted := rfl
+  let mid₁ : Cfg 1 Symbol CopyInputState x := ⟨none, p', fun _ => tapeOfList x, fun _ => 0, []⟩
   let start₂ : Cfg 1 Symbol tm.State x := mid₁.withState (some (runOnWork tm).q₀)
-  have hrun₂ := runFrom_runOnWork_of_outputsWithinTime tm (mcfg := start₂) rfl
-    (represents_tapeOfList x) h
-  rcases hrun₂ with ⟨hstate₂, hrep₂, hout₂⟩
+  rcases runFrom_runOnWork_of_outputsWithinTime tm (mcfg := start₂) rfl
+    (represents_tapeOfList x) h with ⟨hstate₂, hrep₂, hout₂⟩
   let mid₂ := (runOnWork tm).runFrom start₂ t
-  have hmid₂_halt : mid₂.Halted := hstate₂
   let start₃ : Cfg 1 Symbol Unit x := mid₂.withState (some (emitWork Symbol).q₀)
-  have hrun₃ := runFrom_emitWork (y := y) start₃ rfl hrep₂
-  rcases hrun₃ with ⟨hstate₃, hout₃⟩
+  rcases runFrom_emitWork (y := y) start₃ rfl hrep₂ with ⟨hstate₃, hout₃⟩
   let fin₃ := (emitWork Symbol).runFrom start₃ (y.length + 1)
-  have hfin₃_halt : fin₃.Halted := hstate₃
   have hseq₂₃ : ((runOnWork tm).seq (emitWork Symbol)).runFrom
-      (start₂.mapState (handOver (emitWork Symbol).q₀)) (t + (y.length + 1)) =
+      (mid₁.withState (some ((runOnWork tm).seq (emitWork Symbol)).q₀)) (t + (y.length + 1)) =
         fin₃.mapState (Option.map .inr) :=
-    runFrom_seq (tm₀ := runOnWork tm) (tm₁ := emitWork Symbol) rfl hmid₂_halt rfl hfin₃_halt
-  have hstart₂_eq : mid₁.withState (some ((runOnWork tm).seq (emitWork Symbol)).q₀) =
-      start₂.mapState (handOver (emitWork Symbol).q₀) := rfl
-  rw [← hstart₂_eq] at hseq₂₃
-  have hright_halt : (fin₃.mapState (Option.map (Sum.inr (α := tm.State)))).Halted := by
-    simp [Cfg.Halted, hfin₃_halt]
-  have hinit_eq : (ofSingleTapeTM tm).initCfg x =
-      ((copyInputToWork Symbol).initCfg x).mapState
-        (handOver ((runOnWork tm).seq (emitWork Symbol)).q₀) := rfl
+    runFrom_seq (tm₀ := runOnWork tm) (tm₁ := emitWork Symbol) rfl hstate₂ rfl hstate₃
   have hseq₁₂₃ : (ofSingleTapeTM tm).runFrom ((ofSingleTapeTM tm).initCfg x) T =
-      (fin₃.mapState (Option.map .inr)).mapState (Option.map .inr) := by
-    rw [hinit_eq]
-    exact runFrom_seq (tm₀ := copyInputToWork Symbol)
-      (tm₁ := (runOnWork tm).seq (emitWork Symbol)) hcopy hmid₁_halt hseq₂₃ hright_halt
+      (fin₃.mapState (Option.map .inr)).mapState (Option.map .inr) :=
+    runFrom_seq (tm₀ := copyInputToWork Symbol) (tm₁ := (runOnWork tm).seq (emitWork Symbol))
+      hcopy rfl hseq₂₃ (by simp [Cfg.Halted, fin₃, hstate₃])
   rw [hseq₁₂₃]
-  refine ⟨by simp [Cfg.Halted, hfin₃_halt], ?_⟩
-  change ((emitWork Symbol).runFrom start₃ (y.length + 1)).output = y
+  refine ⟨by simp [Cfg.Halted, fin₃, hstate₃], ?_⟩
+  change fin₃.output = y
   rw [hout₃]
-  change ((runOnWork tm).runFrom start₂ t).output ++ y = y
-  rw [hout₂]
-  rfl
+  change mid₂.output ++ y = y
+  rw [hout₂]; rfl
 
 /-- If `tm.OutputsWithinTime x y t`, then `ofSingleTapeTM tm` computes `y` from `x` in
 `2 * x.length + 4 + (t + (y.length + 1))` steps. -/
@@ -346,12 +316,9 @@ theorem computesInTimeAndSpace_ofSingleTapeTM (tm : SingleTapeTM Symbol)
     (ofSingleTapeTM tm).ComputesInTimeAndSpace x y T (T + 1) := by
   intro T
   rcases runFrom_ofSingleTapeTM_of_outputsWithinTime tm h with ⟨hhalt, hout⟩
-  have h1 : (ofSingleTapeTM tm).ComputesInTimeAndSpace x y T (1 * T + 1) :=
-    ⟨⟨T, hhalt, hout⟩, runsInTime_of_halted hhalt,
-      runsInSpace_of_halted hhalt
-        ((MultiTapeNTM.RunPath.space_le_mul_time_add_one (.ofDeterministic _ _ T)).trans_eq
-          (Nat.mul_add_one _ _))⟩
-  exact ⟨h1.1, h1.2.1, h1.2.2.mono (by omega)⟩
+  refine ⟨⟨T, hhalt, hout⟩, runsInTime_of_halted hhalt, ?_⟩
+  exact (runsInSpace_of_halted (s := 1 * T + 1) hhalt
+    (MultiTapeNTM.RunPath.space_le_mul_time_add_one (.ofDeterministic _ _ T))).mono (by omega)
 
 /-- Input-only time bound for `ofSingleTapeTM tm`: since `y.length ≤ max 1 x.length + t`,
 `3 * x.length + 2 * t + 6` steps always suffice. -/
@@ -436,17 +403,13 @@ theorem PolyTimeComputable.computableInPolyTime {α β : Type*} {f : List Bool �
     (hf : PolyTimeComputable f) (encIn : α ↪ List Bool) (encOut : β ↪ List Bool) (g : α → β)
     (hfg : ∀ a, f (encIn a) = encOut (g a)) :
     ComputableInPolyTime g encIn encOut := by
-  refine ⟨fun n => 3 * n + 2 * hf.poly.eval n + 6,
-    fun n => 3 * n + 2 * hf.poly.eval n + 7, by fun_prop, by fun_prop, ?_⟩
-  refine (hf.toTimeComputable.computableInTimeAndSpace encIn encOut g hfg).mono ?_ ?_
-  · intro a
-    have hb := hf.bounds (encIn a).length
-    dsimp only
-    omega
-  · intro a
-    have hb := hf.bounds (encIn a).length
-    dsimp only
-    omega
+  have hmono (c : ℕ) (a : α) :
+      3 * (encIn a).length + 2 * hf.timeBound (encIn a).length + c ≤
+        3 * (encIn a).length + 2 * hf.poly.eval (encIn a).length + c :=
+    Nat.add_le_add_right (Nat.add_le_add_left (Nat.mul_le_mul_left 2 (hf.bounds _)) _) c
+  exact ⟨fun n => 3 * n + 2 * hf.poly.eval n + 6,
+    fun n => 3 * n + 2 * hf.poly.eval n + 7, by fun_prop, by fun_prop,
+    (hf.toTimeComputable.computableInTimeAndSpace encIn encOut g hfg).mono (hmono 6) (hmono 7)⟩
 
 /-- Special case of `PolyTimeComputable.computableInPolyTime` for `f : List Bool → List Bool`
 under the identity encoding. -/

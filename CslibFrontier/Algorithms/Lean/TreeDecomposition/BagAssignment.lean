@@ -8,10 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import Cslib.Algorithms.Lean.TimeM
 public import Mathlib.Data.Finset.Basic
 public import Mathlib.Data.List.Nodup
-import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Bag assignments indexed in radix `q`
@@ -22,19 +20,18 @@ domain of size `q > 0`, tables at a bag listed by `L : List V` are indexed by na
 
 * `ofRadix q L m`: decodes `m` into an assignment `V → ℕ` taking values `< q` on `L` and `0`
   outside `L`.
+* `ofRadixFin q hq L m`: decodes `m` into a `Fin q`-valued assignment along `L`.
 * `toRadix q L α`: encodes an assignment `α : V → ℕ` restricted to `L` as a number in
   `Finset.range (q ^ L.length)`.
-* `lookupM`, `projectM`, `evalScopeM`: explicit `TimeM ℕ` loops implementing lookup, projection to
-  another bag ordering, and scope evaluation with exact tick counts linear in bag size.
+
+Machine-level running-time bounds for radix lookup, bag projection, and constraint evaluation live
+in `CslibFrontier.Algorithms.WordRAM.TreeDecomposition.CSP`.
 
 ## Main definitions
 
 * `Cslib.Algorithms.Lean.TreeDecomposition.ofRadix`
 * `Cslib.Algorithms.Lean.TreeDecomposition.ofRadixFin`
 * `Cslib.Algorithms.Lean.TreeDecomposition.toRadix`
-* `Cslib.Algorithms.Lean.TreeDecomposition.lookupM`
-* `Cslib.Algorithms.Lean.TreeDecomposition.projectM`
-* `Cslib.Algorithms.Lean.TreeDecomposition.evalScopeM`
 
 ## Main results
 
@@ -42,9 +39,6 @@ domain of size `q > 0`, tables at a bag listed by `L : List V` are indexed by na
   `m < q ^ L.length`, `toRadix q L (ofRadix q L m) = m`.
 * `Cslib.Algorithms.Lean.TreeDecomposition.ofRadix_toRadix`: when `∀ v ∈ L, α v < q`,
   `ofRadix q L (toRadix q L α)` agrees with `α` on `L`.
-* `Cslib.Algorithms.Lean.TreeDecomposition.ret_lookupM`,
-  `Cslib.Algorithms.Lean.TreeDecomposition.ret_projectM`,
-  `Cslib.Algorithms.Lean.TreeDecomposition.ret_evalScopeM` and their `time_*` bounds.
 -/
 
 public section
@@ -94,8 +88,7 @@ theorem ofRadix_eq_zero_of_notMem {q : ℕ} (L : List V) (m : ℕ) {x : V} (hx :
   | nil => rfl
   | cons v L ih =>
     rw [List.mem_cons, not_or] at hx
-    simp only [ofRadix, ite_eq_right (fun h => hx.1 h)]
-    exact ih (m / q) hx.2
+    simpa only [ofRadix, ite_eq_right fun h => hx.1 h] using ih (m / q) hx.2
 
 theorem ofRadix_cons_self {q : ℕ} (v : V) (L : List V) (m : ℕ) :
     ofRadix q (v :: L) m v = m % q := by
@@ -112,7 +105,7 @@ theorem toRadix_congr {q : ℕ} {L : List V} {α β : V → ℕ}
   | nil => rfl
   | cons v L ih =>
     simp only [toRadix, h v List.mem_cons_self,
-      ih (fun w hw => h w (List.mem_cons_of_mem _ hw))]
+      ih fun w hw => h w (List.mem_cons_of_mem _ hw)]
 
 omit [DecidableEq V] in
 theorem toRadix_lt {q : ℕ} (hq : 0 < q) (L : List V) (α : V → ℕ) :
@@ -121,27 +114,21 @@ theorem toRadix_lt {q : ℕ} (hq : 0 < q) (L : List V) (α : V → ℕ) :
   | nil => simp [toRadix]
   | cons v L ih =>
     simp only [toRadix, List.length_cons, Nat.pow_succ, Nat.mul_comm (q ^ L.length) q]
-    have hm : α v % q < q := Nat.mod_lt _ hq
+    have := Nat.mod_lt (α v) hq
     have hmul : q * (toRadix q L α + 1) ≤ q * q ^ L.length := Nat.mul_le_mul_left q ih
-    rw [Nat.mul_add, Nat.mul_one] at hmul
-    omega
+    rw [Nat.mul_add, Nat.mul_one] at hmul; omega
 
 theorem toRadix_ofRadix {q : ℕ} {L : List V} (hL : L.Nodup) {m : ℕ}
     (hm : m < q ^ L.length) : toRadix q L (ofRadix q L m) = m := by
   induction L generalizing m with
-  | nil =>
-    simp only [List.length_nil, Nat.pow_zero] at hm
-    simp only [toRadix]
-    omega
+  | nil => simp only [List.length_nil, Nat.pow_zero, toRadix] at hm ⊢; omega
   | cons v L ih =>
     rw [List.nodup_cons] at hL
     simp only [List.length_cons, Nat.pow_succ, Nat.mul_comm (q ^ L.length) q] at hm
-    have hmdiv : m / q < q ^ L.length := Nat.div_lt_of_lt_mul hm
-    have hrest : toRadix q L (ofRadix q (v :: L) m) = toRadix q L (ofRadix q L (m / q)) := by
-      refine toRadix_congr fun w hw => ?_
-      exact ofRadix_cons_ne (fun h => by subst h; exact hL.1 hw) L m
-    simp only [toRadix, ofRadix_cons_self, hrest, ih hL.2 hmdiv]
-    rw [Nat.mod_mod, Nat.mod_add_div]
+    have hrest : toRadix q L (ofRadix q (v :: L) m) = toRadix q L (ofRadix q L (m / q)) :=
+      toRadix_congr fun w hw => ofRadix_cons_ne (fun h : w = v => hL.1 (h ▸ hw)) L m
+    simp only [toRadix, ofRadix_cons_self, hrest, ih hL.2 (Nat.div_lt_of_lt_mul hm),
+      Nat.mod_mod, Nat.mod_add_div]
 
 theorem ofRadix_toRadix {q : ℕ} (hq : 0 < q) {L : List V} {α : V → ℕ}
     (hα : ∀ v ∈ L, α v < q) {x : V} (hx : x ∈ L) :
@@ -149,91 +136,15 @@ theorem ofRadix_toRadix {q : ℕ} (hq : 0 < q) {L : List V} {α : V → ℕ}
   induction L with
   | nil => exact absurd hx List.not_mem_nil
   | cons v L ih =>
-    have hmod : toRadix q (v :: L) α % q = α v := by
-      rw [toRadix_cons, Nat.add_mul_mod_self_left,
-        Nat.mod_eq_of_lt (Nat.mod_lt _ hq),
-        Nat.mod_eq_of_lt (hα v List.mem_cons_self)]
-    have hdiv : toRadix q (v :: L) α / q = toRadix q L α := by
-      rw [toRadix_cons, Nat.add_mul_div_left _ _ hq,
-        Nat.div_eq_of_lt (Nat.mod_lt _ hq), Nat.zero_add]
     by_cases hxv : x = v
     · subst hxv
-      rw [ofRadix_cons_self, hmod]
-    · have hxL : x ∈ L := (List.mem_cons.1 hx).resolve_left hxv
-      rw [ofRadix_cons_ne hxv, hdiv]
-      exact ih (fun w hw => hα w (List.mem_cons_of_mem _ hw)) hxL
+      rw [ofRadix_cons_self, toRadix_cons, Nat.add_mul_mod_self_left,
+        Nat.mod_eq_of_lt (Nat.mod_lt _ hq), Nat.mod_eq_of_lt (hα x List.mem_cons_self)]
+    · rw [ofRadix_cons_ne hxv, toRadix_cons, Nat.add_mul_div_left _ _ hq,
+        Nat.div_eq_of_lt (Nat.mod_lt _ hq), Nat.zero_add]
+      exact ih (fun w hw => hα w (List.mem_cons_of_mem _ hw))
+        ((List.mem_cons.1 hx).resolve_left hxv)
 
 end Radix
-
-/-! ### Timed loops -/
-
-section Loops
-
-variable {V : Type*} [DecidableEq V]
-
-/-- Look up the coordinate assigned to `x` in the base-`q` assignment `m` along `L`, spending
-one tick per entry of `L`. -/
-@[expose] def lookupM (q : ℕ) (x : V) : List V → ℕ → TimeM ℕ ℕ
-  | [], _ => pure 0
-  | u :: L, m => do
-    TimeM.tick 1
-    let r ← lookupM q x L (m / q)
-    pure (if x = u then m % q else r)
-
-/-- Encode the bag assignment `ofRadix q LB t` in base `q` along `LP`, scanning `LB` once per
-entry of `LP`. -/
-@[expose] def projectM (q : ℕ) (LB : List V) (t : ℕ) : List V → TimeM ℕ ℕ
-  | [] => pure 0
-  | u :: LP => do
-    let r ← projectM q LB t LP
-    let val ← lookupM q u LB t
-    TimeM.tick 1
-    pure (val + q * r)
-
-/-- Evaluate a constraint scope list `scope : List V` under `ofRadixFin q hq LB t`. -/
-@[expose] def evalScopeM (q : ℕ) (hq : 0 < q) (LB : List V) (t : ℕ) :
-    List V → TimeM ℕ (List (Fin q))
-  | [] => pure []
-  | x :: scope => do
-    let r ← evalScopeM q hq LB t scope
-    let val ← lookupM q x LB t
-    TimeM.tick 1
-    pure (⟨val % q, Nat.mod_lt val hq⟩ :: r)
-
-@[time_simps]
-theorem ret_lookupM (q : ℕ) (x : V) (L : List V) (m : ℕ) :
-    (lookupM q x L m).ret = ofRadix q L m x := by
-  time_spec lookupM
-
-@[time_simps]
-theorem time_lookupM (q : ℕ) (x : V) (L : List V) (m : ℕ) :
-    (lookupM q x L m).time = L.length := by
-  time_spec lookupM
-
-theorem ret_projectM {q : ℕ} (hq : 0 < q) (LB LP : List V) (t : ℕ) :
-    (projectM q LB t LP).ret = toRadix q LP (ofRadix q LB t) := by
-  induction LP with
-  | nil => rfl
-  | cons u LP ih =>
-    simp only [projectM, time_simps, ih, toRadix_cons, Nat.mod_eq_of_lt (ofRadix_lt hq LB t u)]
-
-theorem time_projectM (q : ℕ) (LB LP : List V) (t : ℕ) :
-    (projectM q LB t LP).time = LP.length * (LB.length + 1) := by
-  time_spec projectM [Nat.succ_mul]
-
-@[time_simps]
-theorem ret_evalScopeM {q : ℕ} (hq : 0 < q) (LB : List V) (t : ℕ) (scope : List V) :
-    (evalScopeM q hq LB t scope).ret = scope.map (ofRadixFin q hq LB t) := by
-  induction scope with
-  | nil => rfl
-  | cons x scope ih =>
-    simp only [evalScopeM, time_simps, ih, Nat.mod_eq_of_lt (ofRadix_lt hq LB t x)]
-    rfl
-
-theorem time_evalScopeM {q : ℕ} (hq : 0 < q) (LB : List V) (t : ℕ) (scope : List V) :
-    (evalScopeM q hq LB t scope).time = scope.length * (LB.length + 1) := by
-  time_spec evalScopeM [Nat.succ_mul]
-
-end Loops
 
 end Cslib.Algorithms.Lean.TreeDecomposition

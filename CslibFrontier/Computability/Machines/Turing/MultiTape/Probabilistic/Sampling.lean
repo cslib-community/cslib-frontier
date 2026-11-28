@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Closed
 public import CslibFrontier.Languages.Probabilistic.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # A uniform word sampler
@@ -68,12 +69,7 @@ theorem step {input output : List Bool} {index : ℕ} (h : index < input.length)
       { inputTape := 1, workTapes := Fin.elim0, output := some bit, state := some () }
       Empty.elim Empty.elim =
       config input (some ()) (index + 1) (output ++ [bit]) h := by
-  refine Config.ext ?_ (funext fun oracle => oracle.elim)
-  refine Cfg.ext_zero_tapes rfl ?_ rfl
-  apply Fin.ext
-  change (moveInputPos _ .pos).val = index + 1 + 1
-  rw [moveInputPos_pos_of_ne_right _ (by simp only [config]; lia)]
-  rfl
+  tm_step [config, Config.step]
 
 /-- The complete configuration distribution after scanning the remaining suffix and halting. -/
 theorem eval_run_config (input : List Bool) (remaining : ℕ) :
@@ -97,9 +93,7 @@ theorem eval_run_config (input : List Bool) (remaining : ℕ) :
     simp only [MultiTapeMachine.runConfigFrom, ProbComp.eval_bind, ProbComp.eval_pure,
       PMF.bind_const, BitString.uniformList_zero, PMF.pure_map, List.append_nil]
     congr 1
-    refine Config.ext ?_ (funext fun oracle => oracle.elim)
-    exact Cfg.ext_zero_tapes rfl (by simp [Config.step, config, Turing.Action.apply])
-      (by simp [Config.step, config, Turing.Action.apply])
+    tm_step [Config.step, config]
   | succ remaining ih =>
     intro index output h
     have hi : index < input.length := by lia
@@ -126,8 +120,7 @@ theorem eval_runClosedConfig_uniformListMachine (input : List Bool) :
         (fun output => UniformListMachine.config input none input.length output le_rfl) := by
   have hcfg : uniformListMachine.initialConfig input =
       UniformListMachine.config input (some ()) 0 [] (Nat.zero_le _) := by
-    refine Config.ext ?_ rfl
-    exact Cfg.ext_zero_tapes rfl rfl rfl
+    tm_step
   rw [hcfg]
   simpa only [List.nil_append] using
     UniformListMachine.eval_run_config input input.length 0 [] (by lia)

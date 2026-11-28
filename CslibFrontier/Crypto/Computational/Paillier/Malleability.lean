@@ -80,8 +80,11 @@ returns `decrypt sk ct`. -/
 theorem computableInPolyTime_incrementCiphertext :
     ComputableInPolyTime (fun ⟨pk, ct⟩ => incrementCiphertext pk ct) (encPair encBits encBits)
       encBits := by
-  unfold incrementCiphertext addCiphertexts
-  fun_prop
+  have hp := ComputableInPolyTime.id' (encIn := encPair encBits encBits)
+  have hN := ComputableInPolyTime.bitsToNat.comp hp.fst'
+  have hinc := (ComputableInPolyTime.binary_add' (.const 1) hN).encoding_comp
+  simpa only [incrementCiphertext, Function.comp_def] using
+    computableInPolyTime_addCiphertexts.comp (hp.fst'.prod (hp.snd'.prod hinc))
 
 /-- **Incrementing adds one to the plaintext**: for a valid description `d`, every ciphertext in
 the support of `encrypt n (encNat N) m` increments to a ciphertext that decrypts to
@@ -141,26 +144,21 @@ private theorem increment_conditions {gen : ℕ → ProbComp Desc} {n : ℕ} (bi
     decryptOpt n keys.2 (incrementCiphertext keys.1 ct) ≠ decryptOpt n keys.2 ct ∧
       (encOption encBits (decryptOpt n keys.2 (incrementCiphertext keys.1 ct)) =
         encOption encBits (some (encNat (2 % ofBits keys.1))) ↔ bit = true) := by
-  obtain ⟨d, hkeq⟩ := exists_of_mem_support_keyGen hkeys
+  obtain ⟨d, rfl⟩ := exists_of_mem_support_keyGen hkeys
+  dsimp only at hct ⊢
   have hN := d.one_lt_modulus
-  have hm : (if bit then 1 else 0) < ofBits keys.1 := by
-    rw [hkeq, ofBits_encNat]; cases bit <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> omega
-  have hcorrect := decrypt_encrypt hkeys hm hct
-  subst hkeq
+  have hm : (if bit then 1 else 0) < ofBits (encNat d.modulus) := by
+    rw [ofBits_encNat]
+    cases bit <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> omega
   have h2 : 2 % d.modulus ≠ 1 := by
-    rcases Nat.lt_or_ge 2 d.modulus with h | h
-    · rw [Nat.mod_eq_of_lt h]; omega
-    · obtain h' : d.modulus = 2 := by omega
-      rw [h']; decide
-  dsimp only at hcorrect ⊢
-  simp only [decryptOpt, decrypt_incrementCiphertext d hct, hcorrect, ofBits_encNat, ne_eq,
-    Option.some.injEq, EmbeddingLike.apply_eq_iff_eq]
-  cases bit
-  · simp only [Bool.false_eq_true, ↓reduceIte, zero_add, Nat.mod_eq_of_lt hN, one_ne_zero,
-      not_false_eq_true, iff_false, true_and]
-    exact fun h => h2 h.symm
-  · simp only [↓reduceIte, Nat.reduceAdd, and_true]
-    exact h2
+    rcases lt_or_eq_of_le (Nat.succ_le_of_lt hN) with h | h
+    · rw [Nat.mod_eq_of_lt h]
+      omega
+    · rw [← h]
+      decide
+  simp only [decryptOpt, decrypt_incrementCiphertext d hct, decrypt_encrypt hkeys hm hct,
+    ofBits_encNat, ne_eq, Option.some.injEq, EmbeddingLike.apply_eq_iff_eq]
+  cases bit <;> simp [Nat.mod_eq_of_lt hN, h2, h2.symm]
 
 /-- `incrementAdversary` has 1CCA advantage exactly `1` against Paillier under `validMessages`. -/
 theorem advantage_cca2GameOn_incrementAdversary (gen : ℕ → ProbComp Desc) (n : ℕ) :

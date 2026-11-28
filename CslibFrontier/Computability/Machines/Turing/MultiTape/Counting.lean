@@ -40,6 +40,8 @@ An empty list at a running configuration is stuck, not a rejecting halt.
 
 * `Turing.MultiTapeCTM.mem_branches_iff`: the enumeration is exactly the bounded terminal traces.
 * `Turing.MultiTapeCTM.HaltsWithin.branches_eq`: larger sufficient clocks preserve every branch.
+* `Turing.MultiTapeCTM.haltsWithin_of_paths_of_haltsWithin`: tighten a `HaltsWithin` clock via
+  unlabelled run paths.
 * `Turing.MultiTapeCTM.exists_branchBound`: finite control and alphabet bound occurrence counts.
 
 This is operational counting semantics, without a claimed polynomial-time verifier or a new
@@ -75,6 +77,17 @@ def actions (machine : MultiTapeCTM k Symbol State) (cfg : Cfg k Symbol State in
   | some state =>
     (machine.tr state cfg.inputSymbol cfg.workTapeSymbols Empty.elim).map
       MultiTapeMachine.Action.emptyOracleEquiv
+
+/-- Forget the multiplicity of transition occurrences for reasoning about reachable configurations.
+Use the original counting machine when counting branches. -/
+def toNTM (M : MultiTapeCTM k Symbol State) : MultiTapeNTM k Symbol State where
+  q₀ := M.initial
+  Tr state symbol work action :=
+    MultiTapeMachine.Action.emptyOracleEquiv.symm action ∈ M.tr state symbol work Empty.elim
+
+/-- Forgetting transition multiplicity preserves the initial configuration. -/
+theorem initCfg_toNTM (machine : MultiTapeCTM k Symbol State) (input : List Symbol) :
+    machine.toNTM.initCfg input = (machine.initialConfig input).tapes := rfl
 
 /-- Every running local view has a transition occurrence. This excludes stuck states even on
 unreachable configurations; a native `HaltsWithin` hypothesis only needs the reachable ones. -/
@@ -176,12 +189,26 @@ theorem step?_eq_some_iff (machine : MultiTapeCTM k Symbol State)
     machine.step? cfg index = some final ↔
       ∃ h : index < (machine.actions cfg).length,
         (machine.actions cfg)[index].apply cfg = final := by
-  simp only [step?, Option.map_eq_some_iff, List.getElem?_eq_some_iff]
-  constructor
-  · rintro ⟨action, ⟨h, rfl⟩, heq⟩
-    exact ⟨h, heq⟩
-  · rintro ⟨h, heq⟩
-    exact ⟨_, ⟨h, rfl⟩, heq⟩
+  simp [step?, Option.map_eq_some_iff, List.getElem?_eq_some_iff]
+
+/-- Before halting, a step of the unlabelled machine is precisely a valid occurrence. -/
+theorem step_toNTM_iff (M : MultiTapeCTM k Symbol State)
+    {cfg next : Cfg k Symbol State input} (hrun : ¬cfg.Halted) :
+    M.toNTM.Step cfg next ↔ ∃ i, M.step? cfg i = some next := by
+  cases hstate : cfg.state with
+  | none => exact (hrun hstate).elim
+  | some q =>
+    simp only [MultiTapeNTM.Step, hstate, toNTM, step?_eq_some_iff]
+    refine ⟨?_, ?_⟩
+    · rintro ⟨act, hact, rfl⟩
+      have hm : act ∈ M.actions cfg := by
+        simpa only [actions, hstate] using List.mem_map.mpr ⟨_, hact, Equiv.apply_symm_apply _ _⟩
+      obtain ⟨i, hi, he⟩ := List.mem_iff_getElem.mp hm
+      exact ⟨i, hi, congrArg (Turing.Action.apply · cfg) he⟩
+    · rintro ⟨i, hi, rfl⟩
+      obtain ⟨act, hact, he⟩ := List.mem_map.mp
+        (by simpa only [actions, hstate] using List.getElem_mem hi)
+      exact ⟨_, by simpa only [actions, hstate, ← he, Equiv.symm_apply_apply] using hact, rfl⟩
 
 @[simp]
 theorem nil_mem_branches (machine : MultiTapeCTM k Symbol State)
@@ -198,6 +225,36 @@ theorem cons_mem_branches (machine : MultiTapeCTM k Symbol State)
   | some state =>
     simp [branches, hs, Finset.mem_biUnion, Finset.mem_image, step?_eq_some_iff,
       Fin.exists_iff]
+
+/-- A path containing only running steps can be replayed by occurrence indices. -/
+theorem exists_runBranch_of_runningPath (M : MultiTapeCTM k Symbol State)
+    (p : RelSeries (M.toNTM.runningStepRel input)) :
+    ∃ indices, M.runBranch p.head indices = some p.last ∧
+      indices.length = p.length := by
+  induction p using RelSeries.inductionOn' with
+  | singleton cfg => exact ⟨[], rfl, rfl⟩
+  | snoc p next hs ih =>
+    obtain ⟨indices, hi, hlen⟩ := ih
+    obtain ⟨i, hstep⟩ := (M.step_toNTM_iff hs.1).mp hs.2
+    refine ⟨indices ++ [i], ?_, by simp [hlen]⟩
+    simp [runBranch_append, hi, runBranch_cons, hstep]
+
+/-- A successful occurrence replay gives a path of running steps. -/
+theorem exists_runningPath_of_runBranch (M : MultiTapeCTM k Symbol State)
+    {c d : Cfg k Symbol State input} {indices : List ℕ}
+    (h : M.runBranch c indices = some d) :
+    ∃ p : RelSeries (M.toNTM.runningStepRel input),
+      p.head = c ∧ p.last = d ∧ p.length = indices.length := by
+  induction indices generalizing c with
+  | nil =>
+    have he : c = d := Option.some.inj h
+    exact ⟨RelSeries.singleton _ c, rfl, he, rfl⟩
+  | cons i is ih =>
+    obtain ⟨next, hs, ht⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨p, hp, hlast, hlen⟩ := ih ht
+    have hnot : ¬c.Halted := fun hc => by simp [M.step?_of_halted hc] at hs
+    have hstep : M.toNTM.Step c p.head := hp ▸ (M.step_toNTM_iff hnot).mpr ⟨i, hs⟩
+    exact ⟨p.cons c ⟨hnot, hstep⟩, rfl, by simpa using hlast, by simp [hlen]⟩
 
 /-- The finite enumeration is exactly the first-halting LTS traces within the given clock. -/
 theorem mem_branches_iff (machine : MultiTapeCTM k Symbol State)
@@ -226,6 +283,77 @@ inductive HaltsWithin (machine : MultiTapeCTM k Symbol State) :
       (next : ∀ index : Fin (machine.actions cfg).length,
         HaltsWithin machine fuel ((machine.actions cfg)[index].apply cfg)) :
       HaltsWithin machine (fuel + 1) cfg
+
+private theorem haltsWithin_of_invariant {M : MultiTapeCTM k Symbol State}
+    (inv : Cfg k Symbol State input → Prop)
+    (hnonempty : ∀ c, inv c → ¬c.Halted → M.actions c ≠ [])
+    (hnext : ∀ c, inv c → ¬c.Halted →
+      ∀ idx : Fin (M.actions c).length, inv ((M.actions c)[idx].apply c))
+    {fuel : ℕ} {cfg : Cfg k Symbol State input} (hinv : inv cfg)
+    (h : ∀ p : M.toNTM.RunPath input, p.head = cfg → fuel ≤ p.length → p.last.Halted) :
+    M.HaltsWithin fuel cfg := by
+  induction fuel generalizing cfg with
+  | zero => exact .halt (h (RelSeries.singleton _ cfg) rfl (Nat.zero_le _))
+  | succ fuel ih =>
+    by_cases hh : cfg.Halted
+    · exact .halt hh
+    refine .step (hnonempty cfg hinv hh) fun idx =>
+      ih (hnext cfg hinv hh idx) fun p hp hlen => ?_
+    have hs : M.toNTM.Step cfg p.head := by
+      rw [hp, M.step_toNTM_iff hh]
+      exact ⟨idx.val, (M.step?_eq_some_iff _ _ _).mpr ⟨idx.isLt, rfl⟩⟩
+    have he := h (p.cons cfg hs) (RelSeries.head_cons _ _ _)
+      (by simpa only [RelSeries.cons_length] using Nat.succ_le_succ hlen)
+    simpa only [RelSeries.last_cons] using he
+
+/-- An unlabelled time bound certifies termination of a nonblocking counting machine. -/
+theorem haltsWithin_of_paths {M : MultiTapeCTM k Symbol State} (hM : M.Nonblocking)
+    {fuel : ℕ} {cfg : Cfg k Symbol State input}
+    (h : ∀ p : M.toNTM.RunPath input, p.head = cfg → fuel ≤ p.length → p.last.Halted) :
+    M.HaltsWithin fuel cfg :=
+  haltsWithin_of_invariant (fun _ => True) (fun c _ hh => hM.actions_ne_nil c hh)
+    (fun _ _ _ _ => trivial) trivial h
+
+/-- If a `MultiTapeCTM` already satisfies `HaltsWithin` at some clock `t₁` (ruling out stuck
+reachable configurations) and every unlabelled run path of length at least `t₂` halts, then it
+also satisfies `HaltsWithin` at clock `t₂`. -/
+theorem haltsWithin_of_paths_of_haltsWithin {M : MultiTapeCTM k Symbol State} {t₁ t₂ : ℕ}
+    {cfg : Cfg k Symbol State input} (h₁ : M.HaltsWithin t₁ cfg)
+    (h₂ : ∀ p : M.toNTM.RunPath input, p.head = cfg → t₂ ≤ p.length → p.last.Halted) :
+    M.HaltsWithin t₂ cfg :=
+  haltsWithin_of_invariant (fun c => ∃ t, M.HaltsWithin t c)
+    (fun _ ⟨_, ht⟩ hh => by
+      cases ht with
+      | halt h => exact absurd h hh
+      | step hn _ => exact hn)
+    (fun _ ⟨_, ht⟩ hh idx => by
+      cases ht with
+      | halt h => exact absurd h hh
+      | @step t' _ _ next => exact ⟨t', next idx⟩)
+    ⟨t₁, h₁⟩ h₂
+
+/-- A counting-machine clock also bounds its unlabelled paths. Erasing the occurrence indices
+preserves the halting configuration of every path of at least that length. -/
+theorem HaltsWithin.paths_halted {M : MultiTapeCTM k Symbol State}
+    {fuel : ℕ} {cfg : Cfg k Symbol State input} (h : M.HaltsWithin fuel cfg) :
+    ∀ p : M.toNTM.RunPath input, p.head = cfg → fuel ≤ p.length → p.last.Halted := by
+  induction h with
+  | halt hh =>
+    intro p hp _
+    have hhead : p.head.Halted := by rwa [hp]
+    exact (p.last_eq_of_halted ⟨0, by omega⟩ hhead) ▸ hhead
+  | @step fuel cfg nonempty next ih =>
+    intro p hp hlen
+    have hnext : 1 < p.length + 1 := by omega
+    have hstep := p.step ⟨0, by omega⟩
+    change M.toNTM.Step p.head (p ⟨1, hnext⟩) at hstep
+    rw [hp] at hstep
+    have hlive : ¬cfg.Halted := fun hh => nonempty (M.actions_of_halted hh)
+    obtain ⟨index, hstep⟩ := (M.step_toNTM_iff hlive).mp hstep
+    obtain ⟨hi, heq⟩ := (M.step?_eq_some_iff _ _ _).mp hstep
+    have htail := ih ⟨index, hi⟩ (p.drop ⟨1, hnext⟩)
+      (by simpa using heq.symm) (by simp only [RelSeries.drop_length]; omega)
+    simpa using htail
 
 /-- Enlarging a sufficient clock does not add transitions after a branch halts. -/
 theorem HaltsWithin.mono {machine : MultiTapeCTM k Symbol State}
@@ -264,11 +392,8 @@ theorem HaltsWithin.branches_eq {machine : MultiTapeCTM k Symbol State}
     machine.branches larger cfg = machine.branches fuel cfg := by
   ext choices
   simp only [mem_branches_iff]
-  constructor
-  · rintro ⟨_, final, hrun, hhalt⟩
-    exact ⟨h.length_le hrun, final, hrun, hhalt⟩
-  · rintro ⟨hlen, hrun⟩
-    exact ⟨hlen.trans hle, hrun⟩
+  exact ⟨fun ⟨_, f, hr, hh⟩ => ⟨h.length_le hr, f, hr, hh⟩,
+    fun ⟨hlen, hrun⟩ => ⟨hlen.trans hle, hrun⟩⟩
 
 /-- The no-stuck condition guarantees at least one terminal branch. -/
 theorem HaltsWithin.branches_nonempty {machine : MultiTapeCTM k Symbol State}
@@ -289,6 +414,30 @@ def branchCount (machine : MultiTapeCTM k Symbol State) (verdict : List Symbol �
   ((machine.branches fuel cfg).filter fun choices =>
     (machine.runBranch cfg choices).any (fun final => verdict final.output)).card
 
+/-- A terminal verdict occurs within a sufficient clock exactly when a halted unlabelled
+path realizes it. -/
+theorem HaltsWithin.branchCount_pos_iff {M : MultiTapeCTM k Symbol State}
+    {fuel : ℕ} {cfg : Cfg k Symbol State input} (h : M.HaltsWithin fuel cfg)
+    (verdict : List Symbol → Bool) :
+    0 < M.branchCount verdict fuel cfg ↔
+      ∃ p : M.toNTM.RunPath input, p.head = cfg ∧ p.last.Halted ∧ verdict p.last.output := by
+  constructor
+  · intro hpos
+    obtain ⟨indices, hmem⟩ := Finset.card_pos.mp hpos
+    obtain ⟨hmem, hv⟩ := Finset.mem_filter.mp hmem
+    obtain ⟨_, final, hrun, hh⟩ := (M.mem_branches_iff _ _ _).mp hmem
+    obtain ⟨q, hhead, hlast, _⟩ := M.exists_runningPath_of_runBranch hrun
+    let p : M.toNTM.RunPath input := q.map ⟨id, fun hs => hs.2⟩
+    have hp : p.head = cfg := by simpa [p] using hhead
+    have hlast : p.last = final := by simpa [p] using hlast
+    exact ⟨p, hp, hlast ▸ hh, by simpa [hlast, hrun] using hv⟩
+  · rintro ⟨p, hp, hh, hv⟩
+    obtain ⟨q, hhead, hlast, _, _⟩ := p.exists_running hh
+    obtain ⟨indices, hi, _⟩ := M.exists_runBranch_of_runningPath q
+    rw [hhead, hp, hlast] at hi
+    refine Finset.card_pos.mpr ⟨indices, Finset.mem_filter.mpr ⟨?_, by simpa [hi] using hv⟩⟩
+    exact (M.mem_branches_iff _ _ _).mpr ⟨h.length_le hi, _, hi, hh⟩
+
 /-- Acceptance and rejection partition the terminal branches, without counting stuck states. -/
 theorem branchCount_add_not (machine : MultiTapeCTM k Symbol State)
     (verdict : List Symbol → Bool) (fuel : ℕ) (cfg : Cfg k Symbol State input) :
@@ -299,11 +448,10 @@ theorem branchCount_add_not (machine : MultiTapeCTM k Symbol State)
       (machine.branches fuel cfg).filter (fun choices =>
         (machine.runBranch cfg choices).any (fun final => !verdict final.output)) =
       (machine.branches fuel cfg).filter (fun choices =>
-        ¬(machine.runBranch cfg choices).any (fun final => verdict final.output)) := by
-    apply Finset.filter_congr
-    intro choices hchoices
-    obtain ⟨_, final, hrun, _⟩ := (machine.mem_branches_iff cfg fuel choices).mp hchoices
-    simp [hrun]
+        ¬(machine.runBranch cfg choices).any (fun final => verdict final.output)) :=
+    Finset.filter_congr fun choices hchoices => by
+      obtain ⟨_, _, hrun, _⟩ := (machine.mem_branches_iff cfg fuel choices).mp hchoices
+      simp [hrun]
   rw [hfilter]
   exact Finset.card_filter_add_card_filter_not _
 

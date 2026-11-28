@@ -21,6 +21,7 @@ every old segment and specify every added segment by its exact list position.
 
 ## Main results
 
+* `Cslib.Polygonal.Route.support_append`: exact support union for arbitrary routes.
 * `Cslib.Polygonal.Route.segments_foldl_append`: the exact number of segments after a word.
 * `Cslib.Polygonal.Route.foldl_append_eval_cases`: all-real evaluation and chain-position
   classification of every actual segment after a finite append word.
@@ -57,6 +58,21 @@ theorem append_eval_cases (p : Route) (b : ℂ) (i : Fin (p.append b).segments) 
     change Fin p.segments at j
     exact Or.inl ⟨j, eval_append_castSucc p b j t, position_append_castSucc p b j t⟩
 
+/-- Appending adds exactly the full closed segment from the previous finish to the
+new point. Closed routes and an unchanged finish are admitted without extra hypotheses. -/
+theorem support_append (p : Route) (b : ℂ) :
+    (p.append b).support = p.support ∪ segment ℝ p.finish b := by
+  ext z
+  rw [(p.append b).mem_support_iff, Set.mem_union, p.mem_support_iff, segment_eq_image_lineMap]
+  refine ⟨?_, ?_⟩
+  · rintro ⟨i, t, ht, hz⟩
+    rcases append_eval_cases p b i t with ⟨j, heq, _⟩ | ⟨heq, _⟩
+    · exact .inl ⟨j, t, ht, heq.symm.trans hz⟩
+    · exact .inr ⟨t, ht, heq.symm.trans hz⟩
+  · rintro (⟨i, t, ht, heq⟩ | ⟨t, ht, heq⟩)
+    · exact ⟨i.castSucc, t, ht, (eval_append_castSucc p b i t).trans heq⟩
+    · exact ⟨Fin.last p.segments, t, ht, (eval_append_last p b t).trans heq⟩
+
 /-- Attaching both ends retains every old parameter and distinguishes both new
 segments, even when the new route is closed. -/
 theorem attach_eval_cases (a : ℂ) (p : Route) (b : ℂ)
@@ -69,13 +85,10 @@ theorem attach_eval_cases (a : ℂ) (p : Route) (b : ℂ)
       ((Route.prepend a p).append b).position i t = (p.segments : ℝ) + 1 + t) := by
   rcases append_eval_cases (Route.prepend a p) b i t with ⟨j, heval, hpos⟩ | ⟨heval, hpos⟩
   · rcases prepend_eval_cases a p j t with ⟨k, heval', hpos'⟩ | ⟨heval', hpos'⟩
-    · exact Or.inl ⟨k, heval.trans heval', hpos.trans hpos'⟩
-    · exact Or.inr (Or.inl ⟨heval.trans heval', hpos.trans hpos'⟩)
-  · right
-    right
-    have hfinish : (Route.prepend a p).finish = p.finish := endpoint_prepend a p true
-    refine ⟨heval.trans (congrArg (fun x => AffineMap.lineMap x b t) hfinish), ?_⟩
-    simpa only [segments_prepend, Nat.cast_add, Nat.cast_one] using hpos
+    · exact .inl ⟨k, heval.trans heval', hpos.trans hpos'⟩
+    · exact .inr (.inl ⟨heval.trans heval', hpos.trans hpos'⟩)
+  · exact .inr (.inr ⟨heval.trans (congrArg (AffineMap.lineMap · b t) (endpoint_prepend a p true)),
+      by simpa only [segments_prepend, Nat.cast_add, Nat.cast_one] using hpos⟩)
 
 /-- Each appended node contributes exactly one actual segment. -/
 theorem segments_foldl_append (p : Route) (nodes : List ℂ) :
@@ -148,13 +161,7 @@ theorem eval_foldl_append_line (a b : ℂ) (nodes : List ℂ)
           omega)) t := by
   rcases Route.foldl_append_eval_cases (Route.line a b) nodes i t with
     ⟨j, hij, heval, _⟩ | ⟨q, hiq, heval, _⟩
-  · have hj : j = 0 := by
-        apply Fin.ext
-        change j.val = 0
-        have h := j.isLt
-        change j.val < 1 at h
-        omega
-    subst j
+  · obtain rfl : j = 0 := Fin.ext (Nat.lt_one_iff.mp j.isLt)
     simpa only [hij, Fin.val_zero, Nat.zero_add, List.getElem_cons_zero,
       List.getElem_cons_succ, Route.eval_line] using heval
   · change i.val = 1 + q.val at hiq

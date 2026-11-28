@@ -79,53 +79,6 @@ def body : Code .standard 16 := ram[
 /-- Reset the input cursor, then perform one stable-selection scan. -/
 def code : Code .standard 16 := ram[ idx ← #0; while idx < len do [ ⟪body⟫ ] ]
 
-private theorem preserves_low (j : Fin 16) (hj : j.val ≤ 6) : body.Preserves j := by
-  have hne (k : Fin 16) (hk : 7 ≤ k.val) : (some k : Option (Fin 16)) ≠ some j := by
-    intro h
-    have hv := congrArg Fin.val (Option.some.inj h)
-    omega
-  change (some addr ≠ some j) ∧ (some value ≠ some j) ∧
-    (some keyDigit ≠ some j) ∧ (some keyDigit ≠ some j) ∧
-    (((some addr ≠ some j) ∧ (none ≠ some j) ∧ (some out ≠ some j)) ∧
-      (some addr ≠ some j)) ∧ (some idx ≠ some j)
-  have hnone : (none : Option (Fin 16)) ≠ some j := by intro h; cases h
-  exact ⟨hne addr (by decide), hne value (by decide), hne keyDigit (by decide),
-    hne keyDigit (by decide),
-    ⟨⟨hne addr (by decide), hnone, hne out (by decide)⟩,
-      hne addr (by decide)⟩,
-    hne idx (by decide)⟩
-
-private theorem step {w : ℕ} (x : Data 16)
-    (ho : x.regs one = 1) (ht : x.regs two = 2)
-    (hs : Fits w (x.regs src + x.regs idx))
-    (hd : Fits w (x.regs dst + x.regs out))
-    (hi : Fits w (x.regs idx + 1))
-    (hu : digit (x.regs bit) (x.mem (x.regs src + x.regs idx)) = x.regs tag →
-      Fits w (x.regs out + 1))
-    (hv : Fits w (x.mem (x.regs src + x.regs idx))) :
-    ∃ y, ExecWithin w body x y 9 ∧
-      y.regs idx = x.regs idx + 1 ∧
-      y.regs out = x.regs out +
-        (if digit (x.regs bit) (x.mem (x.regs src + x.regs idx)) = x.regs tag then 1 else 0) ∧
-      y.mem = (if digit (x.regs bit) (x.mem (x.regs src + x.regs idx)) = x.regs tag then
-        Function.update x.mem (x.regs dst + x.regs out) (x.mem (x.regs src + x.regs idx))
-        else x.mem) := by
-  have hshift := hv.of_le (Nat.shiftRight_le _ (x.regs bit))
-  have hmod := hshift.of_le (Nat.mod_le _ 2)
-  by_cases h : digit (x.regs bit) (x.mem (x.regs src + x.regs idx)) = x.regs tag
-  · have heq : (x.mem (x.regs src + x.regs idx) >>> x.regs bit) % 2 = x.regs tag :=
-      (digit_eq_shift _ _).symm.trans h
-    have hinc := hu h
-    have htagfit : Fits w (x.regs tag) := heq ▸ hmod
-    refine ⟨?_, ?run, ?_, ?_, ?_⟩
-    case run => ram_eval [body, ho, ht, hs, hd, hi, hinc, hshift, hmod, heq, htagfit]
-    all_goals simp +decide [Data.set_regs, h]
-  · have hne : (x.mem (x.regs src + x.regs idx) >>> x.regs bit) % 2 ≠ x.regs tag := by
-      simpa only [← digit_eq_shift] using h
-    refine ⟨?_, ?run, ?_, ?_, ?_⟩
-    case run => ram_eval [body, ho, ht, hs, hd, hi, hshift, hmod, hne]
-    all_goals simp +decide [Data.set_regs, h]
-
 /-- Append a stable digit-selected subsequence in `11n+3` instructions. The destination has
 capacity `n`; source and destination blocks are disjoint, in either order. The caller's existing
 destination prefix is retained. Only destination cells may change. -/
@@ -159,89 +112,54 @@ theorem exec {w s d b t : ℕ} (xs acc : List ℕ) (x : Data 16)
       ∃ z, ExecWithin w body y z 9 ∧ P (y.regs idx + 1) z ∧
         z.regs idx = y.regs idx + 1 := by
     obtain ⟨hr, hu, hm, ha, hf⟩ := hy
-    have hys : y.regs src = s := by regs_frame
-    have hyd : y.regs dst = d := by regs_frame
-    have hyb : y.regs bit = b := by regs_frame
-    have hyt : y.regs tag = t := by regs_frame
-    have hyo : y.regs one = 1 := by regs_frame
-    have hy2 : y.regs two = 2 := by regs_frame
-    have hread : y.mem (y.regs src + y.regs idx) = xs[y.regs idx] := by
-      rw [hys]; exact hm.get _ hi
-    have hv : Fits w (y.mem (y.regs src + y.regs idx)) := by
-      rw [hread]; exact hwords _ (List.getElem_mem hi)
-    have hsa : Fits w (y.regs src + y.regs idx) := by
-      rw [hys]; exact hsfit.of_le (by omega)
-    have hda : Fits w (y.regs dst + y.regs out) := by
-      rw [hyd, hu]; exact hdfit.of_le (by have := hselected (y.regs idx); omega)
-    have hic : Fits w (y.regs idx + 1) := hsfit.of_le (by omega)
+    have hread : y.mem (s + y.regs idx) = xs[y.regs idx] := hm.get _ hi
+    have hv : Fits w xs[y.regs idx] := hwords _ (List.getElem_mem hi)
+    have hshift : Fits w (xs[y.regs idx] >>> b) := hv.of_le (Nat.shiftRight_le _ _)
+    have hmod : Fits w ((xs[y.regs idx] >>> b) % 2) := hshift.of_le (Nat.mod_le _ _)
+    have hcur := hselected (y.regs idx)
     have hsuc : selected (y.regs idx + 1) = selected (y.regs idx) ++
         (if digit b xs[y.regs idx] = t then [xs[y.regs idx]] else []) := by
       dsimp only [selected]
       rw [List.take_succ_eq_append_getElem hi, select_append]
       simp only [select, List.filter_cons, List.filter_nil, decide_eq_true_eq]
       split_ifs <;> simp only [List.append_assoc, List.append_nil]
+    have hjne (j : Fin 16) (hj : j.val ≤ 6) :
+        j ≠ idx ∧ j ≠ out ∧ j ≠ addr ∧ j ≠ value ∧ j ≠ keyDigit := by
+      refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> rintro rfl <;> exact absurd hj (by decide)
+    apply WP.exists_execWithin
+    unfold body
     by_cases heq : digit b xs[y.regs idx] = t
-    · have hlt : y.regs out < xs.length := by
+    · have hlt : (selected (y.regs idx)).length < xs.length := by
         have hlim := hselected (y.regs idx + 1)
         rw [hsuc, ite_eq_left heq, List.length_append, List.length_singleton] at hlim
         omega
-      obtain ⟨z, he, hzi, hzu, hzm⟩ := step y hyo hy2 hsa hda hic
-        (fun _ => hdfit.of_le (by omega)) hv
-      rw [hyb, hread, hyt, ite_eq_left heq] at hzu hzm
-      refine ⟨z, he, ?_, hzi⟩
-      refine ⟨?_, ?_, ?_, ?_, ?_⟩
-      · intro j hj
-        exact (he.regs_eq (preserves_low j hj)).trans (hr j hj)
-      · rw [hsuc, ite_eq_left heq, List.length_append, List.length_singleton]
-        omega
-      · rw [hzm, hyd]
-        rcases hdisj with h | h <;> ram_keep hm
-      · rw [hsuc, ite_eq_left heq, hzm, hyd, hu]
-        exact ha.append_one _
+      have hdig : (xs[y.regs idx] >>> b) % 2 = t := (digit_eq_shift _ _).symm.trans heq
+      wram_exec * [hread]
+      wram_simp * [P, hsuc, heq, List.length_append, List.length_singleton]
+      refine ⟨fun j hj => ?_, ?_, ha.append_one _, ?_⟩
+      · obtain ⟨_, _, _, _, _⟩ := hjne j hj
+        wram_simp; exact hr j hj
+      · rcases hdisj with h | h <;> ram_keep hm
       · intro a hnot
-        have hne : a ≠ d + y.regs out := by
-          intro heqa
-          apply hnot
-          apply Block.mem_footprint.mpr
-          change d ≤ a ∧ a < d + xs.length
-          omega
-        rw [hzm, hyd, Function.update_of_ne hne]
-        exact hf a hnot
-    · obtain ⟨z, he, hzi, hzu, hzm⟩ := step y hyo hy2 hsa hda hic
-        (by simpa only [hyb, hread, hyt] using fun h => (heq h).elim) hv
-      rw [hyb, hread, hyt, ite_eq_right heq] at hzu hzm
-      have hsel : selected (y.regs idx + 1) = selected (y.regs idx) := by
-        rw [hsuc, ite_eq_right heq, List.append_nil]
-      refine ⟨z, he, ?_, hzi⟩
-      refine ⟨?_, ?_, ?_, ?_, ?_⟩
-      · intro j hj
-        exact (he.regs_eq (preserves_low j hj)).trans (hr j hj)
-      · rw [hsel, hzu, Nat.add_zero, hu]
-      · simpa only [hzm] using hm
-      · simpa only [hsel, hzm] using ha
-      · simpa only [hzm] using hf
+        have hne : a ≠ d + (selected (y.regs idx)).length := fun heqa =>
+          hnot (Block.mem_footprint.mpr (by dsimp only [Block.Owns]; omega))
+        exact (Function.update_of_ne hne ..).trans (hf a hnot)
+    · have hdig : (xs[y.regs idx] >>> b) % 2 ≠ t := by rwa [← digit_eq_shift]
+      wram_exec * [hread]
+      wram_simp * [P, hsuc, heq, List.append_nil]
+      refine ⟨fun j hj => ?_, hm, ha, hf⟩
+      obtain ⟨_, _, _, _, _⟩ := hjne j hj
+      wram_simp; exact hr j hj
   let x₀ := x.set idx 0
   have hx₀ : P (x₀.regs idx) x₀ := by
-    refine ⟨?_, ?_, ?_, ?_, ?_⟩
-    · intro j hj
-      have hne : j ≠ idx := by
-        intro h
-        have hv := congrArg Fin.val h
-        change j.val = 7 at hv
-        omega
-      exact Function.update_of_ne hne _ _
+    refine ⟨fun j hj => Function.update_of_ne (Fin.ne_of_val_ne (by change j.val ≠ 7; omega)) _ _,
+      ?_, hsrc, ?_, Modifies.refl _ _⟩
     · simpa +decide [x₀, selected, select] using hout
-    · exact hsrc
     · simpa [x₀, selected, select] using hacc
-    · exact Modifies.refl _ _
   obtain ⟨y, he, ⟨hr, hu, hm, ha, hf⟩, _⟩ := ExecWithin.loop_count P
     (fun y hy => (hy.1 len (by decide)).trans hn) hbody (by simp [x₀]) hx₀
   have hi := (ExecWithin.const (d := idx) (x := x) (fits_zero w)).seq he
-  refine ⟨y, ?_, ?_, hm, ?_, hf⟩
-  · convert hi using 1
-    · rfl
-    · simp only [x₀, Data.set_regs, Function.update_self, Nat.sub_zero]
-      omega
+  refine ⟨y, hi.mono (by simp [x₀]; omega), ?_, hm, ?_, hf⟩
   · simpa only [selected, List.take_length] using ha
   · simpa only [selected, List.take_length] using hu
 

@@ -37,7 +37,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeRa
 # The components of the native contraction recursion in polynomial time
 
 The scheme `Cslib.Circuits.Frontier.FastContraction.scheme ev mk` of the contraction recursion of
-[OpenAI2026ETH] has polynomial-time components (`Cslib.GenericRAM.StackRecursion.Scheme.PolyTime`)
+[OpenAI2026ETH] has polynomial-time components (`Cslib.Algorithms.StackRecursion.Scheme.PolyTime`)
 for the encodings `FastContraction.encCall encT`, `encFrame` and `encValue` whenever the child
 builder `mk` is polynomial-time (`FastContraction.scheme_polyTime`), for every type `T` of root
 descriptors with an encoding `encT` and every entry procedure `ev`: the leaf test does not
@@ -172,7 +172,7 @@ theorem leafSize_polyTime : ComputableInPolyTime leafSize encUnary encUnary :=
 unary. -/
 theorem degreeBound_polyTime : ComputableInPolyTime degreeBound encUnary encNat := by
   have hlog : ComputableInPolyTime (fun m => Nat.log 2 m) encUnary encUnary :=
-    ComputableTidilyInPolyTime.computableInPolyTime (ComputableTidilyInPolyTime.unary_log_const 2)
+    ComputableInPolyTime.unary_log_const 2
   have he : ComputableInPolyTime (fun m => 9 * Nat.log 2 m / 10 + 2) encUnary encUnary :=
     ComputableInPolyTime.unary_add'
       ((ComputableInPolyTime.unary_div_const 10).comp
@@ -185,7 +185,7 @@ end Cslib.Circuits.Frontier.ContractionSchedule
 namespace Cslib.Circuits.Frontier.FastContraction
 
 open GaloisRingArith ChildCursor NativeRecovery ContractionSchedule NativeChild
-  Cslib.GenericRAM Cslib.GenericRAM.StackRecursion
+  Cslib.GenericRAM Cslib.Algorithms.StackRecursion
 
 variable {T : Type} {encT : T ↪ List Bool}
 
@@ -475,7 +475,7 @@ theorem table_polyTime :
   have htake : ComputableInPolyTime (fun r : (Call T × List (List ℕ)) × ℕ =>
       (r.1.2.drop ((nodes r.1.1).idxOf r.2 * numPoints r.1.1)).take (numPoints r.1.1))
       (encPair e encUnary) (encList (encList encNat)) :=
-    .of_tidy (ComputableTidilyInPolyTime.listTakeWithInput hdrop.tidy hn.tidy)
+    (ComputableInPolyTime.listTakeWithInput hdrop hn)
   have hf : ComputableInPolyTime (fun r : (Call T × List (List ℕ)) × ℕ =>
       if r.2 ∈ nodes r.1.1 then
         (r.1.2.drop ((nodes r.1.1).idxOf r.2 * numPoints r.1.1)).take (numPoints r.1.1)

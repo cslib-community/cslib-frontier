@@ -10,18 +10,22 @@ module
 public import CslibFrontier.Crypto.Computational.CircularCorrelationRobust
 public import CslibFrontier.Crypto.Primitives.Garbling.Conventional
 public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR
+public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Propagate
 public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Scheme
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
-import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Simulator
 import CslibFrontier.Foundations.Data.List.Flatten
 
 /-!
 # Free-XOR garbling as a garbling scheme
 
-Definitions and correctness only. Later parts of this series add efficiency certificates, a word
-simulator, and simulation privacy (`prv.sim`) under `CircularCorrelationRobust`.
+Definitions and correctness only. The efficiency certificates of the scheme
+(`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Efficient`), its word simulator
+(`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Simulator`) and its simulation privacy
+(`prv.sim`) under `CircularCorrelationRobust`, by a certified reduction
+(`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Reduction`,
+`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.PrvSim`), build on it.
 
 The Free-XOR garbling of `CslibFrontier.Crypto.Primitives.Garbling.FreeXOR`, after Kolesnikov and
 Schneider [KolesnikovSchneider2008] and Choi, Katz, Kumaresan and Zhou
@@ -91,10 +95,6 @@ open Cslib.Circuits Turing.MultiTapeTM
 @[expose] def isXorTable (t : List Bool) : Bool :=
   !t.getD 0 false && t.getD 1 false && t.getD 2 false && !t.getD 3 false
 
-/-- Whether gate `g` of `f` computes XOR. -/
-@[expose] def isXorGate (f : ConventionalCircuit) (g : Fin f.q) : Bool :=
-  decide (f.G g = xor)
-
 /-- `isXorTable` on a gate's truth table agrees with `decide (G = xor)`. -/
 theorem isXorTable_eq (G : Bool → Bool → Bool) :
     isXorTable [G false false, G false true, G true false, G true true] = decide (G = xor) := by
@@ -124,16 +124,9 @@ key. -/
 /-- The zero labels of the first `n + s` wires of `f` at parameter `k`, in wire order: input wires
 and non-XOR gates read their base labels from `coins`, and an XOR gate takes the sum of its
 arguments' zero labels. -/
-@[expose] def propagateWords (k : ℕ) (f : ConventionalCircuit) (coins : List Bool) :
-    ℕ → List (List Bool)
-  | 0 => List.ofFn fun i : Fin f.n => HalfGates.inputWord k coins i
-  | s + 1 =>
-    if h : s < f.q then
-      let ws := propagateWords k f coins s
-      ws ++ [if isXorGate f ⟨s, h⟩ then
-        List.zipWith xor (ws.getD (f.A ⟨s, h⟩ - 1) []) (ws.getD (f.B ⟨s, h⟩ - 1) [])
-      else baseWord k coins (f.n + s)]
-    else propagateWords k f coins s
+@[expose] def propagateWords (k : ℕ) (f : ConventionalCircuit) (coins : List Bool)
+    (s : ℕ) : List (List Bool) :=
+  simPropWords k f.topo (List.ofFn (isXorGate f)) (coins.drop (k + 1)) s
 
 /-- Row `i` of non-XOR gate `g` of `f` at parameter `k`, from the offset `Δ` and the zero labels
 `labels` of all wires. -/
@@ -222,26 +215,32 @@ theorem scheme_isCircuitScheme : (scheme hash).IsCircuitScheme :=
 
 open ConventionalCircuit
 
-/-- Whether each gate of `toCircuit f` is free (computes XOR). -/
-@[expose] noncomputable def freeCircuit (f : ValidCircuit) : Fin (toCircuit f).size → Bool :=
-  fun g => isXorGate f.1 (g.cast (size_toCircuit f))
+private theorem fullInterpretation_eq_of_op_eq {op : FullOp 2 Bool} {fn : (Fin 2 → Bool) → Bool}
+    (hop : op = .fn fn) (v : Fin ((fullSignature 2 Bool).Arity op) → Bool)
+    (har : (fullSignature 2 Bool).Arity op = 2) :
+    fullInterpretation op v = fn (fun a => v (Fin.cast har.symm a)) := by
+  subst hop; rfl
+
+/-- Evaluating gate `g` of `toCircuit f` under `fullInterpretation` applies `f.1.G` to its two
+arguments. -/
+theorem fullInterpretation_lines_toCircuit (f : ValidCircuit) (g : Fin (toCircuit f).size)
+    (v : Fin ((fullSignature 2 Bool).Arity ((toCircuit f).program.lines g).op) → Bool) :
+    fullInterpretation ((toCircuit f).program.lines g).op v =
+      f.1.G (g.cast (size_toCircuit f))
+        (v (Fin.cast (arity_topology_toCircuit f g).symm 0))
+        (v (Fin.cast (arity_topology_toCircuit f g).symm 1)) :=
+  fullInterpretation_eq_of_op_eq (congrArg Line.op (lines_toCircuit f g)) v
+    (arity_topology_toCircuit f g)
 
 /-- Free gates of `toCircuit f` compute the XOR of their arguments under `fullInterpretation`. -/
 theorem hfree_toCircuit (f : ValidCircuit) :
     ∀ g, freeCircuit f g = true →
       ∀ v, fullInterpretation ((toCircuit f).program.lines g).op v = ∑ k, v k := by
   intro g hg v
-  have hop : ((toCircuit f).program.lines g).op =
-      .fn fun a => f.1.G (g.cast (size_toCircuit f)) (a 0) (a 1) :=
-    congrArg Line.op (lines_toCircuit f g)
-  revert v
-  rw [hop]
-  intro v
   simp only [freeCircuit, isXorGate, decide_eq_true_eq] at hg
-  simp only [fullInterpretation, hg]
-  have hsum : ∀ w : Fin 2 → Bool, (w 0 ^^ w 1) = ∑ k : Fin 2, w k := fun w => by
-    rw [Fin.sum_univ_two, Bool.add_eq_xor]
-  exact hsum v
+  erw [fullInterpretation_lines_toCircuit, hg,
+    (Fin.sum_congr' _ (arity_topology_toCircuit f g).symm).symm]
+  rw [Fin.sum_univ_two, Bool.add_eq_xor]; rfl
 
 /-- Row `i` of non-free gate `g` of `τ`, with colours read in binary, first argument most
 significant. -/
@@ -339,32 +338,6 @@ theorem ofFn_slotTweak_garbledRowOf (f : ValidCircuit) (k : ℕ) (g : Fin (toCir
   rw [PointPermute.rowIndex_testBit_of_eq_two harity hi,
     BitString.ofFn_ofList (by simp [PointPermute.tweak])]
 
-private theorem wires_toCircuit_zero (f : ValidCircuit) (g : Fin (toCircuit f).size)
-    (hlt : f.1.A (g.cast (size_toCircuit f)) - 1 < f.1.n + (toCircuit f).size) :
-    (toCircuit f).topology.wires g (Fin.cast (arity_topology_toCircuit f g).symm 0) =
-      Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) hlt := by
-  have harity := arity_topology_toCircuit f g
-  rw [show Fin.cast harity.symm 0 = ⟨0, by omega⟩ from Fin.ext rfl]
-  refine Wire.toNat_injective ?_
-  have h := congrArg (fun l => l.getD 0 0) (ofFn_toNat_wires_toCircuit f g)
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn,
-    show 0 < (toCircuit f).topology.arity g by omega, ↓reduceDIte, Option.getD_some] at h
-  rw [Wire.toNat_ofNat]
-  exact h
-
-private theorem wires_toCircuit_one (f : ValidCircuit) (g : Fin (toCircuit f).size)
-    (hlt : f.1.B (g.cast (size_toCircuit f)) - 1 < f.1.n + (toCircuit f).size) :
-    (toCircuit f).topology.wires g (Fin.cast (arity_topology_toCircuit f g).symm 1) =
-      Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) hlt := by
-  have harity := arity_topology_toCircuit f g
-  rw [show Fin.cast harity.symm 1 = ⟨1, by omega⟩ from Fin.ext rfl]
-  refine Wire.toNat_injective ?_
-  have h := congrArg (fun l => l.getD 1 0) (ofFn_toNat_wires_toCircuit f g)
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn,
-    show 1 < (toCircuit f).topology.arity g by omega, ↓reduceDIte, Option.getD_some] at h
-  rw [Wire.toNat_ofNat]
-  exact h
-
 /-- A base label read from the coins, as a word, is `baseWord`. -/
 theorem labelBits_baseLabels {n s : ℕ} (k : ℕ) (coins : List Bool) (w : Wire n s) :
     labelBits (baseLabels k coins w) = baseWord k coins w.toNat :=
@@ -376,51 +349,9 @@ theorem propagateWords_eq (k : ℕ) (f : ValidCircuit) (coins : List Bool) {s : 
     propagateWords k f.1 coins s =
       (List.ofFn fun v : Fin (f.1.n + (toCircuit f).size) =>
         labelBits (propagate (toCircuit f).topology (freeCircuit f)
-          (baseLabels k coins) (Wire.ofNat v v.isLt))).take (f.1.n + s) := by
-  have hτ := (toCircuit f).isOrdered_topology
-  induction s with
-  | zero =>
-    apply List.ext_getElem (by simp [propagateWords])
-    intro i h₁ h₂
-    simp only [propagateWords, List.length_ofFn] at h₁
-    have hin : (Wire.ofNat i (by omega) : Wire f.1.n (toCircuit f).size) = .input ⟨i, h₁⟩ :=
-      Wire.toNat_injective (by simp)
-    simp only [propagateWords, List.getElem_ofFn, List.getElem_take, hin,
-      propagate_input hτ, labelBits_baseLabels, Wire.toNat_input]
-    rfl
-  | succ s ih =>
-    have hsq : s < f.1.q := hs
-    have hsize := size_toCircuit f
-    set g : Fin (toCircuit f).size := ⟨s, by omega⟩ with hg
-    have hgcast : g.cast (size_toCircuit f) = ⟨s, hsq⟩ := Fin.ext rfl
-    have hA₁ := f.2.one_le_A ⟨s, hsq⟩
-    have hAB := f.2.A_lt_B ⟨s, hsq⟩
-    have hBg := f.2.B_lt_gate ⟨s, hsq⟩
-    simp only [ConventionalCircuit.topo] at hA₁ hAB hBg
-    rw [propagateWords, dite_eq_left hsq]
-    dsimp only
-    rw [ih hsq.le, ← Nat.add_assoc, List.take_add_one, List.getElem?_ofFn]
-    have hgate : (Wire.ofNat (f.1.n + s) (by omega) : Wire f.1.n (toCircuit f).size) =
-        .gate g := Wire.toNat_injective (by simp [hg])
-    simp only [show f.1.n + s < f.1.n + (toCircuit f).size by omega, dite_true,
-      Option.toList_some, hgate]
-    congr 1
-    have hfree_eq : isXorGate f.1 ⟨s, hsq⟩ = freeCircuit f g := by simp [freeCircuit, hgcast]
-    rw [hfree_eq]
-    by_cases hfr : freeCircuit f g = true
-    · rw [ite_eq_left hfr, propagate_gate_of_free hτ (baseLabels k coins) hfr,
-        ← Fin.sum_congr' _ (arity_topology_toCircuit f g).symm, Fin.sum_univ_two, labelBits_add]
-      have hl := wires_toCircuit_zero f g (by rw [hgcast]; omega)
-      have hr := wires_toCircuit_one f g (by rw [hgcast]; omega)
-      simp only [hgcast] at hl hr
-      rw [hl, hr,
-        HalfGates.getD_take_labels (propagate (toCircuit f).topology (freeCircuit f)
-          (baseLabels k coins)) (by omega) (by omega),
-        HalfGates.getD_take_labels (propagate (toCircuit f).topology (freeCircuit f)
-          (baseLabels k coins)) (by omega) (by omega)]
-    · have hfr' : freeCircuit f g = false := Bool.eq_false_iff.mpr hfr
-      rw [ite_eq_right hfr, propagate_gate_of_not_free hτ (baseLabels k coins) hfr',
-        labelBits_baseLabels, Wire.toNat_gate, hg]
+          (baseLabels k coins) (Wire.ofNat v v.isLt))).take (f.1.n + s) :=
+  simPropWords_eq_propagate k f (List.ofFn (isXorGate f.1)) (coins.drop (k + 1))
+    (fun g => by simp [List.getD_eq_getElem?_getD]) hs
 
 private theorem propagateWords_q (k : ℕ) (f : ValidCircuit) (coins : List Bool) :
     propagateWords k f.1 coins f.1.q =
@@ -428,6 +359,64 @@ private theorem propagateWords_q (k : ℕ) (f : ValidCircuit) (coins : List Bool
         labelBits (propagate (toCircuit f).topology (freeCircuit f)
           (baseLabels k coins) (Wire.ofNat v v.isLt)) := by
   rw [propagateWords_eq k f coins le_rfl, List.take_of_length_le (by simp [size_toCircuit])]
+
+/-- Library infrastructure (no cited result): looking up gate `g`'s wire in the `ofFn` label list
+of `toCircuit f` returns `labelBits (W (.gate g))`. -/
+theorem getD_ofFn_wire_gate {k : ℕ} (f : ValidCircuit)
+    (W : Wire f.1.n (toCircuit f).size → BitString (k + 1) × Bool)
+    (g : Fin (toCircuit f).size) :
+    (List.ofFn fun v : Fin (f.1.n + (toCircuit f).size) =>
+      labelBits (W (Wire.ofNat v v.isLt))).getD (f.1.n + g.val) [] =
+      labelBits (W (.gate g)) := by
+  rw [HalfGates.getD_ofFn_labels W (i := f.1.n + g.val) (by omega),
+    show (Wire.ofNat (f.1.n + g.val) _ : Wire f.1.n (toCircuit f).size) = .gate g from
+      Wire.toNat_injective (by simp)]
+
+/-- Library infrastructure (no cited result): looking up gate `g`'s first argument wire `A g - 1`
+in the `ofFn` label list of `toCircuit f`. -/
+theorem getD_ofFn_wire_A {k : ℕ} (f : ValidCircuit)
+    (W : Wire f.1.n (toCircuit f).size → BitString (k + 1) × Bool)
+    (g : Fin (toCircuit f).size) :
+    (List.ofFn fun v : Fin (f.1.n + (toCircuit f).size) =>
+      labelBits (W (Wire.ofNat v v.isLt))).getD
+      (f.1.A (g.cast (size_toCircuit f)) - 1) [] =
+      labelBits (W ((toCircuit f).topology.wires g
+        (Fin.cast (arity_topology_toCircuit f g).symm 0))) := by
+  have hsize := size_toCircuit f
+  have hAB := f.2.A_lt_B (g.cast (size_toCircuit f))
+  have hBg := f.2.B_lt_gate (g.cast (size_toCircuit f))
+  simp only [ConventionalCircuit.topo, Fin.val_cast] at hAB hBg
+  rw [HalfGates.getD_ofFn_labels W (by omega), ← wires_toCircuit_zero f g (by omega)]
+
+/-- Library infrastructure (no cited result): looking up gate `g`'s second argument wire `B g - 1`
+in the `ofFn` label list of `toCircuit f`. -/
+theorem getD_ofFn_wire_B {k : ℕ} (f : ValidCircuit)
+    (W : Wire f.1.n (toCircuit f).size → BitString (k + 1) × Bool)
+    (g : Fin (toCircuit f).size) :
+    (List.ofFn fun v : Fin (f.1.n + (toCircuit f).size) =>
+      labelBits (W (Wire.ofNat v v.isLt))).getD
+      (f.1.B (g.cast (size_toCircuit f)) - 1) [] =
+      labelBits (W ((toCircuit f).topology.wires g
+        (Fin.cast (arity_topology_toCircuit f g).symm 1))) := by
+  have hsize := size_toCircuit f
+  have hBg := f.2.B_lt_gate (g.cast (size_toCircuit f))
+  simp only [ConventionalCircuit.topo, Fin.val_cast] at hBg
+  rw [HalfGates.getD_ofFn_labels W (by omega), ← wires_toCircuit_one f g (by omega)]
+
+/-- Library infrastructure (no cited result): looking up output wire `o` in the `ofFn` label list
+of `toCircuit f` returns `labelBits (W ((toCircuit f).outputs o))`. -/
+theorem getD_ofFn_wire_output {k : ℕ} (f : ValidCircuit)
+    (W : Wire f.1.n (toCircuit f).size → BitString (k + 1) × Bool) (o : Fin f.1.m) :
+    (List.ofFn fun v : Fin (f.1.n + (toCircuit f).size) =>
+      labelBits (W (Wire.ofNat v v.isLt))).getD (f.1.n + f.1.q - f.1.m + o) [] =
+      labelBits (W ((toCircuit f).outputs o)) := by
+  have hm := f.2.m_le_q
+  have hsize := size_toCircuit f
+  simp only [ConventionalCircuit.topo] at hm
+  rw [HalfGates.getD_ofFn_labels W (by omega),
+    show (Wire.ofNat (f.1.n + f.1.q - f.1.m + o) _ : Wire f.1.n (toCircuit f).size) =
+      (toCircuit f).outputs o from
+      Wire.toNat_injective (by rw [Wire.toNat_ofNat, toNat_outputs_toCircuit])]
 
 /-- Gate `g` of a typed garbled table over `toCircuit f`, as a word. -/
 theorem encodeGate_toCircuit (k : ℕ) (f : ValidCircuit)
@@ -478,123 +467,30 @@ private theorem rowWord_garbleTable (k : ℕ) (f : ValidCircuit) (coins : List B
         (garbledRowOf _ g hg i)) =
       rowWord hash k f.1 (HalfGates.offsetWord k coins)
         (propagateWords k f.1 coins f.1.q) (g.cast (size_toCircuit f)) i := by
-  have hsize := size_toCircuit f
   have harity := arity_topology_toCircuit f g
-  have hA₁ := f.2.one_le_A (g.cast (size_toCircuit f))
-  have hAB := f.2.A_lt_B (g.cast (size_toCircuit f))
-  have hBg := f.2.B_lt_gate (g.cast (size_toCircuit f))
-  simp only [ConventionalCircuit.topo, Fin.val_cast] at hA₁ hAB hBg
-  have hgs := g.isLt
-  have hw₀ := wires_toCircuit_zero f g (by omega)
-  have hw₁ := wires_toCircuit_one f g (by omega)
-  have hc₀ : (Fin.cast harity.symm 0 : Fin ((toCircuit f).topology.arity g)) = ⟨0, by omega⟩ :=
-    Fin.ext rfl
-  have hc₁ : (Fin.cast harity.symm 1 : Fin ((toCircuit f).topology.arity g)) = ⟨1, by omega⟩ :=
-    Fin.ext rfl
-  rw [propagateWords_q]
-  simp only [rowWord, Fin.val_cast,
-    HalfGates.getD_ofFn_labels (propagate (toCircuit f).topology (freeCircuit f)
-      (baseLabels k coins)) (i := f.1.n + g.val) (by omega),
-    HalfGates.getD_ofFn_labels (propagate (toCircuit f).topology (freeCircuit f)
-      (baseLabels k coins)) (i := f.1.A (g.cast (size_toCircuit f)) - 1) (by omega),
-    HalfGates.getD_ofFn_labels (propagate (toCircuit f).topology (freeCircuit f)
-      (baseLabels k coins)) (i := f.1.B (g.cast (size_toCircuit f)) - 1) (by omega)]
   set W := propagate (toCircuit f).topology (freeCircuit f) (baseLabels k coins)
-  have hWg : (Wire.ofNat (f.1.n + g.val) (by omega) : Wire f.1.n (toCircuit f).size) = .gate g :=
-    Wire.toNat_injective (by simp)
-  have hWa : (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) (by omega) :
-      Wire f.1.n (toCircuit f).size) =
-      (toCircuit f).topology.wires g (Fin.cast harity.symm 0) := hw₀.symm
-  have hWb : (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega) :
-      Wire f.1.n (toCircuit f).size) =
-      (toCircuit f).topology.wires g (Fin.cast harity.symm 1) := hw₁.symm
-  rw [hWg, hWa, hWb]
+  have hb (s : Fin 2) :
+      i.testBit ((toCircuit f).topology.arity g - 1 - (Fin.cast harity.symm s : Fin _).val) +
+        (W ((toCircuit f).topology.wires g (Fin.cast harity.symm s))).2 =
+      (i.testBit (1 - s.val) ^^ HalfGates.colourWord k
+        (labelBits (W ((toCircuit f).topology.wires g (Fin.cast harity.symm s))))) := by
+    simp [HalfGates.colourWord_labelBits, Bool.add_eq_xor, harity]
+  have ht (s : Fin 2) :
+      List.ofFn (slotTweak (toCircuit f).topology (freeCircuit f) k
+        ⟨⟨⟨g, hg⟩, fun a => i.testBit ((toCircuit f).topology.arity g - 1 - a.val)⟩,
+          Fin.cast harity.symm s⟩) = PointPermute.tweak k g i s := by
+    simpa [garbledRowOf] using ofFn_slotTweak_garbledRowOf f k g hg hi (Fin.cast harity.symm s)
+  rw [propagateWords_q]
+  simp only [rowWord, Fin.val_cast, getD_ofFn_wire_gate, getD_ofFn_wire_A, getD_ofFn_wire_B]
   simp only [garbleTable, GarbledRow.gate, labelBits_add, label, garbledRowOf]
-  have hsum : (∑ k_1 : Fin ((toCircuit f).topology.arity g),
-      CCR.atLevel hash k
-        ((W ((toCircuit f).topology.wires g k_1) +
-            bitOffset (HalfGates.offsetKey k coins, true)
-              (i.testBit ((toCircuit f).topology.arity g - 1 - k_1.val) +
-                (W ((toCircuit f).topology.wires g k_1)).2)).1,
-          false)
-        (slotTweak (toCircuit f).topology (freeCircuit f) k
-          ⟨⟨⟨g, hg⟩, fun a => i.testBit ((toCircuit f).topology.arity g - 1 - a.val)⟩,
-            k_1⟩)) =
-      ∑ k_1 : Fin 2, CCR.atLevel hash k
-        ((W ((toCircuit f).topology.wires g (Fin.cast harity.symm k_1)) +
-            bitOffset (HalfGates.offsetKey k coins, true)
-              (i.testBit ((toCircuit f).topology.arity g - 1 -
-                  (Fin.cast harity.symm k_1 : Fin _).val) +
-                (W ((toCircuit f).topology.wires g (Fin.cast harity.symm k_1))).2)).1,
-          false)
-        (slotTweak (toCircuit f).topology (freeCircuit f) k
-          ⟨⟨⟨g, hg⟩, fun a => i.testBit ((toCircuit f).topology.arity g - 1 - a.val)⟩,
-            Fin.cast harity.symm k_1⟩) :=
-    (Fin.sum_congr' _ harity.symm).symm
-  erw [hsum]
-  rw [Fin.sum_univ_two, labelBits_add, hc₀, hc₁]
-  have hlines := lines_toCircuit f g
-  have hbit : fullInterpretation ((toCircuit f).program.lines g).op
-      (fun m => i.testBit ((toCircuit f).topology.arity g - 1 - m.val) +
-        (W ((toCircuit f).topology.wires g m)).2) =
-      f.1.G (g.cast (size_toCircuit f))
-        (i.testBit 1 ^^ HalfGates.colourWord k (labelBits (W ((toCircuit f).topology.wires g
-          (Fin.cast harity.symm 0)))))
-        (i.testBit 0 ^^ HalfGates.colourWord k (labelBits (W ((toCircuit f).topology.wires g
-          (Fin.cast harity.symm 1))))) := by
-    have hop : ((toCircuit f).program.lines g).op =
-        .fn fun a => f.1.G (g.cast (size_toCircuit f)) (a 0) (a 1) := congrArg Line.op hlines
-    have hfin :
-        ∀ ffn : Fin ((fullSignature 2 Bool).Arity ((toCircuit f).program.lines g).op) → Bool,
-        (∀ a : Fin 2, ffn (Fin.cast (by rw [hop]; rfl) a) =
-          (i.testBit (1 - a.val) ^^ HalfGates.colourWord k (labelBits (W
-            ((toCircuit f).topology.wires g (Fin.cast harity.symm a)))))) →
-        fullInterpretation ((toCircuit f).program.lines g).op ffn =
-          f.1.G (g.cast (size_toCircuit f))
-            (i.testBit 1 ^^ HalfGates.colourWord k (labelBits (W ((toCircuit f).topology.wires g
-              (Fin.cast harity.symm 0)))))
-            (i.testBit 0 ^^ HalfGates.colourWord k (labelBits (W ((toCircuit f).topology.wires g
-              (Fin.cast harity.symm 1))))) := by
-      revert hop
-      generalize ((toCircuit f).program.lines g).op = op
-      intro hop ffn hffn
-      subst hop
-      rw [fullInterpretation]
-      exact congrArg₂ (f.1.G (g.cast (size_toCircuit f))) (hffn 0) (hffn 1)
-    apply hfin
-    intro a
-    fin_cases a
-    · simp only [Nat.sub_zero, harity, HalfGates.colourWord_labelBits, Bool.add_eq_xor]
-      rfl
-    · simp only [harity, HalfGates.colourWord_labelBits, Bool.add_eq_xor]
-      rfl
-  have hb₀ : i.testBit ((toCircuit f).topology.arity g - 1 - (Fin.cast harity.symm 0 : Fin _).val) +
-      (W ((toCircuit f).topology.wires g (Fin.cast harity.symm 0))).2 =
-      (i.testBit 1 ^^ HalfGates.colourWord k (labelBits (W ((toCircuit f).topology.wires g
-        (Fin.cast harity.symm 0))))) := by
-    simp only [HalfGates.colourWord_labelBits, Bool.add_eq_xor, hc₀, harity]
-  have hb₁ : i.testBit ((toCircuit f).topology.arity g - 1 - (Fin.cast harity.symm 1 : Fin _).val) +
-      (W ((toCircuit f).topology.wires g (Fin.cast harity.symm 1))).2 =
-      (i.testBit 0 ^^ HalfGates.colourWord k (labelBits (W ((toCircuit f).topology.wires g
-        (Fin.cast harity.symm 1))))) := by
-    simp only [HalfGates.colourWord_labelBits, Bool.add_eq_xor, hc₁, harity]
-  erw [hbit]
-  rw [show (HalfGates.offsetKey k coins, true) = CCR.offset (HalfGates.offsetKey k coins) from rfl,
-    HalfGates.labelBits_bitOffset, HalfGates.labelBits_offset]
-  congr 1
-  congr 1
-  · rw [labelBits_atLevel_key, labelBits_add, HalfGates.labelBits_bitOffset,
-      HalfGates.labelBits_offset]
-    have ht₀ := ofFn_slotTweak_garbledRowOf f k g hg hi (Fin.cast harity.symm 0)
-    dsimp only [garbledRowOf] at ht₀
-    rw [hc₀] at ht₀ hb₀
-    rw [ht₀, hb₀]
-  · rw [labelBits_atLevel_key, labelBits_add, HalfGates.labelBits_bitOffset,
-      HalfGates.labelBits_offset]
-    have ht₁ := ofFn_slotTweak_garbledRowOf f k g hg hi (Fin.cast harity.symm 1)
-    dsimp only [garbledRowOf] at ht₁
-    rw [hc₁] at ht₁ hb₁
-    rw [ht₁, hb₁]
+  erw [fullInterpretation_lines_toCircuit f g, (Fin.sum_congr' _ harity.symm).symm]
+  rw [Fin.sum_univ_two, labelBits_add,
+    show (HalfGates.offsetKey k coins, true) = CCR.offset (HalfGates.offsetKey k coins) from rfl]
+  erw [hb 0, hb 1]
+  simp only [Fin.val_zero, Fin.val_one, Nat.sub_zero, Nat.sub_self,
+    labelBits_atLevel_key, labelBits_add, HalfGates.labelBits_bitOffset, HalfGates.labelBits_offset,
+    ht 0, ht 1]
+  rfl
 
 private theorem encodeGate_garbleTable (k : ℕ) (f : ValidCircuit) (coins : List Bool)
     (g : Fin (toCircuit f).size) :
@@ -646,14 +542,7 @@ theorem gb_eq_encodeGarbled (k : ℕ) (f : ValidCircuit) (coins : List Bool) :
     rfl
   · simp only [decInfoWord, propagateWords_q]
     refine congrArg List.ofFn (funext fun o => ?_)
-    have hm := f.2.m_le_q
-    have hsize := size_toCircuit f
-    simp only [ConventionalCircuit.topo] at hm
-    have hout : (Wire.ofNat (f.1.n + f.1.q - f.1.m + o) (by omega) :
-        Wire f.1.n (toCircuit f).size) = (toCircuit f).outputs o :=
-      Wire.toNat_injective (by rw [Wire.toNat_ofNat, toNat_outputs_toCircuit])
-    rw [List.getD_eq_getElem?_getD, List.getElem?_ofFn,
-      dite_eq_left (by omega), Option.getD_some, hout, HalfGates.colourWord_labelBits]
+    rw [getD_ofFn_wire_output, HalfGates.colourWord_labelBits]
 
 /-! ### Evaluation -/
 
@@ -753,9 +642,7 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
         (A ((toCircuit f).topology.wires g a)).2 := by
       rw [hidx, PointPermute.rowIndex_of_eq_two harity, hc₀, hc₁,
         HalfGates.colourWord_labelBits, HalfGates.colourWord_labelBits]
-    have hidx_lt : idx < 4 := by
-      rw [hidx_eq]
-      exact rowIndex_colours_lt f g A
+    have hidx_lt : idx < 4 := hidx_eq ▸ rowIndex_colours_lt f g A
     have hrow_eq : garbledRowOf (toCircuit f).topology g hfr' idx =
         ⟨⟨g, hfr'⟩, fun a => (A ((toCircuit f).topology.wires g a)).2⟩ := by
       simp only [garbledRowOf, hidx_eq, PointPermute.testBit_rowIndex_of_eq_two harity]
@@ -768,23 +655,13 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
           4 * (k + 2) := by
         simp only [List.length_flatten, List.map_ofFn, Function.comp_def, length_labelBits,
           List.sum_ofFn, Finset.sum_const, Finset.card_fin, smul_eq_mul]
-      have hdrop_take_append : ∀ (A B : List Bool) (a b : ℕ), a + b ≤ A.length →
-          ((A ++ B).drop a).take b = (A.drop a).take b := by
-        intro A B a b hab
-        apply List.ext_getElem
-        · simp only [List.length_take, List.length_drop, List.length_append]
-          omega
-        · intro j hj₁ hj₂
-          simp only [List.length_take, List.length_drop] at hj₂
-          simp only [List.getElem_take, List.getElem_drop]
-          rw [List.getElem_append_left (by omega)]
       have hlen_le : idx * (k + 2) + (k + 2) ≤
           (List.ofFn fun i : Fin 4 =>
             labelBits (table (garbledRowOf (toCircuit f).topology g hfr' i))).flatten.length := by
         rw [hlen_rows]
-        calc idx * (k + 2) + (k + 2) = (idx + 1) * (k + 2) := by ring
-          _ ≤ 4 * (k + 2) := Nat.mul_le_mul_right _ hidx_lt
-      rw [hdrop_take_append _ _ _ _ hlen_le,
+        linarith [Nat.mul_le_mul_right (k + 2) hidx_lt]
+      rw [List.drop_append_of_le_length (by omega),
+        List.take_append_of_le_length (by simp only [List.length_drop]; omega),
         ← List.take_append_of_le_length (l₂ := List.replicate (k + 2) false)
           (by simp only [List.length_drop]; omega),
         show List.take (k + 2) (List.drop (idx * (k + 2))
@@ -802,10 +679,10 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
       omega
     rw [htake_row, hlen_block]
     refine Prod.ext ?_ (by omega)
-    have hneg : ∀ z : BitString (k + 1) × Bool, -z = z := fun z =>
-      neg_eq_iff_add_eq_zero.mpr (Prod.ext (BitString.add_self z.1) (by
-        cases h : z.2 <;> simp [h, Bool.add_eq_xor] <;> rfl))
-    rw [sub_eq_add_neg, hneg, labelBits_add,
+    have hsub (x y : BitString (k + 1) × Bool) : x - y = x + y :=
+      Prod.ext (funext fun i => BooleanRing.sub_eq_add (x.1 i) (y.1 i))
+        (BooleanRing.sub_eq_add x.2 y.2)
+    rw [hsub, labelBits_add,
       ← Fin.sum_congr' _ harity.symm, Fin.sum_univ_two, labelBits_add, hc₀, hc₁,
       labelBits_atLevel_key, labelBits_atLevel_key,
       ofFn_slotTweak_mk, ofFn_slotTweak_mk, ← hidx_eq]
@@ -881,18 +758,7 @@ theorem scheme_correct : (scheme hash).Correct := by
     (fun key t => CCR.atLevel hash k (key, false) t)
     (slotTweak (toCircuit f).topology (freeCircuit f) k) (BitString.ofList f.1.n x)
     (hfree_toCircuit f) hK (HalfGates.offsetKey k coins) (baseLabels k coins)
-  have hev := (isLocal_evalStep hτ (freeCircuit f)
-    (fun key t => CCR.atLevel hash k (key, false) t)
-    (slotTweak (toCircuit f).topology (freeCircuit f) k)
-    (garbleWith (toCircuit f) fullInterpretation
-      (fun key t => CCR.atLevel hash k (key, false) t)
-      (slotTweak (toCircuit f).topology (freeCircuit f) k)
-      (HalfGates.offsetKey k coins) (baseLabels k coins)).table
-    (encode (garbleWith (toCircuit f) fullInterpretation
-      (fun key t => CCR.atLevel hash k (key, false) t)
-      (slotTweak (toCircuit f).topology (freeCircuit f) k)
-      (HalfGates.offsetKey k coins) (baseLabels k coins)).encoding
-      (BitString.ofList f.1.n x))).iterate_eq_of_isFixed 0 (funext hfix)
+  have hev := (isLocal_evalStep hτ (freeCircuit f) _ _ _ _).iterate_eq_of_isFixed 0 (funext hfix)
   have hrun := Garbled.run_garbleWith (toCircuit f) fullInterpretation
     (fun key t => CCR.atLevel hash k (key, false) t)
     (slotTweak (toCircuit f).topology (freeCircuit f) k) (BitString.ofList f.1.n x)
@@ -902,20 +768,7 @@ theorem scheme_correct : (scheme hash).Correct := by
   rw [PointPermute.projectiveEncode_labelBits (n := f.1.n)
       (fun i b => label (HalfGates.offsetKey k coins)
         (propagate (toCircuit f).topology (freeCircuit f) (baseLabels k coins) (.input i)) b) hx]
-  have heval := evalWord_encodeFn hash k f
-    (garbleWith (toCircuit f) fullInterpretation
-      (fun key t => CCR.atLevel hash k (key, false) t)
-      (slotTweak (toCircuit f).topology (freeCircuit f) k)
-      (HalfGates.offsetKey k coins) (baseLabels k coins)).table
-    (encode (garbleWith (toCircuit f) fullInterpretation
-      (fun key t => CCR.atLevel hash k (key, false) t)
-      (slotTweak (toCircuit f).topology (freeCircuit f) k)
-      (HalfGates.offsetKey k coins) (baseLabels k coins)).encoding
-      (BitString.ofList f.1.n x))
-    (activeLabel (toCircuit f) fullInterpretation (BitString.ofList f.1.n x) (freeCircuit f)
-      (HalfGates.offsetKey k coins) (baseLabels k coins))
-    hfix
-  erw [heval]
+  erw [evalWord_encodeFn hash k f _ _ _ hfix]
   rw [PointPermute.decodeWord_ofFn]
   have h := congrArg List.ofFn hrun
   rw [eval_toCircuit, BitString.ofFn_ofList hx] at h

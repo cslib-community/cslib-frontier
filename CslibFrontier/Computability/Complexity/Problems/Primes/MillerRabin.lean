@@ -106,6 +106,11 @@ theorem passes_polyTime :
         (fun q : (ℕ × ℕ) × ℕ => q.1.2 ^ (q.1.1 / 2 ^ q.2) % (q.1.1 + 1))
         (encPair (encPair encNat encNat) encUnary) encNat :=
       ComputableInPolyTime.binary_powMod (by fun_prop) hexp (by fun_prop) fun _ => Nat.succ_pos _
+    have hmod2 := ComputableInPolyTime.binary_mod' hexp (ComputableInPolyTime.const 2)
+    have hdivisible := ComputableInPolyTime.binary_mod'
+      ((ComputableInPolyTime.fst (encPair encNat encNat) encUnary).fst')
+      (ComputableInPolyTime.binary_two_pow.comp
+        (ComputableInPolyTime.snd (encPair encNat encNat) encUnary))
     fun_prop
 
 /-- The Miller–Rabin verifier is computable in polynomial time. -/
@@ -114,11 +119,20 @@ theorem verifier_polyTime :
   have hinner : ComputableInPolyTime
       (fun x : ℕ × List Bool => (x.1 - 1, 1 + ofBits x.2 % (x.1 - 1)))
       (encPair encNat encBits) (encPair encNat encNat) := by
-    fun_prop
+    have hn := ComputableInPolyTime.fst encNat encBits
+    have hpred := ComputableInPolyTime.binary_sub.comp
+      (hn.prod (ComputableInPolyTime.const 1))
+    have hword := ComputableInPolyTime.snd encNat encBits
+    have hnumber := ComputableInPolyTime.bitsToNat.comp hword
+    have hrem := ComputableInPolyTime.binary_mod' hnumber hpred
+    exact hpred.prod (ComputableInPolyTime.binary_add.comp
+      ((ComputableInPolyTime.const 1).prod hrem))
   have hpasses : ComputableInPolyTime
       (fun x : ℕ × List Bool => passes (x.1 - 1) (1 + ofBits x.2 % (x.1 - 1)))
       (encPair encNat encBits) encBool :=
     passes_polyTime.comp hinner
+  have hmod2 := ComputableInPolyTime.binary_mod'
+    (ComputableInPolyTime.fst encNat encBits) (ComputableInPolyTime.const 2)
   unfold verifier
   fun_prop
 
@@ -154,23 +168,16 @@ theorem passes_eq_true_iff {m a : ℕ} (hm : 0 < m) :
     · obtain ⟨u, hu⟩ : ∃ u, s - j = u + 1 := ⟨s - j - 1, by omega⟩
       rw [hu, pow_succ, Nat.mul_comm (2 ^ u) 2, Nat.mul_assoc, Nat.mul_mod_right]
       omega
-  have hsize : s < m.size := by
-    rw [Nat.lt_size]
-    calc 2 ^ s ≤ 2 ^ s * t := Nat.le_mul_of_pos_right _ (Nat.ordCompl_pos 2 hm.ne')
-      _ = m := hst
+  have hsize : s < m.size :=
+    Nat.lt_size.2 ((Nat.le_mul_of_pos_right _ (Nat.ordCompl_pos 2 hm.ne')).trans_eq hst)
   have hdivs : m / 2 ^ s = t := by rw [hdiv s le_rfl, Nat.sub_self, pow_zero, one_mul]
   simp only [passes, List.any_eq_true, List.mem_range, Bool.and_eq_true, Bool.or_eq_true,
     beq_iff_eq, decide_eq_true_eq]
   constructor
-  · rintro ⟨j, -, hj, (⟨hjodd, h⟩ | ⟨hj0, h⟩)⟩
-    · have hjs := (hdvd j).1 hj
-      obtain rfl := (hodd j hjs).1 hjodd
-      left
-      rwa [hdivs, pow_mod_eq_one_iff hm] at h
-    · have hjs := (hdvd j).1 hj
-      right
-      refine ⟨s - j, by omega, ?_⟩
-      rwa [hdiv j hjs, pow_mod_eq_neg_one_iff] at h
+  · rintro ⟨j, -, hj, (⟨hjodd, h⟩ | ⟨hj0, h⟩)⟩ <;> have hjs := (hdvd j).1 hj
+    · obtain rfl := (hodd j hjs).1 hjodd
+      exact .inl (by rwa [hdivs, pow_mod_eq_one_iff hm] at h)
+    · exact .inr ⟨s - j, by omega, by rwa [hdiv j hjs, pow_mod_eq_neg_one_iff] at h⟩
   · rintro (h | ⟨i, hi, h⟩)
     · refine ⟨s, hsize, (hdvd s).2 le_rfl, Or.inl ⟨(hodd s le_rfl).2 rfl, ?_⟩⟩
       rwa [hdivs, pow_mod_eq_one_iff hm]
@@ -193,9 +200,8 @@ private theorem card_filter_ofBits_mod_mem_le {k N : ℕ} (hN : 0 < N) (S : Fins
           simp only [Finset.coe_filter, Finset.mem_range, Set.mem_ofPred_eq, ofBits_ofFn]
           refine ⟨(BitString.equivFin k r).2, ?_⟩
           rw [← ofBits_ofFn r, Nat.ModEq, ← hr.2, Nat.mod_mod]
-        · intro r _ r' _ h
-          simp only [ofBits_ofFn] at h
-          exact (BitString.equivFin k).injective (Fin.ext h)
+        · exact fun r _ r' _ h => (BitString.equivFin k).injective
+            (Fin.ext (by simpa only [ofBits_ofFn] using h))
     _ = (2 ^ k).count (· ≡ v [MOD N]) := (Nat.count_eq_card_filter_range _ _).symm
     _ ≤ 2 ^ k / N + 1 := by
         rw [Nat.count_modEq_card (2 ^ k) hN v]
@@ -239,10 +245,8 @@ private theorem two_mul_card_reject_le {n : ℕ} (hodd : Odd n) (h1 : 1 < n) (hn
         rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)] at h'
         omega
     have hliar := ZMod.two_mul_card_isStrongLiar_le hodd h1 hn
-    have htot : n.totient ≤ n - 2 := by
-      have hlt := Nat.totient_lt n h1
-      have hne : n.totient ≠ n - 1 := fun h => hn ((Nat.totient_eq_iff_prime (by omega)).1 h)
-      omega
+    have hlt := Nat.totient_lt n h1
+    have hne : n.totient ≠ n - 1 := fun h => hn ((Nat.totient_eq_iff_prime (by omega)).1 h)
     omega
   -- `2 ^ (2 * size n) ≥ N ^ 2`
   have hsq : N * N ≤ 2 ^ (2 * n.size) := by
@@ -252,12 +256,11 @@ private theorem two_mul_card_reject_le {n : ℕ} (hodd : Odd n) (h1 : 1 < n) (hn
   have hQ : N - 1 ≤ 2 ^ (2 * n.size) / N := by
     rw [Nat.le_div_iff_mul_le hN]
     exact (Nat.mul_le_mul_right _ (Nat.sub_le N 1)).trans hsq
-  have hQN : 2 ^ (2 * n.size) / N * N ≤ 2 ^ (2 * n.size) := Nat.div_mul_le_self _ _
   calc 2 * _ ≤ 2 * ((2 ^ (2 * n.size) / N + 1) * S.card) := Nat.mul_le_mul_left 2 hcount
     _ = (2 ^ (2 * n.size) / N + 1) * (2 * S.card) := by ring
     _ ≤ (2 ^ (2 * n.size) / N + 1) * (N - 1) := Nat.mul_le_mul_left _ hS_le
     _ ≤ 2 ^ (2 * n.size) / N * N := succ_mul_pred_le hQ
-    _ ≤ 2 ^ (2 * n.size) := hQN
+    _ ≤ 2 ^ (2 * n.size) := Nat.div_mul_le_self _ _
 
 /-- **The Miller–Rabin test** decides the non-primes with one-sided error, reading `2 |n|` random
 bits on the input `n`: `0`, `1` and even composites are always accepted, an odd composite is
@@ -279,12 +282,9 @@ theorem decidesWithOneSidedError :
     · have hempty : (Finset.univ.filter fun r : Fin (2 * n.size) → Bool =>
           verifier (n, List.ofFn r) = false) = ∅ := by
         refine Finset.filter_eq_empty_iff.2 fun r _ => ?_
-        rcases hodd with h | h
-        · simp [verifier, h]
-        · have h2 : n ≠ 2 := fun h2 => hn (h2 ▸ Nat.prime_two)
-          simp [verifier, h, h2]
-      rw [hempty, Finset.card_empty]
-      exact Nat.zero_le _
+        rcases hodd with h | h <;>
+          simp [verifier, h, show n ≠ 2 from fun h2 => hn (h2 ▸ Nat.prime_two)]
+      simp [hempty]
     · rw [not_or, not_lt] at hodd
       have hodd' : Odd n := Nat.odd_iff.2 (by omega)
       have heq : (Finset.univ.filter fun r : Fin (2 * n.size) → Bool =>

@@ -91,7 +91,7 @@ theorem poly_idxOf {α β : Type} [DecidableEq β]
     (hl : ComputableInPolyTime list e (encList eb))
     (hv : ComputableInPolyTime value e eb) :
     ComputableInPolyTime (fun x => (list x).idxOf (value x)) e encUnary :=
-  .of_tidy (ComputableTidilyInPolyTime.idxOfWithInput hl.tidy hv.tidy)
+  (ComputableInPolyTime.idxOfWithInput hl hv)
 
 attribute [local fun_prop] poly_zipIdx poly_product poly_idxOf
 
@@ -106,17 +106,10 @@ theorem poly_readRecord :
       readRecord p.1.1 p.1.2 p.2)
       (encPair encBuffer encRecord) encBool := by
   unfold readRecord
-  have hindex : ComputableInPolyTime
-      (fun p : (CSP Table ℕ × List Bool) × Record => (CSP.occurrences p.1.1).idxOf p.2)
-      (encPair encBuffer encRecord) encUnary :=
-    poly_idxOf (poly_records.comp (by fun_prop)) (by fun_prop)
-  have hlist : ComputableInPolyTime
-      (fun p : (CSP Table ℕ × List Bool) × Record => p.1.2)
-      (encPair encBuffer encRecord)
-      (encList encBool) := by fun_prop
   -- The realizing lookup saturates its binary index at the actual buffer length.
-  exact .of_tidy (ComputableTidilyInPolyTime.listGetD_binary false hlist.tidy
-    (ComputableTidilyInPolyTime.unary_to_binary.comp hindex.tidy))
+  exact ComputableInPolyTime.listGetD_binary false (by fun_prop)
+    (ComputableInPolyTime.unary_to_binary.comp
+      (poly_idxOf (poly_records.comp (by fun_prop)) (by fun_prop)))
 
 attribute [local fun_prop] poly_readRecord
 
@@ -189,9 +182,8 @@ theorem record_index {F : CSP Table ℕ} (o : Occurrence F) :
     (CSP.occurrences F).idxOf o.record = occurrenceIndex o := by
   rw [occurrences_eq_map_incidenceList]
   simp only [List.idxOf, List.findIdx_map, occurrenceIndex]
-  congr 1
-  funext p
-  simp [Occurrence.record_injective.eq_iff]
+  exact congrArg (List.findIdx · (incidenceList F))
+    (funext fun _ => by simp [Occurrence.record_injective.eq_iff])
 
 theorem read_record {F : CSP Table ℕ} (bits : List Bool) (o : Occurrence F) :
     readRecord F bits o.record = labeling F bits o := by
@@ -208,13 +200,9 @@ in incidence-list order. Width is the actual number of occurrences, not a declar
 theorem buffer_eq {F : CSP Table ℕ} (bits : List Bool)
     (hlen : bits.length = (incidenceList F).length) :
     bits = (incidenceList F).map (labeling F bits) := by
-  apply List.ext_getElem
-  · simpa using hlen
-  · intro i hi hj
-    have ho : i < (incidenceList F).length := by omega
-    have he := (incidenceList_nodup F).idxOf_getElem i ho
-    simp only [List.getElem_map, labeling, occurrenceIndex, he,
-      List.getD_eq_getElem _ _ hi]
+  refine List.ext_getElem (by simpa using hlen) fun i hi _ => ?_
+  simp only [List.getElem_map, labeling, occurrenceIndex,
+    (incidenceList_nodup F).idxOf_getElem i (hlen ▸ hi), List.getD_eq_getElem _ _ hi]
 
 /-- Projection of an existing walk followed by positional decoding recovers its occurrences. -/
 theorem getElem?_occurrenceIndex {F : CSP Table ℕ} (o : Occurrence F) :
@@ -222,55 +210,41 @@ theorem getElem?_occurrenceIndex {F : CSP Table ℕ} (o : Occurrence F) :
   simp [occurrenceIndex, mem_incidenceList o]
 
 private theorem zipIdx_eq_ofFn {α : Type} (l : List α) :
-    l.zipIdx = List.ofFn (fun i : Fin l.length => (l[i], i.val)) := by
-  apply List.ext_getElem
-  · simp
-  · intro i hi hj
-    simp
+    l.zipIdx = List.ofFn (fun i : Fin l.length => (l[i], i.val)) :=
+  List.ext_getElem (by simp)
+    fun _ _ _ => by simp
 
 theorem valid_eq (F : CSP Table ℕ) (bits : List Bool) :
     valid F bits = decide (ValidLabeling Table.sem (labeling F bits)) := by
-  apply Bool.eq_iff_iff.mpr
-  rw [decide_eq_true_eq]
+  rw [Bool.eq_iff_iff, decide_eq_true_eq]
   change valid F bits = true ↔ ∀ i : Fin F.length,
     F[i].rel.sem (localTuple (labeling F bits) i) = true
+  have htuple (i : Fin F.length) : (List.ofFn fun j : Fin F[i].scope.length =>
+      readRecord F bits (i.val, j.val, F[i].scope[j])) = localTuple (labeling F bits) i :=
+    congrArg List.ofFn (funext fun j => read_record bits ⟨i, j⟩)
   simp only [valid, List.all_eq_true, zipIdx_eq_ofFn, List.mem_ofFn, forall_exists_index,
-    forall_apply_eq_imp_iff, List.map_ofFn, Function.comp_def]
-  have htuple (i : Fin F.length) :
-      (List.ofFn fun j : Fin F[i].scope.length =>
-        readRecord F bits (i.val, j.val, F[i].scope[j])) = localTuple (labeling F bits) i := by
-    apply congrArg List.ofFn
-    funext j
-    exact read_record bits ⟨i, j⟩
-  simp only [htuple]
+    forall_apply_eq_imp_iff, List.map_ofFn, Function.comp_def, htuple]
 
 theorem inconsistent_eq (F : CSP Table ℕ) (bits : List Bool) (v : ℕ) :
     inconsistent F bits v = decide (Inconsistent (labeling F bits) v) := by
-  apply Bool.eq_iff_iff.mpr
-  rw [decide_eq_true_eq]
+  rw [Bool.eq_iff_iff, decide_eq_true_eq]
   change inconsistent F bits v = true ↔ ∃ o p : Occurrence F,
     o.var = v ∧ p.var = v ∧ labeling F bits o ≠ labeling F bits p
-  unfold inconsistent
-  rw [List.any_eq_true]
-  constructor
-  · rintro ⟨⟨a, b⟩, hab, ht⟩
-    obtain ⟨ha, hb⟩ := List.mem_product.mp hab
-    rw [occurrences_eq_map_incidenceList] at ha hb
-    obtain ⟨o, _, rfl⟩ := List.mem_map.mp ha
-    obtain ⟨p, _, rfl⟩ := List.mem_map.mp hb
+  rw [inconsistent, List.any_eq_true]
+  refine ⟨fun ⟨⟨_, _⟩, hab, ht⟩ => ?_, fun ⟨o, p, ho, hp, hd⟩ => ?_⟩
+  · obtain ⟨ha, hb⟩ := List.mem_product.mp hab
+    obtain ⟨o, _, rfl⟩ := List.mem_map.mp (occurrences_eq_map_incidenceList F ▸ ha)
+    obtain ⟨p, _, rfl⟩ := List.mem_map.mp (occurrences_eq_map_incidenceList F ▸ hb)
     change (decide (o.var = v) && decide (p.var = v) &&
       (readRecord F bits o.record != readRecord F bits p.record) = true) at ht
     simp only [Bool.and_eq_true, decide_eq_true_eq, bne_iff_ne, read_record] at ht
     exact ⟨o, p, ht.1.1, ht.1.2, ht.2⟩
-  · rintro ⟨o, p, ho, hp, hd⟩
-    refine ⟨(o.record, p.record), List.mem_product.mpr ?_, ?_⟩
+  · refine ⟨(o.record, p.record), List.mem_product.mpr ?_, ?_⟩
     · rw [occurrences_eq_map_incidenceList]
-      exact ⟨List.mem_map.mpr ⟨o, mem_incidenceList o, rfl⟩,
-        List.mem_map.mpr ⟨p, mem_incidenceList p, rfl⟩⟩
+      exact ⟨List.mem_map_of_mem (mem_incidenceList o), List.mem_map_of_mem (mem_incidenceList p)⟩
     · change (decide (o.var = v) && decide (p.var = v) &&
         (readRecord F bits o.record != readRecord F bits p.record) = true)
-      simpa only [Bool.and_eq_true, decide_eq_true_eq, bne_iff_ne, read_record] using
-        (show (o.var = v ∧ p.var = v) ∧ labeling F bits o ≠ labeling F bits p from ⟨⟨ho, hp⟩, hd⟩)
+      simpa only [Bool.and_eq_true, decide_eq_true_eq, bne_iff_ne, read_record] using ⟨⟨ho, hp⟩, hd⟩
 
 
 theorem occurrenceIndex_lt {F : CSP Table ℕ} (o : Occurrence F) :
@@ -278,21 +252,16 @@ theorem occurrenceIndex_lt {F : CSP Table ℕ} (o : Occurrence F) :
   List.idxOf_lt_length_iff.mpr (mem_incidenceList o)
 
 theorem occurrenceIndex_injective (F : CSP Table ℕ) :
-    Function.Injective (occurrenceIndex (F := F)) := by
-  intro o p he
-  have h := getElem?_occurrenceIndex o
-  rw [he, getElem?_occurrenceIndex p] at h
-  exact Option.some.inj h.symm
+    Function.Injective (occurrenceIndex (F := F)) := fun o _ he => by
+  simpa [he, getElem?_occurrenceIndex] using (getElem?_occurrenceIndex o).symm
 
 theorem labeling_flip {F : CSP Table ℕ} (bits : List Bool) (s : List (Occurrence F))
     (hlen : bits.length = (incidenceList F).length) :
     labeling F (flip bits (s.map occurrenceIndex)) =
       BitString.flipOn s.toFinset (labeling F bits) := by
   funext o
-  have hi : occurrenceIndex o < bits.length := by rw [hlen]; exact occurrenceIndex_lt o
-  have hf : occurrenceIndex o < (flip bits (s.map occurrenceIndex)).length := by
-    simpa only [length_flip] using hi
-  rw [labeling, List.getD_eq_getElem _ _ hf]
+  have hi : occurrenceIndex o < bits.length := hlen ▸ occurrenceIndex_lt o
+  rw [labeling, List.getD_eq_getElem _ _ ((length_flip _ _).symm ▸ hi)]
   simp only [flip, List.getElem_map, List.getElem_zipIdx, BitString.flipOn_apply,
     List.mem_toFinset, labeling, List.getD_eq_getElem _ _ hi, List.contains_eq_mem,
     List.mem_map, (occurrenceIndex_injective F).eq_iff, exists_eq_right,

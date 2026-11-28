@@ -358,8 +358,7 @@ theorem exists_computableInO_evaluate : ∃ e, ComputableInO evaluate encQBF enc
   refine ⟨2 * (d + d₀ + d₁) + 2, ?_⟩
   refine (h.mono (17 ^ (d + d₁) * 64) (fun φ => ?_) fun φ => ?_).of_enc_eq fun φ => rfl
   all_goals
-    simp only [encNat_two_pow, List.length_append, List.length_replicate,
-      List.length_singleton]
+    simp only [length_encNat_two_pow]
     have hgood := length_encState_le (good_iterate_step φ (2 ^ (encQBF φ).length))
     generalize step^[2 ^ (encQBF φ).length] (init φ) = s at hgood ⊢
     generalize (encQBF φ).length = L at hgood ⊢

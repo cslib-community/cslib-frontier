@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary
 public import CslibFrontier.Computability.Probabilistic.Parameter
+public import CslibFrontier.Crypto.Computational.Lattice.QaryKernel
 public import CslibFrontier.Crypto.Game
 public import Mathlib.Data.Matrix.Mul
 public import Mathlib.Data.ZMod.ValMinAbs
@@ -80,7 +81,7 @@ namespace SIS
 `[-β, β]`, and `A z ≡ 0 (mod q)`. -/
 def IsSolution {q : ℕ} {ρ ι : Type*} [Fintype ι] (A : Matrix ρ ι (ZMod q)) (β : ℕ)
     (z : ι → ℤ) : Prop :=
-  z ≠ 0 ∧ (∀ i, |z i| ≤ β) ∧ A *ᵥ (Int.cast ∘ z) = 0
+  z ≠ 0 ∧ (∀ i, |z i| ≤ β) ∧ InKernelLattice A z
 
 instance {q : ℕ} {ρ ι : Type*} [Fintype ρ] [Fintype ι] (A : Matrix ρ ι (ZMod q)) (β : ℕ)
     (z : ι → ℤ) : Decidable (IsSolution A β z) :=
@@ -133,8 +134,8 @@ integer solution. -/
 theorem isResidueSolution_iff_isSolution {q : ℕ} {ρ ι : Type*} [Fintype ι]
     (A : Matrix ρ ι (ZMod q)) (β : ℕ) (z : ι → ZMod q) :
     IsResidueSolution A β z ↔ IsSolution A β (liftCentered z) := by
-  simp only [IsResidueSolution, IsSolution, inInfNormBound, liftCentered_ne_zero_iff,
-    intCast_comp_liftCentered]
+  simp only [IsResidueSolution, IsSolution, InKernelLattice, inInfNormBound,
+    liftCentered_ne_zero_iff, intCast_comp_liftCentered]
   rfl
 
 /-! ### Encodings -/
@@ -195,7 +196,8 @@ structure SISParams where
   m : ℕ → ℕ
   /-- Modulus at each security parameter. -/
   q : ℕ → ℕ
-  /-- Infinity-norm bound on solution coordinates. -/
+  /-- Norm bound on solution vectors, interpreted according to the norm-specific SIS game (`ℓ_∞` in
+  `SIS`, Euclidean `ℓ₂` in Euclidean-norm variants). -/
   β : ℕ → ℕ
   /-- Every modulus is nonzero. -/
   hq : ∀ security, NeZero (q security)

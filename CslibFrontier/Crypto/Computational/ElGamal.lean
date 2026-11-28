@@ -244,11 +244,10 @@ def encodeElGamalPublicKey (input : F.Desc × ℕ) : List Bool :=
 
 /-- Word-level ElGamal public-key computation is computable in polynomial time. -/
 theorem computableInPolyTime_encodeElGamalPublicKey :
-    ComputableInPolyTime F.encodeElGamalPublicKey (encPair F.encDesc encNat) encBits := by
-  have hd := ComputableInPolyTime.fst F.encDesc encNat
-  exact F.computableInPolyTime_smul.comp
-    (hd.prod ((ComputableInPolyTime.snd F.encDesc encNat).prod
-      (F.computableInPolyTime_generator.comp hd)))
+    ComputableInPolyTime F.encodeElGamalPublicKey (encPair F.encDesc encNat) encBits :=
+  F.computableInPolyTime_smul.comp <| (by fun_prop : ComputableInPolyTime Prod.fst _ _).prod <|
+    (by fun_prop : ComputableInPolyTime Prod.snd _ _).prod <|
+      F.computableInPolyTime_generator.comp (by fun_prop)
 
 /-- Payload `(u, m, b)` of a 4-tuple encryption input `(d, u, m, b)`. -/
 abbrev encPayload {Msg : Type} (input : F.Desc × List Bool × Msg × ℕ) : List Bool × Msg × ℕ :=
@@ -307,17 +306,11 @@ def encodeElGamalEncrypt (input : F.Desc × List Bool × List Bool × ℕ) : Lis
 theorem computableInPolyTime_encodeElGamalEncrypt :
     ComputableInPolyTime F.encodeElGamalEncrypt
       (encPair F.encDesc (encPair encBits (encPair encBits encNat)))
-      (encPair encBits encBits) := by
-  have hd := ComputableInPolyTime.fst F.encDesc (encPair encBits (encPair encBits encNat))
-  have h2 := ComputableInPolyTime.snd F.encDesc (encPair encBits (encPair encBits encNat))
-  have hu := (ComputableInPolyTime.fst encBits (encPair encBits encNat)).comp h2
-  have h3 := (ComputableInPolyTime.snd encBits (encPair encBits encNat)).comp h2
-  have hm := (ComputableInPolyTime.fst encBits encNat).comp h3
-  have hb := (ComputableInPolyTime.snd encBits encNat).comp h3
-  have hg := F.computableInPolyTime_generator.comp hd
-  have hv := F.computableInPolyTime_smul.comp (hd.prod (hb.prod hg))
-  have hbu := F.computableInPolyTime_smul.comp (hd.prod (hb.prod hu))
-  exact hv.prod (F.computableInPolyTime_add.comp (hd.prod (hbu.prod hm)))
+      (encPair encBits encBits) :=
+  (F.computableInPolyTime_smul.comp (.prod (by fun_prop) (.prod (by fun_prop)
+    (F.computableInPolyTime_generator.comp (by fun_prop))))).prod
+    (F.computableInPolyTime_add.comp (.prod (by fun_prop) (.prod
+      (F.computableInPolyTime_smul.comp (by fun_prop)) (by fun_prop))))
 
 /-- Decryption on encoded group elements: given `(d, a, encode v, encode e)`, compute
 `encode (e - a • v)` as `F.add (d, encode e, F.smul (d, F.order d - a % F.order d, encode v))`. -/
@@ -354,18 +347,12 @@ theorem decodeElGamal_encodeElGamalEncrypt (d : F.Desc) (a b : ℕ) (m : F.Carri
 /-- Encoded ElGamal decryption is computable in polynomial time. -/
 theorem computableInPolyTime_decodeElGamal :
     ComputableInPolyTime F.decodeElGamal
-      (encPair F.encDesc (encPair encNat (encPair encBits encBits))) encBits := by
-  have hd := ComputableTidilyInPolyTime.fst F.encDesc (encPair encNat (encPair encBits encBits))
-  have h2 := ComputableTidilyInPolyTime.snd F.encDesc (encPair encNat (encPair encBits encBits))
-  have ha := (ComputableTidilyInPolyTime.fst encNat (encPair encBits encBits)).comp h2
-  have h3 := (ComputableTidilyInPolyTime.snd encNat (encPair encBits encBits)).comp h2
-  have hv := (ComputableTidilyInPolyTime.fst encBits encBits).comp h3
-  have he := (ComputableTidilyInPolyTime.snd encBits encBits).comp h3
-  have horder := F.computableInPolyTime_order.tidy.comp hd
-  have hexp := ComputableTidilyInPolyTime.binary_sub' horder (.binary_mod' ha horder)
-  have hsmul := F.computableInPolyTime_smul.tidy.comp (hd.prod (hexp.prod hv))
-  exact ComputableInPolyTime.of_tidy
-    (F.computableInPolyTime_add.tidy.comp (hd.prod (he.prod hsmul)))
+      (encPair F.encDesc (encPair encNat (encPair encBits encBits))) encBits :=
+  have horder := F.computableInPolyTime_order.comp (by fun_prop)
+  F.computableInPolyTime_add.comp (.prod (by fun_prop) (.prod (by fun_prop)
+    (F.computableInPolyTime_smul.comp (.prod (by fun_prop) (.prod
+      (ComputableInPolyTime.binary_sub' horder (.binary_mod' (by fun_prop) horder))
+      (by fun_prop))))))
 
 /-! ### Shared typed-message ElGamal IND-CPA reduction ([BonehShoup2023], Exercise 11.5(a)) -/
 
@@ -451,12 +438,9 @@ theorem ddhRandomGame_elGamalMsgToDDHDistinguisherWith_false_eq_true {Msg : Type
       choice.1.1 choice.1.2 = true
   · obtain ⟨⟨x₀, hx₀⟩, ⟨x₁, hx₁⟩⟩ := hsound d hd _ choice.1.1 choice.1.2 hv
     simp only [hv, ↓reduceIte, hx₀, hx₁, F.add_encode]
-    exact (F.uniform_smul_generator_add d x₀
-        (fun x => ProbComp.eval (adversary.guess n choice.2
-          (encPair encBits encBits (F.encode d (β • F.generator d), F.encode d x))))).trans
-      (F.uniform_smul_generator_add d x₁
-        (fun x => ProbComp.eval (adversary.guess n choice.2
-          (encPair encBits encBits (F.encode d (β • F.generator d), F.encode d x))))).symm
+    let k x := ProbComp.eval (adversary.guess n choice.2
+      (encPair encBits encBits (F.encode d (β • F.generator d), F.encode d x)))
+    exact (F.uniform_smul_generator_add d x₀ k).trans (F.uniform_smul_generator_add d x₁ k).symm
   · simp only [hv, Bool.false_eq_true, ↓reduceIte]
 
 /-- Quantitative DDH bound for `elGamalMsgCPAGameWith`. -/
@@ -502,57 +486,25 @@ theorem isPPT_elGamalMsgToDDHDistinguisherWith {Msg : Type} {encMsg : Msg ↪ Li
       (encPair F.encDesc encMsg) encBits)
     {adversary : Encryption.AdversaryOf Msg}
     (hA : Encryption.AdversaryOf.IsPPT encMsg adversary) (bit : Bool) :
-    (F.elGamalMsgToDDHDistinguisherWith guard encodeMsg adversary bit).IsPPT := by
-  let E := encPair F.encDDHInput (Encryption.encChoiceOut encMsg)
-  have hpk : ComputableInPolyTime
-      (fun x : F.DDHInput => encPair F.encDesc encBits (x.groupParameters, F.encode _ x.leftPublic))
-      F.encDDHInput encBits :=
-    ComputableInPolyTime.encoding_comp (by fun_prop)
-  have hn : ComputableInPolyTime (fun p : F.DDHInput × Encryption.ChoiceOut Msg => p.1.secParam)
-      E encUnary := by fun_prop
-  have hd : ComputableInPolyTime
-      (fun p : F.DDHInput × Encryption.ChoiceOut Msg => p.1.groupParameters) E F.encDesc := by
-    fun_prop
-  have hv : ComputableInPolyTime
-      (fun p : F.DDHInput × Encryption.ChoiceOut Msg => F.encode _ p.1.rightPublic) E encBits := by
-    fun_prop
-  have hw : ComputableInPolyTime
-      (fun p : F.DDHInput × Encryption.ChoiceOut Msg => F.encode _ p.1.candidateShared) E
-      encBits := by
-    fun_prop
-  have hst : ComputableInPolyTime (fun p : F.DDHInput × Encryption.ChoiceOut Msg => p.2.2) E
-      encBits := by
-    fun_prop
-  have hm₀ : ComputableInPolyTime (fun p : F.DDHInput × Encryption.ChoiceOut Msg => p.2.1.1) E
-      encMsg := by
-    fun_prop
-  have hm₁ : ComputableInPolyTime (fun p : F.DDHInput × Encryption.ChoiceOut Msg => p.2.1.2) E
-      encMsg := by
-    fun_prop
-  have hm : ComputableInPolyTime
-      (fun p : F.DDHInput × Encryption.ChoiceOut Msg => if bit then p.2.1.2 else p.2.1.1) E
-      encMsg := by
-    cases bit
-    · exact hm₀
-    · exact hm₁
-  have hguardStep := (hguard.comp (hn.prod (hd.prod
-    ((hpk.comp (ComputableInPolyTime.fst F.encDDHInput (Encryption.encChoiceOut encMsg))).prod
-      (hm₀.prod hm₁)))))
-  have hguessStep := hA.guess.preprocess
-    (prepare := fun p : F.DDHInput × Encryption.ChoiceOut Msg =>
-      (p.1.secParam, p.2.2, encPair encBits encBits
-        (F.encode _ p.1.rightPublic,
-          F.add (p.1.groupParameters, F.encode _ p.1.candidateShared,
-            encodeMsg p.1.groupParameters (if bit then p.2.1.2 else p.2.1.1)))))
-    (hn.prod (hst.prod (hv.prod (F.computableInPolyTime_add.comp
-      (hd.prod (hw.prod (hencMsg.comp (hd.prod hm)))))).encoding_comp))
-  simp only [DDHDistinguisher.IsPPT, elGamalMsgToDDHDistinguisherWith]
-  refine (hA.choose.on.preprocess
+    (F.elGamalMsgToDDHDistinguisherWith guard encodeMsg adversary bit).IsPPT :=
+  (hA.choose.on.preprocess
     (prepare := fun x : F.DDHInput =>
       (x.secParam, encPair F.encDesc encBits (x.groupParameters, F.encode _ x.leftPublic)))
-    ((show ComputableInPolyTime (fun x : F.DDHInput => x.secParam) _ encUnary by fun_prop).prod
-      hpk)).bind_with ?_
-  exact IsPPTOn.cond hguardStep hguessStep (ComputableInPolyTime.const false).isPPTOn
+    (.prod (by fun_prop) (.encoding_comp (by fun_prop)))).bind_with <|
+    IsPPTOn.cond
+      (hguard.comp (.prod (by fun_prop) (.prod (by fun_prop)
+        (.prod (.encoding_comp (by fun_prop)) (by fun_prop)))))
+      (hA.guess.preprocess
+        (prepare := fun p : F.DDHInput × Encryption.ChoiceOut Msg =>
+          (p.1.secParam, p.2.2, encPair encBits encBits
+            (F.encode _ p.1.rightPublic,
+              F.add (p.1.groupParameters, F.encode _ p.1.candidateShared,
+                encodeMsg p.1.groupParameters (if bit then p.2.1.2 else p.2.1.1)))))
+        (.prod (by fun_prop) <| .prod (by fun_prop) <| .encoding_comp <| .prod (by fun_prop) <|
+          F.computableInPolyTime_add.comp <| .prod (by fun_prop) <| .prod (by fun_prop) <|
+            hencMsg.comp <| .prod (by fun_prop) <|
+              .ite' (encC := encBool) (.const bit) (by fun_prop) (by fun_prop)))
+      (ComputableInPolyTime.const false).isPPTOn
 
 /-- Ideal-sampling step toward `DDH.indcpaOn_elGamalEncryptProb`, not the cited result: under DDH
 for any setup law, when `guard` is computable in polynomial time and admits only group elements
@@ -735,12 +687,7 @@ def bitElement (d : F.Desc) (b : Bool) : F.Carrier d :=
 
 /-- Distinct message bits map to distinct group elements. -/
 theorem bitElement_injective (d : F.Desc) : Function.Injective (F.bitElement d) := by
-  intro b₁ b₂ h
-  cases b₁ <;> cases b₂
-  · rfl
-  · exact absurd h.symm (F.generator_ne_zero d)
-  · exact absurd h (F.generator_ne_zero d)
-  · rfl
+  rintro (_ | _) (_ | _) h <;> simp [bitElement, F.generator_ne_zero d, Ne.symm] at h ⊢
 
 /-- Encode a message bit `b : Bool` as an encoded element of `F.Carrier d` using `F.smul`. -/
 def encodeBit (d : F.Desc) (b : Bool) : List Bool :=
@@ -762,11 +709,10 @@ theorem admitsGroupElements_encodeBit :
 /-- `encodeBit` is computable in polynomial time from the group description and the bit. -/
 theorem computableInPolyTime_encodeBit :
     ComputableInPolyTime (fun p : F.Desc × Bool => F.encodeBit p.1 p.2)
-      (encPair F.encDesc encBool) encBits := by
-  have hd := ComputableInPolyTime.fst F.encDesc encBool
-  exact F.computableInPolyTime_smul.comp
-    (hd.prod (((ComputableInPolyTime.snd F.encDesc encBool).ite' (.const 1) (.const 0)).prod
-      (F.computableInPolyTime_generator.comp hd)))
+      (encPair F.encDesc encBool) encBits :=
+  F.computableInPolyTime_smul.comp (.prod (by fun_prop) (.prod
+    ((by fun_prop : ComputableInPolyTime Prod.snd _ _).ite' (.const 1) (.const 0))
+    (F.computableInPolyTime_generator.comp (by fun_prop))))
 
 /-- The IND-CPA experiment for ElGamal bit encryption ([BonehShoup2023], Exercise 11.5, p. 459):
 draw `d` from `setup n` and a uniform secret key `α : ZMod (F.order d)`, pass the encoded public
@@ -853,7 +799,7 @@ theorem advantage_elGamalCPAGame_le_ideal (setup : ℕ → PMF F.Desc)
 theorem isPPT_elGamalToDDHDistinguisher {adversary : Encryption.Adversary}
     (hA : adversary.IsPPT) (bit : Bool) : (F.elGamalToDDHDistinguisher adversary bit).IsPPT :=
   F.isPPT_elGamalMsgToDDHDistinguisher
-    (ComputableTidilyInPolyTime.const true).computableInPolyTime F.computableInPolyTime_encodeBit hA
+    (ComputableInPolyTime.const true) F.computableInPolyTime_encodeBit hA
     bit
 
 /-- Ideal-sampling step toward `DDH.indcpa_elGamalBitEncryptProb`, not the cited result: under DDH
@@ -995,18 +941,12 @@ theorem computableInPolyTime_encodeHashedElGamalEncrypt {H : F.Desc × List Bool
     (hH : ComputableInPolyTime H (encPair F.encDesc encBits) encBits) :
     ComputableInPolyTime (F.encodeHashedElGamalEncrypt H)
       (encPair F.encDesc (encPair encBits (encPair encBits encNat)))
-      (encPair encBits encBits) := by
-  have hd := ComputableInPolyTime.fst F.encDesc (encPair encBits (encPair encBits encNat))
-  have h2 := ComputableInPolyTime.snd F.encDesc (encPair encBits (encPair encBits encNat))
-  have hu := (ComputableInPolyTime.fst encBits (encPair encBits encNat)).comp h2
-  have h3 := (ComputableInPolyTime.snd encBits (encPair encBits encNat)).comp h2
-  have hm := (ComputableInPolyTime.fst encBits encNat).comp h3
-  have hb := (ComputableInPolyTime.snd encBits encNat).comp h3
-  have hg := F.computableInPolyTime_generator.comp hd
-  have hv := F.computableInPolyTime_smul.comp (hd.prod (hb.prod hg))
-  have hbu := F.computableInPolyTime_smul.comp (hd.prod (hb.prod hu))
-  have hpad := hH.comp (hd.prod hbu)
-  exact hv.prod (computableInPolyTime_listXor_pair hpad hm)
+      (encPair encBits encBits) :=
+  (F.computableInPolyTime_smul.comp (.prod (by fun_prop) (.prod (by fun_prop)
+    (F.computableInPolyTime_generator.comp (by fun_prop))))).prod
+    (computableInPolyTime_listXor_pair
+      (hH.comp (.prod (by fun_prop) (F.computableInPolyTime_smul.comp (by fun_prop))))
+      (by fun_prop))
 
 /-- Word-level Hashed ElGamal decryption: given `(d, a, encode v, c)`, derive
 `pad = H (d, encode (a • v))` and compute `Cslib.BitString.listXor pad.length [pad, c]`. -/
@@ -1038,15 +978,10 @@ theorem decodeHashedElGamal_hashedElGamalEncrypt (H : F.Desc × List Bool → Li
 theorem computableInPolyTime_decodeHashedElGamal {H : F.Desc × List Bool → List Bool}
     (hH : ComputableInPolyTime H (encPair F.encDesc encBits) encBits) :
     ComputableInPolyTime (F.decodeHashedElGamal H)
-      (encPair F.encDesc (encPair encNat (encPair encBits encBits))) encBits := by
-  have hd := ComputableInPolyTime.fst F.encDesc (encPair encNat (encPair encBits encBits))
-  have h2 := ComputableInPolyTime.snd F.encDesc (encPair encNat (encPair encBits encBits))
-  have ha := (ComputableInPolyTime.fst encNat (encPair encBits encBits)).comp h2
-  have h3 := (ComputableInPolyTime.snd encNat (encPair encBits encBits)).comp h2
-  have hv := (ComputableInPolyTime.fst encBits encBits).comp h3
-  have hc := (ComputableInPolyTime.snd encBits encBits).comp h3
-  have hav := F.computableInPolyTime_smul.comp (hd.prod (ha.prod hv))
-  exact computableInPolyTime_listXor_pair (hH.comp (hd.prod hav)) hc
+      (encPair F.encDesc (encPair encNat (encPair encBits encBits))) encBits :=
+  computableInPolyTime_listXor_pair
+    (hH.comp (.prod (by fun_prop) (F.computableInPolyTime_smul.comp (by fun_prop))))
+    (by fun_prop)
 
 /-- The IND-CPA experiment for Hashed ElGamal encryption ([BonehShoup2023], Section 11.5,
 pp. 445–446, Remark 11.1, and Section 11.5.2, Theorem 11.5, pp. 449–451): draw `d ← setup n` and a
@@ -1231,24 +1166,20 @@ exactly. -/
 /-- `hashedElGamalToKDFDistinguisher` is uniform strict PPT whenever `adversary` is. -/
 theorem isPPT_hashedElGamalToKDFDistinguisher {adversary : Encryption.WordAdversary}
     (hA : adversary.IsPPT) (bit : Bool) :
-    (F.hashedElGamalToKDFDistinguisher adversary bit).IsPPT := by
-  let E := encPair F.encKDFInput (Encryption.encChoiceOut encBits)
-  have hm : ComputableInPolyTime
-      (fun p : F.KDFInput × Encryption.ChoiceOut (List Bool) =>
-        if bit then p.2.1.2 else p.2.1.1) E encBits :=
-    .ite' (encC := encBool) (.const bit) (by fun_prop) (by fun_prop)
-  simp only [KDFDistinguisher.IsPPT, hashedElGamalToKDFDistinguisher]
-  refine (hA.choose.on.preprocess
+    (F.hashedElGamalToKDFDistinguisher adversary bit).IsPPT :=
+  (hA.choose.on.preprocess
     (prepare := fun x : F.KDFInput =>
       (x.secParam, encPair F.encDesc encBits (x.groupParameters, F.encode _ x.leftPublic)))
-    (.prod (by fun_prop) (.encoding_comp (by fun_prop)))).bind_with ?_
-  exact hA.guess.preprocess
-    (prepare := fun p : F.KDFInput × Encryption.ChoiceOut (List Bool) =>
-      (p.1.secParam, p.2.2, encPair encBits encBits
-        (F.encode _ p.1.rightPublic,
-          Cslib.BitString.listXor p.1.key.length [p.1.key, if bit then p.2.1.2 else p.2.1.1])))
-    (.prod (by fun_prop) (.prod (by fun_prop)
-      (.encoding_comp (.prod (by fun_prop) (computableInPolyTime_listXor_pair (by fun_prop) hm)))))
+    (.prod (by fun_prop) (.encoding_comp (by fun_prop)))).bind_with <|
+    hA.guess.preprocess
+      (prepare := fun p : F.KDFInput × Encryption.ChoiceOut (List Bool) =>
+        (p.1.secParam, p.2.2, encPair encBits encBits
+          (F.encode _ p.1.rightPublic,
+            Cslib.BitString.listXor p.1.key.length
+              [p.1.key, if bit then p.2.1.2 else p.2.1.1])))
+      (.prod (by fun_prop) <| .prod (by fun_prop) <| .encoding_comp <| .prod (by fun_prop) <|
+        computableInPolyTime_listXor_pair (by fun_prop) <|
+          .ite' (encC := encBool) (.const bit) (by fun_prop) (by fun_prop))
 
 /-- In `kdfIdealGame`, the uniform `msgLen n`-bit pad masks any challenge message word perfectly
 via `Cslib.BitString.listXor pad.length [pad, m]`, so `hashedElGamalToKDFDistinguisher` accepts
@@ -1259,26 +1190,17 @@ theorem kdfIdealGame_hashedElGamalToKDFDistinguisher_false_eq_true (setup : ℕ 
       F.kdfIdealGame setup msgLen (F.hashedElGamalToKDFDistinguisher adversary true) n := by
   simp only [kdfIdealGame, hashedElGamalToKDFDistinguisher, ProbComp.eval_bind,
     PMF.monad_bind_eq_bind, Bool.false_eq_true, ↓reduceIte]
-  refine congrArg (PMF.bind _) (funext fun d => congrArg (PMF.bind _) (funext fun α => ?_))
-  refine congrArg (PMF.bind _) (funext fun β => ?_)
-  rw [PMF.bind_comm, PMF.bind_comm (Cslib.BitString.uniformList (msgLen n))]
-  refine congrArg (PMF.bind _) (funext fun choice => ?_)
+  congr 1; funext d; congr 1; funext α; congr 1; funext β
+  simp_rw [PMF.bind_comm (Cslib.BitString.uniformList (msgLen n))]
+  congr 1; funext choice
+  let f pad := ProbComp.eval (adversary.guess n choice.2
+    (encPair encBits encBits (F.encode d (β • F.generator d), pad)))
   have hpad (m : List Bool) :
       ((Cslib.BitString.uniformList (msgLen n)).bind fun pad =>
-        ProbComp.eval (adversary.guess n choice.2
-          (encPair encBits encBits
-            (F.encode d (β • F.generator d),
-              Cslib.BitString.listXor pad.length [pad, m])))) =
-      ((Cslib.BitString.uniformList (msgLen n)).bind fun pad =>
-        ProbComp.eval (adversary.guess n choice.2
-          (encPair encBits encBits (F.encode d (β • F.generator d), pad)))) := by
-    have hmap := congrArg
-      (fun p : PMF (List Bool) =>
-        p.bind fun pad =>
-          ProbComp.eval (adversary.guess n choice.2
-            (encPair encBits encBits (F.encode d (β • F.generator d), pad))))
-      (Cslib.BitString.uniformList_map_listXor_length (msgLen n) m)
-    simpa only [PMF.bind_map, Function.comp_def] using hmap
+        f (Cslib.BitString.listXor pad.length [pad, m])) =
+        (Cslib.BitString.uniformList (msgLen n)).bind f := by
+    simpa only [PMF.bind_map, Function.comp_def] using
+      congrArg (·.bind f) (Cslib.BitString.uniformList_map_listXor_length (msgLen n) m)
   exact (hpad choice.1.1).trans (hpad choice.1.2).symm
 
 /-- Ideal-sampling step toward [BonehShoup2023], Section 11.5.2, Theorem 11.5, pp. 449–451, not

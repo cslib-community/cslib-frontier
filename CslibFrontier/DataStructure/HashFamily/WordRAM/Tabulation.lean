@@ -14,8 +14,13 @@ public import CslibFrontier.Probability.PairwiseIndependentHash.Shift
 public import CslibFrontier.Probability.Product
 public import CslibFrontier.Probability.Uniform
 public import Mathlib.Data.Nat.Log
+import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
 import CslibFrontier.Tactic.Fits
+import CslibFrontier.Tactic.SuppCases
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Self-contained Word-RAM random tables and tabulated odd-stride generation
@@ -142,33 +147,8 @@ theorem randFillBody_execRand {w bits arrBase : ℕ} {x : Data 6}
     ExecRand w randFillBody x (do
       let k ← ProbComp.unifFin (2 ^ bits - 1)
       pure (randFillStepData arrBase k.val x, 3)) := by
-  have hfit_src : Fits w (x.regs regMask) := by rwa [hmask]
-  have h1 := ExecRand.rand (B := .exact) (w := w) (dst := regVal) (src := regMask) hfit_src
-  rw [hmask] at h1
-  have h23 : ∀ z ∈ (do
-      let k ← ProbComp.unifFin (2 ^ bits - 1)
-      pure (x.set regVal k.val, 1) : ProbComp (Data 6 × ℕ)).support,
-      ExecRand w (.seq (.op (.store regPtr regVal))
-        (.op (.exactBin .add regPtr regPtr regOne))) z.1
-        (pure (randFillStepData arrBase (z.1.regs regVal) x, 2)) := by
-    intro z hz
-    obtain ⟨k, -, hk⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
-    cases OracleComp.eq_of_mem_supportWith_pure hk
-    set d1 := x.set regVal k.val
-    have hd1_ptr : d1.regs regPtr = arrBase := by simp [d1, hptr, regPtr, regVal]
-    have hd1_val : d1.regs regVal = k.val := by simp [d1]
-    have s2 : Exec w (.op (.store regPtr regVal) : Code .exact 6)
-        d1 (d1.write arrBase k.val) 1 := by
-      simpa [hd1_ptr, hd1_val] using
-        (Exec.store (B := .exact) (w := w) (a := regPtr) (s := regVal) (x := d1))
-    set d2 := d1.write arrBase k.val
-    have s3 : Exec w (.op (.exactBin .add regPtr regPtr regOne) : Code .exact 6)
-        d2 (d2.set regPtr (arrBase + 1)) 1 :=
-      exec_exactBin (by simp [d2, d1, hptr, hone, regPtr, regOne, regVal]) hfit_ptr
-    simpa [randFillStepData, d2, d1, hd1_val] using (s2.seq s3).execRand
-  have hseq := ExecRand.seq
-    (m₂ := fun d => pure (randFillStepData arrBase (d.regs regVal) x, 2)) h1 h23
-  simpa only [randFillBody, bind_assoc, pure_bind, Data.set_regs, Function.update_self] using hseq
+  unfold randFillBody randFillStepData
+  wram_rand_exec [hptr, hmask, hone]
 
 /-- **Exact `ExecRand` semantics of `randFillLoop`** over `len` words starting at `arrBase`. -/
 theorem randFillLoop_execRand {w bits arrBase : ℕ} (len : ℕ) {x : Data 6}
@@ -177,42 +157,30 @@ theorem randFillLoop_execRand {w bits arrBase : ℕ} (len : ℕ) {x : Data 6}
     (hfit_end : Fits w (arrBase + len)) (hfit_mask : Fits w (2 ^ bits - 1)) :
     ExecRand w randFillLoop x (randFillComp bits arrBase len x) := by
   induction len generalizing arrBase x with
-  | zero =>
-    have hc : ¬(Cond.lt regPtr regEnd).Holds x := by
-      simp [Cond.Holds, hptr, hend]
-    exact ExecRand.loop_exit hc
+  | zero => exact ExecRand.loop_exit (by simp [Cond.Holds, hptr, hend])
   | succ len ih =>
-    have hc : (Cond.lt regPtr regEnd).Holds x := by
-      simp [Cond.Holds, hptr, hend]
+    have hc : (Cond.lt regPtr regEnd).Holds x := by simp [Cond.Holds, hptr, hend]
     have hb := randFillBody_execRand hptr hmask hone (by fits) hfit_mask
-    have hcont : ∀ z ∈ (do
-        let k ← ProbComp.unifFin (2 ^ bits - 1)
-        pure (randFillStepData arrBase k.val x, 3) : ProbComp (Data 6 × ℕ)).support,
-        ExecRand w randFillLoop z.1 (randFillComp bits (arrBase + 1) len z.1) := by
-      intro z hz
-      obtain ⟨k, -, hk⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
-      cases OracleComp.eq_of_mem_supportWith_pure hk
-      refine ih (arrBase := arrBase + 1)
-        (by simp +decide [randFillStepData, regPtr, regVal])
-        (by simp +decide [randFillStepData, regEnd, regPtr, regVal, hend]; omega)
-        (by simp +decide [randFillStepData, regMask, regPtr, regVal, hmask])
-        (by simp +decide [randFillStepData, regOne, regPtr, regVal, hone])
+    have hiter := ExecRand.loop_iter hc hb fun z hz => by
+      supp_cases hz with ⟨k, rfl⟩
+      exact ih (arrBase := arrBase + 1)
+        (by wram_simp [randFillStepData])
+        (by wram_simp [randFillStepData, hend]; omega)
+        (by wram_simp [randFillStepData, hmask])
+        (by wram_simp [randFillStepData, hone])
         (by rwa [show arrBase + 1 + len = arrBase + (len + 1) by omega])
-    have hiter := ExecRand.loop_iter hc hb hcont
     simpa only [randFillLoop, randFillComp, bind_assoc, pure_bind] using hiter
 
 /-- `randFillComp bits arrBase len x` makes at most `len` `rand` calls. -/
 theorem isQueryBounded_randFillComp (bits arrBase len : ℕ) (x : Data 6) :
     (randFillComp bits arrBase len x).IsQueryBounded len := by
   induction len generalizing arrBase x with
-  | zero =>
-    exact .pure _ 0
+  | zero => exact .pure _ 0
   | succ len ih =>
     dsimp only [randFillComp]
     rw [Nat.add_comm len 1]
-    refine (ProbComp.isQueryBounded_unifFin (2 ^ bits - 1)).bind fun k => ?_
-    simpa only [Nat.add_zero] using
-      (ih (arrBase + 1) (randFillStepData arrBase k.val x)).bind fun _ => .pure _ 0
+    exact (ProbComp.isQueryBounded_unifFin _).bind fun k => by
+      simpa only [Nat.add_zero] using (ih _ _).bind fun _ => .pure _ 0
 
 /-- Pathwise postcondition of `randFillComp`: takes `5 * len + 2` instructions, preserves registers
 `regEnd`, `regMask`, `regOne`, `regExtra`, fills `[arrBase, arrBase + len)` with `< 2 ^ bits`
@@ -230,38 +198,29 @@ theorem mem_support_randFillComp {bits arrBase len : ℕ} {x : Data 6} {z : Data
   induction len generalizing arrBase x z with
   | zero =>
     dsimp only [randFillComp] at hz
-    cases OracleComp.eq_of_mem_supportWith_pure hz
-    refine ⟨rfl, by simp, rfl, rfl, rfl, rfl, fun _ hi => by omega, fun _ _ => rfl⟩
+    supp_cases hz
+    exact ⟨rfl, by simp, rfl, rfl, rfl, rfl, fun _ hi => by omega, fun _ _ => rfl⟩
   | succ len ih =>
     dsimp only [randFillComp] at hz
-    obtain ⟨k, -, hrest⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
-    obtain ⟨z', hz', hpure⟩ := OracleComp.mem_supportWith_bind_iff.mp hrest
-    cases OracleComp.eq_of_mem_supportWith_pure hpure
+    supp_cases hz with ⟨k, z', hz', rfl⟩
     obtain ⟨hsteps, hptr, hend, hmask, hone, hextra, hlt, hframe⟩ := ih hz'
-    have hk_lt : k.val < 2 ^ bits := by
-      have hpos : 1 ≤ 2 ^ bits := Nat.one_le_two_pow
-      have hk := k.isLt
-      omega
-    refine ⟨by omega, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · simp only [Nat.succ_ne_zero, ↓reduceIte]
-      rcases eq_or_ne len 0 with rfl | hlen
+    wram_simp [randFillStepData] at hend hmask hone hextra
+    refine ⟨by omega, ?_, hend, hmask, hone, hextra, ?_, ?_⟩
+    · rcases eq_or_ne len 0 with rfl | hlen
       · simp [hptr, randFillStepData]
-      · rw [hptr, ite_eq_right hlen]
-        omega
-    · simpa [randFillStepData, regEnd, regPtr, regVal] using hend
-    · simpa [randFillStepData, regMask, regPtr, regVal] using hmask
-    · simpa [randFillStepData, regOne, regPtr, regVal] using hone
-    · simpa [randFillStepData, regExtra, regPtr, regVal] using hextra
+      · simp only [Nat.succ_ne_zero, ↓reduceIte, hptr, ite_eq_right hlen]; omega
     · intro i hi
       rcases eq_or_ne i 0 with rfl | hi0
-      · have hmem0 := hframe arrBase (Or.inl (by omega))
-        simpa [randFillStepData, hmem0] using hk_lt
-      · have hlt' := hlt (i - 1) (by omega)
-        rwa [show arrBase + 1 + (i - 1) = arrBase + i by omega] at hlt'
+      · dsimp only
+        rw [Nat.add_zero, hframe arrBase (Or.inl (by omega))]
+        wram_simp [randFillStepData]
+        exact Nat.lt_of_lt_of_le k.isLt (Nat.sub_add_cancel Nat.one_le_two_pow).le
+      · simpa only [show arrBase + 1 + (i - 1) = arrBase + i by omega] using
+          hlt (i - 1) (by omega)
     · intro a ha
-      have h1 := hframe a (by omega)
-      have hne : a ≠ arrBase := by omega
-      simpa [randFillStepData, Function.update_of_ne hne] using h1
+      dsimp only
+      rw [hframe a (by omega)]
+      wram_simp [randFillStepData]
 
 /-- Extracting `len + 1` words at `arrBase` after one `randFillStepData` step and the remaining
 `len` steps equals `Fin.cons` of the first draw and the remaining `len`-word slice. -/
@@ -273,13 +232,10 @@ private theorem extractSlice_succ_of_support {bits arrBase len : ℕ} {x : Data 
         (extractSlice (arrBase + 1) bits len z.1.mem) := by
   obtain ⟨-, -, -, -, -, -, -, hframe⟩ := mem_support_randFillComp hz
   funext j
-  refine Fin.cases ?_ ?_ j
-  · have h0 := hframe arrBase (Or.inl (by omega))
-    simp [extractSlice, randFillStepData, h0]
-  · intro i
-    simp only [extractSlice, Fin.cons_succ, Fin.val_succ]
-    congr 2
-    omega
+  refine Fin.cases ?_ (fun i => ?_) j
+  · simp [extractSlice, randFillStepData, hframe arrBase (Or.inl (by omega))]
+  · simp only [extractSlice, Fin.cons_succ, Fin.val_succ,
+      show arrBase + 1 + i.val = arrBase + (i.val + 1) by omega]
 
 /-- **Uniformity of `randFillComp`**: the slice `extractSlice arrBase bits len z.1.mem` produced by
 `randFillComp bits arrBase len x` has the exact product uniform distribution
@@ -290,58 +246,20 @@ theorem map_extractSlice_eval_randFillComp (bits arrBase len : ℕ) (x : Data 6)
   induction len generalizing arrBase x with
   | zero =>
     ext f
-    have heq : f = extractSlice arrBase bits 0 x.mem := Subsingleton.elim _ _
-    simp [randFillComp, ProbComp.eval_pure, PMF.map, PMF.pure_apply, heq,
-      PMF.uniformOfFintype_apply]
+    simp [randFillComp, ProbComp.eval_pure, PMF.map, PMF.pure_apply,
+      Subsingleton.elim f (extractSlice arrBase bits 0 x.mem), PMF.uniformOfFintype_apply]
   | succ len ih =>
     let e := finCongr (Nat.sub_add_cancel (Nat.one_le_two_pow (n := bits)))
-    have hstep : ((randFillComp bits arrBase (len + 1) x).eval).map
-        (fun z => extractSlice arrBase bits (len + 1) z.1.mem) =
-        (PMF.uniformOfFintype (Fin (2 ^ bits))).bind (fun first =>
-          (PMF.uniformOfFintype (Fin len → Fin (2 ^ bits))).map (Fin.cons first)) := by
-      dsimp only [randFillComp]
-      rw [ProbComp.eval_bind, ProbComp.eval_unifFin, PMF.map_bind]
-      have hbody : ∀ k : Fin (2 ^ bits - 1 + 1),
-          ((do
-            let z ← randFillComp bits (arrBase + 1) len (randFillStepData arrBase k.val x)
-            pure (z.1, 3 + z.2 + 2)).eval).map
-              (fun z : Data 6 × ℕ => extractSlice arrBase bits (len + 1) z.1.mem) =
-            (PMF.uniformOfFintype (Fin len → Fin (2 ^ bits))).map (Fin.cons (e k)) := by
-        intro k
-        have hd : (do
-            let z ← randFillComp bits (arrBase + 1) len (randFillStepData arrBase k.val x)
-            pure (z.1, 3 + z.2 + 2)) =
-            (fun z : Data 6 × ℕ => (z.1, 3 + z.2 + 2)) <$>
-              randFillComp bits (arrBase + 1) len (randFillStepData arrBase k.val x) :=
-          bind_pure_comp _ _
-        rw [hd, ProbComp.eval_map, PMF.map_comp]
-        have hcongr :
-            ((randFillComp bits (arrBase + 1) len (randFillStepData arrBase k.val x)).eval).map
-              ((fun z : Data 6 × ℕ => extractSlice arrBase bits (len + 1) z.1.mem) ∘
-                fun z : Data 6 × ℕ => (z.1, 3 + z.2 + 2)) =
-            ((randFillComp bits (arrBase + 1) len (randFillStepData arrBase k.val x)).eval).map
-              (Fin.cons (e k) ∘
-                fun z : Data 6 × ℕ => extractSlice (arrBase + 1) bits len z.1.mem) := by
-          apply PMF.map_congr_on_support
-          intro z hz
-          rw [ProbComp.support_eval] at hz
-          exact extractSlice_succ_of_support (z := z) k hz
-        rw [hcongr, ← PMF.map_comp, ih (arrBase + 1) (randFillStepData arrBase k.val x)]
-      have hbind : (PMF.uniformOfFintype (Fin (2 ^ bits - 1 + 1))).bind
-          (fun a =>
-            PMF.map (fun z : Data 6 × ℕ => extractSlice arrBase bits (len + 1) z.1.mem)
-              (do
-                let z ← randFillComp bits (arrBase + 1) len (randFillStepData arrBase a.val x)
-                pure (z.1, 3 + z.2 + 2)).eval) =
-          (PMF.uniformOfFintype (Fin (2 ^ bits - 1 + 1))).bind
-            (fun a => (PMF.uniformOfFintype (Fin len → Fin (2 ^ bits))).map (Fin.cons (e a))) := by
-        congr 1 with k : 1
-        exact hbody k
-      rw [hbind]
-      have heq := PMF.uniformOfFintype_map_equiv e
-      rw [← heq, PMF.bind_map]
-      rfl
-    rw [hstep, ← PMF.pi_uniformOfFintype, ← PMF.pi_fin_succ, PMF.pi_uniformOfFintype]
+    dsimp only [randFillComp]
+    rw [ProbComp.eval_bind, ProbComp.eval_unifFin, PMF.map_bind,
+      ← PMF.pi_uniformOfFintype, PMF.pi_fin_succ, PMF.pi_uniformOfFintype,
+      ← PMF.uniformOfFintype_map_equiv e, PMF.bind_map]
+    congr 1 with k : 1
+    dsimp only [Function.comp_apply]
+    rw [bind_pure_comp, ProbComp.eval_map, PMF.map_comp,
+      ← ih (arrBase + 1) (randFillStepData arrBase k.val x), PMF.map_comp]
+    exact PMF.map_congr_on_support _ _ _ fun z hz =>
+      extractSlice_succ_of_support (z := z) k (ProbComp.support_eval _ ▸ hz)
 
 /-! ## Section 2: `RandomTable` — 1-D random table for Cuckoo Hashing -/
 
@@ -445,19 +363,14 @@ theorem resampleCode_execRand {w base M : ℕ} {x : Data 6}
     (hbase : x.regs regBase = base) (hM : x.regs regM = M)
     (hfit_end : Fits w (base + 2 ^ M)) (hfit_pow : Fits w (2 ^ M)) :
     ExecRand w resampleCode x (resampleComp base M x) := by
-  have h1 := setupCode_exec hbase hM hfit_end hfit_pow
-  set s := setupData base M x
-  have hloop := randFillLoop_execRand (w := w) (bits := M) (arrBase := base) (len := 2 ^ M)
-    (x := s.comap fillMap)
-    (by simp +decide [s, setupData, fillMap, Data.comap])
-    (by simp +decide [s, setupData, fillMap, Data.comap])
-    (by simp +decide [s, setupData, fillMap, Data.comap])
-    (by simp +decide [s, setupData, fillMap, Data.comap])
-    hfit_end (by fits)
-  have hren := hloop.rename injective_fillMap
-  have hseq := h1.seqRand hren
-  rw [resampleCode]
-  simpa only [resampleComp, s, Functor.map_map] using hseq
+  unfold resampleCode
+  refine WP.Rand.execRand ?_
+  wram_rand_call (setupCode_exec hbase hM hfit_end hfit_pow)
+  wram_rand_call (randFillLoop_execRand (bits := M) (arrBase := base) (2 ^ M)
+    (by wram_simp [setupData, fillMap]) (by wram_simp [setupData, fillMap])
+    (by wram_simp [setupData, fillMap]) (by wram_simp [setupData, fillMap])
+    hfit_end (by fits)) renamed injective_fillMap
+  simp only [resampleComp, Functor.map_map]
 
 /-- **Uniformity of `RandomTable.resampleComp`**: the extracted table `extractTable base M z.1.mem`
 is distributed according to `PMF.uniformOfFintype (Fin (2 ^ M) → Fin (2 ^ M))`. -/
@@ -479,19 +392,13 @@ theorem resampleCode_execRandWithin {w base M : ℕ} {x : Data 6}
         y.regs regBase = base ∧
         (∀ a, (a < base ∨ base + 2 ^ M ≤ a) → y.mem a = x.mem a))
       (5 * 2 ^ M + 7) (2 ^ M) := by
-  refine ⟨resampleComp base M x, resampleCode_execRand hbase hM hfit_end hfit_pow, ?_, ?_⟩
-  · dsimp only [resampleComp]
-    exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
-      (isQueryBounded_randFillComp M base (2 ^ M) _)
-  · intro z hz
-    dsimp only [resampleComp] at hz
-    obtain ⟨z₀, hz₀, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-    obtain ⟨hsteps, -, -, -, -, hextra, hlt, hframe⟩ := mem_support_randFillComp hz₀
-    have hbase' : (z₀.1.extend fillMap (setupData base M x)).regs regBase = base := by
-      change ((z₀.1.extend fillMap (setupData base M x)).comap fillMap).regs regExtra = base
-      rw [Data.comap_extend injective_fillMap, hextra]
-      simpa +decide [setupData, fillMap, Data.comap] using hbase
-    exact ⟨⟨rep_extractTable hlt, hbase', hframe⟩, by omega⟩
+  refine ⟨resampleComp base M x, resampleCode_execRand hbase hM hfit_end hfit_pow,
+    (OracleComp.isCostBounded_map_iff _ _ _).mpr (isQueryBounded_randFillComp ..), fun z hz => ?_⟩
+  dsimp only [resampleComp] at hz
+  supp_cases hz with ⟨z₀, hz₀, rfl⟩
+  obtain ⟨hsteps, -, -, -, -, hextra, hlt, hframe⟩ := mem_support_randFillComp hz₀
+  refine ⟨⟨rep_extractTable hlt, ?_, hframe⟩, by omega⟩
+  wram_simp [hextra, setupData, fillMap, hbase]
 
 /-- Structured Word-RAM program that reads `Z[regIdx]` at `regBase + regIdx` into `regOut` in `2`
 deterministic instructions. -/
@@ -562,7 +469,7 @@ namespace TabulatedOddStride
 
 /-- Character bit-width `b = max 1 (⌊log₂ (max n_max 2)⌋ / 2)` for `d`-character simple tabulation,
 ensuring `1 ≤ b` and `2 ^ b ≤ max 2 n_max` (`2 ^ (2 * b) ≤ max 4 n_max`). -/
-@[expose] def charBits (n_max : ℕ) : ℕ :=
+@[expose, wram_arith] def charBits (n_max : ℕ) : ℕ :=
   max 1 (Nat.log 2 (max n_max 2) / 2)
 
 /-- `charBits n_max` is always at least `1`. -/
@@ -577,9 +484,7 @@ theorem charBits_pos (n_max : ℕ) : 0 < charBits n_max :=
 theorem two_pow_charBits_le (n_max : ℕ) : 2 ^ charBits n_max ≤ max 2 n_max := by
   have hlog_ge : 1 ≤ Nat.log 2 (max n_max 2) :=
     Nat.le_log_of_pow_le (by decide) (by omega)
-  have hle_log : charBits n_max ≤ Nat.log 2 (max n_max 2) := by
-    simp only [charBits]
-    omega
+  have hle_log : charBits n_max ≤ Nat.log 2 (max n_max 2) := by wram_omega
   calc
     2 ^ charBits n_max ≤ 2 ^ Nat.log 2 (max n_max 2) :=
       Nat.pow_le_pow_right (by decide) hle_log
@@ -598,21 +503,13 @@ theorem val_oddStride (M tab : ℕ) : (oddStride M tab).val = (2 * tab + 1) % 2 
 
 /-- When `0 < M`, `(oddStride M tab).val` is odd (`% 2 = 1`). -/
 theorem odd_oddStride {M : ℕ} (hM : 0 < M) (tab : ℕ) : (oddStride M tab).val % 2 = 1 := by
-  rw [val_oddStride]
-  have hdvd : 2 ∣ 2 ^ M := by
-    cases M with
-    | zero => omega
-    | succ m => exact ⟨2 ^ m, by ring⟩
-  rw [Nat.mod_mod_of_dvd _ hdvd]
+  rw [val_oddStride, Nat.mod_mod_of_dvd _ (dvd_pow_self 2 hM.ne')]
   omega
 
 /-- `(oddStride M tab).val` is always coprime to `2 ^ M`. -/
 theorem coprime_oddStride_two_pow (M tab : ℕ) : Nat.Coprime (oddStride M tab).val (2 ^ M) := by
   rw [val_oddStride, Nat.Coprime, ← Nat.gcd_rec]
-  have hcop2 : Nat.Coprime 2 (2 * tab + 1) := by
-    rw [Nat.coprime_two_left, Nat.odd_iff]
-    omega
-  exact hcop2.pow_left M
+  exact (Nat.coprime_two_left.mpr (Nat.odd_iff.mpr (by omega))).pow_left M
 
 /-- Double-hashing probe sequence `probeSeq M h₁ tab i = (h₁ + i * oddStride M tab) mod 2 ^ M`
 on `Fin (2 ^ M)`. -/
@@ -623,35 +520,18 @@ on `Fin (2 ^ M)`. -/
 bijection (permutation) of `Fin (2 ^ M)` for every `M`, initial probe `h₁`, and raw table sum
 `tab`. -/
 theorem bijective_probeSeq (M h₁ tab : ℕ) : Function.Bijective (probeSeq M h₁ tab) := by
-  rw [Fintype.bijective_iff_injective_and_card]
-  refine ⟨?_, rfl⟩
-  have hinj : ∀ i j : Fin (2 ^ M), j.val ≤ i.val →
-      probeSeq M h₁ tab i = probeSeq M h₁ tab j → i = j := by
-    intro i j hij heq
-    have hmod : (h₁ + j.val * (oddStride M tab).val) ≡
-        (h₁ + i.val * (oddStride M tab).val) [MOD 2 ^ M] := by
-      simpa [probeSeq, Fin.ext_iff, Nat.ModEq] using heq.symm
-    have hmul : j.val * (oddStride M tab).val ≡
-        i.val * (oddStride M tab).val [MOD 2 ^ M] :=
-      Nat.ModEq.add_left_cancel' h₁ hmod
-    have hsub : 0 + j.val * (oddStride M tab).val ≡
-        (i.val - j.val) * (oddStride M tab).val + j.val * (oddStride M tab).val [MOD 2 ^ M] := by
-      simpa [Nat.zero_add, ← Nat.add_mul, Nat.sub_add_cancel hij] using hmul
-    have hzero : 0 ≡ (i.val - j.val) * (oddStride M tab).val [MOD 2 ^ M] :=
-      Nat.ModEq.add_right_cancel' (j.val * (oddStride M tab).val) hsub
-    have hdvd_mul : 2 ^ M ∣ (i.val - j.val) * (oddStride M tab).val :=
-      (Nat.modEq_zero_iff_dvd.mp hzero.symm)
-    have hdvd : 2 ^ M ∣ i.val - j.val :=
-      (coprime_oddStride_two_pow M tab).symm.dvd_of_dvd_mul_right hdvd_mul
-    have hlt : i.val - j.val < 2 ^ M := by
-      have := i.isLt
-      omega
-    have hdiff0 : i.val - j.val = 0 := Nat.eq_zero_of_dvd_of_lt hdvd hlt
-    exact Fin.ext (by omega)
-  intro i j heq
-  rcases le_total j.val i.val with hij | hij
-  · exact hinj i j hij heq
-  · exact (hinj j i hij heq.symm).symm
+  refine (Fintype.bijective_iff_injective_and_card _).mpr ⟨fun i j heq => ?_, rfl⟩
+  wlog hij : j.val ≤ i.val
+  · exact (this M h₁ tab j i heq.symm (by omega)).symm
+  have hmod : j.val * (oddStride M tab).val ≡ i.val * (oddStride M tab).val [MOD 2 ^ M] :=
+    Nat.ModEq.add_left_cancel' h₁ (by simpa [probeSeq, Fin.ext_iff, Nat.ModEq] using heq.symm)
+  have hdvd_mul : 2 ^ M ∣ (i.val - j.val) * (oddStride M tab).val := by
+    rw [Nat.sub_mul]
+    exact (Nat.modEq_iff_dvd' (Nat.mul_le_mul_right _ hij)).mp hmod
+  have hdvd : 2 ^ M ∣ i.val - j.val :=
+    (coprime_oddStride_two_pow M tab).symm.dvd_of_dvd_mul_right hdvd_mul
+  have := Nat.eq_zero_of_dvd_of_lt hdvd (by omega)
+  exact Fin.ext (by omega)
 
 /-- Tail-recursive `d`-character simple tabulation accumulator from character offset `j` across
 `rem` remaining characters: XORs `T[(j + k) * 2 ^ b + ((u >>> (k * b)) &&& (2 ^ b - 1))]` into
@@ -681,7 +561,7 @@ entries for the first `d` base-`2 ^ b` characters of `u`. -/
 /-- Memory footprint `4 + d * 2 ^ b` words for a `d`-character simple tabulation table with
 character bit-width `b` (4 header words `(b, 2 ^ b, 2 ^ b - 1, 2 ^ M - 1)` followed by
 `d * 2 ^ b` random `< 2 ^ M` words). -/
-@[expose] def spaceFromB (b d : ℕ) : ℕ := 4 + d * 2 ^ b
+@[expose, wram_arith] def spaceFromB (b d : ℕ) : ℕ := 4 + d * 2 ^ b
 
 /-- Memory footprint `4 + d * 2 ^ (charBits n_max)` words at capacity parameter `n_max`. -/
 @[expose] def space (n_max d : ℕ) : ℕ := spaceFromB (charBits n_max) d
@@ -780,50 +660,20 @@ theorem charBitsCode_exec {w n_max : ℕ} {x : Data 9}
     (charBitsData n_max x).regs regBase = x.regs regBase ∧
     (charBitsData n_max x).regs regOut = x.regs regOut ∧
     (charBitsData n_max x).mem = x.mem := by
-  have hlog_le : Nat.log 2 (max n_max 2) ≤ max n_max 2 := Nat.log_le_self 2 (max n_max 2)
-  have hfit_log : Fits w (Nat.log 2 (max n_max 2)) := by fits
-  set d1 := x.set regTmp 2
-  have s1 : Exec w (.op (.const regTmp 2) : Code .exact 9) x d1 1 := Exec.const (by fits)
-  set d2 := d1.set regPtr (max n_max 2)
-  have s2 : Exec w (maxCode regPtr regKey regTmp) d1 d2 3 := by
-    simpa +decide [d2, d1, hn] using maxCode_exec (w := w) regPtr regKey regTmp d1
-  set d3 := d2.set regB 0
-  have s3 : Exec w (.op (.const regB 0) : Code .exact 9) d2 d3 1 := Exec.const (by fits)
-  set d4 := d3.set regTmp 1
-  have s4 : Exec w (.op (.const regTmp 1) : Code .exact 9) d3 d4 1 := Exec.const (by fits)
-  have slog0 := log2Loop_exec (w := w) (max n_max 2) (acc := 0) (x := d4.comap logMap9)
-    (by simp +decide [d4, d3, d2, logMap9, Data.comap])
-    (by simp +decide [d4, d3, logMap9, Data.comap])
-    (by simp +decide [d4, logMap9, Data.comap])
-    hfit_n (by simpa using hfit_log)
-  have slog := slog0.rename injective_logMap9
-  set d5 := (log2LoopData (max n_max 2) 0 (d4.comap logMap9)).extend logMap9 d4
-  have hd5_b : d5.regs regB = Nat.log 2 (max n_max 2) := by
-    change (d5.comap logMap9).regs 1 = Nat.log 2 (max n_max 2)
-    rw [Data.comap_extend injective_logMap9]
-    simp [log2LoopData]
-  have hd5_tmp : d5.regs regTmp = 1 := by
-    change (d5.comap logMap9).regs 2 = 1
-    rw [Data.comap_extend injective_logMap9]
-    simp +decide [log2LoopData, d4, logMap9, Data.comap]
-  have hshr : Nat.log 2 (max n_max 2) >>> 1 = Nat.log 2 (max n_max 2) / 2 := by
-    rw [Nat.shiftRight_eq_div_pow]
-  set d6 := d5.set regB (Nat.log 2 (max n_max 2) / 2)
-  have s6 : Exec w (.op (.exactBin .shiftRight regB regB regTmp) : Code .exact 9) d5 d6 1 :=
-    exec_exactBin (by simp [hd5_b, hd5_tmp, hshr]) (by fits)
-  set d7 := d6.set regB (charBits n_max)
-  have hcb : max (Nat.log 2 (max n_max 2) / 2) 1 = charBits n_max := Nat.max_comm _ _
-  have s7 : Exec w (maxCode regB regB regTmp) d6 d7 3 := by
-    simpa +decide [d7, d6, hd5_tmp, hcb] using maxCode_exec (w := w) regB regB regTmp d6
-  have hall := s1.seq (s2.seq (s3.seq (s4.seq (slog.seq (s6.seq s7)))))
-  have hsteps : 1 + (3 + (1 + (1 + (4 * Nat.log 2 (max n_max 2) + 2 + (1 + 3))))) =
-      4 * Nat.log 2 (max n_max 2) + 12 := by omega
-  rw [hsteps] at hall
-  have hbase_eq : d7.regs regBase = x.regs regBase := by
-    simp +decide [d7, d6, d5, Data.extend, d4, d3, d2, d1]
-  have hout_eq : d7.regs regOut = x.regs regOut := by
-    simp +decide [d7, d6, d5, Data.extend, d4, d3, d2, d1]
-  refine ⟨hall, by simp [charBitsData], hbase_eq, hout_eq, rfl⟩
+  refine ⟨?_, by wram_simp [charBitsData], by wram_simp [charBitsData],
+    by wram_simp [charBitsData], rfl⟩
+  have hfit_log : Fits w (Nat.log 2 (max n_max 2)) :=
+    hfit_n.of_le (Nat.log_le_self 2 (max n_max 2))
+  unfold charBitsCode charBitsData
+  wram_exec
+  refine WP.Exact.of_exec (maxCode_exec regPtr regKey regTmp _) ?_
+  wram_exec
+  refine WP.Exact.of_exec ((log2Loop_exec (w := w) (max n_max 2) (acc := 0)
+    (by wram_simp [logMap9, hn]) (by wram_simp [logMap9]) (by wram_simp [logMap9])
+    hfit_n (by simpa only [Nat.zero_add] using hfit_log)).rename injective_logMap9) ?_
+  wram_exec [log2LoopData, logMap9, Nat.shiftRight_eq_div_pow, Nat.zero_add]
+  refine WP.Exact.of_exec (maxCode_exec regB regB regTmp _) ?_
+  exact ⟨by omega, by wram_simp [hn, charBits, log2LoopData, logMap9, Nat.max_comm]⟩
 
 /-- Deterministic 16-instruction setup prefix of `initFromBCode d`: writes the 4 header words
 `(b, 2 ^ b, 2 ^ b - 1, 2 ^ M - 1)` to `base + 0 .. base + 3` and sets registers for
@@ -861,17 +711,9 @@ theorem setupFromBCode_exec {w base b d M : ℕ} {x : Data 9}
     (hfit_space : Fits w (base + spaceFromB b d))
     (hfit_powB : Fits w (2 ^ b)) (hfit_powM : Fits w (2 ^ M)) (hfit_d : Fits w d) :
     Exec w (setupFromBCode d) x (setupFromBData base b d M x) 16 := by
-  have h1_le_b : 1 ≤ 2 ^ b := Nat.one_le_two_pow
-  have h1_le_M : 1 ≤ 2 ^ M := Nat.one_le_two_pow
-  have hfit_b1 : Fits w (base + 1) := hfit_space.of_le (by simp [spaceFromB]; omega)
-  have hfit_b2 : Fits w (base + 2) := hfit_space.of_le (by simp [spaceFromB]; omega)
-  have hfit_b3 : Fits w (base + 3) := hfit_space.of_le (by simp [spaceFromB]; omega)
-  have hfit_b4 : Fits w (base + 4) := hfit_space.of_le (by simp [spaceFromB])
-  have hfit_dmul : Fits w (d * 2 ^ b) := hfit_space.of_le (by simp [spaceFromB]; omega)
-  have hfit_end : Fits w (base + 4 + d * 2 ^ b) :=
-    hfit_space.of_le (by simp [spaceFromB]; omega)
   unfold setupFromBCode
-  wram_exec [hbase, hb, hM, Nat.shiftLeft_eq, Nat.one_mul]
+  wram_exec (disch := first | fits | omega | wram_omega)
+    [hbase, hb, hM, Nat.shiftLeft_eq, Nat.one_mul]
   ext i : 2
   · fin_cases i <;> rfl
   · rfl
@@ -893,24 +735,14 @@ theorem initFromBCode_execRand {w base b d M : ℕ} {x : Data 9}
     (hfit_space : Fits w (base + spaceFromB b d))
     (hfit_powB : Fits w (2 ^ b)) (hfit_powM : Fits w (2 ^ M)) (hfit_d : Fits w d) :
     ExecRand w (initFromBCode d) x (initFromBComp base b d M x) := by
-  have hsetup := setupFromBCode_exec hbase hb hM hfit_space hfit_powB hfit_powM hfit_d
-  set s := setupFromBData base b d M x
-  have hloop0 := randFillLoop_execRand (w := w) (bits := M) (arrBase := base + 4)
-    (d * 2 ^ b) (x := s.comap fillMap9)
-    (by simp +decide [s, setupFromBData, fillMap9, Data.comap])
-    (by simp +decide [s, setupFromBData, fillMap9, Data.comap])
-    (by simp +decide [s, setupFromBData, fillMap9, Data.comap])
-    (by simp +decide [s, setupFromBData, fillMap9, Data.comap])
-    (hfit_space.of_le (by simp [spaceFromB]; omega))
-    (by fits)
-  have hloop := hloop0.rename injective_fillMap9
-  have hseq := hsetup.seqRand hloop
-  have heq : ((fun z => (z.1, 16 + z.2)) <$>
-      ((fun z => (z.1.extend fillMap9 s, z.2)) <$>
-        randFillComp M (base + 4) (d * 2 ^ b) (s.comap fillMap9))) =
-      initFromBComp base b d M x := by
-    simp [initFromBComp, s, Functor.map_map]
-  rwa [heq] at hseq
+  unfold initFromBCode
+  refine WP.Rand.execRand ?_
+  wram_rand_call (setupFromBCode_exec hbase hb hM hfit_space hfit_powB hfit_powM hfit_d)
+  wram_rand_call (randFillLoop_execRand (bits := M) (arrBase := base + 4) (d * 2 ^ b)
+    (by wram_simp [setupFromBData, fillMap9]) (by wram_simp [setupFromBData, fillMap9])
+    (by wram_simp [setupFromBData, fillMap9]) (by wram_simp [setupFromBData, fillMap9])
+    (by wram_omega) (by fits)) renamed injective_fillMap9
+  simp only [initFromBComp, Functor.map_map]
 
 /-- The character table `extractTable base b d M z.1.mem` produced by `initFromBComp` is uniformly
 distributed over `Fin (d * 2 ^ b) → Fin (2 ^ M)`. -/
@@ -939,42 +771,20 @@ theorem mem_support_initFromBComp {base b d M : ℕ} {x : Data 9} {z : Data 9 ×
     z.1.regs regBase = base ∧
     (∀ a, (a < base ∨ base + spaceFromB b d ≤ a) → z.1.mem a = x.mem a) := by
   dsimp only [initFromBComp] at hz
-  obtain ⟨z₀, hz₀, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
+  supp_cases hz with ⟨z₀, hz₀, rfl⟩
   obtain ⟨hsteps, -, -, -, -, hextra, hlt, hframe⟩ := mem_support_randFillComp hz₀
-  set s := setupFromBData base b d M x
-  have hmem0 : z₀.1.mem base = b := by
-    rw [hframe base (Or.inl (by omega))]
-    simp +decide [s, setupFromBData, Data.comap, Data.write, Function.update_of_ne]
-  have hmem1 : z₀.1.mem (base + 1) = 2 ^ b := by
-    rw [hframe (base + 1) (Or.inl (by omega))]
-    simp +decide [s, setupFromBData, Data.comap, Data.write, Function.update_of_ne]
-  have hmem2 : z₀.1.mem (base + 2) = 2 ^ b - 1 := by
-    rw [hframe (base + 2) (Or.inl (by omega))]
-    simp +decide [s, setupFromBData, Data.comap, Data.write, Function.update_of_ne]
-  have hmem3 : z₀.1.mem (base + 3) = 2 ^ M - 1 := by
-    rw [hframe (base + 3) (Or.inl (by omega))]
-    simp +decide [s, setupFromBData, Data.comap, Data.write]
-  have hrep : Rep base b d M (extractTable base b d M z₀.1.mem) z₀.1.mem := by
-    refine ⟨hmem0, hmem1, hmem2, hmem3, fun i => ?_⟩
-    simp [extractTable, extractSlice, hlt i.val i.isLt]
-  have hbase' : (z₀.1.extend fillMap9 s).regs regBase = base := by
-    change ((z₀.1.extend fillMap9 s).comap fillMap9).regs regExtra = base
-    rw [Data.comap_extend injective_fillMap9, hextra]
-    simpa +decide [s, setupFromBData, fillMap9, Data.comap] using hbase
-  have hframe' : ∀ a, (a < base ∨ base + spaceFromB b d ≤ a) → z₀.1.mem a = x.mem a := by
-    intro a ha
-    have ha4 : a < base + 4 ∨ base + 4 + d * 2 ^ b ≤ a := by
-      simp only [spaceFromB] at ha
-      omega
-    rw [hframe a ha4]
-    have hne0 : a ≠ base := by simp only [spaceFromB] at ha; omega
-    have hne1 : a ≠ base + 1 := by simp only [spaceFromB] at ha; omega
-    have hne2 : a ≠ base + 2 := by simp only [spaceFromB] at ha; omega
-    have hne3 : a ≠ base + 3 := by simp only [spaceFromB] at ha; omega
-    simp [s, setupFromBData, Data.comap, Data.write,
-      Function.update_of_ne hne0, Function.update_of_ne hne1,
-      Function.update_of_ne hne2, Function.update_of_ne hne3]
-  exact ⟨by omega, hrep, hbase', hframe'⟩
+  have hdr {a : ℕ} (ha : a < base + 4) :
+      z₀.1.mem a = (setupFromBData base b d M x).mem a := hframe a (Or.inl ha)
+  refine ⟨by omega, ⟨?_, ?_, ?_, ?_, fun i => by simp [extractTable, extractSlice, hlt _ i.isLt]⟩,
+    ?_, fun a ha => ?_⟩
+  · change z₀.1.mem base = b; rw [hdr (by omega)]; wram_simp [setupFromBData]
+  · change z₀.1.mem (base + 1) = 2 ^ b; rw [hdr (by omega)]; wram_simp [setupFromBData]
+  · change z₀.1.mem (base + 2) = 2 ^ b - 1; rw [hdr (by omega)]; wram_simp [setupFromBData]
+  · change z₀.1.mem (base + 3) = 2 ^ M - 1; rw [hdr (by omega)]; wram_simp [setupFromBData]
+  · wram_simp [hextra, setupFromBData, fillMap9, hbase]
+  · change z₀.1.mem a = x.mem a
+    rw [hframe a (by wram_omega [ha])]
+    wram_simp (disch := wram_omega) [setupFromBData]
 
 /-- Hoare-style `ExecRandWithin` specification for `initFromBCode d`. -/
 theorem initFromBCode_execRandWithin {w base b d M : ℕ} {x : Data 9}
@@ -987,13 +797,10 @@ theorem initFromBCode_execRandWithin {w base b d M : ℕ} {x : Data 9}
         (∀ a, (a < base ∨ base + spaceFromB b d ≤ a) → y.mem a = x.mem a))
       (5 * (d * 2 ^ b) + 18) (d * 2 ^ b) := by
   refine ⟨initFromBComp base b d M x,
-    initFromBCode_execRand hbase hb hM hfit_space hfit_powB hfit_powM hfit_d, ?_, ?_⟩
-  · dsimp only [initFromBComp]
-    exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
-      (isQueryBounded_randFillComp M (base + 4) (d * 2 ^ b) _)
-  · intro z hz
-    obtain ⟨hsteps, hrep, hbase', hframe'⟩ := mem_support_initFromBComp hbase hz
-    exact ⟨⟨hrep, hbase', hframe'⟩, by omega⟩
+    initFromBCode_execRand hbase hb hM hfit_space hfit_powB hfit_powM hfit_d,
+    (OracleComp.isCostBounded_map_iff _ _ _).mpr (isQueryBounded_randFillComp ..), fun z hz => ?_⟩
+  obtain ⟨hsteps, hrep, hbase', hframe'⟩ := mem_support_initFromBComp hbase hz
+  exact ⟨⟨hrep, hbase', hframe'⟩, by omega⟩
 
 /-- Explicit `ProbComp (Data 9 × ℕ)` produced by `initCode d` from `(base, n_max, M)`. -/
 @[expose] noncomputable def initComp (base n_max d M : ℕ) (x : Data 9) : ProbComp (Data 9 × ℕ) :=
@@ -1039,20 +846,16 @@ theorem initCode_execRandWithin {w base n_max d M : ℕ} {x : Data 9}
         (∀ a, (a < base ∨ base + space n_max d ≤ a) → y.mem a = x.mem a))
       (4 * Nat.log 2 (max n_max 2) + 5 * (d * 2 ^ (charBits n_max)) + 30)
       (d * 2 ^ (charBits n_max)) := by
-  refine ⟨initComp base n_max d M x,
-    initCode_execRand hbase hn hM hfit_n hfit_space hfit_powM hfit_d, ?_, ?_⟩
-  · dsimp only [initComp, initFromBComp]
-    exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
-      ((OracleComp.isCostBounded_map_iff _ _ _).mpr
-        (isQueryBounded_randFillComp M (base + 4) (d * 2 ^ (charBits n_max)) _))
-  · intro z hz
-    dsimp only [initComp] at hz
-    obtain ⟨z₁, hz₁, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-    obtain ⟨-, -, hbase_cb, -, hmem_cb⟩ := charBitsCode_exec (w := w) hn hfit_n
-    obtain ⟨hsteps, hrep, hbase', hframe'⟩ :=
-      mem_support_initFromBComp (hbase_cb.trans hbase) hz₁
-    refine ⟨⟨hrep, hbase', fun a ha => ?_⟩, by omega⟩
-    rw [hframe' a ha, hmem_cb]
+  obtain ⟨hcb, hb_eq, hbase_cb, hout_cb, hmem_cb⟩ := charBitsCode_exec (w := w) hn hfit_n
+  have hfit_powB : Fits w (2 ^ charBits n_max) := by
+    have hle := two_pow_charBits_le n_max; rw [Nat.max_comm 2 n_max] at hle; fits
+  unfold initCode
+  refine WP.RandWithin.execRandWithin ?_
+  wram_rand_call hcb
+  wram_rand_call (initFromBCode_execRandWithin (hbase_cb.trans hbase) hb_eq (hout_cb.trans hM)
+    hfit_space hfit_powB hfit_powM hfit_d)
+  rintro y ⟨hrep, hbase', hframe'⟩
+  exact ⟨hrep, hbase', fun a ha => (hframe' a ha).trans (congrFun hmem_cb a)⟩
 
 /-- 12-instruction deterministic setup before `tabLoop` in `evalCode d`: loads `b`, `2 ^ b`,
 `2 ^ b - 1` from `base + 0 .. base + 2`, sets `regPtr = base + 4` and
@@ -1084,14 +887,8 @@ theorem evalSetupCode_exec {w base b d M : ℕ} {T : Fin (d * 2 ^ b) → Fin (2 
     (hfit_space : Fits w (base + spaceFromB b d)) (hfit_d : Fits w d) :
     Exec w (evalSetupCode d) x (evalSetupData base b d x) 12 := by
   obtain ⟨hm0, hm1, hm2, -, -⟩ := hrep
-  have hfit_2 : Fits w 2 := hfit_space.of_le (by simp [spaceFromB]; omega)
-  have hfit_b1 : Fits w (base + 1) := hfit_space.of_le (by simp [spaceFromB]; omega)
-  have hfit_b2 : Fits w (base + 2) := hfit_space.of_le (by simp [spaceFromB]; omega)
-  have hfit_b4 : Fits w (base + 4) := hfit_space.of_le (by simp [spaceFromB])
-  have hfit_dmul : Fits w (d * 2 ^ b) := hfit_space.of_le (by simp [spaceFromB]; omega)
-  have hfit_end : Fits w (base + 4 + d * 2 ^ b) := hfit_space.of_le (by simp [spaceFromB]; omega)
   unfold evalSetupCode evalSetupData
-  wram_exec [hbase, hm0, hm1, hm2]
+  wram_exec (disch := first | fits | omega | wram_omega) [hbase, hm0, hm1, hm2]
 
 /-- Body of `tabLoop` (6 instructions): extracts `ch = regKey &&& regMaskB`, loads
 `T[regPtr + ch]`, XORs into `regOut`, shifts `regKey` right by `regB`, and advances `regPtr` by
@@ -1135,55 +932,41 @@ theorem tabLoop_exec {w base b d M : ℕ} {T : Fin (d * 2 ^ b) → Fin (2 ^ M)} 
   induction rem with
   | zero =>
     intro j u acc d0 hj hmem hbase hptr hend _ _ _ _ hout _
-    have hj_eq : j = d := by omega
-    have hc : ¬(Cond.lt regPtr regEnd).Holds d0 := by
-      simp [Cond.Holds, hptr, hend, hj_eq]
-    exact ⟨d0, Exec.loop_exit hc, by simp [simpleTabAux, hout], hbase, hmem⟩
+    exact ⟨d0, Exec.loop_exit (by simp [Cond.Holds, hptr, hend, show j = d by omega]),
+      by simp [simpleTabAux, hout], hbase, hmem⟩
   | succ rem ih =>
     intro j u acc d0 hj hmem hbase hptr hend hb hpowB hmaskB hkey hout hfit_u
-    have hj_lt : j < d := by omega
-    have hpow_pos : 0 < 2 ^ b := Nat.two_pow_pos b
-    have hj_mul_lt : j * 2 ^ b < d * 2 ^ b := Nat.mul_lt_mul_of_pos_right hj_lt hpow_pos
-    have hc : (Cond.lt regPtr regEnd).Holds d0 := by
-      simp only [Cond.Holds, hptr, hend]
-      omega
+    have hmul_le : (j + 1) * 2 ^ b ≤ d * 2 ^ b := Nat.mul_le_mul_right _ (by omega)
+    have hmul_lt : j * 2 ^ b < d * 2 ^ b :=
+      Nat.mul_lt_mul_of_pos_right (by omega) (Nat.two_pow_pos b)
+    have hnext_eq : base + 4 + j * 2 ^ b + 2 ^ b = base + 4 + (j + 1) * 2 ^ b := by ring
     set ch := u &&& (2 ^ b - 1) with hch
     have hch_lt : ch < 2 ^ b := by
-      dsimp only [ch]
-      rw [Nat.and_two_pow_sub_one_eq_mod]
-      exact Nat.mod_lt u hpow_pos
+      rw [hch, Nat.and_two_pow_sub_one_eq_mod]
+      exact Nat.mod_lt u (Nat.two_pow_pos b)
     set idx := j * 2 ^ b + ch
     have hidx_lt : idx < d * 2 ^ b := by
-      have : (j + 1) * 2 ^ b ≤ d * 2 ^ b := Nat.mul_le_mul_right (2 ^ b) (by omega)
-      calc
-        idx < j * 2 ^ b + 2 ^ b := by omega
-        _ = (j + 1) * 2 ^ b := by ring
-        _ ≤ d * 2 ^ b := this
-    set entry := (T ⟨idx, hidx_lt⟩).val
-    have hentry_mem : d0.mem (base + 4 + j * 2 ^ b + ch) = entry := by
+      have : j * 2 ^ b + 2 ^ b = (j + 1) * 2 ^ b := by ring
+      omega
+    have hentry_mem : d0.mem (base + 4 + j * 2 ^ b + ch) = (T ⟨idx, hidx_lt⟩).val := by
       rw [hmem, show base + 4 + j * 2 ^ b + ch = base + 4 + idx by omega]
       exact hrep.2.2.2.2 ⟨idx, hidx_lt⟩
     set newAcc : Fin (2 ^ M) :=
-      ⟨acc.val ^^^ entry, Nat.xor_lt_two_pow acc.isLt (T ⟨idx, hidx_lt⟩).isLt⟩
+      ⟨acc.val ^^^ (T ⟨idx, hidx_lt⟩).val, Nat.xor_lt_two_pow acc.isLt (T ⟨idx, hidx_lt⟩).isLt⟩
     have hfit_ch : Fits w ch := hfit_u.of_le Nat.and_le_left
-    have hfit_addr : Fits w (base + 4 + j * 2 ^ b + ch) :=
-      hfit_space.of_le (by simp [spaceFromB]; omega)
     have hfit_shr : Fits w (u >>> b) := hfit_u.of_le (Nat.shiftRight_le u b)
-    have hnext_eq : base + 4 + j * 2 ^ b + 2 ^ b = base + 4 + (j + 1) * 2 ^ b := by ring
-    have hfit_next : Fits w (base + 4 + j * 2 ^ b + 2 ^ b) := by
-      have : (j + 1) * 2 ^ b ≤ d * 2 ^ b := Nat.mul_le_mul_right (2 ^ b) (by omega)
-      exact hfit_space.of_le (by simp [spaceFromB]; omega)
-    refine WP.Exact.exists_exec (WP.Exact.loop_iter hc ?_)
+    refine WP.Exact.exists_exec
+      (WP.Exact.loop_iter (by simp only [Cond.Holds, hptr, hend]; omega) ?_)
     unfold tabBody
-    wram_exec [hkey, hmaskB, hptr, hout, hb, hpowB, ← hch, hentry_mem,
-      show acc.val ^^^ entry = newAcc.val from rfl]
-    wram_call (ih (j + 1) (u >>> b) newAcc _ (by omega) (by exact hmem) (by wram_simp [hbase])
+    wram_exec (disch := first | fits | omega | wram_omega)
+      [hkey, hmaskB, hptr, hout, hb, hpowB, ← hch, hentry_mem,
+        show acc.val ^^^ (T ⟨idx, hidx_lt⟩).val = newAcc.val from rfl]
+    wram_call (ih (j + 1) (u >>> b) newAcc _ (by omega) hmem (by wram_simp [hbase])
       (by wram_simp [hnext_eq]) (by wram_simp [hend]) (by wram_simp [hb]) (by wram_simp [hpowB])
       (by wram_simp [hmaskB]) (by wram_simp) (by wram_simp) hfit_shr)
       with y ⟨hy_out, hy_base, hy_mem⟩
-    exact ⟨by omega, hy_out.trans
-        (by simp only [simpleTabAux, ch, idx, hidx_lt, ↓reduceDIte, entry, newAcc]), hy_base,
-        hy_mem⟩
+    exact ⟨by omega, hy_out.trans (by simp only [simpleTabAux, ch, idx, hidx_lt, ↓reduceDIte,
+      newAcc]), hy_base, hy_mem⟩
 
 /-- 7-instruction finishing suffix of `evalCode d`: loads `2 ^ M - 1` from `base + 3` and maps
 `acc` in `regOut` to `(2 * acc + 1) &&& (2 ^ M - 1)`. -/
@@ -1214,53 +997,27 @@ theorem evalCode_execWithin {w base b d M u : ℕ} {T : Fin (d * 2 ^ b) → Fin 
       y.regs regOut = (tabulatedOddStride b d M T u).val ∧
       y.regs regBase = base ∧
       y.mem = x.mem := by
-  have hsetup := evalSetupCode_exec hrep hbase hfit_space hfit_d
-  set d0 := evalSetupData base b d x
-  obtain ⟨yLoop, hloop, hy_out, hy_base, hy_mem⟩ :=
-    tabLoop_exec hrep hfit_space (by fits) d 0 u ⟨0, Nat.two_pow_pos M⟩ d0
-      (by omega) rfl
-      (by simp +decide [d0, evalSetupData, hbase])
-      (by simp +decide [d0, evalSetupData])
-      (by simp +decide [d0, evalSetupData])
-      (by simp +decide [d0, evalSetupData])
-      (by simp +decide [d0, evalSetupData])
-      (by simp +decide [d0, evalSetupData])
-      (by simp +decide [d0, evalSetupData, hu])
-      (by simp +decide [d0, evalSetupData])
-      hfit_u
+  unfold evalCode
+  refine WP.exists_execWithin (WP.Exact.toWP ?_)
+  wram_exec
+  refine WP.Exact.of_exec (evalSetupCode_exec hrep hbase hfit_space hfit_d) ?_
+  wram_exec
+  wram_call (tabLoop_exec hrep hfit_space (by fits) d 0 u ⟨0, Nat.two_pow_pos M⟩ _
+    (by omega) rfl (by wram_simp [evalSetupData, hbase])
+    (by wram_simp [evalSetupData, Nat.zero_mul])
+    (by wram_simp [evalSetupData]) (by wram_simp [evalSetupData]) (by wram_simp [evalSetupData])
+    (by wram_simp [evalSetupData]) (by wram_simp [evalSetupData, hu])
+    (by wram_simp [evalSetupData]) hfit_u)
+    with yLoop ⟨hy_out, hy_base, hy_mem⟩
+  change yLoop.regs regOut = (simpleTab b d M T u).val at hy_out
   set tab := simpleTab b d M T u
-  have htab_eq : yLoop.regs regOut = tab.val := hy_out
-  have hfit_3 : Fits w 3 := hfit_space.of_le (by simp [spaceFromB]; omega)
-  have hfit_b3 : Fits w (base + 3) := hfit_space.of_le (by simp [spaceFromB]; omega)
-  have hfit_2tab1 : Fits w (tab.val + tab.val + 1) := by fits
   have hfit_and : Fits w ((tab.val + tab.val + 1) &&& (2 ^ M - 1)) :=
-    hfit_2tab1.of_le Nat.and_le_left
-  have hm3 : yLoop.mem (base + 3) = 2 ^ M - 1 := by rw [hy_mem]; exact hrep.2.2.2.1
-  set f1 := yLoop.set regTmp 3
-  have e1 : Exec w (.op (.const regTmp 3) : Code .exact 9) yLoop f1 1 := Exec.const hfit_3
-  set f2 := f1.set regTmp (base + 3)
-  have e2 : Exec w (.op (.exactBin .add regTmp regBase regTmp) : Code .exact 9) f1 f2 1 :=
-    exec_exactBin (by simp +decide [f1, hy_base]) hfit_b3
-  set f3 := f2.set regTmp (2 ^ M - 1)
-  have e3 : Exec w (.op (.load regTmp regTmp) : Code .exact 9) f2 f3 1 := by
-    simpa +decide [f3, f2, f1, hm3] using
-      (Exec.load (B := .exact) (w := w) (d := regTmp) (a := regTmp) (x := f2))
-  set f4 := f3.set regOut (tab.val + tab.val)
-  have e4 : Exec w (.op (.exactBin .add regOut regOut regOut) : Code .exact 9) f3 f4 1 :=
-    exec_exactBin (by simp +decide [f3, f2, f1, htab_eq]) (by fits)
-  set f5 := f4.set regB 1
-  have e5 : Exec w (.op (.const regB 1) : Code .exact 9) f4 f5 1 := Exec.const (by fits)
-  set f6 := f5.set regOut (tab.val + tab.val + 1)
-  have e6 : Exec w (.op (.exactBin .add regOut regOut regB) : Code .exact 9) f5 f6 1 :=
-    exec_exactBin (by simp +decide [f5, f4]) hfit_2tab1
-  set f7 := f6.set regOut ((tab.val + tab.val + 1) &&& (2 ^ M - 1))
-  have e7 : Exec w (.op (.exactBin .and regOut regOut regTmp) : Code .exact 9) f6 f7 1 :=
-    exec_exactBin (by simp +decide [f6, f5, f4, f3]) hfit_and
-  have hfin := e1.seq (e2.seq (e3.seq (e4.seq (e5.seq (e6.seq e7)))))
-  have hall := hsetup.seq (hloop.seq hfin)
-  refine ⟨f7, ⟨12 + (8 * d + 2 + (1 + (1 + (1 + (1 + (1 + (1 + 1))))))), by omega, hall⟩,
-    ?_, by simp +decide [f7, f6, f5, f4, f3, f2, f1, hy_base], hy_mem⟩
-  simp +decide [f7, tabulatedOddStride, oddStride, tab, Nat.two_mul]
+    (by fits : Fits w (tab.val + tab.val + 1)).of_le Nat.and_le_left
+  unfold evalFinishCode
+  wram_exec (disch := first | fits | omega | wram_omega)
+    [hy_base, hy_out, hy_mem, hrep.2.2.2.1]
+  exact ⟨by wram_simp [tabulatedOddStride, oddStride, tab, Nat.two_mul],
+    by wram_simp [hy_base], hy_mem⟩
 
 end TabulatedOddStride
 

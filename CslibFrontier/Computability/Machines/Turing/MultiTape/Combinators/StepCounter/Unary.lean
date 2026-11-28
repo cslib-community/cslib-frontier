@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Cloc
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Equivalence
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.TransformsTapes
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Exact signals from a prepared unary budget
@@ -47,9 +48,8 @@ noncomputable def countdown : MultiTapeTM 1 Bool (Clock.Control Unit) :=
 @[expose] def signalState : Clock.Control Unit := (true, none)
 
 /-- The countdown begins before its first signal. -/
-theorem countdown_q₀ : countdown.q₀ = (false, some ()) := by
-  change (false, some (nop 0 Bool).q₀) = (false, some ())
-  exact congrArg (fun q : Unit => (false, some q)) (Subsingleton.elim _ _)
+theorem countdown_q₀ : countdown.q₀ = (false, some ()) :=
+  congrArg (fun q : Unit => (false, some q)) (Subsingleton.elim (nop 0 Bool).q₀ ())
 
 /-- The deterministic transition table of the existing controller in this specialization. -/
 theorem countdown_tr (q : Clock.Control Unit) (symbol : Option Bool)
@@ -92,18 +92,16 @@ private theorem step_read (input : List Bool) (n p : ℕ) (hp : p < n)
     rw [show (0 : Fin 1) = Fin.last 0 from rfl, Fin.lastCases_last, Fin.lastCases_last]
     simp [hp]
   simp only [Bool.false_eq_true, ↓reduceIte, hread]
-  change ((AuxiliaryTape.config (sourceCfg input) (tapeOfList (List.replicate n true))
-    p false).step (Clock.idle (some (true, none))) Empty.elim Empty.elim).tapes = _
-  exact congrArg Config.tapes (Clock.step_pause (sourceCfg input) _ p)
+  exact congrArg Config.tapes
+    (Clock.step_pause (sourceCfg input) (tapeOfList (List.replicate n true)) p)
 
 private theorem step_signal (input : List Bool) (n : ℕ) (p : ℤ) :
     countdown.step (clockCfg input n p (some signalState)) =
       clockCfg input n (p + 1) (some (false, none)) := by
   rw [countdown.step_of_state rfl, countdown_tr]
   simp only [signalState, ↓reduceIte]
-  change ((AuxiliaryTape.config (sourceCfg input) (tapeOfList (List.replicate n true))
-    p true).step (Clock.tick none) Empty.elim Empty.elim).tapes = _
-  exact congrArg Config.tapes (Clock.step_tick (sourceCfg input) _ p)
+  exact congrArg Config.tapes
+    (Clock.step_tick (sourceCfg input) (tapeOfList (List.replicate n true)) p)
 
 private theorem step_stop (input : List Bool) (n : ℕ) (q : Option Unit) :
     countdown.step (clockCfg input n n (some (false, q))) = clockCfg input n n none := by
@@ -113,24 +111,13 @@ private theorem step_stop (input : List Bool) (n : ℕ) (q : Option Unit) :
     rw [show (0 : Fin 1) = Fin.last 0 from rfl, Fin.lastCases_last, Fin.lastCases_last]
     simp
   simp only [Bool.false_eq_true, ↓reduceIte, hread, reduceCtorEq]
-  change ((AuxiliaryTape.config (sourceCfg input) (tapeOfList (List.replicate n true))
-    n false).step (AuxiliaryTape.move none 0) Empty.elim Empty.elim).tapes = _
-  exact congrArg Config.tapes (AuxiliaryTape.step_stop (sourceCfg input) _ n false)
+  exact congrArg Config.tapes
+    (AuxiliaryTape.step_stop (sourceCfg input) (tapeOfList (List.replicate n true)) n false)
 
 private theorem clockCfg_zero (input : List Bool) (n : ℕ)
     (q : Option (Clock.Control Unit)) :
     clockCfg input n 0 q = wordsCfg input q (fun _ => List.replicate n true) [] := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl
-  · funext i
-    have hi : i = Fin.last 0 := Subsingleton.elim _ _
-    subst i
-    simp only [clockCfg, Cfg.withState, AuxiliaryTape.config, sourceCfg, wordsCfg,
-      Fin.lastCases_last]
-  · funext i
-    have hi : i = Fin.last 0 := Subsingleton.elim _ _
-    subst i
-    simp only [clockCfg, Cfg.withState, AuxiliaryTape.config, sourceCfg, wordsCfg,
-      Fin.lastCases_last]
+  tm_step [clockCfg, AuxiliaryTape.config]
 
 private abbrev startCfg (input : List Bool) (n : ℕ) :=
   clockCfg input n 0 (some (false, some ()))
@@ -162,8 +149,7 @@ theorem countdown_halted (input : List Bool) (n : ℕ) :
     (countdown.runFrom
       (wordsCfg input (some countdown.q₀) (fun _ => List.replicate n true) [])
       (2 * n + 1)).Halted := by
-  rw [countdown_q₀, ← clockCfg_zero, run_stop]
-  rfl
+  rw [countdown_q₀, ← clockCfg_zero, run_stop]; rfl
 
 /-- The one designated signal state occurs exactly once per budget cell, at the odd times
 before budget exhaustion. This statement includes all times after halting. -/
@@ -174,21 +160,14 @@ theorem countdown_signal_iff (input : List Bool) (n t : ℕ) :
   rw [countdown_q₀, ← clockCfg_zero]
   by_cases ht : t ≤ 2 * n
   · by_cases heven : t % 2 = 0
-    · have heq : t = 2 * (t / 2) := by omega
-      rw [heq, run_even input n (t / 2) (by omega)]
+    · rw [show t = 2 * (t / 2) by omega, run_even input n (t / 2) (by omega)]
       simp only [clockCfg, Cfg.withState, signalState, Option.some.injEq, Prod.mk.injEq,
         Bool.false_eq_true, false_and, false_iff]
       omega
-    · have heq : t = 2 * (t / 2) + 1 := by omega
-      rw [heq, run_odd input n (t / 2) (by omega)]
-      constructor
-      · intro _
-        exact ⟨t / 2, by omega, rfl⟩
-      · intro _
-        rfl
+    · rw [show t = 2 * (t / 2) + 1 by omega, run_odd input n (t / 2) (by omega)]
+      exact ⟨fun _ => ⟨t / 2, by omega, rfl⟩, fun _ => rfl⟩
   · have hhalt : (countdown.runFrom (startCfg input n) (2 * n + 1)).Halted := by
-      rw [run_stop]
-      rfl
+      rw [run_stop]; rfl
     rw [runFrom_eq_of_halt countdown _ (by omega) hhalt, run_stop]
     simp only [clockCfg, Cfg.withState, reduceCtorEq, false_iff]
     omega

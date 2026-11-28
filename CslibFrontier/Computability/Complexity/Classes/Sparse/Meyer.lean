@@ -14,7 +14,6 @@ import CslibFrontier.Computability.Circuit.Boolean.Advice
 import CslibFrontier.Computability.Complexity.Reduction.Turing
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Pair
 
 /-!
 # `P/poly = P^SPARSE = P^TALLY`

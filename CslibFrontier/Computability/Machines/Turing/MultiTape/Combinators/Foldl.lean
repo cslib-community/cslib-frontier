@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.FoldCompiler
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Encoding
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Words
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.IterateWhile
 
 /-! # Legacy fold certificate facade

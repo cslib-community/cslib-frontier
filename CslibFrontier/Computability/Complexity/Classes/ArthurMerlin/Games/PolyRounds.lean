@@ -63,7 +63,7 @@ public section
 
 namespace Cslib.Complexity
 
-open Finset Turing.MultiTapeTM
+open Finset Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInPolyTime
 
 variable {α : Type}
 
@@ -102,13 +102,8 @@ theorem computableInPolyTime_evalShape (G : List (AMMove × Polynomial ℕ)) :
   induction G with
   | nil => exact ComputableInPolyTime.const []
   | cons x G ih =>
-    obtain ⟨m, p⟩ := x
-    have hlen : ComputableInPolyTime (fun n => p.eval n) encUnary encUnary :=
-      ComputableInPolyTime.unary_eval p
-    have hpair : ComputableInPolyTime (fun n => (m, p.eval n)) encUnary
-        (encPair encAMMove encUnary) :=
-      (ComputableInPolyTime.const m).prod hlen
-    exact (hpair.cons' ih).of_enc_eq fun n => by simp [evalShape]
+    exact (((ComputableInPolyTime.const (encOut := encAMMove) x.1).prod
+      (ComputableInPolyTime.unary_eval x.2)).cons' ih).of_enc_eq fun n => by simp [evalShape]
 
 /-- Iterative state for extracting copy `i` of a parallel repetition over a runtime shape. -/
 private abbrev CopyStepParam := ℕ × ℕ
@@ -133,14 +128,20 @@ theorem computableInPolyTime_copyTranscript_dyn {γ : Type} {encIn : γ ↪ List
     (hm : ComputableInPolyTime m encIn encUnary) (hi : ComputableInPolyTime i encIn encUnary)
     (hg : ComputableInPolyTime g encIn encAMShape) (hw : ComputableInPolyTime w encIn encBits) :
     ComputableInPolyTime (fun x => copyTranscript (m x) (i x) (g x) (w x)) encIn encBits := by
+  let eP := encPair (encPair encUnary encUnary) (encPair encBits encBits)
+  let eX := encPair encAMMove encUnary
   have hstep : ComputableInPolyTime
       (fun p : (CopyStepParam × (List Bool × List Bool)) × (AMMove × ℕ) =>
         copyStep p.1.1 p.1.2 p.2)
-      (encFoldStep (encPair encUnary encUnary) (encPair encBits encBits)
-        (encPair encAMMove encUnary))
-      (encPair encBits encBits) := by
-    unfold copyStep
-    fun_prop
+      (encPair eP eX) (encPair encBits encBits) := by
+    have hp := (fst eP eX).fst'
+    have hs := (fst eP eX).snd'
+    have hn := (snd eP eX).snd'
+    have hrow : ComputableInPolyTime
+        (fun p : (CopyStepParam × (List Bool × List Bool)) × (AMMove × ℕ) =>
+          BitString.listRow p.2.2 p.1.1.2 p.1.2.1) (encPair eP eX) encBits := by fun_prop
+    exact (bitsDropWithInput hs.fst' (unary_mul' hp.fst' hn)).prod
+      (bitsAppend hs.snd' hrow)
   obtain ⟨c₁, d₁, hwlen⟩ := (show PolyBounded (fun x => (encIn x).length) (fun x => (w x).length)
     from by simpa only [encBits_apply] using hw.polyBounded_length).exists_le
   obtain ⟨c₂, d₂, hglen⟩ := hg.polyBounded_length.exists_le
@@ -163,22 +164,21 @@ theorem computableInPolyTime_copyTranscript_dyn {γ : Type} {encIn : γ ↪ List
     (PolyBounded.of_forall_le _ _ fun x => le_rfl)
     (fun x pre st hpre hst => by
       obtain ⟨sfx, hsfx⟩ := hpre
-      have hlen : transcriptLength pre ≤ transcriptLength (g x) := by
-        rw [← hsfx]
-        simp only [transcriptLength, List.map_append, List.sum_append]
-        exact Nat.le_add_right _ _
-      have htr := (hlen.trans (transcriptLength_le_length_encAMShape (g x))).trans (hglen x)
-      have hp1 : ((encIn x).length + 1) ^ d₁ ≤ ((encIn x).length + 1) ^ max d₁ d₂ :=
-        Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_left _ _)
-      have hp2 : ((encIn x).length + 1) ^ d₂ ≤ ((encIn x).length + 1) ^ max d₁ d₂ :=
-        Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_right _ _)
-      have hpow : 1 ≤ ((encIn x).length + 1) ^ max d₁ d₂ := Nat.one_le_pow _ _ (Nat.succ_pos _)
-      have h1 : (w x).length ≤ c₁ * ((encIn x).length + 1) ^ max d₁ d₂ :=
-        (hwlen x).trans (Nat.mul_le_mul_left _ hp1)
-      have h2 : transcriptLength pre ≤ c₂ * ((encIn x).length + 1) ^ max d₁ d₂ :=
-        htr.trans (Nat.mul_le_mul_left _ hp2)
+      set P := ((encIn x).length + 1) ^ max d₁ d₂
+      have hP : 1 ≤ P := Nat.one_le_pow _ _ (Nat.succ_pos _)
+      have h1 : (w x).length ≤ c₁ * P :=
+        (hwlen x).trans
+          (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_left _ _)))
+      have h2 : transcriptLength pre ≤ c₂ * P := by
+        have hlen : transcriptLength pre ≤ transcriptLength (g x) := by
+          rw [← hsfx]; simp only [transcriptLength, List.map_append, List.sum_append]
+          exact Nat.le_add_right _ _
+        exact ((hlen.trans (transcriptLength_le_length_encAMShape (g x))).trans (hglen x)).trans
+          (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_right _ _)))
       simp only [length_encPair, encBits_apply]
-      nlinarith)
+      calc 2 * st.1.length + 1 + st.2.length
+          ≤ 2 * (c₁ * P) + P + 2 * (c₂ * P) := by have := hst.1; have := hst.2; omega
+        _ = (2 * c₁ + 1 + 2 * c₂) * P := by ring)
   exact ((ComputableInPolyTime.snd encBits encBits).comp hspec.1).of_enc_eq fun x => by
     simp only [Function.comp_apply, foldl_copyStep, List.nil_append]
 
@@ -194,45 +194,21 @@ theorem computableInPolyTime_copyTranscript_dyn {γ : Type} {encIn : γ ↪ List
 /-- `mergeMerlin` preserves `arthurBits`. -/
 theorem arthurBits_mergeMerlin (g : List (AMMove × ℕ)) :
     arthurBits (mergeMerlin g) = arthurBits g := by
-  induction g with
-  | nil => rfl
-  | cons x g ih =>
-    obtain ⟨_ | _, n⟩ := x
-    · simp [mergeMerlin, arthurBits, ih]
-    · simp only [mergeMerlin]
-      cases h : mergeMerlin g with
-      | nil => simp [arthurBits, ← ih, h]
-      | cons y g' =>
-        obtain ⟨_ | _, n'⟩ := y <;> simp [arthurBits, ← ih, h]
+  fun_induction mergeMerlin g <;> simp_all [arthurBits]
 
 /-- `mergeMerlin` preserves `AMGame.value true`. -/
 theorem value_mergeMerlin (g : List (AMMove × ℕ)) (f : List Bool → ℚ) :
     value true (mergeMerlin g) f = value true g f := by
-  induction g generalizing f with
-  | nil => rfl
-  | cons x g ih =>
-    obtain ⟨_ | _, n⟩ := x
-    · simp only [mergeMerlin, value_arthur]
-      congr 1
-      exact sum_congr rfl fun _ _ => ih _
-    · simp only [mergeMerlin]
-      have hsame : value true ((.merlin, n) :: mergeMerlin g) f =
-          value true ((.merlin, n) :: g) f :=
-        sup'_congr univ_nonempty rfl fun y _ => ih _
-      cases h : mergeMerlin g with
-      | nil => simpa [h] using hsame
-      | cons y g' =>
-        obtain ⟨_ | _, n'⟩ := y
-        · simpa [h] using hsame
-        · dsimp only
-          exact (value_merge_merlin [] g' n n' f).symm.trans (by simpa [h] using hsame)
+  fun_induction mergeMerlin g generalizing f with
+  | case3 n g n' g' hmerged ih => -- (.merlin, n) :: g, merged tail starts with Merlin
+    refine (value_merge_merlin [] g' n n' f).symm.trans ?_
+    simp only [List.nil_append, ← hmerged, value_merlin_true, ih]
+  | _ => simp only [value_arthur, value_merlin_true, *] -- [], Arthur move, unmerged Merlin
 
 /-- Appending a zero-bit Arthur move preserves `arthurBits`. -/
 theorem arthurBits_append_arthur_zero (g : List (AMMove × ℕ)) :
     arthurBits (g ++ [(.arthur, 0)]) = arthurBits g := by
-  induction g with
-  | nil => rfl
-  | cons x g ih => obtain ⟨_ | _, n⟩ := x <;> simp [arthurBits, ih]
+  fun_induction arthurBits g <;> simp [arthurBits, *]
 
 /-- Appending a zero-bit Arthur move preserves `AMGame.value true`. -/
 theorem value_append_arthur_zero (g : List (AMMove × ℕ)) (f : List Bool → ℚ) :
@@ -259,13 +235,13 @@ theorem isAMPolyGameVerifier_iff_value {enc : α ↪ List Bool} {g : ℕ → Lis
       (a ∈ A → 2 ≤ 3 * value true (g (enc a).length) (fun t => ((V (a, t)).toNat : ℚ))) ∧
       (a ∉ A → 3 * value true (g (enc a).length) (fun t => ((V (a, t)).toNat : ℚ)) ≤ 1) := by
   refine forall_congr' fun a => and_congr (imp_congr_right fun _ => ?_)
-    (imp_congr_right fun _ => ?_)
-  all_goals
-    rw [← Nat.cast_le (α := ℚ)]
-    push_cast
-    rw [count_eq]
-    have hp : (0 : ℚ) < 2 ^ arthurBits (g (enc a).length) := by positivity
-    constructor <;> intro h <;> nlinarith
+    (imp_congr_right fun _ => ?_) <;>
+    (rw [← Nat.cast_le (α := ℚ)]; push_cast; rw [count_eq]
+     have hp : (0 : ℚ) < 2 ^ arthurBits (g (enc a).length) := by positivity)
+  · rw [mul_comm (2 : ℚ), mul_left_comm (3 : ℚ)]
+    exact mul_le_mul_iff_right₀ hp
+  · rw [mul_left_comm (3 : ℚ)]
+    simpa only [mul_one] using mul_le_mul_iff_right₀ (b := 3 * _) (c := (1 : ℚ)) hp
 
 /-- Problems decided by polynomial-time public-coin game verifiers whose move pattern at input
 length `n` is `π n`. -/

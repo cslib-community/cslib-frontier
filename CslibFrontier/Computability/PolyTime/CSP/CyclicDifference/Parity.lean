@@ -45,8 +45,7 @@ private theorem chainScope_step (fresh first b c d : ℕ) (rest : List ℕ) (i :
       chainScope (fresh + 1) fresh (c :: d :: rest) i := by
   cases rest with
   | nil =>
-    have hi0 : i = 0 := by simp only [List.length_cons, List.length_nil] at hi; omega
-    subst i
+    obtain rfl : i = 0 := by simp only [List.length_cons, List.length_nil] at hi; omega
     simp [chainScope]
   | cons e rest =>
     unfold chainScope
@@ -55,12 +54,9 @@ private theorem chainScope_step (fresh first b c d : ℕ) (rest : List ℕ) (i :
       show ¬ (rest.length + 1 + 1 + 1 + 1 ≤ 2) by omega,
       show ¬ (rest.length + 1 + 1 + 1 ≤ 2) by omega, ↓reduceIte,
       Nat.add_sub_cancel, List.getD_cons_succ]
-    have hname : fresh + i = if i = 0 then fresh else fresh + 1 + (i - 1) := by
-      split_ifs <;> omega
-    rw [hname]
-    have hcond : i + 1 + 2 = rest.length + 1 + 1 + 1 + 1 ↔
-        i + 2 = rest.length + 1 + 1 + 1 := by omega
-    simp only [hcond, Nat.add_assoc, Nat.add_comm 1 i]
+    rw [show fresh + i = if i = 0 then fresh else fresh + 1 + (i - 1) by split_ifs <;> omega]
+    simp only [show i + 1 + 2 = rest.length + 1 + 1 + 1 + 1 ↔
+      i + 2 = rest.length + 1 + 1 + 1 by omega, Nat.add_assoc, Nat.add_comm 1 i]
 
 /-- Exact bounded-map implementation of the recursive chain tail. -/
 theorem parityChainTail_eq_map (fresh first : ℕ) (rest : List ℕ) :
@@ -68,31 +64,22 @@ theorem parityChainTail_eq_map (fresh first : ℕ) (rest : List ℕ) :
       (List.range (max 1 (rest.length - 1))).map fun i => Constraint.mk
         (smallEvenTable (min 3 (rest.length + 1))) (chainScope fresh first rest i) := by
   induction rest using List.twoStepInduction generalizing fresh first with
-  | nil => simp [parityChainTail, smallEvenTable, chainScope]
-  | singleton b => simp [parityChainTail, smallEvenTable, chainScope]
+  | nil | singleton _ => simp [parityChainTail, smallEvenTable, chainScope]
   | cons_cons b c rest _ ih =>
     cases rest with
     | nil => simp [parityChainTail, smallEvenTable, chainScope]
     | cons d rest =>
       have hlen : max 1 ((b :: c :: d :: rest).length - 1) =
-          max 1 ((c :: d :: rest).length - 1) + 1 := by
-        simp only [List.length_cons]; omega
-      rw [parityChainTail, ih c, hlen, List.range_succ_eq_map, List.map_cons, List.map_map]
-      rw [List.cons.injEq]
-      constructor
-      · simp [chainScope, smallEvenTable]
-      · apply List.map_congr_left
-        intro i hi
-        have hb : i < (c :: d :: rest).length - 1 := by
-          simp only [List.mem_range] at hi
-          simp only [List.length_cons] at hi ⊢
-          omega
-        rw [show min 3 ((c :: d :: rest).length + 1) = 3 by
-          simp only [List.length_cons]; omega,
-          show min 3 ((b :: c :: d :: rest).length + 1) = 3 by
-            simp only [List.length_cons]; omega]
-        exact congrArg (Constraint.mk (smallEvenTable 3))
-          (chainScope_step fresh first b c d rest i hb).symm
+          max 1 ((c :: d :: rest).length - 1) + 1 := by simp only [List.length_cons]; omega
+      rw [parityChainTail, ih c, hlen, List.range_succ_eq_map, List.map_cons, List.map_map,
+        List.cons.injEq]
+      refine ⟨by simp [chainScope, smallEvenTable], List.map_congr_left fun i hi => ?_⟩
+      have hb : i < (c :: d :: rest).length - 1 := by
+        simp only [List.mem_range, List.length_cons] at hi ⊢; omega
+      rw [show min 3 ((c :: d :: rest).length + 1) = 3 by simp only [List.length_cons]; omega,
+        show min 3 ((b :: c :: d :: rest).length + 1) = 3 by simp only [List.length_cons]; omega]
+      exact congrArg (Constraint.mk (smallEvenTable 3))
+        (chainScope_step fresh first b c d rest i hb).symm
 
 /-- Framed unary fresh offset, framed binary first name and binary remaining scope. -/
 abbrev encParityTail := encPair encUnary (encPair encNat (encList encNat))
@@ -111,25 +98,19 @@ theorem computableInPolyTime_parityChainTail :
     have hconv := ComputableInPolyTime.unary_to_binary
     have hname : ComputableInPolyTime (fun p : (ℕ × ℕ × List ℕ) × ℕ =>
         if p.2 = 0 then p.1.2.1 else p.1.1 + (p.2 - 1))
-        (encPair (encPair encUnary (encPair encNat (encList encNat))) encUnary) encNat := by
-      apply ComputableInPolyTime.ite_decide
-      · fun_prop
-      · fun_prop
-      · exact hconv.comp (by fun_prop)
+        (encPair (encPair encUnary (encPair encNat (encList encNat))) encUnary) encNat :=
+      ComputableInPolyTime.ite_decide (by fun_prop) (by fun_prop) (hconv.comp (by fun_prop))
     have hlast : ComputableInPolyTime (fun p : (ℕ × ℕ × List ℕ) × ℕ =>
         if p.2 + 2 = p.1.2.2.length then p.1.2.2.getD (p.2 + 1) 0 else p.1.1 + p.2)
-        (encPair (encPair encUnary (encPair encNat (encList encNat))) encUnary) encNat := by
-      apply ComputableInPolyTime.ite_decide
-      · fun_prop
-      · fun_prop
-      · exact hconv.comp (by fun_prop)
+        (encPair (encPair encUnary (encPair encNat (encList encNat))) encUnary) encNat :=
+      ComputableInPolyTime.ite_decide
+        (ComputableInPolyTime.decide_eq' (by fun_prop : ComputableInPolyTime _ _ encUnary)
+          (by fun_prop : ComputableInPolyTime _ _ encUnary))
+        (by fun_prop) (hconv.comp (by fun_prop))
     fun_prop
   simp only [parityChainTail_eq_map]
-  unfold encCSP
-  apply ComputableInPolyTime.mapWithInput (by unfold encParityTail; fun_prop)
-  have htable := hsmall.comp (show ComputableInPolyTime
-    (fun p : (ℕ × ℕ × List ℕ) × ℕ => min 3 (p.1.2.2.length + 1))
-    (encPair encParityTail encUnary) encUnary by unfold encParityTail; fun_prop)
-  exact encConstraint_mk_polyTime htable hscope
+  unfold encCSP encParityTail
+  refine ComputableInPolyTime.mapWithInput (by fun_prop) (encConstraint_mk_polyTime ?_ hscope)
+  exact hsmall.comp (by fun_prop : ComputableInPolyTime _ _ encUnary)
 
 end Cslib.Complexity.CSP.CyclicCompiler

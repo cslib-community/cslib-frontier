@@ -57,23 +57,19 @@ theorem exists_common_seedLength {sourceBits observationBound densityBound : ℕ
       StrictMono common ∧ (∀ n, n + 1 ≤ common n) ∧
       ∀ n index, index < size (sourceBits n) (densityBound n) →
         seedLength n (sourceBits n) (observationBound n) (densityBound n) index ≤ common n := by
-  have hsize := (isPolyTime_size hsource hdensity).tidy.polynomiallyBounded
   have h1 := ComputableInPolyTime.fst encUnary encUnary
-  have hseed := (isPolyTime_seedLength h1 (h1.trans hsource) (h1.trans hobservation)
-    (h1.trans hdensity) (.snd _ _)).tidy
-  obtain ⟨c, d, hbound⟩ := hseed.indexed_polynomial_bound
+  obtain ⟨c, d, hbound⟩ := (isPolyTime_seedLength h1 (h1.trans hsource) (h1.trans hobservation)
+    (h1.trans hdensity) (.snd _ _)).indexed_polynomial_bound
     (f := fun n index => seedLength n (sourceBits n) (observationBound n) (densityBound n) index)
-    hsize
+    (isPolyTime_size hsource hdensity).polynomiallyBounded
   refine ⟨fun n => n + 1 + c * (n + 1) ^ d,
     (ComputableInPolyTime.id'.unary_add' (.const 1)).unary_add'
       ((ComputableInPolyTime.const c).unary_mul'
         ((ComputableInPolyTime.id'.unary_add' (.const 1)).trans (.unary_pow d))),
-    ?_, fun n => by lia, ?_⟩
-  · intro n m hnm
-    have hpower := Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by lia : n + 1 ≤ m + 1) d)
-    lia
-  · intro n index hindex
-    exact (hbound n index hindex).trans (by lia)
+    fun n m hnm => ?_, fun _ => by lia,
+    fun n index hindex => (hbound n index hindex).trans (by lia)⟩
+  have := Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by lia : n + 1 ≤ m + 1) d)
+  lia
 
 /-- Efficient observation, entropy-resolution and common seed-length bounds for padding the
 entropy grid. The observation bound applies only on support; the seed bound covers every grid
@@ -123,8 +119,7 @@ theorem length_paddedGenerate {pair : SamplablePair} (saved : pair.SeedRealizati
     {seed : List Bool} (hseed : seed.length = commonBits) :
     (paddedGenerate n (saved.length n) observationBound densityBound commonBits index
       (saved.evaluate n) seed).length = commonBits + 1 := by
-  apply GeneratorPadding.length_generate hcommon _ hseed
-  intro seed hseed
+  refine GeneratorPadding.length_generate hcommon (fun seed hseed => ?_) hseed
   rw [length_generate saved n _ _ _ hfits hseed]
   exact seedLength_lt_outputLength ..
 
@@ -148,22 +143,19 @@ theorem exists_secure_padded_choice_withAdvice {pair : SamplablePair} {gap : ℕ
   refine ⟨choose, hchoose, IndistinguishableWithAdvice.of_negligible_encoded fun test htest => ?_⟩
   have hp1 := ComputableInPolyTime.fst (encPair encUnary (encPair encBits encUnary)) encBits
   have hn := hp1.fst'
-  have h := hsecure.negligible_encoded
+  refine (hsecure.negligible_encoded
     (test := fun input => GeneratorPadding.test
       (seedLength input.1.1 (saved.length input.1.1) (observationBound input.1.1)
         (densityBound input.1.1) input.1.2.2)
-      (common input.1.1) (fun word => test (input.1, word)) input.2) (by
-    apply GeneratorPadding.isPPTOn_test
-    · exact isPolyTime_seedLength hn (hn.trans saved.length_isPolyTime) (hn.trans hobservation)
-        (hn.trans hdensity) hp1.snd'.snd'
-    · exact hn.trans hcommon
-    · exact htest.preprocess ((hp1.comp (.fst _ _)).prod (.snd _ _))
-    · exact .snd _ _)
-  apply h.congr'
-  filter_upwards [hchoose] with n hn
+      (common input.1.1) (fun word => test (input.1, word)) input.2)
+    (GeneratorPadding.isPPTOn_test
+      (isPolyTime_seedLength hn (hn.trans saved.length_isPolyTime) (hn.trans hobservation)
+        (hn.trans hdensity) hp1.snd'.snd')
+      (hn.trans hcommon) (htest.preprocess ((hp1.comp (.fst _ _)).prod (.snd _ _)))
+      (.snd _ _))).congr' (hchoose.mono fun n hn => ?_)
   simp only [distinguishingGame_eq_bind, PMF.monad_bind_eq_bind]
   exact (GeneratorPadding.advantage_eq _ _ (hbound n (choose n) hn)
-      (seedLength_lt_outputLength n (saved.length n) (observationBound n) (densityBound n)
-        (choose n))).symm
+    (seedLength_lt_outputLength n (saved.length n) (observationBound n) (densityBound n)
+      (choose n))).symm
 
 end Cslib.Crypto.Pseudoentropy.EntropyGrid

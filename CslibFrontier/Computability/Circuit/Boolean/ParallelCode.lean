@@ -82,86 +82,38 @@ the common input and output width. -/
     compCode inputCount ([], List.range outputCount)
       (compCode inputCount combined ([], List.range inputCount)))
 
+/-- The empty-gate code `([], List.range (f a))` is polynomial-time computable from a unary `f`. -/
+private theorem computableInPolyTime_rangeCode {α : Type} {enc : α ↪ List Bool} {f : α → ℕ}
+    (hf : ComputableInPolyTime f enc encUnary) :
+    ComputableInPolyTime (fun a => (([] : List (Op × List ℕ)), List.range (f a))) enc encCode :=
+  (const (encOut := encList encGate) []).prod (by
+    simpa only [Function.comp_def, List.map_id_fun', id_eq] using
+      unary_to_binary.map.comp (range.comp hf))
+
 /-- The compiler's single extension step is polynomial-time computable under the fold encoding. -/
 @[fun_prop] theorem computableInPolyTime_parallelFamilyCodeStep :
     ComputableInPolyTime
       (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
         parallelFamilyCodeStep p.1.1 p.1.2 p.2)
-      (encFoldStep (encPair encUnary encUnary) (encPair encUnary encCode) encCode)
+      (encPair (encPair (encPair encUnary encUnary) (encPair encUnary encCode)) encCode)
       (encPair encUnary encCode) := by
-  let stepEnc := encFoldStep (encPair encUnary encUnary)
-    (encPair encUnary encCode) encCode
-  have hn : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) => p.1.1.1)
-      stepEnc encUnary := by fun_prop
-  have hm : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) => p.1.1.2)
-      stepEnc encUnary := by fun_prop
-  have hk : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) => p.1.2.1)
-      stepEnc encUnary := by fun_prop
-  have hstate : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) => p.1.2.2)
-      stepEnc encCode := by fun_prop
-  have hcode : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) => p.2)
-      stepEnc encCode := by fun_prop
-  have hk1 : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) => p.1.2.1 + 1)
-      stepEnc encUnary := by fun_prop
-  have hprefixInputs : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) => p.1.2.1 * p.1.1.1)
-      stepEnc encUnary := by fun_prop
-  have hblockInputs : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
-        p.1.2.1 * p.1.1.1 + p.1.1.1) stepEnc encUnary := by fun_prop
-  have hinputCount : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
-        (p.1.2.1 + 1) * p.1.1.1) stepEnc encUnary := by fun_prop
-  have houtputCount : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
-        (p.1.2.1 + 1) * p.1.1.2) stepEnc encUnary := by fun_prop
-  have hprefixRange : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
-        ([], List.range (p.1.2.1 * p.1.1.1))) stepEnc encCode :=
-    (const (encOut := encList encGate) []).prod (by
-      simpa only [Function.comp_def, List.map_id_fun', id_eq] using
-        unary_to_binary.map.comp (range.comp hprefixInputs))
-  have hinputRange : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
-        ([], List.range ((p.1.2.1 + 1) * p.1.1.1))) stepEnc encCode :=
-    (const (encOut := encList encGate) []).prod (by
-      simpa only [Function.comp_def, List.map_id_fun', id_eq] using
-        unary_to_binary.map.comp (range.comp hinputCount))
-  have houtputRange : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
-        ([], List.range ((p.1.2.1 + 1) * p.1.1.2))) stepEnc encCode :=
-    (const (encOut := encList encGate) []).prod (by
-      simpa only [Function.comp_def, List.map_id_fun', id_eq] using
-        unary_to_binary.map.comp (range.comp houtputCount))
-  have hshiftedRange : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
-        ([], (List.range p.1.1.1).map (p.1.2.1 * p.1.1.1 + ·))) stepEnc encCode := by
-    have hwire : ComputableInPolyTime
-        (fun q : ((((ℕ × ℕ) × (ℕ × Code)) × Code) × ℕ) =>
-          q.1.1.2.1 * q.1.1.1.1 + q.2) (encPair stepEnc encUnary) encNat :=
-      unary_to_binary.comp (by fun_prop)
-    exact (const (encOut := encList encGate) []).prod
-      (mapWithInput (range.comp hn) hwire)
-  have hleft := computableInPolyTime_compCode (unary_to_binary.comp hblockInputs)
-    hstate hprefixRange
-  have hright := computableInPolyTime_compCode (unary_to_binary.comp hblockInputs)
-    hcode hshiftedRange
-  have hcombined := computableInPolyTime_appendCode (unary_to_binary.comp hblockInputs)
-    hleft hright
-  have hinner := computableInPolyTime_compCode (unary_to_binary.comp hinputCount)
-    hcombined hinputRange
-  have hfinal := computableInPolyTime_compCode (unary_to_binary.comp hinputCount)
-    houtputRange hinner
-  change ComputableInPolyTime
-    (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
-      parallelFamilyCodeStep p.1.1 p.1.2 p.2) stepEnc (encPair encUnary encCode)
-  exact hk1.prod hfinal
+  let stepEnc := encPair (encPair (encPair encUnary encUnary) (encPair encUnary encCode)) encCode
+  have hblock : ComputableInPolyTime (fun p : ((ℕ × ℕ) × (ℕ × Code)) × Code =>
+      p.1.2.1 * p.1.1.1 + p.1.1.1) stepEnc encNat := unary_to_binary.comp (by fun_prop)
+  have hin : ComputableInPolyTime (fun p : ((ℕ × ℕ) × (ℕ × Code)) × Code =>
+      (p.1.2.1 + 1) * p.1.1.1) stepEnc encUnary := by fun_prop
+  dsimp only [parallelFamilyCodeStep]
+  refine ComputableInPolyTime.prod (by fun_prop)
+    (computableInPolyTime_compCode (unary_to_binary.comp hin)
+      (computableInPolyTime_rangeCode (by fun_prop))
+      (computableInPolyTime_compCode (unary_to_binary.comp hin) ?_
+        (computableInPolyTime_rangeCode hin)))
+  refine computableInPolyTime_appendCode hblock
+    (computableInPolyTime_compCode hblock (by fun_prop)
+      (computableInPolyTime_rangeCode (by fun_prop)))
+    (computableInPolyTime_compCode hblock (by fun_prop) ?_)
+  exact (const (encOut := encList encGate) []).prod
+    (mapWithInput (range.comp (by fun_prop)) (unary_to_binary.comp (by fun_prop)))
 
 /-- Run a list of raw `n`-input, `m`-output circuit codes on consecutive disjoint input blocks,
 preserving the list order in the output blocks. -/

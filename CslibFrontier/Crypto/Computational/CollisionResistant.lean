@@ -303,18 +303,12 @@ theorem CollisionResistantForOn.of_map
       valid₂ n (f n p₁) m₁ = true → valid₂ n (f n p₁) m₂ = true →
       H₂ (f n p₁) m₁ = H₂ (f n p₁) m₂ →
       valid₁ n p₁ m₁ = true ∧ valid₁ n p₁ m₂ = true ∧ H₁ p₁ m₁ = H₁ p₁ m₂) :
-    CollisionResistantForOn encParam₂ (fun m => (setup₁ m).map (f m)) H₂ valid₂ := by
-  have hpre : ComputableInPolyTime
-      (fun p : ℕ × Param₁ => (p.1, f p.1 p.2))
-      (encPair encUnary encParam₁)
-      (encPair encUnary encParam₂) :=
-    (by fun_prop : ComputableInPolyTime (fun p : ℕ × Param₁ => p.1) _ encUnary).prod hf
-  refine hCR.of_eventually_succProbability_reduction
+    CollisionResistantForOn encParam₂ (fun m => (setup₁ m).map (f m)) H₂ valid₂ :=
+  hCR.of_eventually_succProbability_reduction
     (fun adversary n p₁ => adversary n (f n p₁))
-    (fun _ hadversary => hadversary.preprocess hpre)
-    (fun adversary _ => ?_)
-  filter_upwards [hinj] with n hn
-  exact succProbability_collisionGameFor_map_le setup₁ f H₁ H₂ valid₁ valid₂ adversary n hn
+    (fun _ hadversary => hadversary.preprocess ((ComputableInPolyTime.fst _ _).prod hf))
+    fun adversary _ => hinj.mono fun n hn =>
+      succProbability_collisionGameFor_map_le setup₁ f H₁ H₂ valid₁ valid₂ adversary n hn
 
 /-- Restricting the valid input domain preserves setup-parameterized collision resistance: a
 collision on `valid₁` is a collision on `valid₂` whenever `valid₁ ⊆ valid₂` on supported
@@ -328,10 +322,9 @@ theorem CollisionResistantForOn.mono {Param : Type} {Digest : Param → Type}
     (hsub : ∀ᶠ n in Filter.atTop, ∀ d ∈ (setup n).support, ∀ m,
       valid₁ n d m = true → valid₂ n d m = true) :
     CollisionResistantForOn encParam setup H valid₁ := by
-  have h := hCR.of_map (f := fun _ => id) (H₂ := H) (valid₂ := valid₁)
+  simpa only [PMF.map_id] using hCR.of_map (f := fun _ => id) (H₂ := H) (valid₂ := valid₁)
     (ComputableInPolyTime.snd encUnary encParam)
     (hsub.mono fun _ hn d hd m₁ m₂ h₁ h₂ hH => ⟨hn d hd m₁ h₁, hn d hd m₂ h₂, hH⟩)
-  simpa only [PMF.map_id] using h
 
 /-! ### Keyed word-level collision-resistant hash families (`Param = List Bool`) -/
 
@@ -385,18 +378,14 @@ theorem computableInPolyTime_isCollision
       (fun p : ℕ × List Bool × List Bool × List Bool =>
         isCollision H valid p.1 p.2.1 p.2.2.1 p.2.2.2)
       (encPair encUnary (encPair encBits (encPair encBits encBits))) encBool := by
-  have hv₁ : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool × List Bool =>
-      valid p.1 p.2.2.1) (encPair encUnary (encPair encBits (encPair encBits encBits))) encBool :=
-    hvalid.comp (.prod (.fst _ _) (by fun_prop))
-  have hv₂ : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool × List Bool =>
-      valid p.1 p.2.2.2) (encPair encUnary (encPair encBits (encPair encBits encBits))) encBool :=
-    hvalid.comp (.prod (.fst _ _) (by fun_prop))
-  have hH₁ : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool × List Bool =>
-      H p.2.1 p.2.2.1) (encPair encUnary (encPair encBits (encPair encBits encBits))) encBits :=
-    hH.comp (.prod (by fun_prop) (by fun_prop))
-  have hH₂ : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool × List Bool =>
-      H p.2.1 p.2.2.2) (encPair encUnary (encPair encBits (encPair encBits encBits))) encBits :=
-    hH.comp (.prod (by fun_prop) (by fun_prop))
+  have hp1 := ComputableInPolyTime.fst encUnary (encPair encBits (encPair encBits encBits))
+  have hp2 := ComputableInPolyTime.snd encUnary (encPair encBits (encPair encBits encBits))
+  have hk := (ComputableInPolyTime.fst encBits (encPair encBits encBits)).comp hp2
+  have hm := (ComputableInPolyTime.snd encBits (encPair encBits encBits)).comp hp2
+  have hv₁ := hvalid.comp (hp1.prod ((ComputableInPolyTime.fst encBits encBits).comp hm))
+  have hv₂ := hvalid.comp (hp1.prod ((ComputableInPolyTime.snd encBits encBits).comp hm))
+  have hH₁ := hH.comp (hk.prod ((ComputableInPolyTime.fst encBits encBits).comp hm))
+  have hH₂ := hH.comp (hk.prod ((ComputableInPolyTime.snd encBits encBits).comp hm))
   unfold isCollision
   fun_prop
 
@@ -428,8 +417,8 @@ theorem isPPTOn_collisionGame {H : List Bool → List Bool → List Bool}
       (encPair encUnary encBits) encBool)
     (ha : IsPPT (encPair encBits encBits) adversary) :
     IsPPTOn encUnary encBool (collisionGame H valid adversary) := by
-  have hHt := hH.tidy
-  have hvt := hvalid.tidy
+  have hHt := hH
+  have hvt := hvalid
   unfold collisionGame
   ppt
 
@@ -481,10 +470,9 @@ theorem CollisionResistantOn.of_negligible {H : List Bool → List Bool → List
     (h : ∀ adversary : CollisionFinder, IsPPT (encPair encBits encBits) adversary →
       Negligible
         (fun n => Game.succProbability (ProbComp.eval (collisionGame H valid adversary n)))) :
-    CollisionResistantOn H valid := by
-  apply CollisionResistantForOn.of_negligible
-  intro adversary hPPT
-  simpa only [collisionGameFor_sampleList_eq] using h adversary hPPT
+    CollisionResistantOn H valid :=
+  CollisionResistantForOn.of_negligible fun adversary hPPT => by
+    simpa only [collisionGameFor_sampleList_eq] using h adversary hPPT
 
 /-- If a deterministic map `extract` turns every valid `H₁`-collision under an `n`-bit key `k`
 into a valid `H₂`-collision under `k`, then postprocessing `adversary` by `extract` at parameter `n`
@@ -504,9 +492,9 @@ theorem succProbability_collisionGame_le_of_extract
             return extract m k pair.1 pair.2) n)) := by
   apply Game.succProbability_mono
   simp only [collisionGame, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
-  refine PMF.bind_apply_mono_on_support _ _ fun k hk => PMF.map_true_mono _ fun pair _ hcol => ?_
-  rw [BitString.eval_sampleList] at hk
-  exact himp k (BitString.length_of_mem_support_uniformList hk) pair.1 pair.2 hcol
+  exact PMF.bind_apply_mono_on_support _ _ fun k hk => PMF.map_true_mono _ fun pair _ hcol =>
+    himp k (BitString.length_of_mem_support_uniformList (BitString.eval_sampleList n ▸ hk))
+      pair.1 pair.2 hcol
 
 /-- **Deterministic collision-extraction reduction**: if a polynomial-time function `extract`
 turns every `H₁`-collision at parameter `n` (for all sufficiently large `n` and `n`-bit keys `k`)
@@ -523,24 +511,17 @@ theorem CollisionResistantOn.of_extract
     (himp : ∀ᶠ n in Filter.atTop, ∀ k, k.length = n → ∀ m₁ m₂,
       isCollision H₁ valid₁ n k m₁ m₂ = true →
       isCollision H₂ valid₂ n k (extract n k m₁ m₂).1 (extract n k m₁ m₂).2 = true) :
-    CollisionResistantOn H₁ valid₁ := by
-  have hpost : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × (List Bool × List Bool) =>
-        extract p.1.1 p.1.2 p.2.1 p.2.2)
-      (encPair (encPair encUnary encBits) (encPair encBits encBits))
-      (encPair encBits encBits) :=
-    hextract.comp
-      ((ComputableInPolyTime.fst _ _).fst'.prod
-        ((ComputableInPolyTime.fst _ _).snd'.prod (ComputableInPolyTime.snd _ _)))
-  refine hCR.of_eventually_succProbability_reduction
+    CollisionResistantOn H₁ valid₁ :=
+  hCR.of_eventually_succProbability_reduction
     (fun adversary n k => do
       let pair ← adversary n k
       return extract n k pair.1 pair.2)
-    (fun _ hadversary => hadversary.bind_with hpost.isPPTOn)
-    (fun adversary _ => ?_)
-  filter_upwards [himp] with n hn
-  simpa only [collisionGameFor_sampleList_eq] using
-    succProbability_collisionGame_le_of_extract extract adversary n hn
+    (fun _ hadversary => hadversary.bind_with
+      (hextract.comp ((ComputableInPolyTime.fst _ _).fst'.prod
+        ((ComputableInPolyTime.fst _ _).snd'.prod (ComputableInPolyTime.snd _ _)))).isPPTOn)
+    fun adversary _ => himp.mono fun n hn => by
+      simpa only [collisionGameFor_sampleList_eq] using
+        succProbability_collisionGame_le_of_extract extract adversary n hn
 
 /-- Restricting the valid input domain preserves collision resistance. -/
 theorem CollisionResistantOn.mono
@@ -558,10 +539,9 @@ theorem not_collisionResistantOn_of_le_succProbability
     {c : ℝ≥0} (hc : c ≠ 0) (adversary : CollisionFinder)
     (hPPT : IsPPT (encPair encBits encBits) adversary)
     (h : ∀ n, c ≤ Game.succProbability (ProbComp.eval (collisionGame H valid adversary n))) :
-    ¬ CollisionResistantOn H valid := by
-  refine not_collisionResistantForOn_of_le_succProbability hc adversary hPPT ?_
-  intro n
-  simpa only [collisionGameFor_sampleList_eq] using h n
+    ¬ CollisionResistantOn H valid :=
+  not_collisionResistantForOn_of_le_succProbability hc adversary hPPT fun n => by
+    simpa only [collisionGameFor_sampleList_eq] using h n
 
 /-- **Bridge from word-level `CollisionResistantOn` to `CollisionResistantForOn` over
 `(d n, k) : Param × List Bool`**: when `d : ℕ → Param` is computable in polynomial time and
@@ -581,20 +561,12 @@ theorem CollisionResistantOn.collisionResistantForOn {Param : Type} {Digest : Pa
       toDigest (d n) (H k m₁) = toDigest (d n) (H k m₂) → H k m₁ = H k m₂) :
     CollisionResistantForOn (encPair encParam encBits)
       (fun m => (ProbComp.eval (BitString.sampleList m)).map (fun k => (d m, k)))
-      (fun pk x => toDigest pk.1 (H pk.2 x)) (fun m _ x => valid m x) := by
-  have hf : ComputableInPolyTime (fun p : ℕ × List Bool => (d p.1, p.2))
-      (encPair encUnary encBits) (encPair encParam encBits) := by
-    have hn : ComputableInPolyTime (fun p : ℕ × List Bool => p.1)
-        (encPair encUnary encBits) encUnary := by fun_prop
-    have hk : ComputableInPolyTime (fun p : ℕ × List Bool => p.2)
-        (encPair encUnary encBits) encBits := by fun_prop
-    exact (hd.comp hn).prod hk
-  refine hCR.of_map (Digest₂ := fun pk : Param × List Bool => Digest pk.1) hf ?_
-  filter_upwards [hinj] with n hn k hk m₁ m₂ hv₁ hv₂ hcol
-  have hklen : k.length = n := by
-    rw [BitString.eval_sampleList] at hk
-    exact BitString.length_of_mem_support_uniformList hk
-  exact ⟨hv₁, hv₂, hn k hklen m₁ m₂ hv₁ hv₂ hcol⟩
+      (fun pk x => toDigest pk.1 (H pk.2 x)) (fun m _ x => valid m x) :=
+  hCR.of_map (Digest₂ := fun pk : Param × List Bool => Digest pk.1)
+    ((hd.comp (.fst encUnary encBits)).prod (.snd encUnary encBits)) <|
+    hinj.mono fun n hn k hk m₁ m₂ hv₁ hv₂ hcol =>
+      ⟨hv₁, hv₂, hn k (BitString.length_of_mem_support_uniformList
+        (BitString.eval_sampleList n ▸ hk)) m₁ m₂ hv₁ hv₂ hcol⟩
 
 /-- Validity predicate for a fixed-input-length `2n → n` compression family: at security parameter
 `n`, valid inputs have length `2 * n`. -/
@@ -606,21 +578,14 @@ theorem validCompressionInput_eq_true_iff {n : ℕ} {x : List Bool} :
     validCompressionInput n x = true ↔ x.length = 2 * n :=
   beq_iff_eq
 
-@[local fun_prop]
-private theorem computableTidilyInPolyTime_validCompressionInput :
-    ComputableTidilyInPolyTime
+/-- Testing whether an input has length `2 * n` is computable in plain polynomial time. -/
+@[local fun_prop, program_certificate]
+theorem computableInPolyTime_validCompressionInput :
+    ComputableInPolyTime
       (fun p : ℕ × List Bool => validCompressionInput p.1 p.2)
       (encPair encUnary encBits) encBool := by
   unfold validCompressionInput
   polytime
-
-/-- Testing whether an input has length `2 * n` is computable in plain polynomial time. -/
-@[program_certificate]
-theorem computableInPolyTime_validCompressionInput :
-    ComputableInPolyTime
-      (fun p : ℕ × List Bool => validCompressionInput p.1 p.2)
-      (encPair encUnary encBits) encBool :=
-  .of_tidy computableTidilyInPolyTime_validCompressionInput
 
 /-- A keyed `2n → n` collision-resistant compression family: computable in deterministic
 polynomial time, mapping `2n`-bit inputs under an `n`-bit key to `n`-bit outputs, and

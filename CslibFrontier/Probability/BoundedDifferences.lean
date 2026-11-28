@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Probability.Product
 public import Mathlib.Algebra.BigOperators.Expect
 public import Mathlib.Probability.Moments.SubGaussian
+import CslibFrontier.Probability.HoeffdingStep
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.Product.Resample
@@ -122,22 +123,7 @@ theorem hasBoundedDifferences_sum [Fintype ι] {score : ∀ i, α i → ℝ} {c 
     add_sub_add_right_eq_sub]
   exact hscore i a (x i)
 
-/-! ### Hoeffding's lemma and partial averages -/
-
-/-- Hoeffding's lemma for a finite distribution: a score with values in `[a, b]` has centered
-moment generating function at most `exp (t² (b - a)² / 8)`. -/
-private theorem sum_mul_exp_sub_mean_le {β : Type*} [Fintype β] (q : PMF β) (g : β → ℝ)
-    {a b : ℝ} (hg : ∀ v, g v ∈ Set.Icc a b) (t : ℝ) :
-    ∑ v, (q v).toReal * Real.exp (t * (g v - ∑ w, (q w).toReal * g w)) ≤
-      Real.exp (t ^ 2 * (b - a) ^ 2 / 8) := by
-  let _ : MeasurableSpace β := ⊤
-  have h := (hasSubgaussianMGF_of_mem_Icc (μ := q.toMeasure)
-    (measurable_of_countable g).aemeasurable (ae_of_all _ hg)).mgf_le t
-  simp only [mgf, PMF.integral_eq_sum, smul_eq_mul] at h
-  refine h.trans_eq (congrArg Real.exp ?_)
-  simp only [NNReal.coe_pow, NNReal.coe_div, coe_nnNorm, Real.norm_eq_abs, NNReal.coe_ofNat,
-    div_pow, sq_abs]
-  ring
+/-! ### Partial averages -/
 
 /-- The coordinates of `y` outside `s` do not affect `s.piecewise y z`. -/
 private theorem piecewise_update_left {s : Finset ι} {i : ι} (hi : i ∉ s) (y z : ∀ i, α i)
@@ -183,18 +169,16 @@ private theorem sum_mul_exp_piecewise_le {f : (∀ i, α i) → ℝ} {c : ι →
           (f (s.piecewise z (Function.update x i v)) -
             f (s.piecewise z (Function.update x i w))) := by
         simp only [g, ← Finset.sum_sub_distrib, mul_sub]
-      have hle : g v - g w ≤ c i := by
-        rw [hdiff]
-        refine sum_mul_le _ _ _ fun z => ?_
-        rw [← Finset.update_piecewise_of_notMem _ _ _ hi,
-          ← Finset.update_piecewise_of_notMem _ _ _ hi,
-          ← Function.update_idem w v (s.piecewise z x)]
-        exact (le_abs_self _).trans (hf _ i v)
-      linarith
+      rw [← sub_le_iff_le_add', hdiff]
+      refine sum_mul_le _ _ _ fun z => ?_
+      rw [← Finset.update_piecewise_of_notMem _ _ _ hi,
+        ← Finset.update_piecewise_of_notMem _ _ _ hi,
+        ← Function.update_idem w v (s.piecewise z x)]
+      exact (le_abs_self _).trans (hf _ i v)
     obtain ⟨least, -, hleast⟩ := Finset.univ.exists_min_image g
       (Finset.univ_nonempty_iff.mpr ⟨(p i).support_nonempty.some⟩)
     have hhoeffding := sum_mul_exp_sub_mean_le (p i) g
-      (fun v => ⟨hleast v (Finset.mem_univ v), hrange v least⟩) t
+      (fun v _ => ⟨hleast v (Finset.mem_univ v), hrange v least⟩) t
     rw [add_sub_cancel_left] at hhoeffding
     have hstep (v : α i) : ∑ y, (pi p y).toReal * Real.exp (t * (f (s.piecewise y
         (Function.update x i v)) - ∑ w, (p i w).toReal * g w)) ≤
@@ -216,8 +200,7 @@ private theorem sum_mul_exp_piecewise_le {f : (∀ i, α i) → ℝ} {c : ι →
         Finset.sum_le_sum fun v _ => mul_le_mul_of_nonneg_left (hstep v) ENNReal.toReal_nonneg
       _ = (∑ v, (p i v).toReal * Real.exp (t * (g v - ∑ w, (p i w).toReal * g w))) *
           Real.exp (t ^ 2 * (∑ j ∈ s, c j ^ 2) / 8) := by
-        rw [Finset.sum_mul]
-        simp only [mul_assoc]
+        simp only [Finset.sum_mul, mul_assoc]
       _ ≤ Real.exp (t ^ 2 * c i ^ 2 / 8) * Real.exp (t ^ 2 * (∑ j ∈ s, c j ^ 2) / 8) :=
         mul_le_mul_of_nonneg_right hhoeffding (Real.exp_pos _).le
       _ = _ := by
@@ -262,12 +245,8 @@ theorem pi_ge_mean_add (hf : HasBoundedDifferences f c) (p : ∀ i, PMF (α i)) 
       Real.exp (-2 * ε ^ 2 / ∑ i, c i ^ 2) := by
   let (i : ι) : MeasurableSpace (α i) := ⊤
   have h := (hf.hasSubgaussianMGF_pi p).measure_ge_le hε
-  have hevent : {x : ∀ i, α i | ε ≤ f x - ∑ y, (pi p y).toReal * f y} =
-      {x | (∑ y, (pi p y).toReal * f y) + ε ≤ f x} := by
-    ext x
-    simp only [Set.mem_ofPred_eq]
-    constructor <;> intro h <;> linarith
-  rw [hevent, measureReal_def, PMF.toMeasure_apply_eq_toOuterMeasure_apply _
+  simp only [le_sub_iff_add_le'] at h
+  rw [measureReal_def, PMF.toMeasure_apply_eq_toOuterMeasure_apply _
     ((Set.to_countable _).measurableSet)] at h
   refine h.trans_eq (congrArg Real.exp ?_)
   simp only [NNReal.coe_sum, NNReal.coe_pow, NNReal.coe_div, coe_nnNorm, Real.norm_eq_abs,

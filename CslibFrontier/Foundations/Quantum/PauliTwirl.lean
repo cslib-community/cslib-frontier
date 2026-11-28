@@ -39,6 +39,9 @@ Exercise 5(a); it is the heart of the quantum one-time pad
 
 ## Main results
 
+* `Cslib.Quantum.pauliXPow_mul`, `Cslib.Quantum.pauliZPow_mul`,
+  `Cslib.Quantum.pauliZPow_mul_pauliXPow`: `X^a X^{a'} = X^{a+a'}`, `Z^b Z^{b'} = Z^{b+b'}` and
+  `Z^b X^a = (-1)^{a·b} X^a Z^b`.
 * `Cslib.Quantum.pauliString_mem_unitaryGroup`: Pauli strings are unitary.
 * `Cslib.Quantum.sum_pauliTwirl`: `∑_{a, b} X^a Z^b ρ (X^a Z^b)ᴴ = 2ⁿ tr ρ • 1`.
 * `Cslib.Quantum.sum_pauliTwirl_kronecker_one`: with a reference system,
@@ -71,7 +74,7 @@ noncomputable def pauliZPow (b : ι → Bool) : Matrix (ι → Bool) (ι → Boo
   diagonal fun z => (signVal (b ⬝ᵥ z) : ℂ)
 
 /-- The **Pauli string** `X^a Z^b`. -/
-noncomputable def pauliString (a b : ι → Bool) : Matrix (ι → Bool) (ι → Bool) ℂ :=
+@[expose] noncomputable def pauliString (a b : ι → Bool) : Matrix (ι → Bool) (ι → Bool) ℂ :=
   pauliXPow a * pauliZPow b
 
 omit [DecidableEq ι] in
@@ -86,11 +89,9 @@ theorem pauliZPow_apply (b y z : ι → Bool) :
 
 theorem pauliString_apply (a b y z : ι → Bool) :
     pauliString a b y z = if z = y + a then (signVal (b ⬝ᵥ z) : ℂ) else 0 := by
-  rw [pauliString, Matrix.mul_apply, Finset.sum_eq_single (y + a)]
-  · by_cases h : z = y + a <;> simp [pauliXPow_apply, pauliZPow_apply, h, eq_comm]
-  · intro w _ hw
-    simp [pauliXPow_apply, hw]
-  · simp
+  rw [pauliString, Matrix.mul_apply,
+    Finset.sum_eq_single (y + a) (fun w _ hw => by simp [pauliXPow_apply, hw]) (by simp)]
+  by_cases h : z = y + a <;> simp [pauliXPow_apply, pauliZPow_apply, h, eq_comm]
 
 theorem conjTranspose_pauliString_apply (a b y z : ι → Bool) :
     (pauliString a b)ᴴ y z = if y = z + a then (signVal (b ⬝ᵥ y) : ℂ) else 0 := by
@@ -108,18 +109,68 @@ omit [DecidableEq ι] in
 theorem pauliZPow_isHermitian (b : ι → Bool) : (pauliZPow b).IsHermitian :=
   isHermitian_diagonal_of_self_adjoint _ (funext fun z => by simp [Complex.conj_ofReal])
 
-theorem pauliXPow_mul_self (a : ι → Bool) : pauliXPow a * pauliXPow a = 1 := by
+theorem pauliXPow_mul (a a' : ι → Bool) : pauliXPow a * pauliXPow a' = pauliXPow (a + a') := by
   ext y z
-  rw [Matrix.mul_apply, Finset.sum_eq_single (y + a)]
-  · by_cases h : y = z <;> simp [pauliXPow_apply, Matrix.one_apply, h, Ne.symm]
-  · intro w _ hw
-    simp [pauliXPow_apply, hw]
+  rw [Matrix.mul_apply, sum_eq_single (y + a) (fun w _ hw => by
+    rw [pauliXPow_apply, ite_eq_right (fun h => hw h), zero_mul]) (by simp)]
+  simp only [pauliXPow_apply, ite_true, one_mul, add_assoc]
+
+omit [DecidableEq ι] in
+private theorem signVal_add_dotProduct (b b' z : ι → Bool) :
+    (signVal ((b + b') ⬝ᵥ z) : ℂ) = signVal (b ⬝ᵥ z) * signVal (b' ⬝ᵥ z) := by
+  rw [add_dotProduct]
+  exact_mod_cast signVal_xor _ _
+
+private theorem mul_pauliZPow_apply {M : Matrix (ι → Bool) (ι → Bool) ℂ} (b y z : ι → Bool) :
+    (M * pauliZPow b) y z = M y z * signVal (b ⬝ᵥ z) := by
+  rw [Matrix.mul_apply, sum_eq_single z (fun w _ hw => by
+    rw [pauliZPow_apply, ite_eq_right hw, mul_zero]) (by simp)]
+  rw [pauliZPow_apply, ite_eq_left rfl]
+
+private theorem pauliZPow_mul_apply {M : Matrix (ι → Bool) (ι → Bool) ℂ} (b y z : ι → Bool) :
+    (pauliZPow b * M) y z = signVal (b ⬝ᵥ y) * M y z := by
+  rw [Matrix.mul_apply, sum_eq_single y (fun w _ hw => by
+    rw [pauliZPow_apply, ite_eq_right (Ne.symm hw), zero_mul]) (by simp)]
+  rw [pauliZPow_apply, ite_eq_left rfl]
+
+theorem pauliZPow_mul (b b' : ι → Bool) : pauliZPow b * pauliZPow b' = pauliZPow (b + b') := by
+  ext y z
+  rw [mul_pauliZPow_apply, pauliZPow_apply, pauliZPow_apply]
+  split_ifs <;> simp only [signVal_add_dotProduct, zero_mul]
+
+omit [DecidableEq ι] in
+theorem pauliXPow_zero : pauliXPow (0 : ι → Bool) = 1 := by
+  classical
+  ext y z
+  rw [pauliXPow_apply, add_zero, Matrix.one_apply]
+  exact if_congr eq_comm rfl rfl
+
+omit [DecidableEq ι] in
+theorem pauliZPow_zero : pauliZPow (0 : ι → Bool) = 1 := by
+  classical
+  ext y z
+  have h0 : signVal (0 : Bool) = 1 := signVal_false
+  rw [pauliZPow_apply, Matrix.one_apply, zero_dotProduct, h0, Complex.ofReal_one]
+
+theorem pauliZPow_mul_pauliXPow (a b : ι → Bool) :
+    pauliZPow b * pauliXPow a = (signVal (a ⬝ᵥ b) : ℂ) • (pauliXPow a * pauliZPow b) := by
+  ext y z
+  rw [pauliZPow_mul_apply, Matrix.smul_apply, mul_pauliZPow_apply, pauliXPow_apply, smul_eq_mul]
+  split_ifs with h
+  · subst h
+    have e : b ⬝ᵥ (y + a) = (b ⬝ᵥ y ^^ a ⬝ᵥ b) := by
+      rw [dotProduct_add, dotProduct_comm b a]; rfl
+    rw [e]
+    push_cast [signVal_xor]
+    linear_combination -(signVal (b ⬝ᵥ y) : ℂ) *
+      (by exact_mod_cast signVal_mul_self (a ⬝ᵥ b) : (signVal (a ⬝ᵥ b) : ℂ) * signVal (a ⬝ᵥ b) = 1)
   · simp
 
+theorem pauliXPow_mul_self (a : ι → Bool) : pauliXPow a * pauliXPow a = 1 := by
+  rw [pauliXPow_mul, BitString.add_self, pauliXPow_zero]
+
 theorem pauliZPow_mul_self (b : ι → Bool) : pauliZPow b * pauliZPow b = 1 := by
-  rw [pauliZPow, diagonal_mul_diagonal, ← diagonal_one]
-  congr 1 with z : 1
-  rw [← Complex.ofReal_mul, signVal_mul_self, Complex.ofReal_one]
+  rw [pauliZPow_mul, BitString.add_self, pauliZPow_zero]
 
 theorem pauliXPow_mem_unitaryGroup (a : ι → Bool) : pauliXPow a ∈ unitaryGroup (ι → Bool) ℂ :=
   (pauliXPow_isHermitian a).mem_unitaryGroup_of_mul_self (pauliXPow_mul_self a)
@@ -166,12 +217,9 @@ theorem sum_pauliTwirl (ρ : Matrix (ι → Bool) (ι → Bool) ℂ) :
   simp only [Matrix.sum_apply, pauliString_mul_mul_conjTranspose_apply,
     sum_signVal_mul_mul_signVal, add_left_inj, Matrix.smul_apply, Matrix.one_apply, smul_eq_mul,
     mul_ite, mul_one, mul_zero]
-  by_cases h : y = y'
-  · subst h
-    simp only [ite_true]
-    rw [← mul_sum, trace]
-    congr 1
-    exact Fintype.sum_equiv (Equiv.addRight y) _ _ fun a => by simp [add_comm]
+  rcases Decidable.eq_or_ne y y' with rfl | h
+  · simp only [↓reduceIte, ← mul_sum, trace]
+    exact congrArg _ (Fintype.sum_equiv (Equiv.addRight y) _ _ fun a => by simp [add_comm])
   · simp [h]
 
 /-- **The Pauli twirl with a reference system**: twirling the first system of `ρ` on
@@ -194,12 +242,9 @@ theorem sum_pauliTwirl_kronecker_one [Fintype κ] [DecidableEq κ]
   simp only [Matrix.sum_apply, hentry, sum_signVal_mul_mul_signVal, add_left_inj,
     Matrix.smul_apply, kroneckerMap_apply, Matrix.one_apply, partialTraceLeft_apply, smul_eq_mul,
     ite_mul, one_mul, zero_mul]
-  by_cases h : y = y'
-  · subst h
-    simp only [ite_true]
-    rw [← mul_sum]
-    congr 1
-    exact Fintype.sum_equiv (Equiv.addRight y) _ _ fun a => by simp [add_comm]
+  rcases Decidable.eq_or_ne y y' with rfl | h
+  · simp only [↓reduceIte, ← mul_sum]
+    exact congrArg _ (Fintype.sum_equiv (Equiv.addRight y) _ _ fun a => by simp [add_comm])
   · simp [h]
 
 end Cslib.Quantum

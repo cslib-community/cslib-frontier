@@ -9,12 +9,12 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningSimulation
+-- Reads private `initial` and unexposed `Device` and `Width` definitions.
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
+-- Reads private `Xofs.attempt` and unexposed `finishSigningAttempt`.
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
+-- Reads private `parsed_of_verifyWithExpansion`, `Xofs.keyGen`, and `Xofs.expandS` defs.
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Computational.MLDSA.Basic
-import all CslibFrontier.Crypto.Primitives.ByteString
-import all CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -50,10 +50,10 @@ theorem Xofs.sampleInBall_writeCommitment (s : Level) (H : Xofs)
     (d : FixedBytes (digestBytes s)) :
     (H.writeCommitment (commitmentInput s w μ) value).sampleInBall s d.toList =
       H.sampleInBall s d.toList := by
-  have sep := (commitmentInput_ne_digestInput w hμ (FixedBytes.length_toList d)).symm
   have row : (H.writeCommitment (commitmentInput s w μ) value).h256.readBytes d.toList 221 =
       H.h256.readBytes d.toList 221 := by
-    simp [Xofs.writeCommitment, ExtendableOutput.withPrefixes, ExtendableOutput.readBytes, sep]
+    simp [Xofs.writeCommitment, ExtendableOutput.withPrefixes, ExtendableOutput.readBytes,
+      (commitmentInput_ne_digestInput w hμ (FixedBytes.length_toList d)).symm]
   unfold Xofs.sampleInBall
   rw [row]
 
@@ -91,8 +91,7 @@ private theorem keyRead (s : Level) (G : Xofs) (rho : FixedBytes 32)
     (Xofs.writeCommitment G (commitmentInput s w (G.representativeFromTr tr m)) v).h256.readBytes
         (encodePublic s rho.toList t) n = G.h256.readBytes (encodePublic s rho.toList t) n := by
   have sep : Keccak.bytesToBitsLE (encodePublic s rho.toList t) ≠
-      commitmentInput s w (G.representativeFromTr tr m) := by
-    intro e
+      commitmentInput s w (G.representativeFromTr tr m) := fun e => by
     have len := congrArg List.length e
     simp only [commitmentInput, Xofs.representativeFromTr, List.length_append, encodePublic,
       Keccak.length_bytesToBitsLE, G.h256.length_read] at len
@@ -106,11 +105,11 @@ private theorem repRead (s : Level) (G : Xofs) (tr : List Byte) (ht : tr.length 
     (miss : G.h256.read (representativeInput tr m) 64 ≠ tr) (other : List Bool) (n : ℕ) :
     (Xofs.writeCommitment G (commitmentInput s w (G.representativeFromTr tr m)) v).h256.read
       (representativeInput tr other) n = G.h256.read (representativeInput tr other) n := by
-  have sep : representativeInput tr other ≠ commitmentInput s w (G.representativeFromTr tr m) := by
-    intro overlap
-    have hl : (Keccak.bytesToBitsLE tr).length = (G.representativeFromTr tr m).length := by
-      simp only [Xofs.representativeFromTr, Keccak.length_bytesToBitsLE, ht, G.h256.length_read]
-    exact miss (Keccak.bytesToBitsLE_injective (List.append_inj overlap hl).1.symm)
+  have sep : representativeInput tr other ≠ commitmentInput s w (G.representativeFromTr tr m) :=
+    fun overlap => by
+      have hl : (Keccak.bytesToBitsLE tr).length = (G.representativeFromTr tr m).length := by
+        simp only [Xofs.representativeFromTr, Keccak.length_bytesToBitsLE, ht, G.h256.length_read]
+      exact miss (Keccak.bytesToBitsLE_injective (List.append_inj overlap hl).1.symm)
   simp [Xofs.writeCommitment, ExtendableOutput.withPrefixes, sep]
 
 
@@ -141,19 +140,16 @@ theorem TerminalSigningWrite.History.read_representative {s : Level} {base G : X
   induction history generalizing formatted n with
   | initial => rfl
   | @append past G prev q w d r x address ih =>
-    have last := miss ⟨q, w, x, d, r⟩ (List.mem_append_right past List.mem_cons_self)
     subst x
-    have prior := ih (fun z hz => miss z (List.mem_append_left _ hz))
-    have current : G.h256.read (representativeInput tr
-        (formatMessage q.message q.context)) 64 ≠ tr := by
-      rw [prior]
-      exact last
-    exact (repRead s G tr ht (formatMessage q.message q.context) w d.toList current
-      formatted n).trans (prior _ _)
+    have prior := ih fun z hz => miss z (List.mem_append_left _ hz)
+    refine (repRead s G tr ht (formatMessage q.message q.context) w d.toList ?_ formatted n).trans
+      (prior _ _)
+    exact (prior _ _).trans_ne
+      (miss ⟨q, w, _, d, r⟩ (List.mem_append_right past List.mem_cons_self))
 
 /-- A signing experiment at the original FIPS seeded law of `(ρ,A,t)`. A setup error
 returns false. The continuation receives the matrix and full vector before public-key rounding. -/
-noncomputable def Xofs.fullPairExperiment (H : Xofs) (s : Level)
+@[expose] noncomputable def Xofs.fullPairExperiment (H : Xofs) (s : Level)
     (run : FixedBytes 32 → MLDSA.PublicKey s.params → Game) : Game :=
   H.keyExperiment s fun keys =>
     ((do
@@ -161,6 +157,33 @@ noncomputable def Xofs.fullPairExperiment (H : Xofs) (s : Level)
       let A ← H.expandA s sk.rho
       let pair : MLDSA.SecretKey s.params := ⟨A, sk.s₁, sk.s₂⟩
       return run (fun j => sk.rho[j.val]!) pair.publicKey) : Option Game).getD (pure false)
+
+/-- Draw the FIPS seed and form the unrounded pair directly from the two expansions of Algorithm
+6. This is the same experiment as generating and decoding the private and public key bytes. -/
+theorem Xofs.fullPairExperiment_eq_expand (H : Xofs) (s : Level)
+    (run : FixedBytes 32 → MLDSA.PublicKey s.params → Game) :
+    H.fullPairExperiment s run = (PMF.uniformOfFintype (FixedBytes 32)).bind fun seed =>
+      let ex := H.expandKeySeed s seed
+      let rho := ex.take 32
+      ((do
+        let A ← H.expandA s rho
+        let (x, e) ← H.expandS s ((ex.drop 32).take 64)
+        return run (fun i => rho[i.val]!) ⟨A, ModuleLWE.sample A x e⟩) : Option Game).getD
+          (PMF.pure false) := by
+  unfold Xofs.fullPairExperiment Xofs.keyExperiment
+  refine congrArg (PMF.bind (PMF.uniformOfFintype (FixedBytes 32)) ·) (funext fun seed => ?_)
+  cases kg : H.keyGen s seed with
+  | none =>
+    unfold Xofs.keyGen at kg
+    cases ha : H.expandA s ((H.expandKeySeed s seed).take 32) <;>
+      cases hs : H.expandS s (((H.expandKeySeed s seed).drop 32).take 64) <;>
+      simp_all
+  | some keys =>
+    obtain ⟨rho, sk, mat, pk, hd, _, _, exp⟩ := privateKey_of_keyGen kg
+    have seedEq : (H.expandKeySeed s seed).take 32 = rho.toList := by
+      rw [← publicSeed_of_keyGen kg, pk, take_encodePublic]
+    simp only [hd, seedEq, mat, exp, Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+      Option.getD_some, MLDSA.SecretKey.publicKey, ModuleLWE.sample]
 
 namespace QuantumSigningForger
 
@@ -208,15 +231,15 @@ theorem ProgrammedSigningResult.ne_written_digest_of_newDigestWin {C : QuantumSi
   cases hr : w.reply with
   | none =>
     have hv := (Bool.and_eq_true_iff.mp win).1
-    apply result.ne_failed_digest hw hr
+    refine result.ne_failed_digest hw hr ?_
     cases h : result.trial.xofs.verify s result.trial.publicKey result.trial.forgery.message
         result.trial.forgery.context result.trial.forgery.signature <;> simp_all
   | some sig =>
     obtain ⟨pref, mem⟩ := result.signed w hw sig hr
     intro eq
-    have repeated : result.trial.repeatsDigest := List.any_eq_true.mpr
-      ⟨_, mem, beq_iff_eq.mpr (pref.trans eq.symm)⟩
-    simp [repeated] at fresh
+    have hrep : result.trial.repeatsDigest :=
+      List.any_eq_true.mpr ⟨_, mem, beq_iff_eq.mpr (pref.trans eq.symm)⟩
+    simp [hrep] at fresh
 
 private structure Terminal (s : Level) (H : Xofs) where
   point : Fin s.params.k → Fin 256 → ℤ
@@ -293,21 +316,15 @@ private theorem freshMaskDraw_eq (s : Level) (sk : MLDSA.SecretKey s.params)
     freshMaskDraw s sk.A ⟨rho, key, tr, sk.s₁, sk.s₂, publicKeyLowPart s.params 13 sk.publicKey⟩ H =
       publicDraw s sk.publicKey H := by
   unfold freshMaskDraw publicDraw
-  congr 1
-  funext d c hc
-  have valid := s.valid
-  have eq := freshSigningAttempt_eq_simulate s.params valid (by cases s <;> decide)
-    (by cases s <;> decide) 13 (hintLimit s) sk h₁ h₂ (inBall_of_sampleInBall hc)
-  rw [← eq]
+  refine congrArg (draw s sk.A H) (funext₂ fun d c => funext fun hc => ?_)
+  rw [← freshSigningAttempt_eq_simulate s.params s.valid (by cases s <;> decide)
+    (by cases s <;> decide) 13 (hintLimit s) sk h₁ h₂ (inBall_of_sampleInBall hc)]
   simp only [freshSigningAttempt, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
     _root_.PMF.bind_map]
-  congr 1
-  funext y
-  apply congrArg _root_.PMF.pure
-  apply recordBytes_map
-  have tab : (Vector.ofFn c).get = c := funext (Vector.get_ofFn c)
+  have hc_get : (Vector.ofFn c).get = c := funext (Vector.get_ofFn c)
+  refine congrArg _ (funext fun y => congrArg _root_.PMF.pure (recordBytes_map _ _ _ _ ?_))
   simp only [finishSigningAttempt, Option.bind_eq_bind, Option.bind_some, Option.pure_def,
-    Option.join_some, compressedSignAttempt, tab]
+    Option.join_some, compressedSignAttempt, hc_get]
 
 private structure History (s : Level) (base : Xofs) (tr : List Byte) where
   xofs : Xofs
@@ -352,16 +369,22 @@ private noncomputable def signingCall (s : Level) {base : Xofs} (tr : List Byte)
   return (w.reply, ⟨G, q.logReply w.reply st.log, writes,
     st.trace.append q w.point w.digest w.reply input rfl, exhausted, signed⟩)
 
+private noncomputable def programmedCommands (C : QuantumSigningForger) (s : Level) (H : Xofs)
+    (tr : List Byte) (draw : (G : Xofs) → PMF (Option (Terminal s G)))
+    (raw : History s H tr → Xofs := (·.xofs)) :=
+  C.statefulSigningCommands raw (signingCall s tr draw)
+
+private noncomputable def runSigningProgram (C : QuantumSigningForger) (s : Level) (H : Xofs)
+    (tr : List Byte) (draw : (G : Xofs) → PMF (Option (Terminal s G))) {α : Type}
+    (p : ProbOracleComp (OracleSpec.sum (fun _ : DeviceRequest (Width C) Empty => List Bool)
+      (fun _ : SigningQuery => Option (List Byte))) α) : PMF (α × Device C × History s H tr) :=
+  ProbOracleComp.runWith (C.programmedCommands s H tr draw) p
+    (C.initial.1, ⟨H, [], [], .initial, by simp, by simp⟩)
+
 private noncomputable def runProgrammed (C : QuantumSigningForger) (s : Level) (H : Xofs)
     (A : PublicMatrix s) (pk tr : List Byte) (draw : (H : Xofs) → PMF (Option (Terminal s H))) :
     PMF (ProgrammedSigningResult C s H) := do
-  let commands := OracleComp.sumHandler (m := StateT (Device C × History s H tr) PMF)
-    (spec₁ := fun _ : DeviceRequest (Width C) Empty => List Bool)
-    (spec₂ := fun _ : SigningQuery => Option (List Byte))
-    (fun cmd st => C.deviceCommand st.2.xofs cmd st)
-    (fun q st => (signingCall s tr draw q st.2).map fun (r, history) => (r, st.1, history))
-  let (f, dev, state) ← ProbOracleComp.runWith commands (C.program pk)
-    (C.initial.1, ⟨H, [], [], .initial, by simp, by simp⟩)
+  let (f, dev, state) ← C.runSigningProgram s H tr draw (C.program pk)
   return ⟨⟨state.xofs, A, pk, f, state.log⟩, tr, state.writes, state.trace, state.exhausted,
     state.signed, dev⟩
 
@@ -420,7 +443,7 @@ theorem freshMaskSigning_eq_publicPair_of_keyGen (C : QuantumSigningForger) {s :
       H.expandA s rho.toList = some sk.A ∧
       keys.publicKey = encodePublic s rho.toList sk.publicKey.t ∧
       C.freshMaskSigning s H keys = (C.publicPairSigning s H rho sk.publicKey).map some := by
-  obtain ⟨rho, sk, ha, hpk, hd, h₁, h₂⟩ := privateKey_of_keyGen hg
+  obtain ⟨rho, sk, ha, hpk, hd, h₁, h₂, _⟩ := privateKey_of_keyGen hg
   exact ⟨rho, sk, ha, hpk, C.freshMaskSigning_eq_of_decoded s H keys rho sk _ ha hpk hd h₁ h₂⟩
 
 /-- Fresh-digest **winning game** for the ideal-mask, fresh-digest signing hybrid: replace
@@ -433,23 +456,19 @@ theorem freshMask_newDigestGame_eq_publicPair (C : QuantumSigningForger) (s : Le
       (C.freshMaskSigning s H keys).map (·.any fun r => r.trial.newDigestWin)) =
     ((base.uniformPrefixes a b).bind fun H => H.fullPairExperiment s fun ρ pair =>
       (C.publicPairSigning s H ρ pair).map fun r => r.trial.newDigestWin) := by
-  apply congrArg (base.uniformPrefixes a b).bind
-  funext H
+  refine congrArg (base.uniformPrefixes a b).bind (funext fun H => ?_)
   unfold Xofs.fullPairExperiment Xofs.keyExperiment
-  apply congrArg (PMF.uniformOfFintype (FixedBytes 32)).bind
-  funext seed
+  refine congrArg (PMF.uniformOfFintype (FixedBytes 32)).bind (funext fun seed => ?_)
   cases hg : H.keyGen s seed with
   | none => rfl
   | some keys =>
-    obtain ⟨ρ, sk, ha, pk, hd, h₁, h₂⟩ := privateKey_of_keyGen hg
-    have rho : (fun i : Fin 32 => ρ.toList[i.val]!) = ρ := by
-      funext i
+    obtain ⟨ρ, sk, ha, pk, hd, h₁, h₂, _⟩ := privateKey_of_keyGen hg
+    have hrho : (fun i : Fin 32 => ρ.toList[i.val]!) = ρ := funext fun i => by
       simp only [FixedBytes.toList, List.length_ofFn, getElem!_pos, i.isLt, List.getElem_ofFn]
-    have same := C.freshMaskSigning_eq_of_decoded s H keys ρ sk _ ha pk hd h₁ h₂
     dsimp only
-    rw [same, _root_.PMF.map_comp]
+    rw [C.freshMaskSigning_eq_of_decoded s H keys ρ sk _ ha pk hd h₁ h₂, _root_.PMF.map_comp]
     simp only [hd, ha, Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.getD_some,
-      rho]
+      hrho]
     rfl
 
 /-- A changed message representative in a real output of the public-pair simulator yields a
@@ -468,23 +487,18 @@ theorem publicPairSigning_match_of_changed_representative {C : QuantumSigningFor
       base.h256.read (addr w) 64 = tr := by
   intro tr addr
   obtain ⟨pk, hash⟩ := publicPairSigning_key_of_mem hr
-  have ht : result.tr.length = 64 := hash ▸ base.h256.length_read ..
-  have pkread := result.history.read_publicKey rho pair.t 64
-  rw [← pk] at pkread
+  have pkread := pk ▸ result.history.read_publicKey rho pair.t 64
   cases found : result.writes.find? (fun z => base.h256.read (addr z) 64 == tr) with
-  | some w => exact ⟨w, rfl,
-      beq_iff_eq.mp (List.find?_some (p := fun z => base.h256.read (addr z) 64 == tr) found)⟩
+  | some w =>
+    exact ⟨w, rfl, beq_iff_eq.mp
+      (List.find?_some (p := fun z => base.h256.read (addr z) 64 == tr) found)⟩
   | none =>
-    exfalso
-    apply changed
-    have clean (w) (hw : w ∈ result.writes) :
-        base.h256.read (representativeInput result.tr
-          (formatMessage w.request.message w.request.context)) 64 ≠ result.tr := by
-      have miss := List.find?_eq_none.mp found w hw
-      simpa only [hash, addr, tr, beq_iff_eq] using miss
-    have same := result.history.read_representative ht clean formatted 64
-    rw [hash] at same
-    simp only [Xofs.messageRepresentative, Xofs.representativeFromTr, pkread, same]
+    refine (changed ?_).elim
+    have same := result.history.read_representative (hash ▸ base.h256.length_read ..)
+      (fun w hw =>
+        by simpa only [hash, addr, tr, beq_iff_eq] using List.find?_eq_none.mp found w hw)
+      formatted 64
+    simp only [Xofs.messageRepresentative, Xofs.representativeFromTr, pkread, hash ▸ same]
 
 end QuantumSigningForger
 

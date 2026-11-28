@@ -22,9 +22,10 @@ import CslibFrontier.Tactic.PolyTime
 /-!
 # Automatic Liu–Pass threshold arithmetic
 
-The first goal retains the original threshold expression, arbitrary constants and automatic
-proof script from `OneWay/LiuPass.lean`, at its original default budget. It does not invoke the
-private named threshold certificate or supply intermediate arithmetic certificates.
+The first goal retains the original threshold expression, arbitrary constants and default
+budget from `OneWay/LiuPass.lean`. Literal let normalization precedes `fun_prop`; it does not
+invoke the private named threshold certificate or supply intermediate arithmetic certificates.
+The exact former script without normalization remains an automation gap tracked in #1155.
 The separate captured-callback controls test that an arbitrary leaf needs its own certificate.
 -/
 
@@ -44,6 +45,7 @@ set_option maxHeartbeats 200000 in
 example (γ d c : ℕ) :
     ComputableInPolyTime (thresholdValue γ d c) encUnary encUnary := by
   unfold thresholdValue
+  dsimp only
   fun_prop
 
 set_option maxHeartbeats 200000 in
@@ -53,6 +55,7 @@ example (γ d c : ℕ) (leaf : ℕ → ℕ)
     ComputableInPolyTime (fun n =>
       let m := n + γ * leaf n - c
       m - (2 * leaf n + 3) - d * (leaf m + 1)) encUnary encUnary := by
+  dsimp only
   fun_prop
 
 -- The complete missing-leaf control still times out under both default and 256-step

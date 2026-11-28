@@ -13,6 +13,7 @@ public import CslibFrontier.Languages.Probabilistic.BitString
 public import CslibFrontier.Probability.Product
 public import Mathlib.Data.FinEnum
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -26,18 +27,23 @@ import CslibFrontier.Tactic.PolyTime
 /-!
 # Word-level random-oracle DH-KEM and certified Gap-CDH reduction
 
-Over a `DecodablePrimeOrderGroupFamily`, this module states the word-level random-oracle Diffie–
-Hellman key-encapsulation mechanism ([KatzLindell2020], Construction 12.19, p. 431) and its
+Over a `DecodablePrimeOrderGroupFamily`, this module states the fair-coin word-level random-oracle
+Diffie–Hellman key-encapsulation mechanism ([KatzLindell2020], Construction 12.19, p. 431) and its
 word-level ROM IND-CCA security notion ([KatzLindell2020], Definition 12.13, p. 425), together with
 the explicit word-level Gap-CDH reduction `dhKEMToGapCDHWord` of Theorem 12.22 (p. 435) and its
 uniform strict oracle-PPT certificate `isOraclePPTOn_dhKEMToGapCDHWord`.
 
-On decapsulation of a candidate ciphertext word `c`, `dhKEMDecapsWord` validates group membership
-via `F.decode d c` (`F.isElem`) and rejects words outside `Set.range (F.encode d)` with `none`,
-following the ciphertext-validation remark of [KatzLindell2020], Construction 12.23 (pp. 435–436).
-In `dhKEMCCAWordGame`, the random oracle `H : F.Carrier d → BitString (keyLen n)` is drawn
-uniformly, hash queries outside `Set.range (F.encode d)` return `[]`, and decapsulation refuses
-both `c = cStar` and `¬ F.isElem (d, c)` with `encOption encBits none = []`.
+Honest key generation `dhKEMKeyGenWordProb` and encapsulation `dhKEMEncapsWordProb` sample their
+exponents in uniform strict (oracle) PPT over fair coins via `PrimeOrderGroupFamily.sampleExp`
+(within statistical distance `1 / 2 ^ n` of uniform on `ZMod (F.order d)`), and
+`dhKEMDecapsWordOracle` validates canonical group membership via `F.isElem` before evaluating the
+random oracle, rejecting words outside `Set.range (F.encode d)` with `none` following the
+ciphertext-validation remark of [KatzLindell2020], Construction 12.23 (pp. 435–436). In
+`dhKEMCCAWordGame`, the random oracle `H : F.Carrier d → BitString (keyLen n)` is drawn uniformly,
+key generation, challenge encapsulation, and non-challenge decapsulation queries execute
+`dhKEMKeyGenWordProb`, `dhKEMEncapsWordProb`, and `dhKEMDecapsWordOracle` against `dhKEMROAnswer`,
+hash queries outside `Set.range (F.encode d)` return `[]`, and decapsulation refuses `c = cStar`
+with `[]`.
 
 `dhKEMToGapCDHWord` mirrors `PrimeOrderGroupFamily.dhKEMToGapCDH` on words: when the public key
 word equals `F.encode d 0` it outputs `F.encode d 0`; otherwise it samples a uniform `keyLen n`-bit
@@ -52,13 +58,24 @@ satisfying `queryDDHWord cStar z`. Its oracle-PPT certificate uses only `IsOracl
   operations and encoded challenge input `(d, h, c⋆, k̂)` of a word-level ROM IND-CCA adversary.
 * `Cslib.Crypto.DHKEMSimEntry`, `Cslib.Crypto.encDHKEMSimEntry`: query-table entry record and
   encoding for the word reduction's `List.findSomeM?` scans.
+* `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DHKEMKeyPair`,
+  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.encDHKEMKeyPair`,
+  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DHKEMEncapsOutput`,
+  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.encDHKEMEncapsOutput`: key-pair and encapsulation
+  output records and their encodings.
 * `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMEncapsWord`,
-  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMDecapsWord`: word-level encapsulation and
-  membership-validating decapsulation of Construction 12.19.
-* `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMCCAWordAnswer`,
+  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMDecapsWord`: fixed-oracle word-level
+  encapsulation and subgroup-validating decapsulation specifications.
+* `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMKeyGenWordProb`,
+  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMEncapsWordProb`,
+  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMDecapsWordOracle`: fair-coin honest word-level
+  key generation, ROM encapsulation, and subgroup-validating ROM decapsulation of Construction
+  12.19.
+* `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMROAnswer`,
+  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMCCAWordAnswer`,
   `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMCCAWordGame`,
-  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DHKEMROMINDCCA`: word-level ROM IND-CCA oracle,
-  experiment, and asymptotic security definition.
+  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DHKEMROMINDCCA`: word-level ROM IND-CCA oracles,
+  fair-coin experiment and security definition.
 * `Cslib.Crypto.DecodablePrimeOrderGroupFamily.simWordHandler`,
   `Cslib.Crypto.DecodablePrimeOrderGroupFamily.extractDHWord`,
   `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMToGapCDHWord`: word-level query simulator,
@@ -67,8 +84,13 @@ satisfying `queryDDHWord cStar z`. Its oracle-PPT certificate uses only `IsOracl
 ## Main results
 
 * `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMDecapsWord_encapsWord`,
-  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMDecapsWord_of_not_isElem`: decapsulation
-  recovers honest keys and rejects malformed ciphertexts.
+  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMDecapsWord_of_not_isElem`,
+  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.run_dhKEMDecapsWordOracle_of_mem_support`:
+  decapsulation recovers honest keys and rejects malformed ciphertexts.
+* `Cslib.Crypto.DecodablePrimeOrderGroupFamily.isPPTOn_dhKEMKeyGenWordProb`,
+  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.isOraclePPTOn_dhKEMEncapsWordProb`,
+  `Cslib.Crypto.DecodablePrimeOrderGroupFamily.isOraclePPTOn_dhKEMDecapsWordOracle`: uniform
+  strict-(oracle-)PPT certificates for the honest algorithms of Construction 12.19.
 * `Cslib.Crypto.DecodablePrimeOrderGroupFamily.isOraclePPTOn_dhKEMToGapCDHWord`: uniform strict
   oracle-PPT certificate for `dhKEMToGapCDHWord`.
 
@@ -171,13 +193,19 @@ def extractSelectWord (cStar : List Bool) (e : DHKEMSimEntry) :
 
 namespace DecodablePrimeOrderGroupFamily
 
-variable (F : DecodablePrimeOrderGroupFamily)
+/-- Output of fair-coin word-level DH-KEM key generation: encoded public key element paired with
+the sampled secret exponent residue `secretKey < F.order d`. -/
+structure DHKEMKeyPair where
+  /-- Encoded public key `F.encode d ((secretKey : ZMod (F.order d)) • F.generator d)`. -/
+  publicKey : List Bool
+  /-- Secret exponent residue sampled by `PrimeOrderGroupFamily.sampleExp`. -/
+  secretKey : ℕ
+  deriving DecidableEq
 
-/-- Canonical `Fintype` instance on `F.Carrier d` induced by the bijection
-`α ↦ α • F.generator d` from `ZMod (F.order d)`. -/
-@[instance_reducible]
-noncomputable def fintypeCarrier (d : F.Desc) : Fintype (F.Carrier d) :=
-  Fintype.ofBijective _ (F.toPrimeOrderGroupFamily.smul_generator_bijective d)
+/-- Encoding of `DHKEMKeyPair` as the framed pair `(publicKey, secretKey)` with binary
+`secretKey`. -/
+enc_structure encDHKEMKeyPair : DHKEMKeyPair where
+  publicKey : encBits, secretKey : encNat
 
 /-- Output of word-level DH-KEM encapsulation: encoded group-element ciphertext and key word. -/
 structure DHKEMEncapsOutput where
@@ -186,6 +214,18 @@ structure DHKEMEncapsOutput where
   /-- Encapsulated symmetric key word `List.ofFn (H (y • h))`. -/
   key : List Bool
   deriving DecidableEq
+
+/-- Encoding of `DHKEMEncapsOutput` as the framed pair `(ciphertext, key)`. -/
+enc_structure encDHKEMEncapsOutput : DHKEMEncapsOutput where
+  ciphertext : encBits, key : encBits
+
+variable (F : DecodablePrimeOrderGroupFamily)
+
+/-- Canonical `Fintype` instance on `F.Carrier d` induced by the bijection
+`α ↦ α • F.generator d` from `ZMod (F.order d)`. -/
+@[instance_reducible]
+noncomputable def fintypeCarrier (d : F.Desc) : Fintype (F.Carrier d) :=
+  Fintype.ofBijective _ (F.toPrimeOrderGroupFamily.smul_generator_bijective d)
 
 /-- Word-level encapsulation of [KatzLindell2020], Construction 12.19 (p. 431), for random oracle
 `H`, public key element `h`, and ephemeral exponent `y`: outputs the encoded ciphertext
@@ -218,51 +258,156 @@ theorem dhKEMDecapsWord_of_not_isElem (d : F.Desc) {m : ℕ} (H : F.Carrier d �
     F.decode_eq_none_iff.mpr ((F.isElem_eq_false_iff d ciphertext).mp hc)
   simp [dhKEMDecapsWord, hnone]
 
-/-- Word-level ROM IND-CCA oracle answer for Construction 12.19: `.hash w` evaluates `H` when
-`F.decode d w = some z` and returns `[]` otherwise; `.decaps c` refuses `c = cStar` with `[]`
-(`encOption encBits none`) and otherwise encodes `F.dhKEMDecapsWord d H x c` via
-`encOption encBits`. -/
+/-- Fair-coin word-level key generation of [KatzLindell2020], Construction 12.19 (p. 431), at
+security parameter `n` and group `d`: samples `x ← F.toPrimeOrderGroupFamily.sampleExp n d`
+(within statistical distance `1 / 2 ^ n` of uniform on `ZMod (F.order d)`) and outputs the encoded
+public key `F.smul (d, x, F.encode d (F.generator d))` paired with `x`. -/
+noncomputable def dhKEMKeyGenWordProb (n : ℕ) (d : F.Desc) : ProbComp DHKEMKeyPair := do
+  let x ← F.toPrimeOrderGroupFamily.sampleExp n d
+  return ⟨F.smul (d, x, F.encode d (F.generator d)), x⟩
+
+/-- Fair-coin word-level random-oracle encapsulation of [KatzLindell2020], Construction 12.19
+(p. 431), at security parameter `n`, group `d`, and symmetric key length `keyLen`: samples
+`y ← F.toPrimeOrderGroupFamily.sampleExp n d`, computes the ciphertext word
+`F.smul (d, y, F.encode d (F.generator d))` and shared Diffie–Hellman word
+`F.smul (d, y, publicKey)`, and reads `keyLen n` bits from the random-oracle reply at that shared
+word. -/
+noncomputable def dhKEMEncapsWordProb (keyLen : ℕ → ℕ) (n : ℕ) (d : F.Desc)
+    (publicKey : List Bool) : WordOracleComp Unit DHKEMEncapsOutput := do
+  let y ← ProbOracleComp.sample (F.toPrimeOrderGroupFamily.sampleExp n d)
+  let ciphertext := F.smul (d, y, F.encode d (F.generator d))
+  let shared := F.smul (d, y, publicKey)
+  let key ← List.take (keyLen n) <$> ProbOracleComp.query ((), shared)
+  return ⟨ciphertext, key⟩
+
+/-- Word-level random-oracle decapsulation of [KatzLindell2020], Construction 12.19 (p. 431), with
+explicit subgroup validation ([KatzLindell2020], Construction 12.23, pp. 435–436): rejects words
+failing `F.isElem (d, ciphertext)` with `none`, and otherwise computes
+`F.smul (d, secretKey, ciphertext)` and reads `keyLen n` bits from the random-oracle reply. -/
+def dhKEMDecapsWordOracle (keyLen : ℕ → ℕ) (n : ℕ) (d : F.Desc) (secretKey : ℕ)
+    (ciphertext : List Bool) : WordOracleComp Unit (Option (List Bool)) :=
+  if F.isElem (d, ciphertext) then do
+    let shared := F.smul (d, secretKey, ciphertext)
+    let key ← List.take (keyLen n) <$> ProbOracleComp.query ((), shared)
+    return some key
+  else
+    return none
+
+/-- Word-level random-oracle reply for `H : F.Carrier d → BitString m`: evaluates `H` on canonical
+group encodings (`F.decode d w = some z`) and returns `[]` outside `Set.range (F.encode d)`. -/
+def dhKEMROAnswer (d : F.Desc) {m : ℕ} (H : F.Carrier d → BitString m) (w : List Bool) :
+    List Bool :=
+  match F.decode d w with
+  | some z => List.ofFn (H z)
+  | none => []
+
+/-- Running `dhKEMEncapsWordProb` on an encoded group element `F.encode d h` against
+`dhKEMROAnswer d H` evaluates `dhKEMEncapsWord d H h` at the sampled exponent
+`y ← F.toPrimeOrderGroupFamily.sampleExp n d`. -/
+theorem run_dhKEMEncapsWordProb (keyLen : ℕ → ℕ) (n : ℕ) (d : F.Desc)
+    (H : F.Carrier d → BitString (keyLen n)) (h : F.Carrier d) :
+    (F.dhKEMEncapsWordProb keyLen n d (F.encode d h)).run
+        (fun req => pure (F.dhKEMROAnswer d H req.2)) =
+      (fun y : ℕ => F.dhKEMEncapsWord d H h (y : ZMod (F.order d))) <$>
+        F.toPrimeOrderGroupFamily.sampleExp n d := by
+  simp only [dhKEMEncapsWordProb, dhKEMEncapsWord, dhKEMROAnswer, ProbOracleComp.run_bind,
+    ProbOracleComp.run_sample, ProbOracleComp.run_map, ProbOracleComp.run_query,
+    map_pure, bind_pure_comp, F.smul_encode, F.decode_encode]
+  refine congrArg (· <$> _) (funext fun y => ?_)
+  simp [List.take_of_length_le (by simp : (List.ofFn (H _)).length ≤ keyLen n)]
+
+/-- Running `dhKEMDecapsWordOracle` against `dhKEMROAnswer d H` computes
+`F.dhKEMDecapsWord d H (secretKey : ZMod (F.order d)) ciphertext` on every candidate word,
+including malformed ciphertexts outside `Set.range (F.encode d)`. -/
+@[simp] theorem run_dhKEMDecapsWordOracle (keyLen : ℕ → ℕ) (n : ℕ) (d : F.Desc)
+    (H : F.Carrier d → BitString (keyLen n)) (secretKey : ℕ) (ciphertext : List Bool) :
+    (F.dhKEMDecapsWordOracle keyLen n d secretKey ciphertext).run
+        (fun req => pure (F.dhKEMROAnswer d H req.2)) =
+      pure (F.dhKEMDecapsWord d H (secretKey : ZMod (F.order d)) ciphertext) := by
+  cases hdec : F.decode d ciphertext with
+  | none =>
+    have his : F.isElem (d, ciphertext) = false := by simp [isElem, hdec]
+    simp [dhKEMDecapsWordOracle, dhKEMDecapsWord, his, hdec]
+  | some C =>
+    have hw : ciphertext = F.encode d C := F.encode_eq_of_decode_eq_some hdec
+    subst hw
+    simp [dhKEMDecapsWordOracle, dhKEMDecapsWord, dhKEMROAnswer, F.smul_encode, F.decode_encode,
+      List.take_of_length_le (by simp : (List.ofFn (H _)).length ≤ keyLen n)]
+
+/-- **Decapsulation correctness for the fair-coin word-level DH-KEM**: for every key pair `keys`
+generated by `dhKEMKeyGenWordProb n d` and every encapsulation `out` produced by
+`dhKEMEncapsWordProb keyLen n d keys.publicKey` against `dhKEMROAnswer d H`, running
+`dhKEMDecapsWordOracle keyLen n d keys.secretKey out.ciphertext` against the same random oracle
+returns `pure (some out.key)`. -/
+theorem run_dhKEMDecapsWordOracle_of_mem_support (keyLen : ℕ → ℕ) (n : ℕ) (d : F.Desc)
+    (H : F.Carrier d → BitString (keyLen n)) {keys : DHKEMKeyPair}
+    (hkeys : keys ∈ (ProbComp.eval (F.dhKEMKeyGenWordProb n d)).support)
+    {out : DHKEMEncapsOutput}
+    (hout : out ∈ (ProbComp.eval ((F.dhKEMEncapsWordProb keyLen n d keys.publicKey).run
+      fun req => pure (F.dhKEMROAnswer d H req.2))).support) :
+    (F.dhKEMDecapsWordOracle keyLen n d keys.secretKey out.ciphertext).run
+        (fun req => pure (F.dhKEMROAnswer d H req.2)) =
+      pure (some out.key) := by
+  simp only [dhKEMKeyGenWordProb, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
+    PMF.mem_support_pure_iff, F.smul_encode] at hkeys
+  obtain ⟨x, -, rfl⟩ := hkeys
+  rw [F.run_dhKEMEncapsWordProb, ProbComp.eval_map, PMF.mem_support_map_iff] at hout
+  obtain ⟨y, -, rfl⟩ := hout
+  simp
+
+/-- Word-level ROM IND-CCA oracle answer for Construction 12.19: `.hash w` replies via
+`F.dhKEMROAnswer d H w`; `.decaps c` refuses `c = cStar` with `[]` (`encOption encBits none`) and
+otherwise encodes `F.dhKEMDecapsWord d H x c` via `encOption encBits`. -/
 def dhKEMCCAWordAnswer (d : F.Desc) {m : ℕ} (H : F.Carrier d → BitString m)
     (x : ZMod (F.order d)) (cStar : List Bool) : DHKEMOp × List Bool → List Bool
-  | (.hash, w) =>
-    match F.decode d w with
-    | some z => List.ofFn (H z)
-    | none => []
+  | (.hash, w) => F.dhKEMROAnswer d H w
   | (.decaps, c) =>
     if c = cStar then []
     else encOption encBits (F.dhKEMDecapsWord d H x c)
 
-/-- Fixed-group word-level ROM IND-CCA game for Construction 12.19 at parameter `n` and group `d`:
-`bit = true` supplies the real encapsulated key (`b = 0` in [KatzLindell2020], Definition 12.13,
-p. 425) and `bit = false` supplies an independent uniform `keyLen n`-bit key (`b = 1`). -/
+/-- Fixed-group fair-coin word-level ROM IND-CCA game for Construction 12.19 at security parameter
+`n` and group `d`: draws the random oracle `H : F.Carrier d → BitString (keyLen n)` uniformly, runs
+the fair-coin key generator `dhKEMKeyGenWordProb n d` and challenge encapsulator
+`dhKEMEncapsWordProb keyLen n d` against `dhKEMROAnswer d H`, supplies the real encapsulated key
+when `bit = true` (`b = 0` in [KatzLindell2020], Definition 12.13, p. 425) and an independent
+uniform `keyLen n`-bit key when `bit = false` (`b = 1`), and answers random-oracle and
+non-challenge decapsulation queries via `dhKEMROAnswer` and `dhKEMDecapsWordOracle`. -/
 noncomputable def dhKEMCCAWordGameAt (keyLen : ℕ → ℕ)
     (adversary : ℕ → List Bool → WordOracleComp DHKEMOp Bool) (bit : Bool) (n : ℕ)
     (d : F.Desc) : Game :=
   letI : Fintype (F.Carrier d) := F.fintypeCarrier d
   do
-    let x ← PMF.uniformOfFintype (ZMod (F.order d))
-    let y ← PMF.uniformOfFintype (ZMod (F.order d))
     let H ← Probability.PMF.pi fun _ : F.Carrier d =>
       ProbComp.eval (ProbComp.uniform (BitString (keyLen n)))
+    let keys ← ProbComp.eval (F.dhKEMKeyGenWordProb n d)
+    let ⟨cStar, kReal⟩ ← ProbComp.eval
+      ((F.dhKEMEncapsWordProb keyLen n d keys.publicKey).run
+        fun req => pure (F.dhKEMROAnswer d H req.2))
     let random ← ProbComp.eval (ProbComp.uniform (BitString (keyLen n)))
-    let ⟨cStar, kReal⟩ := F.dhKEMEncapsWord d H (x • F.generator d) y
     let challenge := encDHKEMChallenge F.toPrimeOrderGroupFamily
-      ⟨d, F.encode d (x • F.generator d), cStar, if bit then kReal else List.ofFn random⟩
-    ProbComp.eval ((adversary n challenge).run
-      fun req => pure (F.dhKEMCCAWordAnswer d H x cStar req))
+      ⟨d, keys.publicKey, cStar, if bit then kReal else List.ofFn random⟩
+    ProbComp.eval ((adversary n challenge).run fun
+      | (.hash, w) => pure (F.dhKEMROAnswer d H w)
+      | (.decaps, c) =>
+        if c = cStar then pure []
+        else encOption encBits <$>
+          (F.dhKEMDecapsWordOracle keyLen n d keys.secretKey c).run
+            fun req => pure (F.dhKEMROAnswer d H req.2))
 
-/-- **Word-level ROM IND-CCA game** for Construction 12.19 ([KatzLindell2020], Definition 12.13,
-p. 425, and Construction 12.19, p. 431) over `setup` and symmetric key length `keyLen`. -/
+/-- **Fair-coin word-level ROM IND-CCA game** for Construction 12.19 ([KatzLindell2020], Definition
+12.13, p. 425, and Construction 12.19, p. 431) over `setup` and symmetric key length `keyLen`. -/
 noncomputable def dhKEMCCAWordGame (setup : ℕ → PMF F.Desc) (keyLen : ℕ → ℕ)
     (adversary : ℕ → List Bool → WordOracleComp DHKEMOp Bool) (bit : Bool) (n : ℕ) : Game :=
   (setup n).bind (F.dhKEMCCAWordGameAt keyLen adversary bit n)
 
-/-- **Random-oracle IND-CCA security** of the word-level DH-KEM (Construction 12.19) with key
-length `keyLen`: every uniform strict oracle-PPT adversary has negligible distinguishing advantage
-between the real-key (`bit = true`) and random-key (`bit = false`) worlds.
+/-- **Random-oracle IND-CCA security** of the fair-coin word-level DH-KEM (Construction 12.19, with
+subgroup-validating decapsulation as in Construction 12.23) with key length `keyLen`: every uniform
+strict oracle-PPT adversary has negligible distinguishing advantage between the real-key
+(`bit = true`) and random-key (`bit = false`) worlds of `dhKEMCCAWordGame`.
 
-This notion is DH-KEM-specific and local to this module, pending the generic KEM records of the
-crypto readability program (#4817, I3 #4894). -/
+Encapsulation, decapsulation and the adversary share one random function in this game.
+The generic `Cslib.Crypto.KEM.cpaExperiment` runs closed honest algorithms and gives the
+distinguisher a single challenge. -/
 def DHKEMROMINDCCA (setup : ℕ → PMF F.Desc) (keyLen : ℕ → ℕ) : Prop :=
   Game.Indistinguishable
     (fun A n => F.dhKEMCCAWordGame setup keyLen A true n)
@@ -369,7 +514,7 @@ private theorem isOraclePPTOn_findSomeM? {α : Type} {input : α ↪ List Bool}
   have hisEmpty : ComputableInPolyTime
       (fun p : α × SearchState => p.2.remaining.isEmpty)
       (encPair input encSearchState) encBool :=
-    (ComputableTidilyInPolyTime.listIsEmpty' encDHKEMSimEntry).computableInPolyTime.comp
+    (ComputableInPolyTime.listIsEmpty' encDHKEMSimEntry).comp
       (by polytime)
   have hcond : ComputableInPolyTime
       (fun p : α × SearchState => p.2.found.isSome || p.2.remaining.isEmpty)
@@ -384,7 +529,7 @@ private theorem isOraclePPTOn_findSomeM? {α : Type} {input : α ↪ List Bool}
       (fun q : (α × SearchState) × Option (List Bool) => q.1.2.remaining.tail)
       (encPair (encPair input encSearchState) (encOption encBits))
       (encList encDHKEMSimEntry) :=
-    (ComputableTidilyInPolyTime.listTail encDHKEMSimEntry).computableInPolyTime.comp
+    (ComputableInPolyTime.listTail encDHKEMSimEntry).comp
       (by polytime)
   have hpost : ComputableInPolyTime
       (fun q : (α × SearchState) × Option (List Bool) =>
@@ -512,6 +657,30 @@ private theorem isOraclePPTOn_simLookup {select : SimCall F.toPrimeOrderGroupFam
     cases p.2 <;> simp [bind_pure_comp]
   exact hfind.bind_with hcont
 
+private theorem dhkem_eq_key_of_mem_support_select {w : List Bool} {e : DHKEMSimEntry}
+    {v : List Bool}
+    (h : some v ∈ OracleComp.support (hashSelectWord w e) ∨
+      some v ∈ OracleComp.support (decapsSelectWord w e)) : v = e.key := by
+  have hpure {b : Bool} (hv : some v ∈ OracleComp.support
+      (pure (if b then some e.key else none) : WordOracleComp Unit (Option (List Bool)))) :
+      v = e.key := by
+    simp only [OracleComp.support, OracleComp.supportWith_pure, Set.mem_singleton_iff] at hv
+    split_ifs at hv
+    exact Option.some.inj hv
+  have hmap {q : WordOracleComp Unit Bool}
+      (hv : some v ∈ OracleComp.support ((fun b => if b then some e.key else none) <$> q)) :
+      v = e.key := by
+    simp only [OracleComp.support, OracleComp.mem_supportWith_map_iff] at hv
+    obtain ⟨(_ | _), _, hb⟩ := hv
+    · simp at hb
+    · exact Option.some.inj hb.symm
+  rcases h with h | h <;> by_cases hd : e.isDecaps <;>
+    simp only [hashSelectWord, decapsSelectWord, hd, Bool.false_eq_true, ↓reduceIte] at h
+  · exact hmap h
+  · exact hpure h
+  · exact hpure h
+  · exact hmap h
+
 private theorem isOraclePPTOn_simWordHandler {keyLen : ℕ → ℕ}
     (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary) :
     IsOraclePPTOn
@@ -531,29 +700,11 @@ private theorem isOraclePPTOn_simWordHandler {keyLen : ℕ → ℕ}
       (ComputableInPolyTime.isOraclePPTOn (Operation := Unit) (by polytime)) ?_
     exact (isOraclePPTOn_queryDDHWord (by polytime) (by polytime)).map_with (by polytime)
   have hhashLookup := F.isOraclePPTOn_simLookup (select := fun c e => hashSelectWord c.word e)
-    hkeyLen false hhashSel fun _ e v hv => by
-      by_cases hd : e.isDecaps
-      · simp only [hashSelectWord, hd, ↓reduceIte, OracleComp.support,
-          OracleComp.mem_supportWith_map_iff] at hv
-        obtain ⟨b, _, hb⟩ := hv
-        cases b <;> simp only [↓reduceIte, reduceCtorEq, Option.some.injEq] at hb
-        exact hb ▸ Nat.le_add_left _ _
-      · simp only [hashSelectWord, hd, Bool.false_eq_true, ↓reduceIte, OracleComp.support,
-          OracleComp.supportWith_pure, Set.mem_singleton_iff] at hv
-        split_ifs at hv with heq
-        · injection hv.symm with hv'; exact hv' ▸ Nat.le_add_left _ _
+    hkeyLen false hhashSel fun _ _ _ hv =>
+      dhkem_eq_key_of_mem_support_select (.inl hv) ▸ Nat.le_add_left _ _
   have hdecLookup := F.isOraclePPTOn_simLookup (select := fun c e => decapsSelectWord c.word e)
-    hkeyLen true hdecSel fun _ e v hv => by
-      by_cases hd : e.isDecaps
-      · simp only [decapsSelectWord, hd, ↓reduceIte, OracleComp.support,
-          OracleComp.supportWith_pure, Set.mem_singleton_iff] at hv
-        split_ifs at hv with heq
-        · injection hv.symm with hv'; exact hv' ▸ Nat.le_add_left _ _
-      · simp only [decapsSelectWord, hd, Bool.false_eq_true, ↓reduceIte, OracleComp.support,
-          OracleComp.mem_supportWith_map_iff] at hv
-        obtain ⟨b, _, hb⟩ := hv
-        cases b <;> simp only [↓reduceIte, reduceCtorEq, Option.some.injEq] at hb
-        exact hb ▸ Nat.le_add_left _ _
+    hkeyLen true hdecSel fun _ _ _ hv =>
+      dhkem_eq_key_of_mem_support_select (.inr hv) ▸ Nat.le_add_left _ _
   have hop : ComputableInPolyTime (SimCall.op (F := F.toPrimeOrderGroupFamily))
       (encSimCall F.toPrimeOrderGroupFamily) (encFinEnum DHKEMOp) :=
     encSimCall_op_polyTime F.toPrimeOrderGroupFamily ComputableInPolyTime.id'
@@ -594,84 +745,66 @@ private theorem simWordHandler_preserve (keyLen : ℕ → ℕ)
         (encList encDHKEMSimEntry table).length +
           (4 * req.2.length + 2 * keyLen c.input.secParam + 16) := by
   obtain ⟨op, w⟩ := req
+  obtain ⟨resKey, resTable⟩ := res
+  dsimp only
+  have hlookup (isDec : Bool) (select : DHKEMSimEntry → WordOracleComp Unit (Option (List Bool)))
+      (hsel : ∀ e v, some v ∈ OracleComp.support (select e) → v = e.key)
+      {key : List Bool} {t' : List DHKEMSimEntry}
+      (hm : (key, t') ∈ OracleComp.support
+        (simLookupWord (keyLen c.input.secParam) select isDec w table)) :
+      (∀ e ∈ t', e.key.length ≤ keyLen c.input.secParam) ∧
+        key.length ≤ keyLen c.input.secParam ∧
+        (encList encDHKEMSimEntry t').length ≤
+          (encList encDHKEMSimEntry table).length +
+            (4 * w.length + 2 * keyLen c.input.secParam + 16) := by
+    simp only [simLookupWord, OracleComp.support, OracleComp.mem_supportWith_bind_iff] at hm
+    obtain ⟨found, hfound, hm⟩ := hm
+    cases found with
+    | some k =>
+      simp only [OracleComp.supportWith_pure, Set.mem_singleton_iff, Prod.mk.injEq] at hm
+      obtain ⟨rfl, rfl⟩ := hm
+      obtain ⟨e, he, hse⟩ := mem_support_findSomeM? hfound
+      exact ⟨hinv, hsel e _ hse ▸ hinv e he, by omega⟩
+    | none =>
+      have hm' : (key, t') ∈ OracleComp.support (do
+          let k ← ProbOracleComp.sample (BitString.sampleList (keyLen c.input.secParam))
+          pure (k, DHKEMSimEntry.mk isDec w k :: table)) := hm
+      simp only [OracleComp.support, OracleComp.mem_supportWith_bind_iff,
+        OracleComp.supportWith_pure, Set.mem_singleton_iff, Prod.mk.injEq] at hm'
+      obtain ⟨_, hk, rfl, rfl⟩ := hm'
+      have hks : key ∈ OracleComp.support
+          (ProbOracleComp.sample (BitString.sampleList (keyLen c.input.secParam))) := hk
+      have hlen : key.length = keyLen c.input.secParam := by
+        simpa only [ProbOracleComp.support_sample, BitString.eval_sampleList,
+          BitString.mem_support_uniformList_iff] using hks
+      refine ⟨List.forall_mem_cons.mpr ⟨by simp [hlen], hinv⟩, hlen.le, ?_⟩
+      enc_len [encDHKEMSimEntry_apply, hlen]
   cases op with
   | hash =>
     by_cases helem : F.isElem (c.input.groupParameters, w) = true
-    · simp only [simWordHandler, helem, ↓reduceIte, simLookupWord, OracleComp.support,
-        OracleComp.mem_supportWith_bind_iff] at hmem
-      obtain ⟨found, hfound, hmem⟩ := hmem
-      cases found with
-      | some key =>
-        simp only [OracleComp.supportWith_pure, Set.mem_singleton_iff] at hmem
-        subst hmem; dsimp only
-        obtain ⟨e, he, hse⟩ := mem_support_findSomeM? hfound
-        have hk : key = e.key := by
-          by_cases hd : e.isDecaps
-          · simp only [hashSelectWord, hd, ↓reduceIte, OracleComp.support,
-              OracleComp.mem_supportWith_map_iff] at hse
-            obtain ⟨b, _, hb⟩ := hse; cases b <;> simp at hb; exact hb.symm
-          · simp only [hashSelectWord, hd, Bool.false_eq_true, ↓reduceIte, OracleComp.support,
-              OracleComp.supportWith_pure, Set.mem_singleton_iff] at hse
-            split_ifs at hse; injection hse.symm with hkeq; exact hkeq.symm
-        have hkle : key.length ≤ keyLen c.input.secParam := hk ▸ hinv e he
-        exact ⟨hinv, by omega, by omega⟩
-      | none =>
-        have hmem' : res ∈ OracleComp.support (do
-            let key ← ProbOracleComp.sample (BitString.sampleList (keyLen c.input.secParam))
-            pure (key, DHKEMSimEntry.mk false w key :: table)) := hmem
-        simp only [OracleComp.support, OracleComp.mem_supportWith_bind_iff,
-          OracleComp.supportWith_pure, Set.mem_singleton_iff] at hmem'
-        obtain ⟨key, hkey, rfl⟩ := hmem'; dsimp only
-        have hlen : key.length = keyLen c.input.secParam := by
-          have hks : key ∈ OracleComp.support
-              (ProbOracleComp.sample (BitString.sampleList (keyLen c.input.secParam))) := hkey
-          simpa only [ProbOracleComp.support_sample, BitString.eval_sampleList,
-            BitString.mem_support_uniformList_iff] using hks
-        refine ⟨List.forall_mem_cons.mpr ⟨by simp [hlen], hinv⟩, by omega, ?_⟩
-        enc_len [encDHKEMSimEntry_apply, hlen]
+    · simp only [simWordHandler, helem, ↓reduceIte] at hmem
+      obtain ⟨h1, h2, h3⟩ := hlookup false (hashSelectWord w)
+        (fun _ _ hv => dhkem_eq_key_of_mem_support_select (.inl hv)) hmem
+      exact ⟨h1, by omega, h3⟩
     · simp only [simWordHandler, helem, Bool.false_eq_true, ↓reduceIte, OracleComp.support,
-        OracleComp.supportWith_pure, Set.mem_singleton_iff] at hmem
-      subst hmem; dsimp only; exact ⟨hinv, by simp, by omega⟩
+        OracleComp.supportWith_pure, Set.mem_singleton_iff, Prod.mk.injEq] at hmem
+      obtain ⟨rfl, rfl⟩ := hmem
+      exact ⟨hinv, by simp,
+        by omega⟩
   | decaps =>
     by_cases hbad : (!F.isElem (c.input.groupParameters, w) ||
         w == c.input.leftPublic) = true
     · simp only [simWordHandler, hbad, ↓reduceIte, OracleComp.support,
-        OracleComp.supportWith_pure, Set.mem_singleton_iff] at hmem
-      subst hmem; dsimp only; exact ⟨hinv, by simp, by omega⟩
+        OracleComp.supportWith_pure, Set.mem_singleton_iff, Prod.mk.injEq] at hmem
+      obtain ⟨rfl, rfl⟩ := hmem
+      exact ⟨hinv, by simp,
+        by omega⟩
     · simp only [simWordHandler, hbad, Bool.false_eq_true, ↓reduceIte, OracleComp.support,
-        OracleComp.mem_supportWith_map_iff, simLookupWord,
-        OracleComp.mem_supportWith_bind_iff] at hmem
-      obtain ⟨⟨key, t'⟩, ⟨found, hfound, hmem⟩, rfl⟩ := hmem
-      cases found with
-      | some k =>
-        simp only [OracleComp.supportWith_pure, Set.mem_singleton_iff, Prod.mk.injEq] at hmem
-        obtain ⟨rfl, rfl⟩ := hmem; dsimp only
-        obtain ⟨e, he, hse⟩ := mem_support_findSomeM? hfound
-        have hk : key = e.key := by
-          by_cases hd : e.isDecaps
-          · simp only [decapsSelectWord, hd, ↓reduceIte, OracleComp.support,
-              OracleComp.supportWith_pure, Set.mem_singleton_iff] at hse
-            split_ifs at hse; injection hse.symm with hkeq; exact hkeq.symm
-          · simp only [decapsSelectWord, hd, Bool.false_eq_true, ↓reduceIte, OracleComp.support,
-              OracleComp.mem_supportWith_map_iff] at hse
-            obtain ⟨b, _, hb⟩ := hse; cases b <;> simp at hb; exact hb.symm
-        have hkle : key.length ≤ keyLen c.input.secParam := hk ▸ hinv e he
-        exact ⟨hinv, by simp [encOption]; omega, by omega⟩
-      | none =>
-        have hmem' : (key, t') ∈ OracleComp.support (do
-            let k ← ProbOracleComp.sample (BitString.sampleList (keyLen c.input.secParam))
-            pure (k, DHKEMSimEntry.mk true w k :: table)) := hmem
-        simp only [OracleComp.support, OracleComp.mem_supportWith_bind_iff,
-          OracleComp.supportWith_pure, Set.mem_singleton_iff, Prod.mk.injEq] at hmem'
-        obtain ⟨k, hk, rfl, rfl⟩ := hmem'; dsimp only
-        have hlen : key.length = keyLen c.input.secParam := by
-          have hks : key ∈ OracleComp.support
-              (ProbOracleComp.sample (BitString.sampleList (keyLen c.input.secParam))) := hk
-          simpa only [ProbOracleComp.support_sample, BitString.eval_sampleList,
-            BitString.mem_support_uniformList_iff] using hks
-        refine ⟨List.forall_mem_cons.mpr ⟨by simp [hlen], hinv⟩,
-          by simp [encOption, hlen]; omega, ?_⟩
-        enc_len [encDHKEMSimEntry_apply, hlen]
+        OracleComp.mem_supportWith_map_iff, Prod.mk.injEq] at hmem
+      obtain ⟨⟨key, t'⟩, hlk, rfl, rfl⟩ := hmem
+      obtain ⟨h1, h2, h3⟩ := hlookup true (decapsSelectWord w)
+        (fun _ _ hv => dhkem_eq_key_of_mem_support_select (.inr hv)) hlk
+      exact ⟨h1, by simp [encOption]; omega, h3⟩
 
 private theorem isOraclePPTOn_extractDHWord :
     IsOraclePPTOn
@@ -776,6 +909,126 @@ theorem isOraclePPTOn_dhKEMToGapCDHWord_id
     IsOraclePPTOn (encGapCDHInput F.toPrimeOrderGroupFamily) encBits
       (F.dhKEMToGapCDHWord id adversary) :=
   F.isOraclePPTOn_dhKEMToGapCDHWord hA ComputableInPolyTime.id'
+
+/-! ### Uniform strict-(oracle-)PPT certificates for honest Construction 12.19 algorithms -/
+
+/-- `dhKEMKeyGenWordProb` is uniform strict PPT whenever `n` and `d` are computable in polynomial
+time. -/
+theorem isPPTOn_dhKEMKeyGenWordProb {γ : Type} {encIn : γ ↪ List Bool}
+    {n : γ → ℕ} {d : γ → F.Desc}
+    (hn : ComputableInPolyTime n encIn encUnary)
+    (hd : ComputableInPolyTime d encIn F.encDesc) :
+    IsPPTOn encIn encDHKEMKeyPair (fun a => F.dhKEMKeyGenWordProb (n a) (d a)) := by
+  have hfst : ComputableInPolyTime Prod.fst (encPair encIn encNat) encIn := .fst _ _
+  have hsnd : ComputableInPolyTime Prod.snd (encPair encIn encNat) encNat := .snd _ _
+  have hd1 : ComputableInPolyTime (fun p : γ × ℕ => d p.1) (encPair encIn encNat) F.encDesc :=
+    hd.comp hfst
+  have hpk : ComputableInPolyTime
+      (fun p : γ × ℕ => F.smul (d p.1, p.2, F.encode (d p.1) (F.generator (d p.1))))
+      (encPair encIn encNat) encBits :=
+    PrimeOrderGroupFamily.computableInPolyTime_smul_comp hd1 hsnd
+      (PrimeOrderGroupFamily.computableInPolyTime_encode_generator hd1)
+  have hpost : ComputableInPolyTime
+      (fun p : γ × ℕ => DHKEMKeyPair.mk
+        (F.smul (d p.1, p.2, F.encode (d p.1) (F.generator (d p.1)))) p.2)
+      (encPair encIn encNat) encDHKEMKeyPair :=
+    encDHKEMKeyPair_mk_polyTime hpk hsnd
+  simpa only [dhKEMKeyGenWordProb, bind_pure_comp] using
+    (F.toPrimeOrderGroupFamily.isPPTOn_sampleExp hn hd).map_with
+      (f := fun a x => DHKEMKeyPair.mk
+        (F.smul (d a, x, F.encode (d a) (F.generator (d a)))) x) hpost
+
+/-- `dhKEMEncapsWordProb` is uniform strict oracle-PPT whenever `keyLen`, `n`, `d`, and
+`publicKey` are computable in polynomial time. -/
+theorem isOraclePPTOn_dhKEMEncapsWordProb {γ : Type} {encIn : γ ↪ List Bool}
+    {keyLen : ℕ → ℕ} {n : γ → ℕ} {d : γ → F.Desc} {publicKey : γ → List Bool}
+    (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary)
+    (hn : ComputableInPolyTime n encIn encUnary)
+    (hd : ComputableInPolyTime d encIn F.encDesc)
+    (hpk : ComputableInPolyTime publicKey encIn encBits) :
+    IsOraclePPTOn encIn encDHKEMEncapsOutput
+      (fun a => F.dhKEMEncapsWordProb keyLen (n a) (d a) (publicKey a)) := by
+  have hsample : IsOraclePPTOn (Operation := Unit) encIn encNat
+      (fun a => ProbOracleComp.sample (F.toPrimeOrderGroupFamily.sampleExp (n a) (d a))) :=
+    (F.toPrimeOrderGroupFamily.isPPTOn_sampleExp hn hd).isOraclePPTOn (Operation := Unit)
+  have hfst : ComputableInPolyTime Prod.fst (encPair encIn encNat) encIn := .fst _ _
+  have hsnd : ComputableInPolyTime Prod.snd (encPair encIn encNat) encNat := .snd _ _
+  have hd1 := hd.comp hfst
+  have hshared : ComputableInPolyTime
+      (fun p : γ × ℕ => F.smul (d p.1, p.2, publicKey p.1))
+      (encPair encIn encNat) encBits :=
+    PrimeOrderGroupFamily.computableInPolyTime_smul_comp hd1 hsnd (hpk.comp hfst)
+  have hlen : ComputableInPolyTime (fun p : γ × ℕ => keyLen (n p.1))
+      (encPair encIn encNat) encUnary :=
+    hkeyLen.comp (hn.comp hfst)
+  have hq : IsOraclePPTOn (Operation := Unit) (encPair encIn encNat) encBits
+      (fun p => List.take (keyLen (n p.1)) <$>
+        ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
+          ((), F.smul (d p.1, p.2, publicKey p.1))) :=
+    IsOraclePPTOn.query_take () hshared hlen
+  have hp0 : ComputableInPolyTime Prod.fst (encPair (encPair encIn encNat) encBits)
+      (encPair encIn encNat) := .fst _ _
+  have hkey : ComputableInPolyTime Prod.snd (encPair (encPair encIn encNat) encBits) encBits :=
+    .snd _ _
+  have hd2 := hd1.comp hp0
+  have hct : ComputableInPolyTime
+      (fun q : (γ × ℕ) × List Bool =>
+        F.smul (d q.1.1, q.1.2, F.encode (d q.1.1) (F.generator (d q.1.1))))
+      (encPair (encPair encIn encNat) encBits) encBits :=
+    PrimeOrderGroupFamily.computableInPolyTime_smul_comp hd2 (hsnd.comp hp0)
+      (PrimeOrderGroupFamily.computableInPolyTime_encode_generator hd2)
+  have hmk : ComputableInPolyTime
+      (fun q : (γ × ℕ) × List Bool => DHKEMEncapsOutput.mk
+        (F.smul (d q.1.1, q.1.2, F.encode (d q.1.1) (F.generator (d q.1.1)))) q.2)
+      (encPair (encPair encIn encNat) encBits) encDHKEMEncapsOutput :=
+    encDHKEMEncapsOutput_mk_polyTime hct hkey
+  have hcont : IsOraclePPTOn (Operation := Unit) (encPair encIn encNat) encDHKEMEncapsOutput
+      (fun p =>
+        (fun key => DHKEMEncapsOutput.mk
+          (F.smul (d p.1, p.2, F.encode (d p.1) (F.generator (d p.1)))) key) <$>
+          (List.take (keyLen (n p.1)) <$>
+            ProbOracleComp.query ((), F.smul (d p.1, p.2, publicKey p.1)))) :=
+    hq.map_with hmk
+  exact (hsample.bind_with
+    (second := fun a y =>
+      (fun key => DHKEMEncapsOutput.mk
+        (F.smul (d a, y, F.encode (d a) (F.generator (d a)))) key) <$>
+        (List.take (keyLen (n a)) <$>
+          ProbOracleComp.query ((), F.smul (d a, y, publicKey a))))
+    hcont).congr fun a _ _ _ => by simp [dhKEMEncapsWordProb, bind_pure_comp]
+
+/-- `dhKEMDecapsWordOracle` is uniform strict oracle-PPT whenever `keyLen`, `n`, `d`, `secretKey`,
+and `ciphertext` are computable in polynomial time. -/
+theorem isOraclePPTOn_dhKEMDecapsWordOracle {γ : Type} {encIn : γ ↪ List Bool}
+    {keyLen : ℕ → ℕ} {n : γ → ℕ} {d : γ → F.Desc}
+    {secretKey : γ → ℕ} {ciphertext : γ → List Bool}
+    (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary)
+    (hn : ComputableInPolyTime n encIn encUnary)
+    (hd : ComputableInPolyTime d encIn F.encDesc)
+    (hsk : ComputableInPolyTime secretKey encIn encNat)
+    (hct : ComputableInPolyTime ciphertext encIn encBits) :
+    IsOraclePPTOn encIn (encOption encBits)
+      (fun a => F.dhKEMDecapsWordOracle keyLen (n a) (d a) (secretKey a) (ciphertext a)) := by
+  have hisElem : ComputableInPolyTime (fun a => F.isElem (d a, ciphertext a)) encIn encBool :=
+    DecodablePrimeOrderGroupFamily.computableInPolyTime_isElem_app hd hct
+  have hshared : ComputableInPolyTime (fun a => F.smul (d a, secretKey a, ciphertext a))
+      encIn encBits :=
+    PrimeOrderGroupFamily.computableInPolyTime_smul_comp hd hsk hct
+  have hq : IsOraclePPTOn (Operation := Unit) encIn encBits
+      (fun a => List.take (keyLen (n a)) <$>
+        ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
+          ((), F.smul (d a, secretKey a, ciphertext a))) :=
+    IsOraclePPTOn.query_take () hshared (hkeyLen.comp hn)
+  have hyes : IsOraclePPTOn (Operation := Unit) encIn (encOption encBits)
+      (fun a => Option.some <$>
+        (List.take (keyLen (n a)) <$>
+          ProbOracleComp.query ((), F.smul (d a, secretKey a, ciphertext a)))) :=
+    hq.map (ComputableInPolyTime.optionSome encBits)
+  have hno : IsOraclePPTOn (Operation := Unit) encIn (encOption encBits)
+      (fun _ => pure (none : Option (List Bool))) :=
+    ComputableInPolyTime.isOraclePPTOn (Operation := Unit) (by polytime)
+  refine (IsOraclePPTOn.cond hisElem hyes hno).congr fun a _ _ _ => ?_
+  by_cases h : F.isElem (d a, ciphertext a) <;> simp [dhKEMDecapsWordOracle, h, bind_pure_comp]
 
 end DecodablePrimeOrderGroupFamily
 

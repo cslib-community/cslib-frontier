@@ -12,7 +12,6 @@ public import CslibFrontier.Computability.PCP.Approximation.LabelCover.Repetitio
 public import CslibFrontier.Computability.PCP.Encoded.Deloop
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Pair
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListMap
 
@@ -166,7 +165,7 @@ theorem polyTimeReducible_GapTwoCSP_GapLabelCover_pow {α : Type} [Fintype α] [
   have hcard : 2 ≤ Fintype.card (α × α) * Fintype.card α := by
     have h2 : 2 ≤ Fintype.card α := Fintype.one_lt_card_iff.mpr ⟨a, b, hab⟩
     rw [Fintype.card_prod]
-    nlinarith
+    exact h2.trans (Nat.le_mul_of_pos_left _ (Nat.mul_pos (by omega) (by omega)))
   set s := (1 - (ε / 2) ^ 3 / 6000) ^
     ((k : ℝ) / Real.logb 2 (Fintype.card (α × α) * Fintype.card α)) with hs
   have hs1 : s < 1 := by

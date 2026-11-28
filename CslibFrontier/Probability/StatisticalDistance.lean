@@ -33,6 +33,8 @@ These statements reuse the upstream finite-PMF metric and its enumeration instan
   mixture.
 * `Cslib.Probability.PMF.dist_uniformOfFintype_bool`: statistical distance from uniform on `Bool`.
 * `Cslib.Probability.PMF.dist_eq_sum_filter_lt`: statistical distance as the excess on `{p > q}`.
+* `Cslib.Probability.PMF.sum_min_toReal`, `Cslib.Probability.PMF.sum_max_toReal`: the overlap
+  `∑ min (p a) (q a)` is `1 - δ` and `∑ max (p a) (q a)` is `1 + δ`.
 
 ## References
 
@@ -179,5 +181,26 @@ theorem dist_eq_sum_filter_lt [Fintype α] (p q : PMF α) :
     · rw [abs_of_nonpos (sub_nonpos.mpr (not_lt.mp h))]; ring
   simp only [habs, Finset.sum_sub_distrib, hsum, ← Finset.mul_sum]
   ring
+
+private theorem sum_min_add_sum_max [Fintype α] (p q : PMF α) :
+    ∑ a, min (p a).toReal (q a).toReal + ∑ a, max (p a).toReal (q a).toReal = 2 := by
+  rw [← Finset.sum_add_distrib]
+  simp only [min_add_max, Finset.sum_add_distrib, sum_toReal]
+  norm_num
+
+/-- The overlap `∑ a, min (p a) (q a)` of two distributions is `1 - dist p q`. -/
+theorem sum_min_toReal [Fintype α] (p q : PMF α) :
+    ∑ a, min (p a).toReal (q a).toReal = 1 - dist p q := by
+  have hsub : ∑ a, max (p a).toReal (q a).toReal - ∑ a, min (p a).toReal (q a).toReal =
+      2 * dist p q := by
+    rw [← Finset.sum_sub_distrib, dist_eq]
+    simp only [max_sub_min_eq_abs']
+    ring
+  linarith [sum_min_add_sum_max p q]
+
+/-- The pointwise maximum of two distributions has total mass `1 + dist p q`. -/
+theorem sum_max_toReal [Fintype α] (p q : PMF α) :
+    ∑ a, max (p a).toReal (q a).toReal = 1 + dist p q := by
+  linarith [sum_min_add_sum_max p q, sum_min_toReal p q]
 
 end Cslib.Probability.PMF

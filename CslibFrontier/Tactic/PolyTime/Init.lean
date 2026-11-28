@@ -85,13 +85,11 @@ def efficiencyKey (statement : Expr) : MetaM (Name × Name × Bool) := do
   let some predicate := statement.getAppFn.constName?
     | throwError "expected an efficiency statement"
   unless predicate == `Turing.MultiTapeTM.ComputableInPolyTime ||
-      predicate == `Turing.MultiTapeTM.ComputableTidilyInPolyTime ||
       predicate == `Turing.MultiTapeTM.ComputableInLogSpace ||
       predicate == `Cslib.Probability.IsPPTOn || predicate == `Cslib.Probability.IsPPT do
     throwError "unsupported efficiency predicate `{predicate}` for `program_certificate`; \
       expected TM polynomial time or logarithmic space, or PPT"
-  let argument := if predicate == `Turing.MultiTapeTM.ComputableTidilyInPolyTime ||
-      predicate == `Turing.MultiTapeTM.ComputableInLogSpace ||
+  let argument := if predicate == `Turing.MultiTapeTM.ComputableInLogSpace ||
       predicate == `Turing.MultiTapeTM.ComputableInPolyTime then
     statement.getAppArgs[2]! else statement.getAppArgs.back!
   let program ← Core.betaReduce (← etaExpand argument)
@@ -145,7 +143,7 @@ private def hasGlobalFunProp (decl : Name) : CoreM Bool := do
     (← hasGlobalEntry transitionTheoremsExt (·.thmName) decl)
 
 /-- `@[program_certificate]` registers an efficiency certificate for `polytime`, `logspace`
-and `ppt`. Its conclusion must be a `ComputableInPolyTime`, `ComputableTidilyInPolyTime`,
+and `ppt`. Its conclusion must be a `ComputableInPolyTime`,
 `ComputableInLogSpace`, `IsPPTOn` or `IsPPT` statement. The indexed argument must apply
 a constant, possibly under an output encoding. Other predicates are rejected rather than indexed
 by an unrelated final argument. Word-RAM efficiency statements are `fun_prop` predicates; tag
@@ -155,8 +153,42 @@ declaration already has a global registration.
 
 `@[program_certificate h₁ … hₙ]` additionally solves the hypotheses `h₁ … hₙ` immediately after the
 certificate is applied. This is needed when such a hypothesis determines an encoding that other
-hypotheses mention, so that proof search does not reach those goals with the encoding unknown. -/
+hypotheses mention, so that proof search does not reach those goals with the encoding unknown.
+Each `hᵢ` must match a distinct hypothesis binder name of the certificate; unknown, non-hypothesis
+or duplicate names are rejected at registration time. -/
 syntax (name := programCertificate) "program_certificate" (ppSpace ident)* : attr
+
+/-- Validate eager premise names against a certificate's `Prop` hypotheses at registration time,
+so a misspelt, non-hypothesis or duplicate name fails immediately instead of silently disabling
+the certificate at every application. -/
+private def validateEagerPremises (declName : Name) (xs : Array Expr) (eager : Array Name) :
+    MetaM Unit := do
+  if eager.isEmpty then return
+  let mut propBinders : Array Name := #[]
+  let mut allBinders : Array Name := #[]
+  for x in xs do
+    let decl ← x.fvarId!.getDecl
+    let userName := decl.userName
+    allBinders := allBinders.push userName
+    if ← isProp decl.type then
+      propBinders := propBinders.push userName
+  let namedProps := propBinders.filter fun n => !n.isAnonymous && !n.hasMacroScopes
+  let availMsg : MessageData :=
+    if namedProps.isEmpty then m!"none"
+    else MessageData.joinSep (namedProps.toList.map fun n => m!"`{n}`") ", "
+  let shownDecl := privateToUserName declName
+  let mut seen : Array Name := #[]
+  for name in eager do
+    if seen.contains name then
+      throwError "duplicate eager premise `{name}` for `program_certificate` on `{shownDecl}`"
+    seen := seen.push name
+    unless propBinders.contains name do
+      if allBinders.contains name then
+        throwError "eager premise `{name}` for `program_certificate` on `{shownDecl}` is not a \
+          hypothesis; available hypotheses: {availMsg}"
+      else
+        throwError "unknown eager premise `{name}` for `program_certificate` on `{shownDecl}`; \
+          available hypotheses: {availMsg}"
 
 initialize registerBuiltinAttribute {
   name := `programCertificate
@@ -167,11 +199,12 @@ initialize registerBuiltinAttribute {
     let eager := stx[1].getArgs.map (·.getId)
     let (certificate, key) ← MetaM.run' do
       let certificate ← encodedCertificate declName
-      let key ← forallTelescope (← getConstInfo certificate).type fun _ conclusion =>
-        efficiencyKey conclusion
+      let key ← forallTelescope (← getConstInfo certificate).type fun xs conclusion => do
+        let key ← efficiencyKey conclusion
+        validateEagerPremises declName xs eager
+        return key
       return (certificate, key)
-    if key.1 == `Turing.MultiTapeTM.ComputableTidilyInPolyTime ||
-        key.1 == `Turing.MultiTapeTM.ComputableInPolyTime ||
+    if key.1 == `Turing.MultiTapeTM.ComputableInPolyTime ||
         key.1 == `Turing.MultiTapeTM.ComputableInLogSpace ||
         key.1 == `Cslib.Probability.IsPPTOn then
       unless ← hasGlobalFunProp certificate do

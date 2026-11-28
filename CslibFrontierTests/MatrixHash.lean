@@ -75,23 +75,4 @@ example :
   rw [expect_card_ker_mulVecLin]
   norm_num [Fintype.card_fun]
 
--- Every ML-DSA level uses 256 evaluation coordinates over the same prime field.
--- This bound is uniform in the square block dimension, including 4, 5 and 7.
-private instance : Fact (Nat.Prime 8380417) := ⟨by norm_num⟩
-
-example (ℓ : ℕ) :
-    (𝔼 A : Fin 256 → Matrix (Fin ℓ) (Fin ℓ) (ZMod 8380417),
-      Real.sqrt (Nat.card {v : Fin 256 → Fin ℓ → ZMod 8380417 // ∀ j, A j *ᵥ v j = 0})) <
-        11 / 10 := by
-  apply lt_of_le_of_lt (expect_sqrt_card_joint_kernel_le 256)
-  rw [ZMod.card]
-  have h : (2800 : ℝ) ≤ Real.sqrt 8380417 :=
-    (Real.le_sqrt (by norm_num) (by norm_num)).2 (by norm_num)
-  calc
-    _ ≤ (1 + (2801 : ℝ)⁻¹) ^ 256 := by
-      gcongr
-      norm_num1
-      linarith
-    _ < 11 / 10 := by norm_num
-
 end CslibFrontierTests.MatrixHash

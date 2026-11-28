@@ -121,35 +121,30 @@ abbrev encResultCode := encSum (encList encExpansionCode)
   | .inr (.inl m) => (decodeMeeting F m).map Forest.Result.augment
   | .inr (.inr m) => (decodeMeeting F m).map Forest.Result.blossom
 
+private theorem mapM_some {α : Type*} (xs : List α) :
+    xs.mapM (fun a => some a) = some xs := by
+  simpa only [List.map_id, Option.pure_def, id_eq] using
+    (List.mapM_pure (m := Option) (l := xs) (f := id))
+
 /-- Expansion codes are lossless even for externally supplied malformed forest histories. -/
 @[simp] theorem decodeExpansion_codeExpansion {F : CSP Table ℕ} (e : Forest.Expansion F) :
     decodeExpansion F (codeExpansion e) = some e := by
   rcases e with ⟨input, outputs⟩
-  have hm : outputs.mapM (fun a => some a) = some outputs := by
-    simpa only [List.map_id, Option.pure_def, id_eq] using
-      (List.mapM_pure (m := Option) (l := outputs) (f := id))
   simp [decodeExpansion, codeExpansion, List.mapM_map, Function.comp_def,
-    EdgeAugmenting.getElem?_occurrenceIndex, hm]
+    EdgeAugmenting.getElem?_occurrenceIndex, mapM_some]
 
 /-- Meeting codes retain the full log, roots and partial copy. -/
 @[simp] theorem decodeMeeting_codeMeeting {F : CSP Table ℕ} (m : Forest.Meeting F) :
     decodeMeeting F (codeMeeting m) = some m := by
   rcases m with ⟨roots, older, current, output⟩
-  have hm : older.mapM (fun a => some a) = some older := by
-    simpa only [List.map_id, Option.pure_def, id_eq] using
-      (List.mapM_pure (m := Option) (l := older) (f := id))
   simp [decodeMeeting, codeMeeting, List.mapM_map, Function.comp_def,
-    EdgeAugmenting.getElem?_occurrenceIndex, hm]
+    EdgeAugmenting.getElem?_occurrenceIndex, mapM_some]
 
 /-- The complete result bridge is lossless, with no semantic or forest invariant premise. -/
 @[simp] theorem decode_code {F : CSP Table ℕ} (r : Forest.Result F) :
     decode F (code r) = some r := by
   cases r with
-  | exhausted es =>
-    have hm : es.mapM (fun a => some a) = some es := by
-      simpa only [List.map_id, Option.pure_def, id_eq] using
-        (List.mapM_pure (m := Option) (l := es) (f := id))
-    simp [decode, code, List.mapM_map, Function.comp_def, hm]
+  | exhausted es => simp [decode, code, List.mapM_map, Function.comp_def, mapM_some]
   | augment m => simp [decode, code]
   | blossom m => simp [decode, code]
 

@@ -139,17 +139,15 @@ theorem sum_descFactorial_blocks [Fintype (Setoid α)] (x : Setoid α) :
     ∑ z ∈ {z | x ≤ z}, t.descFactorial (blocks z) = t ^ blocks x := by
   classical
   have := Fintype.ofFinite α
-  rw [← card_const]
-  simp_rw [← card_ker]
-  rw [Nat.card_eq_fintype_card, Fintype.card_subtype]
-  rw [card_eq_sum_card_fiberwise (f := fun f : α → Fin t => Setoid.ker f)
-    (t := ({z | x ≤ z} : Finset (Setoid α))) fun f hf => by simpa using hf]
+  rw [← card_const, Nat.card_eq_fintype_card, Fintype.card_subtype,
+    card_eq_sum_card_fiberwise (f := fun f : α → Fin t => Setoid.ker f)
+      (t := ({z | x ≤ z} : Finset (Setoid α))) fun f hf => by simpa using hf]
   refine sum_congr rfl fun z hz => ?_
-  rw [Nat.card_eq_fintype_card, Fintype.card_subtype, filter_filter]
+  rw [← card_ker, Nat.card_eq_fintype_card, Fintype.card_subtype, filter_filter]
   congr 1
   ext f
   simp only [mem_filter, mem_univ, true_and] at hz ⊢
-  exact ⟨fun h => ⟨by rw [h]; exact hz, h⟩, fun h => h.2⟩
+  exact ⟨fun h => ⟨h.symm ▸ hz, h⟩, And.right⟩
 
 end Kernels
 
@@ -201,20 +199,16 @@ $b(z)$ is the number of blocks of $z$. -/
 theorem sum_descPochhammer_blocks [Fintype (Setoid α)] (x : Setoid α) :
     ∑ z ∈ {z | x ≤ z}, descPochhammer ℤ (blocks z) = (X : ℤ[X]) ^ blocks x := by
   have : Finite α := by
-    rcases finite_or_infinite α with hfin | _
-    · exact hfin
-    · exfalso
-      have hinj : Function.Injective (fun a : α => Setoid.ker fun x => x = a) := by
-        intro a b hab
-        by_contra hne
-        obtain ⟨c, hc⟩ := Infinite.exists_notMem_finset ({a, b} : Finset α)
-        simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hc
-        have hrel : (Setoid.ker fun x => x = a) b c := by
-          simp [Setoid.ker_def, Ne.symm hne, hc.1]
-        have hrel' : (Setoid.ker fun x => x = b) b c :=
-          (congrArg (fun s : Setoid α => s b c) hab).mp hrel
-        simp [Setoid.ker_def, hc.2] at hrel'
-      exact (Infinite.of_injective _ hinj).not_finite (Finite.of_fintype (Setoid α))
+    by_contra hinf
+    have : Infinite α := not_finite_iff_infinite.mp hinf
+    have hinj : Function.Injective (fun a : α => Setoid.ker fun x => x = a) := fun a b hab => by
+      by_contra hne
+      obtain ⟨c, hc⟩ := Infinite.exists_notMem_finset ({a, b} : Finset α)
+      simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hc
+      have hrel : (Setoid.ker fun x => x = a) b c := by simp [Setoid.ker_def, Ne.symm hne, hc.1]
+      have hrel' := (congrArg (fun s : Setoid α => s b c) hab).mp hrel
+      simp [Setoid.ker_def, hc.2] at hrel'
+    exact (Infinite.of_injective _ hinj).not_finite (Finite.of_fintype (Setoid α))
   refine eq_of_infinite_eval_eq _ _ (Set.infinite_of_injective_forall_mem
     (f := fun t : ℕ => (t : ℤ)) Nat.cast_injective fun t => ?_)
   simp only [Set.mem_ofPred_eq, eval_finsetSum, descPochhammer_eval_eq_descFactorial, eval_pow,
@@ -230,11 +224,10 @@ theorem sum_derivCoeff_blocks [Fintype (Setoid α)] [Nonempty α] (x : Setoid α
   simp only [derivative_sum, eval_finsetSum, derivative_X_pow, eval_mul, eval_C, eval_pow,
     eval_X] at h
   simp only [derivCoeff, h, ← blocks_eq_one_iff]
-  have := blocks_pos x
-  rcases Nat.lt_or_ge (blocks x) 2 with hb | hb
-  · obtain h1 : blocks x = 1 := by omega
-    simp [h1]
-  · simp [show blocks x ≠ 1 by omega, zero_pow (show blocks x - 1 ≠ 0 by omega)]
+  rcases eq_or_ne (blocks x) 1 with hb | hb
+  · simp [hb]
+  · have := blocks_pos x
+    simp [hb, zero_pow (show blocks x - 1 ≠ 0 by omega)]
 
 /-- **The Möbius function of the partition lattice** at the top: $\mu(x, \top) = c(b)$, which is
 $(-1)^{b-1} (b-1)!$, for a partition $x$ with $b$ blocks. The locally finite order on the partitions
@@ -243,21 +236,18 @@ theorem mu_top [Nonempty α] [LocallyFiniteOrder (Setoid α)] [DecidableEq (Seto
     (x : Setoid α) : IncidenceAlgebra.mu ℤ x ⊤ = derivCoeff (blocks x) := by
   classical
   have := Fintype.ofFinite (Setoid α)
-  induction x using WellFoundedGT.induction with
-  | _ x ih =>
-  by_cases hx : x = ⊤
-  · subst hx
-    rw [IncidenceAlgebra.mu_self, (blocks_eq_one_iff (α := α)).mpr rfl, derivCoeff_one]
-  have hsum := sum_derivCoeff_blocks x
-  have hset : ({z | x ≤ z} : Finset (Setoid α)) = (Ioc x ⊤).cons x left_notMem_Ioc := by
-    rw [← Icc_eq_cons_Ioc le_top]
-    ext z
-    simp
-  rw [hset, sum_cons] at hsum
-  simp only [hx, ↓reduceIte] at hsum
-  rw [IncidenceAlgebra.mu_eq_neg_sum_Ioc_of_ne hx,
-    sum_congr rfl fun z hz => ih z (mem_Ioc.mp hz).1]
-  linarith
+  induction x using WellFoundedGT.induction with | _ x ih =>
+  rcases eq_or_ne x ⊤ with rfl | hx
+  · rw [IncidenceAlgebra.mu_self, (blocks_eq_one_iff (α := α)).mpr rfl, derivCoeff_one]
+  · have hsum := sum_derivCoeff_blocks x
+    have hset : ({z | x ≤ z} : Finset (Setoid α)) = (Ioc x ⊤).cons x left_notMem_Ioc := by
+      rw [← Icc_eq_cons_Ioc le_top]
+      ext z
+      simp
+    rw [hset, sum_cons, ite_eq_right hx] at hsum
+    rw [IncidenceAlgebra.mu_eq_neg_sum_Ioc_of_ne hx,
+      sum_congr rfl fun z hz => ih z (mem_Ioc.mp hz).1]
+    linarith
 
 end Mobius
 
@@ -314,22 +304,18 @@ open Classical in
 /-- The zeta matrix is unitriangular when the partitions are ordered by their numbers of blocks, so
 its determinant is $1$. -/
 theorem det_zetaMatrix [CommRing R] : (zetaMatrix R α).det = 1 := by
-  have hT : (zetaMatrix R α).BlockTriangular fun P => OrderDual.toDual (blocks P) := by
-    intro P z hlt
-    have : ¬P ≤ z := fun h => absurd (blocks_le_of_le h) (not_le.mpr hlt)
-    simp [zetaMatrix, this]
+  have hT : (zetaMatrix R α).BlockTriangular fun P => OrderDual.toDual (blocks P) :=
+    fun P z hlt => by
+      simp [zetaMatrix, show ¬P ≤ z from fun h => not_le_of_gt hlt (blocks_le_of_le h)]
   rw [hT.det]
   refine prod_eq_one fun b _ => ?_
-  have : (zetaMatrix R α).toSquareBlock (fun P => OrderDual.toDual (blocks P)) b = 1 := by
-    ext ⟨P, hP⟩ ⟨z, hz⟩
-    simp only [Matrix.toSquareBlock_def, Matrix.of_apply, zetaMatrix, Matrix.one_apply,
-      Subtype.mk.injEq]
-    by_cases h : P ≤ z
-    · have := eq_of_le_of_blocks_eq h (by simpa using hP.trans hz.symm)
-      simp [this]
-    · have hne : P ≠ z := by rintro rfl; exact h le_rfl
-      simp [h, hne]
-  rw [this, Matrix.det_one]
+  suffices (zetaMatrix R α).toSquareBlock (fun P => OrderDual.toDual (blocks P)) b = 1 by
+    rw [this, Matrix.det_one]
+  ext ⟨P, hP⟩ ⟨z, hz⟩
+  simp only [Matrix.toSquareBlock_def, Matrix.of_apply, zetaMatrix, Matrix.one_apply,
+    Subtype.mk.injEq]
+  exact if_congr ⟨fun h => eq_of_le_of_blocks_eq h (by simpa using hP.trans hz.symm),
+    fun h => h ▸ le_rfl⟩ rfl rfl
 
 /-- **Dowling–Wilson for the partition lattice**: over a field of characteristic zero, the join
 matrix has full rank, the number of partitions [DowlingWilson1975, Lemma 1 and the proof of
@@ -342,13 +328,13 @@ theorem rank_joinMatrix [Field R] [CharZero R] : (joinMatrix R α).rank = Nat.ca
     have h1 : joinMatrix R α = 1 := by
       ext P Q
       obtain rfl : P = Q := Subsingleton.elim _ _
-      have : P = ⊤ := Subsingleton.elim _ _
-      simp [this]
+      simp [Subsingleton.elim P ⊤]
     rw [h1, Matrix.rank_one]
-  refine Matrix.rank_of_isUnit _ ((Matrix.isUnit_iff_isUnit_det _).mpr (isUnit_iff_ne_zero.mpr ?_))
-  rw [joinMatrix_eq, Matrix.det_mul, Matrix.det_mul, Matrix.det_transpose, det_zetaMatrix,
-    Matrix.det_diagonal, one_mul, mul_one]
-  exact prod_ne_zero_iff.mpr fun z _ => Int.cast_ne_zero.mpr (derivCoeff_ne_zero (blocks_pos z))
+  · refine Matrix.rank_of_isUnit _
+      ((Matrix.isUnit_iff_isUnit_det _).mpr (isUnit_iff_ne_zero.mpr ?_))
+    rw [joinMatrix_eq, Matrix.det_mul, Matrix.det_mul, Matrix.det_transpose, det_zetaMatrix,
+      Matrix.det_diagonal, one_mul, mul_one]
+    exact prod_ne_zero_iff.mpr fun z _ => Int.cast_ne_zero.mpr (derivCoeff_ne_zero (blocks_pos z))
 
 end Matrices
 

@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test suite)
 
-import CslibFrontier.Crypto.Primitives.PRF.HashThenPRF
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.HashThenPRF
 import CslibFrontier.Probability.HashFamily.Polynomial
 
 set_option linter.privateModule false
@@ -15,20 +15,96 @@ set_option linter.privateModule false
 /-!
 # Tests for `PRF(UHF)` composition
 
-Checks the API and hypotheses of `CslibFrontier.Crypto.PRF.HashThenPRF` and
-`CslibFrontier.Crypto.UHF.Finite` as a `module` client:
+Checks the finite and word PRF composition APIs as a `module` client:
 - instantiating `PRF.advantage_hashThenPRF_le` with `coeffPolyHash`;
 - equation `(6.17)` (§6.5, p. 231) on `hashThenPRF`;
 - `UHF.multiQueryExperiment` on constant hashes, repeated lists, two-query lists, and
   `collisionDistinguisher`;
 - tightness/necessity on constant hashes, counterexample when `m₀ = m₁` (`Z = Bool`), comparison
-  with `(Q ^ 2 / 2 : ℕ) * ε`, and the query-bound hypothesis probe.
+  with `(Q ^ 2 / 2 : ℕ) * ε`, and the query-bound hypothesis probe;
+- the word reduction forwards valid queries and gives an empty reply to malformed queries;
+- the real composition keeps both keys fixed across repeated queries and rejects bad words;
+- the ideal collector stores a repeated valid query once and skips a rejected query of the same
+  length;
+- the ideal games have zero advantage when only one word is valid.
 -/
 
 namespace Cslib.Crypto.PRF.Tests
 
 open Cslib.Probability
 open scoped ENNReal NNReal
+
+private def readFirstReply (msg : List Bool) : OracleDistinguisher := fun _ _ =>
+  (fun reply => reply.headD false) <$> ProbOracleComp.query ((), msg)
+
+/-- With identity hash and PRF evaluators, the word reduction returns the first bit of a
+one-bit request and rejects all other lengths. -/
+example (msg : List Bool) :
+    ProbComp.eval (prfRealGame (fun _ => 1) (fun _ query => query)
+      (hashThenPRFWordReduction (fun _ => 2) (fun _ => 1)
+        (fun _ word => word.length == 1) (fun _ _ word => word) (readFirstReply msg)) 1) =
+      PMF.pure (msg.length == 1 && msg.headD false) := by
+  rw [eval_prfRealGame_hashThenPRFWordReduction (keyLen := fun _ => 2)
+    (inLen := fun _ => 1) (outLen := fun _ => 1)
+    (fun _ word => word.length == 1) (fun _ _ word => word) (fun _ query => query)
+    (fun _ _ _ _ hv => beq_iff_eq.mp hv) (fun _ _ h => h) (readFirstReply msg) 1]
+  simp only [hashThenPRFWordRealGame, readFirstReply, ProbOracleComp.run_map,
+    ProbOracleComp.run_query,
+    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.pure_map, PMF.bind_const,
+    hashThenPRF]
+  by_cases h : msg.length = 1
+  · simp [h]
+  · simp [beq_eq_false_iff_ne.mpr h]
+
+private def checkRepeatedReply : OracleDistinguisher := fun _ _ => do
+  let first ← ProbOracleComp.query ((), [true])
+  let malformed ← ProbOracleComp.query ((), [])
+  let second ← ProbOracleComp.query ((), [true])
+  return (first == second) && malformed.isEmpty
+
+example :
+    ProbComp.eval (hashThenPRFWordRealGame (fun _ => 2) (fun _ word => word == [true])
+      (fun _ key _ => [key.headD false]) (fun key digest => [key.headD false ^^ digest.headD false])
+      checkRepeatedReply 1) = PMF.pure true := by
+  have h : (BitString.uniformList 1).map (fun _ => true) = PMF.pure true := PMF.map_const _ _
+  simp [hashThenPRFWordRealGame, checkRepeatedReply, hashThenPRF, ProbComp.eval_bind,
+    ProbOracleComp.run_bind, ProbOracleComp.run_query, h]
+
+private def repeatedWordQueries : OracleDistinguisher := fun _ _ => do
+  let _ ← ProbOracleComp.query ((), [true])
+  let _ ← ProbOracleComp.query ((), [false])
+  let _ ← ProbOracleComp.query ((), [true])
+  return true
+
+example :
+    ProbComp.eval (hashThenPRFWordIdealQueries (fun _ => 0)
+      (fun _ word => word == [true]) repeatedWordQueries (1, [])) = PMF.pure [[true]] := by
+  simp only [hashThenPRFWordIdealQueries, hashThenPRFWordIdealRun, repeatedWordQueries,
+    ProbOracleComp.runState_bind, ProbOracleComp.runState_query, ProbOracleComp.runState_pure,
+    StateT.run_bind, StateT.run_pure]
+  simp [StateT.run, cachedRandomFunctionOracle, cachedSamplerOracle, memoize, ProbComp.eval_map]
+
+example (A : OracleDistinguisher) :
+    let valid := fun (_ : ℕ) (word : List Bool) => word == [true]
+    let H := fun (_ : ℕ) (_ _ : List Bool) => [false]
+    Game.advantage (ProbComp.eval (prfIdealGame (fun _ => 1) (fun _ => 1)
+      (hashThenPRFWordReduction (fun _ => 2) (fun _ => 1) valid H A) 1))
+      ((ProbComp.eval (hashThenPRFWordIdealRun (fun _ => 1) valid A (1, []))).map Prod.fst) =
+      0 := by
+  intro valid H
+  have hbound := advantage_prfIdealGame_hashThenPRFWordReduction_le
+    (keyLen := fun _ => 2) (inLen := fun _ => 1) (outLen := fun _ => 1)
+    valid H (fun _ _ _ _ _ => rfl) A 1
+  have hnoCollision (ms : List (List Bool)) (k : BitString 2) :
+      ¬ ∃ m ∈ ms, ∃ m' ∈ ms, m ≠ m' ∧ valid 1 m = true ∧ valid 1 m' = true ∧
+        BitString.ofList 1 (H 1 (List.ofFn k) m) = BitString.ofList 1 (H 1 (List.ofFn k) m') := by
+    rintro ⟨m, _, m', _, hne, hm, hm', _⟩
+    exact hne ((beq_iff_eq.mp hm).trans (beq_iff_eq.mp hm').symm)
+  simp only [UHF.multiQueryGame, hashThenPRFWordHash, ProbComp.eval_pure,
+    Game.withSetup_pure, ProbComp.eval_bind,
+    hnoCollision, decide_false, PMF.bind_const, PMF.pure_apply_of_ne _ _ Bool.false_ne_true.symm]
+    at hbound
+  exact le_antisymm (by exact_mod_cast hbound) bot_le
 
 /-! ### Instantiation with `coeffPolyHash` and equation (6.17) (§6.5, p. 231) -/
 
@@ -37,7 +113,7 @@ example {K₂ F Z : Type} [Field F] [Fintype F] [DecidableEq F] [Fintype K₂] [
     {A : Adversary (Fin n → F) Z} {Q : ℕ} (hQ : A.IsQueryBounded Q) :
     (advantage (hashThenPRF (fun k (x : Fin n → F) => coeffPolyHash k x) f) A : ℝ≥0∞) ≤
       advantage f (hashReduction (fun k (x : Fin n → F) => coeffPolyHash k x) A) +
-        (Q.choose 2 : ℕ) * ((n : ℝ≥0∞) / Fintype.card F) :=
+        (Q.choose 2 : ℕ) * ((↑(n - 1) : ℝ≥0∞) / Fintype.card F) :=
   advantage_hashThenPRF_le (isUniversalHash_coeffPolyHash n) f hQ
 
 example {K₁ K₂ M Y Z : Type} (H : K₁ → M → Y) (F : K₂ → Y → Z) (k : K₁ × K₂) (m : M) :

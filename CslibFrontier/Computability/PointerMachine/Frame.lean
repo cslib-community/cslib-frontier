@@ -29,30 +29,24 @@ Allocation counts as a write because it initializes a new record. -/
   | .storeData g _ _ => g = f
   | _ => False
 
-private theorem effect_data_frame (i : Instr M L) (f : Fin L.dataFields)
+/-- An instruction that neither allocates nor stores `f` preserves that field at every
+address. -/
+theorem Instr.effect_data_frame (i : Instr M L) (f : Fin L.dataFields)
     (safe : ¬ i.WritesData f) (s : State M L) (a : ℕ) :
     ((i.effect s).heap[a]?).map (fun r => r.data f) =
       (s.heap[a]?).map (fun r => r.data f) := by
-  cases i <;> simp only [Instr.WritesData] at safe
+  have hmod (base : Fin L.ptrRegs) (g : Record M L → Record M L)
+      (hg : ∀ r, (g r).data f = r.data f) :
+      ((s.modify base g).heap[a]?).map (fun r => r.data f) =
+        (s.heap[a]?).map (fun r => r.data f) := by
+    rcases p : s.ptr base with _ | b
+    · simp [State.modify, p]
+    · by_cases same : b = a <;> simp [State.modify, p, same, Option.map_map, Function.comp_def, hg]
+  cases i <;> simp only [Instr.effect, Instr.WritesData] at safe ⊢
   case create => exact (safe trivial).elim
-  case loadPtr r field base =>
-    cases h : s.deref base <;> simp [Instr.effect, h, State.setPtr]
-  case loadData r field base =>
-    cases h : s.deref base <;> simp [Instr.effect, h, State.setData]
-  case storePtr field base reg =>
-    simp only [Instr.effect, State.modify]
-    cases p : s.ptr base with
-    | none => rfl
-    | some b =>
-      by_cases same : b = a <;>
-        simp [same, Option.map_map, Function.comp_def]
-  case storeData field base reg =>
-    simp only [Instr.effect, State.modify]
-    cases p : s.ptr base with
-    | none => rfl
-    | some b =>
-      by_cases same : b = a <;>
-        simp [same, Option.map_map, Function.comp_def, Ne.symm safe]
+  case loadPtr _ _ base | loadData _ _ base => cases s.deref base <;> rfl
+  case storePtr _ base _ => exact hmod base _ fun _ => rfl
+  case storeData _ base _ => exact hmod base _ fun _ => Function.update_of_ne (Ne.symm safe) _ _
   all_goals rfl
 
 /-- When the program has no allocation or store to `field`, every run preserves the
@@ -65,6 +59,6 @@ theorem Runs.data_frame {code : List (Instr M L)} {x y : State M L} {n : ℕ}
   | refl => rfl
   | tail s t n _ next ih =>
     obtain ⟨i, fetch, _, rfl⟩ := step_eq_some_iff.mp next
-    exact (effect_data_frame i field (safe i (List.mem_of_getElem? fetch)) s a).trans ih
+    exact (Instr.effect_data_frame i field (safe i (List.mem_of_getElem? fetch)) s a).trans ih
 
 end Cslib.PointerMachine

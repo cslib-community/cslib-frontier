@@ -53,24 +53,19 @@ theorem exists_lt_le_add_of_update_le {ι α : Type*} [Finite ι] [DecidableEq �
     {u v : ι → α} (hu : μ u ≤ t) (hv : t < μ v) : ∃ w, t < μ w ∧ μ w ≤ t + B := by
   have := Fintype.ofFinite ι
   let w : Finset ι → ι → α := fun S i => if i ∈ S then v i else u i
-  suffices h : ∀ S : Finset ι, μ (w S) ≤ t ∨ ∃ w, t < μ w ∧ μ w ≤ t + B by
-    refine (h Finset.univ).resolve_left fun hle => ?_
-    have : w Finset.univ = v := funext fun i => by simp [w]
-    exact absurd (this ▸ hle) (not_le.2 hv)
+  suffices h : ∀ S : Finset ι, μ (w S) ≤ t ∨ ∃ w, t < μ w ∧ μ w ≤ t + B from
+    (h Finset.univ).resolve_left fun hle => hv.not_ge (by simpa [w] using hle)
   intro S
   induction S using Finset.induction_on with
   | empty => exact Or.inl (by simpa [w] using hu)
   | @insert i S hi ih =>
-    have e : w (insert i S) = Function.update (w S) i (v i) := funext fun j => by
-      by_cases hj : j = i
-      · subst hj
-        simp [w]
-      · simp [w, hj]
     rcases ih with hle | found
     · by_cases hnext : μ (w (insert i S)) ≤ t
       · exact Or.inl hnext
       · refine Or.inr ⟨_, not_le.1 hnext, ?_⟩
-        rw [e]
+        have hupd : w (insert i S) = Function.update (w S) i (v i) :=
+          funext fun j => by by_cases hj : j = i <;> simp [w, hj]
+        rw [hupd]
         exact (hμ _ _ _).trans (Nat.add_le_add_right hle B)
     · exact Or.inr found
 

@@ -48,29 +48,21 @@ theorem searchCount_eq_acceptCount {R : α → List Bool → Prop} {V : α × Li
     searchCount R a = acceptCount V a n := by
   classical
   rw [searchCount, acceptCount, ← Fintype.card_subtype, ← Nat.card_eq_fintype_card]
-  symm
-  apply Nat.card_eq_of_bijective
+  exact (Nat.card_eq_of_bijective
     (fun w : {w : Fin n → Bool // V (a, List.ofFn w) = true} =>
       (⟨List.ofFn w.val, (hR _).2 ⟨List.length_ofFn, w.property⟩⟩ : {w // R a w}))
-  constructor
-  · intro u v h
-    apply Subtype.ext
-    exact List.ofFn_injective (congrArg Subtype.val h)
-  · rintro ⟨w, hw⟩
-    obtain ⟨hlen, hV⟩ := (hR w).1 hw
-    subst n
-    refine ⟨⟨fun i => w[i.val], ?_⟩, ?_⟩ <;> simp_all
+    ⟨fun _ _ h => Subtype.ext (List.ofFn_injective (congrArg Subtype.val h)), fun ⟨w, hw⟩ => by
+      obtain ⟨rfl, hV⟩ := (hR w).1 hw
+      exact ⟨⟨fun i => w[i.val], by simp [hV]⟩, by simp⟩⟩).symm
 
 /-- The witnesses of an `NPRelation` are in the existing balanced search class. -/
-theorem NPRelation.isWitness_mem_FNP (R : NPRelation enc) : R.IsWitness ∈ FNP enc := by
-  refine ⟨⟨R.certLength, fun a w hw => hw.1.le⟩,
-    fun q => decide (q.2.length = R.certLength.eval (enc q.1).length) && R.verifier q, ?_, ?_⟩
-  · exact bool_and'
-      (decide_eq' (length_bits.comp (snd _ _))
-        ((unary_eval R.certLength).comp ((encoding_length enc).comp (fst _ _))))
-      R.computableInPolyTime_verifier
-  · intro a w
-    simp [NPRelation.IsWitness]
+theorem NPRelation.isWitness_mem_FNP (R : NPRelation enc) : R.IsWitness ∈ FNP enc :=
+  ⟨⟨R.certLength, fun _ _ hw => hw.1.le⟩,
+    fun q => decide (q.2.length = R.certLength.eval (enc q.1).length) && R.verifier q,
+    bool_and' (decide_eq' (length_bits.comp (snd _ _))
+      ((unary_eval R.certLength).comp ((encoding_length enc).comp (fst _ _))))
+      R.computableInPolyTime_verifier,
+    fun _ _ => by simp [NPRelation.IsWitness]⟩
 
 /-- The exact-length count of an `NPRelation` counts its actual solutions. -/
 theorem NPRelation.searchCount_eq (R : NPRelation enc) (a : α) :
@@ -95,11 +87,13 @@ theorem searchCount_mem_SharpP {R : α → List Bool → Prop} (hR : R ∈ FNP e
   let V' : α × List Bool → Bool := fun x =>
     decide (paddedSolution (q.eval (enc x.1).length) (unframe x.2) = x.2) &&
       V (x.1, unframe x.2)
+  have hf := frame.comp (unframe.comp (snd enc encBits))
   have hpad : ComputableInPolyTime
       (fun x : α × List Bool => paddedSolution (q.eval (enc x.1).length) (unframe x.2))
-      (encPair enc encBits) encBits := by
-    unfold paddedSolution
-    fun_prop
+      (encPair enc encBits) encBits :=
+    bitsAppend hf ((bitsReplicate false).comp
+      (unary_sub' ((unary_eval q).comp ((encoding_length enc).comp (fst enc encBits)))
+        (length_bits.comp hf)))
   refine ⟨q, V', bool_and' (decide_eq' hpad (snd _ _))
     (hV.comp ((fst _ _).prod (unframe.comp (snd _ _)))), fun a => ?_⟩
   let S : List Bool → Prop := fun w => w.length = q.eval (enc a).length ∧ V' (a, w) = true
@@ -112,22 +106,15 @@ theorem searchCount_mem_SharpP {R : α → List Bool → Prop} (hR : R ∈ FNP e
         simp only [length_frame, q, Polynomial.eval_add, Polynomial.eval_mul,
           Polynomial.eval_ofNat, Polynomial.eval_one]
         omega
-      constructor
-      · simp only [paddedSolution, List.length_append, List.length_replicate]
-        omega
-      · simp only [V', unframe_paddedSolution, decide_true, Bool.true_and]
-        exact (hRV a w.val).1 w.property⟩ : {w // S w})) ?_
-  constructor
-  · intro u v h
-    apply Subtype.ext
-    have := congrArg (fun w => unframe w.val) h
-    simpa only [unframe_paddedSolution] using this
-  · rintro ⟨w, hlen, hw⟩
-    have hh : paddedSolution (q.eval (enc a).length) (unframe w) = w ∧
-        V (a, unframe w) = true := by
-      simpa only [V', Bool.and_eq_true, decide_eq_true_eq] using hw
-    refine ⟨⟨unframe w, (hRV a _).2 hh.2⟩, ?_⟩
-    exact Subtype.ext hh.1
+      refine ⟨by simp only [paddedSolution, List.length_append, List.length_replicate]; omega, ?_⟩
+      simp only [V', unframe_paddedSolution, decide_true, Bool.true_and]
+      exact (hRV a w.val).1 w.property⟩ : {w // S w})) ⟨fun u v h => Subtype.ext (by
+        simpa only [unframe_paddedSolution] using congrArg (fun w => unframe w.val) h), ?_⟩
+  rintro ⟨w, -, hw⟩
+  obtain ⟨hpadw, hVw⟩ : paddedSolution (q.eval (enc a).length) (unframe w) = w ∧
+      V (a, unframe w) = true := by
+    simpa only [V', Bool.and_eq_true, decide_eq_true_eq] using hw
+  exact ⟨⟨unframe w, (hRV a _).2 hVw⟩, Subtype.ext hpadw⟩
 
 /-- [Goldreich2007Draft], Theorem 6.18: if all balanced polynomial-time checkable search
 relations reduce parsimoniously to `R`, then its solution count is #P-complete. The reduction
@@ -136,13 +123,9 @@ theorem sharpPComplete_searchCount {R : α → List Bool → Prop} (hR : R ∈ F
     (hcomplete : ∀ {β : Type} (encB : β ↪ List Bool) (S : β → List Bool → Prop),
       S ∈ FNP encB → ParsimoniousReducible encB enc (searchCount S) (searchCount R)) :
     SharpPComplete enc (searchCount R) := by
-  refine ⟨searchCount_mem_SharpP hR, ?_⟩
-  intro β encB f hf
-  obtain ⟨p, V, hV, hf⟩ := hf
+  refine ⟨searchCount_mem_SharpP hR, fun _ encB f ⟨p, V, hV, hf⟩ => ?_⟩
   let S : NPRelation encB := ⟨p, V, hV⟩
-  have h := hcomplete encB S.IsWitness S.isWitness_mem_FNP
-  convert h using 1
-  funext a
-  exact (hf a).trans (S.searchCount_eq a).symm
+  convert hcomplete encB S.IsWitness S.isWitness_mem_FNP using 1
+  exact funext fun a => (hf a).trans (S.searchCount_eq a).symm
 
 end Cslib.Complexity

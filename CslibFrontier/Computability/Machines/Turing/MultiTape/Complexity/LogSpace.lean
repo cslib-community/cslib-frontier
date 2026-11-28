@@ -13,7 +13,6 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.I
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 public import Cslib.Computability.Machines.Turing.MultiTape.ConfigBound
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TidyNormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.HaltsAt
 import CslibFrontier.Foundations.Data.Nat.Log
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
@@ -69,7 +68,7 @@ depend on that machine.
   `Turing.MultiTapeTM.ComputableInLogSpace.of_eq`: the identity, constants and functions on
   finite types are computable in logarithmic space, and congruence.
 * `Turing.MultiTapeTM.ComputableInLogSpace.computableInPolyTime`,
-  `Turing.MultiTapeTM.ComputableInLogSpace.computableTidilyInPolyTime`: logspace functions are
+  `Turing.MultiTapeTM.ComputableInLogSpace.computableInPolyTime`: logspace functions are
   computable in polynomial time.
 * `ComputableInLogSpace` is registered with `fun_prop`, with the inclusion in polynomial time as
   a one-way transition.
@@ -221,21 +220,12 @@ theorem ComputableInLogSpace.polyBounded_length {f : α → β}
   rw [← output_haltsAt (htm a).1 hu]
   exact (tm.length_output_runFrom_le _ u).trans (by simpa [MultiTapeNTM.initCfg] using hu_le)
 
-/-- **Logspace functions are computable in polynomial time**, tidily. -/
-theorem ComputableInLogSpace.computableTidilyInPolyTime {f : α → β}
-    (h : ComputableInLogSpace f encIn encMid) : ComputableTidilyInPolyTime f encIn encMid := by
-  obtain ⟨t, c, ht, hf⟩ := h.exists_polyBounded_time
-  obtain ⟨c', hc'⟩ := hf.exists_computableTidilyInTimeAndSpace
-  have hlog := polyBounded_log (fun a => (encIn a).length) c
-  exact ⟨_, _, (((PolyBounded.const 2).mul ht).add ((PolyBounded.const 3).mul hlog)).add
-    (.const c'),
-    (PolyBounded.const c').mul (hlog.add (.const 1)), hc'⟩
-
 /-- **Logspace functions are computable in polynomial time.** -/
 theorem ComputableInLogSpace.computableInPolyTime {f : α → β}
-    (h : ComputableInLogSpace f encIn encMid) : ComputableInPolyTime f encIn encMid :=
-  let ⟨_, _, ⟨t, ht, htb⟩, ⟨s, hs, hsb⟩, h⟩ := h.computableTidilyInPolyTime
-  ⟨t, s, ht, hs, (h.mono htb hsb).computableInTimeAndSpace⟩
+    (h : ComputableInLogSpace f encIn encMid) : ComputableInPolyTime f encIn encMid := by
+  obtain ⟨t, c, ⟨T, hT, ht⟩, hf⟩ := h.exists_polyBounded_time
+  obtain ⟨S, hS, hs⟩ := polyBounded_log (fun a => (encIn a).length) c
+  exact ⟨T, S, hT, hS, hf.mono ht hs⟩
 
 /-- The identity is computable in logarithmic space. The zero-space bound itself is
 `Turing.MultiTapeTM.computableInTimeAndSpace_id`. -/

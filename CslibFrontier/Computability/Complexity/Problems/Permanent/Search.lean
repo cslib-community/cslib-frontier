@@ -15,6 +15,7 @@ import CslibFrontier.Foundations.Data.List.OfFnGetD
 import CslibFrontier.Algorithms.Lean.MaxFlow.AugmentingPath
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
+import CslibFrontier.Foundations.Data.Fin.Prod
 
 /-!
 # Searching for bipartite perfect matchings
@@ -87,9 +88,8 @@ private theorem matchingWord_spec (A : List (List Bool)) :
       (maximumMatching (tableWord A) A.length).any (fun e =>
         decide (e.1 = (finProdFinEquiv (i, j)).val / A.length ∧
           e.2 = (finProdFinEquiv (i, j)).val % A.length)) = true ↔ (i, j) ∈ M := by
-    simp [M, finProdFinEquiv, Nat.add_mul_div_left, Nat.div_eq_of_lt j.isLt,
-      Nat.mod_eq_of_lt j.isLt, Nat.pos_of_ne_zero (Nat.ne_zero_of_lt j.isLt),
-      List.any_eq_true]
+    simp only [finProdFinEquiv_val_div, finProdFinEquiv_val_mod]
+    simp [M, List.any_eq_true]
   rw [matchingWord, List.map_range_eq_ofFn, ZeroOnePermanent.verifier_ofFn]
   simp only [hbit]
   constructor
@@ -101,30 +101,21 @@ private theorem matchingWord_spec (A : List (List Bool)) :
     obtain ⟨hrow, hleft, hright, hsupp⟩ := hw
     let N : Finset (Fin A.length × Fin A.length) :=
       Finset.univ.filter fun e => w.getD (finProdFinEquiv e) false = true
-    have hN : IsMatching (graph (tableWord A) A.length) N := by
-      refine ⟨?_, ?_, ?_⟩
-      · intro e he
-        rw [graph_tableWord]
-        exact hsupp e.1 e.2 (Finset.mem_filter.mp he).2
-      · intro i j k hj hk
-        exact hleft i j k (Finset.mem_filter.mp hj).2 (Finset.mem_filter.mp hk).2
-      · intro i k j hi hk
-        exact hright i k j (Finset.mem_filter.mp hi).2 (Finset.mem_filter.mp hk).2
+    have hN : IsMatching (graph (tableWord A) A.length) N :=
+      ⟨fun e he => graph_tableWord A e.1 e.2 ▸ hsupp e.1 e.2 (Finset.mem_filter.mp he).2,
+        fun i j k hj hk => hleft i j k (Finset.mem_filter.mp hj).2 (Finset.mem_filter.mp hk).2,
+        fun i k j hi hk => hright i k j (Finset.mem_filter.mp hi).2 (Finset.mem_filter.mp hk).2⟩
     have hcover : matchedLeft N = Finset.univ := by
       ext i
-      simp only [mem_matchedLeft, Finset.mem_univ, iff_true]
       obtain ⟨j, hj⟩ := hrow i
-      exact ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hj⟩⟩
-    have hcard : (matchedLeft M).card = Fintype.card (Fin A.length) := by
-      apply le_antisymm (Finset.card_le_univ _)
-      rw [card_matchedLeft hmax.1, ← Finset.card_univ, ← hcover, card_matchedLeft hN]
-      exact hmax.2 N hN
-    have hM : matchedLeft M = Finset.univ := Finset.eq_univ_of_card _ hcard
-    refine ⟨?_, hmax.1.2.1, hmax.1.2.2, ?_⟩
-    · intro i
-      exact mem_matchedLeft.mp (hM ▸ Finset.mem_univ i)
-    · intro i j hij
-      exact (graph_tableWord A i j) ▸ hmax.1.1 (i, j) hij
+      simpa only [mem_matchedLeft, Finset.mem_univ, iff_true] using
+        ⟨j, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hj⟩⟩
+    have hM : matchedLeft M = Finset.univ := Finset.eq_univ_of_card _ <|
+      le_antisymm (Finset.card_le_univ _) <| by
+        rw [card_matchedLeft hmax.1, ← Finset.card_univ, ← hcover, card_matchedLeft hN]
+        exact hmax.2 N hN
+    exact ⟨fun i => mem_matchedLeft.mp (hM ▸ Finset.mem_univ i), hmax.1.2.1, hmax.1.2.2,
+      fun i j hij => (graph_tableWord A i j) ▸ hmax.1.1 (i, j) hij⟩
 
 /-- Perfect-matching search is polynomial-time: write the certified maximum matching as a
 permutation-matrix certificate, returning `none` exactly when no perfect matching exists. -/

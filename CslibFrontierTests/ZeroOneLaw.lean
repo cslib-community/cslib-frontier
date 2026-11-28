@@ -31,6 +31,15 @@ example : randomGraphProb 2 (fun G => G.Adj 0 1) = 1 / 2 :=
 example : randomGraphProb 3 SimpleGraph.EvenEdges = 1 / 2 :=
   randomGraphProb_evenEdges (by norm_num)
 
+/-- On `Fin 3`, the complete graph has `3` edges (`¬EvenEdges`), and toggling `(0, 1)` flips parity
+to `EvenEdges`. -/
+example : ¬(⊤ : SimpleGraph (Fin 3)).EvenEdges ∧
+    (symmDiff (⊤ : SimpleGraph (Fin 3)) (SimpleGraph.edge 0 1)).EvenEdges := by
+  have htop : ¬(⊤ : SimpleGraph (Fin 3)).EvenEdges := by
+    rw [SimpleGraph.EvenEdges, ← SimpleGraph.coe_edgeFinset, Set.ncard_coe_finset]
+    decide
+  exact ⟨htop, (SimpleGraph.evenEdges_symmDiff_edge_iff (by decide) _).2 htop⟩
+
 /-! ### Extension axioms on concrete graphs -/
 
 /-- The triangle satisfies the extension axiom "every vertex has a neighbour". -/

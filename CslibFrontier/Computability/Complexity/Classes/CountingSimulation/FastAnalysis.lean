@@ -69,7 +69,7 @@ public section
 namespace Cslib.Complexity.CountingSimulation
 
 open Cslib.Circuits.Frontier Cslib.Circuits.Frontier.ContractionSchedule
-  Cslib.Circuits.Frontier.FastContraction Cslib.GenericRAM Cslib.GenericRAM.StackRecursion
+  Cslib.Circuits.Frontier.FastContraction Cslib.GenericRAM Cslib.Algorithms.StackRecursion
   Turing.MultiTapeTM
 
 /-! ### The clock -/
@@ -88,9 +88,7 @@ theorem two_mul_sub_one_le_fuel {m p N D : ℕ} (hm : D + 2 ≤ m) (hp : p ≤ D
   have hσ : 1 ≤ σ := Nat.one_le_sqrt_log_two hm2
   -- The exponent of the count.
   have hCm : (p / m + 1) * m ≤ Y := by
-    have := Nat.div_mul_le_self p m
-    rw [add_mul, one_mul]
-    omega
+    rw [add_mul, one_mul]; linarith [Nat.div_mul_le_self p m]
   have hX : (245760 * (p / m + 1) + 37) * m ≤ 245797 * Y := by nlinarith
   -- `⌊log₂ (m + p)⌋ ≤ 3 ⌊log₂ m⌋`.
   have hYm : Y ≤ m * m := by nlinarith
@@ -104,35 +102,25 @@ theorem two_mul_sub_one_le_fuel {m p N D : ℕ} (hm : D + 2 ≤ m) (hp : p ≤ D
     have := Nat.log_lt_of_lt_pow (by omega) h2
     omega
   have hσ' : Nat.sqrt (Nat.log 2 Y) ≤ 3 * σ := by
-    have h1 : Nat.sqrt (Nat.log 2 Y) ≤ Nat.sqrt (3 * L) := Nat.sqrt_le_sqrt hL'
-    have h2 : Nat.sqrt (3 * L) < 2 * σ + 2 := by
-      rw [Nat.sqrt_lt']
-      have := Nat.lt_succ_sqrt' L
-      nlinarith
+    have := Nat.sqrt_le_sqrt hL'
+    have : Nat.sqrt (3 * L) < 2 * σ + 2 := Nat.sqrt_lt'.mpr (by nlinarith [Nat.lt_succ_sqrt' L])
     omega
   have hσ'0 : 0 < Nat.sqrt (Nat.log 2 Y) :=
-    Nat.sqrt_pos.mpr ((Nat.log_mono_right (show m ≤ Y by omega)).trans_lt' hL1)
+    Nat.sqrt_pos.mpr ((Nat.log_mono_right (Nat.le_add_right m p)).trans_lt' hL1)
   -- Comparing the exponents.
   set k := Y / σ with hkdef
-  have hk : 1 ≤ k := by
-    refine (Nat.le_div_iff_mul_le hσ).mpr ?_
-    have h1 : σ ≤ L := Nat.sqrt_le_self L
-    have h2 : L < m := Nat.log_lt_self 2 (by omega)
-    omega
+  have hk : 1 ≤ k := (Nat.le_div_iff_mul_le hσ).mpr <| by
+    simpa only [one_mul] using (Nat.sqrt_le_self L).trans
+      ((Nat.log_lt_self 2 (by omega)).le.trans (Nat.le_add_right m p))
   have hE1 : (245760 * (p / m + 1) + 37) * m / σ ≤ 245797 * k + 245797 :=
     (Nat.div_le_div_right hX).trans (Nat.mul_div_le_mul_div_add _ _ _)
   have hE2 : 1398101 * k ≤ fuelConst * Y / Nat.sqrt (Nat.log 2 Y) := by
-    have h1 : fuelConst * Y / (3 * σ) ≤ fuelConst * Y / Nat.sqrt (Nat.log 2 Y) := by gcongr
-    have h2 : fuelConst * Y / (3 * σ) = fuelConst * Y / σ / 3 := by
-      rw [Nat.div_div_eq_div_mul, Nat.mul_comm σ 3]
-    have h3 : fuelConst * k ≤ fuelConst * Y / σ := by
-      rw [Nat.le_div_iff_mul_le hσ, Nat.mul_assoc]
-      exact Nat.mul_le_mul_left _ (Nat.div_mul_le_self Y σ)
     have h4 : 1398101 * k ≤ fuelConst * k / 3 := by
-      rw [Nat.le_div_iff_mul_le (by norm_num)]
-      simp only [fuelConst]
-      nlinarith
-    omega
+      rw [Nat.le_div_iff_mul_le (by norm_num), fuelConst]; omega
+    refine (h4.trans (Nat.div_le_div_right ((Nat.le_div_iff_mul_le hσ).mpr
+      ((Nat.mul_assoc ..).trans_le (Nat.mul_le_mul_left _ (Nat.div_mul_le_self Y σ)))))).trans ?_
+    rw [Nat.div_div_eq_div_mul, Nat.mul_comm σ 3]
+    gcongr
   have hpow : 2 * N ≤ 2 ^ (fuelConst * Y / Nat.sqrt (Nat.log 2 Y)) :=
     calc 2 * N ≤ 2 * 2 ^ ((245760 * (p / m + 1) + 37) * m / σ) := Nat.mul_le_mul_left 2 hN
       _ = 2 ^ ((245760 * (p / m + 1) + 37) * m / σ + 1) := by rw [pow_succ]; ring
@@ -155,14 +143,8 @@ theorem onSchedule_root_capPrecision {P C : ℕ} {G : ℕ × ExplicitTensorNetwo
     (hg : fastGuard G = true) (hC : 1 ≤ C)
     (hp : (ExplicitTensorNetwork.capPrecision (P, G)).1 ≤ C * G.2.numEdges) :
     OnSchedule C G.2.numEdges (root (ExplicitTensorNetwork.capPrecision (P, G))) := by
-  have hdeg : G.2.maxDegree ≤ degreeBound G.2.numEdges := by
-    simp only [fastGuard, decide_eq_true_eq] at hg
-    exact hg.2.2
-  rw [ExplicitTensorNetwork.maxDegree_le_iff] at hdeg
-  refine FastContraction.onSchedule_root hC rfl rfl rfl (wf_root P hg) (fun v hv => ?_) rfl rfl hp
-  simp only [root, ExplicitTensorNetwork.capPrecision, rootNet, List.mem_map] at hv
-  obtain ⟨w, hw, rfl⟩ := hv
-  exact hdeg w hw
+  exact FastContraction.onSchedule_root hC rfl rfl rfl (wf_root P hg)
+    (List.forall_mem_map.mpr (G.2.maxDegree_le_iff.mp (of_decide_eq_true hg).2.2)) rfl rfl hp
 
 /-- **The root's schedule constant.** With `m` edges, `D + 2 ≤ m` and capped precision
 `q ≤ D m`, the guarded root is on the schedule for the constant `C = q / m + 1 ≤ D + 1`, so the
@@ -253,9 +235,8 @@ theorem fastAnalysis_nativeMk_of (hS : FastSizes) (hL : FastLeaves) : FastAnalys
     · have hm2 : D + 2 ≤ m := by omega
       obtain ⟨hB, hroot⟩ := activeBounds_onSchedule_root hg hm2 hp₀ rfl (hsA m (by omega))
       obtain ⟨N, H, he, hN, hH⟩ := exists_eval_onSchedule tableEntry hB hroot rfl (by omega)
-      refine ⟨N, H, he, fun _ => ?_, hH.trans ((Nat.log_lt_self 2 (by omega)).le.trans
-        (Nat.le_succ _))⟩
-      exact two_mul_sub_one_le_fuel hm2 hp₀ hN
+      exact ⟨N, H, he, fun _ => two_mul_sub_one_le_fuel hm2 hp₀ hN,
+        hH.trans ((Nat.log_lt_self 2 (by omega)).le.trans (Nat.le_succ _))⟩
     · obtain ⟨N, H, he, hH⟩ := exists_eval_reachInv (mk := nativeMk) (x₀ := x₀) rfl
       exact ⟨N, H, he, fun h => absurd h hs₀, hH⟩
   -- The bounds.
@@ -265,22 +246,20 @@ theorem fastAnalysis_nativeMk_of (hS : FastSizes) (hL : FastLeaves) : FastAnalys
   have hB1 : 1 ≤ n + 1 := by omega
   refine ⟨reachInv tableEntry nativeMk x₀, N, H, cS * (n + 1) ^ dS,
     KL * (n + 1) ^ KL * 2 ^ (KL * s / Nat.sqrt (Nat.log 2 s)), KL * (n + 1) ^ KL, he, hN,
-    fun x hx => ⟨(hKS' x hx).1, fun hl => ?_⟩,
+    fun x hx => ⟨(hKS' x hx).1, fun hl => hKL' x hx (by simpa [scheme] using hl)⟩,
     fun x a ha => (hKS' x ha.1).2.1 a ha, fun v ⟨x, hx, hv⟩ => hv ▸ (hKS' x hx).2.2, ?_, ?_⟩
-  · have hl' : active x = false := by simpa [scheme] using hl
-    exact hKL' x hx hl'
-  · have h1 : H ≤ 1 * (n + 1) ^ K := by
-      have : n + 1 ≤ (n + 1) ^ K := Nat.le_self_pow (by omega) _
-      omega
+  · have h1 : H ≤ 1 * (n + 1) ^ K :=
+      ((hH.trans (Nat.add_le_add_right hmn.le 1)).trans (Nat.le_self_pow (by omega) _)).trans_eq
+        (Nat.one_mul _).symm
     have h2 : cS * (n + 1) ^ dS ≤ cS * (n + 1) ^ K :=
       Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hB1 (by omega))
-    have h3 := mul_pow_le_mul_pow (a := KL) hB1 (show KL ≤ K by omega)
+    have h3 := mul_pow_le_mul_pow (a := KL) (K := K) hB1 (by omega)
     calc H + cS * (n + 1) ^ dS + KL * (n + 1) ^ KL
         ≤ 1 * (n + 1) ^ K + cS * (n + 1) ^ K + KL * (n + 1) ^ K := by omega
       _ ≤ K * (n + 1) ^ K := by
           rw [← add_mul, ← add_mul]
           exact Nat.mul_le_mul_right _ (by omega)
-  · refine Nat.mul_le_mul (mul_pow_le_mul_pow' hB1 (show KL ≤ K by omega))
+  · refine Nat.mul_le_mul (mul_pow_le_mul_pow' hB1 (by omega))
       (Nat.pow_le_pow_right (by norm_num) (Nat.div_le_div_right (Nat.mul_le_mul_right _
         (by omega))))
 where
@@ -295,15 +274,12 @@ theorem length_modulus_le (m : ℕ) : (modulus m).length ≤ 32 * (m + 1) ^ 2 :=
   rw [length_modulus]
   set t := modulusExp m
   have h1 : 2 ^ t ≤ 4 * Nat.log 2 m + 2 := Nat.pow_log_le_self 2 (by omega)
-  have h2 : Nat.log 2 m ≤ m := by
-    rcases Nat.eq_zero_or_pos m with h | h
-    · simp [h]
-    · exact (Nat.log_lt_self 2 h.ne').le
+  have h2 : Nat.log 2 m ≤ m := if h : m = 0 then by simp [h] else (Nat.log_lt_self 2 h).le
   have h3 : 3 ^ t ≤ (2 ^ t) ^ 2 := by
     rw [← pow_mul, mul_comm, pow_mul]
     exact Nat.pow_le_pow_left (by norm_num) t
-  have h4 : (2 ^ t) ^ 2 ≤ (4 * (m + 1)) ^ 2 := Nat.pow_le_pow_left (by omega) 2
-  nlinarith
+  have h4 : 2 ^ t ≤ 4 * (m + 1) := by omega
+  nlinarith [Nat.pow_le_pow_left h4 2]
 
 /-- The coefficients of the modulus are `0` or `1`. -/
 theorem le_one_of_mem_modulus {m z : ℕ} (hz : z ∈ modulus m) : z ≤ 1 := by
@@ -329,9 +305,8 @@ theorem length_vertices_le (G : ExplicitTensorNetwork ℕ) :
       encUnary_apply, List.length_replicate, length_encList]
   refine ⟨?_, fun v hv => ?_⟩
   · have := List.length_le_sum_of_one_le (G.vertices.map fun v =>
-      2 * (encPair (encList encNat) (encList encNat) v).length + 1) (fun i hi => by
-        obtain ⟨v, -, rfl⟩ := List.mem_map.mp hi
-        omega)
+      2 * (encPair (encList encNat) (encList encNat) v).length + 1)
+      (List.forall_mem_map.mpr fun _ _ => Nat.succ_pos _)
     rw [List.length_map] at this
     omega
   · have := List.le_sum_of_mem (List.mem_map_of_mem (f := fun v =>
@@ -357,25 +332,17 @@ theorem fastSizes : FastSizes := by
   have hrows : (encNat x₀.rows).length ≤ n := by
     change (encNat G.1).length ≤ n
     enc_len [hn, FastContraction.encInput]
-  have hV₀ : x₀.net.vertices.length ≤ n := by
-    change (List.map _ G.2.vertices).length ≤ n
-    rw [List.length_map]; omega
+  have hV₀ : x₀.net.vertices.length ≤ n := (List.length_map _).trans_le (hV.trans hnet)
   have hfl : x₀.fl.length ≤ 32 * (n + 1) ^ 2 := (length_modulus_le m).trans
     (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) 2))
-  have hR₀ : ∀ w ∈ x₀.net.vertices, (VertexDesc.enc (encList encNat) w.2).length ≤ n + 1 := by
-    intro w hw
-    change w ∈ List.map _ G.2.vertices at hw
-    obtain ⟨v, hv, rfl⟩ := List.mem_map.mp hw
-    rw [length_encSum]
-    simp only [Sum.elim_inl]
-    have := hdesc v hv
-    omega
+  have hR₀ : ∀ w ∈ x₀.net.vertices, (VertexDesc.enc (encList encNat) w.2).length ≤ n + 1 :=
+    List.forall_mem_map.mpr fun v hv => by
+      simp only [length_encSum, Sum.elim_inl]
+      linarith [hdesc v hv]
   obtain ⟨hc, hv, hf⟩ := (Reach.shape (x₀ := x₀) rfl rfl (wf_root P hg) hx).length_le_pow
-    tableEntry rfl rfl rfl (show m + 1 ≤ n + 1 by omega) (by omega) (by omega) hfl
+    tableEntry rfl rfl rfl (Nat.add_le_add_right hmn.le 1) (by omega) (by omega) hfl
     (fun z hz => le_one_of_mem_modulus hz) hR₀
-  refine ⟨hc, fun a ⟨_, ha, c, _, hac⟩ => ?_, hv⟩
-  rw [hac]
-  exact hf ha _ c
+  exact ⟨hc, fun a ⟨_, ha, c, _, hac⟩ => hac ▸ hf ha _ c, hv⟩
 
 /-- **The resource analysis of the native recursion**, given the leaf bounds. -/
 theorem fastAnalysis_nativeMk (hL : FastLeaves) : FastAnalysis nativeMk :=
@@ -404,12 +371,9 @@ theorem reach_facts (C D : ℕ) : ∃ s₀, ∀ (s P : ℕ) (G : ℕ × Explicit
   have hsh := Reach.shape (x₀ := root q) rfl rfl (wf_root P hg) hx
   have hsc : x.scale = m := hsh.scale_eq
   refine ⟨hsc ▸ hsm, hsc ▸ hmC, hsc ▸ hsh.edges_le, fun hs₀ => ⟨?_, fun hl => ?_⟩⟩
-  · have hp₂ : q.1 ≤ D * m ^ 2 :=
-      hp₀.trans (Nat.mul_le_mul_left _ (Nat.le_self_pow (by norm_num) _))
-    rw [hsc]
-    exact hsh.prec_le_pow_four rfl rfl (show D + 81 ≤ m by omega) hp₂
+  · exact hsc ▸ hsh.prec_le_pow_four rfl rfl ((le_max_right sA (D + 81)).trans (hs₀.trans hsm))
+      (hp₀.trans (Nat.mul_le_mul_left _ (Nat.le_self_pow (by norm_num) _)))
   · obtain ⟨hB, hroot⟩ := activeBounds_onSchedule_root hg (by omega) hp₀ rfl (hsA m (by omega))
-    rw [hsc]
-    exact (hx.onSchedule hB hroot).edges_le_leafSize hB hl
+    exact hsc ▸ (hx.onSchedule hB hroot).edges_le_leafSize hB hl
 
 end Cslib.Complexity.CountingSimulation

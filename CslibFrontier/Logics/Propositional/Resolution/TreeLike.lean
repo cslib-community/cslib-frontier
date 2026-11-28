@@ -61,9 +61,12 @@ nodes, so by induction its restriction is refutable in width `k + b - 1`, and th
   `Cslib.Logic.PL.CNF.derives_iff_derivable`: `φ.Derives c` is equivalent to
   `Nonempty (φ.Derivation c)` and to `InferenceSystem.DerivableIn` / `InferenceSystem.Derivable`.
 * `Cslib.Logic.PL.CNF.Derivation.restrict`: restricting a tree-like derivation.
+* `Cslib.Logic.PL.CNF.Derivation.exists_size_eq_of_relabel`: a tree-like refutation of a formula
+  relabelled along an injective map gives one of the formula with the same number of nodes.
 * `Cslib.Logic.PL.CNF.Derivation.findsFalsifiedClause_toDecisionTree`,
-  `Cslib.DecisionTree.FindsFalsifiedClause.exists_derivation`: tree-like refutations and decision
-  trees finding falsified clauses convert into each other;
+  `Cslib.DecisionTree.FindsFalsifiedClause.exists_derivation`,
+  `Cslib.DecisionTree.FindsFalsifiedClause.exists_derivation_leafCount_le`: tree-like refutations
+  and decision trees finding falsified clauses convert into each other;
   `Cslib.DecisionTree.FindsFalsifiedClause.exists_derivation_rank_le` also bounds the rank.
 * `Cslib.Logic.PL.CNF.RefutableInWidth.of_derivation`: short tree-like refutations are narrow.
 
@@ -159,31 +162,48 @@ theorem restrict (v : V) (b : Bool) (d : φ.Derivation c) (hvc : (v, b) ∉ c) :
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Clause.eq_of_mem_of_notMem_resolvent_left hv₁ hvc)
       obtain ⟨c₂', d₂', hsub₂, hsize₂⟩ :=
         ih₂ fun hv₂ => hvc (Clause.mem_resolvent.2 (Or.inr ⟨hv₂, by simp⟩))
-      refine ⟨c₂', d₂', Clause.subset_resolvent_right hsub₂ ?_, ?_⟩
-      · exact fun hv => d₂'.fst_ne_of_restrict hv rfl
-      · rw [size_resolvent]
-        omega
+      exact ⟨c₂', d₂', Clause.subset_resolvent_right hsub₂ fun hv => d₂'.fst_ne_of_restrict hv rfl,
+        by rw [size_resolvent]; omega⟩
     by_cases hv₂ : (v, b) ∈ c₂
     · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Clause.eq_of_mem_of_notMem_resolvent_right hv₂ hvc)
       obtain ⟨c₁', d₁', hsub₁, hsize₁⟩ := ih₁ hv₁
-      refine ⟨c₁', d₁', Clause.subset_resolvent_left hsub₁ ?_, ?_⟩
-      · exact fun hv => d₁'.fst_ne_of_restrict hv rfl
-      · rw [size_resolvent]
-        omega
+      exact ⟨c₁', d₁', Clause.subset_resolvent_left hsub₁ fun hv => d₁'.fst_ne_of_restrict hv rfl,
+        by rw [size_resolvent]; omega⟩
     obtain ⟨c₁', d₁', hsub₁, hsize₁⟩ := ih₁ hv₁
     obtain ⟨c₂', d₂', hsub₂, hsize₂⟩ := ih₂ hv₂
     by_cases hu₁' : (u, true) ∈ c₁'
     · by_cases hu₂' : (u, false) ∈ c₂'
-      · refine ⟨_, .resolvent u d₁' d₂' hu₁' hu₂',
-          Clause.resolvent_subset_resolvent hsub₁ hsub₂, ?_⟩
-        simp only [size_resolvent]
-        omega
-      · refine ⟨c₂', d₂', Clause.subset_resolvent_right hsub₂ hu₂', ?_⟩
-        rw [size_resolvent]
-        omega
-    · refine ⟨c₁', d₁', Clause.subset_resolvent_left hsub₁ hu₁', ?_⟩
-      rw [size_resolvent]
-      omega
+      · exact ⟨_, .resolvent u d₁' d₂' hu₁' hu₂', Clause.resolvent_subset_resolvent hsub₁ hsub₂,
+          by simp only [size_resolvent]; omega⟩
+      · exact ⟨c₂', d₂', Clause.subset_resolvent_right hsub₂ hu₂', by rw [size_resolvent]; omega⟩
+    · exact ⟨c₁', d₁', Clause.subset_resolvent_left hsub₁ hu₁', by rw [size_resolvent]; omega⟩
+
+/-- **Relabelling back a tree-like derivation.** Along an injective map `f`, a tree-like derivation
+from `φ.relabel f` is a relabelled tree-like derivation from `φ` with the same number of nodes:
+every variable it mentions is `f` of a variable of `φ`, and resolving on `f u` is resolving on
+`u`. -/
+theorem exists_of_relabel {W : Type*} [DecidableEq W] {f : V → W} (hf : Function.Injective f) :
+    {c : Clause W} → (d : (φ.relabel f).Derivation c) →
+      ∃ (c' : Clause V) (d' : φ.Derivation c'), c'.relabel f = c ∧ d'.size = d.size
+  | _, mem hc => by
+    obtain ⟨c', hc', rfl⟩ := List.mem_map.1 hc
+    exact ⟨c', .mem hc', rfl, rfl⟩
+  | _, resolvent v d₁ d₂ hv₁ hv₂ => by
+    obtain ⟨c₁, d₁', rfl, hs₁⟩ := exists_of_relabel hf d₁
+    obtain ⟨c₂, d₂', rfl, hs₂⟩ := exists_of_relabel hf d₂
+    obtain ⟨u, hu₁, rfl⟩ := Clause.mem_relabel_iff.1 hv₁
+    obtain ⟨u', hu₂, hfu⟩ := Clause.mem_relabel_iff.1 hv₂
+    obtain rfl : u = u' := (hf hfu).symm
+    exact ⟨_, .resolvent u d₁' d₂' hu₁ hu₂, Clause.relabel_resolvent hf .., by simp [hs₁, hs₂]⟩
+
+/-- A tree-like refutation of `φ.relabel f`, for injective `f`, gives a tree-like refutation of `φ`
+with the same number of nodes. -/
+theorem exists_size_eq_of_relabel {W : Type*} [DecidableEq W] {f : V → W}
+    (hf : Function.Injective f) (d : (φ.relabel f).Derivation []) :
+    ∃ d' : φ.Derivation [], d'.size = d.size := by
+  obtain ⟨c', d', hc', hs⟩ := exists_of_relabel hf d
+  obtain rfl : c' = [] := List.map_eq_nil_iff.1 hc'
+  exact ⟨d', hs⟩
 
 /-! ### Decision trees -/
 
@@ -203,6 +223,13 @@ theorem two_mul_leafCount_toDecisionTree :
     have h₂ := d₂.two_mul_leafCount_toDecisionTree
     simp only [toDecisionTree, DecisionTree.leafCount, size_resolvent]
     omega
+
+/-- A tree-like derivation has at most as many leaves as nodes. -/
+theorem leafCount_toDecisionTree_le_size {c : Clause V} (d : φ.Derivation c) :
+    d.toDecisionTree.leafCount ≤ d.size := by
+  have := d.two_mul_leafCount_toDecisionTree
+  have := d.size_pos
+  omega
 
 /-- On an assignment falsifying the conclusion of a tree-like derivation, its decision tree reaches
 a clause of the formula falsified by the assignment. -/
@@ -338,20 +365,16 @@ private theorem exists_derivation_of_eval (φ : CNF V) :
         simpa [DecisionTree.eval, hσ _ hu₀] using ht σ hσ
       exact ⟨c, d, hc, by omega, hrank.trans hr₀⟩
     -- query `u` afresh: derive from both answers and resolve on `u` if necessary
-    have hπ₀ : ∀ v, (v, true) ∈ (u, false) :: π → (v, false) ∉ (u, false) :: π := by
+    have hπ' (s : Bool) (hs : (u, !s) ∉ π) :
+        ∀ v, (v, true) ∈ (u, s) :: π → (v, false) ∉ (u, s) :: π := by
       intro v hv hv'
-      simp only [List.mem_cons, Prod.mk.injEq, Bool.true_eq_false, and_false, false_or] at hv
-      rcases List.mem_cons.1 hv' with h | h
-      · obtain ⟨rfl, -⟩ := Prod.mk.inj h
-        exact hu₁ hv
-      · exact hπ v hv h
-    have hπ₁ : ∀ v, (v, true) ∈ (u, true) :: π → (v, false) ∉ (u, true) :: π := by
-      intro v hv hv'
-      simp only [List.mem_cons, Prod.mk.injEq, Bool.false_eq_true, and_false, false_or] at hv'
-      rcases List.mem_cons.1 hv with h | h
-      · obtain ⟨rfl, -⟩ := Prod.mk.inj h
-        exact hu₀ hv'
-      · exact hπ v h hv'
+      rcases List.mem_cons.1 hv with h | h <;> rcases List.mem_cons.1 hv' with h' | h'
+      · cases h.trans h'.symm
+      · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h; exact hs h'
+      · obtain ⟨rfl, rfl⟩ := Prod.mk.inj h'; exact hs h
+      · exact hπ v h h'
+    have hπ₀ := hπ' false hu₁
+    have hπ₁ := hπ' true hu₀
     obtain ⟨c₀, d₀, hc₀, hsize₀, hrank₀⟩ := exists_derivation_of_eval φ t₀ ((u, false) :: π) hπ₀
       fun σ hσ => by
         have hσu : σ u = false := hσ _ List.mem_cons_self
@@ -396,6 +419,13 @@ theorem _root_.Cslib.DecisionTree.FindsFalsifiedClause.exists_derivation {φ : C
     ∃ d : φ.Derivation [], d.size + 1 ≤ 2 * t.leafCount :=
   ht.exists_derivation_rank_le.imp fun _ h => h.1
 
+/-- **A DPLL tree has as many leaves as a tree-like refutation**: a decision tree finding a
+falsified clause of `φ` gives a tree-like refutation of `φ` with at most as many leaves. -/
+theorem _root_.Cslib.DecisionTree.FindsFalsifiedClause.exists_derivation_leafCount_le
+    {φ : CNF V} {t : DecisionTree V (Clause V)} (ht : t.FindsFalsifiedClause φ) :
+    ∃ d : φ.Derivation [], d.toDecisionTree.leafCount ≤ t.leafCount :=
+  ht.exists_derivation.imp fun d h => by have := d.two_mul_leafCount_toDecisionTree; omega
+
 namespace CNF
 
 variable {φ : CNF V}
@@ -412,47 +442,34 @@ theorem RefutableInWidth.of_derivation {k b : ℕ} (hk : ∀ c ∈ φ, c.width �
   cases d with
   | mem hmem =>
     subst hc
-    exact RefutableInWidth.mono ⟨[[]], IsProof.nil.mem hmem, List.mem_singleton_self _,
-      by simp⟩ (Nat.zero_le _)
+    exact ⟨[[]], IsProof.nil.mem hmem, List.mem_singleton_self _, by simp⟩
   | @resolvent c₁ c₂ v d₁ d₂ hv₁ hv₂ =>
     simp only [Derivation.size_resolvent] at hn hd
     -- the premises are the unit clauses of `v` and of its negation
-    have hl₁ : ∀ l ∈ c₁, l = (v, true) := fun l hl => by
-      by_contra hne
-      have : l ∈ c₁.resolvent c₂ v := Clause.mem_resolvent.2 (Or.inl ⟨hl, hne⟩)
-      rw [hc] at this
-      exact List.not_mem_nil this
-    have hl₂ : ∀ l ∈ c₂, l = (v, false) := fun l hl => by
-      by_contra hne
-      have : l ∈ c₁.resolvent c₂ v := Clause.mem_resolvent.2 (Or.inr ⟨hl, hne⟩)
-      rw [hc] at this
-      exact List.not_mem_nil this
+    have hnil : ∀ l, l ∉ c₁.resolvent c₂ v := fun l => by simp [hc]
+    have hl₁ (l) (hl : l ∈ c₁) := Clause.eq_of_mem_of_notMem_resolvent_left hl (hnil l)
+    have hl₂ (l) (hl : l ∈ c₂) := Clause.eq_of_mem_of_notMem_resolvent_right hl (hnil l)
     obtain ⟨c₁', d₁', hsub₁, hsize₁⟩ := d₁.restrict v false fun h => by simpa using hl₁ _ h
     obtain ⟨c₂', d₂', hsub₂, hsize₂⟩ := d₂.restrict v true fun h => by simpa using hl₂ _ h
-    have hc₁' : c₁' = [] := List.eq_nil_iff_forall_not_mem.2 fun l hl =>
+    obtain rfl : c₁' = [] := List.eq_nil_iff_forall_not_mem.2 fun l hl =>
       d₁'.fst_ne_of_restrict hl (by rw [hl₁ l (hsub₁ l hl)])
-    have hc₂' : c₂' = [] := List.eq_nil_iff_forall_not_mem.2 fun l hl =>
+    obtain rfl : c₂' = [] := List.eq_nil_iff_forall_not_mem.2 fun l hl =>
       d₂'.fst_ne_of_restrict hl (by rw [hl₂ l (hsub₂ l hl)])
-    obtain ⟨b, rfl⟩ : ∃ b', b = b' + 1 := by
-      rcases b with _ | b
-      · have := d₁.size_pos
-        simp only [pow_zero] at hd
-        omega
-      · exact ⟨b, rfl⟩
-    have hk' (γ : Bool) : ∀ c ∈ φ.restrict v γ, c.width ≤ k := fun c hc =>
-      width_le_of_mem_restrict hk hc
+    rcases b with _ | b
+    · have := d₁.size_pos
+      simp only [pow_zero] at hd
+      omega
     have hφ : ∀ c ∈ φ, c.width ≤ k + b + 1 := fun c hc => (hk c hc).trans (by omega)
     rw [pow_succ] at hd
     -- each subtree refutes a restriction; the smaller one has at most `2 ^ b` nodes
-    have hwide₁ : (φ.restrict v false).RefutableInWidth (k + (b + 1)) :=
-      ih _ (by omega) (hk' false) d₁' hc₁' (b := b + 1) (by rw [pow_succ]; omega) rfl
-    have hwide₂ : (φ.restrict v true).RefutableInWidth (k + (b + 1)) :=
-      ih _ (by omega) (hk' true) d₂' hc₂' (b := b + 1) (by rw [pow_succ]; omega) rfl
+    have ih' (γ : Bool) (d' : (φ.restrict v γ).Derivation []) (b' : ℕ) (h₁ : d'.size < n)
+        (h₂ : d'.size ≤ 2 ^ b') : (φ.restrict v γ).RefutableInWidth (k + b') :=
+      ih _ h₁ (fun _ hc => width_le_of_mem_restrict hk hc) d' rfl h₂ rfl
     rcases le_or_gt d₁.size (2 ^ b) with h₁ | h₁
-    · exact RefutableInWidth.of_restrict (w := k + b) (b := false) hφ
-        (ih _ (by omega) (hk' false) d₁' hc₁' (b := b) (by omega) rfl) hwide₂
-    · exact RefutableInWidth.of_restrict (w := k + b) (b := true) hφ
-        (ih _ (by omega) (hk' true) d₂' hc₂' (b := b) (by omega) rfl) hwide₁
+    · exact .of_restrict (w := k + b) (b := false) hφ (ih' _ d₁' b (by omega) (by omega))
+        (ih' _ d₂' (b + 1) (by omega) (by rw [pow_succ]; omega))
+    · exact .of_restrict (w := k + b) (b := true) hφ (ih' _ d₂' b (by omega) (by omega))
+        (ih' _ d₁' (b + 1) (by omega) (by rw [pow_succ]; omega))
 
 end CNF
 

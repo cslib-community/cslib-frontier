@@ -37,7 +37,6 @@ HOUR, DAY, WEEK = 3600, 86400, 604800
 MAX_ENTRIES = 100000
 MAX_RECORDS = 250000
 MAX_MAPPING_BYTES = 8 << 20
-MAX_MAPPING_TOTAL = 64 << 20
 MAX_OUTPUT_BYTES = 1 << 20
 MAX_JOURNAL_BYTES = 96 << 20
 MAX_POPULAR_KEYS = 10000
@@ -310,8 +309,6 @@ def storage_attempt(root, now, mapping_requests, deadline):
             deferred_artifacts = None
     if time.monotonic() > deadline:
         raise SnapshotUnavailable("scan deadline")
-    if sum(item[1].st_size for item in mappings) > MAX_MAPPING_TOTAL:
-        raise SnapshotUnavailable("mapping scan limit")
     builds, logical, missing = [], 0, 0
     for path, expected, toolchain, revision in mappings:
         size, modified = expected.st_size, expected.st_mtime

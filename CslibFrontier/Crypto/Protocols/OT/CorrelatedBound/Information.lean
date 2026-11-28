@@ -134,32 +134,24 @@ theorem condMutualInfo_rot_eq [Finite τ] {k : ℕ} (ν : PMF Ω)
   have hCR : condMutualInfo (ν.map fun ω => (T ω, S ω, R ω)) =
       condMutualInfo (ν.map fun ω => (T ω, S ω, (C ω, Y ω))) := by
     refine (condMutualInfo_map_congr ν T S (T := R) (T' := fun ω => (C ω, Y ω))
-      (e := fun r => (rotChoices r, rotReceived r)) ?_ (fun _ _ => rfl)).symm
-    intro r r' h
-    funext j
-    have h1 := congrFun (congrArg Prod.fst h) j
-    have h2 := congrFun (congrArg Prod.snd h) j
-    exact Prod.ext h1 h2
+      (e := fun r => (rotChoices r, rotReceived r)) (fun _ _ h => funext fun j =>
+        Prod.ext (congrFun (congrArg Prod.fst h) j) (congrFun (congrArg Prod.snd h) j))
+      (fun _ _ => rfl)).symm
   rw [hCR, condMutualInfo_map_prodMk_right_eq_add]
   -- Step 1: `I(S; C | T) = 0` from Alice's privacy.
   have hSC : condMutualInfo (ν.map fun ω => (T ω, S ω, C ω)) = 0 := by
     refine condMutualInfo_eq_zero_of_apply_eq_mul _
       (fun t s => (ν.map fun ω => (S ω, T ω)) (s, t))
       (fun _ c => (PMF.uniformOfFintype (Fin k → Bool)) c) fun t s c => ?_
-    have hmap : ν.map (fun ω => (T ω, S ω, C ω)) =
-        (ν.map fun ω => ((S ω, T ω), C ω)).map fun ((s', t'), c') => (t', s', c') := by
-      rw [PMF.map_comp]
-      rfl
-    rw [hmap, hAlicePriv.map_pair_eq]
     let e : ((Fin k → Bool × Bool) × τ) × (Fin k → Bool) ≃
         τ × (Fin k → Bool × Bool) × (Fin k → Bool) :=
       { toFun := fun ((s', t'), c') => (t', s', c')
         invFun := fun (t', s', c') => ((s', t'), c')
         left_inv := fun ((_, _), _) => rfl
         right_inv := fun (_, _, _) => rfl }
-    change ((ν.map fun ω => (S ω, T ω)).bind fun st =>
-        (PMF.uniformOfFintype (Fin k → Bool)).map (st, ·)).map e (t, s, c) = _
-    rw [map_equiv_apply]
+    have hmap : ν.map (fun ω => (T ω, S ω, C ω)) =
+        (ν.map fun ω => ((S ω, T ω), C ω)).map e := by rw [PMF.map_comp]; rfl
+    rw [hmap, hAlicePriv.map_pair_eq, map_equiv_apply]
     exact bind_map_prodMk_apply _ _ ((s, t), c)
   -- Step 2: `I(S; Y | (T, C)) = H((T, C), Y) - H(T, C)` because `Y` is determined by `(S, C)`.
   have hSY : condMutualInfo (ν.map fun ω => ((T ω, C ω), S ω, Y ω)) =
@@ -170,18 +162,8 @@ theorem condMutualInfo_rot_eq [Finite τ] {k : ℕ} (ν : PMF Ω)
       refine entropy_map_eq_of_comp ν
         (e := fun tcs : (τ × (Fin k → Bool)) × (Fin k → Bool × Bool) =>
           (tcs.1, tcs.2, fun j => otSelect (tcs.2 j) (tcs.1.2 j)))
-        (fun s t h => by
-          obtain ⟨tc, s⟩ := s
-          obtain ⟨tc', s'⟩ := t
-          simp only [Prod.mk.injEq] at h
-          exact Prod.ext h.1 h.2.1)
-        fun ω hω => by
-          ext : 1
-          · rfl
-          · ext : 1
-            · rfl
-            · funext j
-              exact hCorrect ω hω j
+        (fun _ _ h => Prod.ext (congrArg Prod.fst h :) (congrArg (·.2.1) h :))
+        fun ω hω => Prod.ext rfl (Prod.ext rfl (funext (hCorrect ω hω)))
     rw [hdet]
     ring
   -- Step 3: Show `((T, C), Y)` is `(T, C) × Unif` by flipping `C` to relate `Y` to `U`.
@@ -195,17 +177,9 @@ theorem condMutualInfo_rot_eq [Finite τ] {k : ℕ} (ν : PMF Ω)
     rw [hcomp, ← PMF.map_comp, uniformOfFintype_map_equiv bitFlip]
   have hTC_flip : (ν.map fun ω => (T ω, C ω)).map (Prod.map id (bitFlip (k := k))) =
       ν.map fun ω => (T ω, C ω) := by
-    have h1 : ν.map (fun ω => (T ω, C ω)) =
-        (ν.map fun ω => ((S ω, T ω), C ω)).map fun p => (p.1.2, p.2) := by
-      rw [PMF.map_comp]
-      rfl
-    rw [h1, PMF.map_comp]
-    have hcomp :
-        (Prod.map id (⇑(bitFlip (k := k))) ∘
-          fun p : ((Fin k → Bool × Bool) × τ) × (Fin k → Bool) => (p.1.2, p.2)) =
-          (fun p : ((Fin k → Bool × Bool) × τ) × (Fin k → Bool) => (p.1.2, p.2)) ∘
-            Prod.map id (⇑(bitFlip (k := k))) := rfl
-    rw [hcomp, ← PMF.map_comp, hFlipST]
+    have h := congrArg
+      (PMF.map fun p : ((Fin k → Bool × Bool) × τ) × (Fin k → Bool) => (p.1.2, p.2)) hFlipST
+    simpa only [PMF.map_comp, Function.comp_def, Prod.map, id_eq] using h
   have hFlipEq : ν.map (fun ω => ((T ω, bitFlip (C ω)), Y ω)) =
       ν.map (fun ω => ((T ω, C ω), U ω)) := by
     let evalAt : (Fin k → Bool) → (Fin k → Bool × Bool) → (Fin k → Bool) :=
@@ -228,19 +202,12 @@ theorem condMutualInfo_rot_eq [Finite τ] {k : ℕ} (ν : PMF Ω)
     rw [bitFlip_bitFlip]
   have hTCU : IndepUniform ν (fun ω => (T ω, C ω)) U := by
     refine ⟨?_⟩
-    have h1 : ν.map (fun ω => ((T ω, C ω), U ω)) =
-        (ν.map fun ω => ((T ω, R ω), U ω)).map fun ((t, r), u) => ((t, rotChoices r), u) := by
-      rw [PMF.map_comp]
-      rfl
+    have h := congrArg
+      (PMF.map fun ((t, r), u) => ((t, rotChoices r), u)) hBobPriv.map_pair_eq
     have h2 : ν.map (fun ω => (T ω, C ω)) =
-        (ν.map fun ω => (T ω, R ω)).map fun (t, r) => (t, rotChoices r) := by
-      rw [PMF.map_comp]
-      rfl
-    rw [h1, hBobPriv.map_pair_eq, PMF.map_bind]
-    conv_rhs => rw [h2, PMF.bind_map]
-    congr 1 with ⟨t, r⟩ : 1
-    rw [PMF.map_comp]
-    rfl
+        (ν.map fun ω => (T ω, R ω)).map fun p => (p.1, rotChoices p.2) := by rw [PMF.map_comp]; rfl
+    rw [h2]
+    simpa only [PMF.map_comp, PMF.map_bind, PMF.bind_map, Function.comp_def] using h
   have hTCY : IndepUniform ν (fun ω => (T ω, C ω)) Y := by
     refine ⟨?_⟩
     have h1 : ν.map (fun ω => ((T ω, C ω), Y ω)) =

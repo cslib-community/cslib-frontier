@@ -111,7 +111,7 @@ private lemma honest_bounds {y : List Bool} {b : Bool} {T s : ℕ}
   · have hc := length_eCfg_le_space d (y.map eBit) j
     have hσ : simSpace d (y.map eBit) j ≤ s :=
       (simSpace_desc eS eBit M y j).trans_le (space_le_of_runsInSpace hM.2.2 j)
-    have hE := ComputableTidilyInO.length_encNat_add_le y.length 1
+    have hE := length_encNat_add_le y.length 1
     have hk := tapes_le d
     simp only [List.length_map] at hc
     change (eCfg (run d (y.map eBit) j)).length ≤ _
@@ -169,7 +169,7 @@ private lemma honest_cost {π : Type} {encP : π ↪ List Bool} {look : π × �
   have hw := wTime_le d c.1 _ hsym htapes
   have hposE : (encNat c.1.inputPos).length ≤ (encNat y.length).length + 1 :=
     (length_encNat_mono hpos).trans
-      (ComputableTidilyInO.length_encNat_add_le y.length 1)
+      (length_encNat_add_le y.length 1)
   have hL' := hL _ hpos
   have hlist : (encList encUnary c.2).length ≤ 2 * descLen d + 1 := by
     have h := length_encList_le encUnary c.2 (b := descLen d) fun o ho => by
@@ -194,18 +194,15 @@ private lemma honest_cost {π : Type} {encP : π ↪ List Bool} {look : π × �
   -- the inner factor of the step without the input
   have hinner : 4 * descLen d + 2 * (eCfg c.1).length + 12 ≤
       (4 * descLen d + 12 + 4 * (12 * descLen d + 40)) * W := by
-    have h₁ := Nat.mul_le_mul_left (4 * descLen d + 12) hW1
-    have h₂ := Nat.mul_le_mul_left (12 * descLen d + 40) hsW
-    linarith
+    linarith [Nat.mul_le_mul_left (4 * descLen d + 12) hW1,
+      Nat.mul_le_mul_left (12 * descLen d + 40) hsW]
   have hA := Nat.mul_le_mul_left ((2 * descLen d + 1) * (descLen d + 1)) hinner
   have hDW := Nat.mul_le_mul_left (2 * descLen d) hW1
   have h₀ : 0 ≤ (4 * (12 * descLen d + 40) + 2 * descLen d) * W := Nat.zero_le _
   have h₁ := Nat.mul_le_mul_left (12 * descLen d + 40) hsW
   unfold honestK
   simp only [lookStepTime, length_encPair]
-  constructor
-  · linarith
-  · linarith
+  exact ⟨by linarith, by linarith⟩
 
 end Honest
 
@@ -215,8 +212,9 @@ private lemma speedup_arith {K b r W C τ : ℕ} (hb : b + 1 ≤ 2 * (r + 1)) (h
     (hτ : (r + 1) * W ≤ C * τ + C) : K * ((b + 1) * (W + 1)) ≤ 4 * K * C * τ + 4 * K * C := by
   have h₁ : (b + 1) * (W + 1) ≤ (2 * (r + 1)) * (2 * W) := Nat.mul_le_mul hb (by omega)
   have h₂ : (2 * (r + 1)) * (2 * W) = 4 * ((r + 1) * W) := by ring
-  have h₃ := Nat.mul_le_mul_left K (h₁.trans (h₂ ▸ Nat.mul_le_mul_left 4 hτ))
-  calc K * ((b + 1) * (W + 1)) ≤ K * (4 * (C * τ + C)) := h₃
+  calc K * ((b + 1) * (W + 1))
+      ≤ K * (4 * (C * τ + C)) :=
+        Nat.mul_le_mul_left K (h₁.trans (h₂ ▸ Nat.mul_le_mul_left 4 hτ))
     _ = 4 * K * C * τ + 4 * K * C := by ring
 
 /-- The arithmetic of a checked block: with `X` the cost of a configuration (`X ≤ K W`), the
@@ -226,17 +224,16 @@ private lemma block_arith {K W b z p X : ℕ} (hW : 1 ≤ W) (hp : p ≤ W) (hX 
     2 * p + 1 + (2 * X + 1 + (2 * z + 1)) + (b + 1) * (2 * (K * W) + (z + 1) ^ 2) +
         (2 * p + 1 + (2 * X + 1 + (2 * z + 1))) ≤
       (8 * K + 24) * ((b + 1) * (W + 1)) := by
+  have _ := hW
   have hz1 : z + 1 ≤ (z + 1) ^ 2 := Nat.le_self_pow two_ne_zero _
-  have h₁ : (b + 1) * (2 * (K * W) + (z + 1) ^ 2) ≤ (b + 1) * (2 * (K * W) + 4 * W) := by gcongr
-  have h₂ : 1 ≤ (b + 1) * (W + 1) := Nat.one_le_iff_ne_zero.mpr (by positivity)
   have h₃ : W + 1 ≤ (b + 1) * (W + 1) := Nat.le_mul_of_pos_left _ (Nat.succ_pos b)
-  have h₄ : K * W ≤ K * ((b + 1) * (W + 1)) :=
-    Nat.mul_le_mul_left _ ((Nat.le_succ W).trans h₃)
-  have h₅ : (b + 1) * (2 * (K * W) + 4 * W) ≤ (2 * K + 4) * ((b + 1) * (W + 1)) := by
-    have : (b + 1) * (2 * (K * W) + 4 * W) = (2 * K + 4) * ((b + 1) * W) := by ring
-    rw [this]
-    exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (Nat.le_succ W))
-  have h₆ := Nat.zero_le (K * ((b + 1) * (W + 1)))
+  have h₄ := Nat.mul_le_mul_left K ((Nat.le_succ W).trans h₃)
+  have h₅ : (b + 1) * (2 * (K * W) + (z + 1) ^ 2) ≤ (2 * K + 4) * ((b + 1) * (W + 1)) :=
+    calc (b + 1) * (2 * (K * W) + (z + 1) ^ 2)
+        ≤ (b + 1) * (2 * (K * W) + 4 * W) := by gcongr
+      _ = (2 * K + 4) * ((b + 1) * W) := by ring
+      _ ≤ (2 * K + 4) * ((b + 1) * (W + 1)) :=
+          Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (Nat.le_succ W))
   linarith
 
 /-- The certificate: `b` configurations, each of cost `≤ K W`, and a counter of `z` bits. -/
@@ -245,16 +242,10 @@ private lemma cert_arith {K W b z X : ℕ} (hz : (z + 1) ^ 2 ≤ 4 * W)
     2 * z + 1 + X ≤ (8 * K + 24) * ((b + 1) * (W + 1)) := by
   have hz1 : z + 1 ≤ (z + 1) ^ 2 := Nat.le_self_pow two_ne_zero _
   have h₃ : W + 1 ≤ (b + 1) * (W + 1) := Nat.le_mul_of_pos_left _ (Nat.succ_pos b)
-  have h₁ : b * (2 * (K * W) + 1) ≤ (2 * K + 1) * ((b + 1) * (W + 1)) := by
-    have : b * (2 * (K * W) + 1) = 2 * K * (b * W) + b := by ring
-    rw [this]
-    have h₇ : b * W ≤ (b + 1) * (W + 1) := Nat.mul_le_mul (Nat.le_succ b) (Nat.le_succ W)
-    have h₈ : b ≤ (b + 1) * (W + 1) :=
-      (Nat.le_succ b).trans (Nat.le_mul_of_pos_right _ (Nat.succ_pos W))
-    have h₉ := Nat.mul_le_mul_left (2 * K) h₇
-    linarith
-  have h₆ := Nat.zero_le (K * ((b + 1) * (W + 1)))
-  linarith
+  have h₇ : b * W ≤ (b + 1) * (W + 1) := Nat.mul_le_mul (Nat.le_succ b) (Nat.le_succ W)
+  have h₈ : b ≤ (b + 1) * (W + 1) :=
+    (Nat.le_succ b).trans (Nat.le_mul_of_pos_right _ (Nat.succ_pos W))
+  nlinarith [Nat.mul_le_mul_left (2 * K) h₇]
 
 /-- Blocks of `ofBits bw` steps compose. -/
 private lemma iterate_lookRun {π : Type} (d : Desc) (look : π × ℕ → Option ℕ) (p : π)
@@ -317,15 +308,13 @@ theorem mem_SigmaTwoTIME_of_virtualRun {π : Type} [Inhabited π] {eP : π ↪ L
       (encMid := encList encUnary) [1]).eq'
       (ComputableInO.snd eP (encPair eCfg (encList encUnary))).snd'
     have h1 : (encList encUnary [1]).length ≤ 4 := by decide
+    have h2 (x : π × (SCfg × List ℕ)) : (encList encUnary x.2.2).length ≤
+        (encPair eP (encPair eCfg (encList encUnary)) x).length := by
+      simp only [length_encPair]; omega
     refine h.mono 64 (fun x => ?_) (fun x => ?_)
-    · have h2 : (encList encUnary x.2.2).length ≤
-          (encPair eP (encPair eCfg (encList encUnary)) x).length := by
-        simp only [length_encPair]; omega
-      nlinarith
-    · have h2 : (encList encUnary x.2.2).length ≤
-          (encPair eP (encPair eCfg (encList encUnary)) x).length := by
-        simp only [length_encPair]; omega
-      enc_len at h2 ⊢
+    · nlinarith [h2 x]
+    · have hx := h2 x
+      enc_len at hx ⊢
   refine mem_SigmaTwoTIME_of_chain (eS := encPair eCfg (encList encUnary)) (t := τ)
     (s₀ := (init d, [])) (next := lookRun d look) hP hnext hgoal ?_ ?_
   · intro a bw m h
@@ -396,7 +385,7 @@ theorem mem_SigmaTwoTIME_of_virtualRun {π : Type} [Inhabited π] {eP : π ↪ L
       have hbT : b ≤ T a + 1 := by have := Nat.sqrt_le_self (T a); omega
       have h₂ : (encNat b).length ≤ (encNat (T a)).length + 1 :=
         (length_encNat_mono hbT).trans
-          (ComputableTidilyInO.length_encNat_add_le (T a) 1)
+          (length_encNat_add_le (T a) 1)
       rw [length_encNat_eq_size (T a)] at h₂
       have h₅ : b.bits.length = (encNat b).length := rfl
       have h₃ : (b.bits.length + 1) ^ 2 ≤ ((T a).size + 2) ^ 2 :=
@@ -454,31 +443,24 @@ private lemma sqrt_mul_add_le (c₁ c₂ t : ℕ) :
     Nat.sqrt (c₁ * t + c₂) + 1 ≤ (c₁ + c₂ + 1) * (Nat.sqrt t + 1) := by
   have ht := Nat.lt_succ_sqrt' t
   rw [Nat.succ_eq_add_one] at ht
-  have h : Nat.sqrt (c₁ * t + c₂) < (c₁ + c₂ + 1) * (Nat.sqrt t + 1) := by
-    rw [Nat.sqrt_lt']
-    have h₁ : 1 ≤ (Nat.sqrt t + 1) ^ 2 := Nat.one_le_pow _ _ (Nat.succ_pos _)
-    have h₂ : c₁ * t ≤ c₁ * (Nat.sqrt t + 1) ^ 2 := Nat.mul_le_mul_left _ ht.le
-    have h₃ : c₂ * 1 ≤ c₂ * (Nat.sqrt t + 1) ^ 2 := Nat.mul_le_mul_left _ h₁
-    have h₄ : (c₁ + c₂ + 1) * (Nat.sqrt t + 1) ^ 2 ≤
-        (c₁ + c₂ + 1) * (c₁ + c₂ + 1) * (Nat.sqrt t + 1) ^ 2 :=
-      Nat.mul_le_mul_right _ (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))
-    have h₅ : ((c₁ + c₂ + 1) * (Nat.sqrt t + 1)) ^ 2 =
-        (c₁ + c₂ + 1) * (c₁ + c₂ + 1) * (Nat.sqrt t + 1) ^ 2 := by ring
-    rw [h₅]
-    nlinarith
-  omega
+  refine Nat.succ_le_of_lt (Nat.sqrt_lt'.mpr ?_)
+  have h₁ : 1 ≤ (Nat.sqrt t + 1) ^ 2 := Nat.one_le_pow _ _ (Nat.succ_pos _)
+  have h₄ : (c₁ + c₂ + 1) * (Nat.sqrt t + 1) ^ 2 ≤
+      ((c₁ + c₂ + 1) * (Nat.sqrt t + 1)) ^ 2 := by
+    rw [mul_pow, sq (c₁ + c₂ + 1)]
+    exact Nat.mul_le_mul_right _ (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))
+  nlinarith [Nat.mul_le_mul_left c₁ ht.le]
 
 /-- The length of a linear bound, up to an additive constant. -/
 private lemma size_mul_add_le (c₁ c₂ t : ℕ) : (c₁ * t + c₂).size ≤ t.size + c₁ + c₂ := by
-  rw [Nat.size_le]
   have ht := Nat.lt_size_self t
   have h₁ : c₁ < 2 ^ c₁ := Nat.lt_two_pow_self
   have h₂ : c₂ < 2 ^ c₂ := Nat.lt_two_pow_self
   have h₃ : 1 ≤ 2 ^ t.size := Nat.one_le_two_pow
   have h₄ : c₁ * t ≤ 2 ^ c₁ * 2 ^ t.size := Nat.mul_le_mul h₁.le ht.le
-  have h₅ : 2 ^ (t.size + c₁ + c₂) = 2 ^ c₁ * 2 ^ t.size * 2 ^ c₂ := by
+  have h₅ : 2 ^ (t.size + c₁ + c₂) = (2 ^ c₁ * 2 ^ t.size) * 2 ^ c₂ := by
     rw [pow_add, pow_add]; ring
-  rw [h₅]
+  rw [Nat.size_le, h₅]
   have h₆ : 1 ≤ 2 ^ c₁ * 2 ^ t.size := Nat.one_le_iff_ne_zero.mpr (by positivity)
   nlinarith
 
@@ -509,7 +491,7 @@ theorem TISP_subset_SigmaTwoTIME {t s τ : ℕ → ℕ}
     have he := hPlen a
     have hm : (encNat q).length ≤ (enc a).length.size + 1 := by
       have := (length_encNat_mono hq).trans
-        (ComputableTidilyInO.length_encNat_add_le (enc a).length 1)
+        (length_encNat_add_le (enc a).length 1)
       rwa [length_encNat_eq_size (enc a).length] at this
     simp only [length_encPair]
     generalize (encList encUnary ((enc a).map eBit)).length = e at he ⊢
@@ -606,25 +588,15 @@ theorem TISP_pow_twelve_subset_SigmaTwoTIME :
     TISP enc (fun n => (n + 1) ^ 12) (fun n => (n + 1) ^ 2) ⊆
       SigmaTwoTIME enc (fun n => (n + 1) ^ 8) := by
   refine TISP_subset_SigmaTwoTIME ⟨2722, fun n => ?_⟩
-  have hsqrt : Nat.sqrt ((n + 1) ^ 12) = (n + 1) ^ 6 := by
-    rw [show (n + 1) ^ 12 = ((n + 1) ^ 6) ^ 2 by ring]
-    exact Nat.sqrt_eq' _
-  rw [hsqrt]
-  have h₁ := size_succ_sq_le n
-  have h₂ : (((n + 1) ^ 12).size + 1) ^ 2 ≤ 169 * (n.size + 1) ^ 2 := by
-    have := Nat.pow_le_pow_left (size_pow_twelve_le n) 2
-    have h : (13 * (n.size + 1)) ^ 2 = 169 * (n.size + 1) ^ 2 := by ring
-    exact this.trans_eq h
-  have h₃ : (n + 1) * (n.size + 1) ^ 2 ≤ (n + 1) * (8 * (n + 1)) := Nat.mul_le_mul_left _ h₁
-  have h₃' : (n + 1) * (8 * (n + 1)) = 8 * (n + 1) ^ 2 := by ring
-  have h₄ : n + 1 ≤ (n + 1) ^ 2 := Nat.le_self_pow two_ne_zero _
+  rw [show (n + 1) ^ 12 = ((n + 1) ^ 6) ^ 2 by ring, Nat.sqrt_eq', ← pow_mul]
+  have h₂ : (((n + 1) ^ 12).size + 1) ^ 2 ≤ 169 * (n.size + 1) ^ 2 :=
+    (Nat.pow_le_pow_left (size_pow_twelve_le n) 2).trans_eq (by ring)
   have h₅ : (n + 1) ^ 2 + (n + 1) * (n.size + 1) ^ 2 + (((n + 1) ^ 12).size + 1) ^ 2 ≤
-      1361 * (n + 1) ^ 2 := by linarith
-  have h₆ : 1 ≤ (n + 1) ^ 6 := Nat.one_le_pow _ _ (Nat.succ_pos n)
-  have h₇ : (n + 1) ^ 6 + 1 ≤ 2 * (n + 1) ^ 6 := by linarith
-  have h₈ := Nat.mul_le_mul h₇ h₅
-  have h₉ : 2 * (n + 1) ^ 6 * (1361 * (n + 1) ^ 2) = 2722 * (n + 1) ^ 8 := by ring
-  rw [h₉] at h₈
-  exact h₈.trans (Nat.le_add_right _ _)
+      1361 * (n + 1) ^ 2 := by
+    nlinarith [size_succ_sq_le n, Nat.mul_le_mul_left (n + 1) (size_succ_sq_le n),
+      Nat.le_self_pow two_ne_zero (n + 1)]
+  have h₇ : (n + 1) ^ 6 + 1 ≤ 2 * (n + 1) ^ 6 := by
+    linarith [Nat.one_le_pow 6 (n + 1) (Nat.succ_pos n)]
+  exact ((Nat.mul_le_mul h₇ h₅).trans_eq (by ring)).trans (Nat.le_add_right _ _)
 
 end Cslib.Complexity

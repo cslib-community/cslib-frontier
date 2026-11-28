@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Inpu
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.OutputToTape
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.ExtendTapesView
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.PrepareInput
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Shared tape layout for closed buffered composition
@@ -157,22 +158,15 @@ theorem runFrom_prepare (mark : Symbol) (k₁ : ℕ) (cfg : Config k₀ Symbol S
   rw [MultiTapeTM.runFrom_prepareInput mark _ cfg.tapes.output
     (by rw [buffer_tapes]; simp) (by rw [buffer_tapes]; simp) (by rw [buffer_tapes]; simp)]
   rw [buffer_tapes]
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;> induction i using Fin.addCases with
-  | left i => simp [ready, Function.update_of_ne (Fin.castAdd_ne_natAdd i _)]
-  | right i => fin_cases i <;> simp [ready]
+  tm_step [ready, Fin.castAdd_ne_natAdd]
 
 /-- The prepared input starts the consumer with blank work tapes while retaining source scratch. -/
 theorem start_ready [Functor Choose] (machine : MultiTapeMachine k₁ Symbol State₁ Empty Choose)
     (mark : Symbol) (cfg : Config k₀ Symbol State₀ Empty input) :
     Sequential.start (consumer machine k₀) (ready mark k₁ cfg) =
       consumerConfig mark cfg (machine.initialConfig cfg.tapes.output) := by
-  refine Config.ext ?_ (Subsingleton.elim _ _)
-  simp only [Sequential.start, ready, consumerConfig, InputFromTape.config, Config.embed,
-    MultiTapeTM.embed_castAdd, MultiTapeTM.inCfg, initialConfig, Cfg.init, reserve,
-    MultiTapeTM.embed_natAdd, Cfg.withState]
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;> induction i using Fin.addCases with
-  | left i => induction i using Fin.addCases <;> simp
-  | right i => fin_cases i <;> simp
+  tm_step [ready, consumerConfig, Config.embed, MultiTapeTM.embed_castAdd, reserve,
+    MultiTapeTM.embed_natAdd]
 
 /-- The control-state embeddings of a completed buffered composition. -/
 def finalConfig (mark : Symbol) (cfg₀ : Config k₀ Symbol State₀ Empty input)

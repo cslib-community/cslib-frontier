@@ -105,7 +105,10 @@ theorem toyHash_polyTime : Turing.MultiTapeTM.ComputableInPolyTime
     (fun p : List Bool × List Bool => toyHash p.1 p.2)
     (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits Turing.MultiTapeTM.encBits)
     Turing.MultiTapeTM.encBits := by
-  polytime [toyHash]
+  have hp := Turing.MultiTapeTM.ComputableInPolyTime.id'
+    (encIn := Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits Turing.MultiTapeTM.encBits)
+  exact Turing.MultiTapeTM.ComputableInPolyTime.bitsZipWithInput xor hp.fst'
+    ((hp.snd'.bitsAppend hp.snd').bitsAppend hp.snd')
 
 /-- Half-gates garbling with the toy hash is efficient. -/
 example : (HalfGates.scheme toyHash).IsEfficient encXorAndCircuit :=

@@ -18,7 +18,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Replay.Simulation
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSpaceArith
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Configuration
@@ -161,6 +162,20 @@ theorem spaceBound_answerStep_word (oracle : List Bool → List Bool)
     · exact h.step _ _ _
     · exact h.receive _ _ _ (hans _ (h.query _))
 
+private theorem spaceBound_iterate_answerStep_word (oracle : List Bool → List Bool)
+    {w : List Bool} {steps answerSize : ℕ}
+    (hans : ∀ u, u.length ≤ steps → (oracle u).length ≤ answerSize) :
+    ∀ {i : ℕ}, i ≤ steps →
+      FiniteConfig.SpaceBound w.length i answerSize
+        ((machine.answerStep fun q => oracle q.2)^[i]
+          (FiniteConfig.init machine.initial w))
+  | 0, _ => (FiniteConfig.spaceBound_init _ _ 0).mono le_rfl le_rfl (Nat.zero_le _)
+  | i + 1, hi => by
+    rw [Function.iterate_succ_apply']
+    exact machine.spaceBound_answerStep_word oracle
+      (spaceBound_iterate_answerStep_word oracle hans (Nat.le_of_succ_le hi))
+      fun u hu => hans u (hu.trans (Nat.le_of_succ_le hi))
+
 section FiniteControl
 
 variable [Finite Control] [Fintype Operation]
@@ -169,16 +184,14 @@ theorem receiveWord_pt : ComputableInPolyTime machine.receiveWord
     (encPair encFiniteConfig encBits) encFiniteConfig := by
   refine ComputableInPolyTime.finite_cases
     (tag := fun p : FiniteConfig k Bool Control Operation × List Bool => machine.pendingQuery p.1)
-    (branch := fun q (p : FiniteConfig k Bool Control Operation × List Bool) => match q with
+    (branch := fun q p => match q with
       | some (op, next) => p.1.receive op next p.2
       | none => p.1)
-    (machine.pendingQuery_pt.comp
-      (ComputableInPolyTime.fst encFiniteConfig encBits)) ?_
+    (machine.pendingQuery_pt.comp (.fst encFiniteConfig encBits)) ?_
   rintro (_ | ⟨op, next⟩)
-  · exact ComputableInPolyTime.fst _ _
-  · exact ComputableInPolyTime.finiteConfig_receive
-      (ComputableInPolyTime.fst encFiniteConfig encBits)
-      (ComputableInPolyTime.snd encFiniteConfig encBits) op next
+  · exact .fst _ _
+  · exact ComputableInPolyTime.finiteConfig_receive (.fst encFiniteConfig encBits)
+      (.snd encFiniteConfig encBits) op next
 
 /-- **Independent time and space of one multi-bit oracle instruction.**
 Charges `Tg` and `Sg` only when `(machine.pendingQuery cfg).isSome = true`. -/
@@ -198,33 +211,23 @@ theorem answerStep_word_inO {oracle : List Bool → List Bool} {Tg Sg : List Boo
             ((encFiniteConfig cfg).length +
               (oracle (machine.pendingRequest cfg)).length + 1) ^ d
         else 0) := by
-  have hdone : ComputableInPolyTime (fun _ : FiniteConfig k Bool Control Operation => false)
-      encFiniteConfig encBool := .const false
-  have hleaf : ComputableInPolyTime (fun cfg => (machine.pendingQuery cfg).isSome)
-      encFiniteConfig encBool :=
-    (ComputableInPolyTime.of_finite Option.isSome).comp machine.pendingQuery_pt
-  obtain ⟨d, h⟩ := exists_computableInO_searchStep hdone hleaf machine.pendingRequest_pt
-    machine.localStep_pt machine.receiveWord_pt horacle
-  refine ⟨d, (h.mono_le (fun cfg => ?_) (fun cfg => ?_)).of_enc_eq fun cfg => ?_⟩
-  · simp only [true_and, encBits_apply]
-    exact le_rfl
-  · simp only [true_and, encBits_apply]
-    exact le_rfl
-  · simp only [Bool.false_eq_true, ite_false]
-    rw [machine.answerStep_word]
+  obtain ⟨d, h⟩ := exists_computableInO_searchStep (done := fun _ => false) (.const false)
+    ((ComputableInPolyTime.of_finite (encOut := encBool) Option.isSome).comp
+      machine.pendingQuery_pt)
+    machine.pendingRequest_pt machine.localStep_pt machine.receiveWord_pt horacle
+  exact ⟨d, (h.mono_le (fun _ => by simp only [true_and, encBits_apply]; exact le_rfl)
+    (fun _ => by simp only [true_and, encBits_apply]; exact le_rfl)).of_enc_eq fun cfg => by
+      simp only [Bool.false_eq_true, ite_false]; rw [machine.answerStep_word]; rfl⟩
 
 theorem computableInPolyTime_answerStep_word {oracle : List Bool → List Bool}
     (horacle : ComputableInPolyTime oracle encBits encBits) :
     ComputableInPolyTime (machine.answerStep fun q => oracle q.2)
-      encFiniteConfig encFiniteConfig := by
-  have hcond : ComputableInPolyTime (fun cfg => (machine.pendingQuery cfg).isSome)
-      encFiniteConfig encBool :=
-    (ComputableInPolyTime.of_finite Option.isSome).comp machine.pendingQuery_pt
-  have h := ComputableInPolyTime.ite hcond
-    (machine.receiveWord_pt.comp
-      (ComputableInPolyTime.id'.prod (horacle.comp machine.pendingRequest_pt)))
-    machine.localStep_pt
-  exact h.of_enc_eq fun cfg => by rw [machine.answerStep_word]; rfl
+      encFiniteConfig encFiniteConfig :=
+  (ComputableInPolyTime.ite
+    ((ComputableInPolyTime.of_finite (encOut := encBool) Option.isSome).comp
+      machine.pendingQuery_pt)
+    (machine.receiveWord_pt.comp (.prod .id' (horacle.comp machine.pendingRequest_pt)))
+    machine.localStep_pt).of_enc_eq fun cfg => by rw [machine.answerStep_word]; rfl
 
 omit [Fintype Operation] in
 /-- **A clocked multi-bit oracle run against a polynomial-time word oracle is polynomial-time.** -/
@@ -243,33 +246,19 @@ theorem computableInPolyTime_run_word [Finite Operation] {α : Type} {input : α
   have hcount : ComputableInPolyTime clk input encUnary :=
     ((ComputableInPolyTime.unary_eval (Polynomial.C c * (Polynomial.X + 1) ^ d)).comp
       (ComputableInPolyTime.encoding_length input)).of_enc_eq fun _ => by simp [clk]
-  have hinit : ComputableInPolyTime
-      (fun a => FiniteConfig.init (k := k) (Oracle := Operation) machine.initial (input a))
-      input encFiniteConfig :=
-    ComputableInPolyTime.finiteConfig_init (by fun_prop) _
-  have hspace (a : α) {i : ℕ} (hi : i ≤ clk a) :
-      FiniteConfig.SpaceBound (input a).length i (ansMax a)
-        ((machine.answerStep fun q => oracle q.2)^[i]
-          (FiniteConfig.init machine.initial (input a))) := by
-    induction i with
-    | zero => exact (FiniteConfig.spaceBound_init _ _ 0).mono le_rfl le_rfl (Nat.zero_le _)
-    | succ i ih =>
-      rw [Function.iterate_succ_apply']
-      refine machine.spaceBound_answerStep_word oracle (ih (Nat.le_of_succ_le hi)) fun w hw => ?_
-      have hw' : w.length ≤ clk a := hw.trans (Nat.le_of_succ_le hi)
-      exact (ho_len w).trans (Nat.mul_le_mul_left co
-        (Nat.pow_le_pow_left (Nat.add_le_add_right hw' 1) do'))
+  have hspace (a : α) {i : ℕ} (hi : i ≤ clk a) :=
+    machine.spaceBound_iterate_answerStep_word oracle (w := input a) (steps := clk a)
+      (answerSize := ansMax a) (fun w hw => (ho_len w).trans (Nat.mul_le_mul_left co
+        (Nat.pow_le_pow_left (Nat.add_le_add_right hw 1) do'))) hi
   have hbound : PolyBounded (fun a => (input a).length)
-      (fun a => cf * ((input a).length + clk a + ansMax a + 1)) := by
-    dsimp only [clk, ansMax]
-    growth_poly
-  have hit := ComputableInPolyTime.iterate hcount hinit
-    (machine.computableInPolyTime_answerStep_word horacle) hbound fun a i hi =>
-      (hcf _ _ _ _ (hspace a hi)).trans (Nat.mul_le_mul_left cf (by omega))
-  have hout : ComputableInPolyTime
-      (fun cfg : FiniteConfig k Bool Control Operation => cfg.tapes.output)
-      encFiniteConfig encBits := by fun_prop
-  exact (hout.comp hit).of_enc_eq fun a => by rw [machine.interpret_run_pure_false]; rfl
+      (fun a => cf * ((input a).length + clk a + ansMax a + 1)) := by growth_poly
+  have hit := ComputableInPolyTime.iterate hcount
+    (ComputableInPolyTime.finiteConfig_init (by fun_prop) _)
+    (machine.computableInPolyTime_answerStep_word horacle) hbound
+    fun a i hi => (hcf _ _ _ _ (hspace a hi)).trans (Nat.mul_le_mul_left cf (by omega))
+  exact ((show ComputableInPolyTime (fun cfg : FiniteConfig k Bool Control Operation =>
+      cfg.tapes.output) encFiniteConfig encBits by fun_prop).comp hit).of_enc_eq fun a => by
+    rw [machine.interpret_run_pure_false]; rfl
 
 omit [Fintype Operation] in
 /-- **A clocked multi-bit oracle run against a polynomial-space word oracle runs in polynomial
@@ -300,109 +289,72 @@ theorem exists_computableInO_run_word [Finite Operation] {α : Type} {input : α
   let clk (a : α) : ℕ := c * ((input a).length + 1) ^ d
   let sgMax (a : α) : ℕ := cg * (clk a + 1) ^ dg
   let ansMax (a : α) : ℕ := kg * (sgMax a + 1)
-  have hans_le (a : α) {w : List Bool} (hw : w.length ≤ clk a) :
-      (oracle w).length ≤ ansMax a := by
-    have hsg : Sg w ≤ sgMax a :=
-      (hSg_le w).trans (Nat.mul_le_mul_left cg
-        (Nat.pow_le_pow_left (Nat.add_le_add_right hw 1) dg))
-    exact (ho_len w).trans (Nat.mul_le_mul_left kg (Nat.add_le_add_right hsg 1))
-  have hn : ComputableInPolyTime clk input encNat := by
-    have hlen : ComputableInPolyTime (fun a => (input a).length) input encUnary := by
-      fun_prop
-    exact (ComputableInPolyTime.unary_to_binary.comp
+  have hsg_bound (a : α) {w : List Bool} (hw : w.length ≤ clk a) : Sg w ≤ sgMax a :=
+    (hSg_le w).trans (Nat.mul_le_mul_left cg (Nat.pow_le_pow_left (Nat.add_le_add_right hw 1) dg))
+  have hans_le (a : α) {w : List Bool} (hw : w.length ≤ clk a) : (oracle w).length ≤ ansMax a :=
+    (ho_len w).trans (Nat.mul_le_mul_left kg (Nat.add_le_add_right (hsg_bound a hw) 1))
+  have hn_pt : ComputableInPolyTime clk input encNat :=
+    (ComputableInPolyTime.unary_to_binary.comp
       ((ComputableInPolyTime.unary_eval (Polynomial.C c * (Polynomial.X + 1) ^ d)).comp
-        hlen)).of_enc_eq fun _ => by simp [clk]
-  obtain ⟨dn, _, hn⟩ := hn.exists_degree
-  have hinit : ComputableInPolyTime
-      (fun a => FiniteConfig.init (k := k) (Oracle := Operation) machine.initial (input a))
-      input encFiniteConfig :=
-    ComputableInPolyTime.finiteConfig_init (by fun_prop) _
-  obtain ⟨di, _, hinit⟩ := hinit.exists_degree
-  have hout : ComputableInPolyTime
-      (fun cfg : FiniteConfig k Bool Control Operation => cfg.tapes.output)
-      encFiniteConfig encBits := by fun_prop
-  obtain ⟨do', _, hout⟩ := hout.exists_degree
+        (ComputableInPolyTime.encoding_length input))).of_enc_eq fun _ => by simp [clk]
+  obtain ⟨dn, _, hn⟩ := hn_pt.exists_degree
+  obtain ⟨di, _, hinit⟩ := (show ComputableInPolyTime
+    (fun a => FiniteConfig.init (k := k) (Oracle := Operation) machine.initial (input a))
+    input encFiniteConfig from ComputableInPolyTime.finiteConfig_init (by fun_prop) _).exists_degree
+  obtain ⟨do', _, hout⟩ := (show ComputableInPolyTime
+    (fun cfg : FiniteConfig k Bool Control Operation => cfg.tapes.output)
+    encFiniteConfig encBits by fun_prop).exists_degree
   let step := machine.answerStep fun q => oracle q.2
-  have hspace (a : α) {i : ℕ} (hi : i ≤ clk a) :
-      FiniteConfig.SpaceBound (input a).length i (ansMax a)
-        (step^[i] (FiniteConfig.init machine.initial (input a))) := by
-    induction i with
-    | zero => exact (FiniteConfig.spaceBound_init _ _ 0).mono le_rfl le_rfl (Nat.zero_le _)
-    | succ i ih =>
-      rw [Function.iterate_succ_apply']
-      exact machine.spaceBound_answerStep_word oracle (ih (Nat.le_of_succ_le hi))
-        fun w hw => hans_le a (hw.trans (Nat.le_of_succ_le hi))
+  have hspace (a : α) {i : ℕ} (hi : i ≤ clk a) :=
+    machine.spaceBound_iterate_answerStep_word oracle (w := input a) (steps := clk a)
+      (answerSize := ansMax a) (fun _ hw => hans_le a hw) hi
   let B (a : α) : ℕ := cf * ((input a).length + clk a + ansMax a + 1)
   have hlen (a : α) {i : ℕ} (hi : i ≤ clk a) :
       (encFiniteConfig (step^[i] (FiniteConfig.init machine.initial (input a)))).length ≤ B a :=
     (hcf _ _ _ _ (hspace a hi)).trans (Nat.mul_le_mul_left cf (by omega))
-  have hreq (a : α) {i : ℕ} (hi : i ≤ clk a) :
-      (machine.pendingRequest (step^[i] (FiniteConfig.init machine.initial (input a)))).length ≤
-        clk a :=
-    (machine.length_pendingRequest_le (hspace a hi)).trans hi
   let stepPoly (a : α) : ℕ := (B a + 1) ^ e + (B a + ansMax a + 1) ^ e
-  have hit := ComputableInO.iterate hn.inO hinit.inO hstep
-    (R := fun a => stepPoly a + wordMax Tg (clk a))
-    (Q := fun a => stepPoly a + sgMax a) (B := B)
-    (fun a i hi => by
-      have hl := hlen a hi
-      have hr := hreq a hi
-      have hp1 := Nat.pow_le_pow_left (Nat.add_le_add_right hl 1) e
-      split_ifs
-      · have ha := hans_le a hr
-        have hp2 := Nat.pow_le_pow_left (Nat.add_le_add_right (Nat.add_le_add hl ha) 1) e
-        have htm := le_wordMax Tg hr
-        dsimp only [step, stepPoly] at hl hr hp1 ha hp2 htm ⊢
-        omega
-      · dsimp only [step, stepPoly] at hl hr hp1 ⊢
-        omega)
-    (fun a i hi => by
-      have hl := hlen a hi
-      have hr := hreq a hi
-      have hp1 := Nat.pow_le_pow_left (Nat.add_le_add_right hl 1) e
-      split_ifs
-      · have ha := hans_le a hr
-        have hp2 := Nat.pow_le_pow_left (Nat.add_le_add_right (Nat.add_le_add hl ha) 1) e
-        have hsm : Sg (machine.pendingRequest
-            (step^[i] (FiniteConfig.init machine.initial (input a)))) ≤ sgMax a :=
-          (hSg_le _).trans (Nat.mul_le_mul_left cg
-            (Nat.pow_le_pow_left (Nat.add_le_add_right hr 1) dg))
-        dsimp only [step, stepPoly] at hl hr hp1 ha hp2 hsm ⊢
-        omega
-      · dsimp only [step, stepPoly] at hl hr hp1 ⊢
-        omega)
-    (fun a _ hi => hlen a hi)
-  have hwhole := (hout.inO.comp hit).of_enc_eq
+  have hstep_bd (F : List Bool → ℕ) (M : α → ℕ)
+      (hF : ∀ a w, w.length ≤ clk a → F w ≤ M a) (a : α) (i : ℕ) (hi : i ≤ clk a) :
+      ((encFiniteConfig (step^[i] (FiniteConfig.init machine.initial (input a)))).length + 1) ^ e +
+        (if (machine.pendingQuery
+            (step^[i] (FiniteConfig.init machine.initial (input a)))).isSome = true then
+          F (machine.pendingRequest (step^[i] (FiniteConfig.init machine.initial (input a)))) +
+            ((encFiniteConfig (step^[i] (FiniteConfig.init machine.initial (input a)))).length +
+              (oracle (machine.pendingRequest
+                (step^[i] (FiniteConfig.init machine.initial (input a))))).length + 1) ^ e
+        else 0) ≤ stepPoly a + M a := by
+    have hl := hlen a hi
+    have hp1 := Nat.pow_le_pow_left (Nat.add_le_add_right hl 1) e
+    split_ifs
+    · have hr := (machine.length_pendingRequest_le (hspace a hi)).trans hi
+      have hp2 := Nat.pow_le_pow_left
+        (Nat.add_le_add_right (Nat.add_le_add hl (hans_le a hr)) 1) e
+      have hfm := hF a _ hr
+      dsimp only [step, stepPoly] at hl hp1 hp2 hfm ⊢; omega
+    · dsimp only [step, stepPoly] at hl hp1 ⊢; omega
+  have hwhole := (hout.inO.comp (ComputableInO.iterate hn.inO hinit.inO hstep
+    (hstep_bd Tg (fun a => wordMax Tg (clk a)) (fun a _ hw => le_wordMax Tg hw))
+    (hstep_bd Sg sgMax (fun a _ hw => hsg_bound a hw))
+    (fun a _ hi => hlen a hi))).of_enc_eq
     (g := fun a => OracleComp.interpret (m := Id) (fun q => oracle q.2)
-      (machine.run (pure false) (fun op word => OracleComp.query (op, word))
-        (clk a) (input a)))
+      (machine.run (pure false) (fun op word => OracleComp.query (op, word)) (clk a) (input a)))
     fun a => by rw [machine.interpret_run_pure_false]; rfl
-  let clockLen (a : α) : ℕ := (encNat (clk a)).length
-  have hclkLen (a : α) : clockLen a ≤ clk a + 1 := by
-    dsimp only [clockLen]
-    rw [encNat_apply, Nat.size_eq_bits_len]
-    exact (Nat.size_le.mpr Nat.lt_two_pow_self).trans (Nat.le_succ _)
-  have hOverhead : PolyBounded (fun a => (input a).length)
-      (fun a => ((input a).length + 1) ^ dn + ((input a).length + 1) ^ di +
-        (B a + 1) ^ do' + stepPoly a + sgMax a + B a + (clk a + 1 + 1) ^ 2 + (clk a + 1)) := by
-    dsimp only [stepPoly, B, ansMax, sgMax, clk]
-    growth_poly
-  obtain ⟨c₀, e₀, hc₀⟩ := hOverhead.exists_le
-  let S (a : α) : ℕ := c₀ * ((input a).length + 1) ^ e₀
-  have hSPoly : PolyBounded (fun a => (input a).length) S := by
-    dsimp only [S]
-    growth_poly
-  refine ⟨c₀, e₀, S, hSPoly, hwhole.mono_le (fun a => ?_) (fun a => ?_)⟩
+  obtain ⟨c₀, e₀, hc₀⟩ := (show PolyBounded (fun a => (input a).length)
+    (fun a => ((input a).length + 1) ^ dn + ((input a).length + 1) ^ di +
+      (B a + 1) ^ do' + stepPoly a + sgMax a + B a + (clk a + 1) ^ 2 + clk a) by
+    growth_poly).exists_le
+  refine ⟨c₀, e₀, fun a => c₀ * ((input a).length + 1) ^ e₀, by growth_poly,
+    hwhole.mono_le (fun a => ?_) (fun a => ?_)⟩
   · have hfin := Nat.pow_le_pow_left (Nat.add_le_add_right (hlen a le_rfl) 1) do'
-    have hcl2 := Nat.pow_le_pow_left (Nat.add_le_add_right (hclkLen a) 1) 2
+    have hcl2 := Nat.pow_le_pow_left (Nat.add_le_add_right (length_encNat_le_self (clk a)) 1) 2
     have h₁ := hc₀ a
-    dsimp only [step, clk, clockLen] at hfin hcl2 h₁ ⊢
+    dsimp only [step, clk] at hfin hcl2 h₁ ⊢
     rw [Nat.add_right_comm]
     exact Nat.add_le_add (by omega) (Nat.mul_le_mul_left _ (by omega))
   · have hfin := Nat.pow_le_pow_left (Nat.add_le_add_right (hlen a le_rfl) 1) do'
-    have hcl := hclkLen a
+    have hcl := length_encNat_le_self (clk a)
     have h₁ := hc₀ a
-    dsimp only [step, S, clk, clockLen] at hfin hcl h₁ ⊢
+    dsimp only [step, clk] at hfin hcl h₁ ⊢
     omega
 
 end FiniteControl
@@ -514,10 +466,8 @@ private theorem interpret_and_queriesWith_subst {β : Type}
         (OracleComp.interpret G (OracleComp.query q >>= cont)) =
       (OracleComp.queriesWith (fun q => oracle₁ q.2) (OracleComp.query q >>= cont)).flatMap _
     rw [OracleComp.interpret_bind, OracleComp.interpret_query, OracleComp.interpret_bind,
-      OracleComp.queriesWith_bind, OracleComp.queriesWith_query_bind, List.flatMap_cons]
-    have hq : OracleComp.interpret (m := Id) (fun q' => oracle₂ q'.2) (G q) = oracle₁ q.2 :=
-      hG q (List.mem_cons_self ..)
-    rw [hq]
+      OracleComp.queriesWith_bind, OracleComp.queriesWith_query_bind, List.flatMap_cons,
+      hG q (List.mem_cons_self ..)]
     obtain ⟨heval, hqs⟩ := ih (oracle₁ q.2) fun q' hq' => hG q' (List.mem_cons_of_mem _ hq')
     exact ⟨heval, congrArg (_ ++ ·) hqs⟩
 
@@ -534,9 +484,8 @@ private theorem forall_queriesWith_of_probQueriesSatisfy {β : Type}
     rw [OracleComp.interpret_bind, OracleComp.interpret_query, ProbOracleComp.query] at h
     obtain ⟨hpq, hcont⟩ := OracleComp.QueriesSatisfy.liftBind_iff.mp h
     intro q' hq'
-    change q' ∈ OracleComp.queriesWith answer (OracleComp.query q >>= cont) at hq'
-    rw [OracleComp.queriesWith_query_bind, List.mem_cons] at hq'
-    rcases hq' with rfl | hq'
+    rcases List.mem_cons.mp
+      ((OracleComp.queriesWith_query_bind answer q cont) ▸ hq') with rfl | hq'
     · exact hpq
     · exact ih (answer q) (hcont (answer q)) q' hq'
 
@@ -696,10 +645,37 @@ private theorem list_sum_affine_le {ι : Type} (f g : ι → ℕ) (scale offset 
   | [], _ => by simp
   | x :: xs, h => by
     have hx := h x List.mem_cons_self
-    have hxs := list_sum_affine_le f g scale offset xs
-      fun y hy => h y (List.mem_cons_of_mem x hy)
+    have hxs := list_sum_affine_le f g scale offset xs fun y hy => h y (List.mem_cons_of_mem x hy)
     simp only [List.map_cons, List.sum_cons, List.length_cons, Nat.mul_add, Nat.mul_one]
     omega
+
+private theorem map_sum_le_mul {ι : Type} {f : ι → ℕ} {l : List ι} {m k : ℕ}
+    (hmem : ∀ x ∈ l, f x ≤ m) (hlen : l.length ≤ k) : (l.map f).sum ≤ k * m := by
+  refine le_trans ?_ (Nat.mul_le_mul_right m hlen)
+  simpa only [List.length_map, smul_eq_mul] using
+    List.sum_le_length_nsmul (l.map f) m (List.forall_mem_map.mpr hmem)
+
+/-- Shared handler substitution identity for `BoundedOracleProgram.comp` and
+`totalQueryLength_comp_affine`. -/
+private theorem comp_interpret_and_queriesWith {oracle₁ oracle₂ : List Bool → List Bool} {f : α → β}
+    (R₁ : BoundedOracleProgram encA encB oracle₁ f)
+    (R₂ : BoundedOracleProgram encBits encBits oracle₂ oracle₁) (a : α) :
+    let G (q : Unit × List Bool) : WordQueryComp Unit (List Bool) :=
+      List.take (R₁.alenCap a) <$> R₂.program q.2
+    OracleComp.interpret (m := Id) (fun q' => oracle₂ q'.2)
+        (OracleComp.interpret G (R₁.program a)) = f a ∧
+      OracleComp.queriesWith (fun q' => oracle₂ q'.2)
+        (OracleComp.interpret G (R₁.program a)) =
+      (OracleComp.queriesWith (fun q => oracle₁ q.2) (R₁.program a)).flatMap fun q =>
+        OracleComp.queriesWith (fun q' => oracle₂ q'.2) (R₂.program q.2) := by
+  intro G
+  have hG (q) (hq : q ∈ OracleComp.queriesWith (fun q => oracle₁ q.2) (R₁.program a)) :
+      OracleComp.interpret (m := Id) (fun q' => oracle₂ q'.2) (G q) = oracle₁ q.2 :=
+    (OracleComp.interpret_map (m := Id) ..).trans ((congrArg (List.take (R₁.alenCap a))
+      (R₂.eval_eq q.2)).trans (List.take_of_length_le
+        ((R₁.respects_bound a).2.2.2 q hq |>.trans (R₁.alen_le_alenCap a))))
+  obtain ⟨heval, hqs⟩ := interpret_and_queriesWith_subst oracle₁ oracle₂ G (R₁.program a) hG
+  exact ⟨heval.trans (R₁.eval_eq a), by simpa only [G, OracleComp.queriesWith_map] using hqs⟩
 
 /-- Polynomial reply-length allowance for `BoundedOracleProgram.comp`. -/
 noncomputable def compCapPoly {oracle₁ oracle₂ : List Bool → List Bool} {f : α → β}
@@ -708,13 +684,86 @@ noncomputable def compCapPoly {oracle₁ oracle₂ : List Bool → List Bool} {f
   let hqb := IsOraclePPTOn.query_bounds R₁.isOraclePPTOn
   let c₁ := Classical.choose hqb
   let d₁ := Classical.choose (Classical.choose_spec hqb)
-  let hcap₂ : PolyBounded List.length R₂.alenCap := by
-    simpa only [encUnary_apply, List.length_replicate, encBits_apply] using
-      R₂.computableInPolyTime_alenCap.polyBounded_length
+  let hcap₂ : PolyBounded List.length R₂.alenCap := by growth_poly [R₂.computableInPolyTime_alenCap]
   let hex₂ := hcap₂.exists_le
   let c₂ := Classical.choose hex₂
   let d₂ := Classical.choose (Classical.choose_spec hex₂)
   Polynomial.C c₂ * (Polynomial.C c₁ * (Polynomial.X + 1) ^ d₁ + 1) ^ d₂
+
+private theorem comp_isOraclePPTOn {oracle₁ oracle₂ : List Bool → List Bool} {f : α → β}
+    (R₁ : BoundedOracleProgram encA encB oracle₁ f)
+    (R₂ : BoundedOracleProgram encBits encBits oracle₂ oracle₁) :
+    IsOraclePPTOn encA encB fun a => OracleComp.interpret ProbOracleComp.query
+      (OracleComp.interpret
+        (fun q : Unit × List Bool => List.take (R₁.alenCap a) <$> R₂.program q.2)
+        (R₁.program a)) := by
+  let EIn := encPair encA (encPair (encFinEnum Unit) encBits)
+  have htake_pt : ComputableInPolyTime
+      (fun ⟨⟨a, _, _⟩, reply⟩ => reply.take (R₁.alenCap a)) (encPair EIn encBits) encBits :=
+    ComputableInPolyTime.bitsTakeWithInput (.snd EIn encBits)
+      (R₁.computableInPolyTime_alenCap.comp (by dsimp only [EIn]; fun_prop))
+  have hhandler : IsOraclePPTOn EIn encBits fun p : α × (Unit × List Bool) =>
+      OracleComp.interpret ProbOracleComp.query
+        (List.take (R₁.alenCap p.1) <$> R₂.program p.2.2) := by
+    simpa only [OracleComp.interpret_map] using
+      (R₂.isOraclePPTOn.preprocess (input := EIn) (prepare := fun ⟨_, _, w⟩ => w)
+        (by dsimp only [EIn]; fun_prop)).map_with
+        (f := fun ⟨a, _⟩ reply => reply.take (R₁.alenCap a)) htake_pt
+  simpa only [_root_.id, OracleComp.interpret_interpret, ProbOracleComp.interpret_query] using
+    R₁.isOraclePPTOn.interpret_preprocess_open'
+      (operationEncoding := encFinEnum Unit)
+      (handler := fun a q => OracleComp.interpret ProbOracleComp.query
+        (List.take (R₁.alenCap a) <$> R₂.program q.2))
+      (prepare := _root_.id) (resources := fun a _ => R₁.alenCap a)
+      .id' hhandler (R₁.computableInPolyTime_alenCap.comp (.fst encA encBits))
+      fun _ _ _ hreply => by
+        rw [OracleComp.interpret_map] at hreply
+        obtain ⟨_, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
+        exact List.length_take_le _ _
+
+private theorem comp_respects_bound {oracle₁ oracle₂ : List Bool → List Bool} {f : α → β}
+    (R₁ : BoundedOracleProgram encA encB oracle₁ f)
+    (R₂ : BoundedOracleProgram encBits encBits oracle₂ oracle₁) (a : α) :
+    OracleCallBound.Respects oracle₂
+      (OracleComp.interpret
+        (fun q : Unit × List Bool => List.take (R₁.alenCap a) <$> R₂.program q.2)
+        (R₁.program a))
+      { (R₁.bound a).comp R₂.bound with
+        alen := min ((R₁.bound a).comp R₂.bound).alen
+          ((compCapPoly R₁ R₂).eval (encA a).length) } := by
+  rcases R₁.respects_bound a with ⟨hqc₁, hql₁, _, _⟩
+  dsimp only [OracleCallBound.Respects, OracleCallBound.comp]
+  rw [(comp_interpret_and_queriesWith R₁ R₂ a).2]
+  set qs₁ := OracleComp.queriesWith (fun q => oracle₁ q.2) (R₁.program a)
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · rw [List.length_flatMap]
+    exact map_sum_le_mul (fun q hq =>
+      (R₂.respects_bound q.2).1.trans (le_wordMax (fun w => (R₂.bound w).qcount) (hql₁ q hq))) hqc₁
+  · intro q' hq'
+    obtain ⟨q, hq, hq'_mem⟩ := List.mem_flatMap.mp hq'
+    exact ((R₂.respects_bound q.2).2.1 q' hq'_mem).trans
+      (le_wordMax (fun w => (R₂.bound w).qlen) (hql₁ q hq))
+  · rw [List.map_flatMap, List.flatMap_def, List.sum_flatten, List.map_map]
+    exact map_sum_le_mul (fun q hq =>
+      (R₂.respects_bound q.2).2.2.1.trans
+        (le_wordMax (fun w => (R₂.bound w).totalQlen) (hql₁ q hq))) hqc₁
+  · intro q' hq'
+    obtain ⟨q, hq, hq'_mem⟩ := List.mem_flatMap.mp hq'
+    have hal₂ := (R₂.respects_bound q.2).2.2.2 q' hq'_mem
+    refine le_min (hal₂.trans (le_wordMax (fun w => (R₂.bound w).alen) (hql₁ q hq))) ?_
+    let hqb := IsOraclePPTOn.query_bounds R₁.isOraclePPTOn
+    have hq_clk : q.2.length ≤ Classical.choose hqb *
+        ((encA a).length + 1) ^ Classical.choose (Classical.choose_spec hqb) :=
+      forall_queriesWith_of_probQueriesSatisfy (fun q => oracle₁ q.2) (R₁.program a)
+        (Classical.choose_spec (Classical.choose_spec hqb) a).2 q hq
+    have hcap₂_poly : PolyBounded List.length R₂.alenCap := by
+      growth_poly [R₂.computableInPolyTime_alenCap]
+    let hex₂ := hcap₂_poly.exists_le
+    have hcap₂_le := Classical.choose_spec (Classical.choose_spec hex₂) q.2
+    simp only [compCapPoly, Polynomial.eval_mul, Polynomial.eval_pow, Polynomial.eval_add,
+      Polynomial.eval_C, Polynomial.eval_X, Polynomial.eval_one]
+    exact (hal₂.trans (R₂.alen_le_alenCap q.2)).trans (hcap₂_le.trans
+      (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (Nat.add_le_add_right hq_clk 1) _)))
 
 /-- **Composition of `BoundedOracleProgram`s with explicit query and answer length accounting.**
 Substitutes `R₂ : BoundedOracleProgram encBits encBits oracle₂ oracle₁` for each query of
@@ -733,159 +782,12 @@ noncomputable def comp {oracle₁ oracle₂ : List Bool → List Bool} {f : α �
     let bc := (R₁.bound a).comp R₂.bound
     { bc with alen := min bc.alen ((compCapPoly R₁ R₂).eval (encA a).length) }
   alenCap a := (compCapPoly R₁ R₂).eval (encA a).length
-  isOraclePPTOn := by
-    let G (a : α) (q : Unit × List Bool) : WordQueryComp Unit (List Bool) :=
-      List.take (R₁.alenCap a) <$> R₂.program q.2
-    let EIn := encPair encA (encPair (encFinEnum Unit) encBits)
-    have hR₂_lift : IsOraclePPTOn EIn encBits
-        (fun ⟨_, _, w⟩ => OracleComp.interpret ProbOracleComp.query (R₂.program w)) :=
-      R₂.isOraclePPTOn.preprocess (input := EIn)
-        (prepare := fun ⟨_, _, w⟩ => w) (by dsimp only [EIn]; fun_prop)
-    have htake_pt : ComputableInPolyTime
-        (fun ⟨⟨a, _, _⟩, reply⟩ => reply.take (R₁.alenCap a))
-        (encPair EIn encBits) encBits := by
-      have hfstE : ComputableInPolyTime
-          (fun ⟨⟨a, _, _⟩, _⟩ => a) (encPair EIn encBits) encA := by
-        dsimp only [EIn]; fun_prop
-      have hsndB : ComputableInPolyTime
-          (fun ⟨_, reply⟩ => reply) (encPair EIn encBits) encBits :=
-        ComputableInPolyTime.snd EIn encBits
-      exact ComputableInPolyTime.bitsTakeWithInput hsndB
-        (R₁.computableInPolyTime_alenCap.comp hfstE)
-    have hhandler : IsOraclePPTOn EIn encBits
-        (fun p : α × (Unit × List Bool) =>
-          OracleComp.interpret ProbOracleComp.query (G p.1 p.2)) := by
-      simpa only [G, OracleComp.interpret_map] using
-        hR₂_lift.map_with (f := fun ⟨a, _⟩ reply => reply.take (R₁.alenCap a)) htake_pt
-    have hresources : ComputableInPolyTime (fun p : α × List Bool => R₁.alenCap p.1)
-        (encPair encA encBits) encUnary :=
-      R₁.computableInPolyTime_alenCap.comp (ComputableInPolyTime.fst encA encBits)
-    have hsub := R₁.isOraclePPTOn.interpret_preprocess_open'
-      (operationEncoding := encFinEnum Unit)
-      (handler := fun a q => OracleComp.interpret ProbOracleComp.query (G a q))
-      (prepare := _root_.id) (resources := fun a _ => R₁.alenCap a)
-      .id' hhandler hresources fun a q reply hreply => by
-        dsimp only [G] at hreply
-        rw [OracleComp.interpret_map] at hreply
-        obtain ⟨raw, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
-        exact List.length_take_le _ _
-    convert hsub using 1
-    funext a
-    rw [OracleComp.interpret_interpret, OracleComp.interpret_interpret]
-    congr 1
-    funext q
-    simp only [ProbOracleComp.interpret_query]
-    rfl
+  isOraclePPTOn := by exact comp_isOraclePPTOn R₁ R₂
   computableInPolyTime_alenCap := by
     exact ((ComputableInPolyTime.unary_eval (compCapPoly R₁ R₂)).comp
       (ComputableInPolyTime.encoding_length encA)).of_enc_eq fun _ => rfl
-  eval_eq a := by
-    let G (q : Unit × List Bool) : WordQueryComp Unit (List Bool) :=
-      List.take (R₁.alenCap a) <$> R₂.program q.2
-    rcases R₁.respects_bound a with ⟨_, _, _, hal₁⟩
-    have hG (q : Unit × List Bool)
-        (hq : q ∈ OracleComp.queriesWith (fun q => oracle₁ q.2) (R₁.program a)) :
-        OracleComp.interpret (m := Id) (fun q' => oracle₂ q'.2) (G q) = oracle₁ q.2 := by
-      dsimp only [G]
-      rw [OracleComp.interpret_map, R₂.eval_eq q.2]
-      exact List.take_of_length_le ((hal₁ q hq).trans (R₁.alen_le_alenCap a))
-    exact (interpret_and_queriesWith_subst oracle₁ oracle₂ G (R₁.program a) hG).1.trans
-      (R₁.eval_eq a)
-  respects_bound a := by
-    let hqb := IsOraclePPTOn.query_bounds R₁.isOraclePPTOn
-    let c₁ := Classical.choose hqb
-    let hc₁ := Classical.choose_spec hqb
-    let d₁ := Classical.choose hc₁
-    have hqb₁ : ∀ x, (OracleComp.interpret ProbOracleComp.query (R₁.program x)).IsQueryBounded
-          (c₁ * ((encA x).length + 1) ^ d₁) ∧
-        (OracleComp.interpret ProbOracleComp.query (R₁.program x)).QueriesSatisfy
-          (fun request => request.2.length ≤ c₁ * ((encA x).length + 1) ^ d₁) :=
-      Classical.choose_spec hc₁
-    have hcap₂_poly : PolyBounded List.length R₂.alenCap := by
-      simpa only [encUnary_apply, List.length_replicate, encBits_apply] using
-        R₂.computableInPolyTime_alenCap.polyBounded_length
-    let hex₂ := hcap₂_poly.exists_le
-    let c₂ := Classical.choose hex₂
-    let hc₂ := Classical.choose_spec hex₂
-    let d₂ := Classical.choose hc₂
-    have hcap₂_le : ∀ w : List Bool, R₂.alenCap w ≤ c₂ * (w.length + 1) ^ d₂ :=
-      Classical.choose_spec hc₂
-    let G (q : Unit × List Bool) : WordQueryComp Unit (List Bool) :=
-      List.take (R₁.alenCap a) <$> R₂.program q.2
-    rcases R₁.respects_bound a with ⟨hqc₁, hql₁, _, hal₁⟩
-    have hG (q : Unit × List Bool)
-        (hq : q ∈ OracleComp.queriesWith (fun q => oracle₁ q.2) (R₁.program a)) :
-        OracleComp.interpret (m := Id) (fun q' => oracle₂ q'.2) (G q) = oracle₁ q.2 := by
-      dsimp only [G]
-      rw [OracleComp.interpret_map, R₂.eval_eq q.2]
-      exact List.take_of_length_le ((hal₁ q hq).trans (R₁.alen_le_alenCap a))
-    have hqs := (interpret_and_queriesWith_subst oracle₁ oracle₂ G (R₁.program a) hG).2
-    dsimp only [OracleCallBound.Respects, OracleCallBound.comp]
-    change (OracleComp.queriesWith (fun q' => oracle₂ q'.2)
-        (OracleComp.interpret G (R₁.program a))).length ≤ _ ∧ _
-    rw [hqs]
-    set qs₁ := OracleComp.queriesWith (fun q => oracle₁ q.2) (R₁.program a)
-    have hinner_qs (q : Unit × List Bool) :
-        OracleComp.queriesWith (fun q' => oracle₂ q'.2) (G q) =
-          OracleComp.queriesWith (fun q' => oracle₂ q'.2) (R₂.program q.2) := by
-      dsimp only [G]
-      exact OracleComp.queriesWith_map _ _ _
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · rw [List.length_flatMap]
-      have hsum_le : (qs₁.map fun q =>
-          (OracleComp.queriesWith (fun q' => oracle₂ q'.2) (G q)).length).sum ≤
-          qs₁.length * wordMax (fun w => (R₂.bound w).qcount) (R₁.bound a).qlen := by
-        have hmem : ∀ x ∈ qs₁.map (fun q =>
-            (OracleComp.queriesWith (fun q' => oracle₂ q'.2) (G q)).length),
-            x ≤ wordMax (fun w => (R₂.bound w).qcount) (R₁.bound a).qlen := by
-          intro x hx
-          obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hx
-          rw [hinner_qs]
-          rcases R₂.respects_bound q.2 with ⟨hqc₂, _, _, _⟩
-          exact hqc₂.trans (le_wordMax (fun w => (R₂.bound w).qcount) (hql₁ q hq))
-        simpa only [List.length_map, smul_eq_mul] using List.sum_le_length_nsmul _ _ hmem
-      exact hsum_le.trans (Nat.mul_le_mul_right _ hqc₁)
-    · intro q' hq'
-      obtain ⟨q, hq, hq'_mem⟩ := List.mem_flatMap.mp hq'
-      rw [hinner_qs] at hq'_mem
-      rcases R₂.respects_bound q.2 with ⟨_, hql₂, _, _⟩
-      exact (hql₂ q' hq'_mem).trans
-        (le_wordMax (fun w => (R₂.bound w).qlen) (hql₁ q hq))
-    · rw [List.map_flatMap, List.flatMap_def, List.sum_flatten, List.map_map]
-      have hsum_le : (qs₁.map
-          ((fun l : List ℕ => l.sum) ∘ fun q =>
-            (OracleComp.queriesWith (fun q' => oracle₂ q'.2) (G q)).map
-              (fun q' => q'.2.length))).sum ≤
-          qs₁.length * wordMax (fun w => (R₂.bound w).totalQlen) (R₁.bound a).qlen := by
-        have hmem : ∀ x ∈ qs₁.map
-            ((fun l : List ℕ => l.sum) ∘ fun q =>
-              (OracleComp.queriesWith (fun q' => oracle₂ q'.2) (G q)).map
-                (fun q' => q'.2.length)),
-            x ≤ wordMax (fun w => (R₂.bound w).totalQlen) (R₁.bound a).qlen := by
-          intro x hx
-          obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hx
-          simp only [Function.comp_apply, hinner_qs]
-          rcases R₂.respects_bound q.2 with ⟨_, _, htql₂, _⟩
-          exact htql₂.trans (le_wordMax (fun w => (R₂.bound w).totalQlen) (hql₁ q hq))
-        simpa only [List.length_map, smul_eq_mul] using List.sum_le_length_nsmul _ _ hmem
-      exact hsum_le.trans (Nat.mul_le_mul_right _ hqc₁)
-    · intro q' hq'
-      obtain ⟨q, hq, hq'_mem⟩ := List.mem_flatMap.mp hq'
-      rw [hinner_qs] at hq'_mem
-      rcases R₂.respects_bound q.2 with ⟨_, _, _, hal₂⟩
-      refine le_min
-        ((hal₂ q' hq'_mem).trans (le_wordMax (fun w => (R₂.bound w).alen) (hql₁ q hq))) ?_
-      have hq_clk : q.2.length ≤ c₁ * ((encA a).length + 1) ^ d₁ :=
-        forall_queriesWith_of_probQueriesSatisfy (fun q => oracle₁ q.2) (R₁.program a)
-          (hqb₁ a).2 q hq
-      have hcap_eval : (compCapPoly R₁ R₂).eval (encA a).length =
-          c₂ * (c₁ * ((encA a).length + 1) ^ d₁ + 1) ^ d₂ := by
-        dsimp only [compCapPoly, c₁, d₁, c₂, d₂, hc₁, hc₂, hqb, hex₂]
-        simp
-      rw [hcap_eval]
-      exact ((hal₂ q' hq'_mem).trans (R₂.alen_le_alenCap q.2)).trans
-        ((hcap₂_le q.2).trans
-          (Nat.mul_le_mul_left c₂ (Nat.pow_le_pow_left (Nat.add_le_add_right hq_clk 1) d₂)))
+  eval_eq a := by exact (comp_interpret_and_queriesWith R₁ R₂ a).1
+  respects_bound a := by exact comp_respects_bound R₁ R₂ a
   alen_le_alenCap _ := Nat.min_le_right _ _
 
 @[simp]
@@ -923,34 +825,13 @@ theorem totalQueryLength_comp_affine {oracle₁ oracle₂ : List Bool → List B
     ((OracleComp.queriesWith (fun q' => oracle₂ q'.2) ((R₁.comp R₂).program a)).map
         fun q' => q'.2.length).sum ≤
       scale * R₁.totalQlen a + offset * R₁.qcount a := by
-  rcases R₁.respects_bound a with ⟨hqc₁, _, htql₁, hal₁⟩
-  let G (q : Unit × List Bool) : WordQueryComp Unit (List Bool) :=
-    List.take (R₁.alenCap a) <$> R₂.program q.2
-  have hG (q : Unit × List Bool)
-      (hq : q ∈ OracleComp.queriesWith (fun q => oracle₁ q.2) (R₁.program a)) :
-      OracleComp.interpret (m := Id) (fun q' => oracle₂ q'.2) (G q) = oracle₁ q.2 := by
-    dsimp only [G]
-    rw [OracleComp.interpret_map, R₂.eval_eq q.2]
-    exact List.take_of_length_le ((hal₁ q hq).trans (R₁.alen_le_alenCap a))
-  have hqs : OracleComp.queriesWith (fun q' => oracle₂ q'.2) ((R₁.comp R₂).program a) =
-      (OracleComp.queriesWith (fun q => oracle₁ q.2) (R₁.program a)).flatMap fun q =>
-        OracleComp.queriesWith (fun q' => oracle₂ q'.2) (G q) :=
-    (interpret_and_queriesWith_subst oracle₁ oracle₂ G (R₁.program a) hG).2
-  rw [hqs, List.map_flatMap, List.flatMap_def, List.sum_flatten, List.map_map]
-  set qs₁ := OracleComp.queriesWith (fun q => oracle₁ q.2) (R₁.program a)
-  have hstep := list_sum_affine_le
-    (fun q : Unit × List Bool =>
-      ((OracleComp.queriesWith (fun q' => oracle₂ q'.2) (G q)).map fun q' => q'.2.length).sum)
-    (fun q => q.2.length) scale offset qs₁ fun q _ => by
-      dsimp only [G]
-      rw [OracleComp.queriesWith_map]
-      rcases R₂.respects_bound q.2 with ⟨_, _, htql₂, _⟩
-      exact htql₂.trans (haff q.2)
-  have hmul₁ : scale * (qs₁.map fun q => q.2.length).sum ≤ scale * R₁.totalQlen a :=
-    Nat.mul_le_mul_left scale htql₁
-  have hmul₂ : offset * qs₁.length ≤ offset * R₁.qcount a :=
-    Nat.mul_le_mul_left offset hqc₁
-  simpa only [Function.comp_def] using hstep.trans (Nat.add_le_add hmul₁ hmul₂)
+  rcases R₁.respects_bound a with ⟨hqc₁, _, htql₁, _⟩
+  dsimp only [comp]
+  rw [(comp_interpret_and_queriesWith R₁ R₂ a).2, List.map_flatMap, List.flatMap_def,
+    List.sum_flatten, List.map_map]
+  exact (list_sum_affine_le _ (fun q => q.2.length) scale offset _ fun q _ =>
+      (R₂.respects_bound q.2).2.2.1.trans (haff q.2)).trans
+    (Nat.add_le_add (Nat.mul_le_mul_left scale htql₁) (Nat.mul_le_mul_left offset hqc₁))
 
 /-- Composed `BoundedOracleProgram` refining `comp` with the sharper linear `totalQlen` budget
 `scale * R₁.totalQlen a + offset * R₁.qcount a` when `R₂.totalQlen` is affine in query length. -/
@@ -982,9 +863,8 @@ theorem computableInPolyTime {oracle : List Bool → List Bool} {f : α → β}
     (horacle : ComputableInPolyTime oracle encBits encBits) :
     ComputableInPolyTime f encA encB := by
   obtain ⟨_, _, machine, c, d, hrun⟩ := R.isOraclePPTOn.exists_fin_run_pure_false
-  refine (machine.computableInPolyTime_run_word (input := encA) horacle c d).of_enc_eq fun a => ?_
-  rw [← R.eval_eq a, ← hrun a (fun q => oracle q.2)]
-  rfl
+  exact (machine.computableInPolyTime_run_word (input := encA) horacle c d).of_enc_eq fun a =>
+    ((hrun a fun q => oracle q.2).trans (congrArg encB (R.eval_eq a))).symm
 
 /-- **Explicit `ComputableInO` transfer in polynomial workspace for multi-bit word oracles:**
 simulating `R` against `ComputableInO oracle encBits encBits Tg Sg` uses **polynomial workspace**
@@ -1006,9 +886,8 @@ theorem exists_computableInO_polySpace {oracle : List Bool → List Bool} {f : �
   obtain ⟨_, _, machine, c₁, d₁, hrun⟩ := R.isOraclePPTOn.exists_fin_run_pure_false
   obtain ⟨c₀, e₀, S, hSPoly, hcomp⟩ :=
     machine.exists_computableInO_run_word (input := encA) horacle hSg c₁ d₁
-  refine ⟨c₀, e₀, S, hSPoly, c₁, d₁, hcomp.of_enc_eq fun a => ?_⟩
-  rw [← R.eval_eq a, ← hrun a (fun q => oracle q.2)]
-  rfl
+  exact ⟨c₀, e₀, S, hSPoly, c₁, d₁, hcomp.of_enc_eq fun a =>
+    ((hrun a fun q => oracle q.2).trans (congrArg encB (R.eval_eq a))).symm⟩
 
 /-- **Polynomial-space transfer for multi-bit word oracles:** if `oracle : List Bool → List Bool` is
 computable in polynomial space, any `BoundedOracleProgram` relative to `oracle` is computable in
@@ -1022,9 +901,8 @@ theorem computableInPolySpace {oracle : List Bool → List Bool} {f : α → β}
     ⟨1, hc.mono (fun a => by simp only [one_mul]; omega)
       (fun a => by simp only [one_mul, encBits_apply]; omega),
       fun a => (hl a).trans (by simp only [one_mul, encBits_apply]; omega)⟩
-  have hsPoly : PolyBounded List.length (fun w : List Bool => s w.length) :=
-    .of_polynomiallyBounded List.length hs
-  obtain ⟨_, _, S, hSPoly, _, _, c, htm, hout⟩ := R.exists_computableInO_polySpace hO hsPoly
+  obtain ⟨_, _, S, hSPoly, _, _, c, htm, hout⟩ :=
+    R.exists_computableInO_polySpace hO (.of_polynomiallyBounded List.length hs)
   exact ComputableInPolySpace.of_inSpace hSPoly ⟨_, c, htm, hout⟩
 
 end BoundedOracleProgram
@@ -1195,6 +1073,23 @@ noncomputable def complSelf (encA : α ↪ List Bool) (A : Set α) :
     BoundedOracleReduction encA encA Aᶜ A :=
   (refl encA A).complLeft
 
+private theorem computableInPolyTime_isCan {β : Type} {encB : β ↪ List Bool} (D : Decoder encB) :
+    ComputableInPolyTime (fun w : List Bool => decide (encB (D.decode w) = w)) encBits encBool := by
+  have hreenc : ComputableInPolyTime (fun b : β => (encB b : List Bool)) encB encBits :=
+    ComputableInPolyTime.id'.of_enc_eq fun _ => rfl
+  exact (hreenc.comp D.computableInPolyTime).decide_eq' .id'
+
+private theorem decide_mem_image_eq_of_decoder {β : Type} {encB : β ↪ List Bool}
+    (D : Decoder encB) {B : Set β} {g : β → Bool} (hgB : ∀ b, b ∈ B ↔ g b = true)
+    (w : List Bool) [Decidable (w ∈ encB '' B)] :
+    decide (w ∈ encB '' B) =
+      if decide (encB (D.decode w) = w) then g (D.decode w) else false := by
+  by_cases hcan : encB (D.decode w) = w
+  · simp only [hcan, decide_true, ↓reduceIte]
+    rw [Bool.eq_iff_iff, decide_eq_true_iff, ← hgB]
+    simpa only [hcan] using encB.injective.mem_set_image (s := B) (a := D.decode w)
+  · simp [hcan, show w ∉ encB '' B from fun ⟨b, _, h⟩ => hcan (h ▸ congrArg encB (D.decode_enc b))]
+
 /-- Lift a typed `BoundedOracleReduction encB encC B C` to a word-level `BoundedOracleProgram`
 answering `encodedDecisionOracle encB B` via a total polynomial-time `D : Decoder encB`:
 non-canonical words (`encB (D.decode w) ≠ w`) are rejected in `0` queries, while canonical
@@ -1203,75 +1098,54 @@ encodings run `R₂`. -/
 noncomputable def toDecodedWordProgram {B : Set β} {C : Set γ}
     (D : Decoder encB) (R₂ : BoundedOracleReduction encB encC B C) :
     BoundedOracleProgram encBits encBits
-      (encodedDecisionOracle encC C) (encodedDecisionOracle encB B) := by
-  classical
-  let isCan (w : List Bool) : Bool := decide (encB (D.decode w) = w)
-  have hreenc : ComputableInPolyTime (fun b : β => (encB b : List Bool)) encB encBits :=
-    ComputableInPolyTime.id'.of_enc_eq fun _ => rfl
-  have hisCan : ComputableInPolyTime isCan encBits encBool :=
-    (hreenc.comp D.computableInPolyTime).decide_eq' .id'
-  have hsingleton : ComputableInPolyTime (fun b : Bool => [b]) encBool encBits :=
-    ComputableInPolyTime.id'.of_enc_eq fun b => (encBool_apply b).symm
-  let yesProg (w : List Bool) : WordQueryComp Unit (List Bool) :=
-    (fun b => [b]) <$> R₂.program (D.decode w)
-  have hyes_ppt : IsOraclePPTOn encBits encBits
-      (fun w => OracleComp.interpret ProbOracleComp.query (yesProg w)) := by
-    have hpre := R₂.isOraclePPTOn.preprocess D.computableInPolyTime
-    simpa only [yesProg, OracleComp.interpret_map] using hpre.map hsingleton
-  have hno_ppt : IsOraclePPTOn encBits encBits
-      (fun _ : List Bool =>
-        OracleComp.interpret (spec := fun _ : Unit × List Bool => List Bool)
-          ProbOracleComp.query (pure [false])) := by
-    simpa only [OracleComp.interpret_pure] using
-      (ComputableInPolyTime.const (encIn := encBits) (encOut := encBits) [false]).isOraclePPTOn
-  refine
-    { program := fun w => if isCan w then yesProg w else pure [false]
-      bound := fun w =>
-        if isCan w then { R₂.bound (D.decode w) with alen := 1 } else OracleCallBound.zero
-      alenCap := fun _ => 1
-      isOraclePPTOn := by
-        refine (IsOraclePPTOn.cond hisCan hyes_ppt hno_ppt).congr fun w _ _ _ => ?_
-        by_cases hc : isCan w = true <;> simp [hc]
-      computableInPolyTime_alenCap := .const 1
-      eval_eq := fun w => ?_
-      respects_bound := fun w => ?_
-      alen_le_alenCap := fun w => by split_ifs <;> simp [OracleCallBound.zero] }
-  · by_cases hc : isCan w = true
-    · simp only [hc, ↓reduceIte, yesProg, OracleComp.interpret_map, encodedDecisionOracle]
-      have hcan : encB (D.decode w) = w := of_decide_eq_true hc
-      have hmem : w ∈ encB '' B ↔ D.decode w ∈ B := by
-        conv_lhs => rw [← hcan]
-        exact encB.injective.mem_set_image
-      have heq : (fun q : Unit × List Bool => languageOracle (encC '' C) ((), q.2)) =
-          languageOracle (encC '' C) := rfl
-      rw [heq]
-      change [OracleComp.interpret (m := Id) (languageOracle (encC '' C))
-        (R₂.program (D.decode w))] = [decide (w ∈ encB '' B)]
-      congr 1
-      exact Bool.eq_iff_iff.mpr ⟨fun h => decide_eq_true (hmem.mpr ((R₂.decides _).mpr h)),
-        fun h => (R₂.decides _).mp (hmem.mp (of_decide_eq_true h))⟩
-    · have hnc : isCan w = false := Bool.eq_false_iff.mpr hc
-      simp only [hnc, Bool.false_eq_true, ↓reduceIte, encodedDecisionOracle, languageOracle]
-      have hnotmem : w ∉ encB '' B := by
-        rintro ⟨b, _, rfl⟩
-        have : isCan (encB b) = true := by simp [isCan, D.decode_enc]
-        rw [this] at hnc
-        exact Bool.noConfusion hnc
-      simp only [OracleComp.interpret_pure, hnotmem, decide_false]
-      rfl
-  · by_cases hc : isCan w = true
+      (encodedDecisionOracle encC C) (encodedDecisionOracle encB B) where
+  program w := if decide (encB (D.decode w) = w) then
+    (fun b => [b]) <$> R₂.program (D.decode w) else pure [false]
+  bound w := if decide (encB (D.decode w) = w) then
+    { R₂.bound (D.decode w) with alen := 1 } else OracleCallBound.zero
+  alenCap _ := 1
+  isOraclePPTOn := by
+    let isCan (w : List Bool) : Bool := decide (encB (D.decode w) = w)
+    let yesProg (w : List Bool) : WordQueryComp Unit (List Bool) :=
+      (fun b => [b]) <$> R₂.program (D.decode w)
+    have hsingleton : ComputableInPolyTime (fun b : Bool => [b]) encBool encBits :=
+      ComputableInPolyTime.id'.of_enc_eq fun b => (encBool_apply b).symm
+    have hyes_ppt : IsOraclePPTOn encBits encBits
+        (fun w => OracleComp.interpret ProbOracleComp.query (yesProg w)) := by
+      simpa only [yesProg, OracleComp.interpret_map] using
+        (R₂.isOraclePPTOn.preprocess D.computableInPolyTime).map hsingleton
+    have hno_ppt : IsOraclePPTOn encBits encBits
+        (fun _ : List Bool =>
+          OracleComp.interpret (spec := fun _ : Unit × List Bool => List Bool)
+            ProbOracleComp.query (pure [false])) := by
+      simpa only [OracleComp.interpret_pure] using
+        (ComputableInPolyTime.const (encIn := encBits) (encOut := encBits) [false]).isOraclePPTOn
+    exact (IsOraclePPTOn.cond (computableInPolyTime_isCan D) hyes_ppt hno_ppt).congr
+      fun w _ _ _ => by by_cases hc : isCan w = true <;> simp [isCan, yesProg, hc]
+  computableInPolyTime_alenCap := .const 1
+  eval_eq w := by
+    classical
+    have hdec := decide_mem_image_eq_of_decoder D (B := B)
+      (g := fun b => OracleComp.interpret (m := Id) (languageOracle (encC '' C)) (R₂.program b))
+      R₂.decides w
+    change OracleComp.interpret (m := Id) (languageOracle (encC '' C))
+        (if decide (encB (D.decode w) = w) then
+          (fun b => [b]) <$> R₂.program (D.decode w) else pure [false]) =
+      [decide (w ∈ encB '' B)]
+    rw [hdec]
+    split_ifs
+    · simp only [OracleComp.interpret_map]; rfl
+    · rfl
+  respects_bound w := by
+    by_cases hc : decide (encB (D.decode w) = w) = true
     · simp only [hc, ↓reduceIte]
-      have hresp : OracleCallBound.Respects (encodedDecisionOracle encC C) (yesProg w)
-          (R₂.bound (D.decode w)) :=
-        (OracleCallBound.respects_map (encodedDecisionOracle encC C) (fun b => [b])
-          (R₂.program (D.decode w)) (R₂.bound (D.decode w))).mpr
-          (R₂.respects_bound (D.decode w))
-      rcases hresp with ⟨hqc, hql, htql, _⟩
-      refine ⟨hqc, hql, htql, fun q _ => ?_⟩
-      simp only [length_encodedDecisionOracle, le_refl]
-    · have hnc : isCan w = false := Bool.eq_false_iff.mpr hc
-      simp only [hnc, Bool.false_eq_true, ↓reduceIte]
+      have ⟨hqc, hql, htql, _⟩ := (OracleCallBound.respects_map (encodedDecisionOracle encC C)
+        (fun b => [b]) (R₂.program (D.decode w)) (R₂.bound (D.decode w))).mpr
+        (R₂.respects_bound (D.decode w))
+      exact ⟨hqc, hql, htql, fun _ _ => by simp only [length_encodedDecisionOracle, le_refl]⟩
+    · simp only [Bool.eq_false_iff.mpr hc, Bool.false_eq_true, ↓reduceIte]
       exact OracleCallBound.respects_pure _ _ _
+  alen_le_alenCap w := by split_ifs <;> simp [OracleCallBound.zero]
 
 /-- **Transitivity (`transDecoded`) across any typed intermediate language `(B, encB)` equipped
 with `D : Decoder encB`,** tracking explicit `(qcount, qlen, totalQlen, alen)` composition. -/
@@ -1309,14 +1183,8 @@ theorem mem_PWithOracleQueries {A : Set α} {B : Set β}
     (hr : ∀ a, R.qcount a ≤ r (encA a).length) :
     A ∈ PWithOracleQueries (encB '' B) r encA := by
   classical
-  refine ⟨fun a => decide (a ∈ A), ⟨R.program, R.isOraclePPTOn, fun a => ⟨?_, ?_⟩⟩,
-    fun _ => by simp⟩
-  · exact R.toProgram.eval_eq a
-  · rcases R.respects_bound a with ⟨hqc, _, _, _⟩
-    have heq : (fun q : Unit × List Bool => encodedDecisionOracle encB B q.2) =
-        languageOracle (encB '' B) := rfl
-    rw [← heq]
-    exact hqc.trans (hr a)
+  exact ⟨fun a => decide (a ∈ A), ⟨R.program, R.isOraclePPTOn,
+    fun a => ⟨R.toProgram.eval_eq a, (R.respects_bound a).1.trans (hr a)⟩⟩, fun _ => by simp⟩
 
 /-- Conversely, any membership witness `A ∈ PWithOracleQueries (encB '' B) r encA` yields a
 `BoundedOracleReduction encA encB A B` with `qcount a = r |encA a|`, polynomial `qlen`,
@@ -1349,25 +1217,12 @@ noncomputable def ofPWithOracleQueries {A : Set α} {B : Set β} {r : ℕ → �
       isOraclePPTOn := hprog.1
       decides := fun a => by rw [hf_spec.2 a, (hprog.2 a).1]
       respects_bound := fun a => ?_ }
-  have heq : (fun q : Unit × List Bool => encodedDecisionOracle encB B q.2) =
-      languageOracle (encB '' B) := rfl
-  dsimp only [OracleCallBound.Respects]
-  have hqc : (OracleComp.queriesWith (fun q => encodedDecisionOracle encB B q.2)
-      (prog a)).length ≤ r (encA a).length := by
-    rw [heq]
-    exact (hprog.2 a).2
-  have hql : ∀ q ∈ OracleComp.queriesWith (fun q => encodedDecisionOracle encB B q.2) (prog a),
-      q.2.length ≤ ql a :=
-    forall_queriesWith_of_probQueriesSatisfy _ (prog a) (hqb a).2
-  refine ⟨hqc, hql, ?_, fun q _ => by simp only [length_encodedDecisionOracle, le_refl]⟩
   set qs := OracleComp.queriesWith (fun q => encodedDecisionOracle encB B q.2) (prog a)
-  have hsum : (qs.map fun q => q.2.length).sum ≤ qs.length * ql a := by
-    have hmem : ∀ x ∈ qs.map (fun q => q.2.length), x ≤ ql a := by
-      intro x hx
-      obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hx
-      exact hql q hq
-    simpa only [List.length_map, smul_eq_mul] using List.sum_le_length_nsmul _ _ hmem
-  exact hsum.trans (Nat.mul_le_mul_right (ql a) hqc)
+  have hqc : qs.length ≤ r (encA a).length := (hprog.2 a).2
+  have hql : ∀ q ∈ qs, q.2.length ≤ ql a :=
+    forall_queriesWith_of_probQueriesSatisfy _ (prog a) (hqb a).2
+  exact ⟨hqc, hql, BoundedOracleProgram.map_sum_le_mul hql hqc,
+    fun _ _ => by simp only [length_encodedDecisionOracle, le_refl]⟩
 
 /-- **Polynomial-time transfer (`mem_P`)** across `BoundedOracleReduction` when `D : Decoder encB`
 and `B ∈ P encB`. -/
@@ -1376,12 +1231,11 @@ theorem mem_P {A : Set α} {B : Set β} (D : Decoder encB)
     A ∈ P encA := by
   classical
   obtain ⟨g, hg, hgB⟩ := hB
-  let R_P : BoundedOracleReduction encB encBits B ∅ := ofPolyTime ∅ hg hgB
-  let R_comp := R.transDecoded D R_P
   have horacle : ComputableInPolyTime (encodedDecisionOracle encBits ∅) encBits encBits :=
-    (ComputableInPolyTime.const (encIn := encBits) (encOut := encBits) [false]).of_enc_eq
-      fun w => by simp [encodedDecisionOracle, languageOracle]
-  exact ⟨_, R_comp.toProgram.computableInPolyTime horacle, fun _ => by simp⟩
+    (ComputableInPolyTime.const (encIn := encBits) (encOut := encBits) [false]).of_enc_eq fun _ =>
+      by simp [encodedDecisionOracle, languageOracle]
+  exact ⟨_, ((R.transDecoded D (ofPolyTime (encB := encBits) ∅ hg hgB)).toProgram)
+    |>.computableInPolyTime horacle, fun _ => by simp⟩
 
 /-- **Polynomial-space transfer (`mem_PSPACE`)** across `BoundedOracleReduction` when
 `D : Decoder encB` and `B ∈ PSPACE encB`. -/
@@ -1389,94 +1243,184 @@ theorem mem_PSPACE {A : Set α} {B : Set β} (D : Decoder encB)
     (R : BoundedOracleReduction encA encB A B) (hB : B ∈ PSPACE encB) :
     A ∈ PSPACE encA := by
   classical
-  obtain ⟨T, S, hS, g, hg, hgB⟩ := exists_computableInO_of_mem_PSPACE hB
-  let isCan (w : List Bool) : Bool := decide (encB (D.decode w) = w)
-  have hreenc : ComputableInPolyTime (fun b : β => (encB b : List Bool)) encB encBits :=
-    ComputableInPolyTime.id'.of_enc_eq fun _ => rfl
-  have hisCan : ComputableInPolyTime isCan encBits encBool :=
-    (hreenc.comp D.computableInPolyTime).decide_eq' .id'
-  have hg_ps : ComputableInPolySpace g encB encBool := by
-    obtain ⟨c, htm, hout⟩ := hg
-    exact ComputableInPolySpace.of_inSpace hS ⟨_, c, htm, hout⟩
+  obtain ⟨_, S, hS, g, ⟨c, htm, hout⟩, hgB⟩ := exists_computableInO_of_mem_PSPACE hB
   have hdecB_ps : ComputableInPolySpace (fun w : List Bool =>
-      if isCan w then g (D.decode w) else false) encBits encBool :=
-    ComputableInPolySpace.ite (ComputableInPolySpace.of_polyTime hisCan)
-      (hg_ps.comp (ComputableInPolySpace.of_polyTime D.computableInPolyTime))
-      (ComputableInPolySpace.of_polyTime (.const false))
-  have hsingleton : ComputableInPolySpace (fun b : Bool => [b]) encBool encBits :=
-    ComputableInPolySpace.of_polyTime (ComputableInPolyTime.id'.of_enc_eq fun b =>
-      (encBool_apply b).symm)
-  have horacle_eq : encodedDecisionOracle encB B =
-      fun w => [if isCan w then g (D.decode w) else false] := by
-    funext w
-    simp only [encodedDecisionOracle, languageOracle]
-    congr 1
-    by_cases hc : isCan w = true
-    · simp only [hc, ↓reduceIte]
-      have hcan : encB (D.decode w) = w := of_decide_eq_true hc
-      have hmem : w ∈ encB '' B ↔ D.decode w ∈ B := by
-        conv_lhs => rw [← hcan]
-        exact encB.injective.mem_set_image
-      exact Bool.eq_iff_iff.mpr ⟨fun h => (hgB _).mp (hmem.mp (of_decide_eq_true h)),
-        fun h => decide_eq_true (hmem.mpr ((hgB _).mpr h))⟩
-    · have hnc : isCan w = false := Bool.eq_false_iff.mpr hc
-      simp only [hnc, Bool.false_eq_true, ↓reduceIte]
-      have hnotmem : w ∉ encB '' B := by
-        rintro ⟨b, _, rfl⟩
-        have : isCan (encB b) = true := by simp [isCan, D.decode_enc]
-        rw [this] at hnc
-        exact Bool.noConfusion hnc
-      simp [hnotmem]
-  have horacle : ComputableInPolySpace (encodedDecisionOracle encB B) encBits encBits := by
-    rw [horacle_eq]
-    exact hsingleton.comp hdecB_ps
-  have hf_ps := R.toProgram.computableInPolySpace horacle
-  exact ⟨_, hf_ps, fun _ => by simp⟩
+      if decide (encB (D.decode w) = w) then g (D.decode w) else false) encBits encBool :=
+    ComputableInPolySpace.ite (.of_polyTime (computableInPolyTime_isCan D))
+      ((ComputableInPolySpace.of_inSpace hS ⟨_, c, htm, hout⟩).comp
+        (.of_polyTime D.computableInPolyTime))
+      (.of_polyTime (.const false))
+  have horacle : ComputableInPolySpace (encodedDecisionOracle encB B) encBits encBits :=
+    ((ComputableInPolySpace.of_polyTime
+      (ComputableInPolyTime.id'.of_enc_eq fun b => (encBool_apply b).symm)).comp hdecB_ps).congr
+      fun w => (congrArg List.singleton (decide_mem_image_eq_of_decoder D hgB w)).symm
+  exact ⟨_, R.toProgram.computableInPolySpace horacle, fun _ => by simp⟩
 
 /-! ### Parameterized exponential and subexponential oracle transfer -/
 
-/-- Internal simulator state pairing a fixed parameter budget `budget = scale * μA a + offset`
-with the live `FiniteConfig` of the deterministic oracle machine. -/
-private structure GuardedOracleState (k m : ℕ) where
-  budget : ℕ
-  cfg : Turing.MultiTapeMachine.FiniteConfig k Bool (Fin m) Unit
+open _root_.Turing.MultiTapeMachine in
+/-- Single guarded step `stepGuard (K, cfg) = (K, answerStep (guardAns K) cfg)` with explicit
+`ComputableInO` certificate, charging `t (D.decode req)` only when `req` is pending, canonical,
+and within the parameter budget `μB (D.decode req) ≤ K`. -/
+private theorem guardedStep_inO {β : Type} {encB : β ↪ List Bool}
+    (D : Decoder encB) {μB : β → ℕ} (hμB : ComputableInPolyTime μB encB encNat)
+    {g : β → Bool} {t : β → ℕ} (hg : ComputableInO g encB encBool t t)
+    {k m : ℕ} (machine : MultiTapePTM k Bool (Fin m) Unit) :
+    let isActive (s : ℕ × FiniteConfig k Bool (Fin m) Unit) : Bool :=
+      (machine.pendingQuery s.2).isSome &&
+        (decide (encB (D.decode (machine.pendingRequest s.2)) = machine.pendingRequest s.2) &&
+          decide (μB (D.decode (machine.pendingRequest s.2)) ≤ s.1))
+    let guardAns (K : ℕ) (w : List Bool) : Bool :=
+      if decide (encB (D.decode w) = w) && decide (μB (D.decode w) ≤ K) then
+        g (D.decode w) else false
+    ∃ d : ℕ, ComputableInO
+      (fun s : ℕ × FiniteConfig k Bool (Fin m) Unit =>
+        (s.1, machine.answerStep (fun q => [guardAns s.1 q.2]) s.2))
+      (encPair encNat encFiniteConfig) (encPair encNat encFiniteConfig)
+      (fun s => ((encPair encNat encFiniteConfig s).length + 1) ^ d +
+        if isActive s then
+          t (D.decode (machine.pendingRequest s.2)) +
+            ((encPair encNat encFiniteConfig s).length +
+              (encBool (g (D.decode (machine.pendingRequest s.2)))).length + 1) ^ d
+        else 0)
+      (fun s => ((encPair encNat encFiniteConfig s).length + 1) ^ d +
+        if isActive s then
+          t (D.decode (machine.pendingRequest s.2)) +
+            ((encPair encNat encFiniteConfig s).length +
+              (encBool (g (D.decode (machine.pendingRequest s.2)))).length + 1) ^ d
+        else 0) := by
+  classical
+  let E := encPair encNat (encFiniteConfig (k := k) (State := Fin m) (Oracle := Unit))
+  let subinst (s : ℕ × FiniteConfig k Bool (Fin m) Unit) : β :=
+    D.decode (machine.pendingRequest s.2)
+  have hbud_pt : ComputableInPolyTime Prod.fst E encNat := .fst _ _
+  have hcfg_pt : ComputableInPolyTime Prod.snd E encFiniteConfig := .snd _ _
+  have hpend_pt : ComputableInPolyTime (fun s => machine.pendingRequest s.2) E encBits :=
+    machine.pendingRequest_pt.comp hcfg_pt
+  have hsub_pt : ComputableInPolyTime subinst E encB := D.computableInPolyTime.comp hpend_pt
+  have hisActive_pt : ComputableInPolyTime
+      (fun s : ℕ × FiniteConfig k Bool (Fin m) Unit =>
+        (machine.pendingQuery s.2).isSome &&
+          (decide (encB (subinst s) = machine.pendingRequest s.2) &&
+            decide (μB (subinst s) ≤ s.1))) E encBool :=
+    ComputableInPolyTime.bool_and.comp
+      ((((ComputableInPolyTime.of_finite Option.isSome).comp machine.pendingQuery_pt).comp hcfg_pt)
+        |>.prod (ComputableInPolyTime.bool_and.comp
+          (((computableInPolyTime_isCan D).comp hpend_pt).prod
+            ((hμB.comp hsub_pt).binary_le' hbud_pt))))
+  have hlocal_pt : ComputableInPolyTime
+      (fun s : ℕ × FiniteConfig k Bool (Fin m) Unit =>
+        (s.1, machine.answerStep (fun _ => [false]) s.2)) E E :=
+    hbud_pt.prod ((machine.computableInPolyTime_answerStep_word (.const [false])).comp hcfg_pt)
+  have hcomb_pt : ComputableInPolyTime
+      (fun p : (ℕ × FiniteConfig k Bool (Fin m) Unit) × Bool =>
+        (p.1.1, machine.receiveWord (p.1.2, [p.2]))) (encPair E encBool) E :=
+    (hbud_pt.comp (.fst _ _)).prod (machine.receiveWord_pt.comp
+      ((hcfg_pt.comp (.fst _ _)).prod
+        ((ComputableInPolyTime.snd E encBool).of_enc_eq (encD := encBits) fun p =>
+          (encBool_apply p.2).symm)))
+  obtain ⟨d, h⟩ := exists_computableInO_searchStep (done := fun _ => false)
+    (.const false) hisActive_pt hsub_pt hlocal_pt hcomb_pt hg
+  refine ⟨d, (h.mono_le (fun _ => by simp only [true_and, E, subinst, le_refl])
+    (fun _ => by simp only [true_and, E, subinst, le_refl])).of_enc_eq fun ⟨K, cfg⟩ => ?_⟩
+  congr 1
+  simp only [Bool.false_eq_true, ite_false]
+  rw [machine.answerStep_word (fun w =>
+    [if decide (encB (D.decode w) = w) && decide (μB (D.decode w) ≤ K) then
+      g (D.decode w) else false]) cfg,
+    machine.answerStep_word (fun _ => [false]) cfg]
+  by_cases hpq : (machine.pendingQuery cfg).isSome = true <;>
+    by_cases hc : (decide (encB (D.decode (machine.pendingRequest cfg)) =
+        machine.pendingRequest cfg) &&
+      decide (μB (D.decode (machine.pendingRequest cfg)) ≤ K)) = true <;>
+    simp [hpq, hc, subinst]
 
-private noncomputable def encGuardedOracleState {k m : ℕ} :
-    GuardedOracleState k m ↪ List Bool where
-  toFun s := encPair encNat encFiniteConfig (s.budget, s.cfg)
-  inj' s₁ s₂ h := by
-    have hp := (encPair encNat encFiniteConfig).injective h
-    cases s₁; cases s₂
-    cases hp
-    rfl
+/-- Agreement between `languageOracle (encB '' B)` and the budget-guarded oracle `guardAns K`
+along every query actually issued by `R.program a`. -/
+private theorem guardedRun_decides_iff {α β : Type} {encA : α ↪ List Bool} {encB : β ↪ List Bool}
+    {A : Set α} {B : Set β} (D : Decoder encB) (R : BoundedOracleReduction encA encB A B)
+    {k m : ℕ} (machine : MultiTapePTM k Bool (Fin m) Unit) {clk : α → ℕ}
+    (hrun : ∀ a answer, encBool (OracleComp.interpret (m := Id) answer (R.program a)) =
+      OracleComp.interpret (m := Id) answer
+        (machine.run (pure false) (fun op word => OracleComp.query (op, word)) (clk a)
+          (encA a)))
+    {μB : β → ℕ} {g : β → Bool} (hgB : ∀ b, b ∈ B ↔ g b = true) {K : α → ℕ}
+    (hparam : ∀ a q,
+      q ∈ OracleComp.queriesWith (languageOracle (encB '' B)) (R.program a) →
+        ∀ b, encB b = q.2 → μB b ≤ K a)
+    (a : α) :
+    let guardAns (w : List Bool) : Bool :=
+      if decide (encB (D.decode w) = w) && decide (μB (D.decode w) ≤ K a) then
+        g (D.decode w) else false
+    a ∈ A ↔ ((machine.answerStep fun q => [guardAns q.2])^[clk a]
+      (Turing.MultiTapeMachine.FiniteConfig.init machine.initial (encA a))).tapes.output.headD
+        false = true := by
+  classical
+  let ans_a : Unit × List Bool → List Bool := fun q =>
+    [if decide (encB (D.decode q.2) = q.2) && decide (μB (D.decode q.2) ≤ K a) then
+      g (D.decode q.2) else false]
+  have hcongr : OracleComp.interpret (m := Id) ans_a (R.program a) =
+      OracleComp.interpret (m := Id) (languageOracle (encB '' B)) (R.program a) :=
+    (OracleComp.interpret_id_congr (languageOracle (encB '' B)) ans_a (R.program a) fun q hq => by
+      refine congrArg List.singleton ?_
+      rw [decide_mem_image_eq_of_decoder D hgB q.2]
+      by_cases hcan : encB (D.decode q.2) = q.2 <;> simp_all [hparam a q hq (D.decode q.2)]).1
+  change a ∈ A ↔ ((machine.answerStep ans_a)^[clk a]
+    (Turing.MultiTapeMachine.FiniteConfig.init machine.initial (encA a))).tapes.output.headD
+      false = true
+  rw [← machine.interpret_run_pure_false, ← hrun a ans_a, hcongr, encBool_apply, List.headD_cons]
+  exact R.decides a
 
-@[simp]
-private theorem encGuardedOracleState_apply {k m : ℕ} (s : GuardedOracleState k m) :
-    encGuardedOracleState s = encPair encNat encFiniteConfig (s.budget, s.cfg) := rfl
+/-- Real-valued ceiling/polynomial domination step for `decidableInExpTime`. -/
+private theorem expTime_step_dom {dn di da e Cp E clk stepPoly stateB clockLen leafMax
+    lenA finLen k_cost scale offset μA : ℕ} {δ : ℝ} (hδ : 0 ≤ δ)
+    (hfin : finLen ≤ stateB) (hclkLen : clockLen ≤ clk)
+    (hleaf : (leafMax : ℝ) ≤ (k_cost : ℝ) * (2 ^ (δ * (scale * μA + offset : ℕ)) *
+      ((clk : ℝ) + 1) ^ e) + k_cost + 1)
+    (hCp : (lenA + 1) ^ dn + (lenA + 1) ^ di + (stateB + 1) ^ da +
+      (clk + 1) * (stepPoly + stateB + (clk + 1) ^ 2 + (clk + 1) ^ e + 1) ≤
+      Cp * (lenA + 1) ^ E) :
+    (((lenA + 1) ^ dn + (lenA + 1) ^ di +
+      (clk + 1) * (stepPoly + leafMax + stateB + (clockLen + 1) ^ 2) +
+      (finLen + 1) ^ da : ℕ) : ℝ) ≤
+      (⌈(Cp : ℝ) + Cp * (k_cost * 2 ^ (δ * offset) + (k_cost + 1))⌉₊ : ℝ) *
+        (2 ^ ((scale * δ) * μA) * ((lenA : ℝ) + 1) ^ E) := by
+  set P : ℝ := ((lenA : ℝ) + 1) ^ E
+  set Y : ℝ := (2 : ℝ) ^ ((scale * δ) * μA)
+  set C_big : ℝ := (Cp : ℝ) + Cp * (k_cost * 2 ^ (δ * offset) + (k_cost + 1))
+  have hY1 : 1 ≤ Y := Real.one_le_rpow (by norm_num) (by positivity)
+  have hYP : P ≤ Y * P := le_mul_of_one_le_left (by positivity) hY1
+  have hCpY : (Cp : ℝ) * P ≤ Cp * (Y * P) :=
+    mul_le_mul_of_nonneg_left hYP (Nat.cast_nonneg Cp)
+  have hbase : ((lenA + 1) ^ dn + (lenA + 1) ^ di + (finLen + 1) ^ da +
+      (clk + 1) * (stepPoly + stateB + (clockLen + 1) ^ 2) : ℝ) ≤ Cp * P := by
+    have hf := Nat.pow_le_pow_left (Nat.add_le_add_right hfin 1) da
+    have hc := Nat.pow_le_pow_left (Nat.add_le_add_right hclkLen 1) 2
+    have hm := Nat.mul_le_mul_left (clk + 1)
+      (show stepPoly + stateB + (clockLen + 1) ^ 2 ≤
+        stepPoly + stateB + (clk + 1) ^ 2 + (clk + 1) ^ e + 1 by omega)
+    dsimp only [P]
+    exact_mod_cast (show _ ≤ Cp * (lenA + 1) ^ E by omega)
+  have hsub {x : ℕ} (hx : x ≤ stepPoly + stateB + (clk + 1) ^ 2 + (clk + 1) ^ e + 1) :
+      ((clk : ℝ) + 1) * x ≤ Cp * P := by
+    dsimp only [P]
+    exact_mod_cast (Nat.mul_le_mul_left (clk + 1) hx).trans ((Nat.le_add_left _ _).trans hCp)
+  have hcpow : ((clk : ℝ) + 1) * ((clk : ℝ) + 1) ^ e ≤ Cp * P := by
+    simpa only [Nat.cast_pow, Nat.cast_add, Nat.cast_one] using hsub (x := (clk + 1) ^ e) (by omega)
+  have hclk1 : (clk : ℝ) + 1 ≤ Cp * P := by
+    simpa only [Nat.cast_one, mul_one] using hsub (x := 1) (by omega)
+  have hexp : (2 : ℝ) ^ (δ * (scale * μA + offset : ℕ)) = 2 ^ (δ * offset) * Y := by
+    push_cast; rw [← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]; congr 1; ring
+  rw [hexp] at hleaf
+  have h1 := mul_le_mul_of_nonneg_left hleaf (by positivity : (0 : ℝ) ≤ clk + 1)
+  have h2 := mul_le_mul_of_nonneg_left hcpow
+    (by positivity : (0 : ℝ) ≤ (k_cost : ℝ) * 2 ^ (δ * offset) * Y)
+  have h3 := mul_le_mul_of_nonneg_left (hclk1.trans hCpY) (by positivity : (0 : ℝ) ≤ k_cost + 1)
+  have h4 := hbase.trans hCpY
+  refine (show _ ≤ C_big * (Y * P) by push_cast at h4 ⊢; linarith).trans
+    (mul_le_mul_of_nonneg_right (Nat.le_ceil C_big) (by positivity))
 
-private theorem guardedOracleState_parts {k m : ℕ} :
-    ComputableInPolyTime (fun s : GuardedOracleState k m => (s.budget, s.cfg))
-      encGuardedOracleState (encPair encNat encFiniteConfig) :=
-  (ComputableInPolyTime.id' (encIn := encGuardedOracleState)).of_enc_eq fun _ => rfl
-
-private theorem computableInPolyTime_guardedBudget {k m : ℕ} :
-    ComputableInPolyTime (GuardedOracleState.budget (k := k) (m := m))
-      encGuardedOracleState encNat :=
-  guardedOracleState_parts.fst'
-
-private theorem computableInPolyTime_guardedCfg {k m : ℕ} :
-    ComputableInPolyTime (GuardedOracleState.cfg (k := k) (m := m))
-      encGuardedOracleState encFiniteConfig :=
-  guardedOracleState_parts.snd'
-
-private theorem computableInPolyTime_guardedMk {k m : ℕ} {ι : Type} {encI : ι ↪ List Bool}
-    {fb : ι → ℕ} {fc : ι → Turing.MultiTapeMachine.FiniteConfig k Bool (Fin m) Unit}
-    (hb : ComputableInPolyTime fb encI encNat)
-    (hc : ComputableInPolyTime fc encI encFiniteConfig) :
-    ComputableInPolyTime (fun x => GuardedOracleState.mk (fb x) (fc x))
-      encI encGuardedOracleState :=
-  (hb.prod hc).of_enc_eq fun _ => rfl
-
+open _root_.Turing.MultiTapeMachine in
 /-- **Parameterized exponential-time transfer across `BoundedOracleReduction`:**
 when `D : Decoder encB` decodes canonical `encB`-words in polynomial time, `μA` and `μB` are
 polynomial-time computable, and every query `q` issued by `R.program a` against `encB '' B`
@@ -1499,356 +1443,104 @@ theorem decidableInExpTime {A : Set α} {B : Set β} {μA : α → ℕ} {μB : �
   obtain ⟨g, t, k_cost, hg, hgB, ht⟩ := h.exists_computableInO
   obtain ⟨k_tm, m_tm, machine, c_clk, d_clk, hrun⟩ := R.isOraclePPTOn.exists_fin_run_pure_false
   let _ : Inhabited β := ⟨D.decode []⟩
-  let _ : Inhabited (GuardedOracleState k_tm m_tm) :=
-    ⟨⟨0, Turing.MultiTapeMachine.FiniteConfig.init machine.initial []⟩⟩
-  let isCan (w : List Bool) : Bool := decide (encB (D.decode w) = w)
-  have hreenc : ComputableInPolyTime (fun b : β => (encB b : List Bool)) encB encBits :=
-    ComputableInPolyTime.id'.of_enc_eq fun _ => rfl
-  have hisCan : ComputableInPolyTime isCan encBits encBool :=
-    (hreenc.comp D.computableInPolyTime).decide_eq' .id'
-  let guardAns (K : ℕ) (w : List Bool) : Bool :=
-    if isCan w && decide (μB (D.decode w) ≤ K) then g (D.decode w) else false
-  let stepGuard (s : GuardedOracleState k_tm m_tm) : GuardedOracleState k_tm m_tm :=
-    ⟨s.budget, machine.answerStep (fun q => [guardAns s.budget q.2]) s.cfg⟩
-  let isActive (s : GuardedOracleState k_tm m_tm) : Bool :=
-    (machine.pendingQuery s.cfg).isSome &&
-      (isCan (machine.pendingRequest s.cfg) &&
-        decide (μB (D.decode (machine.pendingRequest s.cfg)) ≤ s.budget))
-  let subinst (s : GuardedOracleState k_tm m_tm) : β :=
-    D.decode (machine.pendingRequest s.cfg)
-  let localStep (s : GuardedOracleState k_tm m_tm) : GuardedOracleState k_tm m_tm :=
-    ⟨s.budget, machine.answerStep (fun _ => [false]) s.cfg⟩
-  let combine (p : GuardedOracleState k_tm m_tm × Bool) : GuardedOracleState k_tm m_tm :=
-    ⟨p.1.budget, machine.receiveWord (p.1.cfg, [p.2])⟩
-  have hstep_eq (s : GuardedOracleState k_tm m_tm) :
-      stepGuard s =
-        (if false then s else if isActive s then combine (s, g (subinst s)) else localStep s) := by
-    rcases s with ⟨K, cfg⟩
-    dsimp only [stepGuard, isActive, subinst, combine, localStep]
-    rw [machine.answerStep_word (fun w => [guardAns K w]) cfg,
-      machine.answerStep_word (fun _ => [false]) cfg]
-    by_cases hpq : (machine.pendingQuery cfg).isSome = true
-    · simp only [hpq, ↓reduceIte, Bool.true_and, Bool.false_eq_true, guardAns]
-      by_cases hc : (isCan (machine.pendingRequest cfg) &&
-          decide (μB (D.decode (machine.pendingRequest cfg)) ≤ K)) = true
-      · simp only [hc, ↓reduceIte]
-      · have hnc : (isCan (machine.pendingRequest cfg) &&
-            decide (μB (D.decode (machine.pendingRequest cfg)) ≤ K)) = false :=
-          Bool.eq_false_iff.mpr hc
-        simp only [hnc, Bool.false_eq_true, ↓reduceIte]
-    · have hnpq : (machine.pendingQuery cfg).isSome = false := Bool.eq_false_iff.mpr hpq
-      simp only [hnpq, Bool.false_eq_true, Bool.false_and, ↓reduceIte]
-  -- Polynomial-time certificates for all local pieces of `stepGuard`.
-  have hcfg_pt := computableInPolyTime_guardedCfg (k := k_tm) (m := m_tm)
-  have hbud_pt := computableInPolyTime_guardedBudget (k := k_tm) (m := m_tm)
-  have hpend_pt : ComputableInPolyTime
-      (fun s : GuardedOracleState k_tm m_tm => machine.pendingRequest s.cfg)
-      encGuardedOracleState encBits :=
-    machine.pendingRequest_pt.comp hcfg_pt
-  have hsubinst_pt : ComputableInPolyTime subinst encGuardedOracleState encB :=
-    D.computableInPolyTime.comp hpend_pt
-  have hisSome_pt : ComputableInPolyTime
-      (fun s : GuardedOracleState k_tm m_tm => (machine.pendingQuery s.cfg).isSome)
-      encGuardedOracleState encBool :=
-    ((ComputableInPolyTime.of_finite Option.isSome).comp machine.pendingQuery_pt).comp hcfg_pt
-  have hle_pt : ComputableInPolyTime
-      (fun s : GuardedOracleState k_tm m_tm => decide (μB (subinst s) ≤ s.budget))
-      encGuardedOracleState encBool :=
-    (hμB.comp hsubinst_pt).binary_le' hbud_pt
-  have hisActive_pt : ComputableInPolyTime isActive encGuardedOracleState encBool := by
-    have hand2 := ComputableInPolyTime.bool_and.comp
-      ((hisCan.comp hpend_pt).prod hle_pt)
-    exact ComputableInPolyTime.bool_and.comp (hisSome_pt.prod hand2)
-  have hlocal_pt : ComputableInPolyTime localStep encGuardedOracleState encGuardedOracleState :=
-    computableInPolyTime_guardedMk hbud_pt
-      ((machine.computableInPolyTime_answerStep_word (.const [false])).comp hcfg_pt)
-  have hcombine_pt : ComputableInPolyTime combine
-      (encPair encGuardedOracleState encBool) encGuardedOracleState := by
-    have hp1 : ComputableInPolyTime (fun p : GuardedOracleState k_tm m_tm × Bool => p.1)
-        (encPair encGuardedOracleState encBool) encGuardedOracleState := .fst _ _
-    have hp2_word : ComputableInPolyTime (fun p : GuardedOracleState k_tm m_tm × Bool => [p.2])
-        (encPair encGuardedOracleState encBool) encBits :=
-      (ComputableInPolyTime.snd encGuardedOracleState encBool).of_enc_eq (encD := encBits)
-        fun p => (encBool_apply p.2).symm
-    exact computableInPolyTime_guardedMk (hbud_pt.comp hp1)
-      (machine.receiveWord_pt.comp ((hcfg_pt.comp hp1).prod hp2_word))
-  obtain ⟨d_step, hstep_inO⟩ := exists_computableInO_searchStep
-    (done := fun _ : GuardedOracleState k_tm m_tm => false)
-    (.const false) hisActive_pt hsubinst_pt hlocal_pt hcombine_pt hg
-  have hstep : ComputableInO stepGuard encGuardedOracleState encGuardedOracleState
-      (fun s => ((encGuardedOracleState s).length + 1) ^ d_step +
-        if isActive s then
-          t (subinst s) +
-            ((encGuardedOracleState s).length + (encBool (g (subinst s))).length + 1) ^ d_step
-        else 0)
-      (fun s => ((encGuardedOracleState s).length + 1) ^ d_step +
-        if isActive s then
-          t (subinst s) +
-            ((encGuardedOracleState s).length + (encBool (g (subinst s))).length + 1) ^ d_step
-        else 0) := by
-    refine (hstep_inO.mono_le (fun _ => ?_) (fun _ => ?_)).of_enc_eq fun s => ?_
-    · simp only [true_and]
-      exact le_rfl
-    · simp only [true_and]
-      exact le_rfl
-    · rw [hstep_eq s]
-  -- Initial state, iteration count, and final decision bit.
+  let _ : Inhabited (ℕ × FiniteConfig k_tm Bool (Fin m_tm) Unit) :=
+    ⟨(0, FiniteConfig.init machine.initial [])⟩
+  obtain ⟨d_step, hstep⟩ := guardedStep_inO D hμB hg machine
   let K (a : α) : ℕ := scale * μA a + offset
   let clk (a : α) : ℕ := c_clk * ((encA a).length + 1) ^ d_clk
-  let initSt (a : α) : GuardedOracleState k_tm m_tm :=
-    ⟨K a, Turing.MultiTapeMachine.FiniteConfig.init machine.initial (encA a)⟩
-  have hK_pt : ComputableInPolyTime K encA encNat := by
-    have hsc : ComputableInPolyTime (fun _ : α => scale) encA encNat := .const scale
-    have hof : ComputableInPolyTime (fun _ : α => offset) encA encNat := .const offset
-    exact (hsc.binary_mul' hμA).binary_add' hof
-  have hinit_cfg_pt : ComputableInPolyTime
-      (fun a : α =>
-        Turing.MultiTapeMachine.FiniteConfig.init (k := k_tm) (Oracle := Unit)
-          machine.initial (encA a))
-      encA encFiniteConfig :=
-    ComputableInPolyTime.finiteConfig_init (by fun_prop) _
-  have hinit_pt : ComputableInPolyTime initSt encA encGuardedOracleState :=
-    computableInPolyTime_guardedMk hK_pt hinit_cfg_pt
-  let pClk : Polynomial ℕ := Polynomial.C c_clk * (Polynomial.X + 1) ^ d_clk
+  let guardAns (K' : ℕ) (w : List Bool) : Bool :=
+    if decide (encB (D.decode w) = w) && decide (μB (D.decode w) ≤ K') then
+      g (D.decode w) else false
+  let stepGuard (s : ℕ × FiniteConfig k_tm Bool (Fin m_tm) Unit) :=
+    (s.1, machine.answerStep (fun q => [guardAns s.1 q.2]) s.2)
+  let initSt (a : α) :=
+    (K a, FiniteConfig.init (k := k_tm) (Oracle := Unit) machine.initial (encA a))
+  have hK_pt : ComputableInPolyTime K encA encNat :=
+    ((ComputableInPolyTime.const scale).binary_mul' hμA).binary_add' (.const offset)
   have hclk_pt : ComputableInPolyTime clk encA encNat :=
-      ((ComputableInPolyTime.unary_to_binary.comp
-        ((ComputableInPolyTime.unary_eval pClk).comp
-          (ComputableInPolyTime.encoding_length encA)))).of_enc_eq
-        fun a => by simp [clk, pClk]
-  have hout_cfg : ComputableInPolyTime
-      (fun cfg : Turing.MultiTapeMachine.FiniteConfig k_tm Bool (Fin m_tm) Unit =>
-        cfg.tapes.output)
-      encFiniteConfig encBits := by fun_prop
-  have hout_pt : ComputableInPolyTime
-      (fun s : GuardedOracleState k_tm m_tm => s.cfg.tapes.output.headD false)
-      encGuardedOracleState encBool :=
-    Decoder.bool.computableInPolyTime.comp (hout_cfg.comp hcfg_pt)
-  -- Track `stepGuard^[i] (initSt a)` and its `FiniteConfig.SpaceBound`.
-  have hiter_eq (a : α) (i : ℕ) :
-      stepGuard^[i] (initSt a) =
-        ⟨K a, (machine.answerStep (fun q => [guardAns (K a) q.2]))^[i]
-          (Turing.MultiTapeMachine.FiniteConfig.init machine.initial (encA a))⟩ := by
+    (ComputableInPolyTime.unary_to_binary.comp
+      ((ComputableInPolyTime.unary_eval (Polynomial.C c_clk * (Polynomial.X + 1) ^ d_clk)).comp
+        (ComputableInPolyTime.encoding_length encA))).of_enc_eq fun _ => by simp [clk]
+  obtain ⟨dn, _, hn⟩ := hclk_pt.exists_degree
+  have hinit_pt : ComputableInPolyTime initSt encA (encPair encNat encFiniteConfig) :=
+    hK_pt.prod (show ComputableInPolyTime (fun a => FiniteConfig.init (k := k_tm) (Oracle := Unit)
+      machine.initial (encA a)) encA encFiniteConfig from
+        ComputableInPolyTime.finiteConfig_init (by fun_prop) _)
+  obtain ⟨di, _, hi_deg⟩ := hinit_pt.exists_degree
+  obtain ⟨da, _, ha_deg⟩ := (Decoder.bool.computableInPolyTime.comp
+    ((show ComputableInPolyTime (fun cfg : FiniteConfig k_tm Bool (Fin m_tm) Unit =>
+      cfg.tapes.output) encFiniteConfig encBits by fun_prop).comp
+        (.snd encNat encFiniteConfig))).exists_degree
+  have hiter_eq (a : α) (i : ℕ) : stepGuard^[i] (initSt a) =
+      (K a, (machine.answerStep fun q => [guardAns (K a) q.2])^[i]
+        (FiniteConfig.init machine.initial (encA a))) := by
     induction i with
     | zero => rfl
     | succ i ih => rw [Function.iterate_succ_apply', Function.iterate_succ_apply', ih]
-  have hspace (a : α) {i : ℕ} (hi : i ≤ clk a) :
-      Turing.MultiTapeMachine.FiniteConfig.SpaceBound (encA a).length i 1
-        ((machine.answerStep (fun q => [guardAns (K a) q.2]))^[i]
-          (Turing.MultiTapeMachine.FiniteConfig.init machine.initial (encA a))) := by
-    induction i with
-    | zero =>
-      exact (Turing.MultiTapeMachine.FiniteConfig.spaceBound_init _ _ 0).mono
-        le_rfl le_rfl (Nat.zero_le _)
-    | succ i ih =>
-      rw [Function.iterate_succ_apply']
-      exact machine.spaceBound_answerStep_word (fun w => [guardAns (K a) w])
-        (ih (Nat.le_of_succ_le hi)) fun _ _ => le_rfl
-  obtain ⟨cf, hcf⟩ :=
-    length_encFiniteConfig_le (k := k_tm) (State := Fin m_tm) (Oracle := Unit)
+  have hspace (a : α) {i : ℕ} (hi : i ≤ clk a) :=
+    machine.spaceBound_iterate_answerStep_word (fun w => [guardAns (K a) w]) (w := encA a)
+      (steps := clk a) (answerSize := 1) (fun _ _ => le_rfl) hi
+  obtain ⟨cf, hcf⟩ := length_encFiniteConfig_le (k := k_tm) (State := Fin m_tm) (Oracle := Unit)
   obtain ⟨cK, dK, hK_len⟩ := hK_pt.polyBounded_length.exists_le
-  let stateBound (a : α) : ℕ :=
-    2 * (cK * ((encA a).length + 1) ^ dK) + 1 +
-      cf * ((encA a).length + clk a + 2)
+  let stateBound (a : α) : ℕ := 2 * (cK * ((encA a).length + 1) ^ dK) + 1 +
+    cf * ((encA a).length + clk a + 2)
   have hstate (a : α) (i : ℕ) (hi : i ≤ clk a) :
-      (encGuardedOracleState (stepGuard^[i] (initSt a))).length ≤ stateBound a := by
-    rw [hiter_eq]
-    have hcfg_len : (encFiniteConfig
-        ((machine.answerStep (fun q => [guardAns (K a) q.2]))^[i]
-          (Turing.MultiTapeMachine.FiniteConfig.init machine.initial (encA a)))).length ≤
-        cf * ((encA a).length + clk a + 2) :=
+      (encPair encNat encFiniteConfig (stepGuard^[i] (initSt a))).length ≤ stateBound a := by
+    rw [hiter_eq, length_encPair]
+    have hcfg_len : (encFiniteConfig _).length ≤ cf * ((encA a).length + clk a + 2) :=
       (hcf _ _ _ _ (hspace a hi)).trans (Nat.mul_le_mul_left cf (by omega))
     have hk_len := hK_len a
-    simp only [encGuardedOracleState_apply, length_encPair]
     dsimp only [stateBound]
     omega
-  -- Bound `t (subinst st)` on every active step using `isCan` and `μB ≤ K a`.
   let leafMax (a : α) : ℕ :=
     ⌈(k_cost : ℝ) * (2 ^ (δ * (K a : ℝ)) * ((clk a : ℝ) + 1) ^ e) + k_cost⌉₊
-  have htime (a : α) (i : ℕ) (hi : i ≤ clk a) :
-      isActive (stepGuard^[i] (initSt a)) = true →
-        t (subinst (stepGuard^[i] (initSt a))) ≤ leafMax a := by
-    intro hact
-    set st := stepGuard^[i] (initSt a)
-    have hst_eq : st = ⟨K a, (machine.answerStep (fun q => [guardAns (K a) q.2]))^[i]
-        (Turing.MultiTapeMachine.FiniteConfig.init machine.initial (encA a))⟩ := hiter_eq a i
-    dsimp only [isActive] at hact
-    rcases Bool.and_eq_true_iff.mp hact with ⟨_, hrest⟩
-    rcases Bool.and_eq_true_iff.mp hrest with ⟨hcan_b, hle_b⟩
-    have hcan : encB (subinst st) = machine.pendingRequest st.cfg := of_decide_eq_true hcan_b
-    have hμ_le : μB (subinst st) ≤ K a := by
-      have hle' : μB (subinst st) ≤ st.budget := of_decide_eq_true hle_b
-      simpa only [hst_eq] using hle'
-    have hreq_len : (encB (subinst st)).length ≤ clk a := by
-      rw [hcan, hst_eq]
-      exact (machine.length_pendingRequest_le (hspace a hi)).trans hi
-    have hexp : (2 : ℝ) ^ (δ * μB (subinst st)) ≤ 2 ^ (δ * (K a : ℝ)) :=
-      Real.rpow_le_rpow_of_exponent_le (by norm_num)
-        (mul_le_mul_of_nonneg_left (by exact_mod_cast hμ_le) hδ)
-    have hpow : (((encB (subinst st)).length : ℝ) + 1) ^ e ≤ ((clk a : ℝ) + 1) ^ e := by gcongr
-    refine Nat.cast_le.mp ((ht (subinst st)).trans ((?_ : _ ≤ _).trans (Nat.le_ceil _)))
-    gcongr
-  -- Assemble the `ComputableInO.iterate` decider and absorb polynomial overhead.
-  obtain ⟨dn, _, hn⟩ := hclk_pt.exists_degree
-  obtain ⟨di, _, hi_deg⟩ := hinit_pt.exists_degree
-  obtain ⟨da, _, ha_deg⟩ := hout_pt.exists_degree
   let stepPoly (a : α) : ℕ := (stateBound a + 1) ^ d_step + (stateBound a + 2) ^ d_step
   have hround (a : α) (i : ℕ) (hi : i ≤ clk a) :
-      ((encGuardedOracleState (stepGuard^[i] (initSt a))).length + 1) ^ d_step +
-        (if isActive (stepGuard^[i] (initSt a)) then
-          t (subinst (stepGuard^[i] (initSt a))) +
-            ((encGuardedOracleState (stepGuard^[i] (initSt a))).length +
-              (encBool (g (subinst (stepGuard^[i] (initSt a))))).length + 1) ^ d_step
-        else 0) ≤ stepPoly a + leafMax a := by
-    set st := stepGuard^[i] (initSt a)
-    have hst : (encGuardedOracleState st).length ≤ stateBound a := hstate a i hi
+      let st := stepGuard^[i] (initSt a)
+      let r := machine.pendingRequest st.2
+      ((encPair encNat encFiniteConfig st).length + 1) ^ d_step +
+        (if (machine.pendingQuery st.2).isSome &&
+            (decide (encB (D.decode r) = r) && decide (μB (D.decode r) ≤ st.1)) then
+          t (D.decode r) + ((encPair encNat encFiniteConfig st).length +
+            (encBool (g (D.decode r))).length + 1) ^ d_step else 0) ≤
+        stepPoly a + leafMax a := by
+    intro st r
+    simp only [encBool_apply, List.length_singleton]
+    have hst : (encPair encNat encFiniteConfig st).length ≤ stateBound a := hstate a i hi
     have hp1 := Nat.pow_le_pow_left (Nat.add_le_add_right hst 1) d_step
+    have hp2 : ((encPair encNat encFiniteConfig st).length + 1 + 1) ^ d_step ≤
+        (stateBound a + 2) ^ d_step :=
+      Nat.pow_le_pow_left (Nat.add_le_add_right (Nat.add_le_add_right hst 1) 1) d_step
     split_ifs with hact
-    · have ht_le : t (subinst st) ≤ leafMax a := htime a i hi hact
-      have hp2 : ((encGuardedOracleState st).length +
-          (encBool (g (subinst st))).length + 1) ^ d_step ≤
-          (stateBound a + 2) ^ d_step := by
-        simp only [encBool_apply, List.length_singleton]
-        exact Nat.pow_le_pow_left (by omega) d_step
-      dsimp only [stepPoly]
-      omega
-    · dsimp only [stepPoly]
-      omega
-  have hloop := ha_deg.inO.comp (ComputableInO.iterate hn.inO hi_deg.inO hstep hround hround
-    fun a i hi => hstate a i hi)
-  have hdecides_loop (a : α) :
-      a ∈ A ↔ (stepGuard^[clk a] (initSt a)).cfg.tapes.output.headD false = true := by
-    let ans_a : Unit × List Bool → List Bool := fun q => [guardAns (K a) q.2]
-    have hcongr : OracleComp.interpret (m := Id) ans_a (R.program a) =
-        OracleComp.interpret (m := Id) (languageOracle (encB '' B)) (R.program a) := by
-      refine (OracleComp.interpret_id_congr (languageOracle (encB '' B)) ans_a
-        (R.program a) ?_).1
-      intro q hq
-      dsimp only [ans_a, languageOracle]
-      congr 1
-      by_cases hmem : q.2 ∈ encB '' B
-      · rcases hmem with ⟨b, hbB, hb_eq⟩
-        have hdec_b : D.decode q.2 = b := by rw [← hb_eq, D.decode_enc]
-        have hcan_q : isCan q.2 = true := by simp [isCan, hdec_b, hb_eq]
-        have hμ_q : μB b ≤ K a := hparam a q hq b hb_eq
-        have hle_q : decide (μB b ≤ K a) = true := decide_eq_true hμ_q
-        simp only [guardAns, hcan_q, hdec_b, hle_q, Bool.and_self, ↓reduceIte]
-        have hmem' : q.2 ∈ encB '' B := ⟨b, hbB, hb_eq⟩
-        simp only [hmem', decide_true]
-        exact (hgB b).mp hbB
-      · simp only [hmem, decide_false]
-        by_cases hcond : (isCan q.2 && decide (μB (D.decode q.2) ≤ K a)) = true
-        · simp only [guardAns, hcond, ↓reduceIte]
-          rcases Bool.and_eq_true_iff.mp hcond with ⟨hcan_q, _⟩
-          have hcan_eq : encB (D.decode q.2) = q.2 := of_decide_eq_true hcan_q
-          have hnotB : D.decode q.2 ∉ B := fun hb => hmem ⟨D.decode q.2, hb, hcan_eq⟩
-          exact Bool.eq_false_iff.mpr fun hgb => hnotB ((hgB _).mpr hgb)
-        · have hnc : (isCan q.2 && decide (μB (D.decode q.2) ≤ K a)) = false :=
-            Bool.eq_false_iff.mpr hcond
-          simp only [guardAns, hnc, Bool.false_eq_true, ↓reduceIte]
-    have hm_out : ((machine.answerStep ans_a)^[clk a]
-        (Turing.MultiTapeMachine.FiniteConfig.init machine.initial (encA a))).tapes.output =
-        encBool (OracleComp.interpret (m := Id) (languageOracle (encB '' B)) (R.program a)) := by
-      rw [← hcongr, ← hrun a ans_a, ← machine.interpret_run_pure_false]
+    · rcases Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp hact).2 with ⟨hcan_b, hle_b⟩
+      set b := D.decode r
+      have hμ_le : μB b ≤ K a := by
+        simpa only [st, hiter_eq a i] using (of_decide_eq_true hle_b : μB b ≤ st.1)
+      have hreq_len : (encB b).length ≤ clk a := by
+        rw [of_decide_eq_true hcan_b]
+        simpa only [r, st, hiter_eq a i] using
+          (machine.length_pendingRequest_le (hspace a hi)).trans hi
+      have ht_le : t b ≤ leafMax a := by
+        refine Nat.cast_le.mp ((ht b).trans (le_trans ?_ (Nat.le_ceil _)))
+        have hexp : (2 : ℝ) ^ (δ * μB b) ≤ 2 ^ (δ * (K a : ℝ)) :=
+          Real.rpow_le_rpow_of_exponent_le (by norm_num)
+            (mul_le_mul_of_nonneg_left (Nat.cast_le.mpr hμ_le) hδ)
+        gcongr
+      dsimp only [stepPoly]; omega
+    · dsimp only [stepPoly]; omega
+  have hloop := ha_deg.inO.comp (ComputableInO.iterate hn.inO hi_deg.inO hstep hround hround hstate)
+  obtain ⟨Cp, E, hCp⟩ := (show PolyBounded (fun a => (encA a).length)
+    (fun a => ((encA a).length + 1) ^ dn + ((encA a).length + 1) ^ di +
+      (stateBound a + 1) ^ da + (clk a + 1) * (stepPoly a + stateBound a +
+        (clk a + 1) ^ 2 + (clk a + 1) ^ e + 1)) by
+    growth_poly).exists_le
+  refine DecidableInExpTime.of_computableInO hloop (fun a => by
+    change a ∈ A ↔ (stepGuard^[clk a] (initSt a)).2.tapes.output.headD false = true
     rw [hiter_eq a (clk a)]
-    dsimp only
-    change a ∈ A ↔ (((machine.answerStep ans_a)^[clk a]
-      (Turing.MultiTapeMachine.FiniteConfig.init machine.initial (encA a))).tapes.output).headD
-        false = true
-    rw [hm_out, encBool_apply, List.headD_cons]
-    exact R.decides a
-  let clockLen (a : α) : ℕ := (encNat (clk a)).length
-  have hclkLen (a : α) : clockLen a ≤ clk a + 1 := by
-    dsimp only [clockLen]
-    rw [encNat_apply, Nat.size_eq_bits_len]
-    exact (Nat.size_le.mpr Nat.lt_two_pow_self).trans (Nat.le_succ _)
-  have hpoly : PolyBounded (fun a => (encA a).length)
-      (fun a => ((encA a).length + 1) ^ dn + ((encA a).length + 1) ^ di +
-        (stateBound a + 1) ^ da +
-        (clk a + 1) * (stepPoly a + stateBound a + (clk a + 1 + 1) ^ 2 +
-          (clk a + 1) ^ e + 1)) := by
-    dsimp only [stepPoly, stateBound, clk]
-    growth_poly
-  obtain ⟨Cp, E, hCp⟩ := hpoly.exists_le
-  set C_big : ℝ := Cp + Cp * (k_cost * 2 ^ (δ * offset) + (k_cost + 1))
-  refine DecidableInExpTime.of_computableInO hloop hdecides_loop ⌈C_big⌉₊ E fun a => ?_
-  have hCp_a := hCp a
-  have hfin_da : ((encGuardedOracleState (stepGuard^[clk a] (initSt a))).length + 1) ^ da ≤
-      (stateBound a + 1) ^ da :=
-    Nat.pow_le_pow_left (Nat.add_le_add_right (hstate a (clk a) le_rfl) 1) da
-  have hcl2 := Nat.pow_le_pow_left (Nat.add_le_add_right (hclkLen a) 1) 2
-  set P : ℝ := (((encA a).length : ℝ) + 1) ^ E
-  set Y : ℝ := (2 : ℝ) ^ ((scale * δ) * μA a)
-  have hP1 : 1 ≤ P := one_le_pow₀ (le_add_of_nonneg_left (Nat.cast_nonneg _))
-  have hY1 : 1 ≤ Y := Real.one_le_rpow (by norm_num) (by positivity)
-  have hleaf_bound : (leafMax a : ℝ) ≤
-      (k_cost * 2 ^ (δ * offset)) * Y * (((clk a : ℝ) + 1) ^ e) + (k_cost + 1) := by
-    have hceil : (leafMax a : ℝ) <
-        (k_cost : ℝ) * (2 ^ (δ * (K a : ℝ)) * ((clk a : ℝ) + 1) ^ e) + k_cost + 1 :=
-      Nat.ceil_lt_add_one (by positivity)
-    have hexp_split : (2 : ℝ) ^ (δ * (K a : ℝ)) = 2 ^ (δ * offset) * Y := by
-      dsimp only [K, Y]
-      push_cast
-      rw [← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
-      congr 1
-      ring
-    rw [hexp_split] at hceil
-    linarith
-  have hbase_le : (((encA a).length + 1) ^ dn + ((encA a).length + 1) ^ di +
-      ((encGuardedOracleState (stepGuard^[clk a] (initSt a))).length + 1) ^ da +
-      (clk a + 1) * (stepPoly a + stateBound a + (clockLen a + 1) ^ 2) : ℝ) ≤ Cp * P := by
-    have hnat : ((encA a).length + 1) ^ dn + ((encA a).length + 1) ^ di +
-        ((encGuardedOracleState (stepGuard^[clk a] (initSt a))).length + 1) ^ da +
-        (clk a + 1) * (stepPoly a + stateBound a + (clockLen a + 1) ^ 2) ≤
-        Cp * ((encA a).length + 1) ^ E := by
-      have hmul_le : (clk a + 1) * (stepPoly a + stateBound a + (clockLen a + 1) ^ 2) ≤
-          (clk a + 1) * (stepPoly a + stateBound a + (clk a + 1 + 1) ^ 2 +
-            (clk a + 1) ^ e + 1) :=
-        Nat.mul_le_mul_left _ (by omega)
-      omega
-    dsimp only [P]
-    exact_mod_cast hnat
-  have hclk_pow_le : ((clk a : ℝ) + 1) * (((clk a : ℝ) + 1) ^ e) ≤ Cp * P := by
-    have hnat : (clk a + 1) * ((clk a + 1) ^ e) ≤ Cp * ((encA a).length + 1) ^ E := by
-      have hmul_le : (clk a + 1) * ((clk a + 1) ^ e) ≤
-          (clk a + 1) * (stepPoly a + stateBound a + (clk a + 1 + 1) ^ 2 +
-            (clk a + 1) ^ e + 1) :=
-        Nat.mul_le_mul_left _ (by omega)
-      omega
-    dsimp only [P]
-    exact_mod_cast hnat
-  have hclk_le : ((clk a : ℝ) + 1) ≤ Cp * P := by
-    have hnat : clk a + 1 ≤ Cp * ((encA a).length + 1) ^ E := by
-      have hmul_le : (clk a + 1) * 1 ≤
-          (clk a + 1) * (stepPoly a + stateBound a + (clk a + 1 + 1) ^ 2 +
-            (clk a + 1) ^ e + 1) :=
-        Nat.mul_le_mul_left _ (by omega)
-      omega
-    dsimp only [P]
-    exact_mod_cast hnat
-  have htot : (((((encA a).length + 1) ^ dn + ((encA a).length + 1) ^ di +
-      (clk a + 1) * (stepPoly a + leafMax a + stateBound a + (clockLen a + 1) ^ 2) +
-      ((encGuardedOracleState (stepGuard^[clk a] (initSt a))).length + 1) ^ da : ℕ) : ℝ)) ≤
-      C_big * (Y * P) := by
-    have hmul_leaf : ((clk a : ℝ) + 1) * (leafMax a : ℝ) ≤
-        Cp * (k_cost * 2 ^ (δ * offset)) * (Y * P) + Cp * (k_cost + 1) * P := by
-      have h1 : ((clk a : ℝ) + 1) * (leafMax a : ℝ) ≤
-          ((clk a : ℝ) + 1) *
-            ((k_cost * 2 ^ (δ * offset)) * Y * (((clk a : ℝ) + 1) ^ e) + (k_cost + 1)) :=
-        mul_le_mul_of_nonneg_left hleaf_bound (by positivity)
-      have h2 : (k_cost * 2 ^ (δ * offset)) * Y * (((clk a : ℝ) + 1) * (((clk a : ℝ) + 1) ^ e)) ≤
-          (k_cost * 2 ^ (δ * offset)) * Y * (Cp * P) :=
-        mul_le_mul_of_nonneg_left hclk_pow_le (by positivity)
-      have h3 : (k_cost + 1 : ℝ) * ((clk a : ℝ) + 1) ≤ (k_cost + 1 : ℝ) * (Cp * P) :=
-        mul_le_mul_of_nonneg_left hclk_le (by positivity)
-      linarith
-    have hYP : P ≤ Y * P := le_mul_of_one_le_left (by positivity) hY1
-    have hbase_YP : (Cp : ℝ) * P ≤ Cp * (Y * P) := mul_le_mul_of_nonneg_left hYP (by positivity)
-    have hk_YP : Cp * (k_cost + 1 : ℝ) * P ≤ Cp * (k_cost + 1 : ℝ) * (Y * P) :=
-      mul_le_mul_of_nonneg_left hYP (by positivity)
-    dsimp only [C_big, clockLen] at hbase_le hmul_leaf ⊢
-    push_cast at hbase_le ⊢
-    linarith
-  exact htot.trans (mul_le_mul_of_nonneg_right (Nat.le_ceil C_big) (by positivity))
+    exact guardedRun_decides_iff D R machine (fun x ans => (hrun x ans).symm) hgB hparam a)
+    ⌈(Cp : ℝ) + Cp * (k_cost * 2 ^ (δ * offset) + (k_cost + 1))⌉₊ E fun a =>
+      expTime_step_dom hδ (hstate a (clk a) le_rfl) (length_encNat_le_self (clk a))
+        (Nat.ceil_lt_add_one (by positivity)).le (hCp a)
 
 /-- **Parameterized subexponential-time transfer across `BoundedOracleReduction`.** -/
 theorem decidableInSubexpTime {A : Set α} {B : Set β} {μA : α → ℕ} {μB : β → ℕ}
@@ -1863,10 +1555,8 @@ theorem decidableInSubexpTime {A : Set α} {B : Set β} {μA : α → ℕ} {μB 
     (hB : DecidableInSubexpTime B encB μB) :
     DecidableInSubexpTime A encA μA := by
   intro ε hε
-  set δ : ℝ := ε / (scale + 1)
-  have hδ : 0 < δ := by positivity
-  refine (R.decidableInExpTime D hμA hμB hparam hδ.le (hB δ hδ)).mono ?_
-  dsimp only [δ]
+  have hδ : 0 < ε / (scale + 1) := by positivity
+  refine (R.decidableInExpTime D hμA hμB hparam hδ.le (hB _ hδ)).mono ?_
   rw [mul_div_assoc', div_le_iff₀ (by positivity)]
   nlinarith
 

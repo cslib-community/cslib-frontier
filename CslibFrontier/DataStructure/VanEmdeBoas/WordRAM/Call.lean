@@ -16,7 +16,8 @@ public import CslibFrontier.Computability.WordRAM.Dynamic
 public import CslibFrontier.DataStructure.OrderedSet.Basic
 public import Mathlib.Data.Nat.Log
 
-import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Havoc
 
 /-!
 # Complete native van Emde Boas calls and adaptive dynamic realization
@@ -58,12 +59,39 @@ uniform halt-inclusive bound is `65 * (d + 1) + 30`.
 * [E. Demaine, *Divide and conquer: van Emde Boas trees*, Lecture 4][Demaine2015VanEmdeBoas]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.DataStructure.VanEmdeBoas.WordRAM
 
 open Cslib.WordRAM
 open Cslib.DataStructure Cslib.DataStructure.VanEmdeBoas
+
+@[wram_simps]
+private theorem insertEntry_iff {base key : ℕ} {s : Data 32} :
+    InsertEntry base key s ↔
+      s.regs zero = 0 ∧ s.regs one = 1 ∧ s.regs two = 2 ∧ s.regs three = 3 ∧
+        s.regs four = 4 ∧ s.regs five = 5 ∧ s.regs p = base ∧ s.regs x = key ∧
+        s.regs runFlag = 1 :=
+  ⟨fun ⟨a, b, c, d, e, f, g, h, i⟩ => ⟨a, b, c, d, e, f, g, h, i⟩,
+   fun ⟨a, b, c, d, e, f, g, h, i⟩ => ⟨a, b, c, d, e, f, g, h, i⟩⟩
+
+@[wram_simps]
+private theorem memberEntry_iff {base query : ℕ} {s : Data 32} :
+    MemberEntry base query s ↔
+      s.regs zero = 0 ∧ s.regs one = 1 ∧ s.regs two = 2 ∧ s.regs three = 3 ∧
+        s.regs four = 4 ∧ s.regs five = 5 ∧ s.regs p = base ∧ s.regs x = query ∧
+        s.regs out = 0 ∧ s.regs runFlag = 1 :=
+  ⟨fun ⟨a, b, c, d, e, f, g, h, i, j⟩ => ⟨a, b, c, d, e, f, g, h, i, j⟩,
+   fun ⟨a, b, c, d, e, f, g, h, i, j⟩ => ⟨a, b, c, d, e, f, g, h, i, j⟩⟩
+
+@[wram_simps]
+private theorem successorEntry_iff {stackBase₀ sp₀ base query : ℕ} {s : Data 32} :
+    SuccessorEntry stackBase₀ sp₀ base query s ↔
+      s.regs zero = 0 ∧ s.regs one = 1 ∧ s.regs two = 2 ∧ s.regs three = 3 ∧
+        s.regs four = 4 ∧ s.regs five = 5 ∧ s.regs stackBase = stackBase₀ ∧ s.regs sp = sp₀ ∧
+        s.regs p = base ∧ s.regs x = query ∧ s.regs runFlag = 1 :=
+  ⟨fun ⟨a, b, c, d, e, f, g, h, i, j, k⟩ => ⟨a, b, c, d, e, f, g, h, i, j, k⟩,
+   fun ⟨a, b, c, d, e, f, g, h, i, j, k⟩ => ⟨a, b, c, d, e, f, g, h, i, j, k⟩⟩
 
 /-- The single compiled program contains 212 ordinary instructions and a final halt. -/
 theorem compiled_program_length : (program.program out).length = 213 := by
@@ -77,6 +105,15 @@ theorem compiled_program_not_readsWidth : ¬(program.program out).ReadsWidth :=
 /-- The supported double-exponential universe has exactly `d` iterated binary logarithms. -/
 theorem log_log_universeSize (d : ℕ) : Nat.log 2 (Nat.log 2 (universeSize d)) = d := by
   simp only [universeSize_eq_two_pow, Nat.log_pow Nat.one_lt_two]
+
+/-- Lift a bounded `ExecWithin` run of `program` to an exact `Exec` witness while preserving
+boundedness and the persistent `root` and `stackBase` registers. -/
+private theorem program_call_of_execWithin {w T : ℕ} {s : Data 32} {P : Data 32 → Prop}
+    (hs : s.Bounded w) (h : ∃ z, ExecWithin w program s z T ∧ P z) :
+    ∃ z n, n + 1 ≤ T + 1 ∧ Exec w program s z n ∧ z.Bounded w ∧
+      z.regs root = s.regs root ∧ z.regs stackBase = s.regs stackBase ∧ P z := by
+  obtain ⟨z, ⟨n, hn, he⟩, hP⟩ := h
+  exact ⟨z, n, Nat.succ_le_succ hn, he, he.bounded hs, by regs_frame, by regs_frame, hP⟩
 
 /-! ## Complete native insertion calls -/
 
@@ -95,19 +132,9 @@ theorem insert_dispatch_spec {d w base key : ℕ} {tree : Tree d} {s : Data 32}
   apply WP.exists_execWithin
   unfold program setup
   wram_exec [hroot, harg, htag]
-  apply WP.name; intro s₁ hs₁
-  have hentry : InsertEntry base key s₁ := by
-    subst hs₁
-    exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
-      by wram_simp, by wram_simp, by wram_simp⟩
-  have hr₁ : Rep tree base s₁.mem := by subst hs₁; exact hr
-  obtain ⟨z, hz, hrep, hframe⟩ := insertLoop_spec hentry ht hr₁ hx ha
-  refine WP.of_execWithin hz ⟨by omega, hrep, ?_, ?_⟩
-  · rw [hz.regs_eq (by decide : insertLoop.Preserves out)]
-    subst hs₁; wram_simp
-  · intro a ha_out
-    rw [hframe a ha_out]
-    subst hs₁; rfl
+  wram_call (insertLoop_spec (base := base) (key := key) (tree := tree) ..) framed [hr]
+    with v m ⟨hrep, hframe⟩
+  exact ⟨by omega, hrep, hframe⟩
 
 /-- A bounded caller invoking insertion (`tag = 0`) obtains a bounded state representing
 `tree.insert key`, with unchanged persistent `root` and `stackBase` registers and all memory
@@ -121,11 +148,9 @@ theorem insert_call {d w base key : ℕ} {tree : Tree d} {s : Data 32}
       z.regs root = base ∧ z.regs stackBase = s.regs stackBase ∧
       z.regs out = 0 ∧
       (∀ a, a < base ∨ base + span d ≤ a → z.mem a = s.mem a) := by
-  obtain ⟨z, ⟨n, hn, he⟩, hrep, hout, hframe⟩ :=
-    insert_dispatch_spec ht hr hx ha hroot harg htag
-  refine ⟨z, n, by omega, he, he.bounded hs, hrep, ?_, ?_, hout, hframe⟩
-  · exact (he.regs_eq (by decide : program.Preserves root)).trans hroot
-  · exact he.regs_eq (by decide : program.Preserves stackBase)
+  obtain ⟨z, n, hn, he, hb, hroot', hstk', hrep, hout, hframe⟩ :=
+    program_call_of_execWithin hs (insert_dispatch_spec ht hr hx ha hroot harg htag)
+  exact ⟨z, n, hn, he, hb, hrep, hroot'.trans hroot, hstk', hout, hframe⟩
 
 /-- Actual flat bounded-word insertion execution, including its final halt, in
 `39 * (d + 1) + 16` instructions. -/
@@ -172,16 +197,9 @@ theorem member_dispatch_spec {d w base query : ℕ} {tree : Tree d} {s : Data 32
   apply WP.exists_execWithin
   unfold program setup
   wram_exec [hroot, harg, htag]
-  apply WP.name; intro s₁ hs₁
-  have hentry : MemberEntry base query s₁ := by
-    subst hs₁
-    exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
-      by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
-  have hr₁ : Rep tree base s₁.mem := by subst hs₁; exact hr
-  obtain ⟨z, hz, hout, hmem⟩ := memberLoop_spec hentry ht hr₁ ha
-  refine WP.of_execWithin hz ⟨by omega, hout, ?_⟩
-  rw [hmem]
-  subst hs₁; rfl
+  wram_call (memberLoop_spec (base := base) (query := query) (tree := tree) ..) framed [hr]
+    with v m ⟨hout, hmem⟩
+  exact ⟨by omega, hout, hmem⟩
 
 /-- A bounded caller obtains a bounded result, identical represented memory and an unchanged
 persistent root. Its query fits the machine word because every caller register does. -/
@@ -192,10 +210,9 @@ theorem member_call {d w base query : ℕ} {tree : Tree d} {s : Data 32}
     ∃ z n, n + 1 ≤ 28 * (d + 1) + 18 ∧ Exec w program s z n ∧
       z.Bounded w ∧ Rep tree base z.mem ∧ z.regs root = base ∧
       z.regs out = (if tree.member query then 1 else 0) ∧ z.mem = s.mem := by
-  obtain ⟨z, ⟨n, hn, he⟩, hout, hmem⟩ := member_dispatch_spec ht hr ha hroot harg htag
-  refine ⟨z, n, by omega, he, he.bounded hs, ?_, ?_, hout, hmem⟩
-  · simpa only [hmem] using hr
-  · exact (he.regs_eq (by decide : program.Preserves root)).trans hroot
+  obtain ⟨z, n, hn, he, hb, hroot', _, hout, hmem⟩ :=
+    program_call_of_execWithin hs (member_dispatch_spec ht hr ha hroot harg htag)
+  exact ⟨z, n, hn, he, hb, hmem ▸ hr, hroot'.trans hroot, hout, hmem⟩
 
 /-- Actual flat bounded-word execution, including its final halt, in `28 (d+1) + 18`
 instructions. The selected fixed program has no depth or word-width parameter. -/
@@ -251,18 +268,9 @@ theorem successor_dispatch_spec {d w base stackBase₀ query : ℕ} {tree : Tree
   apply WP.exists_execWithin
   unfold program setup
   wram_exec [hroot, hstk, harg, htag]
-  apply WP.name; intro s₁ hs₁
-  have hentry : SuccessorEntry stackBase₀ stackBase₀ base query s₁ := by
-    subst hs₁
-    exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
-      by wram_simp [hstk], by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
-  have hr₁ : Rep tree base s₁.mem := by subst hs₁; exact hr
-  obtain ⟨z, hz, hans, hsp, hrep, hframe⟩ :=
-    successor_loop_spec hentry ht hr₁ hstk_lo hstk_fit
-  refine WP.of_execWithin hz ⟨by omega, hans, hrep, hsp, ?_⟩
-  intro a ha_out
-  rw [hframe a ha_out]
-  subst hs₁; rfl
+  wram_call (successor_loop_spec (stackBase₀ := stackBase₀) (base := base) (query := query)
+    (tree := tree) ..) framed [hr, hstk] with v m ⟨hans, hsp, hrep, hframe⟩
+  exact ⟨by omega, hans, hrep, hsp, hframe⟩
 
 /-- A bounded caller invoking strict successor (`tag = 2`) obtains a bounded state with the
 exact optional successor encoded by `(found, out)`, unchanged persistent `root` and `stackBase`
@@ -278,11 +286,10 @@ theorem successor_call {d w base stackBase₀ query : ℕ} {tree : Tree d} {s : 
       z.regs root = base ∧ z.regs stackBase = stackBase₀ ∧ z.regs sp = stackBase₀ ∧
       (if z.regs found = 0 then none else some (z.regs out)) = tree.successor query ∧
       (∀ a, a < stackBase₀ ∨ stackBase₀ + 4 * d ≤ a → z.mem a = s.mem a) := by
-  obtain ⟨z, ⟨n, hn, he⟩, hans, hrep, hsp, hframe⟩ :=
-    successor_dispatch_spec ht hr hstk_lo hstk_fit hroot hstk harg htag
-  refine ⟨z, n, by omega, he, he.bounded hs, hrep, ?_, ?_, hsp, hans, hframe⟩
-  · exact (he.regs_eq (by decide : program.Preserves root)).trans hroot
-  · exact (he.regs_eq (by decide : program.Preserves stackBase)).trans hstk
+  obtain ⟨z, n, hn, he, hb, hroot', hstk', hans, hrep, hsp, hframe⟩ :=
+    program_call_of_execWithin hs
+      (successor_dispatch_spec ht hr hstk_lo hstk_fit hroot hstk harg htag)
+  exact ⟨z, n, hn, he, hb, hrep, hroot'.trans hroot, hstk'.trans hstk, hsp, hans, hframe⟩
 
 /-- Actual flat bounded-word strict-successor execution, including its final halt, in
 `65 * (d + 1) + 22` instructions. -/
@@ -340,14 +347,11 @@ theorem successor_eq_least {d : ℕ} {t : Tree d} (ht : t.Valid) (q : ℕ) :
   cases hs : t.successor q with
   | none =>
     simp only [OrderedSet.LeastResult, Finset.filter_eq_empty_iff]
-    have hnone := (Tree.successor_elements_none_iff ht q).mp hs
-    intro z hz
-    have := hnone z hz
-    omega
+    exact fun z hz => not_lt_of_ge ((Tree.successor_elements_none_iff ht q).mp hs z hz)
   | some y =>
     simp only [OrderedSet.LeastResult, Finset.mem_filter]
-    have hsome := (Tree.successor_elements_some_iff ht q y).mp hs
-    exact ⟨⟨hsome.1, hsome.2.1⟩, fun z hz => hsome.2.2 z hz.1 hz.2⟩
+    obtain ⟨hy_mem, hqy, hmin⟩ := (Tree.successor_elements_some_iff ht q y).mp hs
+    exact ⟨⟨hy_mem, hqy⟩, fun z ⟨hz_mem, hqz⟩ => hmin z hz_mem hqz⟩
 
 /-- Dynamic ordered-set operations supported by the van Emde Boas dispatcher. -/
 inductive Operation where
@@ -378,14 +382,8 @@ abbrev spec (d w : ℕ) : DataStructure.StateTransitionSpec :=
       | .member q => Fits w q
       | .successor q => Fits w q)
 
-/-- Representation-relative observations of the original dispatcher, before native conversion. -/
-def rawDecode : (o : Operation) → (Fin 32 → ℕ) → Option (Operation.Result o)
-  | .insert _, _ => some PUnit.unit
-  | .member _, regs => some (regs out != 0)
-  | .successor _, regs => some (if regs found = 0 then none else some (regs out))
-
 /-- Canonical native result formats: unit, exact Boolean, or tag followed by a natural word. -/
-def nativeResultType : Operation → ResultType
+@[expose] def nativeResultType : Operation → ResultType
   | .insert _ => .unit
   | .member _ => .bool
   | .successor _ => .option .nat
@@ -395,51 +393,18 @@ theorem nativeResultType_eq (o : Operation) : Operation.Result o = (nativeResult
   cases o <;> rfl
 
 /-- A fixed bank shared by every operation: presence/Boolean flag, then successor payload. -/
-def nativeResultBank (i : ℕ) : Fin 32 := if i = 0 then found else out
+@[expose] def nativeResultBank (i : ℕ) : Fin 32 := if i = 0 then found else out
 
 /-- Native result conversion stages real constants, copies membership's answer to the shared
 flag register, and normalizes that register to exactly zero or one. -/
-def nativeResultCode : Code .standard 32 :=
-  .seq (.op (.const zero 0)) <|
-    .seq (.op (.const one 1)) <|
-      .seq (.branch (.eq tag one) (.op (.copy found out)) (.op (.copy found found)))
-        (.branch (.eq found zero) (.op (.const found 0)) (.op (.const found 1)))
-
-/-- Machine opcode expected by a native conversion call. -/
-def operationTag : Operation → ℕ
-  | .insert _ => 0
-  | .member _ => 1
-  | .successor _ => 2
-
-/-- Conversion executes within eight instructions, preserves persistent registers and memory,
-and produces the canonical observation from the actual source words. -/
-theorem nativeResultCode_spec {w : ℕ} {x : Data 32} (h1 : Fits w 1)
-    (o : Operation) (a : Operation.Result o) (htag : x.regs tag = operationTag o)
-    (hd : rawDecode o x.regs = some a) :
-    ∃ y, ExecWithin w nativeResultCode x y 8 ∧
-      (nativeResultType o).decode (y.regs ∘ nativeResultBank) 0 =
-        some (cast (nativeResultType_eq o) a) ∧
-      y.mem = x.mem ∧ y.regs root = x.regs root ∧ y.regs stackBase = x.regs stackBase := by
-  cases o <;> simp only [operationTag] at htag
-  all_goals
-    unfold nativeResultCode
-    wram_exec [htag] <;>
-    simp_all only [Operation.Result, rawDecode, found, out, Fin.isValue, nativeResultType,
-      ResultType.Value, Data.set, zero, one, Function.update_idem, ResultType.decode, root,
-      ne_eq, ne_comm, Fin.reduceEq, not_false_eq_true, Function.update_of_ne, stackBase,
-      bne_self_eq_false, Option.some.injEq, Bool.false_eq, Bool.true_eq, Function.comp_apply,
-      nativeResultBank, ↓reduceIte, ↓dreduceIte, Function.update_self, one_ne_zero, zero_add,
-      Option.map_eq_some_iff, and_self, and_true] <;> try rfl
-  case member.neg =>
-    rw [← hd]
-    change (x.regs out != 0) = true
-    exact bne_iff_ne.mpr (Ne.symm hc)
-  case successor.neg =>
-    exact ⟨x.regs out, hd.symm, by rw [← hd]; rfl⟩
+@[expose] def nativeResultCode : Code .standard 32 := ram[
+  zero ← #0; one ← #1;
+  if tag = one then [ found ← out ] else [ found ← found ];
+  if found = zero then [ found ← #0 ] else [ found ← #1 ] ]
 
 /-- The fixed dispatcher followed by its paid canonical result suffix, with a register-only
 calling convention (`tag` and `arg`) and one fixed output bank. -/
-def dynamicProgram (d w : ℕ) : DynamicProgram (spec d w) 32 where
+@[expose] def dynamicProgram (d w : ℕ) : DynamicProgram (spec d w) 32 where
   code := .seq program nativeResultCode
   output := out
   input j := j == tag || j == arg
@@ -466,108 +431,14 @@ theorem arguments_fit {d w base stackBase₀ : ℕ}
     Fits w ((dynamicProgram d w).encode o j) := by
   have h5_le := five_le_span d
   have hu_le := universeSize_le_span d
-  have h0 : Fits w 0 := hstk_fit.of_le (by omega)
-  have h1 : Fits w 1 := hstk_fit.of_le (by omega)
   have h2 : Fits w 2 := hstk_fit.of_le (by omega)
-  cases o with
-  | insert k =>
-    have hk : Fits w k := hstk_fit.of_le (by dsimp only [spec] at ho; omega)
-    simp only [dynamicProgram]
-    split
-    · exact h0
-    · exact hk
-  | member q =>
-    simp only [dynamicProgram]
-    split
-    · exact h1
-    · exact ho
-  | successor q =>
-    simp only [dynamicProgram]
-    split
-    · exact h2
-    · exact ho
-
-/-- Original dispatcher correctness before native result conversion: every admissible operation
-executes in at most `65 * (d + 1) + 21` structured instructions, produces the decoded abstract
-observation, preserves `SetRep`, and modifies no memory outside
-`[base, base + span d) ∪ [stackBase₀, stackBase₀ + 4 * d)`. -/
-theorem dispatch_raw_spec {d w base stackBase₀ : ℕ} {s : Finset ℕ} {x : Data 32}
-    (hstk_lo : base + span d ≤ stackBase₀) (hstk_fit : Fits w (stackBase₀ + 4 * d))
-    (o : Operation) (hx : SetRep d base stackBase₀ w s x) (ho : (spec d w).valid s o) :
-    ∃ y, ExecWithin w program ((dynamicProgram d w).prepare o x) y (65 * (d + 1) + 21) ∧
-      rawDecode o y.regs = some ((spec d w).stepFn s o).2 ∧
-      SetRep d base stackBase₀ w ((spec d w).stepFn s o).1 y ∧
-      (∀ a, (a < base ∨ base + span d ≤ a) →
-        (a < stackBase₀ ∨ stackBase₀ + 4 * d ≤ a) → y.mem a = x.mem a) := by
-  obtain ⟨t, hvalid, helem, hrep⟩ := hx.tree
-  have ha : Fits w (base + span d) := hstk_fit.of_le (by omega)
-  have hprep_bounded : ((dynamicProgram d w).prepare o x).Bounded w :=
-    (dynamicProgram d w).prepare_bounded hx.bounded
-      (fun j _ => arguments_fit hstk_lo hstk_fit o ho j)
-  have hprep_root : ((dynamicProgram d w).prepare o x).regs root = base := by
-    simpa +decide [dynamicProgram, DynamicProgram.prepare] using hx.root_eq
-  have hprep_stk : ((dynamicProgram d w).prepare o x).regs stackBase = stackBase₀ := by
-    simpa +decide [dynamicProgram, DynamicProgram.prepare] using hx.stackBase_eq
-  have hprep_rep : Rep t base ((dynamicProgram d w).prepare o x).mem := hrep
-  cases o with
-  | insert k =>
-    have hprep_arg : ((dynamicProgram d w).prepare (.insert k) x).regs arg = k := by
-      simp +decide [dynamicProgram, DynamicProgram.prepare]
-    have hprep_tag : ((dynamicProgram d w).prepare (.insert k) x).regs tag = 0 := by
-      simp +decide [dynamicProgram, DynamicProgram.prepare]
-    obtain ⟨y, hy, hy_rep, _, hy_frame⟩ :=
-      insert_dispatch_spec hvalid hprep_rep ho ha hprep_root hprep_arg hprep_tag
-    have hrun := hy.mono (by omega : 39 * (d + 1) + 15 ≤ 65 * (d + 1) + 21)
-    have hy_root : y.regs root = base :=
-      (hrun.regs_eq (by decide : program.Preserves root)).trans hprep_root
-    have hy_stk : y.regs stackBase = stackBase₀ :=
-      (hrun.regs_eq (by decide : program.Preserves stackBase)).trans hprep_stk
-    refine ⟨y, hrun, rfl,
-      ⟨hrun.bounded hprep_bounded, hy_root, hy_stk,
-        t.insert k, Tree.valid_insert hvalid ho, ?_, hy_rep⟩, ?_⟩
-    · rw [Tree.elements_insert hvalid ho, helem]
-    · intro a ha_tree _
-      exact hy_frame a ha_tree
-  | member q =>
-    have hprep_arg : ((dynamicProgram d w).prepare (.member q) x).regs arg = q := by
-      simp +decide [dynamicProgram, DynamicProgram.prepare]
-    have hprep_tag : ((dynamicProgram d w).prepare (.member q) x).regs tag = 1 := by
-      simp +decide [dynamicProgram, DynamicProgram.prepare]
-    obtain ⟨y, hy, hy_out, hy_mem⟩ :=
-      member_dispatch_spec hvalid hprep_rep ha hprep_root hprep_arg hprep_tag
-    have hrun := hy.mono (by omega : 28 * (d + 1) + 17 ≤ 65 * (d + 1) + 21)
-    have hy_root : y.regs root = base :=
-      (hrun.regs_eq (by decide : program.Preserves root)).trans hprep_root
-    have hy_stk : y.regs stackBase = stackBase₀ :=
-      (hrun.regs_eq (by decide : program.Preserves stackBase)).trans hprep_stk
-    refine ⟨y, hrun, ?_,
-      ⟨hrun.bounded hprep_bounded, hy_root, hy_stk, t, hvalid, helem, ?_⟩, ?_⟩
-    · simp only [rawDecode, spec, hy_out, ← helem]
-      congr 1
-      have hiff := (Tree.mem_elements_iff hvalid q).trans (Tree.member_iff_contains hvalid q).symm
-      cases hmem : t.member q <;> simp_all
-    · simpa only [hy_mem] using hprep_rep
-    · intro a _ _
-      exact congrFun hy_mem a
-  | successor q =>
-    have hprep_arg : ((dynamicProgram d w).prepare (.successor q) x).regs arg = q := by
-      simp +decide [dynamicProgram, DynamicProgram.prepare]
-    have hprep_tag : ((dynamicProgram d w).prepare (.successor q) x).regs tag = 2 := by
-      simp +decide [dynamicProgram, DynamicProgram.prepare]
-    obtain ⟨y, hy, hy_ans, hy_rep, _, hy_frame⟩ :=
-      successor_dispatch_spec hvalid hprep_rep hstk_lo hstk_fit
-        hprep_root hprep_stk hprep_arg hprep_tag
-    have hy_root : y.regs root = base :=
-      (hy.regs_eq (by decide : program.Preserves root)).trans hprep_root
-    have hy_stk : y.regs stackBase = stackBase₀ :=
-      (hy.regs_eq (by decide : program.Preserves stackBase)).trans hprep_stk
-    refine ⟨y, hy, ?_,
-      ⟨hy.bounded hprep_bounded, hy_root, hy_stk, t, hvalid, helem, hy_rep⟩, ?_⟩
-    · change some (if y.regs found = 0 then none else some (y.regs out)) =
-        some (OrderedSet.least (s.filter (q < ·)))
-      rw [hy_ans, successor_eq_least hvalid q, helem]
-    · intro a _ ha_stk
-      exact hy_frame a ha_stk
+  cases o <;> simp only [dynamicProgram] <;> split
+  · exact fits_zero w
+  · exact hstk_fit.of_le (by dsimp only [spec] at ho; omega)
+  · exact h2.of_le (by decide)
+  · exact ho
+  · exact h2
+  · exact ho
 
 /-- Every admitted native call executes the original dispatcher and the paid canonical result
 suffix, retaining the represented set and all original memory framing guarantees. -/
@@ -580,26 +451,71 @@ theorem dispatch_spec {d w base stackBase₀ : ℕ} {s : Finset ℕ} {x : Data 3
       SetRep d base stackBase₀ w ((spec d w).stepFn s o).1 y ∧
       (∀ a, (a < base ∨ base + span d ≤ a) →
         (a < stackBase₀ ∨ stackBase₀ + 4 * d ≤ a) → y.mem a = x.mem a) := by
-  obtain ⟨z, he, hd, hz, hf⟩ := dispatch_raw_spec hstk_lo hstk_fit o hx ho
-  have h1 : Fits w 1 := hstk_fit.of_le (by have := five_le_span d; lia)
-  have htag : z.regs tag = operationTag o := by
-    rw [he.regs_eq (by decide : program.Preserves tag)]
-    cases o <;> simp +decide [dynamicProgram, DynamicProgram.prepare, operationTag]
-  obtain ⟨y, hy, ha, hm, hr, hs⟩ := nativeResultCode_spec h1 o _ htag hd
-  refine ⟨y, (he.seq hy).mono (by lia), ?_, ?_, ?_⟩
-  · change ((nativeResultType o).decode (y.regs ∘ nativeResultBank) 0).map
-        (cast (nativeResultType_eq o).symm) = some _
-    rw [ha]
-    simp only [Option.map_some, cast_cast, cast_eq]
-  · refine ⟨hy.bounded hz.bounded, hr.trans hz.root_eq, hs.trans hz.stackBase_eq, ?_⟩
-    simpa only [hm] using hz.tree
-  · intro a htree hstk
-    rw [congrFun hm a]
-    exact hf a htree hstk
+  obtain ⟨t, hvalid, rfl, hrep⟩ := hx.tree
+  have ha : Fits w (base + span d) := hstk_fit.of_le (by omega)
+  have h1 : Fits w 1 := ha.of_le (by have := five_le_span d; omega)
+  have hprep_bounded : ((dynamicProgram d w).prepare o x).Bounded w :=
+    (dynamicProgram d w).prepare_bounded hx.bounded
+      (fun j _ => arguments_fit hstk_lo hstk_fit o ho j)
+  have hprep_rep : Rep t base ((dynamicProgram d w).prepare o x).mem := hrep
+  have hprep_root : ((dynamicProgram d w).prepare o x).regs root = base :=
+    ((dynamicProgram d w).prepare_regs_of_not_input rfl o x).trans hx.root_eq
+  have hprep_stk : ((dynamicProgram d w).prepare o x).regs stackBase = stackBase₀ :=
+    ((dynamicProgram d w).prepare_regs_of_not_input rfl o x).trans hx.stackBase_eq
+  apply WP.exists_execWithin
+  apply WP.bounded hprep_bounded
+  change WP w (.seq program nativeResultCode) _ _
+  apply WP.seq
+  cases o with
+  | insert k =>
+    have hprep_tag : ((dynamicProgram d w).prepare (.insert k) x).regs tag = 0 := rfl
+    wram_call (insert_dispatch_spec (key := k) hvalid hprep_rep ho ha hprep_root rfl hprep_tag)
+      framed with v m ⟨hy_rep, -, hy_frame⟩
+    unfold nativeResultCode
+    wram_exec [hprep_tag] <;>
+      exact fun hy_b => ⟨by omega, rfl,
+        ⟨hy_b, by wram_simp [hprep_root], by wram_simp [hprep_stk],
+          t.insert k, Tree.valid_insert hvalid ho, Tree.elements_insert hvalid ho,
+          by wram_simp; exact hy_rep⟩,
+        fun a ha_t _ => by wram_simp; exact hy_frame a ha_t⟩
+  | member q =>
+    have hprep_tag : ((dynamicProgram d w).prepare (.member q) x).regs tag = 1 := rfl
+    wram_call (member_dispatch_spec (query := q) hvalid hprep_rep ha hprep_root rfl hprep_tag)
+      framed with v m ⟨hy_out, hy_mem⟩
+    have hm_eq : t.member q = decide (q ∈ t.elements) :=
+      Bool.eq_iff_iff.mpr ((Tree.member_iff_contains hvalid q).trans
+        ((Tree.mem_elements_iff hvalid q).symm.trans decide_eq_true_iff.symm))
+    unfold nativeResultCode
+    cases hmem : t.member q <;> simp only [hmem, Bool.false_eq_true, ↓reduceIte] at hy_out <;>
+    · wram_exec [hprep_tag, hy_out]
+      intro hy_b
+      refine ⟨by omega, ?_, ⟨hy_b, by wram_simp [hprep_root], by wram_simp [hprep_stk],
+        t, hvalid, rfl, by wram_simp [hy_mem]; exact hrep⟩,
+        fun a _ _ => by wram_simp [hy_mem]; rfl⟩
+      dsimp only [dynamicProgram, DynamicProgram.decode, nativeResultType, ResultType.decode,
+        Function.comp_apply, nativeResultBank]
+      wram_simp
+      simp only [Option.map_some]
+      exact congrArg some (hm_eq.symm.trans hmem).symm
+  | successor q =>
+    have hprep_tag : ((dynamicProgram d w).prepare (.successor q) x).regs tag = 2 := rfl
+    wram_call (successor_dispatch_spec (query := q) hvalid hprep_rep hstk_lo hstk_fit
+      hprep_root hprep_stk rfl hprep_tag) framed with v m ⟨hy_ans, hy_rep, -, hy_frame⟩
+    unfold nativeResultCode
+    wram_exec [hprep_tag] <;>
+    · intro hy_b
+      refine ⟨by omega, ?_, ⟨hy_b, by wram_simp [hprep_root], by wram_simp [hprep_stk],
+        t, hvalid, rfl, by wram_simp; exact hy_rep⟩,
+        fun a _ ha_s => by wram_simp; exact hy_frame a ha_s⟩
+      dsimp only [dynamicProgram, DynamicProgram.decode, nativeResultType, ResultType.decode,
+        Function.comp_apply, nativeResultBank, spec]
+      wram_simp
+      simp only [Option.map_some, ← successor_eq_least hvalid q, ← hy_ans, hc, ↓reduceIte]
+      rfl
 
 /-- Semantic correctness and totality certificate for the fixed bounded-word van Emde Boas
 implementation. -/
-def certificate {d w base stackBase₀ : ℕ}
+@[expose] def certificate {d w base stackBase₀ : ℕ}
     (hstk_lo : base + span d ≤ stackBase₀) (hstk_fit : Fits w (stackBase₀ + 4 * d)) :
     DynamicCertificate (dynamicProgram d w) w :=
   DynamicCertificate.ofFn
@@ -617,8 +533,7 @@ theorem instruction_bound {d w base stackBase₀ : ℕ}
     (hstk_lo : base + span d ≤ stackBase₀) (hstk_fit : Fits w (stackBase₀ + 4 * d)) :
     DataStructure.Bound (certificate hstk_lo hstk_fit).impl
       DynamicProgram.OperationTrace.instructions (fun _ _ => 65 * (d + 1) + 30) := by
-  apply (certificate hstk_lo hstk_fit).instruction_bound_const
-  intro s x o hx ho
+  refine (certificate hstk_lo hstk_fit).instruction_bound_const _ fun {s x} o hx ho => ?_
   obtain ⟨z, ⟨k, hk, he'⟩, _, _⟩ := dispatch_spec hstk_lo hstk_fit o hx ho
   exact ⟨z, k, he', by omega⟩
 
@@ -651,7 +566,7 @@ theorem executes_client_frame {d w base stackBase₀ : ℕ}
     {α : Type} {p : (spec d w).Client α} {s : Finset ℕ} {x y : Data 32} {val : α}
     {traces : List DynamicProgram.OperationTrace}
     (hx : SetRep d base stackBase₀ w s x)
-    (hv : (spec d w).ValidHistory s ((spec d w).runClient s p).2.2)
+    (hv : (spec d w).ValidHistory s ((spec d w).clientHistory s p))
     (he : DataStructure.Executes ((dynamicProgram d w).ExecOp w) p x val y traces) {j : ℕ}
     (hj_tree : j < base ∨ base + span d ≤ j)
     (hj_stk : j < stackBase₀ ∨ stackBase₀ + 4 * d ≤ j) : y.mem j = x.mem j :=
@@ -665,12 +580,12 @@ theorem client_spec {d w base stackBase₀ : ℕ}
     (hstk_lo : base + span d ≤ stackBase₀) (hstk_fit : Fits w (stackBase₀ + 4 * d))
     {α : Type} (p : (spec d w).Client α) {s : Finset ℕ} {x : Data 32}
     (hx : SetRep d base stackBase₀ w s x)
-    (hv : (spec d w).ValidHistory s ((spec d w).runClient s p).2.2) :
+    (hv : (spec d w).ValidHistory s ((spec d w).clientHistory s p)) :
     ∃ y traces, DataStructure.Executes ((dynamicProgram d w).ExecOp w) p x
-        ((spec d w).runClient s p).1 y traces ∧
-      SetRep d base stackBase₀ w ((spec d w).runClient s p).2.1 y ∧
+        ((spec d w).clientResult s p) y traces ∧
+      SetRep d base stackBase₀ w ((spec d w).clientState s p) y ∧
       DataStructure.total DynamicProgram.OperationTrace.instructions traces ≤
-        ((spec d w).runClient s p).2.2.length * (65 * (d + 1) + 30) ∧
+        ((spec d w).clientHistory s p).length * (65 * (d + 1) + 30) ∧
       (∀ j, (j < base ∨ base + span d ≤ j) →
         (j < stackBase₀ ∨ stackBase₀ + 4 * d ≤ j) → y.mem j = x.mem j) := by
   obtain ⟨y, traces, he, hr, hcost⟩ :=
@@ -689,16 +604,17 @@ theorem run_initialized {d w base : ℕ} {s₀ : Data 32}
     (hs₀ : s₀.Bounded w) (ha : Fits w (base + span d + 4 * (d + 1)))
     (hroot : s₀.regs root = base) (hdepth : s₀.regs depth = d)
     {α : Type} (p : (spec d w).Client α)
-    (hv : (spec d w).ValidHistory (∅ : Finset ℕ) ((spec d w).runClient (∅ : Finset ℕ) p).2.2) :
+    (hv : (spec d w).ValidHistory (∅ : Finset ℕ)
+      ((spec d w).clientHistory (∅ : Finset ℕ) p)) :
     ∃ x₀ n_init y traces,
       n_init + 1 ≤ 8 * span d + 20 * d + 25 ∧
       Exec w initProgram s₀ x₀ n_init ∧
       SetRep d base (base + span d) w (∅ : Finset ℕ) x₀ ∧
       DataStructure.Executes ((dynamicProgram d w).ExecOp w) p x₀
-        ((spec d w).runClient (∅ : Finset ℕ) p).1 y traces ∧
-      SetRep d base (base + span d) w ((spec d w).runClient (∅ : Finset ℕ) p).2.1 y ∧
+        ((spec d w).clientResult (∅ : Finset ℕ) p) y traces ∧
+      SetRep d base (base + span d) w ((spec d w).clientState (∅ : Finset ℕ) p) y ∧
       DataStructure.total DynamicProgram.OperationTrace.instructions traces ≤
-        ((spec d w).runClient (∅ : Finset ℕ) p).2.2.length * (65 * (d + 1) + 30) ∧
+        ((spec d w).clientHistory (∅ : Finset ℕ) p).length * (65 * (d + 1) + 30) ∧
       (∀ j, j < base ∨ base + span d + 4 * (d + 1) ≤ j → y.mem j = s₀.mem j) := by
   obtain ⟨x₀, n_init, hn_init, he_init, hbounded₀, hrep₀, hroot₀, hstk₀, _, hframe₀⟩ :=
     init_call hs₀ ha hroot hdepth

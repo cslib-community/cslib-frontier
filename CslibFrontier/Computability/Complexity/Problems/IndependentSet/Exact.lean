@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.DP
 public import CslibFrontier.Computability.Complexity.Problems.IndependentSet
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 
 /-!
 # Exact independent set
@@ -63,12 +63,23 @@ theorem mem_ExactIndependentSet_iff {x : IndependentSetInstance} :
 /-- **`EXACT INDSET ∈ DP`** ([Arora and Barak, Exercise 5 §8(a), draft of January 2007,
 p. 5.10][AroraBarak07]): it is the difference of `IndependentSet` and the preimage of
 `IndependentSet` under the polynomial-time map `⟨G, k⟩ ↦ ⟨G, k + 1⟩`. -/
-theorem ExactIndependentSet_mem_DP : ExactIndependentSet ∈ DP encIndependentSetInstance :=
-  mem_DP_iff_diff.2 ⟨IndependentSet, IndependentSet.mem_NP,
-    (fun x : IndependentSetInstance => (⟨x.graph, x.m + 1⟩ : IndependentSetInstance)) ⁻¹'
-      IndependentSet,
-    PolyTimeReducible.mem_NP ⟨fun x => ⟨x.graph, x.m + 1⟩, by fun_prop, fun _ => Iff.rfl⟩
-      IndependentSet.mem_NP,
-    Set.ext fun _ => mem_ExactIndependentSet_iff⟩
+theorem ExactIndependentSet_mem_DP : ExactIndependentSet ∈ DP encIndependentSetInstance := by
+  have hid : ComputableInPolyTime (fun x : IndependentSetInstance => x)
+      encIndependentSetInstance encIndependentSetInstance := .id'
+  have hgraph : ComputableInPolyTime IndependentSetInstance.graph
+      encIndependentSetInstance encGraph := encIndependentSetInstance_graph_polyTime hid
+  have hm : ComputableInPolyTime IndependentSetInstance.m
+      encIndependentSetInstance encNat := encIndependentSetInstance_m_polyTime hid
+  have hsucc : ComputableInPolyTime (fun x : IndependentSetInstance => x.m + 1)
+      encIndependentSetInstance encNat := .binary_add' hm (.const 1)
+  have hmap : ComputableInPolyTime
+      (fun x : IndependentSetInstance => (⟨x.graph, x.m + 1⟩ : IndependentSetInstance))
+      encIndependentSetInstance encIndependentSetInstance :=
+    encIndependentSetInstance_mk_polyTime hgraph hsucc
+  have hred : PolyTimeReducible encIndependentSetInstance encIndependentSetInstance
+      ((fun x : IndependentSetInstance => (⟨x.graph, x.m + 1⟩ : IndependentSetInstance)) ⁻¹'
+        IndependentSet) IndependentSet := ⟨_, hmap, fun _ => Iff.rfl⟩
+  exact mem_DP_iff_diff.2 ⟨IndependentSet, IndependentSet.mem_NP, _,
+    hred.mem_NP IndependentSet.mem_NP, Set.ext fun _ => mem_ExactIndependentSet_iff⟩
 
 end Cslib.Complexity

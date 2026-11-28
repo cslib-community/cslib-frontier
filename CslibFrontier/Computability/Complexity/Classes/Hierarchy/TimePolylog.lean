@@ -11,7 +11,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.Time
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.BitLength
 import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LogClock
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.WindowedComplexity
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
 import CslibFrontier.Tactic.EncLen
@@ -78,7 +78,7 @@ namespace Diagonal
 /-- The test of the diagonal is within linear time and space. The comparison costs the length of
 its first argument times the total length, so the constant `[eBit true]` is put first. (The
 quadratic `Cslib.Complexity.Diagonal.computableInO_verdict` puts the result first.) -/
-private theorem computableInO_verdict_linear :
+theorem computableInO_verdict_linear :
     ComputableInO verdict eOut encBool (fun r => (eOut r).length) fun r => (eOut r).length := by
   have heq := (ComputableInO.eq (encList encUnary)).comp
     ((ComputableInO.const (encMid := encList encUnary) [eBit true]).prod

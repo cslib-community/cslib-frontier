@@ -197,6 +197,18 @@ theorem disagreeProb_deterministic_eq_tsum_seed (seed : PMF Ω) (f : (Fin m → 
   rw [disagreeProb_deterministic, PMF.toOuterMeasure_bind_apply]
   ennreal_to_real
 
+/-- Paired output distribution of a deterministic-given-seed algorithm, drawing the two
+independent samples first, then the shared seed. -/
+theorem pairedOutput_deterministic_eq_samples (seed : PMF Ω) (f : (Fin m → X) → Ω → α)
+    (D : PMF X) :
+    (deterministic seed f).pairedOutput D =
+      (Probability.PMF.iid D m).bind fun S₁ =>
+        (Probability.PMF.iid D m).bind fun S₂ =>
+          seed.map fun r => (f S₁ r, f S₂ r) := by
+  simp only [pairedOutput_deterministic, PMF.map]
+  rw [PMF.bind_comm]
+  exact PMF.bind_congr_on_support _ _ _ fun _ _ => PMF.bind_comm _ _ _
+
 /-- Disagreement probability of a deterministic-given-seed algorithm expressed by drawing the two
 independent samples first, then the shared seed. -/
 theorem disagreeProb_deterministic_eq_tsum_samples (seed : PMF Ω) (f : (Fin m → X) → Ω → α)
@@ -205,17 +217,7 @@ theorem disagreeProb_deterministic_eq_tsum_samples (seed : PMF Ω) (f : (Fin m �
       ∑' S₁ : Fin m → X, (Probability.PMF.iid D m S₁).toReal *
         ∑' S₂ : Fin m → X, (Probability.PMF.iid D m S₂).toReal *
           (seed.toOuterMeasure {r | f S₁ r ≠ f S₂ r}).toReal := by
-  have hcomm :
-      (deterministic seed f).pairedOutput D =
-        (Probability.PMF.iid D m).bind fun S₁ =>
-          (Probability.PMF.iid D m).bind fun S₂ =>
-            seed.map fun r => (f S₁ r, f S₂ r) := by
-    rw [pairedOutput_deterministic, PMF.bind_comm]
-    refine PMF.bind_congr_on_support _ _ _ fun S₁ _ => ?_
-    simp only [PMF.map]
-    exact PMF.bind_comm seed (Probability.PMF.iid D m)
-      (fun r S₂ => PMF.pure (f S₁ r, f S₂ r))
-  rw [disagreeProb, hcomm, PMF.toOuterMeasure_bind_apply]
+  rw [disagreeProb, pairedOutput_deterministic_eq_samples, PMF.toOuterMeasure_bind_apply]
   ennreal_to_real
   simp only [PMF.toOuterMeasure_bind_apply]
   ennreal_to_real
@@ -240,34 +242,21 @@ theorem marginal_map (A : Algorithm X Ω α m) (f : α → γ) (D : PMF X) :
 
 theorem disagreeProb_mapWithSeed_le (A : Algorithm X Ω α m) (f : Ω → α → γ) (D : PMF X) :
     (A.mapWithSeed f).disagreeProb D ≤ A.disagreeProb D := by
-  simp only [disagreeProb, pairedOutput, mapWithSeed]
-  have hstep (r : Ω) (S₁ S₂ : Fin m → X) :
-      (((A.run S₁ r).map (f r)).bind fun y₁ =>
-        ((A.run S₂ r).map (f r)).map fun y₂ => (y₁, y₂)).toOuterMeasure {p : γ × γ | p.1 ≠ p.2} ≤
-      ((A.run S₁ r).bind fun y₁ =>
-        (A.run S₂ r).map fun y₂ => (y₁, y₂)).toOuterMeasure {p : α × α | p.1 ≠ p.2} := by
-    have hmap :
-        ((A.run S₁ r).map (f r)).bind (fun y₁ =>
-          ((A.run S₂ r).map (f r)).map fun y₂ => (y₁, y₂)) =
-        ((A.run S₁ r).bind fun y₁ =>
-          (A.run S₂ r).map fun y₂ => (y₁, y₂)).map (Prod.map (f r) (f r)) := by
+  have hle : ((A.mapWithSeed f).pairedOutput D).toOuterMeasure {p : γ × γ | p.1 ≠ p.2} ≤
+      (A.pairedOutput D).toOuterMeasure {p : α × α | p.1 ≠ p.2} := by
+    rw [pairedOutput, pairedOutput, mapWithSeed, PMF.toOuterMeasure_bind_apply,
+      PMF.toOuterMeasure_bind_apply]
+    refine tsum_le_tsum fun r => mul_le_mul_of_nonneg_left ?_ zero_le
+    let μ := Probability.PMF.iid D m
+    have hmap : (μ.bind fun S₁ => μ.bind fun S₂ =>
+        ((A.run S₁ r).map (f r)).bind fun y₁ => ((A.run S₂ r).map (f r)).map (y₁, ·)) =
+        (μ.bind fun S₁ => μ.bind fun S₂ =>
+          (A.run S₁ r).bind fun y₁ => (A.run S₂ r).map (y₁, ·)).map (Prod.map (f r) (f r)) := by
       simp only [PMF.map_bind, PMF.bind_map, PMF.map_comp, Function.comp_def, Prod.map_apply]
     rw [hmap, PMF.toOuterMeasure_map_apply]
     exact MeasureTheory.measure_mono fun p hp hEq => hp (congrArg (f r) hEq)
-  have hle :
-      (A.seed.bind fun r => (Probability.PMF.iid D m).bind fun S₁ =>
-        (Probability.PMF.iid D m).bind fun S₂ =>
-          ((A.run S₁ r).map (f r)).bind fun y₁ =>
-            ((A.run S₂ r).map (f r)).map fun y₂ => (y₁, y₂)).toOuterMeasure
-        {p : γ × γ | p.1 ≠ p.2} ≤
-      (A.pairedOutput D).toOuterMeasure {p : α × α | p.1 ≠ p.2} := by
-    rw [pairedOutput, PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
-    refine tsum_le_tsum fun r => mul_le_mul_of_nonneg_left ?_ zero_le
-    rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
-    refine tsum_le_tsum fun S₁ => mul_le_mul_of_nonneg_left ?_ zero_le
-    rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
-    exact tsum_le_tsum fun S₂ => mul_le_mul_of_nonneg_left (hstep r S₁ S₂) zero_le
-  exact ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _) hle
+  rw [disagreeProb, disagreeProb]
+  ennreal_to_real using hle
 
 theorem disagreeProb_map_le (A : Algorithm X Ω α m) (f : α → γ) (D : PMF X) :
     (A.map f).disagreeProb D ≤ A.disagreeProb D :=
@@ -374,10 +363,10 @@ abbrev IsReplicable (A : Algorithm X Ω α m) (ρ : ℝ) : Prop :=
   IsReplicableFor A Set.univ ρ
 
 theorem isReplicableFor_iff_agreeProb {A : Algorithm X Ω α m} {𝒟 : Set (PMF X)} {ρ : ℝ} :
-    IsReplicableFor A 𝒟 ρ ↔ ∀ D ∈ 𝒟, 1 - ρ ≤ A.agreeProb D := by
-  refine forall_congr' fun D => forall_congr' fun _ => ?_
-  rw [Algorithm.agreeProb_eq_one_sub_disagreeProb]
-  constructor <;> intro h <;> linarith
+    IsReplicableFor A 𝒟 ρ ↔ ∀ D ∈ 𝒟, 1 - ρ ≤ A.agreeProb D :=
+  forall₂_congr fun D _ => by
+    rw [Algorithm.agreeProb_eq_one_sub_disagreeProb]
+    exact (sub_le_sub_iff_left 1).symm
 
 theorem isReplicable_iff {A : Algorithm X Ω α m} {ρ : ℝ} :
     IsReplicable A ρ ↔ ∀ D : PMF X, A.disagreeProb D ≤ ρ :=
@@ -436,10 +425,10 @@ abbrev Estimates (A : Algorithm X Ω ℝ m) (target : PMF X → ℝ) (ε β : �
 theorem isAccurateFor_iff_prob_good {A : Algorithm X Ω α m} {𝒟 : Set (PMF X)}
     {good : PMF X → Set α} {β : ℝ} :
     IsAccurateFor A 𝒟 good β ↔
-      ∀ D ∈ 𝒟, 1 - β ≤ ((A.marginal D).toOuterMeasure (good D)).toReal := by
-  refine forall_congr' fun D => forall_congr' fun _ => ?_
-  have hsum := Probability.PMF.toOuterMeasure_toReal_add_compl (A.marginal D) (good D)
-  constructor <;> intro h <;> linarith
+      ∀ D ∈ 𝒟, 1 - β ≤ ((A.marginal D).toOuterMeasure (good D)).toReal :=
+  forall₂_congr fun D _ => by
+    have := Probability.PMF.toOuterMeasure_toReal_add_compl (A.marginal D) (good D)
+    constructor <;> intro <;> linarith
 
 theorem IsAccurateFor.mono {A : Algorithm X Ω α m} {𝒟 : Set (PMF X)} {good : PMF X → Set α}
     {β β' : ℝ} (h : IsAccurateFor A 𝒟 good β) (hβ : β ≤ β') : IsAccurateFor A 𝒟 good β' :=
@@ -453,21 +442,17 @@ theorem IsAccurateFor.map {A : Algorithm X Ω α m} {𝒟 : Set (PMF X)}
     {good : PMF X → Set α} {good' : PMF X → Set γ} {β : ℝ} (f : α → γ)
     (h : IsAccurateFor A 𝒟 good β)
     (hgood : ∀ D ∈ 𝒟, ∀ y ∈ good D, f y ∈ good' D) :
-    IsAccurateFor (A.map f) 𝒟 good' β := by
-  intro D hD
+    IsAccurateFor (A.map f) 𝒟 good' β := fun D hD => by
   rw [Algorithm.marginal_map, PMF.toOuterMeasure_map_apply]
-  have hsub : f ⁻¹' (good' D)ᶜ ⊆ (good D)ᶜ := fun y hy hmem => hy (hgood D hD y hmem)
-  exact (ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
-    ((A.marginal D).toOuterMeasure.mono hsub)).trans (h D hD)
+  exact (Probability.PMF.toOuterMeasure_toReal_mono _
+    (show f ⁻¹' (good' D)ᶜ ⊆ (good D)ᶜ from fun y hy hm => hy (hgood D hD y hm))).trans (h D hD)
 
 theorem EstimatesFor.mono {A : Algorithm X Ω ℝ m} {𝒟 : Set (PMF X)} {target : PMF X → ℝ}
     {ε ε' β β' : ℝ} (h : EstimatesFor A 𝒟 target ε β) (hε : ε ≤ ε') (hβ : β ≤ β') :
-    EstimatesFor A 𝒟 target ε' β' := by
-  intro D hD
-  have hsub : {y | |y - target D| ≤ ε'}ᶜ ⊆ {y | |y - target D| ≤ ε}ᶜ := fun y hy hle =>
-    hy (hle.trans hε)
-  exact (ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
-    ((A.marginal D).toOuterMeasure.mono hsub)).trans ((h D hD).trans hβ)
+    EstimatesFor A 𝒟 target ε' β' := fun D hD =>
+  (Probability.PMF.toOuterMeasure_toReal_mono _
+    (show {y | |y - target D| ≤ ε'}ᶜ ⊆ {y | |y - target D| ≤ ε}ᶜ from
+      fun _ hy hle => hy (hle.trans hε))).trans ((h D hD).trans hβ)
 
 theorem EstimatesFor.antitone {A : Algorithm X Ω ℝ m} {𝒟 𝒟' : Set (PMF X)} {target : PMF X → ℝ}
     {ε β : ℝ} (h : EstimatesFor A 𝒟 target ε β) (h𝒟 : 𝒟' ⊆ 𝒟) :

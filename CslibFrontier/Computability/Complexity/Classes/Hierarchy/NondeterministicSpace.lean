@@ -19,7 +19,7 @@ import CslibFrontier.Computability.Complexity.Classes.Hierarchy.SpaceDiagonalBou
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.Complement
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.Savitch
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OPrimitives
 import CslibFrontier.Foundations.Data.Nat.AffineBound
 import Mathlib.Tactic.Linarith

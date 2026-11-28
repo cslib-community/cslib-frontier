@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.Branch
 public import CslibFrontier.Computability.WordRAM.Realization.Glue
 public import CslibFrontier.Computability.WordRAM.Realization.GlueVector
 public import CslibFrontier.Computability.WordRAM.Realization.Primitive
+public import CslibFrontier.Computability.WordRAM.Realization.Structure
 public import CslibFrontier.DataStructure.Stack.Memory
 import CslibFrontier.Tactic.Realize
 
@@ -41,20 +42,9 @@ namespace Cslib.WordRAM.Realization.MemoryStack
 open Cslib.DataStructure
 
 /-- All four layout fields are retained: count base/length, then items base/length. -/
-def layoutWords : Stack.Memory.Layout ↪ (Fin 4 → ℕ) where
-  toFun L := ![L.count.base, L.count.length, L.items.base, L.items.length]
-  inj' := by
-    rintro ⟨⟨a, b⟩, ⟨c, d⟩⟩ ⟨⟨a', b'⟩, ⟨c', d'⟩⟩ h
-    have ha := congrFun h 0
-    have hb := congrFun h 1
-    have hc := congrFun h 2
-    have hd := congrFun h 3
-    change a = a' at ha
-    change b = b' at hb
-    change c = c' at hc
-    change d = d' at hd
-    cases ha; cases hb; cases hc; cases hd
-    rfl
+word_enc_structure layoutWords : Stack.Memory.Layout where
+  count : blockWords,
+  items : blockWords
 
 /-- Push arguments append the unshifted value to the complete runtime layout. -/
 def pushWords : Stack.Memory.Layout × ℕ ↪ (Fin 5 → ℕ) :=

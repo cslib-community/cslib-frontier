@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.TransformsTapes
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.OutputToTape
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
@@ -65,14 +66,16 @@ theorem exists_prepare (coefficient degree : ℕ) :
       machine.runFrom (machine.initCfg input) (c * (input.length + 1) ^ d) =
         wordsCfg input none (Function.update (fun _ => []) (Fin.last k)
           (budget coefficient degree input)) [] := by
-  obtain ⟨t, s, ht, _, k, State, hfinite, machine, hmachine⟩ :=
-    ComputableInPolyTime.tidy (computableInPolyTime_budget coefficient degree)
+  obtain ⟨c₀, d₀, k, State, hfinite, machine, hmachine⟩ :=
+    Internal.NormalForm.polyTime (computableInPolyTime_budget coefficient degree)
+  have ht : PolyBounded List.length (fun input : List Bool => c₀ * (input.length + 1) ^ d₀) :=
+    .of_forall_le c₀ d₀ (fun _ => le_rfl)
   have hlength : PolyBounded List.length (fun input => (budget coefficient degree input).length) :=
     .of_forall_le coefficient degree (fun _ => by simp [budget])
   obtain ⟨c, d, hbound⟩ := ((ht.add hlength).add (PolyBounded.const 2)).exists_le
   refine ⟨k, State ⊕ RewindWorkState, inferInstance, machine.outputToWord, c, d, fun input => ?_⟩
   have hcompute : machine.ComputesTidilyInTimeAndSpace input (budget coefficient degree input)
-      (t input) (s input) := hmachine input
+      (c₀ * (input.length + 1) ^ d₀) (c₀ * (input.length + 1) ^ d₀) := hmachine input
   have hwrite := hcompute.outputToWord.mono (hbound input) le_rfl
   obtain ⟨_, _, hrun, ⟨rfl, rfl⟩, _⟩ :=
     transformsTapes_iff_runFrom.mp hwrite input (fun _ => []) [] ⟨rfl, rfl⟩

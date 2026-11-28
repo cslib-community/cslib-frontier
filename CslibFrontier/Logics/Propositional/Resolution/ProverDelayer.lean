@@ -19,8 +19,9 @@ falsifying the current clause: at a resolution step on `v`, if `v` is unset, eit
 falsifies one of the two premises (`Cslib.Logic.PL.Clause.FalsifiedBy.resolvent_update`). So a
 *potential* `μ : (V → Option Bool) → ℕ` that splits at every unset variable,
 `μ ρ ≤ μ ρ[v ↦ 0] + μ ρ[v ↦ 1]`, and is at most `1` on partial assignments falsifying a clause of
-`φ`, bounds the size of every tree-like derivation of a clause `ρ` falsifies from below
-(`Cslib.Logic.PL.CNF.Derivation.potential_le_size`). In particular `μ (fun _ => none)` is at most
+`φ`, bounds the number of leaves, and so the size, of every tree-like derivation of a clause `ρ`
+falsifies from below (`Cslib.Logic.PL.CNF.Derivation.potential_le_leafCount`,
+`Cslib.Logic.PL.CNF.Derivation.potential_le_size`). In particular `μ (fun _ => none)` is at most
 the size of every tree-like refutation (`Cslib.Logic.PL.CNF.Derivation.potential_none_le_size`).
 
 This is the potential form of the asymmetric Prover–Delayer game of Beyersdorff, Galesi and Lauria
@@ -37,9 +38,10 @@ value Delayer chooses as `b` is a special case of the split inequality.
 
 ## Main results
 
-* `Cslib.Logic.PL.CNF.Derivation.potential_le_size`,
-  `Cslib.Logic.PL.CNF.Derivation.potential_none_le_size`: splitting potentials bound the size of
-  tree-like derivations and refutations from below.
+* `Cslib.Logic.PL.CNF.Derivation.potential_le_leafCount`,
+  `Cslib.Logic.PL.CNF.Derivation.potential_le_size`,
+  `Cslib.Logic.PL.CNF.Derivation.potential_none_le_size`: splitting potentials bound the number of
+  leaves and of nodes of tree-like derivations and refutations from below.
 
 ## References
 
@@ -73,9 +75,8 @@ omit [DecidableEq V] in
 theorem FalsifiedBy.left_of_resolvent {c₁ c₂ : Clause V} {v : V}
     (h : FalsifiedBy ρ (c₁.resolvent c₂ v)) (hv : ρ v = some false) : FalsifiedBy ρ c₁ := by
   intro l hl
-  by_cases hlv : l = (v, true)
-  · subst hlv
-    exact hv
+  rcases eq_or_ne l (v, true) with rfl | hlv
+  · exact hv
   · exact h l (mem_resolvent.2 (Or.inl ⟨hl, hlv⟩))
 
 /-- If `ρ` falsifies the resolvent of `c₁` and `c₂` on `v` and sets `v` to `true`, it falsifies
@@ -83,20 +84,17 @@ theorem FalsifiedBy.left_of_resolvent {c₁ c₂ : Clause V} {v : V}
 theorem FalsifiedBy.right_of_resolvent {c₁ c₂ : Clause V} {v : V}
     (h : FalsifiedBy ρ (c₁.resolvent c₂ v)) (hv : ρ v = some true) : FalsifiedBy ρ c₂ := by
   intro l hl
-  by_cases hlv : l = (v, false)
-  · subst hlv
-    exact hv
+  rcases eq_or_ne l (v, false) with rfl | hlv
+  · exact hv
   · exact h l (mem_resolvent.2 (Or.inr ⟨hl, hlv⟩))
 
 /-- Setting a variable that `ρ` leaves unset keeps every clause `ρ` falsifies falsified. -/
 theorem FalsifiedBy.update {c : Clause V} (h : FalsifiedBy ρ c) {v : V} (hv : ρ v = none)
     (b : Bool) : FalsifiedBy (Function.update ρ v (some b)) c := by
   intro l hl
-  have hne : l.1 ≠ v := by
-    intro he
-    have := h l hl
-    rw [he, hv] at this
-    cases this
+  have hne : l.1 ≠ v := fun he => by
+    have := he ▸ h l hl
+    simp [hv] at this
   rw [Function.update_of_ne hne]
   exact h l hl
 
@@ -115,32 +113,42 @@ namespace CNF.Derivation
 
 variable {φ : CNF V}
 
-/-- **Prover–Delayer potentials bound tree-like derivations** [BeyersdorffGalesiLauria2010,
-Theorem 1]. Let `μ` split at every unset variable, `μ ρ ≤ μ ρ[v ↦ 0] + μ ρ[v ↦ 1]`, and be at most
-`1` on partial assignments falsifying a clause of `φ`. Then every tree-like derivation of a clause
-that `ρ` falsifies has at least `μ ρ` nodes. -/
-theorem potential_le_size (μ : (V → Option Bool) → ℕ)
+/-- **Prover–Delayer potentials bound the leaves of tree-like derivations**
+[BeyersdorffGalesiLauria2010, Theorem 1]. Let `μ` split at every unset variable,
+`μ ρ ≤ μ ρ[v ↦ 0] + μ ρ[v ↦ 1]`, and be at most `1` on partial assignments falsifying a clause of
+`φ`. Then every tree-like derivation of a clause that `ρ` falsifies has at least `μ ρ` leaves. -/
+theorem potential_le_leafCount (μ : (V → Option Bool) → ℕ)
     (hsplit : ∀ ρ v, ρ v = none →
       μ ρ ≤ μ (Function.update ρ v (some false)) + μ (Function.update ρ v (some true)))
     (hax : ∀ ρ, ∀ c ∈ φ, Clause.FalsifiedBy ρ c → μ ρ ≤ 1) :
     {c : Clause V} → (d : φ.Derivation c) → {ρ : V → Option Bool} → Clause.FalsifiedBy ρ c →
-      μ ρ ≤ d.size
-  | _, mem hc, _, hρ => (hax _ _ hc hρ).trans_eq (size_mem hc).symm
+      μ ρ ≤ d.toDecisionTree.leafCount
+  | _, mem hc, _, hρ => hax _ _ hc hρ
   | _, resolvent v d₁ d₂ _ _, ρ, hρ => by
-    rw [size_resolvent]
+    simp only [toDecisionTree, DecisionTree.leafCount]
     match hv : ρ v with
     | none =>
       obtain ⟨h₁, h₂⟩ := hρ.resolvent_update hv
       have := hsplit ρ v hv
-      have := potential_le_size μ hsplit hax d₁ h₁
-      have := potential_le_size μ hsplit hax d₂ h₂
+      have := potential_le_leafCount μ hsplit hax d₁ h₁
+      have := potential_le_leafCount μ hsplit hax d₂ h₂
       omega
     | some false =>
-      have := potential_le_size μ hsplit hax d₁ (hρ.left_of_resolvent hv)
+      have := potential_le_leafCount μ hsplit hax d₁ (hρ.left_of_resolvent hv)
       omega
     | some true =>
-      have := potential_le_size μ hsplit hax d₂ (hρ.right_of_resolvent hv)
+      have := potential_le_leafCount μ hsplit hax d₂ (hρ.right_of_resolvent hv)
       omega
+
+/-- **Prover–Delayer potentials bound tree-like derivations** [BeyersdorffGalesiLauria2010,
+Theorem 1]. Under the hypotheses of `potential_le_leafCount`, every tree-like derivation of a
+clause that `ρ` falsifies has at least `μ ρ` nodes. -/
+theorem potential_le_size (μ : (V → Option Bool) → ℕ)
+    (hsplit : ∀ ρ v, ρ v = none →
+      μ ρ ≤ μ (Function.update ρ v (some false)) + μ (Function.update ρ v (some true)))
+    (hax : ∀ ρ, ∀ c ∈ φ, Clause.FalsifiedBy ρ c → μ ρ ≤ 1) {c : Clause V} (d : φ.Derivation c)
+    {ρ : V → Option Bool} (hρ : Clause.FalsifiedBy ρ c) : μ ρ ≤ d.size :=
+  (potential_le_leafCount μ hsplit hax d hρ).trans d.leafCount_toDecisionTree_le_size
 
 /-- **Prover–Delayer potentials bound tree-like refutations**: under the hypotheses of
 `potential_le_size`, every tree-like refutation of `φ` has at least `μ (fun _ => none)` nodes. -/

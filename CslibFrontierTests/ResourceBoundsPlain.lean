@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger, Christian Reitwiessner
 import CslibFrontier.Computability.Complexity.Classes.Space.Closure
 import CslibFrontier.Computability.Complexity.Classes.Space.TQBF.Membership
 import CslibFrontier.Computability.Complexity.Parameterized
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree
 import CslibFrontier.Tactic.PolyTime
@@ -16,13 +16,17 @@ import Cslib.Computability.Machines.Turing.MultiTape.Combinators.Id
 
 /-! Plain computability within bounds up to constants, within a space bound, within polynomial
 space and in fpt time. Upstream machines that are not tidy satisfy the plain notions;
-`ComputableInO` and `ComputableInSpace` also give tidy certificates. Polynomial-space clients,
+`ComputableInO` and `ComputableInSpace` charge encoded output. Polynomial-space clients,
 including the decider for `TQBF`, use the plain calculus directly. -/
 
 open Lean Elab Command in
 run_cmd do
   if (← getEnv).contains `Turing.MultiTapeTM.ComputableTidilyInPolySpace then
     throwError "The retired tidy polynomial-space calculus was imported"
+
+run_elab do
+  if (← Lean.getEnv).contains `Turing.MultiTapeTM.ComputableTidilyInO then
+    throwError "unexpected derived tidy O predicate"
 
 namespace CslibFrontierTests.ResourceBoundsPlain
 
@@ -150,19 +154,19 @@ theorem id_computableInPolySpace :
     computableInTimeAndSpace_id.mono (fun _ => le_rfl) fun _ => Nat.zero_le _,
     fun w => by simp [encBits]⟩
 
-/-- Tidy normal forms keep the bounds up to constants, while the value condition separates
+/-- Plain charged bounds hold up to constants, while the value condition separates
 `ComputableInSpace` from `ComputableInLogSpace`. -/
 example {α β : Type} {f : α → β} {encIn : α ↪ List Bool} {encOut : β ↪ List Bool}
     (hlog : ComputableInSpace f encIn encOut fun a => Nat.log2 (encIn a).length) :
-    ComputableTidilyInO (id : List Bool → List Bool) encBits encBits (·.length) (·.length) ∧
-    ComputableTidilyInSpace (id : List Bool → List Bool) encBits encBits (·.length) ∧
+    ComputableInO (id : List Bool → List Bool) encBits encBits (·.length) (·.length) ∧
+    ComputableInSpace (id : List Bool → List Bool) encBits encBits (·.length) ∧
     (¬ComputableInSpace (id : List Bool → List Bool) encBits encBits fun _ => 0) ∧
     ComputableInLogSpace (id : List Bool → List Bool) encBits encBits ∧
     (¬ComputableInSpace (id : List Bool → List Bool) encBits encBits
       fun w => Nat.log2 w.length) ∧
     ComputableInLogSpace f encIn encOut ∧
     ComputableInPolySpace (id : List Bool → List Bool) encBits encBits := by
-  refine ⟨id_computableInO.tidy, id_computableInSpace.tidy, ?_,
+  refine ⟨id_computableInO, id_computableInSpace, ?_,
     ⟨_, 0, computableInTimeAndSpace_id.mono (fun _ => le_rfl) fun _ => Nat.zero_le _⟩,
     ?_, (let ⟨t, c, hc, _⟩ := hlog; ⟨t, c, hc⟩), id_computableInPolySpace⟩
   · rintro ⟨t, c, -, hl⟩
@@ -253,8 +257,8 @@ example {α : Type} {enc : α ↪ List Bool} {f : α → Logic.PL.QBF ℕ}
   obtain ⟨dec, hdec, hA⟩ := TQBF_mem_PSPACE
   have hcomp : ComputableInPolySpace (fun a => dec (f a)) enc encBool := by fun_prop
   obtain ⟨g, hg, hSAT⟩ := mem_FPT_iff_computableInFPTTime.mp SAT_mem_FPT
-  exact ⟨.of_tidy (ComputableTidilyInO.fst encBits encBits),
-    (ComputableTidilyInSpace.fst encBits encBits).computableInSpace,
+  exact ⟨(ComputableInO.fst encBits encBits),
+    ComputableInSpace.fst encBits encBits,
     ComputableInPolySpace.of_polyTime (by polytime),
     ⟨dec, hdec, hA⟩,
     ⟨_, hcomp, fun a => hA (f a)⟩,

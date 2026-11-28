@@ -192,7 +192,7 @@ theorem bitRel_mem_IP : language bitRel ∈ IP encBool := by
       (fun p : Bool × Transcript [] => (zeroRoundReduction.verifier.outputOn p.1 p.2).isSome)
       (encPair encBool (RoundEncodings.transcript (s := []) ())) encBool := by
     rw [heq]
-    exact .of_tidy (by fun_prop)
+    exact by fun_prop
   exact zeroRoundReduction.mem_IP
     (encs := ()) (codecs := ()) trivial trivial hDecide
     zeroRoundReduction_complete zeroRoundReduction_sound (by norm_num) (by norm_num)

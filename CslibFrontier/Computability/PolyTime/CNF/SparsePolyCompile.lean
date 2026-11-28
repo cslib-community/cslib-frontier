@@ -903,7 +903,6 @@ theorem evalMonomialList_restrictEquation (v : ℕ) (val : Bool) (eq : List (Lis
 section PolyTime
 
 open ComputableInPolyTime
-attribute [local irreducible] ComputableInPolyTime
 
 /-- Sparse `𝔽₂` equations with variable indices in binary: the concatenation of the framed
 monomials, each monomial the concatenation of its framed variable indices, each encoded by
@@ -1219,7 +1218,7 @@ theorem computableInPolyTime_compileParitySystemBounded (k : ℕ)
 @[fun_prop]
 theorem computableInPolyTime_equationVars :
     ComputableInPolyTime equationVars encSparseEquation (encList encNat) := by
-  exact computableInPolyTime_sortDedup.comp (.of_tidy (ComputableTidilyInPolyTime.flatten encNat))
+  exact computableInPolyTime_sortDedup.comp ((ComputableInPolyTime.flatten encNat))
 
 /-- Computing `varDegree v sys` (returned in unary) is polynomial-time. -/
 @[fun_prop]

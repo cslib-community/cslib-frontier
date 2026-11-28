@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.Oracle
+public import CslibFrontier.Foundations.Data.BitString.List.Binary
 public import CslibFrontier.Computability.Complexity.Classes.SharpP
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 import CslibFrontier.Computability.Complexity.Classes.Oracle.Closure
@@ -78,6 +79,15 @@ not codes may be in `A` or not. -/
 def AnswersBits (encβ : β ↪ List Bool) (f : β → ℕ) (A : Set (List Bool)) : Prop :=
   ∀ b i, encPair encβ encNat (b, i) ∈ A ↔ (f b).testBit i
 
+/-- Reading the first `w` bit answers in order reconstructs exactly the low bits of the value. -/
+theorem AnswersBits.ofFn_eq_lowBits {enc : β ↪ List Bool} {g : β → ℕ} {A : Set (List Bool)}
+    [DecidablePred (· ∈ A)] (hA : AnswersBits enc g A) (b : β) (w : ℕ) :
+    (List.ofFn fun i : Fin w => decide (encPair enc encNat (b, i.val) ∈ A)) =
+      BitString.lowBits w (g b) := by
+  rw [BitString.lowBits_eq_ofFn]
+  refine congrArg List.ofFn (funext fun i => Bool.eq_iff_iff.mpr ?_)
+  exact decide_eq_true_iff.trans (hA b i)
+
 /-- The bit graph of `f : β → ℕ`: the codes `encPair encβ encNat (b, i)` such that bit `i` of
 `f b` is `1`, and no other word. -/
 def bitGraph (encβ : β ↪ List Bool) (f : β → ℕ) : Set (List Bool) :=
@@ -98,21 +108,15 @@ theorem bitGraph_mem_P {encβ : β ↪ List Bool} {g : β → ℕ} (D : Decoder 
   let D' := D.pair Decoder.nat
   have hdec : ComputableInPolyTime D'.decode encBits (encPair encβ encNat) :=
     D'.computableInPolyTime
-  have henc : ComputableInPolyTime (encPair encβ encNat) (encPair encβ encNat) encBits := .id'
   have hval : ComputableInPolyTime (fun w => g (D'.decode w).1) encBits encNat :=
     hg.comp ((ComputableInPolyTime.fst _ _).comp hdec)
-  have hsize : ComputableInPolyTime (fun w => (g (D'.decode w).1).size) encBits encUnary := by
-    have hbits := (ComputableInPolyTime.of_eq (encIn := encNat) (encOut := encBits)
-      (f := Nat.bits) fun _ => rfl).comp hval
-    simpa only [Function.comp_def, Nat.size_eq_bits_len] using
-      ComputableInPolyTime.length_bits_comp hbits
   have hidx : ComputableInPolyTime (fun w => min (g (D'.decode w).1).size (D'.decode w).2)
       encBits encUnary :=
-    ComputableInPolyTime.binary_min_unary' hsize ((ComputableInPolyTime.snd _ _).comp hdec)
+    ComputableInPolyTime.binary_min_unary' (ComputableInPolyTime.binary_size.comp hval) hdec.snd'
   have hbit := ComputableInPolyTime.binary_testBit hval hidx
   refine ⟨fun w => decide (encPair encβ encNat (D'.decode w) = w) &&
     (g (D'.decode w).1).testBit (min (g (D'.decode w).1).size (D'.decode w).2),
-    by fun_prop, fun w => ?_⟩
+    (hdec.encoding_comp.decide_eq' .id').bool_and' hbit, fun w => ?_⟩
   have hmin (n i : ℕ) : n.testBit (min n.size i) = n.testBit i := by
     rcases le_total i n.size with h | h
     · rw [min_eq_right h]

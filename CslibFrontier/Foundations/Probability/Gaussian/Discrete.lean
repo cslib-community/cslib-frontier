@@ -32,6 +32,9 @@ the lattice, including lattices that do not span the ambient space.
 * `ZLattice.summable_gaussianWeight`: convergence of the shifted lattice sum.
 * `ZLattice.gaussianMass_pos`: strict positivity of the normalizer.
 * `ZLattice.support_discreteGaussian`: every lattice point has positive probability.
+* `ZLattice.gaussianMass_zero_sub_one_eq_tsum` and `ZLattice.gaussianMass_zero_sub_one_nonneg`:
+  the centered mass minus one equals the convergent sum over nonzero lattice points and is
+  nonnegative.
 
 ## References
 
@@ -150,5 +153,25 @@ theorem map_add_discreteGaussian (s : ℝ) (hs : 0 < s) (c : E) (a : L) :
   rw [PMF.map_apply]
   simp only [← sub_eq_iff_eq_add, tsum_ite_eq']
   simpa only [sub_add_cancel] using (discreteGaussian_apply_add L s hs c a (z - a)).symm
+
+/-- Removing the zero term from the convergent Gaussian sum subtracts exactly one. -/
+theorem gaussianMass_zero_sub_one_eq_tsum (s : ℝ) (hs : 0 < s) :
+    gaussianMass L s 0 - 1 = ∑' z : ↥{z : L | z ≠ 0}, gaussianWeight s (z : E) := by
+  classical
+  have h := (summable_gaussianWeight L s hs 0).sum_add_tsum_compl (s := {0})
+  have hset : (↑({0} : Finset L) : Set L)ᶜ = {z | z ≠ 0} := by ext z; simp
+  rw [hset] at h
+  have hsum : 1 + (∑' z : ↥{z : L | z ≠ 0}, gaussianWeight s (z : E)) =
+      gaussianMass L s 0 := by
+    simpa only [Finset.sum_singleton, Submodule.coe_zero, sub_zero, gaussianWeight,
+      norm_zero, zero_pow (by decide : 2 ≠ 0), mul_zero, zero_div, Real.exp_zero,
+      Finset.coe_singleton, Set.mem_compl_iff, Set.mem_singleton_iff, gaussianMass] using h
+  linarith
+
+/-- The mass of the nonzero lattice points is nonnegative. -/
+theorem gaussianMass_zero_sub_one_nonneg (s : ℝ) (hs : 0 < s) :
+    0 ≤ gaussianMass L s 0 - 1 := by
+  rw [gaussianMass_zero_sub_one_eq_tsum L s hs]
+  exact tsum_nonneg fun z ↦ (gaussianWeight_pos s (z : E)).le
 
 end ZLattice
