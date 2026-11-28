@@ -105,6 +105,37 @@ theorem tail_row (b : α) (y : List α) : ∀ x : List α, (D.row (b :: y) x).ta
     rw [row, tail_stepRow, tail_row b y x]
     rfl
 
+/-- A row contains one entry for each suffix, including the empty suffix. -/
+@[simp] theorem length_row (y x : List α) : (D.row y x).length = y.length + 1 := by
+  induction y with
+  | nil => cases x <;> rfl
+  | cons b y ih =>
+    have h := congrArg List.length (D.tail_row b y x)
+    have hn : D.row (b :: y) x ≠ [] := by cases x <;> simp [row, nilRow, stepRow]
+    simpa [List.length_tail, hn, ih] using (show (D.row (b :: y) x).length = y.length + 2 by
+      have := List.length_pos_iff.mpr hn
+      rw [List.length_tail, ih] at h
+      omega)
+
+/-- Column `k` holds the value for the suffix starting at position `k`. -/
+theorem getElem_row (y x : List α) (k : ℕ) (hk : k < (D.row y x).length) :
+    (D.row y x)[k] = D.value x (y.drop k) := by
+  induction y generalizing k with
+  | nil =>
+    have : k = 0 := by simpa using hk
+    subst k
+    cases x <;> rfl
+  | cons b y ih =>
+    cases k with
+    | zero =>
+      cases x <;> rfl
+    | succ k =>
+      have ht := D.tail_row b y x
+      have hlt : k < ((D.row (b :: y) x).tail).length := by
+        rw [List.length_tail]; omega
+      simpa only [List.drop_succ_cons, ← ht, List.getElem_tail] using
+        (ih k (ht ▸ hlt))
+
 @[simp] theorem value_nil_nil : D.value [] [] = D.nilNil := rfl
 
 theorem value_cons_nil (a : α) (x : List α) :
