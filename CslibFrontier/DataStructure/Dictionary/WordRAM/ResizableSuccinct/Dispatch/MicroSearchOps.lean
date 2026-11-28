@@ -2359,8 +2359,8 @@ private theorem compSearchOverflowGenProg_spec
         init.2 ((((min N (effBucketCap N), init.1), 0), 0), 0) s) := by
   intro gm prog prog_fix
   rcases Nat.eq_zero_or_pos (bucketBits N) with hb0 | hb_pos
-  · dsimp only [prog, prog_fix, compSearchOverflowGenProg, searchOverflowProg, cpBucketBits_mk]
-    simp only [pure_bind, hb0, ↓reduceIte]
+  · simp only [prog, prog_fix, compSearchOverflowGenProg, cpBucketBits_mk, searchOverflowProg,
+      searchOverflowGenProg, p_bucketBits_mk, hb0, ↓reduceIte, pure_bind]
     exact ⟨rfl, rfl, by simp, fun h => by omega⟩
   · have hb_ne : bucketBits N ≠ 0 := hb_pos.ne'
     have hslot_fix : SlotStoreInv N
@@ -2406,8 +2406,9 @@ private theorem compSearchOverflowGenProg_spec
             let res ← iterate (ovfStepProg U V (ghostW w) N (epochHashSpace U (ghostW w) N))
               ((0, b), q_target) init.2 ((((min N (effBucketCap N), init.1), 0), 0), 0)
             pure ((res.1.1.2, res.1.2), res.2)) := by
-      dsimp only [prog_fix, searchOverflowProg, ovfLoopProg]
-      simp only [pure_bind, hb_ne, ↓reduceIte]
+      simp only [prog_fix, searchOverflowProg, searchOverflowGenProg, p_bucketBits_mk,
+        hb_ne, ↓reduceIte, ovfSearchBucketLoc, p_minCap_mk, initOvfSearchGenProg_mk,
+        ovfLoopGenProg_mk, ovfLoopProg, pure_bind]
       rw [StateTransitionSpec.clientResult_bind, clientState_initOvfSearchProg, ← hinit_eq]
     have hprog_cost : memoryCost prog s =
         memoryCost (compInitOvfSearchGenProg ((mkCompParams U V w N, metaBase), b)) s +
@@ -2627,8 +2628,8 @@ theorem compSearchBucketGenProg_spec
         (if found1 = 1 then pure ((1, j1), phys1)
         else searchOverflowProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
           ((0, b), q_target)) := by
-    dsimp only [prog_fix, searchBucketProg]
-    simp only [pure_bind]
+    simp only [prog_fix, searchBucketProg, searchBucketGenProg, searchBucketGenQuery,
+      searchMicroChainGenProg_mk, searchOverflowGenProg_mk, pure_bind]
     rw [StateTransitionSpec.clientResult_bind, hst1_fix, hres_fix]
   rw [hfix_eq]
   dsimp only [prog, compSearchBucketGenProg]
@@ -2839,8 +2840,7 @@ theorem compQueryBodyGenProg_spec
       (ghostDictEnvGen henv.pos_w henv.le_U henv.lt_pow_U henv.le_pow_V)
       hb hm hslot_fix hchain_fix hc_lt_fix).1
   dsimp only [prog, prog_fix, compQueryBodyGenProg]
-  unfold queryBodyProg
-  simp only [pure_bind]
+  simp only [queryBodyProg, queryBodyGenProg, searchBucketGenProg_mk, readValGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     StateTransitionSpec.clientResult_bind, memoryCost_bind_of_clientState_eq hst_sb,
     hst_sb, hst_sb_fix]

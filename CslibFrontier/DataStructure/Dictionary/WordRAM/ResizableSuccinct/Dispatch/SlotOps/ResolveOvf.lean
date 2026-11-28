@@ -400,9 +400,11 @@ theorem clientResult_compInitOvfSearchGenProg_eq {U V w w₀ N h_space metaBase 
   have hq_eq1 : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
   have hq_eq2 : 4 + 3 * b = gmQIdx b := rfl
   have hr_eq : gmQIdx b + 1 = gmRIdx b := rfl
-  simp only [compInitOvfSearchGenProg, compInitOvfFromDirGenProg, initOvfSearchProg, cpSlabSize_mk,
-    cpMinCap_mk, cpGmSlabDirBase_mk, cpDirSlabs_mk, cpDirSlabsSubOne_mk, cpGmSlabMetaBase_mk,
-    pure_bind, hq_eq1, hq_eq2, hr_eq]
+  simp only [compInitOvfSearchGenProg, compInitOvfFromDirGenProg, cpSlabSize_mk, cpMinCap_mk,
+    cpGmSlabDirBase_mk, cpDirSlabs_mk, cpDirSlabsSubOne_mk, cpGmSlabMetaBase_mk,
+    initOvfSearchProg, initOvfSearchGenProg, ovfInitBase, ovfInitBucket, p_slabSize_mk,
+    p_minCap_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_dirSlabsSubOne_mk, p_gmSlabMetaBase_mk,
+    readGMGenProg_mk, pure_bind, hq_eq1, hq_eq2, hr_eq]
   rw [prog_clientResult_bind, clientResult_readCompGMGenProg hq_lt,
     clientState_readCompGMGenProg, prog_clientResult_bind, clientResult_readCompGMGenProg hr_lt,
     clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind, clientState_readGMProg,

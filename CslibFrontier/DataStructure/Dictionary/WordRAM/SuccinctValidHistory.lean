@@ -825,8 +825,9 @@ theorem validProg_initOvfSearch {U V w n_max h_space : ℕ}
       bCount n_max (gmAt d.1 U V w n_max h_space s.mem) d.2 := by
     unfold bCount gmQIdx gmRIdx; simp [Nat.ne_of_gt hb_pos, hb]
   have hbc_le := bCount_le_n_max hinv d.2
-  unfold initOvfSearchProg
-  simp only [pure_bind]
+  simp only [initOvfSearchProg, initOvfSearchGenProg, ovfInitBase, ovfInitBucket,
+    p_slabSize_mk, p_minCap_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_dirSlabsSubOne_mk,
+    p_gmSlabMetaBase_mk, readGMGenProg_mk, pure_bind]
   valid_prog with [clientState_readGMProg, clientResult_readGMProg, hbc_eq]
   · have : min n_max (effBucketCap n_max) = effBucketCap n_max := by omega
     exact (hinv.lastDirSlab_ptr hb_pos hb (by unfold gmQIdx; omega)).1
@@ -842,8 +843,9 @@ theorem validProg_searchOverflow {U V w n_max h_space : ℕ}
     ValidProg w (dictFrontier U V w n_max h_space (dictArgBase d)) s
       (searchOverflowProg U V w n_max h_space d) := by
   rcases hpre with ⟨henv, hb, hinv⟩
-  unfold searchOverflowProg
-  by_cases hb0 : bucketBits n_max = 0 <;> simp only [hb0, ↓reduceIte, pure_bind]
+  by_cases hb0 : bucketBits n_max = 0 <;>
+    simp only [searchOverflowProg, searchOverflowGenProg, p_bucketBits_mk, hb0, ↓reduceIte,
+      ovfSearchBucketLoc, p_minCap_mk, initOvfSearchGenProg_mk, ovfLoopGenProg_mk, pure_bind]
   · exact validProg_pure _
   · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0
     refine validProg_bind (validProg_initOvfSearch (d := d.1) hw hb_pos hb hinv) ?_
@@ -863,8 +865,8 @@ theorem validProg_searchBucket {U V w n_max h_space : ℕ}
       (searchBucketProg U V w n_max h_space d) := by
   have hw := (dictEnvGen_mk_bounds hpre.1).1
   obtain ⟨L, hchain, hc_lt⟩ := hpre.2.2.2.2
-  unfold searchBucketProg
-  simp only [pure_bind]
+  simp only [searchBucketProg, searchBucketGenProg, searchBucketGenQuery,
+    searchMicroChainGenProg_mk, searchOverflowGenProg_mk, pure_bind]
   refine validProg_bind (validProg_searchMicroChain hw hpre) ?_
   rw [(searchMicroChainProg_spec hpre.1 hpre.2.1 hpre.2.2.1 hpre.2.2.2.1 hchain hc_lt).1]
   exact validProg_ite (fun _ => validProg_pure _)
@@ -890,8 +892,7 @@ theorem validProg_queryBody {U V w n_max h_space : ℕ}
     ValidProg w (dictFrontier U V w n_max h_space (bucketCallBase d)) s
       (queryBodyProg U V w n_max h_space d) := by
   obtain ⟨L, hchain, hc_lt⟩ := hpre.2.2.2.2
-  unfold queryBodyProg
-  simp only [pure_bind]
+  simp only [queryBodyProg, queryBodyGenProg, searchBucketGenProg_mk, readValGenProg_mk, pure_bind]
   refine validProg_bind (validProg_searchBucket hpre) ?_
   rw [(searchBucketProg_spec hpre.1 hpre.2.1 hpre.2.2.1 hpre.2.2.2.1 hchain hc_lt).1]
   exact validProg_ite

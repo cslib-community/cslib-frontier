@@ -739,42 +739,20 @@ abbrev ovfInitBucket (d : DictParams × (ℕ × ℕ)) : ℕ := d.2.2
     pure (z0, z0)
 
 /-- Helper initializing `(p_init, fuel)` for Phase 2 overflow search (`d = (base, b)`). -/
-@[expose] def initOvfSearchProg (U V w n_max h_space : ℕ) (d : ℕ × ℕ) : Memory.Prog (ℕ × ℕ) := do
-  let q_idx ← pure (4 + 3 * d.2)
-  let q_b ← readGMProg U V w n_max h_space (d.1, q_idx)
-  let r_idx ← pure (q_idx + 1)
-  let r_b ← readGMProg U V w n_max h_space (d.1, r_idx)
-  let qK ← pure (q_b * slabSize n_max)
-  let c ← pure (qK + r_b)
-  let cap ← pure (min n_max (effBucketCap n_max))
-  let z0 ← pure 0
-  if cap < c then do
-    let fuel ← pure (c - cap)
-    if cap < qK then do
-      let dir_idx ← pure (gmSlabDirBase n_max + d.2 * dirSlabsPerBucket n_max +
-        (dirSlabsPerBucket n_max - 1))
-      let p_prev ← readGMProg U V w n_max h_space (d.1, dir_idx)
-      let abv_idx ← pure (gmSlabMetaBase n_max + 4 * p_prev + 3)
-      let p_init ← readGMProg U V w n_max h_space (d.1, abv_idx)
-      pure (p_init, fuel)
-    else
-      pure (z0, fuel)
-  else
-    pure (z0, z0)
+@[expose] def initOvfSearchProg (U V w n_max h_space : ℕ) (d : ℕ × ℕ) : Memory.Prog (ℕ × ℕ) :=
+  initOvfSearchGenProg (mkDictParams U V w n_max h_space, d)
 
 @[simp]
 theorem initOvfSearchGenProg_mk (U V w n_max h_space : ℕ) (d : ℕ × ℕ) :
     initOvfSearchGenProg (mkDictParams U V w n_max h_space, d) =
-      initOvfSearchProg U V w n_max h_space d := by
-  simp only [initOvfSearchGenProg, initOvfSearchProg, ovfInitBase, ovfInitBucket,
-    p_slabSize_mk, p_minCap_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_dirSlabsSubOne_mk,
-    p_gmSlabMetaBase_mk, readGMGenProg_mk]
+      initOvfSearchProg U V w n_max h_space d := rfl
 
 theorem clientState_initOvfSearchProg (U V w n_max h_space : ℕ)
     (d : ℕ × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (initOvfSearchProg U V w n_max h_space d) = s := by
-  unfold initOvfSearchProg
-  simp only [pure_bind]
+  simp only [initOvfSearchProg, initOvfSearchGenProg, ovfInitBase, ovfInitBucket,
+    p_slabSize_mk, p_minCap_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_dirSlabsSubOne_mk,
+    p_gmSlabMetaBase_mk, readGMGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientState_bind, clientState_readGMProg,
     StateTransitionSpec.clientState_bind, clientState_readGMProg]
   split_ifs <;> first
@@ -785,8 +763,9 @@ theorem clientState_initOvfSearchProg (U V w n_max h_space : ℕ)
 theorem memoryCost_initOvfSearchProg_le (U V w n_max h_space : ℕ)
     (d : ℕ × ℕ) (s : Memory.State) :
     memoryCost (initOvfSearchProg U V w n_max h_space d) s ≤ 8 := by
-  unfold initOvfSearchProg
-  simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
+  simp only [initOvfSearchProg, initOvfSearchGenProg, ovfInitBase, ovfInitBucket,
+    p_slabSize_mk, p_minCap_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_dirSlabsSubOne_mk,
+    p_gmSlabMetaBase_mk, readGMGenProg_mk, pure_bind, ← PFunctor.FreeM.bind_eq_bind]
   rw [memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg,
     memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg]
   split_ifs <;>
@@ -844,8 +823,9 @@ theorem clientResult_initOvfSearchProg {U V w n_max h_space : ℕ}
       bCount n_max (gmAt d.1 U V w n_max h_space s.mem) d.2 := by
     unfold bCount gmQIdx gmRIdx; simp only [hb0, ↓reduceIte, hb]
   have hbc_le := bCount_le_n_max hinv d.2
-  unfold initOvfSearchProg
-  simp only [pure_bind]
+  simp only [initOvfSearchProg, initOvfSearchGenProg, ovfInitBase, ovfInitBucket,
+    p_slabSize_mk, p_minCap_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_dirSlabsSubOne_mk,
+    p_gmSlabMetaBase_mk, readGMGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
     clientResult_readGMProg s hq_lt, StateTransitionSpec.clientResult_bind,
     clientState_readGMProg, clientResult_readGMProg s hr_lt, hbc_eq]
@@ -977,23 +957,12 @@ quotient `q_target = d.2.2`, returning `((found, j_found), phys_found)`. -/
 returning `((found, j_found), phys_found)`. -/
 @[expose] def searchOverflowProg (U V w n_max h_space : ℕ) (d : (ℕ × ℕ) × ℕ) :
     Memory.Prog ((ℕ × ℕ) × ℕ) :=
-  if bucketBits n_max = 0 then do
-    let z0 ← pure 0
-    pure ((z0, z0), z0)
-  else do
-    let init ← initOvfSearchProg U V w n_max h_space d.1
-    let j0 ← pure (min n_max (effBucketCap n_max))
-    let z0 ← pure 0
-    let res ← ovfLoopProg U V w n_max h_space
-      ((d, ((((j0, init.1), z0), z0), z0)), init.2)
-    pure ((ovfAccFound res, ovfAccMatchIdx res), res.2)
+  searchOverflowGenProg (mkDictParams U V w n_max h_space, d)
 
 @[simp]
 theorem searchOverflowGenProg_mk (U V w n_max h_space : ℕ) (d : (ℕ × ℕ) × ℕ) :
     searchOverflowGenProg (mkDictParams U V w n_max h_space, d) =
-      searchOverflowProg U V w n_max h_space d := by
-  simp only [searchOverflowGenProg, searchOverflowProg, ovfSearchBucketLoc,
-    p_bucketBits_mk, p_minCap_mk, initOvfSearchGenProg_mk, ovfLoopGenProg_mk]
+      searchOverflowProg U V w n_max h_space d := rfl
 
 /-- Precondition for `searchOverflowProg` (`d = ((base, b), q_target)`). -/
 @[expose] def SearchOverflowPre (U V w₀ n_max h_space w : ℕ)
@@ -1059,12 +1028,12 @@ theorem searchOverflowProg_spec {U V w₀ n_max h_space w : ℕ}
     fun ⟨_, hj1, hj2, _⟩ => by omega
   rcases Nat.eq_zero_or_pos (bucketBits n_max) with hb0 | hb_pos
   · have hlt_cap := lt_effBucketCap_of_bucketBits_eq_zero hb0
-    unfold searchOverflowProg; rw [ite_eq_left hb0]
-    simp only [pure_bind, memoryCost_pure]
+    simp only [searchOverflowProg, searchOverflowGenProg, p_bucketBits_mk, hb0, ↓reduceIte,
+      pure_bind, memoryCost_pure]
     exact ⟨rfl, by omega, fun h => by omega, by rw [ite_eq_right (hno_of (by omega))]; rfl⟩
-  · unfold searchOverflowProg ovfLoopProg
-    rw [ite_eq_right (Nat.ne_of_gt hb_pos)]
-    simp only [pure_bind]
+  · simp only [searchOverflowProg, searchOverflowGenProg, p_bucketBits_mk, ovfSearchBucketLoc,
+      p_minCap_mk, initOvfSearchGenProg_mk, ovfLoopGenProg_mk, pure_bind, ovfLoopProg,
+      ite_eq_right (Nat.ne_of_gt hb_pos)]
     rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
       memoryCost_bind_of_clientState_eq (clientState_initOvfSearchProg ..),
       clientState_initOvfSearchProg]
@@ -1141,21 +1110,14 @@ first searches the micro-bucket chain `(b, m)` via `searchMicroChainProg`; if no
 searches any overflow slots `j ∈ [effBucketCap n_max, bCount n_max gm b)` via
 `searchOverflowProg`. Returns `((found, j_found), phys_found)`. -/
 @[expose] def searchBucketProg (U V w n_max h_space : ℕ)
-    (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog ((ℕ × ℕ) × ℕ) := do
-  let res1 ← searchMicroChainProg U V w n_max h_space d
-  let z1 ← pure 1
-  if microSearchFound res1 = z1 then
-    pure ((z1, microSearchIdx res1), res1.2)
-  else
-    searchOverflowProg U V w n_max h_space d.1
+    (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog ((ℕ × ℕ) × ℕ) :=
+  searchBucketGenProg (mkDictParams U V w n_max h_space, d)
 
 @[simp]
 theorem searchBucketGenProg_mk (U V w n_max h_space : ℕ)
     (d : ((ℕ × ℕ) × ℕ) × ℕ) :
     searchBucketGenProg (mkDictParams U V w n_max h_space, d) =
-      searchBucketProg U V w n_max h_space d := by
-  simp only [searchBucketGenProg, searchBucketProg, searchBucketGenQuery,
-    searchMicroChainGenProg_mk, searchOverflowGenProg_mk]
+      searchBucketProg U V w n_max h_space d := rfl
 
 open Classical in
 theorem searchBucketProg_spec {U V w₀ n_max h_space w : ℕ}
@@ -1196,8 +1158,8 @@ theorem searchBucketProg_spec {U V w₀ n_max h_space w : ℕ}
   have h2 := searchOverflowProg_spec (d := d.1) henv hb hinv
   dsimp only [lmEntryBase, lmEntryBucket, lmEntryIdx, microAccStatus, microAccIdx,
     ovfBucketBase, ovfBucketIdx, ovfSearchFound, ovfSearchIdx] at h1 h2
-  unfold searchBucketProg
-  simp only [pure_bind]
+  simp only [searchBucketProg, searchBucketGenProg, searchBucketGenQuery,
+    searchMicroChainGenProg_mk, searchOverflowGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     memoryCost_bind_of_clientState_eq h1.1, h1.1]
   set res1 := (Memory.spec 0).clientResult s (searchMicroChainProg U V w₀ n_max h_space d)
@@ -1250,22 +1212,14 @@ from `Values` at physical slot `res.2`, otherwise returns `none`. -/
 calls `searchBucketProg` and, if found (`ovfSearchFound res = 1`), reads and returns `some v`
 from `Values` at physical slot `res.2`, otherwise returns `none`. -/
 @[expose] def queryBodyProg (U V w n_max h_space : ℕ)
-    (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog (Option ℕ) := do
-  let res ← searchBucketProg U V w n_max h_space d
-  let z1 ← pure 1
-  if ovfSearchFound res = z1 then do
-    let v ← readValProg U V w n_max h_space (ovfQueryBase d, res.2)
-    pure (some v)
-  else
-    pure none
+    (d : ((ℕ × ℕ) × ℕ) × ℕ) : Memory.Prog (Option ℕ) :=
+  queryBodyGenProg (mkDictParams U V w n_max h_space, d)
 
 @[simp]
 theorem queryBodyGenProg_mk (U V w n_max h_space : ℕ)
     (d : ((ℕ × ℕ) × ℕ) × ℕ) :
     queryBodyGenProg (mkDictParams U V w n_max h_space, d) =
-      queryBodyProg U V w n_max h_space d := by
-  simp only [queryBodyGenProg, queryBodyProg, ovfSearchFound, ovfQueryBase,
-    searchBucketGenProg_mk, readValGenProg_mk]
+      queryBodyProg U V w n_max h_space d := rfl
 
 open Classical in
 theorem queryBodyProg_spec {U V w₀ n_max h_space w : ℕ}
@@ -1302,8 +1256,7 @@ theorem queryBodyProg_spec {U V w₀ n_max h_space w : ℕ}
   dsimp only [gm, prog, ovfQueryBase, ovfQueryBucket, ovfQueryQuot] at *
   have hsb := searchBucketProg_spec henv hb hm hinv hchain hc_lt
   dsimp only [ovfQueryBase, ovfQueryBucket, ovfQueryQuot, ovfSearchFound, ovfSearchIdx] at hsb
-  unfold queryBodyProg
-  simp only [pure_bind]
+  simp only [queryBodyProg, queryBodyGenProg, searchBucketGenProg_mk, readValGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     memoryCost_bind_of_clientState_eq hsb.1, hsb.1]
   set res := (Memory.spec 0).clientResult s (searchBucketProg U V w₀ n_max h_space d)
