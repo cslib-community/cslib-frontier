@@ -10,10 +10,11 @@ module
 public import CslibFrontier.Algorithms.Lean.Query.Select.MinMax.Basic
 public import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.Fooling
 public import Mathlib.Data.Finset.Card
+import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.Adversary
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Fintype.EquivFin
-import Mathlib.Order.Extension.Linear
+import Mathlib.SetTheory.Cardinal.Order
 
 /-!
 # Comparison lower bounds for the minimum, and for the minimum and maximum
@@ -80,7 +81,7 @@ public section
 
 namespace Cslib.Query
 
-variable {α γ : Type}
+variable {α : Type}
 
 /-! ## The minimum -/
 
@@ -131,13 +132,6 @@ theorem IsMinAlg.length_sub_one_le_countQueries {alg : List α → FreeM (LEQuer
   rw [← List.toFinset_card_of_nodup hxs]
   exact halg.card_toFinset_sub_one_le_countQueries r oracle horacle xs
 
-/-- Every type carries a linear order. -/
-private theorem exists_isLinearOrder (α : Type) : ∃ r : α → α → Prop, IsLinearOrder α r := by
-  have : IsPartialOrder α (· = ·) :=
-    { refl := fun _ => rfl, trans := fun _ _ _ => Eq.trans, antisymm := fun _ _ h _ => h }
-  obtain ⟨r, hr, -⟩ := extend_partialOrder (α := α) (· = ·)
-  exact ⟨r, hr⟩
-
 /-- Some list of `n` distinct elements of an infinite type. -/
 private theorem exists_nodup_length (α : Type) [Infinite α] (n : ℕ) :
     ∃ xs : List α, xs.Nodup ∧ xs.length = n := by
@@ -151,9 +145,9 @@ theorem IsMinAlg.lowerBound_infinite [Infinite α] {alg : List α → FreeM (LEQ
   classical
   intro n
   obtain ⟨xs, hnodup, hlen⟩ := exists_nodup_length α n
-  obtain ⟨r, hr⟩ := exists_isLinearOrder α
-  exact ⟨xs, hlen.le, LEQuery.oracleOf fun a b => decide (r a b),
-    hlen ▸ halg.length_sub_one_le_countQueries r _ (fun _ _ => rfl) hnodup⟩
+  let := (exists_wellFoundedLT α).choose
+  exact ⟨xs, hlen.le, LEQuery.oracleOf fun a b => decide (a ≤ b),
+    hlen ▸ halg.length_sub_one_le_countQueries (· ≤ ·) _ (fun _ _ => rfl) hnodup⟩
 
 /-- The linear scan is optimal on every input: on a list of distinct elements, a correct algorithm
 for the minimum makes, against every oracle implementing a linear order, at least as many
@@ -267,35 +261,6 @@ private theorem exists_step (S : Finset α) (r : α → α → Prop) [IsLinearOr
     (fun _ => ⟨fun h => absurd ⟨h.1, h.2⟩ hDb, fun h => absurd ⟨h.1, h.2⟩ hUa⟩)
     fun _ => ⟨fun h => absurd ⟨h.1, h.2⟩ hDa, fun h => absurd ⟨h.1, h.2⟩ hUb⟩⟩
 
-/-- **The adversary.** Starting from a linear order `r` that answers the comparisons `T`, there is
-a linear order `r'` that keeps those answers and against which `p` raises the potential by at most
-`2` per comparison. -/
-private theorem exists_adversary (S : Finset α) (p : FreeM (LEQuery α) γ) :
-    ∀ (T : List (α × α)) (r : α → α → Prop), IsLinearOrder α r →
-      ∃ r' : α → α → Prop, IsLinearOrder α r' ∧ AgreeOn r r' T ∧
-        potential S r' (T ++ LEQuery.queriedPairs
-          (LEQuery.oracleOf fun a b => @decide (r' a b) (Classical.propDecidable _)) p) ≤
-          potential S r T + 2 * p.countQueries
-            (LEQuery.oracleOf fun a b => @decide (r' a b) (Classical.propDecidable _)) := by
-  induction p with
-  | pure x => exact fun T r hr => ⟨r, hr, AgreeOn.refl r T, by simp⟩
-  | lift_bind op cont ih =>
-    cases op with
-    | le a b =>
-      intro T r hr
-      obtain ⟨r₁, hr₁, hagree₁, hstep⟩ := exists_step S r T a b
-      obtain ⟨r₂, hr₂, hagree₂, hbound⟩ :=
-        ih (@decide (r₁ a b) (Classical.propDecidable _)) (T ++ [(a, b)]) r₁ hr₁
-      refine ⟨r₂, hr₂, hagree₁.trans (hagree₂.mono fun q hq => List.mem_append_left _ hq), ?_⟩
-      have hans : @decide (r₂ a b) (Classical.propDecidable _) =
-          @decide (r₁ a b) (Classical.propDecidable _) :=
-        decide_eq_decide.mpr
-          (hagree₂.iff (List.mem_append_right _ (List.mem_singleton_self _))).symm
-      rw [FreeM.bind_eq_bind, LEQuery.queriedPairs_liftBind, FreeM.countQueries_liftBind,
-        LEQuery.oracleOf_le, hans]
-      rw [List.append_assoc, List.singleton_append] at hbound
-      omega
-
 /-- If every element of `S` except `m` is found above and every element except `M` is found
 below, then the potential is at least `4 |S| - 4`. -/
 private theorem potential_ge (S : Finset α) (r : α → α → Prop)
@@ -327,17 +292,22 @@ theorem IsMinMaxAlg.exists_card_toFinset_le_countQueries [DecidableEq α]
     ∃ f : α → α → Bool, IsLinearOrder α (fun a b => f a b = true) ∧
       (3 * xs.toFinset.card + 1) / 2 - 2 ≤ (alg xs).countQueries (LEQuery.oracleOf f) := by
   classical
-  obtain ⟨r₀, hr₀⟩ := exists_isLinearOrder α
   set S := xs.toFinset
-  obtain ⟨r, hr, -, hpot⟩ := exists_adversary S (alg xs) [] r₀ hr₀
-  set f : α → α → Bool := fun a b => @decide (r a b) (Classical.propDecidable _)
-  have hfr : (fun a b => f a b = true) = r := by funext a b; simp [f]
-  refine ⟨f, hfr.symm ▸ hr, ?_⟩
+  obtain ⟨f, hr, hpot⟩ := LEQuery.exists_adversary_run (alg xs)
+    (fun r T => potential S r T ≤ S.card + 2 * T.length)
+    (fun r _ => by simp [potential_nil]) (by
+      intro r hr T hT a b
+      obtain ⟨s, hs, hkeep, hstep⟩ := exists_step S r T a b
+      refine ⟨s, hs, hkeep, ?_⟩
+      simp only [List.length_append, List.length_singleton]
+      omega)
+  refine ⟨f, hr, ?_⟩
+  set r := fun a b => f a b = true
   set oracle : {ι : Type} → LEQuery α ι → ι := LEQuery.oracleOf f
-  rw [List.nil_append, potential_nil] at hpot
+  rw [LEQuery.length_queriedPairs] at hpot
   rcases eq_or_ne xs [] with rfl | hxs
   · simp [S]
-  have horacle (a b : α) : oracle (.le a b) = decide (r a b) := rfl
+  have horacle (a b : α) : oracle (.le a b) = decide (r a b) := by simp [oracle, r]
   obtain ⟨m, M, hmM, -, -, hbound⟩ := halg.correct r oracle horacle xs hxs
   set Q := LEQuery.queriedPairs oracle (alg xs)
   have habove (x : α) (hx : x ∈ S) (hxm : x ≠ m) : FoundAbove r Q x := by
