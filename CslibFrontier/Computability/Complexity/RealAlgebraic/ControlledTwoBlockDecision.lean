@@ -23,15 +23,20 @@ controlled feasibility tests check that the candidate exists and that its real f
 no zero. The family index is the encoded input. A separate reduction from encoded
 sentences would supply the family.
 
+The explicit level `a + 60` comes from this formalization's level accounting.
+The preprint proves membership at some fixed level for its two-block language.
+
 ## Main results
 
 * `Controlled.twoBlock_mem`: two-block real zero avoidance at level `C_(a+60)P`.
 
 ## References
 
-This adapts `nonnegative_twoBlock_mem` and `twoBlock_mem` in lean-canny's
-`ControlledTwoBlockDecision` at `970f28a5ecefc1327402ade16c068aa4b1b2c183`, the
-controlled-family step in [OpenAI2026CountingHierarchy].
+The decision step follows [OpenAI2026CountingHierarchy], §6.4 (pp. 29–30), equations
+(6.14)–(6.16). The preprint uses Lemma 6.1 for the reduction from encoded sentences
+and Theorem 5.1 for the two existential tests. This module adapts `nonnegative_twoBlock_mem`
+and `twoBlock_mem` in lean-canny's `ControlledTwoBlockDecision` at
+`970f28a5ecefc1327402ade16c068aa4b1b2c183`.
 -/
 
 public section
@@ -110,8 +115,10 @@ private theorem nonnegative_twoBlock_mem (C : Controlled P enc a) (E : Decoder e
     (N w) (b w) (sectionFamily.degree_le w) (sectionFamily.mass_le w)
 
 /-- Two-block real zero avoidance for a controlled integer polynomial family at level `a`
-belongs to `C_(a+60)P`. The block sizes are computable in unary. Squaring the input
-preserves its real zeros and the counting level of its modular evaluator. -/
+belongs to `C_(a+60)P`. The explicit level `a + 60` comes from this formalization's
+level accounting. Theorem 1.1 of [OpenAI2026CountingHierarchy] gives existence of a
+fixed level for the two-block language. The block sizes are computable in unary.
+Squaring the input preserves its real zeros and the counting level of its modular evaluator. -/
 theorem twoBlock_mem (C : Controlled P enc a) (E : Decoder enc)
     (hn : ComputableInPolyTime n enc encUnary) (hm : ComputableInPolyTime m enc encUnary) :
     {w | ∃ x : Fin (m w) → ℝ, ∀ z : Fin (n w) → ℝ,
