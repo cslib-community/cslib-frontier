@@ -549,10 +549,12 @@ private theorem booleanTerm_polyTime {α : Type} {input : α ↪ List Bool}
     have hread : ComputableInPolyTime (fun p : α × ℕ => if p.2 = left p.1 then l else r)
         (encPair input encNat) encBool :=
       ite_decide (decide_eq' (snd input encNat) (hl.comp (fst input encNat))) (.const l) (.const r)
-    exact EncodedTermPolyTime.bit (formulaWordGateValueWithAnswer_polyTime hw hi (.const false) hread)
+    exact EncodedTermPolyTime.bit
+      (formulaWordGateValueWithAnswer_polyTime hw hi (.const false) hread)
+  have hright := childTerm_polyTime hw hi hr
   exact EncodedTermPolyTime.select (childTerm_polyTime hw hi hl)
-    (EncodedTermPolyTime.select (childTerm_polyTime hw hi hr) (hentry true true) (hentry true false))
-    (EncodedTermPolyTime.select (childTerm_polyTime hw hi hr) (hentry false true) (hentry false false))
+    (EncodedTermPolyTime.select hright (hentry true true) (hentry true false))
+    (EncodedTermPolyTime.select hright (hentry false true) (hentry false false))
 
 private def squareWords {n : ℕ} (terms : List (Term n)) : List Bool :=
   terms.flatMap fun term => addTag ++ (mulTag ++ (encTerm n term ++ encTerm n term))
@@ -650,7 +652,8 @@ contributes the framed words of its local equations twice, with fixed arithmetic
 compiler copies the original comparison term words and forms new unary coordinates from the
 number of decoded gates. -/
 theorem formulaWordEquation_polyTime :
-    ComputableInPolyTime (fun word => encTerm (formulaEquationArity word) (formulaWordEquation word))
+    ComputableInPolyTime
+      (fun word => encTerm (formulaEquationArity word) (formulaWordEquation word))
       encBits encBits := by
   have hrange := unary_range' (gateCount_polyTime (input := encBits) id')
   have hblocks := flatMapToBitsWithInput hrange gateSquareWords_polyTime
