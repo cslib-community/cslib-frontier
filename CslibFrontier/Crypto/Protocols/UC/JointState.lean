@@ -770,27 +770,23 @@ private theorem run_corruptRouter_multiSessionProtocol_eq {n : ℕ}
         (RoutedNetR SubOut BackR)) α) :
     (corruptRouter C (F.multiSessionProtocol SSID κ C)).run prog =
       (corruptRouter C ((F.multiSession SSID).toProtocol κ C)).run prog := by
-  simp only [Machine.run, Machine.link, corruptRouter, IdealFunctionality.multiSessionProtocol,
-    IdealFunctionality.multiSession, IdealFunctionality.toProtocol, ProbOracleComp.sample_pure,
-    pure_bind]
-  refine congrArg Machine.closeProgram ?_
-  rw [← bind_pure_comp, ← bind_pure_comp]
+  let s₀ : (corruptRouter C (F.multiSessionProtocol SSID κ C)).State := fun _ => none
   let f : (corruptRouter C (F.multiSessionProtocol SSID κ C)).State →
       (corruptRouter C ((F.multiSession SSID).toProtocol κ C)).State := MultiSessionState.mk κ C
-  refine Machine.runFrom_intertwine
-    (corruptRouter C (F.multiSessionProtocol SSID κ C))
+  have hInit₁ : (corruptRouter C (F.multiSessionProtocol SSID κ C)).init = pure s₀ := rfl
+  have hInit₂ : (corruptRouter C ((F.multiSession SSID).toProtocol κ C)).init = pure (f s₀) := rfl
+  simp only [Machine.run, Machine.link, hInit₁, hInit₂, ProbOracleComp.sample_pure, pure_bind]
+  refine congrArg Machine.closeProgram ?_
+  rw [Machine.runFrom_map_state
     (corruptRouter C ((F.multiSession SSID).toProtocol κ C))
-    (fun _ => True) (fun s₁ s₂ => s₂ = f s₁) prog
-    (OracleComp.QueriesSatisfy.of_forall (fun q => by cases q <;> trivial) _)
-    (fun _ => none) (f fun _ => none) rfl
-    (fun x => pure x.1) (fun x => pure x.1) (fun _ _ _ _ => rfl) ?_
-  intro q s₁ s₂ k₁ k₂ _ hR hcont
-  subst hR
-  have hstep := handle_corruptRouter_map_state C ((F.multiSession SSID).toProtocol κ C)
-    (F.multiSessionProtocol SSID κ C) f (handle_multiSession_map_state SSID F κ C) q s₁
-  rw [hstep]
-  erw [bind_map_left]
-  exact bind_congr fun ⟨r, s'⟩ => hcont r s' (f s') rfl
+    (corruptRouter C (F.multiSessionProtocol SSID κ C))
+    f
+    (handle_corruptRouter_map_state C ((F.multiSession SSID).toProtocol κ C)
+      (F.multiSessionProtocol SSID κ C) f
+      (handle_multiSession_map_state SSID F κ C))
+    prog s₀,
+    Functor.map_map]
+  rfl
 
 end DemuxProof
 

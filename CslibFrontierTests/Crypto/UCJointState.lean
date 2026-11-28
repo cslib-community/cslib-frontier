@@ -724,19 +724,15 @@ private theorem runFrom_jointFaultyRelay_false (C : Finset (Fin 2)) (κ : ℕ)
       cases s req.ssid <;>
         simp only [Option.getD_none, Option.getD_some, ProbOracleComp.sample_pure, pure_bind,
           map_pure, Prod.map_apply, id_eq]
-  rw [← bind_pure_comp, ← bind_pure_comp]
-  refine Machine.runFrom_intertwine
+  rw [Machine.runFrom_map_state
     (corruptRouter C (jointFaultyRelay κ C))
     (corruptRouter C (idealRelay.multiSessionProtocol (Fin 2) κ C))
-    (fun _ => True) (fun s₁ s₂ => s₁ = f s₂) prog
-    (OracleComp.QueriesSatisfy.of_forall (fun q => by cases q <;> trivial) _)
-    (f t) t rfl (fun x => pure x.1) (fun x => pure x.1) (fun _ _ _ _ => rfl) ?_
-  intro q s₁ s₂ k₁ k₂ _ hR hcont
-  subst hR
-  rw [handle_corruptRouter_map_state C (jointFaultyRelay κ C)
-    (idealRelay.multiSessionProtocol (Fin 2) κ C) f hHandle q s₂]
-  erw [bind_map_left]
-  exact bind_congr fun ⟨r, s'⟩ => hcont r (f s') s' rfl
+    f
+    (handle_corruptRouter_map_state C (jointFaultyRelay κ C)
+      (idealRelay.multiSessionProtocol (Fin 2) κ C) f hHandle)
+    prog t,
+    Functor.map_map]
+  rfl
 
 /-- Concrete dummy-adversary emulation: `jointFaultyRelay` emulates
 `idealRelay.multiSessionProtocol (Fin 2)` with error at most `1 / 2 ^ (κ + 1)`. -/
@@ -755,12 +751,6 @@ theorem jointFaultyRelay_emulatesDummyWithin :
     exact congrArg (fun p => (Machine.closeProgram p).eval) (runFrom_jointFaultyRelay_false C κ _ _)
   · simp [Fintype.card_fin, Nat.sub_add_cancel (Nat.one_le_pow (κ + 1) 2 (by decide)), one_div]
 
-private theorem negligible_inv_two_pow_succ : Negligible (fun κ => (1 : ℝ≥0) / 2 ^ (κ + 1)) := by
-  have hneg : Negligible fun κ => ((2⁻¹ : ℝ≥0) ^ κ) := by negligible
-  intro k
-  simpa [div_eq_mul_inv, pow_succ, mul_inv, mul_left_comm, mul_comm, mul_assoc] using
-    (hneg k).const_mul (2⁻¹ : ℝ≥0)
-
 /-- Concrete UC realization via `EmulatesWithin.multiSessionProtocol_right_iff`: `jointFaultyRelay`
 realizes `idealRelay.multiSession (Fin 2)` with explicit negligible error `1 / 2 ^ (κ + 1)`. -/
 theorem jointFaultyRelay_realizesWithin :
@@ -773,12 +763,12 @@ theorem jointFaultyRelay_realizesWithin :
 theorem jointFaultyRelay_emulates_multiSessionProtocol :
     Emulates jointFaultyRelay (idealRelay.multiSessionProtocol (Fin 2)) :=
   jointFaultyRelay_emulatesDummyWithin.emulatesWithin.emulates fun _ _ =>
-    negligible_inv_two_pow_succ
+    negligible_inv_two_pow_of_le Nat.le_succ
 
 /-- Non-identity UC realization of `idealRelay.multiSession (Fin 2)` by `jointFaultyRelay`. -/
 theorem jointFaultyRelay_realizes :
     Realizes jointFaultyRelay (idealRelay.multiSession (Fin 2)) :=
-  jointFaultyRelay_realizesWithin.emulates fun _ _ => negligible_inv_two_pow_succ
+  jointFaultyRelay_realizesWithin.emulates fun _ _ => negligible_inv_two_pow_of_le Nat.le_succ
 
 /-- Non-identity joint-state replacement witness via `Realizes.compose_toJoint`: composing
 `orOuter.toJoint` with the distinct joint-state protocol `jointFaultyRelay` emulates
