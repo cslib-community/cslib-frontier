@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Foundations.Data.List.Blocks
+import CslibFrontier.Foundations.Data.List.Counting
 import Mathlib.Data.List.GetD
 
 /-!
@@ -119,12 +120,8 @@ theorem cutWeight_congr {E : List WeightedEdge} {side side' : ℕ → Bool}
       h e.v (List.mem_flatMap.2 ⟨e, he, by simp⟩)]
 
 theorem length_endpoints (E : List WeightedEdge) : (endpoints E).length = 2 * E.length := by
-  induction E with
-  | nil => rfl
-  | cons _ _ ih =>
-    simp only [endpoints, List.flatMap_cons, List.length_append, List.length_cons,
-      List.length_nil] at ih ⊢
-    omega
+  rw [Nat.mul_comm]
+  exact List.length_flatMap_of_forall_length_eq fun _ _ => rfl
 
 end MaxCut
 
