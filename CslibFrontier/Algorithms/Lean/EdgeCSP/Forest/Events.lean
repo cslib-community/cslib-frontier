@@ -282,10 +282,9 @@ theorem nodes_length (p : Ancestry F) (hl : p.times.length = p.walk.steps.length
   have hflat (ss : List ((Occurrence F × Occurrence F) × ℕ)) :
       (ss.flatMap fun ((a, b), t) => ([.inr (a.1, t), .inl b.var] : List (Node F))).length =
         2 * ss.length := by
-    induction ss with
-    | nil => rfl
-    | cons _ _ ih =>
-      simp only [List.flatMap_cons, List.cons_append, List.nil_append, List.length_cons, ih]; omega
+    rw [List.length_flatMap]
+    rw [List.map_congr_left (g := fun _ => 2) (fun ⟨⟨_, _⟩, _⟩ _ => rfl)]
+    simp [List.map_const', List.sum_replicate, Nat.mul_comm]
   simp only [nodes, List.length_cons, hflat, List.length_zip, hl, Nat.min_self]
 
 omit [DecidableEq V] in

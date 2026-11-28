@@ -455,15 +455,6 @@ theorem extractPairShare_receivedPairOfRow {m : ℕ} (p : OrderedPair m) (i : Fi
       rfl
     · simp [h0, h1]
 
-private theorem sum_map_filterMap {α β M : Type} [AddCommMonoid M] (l : List α)
-    (f : α → Option β) (g : β → M) :
-    ((l.filterMap f).map g).sum =
-      (l.map fun a => match f a with | some b => g b | none => 0).sum := by
-  induction l with
-  | nil => rfl
-  | cons a l ih =>
-    cases hf : f a <;> simp [List.filterMap, hf, ih]
-
 private theorem sum_map_orderedPairs {m : ℕ} {M : Type} [AddCommMonoid M]
     (g : OrderedPair m → M) :
     ((orderedPairs m).map g).sum =
@@ -471,10 +462,10 @@ private theorem sum_map_orderedPairs {m : ℕ} {M : Type} [AddCommMonoid M]
   rw [orderedPairs, List.sum_map_flatMap, Fin.sum_univ_def]
   congr 1
   refine List.map_congr_left fun u _ => ?_
-  rw [sum_map_filterMap, Fin.sum_univ_def]
+  rw [List.filterMap_eq_flatMap_toList, List.sum_map_flatMap, Fin.sum_univ_def]
   congr 1
   refine List.map_congr_left fun v _ => ?_
-  split_ifs <;> rfl
+  split_ifs <;> simp
 
 theorem sumReceivedShares_receivedScheduleOfRow {m : ℕ} (i : Fin m)
     (row_i : Fin m → Bool) (hdiag : row_i i = 0) :

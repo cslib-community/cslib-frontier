@@ -32,22 +32,10 @@ open Cslib.WordRAM
 open Cslib.Algorithms.Lean.AhoCorasick
 open Reg
 
-private theorem length_flatMap_pair (pos : ℕ) : ∀ ls : List ℕ,
-    (ls.flatMap fun len => [pos, len]).length = 2 * ls.length
-  | [] => rfl
-  | l :: ls => by
-    change ([pos, l] ++ ls.flatMap fun len => [pos, len]).length = 2 * (ls.length + 1)
-    simp only [List.cons_append, List.nil_append, List.length_cons, length_flatMap_pair pos ls]
-    omega
-
-private theorem flatMap_length_eq_encodeOccurrences (pos : ℕ) : ∀ ys : List (List ℕ),
+private theorem flatMap_length_eq_encodeOccurrences (pos : ℕ) (ys : List (List ℕ)) :
     (ys.map List.length).flatMap (fun len => [pos, len]) =
-      encodeOccurrences (ys.map fun y => (pos, y))
-  | [] => rfl
-  | y :: ys => by
-    change [pos, y.length] ++ (ys.map List.length).flatMap (fun len => [pos, len]) =
-      [pos, y.length] ++ encodeOccurrences (ys.map fun y => (pos, y))
-    rw [flatMap_length_eq_encodeOccurrences pos ys]
+      encodeOccurrences (ys.map fun y => (pos, y)) := by
+  rw [encodeOccurrences, List.flatMap_map, List.flatMap_map]
 
 private theorem exec_emitLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     (hw : Fits w inp.wordBound) :
