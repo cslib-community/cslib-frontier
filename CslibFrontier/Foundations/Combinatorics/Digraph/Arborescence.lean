@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Combinatorics.Digraph.Basic
 public import Mathlib.Logic.Relation
+import CslibFrontier.Foundations.Combinatorics.Multidigraph.Basic
 
 /-!
 # Spanning in-arborescences and parent functions
@@ -20,10 +21,11 @@ reaches `r` along arcs. Its arcs point towards the root.
 
 An in-arborescence is determined by its *parent function*, which sends each vertex `v ≠ r` to the
 head of its unique outgoing arc. Conversely, a function `p : V → V` gives the digraph
-`Digraph.parentDigraph r p` with arcs `v → p v` for `v ≠ r`. This module proves that this digraph
-is a spanning in-arborescence exactly when iterating `p` leads from every vertex to `r`
-(`Digraph.isInArborescence_parentDigraph_iff`), and that every spanning in-arborescence arises this
-way (`Digraph.IsInArborescence.exists_parentDigraph_eq`).
+`Digraph.parentDigraph r p` with arcs `v → p v` for `v ≠ r`. Using the general multidigraph
+parent-iteration characterization (`Cslib.Multidigraph.isInArborescence_iff_exists_iterate`), this
+module proves that `parentDigraph r p` is a spanning in-arborescence iff iterating `p` leads from
+every vertex to `r` (`Digraph.isInArborescence_parentDigraph_iff`), and that every spanning
+in-arborescence arises this way (`Digraph.IsInArborescence.exists_parentDigraph_eq`).
 
 ## Main definitions
 
@@ -72,35 +74,34 @@ theorem parentDigraph_adj {r : V} {p : V → V} {v w : V} :
     (parentDigraph r p).Adj v w ↔ v ≠ r ∧ p v = w := Iff.rfl
 
 /-- If iterating `p` leads from `v` to `r`, then `v` reaches `r` in `parentDigraph r p`. -/
-theorem reflTransGen_parentDigraph_of_iterate_eq {r : V} {p : V → V} :
-    ∀ {n : ℕ} {v : V}, p^[n] v = r → Relation.ReflTransGen (parentDigraph r p).Adj v r
-  | 0, v, h => by
-    rw [Function.iterate_zero_apply] at h
-    rw [h]
-  | n + 1, v, h => by
-    by_cases hv : v = r
-    · rw [hv]
-    · rw [Function.iterate_succ_apply] at h
-      exact Relation.ReflTransGen.head ⟨hv, rfl⟩ (reflTransGen_parentDigraph_of_iterate_eq h)
+theorem reflTransGen_parentDigraph_of_iterate_eq {r : V} {p : V → V} {n : ℕ} {v : V}
+    (h : p^[n] v = r) : Relation.ReflTransGen (parentDigraph r p).Adj v r :=
+  Cslib.Multidigraph.reflTransGen_of_iterate_eq h
 
 /-- If `v` reaches `r` in `parentDigraph r p`, then iterating `p` leads from `v` to `r`. -/
 theorem exists_iterate_eq_of_reflTransGen_parentDigraph {r : V} {p : V → V} {v : V}
-    (h : Relation.ReflTransGen (parentDigraph r p).Adj v r) : ∃ n, p^[n] v = r := by
-  induction h using Relation.ReflTransGen.head_induction_on with
-  | refl => exact ⟨0, rfl⟩
-  | head hab _ ih =>
-    obtain ⟨n, hn⟩ := ih
-    obtain ⟨-, rfl⟩ := hab
-    exact ⟨n + 1, by rw [Function.iterate_succ_apply, hn]⟩
+    (h : Relation.ReflTransGen (parentDigraph r p).Adj v r) : ∃ n, p^[n] v = r :=
+  Cslib.Multidigraph.exists_iterate_eq_of_reflTransGen h
 
 /-- The digraph of a parent function is a spanning in-arborescence rooted at `r` iff iterating
 the parent function leads from every vertex to `r`. -/
 theorem isInArborescence_parentDigraph_iff {r : V} {p : V → V} :
     (parentDigraph r p).IsInArborescence r ↔ ∀ v, ∃ n, p^[n] v = r := by
-  refine ⟨fun h v => exists_iterate_eq_of_reflTransGen_parentDigraph (h.reachable v), fun h => ?_⟩
-  refine ⟨fun w hw => hw.1 rfl, fun v hv => ⟨p v, ⟨hv, rfl⟩, fun w hw => hw.2.symm⟩, fun v => ?_⟩
-  obtain ⟨n, hn⟩ := h v
-  exact reflTransGen_parentDigraph_of_iterate_eq hn
+  have hmulti := Cslib.Multidigraph.isInArborescence_iff_exists_iterate
+    (src := Prod.fst) (tgt := Prod.snd) (r := r) (f := fun v => (v.1, p v.1)) (p := p)
+    fun _ => rfl
+  have hrel : (fun v w => ∃ h : v ≠ r,
+      (((⟨v, h⟩ : {v // v ≠ r}).1, p (⟨v, h⟩ : {v // v ≠ r}).1)).2 = w) =
+      (parentDigraph r p).Adj := by
+    ext u w
+    exact ⟨fun ⟨hu, hp⟩ => ⟨hu, hp⟩, fun ⟨hu, hp⟩ => ⟨hu, hp⟩⟩
+  refine ⟨fun h => (hmulti.mp ⟨fun _ => rfl, fun v => ?_⟩).2, fun h => ?_⟩
+  · rw [hrel]
+    exact h.reachable v
+  · obtain ⟨-, hreach⟩ := hmulti.mpr ⟨fun _ => rfl, h⟩
+    refine ⟨fun w hw => hw.1 rfl, fun v hv => ⟨p v, ⟨hv, rfl⟩, fun w hw => hw.2.symm⟩, fun v => ?_⟩
+    rw [← hrel]
+    exact hreach v
 
 /-- Every spanning in-arborescence rooted at `r` is the digraph of a parent function fixing `r`. -/
 theorem IsInArborescence.exists_parentDigraph_eq {T : Digraph V} {r : V}

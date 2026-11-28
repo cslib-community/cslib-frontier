@@ -49,7 +49,7 @@ private theorem poly_scope : ComputableInPolyTime
       (fun p : CSP Table ℕ × Record => p.1.getD p.2.1 ⟨⟨0, []⟩, []⟩)
       (encPair (encCSP encTable encNat) encRecord) (encConstraint encTable encNat) :=
     ComputableInPolyTime.listGetDWithInput (by fun_prop) (by fun_prop) _
-  exact hget.snd'
+  exact encConstraint_scope_polyTime hget
 
 private theorem poly_scopeWith {α : Type} {e : α ↪ List Bool}
     {F : α → CSP Table ℕ} {o : α → Record}
@@ -186,29 +186,24 @@ private theorem poly_exitsAt : ComputableInPolyTime
       (fun p : ((EdgeForest.Input × WalkCode × WalkCode × ℕ) × Record) × ℕ =>
         p.1.2.2.2 == EdgeAugmenting.finish ⟨p.1.1.1.body, [], [], 0⟩
           (NativeWalk.take p.1.1.2.2.1 p.1.1.2.2.2))
-      (encPair (encPair encExitArgs encRecord) encNat) encBool := by
-    have hvariable : ComputableInPolyTime
-        (fun p : ((EdgeForest.Input × WalkCode × WalkCode × ℕ) × Record) × ℕ =>
-          p.1.2.2.2)
-        (encPair (encPair encExitArgs encRecord) encNat) encNat := by fun_prop
-    exact ComputableInPolyTime.beq hvariable
+      (encPair (encPair encExitArgs encRecord) encNat) encBool :=
+    ComputableInPolyTime.beq
+      (show ComputableInPolyTime
+        (fun p : ((EdgeForest.Input × WalkCode × WalkCode × ℕ) × Record) × ℕ => p.1.2.2.2)
+        (encPair (encPair encExitArgs encRecord) encNat) encNat by fun_prop)
       (hfinish.comp (encIn := encPair (encPair encExitArgs encRecord) encNat)
         (ComputableInPolyTime.fst (encPair encExitArgs encRecord) encNat).fst')
   have hconstraint : ComputableInPolyTime
       (fun p : ((EdgeForest.Input × WalkCode × WalkCode × ℕ) × Record) × ℕ =>
         p.1.2.1 == (EdgeAugmenting.recordAt p.1.1.1.body p.2).1)
-      (encPair (encPair encExitArgs encRecord) encNat) encBool := by
-    have hcoordinate : ComputableInPolyTime
+      (encPair (encPair encExitArgs encRecord) encNat) encBool :=
+    ComputableInPolyTime.beq
+      (show ComputableInPolyTime
         (fun p : ((EdgeForest.Input × WalkCode × WalkCode × ℕ) × Record) × ℕ => p.1.2.1)
-        (encPair (encPair encExitArgs encRecord) encNat) encUnary := by fun_prop
-    have hlookup : ComputableInPolyTime
-        (fun p : ((EdgeForest.Input × WalkCode × WalkCode × ℕ) × Record) × ℕ =>
-          (p.1.1, p.2))
-        (encPair (encPair encExitArgs encRecord) encNat) (encPair encExitArgs encNat) :=
-      (ComputableInPolyTime.fst (encPair encExitArgs encRecord) encNat).fst'.prod
-        (ComputableInPolyTime.snd (encPair encExitArgs encRecord) encNat)
-    exact ComputableInPolyTime.beq hcoordinate
-      (hport.comp (encIn := encPair (encPair encExitArgs encRecord) encNat) hlookup).fst'
+        (encPair (encPair encExitArgs encRecord) encNat) encUnary by fun_prop)
+      (hport.comp (encIn := encPair (encPair encExitArgs encRecord) encNat)
+        ((ComputableInPolyTime.fst (encPair encExitArgs encRecord) encNat).fst'.prod
+          (ComputableInPolyTime.snd (encPair encExitArgs encRecord) encNat))).fst'
   have hunused : ComputableInPolyTime
       (fun p : ((EdgeForest.Input × WalkCode × WalkCode × ℕ) × Record) × ℕ =>
         !(NativeWalk.edges (NativeWalk.take p.1.1.2.2.1 p.1.1.2.2.2)).contains

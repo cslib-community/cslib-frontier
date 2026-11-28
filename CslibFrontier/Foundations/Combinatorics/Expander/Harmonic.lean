@@ -72,20 +72,16 @@ theorem eq_of_forall_sum_edgeCount_mul_eq (hG : G.toSimpleGraph.Preconnected) {f
   have : Nonempty V := ⟨x⟩
   obtain ⟨m, hm⟩ := Finite.exists_max f
   set S : Set V := {v | f v = f m}
-  have hS : ∀ v ∈ S, ∀ i, G.neighbor v i ∈ S := by
-    intro v hv i
+  have hS (v : V) (hv : v ∈ S) (i : D) : G.neighbor v i ∈ S := by
     have hsum : ∑ z, (G.edgeCount v z : ℝ) * (f m - f z) = 0 := by
       simp_rw [mul_sub, sum_sub_distrib, hf v, ← sum_mul]
-      have hc : ∑ z, (G.edgeCount v z : ℝ) = Fintype.card D := by
-        exact_mod_cast G.sum_edgeCount v
-      rw [hc, (hv : f v = f m), sub_self]
+      rw [show ∑ z, (G.edgeCount v z : ℝ) = Fintype.card D by exact_mod_cast G.sum_edgeCount v,
+        (hv : f v = f m), sub_self]
     have hz := (sum_eq_zero_iff_of_nonneg fun z _ =>
       mul_nonneg (Nat.cast_nonneg _) (sub_nonneg.2 (hm z))).1 hsum (G.neighbor v i) (mem_univ _)
-    have hc : (G.edgeCount v (G.neighbor v i) : ℝ) ≠ 0 := by
-      exact_mod_cast (edgeCount_ne_zero_iff (G := G)).2 ⟨i, rfl⟩
-    exact (sub_eq_zero.1 ((mul_eq_zero.1 hz).resolve_left hc)).symm
-  have hall : ∀ v, v ∈ S := fun v => G.mem_of_reachable hS (show m ∈ S from rfl) (hG m v)
-  exact (hall x).trans (hall y).symm
+    exact (sub_eq_zero.1 ((mul_eq_zero.1 hz).resolve_left
+      (by exact_mod_cast (edgeCount_ne_zero_iff (G := G)).2 ⟨i, rfl⟩))).symm
+  exact (G.mem_of_reachable hS rfl (hG m x)).trans (G.mem_of_reachable hS rfl (hG m y)).symm
 
 omit [DecidableEq V] [Fintype V] in
 /-- **Maximum principle.** On a connected regular multigraph of positive degree, a function fixed
@@ -96,10 +92,9 @@ theorem eq_of_walk_eq_self [Finite V] [Nonempty D] (hG : G.toSimpleGraph.Preconn
   have : Fintype V := Fintype.ofFinite V
   refine eq_of_forall_sum_edgeCount_mul_eq hG (fun y => ?_) x y
   have h := congrFun hf y
+  have hd : (Fintype.card D : ℝ) ≠ 0 := Nat.cast_ne_zero.2 Fintype.card_ne_zero
   rw [walk_apply, Fintype.expect_eq_sum_div_card, G.sum_comp_neighbor y f] at h
-  have hd : (Fintype.card D : ℝ) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
-  simp only [nsmul_eq_mul] at h
-  rw [div_eq_iff hd] at h
+  simp only [nsmul_eq_mul, div_eq_iff hd] at h
   rw [h, mul_comm]
 
 end Cslib.RotationMap

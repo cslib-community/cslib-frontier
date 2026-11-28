@@ -7,11 +7,12 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.Lean.BinarySearch
+public import CslibFrontier.Algorithms.Lean.Query.BinarySearch
 public import CslibFrontier.Computability.Complexity.FineGrained.MaxSAT.Histogram
 public import CslibFrontier.Computability.Complexity.FineGrained.Reduction
 public import CslibFrontier.Computability.Complexity.Reduction
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
+public import CslibFrontier.Foundations.Data.BitString.List
 public import CslibFrontier.Logics.Propositional.CSP.MaxCSPSampling
 import CslibFrontier.Computability.Circuit.FanIn
 import CslibFrontier.Computability.Complexity.FineGrained.BruteForce
@@ -35,9 +36,8 @@ import CslibFrontier.Probability.PMF.Uniform
 This module connects `MaxSAT` (`MaxSAT.thresholdCircuit`, `MaxSAT.optimum`) and general `Max-CSP`
 (`MaxCSPInstance`, `MaxCSPSampling`) to supplied fixed-width `k`-SAT solvers (`3 ≤ k`):
 
-1. **Structured encodings (`StructInstance`, `ThresholdQuery`, `encMaxCSPInstance`):**
-   `#4391`-compliant documented structures with `enc_structure` (and a parameterized field-tuple
-   embedding for `MaxCSPInstance Rel ℕ`), bridging directly to
+1. **Structured encodings:** `enc_structure` encodes `StructInstance`, `ThresholdQuery`,
+   `StructSolution`, and the parameterized `MaxCSPInstance Rel ℕ`. They connect to
    `MaxSAT.Instance`, `MaxCSPInstance.ofCNF`, and the `2 ^ (n + 1) * exp (-2 * s * δ ^ 2)`
    (and `1 - η` sample-size) subsampling concentration and `2 * δ * m` optimality-loss theorems.
 2. **Threshold compilation (`thresholdToCNF`):** compiles a `ThresholdQuery` in polynomial time via
@@ -48,19 +48,59 @@ This module connects `MaxSAT` (`MaxSAT.thresholdCircuit`, `MaxSAT.optimum`) and 
    * *Decision transfer:* `DecidableInExpTime`, `DecidableInSubexpTime`, and `P` membership transfer
      from `KSAT k` (`3 ≤ k`) to `ThresholdLanguage` (measured by `workSize`, and by `numVars` on
      sparse fixed-width instances).
-   * *Exact native optimization (`FixedWidthSATSolver.exists_optimum_algorithm`,
-     `computableInPolyTime_optimum_of_KSAT`):* any native `k`-SAT solver (`3 ≤ k`) with monotone
-     variable-count factor `timeRate` and polynomial workspace (witnessed at `timeRate n = 2 ^ n` by
-     `FixedWidthSATSolver.exists_bruteForce`) computes exact `MaxSAT` (and bounded-arity Boolean
-     `Max-CSP`) optima at `timeRate (thresholdVarBudget workSize) * poly(L)` in polynomial space; a
-     polynomial-time `k`-SAT decider computes exact optima in polynomial time.
-   * *Binary search and witness recovery (`optimumByBinarySearchM`, `optimizeByBinarySearchM`):*
-     bisection via `lowerBoundM` followed by unit-clause prefix pinning recovers both the exact
-     optimum and an optimal assignment using at most `⌊log₂ m⌋ + 1 + n` queries to a supplied
-     `k`-SAT oracle (`TimeM`), and on an `s`-clause subsample of a width-`w` instance queries
-     `k`-SAT only on formulas of at most `thresholdVarBudget ((w + 1) * s + 2 * n)` variables while
-     returning an assignment with at most `2 * δ * m` optimality loss with probability at least
-     `1 - 2 ^ (n + 1) * exp (-2 * s * δ ^ 2)` (and `≥ 1 - η` under the `η` sample-size bound).
+   * *Exact native optimization and witness recovery
+     (`FixedWidthSATSolver.exists_optimum_algorithm`, `computableInPolyTime_optimum_of_KSAT`,
+     `computableInPolyTime_optimizeWith`,
+     `exists_computableInPolyTime_optimize_of_KSAT_mem_P`,
+     `computableInPolyTime_maxCSPOptimizeBounded`):* any native `k`-SAT solver (`3 ≤ k`)
+     with monotone variable-count factor `timeRate` and polynomial workspace (witnessed at
+     `timeRate n = 2 ^ n` by `FixedWidthSATSolver.exists_bruteForce`) computes exact `MaxSAT`
+     optima at `timeRate (thresholdVarBudget workSize) * poly(L)` in polynomial space, and any
+     polynomial-time `k`-SAT decider (`KSAT k ∈ P encCNF`) computes both the exact optimum and an
+     optimal `F.numVars`-bit assignment for `MaxSAT` and bounded-arity Boolean `Max-CSP` in native
+     multi-tape polynomial time.
+   * *Query-model binary search and witness recovery (`SATQuery`, `optimumByBinarySearchQ`,
+     `optimizeByBinarySearchQ`, `optimumMaxCSPByBinarySearchQ`):* bisection via
+     `Cslib.Query.lowerBoundBy` followed by unit-clause prefix pinning recovers both the exact
+     optimum and an optimal assignment (`StructSolution`) in `FreeM SATQuery` using at most
+     `⌊log₂ m⌋ + 1` SAT queries for the value and `⌊log₂ m⌋ + 1 + n` SAT queries (all 3-CNFs of at
+     most `thresholdVarBudget (workSize + 2 * n)` variables) for witness recovery, and on an
+     `s`-clause subsample of a width-`w` instance queries `k`-SAT only on formulas of at most
+     `thresholdVarBudget ((w + 1) * s + 2 * n)` variables while returning an assignment with at most
+     `2 * δ * m` optimality loss with probability at least `1 - 2 ^ (n + 1) * exp (-2 * s * δ ^ 2)`
+     (and `≥ 1 - η` under the `η` sample-size bound).
+
+## Main definitions
+
+* `Cslib.Complexity.MaxSAT.StructInstance`, `ThresholdQuery`, `StructSolution`:
+  structured MAX-SAT instances, threshold queries, and exact optimization outputs.
+* `Cslib.Complexity.MaxSAT.thresholdToCNF`, `thresholdVarBudget`: polynomial-time 3-CNF threshold
+  compilation and variable-count bound.
+* `Cslib.Complexity.MaxSAT.FixedWidthSATSolver`: supplied native `k`-SAT solver bundle.
+* `Cslib.Complexity.MaxSAT.optimizeWith`, `maxCSPOptimizeBounded`: native value and witness
+  optimization from a supplied SAT decider.
+* `Cslib.Complexity.MaxSAT.SATQuery`, `optimumByBinarySearch`, `optimumByBinarySearchQ`,
+  `optimizeByBinarySearch`, `optimizeByBinarySearchQ`, `optimumMaxCSPByBinarySearch`,
+  `optimumMaxCSPByBinarySearchQ`: pure and `FreeM SATQuery` binary-search solvers.
+
+## Main results
+
+* `Cslib.Complexity.MaxSAT.computableInPolyTime_thresholdToCNF`,
+  `polyTimeReducible_thresholdLanguage_KSAT`: polynomial-time reduction to `KSAT k` (`3 ≤ k`).
+* `Cslib.Complexity.MaxSAT.FixedWidthSATSolver.exists_optimum_algorithm`,
+  `computableInPolyTime_optimum_of_KSAT`: native value optimization from `k`-SAT solvers.
+* `Cslib.Complexity.MaxSAT.optimizeWith_spec`, `computableInPolyTime_optimizeWith`,
+  `exists_computableInPolyTime_optimize_of_KSAT_mem_P`, `maxCSPOptimizeBounded_spec`,
+  `computableInPolyTime_maxCSPOptimizeBounded`: native multi-tape polynomial-time value and
+  optimal assignment recovery.
+* `Cslib.Complexity.MaxSAT.optimumByBinarySearch_eq_optimum`,
+  `countQueries_optimumByBinarySearchQ_le`, `cost_optimumByBinarySearchQ_le`,
+  `optimizeByBinarySearch_spec`, `countQueries_optimizeByBinarySearchQ_le`,
+  `cost_optimizeByBinarySearchQ_le`, `sample_optimumByBinarySearch_spec`,
+  `sample_optimizeByBinarySearch_spec`, `sample_optimizeByBinarySearch_spec_of_sample_size`,
+  `optimumMaxCSPByBinarySearch_eq_optimum`, `countQueries_optimumMaxCSPByBinarySearchQ_le`,
+  `cost_optimumMaxCSPByBinarySearchQ_le`:
+  correctness, `FreeM` query-count/cost bounds, and subsampling transfer theorems.
 
 ## References
 
@@ -73,7 +113,7 @@ public section
 namespace Cslib.Complexity.MaxSAT
 
 open Cslib.Algorithms.Lean Cslib.Circuits Cslib.Circuits.Boolean Cslib.Circuits.Frontier
-  Cslib.Logic.PL Turing.MultiTapeTM ComputableInPolyTime
+  Cslib.Logic.PL Cslib.Query Turing.MultiTapeTM ComputableInPolyTime
 
 /-! ### `#4391`-compliant `MaxSAT` structures, encodings, and `Max-CSP` bridges -/
 
@@ -108,6 +148,23 @@ enc_structure encThresholdQuery : ThresholdQuery where
 
 attribute [fun_prop] encThresholdQuery_inst_polyTime encThresholdQuery_cutoff_polyTime
   encThresholdQuery_mk_polyTime
+
+/-- Exact optimization output for a `StructInstance` or `MaxCSPInstance`: optimal objective value
+paired with truth-value bits for variables `0, …, numVars - 1`. -/
+@[ext]
+structure StructSolution where
+  /-- Optimal objective value. -/
+  optValue : ℕ
+  /-- Truth values for variables `0, …, numVars - 1`. -/
+  assignmentBits : List Bool
+  deriving DecidableEq, Repr
+
+/-- Binary optimum value followed by raw assignment bits (`encPair encNat encBits`). -/
+enc_structure encStructSolution : StructSolution where
+  optValue : encNat, assignmentBits : encBits
+
+attribute [fun_prop] encStructSolution_optValue_polyTime
+  encStructSolution_assignmentBits_polyTime encStructSolution_mk_polyTime
 
 namespace StructInstance
 
@@ -219,7 +276,6 @@ theorem exists_sample_score_abs_sub_ge_le (F : StructInstance) (hm : 0 < F.claus
       2 ^ (F.numVars + 1) * Real.exp (-2 * (s : ℝ) * δ ^ 2) := by
   have hm' : 0 < F.toMaxCSP.constraints.length := by
     simpa only [toMaxCSP, MaxCSPInstance.length_constraints_ofCNF] using hm
-  have h := F.toMaxCSP.boolean_exists_sample_score_abs_sub_ge_le MaxCSP.clauseSem hm' s hδ
   let e : (Fin s → Fin F.clauses.length) ≃ (Fin s → Fin F.toMaxCSP.constraints.length) :=
     Equiv.piCongrRight fun _ =>
       finCongr (MaxCSPInstance.length_constraints_ofCNF F.numVars F.clauses).symm
@@ -227,16 +283,13 @@ theorem exists_sample_score_abs_sub_ge_le (F : StructInstance) (hm : 0 < F.claus
     have : Nonempty (Fin F.clauses.length) := ⟨⟨0, hm⟩⟩
     have : Nonempty (Fin F.toMaxCSP.constraints.length) := ⟨⟨0, hm'⟩⟩
     exact Cslib.Probability.PMF.uniformOfFintype_map_equiv e
-  rw [← hpmf] at h
+  have h := F.toMaxCSP.boolean_exists_sample_score_abs_sub_ge_le MaxCSP.clauseSem hm' s hδ
+  rw [← hpmf, _root_.PMF.toOuterMeasure_map_apply] at h
   refine (le_of_eq ?_).trans h
-  congr 1
-  rw [_root_.PMF.toOuterMeasure_map_apply]
-  congr 1
-  ext ω
+  congr 2; ext ω
   simp only [Set.mem_preimage, Set.mem_ofPred_eq, toMaxCSP,
     MaxCSPInstance.length_constraints_ofCNF]
   refine exists_congr fun x => ?_
-  have heq_idx : e ω = F.castSampleIdx ω := rfl
   have hsc : (F.toMaxCSP.sample (e ω)).score MaxCSP.clauseSem x = (F.sample ω).score x :=
     F.score_toMaxCSP_sample ω x
   have hfull : F.toMaxCSP.score MaxCSP.clauseSem x = F.score x := F.score_toMaxCSP x
@@ -253,8 +306,7 @@ private theorem hunif_toMaxCSP (F : StructInstance) {s : ℕ}
     ∀ x : BitString F.toMaxCSP.numVars,
       |(F.toMaxCSP.constraints.length : ℝ) / (s : ℝ) *
           ((F.toMaxCSP.sample (F.castSampleIdx ω)).score MaxCSP.clauseSem x : ℝ) -
-        (F.toMaxCSP.score MaxCSP.clauseSem x : ℝ)| ≤ ε := by
-  intro x
+        (F.toMaxCSP.score MaxCSP.clauseSem x : ℝ)| ≤ ε := fun x => by
   let x' : BitString F.numVars := x
   change |(F.toMaxCSP.constraints.length : ℝ) / (s : ℝ) *
       (((F.toMaxCSP.sample (F.castSampleIdx ω)).score MaxCSP.clauseSem x' : ℕ) : ℝ) -
@@ -279,15 +331,14 @@ theorem optimum_sub_score_le_two_mul (F : StructInstance) {s : ℕ}
     simpa only [toMaxCSP, MaxCSPInstance.length_constraints_ofCNF] using F.hunif_toMaxCSP ω hunif
   have hmax' : ∀ x : BitString F.toMaxCSP.numVars,
       (F.toMaxCSP.sample (F.castSampleIdx ω)).score MaxCSP.clauseSem x ≤
-        (F.toMaxCSP.sample (F.castSampleIdx ω)).score MaxCSP.clauseSem xHat := by
-    intro x
+        (F.toMaxCSP.sample (F.castSampleIdx ω)).score MaxCSP.clauseSem xHat := fun x => by
     let x' : BitString F.numVars := x
     change (F.toMaxCSP.sample (F.castSampleIdx ω)).score MaxCSP.clauseSem x' ≤
       (F.toMaxCSP.sample (F.castSampleIdx ω)).score MaxCSP.clauseSem xHat
     rw [F.score_toMaxCSP_sample ω x', F.score_toMaxCSP_sample ω xHat]
     exact hmax x'
-  have h := F.toMaxCSP.optimum_sub_score_le_two_mul MaxCSP.clauseSem (F.castSampleIdx ω) hunif'
-    hmax'
+  have h := F.toMaxCSP.optimum_sub_score_le_two_mul MaxCSP.clauseSem (F.castSampleIdx ω)
+    hunif' hmax'
   rw [F.optimum_toMaxCSP, F.score_toMaxCSP xHat] at h
   simpa only [toMaxCSP, MaxCSPInstance.length_constraints_ofCNF] using h
 
@@ -318,22 +369,20 @@ theorem one_sub_le_sample_good (F : StructInstance) (hm : 0 < F.clauses.length) 
           (F.optimum : ℝ) - (F.score xHat : ℝ) ≤ 2 * δ * (F.clauses.length : ℝ)) ∧
       |(F.clauses.length : ℝ) / (s : ℝ) * ((F.sample ω).optimum : ℝ) -
         (F.optimum : ℝ)| ≤ δ * (F.clauses.length : ℝ)}
-  set bad : Set (Fin s → Fin F.clauses.length) :=
-    {ω | ∃ x : BitString F.numVars,
-      δ * (F.clauses.length : ℝ) ≤
-        |(F.clauses.length : ℝ) / (s : ℝ) * ((F.sample ω).score x : ℝ) - (F.score x : ℝ)|}
   have hsum := Cslib.Probability.PMF.toOuterMeasure_toReal_add_compl (F.samplePMF hm s) good
-  have hsub : goodᶜ ⊆ bad := by
+  have hcompl :
+      ((F.samplePMF hm s).toOuterMeasure goodᶜ).toReal ≤
+        2 ^ (F.numVars + 1) * Real.exp (-2 * (s : ℝ) * δ ^ 2) := by
+    refine (Cslib.Probability.PMF.toOuterMeasure_toReal_mono (F.samplePMF hm s) ?_).trans
+      (F.exists_sample_score_abs_sub_ge_le hm s hδ)
     intro ω hω
     by_contra hnb
-    simp only [bad, Set.mem_ofPred_eq, not_exists, not_le] at hnb
+    simp only [Set.mem_ofPred_eq, not_exists, not_le] at hnb
     have hunif : ∀ x : BitString F.numVars,
         |(F.clauses.length : ℝ) / (s : ℝ) * ((F.sample ω).score x : ℝ) - (F.score x : ℝ)| ≤
           δ * (F.clauses.length : ℝ) := fun x => (hnb x).le
     exact hω ⟨fun _ hmax => F.optimum_sub_score_le_two_mul ω hunif hmax,
       F.abs_rescaled_optimum_sub_le ω hunif⟩
-  have hcompl := (Cslib.Probability.PMF.toOuterMeasure_toReal_mono (F.samplePMF hm s) hsub).trans
-    (F.exists_sample_score_abs_sub_ge_le hm s hδ)
   linarith
 
 /-- **Success probability `≥ 1 - η` for MAX-SAT subsampling under
@@ -356,42 +405,12 @@ end StructInstance
 
 /-! ### Parameterized encoding for `MaxCSPInstance` -/
 
-/-- Encoding of `MaxCSPInstance Rel ℕ` as `(numVars, constraints)` with unary `numVars` and
-constraints encoded by `encCSP` (`enc_structure` requires unparameterized structures, so this
-parameterized structure defines the identical field-pair embedding). -/
-@[expose] def encMaxCSPInstance {Rel : Type} (encRel : Rel ↪ List Bool) :
-    MaxCSPInstance Rel ℕ ↪ List Bool :=
-  ⟨fun F => encPair encUnary (encCSP encRel encNat) (F.numVars, F.constraints),
-    fun a b h => by
-      have h' := (encPair encUnary (encCSP encRel encNat)).injective h
-      cases a; cases b; simp_all⟩
+variable {Rel : Type} in
+/-- The framed unary variable count followed by the constraints encoded by `encCSP`. -/
+enc_structure encMaxCSPInstance (encRel : Rel ↪ List Bool) : MaxCSPInstance Rel ℕ where
+  numVars : encUnary, constraints : (encCSP encRel encNat)
 
-@[simp]
-theorem encMaxCSPInstance_apply {Rel : Type} (encRel : Rel ↪ List Bool)
-    (F : MaxCSPInstance Rel ℕ) :
-    encMaxCSPInstance encRel F =
-      encPair encUnary (encCSP encRel encNat) (F.numVars, F.constraints) :=
-  rfl
-
-@[fun_prop]
-theorem computableInPolyTime_maxCSP_numVars {Rel γ : Type} {encIn : γ ↪ List Bool}
-    {encRel : Rel ↪ List Bool} {g : γ → MaxCSPInstance Rel ℕ}
-    (hg : ComputableInPolyTime g encIn (encMaxCSPInstance encRel)) :
-    ComputableInPolyTime (fun a => (g a).numVars) encIn encUnary := by
-  have hpair : ComputableInPolyTime (fun F : MaxCSPInstance Rel ℕ => (F.numVars, F.constraints))
-      (encMaxCSPInstance encRel) (encPair encUnary (encCSP encRel encNat)) :=
-    ComputableInPolyTime.of_eq fun _ => rfl
-  exact (fst encUnary (encCSP encRel encNat)).comp (hpair.comp hg)
-
-@[fun_prop]
-theorem computableInPolyTime_maxCSP_constraints {Rel γ : Type} {encIn : γ ↪ List Bool}
-    {encRel : Rel ↪ List Bool} {g : γ → MaxCSPInstance Rel ℕ}
-    (hg : ComputableInPolyTime g encIn (encMaxCSPInstance encRel)) :
-    ComputableInPolyTime (fun a => (g a).constraints) encIn (encCSP encRel encNat) := by
-  have hpair : ComputableInPolyTime (fun F : MaxCSPInstance Rel ℕ => (F.numVars, F.constraints))
-      (encMaxCSPInstance encRel) (encPair encUnary (encCSP encRel encNat)) :=
-    ComputableInPolyTime.of_eq fun _ => rfl
-  exact ((snd encUnary (encCSP encRel encNat)).comp hpair).comp hg
+attribute [fun_prop] encMaxCSPInstance_numVars_polyTime encMaxCSPInstance_constraints_polyTime
 
 /-- Width-guarded compilation of a Boolean `MaxCSPInstance Rel ℕ` to a `StructInstance` via
 forbidden-pattern `CSP.toCNFBounded`. -/
@@ -402,15 +421,10 @@ forbidden-pattern `CSP.toCNFBounded`. -/
 @[fun_prop]
 theorem computableInPolyTime_maxCSPToStruct {Rel : Type} [Finite Rel] (encRel : Rel ↪ List Bool)
     (w : ℕ) (sem : Rel → List Bool → Bool) :
-    ComputableInPolyTime (maxCSPToStruct w sem) (encMaxCSPInstance encRel) encStructInstance := by
-  have hn : ComputableInPolyTime (fun F : MaxCSPInstance Rel ℕ => F.numVars)
-      (encMaxCSPInstance encRel) encUnary :=
-    computableInPolyTime_maxCSP_numVars ComputableInPolyTime.id'
-  have hc : ComputableInPolyTime (fun F : MaxCSPInstance Rel ℕ => F.constraints.toCNFBounded w sem)
-      (encMaxCSPInstance encRel) encCNF :=
-    (CSP.computableInPolyTime_toCNFBounded_of_finite encRel encNat w sem).comp
-      (computableInPolyTime_maxCSP_constraints ComputableInPolyTime.id')
-  exact encStructInstance_mk_polyTime hn hc
+    ComputableInPolyTime (maxCSPToStruct w sem) (encMaxCSPInstance encRel) encStructInstance :=
+  encStructInstance_mk_polyTime (encMaxCSPInstance_numVars_polyTime encRel .id')
+    ((CSP.computableInPolyTime_toCNFBounded_of_finite encRel encNat w sem).comp
+      (encMaxCSPInstance_constraints_polyTime encRel .id'))
 
 theorem optimum_maxCSPToStruct_add_length {Rel : Type} {w : ℕ} (sem : Rel → List Bool → Bool)
     {F : MaxCSPInstance Rel ℕ} (hw : ∀ c ∈ F.constraints, c.scope.length ≤ w) :
@@ -421,6 +435,17 @@ theorem optimum_maxCSPToStruct_add_length {Rel : Type} {w : ℕ} (sem : Rel → 
   dsimp only [StructInstance.toMaxCSP]
   rw [CSP.toCNFBounded_eq_toCNF hw]
   exact F.optimum_ofCNF_toCNF_add_length sem
+
+theorem score_maxCSPToStruct_add_length {Rel : Type} {w : ℕ} (sem : Rel → List Bool → Bool)
+    {F : MaxCSPInstance Rel ℕ} (hw : ∀ c ∈ F.constraints, c.scope.length ≤ w)
+    (x : BitString F.numVars) :
+    (maxCSPToStruct w sem F).score x + F.constraints.length =
+      (maxCSPToStruct w sem F).clauses.length + F.score sem x := by
+  dsimp only [maxCSPToStruct]
+  rw [← StructInstance.score_toMaxCSP]
+  dsimp only [StructInstance.toMaxCSP]
+  rw [CSP.toCNFBounded_eq_toCNF hw]
+  exact F.score_ofCNF_toCNF_add_length sem x
 
 /-! ### Polynomial-time threshold reduction to fixed-width `k`-SAT (`3 ≤ k`) -/
 
@@ -472,12 +497,10 @@ theorem thresholdVarBudget_mono : Monotone thresholdVarBudget := fun _ _ h => by
 theorem numVars_thresholdToCNF_le (q : ThresholdQuery) :
     (thresholdToCNF q).numVars ≤ thresholdVarBudget q.workSize := by
   have hnum := Compiler.numVars_toCNF_le (c := thresholdCircuit q.inst.toPair q.cutoff)
-    Boolean.interpretation (fun _ b => b)
-    (Circuit.fanInAtMost_of_arity_le Boolean.arity_le_two _)
+    Boolean.interpretation (fun _ b => b) (Circuit.fanInAtMost_of_arity_le Boolean.arity_le_two _)
   have hsize := size_thresholdCircuit_le q.inst.toPair q.cutoff
-  change (Compiler.toCNF (thresholdCircuit q.inst.toPair q.cutoff)
-      Boolean.interpretation (fun _ b => b)).numVars ≤
-    957 * workSize q.inst.toPair + 957
+  dsimp only [thresholdToCNF, Compiler.toSatCNF, thresholdVarBudget, ThresholdQuery.workSize,
+    StructInstance.workSize] at hnum ⊢
   omega
 
 /-- On an instance whose clauses all have width at most `w`, `thresholdToCNF q` uses at most
@@ -490,22 +513,21 @@ theorem numVars_thresholdToCNF_le_of_width {w : ℕ} (q : ThresholdQuery)
 
 /-- `thresholdToCNF q` has at most `8 * (numVars + 1)` clauses. -/
 theorem length_thresholdToCNF_le (q : ThresholdQuery) :
-    (thresholdToCNF q).length ≤ 8 * ((thresholdToCNF q).numVars + 1) :=
-  Compiler.length_toCNF_le_numVars Boolean.interpretation (fun _ b => b)
-    (Circuit.fanInAtMost_of_arity_le Boolean.arity_le_two _)
+    (thresholdToCNF q).length ≤ 8 * ((thresholdToCNF q).numVars + 1) := by
+  have h := Compiler.length_toCNF_le_numVars Boolean.interpretation (fun _ b => b)
+    (Circuit.fanInAtMost_of_arity_le Boolean.arity_le_two (thresholdCircuit q.inst.toPair q.cutoff))
+  simpa only [thresholdToCNF, Compiler.toSatCNF, Nat.reduceAdd, Nat.reducePow] using h
 
 /-- `thresholdToCNF` is computable in native polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_thresholdToCNF :
     ComputableInPolyTime thresholdToCNF encThresholdQuery encCNF := by
-  have hinst : ComputableInPolyTime ThresholdQuery.inst encThresholdQuery encStructInstance :=
-    encThresholdQuery_inst_polyTime ComputableInPolyTime.id'
-  have hpair : ComputableInPolyTime (fun q : ThresholdQuery => q.inst.toPair)
-      encThresholdQuery encInstance :=
-    (encStructInstance_numVars_polyTime hinst).prod (encStructInstance_clauses_polyTime hinst)
+  have hinst := encThresholdQuery_inst_polyTime ComputableInPolyTime.id'
   have htoQuery : ComputableInPolyTime (fun q : ThresholdQuery => (q.inst.toPair, q.cutoff))
       encThresholdQuery encQuery :=
-    hpair.prod (encThresholdQuery_cutoff_polyTime ComputableInPolyTime.id')
+    ((encStructInstance_numVars_polyTime hinst).prod
+      (encStructInstance_clauses_polyTime hinst)).prod
+      (encThresholdQuery_cutoff_polyTime ComputableInPolyTime.id')
   have hsat : ComputableInPolyTime
       (fun p : Query => Compiler.toSatCNF (thresholdCircuit p.1 p.2) Boolean.interpretation)
       encQuery encCNF :=
@@ -590,73 +612,58 @@ theorem FixedWidthSATSolver.exists_bruteForce (k : ℕ) :
       rw [Function.iterate_succ_apply', ih, List.range_succ, List.any_append, List.any_cons,
         List.any_nil, Bool.or_false]
   have hrounds_poly : ComputableInPolyTime bfRounds encCNF encNat :=
-    (ComputableInPolyTime.binary_two_pow.comp SAT.computableInPolyTime_numVars)
+    ComputableInPolyTime.binary_two_pow.comp SAT.computableInPolyTime_numVars
   have hinit_poly : ComputableInPolyTime bfInit encCNF encBf :=
     (ComputableInPolyTime.id'.prod (const 0)).prod (const false)
   have hstep_poly : ComputableInPolyTime bfStep encBf encBf := by
-    have hs1 : ComputableInPolyTime Prod.fst encBf (encPair encCNF encNat) := fst _ _
     have hφ : ComputableInPolyTime (fun s : BfState => s.1.1) encBf encCNF :=
-      (fst encCNF encNat).comp hs1
+      (fst encCNF encNat).comp (fst _ _)
     have hi : ComputableInPolyTime (fun s : BfState => s.1.2) encBf encNat :=
-      (snd encCNF encNat).comp hs1
-    have hb : ComputableInPolyTime Prod.snd encBf encBool := snd _ _
-    have hnext_i := binary_add' hi (const 1)
-    have heval := computableInPolyTime_eval_bitsAssignment.comp
-      ((hφ.prod (SAT.computableInPolyTime_distinctVars.comp hφ)).prod hi)
-    exact (hφ.prod hnext_i).prod (bool_or.comp (hb.prod heval))
+      (snd encCNF encNat).comp (fst _ _)
+    exact (hφ.prod (binary_add' hi (const 1))).prod
+      (bool_or.comp ((snd _ _).prod (computableInPolyTime_eval_bitsAssignment.comp
+        ((hφ.prod (SAT.computableInPolyTime_distinctVars.comp hφ)).prod hi))))
   obtain ⟨dn, _, hdn⟩ := hrounds_poly.exists_degree
   obtain ⟨di, _, hdi⟩ := hinit_poly.exists_degree
   obtain ⟨ds, _, hds⟩ := hstep_poly.exists_degree
   obtain ⟨cn, en, hnum_le⟩ := SAT.computableInPolyTime_numVars.polyBounded_length.exists_le
-  have hnv_le (φ : CNF ℕ) : φ.numVars ≤ cn * ((encCNF φ).length + 1) ^ en := by
-    simpa only [encUnary_apply, List.length_replicate] using hnum_le φ
   have hrounds_len (φ : CNF ℕ) : (encNat (bfRounds φ)).length = φ.numVars + 1 := by
-    dsimp only [bfRounds]
-    rw [length_encNat_two_pow]
+    dsimp only [bfRounds]; rw [length_encNat_two_pow]
   let B (φ : CNF ℕ) : ℕ :=
     2 * (2 * (encCNF φ).length + (cn * ((encCNF φ).length + 1) ^ en + 1) + 2) + 4
   have hstate (φ : CNF ℕ) (m : ℕ) (hm : m ≤ bfRounds φ) :
       (encBf (bfStep^[m] (bfInit φ))).length ≤ B φ := by
     have hm_len : (encNat m).length ≤ φ.numVars + 1 :=
       (length_encNat_mono hm).trans_eq (hrounds_len φ)
-    have hnv := hnv_le φ
+    have hnv : φ.numVars ≤ cn * ((encCNF φ).length + 1) ^ en := by
+      simpa only [encUnary_apply, List.length_replicate] using hnum_le φ
     rw [hiter]
     dsimp only [encBf, B]
     rw [length_encPair, length_encPair, encBool_apply, List.length_singleton]
-    dsimp only
-    omega
+    dsimp only; omega
   have hloop := ComputableInO.iterate hdn.inO hdi.inO hds.inO
     (R := fun φ => (B φ + 1) ^ ds) (Q := fun φ => (B φ + 1) ^ ds) (B := B)
     (fun φ m hm => Nat.pow_le_pow_left (Nat.add_le_add_right (hstate φ m hm) 1) ds)
     (fun φ m hm => Nat.pow_le_pow_left (Nat.add_le_add_right (hstate φ m hm) 1) ds)
     hstate
-  have hB_poly : PolyBounded (fun φ : CNF ℕ => (encCNF φ).length) B := by
-    have hL : PolyBounded (fun φ : CNF ℕ => (encCNF φ).length) (fun φ => (encCNF φ).length) := .self
-    have hN : PolyBounded (fun φ : CNF ℕ => (encCNF φ).length)
-        (fun φ => cn * ((encCNF φ).length + 1) ^ en + 1) :=
-      ((PolyBounded.const cn).mul ((hL.add (.const 1)).pow en)).add (.const 1)
-    exact ((PolyBounded.const 2).mul
-      (((PolyBounded.const 2).mul hL).add hN |>.add (.const 2))).add (.const 4)
+  have hL : PolyBounded (fun φ : CNF ℕ => (encCNF φ).length) (fun φ => (encCNF φ).length) := .self
+  have hL1 := hL.add (.const 1)
+  have hnvP : PolyBounded (fun φ : CNF ℕ => (encCNF φ).length) CNF.numVars :=
+    SAT.computableInPolyTime_numVars.polyBounded_length.mono fun φ => by
+      simp only [encUnary_apply, List.length_replicate, le_rfl]
+  have hB_poly : PolyBounded (fun φ : CNF ℕ => (encCNF φ).length) B :=
+    ((PolyBounded.const 2).mul (((PolyBounded.const 2).mul hL).add
+      (((PolyBounded.const cn).mul (hL1.pow en)).add (.const 1)) |>.add (.const 2))).add (.const 4)
   have hU_poly : PolyBounded (fun φ : CNF ℕ => (encCNF φ).length)
       (fun φ => ((encCNF φ).length + 1) ^ dn + ((encCNF φ).length + 1) ^ di +
-        2 * ((B φ + 1) ^ ds + B φ + (φ.numVars + 2) ^ 2)) := by
-    have hL : PolyBounded (fun φ : CNF ℕ => (encCNF φ).length) (fun φ => (encCNF φ).length) := .self
-    have hL1 := hL.add (.const 1)
-    have hnvP : PolyBounded (fun φ : CNF ℕ => (encCNF φ).length) (fun φ => φ.numVars + 2) :=
-      (SAT.computableInPolyTime_numVars.polyBounded_length.mono fun φ => by
-        simp only [encUnary_apply, List.length_replicate, le_rfl]).add (.const 2)
-    exact ((hL1.pow dn).add (hL1.pow di)).add
-      ((PolyBounded.const 2).mul ((((hB_poly.add (.const 1)).pow ds).add hB_poly).add (hnvP.pow 2)))
+        2 * ((B φ + 1) ^ ds + B φ + (φ.numVars + 2) ^ 2)) :=
+    ((hL1.pow dn).add (hL1.pow di)).add ((PolyBounded.const 2).mul
+      ((((hB_poly.add (.const 1)).pow ds).add hB_poly).add ((hnvP.add (.const 2)).pow 2)))
   have hV_poly : PolyBounded (fun φ : CNF ℕ => (encCNF φ).length)
       (fun φ => ((encCNF φ).length + 1) ^ dn + ((encCNF φ).length + 1) ^ di +
-        (B φ + 1) ^ ds + B φ + (φ.numVars + 1)) := by
-    have hL : PolyBounded (fun φ : CNF ℕ => (encCNF φ).length) (fun φ => (encCNF φ).length) := .self
-    have hL1 := hL.add (.const 1)
-    have hnvP : PolyBounded (fun φ : CNF ℕ => (encCNF φ).length) (fun φ => φ.numVars + 1) :=
-      (SAT.computableInPolyTime_numVars.polyBounded_length.mono fun φ => by
-        simp only [encUnary_apply, List.length_replicate, le_rfl]).add (.const 1)
-    exact ((((hL1.pow dn).add (hL1.pow di)).add ((hB_poly.add (.const 1)).pow ds)).add hB_poly).add
-      hnvP
+        (B φ + 1) ^ ds + B φ + (φ.numVars + 1)) :=
+    ((((hL1.pow dn).add (hL1.pow di)).add ((hB_poly.add (.const 1)).pow ds)).add hB_poly).add
+      (hnvP.add (.const 1))
   obtain ⟨cU, dU, hU⟩ := hU_poly.exists_le
   obtain ⟨cV, dV, hV⟩ := hV_poly.exists_le
   have hloop_std : ComputableInO (fun φ => bfStep^[bfRounds φ] (bfInit φ)) encCNF encBf
@@ -665,41 +672,34 @@ theorem FixedWidthSATSolver.exists_bruteForce (k : ℕ) :
     refine hloop.mono (cU + cV + 1) (fun φ => ?_) (fun φ => ?_)
     · have hN1 : 1 ≤ 2 ^ φ.numVars := Nat.one_le_two_pow
       have h2N : bfRounds φ + 1 ≤ 2 * 2 ^ φ.numVars := by dsimp only [bfRounds]; omega
-      have hrl : (encNat (bfRounds φ)).length + 1 = φ.numVars + 2 := by
-        rw [hrounds_len φ]
       calc ((encCNF φ).length + 1) ^ dn + ((encCNF φ).length + 1) ^ di +
             (bfRounds φ + 1) * ((B φ + 1) ^ ds + B φ + ((encNat (bfRounds φ)).length + 1) ^ 2)
           ≤ 2 ^ φ.numVars * (((encCNF φ).length + 1) ^ dn + ((encCNF φ).length + 1) ^ di +
               2 * ((B φ + 1) ^ ds + B φ + (φ.numVars + 2) ^ 2)) := by
-            rw [hrl,
-              show 2 ^ φ.numVars * (((encCNF φ).length + 1) ^ dn + ((encCNF φ).length + 1) ^ di +
-                  2 * ((B φ + 1) ^ ds + B φ + (φ.numVars + 2) ^ 2)) =
-                2 ^ φ.numVars * (((encCNF φ).length + 1) ^ dn + ((encCNF φ).length + 1) ^ di) +
-                  (2 * 2 ^ φ.numVars) * ((B φ + 1) ^ ds + B φ + (φ.numVars + 2) ^ 2) by ring]
-            exact Nat.add_le_add (Nat.le_mul_of_pos_left _ hN1) (Nat.mul_le_mul_right _ h2N)
+            rw [hrounds_len]
+            exact (Nat.add_le_add (Nat.le_mul_of_pos_left _ hN1)
+              (Nat.mul_le_mul_right _ h2N)).trans_eq (by ring)
         _ ≤ 2 ^ φ.numVars * (cU * ((encCNF φ).length + 1) ^ dU) :=
-            Nat.mul_le_mul_left (2 ^ φ.numVars) (hU φ)
+            Nat.mul_le_mul_left _ (hU φ)
         _ = cU * (2 ^ φ.numVars * ((encCNF φ).length + 1) ^ dU) := by ring
         _ ≤ (cU + cV + 1) * (2 ^ φ.numVars * ((encCNF φ).length + 1) ^ dU + 1) :=
-            Nat.mul_le_mul (by omega) (by omega)
+            Nat.mul_le_mul (by omega) (Nat.le_succ _)
     · calc ((encCNF φ).length + 1) ^ dn + ((encCNF φ).length + 1) ^ di +
             (B φ + 1) ^ ds + B φ + (encNat (bfRounds φ)).length
           = ((encCNF φ).length + 1) ^ dn + ((encCNF φ).length + 1) ^ di +
               (B φ + 1) ^ ds + B φ + (φ.numVars + 1) := by rw [hrounds_len]
         _ ≤ cV * ((encCNF φ).length + 1) ^ dV := hV φ
         _ ≤ (cU + cV + 1) * (((encCNF φ).length + 1) ^ dV + 1) :=
-            Nat.mul_le_mul (by omega) (by omega)
+            Nat.mul_le_mul (by omega) (Nat.le_succ _)
   obtain ⟨d, hsearch_inO⟩ := hloop_std.polynomial_postprocessing
     (snd (encPair encCNF encNat) encBool) (fun _ => Nat.one_le_two_pow)
   have hsearch_eq : BruteForce.search =
       Prod.snd ∘ fun φ : CNF ℕ => bfStep^[bfRounds φ] (bfInit φ) := by
     funext φ
     simp only [Function.comp_apply, hiter, BruteForce.search, bfRounds, CNF.length_distinctVars]
-  refine ⟨⟨BruteForce.search, fun n => 2 ^ n, d, d, ?_, fun _ => Nat.one_le_two_pow,
-    fun _ _ hxy => Nat.pow_le_pow_right (by norm_num) hxy,
+  refine ⟨⟨BruteForce.search, fun n => 2 ^ n, d, d, fun φ _ => BruteForce.search_eq_true_iff φ,
+    fun _ => Nat.one_le_two_pow, fun _ _ => Nat.pow_le_pow_right (by decide),
     hsearch_inO.of_enc_eq fun φ => by rw [hsearch_eq]⟩, rfl, rfl⟩
-  intro φ _
-  exact BruteForce.search_eq_true_iff φ
 
 /-- Recover the optimum from the list of feasibility booleans at cutoffs `0, …, m + 1`. -/
 @[expose] def optimumFromDecisions (decisions : List Bool) : ℕ :=
@@ -724,18 +724,14 @@ theorem computableInPolyTime_optimumFromDecisions :
 
 private theorem computableInPolyTime_structWorkSize :
     ComputableInPolyTime StructInstance.workSize encStructInstance encUnary := by
-  have hcl : ComputableInPolyTime StructInstance.clauses encStructInstance
-      (encList (encList (encPair encNat encBool))) :=
-    encStructInstance_clauses_polyTime ComputableInPolyTime.id'
+  have hcl := encStructInstance_clauses_polyTime ComputableInPolyTime.id'
+  have hflat : ComputableInPolyTime (fun F : StructInstance => F.clauses.flatten)
+      encStructInstance (encList (encPair encNat encBool)) := by
+    simpa only [List.flatten_eq_flatMap] using flatMapWithInput hcl (snd _ _)
   have hvars_len : ComputableInPolyTime (fun F : StructInstance => F.clauses.vars.length)
-      encStructInstance encUnary := by
-    have hflat : ComputableInPolyTime (fun F : StructInstance => F.clauses.flatten)
-        encStructInstance (encList (encPair encNat encBool)) :=
-      by
-      simpa only [List.flatten_eq_flatMap] using
-        (flatMapWithInput hcl (snd _ _))
-    refine ((length_list (encPair encNat encBool)).comp hflat).of_enc_eq fun F => ?_
-    simp only [Function.comp_apply, CNF.vars, List.length_map]
+      encStructInstance encUnary :=
+    ((length_list (encPair encNat encBool)).comp hflat).of_enc_eq fun F => by
+      simp only [Function.comp_apply, CNF.vars, List.length_map]
   exact unary_add' hvars_len ((length_list (encList (encPair encNat encBool))).comp hcl)
 
 private theorem computableInPolyTime_thresholdQueries :
@@ -744,6 +740,15 @@ private theorem computableInPolyTime_thresholdQueries :
         (List.range (F.clauses.length + 2)).map fun q => thresholdToCNF ⟨F, q⟩)
       encStructInstance (encList encCNF) := by
   fun_prop
+
+private theorem map_thresholdToCNF_eq {f : CNF ℕ → Bool} (F : StructInstance)
+    (hf : ∀ q, f (thresholdToCNF ⟨F, q⟩) = true ↔ (thresholdToCNF ⟨F, q⟩).Satisfiable) :
+    ((List.range (F.clauses.length + 2)).map fun q => thresholdToCNF ⟨F, q⟩).map f =
+      (List.range (F.clauses.length + 2)).map fun q => decide (q ≤ F.optimum) := by
+  rw [List.map_map]
+  exact List.map_congr_left fun q _ => by
+    rw [Function.comp_apply, Bool.eq_iff_iff, hf q, satisfiable_thresholdToCNF_iff,
+      decide_eq_true_eq]
 
 /-- **Native MAX-SAT optimization from a supplied fixed-width SAT solver (`3 ≤ k`).** -/
 theorem FixedWidthSATSolver.exists_optimum_algorithm {k : ℕ} (hk : 3 ≤ k)
@@ -755,19 +760,12 @@ theorem FixedWidthSATSolver.exists_optimum_algorithm {k : ℕ} (hk : 3 ≤ k)
   let encP := encPair encStructInstance encCNF
   let guard (p : StructInstance × CNF ℕ) : Bool :=
     decide (p.2.numVars ≤ thresholdVarBudget p.1.workSize)
-  have hguard : ComputableInPolyTime guard encP encBool := by
-    have hlhs := SAT.computableInPolyTime_numVars.comp (snd encStructInstance encCNF)
-    have hrhs : ComputableInPolyTime
-        (fun p : StructInstance × CNF ℕ => thresholdVarBudget p.1.workSize) encP encUnary :=
-      unary_add' (unary_mul' (const 957)
-        (computableInPolyTime_structWorkSize.comp (fst encStructInstance encCNF))) (const 957)
-    exact unary_le' hlhs hrhs
+  have hguard : ComputableInPolyTime guard encP encBool :=
+    unary_le' (SAT.computableInPolyTime_numVars.comp (snd encStructInstance encCNF))
+      (unary_add' (unary_mul' (const 957)
+        (computableInPolyTime_structWorkSize.comp (fst encStructInstance encCNF))) (const 957))
   obtain ⟨dg, _, hguard_deg⟩ := hguard.exists_degree
-  have hsolve_snd : ComputableInO (fun p : StructInstance × CNF ℕ => solver.solve p.2)
-      encP encBool
-      (fun p => (encP p).length + solver.timeRate p.2.numVars * ((encCNF p.2).length + 1) ^
-        solver.timeExp)
-      (fun p => (encP p).length + ((encCNF p.2).length + 1) ^ solver.spaceExp) :=
+  have hsolve_snd :=
     solver.computable.comp (ComputableInDegree.snd encStructInstance encCNF).inO_one
   have hite := hguard_deg.inO.ite hsolve_snd (ComputableInO.const false)
   let eMax := max dg (max solver.timeExp 1)
@@ -776,38 +774,37 @@ theorem FixedWidthSATSolver.exists_optimum_algorithm {k : ℕ} (hk : 3 ≤ k)
       ((encCNF p.2).length + 1) ^ exp ≤ ((encP p).length + 1) ^ max dg (max exp 1) :=
     (Nat.pow_le_pow_left (Nat.add_le_add_right (length_le_encPair_right _ _ p) 1) _).trans
       (Nat.pow_le_pow_right (Nat.le_add_left 1 _) (hexp.trans (le_max_right dg _)))
+  have hle (p : StructInstance × CNF ℕ) (R exp : ℕ) (hR : 1 ≤ R) :
+      ((encP p).length + 1) ^ dg ≤ R * ((encP p).length + 1) ^ max dg (max exp 1) ∧
+        (encP p).length ≤ R * ((encP p).length + 1) ^ max dg (max exp 1) := by
+    set L := (encP p).length
+    have hL1 : 1 ≤ L + 1 := Nat.le_add_left 1 L
+    refine ⟨(Nat.pow_le_pow_right hL1 (le_max_left _ _)).trans (Nat.le_mul_of_pos_left _ hR), ?_⟩
+    have h2 := (Nat.pow_le_pow_right hL1 ((le_max_right exp 1).trans (le_max_right dg _))).trans
+      (Nat.le_mul_of_pos_left _ hR)
+    rw [pow_one] at h2
+    omega
   have hanswer : ComputableInO
       (fun p : StructInstance × CNF ℕ => if guard p then solver.solve p.2 else false)
       encP encBool
       (fun p => solver.timeRate (thresholdVarBudget p.1.workSize) * ((encP p).length + 1) ^ eMax)
       (fun p => ((encP p).length + 1) ^ bMax) := by
     refine hite.mono 3 (fun p => ?_) (fun p => ?_)
-    · set L := (encP p).length
-      have hL1 : 1 ≤ L + 1 := Nat.le_add_left 1 L
-      have hR1 : 1 ≤ solver.timeRate (thresholdVarBudget p.1.workSize) :=
-        solver.one_le_timeRate _
-      have hdg : (L + 1) ^ dg ≤
-          solver.timeRate (thresholdVarBudget p.1.workSize) * (L + 1) ^ eMax :=
-        (Nat.pow_le_pow_right hL1 (le_max_left dg _)).trans (Nat.le_mul_of_pos_left _ hR1)
-      have hLlin : L ≤ solver.timeRate (thresholdVarBudget p.1.workSize) * (L + 1) ^ eMax := by
-        have h1 : L ≤ (L + 1) ^ 1 := by simp only [pow_one]; omega
-        exact (h1.trans (Nat.pow_le_pow_right hL1
-          ((le_max_right _ _).trans (le_max_right dg _)))).trans (Nat.le_mul_of_pos_left _ hR1)
+    · obtain ⟨hdg, hL⟩ := hle p (solver.timeRate (thresholdVarBudget p.1.workSize))
+        solver.timeExp (solver.one_le_timeRate _)
+      dsimp only [encP, eMax] at hdg hL ⊢
       split_ifs with hg_true
-      · have hnv : p.2.numVars ≤ thresholdVarBudget p.1.workSize := of_decide_eq_true hg_true
-        have hmul := Nat.mul_le_mul (solver.mono_timeRate hnv)
+      · have hmul := Nat.mul_le_mul (solver.mono_timeRate (of_decide_eq_true hg_true))
           (henc_pow p solver.timeExp (le_max_left _ 1))
-        nlinarith
-      · nlinarith
-    · set L := (encP p).length
-      have hL1 : 1 ≤ L + 1 := Nat.le_add_left 1 L
-      have hdg : (L + 1) ^ dg ≤ (L + 1) ^ bMax := Nat.pow_le_pow_right hL1 (le_max_left dg _)
-      have hLlin : L ≤ (L + 1) ^ bMax := by
-        have h1 : L ≤ (L + 1) ^ 1 := by simp only [pow_one]; omega
-        exact h1.trans (Nat.pow_le_pow_right hL1 ((le_max_right _ _).trans (le_max_right dg _)))
+        dsimp only [encP, eMax] at hmul
+        omega
+      · omega
+    · obtain ⟨hdg, hL⟩ := hle p 1 solver.spaceExp le_rfl
+      rw [one_mul] at hdg hL
+      dsimp only [encP, bMax] at hdg hL ⊢
       split_ifs
-      · have hpow : ((encCNF p.2).length + 1) ^ solver.spaceExp ≤ (L + 1) ^ bMax :=
-          henc_pow p solver.spaceExp (le_max_left _ 1)
+      · have hpow := henc_pow p solver.spaceExp (le_max_left _ 1)
+        dsimp only [encP, bMax] at hpow
         omega
       · omega
   obtain ⟨d₁, hlist⟩ := ComputableInO.polynomial_queries
@@ -816,18 +813,13 @@ theorem FixedWidthSATSolver.exists_optimum_algorithm {k : ℕ} (hk : 3 ≤ k)
   obtain ⟨d₂, hpost⟩ := hlist.polynomial_postprocessing
     computableInPolyTime_optimumFromDecisions (fun _ => solver.one_le_timeRate _)
   refine ⟨d₂, hpost.of_enc_eq fun F => ?_⟩
-  have hmap_eq :
-      ((List.range (F.clauses.length + 2)).map (fun q => thresholdToCNF ⟨F, q⟩)).map
-        (fun φ => if guard (F, φ) then solver.solve φ else false) =
-      (List.range (F.clauses.length + 2)).map (fun q => decide (q ≤ F.optimum)) := by
-    rw [List.map_map]
-    refine List.map_congr_left fun q _ => ?_
-    have hgq : guard (F, thresholdToCNF ⟨F, q⟩) = true :=
-      decide_eq_true (numVars_thresholdToCNF_le ⟨F, q⟩)
-    simp only [Function.comp_apply, hgq, ↓reduceIte]
-    rw [Bool.eq_iff_iff, solver.correct _ (fun _ hcl =>
-      (length_clause_mem_thresholdToCNF ⟨F, q⟩ hcl).trans hk),
-      satisfiable_thresholdToCNF_iff, decide_eq_true_eq]
+  have hmap_eq :=
+    map_thresholdToCNF_eq (f := fun φ => if guard (F, φ) then solver.solve φ else false)
+      F fun q => by
+      have hgq : guard (F, thresholdToCNF ⟨F, q⟩) = true :=
+        decide_eq_true (numVars_thresholdToCNF_le ⟨F, q⟩)
+      simp only [hgq, ↓reduceIte]
+      exact solver.correct _ fun _ hcl => (length_clause_mem_thresholdToCNF ⟨F, q⟩ hcl).trans hk
   simp only [Function.comp_apply, hmap_eq, optimumFromDecisions_threshold]
 
 /-- **Polynomial-time exact MAX-SAT optimization from a polynomial-time `k`-SAT decider (`3 ≤ k`).**
@@ -838,115 +830,20 @@ theorem computableInPolyTime_optimum_of_KSAT {k : ℕ} (hk : 3 ≤ k) {solveKSAT
     ComputableInPolyTime StructInstance.optimum encStructInstance encNat := by
   have hmap := (ComputableInPolyTime.map hpoly).comp computableInPolyTime_thresholdQueries
   refine (computableInPolyTime_optimumFromDecisions.comp hmap).of_enc_eq fun F => ?_
-  have hdec : ((List.range (F.clauses.length + 2)).map fun q => thresholdToCNF ⟨F, q⟩).map solveKSAT
-      = (List.range (F.clauses.length + 2)).map (fun q => decide (q ≤ F.optimum)) := by
-    rw [List.map_map]
-    refine List.map_congr_left fun q _ => ?_
-    rw [Function.comp_apply, Bool.eq_iff_iff, hspec _ (fun _ hcl =>
-      (length_clause_mem_thresholdToCNF ⟨F, q⟩ hcl).trans hk),
-      satisfiable_thresholdToCNF_iff, decide_eq_true_eq]
+  have hdec := map_thresholdToCNF_eq (f := solveKSAT) F fun q =>
+    hspec _ fun _ hcl => (length_clause_mem_thresholdToCNF ⟨F, q⟩ hcl).trans hk
   simp only [Function.comp_apply, hdec, optimumFromDecisions_threshold]
 
-/-! ### `O(log m)`-query `TimeM` binary-search optimization and sparse-subsampling transfer -/
+/-- **Class-level corollary:** if `KSAT k ∈ P encCNF` (`3 ≤ k`), then `StructInstance.optimum` is
+computable in polynomial time. -/
+theorem computableInPolyTime_optimum_of_KSAT_mem_P {k : ℕ} (hk : 3 ≤ k)
+    (hKSAT : KSAT k ∈ P encCNF) :
+    ComputableInPolyTime StructInstance.optimum encStructInstance encNat := by
+  obtain ⟨solveKSAT, hpoly, hmem⟩ := hKSAT
+  exact computableInPolyTime_optimum_of_KSAT hk hpoly fun φ hcl =>
+    (hmem φ).symm.trans ⟨fun h => h.2, fun h => ⟨hcl, h⟩⟩
 
-/-- Exact MAX-SAT optimization by binary search on `[1, m + 1)` using a supplied `k`-SAT oracle
-`solveM : CNF ℕ → TimeM ℕ Bool`. -/
-def optimumByBinarySearchM (solveM : CNF ℕ → TimeM ℕ Bool) (F : StructInstance) : TimeM ℕ ℕ := do
-  let k ← lowerBoundM (fun q => solveM (thresholdToCNF ⟨F, q⟩)) 1 (F.clauses.length + 1)
-  return k - 1
-
-/-- **Correctness of binary-search optimization:** for any `k`-SAT oracle (`3 ≤ k`),
-`optimumByBinarySearchM` returns `F.optimum`. -/
-theorem optimumByBinarySearchM_ret {k : ℕ} (hk : 3 ≤ k) {solveM : CNF ℕ → TimeM ℕ Bool}
-    (hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → ((solveM φ).ret = true ↔ φ.Satisfiable))
-    (F : StructInstance) :
-    (optimumByBinarySearchM solveM F).ret = F.optimum := by
-  let probe (q : ℕ) : TimeM ℕ Bool := solveM (thresholdToCNF ⟨F, q⟩)
-  have hprobe (q : ℕ) : (probe q).ret = true ↔ q ≤ F.optimum := by
-    rw [hspec _ (fun _ hcl => (length_clause_mem_thresholdToCNF ⟨F, q⟩ hcl).trans hk),
-      satisfiable_thresholdToCNF_iff]
-  have hmono : ∀ m m', 1 ≤ m → m ≤ m' → m' < F.clauses.length + 1 →
-      (probe m').ret = true → (probe m).ret = true := by
-    intro m m' _ hmm' _ hm'
-    exact (hprobe m).mpr (hmm'.trans ((hprobe m').mp hm'))
-  obtain ⟨hlo, hhi, htrue, hfalse⟩ :=
-    lowerBoundM_spec probe (lo := 1) (hi := F.clauses.length + 1) hmono
-  have hopt_le : F.optimum ≤ F.clauses.length := optimum_le (F.numVars, F.clauses)
-  simp only [optimumByBinarySearchM, TimeM.ret_bind, TimeM.ret_pure]
-  set r := (lowerBoundM probe 1 (F.clauses.length + 1)).ret
-  have hr_hi : r ≤ F.clauses.length + 1 := by omega
-  by_cases hr1 : r = 1
-  · rw [hr1]
-    rcases Nat.eq_zero_or_pos F.clauses.length with hm0 | hmpos
-    · omega
-    · have hf := hfalse 1 (by omega) (by omega)
-      have hnot : ¬ (1 ≤ F.optimum) := fun h => by
-        rw [(hprobe 1).mpr h] at hf
-        exact Bool.noConfusion hf
-      omega
-  · have hr_gt : 1 < r := by omega
-    have hge : r - 1 ≤ F.optimum := (hprobe (r - 1)).mp (htrue (r - 1) (by omega) (by omega))
-    by_cases hrm : r = F.clauses.length + 1
-    · omega
-    · have hf := hfalse r le_rfl (by omega)
-      have hnot : ¬ (r ≤ F.optimum) := fun h => by
-        rw [(hprobe r).mpr h] at hf
-        exact Bool.noConfusion hf
-      omega
-
-/-- **Query-cost bound for binary-search optimization:** if `solveM` costs at most `C` ticks on
-every 3-CNF of at most `thresholdVarBudget F.workSize` variables, then `optimumByBinarySearchM`
-costs at most `C * (Nat.log 2 F.clauses.length + 1)` ticks (`≤ ⌊log₂ m⌋ + 1` solver calls). -/
-theorem optimumByBinarySearchM_time_le {solveM : CNF ℕ → TimeM ℕ Bool} (F : StructInstance)
-    {C : ℕ}
-    (hcost : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ 3) → φ.numVars ≤ thresholdVarBudget F.workSize →
-      (solveM φ).time ≤ C) :
-    (optimumByBinarySearchM solveM F).time ≤ C * (Nat.log 2 F.clauses.length + 1) := by
-  simp only [optimumByBinarySearchM, TimeM.time_bind, TimeM.time_pure, add_zero]
-  have h := lowerBoundM_time_le (fun q => solveM (thresholdToCNF ⟨F, q⟩))
-    (fun q => hcost _ (fun _ hcl => length_clause_mem_thresholdToCNF ⟨F, q⟩ hcl)
-      (numVars_thresholdToCNF_le ⟨F, q⟩))
-    1 (F.clauses.length + 1)
-  simpa only [Nat.add_sub_cancel_right] using h
-
-/-- **End-to-end subsampled sparse MAX-`w`-SAT optimization via a supplied fixed-width SAT solver.**
-Drawing `s` clauses uniformly from `F` (`0 < F.clauses.length`, clause width `≤ w`) and running
-`optimumByBinarySearchM solveM (F.sample ω)` (`3 ≤ k`):
-1. invokes `solveM` only on 3-CNFs of at most `thresholdVarBudget ((w + 1) * s)` variables, within
-   total cost
-   `C * (Nat.log 2 s + 1)` when `solveM` costs `≤ C` on such formulas; and
-2. with probability at least `1 - 2 ^ (F.numVars + 1) * exp (-2 * s * δ ^ 2)`, estimates `F.optimum`
-   within `δ * m` after `(m / s)` rescaling and certifies `2 * δ * m` optimality loss for every
-   sampled maximizer. -/
-theorem sample_optimumByBinarySearchM_spec {k w : ℕ} (hk : 3 ≤ k)
-    {solveM : CNF ℕ → TimeM ℕ Bool}
-    (hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → ((solveM φ).ret = true ↔ φ.Satisfiable))
-    {F : StructInstance} (hm : 0 < F.clauses.length) (hw : ∀ c ∈ F.clauses, c.length ≤ w)
-    (s : ℕ) {C : ℕ}
-    (hcost : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ 3) → φ.numVars ≤ thresholdVarBudget ((w + 1) * s) →
-      (solveM φ).time ≤ C)
-    {δ : ℝ} (hδ : 0 ≤ δ) :
-    (∀ ω : Fin s → Fin F.clauses.length,
-      (optimumByBinarySearchM solveM (F.sample ω)).time ≤ C * (Nat.log 2 s + 1)) ∧
-    1 - 2 ^ (F.numVars + 1) * Real.exp (-2 * (s : ℝ) * δ ^ 2) ≤
-      ((F.samplePMF hm s).toOuterMeasure
-        {ω | (∀ xHat : BitString F.numVars,
-            (∀ x, (F.sample ω).score x ≤ (F.sample ω).score xHat) →
-              (F.optimum : ℝ) - (F.score xHat : ℝ) ≤ 2 * δ * (F.clauses.length : ℝ)) ∧
-          |(F.clauses.length : ℝ) / (s : ℝ) *
-              ((optimumByBinarySearchM solveM (F.sample ω)).ret : ℝ) -
-            (F.optimum : ℝ)| ≤ δ * (F.clauses.length : ℝ)}).toReal := by
-  refine ⟨fun ω => ?_, ?_⟩
-  · have ht := optimumByBinarySearchM_time_le (F.sample ω) (C := C) fun φ h3 hvars =>
-      hcost φ h3 (hvars.trans (thresholdVarBudget_mono (F.workSize_sample_le_of_width hw ω)))
-    simpa only [StructInstance.sample, List.length_ofFn] using ht
-  · have hret : ∀ ω : Fin s → Fin F.clauses.length,
-        (optimumByBinarySearchM solveM (F.sample ω)).ret = (F.sample ω).optimum :=
-      fun ω => optimumByBinarySearchM_ret hk hspec (F.sample ω)
-    simp_rw [hret]
-    exact F.one_sub_le_sample_good hm s hδ
-
-/-! ### Witness recovery by unit-clause prefix pinning (`⌊log₂ m⌋ + 1 + n` solver queries) -/
+/-! ### Witness recovery by unit-clause prefix pinning and native polynomial-time optimization -/
 
 private theorem eval_unit_clause_iff {n : ℕ} (x : BitString n) {j : ℕ} (hj : j < n) (bit : Bool) :
     Clause.eval (assignment n x) [(j, bit)] = true ↔ x ⟨j, hj⟩ = bit := by
@@ -957,9 +854,8 @@ private theorem le_optimum_append_iff (F : StructInstance) (acc : CNF ℕ) :
     acc.length + F.optimum ≤ (StructInstance.mk F.numVars (acc ++ F.clauses)).optimum ↔
       ∃ x : BitString F.numVars, F.score x = F.optimum ∧
         ∀ c ∈ acc, Clause.eval (assignment F.numVars x) c = true := by
-  rw [show (StructInstance.mk F.numVars (acc ++ F.clauses)).optimum =
-      optimum (F.numVars, acc ++ F.clauses) from rfl,
-    ← thresholdCount_pos_iff_le_optimum, thresholdCount_pos_iff]
+  change _ ≤ optimum (F.numVars, acc ++ F.clauses) ↔ _
+  rw [← thresholdCount_pos_iff_le_optimum, thresholdCount_pos_iff]
   refine exists_congr fun x => ?_
   have hscore : score (F.numVars, acc ++ F.clauses) x =
       acc.countP (Clause.eval (assignment F.numVars x)) + F.score x := by
@@ -968,232 +864,563 @@ private theorem le_optimum_append_iff (F : StructInstance) (acc : CNF ℕ) :
     List.countP_le_length
   have hle_opt : F.score x ≤ F.optimum := score_le_optimum F.toPair x
   rw [hscore]
-  refine ⟨fun h => ?_, fun ⟨hopt, hall⟩ => ?_⟩
-  · have heq_acc : acc.countP (Clause.eval (assignment F.numVars x)) = acc.length := by omega
-    exact ⟨by omega, List.countP_eq_length.mp heq_acc⟩
-  · rw [List.countP_eq_length.mpr hall, hopt]
+  exact ⟨fun h => ⟨by omega, List.countP_eq_length.mp (by omega)⟩,
+    fun ⟨hopt, hall⟩ => by rw [List.countP_eq_length.mpr hall, hopt]⟩
 
-private def recoverWitnessLoopM (solveM : CNF ℕ → TimeM ℕ Bool) (F : StructInstance)
-    (opt : ℕ) : ℕ → ℕ → CNF ℕ → (ℕ → Bool) → TimeM ℕ (ℕ → Bool)
-  | _, 0, _, σ => return σ
-  | i, rem + 1, acc, σ => do
-    let cand : CNF ℕ := [(i, true)] :: acc
-    let b ← solveM (thresholdToCNF ⟨⟨F.numVars, cand ++ F.clauses⟩, cand.length + opt⟩)
-    recoverWitnessLoopM solveM F opt (i + 1) rem ([(i, b)] :: acc)
-      (fun v => if v = i then b else σ v)
+/-- Unit-clause list pinning variables `0, …, bits.length - 1` to the entries of `bits`. -/
+private def pinnedClauses (bits : List Bool) : CNF ℕ :=
+  bits.zipIdx.map fun p => [(p.2, p.1)]
 
-private theorem recoverWitnessLoopM_spec {k : ℕ} (hk : 3 ≤ k)
-    {solveM : CNF ℕ → TimeM ℕ Bool}
-    (hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → ((solveM φ).ret = true ↔ φ.Satisfiable))
-    (F : StructInstance) {i rem : ℕ} (hi_rem : i + rem = F.numVars)
-    (acc : CNF ℕ) (σ : ℕ → Bool)
-    (hacc_mem : ∀ j < i, [(j, σ j)] ∈ acc)
-    (hinv : ∃ x : BitString F.numVars, F.score x = F.optimum ∧
-      ∀ c ∈ acc, Clause.eval (assignment F.numVars x) c = true) :
-    let σOut := (recoverWitnessLoopM solveM F F.optimum i rem acc σ).ret
-    F.score (fun j => σOut j.val) = F.optimum := by
-  induction rem generalizing i acc σ with
-  | zero =>
-    obtain ⟨x, hx_opt, hx_acc⟩ := hinv
-    have hi_eq : i = F.numVars := by omega
-    have hxeq : (fun j : Fin F.numVars => σ j.val) = x := by
-      funext j
-      have hj_mem : [(j.val, σ j.val)] ∈ acc := hacc_mem j.val (by omega)
-      exact ((eval_unit_clause_iff x j.isLt (σ j.val)).mp (hx_acc _ hj_mem)).symm
-    simp only [recoverWitnessLoopM, TimeM.ret_pure, hxeq, hx_opt]
-  | succ rem ih =>
-    have hi_lt : i < F.numVars := by omega
-    let cand : CNF ℕ := [(i, true)] :: acc
-    let qInst : StructInstance := ⟨F.numVars, cand ++ F.clauses⟩
-    have hprobe : (solveM (thresholdToCNF ⟨qInst, cand.length + F.optimum⟩)).ret = true ↔
-        ∃ x : BitString F.numVars, F.score x = F.optimum ∧
+private theorem length_pinnedClauses (bits : List Bool) :
+    (pinnedClauses bits).length = bits.length := by
+  simp [pinnedClauses]
+
+attribute [local simp] length_pinnedClauses
+
+private theorem length_vars_pinnedClauses (bits : List Bool) :
+    (pinnedClauses bits).vars.length = bits.length := by
+  simp [pinnedClauses, CNF.vars, Function.comp_def]
+
+private theorem eval_pinnedClauses_iff {n : ℕ} (x : BitString n) {bits : List Bool}
+    (hbits : bits.length ≤ n) :
+    (∀ c ∈ pinnedClauses bits, Clause.eval (assignment n x) c = true) ↔
+      ∀ j (hj : j < bits.length), x ⟨j, hj.trans_le hbits⟩ = bits[j] := by
+  constructor
+  · intro hall j hj
+    have hlen : j < (pinnedClauses bits).length := by simpa using hj
+    have hmem : (pinnedClauses bits)[j] ∈ pinnedClauses bits := List.getElem_mem hlen
+    have heq : (pinnedClauses bits)[j] = [(j, bits[j])] := by simp [pinnedClauses]
+    exact (eval_unit_clause_iff x (hj.trans_le hbits) bits[j]).mp (heq ▸ hall _ hmem)
+  · intro hx c hc
+    obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hc
+    have hj' : j < bits.length := by simpa using hj
+    have heq : (pinnedClauses bits)[j] = [(j, bits[j])] := by simp [pinnedClauses]
+    rw [heq]
+    exact (eval_unit_clause_iff x (hj'.trans_le hbits) bits[j]).mpr (hx j hj')
+
+private theorem eval_pinnedClauses_append_singleton {n : ℕ} (x : BitString n)
+    {bits : List Bool} (bit : Bool) (hbits : bits.length < n) :
+    (∀ c ∈ pinnedClauses (bits ++ [bit]), Clause.eval (assignment n x) c = true) ↔
+      (∀ c ∈ pinnedClauses bits, Clause.eval (assignment n x) c = true) ∧
+        x ⟨bits.length, hbits⟩ = bit := by
+  rw [eval_pinnedClauses_iff x (by simp; omega), eval_pinnedClauses_iff x hbits.le]
+  constructor
+  · intro hall
+    refine ⟨fun j hj => ?_, ?_⟩
+    · have h := hall j (by simp; omega)
+      simpa [List.getElem_append_left hj] using h
+    · have h := hall bits.length (by simp)
+      simpa [List.getElem_append_right (le_refl bits.length)] using h
+  · rintro ⟨hprev, hlast⟩ j hj
+    simp only [List.length_append, List.length_singleton] at hj
+    rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hj) with hlt | rfl
+    · simpa [List.getElem_append_left hlt] using hprev j hlt
+    · simpa [List.getElem_append_right (le_refl bits.length)] using hlast
+
+/-- Single step of unit-clause prefix pinning on `(F, opt)`: extend `bits` at variable
+`bits.length` with `true` if `thresholdToCNF` remains satisfiable at cutoff
+`(bits.length + 1) + opt`, and `false` otherwise. -/
+private def StructInstance.recoverStep (F : StructInstance) (solve : CNF ℕ → Bool) (opt : ℕ)
+    (bits : List Bool) : List Bool :=
+  let cand := pinnedClauses (bits ++ [true])
+  let b := solve (thresholdToCNF ⟨⟨F.numVars, cand ++ F.clauses⟩, cand.length + opt⟩)
+  bits ++ [b]
+
+/-- Recover `F.numVars` assignment bits at target optimum `opt` using `solve`. -/
+private def StructInstance.recoverBits (F : StructInstance) (solve : CNF ℕ → Bool) (opt : ℕ) :
+    List Bool :=
+  (F.recoverStep solve opt)^[F.numVars] []
+
+private theorem StructInstance.length_iterate_recoverStep (F : StructInstance)
+    (solve : CNF ℕ → Bool) (opt i : ℕ) (bits : List Bool) :
+    ((F.recoverStep solve opt)^[i] bits).length = bits.length + i := by
+  induction i generalizing bits with
+  | zero => simp
+  | succ i ih =>
+    rw [Function.iterate_succ_apply, ih]
+    simp only [StructInstance.recoverStep, List.length_append, List.length_singleton]
+    omega
+
+private theorem StructInstance.length_recoverBits (F : StructInstance) (solve : CNF ℕ → Bool)
+    (opt : ℕ) :
+    (F.recoverBits solve opt).length = F.numVars := by
+  simp [StructInstance.recoverBits, StructInstance.length_iterate_recoverStep]
+
+/-- Correctness of `StructInstance.recoverBits`: at `opt = F.optimum`, `F.recoverBits solve opt`
+returns an `F.numVars`-bit list achieving `F.score (BitString.ofList F.numVars ...) = F.optimum`
+for any `k`-SAT decider (`3 ≤ k`). -/
+private theorem StructInstance.recoverBits_score_eq_optimum {k : ℕ} (hk : 3 ≤ k)
+    {solve : CNF ℕ → Bool}
+    (hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → (solve φ = true ↔ φ.Satisfiable))
+    (F : StructInstance) :
+    F.score (BitString.ofList F.numVars (F.recoverBits solve F.optimum)) = F.optimum := by
+  have hstep_inv : ∀ (bits : List Bool), bits.length < F.numVars →
+      (∃ x : BitString F.numVars, F.score x = F.optimum ∧
+        ∀ c ∈ pinnedClauses bits, Clause.eval (assignment F.numVars x) c = true) →
+      ∃ x : BitString F.numVars, F.score x = F.optimum ∧
+        ∀ c ∈ pinnedClauses (F.recoverStep solve F.optimum bits),
+          Clause.eval (assignment F.numVars x) c = true := by
+    intro bits hlt hinv
+    let cand := pinnedClauses (bits ++ [true])
+    have hprobe : solve (thresholdToCNF ⟨⟨F.numVars, cand ++ F.clauses⟩, cand.length + F.optimum⟩) =
+        true ↔ ∃ x : BitString F.numVars, F.score x = F.optimum ∧
           ∀ c ∈ cand, Clause.eval (assignment F.numVars x) c = true := by
       rw [hspec _ (fun _ hcl => (length_clause_mem_thresholdToCNF _ hcl).trans hk),
         satisfiable_thresholdToCNF_iff]
       exact le_optimum_append_iff F cand
-    simp only [recoverWitnessLoopM, TimeM.ret_bind]
-    set b := (solveM (thresholdToCNF ⟨qInst, cand.length + F.optimum⟩)).ret
-    let σ' : ℕ → Bool := fun v => if v = i then b else σ v
-    have hacc' : ∀ j < i + 1, [(j, σ' j)] ∈ ([(i, b)] :: acc) := by
-      intro j hj
-      by_cases hji : j = i
-      · subst hji
-        simp only [σ', ↓reduceIte, List.mem_cons, true_or]
-      · have hj_lt : j < i := by omega
-        simp only [σ', hji, ↓reduceIte, List.mem_cons]
-        exact Or.inr (hacc_mem j hj_lt)
-    have hinv' : ∃ x : BitString F.numVars, F.score x = F.optimum ∧
-        ∀ c ∈ ([(i, b)] :: acc), Clause.eval (assignment F.numVars x) c = true := by
-      cases hb : b
-      · obtain ⟨x, hx_opt, hx_acc⟩ := hinv
-        have hxi : x ⟨i, hi_lt⟩ = false := by
-          by_contra hne
-          have hxtrue : x ⟨i, hi_lt⟩ = true := Bool.eq_true_of_not_eq_false hne
-          have hcand : ∀ c ∈ cand, Clause.eval (assignment F.numVars x) c = true := by
-            intro c hc
-            rcases List.mem_cons.mp hc with rfl | hmem
-            · exact (eval_unit_clause_iff x hi_lt true).mpr hxtrue
-            · exact hx_acc c hmem
-          have hbt : b = true := hprobe.mpr ⟨x, hx_opt, hcand⟩
-          rw [hb] at hbt
-          exact Bool.noConfusion hbt
-        refine ⟨x, hx_opt, fun c hc => ?_⟩
-        rcases List.mem_cons.mp hc with rfl | hmem
-        · exact (eval_unit_clause_iff x hi_lt false).mpr hxi
-        · exact hx_acc c hmem
-      · exact hprobe.mp hb
-    exact ih (by omega) ([(i, b)] :: acc) σ' hacc' hinv'
+    simp only [StructInstance.recoverStep]
+    set b := solve (thresholdToCNF ⟨⟨F.numVars, cand ++ F.clauses⟩, cand.length + F.optimum⟩)
+    cases hb : b
+    · obtain ⟨x, hx_opt, hx_bits⟩ := hinv
+      have hfalse : x ⟨bits.length, hlt⟩ = false :=
+        Bool.eq_false_iff.mpr fun hx_true =>
+          Bool.noConfusion (hb.symm.trans (hprobe.mpr ⟨x, hx_opt,
+            (eval_pinnedClauses_append_singleton x true hlt).mpr ⟨hx_bits, hx_true⟩⟩))
+      exact ⟨x, hx_opt, (eval_pinnedClauses_append_singleton x false hlt).mpr ⟨hx_bits, hfalse⟩⟩
+    · exact hprobe.mp hb
+  have hiter_inv : ∀ i ≤ F.numVars,
+      ∃ x : BitString F.numVars, F.score x = F.optimum ∧
+        ∀ c ∈ pinnedClauses ((F.recoverStep solve F.optimum)^[i] []),
+          Clause.eval (assignment F.numVars x) c = true := by
+    intro i hi
+    induction i with
+    | zero =>
+      obtain ⟨xStar, hxStar⟩ := exists_score_eq_optimum F.toPair
+      exact ⟨xStar, hxStar, fun _ hc => by simp [pinnedClauses] at hc⟩
+    | succ i ih =>
+      rw [Function.iterate_succ_apply']
+      exact hstep_inv _ (by simp [StructInstance.length_iterate_recoverStep]; omega) (ih (by omega))
+  obtain ⟨x, hx_opt, hx_all⟩ := hiter_inv F.numVars le_rfl
+  have hlen : (F.recoverBits solve F.optimum).length = F.numVars :=
+    F.length_recoverBits solve F.optimum
+  have hall := (eval_pinnedClauses_iff x hlen.le).mp hx_all
+  have hxeq : BitString.ofList F.numVars (F.recoverBits solve F.optimum) = x := by
+    funext j
+    have hj : j.val < (F.recoverBits solve F.optimum).length := by rw [hlen]; exact j.isLt
+    simp only [BitString.ofList, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem hj, Option.getD_some]
+    simpa using (hall j.val hj).symm
+  rw [hxeq, hx_opt]
 
-private theorem recoverWitnessLoopM_time_le {solveM : CNF ℕ → TimeM ℕ Bool}
-    (F : StructInstance) (opt : ℕ) {C : ℕ}
+/-- Native MAX-SAT optimization with witness recovery from a supplied SAT decider `solve`: computes
+`opt` from the `m + 2` threshold queries and recovers `F.numVars` assignment bits by unit-clause
+prefix pinning. -/
+def optimizeWith (solve : CNF ℕ → Bool) (F : StructInstance) : StructSolution :=
+  let opt := optimumFromDecisions
+    (((List.range (F.clauses.length + 2)).map fun q => thresholdToCNF ⟨F, q⟩).map solve)
+  ⟨opt, F.recoverBits solve opt⟩
+
+/-- **Correctness of `optimizeWith`:** for any `k`-SAT decider (`3 ≤ k`), `optimizeWith solve F`
+returns `optValue = F.optimum` and an `F.numVars`-bit list scoring `F.optimum`. -/
+theorem optimizeWith_spec {k : ℕ} (hk : 3 ≤ k) {solve : CNF ℕ → Bool}
+    (hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → (solve φ = true ↔ φ.Satisfiable))
+    (F : StructInstance) :
+    (optimizeWith solve F).optValue = F.optimum ∧
+      (optimizeWith solve F).assignmentBits.length = F.numVars ∧
+      F.score (BitString.ofList F.numVars (optimizeWith solve F).assignmentBits) = F.optimum := by
+  have hdec := map_thresholdToCNF_eq (f := solve) F fun q =>
+    hspec _ fun _ hcl => (length_clause_mem_thresholdToCNF ⟨F, q⟩ hcl).trans hk
+  have hopt : optimumFromDecisions
+      (((List.range (F.clauses.length + 2)).map fun q => thresholdToCNF ⟨F, q⟩).map solve) =
+      F.optimum := by
+    rw [hdec, optimumFromDecisions_threshold]
+  simp only [optimizeWith, hopt, StructInstance.length_recoverBits, true_and]
+  exact F.recoverBits_score_eq_optimum hk hspec
+
+@[fun_prop]
+private theorem computableInPolyTime_pinnedClauses :
+    ComputableInPolyTime pinnedClauses encBits encCNF :=
+  (ComputableInPolyTime.map
+    (by fun_prop : ComputableInPolyTime (fun p : Bool × ℕ => ([(p.2, p.1)] : Clause ℕ))
+      (encPair encBool encUnary) (encList (encPair encNat encBool)))).comp
+    ((zipIdx encBool).comp (bits_encList_polyTime encBool).1)
+
+private theorem computableInPolyTime_structRecoverStep {solve : CNF ℕ → Bool}
+    (hpoly : ComputableInPolyTime solve encCNF encBool) :
+    ComputableInPolyTime
+      (fun p : (StructInstance × ℕ) × List Bool => p.1.1.recoverStep solve p.1.2 p.2)
+      (encPair (encPair encStructInstance encUnary) encBits) encBits := by
+  let encPar := encPair encStructInstance encUnary
+  have hF := (fst encStructInstance encUnary).comp (fst encPar encBits)
+  have hopt := (snd encStructInstance encUnary).comp (fst encPar encBits)
+  have hbits := snd encPar encBits
+  have hcand := computableInPolyTime_pinnedClauses.comp (bitsAppend hbits (const [true]))
+  have hq := computableInPolyTime_thresholdToCNF.comp (encThresholdQuery_mk_polyTime
+    (encStructInstance_mk_polyTime (encStructInstance_numVars_polyTime hF)
+      (listAppend' hcand (encStructInstance_clauses_polyTime hF)))
+    (unary_add' ((length_list (encList (encPair encNat encBool))).comp hcand) hopt))
+  exact bitsAppend hbits
+    ((of_finite (fun bit : Bool => [bit]) (encIn := encBool) (encOut := encBits)).comp
+      (hpoly.comp hq))
+
+/-- **Polynomial-time closure for `optimizeWith`:** for any polynomial-time procedure `solve`,
+`optimizeWith solve` runs in polynomial time on multi-tape Turing machines (and when `solve`
+decides `k`-SAT for `3 ≤ k`, `optimizeWith_spec` certifies exact optimality of both the returned
+value and witness assignment). -/
+theorem computableInPolyTime_optimizeWith {solve : CNF ℕ → Bool}
+    (hpoly : ComputableInPolyTime solve encCNF encBool) :
+    ComputableInPolyTime (optimizeWith solve) encStructInstance encStructSolution := by
+  let optFn (F : StructInstance) : ℕ :=
+    optimumFromDecisions
+      (((List.range (F.clauses.length + 2)).map fun q => thresholdToCNF ⟨F, q⟩).map solve)
+  have hmap := (ComputableInPolyTime.map hpoly).comp computableInPolyTime_thresholdQueries
+  have hcnt : ComputableInPolyTime (fun bs : List Bool => bs.countP id)
+      (encList encBool) encUnary :=
+    countPWithInput (encA := encBool) ComputableInPolyTime.id' (snd (encList encBool) encBool)
+  have hoptU : ComputableInPolyTime optFn encStructInstance encUnary :=
+    (unary_sub' hcnt (const 1)).comp hmap
+  have hnv : ComputableInPolyTime StructInstance.numVars encStructInstance encUnary :=
+    encStructInstance_numVars_polyTime ComputableInPolyTime.id'
+  have hrec : ComputableInPolyTime (fun F : StructInstance => F.recoverBits solve (optFn F))
+      encStructInstance encBits :=
+    iterateWith (par := fun F : StructInstance => (F, optFn F))
+      (count := StructInstance.numVars) (init := fun _ => ([] : List Bool))
+      (step := fun p bits => p.1.recoverStep solve p.2 bits)
+      (ComputableInPolyTime.id'.prod hoptU) hnv (const [])
+      (computableInPolyTime_structRecoverStep hpoly) hnv.polyBounded
+      (fun F i hi => by simp [encBits_apply, StructInstance.length_iterate_recoverStep, hi])
+  exact encStructSolution_mk_polyTime (unary_to_binary.comp hoptU) hrec
+
+/-- **Class-level MAX-SAT witness optimization:** if `KSAT k ∈ P encCNF` (`3 ≤ k`), then both the
+exact MAX-SAT optimum and an optimal `F.numVars`-bit assignment are computable in polynomial time
+on multi-tape Turing machines. -/
+theorem exists_computableInPolyTime_optimize_of_KSAT_mem_P {k : ℕ} (hk : 3 ≤ k)
+    (hKSAT : KSAT k ∈ P encCNF) :
+    ∃ solveOpt : StructInstance → StructSolution,
+      ComputableInPolyTime solveOpt encStructInstance encStructSolution ∧
+      ∀ F : StructInstance,
+        (solveOpt F).optValue = F.optimum ∧
+        (solveOpt F).assignmentBits.length = F.numVars ∧
+        F.score (BitString.ofList F.numVars (solveOpt F).assignmentBits) = F.optimum := by
+  obtain ⟨solveKSAT, hpoly, hmem⟩ := hKSAT
+  have hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → (solveKSAT φ = true ↔ φ.Satisfiable) :=
+    fun φ hcl => (hmem φ).symm.trans ⟨fun h => h.2, fun h => ⟨hcl, h⟩⟩
+  exact ⟨optimizeWith solveKSAT, computableInPolyTime_optimizeWith hpoly,
+    optimizeWith_spec hk hspec⟩
+
+/-! ### `O(log m)`-query `FreeM SATQuery` binary search and sparse-subsampling transfer -/
+
+/-- Query signature for a supplied propositional SAT oracle on `CNF ℕ`. -/
+inductive SATQuery : Type → Type where
+  /-- Test satisfiability of `φ : CNF ℕ`. -/
+  | sat (φ : CNF ℕ) : SATQuery Bool
+
+/-- Lift `SATQuery.sat φ` into `FreeM SATQuery Bool`. -/
+abbrev SATQuery.ask (φ : CNF ℕ) : FreeM SATQuery Bool :=
+  FreeM.lift (.sat φ)
+
+@[simp]
+theorem SATQuery.eval_ask (oracle : {ι : Type} → SATQuery ι → ι) (φ : CNF ℕ) :
+    (SATQuery.ask φ).eval oracle = oracle (.sat φ) := rfl
+
+/-- Build a `SATQuery` oracle from a pure solver `CNF ℕ → Bool`. -/
+@[expose] def SATQuery.oracleOf (solve : CNF ℕ → Bool) :
+    {ι : Type} → SATQuery ι → ι
+  | _, .sat φ => solve φ
+
+@[simp]
+theorem SATQuery.oracleOf_sat (solve : CNF ℕ → Bool) (φ : CNF ℕ) :
+    SATQuery.oracleOf solve (.sat φ) = solve φ := rfl
+
+/-- Pure exact MAX-SAT optimization by binary search on `[1, m + 1)` using a supplied `k`-SAT
+solver `solve : CNF ℕ → Bool`. -/
+def optimumByBinarySearch (solve : CNF ℕ → Bool) (F : StructInstance) : ℕ :=
+  lowerBound (fun q => solve (thresholdToCNF ⟨F, q⟩)) 1 (F.clauses.length + 1) - 1
+
+/-- `FreeM SATQuery` binary-search program finding `F.optimum` on `[1, m + 1)`. -/
+def optimumByBinarySearchQ (F : StructInstance) : FreeM SATQuery ℕ := do
+  let k ← lowerBoundBy (fun q => SATQuery.ask (thresholdToCNF ⟨F, q⟩)) 1 (F.clauses.length + 1)
+  pure (k - 1)
+
+@[simp]
+theorem eval_optimumByBinarySearchQ (oracle : {ι : Type} → SATQuery ι → ι) (F : StructInstance) :
+    (optimumByBinarySearchQ F).eval oracle =
+      optimumByBinarySearch (fun φ => oracle (.sat φ)) F := by
+  simp [optimumByBinarySearchQ, optimumByBinarySearch]
+
+/-- **Correctness of binary-search optimization:** for any `k`-SAT solver (`3 ≤ k`),
+`optimumByBinarySearch solve F = F.optimum`. -/
+theorem optimumByBinarySearch_eq_optimum {k : ℕ} (hk : 3 ≤ k) {solve : CNF ℕ → Bool}
+    (hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → (solve φ = true ↔ φ.Satisfiable))
+    (F : StructInstance) :
+    optimumByBinarySearch solve F = F.optimum := by
+  let probe (q : ℕ) : Bool := solve (thresholdToCNF ⟨F, q⟩)
+  have hprobe (q : ℕ) : probe q = true ↔ q ≤ F.optimum := by
+    rw [hspec _ (fun _ hcl => (length_clause_mem_thresholdToCNF ⟨F, q⟩ hcl).trans hk),
+      satisfiable_thresholdToCNF_iff]
+  have hmono : ∀ m m', 1 ≤ m → m ≤ m' → m' < F.clauses.length + 1 →
+      probe m' = true → probe m = true := by
+    intro m m' _ hmm' _ hm'
+    exact (hprobe m).mpr (hmm'.trans ((hprobe m').mp hm'))
+  obtain ⟨hlo, hhi, htrue, hfalse⟩ :=
+    lowerBound_spec probe (lo := 1) (hi := F.clauses.length + 1) hmono
+  have hopt_le : F.optimum ≤ F.clauses.length := optimum_le (F.numVars, F.clauses)
+  dsimp only [optimumByBinarySearch]
+  set r := lowerBound probe 1 (F.clauses.length + 1)
+  have hnot_of_false {q : ℕ} (hqr : r ≤ q) (hqm : q < F.clauses.length + 1) : ¬ q ≤ F.optimum :=
+    fun h => by
+      have hf := hfalse q hqr hqm
+      rw [(hprobe q).mpr h] at hf
+      exact Bool.noConfusion hf
+  by_cases hr1 : r = 1
+  · rcases Nat.eq_zero_or_pos F.clauses.length with hm0 | hmpos
+    · omega
+    · have := hnot_of_false (q := 1) (by omega) (by omega); omega
+  · have hge : r - 1 ≤ F.optimum := (hprobe (r - 1)).mp (htrue (r - 1) (by omega) (by omega))
+    by_cases hrm : r = F.clauses.length + 1
+    · omega
+    · have := hnot_of_false (q := r) le_rfl (by omega); omega
+
+/-- **Weighted query-cost bound for `optimumByBinarySearchQ`:** if every 3-CNF of at most
+`thresholdVarBudget F.workSize` variables has weight at most `C`, then `optimumByBinarySearchQ F`
+incurs cost at most `C * (Nat.log 2 F.clauses.length + 1)`. -/
+theorem cost_optimumByBinarySearchQ_le (oracle : {ι : Type} → SATQuery ι → ι)
+    (weight : {ι : Type} → SATQuery ι → ℕ) (F : StructInstance) {C : ℕ}
+    (hcost : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ 3) → φ.numVars ≤ thresholdVarBudget F.workSize →
+      weight (.sat φ) ≤ C) :
+    (optimumByBinarySearchQ F).cost oracle weight ≤ C * (Nat.log 2 F.clauses.length + 1) := by
+  simp only [optimumByBinarySearchQ, FreeM.cost_bind, FreeM.cost_pure, add_zero]
+  have h := cost_lowerBoundBy_le oracle weight (fun q => SATQuery.ask (thresholdToCNF ⟨F, q⟩))
+    (c := C) (lo := 1) (hi := F.clauses.length + 1) fun q _ _ => by
+      simpa only [FreeM.cost_lift] using
+        hcost _ (fun _ hcl => length_clause_mem_thresholdToCNF ⟨F, q⟩ hcl)
+          (numVars_thresholdToCNF_le ⟨F, q⟩)
+  simpa only [Nat.add_sub_cancel_right] using h
+
+/-- **Query-count bound for `optimumByBinarySearchQ`:** makes at most
+`Nat.log 2 F.clauses.length + 1` SAT queries against any oracle (`0` when `F.clauses = []`). -/
+theorem countQueries_optimumByBinarySearchQ_le (oracle : {ι : Type} → SATQuery ι → ι)
+    (F : StructInstance) :
+    (optimumByBinarySearchQ F).countQueries oracle ≤ Nat.log 2 F.clauses.length + 1 := by
+  simpa only [FreeM.countQueries_eq_cost_one, one_mul] using
+    cost_optimumByBinarySearchQ_le oracle (fun _ => 1) F (C := 1) fun _ _ _ => le_rfl
+
+/-- On an instance with no clauses, `optimumByBinarySearchQ` makes zero SAT queries. -/
+theorem countQueries_optimumByBinarySearchQ_of_clauses_eq_nil
+    (oracle : {ι : Type} → SATQuery ι → ι) {F : StructInstance} (hF : F.clauses = []) :
+    (optimumByBinarySearchQ F).countQueries oracle = 0 := by
+  simp only [optimumByBinarySearchQ, hF, List.length_nil, FreeM.countQueries_eq_cost_one,
+    FreeM.cost_bind, FreeM.cost_pure, add_zero]
+  exact cost_lowerBoundBy_of_le oracle (fun _ => 1) _ le_rfl
+
+/-- **End-to-end subsampled sparse MAX-`w`-SAT optimization via a supplied fixed-width SAT oracle.**
+Drawing `s` clauses uniformly from `F` (`0 < F.clauses.length`, clause width `≤ w`) and running
+`optimumByBinarySearchQ (F.sample ω)` against `SATQuery.oracleOf solve` (`3 ≤ k`):
+1. queries `solve` only on 3-CNFs of at most `thresholdVarBudget ((w + 1) * s)` variables, within
+   weighted query cost `C * (Nat.log 2 s + 1)` whenever `weight (.sat φ) ≤ C` on such formulas; and
+2. with probability at least `1 - 2 ^ (F.numVars + 1) * exp (-2 * s * δ ^ 2)`, estimates `F.optimum`
+   within `δ * m` after `(m / s)` rescaling and certifies `2 * δ * m` optimality loss for every
+   sampled maximizer. -/
+theorem sample_optimumByBinarySearch_spec {k w : ℕ} (hk : 3 ≤ k)
+    {solve : CNF ℕ → Bool}
+    (hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → (solve φ = true ↔ φ.Satisfiable))
+    {F : StructInstance} (hm : 0 < F.clauses.length) (hw : ∀ c ∈ F.clauses, c.length ≤ w)
+    (s : ℕ) {weight : {ι : Type} → SATQuery ι → ℕ} {C : ℕ}
     (hcost : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ 3) →
-      φ.numVars ≤ thresholdVarBudget (F.workSize + 2 * F.numVars) → (solveM φ).time ≤ C)
-    {i rem : ℕ} (hi_rem : i + rem ≤ F.numVars) (acc : CNF ℕ) (hacc_len : acc.length = i)
-    (hacc_vars : acc.vars.length = i) (σ : ℕ → Bool) :
-    (recoverWitnessLoopM solveM F opt i rem acc σ).time ≤ C * rem := by
-  induction rem generalizing i acc σ with
-  | zero => simp only [recoverWitnessLoopM, TimeM.time_pure, Nat.mul_zero, le_rfl]
+      φ.numVars ≤ thresholdVarBudget ((w + 1) * s) → weight (.sat φ) ≤ C)
+    {δ : ℝ} (hδ : 0 ≤ δ) :
+    (∀ ω : Fin s → Fin F.clauses.length,
+      (optimumByBinarySearchQ (F.sample ω)).cost (SATQuery.oracleOf solve) weight ≤
+        C * (Nat.log 2 s + 1)) ∧
+    1 - 2 ^ (F.numVars + 1) * Real.exp (-2 * (s : ℝ) * δ ^ 2) ≤
+      ((F.samplePMF hm s).toOuterMeasure
+        {ω | (∀ xHat : BitString F.numVars,
+            (∀ x, (F.sample ω).score x ≤ (F.sample ω).score xHat) →
+              (F.optimum : ℝ) - (F.score xHat : ℝ) ≤ 2 * δ * (F.clauses.length : ℝ)) ∧
+          |(F.clauses.length : ℝ) / (s : ℝ) *
+              (optimumByBinarySearch solve (F.sample ω) : ℝ) -
+            (F.optimum : ℝ)| ≤ δ * (F.clauses.length : ℝ)}).toReal := by
+  refine ⟨fun ω => ?_, ?_⟩
+  · simpa only [StructInstance.sample, List.length_ofFn] using
+      cost_optimumByBinarySearchQ_le (SATQuery.oracleOf solve) weight (F.sample ω) (C := C)
+        fun φ h3 hvars =>
+          hcost φ h3 (hvars.trans (thresholdVarBudget_mono (F.workSize_sample_le_of_width hw ω)))
+  · simp_rw [fun ω : Fin s → Fin F.clauses.length =>
+      optimumByBinarySearch_eq_optimum hk hspec (F.sample ω)]
+    exact F.one_sub_le_sample_good hm s hδ
+
+/-- `FreeM SATQuery` loop executing `rem` steps of unit-clause prefix pinning from `bits`. -/
+private def recoverLoopQ (F : StructInstance) (opt : ℕ) :
+    ℕ → List Bool → FreeM SATQuery (List Bool)
+  | 0, bits => pure bits
+  | rem + 1, bits => do
+    let cand := pinnedClauses (bits ++ [true])
+    let b ← SATQuery.ask (thresholdToCNF ⟨⟨F.numVars, cand ++ F.clauses⟩, cand.length + opt⟩)
+    recoverLoopQ F opt rem (bits ++ [b])
+
+private theorem eval_recoverLoopQ (oracle : {ι : Type} → SATQuery ι → ι) (F : StructInstance)
+    (opt rem : ℕ) (bits : List Bool) :
+    (recoverLoopQ F opt rem bits).eval oracle =
+      (F.recoverStep (fun φ => oracle (.sat φ)) opt)^[rem] bits := by
+  induction rem generalizing bits with
+  | zero => rfl
   | succ rem ih =>
-    let q : ThresholdQuery :=
-      ⟨⟨F.numVars, ([(i, true)] :: acc) ++ F.clauses⟩, ([(i, true)] :: acc).length + opt⟩
+    simp only [recoverLoopQ, FreeM.eval_bind, SATQuery.eval_ask, ih,
+      Function.iterate_succ_apply, StructInstance.recoverStep]
+
+private theorem cost_recoverLoopQ_le (oracle : {ι : Type} → SATQuery ι → ι)
+    (weight : {ι : Type} → SATQuery ι → ℕ) (F : StructInstance) (opt : ℕ) {C : ℕ}
+    (hcost : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ 3) →
+      φ.numVars ≤ thresholdVarBudget (F.workSize + 2 * F.numVars) → weight (.sat φ) ≤ C)
+    {rem : ℕ} (bits : List Bool) (hrem : bits.length + rem ≤ F.numVars) :
+    (recoverLoopQ F opt rem bits).cost oracle weight ≤ C * rem := by
+  induction rem generalizing bits with
+  | zero => simp [recoverLoopQ]
+  | succ rem ih =>
+    let cand := pinnedClauses (bits ++ [true])
+    let q : ThresholdQuery := ⟨⟨F.numVars, cand ++ F.clauses⟩, cand.length + opt⟩
+    have hcand_len : cand.length = bits.length + 1 := by simp [cand]
+    have hcand_vars : cand.vars.length = bits.length + 1 := by
+      simpa [cand] using length_vars_pinnedClauses (bits ++ [true])
     have hws_q : q.workSize ≤ F.workSize + 2 * F.numVars := by
-      dsimp only [q]
       simp only [ThresholdQuery.workSize, StructInstance.workSize, MaxSAT.workSize,
-        StructInstance.toPair, CNF.vars, List.flatten_cons, List.flatten_append,
-        List.map_append, List.length_append, List.map_cons, List.map_nil, List.length_cons,
-        List.length_nil] at hacc_vars ⊢
+        StructInstance.toPair, CNF.vars, List.flatten_append, List.map_append,
+        List.length_append, q] at hcand_len hcand_vars ⊢
       omega
-    have hnv_q : (thresholdToCNF q).numVars ≤ thresholdVarBudget (F.workSize + 2 * F.numVars) :=
-      (numVars_thresholdToCNF_le q).trans (thresholdVarBudget_mono hws_q)
-    have hstep : (solveM (thresholdToCNF q)).time ≤ C :=
-      hcost (thresholdToCNF q) (fun _ hcl => length_clause_mem_thresholdToCNF q hcl) hnv_q
-    dsimp only [q] at hstep
-    simp only [recoverWitnessLoopM, TimeM.time_bind]
-    set b := (solveM (thresholdToCNF
-      ⟨⟨F.numVars, ([(i, true)] :: acc) ++ F.clauses⟩, ([(i, true)] :: acc).length + opt⟩)).ret
-    have hrec := ih (i := i + 1) (by omega) ([(i, b)] :: acc)
-      (by simp only [List.length_cons, hacc_len])
-      (by simp only [CNF.vars, List.flatten_cons, List.map_append, List.length_append,
-            List.map_cons, List.map_nil, List.length_cons, List.length_nil] at hacc_vars ⊢
-          omega)
-      (fun v => if v = i then b else σ v)
+    have hstep : weight (.sat (thresholdToCNF q)) ≤ C :=
+      hcost _ (fun _ hcl => length_clause_mem_thresholdToCNF q hcl)
+        ((numVars_thresholdToCNF_le q).trans (thresholdVarBudget_mono hws_q))
+    dsimp only [q, cand] at hstep
+    simp only [recoverLoopQ, FreeM.cost_bind, FreeM.cost_lift, SATQuery.eval_ask]
+    set b := oracle (.sat (thresholdToCNF
+      ⟨⟨F.numVars, (pinnedClauses (bits ++ [true])) ++ F.clauses⟩,
+        (pinnedClauses (bits ++ [true])).length + opt⟩))
+    have hrec := ih (bits ++ [b]) (by simp; omega)
     rw [Nat.mul_succ]
     omega
 
-/-- Exact MAX-SAT optimization with witness recovery: finds `opt = F.optimum` by bisection and
-constructs an assignment `xHat : BitString F.numVars` achieving `F.score xHat = F.optimum` using at
-most `⌊log₂ m⌋ + 1 + n` calls to a supplied `k`-SAT oracle (`3 ≤ k`). -/
-def optimizeByBinarySearchM (solveM : CNF ℕ → TimeM ℕ Bool) (F : StructInstance) :
-    TimeM ℕ (ℕ × BitString F.numVars) := do
-  let opt ← optimumByBinarySearchM solveM F
-  let σ ← recoverWitnessLoopM solveM F opt 0 F.numVars [] (fun _ => false)
-  return (opt, fun j => σ j.val)
+/-- Pure exact MAX-SAT optimization with witness recovery: finds `opt = F.optimum` by bisection and
+constructs an `F.numVars`-bit assignment achieving `F.score ... = F.optimum` by unit-clause prefix
+pinning. -/
+def optimizeByBinarySearch (solve : CNF ℕ → Bool) (F : StructInstance) : StructSolution :=
+  let opt := optimumByBinarySearch solve F
+  ⟨opt, F.recoverBits solve opt⟩
 
-/-- **Correctness of `optimizeByBinarySearchM`:** returns `(F.optimum, xHat)` with
-`F.score xHat = F.optimum` (`3 ≤ k`). -/
-theorem optimizeByBinarySearchM_ret {k : ℕ} (hk : 3 ≤ k) {solveM : CNF ℕ → TimeM ℕ Bool}
-    (hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → ((solveM φ).ret = true ↔ φ.Satisfiable))
+/-- `FreeM SATQuery` program finding `F.optimum` and an optimal `F.numVars`-bit assignment
+(`StructSolution`) using at most `⌊log₂ m⌋ + 1 + n` SAT queries. -/
+def optimizeByBinarySearchQ (F : StructInstance) : FreeM SATQuery StructSolution := do
+  let opt ← optimumByBinarySearchQ F
+  let bits ← recoverLoopQ F opt F.numVars []
+  pure ⟨opt, bits⟩
+
+@[simp]
+theorem eval_optimizeByBinarySearchQ (oracle : {ι : Type} → SATQuery ι → ι) (F : StructInstance) :
+    (optimizeByBinarySearchQ F).eval oracle =
+      optimizeByBinarySearch (fun φ => oracle (.sat φ)) F := by
+  simp [optimizeByBinarySearchQ, optimizeByBinarySearch, eval_recoverLoopQ,
+    StructInstance.recoverBits]
+
+/-- **Correctness of `optimizeByBinarySearch`:** returns `optValue = F.optimum` and an
+`F.numVars`-bit list scoring `F.optimum` (`3 ≤ k`). -/
+theorem optimizeByBinarySearch_spec {k : ℕ} (hk : 3 ≤ k) {solve : CNF ℕ → Bool}
+    (hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → (solve φ = true ↔ φ.Satisfiable))
     (F : StructInstance) :
-    (optimizeByBinarySearchM solveM F).ret.1 = F.optimum ∧
-      F.score (optimizeByBinarySearchM solveM F).ret.2 = F.optimum := by
-  refine ⟨?_, ?_⟩
-  · simp only [optimizeByBinarySearchM, TimeM.ret_bind, TimeM.ret_pure]
-    exact optimumByBinarySearchM_ret hk hspec F
-  · simp only [optimizeByBinarySearchM, TimeM.ret_bind, TimeM.ret_pure,
-      optimumByBinarySearchM_ret hk hspec F]
-    obtain ⟨xStar, hxStar⟩ := exists_score_eq_optimum F.toPair
-    exact recoverWitnessLoopM_spec hk hspec F (Nat.zero_add F.numVars) [] (fun _ => false)
-      (fun _ hj => absurd hj (Nat.not_lt_zero _))
-      ⟨xStar, hxStar, fun _ hc => absurd hc List.not_mem_nil⟩
+    (optimizeByBinarySearch solve F).optValue = F.optimum ∧
+      (optimizeByBinarySearch solve F).assignmentBits.length = F.numVars ∧
+      F.score (BitString.ofList F.numVars (optimizeByBinarySearch solve F).assignmentBits) =
+        F.optimum := by
+  simp only [optimizeByBinarySearch, optimumByBinarySearch_eq_optimum hk hspec F,
+    StructInstance.length_recoverBits, true_and]
+  exact F.recoverBits_score_eq_optimum hk hspec
 
-/-- **Query-cost bound for `optimizeByBinarySearchM`:** at most
-`C * (Nat.log 2 F.clauses.length + 1 + F.numVars)` ticks when `solveM` costs `≤ C` on 3-CNFs of at
-most `thresholdVarBudget (F.workSize + 2 * F.numVars)` variables. -/
-theorem optimizeByBinarySearchM_time_le {solveM : CNF ℕ → TimeM ℕ Bool} (F : StructInstance)
-    {C : ℕ}
+/-- **Weighted query-cost bound for `optimizeByBinarySearchQ`:** at most
+`C * (Nat.log 2 F.clauses.length + 1 + F.numVars)` cost when every 3-CNF of at most
+`thresholdVarBudget (F.workSize + 2 * F.numVars)` variables has weight at most `C`. -/
+theorem cost_optimizeByBinarySearchQ_le (oracle : {ι : Type} → SATQuery ι → ι)
+    (weight : {ι : Type} → SATQuery ι → ℕ) (F : StructInstance) {C : ℕ}
     (hcost : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ 3) →
-      φ.numVars ≤ thresholdVarBudget (F.workSize + 2 * F.numVars) → (solveM φ).time ≤ C) :
-    (optimizeByBinarySearchM solveM F).time ≤
+      φ.numVars ≤ thresholdVarBudget (F.workSize + 2 * F.numVars) → weight (.sat φ) ≤ C) :
+    (optimizeByBinarySearchQ F).cost oracle weight ≤
       C * (Nat.log 2 F.clauses.length + 1 + F.numVars) := by
-  simp only [optimizeByBinarySearchM, TimeM.time_bind, TimeM.time_pure, add_zero]
-  have ht1 := optimumByBinarySearchM_time_le F (C := C) fun φ h3 hnv =>
+  simp only [optimizeByBinarySearchQ, FreeM.cost_bind, FreeM.cost_pure, add_zero]
+  have ht1 := cost_optimumByBinarySearchQ_le oracle weight F (C := C) fun φ h3 hnv =>
     hcost φ h3 (hnv.trans (thresholdVarBudget_mono (Nat.le_add_right _ _)))
-  have ht2 := recoverWitnessLoopM_time_le F (optimumByBinarySearchM solveM F).ret hcost
-    (Nat.zero_add F.numVars).le [] rfl rfl (fun _ => false)
+  have ht2 := cost_recoverLoopQ_le oracle weight F ((optimumByBinarySearchQ F).eval oracle) hcost
+    (rem := F.numVars) [] (by simp)
   rw [Nat.mul_add]
   omega
 
+/-- **Query-count bound for `optimizeByBinarySearchQ`:** makes at most
+`Nat.log 2 F.clauses.length + 1 + F.numVars` SAT queries against any oracle. -/
+theorem countQueries_optimizeByBinarySearchQ_le (oracle : {ι : Type} → SATQuery ι → ι)
+    (F : StructInstance) :
+    (optimizeByBinarySearchQ F).countQueries oracle ≤
+      Nat.log 2 F.clauses.length + 1 + F.numVars := by
+  simpa only [FreeM.countQueries_eq_cost_one, one_mul] using
+    cost_optimizeByBinarySearchQ_le oracle (fun _ => 1) F (C := 1) fun _ _ _ => le_rfl
+
 /-- **Sample-optimization reduction with witness recovery (`3 ≤ k`):** on an `s`-clause subsample of
-a width-`w` instance `F`, `optimizeByBinarySearchM solveM (F.sample ω)` queries `solveM` only on
-3-CNFs of at most `thresholdVarBudget ((w + 1) * s + 2 * F.numVars)` variables within cost
-`C * (Nat.log 2 s + 1 + F.numVars)`, and with probability at least
-`1 - 2 ^ (F.numVars + 1) * exp (-2 * s * δ ^ 2)` the returned pair `(optS, xHat)` estimates
-`F.optimum` within `δ * m` (after `(m / s)` rescaling) and satisfies
-`(F.optimum : ℝ) - (F.score xHat : ℝ) ≤ 2 * δ * m`. -/
-theorem sample_optimizeByBinarySearchM_spec {k w : ℕ} (hk : 3 ≤ k)
-    {solveM : CNF ℕ → TimeM ℕ Bool}
-    (hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → ((solveM φ).ret = true ↔ φ.Satisfiable))
+a width-`w` instance `F`, `optimizeByBinarySearchQ (F.sample ω)` queries `solve` only on 3-CNFs of
+at most `thresholdVarBudget ((w + 1) * s + 2 * F.numVars)` variables within weighted cost
+`C * (Nat.log 2 s + 1 + F.numVars)` (and `≤ Nat.log 2 s + 1 + F.numVars` queries), and with
+probability at least `1 - 2 ^ (F.numVars + 1) * exp (-2 * s * δ ^ 2)` the returned witness
+`sol := optimizeByBinarySearch solve (F.sample ω)` estimates `F.optimum` within `δ * m` (after
+`(m / s)` rescaling) and satisfies
+`(F.optimum : ℝ) - (F.score (BitString.ofList F.numVars sol.assignmentBits) : ℝ) ≤ 2 * δ * m`. -/
+theorem sample_optimizeByBinarySearch_spec {k w : ℕ} (hk : 3 ≤ k)
+    {solve : CNF ℕ → Bool}
+    (hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → (solve φ = true ↔ φ.Satisfiable))
     {F : StructInstance} (hm : 0 < F.clauses.length) (hw : ∀ c ∈ F.clauses, c.length ≤ w)
-    (s : ℕ) {C : ℕ}
+    (s : ℕ) {weight : {ι : Type} → SATQuery ι → ℕ} {C : ℕ}
     (hcost : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ 3) →
-      φ.numVars ≤ thresholdVarBudget ((w + 1) * s + 2 * F.numVars) → (solveM φ).time ≤ C)
+      φ.numVars ≤ thresholdVarBudget ((w + 1) * s + 2 * F.numVars) → weight (.sat φ) ≤ C)
     {δ : ℝ} (hδ : 0 ≤ δ) :
     (∀ ω : Fin s → Fin F.clauses.length,
-      (optimizeByBinarySearchM solveM (F.sample ω)).time ≤
+      (optimizeByBinarySearchQ (F.sample ω)).cost (SATQuery.oracleOf solve) weight ≤
         C * (Nat.log 2 s + 1 + F.numVars)) ∧
     1 - 2 ^ (F.numVars + 1) * Real.exp (-2 * (s : ℝ) * δ ^ 2) ≤
       ((F.samplePMF hm s).toOuterMeasure
         {ω | (F.optimum : ℝ) -
-              (F.score (optimizeByBinarySearchM solveM (F.sample ω)).ret.2 : ℝ) ≤
+              (F.score (BitString.ofList F.numVars
+                (optimizeByBinarySearch solve (F.sample ω)).assignmentBits) : ℝ) ≤
               2 * δ * (F.clauses.length : ℝ) ∧
           |(F.clauses.length : ℝ) / (s : ℝ) *
-              ((optimizeByBinarySearchM solveM (F.sample ω)).ret.1 : ℝ) -
+              ((optimizeByBinarySearch solve (F.sample ω)).optValue : ℝ) -
             (F.optimum : ℝ)| ≤ δ * (F.clauses.length : ℝ)}).toReal := by
-  refine ⟨fun ω => ?_, ?_⟩
-  · have hbound := thresholdVarBudget_mono
-      (Nat.add_le_add_right (F.workSize_sample_le_of_width hw ω) (2 * F.numVars))
-    have ht := optimizeByBinarySearchM_time_le (F.sample ω) (C := C) fun φ h3 hnv =>
-      hcost φ h3 (hnv.trans hbound)
-    simpa only [StructInstance.sample, List.length_ofFn] using ht
-  · refine (F.one_sub_le_sample_good hm s hδ).trans ?_
-    refine Cslib.Probability.PMF.toOuterMeasure_toReal_mono (F.samplePMF hm s) fun ω hω => ?_
-    obtain ⟨hopt_ret, hscore_ret⟩ := optimizeByBinarySearchM_ret hk hspec (F.sample ω)
-    have hmax : ∀ x : BitString F.numVars,
-        (F.sample ω).score x ≤
-          (F.sample ω).score (optimizeByBinarySearchM solveM (F.sample ω)).ret.2 := by
-      intro x
-      rw [hscore_ret]
-      exact score_le_optimum (F.sample ω).toPair x
-    refine ⟨hω.1 _ hmax, ?_⟩
-    rw [hopt_ret]
-    exact hω.2
+  refine ⟨fun ω => ?_, (F.one_sub_le_sample_good hm s hδ).trans
+    (Cslib.Probability.PMF.toOuterMeasure_toReal_mono (F.samplePMF hm s) fun ω hω => ?_)⟩
+  · simpa only [StructInstance.sample, List.length_ofFn] using
+      cost_optimizeByBinarySearchQ_le (SATQuery.oracleOf solve) weight (F.sample ω) (C := C)
+        fun φ h3 hnv => hcost φ h3 <| hnv.trans
+          (thresholdVarBudget_mono (Nat.add_le_add_right (F.workSize_sample_le_of_width hw ω) _))
+  · obtain ⟨hopt_ret, _, hscore_ret⟩ := optimizeByBinarySearch_spec hk hspec (F.sample ω)
+    refine ⟨hω.1 _ fun x => ?_, ?_⟩
+    · change (F.sample ω).score x ≤
+        (F.sample ω).score
+          (BitString.ofList (F.sample ω).numVars
+            (optimizeByBinarySearch solve (F.sample ω)).assignmentBits)
+      rw [hscore_ret]; exact score_le_optimum (F.sample ω).toPair x
+    · rw [hopt_ret]; exact hω.2
 
 /-- **Sample-optimization reduction with witness recovery under the `η` sample-size condition:**
 when `0 < η` and `(F.numVars + 1) * log 2 + log (1 / η) ≤ 2 * s * δ ^ 2`,
-`optimizeByBinarySearchM solveM (F.sample ω)` succeeds with probability at least `1 - η`. -/
-theorem sample_optimizeByBinarySearchM_spec_of_sample_size {k w : ℕ} (hk : 3 ≤ k)
-    {solveM : CNF ℕ → TimeM ℕ Bool}
-    (hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → ((solveM φ).ret = true ↔ φ.Satisfiable))
+`optimizeByBinarySearch solve (F.sample ω)` succeeds with probability at least `1 - η`. -/
+theorem sample_optimizeByBinarySearch_spec_of_sample_size {k w : ℕ} (hk : 3 ≤ k)
+    {solve : CNF ℕ → Bool}
+    (hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → (solve φ = true ↔ φ.Satisfiable))
     {F : StructInstance} (hm : 0 < F.clauses.length) (hw : ∀ c ∈ F.clauses, c.length ≤ w)
-    {s C : ℕ}
+    {s : ℕ} {weight : {ι : Type} → SATQuery ι → ℕ} {C : ℕ}
     (hcost : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ 3) →
-      φ.numVars ≤ thresholdVarBudget ((w + 1) * s + 2 * F.numVars) → (solveM φ).time ≤ C)
+      φ.numVars ≤ thresholdVarBudget ((w + 1) * s + 2 * F.numVars) → weight (.sat φ) ≤ C)
     {δ η : ℝ} (hδ : 0 ≤ δ) (hη : 0 < η)
     (hs : (F.numVars + 1 : ℝ) * Real.log 2 + Real.log (1 / η) ≤ 2 * (s : ℝ) * δ ^ 2) :
     (∀ ω : Fin s → Fin F.clauses.length,
-      (optimizeByBinarySearchM solveM (F.sample ω)).time ≤
+      (optimizeByBinarySearchQ (F.sample ω)).cost (SATQuery.oracleOf solve) weight ≤
         C * (Nat.log 2 s + 1 + F.numVars)) ∧
     1 - η ≤
       ((F.samplePMF hm s).toOuterMeasure
         {ω | (F.optimum : ℝ) -
-              (F.score (optimizeByBinarySearchM solveM (F.sample ω)).ret.2 : ℝ) ≤
+              (F.score (BitString.ofList F.numVars
+                (optimizeByBinarySearch solve (F.sample ω)).assignmentBits) : ℝ) ≤
               2 * δ * (F.clauses.length : ℝ) ∧
           |(F.clauses.length : ℝ) / (s : ℝ) *
-              ((optimizeByBinarySearchM solveM (F.sample ω)).ret.1 : ℝ) -
+              ((optimizeByBinarySearch solve (F.sample ω)).optValue : ℝ) -
             (F.optimum : ℝ)| ≤ δ * (F.clauses.length : ℝ)}).toReal := by
-  obtain ⟨ht, hprob⟩ := sample_optimizeByBinarySearchM_spec hk hspec hm hw s hcost hδ
+  obtain ⟨ht, hprob⟩ := sample_optimizeByBinarySearch_spec hk hspec hm hw s hcost hδ
   have heta := MaxCSP.two_pow_succ_mul_exp_le_eta hη hs
   exact ⟨ht, by linarith⟩
+
+/-! ### Bounded-arity Boolean `Max-CSP` optimization and witness recovery -/
 
 /-- Width-guarded exact Boolean `Max-CSP` optimum recovered via `maxCSPToStruct`. -/
 @[expose] def maxCSPOptimumBounded {Rel : Type} (w : ℕ) (sem : Rel → List Bool → Bool)
@@ -1217,45 +1444,112 @@ theorem computableInPolyTime_maxCSPOptimumBounded_of_KSAT {Rel : Type} [Finite R
     (hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → (solveKSAT φ = true ↔ φ.Satisfiable)) :
     ComputableInPolyTime (maxCSPOptimumBounded w sem) (encMaxCSPInstance encRel) encNat := by
   have hstruct := computableInPolyTime_maxCSPToStruct encRel w sem
-  have hopt := (computableInPolyTime_optimum_of_KSAT hk hpoly hspec).comp hstruct
-  have hlenF_u : ComputableInPolyTime (fun F : MaxCSPInstance Rel ℕ => F.constraints.length)
-      (encMaxCSPInstance encRel) encUnary := by
-    exact (length_list (encConstraint encRel encNat)).comp
-      (computableInPolyTime_maxCSP_constraints ComputableInPolyTime.id')
-  have hlenC_u : ComputableInPolyTime
-      (fun F : MaxCSPInstance Rel ℕ => (maxCSPToStruct w sem F).clauses.length)
-      (encMaxCSPInstance encRel) encUnary :=
-    (length_list (encList (encPair encNat encBool))).comp
-      (encStructInstance_clauses_polyTime hstruct)
-  exact binary_sub' (binary_add' hopt (unary_to_binary.comp hlenF_u))
-    (unary_to_binary.comp hlenC_u)
+  exact binary_sub'
+    (binary_add' ((computableInPolyTime_optimum_of_KSAT hk hpoly hspec).comp hstruct)
+      (unary_to_binary.comp ((length_list (encConstraint encRel encNat)).comp
+        (encMaxCSPInstance_constraints_polyTime encRel .id'))))
+    (unary_to_binary.comp ((length_list (encList (encPair encNat encBool))).comp
+      (encStructInstance_clauses_polyTime hstruct)))
 
-/-- Exact bounded-arity Boolean `Max-CSP` optimization by binary search (`TimeM`) via
-`maxCSPToStruct` and a supplied `k`-SAT oracle. -/
-def optimumMaxCSPByBinarySearchM {Rel : Type} (w : ℕ) (sem : Rel → List Bool → Bool)
-    (solveM : CNF ℕ → TimeM ℕ Bool) (F : MaxCSPInstance Rel ℕ) : TimeM ℕ ℕ := do
-  let optCNF ← optimumByBinarySearchM solveM (maxCSPToStruct w sem F)
-  return optCNF + F.constraints.length - (maxCSPToStruct w sem F).clauses.length
+/-- Width-guarded exact Boolean `Max-CSP` value and witness optimization via `maxCSPToStruct` and
+`optimizeWith`. -/
+def maxCSPOptimizeBounded {Rel : Type} (w : ℕ) (sem : Rel → List Bool → Bool)
+    (solve : CNF ℕ → Bool) (F : MaxCSPInstance Rel ℕ) : StructSolution :=
+  let sol := optimizeWith solve (maxCSPToStruct w sem F)
+  ⟨sol.optValue + F.constraints.length - (maxCSPToStruct w sem F).clauses.length,
+    sol.assignmentBits⟩
+
+/-- **Correctness of `maxCSPOptimizeBounded`:** on any width-`≤ w` Boolean `MaxCSPInstance`, returns
+`F.optimum sem` and an `F.numVars`-bit assignment achieving `F.score sem ... = F.optimum sem`
+(`3 ≤ k`). -/
+theorem maxCSPOptimizeBounded_spec {Rel : Type} {w k : ℕ} (hk : 3 ≤ k)
+    (sem : Rel → List Bool → Bool) {solve : CNF ℕ → Bool}
+    (hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → (solve φ = true ↔ φ.Satisfiable))
+    {F : MaxCSPInstance Rel ℕ} (hw : ∀ c ∈ F.constraints, c.scope.length ≤ w) :
+    (maxCSPOptimizeBounded w sem solve F).optValue = F.optimum sem ∧
+      (maxCSPOptimizeBounded w sem solve F).assignmentBits.length = F.numVars ∧
+      F.score sem
+        (BitString.ofList F.numVars (maxCSPOptimizeBounded w sem solve F).assignmentBits) =
+        F.optimum sem := by
+  obtain ⟨hopt, hlen, hsc⟩ := optimizeWith_spec hk hspec (maxCSPToStruct w sem F)
+  have hopt_shift := optimum_maxCSPToStruct_add_length sem hw
+  have hsc_shift := score_maxCSPToStruct_add_length sem hw
+    (BitString.ofList F.numVars (optimizeWith solve (maxCSPToStruct w sem F)).assignmentBits)
+  change (maxCSPToStruct w sem F).score
+    (BitString.ofList F.numVars (optimizeWith solve (maxCSPToStruct w sem F)).assignmentBits) =
+    (maxCSPToStruct w sem F).optimum at hsc
+  dsimp only [maxCSPOptimizeBounded]
+  exact ⟨by omega, hlen, by omega⟩
+
+/-- **Polynomial-time closure for `maxCSPOptimizeBounded`:** for any polynomial-time procedure
+`solve`, `maxCSPOptimizeBounded w sem solve` runs in polynomial time on multi-tape Turing machines
+(and when `solve` decides `k`-SAT for `3 ≤ k`, `maxCSPOptimizeBounded_spec` certifies exact
+optimality of both the returned value and witness assignment on width-`≤ w` instances). -/
+theorem computableInPolyTime_maxCSPOptimizeBounded {Rel : Type} [Finite Rel]
+    (encRel : Rel ↪ List Bool) (w : ℕ) (sem : Rel → List Bool → Bool) {solve : CNF ℕ → Bool}
+    (hpoly : ComputableInPolyTime solve encCNF encBool) :
+    ComputableInPolyTime (maxCSPOptimizeBounded w sem solve)
+      (encMaxCSPInstance encRel) encStructSolution := by
+  have hstruct := computableInPolyTime_maxCSPToStruct encRel w sem
+  have hsol := (computableInPolyTime_optimizeWith hpoly).comp hstruct
+  exact encStructSolution_mk_polyTime
+    (binary_sub'
+      (binary_add' (encStructSolution_optValue_polyTime hsol)
+        (unary_to_binary.comp ((length_list (encConstraint encRel encNat)).comp
+          (encMaxCSPInstance_constraints_polyTime encRel .id'))))
+      (unary_to_binary.comp ((length_list (encList (encPair encNat encBool))).comp
+        (encStructInstance_clauses_polyTime hstruct))))
+    (encStructSolution_assignmentBits_polyTime hsol)
+
+/-- Pure exact bounded-arity Boolean `Max-CSP` optimization by binary search via `maxCSPToStruct`.
+-/
+def optimumMaxCSPByBinarySearch {Rel : Type} (w : ℕ) (sem : Rel → List Bool → Bool)
+    (solve : CNF ℕ → Bool) (F : MaxCSPInstance Rel ℕ) : ℕ :=
+  optimumByBinarySearch solve (maxCSPToStruct w sem F) + F.constraints.length -
+    (maxCSPToStruct w sem F).clauses.length
+
+/-- `FreeM SATQuery` binary-search program computing the bounded-arity Boolean `Max-CSP` optimum via
+`maxCSPToStruct`. -/
+def optimumMaxCSPByBinarySearchQ {Rel : Type} (w : ℕ) (sem : Rel → List Bool → Bool)
+    (F : MaxCSPInstance Rel ℕ) : FreeM SATQuery ℕ := do
+  let optCNF ← optimumByBinarySearchQ (maxCSPToStruct w sem F)
+  pure (optCNF + F.constraints.length - (maxCSPToStruct w sem F).clauses.length)
+
+@[simp]
+theorem eval_optimumMaxCSPByBinarySearchQ {Rel : Type} (oracle : {ι : Type} → SATQuery ι → ι)
+    (w : ℕ) (sem : Rel → List Bool → Bool) (F : MaxCSPInstance Rel ℕ) :
+    (optimumMaxCSPByBinarySearchQ w sem F).eval oracle =
+      optimumMaxCSPByBinarySearch w sem (fun φ => oracle (.sat φ)) F := by
+  simp [optimumMaxCSPByBinarySearchQ, optimumMaxCSPByBinarySearch]
 
 /-- **Correctness of `Max-CSP` binary-search optimization:** on any width-`≤ w` Boolean
-`MaxCSPInstance`, `optimumMaxCSPByBinarySearchM` returns `F.optimum sem` (`3 ≤ k`). -/
-theorem optimumMaxCSPByBinarySearchM_ret {Rel : Type} {w k : ℕ} (hk : 3 ≤ k)
-    (sem : Rel → List Bool → Bool) {solveM : CNF ℕ → TimeM ℕ Bool}
-    (hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → ((solveM φ).ret = true ↔ φ.Satisfiable))
+`MaxCSPInstance`, `optimumMaxCSPByBinarySearch` returns `F.optimum sem` (`3 ≤ k`). -/
+theorem optimumMaxCSPByBinarySearch_eq_optimum {Rel : Type} {w k : ℕ} (hk : 3 ≤ k)
+    (sem : Rel → List Bool → Bool) {solve : CNF ℕ → Bool}
+    (hspec : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ k) → (solve φ = true ↔ φ.Satisfiable))
     {F : MaxCSPInstance Rel ℕ} (hw : ∀ c ∈ F.constraints, c.scope.length ≤ w) :
-    (optimumMaxCSPByBinarySearchM w sem solveM F).ret = F.optimum sem := by
-  simp only [optimumMaxCSPByBinarySearchM, TimeM.ret_bind, TimeM.ret_pure,
-    optimumByBinarySearchM_ret hk hspec]
+    optimumMaxCSPByBinarySearch w sem solve F = F.optimum sem := by
+  simp only [optimumMaxCSPByBinarySearch, optimumByBinarySearch_eq_optimum hk hspec]
   exact maxCSPOptimumBounded_eq_optimum sem hw
 
-/-- **Query-cost bound for `Max-CSP` binary-search optimization.** -/
-theorem optimumMaxCSPByBinarySearchM_time_le {Rel : Type} (w : ℕ) (sem : Rel → List Bool → Bool)
-    {solveM : CNF ℕ → TimeM ℕ Bool} (F : MaxCSPInstance Rel ℕ) {C : ℕ}
+/-- **Weighted query-cost bound for `optimumMaxCSPByBinarySearchQ`.** -/
+theorem cost_optimumMaxCSPByBinarySearchQ_le {Rel : Type} (oracle : {ι : Type} → SATQuery ι → ι)
+    (weight : {ι : Type} → SATQuery ι → ℕ) (w : ℕ) (sem : Rel → List Bool → Bool)
+    (F : MaxCSPInstance Rel ℕ) {C : ℕ}
     (hcost : ∀ φ : CNF ℕ, (∀ c ∈ φ, c.length ≤ 3) →
-      φ.numVars ≤ thresholdVarBudget (maxCSPToStruct w sem F).workSize → (solveM φ).time ≤ C) :
-    (optimumMaxCSPByBinarySearchM w sem solveM F).time ≤
+      φ.numVars ≤ thresholdVarBudget (maxCSPToStruct w sem F).workSize → weight (.sat φ) ≤ C) :
+    (optimumMaxCSPByBinarySearchQ w sem F).cost oracle weight ≤
       C * (Nat.log 2 (maxCSPToStruct w sem F).clauses.length + 1) := by
-  simp only [optimumMaxCSPByBinarySearchM, TimeM.time_bind, TimeM.time_pure, add_zero]
-  exact optimumByBinarySearchM_time_le (maxCSPToStruct w sem F) hcost
+  simp only [optimumMaxCSPByBinarySearchQ, FreeM.cost_bind, FreeM.cost_pure, add_zero]
+  exact cost_optimumByBinarySearchQ_le oracle weight (maxCSPToStruct w sem F) hcost
+
+/-- **Query-count bound for `optimumMaxCSPByBinarySearchQ`.** -/
+theorem countQueries_optimumMaxCSPByBinarySearchQ_le {Rel : Type}
+    (oracle : {ι : Type} → SATQuery ι → ι) (w : ℕ) (sem : Rel → List Bool → Bool)
+    (F : MaxCSPInstance Rel ℕ) :
+    (optimumMaxCSPByBinarySearchQ w sem F).countQueries oracle ≤
+      Nat.log 2 (maxCSPToStruct w sem F).clauses.length + 1 := by
+  simpa only [FreeM.countQueries_eq_cost_one, one_mul] using
+    cost_optimumMaxCSPByBinarySearchQ_le oracle (fun _ => 1) w sem F (C := 1) fun _ _ _ => le_rfl
 
 end Cslib.Complexity.MaxSAT

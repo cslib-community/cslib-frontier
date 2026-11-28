@@ -5,10 +5,15 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Computability.QueryComplexity.Quantum.Search
+import CslibFrontier.Computability.QueryComplexity.Quantum.Composition
+import CslibFrontier.Computability.QueryComplexity.Quantum.AmbainisAdversary
+import CslibFrontier.Computability.QueryComplexity.Quantum.Simon
 import CslibFrontier.Computability.QueryComplexity.Quantum.ValueQueryUpdate
 import Mathlib.Algebra.Ring.BooleanRing
 
-/-! The quantum query model: the oracle and a satisfiable instance of the search hypothesis. -/
+/-! The quantum query model: the oracle, the `phaseStep` bridge to `ValueQuery` / `ValueAdversary`,
+named `QueryBasis` and `SimonWork` workspace records, and a satisfiable instance of the search
+hypothesis. -/
 
 namespace CslibFrontierTests.QuantumSearch
 
@@ -80,5 +85,42 @@ example (old : Bool) :
   rw [Fintype.expect_eq_sum_div_card]
   simp only [Fintype.sum_bool, branchScore]
   cases old <;> norm_num [Function.update]
+
+/-! ### Phase-step bridge, named `QueryBasis` / `SimonWork` records, and `twice` -/
+
+-- `phaseStep`, `valueOracle phaseStep`, and `runValue phaseStep` on concrete basis states.
+example : (phaseStep true (ket true)).ofLp true = -1 := by simp
+
+example :
+    (runValue phaseStep (fun _ => LinearIsometry.id) ψ₀ (fun _ : Fin 1 => true) 1).ofLp
+      (0, true, ()) = -1 := by
+  rw [runValue_phaseStep]
+  simp [run, ψ₀]
+
+-- Concrete `QueryBasis` and `twice` check on the 0-query identity algorithm.
+private def q₀ : QueryBasis 1 Unit := ⟨0, true, ()⟩
+
+example : QueryBasis.equiv q₀ = (0, true, ()) := rfl
+
+example (x : Fin 1 → Bool) :
+    (run (twice 0 fun _ => LinearIsometry.id) (twiceInit ψ₀) x 0).ofLp (0, true, (), q₀) = 1 := by
+  have h := run_twice 0 (fun _ => LinearIsometry.id) ψ₀ x 0 true () q₀
+  simpa [run, q₀, ψ₀] using h
+
+example (x : Fin 1 → Bool) :
+    measureProb (run (twice 0 fun _ => LinearIsometry.id) (twiceInit ψ₀) x (0 + 0))
+      (Finset.univ.filter fun (i, b, w, q) =>
+        (i, b, w) ∈ ({(0, true, ())} : Finset _) ∨
+          QueryBasis.equiv q ∈ ({(0, true, ())} : Finset _)) = 1 := by
+  rw [measureProb_run_twice norm_ψ₀]
+  have hp : measureProb (run (fun _ => LinearIsometry.id) ψ₀ x 0) {(0, true, ())} = 1 := by
+    simp [run, measureProb, ψ₀]
+  rw [hp]
+  norm_num
+
+-- Concrete `SimonWork` record check.
+private def sw₀ : SimonWork 2 1 := ⟨fun _ => true, fun _ => false⟩
+
+example : simonEquiv (N := 2) (0, false, sw₀) = (fun _ => true, 0, false, fun _ => false) := rfl
 
 end CslibFrontierTests.QuantumSearch

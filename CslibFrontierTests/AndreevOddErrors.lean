@@ -6,7 +6,7 @@ Authors: Christian Reitwiessner
 
 import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.AndreevTruncatedCircuit
 
-/-! Checked examples for Lemma 6 and the truncated subcube vote (issue #4640, Milestone 2). -/
+/-! Checked examples for Lemma 6 and the truncated subcube vote. -/
 
 open Cslib Cslib.Circuits Cslib.Circuits.Boolean.WeightedThreshold Finset
 

@@ -99,9 +99,8 @@ theorem rep_empty : Rep (∅ : Finset α) .nil :=
     obtain ⟨ht, rfl⟩ := hr
     cases o with
     | contains x =>
-      refine ⟨?_, ht, rfl⟩
-      have h := contains_eq_true ht.ordered x
-      by_cases hx : x ∈ elements t <;> simp_all [step]
+      exact ⟨Bool.eq_iff_iff.mpr ((contains_eq_true ht.ordered x).trans decide_eq_true_iff.symm),
+        ht, rfl⟩
     | insert x => exact ⟨rfl, valid_insert ht x, elements_insert x t⟩
     | delete x => exact ⟨rfl, valid_erase ht x, elements_erase ht.ordered x⟩
     | minimum => exact ⟨(minimum_spec ht.ordered).eq_least, ht, rfl⟩

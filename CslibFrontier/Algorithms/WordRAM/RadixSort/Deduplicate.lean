@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.RadixSort.Program
 public import CslibFrontier.Algorithms.WordRAM.Deduplicate.Program
 public import CslibFrontier.Computability.WordRAM.Signed.Encoding
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native radix sorting followed by unique-key/multiplicity array construction
@@ -71,66 +72,40 @@ theorem deduplicate_exec {w base keyBits : ℕ} (xs : List ℕ) (x : Data 16)
       (∀ p ∈ rs, 0 < p.2 ∧ xs.count p.1 = p.2) ∧
       Modifies (Block.mk base (4 * xs.length)).footprint x.mem y.mem := by
   let x₀ := x.set origin base
-  have hinit : ExecWithin (B := .standard) w (ram[ origin ← src ]) x x₀ 1 := by ram_eval [x₀, hs]
+  have hinit : ExecWithin (B := .standard) w (ram[ origin ← src ]) x x₀ 1 := by wram_exec *
   obtain ⟨u, hu, hum, hp, hsorted, hptr, huf⟩ := exec xs x₀
-    (by simpa +decide [x₀] using hn) (by simpa +decide [x₀] using hs)
-    (by simpa +decide [x₀] using hd) (by simpa +decide [x₀] using hb)
-    hmem hkeys hwords (hfit.of_le (by omega)) hbits h2
-  have hun : u.regs len = xs.length := by
-    simpa +decide [x₀] using (hu.regs_eq (i := len) (by decide)).trans
-      (show x₀.regs len = xs.length by simpa +decide [x₀] using hn)
-  have huo : u.regs origin = base := by
-    simpa only [x₀, Data.set_regs, Function.update_self] using hu.regs_eq (i := origin) (by decide)
-  have htwice : Fits w (u.regs len + u.regs len) := hfit.of_le (by rw [hun]; omega)
-  have hkeyaddr : Fits w (u.regs len + u.regs len + base) := hfit.of_le (by rw [hun]; omega)
-  have hcntaddr : Fits w (u.regs len + u.regs len + base + u.regs len) :=
-    hfit.of_le (by rw [hun]; omega)
-  let v := ((u.set Deduplicate.keys (u.regs len + u.regs len)).set
-    Deduplicate.keys (u.regs len + u.regs len + base)).set
-    Deduplicate.counts (u.regs len + u.regs len + base + u.regs len)
+    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+    hmem hkeys hwords (by fits) hbits h2
+  have hun : u.regs len = xs.length := by regs_frame
+  let v := ((u.set Deduplicate.keys (xs.length + xs.length)).set
+    Deduplicate.keys (xs.length + xs.length + base)).set
+    Deduplicate.counts (xs.length + xs.length + base + xs.length)
   have hl : ExecWithin w outputLayout u v 3 := by
-    ram_eval [v, outputLayout, huo, htwice, hkeyaddr, hcntaddr]
-  have hvl : v.regs Deduplicate.len = (passes keyBits xs).length := by
-    change u.regs len = (passes keyBits xs).length
-    rw [hun, hp.length_eq]
-  have hvs : v.regs Deduplicate.src = u.regs src := rfl
-  have hvk : v.regs Deduplicate.keys = base + 2 * xs.length := by
-    change u.regs len + u.regs len + base = base + 2 * xs.length
-    omega
-  have hvc : v.regs Deduplicate.counts = base + 3 * xs.length := by
-    change u.regs len + u.regs len + base + u.regs len = base + 3 * xs.length
-    omega
+    unfold outputLayout; wram_exec *
   have hlen : (passes keyBits xs).length = xs.length := hp.length_eq
-  obtain ⟨y, rs, hy, hrs, hyout, hyrk, hyrc, _, hyf⟩ := Deduplicate.exec (passes keyBits xs) v
-    hvl hvs hvk (by rw [hvc, hlen]; omega) hum hsorted
-    (by rw [hlen]; rcases hptr with hptr | hptr <;> omega)
-    (by rw [hlen]; exact hfit.of_le (by omega)) (h2.of_le (by omega))
-  have heq : base + 2 * xs.length + xs.length = base + 3 * xs.length := by omega
-  refine ⟨y, rs, ?_, hyout, hyrk, by simpa only [hlen, heq] using hyrc,
-    hrs.keys_nodup, List.pairwise_map.mpr hrs.ordered, ?_, ?_, ?_⟩
-  · have hall := hinit.seq (hu.seq (hl.seq hy))
-    apply hall.mono
-    simp only [deduplicateTime, timeBound, hlen]
-    omega
-  · intro k
-    exact (hrs.mem_iff k).trans hp.mem_iff
-  · intro p hp'
-    exact ⟨hrs.positive p hp', (hp.count_eq p.1).symm.trans (hrs.multiplicity hp')⟩
+  obtain ⟨y, rs, hy, hrs, hyout, hyrk, hyrc, _, hyf⟩ :=
+    Deduplicate.exec (w := w) (s := u.regs src) (base := base + 2 * xs.length) (passes keyBits xs) v
+      (by change u.regs len = _; omega) rfl
+      (by change xs.length + xs.length + base = _; omega)
+      (by change xs.length + xs.length + base + xs.length = _; omega)
+      hum hsorted (by rcases hptr with hptr | hptr <;> omega)
+      (by rw [hlen]; fits) (by fits)
+  refine ⟨y, rs, ?_, hyout, hyrk,
+    by simpa only [hlen, show base + 2 * xs.length + xs.length = base + 3 * xs.length by omega]
+      using hyrc,
+    hrs.keys_nodup, List.pairwise_map.mpr hrs.ordered,
+    fun k => (hrs.mem_iff k).trans hp.mem_iff,
+    fun p hp' => ⟨hrs.positive p hp', (hp.count_eq p.1).symm.trans (hrs.multiplicity hp')⟩, ?_⟩
+  · exact (hinit.seq (hu.seq (hl.seq hy))).mono
+      (by simp only [deduplicateTime, timeBound]; omega)
   · intro a hnot
-    have hnotSort : a ∉ (Block.mk base (2 * xs.length)).footprint := by
-      intro ha
-      apply hnot
-      rw [Block.mem_footprint] at ha ⊢
-      dsimp only [Block.Owns] at ha ⊢
-      omega
+    have hnotSort : a ∉ (Block.mk base (2 * xs.length)).footprint := fun ha =>
+      hnot (Block.mem_footprint.mpr (by
+        rw [Block.mem_footprint] at ha; dsimp [Block.Owns] at ha ⊢; omega))
     have hnotOut : a ∉ (Block.mk (base + 2 * xs.length)
-        (2 * (passes keyBits xs).length)).footprint := by
-      intro ha
-      apply hnot
-      rw [Block.mem_footprint] at ha ⊢
-      dsimp only [Block.Owns] at ha ⊢
-      rw [hlen] at ha
-      omega
+        (2 * (passes keyBits xs).length)).footprint := fun ha =>
+      hnot (Block.mem_footprint.mpr (by
+        rw [Block.mem_footprint] at ha; dsimp [Block.Owns] at ha ⊢; omega))
     exact (hyf a hnotOut).trans (huf a hnotSort)
 
 end Cslib.Algorithms.WordRAM.RadixSort

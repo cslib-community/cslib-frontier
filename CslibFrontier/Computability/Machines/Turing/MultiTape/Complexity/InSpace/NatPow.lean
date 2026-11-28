@@ -56,7 +56,7 @@ theorem natPow :
       nlinarith
   have hbase := (fst encNat encNat).weaken hin
   have hn := (snd encNat encNat).weaken hin
-  have hinit := budget_prod hbase (budget_const (encB := encNat) 1 hin)
+  have hinit := budget_prod hbase (budget_const (encB := encNat) 1)
   have hstates (q : ℕ × ℕ) (j : ℕ) (hj : j ≤ q.2) :
       (encPair encNat encNat (powStep^[j] (q.1, 1))).length ≤ 2 * B q := by
     rw [iterate_powStep, length_encPair]
@@ -76,5 +76,16 @@ theorem budget_natPow_variable {α : Type} {encIn : α ↪ List Bool} {Bs : α �
     (hbound : (fun x => (n x + 1) * (encNat (a x)).length + (encNat (n x)).length + 1) ≼ Bs) :
     ComputableInSpace (fun x => a x ^ n x) encIn encNat Bs :=
   budget_comp natPow (budget_prod ha hn) hbound
+
+/-- A binary power of two fits in any budget that bounds the value of its exponent. -/
+theorem budget_twoPow {α : Type} {enc : α ↪ List Bool} {S n : α → ℕ}
+    (hn : ComputableInSpace n enc encNat S) (hb : n ≼ S) :
+    ComputableInSpace (fun a => 2 ^ n a) enc encNat S := by
+  refine budget_natPow_variable (budget_const 2) hn
+    (BigOLe.trans (.of_le_linear 3 3 fun a => ?_) hb)
+  have hsize : (encNat (n a)).length ≤ n a := by
+    simpa only [length_encNat_eq_size, Nat.size_le] using Nat.lt_two_pow_self
+  change (n a + 1) * 2 + (encNat (n a)).length + 1 ≤ 3 * n a + 3
+  omega
 
 end Turing.MultiTapeTM.ComputableInSpace

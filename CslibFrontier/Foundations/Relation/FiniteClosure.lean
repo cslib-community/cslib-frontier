@@ -46,22 +46,14 @@ variable {α : Type*} (r : α → α → Prop)
 
 theorem lfp_reflTransGenRule : (reflTransGenRule r).lfp = {p | ReflTransGen r p.1 p.2} := by
   apply le_antisymm
-  · refine OrderHom.lfp_le _ fun p hp => ?_
-    rcases hp with h | ⟨b, hb, hR⟩
-    · obtain ⟨a, a'⟩ := p
-      simp only at h
-      subst h
-      exact .refl
+  · refine OrderHom.lfp_le _ ?_
+    rintro ⟨a, a'⟩ ((rfl : a = a') | ⟨b, hb, hR⟩)
+    · exact .refl
     · exact .head hb hR
-  · rintro ⟨a, a'⟩ h
-    simp only [Set.mem_ofPred_eq] at h
+  · rintro ⟨a, a'⟩ (h : ReflTransGen r a a')
     induction h using ReflTransGen.head_induction_on with
-    | refl =>
-      rw [← OrderHom.map_lfp]
-      exact .inl rfl
-    | head hb _ ih =>
-      rw [← OrderHom.map_lfp]
-      exact .inr ⟨_, hb, ih⟩
+    | refl => exact OrderHom.map_lfp (reflTransGenRule r) ▸ .inl rfl
+    | head hb _ ih => exact OrderHom.map_lfp (reflTransGenRule r) ▸ .inr ⟨_, hb, ih⟩
 
 variable [Fintype α] [DecidableEq α] [DecidableRel r]
 

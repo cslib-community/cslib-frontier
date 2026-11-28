@@ -12,22 +12,27 @@ public import CslibFrontier.Crypto.Computational.NaorReingold.Security
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
 public import CslibFrontier.Crypto.Computational.PseudorandomGenerator
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
+import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Crypto.Computational.GGM.Security
 import CslibFrontier.Crypto.Computational.GeneratorReindex
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.TruthTable
 import CslibFrontier.Crypto.Computational.Stretch
-import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
+import CslibFrontier.Foundations.Data.BitString.List.LowBits
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.BitString
+import CslibFrontier.Probability.BitString.List
+import CslibFrontier.Probability.BitString.UniformSplit
 import CslibFrontier.Probability.IID
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.StatisticalDistance.Product
-import CslibFrontier.Probability.Uniform
+import CslibFrontier.Tactic.GameHop
 import CslibFrontier.Tactic.Negligible
 import Mathlib.Tactic.Linarith
 
@@ -123,13 +128,10 @@ private theorem parseNaorReingoldTape_take {count expWidth hashLen limit : ℕ}
     (hlim : expWidth + (count * expWidth + hashLen) ≤ limit) (tape : List Bool) :
     parseNaorReingoldTape count expWidth hashLen (tape.take limit) =
       parseNaorReingoldTape count expWidth hashLen tape := by
-  simp only [parseNaorReingoldTape, List.take_take, List.drop_take]
-  have h1 : min expWidth limit = expWidth := Nat.min_eq_left (by omega)
-  have h2 : min (count * expWidth) (limit - expWidth) = count * expWidth :=
-    Nat.min_eq_left (by omega)
-  have h3 : min hashLen (limit - expWidth - count * expWidth) = hashLen :=
-    Nat.min_eq_left (by omega)
-  rw [h1, h2, h3]
+  unfold parseNaorReingoldTape
+  simp only [List.take_take, List.drop_take, Nat.min_eq_left (show expWidth ≤ limit by omega),
+    Nat.min_eq_left (show count * expWidth ≤ limit - expWidth by omega),
+    Nat.min_eq_left (show hashLen ≤ limit - expWidth - count * expWidth by omega)]
 
 private def evalNaorReingoldTape (inLen outLen : ℕ → ℕ) (desc : ℕ → F.Desc) (bound : F.Desc → ℕ)
     (expWidth : ℕ → ℕ) (n : ℕ) (tape query : List Bool) : List Bool :=
@@ -137,19 +139,14 @@ private def evalNaorReingoldTape (inLen outLen : ℕ → ℕ) (desc : ℕ → F.
     parseNaorReingoldTape (inLen n) (expWidth n) (outLen n * (2 * bound (desc n) + 1)) tape
   F.naorReingoldHashedWordEval (outLen n) bound (desc n) parsed.2.2 parsed.1 parsed.2.1 query
 
-@[simp]
-private theorem length_evalNaorReingoldTape (inLen outLen : ℕ → ℕ) (desc : ℕ → F.Desc)
-    (bound : F.Desc → ℕ) (expWidth : ℕ → ℕ) (n : ℕ) (tape query : List Bool) :
-    (F.evalNaorReingoldTape inLen outLen desc bound expWidth n tape query).length = outLen n := by
-  simp [evalNaorReingoldTape]
-
 private theorem evalNaorReingoldTape_take (inLen outLen : ℕ → ℕ) (desc : ℕ → F.Desc)
     (bound : F.Desc → ℕ) (expWidth : ℕ → ℕ) {n limit : ℕ}
     (hlim : expWidth n + (inLen n * expWidth n + outLen n * (2 * bound (desc n) + 1)) ≤ limit)
     (tape query : List Bool) :
     F.evalNaorReingoldTape inLen outLen desc bound expWidth n (tape.take limit) query =
       F.evalNaorReingoldTape inLen outLen desc bound expWidth n tape query := by
-  simp only [evalNaorReingoldTape, parseNaorReingoldTape_take hlim]
+  unfold evalNaorReingoldTape
+  rw [parseNaorReingoldTape_take hlim]
 
 private theorem computableInPolyTime_parseNaorReingoldTape {α : Type} {input : α ↪ List Bool}
     {count expWidth hashLen : α → ℕ} {tape : α → List Bool}
@@ -160,18 +157,32 @@ private theorem computableInPolyTime_parseNaorReingoldTape {α : Type} {input : 
     ComputableInPolyTime
       (fun a => parseNaorReingoldTape (count a) (expWidth a) (hashLen a) (tape a))
       input (encPair encNat (encPair (encList encNat) encBits)) := by
-  have hcw := ComputableInPolyTime.unary_mul.comp (hcount.prod hexp)
-  have hrest := ComputableInPolyTime.bitsDropWithInput htape hexp
-  have hα₀ := ComputableInPolyTime.bitsBinaryValue.comp
-    (ComputableInPolyTime.bitsTakeWithInput htape hexp)
-  have hrows := ComputableInPolyTime.bitsRowsWithInput hcount hexp
-    (ComputableInPolyTime.bitsTakeWithInput hrest hcw)
-  have hαs := (ComputableInPolyTime.map ComputableInPolyTime.bitsBinaryValue).comp hrows
-  have hseed := ComputableInPolyTime.bitsTakeWithInput
-    (ComputableInPolyTime.bitsDropWithInput hrest hcw) hhash
-  exact hα₀.prod (hαs.prod hseed)
+  unfold parseNaorReingoldTape
+  fun_prop
 
-private theorem computableInPolyTime_evalNaorReingoldTape_of
+private theorem computableInPolyTime_naorReingoldHashedWordEval_comp {F : PrimeOrderGroupFamily}
+    {α : Type} {enc : α ↪ List Bool} {bound : F.Desc → ℕ}
+    {outLen : α → ℕ} {d : α → F.Desc} {seed : α → List Bool} {α₀ : α → ℕ}
+    {αs : α → List ℕ} {xs : α → List Bool}
+    (hbound : ComputableInPolyTime bound F.encDesc encUnary)
+    (hout : ComputableInPolyTime outLen enc encUnary)
+    (hd : ComputableInPolyTime d enc F.encDesc)
+    (hseed : ComputableInPolyTime seed enc encBits)
+    (hα₀ : ComputableInPolyTime α₀ enc encNat)
+    (hαs : ComputableInPolyTime αs enc (encList encNat))
+    (hxs : ComputableInPolyTime xs enc encBits) :
+    ComputableInPolyTime
+      (fun a =>
+        F.naorReingoldHashedWordEval (outLen a) bound (d a) (seed a) (α₀ a) (αs a) (xs a))
+      enc encBits :=
+  (F.computableInPolyTime_naorReingoldHashedWordEval hbound).comp
+    (hout.prod (hd.prod (hseed.prod (hα₀.prod (hαs.prod hxs)))))
+
+attribute [local fun_prop]
+  computableInPolyTime_parseNaorReingoldTape
+  computableInPolyTime_naorReingoldHashedWordEval_comp
+
+private theorem computableInPolyTime_evalNaorReingoldTape_of {F : PrimeOrderGroupFamily}
     {α : Type} {input : α ↪ List Bool}
     {inLen outLen : ℕ → ℕ} {desc : ℕ → F.Desc} {bound : F.Desc → ℕ} {expWidth : ℕ → ℕ}
     {param : α → ℕ} {tape query : α → List Bool}
@@ -187,73 +198,36 @@ private theorem computableInPolyTime_evalNaorReingoldTape_of
       (fun a => F.evalNaorReingoldTape inLen outLen desc bound expWidth
         (param a) (tape a) (query a))
       input encBits := by
-  have hd := hdesc.comp hparam
-  have hout := houtLen.comp hparam
-  have h2b1 := ComputableInPolyTime.unary_add.comp
-    ((ComputableInPolyTime.unary_mul.comp
-      ((ComputableInPolyTime.const 2).prod (hbound.comp hd))).prod
-      (ComputableInPolyTime.const 1))
+  have hd : ComputableInPolyTime (fun a => desc (param a)) input F.encDesc := hdesc.comp hparam
   have hparsed := computableInPolyTime_parseNaorReingoldTape
     (hinLen.comp hparam) (hexp.comp hparam)
-    (ComputableInPolyTime.unary_mul.comp (hout.prod h2b1)) htape
-  let ERows := encPair (encList encNat) encBits
-  have hp1 := (ComputableInPolyTime.fst encNat ERows).comp hparsed
-  have hp2 := (ComputableInPolyTime.snd encNat ERows).comp hparsed
-  have hp21 := (ComputableInPolyTime.fst (encList encNat) encBits).comp hp2
-  have hp22 := (ComputableInPolyTime.snd (encList encNat) encBits).comp hp2
-  exact (F.computableInPolyTime_naorReingoldHashedWordEval hbound).comp
-    (hout.prod (hd.prod (hp22.prod (hp1.prod (hp21.prod hquery)))))
+    ((houtLen.comp hparam).unary_mul'
+      (((ComputableInPolyTime.const 2).unary_mul' (hbound.comp hd)).unary_add' (.const 1))) htape
+  unfold evalNaorReingoldTape
+  exact computableInPolyTime_naorReingoldHashedWordEval_comp hbound (houtLen.comp hparam) hd
+    (hparsed.snd'.snd') hparsed.fst' (hparsed.snd'.fst') hquery
+
+attribute [local fun_prop] computableInPolyTime_evalNaorReingoldTape_of
 
 private noncomputable def binaryZModLaw (width q : ℕ) : PMF (ZMod q) :=
   ((Cslib.BitString.uniformList width).map Cslib.BitString.binaryValue).map Nat.cast
 
-private theorem binaryZModLaw_eq_sampleModNat (width q : ℕ) :
-    binaryZModLaw width q = (ProbComp.eval (ProbComp.sampleModNat width q)).map Nat.cast := by
-  simp only [pmf_norm, binaryZModLaw, ProbComp.sampleModNat, ProbComp.sampleBinaryNat,
-    Cslib.BitString.eval_sampleList, ZMod.natCast_mod]
-
 private theorem dist_binaryZModLaw_le {s width q : ℕ} [NeZero q]
     (hw : q.size + s ≤ width) :
     dist (binaryZModLaw width q) (PMF.uniformOfFintype (ZMod q)) ≤ 1 / 2 ^ s := by
-  rw [binaryZModLaw_eq_sampleModNat]
-  have h1 := ProbComp.dist_map_natCast_eval_sampleModNat_le width q
+  have heq : binaryZModLaw width q =
+      (ProbComp.eval (ProbComp.sampleModNat width q)).map Nat.cast := by
+    unfold binaryZModLaw
+    simp only [pmf_norm, ProbComp.sampleModNat, ProbComp.sampleBinaryNat,
+      Cslib.BitString.eval_sampleList, ZMod.natCast_mod]
+  rw [heq]
   have hlt : (q : ℝ) < (2 : ℝ) ^ q.size := by exact_mod_cast Nat.lt_size_self q
-  have hle : (2 : ℝ) ^ (q.size + s) ≤ (2 : ℝ) ^ width := pow_le_pow_right₀ (by norm_num) hw
   calc dist ((ProbComp.eval (ProbComp.sampleModNat width q)).map (Nat.cast : ℕ → ZMod q))
         (PMF.uniformOfFintype (ZMod q))
-      ≤ (q : ℝ) / (2 : ℝ) ^ width := h1
-    _ ≤ (2 : ℝ) ^ q.size / (2 : ℝ) ^ (q.size + s) := by
-        exact div_le_div₀ (by positivity) hlt.le (by positivity) hle
-    _ = 1 / 2 ^ s := by
-        rw [pow_add, div_mul_eq_div_div, div_self (by positivity)]
-
-private theorem uniformList_map_listRows_binaryValue : ∀ (count width : ℕ),
-    (Cslib.BitString.uniformList (count * width)).map
-      (fun w => (Cslib.BitString.listRows count width w).map Cslib.BitString.binaryValue) =
-    (PMF.iid ((Cslib.BitString.uniformList width).map Cslib.BitString.binaryValue) count).map
-      List.ofFn
-  | 0, width => by
-      simp [Cslib.BitString.listRows, PMF.iid, PMF.map, Function.comp_def, PMF.bind_const]
-  | count + 1, width => by
-      have hmul : (count + 1) * width = width + count * width := by ring
-      rw [hmul, Cslib.BitString.uniformList_add, PMF.iid, PMF.monad_bind_eq_bind, PMF.map_bind,
-        PMF.map_bind, PMF.bind_map]
-      refine PMF.bind_congr_on_support _ _ _ fun u hu => ?_
-      have hlen : u.length = width := Cslib.BitString.length_of_mem_support_uniformList hu
-      have hstep :
-          ((Cslib.BitString.uniformList (count * width)).map (u ++ ·)).map
-            (fun w =>
-              (Cslib.BitString.listRows (count + 1) width w).map Cslib.BitString.binaryValue) =
-          ((Cslib.BitString.uniformList (count * width)).map
-            (fun v =>
-              (Cslib.BitString.listRows count width v).map Cslib.BitString.binaryValue)).map
-            (Cslib.BitString.binaryValue u :: ·) := by
-        simp only [PMF.map_comp, Function.comp_def,
-          Cslib.BitString.listRows_succ_append count width hlen, List.map_cons]
-      rw [hstep, uniformList_map_listRows_binaryValue count width]
-      simp only [PMF.map_comp, Function.comp_def]
-      congr 1 with v : 1
-      simp [List.ofFn_succ]
+      ≤ (q : ℝ) / (2 : ℝ) ^ width := ProbComp.dist_map_natCast_eval_sampleModNat_le width q
+    _ ≤ (2 : ℝ) ^ q.size / (2 : ℝ) ^ (q.size + s) :=
+        div_le_div₀ (by positivity) hlt.le (by positivity) (pow_le_pow_right₀ (by norm_num) hw)
+    _ = 1 / 2 ^ s := by rw [pow_add, div_mul_eq_div_div, div_self (by positivity)]
 
 private theorem uniformList_map_parseNaorReingoldTape (count expWidth hashLen : ℕ) :
     (Cslib.BitString.uniformList (expWidth + (count * expWidth + hashLen))).map
@@ -262,39 +236,26 @@ private theorem uniformList_map_parseNaorReingoldTape (count expWidth hashLen : 
       ((PMF.iid ((Cslib.BitString.uniformList expWidth).map Cslib.BitString.binaryValue) count).map
         List.ofFn).bind fun αs =>
         (Cslib.BitString.uniformList hashLen).map fun seed => (α₀, αs, seed) := by
-  rw [PMF.map]
-  simp only [Function.comp_def, parseNaorReingoldTape]
-  rw [Cslib.BitString.uniformList_bind_split expWidth (count * expWidth + hashLen)
-    (fun front rest => PMF.pure
-      (Cslib.BitString.binaryValue front,
-        (Cslib.BitString.listRows count expWidth (rest.take (count * expWidth))).map
-          Cslib.BitString.binaryValue,
-        (rest.drop (count * expWidth)).take hashLen))]
-  conv_rhs => rw [PMF.bind_map]
-  congr 1 with front : 1
-  rw [Cslib.BitString.uniformList_bind_split (count * expWidth) hashLen
-    (fun mid back => PMF.pure
+  unfold parseNaorReingoldTape
+  dsimp only
+  rw [Cslib.BitString.uniformList_map_split3 expWidth (count * expWidth) hashLen
+    (fun front mid back =>
       (Cslib.BitString.binaryValue front,
         (Cslib.BitString.listRows count expWidth mid).map Cslib.BitString.binaryValue,
-        back.take hashLen))]
-  have hmid :
-      ((Cslib.BitString.uniformList (count * expWidth)).bind fun mid =>
-        (Cslib.BitString.uniformList hashLen).bind fun back =>
-          PMF.pure (Cslib.BitString.binaryValue front,
-            (Cslib.BitString.listRows count expWidth mid).map Cslib.BitString.binaryValue,
-            back.take hashLen)) =
-      (((Cslib.BitString.uniformList (count * expWidth)).map fun mid =>
-          (Cslib.BitString.listRows count expWidth mid).map Cslib.BitString.binaryValue).bind
-        fun αs => (Cslib.BitString.uniformList hashLen).bind fun back =>
-          PMF.pure (Cslib.BitString.binaryValue front, αs, back.take hashLen)) := by
-    rw [PMF.bind_map]; rfl
-  rw [hmid, uniformList_map_listRows_binaryValue count expWidth]
-  dsimp only [Function.comp_def]
-  congr 1 with αs : 1
-  rw [PMF.map]
-  refine PMF.bind_congr_on_support _ _ _ fun back hback => ?_
-  have hlen := Cslib.BitString.length_of_mem_support_uniformList hback
-  simp only [Function.comp_def, List.take_of_length_le hlen.le]
+        back.take hashLen)),
+    ← Cslib.BitString.uniformList_map_listRows count expWidth Cslib.BitString.binaryValue]
+  simp only [PMF.bind_map, Function.comp_def]
+  congr 1 with front : 1
+  congr 1 with mid : 1
+  rw [show (fun s₃ : List Bool =>
+      (Cslib.BitString.binaryValue front,
+        (Cslib.BitString.listRows count expWidth mid).map Cslib.BitString.binaryValue,
+        s₃.take hashLen)) =
+      (fun seed =>
+        (Cslib.BitString.binaryValue front,
+          (Cslib.BitString.listRows count expWidth mid).map Cslib.BitString.binaryValue, seed)) ∘
+        List.take hashLen from rfl,
+    ← PMF.map_comp, Cslib.BitString.uniformList_take le_rfl]
 
 private theorem advantage_evalNaorReingoldTape_uniform_le (inLen outLen : ℕ → ℕ)
     (desc : ℕ → F.Desc) (bound : F.Desc → ℕ) (expWidth : ℕ → ℕ)
@@ -319,19 +280,17 @@ private theorem advantage_evalNaorReingoldTape_uniform_le (inLen outLen : ℕ �
   let E := expWidth n
   let H := ℓ * (2 * bound d + 1)
   have : NeZero (F.order d) := ⟨(F.prime_order d).ne_zero⟩
-  let detRun : ZMod (F.order d) × (Fin m → ZMod (F.order d)) → PMF Bool :=
-    fun p =>
-      (Cslib.BitString.uniformList H).bind fun seed =>
-        OracleComp.interpret
-          (OracleComp.sumHandler ProbComp.unifOracle fun request =>
-            PMF.pure (if request.2.length = m then
-              F.linearHashKDF (fun _ => ℓ) bound
-                ((d, seed), F.encode d (F.naorReingoldEval d p.1 p.2
-                  (BitString.ofList m request.2)))
-            else []))
-          (adversary n [])
-  let μNat : PMF ℕ := (Cslib.BitString.uniformList E).map Cslib.BitString.binaryValue
-  let μ : PMF (ZMod (F.order d)) := μNat.map Nat.cast
+  let detRun : ZMod (F.order d) × (Fin m → ZMod (F.order d)) → PMF Bool := fun p =>
+    (Cslib.BitString.uniformList H).bind fun seed =>
+      OracleComp.interpret
+        (OracleComp.sumHandler ProbComp.unifOracle fun request =>
+          PMF.pure (if request.2.length = m then
+            F.linearHashKDF (fun _ => ℓ) bound
+              ((d, seed), F.encode d (F.naorReingoldEval d p.1 p.2
+                (BitString.ofList m request.2)))
+          else []))
+        (adversary n [])
+  let μ : PMF (ZMod (F.order d)) := binaryZModLaw E (F.order d)
   let ν : PMF (ZMod (F.order d)) := PMF.uniformOfFintype (ZMod (F.order d))
   have hlhs :
       ((Cslib.BitString.uniformList (E + (m * E + H))).bind fun tape =>
@@ -352,24 +311,20 @@ private theorem advantage_evalNaorReingoldTape_uniform_le (inLen outLen : ℕ �
               else []))
             (adversary n []))
       (uniformList_map_parseNaorReingoldTape m E H)
-    conv_lhs at hparse => rw [PMF.bind_map]
+    rw [PMF.bind_map] at hparse
     refine Eq.trans hparse ?_
-    change ((μNat.bind fun α₀ => ((PMF.iid μNat m).map List.ofFn).bind fun αs =>
-      (Cslib.BitString.uniformList H).map fun seed => (α₀, αs, seed)).bind _) = _
-    simp only [pmf_norm, μ, PMF.iid_map]
-    congr 1 with a₀ : 1; congr 1 with aVec : 1; congr 1 with seed : 1
-    congr 1 with q : 1
+    dsimp only [μ, binaryZModLaw, detRun]
+    simp only [pmf_norm, PMF.iid_map]
+    congr 1 with a₀ : 1; congr 1 with aVec : 1; congr 1 with seed : 1; congr 1 with q : 1
     cases q with
-    | inl r => rfl
+    | inl _ => rfl
     | inr request =>
       dsimp only [OracleComp.sumHandler]
       by_cases hq : request.2.length = m
       · simp only [hq, ↓reduceIte, naorReingoldHashedWordEval]
-        have hxs : List.ofFn (BitString.ofList m request.2) = request.2 :=
-          BitString.ofFn_ofList hq
-        have heval := F.naorReingoldWordEval_eq_encode d a₀ aVec
-          (BitString.ofList m request.2)
-        rw [hxs] at heval
+        have heval := F.naorReingoldWordEval_eq_encode d (Cslib.BitString.binaryValue a₀)
+          (fun i => Cslib.BitString.binaryValue (aVec i)) (BitString.ofList m request.2)
+        rw [BitString.ofFn_ofList hq] at heval
         rw [heval]
       · simp [hq]
   have hrhs :
@@ -378,14 +333,7 @@ private theorem advantage_evalNaorReingoldTape_uniform_le (inLen outLen : ℕ �
       (ν.bind fun α₀ => (PMF.iid ν m).map (α₀, ·)).bind detRun := by
     simp only [pmf_norm, naorReingoldHashedRealGame, seededSetup, linearHashSeedLen]
     change ((Cslib.BitString.uniformList H).bind fun seed =>
-      ν.bind fun α₀ => (PMF.uniformOfFintype (Fin m → ZMod (F.order d))).bind fun α =>
-        OracleComp.interpret
-          (OracleComp.sumHandler ProbComp.unifOracle fun request =>
-            PMF.pure (if request.2.length = m then
-              F.linearHashKDF (fun _ => ℓ) bound
-                ((d, seed), F.encode d (F.naorReingoldEval d α₀ α (BitString.ofList m request.2)))
-            else []))
-          (adversary n [])) =
+      ν.bind fun α₀ => (PMF.uniformOfFintype (Fin m → ZMod (F.order d))).bind fun α => _) =
       ν.bind fun α₀ => (PMF.iid ν m).bind fun α => detRun (α₀, α)
     rw [PMF.bind_comm (Cslib.BitString.uniformList H) ν]
     congr 1 with α₀ : 1
@@ -395,31 +343,23 @@ private theorem advantage_evalNaorReingoldTape_uniform_le (inLen outLen : ℕ �
     ((Cslib.BitString.uniformList (E + (m * E + H))).bind _)
     (F.naorReingoldHashedRealGame _ _ _ _ _ n) ≤ _
   rw [hlhs, hrhs, Game.advantage_eq_nndist, ← NNReal.coe_le_coe, coe_nndist]
-  have hd_step : dist μ ν ≤ 1 / 2 ^ n :=
-    dist_binaryZModLaw_le hexp
-  have h1 :
-      dist (μ.bind fun α₀ => (PMF.iid μ m).map (α₀, ·))
-        (ν.bind fun α₀ => (PMF.iid μ m).map (α₀, ·)) ≤ dist μ ν :=
-    PMF.dist_bind_le _ _ _
   have hswap (p : PMF (ZMod (F.order d))) (q : PMF (Fin m → ZMod (F.order d))) :
       (p.bind fun α₀ => q.map (α₀, ·)) = (q.bind fun α => p.map (·, α)) := by
-    simp only [PMF.map]
-    exact PMF.bind_comm p q _
-  have h2 :
-      dist (ν.bind fun α₀ => (PMF.iid μ m).map (α₀, ·))
-        (ν.bind fun α₀ => (PMF.iid ν m).map (α₀, ·)) ≤ m * dist μ ν := by
-    rw [hswap ν (PMF.iid μ m), hswap ν (PMF.iid ν m)]
-    exact (PMF.dist_bind_le _ _ _).trans (PMF.dist_iid_le μ ν m)
-  calc dist
-        ((μ.bind fun α₀ => (PMF.iid μ m).map (α₀, ·)).bind detRun)
+    simp only [PMF.map]; exact PMF.bind_comm p q _
+  calc dist ((μ.bind fun α₀ => (PMF.iid μ m).map (α₀, ·)).bind detRun)
         ((ν.bind fun α₀ => (PMF.iid ν m).map (α₀, ·)).bind detRun)
-      ≤ dist
-          (μ.bind fun α₀ => (PMF.iid μ m).map (α₀, ·))
-          (ν.bind fun α₀ => (PMF.iid ν m).map (α₀, ·)) :=
-        PMF.dist_bind_le _ _ _
-    _ ≤ dist μ ν + m * dist μ ν := (dist_triangle _ _ _).trans (add_le_add h1 h2)
+      ≤ dist (μ.bind fun α₀ => (PMF.iid μ m).map (α₀, ·))
+          (ν.bind fun α₀ => (PMF.iid μ m).map (α₀, ·)) +
+          dist (ν.bind fun α₀ => (PMF.iid μ m).map (α₀, ·))
+            (ν.bind fun α₀ => (PMF.iid ν m).map (α₀, ·)) :=
+        (PMF.dist_bind_le _ _ _).trans (dist_triangle _ _ _)
+    _ ≤ dist μ ν + m * dist μ ν := by
+        refine add_le_add (PMF.dist_bind_le _ _ _) ?_
+        rw [hswap ν (PMF.iid μ m), hswap ν (PMF.iid ν m)]
+        exact (PMF.dist_bind_le _ _ _).trans (PMF.dist_iid_le μ ν m)
     _ = (m + 1 : ℝ) * dist μ ν := by ring
-    _ ≤ (m + 1 : ℝ) * (1 / 2 ^ n) := mul_le_mul_of_nonneg_left hd_step (by positivity)
+    _ ≤ (m + 1 : ℝ) * (1 / 2 ^ n) :=
+        mul_le_mul_of_nonneg_left (dist_binaryZModLaw_le hexp) (by positivity)
     _ = ((((m + 1 : ℕ) : ℝ≥0) / (2 : ℝ≥0) ^ n : ℝ≥0) : ℝ) := by push_cast; ring
 
 private theorem naorReingoldHashedIdealGame_pure_const (inLen outLen : ℕ → ℕ)
@@ -456,11 +396,6 @@ private theorem naorReingoldHashedIdealGame_pure_const (inLen outLen : ℕ → �
   let hashSeed := (rest.drop (n * E)).take H
   F.naorReingoldHashedWordEval n bound (desc n) hashSeed α₀ αs query
 
-private theorem naorReingoldSeededPRF_eq_evalTape (desc : ℕ → F.Desc) (bound : F.Desc → ℕ)
-    (expWidth : ℕ → ℕ) (expand : List Bool → List Bool) (key query : List Bool) :
-    F.naorReingoldSeededPRF desc bound expWidth expand key query =
-      F.evalNaorReingoldTape id id desc bound expWidth key.length (expand key) query := rfl
-
 /-- `naorReingoldSeededPRF` always outputs a bit string of length `key.length`. -/
 @[simp] theorem length_naorReingoldSeededPRF (desc : ℕ → F.Desc) (bound : F.Desc → ℕ)
     (expWidth : ℕ → ℕ) (expand : List Bool → List Bool) (key query : List Bool) :
@@ -479,13 +414,11 @@ theorem computableInPolyTime_naorReingoldSeededPRF {desc : ℕ → F.Desc} {boun
       (fun p : List Bool × List Bool =>
         F.naorReingoldSeededPRF desc bound expWidth expand p.1 p.2)
       (encPair encBits encBits) encBits := by
-  simp only [naorReingoldSeededPRF_eq_evalTape]
-  have hfst := ComputableInPolyTime.fst encBits encBits
-  exact (computableInPolyTime_evalNaorReingoldTape_of (inLen := id) (outLen := id) F
-    .id' .id' hdesc hbound hexpWidth
-    (ComputableInPolyTime.length_bits.comp hfst)
-    (hexpand.comp hfst)
-    (ComputableInPolyTime.snd encBits encBits))
+  change ComputableInPolyTime
+    (fun p : List Bool × List Bool =>
+      F.evalNaorReingoldTape id id desc bound expWidth p.1.length (expand p.1) p.2)
+    (encPair encBits encBits) encBits
+  fun_prop
 
 private noncomputable def prfTapeDistinguisher (F : PrimeOrderGroupFamily)
     (desc : ℕ → F.Desc) (bound : F.Desc → ℕ) (expWidth : ℕ → ℕ)
@@ -507,66 +440,39 @@ private theorem isPPT_prfTapeDistinguisher (F : PrimeOrderGroupFamily)
     {adversary : OracleDistinguisher} (hadversary : IsOraclePPT encBool adversary) :
     IsPPT encBool (prfTapeDistinguisher F desc bound expWidth adversary) := by
   let ECaller := encPair encUnary encBits
-  let EReq := encPair (encFinEnum Unit) encBits
-  let ERest := encPair EReq (encFinEnum Unit)
-  let EHandler := encPair ECaller ERest
-  have hprep : ComputableInPolyTime (fun p : ℕ × List Bool => (p.1, ([] : List Bool)))
-      ECaller (encPair encUnary encBits) :=
-    (ComputableInPolyTime.fst encUnary encBits).prod (ComputableInPolyTime.const [])
-  have hfstH := ComputableInPolyTime.fst ECaller ERest
-  have hsndH := ComputableInPolyTime.snd ECaller ERest
-  have hreqQ : ComputableInPolyTime
-      (fun pair : (ℕ × List Bool) × (Unit × List Bool) × Unit => pair.2.1.2)
-      EHandler encBits :=
-    (ComputableInPolyTime.snd (encFinEnum Unit) encBits).comp
-      ((ComputableInPolyTime.fst EReq (encFinEnum Unit)).comp hsndH)
-  have hnH : ComputableInPolyTime
-      (fun pair : (ℕ × List Bool) × (Unit × List Bool) × Unit => pair.1.1)
-      EHandler encUnary :=
-    (ComputableInPolyTime.fst encUnary encBits).comp hfstH
-  have htH : ComputableInPolyTime
-      (fun pair : (ℕ × List Bool) × (Unit × List Bool) × Unit => pair.1.2)
-      EHandler encBits :=
-    (ComputableInPolyTime.snd encUnary encBits).comp hfstH
-  have hguard : ComputableInPolyTime
-      (fun pair : (ℕ × List Bool) × (Unit × List Bool) × Unit =>
-        pair.2.1.2.length == pair.1.1)
-      EHandler encBool :=
-    ComputableInPolyTime.unary_beq'
-      (ComputableInPolyTime.length_bits.comp hreqQ) hnH
+  let EHandler := encPair ECaller (encPair (encPair (encFinEnum Unit) encBits) (encFinEnum Unit))
   have hhandler : IsPPTOn EHandler (encPair encBits (encFinEnum Unit))
-      (fun pair : (ℕ × List Bool) × (Unit × List Bool) × Unit =>
-        pure (if pair.2.1.2.length = pair.1.1 then
-          F.evalNaorReingoldTape id id desc bound expWidth pair.1.1 pair.1.2 pair.2.1.2
+      (fun p : (ℕ × List Bool) × (Unit × List Bool) × Unit =>
+        pure (if p.2.1.2.length = p.1.1 then
+          F.evalNaorReingoldTape id id desc bound expWidth p.1.1 p.1.2 p.2.1.2
         else [], ())) := by
-    simpa only [beq_iff_eq] using ((hguard.ite
-      (computableInPolyTime_evalNaorReingoldTape_of F
-        (inLen := id) (outLen := id) .id' .id' hdesc hbound hexpWidth
-        hnH htH hreqQ)
-      (ComputableInPolyTime.const [])).prod
-      (ComputableInPolyTime.const ())).isPPTOn
-  have hres : ComputableInPolyTime
-      (fun pair : (ℕ × List Bool) × List Bool => pair.1.1 + 1)
-      (encPair ECaller encBits) encUnary :=
-    ComputableInPolyTime.unary_add.comp
-      (((ComputableInPolyTime.fst encUnary encBits).comp
-        (ComputableInPolyTime.fst ECaller encBits)).prod (.const 1))
-  have hrun := hadversary.run_interpret_preprocess (State := Unit)
+    refine (IsPPTOn.ite
+      (condition := fun p : (ℕ × List Bool) × (Unit × List Bool) × Unit => p.2.1.2.length = p.1.1)
+      (yes := fun p =>
+        pure (F.evalNaorReingoldTape id id desc bound expWidth p.1.1 p.1.2 p.2.1.2, ()))
+      (no := fun _ => pure ([], ()))
+      (by fun_prop)
+      ((computableInPolyTime_evalNaorReingoldTape_of .id' .id' hdesc hbound hexpWidth
+        (by fun_prop) (by fun_prop) (by fun_prop)).prod (.const ())).isPPTOn
+      (by fun_prop)).congr fun p => ?_
+    by_cases h : p.2.1.2.length = p.1.1 <;> simp [h]
+  unfold prfTapeDistinguisher
+  refine (hadversary.run_interpret_preprocess (input := ECaller) (State := Unit)
     (stateEncoding := encFinEnum Unit)
     (handler := fun (p : ℕ × List Bool) (request : Unit × List Bool) (_ : Unit) =>
       pure (if request.2.length = p.1 then
         F.evalNaorReingoldTape id id desc bound expWidth p.1 p.2 request.2
       else [], ()))
     (prepare := fun p : ℕ × List Bool => (p.1, []))
-    (initial := fun _ => ())
-    (resources := fun p _ => p.1 + 1)
-    hprep hhandler (ComputableInPolyTime.const ())
-    (fun _ _ => True) (fun _ => trivial) hres
+    (initial := fun _ => ()) (resources := fun p _ => p.1)
+    (by fun_prop) hhandler (by fun_prop) (fun _ _ => True) (fun _ => trivial) (by fun_prop)
     (fun a request _ _ result hresult => by
       simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
       subst result
-      by_cases hq : request.2.length = a.1 <;> simp [hq])
-  exact hrun.map (ComputableInPolyTime.fst encBool (encFinEnum Unit))
+      refine ⟨trivial, ?_, Nat.le_add_right _ _⟩
+      by_cases hq : request.2.length = a.1
+      · simp only [hq, ↓reduceIte]; unfold evalNaorReingoldTape; simp
+      · simp [hq])).map (ComputableInPolyTime.fst encBool (encFinEnum Unit))
 
 private theorem eval_prfTapeDistinguisher (F : PrimeOrderGroupFamily)
     (desc : ℕ → F.Desc) (bound : F.Desc → ℕ) (expWidth : ℕ → ℕ)
@@ -578,26 +484,21 @@ private theorem eval_prfTapeDistinguisher (F : PrimeOrderGroupFamily)
             F.evalNaorReingoldTape id id desc bound expWidth n tape request.2
           else []))
         (adversary n []) := by
-  simp only [prfTapeDistinguisher, ProbComp.eval_map, ProbOracleComp.eval_run_interpret,
-    ProbComp.eval_pure]
-  have hH :
-      OracleComp.sumHandler (fun r => StateT.lift (ProbComp.unifOracle r))
-        (fun (request : Unit × List Bool) (_ : Unit) =>
-          PMF.pure (if request.2.length = n then
-            F.evalNaorReingoldTape id id desc bound expWidth n tape request.2
-          else [], ())) =
-      fun q => StateT.lift (OracleComp.sumHandler ProbComp.unifOracle
-        (fun request => PMF.pure (if request.2.length = n then
-          F.evalNaorReingoldTape id id desc bound expWidth n tape request.2
-        else [])) q) := by
-    funext q
-    cases q with
-    | inl r => rfl
-    | inr request =>
-      funext u
-      simp [OracleComp.sumHandler, StateT.lift, PMF.monad_pure_eq_pure]
-  rw [hH, OracleComp.run_interpret_lift, ← PMF.monad_map_eq_map, Functor.map_map]
-  exact id_map _
+  unfold prfTapeDistinguisher
+  rw [ProbComp.eval_map, ProbOracleComp.eval_run_interpret]
+  have hrw := ProbOracleComp.run_interpret_readOnly
+    (fun (request : Unit × List Bool) (_ : Unit) =>
+      PMF.pure (if request.2.length = n then
+        F.evalNaorReingoldTape id id desc bound expWidth n tape request.2 else []))
+    (adversary n []) ()
+  simp only [ProbComp.eval_pure, PMF.pure_map] at hrw ⊢
+  rw [hrw, PMF.map_comp]
+  exact PMF.map_id _
+
+private theorem isOraclePPT_const_nil {adv : OracleDistinguisher}
+    (hadv : IsOraclePPT encBool adv) :
+    IsOraclePPT encBool (fun k (_ : List Bool) => adv k []) :=
+  (hadv.on.preprocess (prepare := fun p : ℕ × List Bool => (p.1, [])) (by fun_prop)).isOraclePPT
 
 private theorem negligible_naorReingoldHashedGame_ideal_pure {F : PrimeOrderGroupFamily}
     {desc : ℕ → F.Desc} {bound : F.Desc → ℕ}
@@ -612,23 +513,16 @@ private theorem negligible_naorReingoldHashedGame_ideal_pure {F : PrimeOrderGrou
         (F.naorReingoldHashedRealGame (fun k => PMF.pure (desc k)) id id bound
           (fun k _ => adversary k []) n)
         (F.naorReingoldHashedIdealGame (fun k => PMF.pure (desc k)) id id bound
-          (fun k _ => adversary k []) n) := by
-  have hadv_aux : IsOraclePPT encBool (fun k (_ : List Bool) => adversary k []) :=
-    hadversary.on.preprocess
-      ((ComputableInPolyTime.fst encUnary encBits).prod (ComputableInPolyTime.const []))
-  obtain ⟨cD, eD, hdesc_b⟩ := hdesc.polyBounded_length.exists_le
-  have hdesc_poly : PolynomiallyBounded (fun n => cD * (n + 1) ^ eD) :=
-    (PolynomiallyBounded.const cD).mul ((PolynomiallyBounded.id.add (.const 1)).pow eD)
-  exact hDDH.negligible_naorReingoldHashedGame_ideal
-    (inLen := id) (outLen := id) (qMin := fun n => F.order (desc n))
-    ComputableInPolyTime.id' ComputableInPolyTime.id' hbound_poly hdesc_poly
-    (fun n d hd => by
-      rw [PMF.mem_support_pure_iff] at hd; subst hd
-      simpa only [encUnary_apply, List.length_replicate] using hdesc_b n)
-    (fun n d hd => by rw [PMF.mem_support_pure_iff] at hd; subst hd; exact hbound n)
+          (fun k _ => adversary k []) n) :=
+  hDDH.negligible_naorReingoldHashedGame_ideal (inLen := id) (outLen := id)
+    (descBound := fun n => (F.encDesc (desc n)).length) (qMin := fun n => F.order (desc n))
+    .id' .id' hbound_poly
+    ((ComputableInPolyTime.encoding_length F.encDesc).comp hdesc).polynomiallyBounded
+    (fun _ _ hd => by rw [PMF.mem_support_pure_iff] at hd; subst hd; exact le_rfl)
+    (fun n _ hd => by rw [PMF.mem_support_pure_iff] at hd; subst hd; exact hbound n)
     (fun n => (F.prime_order (desc n)).pos)
-    (fun n d hd => by rw [PMF.mem_support_pure_iff] at hd; subst hd; exact le_rfl)
-    hneg hadv_aux
+    (fun _ _ hd => by rw [PMF.mem_support_pure_iff] at hd; subst hd; exact le_rfl)
+    hneg (isOraclePPT_const_nil hadversary)
 
 /-- **Uniform `PseudorandomFunction` security of `naorReingoldSeededPRF`** (paraphrase of
 [NaorReingold2004], Section 4.1, Construction 4.2 and Theorem 4.3, combined with PRG key
@@ -661,10 +555,7 @@ theorem DDH.pseudorandomFunction_naorReingoldSeeded {F : PrimeOrderGroupFamily}
   have hexp_neg : Negligible fun n => ((n + 1 : ℕ) : ℝ≥0) / (2 : ℝ≥0) ^ n := by negligible
   refine negligible_of_le ((hprg_neg.add hexp_neg).add hnr_neg) fun n => ?_
   let need := expWidth n + (n * expWidth n + n * (2 * bound (desc n) + 1))
-  have hneed_le : need ≤ targetLen n := by
-    have ht := htarget n
-    dsimp only [need]
-    linarith
+  have hneed_le : need ≤ targetLen n := by have := htarget n; dsimp only [need]; linarith
   have hreal_eq :
       ProbComp.eval (prfRealGame id (F.naorReingoldSeededPRF desc bound expWidth expand)
         adversary n) =
@@ -676,11 +567,14 @@ theorem DDH.pseudorandomFunction_naorReingoldSeeded {F : PrimeOrderGroupFamily}
     have hklen : key.length = n := BitString.length_of_mem_support_uniformList hkey
     congr 1 with q : 1
     cases q with
-    | inl r => rfl
+    | inl _ => rfl
     | inr request =>
       dsimp only [OracleComp.sumHandler, prfOracle]
       by_cases hq : request.2.length = n
-      · simp only [hq, ↓reduceIte, naorReingoldSeededPRF_eq_evalTape, hklen]
+      · simp only [hq, ↓reduceIte]
+        change PMF.pure (F.evalNaorReingoldTape id id desc bound expWidth key.length
+          (expand key) request.2) = _
+        rw [hklen]
       · simp [hq]
   have hunif_trunc :
       distinguishingGame (BitString.uniformList (targetLen n)) (D_tape n) =
@@ -695,7 +589,7 @@ theorem DDH.pseudorandomFunction_naorReingoldSeeded {F : PrimeOrderGroupFamily}
     simp only [pmf_norm, distinguishingGame_eq_bind, D_tape, eval_prfTapeDistinguisher]
     congr 1 with x : 1; congr 1 with q : 1
     cases q with
-    | inl r => rfl
+    | inl _ => rfl
     | inr request =>
       dsimp only [OracleComp.sumHandler]
       rw [evalNaorReingoldTape_take F id id desc bound expWidth (limit := need) le_rfl]
@@ -705,32 +599,15 @@ theorem DDH.pseudorandomFunction_naorReingoldSeeded {F : PrimeOrderGroupFamily}
         (fun k _ => adversary k []) n := by
     rw [naorReingoldHashedIdealGame_pure_const]
     simp only [prfIdealGame, id_eq, ProbOracleComp.run, ProbComp.eval_bind, ProbComp.eval_uniform,
-      ProbOracleComp.eval_interpret, ProbComp.eval_pure, randomFunctionOracle, id_eq]
-  dsimp only
+      ProbOracleComp.eval_interpret, ProbComp.eval_pure, randomFunctionOracle]
+  dsimp only [Pi.add_apply]
   rw [hreal_eq, hideal_eq]
-  have h12 := Game.advantage_triangle
-    (distinguishingGame (generatorEnsemble expand n) (D_tape n))
-    (distinguishingGame (BitString.uniformList (targetLen n)) (D_tape n))
-    (F.naorReingoldHashedIdealGame (fun k => PMF.pure (desc k)) id id bound
-      (fun k _ => adversary k []) n)
-  have h23 := Game.advantage_triangle
-    (distinguishingGame (BitString.uniformList (targetLen n)) (D_tape n))
-    (F.naorReingoldHashedRealGame (fun k => PMF.pure (desc k)) id id bound
-      (fun k _ => adversary k []) n)
-    (F.naorReingoldHashedIdealGame (fun k => PMF.pure (desc k)) id id bound
-      (fun k _ => adversary k []) n)
-  have hexp_le :
-      Game.advantage
-        (distinguishingGame (BitString.uniformList (targetLen n)) (D_tape n))
-        (F.naorReingoldHashedRealGame (fun k => PMF.pure (desc k)) id id bound
-          (fun k _ => adversary k []) n) ≤
-      ((n + 1 : ℕ) : ℝ≥0) / (2 : ℝ≥0) ^ n := by
-    rw [hunif_trunc]
-    exact advantage_evalNaorReingoldTape_uniform_le F id id desc bound expWidth adversary n
-      (hexpWidth n)
-  have hstep := (h12.trans (add_le_add le_rfl h23)).trans
-    (add_le_add le_rfl (add_le_add hexp_le le_rfl))
-  simpa only [Pi.add_apply, add_assoc] using hstep
+  game_trans [distinguishingGame (BitString.uniformList (targetLen n)) (D_tape n),
+    F.naorReingoldHashedRealGame (fun k => PMF.pure (desc k)) id id bound
+      (fun k _ => adversary k []) n]
+    using [le_rfl, hunif_trunc.symm ▸ advantage_evalNaorReingoldTape_uniform_le F id id desc bound
+      expWidth adversary n (hexpWidth n), le_rfl]
+  exact le_rfl
 
 /-! ### Direct Algebraic `PseudorandomGenerator` from DDH Alone -/
 
@@ -750,60 +627,35 @@ private theorem seedLen_succ_le_two_pow (e h : ℕ) :
   have h2 : e + ((e + h + 4) * e + h) + 1 ≤ (e + h) * (e + h) + 6 * (e + h) + 7 := by nlinarith
   simpa only [Nat.add_assoc] using h2.trans h1
 
-private def evalLowBitsHom (r M : ℕ) : (BitString r → BitString 1) →+ BitString M where
-  toFun f j := f (BitString.ofList r (Cslib.BitString.lowBits r j.val)) ⟨0, Nat.zero_lt_one⟩
-  map_zero' := rfl
-  map_add' _ _ := rfl
-
-private theorem lowBits_ofList_injective {r M : ℕ} (hM : M ≤ 2 ^ r) :
-    Function.Injective (fun j : Fin M =>
-      BitString.ofList r (Cslib.BitString.lowBits r j.val)) := by
-  intro j j' h
-  apply Fin.ext
-  apply Nat.eq_of_testBit_eq
-  intro i
-  by_cases hi : i < r
-  · have hcongr := congrFun h ⟨i, hi⟩
-    simpa only [BitString.ofList, Cslib.BitString.lowBits, List.getD_eq_getElem?_getD,
-      List.getElem?_map, List.getElem?_range hi, Option.map_some, Option.getD_some] using hcongr
-  · have hj : j.val < 2 ^ i :=
-      lt_of_lt_of_le (lt_of_lt_of_le j.isLt hM)
-        (Nat.pow_le_pow_right (by norm_num) (Nat.not_lt.mp hi))
-    have hj' : j'.val < 2 ^ i :=
-      lt_of_lt_of_le (lt_of_lt_of_le j'.isLt hM)
-        (Nat.pow_le_pow_right (by norm_num) (Nat.not_lt.mp hi))
-    rw [Nat.testBit_lt_two_pow hj, Nat.testBit_lt_two_pow hj']
-
-private theorem uniformOfFintype_map_evalLowBitsHom {r M : ℕ} (hM : M ≤ 2 ^ r) :
-    ((PMF.uniformOfFintype (BitString r → BitString 1)).map (evalLowBitsHom r M)).map List.ofFn =
-      BitString.uniformList M := by
-  classical
-  have hhom :
-      (PMF.uniformOfFintype (BitString r → BitString 1)).map (evalLowBitsHom r M) =
-        PMF.uniformOfFintype (BitString M) := by
-    refine PMF.uniformOfFintype_map_addHom _ fun φ => ?_
-    let emb : Fin M → BitString r := fun j =>
-      BitString.ofList r (Cslib.BitString.lowBits r j.val)
-    have hemb : Function.Injective emb := lowBits_ofList_injective hM
-    refine ⟨fun x _ => if h : ∃ j, emb j = x then φ h.choose else false, funext fun j => ?_⟩
-    have hj : ∃ j', emb j' = emb j := ⟨j, rfl⟩
-    change (if h : ∃ j', emb j' = emb j then φ h.choose else false) = φ j
-    simp only [hj, dite_true]
-    rw [hemb hj.choose_spec]
-  rw [hhom]
-  rfl
-
-private theorem map_lowBits_randomFunction {r M : ℕ} (f : BitString r → BitString 1) :
-    ((List.range M).map (Cslib.BitString.lowBits r)).map
-      (fun word =>
+private theorem uniformOfFintype_map_lowBits_randomFunction {r M : ℕ} (hM : M ≤ 2 ^ r) :
+    (PMF.uniformOfFintype (BitString r → BitString 1)).map
+      (fun f => ((List.range M).map (Cslib.BitString.lowBits r)).map fun word =>
         (if word.length = r then List.ofFn (f (BitString.ofList r word)) else []).headD false) =
-      List.ofFn (evalLowBitsHom r M f) := by
-  apply List.ext_getElem (by simp)
-  intro i hi₁ hi₂
-  have hi : i < M := by simpa using hi₂
-  simp only [List.map_map, Function.comp_apply, List.getElem_map, List.getElem_range,
-    Cslib.BitString.length_lowBits, ↓reduceIte, List.ofFn_succ, List.ofFn_zero, List.headD_cons,
-    List.getElem_ofFn, evalLowBitsHom, AddMonoidHom.coe_mk, ZeroHom.coe_mk]
+    BitString.uniformList M := by
+  let x : Fin M ↪ BitString r :=
+    ⟨fun j => BitString.ofList r (Cslib.BitString.lowBits r j.val), fun a b h => by
+      ext
+      exact Cslib.BitString.lowBits_injective_of_lt (a.2.trans_le hM) (b.2.trans_le hM)
+        (by simpa [BitString.ofFn_ofList (Cslib.BitString.length_lowBits r _)] using
+          congrArg List.ofFn h)⟩
+  have hpref := Cslib.BitString.uniformOfFintype_map_readPrefixes x (fun _ => 1) (fun _ => le_rfl)
+  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_one] at hpref
+  refine Eq.trans ?_ hpref
+  congr 1; funext f
+  have hflat : (List.ofFn fun i : Fin M => (List.ofFn (f (x i))).take 1).flatten =
+      List.ofFn (fun i : Fin M => f (x i) ⟨0, Nat.zero_lt_one⟩) := by
+    have hrow (i : Fin M) : (List.ofFn (f (x i))).take 1 = [f (x i) ⟨0, Nat.zero_lt_one⟩] := by
+      simp [List.ofFn_succ, List.ofFn_zero]
+    have hsing (l : List Bool) : (l.map fun b => [b]).flatten = l := by
+      induction l <;> simp [*]
+    simp_rw [hrow]
+    simpa only [List.map_ofFn, Function.comp_def] using
+      hsing (List.ofFn fun i : Fin M => f (x i) ⟨0, Nat.zero_lt_one⟩)
+  rw [hflat]
+  refine List.ext_getElem (by simp) fun i h₁ h₂ => ?_
+  have hi : i < M := by simpa using h₂
+  simp only [List.getElem_map, List.getElem_range, Cslib.BitString.length_lowBits, ↓reduceIte,
+    List.ofFn_succ, List.ofFn_zero, List.headD_cons, List.getElem_ofFn]
   rfl
 
 private theorem exists_poly_encode_bound (F : PrimeOrderGroupFamily) :
@@ -811,12 +663,7 @@ private theorem exists_poly_encode_bound (F : PrimeOrderGroupFamily) :
       ComputableInPolyTime bound F.encDesc encUnary ∧
       ∀ d : F.Desc, ∀ x : F.Carrier d, (F.encode d x).length ≤ bound d := by
   obtain ⟨cB, eB, hbound⟩ := F.exists_length_encode_le
-  refine ⟨fun d => cB * ((F.encDesc d).length + 1) ^ eB, ?_, hbound⟩
-  exact (ComputableInPolyTime.unary_mul.comp
-    ((ComputableInPolyTime.const cB).prod
-      ((ComputableInPolyTime.unary_pow eB).comp
-        (ComputableInPolyTime.unary_add.comp
-          ((ComputableInPolyTime.encoding_length F.encDesc).prod (.const 1))))))
+  exact ⟨fun d => cB * ((F.encDesc d).length + 1) ^ eB, by fun_prop, hbound⟩
 
 private def ddhPRGCore (F : PrimeOrderGroupFamily) (inBits : ℕ → ℕ) (desc : ℕ → F.Desc)
     (bound : F.Desc → ℕ) (expWidth seedLen : ℕ → ℕ) (n : ℕ) (seed : List Bool) : List Bool :=
@@ -835,17 +682,9 @@ private theorem computableInPolyTime_ddhPRGCore (F : PrimeOrderGroupFamily)
     ComputableInPolyTime (fun p : ℕ × List Bool =>
       ddhPRGCore F inBits desc bound expWidth seedLen p.1 p.2)
       (encPair encUnary encBits) encBits := by
-  have hfstL := ComputableInPolyTime.fst (encPair encUnary encBits) encUnary
-  have hp1 := (ComputableInPolyTime.fst encUnary encBits).comp hfstL
-  have hp2 := (ComputableInPolyTime.snd encUnary encBits).comp hfstL
-  have hq2 := ComputableInPolyTime.unary_to_binary.comp
-    (ComputableInPolyTime.snd (encPair encUnary encBits) encUnary)
-  have hlow := ComputableInPolyTime.bitsLow (hinBits.comp hp1) hq2
-  have hstep := computableInPolyTime_evalNaorReingoldTape_of F
-    hinBits (.const 1) hdesc hbound hexp hp1 hp2 hlow
-  exact (ComputableInPolyTime.mapToBitsWithInput
-    (ComputableInPolyTime.range.comp hcnt)
-    ((ComputableInPolyTime.headD (encA := encBool) (encL := encBits) false).comp hstep))
+  unfold ddhPRGCore
+  exact ComputableInPolyTime.mapToBitsWithInput (ComputableInPolyTime.range.comp hcnt)
+    (by fun_prop)
 
 private theorem isOraclePPT_ddhPRGAdv {inBits seedLen : ℕ → ℕ} {D : Distinguisher}
     (hinBits : ComputableInPolyTime inBits encUnary encUnary)
@@ -860,17 +699,13 @@ private theorem isOraclePPT_ddhPRGAdv {inBits seedLen : ℕ → ℕ} {D : Distin
       (fun p : ℕ × List Bool =>
         (List.range (seedLen p.1 + 1)).map (Cslib.BitString.lowBits (inBits p.1)))
       (encPair encUnary encBits) (encList encBits) :=
-    ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hcnt)
-      (ComputableInPolyTime.bitsLow
-        (hinBits.comp ((ComputableInPolyTime.fst encUnary encBits).comp
-          (ComputableInPolyTime.fst (encPair encUnary encBits) encUnary)))
-        (ComputableInPolyTime.unary_to_binary.comp
-          (ComputableInPolyTime.snd (encPair encUnary encBits) encUnary)))
+    ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hcnt) (by fun_prop)
   exact ((KabanetsCai.isOraclePPTOn_queryTable.preprocess hqueries).bind_with
+    (second := fun p word => ProbOracleComp.sample (D p.1 word))
     ((hD.on.preprocess
-      (((ComputableInPolyTime.fst encUnary encBits).comp'
-        (ComputableInPolyTime.fst (encPair encUnary encBits) encBits)).prod
-        (ComputableInPolyTime.snd (encPair encUnary encBits) encBits))).isOraclePPTOn)).isOraclePPT
+      (input := encPair (encPair encUnary encBits) encBits)
+      (prepare := fun q : (ℕ × List Bool) × List Bool => (q.1.1, q.2))
+      (by fun_prop)).isOraclePPTOn)).isOraclePPT
 
 private theorem negligible_naorReingoldHashedGame_ideal_const_pure {F : PrimeOrderGroupFamily}
     {inBits : ℕ → ℕ} {desc : ℕ → F.Desc} {bound : F.Desc → ℕ}
@@ -885,20 +720,12 @@ private theorem negligible_naorReingoldHashedGame_ideal_const_pure {F : PrimeOrd
         (F.naorReingoldHashedRealGame (fun k => PMF.pure (desc k)) inBits (fun _ => 1) bound
           (fun k _ => adv k []) n)
         (F.naorReingoldHashedIdealGame (fun k => PMF.pure (desc k)) inBits (fun _ => 1) bound
-          (fun k _ => adv k []) n) := by
-  have hadv_aux : IsOraclePPT encBool (fun k (_ : List Bool) => adv k []) :=
-    (hadv.on.preprocess
-      ((ComputableInPolyTime.fst encUnary encBits).prod
-        (ComputableInPolyTime.const []))).isOraclePPT
-  obtain ⟨cD, eD, hdesc_b⟩ := hdesc.polyBounded_length.exists_le
-  have hdesc_poly : PolynomiallyBounded (fun n => cD * (n + 1) ^ eD) :=
-    (PolynomiallyBounded.const cD).mul ((PolynomiallyBounded.id.add (.const 1)).pow eD)
-  exact hDDH.negligible_naorReingoldHashedGame_ideal_const 1 hinBits hbound_poly hdesc_poly
-    (fun n d hd => by
-      rw [PMF.mem_support_pure_iff] at hd; subst hd
-      simpa only [encUnary_apply, List.length_replicate] using hdesc_b n)
-    (fun n d hd x => by rw [PMF.mem_support_pure_iff] at hd; subst hd; exact hbound (desc n) x)
-    hadv_aux
+          (fun k _ => adv k []) n) :=
+  hDDH.negligible_naorReingoldHashedGame_ideal_const 1 hinBits hbound_poly
+    ((ComputableInPolyTime.encoding_length F.encDesc).comp hdesc).polynomiallyBounded
+    (fun _ _ hd => by rw [PMF.mem_support_pure_iff] at hd; subst hd; exact le_rfl)
+    (fun n _ hd x => by rw [PMF.mem_support_pure_iff] at hd; subst hd; exact hbound (desc n) x)
+    (isOraclePPT_const_nil hadv)
 
 /-- **Existence of a uniform `PseudorandomGenerator` from DDH alone**: for any deterministic
 polynomial-time prime-order group family `desc : ℕ → F.Desc` satisfying
@@ -916,30 +743,22 @@ theorem DDH.exists_pseudorandomGenerator {F : PrimeOrderGroupFamily} {desc : ℕ
   let seedLen : ℕ → ℕ := fun n => expWidth n + (inBits n * expWidth n + hashLen n)
   let core := ddhPRGCore F inBits desc bound expWidth seedLen
   have hexp_poly : ComputableInPolyTime expWidth encUnary encUnary :=
-    ComputableInPolyTime.unary_add.comp
-      ((ComputableInPolyTime.unary_add.comp
-        ((ComputableInPolyTime.binary_size.comp
-          (F.computableInPolyTime_order.comp hdesc)).prod .id')).prod (.const 1))
+    ((ComputableInPolyTime.binary_size.comp (F.computableInPolyTime_order.comp hdesc)).unary_add'
+      .id').unary_add' (.const 1)
   have hhash_poly : ComputableInPolyTime hashLen encUnary encUnary :=
-    ComputableInPolyTime.unary_add.comp
-      ((ComputableInPolyTime.unary_mul.comp
-        ((ComputableInPolyTime.const 2).prod (hbound_poly.comp hdesc))).prod
-        (.const 1))
+    ((ComputableInPolyTime.const 2).unary_mul' (hbound_poly.comp hdesc)).unary_add' (.const 1)
   have hinBits_poly : ComputableInPolyTime inBits encUnary encUnary :=
-    ComputableInPolyTime.unary_add.comp
-      ((ComputableInPolyTime.unary_add.comp (hexp_poly.prod hhash_poly)).prod (.const 4))
+    (hexp_poly.unary_add' hhash_poly).unary_add' (.const 4)
   have hseedLen_poly : ComputableInPolyTime seedLen encUnary encUnary :=
-    ComputableInPolyTime.unary_add.comp
-      (hexp_poly.prod (ComputableInPolyTime.unary_add.comp
-        ((ComputableInPolyTime.unary_mul.comp (hinBits_poly.prod hexp_poly)).prod hhash_poly)))
-  have hge : ∀ n, n + 1 ≤ seedLen n := fun n => by dsimp only [seedLen, expWidth]; omega
+    hexp_poly.unary_add' ((hinBits_poly.unary_mul' hexp_poly).unary_add' hhash_poly)
   have hcnt : ComputableInPolyTime (fun p : ℕ × List Bool => seedLen p.1 + 1)
       (encPair encUnary encBits) encUnary :=
-    ComputableInPolyTime.unary_add.comp
-      ((hseedLen_poly.comp (ComputableInPolyTime.fst encUnary encBits)).prod (.const 1))
-  have hcore_poly := computableInPolyTime_ddhPRGCore F hinBits_poly hdesc hbound_poly hexp_poly hcnt
+    (hseedLen_poly.comp (.fst _ _)).unary_add' (.const 1)
+  have hge : ∀ n, n + 1 ≤ seedLen n := fun n => by dsimp only [seedLen, expWidth]; omega
+  have hcore_poly :=
+    computableInPolyTime_ddhPRGCore F hinBits_poly hdesc hbound_poly hexp_poly hcnt
   have hcore_len : ∀ n seed, seed.length = seedLen n → (core n seed).length = seedLen n + 1 := by
-    intro n seed _; simp [core, ddhPRGCore]
+    intro n seed _; dsimp only [core]; unfold ddhPRGCore; simp
   have hsecure : ComputationallyIndistinguishable
       (fun n => (BitString.uniformList (seedLen n)).map (core n))
       (fun n => BitString.uniformList (seedLen n + 1)) := by
@@ -983,13 +802,13 @@ theorem DDH.exists_pseudorandomGenerator {F : PrimeOrderGroupFamily} {desc : ℕ
       rw [hsl]
       simp only [pmf_norm, distinguishingGame_eq_bind]
       congr 1 with tape : 1
-      rw [hinterp (fun q =>
+      rw [hinterp fun q =>
         if q.length = inBits n then
           F.evalNaorReingoldTape inBits (fun _ => 1) desc bound expWidth n tape q
-        else [])]
-      congr 2
-      simp [core, ddhPRGCore, queries, List.map_map, Function.comp_def,
-        Cslib.BitString.length_lowBits]
+        else []]
+      dsimp only [core]
+      unfold ddhPRGCore
+      simp [queries, List.map_map, Function.comp_def, Cslib.BitString.length_lowBits]
     have hideal_eq :
         distinguishingGame (BitString.uniformList (seedLen n + 1)) (D n) =
         F.naorReingoldHashedIdealGame (fun k => PMF.pure (desc k)) inBits (fun _ => 1) bound
@@ -997,20 +816,17 @@ theorem DDH.exists_pseudorandomGenerator {F : PrimeOrderGroupFamily} {desc : ℕ
       rw [naorReingoldHashedIdealGame_pure_const]
       have hfit : seedLen n + 1 ≤ 2 ^ (inBits n) := by
         simpa only [seedLen, inBits] using seedLen_succ_le_two_pow (expWidth n) (hashLen n)
-      rw [← uniformOfFintype_map_evalLowBitsHom hfit]
+      rw [← uniformOfFintype_map_lowBits_randomFunction hfit]
       simp only [pmf_norm, distinguishingGame_eq_bind]
       congr 1 with f : 1
-      rw [hinterp (fun q =>
-        if q.length = inBits n then List.ofFn (f (BitString.ofList (inBits n) q)) else [])]
-      congr 2
-      exact (map_lowBits_randomFunction f).symm
-    dsimp only
+      exact (hinterp fun q =>
+        if q.length = inBits n then List.ofFn (f (BitString.ofList (inBits n) q)) else []).symm
+    dsimp only [Pi.add_apply]
     rw [hreal_eq, hideal_eq]
-    refine (Game.advantage_triangle _
-      (F.naorReingoldHashedRealGame (fun k => PMF.pure (desc k)) inBits (fun _ => 1) bound
-        (fun k _ => adv k []) n) _).trans (add_le_add ?_ le_rfl)
-    exact advantage_evalNaorReingoldTape_uniform_le F inBits (fun _ => 1) desc bound expWidth adv n
-      (by dsimp only [expWidth]; omega)
+    game_trans [F.naorReingoldHashedRealGame (fun k => PMF.pure (desc k)) inBits (fun _ => 1) bound
+      (fun k _ => adv k []) n]
+      using [advantage_evalNaorReingoldTape_uniform_le F inBits (fun _ => 1) desc bound expWidth
+        adv n (by dsimp only [expWidth]; omega), le_rfl]
   exact ⟨GeneratorReindex.generate seedLen core,
     GeneratorReindex.pseudorandomGenerator hseedLen_poly hge hcore_poly hcore_len hsecure⟩
 
@@ -1031,23 +847,15 @@ theorem DDH.exists_naorReingoldPseudorandomFunction {F : PrimeOrderGroupFamily}
   let expWidth : ℕ → ℕ := fun n => (F.order (desc n)).size + n + 1
   let targetLen : ℕ → ℕ := fun n => (n + 1) * expWidth n + n * (2 * bound (desc n) + 1)
   have hexp_poly : ComputableInPolyTime expWidth encUnary encUnary :=
-    ComputableInPolyTime.unary_add.comp
-      ((ComputableInPolyTime.unary_add.comp
-        ((ComputableInPolyTime.binary_size.comp
-          (F.computableInPolyTime_order.comp hdesc)).prod .id')).prod (.const 1))
-  have hhash_poly : ComputableInPolyTime (fun n => 2 * bound (desc n) + 1) encUnary encUnary :=
-    ComputableInPolyTime.unary_add.comp
-      ((ComputableInPolyTime.unary_mul.comp
-        ((ComputableInPolyTime.const 2).prod (hbound_poly.comp hdesc))).prod
-        (.const 1))
+    ((ComputableInPolyTime.binary_size.comp (F.computableInPolyTime_order.comp hdesc)).unary_add'
+      .id').unary_add' (.const 1)
   have htarget_poly : ComputableInPolyTime targetLen encUnary encUnary :=
-    ComputableInPolyTime.unary_add.comp
-      ((ComputableInPolyTime.unary_mul.comp
-        ((ComputableInPolyTime.unary_add.comp
-          (ComputableInPolyTime.id'.prod (.const 1))).prod hexp_poly)).prod
-        (ComputableInPolyTime.unary_mul.comp (ComputableInPolyTime.id'.prod hhash_poly)))
-  have hstretch : ∀ n, n < targetLen n := fun n => by dsimp only [targetLen, expWidth]; nlinarith
-  have hexpand := hG.amplify targetLen htarget_poly hstretch
+    ((ComputableInPolyTime.id'.unary_add' (.const 1)).unary_mul' hexp_poly).unary_add'
+      (ComputableInPolyTime.id'.unary_mul'
+        (((ComputableInPolyTime.const 2).unary_mul' (hbound_poly.comp hdesc)).unary_add'
+          (.const 1)))
+  have hexpand := hG.amplify targetLen htarget_poly
+    (fun n => by dsimp only [targetLen, expWidth]; nlinarith)
   exact ⟨bound, expWidth, _,
     hDDH.pseudorandomFunction_naorReingoldSeeded hdesc hbound_poly (fun n => hbound (desc n))
       hexp_poly (fun n => by dsimp only [expWidth]; omega) hexpand (fun _ => le_rfl) hneg⟩

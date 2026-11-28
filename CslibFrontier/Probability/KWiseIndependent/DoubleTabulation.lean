@@ -12,11 +12,14 @@ public import CslibFrontier.Init
 public import CslibFrontier.Probability.KWiseIndependent
 import CslibFrontier.Foundations.Data.BitString.Sum
 import CslibFrontier.Foundations.Data.Nat.SummationByParts
+import CslibFrontier.Probability.Uniform
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Combinatorics.Enumerative.DoubleCounting
 import Mathlib.Data.Finset.Powerset
 import Mathlib.Data.Fintype.Pi
 import Mathlib.Data.List.Sort
+import Mathlib.Tactic.GCongr
+import Mathlib.Tactic.Linarith
 
 /-!
 # Double Tabulation and High Independence (`[Thorup2013]`)
@@ -144,12 +147,10 @@ theorem IsKUnique.comp_injective {α' α β : Type*} {d k : ℕ} {f : α → Fin
     IsKUnique k (fun x => f (g x)) := by
   classical
   intro X hne hX
-  have hne_img : (X.image g).Nonempty := hne.image g
-  have hcard_img : #(X.image g) ≤ k := (Finset.card_image_le).trans hX
-  obtain ⟨y₀, hy₀, j₀, huniq⟩ := hf (X.image g) hne_img hcard_img
+  obtain ⟨y₀, hy₀, j₀, huniq⟩ := hf (X.image g) (hne.image g) (Finset.card_image_le.trans hX)
   obtain ⟨x₀, hx₀, rfl⟩ := Finset.mem_image.mp hy₀
-  refine ⟨x₀, hx₀, j₀, fun x hx hne_x => ?_⟩
-  exact huniq (g x) (Finset.mem_image_of_mem g hx) (fun heq => hne_x (hg heq))
+  exact ⟨x₀, hx₀, j₀, fun x hx hne_x =>
+    huniq (g x) (Finset.mem_image_of_mem g hx) (hg.ne hne_x)⟩
 
 /-- Simple tabulation evaluation over an additive commutative group `γ` as an additive homomorphism
 `(Fin d → β → γ) →+ (α → γ)`. -/
@@ -165,55 +166,34 @@ theorem IsKUnique.comp_injective {α' α β : Type*} {d k : ℕ} {f : α → Fin
     (r : Fin d → β → Fin (2 ^ M)) (y : Fin d → β) : Fin (2 ^ M) :=
   BitString.equivFin M (∑ j : Fin d, (BitString.equivFin M).symm (r j (y j)))
 
-/-- Surjectivity of `T.restrict ∘ simpleTabAddHom f` for `#T ≤ k` when `f` is `k`-unique
-(peeling induction on `#T`). -/
-private theorem surjective_restrict_simpleTabAddHom {α β γ : Type*}
-    [AddCommGroup γ] {d k : ℕ} {f : α → Fin d → β} (hf : IsKUnique k f) :
-    ∀ (n : ℕ) (T : Finset α), #T = n → #T ≤ k →
-      Function.Surjective (fun r : Fin d → β → γ => T.restrict (simpleTabAddHom f r))
-  | 0, T, hcard, _ => by
+/-- General peeling surjectivity over an additive commutative group: if every non-empty subset
+`S ⊆ T` has an element `x₀ ∈ S` and a variable `u₀ ∈ supp x₀` absent from `supp x` for all
+`x ∈ S \ {x₀}`, then restricting the subset-sum map `w ↦ fun x => ∑ u ∈ supp x, w u` to `T` is
+surjective. -/
+private theorem surjective_restrict_sum_of_peeling {α κ γ : Type*}
+    [AddCommGroup γ] (supp : α → Finset κ) {T : Finset α}
+    (hpeel : ∀ S ⊆ T, S.Nonempty → ∃ x₀ ∈ S, ∃ u₀ ∈ supp x₀, ∀ x ∈ S, x ≠ x₀ → u₀ ∉ supp x) :
+    Function.Surjective (fun (w : κ → γ) => T.restrict (fun x => ∑ u ∈ supp x, w u)) := by
+  classical
+  induction hn : #T generalizing T with
+  | zero =>
+    obtain rfl := Finset.card_eq_zero.mp hn
+    exact fun _ => ⟨0, funext fun ⟨x, hx⟩ => (Finset.notMem_empty x hx).elim⟩
+  | succ n ih =>
     intro y
-    have hT : T = ∅ := Finset.card_eq_zero.mp hcard
-    subst hT
-    exact ⟨0, funext fun ⟨x, hx⟩ => (Finset.notMem_empty x hx).elim⟩
-  | n + 1, T, hcard, hTk => by
-    classical
-    intro y
-    have hne : T.Nonempty := Finset.card_pos.mp (by omega)
-    obtain ⟨x₀, hx₀, j₀, huniq⟩ := hf T hne hTk
-    let T' := T.erase x₀
-    have hcard' : #T' = n := by
-      rw [Finset.card_erase_of_mem hx₀, hcard, Nat.add_sub_cancel]
-    let y' : T' → γ := fun x => y ⟨x.1, Finset.mem_of_mem_erase x.2⟩
-    obtain ⟨r', hr'⟩ := surjective_restrict_simpleTabAddHom hf n T' hcard' (by omega) y'
-    let δ : γ := y ⟨x₀, hx₀⟩ - simpleTabAddHom f r' x₀
-    let r : Fin d → β → γ := fun j b => r' j b + if j = j₀ ∧ b = f x₀ j₀ then δ else 0
-    refine ⟨r, funext fun ⟨x, hx⟩ => ?_⟩
-    have hsum : simpleTabAddHom f r x =
-        simpleTabAddHom f r' x + ∑ j : Fin d, (if j = j₀ ∧ f x j = f x₀ j₀ then δ else 0) := by
-      simp [r, simpleTabAddHom, Finset.sum_add_distrib]
+    obtain ⟨x₀, hx₀, u₀, hu₀, huniq⟩ :=
+      hpeel T Finset.Subset.rfl (Finset.card_pos.mp (by omega))
+    have hcard : #(T.erase x₀) = n := by rw [Finset.card_erase_of_mem hx₀, hn, Nat.add_sub_cancel]
+    obtain ⟨w', hw'⟩ := ih (fun S hS => hpeel S (hS.trans (Finset.erase_subset x₀ T))) hcard
+      (fun x => y ⟨x.1, Finset.mem_of_mem_erase x.2⟩)
+    let δ : γ := y ⟨x₀, hx₀⟩ - ∑ u ∈ supp x₀, w' u
+    refine ⟨fun u => w' u + if u = u₀ then δ else 0, funext fun ⟨x, hx⟩ => ?_⟩
+    change ∑ u ∈ supp x, (w' u + if u = u₀ then δ else 0) = y ⟨x, hx⟩
+    rw [Finset.sum_add_distrib, Finset.sum_ite_eq' (supp x) u₀]
     by_cases hxx₀ : x = x₀
-    · subst hxx₀
-      have hite : (∑ j : Fin d, (if j = j₀ ∧ f x j = f x j₀ then δ else 0)) = δ := by
-        have hcongr : (∑ j : Fin d, (if j = j₀ ∧ f x j = f x j₀ then δ else 0)) =
-            ∑ j : Fin d, (if j = j₀ then δ else 0) := by
-          refine Finset.sum_congr rfl fun j _ => ?_
-          by_cases hj : j = j₀ <;> simp [hj]
-        rw [hcongr]
-        simp
-      change simpleTabAddHom f r x = y ⟨x, hx⟩
-      rw [hsum, hite, add_sub_cancel]
-    · have hzero : (∑ j : Fin d, (if j = j₀ ∧ f x j = f x₀ j₀ then δ else 0)) = 0 := by
-        refine Finset.sum_eq_zero fun j _ => ?_
-        split_ifs with hj
-        · exfalso
-          rcases hj with ⟨rfl, hfx⟩
-          exact huniq x hx hxx₀ hfx.symm
-        · rfl
-      have hx' : x ∈ T' := Finset.mem_erase.mpr ⟨hxx₀, hx⟩
-      have hr'_at : simpleTabAddHom f r' x = y ⟨x, hx⟩ := congrFun hr' ⟨x, hx'⟩
-      change simpleTabAddHom f r x = y ⟨x, hx⟩
-      rw [hsum, hzero, add_zero, hr'_at]
+    · subst hxx₀; simp [hu₀, δ]
+    · rw [ite_eq_right (huniq x hx hxx₀), add_zero]
+      exact congrFun hw' ⟨x, Finset.mem_erase.mpr ⟨hxx₀, hx⟩⟩
 
 /-- **Siegel's Peeling Lemma ([Thorup2013], Section 1.1, Lemma 2, p. 5 & Appendix A, p. 19)**:
 If `f : α → Fin d → β` is `k`-unique (`IsKUnique k f`), then composing `f` with a uniformly random
@@ -224,13 +204,23 @@ theorem isKWiseIndependentHash_of_isKUnique {α β : Type*} [Fintype β] [Decida
     IsKWiseIndependentHash k (fun (r : Fin d → β → Fin (2 ^ M)) (x : α) =>
       simpleTabEval r (f x)) := by
   have hbits : IsKWiseIndependentHash k
-      (fun r : Fin d → β → BitString M => simpleTabAddHom f r) :=
-    isKWiseIndependentHash_of_surjective (simpleTabAddHom (γ := BitString M) f)
-      (fun T hT => surjective_restrict_simpleTabAddHom hf #T T rfl hT)
-  have hseed := hbits.comp_seedEquiv
+      (fun r : Fin d → β → BitString M => simpleTabAddHom f r) := by
+    refine isKWiseIndependentHash_of_surjective (simpleTabAddHom (γ := BitString M) f)
+      fun T hT y => ?_
+    let supp (x : α) : Finset (Fin d × β) := Finset.univ.image fun j => (j, f x j)
+    obtain ⟨w, hw⟩ := surjective_restrict_sum_of_peeling supp (T := T) (fun S hS hSne => by
+      obtain ⟨x₀, hx₀, j₀, huniq⟩ := hf S hSne ((Finset.card_le_card hS).trans hT)
+      refine ⟨x₀, hx₀, (j₀, f x₀ j₀), Finset.mem_image_of_mem _ (Finset.mem_univ _),
+        fun x hx hne hmem => ?_⟩
+      obtain ⟨j, -, hj⟩ := Finset.mem_image.mp hmem
+      exact huniq x hx hne ((Prod.mk.inj hj).1 ▸ (Prod.mk.inj hj).2.symm)) y
+    refine ⟨fun j b => w (j, b), hw.symm.trans (funext fun ⟨x, _⟩ => ?_) |>.symm⟩
+    exact Finset.sum_image (f := fun u : Fin d × β => w (u.1, u.2)) fun _ _ _ _ h =>
+      congrArg Prod.fst h
+  exact (hbits.comp_seedEquiv
     (Equiv.piCongrRight fun _ : Fin d =>
-      Equiv.piCongrRight fun _ : β => (BitString.equivFin M).symm)
-  exact hseed.map_equiv (BitString.equivFin M)
+      Equiv.piCongrRight fun _ : β => (BitString.equivFin M).symm)).map_equiv
+    (BitString.equivFin M)
 
 /-! ## Section 2: Base-`2 ^ b` character extraction and double tabulation -/
 
@@ -247,28 +237,16 @@ theorem charDigits_injective {c b U : ℕ} (hU : U ≤ 2 ^ (c * b)) :
     Function.Injective (charDigits c b (U := U)) := by
   intro u₁ u₂ heq
   apply Fin.ext
-  apply Nat.eq_of_testBit_eq
-  intro t
+  apply Nat.eq_of_testBit_eq; intro t
   by_cases ht : t < c * b
-  · have hb : 0 < b := by
-      rcases Nat.eq_zero_or_pos b with rfl | hb
-      · simp at ht
-      · exact hb
+  · have hb : 0 < b := Nat.pos_of_ne_zero fun h => by simp [h] at ht
     have hi : t / b < c := Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])
-    have hr : t % b < b := Nat.mod_lt t hb
-    have hchar := congrArg (fun f => (f ⟨t / b, hi⟩).val.testBit (t % b)) heq
-    dsimp only [charDigits] at hchar
-    rw [Nat.testBit_and, Nat.testBit_two_pow_sub_one, decide_eq_true hr, Bool.and_true,
-      Nat.testBit_shiftRight, Nat.testBit_and, Nat.testBit_two_pow_sub_one, decide_eq_true hr,
-      Bool.and_true, Nat.testBit_shiftRight, Nat.mul_comm (t / b) b,
-      Nat.div_add_mod] at hchar
-    exact hchar
-  · have hpow : 2 ^ (c * b) ≤ 2 ^ t := Nat.pow_le_pow_right (by decide) (not_lt.mp ht)
-    have h₁ : u₁.val.testBit t = false :=
-      Nat.testBit_lt_two_pow (lt_of_lt_of_le u₁.isLt (hU.trans hpow))
-    have h₂ : u₂.val.testBit t = false :=
-      Nat.testBit_lt_two_pow (lt_of_lt_of_le u₂.isLt (hU.trans hpow))
-    rw [h₁, h₂]
+    simpa only [charDigits, Nat.testBit_and, Nat.testBit_two_pow_sub_one, Nat.mod_lt t hb,
+      decide_true, Bool.and_true, Nat.testBit_shiftRight, Nat.mul_comm (t / b) b,
+      Nat.div_add_mod] using congrArg (fun f => (f ⟨t / b, hi⟩).val.testBit (t % b)) heq
+  · have hlt (u : Fin U) : u.val < 2 ^ t :=
+      u.isLt.trans_le (hU.trans (Nat.pow_le_pow_right two_pos (not_lt.mp ht)))
+    rw [Nat.testBit_lt_two_pow (hlt u₁), Nat.testBit_lt_two_pow (hlt u₂)]
 
 /-- Top-level simple tabulation seed space `Fin c → Fin d → Fin (2 ^ b) → Fin (2 ^ b)`. -/
 abbrev DoubleTabTopSeed (c d b : ℕ) : Type :=
@@ -317,9 +295,8 @@ private theorem mem_posSet {c b : ℕ} {x : Fin c → Fin (2 ^ b)} {α : Fin c �
 
 @[simp]
 private theorem card_posSet {c b : ℕ} (x : Fin c → Fin (2 ^ b)) : #(posSet x) = c := by
-  unfold posSet
-  rw [Finset.card_image_of_injective _ (fun i₁ i₂ h => congrArg Prod.fst h), Finset.card_univ,
-    Fintype.card_fin]
+  rw [posSet, Finset.card_image_of_injective _ (fun _ _ h => congrArg Prod.fst h),
+    Finset.card_univ, Fintype.card_fin]
 
 /-- Symmetric difference `x △ y = symmDiff (posSet x) (posSet y)` of two keys' position-character
 sets ([Thorup2013], Definition 6, p. 10). -/
@@ -327,37 +304,19 @@ private def posSymmDiff {c b : ℕ} (x y : Fin c → Fin (2 ^ b)) : Finset (Fin 
   symmDiff (posSet x) (posSet y)
 
 private theorem card_posSymmDiff_le {c b : ℕ} (x y : Fin c → Fin (2 ^ b)) :
-    #(posSymmDiff x y) ≤ 2 * c := by
-  have hsub : posSymmDiff x y ⊆ posSet x ∪ posSet y := symmDiff_subset_union
-  calc #(posSymmDiff x y) ≤ #(posSet x ∪ posSet y) := Finset.card_le_card hsub
-    _ ≤ #(posSet x) + #(posSet y) := Finset.card_union_le _ _
-    _ = 2 * c := by rw [card_posSet, card_posSet, two_mul]
+    #(posSymmDiff x y) ≤ 2 * c :=
+  (Finset.card_le_card symmDiff_subset_union).trans <|
+    (Finset.card_union_le _ _).trans_eq (by rw [card_posSet, card_posSet, two_mul])
 
 /-- Any two distinct keys `x ≠ y` differ in at least one coordinate `i : Fin c`, contributing two
 distinct position characters `(i, x i) ≠ (i, y i)` to `posSymmDiff x y`. -/
 private theorem two_le_card_posSymmDiff_of_ne {c b : ℕ} {x y : Fin c → Fin (2 ^ b)} (hne : x ≠ y) :
     2 ≤ #(posSymmDiff x y) := by
-  have hdiff : ∃ i : Fin c, x i ≠ y i := by
-    by_contra hall
-    push Not at hall
-    exact hne (funext hall)
-  obtain ⟨i, hxy⟩ := hdiff
-  have hx_mem : (i, x i) ∈ posSymmDiff x y := by
-    rw [posSymmDiff, Finset.mem_symmDiff, mem_posSet, mem_posSet]
-    exact Or.inl ⟨rfl, Ne.symm hxy⟩
-  have hy_mem : (i, y i) ∈ posSymmDiff x y := by
-    rw [posSymmDiff, Finset.mem_symmDiff, mem_posSet, mem_posSet]
-    exact Or.inr ⟨rfl, hxy⟩
-  have hpair_ne : (i, x i) ≠ (i, y i) := fun h => hxy (congrArg Prod.snd h)
-  have hsub : {(i, x i), (i, y i)} ⊆ posSymmDiff x y := by
-    intro p hp
-    rcases Finset.mem_insert.mp hp with rfl | hp
-    · exact hx_mem
-    · rw [Finset.mem_singleton.mp hp]
-      exact hy_mem
-  calc 2 = #({(i, x i), (i, y i)} : Finset (Fin c × Fin (2 ^ b))) :=
-        (Finset.card_pair hpair_ne).symm
-    _ ≤ #(posSymmDiff x y) := Finset.card_le_card hsub
+  obtain ⟨i, hxy⟩ := Function.ne_iff.mp hne
+  exact Finset.one_lt_card_iff.mpr ⟨(i, x i), (i, y i),
+    Finset.mem_symmDiff.mpr (Or.inl ⟨mem_posSet.mpr rfl, mt mem_posSet.mp hxy.symm⟩),
+    Finset.mem_symmDiff.mpr (Or.inr ⟨mem_posSet.mpr rfl, mt mem_posSet.mp hxy⟩),
+    fun h => hxy (congrArg Prod.snd h)⟩
 
 /-- Triangle inclusion for symmetric difference of position-character sets:
 `posSymmDiff y z ⊆ posSymmDiff x y ∪ posSymmDiff x z`. -/
@@ -373,13 +332,12 @@ private theorem simpleTabTuple_eq_iff_sum_posSymmDiff_eq_zero {c d b : ℕ}
     (T₁ : DoubleTabTopSeed c d b) (x y : Fin c → Fin (2 ^ b)) (j : Fin d) :
     simpleTabTuple T₁ x j = simpleTabTuple T₁ y j ↔
       ∑ α ∈ posSymmDiff x y, (BitString.equivFin b).symm (T₁ α.1 j α.2) = 0 := by
-  have hsum_posSet (z : Fin c → Fin (2 ^ b)) :
+  have hsum (z : Fin c → Fin (2 ^ b)) :
       ∑ α ∈ posSet z, (BitString.equivFin b).symm (T₁ α.1 j α.2) =
-        ∑ i : Fin c, (BitString.equivFin b).symm (T₁ i j (z i)) := by
-    unfold posSet
-    exact Finset.sum_image fun i₁ _ i₂ _ h => congrArg Prod.fst h
-  unfold simpleTabTuple simpleTabEval
-  rw [(BitString.equivFin b).injective.eq_iff, ← hsum_posSet x, ← hsum_posSet y]
+        ∑ i : Fin c, (BitString.equivFin b).symm (T₁ i j (z i)) :=
+    Finset.sum_image fun _ _ _ _ h => congrArg Prod.fst h
+  rw [simpleTabTuple, simpleTabTuple, simpleTabEval, simpleTabEval,
+    (BitString.equivFin b).injective.eq_iff, ← hsum x, ← hsum y]
   exact sum_bitString_eq_iff_sum_symmDiff_eq_zero (posSet x) (posSet y) _
 
 /-! ## Section 4: Derivable output characters and Theorem 7(a) (`[Thorup2013]`, §3) -/
@@ -391,10 +349,6 @@ private def lastIdx {m ℓ : ℕ} [NeZero m] (g : Fin m → Fin ℓ) : Fin ℓ :
 private theorem lastIdx_mem_image {m ℓ : ℕ} [NeZero m] (g : Fin m → Fin ℓ) :
     lastIdx g ∈ Finset.univ.image g :=
   Finset.max'_mem _ _
-
-private theorem le_lastIdx {m ℓ : ℕ} [NeZero m] (g : Fin m → Fin ℓ) (t : Fin m) :
-    g t ≤ lastIdx g :=
-  Finset.le_max' _ (g t) (Finset.mem_image_of_mem g (Finset.mem_univ t))
 
 /-- Predicate that `T₁` satisfies the efficient code `(L, M)` of length `ℓ` and `q * ℓ` equations
 ([Thorup2013], Section 2, Definition 6 & Eqs. (6)–(7), pp. 9–11). -/
@@ -452,51 +406,24 @@ private theorem mem_sortedChars {c b : ℕ} {X : Finset (Fin c → Fin (2 ^ b))}
 
 private theorem card_activeChars_le {c b : ℕ} (X : Finset (Fin c → Fin (2 ^ b))) :
     #(activeChars X) ≤ c * #X := by
-  calc #(activeChars X) = #(X.biUnion posSet) := rfl
-    _ ≤ ∑ x ∈ X, #(posSet x) := Finset.card_biUnion_le
-    _ = ∑ _x ∈ X, c := Finset.sum_congr rfl fun x _ => card_posSet x
-    _ = c * #X := by rw [Finset.sum_const, smul_eq_mul, Nat.mul_comm]
+  refine Finset.card_biUnion_le.trans ?_
+  simp [card_posSet, Nat.mul_comm]
 
 private theorem sum_freq_activeChars {c b : ℕ} (X : Finset (Fin c → Fin (2 ^ b))) :
     ∑ α ∈ activeChars X, freq X α = c * #X := by
   simp only [freq, Finset.card_filter]
-  rw [Finset.sum_comm]
-  have hinner (x : Fin c → Fin (2 ^ b)) (hx : x ∈ X) :
-      (∑ α ∈ activeChars X, if α ∈ posSet x then 1 else 0) = c := by
-    have hsub : posSet x ⊆ activeChars X := Finset.subset_biUnion_of_mem posSet hx
-    rw [← Finset.card_filter, Finset.filter_mem_eq_inter,
-      Finset.inter_eq_right.mpr hsub, card_posSet]
-  rw [Finset.sum_congr rfl hinner, Finset.sum_const, smul_eq_mul, Nat.mul_comm]
-
-private theorem pos_freq_of_mem_activeChars {c b : ℕ} {X : Finset (Fin c → Fin (2 ^ b))}
-    {α : Fin c × Fin (2 ^ b)} (hα : α ∈ activeChars X) :
-    1 ≤ freq X α := by
-  obtain ⟨x, hx, hxα⟩ := Finset.mem_biUnion.mp hα
-  exact Finset.card_pos.mpr ⟨x, Finset.mem_filter.mpr ⟨hx, hxα⟩⟩
+  rw [Finset.sum_comm, Finset.sum_congr rfl fun x hx => by
+    rw [← Finset.card_filter, Finset.filter_mem_eq_inter, Finset.inter_eq_right.mpr
+      (show posSet x ⊆ activeChars X from Finset.subset_biUnion_of_mem posSet hx), card_posSet]]
+  simp [Nat.mul_comm]
 
 private theorem pairwise_sortedChars {c b : ℕ} (X : Finset (Fin c → Fin (2 ^ b))) :
-    (sortedChars X).Pairwise (fun α β => freq X β ≤ freq X α) := by
-  have htrans : ∀ α β γ : Fin c × Fin (2 ^ b),
-      decide (freq X β ≤ freq X α) = true →
-      decide (freq X γ ≤ freq X β) = true →
-      decide (freq X γ ≤ freq X α) = true :=
-    fun _ _ _ h₁ h₂ => decide_eq_true (le_trans (of_decide_eq_true h₂) (of_decide_eq_true h₁))
-  have htotal : ∀ α β : Fin c × Fin (2 ^ b),
-      (decide (freq X β ≤ freq X α) || decide (freq X α ≤ freq X β)) = true :=
-    fun α β => by
-      rw [Bool.or_eq_true]
-      rcases le_total (freq X β) (freq X α) with h | h
-      · exact Or.inl (decide_eq_true h)
-      · exact Or.inr (decide_eq_true h)
-  simpa [sortedChars, decide_eq_true_eq] using
-    List.pairwise_mergeSort htrans htotal (activeChars X).toList
-
-private theorem freq_sortedChars_antitone {c b : ℕ} (X : Finset (Fin c → Fin (2 ^ b)))
-    {i j : ℕ} (hi : i < (sortedChars X).length) (hj : j < (sortedChars X).length) (hij : i ≤ j) :
-    freq X ((sortedChars X)[j]) ≤ freq X ((sortedChars X)[i]) := by
-  rcases eq_or_lt_of_le hij with rfl | hlt
-  · exact le_rfl
-  · exact List.pairwise_iff_getElem.mp (pairwise_sortedChars X) i j hi hj hlt
+    (sortedChars X).Pairwise (fun α β => freq X β ≤ freq X α) :=
+  letI : Std.Total (fun α β : Fin c × Fin (2 ^ b) => freq X β ≤ freq X α) :=
+    ⟨fun _ _ => le_total _ _⟩
+  letI : IsTrans (Fin c × Fin (2 ^ b)) (fun α β => freq X β ≤ freq X α) :=
+    ⟨fun _ _ _ h₁ h₂ => h₂.trans h₁⟩
+  List.pairwise_mergeSort' (fun α β => freq X β ≤ freq X α) (activeChars X).toList
 
 /-- `i`-th frequency `n_i` in the decreasing order `sortedChars X` (`0` out of bounds). -/
 private noncomputable def sortedFreq {c b : ℕ} (X : Finset (Fin c → Fin (2 ^ b))) (i : ℕ) : ℕ :=
@@ -507,25 +434,24 @@ private theorem sortedFreq_antitone {c b : ℕ} (X : Finset (Fin c → Fin (2 ^ 
     sortedFreq X j ≤ sortedFreq X i := by
   have hi : i < (sortedChars X).length := lt_of_le_of_lt hij hj
   simp only [sortedFreq, hi, hj, ↓reduceDIte]
-  exact freq_sortedChars_antitone X hi hj hij
+  rcases eq_or_lt_of_le hij with rfl | hlt
+  exacts [le_rfl, List.pairwise_iff_getElem.mp (pairwise_sortedChars X) i j hi hj hlt]
 
 private theorem one_le_sortedFreq {c b : ℕ} (X : Finset (Fin c → Fin (2 ^ b)))
     {i : ℕ} (hi : i < (sortedChars X).length) :
     1 ≤ sortedFreq X i := by
   simp only [sortedFreq, hi, ↓reduceDIte]
-  exact pos_freq_of_mem_activeChars (mem_sortedChars.mp (List.getElem_mem hi))
+  obtain ⟨x, hx, hxα⟩ := Finset.mem_biUnion.mp (mem_sortedChars.mp (List.getElem_mem hi))
+  exact Finset.card_pos.mpr ⟨x, Finset.mem_filter.mpr ⟨hx, hxα⟩⟩
 
 private theorem sum_sortedFreq {c b : ℕ} (X : Finset (Fin c → Fin (2 ^ b))) :
     ∑ i ∈ Finset.range (sortedChars X).length, sortedFreq X i = c * #X := by
-  have hsum_get : ∑ i ∈ Finset.range (sortedChars X).length, sortedFreq X i =
+  rw [← Fin.sum_univ_eq_sum_range]
+  have hget : (∑ i : Fin (sortedChars X).length, sortedFreq X i) =
       ((sortedChars X).map (freq X)).sum := by
-    rw [← Fin.sum_univ_eq_sum_range]
     conv_rhs => rw [← List.ofFn_get (sortedChars X), List.map_ofFn, List.sum_ofFn]
-    refine Finset.sum_congr rfl fun i _ => ?_
-    simp [sortedFreq, i.isLt]
-  rw [hsum_get]
-  unfold sortedChars
-  rw [((List.mergeSort_perm (activeChars X).toList _).map (freq X)).sum_eq,
+    exact Finset.sum_congr rfl fun i _ => by simp [sortedFreq, i.isLt]
+  rw [hget, sortedChars, ((List.mergeSort_perm (activeChars X).toList _).map (freq X)).sum_eq,
     Finset.sum_map_toList, sum_freq_activeChars]
 
 private theorem card_prefixChars_le {c b : ℕ} (X : Finset (Fin c → Fin (2 ^ b))) (r : ℕ) :
@@ -534,8 +460,7 @@ private theorem card_prefixChars_le {c b : ℕ} (X : Finset (Fin c → Fin (2 ^ 
 
 private theorem prefixChars_length {c b : ℕ} (X : Finset (Fin c → Fin (2 ^ b))) :
     prefixChars X (sortedChars X).length = activeChars X := by
-  ext α
-  simp [prefixChars, List.take_length, mem_sortedChars]
+  ext α; simp [prefixChars, List.take_length, mem_sortedChars]
 
 private theorem prefixChars_succ {c b : ℕ} (X : Finset (Fin c → Fin (2 ^ b))) {r : ℕ}
     (hr : r < (sortedChars X).length) :
@@ -546,8 +471,7 @@ private theorem prefixChars_succ {c b : ℕ} (X : Finset (Fin c → Fin (2 ^ b))
   exact Or.comm
 
 private theorem prefixChars_mono {c b : ℕ} (X : Finset (Fin c → Fin (2 ^ b))) {r₁ r₂ : ℕ}
-    (h : r₁ ≤ r₂) : prefixChars X r₁ ⊆ prefixChars X r₂ := by
-  intro α hα
+    (h : r₁ ≤ r₂) : prefixChars X r₁ ⊆ prefixChars X r₂ := fun _ hα => by
   simp only [prefixChars, List.mem_toFinset] at hα ⊢
   exact List.Sublist.mem hα (List.take_sublist_take_left h)
 
@@ -569,6 +493,13 @@ private noncomputable def GammaSet {c d b : ℕ} (T₁ : DoubleTabTopSeed c d b)
     ∃ x ∈ X, x ≠ p.1 ∧ posSymmDiff x p.1 ⊆ prefixChars X r ∧
       simpleTabTuple T₁ x p.2 = simpleTabTuple T₁ p.1 p.2
 
+@[simp]
+private theorem mem_gammaSet {c d b : ℕ} {T₁ : DoubleTabTopSeed c d b}
+    {X : Finset (Fin c → Fin (2 ^ b))} {r : ℕ} {p : (Fin c → Fin (2 ^ b)) × Fin d} :
+    p ∈ GammaSet T₁ X r ↔ p.1 ∈ X ∧ ∃ x ∈ X, x ≠ p.1 ∧ posSymmDiff x p.1 ⊆ prefixChars X r ∧
+      simpleTabTuple T₁ x p.2 = simpleTabTuple T₁ p.1 p.2 := by
+  simp [GammaSet]
+
 /-- Count `γ_{≤ r} = #(GammaSet T₁ X r)` ([Thorup2013], Section 3, p. 11). -/
 private noncomputable def gamma {c d b : ℕ} (T₁ : DoubleTabTopSeed c d b)
     (X : Finset (Fin c → Fin (2 ^ b))) (r : ℕ) : ℕ :=
@@ -577,21 +508,18 @@ private noncomputable def gamma {c d b : ℕ} (T₁ : DoubleTabTopSeed c d b)
 private theorem gammaSet_mono {c d b : ℕ} (T₁ : DoubleTabTopSeed c d b)
     (X : Finset (Fin c → Fin (2 ^ b))) {r₁ r₂ : ℕ} (h : r₁ ≤ r₂) :
     GammaSet T₁ X r₁ ⊆ GammaSet T₁ X r₂ := by
-  intro p hp
-  simp only [GammaSet, Finset.mem_filter, Finset.mem_product, Finset.mem_univ, and_true] at hp ⊢
-  rcases hp with ⟨hpX, x, hxX, hne, hsub, heq⟩
+  rintro p; simp only [mem_gammaSet]
+  rintro ⟨hpX, x, hxX, hne, hsub, heq⟩
   exact ⟨hpX, x, hxX, hne, hsub.trans (prefixChars_mono X h), heq⟩
 
 private theorem gamma_eq_zero_of_le_one {c d b : ℕ} (T₁ : DoubleTabTopSeed c d b)
     (X : Finset (Fin c → Fin (2 ^ b))) {r : ℕ} (hr : r ≤ 1) :
     gamma T₁ X r = 0 := by
   rw [gamma, Finset.card_eq_zero, Finset.eq_empty_iff_forall_notMem]
-  intro p hp
-  simp only [GammaSet, Finset.mem_filter] at hp
-  rcases hp with ⟨_, x, _, hne, hsub, _⟩
-  have h2 : 2 ≤ #(posSymmDiff x p.1) := two_le_card_posSymmDiff_of_ne hne
-  have h1 : #(posSymmDiff x p.1) ≤ 1 :=
-    (Finset.card_le_card hsub).trans ((card_prefixChars_le X r).trans hr)
+  rintro p hp
+  rcases mem_gammaSet.mp hp with ⟨_, x, _, hne, hsub, _⟩
+  have := two_le_card_posSymmDiff_of_ne hne
+  have := (Finset.card_le_card hsub).trans ((card_prefixChars_le X r).trans hr)
   omega
 
 /-- **Lemma 8 ([Thorup2013], Section 3, p. 12)**: if `X` violates `k`-uniqueness under
@@ -599,19 +527,16 @@ private theorem gamma_eq_zero_of_le_one {c d b : ℕ} (T₁ : DoubleTabTopSeed c
 private theorem gamma_length_eq {c d b : ℕ} (T₁ : DoubleTabTopSeed c d b)
     (X : Finset (Fin c → Fin (2 ^ b)))
     (hviol : ∀ y ∈ X, ∀ j : Fin d, ∃ x ∈ X, x ≠ y ∧
-      simpleTabTuple T₁ x j = simpleTabTuple T₁ y j) :
+      simpleTabTuple T₁ y j = simpleTabTuple T₁ x j) :
     gamma T₁ X (sortedChars X).length = d * #X := by
   have hGamma : GammaSet T₁ X (sortedChars X).length = X ×ˢ Finset.univ := by
     ext ⟨y, j⟩
-    simp only [GammaSet, Finset.mem_filter, Finset.mem_product, Finset.mem_univ, and_true,
-      and_iff_left_iff_imp]
+    simp only [mem_gammaSet, Finset.mem_product, Finset.mem_univ, and_true, and_iff_left_iff_imp]
     intro hy
     obtain ⟨x, hx, hne, heq⟩ := hviol y hy j
-    refine ⟨x, hx, hne, ?_, heq⟩
-    rw [prefixChars_length]
-    refine symmDiff_subset_union.trans (Finset.union_subset ?_ ?_)
-    · exact Finset.subset_biUnion_of_mem posSet hx
-    · exact Finset.subset_biUnion_of_mem posSet hy
+    exact ⟨x, hx, hne, prefixChars_length X ▸ symmDiff_subset_union.trans
+      (Finset.union_subset (Finset.subset_biUnion_of_mem posSet hx)
+        (Finset.subset_biUnion_of_mem posSet hy)), heq.symm⟩
   rw [gamma, hGamma, Finset.card_product, Finset.card_univ, Fintype.card_fin, Nat.mul_comm]
 
 /-- Set `Φ_r` of output coordinates `j : Fin d` such that `((sortedChars X)[r], j)` is derivable
@@ -634,32 +559,22 @@ private noncomputable def phi {c d b : ℕ} (T₁ : DoubleTabTopSeed c d b)
 private theorem phi_zero_eq_zero {c d b : ℕ} (T₁ : DoubleTabTopSeed c d b)
     (X : Finset (Fin c → Fin (2 ^ b))) :
     phi T₁ X 0 = 0 := by
-  rw [phi, Finset.card_eq_zero, Finset.eq_empty_iff_forall_notMem]
-  intro j hj
-  unfold PhiSet at hj
-  split_ifs at hj with hr
-  · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hj
-    rcases hj with ⟨x, _, y, _, hmem, hsub, _⟩
-    have hne : x ≠ y := by
-      intro rfl
-      simp [posSymmDiff] at hmem
-    have h2 : 2 ≤ #(posSymmDiff x y) := two_le_card_posSymmDiff_of_ne hne
-    have h1 : #(posSymmDiff x y) ≤ 1 := (Finset.card_le_card hsub).trans (card_prefixChars_le X 1)
-    omega
-  · exact Finset.notMem_empty j hj
+  simp only [phi, PhiSet, Finset.card_eq_zero]
+  split_ifs with hr <;> simp only [Finset.filter_eq_empty_iff, Finset.mem_univ, forall_true_left]
+  rintro j ⟨x, _, y, _, hmem, hsub, _⟩
+  have := two_le_card_posSymmDiff_of_ne (x := x) (y := y)
+    (by rintro rfl; simp [posSymmDiff] at hmem)
+  have := (Finset.card_le_card hsub).trans (card_prefixChars_le X 1)
+  omega
 
 /-- A position-character set inside the prefix of length `r + 1` that misses the `r`-th sorted
 character lies inside the prefix of length `r`. -/
 private theorem subset_prefixChars_of_subset_succ {c b : ℕ} (X : Finset (Fin c → Fin (2 ^ b)))
     {r : ℕ} (hr : r < (sortedChars X).length) {A : Finset (Fin c × Fin (2 ^ b))}
     (hsub : A ⊆ prefixChars X (r + 1)) (hnot : (sortedChars X)[r] ∉ A) :
-    A ⊆ prefixChars X r := by
-  intro β hβ
-  have hβ' := hsub hβ
-  rw [prefixChars_succ X hr, Finset.mem_insert] at hβ'
-  rcases hβ' with rfl | hβ'
-  · exact (hnot hβ).elim
-  · exact hβ'
+    A ⊆ prefixChars X r := fun β hβ =>
+  (Finset.mem_insert.mp (prefixChars_succ X hr ▸ hsub hβ)).resolve_left
+    (by rintro rfl; exact hnot hβ)
 
 /-- A pair `p` that enters `Γ_{≤ r + 1}` at step `r` has a colliding key `x ≠ p.1` whose symmetric
 difference with `p.1` contains the `r`-th sorted character; in particular `p.2 ∈ Φ_r`. -/
@@ -672,18 +587,15 @@ private theorem exists_witness_of_mem_gammaSet_sdiff {c d b : ℕ}
       ∃ x ∈ X, x ≠ p.1 ∧ (sortedChars X)[r] ∈ posSymmDiff x p.1 ∧
         posSymmDiff x p.1 ⊆ prefixChars X (r + 1) ∧
         simpleTabTuple T₁ x p.2 = simpleTabTuple T₁ p.1 p.2 := by
-  have hp_in : p ∈ GammaSet T₁ X (r + 1) := (Finset.mem_sdiff.mp hp).1
-  have hp_out : p ∉ GammaSet T₁ X r := (Finset.mem_sdiff.mp hp).2
-  simp only [GammaSet, Finset.mem_filter, Finset.mem_product, Finset.mem_univ, and_true]
-    at hp_in hp_out
-  rcases hp_in with ⟨hpX, x, hxX, hne, hsub, heq⟩
+  obtain ⟨hp_in, hp_out⟩ := Finset.mem_sdiff.mp hp
+  rcases mem_gammaSet.mp hp_in with ⟨hpX, x, hxX, hne, hsub, heq⟩
   have hmem_r : (sortedChars X)[r] ∈ posSymmDiff x p.1 := by
     by_contra hnot
-    exact hp_out ⟨hpX, x, hxX, hne, subset_prefixChars_of_subset_succ X hr hsub hnot, heq⟩
-  have hj_phi : p.2 ∈ PhiSet T₁ X r := by
-    simp only [PhiSet, hr, ↓reduceDIte, Finset.mem_filter, Finset.mem_univ, true_and]
-    exact ⟨x, hxX, p.1, hpX, hmem_r, hsub, heq⟩
-  exact ⟨hpX, hj_phi, x, hxX, hne, hmem_r, hsub, heq⟩
+    exact hp_out (mem_gammaSet.mpr
+      ⟨hpX, x, hxX, hne, subset_prefixChars_of_subset_succ X hr hsub hnot, heq⟩)
+  refine ⟨hpX, ?_, x, hxX, hne, hmem_r, hsub, heq⟩
+  simp only [PhiSet, hr, ↓reduceDIte, Finset.mem_filter, Finset.mem_univ, true_and]
+  exact ⟨x, hxX, p.1, hpX, hmem_r, hsub, heq⟩
 
 /-- **Lemma 9 ([Thorup2013], Section 3, Eq. (8), pp. 12–13)**: for each step `r < ℓ*`,
 `γ_{≤ r + 1} - γ_{≤ r} ≤ 2 * ϕ_r * n_r`.
@@ -701,55 +613,41 @@ private theorem gamma_succ_sub_le {c d b : ℕ} (T₁ : DoubleTabTopSeed c d b)
   let D := GammaSet T₁ X (r + 1) \ GammaSet T₁ X r
   let P := (X.filter fun x => α_r ∈ posSet x) ×ˢ PhiSet T₁ X r
   have hP : #P = phi T₁ X r * sortedFreq X r := by
-    simp only [P, Finset.card_product, sortedFreq, hr, ↓reduceDIte, Nat.mul_comm]
-    rfl
-  have hcard_D : gamma T₁ X (r + 1) - gamma T₁ X r = #D := by
-    rw [gamma, gamma, ← Finset.card_sdiff_of_subset (gammaSet_mono T₁ X (Nat.le_succ r))]
-  -- Split the new pairs by whether their own key contains `α_r`.
-  let D₁ := D.filter fun p => α_r ∈ posSet p.1
-  let D₂ := D.filter fun p => α_r ∉ posSet p.1
-  have hD : #D₁ + #D₂ = #D := Finset.card_filter_add_card_filter_not _
-  have hD₁_le : #D₁ ≤ #P := by
-    refine Finset.card_le_card fun p hp => ?_
-    rcases Finset.mem_filter.mp hp with ⟨hpD, hp_pos⟩
-    have hw := exists_witness_of_mem_gammaSet_sdiff T₁ X hr hpD
-    exact Finset.mem_product.mpr ⟨Finset.mem_filter.mpr ⟨hw.1, hp_pos⟩, hw.2.1⟩
-  -- A pair `p ∈ D₂` is charged to `(x, p.2) ∈ P` for a colliding key `x ∋ α_r`.
-  let Charge (p q : (Fin c → Fin (2 ^ b)) × Fin d) : Prop :=
-    q.2 = p.2 ∧ posSymmDiff q.1 p.1 ⊆ prefixChars X (r + 1) ∧ α_r ∈ posSet q.1 ∧
-      simpleTabTuple T₁ q.1 p.2 = simpleTabTuple T₁ p.1 p.2
-  have hD₂_le : #D₂ ≤ #P := by
-    refine Finset.card_le_card_of_forall_subsingleton Charge (fun p hp => ?_) fun q _ => ?_
+    simp only [P, Finset.card_product, sortedFreq, hr, ↓reduceDIte, Nat.mul_comm]; rfl
+  have hD₁_le : #(D.filter fun p => α_r ∈ posSet p.1) ≤ #P :=
+    Finset.card_le_card fun p hp => by
+      rcases Finset.mem_filter.mp hp with ⟨hpD, hp_pos⟩
+      have hw := exists_witness_of_mem_gammaSet_sdiff T₁ X hr hpD
+      exact Finset.mem_product.mpr ⟨Finset.mem_filter.mpr ⟨hw.1, hp_pos⟩, hw.2.1⟩
+  have hD₂_le : #(D.filter fun p => α_r ∉ posSet p.1) ≤ #P := by
+    refine Finset.card_le_card_of_forall_subsingleton
+      (fun p q => q.2 = p.2 ∧ posSymmDiff q.1 p.1 ⊆ prefixChars X (r + 1) ∧
+        simpleTabTuple T₁ q.1 p.2 = simpleTabTuple T₁ p.1 p.2)
+      (fun p hp => ?_) fun q _ => ?_
     · rcases Finset.mem_filter.mp hp with ⟨hpD, hp_not⟩
       obtain ⟨-, hj, x, hxX, -, hmem, hsub, htab⟩ :=
         exists_witness_of_mem_gammaSet_sdiff T₁ X hr hpD
-      have hx_pos : α_r ∈ posSet x := by
-        rcases Finset.mem_symmDiff.mp hmem with ⟨hx, -⟩ | ⟨hy, -⟩
-        · exact hx
-        · exact (hp_not hy).elim
+      have hx_pos : α_r ∈ posSet x :=
+        (Finset.mem_symmDiff.mp hmem).elim And.left fun h => (hp_not h.1).elim
       exact ⟨(x, p.2), Finset.mem_product.mpr ⟨Finset.mem_filter.mpr ⟨hxX, hx_pos⟩, hj⟩,
-        rfl, hsub, hx_pos, htab⟩
-    · -- Two pairs charged to the same `q` collide with each other below `α_r`.
-      rintro p₁ ⟨hp₁, hj₁, hsub₁, -, htab₁⟩ p₂ ⟨hp₂, hj₂, hsub₂, -, htab₂⟩
+        rfl, hsub, htab⟩
+    · rintro p₁ ⟨hp₁, hj₁, hsub₁, htab₁⟩ p₂ ⟨hp₂, hj₂, hsub₂, htab₂⟩
       rcases Finset.mem_filter.mp hp₁ with ⟨hp₁D, hp₁_not⟩
       rcases Finset.mem_filter.mp hp₂ with ⟨hp₂D, hp₂_not⟩
       have hj : p₁.2 = p₂.2 := hj₁.symm.trans hj₂
       refine Prod.ext ?_ hj
       by_contra hne
-      have hsub : posSymmDiff p₂.1 p₁.1 ⊆ prefixChars X r := by
-        refine subset_prefixChars_of_subset_succ X hr
+      have hsub : posSymmDiff p₂.1 p₁.1 ⊆ prefixChars X r :=
+        subset_prefixChars_of_subset_succ X hr
           ((posSymmDiff_subset_union q.1 p₂.1 p₁.1).trans (Finset.union_subset hsub₂ hsub₁))
-          fun hα => ?_
-        rcases Finset.mem_symmDiff.mp hα with ⟨h₂, -⟩ | ⟨h₁, -⟩
-        · exact hp₂_not h₂
-        · exact hp₁_not h₁
-      refine (Finset.mem_sdiff.mp hp₁D).2 ?_
-      simp only [GammaSet, Finset.mem_filter, Finset.mem_product, Finset.mem_univ, and_true]
-      refine ⟨(exists_witness_of_mem_gammaSet_sdiff T₁ X hr hp₁D).1, p₂.1,
-        (exists_witness_of_mem_gammaSet_sdiff T₁ X hr hp₂D).1, Ne.symm hne, hsub, ?_⟩
-      rw [← hj] at htab₂
-      exact htab₂.symm.trans htab₁
-  rw [hcard_D, ← hD, ← hP]
+          fun hα => (Finset.mem_symmDiff.mp hα).elim (fun h => hp₂_not h.1) (fun h => hp₁_not h.1)
+      exact (Finset.mem_sdiff.mp hp₁D).2 (mem_gammaSet.mpr
+        ⟨(mem_gammaSet.mp (Finset.mem_sdiff.mp hp₁D).1).1, p₂.1,
+          (mem_gammaSet.mp (Finset.mem_sdiff.mp hp₂D).1).1, Ne.symm hne, hsub,
+          (hj ▸ htab₂).symm.trans htab₁⟩)
+  have hsplit := Finset.card_filter_add_card_filter_not (s := D) (p := fun p => α_r ∈ posSet p.1)
+  rw [gamma, gamma, ← Finset.card_sdiff_of_subset (gammaSet_mono T₁ X (Nat.le_succ r)), ← hP]
+  change #D ≤ _
   omega
 
 /-- If every prefix `1 ≤ ℓ ≤ ℓ*` has `< q * ℓ` derivable outputs, summation by parts yields
@@ -765,36 +663,20 @@ private theorem sum_phi_mul_sortedFreq_lt {c d b q : ℕ} (T₁ : DoubleTabTopSe
   rw [hm]
   have hmono : ∀ i < m, sortedFreq X (i + 1) ≤ sortedFreq X i := fun i hi =>
     sortedFreq_antitone X (by omega) (Nat.le_succ i)
-  have hab₁ := Nat.sum_mul_eq_sum_prefix_sub (phi T₁ X) (sortedFreq X) m hmono
-  have hab₂ := Nat.sum_mul_eq_sum_prefix_sub (fun _ => q) (sortedFreq X) m hmono
-  rw [← Finset.mul_sum] at hab₂
-  rw [hab₁, hab₂]
-  have hsum_le :
-      ∑ i ∈ Finset.range m,
-          (∑ j ∈ Finset.range (i + 1), phi T₁ X j) * (sortedFreq X i - sortedFreq X (i + 1)) ≤
-        ∑ i ∈ Finset.range m,
-          (∑ j ∈ Finset.range (i + 1), q) * (sortedFreq X i - sortedFreq X (i + 1)) := by
-    refine Finset.sum_le_sum fun i hi => Nat.mul_le_mul_right _ ?_
-    have hi_lt : i < m := Finset.mem_range.mp hi
-    have hlt := hsmall (i + 1) (by omega) (by omega)
-    rw [Finset.sum_const, Finset.card_range, smul_eq_mul, Nat.mul_comm]
-    exact Nat.le_of_lt hlt
-  have hlast_lt :
-      (∑ j ∈ Finset.range (m + 1), phi T₁ X j) * sortedFreq X m <
-        (∑ j ∈ Finset.range (m + 1), q) * sortedFreq X m := by
-    have hlt := hsmall (m + 1) (by omega) (by omega)
-    have hpos : 0 < sortedFreq X m := one_le_sortedFreq X (by omega)
-    rw [Finset.sum_const, Finset.card_range, smul_eq_mul, Nat.mul_comm (m + 1) q]
-    exact Nat.mul_lt_mul_of_pos_right hlt hpos
-  exact add_lt_add_of_le_of_lt hsum_le hlast_lt
+  rw [Nat.sum_mul_eq_sum_prefix_sub (phi T₁ X) (sortedFreq X) m hmono, Finset.mul_sum,
+    Nat.sum_mul_eq_sum_prefix_sub (fun _ => q) (sortedFreq X) m hmono]
+  refine add_lt_add_of_le_of_lt (Finset.sum_le_sum fun i hi => Nat.mul_le_mul_right _ ?_) ?_
+  · have := Finset.mem_range.mp hi
+    simpa [Nat.mul_comm] using (hsmall (i + 1) (by omega) (by omega)).le
+  · simpa [Nat.mul_comm] using
+      Nat.mul_lt_mul_of_pos_right (hsmall (m + 1) (by omega) (by omega))
+        (one_le_sortedFreq X (by omega))
 
 private theorem gamma_le_two_mul_sum_phi_sortedFreq {c d b : ℕ} (T₁ : DoubleTabTopSeed c d b)
     (X : Finset (Fin c → Fin (2 ^ b))) :
     ∀ r ≤ (sortedChars X).length,
       gamma T₁ X r ≤ 2 * ∑ i ∈ Finset.range r, phi T₁ X i * sortedFreq X i
-  | 0, _ => by
-    have h0 := gamma_eq_zero_of_le_one T₁ X (by decide : 0 ≤ 1)
-    simp [h0]
+  | 0, _ => by simp [gamma_eq_zero_of_le_one T₁ X (by decide : 0 ≤ 1)]
   | r + 1, hr => by
     have ih := gamma_le_two_mul_sum_phi_sortedFreq T₁ X r (Nat.le_of_succ_le hr)
     have hstep := gamma_succ_sub_le T₁ X (Nat.lt_of_succ_le hr)
@@ -808,35 +690,28 @@ private theorem exists_prefix_le_sum_phi {c d b q : ℕ} (hc : 1 ≤ c) (hq : 1 
     (hd : d = 2 * q * c) (T₁ : DoubleTabTopSeed c d b)
     (X : Finset (Fin c → Fin (2 ^ b))) (hX_ne : X.Nonempty)
     (hviol : ∀ y ∈ X, ∀ j : Fin d, ∃ x ∈ X, x ≠ y ∧
-      simpleTabTuple T₁ x j = simpleTabTuple T₁ y j) :
+      simpleTabTuple T₁ y j = simpleTabTuple T₁ x j) :
     ∃ ℓ, 2 ≤ ℓ ∧ ℓ ≤ (sortedChars X).length ∧ q * ℓ ≤ ∑ i ∈ Finset.range ℓ, phi T₁ X i := by
   have hX_pos : 0 < #X := Finset.card_pos.mpr hX_ne
   have hsum_freq := sum_sortedFreq X
   have hlen_pos : 0 < (sortedChars X).length := by
     by_contra h0
-    have hlen0 : (sortedChars X).length = 0 := by omega
-    rw [hlen0, Finset.range_zero, Finset.sum_empty] at hsum_freq
-    have hcX : 0 < c * #X := Nat.mul_pos hc hX_pos
+    rw [Nat.eq_zero_of_not_pos h0, Finset.range_zero, Finset.sum_empty] at hsum_freq
+    have := Nat.mul_pos hc hX_pos
     omega
   have hex : ∃ ℓ, 1 ≤ ℓ ∧ ℓ ≤ (sortedChars X).length ∧
       q * ℓ ≤ ∑ i ∈ Finset.range ℓ, phi T₁ X i := by
     by_contra! hsmall
     have hlt := sum_phi_mul_sortedFreq_lt T₁ X hlen_pos hsmall
-    rw [hsum_freq] at hlt
     have hgamma_eq := gamma_length_eq T₁ X hviol
     have hgamma_le := gamma_le_two_mul_sum_phi_sortedFreq T₁ X (sortedChars X).length le_rfl
-    have hdX : d * #X = 2 * (q * (c * #X)) := by
-      rw [hd]
-      ring
-    omega
+    rw [hsum_freq] at hlt
+    subst hd; nlinarith
   rcases hex with ⟨ℓ, hℓ₁, hℓ_hi, hqℓ⟩
-  have hℓ₂ : 2 ≤ ℓ := by
-    by_contra hlt2
-    have hℓ_eq : ℓ = 1 := by omega
-    subst hℓ_eq
-    rw [Finset.range_one, Finset.sum_singleton, phi_zero_eq_zero] at hqℓ
-    omega
-  exact ⟨ℓ, hℓ₂, hℓ_hi, hqℓ⟩
+  refine ⟨ℓ, ?_, hℓ_hi, hqℓ⟩
+  by_contra hlt2
+  obtain rfl : ℓ = 1 := by omega
+  simp [phi_zero_eq_zero] at hqℓ; omega
 
 private theorem exists_eq_tuple_of_mem_phiSet {c d b ℓ : ℕ} [NeZero (2 * c)]
     (T₁ : DoubleTabTopSeed c d b) (X : Finset (Fin c → Fin (2 ^ b)))
@@ -851,56 +726,41 @@ private theorem exists_eq_tuple_of_mem_phiSet {c d b ℓ : ℕ} [NeZero (2 * c)]
   classical
   intro L
   have hr_lt : r.val < (sortedChars X).length := lt_of_lt_of_le r.isLt hℓ_hi
-  have hL_inj : Function.Injective L := fun i₁ i₂ h =>
+  have hL_inj : Function.Injective L := fun _ _ h =>
     Fin.ext ((nodup_sortedChars X).getElem_inj_iff.mp h)
   simp only [PhiSet, hr_lt, ↓reduceDIte, Finset.mem_filter, Finset.mem_univ, true_and] at hj
   rcases hj with ⟨x, _, y, _, hr_mem, hsub, htab⟩
   let B : Finset (Fin ℓ) := Finset.univ.filter fun idx => L idx ∈ posSymmDiff x y
   have hr_B : r ∈ B := Finset.mem_filter.mpr ⟨Finset.mem_univ r, hr_mem⟩
-  have hB_le_r : ∀ idx ∈ B, idx ≤ r := by
-    intro idx hidx
-    obtain ⟨i, _, hi_lt, heq⟩ :=
-      exists_lt_of_mem_prefixChars (hsub (Finset.mem_filter.mp hidx).2)
-    have hidx_eq : i = idx.val := (nodup_sortedChars X).getElem_inj_iff.mp heq
-    exact Fin.le_iff_val_le_val.mpr (by omega)
   have hB_img : B.image L = posSymmDiff x y := by
     ext α
     simp only [B, Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and]
-    refine ⟨fun ⟨idx, hα, heq⟩ => heq ▸ hα, fun hα => ?_⟩
+    refine ⟨fun ⟨_, hα, heq⟩ => heq ▸ hα, fun hα => ?_⟩
     obtain ⟨i, _, hi_lt, heq⟩ := exists_lt_of_mem_prefixChars (hsub hα)
     exact ⟨⟨i, by omega⟩, heq ▸ hα, heq⟩
-  have hB_card : #B ≤ 2 * c := by
-    rw [← Finset.card_image_of_injective B hL_inj, hB_img]
-    exact card_posSymmDiff_le x y
+  have hB_le_r : ∀ idx ∈ B, idx ≤ r := fun idx hidx => by
+    obtain ⟨i, _, hi_lt, heq⟩ := exists_lt_of_mem_prefixChars (hsub (Finset.mem_filter.mp hidx).2)
+    have : i = idx.val := (nodup_sortedChars X).getElem_inj_iff.mp heq
+    exact Fin.le_iff_val_le_val.mpr (by omega)
+  have hB_card : #B ≤ 2 * c :=
+    Finset.card_image_of_injective B hL_inj ▸ hB_img.symm ▸ card_posSymmDiff_le x y
   let g : Fin (2 * c) → Fin ℓ := fun t =>
-    if ht : t.val < B.toList.length then B.toList[t.val] else r
+    if ht : t.val < #B then (B.equivFin.symm ⟨t.val, ht⟩).1 else r
   have hg_img : Finset.univ.image g = B := by
     ext idx
     simp only [Finset.mem_image, Finset.mem_univ, true_and, g]
-    constructor
-    · rintro ⟨t, rfl⟩
-      split_ifs with ht
-      · exact Finset.mem_toList.mp (List.getElem_mem ht)
-      · exact hr_B
-    · intro hidx
-      have hmem_list : idx ∈ B.toList := Finset.mem_toList.mpr hidx
-      obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hmem_list
-      have hi_2c : i < 2 * c := lt_of_lt_of_le (Finset.length_toList B ▸ hi) hB_card
-      refine ⟨⟨i, hi_2c⟩, ?_⟩
-      change (if _ : i < B.toList.length then B.toList[i] else r) = B.toList[i]
-      split_ifs
-      rfl
-  refine ⟨g, ?_, ?_⟩
-  · unfold lastIdx
-    exact le_antisymm
-      (Finset.max'_le _ _ _ fun idx hidx => hB_le_r idx (hg_img ▸ hidx))
-      (Finset.le_max' _ r (hg_img.symm ▸ hr_B))
-  · rw [hg_img]
-    have hsum_img : ∑ α ∈ B.image L, (BitString.equivFin b).symm (T₁ α.1 j α.2) =
-        ∑ idx ∈ B, (BitString.equivFin b).symm (T₁ (L idx).1 j (L idx).2) :=
-      Finset.sum_image fun _ _ _ _ h => hL_inj h
-    rw [← hsum_img, hB_img]
-    exact (simpleTabTuple_eq_iff_sum_posSymmDiff_eq_zero T₁ x y j).mp htab
+    refine ⟨fun ⟨t, h⟩ => ?_, fun hidx => ?_⟩
+    · subst h; split_ifs with ht
+      exacts [(B.equivFin.symm ⟨t.val, ht⟩).2, hr_B]
+    · let t' := B.equivFin ⟨idx, hidx⟩
+      refine ⟨⟨t'.1, t'.2.trans_le hB_card⟩, ?_⟩
+      simp only [t'.2, ↓reduceDIte, Fin.eta]
+      exact congrArg Subtype.val (B.equivFin.symm_apply_apply ⟨idx, hidx⟩)
+  refine ⟨g, le_antisymm (Finset.max'_le _ _ _ fun idx hidx => hB_le_r idx (hg_img ▸ hidx))
+    (Finset.le_max' _ r (hg_img.symm ▸ hr_B)), ?_⟩
+  rw [hg_img, ← Finset.sum_image (f := fun α : Fin c × Fin (2 ^ b) =>
+    (BitString.equivFin b).symm (T₁ α.1 j α.2)) (fun _ _ _ _ h => hL_inj h), hB_img]
+  exact (simpleTabTuple_eq_iff_sum_posSymmDiff_eq_zero T₁ x y j).mp htab
 
 /-- **Violation of `IsKUnique` yields a satisfied efficient code (`[Thorup2013]`, Section 2 &
 Theorem 7(a), pp. 10–13)**: if `c ≥ 1`, `q ≥ 1`, `d = 2 * q * c`, and
@@ -914,226 +774,29 @@ private theorem exists_satisfiesCode_of_not_isKUnique {c d b q k : ℕ} [NeZero 
       ∃ (L : Fin ℓ → Fin c × Fin (2 ^ b)) (M : Fin (q * ℓ) → (Fin (2 * c) → Fin ℓ) × Fin d),
         SatisfiesCode T₁ L M := by
   classical
-  unfold IsKUnique at hnot
-  push Not at hnot
-  rcases hnot with ⟨X, hX_ne, hX_le, hviol_raw⟩
-  have hviol : ∀ y ∈ X, ∀ j : Fin d, ∃ x ∈ X, x ≠ y ∧
-      simpleTabTuple T₁ x j = simpleTabTuple T₁ y j := by
-    intro y hy j
-    obtain ⟨x, hx, hne, heq⟩ := hviol_raw y hy j
-    exact ⟨x, hx, hne, heq.symm⟩
+  unfold IsKUnique at hnot; push Not at hnot
+  rcases hnot with ⟨X, hX_ne, hX_le, hviol⟩
   obtain ⟨ℓ, hℓ_lo, hℓ_hi, hqℓ⟩ := exists_prefix_le_sum_phi hc hq hd T₁ X hX_ne hviol
-  have hℓ_ck : ℓ ≤ c * k :=
-    hℓ_hi.trans ((length_sortedChars X).trans_le
-      ((card_activeChars_le X).trans (Nat.mul_le_mul_left c hX_le)))
+  have hℓ_ck : ℓ ≤ c * k := hℓ_hi.trans ((length_sortedChars X).trans_le
+    ((card_activeChars_le X).trans (Nat.mul_le_mul_left c hX_le)))
   let L : Fin ℓ → Fin c × Fin (2 ^ b) := fun idx =>
     (sortedChars X)[idx.val]'(lt_of_lt_of_le idx.isLt hℓ_hi)
-  have hL_inj : Function.Injective L := fun i₁ i₂ h =>
-    Fin.ext ((nodup_sortedChars X).getElem_inj_iff.mp h)
-  -- Enumerate `q * ℓ` of the derivable pairs `(r, j)`, `j ∈ Φ_r`, injectively.
   let Pairs : Finset (Σ _ : Fin ℓ, Fin d) := Finset.univ.sigma fun r => PhiSet T₁ X r.val
   have hcard : q * ℓ ≤ #Pairs := by
-    rw [Finset.card_sigma, Fin.sum_univ_eq_sum_range (fun i => #(PhiSet T₁ X i))]
-    exact hqℓ
+    rwa [Finset.card_sigma, Fin.sum_univ_eq_sum_range (fun i => #(PhiSet T₁ X i))]
   let pair (s : Fin (q * ℓ)) : Pairs := Pairs.equivFin.symm (Fin.castLE hcard s)
   have hpair_inj : Function.Injective pair :=
     Pairs.equivFin.symm.injective.comp (Fin.castLE_injective hcard)
-  have hpair_mem (s : Fin (q * ℓ)) : (pair s).1.2 ∈ PhiSet T₁ X (pair s).1.1.val :=
-    (Finset.mem_sigma.mp (pair s).2).2
-  -- Each derivable pair `(r, j)` gives an equation whose last character is `L r`.
   choose g hg_last hg_sum using fun s =>
-    exists_eq_tuple_of_mem_phiSet T₁ X hℓ_hi (pair s).1.1 (hpair_mem s)
-  refine ⟨ℓ, Finset.mem_Icc.mpr ⟨hℓ_lo, hℓ_ck⟩, L, fun s => (g s, (pair s).1.2), hL_inj, ?_,
-    hg_sum⟩
-  intro s₁ s₂ heq
+    exists_eq_tuple_of_mem_phiSet T₁ X hℓ_hi (pair s).1.1
+      (Finset.mem_sigma.mp (pair s).2).2
+  refine ⟨ℓ, Finset.mem_Icc.mpr ⟨hℓ_lo, hℓ_ck⟩, L, fun s => (g s, (pair s).1.2),
+    fun _ _ h => Fin.ext ((nodup_sortedChars X).getElem_inj_iff.mp h), fun s₁ s₂ heq => ?_, hg_sum⟩
   obtain ⟨hlast, hj⟩ := Prod.ext_iff.mp heq
-  refine hpair_inj (Subtype.ext (Sigma.ext ?_ (heq_of_eq hj)))
-  exact (hg_last s₁).symm.trans (hlast.trans (hg_last s₂))
+  exact hpair_inj (Subtype.ext (Sigma.ext ((hg_last s₁).symm.trans (hlast.trans (hg_last s₂)))
+    (heq_of_eq hj)))
 
 /-! ## Section 5: Efficient-code seed counting (`[Thorup2013]`, §2, Eqs. (6)–(7)) -/
-
-/-- Subset satisfaction predicate: `T₁` satisfies the equations of `(L, M)` indexed by `S`. -/
-private def SatisfiesSub {c d b q ℓ : ℕ}
-    (T₁ : DoubleTabTopSeed c d b) (L : Fin ℓ → Fin c × Fin (2 ^ b))
-    (M : Fin (q * ℓ) → (Fin (2 * c) → Fin ℓ) × Fin d)
-    (S : Finset (Fin (q * ℓ))) : Prop :=
-  ∀ r ∈ S,
-    ∑ idx ∈ Finset.univ.image (M r).1,
-      (BitString.equivFin b).symm (T₁ (L idx).1 (M r).2 (L idx).2) = 0
-
-private instance {c d b q ℓ : ℕ}
-    (T₁ : DoubleTabTopSeed c d b) (L : Fin ℓ → Fin c × Fin (2 ^ b))
-    (M : Fin (q * ℓ) → (Fin (2 * c) → Fin ℓ) × Fin d)
-    (S : Finset (Fin (q * ℓ))) : Decidable (SatisfiesSub T₁ L M S) := by
-  unfold SatisfiesSub
-  infer_instance
-
-/-- Updating a single coordinate `(p.1, j₀, p.2)` of `T₁`. -/
-private def updateTopSeed {c d b : ℕ} (T₁ : DoubleTabTopSeed c d b)
-    (p : Fin c × Fin (2 ^ b)) (j₀ : Fin d) (v : Fin (2 ^ b)) : DoubleTabTopSeed c d b :=
-  fun i j a => if (i, a) = p ∧ j = j₀ then v else T₁ i j a
-
-@[simp]
-private theorem updateTopSeed_self {c d b : ℕ} (T₁ : DoubleTabTopSeed c d b)
-    (p : Fin c × Fin (2 ^ b)) (j₀ : Fin d) (v : Fin (2 ^ b)) :
-    updateTopSeed T₁ p j₀ v p.1 j₀ p.2 = v := by
-  simp [updateTopSeed]
-
-private theorem updateTopSeed_of_ne {c d b : ℕ} (T₁ : DoubleTabTopSeed c d b)
-    (p : Fin c × Fin (2 ^ b)) (j₀ : Fin d) (v : Fin (2 ^ b))
-    {i : Fin c} {j : Fin d} {a : Fin (2 ^ b)} (hne : (i, a) ≠ p ∨ j ≠ j₀) :
-    updateTopSeed T₁ p j₀ v i j a = T₁ i j a := by
-  unfold updateTopSeed
-  split_ifs with h
-  · rcases hne with h₁ | h₂
-    · exact (h₁ h.1).elim
-    · exact (h₂ h.2).elim
-  · rfl
-
-@[simp]
-private theorem updateTopSeed_updateTopSeed {c d b : ℕ} (T₁ : DoubleTabTopSeed c d b)
-    (p : Fin c × Fin (2 ^ b)) (j₀ : Fin d) (v₁ v₂ : Fin (2 ^ b)) :
-    updateTopSeed (updateTopSeed T₁ p j₀ v₁) p j₀ v₂ = updateTopSeed T₁ p j₀ v₂ := by
-  ext i j a
-  unfold updateTopSeed
-  split_ifs <;> rfl
-
-@[simp]
-private theorem updateTopSeed_eq_self {c d b : ℕ} (T₁ : DoubleTabTopSeed c d b)
-    (p : Fin c × Fin (2 ^ b)) (j₀ : Fin d) :
-    updateTopSeed T₁ p j₀ (T₁ p.1 j₀ p.2) = T₁ := by
-  ext i j a
-  unfold updateTopSeed
-  split_ifs with h
-  · rcases h with ⟨hp, rfl⟩
-    rcases Prod.ext_iff.mp hp with ⟨rfl, rfl⟩
-    rfl
-  · rfl
-
-/-- Peeling one equation `r₀ ∈ S` whose `lastIdx (M r₀).1` is maximal on `S` multiplies the number
-of compatible tables `T₁` by `2 ^ b` ([Thorup2013], Section 2, p. 11). -/
-private theorem card_filter_satisfiesSub_erase {c d b q ℓ : ℕ} [NeZero (2 * c)]
-    {L : Fin ℓ → Fin c × Fin (2 ^ b)} (hL : Function.Injective L)
-    {M : Fin (q * ℓ) → (Fin (2 * c) → Fin ℓ) × Fin d}
-    (hM : Function.Injective (fun r : Fin (q * ℓ) => (lastIdx (M r).1, (M r).2)))
-    {S : Finset (Fin (q * ℓ))} {r₀ : Fin (q * ℓ)} (hr₀ : r₀ ∈ S)
-    (hmax : ∀ r ∈ S, lastIdx (M r).1 ≤ lastIdx (M r₀).1) :
-    #(Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b => SatisfiesSub T₁ L M (S.erase r₀)) =
-      2 ^ b * #(Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b => SatisfiesSub T₁ L M S) := by
-  classical
-  let idx₀ := lastIdx (M r₀).1
-  let p₀ := L idx₀
-  let j₀ := (M r₀).2
-  let I₀ := (Finset.univ.image (M r₀).1).erase idx₀
-  let restSum (T₁ : DoubleTabTopSeed c d b) : BitString b :=
-    ∑ idx ∈ I₀, (BitString.equivFin b).symm (T₁ (L idx).1 j₀ (L idx).2)
-  have hne_other {r : Fin (q * ℓ)} (hr : r ∈ S.erase r₀)
-      {idx : Fin ℓ} (hidx : idx ∈ Finset.univ.image (M r).1) :
-      L idx ≠ p₀ ∨ (M r).2 ≠ j₀ := by
-    by_contra! h
-    rcases h with ⟨hLp, hj⟩
-    have hidx_eq : idx = idx₀ := hL hLp
-    have hle₁ : idx₀ ≤ lastIdx (M r).1 := hidx_eq ▸ Finset.le_max' _ idx hidx
-    have hle₂ : lastIdx (M r).1 ≤ idx₀ := hmax r (Finset.mem_of_mem_erase hr)
-    have hlast_eq : lastIdx (M r).1 = idx₀ := le_antisymm hle₂ hle₁
-    have hr_eq : r = r₀ := hM (Prod.ext hlast_eq hj)
-    exact (Finset.ne_of_mem_erase hr) hr_eq
-  have hsub_upd (T₁ : DoubleTabTopSeed c d b) (v : Fin (2 ^ b)) :
-      SatisfiesSub (updateTopSeed T₁ p₀ j₀ v) L M (S.erase r₀) ↔
-        SatisfiesSub T₁ L M (S.erase r₀) := by
-    refine forall₂_congr fun r hr => ?_
-    have hsum : ∑ idx ∈ Finset.univ.image (M r).1,
-        (BitString.equivFin b).symm (updateTopSeed T₁ p₀ j₀ v (L idx).1 (M r).2 (L idx).2) =
-      ∑ idx ∈ Finset.univ.image (M r).1,
-        (BitString.equivFin b).symm (T₁ (L idx).1 (M r).2 (L idx).2) := by
-      refine Finset.sum_congr rfl fun idx hidx => ?_
-      rw [updateTopSeed_of_ne T₁ p₀ j₀ v (hne_other hr hidx)]
-    rw [hsum]
-  have hrest_upd (T₁ : DoubleTabTopSeed c d b) (v : Fin (2 ^ b)) :
-      restSum (updateTopSeed T₁ p₀ j₀ v) = restSum T₁ := by
-    refine Finset.sum_congr rfl fun idx hidx => ?_
-    have hne_idx : idx ≠ idx₀ := Finset.ne_of_mem_erase hidx
-    rw [updateTopSeed_of_ne T₁ p₀ j₀ v (Or.inl fun h => hne_idx (hL h))]
-  have hr₀_eq (T₁ : DoubleTabTopSeed c d b) :
-      (∑ idx ∈ Finset.univ.image (M r₀).1,
-        (BitString.equivFin b).symm (T₁ (L idx).1 j₀ (L idx).2) = 0) ↔
-      T₁ p₀.1 j₀ p₀.2 = BitString.equivFin b (restSum T₁) := by
-    have hmem₀ : idx₀ ∈ Finset.univ.image (M r₀).1 := lastIdx_mem_image (M r₀).1
-    rw [← Finset.sum_erase_add _ _ hmem₀]
-    change restSum T₁ + (BitString.equivFin b).symm (T₁ p₀.1 j₀ p₀.2) = 0 ↔ _
-    constructor
-    · intro h
-      have hsymm : (BitString.equivFin b).symm (T₁ p₀.1 j₀ p₀.2) = restSum T₁ := by
-        calc (BitString.equivFin b).symm (T₁ p₀.1 j₀ p₀.2)
-            = restSum T₁ + (restSum T₁ + (BitString.equivFin b).symm (T₁ p₀.1 j₀ p₀.2)) :=
-              (BitString.add_cancel_left _ _).symm
-          _ = restSum T₁ := by rw [h, add_zero]
-      rw [← hsymm, Equiv.apply_symm_apply]
-    · intro h
-      rw [h, Equiv.symm_apply_apply, BitString.add_self]
-  -- `T₁ ↦ (T₁ p₀, T₁ with p₀ set to the value forced by r₀)` is a bijection from the tables
-  -- satisfying `S.erase r₀` to `Fin (2 ^ b) ×` the tables satisfying `S`; the inverse writes the
-  -- first component back at `p₀`.
-  let A := (Finset.univ : Finset (Fin (2 ^ b))) ×ˢ
-    (Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b => SatisfiesSub T₁ L M S)
-  let B := Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b => SatisfiesSub T₁ L M (S.erase r₀)
-  have hbij : #B = #A := by
-    refine Finset.card_nbij'
-      (fun T₁ => (T₁ p₀.1 j₀ p₀.2, updateTopSeed T₁ p₀ j₀ (BitString.equivFin b (restSum T₁))))
-      (fun vT => updateTopSeed vT.2 p₀ j₀ vT.1) (fun T₁ hT₁ => ?_) (fun vT hvT => ?_)
-      (fun T₁ _ => ?_) (fun vT hvT => ?_)
-    · -- The updated table satisfies `r₀` by construction and the other equations by `hsub_upd`.
-      have hsub : SatisfiesSub T₁ L M (S.erase r₀) := (Finset.mem_filter.mp hT₁).2
-      refine Finset.mem_product.mpr ⟨Finset.mem_univ _, Finset.mem_filter.mpr ⟨Finset.mem_univ _,
-        fun r hr => ?_⟩⟩
-      by_cases hrr₀ : r = r₀
-      · subst hrr₀
-        dsimp only
-        rw [hr₀_eq, updateTopSeed_self, hrest_upd]
-      · exact ((hsub_upd T₁ _).mpr hsub) r (Finset.mem_erase.mpr ⟨hrr₀, hr⟩)
-    · have hS : SatisfiesSub vT.2 L M S := (Finset.mem_filter.mp (Finset.mem_product.mp hvT).2).2
-      exact Finset.mem_filter.mpr ⟨Finset.mem_univ _,
-        (hsub_upd vT.2 vT.1).mpr fun r hr => hS r (Finset.mem_of_mem_erase hr)⟩
-    · simp only [updateTopSeed_updateTopSeed, updateTopSeed_eq_self]
-    · obtain ⟨v, T₁⟩ := vT
-      have hS : SatisfiesSub T₁ L M S := (Finset.mem_filter.mp (Finset.mem_product.mp hvT).2).2
-      have hforced : T₁ p₀.1 j₀ p₀.2 = BitString.equivFin b (restSum T₁) :=
-        (hr₀_eq T₁).mp (hS r₀ hr₀)
-      refine Prod.ext (updateTopSeed_self T₁ p₀ j₀ v) ?_
-      dsimp only
-      rw [updateTopSeed_updateTopSeed, hrest_upd, ← hforced, updateTopSeed_eq_self]
-  rw [hbij, Finset.card_product, Finset.card_univ, Fintype.card_fin]
-
-private theorem card_filter_satisfiesSub_eq {c d b q ℓ : ℕ} [NeZero (2 * c)]
-    {L : Fin ℓ → Fin c × Fin (2 ^ b)} (hL : Function.Injective L)
-    {M : Fin (q * ℓ) → (Fin (2 * c) → Fin ℓ) × Fin d}
-    (hM : Function.Injective (fun r : Fin (q * ℓ) => (lastIdx (M r).1, (M r).2))) :
-    ∀ (n : ℕ) (S : Finset (Fin (q * ℓ))), #S = n →
-      (2 ^ b) ^ n *
-        #(Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b => SatisfiesSub T₁ L M S) =
-      Fintype.card (DoubleTabTopSeed c d b)
-  | 0, S, hcard => by
-    have hS : S = ∅ := Finset.card_eq_zero.mp hcard
-    subst hS
-    have hall : (Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b =>
-        SatisfiesSub T₁ L M ∅) = Finset.univ := by
-      ext T₁
-      simp [SatisfiesSub]
-    rw [hall, pow_zero, one_mul, Finset.card_univ]
-  | n + 1, S, hcard => by
-    classical
-    have hne : S.Nonempty := Finset.card_pos.mp (by omega)
-    let img := S.image fun r => lastIdx (M r).1
-    have himg : img.Nonempty := hne.image fun r => lastIdx (M r).1
-    obtain ⟨r₀, hr₀, hr₀_eq⟩ := Finset.mem_image.mp (Finset.max'_mem img himg)
-    have hmax : ∀ r ∈ S, lastIdx (M r).1 ≤ lastIdx (M r₀).1 := fun r hr => by
-      rw [hr₀_eq]
-      exact Finset.le_max' img _ (Finset.mem_image_of_mem _ hr)
-    have hcard_er : #(S.erase r₀) = n := by
-      rw [Finset.card_erase_of_mem hr₀, hcard, Nat.add_sub_cancel]
-    have ih := card_filter_satisfiesSub_eq hL hM n (S.erase r₀) hcard_er
-    have her := card_filter_satisfiesSub_erase (b := b) hL hM hr₀ hmax
-    rw [pow_succ, Nat.mul_assoc, ← her, ih]
 
 /-- **Equation-system seed count ([Thorup2013], Section 2, p. 11)**: for any `(L, M)`, at most
 `|Θ_top| / (2 ^ b) ^ (q * ℓ)` top-level tables `T₁` satisfy `SatisfiesCode T₁ L M`. -/
@@ -1143,22 +806,49 @@ private theorem card_filter_satisfiesCode_le {c d b q ℓ : ℕ} [NeZero (2 * c)
     (2 ^ b) ^ (q * ℓ) *
       #(Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b => SatisfiesCode T₁ L M) ≤
     Fintype.card (DoubleTabTopSeed c d b) := by
+  classical
   by_cases hLM : Function.Injective L ∧
       Function.Injective (fun r : Fin (q * ℓ) => (lastIdx (M r).1, (M r).2))
-  · have hfilt : (Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b => SatisfiesCode T₁ L M) =
-        Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b =>
-          SatisfiesSub T₁ L M Finset.univ := by
+  · rcases hLM with ⟨hL, hM⟩
+    let supp (r : Fin (q * ℓ)) : Finset ((Fin c × Fin (2 ^ b)) × Fin d) :=
+      (Finset.univ.image (M r).1).image fun idx => (L idx, (M r).2)
+    have hsurj := surjective_restrict_sum_of_peeling (γ := BitString b) supp
+      (T := Finset.univ) fun S _ hSne => by
+        let lastOf (r : Fin (q * ℓ)) := lastIdx (M r).1
+        obtain ⟨r₀, hr₀, hr₀_eq⟩ := Finset.mem_image.mp
+          (Finset.max'_mem (S.image lastOf) (hSne.image lastOf))
+        refine ⟨r₀, hr₀, (L (lastOf r₀), (M r₀).2),
+          Finset.mem_image_of_mem _ (lastIdx_mem_image _), fun r hr hne hmem => hne ?_⟩
+        obtain ⟨idx, hidx, heq⟩ := Finset.mem_image.mp hmem
+        have hidx_eq : idx = lastOf r₀ := hL (Prod.mk.inj heq).1
+        have hle₁ : lastOf r₀ ≤ lastOf r := hidx_eq ▸ Finset.le_max' _ idx hidx
+        have hle₂ : lastOf r ≤ lastOf r₀ :=
+          hr₀_eq ▸ Finset.le_max' (S.image lastOf) (lastOf r) (Finset.mem_image_of_mem lastOf hr)
+        exact hM (Prod.ext (le_antisymm hle₂ hle₁) (Prod.mk.inj heq).2)
+    let e : DoubleTabTopSeed c d b ≃ (((Fin c × Fin (2 ^ b)) × Fin d) → BitString b) :=
+      { toFun T₁ u := (BitString.equivFin b).symm (T₁ u.1.1 u.2 u.1.2)
+        invFun w i j a := BitString.equivFin b (w ((i, a), j))
+        left_inv _ := funext fun _ => funext fun _ => funext fun _ => Equiv.apply_symm_apply _ _
+        right_inv _ := funext fun _ => Equiv.symm_apply_apply _ _ }
+    let eval (T₁ : DoubleTabTopSeed c d b) (r : Fin (q * ℓ)) : BitString b :=
+      ∑ u ∈ supp r, e T₁ u
+    have hshift (y : Fin (q * ℓ) → BitString b) :
+        ∃ σ : Equiv.Perm (DoubleTabTopSeed c d b), ∀ T₁, eval (σ T₁) = eval T₁ + y := by
+      obtain ⟨w₀, hw₀⟩ := hsurj (fun r => y r.1)
+      refine ⟨e.trans (Equiv.addRight w₀) |>.trans e.symm, fun T₁ => funext fun r => ?_⟩
+      simpa [eval, Finset.sum_add_distrib] using congrFun hw₀ ⟨r, Finset.mem_univ r⟩
+    have hsum (T₁ : DoubleTabTopSeed c d b) (r : Fin (q * ℓ)) :
+        eval T₁ r = ∑ idx ∈ Finset.univ.image (M r).1,
+          (BitString.equivFin b).symm (T₁ (L idx).1 (M r).2 (L idx).2) :=
+      Finset.sum_image (f := e T₁) fun _ _ _ _ h => hL (Prod.mk.inj h).1
+    have hfilt : (Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b => SatisfiesCode T₁ L M) =
+        Finset.univ.filter fun T₁ => eval T₁ = 0 := by
       ext T₁
-      simp [SatisfiesCode, SatisfiesSub, hLM.1, hLM.2]
-    rw [hfilt, card_filter_satisfiesSub_eq hLM.1 hLM.2 (q * ℓ) Finset.univ
-      (by simp)]
-  · have hfilt : (Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b => SatisfiesCode T₁ L M) =
-        ∅ := by
-      rw [Finset.eq_empty_iff_forall_notMem]
-      intro T₁ hT₁
-      have hcode := (Finset.mem_filter.mp hT₁).2
-      exact hLM ⟨hcode.1, hcode.2.1⟩
-    rw [hfilt, Finset.card_empty, Nat.mul_zero]
+      simp only [SatisfiesCode, hL, hM, true_and, Finset.mem_filter, Finset.mem_univ, funext_iff,
+        Pi.zero_apply, hsum]
+    rw [hfilt, show (2 ^ b) ^ (q * ℓ) = Fintype.card (Fin (q * ℓ) → BitString b) by simp]
+    exact (card_mul_card_filter_eq_of_shift (f := eval) hshift 0).le
+  · rw [Finset.filter_eq_empty_iff.mpr fun _ _ h => hLM ⟨h.1, h.2.1⟩, Finset.card_empty]
     exact Nat.zero_le _
 
 /-- Union bound over all codes `(L, M)` of length `ℓ` ([Thorup2013], Section 2, Eq. (6), p. 11). -/
@@ -1175,71 +865,47 @@ private theorem card_filter_exists_satisfiesCode_le {c d b q ℓ : ℕ} [NeZero 
   let E := Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b =>
     ∃ (L : Fin ℓ → Fin c × Fin (2 ^ b)) (M : Fin (q * ℓ) → (Fin (2 * c) → Fin ℓ) × Fin d),
       SatisfiesCode T₁ L M
-  have hsub : E ⊆ (Finset.univ : Finset CodeType).biUnion fun p =>
-      Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b => SatisfiesCode T₁ p.1 p.2 := by
-    intro T₁ hT₁
-    rcases (Finset.mem_filter.mp hT₁).2 with ⟨L, M, hcode⟩
-    exact Finset.mem_biUnion.mpr ⟨(L, M), Finset.mem_univ _,
-      Finset.mem_filter.mpr ⟨Finset.mem_univ _, hcode⟩⟩
+  have hE_le : #E ≤ ∑ p : CodeType,
+      #(Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b => SatisfiesCode T₁ p.1 p.2) :=
+    (Finset.card_le_card fun T₁ hT₁ => by
+      rcases (Finset.mem_filter.mp hT₁).2 with ⟨L, M, hcode⟩
+      exact Finset.mem_biUnion.mpr ⟨(L, M), Finset.mem_univ _,
+        Finset.mem_filter.mpr ⟨Finset.mem_univ _, hcode⟩⟩).trans Finset.card_biUnion_le
   have hsum_le : (2 ^ b) ^ (q * ℓ) * #E ≤
-      Fintype.card CodeType * Fintype.card (DoubleTabTopSeed c d b) := by
-    calc (2 ^ b) ^ (q * ℓ) * #E
-        ≤ (2 ^ b) ^ (q * ℓ) * ∑ p : CodeType,
-            #(Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b => SatisfiesCode T₁ p.1 p.2) :=
-          Nat.mul_le_mul_left _ ((Finset.card_le_card hsub).trans Finset.card_biUnion_le)
-      _ = ∑ p : CodeType, (2 ^ b) ^ (q * ℓ) *
-            #(Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b => SatisfiesCode T₁ p.1 p.2) :=
-          Finset.mul_sum _ _ _
-      _ ≤ ∑ _p : CodeType, Fintype.card (DoubleTabTopSeed c d b) :=
-          Finset.sum_le_sum fun p _ => card_filter_satisfiesCode_le p.1 p.2
-      _ = Fintype.card CodeType * Fintype.card (DoubleTabTopSeed c d b) := by
-          rw [Finset.sum_const, Finset.card_univ, smul_eq_mul]
+      Fintype.card CodeType * Fintype.card (DoubleTabTopSeed c d b) :=
+    (Nat.mul_le_mul_left _ hE_le).trans <| by
+      rw [Finset.mul_sum]
+      exact (Finset.sum_le_sum fun p _ => card_filter_satisfiesCode_le p.1 p.2).trans_eq (by simp)
   have hcard_code : Fintype.card CodeType =
       (2 ^ b) ^ ℓ * (c * (ℓ ^ (2 * c) * d) ^ q) ^ ℓ := by
     simp only [CodeType, Fintype.card_prod, Fintype.card_fun, Fintype.card_fin]
-    rw [Nat.mul_pow c (2 ^ b) ℓ, Nat.mul_pow c _ ℓ, ← Nat.pow_mul _ q ℓ]
-    ring
+    rw [Nat.mul_pow c (2 ^ b) ℓ, Nat.mul_pow c _ ℓ, ← Nat.pow_mul _ q ℓ]; ring
   have hpow_lhs : (2 ^ b) ^ (q * ℓ) = (2 ^ b) ^ ℓ * (2 ^ ((q - 1) * b)) ^ ℓ := by
-    have hq_split : b * (q * ℓ) = b * ℓ + (q - 1) * b * ℓ := by
-      calc b * (q * ℓ) = b * ((1 + (q - 1)) * ℓ) := by rw [Nat.add_sub_of_le hq]
-        _ = b * ℓ + (q - 1) * b * ℓ := by ring
-    rw [← Nat.pow_mul, ← Nat.pow_mul, ← Nat.pow_mul, ← Nat.pow_add, hq_split]
+    simp only [← Nat.pow_mul, ← Nat.pow_add]
+    exact congrArg (2 ^ ·) (by (conv_lhs => rw [← Nat.sub_add_cancel hq]); ring)
   rw [hpow_lhs, hcard_code, Nat.mul_assoc, Nat.mul_assoc] at hsum_le
-  have hpos_pow : 0 < (2 ^ b) ^ ℓ := by
-    rw [← Nat.pow_mul]
-    exact Nat.two_pow_pos (b * ℓ)
-  exact Nat.le_of_mul_le_mul_left hsum_le hpos_pow
+  exact Nat.le_of_mul_le_mul_left hsum_le (by positivity)
 
 /-- Geometric-series tail bound in `ℕ`: when `2 * B ≤ W` and `W ^ ℓ * g ℓ ≤ B ^ ℓ * N`,
 `W ^ m * ∑_{i < s} g (m + i) ≤ 2 * B ^ m * N`. -/
 private theorem tail_sum_bound {B W N : ℕ} (hW : 0 < W) (hBW : 2 * B ≤ W) (g : ℕ → ℕ)
     (hg : ∀ ℓ, W ^ ℓ * g ℓ ≤ B ^ ℓ * N) :
     ∀ (s m : ℕ), W ^ m * (∑ i ∈ Finset.range s, g (m + i)) ≤ 2 * B ^ m * N
-  | 0, m => by simp
+  | 0, _ => by simp
   | s + 1, m => by
     have ih := tail_sum_bound hW hBW g hg s (m + 1)
-    have hsum : ∑ i ∈ Finset.range (s + 1), g (m + i) =
-        g m + ∑ i ∈ Finset.range s, g (m + 1 + i) := by
-      rw [Finset.sum_range_succ']
-      ac_rfl
-    rw [hsum, Nat.mul_add]
-    have hmul : W * (W ^ m * g m + W ^ m * ∑ i ∈ Finset.range s, g (m + 1 + i)) ≤
-        W * (2 * B ^ m * N) := by
-      have h₁ : W * (W ^ m * g m) ≤ W * (B ^ m * N) :=
-        Nat.mul_le_mul_left W (hg m)
-      have h₂ : W * (W ^ m * ∑ i ∈ Finset.range s, g (m + 1 + i)) ≤ W * (B ^ m * N) := by
-        calc W * (W ^ m * ∑ i ∈ Finset.range s, g (m + 1 + i))
-            = W ^ (m + 1) * ∑ i ∈ Finset.range s, g (m + 1 + i) := by
-              rw [← Nat.mul_assoc, ← pow_succ']
-          _ ≤ 2 * B ^ (m + 1) * N := ih
-          _ = (2 * B) * (B ^ m * N) := by rw [pow_succ']; ring
-          _ ≤ W * (B ^ m * N) := Nat.mul_le_mul_right _ hBW
-      calc W * (W ^ m * g m + W ^ m * ∑ i ∈ Finset.range s, g (m + 1 + i))
-          = W * (W ^ m * g m) + W * (W ^ m * ∑ i ∈ Finset.range s, g (m + 1 + i)) :=
-            Nat.mul_add _ _ _
-        _ ≤ W * (B ^ m * N) + W * (B ^ m * N) := Nat.add_le_add h₁ h₂
-        _ = W * (2 * B ^ m * N) := by ring
-    exact Nat.le_of_mul_le_mul_left hmul hW
+    have hshift : (∑ i ∈ Finset.range s, g (m + (i + 1))) =
+        ∑ i ∈ Finset.range s, g (m + 1 + i) :=
+      Finset.sum_congr rfl fun i _ => congrArg g (Nat.add_right_comm m i 1)
+    refine Nat.le_of_mul_le_mul_left ?_ hW
+    rw [Finset.sum_range_succ', Nat.add_zero, hshift, Nat.mul_add, Nat.mul_add,
+      show W * (2 * B ^ m * N) = W * (B ^ m * N) + W * (B ^ m * N) by ring]
+    refine Nat.add_le_add ?_ (Nat.mul_le_mul_left W (hg m))
+    calc W * (W ^ m * ∑ i ∈ Finset.range s, g (m + 1 + i))
+        = W ^ (m + 1) * ∑ i ∈ Finset.range s, g (m + 1 + i) := by rw [← Nat.mul_assoc, ← pow_succ']
+      _ ≤ 2 * B ^ (m + 1) * N := ih
+      _ = (2 * B) * (B ^ m * N) := by rw [pow_succ']; ring
+      _ ≤ W * (B ^ m * N) := Nat.mul_le_mul_right _ hBW
 
 /-- Per-step efficient-code counting factor `c * ((c * k) ^ (2 * c) * d) ^ q` from
 [Thorup2013], Section 2, Eqs. (6)–(7), p. 11. -/
@@ -1261,53 +927,29 @@ theorem card_not_isKUnique_le {c d b q k : ℕ} (hc : 1 ≤ c) (hq : 1 ≤ q) (h
     2 * (doubleTabCodeBound c d q k) ^ 2 * Fintype.card (DoubleTabTopSeed c d b) := by
   classical
   have : NeZero (2 * c) := ⟨by omega⟩
-  let W := 2 ^ ((q - 1) * b)
-  let B := doubleTabCodeBound c d q k
-  let N := Fintype.card (DoubleTabTopSeed c d b)
-  let g (ℓ : ℕ) : ℕ :=
-    if ℓ ≤ c * k then
-      #(Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b =>
-        ∃ (L : Fin ℓ → Fin c × Fin (2 ^ b))
-          (M : Fin (q * ℓ) → (Fin (2 * c) → Fin ℓ) × Fin d),
-          SatisfiesCode T₁ L M)
-    else 0
-  have hg (ℓ : ℕ) : W ^ ℓ * g ℓ ≤ B ^ ℓ * N := by
-    dsimp only [g]
-    split_ifs with hℓ
-    · calc W ^ ℓ * #(Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b =>
-            ∃ (L : Fin ℓ → Fin c × Fin (2 ^ b))
-              (M : Fin (q * ℓ) → (Fin (2 * c) → Fin ℓ) × Fin d),
-              SatisfiesCode T₁ L M)
-          ≤ (c * (ℓ ^ (2 * c) * d) ^ q) ^ ℓ * N := card_filter_exists_satisfiesCode_le hq
-        _ ≤ B ^ ℓ * N := by
-          refine Nat.mul_le_mul_right N (Nat.pow_le_pow_left ?_ ℓ)
-          exact Nat.mul_le_mul_left c (Nat.pow_le_pow_left
-            (Nat.mul_le_mul_right d (Nat.pow_le_pow_left hℓ (2 * c))) q)
-    · simp
-  let Bad := Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b =>
-    ¬ IsKUnique k (simpleTabTuple T₁)
-  have hBad_sub : Bad ⊆ (Finset.range (c * k - 1)).biUnion fun i =>
-      Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b =>
-        ∃ (L : Fin (2 + i) → Fin c × Fin (2 ^ b))
-          (M : Fin (q * (2 + i)) → (Fin (2 * c) → Fin (2 + i)) × Fin d),
-          SatisfiesCode T₁ L M := by
-    intro T₁ hT₁
-    obtain ⟨ℓ, hℓ_Icc, L, M, hcode⟩ :=
-      exists_satisfiesCode_of_not_isKUnique hc hq hd (Finset.mem_filter.mp hT₁).2
-    rcases Finset.mem_Icc.mp hℓ_Icc with ⟨hℓ_lo, hℓ_hi⟩
-    have hi_eq : 2 + (ℓ - 2) = ℓ := by omega
-    refine Finset.mem_biUnion.mpr ⟨ℓ - 2, Finset.mem_range.mpr (by omega), ?_⟩
-    rw [hi_eq]
-    exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, L, M, hcode⟩
-  have hBad_le : #Bad ≤ ∑ i ∈ Finset.range (c * k - 1), g (2 + i) := by
-    refine (Finset.card_le_card hBad_sub).trans (Finset.card_biUnion_le.trans ?_)
-    refine Finset.sum_le_sum fun i hi => ?_
-    have hi_lt : i < c * k - 1 := Finset.mem_range.mp hi
-    have h2i : 2 + i ≤ c * k := by omega
-    simp [g, h2i]
-  calc W ^ 2 * #Bad
-      ≤ W ^ 2 * ∑ i ∈ Finset.range (c * k - 1), g (2 + i) := Nat.mul_le_mul_left _ hBad_le
-    _ ≤ 2 * B ^ 2 * N := tail_sum_bound (Nat.two_pow_pos _) hbound g hg (c * k - 1) 2
+  let BadAt (ℓ : ℕ) := Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b =>
+    ℓ ≤ c * k ∧ ∃ (L : Fin ℓ → Fin c × Fin (2 ^ b))
+      (M : Fin (q * ℓ) → (Fin (2 * c) → Fin ℓ) × Fin d), SatisfiesCode T₁ L M
+  have hg (ℓ : ℕ) :
+      (2 ^ ((q - 1) * b)) ^ ℓ * #(BadAt ℓ) ≤
+        (doubleTabCodeBound c d q k) ^ ℓ * Fintype.card (DoubleTabTopSeed c d b) := by
+    by_cases hℓ : ℓ ≤ c * k
+    · refine (Nat.mul_le_mul_left _ (Finset.card_le_card fun T₁ hT₁ =>
+        Finset.mem_filter.mpr ⟨Finset.mem_univ _, (Finset.mem_filter.mp hT₁).2.2⟩)).trans ?_
+      refine (card_filter_exists_satisfiesCode_le hq).trans ?_
+      dsimp only [doubleTabCodeBound]; gcongr
+    · simp [BadAt, hℓ]
+  have hsub : (Finset.univ.filter fun T₁ : DoubleTabTopSeed c d b =>
+      ¬ IsKUnique k (simpleTabTuple T₁)) ⊆ (Finset.range (c * k)).biUnion fun i => BadAt (2 + i) :=
+    fun T₁ hT₁ => by
+      obtain ⟨ℓ, hℓ_Icc, L, M, hcode⟩ :=
+        exists_satisfiesCode_of_not_isKUnique hc hq hd (Finset.mem_filter.mp hT₁).2
+      rcases Finset.mem_Icc.mp hℓ_Icc with ⟨hℓ_lo, hℓ_hi⟩
+      refine Finset.mem_biUnion.mpr ⟨ℓ - 2, Finset.mem_range.mpr (by omega), ?_⟩
+      rw [show 2 + (ℓ - 2) = ℓ by omega]
+      exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, hℓ_hi, L, M, hcode⟩
+  exact (Nat.mul_le_mul_left _ ((Finset.card_le_card hsub).trans Finset.card_biUnion_le)).trans
+    (tail_sum_bound (Nat.two_pow_pos _) hbound (fun ℓ => #(BadAt ℓ)) hg (c * k) 2)
 
 /-- Specialization of `card_not_isKUnique_le` to `q = 4` (`d = 8 * c`, `[Thorup2013]`, Theorem 1(a),
 p. 4): when `2 * doubleTabCodeBound c (8 * c) 4 k ≤ 2 ^ (3 * b)`, at most a
@@ -1320,11 +962,7 @@ theorem card_not_isKUnique_eight_mul_le {c b k : ℕ} (hc : 1 ≤ c)
         ¬ IsKUnique k (simpleTabTuple T₁)) ≤
     2 * (doubleTabCodeBound c (8 * c) 4 k) ^ 2 * Fintype.card (DoubleTabTopSeed c (8 * c) b) := by
   have h := card_not_isKUnique_le (d := 8 * c) (q := 4) hc (by decide) (by ring) hbound
-  have hpow : (2 ^ ((4 - 1) * b)) ^ 2 = 2 ^ (6 * b) := by
-    rw [← Nat.pow_mul]
-    congr 1
-    ring
-  rwa [hpow] at h
+  rwa [← Nat.pow_mul, show (4 - 1) * b * 2 = 6 * b by ring] at h
 
 /-- Minimum character bit-width `doubleTabMinB c_exp` for polynomial universe exponent `c_exp : ℕ`,
 bounding the character bit-width `b = (1 + Nat.clog 2 (max n_max 4)) / 2` from below when
@@ -1336,8 +974,7 @@ high-probability logarithmic `k`-uniqueness bound via `Nat.pow_le_two_pow`. -/
 
 theorem doubleTabMinB_eq (c_exp : ℕ) :
     doubleTabMinB c_exp = 4 * (24 * (2 * max c_exp 1) + 8) ^ 2 := by
-  unfold doubleTabMinB
-  ring
+  unfold doubleTabMinB; ring
 
 /-- Capacity threshold `2 ^ (2 * doubleTabMinB c_exp)` for polynomial universe exponent `c_exp : ℕ`
 above which Double Tabulation with `c = 2 * max c_exp 1` characters of bit-width
@@ -1352,11 +989,7 @@ theorem doubleTabThreshold_eq (c_exp : ℕ) :
 
 theorem four_le_doubleTabThreshold (c_exp : ℕ) :
     4 ≤ doubleTabThreshold c_exp := by
-  rw [doubleTabThreshold_eq]
-  have hmin : 0 < doubleTabMinB c_exp := by
-    dsimp [doubleTabMinB]
-    positivity
-  calc 4 = 2 ^ 2 := by decide
-    _ ≤ 2 ^ (2 * doubleTabMinB c_exp) := Nat.pow_le_pow_right (by decide) (by omega)
+  have : 0 < doubleTabMinB c_exp := by dsimp only [doubleTabMinB]; positivity
+  exact Nat.pow_le_pow_right two_pos (by omega : 2 ≤ 2 * doubleTabMinB c_exp)
 
 end Cslib.Probability

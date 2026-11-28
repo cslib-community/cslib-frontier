@@ -58,22 +58,15 @@ theorem runs_input {W m n g p A : ℕ} (values : List ℤ)
         (∀ u, u < 5 + 3 * (n * n) ∨
           a.regs Instances.heap + CallableProduct.windowSize n (n * n) ≤ u →
           y.mem u = (Data.init (PreparationInput.input n (D m) g p values) : Data 416).mem u) := by
-  have htwo : 2 ≤ W := by
-    have hr := FixedPrime.record_admitted hW
-    unfold RecordWitness.admissionWidth at hr
-    omega
-  have heq : W - 2 + 2 = W := Nat.sub_add_cancel htwo
+  have hr := FixedPrime.record_admitted hW
+  unfold RecordWitness.admissionWidth RecordProduct.admissionWidth at hr
+  have heq : W - 2 + 2 = W := by omega
   let input := PreparationInput.input n (D m) g p values
+  have hinput : InputFits W input := (PreparationInput.input_fits values hlen hv).mono (by omega)
   have h := exec_source (w := W - 2) values hlen hD hg hp hN hv
     (by simpa only [heq] using hW) (Data.init input) (fun _ _ => rfl)
   rw [heq] at h
-  obtain ⟨a, hout, y, he, yf, ys, yiff, yw, frame⟩ := h
-  have hprep : PreparationInput.width n (D m) g p A ≤ W := by
-    have hr := FixedPrime.record_admitted hW
-    unfold RecordWitness.admissionWidth RecordProduct.admissionWidth at hr
-    omega
-  have hinput : InputFits W input := (PreparationInput.input_fits values hlen hv).mono hprep
-  obtain ⟨t, ht, hex⟩ := he
+  obtain ⟨a, hout, y, ⟨t, ht, hex⟩, yf, ys, yiff, yw, frame⟩ := h
   have hpos : 1 ≤ FixedPrime.timeBound (m := m)
       (lt_of_lt_of_le (by omega : 0 < D m)
         ((Nat.le_self_pow (by decide : 18 ≠ 0) (D m)).trans hN)) g p values a.mem := by

@@ -223,15 +223,14 @@ omit [L'.IsRelational] [Finite ι] in
 /-- Under `snocVar`, the values of the coordinates of a sequence of elements extended by `y` are
 those of the extended sequence. -/
 private theorem sumElim_comp_snocVar {n : ℕ} (v : α → I.Model M) (xs : Fin n → I.Model M)
-    (y : I.Model M) :
-    Sum.elim (fun p : (α ⊕ Fin n) × ι => (Sum.elim v xs p.1).1 p.2) y.1 ∘ snocVar =
-      fun p => (Sum.elim v (Fin.snoc xs y) p.1).1 p.2 := by
-  funext p
+    (y : I.Model M) (p : (α ⊕ Fin (n + 1)) × ι) :
+    Sum.elim (fun p : (α ⊕ Fin n) × ι => (Sum.elim v xs p.1).1 p.2) y.1 (snocVar p) =
+      (Sum.elim v (Fin.snoc xs y) p.1).1 p.2 := by
   rcases p with ⟨a | j, i⟩
   · rfl
-  · induction j using Fin.lastCases with
-    | last => simp [snocVar]
-    | cast j => simp [snocVar]
+  · induction j using Fin.lastCases <;>
+      fo_simp [snocVar, Fin.lastCases_last, Fin.lastCases_castSucc, Fin.snoc_last,
+        Fin.snoc_castSucc]
 
 /-- **The pullback of a bounded formula** holds of the coordinates of some elements of the
 interpreted structure exactly when the formula holds of these elements. -/
@@ -239,7 +238,7 @@ theorem realize_onBoundedFormula {n : ℕ} (φ : L'.BoundedFormula α n) (v : α
     (xs : Fin n → I.Model M) :
     (I.onBoundedFormula φ).Realize (fun p => (Sum.elim v xs p.1).1 p.2) ↔ φ.Realize v xs := by
   induction φ with
-  | falsum => simp [onBoundedFormula, BoundedFormula.Realize]
+  | falsum => fo_simp [onBoundedFormula, BoundedFormula.Realize]
   | equal t₁ t₂ =>
     fo_simp [onBoundedFormula, BoundedFormula.Realize, realize_termVar t₁, realize_termVar t₂]
   | rel R ts =>
@@ -252,11 +251,8 @@ theorem realize_onBoundedFormula {n : ℕ} (φ : L'.BoundedFormula α n) (v : α
     rw [ihφ, ihψ]
   | all φ ih =>
     fo_simp [onBoundedFormula]
-    refine ⟨fun h y => ?_, fun h y hy => ?_⟩
-    · rw [← ih, ← sumElim_comp_snocVar]
-      exact h y.1 y.2
-    · exact (congrArg (I.onBoundedFormula φ).Realize (sumElim_comp_snocVar v xs ⟨y, hy⟩)).mpr
-        ((ih _).2 (h ⟨y, hy⟩))
+    exact ⟨fun h y => (ih _).1 (by simpa only [sumElim_comp_snocVar] using h y.1 y.2),
+      fun h y hy => by simpa only [sumElim_comp_snocVar v xs ⟨y, hy⟩] using (ih _).2 (h ⟨y, hy⟩)⟩
 
 variable (I) in
 /-- The pullback of a formula of `L'` along `I`: a formula of `L` with a block of variables `ι`

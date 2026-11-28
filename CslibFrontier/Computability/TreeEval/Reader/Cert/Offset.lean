@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.I
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.Space
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Bool
 
 /-!
 # Offsets of nodes within linear work space
@@ -113,14 +114,14 @@ theorem tableLength_inSpace :
     ComputableInSpace tableLength encNat encNat fun ℓ => 4096 * (ℓ + 1) := by
   have hl : (fun ℓ => (encNat ℓ).length) ≼ fun ℓ => 1024 * (ℓ + 1) :=
     .of_le fun ℓ => by have := length_encNat_le_self ℓ; omega
-  have hid : ComputableInSpace (fun ℓ : ℕ => ℓ) encNat encNat fun ℓ => 1024 * (ℓ + 1) :=
-    (of_inO (ComputableInO.of_eq (f := id) fun _ => rfl)).weaken hl
+  have hid := budget_id hl
   have hstep : ComputableInSpace (fun x : ℕ => x * 4) encNat encNat
       fun x => 64 * ((encNat x).length + 1) := by
     have : (fun x => (encNat x).length) ≼ fun x => 64 * ((encNat x).length + 1) :=
       .of_le fun _ => by omega
     space
-  have h := iterate (n := fun ℓ : ℕ => ℓ) hid (budget_const (encB := encNat) 1 hl) hstep
+  have h := iterate (n := fun ℓ : ℕ => ℓ) hid
+    (budget_const (Bs := fun ℓ => (encNat ℓ).length) (encB := encNat) 1) hstep
     (Q := fun ℓ => 64 * (2 * ℓ + 2)) (B := fun ℓ => 2 * ℓ + 1)
     (fun ℓ k hk => by rw [iterate_mul_four]; have := length_encNat_pow_four k; omega)
     (fun ℓ k hk => by rw [iterate_mul_four]; have := length_encNat_pow_four k; omega)
@@ -214,10 +215,6 @@ private theorem three_mul_length_le (st : List Frame) : 3 * st.length ≤
     simp only [List.length_cons, List.map_cons, List.sum_cons]
     omega
 
-private theorem length_encList_bools (l : List Bool) :
-    (encList encBool l).length = 3 * l.length := by
-  simp [length_encList, Nat.mul_comm]
-
 theorem dirs_inSpace :
     ComputableInSpace (fun st : List Frame => st.foldl (fun acc fr => fr.dir :: acc) [])
       (encList encFrame) (encList encBool) fun st => 64 * ((encList encFrame st).length + 1) := by
@@ -234,12 +231,13 @@ theorem dirs_inSpace :
   have hlen (st : List Frame) (i : ℕ) :
       (encList encBool ((st.take i).foldl (fun acc fr => fr.dir :: acc) [])).length ≤
         (encList encFrame st).length := by
-    rw [foldl_cons_dir, List.append_nil, length_encList_reverse, length_encList_bools,
+    rw [foldl_cons_dir, List.append_nil, length_encList_reverse, length_encList_encBool,
       List.length_map]
     exact (Nat.mul_le_mul_left 3 (List.length_take_le' i st)).trans (three_mul_length_le st)
   have h := foldl (encL := encList encFrame) (list := fun st : List Frame => st)
     (init := fun _ => ([] : List Bool)) (step := fun acc fr => fr.dir :: acc)
-    (of_inO (ComputableInO.of_eq (f := id) fun _ => rfl)) (budget_const [] (.refl _)) hstep
+    (of_inO (ComputableInO.of_eq (f := id) fun _ => rfl))
+    (budget_const (Bs := fun st => (encList encFrame st).length) []) hstep
     (Q := fun st => 2 * (3 * (encList encFrame st).length + 2))
     (B := fun st => (encList encFrame st).length)
     (fun st i hi => by
@@ -262,25 +260,16 @@ private theorem pathStep'_inSpace :
     ComputableInSpace (fun q : (ℕ × ℕ × ℕ) × Bool => pathStep' q.1 q.2)
       (encPair encNat3 encBool) encNat3
       fun q => 2 ^ 20 * (q.1.1 + q.1.2.1 + (encPair encNat3 encBool q).length + 1) := by
-  have hl : (fun q => (encPair encNat3 encBool q).length) ≼
-      fun q => 2 ^ 20 * (q.1.1 + q.1.2.1 + (encPair encNat3 encBool q).length + 1) :=
-    .of_le fun _ => by omega
-  have hs := (fst encNat3 encBool).weaken hl
-  have hb := (snd encNat3 encBool).weaken hl
-  have hℓ := fst' hs
-  have hd := fst' (snd' hs)
-  have hacc := snd' (snd' hs)
-  have hz := budget_comp_linear natIsZero hd
-  have hd₁ := budget_comp_lin natPred linear_succ hd
-  have hG := budget_comp tableLength_inSpace hℓ (.of_le_linear 1 0 fun q => by omega)
-  have hB := budget_comp bodyLength_inSpace (budget_prod hℓ hd₁) (.of_le_linear 1 0 fun q => by
-    dsimp only; omega)
-  have hBif := budget_ite hb hB (budget_const (encB := encNat) 0 hl)
-  have hsum₁ := budget_comp_lin natAdd linear_succ (budget_prod hacc hG)
-  have hsum := budget_comp_lin natAdd linear_succ (budget_prod hsum₁ hBif)
-  refine (budget_ite hz hs (budget_prod hℓ (budget_prod hd₁ hsum))).of_enc_eq fun q => ?_
-  simp only [pathStep', pathStep]
-  by_cases h : q.1.2.1 = 0 <;> simp [h]
+  let Bs (q : (ℕ × ℕ × ℕ) × Bool) :=
+    2 ^ 20 * (q.1.1 + q.1.2.1 + (encPair encNat3 encBool q).length + 1)
+  have hl : (fun q => (encPair encNat3 encBool q).length) ≼ Bs := .of_le fun _ => by
+    dsimp only [Bs]; omega
+  have hG := budget_comp tableLength_inSpace (f := fun q : (ℕ × ℕ × ℕ) × Bool => q.1.1)
+    (Bs := Bs) (by space) (.of_le_linear 1 0 fun q => by dsimp only [Bs]; omega)
+  have hB := budget_comp bodyLength_inSpace
+    (f := fun q : (ℕ × ℕ × ℕ) × Bool => (q.1.1, q.1.2.1 - 1)) (Bs := Bs) (by space)
+    (.of_le_linear 1 0 fun q => by dsimp only [Bs]; omega)
+  space [pathStep', pathStep]
 
 private theorem length_pathOffset_le (ℓ d : ℕ) (P : List Bool) :
     (encNat (pathOffset ℓ d P)).length ≤ d + 4 * ℓ + 4 :=
@@ -293,13 +282,12 @@ theorem pathOffset_inSpace :
       (encPair (encPair encNat encNat) (encList encBool)) encNat
       fun q => 2 ^ 30 * (q.1.1 + q.1.2 +
         (encPair (encPair encNat encNat) (encList encBool) q).length + 1) := by
-  have hl : (fun q => (encPair (encPair encNat encNat) (encList encBool) q).length) ≼
-      fun q => 2 ^ 22 * (q.1.1 + q.1.2 +
-        (encPair (encPair encNat encNat) (encList encBool) q).length + 1) :=
-    .of_le fun _ => by omega
-  have hld := (fst (encPair encNat encNat) (encList encBool)).weaken hl
-  have hinit := budget_prod (fst' hld)
-    (budget_prod (snd' hld) (budget_const (encB := encNat) 0 hl))
+  let Bs (q : (ℕ × ℕ) × List Bool) := 2 ^ 22 * (q.1.1 + q.1.2 +
+    (encPair (encPair encNat encNat) (encList encBool) q).length + 1)
+  have hl : (fun q => (encPair (encPair encNat encNat) (encList encBool) q).length) ≼ Bs :=
+    .of_le fun _ => by dsimp only [Bs]; omega
+  have hinit : ComputableInSpace (fun q : (ℕ × ℕ) × List Bool => (q.1.1, q.1.2, 0))
+      (encPair (encPair encNat encNat) (encList encBool)) encNat3 Bs := by space
   have hstate (q : (ℕ × ℕ) × List Bool) (j : ℕ) :
       (encNat3 ((q.2.take j).foldl pathStep' (q.1.1, q.1.2, 0))).length ≤
         8 * (q.1.1 + q.1.2 + 1) := by
@@ -309,7 +297,7 @@ theorem pathOffset_inSpace :
     have h₃ := length_encNat_le_self (q.1.2 - (q.2.take j).length)
     enc_len [zero_add] at *
   have h := foldl (encL := encList encBool) (list := fun q : (ℕ × ℕ) × List Bool => q.2)
-    (step := pathStep') ((snd (encPair encNat encNat) (encList encBool)).weaken hl) hinit
+    (step := pathStep') (by space) hinit
     pathStep'_inSpace
     (Q := fun q => 2 ^ 20 * (q.1.1 + q.1.2 + 2 * (8 * (q.1.1 + q.1.2 + 1)) + 4 + 1))
     (B := fun q => 8 * (q.1.1 + q.1.2 + 1))
@@ -321,6 +309,7 @@ theorem pathOffset_inSpace :
   refine (snd' (snd' h)).mono_le (fun q => ?_) |>.of_enc_eq fun q => by
     rw [foldl_pathStep', foldl_pathStep, zero_add]
   have := length_encNat_le_self q.1.1
+  dsimp only [Bs]
   enc_len at *
 
 end Reader

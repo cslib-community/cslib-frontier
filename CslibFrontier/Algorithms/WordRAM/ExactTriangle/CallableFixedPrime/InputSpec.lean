@@ -46,27 +46,24 @@ theorem natAbs_le_rawTotal {n : ℕ} (values : List ℤ)
     (hlen : values.length = 3 * (n * n)) (z : ℤ) (hz : z ∈ values) :
     z.natAbs ≤ rawTotal n values := by
   obtain ⟨q, hq, he⟩ := List.mem_iff_getElem.mp hz
-  have henc : z.natAbs ≤ Signed.encode z := by unfold Signed.encode; omega
-  apply henc.trans
-  have hs : Signed.encode (values.getD q 0) ≤ rawTotal n values := by
-    unfold rawTotal
-    exact Finset.single_le_sum (f := fun q : ℕ => Signed.encode (values.getD q 0))
-      (fun _ _ => Nat.zero_le _)
-      (show q ∈ Finset.range (3 * (n * n)) from Finset.mem_range.mpr (by omega))
-  simpa only [List.getD_eq_getElem _ _ hq, he] using hs
+  have henc : z.natAbs ≤ Signed.encode z := by
+    unfold Signed.encode
+    omega
+  refine henc.trans ?_
+  simpa only [rawTotal, List.getD_eq_getElem _ _ hq, he] using Finset.single_le_sum
+    (f := fun q : ℕ => Signed.encode (values.getD q 0)) (fun _ _ => Nat.zero_le _)
+    (Finset.mem_range.mpr (by omega : q < 3 * (n * n)))
 
 /-- Original polynomial weight bounds also bound the computed runtime word sum. -/
 theorem rawTotal_le {n A : ℕ} (values : List ℤ)
     (hlen : values.length = 3 * (n * n)) (hv : ∀ z ∈ values, z.natAbs ≤ A) :
     rawTotal n values ≤ 3 * (n * n) * (2 * A + 1) := by
   calc
-    _ ≤ ∑ _q ∈ Finset.range (3 * (n * n)), (2 * A + 1) := by
-      apply Finset.sum_le_sum
-      intro q hq
-      have hb := hv (values.getD q 0)
-        (List.getD_mem 0 (by have := Finset.mem_range.mp hq; omega))
-      unfold Signed.encode
-      split_ifs <;> omega
+    _ ≤ ∑ _q ∈ Finset.range (3 * (n * n)), (2 * A + 1) :=
+      Finset.sum_le_sum fun q hq => by
+        have hb := hv (values.getD q 0) (List.getD_mem 0 (by have := Finset.mem_range.mp hq; omega))
+        unfold Signed.encode
+        split_ifs <;> omega
     _ = _ := by simp
 
 /-- Scalar stores do not change the caller prefix. -/
@@ -117,28 +114,23 @@ theorem copyMemory_payload {n b D g p ab bc ac : ℕ} (mem : ℕ → ℕ) (value
     (vac : ∀ q < n * n, mem (ac + q) = Signed.encode (values.getD (2 * (n * n) + q) 0))
     (q : ℕ) (hq : q < 3 * (n * n)) :
     copyMemory mem b n D g p ab bc ac (b + 5 + q) = Signed.encode (values.getD q 0) := by
+  unfold copyMemory
   by_cases hfirst : q < n * n
-  · unfold copyMemory
-    rw [ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega),
+  · rw [ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega),
       ArrayCopy.copyPrefix_read hfirst, headerMemory_below _ _ _ _ _ _ _ (by omega)]
     exact vab q hfirst
   · by_cases hsecond : q < 2 * (n * n)
-    · have hj : q - n * n < n * n := by omega
-      have he : b + 5 + q = b + 5 + n * n + (q - n * n) := by omega
-      unfold copyMemory
-      rw [ArrayCopy.copyPrefix_outside (by omega), he,
-        ArrayCopy.copyPrefix_read hj, ArrayCopy.copyPrefix_outside (by omega),
-        headerMemory_below _ _ _ _ _ _ _ (by omega)]
-      have hv := vbc (q - n * n) hj
-      simpa only [show n * n + (q - n * n) = q by omega] using hv
-    · have hj : q - 2 * (n * n) < n * n := by omega
-      have he : b + 5 + q = b + 5 + n * n + n * n + (q - 2 * (n * n)) := by omega
-      unfold copyMemory
-      rw [he, ArrayCopy.copyPrefix_read hj,
+    · rw [ArrayCopy.copyPrefix_outside (by omega),
+        show b + 5 + q = b + 5 + n * n + (q - n * n) by omega,
+        ArrayCopy.copyPrefix_read (by omega : q - n * n < n * n),
+        ArrayCopy.copyPrefix_outside (by omega), headerMemory_below _ _ _ _ _ _ _ (by omega)]
+      simpa only [show n * n + (q - n * n) = q by omega] using vbc (q - n * n) (by omega)
+    · rw [show b + 5 + q = b + 5 + n * n + n * n + (q - 2 * (n * n)) by omega,
+        ArrayCopy.copyPrefix_read (by omega : q - 2 * (n * n) < n * n),
         ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega),
         headerMemory_below _ _ _ _ _ _ _ (by omega)]
-      have hv := vac (q - 2 * (n * n)) hj
-      simpa only [show 2 * (n * n) + (q - 2 * (n * n)) = q by omega] using hv
+      simpa only [show 2 * (n * n) + (q - 2 * (n * n)) = q by omega] using
+        vac (q - 2 * (n * n)) (by omega)
 
 /-- The copied words form exactly the existing initialized input block. This is readback of
 actual stores and copies, not an input layout supplied to the algorithm. -/
@@ -152,19 +144,14 @@ theorem copyMemory_input {n b D g p ab bc ac : ℕ} (mem : ℕ → ℕ) (values 
     copyMemory mem b n D g p ab bc ac (b + q) =
       (Data.init (PreparationInput.input n D g p values) : Data 64).mem q := by
   by_cases hh : q < 5
-  · have hhead : copyMemory mem b n D g p ab bc ac (b + q) =
-        headerMemory mem b n D g p (b + q) := by
-      unfold copyMemory
-      rw [ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega),
-        ArrayCopy.copyPrefix_outside (by omega)]
-    rw [hhead]
-    interval_cases q <;>
-      simp [headerMemory, Data.init, PreparationInput.input, hlen, Nat.mul_comm, Nat.add_comm,
-        ← Nat.add_assoc]
-  · have hr : q - 5 < 3 * (n * n) := by omega
-    rw [show b + q = b + 5 + (q - 5) by omega,
-      copyMemory_payload mem values hab hbc hac vab vbc vac (q - 5) hr]
-    have hv := PreparationInput.input_word n D g p values (q - 5)
-    simpa only [show 5 + (q - 5) = q by omega] using hv.symm
+  · unfold copyMemory
+    rw [ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega),
+      ArrayCopy.copyPrefix_outside (by omega)]
+    interval_cases q <;> simp [headerMemory, Data.init, PreparationInput.input, hlen,
+      Nat.mul_comm, Nat.add_comm, ← Nat.add_assoc]
+  · rw [show b + q = b + 5 + (q - 5) by omega,
+      copyMemory_payload mem values hab hbc hac vab vbc vac (q - 5) (by omega)]
+    simpa only [show 5 + (q - 5) = q by omega] using
+      (PreparationInput.input_word n D g p values (q - 5)).symm
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime

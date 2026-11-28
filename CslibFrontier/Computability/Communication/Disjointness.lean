@@ -56,7 +56,8 @@ and majority votes of `72` runs (`PublicCoin.ecomplexityFun_le_two_mul_mul_one_t
 
 ## Main definitions
 
-* `Cslib.Communication.Disjointness.parts`: the partitions of the points.
+* `Cslib.Communication.Disjointness.Partition`, `Cslib.Communication.Disjointness.parts`: ordered
+  partitions `⟨point, left, right⟩` of the points.
 * `Cslib.Communication.Disjointness.hardDist`: the hard distribution.
 
 ## Main results
@@ -79,7 +80,7 @@ and majority votes of `72` runs (`PublicCoin.ecomplexityFun_le_two_mul_mul_one_t
 * [E. Kushilevitz and N. Nisan, *Communication Complexity*][KushilevitzNisan1997]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Communication
 
@@ -93,25 +94,47 @@ namespace Disjointness
 
 section Partitions
 
+/-- An ordered partition candidate `⟨point, left, right⟩` of `U`: a distinguished point `point` and
+two subsets `left` and `right` of `U`. In `parts U m` over a `(2 m + 1)`-element universe, `left`
+and `right` are disjoint `m`-element sets avoiding `point`. -/
+@[ext] structure Partition (U : Type*) where
+  /-- The distinguished point `i`. -/
+  point : U
+  /-- Alice's base set `Tx`. -/
+  left : Finset U
+  /-- Bob's base set `Ty`. -/
+  right : Finset U
+  deriving DecidableEq
+
+/-- Equivalence between `Partition U` and `U × Finset U × Finset U`. -/
+def Partition.equivTuple : Partition U ≃ U × Finset U × Finset U where
+  toFun T := (T.point, T.left, T.right)
+  invFun | (point, left, right) => ⟨point, left, right⟩
+  left_inv _ := rfl
+  right_inv | (_, _, _) => rfl
+
+instance [Fintype U] : Fintype (Partition U) :=
+  Fintype.ofEquiv (U × Finset U × Finset U) Partition.equivTuple.symm
+
 variable [Fintype U] {m : ℕ}
 
 variable (U) in
-/-- The triples `(i, Tx, Ty)` of a point `i` and two disjoint sets `Tx`, `Ty` of `m` points that
+/-- The partitions `⟨point, left, right⟩` of a point and two disjoint sets of `m` points that
 avoid it. When there are `2 m + 1` points, these are the ordered partitions of the points into
 parts of sizes `1`, `m` and `m`. -/
-def parts (m : ℕ) : Finset (U × Finset U × Finset U) :=
-  {T | T.1 ∉ T.2.1 ∧ T.1 ∉ T.2.2 ∧ Disjoint T.2.1 T.2.2 ∧ #T.2.1 = m ∧ #T.2.2 = m}
+def parts (m : ℕ) : Finset (Partition U) :=
+  {T | T.point ∉ T.left ∧ T.point ∉ T.right ∧ Disjoint T.left T.right ∧ #T.left = m ∧ #T.right = m}
 
 /-- Membership in `parts`. -/
-private theorem mem_parts {T : U × Finset U × Finset U} :
-    T ∈ parts U m ↔
-      T.1 ∉ T.2.1 ∧ T.1 ∉ T.2.2 ∧ Disjoint T.2.1 T.2.2 ∧ #T.2.1 = m ∧ #T.2.2 = m := by
+private theorem mem_parts {T : Partition U} :
+    T ∈ parts U m ↔ T.point ∉ T.left ∧ T.point ∉ T.right ∧ Disjoint T.left T.right ∧
+      #T.left = m ∧ #T.right = m := by
   simp only [parts, mem_filter, mem_univ, true_and]
 
-/-- In a partition `(i, Tx, Ty)` of `2 m + 1` points, `Tx` is the complement of `Ty` and `i`. -/
+/-- In a partition `⟨i, Tx, Ty⟩` of `2 m + 1` points, `Tx` is the complement of `Ty` and `i`. -/
 private theorem compl_insert_eq_of_mem_parts (hU : Fintype.card U = 2 * m + 1)
-    {T : U × Finset U × Finset U} (hT : T ∈ parts U m) :
-    (insert T.1 T.2.2)ᶜ = T.2.1 := by
+    {T : Partition U} (hT : T ∈ parts U m) :
+    (insert T.point T.right)ᶜ = T.left := by
   obtain ⟨h1, h2, h3, h4, h5⟩ := mem_parts.mp hT
   symm
   refine eq_of_subset_of_card_le (fun a ha => ?_) ?_
@@ -122,39 +145,37 @@ private theorem compl_insert_eq_of_mem_parts (hU : Fintype.card U = 2 * m + 1)
 
 private theorem mem_parts_of_mem_compl (hU : Fintype.card U = 2 * m + 1)
     {Ty : Finset U} (hTy : #Ty = m) {i : U} (hi : i ∈ Tyᶜ) :
-    (i, (insert i Ty)ᶜ, Ty) ∈ parts U m := by
+    (⟨i, (insert i Ty)ᶜ, Ty⟩ : Partition U) ∈ parts U m := by
   rw [mem_compl] at hi
-  refine mem_parts.mpr ⟨by simp, hi, ?_, ?_, hTy⟩
-  · exact disjoint_left.mpr fun a ha haTy => mem_compl.mp ha (mem_insert_of_mem haTy)
-  · rw [card_compl, card_insert_of_notMem hi, hU, hTy]
-    omega
+  refine mem_parts.mpr ⟨by simp, hi,
+    disjoint_left.mpr fun _ ha haTy => mem_compl.mp ha (mem_insert_of_mem haTy), ?_, hTy⟩
+  rw [card_compl, card_insert_of_notMem hi, hU, hTy]; omega
 
-/-- Summing over the partitions `(i, Tx, Ty)` of `2 m + 1` points is summing over the sets `Ty`
+/-- Summing over the partitions `⟨i, Tx, Ty⟩` of `2 m + 1` points is summing over the sets `Ty`
 of `m` points and the points `i` outside them. -/
 private theorem sum_parts (hU : Fintype.card U = 2 * m + 1) {M : Type*} [AddCommMonoid M]
-    (F : U × Finset U × Finset U → M) :
+    (F : Partition U → M) :
     ∑ T ∈ parts U m, F T =
-      ∑ Ty ∈ powersetCard m univ, ∑ i ∈ Tyᶜ, F (i, (insert i Ty)ᶜ, Ty) := by
+      ∑ Ty ∈ powersetCard m univ, ∑ i ∈ Tyᶜ, F ⟨i, (insert i Ty)ᶜ, Ty⟩ := by
   rw [sum_sigma']
-  refine sum_nbij' (fun T => ⟨T.2.2, T.1⟩) (fun x => (x.2, (insert x.2 x.1)ᶜ, x.1)) ?_ ?_ ?_
+  refine sum_nbij' (fun T => ⟨T.right, T.point⟩) (fun x => ⟨x.2, (insert x.2 x.1)ᶜ, x.1⟩) ?_ ?_ ?_
     (fun _ _ => rfl) ?_
+  · exact fun T hT =>
+      let ⟨_, h2, _, _, h5⟩ := mem_parts.mp hT
+      mem_sigma.mpr ⟨mem_powersetCard.mpr ⟨subset_univ _, h5⟩, mem_compl.mpr h2⟩
+  · exact fun ⟨Ty, i⟩ hx =>
+      mem_parts_of_mem_compl hU (mem_powersetCard.mp (mem_sigma.mp hx).1).2 (mem_sigma.mp hx).2
   · intro T hT
-    obtain ⟨-, h2, -, -, h5⟩ := mem_parts.mp hT
-    exact mem_sigma.mpr ⟨mem_powersetCard.mpr ⟨subset_univ _, h5⟩, mem_compl.mpr h2⟩
-  · rintro ⟨Ty, i⟩ hx
-    obtain ⟨hTy, hi⟩ := mem_sigma.mp hx
-    exact mem_parts_of_mem_compl hU (mem_powersetCard.mp hTy).2 hi
-  · intro T hT
-    simp only [compl_insert_eq_of_mem_parts hU hT]
+    ext <;> simp only [compl_insert_eq_of_mem_parts hU hT]
   · intro T hT
     simp only [compl_insert_eq_of_mem_parts hU hT]
 
 /-- Exchanging the two sets of a partition. -/
 private theorem sum_parts_swap {M : Type*} [AddCommMonoid M]
-    (F : U × Finset U × Finset U → M) :
-    ∑ T ∈ parts U m, F T = ∑ T ∈ parts U m, F (T.1, T.2.2, T.2.1) := by
-  refine sum_nbij' (fun T => (T.1, T.2.2, T.2.1)) (fun T => (T.1, T.2.2, T.2.1)) ?_ ?_
-    (fun _ _ => rfl) (fun _ _ => rfl) (fun _ _ => rfl) <;>
+    (F : Partition U → M) :
+    ∑ T ∈ parts U m, F T = ∑ T ∈ parts U m, F ⟨T.point, T.right, T.left⟩ := by
+  refine sum_nbij' (fun T => ⟨T.point, T.right, T.left⟩) (fun T => ⟨T.point, T.right, T.left⟩)
+    ?_ ?_ (fun _ _ => rfl) (fun _ _ => rfl) (fun _ _ => rfl) <;>
   · intro T hT
     obtain ⟨h1, h2, h3, h4, h5⟩ := mem_parts.mp hT
     exact mem_parts.mpr ⟨h2, h1, h3.symm, h5, h4⟩
@@ -165,11 +186,9 @@ theorem card_parts (hU : Fintype.card U = 2 * m + 1) :
     #(parts U m) = #(powersetCard m (univ : Finset U)) * (m + 1) := by
   rw [card_eq_sum_ones, sum_parts hU]
   simp only [sum_const, smul_eq_mul, mul_one]
-  rw [sum_congr rfl fun Ty hTy => by
-    rw [card_compl, hU, (mem_powersetCard.mp hTy).2]]
-  rw [sum_const, smul_eq_mul]
-  congr 1
-  omega
+  rw [sum_congr rfl fun Ty hTy => by rw [card_compl, hU, (mem_powersetCard.mp hTy).2],
+    sum_const, smul_eq_mul]
+  exact congrArg (_ * ·) (by omega)
 
 /-- There is a partition. -/
 private theorem card_parts_pos (hU : Fintype.card U = 2 * m + 1) :
@@ -235,174 +254,135 @@ private theorem two_pow_succ_mul_slack_mul_le {m r : ℕ} {b : ℝ} (hr : 48 * r
       18 * ((m : ℝ) + 1) * 4 ^ m * (27 / 32) ^ r := by
   have hsl := slack_le (r := r) (s := m + 1) hr (by omega)
   push_cast at hsl
-  have hpow : (2 : ℝ) ^ (m + 1) * 2 ^ m = 2 * 4 ^ m := by
-    rw [pow_succ, show (4 : ℝ) ^ m = 2 ^ m * 2 ^ m by rw [← mul_pow]; norm_num]
-    ring
-  have hE : (2 : ℝ) ^ (m + 1) * (8 * ((m : ℝ) + 1) * (27 / 32) ^ r +
-      (12 * (r : ℝ) + 1) * 2 ^ (12 * r) * (3 / 4) ^ (m + 1)) ≤
-      2 ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) :=
-    mul_le_mul_of_nonneg_left hsl (by positivity)
-  have h1 := mul_le_mul_of_nonneg_right hE hb0
-  have h2 : (2 : ℝ) ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) * b ≤
-      2 ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) * 2 ^ m :=
-    mul_le_mul_of_nonneg_left hb (by positivity)
-  have h3 : (2 : ℝ) ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) * 2 ^ m =
-      18 * ((m : ℝ) + 1) * 4 ^ m * (27 / 32) ^ r := by
-    rw [mul_comm _ ((2 : ℝ) ^ m), ← mul_assoc, mul_comm ((2 : ℝ) ^ m), hpow]
-    ring
-  exact (h1.trans h2).trans_eq h3
+  have h4m : (4 : ℝ) ^ m = 2 ^ m * 2 ^ m := by rw [← mul_pow]; norm_num
+  have hrhs : 18 * ((m : ℝ) + 1) * 4 ^ m * (27 / 32) ^ r =
+      2 ^ (m + 1) * (9 * ((m : ℝ) + 1) * (27 / 32) ^ r) * 2 ^ m := by
+    rw [pow_succ, h4m]; ring
+  rw [hrhs]
+  gcongr
 
-/-- **The corruption inequality on one side.** Over the partitions `(i, Tx, Ty)` of `2 m + 1`
+/-- **The corruption inequality on one side.** Over the partitions `⟨i, Tx, Ty⟩` of `2 m + 1`
 points, the products `low A Tx * low B Ty` with `i` bad for `A` relative to `Ty` add up to at most
 a quarter of all of them, up to an exponentially small error. -/
 private theorem four_mul_sum_filter_le (hU : Fintype.card U = 2 * m + 1)
     (A B : Finset (Finset U)) {r : ℕ} (hr : 48 * r ≤ m + 1) :
-    4 * ∑ T ∈ parts U m with 3 * high A T.1 T.2.2 < low A T.2.1,
-        ((low A T.2.1 : ℝ) * low B T.2.2) ≤
-      ∑ T ∈ parts U m, ((low A T.2.1 : ℝ) * low B T.2.2) +
+    4 * ∑ T ∈ parts U m with 3 * high A T.point T.right < low A T.left,
+        ((low A T.left : ℝ) * low B T.right) ≤
+      ∑ T ∈ parts U m, ((low A T.left : ℝ) * low B T.right) +
         18 * #(parts U m) * 4 ^ m * (27 / 32) ^ r := by
   rw [sum_filter, sum_parts hU, sum_parts hU, card_parts hU,
     mul_sum]
   have hconst : (18 : ℝ) * ((#(powersetCard m (univ : Finset U)) * (m + 1) : ℕ) : ℝ) * 4 ^ m *
       (27 / 32) ^ r = ∑ _Ty ∈ powersetCard m (univ : Finset U),
         18 * ((m : ℝ) + 1) * 4 ^ m * (27 / 32) ^ r := by
-    rw [sum_const, nsmul_eq_mul]
-    push_cast
-    ring
+    simp only [sum_const, nsmul_eq_mul, Nat.cast_mul, Nat.cast_add, Nat.cast_one]; ring
   rw [hconst, ← sum_add_distrib]
   refine sum_le_sum fun Ty hTy => ?_
   have hTy : #Ty = m := (mem_powersetCard.mp hTy).2
-  have hS : #Tyᶜ = m + 1 := by
-    rw [card_compl, hU, hTy]
-    omega
-  have hb : (low B Ty : ℝ) ≤ 2 ^ m := by
-    have := low_le_two_pow B Ty
-    rw [hTy] at this
-    exact_mod_cast this
+  have hS : #Tyᶜ = m + 1 := by simp only [card_compl, hU, hTy]; omega
+  have hb : (low B Ty : ℝ) ≤ 2 ^ m := by exact_mod_cast hTy ▸ low_le_two_pow B Ty
   have hKL := four_mul_sum_card_filter_notMem_le A Tyᶜ (r := r) (j := 12 * r) (by omega)
   rw [hS] at hKL
   push_cast at hKL
   simp only [low_compl_insert, high]
   rw [← sum_filter, ← sum_mul, ← sum_mul]
   have hb0 : (0 : ℝ) ≤ low B Ty := Nat.cast_nonneg _
-  have h1 := mul_le_mul_of_nonneg_right hKL hb0
-  rw [add_mul] at h1
-  have h2 := two_pow_succ_mul_slack_mul_le hr hb0 hb
-  linarith
+  linarith [mul_le_mul_of_nonneg_right hKL hb0, two_pow_succ_mul_slack_mul_le hr hb0 hb]
 
-/-- **The corruption inequality over partitions.** Over the partitions `(i, Tx, Ty)` of `2 m + 1`
+/-- **The corruption inequality over partitions.** Over the partitions `⟨i, Tx, Ty⟩` of `2 m + 1`
 points, the members of `A` inside `Tx` times the members of `B` inside `Ty` add up to at most `18`
 times the members of `A` containing `i` inside `Tx ∪ {i}` times the members of `B` containing `i`
 inside `Ty ∪ {i}`, up to an exponentially small error. -/
 private theorem sum_low_mul_low_le (hU : Fintype.card U = 2 * m + 1) (A B : Finset (Finset U))
     {r : ℕ} (hr : 48 * r ≤ m + 1) :
-    ∑ T ∈ parts U m, ((low A T.2.1 : ℝ) * low B T.2.2) ≤
-      18 * ∑ T ∈ parts U m, ((high A T.1 T.2.2 : ℝ) * high B T.1 T.2.1) +
+    ∑ T ∈ parts U m, ((low A T.left : ℝ) * low B T.right) ≤
+      18 * ∑ T ∈ parts U m, ((high A T.point T.right : ℝ) * high B T.point T.left) +
         18 * #(parts U m) * 4 ^ m * (27 / 32) ^ r := by
   have hX := four_mul_sum_filter_le hU A B hr
   have hY := four_mul_sum_filter_le hU B A hr
   rw [sum_filter] at hX hY
-  rw [sum_parts_swap, sum_parts_swap (fun T => (low B T.2.1 : ℝ) *
-    low A T.2.2)] at hY
-  have hpt : ∀ T ∈ parts U m, (low A T.2.1 : ℝ) * low B T.2.2 ≤
-      9 * ((high A T.1 T.2.2 : ℝ) * high B T.1 T.2.1) +
-        ((if 3 * high A T.1 T.2.2 < low A T.2.1 then (low A T.2.1 : ℝ) * low B T.2.2 else 0) +
-          (if 3 * high B T.1 T.2.1 < low B T.2.2 then (low B T.2.2 : ℝ) * low A T.2.1
+  rw [sum_parts_swap, sum_parts_swap (fun T => (low B T.left : ℝ) *
+    low A T.right)] at hY
+  have hpt : ∀ T ∈ parts U m, (low A T.left : ℝ) * low B T.right ≤
+      9 * ((high A T.point T.right : ℝ) * high B T.point T.left) +
+        ((if 3 * high A T.point T.right < low A T.left then (low A T.left : ℝ) * low B T.right
+          else 0) +
+          (if 3 * high B T.point T.left < low B T.right then (low B T.right : ℝ) * low A T.left
             else 0)) := by
     intro T _
-    have h0 : (0 : ℝ) ≤ (low A T.2.1 : ℝ) * low B T.2.2 := by positivity
-    have h0' : (0 : ℝ) ≤ (high A T.1 T.2.2 : ℝ) * high B T.1 T.2.1 := by positivity
-    by_cases hx : 3 * high A T.1 T.2.2 < low A T.2.1
-    · by_cases hy : 3 * high B T.1 T.2.1 < low B T.2.2
-      · simp only [hx, hy, ↓reduceIte]
-        nlinarith
-      · simp only [hx, hy, ↓reduceIte]
-        linarith
-    · by_cases hy : 3 * high B T.1 T.2.1 < low B T.2.2
-      · simp only [hx, hy, ↓reduceIte]
-        nlinarith
-      · simp only [hx, hy, ↓reduceIte, add_zero]
-        push Not at hx hy
-        have hx' : (low A T.2.1 : ℝ) ≤ 3 * high A T.1 T.2.2 := by exact_mod_cast hx
-        have hy' : (low B T.2.2 : ℝ) ≤ 3 * high B T.1 T.2.1 := by exact_mod_cast hy
-        have := mul_le_mul hx' hy' (Nat.cast_nonneg _) (by positivity)
-        linarith
+    have h0 : (0 : ℝ) ≤ (low A T.left : ℝ) * low B T.right := by positivity
+    have h0' : (0 : ℝ) ≤ (high A T.point T.right : ℝ) * high B T.point T.left := by positivity
+    by_cases hx : 3 * high A T.point T.right < low A T.left <;>
+      by_cases hy : 3 * high B T.point T.left < low B T.right <;>
+      simp only [hx, hy, ↓reduceIte, add_zero]
+    · nlinarith
+    · linarith
+    · nlinarith
+    · push Not at hx hy
+      have hx' : (low A T.left : ℝ) ≤ 3 * high A T.point T.right := by exact_mod_cast hx
+      have hy' : (low B T.right : ℝ) ≤ 3 * high B T.point T.left := by exact_mod_cast hy
+      have := mul_le_mul hx' hy' (Nat.cast_nonneg _) (by positivity)
+      linarith
   have h := sum_le_sum hpt
   rw [sum_add_distrib, sum_add_distrib, ← mul_sum] at h
-  have hcomm : ∑ T ∈ parts U m, (low B T.2.2 : ℝ) * low A T.2.1 =
-      ∑ T ∈ parts U m, (low A T.2.1 : ℝ) * low B T.2.2 :=
-    sum_congr rfl fun _ _ => mul_comm _ _
-  rw [hcomm] at hY
+  rw [sum_congr rfl fun _ _ => mul_comm _ _] at hY
   linarith
 
 /-! ### The hard distribution -/
 
 variable (m) in
 /-- The mass of a pair of sets under `hardDist`: the probability that a uniformly random
-partition `(i, Tx, Ty)` from `parts` and a fair coin produce it, where on heads the
+partition `⟨i, Tx, Ty⟩` from `parts` and a fair coin produce it, where on heads the
 pair is a uniformly random pair of subsets of `Tx` and `Ty`, and on tails it is such a pair with
 `i` added to both sets. -/
-noncomputable def hardWeight (q : Finset U × Finset U) : ℝ :=
-  (∑ T ∈ parts U m,
-    ((if q.1 ⊆ T.2.1 then 1 else 0) * (if q.2 ⊆ T.2.2 then 1 else 0) +
-      (if T.1 ∈ q.1 ∧ q.1 ⊆ T.2.2ᶜ then 1 else 0) * (if T.1 ∈ q.2 ∧ q.2 ⊆ T.2.1ᶜ then 1 else 0))) /
-    (2 * #(parts U m) * 4 ^ m)
+noncomputable def hardWeight : Finset U × Finset U → ℝ
+  | (x, y) =>
+    (∑ T ∈ parts U m,
+      ((if x ⊆ T.left then 1 else 0) * (if y ⊆ T.right then 1 else 0) +
+        (if T.point ∈ x ∧ x ⊆ T.rightᶜ then 1 else 0) *
+          (if T.point ∈ y ∧ y ⊆ T.leftᶜ then 1 else 0))) /
+      (2 * #(parts U m) * 4 ^ m)
 
 /-- The weights are nonnegative. -/
-private theorem hardWeight_nonneg (q : Finset U × Finset U) : 0 ≤ hardWeight m q := by
-  unfold hardWeight
-  refine div_nonneg (sum_nonneg fun T _ => ?_) (by positivity)
-  split_ifs <;> norm_num
+private theorem hardWeight_nonneg : ∀ q : Finset U × Finset U, 0 ≤ hardWeight m q
+  | (x, y) => by
+    unfold hardWeight
+    refine div_nonneg (sum_nonneg fun T _ => ?_) (by positivity)
+    split_ifs <;> norm_num
 
 /-- On disjoint pairs the weight counts the partitions placing the sets inside `Tx` and `Ty`;
 on intersecting pairs, those placing them inside `Tx ∪ {i}` and `Ty ∪ {i}` with `i` common. -/
 private theorem ite_hardWeight (x y : Finset U) :
     (if decide (Disjoint x y) = true then hardWeight m (x, y) else 0) =
         (∑ T ∈ parts U m,
-          (if x ⊆ T.2.1 then 1 else 0) * (if y ⊆ T.2.2 then 1 else 0)) /
+          (if x ⊆ T.left then 1 else 0) * (if y ⊆ T.right then 1 else 0)) /
           (2 * #(parts U m) * 4 ^ m) ∧
       (if decide (Disjoint x y) = true then 0 else hardWeight m (x, y)) =
         (∑ T ∈ parts U m,
-          (if T.1 ∈ x ∧ x ⊆ T.2.2ᶜ then 1 else 0) * (if T.1 ∈ y ∧ y ⊆ T.2.1ᶜ then 1 else 0)) /
+          (if T.point ∈ x ∧ x ⊆ T.rightᶜ then 1 else 0) *
+            (if T.point ∈ y ∧ y ⊆ T.leftᶜ then 1 else 0)) /
           (2 * #(parts U m) * 4 ^ m) := by
   unfold hardWeight
   by_cases h : Disjoint x y
-  · simp only [h, decide_true, ↓reduceIte]
-    refine ⟨?_, ?_⟩
-    · congr 1
-      refine sum_congr rfl fun T _ => ?_
-      have : ¬(T.1 ∈ x ∧ T.1 ∈ y) := fun hT => disjoint_left.mp h hT.1 hT.2
-      by_cases h1 : T.1 ∈ x ∧ x ⊆ T.2.2ᶜ
-      · have h2 : ¬(T.1 ∈ y ∧ y ⊆ T.2.1ᶜ) := fun h2 => this ⟨h1.1, h2.1⟩
-        simp only [h2, ↓reduceIte, mul_zero, add_zero]
-      · simp only [h1, ↓reduceIte, zero_mul, add_zero]
-    · symm
-      refine div_eq_zero_iff.mpr (Or.inl (sum_eq_zero fun T _ => ?_))
-      have : ¬(T.1 ∈ x ∧ T.1 ∈ y) := fun hT => disjoint_left.mp h hT.1 hT.2
-      by_cases h1 : T.1 ∈ x ∧ x ⊆ T.2.2ᶜ
-      · have h2 : ¬(T.1 ∈ y ∧ y ⊆ T.2.1ᶜ) := fun h2 => this ⟨h1.1, h2.1⟩
-        simp only [h2, ↓reduceIte, mul_zero]
-      · simp only [h1, ↓reduceIte, zero_mul]
-  · simp only [h, decide_false, Bool.false_eq_true, ↓reduceIte]
-    refine ⟨?_, ?_⟩
-    · symm
-      refine div_eq_zero_iff.mpr (Or.inl (sum_eq_zero fun T hT => ?_))
-      have hT := (mem_parts.mp hT).2.2.1
-      by_cases h1 : x ⊆ T.2.1
-      · have h2 : ¬y ⊆ T.2.2 := fun h2 => h (hT.mono h1 h2)
-        simp only [h2, ↓reduceIte, mul_zero]
-      · simp only [h1, ↓reduceIte, zero_mul]
-    · congr 1
-      refine sum_congr rfl fun T hT => ?_
-      have hT := (mem_parts.mp hT).2.2.1
-      by_cases h1 : x ⊆ T.2.1
-      · have h2 : ¬y ⊆ T.2.2 := fun h2 => h (hT.mono h1 h2)
-        simp only [h2, ↓reduceIte, mul_zero, zero_add]
-      · simp only [h1, ↓reduceIte, zero_mul, zero_add]
+  · have hzero (T : Partition U) :
+        (if T.point ∈ x ∧ x ⊆ T.rightᶜ then (1 : ℝ) else 0) *
+          (if T.point ∈ y ∧ y ⊆ T.leftᶜ then 1 else 0) = 0 := by
+      split_ifs with h1 h2
+      · exact absurd h2.1 (disjoint_left.mp h h1.1)
+      all_goals norm_num
+    simp only [h, decide_true, ↓reduceIte, hzero, add_zero, sum_const_zero, zero_div, and_self]
+  · have hzero {T : Partition U} (hT : T ∈ parts U m) :
+        (if x ⊆ T.left then (1 : ℝ) else 0) * (if y ⊆ T.right then 1 else 0) = 0 := by
+      split_ifs with h1 h2
+      · exact absurd ((mem_parts.mp hT).2.2.1.mono h1 h2) h
+      all_goals norm_num
+    simp only [h, decide_false, Bool.false_eq_true, ↓reduceIte]
+    exact ⟨(div_eq_zero_iff.mpr (.inl (sum_eq_zero fun T hT => hzero hT))).symm,
+      congrArg (· / _) (sum_congr rfl fun T hT => by rw [hzero hT, zero_add])⟩
 
 /-- Summing products of indicators over a rectangle. -/
-private theorem sum_sum_ite_mul_ite (A B : Finset (Finset U)) (p : U × Finset U × Finset U →
-    Finset U → Prop) (q : U × Finset U × Finset U → Finset U → Prop) [∀ T x, Decidable (p T x)]
+private theorem sum_sum_ite_mul_ite (A B : Finset (Finset U)) (p : Partition U → Finset U → Prop)
+    (q : Partition U → Finset U → Prop) [∀ T x, Decidable (p T x)]
     [∀ T y, Decidable (q T y)] (D : ℝ) :
     ∑ x ∈ A, ∑ y ∈ B, (∑ T ∈ parts U m,
         (if p T x then (1 : ℝ) else 0) * (if q T y then 1 else 0)) / D =
@@ -423,48 +403,39 @@ private theorem sum_sum_ite_mul_ite (A B : Finset (Finset U)) (p : U × Finset U
 /-- The weight of the disjoint pairs in a rectangle. -/
 private theorem sum_sum_ite_hardWeight (A B : Finset (Finset U)) :
     ∑ x ∈ A, ∑ y ∈ B, (if decide (Disjoint x y) = true then hardWeight m (x, y) else 0) =
-      (∑ T ∈ parts U m, ((low A T.2.1 : ℝ) * low B T.2.2)) /
+      (∑ T ∈ parts U m, ((low A T.left : ℝ) * low B T.right)) /
         (2 * #(parts U m) * 4 ^ m) := by
   simp only [fun x y => (ite_hardWeight (m := m) x y).1]
-  exact sum_sum_ite_mul_ite A B (fun T x => x ⊆ T.2.1) (fun T y => y ⊆ T.2.2) _
+  exact sum_sum_ite_mul_ite A B (fun T x => x ⊆ T.left) (fun T y => y ⊆ T.right) _
 
 /-- The weight of the intersecting pairs in a rectangle. -/
 private theorem sum_sum_ite_hardWeight' (A B : Finset (Finset U)) :
     ∑ x ∈ A, ∑ y ∈ B, (if decide (Disjoint x y) = true then 0 else hardWeight m (x, y)) =
-      (∑ T ∈ parts U m, ((high A T.1 T.2.2 : ℝ) * high B T.1 T.2.1)) /
+      (∑ T ∈ parts U m, ((high A T.point T.right : ℝ) * high B T.point T.left)) /
         (2 * #(parts U m) * 4 ^ m) := by
   simp only [fun x y => (ite_hardWeight (m := m) x y).2]
-  exact sum_sum_ite_mul_ite A B (fun T x => T.1 ∈ x ∧ x ⊆ T.2.2ᶜ)
-    (fun T y => T.1 ∈ y ∧ y ⊆ T.2.1ᶜ) _
+  exact sum_sum_ite_mul_ite A B (fun T x => T.point ∈ x ∧ x ⊆ T.rightᶜ)
+    (fun T y => T.point ∈ y ∧ y ⊆ T.leftᶜ) _
 
 private theorem low_univ (s : Finset U) : low univ s = 2 ^ #s := by
-  unfold low
-  rw [← card_powerset]
-  congr 1
-  ext x
-  simp only [mem_filter, mem_univ, true_and, mem_powerset]
+  rw [low, ← card_powerset]
+  exact congrArg card (ext fun _ => by simp only [mem_filter, mem_univ, true_and, mem_powerset])
 
 private theorem high_univ {i : U} {s : Finset U} (hi : i ∉ s) :
     high univ i s = 2 ^ (#sᶜ - 1) := by
   unfold high
   have hi' : i ∈ sᶜ := mem_compl.mpr hi
-  have h1 : #{x ∈ (univ : Finset (Finset U)) | i ∈ x ∧ x ⊆ sᶜ} = #{x ∈ sᶜ.powerset | i ∈ x} := by
-    congr 1
-    ext x
-    simp only [mem_filter, mem_univ, true_and, mem_powerset]
-    exact and_comm
-  have h2 : {x ∈ sᶜ.powerset | i ∉ x} = (sᶜ.erase i).powerset := by
-    ext x
-    simp only [mem_filter, mem_powerset, subset_erase]
+  have h1 : #{x ∈ (univ : Finset (Finset U)) | i ∈ x ∧ x ⊆ sᶜ} = #{x ∈ sᶜ.powerset | i ∈ x} :=
+    congrArg card (ext fun _ => by simp only [mem_filter, mem_univ, true_and, mem_powerset,
+      and_comm])
+  have h2 : {x ∈ sᶜ.powerset | i ∉ x} = (sᶜ.erase i).powerset :=
+    ext fun _ => by simp only [mem_filter, mem_powerset, subset_erase]
   have h3 := (card_filter_add_card_filter_not (s := sᶜ.powerset) fun x => i ∈ x).trans
     (card_powerset sᶜ)
-  have h4 : #(sᶜ.erase i).powerset = 2 ^ (#sᶜ - 1) := by
-    rw [card_powerset, card_erase_of_mem hi']
   have h5 : 2 ^ #sᶜ = 2 ^ (#sᶜ - 1) * 2 := by
     rw [← pow_succ, Nat.sub_add_cancel (card_pos.mpr ⟨i, hi'⟩)]
-  rw [h2, h4, h5] at h3
-  rw [h1]
-  omega
+  rw [h2, card_powerset, card_erase_of_mem hi', h5] at h3
+  rw [h1]; omega
 
 /-- Half of the weight lies on disjoint pairs. -/
 private theorem sum_sum_ite_hardWeight_univ (hU : Fintype.card U = 2 * m + 1) :
@@ -472,30 +443,19 @@ private theorem sum_sum_ite_hardWeight_univ (hU : Fintype.card U = 2 * m + 1) :
         (if decide (Disjoint x y) = true then hardWeight m (x, y) else 0) = 1 / 2 ∧
       ∑ x : Finset U, ∑ y : Finset U,
         (if decide (Disjoint x y) = true then 0 else hardWeight m (x, y)) = 1 / 2 := by
-  have hP : (0 : ℝ) < #(parts U m) := by
-    exact_mod_cast card_parts_pos hU
-  have hcompl {s : Finset U} (hs : #s = m) : #sᶜ - 1 = m := by
-    rw [card_compl, hU, hs]
-    omega
+  have hP : (0 : ℝ) < #(parts U m) := by exact_mod_cast card_parts_pos hU
+  have h4m : (2 ^ m : ℝ) * 2 ^ m = 4 ^ m := by rw [← mul_pow]; norm_num
+  have hcompl {s : Finset U} (h : #s = m) : #sᶜ - 1 = m := by simp only [card_compl, hU, h]; omega
   refine ⟨?_, ?_⟩
-  · rw [sum_sum_ite_hardWeight]
-    rw [sum_congr rfl fun T hT => by
-      rw [low_univ, low_univ, (mem_parts.mp hT).2.2.2.1,
-        (mem_parts.mp hT).2.2.2.2]]
-    rw [sum_const, nsmul_eq_mul]
+  · rw [sum_sum_ite_hardWeight, sum_congr rfl fun T hT => by
+      rw [low_univ, low_univ, (mem_parts.mp hT).2.2.2.1, (mem_parts.mp hT).2.2.2.2, Nat.cast_pow,
+        Nat.cast_ofNat, h4m], sum_const, nsmul_eq_mul]
     field_simp
-    push_cast
-    rw [show (4 : ℝ) ^ m = 2 ^ m * 2 ^ m by rw [← mul_pow]; norm_num]
-    ring
-  · rw [sum_sum_ite_hardWeight']
-    rw [sum_congr rfl fun T hT => by
+  · rw [sum_sum_ite_hardWeight', sum_congr rfl fun T hT => by
       obtain ⟨h1, h2, -, h4, h5⟩ := mem_parts.mp hT
-      rw [high_univ h2, high_univ h1, hcompl h4, hcompl h5]]
-    rw [sum_const, nsmul_eq_mul]
+      rw [high_univ h2, high_univ h1, hcompl h4, hcompl h5, Nat.cast_pow, Nat.cast_ofNat, h4m],
+      sum_const, nsmul_eq_mul]
     field_simp
-    push_cast
-    rw [show (4 : ℝ) ^ m = 2 ^ m * 2 ^ m by rw [← mul_pow]; norm_num]
-    ring
 
 /-- The weights add up to one, so they form a distribution (`hardDist`). -/
 theorem sum_hardWeight (hU : Fintype.card U = 2 * m + 1) :
@@ -508,14 +468,12 @@ theorem sum_hardWeight (hU : Fintype.card U = 2 * m + 1) :
             (if decide (Disjoint x y) = true then 0 else hardWeight m (x, y))) := by
         refine sum_congr rfl fun x _ => sum_congr rfl fun y _ => ?_
         split_ifs <;> simp
-    _ = 1 := by
-        simp only [sum_add_distrib, h1, h2]
-        norm_num
+    _ = 1 := by simp only [sum_add_distrib, h1, h2]; linarith
 
 variable (m) in
 /-- **A hard distribution for disjointness**, a variant of Razborov's distribution
 [Razborov1992] on pairs of subsets of `2 m + 1` points. Draw a uniformly random partition
-`(i, Tx, Ty)` of the points into a point and two sets of `m` points, and uniformly random subsets
+`⟨i, Tx, Ty⟩` of the points into a point and two sets of `m` points, and uniformly random subsets
 `x ⊆ Tx` and `y ⊆ Ty`; with probability `1 / 2` output the disjoint pair `(x, y)`, and otherwise
 the pair `(x ∪ {i}, y ∪ {i})`, which meets in exactly `i`. Razborov draws subsets of fixed size
 `m / 2` instead; drawing all subsets lets the corruption bound be proved by counting subsets of
@@ -549,21 +507,13 @@ theorem corrupted_hardDist (hU : Fintype.card U = 2 * m + 1) {r : ℕ}
   intro A B
   simp only [hardDist_apply_toReal]
   rw [sum_sum_ite_hardWeight, sum_sum_ite_hardWeight']
-  have h := sum_low_mul_low_le hU A B hr
-  have hP : (0 : ℝ) < #(parts U m) := by
-    exact_mod_cast card_parts_pos hU
-  have hD : (0 : ℝ) < 2 * #(parts U m) * 4 ^ m := by positivity
-  set P := ∑ T ∈ parts U m, ((low A T.2.1 : ℝ) * low B T.2.2)
-  set Q := ∑ T ∈ parts U m, ((high A T.1 T.2.2 : ℝ) * high B T.1 T.2.1)
-  have key : P / (2 * #(parts U m) * 4 ^ m) ≤
-      18 * (Q / (2 * #(parts U m) * 4 ^ m)) + 9 * (27 / 32) ^ r := by
-    rw [div_le_iff₀ hD]
-    have : (18 * (Q / (2 * #(parts U m) * 4 ^ m)) + 9 * (27 / 32) ^ r) *
-        (2 * #(parts U m) * 4 ^ m) =
-          18 * Q + 18 * #(parts U m) * 4 ^ m * (27 / 32) ^ r := by
-      field_simp
-      ring
-    linarith
+  have hP : (0 : ℝ) < #(parts U m) := by exact_mod_cast card_parts_pos hU
+  have h := div_le_div_of_nonneg_right (sum_low_mul_low_le hU A B hr)
+    (by positivity : (0 : ℝ) ≤ 2 * #(parts U m) * 4 ^ m)
+  have hcancel : (18 * #(parts U m) * 4 ^ m * (27 / 32) ^ r : ℝ) /
+      (2 * #(parts U m) * 4 ^ m) = 9 * (27 / 32) ^ r := by
+    field_simp; ring
+  rw [add_div, mul_div_assoc, hcancel] at h
   linarith
 
 end Corruption
@@ -588,20 +538,15 @@ private theorem le_of_mul_pow_le {r c : ℕ} (h : 13 * 32 ^ r ≤ 576 * 2 ^ c * 
     exact Nat.pow_le_pow_left (by norm_num) q
   have h2 : 27 ^ t ≤ 32 ^ t := Nat.pow_le_pow_left (by norm_num) t
   have h3 : 13 * 2 ^ q * 27 ^ r ≤ 576 * 2 ^ c * 27 ^ r :=
-    calc 13 * 2 ^ q * 27 ^ r = 13 * (2 ^ q * 27 ^ (5 * q)) * 27 ^ t := by
-          rw [hr, pow_add]
-          ring
+    calc 13 * 2 ^ q * 27 ^ r = 13 * (2 ^ q * 27 ^ (5 * q)) * 27 ^ t := by rw [hr, pow_add]; ring
       _ ≤ 13 * 32 ^ (5 * q) * 32 ^ t := by gcongr
-      _ = 13 * 32 ^ r := by
-          rw [hr, pow_add]
-          ring
+      _ = 13 * 32 ^ r := by rw [hr, pow_add]; ring
       _ ≤ 576 * 2 ^ c * 27 ^ r := h
   have h4 : 13 * 2 ^ q ≤ 576 * 2 ^ c := Nat.le_of_mul_le_mul_right h3 (by positivity)
   have h5 : q < c + 6 := by
     by_contra hq
-    have h6 : 2 ^ c * 2 ^ 6 ≤ 2 ^ q := by
-      rw [← pow_add]
-      exact Nat.pow_le_pow_right two_pos (by omega)
+    have h6 : 2 ^ c * 2 ^ 6 ≤ 2 ^ q :=
+      (pow_add 2 c 6).symm.trans_le (Nat.pow_le_pow_right two_pos (by omega))
     have : 0 < 2 ^ c := by positivity
     omega
   omega
@@ -623,17 +568,10 @@ theorem PublicCoin.div_le_mul_ecomplexityFun_disjoint_add (hU : Fintype.card U =
       (by norm_num) h.le
     rw [Disjointness.hardDist_toOuterMeasure_disjoint] at hbound
     have hreal : (13 : ℝ) * 32 ^ r ≤ 576 * 2 ^ c * 27 ^ r := by
-      have h32 : (0 : ℝ) < 32 ^ r := by positivity
-      have hdiv : (2 : ℝ) ^ c * ((27 / 32) ^ r / 2) = 2 ^ c * 27 ^ r / (2 * 32 ^ r) := by
-        rw [div_pow]
-        ring
-      rw [hdiv] at hbound
-      have : (13 : ℝ) / 1152 ≤ 2 ^ c * 27 ^ r / (2 * 32 ^ r) := by linarith
-      rw [le_div_iff₀ (by positivity)] at this
+      have h13 : (13 : ℝ) / 1152 ≤ 2 ^ c * ((27 / 32) ^ r / 2) := by linarith
+      rw [div_pow, ← mul_div_assoc, ← mul_div_assoc, div_div, le_div_iff₀ (by positivity)] at h13
       linarith
-    have hnat : 13 * 32 ^ r ≤ 576 * 2 ^ c * 27 ^ r := by exact_mod_cast hreal
-    have := le_of_mul_pow_le hnat
-    exact_mod_cast this
+    exact_mod_cast le_of_mul_pow_le (by exact_mod_cast hreal)
 
 /-- Disjointness of subsets of `Fin k` is disjointness of their indicators as bit strings of
 length `n`, along an embedding of `Fin k` into `Fin n`. -/
@@ -669,23 +607,19 @@ theorem PublicCoin.le_mul_ecomplexityFun_disjointness_add_of_le {ε : ℝ} (hε 
   have h2 : PublicCoin.ecomplexityFun (1 / 64)
       (fun x y : Finset (Fin (2 * m + 1)) => decide (Disjoint x y)) ≤
         PublicCoin.ecomplexityFun (1 / 64) (disjointness : BitString n → BitString n → Bool) := by
-    have := PublicCoin.ecomplexityFun_comap_le (ε := 1 / 64)
+    simpa only [disjointness_indicator] using PublicCoin.ecomplexityFun_comap_le (ε := 1 / 64)
       (disjointness : BitString n → BitString n → Bool)
       (fun x : Finset (Fin (2 * m + 1)) => fun i => decide (i ∈ x.map (Fin.castLEEmb hmn)))
       (fun y : Finset (Fin (2 * m + 1)) => fun i => decide (i ∈ y.map (Fin.castLEEmb hmn)))
-    simpa only [disjointness_indicator] using this
   cases h : PublicCoin.ecomplexityFun (1 / 64) (disjointness : BitString n → BitString n → Bool)
     using ENat.recTopCoe with
   | top => simp
   | coe c =>
     rw [h] at h2
-    have h3 : (((m + 1) / 48 : ℕ) : ℕ∞) ≤ ((5 * c + 29 : ℕ) : ℕ∞) := by
-      refine h1.trans ?_
-      push_cast
-      gcongr
-    have h4 : (m + 1) / 48 ≤ 5 * c + 29 := by exact_mod_cast h3
-    have : n ≤ 2 ^ 9 * c + 2 ^ 12 := by omega
-    exact_mod_cast this
+    have h3 : (m + 1) / 48 ≤ 5 * c + 29 :=
+      Nat.cast_le (α := ℕ∞).mp
+        (h1.trans (by simpa using add_le_add_left (mul_le_mul_right h2 5) 29))
+    exact_mod_cast (by omega : n ≤ 2 ^ 9 * c + 2 ^ 12)
 
 /-- **Disjointness needs `Ω(n)` bits with public coins** [Kalyanasundaram and
 Schnitger][KalyanasundaramSchnitger1992], [Razborov1992]: a public-coin protocol deciding whether
@@ -740,8 +674,7 @@ theorem PublicCoin.le_of_ecomplexityFun_disjointness_le {n c r : ℕ} {ε : ℝ}
           gcongr
           exact h2.trans (by gcongr)
       _ = ((2 ^ 10 * r * c + 2 ^ 12 : ℕ) : ℕ∞) := by
-          push_cast
-          ring
+          simp only [Nat.cast_add, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]; ring
   exact_mod_cast h3
 
 end Cslib.Communication

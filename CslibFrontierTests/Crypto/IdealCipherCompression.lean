@@ -79,7 +79,7 @@ theorem twoQueryIdealCipherProg_diff_le :
 /-! ### Nonvacuous Theorem 7.5 collision bounds on `daviesMeyer` -/
 
 noncomputable def zeroQueryDMAdversary :
-    OracleComp (Spec (Fin 2) (ZMod 16)) ((Fin 2 × ZMod 16) × (Fin 2 × ZMod 16)) :=
+    ProbOracleComp (Spec (Fin 2) (ZMod 16)) ((Fin 2 × ZMod 16) × (Fin 2 × ZMod 16)) :=
   return (((0 : Fin 2), (0 : ZMod 16)), ((1 : Fin 2), (1 : ZMod 16)))
 
 theorem isQueryBounded_zeroQueryDMAdversary :
@@ -96,18 +96,44 @@ example :
   exact h
 
 noncomputable def oneQueryDMAdversary :
-    OracleComp (Spec (Fin 2) (ZMod 16)) ((Fin 2 × ZMod 16) × (Fin 2 × ZMod 16)) := do
-  let y ← OracleComp.query ((0 : Fin 2), PermQuery.forward (0 : ZMod 16))
+    ProbOracleComp (Spec (Fin 2) (ZMod 16)) ((Fin 2 × ZMod 16) × (Fin 2 × ZMod 16)) := do
+  let y ← ProbOracleComp.query (spec := Spec (Fin 2) (ZMod 16))
+    ((0 : Fin 2), PermQuery.forward (0 : ZMod 16))
   return (((0 : Fin 2), (0 : ZMod 16)), ((1 : Fin 2), y))
 
 theorem isQueryBounded_oneQueryDMAdversary :
     oneQueryDMAdversary.IsQueryBounded 1 :=
-  IsCostBounded.bind (cost := fun _ => 1) (IsCostBounded.query _) fun _ => IsCostBounded.pure _ 0
+  IsCostBounded.bind (ProbOracleComp.IsQueryBounded.query _) fun _ => IsCostBounded.pure _ 0
 
 example :
     Pr[collisionGame (daviesMeyer (K := Fin 2) (B := ZMod 16)) oneQueryDMAdversary] ≤
       (3 : ℝ) / 8 := by
   have h := daviesMeyer_collisionGame_mul_le isQueryBounded_oneQueryDMAdversary
+  have hcard : Fintype.card (ZMod 16) = 16 := ZMod.card 16
+  rw [hcard] at h
+  norm_num at h ⊢
+  exact h
+
+/-- A genuinely randomized 1-query collision finder that samples private coins (`k` and `x`)
+before querying the ideal cipher. -/
+noncomputable def randomizedOneQueryDMAdversary :
+    ProbOracleComp (Spec (Fin 2) (ZMod 16)) ((Fin 2 × ZMod 16) × (Fin 2 × ZMod 16)) := do
+  let k ← ProbOracleComp.sample ($ᵗ Fin 2)
+  let x ← ProbOracleComp.sample ($ᵗ ZMod 16)
+  let y ← ProbOracleComp.query (spec := Spec (Fin 2) (ZMod 16)) (k, PermQuery.forward x)
+  return ((k, x), (k + 1, y))
+
+theorem isQueryBounded_randomizedOneQueryDMAdversary :
+    randomizedOneQueryDMAdversary.IsQueryBounded 1 :=
+  (ProbOracleComp.IsQueryBounded.sample ($ᵗ Fin 2)).bind fun _ =>
+    (ProbOracleComp.IsQueryBounded.sample ($ᵗ ZMod 16)).bind fun _ =>
+      (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
+        IsCostBounded.pure _ 0
+
+example :
+    Pr[collisionGame (daviesMeyer (K := Fin 2) (B := ZMod 16)) randomizedOneQueryDMAdversary] ≤
+      (3 : ℝ) / 8 := by
+  have h := daviesMeyer_collisionGame_mul_le isQueryBounded_randomizedOneQueryDMAdversary
   have hcard : Fintype.card (ZMod 16) = 16 := ZMod.card 16
   rw [hcard] at h
   norm_num at h ⊢

@@ -144,19 +144,17 @@ theorem update_eq_self_of_mem_sentinelFirst (hL : 3 * R < L)
     update s n K ρ z w y = w y ∧
       update s n K ρ z (sentinelFirst marked L w) y = sentinelFirst marked L w y := by
   have hR : 0 ≤ R := threshold_nonneg.trans hu
-  have hL' : R < L := by linarith
-  have hw' : ∀ y ∈ s, y ∈ marked → R < w y 0 := by grind
   have hu' : threshold s n ρ z w ≤ R :=
-    (threshold_eq_sentinelFirst hL' hw' hu).trans_le hu
+    (threshold_eq_sentinelFirst (by linarith) (fun y hy hm => by linarith [hw y hy hm]) hu).trans_le
+      hu
   constructor
-  · apply update_eq_self_of_three_mul_le
-    exact (by linarith [hw y hy hm] : 3 * threshold s n ρ z w ≤ w y 0).trans
-      ((le_abs_self _).trans (abs_apply_le_entrySize _ 0))
-  · apply update_eq_self_of_three_mul_le
-    have hfirst : 3 * R < sentinelFirst marked L w y 0 := by
-      rwa [sentinelFirst_zero_of_mem hm]
-    exact (by linarith : 3 * threshold s n ρ z (sentinelFirst marked L w) ≤
-      sentinelFirst marked L w y 0).trans ((le_abs_self _).trans (abs_apply_le_entrySize _ 0))
+  · exact update_eq_self_of_three_mul_le
+      ((by linarith [hw y hy hm] : 3 * threshold s n ρ z w ≤ w y 0).trans
+        ((le_abs_self _).trans (abs_apply_le_entrySize _ 0)))
+  · have hfirst : 3 * R < sentinelFirst marked L w y 0 := by rwa [sentinelFirst_zero_of_mem hm]
+    exact update_eq_self_of_three_mul_le
+      ((by linarith : 3 * threshold s n ρ z (sentinelFirst marked L w) ≤
+        sentinelFirst marked L w y 0).trans ((le_abs_self _).trans (abs_apply_le_entrySize _ 0)))
 
 /-- Sentinel replacement commutes with the concrete compression update on every retained ID.
 This also gives equality of both channels off the marked set; it assumes no row-output law. -/
@@ -173,7 +171,7 @@ theorem sentinelFirst_update (hL : 3 * R < L)
     simp only [sentinelFirst, ho]
   · have hR : 0 ≤ R := threshold_nonneg.trans hu
     have hL' : R < L := by linarith
-    have hw' : ∀ y ∈ s, y ∈ marked → R < w y 0 := by grind
+    have hw' : ∀ y ∈ s, y ∈ marked → R < w y 0 := fun y hy hm => by linarith [hw y hy hm]
     rw [sentinelFirst_of_not_mem hm]
     unfold update
     rw [threshold_eq_sentinelFirst hL' hw' hu,

@@ -81,26 +81,16 @@ theorem eqn_of_mem {e' : ℕ} (he' : e' ∈ C.eqns) : (C.moveAffine J e).eqn e' 
 takes its value. -/
 theorem eqnsHold_iff (val : ℕ → Bool) : (C.moveAffine J e).EqnsHold val ↔
     C.EqnsHold val ∧ (affEqn (C.gate J) J).Holds val := by
-  constructor
-  · intro hv
-    refine ⟨fun e' he' => ?_, ?_⟩
-    · rw [← h.eqn_of_mem he']; exact hv e' (Finset.mem_insert_of_mem he')
-    · have := hv e (Finset.mem_insert_self _ _)
-      change (Function.update C.eqn e _ e).Holds val at this
-      rwa [Function.update_self] at this
-  · rintro ⟨hv, hJv⟩ e' he'
-    rcases Finset.mem_insert.1 he' with rfl | he'
-    · change (Function.update C.eqn e' _ e').Holds val
-      rwa [Function.update_self]
-    · rw [h.eqn_of_mem he']; exact hv e' he'
+  change (∀ e' ∈ insert e C.eqns, ((C.moveAffine J e).eqn e').Holds val) ↔ _
+  rw [Finset.forall_mem_insert, and_comm]
+  exact and_congr (forall₂_congr fun e' he' => by rw [h.eqn_of_mem he'])
+    (by simp only [moveAffine, Function.update_self])
 
 private theorem live_eq : (C.moveAffine J e).live = C.live := by
   ext i
-  simp only [live, Finset.mem_union]
-  change (i ∈ C.params ∨ i ∈ insert J C.aux) ∨ i ∈ C.gates.erase J ↔ _
-  simp only [Finset.mem_insert, Finset.mem_erase]
-  by_cases hiJ : i = J
-  · subst hiJ; simp [h.mem]
+  simp only [live, moveAffine, Finset.mem_union, Finset.mem_insert, Finset.mem_erase]
+  rcases eq_or_ne i J with rfl | hiJ
+  · simp [h.mem]
   · simp [hiJ]
 
 end MoveOK
@@ -108,12 +98,8 @@ end MoveOK
 /-- In a well-formed semi-circuit, any node read by a gate `J` satisfying `MoveOK J e` is a
 parameter or auxiliary variable. -/
 theorem MoveOK.mem_params_or_aux (hC : C.WellFormed) {J e : ℕ} (h : C.MoveOK J e) {i : ℕ}
-    (hi : (C.gate J).Reads i) : i ∈ C.params ∪ C.aux := by
-  have := hC.reads_live J h.mem i hi
-  simp only [live, Finset.mem_union] at this
-  rcases this with hpa | hg
-  · exact Finset.mem_union.2 hpa
-  · exact absurd hg (h.inputs i hi)
+    (hi : (C.gate J).Reads i) : i ∈ C.params ∪ C.aux :=
+  (Finset.mem_union.1 (hC.reads_live J h.mem i hi)).resolve_right (h.inputs i hi)
 
 /-- Moving an affine gate reading no gates into the affine system preserves well-formedness. -/
 theorem WellFormed.moveAffine (hC : C.WellFormed) {J e : ℕ} (h : C.MoveOK J e) :
@@ -135,33 +121,28 @@ theorem WellFormed.moveAffine (hC : C.WellFormed) {J e : ℕ} (h : C.MoveOK J e)
       out_live := fun i hi => hlive ▸ hC.out_live i hi
       solvable := fun u => ?_
       unique := fun val val' hagree heq heq' a ha => ?_ }
-  · change i ∈ insert J C.aux at ha
-    rcases Finset.mem_insert.1 ha with rfl | ha
+  · rcases Finset.mem_insert.1 (show i ∈ insert J C.aux from ha) with rfl | ha
     · exact hJp hp
     · exact hC.notMem_aux_of_mem_params hp ha
-  · change i ∈ insert J C.aux at ha
-    change i ∈ C.gates.erase J at hg
-    rcases Finset.mem_insert.1 ha with rfl | ha
+  · rcases Finset.mem_insert.1 (show i ∈ insert J C.aux from ha) with rfl | ha
     · exact Finset.notMem_erase i _ hg
     · exact hC.notMem_gates_of_mem_aux ha (Finset.mem_of_mem_erase hg)
   · change t ∈ C.params ∪ insert J C.aux
-    have hsub : ∀ t ∈ C.params ∪ C.aux, t ∈ C.params ∪ insert J C.aux := fun t ht => by
-      rcases Finset.mem_union.1 ht with hp | ha
-      · exact Finset.mem_union_left _ hp
-      · exact Finset.mem_union_right _ (Finset.mem_insert_of_mem ha)
+    have hsub : C.params ∪ C.aux ⊆ C.params ∪ insert J C.aux :=
+      Finset.union_subset_union_right (Finset.subset_insert _ _)
     rcases Finset.mem_insert.1 he' with rfl | he'
     · change t ∈ (Function.update C.eqn e' _ e').terms at ht
       rw [Function.update_self] at ht
       rcases mem_affEqn ht with rfl | ht
       · exact Finset.mem_union_right _ (Finset.mem_insert_self _ _)
-      · exact hsub t (h.mem_params_or_aux hC ht)
+      · exact hsub (h.mem_params_or_aux hC ht)
     · rw [h.eqn_of_mem he'] at ht
-      exact hsub t (hC.terms_subset e' he' ht)
+      exact hsub (hC.terms_subset e' he' ht)
   · rcases Finset.mem_insert.1 he' with rfl | he'
     · change (Function.update C.eqn e' _ e').terms.card ≤ 3
       rw [Function.update_self]
       exact card_affEqn_le _ _
-    · rw [h.eqn_of_mem he']; exact hC.card_terms_le e' he'
+    · exact h.eqn_of_mem he' ▸ hC.card_terms_le e' he'
   · obtain ⟨val, hu, heq⟩ := hC.solvable u
     have hw : ∀ i, i ≠ J → Function.update val J (g.eval val) i = val i := fun i hi =>
       Function.update_of_ne hi _ _
@@ -173,8 +154,7 @@ theorem WellFormed.moveAffine (hC : C.WellFormed) {J e : ℕ} (h : C.MoveOK J e)
   · obtain ⟨heq, hJv⟩ := (h.eqnsHold_iff val).1 heq
     obtain ⟨heq', hJv'⟩ := (h.eqnsHold_iff val').1 heq'
     have hagree' := hC.unique val val' hagree heq heq'
-    change a ∈ insert J C.aux at ha
-    rcases Finset.mem_insert.1 ha with rfl | ha
+    rcases Finset.mem_insert.1 (show a ∈ insert J C.aux from ha) with rfl | ha
     · rw [(affEqn_holds h.affine _ _).1 hJv, (affEqn_holds h.affine _ _).1 hJv']
       refine Gate.eval_congr fun i hi => ?_
       rcases Finset.mem_union.1 (h.mem_params_or_aux hC hi) with hp | ha
@@ -185,12 +165,11 @@ theorem WellFormed.moveAffine (hC : C.WellFormed) {J e : ℕ} (h : C.MoveOK J e)
 /-- A consistent assignment after moving a gate into the affine system is consistent for the
 original semi-circuit. -/
 theorem MoveOK.liftsTo {J e : ℕ} (h : C.MoveOK J e) : (C.moveAffine J e).LiftsTo C :=
-  fun val hval => by
-    obtain ⟨heq, hJv⟩ := (h.eqnsHold_iff val).1 hval.1
-    refine ⟨val, ⟨heq, fun K hK => ?_⟩, fun _ _ => rfl, rfl⟩
-    by_cases hKJ : K = J
-    · subst hKJ; exact (affEqn_holds h.affine _ _).1 hJv
-    · exact hval.2 K (Finset.mem_erase.2 ⟨hKJ, hK⟩)
+  fun val hval =>
+    let ⟨heq, hJv⟩ := (h.eqnsHold_iff val).1 hval.1
+    ⟨val, ⟨heq, fun K hK => (eq_or_ne K J).elim
+      (fun hKJ => hKJ ▸ (affEqn_holds h.affine _ _).1 hJv)
+      fun hKJ => hval.2 K (Finset.mem_erase.2 ⟨hKJ, hK⟩)⟩, fun _ _ => rfl, rfl⟩
 
 /-- Moving a gate into the affine system does not increase the degree of any value other than
 the gate. -/
@@ -252,17 +231,14 @@ theorem WellFormed.rewire (hC : C.WellFormed) {J : ℕ} {g : Gate} (h : C.Rewire
   disjoint_params_gates := hC.disjoint_params_gates
   disjoint_aux_gates := hC.disjoint_aux_gates
   reads_lt K hK i hi hr := by
-    by_cases hKJ : K = J
-    · subst hKJ
-      rw [rewire_gate_self] at hr
+    obtain rfl | hKJ := eq_or_ne K J
+    · rw [rewire_gate_self] at hr
       exact absurd hi (hC.notMem_gates_of_mem_params (h.reads i hr))
     · rw [rewire_gate_of_ne hKJ] at hr; exact hC.reads_lt K hK i hi hr
   reads_live K hK i hr := by
-    by_cases hKJ : K = J
-    · subst hKJ
-      rw [rewire_gate_self] at hr
-      simp only [live, Finset.mem_union]
-      exact Or.inl (Or.inl (h.reads i hr))
+    obtain rfl | hKJ := eq_or_ne K J
+    · rw [rewire_gate_self] at hr
+      exact Finset.mem_union_left _ (Finset.mem_union_left _ (h.reads i hr))
     · rw [rewire_gate_of_ne hKJ] at hr; exact hC.reads_live K hK i hr
   terms_subset := hC.terms_subset
   card_terms_le := hC.card_terms_le
@@ -273,12 +249,11 @@ theorem WellFormed.rewire (hC : C.WellFormed) {J : ℕ} {g : Gate} (h : C.Rewire
 /-- A consistent assignment of a rewired semi-circuit is consistent for the original one. -/
 theorem RewireOK.liftsTo {J : ℕ} {g : Gate} (h : C.RewireOK J g) : (C.rewire J g).LiftsTo C :=
   fun val hval => by
-    have hothers : ∀ K ∈ C.gates, K ≠ J → val K = (C.gate K).eval val := fun K hK hKJ => by
-      rw [← rewire_gate_of_ne hKJ]; exact hval.2 K hK
+    have hothers (K : ℕ) (hK : K ∈ C.gates) (hKJ : K ≠ J) : val K = (C.gate K).eval val :=
+      rewire_gate_of_ne hKJ ▸ hval.2 K hK
     refine ⟨val, ⟨hval.1, fun K hK => ?_⟩, fun _ _ => rfl, rfl⟩
-    by_cases hKJ : K = J
-    · subst hKJ
-      rw [← h.value val hothers, ← rewire_gate_self (C := C) (g := g)]
+    obtain rfl | hKJ := eq_or_ne K J
+    · rw [← h.value val hothers, ← rewire_gate_self (C := C) (g := g)]
       exact hval.2 K hK
     · exact hothers K hK hKJ
 

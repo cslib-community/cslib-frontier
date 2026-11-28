@@ -110,17 +110,14 @@ theorem eval_dedupLine (line : Line signature n g) (x : Fin n → Bool) (gates :
 /-- Reading every wire once makes no line deeper. -/
 theorem depth_dedupLine_le (line : Line signature n g) (depths : Wire n g → ℕ) :
     (dedupLine line).depth depths ≤ line.depth depths := by
-  have hpos := line.depth_pos depths
-  have hle : ∀ a, depths (line.wires a) ≤ line.depth depths - 1 := fun a => by
-    have := line.wireDepth_lt_depth depths a
-    omega
+  have hle (a : Fin (signature.Arity line.op)) : depths (line.wires a) ≤ line.depth depths - 1 :=
+    Nat.le_sub_one_of_lt (line.wireDepth_lt_depth depths a)
   refine ((Line.depth_le_add_one_iff _ depths (d := line.depth depths - 1)).2 ?_).trans
-    (by omega)
+    (Nat.sub_add_cancel (line.depth_pos depths)).le
   obtain ⟨op, w⟩ := line
   cases op with
   | not => exact hle
-  | and k => exact (forall_get_dedup_ofFn_iff w fun a => depths a ≤ _).2 hle
-  | or k => exact (forall_get_dedup_ofFn_iff w fun a => depths a ≤ _).2 hle
+  | and _ | or _ => exact (forall_get_dedup_ofFn_iff w fun a => depths a ≤ _).2 hle
 
 /-- A line reading every wire once reads at most all `n + g` wires. -/
 theorem arity_dedupLine_le (line : Line signature n g) :
@@ -128,8 +125,7 @@ theorem arity_dedupLine_le (line : Line signature n g) :
   obtain ⟨op, w⟩ := line
   cases op with
   | not => exact (Fintype.card_pos_iff.2 ⟨w 0⟩).trans_eq Wire.card
-  | and k => exact (List.nodup_dedup _).length_le_card.trans_eq Wire.card
-  | or k => exact (List.nodup_dedup _).length_le_card.trans_eq Wire.card
+  | and _ | or _ => exact (List.nodup_dedup _).length_le_card.trans_eq Wire.card
 
 /-- The gates of a program reading every wire once read at most all wires. -/
 private theorem arity_lines_mapLines_dedupLine_le (p : Program signature n g) (k : Fin g) :
@@ -223,60 +219,43 @@ theorem Op.computes_deMorganFormula (op : Op) :
   cases op with
   | not => rfl
   | and k =>
-    rw [deMorganFormula, Formula.eval_andList, interpretation_and, Bool.eq_iff_iff,
-      List.all_eq_true]
-    simp
+    exact Bool.eq_iff_iff.2 (by simp [deMorganFormula, Formula.eval_andList, interpretation_and])
   | or k =>
-    rw [deMorganFormula, Formula.eval_orList, interpretation_or, Bool.eq_iff_iff,
-      List.any_eq_true]
-    simp
+    exact Bool.eq_iff_iff.2 (by simp [deMorganFormula, Formula.eval_orList, interpretation_or])
 
 /-- The De Morgan formula of an operation of `k` arguments has at most `max 1 k` nodes: one
 negation, a constant for no arguments, and `k - 1` binary gates for `k ≥ 1` arguments. -/
 theorem Op.size_deMorganFormula_le (op : Op) : op.deMorganFormula.size ≤ max 1 op.arity := by
-  cases op with
-  | not => simp [deMorganFormula]
-  | and k =>
-    rcases k.eq_zero_or_pos with rfl | hk
-    · simp [deMorganFormula]
-    · have := Formula.size_andList_add_one
-        (l := List.ofFn (Formula.input (σ := Boolean.signature) (n := k))) (by simpa using hk.ne')
-      simp only [List.map_ofFn, List.sum_ofFn, Function.comp_apply, Formula.size_input,
-        Finset.sum_const_zero, List.length_ofFn, zero_add] at this
-      exact (le_max_right 1 k).trans' (by rw [deMorganFormula]; omega)
-  | or k =>
-    rcases k.eq_zero_or_pos with rfl | hk
-    · simp [deMorganFormula]
-    · have := Formula.size_orList_add_one
-        (l := List.ofFn (Formula.input (σ := Boolean.signature) (n := k))) (by simpa using hk.ne')
-      simp only [List.map_ofFn, List.sum_ofFn, Function.comp_apply, Formula.size_input,
-        Finset.sum_const_zero, List.length_ofFn, zero_add] at this
-      exact (le_max_right 1 k).trans' (by rw [deMorganFormula]; omega)
+  have step {k : ℕ} {f : Formula Boolean.signature k}
+      (h : f.size + 1 = ((List.ofFn (Formula.input (σ := Boolean.signature) (n := k))).map
+        Formula.size).sum + (List.ofFn (Formula.input (σ := Boolean.signature) (n := k))).length) :
+      f.size ≤ max 1 k := by
+    simp only [List.map_ofFn, List.sum_ofFn, Function.comp_apply, Formula.size_input,
+      Finset.sum_const_zero, List.length_ofFn, zero_add] at h
+    omega
+  match op with
+  | .not | .and 0 | .or 0 => simp [deMorganFormula]
+  | .and (_ + 1) => exact step (Formula.size_andList_add_one (by simp))
+  | .or (_ + 1) => exact step (Formula.size_orList_add_one (by simp))
 
 /-- The De Morgan formula of an operation of `k` arguments has depth at most `max 1 ⌈log₂ k⌉`:
 one for a negation or a constant, and `⌈log₂ k⌉` for a balanced tree of `k ≥ 1` arguments. -/
 theorem Op.depth_deMorganFormula_le (op : Op) :
     op.deMorganFormula.depth ≤ max 1 (Nat.clog 2 op.arity) := by
-  cases op with
-  | not => simp [deMorganFormula]
-  | and k =>
-    rcases k.eq_zero_or_pos with rfl | hk
-    · simp [deMorganFormula]
-    · have := Formula.depthWith_andList_le (cost := 1)
-        (l := List.ofFn (Formula.input (σ := Boolean.signature) (n := k))) (d := 0) (by simp)
-        (by simpa using hk.ne')
-      simp only [Formula.depthWith_one, List.length_ofFn, Pi.one_apply, one_mul,
-        zero_add] at this
-      exact this.trans (le_max_right _ _)
-  | or k =>
-    rcases k.eq_zero_or_pos with rfl | hk
-    · simp [deMorganFormula]
-    · have := Formula.depthWith_orList_le (cost := 1)
-        (l := List.ofFn (Formula.input (σ := Boolean.signature) (n := k))) (d := 0) (by simp)
-        (by simpa using hk.ne')
-      simp only [Formula.depthWith_one, List.length_ofFn, Pi.one_apply, one_mul,
-        zero_add] at this
-      exact this.trans (le_max_right _ _)
+  have step {k : ℕ} {f : Formula Boolean.signature k} {op' : Boolean.signature.Op}
+      (h : f.depthWith 1 ≤ 0 + (1 : Boolean.signature.Op → ℕ) op' *
+        Nat.clog 2 (List.ofFn (Formula.input (σ := Boolean.signature) (n := k))).length) :
+      f.depth ≤ max 1 (Nat.clog 2 k) := by
+    simp only [Formula.depthWith_one, List.length_ofFn, Pi.one_apply, one_mul, zero_add] at h
+    exact h.trans (le_max_right _ _)
+  match op with
+  | .not | .and 0 | .or 0 => simp [deMorganFormula]
+  | .and (_ + 1) =>
+    exact step (Formula.depthWith_andList_le (cost := 1) (d := 0) (by simp)
+      (by simp))
+  | .or (_ + 1) =>
+    exact step (Formula.depthWith_orList_le (cost := 1) (d := 0) (by simp)
+      (by simp))
 
 /-! ### Simulation -/
 

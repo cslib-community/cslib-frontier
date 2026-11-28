@@ -58,16 +58,15 @@ private theorem setup_inSpace :
     ComputableInSpace setup encSeedSearchParameters encSeedSearchSetup
       (fun p => (encSeedSearchParameters p).length) := by
   have hid := budget_id (enc := encSeedSearchParameters) (.refl _)
-  have hg := encSeedSearchParameters_graph_budget hid
-  have hs := encSeedSearchParameters_search_budget hid
-  have hb := encSubdivisionSize_chainBound_budget (encSeedSearchSize_subdivision_budget hs)
-  have hids := budget_comp_linear subdivisionEndpointIDs_inSpace (budget_prod hg hb)
-  let encIDs := encPair encNat encNat
-  have hp := fst encSeedSearchParameters encIDs
-  have he := snd encSeedSearchParameters encIDs
-  have hmk := encSeedSearchSetup_mk_budget hp
-    (budget_comp_linear (fst encNat encNat) he) (budget_comp_linear (snd encNat encNat) he)
-  have h := budget_comp_linear hmk (budget_prod hid hids)
+  have hids := budget_comp_linear subdivisionEndpointIDs_inSpace (budget_prod
+    (encSeedSearchParameters_graph_budget hid)
+    (encSubdivisionSize_chainBound_budget (encSeedSearchSize_subdivision_budget
+      (encSeedSearchParameters_search_budget hid))))
+  have he := snd encSeedSearchParameters (encPair encNat encNat)
+  have h := budget_comp_linear (encSeedSearchSetup_mk_budget
+    (fst encSeedSearchParameters (encPair encNat encNat))
+    (budget_comp_linear (fst encNat encNat) he)
+    (budget_comp_linear (snd encNat encNat) he)) (budget_prod hid hids)
   exact h
 
 /-- Convert a row-major original-source position to its offset-zero subdivision ID. -/
@@ -78,14 +77,11 @@ private theorem setup_inSpace :
 theorem originalSourceID_inSpace :
     ComputableInSpace (fun p : SeedSearchSetup × ℕ => p.1.originalSourceID p.2)
       (encPair encSeedSearchSetup encNat) encNat
-      (fun p => (encPair encSeedSearchSetup encNat p).length) := by
-  have hsetup := fst encSeedSearchSetup encNat
-  have hp := encSeedSearchSetup_parameters_budget hsetup
-  have hs := encSeedSearchParameters_search_budget hp
-  have hb := encSubdivisionSize_chainBound_budget (encSeedSearchSize_subdivision_budget hs)
-  exact (budget_comp_linear rootID_inSpace
-    (budget_prod (snd encSeedSearchSetup encNat) hb)).of_enc_eq fun p => by
-      rw [SeedSearchSetup.originalSourceID]
+      (fun p => (encPair encSeedSearchSetup encNat p).length) :=
+  (budget_comp_linear rootID_inSpace (budget_prod (snd encSeedSearchSetup encNat)
+    (encSubdivisionSize_chainBound_budget (encSeedSearchSize_subdivision_budget
+      (encSeedSearchParameters_search_budget (encSeedSearchSetup_parameters_budget
+        (fst encSeedSearchSetup encNat))))))).of_enc_eq fun _ => rfl
 
 variable {k : ℕ} {State : Type} [Fintype State]
 
@@ -105,8 +101,8 @@ theorem configurationSeedSearchSetup_endpoints (ntm : MultiTapeNTM k Bool State)
     let s := configurationSeedSearchSetup ntm c w
     s.parameters = p ∧ (s.sourceID, s.targetID) =
       ((index (root bound (layeredCoordinates I (layeredStart I)))).val,
-        (index (root bound (layeredCoordinates I (layeredTarget I)))).val) := by
-  exact ⟨rfl, subdivisionEndpointIDs_eq ntm c w _⟩
+        (index (root bound (layeredCoordinates I (layeredTarget I)))).val) :=
+  ⟨rfl, subdivisionEndpointIDs_eq ntm c w _⟩
 
 /-- The initialized carrier count is the size of the codomain of `subdivisionIndex`
 at the retained chain bound. -/
@@ -144,13 +140,9 @@ theorem configurationSeedSearchSetup_endpoints_lt_vertexCount (ntm : MultiTapeNT
     let n := s.parameters.search.subdivision.vertexCount
     s.sourceID < n ∧ s.targetID < n := by
   obtain ⟨hparams, hids⟩ := configurationSeedSearchSetup_endpoints ntm c w
-  let I := configurationInstance ntm c w
-  let bound := (configurationSeedSearchParameters ntm c w).search.subdivision.chainBound
-  let index := subdivisionIndex I bound
   dsimp only
-  rw [configurationSeedSearchSetup_vertexCount, hparams]
-  rw [(Prod.mk.inj hids).1, (Prod.mk.inj hids).2]
-  exact ⟨(index _).isLt, (index _).isLt⟩
+  rw [configurationSeedSearchSetup_vertexCount, hparams, (Prod.mk.inj hids).1, (Prod.mk.inj hids).2]
+  exact ⟨(subdivisionIndex _ _ _).isLt, (subdivisionIndex _ _ _).isLt⟩
 
 /-- The retained source count is the size of the row-major original vertex carrier. -/
 theorem configurationSeedSearchSetup_originalCount (ntm : MultiTapeNTM k Bool State)
@@ -158,9 +150,8 @@ theorem configurationSeedSearchSetup_originalCount (ntm : MultiTapeNTM k Bool St
     let I := configurationInstance ntm c w
     let s := configurationSeedSearchSetup ntm c w
     s.parameters.search.subdivision.originalCount = ((I.n - 1) + 1) * I.n := by
-  obtain ⟨hparams, _⟩ := configurationSeedSearchSetup_endpoints ntm c w
-  dsimp only at hparams ⊢
-  rw [hparams]
+  dsimp only
+  rw [(configurationSeedSearchSetup_endpoints ntm c w).1]
   exact Nat.mul_comm _ _
 
 /-- A source position in the initialized setup gives exactly the root used by the indexed
@@ -183,15 +174,12 @@ theorem configurationSeedSearchSetup_originalSourceID_lt_vertexCount
     let s := configurationSeedSearchSetup ntm c w
     ∀ {position : ℕ}, position < s.parameters.search.subdivision.originalCount →
       s.originalSourceID position < s.parameters.search.subdivision.vertexCount := by
-  obtain ⟨hparams, _⟩ := configurationSeedSearchSetup_endpoints ntm c w
-  dsimp only at hparams ⊢
+  dsimp only
   intro position hpos
+  have hparams := (configurationSeedSearchSetup_endpoints ntm c w).1
   rw [hparams] at hpos
   rw [SeedSearchSetup.originalSourceID, hparams, rootID]
-  let p := (configurationSeedSearchParameters ntm c w).search.subdivision
-  change (p.chainBound + 1) * position < p.originalCount * (p.chainBound + 1)
-  rw [Nat.mul_comm p.originalCount (p.chainBound + 1)]
-  exact Nat.mul_lt_mul_of_pos_left hpos (Nat.succ_pos _)
+  exact (Nat.mul_lt_mul_of_pos_left hpos (Nat.succ_pos _)).trans_eq (Nat.mul_comm _ _)
 
 /-- The entire setup is computed natively in logarithmic workspace on the original input. -/
 theorem configurationSeedSearchSetup_inLogSpace (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
@@ -230,10 +218,8 @@ theorem length_configurationSubdivisionVertexCount_le_log
       let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
       (encNat size.vertexCount).length ≤ C * (Nat.log2 w.length + 1) := by
   obtain ⟨C, hsetup⟩ := length_configurationSeedSearchSetup_le_log ntm c
-  refine ⟨C, fun w => ?_⟩
-  let s := configurationSeedSearchSetup ntm c w
-  exact (encSubdivisionSize_vertexCount_length_le s.parameters.search.subdivision).trans
-    ((encSeedSearchSetup_subdivision_length_le s).trans (hsetup w))
+  exact ⟨C, fun w => (encSubdivisionSize_vertexCount_length_le _).trans
+    ((encSeedSearchSetup_subdivision_length_le _).trans (hsetup w))⟩
 
 /-- All valid requests to the initialized scan have logarithmic overhead over their explicitly
 charged context. The same bound covers the decoded requests passed into the callback. -/
@@ -255,27 +241,24 @@ theorem length_configurationSubdivisionRequest_le {Context : Type}
   let budget := (encContext ctx).length + (Nat.log2 w.length + 1)
   have hsize := encSeedSearchSetup_subdivision_length_le s
   have hb := (encSubdivisionSize_chainBound_length_le size).trans hsize
-  have hvertex := (encSubdivisionSize_vertexCount_length_le size).trans hsize
-  have hs := hK w
+  have hfrom := (length_encNat_mono hu.le).trans
+    ((encSubdivisionSize_vertexCount_length_le size).trans hsize)
+  have hto := (length_encNat_mono hv.le).trans
+    ((encSubdivisionSize_vertexCount_length_le size).trans hsize)
   have hq : (encFlatQuery encContext q).length ≤
       2 * (encContext ctx).length + 5 * (encSeedSearchSetup s).length + 6 := by
-    have hfrom := (length_encNat_mono hu.le).trans hvertex
-    have hto := (length_encNat_mono hv.le).trans hvertex
     enc_len [encFlatQuery_apply, encFlatQueryFields, q]
+  have hs : (encSeedSearchSetup s).length ≤ K * (Nat.log2 w.length + 1) := hK w
   have hbudget : (encFlatQuery encContext q).length + 1 ≤ (5 * K + 9) * budget := by
     calc
-      _ ≤ 2 * (encContext ctx).length + 5 * (K * (Nat.log2 w.length + 1)) + 7 := by
-        change (encSeedSearchSetup s).length ≤ _ at hs
-        omega
+      _ ≤ 2 * (encContext ctx).length + 5 * (K * (Nat.log2 w.length + 1)) + 7 := by omega
       _ ≤ (5 * K + 9) * budget := by
         dsimp [budget]
         ring_nf
         omega
   have h := Nat.mul_le_mul_left (D + 1) hbudget
   rw [← Nat.mul_assoc] at h
-  have hflat := (Nat.le_succ (encFlatQuery encContext q).length).trans
-    (Nat.le_mul_of_pos_left _ (Nat.succ_pos D))
-  exact ⟨hflat.trans h, (hD q).trans
-    ((Nat.mul_le_mul_right _ (Nat.le_succ D)).trans h)⟩
+  exact ⟨((Nat.le_succ _).trans (Nat.le_mul_of_pos_left _ (Nat.succ_pos D))).trans h,
+    (hD q).trans ((Nat.mul_le_mul_right _ (Nat.le_succ D)).trans h)⟩
 
 end Cslib.Complexity.STCON

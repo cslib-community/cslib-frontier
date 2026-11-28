@@ -33,21 +33,13 @@ open Cslib.WordRAM Cslib.Algorithms.MatrixMultiplication.Schonhage
 /-- The actual fixed-length radix code recovers every original prefix term. -/
 theorem decodePrefix_prefixCode (xs : List Term) :
     decodePrefix xs.length (prefixCode xs) = xs := by
-  apply List.ext_getElem
-  · simp [decodePrefix]
-  · intro i hi hi'
-    simp only [decodePrefix, List.getElem_ofFn]
-    have hd := Cslib.Radix.digit_ofDigits (B := 10) (by decide)
-      (xs.map fun lam => (Encoding.termDigits.symm lam).val)
-      (by intro d hd; obtain ⟨lam, _, rfl⟩ := List.mem_map.mp hd
-          exact (Encoding.termDigits.symm lam).isLt) i (by simpa using hi')
-    rw [Cslib.Radix.digit_eq_div_pow_mod] at hd
-    have hv : prefixCode xs / 10 ^ i % 10 =
-        (Encoding.termDigits.symm xs[i]).val := by
-      simpa only [prefixCode, List.getElem_map] using hd
-    have hf : (⟨prefixCode xs / 10 ^ i % 10,
-        Nat.mod_lt _ (by decide)⟩ : Fin 10) = Encoding.termDigits.symm xs[i] := Fin.ext hv
-    rw [hf, Encoding.termDigits.apply_symm_apply]
+  refine List.ext_getElem (by simp [decodePrefix]) fun i hi hi' => ?_
+  simp only [decodePrefix, List.getElem_ofFn]
+  have hd := Cslib.Radix.digit_ofDigits (B := 10) (by decide)
+    (xs.map fun lam => (Encoding.termDigits.symm lam).val)
+    (List.forall_mem_map.2 fun _ _ => (Encoding.termDigits.symm _).isLt) i (by simpa using hi')
+  rw [Cslib.Radix.digit_eq_div_pow_mod, List.getElem_map] at hd
+  exact (congrArg Encoding.termDigits (Fin.ext hd)).trans (Encoding.termDigits.apply_symm_apply _)
 
 /-- Decode occupied stack records in their actual top-first order. -/
 @[expose] def decodeStack (F : ℕ) (μ : ℕ → ℕ) : ℕ → List (List Term)
@@ -60,8 +52,9 @@ theorem StackMemory.decode {L F : ℕ} {η : OutStr L} {tasks : List (List Term)
   induction tasks with
   | nil => rfl
   | cons xs rest ih =>
-    rw [List.length_cons, decodeStack, h.1.depth, h.1.code, decodePrefix_prefixCode,
-      ih h.2]
+    have hdepth : μ (F + rest.length * 5) = xs.length := h.1 0
+    have hcode : μ (F + rest.length * 5 + 1) = prefixCode xs := h.1 1
+    rw [List.length_cons, decodeStack, hdepth, hcode, decodePrefix_prefixCode, ih h.2]
 
 /-- Proof-only work potential computed from the actual pending records. -/
 @[expose] def workMeasure {L : ℕ} (η : OutStr L) (t F : ℕ) (x : Data registers) : ℕ :=

@@ -17,7 +17,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Foundations.Data.BitString.Binary
-import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.FinIndex
 
 /-!
@@ -177,9 +176,7 @@ variable {n : ℕ}
   ⟨4 * n + i.1, by omega⟩
 
 private theorem xVar_injective : Function.Injective (xVar (n := n)) := by
-  intro i j h
-  ext
-  exact Fin.mk.inj h
+  fin_index [xVar]
 
 private theorem yVar_injective : Function.Injective (yVar (n := n)) := by
   fin_index [yVar]
@@ -209,12 +206,10 @@ private theorem yVar_ne_zVar (i j : Fin (2 * n)) : yVar i ≠ zVar j := by
 private theorem eq_xVar_or_yVar_or_zVar (v : Fin (6 * n)) :
     (∃ i, v = xVar i) ∨ (∃ i, v = yVar i) ∨ (∃ i, v = zVar i) := by
   by_cases h₁ : v.1 < 2 * n
-  · exact Or.inl ⟨⟨v.1, h₁⟩, rfl⟩
+  · exact .inl ⟨⟨v.1, h₁⟩, rfl⟩
   · by_cases h₂ : v.1 < 4 * n
-    · refine Or.inr (Or.inl ⟨⟨v.1 - 2 * n, by omega⟩, ?_⟩)
-      ext; dsimp [yVar]; omega
-    · refine Or.inr (Or.inr ⟨⟨v.1 - 4 * n, by omega⟩, ?_⟩)
-      ext; dsimp [zVar]; omega
+    · exact .inr (.inl ⟨⟨v.1 - 2 * n, by omega⟩, Fin.ext (by dsimp [yVar]; omega)⟩)
+    · exact .inr (.inr ⟨⟨v.1 - 4 * n, by omega⟩, Fin.ext (by dsimp [zVar]; omega)⟩)
 
 /-- The finset of `z`-coordinates in `Fin (6 * n)`. -/
 private def zSet (n : ℕ) : Finset (Fin (6 * n)) :=
@@ -226,15 +221,11 @@ private theorem mem_zSet {v : Fin (6 * n)} : v ∈ zSet n ↔ ∃ i, v = zVar i 
 @[simp] private theorem zVar_mem_zSet (i : Fin (2 * n)) : zVar i ∈ zSet n :=
   mem_zSet.mpr ⟨i, rfl⟩
 
-@[simp] private theorem xVar_notMem_zSet (i : Fin (2 * n)) : xVar i ∉ zSet n := by
-  rw [mem_zSet]
-  rintro ⟨j, hj⟩
-  exact xVar_ne_zVar i j hj
+@[simp] private theorem xVar_notMem_zSet (i : Fin (2 * n)) : xVar i ∉ zSet n :=
+  mt mem_zSet.mp fun ⟨j, hj⟩ => xVar_ne_zVar i j hj
 
-@[simp] private theorem yVar_notMem_zSet (i : Fin (2 * n)) : yVar i ∉ zSet n := by
-  rw [mem_zSet]
-  rintro ⟨j, hj⟩
-  exact yVar_ne_zVar i j hj
+@[simp] private theorem yVar_notMem_zSet (i : Fin (2 * n)) : yVar i ∉ zSet n :=
+  mt mem_zSet.mp fun ⟨j, hj⟩ => yVar_ne_zVar i j hj
 
 @[simp] private theorem card_zSet (n : ℕ) : (zSet n).card = 2 * n := by
   rw [zSet, Finset.card_image_of_injective _ zVar_injective, Finset.card_univ, Fintype.card_fin]
@@ -263,15 +254,12 @@ private theorem mem_zSet {v : Fin (6 * n)} : v ∈ zSet n ↔ ∃ i, v = zVar i 
 
 @[simp] private theorem packXYZ_yVar (x y z : BitString (2 * n)) (i : Fin (2 * n)) :
     packXYZ x y z (yVar i) = y i := by
-  have h₁ : ¬(2 * n + i.1 < 2 * n) := by omega
-  have h₂ : 2 * n + i.1 < 4 * n := by omega
-  simp [packXYZ, yVar, h₁, h₂]
+  simp [packXYZ, yVar, show ¬(2 * n + i.1 < 2 * n) by omega, show 2 * n + i.1 < 4 * n by omega]
 
 @[simp] private theorem packXYZ_zVar (x y z : BitString (2 * n)) (i : Fin (2 * n)) :
     packXYZ x y z (zVar i) = z i := by
-  have h₁ : ¬(4 * n + i.1 < 2 * n) := by omega
-  have h₂ : ¬(4 * n + i.1 < 4 * n) := by omega
-  simp [packXYZ, zVar, h₁, h₂]
+  simp [packXYZ, zVar, show ¬(4 * n + i.1 < 2 * n) by omega,
+    show ¬(4 * n + i.1 < 4 * n) by omega]
 
 @[simp] private theorem unpackX_packXYZ (x y z : BitString (2 * n)) :
     unpackX (packXYZ x y z) = x := by
@@ -295,9 +283,7 @@ private theorem update_packXYZ_xVar (x y z : BitString (2 * n)) (i : Fin (2 * n)
     Function.update (packXYZ x y z) (xVar i) b = packXYZ (Function.update x i b) y z := by
   funext v
   rcases eq_xVar_or_yVar_or_zVar v with ⟨j, rfl⟩ | ⟨j, rfl⟩ | ⟨j, rfl⟩
-  · by_cases h : j = i
-    · subst h; simp
-    · simp [Function.update_of_ne (xVar_inj.not.mpr h), Function.update_of_ne h]
+  · simp [Function.update_apply]
   · simp [Function.update_of_ne (xVar_ne_yVar i j).symm]
   · simp [Function.update_of_ne (xVar_ne_zVar i j).symm]
 
@@ -306,9 +292,7 @@ private theorem update_packXYZ_yVar (x y z : BitString (2 * n)) (i : Fin (2 * n)
   funext v
   rcases eq_xVar_or_yVar_or_zVar v with ⟨j, rfl⟩ | ⟨j, rfl⟩ | ⟨j, rfl⟩
   · simp [Function.update_of_ne (xVar_ne_yVar j i)]
-  · by_cases h : j = i
-    · subst h; simp
-    · simp [Function.update_of_ne (yVar_inj.not.mpr h), Function.update_of_ne h]
+  · simp [Function.update_apply]
   · simp [Function.update_of_ne (yVar_ne_zVar i j).symm]
 
 private theorem update_packXYZ_zVar (x y z : BitString (2 * n)) (i : Fin (2 * n)) (b : Bool) :
@@ -317,9 +301,7 @@ private theorem update_packXYZ_zVar (x y z : BitString (2 * n)) (i : Fin (2 * n)
   rcases eq_xVar_or_yVar_or_zVar v with ⟨j, rfl⟩ | ⟨j, rfl⟩ | ⟨j, rfl⟩
   · simp [Function.update_of_ne (xVar_ne_zVar j i)]
   · simp [Function.update_of_ne (yVar_ne_zVar j i)]
-  · by_cases h : j = i
-    · subst h; simp
-    · simp [Function.update_of_ne (zVar_inj.not.mpr h), Function.update_of_ne h]
+  · simp [Function.update_apply]
 
 /-! ### Special $2n$-bit vectors and Ilango's partial function $\gamma_G$ -/
 
@@ -393,11 +375,8 @@ threshold $s = 6n - 1$. -/
 
 @[simp] theorem ilangoInstance_partialFunction (G : BipartitePermutationGraph) :
     (ilangoInstance G).partialFunction = ilangoGamma G := by
-  change (fun w : BitString (6 * G.1) =>
-    (ilangoInstance G).table (BitString.equivFin (6 * G.1) w)) = ilangoGamma G
   funext w
-  dsimp [ilangoInstance]
-  rw [Equiv.symm_apply_apply]
+  exact congrArg (ilangoGamma G) (Equiv.symm_apply_apply _ w)
 
 /-! ### Evaluation of `ilangoGamma` on each of the seven clauses -/
 
@@ -444,10 +423,28 @@ threshold $s = 6n - 1$. -/
   split_ifs with hx0 hx1 hz1
   · simp
   · simp
-  · congr 2
-    simp only [decide_eq_false_iff_not, not_exists]
-    intro i
-    exact absurd (congrFun hz1 i) Bool.false_ne_true
+  · exact congrArg some (decide_eq_false fun ⟨i, _⟩ => Bool.false_ne_true (congrFun hz1 i))
+  · rfl
+
+private theorem ilangoGamma_half_aux (G : BipartitePermutationGraph) (x : BitString (2 * G.1))
+    (z : BitString (2 * G.1)) (P : ℕ → Prop) [DecidablePred P]
+    (hz : ∀ i : Fin (2 * G.1), z i = decide (P i.1)) :
+    (if x = zeros2n then some (decide (∃ i : Fin (2 * G.1), zeros2n i = true ∧ z i = true))
+     else if x = ones2n then some (decide (∃ i : Fin (2 * G.1), z i = true))
+     else if z = ones2n then some (decide (∃ i : Fin (2 * G.1), x i = true ∨ zeros2n i = true))
+     else if z = zeros2n then some false
+     else some (decide (∃ i : Fin (2 * G.1), P i.1 ∧ x i = true))) =
+    some (decide (∃ i : Fin (2 * G.1), P i.1 ∧ x i = true)) := by
+  have hz_eq : z = fun i => decide (P i.1) := funext hz
+  subst hz_eq
+  split_ifs with hx0 hx1 hz1 hz0
+  · simp [hx0]
+  · subst hx1; congr 2; exact propext ⟨fun ⟨i, hi⟩ => ⟨i, by simpa using hi, rfl⟩,
+      fun ⟨i, hi, _⟩ => ⟨i, decide_eq_true hi⟩⟩
+  · congr 2; exact propext ⟨fun ⟨i, hi⟩ => ⟨i, by simpa using congrFun hz1 i, by simpa using hi⟩,
+      fun ⟨i, _, hi⟩ => ⟨i, .inl hi⟩⟩
+  · simp only [Option.some.injEq, false_eq_decide_iff, not_exists, not_and]
+    intro i hi _; simpa [hi] using congrFun hz0 i
   · rfl
 
 /-- Clause (5): when $z = 1^n 0^n$ and $y = 0^{2n}$, $\gamma_G(x, 0^{2n}, 1^n 0^n) =
@@ -457,22 +454,8 @@ threshold $s = 6n - 1$. -/
     ilangoGamma G (packXYZ x zeros2n leftHalfOnes) =
       some (decide (∃ i : Fin (2 * G.1), i.1 < G.1 ∧ x i = true)) := by
   unfold ilangoGamma
-  simp only [unpackX_packXYZ, unpackY_packXYZ, unpackZ_packXYZ, and_true]
-  split_ifs with hx0 hx1 hz1 hz0
-  · subst hx0; congr 2; simp
-  · subst hx1
-    congr 2
-    exact propext ⟨fun ⟨i, hi⟩ => ⟨i, by simpa [leftHalfOnes] using hi, rfl⟩,
-      fun ⟨i, hi, _⟩ => ⟨i, by simpa [leftHalfOnes] using hi⟩⟩
-  · congr 2
-    exact propext ⟨fun ⟨i, hi⟩ => ⟨i, by simpa [leftHalfOnes] using congrFun hz1 i,
-      by simpa using hi⟩, fun ⟨i, _, hi⟩ => ⟨i, Or.inl hi⟩⟩
-  · simp only [Option.some.injEq, false_eq_decide_iff, not_exists, not_and]
-    intro i hi _
-    have := congrFun hz0 i
-    revert this
-    simp [leftHalfOnes, zeros2n, hi]
-  · rfl
+  simp only [unpackX_packXYZ, unpackY_packXYZ, unpackZ_packXYZ, and_true, ↓reduceIte]
+  exact ilangoGamma_half_aux G x leftHalfOnes (· < G.1) fun _ => rfl
 
 /-- Clause (6): when $z = 0^n 1^n$ and $y = 0^{2n}$, $\gamma_G(x, 0^{2n}, 0^n 1^n) =
 \bigvee_{n \le i < 2n} x_i$. -/
@@ -482,28 +465,14 @@ threshold $s = 6n - 1$. -/
       some (decide (∃ i : Fin (2 * G.1), G.1 ≤ i.1 ∧ x i = true)) := by
   unfold ilangoGamma
   simp only [unpackX_packXYZ, unpackY_packXYZ, unpackZ_packXYZ, and_true]
-  split_ifs with hx0 hx1 hz1 hz0 hleft
-  · subst hx0; congr 2; simp
-  · subst hx1
-    congr 2
-    exact propext ⟨fun ⟨i, hi⟩ => ⟨i, by simpa [rightHalfOnes] using hi, rfl⟩,
-      fun ⟨i, hi, _⟩ => ⟨i, by simpa [rightHalfOnes] using hi⟩⟩
-  · congr 2
-    exact propext ⟨fun ⟨i, hi⟩ => ⟨i, by simpa [rightHalfOnes] using congrFun hz1 i,
-      by simpa using hi⟩, fun ⟨i, _, hi⟩ => ⟨i, Or.inl hi⟩⟩
-  · simp only [Option.some.injEq, false_eq_decide_iff, not_exists, not_and]
-    intro i hi _
-    have := congrFun hz0 i
-    revert this
-    simp [rightHalfOnes, zeros2n, hi]
+  by_cases hleft : rightHalfOnes = leftHalfOnes (n := G.1)
   · rcases Nat.eq_zero_or_pos G.1 with h0 | hpos
-    · congr 2
-      exact propext ⟨fun ⟨i, _⟩ => absurd i.2 (by omega), fun ⟨i, _⟩ => absurd i.2 (by omega)⟩
+    · simp [h0]
     · exfalso
-      have h0 : rightHalfOnes (⟨0, by omega⟩ : Fin (2 * G.1)) =
-          leftHalfOnes (⟨0, by omega⟩ : Fin (2 * G.1)) := congrFun hleft _
+      have h0 := congrFun hleft ⟨0, by omega⟩
       simp [rightHalfOnes, leftHalfOnes, hpos, Nat.not_le.mpr hpos] at h0
-  · rfl
+  · simp only [hleft, ↓reduceIte]
+    exact ilangoGamma_half_aux G x rightHalfOnes (G.1 ≤ ·) fun _ => rfl
 
 /-- Clause (7): for $2 \le G.1$ and any edge $((j, k), (j', k')) \in G.2$,
 $\gamma_G(\overline{e_k}\,\overline{e_{k'}}, 0^{2n}, e_j\,e_{j'}) = 1$. -/
@@ -512,37 +481,38 @@ private theorem ilangoGamma_edge {G : BipartitePermutationGraph} (hn : 2 ≤ G.1
     ilangoGamma G (packXYZ (antiUnitPair k k') zeros2n (unitPair j j')) = some true := by
   unfold ilangoGamma
   simp only [unpackX_packXYZ, unpackY_packXYZ, unpackZ_packXYZ, and_true, true_and]
-  have hx0 : antiUnitPair k k' ≠ zeros2n := fun h => by
-    have hm := congrFun h ⟨1 - k.1, by omega⟩
-    simp only [antiUnitPair, zeros2n, Bool.not_eq_false', decide_eq_true_eq] at hm
-    omega
-  have hx1 : antiUnitPair k k' ≠ ones2n := fun h => by
-    simpa [antiUnitPair, ones2n] using congrFun h ⟨k.1, by omega⟩
-  have hz1 : unitPair j j' ≠ ones2n := fun h => by
-    have hm := congrFun h ⟨1 - j.1, by omega⟩
-    simp only [unitPair, ones2n, decide_eq_true_eq] at hm
-    omega
-  have hz0 : unitPair j j' ≠ zeros2n := fun h => by
-    simpa [unitPair, zeros2n] using congrFun h ⟨j.1, by omega⟩
-  have hz_left : unitPair j j' ≠ leftHalfOnes := fun h => by
-    simpa [unitPair, leftHalfOnes] using congrFun h ⟨G.1 + j'.1, by omega⟩
-  have hz_right : unitPair j j' ≠ rightHalfOnes := fun h => by
-    have hj := congrFun h ⟨j.1, by omega⟩
+  split_ifs with hx0 hx1 hz1 hz0 hzl hzr hedge
+  · have := congrFun hx0 ⟨1 - k.1, by omega⟩
+    simp only [antiUnitPair, zeros2n, Bool.not_eq_false', decide_eq_true_eq] at this; omega
+  · simpa [antiUnitPair, ones2n] using congrFun hx1 ⟨k.1, by omega⟩
+  · have := congrFun hz1 ⟨1 - j.1, by omega⟩
+    simp only [unitPair, ones2n, decide_eq_true_eq] at this; omega
+  · simpa [unitPair, zeros2n] using congrFun hz0 ⟨j.1, by omega⟩
+  · simpa [unitPair, leftHalfOnes] using congrFun hzl ⟨G.1 + j'.1, by omega⟩
+  · have := congrFun hzr ⟨j.1, by omega⟩
     simp only [unitPair, rightHalfOnes, true_or, decide_true, eq_comm (a := true),
-      decide_eq_true_eq] at hj
-    omega
-  have hedge : decide (∃ j₁ j₁' k₁ k₁' : Fin G.1,
-      ((j₁.1, k₁.1), (j₁'.1, k₁'.1)) ∈ G.2 ∧
-      antiUnitPair k k' = antiUnitPair k₁ k₁' ∧
-      unitPair j j' = unitPair j₁ j₁') = true :=
-    decide_eq_true ⟨j, j', k, k', he, rfl, rfl⟩
-  simp only [hx0, hx1, hz1, hz0, hz_left, hz_right, hedge, ↓reduceIte]
+      decide_eq_true_eq] at this; omega
+  · rfl
+  · exact absurd (decide_eq_true ⟨j, j', k, k', he, rfl, rfl⟩) hedge
 
 /-! ### Positive essentiality of all $6n$ variables (`Claim 13`) -/
 
 @[simp] private theorem update_zeros2n_false (i : Fin (2 * n)) :
     Function.update (zeros2n (n := n)) i false = zeros2n :=
   Function.update_eq_self i zeros2n
+
+private theorem eval_update_packXYZ_ones2n {g : BitString (6 * n) → Bool}
+    (hg : ∀ x y : BitString (2 * n),
+      g (packXYZ x y ones2n) = decide (∃ i, x i = true ∨ y i = true))
+    {v : Fin (6 * n)} (hv : v ∉ zSet n) :
+    g (Function.update (packXYZ zeros2n zeros2n ones2n) v false) = false ∧
+      g (Function.update (packXYZ zeros2n zeros2n ones2n) v true) = true := by
+  rcases eq_xVar_or_yVar_or_zVar v with ⟨i, rfl⟩ | ⟨i, rfl⟩ | ⟨i, rfl⟩
+  · exact ⟨by rw [update_packXYZ_xVar, update_zeros2n_false, hg]; simp,
+      by rw [update_packXYZ_xVar, hg, decide_eq_true_iff]; exact ⟨i, .inl (by simp)⟩⟩
+  · exact ⟨by rw [update_packXYZ_yVar, update_zeros2n_false, hg]; simp,
+      by rw [update_packXYZ_yVar, hg, decide_eq_true_iff]; exact ⟨i, .inr (by simp)⟩⟩
+  · exact absurd (zVar_mem_zSet i) hv
 
 /-- **Claim 13** [ECCC TR20-183, Section 3, p. 24]: when $1 \le G.1$, every variable $v \in
 \mathrm{Fin}\,(6n)$ is positively essential for any total function $f$ agreeing with
@@ -552,31 +522,16 @@ private theorem ilangoInstance_posEssential {G : BipartitePermutationGraph} (_hn
     (v : Fin (6 * G.1)) :
     ∃ w : BitString (6 * G.1),
       f (Function.update w v false) = false ∧ f (Function.update w v true) = true := by
-  rcases eq_xVar_or_yVar_or_zVar v with ⟨i, rfl⟩ | ⟨i, rfl⟩ | ⟨i, rfl⟩
-  · refine ⟨packXYZ zeros2n zeros2n ones2n, ?_, ?_⟩
-    · rw [update_packXYZ_xVar, update_zeros2n_false]
-      exact hf _ false (by simp)
-    · rw [update_packXYZ_xVar]
-      refine hf _ true ?_
-      rw [ilangoInstance_partialFunction, ilangoGamma_ones2n_z]
-      simp only [Option.some.injEq, decide_eq_true_iff]
-      exact ⟨i, Or.inl (by simp)⟩
-  · refine ⟨packXYZ zeros2n zeros2n ones2n, ?_, ?_⟩
-    · rw [update_packXYZ_yVar, update_zeros2n_false]
-      exact hf _ false (by simp)
-    · rw [update_packXYZ_yVar]
-      refine hf _ true ?_
-      rw [ilangoInstance_partialFunction, ilangoGamma_ones2n_z]
-      simp only [Option.some.injEq, decide_eq_true_iff]
-      exact ⟨i, Or.inr (by simp)⟩
-  · refine ⟨packXYZ ones2n zeros2n zeros2n, ?_, ?_⟩
-    · rw [update_packXYZ_zVar, update_zeros2n_false]
-      exact hf _ false (by simp)
-    · rw [update_packXYZ_zVar]
-      refine hf _ true ?_
-      rw [ilangoInstance_partialFunction, ilangoGamma_ones2n_x]
-      simp only [Option.some.injEq, decide_eq_true_iff]
-      exact ⟨i, by simp⟩
+  by_cases hv : v ∈ zSet G.1
+  · obtain ⟨i, rfl⟩ := mem_zSet.mp hv
+    exact ⟨packXYZ ones2n zeros2n zeros2n,
+      hf _ false (by rw [update_packXYZ_zVar, update_zeros2n_false]; simp),
+      hf _ true (by
+        rw [update_packXYZ_zVar, ilangoInstance_partialFunction, ilangoGamma_ones2n_x]
+        simp only [Option.some.injEq, decide_eq_true_iff]
+        exact ⟨i, by simp⟩)⟩
+  · exact ⟨packXYZ zeros2n zeros2n ones2n, eval_update_packXYZ_ones2n (fun x y =>
+      hf _ _ (by rw [ilangoInstance_partialFunction, ilangoGamma_ones2n_z])) hv⟩
 
 /-! ### Ilango's Lemma 12: Structural characterization of read-once formulas for Clauses 1–4 -/
 
@@ -615,28 +570,20 @@ private theorem numAnd_le_two_mul_of_clause3 {F : PosFormula (6 * n)} (hro : F.I
     (hC3 : ∀ x y : BitString (2 * n),
       F.eval (packXYZ x y ones2n) = decide (∃ i, x i = true ∨ y i = true)) :
     4 * n ≤ F.numOr + 1 ∧ F.numAnd ≤ 2 * n := by
-  have hsupp : F.leafSupport = Finset.univ := by
-    have hcard : F.leafSupport.card = 6 * n :=
-      ((F.isReadOnce_iff_card_leafSupport_eq_leafSize).mp hro).trans hleaf
-    exact Finset.eq_univ_of_card F.leafSupport (by simpa using hcard)
+  have hsupp : F.leafSupport = Finset.univ :=
+    Finset.eq_univ_of_card F.leafSupport
+      (by simpa using ((F.isReadOnce_iff_card_leafSupport_eq_leafSize).mp hro).trans hleaf)
   let w₀ : BitString (6 * n) := packXYZ zeros2n zeros2n ones2n
   have hw₀ : F.eval w₀ = false := by
     simpa [w₀] using hC3 zeros2n zeros2n
   have hsub : xSet n ∪ ySet n ⊆ PosFormula.flipSensitive w₀ F := by
     intro v hv
+    have hvz : v ∉ zSet n := by
+      rcases (Finset.mem_union.mp hv).imp mem_xSet.mp mem_ySet.mp with ⟨i, rfl⟩ | ⟨i, rfl⟩ <;>
+        simp
     simp only [PosFormula.flipSensitive, hsupp, Finset.mem_filter, Finset.mem_univ, hw₀,
       Bool.not_false, Bool.true_and, true_and]
-    rcases Finset.mem_union.mp hv with hvx | hvy
-    · obtain ⟨i, rfl⟩ := mem_xSet.mp hvx
-      rw [show Function.update w₀ (xVar i) true =
-          packXYZ (Function.update zeros2n i true) zeros2n ones2n from
-        update_packXYZ_xVar _ _ _ i true, hC3, decide_eq_true_iff]
-      exact ⟨i, Or.inl (by simp)⟩
-    · obtain ⟨i, rfl⟩ := mem_ySet.mp hvy
-      rw [show Function.update w₀ (yVar i) true =
-          packXYZ zeros2n (Function.update zeros2n i true) ones2n from
-        update_packXYZ_yVar _ _ _ i true, hC3, decide_eq_true_iff]
-      exact ⟨i, Or.inr (by simp)⟩
+    exact (eval_update_packXYZ_ones2n hC3 hvz).2
   have hcard_xy : (xSet n ∪ ySet n).card = 4 * n := by
     rw [Finset.card_union_of_disjoint (disjoint_xSet_ySet n), card_xSet, card_ySet]
     omega
@@ -660,32 +607,19 @@ private theorem exists_flip_with_zVar_true {F : PosFormula (6 * n)}
       w (zVar i) = true ∧
       F.eval (Function.update w u false) = false ∧
       F.eval (Function.update w u true) = true := by
-  rcases eq_xVar_or_yVar_or_zVar u with ⟨j, rfl⟩ | ⟨j, rfl⟩ | ⟨j, rfl⟩
-  · refine ⟨packXYZ zeros2n zeros2n ones2n, by simp, ?_, ?_⟩
-    · rw [update_packXYZ_xVar, update_zeros2n_false, hC3]
-      simp
-    · rw [update_packXYZ_xVar, hC3, decide_eq_true_iff]
-      exact ⟨j, Or.inl (by simp)⟩
-  · refine ⟨packXYZ zeros2n zeros2n ones2n, by simp, ?_, ?_⟩
-    · rw [update_packXYZ_yVar, update_zeros2n_false, hC3]
-      simp
-    · rw [update_packXYZ_yVar, hC3, decide_eq_true_iff]
-      exact ⟨j, Or.inr (by simp)⟩
-  · have hji : j ≠ i := zVar_inj.not.mp hu
+  by_cases huz : u ∈ zSet n
+  · obtain ⟨j, rfl⟩ := mem_zSet.mp huz
+    have hji : j ≠ i := zVar_inj.not.mp hu
     let y₀ := Function.update (zeros2n (n := n)) j true
     let z₀ := Function.update (zeros2n (n := n)) i true
     refine ⟨packXYZ zeros2n y₀ z₀, by simp [z₀], ?_, ?_⟩
-    · have hz_upd : Function.update z₀ j false = z₀ := by
-        apply Function.update_eq_self_iff.mpr
-        simp [z₀, Function.update_of_ne hji]
-      rw [update_packXYZ_zVar, hz_upd, hC1, decide_eq_false_iff_not]
-      rintro ⟨k, hk_y, hk_z⟩
-      by_cases hkj : k = j
-      · subst hkj
-        simp [z₀, Function.update_of_ne hji] at hk_z
-      · simp [y₀, Function.update_of_ne hkj] at hk_y
+    · rw [update_packXYZ_zVar, Function.update_eq_self_iff.mpr (by simp [z₀, hji]),
+        hC1, decide_eq_false_iff_not]
+      rintro ⟨k, hky, hkz⟩
+      by_cases hkj : k = j <;> simp_all [y₀, z₀]
     · rw [update_packXYZ_zVar, hC1, decide_eq_true_iff]
       exact ⟨j, by simp [y₀], by simp⟩
+  · exact ⟨packXYZ zeros2n zeros2n ones2n, by simp, eval_update_packXYZ_ones2n hC3 huz⟩
 
 /-- Shared core of Claim 15: no subformula `S` of `F` can read a coordinate `u ≠ zVar i` while
 evaluating to `true` whenever `zVar i` is set. Otherwise flipping `u` in the witness of
@@ -707,39 +641,29 @@ private theorem false_of_isSubformula_forces_zVar {F S : PosFormula (6 * n)} (hr
         hS _ (by rwa [Function.update_of_ne hu_ne.symm])]
   exact Bool.false_ne_true (hf0.symm.trans (heq.trans hf1))
 
-/-- **Claim 15 (left)** [ECCC TR20-183, Section 3, p. 25]: no `zVar i` leaf is the left child of an
+/-- **Claim 15** [ECCC TR20-183, Section 3, p. 25]: no `zVar i` leaf is either child of an
 `or` subformula of `F`. -/
-private theorem not_isSubformula_or_var_zVar_left {F : PosFormula (6 * n)} (hro : F.IsReadOnce)
+private theorem not_isSubformula_or_zVar {F L R : PosFormula (6 * n)} (hro : F.IsReadOnce)
     (hC1 : ∀ y z : BitString (2 * n),
       F.eval (packXYZ zeros2n y z) = decide (∃ j, y j = true ∧ z j = true))
     (hC3 : ∀ x y : BitString (2 * n),
       F.eval (packXYZ x y ones2n) = decide (∃ j, x j = true ∨ y j = true))
-    (i : Fin (2 * n)) (A : PosFormula (6 * n)) :
-    ¬PosFormula.IsSubformula (.or (.var (zVar i)) A) F := by
-  intro hsub
-  obtain ⟨u, huA⟩ := A.leafSupport_nonempty
-  have hu_ne : u ≠ zVar i := by
-    rintro rfl
-    exact Finset.disjoint_left.mp (hsub.isReadOnce hro).2.2 (Finset.mem_singleton_self _) huA
-  exact false_of_isSubformula_forces_zVar hro hC1 hC3 hsub i (Finset.mem_union_right _ huA) hu_ne
-    fun w hw => by simp [hw]
-
-/-- **Claim 15 (right)** [ECCC TR20-183, Section 3, p. 25]: no `zVar i` leaf is the right child of
-an `or` subformula of `F`. -/
-private theorem not_isSubformula_or_var_zVar_right {F : PosFormula (6 * n)} (hro : F.IsReadOnce)
-    (hC1 : ∀ y z : BitString (2 * n),
-      F.eval (packXYZ zeros2n y z) = decide (∃ j, y j = true ∧ z j = true))
-    (hC3 : ∀ x y : BitString (2 * n),
-      F.eval (packXYZ x y ones2n) = decide (∃ j, x j = true ∨ y j = true))
-    (i : Fin (2 * n)) (A : PosFormula (6 * n)) :
-    ¬PosFormula.IsSubformula (.or A (.var (zVar i))) F := by
-  intro hsub
-  obtain ⟨u, huA⟩ := A.leafSupport_nonempty
-  have hu_ne : u ≠ zVar i := by
-    rintro rfl
-    exact Finset.disjoint_right.mp (hsub.isReadOnce hro).2.2 (Finset.mem_singleton_self _) huA
-  exact false_of_isSubformula_forces_zVar hro hC1 hC3 hsub i (Finset.mem_union_left _ huA) hu_ne
-    fun w hw => by simp [hw]
+    (hsub : PosFormula.IsSubformula (.or L R) F) (i : Fin (2 * n)) :
+    L ≠ .var (zVar i) ∧ R ≠ .var (zVar i) := by
+  have go {A : PosFormula (6 * n)} (hsubA : A.leafSupport ⊆ (PosFormula.or L R).leafSupport)
+      (hdisj : Disjoint ({zVar i} : Finset (Fin (6 * n))) A.leafSupport)
+      (h1 : ∀ w : BitString (6 * n), w (zVar i) = true → (PosFormula.or L R).eval w = true) :
+      False :=
+    let ⟨u, hu⟩ := A.leafSupport_nonempty
+    false_of_isSubformula_forces_zVar hro hC1 hC3 hsub i (hsubA hu)
+      (fun h => Finset.disjoint_left.mp hdisj (Finset.mem_singleton_self _) (h ▸ hu)) h1
+  exact ⟨fun hL => by
+      subst hL
+      exact go Finset.subset_union_right (hsub.isReadOnce hro).2.2 (fun _ hw => by simp [hw]),
+    fun hR => by
+      subst hR
+      exact go Finset.subset_union_left (hsub.isReadOnce hro).2.2.symm
+        (fun _ hw => by simp [hw])⟩
 
 /-- Shared core of Claim 16: no subformula `S` of `F` can read `zVar j` for `j ≠ i` while
 evaluating to `false` whenever `zVar i` is unset. Otherwise setting `zVar j` on top of a single
@@ -769,37 +693,28 @@ private theorem false_of_isSubformula_needs_zVar {F S : PosFormula (6 * n)} (hro
     exact ⟨j, by simp [y₀], by simp⟩
   exact Bool.false_ne_true (hf₀.symm.trans (heq.trans hf₁))
 
-/-- **Claim 16 (left)** [ECCC TR20-183, Section 3, p. 25]: if `.and (.var (zVar i)) A` is a
-subformula of `F`, then `A` reads no `z`-variable (`∀ j, zVar j ∉ A.leafSupport`). -/
-private theorem not_mem_leafSupport_zVar_of_isSubformula_and_left {F : PosFormula (6 * n)}
-    (hro : F.IsReadOnce)
+/-- **Claim 16** [ECCC TR20-183, Section 3, p. 25]: if `.and L R` is a subformula of `F` with one
+child `.var (zVar i)`, then the other child reads no `z`-variable. -/
+private theorem not_mem_leafSupport_zVar_of_and {F L R : PosFormula (6 * n)} (hro : F.IsReadOnce)
     (hC1 : ∀ y z : BitString (2 * n),
       F.eval (packXYZ zeros2n y z) = decide (∃ j, y j = true ∧ z j = true))
-    {i j : Fin (2 * n)} {A : PosFormula (6 * n)}
-    (hsub : PosFormula.IsSubformula (.and (.var (zVar i)) A) F) :
-    zVar j ∉ A.leafSupport := by
-  intro hjA
-  have hji : j ≠ i := by
-    rintro rfl
-    exact Finset.disjoint_left.mp (hsub.isReadOnce hro).2.2 (Finset.mem_singleton_self _) hjA
-  exact false_of_isSubformula_needs_zVar hro hC1 hsub hji (Finset.mem_union_right _ hjA)
-    fun w hw => by simp [hw]
-
-/-- **Claim 16 (right)** [ECCC TR20-183, Section 3, p. 25]: if `.and A (.var (zVar i))` is a
-subformula of `F`, then `A` reads no `z`-variable (`∀ j, zVar j ∉ A.leafSupport`). -/
-private theorem not_mem_leafSupport_zVar_of_isSubformula_and_right {F : PosFormula (6 * n)}
-    (hro : F.IsReadOnce)
-    (hC1 : ∀ y z : BitString (2 * n),
-      F.eval (packXYZ zeros2n y z) = decide (∃ j, y j = true ∧ z j = true))
-    {i j : Fin (2 * n)} {A : PosFormula (6 * n)}
-    (hsub : PosFormula.IsSubformula (.and A (.var (zVar i))) F) :
-    zVar j ∉ A.leafSupport := by
-  intro hjA
-  have hji : j ≠ i := by
-    rintro rfl
-    exact Finset.disjoint_right.mp (hsub.isReadOnce hro).2.2 (Finset.mem_singleton_self _) hjA
-  exact false_of_isSubformula_needs_zVar hro hC1 hsub hji (Finset.mem_union_left _ hjA)
-    fun w hw => by simp [hw]
+    (hsub : PosFormula.IsSubformula (.and L R) F) {i j : Fin (2 * n)} :
+    (L = .var (zVar i) → zVar j ∉ R.leafSupport) ∧
+      (R = .var (zVar i) → zVar j ∉ L.leafSupport) := by
+  have go {A : PosFormula (6 * n)} (hsubA : A.leafSupport ⊆ (PosFormula.and L R).leafSupport)
+      (hdisj : Disjoint ({zVar i} : Finset (Fin (6 * n))) A.leafSupport)
+      (h0 : ∀ w : BitString (6 * n), w (zVar i) = false → (PosFormula.and L R).eval w = false) :
+      zVar j ∉ A.leafSupport := fun hjA =>
+    false_of_isSubformula_needs_zVar hro hC1 hsub
+      (fun (h : j = i) => Finset.disjoint_left.mp hdisj (Finset.mem_singleton_self _) (h ▸ hjA))
+      (hsubA hjA) h0
+  exact ⟨fun hL => by
+      subst hL
+      exact go Finset.subset_union_right (hsub.isReadOnce hro).2.2 (fun _ hw => by simp [hw]),
+    fun hR => by
+      subst hR
+      exact go Finset.subset_union_left (hsub.isReadOnce hro).2.2.symm
+        (fun _ hw => by simp [hw])⟩
 
 /-- Number of `z`-variables in `S.leafSupport`. -/
 private def zCount (S : PosFormula (6 * n)) : ℕ :=
@@ -811,20 +726,7 @@ private def NotZLeaf (S : PosFormula (6 * n)) : Prop :=
 
 @[simp] private theorem zCount_var_zVar (i : Fin (2 * n)) :
     zCount (.var (zVar i) : PosFormula (6 * n)) = 1 := by
-  have : ({zVar i} ∩ zSet n : Finset (Fin (6 * n))) = {zVar i} :=
-    Finset.inter_eq_left.mpr (Finset.singleton_subset_iff.mpr (zVar_mem_zSet i))
   simp [zCount]
-
-private theorem zCount_var_of_notZLeaf {v : Fin (6 * n)}
-    (h : NotZLeaf (.var v : PosFormula (6 * n))) :
-    zCount (.var v) = 0 := by
-  have hv : v ∉ zSet n := by
-    rw [mem_zSet]
-    rintro ⟨i, rfl⟩
-    exact h i rfl
-  have : ({v} ∩ zSet n : Finset (Fin (6 * n))) = ∅ :=
-    Finset.singleton_inter_of_notMem hv
-  simp [zCount, this]
 
 private theorem zCount_union_of_disjoint {L R : PosFormula (6 * n)}
     (hdisj : Disjoint L.leafSupport R.leafSupport) :
@@ -833,63 +735,12 @@ private theorem zCount_union_of_disjoint {L R : PosFormula (6 * n)}
   · rfl
   · exact hdisj.mono Finset.inter_subset_left Finset.inter_subset_left
 
-private theorem zCount_and_of_isReadOnce {L R : PosFormula (6 * n)}
-    (hro : (PosFormula.and L R).IsReadOnce) :
-    zCount (.and L R) = zCount L + zCount R :=
-  zCount_union_of_disjoint hro.2.2
-
-private theorem zCount_or_of_isReadOnce {L R : PosFormula (6 * n)}
-    (hro : (PosFormula.or L R).IsReadOnce) :
-    zCount (.or L R) = zCount L + zCount R :=
-  zCount_union_of_disjoint hro.2.2
-
 private theorem disjoint_leafSupport_zSet_of_forall_notMem {A : PosFormula (6 * n)}
     (h : ∀ j, zVar j ∉ A.leafSupport) :
     Disjoint A.leafSupport (zSet n) ∧ zCount A = 0 := by
-  have hdisj : Disjoint A.leafSupport (zSet n) := by
-    rw [Finset.disjoint_left]
-    rintro v hvA hvz
-    obtain ⟨j, rfl⟩ := mem_zSet.mp hvz
-    exact h j hvA
+  have hdisj : Disjoint A.leafSupport (zSet n) := Finset.disjoint_left.mpr fun _ hvA hvz =>
+    let ⟨j, hj⟩ := mem_zSet.mp hvz; h j (hj ▸ hvA)
   exact ⟨hdisj, Finset.card_eq_zero.mpr (Finset.disjoint_iff_inter_eq_empty.mp hdisj)⟩
-
-/-- Every subformula `S` of `F` that is not a single `z`-leaf satisfies `zCount S ≤ S.numAnd`. -/
-private theorem zCount_le_numAnd_of_notZLeaf {F S : PosFormula (6 * n)} (hro : F.IsReadOnce)
-    (hC1 : ∀ y z : BitString (2 * n),
-      F.eval (packXYZ zeros2n y z) = decide (∃ j, y j = true ∧ z j = true))
-    (hC3 : ∀ x y : BitString (2 * n),
-      F.eval (packXYZ x y ones2n) = decide (∃ j, x j = true ∨ y j = true))
-    (hsub : PosFormula.IsSubformula S F) (hnotZ : NotZLeaf S) :
-    zCount S ≤ S.numAnd := by
-  induction S with
-  | var v =>
-    rw [zCount_var_of_notZLeaf hnotZ, PosFormula.numAnd_var]
-  | or L R ihL ihR =>
-    have hnotZL : NotZLeaf L := fun i hL =>
-      not_isSubformula_or_var_zVar_left hro hC1 hC3 i R (hL ▸ hsub)
-    have hnotZR : NotZLeaf R := fun i hR =>
-      not_isSubformula_or_var_zVar_right hro hC1 hC3 i L (hR ▸ hsub)
-    have hL := ihL hsub.of_or_left hnotZL
-    have hR := ihR hsub.of_or_right hnotZR
-    rw [zCount_or_of_isReadOnce (hsub.isReadOnce hro), PosFormula.numAnd_or]
-    omega
-  | and L R ihL ihR =>
-    rw [zCount_and_of_isReadOnce (hsub.isReadOnce hro), PosFormula.numAnd_and]
-    by_cases hL : ∃ i, L = .var (zVar i)
-    · obtain ⟨i, rfl⟩ := hL
-      have hR0 := (disjoint_leafSupport_zSet_of_forall_notMem fun j =>
-        not_mem_leafSupport_zVar_of_isSubformula_and_left hro hC1 hsub).2
-      rw [zCount_var_zVar, hR0]
-      omega
-    · by_cases hR : ∃ i, R = .var (zVar i)
-      · obtain ⟨i, rfl⟩ := hR
-        have hL0 := (disjoint_leafSupport_zSet_of_forall_notMem fun j =>
-          not_mem_leafSupport_zVar_of_isSubformula_and_right hro hC1 hsub).2
-        rw [zCount_var_zVar, hL0]
-        omega
-      · have hL_le := ihL hsub.of_and_left fun i hi => hL ⟨i, hi⟩
-        have hR_le := ihR hsub.of_and_right fun i hi => hR ⟨i, hi⟩
-        omega
 
 /-- Variables appearing above all `and` gates in `S` (the set $I$ in Claim 17 of
 [ECCC TR20-183, p. 25]). -/
@@ -938,27 +789,17 @@ private theorem ZDecomp.of_or {L R : PosFormula (6 * n)}
   disjoint_top := Finset.disjoint_union_left.mpr ⟨hL.disjoint_top, hR.disjoint_top⟩
   disjoint_partner i :=
     Finset.disjoint_union_left.mpr ⟨hL.disjoint_partner i, hR.disjoint_partner i⟩
-  disjoint_ij i j hij := by
-    have hLR := hroS.2.2.mono
-      (zPartnerVars_subset_leafSupport i L) (zPartnerVars_subset_leafSupport j R)
-    have hRL := hroS.2.2.symm.mono
-      (zPartnerVars_subset_leafSupport i R) (zPartnerVars_subset_leafSupport j L)
-    exact Finset.disjoint_union_left.mpr
-      ⟨Finset.disjoint_union_right.mpr ⟨hL.disjoint_ij i j hij, hLR⟩,
-        Finset.disjoint_union_right.mpr ⟨hRL, hR.disjoint_ij i j hij⟩⟩
+  disjoint_ij i j hij := Finset.disjoint_union_left.mpr
+    ⟨Finset.disjoint_union_right.mpr ⟨hL.disjoint_ij i j hij, hroS.2.2.mono
+      (zPartnerVars_subset_leafSupport i L) (zPartnerVars_subset_leafSupport j R)⟩,
+     Finset.disjoint_union_right.mpr ⟨hroS.2.2.symm.mono
+      (zPartnerVars_subset_leafSupport i R) (zPartnerVars_subset_leafSupport j L),
+      hR.disjoint_ij i j hij⟩⟩
   eval_eq w := by
     rw [PosFormula.eval_or, hL.eval_eq w, hR.eval_eq w, ← Bool.decide_or, decide_eq_decide]
-    simp only [topOrVars, zPartnerVars, Finset.mem_union]
-    exact ⟨fun
-      | .inl (.inl ⟨v, hv, hw⟩) => .inl ⟨v, .inl hv, hw⟩
-      | .inl (.inr ⟨i, hi, v, hv, hw⟩) => .inr ⟨i, hi, v, .inl hv, hw⟩
-      | .inr (.inl ⟨v, hv, hw⟩) => .inl ⟨v, .inr hv, hw⟩
-      | .inr (.inr ⟨i, hi, v, hv, hw⟩) => .inr ⟨i, hi, v, .inr hv, hw⟩,
-    fun
-      | .inl ⟨v, .inl hv, hw⟩ => .inl (.inl ⟨v, hv, hw⟩)
-      | .inl ⟨v, .inr hv, hw⟩ => .inr (.inl ⟨v, hv, hw⟩)
-      | .inr ⟨i, hi, v, .inl hv, hw⟩ => .inl (.inr ⟨i, hi, v, hv, hw⟩)
-      | .inr ⟨i, hi, v, .inr hv, hw⟩ => .inr (.inr ⟨i, hi, v, hv, hw⟩)⟩
+    simp only [topOrVars, zPartnerVars, Finset.mem_union, or_and_right, and_or_left, exists_or]
+    exact ⟨fun h => by rcases h with (h | h) | (h | h) <;> simp [h],
+      fun h => by rcases h with (h | h) | (h | h) <;> simp [h]⟩
 
 private theorem ZDecomp.of_single_zPartner {S A : PosFormula (6 * n)} {i₀ : Fin (2 * n)}
     (htop : topOrVars S = ∅)
@@ -967,96 +808,86 @@ private theorem ZDecomp.of_single_zPartner {S A : PosFormula (6 * n)} {i₀ : Fi
     (heval : ∀ w : BitString (6 * n), S.eval w = (w (zVar i₀) && A.eval w)) :
     ZDecomp S where
   disjoint_top := htop ▸ Finset.disjoint_empty_left _
-  disjoint_partner i := by
-    rw [hpart i]
-    split_ifs
-    · exact hdisj
-    · exact Finset.disjoint_empty_left _
+  disjoint_partner i := by rw [hpart i]; split_ifs <;> simp [hdisj]
   disjoint_ij i j hij := by
-    rw [hpart i, hpart j]
-    split_ifs with hi hj
+    rw [hpart i, hpart j]; split_ifs with hi hj
     · exact absurd (hi.trans hj.symm) hij
-    · exact Finset.disjoint_empty_right _
-    · exact Finset.disjoint_empty_left _
-    · exact Finset.disjoint_empty_left _
+    all_goals simp
   eval_eq w := by
-    rw [heval w, PosFormula.eval_eq_decide_exists_of_numAnd_eq_zero hand0 w]
+    rw [heval w, PosFormula.eval_eq_decide_exists_of_numAnd_eq_zero hand0 w,
+      ← Bool.decide_coe (w (zVar i₀)), ← Bool.decide_and, decide_eq_decide]
     simp only [htop, Finset.notMem_empty, false_and, exists_false, false_or, hpart]
-    rw [← Bool.decide_coe (w (zVar i₀)), ← Bool.decide_and, decide_eq_decide]
-    refine ⟨fun ⟨hwz, v, hv, hwv⟩ => ⟨i₀, hwz, v, by simp [hv], hwv⟩, ?_⟩
-    rintro ⟨i, hwz, v, hv, hwv⟩
-    by_cases hi : i = i₀
-    · subst hi
-      exact ⟨hwz, v, by simpa using hv, hwv⟩
-    · simp [hi] at hv
+    refine ⟨fun ⟨hwz, v, hv, hwv⟩ => ⟨i₀, hwz, v, by simp [hv], hwv⟩,
+      fun ⟨i, hwz, v, hv, hwv⟩ => ?_⟩
+    split_ifs at hv with hi
+    · exact hi ▸ ⟨hwz, v, hv, hwv⟩
+    · simp at hv
 
 private theorem zPartnerVars_and_var_left {R : PosFormula (6 * n)} {i₀ i : Fin (2 * n)}
     (hdisj : Disjoint R.leafSupport (zSet n)) :
     zPartnerVars i (.and (.var (zVar i₀)) R) = if i = i₀ then R.leafSupport else ∅ := by
-  dsimp [zPartnerVars]
-  have hneR : R ≠ .var (zVar i) := by
-    rintro rfl
-    exact Finset.disjoint_left.mp hdisj (Finset.mem_singleton_self _) (zVar_mem_zSet i)
+  have hne : R ≠ .var (zVar i) := fun h =>
+    Finset.disjoint_left.mp hdisj (h ▸ Finset.mem_singleton_self _) (zVar_mem_zSet i)
   by_cases hi : i = i₀
-  · subst hi; simp
-  · simp [hi, Ne.symm hi, hneR]
+  · subst hi; simp [zPartnerVars]
+  · simp [zPartnerVars, hi, Ne.symm hi, hne]
 
 private theorem zPartnerVars_and_var_right {L : PosFormula (6 * n)} {i₀ i : Fin (2 * n)}
     (hdisj : Disjoint L.leafSupport (zSet n)) :
     zPartnerVars i (.and L (.var (zVar i₀))) = if i = i₀ then L.leafSupport else ∅ := by
-  dsimp [zPartnerVars]
-  have hneL : L ≠ .var (zVar i) := by
-    rintro rfl
-    exact Finset.disjoint_left.mp hdisj (Finset.mem_singleton_self _) (zVar_mem_zSet i)
+  have hne : L ≠ .var (zVar i) := fun h =>
+    Finset.disjoint_left.mp hdisj (h ▸ Finset.mem_singleton_self _) (zVar_mem_zSet i)
   by_cases hi : i = i₀
-  · subst hi; simp [hneL]
-  · simp [hi, Ne.symm hi, hneL]
+  · subst hi; simp [zPartnerVars, hne]
+  · simp [zPartnerVars, hi, Ne.symm hi, hne]
 
-/-- Structural decomposition of any subformula `S` of `F` satisfying `NotZLeaf S` and
-`zCount S = S.numAnd` [ECCC TR20-183, Section 3, pp. 25–26]. -/
-private theorem structure_of_zCount_eq_numAnd {F S : PosFormula (6 * n)} (hro : F.IsReadOnce)
+/-- Every subformula `S` of `F` with `NotZLeaf S` satisfies `zCount S ≤ S.numAnd`, and when
+`zCount S = S.numAnd` admits a structural decomposition `ZDecomp S`
+[ECCC TR20-183, Section 3, pp. 25–26]. -/
+private theorem zCount_le_numAnd_and_zDecomp {F S : PosFormula (6 * n)} (hro : F.IsReadOnce)
     (hC1 : ∀ y z : BitString (2 * n),
       F.eval (packXYZ zeros2n y z) = decide (∃ j, y j = true ∧ z j = true))
     (hC3 : ∀ x y : BitString (2 * n),
       F.eval (packXYZ x y ones2n) = decide (∃ j, x j = true ∨ y j = true))
-    (hsub : PosFormula.IsSubformula S F) (hnotZ : NotZLeaf S) (hz : zCount S = S.numAnd) :
-    ZDecomp S := by
+    (hsub : PosFormula.IsSubformula S F) (hnotZ : NotZLeaf S) :
+    zCount S ≤ S.numAnd ∧ (zCount S = S.numAnd → ZDecomp S) := by
   induction S with
   | var v =>
-    refine ⟨?_, fun _ => Finset.disjoint_empty_left _, fun _ _ _ => Finset.disjoint_empty_left _,
-      fun w => by simp [topOrVars, zPartnerVars]⟩
-    rw [topOrVars, Finset.disjoint_singleton_left, mem_zSet]
-    rintro ⟨i, rfl⟩
-    exact hnotZ i rfl
+    have hv : v ∉ zSet n := fun h => let ⟨i, hi⟩ := mem_zSet.mp h; hnotZ i (by rw [hi])
+    refine ⟨by simp [zCount, Finset.singleton_inter_of_notMem hv], fun _ =>
+      ⟨by simpa [topOrVars], fun _ => Finset.disjoint_empty_left _,
+        fun _ _ _ => Finset.disjoint_empty_left _, fun _ => by simp [topOrVars, zPartnerVars]⟩⟩
   | or L R ihL ihR =>
     have hroS := hsub.isReadOnce hro
-    have hnotZL : NotZLeaf L := fun i hL =>
-      not_isSubformula_or_var_zVar_left hro hC1 hC3 i R (hL ▸ hsub)
-    have hnotZR : NotZLeaf R := fun i hR =>
-      not_isSubformula_or_var_zVar_right hro hC1 hC3 i L (hR ▸ hsub)
-    have hL_le := zCount_le_numAnd_of_notZLeaf hro hC1 hC3 hsub.of_or_left hnotZL
-    have hR_le := zCount_le_numAnd_of_notZLeaf hro hC1 hC3 hsub.of_or_right hnotZR
-    rw [zCount_or_of_isReadOnce hroS, PosFormula.numAnd_or] at hz
-    exact ZDecomp.of_or hroS
-      (ihL hsub.of_or_left hnotZL (by omega)) (ihR hsub.of_or_right hnotZR (by omega))
-  | and L R _ _ =>
-    rw [zCount_and_of_isReadOnce (hsub.isReadOnce hro), PosFormula.numAnd_and] at hz
-    have h_has_z : (∃ i, L = .var (zVar i)) ∨ (∃ i, R = .var (zVar i)) := by
-      by_contra! h
-      have hL_le := zCount_le_numAnd_of_notZLeaf hro hC1 hC3 hsub.of_and_left h.1
-      have hR_le := zCount_le_numAnd_of_notZLeaf hro hC1 hC3 hsub.of_and_right h.2
-      omega
-    rcases h_has_z with ⟨i₀, rfl⟩ | ⟨i₀, rfl⟩
-    · obtain ⟨hR_disj, hR_z0⟩ := disjoint_leafSupport_zSet_of_forall_notMem fun j =>
-        not_mem_leafSupport_zVar_of_isSubformula_and_left hro hC1 hsub
-      rw [zCount_var_zVar, hR_z0, PosFormula.numAnd_var] at hz
-      exact ZDecomp.of_single_zPartner rfl (fun _ => zPartnerVars_and_var_left hR_disj)
-        hR_disj (by omega) fun _ => rfl
-    · obtain ⟨hL_disj, hL_z0⟩ := disjoint_leafSupport_zSet_of_forall_notMem fun j =>
-        not_mem_leafSupport_zVar_of_isSubformula_and_right hro hC1 hsub
-      rw [zCount_var_zVar, hL_z0, PosFormula.numAnd_var] at hz
-      exact ZDecomp.of_single_zPartner rfl (fun _ => zPartnerVars_and_var_right hL_disj)
-        hL_disj (by omega) fun w => Bool.and_comm _ _
+    have ⟨hL_le, hLd⟩ := ihL hsub.of_or_left fun i hL =>
+      (not_isSubformula_or_zVar hro hC1 hC3 hsub i).1 hL
+    have ⟨hR_le, hRd⟩ := ihR hsub.of_or_right fun i hR =>
+      (not_isSubformula_or_zVar hro hC1 hC3 hsub i).2 hR
+    have hzc : zCount (.or L R) = zCount L + zCount R := zCount_union_of_disjoint hroS.2.2
+    rw [hzc, PosFormula.numAnd_or]
+    exact ⟨by omega, fun hz => ZDecomp.of_or hroS (hLd (by omega)) (hRd (by omega))⟩
+  | and L R ihL ihR =>
+    have hzc : zCount (.and L R) = zCount L + zCount R :=
+      zCount_union_of_disjoint (hsub.isReadOnce hro).2.2
+    rw [hzc, PosFormula.numAnd_and]
+    by_cases hL : ∃ i, L = .var (zVar i)
+    · obtain ⟨i₀, rfl⟩ := hL
+      obtain ⟨hR_disj, hR_z0⟩ := disjoint_leafSupport_zSet_of_forall_notMem fun j =>
+        (not_mem_leafSupport_zVar_of_and hro hC1 hsub).1 rfl
+      rw [zCount_var_zVar, hR_z0, PosFormula.numAnd_var]
+      exact ⟨by omega, fun hz => ZDecomp.of_single_zPartner rfl
+        (fun _ => zPartnerVars_and_var_left hR_disj) hR_disj (by omega) fun _ => rfl⟩
+    · by_cases hR : ∃ i, R = .var (zVar i)
+      · obtain ⟨i₀, rfl⟩ := hR
+        obtain ⟨hL_disj, hL_z0⟩ := disjoint_leafSupport_zSet_of_forall_notMem fun j =>
+          (not_mem_leafSupport_zVar_of_and hro hC1 hsub).2 rfl
+        rw [zCount_var_zVar, hL_z0, PosFormula.numAnd_var]
+        exact ⟨by omega, fun hz => ZDecomp.of_single_zPartner rfl
+          (fun _ => zPartnerVars_and_var_right hL_disj) hL_disj (by omega)
+          fun _ => Bool.and_comm _ _⟩
+      · have hL_le := (ihL hsub.of_and_left fun i hi => hL ⟨i, hi⟩).1
+        have hR_le := (ihR hsub.of_and_right fun i hi => hR ⟨i, hi⟩).1
+        exact ⟨by omega, fun hz => by omega⟩
 
 /-- **Claim 17** [ECCC TR20-183, Section 3, p. 25]: under `ZDecomp F` and Clause (4),
 `topOrVars F = ∅`, so `F.eval (packXYZ x y z)` is determined by the partner sets
@@ -1090,13 +921,7 @@ private theorem ZDecomp.eval_packXYZ_of_clause4 {F : PosFormula (6 * n)} (hd : Z
           ∃ v ∈ zPartnerVars i F, packXYZ x y z v = true) := by
     simpa [htop_empty] using hd.eval_eq (packXYZ x y z)
   refine ⟨heval', fun x y i => ?_⟩
-  rw [heval', decide_eq_decide]
-  refine ⟨?_, fun ⟨v, hv, hwv⟩ => ⟨i, by simp, v, hv, hwv⟩⟩
-  rintro ⟨j, hj, v, hv, hwv⟩
-  have hji : j = i := by
-    by_contra hne
-    simp [Function.update_of_ne hne] at hj
-  exact ⟨v, hji ▸ hv, hwv⟩
+  simp [heval', Function.update_apply]
 
 private theorem exists_perm_and_mem_iff_of_disjoint
     {P : Fin (2 * n) → Finset (Fin (6 * n))}
@@ -1135,30 +960,24 @@ private theorem ZDecomp.exists_perm_zPartnerVars {F : PosFormula (6 * n)} (hd : 
       (∀ i k, xVar k ∈ zPartnerVars i F ↔ k = π i) ∧
       (∀ i k, yVar k ∈ zPartnerVars i F ↔ k = i) := by
   have hy_mem (i : Fin (2 * n)) : yVar i ∈ zPartnerVars i F := by
-    have h := hC1 (Function.update zeros2n i true) (Function.update zeros2n i true)
-    rw [heval_unit, decide_eq_decide] at h
-    obtain ⟨v, hv, hwv⟩ := h.mpr ⟨i, by simp, by simp⟩
-    have hv_notZ : v ∉ zSet n := Finset.disjoint_left.mp (hd.disjoint_partner i) hv
+    obtain ⟨v, hv, hwv⟩ := (decide_eq_decide.mp ((heval_unit _ _ i).symm.trans
+      (hC1 (Function.update zeros2n i true) (Function.update zeros2n i true)))).mpr
+      ⟨i, by simp, by simp⟩
     rcases eq_xVar_or_yVar_or_zVar v with ⟨k, rfl⟩ | ⟨k, rfl⟩ | ⟨k, rfl⟩
     · simp at hwv
-    · have hki : k = i := by
-        by_contra hne
-        simp [Function.update_of_ne hne] at hwv
-      exact hki ▸ hv
-    · exact absurd (zVar_mem_zSet k) hv_notZ
+    · obtain rfl : k = i := by_contra fun h => by simp [Function.update_of_ne h] at hwv
+      exact hv
+    · exact absurd (zVar_mem_zSet k) (Finset.disjoint_left.mp (hd.disjoint_partner i) hv)
   have hx_exists (i : Fin (2 * n)) : ∃ k : Fin (2 * n), xVar k ∈ zPartnerVars i F := by
-    have h := hC2 zeros2n (Function.update zeros2n i true)
-    rw [heval_unit, decide_eq_decide] at h
-    obtain ⟨v, hv, hwv⟩ := h.mpr ⟨i, by simp⟩
-    have hv_notZ : v ∉ zSet n := Finset.disjoint_left.mp (hd.disjoint_partner i) hv
+    obtain ⟨v, hv, hwv⟩ := (decide_eq_decide.mp ((heval_unit _ _ i).symm.trans
+      (hC2 zeros2n (Function.update zeros2n i true)))).mpr ⟨i, by simp⟩
     rcases eq_xVar_or_yVar_or_zVar v with ⟨k, rfl⟩ | ⟨k, rfl⟩ | ⟨k, rfl⟩
     · exact ⟨k, hv⟩
     · simp at hwv
-    · exact absurd (zVar_mem_zSet k) hv_notZ
+    · exact absurd (zVar_mem_zSet k) (Finset.disjoint_left.mp (hd.disjoint_partner i) hv)
   obtain ⟨π, hx_iff⟩ := exists_perm_and_mem_iff_of_disjoint hd.disjoint_ij hx_exists
-  refine ⟨π, hx_iff, fun i k => ⟨fun hk => ?_, fun h => h ▸ hy_mem i⟩⟩
-  by_contra hne
-  exact Finset.disjoint_left.mp (hd.disjoint_ij k i hne) (hy_mem k) hk
+  exact ⟨π, hx_iff, fun i k => ⟨fun hk => by_contra fun hne =>
+    Finset.disjoint_left.mp (hd.disjoint_ij k i hne) (hy_mem k) hk, fun h => h ▸ hy_mem i⟩⟩
 
 /-- **Ilango's Lemma 12** [ECCC TR20-183, Section 3, Lemma 12, pp. 22, 24–26]: if
 `F : PosFormula (6 * n)` is a read-once positive formula of leaf size $6n$ that agrees with
@@ -1187,27 +1006,23 @@ theorem _root_.Cslib.Circuits.Boolean.PosFormula.exists_perm_of_agreesWith_ilang
     omega
   have hzF : zCount F = 2 * n := by simp [zCount, hsupp]
   have hand_le := (numAnd_le_two_mul_of_clause3 hro hleaf hC3).2
-  have hz_le := zCount_le_numAnd_of_notZLeaf hro hC1 hC3 (.refl F) hnotZF
-  have hd := structure_of_zCount_eq_numAnd hro hC1 hC3 (.refl F) hnotZF (by omega)
-  obtain ⟨heval', heval_unit⟩ := hd.eval_packXYZ_of_clause4 hC4
-  obtain ⟨π, hx_iff, hy_iff⟩ := hd.exists_perm_zPartnerVars heval_unit hC1 hC2
+  have ⟨hz_le, hd⟩ := zCount_le_numAnd_and_zDecomp hro hC1 hC3 (.refl F) hnotZF
+  have hhd := hd (by omega)
+  obtain ⟨heval', heval_unit⟩ := hhd.eval_packXYZ_of_clause4 hC4
+  obtain ⟨π, hx_iff, hy_iff⟩ := hhd.exists_perm_zPartnerVars heval_unit hC1 hC2
   refine ⟨π, fun x y z => ?_⟩
   rw [heval', decide_eq_decide]
   refine exists_congr fun i => ?_
   simp only [Bool.and_eq_true, Bool.or_eq_true]
-  constructor
-  · rintro ⟨hz, v, hv, hwv⟩
-    refine ⟨?_, hz⟩
-    have hv_notZ : v ∉ zSet n := Finset.disjoint_left.mp (hd.disjoint_partner i) hv
-    rcases eq_xVar_or_yVar_or_zVar v with ⟨k, rfl⟩ | ⟨k, rfl⟩ | ⟨k, rfl⟩
-    · rw [(hx_iff i k).mp hv] at hwv
-      exact Or.inl (by simpa using hwv)
-    · rw [(hy_iff i k).mp hv] at hwv
-      exact Or.inr (by simpa using hwv)
-    · exact absurd (zVar_mem_zSet k) hv_notZ
-  · rintro ⟨hx | hy, hz⟩
-    · exact ⟨hz, xVar (π i), (hx_iff i (π i)).mpr rfl, by simpa using hx⟩
-    · exact ⟨hz, yVar i, (hy_iff i i).mpr rfl, by simpa using hy⟩
+  rw [and_comm]
+  refine and_congr_left fun _ => ⟨fun ⟨v, hv, hwv⟩ => ?_, ?_⟩
+  · rcases eq_xVar_or_yVar_or_zVar v with ⟨k, rfl⟩ | ⟨k, rfl⟩ | ⟨k, rfl⟩
+    · exact .inl (by simpa [(hx_iff i k).mp hv] using hwv)
+    · exact .inr (by simpa [(hy_iff i k).mp hv] using hwv)
+    · exact absurd (zVar_mem_zSet k) (Finset.disjoint_left.mp (hhd.disjoint_partner i) hv)
+  · rintro (hx | hy)
+    · exact ⟨xVar (π i), (hx_iff i (π i)).mpr rfl, by simpa using hx⟩
+    · exact ⟨yVar i, (hy_iff i i).mpr rfl, by simpa using hy⟩
 
 /-! ## Section 5: Ilango's Theorem 11 (Exact Equivalence for $n \ge 2$) -/
 
@@ -1265,23 +1080,16 @@ private theorem eval_antiUnitPair_unitPair_of_isBlockPreserving
   have hj'_ge : ¬(π ⟨n + j'.1, by omega⟩).1 < n :=
     mt (hblock ⟨n + j'.1, by omega⟩).mpr (by simp)
   have h1 : antiUnitPair k k' (π ⟨j.1, by omega⟩) = true ↔ (π ⟨j.1, by omega⟩).1 ≠ k.1 := by
-    simp only [antiUnitPair, Bool.not_eq_true', decide_eq_false_iff_not, not_or]
-    exact ⟨fun h => h.1, fun h => ⟨h, by omega⟩⟩
+    simp [antiUnitPair, show (π ⟨j.1, by omega⟩).1 ≠ n + k'.1 by omega]
   have h2 : antiUnitPair k k' (π ⟨n + j'.1, by omega⟩) = true ↔
       (π ⟨n + j'.1, by omega⟩).1 ≠ n + k'.1 := by
-    simp only [antiUnitPair, Bool.not_eq_true', decide_eq_false_iff_not, not_or]
-    have hk_lt := k.2
-    exact ⟨fun h => h.2, fun h => ⟨by omega, h⟩⟩
+    simp [antiUnitPair, show (π ⟨n + j'.1, by omega⟩).1 ≠ k.1 by omega]
   rw [imp_iff_not_or, ← ne_eq, ← h1, ← h2]
-  constructor
-  · rintro ⟨i, hi⟩
-    simp only [zeros2n, Bool.or_false, Bool.and_eq_true, unitPair, decide_eq_true_eq] at hi
-    rcases hi.2 with hij | hij'
-    · exact Or.inl ((Fin.ext hij : i = ⟨j.1, by omega⟩) ▸ hi.1)
-    · exact Or.inr ((Fin.ext hij' : i = ⟨n + j'.1, by omega⟩) ▸ hi.1)
-  · rintro (h | h)
-    · exact ⟨⟨j.1, by omega⟩, by simp [unitPair, h]⟩
-    · exact ⟨⟨n + j'.1, by omega⟩, by simp [unitPair, h]⟩
+  simp only [zeros2n, Bool.or_false, Bool.and_eq_true, unitPair, decide_eq_true_eq]
+  exact ⟨fun ⟨i, hi, h⟩ => h.elim (fun h => .inl ((Fin.ext h : i = ⟨j.1, by omega⟩) ▸ hi))
+      (fun h => .inr ((Fin.ext h : i = ⟨n + j'.1, by omega⟩) ▸ hi)),
+    fun h => h.elim (fun h => ⟨⟨j.1, by omega⟩, h, .inl rfl⟩)
+      fun h => ⟨⟨n + j'.1, by omega⟩, h, .inr rfl⟩⟩
 
 /-- If $\pi \in S_{2n}$ satisfies `G.SatisfiesUndirected π`, then the read-once positive formula
 `ilangoPosFormula hn π` agrees with `ilangoInstance G` on every defined entry
@@ -1339,23 +1147,9 @@ private theorem isBlockPreserving_of_agreesWith_leftHalfOnes {n : ℕ}
     BipartitePermutationGraph.IsBlockPreserving π := by
   intro i
   have h1 := h (Function.update zeros2n (π i) true)
-  rw [decide_eq_decide] at h1
-  simp only [zeros2n, leftHalfOnes, Bool.or_false, Bool.and_eq_true, decide_eq_true_eq] at h1
-  have hLHS : (∃ j : Fin (2 * n),
-      Function.update (zeros2n (n := n)) (π i) true (π j) = true ∧ j.1 < n) ↔ i.1 < n := by
-    refine ⟨fun ⟨j, hj, hj_lt⟩ => ?_, fun hi_lt => ⟨i, by simp, hi_lt⟩⟩
-    have hji : j = i := by
-      by_contra hne
-      simp [Function.update_of_ne (π.injective.ne hne)] at hj
-    exact hji ▸ hj_lt
-  have hRHS : (∃ j : Fin (2 * n),
-      j.1 < n ∧ Function.update (zeros2n (n := n)) (π i) true j = true) ↔ (π i).1 < n := by
-    refine ⟨fun ⟨j, hj_lt, hj⟩ => ?_, fun hπ_lt => ⟨π i, hπ_lt, by simp⟩⟩
-    have hji : j = π i := by
-      by_contra hne
-      simp [Function.update_of_ne hne] at hj
-    exact hji ▸ hj_lt
-  exact (hLHS.symm.trans h1).trans hRHS
+  simp only [decide_eq_decide, zeros2n, leftHalfOnes, Bool.or_false, Bool.and_eq_true,
+    decide_eq_true_eq, Function.update_apply, π.injective.eq_iff] at h1
+  simpa using h1
 
 /-- **Forward direction of Ilango's Theorem 11** [ECCC TR20-183, Section 3, Theorem 11, pp. 21–24]:
 if $2 \le G.1$ and `ilangoInstance G ∈ PartialMCSP.BinaryGate`, then
@@ -1458,19 +1252,10 @@ private theorem trivialYesInstance_mem :
 private theorem trivialNoInstance_essentialAt :
     ∀ j : Fin trivialNoInstance.arity, trivialNoInstance.EssentialAt j := by
   intro j
-  fin_cases j
-  · refine ⟨fun i => decide (i.1 = 1), fun _ => true, false, true, ?_, by decide, by decide,
-      by decide⟩
-    intro k hk
-    fin_cases k
-    · exact absurd rfl hk
-    · rfl
-  · refine ⟨fun i => decide (i.1 = 0), fun _ => true, false, true, ?_, by decide, by decide,
-      by decide⟩
-    intro k hk
-    fin_cases k
-    · rfl
-    · exact absurd rfl hk
+  refine ⟨fun i => decide (i.1 = 1 - j.1), fun _ => true, false, true, ?_, ?_, ?_, by decide⟩
+  · intro k hk; fin_cases j <;> fin_cases k <;> first | contradiction | rfl
+  · fin_cases j <;> decide
+  · fin_cases j <;> decide
 
 private theorem trivialNoInstance_not_mem_binaryGate :
     trivialNoInstance ∉ PartialMCSP.BinaryGate :=
@@ -1514,40 +1299,39 @@ def ilangoReduction (G : BipartitePermutationGraph) : Instance :=
   else
     ilangoInstance G
 
+private theorem mem_BipartitePermutationIndependentSet_iff_ilangoReduction_of
+    {S : Set Instance} (hyes : trivialYesInstance ∈ S) (hno : trivialNoInstance ∉ S)
+    (hil : ∀ {G : BipartitePermutationGraph},
+      2 ≤ G.1 → (G ∈ BipartitePermutationIndependentSet ↔ ilangoInstance G ∈ S))
+    (G : BipartitePermutationGraph) :
+    G ∈ BipartitePermutationIndependentSet ↔ ilangoReduction G ∈ S := by
+  unfold ilangoReduction
+  split_ifs with hG hsmall
+  · simp [(decideSmallBPIS_eq_true_iff hG).mp hsmall, hyes]
+  · simp [mt (decideSmallBPIS_eq_true_iff hG).mpr hsmall, hno]
+  · exact hil (by omega)
+
 theorem mem_BipartitePermutationIndependentSet_iff_ilangoReduction_mem_monotoneReadOnce
     (G : BipartitePermutationGraph) :
     G ∈ BipartitePermutationIndependentSet ↔
-      ilangoReduction G ∈ PartialMCSP.MonotoneReadOnce := by
-  unfold ilangoReduction
-  split_ifs with hG hsmall
-  · simp [(decideSmallBPIS_eq_true_iff hG).mp hsmall, trivialYesInstance_mem_monotoneReadOnce]
-  · have hnot : G ∉ BipartitePermutationIndependentSet :=
-      mt (decideSmallBPIS_eq_true_iff hG).mpr hsmall
-    simp [hnot, trivialNoInstance_not_mem_monotoneReadOnce]
-  · exact mem_BipartitePermutationIndependentSet_iff_ilangoInstance_mem_monotoneReadOnce (by omega)
+      ilangoReduction G ∈ PartialMCSP.MonotoneReadOnce :=
+  mem_BipartitePermutationIndependentSet_iff_ilangoReduction_of
+    trivialYesInstance_mem_monotoneReadOnce trivialNoInstance_not_mem_monotoneReadOnce
+    mem_BipartitePermutationIndependentSet_iff_ilangoInstance_mem_monotoneReadOnce G
 
 theorem mem_BipartitePermutationIndependentSet_iff_ilangoReduction_mem_binaryGate
     (G : BipartitePermutationGraph) :
     G ∈ BipartitePermutationIndependentSet ↔
-      ilangoReduction G ∈ PartialMCSP.BinaryGate := by
-  unfold ilangoReduction
-  split_ifs with hG hsmall
-  · simp [(decideSmallBPIS_eq_true_iff hG).mp hsmall, trivialYesInstance_mem_binaryGate]
-  · have hnot : G ∉ BipartitePermutationIndependentSet :=
-      mt (decideSmallBPIS_eq_true_iff hG).mpr hsmall
-    simp [hnot, trivialNoInstance_not_mem_binaryGate]
-  · exact mem_BipartitePermutationIndependentSet_iff_ilangoInstance_mem_binaryGate (by omega)
+      ilangoReduction G ∈ PartialMCSP.BinaryGate :=
+  mem_BipartitePermutationIndependentSet_iff_ilangoReduction_of trivialYesInstance_mem_binaryGate
+    trivialNoInstance_not_mem_binaryGate
+    mem_BipartitePermutationIndependentSet_iff_ilangoInstance_mem_binaryGate G
 
 theorem mem_BipartitePermutationIndependentSet_iff_ilangoReduction_mem
     (G : BipartitePermutationGraph) :
-    G ∈ BipartitePermutationIndependentSet ↔ ilangoReduction G ∈ PartialMCSP := by
-  unfold ilangoReduction
-  split_ifs with hG hsmall
-  · simp [(decideSmallBPIS_eq_true_iff hG).mp hsmall, trivialYesInstance_mem]
-  · have hnot : G ∉ BipartitePermutationIndependentSet :=
-      mt (decideSmallBPIS_eq_true_iff hG).mpr hsmall
-    simp [hnot, trivialNoInstance_not_mem]
-  · exact mem_BipartitePermutationIndependentSet_iff_ilangoInstance_mem (by omega)
+    G ∈ BipartitePermutationIndependentSet ↔ ilangoReduction G ∈ PartialMCSP :=
+  mem_BipartitePermutationIndependentSet_iff_ilangoReduction_of trivialYesInstance_mem
+    trivialNoInstance_not_mem mem_BipartitePermutationIndependentSet_iff_ilangoInstance_mem G
 
 /-! ### Bitwise list evaluator and $2^{O(n)}$-time computability of `ilangoReduction` -/
 
@@ -1610,36 +1394,32 @@ private theorem ilangoEntry_edge_eq_decide (G : BipartitePermutationGraph) (m : 
       decide (∃ j j' k₀ k₀' : Fin G.1,
         ((j.1, k₀.1), (j'.1, k₀'.1)) ∈ G.2 ∧
         x = antiUnitPair k₀ k₀' ∧ y = zeros2n ∧ z = unitPair j j') := by
-  have hcondy0 : ((List.range (2 * G.1)).all fun i => !m.testBit (2 * G.1 + i)) =
+  have hy0 : ((List.range (2 * G.1)).all fun i => !m.testBit (2 * G.1 + i)) =
       decide (y = zeros2n) :=
     range_all_eq_decide _ y zeros2n fun i => by simp [hy i, zeros2n]
+  have hxEq (k₀ k₀' : Fin G.1) :
+      ((List.range (2 * G.1)).all fun i => m.testBit i == !(i == k₀.1 || i == G.1 + k₀'.1)) =
+        decide (x = antiUnitPair k₀ k₀') :=
+    range_all_eq_decide _ x (antiUnitPair k₀ k₀') fun i => by
+      simp [hx i, antiUnitPair, Bool.decide_or, beq_eq_decide]
+  have hzEq (j j' : Fin G.1) :
+      ((List.range (2 * G.1)).all fun i =>
+        m.testBit (4 * G.1 + i) == (i == j.1 || i == G.1 + j'.1)) = decide (z = unitPair j j') :=
+    range_all_eq_decide _ z (unitPair j j') fun i => by
+      simp [hz i, unitPair, Bool.decide_or, beq_eq_decide]
   rw [← Bool.decide_coe (G.2.any _), decide_eq_decide, List.any_eq_true]
   constructor
   · rintro ⟨e, he, h⟩
     simp only [Bool.and_eq_true, decide_eq_true_eq] at h
     obtain ⟨⟨⟨⟨⟨⟨hj, hk₀⟩, hj'⟩, hk₀'⟩, hx_eq⟩, hy_eq⟩, hz_eq⟩ := h
-    let j : Fin G.1 := ⟨e.1.1, hj⟩
-    let k₀ : Fin G.1 := ⟨e.1.2, hk₀⟩
-    let j' : Fin G.1 := ⟨e.2.1, hj'⟩
-    let k₀' : Fin G.1 := ⟨e.2.2, hk₀'⟩
-    rw [range_all_eq_decide _ x (antiUnitPair k₀ k₀') (fun i => by
-      simp [hx i, antiUnitPair, k₀, k₀', Bool.decide_or, beq_eq_decide]),
-      decide_eq_true_iff] at hx_eq
-    rw [hcondy0, decide_eq_true_iff] at hy_eq
-    rw [range_all_eq_decide _ z (unitPair j j') (fun i => by
-      simp [hz i, unitPair, j, j', Bool.decide_or, beq_eq_decide]),
-      decide_eq_true_iff] at hz_eq
-    exact ⟨j, j', k₀, k₀', he, hx_eq, hy_eq, hz_eq⟩
+    exact ⟨⟨e.1.1, hj⟩, ⟨e.2.1, hj'⟩, ⟨e.1.2, hk₀⟩, ⟨e.2.2, hk₀'⟩, he,
+      of_decide_eq_true ((hxEq ⟨e.1.2, hk₀⟩ ⟨e.2.2, hk₀'⟩).symm.trans hx_eq),
+      of_decide_eq_true (hy0.symm.trans hy_eq),
+      of_decide_eq_true ((hzEq ⟨e.1.1, hj⟩ ⟨e.2.1, hj'⟩).symm.trans hz_eq)⟩
   · rintro ⟨j, j', k₀, k₀', he, hx_eq, hy_eq, hz_eq⟩
     refine ⟨((j.1, k₀.1), (j'.1, k₀'.1)), he, ?_⟩
-    simp only [Bool.and_eq_true, decide_eq_true_eq, j.2, k₀.2, j'.2, k₀'.2, true_and]
-    refine ⟨⟨?_, by rw [hcondy0, hy_eq]; exact decide_eq_true rfl⟩, ?_⟩
-    · rw [range_all_eq_decide _ x (antiUnitPair k₀ k₀') (fun i => by
-        simp [hx i, antiUnitPair, Bool.decide_or, beq_eq_decide]), hx_eq]
-      exact decide_eq_true rfl
-    · rw [range_all_eq_decide _ z (unitPair j j') (fun i => by
-        simp [hz i, unitPair, Bool.decide_or, beq_eq_decide]), hz_eq]
-      exact decide_eq_true rfl
+    simp only [Bool.and_eq_true, j.2, k₀.2, j'.2, k₀'.2, true_and,
+      hxEq k₀ k₀', hy0, hzEq j j', hx_eq, hy_eq, hz_eq, decide_true]
 
 private theorem ilangoEntry_eq_table (G : BipartitePermutationGraph) (k : Fin (2 ^ (6 * G.1))) :
     ilangoEntry G k.1 = (ilangoInstance G).table k := by
@@ -1648,36 +1428,32 @@ private theorem ilangoEntry_eq_table (G : BipartitePermutationGraph) (k : Fin (2
   have hx (i : Fin (2 * G.1)) : k.1.testBit i.1 = x i := by simp [x, w, unpackX, xVar]
   have hy (i : Fin (2 * G.1)) : k.1.testBit (2 * G.1 + i.1) = y i := by simp [y, w, unpackY, yVar]
   have hz (i : Fin (2 * G.1)) : k.1.testBit (4 * G.1 + i.1) = z i := by simp [z, w, unpackZ, zVar]
-  have hcond1 := range_all_eq_decide (fun i => !k.1.testBit i) x zeros2n fun i => by
-    simp [hx i, zeros2n]
-  have hcond2 := range_all_eq_decide (fun i => k.1.testBit i) x ones2n fun i => by
-    simp [hx i, ones2n]
-  have hcond3 := range_all_eq_decide (fun i => k.1.testBit (4 * G.1 + i)) z ones2n fun i => by
-    simp [hz i, ones2n]
-  have hcond4 := range_all_eq_decide (fun i => !k.1.testBit (4 * G.1 + i)) z zeros2n fun i => by
-    simp [hz i, zeros2n]
-  have hcondy0 := range_all_eq_decide (fun i => !k.1.testBit (2 * G.1 + i)) y zeros2n fun i => by
-    simp [hy i, zeros2n]
-  have hcondzL := range_all_eq_decide (fun i => k.1.testBit (4 * G.1 + i) == decide (i < G.1))
-    z leftHalfOnes fun i => by simp [hz i, leftHalfOnes]
-  have hcondzR := range_all_eq_decide (fun i => k.1.testBit (4 * G.1 + i) == decide (G.1 ≤ i))
-    z rightHalfOnes fun i => by simp [hz i, rightHalfOnes]
-  have hval1 := range_any_eq_decide
-    (fun i => k.1.testBit (2 * G.1 + i) && k.1.testBit (4 * G.1 + i))
-    (fun i => y i = true ∧ z i = true) fun i => by simp [hy i, hz i, Bool.decide_and]
-  have hval2 := range_any_eq_decide (fun i => k.1.testBit (4 * G.1 + i))
-    (fun i => z i = true) fun i => by simp [hz i]
-  have hval3 := range_any_eq_decide (fun i => k.1.testBit i || k.1.testBit (2 * G.1 + i))
-    (fun i => x i = true ∨ y i = true) fun i => by simp [hx i, hy i, Bool.decide_or]
-  have hval5 := range_any_eq_decide (fun i => decide (i < G.1) && k.1.testBit i)
-    (fun i => i.1 < G.1 ∧ x i = true) fun i => by simp [hx i, Bool.decide_and]
-  have hval6 := range_any_eq_decide (fun i => decide (G.1 ≤ i) && k.1.testBit i)
-    (fun i => G.1 ≤ i.1 ∧ x i = true) fun i => by simp [hx i, Bool.decide_and]
   dsimp [ilangoEntry, ilangoInstance, ilangoGamma]
   change (if ((List.range (2 * G.1)).all fun i => !k.1.testBit i) = true then _ else _) =
     if x = zeros2n then _ else _
-  rw [ilangoEntry_edge_eq_decide G k.1 x y z hx hy hz, hcond1, hcond2, hcond3, hcond4, hcondzL,
-    hcondzR, hcondy0, hval1, hval2, hval3, hval5, hval6]
+  rw [ilangoEntry_edge_eq_decide G k.1 x y z hx hy hz,
+    range_all_eq_decide (fun i => !k.1.testBit i) x zeros2n (fun i => by simp [hx i, zeros2n]),
+    range_all_eq_decide (fun i => k.1.testBit i) x ones2n (fun i => by simp [hx i, ones2n]),
+    range_all_eq_decide (fun i => k.1.testBit (4 * G.1 + i)) z ones2n
+      (fun i => by simp [hz i, ones2n]),
+    range_all_eq_decide (fun i => !k.1.testBit (4 * G.1 + i)) z zeros2n
+      (fun i => by simp [hz i, zeros2n]),
+    range_all_eq_decide (fun i => k.1.testBit (4 * G.1 + i) == decide (i < G.1)) z leftHalfOnes
+      (fun i => by simp [hz i, leftHalfOnes]),
+    range_all_eq_decide (fun i => k.1.testBit (4 * G.1 + i) == decide (G.1 ≤ i)) z rightHalfOnes
+      (fun i => by simp [hz i, rightHalfOnes]),
+    range_all_eq_decide (fun i => !k.1.testBit (2 * G.1 + i)) y zeros2n
+      (fun i => by simp [hy i, zeros2n]),
+    range_any_eq_decide (fun i => k.1.testBit (2 * G.1 + i) && k.1.testBit (4 * G.1 + i))
+      (fun i => y i = true ∧ z i = true) (fun i => by simp [hy i, hz i, Bool.decide_and]),
+    range_any_eq_decide (fun i => k.1.testBit (4 * G.1 + i))
+      (fun i => z i = true) (fun i => by simp [hz i]),
+    range_any_eq_decide (fun i => k.1.testBit i || k.1.testBit (2 * G.1 + i))
+      (fun i => x i = true ∨ y i = true) (fun i => by simp [hx i, hy i, Bool.decide_or]),
+    range_any_eq_decide (fun i => decide (i < G.1) && k.1.testBit i)
+      (fun i => i.1 < G.1 ∧ x i = true) (fun i => by simp [hx i, Bool.decide_and]),
+    range_any_eq_decide (fun i => decide (G.1 ≤ i) && k.1.testBit i)
+      (fun i => G.1 ≤ i.1 ∧ x i = true) (fun i => by simp [hx i, Bool.decide_and])]
   simp only [Bool.and_eq_true, decide_eq_true_eq]
   rfl
 
@@ -1706,18 +1482,13 @@ private theorem ilangoRawFromFuel_eq (G : BipartitePermutationGraph) :
       (List.ofFn (ilangoReduction G).table, (ilangoReduction G).threshold) := by
   change ilangoRawFromFuel (G, 2 ^ (6 * G.1)) =
     (fun I : Instance => (List.ofFn I.table, I.threshold)) (ilangoReduction G)
-  unfold ilangoRawFromFuel
-  dsimp only
   by_cases hG : G.1 < 2
-  · by_cases hsmall : decideSmallBPIS G
-    · have hred : ilangoReduction G = trivialYesInstance := by simp [ilangoReduction, hG, hsmall]
-      rw [hred]; simp [hG, hsmall, trivialYesInstance]
-    · have hred : ilangoReduction G = trivialNoInstance := by simp [ilangoReduction, hG, hsmall]
-      rw [hred]; simp [hG, hsmall, trivialNoInstance]
-  · have hred : ilangoReduction G = ilangoInstance G := by simp [ilangoReduction, hG]
-    rw [hred]
-    simp only [hG, decide_false, Bool.false_eq_true, ↓reduceIte, Prod.mk.injEq]
-    exact ⟨(ofFn_ilangoInstance_table G).symm, rfl⟩
+  · rw [show ilangoReduction G =
+      if decideSmallBPIS G then trivialYesInstance else trivialNoInstance from ite_eq_left hG]
+    cases hsmall : decideSmallBPIS G <;>
+      simp [ilangoRawFromFuel, hG, hsmall, trivialYesInstance, trivialNoInstance]
+  · rw [show ilangoReduction G = ilangoInstance G from ite_eq_right hG]
+    simp [ilangoRawFromFuel, hG, ← ofFn_ilangoInstance_table]
 
 attribute [local fun_prop] ComputableInPolyTime.unary_range'
 
@@ -1733,13 +1504,8 @@ open ComputableInPolyTime in
       (encPair encBipartitePermutationGraph encUnary) (encOption encBool) := by
   unfold ilangoEntry BipartitePermutationGraph encBipartitePermutationGraph
   simp only [List.all_eq_not_any_not]
-  refine ite' (encC := encBool) (by fun_prop) (by fun_prop) ?_
-  refine ite' (encC := encBool) (by fun_prop) (by fun_prop) ?_
-  refine ite' (encC := encBool) (by fun_prop) (by fun_prop) ?_
-  refine ite' (encC := encBool) (by fun_prop) (by fun_prop) ?_
-  refine ite' (encC := encBool) (by fun_prop) (by fun_prop) ?_
-  refine ite' (encC := encBool) (by fun_prop) (by fun_prop) ?_
-  refine ite' (encC := encBool) (by fun_prop) (by fun_prop) (by fun_prop)
+  repeat' refine ite' (encC := encBool) (by fun_prop) (by fun_prop) ?_
+  fun_prop
 
 open ComputableInPolyTime in
 private theorem computableInPolyTime_ilangoRawFromFuel :
@@ -1782,30 +1548,26 @@ private theorem ilangoReduction_time_bound (d₁ d₂ : ℕ) (G : BipartitePermu
   have hM1 : 1 ≤ M := Nat.one_le_two_pow
   have hL1 : 1 ≤ L + 1 := Nat.succ_pos L
   have hX1 : 1 ≤ 2 ^ (C * G.1) := Nat.one_le_two_pow
-  have hP1 : 1 ≤ (L + 1) ^ D := Nat.one_le_pow _ _ hL1
-  have hL_le : L ≤ (L + 1) ^ D :=
-    (Nat.le_succ L).trans (Nat.le_self_pow (by omega : D ≠ 0) (L + 1))
-  have hd₁_le : (L + 1) ^ d₁ ≤ (L + 1) ^ D := Nat.pow_le_pow_right hL1 (by omega)
-  have hd₂_le : (L + 1) ^ d₂ ≤ (L + 1) ^ D := Nat.pow_le_pow_right hL1 (by omega)
-  have h12_le : 2 ^ (2 * (6 * G.1)) ≤ 2 ^ (C * G.1) :=
-    Nat.pow_le_pow_right two_pos (by simp only [C]; nlinarith)
-  have hpair_len : (encPair encBipartitePermutationGraph encUnary (G, M)).length + 1 ≤
+  have hpair : (encPair encBipartitePermutationGraph encUnary (G, M)).length + 1 ≤
       3 * M * (L + 1) := by
     simp only [length_encPair, encUnary_apply, List.length_replicate, L]; nlinarith
   have hpow_pair : ((encPair encBipartitePermutationGraph encUnary (G, M)).length + 1) ^ d₂ ≤
       3 ^ d₂ * (2 ^ (C * G.1) * (L + 1) ^ D) := by
     have hMd₂ : M ^ d₂ ≤ 2 ^ (C * G.1) := by
-      rw [show M ^ d₂ = 2 ^ (6 * G.1 * d₂) by simp [M, ← pow_mul]]
-      exact Nat.pow_le_pow_right two_pos (by simp only [C]; nlinarith)
+      simpa only [M, ← pow_mul] using Nat.pow_le_pow_right two_pos (by simp only [C]; nlinarith)
     calc ((encPair encBipartitePermutationGraph encUnary (G, M)).length + 1) ^ d₂
-        ≤ (3 * M * (L + 1)) ^ d₂ := Nat.pow_le_pow_left hpair_len d₂
+        ≤ (3 * M * (L + 1)) ^ d₂ := Nat.pow_le_pow_left hpair d₂
       _ = 3 ^ d₂ * (M ^ d₂ * (L + 1) ^ d₂) := by simp only [mul_pow, mul_assoc]
-      _ ≤ 3 ^ d₂ * (2 ^ (C * G.1) * (L + 1) ^ D) := by gcongr
-  have ht1 : L ≤ 2 ^ (C * G.1) * (L + 1) ^ D := hL_le.trans (Nat.le_mul_of_pos_left _ hX1)
+      _ ≤ 3 ^ d₂ * (2 ^ (C * G.1) * (L + 1) ^ D) :=
+        Nat.mul_le_mul_left _ (Nat.mul_le_mul hMd₂ (Nat.pow_le_pow_right hL1 (by omega)))
+  have ht1 : L ≤ 2 ^ (C * G.1) * (L + 1) ^ D :=
+    ((Nat.le_succ L).trans (Nat.le_self_pow (by omega : D ≠ 0) (L + 1))).trans
+      (Nat.le_mul_of_pos_left _ hX1)
   have ht2 : (L + 1) ^ d₁ ≤ 2 ^ (C * G.1) * (L + 1) ^ D :=
-    hd₁_le.trans (Nat.le_mul_of_pos_left _ hX1)
+    (Nat.pow_le_pow_right hL1 (by omega)).trans (Nat.le_mul_of_pos_left _ hX1)
   have ht3 : 2 ^ (2 * (6 * G.1)) ≤ 2 ^ (C * G.1) * (L + 1) ^ D :=
-    h12_le.trans (Nat.le_mul_of_pos_right _ hP1)
+    (Nat.pow_le_pow_right two_pos (by simp only [C]; nlinarith)).trans
+      (Nat.le_mul_of_pos_right _ (Nat.one_le_pow _ _ hL1))
   generalize 2 ^ (C * G.1) * (L + 1) ^ D = W at ht1 ht2 ht3 hpow_pair ⊢
   generalize 3 ^ d₂ = K₃ at hpow_pair ⊢
   nlinarith
@@ -1858,18 +1620,13 @@ private theorem arity_mul_log_ilangoReduction_le (G : BipartitePermutationGraph)
   · have : (trivialNoInstance).arity * Nat.log 2 (trivialNoInstance).arity = 2 := by decide
     rw [this]; omega
   · simp only [ilangoInstance]
-    have hG2 : 2 ≤ G.1 := by omega
-    have hlog8 : Nat.log 2 (6 * G.1) ≤ Nat.log 2 (8 * G.1) := Nat.log_mono_right (by omega)
-    have h8 : 8 * G.1 = G.1 * 2 * 2 * 2 := by ring
-    have hlog_eq : Nat.log 2 (8 * G.1) = Nat.log 2 G.1 + 3 := by
-      rw [h8, Nat.log_mul_base Nat.one_lt_two (by omega),
-        Nat.log_mul_base Nat.one_lt_two (by omega),
-        Nat.log_mul_base Nat.one_lt_two (by omega)]
     have hlog1 : 1 ≤ Nat.log 2 G.1 := Nat.log_pos Nat.one_lt_two (by omega)
-    have hlog_le : Nat.log 2 (6 * G.1) ≤ 4 * Nat.log 2 G.1 := by omega
-    calc 6 * G.1 * Nat.log 2 (6 * G.1)
-        ≤ 6 * G.1 * (4 * Nat.log 2 G.1) := Nat.mul_le_mul_left _ hlog_le
-      _ ≤ 24 * (G.1 * Nat.log 2 G.1) + 2 := by ring_nf; omega
+    have hlog_le : Nat.log 2 (6 * G.1) ≤ 4 * Nat.log 2 G.1 := by
+      have := Nat.log_mono_right (b := 2) (show 6 * G.1 ≤ G.1 * 2 * 2 * 2 by omega)
+      rw [Nat.log_mul_base Nat.one_lt_two (by omega), Nat.log_mul_base Nat.one_lt_two (by omega),
+        Nat.log_mul_base Nat.one_lt_two (by omega)] at this
+      omega
+    exact (Nat.mul_le_mul_left _ hlog_le).trans (by ring_nf; omega)
 
 /-- **Subexponential-time transfer along Ilango's $2^{O(n)}$-time reduction** (unary threshold
 encoding `PartialMCSP.enc`): if a target problem `B` on `PartialMCSP.Instance` is decidable in time

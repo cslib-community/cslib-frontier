@@ -140,9 +140,10 @@ public lemma Act.apply_tape (a : Act) (x : List ℕ) (c : SCfg) (i : ℕ) :
     rw [Tape.apply_none_zero, List.getD_eq_default _ _ hi, List.getD_eq_default _ _
       (by simpa [Act.apply, length_applyTapes_eq] using hi)]
 
--- vendored: derived from `Act.apply_tape` (review of #4180)
+-- vendored: derived from `Act.apply_tape` (review of #4180); `step_tape` and `head_apply` are
+-- public for visited-space excursion tracking (`Universal/PolySpace.lean`)
 /-- A step applies an action to every work tape. -/
-lemma step_tape (d : Desc) (x : List ℕ) (c : SCfg) (i : ℕ) :
+public lemma step_tape (d : Desc) (x : List ℕ) (c : SCfg) (i : ℕ) :
     ∃ a, (step d x c).1.workTapes.getD i .blank = (c.workTapes.getD i .blank).apply a := by
   simp only [step]
   repeat' split
@@ -150,7 +151,8 @@ lemma step_tape (d : Desc) (x : List ℕ) (c : SCfg) (i : ℕ) :
     | exact Act.apply_tape _ x c i
     | exact ⟨(none, 0), (Tape.apply_none_zero _).symm⟩
 
-lemma head_apply (t : Tape) (a : TapeAct) :
+/-- Applying a tape action shifts the head by `-1`, `0`, or `1`. -/
+public lemma head_apply (t : Tape) (a : TapeAct) :
     (t.apply a).head = t.head - 1 ∨ (t.apply a).head = t.head ∨ (t.apply a).head = t.head + 1 := by
   obtain ⟨w, m⟩ := a
   have : (w.elim t t.write).head = t.head := by cases w <;> rfl
@@ -176,15 +178,20 @@ variable (d : Desc) (x : List ℕ)
 public lemma run_succ (j : ℕ) : run d x (j + 1) = (step d x (run d x j)).1 := by
   simp only [run, Function.iterate_succ_apply', stepOut]
 
-lemma visited_mono {j j' : ℕ} (h : j ≤ j') (i : ℕ) : visited d x j i ⊆ visited d x j' i :=
+-- vendored: `visited_mono`, `headAt_mem` and `headAt_zero` are public for visited-space
+-- stabilization and excursion tracking (`Universal/PolySpace.lean`)
+/-- Visited positions on work tape `i` grow monotonically with the step count. -/
+public lemma visited_mono {j j' : ℕ} (h : j ≤ j') (i : ℕ) : visited d x j i ⊆ visited d x j' i :=
   Finset.image_subset_image fun a ha => by
     simp only [Finset.mem_range] at ha ⊢
     omega
 
-lemma headAt_mem (j i : ℕ) : headAt d x j i ∈ visited d x j i :=
+/-- The head position of work tape `i` at step `j` belongs to `visited d x j i`. -/
+public lemma headAt_mem (j i : ℕ) : headAt d x j i ∈ visited d x j i :=
   Finset.mem_image.mpr ⟨j, by simp, rfl⟩
 
-lemma headAt_zero (i : ℕ) : headAt d x 0 i = 0 := by
+/-- Every work-tape head starts at position `0`. -/
+public lemma headAt_zero (i : ℕ) : headAt d x 0 i = 0 := by
   simp [headAt, run, init, Tape.blank]
 
 /-- Every work tape is covered by the positions its head has visited. -/
@@ -250,7 +257,9 @@ lemma length_encList_eq_sum {α : Type} [Inhabited α] (enc : α ↪ List Bool) 
       Finset.sum_range_succ']
     simp [add_comm]
 
-lemma length_run_workTapes (j : ℕ) : (run d x j).workTapes.length = d.tapes := by
+-- vendored: public for visited-space excursion tracking (`Universal/PolySpace.lean`)
+/-- Every configuration along `run d x` has `d.tapes` work tapes. -/
+public lemma length_run_workTapes (j : ℕ) : (run d x j).workTapes.length = d.tapes := by
   induction j with
   | zero => simp [run, init]
   | succ j ih => rw [run_succ, length_step_workTapes, ih]

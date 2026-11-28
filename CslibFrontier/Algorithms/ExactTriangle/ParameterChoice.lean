@@ -75,16 +75,11 @@ theorem level_le_log (n : ℕ) : level n ≤ Nat.log 2 n := by
   omega
 
 /-- The group parameter is always positive, including on empty input. -/
-theorem groups_pos (n : ℕ) : 0 < groups n := by
-  unfold groups
-  exact Nat.pow_pos (by decide)
+theorem groups_pos (n : ℕ) : 0 < groups n := Nat.pow_pos (by decide)
 
 /-- Exact dyadic form of the geometry reservation. -/
 theorem window_pow (n : ℕ) : window n ^ 19 = 2 ^ (2394 * blocks n) := by
-  change (4 ^ (63 * blocks n)) ^ 19 = _
-  rw [← Nat.pow_mul]
-  change (2 ^ 2) ^ (63 * blocks n * 19) = _
-  rw [← Nat.pow_mul]
+  simp only [window, level, show (4 : ℕ) = 2 ^ 2 from rfl, ← Nat.pow_mul]
   congr 1
   omega
 
@@ -144,14 +139,13 @@ theorem size_sq_lt_groups_pow (n : ℕ) : n ^ 2 < (16 * groups n) ^ 1197 := by
   have hl : Nat.log 2 n + 1 ≤ 2394 * (blocks n + 1) := by dsimp only [blocks]; omega
   have hp := (Nat.lt_pow_succ_log_self (by decide : 1 < (2 : ℕ)) n).trans_le
     (Nat.pow_le_pow_right (by decide : 1 ≤ (2 : ℕ)) hl)
-  have hs : n ^ 2 < (2 ^ (2394 * (blocks n + 1))) ^ 2 := by nlinarith only [hp]
   have he : (16 * groups n) ^ 1197 = (2 ^ (2394 * (blocks n + 1))) ^ 2 := by
-    simp only [groups, show (16 : ℕ) = 4 ^ 2 from rfl, ← pow_add, ← pow_mul]
-    change (2 ^ 2) ^ ((2 + 2 * blocks n) * 1197) = 2 ^ (2394 * (blocks n + 1) * 2)
-    rw [← pow_mul]
+    simp only [groups, show (16 : ℕ) = 2 ^ 4 from rfl, show (4 : ℕ) = 2 ^ 2 from rfl,
+      ← pow_mul, ← pow_add]
     congr 1
     omega
-  rwa [he]
+  rw [he]
+  nlinarith only [hp]
 
 -- Allow only the fixed dyadic reservation exponent in numeral coercions.
 set_option exponentiation.threshold 2394 in

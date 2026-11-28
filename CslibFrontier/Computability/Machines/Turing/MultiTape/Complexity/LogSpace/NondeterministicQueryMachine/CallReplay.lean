@@ -26,9 +26,7 @@ private theorem live_prefix {α : Type} (M : NondeterministicQueryMachine α)
     (n : ℕ) : M.halted (M.replay input (bits.take n) s) = false := by
   cases hp : M.halted (M.replay input (bits.take n) s)
   · rfl
-  · have he := M.replay_append input (bits.take n) (bits.drop n) s
-    rw [List.take_append_drop, M.replay_of_halted input hp] at he
-    rw [he, hp] at hlive
+  · rw [← List.take_append_drop n bits, M.replay_append, M.replay_of_halted _ hp, hp] at hlive
     cases hlive
 
 private theorem split_call {α β : Type} (outer : NondeterministicQueryMachine α)
@@ -47,8 +45,7 @@ private theorem split_call {α β : Type} (outer : NondeterministicQueryMachine 
     rw [outer.replay_map_of_live input callee wrap hstep bits s
       (fun n _ => live_prefix callee input bits s hlive n), hwrap] at hh
     cases hh
-  obtain ⟨callBits, ⟨hp, hfirst, _⟩, _⟩ := callee.existsUnique_firstHalting_prefix input hc
-  obtain ⟨rest, he⟩ := hp
+  obtain ⟨callBits, ⟨⟨rest, he⟩, hfirst, _⟩, _⟩ := callee.existsUnique_firstHalting_prefix input hc
   have hr := outer.replay_map_of_live input callee wrap hstep callBits s hfirst.2
   cases rest with
   | nil =>
@@ -67,9 +64,8 @@ private theorem firstHalting_append_live_iff {α : Type} (M : NondeterministicQu
   · intro h
     refine ⟨by simpa only [M.replay_append] using h.1, fun n hn => ?_⟩
     have hh := h.2 (before.length + n) (by simp only [List.length_append]; omega)
-    rw [List.take_append, List.take_of_length_le (by omega : before.length ≤ before.length + n),
+    rwa [List.take_append, List.take_of_length_le (by omega : before.length ≤ before.length + n),
       Nat.add_sub_cancel_left, M.replay_append] at hh
-    exact hh
   · intro h
     refine ⟨by simpa only [M.replay_append] using h.1, fun n hn => ?_⟩
     by_cases hle : n ≤ before.length
@@ -111,13 +107,9 @@ theorem readReply_iff {β γ : Type} (callee : NondeterministicQueryMachine β)
       · rintro ⟨callBits, rfl, hfirst, hret⟩
         exact ⟨bit :: callBits, rfl,
           (callee.firstHalting_cons_iff input _ _ _).mpr ⟨hhalt, hfirst⟩, hret⟩
-      · rintro ⟨(_ | hd) , he, hfirst, hret⟩
-        · have hh := hfirst.1
-          rw [callee.replay_nil, hhalt] at hh
-          cases hh
-        · rename_i tl
-          change bit :: bits = hd :: (tl ++ false :: rest) at he
-          obtain ⟨rfl, rfl⟩ := List.cons.inj he
+      · rintro ⟨(_ | ⟨hd, tl⟩), he, hfirst, hret⟩
+        · exact Bool.noConfusion (hhalt.symm.trans (callee.replay_nil input s ▸ hfirst.1))
+        · obtain ⟨rfl, rfl⟩ := List.cons.inj he
           exact ⟨tl, rfl, ((callee.firstHalting_cons_iff input _ _ _).mp hfirst).2, hret⟩
     · rw [readReply, ite_eq_left hhalt]
       have hprefix : (∃ callBits, bit :: bits = callBits ++ false :: rest ∧
@@ -145,13 +137,27 @@ theorem readReply_commonPrefix {β γ : Type} (callee : NondeterministicQueryMac
     ∃ callBits, left = callBits ++ false :: rest ∧ right = callBits ++ false :: rest' ∧
       callee.FirstHalting input callBits s ∧
       ret (callee.replay input callBits s) = some a ∧ a = a' := by
-  obtain ⟨callBits, hleft, hf, hret⟩ :=
-    (readReply_iff _ _ _ _ _ _ _).mp ha
-  obtain ⟨other, hright, hf', hret'⟩ :=
-    (readReply_iff _ _ _ _ _ _ _).mp ha'
-  have he : callBits = other := hu ⟨hf, by simp [hret]⟩ ⟨hf', by simp [hret']⟩
-  subst other
+  obtain ⟨callBits, hleft, hf, hret⟩ := (readReply_iff _ _ _ _ _ _ _).mp ha
+  obtain ⟨other, hright, hf', hret'⟩ := (readReply_iff _ _ _ _ _ _ _).mp ha'
+  obtain rfl : callBits = other := hu ⟨hf, by simp [hret]⟩ ⟨hf', by simp [hret']⟩
   exact ⟨callBits, hleft, hright, hf, hret, Option.some.inj (hret.symm.trans hret')⟩
+
+/-- If a selector stream runs past a common clock, it contains a first-halting callback
+prefix within that clock and at least one subsequent selector. -/
+theorem exists_firstHalting_prefix_with_next {β : Type} (callee : NondeterministicQueryMachine β)
+    (input bits : List Bool) (s : β) (clock : ℕ)
+    (hclock : (callee.withInit s).HaltsWithin input clock)
+    (hlen : clock < bits.length) :
+    ∃ callBits selector rest, bits = callBits ++ selector :: rest ∧ callBits.length ≤ clock ∧
+      callee.FirstHalting input callBits s := by
+  have htake : (bits.take clock).length = clock := List.length_take_of_le hlen.le
+  have hh : callee.halted (callee.replay input (bits.take clock) s) = true := hclock _ htake
+  obtain ⟨callBits, ⟨hpre, hfirst, _⟩, _⟩ := callee.existsUnique_firstHalting_prefix input hh
+  have hcl : callBits.length ≤ clock := htake ▸ hpre.length_le
+  rcases hpre.trans (List.take_prefix clock bits) with ⟨_ | ⟨selector, rest⟩, hsuffix⟩
+  · rw [List.append_nil] at hsuffix
+    exact absurd (hsuffix ▸ hcl) hlen.not_ge
+  · exact ⟨callBits, selector, rest, hsuffix.symm, hcl, hfirst⟩
 
 /-- A successful first halt of a caller suspended at a same-input callback decomposes into
 the callback's successful reply and a successful first halt of the resumed caller. -/

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.NodeSeeds
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Subconstant-Redundancy Pure Storage Nodes and Metadata Separation
@@ -127,31 +128,15 @@ private theorem lookup_list_of_nodup :
 theorem lookup_eq_some_iff (w : WaitingList I_cur I_prev cap) (k : Fin (2 ^ I_cur))
     (v : Fin (2 ^ I_prev)) :
     w.lookup k = some v ↔ (k, v) ∈ w.entries := by
-  constructor
-  · intro h
-    dsimp only [lookup] at h
-    rcases hfind : w.entries.find? (fun p => p.1 == k) with _ | p
-    · rw [hfind] at h; cases h
-    · rw [hfind] at h
-      have hmem := List.mem_of_find?_eq_some hfind
-      have heq : p.1 = k := beq_iff_eq.mp <|
-        List.find?_some (p := fun q : Fin (2 ^ I_cur) × Fin (2 ^ I_prev) => q.1 == k) hfind
-      have hv : p.2 = v := Option.some.inj h
-      rwa [← heq, ← hv]
-  · exact lookup_list_of_nodup w.nodup_fst
+  refine ⟨fun h => ?_, lookup_list_of_nodup w.nodup_fst⟩
+  dsimp only [lookup] at h
+  obtain ⟨⟨k', v⟩, hfind, rfl⟩ := Option.map_eq_some_iff.mp h
+  exact eq_of_beq (List.find?_eq_some_iff_append.mp hfind).1 ▸ List.mem_of_find?_eq_some hfind
 
 theorem isSome_lookup_iff (w : WaitingList I_cur I_prev cap) (k : Fin (2 ^ I_cur)) :
     (w.lookup k).isSome ↔ k ∈ w.dom := by
-  rw [w.mem_dom_iff, List.mem_map]
-  rcases h : w.lookup k with _ | v
-  · constructor
-    · intro hs; cases hs
-    · rintro ⟨⟨k', v'⟩, hmem, rfl⟩
-      have := (w.lookup_eq_some_iff k' v').mpr hmem
-      rw [h] at this; cases this
-  · constructor
-    · intro _; exact ⟨(k, v), (w.lookup_eq_some_iff k v).mp h, rfl⟩
-    · intro _; rfl
+  simp only [mem_dom_iff, List.mem_map, Option.isSome_iff_exists, lookup_eq_some_iff, Prod.exists]
+  exact ⟨fun ⟨v, h⟩ => ⟨k, v, h, rfl⟩, fun ⟨_, v, h, hk⟩ => ⟨v, hk ▸ h⟩⟩
 
 /-- Push a fresh `(k, prev)` pair onto `w`. -/
 def push (w : WaitingList I_cur I_prev cap) (k : Fin (2 ^ I_cur)) (prev : Fin (2 ^ I_prev))
@@ -199,34 +184,17 @@ theorem dom_remove (w : WaitingList I_cur I_prev cap) (k : Fin (2 ^ I_cur)) :
     (w.remove k).dom = w.dom.erase k := by
   ext k'
   simp only [mem_dom_iff, remove, List.mem_map, List.mem_filter, bne_iff_ne, mem_erase]
-  constructor
-  · rintro ⟨p, ⟨hp, hne⟩, rfl⟩
-    exact ⟨hne, ⟨p, hp, rfl⟩⟩
-  · rintro ⟨hne, ⟨p, hp, rfl⟩⟩
-    exact ⟨p, ⟨hp, hne⟩, rfl⟩
+  exact ⟨fun ⟨p, ⟨hp, hne⟩, heq⟩ => ⟨heq ▸ hne, p, hp, heq⟩,
+    fun ⟨hne, p, hp, heq⟩ => ⟨p, ⟨hp, heq.symm ▸ hne⟩, heq⟩⟩
 
 @[simp]
 theorem lookup_remove (w : WaitingList I_cur I_prev cap) (k k' : Fin (2 ^ I_cur)) :
     (w.remove k).lookup k' = Function.update w.lookup k none k' := by
+  refine Option.ext fun v => ?_
   by_cases hkk : k' = k
   · subst k'
-    rw [Function.update_self]
-    by_contra hsome
-    obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp hsome
-    have hmem := ((w.remove k).lookup_eq_some_iff k v).mp hv
-    simp [remove] at hmem
-  · rw [Function.update_of_ne hkk]
-    rcases h : w.lookup k' with _ | v
-    · by_contra hsome
-      obtain ⟨v', hv'⟩ := Option.ne_none_iff_exists'.mp hsome
-      have hmem := ((w.remove k).lookup_eq_some_iff k' v').mp hv'
-      have hmem0 : (k', v') ∈ w.entries := (List.mem_filter.mp hmem).1
-      have := (w.lookup_eq_some_iff k' v').mpr hmem0
-      rw [h] at this; cases this
-    · have hmem0 := (w.lookup_eq_some_iff k' v).mp h
-      have hmem1 : (k', v) ∈ (w.remove k).entries :=
-        List.mem_filter.mpr ⟨hmem0, bne_iff_ne.mpr hkk⟩
-      exact ((w.remove k).lookup_eq_some_iff k' v).mpr hmem1
+    simp [lookup_eq_some_iff, remove]
+  · simp [lookup_eq_some_iff, remove, hkk]
 
 /-- Pop the head entry `(y_id^[ℓ], y_id^[ℓ - 1])` of a nonempty waiting list (`Algorithm 3`,
 Branch 2). -/
@@ -249,14 +217,20 @@ theorem pop_fst_mem_dom (w : WaitingList I_cur I_prev cap) (hne : w.dom.Nonempty
     (w.popEntry hne).1 ∈ w.dom := by
   dsimp only [popEntry, pop]
   have hlen : w.entries ≠ [] := by
-    intro hemp; rcases hne with ⟨x, hx⟩; rw [w.mem_dom_iff, hemp] at hx; cases hx
+    rintro hemp
+    rcases hne with ⟨x, hx⟩
+    rw [w.mem_dom_iff, hemp] at hx
+    cases hx
   exact (w.mem_dom_iff _).mpr (List.mem_map_of_mem (List.head_mem hlen))
 
 theorem lookup_pop_fst (w : WaitingList I_cur I_prev cap) (hne : w.dom.Nonempty) :
     w.lookup (w.popEntry hne).1 = some (w.popEntry hne).2 := by
   dsimp only [popEntry, pop]
   have hlen : w.entries ≠ [] := by
-    intro hemp; rcases hne with ⟨x, hx⟩; rw [w.mem_dom_iff, hemp] at hx; cases hx
+    rintro hemp
+    rcases hne with ⟨x, hx⟩
+    rw [w.mem_dom_iff, hemp] at hx
+    cases hx
   exact (w.lookup_eq_some_iff _ _).mpr (List.head_mem hlen)
 
 @[simp]
@@ -290,15 +264,8 @@ theorem dom_ofFinset (S : Finset (Fin (2 ^ I_cur))) (hS : S.card ≤ cap)
 theorem lookup_ofFinset (S : Finset (Fin (2 ^ I_cur))) (hS : S.card ≤ cap)
     (f : Fin (2 ^ I_cur) → Fin (2 ^ I_prev)) (k : Fin (2 ^ I_cur)) :
     (ofFinset S hS f).lookup k = if k ∈ S then some (f k) else none := by
-  by_cases hk : k ∈ S
-  · rw [ite_eq_left hk]
-    refine ((ofFinset S hS f).lookup_eq_some_iff k (f k)).mpr ?_
-    simp [ofFinset, hk]
-  · rw [ite_eq_right hk]
-    by_contra hsome
-    obtain ⟨v, hv⟩ := Option.ne_none_iff_exists'.mp hsome
-    have hmem := ((ofFinset S hS f).lookup_eq_some_iff k v).mp hv
-    simp [ofFinset, hk] at hmem
+  refine Option.ext fun v => ?_
+  by_cases hk : k ∈ S <;> simp [lookup_eq_some_iff, ofFinset, hk]
 
 end WaitingList
 
@@ -325,17 +292,13 @@ def locateSlot (tm : StorageTableMeta I m) (k : Fin (2 ^ I)) : Option (Fin m) :=
 theorem locateSlot_eq_some_iff (tm : StorageTableMeta I m) (k : Fin (2 ^ I)) (i : Fin m) :
     tm.locateSlot k = some i ↔ tm.slots i = some k := by
   dsimp only [locateSlot]
-  constructor
-  · intro h
-    exact eq_of_beq (Fin.eq_true_of_find?_eq_some (p := fun j => tm.slots j == some k) h)
-  · intro hi
-    cases hfind : Fin.find? (fun j => tm.slots j == some k) with
-    | some j =>
-      have hj := eq_of_beq (Fin.eq_true_of_find?_eq_some (p := fun j => tm.slots j == some k) hfind)
-      rw [tm.inj_slots j i k hj hi]
-    | none =>
-      have hfalse := Fin.find?_eq_none_iff.mp hfind i
-      simp [hi] at hfalse
+  refine ⟨fun h => eq_of_beq (Fin.eq_true_of_find?_eq_some h), fun hi => ?_⟩
+  cases hfind : Fin.find? (fun j => tm.slots j == some k) with
+  | some j =>
+    exact congrArg some
+      (tm.inj_slots j i k (eq_of_beq (Fin.eq_true_of_find?_eq_some hfind)) hi)
+  | none =>
+    exact absurd (beq_iff_eq.mpr hi) (by simpa using Fin.find?_eq_none_iff.mp hfind i)
 
 /-- Active ID set represented in `tm`. -/
 def dom (tm : StorageTableMeta I m) : Finset (Fin (2 ^ I)) :=
@@ -350,32 +313,26 @@ theorem isSome_locateSlot_iff (tm : StorageTableMeta I m) (k : Fin (2 ^ I)) :
     (tm.locateSlot k).isSome ↔ k ∈ tm.dom := by
   simp [dom]
 
-theorem card_dom_le (tm : StorageTableMeta I m) : tm.dom.card ≤ m := by
-  have hsub : tm.dom ⊆ univ.biUnion fun i : Fin m => (tm.slots i).toFinset := by
-    intro k hk
-    obtain ⟨i, hi⟩ := (tm.mem_dom_iff k).mp hk
-    exact mem_biUnion.mpr ⟨i, mem_univ i, Option.mem_toFinset.mpr hi⟩
-  calc tm.dom.card ≤ (univ.biUnion fun i : Fin m => (tm.slots i).toFinset).card :=
-        card_le_card hsub
+theorem card_dom_le (tm : StorageTableMeta I m) : tm.dom.card ≤ m :=
+  calc tm.dom.card
+      ≤ (univ.biUnion fun i : Fin m => (tm.slots i).toFinset).card :=
+        card_le_card fun k hk =>
+          let ⟨i, hi⟩ := (tm.mem_dom_iff k).mp hk
+          mem_biUnion.mpr ⟨i, mem_univ i, Option.mem_toFinset.mpr hi⟩
     _ ≤ ∑ i : Fin m, (tm.slots i).toFinset.card := card_biUnion_le
     _ ≤ ∑ _i : Fin m, 1 := sum_le_sum fun i _ => by cases tm.slots i <;> simp
     _ = m := by simp
 
 theorem exists_free_slot (tm : StorageTableMeta I m) (hlt : tm.dom.card < m) :
     ∃ i : Fin m, tm.slots i = none := by
-  by_contra hno
-  push Not at hno
-  have hsome : ∀ i : Fin m, ∃ k, tm.slots i = some k := fun i =>
-    Option.ne_none_iff_exists'.mp (hno i)
-  choose f hf using hsome
-  have hinj : Function.Injective f := fun i j hij =>
-    tm.inj_slots i j (f j) (hij ▸ hf i) (hf j)
-  have hmap : (univ.map ⟨f, hinj⟩) ⊆ tm.dom := by
-    intro k hk
-    rcases mem_map.mp hk with ⟨i, _, rfl⟩
-    exact (tm.mem_dom_iff (f i)).mpr ⟨i, hf i⟩
+  by_contra! hno
+  choose f hf using fun i => Option.ne_none_iff_exists'.mp (hno i)
+  have hinj : Function.Injective f := fun i j hij => tm.inj_slots i j (f j) (hij ▸ hf i) (hf j)
   have hle : m ≤ tm.dom.card := by
-    simpa only [card_map, card_univ, Fintype.card_fin] using card_le_card hmap
+    simpa only [card_map, card_univ, Fintype.card_fin] using
+      card_le_card (s := univ.map ⟨f, hinj⟩) fun _ hk => by
+        rcases mem_map.mp hk with ⟨i, _, rfl⟩
+        exact (tm.mem_dom_iff (f i)).mpr ⟨i, hf i⟩
   omega
 
 /-- Empty storage-table metadata. -/
@@ -445,27 +402,31 @@ theorem tableMeta_overwrite (tbl : StorageTable I m Q V) (k : Fin (2 ^ I))
     (qv : Fin Q × Fin V) (hk : k ∈ tbl.tableMeta.dom) :
     (tbl.overwrite k qv hk).tableMeta = tbl.tableMeta := by rfl
 
+private theorem storageTable_query_eq_some_iff (tbl : StorageTable I m Q V) (k : Fin (2 ^ I))
+    (qv : Fin Q × Fin V) :
+    tbl.query k = some qv ↔ ∃ i : Fin m, tbl.tableMeta.slots i = some k ∧ tbl.payload i = qv := by
+  simp [query, Option.map_eq_some_iff, tbl.tableMeta.locateSlot_eq_some_iff]
+
 @[simp]
 theorem query_overwrite (tbl : StorageTable I m Q V) (k : Fin (2 ^ I))
     (qv : Fin Q × Fin V) (hk : k ∈ tbl.tableMeta.dom) (k' : Fin (2 ^ I)) :
     (tbl.overwrite k qv hk).query k' = Function.update tbl.query k (some qv) k' := by
+  refine Option.ext fun qv' => ?_
   have hsome := (tbl.tableMeta.isSome_locateSlot_iff k).mpr hk
   let i₀ := (tbl.tableMeta.locateSlot k).get hsome
-  have hloc₀ : tbl.tableMeta.locateSlot k = some i₀ := (Option.some_get hsome).symm
   have hsl₀ : tbl.tableMeta.slots i₀ = some k :=
-    (tbl.tableMeta.locateSlot_eq_some_iff k i₀).mp hloc₀
+    (tbl.tableMeta.locateSlot_eq_some_iff k i₀).mp (Option.some_get hsome).symm
   by_cases hkk : k' = k
   · subst k'
-    change Option.map (Function.update tbl.payload i₀ qv) (tbl.tableMeta.locateSlot k) =
-      Function.update tbl.query k (some qv) k
-    rw [hloc₀, Option.map_some, Function.update_self, Function.update_self]
-  · rw [Function.update_of_ne hkk]
-    dsimp only [query, overwrite]
-    rcases hloc : tbl.tableMeta.locateSlot k' with _ | j
-    · rfl
-    · have hsl_j := (tbl.tableMeta.locateSlot_eq_some_iff k' j).mp hloc
-      have hj_ne : j ≠ i₀ := fun hji => hkk (Option.some.inj (hsl_j.symm.trans (hji ▸ hsl₀)))
-      rw [Option.map_some, Option.map_some, Function.update_of_ne hj_ne]
+    simp only [storageTable_query_eq_some_iff, overwrite, Function.update_self, Option.some.injEq]
+    exact ⟨fun ⟨j, hj, hp⟩ => by
+        rw [tbl.tableMeta.inj_slots j i₀ k hj hsl₀, Function.update_self] at hp
+        exact hp,
+      fun h => ⟨i₀, hsl₀, by simp [i₀, h]⟩⟩
+  · simp only [Function.update_of_ne hkk, storageTable_query_eq_some_iff, overwrite]
+    refine exists_congr fun j => and_congr_right fun hj => ?_
+    have hji : j ≠ i₀ := fun h => hkk (Option.some.inj (hj.symm.trans (h ▸ hsl₀)))
+    rw [Function.update_of_ne hji]
 
 private def freeSlot (tm : StorageTableMeta I m) (hlt : tm.dom.card < m) : Fin m :=
   match h : Fin.find? (fun i => (tm.slots i).isNone) with
@@ -523,8 +484,11 @@ theorem dom_insert (tbl : StorageTable I m Q V) (k : Fin (2 ^ I)) (qv : Fin Q ×
   constructor
   · rintro ⟨j, hj⟩
     by_cases hji : j = i₀
-    · subst hji; rw [Function.update_self] at hj; left; exact (Option.some.inj hj).symm
-    · rw [Function.update_of_ne hji] at hj; right; exact ⟨j, hj⟩
+    · subst hji
+      rw [Function.update_self] at hj
+      exact .inl (Option.some.inj hj).symm
+    · rw [Function.update_of_ne hji] at hj
+      exact .inr ⟨j, hj⟩
   · rintro (rfl | ⟨j, hj⟩)
     · exact ⟨i₀, Function.update_self ..⟩
     · have hji : j ≠ i₀ := fun h => by rw [h, hi₀_none] at hj; cases hj
@@ -534,33 +498,25 @@ theorem dom_insert (tbl : StorageTable I m Q V) (k : Fin (2 ^ I)) (qv : Fin Q ×
 theorem query_insert (tbl : StorageTable I m Q V) (k : Fin (2 ^ I)) (qv : Fin Q × Fin V)
     (hlt : tbl.tableMeta.dom.card < m) (hk : k ∉ tbl.tableMeta.dom) (k' : Fin (2 ^ I)) :
     (tbl.insert k qv hlt hk).query k' = Function.update tbl.query k (some qv) k' := by
+  refine Option.ext fun qv' => ?_
   let i₀ := freeSlot tbl.tableMeta hlt
   have hi₀_none : tbl.tableMeta.slots i₀ = none := slots_freeSlot tbl.tableMeta hlt
   let tbl' := tbl.insert k qv hlt hk
   by_cases hkk : k' = k
   · subst k'
-    have hloc' : tbl'.tableMeta.locateSlot k = some i₀ :=
-      (tbl'.tableMeta.locateSlot_eq_some_iff k i₀).mpr (Function.update_self ..)
-    dsimp only [query]
-    rw [hloc', Option.map_some, Function.update_self]
-    dsimp only [tbl', insert]
-    rw [Function.update_self]
-  · rw [Function.update_of_ne hkk]
-    by_cases hk' : k' ∈ tbl.tableMeta.dom
-    · obtain ⟨j, hsj⟩ := (tbl.tableMeta.mem_dom_iff k').mp hk'
-      have hloc : tbl.tableMeta.locateSlot k' = some j :=
-        (tbl.tableMeta.locateSlot_eq_some_iff k' j).mpr hsj
-      have hji : j ≠ i₀ := fun h => by rw [h, hi₀_none] at hsj; cases hsj
-      have hloc' : tbl'.tableMeta.locateSlot k' = some j :=
-        (tbl'.tableMeta.locateSlot_eq_some_iff k' j).mpr
-          (by dsimp only [tbl', insert]; rw [Function.update_of_ne hji]; exact hsj)
-      dsimp only [query]
-      rw [hloc', hloc, Option.map_some, Option.map_some]
-      dsimp only [tbl', insert]
-      rw [Function.update_of_ne hji]
-    · have hk'' : k' ∉ tbl'.tableMeta.dom := by simp [tbl', hkk, hk']
-      rw [Option.not_isSome_iff_eq_none.mp (mt (tbl'.isSome_query_iff k').mp hk''),
-        Option.not_isSome_iff_eq_none.mp (mt (tbl.isSome_query_iff k').mp hk')]
+    simp only [Function.update_self, storageTable_query_eq_some_iff, Option.some.injEq]
+    refine ⟨fun ⟨j, hj, hp⟩ => ?_,
+      fun h => ⟨i₀, Function.update_self .., by simp [insert, i₀, h]⟩⟩
+    have hji : j = i₀ := tbl'.tableMeta.inj_slots j i₀ k hj (Function.update_self ..)
+    subst hji
+    simpa [insert, i₀] using hp
+  · simp only [Function.update_of_ne hkk, storageTable_query_eq_some_iff, insert]
+    refine exists_congr fun j => ?_
+    by_cases hji : j = i₀
+    · subst hji
+      simp [i₀, Ne.symm hkk, hi₀_none]
+    · dsimp only [i₀] at hji
+      simp only [Function.update_of_ne hji]
 
 /-- Delete `k` from `tbl` (used at root nodes `ℓ = 1`). -/
 def delete (tbl : StorageTable I m Q V) (k : Fin (2 ^ I)) : StorageTable I m Q V where
@@ -577,44 +533,23 @@ theorem dom_delete (tbl : StorageTable I m Q V) (k : Fin (2 ^ I)) :
     (tbl.delete k).tableMeta.dom = tbl.tableMeta.dom.erase k := by
   ext k'
   simp only [StorageTableMeta.mem_dom_iff, delete, mem_erase]
-  constructor
-  · rintro ⟨i, hi⟩
-    split_ifs at hi with h
-    have hne : k' ≠ k := fun hkk => by subst k'; exact absurd (beq_iff_eq.mpr hi) (by simp [h])
-    exact ⟨hne, i, hi⟩
-  · rintro ⟨hne, i, hi⟩
-    refine ⟨i, ?_⟩
-    have hbeq : (tbl.tableMeta.slots i == some k) = false := by
-      rw [hi]; exact beq_eq_false_iff_ne.mpr (fun h => hne (Option.some.inj h))
-    rw [ite_eq_right (by simp [hbeq])]
-    exact hi
+  refine ⟨?_, fun ⟨hne, i, hi⟩ => ⟨i, by simp [hi, hne]⟩⟩
+  rintro ⟨i, hi⟩
+  split_ifs at hi with h
+  refine ⟨fun hkk => ?_, i, hi⟩
+  subst k'
+  simp [hi] at h
 
 @[simp]
 theorem query_delete (tbl : StorageTable I m Q V) (k k' : Fin (2 ^ I)) :
     (tbl.delete k).query k' = Function.update tbl.query k none k' := by
+  refine Option.ext fun qv' => ?_
   by_cases hkk : k' = k
   · subst k'
-    rw [Function.update_self]
-    have hk' : k ∉ (tbl.delete k).tableMeta.dom := by simp
-    exact Option.not_isSome_iff_eq_none.mp (mt ((tbl.delete k).isSome_query_iff k).mp hk')
-  · rw [Function.update_of_ne hkk]
-    by_cases hk' : k' ∈ tbl.tableMeta.dom
-    · obtain ⟨i, hi⟩ := (tbl.tableMeta.mem_dom_iff k').mp hk'
-      have hl : tbl.tableMeta.locateSlot k' = some i :=
-        (tbl.tableMeta.locateSlot_eq_some_iff k' i).mpr hi
-      have hl' : (tbl.delete k).tableMeta.locateSlot k' = some i := by
-        refine ((tbl.delete k).tableMeta.locateSlot_eq_some_iff k' i).mpr ?_
-        dsimp only [delete]
-        have hbeq : (tbl.tableMeta.slots i == some k) = false := by
-          rw [hi]; exact beq_eq_false_iff_ne.mpr (fun h => hkk (Option.some.inj h))
-        rw [ite_eq_right (by simp [hbeq])]
-        exact hi
-      dsimp only [query]
-      rw [hl', hl]
-      rfl
-    · have hk'' : k' ∉ (tbl.delete k).tableMeta.dom := by simp [hk']
-      rw [Option.not_isSome_iff_eq_none.mp (mt ((tbl.delete k).isSome_query_iff k').mp hk''),
-        Option.not_isSome_iff_eq_none.mp (mt (tbl.isSome_query_iff k').mp hk')]
+    simp [storageTable_query_eq_some_iff, delete]
+  · simp only [Function.update_of_ne hkk, storageTable_query_eq_some_iff, delete]
+    exact exists_congr fun i => and_congr_left fun _ => by
+      split_ifs with h <;> simp_all [beq_iff_eq, Ne.symm hkk]
 
 /-- Replace an active key `k_old ∈ tbl.tableMeta.dom` with `(k_new, qv_new)` in the freed slot
 (`Algorithm 3`, Branch 2 at inner nodes `2 ≤ ℓ < depth`). -/
@@ -666,7 +601,9 @@ theorem dom_replace (tbl : StorageTable I m Q V) (k_old k_new : Fin (2 ^ I))
   constructor
   · rintro ⟨j, hj⟩
     by_cases hji : j = i₀
-    · subst hji; rw [Function.update_self] at hj; left; exact (Option.some.inj hj).symm
+    · subst hji
+      rw [Function.update_self] at hj
+      exact .inl (Option.some.inj hj).symm
     · rw [Function.update_of_ne hji] at hj
       right
       exact ⟨fun hk => hji (tbl.tableMeta.inj_slots j i₀ k_old (hk ▸ hj) hsl₀), j, hj⟩
@@ -681,6 +618,7 @@ theorem query_replace (tbl : StorageTable I m Q V) (k_old k_new : Fin (2 ^ I))
     (hnew : k_new ∉ tbl.tableMeta.dom.erase k_old) (k' : Fin (2 ^ I)) :
     (tbl.replace k_old k_new qv_new hold hnew).query k' =
       Function.update (Function.update tbl.query k_old none) k_new (some qv_new) k' := by
+  refine Option.ext fun qv' => ?_
   have hsome := (tbl.tableMeta.isSome_locateSlot_iff k_old).mpr hold
   let i₀ := (tbl.tableMeta.locateSlot k_old).get hsome
   have hsl₀ : tbl.tableMeta.slots i₀ = some k_old :=
@@ -688,34 +626,26 @@ theorem query_replace (tbl : StorageTable I m Q V) (k_old k_new : Fin (2 ^ I))
   let tbl' := tbl.replace k_old k_new qv_new hold hnew
   by_cases hnew_eq : k' = k_new
   · subst k'
-    have hl' : tbl'.tableMeta.locateSlot k_new = some i₀ :=
-      (tbl'.tableMeta.locateSlot_eq_some_iff k_new i₀).mpr (Function.update_self ..)
-    dsimp only [query]
-    rw [hl', Option.map_some, Function.update_self]
-    dsimp only [tbl', replace]
-    rw [Function.update_self]
+    simp only [Function.update_self, storageTable_query_eq_some_iff, Option.some.injEq]
+    refine ⟨fun ⟨j, hj, hp⟩ => ?_,
+      fun h => ⟨i₀, Function.update_self .., by simp [replace, i₀, h]⟩⟩
+    have hji : j = i₀ := tbl'.tableMeta.inj_slots j i₀ k_new hj (Function.update_self ..)
+    subst hji
+    simpa [replace, i₀] using hp
   · rw [Function.update_of_ne hnew_eq]
     by_cases hold_eq : k' = k_old
     · subst k'
-      rw [Function.update_self]
-      have hk'' : k_old ∉ tbl'.tableMeta.dom := by simp [tbl', hnew_eq]
-      exact Option.not_isSome_iff_eq_none.mp (mt (tbl'.isSome_query_iff k_old).mp hk'')
-    · rw [Function.update_of_ne hold_eq]
-      by_cases hk' : k' ∈ tbl.tableMeta.dom
-      · obtain ⟨j, hsj⟩ := (tbl.tableMeta.mem_dom_iff k').mp hk'
-        have hl : tbl.tableMeta.locateSlot k' = some j :=
-          (tbl.tableMeta.locateSlot_eq_some_iff k' j).mpr hsj
-        have hji : j ≠ i₀ := fun h => hold_eq (Option.some.inj (hsj.symm.trans (h ▸ hsl₀)))
-        have hl' : tbl'.tableMeta.locateSlot k' = some j :=
-          (tbl'.tableMeta.locateSlot_eq_some_iff k' j).mpr
-            (by dsimp only [tbl', replace]; rw [Function.update_of_ne hji]; exact hsj)
-        dsimp only [query]
-        rw [hl', hl, Option.map_some, Option.map_some]
-        dsimp only [tbl', replace]
-        rw [Function.update_of_ne hji]
-      · have hk'' : k' ∉ tbl'.tableMeta.dom := by simp [tbl', hnew_eq, hold_eq, hk']
-        rw [Option.not_isSome_iff_eq_none.mp (mt (tbl'.isSome_query_iff k').mp hk''),
-          Option.not_isSome_iff_eq_none.mp (mt (tbl.isSome_query_iff k').mp hk')]
+      simp only [Function.update_self, reduceCtorEq, iff_false]
+      exact fun hq => by
+        have hk'' : k_old ∉ tbl'.tableMeta.dom := by simp [tbl', hnew_eq]
+        exact hk'' ((tbl'.isSome_query_iff k_old).mp (hq ▸ rfl))
+    · simp only [Function.update_of_ne hold_eq, storageTable_query_eq_some_iff, replace]
+      refine exists_congr fun j => ?_
+      by_cases hji : j = i₀
+      · subst hji
+        simp [i₀, Ne.symm hnew_eq, hsl₀, Ne.symm hold_eq]
+      · dsimp only [i₀] at hji
+        simp only [Function.update_of_ne hji]
 
 /-- Bulk-initialize a storage table from `S : Finset (Fin (2 ^ I))` and payload map `f` (used in
 tree construction and subtree reconstruction), materializing the first `min #S m` elements of `S`
@@ -754,22 +684,19 @@ theorem dom_ofFinset (S : Finset (Fin (2 ^ I))) (hS : S.card ≤ m)
 theorem query_ofFinset (S : Finset (Fin (2 ^ I))) (hS : S.card ≤ m)
     (hQ : 1 ≤ Q) (hV : 1 ≤ V) (f : Fin (2 ^ I) → Fin Q × Fin V) (k : Fin (2 ^ I)) :
     (ofFinset (m := m) S hQ hV f).query k = if k ∈ S then some (f k) else none := by
-  set tbl := ofFinset (m := m) S hQ hV f
+  refine Option.ext fun qv' => ?_
   by_cases hk : k ∈ S
-  · rw [ite_eq_left hk]
-    let idx := (S.orderIsoOfFin rfl).symm ⟨k, hk⟩
-    let i : Fin m := ⟨idx.val, idx.isLt.trans_le hS⟩
-    have hl : tbl.tableMeta.locateSlot k = some i := by
-      refine (tbl.tableMeta.locateSlot_eq_some_iff k i).mpr ?_
-      dsimp only [tbl, ofFinset, i]
-      simp [idx.isLt, idx]
-    dsimp only [query]
-    rw [hl, Option.map_some]
-    dsimp only [tbl, ofFinset, i]
-    simp [idx.isLt, idx]
+  · let idx := (S.orderIsoOfFin rfl).symm ⟨k, hk⟩
+    simp only [ite_eq_left hk, storageTable_query_eq_some_iff, ofFinset, Option.some.injEq]
+    refine ⟨fun ⟨j, hj, hp⟩ => ?_,
+      fun h => ⟨⟨idx.val, idx.isLt.trans_le hS⟩, by simp [idx.isLt, idx],
+        by simp [idx.isLt, idx, h]⟩⟩
+    split_ifs at hj hp with hlt
+    rw [← hp, Option.some.inj hj]
   · rw [ite_eq_right hk]
-    have hk' : k ∉ tbl.tableMeta.dom := by rwa [dom_ofFinset S hS]
-    exact Option.not_isSome_iff_eq_none.mp (mt (tbl.isSome_query_iff k).mp hk')
+    simp only [reduceCtorEq, iff_false]
+    exact fun hq => hk (dom_ofFinset S hS hQ hV f ▸
+      ((ofFinset (m := m) S hQ hV f).isSome_query_iff k).mp (hq ▸ rfl))
 
 end StorageTable
 
@@ -886,8 +813,7 @@ theorem rootKeys_le_rootValPoolCap {rootKeys totalActive : ℕ}
     (hcap : totalActive ≤ P.cap) :
     rootKeys ≤ P.rootValPoolCap := by
   rw [P.leaf_add_inner_slots_eq] at hpart
-  dsimp only [rootValPoolCap]
-  omega
+  wram_omega
 
 end TreeSchedule
 

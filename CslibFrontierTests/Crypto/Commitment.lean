@@ -32,6 +32,18 @@ namespace CslibFrontierTests.Crypto.Commitment
 open Cslib Cslib.Crypto Cslib.Probability Turing.MultiTapeTM
 open scoped NNReal
 
+-- Exactly three output bits per seed bit suffice even for a generator with constant outputs
+-- at each length. At seed length zero the only challenge admits both openings.
+private def zeroTriple (seed : List Bool) : List Bool := List.replicate (3 * seed.length) false
+
+example : naorBindingProb zeroTriple (3 * ·) 1 < (1 / 2 : ENNReal) := by
+  simpa using naorBindingProb_lt_of_three_mul (generator := zeroTriple) (length := (3 * ·))
+    (fun _ => List.length_replicate) Nat.zero_lt_one le_rfl
+
+example : naorBindingProb zeroTriple (3 * ·) 0 = 1 := by
+  have hbad : ¬ NaorBinding zeroTriple 0 [] := fun h => h [] [] rfl rfl rfl
+  simp [naorBindingProb, PMF.toOuterMeasure_pure_apply, hbad]
+
 /-- Deliberately insecure commitment that outputs the committed bit `b` in the clear. -/
 def leakCommit (_ : List Bool) (b : Bool) (_ : List Bool) : List Bool :=
   [b]

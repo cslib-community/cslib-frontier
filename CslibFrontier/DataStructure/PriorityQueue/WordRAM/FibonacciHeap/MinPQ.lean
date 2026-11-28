@@ -14,6 +14,7 @@ public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.Ba
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.Cut
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.Consolidate
 import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
+import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
 
 /-!
 # Fibonacci Heap with Handles and Satellite Values
@@ -403,48 +404,46 @@ theorem arguments_fit {n_max U V w base : ℕ}
   cases o with
   | isEmpty => exact h0
   | get h =>
-    simp only [encode, rawEncode]
-    split_ifs
+    simp only [encode, rawEncode]; split_ifs
     · exact h1
     · exact hS.of_le (by have := h.isLt; omega)
     · exact h0
   | insert u v =>
     obtain ⟨_, hu, hv_lt⟩ := hv
-    simp only [encode, rawEncode]
-    split_ifs
+    simp only [encode, rawEncode]; split_ifs
     · exact h1
-    · exact hU.of_le (Nat.le_of_lt hu)
-    · exact hV.of_le (Nat.le_of_lt hv_lt)
+    · exact hU.of_le hu.le
+    · exact hV.of_le hv_lt.le
     · exact h0
   | decreaseKey h u' =>
-    simp only [encode]
-    split_ifs with _ _ _ _ hu'
+    simp only [encode]; split_ifs with _ _ _ _ hu'
     · exact h1
     · exact h1
     · exact hS.of_le (by have := h.isLt; omega)
-    · exact hU.of_le (Nat.le_of_lt hu')
+    · exact hU.of_le hu'.le
     · exact h0
     · exact h0
   | extractMin =>
-    simp only [encode, rawEncode]
-    split_ifs
-    · exact h1
-    · exact h0
+    simp only [encode, rawEncode]; split_ifs <;> [exact h1; exact h0]
+
+private theorem argMatch_of_eq_encode {n_max U : ℕ} (o : PriorityQueue.MinPQ.Op n_max)
+    {f : Fin rMinPQ → ℕ}
+    (h2 : f tag2 = encode U o tag2) (h1 : f tag1 = encode U o tag1)
+    (h0 : f tag0 = encode U o tag0) (hv : f argV = encode U o argV)
+    (hk : f argK = encode U o argK) (hval : f inValReg = encode U o inValReg) :
+    argMatch U o f := by
+  cases o with
+  | isEmpty => exact ⟨h2, h1, h0⟩
+  | get _ => exact ⟨h2, h1, ne_of_eq_of_ne h0 Nat.one_ne_zero, hv⟩
+  | insert _ _ => exact ⟨h2, ne_of_eq_of_ne h1 Nat.one_ne_zero, h0, hk, hval⟩
+  | decreaseKey _ _ =>
+    exact ⟨h2, ne_of_eq_of_ne h1 Nat.one_ne_zero, ne_of_eq_of_ne h0 Nat.one_ne_zero, hv, hk⟩
+  | extractMin => exact ne_of_eq_of_ne h2 Nat.one_ne_zero
 
 theorem encode_matches {n_max U : ℕ} (o : PriorityQueue.MinPQ.Op n_max)
     (regs : Fin rMinPQ → ℕ) :
-    argMatch U o (fun i => if subroutineCode.input i then encode U o i else regs i) := by
-  cases o with
-  | isEmpty =>
-    refine ⟨rfl, rfl, rfl⟩
-  | get h =>
-    refine ⟨rfl, rfl, Nat.one_ne_zero, rfl⟩
-  | insert u v =>
-    refine ⟨rfl, Nat.one_ne_zero, rfl, rfl, rfl⟩
-  | decreaseKey h u' =>
-    refine ⟨rfl, Nat.one_ne_zero, Nat.one_ne_zero, rfl, rfl⟩
-  | extractMin =>
-    exact Nat.one_ne_zero
+    argMatch U o (fun i => if subroutineCode.input i then encode U o i else regs i) :=
+  argMatch_of_eq_encode o rfl rfl rfl rfl rfl rfl
 
 
 /-! ## Representation invariant (`AllocRep`, `Rep`) and framing lemmas -/
@@ -510,26 +509,22 @@ theorem AllocRep.supported {n_max U V w base : ℕ}
     (hb' : x'.Bounded w) (h : AllocRep n_max U V w base s x) :
     AllocRep n_max U V w base s x' := by
   obtain ⟨_, hfib, hwf, hfr, hfb, hfresh, htop, hval, hfree⟩ := h
-  refine ⟨hb', ?_, hwf,
+  have ⟨hwf_le, _, _, _, hwf_sum⟩ := hwf
+  refine ⟨hb',
+    (FibonacciHeap.FibInv.supported (x := x.comap f42) (x' := x'.comap f42)
+      (fun j hj => hreg (f42 j) (inputReg_f42_of_false j hj))
+      (fun a ha => hmem a (fib_footprint_subset ha)) (hb'.comap f42) hfib),
+    hwf,
     (hreg outerFrontierReg (by decide)).trans hfr,
     (hreg freeBaseReg (by decide)).trans hfb,
     (hreg freshReg (by decide)).trans hfresh,
-    (hreg freeTopReg (by decide)).trans htop, ?_, ?_⟩
-  · refine FibonacciHeap.FibInv.supported (fun j hj => ?_) (fun a ha => ?_) (hb'.comap f42) hfib
-    · exact hreg (f42 j) (inputReg_f42_of_false j hj)
-    · exact hmem a (fib_footprint_subset ha)
-  · intro h u v hsh
-    obtain ⟨hu, hv, hm⟩ := hval h u v hsh
-    refine ⟨hu, hv, ?_⟩
-    rw [hmem _ (Block.mem_footprint.mpr (owns_val_addr h.isLt))]
-    exact hm
-  · intro i hi
-    have hlt : s.freeList.length - 1 - i < n_max := by
-      have := hwf.1
-      have := hwf.2.2.2.2
-      omega
-    rw [hmem _ (Block.mem_footprint.mpr (owns_free_addr hlt))]
-    exact hfree i hi
+    (hreg freeTopReg (by decide)).trans htop,
+    fun h u v hsh => by
+      obtain ⟨hu, hv, hm⟩ := hval h u v hsh
+      exact ⟨hu, hv, (hmem _ (Block.mem_footprint.mpr (owns_val_addr h.isLt))).trans hm⟩,
+    fun i hi => by
+      have hlt : s.freeList.length - 1 - i < n_max := by omega
+      exact (hmem _ (Block.mem_footprint.mpr (owns_free_addr hlt))).trans (hfree i hi)⟩
 
 theorem Rep.supported {n_max U V w base : ℕ}
     {e : PriorityQueue.MinPQ.State n_max} {x x' : Data rMinPQ}
@@ -545,6 +540,23 @@ theorem potential_supported {x x' : Data rMinPQ}
     potential x' = potential x :=
   FibonacciHeap.potential_supported fun j hj => hreg (f42 j) (inputReg_f42_of_false j hj)
 
+private theorem potential_extend (y_fib : Data rFib) (x : Data rMinPQ) :
+    potential (y_fib.extend f42 x) = FibonacciHeap.potential y_fib := by
+  unfold potential; rw [Data.comap_extend f42_injective]
+
+private theorem regs_set_of_inputReg {x : Data rMinPQ} {r : Fin rMinPQ}
+    (hr : inputReg r = true) (v : ℕ) :
+    ∀ i : Fin rMinPQ, inputReg i = false → (x.set r v).regs i = x.regs i :=
+  fun i hi => Data.set_regs_of_ne (by rintro rfl; cases hr.symm.trans hi) v
+
+private theorem AllocRep.key_lt_of_entries {n_max U V w base : ℕ}
+    {s : PriorityQueue.MinPQ.AllocState n_max} {x : Data rMinPQ}
+    (hrep : AllocRep n_max U V w base s x) {h : Fin n_max} {u' : ℕ}
+    (hv : (minPQSpec n_max U V).valid s.entries (.decreaseKey h u')) : u' < U := by
+  obtain ⟨_, _, _, _, _, _, _, hval, _⟩ := hrep
+  obtain ⟨u, v, hsh, hu'⟩ := hv
+  exact Nat.lt_of_le_of_lt hu' (hval h u v hsh).1
+
 theorem rawArgMatch_of_argMatch {n_max U V w base : ℕ}
     {s : PriorityQueue.MinPQ.AllocState n_max} {x : Data rMinPQ}
     {o : PriorityQueue.MinPQ.Op n_max}
@@ -555,11 +567,8 @@ theorem rawArgMatch_of_argMatch {n_max U V w base : ℕ}
   cases o with
   | isEmpty | get _ | insert _ _ | extractMin => exact harg
   | decreaseKey h u' =>
-    obtain ⟨u, v, hsh, hu'⟩ := hv
-    have hu_lt : u < U := (hrep.2.2.2.2.2.2.2.1 h u v hsh).1
-    have hu'_lt : u' < U := Nat.lt_of_le_of_lt hu' hu_lt
-    simp only [argMatch, hu'_lt, ↓reduceIte] at harg
-    exact harg
+    have hu'_lt := hrep.key_lt_of_entries hv
+    simp only [argMatch, hu'_lt, ↓reduceIte] at harg; exact harg
 
 theorem encode_eq_rawEncode_of_rep {n_max U V w base : ℕ}
     {e : PriorityQueue.MinPQ.State n_max} {x : Data rMinPQ}
@@ -571,11 +580,7 @@ theorem encode_eq_rawEncode_of_rep {n_max U V w base : ℕ}
   | isEmpty | get _ | insert _ _ | extractMin => rfl
   | decreaseKey h u' =>
     obtain ⟨s, rfl, hrep⟩ := hr
-    obtain ⟨u, v, hsh, hu'⟩ := hv
-    have hu_lt : u < U := (hrep.2.2.2.2.2.2.2.1 h u v hsh).1
-    have hu'_lt : u' < U := Nat.lt_of_le_of_lt hu' hu_lt
-    funext i
-    simp only [encode, rawEncode, hu'_lt, ↓reduceIte]
+    funext i; simp only [encode, rawEncode, hrep.key_lt_of_entries hv, ↓reduceIte]
 
 /-! ## Initialization: `incCur_eval`, `allocSpan_exec`, `initSetup_exec` -/
 
@@ -615,22 +620,15 @@ theorem allocSpan_exec {n_max w base : ℕ} (hS : Fits w (base + space n_max))
   have hfit (v : ℕ) (hv : v ≤ base + (FibonacciHeap.space n_max + n_max + n_max)) : Fits w v :=
     hS.of_le (by omega)
   refine WP.exists_execWithin ?_
-  unfold allocSpan
-  wram_exec [hfr]
-  refine WP.name fun x0 hx0 => ?_
-  have hx0_b : (x0.comap f42).Bounded w := by
-    subst hx0
-    exact (show (x.set valBaseReg base).Bounded w by
-      wram_bounded; exact hfit _ (by omega)).comap f42
+  unfold allocSpan; wram_exec [hfr]
   wram_call (FibonacciHeap.allocSpan_exec
       (show Fits w (base + FibonacciHeap.space n_max) from hfit _ (by omega))
-      hx0_b (by subst hx0; wram_simp)
-      (fun j => by rw [Subsingleton.elim j 0]; subst hx0; wram_simp [hn]))
+      ((show (x.set valBaseReg base).Bounded w by wram_bounded; exact hfit _ (by omega)).comap f42)
+      (by wram_simp) (fun j => by rw [Subsingleton.elim j 0]; wram_simp [hn]))
     canonical f42_injective with y_fib ⟨hm_fib, hb_fib, hfr_fib, hpar_fib⟩
   have hn_fib : y_fib.regs FibonacciHeap.nReg = n_max := hpar_fib 0
   wram_exec [hfit, hfr_fib, hn_fib]
-  subst hx0
-  refine ⟨hm_fib, by wram_simp [hb_fib], by wram_simp [hsp]; omega,
+  exact ⟨hm_fib, by wram_simp [hb_fib], by wram_simp [hsp]; omega,
     fun j => by rw [Subsingleton.elim j 0]; wram_simp [hn_fib]⟩
 
 theorem initSetup_exec {n_max U V w base : ℕ} {x₁ : Data rMinPQ}
@@ -649,36 +647,28 @@ theorem initSetup_exec {n_max U V w base : ℕ} {x₁ : Data rMinPQ}
   refine WP.exists_execWithin (WP.bounded hx₁ ?_)
   unfold initSetup
   wram_exec [hfit, hfr₁, hn, hsp]
-  refine WP.name fun s4 hs4 => ?_
-  have hs4_b : (s4.comap f42).Bounded w := by
-    subst hs4
-    exact (show Data.Bounded w _ by wram_bounded <;> exact hfit _ (by omega)).comap f42
-  have hs4_fr : (s4.comap f42).regs FibonacciHeap.frontierReg =
-      base + FibonacciHeap.space n_max := by
-    subst hs4; wram_simp; omega
-  wram_call (FibonacciHeap.initSetup_exec (K_max := U) hs4_b (by subst hs4; wram_simp [hb₁])
-      hs4_fr (fun j => by rw [Subsingleton.elim j 0]; subst hs4; wram_simp [hn])
-      (fun a ha => by subst hs4; exact hz a (fib_footprint_subset ha)))
+  wram_call (FibonacciHeap.initSetup_exec (K_max := U)
+      ((show Data.Bounded w _ by wram_bounded <;> exact hfit _ (by omega)).comap f42)
+      (by wram_simp [hb₁]) (by wram_simp; omega)
+      (fun j => by rw [Subsingleton.elim j 0]; wram_simp [hn])
+      (fun a ha => hz a (fib_footprint_subset ha)))
     canonical f42_injective with y_fib ⟨_, hinv_fib, hpot_fib, hmod_fib⟩
   intro hby
-  have hy_ofr : (y_fib.extend f42 s4).regs outerFrontierReg = base + space n_max := by
-    subst hs4; wram_simp [hfr₁]
-  refine ⟨by omega, hy_ofr,
+  refine ⟨by omega, by wram_simp [hfr₁],
     ⟨PriorityQueue.MinPQ.AllocState.empty n_max, rfl, hby, ?_,
-      PriorityQueue.MinPQ.AllocState.wellFormed_empty n_max, hy_ofr, ?_,
-      by subst hs4; wram_simp; rfl, by subst hs4; wram_simp; rfl,
+      PriorityQueue.MinPQ.AllocState.wellFormed_empty n_max, by wram_simp [hfr₁],
+      by wram_simp; omega, by wram_simp; rfl, by wram_simp; rfl,
       by rintro _ _ _ ⟨⟩, fun _ hi => absurd hi (Nat.not_lt_zero _)⟩,
-    ?_, by subst hs4; exact modifies_of_fib hmod_fib⟩
+    ?_, modifies_of_fib hmod_fib⟩
   · rw [Data.comap_extend f42_injective]; exact hinv_fib
-  · subst hs4; wram_simp; omega
-  · unfold potential; rw [Data.comap_extend f42_injective]; exact hpot_fib
+  · rw [potential_extend]; exact hpot_fib
 
 /-! ## Operation specifications: `isEmptyCode`, `getCode`, `insertCode` -/
 
 theorem AllocRep.fits_stop {n_max U V w base : ℕ}
     {s : PriorityQueue.MinPQ.AllocState n_max} {x : Data rMinPQ}
-    (hrep : AllocRep n_max U V w base s x) : Fits w (base + space n_max) :=
-  hrep.2.2.2.1 ▸ hrep.1.1 outerFrontierReg
+    (hrep : AllocRep n_max U V w base s x) : Fits w (base + space n_max) := by
+  obtain ⟨hb, _, _, hfr, _⟩ := hrep; exact hfr ▸ hb.1 outerFrontierReg
 
 theorem AllocRep.valBase_eq {n_max U V w base : ℕ}
     {s : PriorityQueue.MinPQ.AllocState n_max} {x : Data rMinPQ}
@@ -703,8 +693,8 @@ private theorem AllocRep.extend_unchanged {n_max U V w base : ℕ}
     (hmod : Modifies (Block.mk base (FibonacciHeap.space n_max)).footprint x.mem y_fib.mem) :
     AllocRep n_max U V w base s (y_fib.extend f42 x) := by
   obtain ⟨_, _, hwf, hfr, hfb, hfresh, htop, hval, hfree⟩ := hrep
-  have hmem_ge : ∀ a, base + FibonacciHeap.space n_max ≤ a → (y_fib.extend f42 x).mem a = x.mem a :=
-    fun a ha => hmod a (notMem_fib_footprint_of_ge ha)
+  have hmem_ge a (ha : base + FibonacciHeap.space n_max ≤ a) :
+      (y_fib.extend f42 x).mem a = x.mem a := hmod a (notMem_fib_footprint_of_ge ha)
   refine ⟨hby, by rw [Data.comap_extend f42_injective]; exact hinv, hwf,
     by wram_simp [hfr], by wram_simp [hfb], by wram_simp [hfresh], by wram_simp [htop],
     fun h u v hsh => ⟨(hval h u v hsh).1, (hval h u v hsh).2.1,
@@ -722,15 +712,13 @@ theorem isEmptyCode_exec {n_max U V w base : ℕ}
       t + potential y ≤ 3 + potential x := by
   obtain ⟨y_fib, t, he_fib, hdec_fib, hinv_fib, hmod_fib, hpot_fib⟩ :=
     FibonacciHeap.isEmptyCode_exec hrep.2.1
-  have he : ExecWithin w isEmptyCode x (y_fib.extend f42 x) t := he_fib.rename f42_injective
+  have he := he_fib.rename f42_injective
   simp only [PQCode.decode, FibonacciHeap.code, PriorityQueue.MinPQ.dom_toIndexed,
     indexedMinPQSpec] at hdec_fib hinv_fib
-  refine ⟨y_fib.extend f42 x, t, he,
+  exact ⟨y_fib.extend f42 x, t, he,
     by wram_simp [decode, PriorityQueue.MinPQ.stepAlloc]; exact hdec_fib,
-    hrep.extend_unchanged (he.bounded hrep.1) hinv_fib hmod_fib, modifies_of_fib hmod_fib, ?_⟩
-  unfold potential
-  rw [Data.comap_extend f42_injective]
-  exact hpot_fib
+    hrep.extend_unchanged (he.bounded hrep.1) hinv_fib hmod_fib, modifies_of_fib hmod_fib,
+    by rw [potential_extend]; exact hpot_fib⟩
 
 theorem getCode_exec {n_max U V w base : ℕ}
     {s : PriorityQueue.MinPQ.AllocState n_max} {x : Data rMinPQ}
@@ -747,70 +735,51 @@ theorem getCode_exec {n_max U V w base : ℕ}
     FibonacciHeap.getKeyCode_exec h hrep.2.1 hv_reg
   simp only [PQCode.decode, FibonacciHeap.code, PriorityQueue.MinPQ.toIndexed_apply,
     indexedMinPQSpec] at hdec_fib hinv_fib
-  have hrep1 : AllocRep n_max U V w base s (y_fib.extend f42 x) :=
-    hrep.extend_unchanged ((he_fib.rename f42_injective).bounded hrep.1) hinv_fib hmod_fib
-  have hy_v : y_fib.regs FibonacciHeap.argV = h.val :=
-    (he_fib.regs_eq (by decide)).trans hv_reg
-  change WP w getCode x fun y t =>
-    decode (n_max := n_max) (U := U) (V := V) (.get h) y.regs =
-      some (PriorityQueue.MinPQ.stepAlloc s (.get h)).2 ∧
-    AllocRep n_max U V w base (PriorityQueue.MinPQ.stepAlloc s (.get h)).1 y ∧
-    Modifies (Block.mk base (space n_max)).footprint x.mem y.mem ∧
-    t + potential y ≤ 11 + potential x
+  have hrep1 := hrep.extend_unchanged ((he_fib.rename f42_injective).bounded hrep.1)
+    hinv_fib hmod_fib
+  have hy_v : y_fib.regs FibonacciHeap.argV = h.val := (he_fib.regs_eq (by decide)).trans hv_reg
+  have hfinish {y : Data rMinPQ} {t₂ : ℕ} (ht : t₂ ≤ 4) (hby : y.Bounded w)
+      (hreg_y : ∀ i : Fin rMinPQ, inputReg i = false → y.regs i = (y_fib.extend f42 x).regs i)
+      (hmem_y : y.mem = (y_fib.extend f42 x).mem)
+      (hdec_y : decode (n_max := n_max) (U := U) (V := V) (.get h) y.regs =
+        some (PriorityQueue.MinPQ.stepAlloc s (.get h)).2) :
+      decode (n_max := n_max) (U := U) (V := V) (.get h) y.regs =
+        some (PriorityQueue.MinPQ.stepAlloc s (.get h)).2 ∧
+      AllocRep n_max U V w base (PriorityQueue.MinPQ.stepAlloc s (.get h)).1 y ∧
+      Modifies (Block.mk base (space n_max)).footprint x.mem y.mem ∧
+      (t₂ + t1) + potential y ≤ 11 + potential x :=
+    ⟨hdec_y, hrep1.supported hreg_y (fun a _ => congrFun hmem_y a) hby,
+      hmem_y ▸ modifies_of_fib hmod_fib, by
+        rw [potential_supported hreg_y, potential_extend]
+        change t1 + FibonacciHeap.potential y_fib ≤ 7 + potential x at hpot_fib; omega⟩
+  change WP w getCode x fun y t => _
   unfold getCode
-  apply WP.seq
-  refine WP.of_execWithin (he_fib.rename f42_injective) ?_
-  refine WP.bounded hrep1.1 ?_
+  refine WP.seq (WP.of_execWithin (he_fib.rename f42_injective) (WP.bounded hrep1.1 ?_))
   cases hsh : s.entries h with
   | none =>
     simp only [hsh, Option.map_none] at hdec_fib
     have hfl0 : y_fib.regs FibonacciHeap.outFlag = 0 := by
-      by_contra hne
-      simp only [hne, ↓reduceIte] at hdec_fib
-      nomatch hdec_fib
+      by_contra hne; simp only [hne, ↓reduceIte] at hdec_fib; nomatch hdec_fib
     wram_exec [hinv_fib.2.1.regs_zeroP, hfl0]
     intro hby
-    have hreg_y : ∀ i : Fin rMinPQ, inputReg i = false →
-        ((y_fib.extend f42 x).set s0 0).regs i = (y_fib.extend f42 x).regs i := fun i hi => by
-      have hne : i ≠ s0 := fun e => by subst e; cases hi
-      wram_simp [hne]
-    refine ⟨by wram_simp [decode, PriorityQueue.MinPQ.stepAlloc, hsh, hfl0]; rfl,
-      hrep1.supported hreg_y (fun _ _ => rfl) hby, modifies_of_fib hmod_fib, ?_⟩
-    rw [potential_supported hreg_y]
-    unfold potential
-    rw [Data.comap_extend f42_injective]
-    change t1 + FibonacciHeap.potential y_fib ≤ 7 + FibonacciHeap.potential (x.comap f42)
-      at hpot_fib
-    omega
+    exact hfinish (by omega) hby (regs_set_of_inputReg (by decide) _) rfl
+      (by wram_simp [decode, PriorityQueue.MinPQ.stepAlloc, hsh, hfl0]; rfl)
   | some uv =>
     rcases uv with ⟨u, v⟩
     simp only [hsh, Option.map_some] at hdec_fib
     have hfl_ne : y_fib.regs FibonacciHeap.outFlag ≠ 0 := by
-      intro h0
-      simp only [h0, ↓reduceIte] at hdec_fib
-      nomatch hdec_fib
+      intro h0; simp only [h0, ↓reduceIte] at hdec_fib; nomatch hdec_fib
     have hok_eq : y_fib.regs FibonacciHeap.outK = u := by
-      simp only [hfl_ne, ↓reduceIte] at hdec_fib
-      exact Option.some.inj (Option.some.inj hdec_fib)
+      simp only [hfl_ne, ↓reduceIte] at hdec_fib; exact Option.some.inj (Option.some.inj hdec_fib)
+    obtain ⟨_, _, _, _, _, _, _, hval1, _⟩ := hrep1
     have hh_lt := h.isLt
-    have hm_v : y_fib.mem (base + FibonacciHeap.space n_max + h.val) = v :=
-      (hrep1.2.2.2.2.2.2.2.1 h u v hsh).2.2
+    have hm_v : y_fib.mem (base + FibonacciHeap.space n_max + h.val) = v := (hval1 h u v hsh).2.2
     wram_exec [hinv_fib.2.1.regs_zeroP, hinv_fib.2.1.regs_frontierReg, hy_v, hm_v, hfl_ne]
     intro hby
-    have hreg_y : ∀ i : Fin rMinPQ, inputReg i = false →
-        (((y_fib.extend f42 x).set s0 (base + FibonacciHeap.space n_max + h.val)).set
-          outValReg v).regs i = (y_fib.extend f42 x).regs i := fun i hi => by
-      have h1 : i ≠ outValReg := fun e => by subst e; cases hi
-      have h2 : i ≠ s0 := fun e => by subst e; cases hi
-      wram_simp [h1, h2]
-    refine ⟨by wram_simp [decode, PriorityQueue.MinPQ.stepAlloc, hsh, hfl_ne, hok_eq]; rfl,
-      hrep1.supported hreg_y (fun _ _ => rfl) hby, modifies_of_fib hmod_fib, ?_⟩
-    rw [potential_supported hreg_y]
-    unfold potential
-    rw [Data.comap_extend f42_injective]
-    change t1 + FibonacciHeap.potential y_fib ≤ 7 + FibonacciHeap.potential (x.comap f42)
-      at hpot_fib
-    omega
+    exact hfinish (by omega) hby
+      (fun i hi => (regs_set_of_inputReg (r := outValReg) (by decide) _ i hi).trans
+        (regs_set_of_inputReg (r := s0) (by decide) _ i hi)) rfl
+      (by wram_simp [decode, PriorityQueue.MinPQ.stepAlloc, hsh, hfl_ne, hok_eq]; rfl)
 
 private theorem allocHandleBranch_exec {n_max U V w base u v : ℕ}
     {s : PriorityQueue.MinPQ.AllocState n_max} {x : Data rMinPQ}
@@ -822,11 +791,8 @@ private theorem allocHandleBranch_exec {n_max U V w base u v : ℕ}
       (PriorityQueue.MinPQ.AllocState.mk
         (Function.update s.entries h (some (u, v))) freeList' fresh').WellFormed ∧
       ExecWithin w allocHandleBranch x x1 5 ∧
-      x1.Bounded w ∧
-      x1.mem = x.mem ∧
-      x1.regs argV = h.val ∧
-      x1.regs freshReg = fresh' ∧
-      x1.regs freeTopReg = freeList'.length ∧
+      x1.Bounded w ∧ x1.mem = x.mem ∧ x1.regs argV = h.val ∧
+      x1.regs freshReg = fresh' ∧ x1.regs freeTopReg = freeList'.length ∧
       (∀ i : Fin rMinPQ, i ≠ argV → i ≠ freshReg → i ≠ freeTopReg → i ≠ s0 →
         x1.regs i = x.regs i) ∧
       (∀ (i : ℕ) (hi : i < freeList'.length),
@@ -836,67 +802,53 @@ private theorem allocHandleBranch_exec {n_max U V w base u v : ℕ}
   have hz0 := hrep.zeroP_eq
   have ho1 := hrep.oneP_eq
   obtain ⟨hb, _, hwf, _, hfb, hfresh, htop, _, hfree⟩ := hrep
+  have ⟨hwf_le, _, _, _, hwf_sum⟩ := hwf
   obtain ⟨h, freeList', fresh', halloc, hh_none, hwf'⟩ :=
     PriorityQueue.MinPQ.allocHandle_spec hwf hsz u v
-  have halloc_eq := halloc
+  refine ⟨h, freeList', fresh', ?_⟩
   rcases hfl : s.freeList with _ | ⟨hd, tl⟩
-  · -- Bump-pointer case (`freeList = []`)
-    have hfr_lt : s.fresh < n_max := by
-      have hsum := hwf.2.2.2.2
-      rw [hfl, List.length_nil, Nat.add_zero] at hsum
-      omega
+  · have hfr_lt : s.fresh < n_max := by rw [hfl, List.length_nil, Nat.add_zero] at hwf_sum; omega
+    have halloc_eq := halloc
     simp only [PriorityQueue.MinPQ.allocHandle, hfl, hfr_lt, ↓reduceDIte,
       Option.some.injEq, Prod.mk.injEq] at halloc
     obtain ⟨rfl, rfl, rfl⟩ := halloc
     have hsp := space_lower n_max
-    refine ⟨⟨s.fresh, hfr_lt⟩, [], s.fresh + 1, ?_⟩
-    suffices hwp : ∃ x1, ExecWithin w allocHandleBranch x x1 5 ∧
+    suffices ∃ x1, ExecWithin w allocHandleBranch x x1 5 ∧
         x1.Bounded w ∧ x1.mem = x.mem ∧ x1.regs argV = s.fresh ∧
         x1.regs freshReg = s.fresh + 1 ∧ x1.regs freeTopReg = 0 ∧
         (∀ i : Fin rMinPQ, i ≠ argV → i ≠ freshReg → i ≠ freeTopReg → i ≠ s0 →
           x1.regs i = x.regs i) by
-      obtain ⟨x1, he, hb1, hm1, hv1, hfr1, htop1, hregs1⟩ := hwp
-      exact ⟨x1, halloc_eq, hh_none, hwf', he, hb1, hm1, hv1, hfr1, htop1, hregs1,
-        fun _ hi => absurd hi (Nat.not_lt_zero _)⟩
-    refine WP.exists_execWithin (WP.bounded hb ?_)
-    unfold allocHandleBranch
-    wram_exec [htop, hfl, List.length_nil, hz0, hfresh, ho1]
-    intro hb1
+      obtain ⟨x1, he, hreg⟩ := this
+      exact ⟨x1, halloc_eq, hh_none, hwf', he, hreg.1, hreg.2.1, hreg.2.2.1, hreg.2.2.2.1,
+        hreg.2.2.2.2.1, hreg.2.2.2.2.2, fun _ hi => absurd hi (Nat.not_lt_zero _)⟩
+    refine WP.exists_execWithin (WP.bounded hb ?_); unfold allocHandleBranch
+    wram_exec [htop, hfl, List.length_nil, hz0, hfresh, ho1]; intro hb1
     exact ⟨by omega, hb1, rfl, by wram_simp, by wram_simp, by wram_simp [htop, hfl]; rfl,
       fun i h1 h2 _ _ => by wram_simp [h1, h2]⟩
-  · -- Free-stack pop case (`freeList = hd :: tl`)
-    simp only [PriorityQueue.MinPQ.allocHandle, hfl, Option.some.injEq,
-      Prod.mk.injEq] at halloc
+  · have halloc_eq := halloc
+    simp only [PriorityQueue.MinPQ.allocHandle, hfl, Option.some.injEq, Prod.mk.injEq] at halloc
     obtain ⟨rfl, rfl, rfl⟩ := halloc
-    have htop_eq : x.regs freeTopReg = tl.length + 1 := by
-      rw [htop, hfl, List.length_cons]
-    have htl_lt : tl.length < n_max := by
-      have hsum := hwf.2.2.2.2
-      have hfr_le := hwf.1
-      rw [hfl, List.length_cons] at hsum
-      omega
+    have htop_eq : x.regs freeTopReg = tl.length + 1 := by rw [htop, hfl, List.length_cons]
+    have htl_lt : tl.length < n_max := by rw [hfl, List.length_cons] at hwf_sum; omega
     have hm_top : x.mem (base + FibonacciHeap.space n_max + n_max + tl.length) = hd.val := by
-      have h0 := hfree 0 (by simp only [hfl, List.length_cons]; omega)
       simpa only [hfl, List.length_cons, Nat.add_sub_cancel, Nat.sub_zero,
-        List.getElem_cons_zero] using h0
+        List.getElem_cons_zero] using hfree 0 (by simp only [hfl, List.length_cons]; omega)
     have hsp := space_eq_fib_add n_max
     have hfit (val : ℕ) (hv : val ≤ base + (FibonacciHeap.space n_max + n_max + n_max)) :
         Fits w val := hfit_stop.of_le (by omega)
-    refine ⟨hd, tl, s.fresh, ?_⟩
-    suffices hwp : ∃ x1, ExecWithin w allocHandleBranch x x1 5 ∧
+    suffices ∃ x1, ExecWithin w allocHandleBranch x x1 5 ∧
         x1.Bounded w ∧ x1.mem = x.mem ∧ x1.regs argV = hd.val ∧
         x1.regs freshReg = s.fresh ∧ x1.regs freeTopReg = tl.length ∧
         (∀ i : Fin rMinPQ, i ≠ argV → i ≠ freshReg → i ≠ freeTopReg → i ≠ s0 →
           x1.regs i = x.regs i) by
-      obtain ⟨x1, he, hb1, hm1, hv1, hfr1, htop1, hregs1⟩ := hwp
-      refine ⟨x1, halloc_eq, hh_none, hwf', he, hb1, hm1, hv1, hfr1, htop1, hregs1, fun i hi => ?_⟩
-      have hi' : i + 1 < s.freeList.length := by simp only [hfl, List.length_cons]; omega
+      obtain ⟨x1, he, hreg⟩ := this
+      refine ⟨x1, halloc_eq, hh_none, hwf', he, hreg.1, hreg.2.1, hreg.2.2.1, hreg.2.2.2.1,
+        hreg.2.2.2.2.1, hreg.2.2.2.2.2, fun i hi => ?_⟩
       simpa only [hfl, List.length_cons, List.getElem_cons_succ,
-        show tl.length + 1 - 1 - (i + 1) = tl.length - 1 - i by omega] using hfree (i + 1) hi'
-    refine WP.exists_execWithin (WP.bounded hb ?_)
-    unfold allocHandleBranch
-    wram_exec [hfit, htop_eq, hz0, ho1, hfb, hm_top]
-    intro hb1
+        show tl.length + 1 - 1 - (i + 1) = tl.length - 1 - i by omega] using
+        hfree (i + 1) (by simp only [hfl, List.length_cons]; omega)
+    refine WP.exists_execWithin (WP.bounded hb ?_); unfold allocHandleBranch
+    wram_exec [hfit, htop_eq, hz0, ho1, hfb, hm_top]; intro hb1
     exact ⟨by omega, hb1, rfl, by wram_simp, by wram_simp [hfresh], by wram_simp,
       fun i h1 _ h3 h4 => by wram_simp [h1, h3, h4]⟩
 
@@ -913,126 +865,79 @@ theorem insertCode_exec {n_max U V w base u v : ℕ}
       t + potential y ≤ 129 + potential x := by
   have hfit_stop := hrep.fits_stop
   have hsp := space_eq_fib_add n_max
+  have ⟨hb, hfib, _, hfr, hfb, _, _, hval, _⟩ := hrep
   obtain ⟨hsz, hu_lt, hv_lt⟩ := hv
   obtain ⟨h, freeList', fresh', x1, halloc, hh_none, hwf', he_alloc, hb1, hm1,
     hx1_v, hx1_fresh, hx1_top, hx1_regs, hfree'⟩ :=
     allocHandleBranch_exec (u := u) (v := v) hrep hsz
   have hh_lt := h.isLt
-  have ho_val := owns_val_addr (base := base) hh_lt
+  have hfit (val : ℕ) (hv : val ≤ base + (FibonacciHeap.space n_max + n_max + n_max)) :
+      Fits w val := hfit_stop.of_le (by omega)
   have hx1_vb : x1.regs valBaseReg = base + FibonacciHeap.space n_max :=
     (hx1_regs valBaseReg (by decide) (by decide) (by decide) (by decide)).trans hrep.valBase_eq
   have hx1_inVal : x1.regs inValReg = v :=
     (hx1_regs inValReg (by decide) (by decide) (by decide) (by decide)).trans hval_reg
   have hx1_k : x1.regs argK = u :=
     (hx1_regs argK (by decide) (by decide) (by decide) (by decide)).trans hk_reg
-  change WP w (.seq allocHandleBranch <|
-      .seq (.op (.exactBin .add s0 valBaseReg argV)) <|
-      .seq (.op (.store s0 inValReg)) <|
-      .seq (FibonacciHeap.insertCode.rename f42) (.op (.copy outV argV))) x fun y t =>
-    decode (n_max := n_max) (U := U) (V := V) (.insert u v) y.regs =
-      some (PriorityQueue.MinPQ.stepAlloc s (.insert u v)).2 ∧
-    AllocRep n_max U V w base (PriorityQueue.MinPQ.stepAlloc s (.insert u v)).1 y ∧
-    Modifies (Block.mk base (space n_max)).footprint x.mem y.mem ∧
-    t + potential y ≤ 129 + potential x
-  have hfit (val : ℕ) (hv : val ≤ base + (FibonacciHeap.space n_max + n_max + n_max)) :
-      Fits w val := hfit_stop.of_le (by omega)
-  refine WP.seq (WP.of_execWithin he_alloc ?_)
-  refine WP.seq (WP.exactBin hx1_vb hx1_v rfl (hfit _ (by omega)) ?_)
-  refine WP.seq (WP.store (by wram_simp; rfl) (by wram_simp [hx1_inVal]; rfl) ?_)
-  refine WP.name fun x2 hx2 => ?_
+  change WP w insertCode x fun y t => _
+  unfold insertCode
+  wram_call he_alloc
+  wram_exec [hfit, hx1_vb, hx1_v, hx1_inVal]
+  let x2 := (x1.set s0 (base + FibonacciHeap.space n_max + h.val)).write
+    (base + FibonacciHeap.space n_max + h.val) v
   have hb2 : x2.Bounded w := by
-    subst hx2
-    have : Fits w v := hval_reg ▸ hrep.1.1 inValReg
+    dsimp only [x2]; have : Fits w v := hval_reg ▸ hb.1 inValReg
     wram_bounded; exact hfit_stop.of_le (by omega)
   have hreg2 : ∀ j : Fin rFib, FibonacciHeap.inputReg j = false →
       (x2.comap f42).regs j = (x.comap f42).regs j := fun j hj => by
-    have hj_in : inputReg (f42 j) = false := inputReg_f42_of_false j hj
+    have hj_in := inputReg_f42_of_false j hj
     have h1 : f42 j ≠ argV := fun e => by rw [e] at hj_in; cases hj_in
     have h2 : f42 j ≠ freshReg := fun e => freshReg_notMem_range ⟨j, e⟩
     have h3 : f42 j ≠ freeTopReg := fun e => freeTopReg_notMem_range ⟨j, e⟩
     have h4 : f42 j ≠ s0 := fun e => by rw [e] at hj_in; cases hj_in
-    subst hx2; wram_simp [h4, hx1_regs (f42 j) h1 h2 h3 h4]
+    wram_simp [x2, h4, hx1_regs (f42 j) h1 h2 h3 h4]
   have hmem2_fib : ∀ a ∈ (Block.mk base (FibonacciHeap.space n_max)).footprint,
-      (x2.comap f42).mem a = (x.comap f42).mem a := fun a ha => by
-    have hne : a ≠ base + FibonacciHeap.space n_max + h.val := fun e =>
-      notMem_fib_footprint_of_ge (by omega) (e ▸ ha)
-    subst hx2; wram_simp [hne, hm1]
-  have hinv2 : FibonacciHeap.FibInv n_max U w base
-      (PriorityQueue.MinPQ.toIndexed s.entries) (x2.comap f42) :=
-    FibonacciHeap.FibInv.supported hreg2 hmem2_fib (hb2.comap f42) hrep.2.1
-  have hpot2 : potential x2 = potential x := FibonacciHeap.potential_supported hreg2
-  have hval_fib : PriorityQueue.MinPQ.toIndexed s.entries h = none ∧ u ≤ U := by
-    simp only [PriorityQueue.MinPQ.toIndexed_apply, hh_none, Option.map_none, true_and]
-    exact Nat.le_of_lt hu_lt
+      (x2.comap f42).mem a = (x.comap f42).mem a := by dsimp only [x2]; mem_frame
+  have hinv2 := FibonacciHeap.FibInv.supported hreg2 hmem2_fib (hb2.comap f42) hfib
   obtain ⟨y_fib, t_fib, he_fib, hinv_fib, hmod_fib, hpot_fib⟩ :=
-    FibonacciHeap.insertCode_exec h u hinv2 hval_fib
-      (by subst hx2; wram_simp [hx1_v]) (by subst hx2; wram_simp [hx1_k])
+    FibonacciHeap.insertCode_exec h u hinv2
+      ⟨by simp only [PriorityQueue.MinPQ.toIndexed_apply, hh_none, Option.map_none], hu_lt.le⟩
+      (by wram_simp [x2, hx1_v]) (by wram_simp [x2, hx1_k])
+  wram_call he_fib canonical f42_injective
   have hy_v : y_fib.regs FibonacciHeap.argV = h.val :=
-    (he_fib.regs_eq (by decide)).trans (by subst hx2; wram_simp [hx1_v])
-  apply WP.seq
-  refine WP.of_execWithin (he_fib.rename f42_injective) ?_
+    (he_fib.regs_eq (by decide)).trans (by wram_simp [x2, hx1_v])
   refine WP.bounded ((he_fib.rename f42_injective).bounded hb2) ?_
-  wram_exec [hy_v]
-  intro hby
-  let x3 := y_fib.extend f42 x2
-  have hreg_y3 : ∀ i : Fin rMinPQ, inputReg i = false →
-      (x3.set outV h.val).regs i = x3.regs i := fun i hi => by
-    have hne : i ≠ outV := fun e => by subst e; cases hi
-    wram_simp [hne]
-  have hmem3_ge : ∀ a, base + FibonacciHeap.space n_max ≤ a → x3.mem a = x2.mem a :=
-    fun a ha => hmod_fib a (notMem_fib_footprint_of_ge ha)
-  have hmod_all : Modifies (Block.mk base (space n_max)).footprint x.mem x3.mem := by
-    have hm_x2 : Modifies (Block.mk base (space n_max)).footprint x.mem x2.mem := by
-      subst hx2
-      change Modifies (Block.mk base (space n_max)).footprint x.mem
-        (Function.update x1.mem (base + FibonacciHeap.space n_max + h.val) v)
-      rw [hm1]
-      exact Modifies.write_of_owns ho_val v
-    exact FibonacciHeap.modifies_block_trans hm_x2 (modifies_of_fib hmod_fib)
+  wram_exec [hy_v]; intro hby
+  have hreg_y3 := regs_set_of_inputReg (x := y_fib.extend f42 x2) (r := outV) (by decide) h.val
+  have hmod_x2 : Modifies (Block.mk base (space n_max)).footprint x.mem x2.mem :=
+    hm1 ▸ Modifies.write_of_owns (owns_val_addr hh_lt) v
   refine ⟨by wram_simp [decode, PriorityQueue.MinPQ.stepAlloc, halloc, hh_lt, Fin.eta]; rfl, ?_,
-    hmod_all, ?_⟩
-  · simp only [PriorityQueue.MinPQ.stepAlloc, halloc]
-    have hx1_ofr :=
-      (hx1_regs outerFrontierReg (by decide) (by decide) (by decide) (by decide)).trans
-        hrep.2.2.2.1
-    have hx1_fb :=
-      (hx1_regs freeBaseReg (by decide) (by decide) (by decide) (by decide)).trans
-        hrep.2.2.2.2.1
-    refine AllocRep.supported hreg_y3 (fun _ _ => rfl) hby
-      ⟨(he_fib.rename f42_injective).bounded hb2, ?_, hwf',
-        by subst hx2; wram_simp [x3, hx1_ofr],
-        by subst hx2; wram_simp [x3, hx1_fb],
-        by subst hx2; wram_simp [x3, hx1_fresh],
-        by subst hx2; wram_simp [x3, hx1_top], ?_, ?_⟩
-    · dsimp only
-      rw [Data.comap_extend f42_injective,
-        PriorityQueue.MinPQ.toIndexed_update_some s.entries h u v]
-      exact hinv_fib
-    · intro h' u' v' hsh'
-      rw [hmem3_ge _ (Nat.le_add_right _ _)]
-      by_cases hh' : h' = h
-      · subst hh'
-        simp only [Function.update_self, Option.some.injEq, Prod.mk.injEq] at hsh'
-        obtain ⟨rfl, rfl⟩ := hsh'
-        exact ⟨hu_lt, hv_lt, by subst hx2; wram_simp⟩
-      · simp only [Function.update_of_ne hh'] at hsh'
-        have hne_addr : base + FibonacciHeap.space n_max + h'.val ≠
-            base + FibonacciHeap.space n_max + h.val := by
-          have := Fin.val_ne_of_ne hh'; omega
-        obtain ⟨hu', hv', hm'⟩ := hrep.2.2.2.2.2.2.2.1 h' u' v' hsh'
-        exact ⟨hu', hv', by subst hx2; wram_simp [hne_addr, hm1, hm']⟩
-    · intro i hi
-      rw [hmem3_ge _ (by omega)]
-      have hne_addr :
-          base + FibonacciHeap.space n_max + n_max + (freeList'.length - 1 - i) ≠
-          base + FibonacciHeap.space n_max + h.val := by omega
-      subst hx2; wram_simp [hne_addr, hm1, hfree' i hi]
-  · rw [potential_supported hreg_y3]
-    unfold potential at hpot2 ⊢
-    rw [Data.comap_extend f42_injective]
-    change t_fib + FibonacciHeap.potential y_fib ≤ 121 + FibonacciHeap.potential (x2.comap f42)
-      at hpot_fib
-    omega
+    FibonacciHeap.modifies_block_trans hmod_x2 (modifies_of_fib hmod_fib), by
+      rw [potential_supported hreg_y3, potential_extend]
+      have hpot2 : potential x2 = potential x := FibonacciHeap.potential_supported hreg2
+      change t_fib + FibonacciHeap.potential y_fib ≤ 121 + potential x2 at hpot_fib; omega⟩
+  simp only [PriorityQueue.MinPQ.stepAlloc, halloc]
+  have hx1_ofr :=
+    (hx1_regs outerFrontierReg (by decide) (by decide) (by decide) (by decide)).trans hfr
+  have hx1_fb := (hx1_regs freeBaseReg (by decide) (by decide) (by decide) (by decide)).trans hfb
+  refine AllocRep.supported hreg_y3 (fun _ _ => rfl) hby
+    ⟨(he_fib.rename f42_injective).bounded hb2, ?_, hwf',
+      by wram_simp [x2, hx1_ofr], by wram_simp [x2, hx1_fb],
+      by wram_simp [x2, hx1_fresh], by wram_simp [x2, hx1_top], ?_, ?_⟩
+  · dsimp only
+    rw [Data.comap_extend f42_injective, PriorityQueue.MinPQ.toIndexed_update_some s.entries h u v]
+    exact hinv_fib
+  · intro h' u' v' hsh'
+    rcases eq_or_ne h' h with rfl | hne
+    · simp only [Function.update_self, Option.some.injEq, Prod.mk.injEq] at hsh'
+      obtain ⟨rfl, rfl⟩ := hsh'; exact ⟨hu_lt, hv_lt, by dsimp only [x2]; mem_frame⟩
+    · simp only [Function.update_of_ne hne] at hsh'
+      have := Fin.val_ne_of_ne hne
+      obtain ⟨hu', hv', hm'⟩ := hval h' u' v' hsh'
+      exact ⟨hu', hv', by dsimp only [x2]; mem_frame⟩
+  · intro i hi
+    have := hfree' i hi
+    dsimp only [x2]; mem_frame
 
 theorem decreaseKeyCode_exec {n_max U V w base : ℕ}
     {s : PriorityQueue.MinPQ.AllocState n_max} {x : Data rMinPQ}
@@ -1047,51 +952,116 @@ theorem decreaseKeyCode_exec {n_max U V w base : ℕ}
       t + potential y ≤ 330 + potential x := by
   obtain ⟨hb, hfib, hwf, hfr, hfb, hfresh, htop, hval, hfree⟩ := hrep
   obtain ⟨u, v, hsh, hu'_le⟩ := hv
-  obtain ⟨hu_lt, hv_lt, _⟩ := hval h u v hsh
+  obtain ⟨hu_lt, hv_lt, hm_v⟩ := hval h u v hsh
   have hu'_lt : u' < U := Nat.lt_of_le_of_lt hu'_le hu_lt
-  have hval_fib :
-      (∃ k₀, PriorityQueue.MinPQ.toIndexed s.entries h = some k₀ ∧ u' ≤ k₀) ∧ u' ≤ U := by
-    refine ⟨⟨u, ?_, hu'_le⟩, Nat.le_of_lt hu'_lt⟩
-    simp only [PriorityQueue.MinPQ.toIndexed_apply, hsh, Option.map_some]
   obtain ⟨y_fib, t, he_fib, hinv_fib, hmod_fib, hpot_fib⟩ :=
-    FibonacciHeap.decreaseKeyCode_exec h u' hfib hval_fib hv_reg hk_reg
-  let y := y_fib.extend f42 x
-  have he : ExecWithin w decreaseKeyCode x y t := he_fib.rename f42_injective
-  have hmem_ge : ∀ a, base + FibonacciHeap.space n_max ≤ a → y.mem a = x.mem a :=
-    fun a ha => hmod_fib a (notMem_fib_footprint_of_ge ha)
+    FibonacciHeap.decreaseKeyCode_exec h u' hfib
+      ⟨⟨u, by simp only [PriorityQueue.MinPQ.toIndexed_apply, hsh, Option.map_some], hu'_le⟩,
+        hu'_lt.le⟩ hv_reg hk_reg
+  have he := he_fib.rename f42_injective
+  have hmem_ge a (ha : base + FibonacciHeap.space n_max ≤ a) :
+      (y_fib.extend f42 x).mem a = x.mem a := hmod_fib a (notMem_fib_footprint_of_ge ha)
   have hwf' :=
     (PriorityQueue.MinPQ.stepAlloc_refines_spec (U := U) (V := V) hwf
       (.decreaseKey h u') ⟨u, v, hsh, hu'_le⟩).2
-  refine ⟨y, t, he, rfl, ?_, modifies_of_fib hmod_fib, ?_⟩
-  · refine ⟨he.bounded hb, ?_, hwf',
-      (Data.extend_regs_of_notMem y_fib x outerFrontierReg_notMem_range).trans hfr,
-      (Data.extend_regs_of_notMem y_fib x freeBaseReg_notMem_range).trans hfb,
-      by simp only [PriorityQueue.MinPQ.stepAlloc, hsh];
-         exact (Data.extend_regs_of_notMem y_fib x freshReg_notMem_range).trans hfresh,
-      by simp only [PriorityQueue.MinPQ.stepAlloc, hsh];
-         exact (Data.extend_regs_of_notMem y_fib x freeTopReg_notMem_range).trans htop,
-      ?_, ?_⟩
-    · simp only [PriorityQueue.MinPQ.stepAlloc, hsh]
-      rw [Data.comap_extend f42_injective,
-        PriorityQueue.MinPQ.toIndexed_update_some s.entries h u' v]
-      exact hinv_fib
-    · intro h' u₁ v₁ hsh'
-      simp only [PriorityQueue.MinPQ.stepAlloc, hsh] at hsh'
-      rw [hmem_ge _ (Nat.le_add_right _ _)]
-      by_cases hh' : h' = h
-      · subst hh'
-        simp only [Function.update_self, Option.some.injEq, Prod.mk.injEq] at hsh'
-        obtain ⟨rfl, rfl⟩ := hsh'
-        exact ⟨hu'_lt, hv_lt, (hval h' u v hsh).2.2⟩
-      · simp only [Function.update_of_ne hh'] at hsh'
-        exact hval h' u₁ v₁ hsh'
-    · intro i hi
-      simp only [PriorityQueue.MinPQ.stepAlloc, hsh] at hi ⊢
-      rw [hmem_ge _ (by omega)]
-      exact hfree i hi
-  · unfold potential
-    rw [Data.comap_extend f42_injective]
-    exact hpot_fib
+  refine ⟨y_fib.extend f42 x, t, he, rfl, ?_, modifies_of_fib hmod_fib,
+    by rw [potential_extend]; exact hpot_fib⟩
+  simp only [PriorityQueue.MinPQ.stepAlloc, hsh] at hwf' ⊢
+  refine ⟨he.bounded hb, by
+      rw [Data.comap_extend f42_injective, PriorityQueue.MinPQ.toIndexed_update_some]
+      exact hinv_fib,
+    hwf', by wram_simp [hfr], by wram_simp [hfb], by wram_simp [hfresh], by wram_simp [htop],
+    fun h' u₁ v₁ hsh' => ?_,
+    fun i hi => (hmem_ge _ (by omega)).trans (hfree i hi)⟩
+  rcases eq_or_ne h' h with rfl | hne
+  · simp only [Function.update_self, Option.some.injEq, Prod.mk.injEq] at hsh'
+    obtain ⟨rfl, rfl⟩ := hsh'
+    exact ⟨hu'_lt, hv_lt, (hmem_ge _ (Nat.le_add_right _ _)).trans hm_v⟩
+  · simp only [Function.update_of_ne hne] at hsh'
+    obtain ⟨hu₁, hv₁, hm₁⟩ := hval h' u₁ v₁ hsh'
+    exact ⟨hu₁, hv₁, (hmem_ge _ (Nat.le_add_right _ _)).trans hm₁⟩
+
+private theorem extractMin_pushFree_wp {n_max U V w base : ℕ}
+    {s : PriorityQueue.MinPQ.AllocState n_max} {x : Data rMinPQ} {y_fib : Data rFib}
+    {h : Fin n_max} {u v : ℕ}
+    (hrep : AllocRep n_max U V w base s x)
+    (hinv_fib : FibonacciHeap.FibInv n_max U w base
+      (Function.update (PriorityQueue.MinPQ.toIndexed s.entries) h none) y_fib)
+    (hmod_fib : Modifies (Block.mk base (FibonacciHeap.space n_max)).footprint x.mem y_fib.mem)
+    (hsh : s.entries h = some (u, v))
+    (hfm' : PriorityQueue.MinPQ.findMin s.entries = some (u, v, h))
+    (hfl_ne : y_fib.regs FibonacciHeap.outFlag ≠ 0)
+    (hov_eq : y_fib.regs FibonacciHeap.outV = h.val) (hok_eq : y_fib.regs FibonacciHeap.outK = u)
+    (hb1 : (y_fib.extend f42 x).Bounded w) :
+    WP w (ram_exact[
+        if outFlag = zeroP then [s0 ← zeroP] else [
+          s0 ← valBaseReg + outV; outValReg ← *s0;
+          s0 ← freeBaseReg + freeTopReg; *s0 ← outV; freeTopReg ← freeTopReg + oneP]])
+      (y_fib.extend f42 x) fun y t =>
+      t ≤ 8 ∧ decode (n_max := n_max) (U := U) (V := V) .extractMin y.regs =
+        some (PriorityQueue.MinPQ.stepAlloc s .extractMin).2 ∧
+      AllocRep n_max U V w base (PriorityQueue.MinPQ.stepAlloc s .extractMin).1 y ∧
+      Modifies (Block.mk base (space n_max)).footprint (y_fib.extend f42 x).mem y.mem ∧
+      potential y = FibonacciHeap.potential y_fib := by
+  have hfit_stop := hrep.fits_stop
+  have hsp := space_eq_fib_add n_max
+  obtain ⟨_, _, hwf, hfr, hfb, hfresh, htop, hval, hfree⟩ := hrep
+  have ⟨hwf_le, _, _, _, hwf_sum⟩ := hwf
+  have hh_lt := h.isLt
+  have hsz_pos : 1 ≤ PriorityQueue.MinPQ.size s.entries :=
+    Finset.card_pos.mpr ⟨h, PriorityQueue.MinPQ.mem_dom_iff.mpr ⟨u, v, hsh⟩⟩
+  have hfl_lt : s.freeList.length < n_max := by omega
+  have hmem1_ge a (ha : base + FibonacciHeap.space n_max ≤ a) : y_fib.mem a = x.mem a :=
+    hmod_fib a (notMem_fib_footprint_of_ge ha)
+  have hm_v : y_fib.mem (base + FibonacciHeap.space n_max + h.val) = v :=
+    (hmem1_ge _ (Nat.le_add_right _ _)).trans (hval h u v hsh).2.2
+  have hfit (val : ℕ) (hval_le : val ≤ base + (FibonacciHeap.space n_max + n_max + n_max)) :
+      Fits w val := hfit_stop.of_le (by omega)
+  have hwf' :=
+    (PriorityQueue.MinPQ.stepAlloc_refines_spec (U := U) (V := V) hwf .extractMin trivial).2
+  refine WP.bounded hb1 ?_
+  wram_exec [hfit, hinv_fib.2.1.regs_zeroP, hinv_fib.2.1.regs_oneP,
+    hinv_fib.2.1.regs_frontierReg, hfb, htop, hov_eq, hm_v, hfl_ne]
+  intro hby
+  set x1 := y_fib.extend f42 x
+  have hreg_fib : ∀ j : Fin rFib, FibonacciHeap.inputReg j = false →
+      (((((x1.set s0 (base + FibonacciHeap.space n_max + h.val)).set outValReg v).set s0
+        (base + FibonacciHeap.space n_max + n_max + s.freeList.length)).write
+        (base + FibonacciHeap.space n_max + n_max + s.freeList.length) h.val).set
+        freeTopReg (s.freeList.length + 1)).regs (f42 j) = (x1.comap f42).regs j := fun j hj => by
+    have hj_in := inputReg_f42_of_false j hj
+    have h1 : f42 j ≠ freeTopReg := fun e => freeTopReg_notMem_range ⟨j, e⟩
+    have h2 : f42 j ≠ s0 := fun e => by rw [e] at hj_in; cases hj_in
+    have h3 : f42 j ≠ outValReg := fun e => outValReg_notMem_range ⟨j, e⟩
+    wram_simp [x1, h1, h2, h3]
+  have hmem_fib : ∀ a ∈ (Block.mk base (FibonacciHeap.space n_max)).footprint,
+      Function.update y_fib.mem (base + FibonacciHeap.space n_max + n_max + s.freeList.length)
+        h.val a = y_fib.mem a := by mem_frame
+  simp only [PriorityQueue.MinPQ.stepAlloc, hfm'] at hwf' ⊢
+  refine ⟨by omega,
+    by wram_simp [x1, decode, hfl_ne, hov_eq, hok_eq, hh_lt, Fin.eta]; rfl,
+    ⟨hby, FibonacciHeap.FibInv.supported hreg_fib hmem_fib (hby.comap f42) (by
+        dsimp only; rw [Data.comap_extend f42_injective, PriorityQueue.MinPQ.toIndexed_update_none]
+        exact hinv_fib),
+      hwf', by wram_simp [x1, hfr], by wram_simp [x1, hfb], by wram_simp [x1, hfresh],
+      by wram_simp [List.length_cons], ?_, ?_⟩,
+    Modifies.write_of_owns (owns_free_addr (base := base) hfl_lt) h.val,
+    by unfold potential
+       rw [FibonacciHeap.potential_supported hreg_fib, Data.comap_extend f42_injective]⟩
+  · intro h' u' v' hsh'
+    rcases eq_or_ne h' h with rfl | hne
+    · simp only [Function.update_self, reduceCtorEq] at hsh'
+    · simp only [Function.update_of_ne hne] at hsh'
+      have := h'.isLt
+      obtain ⟨hu', hv', hm'⟩ := hval h' u' v' hsh'
+      exact ⟨hu', hv', by dsimp only [x1]; mem_frame⟩
+  · rintro (_ | j) hi
+    · wram_simp [List.length_cons, Nat.add_sub_cancel, Nat.sub_zero, List.getElem_cons_zero]
+    · simp only [List.length_cons] at hi
+      have hm' := hfree j (by omega)
+      rw [show (h :: s.freeList).length - 1 - (j + 1) = s.freeList.length - 1 - j by
+        simp only [List.length_cons]; omega, List.getElem_cons_succ]
+      dsimp only [x1]; mem_frame
 
 theorem extractMinCode_exec {n_max U V w base : ℕ}
     {s : PriorityQueue.MinPQ.AllocState n_max} {x : Data rMinPQ}
@@ -1103,153 +1073,44 @@ theorem extractMinCode_exec {n_max U V w base : ℕ}
       Modifies (Block.mk base (space n_max)).footprint x.mem y.mem ∧
       t + potential y ≤
         418 * (Nat.log 2 (PriorityQueue.MinPQ.size s.entries) + 1) + potential x := by
-  have hfit_stop := hrep.fits_stop
-  have hsp := space_eq_fib_add n_max
-  have ⟨hb, hfib, hwf, hfr, hfb, hfresh, htop, hval, hfree⟩ := hrep
   obtain ⟨y_fib, t1, he_fib, hdec_fib, hinv_fib, hmod_fib, hpot_fib⟩ :=
-    FibonacciHeap.extractMinCode_exec hfib
+    FibonacciHeap.extractMinCode_exec hrep.2.1
   rw [PriorityQueue.MinPQ.dom_toIndexed] at hpot_fib
   change t1 + FibonacciHeap.potential y_fib ≤
-    410 * (Nat.log 2 (PriorityQueue.MinPQ.size s.entries) + 1) +
-      FibonacciHeap.potential (x.comap f42) at hpot_fib
-  let x1 := y_fib.extend f42 x
-  have hb1 : x1.Bounded w := (he_fib.rename f42_injective).bounded hb
-  have hmem1_ge : ∀ a, base + FibonacciHeap.space n_max ≤ a → x1.mem a = x.mem a :=
-    fun a ha => hmod_fib a (notMem_fib_footprint_of_ge ha)
-  have hwf' :=
-    (PriorityQueue.MinPQ.stepAlloc_refines_spec (U := U) (V := V) hwf .extractMin trivial).2
-  change WP w extractMinCode x fun y t =>
-    decode (n_max := n_max) (U := U) (V := V) .extractMin y.regs =
-      some (PriorityQueue.MinPQ.stepAlloc s .extractMin).2 ∧
-    AllocRep n_max U V w base (PriorityQueue.MinPQ.stepAlloc s .extractMin).1 y ∧
-    Modifies (Block.mk base (space n_max)).footprint x.mem y.mem ∧
-    t + potential y ≤
-      418 * (Nat.log 2 (PriorityQueue.MinPQ.size s.entries) + 1) + potential x
-  dsimp only [extractMinCode]
-  apply WP.seq
-  refine WP.of_execWithin (he_fib.rename f42_injective) ?_
-  refine WP.bounded hb1 ?_
-  rcases hfm : IndexedMinPQ.findMin (PriorityQueue.MinPQ.toIndexed s.entries) with
-    _ | ⟨h, u⟩
-  · -- Empty queue (`findMin = none`)
-    simp only [PQCode.decode, FibonacciHeap.code, indexedMinPQSpec, IndexedMinPQ.step,
+    410 * (Nat.log 2 (PriorityQueue.MinPQ.size s.entries) + 1) + potential x at hpot_fib
+  have hb1 : (y_fib.extend f42 x).Bounded w := (he_fib.rename f42_injective).bounded hrep.1
+  change WP w extractMinCode x fun y t => _
+  unfold extractMinCode
+  refine WP.seq (WP.of_execWithin (he_fib.rename f42_injective) ?_)
+  rcases hfm : IndexedMinPQ.findMin (PriorityQueue.MinPQ.toIndexed s.entries) with _ | ⟨h, u⟩
+  · simp only [PQCode.decode, FibonacciHeap.code, indexedMinPQSpec, IndexedMinPQ.step,
       StateTransitionSpec.stepFn, hfm] at hdec_fib hinv_fib
     have hfl0 : y_fib.regs FibonacciHeap.outFlag = 0 := by
-      by_contra hne
-      simp only [hne, ↓reduceIte] at hdec_fib
+      by_contra hne; simp only [hne, ↓reduceIte] at hdec_fib
       by_cases hlt : y_fib.regs FibonacciHeap.outV < n_max <;>
-        simp only [hlt, ↓reduceDIte] at hdec_fib <;>
-        nomatch hdec_fib
-    wram_exec [hinv_fib.2.1.regs_zeroP, hfl0]
-    intro hby
-    have hreg_y : ∀ i : Fin rMinPQ, inputReg i = false →
-        (x1.set s0 0).regs i = x1.regs i := fun i hi => by
-      have hne : i ≠ s0 := fun e => by subst e; cases hi
-      wram_simp [hne]
-    have hrep1 : AllocRep n_max U V w base s x1 :=
-      hrep.extend_unchanged hb1 hinv_fib hmod_fib
+        simp only [hlt, ↓reduceDIte] at hdec_fib <;> nomatch hdec_fib
+    refine WP.bounded hb1 ?_; wram_exec [hinv_fib.2.1.regs_zeroP, hfl0]; intro hby
+    have hreg_y := regs_set_of_inputReg (x := y_fib.extend f42 x) (r := s0) (by decide) 0
     have hfm' : PriorityQueue.MinPQ.findMin s.entries = none := by
       simp only [PriorityQueue.MinPQ.findMin, hfm]
-    refine ⟨by wram_simp [x1, decode, PriorityQueue.MinPQ.stepAlloc, hfm', hfl0]; rfl,
+    refine ⟨by wram_simp [decode, PriorityQueue.MinPQ.stepAlloc, hfm', hfl0]; rfl,
       by simp only [PriorityQueue.MinPQ.stepAlloc, hfm']
-         exact hrep1.supported hreg_y (fun _ _ => rfl) hby,
-      modifies_of_fib hmod_fib, ?_⟩
-    rw [potential_supported hreg_y]
-    unfold potential
-    rw [Data.comap_extend f42_injective]
-    omega
-  · -- Non-empty queue (`findMin = some (h, u)`)
-    obtain ⟨v, hsh, hfm', _⟩ := PriorityQueue.MinPQ.findMin_eq_some_of_indexed hfm
+         exact (hrep.extend_unchanged hb1 hinv_fib hmod_fib).supported hreg_y (fun _ _ => rfl) hby,
+      modifies_of_fib hmod_fib,
+      by rw [potential_supported hreg_y, potential_extend]; omega⟩
+  · obtain ⟨v, hsh, hfm', _⟩ := PriorityQueue.MinPQ.findMin_eq_some_of_indexed hfm
     simp only [PQCode.decode, FibonacciHeap.code, indexedMinPQSpec, IndexedMinPQ.step,
       StateTransitionSpec.stepFn, hfm] at hdec_fib hinv_fib
     have hfl_ne : y_fib.regs FibonacciHeap.outFlag ≠ 0 := by
-      intro h0
-      simp only [h0, ↓reduceIte] at hdec_fib
-      nomatch hdec_fib
+      intro h0; simp only [h0, ↓reduceIte] at hdec_fib; nomatch hdec_fib
     simp only [hfl_ne, ↓reduceIte] at hdec_fib
     have hlt_ov : y_fib.regs FibonacciHeap.outV < n_max := by
-      by_contra hge
-      simp only [hge, ↓reduceDIte] at hdec_fib
-      nomatch hdec_fib
+      by_contra hge; simp only [hge, ↓reduceDIte] at hdec_fib; nomatch hdec_fib
     simp only [hlt_ov, ↓reduceDIte, Option.some.injEq, Prod.mk.injEq, Fin.ext_iff] at hdec_fib
-    have hov_eq : y_fib.regs FibonacciHeap.outV = h.val := hdec_fib.1
-    have hok_eq : y_fib.regs FibonacciHeap.outK = u := hdec_fib.2
-    have hh_lt := h.isLt
-    have hsz_pos : 1 ≤ PriorityQueue.MinPQ.size s.entries :=
-      Finset.card_pos.mpr ⟨h, PriorityQueue.MinPQ.mem_dom_iff.mpr ⟨u, v, hsh⟩⟩
-    have hfl_lt : s.freeList.length < n_max := by
-      have := hwf.1; have := hwf.2.2.2.2; omega
-    have ho_free := owns_free_addr (base := base) hfl_lt
-    have hm_v : y_fib.mem (base + FibonacciHeap.space n_max + h.val) = v :=
-      (hmem1_ge _ (Nat.le_add_right _ _)).trans (hval h u v hsh).2.2
-    have hfit (val : ℕ) (hval_le : val ≤ base + (FibonacciHeap.space n_max + n_max + n_max)) :
-        Fits w val := hfit_stop.of_le (by omega)
-    wram_exec [hfit, x1, hinv_fib.2.1.regs_zeroP, hinv_fib.2.1.regs_oneP,
-      hinv_fib.2.1.regs_frontierReg, hfb, htop, hov_eq, hm_v, hfl_ne]
-    refine (fun (y : Data rMinPQ) (hy : y = _) (hby : y.Bounded w) => ?_) _ rfl
-    rw [← hy]
-    have hreg_fib : ∀ j : Fin rFib, FibonacciHeap.inputReg j = false →
-        (y.comap f42).regs j = (x1.comap f42).regs j := fun j hj => by
-      have hj_in : inputReg (f42 j) = false := inputReg_f42_of_false j hj
-      have h1 : f42 j ≠ freeTopReg := fun e => freeTopReg_notMem_range ⟨j, e⟩
-      have h2 : f42 j ≠ s0 := fun e => by rw [e] at hj_in; cases hj_in
-      have h3 : f42 j ≠ outValReg := fun e => outValReg_notMem_range ⟨j, e⟩
-      subst hy; wram_simp [x1, h1, h2, h3]
-    have hmem_fib : ∀ a ∈ (Block.mk base (FibonacciHeap.space n_max)).footprint,
-        (y.comap f42).mem a = (x1.comap f42).mem a := fun a ha => by
-      have hne : a ≠ base + FibonacciHeap.space n_max + n_max + s.freeList.length := fun e =>
-        notMem_fib_footprint_of_ge (by omega) (e ▸ ha)
-      subst hy; wram_simp [x1, hne]
-    have hmod_all : Modifies (Block.mk base (space n_max)).footprint x.mem y.mem := by
-      have hm_y : Modifies (Block.mk base (space n_max)).footprint x1.mem y.mem := by
-        subst hy; exact Modifies.write_of_owns ho_free h.val
-      exact FibonacciHeap.modifies_block_trans (modifies_of_fib hmod_fib) hm_y
-    refine ⟨by subst hy; wram_simp [x1, decode, PriorityQueue.MinPQ.stepAlloc, hfm',
-        hfl_ne, hov_eq, hok_eq, hh_lt, Fin.eta]; rfl, ?_, hmod_all, ?_⟩
-    · simp only [PriorityQueue.MinPQ.stepAlloc, hfm'] at hwf' ⊢
-      refine ⟨hby, ?_, hwf',
-        by subst hy; wram_simp [x1, hfr],
-        by subst hy; wram_simp [x1, hfb],
-        by subst hy; wram_simp [x1, hfresh],
-        by subst hy; wram_simp [List.length_cons], ?_, ?_⟩
-      · refine FibonacciHeap.FibInv.supported hreg_fib hmem_fib (hby.comap f42) ?_
-        dsimp only
-        rw [Data.comap_extend f42_injective, PriorityQueue.MinPQ.toIndexed_update_none s.entries h]
-        exact hinv_fib
-      · intro h' u' v' hsh'
-        by_cases hh' : h' = h
-        · subst hh'; simp only [Function.update_self, reduceCtorEq] at hsh'
-        · simp only [Function.update_of_ne hh'] at hsh'
-          have hne_addr : base + FibonacciHeap.space n_max + h'.val ≠
-              base + FibonacciHeap.space n_max + n_max + s.freeList.length := by
-            have := h'.isLt; omega
-          obtain ⟨hu', hv', hm'⟩ := hval h' u' v' hsh'
-          refine ⟨hu', hv', ?_⟩
-          have hm1' : y_fib.mem (base + FibonacciHeap.space n_max + h'.val) = v' :=
-            (hmem1_ge _ (Nat.le_add_right _ _)).trans hm'
-          subst hy; wram_simp [x1, hne_addr, hm1']
-      · intro i hi
-        simp only [List.length_cons] at hi
-        rcases i with _ | j
-        · subst hy; wram_simp [List.length_cons, Nat.add_sub_cancel, Nat.sub_zero,
-            List.getElem_cons_zero]
-        · have hj : j < s.freeList.length := by omega
-          have hidx : (h :: s.freeList).length - 1 - (j + 1) = s.freeList.length - 1 - j := by
-            simp only [List.length_cons]; omega
-          have hne_addr :
-              base + FibonacciHeap.space n_max + n_max + (s.freeList.length - 1 - j) ≠
-              base + FibonacciHeap.space n_max + n_max + s.freeList.length := by omega
-          have hm1' : y_fib.mem
-              (base + FibonacciHeap.space n_max + n_max + (s.freeList.length - 1 - j)) =
-              (s.freeList[j]).val := (hmem1_ge _ (by omega)).trans (hfree j hj)
-          rw [hidx, List.getElem_cons_succ]
-          subst hy; wram_simp [x1, hne_addr, hm1']
-    · have hp_y : potential y = FibonacciHeap.potential y_fib := by
-        unfold potential
-        rw [FibonacciHeap.potential_supported hreg_fib, Data.comap_extend f42_injective]
-      rw [hp_y]
-      unfold potential
-      omega
+    obtain ⟨y, t2, he2, ht2, hdec_y, hrep_y, hmod2, hpot_y⟩ :=
+      extractMin_pushFree_wp hrep hinv_fib hmod_fib hsh hfm' hfl_ne hdec_fib.1 hdec_fib.2 hb1
+    exact WP.of_execWithin he2 ⟨hdec_y, hrep_y,
+      FibonacciHeap.modifies_block_trans (modifies_of_fib hmod_fib) hmod2, by omega⟩
 
 /-! ## Unified dispatcher and `WordRAM.StateTransitionImpl` certificate -/
 
@@ -1268,61 +1129,42 @@ theorem dispatchCode_exec_raw {n_max U V w base : ℕ}
       m + potential y ≤ charge n_max e o + potential x := by
   obtain ⟨s, rfl, hrep⟩ := hr
   have hz0 : x.regs zeroP = 0 := hrep.zeroP_eq
-  obtain ⟨hstep_s, _⟩ :=
-    PriorityQueue.MinPQ.stepAlloc_refines_spec (U := U) (V := V) hrep.2.2.1 o hv
+  have hstep_s :=
+    (PriorityQueue.MinPQ.stepAlloc_refines_spec (U := U) (V := V) hrep.2.2.1 o hv).1
+  have heq {r : Fin rMinPQ} (h : x.regs r = 0) : (Cond.eq r zeroP).Holds x := h.trans hz0.symm
+  have hne {r : Fin rMinPQ} (h : x.regs r ≠ 0) : ¬(Cond.eq r zeroP).Holds x :=
+    fun e => h (e.trans hz0)
   cases o with
   | isEmpty =>
     obtain ⟨ht2, ht1, ht0⟩ := harg
-    have c2 : (Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht2
-    have c1 : (Cond.eq tag1 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht1
-    have c0 : (Cond.eq tag0 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht0
     obtain ⟨y, t, ⟨m, hm, he⟩, hdec, hrep_y, hmod, hpot⟩ := isEmptyCode_exec hrep
-    refine ⟨y, _, _, m + 1 + 1 + 1,
-      Exec.branch_pos c2 (Exec.branch_pos c1 (Exec.branch_pos c0 he)),
-      hstep_s, hdec, ⟨_, rfl, hrep_y⟩, hmod, ?_⟩
-    simp only [charge, tEmpty]
-    omega
+    exact ⟨y, _, _, m + 1 + 1 + 1,
+      .branch_pos (heq ht2) (.branch_pos (heq ht1) (.branch_pos (heq ht0) he)),
+      hstep_s, hdec, ⟨_, rfl, hrep_y⟩, hmod, by simp only [charge, tEmpty]; omega⟩
   | get h =>
     obtain ⟨ht2, ht1, ht0, hv_reg⟩ := harg
-    have c2 : (Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht2
-    have c1 : (Cond.eq tag1 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht1
-    have c0 : ¬(Cond.eq tag0 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht0
     obtain ⟨y, t, ⟨m, hm, he⟩, hdec, hrep_y, hmod, hpot⟩ := getCode_exec h hrep hv_reg
-    refine ⟨y, _, _, m + 2 + 1 + 1,
-      Exec.branch_pos c2 (Exec.branch_pos c1 (Exec.branch_neg c0 he)),
-      hstep_s, hdec, ⟨_, rfl, hrep_y⟩, hmod, ?_⟩
-    simp only [charge, tGet]
-    omega
+    exact ⟨y, _, _, m + 2 + 1 + 1,
+      .branch_pos (heq ht2) (.branch_pos (heq ht1) (.branch_neg (hne ht0) he)),
+      hstep_s, hdec, ⟨_, rfl, hrep_y⟩, hmod, by simp only [charge, tGet]; omega⟩
   | insert u v =>
     obtain ⟨ht2, ht1, ht0, hk_reg, hval_reg⟩ := harg
-    have c2 : (Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht2
-    have c1 : ¬(Cond.eq tag1 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht1
-    have c0 : (Cond.eq tag0 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht0
     obtain ⟨y, t, ⟨m, hm, he⟩, hdec, hrep_y, hmod, hpot⟩ :=
       insertCode_exec hrep hv hk_reg hval_reg
-    refine ⟨y, _, _, m + 1 + 2 + 1,
-      Exec.branch_pos c2 (Exec.branch_neg c1 (Exec.branch_pos c0 he)),
-      hstep_s, hdec, ⟨_, rfl, hrep_y⟩, hmod, ?_⟩
-    simp only [charge, tIns]
-    omega
+    exact ⟨y, _, _, m + 1 + 2 + 1,
+      .branch_pos (heq ht2) (.branch_neg (hne ht1) (.branch_pos (heq ht0) he)),
+      hstep_s, hdec, ⟨_, rfl, hrep_y⟩, hmod, by simp only [charge, tIns]; omega⟩
   | decreaseKey h u' =>
     obtain ⟨ht2, ht1, ht0, hv_reg, hk_reg⟩ := harg
-    have c2 : (Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht2
-    have c1 : ¬(Cond.eq tag1 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht1
-    have c0 : ¬(Cond.eq tag0 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact ht0
     obtain ⟨y, t, ⟨m, hm, he⟩, hdec, hrep_y, hmod, hpot⟩ :=
       decreaseKeyCode_exec h u' hrep hv hv_reg hk_reg
-    refine ⟨y, _, _, m + 2 + 2 + 1,
-      Exec.branch_pos c2 (Exec.branch_neg c1 (Exec.branch_neg c0 he)),
-      hstep_s, hdec, ⟨_, rfl, hrep_y⟩, hmod, ?_⟩
-    simp only [charge, tDec]
-    omega
+    exact ⟨y, _, _, m + 2 + 2 + 1,
+      .branch_pos (heq ht2) (.branch_neg (hne ht1) (.branch_neg (hne ht0) he)),
+      hstep_s, hdec, ⟨_, rfl, hrep_y⟩, hmod, by simp only [charge, tDec]; omega⟩
   | extractMin =>
-    have c2 : ¬(Cond.eq tag2 zeroP).Holds x := by simp only [Cond.Holds, hz0]; exact harg
     obtain ⟨y, t, ⟨m, hm, he⟩, hdec, hrep_y, hmod, hpot⟩ := extractMinCode_exec hrep
-    refine ⟨y, _, _, m + 2, Exec.branch_neg c2 he, hstep_s, hdec, ⟨_, rfl, hrep_y⟩, hmod, ?_⟩
-    simp only [charge, tExt]
-    omega
+    exact ⟨y, _, _, m + 2, .branch_neg (hne harg) he, hstep_s, hdec, ⟨_, rfl, hrep_y⟩, hmod,
+      by simp only [charge, tExt]; omega⟩
 
 theorem dispatchCode_exec {n_max U V w base : ℕ}
     {e : PriorityQueue.MinPQ.State n_max} {x : Data rMinPQ}
@@ -1481,13 +1323,12 @@ theorem resultRecoding_ready {n_max U V w base : ℕ}
   have h0 : y.regs tag0 = x.regs tag0 := he.regs_eq (by decide)
   change nativeResultReady o y
   cases o with
-  | isEmpty => simpa only [nativeResultReady, argMatch, rawArgMatch, h2, h1, h0] using harg
-  | get _ => exact ⟨h2.trans harg.1, h1.trans harg.2.1, by simpa only [h0] using harg.2.2.1⟩
-  | insert _ _ => exact ⟨h2.trans harg.1, by simpa only [h1] using harg.2.1, h0.trans harg.2.2.1⟩
+  | isEmpty => exact ⟨h2.trans harg.1, h1.trans harg.2.1, h0.trans harg.2.2⟩
+  | get _ => exact ⟨h2.trans harg.1, h1.trans harg.2.1, ne_of_eq_of_ne h0 harg.2.2.1⟩
+  | insert _ _ => exact ⟨h2.trans harg.1, ne_of_eq_of_ne h1 harg.2.1, h0.trans harg.2.2.1⟩
   | decreaseKey _ _ =>
-    exact ⟨h2.trans harg.1, by simpa only [h1] using harg.2.1,
-      by simpa only [h0] using harg.2.2.1⟩
-  | extractMin => simpa only [nativeResultReady, argMatch, rawArgMatch, h2] using harg
+    exact ⟨h2.trans harg.1, ne_of_eq_of_ne h1 harg.2.1, ne_of_eq_of_ne h0 harg.2.2.1⟩
+  | extractMin => exact ne_of_eq_of_ne h2 harg
 
 /-! ## Standalone `Basis.standard` `DynamicProgram` and `Amortized` implementations -/
 
@@ -1607,17 +1448,10 @@ theorem extractLogSum_le_numExtractMins {n_max U V : ℕ} :
   | [], _ => Nat.zero_le _
   | ⟨o, res, s₁⟩ :: tr, s => by
     have ih := extractLogSum_le_numExtractMins tr s₁
-    have hlog : Nat.log 2 (PriorityQueue.MinPQ.size s) ≤ Nat.log 2 n_max :=
-      Nat.log_mono_right (PriorityQueue.MinPQ.size_le s)
-    cases o with
-    | extractMin =>
+    have hlog := Nat.log_mono_right (b := 2) (PriorityQueue.MinPQ.size_le s)
+    cases o <;>
       simp only [extractLogSum, StateTransitionSpec.Transcript.ops_cons, numExtractMins,
-        Nat.add_mul, Nat.one_mul]
-      omega
-    | _ =>
-      simp only [extractLogSum, StateTransitionSpec.Transcript.ops_cons, numExtractMins,
-        Nat.zero_add]
-      omega
+        Nat.add_mul, Nat.one_mul, Nat.zero_add] <;> omega
 
 /-- Sequential flat-program execution of an adaptive client `p : (minPQSpec n_max U V).Client α`
 by repeated calls to `opProg`: each `.liftBind o k` call prepares input registers via
@@ -1698,51 +1532,38 @@ private theorem seq_runsClient {n_max U V w base : ℕ}
   induction p generalizing s x with
   | pure a =>
     exact ⟨a, [], s, x, 0, .pure, .pure (D := minPQSpec n_max U V) s a, hr, by
-      simp only [StateTransitionSpec.Transcript.ops_nil,
-        numQueries, numInserts, numDecreaseKeys, extractLogSum]
-      omega⟩
+      simp only [StateTransitionSpec.Transcript.ops_nil, numQueries, numInserts,
+        numDecreaseKeys, extractLogSum]; omega⟩
   | liftBind o k ih =>
-    obtain ⟨hv_o, hv_rest⟩ :=
-      ((minPQSpec n_max U V).demonicValid_liftBind_iff s o k).mp hv
+    obtain ⟨hv_o, hv_rest⟩ := ((minPQSpec n_max U V).demonicValid_liftBind_iff s o k).mp hv
     let x' : Data rMinPQ := ⟨prepareRegs o x.regs, x.mem⟩
     have hbx : x.Bounded w := hr.choose_spec.2.1
-    have henc_eq : encode U o = rawEncode o := encode_eq_rawEncode_of_rep hr hv_o
-    have hb' : x'.Bounded w := by
-      refine ⟨fun i => ?_, hbx.2⟩
+    have henc := encode_eq_rawEncode_of_rep hr hv_o
+    have hb' : x'.Bounded w := ⟨fun i => by
       change Fits w (if _ then rawEncode o i else x.regs i)
       split_ifs
-      · rw [← henc_eq]
-        exact arguments_fit hS hU hV o hv_o i
-      · exact hbx.1 i
+      · rw [← henc]; exact arguments_fit hS hU hV o hv_o i
+      · exact hbx.1 i, hbx.2⟩
     have hreg' : ∀ i, inputReg i = false → x'.regs i = x.regs i := fun i hi => by
       have hne : ¬(i = tag2 ∨ i = tag1 ∨ i = tag0 ∨ i = argV ∨ i = argK ∨ i = inValReg) := by
         rintro (rfl | rfl | rfl | rfl | rfl | rfl) <;> exact absurd hi (by decide)
       simp only [x', prepareRegs, hne, ↓reduceIte]
-    have hr' : Rep n_max U V w base s x' := hr.supported hreg' (fun _ _ => rfl) hb'
-    have hpot' : potential x' = potential x := potential_supported hreg'
-    have harg' : rawArgMatch o x'.regs := by
-      cases o with
-      | isEmpty => exact ⟨rfl, rfl, rfl⟩
-      | get _ => exact ⟨rfl, rfl, Nat.one_ne_zero, rfl⟩
-      | insert _ _ => exact ⟨rfl, Nat.one_ne_zero, rfl, rfl, rfl⟩
-      | decreaseKey _ _ => exact ⟨rfl, Nat.one_ne_zero, Nat.one_ne_zero, rfl, rfl⟩
-      | extractMin => exact Nat.one_ne_zero
+    have harg' : argMatch U o x'.regs :=
+      argMatch_of_eq_encode o (congrFun henc.symm tag2) (congrFun henc.symm tag1)
+        (congrFun henc.symm tag0) (congrFun henc.symm argV) (congrFun henc.symm argK)
+        (congrFun henc.symm inValReg)
     obtain ⟨y, s₁, a, m, he_op, hstep, hdec, hr_y, hmod, hpot_m⟩ :=
-      dispatchCode_exec_raw o hr' hv_o harg'
-    rw [hpot'] at hpot_m
-    have hruns : Runs w opProg ⟨0, x'⟩ ⟨0 + dispatchCode.size, y⟩ m :=
-      he_op.runs (pc := 0) (p := opProg) (Program.Contains.self _).append_left
-    have hhalt : step w opProg ⟨0 + dispatchCode.size, y⟩ = .halt (y.regs outFlag) :=
-      step_program_halt dispatchCode outFlag y
+      dispatchCode_exec o (hr.supported hreg' (fun _ _ => rfl) hb') hv_o harg'
+    rw [potential_supported hreg'] at hpot_m
     obtain ⟨v, tr, s_fin, z, rest, hrest, hrun_rest, hr_z, hpot_rest⟩ :=
       ih a hr_y (hv_rest s₁ a hstep)
     refine ⟨v, ⟨o, a, s₁⟩ :: tr, s_fin, z, (m + 1) + rest,
-      .liftBind hruns ⟨_, hhalt⟩ hstep hdec hmod hrest,
+      .liftBind (he_op.runs (pc := 0) (p := opProg) (Program.Contains.self _).append_left)
+        ⟨_, step_program_halt dispatchCode outFlag y⟩ hstep hdec hmod hrest,
       .liftBind (D := minPQSpec n_max U V) o k a hv_o hstep hrun_rest, hr_z, ?_⟩
     cases o <;>
       simp only [StateTransitionSpec.Transcript.ops_cons, charge, tEmpty, tGet, tIns, tDec, tExt,
-        numQueries, numInserts, numDecreaseKeys, extractLogSum] at hpot_m ⊢ <;>
-      omega
+        numQueries, numInserts, numDecreaseKeys, extractLogSum] at hpot_m ⊢ <;> omega
 
 private theorem initRegs_bounded {n_max base w : ℕ} (hS : Fits w (base + space n_max))
     {mem₀ : ℕ → ℕ} (hmem : ∀ a, Fits w (mem₀ a)) :

@@ -52,7 +52,7 @@ theorem Xofs.withDigestRegister_update (H : Xofs) (s : Level) (D)
   intro x j
   by_cases eq : x = List.ofFn i
   · subst x
-    simp only [Xofs.withDigestRegister, Xofs.withPrefixRegister,
+    simp only [Xofs.withDigestRegister, Xofs.withPrefixRegister, Xofs.withPrefixLists,
       ExtendableOutput.byteAt_withPrefixes, List.length_ofFn, ↓reduceIte, BitString.ofList_ofFn,
       Function.update_self, Equiv.symm_apply_apply, Option.bind_some]
     by_cases hj : j < digestBytes s
@@ -61,10 +61,10 @@ theorem Xofs.withDigestRegister_update (H : Xofs) (s : Level) (D)
   · by_cases len : x.length = s.commitmentInputBits
     · have ne : BitString.ofList _ x ≠ i := fun h => eq
         ((BitString.ofFn_ofList len).symm.trans (congrArg List.ofFn h))
-      simp [Xofs.withDigestRegister, Xofs.withPrefixRegister, ExtendableOutput.byteAt_withPrefixes,
-        eq, len, Function.update_of_ne ne]
-    · simp [Xofs.withDigestRegister, Xofs.withPrefixRegister, ExtendableOutput.byteAt_withPrefixes,
-        eq, len]
+      simp [Xofs.withDigestRegister, Xofs.withPrefixRegister, Xofs.withPrefixLists,
+        ExtendableOutput.byteAt_withPrefixes, eq, len, Function.update_of_ne ne]
+    · simp [Xofs.withDigestRegister, Xofs.withPrefixRegister, Xofs.withPrefixLists,
+        ExtendableOutput.byteAt_withPrefixes, eq, len]
 
 namespace QuantumSigningForger
 open Cslib.Probability Cslib.Quantum

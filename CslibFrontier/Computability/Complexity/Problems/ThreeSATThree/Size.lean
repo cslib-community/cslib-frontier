@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.ThreeSATThree
 public import CslibFrontier.Logics.Propositional.CNF.ModelCount
+import CslibFrontier.Logics.Propositional.CNF.Compact.Relabel
 
 /-!
 # Total size bounds for the finite occurrence splitter
@@ -58,12 +59,8 @@ theorem count_vars_toThreeSATThree_le (φ : CNF ℕ) (v : ℕ) :
     (toThreeSATThree φ).vars.count v ≤ 3 := by
   unfold toThreeSATThree
   split_ifs
-  · rw [CNF.vars_relabel]
-    by_cases hv : v ∈ φ.toThreeOccurrence.vars.map ThreeSATThree.numberCopy
-    · obtain ⟨x, _, rfl⟩ := List.mem_map.1 hv
-      rw [List.count_map_of_injective _ _ ThreeSATThree.numberCopy_injective]
-      exact CNF.count_vars_toThreeOccurrence_le φ x
-    · simp [List.count_eq_zero.2 hv]
+  · exact CNF.count_vars_relabel_le_of_injOn _ _ ThreeSATThree.numberCopy_injective.injOn
+      (CNF.count_vars_toThreeOccurrence_le φ) v
   · simp [CNF.vars]
 
 /-- Exact clause/literal counts and the generic variable-count bound give this sharper bound

@@ -75,10 +75,8 @@ theorem card_filter_heavy_mul_le (S : Finset V) {a ρ M : ℝ} {d : V → ℝ} (
     (hd : ∀ w ∈ S, 0 ≤ d w) (hmass : a * ∑ w ∈ S, d w ≤ M) :
     (#{w ∈ S | ρ / 4 < d w} : ℝ) * (a * ρ) ≤ 4 * M := by
   classical
-  have hcount : (#{w ∈ S | ρ / 4 < d w} : ℝ) * (ρ / 4) ≤ ∑ w ∈ S, d w :=
-    card_filter_mul_le_sum S _ d hd fun _ _ hw => hw.le
-  have h := (mul_le_mul_of_nonneg_left hcount ha).trans hmass
-  linarith
+  linarith [mul_le_mul_of_nonneg_left
+    (card_filter_mul_le_sum S (fun w => ρ / 4 < d w) d hd fun _ _ => le_of_lt) ha, hmass]
 
 open Classical in
 /-- Conditional rarity of a true heavy count, without division. The endpoint `y` may be
@@ -162,12 +160,11 @@ theorem card_filter_heavyCountEvent_div_card_le (Y : Ω → V → Prop) (T : Fin
     (#{σ ∈ T | heavyCountEvent Y S d ρ n σ} : ℝ) / #T ≤
       2 * (1 + 4 * c * M) / ((n : ℝ) * ρ) := by
   classical
-  have hM : 0 ≤ M := (mul_nonneg ha (sum_nonneg hd)).trans hmass
   rcases T.eq_empty_or_nonempty with rfl | hT
-  · simp only [filter_empty, card_empty, Nat.cast_zero, zero_div]
+  · have : 0 ≤ M := (mul_nonneg ha (sum_nonneg hd)).trans hmass
+    simp only [filter_empty, card_empty, Nat.cast_zero, zero_div]
     positivity
-  have hTpos : (0 : ℝ) < #T := by exact_mod_cast hT.card_pos
-  exact (div_le_iff₀ hTpos).mpr
+  exact (div_le_iff₀ (by exact_mod_cast hT.card_pos)).mpr
     (card_filter_heavyCountEvent_le Y T S y ha hρ hρ1 hc hd hmass hpair hn)
 
 open Classical in

@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantita
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Lists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Fold
+import CslibFrontier.Tactic.Degree
 
 /-!
 # Mathlib TM2 steps and clocked runs with machine-independent degrees
@@ -63,14 +64,15 @@ private theorem ofFn_computableInDegree {d : ℕ} (hd : 1 ≤ d) {count : ℕ}
     (h : ∀ j, ComputableInDegree (fun a => words a j) input encBits d 1) :
     ComputableInDegree (fun a => List.ofFn (words a)) input (encList encBits) d 1 := by
   induction count with
-  | zero =>
-    simpa using (ComputableInDegree.const (encIn := input) (encMid := encList encBits)
-      ([] : List (List Bool))).mono (d' := d) (e' := 1) hd (by omega)
+  | zero => simpa only [List.ofFn_zero] using
+      (by degree : ComputableInDegree (fun _ : α => ([] : List (List Bool)))
+        input (encList encBits) d 1)
   | succ count ih =>
+    have h0 := h 0
     have hrest := ih (words := fun a j => words a j.succ) (fun j => h j.succ)
-    have hc := (ComputableInDegree.cons encBits).comp ((h 0).prod hrest)
-    exact (hc.mono (d' := d) (e' := 1) (by simp [hd]) (by simp)).of_enc_eq fun a => by
-      simp only [List.ofFn_succ]; rfl
+    exact (by degree : ComputableInDegree
+      (fun a => words a 0 :: List.ofFn fun j => words a j.succ)
+      input (encList encBits) d 1).of_enc_eq fun a => by simp only [List.ofFn_succ]
 
 /-- Building a dependent table, entry by entry, at any degree `d ≥ 1` with linear output. -/
 private theorem dpi_computableInDegree {d : ℕ} (hd : 1 ≤ d) {values : α → ∀ i, Value i}
@@ -124,6 +126,8 @@ end Table
 
 section Step
 
+attribute [local fun_prop] dpi_update_computableInDegree
+
 variable {K : Type} [Fintype K] [DecidableEq K] {Γ : K → Type} {Λ σ : Type}
   [Finite Λ] [Finite σ] [∀ k, Finite (Γ k)]
 
@@ -132,36 +136,40 @@ private noncomputable abbrev encStk : (∀ k, List (Γ k)) ↪ List Bool :=
   encDPi (fun k => encList (encFinite (Γ k)))
 
 omit [DecidableEq K] in
+@[local fun_prop]
 private theorem cfg_mk_computableInDegree {α : Type} {input : α ↪ List Bool}
     {label : α → Option Λ} {state : α → σ} {store : α → ∀ k, List (Γ k)}
-    (hl : ComputableInDegree label input (encFinite (Option Λ)) 1 1)
-    (hv : ComputableInDegree state input (encFinite σ) 1 1)
-    (hs : ComputableInDegree store input encStk 1 1) :
-    ComputableInDegree (fun a => Cfg.mk (label a) (state a) (store a)) input encCfg 1 1 :=
-  (hl.prod (hv.prod hs)).mono.of_enc_eq fun _ => rfl
+    {dl el dv ev ds es d e : ℕ}
+    (hl : ComputableInDegree label input (encFinite (Option Λ)) dl el)
+    (hv : ComputableInDegree state input (encFinite σ) dv ev)
+    (hs : ComputableInDegree store input encStk ds es)
+    (hd : max dl (max dv ds) ≤ d) (he : max el (max ev es) ≤ e) :
+    ComputableInDegree (fun a => Cfg.mk (label a) (state a) (store a)) input encCfg d e :=
+  ((hl.prod (hv.prod hs)).mono hd he).of_enc_eq fun _ => rfl
 
 omit [DecidableEq K] in
+private theorem cfg_fields_computableInDegree :
+    ComputableInDegree (fun cfg : Cfg Γ Λ σ => (cfg.l, cfg.var, cfg.stk))
+      encCfg (encPair (encFinite (Option Λ)) (encPair (encFinite σ) encStk)) 1 1 :=
+  ComputableInDegree.of_eq fun _ => rfl
+
+omit [DecidableEq K] in
+@[local fun_prop]
 private theorem cfg_label_computableInDegree :
     ComputableInDegree (Cfg.l (Γ := Γ) (Λ := Λ) (σ := σ)) encCfg (encFinite (Option Λ)) 1 1 :=
-  ((ComputableInDegree.fst _ _).comp (ComputableInDegree.of_eq
-    (f := fun cfg : Cfg Γ Λ σ => (cfg.l, cfg.var, cfg.stk))
-    (encMid := encPair (encFinite (Option Λ)) (encPair (encFinite σ) encStk)) fun _ => rfl)).mono
+  cfg_fields_computableInDegree.fst'
 
 omit [DecidableEq K] in
+@[local fun_prop]
 private theorem cfg_var_computableInDegree :
     ComputableInDegree (Cfg.var (Γ := Γ) (Λ := Λ) (σ := σ)) encCfg (encFinite σ) 1 1 :=
-  ((ComputableInDegree.fst _ _).comp ((ComputableInDegree.snd _ _).comp
-    (ComputableInDegree.of_eq
-    (f := fun cfg : Cfg Γ Λ σ => (cfg.l, cfg.var, cfg.stk))
-    (encMid := encPair (encFinite (Option Λ)) (encPair (encFinite σ) encStk)) fun _ => rfl))).mono
+  cfg_fields_computableInDegree.snd'.fst'.mono
 
 omit [DecidableEq K] in
+@[local fun_prop]
 private theorem cfg_stk_computableInDegree :
     ComputableInDegree (Cfg.stk (Γ := Γ) (Λ := Λ) (σ := σ)) encCfg encStk 1 1 :=
-  ((ComputableInDegree.snd _ _).comp ((ComputableInDegree.snd _ _).comp
-    (ComputableInDegree.of_eq
-    (f := fun cfg : Cfg Γ Λ σ => (cfg.l, cfg.var, cfg.stk))
-    (encMid := encPair (encFinite (Option Λ)) (encPair (encFinite σ) encStk)) fun _ => rfl))).mono
+  cfg_fields_computableInDegree.snd'.snd'.mono
 
 omit [DecidableEq K] in
 private theorem map_headD_computableInDegree {α : Type} {input : α ↪ List Bool}
@@ -174,68 +182,55 @@ private theorem map_headD_computableInDegree {α : Type} {input : α ↪ List Bo
   · have h := (ComputableInDegree.of_finite (encIn := encFinite σ) (encMid := encFinite σ)
       (fun s => f s none)).comp hv
     refine h.mono.of_enc_eq fun a => ?_
-    have : (store a k).head? = none := by
-      rcases store a k with _ | ⟨x, _⟩
-      · rfl
-      · exact isEmptyElim x
-    simp only [Function.comp_apply, this]
-  · have hl := ((dpi_apply_computableInDegree (fun k => encList (encFinite (Γ k))) k).comp
-      hs).mono (d' := 1) (e' := 1)
-    have hE := (ComputableInDegree.isEmpty (enc₁ := encFinite (Γ k))).comp hl
-    have hH := (ComputableInDegree.headD (enc₁ := encFinite (Γ k)) d).comp hl
-    have h := (ComputableInDegree.of_finite (encIn := encPair (encFinite σ)
-      (encPair encBool (encFinite (Γ k)))) (encMid := encFinite σ)
-      (fun p : σ × Bool × Γ k => f p.1 (if p.2.1 then none else some p.2.2))).comp
-      (hv.prod (hE.prod hH))
-    refine h.mono.of_enc_eq fun a => ?_
-    simp only [Function.comp_apply]
-    rcases store a k with _ | ⟨x, l⟩ <;> rfl
+    rcases store a k with _ | ⟨x, _⟩
+    · rfl
+    · exact isEmptyElim x
+  · let _ : Inhabited (Γ k) := ⟨d⟩
+    have hstack : ComputableInDegree (fun a => store a k) input
+        (encList (encFinite (Γ k))) 1 1 :=
+      ((dpi_apply_computableInDegree (fun k => encList (encFinite (Γ k))) k).comp hs).mono
+    have hf := ComputableInDegree.of_finite
+      (encIn := encPair (encFinite σ) (encOption (encFinite (Γ k)))) (encMid := encFinite σ)
+      (fun p : σ × Option (Γ k) => f p.1 p.2)
+    exact (hf.comp (by degree : ComputableInDegree (fun a => (state a, (store a k).head?))
+      input (encPair (encFinite σ) (encOption (encFinite (Γ k)))) 1 1)).mono
 
 private theorem stepAux_computableInDegree (q : Stmt Γ Λ σ) : ∀ {α : Type}
     {input : α ↪ List Bool} {state : α → σ} {store : α → ∀ k, List (Γ k)},
     ComputableInDegree state input (encFinite σ) 1 1 →
     ComputableInDegree store input encStk 1 1 →
     ComputableInDegree (fun a => stepAux q (state a) (store a)) input encCfg 1 1 := by
-  induction q with
+  intro α input state store hv hs
+  induction q generalizing state store with
   | push k f q ih =>
-    intro α input state store hv hs
-    have hsymbol := (ComputableInDegree.of_finite (encIn := encFinite σ)
-      (encMid := encFinite (Γ k)) f).comp hv
-    have hstack := (dpi_apply_computableInDegree (fun k => encList (encFinite (Γ k))) k).comp hs
-    have hcons := ((ComputableInDegree.cons (encFinite (Γ k))).comp
-      (hsymbol.prod hstack)).mono (d' := 1) (e' := 1)
-    exact ih hv (dpi_update_computableInDegree hs hcons)
+    have hf := ComputableInDegree.of_finite (encIn := encFinite σ) (encMid := encFinite (Γ k)) f
+    have hstack : ComputableInDegree (fun a => store a k) input
+        (encList (encFinite (Γ k))) 1 1 :=
+      ((dpi_apply_computableInDegree (fun k => encList (encFinite (Γ k))) k).comp hs).mono
+    exact ih hv (by degree)
   | peek k f q ih =>
-    intro α input state store hv hs
     exact ih (map_headD_computableInDegree hv hs k f) hs
   | pop k f q ih =>
-    intro α input state store hv hs
-    have hstack := (dpi_apply_computableInDegree (fun k => encList (encFinite (Γ k))) k).comp hs
-    have htail := ((ComputableInDegree.tail (enc₁ := encFinite (Γ k))).comp hstack).mono
-      (d' := 1) (e' := 1)
-    exact ih (map_headD_computableInDegree hv hs k f) (dpi_update_computableInDegree hs htail)
+    have hstack : ComputableInDegree (fun a => store a k) input
+        (encList (encFinite (Γ k))) 1 1 :=
+      ((dpi_apply_computableInDegree (fun k => encList (encFinite (Γ k))) k).comp hs).mono
+    exact ih (map_headD_computableInDegree hv hs k f) (by degree)
   | load f q ih =>
-    intro α input state store hv hs
-    exact ih (((ComputableInDegree.of_finite (encIn := encFinite σ)
-      (encMid := encFinite σ) f).comp hv).mono) hs
+    have hf := ComputableInDegree.of_finite (encIn := encFinite σ) (encMid := encFinite σ) f
+    exact ih (by degree) hs
   | branch f q₁ q₂ ih₁ ih₂ =>
-    intro α input state store hv hs
-    have hc := (ComputableInDegree.of_finite (encIn := encFinite σ) (encMid := encBool)
-      f).comp hv
-    have h := ComputableInDegree.ite (c := fun a => f (state a))
-      (f := fun a => stepAux q₁ (state a) (store a))
-      (g := fun a => stepAux q₂ (state a) (store a)) hc
-      (ih₁ (hv.restrict _) (hs.restrict _)) (ih₂ (hv.restrict _) (hs.restrict _))
-    refine h.mono.of_enc_eq fun a => ?_
-    simp only [stepAux]
-    cases f (state a) <;> rfl
+    have hc := ComputableInDegree.of_finite (encIn := encFinite σ) (encMid := encBool) f
+    have h₁ := ih₁ hv hs
+    have h₂ := ih₂ hv hs
+    unfold stepAux
+    degree
   | goto f =>
-    intro α input state store hv hs
-    exact cfg_mk_computableInDegree (((ComputableInDegree.of_finite (encIn := encFinite σ)
-      (encMid := encFinite (Option Λ)) fun v => some (f v)).comp hv).mono) hv hs
+    exact cfg_mk_computableInDegree
+      ((ComputableInDegree.of_finite (encIn := encFinite σ)
+        (encMid := encFinite (Option Λ)) fun v => some (f v)).comp hv)
+      hv hs (by decide) (by decide)
   | halt =>
-    intro α input state store hv hs
-    exact cfg_mk_computableInDegree (ComputableInDegree.const none).mono hv hs
+    degree [stepAux]
 
 /-- The step, by cases over a list of labels. -/
 private noncomputable def stepCases (M : Λ → Stmt Γ Λ σ) :
@@ -246,14 +241,10 @@ private noncomputable def stepCases (M : Λ → Stmt Γ Λ σ) :
 omit [Fintype K] [Finite Λ] [Finite σ] [∀ k, Finite (Γ k)] in
 private theorem stepCases_eq (M : Λ → Stmt Γ Λ σ) (Ls : List (Option Λ))
     (c : Cfg Γ Λ σ) (h : c.l ∈ Ls) : stepCases M Ls c = stepTotal M c := by
-  induction Ls with
-  | nil => simp at h
-  | cons l Ls ih =>
-    classical
-    simp only [stepCases]
-    split_ifs with hl
-    · rfl
-    · exact ih ((List.mem_cons.mp h).resolve_left hl)
+  fun_induction stepCases M Ls c with
+  | case1 => simp at h -- no labels left
+  | case2 => rfl -- c.l = l: step
+  | case3 l Ls c hne ih => exact ih ((List.mem_cons.mp h).resolve_left hne) -- c.l ≠ l: try the rest
 
 private theorem stepCases_computableInDegree (M : Λ → Stmt Γ Λ σ) (Ls : List (Option Λ)) :
     ∀ {α : Type} {input : α ↪ List Bool} {cfg : α → Cfg Γ Λ σ},
@@ -261,7 +252,7 @@ private theorem stepCases_computableInDegree (M : Λ → Stmt Γ Λ σ) (Ls : Li
     ComputableInDegree (fun a => stepCases M Ls (cfg a)) input encCfg 1 1 := by
   classical
   induction Ls with
-  | nil => intro α input cfg hc; exact hc
+  | nil => exact fun hc => hc
   | cons l Ls ih =>
     intro α input cfg hc
     have hcond := (ComputableInDegree.of_finite (encIn := encFinite (Option Λ))
@@ -273,15 +264,11 @@ private theorem stepCases_computableInDegree (M : Λ → Stmt Γ Λ σ) (Ls : Li
       have hr := hc.restrict (fun a => decide ((cfg a).l = l) = true)
       cases l with
       | none =>
-        refine hr.of_enc_eq fun a => ?_
-        have h := of_decide_eq_true a.2
-        simp only [Function.comp_apply, stepTotal, h, Option.elim_none]
+        exact hr.of_enc_eq fun a => by simp [stepTotal, of_decide_eq_true a.2]
       | some l =>
-        have h := stepAux_computableInDegree (M l) (cfg_var_computableInDegree.comp hr).mono
-          (cfg_stk_computableInDegree.comp hr).mono
-        refine h.of_enc_eq fun a => ?_
-        have h := of_decide_eq_true a.2
-        simp only [Function.comp_apply, stepTotal, h, Option.elim_some]
+        exact (stepAux_computableInDegree (M l) (cfg_var_computableInDegree.comp hr).mono
+          (cfg_stk_computableInDegree.comp hr).mono).of_enc_eq fun a => by
+          simp [stepTotal, of_decide_eq_true a.2]
     have hno := ih (hc.restrict (fun a => decide ((cfg a).l = l) = false))
     have h := ComputableInDegree.ite (c := fun a => decide ((cfg a).l = l))
       (f := fun a => stepTotal M (cfg a)) (g := fun a => stepCases M Ls (cfg a)) hcond hyes hno
@@ -341,14 +328,13 @@ private theorem initList_computableInDegree : ComputableInDegree
     by_cases hk : k = M.tm.k₀
     · subst k
       exact hw.mono.of_enc_eq fun x => by simp [initList]
-    · exact ((ComputableInDegree.const (encIn := encPair (encList encBool) encUnary)
-        (encMid := encList (encFinite (M.tm.Γ k))) []).mono).of_enc_eq fun x => by
-          simp [initList, hk]
-  have h := ((ComputableInDegree.const (encIn := encPair (encList encBool) encUnary)
-    (encMid := encFinite (Option M.tm.Λ)) (some M.tm.main)).prod
-    ((ComputableInDegree.const (encIn := encPair (encList encBool) encUnary)
-      (encMid := encFinite M.tm.σ) M.tm.initialState).prod hstk))
-  exact h.mono.of_enc_eq fun _ => rfl
+    · exact (by degree : ComputableInDegree
+        (fun _ : List Bool × ℕ => ([] : List (M.tm.Γ k)))
+        (encPair (encList encBool) encUnary) (encList (encFinite (M.tm.Γ k))) 2 1).of_enc_eq
+          fun x => by simp [initList, hk]
+  exact (cfg_mk_computableInDegree (ComputableInDegree.const (some M.tm.main))
+    (ComputableInDegree.const M.tm.initialState) hstk (by decide) (by decide)).of_enc_eq
+      fun _ => rfl
 
 /-- **The clocked run in degree two.** On `(w, t)`, with the bits of `w` framed one by one and
 `t` in unary, `runBit M` has time and space degree two and output degree one, for every machine
@@ -362,8 +348,9 @@ theorem runBit_computableInDegree :
     (ComputableInDegree.snd _ _).of_enc_eq fun _ => rfl
   have hstep : ComputableInDegree
       (fun p : Cfg M.tm.Γ M.tm.Λ M.tm.σ × Bool => stepTotal M.tm.m p.1)
-      (encPair encCfg encBool) encCfg 1 1 :=
-    ((stepTotal_computableInDegree M.tm.m).comp (ComputableInDegree.fst _ _)).mono
+      (encPair encCfg encBool) encCfg 1 1 := by
+    have := stepTotal_computableInDegree M.tm.m
+    degree
   have hB : DegreeBounded (fun x : List Bool × ℕ => (encPair (encList encBool) encUnary x).length)
       (fun x => A * (x.1.length + C * x.2 + 1)) 1 := by
     refine ⟨A * (C + 2), fun x => ?_⟩

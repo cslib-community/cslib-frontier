@@ -11,8 +11,10 @@ public import CslibFrontier.DataStructure.HashFamily.WordRAM.Basic
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.KWise
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.Tabulation
 public import CslibFrontier.Probability.KWiseIndependent.DoubleTabulation
+import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Tactic.Fits
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Self-Contained Word-RAM Double Tabulation and High-Independence Hashing (`[Thorup2013]`)
@@ -387,23 +389,6 @@ theorem injective_fillMap12 : Function.Injective fillMap12 := by
   let z2 ← Tabulation.randFillComp M (base + c * d * 2 ^ b) (d * 2 ^ b) (x2.comap fillMap12)
   pure (z2.1.extend fillMap12 x2, 5 + (z1.2 + (4 + z2.2)))
 
-private theorem resampleSetup1Code_exec {w base c d b : ℕ} {x : Data 12}
-    (hbase : x.regs 0 = base)
-    (hfit_top : Fits w (base + c * d * 2 ^ b))
-    (hfit_mask_b : Fits w (2 ^ b - 1))
-    (hfit_1 : Fits w 1) :
-    Exec w (resampleSetup1Code c d b) x (resampleSetup1Data base c d b x) 5 := by
-  unfold resampleSetup1Code resampleSetup1Data
-  wram_exec [hbase]
-
-private theorem resampleSetup2Code_exec {w base c d b M : ℕ} {x : Data 12}
-    (h4 : x.regs 4 = base + c * d * 2 ^ b)
-    (hfit_end : Fits w (base + c * d * 2 ^ b + d * 2 ^ b))
-    (hfit_mask_M : Fits w (2 ^ M - 1)) :
-    Exec w (resampleSetup2Code d b M) x (resampleSetup2Data base c d b M x) 4 := by
-  unfold resampleSetup2Code resampleSetup2Data
-  wram_exec [h4]
-
 /-- **Exact `ExecRand` execution of `resampleCode c d b M`**. -/
 theorem resampleCode_execRand {w base c d b M : ℕ} {x : Data 12}
     (hbase : x.regs 0 = base)
@@ -416,71 +401,34 @@ theorem resampleCode_execRand {w base c d b M : ℕ} {x : Data 12}
   have hfit_end : Fits w (base + c * d * 2 ^ b + d * 2 ^ b) :=
     hfit_space.of_le (by dsimp only [topWords, botWords] at hsp; omega)
   have hfit_top : Fits w (base + c * d * 2 ^ b) := by fits
-  set x1 := resampleSetup1Data base c d b x
-  have h1 := (resampleSetup1Code_exec hbase hfit_top hfit_mask_b hfit_1).execRand
-  have hloop1_inner := Tabulation.randFillLoop_execRand (w := w) (bits := b) (arrBase := base)
-    (c * d * 2 ^ b) (x := x1.comap fillMap12)
-    (by simp +decide [x1, resampleSetup1Data, fillMap12, Data.comap])
-    (by simp +decide [x1, resampleSetup1Data, fillMap12, Data.comap])
-    (by simp +decide [x1, resampleSetup1Data, fillMap12, Data.comap])
-    (by simp +decide [x1, resampleSetup1Data, fillMap12, Data.comap])
-    hfit_top hfit_mask_b
-  have hloop1 := hloop1_inner.rename injective_fillMap12
-  have hrest : ∀ z1 ∈ (Tabulation.randFillComp b base (c * d * 2 ^ b)
-      (x1.comap fillMap12)).support,
-      ExecRand w (.seq (resampleSetup2Code d b M) (Tabulation.randFillLoop.rename fillMap12))
-        (z1.1.extend fillMap12 x1) (do
-          let x2 := resampleSetup2Data base c d b M (z1.1.extend fillMap12 x1)
-          let z2 ← Tabulation.randFillComp M (base + c * d * 2 ^ b) (d * 2 ^ b) (x2.comap fillMap12)
-          pure (z2.1.extend fillMap12 x2, 4 + z2.2)) := by
-    intro z1 hz1
+  have hfit_bot : Fits w (d * 2 ^ b) := by fits
+  unfold resampleCode resampleSetup1Code resampleSetup2Code
+  wram_rand_exec [hbase]
+  wram_rand_call (Tabulation.randFillLoop_execRand (bits := b) (arrBase := base)
+    (c * d * 2 ^ b) (by simp +decide [fillMap12, Data.comap])
+    (by simp +decide [fillMap12, Data.comap]) (by simp +decide [fillMap12, Data.comap])
+    (by simp +decide [fillMap12, Data.comap]) hfit_top hfit_mask_b)
+    renamed injective_fillMap12 with y1 n1 hz1
+  · set x1 := ((((x.set 3 base).set 4 (c * d * 2 ^ b)).set 4
+      (base + c * d * 2 ^ b)).set 5 (2 ^ b - 1)).set 6 1
     obtain ⟨_, _, hend1, _, hone1, _, _, _⟩ := Tabulation.mem_support_randFillComp hz1
-    set y1 := z1.1.extend fillMap12 x1
-    have hy1_4 : y1.regs 4 = base + c * d * 2 ^ b := by
-      change (y1.comap fillMap12).regs Tabulation.regEnd = base + c * d * 2 ^ b
+    have hy1_4 : (y1.extend fillMap12 x1).regs 4 = base + c * d * 2 ^ b := by
+      change ((y1.extend fillMap12 x1).comap fillMap12).regs Tabulation.regEnd = _
       rw [Data.comap_extend injective_fillMap12, hend1]
-      simp +decide [x1, resampleSetup1Data, fillMap12, Data.comap]
-    have hy1_6 : y1.regs 6 = 1 := by
-      change (y1.comap fillMap12).regs Tabulation.regOne = 1
+      simp +decide [x1, fillMap12, Data.comap]
+    have hy1_6 : (y1.extend fillMap12 x1).regs 6 = 1 := by
+      change ((y1.extend fillMap12 x1).comap fillMap12).regs Tabulation.regOne = 1
       rw [Data.comap_extend injective_fillMap12, hone1]
-      simp +decide [x1, resampleSetup1Data, fillMap12, Data.comap]
-    set x2 := resampleSetup2Data base c d b M y1
-    have h2 := (resampleSetup2Code_exec hy1_4 hfit_end hfit_mask_M).execRand
-    have hloop2_inner := Tabulation.randFillLoop_execRand (w := w) (bits := M)
-      (arrBase := base + c * d * 2 ^ b) (d * 2 ^ b) (x := x2.comap fillMap12)
-      (by simp +decide [x2, resampleSetup2Data, fillMap12, Data.comap])
-      (by simp +decide [x2, resampleSetup2Data, fillMap12, Data.comap])
-      (by simp +decide [x2, resampleSetup2Data, fillMap12, Data.comap])
-      (by simp +decide [x2, resampleSetup2Data, fillMap12, Data.comap, hy1_6])
-      hfit_end hfit_mask_M
-    have hloop2 := hloop2_inner.rename injective_fillMap12
-    have hseq2 := ExecRand.seq
-      (m₂ := fun z : Data 12 =>
-        (fun z2 : Data 6 × ℕ => (z2.1.extend fillMap12 z, z2.2)) <$>
-          Tabulation.randFillComp M (base + c * d * 2 ^ b) (d * 2 ^ b) (z.comap fillMap12))
-      h2 (fun z hz => by
-        cases OracleComp.eq_of_mem_supportWith_pure hz
-        exact hloop2)
-    simpa only [bind_assoc, pure_bind, map_eq_bind_pure_comp, Function.comp_def] using hseq2
-  have hseq12 := ExecRand.seq
-    (m₂ := fun z : Data 12 => do
-      let x2 := resampleSetup2Data base c d b M z
-      let z2 ← Tabulation.randFillComp M (base + c * d * 2 ^ b) (d * 2 ^ b) (x2.comap fillMap12)
-      pure (z2.1.extend fillMap12 x2, 4 + z2.2))
-    hloop1 (fun z hz => by
-      obtain ⟨z1, hz1, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
-      exact hrest z1 hz1)
-  have hall := ExecRand.seq
-    (m₂ := fun z : Data 12 => do
-      let z1 ← Tabulation.randFillComp b base (c * d * 2 ^ b) (z.comap fillMap12)
-      let x2 := resampleSetup2Data base c d b M (z1.1.extend fillMap12 z)
-      let z2 ← Tabulation.randFillComp M (base + c * d * 2 ^ b) (d * 2 ^ b) (x2.comap fillMap12)
-      pure (z2.1.extend fillMap12 x2, z1.2 + (4 + z2.2)))
-    h1 (fun z hz => by
-      cases OracleComp.eq_of_mem_supportWith_pure hz
-      simpa only [bind_assoc, pure_bind, map_eq_bind_pure_comp, Function.comp_def] using hseq12)
-  simpa only [resampleCode, resampleComp, bind_assoc, pure_bind, map_eq_bind_pure_comp,
-    Function.comp_def] using hall
+      simp +decide [x1, fillMap12, Data.comap]
+    wram_rand_exec [hy1_4]
+    wram_rand_call (Tabulation.randFillLoop_execRand (bits := M)
+      (arrBase := base + c * d * 2 ^ b) (d * 2 ^ b)
+      (by simp +decide [fillMap12, Data.comap]) (by simp +decide [fillMap12, Data.comap])
+      (by simp +decide [fillMap12, Data.comap]) (by simp +decide [fillMap12, Data.comap, hy1_6])
+      hfit_end hfit_mask_M) renamed injective_fillMap12
+  · simp only [resampleComp, resampleSetup1Data, resampleSetup2Data, ← bind_pure_comp,
+      bind_assoc, pure_bind]
+    congr 1; funext z1; congr 1; funext z2; congr 2; omega
 
 /-- Pathwise postcondition of `resampleComp`: executes in `resampleSteps c d b` instructions,
 preserves `reg 0 = base`, establishes `SeedRep base c d b M (extractSeed base c d b M z.1.mem)`,
@@ -494,9 +442,7 @@ theorem mem_support_resampleComp {base c d b M : ℕ} {x : Data 12}
     z.2 = resampleSteps c d b := by
   have hsp := topWords_add_botWords c d b
   dsimp only [resampleComp] at hz
-  obtain ⟨z1, hz1, hrest⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
-  obtain ⟨z2, hz2, hpure⟩ := OracleComp.mem_supportWith_bind_iff.mp hrest
-  cases OracleComp.eq_of_mem_supportWith_pure hpure
+  supp_cases hz with ⟨z1, hz1, z2, hz2, rfl⟩
   obtain ⟨hsteps1, _, _, _, _, hextra1, hlt1, hframe1⟩ := Tabulation.mem_support_randFillComp hz1
   obtain ⟨hsteps2, _, _, _, _, hextra2, hlt2, hframe2⟩ := Tabulation.mem_support_randFillComp hz2
   set x1 := resampleSetup1Data base c d b x
@@ -589,16 +535,12 @@ theorem map_extractSeed_eval_resampleComp (base c d b M : ℕ) (x : Data 12) :
         (fun z2 : Data 6 × ℕ => (z2.1.extend fillMap12 x2, 5 + (z1.2 + (4 + z2.2)))) <$> m2 :=
       bind_pure_comp _ _
     rw [hd, ProbComp.eval_map, PMF.map_comp]
-    have hcongr :
-        m2.eval.map
-          ((fun z : Data 12 × ℕ => extractSeed base c d b M z.1.mem) ∘
-            fun z2 : Data 6 × ℕ => (z2.1.extend fillMap12 x2, 5 + (z1.2 + (4 + z2.2)))) =
-        m2.eval.map
-          ((fun T₂ => (extractTop base c d b z1.1.mem, T₂)) ∘
-            botSliceEquiv d b M ∘
-            fun z2 : Data 6 × ℕ =>
-              Tabulation.extractSlice (base + c * d * 2 ^ b) M (d * 2 ^ b) z2.1.mem) := by
-      refine Cslib.Probability.PMF.map_congr_on_support _ _ _ fun z2 hz2 => ?_
+    trans m2.eval.map
+      ((fun T₂ => (extractTop base c d b z1.1.mem, T₂)) ∘
+        botSliceEquiv d b M ∘
+        fun z2 : Data 6 × ℕ =>
+          Tabulation.extractSlice (base + c * d * 2 ^ b) M (d * 2 ^ b) z2.1.mem)
+    · refine Cslib.Probability.PMF.map_congr_on_support _ _ _ fun z2 hz2 => ?_
       rw [ProbComp.support_eval] at hz2
       obtain ⟨_, _, _, _, _, _, _, hframe2⟩ := Tabulation.mem_support_randFillComp hz2
       have htop_eq : extractTop base c d b z2.1.mem = extractTop base c d b z1.1.mem := by
@@ -610,36 +552,15 @@ theorem map_extractSeed_eval_resampleComp (base c d b M : ℕ) (x : Data 12) :
         rfl
       dsimp only [Function.comp_apply, extractSeed, extractBot, Data.extend]
       rw [htop_eq]
-    rw [hcongr, ← PMF.map_comp, ← PMF.map_comp, Tabulation.map_extractSlice_eval_randFillComp,
-      PMF.uniformOfFintype_map_equiv]
+    · rw [← PMF.map_comp, ← PMF.map_comp, Tabulation.map_extractSlice_eval_randFillComp,
+        PMF.uniformOfFintype_map_equiv]
   dsimp only [resampleComp]
-  rw [ProbComp.eval_bind, PMF.map_bind]
-  have hbind : m1.eval.bind
-      (fun z1 =>
-        (let x2 := resampleSetup2Data base c d b M (z1.1.extend fillMap12 x1)
-         (do
-           let z2 ←
-             Tabulation.randFillComp M (base + c * d * 2 ^ b) (d * 2 ^ b) (x2.comap fillMap12)
-           pure (z2.1.extend fillMap12 x2, 5 + (z1.2 + (4 + z2.2)))).eval).map
-          (fun z : Data 12 × ℕ => extractSeed base c d b M z.1.mem)) =
-      m1.eval.bind
-        (fun z1 =>
-          (PMF.uniformOfFintype (DoubleTabBotSeed d b M)).map
-            (fun T₂ => (extractTop base c d b z1.1.mem, T₂))) := by
-    congr 1
-    funext z1
-    exact hinner z1
-  rw [hbind]
-  have hmap_bind :
-      m1.eval.bind
-        (fun z1 =>
-          (PMF.uniformOfFintype (DoubleTabBotSeed d b M)).map
-            (fun T₂ => (extractTop base c d b z1.1.mem, T₂))) =
-      (m1.eval.map (fun z1 => extractTop base c d b z1.1.mem)).bind
-        (fun T₁ => (PMF.uniformOfFintype (DoubleTabBotSeed d b M)).map (T₁, ·)) := by
-    rw [PMF.bind_map]
+  rw [ProbComp.eval_bind, PMF.map_bind, congrArg m1.eval.bind (funext hinner)]
+  trans (m1.eval.map fun z1 => extractTop base c d b z1.1.mem).bind
+    fun T₁ => (PMF.uniformOfFintype (DoubleTabBotSeed d b M)).map (T₁, ·)
+  · rw [PMF.bind_map]
     rfl
-  rw [hmap_bind, hm1_unif, PMF.uniformOfFintype_prod]
+  · rw [hm1_unif, PMF.uniformOfFintype_prod]
 
 /-! ## Section 3: Register-by-register deterministic query evaluation (`evalCode`) -/
 
@@ -1108,24 +1029,18 @@ theorem doubleTabFailureProb_eight_mul_le {c b k : ℕ} (hc : 1 ≤ c)
         ((2 ^ (6 * b) : ℕ) : ℝ≥0∞) := by
   dsimp only [doubleTabFailureProb]
   rw [sdiff_doubleTabGoodTop]
-  have hcard := card_not_isKUnique_eight_mul_le hc hbound
   have hcast : ((2 ^ (6 * b) : ℕ) : ℝ≥0∞) *
       (((Finset.univ.filter fun T₁ : DoubleTabTopSeed c (8 * c) b =>
         ¬ IsKUnique k (simpleTabTuple T₁)).card : ℕ) : ℝ≥0∞) ≤
       ((2 * (doubleTabCodeBound c (8 * c) 4 k) ^ 2 : ℕ) : ℝ≥0∞) *
         (Fintype.card (DoubleTabTopSeed c (8 * c) b) : ℝ≥0∞) := by
-    exact_mod_cast hcard
-  have hN_ne_zero : (Fintype.card (DoubleTabTopSeed c (8 * c) b) : ℝ≥0∞) ≠ 0 :=
-    Nat.cast_ne_zero.mpr Fintype.card_ne_zero
-  have hN_ne_top : (Fintype.card (DoubleTabTopSeed c (8 * c) b) : ℝ≥0∞) ≠ ⊤ :=
-    ENNReal.natCast_ne_top _
-  have hW_ne_zero : ((2 ^ (6 * b) : ℕ) : ℝ≥0∞) ≠ 0 :=
-    Nat.cast_ne_zero.mpr (Nat.pos_iff_ne_zero.mp (Nat.two_pow_pos (6 * b)))
-  have hW_ne_top : ((2 ^ (6 * b) : ℕ) : ℝ≥0∞) ≠ ⊤ :=
-    ENNReal.natCast_ne_top _
-  rw [ENNReal.div_le_iff_le_mul (Or.inl hN_ne_zero) (Or.inl hN_ne_top),
+    exact_mod_cast card_not_isKUnique_eight_mul_le hc hbound
+  rw [ENNReal.div_le_iff_le_mul (Or.inl (Nat.cast_ne_zero.mpr Fintype.card_ne_zero))
+      (Or.inl (ENNReal.natCast_ne_top _)),
     div_eq_mul_inv, mul_right_comm, ← div_eq_mul_inv,
-    ENNReal.le_div_iff_mul_le (Or.inl hW_ne_zero) (Or.inl hW_ne_top),
+    ENNReal.le_div_iff_mul_le
+      (Or.inl (Nat.cast_ne_zero.mpr (Nat.two_pow_pos (6 * b)).ne'))
+      (Or.inl (ENNReal.natCast_ne_top _)),
     mul_comm]
   exact hcast
 
@@ -1356,7 +1271,7 @@ shares the exact register signature of `kWiseImpl`. -/
       (resampleSteps := resampleSteps c d b)
       (extractSeed base c d b M) hex18 hunif18 ?_
     intro z hz
-    obtain ⟨z12, hz12, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
+    supp_cases hz with ⟨z12, hz12, rfl⟩
     obtain ⟨hz0, hseed, hframe, hsteps⟩ := mem_support_resampleComp hbase12 hz12
     have hreg0 : (z12.1.extend cast12To18 x).regs 0 = base := by
       change ((z12.1.extend cast12To18 x).comap cast12To18).regs 0 = base
@@ -1563,11 +1478,9 @@ theorem provableSpace_le (c_exp k n_max : ℕ) :
     have hpow := two_pow_provableB_le n_max
     have hpow' : 2 ^ provableB n_max ≤ 16 * (n_max + 1) := by omega
     calc (provableC c_exp + 1) * provableD c_exp * 2 ^ provableB n_max
-        ≤ (provableC c_exp + 1) * provableD c_exp * (16 * (n_max + 1)) :=
-          Nat.mul_le_mul_left _ hpow'
+        ≤ (provableC c_exp + 1) * provableD c_exp * (16 * (n_max + 1)) := by gcongr
       _ = 16 * (provableC c_exp + 1) * provableD c_exp * (n_max + 1) := by ring
-      _ ≤ (16 + k + 16 * (provableC c_exp + 1) * provableD c_exp) * (n_max + 1) :=
-          Nat.mul_le_mul_right _ (by omega)
+      _ ≤ (16 + k + 16 * (provableC c_exp + 1) * provableD c_exp) * (n_max + 1) := by gcongr; omega
 
 /-- Uniform `O(c_exp)` upper bound `21 * max c_exp 1 + 16` on `KWise.limbCount n_max U M` when
 `U ≤ max n_max 4 ^ c_exp` and `M ≤ max c_exp 1 * Nat.clog 2 (max n_max 4) + 5`. -/

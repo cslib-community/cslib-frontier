@@ -39,21 +39,16 @@ and polarities. The selected profile has exactly the actual signed block length.
 theorem profile_signed_length (i : ℕ) (c : Clause ℕ) :
     (CNF.FromSAT.clause 0 (profileSource (clauseProfile c))).length =
       (CNF.FromSAT.clause i c).length := by
-  rcases c with _ | ⟨⟨p, bp⟩, _ | ⟨⟨q, bq⟩, _ | ⟨⟨r, br⟩, rest⟩⟩⟩
-  · rfl
-  · cases bp <;> rfl
-  · cases bp <;> cases bq <;> rfl
-  · cases bp <;> cases bq <;> cases br <;> rfl
+  rcases c with _ | ⟨⟨_, _ | _⟩, _ | ⟨⟨_, _ | _⟩, _ | ⟨⟨_, _ | _⟩, _⟩⟩⟩ <;> rfl
 
 /-- A private auxiliary never becomes an inherited source-variable name. -/
 theorem profileVariableMap_aux_ne_source {i offset : ℕ} {c : Clause ℕ}
     {v : CNF.PositiveExactOneCompile.Variable ℕ}
     (hv : ∀ n, v ≠ Sum.inl (Sum.inl n)) (n : ℕ) :
     profileVariableMap i offset c v ≠ Sum.inl (Sum.inl n) := by
-  rcases v with (_ | _) | _
-  · exact False.elim (hv _ rfl)
-  · simp [profileVariableMap]
-  · simp [profileVariableMap]
+  rcases v with (m | _) | _
+  · exact absurd rfl (hv m)
+  all_goals simp [profileVariableMap]
 
 /-- The actual global name of an auxiliary determines its source block and its local profile
 name. Source placeholders, whose variables can coincide, are excluded explicitly. -/

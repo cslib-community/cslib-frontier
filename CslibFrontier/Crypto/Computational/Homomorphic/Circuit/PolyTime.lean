@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Circuit.Boolean.CodeComposition
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Circuit.Boolean.Encoding.PolyTime
 
 /-!
 # Polynomial-time generation of NAND-augmented circuits
@@ -88,9 +89,7 @@ all gates, wire indices and output references are read and written through `encC
     ComputableInPolyTime
       (fun D : Σ n, Circuit signature n 1 => ⟨D.1 + D.1, augmentNand D.2⟩)
       (encCircuit 1) (encCircuit 1) := by
-  have hview : ComputableInPolyTime
-      (fun D : Σ n, Circuit signature n 1 => (D.1, D.2.code))
-      (encCircuit 1) (encPair encUnary encCode) := .of_eq fun _ => rfl
+  have hview := Boolean.computableInPolyTime_arity_code 1
   have hn := hview.fst'
   have hcode := computableInPolyTime_augmentCode hn hview.snd'
   have hcount : ComputableInPolyTime (fun D : Σ n, Circuit signature n 1 => D.1 + D.1)

@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Ext
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.RewindWork
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Sequential
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Defs
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Writing the output as a word on a work tape
@@ -52,8 +53,7 @@ cell `0`. -/
 /-- Redirecting the output of a blank `wordsCfg` configuration adds a blank last work tape. -/
 private lemma outCfg_wordsCfg (q : Option State) :
     outCfg (wordsCfg input q (fun _ : Fin k => []) []) = wordsCfg input q (fun _ => []) [] := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext l <;> induction l using Fin.lastCases <;>
-    simp [outCfg, wordsCfg]
+  tm_step [outCfg]
 
 /-- The last work tape of `outCfg (wordsCfg input q ws out)`, as a one-tape configuration: it holds
 `out`, with its head at the end of `out`. -/
@@ -61,7 +61,7 @@ private lemma oneTapeCfg_outCfg_wordsCfg (q : Option State) (ws : Fin k → List
     (out : List Symbol) :
     oneTapeCfg (Fin.last k) (outCfg (wordsCfg input q ws out)) =
       ⟨q, 1, fun _ => tapeOfList out, fun _ => (out.length : ℤ), []⟩ := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext _ <;> simp [oneTapeCfg]
+  tm_step [oneTapeCfg]
 
 /-- Rewinding the last work tape of `outCfg (wordsCfg input q (fun _ => []) out)` takes
 `out.length + 2` steps and leaves `out` as a word on that tape: it runs `rewindWork` on that tape.
@@ -78,8 +78,7 @@ private lemma exists_runPath_rewindLast (out : List Symbol) :
     embed_oneTapeCfg _ cfg, ?_, rfl, ?_⟩
   · change embed _ ((rewindWork Symbol).runFrom (oneTapeCfg _ cfg) (out.length + 2)) _ _ = _
     rw [oneTapeCfg_outCfg_wordsCfg, runFrom_rewindWork_none _ _ _ rfl le_rfl, embed_tapeEmb]
-    refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext l <;> induction l using Fin.lastCases <;>
-      simp [cfg, wordsCfg]
+    tm_step [cfg]
   · -- the rewind takes `out.length + 2` steps on one tape, every other tape stays where it is
     have : r.space ≤ 1 * (out.length + 2 + 1) := r.space_le_mul_time_add_one
     exact (space_map_embedHom_le ..).trans (by omega)

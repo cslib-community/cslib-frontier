@@ -60,8 +60,6 @@ theorem mem_ExactIndependentSet_iff {x : IndependentSetInstance} :
   rw [mem_ExactIndependentSet, ← Graph.le_indepNum_iff, ← Graph.le_indepNum_iff]
   omega
 
--- Keep the existing certificate contracts opaque while assembling the reduction witness.
-attribute [local irreducible] ComputableInPolyTime in
 /-- **`EXACT INDSET ∈ DP`** ([Arora and Barak, Exercise 5 §8(a), draft of January 2007,
 p. 5.10][AroraBarak07]): it is the difference of `IndependentSet` and the preimage of
 `IndependentSet` under the polynomial-time map `⟨G, k⟩ ↦ ⟨G, k + 1⟩`. -/

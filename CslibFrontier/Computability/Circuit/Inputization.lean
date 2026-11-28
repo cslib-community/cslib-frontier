@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Normalization
 public import Cslib.Computability.Circuit.RelativeComplexity
-import Mathlib.Algebra.BigOperators.Fin
+import CslibFrontier.Computability.Circuit.CutProgram
 
 /-!
 # Gate inputization and projection-aware deduplication
@@ -97,8 +97,8 @@ theorem mem_nonInputComponents {g : (Fin n → U) → Fin k → U} {h : (Fin n �
 theorem card_nonInputComponents_le (g : (Fin n → U) → Fin k → U) :
     #(nonInputComponents g) ≤ k := by
   classical
-  refine (card_filter_le _ _).trans ?_
-  simpa using card_image_le (s := univ) (f := fun j x => g x j)
+  exact (card_filter_le _ _).trans
+    (by simpa using card_image_le (s := univ) (f := fun j x => g x j))
 
 /-- When the components of `g` are pairwise distinct and none is an input projection, all `k` of
 them are counted. -/
@@ -106,12 +106,10 @@ theorem card_nonInputComponents_eq {g : (Fin n → U) → Fin k → U}
     (hinj : Function.Injective fun j x => g x j) (hproj : ∀ j i, (fun x => g x j) ≠ fun x => x i) :
     #(nonInputComponents g) = k := by
   classical
-  have hfilter : nonInputComponents g = univ.image fun j x => g x j := by
-    unfold nonInputComponents
-    refine filter_true_of_mem fun h hh => ?_
-    obtain ⟨j, -, rfl⟩ := mem_image.mp hh
-    exact hproj j
-  rw [hfilter, card_image_of_injective _ hinj, card_univ, Fintype.card_fin]
+  rw [nonInputComponents, filter_true_of_mem fun h hh => by
+      obtain ⟨j, -, rfl⟩ := mem_image.mp hh
+      exact hproj j,
+    card_image_of_injective _ hinj, card_univ, Fintype.card_fin]
 
 open Classical in
 /-- The gates of `p` computing a component of `g`. -/
@@ -167,59 +165,6 @@ theorem card_nonInputComponents_le_ecomplexity (I : Interpretation σ U)
 
 /-! ### Inputization -/
 
-/-- Read a wire of a program on `n` inputs as a wire on `n + k` inputs, sending gates through
-`gates`. -/
-private def liftWire {s s' : ℕ} (gates : Fin s → Wire (n + k) s') : Wire n s → Wire (n + k) s' :=
-  Wire.elim (fun i => Wire.input (Fin.castAdd k i)) gates
-
-/-- A lifted wire carries the value of the original wire when every gate is sent to a wire
-carrying that gate's value. -/
-private theorem trace_liftWire {I : Interpretation σ U} {g : (Fin n → U) → Fin k → U} {s s' : ℕ}
-    {p : Program σ n s} {q : Program σ (n + k) s'} {gates : Fin s → Wire (n + k) s'}
-    (hgates : ∀ x t, q.trace I (Fin.append x (g x)) (gates t) = p.gateFunction I t x)
-    (x : Fin n → U) (w : Wire n s) :
-    q.trace I (Fin.append x (g x)) (liftWire gates w) = p.trace I x w := by
-  cases w with
-  | input i => simp [liftWire]
-  | gate t => exact hgates x t
-
-/-- **Inputization.** Every gate of `p` computing a component of `g` can be replaced by the extra
-input carrying that component. The remaining program reads `x` followed by `g x`, has one gate
-for each other gate of `p`, and reproduces every wire value. -/
-private theorem Program.exists_inputize (I : Interpretation σ U) (g : (Fin n → U) → Fin k → U) :
-    ∀ {s : ℕ} (p : Program σ n s), ∃ s', ∃ q : Program σ (n + k) s',
-      ∃ gates : Fin s → Wire (n + k) s',
-        (∀ x t, q.trace I (Fin.append x (g x)) (gates t) = p.gateFunction I t x) ∧
-          s' + #(p.componentGates I g) = s
-  | _, .empty => ⟨0, .empty, Fin.elim0, fun _ t => t.elim0, by simp [Program.componentGates]⟩
-  | s + 1, .gate p line => by
-      classical
-      obtain ⟨s', q, gates, hgates, hcount⟩ := Program.exists_inputize I g p
-      let l := line.mapWires (liftWire gates)
-      have hl (x : Fin n → U) :
-          l.eval I (Fin.append x (g x)) (q.eval I (Fin.append x (g x))) =
-            line.eval I x (p.eval I x) :=
-        line.eval_mapWires _ I x _ _ _ (trace_liftWire hgates x)
-      have hsplit : #((p.gate line).componentGates I g) = #(p.componentGates I g) +
-          if ∃ j, (p.gate line).gateFunction I (Fin.last s) = fun x => g x j then 1 else 0 := by
-        simp only [Program.componentGates, card_filter, Fin.sum_univ_castSucc,
-          Program.gateFunction_gate_castSucc]
-      by_cases hlast : ∃ j, (p.gate line).gateFunction I (Fin.last s) = fun x => g x j
-      · obtain ⟨j, hj⟩ := hlast
-        refine ⟨s', q, Fin.lastCases (Wire.input (Fin.natAdd n j)) gates, fun x t => ?_, ?_⟩
-        · refine Fin.lastCases ?_ (fun t => ?_) t
-          · simpa using (congrFun hj x).symm
-          · simpa using hgates x t
-        · rw [hsplit, ite_eq_left ⟨j, hj⟩]
-          omega
-      · refine ⟨s' + 1, q.gate l,
-          Fin.lastCases (Wire.gate (Fin.last s')) fun t => (gates t).castSucc, fun x t => ?_, ?_⟩
-        · refine Fin.lastCases ?_ (fun t => ?_) t
-          · simpa [Program.trace] using hl x
-          · simpa using hgates x t
-        · rw [hsplit, ite_eq_right hlast]
-          omega
-
 /-- **Inputization** (generalizing [Ilango, Loff and Oliveira][IlangoLoffOliveira2020],
 Proposition 14 and the proof of Lemma 16, p. 22:22). In a circuit computing `g` followed by `f`,
 the gates computing components of `g` are at least as many as the non-input components of `g`, and
@@ -229,20 +174,35 @@ theorem Circuit.card_nonInputComponents_add_ecomplexityGiven_le {I : Interpretat
     (hc : c.Computes I fun x => Fin.append (g x) (f x)) :
     #(nonInputComponents g) + ecomplexityGiven I f g ≤ c.size := by
   classical
-  obtain ⟨s', q, gates, hgates, hcount⟩ := c.program.exists_inputize I g
-  have hout (x : Fin n → U) (o : Fin (k + m)) :
-      c.program.trace I x (c.outputs o) = Fin.append (g x) (f x) o :=
-    congrFun (hc x) o
-  -- The remaining gates compute `f` from `x` and `g x`.
-  have hf : ecomplexityGiven I f g ≤ s' := by
-    refine ecomplexityGiven_le_of_eval f g
-      ⟨q, fun o => liftWire gates (c.outputs (Fin.natAdd k o))⟩ fun x => funext fun o => ?_
-    simpa [Circuit.eval] using (trace_liftWire hgates x _).trans (hout x (Fin.natAdd k o))
-  have hcard := c.card_nonInputComponents_le_card_componentGates (I := I) (g := g)
-    fun j => ⟨Fin.castAdd m j, fun x => by simpa [Circuit.eval] using hout x (Fin.castAdd m j)⟩
+  let cut := c.program.componentGates I g
+  obtain ⟨q, wireMap, cutGate, hmem, _, _, _, htrace⟩ := c.program.exists_cutProgram cut
+  have hcomponent (i : Fin cut.card) : ∃ j, c.program.gateFunction I (cutGate i) = fun x => g x j :=
+    Program.mem_componentGates.mp (hmem i)
+  choose component hvalue using hcomponent
+  let reduced : Circuit σ (n + cut.card) m :=
+    ⟨q, fun o => wireMap (c.outputs (Fin.natAdd k o))⟩
+  let route : Fin (n + cut.card) → Fin (n + k) :=
+    Fin.append (Fin.castAdd k) (Fin.natAdd n ∘ component)
+  have hf : ecomplexityGiven I f g ≤ (c.size - cut.card : ℕ) := by
+    refine ecomplexityGiven_le_of_eval f g (reduced.mapInputs route) fun x => ?_
+    have hroute : Fin.append x (g x) ∘ route =
+        Fin.append x (fun i => c.program.eval I x (cutGate i)) := by
+      funext i
+      refine Fin.addCases (fun l => ?_) (fun r => ?_) i
+      · simp [route, Function.comp_apply]
+      · simpa [route, Function.comp_apply, Program.gateFunction] using (congrFun (hvalue r) x).symm
+    rw [Circuit.eval_mapInputs, hroute]
+    funext o
+    exact (htrace I x _).trans (by simpa [Circuit.eval] using congrFun (hc x) (Fin.natAdd k o))
+  have hcard : #(nonInputComponents g) ≤ cut.card :=
+    c.card_nonInputComponents_le_card_componentGates
+      (fun j => ⟨Fin.castAdd m j, fun x => by
+        simpa [Circuit.eval] using congrFun (hc x) (Fin.castAdd m j)⟩)
   calc (#(nonInputComponents g) : ℕ∞) + ecomplexityGiven I f g
-      ≤ #(c.program.componentGates I g) + s' := add_le_add (by exact_mod_cast hcard) hf
-    _ = c.size := by norm_cast; omega
+      ≤ (cut.card : ℕ∞) + (c.size - cut.card : ℕ) := add_le_add (by exact_mod_cast hcard) hf
+    _ = c.size := by
+      norm_cast
+      exact Nat.add_sub_of_le ((card_le_univ cut).trans_eq (Fintype.card_fin _))
 
 /-- **Inputization.** Computing `g` followed by `f` costs at least one gate for each non-input
 component of `g`, plus the complexity of `f` given `g`. -/

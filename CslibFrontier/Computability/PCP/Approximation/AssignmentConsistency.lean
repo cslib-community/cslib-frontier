@@ -36,15 +36,7 @@ theorem consistentLits_eq_true_iff {ρ ρ' : List (ℕ × Bool)} :
     consistentLits ρ ρ' = true ↔ ∀ l ∈ ρ, ∀ l' ∈ ρ', l.1 = l'.1 → l.2 = l'.2 := by
   simp only [consistentLits, List.all_eq_true, Bool.or_eq_true, Bool.not_eq_true',
     beq_eq_false_iff_ne, beq_iff_eq]
-  refine forall₂_congr fun l _ => forall₂_congr fun l' _ => ?_
-  constructor
-  · rintro (h | h) he
-    · exact absurd he h
-    · exact h
-  · intro h
-    by_cases he : l.1 = l'.1
-    · exact .inr (h he)
-    · exact .inl he
+  exact forall₂_congr fun _ _ => forall₂_congr fun _ _ => Decidable.imp_iff_not_or.symm
 
 /-- Consistency is decidable in polynomial time in the encoded lists, using binary variable
 indices. -/

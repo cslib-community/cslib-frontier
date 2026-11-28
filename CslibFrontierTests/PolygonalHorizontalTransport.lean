@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Po
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Bouquet
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Forward
 import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
+import CslibFrontier.Foundations.Geometry.Polygonal.SquareMove
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Positivity
@@ -436,5 +437,25 @@ example :
   · change stretch (2 / 3) (im (AffineMap.lineMap a b t)) = im (AffineMap.lineMap (F a) (F b) t)
     rw [AffineMap.apply_lineMap im a b t, AffineMap.apply_lineMap im (F a) (F b) t]
     exact stretch_interpolation _ _ _ _ ht (hcut d (by simp))
+
+
+-- The center moves inside its square and the leaf on the outside remains fixed.
+example :
+    ∃ E : PolygonalDrawing (starGraph 1), E.IsEmbedding ∧ E.vertex 1 = ((1 / 2 : ℝ) : ℂ) ∧
+      E.vertex 0 = ⟨1, 1⟩ := by
+  obtain ⟨F, walls, hinj, hcenter, hfixed, hline⟩ :=
+    exists_square_move 0 ((1 / 2 : ℝ) : ℂ) (r := 3 / 4) (by norm_num)
+      (by norm_num [Complex.norm_real, Real.norm_eq_abs])
+  obtain ⟨E, hE, hv, _⟩ :=
+    (PolygonalDrawing.star_isEmbedding 1).exists_image_across_walls walls hinj hline
+  refine ⟨E, hE, ?_, ?_⟩
+  · have hc : (PolygonalDrawing.star 1).vertex 1 = 0 := by
+      simp [PolygonalDrawing.star, starPoint]
+    rw [hv, Function.comp_apply, hc]
+    exact hcenter
+  · have hl : (PolygonalDrawing.star 1).vertex 0 = ⟨1, 1⟩ := by
+      norm_num [PolygonalDrawing.star, starPoint]
+    rw [hv, Function.comp_apply, hl]
+    exact hfixed _ (by norm_num)
 
 end CslibFrontierTests.PolygonalHorizontalTransport

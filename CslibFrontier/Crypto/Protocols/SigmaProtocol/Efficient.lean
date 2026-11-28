@@ -23,6 +23,7 @@ import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.Extension
 import CslibFrontier.Computability.Probabilistic.Traverse
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.StatisticalDistance.Product
 
@@ -228,9 +229,8 @@ theorem Simulator.IsPPT.of_word {enc : Encoding I Y T C Z} {sim : Simulator I Y 
     (heq : ∀ i y c, (ProbComp.eval (sim i y c)).map (Prod.map (enc.commitment i) (enc.response i)) =
       ProbComp.eval (program (i, enc.statement i y, enc.challenge i c))) :
     Simulator.IsPPT enc sim :=
-  isPPTOn_encSimulatorInput_of_word enc hprogram fun s => by
-    rw [ProbComp.eval_map]
-    exact heq s.index s.statement s.challenge
+  isPPTOn_encSimulatorInput_of_word enc hprogram fun s =>
+    (ProbComp.eval_map ..).trans (heq s.index s.statement s.challenge)
 
 /-- A uniform strict PPT simulator family is computed on words by a uniform strict PPT program of
 the index and arbitrary statement and challenge words, which agrees with it on every encoded
@@ -246,10 +246,9 @@ theorem Simulator.IsPPT.exists_word {enc : Encoding I Y T C Z} {sim : Simulator 
     (ComputableInPolyTime.unframe.prod ComputableInPolyTime.dropFrame)
     fun p => Prod.ext (unframe_encPair encBits encBits p.1 p.2)
       (dropFrame_encPair encBits encBits p.1 p.2)
-  refine ⟨fun p => extension (encSimulatorWordInput enc.index p),
-    hext.preprocess (ComputableInPolyTime.of_eq fun _ => rfl), fun i y c => ?_⟩
-  rw [← ProbComp.eval_map]
-  exact (hagree ⟨i, y, c⟩).symm
+  exact ⟨fun p => extension (encSimulatorWordInput enc.index p),
+    hext.preprocess (ComputableInPolyTime.of_eq fun _ => rfl),
+    fun i y c => (ProbComp.eval_map ..).symm.trans (hagree ⟨i, y, c⟩).symm⟩
 
 /-- The typed simulator family `sim` realizes the family of distributions `simulate` up to
 statistical distance `δ`: on every statement and challenge at index `i`, its output law is within
@@ -267,11 +266,9 @@ theorem SimulatorRealizedBy.exists_word {enc : Encoding I Y T C Z}
     (h : SimulatorRealizedBy simulate sim δ) (hppt : Simulator.IsPPT enc sim) :
     ∃ program : I × List Bool × List Bool → ProbComp (List Bool × List Bool),
       IsPPTOn (encSimulatorWordInput enc.index) (encPair encBits encBits) program ∧
-      WordSimulatorRealizedBy enc simulate program δ := by
-  obtain ⟨program, hprogram, hword⟩ := hppt.exists_word
-  refine ⟨program, hprogram, fun i y c => ?_⟩
-  rw [← hword]
-  exact (h i y c).map _
+      WordSimulatorRealizedBy enc simulate program δ :=
+  let ⟨p, hp, hw⟩ := hppt.exists_word
+  ⟨p, hp, fun i y c => hw i y c ▸ (h i y c).map _⟩
 
 /-- Input `(i, y, t, c, z, c', z')` of a word function computing a special-soundness extractor:
 the index `i` encoded by `encI`, then the encoded statement, commitment, and two challenge-response
@@ -373,10 +370,9 @@ theorem computableInPolyTime_andExtractWord
     (hf₁ : ComputableInPolyTime f₁ (encExtractorWordInput enc₁.index) encBits) :
     ComputableInPolyTime (andExtractWord f₀ f₁)
       (encExtractorWordInput (enc₀.andProof enc₁).index) encBits := by
-  have hf₁' : ComputableInPolyTime f₁ (encExtractorWordInput enc₀.index) encBits :=
-    hI ▸ hf₁
+  rw [← hI] at hf₁
   unfold andExtractWord Encoding.andProof encExtractorWordInput
-  exact by fun_prop
+  fun_prop
 
 /-- `andExtractWord` realizes `andExtract` on `enc₀.andProof enc₁` when `f₀` and `f₁` realize
 `extract₀` and `extract₁` and share the same challenge encoding. -/
@@ -414,8 +410,7 @@ theorem EfficientSpecialSoundness.andProof
       (fun i => andExtract (extract₀ i) (extract₁ i)) where
   specialSoundness i := andProof_specialSoundness (h₀.specialSoundness i) (h₁.specialSoundness i)
   polyTime := by
-    obtain ⟨f₀, hf₀, hreal₀⟩ := h₀.polyTime
-    obtain ⟨f₁, hf₁, hreal₁⟩ := h₁.polyTime
+    rcases h₀.polyTime, h₁.polyTime with ⟨⟨f₀, hf₀, hreal₀⟩, ⟨f₁, hf₁, hreal₁⟩⟩
     exact ⟨andExtractWord f₀ f₁, computableInPolyTime_andExtractWord hI hf₀ hf₁,
       extractorRealizedBy_andExtractWord hC hreal₀ hreal₁⟩
 
@@ -449,25 +444,19 @@ theorem isPPT_andSimulator
     Simulator.IsPPT (enc₀.andProof enc₁) (andSimulator sim₀ sim₁) := by
   obtain ⟨prog₀, hprog₀, hword₀⟩ := hppt₀.exists_word
   obtain ⟨prog₁, hprog₁, hword₁⟩ := hppt₁.exists_word
-  have hprog₁' : IsPPTOn (encSimulatorWordInput enc₀.index) (encPair encBits encBits) prog₁ :=
-    hI ▸ hprog₁
-  refine Simulator.IsPPT.of_word (program := andSimulateWord prog₀ prog₁) ?_ ?_
-  · unfold andSimulateWord
-    refine (hprog₀.preprocess (input := encSimulatorWordInput enc₀.index)
-      (prepare := fun p : I × List Bool × List Bool => (p.1, unframe p.2.1, p.2.2))
-      (by fun_prop)).bind_with ?_
-    refine (hprog₁'.preprocess
-      (input := encPair (encSimulatorWordInput enc₀.index) (encPair encBits encBits))
-      (prepare := fun p : (I × List Bool × List Bool) × List Bool × List Bool =>
-        (p.1.1, dropFrame p.1.2.1, p.1.2.2))
-      (by fun_prop)).bind_with ?_
-    exact ComputableInPolyTime.isPPTOn (by fun_prop)
-  · intro i ⟨y₀, y₁⟩ c
-    simp only [andSimulator, andSimulateWord, Encoding.andProof, unframe_encPair, dropFrame_encPair,
-      ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.pure_map]
-    rw [← hword₀ i y₀ c, hC i, ← hword₁ i y₁ c]
-    simp only [PMF.bind_map, Function.comp_def, Prod.map_apply, encPair_apply, encBits_apply]
-    rfl
+  rw [← hI] at hprog₁
+  refine Simulator.IsPPT.of_word (program := andSimulateWord prog₀ prog₁)
+    ((hprog₀.preprocess (input := encSimulatorWordInput enc₀.index)
+      (prepare := fun p => (p.1, unframe p.2.1, p.2.2)) (by fun_prop)).bind_with
+      ((hprog₁.preprocess
+        (input := encPair (encSimulatorWordInput enc₀.index) (encPair encBits encBits))
+        (prepare := fun p => (p.1.1, dropFrame p.1.2.1, p.1.2.2)) (by fun_prop)).bind_with
+        (ComputableInPolyTime.isPPTOn (by fun_prop))))
+    fun i ⟨y₀, y₁⟩ c => ?_
+  simp only [andSimulator, andSimulateWord, Encoding.andProof, unframe_encPair, dropFrame_encPair,
+    pmf_norm]
+  rw [← hword₀ i y₀ c, hC i, ← hword₁ i y₁ c]
+  simp [PMF.bind_map, Function.comp_def]
 
 /-- `andSimulator` realizes `andSimulate` with statistical error `δ₀ i + δ₁ i`. -/
 theorem simulatorRealizedBy_andSimulator
@@ -480,8 +469,7 @@ theorem simulatorRealizedBy_andSimulator
     SimulatorRealizedBy (fun i => andSimulate (simulate₀ i) (simulate₁ i))
       (andSimulator sim₀ sim₁) (fun i => δ₀ i + δ₁ i) := by
   intro i y c
-  simp only [andSimulate, andSimulator, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+  simp only [andSimulate, andSimulator, pmf_norm]
   exact (h₀ i y.1 c).bind fun a _ => (h₁ i y.2 c).bind_left _
 
 /-- **Efficient special HVZK of `andProof`.** -/
@@ -502,8 +490,7 @@ theorem EfficientSpecialHVZK.andProof
       (fun i => δ₀ i + δ₁ i) where
   specialHVZK i := andProof_specialHVZK (h₀.specialHVZK i) (h₁.specialHVZK i)
   realized := by
-    obtain ⟨sim₀, hppt₀, hreal₀⟩ := h₀.realized
-    obtain ⟨sim₁, hppt₁, hreal₁⟩ := h₁.realized
+    rcases h₀.realized, h₁.realized with ⟨⟨sim₀, hppt₀, hreal₀⟩, ⟨sim₁, hppt₁, hreal₁⟩⟩
     exact ⟨andSimulator sim₀ sim₁, isPPT_andSimulator hI hC hppt₀ hppt₁,
       simulatorRealizedBy_andSimulator hreal₀ hreal₁⟩
 
@@ -560,29 +547,9 @@ theorem computableInPolyTime_orExtractWord
     (hf₁ : ComputableInPolyTime f₁ (encExtractorWordInput enc₁.index) encBits) :
     ComputableInPolyTime (orExtractWord subWord f₀ f₁)
       (encExtractorWordInput (enc₀.orProof enc₁).index) encBits := by
-  have hf₁' : ComputableInPolyTime f₁ (encExtractorWordInput enc₀.index) encBits :=
-    hI ▸ hf₁
-  let encIn := encExtractorWordInput enc₀.index
-  have hcond : ComputableInPolyTime
-      (fun input : I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
-        unframe input.2.2.2.2.1 == unframe input.2.2.2.2.2.2)
-      encIn encBool := by fun_prop
-  have hthen : ComputableInPolyTime
-      (fun input : I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
-        true :: f₁ (input.1, dropFrame input.2.1, dropFrame input.2.2.1,
-          subWord (input.1, input.2.2.2.1, unframe input.2.2.2.2.1),
-          dropFrame (dropFrame input.2.2.2.2.1),
-          subWord (input.1, input.2.2.2.2.2.1, unframe input.2.2.2.2.2.2),
-          dropFrame (dropFrame input.2.2.2.2.2.2)))
-      encIn encBits := by fun_prop
-  have helse : ComputableInPolyTime
-      (fun input : I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
-        false :: f₀ (input.1, unframe input.2.1, unframe input.2.2.1,
-          unframe input.2.2.2.2.1, unframe (dropFrame input.2.2.2.2.1),
-          unframe input.2.2.2.2.2.2, unframe (dropFrame input.2.2.2.2.2.2)))
-      encIn encBits := by fun_prop
-  unfold orExtractWord Encoding.orProof
-  exact ComputableInPolyTime.ite hcond hthen helse
+  have hf₁' : ComputableInPolyTime f₁ (encExtractorWordInput enc₀.index) encBits := hI ▸ hf₁
+  dsimp only [orExtractWord, Encoding.orProof]
+  exact ComputableInPolyTime.ite (by fun_prop) (by fun_prop) (by fun_prop)
 
 /-- `orExtractWord` realizes `orExtract` on `enc₀.orProof enc₁` with witness encoding `encSum`. -/
 theorem extractorRealizedBy_orExtractWord [∀ i, AddCommGroup (C i)] [∀ i, DecidableEq (C i)]
@@ -605,10 +572,8 @@ theorem extractorRealizedBy_orExtractWord [∀ i, AddCommGroup (C i)] [∀ i, De
   simp only [orExtractWord, Encoding.orProof, unframe_encPair, dropFrame_encPair, hbeq, hsub_eq,
     orExtract]
   by_cases hc₀ : c₀ = c₀'
-  · simp only [hc₀, decide_true, ↓reduceIte, encSum_inr]
-    rw [hC i, h₁]
-  · simp only [hc₀, decide_false, Bool.false_eq_true, ↓reduceIte, encSum_inl]
-    rw [h₀]
+  · simp only [hc₀, decide_true, ↓reduceIte, encSum_inr, hC i, h₁ i]
+  · simp only [hc₀, decide_false, Bool.false_eq_true, ↓reduceIte, encSum_inl, h₀ i]
 
 /-- **Efficient special soundness of `orProof`.** -/
 theorem EfficientSpecialSoundness.orProof
@@ -637,8 +602,7 @@ theorem EfficientSpecialSoundness.orProof
   specialSoundness i :=
     orProofWith_specialSoundness (h₀.specialSoundness i) (h₁.specialSoundness i)
   polyTime := by
-    obtain ⟨f₀, hf₀, hreal₀⟩ := h₀.polyTime
-    obtain ⟨f₁, hf₁, hreal₁⟩ := h₁.polyTime
+    rcases h₀.polyTime, h₁.polyTime with ⟨⟨f₀, hf₀, hreal₀⟩, ⟨f₁, hf₁, hreal₁⟩⟩
     exact ⟨orExtractWord subWord f₀ f₁, computableInPolyTime_orExtractWord hI hsub hf₀ hf₁,
       extractorRealizedBy_orExtractWord hC hsub_eq hreal₀ hreal₁⟩
 
@@ -685,34 +649,25 @@ theorem isPPT_orSimulator [∀ i, Sub (C i)]
     Simulator.IsPPT (enc₀.orProof enc₁) (orSimulator sampleChallenge sim₀ sim₁) := by
   obtain ⟨prog₀, hprog₀, hword₀⟩ := hppt₀.exists_word
   obtain ⟨prog₁, hprog₁, hword₁⟩ := hppt₁.exists_word
-  have hprog₁' : IsPPTOn (encSimulatorWordInput enc₀.index) (encPair encBits encBits) prog₁ :=
-    hI ▸ hprog₁
+  rw [← hI] at hprog₁
   refine Simulator.IsPPT.of_word
     (program := orSimulateWord (fun i => enc₀.challenge i <$> sampleChallenge i)
-      subWord prog₀ prog₁) ?_ ?_
-  · unfold orSimulateWord
-    refine (hsample.preprocess (input := encSimulatorWordInput enc₀.index)
-      (prepare := fun p : I × List Bool × List Bool => p.1)
-      (by fun_prop)).bind_with ?_
-    refine (hprog₀.preprocess (input := encPair (encSimulatorWordInput enc₀.index) encBits)
-      (prepare := fun p : (I × List Bool × List Bool) × List Bool =>
-        (p.1.1, unframe p.1.2.1, p.2))
-      (by fun_prop)).bind_with ?_
-    refine (hprog₁'.preprocess
-      (input := encPair (encPair (encSimulatorWordInput enc₀.index) encBits)
-        (encPair encBits encBits))
-      (prepare := fun p : ((I × List Bool × List Bool) × List Bool) × List Bool × List Bool =>
-        (p.1.1.1, dropFrame p.1.1.2.1, subWord (p.1.1.1, p.1.1.2.2, p.1.2)))
-      (by fun_prop)).bind_with ?_
-    exact ComputableInPolyTime.isPPTOn (by fun_prop)
-  · intro i ⟨y₀, y₁⟩ c
-    simp only [orSimulator, orSimulateWord, Encoding.orProof, unframe_encPair, dropFrame_encPair,
-      ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.map_bind, PMF.bind_map,
-      PMF.pure_map, Function.comp_def]
-    refine PMF.bind_congr_on_support _ _ _ fun c₀ _ => ?_
-    rw [hsub_eq, ← hword₀ i y₀ c₀, hC i, ← hword₁ i y₁ (c - c₀)]
-    simp only [PMF.bind_map, Function.comp_def, Prod.map_apply, encPair_apply, encBits_apply]
-    rfl
+      subWord prog₀ prog₁)
+    ((hsample.preprocess (input := encSimulatorWordInput enc₀.index)
+      (prepare := fun p => p.1) (by fun_prop)).bind_with
+      ((hprog₀.preprocess (input := encPair (encSimulatorWordInput enc₀.index) encBits)
+        (prepare := fun p => (p.1.1, unframe p.1.2.1, p.2)) (by fun_prop)).bind_with
+        ((hprog₁.preprocess
+          (input := encPair (encPair (encSimulatorWordInput enc₀.index) encBits)
+            (encPair encBits encBits))
+          (prepare := fun p => (p.1.1.1, dropFrame p.1.1.2.1, subWord (p.1.1.1, p.1.1.2.2, p.1.2)))
+          (by fun_prop)).bind_with (ComputableInPolyTime.isPPTOn (by fun_prop)))))
+    fun i ⟨y₀, y₁⟩ c => ?_
+  simp only [orSimulator, orSimulateWord, Encoding.orProof, unframe_encPair, dropFrame_encPair,
+    pmf_norm]
+  refine PMF.bind_congr_on_support _ _ _ fun c₀ _ => ?_
+  rw [hsub_eq, ← hword₀ i y₀ c₀, hC i, ← hword₁ i y₁ (c - c₀)]
+  simp [PMF.bind_map, Function.comp_def]
 
 /-- `orSimulator` realizes `orSimulate` with statistical error `δC i + (δ₀ i + δ₁ i)`. -/
 theorem simulatorRealizedBy_orSimulator [∀ i, AddCommGroup (C i)] [∀ i, Fintype (C i)]
@@ -727,8 +682,7 @@ theorem simulatorRealizedBy_orSimulator [∀ i, AddCommGroup (C i)] [∀ i, Fint
     SimulatorRealizedBy (fun i => orSimulate (simulate₀ i) (simulate₁ i))
       (orSimulator sampleChallenge sim₀ sim₁) (fun i => δC i + (δ₀ i + δ₁ i)) := by
   intro i y c
-  simp only [orSimulate, orSimulator, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+  simp only [orSimulate, orSimulator, pmf_norm]
   exact (hsample i).bind fun c₀ _ =>
     (h₀ i y.1 c₀).bind fun a _ => (h₁ i y.2 (c - c₀)).bind_left _
 
@@ -759,8 +713,7 @@ theorem EfficientSpecialHVZK.orProof [∀ i, AddCommGroup (C i)] [∀ i, Fintype
       (fun i => δC i + (δ₀ i + δ₁ i)) where
   specialHVZK i := orProof_specialHVZK (h₀.specialHVZK i) (h₁.specialHVZK i)
   realized := by
-    obtain ⟨sim₀, hppt₀, hreal₀⟩ := h₀.realized
-    obtain ⟨sim₁, hppt₁, hreal₁⟩ := h₁.realized
+    rcases h₀.realized, h₁.realized with ⟨⟨sim₀, hppt₀, hreal₀⟩, ⟨sim₁, hppt₁, hreal₁⟩⟩
     exact ⟨orSimulator sampleChallenge sim₀ sim₁,
       isPPT_orSimulator hI hC hsample_ppt hsub hsub_eq hppt₀ hppt₁,
       simulatorRealizedBy_orSimulator hsample_close hreal₀ hreal₁⟩
@@ -817,48 +770,24 @@ theorem computableInPolyTime_parallelExtractWord
   have hfind : ComputableInPolyTime
       (fun input : I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
         (List.range (frames input.2.2.2.1).length).find?
-          (fun idx => (frames input.2.2.2.1).getD idx [] !=
-            (frames input.2.2.2.2.2.1).getD idx []))
+          fun idx => (frames input.2.2.2.1).getD idx [] != (frames input.2.2.2.2.2.1).getD idx [])
       encIn (encOption encUnary) := by
-    have hget1 : ComputableInPolyTime
-        (fun p : (I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool) × ℕ =>
-          (frames p.1.2.2.2.1).getD p.2 [])
-        (encPair encIn encUnary) encBits := by fun_prop
-    have hget2 : ComputableInPolyTime
-        (fun p : (I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool) × ℕ =>
-          (frames p.1.2.2.2.2.1).getD p.2 [])
-        (encPair encIn encUnary) encBits := by fun_prop
     simp only [bne]
-    exact ComputableInPolyTime.findWithInput (by fun_prop) (by fun_prop)
+    exact ComputableInPolyTime.findWithInput (by fun_prop)
+      (ComputableInPolyTime.bool_not.comp
+        ((by fun_prop : ComputableInPolyTime _ (encPair encIn encUnary) encBits).beq
+          (by fun_prop)))
   have hbody : ComputableInPolyTime
       (fun p : (I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool) × ℕ =>
         f (p.1.1, p.1.2.1, (frames p.1.2.2.1).getD p.2 [], (frames p.1.2.2.2.1).getD p.2 [],
           (frames p.1.2.2.2.2.1).getD p.2 [], (frames p.1.2.2.2.2.2.1).getD p.2 [],
           (frames p.1.2.2.2.2.2.2).getD p.2 []))
       (encPair encIn encUnary) encBits := by fun_prop
-  have hbody0' := hbody.comp (show ComputableInPolyTime
-      (fun input :
-          I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
-        (input, 0)) encIn (encPair encIn encUnary) from by fun_prop)
-  have hlength : ComputableInPolyTime
-      (fun input : I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
-        (frames input.2.2.2.1).length) encIn encUnary := by fun_prop
-  have hcond := ComputableInPolyTime.unary_beq hlength
-    (ComputableInPolyTime.const 0)
-  have hdefault : ComputableInPolyTime
-      (fun input : I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
-        defaultWord input.1) encIn encBits := by fun_prop
-  have hfallback : ComputableInPolyTime
-      (fun input :
-          I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool =>
-        if (frames input.2.2.2.1).length = 0 then defaultWord input.1 else
-          f (input.1, input.2.1, (frames input.2.2.1).getD 0 [],
-            (frames input.2.2.2.1).getD 0 [], (frames input.2.2.2.2.1).getD 0 [],
-            (frames input.2.2.2.2.2.1).getD 0 [], (frames input.2.2.2.2.2.2).getD 0 []))
-      encIn encBits := by
-    simpa only [beq_iff_eq, Function.comp_def] using hcond.ite hdefault hbody0'
   unfold parallelExtractWord Encoding.parallelRepetition
-  exact hfind.optionElimWithInput hfallback hbody
+  refine hfind.optionElimWithInput ?_ hbody
+  simpa only [beq_iff_eq, Function.comp_def] using
+    (ComputableInPolyTime.unary_beq (by fun_prop) (.const 0)).ite (by fun_prop)
+      (hbody.comp (ComputableInPolyTime.id'.prod (.const 0)))
 
 /-- `parallelExtractWord` realizes `parallelExtract` on `enc.parallelRepetition k`. -/
 theorem extractorRealizedBy_parallelExtractWord
@@ -879,26 +808,22 @@ theorem extractorRealizedBy_parallelExtractWord
   have hpred :
       ((fun idx => ((List.ofFn c).map (enc.challenge i)).getD idx [] !=
         ((List.ofFn c').map (enc.challenge i)).getD idx []) ∘ Fin.val) =
-      fun j : Fin (k i) => c j != c' j := by
-    funext j
-    simp only [Function.comp_apply, List.map_ofFn, List.getD_ofFn]
-    rw [Bool.eq_iff_iff, bne_iff_ne, bne_iff_ne, (enc.challenge i).injective.ne_iff]
+      fun j : Fin (k i) => c j != c' j :=
+    funext fun j => by
+      simp only [Function.comp_apply, List.map_ofFn, List.getD_ofFn]
+      rw [Bool.eq_iff_iff, bne_iff_ne, bne_iff_ne, (enc.challenge i).injective.ne_iff]
   rw [hpred]
   unfold parallelExtract
-  cases hfind : (List.finRange (k i)).find? (fun j => c j != c' j) with
+  cases (List.finRange (k i)).find? (fun j => c j != c' j) with
   | none =>
     simp only [Option.map_none, Option.elim_none]
-    by_cases hk : 0 < k i
-    · simp only [Nat.ne_of_gt hk, ↓reduceIte, hk, ↓reduceDIte]
-      simp only [List.map_ofFn, List.getD_ofFn_of_lt _ hk]
-      exact hf i y (t ⟨0, hk⟩) (c ⟨0, hk⟩) (z ⟨0, hk⟩) (c' ⟨0, hk⟩) (z' ⟨0, hk⟩)
-    · have hk0 : k i = 0 := Nat.eq_zero_of_not_pos hk
-      simp only [hk0, ↓reduceIte]
-      exact hdef_eq i hk0
+    rcases Nat.eq_zero_or_pos (k i) with hk | hk
+    · simp only [hk, lt_self_iff_false, ↓reduceIte, ↓reduceDIte, hdef_eq i hk]
+    · simp only [Nat.ne_of_gt hk, ↓reduceIte, hk, ↓reduceDIte, List.map_ofFn,
+        List.getD_ofFn_of_lt _ hk, Function.comp_apply, hf i]
   | some j =>
     simp only [Option.map_some, Option.elim_some, List.map_ofFn, List.getD_ofFn,
-      Function.comp_apply]
-    exact hf i y (t j) (c j) (z j) (c' j) (z' j)
+      Function.comp_apply, hf i]
 
 /-- Polynomial-time extraction for arbitrary repetition counts, including zero, when the encoded
 default witness is polynomial-time computable. Positive repetition uses
@@ -965,36 +890,22 @@ theorem isPPT_parallelSimulator
     (hppt : Simulator.IsPPT enc sim) :
     Simulator.IsPPT (enc.parallelRepetition k) (parallelSimulator sim k) := by
   obtain ⟨prog, hprog, hword⟩ := hppt.exists_word
-  refine Simulator.IsPPT.of_word (program := parallelSimulateWord prog) ?_ ?_
+  refine Simulator.IsPPT.of_word (program := parallelSimulateWord prog) ?_ fun i y c => ?_
   · unfold parallelSimulateWord
-    have hstep : IsPPTOn (encPair (encSimulatorWordInput enc.index) encBits)
-        (encPair encBits encBits)
-        (fun p : (I × List Bool × List Bool) × List Bool => prog (p.1.1, p.1.2.1, p.2)) :=
-      hprog.preprocess (input := encPair (encSimulatorWordInput enc.index) encBits) (by fun_prop)
-    have hlist : ComputableInPolyTime (fun input : I × List Bool × List Bool => frames input.2.2)
-        (encSimulatorWordInput enc.index) (encList encBits) := by fun_prop
-    have hpost : ComputableInPolyTime
+    exact (IsPPTOn.mapMWith (program := fun input c_j => prog (input.1, input.2.1, c_j))
+      (hprog.preprocess (input := encPair (encSimulatorWordInput enc.index) encBits)
+        (prepare := fun p => (p.1.1, p.1.2.1, p.2)) (by fun_prop))
+      (by fun_prop : ComputableInPolyTime (fun x : I × List Bool × List Bool => frames x.2.2)
+        (encSimulatorWordInput enc.index) (encList encBits))).map
+      (by fun_prop : ComputableInPolyTime
         (fun pairs : List (List Bool × List Bool) =>
           (encList encBits (pairs.map Prod.fst), encList encBits (pairs.map Prod.snd)))
-        (encList (encPair encBits encBits)) (encPair encBits encBits) :=
-      by fun_prop
-    exact (IsPPTOn.mapMWith
-      (program := fun (input : I × List Bool × List Bool) (c_j : List Bool) =>
-        prog (input.1, input.2.1, c_j)) hstep hlist).map hpost
-  · intro i y c
-    simp only [parallelSimulator, parallelSimulateWord, Encoding.parallelRepetition,
+        (encList (encPair encBits encBits)) (encPair encBits encBits))
+  · simp only [parallelSimulator, parallelSimulateWord, Encoding.parallelRepetition,
       encFinFn_apply, frames_encList, List.ofFn_eq_map, List.map_map, List.mapM_map,
-      Function.comp_def, ProbComp.eval_map, ← ProbComp.eval_pi_map_ofFn, ProbComp.eval_pi_eq_piFin]
-    have hcoord :
-        (PMF.piFin fun j => ProbComp.eval (prog (i, enc.statement i y, enc.challenge i (c j)))) =
-          (PMF.piFin fun j => ProbComp.eval (sim i y (c j))).map
-            (fun tz j => (enc.commitment i (tz j).1, enc.response i (tz j).2)) := by
-      simp only [← hword, PMF.piFin_map]
-      rfl
-    rw [hcoord]
-    simp only [PMF.map_comp]
-    refine congrArg (PMF.map · _) ?_
-    funext tz
+      Function.comp_def, ProbComp.eval_map, ← ProbComp.eval_pi_map_ofFn, ProbComp.eval_pi_eq_piFin,
+      ← hword, PMF.piFin_map, PMF.map_comp]
+    refine congrArg (PMF.map · _) (funext fun tz => ?_)
     simp [Function.comp_def, Prod.map_apply, encList_eq_encList_bits_map, List.ofFn_eq_map,
       List.map_map]
 

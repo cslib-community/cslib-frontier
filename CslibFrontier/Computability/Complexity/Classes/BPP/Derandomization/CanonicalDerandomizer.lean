@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
 
 /-!
@@ -101,27 +102,16 @@ theorem Generator.exists_complexity_le_advantage_ge {k L : ℕ}
   · -- a disjunction over the seeds of the conjunction of the output bits
     set D : List (List (BooleanFunction L × Bool)) := (BitString.enum k).map fun z =>
       (List.finRange L).map fun i => ((fun x : BitString L => x i), Gk z i)
-    have hw : ∀ c ∈ D, c.length ≤ L := by
-      intro c hc
-      obtain ⟨z, -, rfl⟩ := List.mem_map.1 hc
-      simp
-    have hD : ∀ c ∈ D, ∀ l ∈ c, l.1 ∈ inputs L := by
-      intro c hc l hl
-      obtain ⟨z, -, rfl⟩ := List.mem_map.1 hc
-      obtain ⟨i, -, rfl⟩ := List.mem_map.1 hl
-      exact ⟨i, rfl⟩
-    have hsyn := Synthesis.any_all_literal hw hD
-    have hlen : D.length = 2 ^ k := by simp [D]
-    rw [hlen] at hsyn
+    have hw : ∀ c ∈ D, c.length ≤ L := List.forall_mem_map.2 fun _ _ => by simp
+    have hD : ∀ c ∈ D, ∀ l ∈ c, l.1 ∈ inputs L :=
+      List.forall_mem_map.2 fun _ _ => List.forall_mem_map.2 fun i _ => ⟨i, rfl⟩
+    have hsyn := (show D.length = 2 ^ k by simp [D]) ▸ Synthesis.any_all_literal hw hD
     refine Synthesis.complexity_le (Synthesis.congr_iff hsyn fun x => ?_)
     simp only [D, List.any_map, List.any_eq_true, Function.comp_apply, List.all_map,
       List.all_eq_true, List.mem_finRange, decide_eq_true_eq, true_implies, BitString.mem_enum,
       true_and]
-    constructor
-    · rintro ⟨z, hz⟩
-      exact ⟨z, funext fun i => (hz i).symm⟩
-    · rintro ⟨z, rfl⟩
-      exact ⟨z, fun i => rfl⟩
+    exact ⟨fun ⟨z, hz⟩ => ⟨z, funext fun i => (hz i).symm⟩,
+      fun ⟨z, hz⟩ => ⟨z, fun i => (congrFun hz i).symm⟩⟩
   · rw [Generator.advantage_pure_eq]
     have hseeds : #{z : BitString k | decide (∃ z', Gk z' = Gk z) = true} = 2 ^ k := by
       rw [filter_true_of_mem fun z _ => decide_eq_true ⟨z, rfl⟩, card_univ, BitString.card]
@@ -132,15 +122,9 @@ theorem Generator.exists_complexity_le_advantage_ge {k L : ℕ}
             exact mem_image_of_mem Gk (mem_univ z)
         _ ≤ (univ : Finset (BitString k)).card := card_image_le
         _ = 2 ^ k := by rw [card_univ, BitString.card]
-    rw [hseeds]
-    have hrange' : (#{y : BitString L | decide (∃ z, Gk z = y) = true} : ℝ) ≤ 2 ^ k := by
-      exact_mod_cast hrange
-    have hpos : (0 : ℝ) < 2 ^ L := by positivity
-    have hk : ((2 ^ k : ℕ) : ℝ) / 2 ^ k = 1 := by push_cast; exact div_self (by positivity)
-    rw [hk]
-    refine le_trans ?_ (le_abs_self _)
-    have := div_le_div_of_nonneg_right hrange' hpos.le
-    linarith
+    rw [hseeds, Nat.cast_pow, Nat.cast_ofNat, div_self (by positivity)]
+    exact (sub_le_sub_left (div_le_div_of_nonneg_right (by exact_mod_cast hrange) (by positivity))
+      1).trans (le_abs_self _)
 
 end Cslib.Crypto.PRG
 
@@ -183,24 +167,17 @@ variable {G : List Bool → List Bool} {ℓ : ℕ → ℕ}
 `Cslib.Crypto.PRG.Generator.exists_complexity_le_advantage_ge` has at most `ℓ(k) ^ 2` gates and
 advantage at least `1 / 2`, contradicting Eq. 8.11. -/
 theorem le_two_pow (hG : CanonicalDerandomizer G ℓ) (k : ℕ) : ℓ k ≤ 2 ^ (k + 1) + 1 := by
-  by_contra hlt
-  push Not at hlt
+  by_contra! hlt
   obtain ⟨test, hsize, hadv⟩ := (wordFamily G ℓ k).exists_complexity_le_advantage_ge
-  have hP : 2 ^ (k + 1) = 2 * 2 ^ k := by ring
   have hcirc : IsCircuitTest (ℓ k ^ 2) fun y => PMF.pure (test y) := by
     refine ⟨test, hsize.trans ?_, rfl⟩
-    have hL : 2 * 2 ^ k + 2 ≤ ℓ k := by omega
-    have := Nat.mul_le_mul_left (ℓ k) hL
-    rw [sq]
-    nlinarith
-  have hfool := hG.fools k _ hcirc
-  have hkℓ : k + 1 ≤ ℓ k := by have := Nat.lt_two_pow_self (n := k + 1); omega
+    rw [pow_succ'] at hlt
+    nlinarith [sq (ℓ k)]
+  have hkℓ : k + 1 ≤ ℓ k := Nat.lt_two_pow_self.le.trans (by omega)
   have h2 : (2 : ℝ) ^ k / 2 ^ ℓ k ≤ 1 / 2 := by
     rw [div_le_iff₀ (by positivity)]
-    have : (2 : ℝ) ^ (k + 1) ≤ 2 ^ ℓ k := pow_le_pow_right₀ (by norm_num) hkℓ
-    rw [pow_succ] at this
-    linarith
-  linarith
+    linarith [pow_succ (2 : ℝ) k ▸ pow_le_pow_right₀ (one_le_two : (1 : ℝ) ≤ 2) hkℓ]
+  linarith [hG.fools k _ hcirc]
 
 end CanonicalDerandomizer
 
@@ -219,10 +196,9 @@ private theorem exists_two_pow_div_le {ℓ : ℕ → ℕ}
       _ = k * (1 / (e : ℝ)) := by ring
       _ ≤ k * ε := mul_le_mul_of_nonneg_left hεe (by positivity)
       _ = ε * k := mul_comm _ _
-  have : (2 : ℝ) ^ ((k / e : ℕ) : ℝ) ≤ ℓ k :=
-    (Real.rpow_le_rpow_of_exponent_le (by norm_num) hdiv).trans (hK k hk)
-  rw [Real.rpow_natCast] at this
-  exact_mod_cast this
+  exact_mod_cast (Real.rpow_natCast 2 (k / e) ▸
+    (Real.rpow_le_rpow_of_exponent_le one_le_two hdiv).trans (hK k hk) :
+    (2 : ℝ) ^ (k / e) ≤ ℓ k)
 
 /-- **Goldreich, Theorem 8.16** [Goldreich, Theorem 8.16][Goldreich2007DraftR4] (draft r4, printed
 page 339, PDF page 75): *if there exists a canonical derandomizer of stretch `ℓ(k) = 2 ^ Ω(k)`,
@@ -258,25 +234,12 @@ theorem P_eq_BPP_of_canonicalDerandomizer {G : List Bool → List Bool} {ℓ : �
         (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.encoding_length enc))
     have hseed : ComputableInPolyTime seed enc encUnary := by
       simp only [hseed_def]; fun_prop
-    have hbudget (d : ℕ) : PolyBounded (fun x => (enc x).length) fun x => 2 ^ (d * seed x) := by
-      refine PolyBounded.of_polynomiallyBounded (fun x => (enc x).length)
-        (bound := fun N => 2 ^ (d * K) * 2 ^ (d * e * e₁ * (Nat.log 2 N + 1)))
-        ((PolynomiallyBounded.const _).mul (polynomiallyBounded_two_pow_mul_log _)) |>.mono
-        fun x => le_of_eq ?_
-      rw [← pow_add]; simp only [hseed_def]; ring_nf
     have hT : Monotone fun k => (2 ^ k * (ℓ k + 1)) ^ D := fun a b h =>
       Nat.pow_le_pow_left (Nat.mul_le_mul (Nat.pow_le_pow_right two_pos h)
         (Nat.add_le_add_right (hG.monotone h) 1)) D
     have hGbound : PolyBounded (fun x => (enc x).length) fun x =>
-        (2 ^ seed x * (ℓ (seed x) + 1)) ^ D :=
-      ((PolyBounded.const (4 ^ D)).mul (hbudget (2 * D))).mono fun x => by
-        have hℓ := hG.le_two_pow (seed x)
-        calc (2 ^ seed x * (ℓ (seed x) + 1)) ^ D ≤ (2 ^ seed x * (4 * 2 ^ seed x)) ^ D := by
-              refine Nat.pow_le_pow_left (Nat.mul_le_mul_left _ ?_) D
-              rw [pow_succ] at hℓ
-              have := Nat.one_le_two_pow (n := seed x)
-              omega
-          _ = 4 ^ D * 2 ^ (2 * D * seed x) := by ring
+        (2 ^ seed x * (ℓ (seed x) + 1)) ^ D := by
+      growth_poly [hG.le_two_pow]
     have hGq : ComputableInPolyTime (fun q : α × List Bool => G (q.2.take (seed q.1)))
         (encPair enc encBits) encBits :=
       ComputableInO.computableInPolyTime_take hT hGO hseed hGbound
@@ -287,7 +250,7 @@ theorem P_eq_BPP_of_canonicalDerandomizer {G : List Bool → List Bool} {ℓ : �
     have hgen : ComputableInPolyTime (fun q : α × List Bool => gen q.1 q.2)
         (encPair enc encBits) encBits :=
       ComputableInPolyTime.bitsTakeWithInput hGq hm
-    exact computableInPolyTime_seedDecider hV hgen hseed ((hbudget 1).mono fun x => by simp)
+    exact computableInPolyTime_seedDecider hV hgen hseed (by growth_poly)
   · -- correctness on every instance
     obtain ⟨hpB, hcB⟩ := hB x
     have hBℓ : c₁ * ((enc x).length + 1) ^ a₁ ≤ ℓ (seed x) := by
@@ -345,13 +308,11 @@ theorem ExponentialTimePRG.canonicalDerandomizer {G : List Bool → List Bool} {
     rw [mul_comm c, pow_mul]
     exact Nat.pow_le_pow_left (Nat.le_mul_of_pos_right _ (Nat.succ_pos _)) c
   refine ⟨hG.monotone, hG.length_eq, ⟨c, hc.mono_le hle hle⟩, fun k adversary hadv => ?_⟩
-  have hsize : S k ^ 2 ≤ S k ^ 3 := by
-    rcases Nat.eq_zero_or_pos (S k) with h | h
-    · simp [h]
-    · exact Nat.pow_le_pow_right h (by norm_num)
   obtain ⟨test, htest, rfl⟩ := hadv
-  have := hG.pseudorandom k _ ⟨test, htest.trans hsize, rfl⟩
-  linarith
+  have hsize : S k ^ 2 ≤ S k ^ 3 := match S k with
+    | 0 => le_rfl
+    | _ + 1 => Nat.pow_le_pow_right (Nat.succ_pos _) (by decide)
+  exact (hG.pseudorandom k _ ⟨test, htest.trans hsize, rfl⟩).trans (by norm_num)
 
 /-- **Arora and Barak, Corollary 16.6 (1)** [Arora and Barak, Corollary 16.6][AroraBarak07] (draft
 of 2007-01-08, printed page 285, PDF page 301): *if there exists a `2 ^ (ε ℓ)`-pseudorandom

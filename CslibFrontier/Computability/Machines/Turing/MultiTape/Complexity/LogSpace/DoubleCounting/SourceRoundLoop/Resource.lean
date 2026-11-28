@@ -56,6 +56,16 @@ theorem roundEntry_inSpace (size source : κ → ℕ) (encContext : κ ↪ List 
   budget_comp_linear (SourceRound.entry_inSpace encCallee)
     (roundContext_inSpace size source encContext hsize hsource)
 
+/-- Initialize the loop from a context and fuel produced under a shared space budget. -/
+theorem start_budget {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
+    (encContext : κ ↪ List Bool) {context : α → κ} {fuel : α → ℕ}
+    (hcontext : ComputableInSpace context enc encContext S)
+    (hfuel : ComputableInSpace fuel enc encNat S) :
+    ComputableInSpace (fun a => start (context a) (fuel a)) enc (encRegisters encContext) S :=
+  encRegisters_mk_budget encContext hcontext hfuel
+    (ComputableInSpace.budget_const 0)
+    (ComputableInSpace.budget_const (⟨1, 0⟩ : Tally))
+
 /-- Reachable scalar loop boundaries have the original context and polynomial count and sum. -/
 @[expose] def Admissible (context : κ) (size limit : ℕ) (r : Registers κ) : Prop :=
   r.context = context ∧ r.fuel + r.radius = limit ∧
@@ -66,18 +76,26 @@ theorem start_admissible (context : κ) (size limit : ℕ) :
     Admissible context size limit (start context limit) := by
   simp [Admissible, start]
 
-private theorem admissible_caps {context : κ} {size limit : ℕ} {r : Registers κ}
-    (hr : Admissible context size limit r) :
-    r.fuel ≤ limit ∧ r.radius ≤ limit ∧
-      r.tally.count ≤ 1 + limit * size ∧ r.tally.lengthSum ≤ size * limit * limit := by
+/-- Bound both counters and the tally with an upper bound on the loop limit. -/
+theorem admissible_caps_le {context : κ} {size limit limit' : ℕ} {r : Registers κ}
+    (hr : Admissible context size limit r) (hlimit : limit ≤ limit') :
+    r.fuel ≤ limit' ∧ r.radius ≤ limit' ∧
+      r.tally.count ≤ 1 + limit' * size ∧ r.tally.lengthSum ≤ size * limit' * limit' := by
   obtain ⟨_, htotal, hcount, hsum⟩ := hr
-  have hk : r.radius ≤ limit := by omega
+  have hk : r.radius ≤ limit' := by omega
   exact ⟨by omega, hk,
     hcount.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ hk) _),
     hsum.trans (Nat.mul_le_mul (Nat.mul_le_mul_left _ hk) hk)⟩
 
+/-- Bound both counters and the tally using the fixed loop limit. -/
+theorem admissible_caps {context : κ} {size limit : ℕ} {r : Registers κ}
+    (hr : Admissible context size limit r) :
+    r.fuel ≤ limit ∧ r.radius ≤ limit ∧
+      r.tally.count ≤ 1 + limit * size ∧ r.tally.lengthSum ≤ size * limit * limit :=
+  admissible_caps_le hr le_rfl
+
 /-- Encoded workspace for the retained context, loop fuel, radius and current tally. -/
-def registerStateBound (encContext : κ ↪ List Bool) (context : κ) (size limit : ℕ) : ℕ :=
+@[expose] def registerStateBound (encContext : κ ↪ List Bool) (context : κ) (size limit : ℕ) : ℕ :=
   2 * (encContext context).length + 4 * (encNat limit).length +
     2 * (encNat (1 + limit * size)).length + (encNat (size * limit * limit)).length + 4
 
@@ -116,20 +134,15 @@ theorem admissible_advance_of_round_answer (size source : κ → ℕ)
     · exact Option.some.inj hanswer
   rw [hu] at hcount hsum
   obtain ⟨hcontext, hfuel, hc, hs⟩ := hr
-  have hdim : ctx.size = size context := congrArg size hcontext
   have hcursor' : (M.run input bits).controller.cursor ≤ size context :=
-    hcursor.trans_eq hdim
+    hcursor.trans_eq (congrArg size hcontext)
   have hcount' : a.tally.count ≤ r.tally.count + size context := hcount.trans
     (Nat.add_le_add_left hcursor' _)
-  have hsum' : a.tally.lengthSum ≤ r.tally.lengthSum + size context * (r.radius + 1) := by
-    exact hsum.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ hcursor') _)
-  refine ⟨hcontext, ?_, ?_, ?_⟩
-  · simp only [Registers.advance]
-    omega
-  · simp only [Registers.advance]
-    nlinarith
-  · simp only [Registers.advance]
-    nlinarith
+  have hsum' : a.tally.lengthSum ≤ r.tally.lengthSum + size context * (r.radius + 1) :=
+    hsum.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ hcursor') _)
+  refine ⟨hcontext, by simp only [Registers.advance]; omega,
+    by simp only [Registers.advance]; nlinarith,
+    by simp only [Registers.advance]; nlinarith⟩
 
 section Composition
 
@@ -160,8 +173,7 @@ theorem admissible_closed (input : List Bool) :
     Closed (singleRound) (entryRound) SourceRound.answer input
       (Admissible context (size context) limit) := by
   intro r hr hpositive bits a _ hanswer _ _
-  have hreentry := singleRound_withInit size source callee calleeStart calleeReply context limit r
-  rw [← run_withInit, hreentry] at hanswer
+  rw [← run_withInit, singleRound_withInit] at hanswer
   exact admissible_advance_of_round_answer size source callee calleeStart calleeReply
     hr hpositive input bits hanswer
 
@@ -185,11 +197,11 @@ theorem withSourceRound_haltsWithin (member : NondeterministicQueryMachine μ)
     (SourceRound.roundClock (size context) callbackClock) memberClock _ hmember
   intro r hr
   rw [singleRound_withInit]
-  have h := SourceRound.haltsWithin (roundContext size source r) callee calleeStart calleeReply
-    input callbackClock (hcall r hr)
-  simpa only [roundContext, hr.1] using h
+  simpa only [roundContext, hr.1] using SourceRound.haltsWithin (roundContext size source r)
+    callee calleeStart calleeReply input callbackClock (hcall r hr)
 
-private theorem roundStateBound_le (r : Registers κ)
+/-- Every admissible round fits the scalar envelope at the loop's maximum radius and tally. -/
+theorem roundStateBound_le (r : Registers κ)
     (hr : Admissible context (size context) limit r) (calleeBound : ℕ) :
     SourceRound.roundStateBound (roundContext size source r) calleeBound ≤
       SourceRound.roundStateBound ⟨size context, source context, limit,
@@ -237,9 +249,9 @@ theorem withSourceRound_length_run_le (encContext : κ ↪ List Bool) (encCallee
     _ _ memberBound (fun _ hr => length_encRegisters_le encContext hr) _ hmember
   intro r hr choices
   rw [← run_withInit, singleRound_withInit]
-  have h := SourceRound.length_encMachineState_run_le encCallee (roundContext size source r)
-    callee calleeStart calleeReply input choices calleeBound (hcallee r hr)
-  exact h.trans (roundStateBound_le size source context limit r hr calleeBound)
+  exact (SourceRound.length_encMachineState_run_le encCallee (roundContext size source r)
+    callee calleeStart calleeReply input choices calleeBound (hcallee r hr)).trans
+    (roundStateBound_le size source context limit r hr calleeBound)
 
 /-- Compile the composed source loop from native certificates for the round callee, final
 membership callback, and input-dependent initial registers. The state budget covers all runs. -/

@@ -8,7 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.Resolution.LRAT
+public import CslibFrontier.Logics.Propositional.CNF.LRATRat
 public import CslibFrontier.Logics.Propositional.CNF.UnitPropagation
+public import CslibFrontier.Foundations.Data.List.EraseDups
 
 /-! # A DPLL solver with LRAT certificates
 
@@ -61,6 +63,7 @@ can be exponentially longer than what clause learning needs.
 * `Cslib.Algorithms.Lean.DPLL.isSat_solve_iff`: the solver decides satisfiability.
 * `Cslib.Algorithms.Lean.DPLL.OpenVars.fresh`: the search branches only on unassigned variables.
 * `Cslib.Algorithms.Lean.DPLL.exists_checkLRAT_iff`: the checker is complete.
+* `Cslib.Algorithms.Lean.DPLL.exists_checkLRATRat_iff`: so is the checker with RAT steps.
 
 ## References
 
@@ -240,10 +243,11 @@ def search (φ : CNF ℕ) : (fuel : ℕ) → (π : List (Literal ℕ)) → (vs :
               else .unsat c₁ d₁ fun l hl =>
                 Literal.negate_mem_of_mem_cons (h₁ l hl) (by rintro rfl; exact hc₁ hl)
 
-/-- The search from the empty partial assignment, with the variables of the formula open. -/
+/-- The search from the empty partial assignment, with the variables of the formula open, in the
+order of their first occurrences. -/
 def dpll (φ : CNF ℕ) : Outcome φ [] :=
-  search φ φ.vars.dedup.length [] φ.vars.dedup
-    ⟨fun _ hx => .inl (List.mem_dedup.2 hx), by simp, List.nodup_dedup _⟩ le_rfl
+  search φ φ.vars.eraseDups.length [] φ.vars.eraseDups
+    ⟨fun _ hx => .inl (List.mem_eraseDups.2 hx), by simp, List.nodup_eraseDups _⟩ le_rfl
 
 /-! ### The solver -/
 
@@ -316,5 +320,13 @@ theorem exists_checkLRAT_iff (φ : CNF ℕ) :
   cases hs : solve φ with
   | sat σ => exact absurd ⟨σ, solve_sat hs⟩ h
   | unsat cert => exact ⟨cert, solve_unsat hs⟩
+
+/-- **The LRAT checker with RAT steps is complete**: a formula has a certificate that it accepts
+exactly when it is unsatisfiable. -/
+theorem exists_checkLRATRat_iff (φ : CNF ℕ) :
+    (∃ cert, φ.checkLRATRat cert = true) ↔ ¬ φ.Satisfiable :=
+  ⟨fun ⟨_, h⟩ => not_satisfiable_of_checkLRATRat h, fun h =>
+    let ⟨cert, hc⟩ := (exists_checkLRAT_iff φ).2 h
+    ⟨cert, checkLRATRat_of_checkLRAT hc⟩⟩
 
 end Cslib.Algorithms.Lean.DPLL

@@ -66,7 +66,7 @@ example :
     mem_P_iff_exists_decidableInTimeAndSpace.mp firstBit_mem_P,
     (by polytime : ComputableInPolyTime
       (fun word : List Bool => word.foldl (fun reversed bit => bit :: reversed) [])
-      encBits encBits),
+      encBits encBits).exists_bounds,
     mem_NP_iff_exists_computableInTimeAndSpaceOfLength.mp SAT.mem_NP,
     computableInTimeAndSpace_id.exists_space_linear⟩
   obtain ⟨c, h⟩ := exists_decidableInTimeAndSpace_single
@@ -124,7 +124,8 @@ example {β γ : Type} {encB : β ↪ List Bool} {encC : γ ↪ List Bool}
   refine ⟨.of_eq fun _ => rfl, ?_, ?_,
     ComputableInTimeAndSpace.computableInPolyTime (t := fun n => n + 1) (s := fun w => 2 ^ w.length)
       (by fun_prop) (computableInTimeAndSpace_id.mono (fun _ => le_rfl) (fun _ => Nat.zero_le _)),
-    (by polytime : ComputableInPolyTime (fun w : List Bool => w.headD false) encBits encBool),
+    computableInPolyTime_def.mp
+      (by polytime : ComputableInPolyTime (fun w : List Bool => w.headD false) encBits encBool),
     by fun_prop, by fun_prop, ⟨by fun_prop, by fun_prop⟩, by fun_prop, by fun_prop,
     by fun_prop, by polytime,
     mem_P.mpr ⟨fun w => w.headD false, by polytime, fun _ => Iff.rfl⟩,

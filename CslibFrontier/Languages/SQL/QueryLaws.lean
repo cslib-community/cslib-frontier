@@ -85,35 +85,26 @@ predicate is `TRUE`. -/
 theorem IsSafePredicate.filterRows_eq_ok {Γ : Fin n → SqlType} {p : Expr n}
     (hp : p.IsSafePredicate Γ) {rs : List (Row n)} (hrs : ∀ r ∈ rs, r.Conforms Γ) :
     p.filterRows rs = .ok (rs.filter fun r => (p.evalTruth r).toOption = some .true) := by
-  have hall : ∀ r ∈ rs, (p.evalTruth r).toOption.isSome := fun r hr => by
+  rw [← Except.toOption_eq_some_iff, toOption_filterRows, ite_eq_left fun r hr => by
     obtain ⟨t, ht⟩ := hp.exists_evalTruth_eq_ok (hrs r hr)
-    simp [ht]
-  rw [← Except.toOption_eq_some_iff, toOption_filterRows, ite_eq_left hall]
+    simp [ht]]
 
 /-- `TRUE` keeps every row. -/
 @[simp] theorem filterRows_true (rs : List (Row n)) :
     (lit (.bool true)).filterRows rs = .ok rs := by
-  have hall : ∀ r ∈ rs, ((lit (.bool true) : Expr n).evalTruth r).toOption.isSome :=
-    fun _ _ => rfl
-  rw [← Except.toOption_eq_some_iff, toOption_filterRows, ite_eq_left hall]
-  exact congrArg some (List.filter_eq_self.mpr fun _ _ => rfl)
+  rw [← Except.toOption_eq_some_iff, toOption_filterRows]
+  simp [evalTruth, Datum.toTruth]
 
 /-- `WHERE` on rows computed by `f` is `WHERE` on their sources with a predicate that reads
 through `f`, followed by `f`. -/
 theorem toOption_filterRows_map {p : Expr k} {p' : Expr n} {f : Row n → Row k}
     {rs : List (Row n)} (h : ∀ r ∈ rs, p.evalTruth (f r) = p'.evalTruth r) :
     (p.filterRows (rs.map f)).toOption = (p'.filterRows rs).toOption.map (List.map f) := by
-  rw [toOption_filterRows, toOption_filterRows]
-  have hc : (∀ x ∈ rs.map f, (p.evalTruth x).toOption.isSome) ↔
-      ∀ r ∈ rs, (p'.evalTruth r).toOption.isSome := by
-    simp only [List.forall_mem_map]
-    exact forall₂_congr fun r hr => by rw [h r hr]
-  split_ifs with h₁ h₂ h₂
+  rw [toOption_filterRows, toOption_filterRows,
+    if_congr (List.forall_mem_map.trans (forall₂_congr fun r hr => by rw [h r hr])) rfl rfl]
+  split_ifs
   · rw [Option.map_some, List.filter_map]
-    exact congrArg some (congrArg (List.map f) (List.filter_congr fun r hr => by
-      simp only [Function.comp_apply, h r hr]))
-  · exact absurd (hc.mp h₁) h₂
-  · exact absurd (hc.mpr h₂) h₁
+    exact congrArg some (congrArg (List.map f) (List.filter_congr fun r hr => by simp [h r hr]))
   · rfl
 
 /-- `c AND p` as a predicate: both sides are evaluated, and the truth value is their Kleene
@@ -124,26 +115,17 @@ theorem toOption_evalTruth_and (c p : Expr n) (r : Row n) :
   simp only [evalTruth, eval_binary, evalBinOp]
   rcases c.eval r with _ | a
   · rfl
-  rcases p.eval r with _ | b <;> rcases ha : a.toTruth with _ | s
-  · simp [ha]
-  · simp [ha]
-  · simp [ha]
-  · rcases hb : b.toTruth with _ | t <;> simp [ha, hb]
+  rcases p.eval r with _ | b
+  · rcases ha : a.toTruth <;> simp [ha]
+  · rcases ha : a.toTruth with _ | s <;> rcases hb : b.toTruth with _ | t <;> simp [ha, hb]
 
 /-- `WHERE` on two lists one after the other is `WHERE` on their concatenation. -/
 theorem toOption_filterRows_append (p : Expr n) (rs ss : List (Row n)) :
     (p.filterRows (rs ++ ss)).toOption =
       (p.filterRows rs).toOption.bind fun a => (p.filterRows ss).toOption.map (a ++ ·) := by
-  rw [toOption_filterRows, toOption_filterRows, toOption_filterRows]
-  simp only [List.forall_mem_append, List.filter_append]
-  by_cases h₁ : ∀ r ∈ rs, (p.evalTruth r).toOption.isSome
-  · by_cases h₂ : ∀ r ∈ ss, (p.evalTruth r).toOption.isSome
-    · rw [ite_eq_left ⟨h₁, h₂⟩, ite_eq_left h₁, Option.bind_some, ite_eq_left h₂]
-      rfl
-    · rw [ite_eq_right fun h => h₂ h.2, ite_eq_left h₁, Option.bind_some, ite_eq_right h₂]
-      rfl
-  · rw [ite_eq_right fun h => h₁ h.1, ite_eq_right h₁]
-    rfl
+  simp only [toOption_filterRows, List.forall_mem_append, List.filter_append]
+  by_cases h₁ : ∀ r ∈ rs, (p.evalTruth r).toOption.isSome <;>
+    by_cases h₂ : ∀ r ∈ ss, (p.evalTruth r).toOption.isSome <;> simp +contextual [h₁, h₂]
 
 /-- A `SELECT` list depends on the row only through the results of its expressions. -/
 theorem evalRow_congr {es : Fin k → Expr n} {es' : Fin k → Expr m} {r : Row n} {r' : Row m}
@@ -182,24 +164,15 @@ theorem select_select {q : Query S n} {Γ : Fin n → SqlType} (hq : q.typeOf = 
   simp only [Except.ok_bind, Except.toOption_bind, Expr.toOption_filterRows c rs,
     Expr.toOption_filterRows (binary .and c p) rs, Expr.toOption_evalTruth_and]
   by_cases hC : ∀ r ∈ rs, (c.evalTruth r).toOption.isSome
-  · have hAnd : ∀ r ∈ rs, ((c.evalTruth r).toOption.bind
-        fun s => (p.evalTruth r).toOption.map (s ⊓ ·)).isSome := fun r hr => by
-      obtain ⟨s, hs⟩ := Option.isSome_iff_exists.mp (hC r hr)
-      simp [hs, ht r hr]
-    rw [ite_eq_left hC, ite_eq_left hAnd, Option.bind_some,
+  · choose s hs using fun r (hr : r ∈ rs) => Option.isSome_iff_exists.mp (hC r hr)
+    rw [ite_eq_left hC, ite_eq_left fun r hr => by simp [hs r hr, ht r hr], Option.bind_some,
       hp.filterRows_eq_ok fun r hr => hrs r (List.mem_filter.mp hr).1, Except.toOption_ok,
       List.filter_filter]
-    refine congrArg some (List.filter_congr fun r hr => ?_)
-    obtain ⟨s, hs⟩ := Option.isSome_iff_exists.mp (hC r hr)
-    simp only [hs, ht r hr, Except.toOption_ok, Option.bind_some, Option.map_some,
-      Option.some.injEq, Truth.inf_eq_true_iff, Bool.decide_and]
-    exact Bool.and_comm _ _
-  · have hAnd : ¬∀ r ∈ rs, ((c.evalTruth r).toOption.bind
-        fun s => (p.evalTruth r).toOption.map (s ⊓ ·)).isSome := fun hall => hC fun r hr => by
-      have := hall r hr
-      rcases hs : (c.evalTruth r).toOption <;> simp_all
-    rw [ite_eq_right hC, ite_eq_right hAnd]
-    rfl
+    exact congrArg some (List.filter_congr fun r hr => by
+      simp [hs r hr, ht r hr, Truth.inf_eq_true_iff, Bool.and_comm])
+  · rw [ite_eq_right hC, Option.bind_none, eq_comm]
+    exact ite_eq_right fun hall => hC fun r hr =>
+      Option.isSome_iff_ne_none.mpr fun hs => by simpa [hs] using hall r hr
 
 /-- Selection commutation: two safe `WHERE` clauses may be applied in either order. -/
 theorem select_comm {q : Query S n} {Γ : Fin n → SqlType} (hq : q.typeOf = some Γ)
@@ -229,11 +202,9 @@ theorem select_project {q : Query S n} {Γ : Fin n → SqlType} (hq : q.typeOf =
     simp only [Expr.evalTruth, Expr.eval_subst (Expr.evalRow_eq_ok_iff.mp (hd r hr))]
   simp only [Except.ok_bind, Except.toOption_bind, Except.mapM_eq_ok_map hd,
     Expr.toOption_filterRows_map hsubst]
-  rcases hf : (p.subst es).filterRows rs with e | rs'
+  rcases hf : (p.subst es).filterRows rs with _ | rs'
   · rfl
-  · rw [Except.toOption_ok, Option.map_some, Option.bind_some,
-      Except.mapM_eq_ok_map fun r hr => hd r (Expr.mem_of_filterRows_eq_ok hf hr)]
-    rfl
+  · simp [Except.mapM_eq_ok_map fun r hr => hd r (Expr.mem_of_filterRows_eq_ok hf hr)]
 
 /-- A safe `WHERE` over a well-typed query is a filter of its rows. -/
 theorem eval_select_of_isSafePredicate {q : Query S n} {Γ : Fin n → SqlType}
@@ -258,12 +229,8 @@ theorem eval_join_of_isSafePredicate {q₁ : Query S n} {q₂ : Query S m} {Γ :
       return ((rs ×ˢ ss).filter fun (r, s) =>
           (θ.evalTruth (Fin.append r s)).toOption = some .true)
         |>.map fun (r, s) => Fin.append r s) := by
-  rcases hrs : q₁.eval D with e | rs
-  · rw [eval_join, hrs]
-    rfl
-  rcases hss : q₂.eval D with e | ss
-  · rw [eval_join, hrs, hss]
-    rfl
+  rcases hrs : q₁.eval D with _ | rs <;> rcases hss : q₂.eval D with _ | ss <;>
+    try solve | simp [eval_join, hrs, hss]
   exact eval_join_eq_ok_of_forall hrs hss fun r hr s hs => hθ.exists_evalTruth_eq_ok
     (Row.conforms_append_iff.mpr ⟨conforms_of_eval_eq_ok hD h₁ hrs r hr,
       conforms_of_eval_eq_ok hD h₂ hss s hs⟩)
@@ -302,9 +269,8 @@ theorem select_join_left {q₁ : Query S n} {q₂ : Query S m} {Γ : Fin n → S
   simp only [map_bind, map_pure, bind_map_left]
   refine pushdown_of_lists _ _ _ _ fun rs ss => ?_
   rw [filter_map_filter, ← List.filter_product_left]
-  refine congrArg (fun L => (List.filter _ L).map _) (List.filter_congr fun ⟨r, s⟩ _ => ?_)
-  simp only [Expr.evalTruth, Expr.eval_rename_castAdd]
-  rfl
+  exact congrArg (fun L => (List.filter _ L).map _) (List.filter_congr fun ⟨r, s⟩ _ => by
+    simp only [Expr.evalTruth, Expr.eval_rename_castAdd]; rfl)
 
 /-- Predicate pushdown into the right input of a join, under the same conditions as
 `Query.select_join_left`. -/
@@ -322,9 +288,8 @@ theorem select_join_right {q₁ : Query S n} {q₂ : Query S m} {Γ : Fin n → 
   simp only [map_bind, map_pure, bind_map_left]
   refine pushdown_of_lists _ _ _ _ fun rs ss => ?_
   rw [filter_map_filter, ← List.filter_product_right]
-  refine congrArg (fun L => (List.filter _ L).map _) (List.filter_congr fun ⟨r, s⟩ _ => ?_)
-  simp only [Expr.evalTruth, Expr.eval_rename_natAdd]
-  rfl
+  exact congrArg (fun L => (List.filter _ L).map _) (List.filter_congr fun ⟨r, s⟩ _ => by
+    simp only [Expr.evalTruth, Expr.eval_rename_natAdd]; rfl)
 
 /-- A `WHERE` over a cross join is an inner join `ON` the same predicate. Both evaluate the
 predicate on every pair, so no condition is needed. -/
@@ -360,11 +325,10 @@ theorem project_project {q : Query S n} {Γ : Fin n → SqlType} (hq : q.typeOf 
 /-- `SELECT *`: projecting on every column in order is the identity. -/
 theorem project_col (q : Query S n) : Equiv .ordered (project Expr.col q) q :=
   Equiv.of_eval_eq fun D _ => by
-    simp only [eval_project]
-    rcases q.eval D with e | rs
-    · rfl
-    rw [Except.ok_bind, Except.mapM_eq_ok_map (g := id) fun _ _ => Expr.evalRow_eq_ok_iff.mpr
-      fun _ => rfl, List.map_id]
+    rcases h : q.eval D with e | rs
+    · simp [eval_project, h]
+    · simpa [eval_project, h] using
+        Except.mapM_eq_ok_map (g := id) fun r _ => Expr.evalRow_col_comp id r
 
 /-! ### `UNION ALL` -/
 
@@ -375,7 +339,8 @@ theorem select_unionAll (p : Expr n) (q₁ q₂ : Query S n) :
   simp only [eval_select, eval_unionAll, bind_assoc, pure_bind, Except.toOption_bind,
     Expr.toOption_filterRows_append, Except.toOption_pure]
   -- The right side filters `q₁` before evaluating `q₂`; observed in `Option`, binds commute.
-  congr 1; funext rs; rw [Option.bind_comm]; simp only [Option.map_eq_bind, Function.comp_def]
+  exact congrArg (Option.bind _) (funext fun _ => by
+    simpa only [Option.map_eq_bind, Function.comp_def] using Option.bind_comm _ _)
 
 /-- A `SELECT` list distributes over `UNION ALL`. -/
 theorem project_unionAll (es : Fin k → Expr n) (q₁ q₂ : Query S n) :
@@ -384,7 +349,7 @@ theorem project_unionAll (es : Fin k → Expr n) (q₁ q₂ : Query S n) :
   simp only [eval_project, eval_unionAll, bind_assoc, pure_bind, List.mapM_append,
     Except.toOption_bind]
   -- The right side evaluates `q₂` after projecting `q₁`; observed in `Option`, binds commute.
-  congr 1; funext rs; exact Option.bind_comm _ _
+  exact congrArg (Option.bind _) (funext fun _ => Option.bind_comm _ _)
 
 /-- `UNION ALL` is associative. -/
 theorem unionAll_assoc (q₁ q₂ q₃ : Query S n) :
@@ -408,27 +373,19 @@ theorem join_comm (θ : Expr (n + m)) (q₁ : Query S n) (q₂ : Query S m) :
     Equiv .bag (join θ q₁ q₂)
       (project (fun i => col (finAddFlip i)) (join (θ.rename finAddFlip) q₂ q₁)) := fun D _ => by
   simp only [eval_join, eval_project]
-  rcases q₁.eval D with e | rs <;> rcases q₂.eval D with e' | ss
-  · exact .none
-  · exact .none
-  · exact .none
-  have hcols : ∀ ts : List (Row (m + n)),
-      ts.mapM (Expr.evalRow fun i => col (finAddFlip i)) = .ok (ts.map (· ∘ finAddFlip)) :=
-    fun ts => Except.mapM_eq_ok_map fun t _ => Expr.evalRow_col_comp _ t
+  rcases q₁.eval D with e | rs <;> rcases q₂.eval D with e' | ss <;> try exact .none
+  have hbind (o : Option (List (Row (m + n)))) :
+      (o.bind fun ts => some (ts.map (· ∘ finAddFlip))) = o.map (List.map (· ∘ finAddFlip)) :=
+    Option.map_eq_bind.symm
   have hflip : ∀ t ∈ Row.product ss rs,
       θ.evalTruth (t ∘ finAddFlip) = (θ.rename finAddFlip).evalTruth t :=
     fun t _ => by simp only [Expr.evalTruth, Expr.eval_rename]
-  simp only [Except.ok_bind, Except.toOption_bind, hcols, Except.toOption_ok]
-  have hrhs : (((θ.rename finAddFlip).filterRows (Row.product ss rs)).toOption.bind
-      fun ts => some (ts.map (· ∘ finAddFlip))) =
-      (θ.filterRows ((Row.product ss rs).map (· ∘ finAddFlip))).toOption := by
-    rw [Expr.toOption_filterRows_map hflip]
-    rcases ((θ.rename finAddFlip).filterRows (Row.product ss rs)).toOption <;> rfl
-  rw [hrhs]
+  simp only [Except.ok_bind, Except.toOption_bind,
+    Except.mapM_eq_ok_map fun t _ => Expr.evalRow_col_comp finAddFlip t, Except.toOption_ok, hbind,
+    ← Expr.toOption_filterRows_map hflip]
   refine EquivLevel.Rel.filterRows (ℓ := .bag) ?_ fun _ _ => rfl
-  simp only [EquivLevel.rel_bag, Row.product, List.map_map]
   refine ((List.perm_map_swap_product ss rs).map _).symm.trans (List.Perm.of_eq ?_)
-  rw [List.map_map]
+  simp only [Row.product, List.map_map]
   exact List.map_congr_left fun ⟨s, r⟩ _ => (Fin.append_comp_finAddFlip r s).symm
 
 /-! ### `DISTINCT` -/
@@ -459,9 +416,7 @@ theorem select_distinct (p : Expr n) (q : Query S n) :
   · rfl
   simp only [Except.ok_bind, pure_bind, Except.toOption_bind, Except.toOption_pure,
     Expr.toOption_filterRows, List.mem_dedup]
-  split_ifs
-  · rw [Option.bind_some, List.dedup_filter]
-  · rfl
+  split_ifs <;> simp [List.dedup_filter]
 
 end Query
 

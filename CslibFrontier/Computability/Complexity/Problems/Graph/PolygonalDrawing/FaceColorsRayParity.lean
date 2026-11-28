@@ -34,15 +34,6 @@ namespace Cslib.Complexity.Graph.PolygonalDrawing
 
 variable {G : Graph} (D : PolygonalDrawing G)
 
-/-- An actual listed segment, retaining its edge occurrence and its position on that route. -/
-abbrev SegmentIndex := (e : Fin G.2.length) × Fin (D.route e).segments
-
-/-- First listed point of an actual segment. -/
-@[expose] def segmentStart (s : D.SegmentIndex) : ℂ := (D.route s.1).point s.2.castSucc
-
-/-- Second listed point of an actual segment. -/
-@[expose] def segmentFinish (s : D.SegmentIndex) : ℂ := (D.route s.1).point s.2.succ
-
 /-- Even incidence on original indexed darts remains even on all actual segment endpoints.
 Both loop ends and repeated edge occurrences are retained. Internal bends contribute twice,
 including when different listed bends have coincident coordinates. No endpoint-declaration,

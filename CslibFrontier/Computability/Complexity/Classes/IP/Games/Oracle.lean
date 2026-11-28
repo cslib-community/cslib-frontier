@@ -25,8 +25,8 @@ import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Foundations.Analysis.ENNRealNatDiv
 import CslibFrontier.Foundations.Data.List.Append
 import CslibFrontier.Languages.Probabilistic.Oracle.Transcript
+import CslibFrontier.Languages.Probabilistic.QueryCount.Iterate
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
-import CslibFrontier.Tactic.EncLen
 
 /-!
 # Oracle-model `IP[k]` and polynomial-round equivalence
@@ -137,57 +137,38 @@ theorem IPk_zero_eq_BPP (enc : α ↪ List Bool) : IPk enc 0 = BPP enc := by
   ext A
   constructor
   · rintro ⟨G, ρ, msg, dec, hG, _, hdec, hA⟩
-    have hgnil : G = [] :=
-      (List.map_eq_nil_iff (f := Prod.fst)).1 (by simpa [alternatingMoves] using hG)
-    subst hgnil
-    refine ⟨ρ, fun x => dec (x.1, x.2, []), ?_, fun a => ?_⟩
-    · have ha : ComputableInPolyTime (fun x : α × List Bool => x.1)
-          (encPair enc encBits) enc := .fst _ _
-      have hc : ComputableInPolyTime (fun x : α × List Bool => x.2)
-          (encPair enc encBits) encBits := .snd _ _
-      exact hdec.comp (ha.prod (hc.prod (ComputableInPolyTime.const [])))
-    · have hbest : IPGame.countAt enc [] ρ msg dec a =
-          acceptCount (fun x => dec (x.1, x.2, [])) a (ρ.eval (enc a).length) := by
-        simp [IPGame.countAt, IPGame.evalShape, IPGame.bestCount, IPGame.count,
-          IPGame.acceptedCoins, IPGame.agrees, acceptCount]
-      have ha := hA a
-      rw [hbest] at ha
-      exact ⟨ha.1, fun h => boundedErrorAt_false_iff.2 (ha.2 h)⟩
+    obtain rfl : G = [] := List.map_eq_nil_iff.1 hG
+    refine ⟨ρ, fun x => dec (x.1, x.2, []),
+      hdec.comp ((ComputableInPolyTime.fst _ _).prod
+        ((ComputableInPolyTime.snd _ _).prod (.const []))), fun a => ?_⟩
+    have hbest : IPGame.countAt enc [] ρ msg dec a =
+        acceptCount (fun x => dec (x.1, x.2, [])) a (ρ.eval (enc a).length) := by
+      simp [IPGame.countAt, IPGame.evalShape, IPGame.bestCount, IPGame.count,
+        IPGame.acceptedCoins, IPGame.agrees, acceptCount]
+    have hA' := hA a
+    rw [hbest] at hA'
+    exact ⟨hA'.1, fun ha => boundedErrorAt_false_iff.2 (hA'.2 ha)⟩
   · rintro ⟨p, V, hV, hA⟩
-    refine ⟨[], p, fun _ => [], fun x => V (x.1, x.2.1), rfl,
-      ComputableInPolyTime.const [], ?_, fun a => ?_⟩
-    · have ha : ComputableInPolyTime (fun x : α × List Bool × List Bool => x.1)
-          (IPGame.encDecInput enc) enc := .fst _ _
-      have hc : ComputableInPolyTime (fun x : α × List Bool × List Bool => x.2.1)
-          (IPGame.encDecInput enc) encBits := (ComputableInPolyTime.fst _ _).comp (.snd _ _)
-      exact hV.comp (ha.prod hc)
-    · have hbest : IPGame.countAt enc [] p (fun _ => []) (fun x => V (x.1, x.2.1)) a =
-          acceptCount V a (p.eval (enc a).length) := by
-        simp [IPGame.countAt, IPGame.evalShape, IPGame.bestCount, IPGame.count,
-          IPGame.acceptedCoins, IPGame.agrees, acceptCount]
-      rw [hbest]
-      exact ⟨(hA a).1, fun h => boundedErrorAt_false_iff.1 ((hA a).2 h)⟩
+    refine ⟨[], p, fun _ => [], fun x => V (x.1, x.2.1), rfl, .const [],
+      hV.comp ((ComputableInPolyTime.fst _ _).prod (ComputableInPolyTime.snd _ _).fst'),
+      fun a => ?_⟩
+    have hbest : IPGame.countAt enc [] p (fun _ => []) (fun x => V (x.1, x.2.1)) a =
+        acceptCount V a (p.eval (enc a).length) := by
+      simp [IPGame.countAt, IPGame.evalShape, IPGame.bestCount, IPGame.count,
+        IPGame.acceptedCoins, IPGame.agrees, acceptCount]
+    rw [hbest]
+    exact ⟨(hA a).1, fun h => boundedErrorAt_false_iff.1 ((hA a).2 h)⟩
 
 /-! ### Bounded history extraction and polynomial-time helpers -/
 
 private theorem computableInPolyTime_encodeWord :
     ComputableInPolyTime (fun p : ℕ × List Bool => Interaction.encodeWord p.1 p.2)
       (encPair encUnary encBits) encBits := by
-  have hL : ComputableInPolyTime (fun p : ℕ × List Bool => p.1)
-      (encPair encUnary encBits) encUnary := .fst _ _
   have hw : ComputableInPolyTime (fun p : ℕ × List Bool => p.2)
       (encPair encUnary encBits) encBits := .snd _ _
-  have hlen : ComputableInPolyTime (fun p : ℕ × List Bool => p.2.length)
-      (encPair encUnary encBits) encUnary :=
-    ComputableInPolyTime.length_bits.comp hw
-  have hrep : ComputableInPolyTime
-      (fun p : ℕ × List Bool => List.replicate (p.1 - p.2.length) false)
-      (encPair encUnary encBits) encBits :=
-    (ComputableInPolyTime.bitsReplicate false).comp (ComputableInPolyTime.unary_sub' hL hlen)
-  have hcons : ComputableInPolyTime (fun p : ℕ × List Bool => [true] ++ p.2)
-      (encPair encUnary encBits) encBits :=
-    ComputableInPolyTime.bitsAppend (ComputableInPolyTime.const [true]) hw
-  exact (ComputableInPolyTime.bitsAppend hrep hcons).of_enc_eq fun p => by
+  have hrep := (ComputableInPolyTime.bitsReplicate false).comp
+    ((ComputableInPolyTime.fst _ _).unary_sub' (ComputableInPolyTime.length_bits.comp hw))
+  exact (hrep.bitsAppend ((ComputableInPolyTime.const [true]).bitsAppend hw)).of_enc_eq fun p => by
     simp [Interaction.encodeWord]
 
 
@@ -246,155 +227,62 @@ private theorem computableInPolyTime_extractHistory {γ : Type} {encIn : γ ↪ 
     (hp : ComputableInPolyTime p encIn encBits) :
     ComputableInPolyTime (fun x => extractHistory (t x) (p x))
       encIn Interaction.encHistory := by
-  let encSt : ExtractState ↪ List Bool := encExtractState
   let encStep : ((ℕ × ExtractState) × Bool) ↪ List Bool :=
-    encPair (encPair encUnary encSt) encBool
+    encPair (encPair encUnary encExtractState) encBool
   have hstep : ComputableInPolyTime
       (fun q : (ℕ × ExtractState) × Bool => extractStep q.1.1 q.1.2)
-      encStep encSt := by
-    have htq : ComputableInPolyTime
-        (fun q : (ℕ × ExtractState) × Bool => q.1.1)
-        encStep encUnary :=
-      (ComputableInPolyTime.fst _ _).comp (.fst _ _)
-    have hrem : ComputableInPolyTime
-        (fun q : (ℕ × ExtractState) × Bool => q.1.2.rem)
-        encStep encBits :=
-      encExtractState_rem_polyTime ((ComputableInPolyTime.snd _ _).comp (.fst _ _))
-    have hhist : ComputableInPolyTime
-        (fun q : (ℕ × ExtractState) × Bool => q.1.2.hist)
-        encStep Interaction.encHistory :=
-      encExtractState_hist_polyTime ((ComputableInPolyTime.snd _ _).comp (.fst _ _))
-    have hok : ComputableInPolyTime
-        (fun q : (ℕ × ExtractState) × Bool => q.1.2.ok)
-        encStep encBool :=
-      encExtractState_ok_polyTime ((ComputableInPolyTime.snd _ _).comp (.fst _ _))
-    have h2t3 : ComputableInPolyTime
-        (fun q : (ℕ × ExtractState) × Bool => 2 * q.1.1 + 3)
-        encStep encUnary :=
-      ComputableInPolyTime.unary_add'
-        (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) htq)
-        (ComputableInPolyTime.const 3)
-    have ht2 : ComputableInPolyTime
-        (fun q : (ℕ × ExtractState) × Bool => q.1.1 + 2)
-        encStep encUnary :=
-      ComputableInPolyTime.unary_add' htq (ComputableInPolyTime.const 2)
-    have ht1 : ComputableInPolyTime
-        (fun q : (ℕ × ExtractState) × Bool => q.1.1 + 1)
-        encStep encUnary :=
-      ComputableInPolyTime.unary_add' htq (ComputableInPolyTime.const 1)
-    have hlen : ComputableInPolyTime
-        (fun q : (ℕ × ExtractState) × Bool => q.1.2.rem.length)
-        encStep encUnary :=
-      ComputableInPolyTime.length_bits.comp hrem
-    have hle : ComputableInPolyTime
-        (fun q : (ℕ × ExtractState) × Bool =>
-          decide (2 * q.1.1 + 3 ≤ q.1.2.rem.length)) encStep encBool :=
-      (ComputableInPolyTime.unary_le' h2t3 hlen)
-    have hhead : ComputableInPolyTime
-        (fun q : (ℕ × ExtractState) × Bool => q.1.2.rem.getD 0 false)
-        encStep encBool :=
-      ComputableInPolyTime.bitsGetDWithInput hrem (ComputableInPolyTime.const 0) false
-    have hcond : ComputableInPolyTime
-        (fun q : (ℕ × ExtractState) × Bool =>
-          q.1.2.ok && decide (2 * q.1.1 + 3 ≤ q.1.2.rem.length) && q.1.2.rem.getD 0 false)
-        encStep encBool :=
-      ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and' hok hle) hhead
-    have hm : ComputableInPolyTime
-        (fun q : (ℕ × ExtractState) × Bool =>
-          Interaction.decodeWord ((q.1.2.rem.take (q.1.1 + 2)).drop 1))
-        encStep encBits :=
-      Interaction.computableInPolyTime_decodeWord.comp
-        (ComputableInPolyTime.bitsDropWithInput
-          (ComputableInPolyTime.bitsTakeWithInput hrem ht2) (ComputableInPolyTime.const 1))
-    have hy : ComputableInPolyTime
-        (fun q : (ℕ × ExtractState) × Bool =>
-          Interaction.decodeWord ((q.1.2.rem.drop (q.1.1 + 2)).take (q.1.1 + 1)))
-        encStep encBits :=
-      Interaction.computableInPolyTime_decodeWord.comp
-        (ComputableInPolyTime.bitsTakeWithInput
-          (ComputableInPolyTime.bitsDropWithInput hrem ht2) ht1)
-    have hrem' : ComputableInPolyTime
-        (fun q : (ℕ × ExtractState) × Bool =>
-          q.1.2.rem.drop (2 * q.1.1 + 3))
-        encStep encBits :=
-      ComputableInPolyTime.bitsDropWithInput hrem h2t3
-    have hhist' : ComputableInPolyTime
-        (fun q : (ℕ × ExtractState) × Bool =>
-          q.1.2.hist ++ [(Interaction.decodeWord ((q.1.2.rem.take (q.1.1 + 2)).drop 1),
-            Interaction.decodeWord ((q.1.2.rem.drop (q.1.1 + 2)).take (q.1.1 + 1)))])
-        encStep Interaction.encHistory :=
-      ComputableInPolyTime.listAppend' hhist ((hm.prod hy).cons' (ComputableInPolyTime.const []))
-    exact (hcond.ite (encExtractState_mk_polyTime hrem' hhist' (ComputableInPolyTime.const true))
-      (encExtractState_mk_polyTime hrem hhist
-        (ComputableInPolyTime.const false))).of_enc_eq fun q => rfl
-  obtain ⟨c, d, hplen⟩ := hp.polyBounded_length.exists_le
-  have hlist : ComputableInPolyTime (fun x => List.replicate (p x).length false) encIn encBits :=
-    (ComputableInPolyTime.bitsReplicate false).comp (ComputableInPolyTime.length_bits.comp hp)
-  have hinit : ComputableInPolyTime (fun x => ExtractState.mk (p x) ([] : Interaction.History) true)
-      encIn encSt :=
-    encExtractState_mk_polyTime hp (ComputableInPolyTime.const ([] : Interaction.History))
-      (ComputableInPolyTime.const true)
+      encStep encExtractState := by
+    have htq : ComputableInPolyTime (fun q : (ℕ × ExtractState) × Bool => q.1.1)
+        encStep encUnary := (ComputableInPolyTime.fst _ _).fst'
+    have hst : ComputableInPolyTime (fun q : (ℕ × ExtractState) × Bool => q.1.2)
+        encStep encExtractState := (ComputableInPolyTime.fst _ _).snd'
+    have hrem := encExtractState_rem_polyTime hst
+    have hhist := encExtractState_hist_polyTime hst
+    have h2t3 := (ComputableInPolyTime.unary_mul' (.const 2) htq).unary_add' (.const 3)
+    have ht2 := htq.unary_add' (.const 2)
+    have hcond := ((encExtractState_ok_polyTime hst).bool_and'
+      (h2t3.unary_le' (ComputableInPolyTime.length_bits.comp hrem))).bool_and'
+        (hrem.bitsGetDWithInput (.const 0) false)
+    have hm := Interaction.computableInPolyTime_decodeWord.comp
+      ((hrem.bitsTakeWithInput ht2).bitsDropWithInput (.const 1))
+    have hy := Interaction.computableInPolyTime_decodeWord.comp
+      ((hrem.bitsDropWithInput ht2).bitsTakeWithInput (htq.unary_add' (.const 1)))
+    exact (hcond.ite
+      (encExtractState_mk_polyTime (hrem.bitsDropWithInput h2t3)
+        (hhist.listAppend' ((hm.prod hy).cons' (.const []))) (.const true))
+      (encExtractState_mk_polyTime hrem hhist (.const false))).of_enc_eq fun _ => rfl
+  have hlist := (ComputableInPolyTime.bitsReplicate false).comp
+    (ComputableInPolyTime.length_bits.comp hp)
   have hspec := ComputableInPolyTime.foldlWith_spec
-    (encP := encUnary) (encB := encSt) (encA := encBool) (encL := encBits)
+    (encP := encUnary) (encB := encExtractState) (encA := encBool) (encL := encBits)
     (par := t) (list := fun x => List.replicate (p x).length false)
     (init := fun x => ExtractState.mk (p x) ([] : Interaction.History) true)
     (step := fun t' st _ => extractStep t' st)
-    ht hlist hinit hstep
+    ht hlist (encExtractState_mk_polyTime hp (.const []) (.const true)) hstep
     (fun x _ st => 6 * st.rem.length + (Interaction.encHistory st.hist).length ≤
       6 * (p x).length + 1)
-    (fun x => by simp [Interaction.encHistory, encList_nil])
-    (fun x _ st _ _ hs => by
-      rcases st with ⟨rem, hist, ok⟩
-      dsimp only at hs
+    (fun _ => by simp [Interaction.encHistory, encList_nil])
+    (fun x _ ⟨rem, hist, ok⟩ _ _ hs => by
       dsimp only [extractStep]
       split_ifs with hif
       · simp only [Bool.and_eq_true, decide_eq_true_eq] at hif
         obtain ⟨⟨_, hlen⟩, _⟩ := hif
-        have hmLen : (Interaction.decodeWord ((rem.take (t x + 2)).drop 1)).length ≤ t x + 1 :=
+        have hlen_m : (Interaction.decodeWord ((rem.take (t x + 2)).drop 1)).length ≤ t x + 1 :=
           (length_decodeWord_le_length _).trans (by
-            simp only [List.length_drop, List.length_take]
-            omega)
-        have hyLen : (Interaction.decodeWord ((rem.drop (t x + 2)).take (t x + 1))).length ≤
+            simp only [List.length_drop, List.length_take]; omega)
+        have hlen_y : (Interaction.decodeWord ((rem.drop (t x + 2)).take (t x + 1))).length ≤
             t x + 1 :=
-          (length_decodeWord_le_length _).trans (by
-            simp only [List.length_take]
-            exact Nat.min_le_left _ _)
-        have hencAppend : ∀ (h : Interaction.History) (e : List Bool × List Bool),
-            (Interaction.encHistory (h ++ [e])).length + 1 ≤
-              (Interaction.encHistory h).length +
-                (frame (encPair encBits encBits e)).length + 1 := by
-          intro h e
-          simp only [Interaction.encHistory, encList_append, encList_cons, encList_nil,
-            List.append_nil, List.length_append]
-          omega
-        have hframe : (frame (encPair encBits encBits
-            (Interaction.decodeWord ((rem.take (t x + 2)).drop 1),
-             Interaction.decodeWord ((rem.drop (t x + 2)).take (t x + 1))))).length ≤
-            8 * t x + 15 := by
-          rw [length_frame, length_encPair]
-          simp only [encBits_apply]
-          omega
-        have happ := hencAppend hist
-          (Interaction.decodeWord ((rem.take (t x + 2)).drop 1),
-           Interaction.decodeWord ((rem.drop (t x + 2)).take (t x + 1)))
+          (length_decodeWord_le_length _).trans (by simp only [List.length_take]; omega)
         have hdrop : (rem.drop (2 * t x + 3)).length = rem.length - (2 * t x + 3) :=
           List.length_drop
-        dsimp only
-        rw [hdrop]
+        simp only [Interaction.encHistory, encList_append, encList_cons, encList_nil,
+          List.append_nil, List.length_append, length_frame, length_encPair, encBits_apply] at *
         omega
       · exact hs)
-    (size := fun x => 12 * (c * ((encIn x).length + 1) ^ d) + 6)
-    (PolyBounded.of_forall_le (12 * c + 6) d fun x => by
-      have h1 : 1 ≤ ((encIn x).length + 1) ^ d := Nat.one_le_pow _ _ (Nat.succ_pos _)
-      nlinarith)
+    (((PolyBounded.const 12).mul hp.polyBounded_length).add (.const 6))
     (fun x _ st _ hs => by
-      have hp' := hplen x
-      simp only [encBits_apply] at hp'
-      have hstLen : (encSt st).length =
-          2 * st.rem.length + 1 + 2 * (Interaction.encHistory st.hist).length + 1 + 1 := by
-        change (encExtractState st).length = _
-        simp only [encExtractState_apply, encExtractStateFields, length_encPair,
-          encBits_apply, encBool_apply, List.length_singleton, Nat.add_assoc]
+      simp only [encExtractState_apply, encExtractStateFields, length_encPair,
+        encBits_apply, encBool_apply, List.length_singleton] at *
       omega)
   exact encExtractState_hist_polyTime hspec.1
 
@@ -404,6 +292,16 @@ private theorem foldl_extractStep_false (t k : ℕ) (rem : List Bool) (hist : In
   induction k with
   | zero => rfl
   | succ k ih => simpa [List.replicate_succ, extractStep] using ih
+
+private theorem foldl_extractStep_nil (t k : ℕ) (hist : Interaction.History) :
+    ((List.replicate k false).foldl (fun st _ => extractStep t st) ⟨[], hist, true⟩).hist =
+      hist := by
+  cases k with
+  | zero => rfl
+  | succ k =>
+    simp only [List.replicate_succ, List.foldl_cons, extractStep, List.length_nil,
+      show ¬(2 * t + 3 ≤ 0) by omega, decide_false, Bool.and_false, Bool.false_and]
+    exact foldl_extractStep_false t k [] hist
 
 private theorem foldl_extractStep_append (t k : ℕ) (v w rest : List Bool)
     (hist : Interaction.History)
@@ -418,26 +316,20 @@ private theorem foldl_extractStep_append (t k : ℕ) (v w rest : List Bool)
   cases k with
   | zero => omega
   | succ k' =>
-    simp only [List.replicate_succ, List.foldl_cons]
     have hlen : 2 * t + 3 ≤ (v ++ w ++ rest).length := by
-      simp only [List.length_append, hv, hw]
-      omega
+      simp only [List.length_append, hv, hw]; omega
     have hhead : (v ++ w ++ rest).getD 0 false = v.headD false := by
-      cases v with
-      | nil => simp at hv
-      | cons b vs => rfl
-    dsimp only [extractStep]
-    simp only [hlen, decide_true, Bool.true_and, hhead]
-    split_ifs with h
+      cases v with | nil => simp at hv | cons _ _ => rfl
+    simp only [List.replicate_succ, List.foldl_cons, extractStep, hlen, decide_true,
+      Bool.true_and, hhead]
+    split_ifs
     · have hm : ((v ++ w ++ rest).take (t + 2)).drop 1 = v.drop 1 := by
         rw [List.append_assoc, List.take_left' hv]
       have hy : ((v ++ w ++ rest).drop (t + 2)).take (t + 1) = w := by
         rw [List.append_assoc, List.drop_left' hv, List.take_left' hw]
       have hdrop : (v ++ w ++ rest).drop (2 * t + 3) = rest :=
-        List.drop_left' (show (v ++ w).length = 2 * t + 3 by
-          simp only [List.length_append, hv, hw]; omega)
-      rw [hm, hy, hdrop]
-      rfl
+        List.drop_left' (by simp only [List.length_append, hv, hw]; omega)
+      rw [hm, hy, hdrop]; rfl
     · exact foldl_extractStep_false t k' (v ++ w ++ rest) hist
 
 private theorem foldl_extractStep_length_ge (t k₁ k₂ : ℕ) (rem : List Bool)
@@ -447,32 +339,22 @@ private theorem foldl_extractStep_length_ge (t k₁ k₂ : ℕ) (rem : List Bool
       ((List.replicate k₂ false).foldl (fun st _ => extractStep t st) ⟨rem, hist, true⟩).hist := by
   induction k₁ generalizing k₂ rem hist with
   | zero =>
-    have hr : rem = [] := List.eq_nil_of_length_eq_zero (by omega)
-    subst hr
-    induction k₂ with
-    | zero => rfl
-    | succ k₂ _ =>
-      simp only [List.replicate_succ, List.foldl_cons, extractStep, List.length_nil]
-      simp only [show ¬(2 * t + 3 ≤ 0) by omega, decide_false, Bool.and_false, Bool.false_and]
-      exact (foldl_extractStep_false t k₂ [] hist).symm
+    obtain rfl : rem = [] := List.eq_nil_of_length_eq_zero (by omega)
+    exact (foldl_extractStep_nil t k₂ hist).symm
   | succ k₁ ih =>
     cases k₂ with
     | zero =>
-      have hr : rem = [] := List.eq_nil_of_length_eq_zero (by omega)
-      subst hr
-      simp only [List.replicate_succ, List.foldl_cons, extractStep, List.length_nil,
-        show ¬(2 * t + 3 ≤ 0) by omega, decide_false, Bool.and_false, Bool.false_and,
-        List.replicate_zero, List.foldl_nil]
-      exact foldl_extractStep_false t k₁ [] hist
+      obtain rfl : rem = [] := List.eq_nil_of_length_eq_zero (by omega)
+      exact foldl_extractStep_nil t (k₁ + 1) hist
     | succ k₂ =>
       simp only [List.replicate_succ, List.foldl_cons]
       by_cases hif : (true && decide (2 * t + 3 ≤ rem.length) && rem.getD 0 false) = true
       · simp only [extractStep, hif, ite_true]
         simp only [Bool.true_and, Bool.and_eq_true, decide_eq_true_eq] at hif
-        refine ih k₂ (rem.drop (2 * t + 3)) _ ?_ ?_ <;> (rw [List.length_drop]; omega)
-      · have hstep : extractStep t ⟨rem, hist, true⟩ = ⟨rem, hist, false⟩ :=
-          ite_eq_right fun h => absurd h hif
-        rw [hstep, foldl_extractStep_false, foldl_extractStep_false]
+        exact ih k₂ (rem.drop (2 * t + 3)) _
+          (by rw [List.length_drop]; omega) (by rw [List.length_drop]; omega)
+      · rw [show extractStep t ⟨rem, hist, true⟩ = ⟨rem, hist, false⟩ from
+          ite_eq_right fun h => absurd h hif, foldl_extractStep_false, foldl_extractStep_false]
 
 private theorem foldl_extractStep_step_true {t : ℕ} {v w rest : List Bool}
     (hist : Interaction.History) (hv : v.length = t + 2) (hw : w.length = t + 1)
@@ -482,33 +364,20 @@ private theorem foldl_extractStep_step_true {t : ℕ} {v w rest : List Bool}
       ((List.replicate rest.length false).foldl (fun st _ => extractStep t st)
         ⟨rest, hist ++ [(Interaction.decodeWord (v.drop 1), Interaction.decodeWord w)],
           true⟩).hist := by
-  have h1 := foldl_extractStep_append t (v ++ w ++ rest).length v w rest hist hv hw (by
-    simp only [List.length_append, hv, hw]; omega)
-  rw [htr] at h1
-  simp only [reduceIte] at h1
-  rw [h1]
-  exact foldl_extractStep_length_ge t _ rest.length rest _ (by
-    simp only [List.length_append, hv, hw]; omega) le_rfl
+  have h1 := foldl_extractStep_append t (v ++ w ++ rest).length v w rest hist hv hw
+    (by simp only [List.length_append, hv, hw]; omega)
+  simp only [htr, ↓reduceIte] at h1
+  exact h1.trans (foldl_extractStep_length_ge t _ rest.length rest _
+    (by simp only [List.length_append, hv, hw]; omega) le_rfl)
 
 private theorem foldl_extractStep_step_false {t : ℕ} {v w rest : List Bool}
     (hist : Interaction.History) (hv : v.length = t + 2) (hw : w.length = t + 1)
     (hf : v.headD false = false) :
     ((List.replicate (v ++ w ++ rest).length false).foldl (fun st _ => extractStep t st)
       ⟨v ++ w ++ rest, hist, true⟩).hist = hist := by
-  have h1 := foldl_extractStep_append t (v ++ w ++ rest).length v w rest hist hv hw (by
-    simp only [List.length_append, hv, hw]; omega)
-  rw [hf] at h1
-  exact h1
-
-private theorem foldl_extractStep_nil (t k : ℕ) (hist : Interaction.History) :
-    ((List.replicate k false).foldl (fun st _ => extractStep t st) ⟨[], hist, true⟩).hist =
-      hist := by
-  cases k with
-  | zero => rfl
-  | succ k =>
-    simp only [List.replicate_succ, List.foldl_cons, extractStep, List.length_nil,
-      show ¬(2 * t + 3 ≤ 0) by omega, decide_false, Bool.and_false, Bool.false_and]
-    exact foldl_extractStep_false t k [] hist
+  simpa only [hf, Bool.false_eq_true, ↓reduceIte] using
+    foldl_extractStep_append t (v ++ w ++ rest).length v w rest hist hv hw
+      (by simp only [List.length_append, hv, hw]; omega)
 
 /-! ### Query budget bounds coin-family rounds -/
 
@@ -516,19 +385,15 @@ private theorem after_map {γ δ : Type} (f : γ → δ) (p : WordQueryComp Unit
     (h : Interaction.History) :
     Interaction.after (f <$> p) h = (Interaction.after p h).map (f <$> ·) := by
   induction p generalizing h with
-  | pure a =>
-    cases h with
-    | nil => rfl
-    | cons _ _ => rfl
+  | pure _ => cases h <;> rfl
   | liftBind q next ih =>
     cases h with
     | nil => rfl
     | cons x h =>
-      obtain ⟨m, y⟩ := x
-      change (if m = q.2 then Interaction.after (f <$> next y) h else none) =
-        Option.map (f <$> ·) (if m = q.2 then Interaction.after (next y) h else none)
+      change (if x.1 = q.2 then Interaction.after (f <$> next x.2) h else none) =
+        Option.map (f <$> ·) (if x.1 = q.2 then Interaction.after (next x.2) h else none)
       split_ifs
-      · exact ih y h
+      · exact ih x.2 h
       · rfl
 
 private theorem exists_transcript_ge_of_after {γ : Type} (p : WordQueryComp Unit γ)
@@ -544,33 +409,27 @@ private theorem exists_transcript_ge_of_after {γ : Type} (p : WordQueryComp Uni
   induction h generalizing p tr with
   | nil =>
     rw [Interaction.after_nil, Option.some.injEq] at hafter
-    have hq : (PFunctor.FreeM.liftBind ((), m) next : WordQueryComp Unit γ) =
-        OracleComp.query ((), m) >>= next := rfl
-    rw [hafter, hq, OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind]
-    have hq : (OracleComp.withTranscript oracle ((), m)).run ([], tr) =
-        PMF.pure ([], [], ⟨((), m), []⟩ :: tr) := by
-      simp [OracleComp.withTranscript, oracle, StateT.run]
-    rw [hq, Probability.PMF.monad_bind_eq_bind, PMF.pure_bind]
     obtain ⟨⟨out, s', tr'⟩, hmem⟩ := PMF.support_nonempty
       ((OracleComp.interpret (OracleComp.withTranscript oracle) (next [])).run
         ([], ⟨((), m), []⟩ :: tr))
-    have hlen : (⟨((), m), []⟩ :: tr).length ≤ tr'.length := by
-      have happ := OracleComp.run_interpret_withTranscript_append oracle (next [])
-        ([] : Interaction.History) (⟨((), m), []⟩ :: tr)
-      have hmem' := hmem
-      rw [happ, PMF.mem_support_map_iff] at hmem'
-      obtain ⟨⟨_, _, fresh⟩, _, hrec⟩ := hmem'
-      have htr : fresh ++ (⟨((), m), []⟩ :: tr) = tr' := congrArg (·.2.2) hrec
-      rw [← htr, List.length_append]
-      omega
-    exact ⟨out, s', tr', hmem, by
-      simp only [List.length_nil, add_zero]
-      simp only [List.length_cons] at hlen
-      omega⟩
+    have hmem' := hmem
+    rw [OracleComp.run_interpret_withTranscript_append, PMF.mem_support_map_iff] at hmem'
+    obtain ⟨⟨_, _, fresh⟩, _, hrec⟩ := hmem'
+    have hlen := congrArg (List.length ·.2.2) hrec
+    simp only [List.length_append, List.length_cons] at hlen
+    refine ⟨out, s', tr', ?_, by simp only [List.length_nil]; omega⟩
+    have hwt : (OracleComp.withTranscript oracle ((), m)).run ([], tr) =
+        PMF.pure ([], [], ⟨((), m), []⟩ :: tr) := by
+      simp [OracleComp.withTranscript, oracle, StateT.run]
+    rw [hafter]
+    change (out, s', tr') ∈ ((OracleComp.interpret (OracleComp.withTranscript oracle)
+      (OracleComp.query ((), m) >>= next)).run ([], tr)).support
+    rwa [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind, hwt,
+      Probability.PMF.monad_bind_eq_bind, PMF.pure_bind]
   | cons e h ih =>
     obtain ⟨m', y'⟩ := e
     cases p with
-    | pure a => simp at hafter
+    | pure _ => simp at hafter
     | liftBind q cont =>
       obtain ⟨⟨⟩, m0⟩ := q
       change (if m' = m0 then Interaction.after (cont y') h else none) = _ at hafter
@@ -578,14 +437,27 @@ private theorem exists_transcript_ge_of_after {γ : Type} (p : WordQueryComp Uni
       · subst hm
         obtain ⟨out, s', tr', hmem, hlen⟩ := ih (cont y') (⟨((), m'), y'⟩ :: tr) hafter
         refine ⟨out, s', tr', ?_, by simp only [List.length_cons] at hlen ⊢; omega⟩
-        have hq' : (PFunctor.FreeM.liftBind ((), m') cont : WordQueryComp Unit γ) =
-            OracleComp.query ((), m') >>= cont := rfl
-        rw [hq', OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind]
-        have hq : (OracleComp.withTranscript oracle ((), m')).run ((m', y') :: h, tr) =
+        have hwt : (OracleComp.withTranscript oracle ((), m')).run ((m', y') :: h, tr) =
             PMF.pure (y', h, ⟨((), m'), y'⟩ :: tr) := by
           simp [OracleComp.withTranscript, oracle, StateT.run]
-        rw [hq, Probability.PMF.monad_bind_eq_bind, PMF.pure_bind]
-        exact hmem
+        change (out, s', tr') ∈ ((OracleComp.interpret (OracleComp.withTranscript oracle)
+          (OracleComp.query ((), m') >>= cont)).run ((m', y') :: h, tr)).support
+        rwa [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind, hwt,
+          Probability.PMF.monad_bind_eq_bind, PMF.pure_bind]
+
+private theorem after_eq_liftBind_of_outcome_ask {p : WordQueryComp Unit Bool}
+    {h : Interaction.History} {m : List Bool} (hm : Interaction.outcome p h = .ask m) :
+    ∃ cont, Interaction.after p h = some (.liftBind ((), m) cont) := by
+  unfold Interaction.outcome at hm
+  cases ha : Interaction.after p h with
+  | none => simp [ha] at hm
+  | some p0 =>
+    cases p0 with
+    | pure _ => simp [ha] at hm
+    | liftBind q cont =>
+      obtain ⟨⟨⟩, m0⟩ := q
+      simp only [ha, Interaction.Outcome.ask.injEq] at hm
+      exact ⟨cont, hm ▸ rfl⟩
 
 /-- If a machine-realized oracle verifier has query budget `D`, its fixed-coin family has
 `rounds` bounded by `D`. -/
@@ -605,73 +477,47 @@ private theorem isBounded_coinFamily_of_isQueryBounded {k : ℕ} {Control : Type
   rounds r₀ h m hm := by
     by_contra hge
     have hD : D ≤ h.length := Nat.le_of_not_lt hge
-    let F := Interaction.coinFamily MUnit t x
-    dsimp only [Interaction.outcome] at hm
-    change (match Interaction.after (F r₀) h with
-      | none => Interaction.Outcome.invalid
-      | some (.pure b) => .done b
-      | some (.liftBind q _) => .ask q.2) = .ask m at hm
-    cases hah : Interaction.after (F r₀) h with
-    | none => simp [hah] at hm
-    | some p0 =>
-      cases p0 with
-      | pure b => simp [hah] at hm
-      | liftBind q cont =>
-        obtain ⟨⟨⟩, m0⟩ := q
-        rw [hah] at hm
-        simp only [Interaction.Outcome.ask.injEq] at hm
-        subst hm
-        have hah' : Interaction.after ((fun cfg => decide (cfg.tapes.output = [true])) <$>
-            (List.ofFn r₀).foldlM (Interaction.coinStep MUnit t)
-              (Turing.MultiTapeMachine.FiniteConfig.init MUnit.initial x)) h =
-            some (.liftBind ((), m0) cont) := hah
-        rw [after_map] at hah'
-        cases hcore : Interaction.after
-            ((List.ofFn r₀).foldlM (Interaction.coinStep MUnit t)
-              (Turing.MultiTapeMachine.FiniteConfig.init MUnit.initial x)) h with
-        | none => simp [hcore] at hah'
-        | some pc =>
-          simp only [hcore, Option.map_some, Option.some.injEq] at hah'
-          cases pc with
-          | pure cfg =>
-            change PFunctor.FreeM.pure _ = PFunctor.FreeM.liftBind _ _ at hah'
-            cases hah'
-          | liftBind q' cont' =>
-            obtain ⟨⟨⟩, m'⟩ := q'
-            dsimp only [Functor.map, PFunctor.FreeM.map] at hah'
-            have hm' : m' = m0 := by cases hah'; rfl
-            subst hm'
-            have hmap : Interaction.after
-                ((fun cfg => cfg.tapes.output) <$>
-                  (List.ofFn r₀).foldlM (Interaction.coinStep MUnit t)
-                    (Turing.MultiTapeMachine.FiniteConfig.init MUnit.initial x)) h =
-                some (.liftBind ((), m') fun y => (fun cfg => cfg.tapes.output) <$> cont' y) := by
-              rw [after_map, hcore]; rfl
-            let oracle : Unit × List Bool → StateT Interaction.History PMF (List Bool) :=
-              fun _ rem => match rem with
-                | [] => PMF.pure ([], [])
-                | (_, y) :: rem' => PMF.pure (y, rem')
-            obtain ⟨out, s', tr, hmem, htr⟩ :=
-              exists_transcript_ge_of_after _ h [] m' _ hmap
-            have hmemM : (out, s', tr) ∈
-                ((OracleComp.interpret
-                  (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n))
-                    (OracleComp.withTranscript oracle))
-                  (MUnit.runOracle t x)).run (h, [])).support := by
-              rw [Interaction.run_interpret_runOracle_eq_coins, PMF.mem_support_bind_iff]
-              refine ⟨List.ofFn r₀, ?_, hmem⟩
-              rw [BitString.uniformList, PMF.mem_support_map_iff]
-              exact ⟨r₀, by simp, rfl⟩
-            rw [← hreal _ (OracleComp.withTranscript oracle) (h, [])] at hmemM
-            rw [OracleComp.interpret_map, StateT.run_map, _root_.PMF.monad_map_eq_map,
-              PMF.mem_support_map_iff] at hmemM
-            obtain ⟨⟨res, sV, trV⟩, hmemV, hres⟩ := hmemM
-            have htrV : trV = tr := congrArg (·.2.2) hres
-            have hsV : sV = s' := congrArg (·.2.1) hres
-            subst htrV hsV
-            rw [← ProbOracleComp.runWith_eq_run_interpret] at hmemV
-            have hlen := hbound.length_transcript_le oracle hmemV
-            omega
+    obtain ⟨cont, hah⟩ := after_eq_liftBind_of_outcome_ask hm
+    rw [Interaction.coinFamily, Interaction.coinProgram, after_map] at hah
+    cases hcore : Interaction.after
+        ((List.ofFn r₀).foldlM (Interaction.coinStep MUnit t)
+          (Turing.MultiTapeMachine.FiniteConfig.init MUnit.initial x)) h with
+    | none => simp [hcore] at hah
+    | some pc =>
+      simp only [hcore, Option.map_some, Option.some.injEq] at hah
+      cases pc with
+      | pure _ => cases hah
+      | liftBind q' cont' =>
+        obtain ⟨⟨⟩, m'⟩ := q'
+        have hmap : Interaction.after
+            ((fun cfg => cfg.tapes.output) <$>
+              (List.ofFn r₀).foldlM (Interaction.coinStep MUnit t)
+                (Turing.MultiTapeMachine.FiniteConfig.init MUnit.initial x)) h =
+            some (.liftBind ((), m') fun y => (fun cfg => cfg.tapes.output) <$> cont' y) := by
+          rw [after_map, hcore]; rfl
+        let oracle : Unit × List Bool → StateT Interaction.History PMF (List Bool) :=
+          fun _ rem => match rem with
+            | [] => PMF.pure ([], [])
+            | (_, y) :: rem' => PMF.pure (y, rem')
+        obtain ⟨out, s', tr, hmem, htr⟩ := exists_transcript_ge_of_after _ h [] m' _ hmap
+        have hmemM : (out, s', tr) ∈
+            ((OracleComp.interpret
+              (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n))
+                (OracleComp.withTranscript oracle))
+              (MUnit.runOracle t x)).run (h, [])).support := by
+          rw [Interaction.run_interpret_runOracle_eq_coins, PMF.mem_support_bind_iff]
+          exact ⟨List.ofFn r₀,
+            by rw [BitString.uniformList, PMF.mem_support_map_iff]; exact ⟨r₀, by simp, rfl⟩,
+            hmem⟩
+        rw [← hreal _ (OracleComp.withTranscript oracle) (h, []), OracleComp.interpret_map,
+          StateT.run_map, _root_.PMF.monad_map_eq_map, PMF.mem_support_map_iff] at hmemM
+        obtain ⟨⟨res, sV, trV⟩, hmemV, hres⟩ := hmemM
+        rw [← ProbOracleComp.runWith_eq_run_interpret] at hmemV
+        have hlen := hbound.length_transcript_le oracle hmemV
+        have htrV : trV = tr := congrArg (·.2.2) hres
+        rw [htrV] at hlen
+        simp only [List.length_nil] at htr
+        omega
   message := (Interaction.isBounded_coinFamily MUnit t x).message
   reply := (Interaction.isBounded_coinFamily MUnit t x).reply
 
@@ -701,79 +547,23 @@ private theorem computableInPolyTime_simMsg {enc : α ↪ List Bool} {k : ℕ} {
     ComputableInPolyTime (simMsg enc MUnit t) (IPGame.encMsgInput enc) encBits := by
   have ha : ComputableInPolyTime (fun x : α × List Bool × ℕ × List Bool => x.1)
       (IPGame.encMsgInput enc) enc := .fst _ _
-  have hxa : ComputableInPolyTime (fun x : α × List Bool × ℕ × List Bool => enc x.1)
-      (IPGame.encMsgInput enc) encBits :=
-    (ComputableInPolyTime.of_eq fun _ => rfl).comp ha
-  have hn : ComputableInPolyTime (fun x : α × List Bool × ℕ × List Bool => (enc x.1).length)
-      (IPGame.encMsgInput enc) encUnary :=
-    (ComputableInPolyTime.encoding_length enc).comp ha
-  have htn : ComputableInPolyTime (fun x : α × List Bool × ℕ × List Bool => t (enc x.1).length)
-      (IPGame.encMsgInput enc) encUnary := ht.comp hn
+  have hxa := ha.encoding_comp
+  have htn := ht.comp ((ComputableInPolyTime.encoding_length enc).comp ha)
   have hc : ComputableInPolyTime (fun x : α × List Bool × ℕ × List Bool => x.2.1)
-      (IPGame.encMsgInput enc) encBits :=
-    (ComputableInPolyTime.fst _ _).comp (.snd _ _)
+      (IPGame.encMsgInput enc) encBits := (ComputableInPolyTime.snd _ _).fst'
   have hp : ComputableInPolyTime (fun x : α × List Bool × ℕ × List Bool => x.2.2.2)
-      (IPGame.encMsgInput enc) encBits :=
-    (ComputableInPolyTime.snd _ _).comp ((ComputableInPolyTime.snd _ _).comp (.snd _ _))
-  have hh : ComputableInPolyTime
-      (fun x : α × List Bool × ℕ × List Bool =>
-        extractHistory (t (enc x.1).length) x.2.2.2)
-      (IPGame.encMsgInput enc) Interaction.encHistory :=
-    computableInPolyTime_extractHistory htn hp
-  have halive : ComputableInPolyTime
-      (fun x : α × List Bool × ℕ × List Bool =>
-        Interaction.aliveRun (fun _ _ => true) id MUnit (enc x.1) x.2.1
-          (extractHistory (t (enc x.1).length) x.2.2.2))
-      (IPGame.encMsgInput enc) (Interaction.encAliveState (encPair encBits encBits)) := by
-    have hr := Interaction.computableInPolyTime_aliveRun (fun _ _ => true) id MUnit
-      (encEntry := encPair encBits encBits) (fun _ => ComputableInPolyTime.const true)
-      ComputableInPolyTime.id'
-    exact ComputableInPolyTime.comp
-      (f := fun p : List Bool × List Bool × Interaction.History =>
-        Interaction.aliveRun (fun _ _ => true) id MUnit p.1 p.2.1 p.2.2)
-      (g := fun x : α × List Bool × ℕ × List Bool =>
-        (enc x.1, x.2.1, extractHistory (t (enc x.1).length) x.2.2.2))
-      hr (hxa.prod (hc.prod hh))
-  have hlive : ComputableInPolyTime
-      (fun x : α × List Bool × ℕ × List Bool =>
-        (Interaction.aliveRun (fun _ _ => true) id MUnit (enc x.1) x.2.1
-          (extractHistory (t (enc x.1).length) x.2.2.2)).2.2)
-      (IPGame.encMsgInput enc) encBool :=
-    (ComputableInPolyTime.snd _ _).comp ((ComputableInPolyTime.snd _ _).comp halive)
-  have hchan : ComputableInPolyTime
-      (fun x : α × List Bool × ℕ × List Bool =>
-        ((Interaction.aliveRun (fun _ _ => true) id MUnit (enc x.1) x.2.1
-          (extractHistory (t (enc x.1).length) x.2.2.2)).1.channels ()).1)
-      (IPGame.encMsgInput enc) encBits := by
-    have hcfg : ComputableInPolyTime
-        (fun x : α × List Bool × ℕ × List Bool =>
-          (Interaction.aliveRun (fun _ _ => true) id MUnit (enc x.1) x.2.1
-            (extractHistory (t (enc x.1).length) x.2.2.2)).1)
-        (IPGame.encMsgInput enc) encFiniteConfig :=
-      (ComputableInPolyTime.fst _ _).comp halive
-    have hchs : ComputableInPolyTime
-        (fun cfg : Turing.MultiTapeMachine.FiniteConfig k Bool Control Unit =>
-          (cfg.channels ()).1)
-        encFiniteConfig encBits :=
-      (ComputableInPolyTime.fst _ _).comp
-        ((ComputableInPolyTime.pi_apply (encPair encBits (encBiTape encBool)) ()).comp
-          (ComputableInPolyTime.finiteConfig_channels (k := k) (State := Control)
-            (Oracle := Unit)))
-    exact hchs.comp hcfg
-  have hpad : ComputableInPolyTime
-      (fun x : α × List Bool × ℕ × List Bool => List.replicate (t (enc x.1).length + 2) false)
-      (IPGame.encMsgInput enc) encBits :=
-    (ComputableInPolyTime.bitsReplicate false).comp
-      (ComputableInPolyTime.unary_add' htn (ComputableInPolyTime.const 2))
-  have hmsg : ComputableInPolyTime
-      (fun x : α × List Bool × ℕ × List Bool =>
-        [true] ++ Interaction.encodeWord (t (enc x.1).length)
-          ((Interaction.aliveRun (fun _ _ => true) id MUnit (enc x.1) x.2.1
-            (extractHistory (t (enc x.1).length) x.2.2.2)).1.channels ()).1)
-      (IPGame.encMsgInput enc) encBits :=
-    ComputableInPolyTime.bitsAppend (ComputableInPolyTime.const [true])
-      (computableInPolyTime_encodeWord.comp (htn.prod hchan))
-  exact (hlive.ite hpad hmsg).of_enc_eq fun x => rfl
+      (IPGame.encMsgInput enc) encBits := (ComputableInPolyTime.snd _ _).snd'.snd'
+  have halive := (Interaction.computableInPolyTime_aliveRun (fun _ _ => true) id MUnit
+      (encEntry := encPair encBits encBits) (fun _ => .const true) .id').comp
+    (hxa.prod (hc.prod (computableInPolyTime_extractHistory htn hp)))
+  have hchan := ((ComputableInPolyTime.fst _ _).comp
+    ((ComputableInPolyTime.pi_apply (encPair encBits (encBiTape encBool)) ()).comp
+      (ComputableInPolyTime.finiteConfig_channels (k := k) (State := Control)
+        (Oracle := Unit)))).comp halive.fst'
+  have hpad := (ComputableInPolyTime.bitsReplicate false).comp (htn.unary_add' (.const 2))
+  have hmsg := (ComputableInPolyTime.const [true]).bitsAppend
+    (computableInPolyTime_encodeWord.comp (htn.prod hchan))
+  exact (halive.snd'.snd'.ite hpad hmsg).of_enc_eq fun _ => rfl
 
 private theorem computableInPolyTime_simDec {enc : α ↪ List Bool} {k : ℕ} {Control : Type}
     [Finite Control] (MUnit : Turing.MultiTapePTM k Bool Control Unit) {t : ℕ → ℕ}
@@ -781,37 +571,29 @@ private theorem computableInPolyTime_simDec {enc : α ↪ List Bool} {k : ℕ} {
     ComputableInPolyTime (simDec enc MUnit t) (IPGame.encDecInput enc) encBool := by
   have ha : ComputableInPolyTime (fun x : α × List Bool × List Bool => x.1)
       (IPGame.encDecInput enc) enc := .fst _ _
-  have hxa : ComputableInPolyTime (fun x : α × List Bool × List Bool => enc x.1)
-      (IPGame.encDecInput enc) encBits :=
-    (ComputableInPolyTime.of_eq fun _ => rfl).comp ha
-  have hn : ComputableInPolyTime (fun x : α × List Bool × List Bool => (enc x.1).length)
-      (IPGame.encDecInput enc) encUnary :=
-    (ComputableInPolyTime.encoding_length enc).comp ha
+  have hxa := ha.encoding_comp
   have hc : ComputableInPolyTime (fun x : α × List Bool × List Bool => x.2.1)
-      (IPGame.encDecInput enc) encBits :=
-    (ComputableInPolyTime.fst _ _).comp (.snd _ _)
+      (IPGame.encDecInput enc) encBits := (ComputableInPolyTime.snd _ _).fst'
   have hp : ComputableInPolyTime (fun x : α × List Bool × List Bool => x.2.2)
-      (IPGame.encDecInput enc) encBits :=
-    (ComputableInPolyTime.snd _ _).comp (.snd _ _)
-  have hh := computableInPolyTime_extractHistory (ht.comp hn) hp
-  have hacc := Interaction.computableInPolyTime_accepts (fun _ _ => true) id MUnit
-    (encEntry := encPair encBits encBits) (fun _ => ComputableInPolyTime.const true)
-    ComputableInPolyTime.id'
-  exact (hacc.comp (hxa.prod (hc.prod hh))).of_enc_eq fun _ => rfl
+      (IPGame.encDecInput enc) encBits := (ComputableInPolyTime.snd _ _).snd'
+  have hh := computableInPolyTime_extractHistory
+    (ht.comp ((ComputableInPolyTime.encoding_length enc).comp ha)) hp
+  exact ((Interaction.computableInPolyTime_accepts (fun _ _ => true) id MUnit
+      (encEntry := encPair encBits encBits) (fun _ => .const true) .id').comp
+    (hxa.prod (hc.prod hh))).of_enc_eq fun _ => rfl
 
 private noncomputable def simGameShape (t q : ℕ) : List (IPMove × ℕ) :=
   (List.replicate q [(.verifier, t + 2), (.prover, t + 1)]).flatten
 
-private theorem simGameShape_map_fst (t q : ℕ) :
-    (simGameShape t q).map Prod.fst = (alternatingMoves .arthur (2 * q)).map AMMove.toIP := by
+private theorem map_fst_replicate_pair {β : Type} (v p : β) (q : ℕ) :
+    ((List.replicate q [(.verifier, v), (.prover, p)]).flatten).map Prod.fst =
+      (alternatingMoves .arthur (2 * q)).map AMMove.toIP := by
   induction q with
   | zero => rfl
   | succ q ih =>
     rw [show 2 * (q + 1) = 2 * q + 2 by omega]
-    change ([(IPMove.verifier, t + 2), (IPMove.prover, t + 1)] ++ simGameShape t q).map Prod.fst =
-      (AMMove.arthur :: AMMove.merlin :: alternatingMoves AMMove.arthur (2 * q)).map AMMove.toIP
-    rw [List.map_append, List.map_cons, List.map_cons, ih]
-    rfl
+    simpa [List.replicate_succ, List.flatten_cons, alternatingMoves, AMMove.other,
+      AMMove.toIP] using ih
 
 private def HistLive (t : ℕ) (p : List Bool) (h : Interaction.History) : Prop :=
   ∀ rem, extractHistory t (p ++ rem) =
@@ -866,23 +648,16 @@ private theorem simMsg_of_outcome_ask {enc : α ↪ List Bool} {k : ℕ} {Contro
       .ask m) :
     simMsg enc MUnit t (a, List.ofFn c, j, p) =
       [true] ++ Interaction.encodeWord (t (enc a).length) m := by
+  have hc := Interaction.outcome_coinProgram MUnit (t (enc a).length) (enc a) (List.ofFn c) h
+  change Interaction.outcome (Interaction.coinFamily MUnit (t (enc a).length) (enc a) c) h = _ at hc
+  rw [hout] at hc
   have hsim : Interaction.simulate MUnit (List.ofFn c).length (enc a) (List.ofFn c) h =
       .error (some m) := by
     rw [List.length_ofFn]
-    have hc := Interaction.outcome_coinProgram MUnit (t (enc a).length) (enc a) (List.ofFn c) h
-    change Interaction.outcome
-      (Interaction.coinFamily MUnit (t (enc a).length) (enc a) c) h = _ at hc
-    rw [hout] at hc
     rcases hs : Interaction.simulate MUnit (t (enc a).length) (enc a) (List.ofFn c) h with
       (_ | m') | ⟨cfg, _ | ⟨e, rest⟩⟩ <;>
-      simp only [hs, Except.map, Interaction.replayOutcome] at hc
-    · cases hc
-    · simp only [Interaction.Outcome.ask.injEq] at hc
-      subst hc
-      rfl
-    · cases hc
-    · cases hc
-  obtain ⟨cfg, rem, hcfg, hm⟩ := Interaction.aliveRun_of_simulate_error_some MUnit hsim
+      simp_all [Except.map, Interaction.replayOutcome]
+  obtain ⟨_, _, hcfg, hm⟩ := Interaction.aliveRun_of_simulate_error_some MUnit hsim
   dsimp only [simMsg]
   rw [hp, hcfg, hm]
   rfl
@@ -895,25 +670,18 @@ private theorem simMsg_of_outcome_done {enc : α ↪ List Bool} {k : ℕ} {Contr
       .done b) :
     simMsg enc MUnit t (a, List.ofFn c, j, p) =
       List.replicate (t (enc a).length + 2) false := by
+  have hc := Interaction.outcome_coinProgram MUnit (t (enc a).length) (enc a) (List.ofFn c) h
+  change Interaction.outcome (Interaction.coinFamily MUnit (t (enc a).length) (enc a) c) h = _ at hc
+  rw [hout] at hc
   have hsim : ∃ cfg,
-      Interaction.simulate MUnit (List.ofFn c).length (enc a) (List.ofFn c) h =
-        .ok (cfg, []) := by
+      Interaction.simulate MUnit (List.ofFn c).length (enc a) (List.ofFn c) h = .ok (cfg, []) := by
     rw [List.length_ofFn]
-    have hc := Interaction.outcome_coinProgram MUnit (t (enc a).length) (enc a) (List.ofFn c) h
-    change Interaction.outcome
-      (Interaction.coinFamily MUnit (t (enc a).length) (enc a) c) h = _ at hc
-    rw [hout] at hc
     rcases hs : Interaction.simulate MUnit (t (enc a).length) (enc a) (List.ofFn c) h with
-      (_ | m') | ⟨cfg, _ | ⟨e, rest⟩⟩ <;>
-      simp only [hs, Except.map, Interaction.replayOutcome] at hc
-    · cases hc
-    · cases hc
-    · exact ⟨cfg, rfl⟩
-    · cases hc
-  obtain ⟨cfg, hcfg⟩ := hsim
-  have hal := Interaction.aliveRun_of_simulate_ok MUnit hcfg
+      (_ | _) | ⟨cfg, _ | _⟩ <;>
+      simp_all [Except.map, Interaction.replayOutcome]
+  obtain ⟨_, hcfg⟩ := hsim
   dsimp only [simMsg]
-  rw [hp, hal]
+  rw [hp, Interaction.aliveRun_of_simulate_ok MUnit hcfg]
   rfl
 
 private theorem after_eq_pure_of_outcome_done {p : WordQueryComp Unit Bool}
@@ -921,14 +689,13 @@ private theorem after_eq_pure_of_outcome_done {p : WordQueryComp Unit Bool}
     Interaction.after p h = some (.pure b) := by
   unfold Interaction.outcome at hb
   cases ha : Interaction.after p h with
-  | none => rw [ha] at hb; cases hb
+  | none => simp only [ha, reduceCtorEq] at hb
   | some p0 =>
     cases p0 with
-    | pure b' =>
+    | pure _ =>
       simp only [ha, Interaction.Outcome.done.injEq] at hb
-      subst hb
-      rfl
-    | liftBind _ _ => rw [ha] at hb; cases hb
+      exact hb ▸ rfl
+    | liftBind _ _ => simp only [ha, reduceCtorEq] at hb
 
 private theorem acceptFrom_pure_bool (P : Prover Unit) (s : P.State) (b : Bool) :
     Interaction.acceptFrom P s (some (.pure b)) = if b = true then 1 else 0 := by
@@ -1015,92 +782,67 @@ private theorem trace_sim_eq {enc : α ↪ List Bool} {k : ℕ} {Control : Type}
           (.verifier, t_n + 2) :: (.prover, t_n + 1) :: simGameShape t_n rem := rfl
       rw [hsh]
       simp only [IPGame.run, List.append_assoc, ← hv, ← hw]
+    have hdoneStep : ∀ {b : Bool}, Interaction.outcome (F c) h = .done b →
+        extractHistory t_n p = h →
+        let pad := List.replicate (t_n + 2) false
+        let w := List.ofFn (BitString.ofList (t_n + 1) (PGame (j + 1) (p ++ pad)))
+        HistStopped t_n (p ++ pad ++ w) h →
+        Interaction.acceptFrom PUnit s (Interaction.after (F c) h) =
+          if simDec enc MUnit t (a, List.ofFn c,
+              p ++ IPGame.run (fun j' p' => simMsg enc MUnit t (a, List.ofFn c, j', p'))
+                PGame (simGameShape t_n (rem + 1)) j p) = true then 1 else 0 := by
+      intro b hb hex pad w hs'
+      have hv : pad = List.ofFn (BitString.ofList (t_n + 2)
+          (simMsg enc MUnit t (a, List.ofFn c, j, p))) := by
+        rw [simMsg_of_outcome_done MUnit t a c j hex hb,
+          BitString.ofFn_ofList (List.length_replicate)]
+      rw [hrunCons _ w hv rfl]
+      exact ih (j + 2) (p ++ pad ++ w) h s (Or.inr ⟨hs', b, hb⟩)
     rcases hinv with ⟨hm, hl, hlen, hvalid⟩ | ⟨hs, b, hb⟩
     · have hex := histLive_extract hl
       cases ho : Interaction.outcome (F c) h with
       | invalid => exact absurd ho hvalid
       | done b =>
-        have hmsg := simMsg_of_outcome_done MUnit t a c j hex ho
-        have hvlen : (List.replicate (t_n + 2) false).length = t_n + 2 := List.length_replicate
-        set w := List.ofFn (BitString.ofList (t_n + 1)
-          (PGame (j + 1) (p ++ List.replicate (t_n + 2) false)))
-        have hwlen : w.length = t_n + 1 := List.length_ofFn
-        have hv : List.replicate (t_n + 2) false = List.ofFn (BitString.ofList (t_n + 2)
-            (simMsg enc MUnit t (a, List.ofFn c, j, p))) := by
-          rw [hmsg, BitString.ofFn_ofList hvlen]
-        have hs' : HistStopped t_n (p ++ List.replicate (t_n + 2) false ++ w) h :=
-          histLive_append_false hl hvlen hwlen rfl
-        rw [hrunCons _ w hv rfl]
-        exact ih (j + 2) (p ++ List.replicate (t_n + 2) false ++ w) h s
-          (Or.inr ⟨hs', b, ho⟩)
+        exact hdoneStep ho hex (histLive_append_false hl List.length_replicate List.length_ofFn rfl)
       | ask m =>
         have hmLen : m.length ≤ t_n := hF.message c h m ho
-        have hmsg := simMsg_of_outcome_ask MUnit t a c j hex ho
         set v := [true] ++ Interaction.encodeWord t_n m
         have hvlen : v.length = t_n + 2 := by
           simp only [v, List.length_append, List.length_singleton,
-            Interaction.length_encodeWord hmLen]
-          omega
+            Interaction.length_encodeWord hmLen]; omega
         set w := List.ofFn (BitString.ofList (t_n + 1) (PGame (j + 1) (p ++ v)))
-        have hwlen : w.length = t_n + 1 := List.length_ofFn
         have hv : v = List.ofFn (BitString.ofList (t_n + 2)
             (simMsg enc MUnit t (a, List.ofFn c, j, p))) := by
-          rw [hmsg, BitString.ofFn_ofList hvlen]
+          rw [simMsg_of_outcome_ask MUnit t a c j hex ho, BitString.ofFn_ofList hvlen]
         obtain ⟨s', hresp, hm'⟩ := hstep j p h s m hm hl ho
-        have hvhead : v.headD false = true := rfl
         have hdecv : Interaction.decodeWord (v.drop 1) = m := by
           simp only [v, List.singleton_append, List.drop_succ_cons, List.drop_zero,
             Interaction.decodeWord_encodeWord]
         have hl' : HistLive t_n (p ++ v ++ w) (h ++ [(m, Interaction.decodeWord w)]) := by
-          simpa only [hdecv] using histLive_append_true hl hvlen hwlen hvhead
-        unfold Interaction.outcome at ho
-        cases hah : Interaction.after (F c) h with
-        | none => simp [hah] at ho
-        | some p0 =>
-          cases p0 with
-          | pure b => simp [hah] at ho
-          | liftBind q cont =>
-            obtain ⟨⟨⟩, m0⟩ := q
-            simp only [hah, Interaction.Outcome.ask.injEq] at ho
-            subst ho
-            have hafter : Interaction.after (F c) (h ++ [(m0, Interaction.decodeWord w)]) =
-                some (cont (Interaction.decodeWord w)) := by
-              rw [Interaction.after_append, hah]
-              change Interaction.after (.liftBind ((), m0) cont)
-                  [(m0, Interaction.decodeWord w)] = _
-              simp [Interaction.after]
-            have haccept : Interaction.acceptFrom PUnit s (some (.liftBind ((), m0) cont)) =
-                Interaction.acceptFrom PUnit s'
-                  (Interaction.after (F c) (h ++ [(m0, Interaction.decodeWord w)])) := by
-              have hq : (PFunctor.FreeM.liftBind ((), m0) cont : WordQueryComp Unit Bool) =
-                  OracleComp.query ((), m0) >>= cont := rfl
-              rw [hq, Interaction.acceptFrom, OracleComp.interpret_bind, OracleComp.interpret_query,
-                StateT.run_bind, StateT.run, hresp, Probability.PMF.monad_bind_eq_bind,
-                PMF.map_bind, PMF.pure_bind, hafter]
-              rfl
-            have hvalid' : Interaction.outcome (F c) (h ++ [(m0, Interaction.decodeWord w)]) ≠
-                .invalid := by
-              unfold Interaction.outcome
-              rw [hafter]
-              cases cont (Interaction.decodeWord w) <;> simp
-            rw [haccept, hrunCons v w hv rfl]
-            exact ih (j + 2) (p ++ v ++ w) (h ++ [(m0, Interaction.decodeWord w)]) s'
-              (Or.inl ⟨hm', hl',
-                by simp only [List.length_append, List.length_cons, List.length_nil]; omega,
-                hvalid'⟩)
-    · have hex := histStopped_extract hs
-      have hmsg := simMsg_of_outcome_done MUnit t a c j hex hb
-      have hvlen : (List.replicate (t_n + 2) false).length = t_n + 2 := List.length_replicate
-      set w := List.ofFn (BitString.ofList (t_n + 1)
-        (PGame (j + 1) (p ++ List.replicate (t_n + 2) false)))
-      have hv : List.replicate (t_n + 2) false = List.ofFn (BitString.ofList (t_n + 2)
-          (simMsg enc MUnit t (a, List.ofFn c, j, p))) := by
-        rw [hmsg, BitString.ofFn_ofList hvlen]
-      have hs' : HistStopped t_n (p ++ List.replicate (t_n + 2) false ++ w) h := by
-        rw [List.append_assoc]
-        exact histStopped_append hs
-      rw [hrunCons _ w hv rfl]
-      exact ih (j + 2) (p ++ List.replicate (t_n + 2) false ++ w) h s (Or.inr ⟨hs', b, hb⟩)
+          simpa only [hdecv] using histLive_append_true hl hvlen List.length_ofFn rfl
+        obtain ⟨cont, hah⟩ := after_eq_liftBind_of_outcome_ask ho
+        have hafter : Interaction.after (F c) (h ++ [(m, Interaction.decodeWord w)]) =
+            some (cont (Interaction.decodeWord w)) := by
+          rw [Interaction.after_append, hah]
+          change (if m = m then
+            Interaction.after (cont (Interaction.decodeWord w)) [] else none) = _
+          simp only [↓reduceIte, Interaction.after_nil]
+        have haccept : Interaction.acceptFrom PUnit s (Interaction.after (F c) h) =
+            Interaction.acceptFrom PUnit s'
+              (Interaction.after (F c) (h ++ [(m, Interaction.decodeWord w)])) := by
+          rw [hah, show (PFunctor.FreeM.liftBind ((), m) cont : WordQueryComp Unit Bool) =
+              OracleComp.query ((), m) >>= cont from rfl, Interaction.acceptFrom,
+            OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind, StateT.run,
+            hresp, Probability.PMF.monad_bind_eq_bind, PMF.map_bind, PMF.pure_bind, hafter]; rfl
+        have hvalid' :
+            Interaction.outcome (F c) (h ++ [(m, Interaction.decodeWord w)]) ≠ .invalid := by
+          unfold Interaction.outcome; rw [hafter]; cases cont (Interaction.decodeWord w) <;> simp
+        rw [haccept, hrunCons v w hv rfl]
+        exact ih (j + 2) (p ++ v ++ w) (h ++ [(m, Interaction.decodeWord w)]) s'
+          (Or.inl ⟨hm', hl', by simp only [List.length_append, List.length_singleton]; omega,
+            hvalid'⟩)
+    · exact hdoneStep hb (histStopped_extract hs)
+        (by rw [List.append_assoc]; exact histStopped_append hs)
 
 private noncomputable def proverOfGame (t_n : ℕ) (PGame : ℕ → List Bool → List Bool) :
     Prover Unit where
@@ -1138,92 +880,66 @@ private theorem sim_bestCount_eq_value {enc : α ↪ List Bool} {k : ℕ} {Contr
     unfold Interaction.outcome
     rw [Interaction.after_nil]
     cases F c <;> simp
+  have hsumOf : ∀ (PGame : ℕ → List Bool → List Bool) (PUnit : Prover Unit)
+      (Match : ℕ → List Bool → Interaction.History → PUnit.State → Prop),
+      Match 0 [] [] PUnit.init →
+      (∀ c j p h s m, Match j p h s → HistLive t_n p h →
+        Interaction.outcome (F c) h = .ask m →
+        let v := [true] ++ Interaction.encodeWord t_n m
+        let w := List.ofFn (BitString.ofList (t_n + 1) (PGame (j + 1) (p ++ v)))
+        ∃ s', PUnit.respond ((), m) s = PMF.pure (Interaction.decodeWord w, s') ∧
+          Match (j + 2) (p ++ v ++ w) (h ++ [(m, Interaction.decodeWord w)]) s') →
+      (∑ c : BitString t_n, Interaction.acceptFrom PUnit PUnit.init (some (F c))) =
+        (#(univ.filter fun c : BitString t_n =>
+          simDec enc MUnit t (a, List.ofFn c,
+            IPGame.run (fun j p => simMsg enc MUnit t (a, List.ofFn c, j, p)) PGame
+              (simGameShape t_n D) 0 []) = true) : ENNReal) := by
+    intro PGame PUnit Match hinit hstep
+    rw [Finset.card_filter, Nat.cast_sum]
+    refine Finset.sum_congr rfl fun c _ => ?_
+    simpa only [Interaction.after_nil, List.nil_append, F, t_n, Nat.cast_ite, Nat.cast_one,
+      Nat.cast_zero] using trace_sim_eq MUnit t a hF c PGame PUnit Match (hstep c) D 0 [] []
+        PUnit.init (Or.inl ⟨hinit, histLive_nil t_n, by simp, hvalid0 c⟩)
   apply le_antisymm
   · obtain ⟨PGame, hP⟩ := IPGame.exists_card_filter_run_eq_bestCount
       (fun (c : BitString t_n) j p => simMsg enc MUnit t (a, List.ofFn c, j, p))
       (fun (c : BitString t_n) tr => simDec enc MUnit t (a, List.ofFn c, tr))
       (simGameShape t_n D)
-    rw [← hP]
-    let PUnit := proverOfGame t_n PGame
-    have hsum : (∑ c : BitString t_n,
-        Interaction.acceptFrom PUnit PUnit.init (some (F c))) =
-        (#(univ.filter fun c : BitString t_n =>
-          simDec enc MUnit t (a, List.ofFn c,
-            IPGame.run (fun j p => simMsg enc MUnit t (a, List.ofFn c, j, p)) PGame
-              (simGameShape t_n D) 0 []) = true) : ENNReal) := by
-      rw [Finset.card_filter, Nat.cast_sum]
-      refine Finset.sum_congr rfl fun c _ => ?_
-      have htr := trace_sim_eq MUnit t a hF c PGame PUnit (fun j p _ st => st = SimState.mk j p)
-        (fun j p _ s m hm _ _ => ⟨SimState.mk (j + 2) (p ++ ([true] ++ Interaction.encodeWord t_n m)
-          ++
-          List.ofFn (BitString.ofList (t_n + 1)
-            (PGame (j + 1) (p ++ ([true] ++ Interaction.encodeWord t_n m))))),
-          by rw [hm]; rfl, rfl⟩)
-        D 0 [] [] PUnit.init (Or.inl ⟨rfl, histLive_nil t_n, by simp, hvalid0 c⟩)
-      simpa only [Interaction.after_nil, List.nil_append, F, t_n, Nat.cast_ite, Nat.cast_one,
-        Nat.cast_zero] using htr
-    have hle := Interaction.sum_acceptFrom_le_value hF PUnit
-    dsimp only [F, t_n] at hsum
-    rw [hsum] at hle
+    have hsum := hsumOf PGame (proverOfGame t_n PGame) (fun j p _ st => st = SimState.mk j p) rfl
+      fun _ j p _ _ m hm _ _ => ⟨_, by rw [hm]; rfl, rfl⟩
+    have hle := Interaction.sum_acceptFrom_le_value hF (proverOfGame t_n PGame)
+    rw [hsum, hP] at hle
     exact_mod_cast hle
   · let PGame := gameProverOfOptimal F t_n D
-    let PUnit := Interaction.optimalProver F t_n D
-    have hsum : (∑ c : BitString t_n,
-        Interaction.acceptFrom PUnit PUnit.init (some (F c))) =
-        (#(univ.filter fun c : BitString t_n =>
-          simDec enc MUnit t (a, List.ofFn c,
-            IPGame.run (fun j p => simMsg enc MUnit t (a, List.ofFn c, j, p)) PGame
-              (simGameShape t_n D) 0 []) = true) : ENNReal) := by
-      rw [Finset.card_filter, Nat.cast_sum]
-      refine Finset.sum_congr rfl fun c _ => ?_
-      have htr := trace_sim_eq MUnit t a hF c PGame PUnit (fun _ _ h st => st = h)
-        (fun j p h s m hm hl ho => by
+    have hsum := hsumOf PGame (Interaction.optimalProver F t_n D) (fun _ _ h st => st = h) rfl
+      fun c j p h s m hm hl ho => by
+        set v := [true] ++ Interaction.encodeWord t_n m
+        have hvlen : v.length = t_n + 2 := by
           have hmLen : m.length ≤ t_n := hF.message c h m ho
-          set v := [true] ++ Interaction.encodeWord t_n m
-          have hvlen : v.length = t_n + 2 := by
-            simp only [v, List.length_append, List.length_singleton,
-              Interaction.length_encodeWord hmLen]
-            omega
-          set y := Interaction.bestReply F t_n (D - h.length - 1) h m
-          have hy_mem : y ∈ BitString.shortWords t_n := by
-            have hne : (BitString.shortWords t_n).Nonempty :=
-              ⟨[], BitString.mem_shortWords.2 (Nat.zero_le _)⟩
-            change ((BitString.shortWords t_n).exists_max_image _ hne).choose ∈ _
-            exact ((BitString.shortWords t_n).exists_max_image _ hne).choose_spec.1
-          have hyLen : y.length ≤ t_n := BitString.mem_shortWords.1 hy_mem
-          have hex : extractHistory t_n p = h := histLive_extract hl
-          have hP : PGame (j + 1) (p ++ v) = Interaction.encodeWord t_n y := by
-            dsimp only [PGame, gameProverOfOptimal]
-            have hsub : (p ++ v).length - (t_n + 2) = p.length := by
-              rw [List.length_append, hvlen]; omega
-            rw [hsub, List.take_left, List.drop_left]
-            have hvhead : v.headD false = true := rfl
-            have hvdrop : Interaction.decodeWord (v.drop 1) = m := by
-              simp only [v, List.singleton_append, List.drop_succ_cons, List.drop_zero,
-                Interaction.decodeWord_encodeWord]
-            rw [hvhead, hex, hvdrop]
-            simp only [reduceIte]
-            rfl
-          have hw : List.ofFn (BitString.ofList (t_n + 1) (PGame (j + 1) (p ++ v))) =
-              Interaction.encodeWord t_n y := by
-            rw [hP, BitString.ofFn_ofList (Interaction.length_encodeWord hyLen)]
-          have hdecy : Interaction.decodeWord
-              (List.ofFn (BitString.ofList (t_n + 1) (PGame (j + 1) (p ++ v)))) = y := by
-            rw [hw, Interaction.decodeWord_encodeWord]
-          refine ⟨h ++ [(m, y)], ?_, by rw [hdecy]⟩
-          rw [hdecy, hm]
-          rfl)
-        D 0 [] [] PUnit.init (Or.inl ⟨rfl, histLive_nil t_n, by simp, hvalid0 c⟩)
-      simpa only [Interaction.after_nil, List.nil_append, F, t_n, Nat.cast_ite, Nat.cast_one,
-        Nat.cast_zero] using htr
-    have hopt := Interaction.sum_acceptFrom_optimalProver hF
+          rw [show v = [true] ++ Interaction.encodeWord t_n m from rfl, List.length_append,
+            List.length_singleton, Interaction.length_encodeWord hmLen]
+          omega
+        set y := Interaction.bestReply F t_n (D - h.length - 1) h m
+        have hyLen : y.length ≤ t_n := BitString.mem_shortWords.1
+          ((BitString.shortWords t_n).exists_max_image _
+            ⟨[], BitString.mem_shortWords.2 (Nat.zero_le _)⟩).choose_spec.1
+        have hP : PGame (j + 1) (p ++ v) = Interaction.encodeWord t_n y := by
+          dsimp only [PGame, gameProverOfOptimal]
+          have hsub : (p ++ v).length - (t_n + 2) = p.length := by
+            rw [List.length_append, hvlen]; omega
+          rw [hsub, List.take_left, List.drop_left, histLive_extract hl]
+          simp only [v, List.singleton_append, List.headD_cons, List.drop_succ_cons,
+            List.drop_zero, Interaction.decodeWord_encodeWord, ↓reduceIte]; rfl
+        have hdecy : Interaction.decodeWord
+            (List.ofFn (BitString.ofList (t_n + 1) (PGame (j + 1) (p ++ v)))) = y := by
+          rw [hP, BitString.ofFn_ofList (Interaction.length_encodeWord hyLen),
+            Interaction.decodeWord_encodeWord]
+        exact ⟨h ++ [(m, y)], by rw [hdecy, hm]; rfl, by rw [hdecy]⟩
     have hcard := IPGame.card_filter_run_le_bestCount
       (fun (c : BitString t_n) j p => simMsg enc MUnit t (a, List.ofFn c, j, p))
       (fun (c : BitString t_n) tr => simDec enc MUnit t (a, List.ofFn c, tr))
       (simGameShape t_n D) PGame
-    dsimp only [PUnit, F, t_n] at hsum
-    rw [Nat.cast_injective (hsum.symm.trans hopt)] at hcard
-    exact hcard
+    rwa [← Nat.cast_injective (hsum.symm.trans (Interaction.sum_acceptFrom_optimalProver hF))]
 
 private theorem evalShape_simShape (tPoly : Polynomial ℕ) (q n : ℕ) :
     IPGame.evalShape
@@ -1236,19 +952,21 @@ private theorem evalShape_simShape (tPoly : Polynomial ℕ) (q n : ℕ) :
       IPGame.evalShape_cons, IPGame.evalShape_nil, Polynomial.eval_add,
       Polynomial.eval_ofNat, Polynomial.eval_one, ih, simGameShape]
 
-private theorem map_fst_simPolyShape (tPoly : Polynomial ℕ) (q : ℕ) :
-    ((List.replicate q [(.verifier, tPoly + 2), (.prover, tPoly + 1)]).flatten).map Prod.fst =
-      (alternatingMoves .arthur (2 * q)).map AMMove.toIP := by
-  induction q with
-  | zero => rfl
-  | succ q ih =>
-    rw [show 2 * (q + 1) = 2 * q + 2 by omega]
-    change ([IPMove.verifier, IPMove.prover] ++
-        ((List.replicate q [(.verifier, tPoly + 2), (.prover, tPoly + 1)]).flatten).map
-          Prod.fst) =
-      (AMMove.arthur :: AMMove.merlin :: alternatingMoves AMMove.arthur (2 * q)).map AMMove.toIP
-    rw [ih]
-    rfl
+private theorem two_div_three_le_iff_nat {m k : ℕ} :
+    (2 : ENNReal) / 3 ≤ (2 ^ k : ENNReal)⁻¹ * m ↔ 2 * 2 ^ k ≤ 3 * m := by
+  have hk : 2 ^ k ≠ 0 := (pow_pos two_pos _).ne'
+  rw [mul_comm, ← div_eq_mul_inv,
+    show (2 ^ k : ENNReal) = ((2 ^ k : ℕ) : ENNReal) by push_cast; rfl]
+  simpa only [Nat.cast_ofNat, Nat.mul_comm] using
+    ENNReal.natCast_div_le_natCast_div_iff three_ne_zero hk (a := 2) (c := m)
+
+private theorem le_one_div_three_iff_nat {m k : ℕ} :
+    (2 ^ k : ENNReal)⁻¹ * m ≤ 1 / 3 ↔ 3 * m ≤ 2 ^ k := by
+  have hk : 2 ^ k ≠ 0 := (pow_pos two_pos _).ne'
+  rw [mul_comm, ← div_eq_mul_inv,
+    show (2 ^ k : ENNReal) = ((2 ^ k : ℕ) : ENNReal) by push_cast; rfl]
+  simpa only [Nat.cast_one, Nat.cast_ofNat, one_mul, mul_comm 3 m] using
+    ENNReal.natCast_div_le_natCast_div_iff hk three_ne_zero (a := m) (c := 1)
 
 private theorem sim_verifier_bounds {enc : α ↪ List Bool} {A : Set α}
     {verifier : α → WordOracleComp Unit Bool} {q : ℕ → ℕ}
@@ -1297,35 +1015,17 @@ private theorem sim_verifier_bounds {enc : α ↪ List Bool} {A : Set α}
       hreal a S oracle s
   have hF : Interaction.IsBounded F (q (enc a).length) t_n :=
     isBounded_coinFamily_of_isQueryBounded MUnit (hq a) hreal_a
-  have hbest := sim_bestCount_eq_value MUnit tPoly.eval a hF
-  rw [hbest]
-  have hne : 2 ^ t_n ≠ 0 := (pow_pos two_pos _).ne'
-  refine ⟨fun ha => ?_, fun ha => ?_⟩
+  rw [sim_bestCount_eq_value MUnit tPoly.eval a hF]
+  refine ⟨fun ha => two_div_three_le_iff_nat.mp ?_, fun ha => le_one_div_three_iff_nat.mp ?_⟩
   · obtain ⟨P, hP⟩ := hproof.complete a ha
-    have hacc := Interaction.acceptProb_eq_sum MUnit hreal_a P
-    rw [hacc] at hP
-    have hle := Interaction.sum_acceptFrom_le_value hF P
-    have hpow : (2 : ENNReal) / 3 ≤
-        (Interaction.value F t_n (q (enc a).length) [] : ENNReal) / (2 ^ t_n : ℕ) := by
-      refine hP.trans ((mul_le_mul_right hle _).trans ?_)
-      rw [div_eq_mul_inv, mul_comm, Nat.cast_pow, Nat.cast_ofNat]
-    have hle' := (ENNReal.natCast_div_le_natCast_div_iff three_ne_zero hne).mp hpow
-    simpa [Nat.mul_comm] using hle'
+    rw [Interaction.acceptProb_eq_sum MUnit hreal_a P] at hP
+    exact hP.trans (mul_le_mul_right (Interaction.sum_acceptFrom_le_value hF P) _)
   · have hP := hproof.sound a ha (Interaction.optimalProver F t_n (q (enc a).length))
-    have hacc := Interaction.acceptProb_eq_sum MUnit hreal_a
-      (Interaction.optimalProver F t_n (q (enc a).length))
-    rw [hacc] at hP
+    rw [Interaction.acceptProb_eq_sum MUnit hreal_a] at hP
     change (2 ^ t_n : ENNReal)⁻¹ * ∑ r, Interaction.acceptFrom
         (Interaction.optimalProver F t_n (q (enc a).length))
         (Interaction.optimalProver F t_n (q (enc a).length)).init (some (F r)) ≤ 1 / 3 at hP
-    rw [Interaction.sum_acceptFrom_optimalProver hF] at hP
-    have hpow : (Interaction.value F t_n (q (enc a).length) [] : ENNReal) / (2 ^ t_n : ℕ) ≤
-        1 / 3 := by
-      refine le_trans ?_ hP
-      rw [div_eq_mul_inv, mul_comm, Nat.cast_pow, Nat.cast_ofNat]
-    have hle' := (ENNReal.natCast_div_le_natCast_div_iff hne three_ne_zero
-      (a := Interaction.value F t_n (q (enc a).length) []) (c := 1)).mp (by simpa using hpow)
-    simpa [Nat.mul_comm, one_mul] using hle'
+    rwa [Interaction.sum_acceptFrom_optimalProver hF] at hP
 
 /-- Every constant-query oracle-PPT interactive proof embeds into `IP[2 * q]`. -/
 theorem IPQueryBounded_subset_IPk (enc : α ↪ List Bool) (q : ℕ) :
@@ -1335,7 +1035,7 @@ theorem IPQueryBounded_subset_IPk (enc : α ↪ List Bool) (q : ℕ) :
     sim_verifier_bounds (q := fun _ => q) hV hq hproof
   refine ⟨(List.replicate q [(.verifier, tPoly + 2), (.prover, tPoly + 1)]).flatten, tPoly,
     simMsg enc MUnit tPoly.eval, simDec enc MUnit tPoly.eval,
-    map_fst_simPolyShape tPoly q, hmsg, hdec, fun a => ?_⟩
+    map_fst_replicate_pair _ _ q, hmsg, hdec, fun a => ?_⟩
   simpa only [IPGame.countAt, evalShape_simShape] using hbounds a
 
 /-- Every polynomial-query oracle-PPT interactive proof embeds into `IP[2 * q(n)]` when `q` is
@@ -1348,36 +1048,28 @@ theorem IPPolyQueryBounded_subset_IPPolyRounds {enc : α ↪ List Bool} {q : ℕ
     sim_verifier_bounds hV hq hproof
   have hflat : ComputableInPolyTime (fun n => simGameShape (tPoly.eval n) (q n))
       encUnary encIPShape := by
-    have hrep : ComputableInPolyTime (fun n => List.replicate (q n) false)
-        encUnary (encList encBool) :=
-      ComputableInPolyTime.replicate hqPoly (ComputableInPolyTime.const false)
-    have ht : ComputableInPolyTime tPoly.eval encUnary encUnary :=
-      ComputableInPolyTime.unary_eval tPoly
+    have htv : ComputableInPolyTime (fun x : ℕ × Bool => tPoly.eval x.1)
+        (encPair encUnary encBool) encUnary :=
+      (ComputableInPolyTime.unary_eval tPoly).comp (.fst _ _)
     have hstep : ComputableInPolyTime
         (fun x : ℕ × Bool => [(.verifier, tPoly.eval x.1 + 2), (.prover, tPoly.eval x.1 + 1)])
-        (encPair encUnary encBool) (encList (encPair encIPMove encUnary)) := by
-      have hn : ComputableInPolyTime (fun x : ℕ × Bool => x.1)
-          (encPair encUnary encBool) encUnary := .fst _ _
-      have ht2 : ComputableInPolyTime (fun x : ℕ × Bool => (IPMove.verifier, tPoly.eval x.1 + 2))
-          (encPair encUnary encBool) (encPair encIPMove encUnary) :=
-        (ComputableInPolyTime.const IPMove.verifier).prod
-          (ComputableInPolyTime.unary_add' (ht.comp hn) (ComputableInPolyTime.const 2))
-      have ht1 : ComputableInPolyTime (fun x : ℕ × Bool => (IPMove.prover, tPoly.eval x.1 + 1))
-          (encPair encUnary encBool) (encPair encIPMove encUnary) :=
-        (ComputableInPolyTime.const IPMove.prover).prod
-          (ComputableInPolyTime.unary_add' (ht.comp hn) (ComputableInPolyTime.const 1))
-      exact ht2.cons' (ht1.cons' (ComputableInPolyTime.const []))
+        (encPair encUnary encBool) encIPShape :=
+      ((ComputableInPolyTime.const IPMove.verifier).prod (htv.unary_add' (.const 2))).cons'
+        (((ComputableInPolyTime.const IPMove.prover).prod (htv.unary_add' (.const 1))).cons'
+          (.const []))
     refine (ComputableInPolyTime.flatMapWithInput
-        (f := fun n (_ : Bool) => [(.verifier, tPoly.eval n + 2), (.prover, tPoly.eval n + 1)])
-        hrep hstep).of_enc_eq fun n => congrArg encIPShape ?_
-    induction q n with
-    | zero => rfl
-    | succ m ih =>
-      simp only [List.replicate_succ, List.flatMap_cons, List.flatten_cons, simGameShape] at ih ⊢
-      exact congrArg (_ ++ ·) ih
-  refine ⟨fun n => simGameShape (tPoly.eval n) (q n), tPoly.eval,
+      (f := fun n (_ : Bool) => [(.verifier, tPoly.eval n + 2), (.prover, tPoly.eval n + 1)])
+      (ComputableInPolyTime.replicate hqPoly (.const false)) hstep).of_enc_eq fun n =>
+        congrArg encIPShape (by
+          induction q n with
+          | zero => rfl
+          | succ _ ih =>
+            simp only [List.replicate_succ, List.flatMap_cons, List.flatten_cons, simGameShape]
+              at ih ⊢
+            exact congrArg ([(.verifier, tPoly.eval n + 2), (.prover, tPoly.eval n + 1)] ++ ·) ih)
+  exact ⟨fun n => simGameShape (tPoly.eval n) (q n), tPoly.eval,
     simMsg enc MUnit tPoly.eval, simDec enc MUnit tPoly.eval,
-    fun n => simGameShape_map_fst (tPoly.eval n) (q n), hflat,
+    fun n => map_fst_replicate_pair _ _ (q n), hflat,
     ComputableInPolyTime.unary_eval tPoly, hmsg, hdec, hbounds⟩
 
 end SimGame
@@ -1410,40 +1102,46 @@ private theorem isQueryBounded_oracleStep (enc : α ↪ List Bool) (g : ℕ → 
   rw [OracleComp.isCostBounded_map_iff, OracleComp.isCostBounded_map_iff]
   exact ProbOracleComp.IsQueryBounded.query _
 
-private theorem isQueryBounded_iterate_unit {σ : Type} {step : σ → WordOracleComp Unit σ}
-    (hstep : ∀ s, (step s).IsQueryBounded 1) (m : ℕ) (init : σ) :
-    ProbOracleComp.IsQueryBounded (OracleComp.iterate m step init) m := by
-  induction m generalizing init with
-  | zero => exact .pure init 0
-  | succ m ih =>
-    rw [OracleComp.iterate_succ_bind]
-    have h1 : OracleComp.IsCostBounded (Sum.elim (fun _ => 0) fun _ => 1) (step init) 1 :=
-      hstep init
-    have h2 : ∀ s, OracleComp.IsCostBounded (Sum.elim (fun _ => 0) fun _ => 1)
-        (OracleComp.iterate m step s) m := fun s => ih s
-    exact (OracleComp.IsCostBounded.bind h1 h2).mono (by omega)
-
 private theorem isQueryBounded_oracleVerifier (enc : α ↪ List Bool) (g : ℕ → List (IPMove × ℕ))
     (ρ q : ℕ → ℕ) (msg : α × List Bool × ℕ × List Bool → List Bool)
     (dec : α × List Bool × List Bool → Bool) (a : α) :
     (oracleVerifier enc g ρ q msg dec a).IsQueryBounded (q (enc a).length) := by
-  unfold oracleVerifier
-  dsimp only [ProbOracleComp.IsQueryBounded]
-  have hiter : ∀ c, OracleComp.IsCostBounded (Sum.elim (fun _ => 0) fun _ => 1)
-      (OracleComp.iterate (q (enc a).length) (oracleStep enc g msg (a, c)) (SimState.mk 0 []) >>=
-        fun st => pure (dec (a, c, st.transcript))) (q (enc a).length + 0) := fun c => by
-    have hunit : OracleComp.IsCostBounded (Sum.elim (fun _ => 0) fun _ => 1)
-        (OracleComp.iterate (q (enc a).length) (oracleStep enc g msg (a, c)) (SimState.mk 0 []))
-        (q (enc a).length) :=
-      isQueryBounded_iterate_unit (isQueryBounded_oracleStep enc g msg (a, c))
-        (q (enc a).length) (SimState.mk 0 [])
-    exact OracleComp.IsCostBounded.bind hunit (fun st => .pure _ 0)
-  have hwhole : OracleComp.IsCostBounded (Sum.elim (fun _ => 0) fun _ => 1)
-      (ProbOracleComp.sample (BitString.sampleList (ρ (enc a).length)) >>= fun c =>
-        OracleComp.iterate (q (enc a).length) (oracleStep enc g msg (a, c)) (SimState.mk 0 []) >>=
-          fun st => pure (dec (a, c, st.transcript))) (0 + (q (enc a).length + 0)) :=
-    OracleComp.IsCostBounded.bind (ProbOracleComp.IsQueryBounded.sample _) hiter
-  exact hwhole.mono (by omega)
+  unfold oracleVerifier ProbOracleComp.IsQueryBounded
+  refine (OracleComp.IsCostBounded.bind (ProbOracleComp.IsQueryBounded.sample _) fun c =>
+    OracleComp.IsCostBounded.bind (OracleComp.IsCostBounded.iterate
+      (isQueryBounded_oracleStep enc g msg (a, c)) (q (enc a).length) (SimState.mk 0 []))
+      fun _ => .pure _ 0).mono (by omega)
+
+private theorem isOraclePPTOn_oracleStep {enc : α ↪ List Bool} {g : ℕ → List (IPMove × ℕ)}
+    {msg : α × List Bool × ℕ × List Bool → List Bool}
+    (hg : ComputableInPolyTime g encUnary encIPShape)
+    (hmsg : ComputableInPolyTime msg (IPGame.encMsgInput enc) encBits) :
+    IsOraclePPTOn (encPair (encPair enc encBits) encSimState) encSimState
+      (fun arg => oracleStep enc g msg arg.1 arg.2) := by
+  let encAC : (α × List Bool) ↪ List Bool := encPair enc encBits
+  let encArg : ((α × List Bool) × SimState) ↪ List Bool := encPair encAC encSimState
+  have ha : ComputableInPolyTime (fun arg : (α × List Bool) × SimState => arg.1.1) encArg enc :=
+    (ComputableInPolyTime.fst _ _).fst'
+  have hc : ComputableInPolyTime (fun arg : (α × List Bool) × SimState => arg.1.2) encArg encBits :=
+    (ComputableInPolyTime.fst _ _).snd'
+  have hst : ComputableInPolyTime (fun arg : (α × List Bool) × SimState => arg.2)
+      encArg encSimState := .snd _ _
+  have hj := encSimState_round_polyTime hst
+  have hp := encSimState_transcript_polyTime hst
+  have hgn := hg.comp ((ComputableInPolyTime.encoding_length enc).comp ha)
+  have hnv := (ComputableInPolyTime.snd encIPMove encUnary).comp
+    (ComputableInPolyTime.listGetDWithInput hgn hj (.verifier, 0))
+  have hnp := (ComputableInPolyTime.snd encIPMove encUnary).comp
+    (ComputableInPolyTime.listGetDWithInput hgn (hj.unary_add' (.const 1)) (.prover, 0))
+  have hm := hnv.bitsRowWithInput (.const 0) (hmsg.comp (ha.prod (hc.prod (hj.prod hp))))
+  have ha1 : ComputableInPolyTime (fun p : ((α × List Bool) × SimState) × List Bool => p.1)
+      (encPair encArg encBits) encArg := .fst _ _
+  have hy2 : ComputableInPolyTime (fun p : ((α × List Bool) × SimState) × List Bool => p.2)
+      (encPair encArg encBits) encBits := .snd _ _
+  have hy := encSimState_mk_polyTime ((hj.comp ha1).unary_add' (.const 2))
+    (((hp.comp ha1).bitsAppend (hm.comp ha1)).bitsAppend
+      ((hnp.comp ha1).bitsRowWithInput (.const 0) hy2))
+  exact (IsOraclePPTOn.query_take () hm hnp).map_with hy
 
 private theorem isOraclePPTOn_oracleVerifier {enc : α ↪ List Bool}
     {g : ℕ → List (IPMove × ℕ)} {ρ q : ℕ → ℕ}
@@ -1456,159 +1154,63 @@ private theorem isOraclePPTOn_oracleVerifier {enc : α ↪ List Bool}
     (hdec : ComputableInPolyTime dec (IPGame.encDecInput enc) encBool) :
     IsOraclePPTOn enc encBool (oracleVerifier enc g ρ q msg dec) := by
   let encAC : (α × List Bool) ↪ List Bool := encPair enc encBits
-  let encSt : SimState ↪ List Bool := encSimState
-  let encArg : ((α × List Bool) × SimState) ↪ List Bool := encPair encAC encSt
-  have hsample : IsOraclePPTOn (Operation := Unit) enc encBits
-      (fun a => ProbOracleComp.sample (BitString.sampleList (ρ (enc a).length))) :=
-    (ComputableInPolyTime.sampleList
-      (hρ.comp (ComputableInPolyTime.encoding_length enc))).isOraclePPTOn (Operation := Unit)
-  have hstepPPT : IsOraclePPTOn encArg encSt (fun arg => oracleStep enc g msg arg.1 arg.2) := by
-    have hac : ComputableInPolyTime (fun arg : (α × List Bool) × SimState => arg.1)
-        encArg encAC := .fst _ _
-    have ha : ComputableInPolyTime (fun arg : (α × List Bool) × SimState => arg.1.1)
-        encArg enc := (ComputableInPolyTime.fst _ _).comp hac
-    have hc : ComputableInPolyTime (fun arg : (α × List Bool) × SimState => arg.1.2)
-        encArg encBits := (ComputableInPolyTime.snd _ _).comp hac
-    have hst : ComputableInPolyTime (fun arg : (α × List Bool) × SimState => arg.2)
-        encArg encSt := .snd _ _
-    have hj : ComputableInPolyTime (fun arg : (α × List Bool) × SimState => arg.2.round)
-        encArg encUnary := encSimState_round_polyTime hst
-    have hp : ComputableInPolyTime (fun arg : (α × List Bool) × SimState => arg.2.transcript)
-        encArg encBits := encSimState_transcript_polyTime hst
-    have hn : ComputableInPolyTime
-        (fun arg : (α × List Bool) × SimState => (enc arg.1.1).length) encArg encUnary :=
-      (ComputableInPolyTime.encoding_length enc).comp ha
-    have hgn : ComputableInPolyTime
-        (fun arg : (α × List Bool) × SimState => g (enc arg.1.1).length)
-        encArg encIPShape := hg.comp hn
-    have hnv : ComputableInPolyTime
-        (fun arg : (α × List Bool) × SimState =>
-          ((g (enc arg.1.1).length).getD arg.2.round (.verifier, 0)).2) encArg encUnary :=
-      (ComputableInPolyTime.snd encIPMove encUnary).comp
-        (ComputableInPolyTime.listGetDWithInput hgn hj (.verifier, 0))
-    have hnp : ComputableInPolyTime
-        (fun arg : (α × List Bool) × SimState =>
-          ((g (enc arg.1.1).length).getD (arg.2.round + 1) (.prover, 0)).2) encArg encUnary :=
-      (ComputableInPolyTime.snd encIPMove encUnary).comp
-        (ComputableInPolyTime.listGetDWithInput hgn
-          (ComputableInPolyTime.unary_add' hj (ComputableInPolyTime.const 1)) (.prover, 0))
-    have hm : ComputableInPolyTime
-        (fun arg : (α × List Bool) × SimState =>
-          BitString.listRow ((g (enc arg.1.1).length).getD arg.2.round (.verifier, 0)).2 0
-            (msg (arg.1.1, arg.1.2, arg.2.round, arg.2.transcript))) encArg encBits :=
-      ComputableInPolyTime.bitsRowWithInput hnv (ComputableInPolyTime.const 0)
-        (hmsg.comp (ha.prod (hc.prod (hj.prod hp))))
-    have hqry := IsOraclePPTOn.query_take () hm hnp
-    have hy : ComputableInPolyTime
-        (fun p : ((α × List Bool) × SimState) × List Bool =>
-          SimState.mk (p.1.2.round + 2) (p.1.2.transcript ++
-            BitString.listRow ((g (enc p.1.1.1).length).getD p.1.2.round (.verifier, 0)).2 0
-              (msg (p.1.1.1, p.1.1.2, p.1.2.round, p.1.2.transcript)) ++
-            BitString.listRow ((g (enc p.1.1.1).length).getD (p.1.2.round + 1)
-              (.prover, 0)).2 0 p.2))
-        (encPair encArg encBits) encSt := by
-      have ha1 : ComputableInPolyTime
-          (fun p : ((α × List Bool) × SimState) × List Bool => p.1)
-          (encPair encArg encBits) encArg := .fst _ _
-      have hy2 : ComputableInPolyTime
-          (fun p : ((α × List Bool) × SimState) × List Bool => p.2)
-          (encPair encArg encBits) encBits := .snd _ _
-      have hj' := ComputableInPolyTime.unary_add' (hj.comp ha1) (ComputableInPolyTime.const 2)
-      have hp' := ComputableInPolyTime.bitsAppend
-        (ComputableInPolyTime.bitsAppend (hp.comp ha1) (hm.comp ha1))
-        (ComputableInPolyTime.bitsRowWithInput (hnp.comp ha1) (ComputableInPolyTime.const 0) hy2)
-      exact encSimState_mk_polyTime hj' hp'
-    simpa only [oracleStep] using hqry.map_with hy
-  obtain ⟨c₁, d₁, hqlen⟩ := hq.polyBounded_length.exists_le
-  obtain ⟨c₂, d₂, hglen⟩ := hg.polyBounded_length.exists_le
-  let D := max d₁ d₂
+  have hsample := (ComputableInPolyTime.sampleList
+    (hρ.comp (ComputableInPolyTime.encoding_length enc))).isOraclePPTOn (Operation := Unit)
+  have hnAC : ComputableInPolyTime (fun ac : α × List Bool => (enc ac.1).length)
+      encAC encUnary := (ComputableInPolyTime.encoding_length enc).comp (.fst _ _)
   have hcount : ComputableInPolyTime (fun ac : α × List Bool => q (enc ac.1).length)
-      encAC encUnary :=
-    hq.comp ((ComputableInPolyTime.encoding_length enc).comp (.fst _ _))
-  have hiter := IsOraclePPTOn.iterateWith_spec (input := encAC) (stateEncoding := encSt)
-    hcount (ComputableInPolyTime.const (SimState.mk 0 [])) hstepPPT
+      encAC encUnary := hq.comp hnAC
+  have hgn : ComputableInPolyTime (fun ac : α × List Bool => g (enc ac.1).length)
+      encAC encIPShape := hg.comp hnAC
+  have hbound : PolyBounded (fun ac : α × List Bool => (encAC ac).length)
+      (fun ac => 4 * (encUnary (q (enc ac.1).length)).length +
+        2 * (encIPShape (g (enc ac.1).length)).length + 3) :=
+    (((PolyBounded.const 4).mul hcount.polyBounded_length).add
+      ((PolyBounded.const 2).mul hgn.polyBounded_length)).add (.const 3)
+  have hiter := IsOraclePPTOn.iterateWith_spec (input := encAC) (stateEncoding := encSimState)
+    hcount (.const (SimState.mk 0 [])) (isOraclePPTOn_oracleStep hg hmsg)
     (fun ac i st => st.round = 2 * i ∧
       st.transcript.length = IPGame.transcriptLength ((g (enc ac.1).length).take (2 * i)))
-    (fun _ => by dsimp [SimState.round, SimState.transcript]; exact ⟨rfl, rfl⟩)
-    (fun ac i st hi hinv next hnext => by
-      obtain ⟨hst1, hplen⟩ := hinv
-      dsimp only [oracleStep, OracleComp.support] at hnext
-      simp only [OracleComp.mem_supportWith_map_iff, ProbOracleComp.supportWith_query,
-        Set.mem_univ, true_and] at hnext
-      obtain ⟨y, _, rfl⟩ := hnext
-      refine ⟨by dsimp only [SimState.round]; omega, ?_⟩
+    (fun _ => ⟨rfl, rfl⟩)
+    (fun ac i st hi ⟨hst1, hplen⟩ next hnext => by
+      simp only [oracleStep, OracleComp.support, OracleComp.mem_supportWith_map_iff,
+        ProbOracleComp.supportWith_query, Set.mem_univ, true_and] at hnext
+      obtain ⟨_, _, rfl⟩ := hnext
       have hlenG : (g (enc ac.1).length).length = 2 * q (enc ac.1).length := by
-        have hm := congrArg List.length (hgmap (enc ac.1).length)
-        simp only [List.length_map] at hm
         have haltLen : ∀ m0 k, (alternatingMoves m0 k).length = k := fun m0 k => by
-          induction k generalizing m0 with
-          | zero => rfl
-          | succ k ih => simp [alternatingMoves, ih m0.other]
-        rw [hm, haltLen]
+          induction k generalizing m0 with | zero => rfl | succ k ih => simp [alternatingMoves, ih]
+        simpa only [List.length_map, haltLen] using congrArg List.length (hgmap (enc ac.1).length)
       have htake : (g (enc ac.1).length).take (2 * (i + 1)) =
           (g (enc ac.1).length).take (2 * i) ++
             [(g (enc ac.1).length).getD (2 * i) (.verifier, 0),
              (g (enc ac.1).length).getD (2 * i + 1) (.prover, 0)] := by
+        rw [show 2 * (i + 1) = (2 * i + 1) + 1 by omega, List.take_add_one, List.take_add_one]
         have hlt1 : 2 * i < (g (enc ac.1).length).length := by omega
         have hlt2 : 2 * i + 1 < (g (enc ac.1).length).length := by omega
-        rw [show 2 * (i + 1) = (2 * i + 1) + 1 by omega, List.take_add_one, List.take_add_one]
         simp only [List.getElem?_eq_getElem hlt1, List.getElem?_eq_getElem hlt2,
-          Option.toList_some, List.getD_eq_getElem?_getD, Option.getD_some, List.append_assoc,
-          List.singleton_append]
+          List.getD_eq_getElem?_getD, Option.toList_some, Option.getD_some,
+          List.append_assoc, List.singleton_append]
+      refine ⟨by dsimp only [SimState.round]; omega, ?_⟩
       rw [htake, IPGame.transcriptLength, List.map_append, List.sum_append]
       simp only [hst1, List.length_append, hplen, BitString.listRow_zero, List.length_ofFn,
         IPGame.transcriptLength, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
         add_zero, Nat.add_assoc])
-    (size := fun ac => (4 * c₁ + 2 * c₂ + 3) * ((encAC ac).length + 1) ^ D)
-    (PolyBounded.of_forall_le _ D fun _ => le_rfl)
-    (fun ac i st hi hinv => by
-      obtain ⟨hj, hp⟩ := hinv
-      set n := (enc ac.1).length
-      have hnAC : n ≤ (encAC ac).length := by
-        enc_len [encAC, n]
-      have h1 : 1 ≤ ((encAC ac).length + 1) ^ D := Nat.one_le_pow _ _ (Nat.succ_pos _)
-      have hpow1 : (n + 1) ^ d₁ ≤ ((encAC ac).length + 1) ^ D :=
-        (Nat.pow_le_pow_left (by omega) _).trans
-          (Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_left _ _))
-      have hpow2 : (n + 1) ^ d₂ ≤ ((encAC ac).length + 1) ^ D :=
-        (Nat.pow_le_pow_left (by omega) _).trans
-          (Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_right _ _))
-      have hqB := hqlen n
-      simp only [encUnary_apply, List.length_replicate] at hqB
-      have hqB' : q n ≤ c₁ * ((encAC ac).length + 1) ^ D := hqB.trans (Nat.mul_le_mul_left _ hpow1)
-      have hgB := hglen n
-      simp only [encUnary_apply, List.length_replicate] at hgB
-      have htrB : st.transcript.length ≤ (encIPShape (g n)).length := by
+    hbound
+    (fun ac i st hi ⟨hj, hp⟩ => by
+      have htrB : st.transcript.length ≤ (encIPShape (g (enc ac.1).length)).length := by
         rw [hp]
-        refine le_trans ?_ (IPGame.transcriptLength_le_length_encIPShape (g n))
-        conv_rhs => rw [← List.take_append_drop (2 * i) (g n)]
-        simp only [IPGame.transcriptLength, List.map_append, List.sum_append]
-        exact Nat.le_add_right _ _
-      have hgB' : st.transcript.length ≤ c₂ * ((encAC ac).length + 1) ^ D :=
-        htrB.trans (hgB.trans (Nat.mul_le_mul_left _ hpow2))
-      simp only [encSt, encSimState_apply, encSimStateFields, length_encPair, encUnary_apply,
+        refine le_trans ?_ (IPGame.transcriptLength_le_length_encIPShape (g (enc ac.1).length))
+        conv_rhs => rw [← List.take_append_drop (2 * i) (g (enc ac.1).length)]
+        simp only [IPGame.transcriptLength, List.map_append, List.sum_append, Nat.le_add_right]
+      simp only [encSimState_apply, encSimStateFields, length_encPair, encUnary_apply,
         List.length_replicate, encBits_apply]
-      nlinarith)
-  have hdecPPT : IsOraclePPTOn (Operation := Unit) (encPair encAC encSt) encBool
-      (fun x : (α × List Bool) × SimState => pure (dec (x.1.1, x.1.2, x.2.transcript))) := by
-    have ha : ComputableInPolyTime
-        (fun x : (α × List Bool) × SimState => x.1.1) (encPair encAC encSt) enc :=
-      (ComputableInPolyTime.fst _ _).comp (.fst _ _)
-    have hc : ComputableInPolyTime
-        (fun x : (α × List Bool) × SimState => x.1.2) (encPair encAC encSt) encBits :=
-      (ComputableInPolyTime.snd _ _).comp (.fst _ _)
-    have hp : ComputableInPolyTime
-        (fun x : (α × List Bool) × SimState => x.2.transcript) (encPair encAC encSt) encBits :=
-      encSimState_transcript_polyTime (.snd _ _)
-    exact (hdec.comp (ha.prod (hc.prod hp))).isOraclePPTOn (Operation := Unit)
-  have hcont : IsOraclePPTOn encAC encBool
-      (fun ac => do
-        let st ← OracleComp.iterate (q (enc ac.1).length) (oracleStep enc g msg ac)
-          (SimState.mk 0 [])
-        pure (dec (ac.1, ac.2, st.transcript))) :=
-    hiter.1.bind_with hdecPPT
-  unfold oracleVerifier
-  exact hsample.bind_with hcont
+      omega)
+  have hdecPPT : IsOraclePPTOn (Operation := Unit) (encPair encAC encSimState) encBool
+      (fun x : (α × List Bool) × SimState => pure (dec (x.1.1, x.1.2, x.2.transcript))) :=
+    (hdec.comp ((ComputableInPolyTime.fst _ _).fst'.prod
+      ((ComputableInPolyTime.fst _ _).snd'.prod
+        (encSimState_transcript_polyTime (.snd _ _))))).isOraclePPTOn (Operation := Unit)
+  exact hsample.bind_with (hiter.1.bind_with hdecPPT)
 
 private theorem acceptProb_sample_uniformList {k : ℕ} (next : List Bool → WordOracleComp Unit Bool)
     (P : Prover Unit) :
@@ -1617,23 +1219,51 @@ private theorem acceptProb_sample_uniformList {k : ℕ} (next : List Bool → Wo
   rw [acceptProb_sample_bind]
   simp only [BitString.eval_sampleList, BitString.uniformList, PMF.map_apply,
     PMF.uniformOfFintype_apply, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin,
-    Nat.cast_pow, Nat.cast_ofNat, tsum_fintype]
-  rw [tsum_eq_sum (s := Finset.univ.image List.ofFn) fun b hb => by
-    rw [Finset.sum_eq_zero]
-    · simp
-    · intro c _
-      simp only [Finset.mem_image, Finset.mem_univ, true_and, not_exists] at hb
-      exact ite_eq_right fun h => absurd h.symm (hb c)]
-  simp only [Finset.sum_mul, ite_mul, zero_mul]
-  rw [Finset.sum_image (f := fun b => ∑ a : BitString k,
-      if b = List.ofFn a then (2 ^ k : ENNReal)⁻¹ * acceptProb (next b) P else 0)
-    fun _ _ _ _ h => List.ofFn_injective h]
-  rw [Finset.mul_sum]
+    Nat.cast_pow, Nat.cast_ofNat, tsum_fintype, Finset.sum_mul, ite_mul, zero_mul]
+  rw [Summable.tsum_finsetSum (fun _ _ => CompleteLattice.summable), Finset.mul_sum]
   refine Finset.sum_congr rfl fun c _ => ?_
-  rw [Finset.sum_eq_single c
-    (fun c' _ hne => ite_eq_right fun h => absurd (List.ofFn_injective h).symm hne)
-    fun hc => absurd (Finset.mem_univ c) hc]
-  simp only [reduceIte]
+  simp only [tsum_ite_eq]
+
+private theorem map_fst_two_moves_destr {g' : List (IPMove × ℕ)} {m : ℕ}
+    (hgmap : g'.map Prod.fst = (alternatingMoves .arthur (2 * (m + 1))).map AMMove.toIP) :
+    ∃ nv np g'', g' = (.verifier, nv) :: (.prover, np) :: g'' ∧
+      g''.map Prod.fst = (alternatingMoves .arthur (2 * m)).map AMMove.toIP := by
+  rw [show 2 * (m + 1) = 2 * m + 2 by omega] at hgmap
+  change g'.map Prod.fst = [.verifier, .prover] ++
+    (alternatingMoves .arthur (2 * m)).map AMMove.toIP at hgmap
+  obtain ⟨⟨v, nv⟩, g₁, rfl, hv, hg₁⟩ := List.map_eq_cons_iff.1 hgmap
+  obtain ⟨⟨pr, np⟩, g'', rfl, hpr, hg''⟩ := List.map_eq_cons_iff.1 hg₁
+  subst hv hpr
+  exact ⟨nv, np, g'', rfl, hg''⟩
+
+private theorem execProg_acceptProb_step {enc : α ↪ List Bool} (g : ℕ → List (IPMove × ℕ))
+    (msg : α × List Bool × ℕ × List Bool → List Bool) (dec : α × List Bool × List Bool → Bool)
+    {ρn : ℕ} (a : α) (P : Prover Unit) (c : BitString ρn) (m j nv np : ℕ)
+    (p : List Bool) (s : P.State)
+    (hnv : ((g (enc a).length).getD j (.verifier, 0)).2 = nv)
+    (hnp : ((g (enc a).length).getD (j + 1) (.prover, 0)).2 = np) :
+    (P.run ((fun st => dec (a, List.ofFn c, st.transcript)) <$>
+        OracleComp.iterate (m + 1) (oracleStep enc g msg (a, List.ofFn c)) (SimState.mk j p))
+        s).map Prod.fst =
+      (P.respond ((), List.ofFn (BitString.ofList nv (msg (a, List.ofFn c, j, p))))).run s >>=
+        fun ys => (P.run ((fun st => dec (a, List.ofFn c, st.transcript)) <$>
+          OracleComp.iterate m (oracleStep enc g msg (a, List.ofFn c))
+            (SimState.mk (j + 2) (p ++ List.ofFn (BitString.ofList nv
+              (msg (a, List.ofFn c, j, p))) ++
+              List.ofFn (BitString.ofList np ys.1)))) ys.2).map Prod.fst := by
+  rw [OracleComp.iterate_succ_bind, map_eq_bind_pure_comp]
+  change (P.run ((oracleStep enc g msg (a, List.ofFn c) (SimState.mk j p) >>= fun st' =>
+      OracleComp.iterate m (oracleStep enc g msg (a, List.ofFn c)) st' >>=
+        fun st => pure (dec (a, List.ofFn c, st.transcript)))) s).map Prod.fst = _
+  dsimp only [oracleStep]
+  simp only [hnv, hnp, BitString.listRow_zero]
+  rw [Prover.run_bind, Prover.run_map, Prover.run_map, Prover.run_query,
+    PMF.bind_map, PMF.bind_map, PMF.map_bind]
+  refine congrArg _ (funext fun ys => ?_)
+  have htake : List.ofFn (BitString.ofList np (ys.1.take np)) =
+      List.ofFn (BitString.ofList np ys.1) := by simp [BitString.ofList_take]
+  dsimp only [Function.comp_apply, Prod.map, id_eq]
+  rw [htake, bind_pure_comp]
 
 private theorem execProg_acceptProb_le {enc : α ↪ List Bool} (g : ℕ → List (IPMove × ℕ))
     (msg : α × List Bool × ℕ × List Bool → List Bool) (dec : α × List Bool × List Bool → Bool)
@@ -1641,8 +1271,7 @@ private theorem execProg_acceptProb_le {enc : α ↪ List Bool} (g : ℕ → Lis
     ∀ (m : ℕ) (g' : List (IPMove × ℕ)) (j : ℕ) (p : List Bool) (S : Finset (BitString ρn))
       (s : P.State),
       g'.map Prod.fst = (alternatingMoves .arthur (2 * m)).map AMMove.toIP →
-      (∀ k, g'.getD k (.verifier, 0) = (g (enc a).length).getD (j + k) (.verifier, 0)) →
-      (∀ k, g'.getD k (.prover, 0) = (g (enc a).length).getD (j + k) (.prover, 0)) →
+      (∀ k d, g'.getD k d = (g (enc a).length).getD (j + k) d) →
       (∑ c ∈ S, (P.run ((fun st => dec (a, List.ofFn c, st.transcript)) <$>
           OracleComp.iterate m (oracleStep enc g msg (a, List.ofFn c)) (SimState.mk j p)) s).map
             Prod.fst true : ENNReal) ≤
@@ -1652,90 +1281,58 @@ private theorem execProg_acceptProb_le {enc : α ↪ List Bool} (g : ℕ → Lis
   intro m
   induction m with
   | zero =>
-    intro g' j p S s hgmap _ _
-    have hnil : g' = [] :=
-      (List.map_eq_nil_iff (f := Prod.fst)).1 (by simpa [alternatingMoves] using hgmap)
-    subst hnil
+    intro g' j p S s hgmap _
+    obtain rfl : g' = [] := List.map_eq_nil_iff.1 hgmap
     simp only [OracleComp.iterate_zero, Functor.map, IPGame.count_nil, IPGame.agrees, Bool.true_and,
       Finset.card_filter, Nat.cast_sum]
-    refine Finset.sum_le_sum fun c _ => ?_
-    cases dec (a, List.ofFn c, p) <;> simp [Prover.run_pure]
+    exact Finset.sum_le_sum fun c _ => by cases dec (a, List.ofFn c, p) <;> simp [Prover.run_pure]
   | succ m ih =>
-    intro g' j p S s hgmap hgetV hgetP
-    rw [show 2 * (m + 1) = 2 * m + 2 by omega] at hgmap
-    change g'.map Prod.fst = [.verifier, .prover] ++
-        (alternatingMoves .arthur (2 * m)).map AMMove.toIP at hgmap
-    obtain ⟨⟨v, nv⟩, g₁, rfl, hv, hg₁⟩ := List.map_eq_cons_iff.1 hgmap
-    obtain ⟨⟨pr, np⟩, g'', rfl, hpr, hg''⟩ := List.map_eq_cons_iff.1 hg₁
-    dsimp only at hv hpr
-    subst hv hpr
-    have hnv : ((g (enc a).length).getD j (.verifier, 0)).2 = nv := by
-      simpa using (congrArg Prod.snd (hgetV 0)).symm
-    have hnp : ((g (enc a).length).getD (j + 1) (.prover, 0)).2 = np := by
-      simpa using (congrArg Prod.snd (hgetP 1)).symm
-    have hgetV'' : ∀ k, g''.getD k (.verifier, 0) =
-        (g (enc a).length).getD (j + 2 + k) (.verifier, 0) := fun k => by
-      rw [show j + 2 + k = j + (k + 2) by omega]
-      exact hgetV (k + 2)
-    have hgetP'' : ∀ k, g''.getD k (.prover, 0) =
-        (g (enc a).length).getD (j + 2 + k) (.prover, 0) := fun k => by
-      rw [show j + 2 + k = j + (k + 2) by omega]
-      exact hgetP (k + 2)
-    have hstepEq : ∀ c : BitString ρn,
+    intro g' j p S s hgmap hget
+    obtain ⟨nv, np, g'', rfl, hg''⟩ := map_fst_two_moves_destr hgmap
+    have hnv : ((g (enc a).length).getD j (.verifier, 0)).2 = nv :=
+      by simpa using (congrArg Prod.snd (hget 0 (.verifier, 0))).symm
+    have hnp : ((g (enc a).length).getD (j + 1) (.prover, 0)).2 = np :=
+      by simpa using (congrArg Prod.snd (hget 1 (.prover, 0))).symm
+    have hget'' : ∀ k d, g''.getD k d = (g (enc a).length).getD (j + 2 + k) d := fun k d => by
+      have hk : j + 2 + k = j + (k + 2) := by omega
+      exact hk ▸ hget (k + 2) d
+    have hstep_rw : ∀ c : BitString ρn,
         (P.run ((fun st => dec (a, List.ofFn c, st.transcript)) <$>
             OracleComp.iterate (m + 1) (oracleStep enc g msg (a, List.ofFn c))
-              (SimState.mk j p)) s).map
-            Prod.fst true =
+              (SimState.mk j p)) s).map Prod.fst true =
           ∑' ys : List Bool × P.State,
-            (P.respond
-              ((), List.ofFn (BitString.ofList nv (msg (a, List.ofFn c, j, p))))).run s ys *
+            (P.respond ((), List.ofFn (BitString.ofList nv (msg (a, List.ofFn c, j, p))))).run
+              s ys *
             (P.run ((fun st => dec (a, List.ofFn c, st.transcript)) <$>
               OracleComp.iterate m (oracleStep enc g msg (a, List.ofFn c))
                 (SimState.mk (j + 2) (p ++ List.ofFn (BitString.ofList nv
                   (msg (a, List.ofFn c, j, p))) ++
-                  List.ofFn (BitString.ofList np ys.1)))) ys.2).map Prod.fst true := by
-      intro c
-      rw [OracleComp.iterate_succ_bind, map_eq_bind_pure_comp]
-      change (P.run ((oracleStep enc g msg (a, List.ofFn c) (SimState.mk j p) >>= fun st' =>
-          OracleComp.iterate m (oracleStep enc g msg (a, List.ofFn c)) st' >>=
-            fun st => pure (dec (a, List.ofFn c, st.transcript)))) s).map Prod.fst true = _
-      unfold oracleStep
-      simp only [hnv, hnp, BitString.listRow_zero]
-      conv_lhs => rw [Prover.run_bind, Prover.run_map, Prover.run_map, Prover.run_query]
-      rw [PMF.bind_map, PMF.bind_map, PMF.map_bind, PMF.bind_apply]
-      refine tsum_congr fun ys => ?_
-      have htake : List.ofFn (BitString.ofList np (ys.1.take np)) =
-          List.ofFn (BitString.ofList np ys.1) := by
-        simp [BitString.ofList_take]
-      dsimp only [Function.comp_apply, Prod.map, id_eq]
-      rw [htake, bind_pure_comp]
-    simp_rw [hstepEq]
+                  List.ofFn (BitString.ofList np ys.1)))) ys.2).map Prod.fst true := fun c => by
+      rw [PMF.ext_iff.1 (execProg_acceptProb_step g msg dec a P c m j nv np p s hnv hnp) true]
+      exact PMF.bind_apply _ _ true
+    simp_rw [hstep_rw]
     rw [← Finset.sum_fiberwise_of_maps_to (s := S) (t := univ)
-      (g := fun c => BitString.ofList nv (msg (a, List.ofFn c, j, p)))
-      fun _ _ => mem_univ _]
-    rw [IPGame.count_verifier, Nat.cast_sum]
+      (g := fun c => BitString.ofList nv (msg (a, List.ofFn c, j, p))) fun _ _ => mem_univ _,
+      IPGame.count_verifier, Nat.cast_sum]
     refine Finset.sum_le_sum fun m0 _ => ?_
-    have hswap : ∑ c ∈ S.filter (fun c => BitString.ofList nv (msg (a, List.ofFn c, j, p)) = m0),
-        ∑' ys : List Bool × P.State,
+    rw [← Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
+    have hterm : ∀ ys : List Bool × P.State,
+        ∑ c ∈ S.filter (fun c => BitString.ofList nv (msg (a, List.ofFn c, j, p)) = m0),
           (P.respond ((), List.ofFn (BitString.ofList nv (msg (a, List.ofFn c, j, p))))).run s ys *
             (P.run ((fun st => dec (a, List.ofFn c, st.transcript)) <$>
               OracleComp.iterate m (oracleStep enc g msg (a, List.ofFn c))
                 (SimState.mk (j + 2) (p ++ List.ofFn (BitString.ofList nv
                   (msg (a, List.ofFn c, j, p))) ++
                   List.ofFn (BitString.ofList np ys.1)))) ys.2).map Prod.fst true =
-        ∑' ys : List Bool × P.State, (P.respond ((), List.ofFn m0)).run s ys *
+        (P.respond ((), List.ofFn m0)).run s ys *
           ∑ c ∈ S.filter (fun c => BitString.ofList nv (msg (a, List.ofFn c, j, p)) = m0),
             (P.run ((fun st => dec (a, List.ofFn c, st.transcript)) <$>
               OracleComp.iterate m (oracleStep enc g msg (a, List.ofFn c))
                 (SimState.mk (j + 2) (p ++ List.ofFn m0 ++
-                  List.ofFn (BitString.ofList np ys.1)))) ys.2).map
-              Prod.fst true := by
-      rw [← Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
-      refine tsum_congr fun ys => ?_
+                  List.ofFn (BitString.ofList np ys.1)))) ys.2).map Prod.fst true := fun ys => by
       rw [Finset.mul_sum]
-      refine Finset.sum_congr rfl fun c hc => ?_
-      rw [(Finset.mem_filter.1 hc).2]
-    rw [hswap]
+      exact Finset.sum_congr rfl fun c hc => by rw [(Finset.mem_filter.1 hc).2]
+    simp_rw [hterm]
     calc ∑' ys : List Bool × P.State, (P.respond ((), List.ofFn m0)).run s ys * _
         ≤ ∑' ys : List Bool × P.State, (P.respond ((), List.ofFn m0)).run s ys *
             (IPGame.count ((.prover, np) :: g'') (fun t => #(S.filter fun c =>
@@ -1744,16 +1341,16 @@ private theorem execProg_acceptProb_le {enc : α ↪ List Bool} (g : ℕ → Lis
                 dec (a, List.ofFn c, p ++ (List.ofFn m0 ++ t))) = true)) : ENNReal) := by
           refine tsum_le_tsum fun ys => mul_le_mul_right ?_ _
           refine (ih g'' (j + 2) (p ++ List.ofFn m0 ++ List.ofFn (BitString.ofList np ys.1))
-            _ ys.2 hg'' hgetV'' hgetP'').trans ?_
+            _ ys.2 hg'' hget'').trans ?_
           rw [IPGame.count_prover]
           exact_mod_cast le_trans (le_of_eq (IPGame.count_congr_of_length g'' fun t _ => by
             rw [Finset.filter_filter]
-            congr 1
-            refine Finset.filter_congr fun c _ => ?_
+            refine congrArg _ (Finset.filter_congr fun c _ => ?_)
             rw [IPGame.agrees_verifier_ofFn, IPGame.agrees_prover_ofFn]
-            simp only [Bool.and_eq_true, decide_eq_true_eq, List.append_assoc]
-            exact ⟨fun ⟨hm0, ha', hd⟩ => ⟨⟨hm0.symm, ha'⟩, hd⟩,
-              fun ⟨⟨hm0, ha'⟩, hd⟩ => ⟨hm0.symm, ha', hd⟩⟩))
+            simp only [Bool.and_eq_true, decide_eq_true_eq, List.append_assoc,
+              show j + 1 + 1 = j + 2 by omega]
+            exact ⟨fun ⟨hm, ha, hd⟩ => ⟨⟨hm.symm, ha⟩, hd⟩,
+              fun ⟨⟨hm, ha⟩, hd⟩ => ⟨hm.symm, ha, hd⟩⟩))
             (Finset.le_sup (f := fun y0 : BitString np => IPGame.count g'' fun t =>
               #(S.filter fun c =>
                 (IPGame.agrees (fun j' p' => msg (a, List.ofFn c, j', p'))
@@ -1778,8 +1375,7 @@ private theorem execProg_acceptProb_proverOfIPGame {enc : α ↪ List Bool}
     (PGame : ℕ → List Bool → List Bool) (c : BitString ρn) :
     ∀ (m : ℕ) (g' : List (IPMove × ℕ)) (i : ℕ) (p : List Bool),
       g'.map Prod.fst = (alternatingMoves .arthur (2 * m)).map AMMove.toIP →
-      (∀ k, g'.getD k (.verifier, 0) = (g (enc a).length).getD (2 * i + k) (.verifier, 0)) →
-      (∀ k, g'.getD k (.prover, 0) = (g (enc a).length).getD (2 * i + k) (.prover, 0)) →
+      (∀ k d, g'.getD k d = (g (enc a).length).getD (2 * i + k) d) →
       ((proverOfIPGame enc g a PGame).run ((fun st => dec (a, List.ofFn c, st.transcript)) <$>
           OracleComp.iterate m (oracleStep enc g msg (a, List.ofFn c)) (SimState.mk (2 * i) p))
           (SimState.mk i p)).map Prod.fst true =
@@ -1789,68 +1385,32 @@ private theorem execProg_acceptProb_proverOfIPGame {enc : α ↪ List Bool}
   intro m
   induction m with
   | zero =>
-    intro g' i p hgmap _ _
-    have hnil : g' = [] :=
-      (List.map_eq_nil_iff (f := Prod.fst)).1 (by simpa [alternatingMoves] using hgmap)
-    subst hnil
+    intro g' i p hgmap _
+    obtain rfl : g' = [] := List.map_eq_nil_iff.1 hgmap
     simp only [OracleComp.iterate_zero, Functor.map, IPGame.run, List.append_nil]
     cases hdec : dec (a, List.ofFn c, p) <;> simp [hdec, Prover.run_pure]
   | succ m ih =>
-    intro g' i p hgmap hgetV hgetP
-    rw [show 2 * (m + 1) = 2 * m + 2 by omega] at hgmap
-    change g'.map Prod.fst = [.verifier, .prover] ++
-        (alternatingMoves .arthur (2 * m)).map AMMove.toIP at hgmap
-    obtain ⟨⟨v, nv⟩, g₁, rfl, hv, hg₁⟩ := List.map_eq_cons_iff.1 hgmap
-    obtain ⟨⟨pr, np⟩, g'', rfl, hpr, hg''⟩ := List.map_eq_cons_iff.1 hg₁
-    dsimp only at hv hpr
-    subst hv hpr
-    have hnv : ((g (enc a).length).getD (2 * i) (.verifier, 0)).2 = nv := by
-      simpa using (congrArg Prod.snd (hgetV 0)).symm
-    have hnp : ((g (enc a).length).getD (2 * i + 1) (.prover, 0)).2 = np := by
-      simpa using (congrArg Prod.snd (hgetP 1)).symm
-    have hgetV'' : ∀ k, g''.getD k (.verifier, 0) =
-        (g (enc a).length).getD (2 * (i + 1) + k) (.verifier, 0) := fun k => by
-      rw [show 2 * (i + 1) + k = 2 * i + (k + 2) by omega]
-      exact hgetV (k + 2)
-    have hgetP'' : ∀ k, g''.getD k (.prover, 0) =
-        (g (enc a).length).getD (2 * (i + 1) + k) (.prover, 0) := fun k => by
-      rw [show 2 * (i + 1) + k = 2 * i + (k + 2) by omega]
-      exact hgetP (k + 2)
-    let p1 := p ++ List.ofFn (BitString.ofList nv (msg (a, List.ofFn c, 2 * i, p))) ++
-      List.ofFn (BitString.ofList np (PGame (2 * i + 1)
-        (p ++ List.ofFn (BitString.ofList nv (msg (a, List.ofFn c, 2 * i, p))))))
-    have hstep :
-        (PMF.map Prod.fst ((proverOfIPGame enc g a PGame).run
-          ((fun st => dec (a, List.ofFn c, st.transcript)) <$>
-            OracleComp.iterate (m + 1) (oracleStep enc g msg (a, List.ofFn c))
-              (SimState.mk (2 * i) p)) (SimState.mk i p))) true =
-        (PMF.map Prod.fst ((proverOfIPGame enc g a PGame).run
-          ((fun st => dec (a, List.ofFn c, st.transcript)) <$>
-            OracleComp.iterate m (oracleStep enc g msg (a, List.ofFn c))
-              (SimState.mk (2 * (i + 1)) p1)) (SimState.mk (i + 1) p1))) true := by
-      rw [OracleComp.iterate_succ_bind, map_eq_bind_pure_comp]
-      change ((proverOfIPGame enc g a PGame).run
-          (oracleStep enc g msg (a, List.ofFn c) (SimState.mk (2 * i) p) >>= fun st' =>
-            OracleComp.iterate m (oracleStep enc g msg (a, List.ofFn c)) st' >>=
-              fun st => pure (dec (a, List.ofFn c, st.transcript)))
-            (SimState.mk i p)).map Prod.fst true = _
-      conv_lhs =>
-        dsimp only [oracleStep]
-        simp only [hnv, hnp, BitString.listRow_zero]
-        rw [Prover.run_bind, Prover.run_map, Prover.run_map, Prover.run_query]
-        rw [PMF.bind_map, PMF.bind_map, PMF.map_bind]
-        simp only [proverOfIPGame, StateT.run, PMF.pure_bind, Function.comp_apply, Prod.map,
-          id_eq]
-        rw [hnp, List.take_of_length_le (Nat.le_of_eq List.length_ofFn), BitString.ofList_ofFn,
-          bind_pure_comp, show 2 * i + 2 = 2 * (i + 1) by omega]
-    have hrun : p ++ IPGame.run (fun j' p' => msg (a, List.ofFn c, j', p')) PGame
-          ((.verifier, nv) :: (.prover, np) :: g'') (2 * i) p =
-        p1 ++ IPGame.run (fun j' p' => msg (a, List.ofFn c, j', p')) PGame g''
-          (2 * (i + 1)) p1 := by
-      simp only [p1, IPGame.run, List.append_assoc]
-      rfl
-    rw [hstep, hrun]
-    exact ih g'' (i + 1) p1 hg'' hgetV'' hgetP''
+    intro g' i p hgmap hget
+    obtain ⟨nv, np, g'', rfl, hg''⟩ := map_fst_two_moves_destr hgmap
+    have hnv : ((g (enc a).length).getD (2 * i) (.verifier, 0)).2 = nv :=
+      by simpa using (congrArg Prod.snd (hget 0 (.verifier, 0))).symm
+    have hnp : ((g (enc a).length).getD (2 * i + 1) (.prover, 0)).2 = np :=
+      by simpa using (congrArg Prod.snd (hget 1 (.prover, 0))).symm
+    have hget'' : ∀ k d, g''.getD k d = (g (enc a).length).getD (2 * (i + 1) + k) d := fun k d => by
+      have hk : 2 * (i + 1) + k = 2 * i + (k + 2) := by omega
+      exact hk ▸ hget (k + 2) d
+    rw [PMF.ext_iff.1 (execProg_acceptProb_step g msg dec a (proverOfIPGame enc g a PGame) c m
+      (2 * i) nv np p (SimState.mk i p) hnv hnp) true]
+    subst hnp
+    change (PMF.pure _ >>= _) true = _
+    rw [Probability.PMF.monad_bind_eq_bind, PMF.pure_bind]
+    simp only [BitString.ofList_ofFn, show 2 * i + 2 = 2 * (i + 1) by omega]
+    simpa only [IPGame.run, List.append_assoc, show 2 * i + 1 + 1 = 2 * (i + 1) by omega] using
+      ih g'' (i + 1) (p ++ List.ofFn (BitString.ofList nv (msg (a, List.ofFn c, 2 * i, p))) ++
+        List.ofFn (BitString.ofList
+          ((g (enc a).length).getD (2 * i + 1) (.prover, 0)).2
+          (PGame (2 * i + 1) (p ++ List.ofFn (BitString.ofList nv
+            (msg (a, List.ofFn c, 2 * i, p))))))) hg'' hget''
 
 /-- Every dynamic `IP[2 * q(n)]` game class is simulated by an oracle-PPT verifier making at most
 `q(n)` queries when `q` is computable in polynomial time. -/
@@ -1877,23 +1437,13 @@ theorem IPPolyRounds_subset_IPPolyQueryBounded {enc : α ↪ List Bool} {q : ℕ
             IPGame.run (fun j p => msg (a, List.ofFn c, j, p)) PGame
               (g (enc a).length) 0 []) = true) : ENNReal) := by
       rw [Finset.card_filter, Nat.cast_sum]
-      refine Finset.sum_congr rfl fun c _ => ?_
-      have hpr := execProg_acceptProb_proverOfIPGame (enc := enc) g msg dec a PGame c
-        (q (enc a).length) (g (enc a).length) 0 [] (hgmap (enc a).length)
-        (fun _ => by simp) (fun _ => by simp)
-      simpa [acceptProb] using hpr
+      exact Finset.sum_congr rfl fun c _ => by
+        simpa [acceptProb] using execProg_acceptProb_proverOfIPGame (enc := enc) g msg dec a PGame c
+          (q (enc a).length) (g (enc a).length) 0 [] (hgmap (enc a).length) (fun _ _ => by simp)
     rw [hsum, hP]
-    have hne : 2 ^ ρ (enc a).length ≠ 0 := (pow_pos two_pos _).ne'
-    have h2 : (2 : ENNReal) / 3 ≤
-        (IPGame.bestCount _ _ (g (enc a).length) : ENNReal) / (2 ^ ρ (enc a).length : ℕ) :=
-      (ENNReal.natCast_div_le_natCast_div_iff three_ne_zero hne).mpr
-        (by simpa [Nat.mul_comm] using (hA a).1 ha)
-    simpa [div_eq_mul_inv, mul_comm] using h2
+    exact two_div_three_le_iff_nat.mpr ((hA a).1 ha)
   · rw [oracleVerifier, acceptProb_sample_uniformList]
-    have hle := execProg_acceptProb_le (enc := enc) g msg dec (ρn := ρ (enc a).length) a P
-      (q (enc a).length) (g (enc a).length) 0 [] univ P.init (hgmap (enc a).length)
-      (fun _ => by simp) (fun _ => by simp)
-    have hle' : ∑ c : BitString (ρ (enc a).length),
+    have hle : ∑ c : BitString (ρ (enc a).length),
         acceptProb (do
           let st ← OracleComp.iterate (q (enc a).length)
             (oracleStep enc g msg (a, List.ofFn c)) (SimState.mk 0 [])
@@ -1902,23 +1452,11 @@ theorem IPPolyRounds_subset_IPPolyQueryBounded {enc : α ↪ List Bool} {q : ℕ
             msg (a, List.ofFn c, j, p))
           (fun (c : BitString (ρ (enc a).length)) tr => dec (a, List.ofFn c, tr))
           (g (enc a).length) : ENNReal) := by
-      dsimp only [acceptProb, IPGame.bestCount]
-      unfold IPGame.acceptedCoins
-      simpa only [bind_pure_comp, List.nil_append] using hle
-    have hne : 2 ^ ρ (enc a).length ≠ 0 := (pow_pos two_pos _).ne'
-    have hdiv : (IPGame.bestCount (fun (c : BitString (ρ (enc a).length)) j p =>
-            msg (a, List.ofFn c, j, p))
-          (fun (c : BitString (ρ (enc a).length)) tr => dec (a, List.ofFn c, tr))
-          (g (enc a).length) : ENNReal) / (2 ^ ρ (enc a).length : ℕ) ≤ 1 / 3 := by
-      have hdiv' := (ENNReal.natCast_div_le_natCast_div_iff hne three_ne_zero
-        (a := IPGame.bestCount (fun (c : BitString (ρ (enc a).length)) j p =>
-            msg (a, List.ofFn c, j, p))
-          (fun (c : BitString (ρ (enc a).length)) tr => dec (a, List.ofFn c, tr))
-          (g (enc a).length))
-        (c := 1)).mpr (by simpa [Nat.mul_comm, one_mul] using (hA a).2 ha)
-      simpa using hdiv'
-    refine le_trans (mul_le_mul_right hle' _) ?_
-    simpa [div_eq_mul_inv, mul_comm] using hdiv
+      simp_rw [acceptProb, bind_pure_comp]
+      exact execProg_acceptProb_le (enc := enc) g msg dec
+        (ρn := ρ (enc a).length) a P (q (enc a).length) (g (enc a).length) 0 [] univ P.init
+        (hgmap (enc a).length) (fun _ _ => by simp)
+    exact (mul_le_mul_right hle _).trans (le_one_div_three_iff_nat.mpr ((hA a).2 ha))
 
 end SimOracle
 
@@ -1970,16 +1508,12 @@ polynomial-time round count `k`. -/
 theorem IP_subset_AMPolyRounds {enc : α ↪ List Bool} {A : Set α} (hA : A ∈ IP enc) :
     ∃ k : ℕ → ℕ, ComputableInPolyTime k encUnary encUnary ∧ A ∈ AMPolyRounds enc k := by
   obtain ⟨c, d, hq⟩ := IP_subset_exists_IPPolyQueryBounded hA
-  let qPoly : Polynomial ℕ := Polynomial.C c * (Polynomial.X + 1) ^ d
-  have hqEval : (fun n => qPoly.eval n) = (fun n => c * (n + 1) ^ d) := funext fun n => by
-    simp [qPoly]
-  have hqPoly : ComputableInPolyTime (fun n => c * (n + 1) ^ d) encUnary encUnary := by
-    rw [← hqEval]
-    exact ComputableInPolyTime.unary_eval qPoly
+  have hqPoly : ComputableInPolyTime (fun n => c * (n + 1) ^ d) encUnary encUnary :=
+    (ComputableInPolyTime.unary_eval (Polynomial.C c * (Polynomial.X + 1) ^ d)).of_enc_eq
+      fun n => by simp
   exact ⟨fun n => 2 * (c * (n + 1) ^ d) + 2,
     ComputableInPolyTime.unary_add'
-      (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2) hqPoly)
-      (ComputableInPolyTime.const 2),
+      (ComputableInPolyTime.unary_mul' (.const 2) hqPoly) (.const 2),
     IPPolyQueryBounded_subset_AMPolyRounds hqPoly hq⟩
 
 end Cslib.Complexity

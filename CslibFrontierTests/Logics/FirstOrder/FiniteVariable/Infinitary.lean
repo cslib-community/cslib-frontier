@@ -4,8 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Logics.FirstOrder.FiniteVariable.Infinitary
-import Mathlib.ModelTheory.Order
+module
+-- upstream: candidate
+
+public import CslibFrontier.Logics.FirstOrder.FiniteVariable.Infinitary
+public import Mathlib.ModelTheory.Order
+import Mathlib.Tactic.FinCases
 
 /-!
 # Tests for Infinitary Finite-Variable Logics (`L^k_{∞ω}` and `C^k_{∞ω}`)
@@ -24,6 +28,8 @@ Covers:
 4. Embeddings (`GenFormula.toInfinitary`, `InfinitaryFormula.toCounting`), `k = 0` edge cases,
    and finite-model collapse instances (`L^k_{∞ω} ≡ FO^k`, `C^k_{∞ω} ≡ C^k`).
 -/
+
+public section
 
 open FirstOrder Language Structure Cslib.Logic.FO Cslib.Logic.FO.FiniteVariable
 
@@ -145,44 +151,26 @@ def ltAtom (i j : Fin 2) : InfinitaryFormula.{0, 0, 0} Language.order 2 :=
   (.rel leSymb ![i, j] : InfinitaryFormula.{0, 0, 0} Language.order 2) ⊓
     (.equal i j : InfinitaryFormula.{0, 0, 0} Language.order 2).not
 
-mutual
 /-- Two-pebble alternating formula asserting a strictly increasing chain of `d` steps starting
-from pebble `0`. -/
-def ascFromZero : ℕ → InfinitaryFormula.{0, 0, 0} Language.order 2
+from pebble `i`, alternating between `i` and `1 - i`. -/
+def ascFrom (i : Fin 2) : ℕ → InfinitaryFormula.{0, 0, 0} Language.order 2
   | 0 => ⊤
-  | d + 1 => .ex 1 (ltAtom 0 1 ⊓ ascFromOne d)
-
-/-- Two-pebble alternating formula asserting a strictly increasing chain of `d` steps starting
-from pebble `1`. -/
-def ascFromOne : ℕ → InfinitaryFormula.{0, 0, 0} Language.order 2
-  | 0 => ⊤
-  | d + 1 => .ex 0 (ltAtom 1 0 ⊓ ascFromZero d)
-end
+  | d + 1 => .ex (1 - i) (ltAtom i (1 - i) ⊓ ascFrom (1 - i) d)
 
 /-- Closed `L^2_{∞ω}` sentence asserting an element with arbitrarily long finite ascending chains
 above it, of **unbounded** quantifier depth (`¬QuantifierRankLE n` for all `n`). -/
 def infiniteAscChain : InfinitaryFormula.{0, 0, 0} Language.order 2 :=
-  .ex 0 (.iInf fun d : ℕ => ascFromZero d)
+  .ex 0 (.iInf fun d : ℕ => ascFrom 0 d)
 
-mutual
-theorem freeVars_ascFromZero : ∀ d : ℕ, (ascFromZero d).freeVars ⊆ ({0} : Set (Fin 2))
-  | 0 => by simp only [ascFromZero, InfinitaryGenFormula.freeVars_top_inst, Set.empty_subset]
-  | d + 1 => by
-    simp only [ascFromZero, InfinitaryGenFormula.freeVars_ex, InfinitaryGenFormula.freeVars_min,
+theorem freeVars_ascFrom (d : ℕ) (i : Fin 2) : (ascFrom i d).freeVars ⊆ ({i} : Set (Fin 2)) := by
+  induction d generalizing i with
+  | zero => simp only [ascFrom, InfinitaryGenFormula.freeVars_top, Set.empty_subset]
+  | succ d _ =>
+    simp only [ascFrom, InfinitaryGenFormula.freeVars_ex, InfinitaryGenFormula.freeVars_min,
       ltAtom, InfinitaryGenFormula.freeVars_not, InfinitaryGenFormula.freeVars_equal,
       InfinitaryGenFormula.freeVars_rel, Set.sdiff_subset_iff]
     intro x _
-    fin_cases x <;> simp
-
-theorem freeVars_ascFromOne : ∀ d : ℕ, (ascFromOne d).freeVars ⊆ ({1} : Set (Fin 2))
-  | 0 => by simp only [ascFromOne, InfinitaryGenFormula.freeVars_top_inst, Set.empty_subset]
-  | d + 1 => by
-    simp only [ascFromOne, InfinitaryGenFormula.freeVars_ex, InfinitaryGenFormula.freeVars_min,
-      ltAtom, InfinitaryGenFormula.freeVars_not, InfinitaryGenFormula.freeVars_equal,
-      InfinitaryGenFormula.freeVars_rel, Set.sdiff_subset_iff]
-    intro x _
-    fin_cases x <;> simp
-end
+    fin_cases i <;> fin_cases x <;> simp
 
 theorem freeVars_infiniteAscChain : infiniteAscChain.freeVars = ∅ := by
   rw [Set.eq_empty_iff_forall_notMem]
@@ -190,27 +178,17 @@ theorem freeVars_infiniteAscChain : infiniteAscChain.freeVars = ∅ := by
   simp only [infiniteAscChain, InfinitaryGenFormula.freeVars_ex,
     InfinitaryGenFormula.freeVars_iInf, Set.mem_sdiff, Set.mem_iUnion, Set.mem_singleton_iff] at hx
   obtain ⟨⟨d, hd⟩, hx0⟩ := hx
-  exact hx0 (Set.mem_singleton_iff.1 (freeVars_ascFromZero d hd))
+  exact hx0 (Set.mem_singleton_iff.1 (freeVars_ascFrom d 0 hd))
 
-mutual
-theorem not_quantifierRankLE_ascFromZero : ∀ n : ℕ, ¬(ascFromZero (n + 1)).QuantifierRankLE n
-  | 0 => by
-    simp only [ascFromZero, InfinitaryGenFormula.quantifierRankLE_ex_zero, not_false_eq_true]
-  | n + 1 => by
-    simp only [ascFromZero, InfinitaryGenFormula.quantifierRankLE_ex_succ,
+theorem not_quantifierRankLE_ascFrom (n : ℕ) (i : Fin 2) :
+    ¬(ascFrom i (n + 1)).QuantifierRankLE n := by
+  induction n generalizing i with
+  | zero =>
+    simp only [ascFrom, InfinitaryGenFormula.quantifierRankLE_ex_zero, not_false_eq_true]
+  | succ n ih =>
+    simp only [ascFrom, InfinitaryGenFormula.quantifierRankLE_ex_succ,
       InfinitaryGenFormula.quantifierRankLE_min]
-    rintro ⟨-, h⟩
-    exact not_quantifierRankLE_ascFromOne n h
-
-theorem not_quantifierRankLE_ascFromOne : ∀ n : ℕ, ¬(ascFromOne (n + 1)).QuantifierRankLE n
-  | 0 => by
-    simp only [ascFromOne, InfinitaryGenFormula.quantifierRankLE_ex_zero, not_false_eq_true]
-  | n + 1 => by
-    simp only [ascFromOne, InfinitaryGenFormula.quantifierRankLE_ex_succ,
-      InfinitaryGenFormula.quantifierRankLE_min]
-    rintro ⟨-, h⟩
-    exact not_quantifierRankLE_ascFromZero n h
-end
+    exact fun ⟨_, h⟩ => ih (1 - i) h
 
 /-- `infiniteAscChain` genuinely has unbounded quantifier depth: no `n : ℕ` bounds its rank. -/
 theorem not_quantifierRankLE_infiniteAscChain (n : ℕ) : ¬infiniteAscChain.QuantifierRankLE n := by
@@ -220,8 +198,7 @@ theorem not_quantifierRankLE_infiniteAscChain (n : ℕ) : ¬infiniteAscChain.Qua
   | succ m =>
     simp only [infiniteAscChain, InfinitaryGenFormula.quantifierRankLE_ex_succ,
       InfinitaryGenFormula.quantifierRankLE_iInf]
-    intro hall
-    exact not_quantifierRankLE_ascFromZero m (hall (m + 1))
+    exact fun hall => not_quantifierRankLE_ascFrom m 0 (hall (m + 1))
 
 theorem realize_ltAtom {M : Type*} [LinearOrder M] [Language.order.Structure M]
     [Language.order.OrderedStructure M] (i j : Fin 2) (a : Fin 2 → M) :
@@ -232,71 +209,38 @@ theorem realize_ltAtom {M : Type*} [LinearOrder M] [Language.order.Structure M]
     (relMap_leSymb (L := Language.order) _).trans ⟨fun h => h, fun h => h⟩
   rw [hle, lt_iff_le_and_ne]
 
-mutual
-theorem realize_ascFromZero_nat : ∀ (d : ℕ) (a : Fin 2 → ℕ),
-    (letI : Language.order.Structure ℕ := orderStructure ℕ;
-      (ascFromZero d).Realize a)
-  | 0, _ => by
-    let _ : Language.order.Structure ℕ := orderStructure ℕ
-    simp only [ascFromZero, InfinitaryGenFormula.realize_top_inst]
-  | d + 1, a => by
-    let _ : Language.order.Structure ℕ := orderStructure ℕ
-    have _ : Language.order.OrderedStructure ℕ := ⟨fun _ => Iff.rfl⟩
-    simp only [ascFromZero, InfinitaryGenFormula.realize_ex, InfinitaryGenFormula.realize_min]
-    refine ⟨a 0 + 1, ?_, realize_ascFromOne_nat d _⟩
+theorem realize_ascFrom_nat (d : ℕ) (i : Fin 2) (a : Fin 2 → ℕ) :
+    letI : Language.order.Structure ℕ := orderStructure ℕ
+    (ascFrom i d).Realize a := by
+  let _ : Language.order.Structure ℕ := orderStructure ℕ
+  have _ : Language.order.OrderedStructure ℕ := ⟨fun _ => Iff.rfl⟩
+  induction d generalizing i a with
+  | zero => simp only [ascFrom, InfinitaryGenFormula.realize_top]
+  | succ d ih =>
+    simp only [ascFrom, InfinitaryGenFormula.realize_ex, InfinitaryGenFormula.realize_min]
+    refine ⟨a i + 1, ?_, ih (1 - i) _⟩
     rw [realize_ltAtom]
-    simp only [Function.update_self, Function.update_of_ne (by decide : (0 : Fin 2) ≠ 1)]
+    have hne : i ≠ 1 - i := by fin_cases i <;> decide
+    simp only [Function.update_self, Function.update_of_ne hne]
     omega
 
-theorem realize_ascFromOne_nat : ∀ (d : ℕ) (a : Fin 2 → ℕ),
-    (letI : Language.order.Structure ℕ := orderStructure ℕ;
-      (ascFromOne d).Realize a)
-  | 0, _ => by
-    let _ : Language.order.Structure ℕ := orderStructure ℕ
-    simp only [ascFromOne, InfinitaryGenFormula.realize_top_inst]
-  | d + 1, a => by
-    let _ : Language.order.Structure ℕ := orderStructure ℕ
-    have _ : Language.order.OrderedStructure ℕ := ⟨fun _ => Iff.rfl⟩
-    simp only [ascFromOne, InfinitaryGenFormula.realize_ex, InfinitaryGenFormula.realize_min]
-    refine ⟨a 1 + 1, ?_, realize_ascFromZero_nat d _⟩
-    rw [realize_ltAtom]
-    simp only [Function.update_self, Function.update_of_ne (by decide : (1 : Fin 2) ≠ 0)]
-    omega
-end
-
-mutual
-theorem bound_of_realize_ascFromZero {n : ℕ} : ∀ (d : ℕ) (a : Fin 2 → Fin n),
+theorem bound_of_realize_ascFrom {n : ℕ} (d : ℕ) (i : Fin 2) (a : Fin 2 → Fin n) :
     (letI : Language.order.Structure (Fin n) := orderStructure (Fin n);
-      (ascFromZero d).Realize a) → (a 0).1 + d < n
-  | 0, a, _ => (a 0).isLt
-  | d + 1, a, h => by
-    let _ : Language.order.Structure (Fin n) := orderStructure (Fin n)
-    have _ : Language.order.OrderedStructure (Fin n) := ⟨fun _ => Iff.rfl⟩
-    simp only [ascFromZero, InfinitaryGenFormula.realize_ex, InfinitaryGenFormula.realize_min] at h
-    obtain ⟨c, hlt, hd⟩ := h
+      (ascFrom i d).Realize a) → (a i).1 + d < n := by
+  let _ : Language.order.Structure (Fin n) := orderStructure (Fin n)
+  have _ : Language.order.OrderedStructure (Fin n) := ⟨fun _ => Iff.rfl⟩
+  induction d generalizing i a with
+  | zero => exact fun _ => (a i).isLt
+  | succ d ih =>
+    simp only [ascFrom, InfinitaryGenFormula.realize_ex, InfinitaryGenFormula.realize_min]
+    rintro ⟨c, hlt, hd⟩
     rw [realize_ltAtom] at hlt
-    simp only [Function.update_self, Function.update_of_ne (by decide : (0 : Fin 2) ≠ 1)] at hlt
-    have hrec := bound_of_realize_ascFromOne d (Function.update a 1 c) hd
+    have hne : i ≠ 1 - i := by fin_cases i <;> decide
+    simp only [Function.update_self, Function.update_of_ne hne] at hlt
+    have hrec := ih (1 - i) (Function.update a (1 - i) c) hd
     simp only [Function.update_self] at hrec
-    have hlt_val : (a 0).1 < c.1 := hlt
+    have hlt_val : (a i).1 < c.1 := hlt
     omega
-
-theorem bound_of_realize_ascFromOne {n : ℕ} : ∀ (d : ℕ) (a : Fin 2 → Fin n),
-    (letI : Language.order.Structure (Fin n) := orderStructure (Fin n);
-      (ascFromOne d).Realize a) → (a 1).1 + d < n
-  | 0, a, _ => (a 1).isLt
-  | d + 1, a, h => by
-    let _ : Language.order.Structure (Fin n) := orderStructure (Fin n)
-    have _ : Language.order.OrderedStructure (Fin n) := ⟨fun _ => Iff.rfl⟩
-    simp only [ascFromOne, InfinitaryGenFormula.realize_ex, InfinitaryGenFormula.realize_min] at h
-    obtain ⟨c, hlt, hd⟩ := h
-    rw [realize_ltAtom] at hlt
-    simp only [Function.update_self, Function.update_of_ne (by decide : (1 : Fin 2) ≠ 0)] at hlt
-    have hrec := bound_of_realize_ascFromZero d (Function.update a 0 c) hd
-    simp only [Function.update_self] at hrec
-    have hlt_val : (a 1).1 < c.1 := hlt
-    omega
-end
 
 /-- `infiniteAscChain` holds on `(ℕ, ≤)`. -/
 example :
@@ -304,7 +248,7 @@ example :
       infiniteAscChain.Realize (fun _ => (0 : ℕ))) := by
   let _ : Language.order.Structure ℕ := orderStructure ℕ
   simp only [infiniteAscChain, InfinitaryGenFormula.realize_ex, InfinitaryGenFormula.realize_iInf]
-  exact ⟨0, fun d => realize_ascFromZero_nat d _⟩
+  exact ⟨0, fun d => realize_ascFrom_nat d 0 _⟩
 
 /-- `infiniteAscChain` fails on every finite linear order `(Fin n, ≤)`. -/
 example (n : ℕ) (a : Fin 2 → Fin n) :
@@ -313,7 +257,7 @@ example (n : ℕ) (a : Fin 2 → Fin n) :
   let _ : Language.order.Structure (Fin n) := orderStructure (Fin n)
   simp only [infiniteAscChain, InfinitaryGenFormula.realize_ex, InfinitaryGenFormula.realize_iInf]
   rintro ⟨c, hall⟩
-  have h := bound_of_realize_ascFromZero n (Function.update a 0 c) (hall n)
+  have h := bound_of_realize_ascFrom n 0 (Function.update a 0 c) (hall n)
   omega
 
 /-! ### 3. `EVEN` cardinality in `C^1_{∞ω}` vs non-definability in `L^k_{∞ω}` -/

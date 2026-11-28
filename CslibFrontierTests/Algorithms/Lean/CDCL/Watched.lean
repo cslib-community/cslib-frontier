@@ -25,7 +25,7 @@ Restarts happen when allowed, minimization, recursive or basic, shortens the lea
 PHP(4, 3), simplification deletes clauses of PHP(4, 3) satisfied at the root, and the kernel
 refutes PHP(4, 3) through a reduction of the learned clauses. At runtime, Lean core's checker
 accepts the certificates for PHP(5, 4) and PHP(6, 5), whose learned clauses are minimized, some of
-them forgotten, and whose intermediate resolvents are deleted.
+them forgotten.
 -/
 
 set_option linter.privateModule false
@@ -94,7 +94,7 @@ example : (CDCL.solveWith {} [[(0, true)], [(0, false)]]).2.conflicts = 1 ∧
 them: on `x₀ ∨ x₁`, the decision `¬x₀` and the implied `x₁` are both processed. -/
 example : (CDCL.solveWith {} [[(0, true), (1, true)]]).2.decisions = 1 ∧
     (CDCL.solveWith {} [[(0, true), (1, true)]]).2.propagations = 2 := by
-  decide
+  decide +kernel
 
 /-- PHP(4, 3), with pigeon `i` in hole `j` as `3 * i + j`. -/
 private abbrev php43 : CNF ℕ := (CNF.pigeonhole 4 3).relabel fun x => 3 * x.1.val + x.2.val
@@ -113,7 +113,7 @@ by the clause; the saved phase of `x₁` is still `false`. -/
 private def beforeRestart : CDCL.WExec [[(0, true), (1, true)]] :=
   let S₀ := CDCL.WExec.init [[(0, true), (1, true)]] {}
   let S := S₀.decide 0 S₀.order
-  { S with exec := S.exec.propagate (1, []) (1, true), queue := [] }
+  { S with exec := S.exec.propagate (1, []) (1, true), qhead := 2 }
 
 /-- The decision is `¬x₀`, and the clause `x₀ ∨ x₁` then forces `x₁`. -/
 example : CDCL.Trail.lits beforeRestart.M = [(1, true), (0, false)] := by decide +kernel
@@ -162,7 +162,7 @@ example : (CDCL.solveWith { restartFirst := 1, learntsDivisor := 1000 } php43).1
 example : (CDCL.solve []).isSat = true := by decide +kernel
 
 -- PHP(5, 4) and PHP(6, 5): Lean core's checker accepts the watched solver's certificates, which
--- delete the intermediate resolvents and, for PHP(6, 5), forgotten learned clauses.
+-- learn each clause in one RUP step and, for PHP(6, 5), delete forgotten learned clauses.
 /-- info: (true, true, true) -/
 #guard_msgs in
 #eval
@@ -225,11 +225,11 @@ clauses leaves `r` in the database, and it is decided. -/
 example : (CDCL.solveWith {} rootSat).2.simplified = 1 ∧
     (CDCL.solveWith {} rootSat).2.decisions = 0 ∧
     (CDCL.solveWith { removeSatisfied := false } rootSat).2.decisions = 1 := by
-  decide
+  decide +kernel
 
-/-- When the learned clause is the conflict clause, its number is both the learned one and among
-the clauses met: it is bumped once, by the increment `2 ^ 100`, not twice. -/
-example : ((CDCL.Reduction.init 3 3).learn [5] 5 6 false).act.get 5 = 2 ^ 100 := by
+/-- The learned clause and the clauses met are bumped by the increment `2 ^ 40`, the others not. -/
+example : ((CDCL.Reduction.init 3 3).learn [3, 1] 5 6 false).act.score =
+    #[0, 2 ^ 40, 0, 2 ^ 40, 0, 2 ^ 40] := by
   decide
 
 /-- The formula `a ∨ b`, `¬a ∨ b`: its clauses are numbered `1` and `2`. -/
@@ -247,20 +247,42 @@ example :
   decide +kernel
 
 /-- With reduction on, a conflict learning a clause of two or more literals numbered `2` in a
-formula of two clauses leaves the counter of learned clauses as it is, and one numbered `3` adds
-one. -/
-example (S : CDCL.WExec two) (sp : CDCL.Split) (L : S.exec.LearnedAt sp) (k₀ : ℕ)
+formula of two clauses, at the newest decision at position `p` of the trail, leaves the counter
+of learned clauses as it is, and one numbered `3` adds one. -/
+example (S : CDCL.WExec two) (p : ℕ) (L : S.exec.LearnedAt (S.exec.tr.splitAt p)) (k₀ : ℕ)
     (hred : S.opts.reduce = true) (hk : 2 ≤ (CDCL.dedupLits L.clause).length) :
-    (L.id = 2 → (S.afterConflict sp L k₀).red.learnts = S.red.learnts) ∧
-    (L.id = 3 → (S.afterConflict sp L k₀).red.learnts = S.red.learnts + 1) := by
-  rw [S.afterConflict_learnts sp L k₀ hred hk]
+    (L.id = 2 → (S.afterConflict p L k₀).red.learnts = S.red.learnts) ∧
+    (L.id = 3 → (S.afterConflict p L k₀).red.learnts = S.red.learnts + 1) := by
+  rw [S.afterConflict_learnts p L k₀ hred hk]
   exact ⟨fun h => by simp [h, CDCL.isLearntId], fun h => by simp [h, CDCL.isLearntId]⟩
 
-/-- A number listed twice among the clauses met is bumped once: `used = [4, 4]` with the learned
-clause `5` bumps clause `4` as `used = [4]` does. -/
-example : (((CDCL.Reduction.init 3 3).learn [4, 4] 5 6 false).act.get 4) =
-    (((CDCL.Reduction.init 3 3).learn [4] 5 6 false).act.get 4) ∧
-    0 < ((CDCL.Reduction.init 3 3).learn [4] 5 6 false).act.get 4 := by
+/-! ### Choosing the watches
+
+A trail with `x₀` (decision, position `0`), `¬x₂` (reason `0`) and `x₁` (reason `1`), as the
+codes of its literals and reasons. -/
+
+/-- The trail `x₀, ¬x₂, x₁`, oldest first. -/
+private abbrev trail₃ : CDCL.ATrail := ⟨#[1, 4, 3], #[0, 1, 2], rfl⟩
+
+/-- Each variable on the trail gets its position plus one, so variable `0` at position `0` gets
+`1`, unlike a variable not on the trail. -/
+example : trail₃.positions 4 = #[1, 3, 2, 0] := by decide +kernel
+
+/-- The newest marked variable below a position, `0` when none is marked. -/
+example : trail₃.topMarked (fun v => v == 0 || v == 2) 3 = 2 ∧
+    trail₃.topMarked (fun v => v == 0 || v == 1) 3 = 1 ∧
+    trail₃.topMarked (fun v => v == 1) 2 = 0 := by
+  decide +kernel
+
+/-- The literal on the variable `2` is moved second. -/
+example : CDCL.secondOn 2 [(5, true), (1, false), (2, true)] = [(5, true), (2, true), (1, false)] :=
+  by decide +kernel
+
+/-- The false literal assigned last watches second: `¬x₀`, at position `0` of the trail, before
+`¬x₇`, which is false but not on the trail. -/
+example : CDCL.watchOrderAt (trail₃.positions 8)
+    (CDCL.Assign.ofTrail [⟨(7, true), true⟩, ⟨(0, true), true⟩])
+    [(3, true), (7, false), (0, false)] = [(3, true), (0, false), (7, false)] := by
   decide +kernel
 
 end CslibFrontierTests.Algorithms.Lean.CDCL.Watched

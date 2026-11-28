@@ -95,53 +95,36 @@ private theorem polyOfBits_false_cons (p : List Bool) :
 
 /-! ### Antitone counting helper and parameter selection -/
 
-private theorem countP_range_mono (P : ℕ → Bool) {m n : ℕ} (h : m ≤ n) :
-    (List.range m).countP P ≤ (List.range n).countP P := by
-  induction h with
-  | refl => exact le_rfl
-  | step _ ih =>
-    rw [List.range_succ, List.countP_append]
-    exact le_trans ih (Nat.le_add_right _ _)
-
-private theorem countP_range_le_of_forall_false (P : ℕ → Bool) (n k : ℕ)
-    (hfalse : ∀ j, k ≤ j → P j = false) :
-    (List.range n).countP P ≤ k := by
+private theorem countP_range_true_lt {P : ℕ → Bool}
+    (hanti : ∀ {a b}, a ≤ b → P b = true → P a = true) {n k : ℕ}
+    (hk : k < (List.range n).countP P) : P k = true := by
+  by_contra hnt
+  suffices (List.range n).countP P ≤ k by omega
+  clear hk
   induction n with
   | zero => simp
   | succ n ih =>
     rw [List.range_succ, List.countP_append, List.countP_singleton]
     by_cases hkn : k ≤ n
-    · simp only [hfalse n hkn, Bool.false_eq_true, ↓reduceIte, add_zero]
-      exact ih
-    · have hle : (List.range n).countP P ≤ n := by
-        simpa using (List.countP_le_length : (List.range n).countP P ≤ (List.range n).length)
-      calc (List.range n).countP P + (if P n = true then 1 else 0)
-          ≤ n + 1 := Nat.add_le_add hle (by split_ifs <;> omega)
-        _ ≤ k := by omega
-
-private theorem countP_range_true_lt {P : ℕ → Bool}
-    (hanti : ∀ {a b}, a ≤ b → P b = true → P a = true) {n k : ℕ}
-    (hk : k < (List.range n).countP P) : P k = true := by
-  by_contra hnt
-  have hfalse : ∀ j, k ≤ j → P j = false := by
-    intro j hj
-    cases hP : P j with
-    | false => rfl
-    | true => exact absurd (hanti hj hP) hnt
-  exact absurd (countP_range_le_of_forall_false P n k hfalse) (not_le.mpr hk)
+    · simp [Bool.eq_false_iff.mpr fun hP => hnt (hanti hkn hP), ih]
+    · have : (List.range n).countP P ≤ n := by
+        simpa only [List.length_range] using List.countP_le_length (p := P) (l := List.range n)
+      split_ifs <;> omega
 
 private theorem le_countP_range_of_forall_true (P : ℕ → Bool) {m n : ℕ} (hmn : m ≤ n)
     (htrue : ∀ j < m, P j = true) :
     m ≤ (List.range n).countP P := by
-  have hprefix : (List.range m).countP P = m := by
-    clear hmn n
+  induction hmn with
+  | refl =>
+    suffices (List.range m).countP P = m from this.ge
     induction m with
-    | zero => simp
+    | zero => rfl
     | succ m ih =>
       rw [List.range_succ, List.countP_append, List.countP_singleton,
         ite_eq_left (htrue m (Nat.lt_succ_self m)), ih fun j hj => htrue j (by omega)]
-  rw [← hprefix]
-  exact countP_range_mono P hmn
+  | step _ ih =>
+    rw [List.range_succ, List.countP_append]
+    exact ih.trans (Nat.le_add_right _ _)
 
 /-- Floor fifth root `⌊N ^ (1 / 5)⌋`. -/
 @[expose] def fifthRoot (N : ℕ) : ℕ :=
@@ -149,44 +132,33 @@ private theorem le_countP_range_of_forall_true (P : ℕ → Bool) {m n : ℕ} (h
 
 /-- `fifthRoot N ≤ N`. -/
 theorem fifthRoot_le (N : ℕ) : fifthRoot N ≤ N := by
-  unfold fifthRoot
-  simpa using (List.countP_le_length :
-    (List.range N).countP (fun m => decide ((m + 1) ^ 5 ≤ N)) ≤ (List.range N).length)
+  simpa only [fifthRoot, List.length_range] using
+    List.countP_le_length (p := fun m => decide ((m + 1) ^ 5 ≤ N)) (l := List.range N)
 
 /-- `fifthRoot N` is the exact floor fifth root `⌊N ^ (1 / 5)⌋`. -/
 theorem fifthRoot_spec (N : ℕ) :
     (fifthRoot N) ^ 5 ≤ N ∧ N < (fifthRoot N + 1) ^ 5 := by
   set P : ℕ → Bool := fun m => decide ((m + 1) ^ 5 ≤ N)
-  have hanti : ∀ {a b}, a ≤ b → P b = true → P a = true := by
-    intro a b hab hb
-    simp only [P, decide_eq_true_eq] at hb ⊢
-    exact le_trans (Nat.pow_le_pow_left (by omega) 5) hb
-  set r := fifthRoot N
-  have hlow : r ^ 5 ≤ N := by
-    cases hr : r with
+  refine ⟨?_, by_contra fun hle => ?_⟩
+  · cases hr : fifthRoot N with
     | zero => simp
     | succ k =>
-      have hk : k < (List.range N).countP P := by
-        change k < r
-        rw [hr]
-        exact Nat.lt_succ_self k
-      have htrue := countP_range_true_lt hanti hk
-      simpa [P] using htrue
-  have hhigh : N < (r + 1) ^ 5 := by
-    by_contra hle
-    push Not at hle
-    have hr1_le : r + 1 ≤ N :=
-      le_trans (Nat.le_self_pow (by decide : 5 ≠ 0) (r + 1)) hle
-    have hcount := le_countP_range_of_forall_true P hr1_le fun j hj => by
-      simp only [P, decide_eq_true_eq]
-      exact le_trans (Nat.pow_le_pow_left hj 5) hle
-    change r + 1 ≤ r at hcount
+      exact of_decide_eq_true (countP_range_true_lt (P := P)
+        (fun hab hb => decide_eq_true ((Nat.pow_le_pow_left (by omega) 5).trans
+          (of_decide_eq_true hb)))
+        (hr ▸ Nat.lt_succ_self k : k < fifthRoot N))
+  · have hle' := Nat.not_lt.mp hle
+    have hcount : fifthRoot N + 1 ≤ fifthRoot N := le_countP_range_of_forall_true P
+      ((Nat.le_self_pow (by decide : 5 ≠ 0) _).trans hle') fun j hj =>
+        decide_eq_true ((Nat.pow_le_pow_left hj 5).trans hle')
     omega
-  exact ⟨hlow, hhigh⟩
 
 /-- Lower bound `M = (max 2 ⌊N ^ (1 / 5)⌋) ^ 3` on the field prime degree. -/
 @[expose] def primeThresholdBound (N : ℕ) : ℕ :=
   (max 2 (fifthRoot N)) ^ 3
+
+private theorem eight_le_primeThresholdBound (N : ℕ) : 8 ≤ primeThresholdBound N :=
+  Nat.pow_le_pow_left (le_max_left 2 _) 3
 
 /-- The least prime in `(M, 2M]` where `M = primeThresholdBound N`. -/
 @[expose] def primeDeg (N : ℕ) : ℕ :=
@@ -198,37 +170,24 @@ theorem primeDeg_spec (N : ℕ) :
     (primeDeg N).Prime ∧ primeThresholdBound N < primeDeg N ∧
       primeDeg N ≤ 2 * primeThresholdBound N := by
   set M := primeThresholdBound N
-  have hM_ge : 8 ≤ M := by
-    have h2 : 2 ≤ max 2 (fifthRoot N) := le_max_left _ _
-    calc 8 = 2 ^ 3 := by decide
-      _ ≤ (max 2 (fifthRoot N)) ^ 3 := Nat.pow_le_pow_left h2 3
+  have hM : 8 ≤ M := eight_le_primeThresholdBound N
   obtain ⟨q, hqp, hMq, hq2M⟩ := Nat.exists_prime_lt_and_le_two_mul M (by omega)
   let L := (List.range M).map fun i => M + 1 + i
-  have hq_mem : q ∈ L := by
-    simp only [L, List.mem_map, List.mem_range]
-    exact ⟨q - (M + 1), by omega, by omega⟩
-  have hsome : (L.find? Nat.Prime).isSome = true := by
-    rw [List.find?_isSome]
-    exact ⟨q, hq_mem, by simp [hqp]⟩
+  have hsome : (L.find? Nat.Prime).isSome = true :=
+    List.find?_isSome.mpr ⟨q, List.mem_map.mpr
+      ⟨q - (M + 1), List.mem_range.mpr (by omega), by omega⟩, by simp [hqp]⟩
   obtain ⟨p, hp⟩ := Option.isSome_iff_exists.mp hsome
-  have hp_mem : p ∈ L := List.mem_of_find?_eq_some hp
-  have hp_prime : p.Prime := by simpa using List.find?_some hp
-  simp only [L, List.mem_map, List.mem_range] at hp_mem
-  obtain ⟨i, hi, rfl⟩ := hp_mem
+  obtain ⟨i, hi, rfl⟩ := List.mem_map.mp (List.mem_of_find?_eq_some hp)
+  have hi_lt := List.mem_range.mp hi
   have hdeg : primeDeg N = M + 1 + i := by
-    change (L.find? Nat.Prime).getD (2 * M) = M + 1 + i
+    change (L.find? Nat.Prime).getD (2 * M) = _
     rw [hp, Option.getD_some]
   rw [hdeg]
-  exact ⟨hp_prime, by omega, by omega⟩
+  exact ⟨by simpa using List.find?_some hp, by omega, by omega⟩
 
 /-- `9 ≤ primeDeg N` for every `N`. -/
 theorem nine_le_primeDeg (N : ℕ) : 9 ≤ primeDeg N := by
-  have hM : 8 ≤ primeThresholdBound N := by
-    have h2 : 2 ≤ max 2 (fifthRoot N) := le_max_left _ _
-    calc 8 = 2 ^ 3 := by decide
-      _ ≤ (max 2 (fifthRoot N)) ^ 3 := Nat.pow_le_pow_left h2 3
-  have := (primeDeg_spec N).2.1
-  omega
+  have := eight_le_primeThresholdBound N; have := (primeDeg_spec N).2.1; omega
 
 /-- `3 ≤ primeDeg N` for every `N`. -/
 theorem three_le_primeDeg (N : ℕ) : 3 ≤ primeDeg N :=
@@ -290,129 +249,69 @@ theorem ordTwoMod_spec {q : ℕ} (hq : q.Prime) (hq3 : 3 ≤ q) :
       m = orderOf (ZMod.unitOfCoprime 2 (Nat.prime_two.coprime_iff_not_dvd.mpr fun h2 => by
         have := (Nat.prime_dvd_prime_iff_eq Nat.prime_two hq).mp h2
         omega)) := by
-  have hndvd2 : ¬ 2 ∣ q := fun h2 =>
-    not_two_dvd_prime_pow hq hq3 1 (by simpa only [pow_one] using h2)
-  have hcop : Nat.Coprime 2 q := Nat.prime_two.coprime_iff_not_dvd.mpr hndvd2
+  have hcop : Nat.Coprime 2 q := Nat.prime_two.coprime_iff_not_dvd.mpr
+    (by simpa only [pow_one] using not_two_dvd_prime_pow hq hq3 1)
   have : NeZero q := ⟨by omega⟩
   set u : (ZMod q)ˣ := ZMod.unitOfCoprime 2 hcop
   set d := orderOf u
-  have hu_pow : ∀ j : ℕ, 2 ^ j % q = 1 ↔ u ^ j = 1 :=
+  have hu_pow : ∀ j, 2 ^ j % q = 1 ↔ u ^ j = 1 :=
     fun j => (zmod_unit_two_pow_eq_one_iff (by omega) hcop j).symm
   have hd_pos : 0 < d := orderOf_pos u
-  have hd_dvd_phi : d ∣ q - 1 := by
-    have hcard : Fintype.card (ZMod q)ˣ = q - 1 := by
-      rw [ZMod.card_units_eq_totient, Nat.totient_prime hq]
-    rw [← hcard]
-    exact orderOf_dvd_card
-  have hd_le : d ≤ q - 1 := Nat.le_of_dvd (by omega) hd_dvd_phi
-  have hne1 : u ^ 1 ≠ 1 := by
-    intro h1
-    have := (hu_pow 1).mpr h1
-    rw [pow_one, Nat.mod_eq_of_lt (by omega)] at this
-    omega
-  have hd_ge2 : 2 ≤ d := by
-    rcases eq_or_ne d 1 with h1 | _
-    · exfalso; apply hne1; rw [← h1]; exact pow_orderOf_eq_one u
-    · omega
+  have hd_le : d ≤ q - 1 := Nat.le_of_dvd (by omega)
+    (by simpa [ZMod.card_units_eq_totient, Nat.totient_prime hq] using orderOf_dvd_card (x := u))
+  have hd_ge2 : 2 ≤ d := by_contra fun hlt => by
+    have h1 := (hu_pow 1).mpr (show d = 1 by omega ▸ pow_orderOf_eq_one u)
+    rw [pow_one, Nat.mod_eq_of_lt (by omega)] at h1; omega
   let L := List.range (q - 1)
-  have hfind_isSome : (L.find? fun i => 2 ^ (i + 1) % q == 1).isSome = true := by
-    rw [List.find?_isSome]
-    refine ⟨d - 1, by simp [L]; omega, ?_⟩
-    rw [beq_iff_eq, Nat.sub_add_cancel hd_pos, hu_pow]
-    exact pow_orderOf_eq_one u
-  obtain ⟨r, hr_eq⟩ := Option.isSome_iff_exists.mp hfind_isSome
+  have hsome : (L.find? fun i => 2 ^ (i + 1) % q == 1).isSome = true :=
+    List.find?_isSome.mpr ⟨d - 1, List.mem_range.mpr (by omega),
+      beq_iff_eq.mpr (by rw [Nat.sub_add_cancel hd_pos, hu_pow]; exact pow_orderOf_eq_one u)⟩
+  obtain ⟨r, hr_eq⟩ := Option.isSome_iff_exists.mp hsome
   obtain ⟨hr_pred, k, hk_lt, hk_get, hk_min⟩ := List.find?_eq_some_iff_getElem.mp hr_eq
-  simp only [L, List.length_range] at hk_lt
-  simp only [L, List.getElem_range] at hk_get
+  simp only [L, List.length_range, List.getElem_range] at hk_lt hk_get
   subst hk_get
+  have hmod : 2 ^ (k + 1) % q = 1 := beq_iff_eq.mp hr_pred
+  have hnot_lt : ∀ j, 0 < j → j < k + 1 → 2 ^ j % q ≠ 1 := fun j hj0 hjl hm => by
+    have := hk_min (j - 1) (by omega)
+    simp [L, Nat.sub_add_cancel hj0, hm] at this
+  have hkd : k + 1 = d := Nat.le_antisymm
+    (by_contra fun hlt => hnot_lt d hd_pos (by omega) ((hu_pow d).mpr (pow_orderOf_eq_one u)))
+    (Nat.le_of_dvd (by omega) (orderOf_dvd_iff_pow_eq_one.mpr ((hu_pow _).mp hmod)))
   have hm_eq : ordTwoMod q = k + 1 := by
-    simp only [ordTwoMod]
-    change ((L.find? fun i => 2 ^ (i + 1) % q == 1).map (· + 1)).getD 0 = k + 1
-    rw [hr_eq, Option.map_some, Option.getD_some]
-  have hk_mod : 2 ^ (k + 1) % q = 1 := by simpa using hr_pred
-  have hd_dvd_k : d ∣ k + 1 := orderOf_dvd_iff_pow_eq_one.mpr ((hu_pow _).mp hk_mod)
-  have hk_le_d : k + 1 ≤ d := by
-    by_contra hlt
-    have hdm1_lt : d - 1 < k := by omega
-    have hmin := hk_min (d - 1) hdm1_lt
-    simp only [L, List.getElem_range, Nat.sub_add_cancel hd_pos] at hmin
-    have h1 : 2 ^ d % q = 1 := (hu_pow d).mpr (pow_orderOf_eq_one u)
-    simp [h1] at hmin
-  have hk_eq_d : k + 1 = d := Nat.le_antisymm hk_le_d (Nat.le_of_dvd (by omega) hd_dvd_k)
-  have hdvd_sub : q ∣ 2 ^ (k + 1) - 1 :=
-    (dvd_two_pow_sub_one_iff_modEq (by omega : 1 < q)).mpr hk_mod
-  have hlt_neq : ∀ j, 0 < j → j < k + 1 → 2 ^ j % q ≠ 1 := by
-    intro j hj0 hj_lt hmod
-    have hmin := hk_min (j - 1) (by omega)
-    simp only [L, List.getElem_range, Nat.sub_add_cancel hj0] at hmin
-    simp [hmod] at hmin
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · rw [hm_eq, hk_eq_d]; exact hd_ge2
-  · rw [hm_eq, hk_eq_d]; exact lt_of_le_of_lt hd_le (Nat.sub_lt (by omega) zero_lt_one)
-  · rwa [hm_eq]
-  · intro j hj0 hj_lt
-    rw [hm_eq] at hj_lt
-    exact hlt_neq j hj0 hj_lt
-  · rw [hm_eq, hk_eq_d]
+    change ((L.find? _).map (· + 1)).getD 0 = k + 1; rw [hr_eq]; rfl
+  rw [hm_eq]
+  exact ⟨by omega, by omega, (dvd_two_pow_sub_one_iff_modEq (by omega)).mpr hmod, hnot_lt, hkd⟩
 
 /-- `qAdicValTwoPowSubOne q m` gives the exact `q`-adic valuation `k ≥ 1` dividing `2 ^ m - 1`. -/
 theorem qAdicValTwoPowSubOne_spec {q : ℕ} (hq : q.Prime) (hq3 : 3 ≤ q) :
     let m := ordTwoMod q
     let k := qAdicValTwoPowSubOne q m
     1 ≤ k ∧ k < q ∧ q ^ k ∣ 2 ^ m - 1 ∧ ¬ q ^ (k + 1) ∣ 2 ^ m - 1 := by
-  set m := ordTwoMod q
-  set k := qAdicValTwoPowSubOne q m
+  set m := ordTwoMod q; set k := qAdicValTwoPowSubOne q m
   obtain ⟨hm2, hmq, hq_dvd, -, -⟩ := ordTwoMod_spec hq hq3
   set P : ℕ → Bool := fun j => decide (2 ^ m % q ^ (j + 1) == 1)
-  have hanti : ∀ {a b}, a ≤ b → P b = true → P a = true := by
-    intro a b hab hb
-    simp only [P, decide_eq_true_eq, beq_iff_eq] at hb ⊢
-    have hqa : 1 < q ^ (a + 1) := Nat.one_lt_pow (by omega) (by omega)
-    have hqb : 1 < q ^ (b + 1) := Nat.one_lt_pow (by omega) (by omega)
-    rw [← dvd_two_pow_sub_one_iff_modEq hqa]
-    rw [← dvd_two_pow_sub_one_iff_modEq hqb] at hb
-    exact dvd_trans (Nat.pow_dvd_pow q (by omega)) hb
-  have hk_ge1 : 1 ≤ k := by
-    refine le_countP_range_of_forall_true P (by omega) fun j hj => ?_
-    have : j = 0 := by omega
-    subst this
+  have hP_iff : ∀ j, P j = true ↔ q ^ (j + 1) ∣ 2 ^ m - 1 := fun j => by
     simp only [P, decide_eq_true_eq, beq_iff_eq]
-    have hq1 : 1 < q ^ (0 + 1) := by simp; omega
-    rw [← dvd_two_pow_sub_one_iff_modEq hq1]
-    simpa using hq_dvd
-  have hk_lt : k < q := by
-    by_contra hge
-    have hk_q : q - 1 < k := by omega
-    have hP := countP_range_true_lt hanti hk_q
-    simp only [P, decide_eq_true_eq, beq_iff_eq, Nat.sub_add_cancel (by omega : 1 ≤ q)] at hP
-    have hqq : 1 < q ^ q := Nat.one_lt_pow (by omega) (by omega)
-    have hdvd := (dvd_two_pow_sub_one_iff_modEq hqq).mpr hP
-    have hpos : 0 < 2 ^ m - 1 := Nat.sub_pos_of_lt (Nat.one_lt_pow (by omega) one_lt_two)
-    have hle1 : q ^ q ≤ 2 ^ m - 1 := Nat.le_of_dvd hpos hdvd
-    have hle2 : 2 ^ m - 1 < 2 ^ q := lt_of_lt_of_le (Nat.sub_lt Nat.one_le_two_pow one_pos)
-      (Nat.pow_le_pow_right two_pos hmq.le)
-    have hle3 : 2 ^ q < q ^ q := Nat.pow_lt_pow_left (by omega) (by omega)
+    exact (dvd_two_pow_sub_one_iff_modEq (Nat.one_lt_pow (by omega) (by omega))).symm
+  have hanti : ∀ {a b}, a ≤ b → P b = true → P a = true := fun hab hb =>
+    (hP_iff _).mpr ((Nat.pow_dvd_pow q (by omega)).trans ((hP_iff _).mp hb))
+  have hk_ge1 : 1 ≤ k := le_countP_range_of_forall_true P (by omega) fun j hj => by
+    obtain rfl : j = 0 := by omega
+    simpa only [zero_add, pow_one, hP_iff] using hq_dvd
+  have hdvd_of_le : ∀ t, 1 ≤ t → t ≤ k → q ^ t ∣ 2 ^ m - 1 := fun t ht1 htk => by
+    simpa only [Nat.sub_add_cancel ht1, hP_iff] using
+      countP_range_true_lt hanti (show t - 1 < k by omega)
+  have hk_lt : k < q := by_contra fun hge => by
+    have h1 := Nat.le_of_dvd (Nat.sub_pos_of_lt (Nat.one_lt_pow (by omega) one_lt_two))
+      (hdvd_of_le q (by omega) (by omega))
+    have h2 : 2 ^ m - 1 < 2 ^ q :=
+      (Nat.sub_lt Nat.one_le_two_pow one_pos).trans_le (Nat.pow_le_pow_right two_pos hmq.le)
+    have h3 : 2 ^ q < q ^ q := Nat.pow_lt_pow_left (by omega) (by omega)
     omega
-  have hk_dvd : q ^ k ∣ 2 ^ m - 1 := by
-    have hlt_k : k - 1 < (List.range q).countP P := by
-      change k - 1 < k
-      omega
-    have hP := countP_range_true_lt hanti hlt_k
-    simp only [P, decide_eq_true_eq, beq_iff_eq, Nat.sub_add_cancel hk_ge1] at hP
-    have hqk : 1 < q ^ k := Nat.one_lt_pow (a := q) (n := k) (by omega) (by omega)
-    exact (dvd_two_pow_sub_one_iff_modEq (m := m) (M := q ^ k) hqk).mpr hP
-  have hk1_ndvd : ¬ q ^ (k + 1) ∣ 2 ^ m - 1 := by
-    intro hdvd
-    have hP : ∀ j < k + 1, P j = true := by
-      intro j hj
-      simp only [P, decide_eq_true_eq, beq_iff_eq]
-      have hqj : 1 < q ^ (j + 1) := Nat.one_lt_pow (by omega) (by omega)
-      rw [← dvd_two_pow_sub_one_iff_modEq hqj]
-      exact dvd_trans (Nat.pow_dvd_pow q (by omega)) hdvd
-    have hcount := le_countP_range_of_forall_true P hk_lt hP
-    change k + 1 ≤ k at hcount
-    omega
-  exact ⟨hk_ge1, hk_lt, hk_dvd, hk1_ndvd⟩
+  refine ⟨hk_ge1, hk_lt, hdvd_of_le k hk_ge1 le_rfl, fun hdvd => ?_⟩
+  have hcount : k + 1 ≤ k := le_countP_range_of_forall_true P hk_lt fun j hj =>
+    (hP_iff j).mpr ((Nat.pow_dvd_pow q (by omega)).trans hdvd)
+  omega
 
 /-! ### Cyclotomic factor chain -/
 
@@ -425,40 +324,25 @@ theorem qAdicValTwoPowSubOne_spec {q : ℕ} (hq : q.Prime) (hq3 : 3 ≤ q) :
 private theorem polyOfBits_replicate_true_eq_cyclotomic {q : ℕ} (hq : q.Prime) :
     polyOfBits (List.replicate q true) = cyclotomic q (ZMod 2) := by
   have : Fact q.Prime := ⟨hq⟩
-  rw [cyclotomic_prime]
-  ext i
-  rw [coeff_polyOfBits, finsetSum_coeff]
-  simp_rw [coeff_X_pow]
+  rw [cyclotomic_prime]; ext i
+  rw [coeff_polyOfBits, finsetSum_coeff]; simp_rw [coeff_X_pow]
   by_cases hi : i < q
-  · rw [Finset.sum_eq_single i]
-    · have hi' : i < (List.replicate q true).length := by simp [hi]
-      rw [List.getD_eq_getElem _ _ hi', List.getElem_replicate]
-      simp [show bitEquiv.symm true = 1 by rfl]
-    · intro j _ hj
-      simp [hj.symm]
-    · intro hm
-      exact absurd (Finset.mem_range.mpr hi) hm
+  · rw [List.getD_eq_getElem _ _ (by simp [hi]), List.getElem_replicate, Finset.sum_eq_single i]
+    · simp [bitEquiv_symm_true]
+    · intro j _ hj; simp [hj.symm]
+    · exact fun hm => absurd (Finset.mem_range.mpr hi) hm
   · rw [List.getD_eq_default _ _ (by simp; omega)]
-    symm
-    refine Finset.sum_eq_zero fun j hj => ?_
-    rw [Finset.mem_range] at hj
-    have hne : i ≠ j := by omega
-    simp [hne]
+    exact (Finset.sum_eq_zero fun j hj =>
+      ite_eq_right (by have := Finset.mem_range.mp hj; omega)).symm
 
 private theorem cyclotomic_prime_pow_comp_X_pow {q j : ℕ} (hq : q.Prime) :
     (cyclotomic (q ^ (j + 1)) (ZMod 2)).comp (X ^ q) = cyclotomic (q ^ (j + 2)) (ZMod 2) := by
   have : Fact q.Prime := ⟨hq⟩
-  have h1 : cyclotomic (q ^ (j + 1)) (ZMod 2) =
-      (cyclotomic q (ZMod 2)).comp (X ^ (q ^ j)) := by
-    rw [cyclotomic_prime_pow_eq_geom_sum hq, cyclotomic_prime, sum_comp]
-    refine Finset.sum_congr rfl fun i _ => ?_
-    rw [X_pow_comp]
-  have h2 : cyclotomic (q ^ (j + 2)) (ZMod 2) =
-      (cyclotomic q (ZMod 2)).comp (X ^ (q ^ (j + 1))) := by
-    rw [cyclotomic_prime_pow_eq_geom_sum hq, cyclotomic_prime, sum_comp]
-    refine Finset.sum_congr rfl fun i _ => ?_
-    rw [X_pow_comp]
-  rw [h1, h2, comp_assoc, X_pow_comp, ← pow_mul, mul_comm q (q ^ j), ← pow_succ]
+  have hc : ∀ s, cyclotomic (q ^ (s + 1)) (ZMod 2) = (cyclotomic q (ZMod 2)).comp (X ^ (q ^ s)) :=
+    fun s => by
+      rw [cyclotomic_prime_pow_eq_geom_sum hq, cyclotomic_prime, sum_comp]
+      exact Finset.sum_congr rfl fun _ _ => X_pow_comp.symm
+  rw [hc j, hc (j + 1), comp_assoc, X_pow_comp, ← pow_mul, mul_comm q (q ^ j), ← pow_succ]
 
 /-- Invariant for iterating Berlekamp factoring under `polyComposePow q` in Shoup's step. -/
 theorem shoupCyclicFactor_iterate_spec {q : ℕ} (hq : q.Prime) (hq3 : 3 ≤ q) (s : ℕ) :
@@ -466,40 +350,35 @@ theorem shoupCyclicFactor_iterate_spec {q : ℕ} (hq : q.Prime) (hq3 : 3 ≤ q) 
       (berlekampIrreducibleFactor (List.replicate q true))
     polyTrim f = f ∧ polyOfBits f ∣ cyclotomic (q ^ (s + 1)) (ZMod 2) ∧
       Irreducible (polyOfBits f) ∧ 0 < (polyOfBits f).natDegree := by
-  have hne2 : ∀ t : ℕ, NeZero ((q ^ t : ℕ) : ZMod 2) := fun t =>
-    ⟨fun h => not_two_dvd_prime_pow hq hq3 t ((CharP.cast_eq_zero_iff (ZMod 2) 2 (q ^ t)).mp h)⟩
+  have hne2 : ∀ t, NeZero ((q ^ t : ℕ) : ZMod 2) := fun t =>
+    ⟨fun h => not_two_dvd_prime_pow hq hq3 t ((CharP.cast_eq_zero_iff (ZMod 2) 2 _).mp h)⟩
   induction s with
   | zero =>
-    simp only [Function.iterate_zero, id_eq, zero_add]
     have hrep := polyOfBits_replicate_true_eq_cyclotomic hq
-    have hsq : Squarefree (polyOfBits (List.replicate q true)) := by
-      rw [hrep]
-      have : NeZero (q : ZMod 2) := by simpa only [pow_one] using hne2 1
-      exact squarefree_cyclotomic q (ZMod 2)
+    have : NeZero (q : ZMod 2) := by simpa only [pow_one] using hne2 1
     have hdeg : 0 < (polyOfBits (List.replicate q true)).natDegree := by
-      rw [hrep, natDegree_cyclotomic, Nat.totient_prime hq]
-      omega
-    obtain ⟨hdvd, hirr, hdeg'⟩ := polyOfBits_berlekampIrreducibleFactor_dvd hsq hdeg
-    rw [pow_one]
-    exact ⟨polyTrim_berlekampIrreducibleFactor _, by rwa [hrep] at hdvd, hirr, hdeg'⟩
+      rw [hrep, natDegree_cyclotomic, Nat.totient_prime hq]; omega
+    obtain ⟨hdvd, hirr, hdeg'⟩ :=
+      polyOfBits_berlekampIrreducibleFactor_dvd (hrep ▸ squarefree_cyclotomic q (ZMod 2)) hdeg
+    exact ⟨polyTrim_berlekampIrreducibleFactor _,
+      by simpa only [Function.iterate_zero, id_eq, zero_add, pow_one, hrep] using hdvd,
+      hirr, hdeg'⟩
   | succ s ih =>
     rw [Function.iterate_succ_apply']
-    obtain ⟨ht, hdvd, hirr, hdeg⟩ := ih
+    obtain ⟨_, hdvd, _, hdeg⟩ := ih
     set g := (fun g => berlekampIrreducibleFactor (polyComposePow q g))^[s]
       (berlekampIrreducibleFactor (List.replicate q true))
-    have hdvd_comp :
-        polyOfBits (polyComposePow q g) ∣ cyclotomic (q ^ (s + 2)) (ZMod 2) := by
-      rw [polyOfBits_polyComposePow (by omega), ← cyclotomic_prime_pow_comp_X_pow hq]
+    have hdvd_c : polyOfBits (polyComposePow q g) ∣ cyclotomic (q ^ (s + 2)) (ZMod 2) := by
       rcases hdvd with ⟨r, hr⟩
+      rw [polyOfBits_polyComposePow (by omega), ← cyclotomic_prime_pow_comp_X_pow hq]
       exact ⟨r.comp (X ^ q), by rw [hr, mul_comp]⟩
-    have hsq_comp : Squarefree (polyOfBits (polyComposePow q g)) := by
-      have := hne2 (s + 2)
-      exact Squarefree.squarefree_of_dvd hdvd_comp (squarefree_cyclotomic (q ^ (s + 2)) (ZMod 2))
-    have hdeg_comp : 0 < (polyOfBits (polyComposePow q g)).natDegree := by
+    have := hne2 (s + 2)
+    have hdeg_c : 0 < (polyOfBits (polyComposePow q g)).natDegree := by
       rw [polyOfBits_polyComposePow (by omega), natDegree_comp, natDegree_X_pow]
       exact Nat.mul_pos hdeg (by omega)
-    obtain ⟨hdvd', hirr', hdeg'⟩ := polyOfBits_berlekampIrreducibleFactor_dvd hsq_comp hdeg_comp
-    exact ⟨polyTrim_berlekampIrreducibleFactor _, hdvd'.trans hdvd_comp, hirr', hdeg'⟩
+    obtain ⟨hdvd', hirr', hdeg'⟩ := polyOfBits_berlekampIrreducibleFactor_dvd
+      (Squarefree.squarefree_of_dvd hdvd_c (squarefree_cyclotomic (q ^ (s + 2)) (ZMod 2))) hdeg_c
+    exact ⟨polyTrim_berlekampIrreducibleFactor _, hdvd'.trans hdvd_c, hirr', hdeg'⟩
 
 /-- `shoupCyclicFactor q k` produces an irreducible factor of degree `m = ordTwoMod q` dividing
 `cyclotomic (q ^ k) (ZMod 2)`, so its root generates `𝔽_{2 ^ m}` and has multiplicative order
@@ -510,71 +389,64 @@ theorem shoupCyclicFactor_spec {q : ℕ} (hq : q.Prime) (hq3 : 3 ≤ q) :
     let f := shoupCyclicFactor q k
     polyTrim f = f ∧ polyOfBits f ∣ cyclotomic (q ^ k) (ZMod 2) ∧
       Irreducible (polyOfBits f) ∧ (polyOfBits f).natDegree = m ∧ f.length = m + 1 := by
-  set m := ordTwoMod q
-  set k := qAdicValTwoPowSubOne q m
-  obtain ⟨hm2, hmq, -, -, hm_ord⟩ := ordTwoMod_spec hq hq3
+  set m := ordTwoMod q; set k := qAdicValTwoPowSubOne q m
+  obtain ⟨_, _, _, -, hm_ord⟩ := ordTwoMod_spec hq hq3
   obtain ⟨hk1, -, hk_dvd, -⟩ := qAdicValTwoPowSubOne_spec hq hq3
   obtain ⟨ht, hdvd, hirr, hdeg⟩ := shoupCyclicFactor_iterate_spec hq hq3 (k - 1)
-  have hdef : shoupCyclicFactor q k =
-      (fun g => berlekampIrreducibleFactor (polyComposePow q g))^[k - 1]
-        (berlekampIrreducibleFactor (List.replicate q true)) := rfl
-  rw [← hdef, Nat.sub_add_cancel hk1] at hdvd
-  rw [← hdef] at ht hirr hdeg
-  have hdvd_m : (polyOfBits (shoupCyclicFactor q k)).natDegree ∣ m :=
-    natDegree_dvd_of_dvd_cyclotomic_prime_pow hq hq3 hk1 hdvd hirr hk_dvd
-  have hm_dvd : m ∣ (polyOfBits (shoupCyclicFactor q k)).natDegree := by
+  change polyTrim (shoupCyclicFactor q k) = _ at ht
+  change 0 < (polyOfBits (shoupCyclicFactor q k)).natDegree at hdeg
+  change polyOfBits (shoupCyclicFactor q k) ∣ cyclotomic (q ^ (k - 1 + 1)) (ZMod 2) at hdvd
+  rw [Nat.sub_add_cancel hk1] at hdvd
+  have hdeg_m : (polyOfBits (shoupCyclicFactor q k)).natDegree = m := by
+    refine Nat.dvd_antisymm
+      (natDegree_dvd_of_dvd_cyclotomic_prime_pow hq hq3 hk1 hdvd hirr hk_dvd) ?_
     have hcop := Nat.prime_two.coprime_iff_not_dvd.mpr (not_two_dvd_prime_pow hq hq3 k)
-    have hdeg_ord := natDegree_eq_orderOf_of_dvd_cyclotomic_prime_pow hq hq3 hdvd hirr
-    have hu_pow : (ZMod.unitOfCoprime 2 hcop) ^ (polyOfBits (shoupCyclicFactor q k)).natDegree =
-        1 := by
-      rw [hdeg_ord, pow_orderOf_eq_one]
     have hqk : 1 < q ^ k := Nat.one_lt_pow (Nat.ne_of_gt hk1) (by omega)
-    have hmod_qk := (zmod_unit_two_pow_eq_one_iff hqk hcop _).mp hu_pow
-    have hdvd_qk := (dvd_two_pow_sub_one_iff_modEq hqk).mpr hmod_qk
-    have hdvd_q := (dvd_pow_self q (Nat.ne_of_gt hk1)).trans hdvd_qk
-    have hmod_q := (dvd_two_pow_sub_one_iff_modEq (by omega : 1 < q)).mp hdvd_q
+    have hu : (ZMod.unitOfCoprime 2 hcop) ^ (polyOfBits (shoupCyclicFactor q k)).natDegree = 1 := by
+      rw [natDegree_eq_orderOf_of_dvd_cyclotomic_prime_pow hq hq3 hdvd hirr, pow_orderOf_eq_one]
+    have hdvd_q := (dvd_pow_self q (Nat.ne_of_gt hk1)).trans
+      ((dvd_two_pow_sub_one_iff_modEq hqk).mpr ((zmod_unit_two_pow_eq_one_iff hqk hcop _).mp hu))
     dsimp only [m]
     rw [hm_ord, orderOf_dvd_iff_pow_eq_one, zmod_unit_two_pow_eq_one_iff (by omega)]
-    exact hmod_q
-  have hdeg_m : (polyOfBits (shoupCyclicFactor q k)).natDegree = m :=
-    Nat.dvd_antisymm hdvd_m hm_dvd
-  have hf_ne : shoupCyclicFactor q k ≠ [] := by
-    intro hnil
-    rw [hnil, polyOfBits_nil, natDegree_zero] at hdeg_m
-    omega
-  have hlen : (shoupCyclicFactor q k).length = m + 1 := by
-    have := natDegree_polyOfBits_of_polyTrim ht hf_ne
-    have := List.length_pos_of_ne_nil hf_ne
-    omega
-  exact ⟨ht, hdvd, hirr, hdeg_m, hlen⟩
+    exact (dvd_two_pow_sub_one_iff_modEq (by omega : 1 < q)).mp hdvd_q
+  have hne : shoupCyclicFactor q k ≠ [] := fun h => by simp [h] at hdeg
+  have := natDegree_polyOfBits_of_polyTrim ht hne
+  have := List.length_pos_of_ne_nil hne
+  exact ⟨ht, hdvd, hirr, hdeg_m, by dsimp only [m, k] at *; omega⟩
 
 /-- Length bound along iterations of `shoupCyclicFactor`. -/
 theorem length_shoupCyclicFactor_iterate_le {q : ℕ} (hq : q.Prime) (hq3 : 3 ≤ q) {s : ℕ}
     (hs : s ≤ qAdicValTwoPowSubOne q (ordTwoMod q) - 1) :
     ((fun g => berlekampIrreducibleFactor (polyComposePow q g))^[s]
       (berlekampIrreducibleFactor (List.replicate q true))).length ≤ q := by
-  set m := ordTwoMod q
-  set k := qAdicValTwoPowSubOne q m
   obtain ⟨hm2, hmq, -, -, -⟩ := ordTwoMod_spec hq hq3
-  obtain ⟨hk1, -, hk_dvd, -⟩ := qAdicValTwoPowSubOne_spec hq hq3
+  obtain ⟨_, -, hk_dvd, -⟩ := qAdicValTwoPowSubOne_spec hq hq3
   obtain ⟨ht, hdvd, hirr, hdeg_pos⟩ := shoupCyclicFactor_iterate_spec hq hq3 s
-  set fs := (fun g => berlekampIrreducibleFactor (polyComposePow q g))^[s]
-    (berlekampIrreducibleFactor (List.replicate q true))
-  have hsk : s + 1 ≤ k := by
-    dsimp only [k, m] at hs ⊢
-    omega
-  have hdeg_dvd : (polyOfBits fs).natDegree ∣ m :=
-    natDegree_dvd_of_dvd_cyclotomic_prime_pow hq hq3 (Nat.succ_pos s) hdvd hirr
-      (dvd_trans (Nat.pow_dvd_pow q hsk) hk_dvd)
-  have hdeg_le : (polyOfBits fs).natDegree ≤ m := Nat.le_of_dvd (by omega) hdeg_dvd
-  have hfs_ne : fs ≠ [] := by
-    intro hnil
-    rw [hnil, polyOfBits_nil, natDegree_zero] at hdeg_pos
-    omega
-  have := natDegree_polyOfBits_of_polyTrim ht hfs_ne
+  have hdeg_le := Nat.le_of_dvd (by omega)
+    (natDegree_dvd_of_dvd_cyclotomic_prime_pow hq hq3 (Nat.succ_pos s) hdvd hirr
+      ((Nat.pow_dvd_pow q (by omega)).trans hk_dvd))
+  have := natDegree_polyOfBits_of_polyTrim ht fun h => by simp [h] at hdeg_pos
   omega
 
 /-! ### Irreducibility of `Y ^ q - ζ` over `K = 𝔽₂[Z] / (f)` -/
+
+private theorem orderOf_of_pow_prime {G : Type*} [Group G] {q k : ℕ} (hq : q.Prime) (hk1 : 1 ≤ k)
+    {η ζ : G} (hpow : η ^ q = ζ) (hord : orderOf ζ = q ^ k) :
+    orderOf η = q ^ (k + 1) := by
+  have hdvd : orderOf η ∣ q ^ (k + 1) := by
+    rw [orderOf_dvd_iff_pow_eq_one, pow_succ', pow_mul, hpow, ← hord, pow_orderOf_eq_one]
+  have hndvd : ¬ orderOf η ∣ q ^ k := fun h => by
+    have h2 : ζ ^ (q ^ (k - 1)) = 1 := by
+      rw [← hpow, ← pow_mul, ← pow_succ', Nat.sub_add_cancel hk1]
+      exact orderOf_dvd_iff_pow_eq_one.mp h
+    have hle := Nat.le_of_dvd (pow_pos hq.pos _) (hord ▸ orderOf_dvd_iff_pow_eq_one.mpr h2)
+    have := Nat.pow_lt_pow_right hq.one_lt (Nat.sub_lt hk1 zero_lt_one)
+    omega
+  obtain ⟨j, hj_le, hj_eq⟩ := (Nat.dvd_prime_pow hq).mp hdvd
+  rw [hj_eq] at hndvd ⊢
+  rcases eq_or_lt_of_le hj_le with rfl | hlt
+  · rfl
+  · exact absurd (Nat.pow_dvd_pow q (by omega)) hndvd
 
 private theorem irreducible_X_pow_sub_C_of_orderOf {q k m : ℕ} {f : (ZMod 2)[X]}
     (hq : q.Prime) (hq3 : 3 ≤ q) (hk1 : 1 ≤ k) (hirr : Irreducible f)
@@ -584,118 +456,61 @@ private theorem irreducible_X_pow_sub_C_of_orderOf {q k m : ℕ} {f : (ZMod 2)[X
     let : Fact (Irreducible f) := ⟨hirr⟩
     Irreducible (X ^ q - C (AdjoinRoot.root f)) := by
   have : Fact (Irreducible f) := ⟨hirr⟩
-  set K := AdjoinRoot f
-  set ζ : K := AdjoinRoot.root f
-  set G : K[X] := X ^ q - C ζ
+  set K := AdjoinRoot f; set ζ : K := AdjoinRoot.root f; set G : K[X] := X ^ q - C ζ
   let hpb := AdjoinRoot.powerBasis hirr.ne_zero
-  have hfinK : finrank (ZMod 2) K = m := by
-    rw [hpb.finrank]
-    simp only [hpb, AdjoinRoot.powerBasis_dim, hdeg]
   have : Module.Finite (ZMod 2) K := hpb.finite
   have : Finite K := Module.finite_of_finite (ZMod 2)
   let : Fintype K := Fintype.ofFinite K
   have hcardK : Fintype.card K = 2 ^ m := by
-    rw [Module.card_eq_pow_finrank (K := ZMod 2) (V := K), ZMod.card, hfinK]
-  have : NeZero ((q ^ k : ℕ) : K) := by
-    refine ⟨fun h => ?_⟩
-    have h0 : ((q ^ k : ℕ) : ZMod 2) = 0 :=
-      (algebraMap (ZMod 2) K).injective (by rw [map_natCast, map_zero]; exact h)
-    exact not_two_dvd_prime_pow hq hq3 k ((CharP.cast_eq_zero_iff (ZMod 2) 2 (q ^ k)).mp h0)
-  have hζ_prim : IsPrimitiveRoot ζ (q ^ k) := by
-    have hroot : (cyclotomic (q ^ k) K).IsRoot ζ := by
-      simpa [Polynomial.map_cyclotomic] using
-        (AdjoinRoot.isRoot_root f).dvd (map_dvd (algebraMap (ZMod 2) K) hdvd)
-    exact (Polynomial.isRoot_cyclotomic_iff).mp hroot
-  have hζ_ord : orderOf ζ = q ^ k := hζ_prim.eq_orderOf.symm
-  have hζ_ne : ζ ≠ 0 := hζ_prim.ne_zero (by positivity)
-  have hG_monic : G.Monic := monic_X_pow_sub_C ζ (by omega)
-  have hG_deg : G.natDegree = q := by
-    dsimp only [G]
-    rw [natDegree_X_pow_sub_C]
-  have hG_ne : G ≠ 0 := hG_monic.ne_zero
-  have hG_nu : ¬ IsUnit G := not_isUnit_of_natDegree_pos G (by rw [hG_deg]; omega)
+    rw [Module.card_eq_pow_finrank (K := ZMod 2) (V := K), ZMod.card, hpb.finrank,
+      AdjoinRoot.powerBasis_dim, hdeg]
+  have : NeZero ((q ^ k : ℕ) : K) := ⟨fun h =>
+    not_two_dvd_prime_pow hq hq3 k ((CharP.cast_eq_zero_iff (ZMod 2) 2 _).mp
+      ((algebraMap (ZMod 2) K).injective (by rwa [map_natCast, map_zero])))⟩
+  have hζ_prim : IsPrimitiveRoot ζ (q ^ k) := Polynomial.isRoot_cyclotomic_iff.mp <| by
+    simpa [Polynomial.map_cyclotomic] using
+      (AdjoinRoot.isRoot_root f).dvd (map_dvd (algebraMap (ZMod 2) K) hdvd)
+  have hζ_ne : ζ ≠ 0 := hζ_prim.ne_zero (pow_ne_zero k hq.ne_zero)
+  have hG_deg : G.natDegree = q := by dsimp only [G]; rw [natDegree_X_pow_sub_C]
+  have hG_ne : G ≠ 0 := (monic_X_pow_sub_C ζ hq.ne_zero).ne_zero
   by_contra hnirr
-  obtain ⟨g, hg_mem⟩ := UniqueFactorizationMonoid.exists_mem_normalizedFactors hG_ne hG_nu
-  have hg_irr : Irreducible g := UniqueFactorizationMonoid.irreducible_of_normalized_factor g hg_mem
-  have hg_dvd : g ∣ G := UniqueFactorizationMonoid.dvd_of_mem_normalizedFactors hg_mem
-  have hg_deg_le : g.natDegree ≤ q := by
-    rw [← hG_deg]
-    exact natDegree_le_of_dvd hg_dvd hG_ne
-  have hg_deg_lt : g.natDegree < q := by
-    by_contra hge
-    have hassoc : Associated g G :=
-      associated_of_dvd_of_natDegree_le hg_dvd hG_ne (by omega)
-    exact hnirr (hassoc.irreducible hg_irr)
-  have hg_deg_pos : 0 < g.natDegree := hg_irr.natDegree_pos
+  obtain ⟨g, hg_mem⟩ := UniqueFactorizationMonoid.exists_mem_normalizedFactors hG_ne
+    (not_isUnit_of_natDegree_pos G (hG_deg ▸ hq.pos))
+  have hg_irr := UniqueFactorizationMonoid.irreducible_of_normalized_factor g hg_mem
+  have hg_dvd := UniqueFactorizationMonoid.dvd_of_mem_normalizedFactors hg_mem
+  have hg_lt : g.natDegree < q := lt_of_not_ge fun hge => hnirr <|
+    (associated_of_dvd_of_natDegree_le hg_dvd hG_ne (hG_deg ▸ hge)).irreducible hg_irr
   set d := g.natDegree
   have : Fact (Irreducible g) := ⟨hg_irr⟩
-  set L₀ := AdjoinRoot g
-  set θ : L₀ := AdjoinRoot.root g
+  set L₀ := AdjoinRoot g; set θ : L₀ := AdjoinRoot.root g
   let hpb0 := AdjoinRoot.powerBasis hg_irr.ne_zero
-  have hfin0 : finrank K L₀ = d := by
-    rw [hpb0.finrank]
-    simp only [hpb0, AdjoinRoot.powerBasis_dim]
-    rfl
   have : Module.Finite K L₀ := hpb0.finite
   have hθ_pow : θ ^ q = algebraMap K L₀ ζ := by
     rcases hg_dvd with ⟨r, hr⟩
-    have hev := congrArg (eval₂ (algebraMap K L₀) θ) hr
     have hg0 : g.eval₂ (algebraMap K L₀) θ = 0 := AdjoinRoot.eval₂_root g
-    rw [eval₂_mul, hg0, zero_mul] at hev
-    simp only [G, eval₂_sub, eval₂_X_pow, eval₂_C, sub_eq_zero] at hev
-    exact hev
+    simpa [G, hg0, sub_eq_zero] using congrArg (eval₂ (algebraMap K L₀) θ) hr
   set β : K := Algebra.norm K θ
   have hβ_pow : β ^ q = ζ ^ d := by
-    rw [← map_pow, hθ_pow, Algebra.norm_algebraMap, hfin0]
-  have hβ_ne : β ≠ 0 := by
-    intro h0
-    rw [h0, zero_pow (by omega : q ≠ 0)] at hβ_pow
-    exact pow_ne_zero d hζ_ne hβ_pow.symm
-  have hcop_dq : Nat.Coprime d q :=
-    ((hq.coprime_iff_not_dvd).mpr (Nat.not_dvd_of_pos_of_lt hg_deg_pos hg_deg_lt)).symm
-  obtain ⟨u, hu_lt, hu_mod⟩ := Nat.exists_mul_mod_eq_one_of_coprime hcop_dq (by omega : 1 < q)
+    rw [← map_pow, hθ_pow, Algebra.norm_algebraMap, hpb0.finrank, AdjoinRoot.powerBasis_dim]
+  have hβ_ne : β ≠ 0 := fun h0 => pow_ne_zero d hζ_ne (by simpa [h0, hq.ne_zero] using hβ_pow.symm)
+  obtain ⟨u, _, hu_mod⟩ := Nat.exists_mul_mod_eq_one_of_coprime
+    ((hq.coprime_iff_not_dvd.mpr (Nat.not_dvd_of_pos_of_lt hg_irr.natDegree_pos hg_lt)).symm)
+    hq.one_lt
   set v := u * d / q
   have hud_eq : u * d = v * q + 1 := by
-    have hmod_ud : (u * d) % q = 1 := by simpa [mul_comm] using hu_mod
-    rw [mul_comm v q, ← hmod_ud]
-    exact (Nat.div_add_mod (u * d) q).symm
+    rw [mul_comm v q, ← show (u * d) % q = 1 by simpa [mul_comm] using hu_mod, Nat.div_add_mod]
   set η : K := β ^ u * (ζ ^ v)⁻¹
   have hη_ne : η ≠ 0 := mul_ne_zero (pow_ne_zero u hβ_ne) (inv_ne_zero (pow_ne_zero v hζ_ne))
   have hη_pow : η ^ q = ζ := by
     rw [mul_pow, ← pow_mul, mul_comm u q, pow_mul, hβ_pow, ← pow_mul, mul_comm d u, inv_pow,
       ← pow_mul, hud_eq, pow_add, pow_one, mul_right_comm (ζ ^ (v * q)) ζ,
       mul_inv_cancel₀ (pow_ne_zero (v * q) hζ_ne), one_mul]
-  set ηu : Kˣ := Units.mk0 η hη_ne
-  set ζu : Kˣ := Units.mk0 ζ hζ_ne
-  have hηu_pow : ηu ^ q = ζu := Units.ext (by simp [ηu, ζu, hη_pow])
-  have hζu_ord : orderOf ζu = q ^ k := by
+  have hord := orderOf_of_pow_prime hq hk1 (Units.ext (by simp [hη_pow]) :
+      (Units.mk0 η hη_ne) ^ q = Units.mk0 ζ hζ_ne) <| by
     rw [← orderOf_injective (Units.coeHom K) Units.coeHom_injective]
-    exact hζ_ord
-  have hord_dvd1 : orderOf ηu ∣ q ^ (k + 1) := by
-    rw [orderOf_dvd_iff_pow_eq_one, pow_succ', pow_mul, hηu_pow, ← hζu_ord, pow_orderOf_eq_one]
-  have hord_ndvd : ¬ orderOf ηu ∣ q ^ k := by
-    intro hdvd_k
-    have h1 : ηu ^ (q ^ k) = 1 := orderOf_dvd_iff_pow_eq_one.mp hdvd_k
-    have h2 : ζu ^ (q ^ (k - 1)) = 1 := by
-      rw [← hηu_pow, ← pow_mul, ← pow_succ', Nat.sub_add_cancel hk1]
-      exact h1
-    have hdvd_km1 := orderOf_dvd_iff_pow_eq_one.mpr h2
-    rw [hζu_ord] at hdvd_km1
-    have hle := Nat.le_of_dvd (by positivity) hdvd_km1
-    have hlt := Nat.pow_lt_pow_right (by omega : 1 < q) (Nat.sub_lt hk1 zero_lt_one)
-    omega
-  have hord_eq : orderOf ηu = q ^ (k + 1) := by
-    obtain ⟨j, hj_le, hj_eq⟩ := (Nat.dvd_prime_pow hq).mp hord_dvd1
-    rw [hj_eq] at hord_ndvd ⊢
-    rcases eq_or_lt_of_le hj_le with rfl | hj_lt
-    · rfl
-    · exfalso; exact hord_ndvd (Nat.pow_dvd_pow q (by omega))
-  have hdvd_card : q ^ (k + 1) ∣ 2 ^ m - 1 := by
-    have hcard_u : Fintype.card Kˣ = 2 ^ m - 1 := by
-      rw [Fintype.card_units, hcardK]
-    rw [← hord_eq, ← hcard_u]
-    exact orderOf_dvd_card
-  exact hk1_ndvd hdvd_card
+    exact hζ_prim.eq_orderOf.symm
+  exact hk1_ndvd <| by
+    simpa only [hord, Fintype.card_units, hcardK] using orderOf_dvd_card (x := Units.mk0 η hη_ne)
 
 /-! ### Explicit arithmetic in `L = K[Y] / (Y ^ q - Z)` and Shoup's irreducible polynomial -/
 
@@ -776,69 +591,50 @@ private theorem evalL_shoupLMul {K L : Type*} [Field K] [Field L]
     (a b : List (List Bool)) :
     evalL ζ y q (shoupLMul q f a b) = evalL ζ y q a * evalL ζ y q b := by
   have : NeZero q := ⟨hq0.ne'⟩
-  have hmod : ∀ p : List Bool,
-      (polyOfBits (polyMod p f)).aeval ζ = (polyOfBits p).aeval ζ := by
-    intro p
-    obtain ⟨hinv, -, -, -⟩ := polyOfBits_polyDivMod_spec (a := p) hf_ne
-    have hev := congrArg (aeval ζ) hinv
-    simp only [map_add, map_mul, hζ, mul_zero, zero_add] at hev
-    exact hev
-  have hfold_range : ∀ (n : ℕ) (g : ℕ → List Bool),
+  have hmod : ∀ p, (polyOfBits (polyMod p f)).aeval ζ = (polyOfBits p).aeval ζ := fun p => by
+    have := congrArg (aeval ζ) (polyOfBits_polyDivMod_spec (a := p) hf_ne).1
+    simpa only [map_add, map_mul, hζ, mul_zero, zero_add] using this
+  have hfold : ∀ n (g : ℕ → List Bool),
       (polyOfBits ((List.range n).foldl (fun acc x => polyAdd acc (g x)) [])).aeval ζ =
-        ∑ x ∈ Finset.range n, (polyOfBits (g x)).aeval ζ := by
-    intro n g
+        ∑ x ∈ Finset.range n, (polyOfBits (g x)).aeval ζ := fun n g => by
     induction n with
     | zero => simp
     | succ n ih =>
       rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil,
         polyOfBits_polyAdd, map_add, ih, Finset.sum_range_succ]
-  set T : ℕ → ℕ → L := fun i j =>
+  let T : ℕ → ℕ → L := fun i j =>
     algebraMap K L ((polyOfBits (polyMul (a.getD i []) (b.getD j []))).aeval ζ) * y ^ (i + j)
   have hprod : evalL ζ y q a * evalL ζ y q b = ∑ p : Fin q × Fin q, T p.1.1 p.2.1 := by
     rw [evalL, evalL, Finset.sum_mul_sum, Fintype.sum_prod_type]
-    refine Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => ?_
-    simp only [T, polyOfBits_polyMul, map_mul, pow_add]
-    ring
-  rw [hprod]
+    exact Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => by
+      simp only [T, polyOfBits_polyMul, map_mul, pow_add]; ring
   let e : Fin q × Fin q ≃ Fin q × Fin q :=
-    { toFun := fun p => (p.1, p.2 - p.1)
-      invFun := fun p => (p.1, p.1 + p.2)
-      left_inv := fun p => by ext <;> simp
-      right_inv := fun p => by ext <;> simp }
-  rw [← Equiv.sum_comp e, Fintype.sum_prod_type, Finset.sum_comm, evalL]
+    ⟨fun p => (p.1, p.2 - p.1), fun p => (p.1, p.1 + p.2),
+      fun p => by ext <;> simp, fun p => by ext <;> simp⟩
+  rw [hprod, ← Equiv.sum_comp e, Fintype.sum_prod_type, Finset.sum_comm, evalL]
   refine Finset.sum_congr rfl fun k _ => ?_
   rw [shoupLMul, List.getD_map_range _ _ k.2, hmod, polyOfBits_polyAdd, map_add,
-    polyOfBits_false_cons, map_mul, aeval_X, hfold_range, hfold_range, map_add, map_sum, map_mul,
+    polyOfBits_false_cons, map_mul, aeval_X, hfold, hfold, map_add, map_sum, map_mul,
     map_sum, add_mul, Finset.sum_mul, Finset.mul_sum, Finset.sum_mul]
-  dsimp only [e, Equiv.coe_fn_mk]
-  have hT_ite : ∀ i : Fin q,
+  have hsub : ∀ i : Fin q,
       T i.1 (k - i).1 = if i.1 ≤ k.1 then T i.1 (k.1 - i.1) else T i.1 (q + k.1 - i.1) := by
-    intro i
-    split_ifs with hik
+    intro i; split_ifs with hik
     · rw [Fin.sub_val_of_le hik]
-    · rw [show (k - i).1 = q + k.1 - i.1 from by
-        rw [Fin.val_sub, Nat.mod_eq_of_lt (by omega)]
-        omega]
-  simp_rw [hT_ite]
+    · rw [show (k - i).1 = q + k.1 - i.1 by rw [Fin.val_sub, Nat.mod_eq_of_lt (by omega)]; omega]
+  simp_rw [e, Equiv.coe_fn_mk, hsub]
   rw [Fin.sum_univ_eq_sum_range (fun i =>
-      if i ≤ k.1 then T i (k.1 - i) else T i (q + k.1 - i)) q]
-  have hq_split : Finset.range q = Finset.range ((k.1 + 1) + (q - 1 - k.1)) :=
-    congrArg Finset.range (by omega)
-  conv_rhs => rw [hq_split, Finset.sum_range_add]
-  congr 1
-  · refine Finset.sum_congr rfl fun i hi => ?_
-    rw [Finset.mem_range] at hi
-    rw [ite_eq_left (Nat.lt_succ_iff.mp hi)]
-    simp only [T, Nat.add_sub_cancel' (Nat.lt_succ_iff.mp hi)]
-  · refine Finset.sum_congr rfl fun t ht => ?_
-    rw [Finset.mem_range] at ht
-    rw [ite_eq_right (by omega),
-      show T (k.1 + 1 + t) (q + k.1 - (k.1 + 1 + t)) =
-        algebraMap K L ζ * algebraMap K L ((polyOfBits (polyMul (a.getD (k.1 + 1 + t) [])
-          (b.getD (q + k.1 - (k.1 + 1 + t)) []))).aeval ζ) * y ^ k.1 from by
-        dsimp only [T]
-        rw [show k.1 + 1 + t + (q + k.1 - (k.1 + 1 + t)) = q + k.1 by omega, pow_add, hy]
-        ring]
+    if i ≤ k.1 then T i (k.1 - i) else T i (q + k.1 - i)) q]
+  conv_rhs =>
+    rw [congrArg Finset.range (show q = k.1 + 1 + (q - 1 - k.1) by omega), Finset.sum_range_add]
+  refine congrArg₂ (· + ·)
+    (Finset.sum_congr rfl fun i hi => by
+      have hi' : i ≤ k.1 := Nat.lt_succ_iff.mp (Finset.mem_range.mp hi)
+      rw [ite_eq_left hi']; simp only [T, Nat.add_sub_cancel' hi'])
+    (Finset.sum_congr rfl fun t ht => by
+      have ht' := Finset.mem_range.mp ht
+      rw [ite_eq_right (by omega : ¬ k.1 + 1 + t ≤ k.1)]
+      dsimp only [T]
+      rw [show k.1 + 1 + t + (q + k.1 - (k.1 + 1 + t)) = q + k.1 by omega, pow_add, hy]; ring)
 
 private theorem evalL_shoupLFrobQ {K L : Type*} [Field K] [Field L]
     [Algebra (ZMod 2) K] [Algebra K L] {ζ : K} {y : L} {q : ℕ} (hq0 : 0 < q)
@@ -846,61 +642,48 @@ private theorem evalL_shoupLFrobQ {K L : Type*} [Field K] [Field L]
     (hζ : (polyOfBits f).aeval ζ = 0) (hy : y ^ q = algebraMap K L ζ)
     (a : List (List Bool)) :
     evalL ζ y q (shoupLFrobQ q f a) = (evalL ζ y q a) ^ (2 ^ q) := by
-  have hstep : ∀ s : ℕ,
-      evalL ζ y q ((fun x => shoupLMul q f x x)^[s] a) = (evalL ζ y q a) ^ (2 ^ s) := by
-    intro s
-    induction s with
-    | zero => simp
-    | succ s ih =>
-      rw [Function.iterate_succ_apply', evalL_shoupLMul hq0 hf_ne hζ hy, ih, ← sq, ← pow_mul,
-        ← pow_succ]
-  exact hstep q
+  suffices ∀ s, evalL ζ y q ((fun x => shoupLMul q f x x)^[s] a) = (evalL ζ y q a) ^ (2 ^ s) from
+    this q
+  intro s; induction s with
+  | zero => simp
+  | succ s ih =>
+    rw [Function.iterate_succ_apply', evalL_shoupLMul hq0 hf_ne hζ hy, ih, ← sq, ← pow_mul,
+      ← pow_succ]
 
 private theorem evalL_single {K L : Type*} [Field K] [Field L]
     [Algebra (ZMod 2) K] [Algebra K L] (ζ : K) (y : L) {q idx : ℕ} (hidx : idx < q) :
     evalL ζ y q ((List.range q).map fun i => if i == idx then [true] else []) = y ^ idx := by
   rw [evalL, Finset.sum_eq_single ⟨idx, hidx⟩]
-  · rw [List.getD_map_range _ _ hidx]
-    simp [bitEquiv_symm_true]
+  · rw [List.getD_map_range _ _ hidx]; simp [bitEquiv_symm_true]
   · intro i _ hi
-    rw [List.getD_map_range _ _ i.2]
-    have hne : (i.1 == idx) = false := beq_false_of_ne fun h => hi (Fin.ext h)
-    simp [hne]
-  · intro hm
-    exact absurd (Finset.mem_univ (⟨idx, hidx⟩ : Fin q)) hm
+    rw [List.getD_map_range _ _ i.2, beq_false_of_ne fun h => hi (Fin.ext h)]; simp
+  · exact fun hm => absurd (Finset.mem_univ (⟨idx, hidx⟩ : Fin q)) hm
 
 private theorem evalL_shoupBeta {K L : Type*} [Field K] [Field L]
     [Algebra (ZMod 2) K] [Algebra K L] {ζ : K} {y : L} {q : ℕ} (hq : 2 ≤ q)
     {f : List Bool} (hf_ne : polyOfBits f ≠ 0)
     (hζ : (polyOfBits f).aeval ζ = 0) (hy : y ^ q = algebraMap K L ζ) :
     evalL ζ y q (shoupBeta q f) = ∑ s ∈ Finset.range (f.length - 1), y ^ (2 ^ (s * q)) := by
-  set m := f.length - 1
-  set yL := (List.range q).map fun i => if i == 1 then [true] else []
-  have hinv : ∀ k : ℕ,
+  have hinv : ∀ k,
       let st := (List.range k).foldl
         (fun st _ => (shoupLAdd q st.1 st.2, shoupLFrobQ q f st.2))
-        (List.replicate q [], yL)
+        (List.replicate q [], (List.range q).map fun i => if i == 1 then [true] else [])
       evalL ζ y q st.1 = (∑ s ∈ Finset.range k, y ^ (2 ^ (s * q))) ∧
-        evalL ζ y q st.2 = y ^ (2 ^ (k * q)) := by
-    intro k
+        evalL ζ y q st.2 = y ^ (2 ^ (k * q)) := fun k => by
     induction k with
     | zero =>
-      simp only [List.range_zero, List.foldl_nil, Finset.range_zero, Finset.sum_empty, zero_mul,
-        pow_zero, pow_one]
-      refine ⟨?_, by simpa only [pow_one] using evalL_single ζ y (by omega : 1 < q)⟩
-      rw [evalL]
-      refine Finset.sum_eq_zero fun i _ => ?_
-      rw [List.getD_eq_getElem (List.replicate q []) [] (by simp),
-        List.getElem_replicate]
-      simp [polyOfBits_nil]
+      refine ⟨?_, ?_⟩
+      · simp only [List.range_zero, List.foldl_nil, Finset.range_zero, Finset.sum_empty, evalL]
+        exact Finset.sum_eq_zero fun i _ => by
+          rw [List.getD_eq_getElem _ _ (by simp), List.getElem_replicate]; simp [polyOfBits_nil]
+      · simpa only [List.range_zero, List.foldl_nil, zero_mul, pow_zero, pow_one] using
+          evalL_single ζ y (by omega : 1 < q)
     | succ k ih =>
       rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
-      obtain ⟨h1, h2⟩ := ih
-      refine ⟨?_, ?_⟩
-      · rw [evalL_shoupLAdd, h1, h2, Finset.sum_range_succ]
-      · rw [evalL_shoupLFrobQ (by omega) hf_ne hζ hy, h2, ← pow_mul, ← pow_add,
-          Nat.succ_mul]
-  exact (hinv m).1
+      exact ⟨by rw [evalL_shoupLAdd, ih.1, ih.2, Finset.sum_range_succ],
+        by rw [evalL_shoupLFrobQ (by omega) hf_ne hζ hy, ih.2, ← pow_mul, ← pow_add,
+          Nat.succ_mul]⟩
+  exact (hinv (f.length - 1)).1
 
 private theorem shoupPowers_foldl {α : Type*} (step : α → α) (init : α) (n : ℕ) :
     (List.range n).foldl (fun st _ => (st.1 ++ [st.2], step st.2)) ([], init) =
@@ -910,13 +693,6 @@ private theorem shoupPowers_foldl {α : Type*} (step : α → α) (init : α) (n
   | succ n ih =>
     rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil, ih,
       List.map_append, List.map_singleton, Function.iterate_succ_apply']
-
-private theorem length_shoupPowers (q : ℕ) (f : List Bool) (β : List (List Bool)) :
-    (shoupPowers q f β).length = q + 1 := by
-  unfold shoupPowers
-  dsimp only
-  rw [shoupPowers_foldl (fun x => shoupLMul q f x β)]
-  simp
 
 private theorem shoupPowers_getD (q : ℕ) (f : List Bool) (β : List (List Bool))
     {c : ℕ} (hc : c < q + 1) :
@@ -935,40 +711,34 @@ private theorem shoupPowers_spec {K L : Type*} [Field K] [Field L]
     (β : List (List Bool)) :
     (shoupPowers q f β).length = q + 1 ∧
       ∀ c < q + 1, evalL ζ y q ((shoupPowers q f β).getD c []) = (evalL ζ y q β) ^ c := by
-  refine ⟨length_shoupPowers q f β, fun c hc => ?_⟩
-  rw [shoupPowers_getD q f β hc]
-  clear hc
-  induction c with
-  | zero => simpa only [Function.iterate_zero, id_eq, pow_zero] using evalL_single ζ y hq
-  | succ c ih =>
-    rw [Function.iterate_succ_apply', evalL_shoupLMul hq hf_ne hζ hy, ih, pow_succ]
+  refine ⟨?_, fun c hc => ?_⟩
+  · unfold shoupPowers
+    dsimp only
+    rw [shoupPowers_foldl (fun x => shoupLMul q f x β)]
+    simp
+  · rw [shoupPowers_getD q f β hc]
+    clear hc
+    induction c with
+    | zero => simpa only [Function.iterate_zero, id_eq, pow_zero] using evalL_single ζ y hq
+    | succ c ih =>
+      rw [Function.iterate_succ_apply', evalL_shoupLMul hq hf_ne hζ hy, ih, pow_succ]
 
 private theorem shoupMinPolyMatrix_length (q m : ℕ) (pows : List (List (List Bool)))
     (hpows : pows.length = q + 1) :
     (shoupMinPolyMatrix q m pows).length = q * m ∧
       ∀ row ∈ shoupMinPolyMatrix q m pows, row.length = q + 1 := by
   refine ⟨by simp [shoupMinPolyMatrix], fun row hrow => ?_⟩
-  simp only [shoupMinPolyMatrix, List.mem_map, List.mem_range] at hrow
-  obtain ⟨idx, -, rfl⟩ := hrow
+  obtain ⟨_, -, rfl⟩ := List.mem_map.mp hrow
   simp [hpows]
 
 private theorem two_pow_mod_pow_eq {q : ℕ} (hq : q.Prime) (s : ℕ) :
     2 ^ (s * q) % q = 2 ^ s % q := by
   have : Fact q.Prime := ⟨hq⟩
-  have h2q : (2 : ZMod q) ^ q = 2 := ZMod.pow_card 2
   rw [← ZMod.natCast_eq_natCast_iff']
   calc ((2 ^ (s * q) : ℕ) : ZMod q)
       = ((2 : ZMod q) ^ q) ^ s := by rw [Nat.cast_pow, Nat.cast_ofNat, mul_comm, pow_mul]
-    _ = (2 : ZMod q) ^ s := by rw [h2q]
+    _ = (2 : ZMod q) ^ s := by rw [ZMod.pow_card]
     _ = ((2 ^ s : ℕ) : ZMod q) := by rw [Nat.cast_pow, Nat.cast_ofNat]
-
-private theorem shoupMinPolyMatrix_getD_getD (q m : ℕ) (pows : List (List (List Bool)))
-    {idx c : ℕ} (hidx : idx < q * m) (hc : c < pows.length) :
-    ((shoupMinPolyMatrix q m pows).getD idx []).getD c false =
-      ((pows.getD c []).getD (idx / m) []).getD (idx % m) false := by
-  rw [shoupMinPolyMatrix, List.getD_map_range _ _ hidx,
-    List.getD_eq_getElem _ _ (by simp [hc]), List.getElem_map,
-    ← List.getD_eq_getElem pows [] hc]
 
 private theorem shoupMinPolyMatrix_mulVec_zero_iff {K L : Type*} [Field K] [Field L]
     [Algebra (ZMod 2) K] [Algebra K L] [Algebra (ZMod 2) L] [IsScalarTower (ZMod 2) K L]
@@ -985,25 +755,15 @@ private theorem shoupMinPolyMatrix_mulVec_zero_iff {K L : Type*} [Field K] [Fiel
       ∑ c : Fin (q + 1), v c • βL ^ c.1 = 0 := by
   let bL : Basis (Fin q) K L := pbL.basis.reindex (finCongr hpbL_dim)
   let bK : Basis (Fin m) (ZMod 2) K := pbK.basis.reindex (finCongr hpbK_dim)
-  have hbL : ∀ i : Fin q, bL i = y ^ i.1 := fun i => by
-    dsimp only [bL]
-    rw [Basis.reindex_apply, hpbL_coe]
-    rfl
-  have hbK : ∀ j : Fin m, bK j = ζ ^ j.1 := fun j => by
-    dsimp only [bK]
-    rw [Basis.reindex_apply, hpbK_coe]
-    rfl
+  have hbL : ∀ i : Fin q, bL i = y ^ i.1 := fun i => by rw [Basis.reindex_apply, hpbL_coe]; rfl
+  have hbK : ∀ j : Fin m, bK j = ζ ^ j.1 := fun j => by rw [Basis.reindex_apply, hpbK_coe]; rfl
   let d : Fin q → Fin m → ZMod 2 := fun i j =>
     ∑ c : Fin (q + 1), v c * bitEquiv.symm (((pows.getD c.1 []).getD i.1 []).getD j.1 false)
-  have heq_sum :
-      (∑ c : Fin (q + 1), v c • βL ^ c.1) =
-        ∑ i : Fin q, (∑ j : Fin m, d i j • bK j) • bL i := by
-    have hc_expand : ∀ c : Fin (q + 1),
-        v c • βL ^ c.1 =
-          ∑ i : Fin q, (∑ j : Fin m,
-            (v c * bitEquiv.symm (((pows.getD c.1 []).getD i.1 []).getD j.1 false)) •
-              bK j) • bL i := by
-      intro c
+  have heq : (∑ c : Fin (q + 1), v c • βL ^ c.1) =
+      ∑ i : Fin q, (∑ j : Fin m, d i j • bK j) • bL i := by
+    have hterm : ∀ c : Fin (q + 1), v c • βL ^ c.1 = ∑ i : Fin q,
+        (∑ j : Fin m, (v c * bitEquiv.symm (((pows.getD c.1 []).getD i.1 []).getD j.1 false)) •
+          bK j) • bL i := fun c => by
       rw [← hpows_eval c.1 c.2, evalL, Finset.smul_sum]
       refine Finset.sum_congr rfl fun i _ => ?_
       rw [← smul_mul_assoc, Algebra.smul_def (R := ZMod 2),
@@ -1014,57 +774,43 @@ private theorem shoupMinPolyMatrix_mulVec_zero_iff {K L : Type*} [Field K] [Fiel
       trans ∑ j ∈ Finset.range m,
           (v c * bitEquiv.symm (((pows.getD c.1 []).getD i.1 []).getD j false)) • ζ ^ j
       · rw [← Finset.sum_subset (Finset.range_mono (hpows_entry_len c.1 c.2 i.1 i.2))]
-        · refine Finset.sum_congr rfl fun j _ => ?_
-          rw [smul_smul]
+        · exact Finset.sum_congr rfl fun _ _ => smul_smul ..
         · intro j _ hj
-          rw [Finset.mem_range, not_lt] at hj
-          rw [List.getD_eq_default _ _ hj, bitEquiv_symm_false, mul_zero, zero_smul]
-      · simp_rw [hbK]
-        exact (Fin.sum_univ_eq_sum_range (fun j =>
-          (v c * bitEquiv.symm (((pows.getD c.1 []).getD i.1 []).getD j false)) • ζ ^ j) m).symm
-    simp_rw [hc_expand]
+          rw [List.getD_eq_default _ _ (not_lt.mp (Finset.mem_range.not.mp hj)),
+            bitEquiv_symm_false, mul_zero, zero_smul]
+      · simp_rw [hbK]; exact (Fin.sum_univ_eq_sum_range _ m).symm
+    simp_rw [hterm]
     rw [Finset.sum_comm]
     refine Finset.sum_congr rfl fun i _ => ?_
     rw [← Finset.sum_smul, Finset.sum_comm]
-    refine congrArg (· • bL i) (Finset.sum_congr rfl fun j _ => ?_)
-    rw [← Finset.sum_smul]
-  rw [heq_sum]
-  have hvanish :
-      (∑ i : Fin q, (∑ j : Fin m, d i j • bK j) • bL i = 0) ↔ ∀ i j, d i j = 0 := by
-    constructor
-    · intro h0 i j
-      have hci := (linearIndependent_iff'.mp bL.linearIndependent Finset.univ
-        (fun i => ∑ j : Fin m, d i j • bK j) h0) i (Finset.mem_univ _)
-      exact (linearIndependent_iff'.mp bK.linearIndependent Finset.univ (d i) hci) j
-        (Finset.mem_univ _)
-    · intro hall
-      exact Finset.sum_eq_zero fun i _ => by
-        rw [Finset.sum_eq_zero fun j _ => by rw [hall i j, zero_smul], zero_smul]
-  rw [hvanish]
-  have hmul_entry : ∀ idx : Fin (q * m),
+    exact congrArg (· • bL i) (Finset.sum_congr rfl fun j _ => (Finset.sum_smul ..).symm)
+  have hmul : ∀ idx : Fin (q * m),
       (rowsToZModMatrix (q * m) (q + 1) (shoupMinPolyMatrix q m pows) *ᵥ v) idx =
         d ⟨idx.1 / m, Nat.div_lt_of_lt_mul (mul_comm q m ▸ idx.2)⟩
           ⟨idx.1 % m, Nat.mod_lt _ hm0⟩ := fun idx => by
     simp only [Matrix.mulVec, dotProduct, rowsToZModMatrix, bitsToZModVec]
     refine Finset.sum_congr rfl fun c _ => ?_
-    rw [shoupMinPolyMatrix_getD_getD q m pows idx.2 (by rw [hpows_len]; exact c.2), mul_comm]
+    have hc : c.1 < pows.length := by
+      rw [hpows_len]
+      exact c.2
+    rw [shoupMinPolyMatrix, List.getD_map_range _ _ idx.2,
+      List.getD_eq_getElem _ _ (by simp [hc]), List.getElem_map,
+      ← List.getD_eq_getElem pows [] hc, mul_comm]
+  rw [heq]
   constructor
-  · intro hmul i j
-    have hidx : i.1 * m + j.1 < q * m := by nlinarith [i.2, j.2]
-    have hrow := congrFun hmul ⟨i.1 * m + j.1, hidx⟩
-    rw [hmul_entry, Pi.zero_apply] at hrow
-    dsimp only at hrow
-    have hdiv : (⟨(i.1 * m + j.1) / m,
-        Nat.div_lt_of_lt_mul (mul_comm q m ▸ hidx)⟩ : Fin q) = i := Fin.ext (by
-      dsimp only
-      rw [mul_comm, Nat.mul_add_div hm0, Nat.div_eq_of_lt j.2, add_zero])
-    have hmod : (⟨(i.1 * m + j.1) % m, Nat.mod_lt _ hm0⟩ : Fin m) = j := Fin.ext (by
-      dsimp only
-      rw [mul_comm, Nat.mul_add_mod, Nat.mod_eq_of_lt j.2])
-    rwa [hdiv, hmod] at hrow
-  · intro hall
-    funext idx
-    rw [hmul_entry, hall, Pi.zero_apply]
+  · intro h0
+    refine Finset.sum_eq_zero fun i _ => ?_
+    suffices ∀ j, d i j = 0 by simp [this]
+    intro j
+    have hidx : m * i.1 + j.1 < q * m := by nlinarith [i.2, j.2]
+    simpa [Nat.mul_add_div hm0, Nat.div_eq_of_lt j.2, Nat.mul_add_mod, Nat.mod_eq_of_lt j.2] using
+      (hmul ⟨m * i.1 + j.1, hidx⟩).symm.trans (congrFun h0 ⟨m * i.1 + j.1, hidx⟩)
+  · intro h0; funext idx; rw [hmul, Pi.zero_apply]
+    let i : Fin q := ⟨idx.1 / m, Nat.div_lt_of_lt_mul (mul_comm q m ▸ idx.2)⟩
+    have hci := (linearIndependent_iff'.mp bL.linearIndependent Finset.univ
+      (fun i => ∑ j : Fin m, d i j • bK j) h0) i (Finset.mem_univ _)
+    exact (linearIndependent_iff'.mp bK.linearIndependent Finset.univ (d i) hci) _
+      (Finset.mem_univ _)
 
 private theorem shoupBeta_minpoly_natDegree {K L : Type*} [Field K] [Field L]
     [Algebra (ZMod 2) K] [Algebra K L] [Algebra (ZMod 2) L] [IsScalarTower (ZMod 2) K L]
@@ -1078,103 +824,84 @@ private theorem shoupBeta_minpoly_natDegree {K L : Type*} [Field K] [Field L]
     (hpbL_coe : ∀ idx : Fin pbL.dim, pbL.basis idx = y ^ idx.1) :
     let βL : L := evalL ζ y q (shoupBeta q f)
     (∀ a : ZMod 2, βL ≠ algebraMap (ZMod 2) L a) ∧ (minpoly (ZMod 2) βL).natDegree = q := by
-  set βbits := shoupBeta q f
-  set βL : L := evalL ζ y q βbits
+  set βL : L := evalL ζ y q (shoupBeta q f)
   have hβL_eq : βL = ∑ s ∈ Finset.range m, y ^ (2 ^ (s * q)) := by
-    have hmlen : f.length - 1 = m := by rw [hf_len]; omega
-    dsimp only [βL, βbits]
-    rw [evalL_shoupBeta (by omega : 2 ≤ q) hf_ne hζ_root hy_pow, hmlen]
+    simpa only [hf_len, Nat.add_sub_cancel] using
+      evalL_shoupBeta (by omega : 2 ≤ q) hf_ne hζ_root hy_pow
   have : Fact (Nat.Prime 2) := ⟨Nat.prime_two⟩
   have hβ_frob : βL ^ (2 ^ q) = βL := by
-    rw [hβL_eq, sum_pow_char_pow]
-    have hm1 : 1 ≤ m := by omega
-    rw [← Nat.sub_add_cancel hm1, Finset.sum_range_succ, Finset.sum_range_succ']
+    rw [hβL_eq, sum_pow_char_pow, ← Nat.sub_add_cancel (by omega : 1 ≤ m),
+      Finset.sum_range_succ, Finset.sum_range_succ']
     simp only [zero_mul, pow_zero, pow_one, add_comm]
-    congr 1
-    · rw [← pow_mul, ← pow_add, show (m - 1) * q + q = m * q by
-          calc (m - 1) * q + q = (m - 1 + 1) * q := by ring
-            _ = m * q := by rw [Nat.sub_add_cancel hm1], hy_card]
-    · refine Finset.sum_congr rfl fun s _ => ?_
-      rw [← pow_mul, ← pow_add, Nat.succ_mul]
-  have hβ_notin : ∀ a : ZMod 2, βL ≠ algebraMap (ZMod 2) L a := by
-    intro a heq
+    refine congrArg₂ (· + ·) ?_ (Finset.sum_congr rfl fun s _ => by
+      rw [← pow_mul, ← pow_add, Nat.succ_mul])
+    rw [← pow_mul, ← pow_add, show (m - 1) * q + q = m * q by
+      rw [← add_one_mul, Nat.sub_add_cancel (by omega)], hy_card]
+  have hβ_notin : ∀ a : ZMod 2, βL ≠ algebraMap (ZMod 2) L a := fun a heq => by
     let bL : Basis (Fin q) K L := pbL.basis.reindex (finCongr hpbL_dim)
-    have hbL : ∀ i : Fin q, bL i = y ^ i.1 := fun i => by
-      dsimp only [bL]
-      rw [Basis.reindex_apply, hpbL_coe]
-      rfl
+    have hbL : ∀ i : Fin q, bL i = y ^ i.1 := fun i => by rw [Basis.reindex_apply, hpbL_coe]; rfl
     have hLHS : bL.repr βL ⟨1, by omega⟩ = 1 := by
       rw [hβL_eq, map_sum, Finsupp.finsetSum_apply, Finset.sum_eq_single 0]
-      · have h0 : y ^ (2 ^ (0 * q)) = bL ⟨1, by omega⟩ := by
-          rw [zero_mul, pow_zero, pow_one, hbL]
-          exact (pow_one y).symm
-        rw [h0, Basis.repr_self, Finsupp.single_eq_same]
+      · rw [zero_mul, pow_zero, pow_one, ← (hbL ⟨1, by omega⟩).trans (pow_one y),
+          Basis.repr_self, Finsupp.single_eq_same]
       · intro s hs hs0
-        rw [Finset.mem_range] at hs
-        have hdiv := Nat.div_add_mod (2 ^ (s * q)) q
         have hy_s : y ^ (2 ^ (s * q)) =
             (ζ ^ (2 ^ (s * q) / q)) • bL ⟨2 ^ (s * q) % q, Nat.mod_lt _ (by omega)⟩ := by
-          nth_rw 1 [← hdiv]
+          nth_rw 1 [← Nat.div_add_mod (2 ^ (s * q)) q]
           rw [pow_add, pow_mul, hy_pow, ← map_pow, ← Algebra.smul_def, hbL]
         rw [hy_s, map_smul, Finsupp.smul_apply, Basis.repr_self, Finsupp.single_apply,
-          ite_eq_right (fun hfin => ?_), smul_zero]
-        have hmod := congrArg Fin.val hfin
-        dsimp only at hmod
-        rw [two_pow_mod_pow_eq hq s] at hmod
-        exact hm_min s (Nat.pos_of_ne_zero hs0) hs hmod
-      · intro hm0
-        exact absurd (Finset.mem_range.mpr (by omega : 0 < m)) hm0
+          ite_eq_right fun hfin => hm_min s (Nat.pos_of_ne_zero hs0) (Finset.mem_range.mp hs)
+            (two_pow_mod_pow_eq hq s ▸ congrArg Fin.val hfin), smul_zero]
+      · exact fun hm0 => absurd (Finset.mem_range.mpr (by omega : 0 < m)) hm0
     have hRHS : bL.repr (algebraMap (ZMod 2) L a) ⟨1, by omega⟩ = 0 := by
-      have ha_eq : algebraMap (ZMod 2) L a = (algebraMap (ZMod 2) K a) • bL ⟨0, by omega⟩ := by
-        rw [Algebra.smul_def, hbL, pow_zero, mul_one,
-          IsScalarTower.algebraMap_apply (ZMod 2) K L]
-      rw [ha_eq, map_smul, Finsupp.smul_apply, Basis.repr_self, Finsupp.single_apply,
-        ite_eq_right (fun h => absurd (congrArg Fin.val h) Nat.zero_ne_one), smul_zero]
-    rw [heq, hRHS] at hLHS
-    exact one_ne_zero hLHS.symm
-  have hβ_int : IsIntegral (ZMod 2) βL := IsIntegral.of_finite (ZMod 2) βL
+      have ha : algebraMap (ZMod 2) L a = algebraMap (ZMod 2) K a • bL ⟨0, by omega⟩ := by
+        rw [Algebra.smul_def, hbL, pow_zero, mul_one, IsScalarTower.algebraMap_apply (ZMod 2) K L]
+      rw [ha, map_smul, Finsupp.smul_apply, Basis.repr_self, Finsupp.single_apply,
+        ite_eq_right fun h => absurd (congrArg Fin.val h) Nat.zero_ne_one, smul_zero]
+    exact one_ne_zero (hLHS.symm.trans (heq ▸ hRHS))
+  have hβ_int := IsIntegral.of_finite (ZMod 2) βL
   refine ⟨hβ_notin, ?_⟩
   let E := IntermediateField.adjoin (ZMod 2) ({βL} : Set L)
   set d := (minpoly (ZMod 2) βL).natDegree
-  have hd_pos : 0 < d := minpoly.natDegree_pos hβ_int
-  have hd_fin : finrank (ZMod 2) E = d := IntermediateField.adjoin.finrank hβ_int
-  have : Module.Finite (ZMod 2) E := FiniteDimensional.of_finrank_pos (by omega)
+  have : Module.Finite (ZMod 2) E :=
+    FiniteDimensional.of_finrank_pos (IntermediateField.adjoin.finrank hβ_int ▸
+      minpoly.natDegree_pos hβ_int)
   have : Finite E := Module.finite_of_finite (ZMod 2)
   classical
   let : Fintype E := Fintype.ofFinite E
-  have hcardE : Fintype.card E = 2 ^ d := by
-    rw [Module.card_eq_pow_finrank (K := ZMod 2) (V := E), ZMod.card, hd_fin]
   let S_if : IntermediateField (ZMod 2) L :=
     { carrier := {x : L | x ^ (2 ^ q) = x}
-      mul_mem' := fun hx hy => show (_ * _) ^ _ = _ by rw [mul_pow, hx, hy]
+      mul_mem' := fun hx hy => by
+        dsimp at hx hy ⊢
+        rw [mul_pow, hx, hy]
       one_mem' := one_pow _
-      add_mem' := fun hx hy => show (_ + _) ^ _ = _ by rw [add_pow_char_pow _ _ 2 q, hx, hy]
+      add_mem' := fun hx hy => by
+        dsimp at hx hy ⊢
+        rw [add_pow_char_pow, hx, hy]
       zero_mem' := zero_pow (by positivity)
-      algebraMap_mem' := fun c => show (algebraMap (ZMod 2) L c) ^ _ = _ by
+      algebraMap_mem' := fun c => by
+        dsimp
         rw [← map_pow]
         congr 1
-        fin_cases c
-        · exact zero_pow (pow_ne_zero q two_ne_zero)
-        · exact one_pow _
-      inv_mem' := fun {x} hx => show (x⁻¹) ^ _ = _ by rw [inv_pow, hx] }
+        fin_cases c <;> [exact zero_pow (by positivity); exact one_pow _]
+      inv_mem' := fun {x} hx => by
+        dsimp at hx ⊢
+        rw [inv_pow, hx] }
   have hE_le : E ≤ S_if :=
     IntermediateField.adjoin_le_iff.mpr (Set.singleton_subset_iff.mpr hβ_frob)
   obtain ⟨w, hw⟩ := IsCyclic.exists_generator (α := Eˣ)
   have hw_ord : orderOf w = 2 ^ d - 1 := by
-    rw [orderOf_eq_card_of_forall_mem_zpowers hw, Nat.card_eq_fintype_card,
-      Fintype.card_units, hcardE]
-  have hw_pow : w ^ (2 ^ q) = w := Units.ext (Subtype.ext (by
-    simpa only [Units.val_pow_eq_pow_val, IntermediateField.coe_pow] using
-      show ((w : E) : L) ^ (2 ^ q) = ((w : E) : L) from hE_le (w : E).2))
-  have hw_pow_sub : w ^ (2 ^ q - 1) = 1 := by
-    rw [← mul_left_inj w, ← pow_succ, Nat.sub_add_cancel Nat.one_le_two_pow, one_mul, hw_pow]
-  have hdvd_pow : 2 ^ d - 1 ∣ 2 ^ q - 1 := by
-    rw [← hw_ord]
-    exact orderOf_dvd_iff_pow_eq_one.mpr hw_pow_sub
-  have hd_dvd_q : d ∣ q := (Nat.pow_sub_one_dvd_pow_sub_one_iff one_lt_two).mp hdvd_pow
-  rcases hq.eq_one_or_self_of_dvd d hd_dvd_q with h1 | hq_eq
-  · obtain ⟨c, hc⟩ := minpoly.natDegree_eq_one_iff.mp h1
-    exact absurd hc.symm (hβ_notin c)
+    rw [orderOf_eq_card_of_forall_mem_zpowers hw, Nat.card_eq_fintype_card, Fintype.card_units,
+      Module.card_eq_pow_finrank (K := ZMod 2) (V := E), ZMod.card,
+      IntermediateField.adjoin.finrank hβ_int]
+  have hw_pow : w ^ (2 ^ q - 1) = 1 := by
+    rw [← mul_left_inj w, ← pow_succ, Nat.sub_add_cancel Nat.one_le_two_pow, one_mul]
+    exact Units.ext (Subtype.ext (by
+      simpa only [Units.val_pow_eq_pow_val, IntermediateField.coe_pow] using
+        show ((w : E) : L) ^ (2 ^ q) = ((w : E) : L) from hE_le (w : E).2))
+  rcases hq.eq_one_or_self_of_dvd d ((Nat.pow_sub_one_dvd_pow_sub_one_iff one_lt_two).mp
+      (hw_ord ▸ orderOf_dvd_iff_pow_eq_one.mpr hw_pow)) with h1 | hq_eq
+  · obtain ⟨c, hc⟩ := minpoly.natDegree_eq_one_iff.mp h1; exact absurd hc.symm (hβ_notin c)
   · exact hq_eq
 
 private theorem shoupPowers_entry_length {q m : ℕ} (hm1 : 1 ≤ m) (f : List Bool)
@@ -1193,6 +920,52 @@ private theorem shoupPowers_entry_length {q m : ℕ} (hm1 : 1 ≤ m) (f : List B
     exact Nat.lt_add_one_iff.mp
       (lt_of_lt_of_eq (polyOfBits_polyDivMod_spec hf_ne).2.1 (by rw [hf_trim, hf_len]))
 
+private theorem kernelVecBits_eq_minpoly {L : Type*} [Field L] [Algebra (ZMod 2) L]
+    {q r : ℕ} {βL : L} (hβ_int : IsIntegral (ZMod 2) βL)
+    (hmin_deg : (minpoly (ZMod 2) βL).natDegree = q)
+    {M : List (List Bool)} (hM_len : M.length = r) (hM_mem : ∀ row ∈ M, row.length = q + 1)
+    (hmul_iff : ∀ v : Fin (q + 1) → ZMod 2,
+      rowsToZModMatrix r (q + 1) M *ᵥ v = 0 ↔ ∑ c : Fin (q + 1), v c • βL ^ c.1 = 0) :
+    let kv := kernelVecBits (q + 1) M
+    Irreducible (polyOfBits kv) ∧ (polyOfBits kv).natDegree = q ∧
+      polyTrim kv = kv ∧ kv.length = q + 1 := by
+  set P := minpoly (ZMod 2) βL; set kv := kernelVecBits (q + 1) M
+  have hP_monic : P.Monic := minpoly.monic hβ_int
+  have hv0_ne : (fun c : Fin (q + 1) => P.coeff c.1) ≠ 0 := fun h0 => by
+    have hq0 := congrFun h0 ⟨q, Nat.lt_succ_self q⟩
+    simp only [Pi.zero_apply, ← hmin_deg, hP_monic.coeff_natDegree] at hq0
+    exact one_ne_zero hq0
+  have hv0_mul : rowsToZModMatrix r (q + 1) M *ᵥ (fun c => P.coeff c.1) = 0 := by
+    rw [hmul_iff]
+    have hev := minpoly.aeval (ZMod 2) βL
+    rw [aeval_def, eval₂_eq_sum_range, hmin_deg, ← Fin.sum_univ_eq_sum_range] at hev
+    simpa only [Algebra.smul_def] using hev
+  obtain ⟨b, hb, hb'⟩ := List.any_eq_true.mp
+    (kernelVecBits_any_of_exists M hM_len hM_mem ⟨_, hv0_ne, hv0_mul⟩)
+  have hkv_len : kv.length = q + 1 := length_kernelVecBits (q + 1) M
+  have hkv_ne0 : polyOfBits kv ≠ 0 := polyOfBits_ne_zero_of_mem (by simpa using hb' ▸ hb)
+  have hkv_eval : (polyOfBits kv).aeval βL = 0 := by
+    rw [aeval_polyOfBits, hkv_len, ← Fin.sum_univ_eq_sum_range]
+    exact (hmul_iff _).mp (mulVec_kernelVecBits M hM_len hM_mem)
+  have hkv_deg : (polyOfBits kv).natDegree ≤ q := by
+    have hlt := degree_polyOfBits_lt kv
+    rw [degree_eq_natDegree hkv_ne0, Nat.cast_lt] at hlt; omega
+  have hpoly_eq : polyOfBits kv = P :=
+    (eq_of_monic_of_associated hP_monic (Cslib.monic_of_ne_zero hkv_ne0)
+      (associated_of_dvd_of_natDegree_le (minpoly.dvd (ZMod 2) βL hkv_eval) hkv_ne0
+        (hmin_deg ▸ hkv_deg))).symm
+  have hkv_last : kv.getD q false = true := by
+    have hcq : bitEquiv.symm (kv.getD q false) = 1 := by
+      rw [← coeff_polyOfBits, hpoly_eq, ← hmin_deg, hP_monic.coeff_natDegree]
+    cases hqb : kv.getD q false <;> simp_all
+  have hne : kv ≠ [] := List.ne_nil_of_length_pos (by omega)
+  have hdrop : kv = kv.dropLast ++ [true] := by
+    conv_lhs => rw [← List.dropLast_append_getLast hne]
+    rw [List.getLast_eq_getElem, ← List.getD_eq_getElem kv false (by omega), hkv_len,
+      Nat.add_sub_cancel, hkv_last]
+  exact ⟨hpoly_eq ▸ minpoly.irreducible hβ_int, hpoly_eq ▸ hmin_deg,
+    hdrop ▸ polyTrim_append_true _, hkv_len⟩
+
 /-- Correctness of Shoup's deterministic algorithm: `shoupIrreducibleBits q` is trimmed and
 represents an irreducible binary polynomial of degree `q`. -/
 theorem shoupIrreducibleBits_spec {q : ℕ} (hq : q.Prime) (hq3 : 3 ≤ q) :
@@ -1200,142 +973,51 @@ theorem shoupIrreducibleBits_spec {q : ℕ} (hq : q.Prime) (hq3 : 3 ≤ q) :
       (polyOfBits (shoupIrreducibleBits q)).natDegree = q ∧
       polyTrim (shoupIrreducibleBits q) = shoupIrreducibleBits q ∧
       (shoupIrreducibleBits q).length = q + 1 := by
-  set m := ordTwoMod q
-  set k := qAdicValTwoPowSubOne q m
-  set f := shoupCyclicFactor q k
-  obtain ⟨hm2, hmq, -, hm_min, -⟩ := ordTwoMod_spec hq hq3
-  obtain ⟨hk1, -, hk_dvd, hk1_ndvd⟩ := qAdicValTwoPowSubOne_spec hq hq3
+  set m := ordTwoMod q; set k := qAdicValTwoPowSubOne q m; set f := shoupCyclicFactor q k
+  obtain ⟨hm2, _, -, hm_min, -⟩ := ordTwoMod_spec hq hq3
+  obtain ⟨hk1, -, _, hk1_ndvd⟩ := qAdicValTwoPowSubOne_spec hq hq3
   obtain ⟨hf_trim, hf_cyc, hf_irr, hf_deg, hf_len⟩ := shoupCyclicFactor_spec hq hq3
   have : Fact (Irreducible (polyOfBits f)) := ⟨hf_irr⟩
-  set K := AdjoinRoot (polyOfBits f)
-  set ζ : K := AdjoinRoot.root (polyOfBits f)
+  set K := AdjoinRoot (polyOfBits f); set ζ : K := AdjoinRoot.root (polyOfBits f)
   set G : K[X] := X ^ q - C ζ
-  have hG_irr : Irreducible G :=
-    irreducible_X_pow_sub_C_of_orderOf hq hq3 hk1 hf_irr hf_deg hf_cyc hk1_ndvd
+  have hG_irr := irreducible_X_pow_sub_C_of_orderOf hq hq3 hk1 hf_irr hf_deg hf_cyc hk1_ndvd
   have : Fact (Irreducible G) := ⟨hG_irr⟩
-  set L := AdjoinRoot G
-  set y : L := AdjoinRoot.root G
-  have : IsScalarTower (ZMod 2) K L := inferInstance
+  set L := AdjoinRoot G; set y : L := AdjoinRoot.root G
   let pbK := AdjoinRoot.powerBasis hf_irr.ne_zero
   let pbL := AdjoinRoot.powerBasis hG_irr.ne_zero
-  have hpbK_dim : pbK.dim = m := by
-    rw [AdjoinRoot.powerBasis_dim]
-    exact hf_deg
-  have hG_deg : G.natDegree = q := by
-    dsimp only [G]
-    rw [natDegree_X_pow_sub_C]
+  have hpbK_dim : pbK.dim = m := (AdjoinRoot.powerBasis_dim _).trans hf_deg
   have hpbL_dim : pbL.dim = q := by
-    simp only [pbL, AdjoinRoot.powerBasis_dim, hG_deg]
-  have hfinK : finrank (ZMod 2) K = m := by rw [pbK.finrank, hpbK_dim]
-  have hfinKL : finrank K L = q := by rw [pbL.finrank, hpbL_dim]
+    simp only [pbL, AdjoinRoot.powerBasis_dim, natDegree_X_pow_sub_C]
   have : Module.Finite (ZMod 2) K := pbK.finite
   have : Module.Finite K L := pbL.finite
   have : Module.Finite (ZMod 2) L := Module.Finite.trans K L
-  have hfinL : finrank (ZMod 2) L = m * q := by
-    rw [← Module.finrank_mul_finrank (ZMod 2) K L, hfinK, hfinKL]
   have : Finite L := Module.finite_of_finite (ZMod 2)
   let : Fintype L := Fintype.ofFinite L
   have hcardL : Fintype.card L = 2 ^ (m * q) := by
-    rw [Module.card_eq_pow_finrank (K := ZMod 2) (V := L), ZMod.card, hfinL]
-  have hζ_root : (polyOfBits f).aeval ζ = 0 := by
-    rw [show ζ = AdjoinRoot.root (polyOfBits f) from rfl, AdjoinRoot.aeval_eq,
-      AdjoinRoot.mk_self]
+    rw [Module.card_eq_pow_finrank (K := ZMod 2) (V := L), ZMod.card,
+      ← Module.finrank_mul_finrank (ZMod 2) K L, pbK.finrank, pbL.finrank, hpbK_dim, hpbL_dim]
+  have hζ_root : (polyOfBits f).aeval ζ = 0 := by rw [AdjoinRoot.aeval_eq, AdjoinRoot.mk_self]
   have hy_pow : y ^ q = algebraMap K L ζ := by
     have hy0 := AdjoinRoot.eval₂_root G
     simp only [G, eval₂_sub, eval₂_X_pow, eval₂_C, sub_eq_zero] at hy0
     exact hy0
-  set βbits := shoupBeta q f
-  set βL : L := evalL ζ y q βbits
-  have hy_card : y ^ (2 ^ (m * q)) = y := by
-    rw [← hcardL]
-    exact FiniteField.pow_card y
-  have hmin_deg : (minpoly (ZMod 2) βL).natDegree = q :=
-    (shoupBeta_minpoly_natDegree hq hq3 hm2 hm_min ζ y f hf_irr.ne_zero hf_len
-      hζ_root hy_pow hy_card pbL hpbL_dim
-      (fun idx => by rw [pbL.coe_basis, AdjoinRoot.powerBasis_gen])).2
-  set pows := shoupPowers q f βbits
+  set βbits := shoupBeta q f; set βL : L := evalL ζ y q βbits
+  have hmin_deg := (shoupBeta_minpoly_natDegree hq hq3 hm2 hm_min ζ y f hf_irr.ne_zero hf_len
+    hζ_root hy_pow (hcardL ▸ FiniteField.pow_card y) pbL hpbL_dim
+    fun _ => by rw [pbL.coe_basis, AdjoinRoot.powerBasis_gen]).2
   obtain ⟨hpows_len, hpows_eval⟩ :=
     shoupPowers_spec (by omega : 0 < q) hf_irr.ne_zero hζ_root hy_pow βbits
-  have hpows_entry_len : ∀ c < q + 1, ∀ i < q,
-      ((pows.getD c []).getD i []).length ≤ m :=
-    shoupPowers_entry_length (by omega : 1 ≤ m) f hf_trim hf_len hf_irr.ne_zero βbits
-  set M := shoupMinPolyMatrix q m pows
-  obtain ⟨hM_len, hM_mem⟩ := shoupMinPolyMatrix_length q m pows hpows_len
-  have hmul_iff : ∀ v : Fin (q + 1) → ZMod 2,
-      rowsToZModMatrix (q * m) (q + 1) M *ᵥ v = 0 ↔
-        ∑ c : Fin (q + 1), v c • βL ^ c.1 = 0 :=
-    shoupMinPolyMatrix_mulVec_zero_iff (by omega) ζ y βL pbK pbL hpbK_dim hpbL_dim
-      (fun idx => by rw [pbK.coe_basis, AdjoinRoot.powerBasis_gen])
-      (fun idx => by rw [pbL.coe_basis, AdjoinRoot.powerBasis_gen])
-      pows hpows_len hpows_eval hpows_entry_len
-  have hβ_int : IsIntegral (ZMod 2) βL := IsIntegral.of_finite (ZMod 2) βL
-  set P := minpoly (ZMod 2) βL
-  have hP_irr : Irreducible P := minpoly.irreducible hβ_int
-  have hP_monic : P.Monic := minpoly.monic hβ_int
-  let v0 : Fin (q + 1) → ZMod 2 := fun c => P.coeff c.1
-  have hv0_ne : v0 ≠ 0 := by
-    intro h0
-    have := congrFun h0 ⟨q, Nat.lt_succ_self q⟩
-    simp only [v0, Pi.zero_apply, ← hmin_deg, hP_monic.coeff_natDegree] at this
-    exact one_ne_zero this
-  have hv0_mul : rowsToZModMatrix (q * m) (q + 1) M *ᵥ v0 = 0 := by
-    rw [hmul_iff]
-    have hev := minpoly.aeval (ZMod 2) βL
-    change aeval βL P = 0 at hev
-    rw [aeval_def, eval₂_eq_sum_range, hmin_deg, ← Fin.sum_univ_eq_sum_range] at hev
-    convert hev using 1
-    refine Finset.sum_congr rfl fun c _ => ?_
-    rw [Algebra.smul_def]
-  set kv := shoupIrreducibleBits q
-  have hkv_eq : kv = kernelVecBits (q + 1) M := by
-    change shoupIrreducibleBits q = kernelVecBits (q + 1) M
-    simp only [shoupIrreducibleBits, hq, hq3, and_self, ↓reduceIte]
-    rfl
-  have hkv_any : kv.any id = true := by
-    rw [hkv_eq]
-    exact kernelVecBits_any_of_exists M hM_len hM_mem ⟨v0, hv0_ne, hv0_mul⟩
-  have hkv_len : kv.length = q + 1 := by
-    rw [hkv_eq]
-    exact length_kernelVecBits (q + 1) M
-  have hkv_ne0 : polyOfBits kv ≠ 0 := by
-    obtain ⟨b, hb, hb'⟩ := List.any_eq_true.mp hkv_any
-    exact polyOfBits_ne_zero_of_mem (by simpa using hb' ▸ hb)
-  have hkv_mul : rowsToZModMatrix (q * m) (q + 1) M *ᵥ bitsToZModVec (q + 1) kv = 0 := by
-    rw [hkv_eq]
-    exact mulVec_kernelVecBits M hM_len hM_mem
-  have hkv_eval : (polyOfBits kv).aeval βL = 0 := by
-    have hsum := (hmul_iff _).mp hkv_mul
-    rw [aeval_polyOfBits, hkv_len, ← Fin.sum_univ_eq_sum_range]
-    exact hsum
-  have hP_dvd : P ∣ polyOfBits kv := minpoly.dvd (ZMod 2) βL hkv_eval
-  have hkv_deg_le : (polyOfBits kv).natDegree ≤ q := by
-    have hlt := degree_polyOfBits_lt kv
-    rw [degree_eq_natDegree hkv_ne0, Nat.cast_lt] at hlt
-    omega
-  have hassoc : Associated P (polyOfBits kv) :=
-    associated_of_dvd_of_natDegree_le hP_dvd hkv_ne0 (by rw [hmin_deg]; exact hkv_deg_le)
-  have hpoly_eq : polyOfBits kv = P :=
-    (eq_of_monic_of_associated hP_monic (Cslib.monic_of_ne_zero hkv_ne0) hassoc).symm
-  have hkv_coeff_q : kv.getD q false = true := by
-    have hcq : (polyOfBits kv).coeff q = 1 := by
-      rw [hpoly_eq, ← hmin_deg, hP_monic.coeff_natDegree]
-    rw [coeff_polyOfBits] at hcq
-    cases hqb : kv.getD q false
-    · rw [hqb, bitEquiv_symm_false] at hcq
-      exact absurd hcq zero_ne_one
-    · rfl
-  have hkv_trim : polyTrim kv = kv := by
-    have hdrop : kv = kv.dropLast ++ [true] := by
-      have hne : kv ≠ [] := List.ne_nil_of_length_pos (by omega)
-      have hlast : kv.getLast hne = true := by
-        rw [List.getLast_eq_getElem, ← List.getD_eq_getElem kv false (by omega), hkv_len]
-        exact hkv_coeff_q
-      conv_lhs => rw [← List.dropLast_append_getLast hne, hlast]
-    rw [hdrop]
-    exact polyTrim_append_true _
-  refine ⟨?_, ?_, hkv_trim, hkv_len⟩
-  · rw [hpoly_eq]; exact hP_irr
-  · rw [hpoly_eq]; exact hmin_deg
+  obtain ⟨hM_len, hM_mem⟩ := shoupMinPolyMatrix_length q m (shoupPowers q f βbits) hpows_len
+  have hkv_eq : shoupIrreducibleBits q = kernelVecBits (q + 1)
+      (shoupMinPolyMatrix q m (shoupPowers q f βbits)) := by
+    simp only [shoupIrreducibleBits, hq, hq3, and_self, ↓reduceIte]; rfl
+  rw [hkv_eq]
+  exact kernelVecBits_eq_minpoly (IsIntegral.of_finite (ZMod 2) βL) hmin_deg hM_len hM_mem
+    (shoupMinPolyMatrix_mulVec_zero_iff (by omega) ζ y βL pbK pbL hpbK_dim hpbL_dim
+      (fun _ => by rw [pbK.coe_basis, AdjoinRoot.powerBasis_gen])
+      (fun _ => by rw [pbL.coe_basis, AdjoinRoot.powerBasis_gen])
+      (shoupPowers q f βbits) hpows_len hpows_eval
+      (shoupPowers_entry_length (by omega) f hf_trim hf_len hf_irr.ne_zero βbits))
 
 end FieldInterpretation
 
@@ -1381,197 +1063,119 @@ private theorem primeDisperser_isMulTable {g : List Bool} {q : ℕ}
     (hb : ∀ i : Fin q, b i = AdjoinRoot.root (polyOfBits g) ^ i.1) :
     IsMulTable b (powerMulTable g) := by
   obtain h | ⟨l, hl⟩ := polyTrim_eq_nil_or_append_true g
-  · rw [htrim] at h
-    simp [h] at hlen
+  · simp [htrim ▸ h] at hlen
   · rw [htrim] at hl
-    have hl_len : l.length = q := by simpa [hl] using hlen
     have hα : (polyOfBits (l ++ [true])).aeval (AdjoinRoot.root (polyOfBits g)) = 0 := by
       rw [← hl, AdjoinRoot.aeval_eq, AdjoinRoot.mk_self]
-    rw [show powerMulTable g = powerMulTable (l ++ [true]) from congrArg powerMulTable hl]
-    exact isMulTable_powerMulTable hl_len _ hα b hb
+    rw [congrArg powerMulTable hl]
+    exact isMulTable_powerMulTable (by simpa [hl] using hlen) _ hα b hb
 
 /-- `primeDisperser N` is an affine disperser for dimension `primeThreshold N + 1`. -/
 theorem isAffineDisperser_primeDisperser (N : ℕ) :
     IsAffineDisperser (primeDisperser N) (primeThreshold N + 1) := by
-  set q := primeDeg N
-  have hq : q.Prime := (primeDeg_spec N).1
-  have hq9 : 9 ≤ q := nine_le_primeDeg N
-  have hq3 : 3 ≤ q := by omega
+  set q := primeDeg N; have hq := (primeDeg_spec N).1; have hq3 := three_le_primeDeg N
   set g := shoupIrreducibleBits q
   obtain ⟨hirr, hdeg, htrim, hlen⟩ := shoupIrreducibleBits_spec hq hq3
-  have hirr_fact : Fact (Irreducible (polyOfBits g)) := ⟨hirr⟩
-  let _ := hirr_fact
-  set F := AdjoinRoot (polyOfBits g)
-  set α : F := AdjoinRoot.root (polyOfBits g)
+  have : Fact (Irreducible (polyOfBits g)) := ⟨hirr⟩
   let pb := AdjoinRoot.powerBasis hirr.ne_zero
-  have hpb_dim : pb.dim = q := by
-    rw [AdjoinRoot.powerBasis_dim]
-    exact hdeg
-  let b : Basis (Fin q) (ZMod 2) F := pb.basis.reindex (finCongr hpb_dim)
-  have hb : ∀ i : Fin q, b i = α ^ i.1 := fun i => by
-    dsimp only [b]
-    rw [Basis.reindex_apply, pb.coe_basis, AdjoinRoot.powerBasis_gen]
-    rfl
-  have hmul : IsMulTable b (powerMulTable g) :=
-    primeDisperser_isMulTable hdeg htrim hlen b hb
-  have ht : 0 < primeSymDeg N := by unfold primeSymDeg; omega
-  have hrn : (N / q) * q ≤ N := Nat.div_mul_le_self N q
-  have hfinF : Module.Finite (ZMod 2) F := pb.finite
-  have : Finite F := Module.finite_of_finite (ZMod 2)
-  have hfinrank : finrank (ZMod 2) F = q := by rw [pb.finrank, hpb_dim]
-  have hsub : ∀ K : Subfield F, K ≠ ⊤ → Nat.card K ≤ 2 ^ 1 := by
-    intro K hK
-    have hcard := Cslib.card_subfield_le_of_lt_prime (n := q) (L := q - 1) hfinrank
-      (fun p hp hpq => by
-        have hpeq : p = q := (Nat.prime_dvd_prime_iff_eq hp hq).mp hpq
-        rw [hpeq]
-        omega)
-      K hK
-    rwa [Nat.sub_add_cancel (by omega : 1 ≤ q), Nat.div_self hq.pos] at hcard
-  have hdisp : IsAffineDisperser
-      (traceSymBits (1 : F) (N / q) (primeSymDeg N) b
-        (blockPos (N := N) (r := N / q) (n := q) hrn))
-      (primeThreshold N + 1) := by
-    refine isAffineDisperser_of_forall_exists_ne fun V hV => ?_
-    have hpos_inj : Function.Injective (blockPos (N := N) (r := N / q) (n := q) hrn) :=
-      fun _ _ h => finProdFinEquiv.injective (Fin.ext (by
-        have hv := congrArg Fin.val h
-        rw [blockPos, blockPos] at hv
-        exact hv))
-    refine exists_traceSymBits_ne hfinrank hsub one_ne_zero ht b hpos_inj V ?_
-    rw [hV]
-    change (N - N / q * q) + (N / q * max (N / q + 1) 1 + N / q * (N / q + 1) +
-        q * primeSymDeg N + q * (N / q) / primeSymDeg N) <
-      (N - N / q * q) + (N / q * (N / q + 1) + N / q * (N / q + 1) +
-        q * primeSymDeg N + q * (N / q) / primeSymDeg N) + 1
-    rw [max_eq_left (Nat.le_add_left 1 _)]
-    exact Nat.lt_succ_self _
+  have hpb_dim : pb.dim = q := (AdjoinRoot.powerBasis_dim _).trans hdeg
+  let b : Basis (Fin q) (ZMod 2) (AdjoinRoot (polyOfBits g)) :=
+    pb.basis.reindex (finCongr hpb_dim)
+  have hb : ∀ i : Fin q, b i = AdjoinRoot.root (polyOfBits g) ^ i.1 := fun i => by
+    rw [Basis.reindex_apply, pb.coe_basis, AdjoinRoot.powerBasis_gen]; rfl
+  have hmul : IsMulTable b (powerMulTable g) := primeDisperser_isMulTable hdeg htrim hlen b hb
+  have ht : 0 < primeSymDeg N := lt_of_lt_of_le one_pos (le_max_left _ _)
+  have hrn := Nat.div_mul_le_self N q
+  have : Module.Finite (ZMod 2) (AdjoinRoot (polyOfBits g)) := pb.finite
+  have : Finite (AdjoinRoot (polyOfBits g)) := Module.finite_of_finite (ZMod 2)
+  have hfinrank : finrank (ZMod 2) (AdjoinRoot (polyOfBits g)) = q := pb.finrank.trans hpb_dim
+  have hsub : ∀ K : Subfield (AdjoinRoot (polyOfBits g)), K ≠ ⊤ → Nat.card K ≤ 2 ^ 1 :=
+    fun K hK => by
+      have hcard := Cslib.card_subfield_le_of_lt_prime (n := q) (L := q - 1) hfinrank
+        (fun p hp hpq => by rw [(Nat.prime_dvd_prime_iff_eq hp hq).mp hpq]; omega) K hK
+      rwa [Nat.sub_add_cancel hq.one_lt.le, Nat.div_self hq.pos] at hcard
   have heq_fn : primeDisperser N =
-      traceSymBits (1 : F) (N / q) (primeSymDeg N) b
-        (blockPos (N := N) (r := N / q) (n := q) hrn) := by
-    funext x
+      traceSymBits 1 (N / q) (primeSymDeg N) b (blockPos (N := N) hrn) := funext fun x => by
     unfold primeDisperser primeDisperserBits
-    rw [traceSymCoords_eq hmul ht hrn]
-    congr 1
-    exact ofList_ofFn x
+    rw [traceSymCoords_eq hmul ht hrn, ofList_ofFn]
   rw [heq_fn]
-  exact hdisp
+  refine isAffineDisperser_of_forall_exists_ne fun V hV =>
+    exists_traceSymBits_ne hfinrank hsub one_ne_zero ht b (pos := blockPos (N := N) hrn)
+      (fun _ _ h => finProdFinEquiv.injective (Fin.ext (by
+        have hv := congrArg Fin.val h; rwa [blockPos, blockPos] at hv))) V ?_
+  rw [hV]
+  change _ + (_ * max (_ + 1) 1 + _ + _ + _) < _ + (_ * (_ + 1) + _ + _ + _) + 1
+  rw [max_eq_left (Nat.le_add_left 1 _)]
+  exact Nat.lt_succ_self _
 
 /-- For all sufficiently large `N`, `primeThreshold N + 1 ≤ 2148 * (fifthRoot N) ^ 4`. -/
 theorem eventually_primeThreshold_le :
     ∀ᶠ N in atTop, primeThreshold N + 1 ≤ 2148 * (fifthRoot N) ^ 4 := by
   refine eventually_atTop.mpr ⟨32, fun N hN => ?_⟩
-  set u := fifthRoot N
-  have hu_pow : u ^ 5 ≤ N := (fifthRoot_spec N).1
+  set u := fifthRoot N; set q := primeDeg N; set r := N / q
   have hN_lt : N < (u + 1) ^ 5 := (fifthRoot_spec N).2
-  have hu2 : 2 ≤ u := by
-    by_contra hlt
-    have hu1 : u + 1 ≤ 2 := by omega
-    have h32 : (u + 1) ^ 5 ≤ 2 ^ 5 := Nat.pow_le_pow_left hu1 5
+  have hu2 : 2 ≤ u := by_contra fun hlt => by
+    have := Nat.pow_le_pow_left (show u + 1 ≤ 2 by omega) 5
     omega
-  have hbound : primeThresholdBound N = u ^ 3 := by
-    change (max 2 u) ^ 3 = u ^ 3
-    rw [max_eq_right hu2]
-  have hsym : primeSymDeg N = u := by
-    change max 1 u = u
-    rw [max_eq_right (by omega : 1 ≤ u)]
   obtain ⟨_, hq_low, hq_high⟩ := primeDeg_spec N
-  rw [hbound] at hq_low hq_high
-  set q := primeDeg N
-  set r := N / q
+  rw [show primeThresholdBound N = u ^ 3 by rw [primeThresholdBound, max_eq_right hu2]]
+    at hq_low hq_high
   have hN_ub : N ≤ 32 * u ^ 5 := by
-    have hu1 : u + 1 ≤ 2 * u := by omega
-    have hpow : (u + 1) ^ 5 ≤ (2 * u) ^ 5 := Nat.pow_le_pow_left hu1 5
-    have h32u : (2 * u) ^ 5 = 32 * u ^ 5 := by ring
-    omega
-  have hr_ub : r ≤ 32 * u ^ 2 := by
-    refine Nat.div_le_of_le_mul ?_
-    calc N ≤ 32 * u ^ 5 := hN_ub
-      _ = u ^ 3 * (32 * u ^ 2) := by ring
-      _ ≤ q * (32 * u ^ 2) := Nat.mul_le_mul_right _ (by omega)
-  have hu_pos : 0 < u := by omega
-  have hu2_pos : 1 ≤ u ^ 2 := Nat.pow_pos (n := 2) hu_pos
-  have hr1_ub : r + 1 ≤ 33 * u ^ 2 := by nlinarith
-  have hrr1_ub : r * (r + 1) ≤ 1056 * u ^ 4 := by
-    calc r * (r + 1) ≤ (32 * u ^ 2) * (33 * u ^ 2) := Nat.mul_le_mul hr_ub hr1_ub
-      _ = 1056 * u ^ 4 := by ring
-  have hwaste : N - r * q < q := by
-    have hdiv := Nat.div_add_mod N q
-    have hmod := Nat.mod_lt N (by omega : 0 < q)
-    change q * r + N % q = N at hdiv
-    rw [mul_comm r q]
-    omega
-  have hq_u4 : q ≤ u ^ 4 := by
-    calc q ≤ 2 * u ^ 3 := hq_high
-      _ ≤ u * u ^ 3 := Nat.mul_le_mul_right _ hu2
-      _ = u ^ 4 := by ring
-  have hwaste_ub : N - r * q ≤ u ^ 4 := le_trans (by omega) hq_u4
-  have hqt_ub : q * primeSymDeg N ≤ 2 * u ^ 4 := by
-    rw [hsym]
-    calc q * u ≤ (2 * u ^ 3) * u := Nat.mul_le_mul_right _ hq_high
-      _ = 2 * u ^ 4 := by ring
-  have hqr_t_ub : q * r / primeSymDeg N ≤ 32 * u ^ 4 := by
-    rw [hsym]
-    refine Nat.div_le_of_le_mul ?_
-    have hqr_N : q * r ≤ N := Nat.mul_div_le N q
-    calc q * r ≤ N := hqr_N
-      _ ≤ 32 * u ^ 5 := hN_ub
-      _ = u * (32 * u ^ 4) := by ring
-  have h1_u4 : 1 ≤ u ^ 4 := Nat.pow_pos (n := 4) hu_pos
+    have := Nat.pow_le_pow_left (show u + 1 ≤ 2 * u by omega) 5
+    linarith [show (2 * u) ^ 5 = 32 * u ^ 5 by ring]
+  have hr_ub : r ≤ 32 * u ^ 2 := Nat.div_le_of_le_mul <|
+    hN_ub.trans ((by ring : 32 * u ^ 5 = u ^ 3 * (32 * u ^ 2)) ▸
+      Nat.mul_le_mul_right _ hq_low.le)
+  have hu2_pos : 1 ≤ u ^ 2 := Nat.pow_pos (by omega)
+  have hrr1_ub : r * (r + 1) ≤ 1056 * u ^ 4 :=
+    (Nat.mul_le_mul hr_ub (show r + 1 ≤ 33 * u ^ 2 by nlinarith)).trans_eq (by ring)
+  have hq_u4 : q ≤ u ^ 4 :=
+    hq_high.trans ((Nat.mul_le_mul_right _ hu2).trans_eq (by ring))
+  have hwaste : N - r * q ≤ u ^ 4 := by
+    have hdiv : q * r + N % q = N := Nat.div_add_mod N q
+    have hmod : N % q < q := Nat.mod_lt N (by omega)
+    rw [mul_comm r q]; omega
+  have hqt_ub : q * u ≤ 2 * u ^ 4 :=
+    (Nat.mul_le_mul_right u hq_high).trans_eq (by ring)
+  have hqr_t_ub : q * r / u ≤ 32 * u ^ 4 := Nat.div_le_of_le_mul <|
+    (Nat.mul_div_le N q).trans (hN_ub.trans_eq (by ring))
+  have h1_u4 : 1 ≤ u ^ 4 := Nat.pow_pos (by omega)
   change (N - r * q) + (r * (r + 1) + r * (r + 1) + q * primeSymDeg N +
       q * r / primeSymDeg N) + 1 ≤ 2148 * u ^ 4
-  omega
+  rw [show primeSymDeg N = u from max_eq_right (by omega)]; omega
 
 /-- Real-valued bound `primeThreshold N + 1 ≤ 2148 * N ^ (4 / 5)` for all large `N`. -/
 theorem eventually_primeThreshold_real_le :
     ∀ᶠ N in atTop, ((primeThreshold N + 1 : ℕ) : ℝ) ≤ 2148 * (N : ℝ) ^ ((4 : ℝ) / 5) := by
-  filter_upwards [eventually_primeThreshold_le, eventually_ge_atTop 1] with N hle hN1
-  have hu5 : ((fifthRoot N : ℝ)) ^ 5 ≤ (N : ℝ) := by
-    exact_mod_cast (fifthRoot_spec N).1
-  have hN0 : (0 : ℝ) ≤ (N : ℝ) := Nat.cast_nonneg N
+  filter_upwards [eventually_primeThreshold_le] with N hle
+  have hu5 : (fifthRoot N : ℝ) ^ 5 ≤ N := by exact_mod_cast (fifthRoot_spec N).1
   have hu0 : (0 : ℝ) ≤ fifthRoot N := Nat.cast_nonneg _
-  have hu_le : (fifthRoot N : ℝ) ≤ (N : ℝ) ^ ((1 : ℝ) / 5) := by
-    calc (fifthRoot N : ℝ) = ((fifthRoot N : ℝ) ^ (5 : ℕ)) ^ ((1 : ℝ) / 5) := by
-          rw [← Real.rpow_natCast, ← Real.rpow_mul hu0]
-          norm_num
-      _ ≤ (N : ℝ) ^ ((1 : ℝ) / 5) :=
-          Real.rpow_le_rpow (pow_nonneg hu0 5) hu5 (by norm_num)
-  have hu4_le : ((fifthRoot N : ℝ)) ^ 4 ≤ (N : ℝ) ^ ((4 : ℝ) / 5) := by
-    calc ((fifthRoot N : ℝ)) ^ 4 ≤ ((N : ℝ) ^ ((1 : ℝ) / 5)) ^ 4 :=
-          pow_le_pow_left₀ hu0 hu_le 4
-      _ = (N : ℝ) ^ ((4 : ℝ) / 5) := by
-          rw [← Real.rpow_natCast, ← Real.rpow_mul hN0]
-          norm_num
-  have hleR : ((primeThreshold N + 1 : ℕ) : ℝ) ≤ 2148 * ((fifthRoot N : ℝ)) ^ 4 := by
-    exact_mod_cast hle
-  calc ((primeThreshold N + 1 : ℕ) : ℝ) ≤ 2148 * ((fifthRoot N : ℝ)) ^ 4 := hleR
-    _ ≤ 2148 * (N : ℝ) ^ ((4 : ℝ) / 5) := by nlinarith
+  have hu4 : (fifthRoot N : ℝ) ^ 4 ≤ (N : ℝ) ^ ((4 : ℝ) / 5) := calc
+    (fifthRoot N : ℝ) ^ 4 = ((fifthRoot N : ℝ) ^ (5 : ℕ)) ^ ((4 : ℝ) / 5) := by
+      rw [← Real.rpow_natCast, ← Real.rpow_natCast, ← Real.rpow_mul hu0]; norm_num
+    _ ≤ (N : ℝ) ^ ((4 : ℝ) / 5) := Real.rpow_le_rpow (pow_nonneg hu0 5) hu5 (by norm_num)
+  exact ((Nat.cast_le (α := ℝ)).mpr hle).trans (by push_cast; gcongr)
 
 /-- Asymptotic threshold bound `primeThreshold N + 1 = O(N ^ (4 / 5))`. -/
 theorem isBigO_primeThreshold :
     (fun N => ((primeThreshold N + 1 : ℕ) : ℝ)) =O[atTop] fun N => (N : ℝ) ^ ((4 : ℝ) / 5) := by
   refine IsBigO.of_bound 2148 ?_
-  filter_upwards [eventually_primeThreshold_real_le, eventually_ge_atTop 1] with N hrhs _
-  have hN0 : (0 : ℝ) ≤ (N : ℝ) := Nat.cast_nonneg N
-  rw [Real.norm_of_nonneg (by positivity), Real.norm_of_nonneg (Real.rpow_nonneg hN0 _)]
-  exact hrhs
+  filter_upwards [eventually_primeThreshold_real_le] with N hrhs
+  rwa [Real.norm_of_nonneg (by positivity), Real.norm_of_nonneg (by positivity)]
 
 /-- `primeThreshold N + 1 < N` for all sufficiently large `N`. -/
 theorem eventually_primeThreshold_lt : ∀ᶠ N in atTop, primeThreshold N + 1 < N := by
   filter_upwards [eventually_primeThreshold_le, eventually_ge_atTop (2149 ^ 5)] with N hle hN
   set u := fifthRoot N
-  have hu_pow : u ^ 5 ≤ N := (fifthRoot_spec N).1
-  have hN_lt : N < (u + 1) ^ 5 := (fifthRoot_spec N).2
-  have hu2149 : 2149 ≤ u := by
-    by_contra hlt
-    have : u + 1 ≤ 2149 := by omega
-    have : (u + 1) ^ 5 ≤ 2149 ^ 5 := Nat.pow_le_pow_left this 5
-    omega
-  have hlt_u : 2148 * u ^ 4 < u ^ 5 := by
-    calc 2148 * u ^ 4 < 2149 * u ^ 4 := by
-          nlinarith [Nat.pow_pos (n := 4) (by omega : 0 < u)]
+  have hltN : N < (u + 1) ^ 5 := (fifthRoot_spec N).2
+  have hu2149 : 2149 ≤ u := by_contra fun hlt => by
+    have := Nat.pow_le_pow_left (show u + 1 ≤ 2149 by omega) 5; omega
+  have hlt : 2148 * u ^ 4 < u ^ 5 :=
+    calc 2148 * u ^ 4
+        < 2149 * u ^ 4 := by
+          nlinarith [Nat.pow_pos (by omega : 0 < u) (n := 4)]
       _ ≤ u * u ^ 4 := Nat.mul_le_mul_right _ hu2149
       _ = u ^ 5 := by ring
-  exact lt_of_le_of_lt hle (lt_of_lt_of_le hlt_u hu_pow)
+  exact hle.trans_lt (hlt.trans_le (fifthRoot_spec N).1)
 
 end Cslib.AffineDisperser.Li

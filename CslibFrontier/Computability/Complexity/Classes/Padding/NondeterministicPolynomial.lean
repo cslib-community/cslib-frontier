@@ -50,6 +50,7 @@ hidden in the statements.
 
 ## Main results
 
+* `Cslib.Complexity.polynomialPadded_eq_setOf_exists`: the padded language as guess and verify.
 * `Cslib.Complexity.polynomialPadded_mem_NTIME`: padding into nondeterministic time.
 * `Cslib.Complexity.mem_NTIME_of_polynomialPadded_mem`: unpadding out of nondeterministic time.
 * `Cslib.Complexity.NTIME_pow_mul_subset_of_subset`: a nondeterministic polynomial-time collapse
@@ -67,6 +68,28 @@ namespace Cslib.Complexity
 
 open Turing.MultiTapeTM
 
+/-- **The padded language as guess and verify, for any certificate length.** If `V` verifies `A`
+with every certificate length `L ≥ c * t |a| + c`, and `Lc m` is such a length for every instance
+length `m`, then the padded language with exponent `k + 1` is the set of words with a certificate
+of the length `Lc |y|` (for the framed word `y`) accepted by `V` on `y` once the padding is long
+enough, and with the empty certificate length otherwise. -/
+theorem polynomialPadded_eq_setOf_exists {A : Set (List Bool)} {k c : ℕ} {t Lc : ℕ → ℕ}
+    {V : List Bool × List Bool → Bool}
+    (hc : ∀ a L, c * t (encBits a).length + c ≤ L →
+      (a ∈ A ↔ ∃ w : List Bool, w.length = L ∧ V (a, w) = true))
+    (hL : ∀ m, c * t m + c ≤ Lc m) :
+    polynomialPadded A (k + 1) = {x | ∃ w : List Bool,
+      w.length = (if decide (((unframe x).length + 1) ^ (k + 1) ≤ x.length) then
+        Lc (unframe x).length else 0) ∧
+      (if decide (((unframe x).length + 1) ^ (k + 1) ≤ x.length) then V (unframe x, w)
+        else false) = true} := by
+  ext x
+  simp only [mem_polynomialPadded_iff, Set.mem_ofPred_eq]
+  by_cases hg : ((unframe x).length + 1) ^ (k + 1) ≤ x.length
+  · simp only [hg, decide_true, ↓reduceIte, true_and]
+    exact hc (unframe x) (Lc _) (by simpa only [encBits_apply] using hL _)
+  · simp [hg]
+
 /-- **Padding into nondeterministic time.** If `A` is in nondeterministic time
 `O((n + 1) ^ (b * k))`, with `2 ≤ b` and `1 ≤ k`, then its padded language with exponent `k + 1`,
 of the words carrying a word `y` of `A` framed at their start padded to a length of at least
@@ -81,26 +104,19 @@ theorem polynomialPadded_mem_NTIME {A : Set (List Bool)} {b k : ℕ} (hb : 2 ≤
   let L (x : List Bool) : ℕ := 2 ^ (b * k * Nat.size ((unframe x).length + 1) + (c + 1))
   let ℓ (x : List Bool) : ℕ := if guard x then L x else 0
   let V' (p : List Bool × List Bool) : Bool := if guard p.1 then V (unframe p.1, p.2) else false
-  have hL (x : List Bool) :
-      c * ((unframe x).length + 1) ^ (b * k) + c ≤ L x := by
-    have hp := (polynomialPaddingPower_bounds (b * k) (unframe x).length).1
-    have hc' : 2 * c ≤ 2 ^ (c + 1) := by
-      have : c < 2 ^ c := Nat.lt_two_pow_self
-      rw [pow_succ]
-      omega
-    have h1 : 1 ≤ ((unframe x).length + 1) ^ (b * k) := Nat.one_le_pow _ _ (by omega)
+  have hL (m : ℕ) : c * (m + 1) ^ (b * k) + c ≤ 2 ^ (b * k * Nat.size (m + 1) + (c + 1)) := by
+    have hp := (polynomialPaddingPower_bounds (b * k) m).1
+    have hc' : 2 * c ≤ 2 ^ (c + 1) := (Nat.mul_le_mul_left 2 Nat.lt_two_pow_self.le).trans_eq
+      (pow_succ' 2 c).symm
+    have h1 : 1 ≤ (m + 1) ^ (b * k) := Nat.one_le_pow _ _ (by omega)
     calc
-      _ ≤ 2 * c * ((unframe x).length + 1) ^ (b * k) := by nlinarith
-      _ ≤ 2 ^ (c + 1) * 2 ^ (b * k * Nat.size ((unframe x).length + 1)) := Nat.mul_le_mul hc' hp
-      _ = L x := by rw [Nat.mul_comm, ← pow_add]
+      _ ≤ 2 * c * (m + 1) ^ (b * k) := by nlinarith
+      _ ≤ 2 ^ (c + 1) * 2 ^ (b * k * Nat.size (m + 1)) := Nat.mul_le_mul hc' hp
+      _ = _ := by rw [Nat.mul_comm, ← pow_add]
   have hset : polynomialPadded A (k + 1) =
-      {x | ∃ w : List Bool, w.length = ℓ x ∧ V' (x, w) = true} := by
-    ext x
-    simp only [mem_polynomialPadded_iff, Set.mem_ofPred_eq, ℓ, V', guard]
-    by_cases hg : ((unframe x).length + 1) ^ (k + 1) ≤ x.length
-    · simp only [hg, decide_true, ↓reduceIte, true_and]
-      exact hc (unframe x) (L x) (by simpa only [encBits_apply] using hL x)
-    · simp [hg]
+      {x | ∃ w : List Bool, w.length = ℓ x ∧ V' (x, w) = true} :=
+    polynomialPadded_eq_setOf_exists (t := fun n => (n + 1) ^ (b * k))
+      (Lc := fun m => 2 ^ (b * k * Nat.size (m + 1) + (c + 1))) hc hL
   rw [hset]
   -- the certificate length and the verifier, as plain computations
   have hlen := ComputableInO.lengthNat.comp ComputableInO.unframe
@@ -126,9 +142,7 @@ theorem polynomialPadded_mem_NTIME {A : Set (List Bool)} {b k : ℕ} (hb : 2 ≤
     (Nat.le_self_pow (by omega) _).trans hsq
   simp only [Function.comp_apply, encBits_apply, length_encPair, ← hn, ← hm] at hw ⊢
   by_cases hg : (m + 1) ^ (k + 1) ≤ n
-  · have hgx : guard x = true := decide_eq_true hg
-    simp only [ℓ, hgx, ↓reduceIte] at hw
-    simp only [hg, decide_true, ↓reduceIte]
+  · simp only [ℓ, guard, ← hn, ← hm, decide_eq_true_eq, hg, ↓reduceIte] at hw ⊢
     -- the padding pays for the certificate and for writing its length
     have hpad : (m + 1) ^ (b * k + 1) ≤ (n + 1) ^ b := by
       calc
@@ -139,8 +153,7 @@ theorem polynomialPadded_mem_NTIME {A : Set (List Bool)} {b k : ℕ} (hb : 2 ≤
       Nat.pow_le_pow_right (by omega) (by omega)
     have hW : w.length ≤ 2 ^ (b * k + (c + 1)) * (n + 1) ^ b := by
       have hb' := (polynomialPaddingPower_bounds (b * k) m).2
-      rw [hw]
-      simp only [L, ← hm]
+      simp only [hw, L, ← hm]
       calc
         _ = 2 ^ (b * k * Nat.size (m + 1)) * 2 ^ (c + 1) := pow_add _ _ _
         _ ≤ 2 ^ (b * k) * (m + 1) ^ (b * k) * 2 ^ (c + 1) := Nat.mul_le_mul_right _ hb'
@@ -152,9 +165,7 @@ theorem polynomialPadded_mem_NTIME {A : Set (List Bool)} {b k : ℕ} (hb : 2 ≤
         omega
       _ = (40 + 8 * 2 ^ (b * k + (c + 1))) * (n + 1) ^ b := by ring
       _ ≤ _ := Nat.le_add_right _ _
-  · have hgx : guard x = false := decide_eq_false hg
-    simp only [ℓ, hgx, Bool.false_eq_true, ↓reduceIte] at hw
-    simp only [hg, decide_false, Bool.false_eq_true, ↓reduceIte, hw]
+  · simp only [hw, ℓ, guard, ← hn, ← hm, decide_eq_true_eq, hg, ↓reduceIte]
     calc
       _ ≤ 40 * (n + 1) ^ b := by omega
       _ ≤ (40 + 8 * 2 ^ (b * k + (c + 1))) * (n + 1) ^ b := Nat.mul_le_mul_right _ (by omega)
@@ -180,14 +191,10 @@ theorem mem_NTIME_of_polynomialPadded_mem {A : Set (List Bool)} {a k : ℕ} (ha 
     simp only [pad, List.length_append, length_frame, List.length_replicate]
   have hℓ' (y : List Bool) : c * ((pad y).length + 1) ^ a + c ≤ ℓ y := by
     have h1 : y.length + 1 ≤ (y.length + 1) ^ (k + 1) := Nat.le_self_pow (by omega) _
-    have hRy := hR y
-    have h3 : (pad y).length + 1 ≤ 3 * R y := by rw [hpadlen]; omega
-    have hpow : ((pad y).length + 1) ^ a ≤ 3 ^ a * R y ^ a := by
-      rw [← mul_pow]
-      exact Nat.pow_le_pow_left h3 a
-    have hRa : R y ^ a = 2 ^ (a * (k + 1) * Nat.size (y.length + 1)) := by
-      rw [← pow_mul]
-      ring
+    have h3 : (pad y).length + 1 ≤ 3 * R y := by linarith [hR y, hpadlen y]
+    have hpow : ((pad y).length + 1) ^ a ≤ 3 ^ a * R y ^ a :=
+      (Nat.pow_le_pow_left h3 a).trans_eq (mul_pow _ _ _)
+    have hRa : R y ^ a = 2 ^ (a * (k + 1) * Nat.size (y.length + 1)) := by rw [← pow_mul]; ring
     have h2 : 1 ≤ R y ^ a := Nat.one_le_pow _ _ (Nat.pos_of_ne_zero (by simp [R]))
     have hs : s ≤ 2 ^ s := Nat.lt_two_pow_self.le
     calc
@@ -197,20 +204,16 @@ theorem mem_NTIME_of_polynomialPadded_mem {A : Set (List Bool)} {a k : ℕ} (ha 
       _ = s * R y ^ a := by simp only [s]; ring
       _ ≤ 2 ^ s * R y ^ a := Nat.mul_le_mul_right _ hs
       _ = ℓ y := by rw [hRa, Nat.mul_comm, ← pow_add]
-  have hset : A = {y | ∃ w : List Bool, w.length = ℓ y ∧ V' (y, w) = true} := by
-    ext y
-    have hmem : y ∈ A ↔ pad y ∈ polynomialPadded A (k + 1) :=
-      (frame_append_replicate_mem_polynomialPadded_iff (hR y)).symm
-    rw [hmem, hc (pad y) (ℓ y) (by simpa only [encBits_apply] using hℓ' y)]
-    rfl
+  have hset : A = {y | ∃ w : List Bool, w.length = ℓ y ∧ V' (y, w) = true} :=
+    Set.ext fun y => (frame_append_replicate_mem_polynomialPadded_iff (hR y)).symm.trans
+      (hc (pad y) (ℓ y) (by simpa only [encBits_apply] using hℓ' y))
   rw [hset]
   -- the certificate length and the verifier, as plain computations
   have hℓ := (computableInO_unary_roundedPower (k := a * (k + 1)) (Nat.one_le_iff_ne_zero.mpr
     (Nat.mul_ne_zero (by omega) (by omega))) s).comp ComputableInO.lengthNat
   have hpair := ((computableInO_roundedPolynomialPadding (k := k + 1) (by omega)).comp
     (ComputableInO.fst encBits encBits)).prod (ComputableInO.snd encBits encBits)
-  have hV' := hV.comp hpair
-  refine setOf_exists_mem_NTIME (ℓ := ℓ) (V := V') hℓ hV'
+  refine setOf_exists_mem_NTIME (ℓ := ℓ) (V := V') hℓ (hV.comp hpair)
     (C := 20 + 4 * 2 ^ (k + 1) + 4 * 2 ^ (a * (k + 1) + s)) fun y w hw => ?_
   -- the bound
   set m := y.length with hm
@@ -218,9 +221,8 @@ theorem mem_NTIME_of_polynomialPadded_mem {A : Set (List Bool)} {a k : ℕ} (ha 
   have hka : k + 2 ≤ a * (k + 1) + 1 := by nlinarith
   have hX (e : ℕ) (he : e ≤ a * (k + 1) + 1) : (m + 1) ^ e ≤ X :=
     Nat.pow_le_pow_right (by omega) he
-  have hRb : R y ≤ 2 ^ (k + 1) * X := by
-    have := (polynomialPaddingPower_bounds (k + 1) m).2
-    exact this.trans (Nat.mul_le_mul_left _ (hX _ (by omega)))
+  have hRb : R y ≤ 2 ^ (k + 1) * X :=
+    (polynomialPaddingPower_bounds (k + 1) m).2.trans (Nat.mul_le_mul_left _ (hX _ (by omega)))
   have hW : w.length ≤ 2 ^ (a * (k + 1) + s) * X := by
     have hb' := (polynomialPaddingPower_bounds (a * (k + 1)) m).2
     rw [hw]
@@ -229,11 +231,10 @@ theorem mem_NTIME_of_polynomialPadded_mem {A : Set (List Bool)} {a k : ℕ} (ha 
       _ ≤ 2 ^ (a * (k + 1)) * (m + 1) ^ (a * (k + 1)) * 2 ^ s := Nat.mul_le_mul_right _ hb'
       _ = 2 ^ (a * (k + 1) + s) * (m + 1) ^ (a * (k + 1)) := by rw [pow_add]; ring
       _ ≤ _ := Nat.mul_le_mul_left _ (hX _ (by omega))
-  have h1 := hX 1 (by omega)
+  have h1 : m + 1 ≤ X := by simpa only [pow_one] using hX 1 (by omega)
   have h2 := hX 2 (by omega)
   have hk2 := hX (k + 1 + 1) hka
-  simp only [pow_one] at h1
-  simp only [Function.comp_apply, encBits_apply, length_encPair, ← hm] at hw ⊢
+  simp only [encBits_apply, length_encPair, ← hm] at hw ⊢
   rw [hpadlen, ← hm]
   calc
     _ ≤ 20 * X + 4 * (2 ^ (k + 1) * X) + 4 * (2 ^ (a * (k + 1) + s) * X) := by omega

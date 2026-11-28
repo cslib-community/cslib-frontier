@@ -94,9 +94,6 @@ private def haltsPredOptAll (p : Nat.RecursiveIn.Code × List Bool × ℕ) (e : 
   let (c, τ, x) := p
   haltsPredOpt c τ x e
 
-private lemma primrec_bits : _root_.Primrec bits :=
-  list_map _root_.Primrec.id ((_root_.Primrec.dom_bool Bool.toNat).comp snd).to₂
-
 private lemma primrec_evaln_all :
     _root_.Primrec (fun (q : (Nat.RecursiveIn.Code × List Bool × ℕ) × List Bool × ℕ × ℕ) =>
       Nat.RecursiveIn.Code.evaln (bits q.2.1) q.2.2.1 q.1.1 q.1.2.2) := by
@@ -181,17 +178,8 @@ lemma halts_reducibleTo_halting :
     rw [Part.bind_some]
   change Halts c τ x ↔
     (Nat.Partrec.Code.eval (ofNat Nat.Partrec.Code (K (c, τ, x))) (K (c, τ, x))).Dom
-  constructor
-  · intro h
-    rw [ofNat_encode]
-    have he := h_eval (c, τ, x)
-    rw [he]
-    exact (halts_iff_haltsPredOpt_dom c τ x).mp h
-  · intro h
-    rw [ofNat_encode] at h
-    have he := h_eval (c, τ, x)
-    rw [he] at h
-    exact (halts_iff_haltsPredOpt_dom c τ x).mpr h
+  rw [ofNat_encode, h_eval]
+  exact halts_iff_haltsPredOpt_dom c τ x
 
 private lemma rfindOpt_const_some (a : ℕ) :
     Nat.rfindOpt (fun _ : ℕ => Option.some a) = Part.some a := by
@@ -421,21 +409,9 @@ private noncomputable def stepCore (p : ℕ) : Part ℕ :=
     Part.some <| encode (if s % 2 = 0 then (σ ++ [false], τ) else (τ, σ ++ [false]))
 
 private lemma partrec_stepCore : Partrec stepCore := by
-  have h_rfind : Partrec (fun p : ℕ => Nat.rfindOpt (stepSearchOpt p)) :=
-    Partrec.rfindOpt primrec_stepSearchOpt.to_comp
-  have h_map : Partrec (fun p : ℕ => (Nat.rfindOpt (stepSearchOpt p)).map (stepPost p)) :=
-    Partrec.map h_rfind primrec_stepPost.to_comp
-  refine h_map.of_eq fun p => ?_
-  have h_search : stepSearchOpt p = fun e =>
-      if p.unpair.1 = 1 then haltsPredOpt (stepArgs p).1 (stepArgs p).2.1 (stepArgs p).2.2 e
-      else Option.some 0 := rfl
-  have h_post : stepPost p = fun e =>
-      if p.unpair.1 = 1 then
-        match decode (α := List Bool × ℕ × ℕ) e with
-        | Option.some w => stepFound p w
-        | Option.none => stepFallback p
-      else stepFallback p := rfl
-  rw [h_search, h_post]
+  refine (Partrec.map (Partrec.rfindOpt primrec_stepSearchOpt.to_comp)
+    primrec_stepPost.to_comp).of_eq fun p => ?_
+  unfold stepSearchOpt stepPost
   dsimp [stepCore, stepArgs, stepFound, stepFallback, stepSigma, stepTau, stepStage, emptyStage]
   by_cases h : p.unpair.1 = 1
   · simp [h]
@@ -465,15 +441,9 @@ private lemma stage_succ_eq (s : ℕ) :
         if s % 2 = 0 then (σ ++ [false], τ) else (τ, σ ++ [false]) := by
   intro c σ τ
   dsimp only [stage, step, c, σ, τ]
-  by_cases hs : s % 2 = 0 <;> simp only [hs, ↓reduceIte]
-  · split_ifs with h
-    · generalize Nat.find (p := haltsPred _ _ _) _ = e
-      cases decode (α := List Bool × ℕ × ℕ) e <;> rfl
-    · rfl
-  · split_ifs with h
-    · generalize Nat.find (p := haltsPred _ _ _) _ = e
-      cases decode (α := List Bool × ℕ × ℕ) e <;> rfl
-    · rfl
+  by_cases hs : s % 2 = 0 <;> simp only [hs, ↓reduceIte] <;> split_ifs with h <;> try rfl
+  generalize Nat.find (p := haltsPred _ _ _) _ = e
+  cases decode (α := List Bool × ℕ × ℕ) e <;> rfl
 
 private noncomputable def stepFull (p : ℕ) : Part ℕ :=
   (Nat.pair <$> (Part.some (stepPrep p)).bind haltingOraclePart <*> Part.some p.unpair.2) >>=
@@ -492,51 +462,27 @@ private lemma stepFull_spec (a s : ℕ) :
   have hprep : stepPrep p = Classical.choose halts_reducibleTo_halting (c, τ, σ.length) := by
     dsimp [stepPrep, c, σ, τ]
     rw [hp2, Nat.unpair_pair, h_dec]
-  have hK := (Classical.choose_spec halts_reducibleTo_halting).2 c τ σ.length
-  rw [← hprep] at hK
+  have hK := hprep ▸ (Classical.choose_spec halts_reducibleTo_halting).2 c τ σ.length
   have h_full : stepFull p =
       stepCore
         (Nat.pair ((halting.indicator 1 : ℕ → ℕ) (stepPrep p)) (Nat.pair s (stageNat s))) := by
     simp [stepFull, haltingOraclePart, Seq.seq, hp2]
-  rw [h_full]
-  dsimp [stepCore]
+  rw [h_full, show stageNat (s + 1) = encode (stage (s + 1)) from rfl, stage_succ_eq]
+  dsimp only [stepCore]
   rw [Nat.unpair_pair, Nat.unpair_pair, h_dec]
-  have h_rhs : stageNat (s + 1) =
-      encode (if h : Halts c τ σ.length then
-        let e := Nat.find (p := haltsPred c τ σ.length)
-          ((Halts_iff_exists_haltsPred c τ σ.length).mp h)
-        match decode (α := List Bool × ℕ × ℕ) e with
-        | Option.some w =>
-          if s % 2 = 0 then (σ ++ [decide (w.2.2 = 0)], w.1)
-          else (w.1, σ ++ [decide (w.2.2 = 0)])
-        | Option.none =>
-          if s % 2 = 0 then (σ ++ [false], τ) else (τ, σ ++ [false])
-      else
-        if s % 2 = 0 then (σ ++ [false], τ) else (τ, σ ++ [false])) :=
-    congrArg encode (stage_succ_eq s)
-  rw [h_rhs]
-  change (if (halting.indicator 1 : ℕ → ℕ) (stepPrep p) = 1 then
-      Part.map (fun e =>
-        match decode (α := List Bool × ℕ × ℕ) e with
-        | Option.some w =>
-          encode (if s % 2 = 0 then (σ ++ [decide (w.2.2 = 0)], w.1)
-            else (w.1, σ ++ [decide (w.2.2 = 0)]))
-        | Option.none =>
-          encode (if s % 2 = 0 then (σ ++ [false], τ) else (τ, σ ++ [false])))
-        (Nat.rfindOpt (haltsPredOpt c τ σ.length))
-    else
-      Part.some (encode (if s % 2 = 0 then (σ ++ [false], τ) else (τ, σ ++ [false])))) = _
+  dsimp only
   by_cases h : Halts c τ σ.length
-  · have h_mem : stepPrep p ∈ halting := hK.mp h
-    have h_ind : (halting.indicator 1 : ℕ → ℕ) (stepPrep p) = 1 := Set.indicator_of_mem h_mem _
+  · have h_ind : (halting.indicator 1 : ℕ → ℕ) (stepPrep p) = 1 :=
+      Set.indicator_of_mem (hK.mp h) _
+    simp only [c, σ, τ] at h h_ind
     simp only [h_ind, ↓reduceIte, h, ↓reduceDIte, rfindOpt_haltsPredOpt_eq_some_find h,
       Part.map_some]
-    generalize Nat.find (p := haltsPred c τ σ.length)
-      ((Halts_iff_exists_haltsPred c τ σ.length).mp h) = e₀
+    generalize Nat.find (p := haltsPred _ _ _) _ = e₀
     cases decode (α := List Bool × ℕ × ℕ) e₀ <;> rfl
-  · have h_nmem : stepPrep p ∉ halting := fun hm => h (hK.mpr hm)
-    have h_ind : (halting.indicator 1 : ℕ → ℕ) (stepPrep p) = 0 := Set.indicator_of_notMem h_nmem _
+  · have h_ind : (halting.indicator 1 : ℕ → ℕ) (stepPrep p) = 0 :=
+      Set.indicator_of_notMem (fun hm => h (hK.mpr hm)) _
     have h_ne : (halting.indicator 1 : ℕ → ℕ) (stepPrep p) ≠ 1 := by omega
+    simp only [c, σ, τ] at h
     simp only [h_ne, ↓reduceIte, h, ↓reduceDIte]
 
 /-- The encoded stage sequence `stageNat` is recursive in `O`. -/
@@ -602,22 +548,15 @@ theorem kleene_post_below_jump :
   have h_id : Nat.RecursiveIn O (fun n => Part.some n) := Nat.Primrec.id.recursiveIn
   have h_arg : Nat.RecursiveIn O (fun n => Part.some (Nat.pair n (stageNat (2 * n + 2)))) :=
     (pair h_id h_stage_idx).of_eq fun n => by simp [Seq.seq]
-  have h_extA : _root_.Primrec (fun p : ℕ =>
-      ((decodeStagePair p).1.getD p.unpair.1 false).toNat) :=
-    (_root_.Primrec.dom_bool Bool.toNat).comp
-      ((_root_.Primrec.list_getD false).comp
-        (fst.comp primrec_decodeStagePair) (fst.comp _root_.Primrec.unpair))
-  have h_extB : _root_.Primrec (fun p : ℕ =>
-      ((decodeStagePair p).2.getD p.unpair.1 false).toNat) :=
-    (_root_.Primrec.dom_bool Bool.toNat).comp
-      ((_root_.Primrec.list_getD false).comp
-        (snd.comp primrec_decodeStagePair) (fst.comp _root_.Primrec.unpair))
-  have h_recA : Nat.RecursiveIn O (fun n => Part.some (limA n).toNat) := by
-    refine (comp (Primrec.nat_iff.mp h_extA).recursiveIn h_arg).of_eq fun n => ?_
+  have h_rec (proj : List Bool × List Bool → List Bool) (hp : _root_.Primrec proj) :
+      Nat.RecursiveIn O (fun n => Part.some ((proj (stage (2 * n + 2))).getD n false).toNat) := by
+    have h_ext : _root_.Primrec (fun p : ℕ =>
+        ((proj (decodeStagePair p)).getD p.unpair.1 false).toNat) :=
+      (_root_.Primrec.dom_bool Bool.toNat).comp
+        ((_root_.Primrec.list_getD false).comp
+          (hp.comp primrec_decodeStagePair) (fst.comp _root_.Primrec.unpair))
+    refine (comp (Primrec.nat_iff.mp h_ext).recursiveIn h_arg).of_eq fun n => ?_
     simp only [Part.bind_eq_bind, Part.bind_some, Part.coe_some,
-      decodeStagePair, Nat.unpair_pair, stageNat, Encodable.encodek, limA]
-  have h_recB : Nat.RecursiveIn O (fun n => Part.some (limB n).toNat) := by
-    refine (comp (Primrec.nat_iff.mp h_extB).recursiveIn h_arg).of_eq fun n => ?_
-    simp only [Part.bind_eq_bind, Part.bind_some, Part.coe_some,
-      decodeStagePair, Nat.unpair_pair, stageNat, Encodable.encodek, limB]
-  exact ⟨RecursiveIn.iff_nat.mpr h_recA, RecursiveIn.iff_nat.mpr h_recB⟩
+      decodeStagePair, Nat.unpair_pair, stageNat, Encodable.encodek]
+  exact ⟨RecursiveIn.iff_nat.mpr (h_rec Prod.fst fst),
+    RecursiveIn.iff_nat.mpr (h_rec Prod.snd snd)⟩

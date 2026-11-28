@@ -15,9 +15,6 @@ namespace CslibFrontierTests.GeneratorXor
 
 open Cslib Cslib.BitString Cslib.Probability Cslib.Crypto Turing.MultiTapeTM
 
--- Search compares certificate programs and encodings without unfolding machine witnesses.
-attribute [local irreducible] ComputableInPolyTime
-
 -- Width is independent of row lengths; absent bits contribute false.
 example : listXor 4 [[true, false], [true, true, true], []] =
     [false, true, true, false] := by decide

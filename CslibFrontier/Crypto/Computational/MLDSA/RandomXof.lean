@@ -204,9 +204,7 @@ retaining longer suffixes, other input lengths and SHAKE128. -/
 words, retaining the other bytes and SHAKE128. -/
 @[expose] def Xofs.withPrefixRegister (H : Xofs) (n k : ℕ)
     (D : BitString n → BitString (8 * k)) : Xofs :=
-  { H with h256 := H.h256.withPrefixes fun x =>
-      if x.length = n then
-        some (((Keccak.fixedBytesEquivBitsLE _).symm (D (BitString.ofList _ x))).toList) else none }
+  H.withPrefixLists n fun x => ((Keccak.fixedBytesEquivBitsLE k).symm (D x)).toList
 
 /-- Installing `k`-byte rows directly as lists agrees with installing their little-endian
 bit-string encodings. -/
@@ -214,7 +212,7 @@ theorem Xofs.withPrefixLists_toList (H : Xofs) (n k : ℕ)
     (R : BitString n → FixedBytes k) :
     H.withPrefixLists n (fun x => (R x).toList) =
       H.withPrefixRegister n k (fun x => Keccak.fixedBytesEquivBitsLE k (R x)) := by
-  simp only [Xofs.withPrefixLists, Xofs.withPrefixRegister, Equiv.symm_apply_apply]
+  simp only [Xofs.withPrefixRegister, Equiv.symm_apply_apply]
 
 /-- Read the first `k` SHAKE256 bytes on every `n`-bit input as little-endian bit strings. -/
 def Xofs.readPrefixRegister (H : Xofs) (n k : ℕ) (x : BitString n) :
@@ -227,7 +225,7 @@ theorem Xofs.withPrefixRegister_readPrefixRegister (H : Xofs) (n k : ℕ) :
     H.withPrefixRegister n k (H.readPrefixRegister n k) = H := by
   cases H with
   | mk h128 h256 =>
-    unfold Xofs.withPrefixRegister
+    unfold Xofs.withPrefixRegister Xofs.withPrefixLists
     congr 1
     apply ExtendableOutput.ext_byteAt
     intro x i
@@ -282,12 +280,11 @@ private theorem overwrite {a b : ℕ} (n k : ℕ) (ha : n ≤ a)
       exact hx ⟨eq ▸ List.length_ofFn, off ▸ k.isLt⟩
     have off : ((if x.length = n then
         some (((Keccak.fixedBytesEquivBitsLE _).symm (D (BitString.ofList _ x))).toList)
-      else none).bind
-        (fun r => r[j]?)) = none := by
-      by_cases len : x.length = n
+      else none).bind (fun r => r[j]?)) = none := by
+      split_ifs with len
       · have far : ¬ j < k := fun small => hx ⟨len, small⟩
-        simp [len, FixedBytes.toList, far]
-      · simp [len]
+        simp [FixedBytes.toList, far]
+      · rfl
     rw [off, Option.getD_none]
     split
     · exact (Function.extend_apply' _ _ _ miss).symm
@@ -308,13 +305,10 @@ theorem Xofs.uniformPrefixes_prefixRegister (base : Xofs) (n k : ℕ) {a b : ℕ
       (⟨install base.h128 u, install base.h256 t⟩ : Xofs))
   have read (u t : Table a b) :
       close u t = ((⟨install base.h128 u, install base.h256 t⟩ : Xofs).readPrefixRegister n k,
-        ⟨install base.h128 u, install base.h256 t⟩) := by
-    refine Prod.ext ?_ rfl
-    funext x
-    apply congrArg (Keccak.fixedBytesEquivBitsLE _)
-    funext i
-    simp only [byteAt_install, List.length_ofFn, ha, i.isLt.trans_le hb, and_self, ↓reduceDIte]
-    rfl
+        ⟨install base.h128 u, install base.h256 t⟩) :=
+    Prod.ext (funext fun x => congrArg (Keccak.fixedBytesEquivBitsLE _) (funext fun i => by
+      simp only [byteAt_install, List.length_ofFn, ha, i.isLt.trans_le hb, and_self, ↓reduceDIte]
+      rfl)) rfl
   have restore (u t : Table a b) (D : BitString n → _) :
       close u (Function.extend e (flatten n k D) t) =
         (D, (⟨install base.h128 u, install base.h256 t⟩ : Xofs).withPrefixRegister n k D) := by
@@ -335,28 +329,12 @@ theorem Xofs.uniformPrefixes_prefixRegister (base : Xofs) (n k : ℕ) {a b : ℕ
   simp only [PMF.bind_map, Function.comp_def, restore] at law
   simpa only [← PMF.bind_pure_comp, Function.comp_def, read] using law
 
-
 /-- Decode the raw input wires for a fixed-length SHAKE256 prefix lookup. A malformed
 address selects zero, and the native raw response ignores the selected word there. -/
 def Xofs.prefixLookup (n : ℕ) {a : ℕ} (x : BitString (a + 2)) : BitString n :=
   match Xofs.unpad (List.ofFn fun i : Fin (a + 1) => x i.succ) with
   | none => 0
   | some word => BitString.ofList _ word
-
-/-- A native raw query to the installed table reads at most one register value. The equality
-also covers SHAKE128, malformed words and requests extending beyond the installed prefix. -/
-theorem Xofs.queryTable_withPrefixRegister (H : Xofs) (n k a b : ℕ)
-    (D : BitString n → BitString (8 * k)) :
-    (H.withPrefixRegister n k D).queryTable a b = fun x =>
-      (H.withPrefixRegister n k fun _ => D (Xofs.prefixLookup n x)).queryTable a b x := by
-  funext x
-  unfold Xofs.queryTable Xofs.prefixLookup
-  split
-  · rfl
-  · rename_i word _
-    cases tag : x 0 <;> by_cases h : word.length = n <;>
-      simp only [h, Bool.false_eq_true, ↓reduceIte, Xofs.withPrefixRegister,
-        ExtendableOutput.withPrefixes]
 
 /-- A native raw query to an installed byte-list prefix table reads at most one entry. The
 equality also covers SHAKE128, malformed words and requests extending beyond the installed
@@ -373,5 +351,13 @@ theorem Xofs.queryTable_withPrefixLists (H : Xofs) (n a b : ℕ)
     cases tag : x 0 <;> by_cases h : word.length = n <;>
       simp only [h, Bool.false_eq_true, ↓reduceIte, Xofs.withPrefixLists,
         ExtendableOutput.withPrefixes]
+
+/-- A native raw query to the installed table reads at most one register value. The equality
+also covers SHAKE128, malformed words and requests extending beyond the installed prefix. -/
+theorem Xofs.queryTable_withPrefixRegister (H : Xofs) (n k a b : ℕ)
+    (D : BitString n → BitString (8 * k)) :
+    (H.withPrefixRegister n k D).queryTable a b = fun x =>
+      (H.withPrefixRegister n k fun _ => D (Xofs.prefixLookup n x)).queryTable a b x :=
+  H.queryTable_withPrefixLists n a b fun x => ((Keccak.fixedBytesEquivBitsLE k).symm (D x)).toList
 
 end Cslib.Crypto.MLDSA.FIPS204

@@ -156,13 +156,9 @@ theorem amortized {w n K base : ℕ} (hn : Fits w n) (hK : Fits w K)
       (fun _ x => Backend.factor certificates *
         (potential n ((layout n base).abs (memoryState (Backend.frontier certificates) x)) + 0))
       (fun s o => Backend.factor certificates * (charge n s o + 1)) := by
-  have hw : ∀ {s} o, (memRefinement hn hK base).inv s →
-      (indexedMinPQSpec n K).valid ((memRefinement hn hK base).abs s) o →
-      (certificates ((backend n K base).tag o)).work ((backend n K base).arg o) s ≤ 0 := by
-    intro s o _ _
-    cases o <;> exact le_rfl
-  have h := Backend.amortized (implements hn hK hfit) (mem_amortized hn hK base) 0 hw
-  simpa only [implementation, Nat.add_zero] using h
+  simpa only [implementation, Nat.add_zero] using
+    Backend.amortized (implements hn hK hfit) (mem_amortized hn hK base) 0
+      fun o _ _ => by cases o <;> exact le_rfl
 
 /-- Every native method body preserves every cell outside the old source footprint. -/
 theorem modifies {w n K base : ℕ} (hn : Fits w n) (hK : Fits w K)
@@ -171,8 +167,8 @@ theorem modifies {w n K base : ℕ} (hn : Fits w n) (hK : Fits w K)
     {a : o.Result} {steps : ℕ} (hr : (implementation hn hK hfit).rep s x)
     (hv : IndexedMinPQ.valid K s o) (he : (backend n K base).exec w x o a y steps) :
     Modifies (footprint n base) x.mem y.mem := by
-  have h := Backend.modifies (M := framed hn hK base) (implements hn hK hfit) hr hv he
   simpa only [Memory.Framed.region, framed_footprint, framed_room, Nat.add_zero,
-    Finset.Ico_self, Finset.union_empty] using h
+    Finset.Ico_self, Finset.union_empty] using
+    Backend.modifies (M := framed hn hK base) (implements hn hK hfit) hr hv he
 
 end Cslib.DataStructure.PriorityQueue.FibonacciHeap.Native

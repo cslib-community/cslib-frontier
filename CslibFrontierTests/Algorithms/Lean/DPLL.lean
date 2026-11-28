@@ -68,8 +68,8 @@ private abbrev repeated : CNF ℕ :=
 
 -- The search starts from the variables without repetitions, which are open; the list with
 -- repetitions is not, so a variable cannot be chosen again after it is assigned.
-example : OpenVars repeated [] repeated.vars.dedup :=
-  ⟨fun _ hx => .inl (List.mem_dedup.2 hx), by simp, List.nodup_dedup _⟩
+example : OpenVars repeated [] repeated.vars.eraseDups :=
+  ⟨fun _ hx => .inl (List.mem_eraseDups.2 hx), by simp, List.nodup_eraseDups _⟩
 
 example : ¬ OpenVars repeated [] repeated.vars := fun h => by
   have := h.nodup

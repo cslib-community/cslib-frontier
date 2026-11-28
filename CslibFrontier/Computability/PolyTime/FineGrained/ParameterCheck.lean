@@ -269,20 +269,10 @@ private theorem sum_map_filter_range (n : ℕ) (p : ℕ → Bool) (f : ℕ → �
     (((List.range n).filter p).map f).sum =
       ∑ w ∈ (Finset.range n).filter (fun w => p w = true), f w := by
   induction n with
-  | zero =>
-    simp only [List.range_zero, List.filter_nil, List.map_nil, List.sum_nil, Finset.range_zero,
-      Finset.filter_empty, Finset.sum_empty]
+  | zero => simp
   | succ n ih =>
-    rw [List.range_succ, List.filter_append, List.map_append, List.sum_append, ih,
-      Finset.range_add_one, Finset.filter_insert]
-    by_cases h : p n = true
-    · have hnot : n ∉ (Finset.range n).filter (fun w => p w = true) := fun hm =>
-        (Finset.mem_range.mp (Finset.mem_filter.mp hm).1).ne rfl
-      rw [List.filter_cons_of_pos h, List.filter_nil, List.map_cons, List.map_nil, List.sum_cons,
-        List.sum_nil, add_zero]
-      simp only [h, ↓reduceIte, Finset.sum_insert hnot, add_comm]
-    · rw [List.filter_cons_of_neg h, List.filter_nil, List.map_nil, List.sum_nil, add_zero]
-      simp only [Bool.eq_false_iff.mpr h, Bool.false_eq_true, ↓reduceIte]
+    rw [List.range_succ, Finset.range_add_one, Finset.filter_insert]
+    by_cases h : p n = true <;> simp [h, ih, add_comm]
 
 /-- `binomTailNumerator` as a `Finset` sum over `{0, …, Q}` outside `[A₀, A₀ + R)`. -/
 theorem binomTailNumerator_eq_sum (Q r A₀ R : ℕ) :
@@ -292,12 +282,8 @@ theorem binomTailNumerator_eq_sum (Q r A₀ R : ℕ) :
   unfold binomTailNumerator binomTailTerm
   rw [sum_map_filter_range]
   refine Finset.sum_congr ?_ fun _ _ => rfl
-  ext w; simp only [Finset.mem_filter]
-  exact and_congr_right fun _ => by
-    by_cases h1 : A₀ ≤ w <;> by_cases h2 : w < A₀ + R <;>
-      simp only [h1, h2, decide_true, decide_false, Bool.and_self, Bool.and_false, Bool.false_and,
-        Bool.not_true, Bool.not_false, Bool.false_eq_true, and_self, and_false, false_and,
-        not_true_eq_false, not_false_eq_true]
+  ext w
+  simp; omega
 
 private theorem real_binomTailTerm_mul_two_mul_pow {Q r w : ℕ} (hr : 1 ≤ r) (hw : w ≤ Q) :
     (Q.choose w : ℝ) * (((r : ℝ) - 1) / (2 * r)) ^ w *
@@ -384,22 +370,16 @@ theorem checkReplacementFeasible_eq_true_iff (n M b wmax lam Q r A₀ R : ℕ) :
           (Q.choose w : ℝ) * (((r : ℝ) - 1) / (2 * r)) ^ w *
             (1 - ((r : ℝ) - 1) / (2 * r)) ^ (Q - w) ≤
           1 / ((b : ℝ) * (r : ℝ) ^ 2 * lam) := by
-  constructor
-  · intro h
-    unfold checkReplacementFeasible at h
-    simp only [Bool.and_eq_true, decide_eq_true_eq] at h
-    obtain ⟨⟨⟨⟨⟨⟨hr2, hR1⟩, hRQ⟩, hAR⟩, hbalM⟩, hbaln⟩, htail⟩ := h
-    have htail_guards : 1 ≤ b ∧ 1 ≤ lam := by
-      unfold checkBinomTail at htail
-      simp only [Bool.and_eq_true, decide_eq_true_eq] at htail
-      exact ⟨htail.1.1.2, htail.1.2⟩
-    exact ⟨hr2, hR1, hRQ, hAR, hbalM, hbaln, htail_guards.1, htail_guards.2,
-      (checkBinomTail_eq_true_iff (by omega) htail_guards.1 htail_guards.2).mp htail⟩
-  · rintro ⟨hr2, hR1, hRQ, hAR, hbalM, hbaln, hb1, hlam1, htail_real⟩
-    have htail := (checkBinomTail_eq_true_iff (by omega) hb1 hlam1).mpr htail_real
-    unfold checkReplacementFeasible
-    simp only [Bool.and_eq_true, decide_eq_true_eq]
-    exact ⟨⟨⟨⟨⟨⟨hr2, hR1⟩, hRQ⟩, hAR⟩, hbalM⟩, hbaln⟩, htail⟩
+  unfold checkReplacementFeasible
+  simp only [Bool.and_eq_true, decide_eq_true_eq, and_assoc]
+  refine and_congr_right fun hr2 => and_congr_right fun _ => and_congr_right fun _ =>
+    and_congr_right fun _ => and_congr_right fun _ => and_congr_right fun _ => ?_
+  by_cases hb1 : 1 ≤ b
+  · by_cases hlam1 : 1 ≤ lam
+    · rw [checkBinomTail_eq_true_iff (by omega) hb1 hlam1]
+      simp only [hb1, hlam1, true_and]
+    · simp [checkBinomTail, hlam1]
+  · simp [checkBinomTail, hb1]
 
 /-- Exact characterization of `checkScheduleFeasible` in terms of `ReplacementParams`. -/
 theorem checkScheduleFeasible_eq_true_iff (n M b w β : ℕ) :
@@ -414,19 +394,18 @@ theorem checkScheduleFeasible_eq_true_iff (n M b w β : ℕ) :
     unfold checkScheduleFeasible computeScheduleParams checkReplacementFeasible at h
     simp only [Bool.and_eq_true, decide_eq_true_eq] at h
     obtain ⟨⟨⟨h20, hR32⟩, hRQ6⟩, ⟨⟨⟨⟨⟨⟨hr2, _⟩, _⟩, _⟩, hbalM⟩, hbaln⟩, htail⟩⟩ := h
-    have hguards : 1 ≤ b ∧ 1 ≤ Nat.clog 2 n := by
-      unfold checkBinomTail at htail
-      simp only [Bool.and_eq_true, decide_eq_true_eq] at htail
-      exact ⟨htail.1.1.2, htail.1.2⟩
-    exact ⟨h20, hr2, hR32, hRQ6, hguards.1, hbalM, hbaln,
-      (checkBinomTail_schedule_eq_true_iff (by omega) (by omega) hguards.1 hguards.2).mp htail⟩
+    unfold checkBinomTail at htail
+    simp only [Bool.and_eq_true, decide_eq_true_eq] at htail
+    have htail' := checkBinomTail_schedule_eq_true_iff (by omega) (by omega) htail.1.1.2 htail.1.2
+    refine ⟨h20, hr2, hR32, hRQ6, htail.1.1.2, hbalM, hbaln, htail'.mp ?_⟩
+    unfold checkBinomTail
+    simp only [Bool.and_eq_true, decide_eq_true_eq]
+    exact htail
   · rintro ⟨h20, hr2, hR32, hRQ6, hb1, haux_bal, hvar_bal, htail_le⟩
     have hlam1 : 1 ≤ Nat.clog 2 n := Nat.clog_pos Nat.one_lt_two (by omega : 1 < n)
     have hR1 : 1 ≤ ReplacementParams.rowBound β n := by omega
     have hsub := ReplacementParams.interval_subset_range (β := β) hr2 hR1 (by omega)
-    have hk_mem : ReplacementParams.intervalStart β n + ReplacementParams.rowBound β n - 1 ∈
-        ReplacementParams.interval β n := Finset.mem_Icc.mpr ⟨by omega, le_rfl⟩
-    have hk_lt := Finset.mem_range.mp (hsub hk_mem)
+    have hk_lt := Finset.mem_range.mp (hsub (Finset.mem_Icc.mpr ⟨by omega, le_rfl⟩))
     have htail := (checkBinomTail_schedule_eq_true_iff (by omega) hR1 hb1 hlam1).mpr htail_le
     unfold checkScheduleFeasible computeScheduleParams checkReplacementFeasible
     simp only [Bool.and_eq_true, decide_eq_true_eq]
@@ -512,8 +491,6 @@ theorem feasible_of_checkScheduleFeasible_chooseBeta_eq_true {n M b w : ℕ}
 section PolyTime
 
 open ComputableInPolyTime
-
-attribute [local irreducible] ComputableInPolyTime
 
 /-- The parameter schedule `(λ, ν, r, Q, R, A₀)` computed by `computeScheduleParams`, all in binary:
 the framed `λ`, `ν`, `r`, `Q` and `R` in turn, then `A₀`. -/

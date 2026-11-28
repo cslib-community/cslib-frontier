@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Probability.KWiseIndependent.Reduced
+import Mathlib.Data.Nat.Bitwise
 
 /-!
 # Limb-Aligned Arithmetic and Bit-Packed Table Bounds for Reduced `k`-Wise Hashing
@@ -90,24 +91,24 @@ quantity is strictly less than `2 ^ w₀` whenever `α < 2 ^ (w₀ - 1)` and `x 
   let p := halfMulMod m α x'
   (x &&& 1) + ((((x >>> 1) + p) &&& (2 ^ m - 1)) <<< 1)
 
-theorem halfMulMod_lt (m α x' : ℕ) : halfMulMod m α x' < 2 ^ m := by
-  dsimp only [halfMulMod]
-  rw [Nat.and_two_pow_sub_one_eq_mod]
-  exact Nat.mod_lt _ (by positivity)
+private theorem mul_and_lt_of_le_one {a b d : ℕ} (hd : d ≤ 1) :
+    (a &&& (2 ^ d - 1)) * (b &&& (2 ^ d - 1)) < 2 ^ d := by
+  rcases (by omega : d = 0 ∨ d = 1) with rfl | rfl
+  · simp
+  · simp only [pow_one]
+    rcases Nat.mod_two_eq_zero_or_one a with h | h <;> simp [h, Nat.mod_lt b two_pos]
+
+theorem halfMulMod_lt (m α x' : ℕ) : halfMulMod m α x' < 2 ^ m :=
+  Nat.and_lt_two_pow _ (Nat.sub_lt (Nat.two_pow_pos m) one_pos)
 
 theorem oddMulModWord_lt {w₀ : ℕ} (hw₀ : 0 < w₀) (α x : ℕ) :
     oddMulModWord w₀ α x < 2 ^ w₀ := by
+  have hhigh := Nat.and_lt_two_pow
+    ((x >>> 1) + halfMulMod (w₀ - 1) α (x &&& (2 ^ (w₀ - 1) - 1)))
+    (Nat.sub_lt (Nat.two_pow_pos (w₀ - 1)) one_pos)
+  have hpow : 2 ^ w₀ = 2 * 2 ^ (w₀ - 1) := by rw [← pow_succ', Nat.sub_add_cancel hw₀]
   dsimp only [oddMulModWord]
-  have hbit : x &&& 1 < 2 := by
-    rw [Nat.and_two_pow_sub_one_eq_mod x 1]
-    exact Nat.mod_lt x two_pos
-  have hhigh : (((x >>> 1) + halfMulMod (w₀ - 1) α (x &&& (2 ^ (w₀ - 1) - 1))) &&&
-      (2 ^ (w₀ - 1) - 1)) < 2 ^ (w₀ - 1) := by
-    rw [Nat.and_two_pow_sub_one_eq_mod]
-    exact Nat.mod_lt _ (by positivity)
-  have hpow : 2 ^ w₀ = 2 * 2 ^ (w₀ - 1) := by
-    conv_lhs => rw [← Nat.sub_add_cancel hw₀, pow_succ']
-  rw [Nat.shiftLeft_eq, pow_one, hpow]
+  rw [Nat.and_one_is_mod, Nat.shiftLeft_eq, pow_one]
   omega
 
 /-- Every intermediate product, shift, and sum in `halfMulMod (w₀ - 1) α_val (u_val &&& ...)` and
@@ -143,92 +144,38 @@ theorem oddMulModWord_parts_lt {w₀ α_val u_val : ℕ} (hw₀ : 0 < w₀)
     ((((u_val >>> 1) + hm) &&& (2 ^ m - 1)) <<< 1) < 2 ^ w₀ ∧
     (u_val &&& 1) + ((((u_val >>> 1) + hm) &&& (2 ^ m - 1)) <<< 1) < 2 ^ w₀ := by
   intro m h x' α₀ α₁ x₀ x₁ p₀ p₁ p₂ p₃ s₁ s₂ hm
-  have h2m_eq : 2 * 2 ^ m = 2 ^ w₀ := by
-    rw [← pow_succ', Nat.sub_add_cancel hw₀]
-  have hm_lt : 2 ^ m < 2 ^ w₀ := by
-    have := Nat.two_pow_pos m
-    omega
+  have mask_lt (a n : ℕ) : a &&& (2 ^ n - 1) < 2 ^ n :=
+    Nat.and_lt_two_pow a (Nat.sub_lt (Nat.two_pow_pos n) one_pos)
+  have shr_lt {a n k : ℕ} (hk : k ≤ n) (ha : a < 2 ^ n) : a >>> k < 2 ^ (n - k) := by
+    rw [Nat.shiftRight_eq_div_pow]
+    exact Nat.div_lt_of_lt_mul (by rwa [← pow_add, Nat.add_sub_of_le hk])
+  have shl_lt {a k : ℕ} (hk : k ≤ m) (ha : a < 2 ^ (m - k)) : a <<< k < 2 ^ m :=
+    (Nat.shiftLeft_lt ha).trans_eq (congrArg (2 ^ ·) (Nat.sub_add_cancel hk))
+  have h2m : 2 * 2 ^ m = 2 ^ w₀ := by rw [← pow_succ', Nat.sub_add_cancel hw₀]
+  have hm_lt : 2 ^ m < 2 ^ w₀ := by have := Nat.two_pow_pos m; omega
   have h_le : h ≤ m := Nat.div_le_self m 2
   have h2_le : 2 * h ≤ m := Nat.mul_div_le m 2
-  have hα₀ : α₀ < 2 ^ h := by
-    dsimp only [α₀]; rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
-  have hx₀ : x₀ < 2 ^ h := by
-    dsimp only [x₀]; rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
-  have hα₁ : α₁ < 2 ^ (m - h) := by
-    dsimp only [α₁]; rw [Nat.shiftRight_eq_div_pow]
-    refine Nat.div_lt_of_lt_mul ?_
-    rw [← pow_add, Nat.add_sub_of_le h_le]
-    exact hα
-  have hx' : x' < 2 ^ m := by
-    dsimp only [x']; rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
-  have hx₁ : x₁ < 2 ^ (m - h) := by
-    dsimp only [x₁]; rw [Nat.shiftRight_eq_div_pow]
-    refine Nat.div_lt_of_lt_mul ?_
-    rw [← pow_add, Nat.add_sub_of_le h_le]
-    exact hx'
-  have hp₀_raw : α₀ * x₀ < 2 ^ m := by
-    calc α₀ * x₀ < 2 ^ h * 2 ^ h := Nat.mul_lt_mul'' hα₀ hx₀
-      _ = 2 ^ (2 * h) := by rw [← pow_add, two_mul]
-      _ ≤ 2 ^ m := Nat.pow_le_pow_right two_pos h2_le
-  have hp₁_raw : α₀ * x₁ < 2 ^ m := by
-    calc α₀ * x₁ < 2 ^ h * 2 ^ (m - h) := Nat.mul_lt_mul'' hα₀ hx₁
-      _ = 2 ^ m := by rw [← pow_add, Nat.add_sub_of_le h_le]
-  have hp₂_raw : α₁ * x₀ < 2 ^ m := by
-    calc α₁ * x₀ < 2 ^ (m - h) * 2 ^ h := Nat.mul_lt_mul'' hα₁ hx₀
-      _ = 2 ^ m := by rw [← pow_add, Nat.sub_add_cancel h_le]
-  have hp₁_lt : p₁ < 2 ^ m := by
-    dsimp only [p₁]; rw [Nat.shiftLeft_eq, Nat.and_two_pow_sub_one_eq_mod]
-    calc ((α₀ * x₁) % 2 ^ (m - h)) * 2 ^ h
-        < 2 ^ (m - h) * 2 ^ h := Nat.mul_lt_mul_of_pos_right (Nat.mod_lt _ (Nat.two_pow_pos _))
-          (Nat.two_pow_pos _)
-      _ = 2 ^ m := by rw [← pow_add, Nat.sub_add_cancel h_le]
-  have hp₂_lt : p₂ < 2 ^ m := by
-    dsimp only [p₂]; rw [Nat.shiftLeft_eq, Nat.and_two_pow_sub_one_eq_mod]
-    calc ((α₁ * x₀) % 2 ^ (m - h)) * 2 ^ h
-        < 2 ^ (m - h) * 2 ^ h := Nat.mul_lt_mul_of_pos_right (Nat.mod_lt _ (Nat.two_pow_pos _))
-          (Nat.two_pow_pos _)
-      _ = 2 ^ m := by rw [← pow_add, Nat.sub_add_cancel h_le]
-  have hp₃_mul_lt :
-      (α₁ &&& (2 ^ (m - 2 * h) - 1)) * (x₁ &&& (2 ^ (m - 2 * h) - 1)) < 2 ^ (m - 2 * h) := by
-    rw [Nat.and_two_pow_sub_one_eq_mod, Nat.and_two_pow_sub_one_eq_mod]
-    rcases (by omega : m - 2 * h = 0 ∨ m - 2 * h = 1) with hd0 | hd1
-    · rw [hd0, pow_zero, Nat.mod_one, zero_mul]; exact one_pos
-    · rw [hd1, pow_one]
-      have h1 : α₁ % 2 < 2 := Nat.mod_lt _ two_pos
-      have h2 : x₁ % 2 < 2 := Nat.mod_lt _ two_pos
-      rcases (by omega : α₁ % 2 = 0 ∨ α₁ % 2 = 1) with h0 | h1_eq
-      · simp [h0]
-      · simp [h1_eq, h2]
-  have hp₃_lt : p₃ < 2 ^ m := by
-    dsimp only [p₃]; rw [Nat.shiftLeft_eq]
-    calc _ < 2 ^ (m - 2 * h) * 2 ^ (2 * h) :=
-          Nat.mul_lt_mul_of_pos_right hp₃_mul_lt (Nat.two_pow_pos _)
-      _ = 2 ^ m := by rw [← pow_add, Nat.sub_add_cancel h2_le]
-  have hp₀_lt : p₀ < 2 ^ m := by
-    dsimp only [p₀]; rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
-  have hs₁_lt : s₁ < 2 ^ m := by
-    dsimp only [s₁]; rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
-  have hs₂_lt : s₂ < 2 ^ m := by
-    dsimp only [s₂]; rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
-  have hhm_lt : hm < 2 ^ m := by
-    dsimp only [hm]; rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
-  have hu_shr : u_val >>> 1 < 2 ^ m := by
-    rw [Nat.shiftRight_eq_div_pow, pow_one]
-    refine Nat.div_lt_of_lt_mul ?_
-    omega
-  have hsh_fin : ((((u_val >>> 1) + hm) &&& (2 ^ m - 1)) <<< 1) ≤ 2 * 2 ^ m - 2 := by
-    rw [Nat.shiftLeft_eq, pow_one, Nat.and_two_pow_sub_one_eq_mod]
-    have hmod : ((u_val >>> 1) + hm) % 2 ^ m < 2 ^ m := Nat.mod_lt _ (Nat.two_pow_pos _)
-    omega
-  have hubit : u_val &&& 1 < 2 := by
-    change u_val &&& (2 ^ 1 - 1) < 2
-    rw [Nat.and_two_pow_sub_one_eq_mod]
-    exact Nat.mod_lt _ two_pos
+  have hp₀_raw : α₀ * x₀ < 2 ^ m := (Nat.mul_lt_mul'' (mask_lt _ h) (mask_lt _ h)).trans_le
+    (by rw [← pow_add, ← two_mul]; exact Nat.pow_le_pow_right two_pos h2_le)
+  have hp₁_raw : α₀ * x₁ < 2 ^ m := (Nat.mul_lt_mul'' (mask_lt _ h)
+    (shr_lt h_le (mask_lt _ m))).trans_eq (by rw [← pow_add, Nat.add_sub_of_le h_le])
+  have hp₂_raw : α₁ * x₀ < 2 ^ m := (Nat.mul_lt_mul'' (shr_lt h_le hα)
+    (mask_lt _ h)).trans_eq (by rw [← pow_add, Nat.sub_add_cancel h_le])
+  have hp₃_mul := mul_and_lt_of_le_one (a := α₁) (b := x₁) (d := m - 2 * h) (by omega)
+  have hp₁_lt : p₁ < 2 ^ m := shl_lt h_le (mask_lt _ _)
+  have hp₂_lt : p₂ < 2 ^ m := shl_lt h_le (mask_lt _ _)
+  have hp₃_lt : p₃ < 2 ^ m := shl_lt h2_le hp₃_mul
+  have hp₀_lt : p₀ < 2 ^ m := mask_lt _ m
+  have hs₁_lt : s₁ < 2 ^ m := mask_lt _ m
+  have hs₂_lt : s₂ < 2 ^ m := mask_lt _ m
+  have hhm_lt : hm < 2 ^ m := mask_lt _ m
+  have hu_shr : u_val >>> 1 < 2 ^ m := shr_lt hw₀ hu
+  have hodd : (u_val &&& 1) + ((((u_val >>> 1) + hm) &&& (2 ^ m - 1)) <<< 1) < 2 ^ w₀ :=
+    oddMulModWord_lt hw₀ α_val u_val
   exact ⟨hp₀_raw.trans hm_lt, hp₁_raw.trans hm_lt, hp₁_lt.trans hm_lt,
     hp₂_raw.trans hm_lt, hp₂_lt.trans hm_lt,
-    hp₃_mul_lt.trans_le ((Nat.pow_le_pow_right two_pos (by omega)).trans hm_lt.le),
-    hp₃_lt.trans hm_lt,
-    by omega, by omega, by omega, by omega, by omega, by omega⟩
+    hp₃_mul.trans_le (Nat.pow_le_pow_right two_pos (by omega)), hp₃_lt.trans hm_lt,
+    by omega, by omega, by omega, by omega, by omega, hodd⟩
 
 /-- Exact modular correctness of `halfMulMod`: for all `m α x' : ℕ`, `halfMulMod m α x'` equals
 `(α * x') % 2 ^ m`. -/
@@ -238,51 +185,18 @@ theorem halfMulMod_eq (m α x' : ℕ) :
   set h := m / 2
   have h_le : h ≤ m := Nat.div_le_self m 2
   have h2_le : 2 * h ≤ m := Nat.mul_div_le m 2
-  have hd_le : m - 2 * h ≤ 1 := by omega
+  have hp₃_lt := mul_and_lt_of_le_one (a := α >>> h) (b := x' >>> h) (d := m - 2 * h) (by omega)
   simp only [Nat.and_two_pow_sub_one_eq_mod, Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq]
-  set α₀ := α % 2 ^ h
-  set α₁ := α / 2 ^ h
-  set x₀ := x' % 2 ^ h
-  set x₁ := x' / 2 ^ h
-  have hα : α = 2 ^ h * α₁ + α₀ := (Nat.div_add_mod α (2 ^ h)).symm
-  have hx : x' = 2 ^ h * x₁ + x₀ := (Nat.div_add_mod x' (2 ^ h)).symm
-  have hm1 : 2 ^ m = 2 ^ h * 2 ^ (m - h) := by rw [← pow_add, Nat.add_sub_of_le h_le]
-  have hm2 : 2 ^ m = 2 ^ (2 * h) * 2 ^ (m - 2 * h) := by rw [← pow_add, Nat.add_sub_of_le h2_le]
-  have hp1 : ((α₀ * x₁) % 2 ^ (m - h) * 2 ^ h) % 2 ^ m = (2 ^ h * (α₀ * x₁)) % 2 ^ m := by
-    rw [mul_comm _ (2 ^ h), hm1, ← Nat.mul_mod_mul_left, Nat.mod_mod]
-  have hp2 : ((α₁ * x₀) % 2 ^ (m - h) * 2 ^ h) % 2 ^ m = (2 ^ h * (α₁ * x₀)) % 2 ^ m := by
-    rw [mul_comm _ (2 ^ h), hm1, ← Nat.mul_mod_mul_left, Nat.mod_mod]
-  have hp3_mod : (α₁ % 2 ^ (m - 2 * h)) * (x₁ % 2 ^ (m - 2 * h)) =
-      (α₁ * x₁) % 2 ^ (m - 2 * h) := by
-    have hlt1 : α₁ % 2 ^ (m - 2 * h) < 2 ^ (m - 2 * h) := Nat.mod_lt _ (by positivity)
-    have hlt2 : x₁ % 2 ^ (m - 2 * h) < 2 ^ (m - 2 * h) := Nat.mod_lt _ (by positivity)
-    have hprod_lt : (α₁ % 2 ^ (m - 2 * h)) * (x₁ % 2 ^ (m - 2 * h)) < 2 ^ (m - 2 * h) := by
-      rcases (by omega : m - 2 * h = 0 ∨ m - 2 * h = 1) with hd0 | hd1
-      · rw [hd0, pow_zero] at hlt1 hlt2 ⊢
-        have : α₁ % 1 = 0 := by omega
-        rw [this, zero_mul]
-        exact zero_lt_one
-      · rw [hd1, pow_one] at hlt1 hlt2 ⊢
-        rcases (by omega : α₁ % 2 = 0 ∨ α₁ % 2 = 1) with h0 | h1
-        · rw [h0, zero_mul]; exact two_pos
-        · rw [h1, one_mul]; exact hlt2
-    rw [Nat.mul_mod, Nat.mod_eq_of_lt hprod_lt]
-  have hp3 : ((α₁ % 2 ^ (m - 2 * h)) * (x₁ % 2 ^ (m - 2 * h)) * 2 ^ (2 * h)) % 2 ^ m =
-      (2 ^ (2 * h) * (α₁ * x₁)) % 2 ^ m := by
-    rw [hp3_mod, mul_comm _ (2 ^ (2 * h)), hm2, ← Nat.mul_mod_mul_left, Nat.mod_mod]
-  have hs1 : (α₀ * x₀ % 2 ^ m + (α₀ * x₁ % 2 ^ (m - h) * 2 ^ h)) % 2 ^ m =
-      (α₀ * x₀ + 2 ^ h * (α₀ * x₁)) % 2 ^ m := by
-    rw [Nat.add_mod, Nat.mod_mod, hp1, ← Nat.add_mod]
-  have hs2 : ((α₀ * x₀ + 2 ^ h * (α₀ * x₁)) % 2 ^ m + (α₁ * x₀ % 2 ^ (m - h) * 2 ^ h)) % 2 ^ m =
-      (α₀ * x₀ + 2 ^ h * (α₀ * x₁) + 2 ^ h * (α₁ * x₀)) % 2 ^ m := by
-    rw [Nat.add_mod, Nat.mod_mod, hp2, ← Nat.add_mod]
-  have hs3 : ((α₀ * x₀ + 2 ^ h * (α₀ * x₁) + 2 ^ h * (α₁ * x₀)) % 2 ^ m +
-      (α₁ % 2 ^ (m - 2 * h) * (x₁ % 2 ^ (m - 2 * h)) * 2 ^ (2 * h))) % 2 ^ m =
-      (α₀ * x₀ + 2 ^ h * (α₀ * x₁) + 2 ^ h * (α₁ * x₀) + 2 ^ (2 * h) * (α₁ * x₁)) % 2 ^ m := by
-    rw [Nat.add_mod, Nat.mod_mod, hp3, ← Nat.add_mod]
-  rw [hs1, hs2, hs3]
+    at hp₃_lt ⊢
+  have hsh (y k : ℕ) (hk : k ≤ m) : (y % 2 ^ (m - k)) * 2 ^ k = (y * 2 ^ k) % 2 ^ m := by
+    rw [← Nat.mul_mod_mul_right, ← pow_add, Nat.sub_add_cancel hk]
+  have hp₃_mod : (α / 2 ^ h % 2 ^ (m - 2 * h)) * (x' / 2 ^ h % 2 ^ (m - 2 * h)) =
+      (α / 2 ^ h * (x' / 2 ^ h)) % 2 ^ (m - 2 * h) := by
+    rw [← Nat.mod_eq_of_lt hp₃_lt, ← Nat.mul_mod]
+  rw [hsh _ h h_le, hsh _ h h_le, hp₃_mod, hsh _ (2 * h) h2_le]
+  simp only [Nat.add_mod_mod, Nat.mod_add_mod]
   congr 1
-  conv_rhs => rw [hα, hx]
+  conv_rhs => rw [← Nat.div_add_mod α (2 ^ h), ← Nat.div_add_mod x' (2 ^ h)]
   rw [two_mul, pow_add]
   ring
 
@@ -291,32 +205,20 @@ theorem halfMulMod_eq (m α x' : ℕ) :
 theorem oddMulModWord_eq {w₀ : ℕ} (hw₀ : 0 < w₀) (α x : ℕ) :
     oddMulModWord w₀ α x = (2 * α + 1) * x % 2 ^ w₀ := by
   dsimp only [oddMulModWord]
+  rw [halfMulMod_eq, Nat.and_one_is_mod]
+  simp only [Nat.and_two_pow_sub_one_eq_mod, Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq,
+    pow_one, Nat.mul_mod_mod, Nat.add_mod_mod]
   set m := w₀ - 1
-  have hm : w₀ = m + 1 := (Nat.sub_add_cancel hw₀).symm
-  have hmul_mod : α * (x % 2 ^ m) % 2 ^ m = (α * x) % 2 ^ m := by
-    rw [Nat.mul_mod, Nat.mod_mod, ← Nat.mul_mod]
-  rw [halfMulMod_eq, Nat.and_two_pow_sub_one_eq_mod x m, hmul_mod,
-    Nat.and_two_pow_sub_one_eq_mod x 1, pow_one,
-    Nat.and_two_pow_sub_one_eq_mod _ m, Nat.shiftRight_eq_div_pow x 1, pow_one,
-    Nat.shiftLeft_eq, pow_one, Nat.add_mod_mod]
-  have hx : x = x % 2 + 2 * (x / 2) := by
-    have := Nat.div_add_mod x 2
+  have hpow : 2 ^ w₀ = 2 * 2 ^ m := by rw [← pow_succ', Nat.sub_add_cancel hw₀]
+  have h1 := Nat.div_add_mod x 2
+  have h2 := Nat.div_add_mod (x / 2 + α * x) (2 ^ m)
+  have hlt : x % 2 + (x / 2 + α * x) % 2 ^ m * 2 < 2 * 2 ^ m := by
+    have := Nat.mod_lt x two_pos
+    have := Nat.mod_lt (x / 2 + α * x) (Nat.two_pow_pos m)
     omega
-  have hprod : (2 * α + 1) * x = x % 2 + 2 * (x / 2 + α * x) := by
-    calc (2 * α + 1) * x = x + 2 * (α * x) := by ring
-      _ = (x % 2 + 2 * (x / 2)) + 2 * (α * x) := by rw [← hx]
-      _ = x % 2 + 2 * (x / 2 + α * x) := by ring
-  have hpow : 2 ^ w₀ = 2 * 2 ^ m := by rw [hm, pow_succ']
-  rw [hprod, hpow]
-  have hdiv_mod := Nat.div_add_mod (x / 2 + α * x) (2 ^ m)
-  have hrem_lt : x % 2 + ((x / 2 + α * x) % 2 ^ m) * 2 < 2 * 2 ^ m := by
-    have h1 : x % 2 < 2 := Nat.mod_lt x two_pos
-    have h2 : (x / 2 + α * x) % 2 ^ m < 2 ^ m := Nat.mod_lt _ (by positivity)
-    omega
-  have heq : x % 2 + 2 * (x / 2 + α * x) =
-      (x % 2 + ((x / 2 + α * x) % 2 ^ m) * 2) + (2 * 2 ^ m) * ((x / 2 + α * x) / 2 ^ m) := by
-    linarith
-  rw [heq, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hrem_lt]
+  rw [hpow, show (2 * α + 1) * x =
+      (x % 2 + (x / 2 + α * x) % 2 ^ m * 2) + (2 * 2 ^ m) * ((x / 2 + α * x) / 2 ^ m) by linarith,
+    Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hlt]
 
 /-- Shifting `oddMulModWord w₀ α.val u.val` right by `w₀ - R` computes
 `(multiplyShiftReduced U w₀ R α u).val`. -/
@@ -350,56 +252,36 @@ theorem reducedLimbCount_pos (t : ℕ) : 0 < reducedLimbCount t := by
 
 theorem reducedHalfLimbs_mul_chunkBits (t : ℕ) :
     reducedHalfLimbs t * reducedChunkBits t = 3 ^ t := by
-  dsimp only [reducedHalfLimbs, reducedChunkBits]
-  rw [← pow_add, show min t 3 + (t - 3) = t by omega]
+  rw [reducedHalfLimbs, reducedChunkBits, ← pow_add, show min t 3 + (t - 3) = t by omega]
 
 theorem reducedLimbCount_mul_chunkBits (t : ℕ) :
     reducedLimbCount t * reducedChunkBits t = 2 * 3 ^ t := by
-  dsimp only [reducedLimbCount]
-  rw [Nat.mul_assoc, reducedHalfLimbs_mul_chunkBits]
+  rw [reducedLimbCount, Nat.mul_assoc, reducedHalfLimbs_mul_chunkBits]
 
-theorem reducedHalfLimbs_le (t : ℕ) : reducedHalfLimbs t ≤ 27 := by
-  dsimp only [reducedHalfLimbs]
-  calc 3 ^ min t 3 ≤ 3 ^ 3 := Nat.pow_le_pow_right (by decide) (Nat.min_le_right t 3)
-    _ = 27 := by decide
+theorem reducedHalfLimbs_le (t : ℕ) : reducedHalfLimbs t ≤ 27 :=
+  Nat.pow_le_pow_right (by decide) (Nat.min_le_right t 3)
 
 theorem reducedLimbCount_le (t : ℕ) : reducedLimbCount t ≤ 54 := by
-  have := reducedHalfLimbs_le t
-  dsimp only [reducedLimbCount]
-  omega
+  have := reducedHalfLimbs_le t; unfold reducedLimbCount; omega
 
 /-- A trinomial step above `3` comes from more than two target bits, so
 `2 * 3 ^ (t - 1) < B` (`two_mul_three_pow_pred_lt_of_two_lt`). -/
 private theorem two_mul_three_pow_pred_lt_reducedTargetBits {w₀ b b' : ℕ}
     (ht : ¬reducedTrinomialStep w₀ b b' ≤ 3) :
-    2 * 3 ^ (reducedTrinomialStep w₀ b b' - 1) < reducedTargetBits w₀ b b' := by
-  have hB2 : 2 < reducedTargetBits w₀ b b' := by
-    by_contra hle
-    push Not at hle
-    have ht0 : reducedTrinomialStep w₀ b b' = 0 := by
-      rw [reducedTrinomialStep, trinomialStepAux, ite_eq_left hle]
-    omega
-  exact (two_mul_three_pow_pred_lt_of_two_lt hB2).2
+    2 * 3 ^ (reducedTrinomialStep w₀ b b' - 1) < reducedTargetBits w₀ b b' :=
+  (two_mul_three_pow_pred_lt_of_two_lt <| not_le.mp fun hle =>
+    ht (by rw [reducedTrinomialStep, trinomialStepAux, ite_eq_left hle]; decide)).2
 
 /-- Whenever `w₀ ≤ w`, `b' ≤ w`, and `2 ≤ w`, `2 * reducedChunkBits (reducedTrinomialStep w₀ b b')`
 fits in a single `w`-bit word (`≤ w`) unconditionally for all `b : ℕ`. -/
 theorem two_mul_reducedChunkBits_le {w₀ b b' w : ℕ} (hw₀ : w₀ ≤ w) (hb' : b' ≤ w) (hw : 2 ≤ w) :
     2 * reducedChunkBits (reducedTrinomialStep w₀ b b') ≤ w := by
-  set B := reducedTargetBits w₀ b b'
-  set t := reducedTrinomialStep w₀ b b'
-  have hB_le : B ≤ w := by
-    dsimp only [B, reducedTargetBits]
-    omega
-  by_cases ht : t ≤ 3
-  · have hc1 : reducedChunkBits t = 1 := by
-      dsimp only [reducedChunkBits]
-      rw [Nat.sub_eq_zero_of_le ht, pow_zero]
-    omega
+  by_cases ht : reducedTrinomialStep w₀ b b' ≤ 3
+  · rw [reducedChunkBits, Nat.sub_eq_zero_of_le ht]; omega
   · have hlt := two_mul_three_pow_pred_lt_reducedTargetBits ht
-    have hpow : 3 ^ (t - 3) ≤ 3 ^ (t - 1) :=
-      Nat.pow_le_pow_right (by decide) (by omega)
-    dsimp only [reducedChunkBits]
-    change 2 * 3 ^ (t - 1) < B at hlt
+    have : reducedChunkBits (reducedTrinomialStep w₀ b b') ≤
+        3 ^ (reducedTrinomialStep w₀ b b' - 1) := Nat.pow_le_pow_right (by decide) (by omega)
+    unfold reducedTargetBits at hlt
     omega
 
 /-- Total number of bits `(2 * c) * 2 ^ (2 * c)` in the Four-Russians carryless multiplication
@@ -407,52 +289,31 @@ table for trinomial step `t`. -/
 @[expose] def reducedTableBits (t : ℕ) : ℕ :=
   (2 * reducedChunkBits t) * 2 ^ (2 * reducedChunkBits t)
 
-private theorem two_mul_le_two_pow (c : ℕ) : 2 * c ≤ 2 ^ c := by
-  induction c with
-  | zero => decide
-  | succ c ih =>
-    rcases eq_or_ne c 0 with rfl | hc
-    · decide
-    · rw [pow_succ']
-      have : 2 ≤ 2 ^ c := by
-        calc 2 = 2 ^ 1 := rfl
-          _ ≤ 2 ^ c := Nat.pow_le_pow_right two_pos (Nat.one_le_iff_ne_zero.mpr hc)
-      omega
-
 /-- Whenever `b' ≤ 3 * b`, the Four-Russians table bit count satisfies
 `reducedTableBits (reducedTrinomialStep w₀ b b') ≤ max 8 (2 ^ (b / 2)) = o(2 ^ b)`. -/
 theorem reducedTableBits_le {w₀ b b' : ℕ} (hb' : b' ≤ 3 * b) :
     reducedTableBits (reducedTrinomialStep w₀ b b') ≤ max 8 (2 ^ (b / 2)) := by
-  set B := reducedTargetBits w₀ b b'
   set t := reducedTrinomialStep w₀ b b'
   by_cases ht : t ≤ 3
-  · have hc1 : reducedChunkBits t = 1 := by
-      dsimp only [reducedChunkBits]
-      rw [Nat.sub_eq_zero_of_le ht, pow_zero]
-    dsimp only [reducedTableBits]
-    rw [hc1]
+  · rw [reducedTableBits, reducedChunkBits, Nat.sub_eq_zero_of_le ht]
     exact le_max_left 8 _
   · have hlt := two_mul_three_pow_pred_lt_reducedTargetBits ht
-    change 2 * 3 ^ (t - 1) < B at hlt
-    have hpow9 : 3 ^ (t - 1) = 9 * reducedChunkBits t := by
-      dsimp only [reducedChunkBits]
-      rw [show t - 1 = (t - 3) + 2 by omega, pow_add]
-      ring
-    have h18 : 18 * reducedChunkBits t < B := by linarith
-    have hB_le : B ≤ max (3 * b) 1 := by
-      dsimp only [B, reducedTargetBits]
-      omega
+    change 2 * 3 ^ (t - 1) < reducedTargetBits w₀ b b' at hlt
+    have h9 : 3 ^ (t - 1) = 9 * reducedChunkBits t := by
+      rw [reducedChunkBits, show t - 1 = 2 + (t - 3) by omega, pow_add]; rfl
     have hc_pos := reducedChunkBits_pos t
-    have h3c : 3 * reducedChunkBits t ≤ b / 2 := by omega
-    have htb : reducedTableBits t ≤ 2 ^ (3 * reducedChunkBits t) := by
-      dsimp only [reducedTableBits]
-      calc (2 * reducedChunkBits t) * 2 ^ (2 * reducedChunkBits t)
-          ≤ 2 ^ reducedChunkBits t * 2 ^ (2 * reducedChunkBits t) :=
-            Nat.mul_le_mul_right _ (two_mul_le_two_pow (reducedChunkBits t))
-        _ = 2 ^ (3 * reducedChunkBits t) := by
-            rw [← pow_add, show reducedChunkBits t + 2 * reducedChunkBits t =
-              3 * reducedChunkBits t by ring]
-    exact (htb.trans (Nat.pow_le_pow_right two_pos h3c)).trans (le_max_right 8 _)
+    have h3c : 3 * reducedChunkBits t ≤ b / 2 := by unfold reducedTargetBits at hlt; omega
+    have h2c : 2 * reducedChunkBits t ≤ 2 ^ reducedChunkBits t := by
+      rcases reducedChunkBits t with _ | c
+      · decide
+      · have := @Nat.lt_two_pow_self c; rw [pow_succ']; omega
+    refine (le_trans ?_ (Nat.pow_le_pow_right two_pos h3c)).trans (le_max_right 8 _)
+    calc reducedTableBits t
+        ≤ 2 ^ reducedChunkBits t * 2 ^ (2 * reducedChunkBits t) :=
+          Nat.mul_le_mul_right _ h2c
+      _ = 2 ^ (3 * reducedChunkBits t) := by
+          rw [← pow_add, show reducedChunkBits t + 2 * reducedChunkBits t =
+            3 * reducedChunkBits t by ring]
 
 /-- Log₂ of the number of `2 * c`-bit entries packed into each `w`-bit word:
 `p = min (2 * c) ⌊log₂ (w / (2 * c))⌋`. -/
@@ -469,16 +330,13 @@ theorem reducedPackShift_le (t w : ℕ) :
 
 theorem two_pow_reducedPackShift_mul_le {t w : ℕ} (hc : 2 * reducedChunkBits t ≤ w) :
     2 ^ reducedPackShift t w * (2 * reducedChunkBits t) ≤ w := by
-  have hc_pos : 0 < 2 * reducedChunkBits t := by
-    have := reducedChunkBits_pos t; omega
-  have hdiv_pos : 0 < w / (2 * reducedChunkBits t) := Nat.div_pos hc hc_pos
-  have hp_le : reducedPackShift t w ≤ Nat.log 2 (w / (2 * reducedChunkBits t)) :=
-    Nat.min_le_right _ _
+  have hdiv_pos : 0 < w / (2 * reducedChunkBits t) :=
+    Nat.div_pos hc (by have := reducedChunkBits_pos t; omega)
   calc 2 ^ reducedPackShift t w * (2 * reducedChunkBits t)
       ≤ 2 ^ Nat.log 2 (w / (2 * reducedChunkBits t)) * (2 * reducedChunkBits t) :=
-        Nat.mul_le_mul_right _ (Nat.pow_le_pow_right two_pos hp_le)
+        Nat.mul_le_mul_right _ (Nat.pow_le_pow_right two_pos (Nat.min_le_right _ _))
     _ ≤ (w / (2 * reducedChunkBits t)) * (2 * reducedChunkBits t) :=
-        Nat.mul_le_mul_right _ (Nat.pow_log_le_self 2 (by omega))
+        Nat.mul_le_mul_right _ (Nat.pow_log_le_self 2 hdiv_pos.ne')
     _ ≤ w := Nat.div_mul_le_self w _
 
 /-- The bit-packed Four-Russians table uses at most `2 * reducedTableBits t / w + 1` words. -/
@@ -486,40 +344,26 @@ theorem reducedTableWords_le {t w : ℕ} (hc : 2 * reducedChunkBits t ≤ w) :
     reducedTableWords t w ≤ 2 * reducedTableBits t / w + 1 := by
   set c2 := 2 * reducedChunkBits t
   have hc2_pos : 0 < c2 := by have := reducedChunkBits_pos t; omega
-  have hw_pos : 0 < w := lt_of_lt_of_le hc2_pos hc
   by_cases hle : c2 ≤ Nat.log 2 (w / c2)
-  · have hp : reducedPackShift t w = c2 := Nat.min_eq_left hle
-    dsimp only [reducedTableWords]
-    rw [hp, Nat.sub_self, pow_zero]
+  · rw [reducedTableWords, reducedPackShift, Nat.min_eq_left hle, Nat.sub_self, pow_zero]
     exact Nat.le_add_left 1 _
-  · push Not at hle
-    have hp : reducedPackShift t w = Nat.log 2 (w / c2) := Nat.min_eq_right (le_of_lt hle)
-    have hp_le_c2 : reducedPackShift t w ≤ c2 := reducedPackShift_le t w
-    have hlt_pow : w / c2 < 2 ^ (reducedPackShift t w + 1) := by
-      rw [hp]
-      exact Nat.lt_pow_succ_log_self one_lt_two (w / c2)
-    have hw_lt : w ≤ 2 * c2 * 2 ^ reducedPackShift t w := by
-      have h1 : w < (w / c2 + 1) * c2 := by
-        have := Nat.div_add_mod w c2
-        have := Nat.mod_lt w hc2_pos
-        linarith
-      have h2 : w / c2 + 1 ≤ 2 * 2 ^ reducedPackShift t w := by
-        rw [pow_succ'] at hlt_pow
-        omega
-      calc w ≤ (w / c2 + 1) * c2 := le_of_lt h1
-        _ ≤ (2 * 2 ^ reducedPackShift t w) * c2 := Nat.mul_le_mul_right c2 h2
+  · have hp : reducedPackShift t w = Nat.log 2 (w / c2) := Nat.min_eq_right (not_le.mp hle).le
+    have hlt_pow : w / c2 < 2 * 2 ^ reducedPackShift t w := by
+      simpa only [hp, pow_succ'] using Nat.lt_pow_succ_log_self one_lt_two (w / c2)
+    have hw_le : w ≤ 2 * c2 * 2 ^ reducedPackShift t w :=
+      calc w = c2 * (w / c2) + w % c2 := (Nat.div_add_mod w c2).symm
+        _ ≤ c2 * (w / c2) + c2 := Nat.add_le_add_left (Nat.mod_lt w hc2_pos).le _
+        _ = c2 * (w / c2 + 1) := by ring
+        _ ≤ c2 * (2 * 2 ^ reducedPackShift t w) := Nat.mul_le_mul_left c2 hlt_pow
         _ = 2 * c2 * 2 ^ reducedPackShift t w := by ring
     have hmul : w * reducedTableWords t w ≤ 2 * reducedTableBits t := by
-      dsimp only [reducedTableWords, reducedTableBits]
       calc w * 2 ^ (c2 - reducedPackShift t w)
-          ≤ (2 * c2 * 2 ^ reducedPackShift t w) * 2 ^ (c2 - reducedPackShift t w) :=
-            Nat.mul_le_mul_right _ hw_lt
+          ≤ (2 * c2 * 2 ^ reducedPackShift t w) * 2 ^ (c2 - reducedPackShift t w) := by gcongr
         _ = 2 * (c2 * (2 ^ reducedPackShift t w * 2 ^ (c2 - reducedPackShift t w))) := by ring
-        _ = 2 * (c2 * 2 ^ c2) := by
-            rw [← pow_add, Nat.add_sub_of_le hp_le_c2]
-    have hdiv : reducedTableWords t w ≤ 2 * reducedTableBits t / w :=
-      Nat.le_div_iff_mul_le hw_pos |>.mpr (by linarith)
-    exact hdiv.trans (Nat.le_succ _)
+        _ = 2 * reducedTableBits t := by
+            rw [← pow_add, Nat.add_sub_of_le (reducedPackShift_le t w)]; rfl
+    exact ((Nat.le_div_iff_mul_le (lt_of_lt_of_le hc2_pos hc)).mpr (by linarith)).trans
+      (Nat.le_succ _)
 
 
 /-! ## Section 3: Limb extraction, packing, and 4-block trinomial reduction on limbs -/
@@ -528,47 +372,38 @@ theorem reducedTableWords_le {t w : ℕ} (hc : 2 * reducedChunkBits t ≤ w) :
 @[expose] def getLimb (c a m : ℕ) : ℕ :=
   (a >>> (m * c)) &&& (2 ^ c - 1)
 
-theorem getLimb_lt (c a m : ℕ) : getLimb c a m < 2 ^ c := by
-  dsimp only [getLimb]
-  rw [Nat.and_two_pow_sub_one_eq_mod]
-  exact Nat.mod_lt _ (Nat.two_pow_pos c)
+/-- Above bit `m * c`, the `m`-th `c`-bit limb of `a < 2 ^ (m * c)` is `0`. -/
+theorem getLimb_eq_zero_of_lt {c a m : ℕ} (ha : a < 2 ^ (m * c)) :
+    getLimb c a m = 0 := by
+  rw [getLimb, Nat.shiftRight_eq_div_pow, Nat.div_eq_of_lt ha, Nat.zero_and]
+
+theorem getLimb_lt (c a m : ℕ) : getLimb c a m < 2 ^ c :=
+  Nat.and_lt_two_pow _ (Nat.sub_lt (Nat.two_pow_pos c) one_pos)
 
 theorem getLimb_zero (c m : ℕ) : getLimb c 0 m = 0 := by
   simp [getLimb]
 
 theorem testBit_getLimb (c a m k : ℕ) :
     (getLimb c a m).testBit k = (decide (k < c) && a.testBit (m * c + k)) := by
-  dsimp only [getLimb]
-  rw [Nat.testBit_and, Nat.testBit_two_pow_sub_one, Nat.testBit_shiftRight, Bool.and_comm]
+  rw [getLimb, Nat.testBit_and, Nat.testBit_two_pow_sub_one, Nat.testBit_shiftRight, Bool.and_comm]
 
 theorem getLimb_xor (c a b m : ℕ) :
     getLimb c (a ^^^ b) m = getLimb c a m ^^^ getLimb c b m := by
-  apply Nat.eq_of_testBit_eq
-  intro k
-  rw [Nat.testBit_xor, testBit_getLimb, testBit_getLimb, testBit_getLimb, Nat.testBit_xor]
-  cases decide (k < c) <;> simp
+  simp only [getLimb, Nat.shiftRight_xor_distrib, Nat.and_xor_distrib_right]
 
 theorem getLimb_and_low {c a m s : ℕ} (hm : m < s) :
     getLimb c (a &&& (2 ^ (s * c) - 1)) m = getLimb c a m := by
-  apply Nat.eq_of_testBit_eq
-  intro k
-  rw [testBit_getLimb, testBit_getLimb, Nat.testBit_and, Nat.testBit_two_pow_sub_one]
+  apply Nat.eq_of_testBit_eq; intro k
   by_cases hk : k < c
   · have hlt : m * c + k < s * c := by
-      calc m * c + k < m * c + c := Nat.add_lt_add_left hk _
-        _ = (m + 1) * c := by ring
-        _ ≤ s * c := Nat.mul_le_mul_right c hm
-    simp [hk, hlt]
-  · simp [hk]
+      simpa [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt hm hk
+    simp [testBit_getLimb, hk, hlt]
+  · simp [testBit_getLimb, hk]
 
 theorem getLimb_and_high (c a : ℕ) {s m : ℕ} (hm : s ≤ m) :
-    getLimb c (a &&& (2 ^ (s * c) - 1)) m = 0 := by
-  apply Nat.eq_of_testBit_eq
-  intro k
-  rw [testBit_getLimb, Nat.testBit_and, Nat.testBit_two_pow_sub_one, Nat.zero_testBit]
-  have hle : s * c ≤ m * c := Nat.mul_le_mul_right c hm
-  have hnot : ¬ (m * c + k < s * c) := by omega
-  simp [hnot]
+    getLimb c (a &&& (2 ^ (s * c) - 1)) m = 0 :=
+  getLimb_eq_zero_of_lt <| (Nat.and_lt_two_pow _ (Nat.sub_lt (Nat.two_pow_pos _) one_pos)).trans_le
+    (Nat.pow_le_pow_right two_pos (Nat.mul_le_mul_right c hm))
 
 theorem getLimb_and_self (c a s : ℕ) :
     getLimb c (a &&& (2 ^ (s * c) - 1)) s = 0 :=
@@ -576,89 +411,39 @@ theorem getLimb_and_self (c a s : ℕ) :
 
 theorem getLimb_shiftRight_mul (c a s m : ℕ) :
     getLimb c (a >>> (s * c)) m = getLimb c a (s + m) := by
-  dsimp only [getLimb]
-  rw [← Nat.shiftRight_add, ← Nat.add_mul]
+  rw [getLimb, getLimb, ← Nat.shiftRight_add, ← Nat.add_mul]
 
 theorem getLimb_shiftLeft_mul_low (c a : ℕ) {s m : ℕ} (hm : m < s) :
     getLimb c (a <<< (s * c)) m = 0 := by
-  apply Nat.eq_of_testBit_eq
-  intro k
-  rw [testBit_getLimb, Nat.testBit_shiftLeft, Nat.zero_testBit]
+  apply Nat.eq_of_testBit_eq; intro k
   by_cases hk : k < c
   · have hlt : m * c + k < s * c := by
-      calc m * c + k < m * c + c := Nat.add_lt_add_left hk _
-        _ = (m + 1) * c := by ring
-        _ ≤ s * c := Nat.mul_le_mul_right c hm
-    have hnot : ¬ (m * c + k ≥ s * c) := not_le.mpr hlt
-    simp [hk, hnot]
-  · simp [hk]
+      simpa [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt hm hk
+    simp [testBit_getLimb, Nat.testBit_shiftLeft, hk, not_le.mpr hlt]
+  · simp [testBit_getLimb, hk]
 
 theorem getLimb_shiftLeft_mul_add (c a s m : ℕ) :
     getLimb c (a <<< (s * c)) (s + m) = getLimb c a m := by
-  apply Nat.eq_of_testBit_eq
-  intro k
-  rw [testBit_getLimb, testBit_getLimb, Nat.testBit_shiftLeft]
-  have hge : (s + m) * c + k ≥ s * c := by rw [Nat.add_mul]; omega
-  have hsub : (s + m) * c + k - s * c = m * c + k := by rw [Nat.add_mul]; omega
-  simp [hge, hsub]
+  simp only [getLimb, Nat.shiftLeft_eq, Nat.shiftRight_eq_div_pow, Nat.add_mul, pow_add,
+    mul_comm (2 ^ (s * c)), Nat.mul_div_mul_right _ _ (Nat.two_pow_pos (s * c))]
 
 theorem getLimb_xor_shiftLeft_self {c a val s : ℕ}
     (ha : a < 2 ^ (s * c)) (hval : val < 2 ^ c) :
     getLimb c (a ^^^ (val <<< (s * c))) s = val := by
-  apply Nat.eq_of_testBit_eq
-  intro k
-  rw [testBit_getLimb, Nat.testBit_xor, Nat.testBit_shiftLeft]
-  by_cases hk : k < c
-  · have ha_false : a.testBit (s * c + k) = false :=
-      Nat.testBit_lt_two_pow (lt_of_lt_of_le ha (Nat.pow_le_pow_right two_pos (by omega)))
-    have hge : s * c + k ≥ s * c := Nat.le_add_right _ _
-    have hsub : s * c + k - s * c = k := Nat.add_sub_cancel_left _ _
-    simp [hk, ha_false, hge, hsub]
-  · have hval_false : val.testBit k = false :=
-      Nat.testBit_lt_two_pow (lt_of_lt_of_le hval (Nat.pow_le_pow_right two_pos (by omega)))
-    simp [hk, hval_false]
+  have hsh := getLimb_shiftLeft_mul_add c val s 0
+  rw [Nat.add_zero] at hsh
+  rw [getLimb_xor, getLimb_eq_zero_of_lt ha, Nat.zero_xor, hsh, getLimb,
+    Nat.zero_mul, Nat.shiftRight_zero, Nat.and_two_pow_sub_one_of_lt_two_pow hval]
 
 theorem getLimb_xor_shiftLeft_of_ne {c a val s m : ℕ}
     (hval : val < 2 ^ c) (hne : m ≠ s) :
     getLimb c (a ^^^ (val <<< (s * c))) m = getLimb c a m := by
-  apply Nat.eq_of_testBit_eq
-  intro k
-  rw [testBit_getLimb, testBit_getLimb, Nat.testBit_xor, Nat.testBit_shiftLeft]
-  by_cases hk : k < c
-  · rcases lt_or_gt_of_ne hne with hlt | hgt
-    · have hlt_sc : m * c + k < s * c := by
-        calc m * c + k < m * c + c := Nat.add_lt_add_left hk _
-          _ = (m + 1) * c := by ring
-          _ ≤ s * c := Nat.mul_le_mul_right c hlt
-      have hnot_ge : ¬ (m * c + k ≥ s * c) := not_le.mpr hlt_sc
-      simp [hk, hnot_ge]
-    · have hge_sc : m * c + k ≥ s * c := by
-        have : s * c ≤ m * c := Nat.mul_le_mul_right c (le_of_lt hgt)
-        omega
-      have hsub_ge : c ≤ m * c + k - s * c := by
-        have : (s + 1) * c ≤ m * c := Nat.mul_le_mul_right c hgt
-        have : s * c + c ≤ m * c := by linarith
-        omega
-      have hval_false : val.testBit (m * c + k - s * c) = false :=
-        Nat.testBit_lt_two_pow (lt_of_lt_of_le hval (Nat.pow_le_pow_right two_pos hsub_ge))
-      simp [hk, hge_sc, hval_false]
-  · simp [hk]
-
-/-- Bitwise decomposition of `idx < 2 ^ (2 * c)` into word index `idx >>> p < 2 ^ (2 * c - p)` and
-within-word entry index `idx &&& (2 ^ p - 1) < 2 ^ p` for `p = reducedPackShift t w`. -/
-theorem reducedPackIndex_props {t w idx : ℕ} (hidx : idx < 2 ^ (2 * reducedChunkBits t)) :
-    let p := reducedPackShift t w
-    idx >>> p < reducedTableWords t w ∧
-    idx &&& (2 ^ p - 1) < 2 ^ p := by
-  intro p
-  have hp_le : p ≤ 2 * reducedChunkBits t := reducedPackShift_le t w
-  refine ⟨?_, ?_⟩
-  · dsimp only [reducedTableWords]
-    rw [Nat.shiftRight_eq_div_pow]
-    apply Nat.div_lt_of_lt_mul
-    rwa [← pow_add, Nat.add_sub_of_le hp_le]
-  · rw [Nat.and_two_pow_sub_one_eq_mod]
-    exact Nat.mod_lt idx (Nat.two_pow_pos p)
+  rw [getLimb_xor, show getLimb c (val <<< (s * c)) m = 0 from ?_, Nat.xor_zero]
+  rcases lt_or_gt_of_ne hne with hlt | hgt
+  · exact getLimb_shiftLeft_mul_low c val hlt
+  · rw [show m = s + (m - s) by omega, getLimb_shiftLeft_mul_add]
+    exact getLimb_eq_zero_of_lt
+      (hval.trans_le (Nat.pow_le_pow_right two_pos (Nat.le_mul_of_pos_left c (by omega))))
 
 /-- Pack `n` limbs `f 0, …, f (n - 1)` of `c` bits each into a single natural number
 `< 2 ^ (n * c)`. -/
@@ -671,161 +456,99 @@ theorem packLimbs_congr {c n : ℕ} {f g : ℕ → ℕ} (h : ∀ i < n, f i = g 
   induction n with
   | zero => rfl
   | succ n ih =>
-    dsimp only [packLimbs]
-    rw [ih (fun i hi => h i (Nat.lt_succ_of_lt hi)), h n (Nat.lt_succ_self n)]
+    rw [packLimbs, packLimbs, ih (fun i hi => h i (Nat.lt_succ_of_lt hi)), h n (Nat.lt_succ_self n)]
 
 theorem packLimbs_lt (c n : ℕ) (f : ℕ → ℕ) :
     packLimbs c n f < 2 ^ (n * c) := by
   induction n with
   | zero => simp [packLimbs]
   | succ n ih =>
-    dsimp only [packLimbs]
-    have h1 : packLimbs c n f < 2 ^ ((n + 1) * c) :=
-      lt_of_lt_of_le ih (Nat.pow_le_pow_right two_pos (by rw [Nat.succ_mul]; omega))
-    have h2 : (f n &&& (2 ^ c - 1)) <<< (n * c) < 2 ^ ((n + 1) * c) := by
-      have hand : f n &&& (2 ^ c - 1) < 2 ^ c := by
-        rw [Nat.and_two_pow_sub_one_eq_mod]
-        exact Nat.mod_lt _ (Nat.two_pow_pos c)
-      rw [Nat.shiftLeft_eq, Nat.succ_mul, Nat.add_comm (n * c) c, pow_add]
-      exact Nat.mul_lt_mul_of_pos_right hand (Nat.two_pow_pos (n * c))
-    exact Nat.xor_lt_two_pow h1 h2
+    refine Nat.xor_lt_two_pow (ih.trans_le (Nat.pow_le_pow_right two_pos
+      (Nat.mul_le_mul_right c (Nat.le_succ n)))) ?_
+    exact (Nat.shiftLeft_lt (Nat.and_lt_two_pow _
+      (Nat.sub_lt (Nat.two_pow_pos c) one_pos))).trans_eq (by rw [Nat.add_comm c, ← Nat.succ_mul])
 
 theorem getLimb_packLimbs (c : ℕ) {n m : ℕ} (f : ℕ → ℕ) (hm : m < n) :
     getLimb c (packLimbs c n f) m = f m &&& (2 ^ c - 1) := by
   induction n with
   | zero => omega
   | succ n ih =>
-    dsimp only [packLimbs]
-    have hand_lt : f n &&& (2 ^ c - 1) < 2 ^ c := by
-      rw [Nat.and_two_pow_sub_one_eq_mod]
-      exact Nat.mod_lt _ (Nat.two_pow_pos c)
+    have hand_lt := Nat.and_lt_two_pow (f n) (Nat.sub_lt (Nat.two_pow_pos c) one_pos)
     rcases eq_or_ne m n with rfl | hne
     · exact getLimb_xor_shiftLeft_self (packLimbs_lt c m f) hand_lt
-    · rw [getLimb_xor_shiftLeft_of_ne hand_lt hne]
+    · rw [packLimbs, getLimb_xor_shiftLeft_of_ne hand_lt hne]
       exact ih (by omega)
 
 theorem getLimb_packLimbs_of_lt (c : ℕ) {n m : ℕ} {f : ℕ → ℕ}
     (hm : m < n) (hf : f m < 2 ^ c) :
     getLimb c (packLimbs c n f) m = f m := by
-  rw [getLimb_packLimbs c f hm, Nat.and_two_pow_sub_one_eq_mod, Nat.mod_eq_of_lt hf]
+  rw [getLimb_packLimbs c f hm, Nat.and_two_pow_sub_one_of_lt_two_pow hf]
 
 theorem getLimb_packLimbs_of_ge (c : ℕ) {n m : ℕ} (f : ℕ → ℕ) (hm : n ≤ m) :
-    getLimb c (packLimbs c n f) m = 0 := by
-  apply Nat.eq_of_testBit_eq
-  intro k
-  rw [testBit_getLimb, Nat.zero_testBit]
-  have hlt : packLimbs c n f < 2 ^ (m * c + k) :=
-    lt_of_lt_of_le (packLimbs_lt c n f) (Nat.pow_le_pow_right two_pos (by
-      have : n * c ≤ m * c := Nat.mul_le_mul_right c hm
-      omega))
-  rw [Nat.testBit_lt_two_pow hlt, Bool.and_false]
+    getLimb c (packLimbs c n f) m = 0 :=
+  getLimb_eq_zero_of_lt <| (packLimbs_lt c n f).trans_le
+    (Nat.pow_le_pow_right two_pos (Nat.mul_le_mul_right c hm))
 
 theorem eq_of_getLimb_eq {c : ℕ} (hc : 0 < c) {a b : ℕ}
     (h : ∀ m, getLimb c a m = getLimb c b m) : a = b := by
-  apply Nat.eq_of_testBit_eq
-  intro idx
-  have hm := congrArg (fun x => x.testBit (idx % c)) (h (idx / c))
-  have hmod : idx % c < c := Nat.mod_lt idx hc
-  have hdiv : (idx / c) * c + idx % c = idx := by
-    rw [Nat.mul_comm]
-    exact Nat.div_add_mod idx c
-  simpa only [testBit_getLimb, hmod, decide_true, Bool.true_and, hdiv] using hm
+  apply Nat.eq_of_testBit_eq; intro idx
+  simpa only [testBit_getLimb, Nat.mod_lt idx hc, decide_true, Bool.true_and,
+    Nat.mul_comm (idx / c) c, Nat.div_add_mod] using
+    congrArg (·.testBit (idx % c)) (h (idx / c))
 
 theorem packLimbs_getLimb {c : ℕ} (hc : 0 < c) (n : ℕ) {a : ℕ} (ha : a < 2 ^ (n * c)) :
     packLimbs c n (getLimb c a) = a := by
-  apply eq_of_getLimb_eq hc
-  intro m
+  refine eq_of_getLimb_eq hc fun m => ?_
   by_cases hm : m < n
   · exact getLimb_packLimbs_of_lt c hm (getLimb_lt c a m)
-  · push Not at hm
-    rw [getLimb_packLimbs_of_ge c _ hm]
-    apply (Nat.eq_of_testBit_eq fun k => ?_).symm
-    rw [testBit_getLimb, Nat.zero_testBit]
-    have hlt : a < 2 ^ (m * c + k) :=
-      lt_of_lt_of_le ha (Nat.pow_le_pow_right two_pos (by
-        have : n * c ≤ m * c := Nat.mul_le_mul_right c hm
-        omega))
-    rw [Nat.testBit_lt_two_pow hlt, Bool.and_false]
+  · rw [getLimb_packLimbs_of_ge c _ (not_lt.mp hm), getLimb_eq_zero_of_lt
+      (ha.trans_le (Nat.pow_le_pow_right two_pos (Nat.mul_le_mul_right c (not_lt.mp hm))))]
 
-theorem packLimbs_xor {c : ℕ} (hc : 0 < c) (n : ℕ) (f g : ℕ → ℕ) :
+theorem packLimbs_xor {c : ℕ} (n : ℕ) (f g : ℕ → ℕ) :
     packLimbs c n (fun i => f i ^^^ g i) = packLimbs c n f ^^^ packLimbs c n g := by
-  apply eq_of_getLimb_eq hc
-  intro m
-  rw [getLimb_xor]
-  by_cases hm : m < n
-  · rw [getLimb_packLimbs c _ hm, getLimb_packLimbs c f hm, getLimb_packLimbs c g hm]
-    apply Nat.eq_of_testBit_eq
-    intro k
-    rw [Nat.testBit_and, Nat.testBit_xor, Nat.testBit_xor, Nat.testBit_and, Nat.testBit_and]
-    cases (2 ^ c - 1).testBit k <;> simp
-  · push Not at hm
-    rw [getLimb_packLimbs_of_ge c _ hm, getLimb_packLimbs_of_ge c f hm,
-      getLimb_packLimbs_of_ge c g hm, Nat.xor_zero]
+  induction n with
+  | zero => simp [packLimbs]
+  | succ n ih =>
+    simp only [packLimbs, ih, Nat.and_xor_distrib_right, Nat.shiftLeft_xor_distrib]
+    ac_rfl
 
 theorem getLimb_zero_of_lt {c val : ℕ} (hval : val < 2 ^ c) :
     getLimb c val 0 = val := by
-  dsimp only [getLimb]
-  rw [Nat.zero_mul, Nat.shiftRight_zero, Nat.and_two_pow_sub_one_eq_mod, Nat.mod_eq_of_lt hval]
+  rw [getLimb, Nat.zero_mul, Nat.shiftRight_zero, Nat.and_two_pow_sub_one_of_lt_two_pow hval]
 
-theorem packLimbs_update_xor {c : ℕ} (hc : 0 < c) {n i v : ℕ} (f : ℕ → ℕ)
+theorem packLimbs_update_xor {c n i v : ℕ} (f : ℕ → ℕ)
     (hi : i < n) (hv : v < 2 ^ c) :
     packLimbs c n (Function.update f i (f i ^^^ v)) =
       packLimbs c n f ^^^ (v <<< (i * c)) := by
-  apply eq_of_getLimb_eq hc
-  intro m
-  by_cases hm : m < n
-  · rw [getLimb_packLimbs c _ hm]
-    rcases eq_or_ne m i with rfl | hne
-    · rw [Function.update_self, getLimb_xor, getLimb_packLimbs c f hm]
-      have hsh : getLimb c (v <<< (m * c)) m = v := by
-        simpa only [Nat.add_zero] using
-          (getLimb_shiftLeft_mul_add c v m 0).trans (getLimb_zero_of_lt hv)
-      rw [hsh]
-      apply Nat.eq_of_testBit_eq
-      intro k
-      rw [Nat.testBit_and, Nat.testBit_xor, Nat.testBit_xor, Nat.testBit_and,
-        Nat.testBit_two_pow_sub_one]
-      by_cases hk : k < c
-      · simp [hk]
-      · have hv_false : v.testBit k = false :=
-          Nat.testBit_lt_two_pow (lt_of_lt_of_le hv (Nat.pow_le_pow_right two_pos (by omega)))
-        simp [hk, hv_false]
-    · rw [Function.update_of_ne hne, getLimb_xor_shiftLeft_of_ne hv hne,
-        getLimb_packLimbs c f hm]
-  · push Not at hm
-    have hne : m ≠ i := by omega
-    rw [getLimb_packLimbs_of_ge c _ hm, getLimb_xor_shiftLeft_of_ne hv hne,
-      getLimb_packLimbs_of_ge c f hm]
+  induction n with
+  | zero => omega
+  | succ n ih =>
+    dsimp only [packLimbs]
+    rcases eq_or_lt_of_le (Nat.lt_succ_iff.mp hi) with rfl | hlt
+    · rw [packLimbs_congr fun j hj => Function.update_of_ne hj.ne _ f, Function.update_self,
+        Nat.and_xor_distrib_right, Nat.and_two_pow_sub_one_of_lt_two_pow hv,
+        Nat.shiftLeft_xor_distrib, Nat.xor_assoc]
+    · rw [Function.update_of_ne hlt.ne', ih hlt]
+      ac_rfl
 
 /-- Updating two consecutive limbs `i` and `i + 1` of `f` by XORing `v &&& (2 ^ c - 1)` and
 `v >>> c` (where `v < 2 ^ (2 * c)`) XORs `packLimbs c n f` with `v <<< (i * c)`. -/
-theorem packLimbs_update_pair {c : ℕ} (hc : 0 < c) {n i v : ℕ} (f : ℕ → ℕ)
+theorem packLimbs_update_pair {c n i v : ℕ} (f : ℕ → ℕ)
     (hi : i + 1 < n) (hv : v < 2 ^ (2 * c)) :
     packLimbs c n
       (Function.update (Function.update f i (f i ^^^ (v &&& (2 ^ c - 1))))
         (i + 1) (f (i + 1) ^^^ (v >>> c))) =
       packLimbs c n f ^^^ (v <<< (i * c)) := by
-  have hv_lo : v &&& (2 ^ c - 1) < 2 ^ c := by
-    rw [Nat.and_two_pow_sub_one_eq_mod]
-    exact Nat.mod_lt _ (Nat.two_pow_pos c)
+  have hv_lo := Nat.and_lt_two_pow v (Nat.sub_lt (Nat.two_pow_pos c) one_pos)
   have hv_hi : v >>> c < 2 ^ c := by
-    rw [Nat.shiftRight_eq_div_pow]
-    apply Nat.div_lt_of_lt_mul
-    rwa [← pow_add, ← two_mul]
+    rw [Nat.shiftRight_eq_div_pow]; exact Nat.div_lt_of_lt_mul (by rwa [← pow_add, ← two_mul])
   let g := Function.update f i (f i ^^^ (v &&& (2 ^ c - 1)))
-  have hg : f (i + 1) = g (i + 1) :=
-    (Function.update_of_ne (by omega : i + 1 ≠ i) _ f).symm
-  have hupd : Function.update g (i + 1) (f (i + 1) ^^^ (v >>> c)) =
-      Function.update g (i + 1) (g (i + 1) ^^^ (v >>> c)) := by
-    rw [hg]
-  rw [show Function.update (Function.update f i (f i ^^^ (v &&& (2 ^ c - 1))))
-      (i + 1) (f (i + 1) ^^^ (v >>> c)) =
-      Function.update g (i + 1) (g (i + 1) ^^^ (v >>> c)) from hupd,
-    packLimbs_update_xor hc g hi hv_hi,
-    packLimbs_update_xor hc f (Nat.lt_of_succ_lt hi) hv_lo, Nat.xor_assoc]
+  have hupd := packLimbs_update_xor g hi hv_hi
+  rw [show g (i + 1) = f (i + 1) from Function.update_of_ne (Nat.succ_ne_self i) _ f] at hupd
+  rw [hupd, packLimbs_update_xor f (Nat.lt_of_succ_lt hi) hv_lo, Nat.xor_assoc]
   congr 1
-  rw [Nat.succ_mul, Nat.add_comm (i * c) c, Nat.shiftLeft_add _ c (i * c),
-    ← Nat.shiftLeft_xor_distrib, and_xor_shiftRight_shiftLeft]
+  rw [Nat.succ_mul, Nat.add_comm (i * c) c, Nat.shiftLeft_add, ← Nat.shiftLeft_xor_distrib,
+    and_xor_shiftRight_shiftLeft]
 
 /-- Low-half limb formula (`m < L₀`) for `reduceTrinomialCode t P`. -/
 theorem getLimb_reduceTrinomialCode_low (t P : ℕ) {m : ℕ} (hm : m < reducedHalfLimbs t) :
@@ -834,15 +557,10 @@ theorem getLimb_reduceTrinomialCode_low (t P : ℕ) {m : ℕ} (hm : m < reducedH
     getLimb c (reduceTrinomialCode t P) m =
       (getLimb c P m ^^^ getLimb c P (3 * L₀ + m)) ^^^ getLimb c P (2 * L₀ + m) := by
   intro c L₀
-  have h1 : 3 ^ t = L₀ * c := (reducedHalfLimbs_mul_chunkBits t).symm
-  have h2 : 2 * 3 ^ t = (2 * L₀) * c := by rw [h1]; ring
-  have h3 : 3 * 3 ^ t = (3 * L₀) * c := by rw [h1]; ring
-  dsimp only [reduceTrinomialCode]
-  rw [h3, h2, h1, getLimb_xor, getLimb_xor, getLimb_xor,
-    getLimb_and_low (by omega : m < 2 * L₀),
-    getLimb_shiftRight_mul,
-    getLimb_and_low hm,
-    getLimb_shiftRight_mul,
+  simp only [reduceTrinomialCode, ← reducedHalfLimbs_mul_chunkBits, ← Nat.mul_assoc,
+    show reducedChunkBits t = c from rfl, show reducedHalfLimbs t = L₀ from rfl,
+    getLimb_xor, getLimb_shiftRight_mul]
+  rw [getLimb_and_low (by omega : m < 2 * L₀), getLimb_and_low hm, getLimb_shiftRight_mul,
     getLimb_shiftLeft_mul_low c _ hm, Nat.xor_zero]
 
 /-- High-half limb formula (`m < L₀`, limb index `L₀ + m`) for `reduceTrinomialCode t P`. -/
@@ -852,18 +570,12 @@ theorem getLimb_reduceTrinomialCode_high (t P : ℕ) {m : ℕ} (hm : m < reduced
     getLimb c (reduceTrinomialCode t P) (L₀ + m) =
       (getLimb c P (L₀ + m) ^^^ getLimb c P (4 * L₀ + m)) ^^^ getLimb c P (2 * L₀ + m) := by
   intro c L₀
-  have h1 : 3 ^ t = L₀ * c := (reducedHalfLimbs_mul_chunkBits t).symm
-  have h2 : 2 * 3 ^ t = (2 * L₀) * c := by rw [h1]; ring
-  have h3 : 3 * 3 ^ t = (3 * L₀) * c := by rw [h1]; ring
-  dsimp only [reduceTrinomialCode]
-  rw [h3, h2, h1, getLimb_xor, getLimb_xor, getLimb_xor,
-    getLimb_and_low (by omega : L₀ + m < 2 * L₀),
-    getLimb_shiftRight_mul,
-    getLimb_and_high c _ (Nat.le_add_right L₀ m), Nat.xor_zero,
-    getLimb_shiftLeft_mul_add,
-    getLimb_and_low hm,
-    getLimb_shiftRight_mul,
-    show 3 * L₀ + (L₀ + m) = 4 * L₀ + m by ring]
+  simp only [reduceTrinomialCode, ← reducedHalfLimbs_mul_chunkBits, ← Nat.mul_assoc,
+    show reducedChunkBits t = c from rfl, show reducedHalfLimbs t = L₀ from rfl,
+    getLimb_xor, getLimb_shiftRight_mul]
+  rw [getLimb_and_low (by omega : L₀ + m < 2 * L₀),
+    getLimb_and_high c _ (Nat.le_add_right L₀ m), Nat.xor_zero, getLimb_shiftLeft_mul_add,
+    getLimb_and_low hm, getLimb_shiftRight_mul, show 3 * L₀ + (L₀ + m) = 4 * L₀ + m by ring]
 
 /-- Equivalence between `L`-tuples of `c`-bit limbs `Fin L → Fin (2 ^ c)` and
 `Fin (2 ^ (L * c))`. -/
@@ -896,37 +608,27 @@ theorem truncLimbs_zero (c a : ℕ) : truncLimbs c 0 a = 0 := by
   simp [truncLimbs]
 
 theorem truncLimbs_of_lt {c n a : ℕ} (ha : a < 2 ^ (n * c)) :
-    truncLimbs c n a = a := by
-  dsimp only [truncLimbs]
-  rw [Nat.and_two_pow_sub_one_eq_mod, Nat.mod_eq_of_lt ha]
+    truncLimbs c n a = a :=
+  Nat.and_two_pow_sub_one_of_lt_two_pow ha
 
 theorem truncLimbs_succ (c n a : ℕ) :
     truncLimbs c (n + 1) a = truncLimbs c n a ^^^ (getLimb c a n <<< (n * c)) := by
-  apply Nat.eq_of_testBit_eq
-  intro idx
-  dsimp only [truncLimbs, getLimb]
-  rw [Nat.testBit_xor, Nat.testBit_and, Nat.testBit_two_pow_sub_one,
-    Nat.testBit_and, Nat.testBit_two_pow_sub_one, Nat.testBit_shiftLeft,
-    Nat.testBit_and, Nat.testBit_two_pow_sub_one, Nat.testBit_shiftRight]
+  apply Nat.eq_of_testBit_eq; intro idx
+  simp only [truncLimbs, Nat.testBit_and, Nat.testBit_two_pow_sub_one, Nat.testBit_xor,
+    Nat.testBit_shiftLeft, testBit_getLimb, Nat.succ_mul]
   by_cases h1 : idx < n * c
-  · have h2 : idx < (n + 1) * c := by rw [Nat.succ_mul]; omega
-    have hnot : ¬ (idx ≥ n * c) := not_le.mpr h1
-    simp [h1, h2, hnot]
-  · have hge : idx ≥ n * c := le_of_not_gt h1
-    by_cases h2 : idx < (n + 1) * c
-    · have hsub : idx - n * c < c := by rw [Nat.succ_mul] at h2; omega
-      have hadd : n * c + (idx - n * c) = idx := Nat.add_sub_of_le hge
-      simp [h1, h2, hge, hsub, hadd]
-    · have hsub : ¬ (idx - n * c < c) := by rw [Nat.succ_mul] at h2; omega
-      simp [h1, h2, hge, hsub]
+  · simp [h1, Nat.lt_add_right c h1, not_le.mpr h1]
+  · by_cases h2 : idx < n * c + c
+    · simp [h1, h2, not_lt.mp h1, show idx - n * c < c by omega,
+        show n * c + (idx - n * c) = idx by omega]
+    · simp [h1, h2, show ¬ idx - n * c < c by omega]
 
 theorem clmul_truncLimbs_right_succ (c i m xc x : ℕ) :
     clmul xc (truncLimbs c (m + 1) x) <<< (i * c) =
       (clmul xc (truncLimbs c m x) <<< (i * c)) ^^^
         (clmul xc (getLimb c x m) <<< ((i + m) * c)) := by
-  rw [truncLimbs_succ, clmul_xor_right, clmul_shiftLeft_right, Nat.shiftLeft_xor_distrib]
-  congr 1
-  rw [Nat.add_mul, Nat.add_comm (i * c) (m * c), Nat.shiftLeft_add]
+  rw [truncLimbs_succ, clmul_xor_right, clmul_shiftLeft_right, Nat.shiftLeft_xor_distrib,
+    Nat.add_mul, Nat.add_comm (i * c) (m * c), Nat.shiftLeft_add]
 
 theorem clmul_truncLimbs_left_succ (c i a x : ℕ) :
     clmul (truncLimbs c (i + 1) a) x =
@@ -941,77 +643,55 @@ theorem clmul_truncLimbs_left_succ (c i a x : ℕ) :
 @[expose] def reducedOutShift (c b' m : ℕ) : ℕ :=
   if m * c < b' then m * c else 0
 
-theorem reducedOutMask_lt (c b' m : ℕ) : reducedOutMask c b' m < 2 ^ c := by
-  dsimp only [reducedOutMask]
-  have hle : 2 ^ min c (b' - m * c) ≤ 2 ^ c :=
-    Nat.pow_le_pow_right two_pos (Nat.min_le_left _ _)
-  have hpos : 0 < 2 ^ min c (b' - m * c) := Nat.two_pow_pos _
-  omega
+theorem reducedOutMask_lt (c b' m : ℕ) : reducedOutMask c b' m < 2 ^ c :=
+  (Nat.sub_lt (Nat.two_pow_pos _) one_pos).trans_le
+    (Nat.pow_le_pow_right two_pos (Nat.min_le_left _ _))
 
 theorem reducedOutShift_le (c b' m : ℕ) : reducedOutShift c b' m ≤ b' := by
-  dsimp only [reducedOutShift]
-  split_ifs with h
-  · exact le_of_lt h
-  · exact Nat.zero_le b'
+  unfold reducedOutShift; split_ifs with h <;> [exact h.le; exact Nat.zero_le b']
 
 theorem and_reducedOutMask_shiftLeft_lt (c b' m v : ℕ) :
     (v &&& reducedOutMask c b' m) <<< reducedOutShift c b' m < 2 ^ max b' 1 := by
   dsimp only [reducedOutMask, reducedOutShift]
   split_ifs with h
-  · have hand : v &&& (2 ^ min c (b' - m * c) - 1) < 2 ^ (b' - m * c) := by
-      rw [Nat.and_two_pow_sub_one_eq_mod]
-      exact (Nat.mod_lt _ (Nat.two_pow_pos _)).trans_le
-        (Nat.pow_le_pow_right two_pos (Nat.min_le_right _ _))
-    rw [Nat.shiftLeft_eq]
-    calc (v &&& (2 ^ min c (b' - m * c) - 1)) * 2 ^ (m * c)
-        < 2 ^ (b' - m * c) * 2 ^ (m * c) :=
-          Nat.mul_lt_mul_of_pos_right hand (Nat.two_pow_pos _)
-      _ = 2 ^ b' := by rw [← pow_add, Nat.sub_add_cancel (le_of_lt h)]
-      _ ≤ 2 ^ max b' 1 := Nat.pow_le_pow_right two_pos (le_max_left b' 1)
-  · have hmin : min c (b' - m * c) = 0 := by omega
-    rw [hmin]
-    simp
+  · exact (Nat.shiftLeft_lt (Nat.and_lt_two_pow v
+      (Nat.sub_lt (Nat.two_pow_pos _) one_pos))).trans_le
+      (Nat.pow_le_pow_right two_pos (by omega))
+  · rw [Nat.sub_eq_zero_of_le (not_lt.mp h)]; simp
 
 theorem packLimbs_and_mask_succ (c b' n : ℕ) (f : ℕ → ℕ) :
     (packLimbs c (n + 1) f) &&& (2 ^ b' - 1) =
       ((packLimbs c n f) &&& (2 ^ b' - 1)) ^^^
         ((f n &&& reducedOutMask c b' n) <<< reducedOutShift c b' n) := by
-  dsimp only [packLimbs, reducedOutMask, reducedOutShift]
-  apply Nat.eq_of_testBit_eq
-  intro idx
-  rw [Nat.testBit_and, Nat.testBit_two_pow_sub_one, Nat.testBit_xor,
-    Nat.testBit_xor, Nat.testBit_and, Nat.testBit_two_pow_sub_one,
-    Nat.testBit_shiftLeft, Nat.testBit_and, Nat.testBit_two_pow_sub_one,
-    Nat.testBit_shiftLeft, Nat.testBit_and, Nat.testBit_two_pow_sub_one]
-  split_ifs with hlt
-  · by_cases hge : idx ≥ n * c
-    · by_cases hb : idx < b'
-      · have hmin : (idx - n * c < min c (b' - n * c)) ↔ (idx - n * c < c) := by omega
-        simp [hge, hb, hmin]
-      · have hnot : ¬ (idx - n * c < min c (b' - n * c)) := by omega
-        simp [hge, hb, hnot]
-    · simp [hge]
-  · have hmin0 : min c (b' - n * c) = 0 := by omega
-    by_cases hb : idx < b'
-    · have hnot_ge : ¬ (idx ≥ n * c) := by omega
-      simp [hb, hnot_ge, hmin0]
-    · simp [hb, hmin0]
+  rw [packLimbs, Nat.and_xor_distrib_right]
+  congr 1
+  apply Nat.eq_of_testBit_eq; intro idx
+  simp only [Nat.testBit_and, Nat.testBit_two_pow_sub_one, Nat.testBit_shiftLeft,
+    reducedOutMask, reducedOutShift]
+  by_cases hnb : n * c < b'
+  · by_cases hge : n * c ≤ idx
+    · simp only [hnb, ↓reduceIte, hge, decide_true, Bool.true_and, Bool.and_assoc,
+        ← Bool.decide_and]
+      congr 1
+      rw [decide_eq_decide]
+      omega
+    · simp [hnb, hge]
+  · have hzero : b' - n * c = 0 := Nat.sub_eq_zero_of_le (not_lt.mp hnb)
+    by_cases hge : n * c ≤ idx
+    · simp [hnb, hzero, show ¬ idx < b' by omega]
+    · simp [hnb, hzero, hge]
 
 theorem shiftRight_lt_reducedTableWords {t w idx : ℕ}
     (hidx : idx < 2 ^ (2 * reducedChunkBits t)) :
     idx >>> reducedPackShift t w < reducedTableWords t w := by
-  dsimp only [reducedTableWords]
-  rw [Nat.shiftRight_eq_div_pow]
-  apply Nat.div_lt_of_lt_mul
-  rw [← pow_add, Nat.add_sub_of_le (reducedPackShift_le t w)]
-  exact hidx
+  rw [reducedTableWords, Nat.shiftRight_eq_div_pow]
+  exact Nat.div_lt_of_lt_mul (by rwa [← pow_add, Nat.add_sub_of_le (reducedPackShift_le t w)])
 
 theorem shiftRight_add_one_le (idx p : ℕ) :
     (idx + 1) >>> p ≤ (idx >>> p) + 1 := by
-  rw [Nat.shiftRight_eq_div_pow, Nat.shiftRight_eq_div_pow]
-  have h1 : idx + 1 ≤ idx + 2 ^ p := Nat.add_le_add_left Nat.one_le_two_pow idx
-  calc (idx + 1) / 2 ^ p ≤ (idx + 2 ^ p) / 2 ^ p := Nat.div_le_div_right h1
-    _ = idx / 2 ^ p + 1 := Nat.add_div_right idx (Nat.two_pow_pos p)
+  rw [Nat.shiftRight_eq_div_pow, Nat.shiftRight_eq_div_pow,
+    ← Nat.add_div_right idx (Nat.two_pow_pos p)]
+  exact Nat.div_le_div_right (Nat.add_le_add_left Nat.one_le_two_pow idx)
 
 theorem and_lt_of_lt_of_shiftRight_eq {i idx p : ℕ}
     (hlt : i < idx) (heq : i >>> p = idx >>> p) :
@@ -1025,19 +705,16 @@ theorem and_lt_of_lt_of_shiftRight_eq {i idx p : ℕ}
 
 theorem two_pow_two_mul_chunkBits_shiftRight (t w : ℕ) :
     2 ^ (2 * reducedChunkBits t) >>> reducedPackShift t w = reducedTableWords t w := by
-  dsimp only [reducedTableWords]
-  rw [Nat.shiftRight_eq_div_pow]
+  rw [reducedTableWords, Nat.shiftRight_eq_div_pow]
   exact Nat.pow_div (reducedPackShift_le t w) two_pos
 
 theorem xor_shiftLeft_lt_two_pow {c s a v : ℕ}
     (ha : a < 2 ^ (s * c)) (hv : v < 2 ^ c) :
-    a ^^^ (v <<< (s * c)) < 2 ^ ((s + 1) * c) := by
-  have ha' : a < 2 ^ ((s + 1) * c) :=
-    ha.trans_le (Nat.pow_le_pow_right two_pos (by rw [Nat.succ_mul]; omega))
-  have hv' : v <<< (s * c) < 2 ^ ((s + 1) * c) := by
-    rw [Nat.shiftLeft_eq, Nat.succ_mul, pow_add, mul_comm]
-    exact Nat.mul_lt_mul_of_pos_left hv (Nat.two_pow_pos _)
-  exact Nat.xor_lt_two_pow ha' hv'
+    a ^^^ (v <<< (s * c)) < 2 ^ ((s + 1) * c) :=
+  Nat.xor_lt_two_pow
+    (ha.trans_le (Nat.pow_le_pow_right two_pos (Nat.mul_le_mul_right c (Nat.le_succ s))))
+    (by rw [Nat.shiftLeft_eq, Nat.succ_mul, Nat.add_comm (s * c) c, Nat.pow_add]
+        exact Nat.mul_lt_mul_of_pos_right hv (Nat.two_pow_pos _))
 
 /-- Ascending Horner prefix over `TrinomialField t`, processing coefficients from `k - 1` down to
 `k - n` as `n` goes from `0` to `k`. -/
@@ -1061,35 +738,22 @@ theorem hornerPrefix_eq_sum {t k : ℕ}
     ∀ (n : ℕ) (hn : n ≤ k),
       hornerPrefix t k c_field x_field n =
         ∑ i : Fin n,
-          c_field ⟨k - 1 - i.val, by have := i.isLt; omega⟩ * x_field ^ (n - 1 - i.val) := by
-  intro n
-  induction n with
-  | zero =>
-    intro _
-    simp [hornerPrefix]
-  | succ n ih =>
-    intro hn
-    have hlt : n < k := Nat.lt_of_succ_le hn
-    rw [hornerPrefix_succ_of_lt hlt, ih (le_of_lt hlt), Fin.sum_univ_castSucc]
+          c_field ⟨k - 1 - i.val, by have := i.isLt; omega⟩ * x_field ^ (n - 1 - i.val)
+  | 0, _ => by simp [hornerPrefix]
+  | n + 1, hn => by
+    rw [hornerPrefix_succ_of_lt (Nat.lt_of_succ_le hn), hornerPrefix_eq_sum c_field x_field n
+      (Nat.le_of_succ_le hn), Fin.sum_univ_castSucc, Finset.sum_mul]
     simp only [Fin.val_castSucc, Fin.val_last, Nat.add_sub_cancel, Nat.sub_self, pow_zero, mul_one]
-    congr 1
-    rw [Finset.sum_mul]
-    refine Finset.sum_congr rfl fun i _ => ?_
-    have hexp : n - i.val = (n - 1 - i.val) + 1 := by have := i.isLt; omega
-    rw [hexp, pow_succ, mul_assoc]
+    refine congrArg (· + _) (Finset.sum_congr rfl fun i _ => ?_)
+    rw [show n - i.val = (n - 1 - i.val) + 1 by omega, pow_succ, mul_assoc]
 
 theorem hornerPrefix_self_eq_polynomialHash {t k : ℕ}
     (c_field : Fin k → TrinomialField t) (x_field : TrinomialField t) :
     hornerPrefix t k c_field x_field k = polynomialHash c_field x_field := by
   rw [hornerPrefix_eq_sum c_field x_field k le_rfl]
-  dsimp only [polynomialHash]
   refine Fintype.sum_equiv Fin.revPerm _ _ fun i => ?_
   have hrev : k - 1 - i.val = (Fin.revPerm i).val := by
-    change k - 1 - i.val = (Fin.rev i).val
-    rw [Fin.val_rev]
-    omega
-  have hfin : (⟨k - 1 - i.val, by have := i.isLt; omega⟩ : Fin k) = Fin.revPerm i :=
-    Fin.ext hrev
-  rw [hfin, hrev]
+    rw [Fin.revPerm_apply, Fin.val_rev]; omega
+  rw [show (⟨k - 1 - i.val, _⟩ : Fin k) = Fin.revPerm i from Fin.ext hrev, hrev]
 
 end Cslib.Probability

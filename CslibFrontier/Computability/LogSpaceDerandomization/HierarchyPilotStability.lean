@@ -163,14 +163,12 @@ theorem correctionRequest_pilot_children_root_moment
   refine ⟨Cr, Cp, Cm, hCr, hCp, hCm, ?_⟩
   intro P J instP V instV k D ident r hr hf Kc hKc raw raw' prep prep'
     previous current previous' current' N u hNu hUY
-  have h := hc P J V k D ident r hr hf Kc hKc raw raw' prep prep'
+  refine (hc P J V k D ident r hr hf Kc hKc raw raw' prep prep'
     (fun σ => PilotRowRecipe.maximum (previous σ) (current σ))
-    (fun σ => PilotRowRecipe.maximum (previous' σ) (current' σ)) N u hNu hUY
-  apply h.trans
-  apply mul_le_mul_of_nonneg_left _ (by norm_num : (0 : ℝ) ≤ 64)
-  apply add_le_add le_rfl
-  apply mul_le_mul_of_nonneg_left _ (pow_nonneg hCm 4)
-  exact PilotRowRecipe.maximum_row_moment _ _ previous current previous' current' hNu
+    (fun σ => PilotRowRecipe.maximum (previous' σ) (current' σ)) N u hNu hUY).trans ?_
+  exact mul_le_mul_of_nonneg_left (add_le_add le_rfl (mul_le_mul_of_nonneg_left
+    (PilotRowRecipe.maximum_row_moment _ _ previous current previous' current' hNu)
+    (pow_nonneg hCm 4))) (by norm_num)
 
 /-- Full local pipeline: changing RAW/PREP correction children and a running maximum
 whose current child is the actual score/detector composition. All constants are fixed
@@ -222,12 +220,10 @@ theorem correctionRequest_stageDetector_root_moment
   refine ⟨Cr, Cp, Cm, C, hCr, hCp, hCm, hC, ?_⟩
   intro P J instP V instV k D ident r hr N u π hN hu hf hπ hY Kc hKc
     raw raw' prep prep' previous previous' A B hUY X Y U current
-  apply (hc P J V k D ident r hr hf Kc hKc raw raw' prep prep'
-    previous (current A) previous' (current B) N u (mul_pos hN hu).le hUY).trans
-  apply mul_le_mul_of_nonneg_left _ (by norm_num : (0 : ℝ) ≤ 64)
-  apply add_le_add le_rfl
-  apply mul_le_mul_of_nonneg_left _ (pow_nonneg hCm 4)
-  apply add_le_add le_rfl
-  exact hd P J V k D ident r hr N u π hN hu hf hπ hY A B
+  refine (hc P J V k D ident r hr hf Kc hKc raw raw' prep prep'
+    previous (current A) previous' (current B) N u (mul_pos hN hu).le hUY).trans ?_
+  exact mul_le_mul_of_nonneg_left (add_le_add le_rfl (mul_le_mul_of_nonneg_left
+    (add_le_add le_rfl (hd P J V k D ident r hr N u π hN hu hf hπ hY A B))
+    (pow_nonneg hCm 4))) (by norm_num)
 
 end Matrix.HierarchyParams.H4RankEnvironment

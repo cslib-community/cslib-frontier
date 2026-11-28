@@ -32,6 +32,21 @@ open Cslib.DoubleCounting MultiTapeTM ComputableInSpace
 /-- Binary count (framed), followed by binary length sum. -/
 enc_structure encTally : Tally where count : encNat, lengthSum : encNat
 
+/-- Under the coarse source-round caps, the binary tally fields fit within a constant
+multiple of the encoded graph size. The round limit is at most the graph size. -/
+theorem length_encTally_fields_le_of_caps {n limit : ℕ} {tally : Tally}
+    (hl : limit ≤ n) (hc : tally.count ≤ 1 + limit * n)
+    (hs : tally.lengthSum ≤ n * limit * limit) :
+    (encNat tally.count).length ≤ 2 * (encNat n).length + 2 ∧
+      (encNat tally.lengthSum).length ≤ 3 * (encNat n).length := by
+  have hlimit := length_encNat_mono hl
+  have hmul := length_encNat_mul_le limit n
+  have hcount := (length_encNat_mono hc).trans (length_encNat_add_le_add 1 (limit * n))
+  have hpair := length_encNat_mul_le n limit
+  have hsum := (length_encNat_mono hs).trans (length_encNat_mul_le (n * limit) limit)
+  have hone : (encNat 1).length = 1 := rfl
+  exact ⟨by omega, by omega⟩
+
 /-- The actual tally (framed), followed by the expected tally. -/
 abbrev encTallies := encPair encTally encTally
 
@@ -61,7 +76,7 @@ theorem addVertex_inSpace :
   have hargs := snd encRoundUpdate (encPair encNat encNat)
   have hk := hargs.fst'
   have hp := hargs.snd'
-  have hOne := budget_const (encIn := encIn) (encB := encNat) 1 (.refl _)
+  have hOne := budget_const (Bs := fun a => (encIn a).length) (encIn := encIn) (encB := encNat) 1
   have ht := encRoundUpdate_tally_budget ha
   have hnew := encTally_mk_budget
     (budget_natAdd (encTally_count_budget ht) hOne)

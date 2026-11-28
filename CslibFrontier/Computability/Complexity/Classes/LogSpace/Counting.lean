@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting
+public import CslibFrontier.Computability.Complexity.Classes.Space.Unambiguous
 
 /-!
 # Counting and unambiguous logarithmic space
@@ -31,24 +31,22 @@ giving the inclusion in `NL`.
 ## Main results
 
 * `Cslib.Complexity.UL_subset_NL`: forgetting accepting branch multiplicity gives an NL decider.
+* `Cslib.Complexity.UL_eq_USPACE`: `UL` is unambiguous space `USPACE(log₂ n)`.
 -/
 
 public section
 
 namespace Cslib.Complexity
 
-open Turing
+open _root_.Turing
 
 variable {α : Type}
 
-/-- A given counting machine realizes the accepting count in logarithmic workspace.
-The finite clock is chosen for each input because the count is stable after every branch halts. -/
+/-- A given counting machine realizes the accepting count in logarithmic workspace:
+`Turing.MultiTapeCTM.CountsInSpace` at a bound `c * (Nat.log2 n + 1)` in the encoded length `n`. -/
 @[expose] def _root_.Turing.MultiTapeCTM.CountsInLogSpace {k : ℕ} {State : Type}
     (M : MultiTapeCTM k Bool State) (enc : α ↪ List Bool) (f : α → ℕ) : Prop :=
-  ∃ c : ℕ, ∀ a,
-    M.toNTM.RunsInSpace (enc a) (c * (Nat.log2 (enc a).length + 1)) ∧
-      ∃ t, M.HaltsWithin t (Cfg.init M.initial (enc a)) ∧
-        f a = M.acceptCount t (Cfg.init M.initial (enc a))
+  ∃ c : ℕ, M.CountsInSpace enc f fun a => c * (Nat.log2 (enc a).length + 1)
 
 /-- The accepting branch counts of finite logspace counting machines. -/
 @[expose] def SharpL (enc : α ↪ List Bool) : Set (α → ℕ) :=
@@ -63,21 +61,18 @@ nonmembers. -/
 /-- An unambiguous logspace witness yields an NL witness by forgetting transition
 multiplicity. Its accepting count is positive exactly when the resulting machine accepts. -/
 theorem UL_subset_NL {enc : α ↪ List Bool} : UL enc ⊆ NL enc := by
-  rintro A ⟨f, ⟨k, State, hfinite, machine, c, hmachine⟩, _, hA⟩
-  refine ⟨k, State, hfinite, machine.toNTM, c, ⟨?_, ?_⟩⟩
-  · intro a
-    obtain ⟨hspace, t, hclock, hf⟩ := hmachine a
-    refine ⟨hspace, (hA a).trans ?_⟩
-    rw [hf]
-    constructor
-    · intro ha
-      obtain ⟨p, hp, hh, hout⟩ := (hclock.branchCount_pos_iff (· == [true])).mp ha
-      exact ⟨⟨p, hp⟩, hh, beq_iff_eq.mp hout⟩
-    · rintro ⟨p, hh, hout⟩
-      exact (hclock.branchCount_pos_iff (· == [true])).mpr
-        ⟨p.toRunPath, p.head_eq, hh, beq_iff_eq.mpr hout⟩
-  · intro a
-    obtain ⟨_, t, hclock, _⟩ := hmachine a
-    exact ⟨t, fun p hp => hclock.paths_halted p.toRunPath p.head_eq hp⟩
+  rintro A ⟨f, ⟨k, State, hfinite, machine, c, hmachine⟩, -, hA⟩
+  exact ⟨k, State, hfinite, machine.toNTM, c, hmachine.decidesInSpace hA⟩
+
+/-- **`UL` is `USPACE(log₂ n)`**: the bounds `c * (log₂ n + 1)` and `c₁ * log₂ n + c₂` give the
+same problems. -/
+theorem UL_eq_USPACE {enc : α ↪ List Bool} : UL enc = USPACE enc Nat.log2 := by
+  ext A
+  constructor
+  · rintro ⟨f, ⟨k, State, hfinite, M, c, hM⟩, hle, hA⟩
+    exact ⟨k, State, hfinite, M, c, c, f,
+      hM.mono fun a => by rw [Nat.mul_add, Nat.mul_one], hle, hA⟩
+  · rintro ⟨k, State, hfinite, M, c₁, c₂, f, hM, hle, hA⟩
+    exact ⟨f, ⟨k, State, hfinite, M, c₁ + c₂, hM.mono fun a => by nlinarith⟩, hle, hA⟩
 
 end Cslib.Complexity

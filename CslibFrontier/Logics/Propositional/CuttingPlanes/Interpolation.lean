@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.CuttingPlanes
+public import CslibFrontier.Logics.Propositional.LineProof.SemanticDerivation
 public import CslibFrontier.Logics.Propositional.SemanticDerivation
 import CslibFrontier.Computability.Communication.BinarySearch
 import Mathlib.Algebra.BigOperators.Fin
@@ -101,78 +102,21 @@ namespace CuttingPlanes
 
 section Semantic
 
-variable {V : Type*}
-
-/-- Line `j` of a proof read from its first line is in `Γ`, holds everywhere, or follows
-semantically from two earlier lines. -/
-private def LineOK (Γ : Set (Ineq V)) (L : List (Ineq V)) (j : ℕ) (I : Ineq V) : Prop :=
-  I ∈ Γ ∨ (∀ σ, I.Holds σ) ∨ ∃ j₁ j₂ I₁ I₂, j₁ < j ∧ j₂ < j ∧ L[j₁]? = some I₁ ∧
-    L[j₂]? = some I₂ ∧ ∀ σ, I₁.Holds σ → I₂.Holds σ → I.Holds σ
-
-private theorem LineOK.append {Γ : Set (Ineq V)} {L : List (Ineq V)} {j : ℕ} {I : Ineq V}
-    (h : LineOK Γ L j I) (hj : j < L.length) (L' : List (Ineq V)) : LineOK Γ (L ++ L') j I := by
-  rcases h with h | h | ⟨j₁, j₂, I₁, I₂, h₁, h₂, e₁, e₂, h⟩
-  · exact Or.inl h
-  · exact Or.inr (Or.inl h)
-  · refine Or.inr (Or.inr ⟨j₁, j₂, I₁, I₂, h₁, h₂, ?_, ?_, h⟩)
-    · rw [List.getElem?_append_left (by omega), e₁]
-    · rw [List.getElem?_append_left (by omega), e₂]
-
-/-- An earlier line of a proof has a smaller index when the proof is read from its first line. -/
-private theorem exists_lt_of_mem {ls : List (Ineq V)} {I J : Ineq V} (hI : I ∈ ls) :
-    ∃ j < ls.length, (ls.reverse ++ [J])[j]? = some I := by
-  obtain ⟨j, hj, e⟩ := List.getElem_of_mem (List.mem_reverse.2 hI)
-  refine ⟨j, by simpa using hj, ?_⟩
-  rw [List.getElem?_append_left hj, List.getElem?_eq_getElem hj, e]
-
-private theorem lineOK_of_isProof {Γ : Set (Ineq V)} {ls : List (Ineq V)} (h : IsProof Γ ls)
-    {j : ℕ} {I : Ineq V} (hj : ls.reverse[j]? = some I) : LineOK Γ ls.reverse j I := by
-  induction h generalizing j I with
-  | @hyp ls J h hJ ih | @nonneg ls h v ih | @leOne ls h v ih | @add ls I₁ I₂ h hI₁ hI₂ ih
-  | @smul ls I₁ h c hc hI₁ ih | @div ls I₁ h c hc hdvd hI₁ ih =>
-    rw [List.reverse_cons] at hj ⊢
-    by_cases hjl : j < ls.length
-    · rw [List.getElem?_append_left (by simpa using hjl)] at hj
-      exact (ih hj).append (by simpa using hjl) _
-    · have hjl' : j = ls.length := by
-        have := (List.getElem?_eq_some_iff.1 hj).1
-        simp only [List.length_append, List.length_reverse, List.length_singleton] at this
-        omega
-      subst hjl'
-      rw [List.getElem?_append_right (by simp)] at hj
-      simp only [List.length_reverse, Nat.sub_self, List.getElem?_cons_zero,
-        Option.some.injEq] at hj
-      subst hj
-      first
-      | exact Or.inl hJ
-      | exact Or.inr (Or.inl fun σ => Ineq.holds_nonneg σ v)
-      | exact Or.inr (Or.inl fun σ => Ineq.holds_leOne σ v)
-      | obtain ⟨j₁, hj₁, e₁⟩ := exists_lt_of_mem (J := I₁ + I₂) hI₁
-        obtain ⟨j₂, hj₂, e₂⟩ := exists_lt_of_mem (J := I₁ + I₂) hI₂
-        exact Or.inr (Or.inr ⟨j₁, j₂, I₁, I₂, hj₁, hj₂, e₁, e₂, fun σ h₁ h₂ => h₁.add h₂⟩)
-      | obtain ⟨j₁, hj₁, e₁⟩ := exists_lt_of_mem (J := c • I₁) hI₁
-        exact Or.inr (Or.inr ⟨j₁, j₁, I₁, I₁, hj₁, hj₁, e₁, e₁, fun σ h₁ _ => h₁.nsmul c⟩)
-      | obtain ⟨j₁, hj₁, e₁⟩ := exists_lt_of_mem (J := I₁.div c) hI₁
-        exact Or.inr (Or.inr ⟨j₁, j₁, I₁, I₁, hj₁, hj₁, e₁, e₁, fun σ h₁ _ => h₁.div hdvd⟩)
-  | nil => simp at hj
-
 variable {X Y Z : Type*}
 
 /-- The solution set of an inequality over the shared variables and those of `Γ_A`, renamed into
 all variables, is the cylinder over its solution set. -/
 theorem setOf_holds_relabel_inl (E : Ineq (X ⊕ Y)) :
     {σ : X ⊕ (Y ⊕ Z) → Bool | (E.relabel (Sum.map id Sum.inl)).Holds σ} =
-      leftCylinder {σ | E.Holds σ} := by
-  ext σ
-  simp [leftCylinder]
+      leftCylinder {σ | E.Holds σ} :=
+  Set.ext fun _ => by simp [leftCylinder]
 
 /-- The solution set of an inequality over the shared variables and those of `Γ_B`, renamed into
 all variables, is the cylinder over its solution set. -/
 theorem setOf_holds_relabel_inr (E : Ineq (X ⊕ Z)) :
     {σ : X ⊕ (Y ⊕ Z) → Bool | (E.relabel (Sum.map id Sum.inr)).Holds σ} =
-      rightCylinder {σ | E.Holds σ} := by
-  ext σ
-  simp [rightCylinder]
+      rightCylinder {σ | E.Holds σ} :=
+  Set.ext fun _ => by simp [rightCylinder]
 
 /-- **Cutting planes refutations are semantic refutations** [Krajíček, Section 6][Krajicek1997].
 The solution sets of the lines of a cutting planes refutation of `Γ_A(x, y) ∪ Γ_B(x, z)`, read
@@ -185,25 +129,12 @@ theorem IsProof.isSemanticRefutation {ΓA : Set (Ineq (X ⊕ Y))} {ΓB : Set (In
     IsSemanticRefutation (initSets ((fun E => {σ | E.Holds σ}) '' ΓA)
       ((fun E => {σ | E.Holds σ}) '' ΓB)) fun j : Fin ls.reverse.length =>
         {σ | ls.reverse[j].Holds σ} := by
-  refine ⟨fun j => ?_, ?_⟩
-  · rcases lineOK_of_isProof h (List.getElem?_eq_getElem j.2) with
-      (⟨E, hE, he⟩ | ⟨E, hE, he⟩) | hu | ⟨j₁, j₂, I₁, I₂, h₁, h₂, e₁, e₂, himp⟩
-    · refine Or.inl (Or.inl ⟨_, ⟨E, hE, rfl⟩, ?_⟩)
-      rw [← setOf_holds_relabel_inl, he]
-      rfl
-    · refine Or.inl (Or.inr ⟨_, ⟨E, hE, rfl⟩, ?_⟩)
-      rw [← setOf_holds_relabel_inr, he]
-      rfl
-    · exact Or.inr (Or.inl (Set.eq_univ_of_forall hu))
-    · obtain ⟨hj₁, e₁⟩ := List.getElem?_eq_some_iff.1 e₁
-      obtain ⟨hj₂, e₂⟩ := List.getElem?_eq_some_iff.1 e₂
-      refine Or.inr (Or.inr ⟨⟨j₁, hj₁⟩, ⟨j₂, hj₂⟩, h₁, h₂, fun σ hσ => ?_⟩)
-      simp only [Set.mem_inter_iff, Set.mem_ofPred_eq, Fin.getElem_fin, e₁, e₂] at hσ ⊢
-      exact himp σ hσ.1 hσ.2
-  · obtain ⟨j, hj, e⟩ := List.getElem_of_mem (List.mem_reverse.2 hc)
-    refine ⟨⟨j, hj⟩, Set.eq_empty_of_forall_notMem fun σ hσ => ?_⟩
-    simp only [Set.mem_ofPred_eq, Fin.getElem_fin, e] at hσ
-    exact Ineq.not_holds_contra σ hσ
+  refine (isProof_iff_lineProof.1 h).toSemanticRefutation (models := fun I => {σ | I.Holds σ})
+    (fun I hI => ?_) (fun _ hr => rules_premises_length_le hr)
+    (fun _ hr _ hp => rules_sound hr hp) hc Ineq.not_holds_contra
+  rcases hI with ⟨E, hE, rfl⟩ | ⟨E, hE, rfl⟩
+  · exact Or.inl ⟨_, ⟨E, hE, rfl⟩, (setOf_holds_relabel_inl E).symm⟩
+  · exact Or.inr ⟨_, ⟨E, hE, rfl⟩, (setOf_holds_relabel_inr E).symm⟩
 
 /-- The models of the solution sets of a system of inequalities are its 0/1 solutions. -/
 theorem mem_models_iff {Γ : Set (Ineq (X ⊕ Y))} {u : X → Bool} {q : Y → Bool} :
@@ -222,11 +153,9 @@ variable {n : ℕ} {Y Z : Type*}
 the number of terms in absolute value. -/
 private theorem abs_sum_mul_toInt_le {ι : Type*} [Fintype ι] {a : ι → ℤ} {M : ℕ}
     (ha : ∀ i, |a i| ≤ M) (σ : ι → Bool) : |∑ i, a i * (σ i).toInt| ≤ M * Fintype.card ι := by
-  refine (abs_sum_le_sum_abs _ _).trans ?_
-  have : ∀ i ∈ (univ : Finset ι), |a i * (σ i).toInt| ≤ M := fun i _ => by
-    rw [abs_mul]
+  have h : ∀ i ∈ (univ : Finset ι), |a i * (σ i).toInt| ≤ M := fun i _ => by
     cases σ i <;> simp [ha i]
-  simpa [mul_comm] using sum_le_sum this
+  exact (abs_sum_le_sum_abs _ _).trans (by simpa [mul_comm] using sum_le_sum h)
 
 private theorem abs_list_sum_le {ι : Type*} (h : ι → ℤ) {M : ℕ} (hh : ∀ i, |h i| ≤ M)
     (l : List ι) : |(l.map h).sum| ≤ M * l.length := by
@@ -234,9 +163,7 @@ private theorem abs_list_sum_le {ι : Type*} (h : ι → ℤ) {M : ℕ} (hh : �
   | nil => simp
   | cons i l ih =>
     rw [List.map_cons, List.sum_cons, List.length_cons]
-    refine (abs_add_le _ _).trans ?_
-    push_cast
-    linarith [hh i]
+    exact (abs_add_le _ _).trans (by push_cast; linarith [hh i])
 
 /-- `(v, q, r)` satisfies an inequality over all variables. -/
 private theorem holds_sum_elim_sum_elim_iff [Fintype Y] [Fintype Z] (I : Ineq (Fin n ⊕ (Y ⊕ Z)))
@@ -246,7 +173,7 @@ private theorem holds_sum_elim_sum_elim_iff [Fintype Y] [Fintype Z] (I : Ineq (F
         (r z).toInt) + ∑ y, I.coeff (.inr (.inl y)) * (q y).toInt := by
   rw [Ineq.Holds, Ineq.lhs_eq_sum, Fintype.sum_sum_type, Fintype.sum_sum_type]
   simp only [Sum.elim_inl, Sum.elim_inr]
-  constructor <;> intro h <;> linarith
+  constructor <;> intro <;> linarith
 
 /-- `(u, q)` satisfies an inequality over the shared variables and those of `Γ_A`. -/
 private theorem holds_sum_elim_iff [Fintype Y] (E : Ineq (Fin n ⊕ Y)) (u : Fin n → Bool)
@@ -268,20 +195,16 @@ theorem ecomplexity_memRight_holds_le [Fintype Y] [Finite Z] (I : Ineq (Fin n �
       Nat.clog 2 (2 * M * Fintype.card Y + 1) + 1 := by
   classical
   have := Fintype.ofFinite Z
-  refine Protocol.ecomplexity_decides_le.trans ?_
-  set K : ℕ := M * Fintype.card Y with hK
+  let K : ℕ := M * Fintype.card Y
   have h := Protocol.ecomplexityFun_le_clog_card_finset_succ (Finset.Icc (-(K : ℤ)) K)
     (fun a : (Fin n → Bool) × (Y → Bool) => ∑ y, I.coeff (.inr (.inl y)) * (a.2 y).toInt)
     (fun a => Finset.mem_Icc.2 (abs_le.1 (abs_sum_mul_toInt_le hM a.2)))
     (fun w (b : (Fin n → Bool) × (Z → Bool)) => decide (I.bound ≤
       (∑ i, I.coeff (.inl i) * (b.1 i).toInt + ∑ z, I.coeff (.inr (.inr z)) * (b.2 z).toInt) + w))
   have hcard : (Finset.Icc (-(K : ℤ)) K).card = 2 * M * Fintype.card Y + 1 := by
-    rw [Int.card_Icc]
-    have : (2 * M * Fintype.card Y + 1 : ℕ) = 2 * K + 1 := by rw [hK]; ring
-    rw [this]
-    omega
+    rw [Int.card_Icc, Nat.mul_assoc]; omega
   rw [hcard] at h
-  refine le_of_eq_of_le ?_ h
+  refine Protocol.ecomplexity_decides_le.trans (le_of_eq_of_le ?_ h)
   congr 1 with a b : 2
   simp only [MemRight, Set.mem_ofPred_eq, holds_sum_elim_sum_elim_iff]
 
@@ -306,42 +229,31 @@ theorem ecomplexity_search_holds_le [Finite Y] (E : Ineq (Fin n ⊕ Y)) {M₀ : 
     cases a.1 i <;> simp [hM₀ i]
   have hcmp : ∀ l : List (Fin n), l.length ≤ n → ∃ p : Protocol _ _ Bool,
       p.depth ≤ Nat.clog 2 (2 * M₀ * n + 1) + 1 ∧
-        ∀ a b, p.run a b = true ↔ (l.map (g b)).sum < (l.map (f a)).sum := by
-    intro l hl
-    set K : ℕ := M₀ * n with hK
-    have hmem : ∀ a, (l.map (f a)).sum ∈ Finset.Icc (-(K : ℤ)) K := fun a => by
-      refine Finset.mem_Icc.2 (abs_le.1 ((abs_list_sum_le _ (hf a) l).trans ?_))
-      rw [hK]; push_cast
-      exact mul_le_mul_of_nonneg_left (by exact_mod_cast hl) (Nat.cast_nonneg _)
+        ∀ a b, p.run a b = true ↔ (l.map (g b)).sum < (l.map (f a)).sum := fun l hl => by
+    let K : ℕ := M₀ * n
+    have hmem : ∀ a, (l.map (f a)).sum ∈ Finset.Icc (-(K : ℤ)) K := fun a =>
+      Finset.mem_Icc.2 <| abs_le.1 <| (abs_list_sum_le _ (hf a) l).trans <| by
+        push_cast [K]
+        exact mul_le_mul_of_nonneg_left (by exact_mod_cast hl) (Nat.cast_nonneg _)
     have h := Protocol.ecomplexityFun_le_clog_card_finset_succ (Finset.Icc (-(K : ℤ)) K)
       (fun a => (l.map (f a)).sum) hmem fun w b => decide ((l.map (g b)).sum < w)
     have hcard : (Finset.Icc (-(K : ℤ)) K).card = 2 * M₀ * n + 1 := by
-      rw [Int.card_Icc]
-      have : (2 * M₀ * n + 1 : ℕ) = 2 * K + 1 := by rw [hK]; ring
-      rw [this]
-      omega
+      rw [Int.card_Icc, Nat.mul_assoc]; omega
     rw [hcard] at h
     obtain ⟨p, hp, hd⟩ := Protocol.ecomplexityFun_le_iff.1 (by exact_mod_cast h)
-    refine ⟨p, hd, fun a b => ?_⟩
-    rw [hp]
-    simp
+    exact ⟨p, hd, fun a b => by simp [hp]⟩
   obtain ⟨p, hd, hp⟩ := Protocol.exists_search_lt f g n _ hcmp (List.finRange n) (by simp)
   rw [List.length_finRange] at hd
   refine (Protocol.ecomplexity_le_depth (p := p) ?_).trans (by exact_mod_cast hd)
   intro a _ b _ h₁ h₂
   simp only [Set.mem_ofPred_eq, holds_sum_elim_iff] at h₁ h₂
-  have hlt : ((List.finRange n).map (g b)).sum < ((List.finRange n).map (f a)).sum := by
-    simp only [f, g, ← Fin.sum_univ_def]
-    linarith
-  obtain ⟨i, hi, hgi⟩ := hp a b hlt
+  obtain ⟨i, hi, hgi⟩ := hp a b (by simp only [f, g, ← Fin.sum_univ_def]; linarith)
   exact ⟨i, hi, hR _ _ _ hgi⟩
 
 /-- A drop in the contribution of a shared variable is a coordinate where the inputs differ. -/
 private theorem differsAt_of_mul_toInt_lt {a : ℤ} {u v : Fin n → Bool} {i : Fin n}
-    (h : a * (v i).toInt < a * (u i).toInt) : DiffersAt u v i := by
-  intro he
-  rw [he] at h
-  exact lt_irrefl _ h
+    (h : a * (v i).toInt < a * (u i).toInt) : DiffersAt u v i :=
+  fun he => lt_irrefl _ (he ▸ h)
 
 /-- With a nonnegative coefficient, a drop in the contribution of a shared variable is a
 coordinate where it is one for Alice and zero for Bob. -/

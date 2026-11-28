@@ -125,19 +125,15 @@ theorem wordStructure.partialIso_iff {u v : List α} {k : ℕ} {a : Fin k → Fi
       exact (this.1 rfl).symm
   · rintro ⟨hlt, hlet⟩
     refine @FO.PartialIso.mk (wordLanguage α) _ _ (wordStructure u) (wordStructure v) k a b
-      (fun i j => ?_) (fun {l} R f => ?_)
-    · simp only [le_antisymm_iff, ← not_lt, hlt]
-    · cases R with
-      | lt =>
-        have h1 := wordStructure.relMap_ltSymb u (a ∘ f)
-        have h2 := wordStructure.relMap_ltSymb v (b ∘ f)
-        exact h1.trans ((hlt (f 0) (f 1)).trans h2.symm)
-      | letter c =>
-        have h1 := wordStructure.relMap_letterSymb u c (a ∘ f)
-        have h2 := wordStructure.relMap_letterSymb v c (b ∘ f)
-        refine h1.trans (Iff.trans ?_ h2.symm)
-        change u[a (f 0)] = c ↔ v[b (f 0)] = c
-        rw [hlet]
+      (fun i j => by simp only [le_antisymm_iff, ← not_lt, hlt]) fun {l} R f => ?_
+    cases R with
+    | lt =>
+      exact (wordStructure.relMap_ltSymb u (a ∘ f)).trans
+        ((hlt (f 0) (f 1)).trans (wordStructure.relMap_ltSymb v (b ∘ f)).symm)
+    | letter c =>
+      exact (wordStructure.relMap_letterSymb u c (a ∘ f)).trans
+        ((Iff.of_eq (congrArg (· = c) (hlet (f 0)))).trans
+          (wordStructure.relMap_letterSymb v c (b ∘ f)).symm)
 
 namespace WordDuplicatorWins
 
@@ -239,14 +235,9 @@ theorem partialIso_append {u₁ u₂ v₁ v₂ : List α} {k₁ k₂ k : ℕ}
     · exact iff_of_false Sum.lex_inr_inl Sum.lex_inr_inl
     · simp only [Sum.map_inr, Sum.lex_inr_inr]
       exact h₂.1 i' j'
-  · simp only [hA, hB]
-    have key : ∀ x : Fin k₁ ⊕ Fin k₂, (u₁ ++ u₂)[List.appendIndexEquiv u₁ u₂ (x.map a₁ a₂)] =
-        (v₁ ++ v₂)[List.appendIndexEquiv v₁ v₂ (x.map b₁ b₂)]
-      | .inl i' => by
-        simpa only [Sum.map_inl, List.getElem_appendIndexEquiv_inl] using h₁.2 i'
-      | .inr i' => by
-        simpa only [Sum.map_inr, List.getElem_appendIndexEquiv_inr] using h₂.2 i'
-    exact key (σ i)
+  · rcases hσ : σ i with i' | i'
+    · simpa only [hA i, hB i, hσ, Sum.map_inl, List.getElem_appendIndexEquiv_inl] using h₁.2 i'
+    · simpa only [hA i, hB i, hσ, Sum.map_inr, List.getElem_appendIndexEquiv_inr] using h₂.2 i'
 
 /-- Bookkeeping for a move in the first factor: the extended combined position puts the new pebble
 on the new pebble of the first factor. -/

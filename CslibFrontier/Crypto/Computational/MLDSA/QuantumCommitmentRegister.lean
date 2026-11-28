@@ -48,7 +48,7 @@ theorem Xofs.keyGen_withDigestRegister (H : Xofs) (s : Level)
   have off (x : List Byte) (n : ℕ) (hne : 8 * x.length ≠ s.commitmentInputBits) :
       (H.withDigestRegister s D).h256.readBytes x n = H.h256.readBytes x n := by
     simp only [ExtendableOutput.readBytes, Xofs.withDigestRegister, Xofs.withPrefixRegister,
-      ExtendableOutput.withPrefixes,
+      Xofs.withPrefixLists, ExtendableOutput.withPrefixes,
       Keccak.length_bytesToBitsLE, hne, ↓reduceIte]
   apply Xofs.keyGen_congr_of_reads (G := H.withDigestRegister s D) (H := H) s seed rfl
   · unfold Xofs.expandKeySeed
@@ -60,15 +60,20 @@ theorem Xofs.keyGen_withDigestRegister (H : Xofs) (s : Level)
     simp only [nonceInput, List.length_append, List.length_take, List.length_drop,
       Xofs.expandKeySeed, H.h256.length_read, List.length_cons, List.length_nil]
     cases s <;> decide
-  · intro x hx
-    apply off
-    rw [hx]
-    cases s <;> decide
+  · exact fun _ hx => off _ _ (hx ▸ by cases s <;> decide)
 
 /-- Digest bits at a raw commitment-length input, in SHAKE's little-endian order. -/
 def Xofs.readDigestRegister (H : Xofs) (s : Level) (x : BitString s.commitmentInputBits) :
     BitString (8 * digestBytes s) :=
   H.readPrefixRegister s.commitmentInputBits (digestBytes s) x
+
+/-- Evaluating `Xofs.readDigestRegister` packs the first `digestBytes s` SHAKE256 bytes at `x`
+in little-endian bit order. -/
+theorem Xofs.readDigestRegister_apply (H : Xofs) (s : Level)
+    (x : BitString s.commitmentInputBits) :
+    H.readDigestRegister s x =
+      Keccak.fixedBytesEquivBitsLE _ (fun j => H.h256.byteAt (List.ofFn x) j) := by
+  rfl
 
 /-- Reading all commitment prefixes from the current streams and reinstalling them preserves every
 raw query, including SHAKE256 output beyond the digest. -/
@@ -122,7 +127,7 @@ theorem Xofs.commitmentDigest_withDigestRegister (H : Xofs) (s : Level)
   have bits := Keccak.ofFn_fixedBytesEquivBitsLE (((Keccak.fixedBytesEquivBitsLE _).symm v))
   rw [Equiv.apply_symm_apply] at bits
   simpa only [Xofs.commitmentDigest, Xofs.withDigestRegister, Xofs.withPrefixRegister,
-      ExtendableOutput.withPrefixes,
+      Xofs.withPrefixLists, ExtendableOutput.withPrefixes,
     commitmentInput_length s w hμ, ↓reduceIte, ExtendableOutput.readWithPrefix,
     List.take_of_length_le (FixedBytes.length_toList _).le, FixedBytes.length_toList,
     List.drop_eq_nil_of_le (H.h256.length_read ..).le, List.append_nil, v] using bits.symm

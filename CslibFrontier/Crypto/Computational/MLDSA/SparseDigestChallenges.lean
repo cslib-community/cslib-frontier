@@ -35,31 +35,15 @@ open Cslib.Probability Cslib.Quantum
 
 private abbrev DigestWord (s : Level) := BitString (8 * digestBytes s)
 
-private def readCachedBits {n : ℕ} (arr : Array Bool) (h : arr.size = n) : BitString n :=
-  fun i => arr[i.val]'(h ▸ i.isLt)
-
-@[simp] private theorem readCachedBits_ofFn {n : ℕ} (b : BitString n) :
-    readCachedBits (Array.ofFn b) (Array.size_ofFn ..) = b := by
-  funext i; simp [readCachedBits]
-
-private def readCachedBytes {k : ℕ} (arr : Array Byte) (h : arr.size = k) : FixedBytes k :=
-  fun i => arr[i.val]'(h ▸ i.isLt)
-
-@[simp] private theorem readCachedBytes_ofFn {k : ℕ} (r : FixedBytes k) :
-    readCachedBytes (Array.ofFn r) (Array.size_ofFn ..) = r := by
-  funext i; simp [readCachedBytes]
-
 /-- Install the sparse oracle's signed challenges in the 221-byte expansion prefixes at digest
 addresses. Exhausted rows retain their bytes. All uses of each raw address see one stream. -/
 def Xofs.withSparseDigestChallenges (H : Xofs) (s : Level)
     (rows : BitString (8 * digestBytes s) → FixedBytes 221)
     (challenges : BitString (8 * digestBytes s) → ChallengeRow.Target s) : Xofs :=
   H.withPrefixLists (8 * digestBytes s) fun x =>
-    let dArr := Array.ofFn x
-    let d := readCachedBits dArr (Array.size_ofFn ..)
-    let rArr := Array.ofFn (rows d)
-    let r := readCachedBytes rArr (Array.size_ofFn ..)
-    (ChallengeRow.exchangeSampleInBall s (r, challenges d)).1.toList
+    let digest := (Vector.ofFn x).get
+    let row : FixedBytes 221 := (Vector.ofFn (rows digest)).get
+    (ChallengeRow.exchangeSampleInBall s (row, challenges digest)).1.toList
 
 /-- Native Algorithm 29 on the modified raw SHAKE256 oracle returns the supplied sparse
 challenge whenever the original byte row succeeds, with exactly the original exhaustion event. -/
@@ -77,7 +61,7 @@ theorem Xofs.sampleInBall_withSparseDigestChallenges (H : Xofs) (s : Level)
       (ChallengeRow.exchangeSampleInBall s (rows d, challenges d)).1.toList := by
     simp only [withSparseDigestChallenges, withPrefixLists, ExtendableOutput.readBytes,
       ← bits, List.length_ofFn, ↓reduceIte, BitString.ofList_ofFn,
-      readCachedBits_ofFn, readCachedBytes_ofFn,
+      funext (Vector.get_ofFn _),
       ExtendableOutput.withPrefixes, ExtendableOutput.readWithPrefix,
       List.take_of_length_le (FixedBytes.length_toList _).le, FixedBytes.length_toList,
       List.drop_eq_nil_of_le (H.h256.length_read ..).le, List.append_nil]
@@ -87,7 +71,7 @@ theorem Xofs.sampleInBall_withSparseDigestChallenges (H : Xofs) (s : Level)
   | none => rw [ChallengeRow.exchangeSampleInBall_of_none h, h]; rfl
   | some c => exact (ChallengeRow.exchangeSampleInBall_of_some h _).1
 
-private theorem uniform_programmedBits (s : Level) :
+private theorem uniform_exchangedRowBits (s : Level) :
     (PMF.uniformOfFintype (DigestWord s → FixedBytes 221)).bind (fun rows =>
       (PMF.uniformOfFintype (DigestWord s → ChallengeRow.Target s)).map fun c x =>
         Keccak.fixedBytesEquivBitsLE 221
@@ -116,9 +100,9 @@ theorem Xofs.uniformPrefixes_sparseDigestChallenges (base : Xofs) (s : Level) {a
   apply congrArg (PMF.bind _ ·)
   funext H
   have e := congrArg (PMF.map (H.withPrefixRegister (8 * digestBytes s) 221))
-    (uniform_programmedBits s)
+    (uniform_exchangedRowBits s)
   simpa only [PMF.map_bind, PMF.map_comp, Function.comp_def, withSparseDigestChallenges,
-    readCachedBits_ofFn, readCachedBytes_ofFn, withPrefixLists_toList] using e
+    funext (Vector.get_ofFn _), withPrefixLists_toList] using e
 
 /-- The entire strong-forgery experiment can draw the digest-indexed sparse challenges before
 setup. The key generator, signing service, coherent raw queries and verifier use the same XOFs. -/
@@ -163,17 +147,14 @@ def Xofs.sparseDigestResponse (H : Xofs) (s : Level)
     (rows : BitString (8 * digestBytes s) → FixedBytes 221) (a b : ℕ)
     (x : BitString (a + 2)) (v : BitString 512) : BitString (8 * b) :=
   (H.withPrefixLists (8 * digestBytes s) fun _ =>
-    let xArr := Array.ofFn x
-    let x' := readCachedBits xArr (Array.size_ofFn ..)
-    let dArr := Array.ofFn (Xofs.prefixLookup (8 * digestBytes s) x')
-    let d := readCachedBits dArr (Array.size_ofFn ..)
-    let rArr := Array.ofFn (rows d)
-    let r := readCachedBytes rArr (Array.size_ofFn ..)
-    let vArr := Array.ofFn v
-    let v' := readCachedBits vArr (Array.size_ofFn ..)
-    match asTarget s (responsePolynomial v') with
-    | none => r.toList
-    | some c => (ChallengeRow.exchangeSampleInBall s (r, c)).1.toList).queryTable a b x
+    -- Reading the decoded digest at many indices can traverse the raw address repeatedly.
+    let address := (Vector.ofFn x).get
+    let digest := (Vector.ofFn (Xofs.prefixLookup (8 * digestBytes s) address)).get
+    let row : FixedBytes 221 := (Vector.ofFn (rows digest)).get
+    let bits := (Vector.ofFn v).get
+    match asTarget s (responsePolynomial bits) with
+    | none => row.toList
+    | some c => (ChallengeRow.exchangeSampleInBall s (row, c)).1.toList).queryTable a b x
 
 /-- Two coherent XOR queries to the digest-indexed sparse polynomial oracle implement a
 placed native raw SHAKE query on arbitrary superpositions and clean both scratch registers. -/
@@ -188,7 +169,7 @@ theorem Xofs.xorQuery_withSparseDigestChallenges (H : Xofs) (s : Level)
   rw [runValue_lookupXorSteps]
   unfold Xofs.withSparseDigestChallenges
   rw [Xofs.queryTable_withPrefixLists H]
-  simp only [sparseDigestResponse, readCachedBits_ofFn, readCachedBytes_ofFn,
+  simp only [sparseDigestResponse, funext (Vector.get_ofFn _),
     responsePolynomial_bits, asTarget_val]
 
 end Cslib.Crypto.MLDSA.FIPS204

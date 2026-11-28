@@ -10,6 +10,7 @@ module
 
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.TransformsTapes
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.TapeLemmas
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Tape transformations as runs
@@ -35,15 +36,8 @@ variable {k : ℕ} {Symbol State : Type*} {tm : MultiTapeTM k Symbol State}
 /-- `nop` halts in one step from any configuration and changes nothing else. -/
 theorem runFrom_nop_withState {input : List Symbol} (C : Cfg k Symbol State input) :
     (nop k Symbol).runFrom (C.withState (some ())) 1 = C.withState none := by
-  rw [runFrom_one, step_of_state rfl]
-  refine Cfg.ext (by simp [nop]) ?_ ?_ ?_ ?_
-  · simp only [nop, tr_ofTr, Action.apply_inputPos, moveInputPos_zero, Cfg.withState]
-  · funext j
-    simp only [nop, tr_ofTr, Action.apply_workTapes, Cfg.withState]
-  · funext j
-    simp only [nop, tr_ofTr, Action.apply_workTapePos, SignType.coe_zero, add_zero, Cfg.withState]
-  · simp only [nop, tr_ofTr, Action.apply_output, Option.toList_none, List.append_nil,
-      Cfg.withState]
+  rw [runFrom_one]
+  tm_step [nop]
 
 /-- **A tape transformation, read on runs.** `TransformsTapes tm P Q t s` holds exactly when, on
 words `ws` satisfying `P`, the run of `t` steps ends in the halted normal form, holding words `ws'`

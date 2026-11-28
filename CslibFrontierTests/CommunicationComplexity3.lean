@@ -69,7 +69,7 @@ example {X Y : Type*} (f : X → Y → Bool) (x : X) (y : Y) :
     Protocol.distributionalComplexity 0 (fun x y b => f x y = b) (PMF.pure (x, y)) = 0 := by
   refine le_antisymm ?_ bot_le
   refine (Protocol.distributionalComplexity_le_depth (p := .output (f x y)) ?_).trans_eq rfl
-  simp [Protocol.distributionalError, PMF.toOuterMeasure_pure_apply]
+  simp [Protocol.distributionalError, Probability.PMF.errorProb, PMF.toOuterMeasure_pure_apply]
 
 /-- Under every distribution, one of the two constant protocols errs with probability at most one
 half. -/
@@ -80,13 +80,13 @@ private theorem distributionalComplexity_half {X Y : Type*} (f : X → Y → Boo
   have h := Probability.PMF.toOuterMeasure_toReal_add_compl ν {q | f q.1 q.2 = true}
   by_cases hν : (ν.toOuterMeasure {q | f q.1 q.2 = true}).toReal ≤ 1 / 2
   · refine ⟨.output false, ?_, le_rfl⟩
-    simpa [Protocol.distributionalError] using hν
+    simpa [Protocol.distributionalError, Probability.PMF.errorProb] using hν
   · refine ⟨.output true, ?_, le_rfl⟩
     have : {q : X × Y | ¬f q.1 q.2 = (Protocol.output true : Protocol X Y Bool).run q.1 q.2} =
         {q | f q.1 q.2 = true}ᶜ := by
       ext q
       simp
-    rw [Protocol.distributionalError, this]
+    rw [Protocol.distributionalError, Probability.PMF.errorProb, this]
     linarith
 
 -- Yao's principle, hard direction: so with error one half every Boolean function on finite inputs

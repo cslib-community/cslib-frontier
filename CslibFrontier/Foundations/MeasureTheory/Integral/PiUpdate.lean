@@ -75,25 +75,20 @@ theorem measurePreserving_update_measure (i : ι) (ν : Measure (X i)) [IsProbab
         (Set.univ.pi (Function.update s i Set.univ)) ×ˢ s i := by
       ext ⟨v, z⟩
       simp only [Set.mem_preimage, Set.mem_univ_pi, Set.mem_prod]
-      constructor
-      · intro h
-        refine ⟨fun j => ?_, by simpa using h i⟩
-        by_cases hj : j = i
-        · subst hj; simp
-        · simpa [Function.update_of_ne hj] using h j
-      · rintro ⟨h1, h2⟩ j
-        by_cases hj : j = i
-        · subst hj; simpa using h2
-        · simpa [Function.update_of_ne hj] using h1 j
+      refine ⟨fun h => ⟨fun j => ?_, by simpa using h i⟩, fun ⟨h1, h2⟩ j => ?_⟩ <;>
+        rcases eq_or_ne j i with rfl | hj
+      · simp
+      · simpa [Function.update_of_ne hj] using h j
+      · simpa using h2
+      · simpa [Function.update_of_ne hj] using h1 j
     rw [hpre, Measure.prod_prod, Measure.pi_pi,
       ← Finset.mul_prod_erase _ _ (Finset.mem_univ i),
       ← Finset.mul_prod_erase (s := Finset.univ) (fun j => Function.update μ i ν j (s j))
         (Finset.mem_univ i),
       Function.update_self, Function.update_self, measure_univ, one_mul, mul_comm]
-    congr 1
-    refine Finset.prod_congr rfl fun j hj => ?_
-    rw [Function.update_of_ne (Finset.ne_of_mem_erase hj),
-      Function.update_of_ne (Finset.ne_of_mem_erase hj)]
+    exact congrArg (_ * ·) <| Finset.prod_congr rfl fun j hj => by
+      rw [Function.update_of_ne (Finset.ne_of_mem_erase hj),
+        Function.update_of_ne (Finset.ne_of_mem_erase hj)]
 
 /-- Resampling coordinate `i` of a product of probability measures preserves the product:
 `(v, z) ↦ Function.update v i z` maps `(Measure.pi μ).prod (μ i)` to `Measure.pi μ`. -/

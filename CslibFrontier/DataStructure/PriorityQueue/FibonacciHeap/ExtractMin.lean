@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.DataStructure.PriorityQueue.FibonacciHeap.Consolidation
 public import CslibFrontier.DataStructure.PriorityQueue.FibonacciHeap.DecreaseKey
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Fibonacci-heap `extractMin` over a record of named cells
@@ -161,6 +163,7 @@ def extractMin (n : ℕ) : Prog (Option (Fin n × ℕ)) := do
     pure (if h : m - 1 < n then some (⟨m - 1, h⟩, kz) else none)
 
 /-- The amortized charge of `extractMin` on a queue with `m` handles. -/
+@[wram_arith]
 def extractCharge (m : ℕ) : ℕ := 92 * (Nat.log 2 m + 1)
 
 
@@ -208,23 +211,18 @@ theorem wp_link {g : Cell → ℕ} {T₁ T₂ : FHTree n} (h₁ : ValidRoot (vie
     {Q : ℕ → (Cell → ℕ) → ℕ → Prop}
     (hQ : ∀ g' t (T : FHTree n), t ≤ 11 → Linked (view n g) (view n g') T₁ T₂ T → Q T.root g' t) :
     Record.wp (Cell.ok n) w (link T₁.root T₂.root) Q g := by
-  have hd₁ : (view n g).deg T₁.root + 1 ≤ n := by
-    rw [ValidSubtree.deg_root h₁.1]; change T₁.deg + 1 ≤ n; omega
-  have hd₂ : (view n g).deg T₂.root + 1 ≤ n := by
-    rw [ValidSubtree.deg_root h₂.1]; change T₂.deg + 1 ≤ n; omega
+  have hd₁ : (view n g).deg T₁.root + 1 ≤ n := ValidSubtree.deg_root h₁.1 ▸ Nat.le_of_succ_le hdn
+  have hd₂ : (view n g).deg T₂.root + 1 ≤ n :=
+    (ValidSubtree.deg_root h₂.1).trans hdeg.symm ▸ Nat.le_of_succ_le hdn
   simp only [link, Record.wp_read_bind, Cell.ok]
   refine ⟨T₁.root.isLt, T₂.root.isLt, ?_⟩
-  by_cases hlt : IndexedMinPQ.PrioLT (T₂.root, (view n g).key T₂.root)
-      (T₁.root, (view n g).key T₁.root)
-  · simp only [show IndexedMinPQ.RawPrioLT (↑T₂.root, g (.key ↑T₂.root))
-      (↑T₁.root, g (.key ↑T₁.root)) from hlt, ite_true]
-    rw [Record.wp_bind]
+  by_cases hlt : IndexedMinPQ.RawPrioLT (↑T₂.root, g (.key ↑T₂.root))
+      (↑T₁.root, g (.key ↑T₁.root))
+  · simp only [hlt, ite_true, Record.wp_bind]
     exact wp_linkAs (ValidSubtree.exists_child h₂.1) hd₂ hfit fun g' t ht hl =>
       hQ g' _ (.node T₂.root (T₂.children ++ [T₁])) (by omega) ((LinksAs.linked h₂ h₁
         (List.perm_append_comm.nodup_iff.mp hnd) hdeg.symm hlt hl).symm hdeg)
-  · simp only [show ¬IndexedMinPQ.RawPrioLT (↑T₂.root, g (.key ↑T₂.root))
-      (↑T₁.root, g (.key ↑T₁.root)) from hlt, ite_false]
-    rw [Record.wp_bind]
+  · simp only [hlt, ite_false, Record.wp_bind]
     have hlt₁ := (IndexedMinPQ.prioLT_or_prioLT_of_ne (fun e : T₁.root = T₂.root =>
       List.disjoint_of_nodup_append hnd T₁.root_mem_nodes (by rw [e]; exact T₂.root_mem_nodes))
         _ _).resolve_right hlt
@@ -344,11 +342,9 @@ theorem wp_gather {sz : ℕ} (hfit : Fits w n) :
     rcases h.table.lookup hdn with ⟨h0, hnone⟩ | ⟨i, hi, hdi, hci, hlen, hno⟩
     · have h0' : g (.cons d) = 0 := h0
       simp only [h0', ite_true]
-      refine Record.wp_mono (fun _ g' t ⟨gs', hG, hl, ht⟩ => ⟨gs', hG, hl, by omega⟩)
-        (wp_gather hfit k h (fun T hT => ?_) (by omega))
-      have := hge T hT
-      have := hnone T hT
-      omega
+      exact Record.wp_mono (fun _ _ _ ⟨gs', hG, hl, ht⟩ => ⟨gs', hG, hl, by omega⟩)
+        (wp_gather hfit k h (fun T hT => Nat.lt_of_le_of_ne (hge T hT) (hnone T hT).symm)
+          (by omega))
     · have hci' : g (.cons d) = slots[i].root.val + 1 := hci
       simp only [hci', Nat.add_one_ne_zero, ite_false, Record.wp_write_bind, Nat.add_sub_cancel,
         Cell.ok]
@@ -357,12 +353,11 @@ theorem wp_gather {sz : ℕ} (hfit : Fits w n) :
       obtain ⟨hroot, hnr, hnext⟩ := h.take hi hdi hdn hno (view_update_cons g 0 d)
       refine wp_addRoot hroot hfit (hfit.of_le hnr) fun g₂ t₂ ht₂ hadd => ?_
       obtain ⟨h₂, hback⟩ := hnext hadd
-      refine Record.wp_mono (fun _ g' t ⟨gs', hG, hl, ht⟩ => ⟨gs', hback hG, by
+      exact Record.wp_mono (fun _ _ _ ⟨gs', hG, hl, ht⟩ => ⟨gs', hback hG, by
         simp only [List.length_cons] at hl; omega, by omega⟩)
-        (wp_gather hfit k h₂ (fun T hT => ?_) (by omega))
-      have := hge T (List.mem_of_mem_eraseIdx hT)
-      have := hno T hT
-      omega
+        (wp_gather hfit k h₂
+          (fun T hT => Nat.lt_of_le_of_ne (hge T (List.mem_of_mem_eraseIdx hT)) (hno T hT).symm)
+          (by omega))
 
 /-- **Extracting the minimum.** `extractMin n` implements `IndexedMinPQ.step` on `.extractMin`,
 preserves the invariant, and costs at most `extractCharge` of the queue's size, amortized. -/
@@ -374,18 +369,15 @@ theorem wp_extractMin {K : ℕ} {g : Cell → ℕ} (hI : Inv n K g) (hfit : Fits
   rcases minRoot_cases hI with h0 | ⟨m, -, hm, -⟩
   · have h0' : g .minRoot = 0 := h0
     simp only [extractMin, Record.wp_read_bind, h0', ite_true, Record.wp_pure, Cell.ok, true_and]
-    refine ⟨?_, hI, by simp [extractCharge]; omega⟩
+    refine ⟨?_, hI, by wram_omega⟩
     simp [IndexedMinPQ.step, (FibRawInv.findMin_eq_none hI h0).2]
   obtain ⟨cs, E, hD⟩ := FibRawInv.detach hI hm
   have hm' : g .minRoot = m.val + 1 := hm
   have hmn := m.isLt
   have hdeg : g (.deg m) = cs.length := hD.deg
-  have hnr : g .numRoots - 1 = E.length := by
-    have := hD.numRoots
-    change g .numRoots = _ at this
-    omega
-  have hszn : (view n g).sz ≤ n := by
-    rw [hD.sz]; exact (Finset.card_le_univ _).trans (by simp)
+  have hnr : g .numRoots - 1 = E.length :=
+    (congrArg (· - 1) hD.numRoots).trans (Nat.add_sub_cancel _ _)
+  have hszn : (view n g).sz ≤ n := hD.sz ▸ (Finset.card_le_univ _).trans_eq (Fintype.card_fin n)
   simp only [extractMin, Record.wp_read_bind, Record.wp_write_bind, hm', Nat.add_one_ne_zero,
     ite_false, Nat.add_sub_cancel, Function.update_apply, reduceCtorEq, Cell.ok, true_and,
     hdeg, hnr]
@@ -395,9 +387,8 @@ theorem wp_extractMin {K : ℕ} {g : Cell → ℕ} (hI : Inv n K g) (hfit : Fits
       detachState (view n g) m := by
     simp only [view_update_inHeap, view_update_sz]; rfl
   refine Record.wp_mono ?_ (wp_scatterList hfit true (Nat.lt_succ_self n) cs.length
-    (by rw [hv₁]; exact hD.scatterChildren) rfl fun y hy => by
-      change (view n g).child m - 1 = y.val
-      rw [hD.child y hy, Nat.add_sub_cancel])
+    (hv₁ ▸ hD.scatterChildren) rfl fun y hy =>
+      (congrArg (· - 1) (hD.child y hy)).trans (Nat.add_sub_cancel _ _))
   rintro md₁ g₂ t₁ ⟨slots₁, hc₁, ht₁⟩
   rw [hv₁] at hc₁
   rw [Record.wp_bind]
@@ -407,28 +398,21 @@ theorem wp_extractMin {K : ℕ} {g : Cell → ℕ} (hI : Inv n K g) (hfit : Fits
   simp only [Record.wp_write_bind, Cell.ok, true_and]
   refine ⟨fits_zero w, fits_zero w, ?_⟩
   rw [Record.wp_bind]
-  have hv₄ : view n (Function.update (Function.update g₃ .minRoot 0) .numRoots 0) =
-      { view n g₃ with minRoot := 0, numRoots := 0 } := rfl
   refine Record.wp_mono ?_ (wp_gather hfit (md₂ + 1) (d := 0) (gs := [])
-    (by rw [hv₄]; exact hD.gathering hc₁ hc₂) (fun _ _ => Nat.zero_le _) (by omega))
+    (hD.gathering hc₁ hc₂) (fun _ _ => Nat.zero_le _) (by omega))
   rintro _ g' t₃ ⟨gs', hG, hlen, ht₃⟩
-  rw [hv₄] at hG
   obtain ⟨hfin, hnm', hmd⟩ := hD.finish hc₁ hc₂ hG
   obtain ⟨hI', habs'⟩ := inv_of_fibRawInv hfin
   simp only [Record.wp_pure]
-  refine ⟨?_, hI', ?_⟩
-  · rw [habs']
-    simp only [IndexedMinPQ.step, hD.findMin, hmn, dite_true, Prod.mk.injEq, Option.some.injEq,
-      true_and]
-    rfl
-  · -- Links are paid by the trees they remove; what remains is logarithmic.
-    have hF := SlotInv.length_le hc₂.table
-    have hnr' := hG.numRoots
-    have hdz := hD.degBound
-    have hnr₀ := hD.numRoots
-    simp only [ite_true, Bool.false_eq_true, ite_false, List.length_nil] at ht₁ ht₂ hlen
-    simp only [potential, credit, extractCharge]
-    omega
+  refine ⟨by simp [habs', IndexedMinPQ.step, hD.findMin, hmn]; rfl, hI', ?_⟩
+  -- Links are paid by the trees they remove; what remains is logarithmic.
+  have hF := SlotInv.length_le hc₂.table
+  have hnr' := hG.numRoots
+  have hdz := hD.degBound
+  have hnr₀ := hD.numRoots
+  simp only [ite_true, Bool.false_eq_true, ite_false, List.length_nil] at ht₁ ht₂ hlen
+  simp only [potential, credit, extractCharge]
+  omega
 
 end Programs
 

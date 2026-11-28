@@ -74,7 +74,6 @@ to its degree. A caller can reuse the same modulus across many products. -/
 /-- The product always has the supplied modulus's coordinate width. -/
 @[simp] theorem length_fieldMulMod (g a b : List Bool) :
     (fieldMulMod g a b).length = g.length - 1 := by
-  unfold fieldMulMod
   exact length_modMulBits _ _ _ (by simp)
 
 private theorem mk_polyOfBits_word {w : ℕ} (hw : w ≠ 0) (a : List Bool) :
@@ -92,22 +91,16 @@ theorem fieldOfBits_fieldMulMod {w : ℕ} (hw : w ≠ 0) (a b : List Bool) :
     fieldOfBits (basis hw) (fieldMulMod (modulusBits w) a b) =
       fieldOfBits (basis hw) a * fieldOfBits (basis hw) b := by
   obtain ⟨l, hl, hlen⟩ := exists_modulusBits_eq hw
-  have hg : (modulusBits w).length - 1 = w := by
-    rw [length_modulusBits hw, Nat.add_sub_cancel]
-  have hp : polyOfBits (l ++ [true]) = leastIrreducible w := by
-    rw [← hl, polyOfBits_modulusBits hw]
   let word (x : List Bool) := List.ofFn fun i : Fin w => x.getD i false
-  have hprod := (modMulBits_spec l (word a) (word b) (by simp [word, hlen])).2
-  rw [hp, map_mul, mk_polyOfBits_word hw a, mk_polyOfBits_word hw b] at hprod
+  obtain ⟨-, hmlen, hprod⟩ := modMulBits_spec l (word a) (word b) (by simp [word, hlen])
   have hword : word (modMulBits (l ++ [true]) (word a) (word b)) =
       modMulBits (l ++ [true]) (word a) (word b) := by
-    apply List.ext_getElem
-    · simpa [word, hlen] using hprod.1.symm
-    · intro i hi hi'
-      rw [List.getElem_ofFn, List.getD_eq_getElem _ _ hi']
-  rw [fieldMulMod, hg, hl, ← mk_polyOfBits_word hw]
-  change AdjoinRoot.mk (leastIrreducible w)
-    (polyOfBits (word (modMulBits (l ++ [true]) (word a) (word b)))) = _
-  rw [hword, hprod.2]
+    apply List.ext_getElem (by simpa [word, hlen] using hmlen.symm) fun i hi hi' => ?_
+    rw [List.getElem_ofFn, List.getD_eq_getElem _ _ hi']
+  have hp : polyOfBits (l ++ [true]) = leastIrreducible w := hl ▸ polyOfBits_modulusBits hw
+  rw [hp, map_mul, mk_polyOfBits_word hw a, mk_polyOfBits_word hw b] at hprod
+  rw [fieldMulMod, length_modulusBits hw, Nat.add_sub_cancel, ← mk_polyOfBits_word hw, hl]
+  change AdjoinRoot.mk (leastIrreducible w) (polyOfBits (word _)) = _
+  rw [hword, hprod]
 
 end Cslib.BinaryField

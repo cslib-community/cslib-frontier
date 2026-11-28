@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.EvaluationTime
 public import CslibFrontier.Computability.Circuit.Boolean.DepthTime.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
+import CslibFrontier.Computability.Circuit.Boolean.Encoding.PolyTime
 
 /-!
 # Uniform native certificates for fixed-key bootstrapping
@@ -42,7 +43,7 @@ are polynomially bounded as a consequence of the generator certificate.
   construction][Gentry2009]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto.Homomorphic.FixedKey
 
@@ -69,14 +70,8 @@ theorem isPPTOn_keyGen
     (ComputableInPolyTime.snd _ _).fst'
     (ComputableInPolyTime.snd _ _).snd'
   simpa only [bind_pure_comp] using hbits.map_with
-    (show ComputableInPolyTime
-      (fun p : (α × (List Bool × List Bool)) × List (List Bool) =>
-        (encPublicKey (p.1.2.1, p.2), p.1.2.2))
-      (encPair (encPair input (encPair encBits encBits)) (encList encBits))
-      (encPair encBits encBits) from
-      (((ComputableInPolyTime.fst _ _).snd'.fst'.prod
-        (ComputableInPolyTime.snd _ _)).of_enc_eq fun _ => rfl).prod
-          (ComputableInPolyTime.fst _ _).snd'.snd')
+    (right := encPair encBits encBits)
+    (f := fun p rows => (encPublicKey (p.2.1, rows), p.2.2)) (by fun_prop)
 
 include hencrypt in
 /-- Decode any public word and encrypt under the decoded base public key. -/
@@ -157,9 +152,7 @@ theorem isPPTOn_evaluate {c : α → Σ m, Circuit Boolean.signature m 1}
     (hinputs : ComputableInPolyTime inputs input (encList encBits)) :
     IsPPTOn input encBits (fun a => evaluate D (n a) (pk a) (c a) (inputs a)) := by
   have hpublic := publicKeyDecoder.computableInPolyTime.comp hpk
-  have hview : ComputableInPolyTime
-      (fun C : Σ m, Circuit Boolean.signature m 1 => (C.1, C.2.code))
-      (Boolean.encCircuit 1) (encPair encUnary Boolean.encCode) := .of_eq fun _ => rfl
+  have hview := Boolean.computableInPolyTime_arity_code 1
   have hparts := hview.comp hc
   exact (isPPTOn_evaluateCircuit hencrypt D hD hevaluate hn
     hpublic.fst' hpublic.snd' hinputs
@@ -170,9 +163,7 @@ include hD in
 polynomially in the security parameter. No separate width-computability premise is needed. -/
 theorem polynomiallyBounded_widths :
     PolynomiallyBounded secretWidth ∧ PolynomiallyBounded ciphertextWidth := by
-  have hview : ComputableInPolyTime
-      (fun c : Σ m, Circuit Boolean.signature m 1 => (c.1, c.2.code))
-      (Boolean.encCircuit 1) (encPair encUnary Boolean.encCode) := .of_eq fun _ => rfl
+  have hview := Boolean.computableInPolyTime_arity_code 1
   have htotal : PolynomiallyBounded (fun n => secretWidth n + ciphertextWidth n) :=
     (hview.fst'.comp hD).polynomiallyBounded
   exact ⟨htotal.mono_of_le (fun n => Nat.le_add_right (secretWidth n) (ciphertextWidth n)),
@@ -182,9 +173,7 @@ include hD in
 /-- A uniform native circuit generator also bounds the number of decryption gates. -/
 theorem polynomiallyBounded_decryptionSize :
     PolynomiallyBounded (fun n => (D.circuit n).size) := by
-  have hview : ComputableInPolyTime
-      (fun c : Σ m, Circuit Boolean.signature m 1 => (c.1, c.2.code))
-      (Boolean.encCircuit 1) (encPair encUnary Boolean.encCode) := .of_eq fun _ => rfl
+  have hview := Boolean.computableInPolyTime_arity_code 1
   have hlen : ComputableInPolyTime (fun n => (D.circuit n).code.1.length) encUnary encUnary :=
     (ComputableInPolyTime.length_list Boolean.encGate).comp (hview.snd'.fst'.comp hD)
   exact hlen.polynomiallyBounded.mono_of_le (fun n => (Circuit.length_code_fst (D.circuit n)).ge)

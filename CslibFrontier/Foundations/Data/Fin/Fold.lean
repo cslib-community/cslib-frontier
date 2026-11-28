@@ -39,16 +39,10 @@ theorem foldlMFrom_of_le {m : Type → Type} [Monad m] {α : Type} {n : ℕ}
 theorem foldlMFrom_step {m : Type → Type} [Monad m] {α : Type} {n : ℕ}
     (f : α → Fin n → m α) (a : α) {i : ℕ} (hi : i < n) :
     foldlMFrom f a i = (f a ⟨i, hi⟩ >>= fun a' => foldlMFrom f a' (i + 1)) := by
-  unfold foldlMFrom
   have hn : n - i = (n - (i + 1)) + 1 := by omega
-  conv_lhs => simp only [hn, Fin.foldlM_succ]
-  congr 1
-  funext a'
-  congr 1
-  funext x u
-  congr 1
-  apply Fin.ext
-  simp only [Fin.val_cast, Fin.val_succ]
-  omega
+  conv_lhs => simp only [foldlMFrom, hn, Fin.foldlM_succ]
+  refine congrArg (_ >>= ·) (funext fun a' => congrFun (congrArg (Fin.foldlM _) ?_) a')
+  refine funext₂ fun x u => congrArg (f x) (Fin.ext ?_)
+  simp only [Fin.val_cast, Fin.val_succ]; omega
 
 end Fin

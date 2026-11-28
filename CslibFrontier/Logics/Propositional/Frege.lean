@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import Cslib.Logics.Propositional.Defs
+public import CslibFrontier.Logics.Propositional.LineProof
 public import CslibFrontier.Logics.Propositional.Semantics
 public import Mathlib.Data.List.Basic
 import Mathlib.Tactic.Linarith
@@ -49,11 +50,14 @@ with explicit line counts:
 ## Main definitions
 
 * `Cslib.Logic.PL.Frege.Formula`.
-* `Cslib.Logic.PL.Frege.IsAxiom`, `Cslib.Logic.PL.Frege.IsProof`: the Frege system.
+* `Cslib.Logic.PL.Frege.IsAxiom`, `Cslib.Logic.PL.Frege.rules`,
+  `Cslib.Logic.PL.Frege.IsProof`: the Frege system.
 * `Cslib.Logic.PL.Frege.DerivableInSize`: derivability in a bounded number of lines.
 
 ## Main results
 
+* `Cslib.Logic.PL.Frege.isProof_iff_lineProof`: Frege proofs as `Cslib.Logic.PL.LineProof`
+  derivations.
 * `Cslib.Logic.PL.Frege.IsProof.eval`: soundness.
 * `Cslib.Logic.PL.Frege.IsProof.cut`, `Cslib.Logic.PL.Frege.IsProof.deduction`.
 
@@ -130,107 +134,84 @@ theorem IsAxiom.eval {φ : Formula V} (h : IsAxiom φ) (σ : V → Bool) : φ.ev
     Proposition.eval_or_bool, Proposition.eval_bot_bool] <;>
     grind
 
+/-- The rules of the Frege system as `Cslib.Logic.PL.LineRule`s: axiom instances (with no premises)
+and modus ponens. -/
+@[expose] def rules (V : Type*) : Set (LineRule (Formula V)) :=
+  {r | (r.premises = [] ∧ IsAxiom r.concl) ∨ ∃ φ ψ, r = ⟨[φ, imp φ ψ], ψ⟩}
+
+/-- Every Frege rule preserves truth under any assignment. -/
+theorem rules_sound {r : LineRule (Formula V)} (hr : r ∈ rules V) {σ : V → Bool}
+    (hp : ∀ φ ∈ r.premises, φ.eval σ = true) : r.concl.eval σ = true := by
+  rcases hr with ⟨-, hax⟩ | ⟨φ, ψ, rfl⟩
+  · exact hax.eval σ
+  · have e₂ := hp (imp φ ψ) (by simp)
+    simpa only [Proposition.eval_imp_bool, hp φ (by simp), Bool.not_true, Bool.false_or] using e₂
+
+/-- **Frege proofs as `LineProof` derivations.** -/
+theorem isProof_iff_lineProof {Γ L : List (Formula V)} :
+    IsProof Γ L ↔ LineProof (rules V) {φ | φ ∈ Γ} L := by
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · induction h with
+    | nil => exact .nil
+    | hyp _ hφ ih => exact ih.hyp hφ
+    | @ax _ φ _ hφ ih => exact ih.step (r := ⟨[], φ⟩) (.inl ⟨rfl, hφ⟩) (by simp)
+    | @mp _ φ ψ _ h₁ h₂ ih =>
+      exact ih.step (r := ⟨[φ, imp φ ψ], ψ⟩) (.inr ⟨φ, ψ, rfl⟩) (by simp [h₁, h₂])
+  · induction h with
+    | nil => exact .nil
+    | hyp _ hφ ih => exact ih.hyp hφ
+    | step _ hr hp ih =>
+      rcases hr with ⟨-, hax⟩ | ⟨φ, ψ, rfl⟩
+      · exact ih.ax hax
+      · exact ih.mp (hp φ (by simp)) (hp (imp φ ψ) (by simp))
+
 /-- **Soundness**: under an assignment satisfying every hypothesis, every line is true. -/
 theorem IsProof.eval {Γ L : List (Formula V)} (h : IsProof Γ L) {σ : V → Bool}
-    (hσ : ∀ γ ∈ Γ, γ.eval σ = true) : ∀ φ ∈ L, φ.eval σ = true := by
-  induction h with
-  | nil => simp
-  | hyp _ hφ ih => exact List.forall_mem_cons.2 ⟨hσ _ hφ, ih⟩
-  | ax _ hφ ih => exact List.forall_mem_cons.2 ⟨hφ.eval σ, ih⟩
-  | mp _ h₁ h₂ ih =>
-    refine List.forall_mem_cons.2 ⟨?_, ih⟩
-    have e₁ := ih _ h₁
-    have e₂ := ih _ h₂
-    simp only [Proposition.eval_imp_bool, e₁, Bool.not_true, Bool.false_or] at e₂
-    exact e₂
+    (hσ : ∀ γ ∈ Γ, γ.eval σ = true) : ∀ φ ∈ L, φ.eval σ = true :=
+  (isProof_iff_lineProof.1 h).holds hσ fun _ hr => rules_sound hr
 
 /-- `L'` extends the proof `L` by at most `n` lines. -/
-def Grows (Γ L L' : List (Formula V)) (n : ℕ) : Prop :=
-  ∃ M, L' = M ++ L ∧ IsProof Γ L' ∧ M.length ≤ n
+abbrev Grows (Γ L L' : List (Formula V)) (n : ℕ) : Prop :=
+  LineProof.Grows (rules V) {φ | φ ∈ Γ} L L' n
 
 /-- No new lines. -/
 theorem Grows.refl {Γ L : List (Formula V)} (h : IsProof Γ L) : Grows Γ L L 0 :=
-  ⟨[], rfl, h, le_rfl⟩
-
-/-- Growth composes, adding the line counts. -/
-theorem Grows.trans {Γ L L' L'' : List (Formula V)} {m n : ℕ} (h₁ : Grows Γ L L' m)
-    (h₂ : Grows Γ L' L'' n) : Grows Γ L L'' (n + m) := by
-  obtain ⟨M, rfl, -, hM⟩ := h₁
-  obtain ⟨N, rfl, hp, hN⟩ := h₂
-  exact ⟨N ++ M, by simp, hp, by simp; omega⟩
+  LineProof.Grows.refl (isProof_iff_lineProof.1 h)
 
 /-- The extended list is a proof. -/
 theorem Grows.proof {Γ L L' : List (Formula V)} {n : ℕ} (h : Grows Γ L L' n) :
-    IsProof Γ L' := by
-  obtain ⟨_, _, hp, _⟩ := h
-  exact hp
-
-/-- Growth keeps the old lines. -/
-theorem Grows.subset {Γ L L' : List (Formula V)} {n : ℕ} (h : Grows Γ L L' n) : L ⊆ L' := by
-  obtain ⟨M, rfl, -, -⟩ := h
-  exact List.subset_append_right _ _
-
-/-- Growth by at most `m` lines is growth by at most `n ≥ m` lines. -/
-theorem Grows.mono {Γ L L' : List (Formula V)} {m n : ℕ} (h : Grows Γ L L' m) (hmn : m ≤ n) :
-    Grows Γ L L' n := by
-  obtain ⟨M, rfl, hp, hM⟩ := h
-  exact ⟨M, rfl, hp, hM.trans hmn⟩
+    IsProof Γ L' :=
+  isProof_iff_lineProof.2 h.lineProof
 
 /-- Adding an axiom instance. -/
 theorem grows_ax {Γ L : List (Formula V)} (h : IsProof Γ L) {φ : Formula V} (hφ : IsAxiom φ) :
-    Grows Γ L (φ :: L) 1 := ⟨[φ], rfl, h.ax hφ, le_rfl⟩
+    Grows Γ L (φ :: L) 1 :=
+  LineProof.Grows.step (r := ⟨[], φ⟩) (isProof_iff_lineProof.1 h) (Or.inl ⟨rfl, hφ⟩) (by simp)
 
 /-- Adding a hypothesis. -/
 theorem grows_hyp {Γ L : List (Formula V)} (h : IsProof Γ L) {φ : Formula V} (hφ : φ ∈ Γ) :
-    Grows Γ L (φ :: L) 1 := ⟨[φ], rfl, h.hyp hφ, le_rfl⟩
+    Grows Γ L (φ :: L) 1 :=
+  LineProof.Grows.hyp (isProof_iff_lineProof.1 h) hφ
 
 /-- Adding a modus ponens line. -/
 theorem grows_mp {Γ L : List (Formula V)} (h : IsProof Γ L) {φ ψ : Formula V} (h₁ : φ ∈ L)
-    (h₂ : imp φ ψ ∈ L) : Grows Γ L (ψ :: L) 1 := ⟨[ψ], rfl, h.mp h₁ h₂, le_rfl⟩
+    (h₂ : imp φ ψ ∈ L) : Grows Γ L (ψ :: L) 1 :=
+  LineProof.Grows.step (r := ⟨[φ, imp φ ψ], ψ⟩) (isProof_iff_lineProof.1 h)
+    (Or.inr ⟨φ, ψ, rfl⟩) (by simp [h₁, h₂])
 
 /-- **Cut**: a proof from `Γ ++ Δ` replays on top of a proof `L` from `Γ` containing every
 formula of `Δ`, with at most as many new lines. -/
 theorem IsProof.cut {Γ Δ M L : List (Formula V)} (hM : IsProof (Γ ++ Δ) M) (hL : IsProof Γ L)
     (hΔ : ∀ δ ∈ Δ, δ ∈ L) :
     ∃ M', IsProof Γ (M' ++ L) ∧ M'.length ≤ M.length ∧ ∀ φ ∈ M, φ ∈ M' ++ L := by
-  induction hM with
-  | nil => exact ⟨[], hL, le_rfl, by simp⟩
-  | @hyp M φ _ hφ ih =>
-    obtain ⟨M', hp, hlen, hmem⟩ := ih
-    rcases List.mem_append.1 hφ with hφ | hφ
-    · refine ⟨φ :: M', hp.hyp hφ, by simp; omega, ?_⟩
-      intro ψ hψ
-      rcases List.mem_cons.1 hψ with rfl | hψ
-      · exact List.mem_cons_self
-      · exact List.mem_cons_of_mem _ (hmem ψ hψ)
-    · refine ⟨M', hp, by simp; omega, ?_⟩
-      intro ψ hψ
-      rcases List.mem_cons.1 hψ with rfl | hψ
-      · exact List.mem_append_right _ (hΔ _ hφ)
-      · exact hmem ψ hψ
-  | @ax M φ _ hφ ih =>
-    obtain ⟨M', hp, hlen, hmem⟩ := ih
-    refine ⟨φ :: M', hp.ax hφ, by simp; omega, ?_⟩
-    intro ψ hψ
-    rcases List.mem_cons.1 hψ with rfl | hψ
-    · exact List.mem_cons_self
-    · exact List.mem_cons_of_mem _ (hmem ψ hψ)
-  | @mp M φ ψ _ h₁ h₂ ih =>
-    obtain ⟨M', hp, hlen, hmem⟩ := ih
-    refine ⟨ψ :: M', hp.mp (hmem _ h₁) (hmem _ h₂), by simp; omega, ?_⟩
-    intro χ hχ
-    rcases List.mem_cons.1 hχ with rfl | hχ
-    · exact List.mem_cons_self
-    · exact List.mem_cons_of_mem _ (hmem χ hχ)
+  obtain ⟨M', hM', hmem, hsub, -, -⟩ := (isProof_iff_lineProof.1 hM).comp
+    (isProof_iff_lineProof.1 hL) fun x hx => (List.mem_append.1 hx).imp_right (hΔ x)
+  exact ⟨M', isProof_iff_lineProof.2 hM', hsub.length_le, hmem⟩
 
 /-- Proofs are monotone in the hypotheses. -/
 theorem IsProof.mono {Γ Γ' L : List (Formula V)} (h : IsProof Γ L) (hΓ : Γ ⊆ Γ') :
-    IsProof Γ' L := by
-  induction h with
-  | nil => exact .nil
-  | hyp _ hφ ih => exact ih.hyp (hΓ hφ)
-  | ax _ hφ ih => exact ih.ax hφ
-  | mp _ h₁ h₂ ih => exact ih.mp h₁ h₂
+    IsProof Γ' L :=
+  isProof_iff_lineProof.2 ((isProof_iff_lineProof.1 h).mono_hyp fun _ hx => hΓ hx)
 
 /-- `φ` is derivable from `Γ` in at most `n` lines. -/
 @[expose] def DerivableInSize (Γ : List (Formula V)) (φ : Formula V) (n : ℕ) : Prop :=
@@ -238,12 +219,8 @@ theorem IsProof.mono {Γ Γ' L : List (Formula V)} (h : IsProof Γ L) (hΓ : Γ 
 
 /-- Two proofs from the same hypotheses can be stacked. -/
 theorem IsProof.append {Γ L M : List (Formula V)} (hL : IsProof Γ L) (hM : IsProof Γ M) :
-    IsProof Γ (M ++ L) := by
-  induction hM with
-  | nil => simpa using hL
-  | hyp _ hφ ih => exact ih.hyp hφ
-  | ax _ hφ ih => exact ih.ax hφ
-  | mp _ h₁ h₂ ih => exact ih.mp (List.mem_append_left _ h₁) (List.mem_append_left _ h₂)
+    IsProof Γ (M ++ L) :=
+  isProof_iff_lineProof.2 ((isProof_iff_lineProof.1 hM).append (isProof_iff_lineProof.1 hL))
 
 namespace DerivableInSize
 
@@ -251,9 +228,9 @@ variable {Γ : List (Formula V)}
 
 /-- Derivability in `n` lines implies derivability in `m ≥ n` lines. -/
 theorem mono {n m : ℕ} {φ : Formula V} (h : DerivableInSize Γ φ n) (hnm : n ≤ m) :
-    DerivableInSize Γ φ m := by
-  obtain ⟨L, hL, hφ, hlen⟩ := h
-  exact ⟨L, hL, hφ, hlen.trans hnm⟩
+    DerivableInSize Γ φ m :=
+  let ⟨L, hL, hφ, hlen⟩ := h
+  ⟨L, hL, hφ, hlen.trans hnm⟩
 
 /-- An axiom instance in one line. -/
 theorem ax {φ : Formula V} (h : IsAxiom φ) : DerivableInSize Γ φ 1 :=
@@ -265,10 +242,10 @@ theorem hyp {φ : Formula V} (h : φ ∈ Γ) : DerivableInSize Γ φ 1 :=
 
 /-- Modus ponens, stacking the two derivations. -/
 theorem mp {m n : ℕ} {φ ψ : Formula V} (h₁ : DerivableInSize Γ (imp φ ψ) m)
-    (h₂ : DerivableInSize Γ φ n) : DerivableInSize Γ ψ (m + n + 1) := by
-  obtain ⟨L₁, hL₁, hφψ, hlen₁⟩ := h₁
-  obtain ⟨L₂, hL₂, hφ, hlen₂⟩ := h₂
-  refine ⟨ψ :: (L₂ ++ L₁), (hL₁.append hL₂).mp (List.mem_append_left _ hφ)
+    (h₂ : DerivableInSize Γ φ n) : DerivableInSize Γ ψ (m + n + 1) :=
+  let ⟨L₁, hL₁, hφψ, _⟩ := h₁
+  let ⟨L₂, hL₂, hφ, _⟩ := h₂
+  ⟨ψ :: (L₂ ++ L₁), (hL₁.append hL₂).mp (List.mem_append_left _ hφ)
     (List.mem_append_right _ hφψ), List.mem_cons_self, by simp; omega⟩
 
 /-- `φ → φ` in five lines. -/
@@ -292,9 +269,8 @@ theorem imp_imps_self (a : Formula V) (Δ : List (Formula V)) :
   induction Δ with
   | nil => exact id a
   | cons b Δ ih =>
-    have h := ((ax (IsAxiom.s a (imps Δ a) (imp b (imps Δ a)))).mp
-      ((ax (IsAxiom.k (imps Δ a) b)).lift a)).mp ih
-    exact h.mono (by simp; omega)
+    exact (((ax (.s a (imps Δ a) (imp b (imps Δ a)))).mp
+      ((ax (.k (imps Δ a) b)).lift a)).mp ih).mono (by simp; omega)
 
 /-- `b₁ → ⋯ → bₖ → a` for `a` among the `bᵢ`. -/
 theorem imps_mem {a : Formula V} {Δ : List (Formula V)} (h : a ∈ Δ) :
@@ -303,10 +279,8 @@ theorem imps_mem {a : Formula V} {Δ : List (Formula V)} (h : a ∈ Δ) :
   | nil => simp at h
   | cons b Δ ih =>
     by_cases hab : a = b
-    · subst hab
-      exact (imp_imps_self a Δ).mono (by simp; omega)
-    · have h' : a ∈ Δ := (List.mem_cons.1 h).resolve_left hab
-      exact ((ih h').lift b).mono (by simp; omega)
+    · exact hab ▸ (imp_imps_self a Δ).mono (by simp; omega)
+    · exact ((ih ((List.mem_cons.1 h).resolve_left hab)).lift b).mono (by simp; omega)
 
 /-- Distribution of `b₁ → ⋯ → bₖ →` over implication. -/
 theorem imps_dist (Δ : List (Formula V)) (φ ψ : Formula V) :
@@ -315,17 +289,17 @@ theorem imps_dist (Δ : List (Formula V)) (φ ψ : Formula V) :
   induction Δ with
   | nil => exact id _
   | cons a Δ ih =>
-    have h₁ := (ax (IsAxiom.s a (imps Δ (imp φ ψ)) (imp (imps Δ φ) (imps Δ ψ)))).mp (ih.lift a)
-    have h := h₁.trans (ax (IsAxiom.s a (imps Δ φ) (imps Δ ψ)))
-    exact h.mono (by simp; omega)
+    exact (((ax (.s a (imps Δ (imp φ ψ)) (imp (imps Δ φ) (imps Δ ψ)))).mp (ih.lift a)).trans
+      (ax (.s a (imps Δ φ) (imps Δ ψ)))).mono (by simp; omega)
 
 end DerivableInSize
 
 /-- Appending a derivation from the same hypotheses. -/
 theorem Grows.of_derivableInSize {Γ L : List (Formula V)} (hL : IsProof Γ L) {n : ℕ}
-    {φ : Formula V} (h : DerivableInSize Γ φ n) : ∃ L', Grows Γ L L' n ∧ φ ∈ L' := by
-  obtain ⟨M, hM, hφ, hlen⟩ := h
-  exact ⟨M ++ L, ⟨M, rfl, hL.append hM, hlen⟩, List.mem_append_left _ hφ⟩
+    {φ : Formula V} (h : DerivableInSize Γ φ n) : ∃ L', Grows Γ L L' n ∧ φ ∈ L' :=
+  let ⟨M, hM, hφ, hlen⟩ := h
+  ⟨M ++ L, LineProof.Grows.of_append (isProof_iff_lineProof.1 (hL.append hM)) hlen,
+    List.mem_append_left _ hφ⟩
 
 /-- Weakening an available line under the antecedents `Δ`, two lines per antecedent. -/
 theorem Grows.imps_of_mem {Γ L : List (Formula V)} (hL : IsProof Γ L) {φ : Formula V}
@@ -335,51 +309,36 @@ theorem Grows.imps_of_mem {Γ L : List (Formula V)} (hL : IsProof Γ L) {φ : Fo
   | nil => exact ⟨L, Grows.refl hL, hφ⟩
   | cons a Δ ih =>
     obtain ⟨L₁, g₁, h₁⟩ := ih
-    have g₂ := grows_ax g₁.proof (IsAxiom.k (imps Δ φ) a)
-    have g₃ := grows_mp g₂.proof (List.mem_cons_of_mem _ h₁) List.mem_cons_self
-    exact ⟨_, (g₁.trans g₂).trans g₃ |>.mono (by simp; omega), List.mem_cons_self⟩
-
-/-- One step of the deduction theorem: if `L₁` translates the lines `M` and `n ≤ 10 (|Δ| + 1)` more
-lines reach a proof `L₂` containing `Δ ⇒ φ`, then `L₂` translates `φ :: M`. -/
-private theorem deduction_cons {Γ Δ M L L₁ L₂ : List (Formula V)} {φ : Formula V} {n : ℕ}
-    (g₁ : Grows Γ L L₁ (10 * (Δ.length + 1) * M.length)) (h₁ : ∀ ψ ∈ M, imps Δ ψ ∈ L₁)
-    (g₂ : Grows Γ L₁ L₂ n) (hn : n ≤ 10 * (Δ.length + 1)) (h₂ : imps Δ φ ∈ L₂) :
-    ∃ L', Grows Γ L L' (10 * (Δ.length + 1) * (φ :: M).length) ∧
-      ∀ ψ ∈ φ :: M, imps Δ ψ ∈ L' :=
-  ⟨L₂, (g₁.trans g₂).mono (by simp only [List.length_cons]; nlinarith),
-    List.forall_mem_cons.2 ⟨h₂, fun ψ hψ => g₂.subset (h₁ ψ hψ)⟩⟩
+    have g₂ := grows_ax g₁.proof (.k (imps Δ φ) a)
+    exact ⟨_, ((g₁.trans g₂).trans (grows_mp g₂.proof (List.mem_cons_of_mem _ h₁)
+      List.mem_cons_self)).mono (by simp; omega), List.mem_cons_self⟩
 
 /-- **Deduction theorem with linear overhead**: a proof from `Γ ++ Δ` becomes a proof from `Γ` of
 `Δ ⇒ φ` for each of its lines `φ`, with at most `10 (|Δ| + 1)` lines per original line. -/
 theorem IsProof.deduction {Γ Δ M : List (Formula V)} (hM : IsProof (Γ ++ Δ) M)
     {L : List (Formula V)} (hL : IsProof Γ L) :
-    ∃ L', Grows Γ L L' (10 * (Δ.length + 1) * M.length) ∧ ∀ φ ∈ M, imps Δ φ ∈ L' := by
-  induction hM with
-  | nil => exact ⟨L, (Grows.refl hL).mono (Nat.zero_le _), by simp⟩
-  | @hyp M φ _ hφ ih =>
-    obtain ⟨L₁, g₁, h₁⟩ := ih
-    rcases List.mem_append.1 hφ with hφ | hφ
-    · -- `φ ∈ Γ`: add it as a hypothesis, then weaken it under `Δ`.
-      have g₂ := grows_hyp g₁.proof hφ
-      obtain ⟨L₃, g₃, h₃⟩ := Grows.imps_of_mem g₂.proof List.mem_cons_self Δ
-      exact deduction_cons g₁ h₁ (g₂.trans g₃) (by omega) h₃
-    · -- `φ ∈ Δ`: `Δ ⇒ φ` has a short direct proof.
-      obtain ⟨L₂, g₂, h₂⟩ := Grows.of_derivableInSize g₁.proof
-        (DerivableInSize.imps_mem (Γ := Γ) hφ)
-      exact deduction_cons g₁ h₁ g₂ (by omega) h₂
-  | @ax M φ _ hφ ih =>
-    obtain ⟨L₁, g₁, h₁⟩ := ih
-    have g₂ := grows_ax g₁.proof hφ
-    obtain ⟨L₃, g₃, h₃⟩ := Grows.imps_of_mem g₂.proof List.mem_cons_self Δ
-    exact deduction_cons g₁ h₁ (g₂.trans g₃) (by omega) h₃
-  | @mp M φ ψ _ hφ hφψ ih =>
-    obtain ⟨L₁, g₁, h₁⟩ := ih
-    obtain ⟨L₂, g₂, h₂⟩ := Grows.of_derivableInSize g₁.proof
-      (DerivableInSize.imps_dist (Γ := Γ) Δ φ ψ)
-    have g₃ := grows_mp g₂.proof (g₂.subset (h₁ _ hφψ)) h₂
-    have g₄ := grows_mp g₃.proof (List.mem_cons_of_mem _ (g₂.subset (h₁ _ hφ)))
-      List.mem_cons_self
-    exact deduction_cons g₁ h₁ ((g₂.trans g₃).trans g₄) (by omega) List.mem_cons_self
+    ∃ L', Grows Γ L L' (10 * (Δ.length + 1) * M.length) ∧ ∀ φ ∈ M, imps Δ φ ∈ L' :=
+  LineProof.Grows.simulate (imps Δ) (10 * (Δ.length + 1))
+    (isProof_iff_lineProof.1 hM) (isProof_iff_lineProof.1 hL)
+    (fun h' φ hφ _ => by
+      rcases List.mem_append.1 hφ with hφ | hφ
+      · have g₂ := grows_hyp (isProof_iff_lineProof.2 h') hφ
+        obtain ⟨L₃, g₃, h₃⟩ := Grows.imps_of_mem g₂.proof List.mem_cons_self Δ
+        exact ⟨L₃, (g₂.trans g₃).mono (by omega), h₃⟩
+      · obtain ⟨L₂, g₂, h₂⟩ := Grows.of_derivableInSize (isProof_iff_lineProof.2 h')
+          (DerivableInSize.imps_mem (Γ := Γ) hφ)
+        exact ⟨L₂, g₂.mono (by omega), h₂⟩)
+    fun h' r hr _ hp => by
+      rcases hr with ⟨-, hax⟩ | ⟨φ, ψ, rfl⟩
+      · have g₂ := grows_ax (isProof_iff_lineProof.2 h') hax
+        obtain ⟨L₃, g₃, h₃⟩ := Grows.imps_of_mem g₂.proof List.mem_cons_self Δ
+        exact ⟨L₃, (g₂.trans g₃).mono (by omega), h₃⟩
+      · obtain ⟨L₂, g₂, h₂⟩ := Grows.of_derivableInSize (isProof_iff_lineProof.2 h')
+          (DerivableInSize.imps_dist (Γ := Γ) Δ φ ψ)
+        have g₃ := grows_mp g₂.proof (g₂.subset (hp (imp φ ψ) (by simp)).2) h₂
+        have g₄ := grows_mp g₃.proof
+          (List.mem_cons_of_mem _ (g₂.subset (hp φ (by simp)).2)) List.mem_cons_self
+        exact ⟨_, ((g₂.trans g₃).trans g₄).mono (by omega), List.mem_cons_self⟩
 
 /-- Detaching the antecedents `Δ` of an available line `Δ ⇒ φ`, one line per antecedent, when
 every antecedent is available. -/
@@ -392,31 +351,12 @@ theorem Grows.imps_elim {Γ L : List (Formula V)} (hL : IsProof Γ L) {Δ : List
     have g₁ := grows_mp hL (hΔ a List.mem_cons_self) h
     obtain ⟨L₂, g₂, h₂⟩ := ih g₁.proof List.mem_cons_self
       fun δ hδ => List.mem_cons_of_mem _ (hΔ δ (List.mem_cons_of_mem _ hδ))
-    exact ⟨L₂, (g₁.trans g₂).mono (by simp), h₂⟩
+    exact ⟨L₂, (g₁.trans g₂).mono (by simp; omega), h₂⟩
 
 /-- Adding hypotheses: every formula of `Δ` that is a hypothesis or already available becomes
 available, one line per formula. -/
 theorem Grows.collect {Γ L : List (Formula V)} (hL : IsProof Γ L) {Δ : List (Formula V)}
-    (hΔ : ∀ δ ∈ Δ, δ ∈ Γ ∨ δ ∈ L) : ∃ L', Grows Γ L L' Δ.length ∧ ∀ δ ∈ Δ, δ ∈ L' := by
-  induction Δ with
-  | nil => exact ⟨L, Grows.refl hL, by simp⟩
-  | cons a Δ ih =>
-    obtain ⟨L₁, g₁, h₁⟩ := ih fun δ hδ => hΔ δ (List.mem_cons_of_mem _ hδ)
-    rcases hΔ a List.mem_cons_self with ha | ha
-    · have g₂ := grows_hyp g₁.proof ha
-      refine ⟨_, (g₁.trans g₂).mono (by simp; omega), fun δ hδ => ?_⟩
-      rcases List.mem_cons.1 hδ with rfl | hδ
-      · exact List.mem_cons_self
-      · exact List.mem_cons_of_mem _ (h₁ δ hδ)
-    · refine ⟨L₁, g₁.mono (by simp), fun δ hδ => ?_⟩
-      rcases List.mem_cons.1 hδ with rfl | hδ
-      · exact g₁.subset ha
-      · exact h₁ δ hδ
-
-/-- Growing the empty proof by `n` lines gives at most `n` lines. -/
-theorem Grows.length_of_nil {Γ L : List (Formula V)} {n : ℕ} (h : Grows Γ [] L n) :
-    L.length ≤ n := by
-  obtain ⟨M, rfl, -, hM⟩ := h
-  simpa using hM
+    (hΔ : ∀ δ ∈ Δ, δ ∈ Γ ∨ δ ∈ L) : ∃ L', Grows Γ L L' Δ.length ∧ ∀ δ ∈ Δ, δ ∈ L' :=
+  LineProof.Grows.collect (isProof_iff_lineProof.1 hL) hΔ
 
 end Cslib.Logic.PL.Frege

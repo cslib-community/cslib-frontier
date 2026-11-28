@@ -51,16 +51,14 @@ private theorem flow_clear_between
     (transmit : ∀ x, lower < x → x < upper → before x = after x)
     (left_rule : after lower ≠ .forward) (right_rule : before upper ≠ .backward) :
     before position = .none ∧ after position = .none := by
-  have whole := value_between (fun x => x) after before (hleft.trans hright)
-    (fun x _ _ => matching x) transmit
   have first : after lower = .none := by
-    cases h : after lower with
-    | none => rfl
-    | forward => exact (left_rule h).elim
-    | backward => exact (right_rule (whole.symm.trans h)).elim
-  have segment := value_between (fun x => x) after before hleft
-    (fun x _ _ => matching x) (fun x hl hx => transmit x hl (hx.trans hright))
-  have at_position := segment.symm.trans first
+    cases h : after lower
+    · rfl
+    · exact (left_rule h).elim
+    · exact (right_rule ((value_between id after before (hleft.trans hright)
+        (fun x _ _ => matching x) transmit).symm.trans h)).elim
+  have at_position := (value_between id after before hleft (fun x _ _ => matching x)
+    fun x hl hx => transmit x hl (hx.trans hright)).symm.trans first
   exact ⟨at_position, (transmit position hleft hright).symm.trans at_position⟩
 
 private theorem flow_blocked_of_boundary
@@ -80,34 +78,24 @@ private theorem flow_blocked_of_boundary
         ∀ x, bound < x → x < position → selected x = none)) :
     ¬ (before position = .none ∧ after position = .none) := by
   intro clear
+  have step_eq {lo hi : ℕ} (hle : lo < hi)
+      (between : ∀ x, lo < x → x < hi → selected x = none) : after lo = before hi :=
+    value_between (fun x => x) after before hle (fun x _ _ => matching x)
+      fun x hl hr => flow_transmits (by simpa only [between x hl hr, coding_none] using allowed x)
   rcases boundary with here | ⟨bound, hbound, _, selected_bound, between⟩ |
       ⟨bound, _, hbound, selected_bound, between⟩
-  · have nonempty : coding (selected position) ≠ none := by
-      cases h : selected position with
-      | none => exact (here h).elim
-      | some direction => exact coding_live direction
-    have local_rule := allowed position
-    cases h : coding (selected position) with
-    | none => exact (nonempty h).elim
-    | some direction =>
-      cases direction <;>
-        simp [h, flowAllowed, clear.1, clear.2] at local_rule
-  · have outer : before bound ≠ .none := by
-      have local_rule := allowed bound
-      simp only [selected_bound, coding_positive, flowAllowed, decide_eq_true_eq] at local_rule
-      exact local_rule.1
-    have path := value_between (fun x => x) after before hbound
-      (fun x _ _ => matching x) (fun x hl hr => flow_transmits (by
-        simpa only [between x hl hr, coding_none] using allowed x))
-    exact outer (path.symm.trans clear.2)
-  · have outer : after bound ≠ .none := by
-      have local_rule := allowed bound
-      simp only [selected_bound, coding_negative, flowAllowed, decide_eq_true_eq] at local_rule
-      exact local_rule.1
-    have path := value_between (fun x => x) after before hbound
-      (fun x _ _ => matching x) (fun x hl hr => flow_transmits (by
-        simpa only [between x hl hr, coding_none] using allowed x))
-    exact outer (path.trans clear.1)
+  · have local_rule := allowed position
+    rcases h : coding (selected position) with _ | (_ | _)
+    · rcases hs : selected position with _ | d
+      · exact here hs
+      · exact coding_live d (hs ▸ h)
+    all_goals simp [h, flowAllowed, clear.1, clear.2] at local_rule
+  · have local_rule := allowed bound
+    simp only [selected_bound, coding_positive, flowAllowed, decide_eq_true_eq] at local_rule
+    exact local_rule.1 ((step_eq hbound between).symm.trans clear.2)
+  · have local_rule := allowed bound
+    simp only [selected_bound, coding_negative, flowAllowed, decide_eq_true_eq] at local_rule
+    exact local_rule.1 ((step_eq hbound between).trans clear.1)
 
 private theorem selected_horizontal_of_lane
     (component : Thick) (quadrant : Quadrant) (shade : ShadeState) (positive : Bool)
@@ -115,8 +103,7 @@ private theorem selected_horizontal_of_lane
     (phase : quadrant.yBit = positive) (value : shade.west = some .light) :
     selectedHorizontalFor component quadrant shade =
       some (if positive then .north else .south) := by
-  simp only [selectedHorizontalFor, horizontalShade?, value,
-    ↓reduceIte]
+  simp only [selectedHorizontalFor, horizontalShade?, value, ↓reduceIte]
   cases positive <;> cases component <;> cases quadrant <;>
     simp_all [containsLine, horizontalInterior?, Quadrant.yBit, redHorizontalAt]
 
@@ -126,8 +113,7 @@ private theorem selected_vertical_of_lane
     (phase : quadrant.xBit = positive) (value : shade.south = some .light) :
     selectedVerticalFor component quadrant shade =
       some (if positive then .east else .west) := by
-  simp only [selectedVerticalFor, verticalShade?, value,
-    ↓reduceIte]
+  simp only [selectedVerticalFor, verticalShade?, value, ↓reduceIte]
   cases positive <;> cases component <;> cases quadrant <;>
     simp_all [containsLine, verticalInterior?, Quadrant.xBit, redVerticalAt]
 
@@ -140,19 +126,15 @@ private theorem horizontal_allowed (valid : ValidSignalGrid indexGrid shadeGrid 
     (x y : ℕ) :
     SignalState.horizontalAllowed
       (selectedVerticalFor (componentAt indexGrid x y) (quadrantAt x y)
-        (shadeGrid x y)) (signalGrid x y) = true := by
-  have allowed := valid.signalAllowed x y
-  simp only [signalsAllowed, Bool.and_eq_true] at allowed
-  exact allowed.1
+        (shadeGrid x y)) (signalGrid x y) = true :=
+  ((Bool.and_eq_true _ _).mp (valid.signalAllowed x y)).1
 
 private theorem vertical_allowed (valid : ValidSignalGrid indexGrid shadeGrid signalGrid)
     (x y : ℕ) :
     SignalState.verticalAllowed
       (selectedHorizontalFor (componentAt indexGrid x y) (quadrantAt x y)
-        (shadeGrid x y)) (signalGrid x y) = true := by
-  have allowed := valid.signalAllowed x y
-  simp only [signalsAllowed, Bool.and_eq_true] at allowed
-  exact allowed.2
+        (shadeGrid x y)) (signalGrid x y) = true :=
+  ((Bool.and_eq_true _ _).mp (valid.signalAllowed x y)).2
 
 end ValidSignalGrid
 
@@ -161,66 +143,49 @@ section
 variable {indexGrid : ℕ → ℕ → Index} {shadeGrid : ℕ → ℕ → ShadeState}
   {signalGrid : ℕ → ℕ → SignalState} {west east south north : ℕ}
 
-private theorem CycleShade.south_selected
+private theorem CycleShade.horizontal_selected
     (shaded : CycleShade shadeGrid west east south north .light)
     (cycle : CycleOn indexGrid west east south north)
     (valid : ValidSignalGrid indexGrid shadeGrid signalGrid)
-    {x : ℕ} (hw : quarterWest west < x) (he : x < quarterEast east) :
-    selectedHorizontalFor (componentAt indexGrid x (quarterSouth south))
-      (quadrantAt x (quarterSouth south)) (shadeGrid x (quarterSouth south)) = some .north := by
-  apply selected_horizontal_of_lane _ _ _ true
-  · have lane := cycle.southLane (x / 2)
-      (by simp only [quarterWest] at hw; omega)
-      (by simp only [quarterEast] at he; omega)
-    simpa [componentAt, quarterSouth, show (2 * south + 1) / 2 = south by omega]
-      using lane
-  · exact quadrantAt_quarterSouth_yBit x south
-  · exact (shaded.south_at cycle valid.shadeValid hw he).1
+    (positive : Bool) {x : ℕ} (hw : quarterWest west < x) (he : x < quarterEast east) :
+    selectedHorizontalFor
+      (componentAt indexGrid x (if positive then quarterSouth south else quarterNorth north))
+      (quadrantAt x (if positive then quarterSouth south else quarterNorth north))
+      (shadeGrid x (if positive then quarterSouth south else quarterNorth north)) =
+      some (if positive then .north else .south) := by
+  have hw' : west < x / 2 := by simp only [quarterWest] at hw; omega
+  have he' : x / 2 < east := by simp only [quarterEast] at he; omega
+  cases positive
+  · exact selected_horizontal_of_lane _ _ _ false
+      (by simpa [componentAt, quarterNorth, show 2 * north / 2 = north by omega] using
+        cycle.northLane (x / 2) hw' he')
+      (quadrantAt_quarterNorth_yBit x north) (shaded.north_at cycle valid.shadeValid hw he).1
+  · exact selected_horizontal_of_lane _ _ _ true
+      (by simpa [componentAt, quarterSouth, show (2 * south + 1) / 2 = south by omega] using
+        cycle.southLane (x / 2) hw' he')
+      (quadrantAt_quarterSouth_yBit x south) (shaded.south_at cycle valid.shadeValid hw he).1
 
-private theorem CycleShade.north_selected
+private theorem CycleShade.vertical_selected
     (shaded : CycleShade shadeGrid west east south north .light)
     (cycle : CycleOn indexGrid west east south north)
     (valid : ValidSignalGrid indexGrid shadeGrid signalGrid)
-    {x : ℕ} (hw : quarterWest west < x) (he : x < quarterEast east) :
-    selectedHorizontalFor (componentAt indexGrid x (quarterNorth north))
-      (quadrantAt x (quarterNorth north)) (shadeGrid x (quarterNorth north)) = some .south := by
-  apply selected_horizontal_of_lane _ _ _ false
-  · have lane := cycle.northLane (x / 2)
-      (by simp only [quarterWest] at hw; omega)
-      (by simp only [quarterEast] at he; omega)
-    simpa [componentAt, quarterNorth, show 2 * north / 2 = north by omega] using lane
-  · exact quadrantAt_quarterNorth_yBit x north
-  · exact (shaded.north_at cycle valid.shadeValid hw he).1
-
-private theorem CycleShade.west_selected
-    (shaded : CycleShade shadeGrid west east south north .light)
-    (cycle : CycleOn indexGrid west east south north)
-    (valid : ValidSignalGrid indexGrid shadeGrid signalGrid)
-    {y : ℕ} (hs : quarterSouth south < y) (hn : y < quarterNorth north) :
-    selectedVerticalFor (componentAt indexGrid (quarterWest west) y)
-      (quadrantAt (quarterWest west) y) (shadeGrid (quarterWest west) y) = some .east := by
-  apply selected_vertical_of_lane _ _ _ true
-  · have lane := cycle.westLane (y / 2)
-      (by simp only [quarterSouth] at hs; omega)
-      (by simp only [quarterNorth] at hn; omega)
-    simpa [componentAt, quarterWest, show (2 * west + 1) / 2 = west by omega] using lane
-  · exact quadrantAt_quarterWest_xBit west y
-  · exact (shaded.west_at cycle valid.shadeValid hs hn).1
-
-private theorem CycleShade.east_selected
-    (shaded : CycleShade shadeGrid west east south north .light)
-    (cycle : CycleOn indexGrid west east south north)
-    (valid : ValidSignalGrid indexGrid shadeGrid signalGrid)
-    {y : ℕ} (hs : quarterSouth south < y) (hn : y < quarterNorth north) :
-    selectedVerticalFor (componentAt indexGrid (quarterEast east) y)
-      (quadrantAt (quarterEast east) y) (shadeGrid (quarterEast east) y) = some .west := by
-  apply selected_vertical_of_lane _ _ _ false
-  · have lane := cycle.eastLane (y / 2)
-      (by simp only [quarterSouth] at hs; omega)
-      (by simp only [quarterNorth] at hn; omega)
-    simpa [componentAt, quarterEast, show 2 * east / 2 = east by omega] using lane
-  · exact quadrantAt_quarterEast_xBit east y
-  · exact (shaded.east_at cycle valid.shadeValid hs hn).1
+    (positive : Bool) {y : ℕ} (hs : quarterSouth south < y) (hn : y < quarterNorth north) :
+    selectedVerticalFor
+      (componentAt indexGrid (if positive then quarterWest west else quarterEast east) y)
+      (quadrantAt (if positive then quarterWest west else quarterEast east) y)
+      (shadeGrid (if positive then quarterWest west else quarterEast east) y) =
+      some (if positive then .east else .west) := by
+  have hs' : south < y / 2 := by simp only [quarterSouth] at hs; omega
+  have hn' : y / 2 < north := by simp only [quarterNorth] at hn; omega
+  cases positive
+  · exact selected_vertical_of_lane _ _ _ false
+      (by simpa [componentAt, quarterEast, show 2 * east / 2 = east by omega] using
+        cycle.eastLane (y / 2) hs' hn')
+      (quadrantAt_quarterEast_xBit east y) (shaded.east_at cycle valid.shadeValid hs hn).1
+  · exact selected_vertical_of_lane _ _ _ true
+      (by simpa [componentAt, quarterWest, show (2 * west + 1) / 2 = west by omega] using
+        cycle.westLane (y / 2) hs' hn')
+      (quadrantAt_quarterWest_xBit west y) (shaded.west_at cycle valid.shadeValid hs hn).1
 
 /-- Both horizontal signal edges vanish at each strict interior point of a free board row. -/
 private theorem CycleShade.clear_at_free_row
@@ -231,22 +196,16 @@ private theorem CycleShade.clear_at_free_row
     (free : IsFreeRow indexGrid shadeGrid west east y)
     (hw : quarterWest west < x) (he : x < quarterEast east) :
     (signalGrid x y).west = .none ∧ (signalGrid x y).east = .none := by
-  apply flow_clear_between (fun x => (signalGrid x y).west)
+  have hend (b : Bool) := by
+    have h := valid.horizontal_allowed (if b then quarterWest west else quarterEast east) y
+    rw [shaded.vertical_selected cycle valid b hs hn] at h
+    exact h
+  exact flow_clear_between (fun x => (signalGrid x y).west)
     (fun x => (signalGrid x y).east) hw he (fun x => valid.horizontal x y)
-  · intro x hxw hxe
-    apply flow_transmits
-    simpa only [free x hxw hxe, SignalState.horizontalAllowed, horizontalInteriorCode]
-      using valid.horizontal_allowed x y
-  · have h := valid.horizontal_allowed (quarterWest west) y
-    have selected := CycleShade.west_selected shaded cycle valid hs hn
-    simp only [selected, SignalState.horizontalAllowed, horizontalInteriorCode,
-      flowAllowed, decide_eq_true_eq] at h
-    exact h.2
-  · have h := valid.horizontal_allowed (quarterEast east) y
-    have selected := CycleShade.east_selected shaded cycle valid hs hn
-    simp only [selected, SignalState.horizontalAllowed, horizontalInteriorCode,
-      flowAllowed, decide_eq_true_eq] at h
-    exact h.2
+    (fun x hxw hxe => flow_transmits (by
+      simpa only [free x hxw hxe, SignalState.horizontalAllowed, horizontalInteriorCode]
+        using valid.horizontal_allowed x y))
+    (of_decide_eq_true (hend true)).2 (of_decide_eq_true (hend false)).2
 
 /-- Both vertical signal edges vanish at each strict interior point of a free board column. -/
 private theorem CycleShade.clear_at_free_column
@@ -257,22 +216,16 @@ private theorem CycleShade.clear_at_free_column
     (free : IsFreeColumn indexGrid shadeGrid south north x)
     (hs : quarterSouth south < y) (hn : y < quarterNorth north) :
     (signalGrid x y).south = .none ∧ (signalGrid x y).north = .none := by
-  apply flow_clear_between (fun y => (signalGrid x y).south)
+  have hend (b : Bool) := by
+    have h := valid.vertical_allowed x (if b then quarterSouth south else quarterNorth north)
+    rw [shaded.horizontal_selected cycle valid b hw he] at h
+    exact h
+  exact flow_clear_between (fun y => (signalGrid x y).south)
     (fun y => (signalGrid x y).north) hs hn (fun y => valid.vertical x y)
-  · intro y hys hyn
-    apply flow_transmits
-    simpa only [free y hys hyn, SignalState.verticalAllowed, verticalInteriorCode]
-      using valid.vertical_allowed x y
-  · have h := valid.vertical_allowed x (quarterSouth south)
-    have selected := CycleShade.south_selected shaded cycle valid hw he
-    simp only [selected, SignalState.verticalAllowed, verticalInteriorCode,
-      flowAllowed, decide_eq_true_eq] at h
-    exact h.2
-  · have h := valid.vertical_allowed x (quarterNorth north)
-    have selected := CycleShade.north_selected shaded cycle valid hw he
-    simp only [selected, SignalState.verticalAllowed, verticalInteriorCode,
-      flowAllowed, decide_eq_true_eq] at h
-    exact h.2
+    (fun y hys hyn => flow_transmits (by
+      simpa only [free y hys hyn, SignalState.verticalAllowed, verticalInteriorCode]
+        using valid.vertical_allowed x y))
+    (of_decide_eq_true (hend true)).2 (of_decide_eq_true (hend false)).2
 
 /-- Every crossing of free rows and columns has all four obstruction signals absent. -/
 private theorem CycleShade.clear_at_free_crossing
@@ -284,12 +237,10 @@ private theorem CycleShade.clear_at_free_crossing
     (row : IsFreeRow indexGrid shadeGrid west east y)
     (column : IsFreeColumn indexGrid shadeGrid south north x) :
     signalGrid x y = SignalState.clear := by
-  have horizontal := CycleShade.clear_at_free_row shaded cycle valid hs hn row hw he
-  have vertical := CycleShade.clear_at_free_column shaded cycle valid hw he column hs hn
-  cases h : signalGrid x y with
-  | mk w e s n =>
-    simp only [h] at horizontal vertical
-    simp [SignalState.clear, horizontal.1, horizontal.2, vertical.1, vertical.2]
+  obtain ⟨hw', he'⟩ := shaded.clear_at_free_row cycle valid hs hn row hw he
+  obtain ⟨hs', hn'⟩ := shaded.clear_at_free_column cycle valid hw he column hs hn
+  cases h : signalGrid x y
+  simp_all [SignalState.clear]
 
 end
 
@@ -320,26 +271,21 @@ private theorem Geometry.crossingObstruction
     {signalGrid : ℕ → ℕ → SignalState} {west east south north : ℕ}
     (geometry : Geometry indexGrid shadeGrid west east south north)
     (valid : ValidSignalGrid indexGrid shadeGrid signalGrid) :
-    CrossingObstruction indexGrid shadeGrid signalGrid west east south north := by
-  constructor
-  · intro column row hw he hs hn free not_free
-    exact flow_blocked_of_boundary
+    CrossingObstruction indexGrid shadeGrid signalGrid west east south north :=
+  ⟨fun hw he hs hn free not_free => flow_blocked_of_boundary
       (fun y => selectedHorizontalFor
-        (componentAt indexGrid column y) (quadrantAt column y) (shadeGrid column y))
-      verticalInteriorCode .north .south rfl
-      (by intro direction; cases direction <;> decide) rfl rfl
-      (fun y => (signalGrid column y).south) (fun y => (signalGrid column y).north)
-      (fun y => valid.vertical column y) (fun y => valid.vertical_allowed column y)
-      (geometry.verticalBoundary hw he hs hn free not_free)
-  · intro column row hw he hs hn free not_free
-    exact flow_blocked_of_boundary
+        (componentAt indexGrid _ y) (quadrantAt _ y) (shadeGrid _ y))
+      verticalInteriorCode .north .south rfl (by rintro (_ | _) <;> decide) rfl rfl
+      (fun y => (signalGrid _ y).south) (fun y => (signalGrid _ y).north)
+      (fun y => valid.vertical _ y) (fun y => valid.vertical_allowed _ y)
+      (geometry.verticalBoundary hw he hs hn free not_free),
+    fun hw he hs hn free not_free => flow_blocked_of_boundary
       (fun x => selectedVerticalFor
-        (componentAt indexGrid x row) (quadrantAt x row) (shadeGrid x row))
-      horizontalInteriorCode .east .west rfl
-      (by intro direction; cases direction <;> decide) rfl rfl
-      (fun x => (signalGrid x row).west) (fun x => (signalGrid x row).east)
-      (fun x => valid.horizontal x row) (fun x => valid.horizontal_allowed x row)
-      (geometry.horizontalBoundary hw he hs hn free not_free)
+        (componentAt indexGrid x _) (quadrantAt x _) (shadeGrid x _))
+      horizontalInteriorCode .east .west rfl (by rintro (_ | _) <;> decide) rfl rfl
+      (fun x => (signalGrid x _).west) (fun x => (signalGrid x _).east)
+      (fun x => valid.horizontal x _) (fun x => valid.horizontal_allowed x _)
+      (geometry.horizontalBoundary hw he hs hn free not_free)⟩
 
 end
 
@@ -372,59 +318,45 @@ def MarkedFreeGrid.routedGrid
       (grid.freeRow j) (grid.freeColumn i)
   { column := fun i => ox + grid.column i
     row := fun j => oy + grid.row j
-    column_strictMono := by
-      intro i j hij
-      have h := grid.column_strictMono hij
-      dsimp
-      omega
-    row_strictMono := by
-      intro i j hij
-      have h := grid.row_strictMono hij
-      dsimp
-      omega
-    crossing := by
-      intro i j
-      simp only [role]
-      exact (ShadedSite.crossing_iff _).2 (crossing_clear i j)
+    column_strictMono := fun _ _ hij => by
+      dsimp only; exact Int.add_lt_add_left (Int.ofNat_lt.mpr (grid.column_strictMono hij)) ox
+    row_strictMono := fun _ _ hij => by
+      dsimp only; exact Int.add_lt_add_left (Int.ofNat_lt.mpr (grid.row_strictMono hij)) oy
+    crossing := fun i j => by
+      simp only [role]; exact (ShadedSite.crossing_iff _).2 (crossing_clear i j)
     corner := by
       rw [role]
-      apply (ShadedSite.corner_iff _).2
-      exact ⟨crossing_clear 0 0, (R.quarter_at a b (grid.column 0) (grid.row 0)).trans
-        grid.marker⟩
+      exact (ShadedSite.corner_iff _).2
+        ⟨crossing_clear 0 0, (R.quarter_at a b (grid.column 0) (grid.row 0)).trans grid.marker⟩
     horizontal := by
       intro i j x hl hr
-      change ox + (grid.column i.castSucc : ℤ) < x at hl
-      change x < ox + (grid.column i.succ : ℤ) at hr
       let k := (x - ox).toNat
-      have hx : ox + (k : ℤ) = x := by dsimp only [k]; omega
-      have left : grid.column i.castSucc < k := by omega
-      have right : k < grid.column i.succ := by omega
+      have hx : ox + k = x := by dsimp only [k]; omega
+      have left : grid.column i.castSucc < k := by dsimp only [k]; omega
+      have right : k < grid.column i.succ := by dsimp only [k]; omega
       have hw := (grid.column_west i.castSucc).trans left
       have he := right.trans (grid.column_east i.succ)
-      have clear := CycleShade.clear_at_free_row shaded cycle valid
-        (grid.row_south j) (grid.row_north j) (grid.freeRow j) hw he
-      have blocked := obstruction.verticalBlocked hw he (grid.row_south j) (grid.row_north j)
-        (grid.freeRow j) (grid.noFreeColumnBetween i k left right)
       change scaffold.role (P.tile x (oy + grid.row j)) = .horizontal
       rw [← hx, role]
-      exact (ShadedSite.horizontal_iff_role _).2 ⟨clear, blocked⟩
+      exact (ShadedSite.horizontal_iff_role _).2
+        ⟨CycleShade.clear_at_free_row shaded cycle valid
+           (grid.row_south j) (grid.row_north j) (grid.freeRow j) hw he,
+         obstruction.verticalBlocked hw he (grid.row_south j) (grid.row_north j)
+           (grid.freeRow j) (grid.noFreeColumnBetween i k left right)⟩
     vertical := by
       intro i j y hl hr
-      change oy + (grid.row j.castSucc : ℤ) < y at hl
-      change y < oy + (grid.row j.succ : ℤ) at hr
       let k := (y - oy).toNat
-      have hy : oy + (k : ℤ) = y := by dsimp only [k]; omega
-      have lower : grid.row j.castSucc < k := by omega
-      have upper : k < grid.row j.succ := by omega
+      have hy : oy + k = y := by dsimp only [k]; omega
+      have lower : grid.row j.castSucc < k := by dsimp only [k]; omega
+      have upper : k < grid.row j.succ := by dsimp only [k]; omega
       have hs := (grid.row_south j.castSucc).trans lower
       have hn := upper.trans (grid.row_north j.succ)
-      have clear := CycleShade.clear_at_free_column shaded cycle valid
-        (grid.column_west i) (grid.column_east i) (grid.freeColumn i) hs hn
-      have blocked := obstruction.horizontalBlocked
-        (grid.column_west i) (grid.column_east i) hs hn (grid.freeColumn i)
-        (grid.noFreeRowBetween j k lower upper)
       change scaffold.role (P.tile (ox + grid.column i) y) = .vertical
       rw [← hy, role]
-      exact (ShadedSite.vertical_iff_role _).2 ⟨blocked, clear⟩ }
+      exact (ShadedSite.vertical_iff_role _).2
+        ⟨obstruction.horizontalBlocked (grid.column_west i) (grid.column_east i)
+           hs hn (grid.freeColumn i) (grid.noFreeRowBetween j k lower upper),
+         CycleShade.clear_at_free_column shaded cycle valid
+           (grid.column_west i) (grid.column_east i) (grid.freeColumn i) hs hn⟩ }
 
 end Cslib.WangTile.Robinson

@@ -98,4 +98,34 @@ example (φ : CNF ℕ) (hφ : ∀ c ∈ φ, c.length ≤ 1) :
   CountingSparsify.search_eq_modelCount (by omega) (by omega) (by omega) le_rfl
     (countingTreeBound_one (by omega) 1 1) (fun _ _ _ => rfl) hφ
 
+/-- The shared width follows the encoding of the leaf. The empty leaf gives an incorrect
+answer exactly on the two-bit prefix `[false, false]`. -/
+example :
+    let width (ψ : CNF ℕ) := (encCNF ψ).length + 2
+    let V (p : CNF ℕ × List Bool) :=
+      if p.1 = [] then (p.2.any id).toNat else p.1.modelCount
+    let n := CountingSparsify.nodeBound 1 1 [] + 2
+    (acceptCount (fun p => decide (0 < CountingSparsify.search 2 1 1 1
+      (fun ψ => V (ψ, p.2.take (width ψ))) p.1) != decide (0 < p.1.modelCount)) [] n : ℝ) ≤
+      (1 / 2 : ℝ) * (2 : ℝ) ^ n := by
+  intro width V n
+  have h := CountingSparsify.acceptCount_search_pos_error_le (M := 2) (K := 1)
+    (φ := []) (B := 1) (L_coeff := 1) (by decide) le_rfl le_rfl le_rfl
+    (countingTreeBound_one (by decide) 1 1) (by simp) V width n
+    (ε := 1 / 4) (by norm_num) (fun ψ _ _ _ _ _ henc => ⟨Nat.add_le_add_right henc 2, by
+      by_cases hψ : ψ = []
+      · subst ψ
+        have hc : acceptCount (fun p => decide (0 < V p) != decide (0 < p.1.modelCount))
+            [] (width []) = 1 := by decide
+        have hw : width [] = 2 := by decide
+        rw [hc, hw]
+        norm_num
+      · have hz : acceptCount (fun p => decide (0 < V p) != decide (0 < p.1.modelCount))
+            ψ (width ψ) = 0 := acceptCount_eq_zero_iff.mpr fun _ => by simp [V, hψ]
+        rw [hz, Nat.cast_zero]
+        positivity⟩)
+  convert h using 1
+  change (1 / 2 : ℝ) * (2 : ℝ) ^ n = (2 : ℝ) ^ (1 : ℕ) * ((1 / 4 : ℝ) * (2 : ℝ) ^ n)
+  ring
+
 end Cslib.Complexity.Tests

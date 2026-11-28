@@ -52,28 +52,47 @@ private abbrev chain : CNF ℕ := [[(1000000000, true)], [(1000000000, false), (
 #guard (WExec.init ([[]] : CNF ℕ) {}).phase.saved.size == 0
 #guard (WExec.init ([[(2, true)], [(0, false)]] : CNF ℕ) {}).phase.saved.size == 3
 
-/-- The minimization steps of a certificate: the RUP steps hinting at least three clauses, which
-resolution steps, hinting two, cannot be. Each comes with whether its clause repeats no literal. -/
-private def minimizationSteps (cert : Array Std.Tactic.BVDecide.LRAT.IntAction) : List Bool :=
+/-- The learned clauses of a certificate, its RUP steps, each with whether it repeats no literal. -/
+private def learnedSteps (cert : Array Std.Tactic.BVDecide.LRAT.IntAction) : List Bool :=
   cert.toList.filterMap fun
-    | .addRup _ c hints => if 3 ≤ hints.size then some (decide c.toList.Nodup) else none
+    | .addRup _ c _ => some (decide c.toList.Nodup)
     | _ => none
 
 /-- PHP(5, 4), with pigeon `i` in hole `j` as `4 * i + j`. -/
 private def php54 : CNF ℕ := (CNF.pigeonhole 5 4).relabel fun x => 4 * x.1.val + x.2.val
 
--- On PHP(5, 4) minimization removes several literals at once, and its clauses repeat no literal:
--- the asserting literal is not kept in the tail as well as at the head.
+-- On PHP(5, 4) no learned clause, minimized or not, repeats a literal: the asserting literal is
+-- not kept in the tail as well as at the head.
 #guard match (solveWith {} php54).1 with
-  | .unsat cert => !(minimizationSteps cert).isEmpty && (minimizationSteps cert).all id
+  | .unsat cert => !(learnedSteps cert).isEmpty && (learnedSteps cert).all id
   | .sat _ => false
 
--- The mode is selected on PHP(5, 4): the two runs learn clauses of the same total width before
--- minimization and of different total widths after it. These totals do not show that the runs
--- learn the same clauses; `CslibFrontierTests.Algorithms.Lean.CDCL.Minimize` compares the two
--- modes on one fixed clause. All three modes' certificates are accepted.
-#guard (solveWith { ccminMode := .basic } php54).2.maxLiterals ==
-    (solveWith { ccminMode := .recursive } php54).2.maxLiterals &&
+/-- Whether a certificate has one RUP step per conflict but the last, and closes with its only
+empty-clause step, for the last conflict, which has no decision. -/
+private def oneStepPerConflict (cert : Array Std.Tactic.BVDecide.LRAT.IntAction)
+    (conflicts : ℕ) : Bool :=
+  let isRup : Std.Tactic.BVDecide.LRAT.IntAction → Bool
+    | .addRup .. => true
+    | _ => false
+  let isEmpty : Std.Tactic.BVDecide.LRAT.IntAction → Bool
+    | .addEmpty .. => true
+    | _ => false
+  cert.toList.countP isRup + 1 == conflicts && cert.toList.countP isEmpty == 1 &&
+    (cert.back?.map isEmpty).getD false
+
+-- On PHP(5, 4), with conflicts at decisions and a last one without, each conflict at a decision
+-- adds one RUP step, its learned clause, and the last one the empty clause, in every mode.
+#guard [CcminMode.none, .basic, .recursive].all fun m =>
+  match solveWith { ccminMode := m } php54 with
+  | (.unsat cert, s) => 1 < s.conflicts && oneStepPerConflict cert s.conflicts
+  | (.sat _, _) => false
+
+-- The mode is selected on PHP(5, 4): both modes remove literals, and the recursive one more in
+-- total. These totals do not show that the recursive mode removes more from each clause;
+-- `CslibFrontierTests.Algorithms.Lean.CDCL.Minimize` compares the two modes on one fixed clause.
+-- All three modes' certificates are accepted.
+#guard (solveWith { ccminMode := .basic } php54).2.literals <
+    (solveWith { ccminMode := .basic } php54).2.maxLiterals &&
   (solveWith { ccminMode := .recursive } php54).2.literals <
     (solveWith { ccminMode := .basic } php54).2.literals
 #guard [CcminMode.none, .basic, .recursive].all fun m =>

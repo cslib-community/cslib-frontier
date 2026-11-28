@@ -155,28 +155,21 @@ theorem compareSwapCircuit.eval_record {r : ℕ} (flag : Circuit signature (r + 
     (record flag).eval interpretation (Fin.append x y) =
       let b := flag.eval interpretation (Fin.append x y) 0
       Fin.append ![b, !b] (if b then Fin.append y x else Fin.append x y) := by
-  simp only [circuit_simps, record, Function.comp_id, eval_flagPair]
-  rw [eval_switch]
-  congr 1 with j : 1
-  simp
+  simp [circuit_simps, record, eval_flagPair, eval_switch]
 
 /-- Applying the same saved controls twice restores arbitrary payloads. -/
 theorem compareSwapCircuit.switch_involutive (r : ℕ) (b : Bool) (x y : BitString r) :
     (switch r).eval interpretation
       (Fin.append ![b, !b] ((switch r).eval interpretation (Fin.append ![b, !b]
         (Fin.append x y)))) = Fin.append x y := by
-  rw [eval_switch]
-  cases b with
-  | false => simpa using eval_switch r false x y
-  | true => simpa using eval_switch r true y x
+  rw [eval_switch, apply_ite (fun z => (switch r).eval interpretation (Fin.append ![b, !b] z)),
+    eval_switch, eval_switch]
+  cases b <;> rfl
 
 /-- Switching charges two ANDs and one OR for each output bit. -/
 theorem compareSwapCircuit.cost_switch (r : ℕ) (cost : signature.Op → ℕ) :
     (switch r).program.cost cost = 2 * r * (2 * cost .and + cost .or) := by
-  simp only [switch, Circuit.cost_program_pi, Formula.cost_toCircuit, selectBit,
-    Formula.and, Formula.or, Formula.cost_gate, Formula.cost_input,
-    Fin.sum_univ_two, Matrix.cons_val_zero, Matrix.cons_val_one, Finset.sum_const,
-    Finset.card_univ, Fintype.card_fin, smul_eq_mul]
+  simp only [circuit_simps, switch, selectBit]
   ring
 
 /-- The comparator and one shared negation are charged in addition to switching. -/
@@ -184,8 +177,7 @@ theorem compareSwapCircuit.cost_record {r : ℕ} (flag : Circuit signature (r + 
     (cost : signature.Op → ℕ) :
     (record flag).program.cost cost =
       flag.program.cost cost + cost .not + 2 * r * (2 * cost .and + cost .or) := by
-  simp only [circuit_simps, record, cost_switch, flagPair, Formula.cost_toCircuit, Formula.not,
-    Formula.cost_gate, Formula.cost_input, Fin.sum_univ_one, Matrix.cons_val_zero]
+  simp only [circuit_simps, record, cost_switch, flagPair]
   ring
 
 /-- Exposing the controls adds no gates to `exchange`. Unlike `compareSwapCircuit`, `exchange`
@@ -215,8 +207,7 @@ theorem eval_compareSwapCircuit {k r : ℕ} (key : Fin k → Fin r) (x y : BitSt
       if toLex (y ∘ key) < toLex (x ∘ key) then Fin.append y x else Fin.append x y := by
   by_cases h : r = 0
   · subst r
-    funext j
-    exact j.elim0
+    exact funext fun j => j.elim0
   · simp only [compareSwapCircuit, h, ↓reduceIte]
     simpa only [Formula.eval_toCircuit, Formula.eval_lexLt_iff, Function.comp_def,
       Fin.append_right, Fin.append_left] using

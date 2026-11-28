@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Det
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Sequential
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.OutputPrefix
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.WordsCfg
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Retaining a charged prefix in counting computations
@@ -45,13 +46,12 @@ theorem runList_prependOutput (machine : MultiTapeCTM k Symbol State)
     (fuel : ℕ) (cfg : Cfg k Symbol State input) (pre : List Symbol) :
     machine.runList fuel (cfg.prependOutput pre) =
       (machine.runList fuel cfg).map (fun final => final.prependOutput pre) := by
-  have h := congrArg
-    (OracleComp.interpret (fun n => List.ofFn (id : Fin n → Fin n)))
-    (MultiTapeMachine.runConfigFrom_prependOutput machine chooseOccurrence Empty.elim fuel
-      (Config.emptyOracleEquiv.symm cfg) pre)
-  have hm := congrArg (List.map Config.tapes) h
   simpa [interpret_runConfigFrom_eq_map_runList, OracleComp.interpret_map,
-    List.map_map, Function.comp_def, Config.emptyOracleEquiv, Config.prependOutput] using hm
+    List.map_map, Function.comp_def, Config.emptyOracleEquiv, Config.prependOutput] using
+    congrArg
+      (List.map Config.tapes ∘ OracleComp.interpret (fun n => List.ofFn (id : Fin n → Fin n)))
+      (MultiTapeMachine.runConfigFrom_prependOutput machine chooseOccurrence Empty.elim fuel
+        (Config.emptyOracleEquiv.symm cfg) pre)
 
 /-- A prefix changes no halting decision or clock: the machine never reads its output. -/
 theorem HaltsWithin.prependOutput {machine : MultiTapeCTM k Symbol State} {fuel : ℕ}
@@ -62,8 +62,8 @@ theorem HaltsWithin.prependOutput {machine : MultiTapeCTM k Symbol State} {fuel 
   | @step fuel cfg nonempty next ih =>
     refine .step nonempty fun index => ?_
     have happly : (machine.actions cfg)[index].apply (cfg.prependOutput pre) =
-        ((machine.actions cfg)[index].apply cfg).prependOutput pre :=
-      Cfg.ext rfl rfl rfl rfl (by simp [Action.apply])
+        ((machine.actions cfg)[index].apply cfg).prependOutput pre := by
+      tm_step
     exact happly ▸ ih index
 
 variable (prepare : MultiTapeTM k Symbol State₀) (source : MultiTapeCTM k Symbol State₁)
@@ -95,11 +95,9 @@ theorem runList_seq_prependOutput :
     simp [initialConfig, Cfg.prependOutput, wordsCfg, Cfg.withState]
   have hsecond : ∀ result ∈ (ofDeterministic prepare).runList prepareTime cfg.tapes,
       source.HaltsWithin runTime (result.withState (some source.initial)) := by
-    intro result hresult
-    have hr : result = wordsCfg input none (fun _ => []) pre := by
-      simpa [hfirst] using hresult
-    rw [hr, hstart]
-    exact hsource.prependOutput pre
+    rintro result hresult
+    rw [hfirst, List.mem_singleton] at hresult
+    simpa only [hresult, hstart] using hsource.prependOutput pre
   change runList ((ofDeterministic prepare).seq source) _
     (Sequential.left source cfg).tapes = _
   rw [runList_seq _ _ _ prepareTime runTime hhalt hsecond, hfirst,

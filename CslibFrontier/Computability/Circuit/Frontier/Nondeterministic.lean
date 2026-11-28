@@ -9,8 +9,10 @@ module
 
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.General
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched
 public import CslibFrontier.Computability.Circuit.Frontier.LowerBound
 public import CslibFrontier.Computability.Circuit.Frontier.Projection
+import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.PairBound
 
 /-!
 # The frontier lower bound for nondeterministic circuits
@@ -37,6 +39,8 @@ under the layout hypothesis `LayoutBound (r + 1) A`
 unconditionally (`eventually_two_sub_mul_lt_mul_innerSize_of_nondeterministicDecides`), and at
 fan-in two `s > (L - ε) n` with `L = 1 + π / (3 arccos ((1 + 2√2)/4)) ≈ 4.5625`
 (`eventually_gaussian_sub_mul_lt_innerSize_of_nondeterministicDecides`).
+The matched-pair layout raises the fan-in-two coefficient to `1277773 / 277773 > 4.60`
+(`eventually_pairBound_sub_mul_lt_innerSize_of_nondeterministicDecides`, original to this library).
 
 ## Main definitions
 
@@ -58,6 +62,17 @@ fan-in two `s > (L - ε) n` with `L = 1 + π / (3 arccos ((1 + 2√2)/4)) ≈ 4.
   the unconditional frontier lower bound for nondeterministic circuits.
 * `Cslib.Circuits.Frontier.eventually_gaussian_sub_mul_lt_innerSize_of_nondeterministicDecides`:
   the Gaussian `(L - ε) n` frontier lower bound for nondeterministic circuits of fan-in two.
+* `Cslib.Circuits.Frontier.eventually_switched_sub_mul_lt_innerSize_of_nondeterministicDecides`:
+  the median-switched Gaussian `(L₃ - ε) n` frontier lower bound (`L₃ ≈ 4.575972`), original to
+  this library (via `layoutBound_switched`, adapting the layout constant of [Gaspers2026]).
+* `Cslib.Circuits.Frontier.eventually_pairBound_sub_mul_lt_innerSize_of_nondeterministicDecides`:
+  the matched-pair `(1277773 / 277773 - ε) n` frontier lower bound (`≈ 4.600062`), original to
+  this library (via `layoutBound_pairBound`).
+
+## References
+
+* [S. Gaspers, *Path Decompositions of Sparse Graphs via Gaussian Sweeps and Faster
+  Exponential Algorithms*][Gaspers2026]
 -/
 
 @[expose] public section
@@ -302,5 +317,32 @@ theorem eventually_gaussian_sub_mul_lt_innerSize_of_nondeterministicDecides
   have h := eventually_lt_innerSize_of_nondeterministicDecides
     (mul_pos two_pos Gaussian.gaussianCoefficient_pos) layoutBound_gaussian hSK hε
   rwa [Gaussian.one_add_inv_two_mul_gaussianCoefficient] at h
+
+/-- **The median-switched Gaussian frontier lower bound for nondeterministic circuits of fan-in
+two.** Under the hypotheses of `eventually_two_sub_mul_lt_mul_innerSize_of_nondeterministicDecides`,
+for every `ε > 0` and all large `n`, every circuit of fan-in at most two with any number of witness
+inputs deciding `S_n` nondeterministically, over any basis and interpretation on `U`, has more than
+`(L₃ - ε) n` inner gates, where `L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`. Original to this
+library (instantiating the frontier framework with `layoutBound_switched`). -/
+theorem eventually_switched_sub_mul_lt_innerSize_of_nondeterministicDecides
+    (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ n in atTop, ∀ (k : ℕ) (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
+      (c : Circuit σ (n + k) 1), c.FanInAtMost 2 → c.NondeterministicDecides I Acc (S n) →
+        (1 + 2 * Real.pi / (3 * Real.arccos (5 / 6)) - ε) * n < c.innerSize := by
+  have h := eventually_lt_innerSize_of_nondeterministicDecides
+    (mul_pos two_pos Switched.switchedCoefficient_pos) layoutBound_switched hSK hε
+  rwa [Switched.one_add_inv_two_mul_switchedCoefficient] at h
+
+/-- **Nondeterministic circuits of fan-in two deciding dense rectangle-free sets need
+`(1277773 / 277773 - ε) n` inner gates** (`≈ 4.600062`), uniformly in the number of witness
+inputs, by the matched-pair layout bound `layoutBound_pairBound`. Original to this library. -/
+theorem eventually_pairBound_sub_mul_lt_innerSize_of_nondeterministicDecides
+    (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ n in atTop, ∀ (k : ℕ) (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
+      (c : Circuit σ (n + k) 1), c.FanInAtMost 2 → c.NondeterministicDecides I Acc (S n) →
+        (1277773 / 277773 - ε) * n < c.innerSize := by
+  have h := eventually_lt_innerSize_of_nondeterministicDecides
+    (mul_pos two_pos Gaussian.PairBound.pairBoundCoefficient_pos) layoutBound_pairBound hSK hε
+  rwa [Gaussian.PairBound.one_add_inv_two_mul_pairBoundCoefficient] at h
 
 end Cslib.Circuits.Frontier

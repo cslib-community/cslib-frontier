@@ -17,6 +17,7 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Tactic.FinIndex
 import Mathlib.Data.Finset.Sort
 
@@ -211,9 +212,9 @@ theorem zeroOutside_mem_of_not_owns {r : ℕ} {base S a : ℕ} (x : Data r)
 theorem zeroOutside_bounded {r w : ℕ} (base S : ℕ) {x : Data r} (hx : x.Bounded w) :
     (zeroOutside base S x).Bounded w := by
   refine ⟨hx.1, fun a => ?_⟩
-  by_cases ha : base ≤ a ∧ a < base + S
-  · simpa [zeroOutside, ha] using hx.2 a
-  · simp [zeroOutside, ha]
+  dsimp only [zeroOutside]
+  split_ifs
+  exacts [hx.2 a, fits_zero w]
 
 /-- Pack `x : Data r` (`[base, base + S)` plus persistent registers) into
 `Mem (S + persCount input) w`. -/
@@ -240,15 +241,8 @@ theorem unpackData_bounded {r : ℕ} {input : Fin r → Bool} {argRegs : Fin r �
     {base S w : ℕ} (harg : ∀ i, input i = true → Fits w (argRegs i))
     (m : Mem (S + persCount input) w) :
     (unpackData input argRegs base S w m).Bounded w := by
-  refine ⟨fun i => ?_, fun a => ?_⟩
-  · dsimp only [unpackData]
-    split_ifs with hi
-    · exact harg i hi
-    · exact (m _).isLt
-  · dsimp only [unpackData]
-    split_ifs with ha
-    · exact (m _).isLt
-    · exact fits_zero w
+  refine ⟨fun i => ?_, fun a => ?_⟩ <;> dsimp only [unpackData] <;> split_ifs with h
+  exacts [harg i h, (m _).isLt, (m _).isLt, fits_zero w]
 
 theorem unpackData_packMem_regs {r : ℕ} {input : Fin r → Bool} {argRegs : Fin r → ℕ}
     {base S w : ℕ} {x : Data r} (hx : x.Bounded w) (i : Fin r) :
@@ -257,13 +251,7 @@ theorem unpackData_packMem_regs {r : ℕ} {input : Fin r → Bool} {argRegs : Fi
   dsimp only [unpackData]
   split_ifs with hi
   · rfl
-  · have hfalse : input i = false := Bool.eq_false_iff.mpr hi
-    set k := persIdx input i hfalse
-    have hnotlt : ¬ (Fin.natAdd S k).1 < S := by simp
-    simp only [packMem, hnotlt, ↓reduceDIte]
-    have hsub : (⟨(Fin.natAdd S k).1 - S, by omega⟩ : Fin (persCount input)) = k := by
-      ext; simp
-    rw [hsub, persReg_persIdx input i hfalse, wordOfNat_val_of_lt (hx.1 i)]
+  · simp [packMem, wordOfNat_val_of_lt (hx.1 i)]
 
 theorem unpackData_packMem_mem {r : ℕ} {input : Fin r → Bool} {argRegs : Fin r → ℕ}
     {base S w : ℕ} {x : Data r} (hx : x.Bounded w) (a : ℕ) :
@@ -271,9 +259,7 @@ theorem unpackData_packMem_mem {r : ℕ} {input : Fin r → Bool} {argRegs : Fin
       (zeroOutside base S x).mem a := by
   dsimp only [unpackData, zeroOutside]
   split_ifs with ha
-  · have hlt : a - base < S := by omega
-    have hadd : base + (a - base) = a := by omega
-    simp only [packMem, Fin.val_castAdd, hlt, ↓reduceDIte, hadd,
+  · simp [packMem, show a - base < S by omega, show base + (a - base) = a by omega,
       wordOfNat_val_of_lt (hx.2 a)]
   · rfl
 
@@ -289,10 +275,8 @@ cell while remaining at least `w` bits wide when `persCount input = 0`. -/
     (P : SubroutineCode B r k_init) (w : ℕ) : ℕ :=
   max (persistentRegCount P) 1 * w
 
-theorem le_wideWidth {r : ℕ} (input : Fin r → Bool) (w : ℕ) : w ≤ wideWidth input w := by
-  have h1 : 1 ≤ max (persCount input) 1 := le_max_right _ _
-  calc w = 1 * w := (one_mul w).symm
-    _ ≤ max (persCount input) 1 * w := Nat.mul_le_mul_right w h1
+theorem le_wideWidth {r : ℕ} (input : Fin r → Bool) (w : ℕ) : w ≤ wideWidth input w :=
+  Nat.le_mul_of_pos_left w (lt_max_of_lt_right Nat.one_pos)
 
 theorem persCount_mul_le_wideWidth {r : ℕ} (input : Fin r → Bool) (w : ℕ) :
     persCount input * w ≤ wideWidth input w :=
@@ -307,17 +291,10 @@ theorem packDigits_lt : ∀ (k w : ℕ) (f : Fin k → Fin (2 ^ w)), packDigits 
   | 0, w, _ => by simp [packDigits]
   | k + 1, w, f => by
     have hlo : (f 0).1 < 2 ^ w := (f 0).isLt
-    have hhi : packDigits k w (fun j => f j.succ) < 2 ^ (k * w) :=
-      packDigits_lt k w (fun j => f j.succ)
-    have hpow : 2 ^ ((k + 1) * w) = 2 ^ w * 2 ^ (k * w) := by
-      rw [Nat.add_mul, one_mul, Nat.add_comm (k * w) w, Nat.pow_add]
-    rw [packDigits, hpow]
-    have hle : packDigits k w (fun j => f j.succ) + 1 ≤ 2 ^ (k * w) := hhi
-    calc
-      (f 0).1 + 2 ^ w * packDigits k w (fun j => f j.succ)
-        < 2 ^ w + 2 ^ w * packDigits k w (fun j => f j.succ) := by omega
-      _ = 2 ^ w * (packDigits k w (fun j => f j.succ) + 1) := by ring
-      _ ≤ 2 ^ w * 2 ^ (k * w) := Nat.mul_le_mul_left _ hle
+    have hhi := Nat.mul_le_mul_left (2 ^ w)
+      (Nat.succ_le_of_lt (packDigits_lt k w fun j => f j.succ))
+    rw [packDigits, show (k + 1) * w = w + k * w by ring, Nat.pow_add]
+    linarith
 
 /-- Decode `k` `w`-bit words in base `2 ^ w` from a natural number `val`. -/
 def unpackDigits : (k w val : ℕ) → Fin k → Fin (2 ^ w)
@@ -330,22 +307,12 @@ theorem unpackDigits_packDigits :
     ∀ (k w : ℕ) (f : Fin k → Fin (2 ^ w)), unpackDigits k w (packDigits k w f) = f
   | 0, _, f => funext fun j => j.elim0
   | k + 1, w, f => by
-    have hpos : 0 < 2 ^ w := Nat.two_pow_pos w
-    set lo := (f 0).1
-    set hi := packDigits k w (fun j => f j.succ)
-    have hmod : (lo + 2 ^ w * hi) % 2 ^ w = lo := by
-      rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (f 0).isLt]
-    have hdiv : (lo + 2 ^ w * hi) / 2 ^ w = hi := by
-      rw [Nat.add_mul_div_left _ _ hpos, Nat.div_eq_of_lt (f 0).isLt, zero_add]
+    have hlo := (f 0).isLt
     funext j
-    refine j.cases ?_ (fun i => ?_)
-    · dsimp only [packDigits, unpackDigits]
-      rw [Fin.cons_zero]
-      exact Fin.ext hmod
-    · dsimp only [packDigits, unpackDigits]
-      rw [Fin.cons_succ]
-      change unpackDigits k w ((lo + 2 ^ w * hi) / 2 ^ w) i = f i.succ
-      rw [hdiv, unpackDigits_packDigits k w (fun j => f j.succ)]
+    refine j.cases (Fin.ext ?_) (fun i => ?_)
+    · simp [packDigits, unpackDigits, Nat.mod_eq_of_lt hlo]
+    · simp [packDigits, unpackDigits, Nat.add_mul_div_left _ _ (Nat.two_pow_pos w),
+        Nat.div_eq_of_lt hlo, unpackDigits_packDigits k w]
 
 theorem packDigits_eq_zero_of_zero {k w : ℕ} (hk : k = 0) (f : Fin k → Fin (2 ^ w)) :
     packDigits k w f = 0 := by
@@ -395,15 +362,8 @@ theorem unpackDataWide_bounded {r : ℕ} {input : Fin r → Bool} {argRegs : Fin
     {base S w : ℕ} (harg : ∀ i, input i = true → Fits w (argRegs i))
     (m : Mem (S + 1) (wideWidth input w)) :
     (unpackDataWide input argRegs base S w m).Bounded w := by
-  refine ⟨fun i => ?_, fun a => ?_⟩
-  · dsimp only [unpackDataWide]
-    split_ifs with hi
-    · exact harg i hi
-    · exact (unpackDigits _ _ _ _).isLt
-  · dsimp only [unpackDataWide]
-    split_ifs with ha
-    · exact Nat.mod_lt _ (Nat.two_pow_pos w)
-    · exact fits_zero w
+  refine ⟨fun i => ?_, fun a => ?_⟩ <;> dsimp only [unpackDataWide] <;> split_ifs with h
+  exacts [harg i h, (unpackDigits _ _ _ _).isLt, Nat.mod_lt _ (Nat.two_pow_pos w), fits_zero w]
 
 theorem unpackDataWide_packMemWide_regs {r : ℕ} {input : Fin r → Bool} {argRegs : Fin r → ℕ}
     {base S w : ℕ} {x : Data r} (hx : x.Bounded w) (i : Fin r) :
@@ -412,10 +372,7 @@ theorem unpackDataWide_packMemWide_regs {r : ℕ} {input : Fin r → Bool} {argR
   dsimp only [unpackDataWide]
   split_ifs with hi
   · rfl
-  · have hfalse : input i = false := Bool.eq_false_iff.mpr hi
-    have hnotlt : ¬ (Fin.last S).1 < S := by simp
-    simp only [packMemWide, hnotlt, ↓reduceDIte, unpackDigits_packDigits]
-    rw [persReg_persIdx input i hfalse, wordOfNat_val_of_lt (hx.1 i)]
+  · simp [packMemWide, wordOfNat_val_of_lt (hx.1 i)]
 
 theorem unpackDataWide_packMemWide_mem {r : ℕ} {input : Fin r → Bool} {argRegs : Fin r → ℕ}
     {base S w : ℕ} {x : Data r} (hx : x.Bounded w) (a : ℕ) :
@@ -423,10 +380,8 @@ theorem unpackDataWide_packMemWide_mem {r : ℕ} {input : Fin r → Bool} {argRe
       (zeroOutside base S x).mem a := by
   dsimp only [unpackDataWide, zeroOutside]
   split_ifs with ha
-  · have hlt : a - base < S := by omega
-    have hadd : base + (a - base) = a := by omega
-    simp only [packMemWide, Fin.val_castAdd, hlt, ↓reduceDIte, hadd]
-    rw [Nat.mod_eq_of_lt (wordOfNat w _).isLt, wordOfNat_val_of_lt (hx.2 a)]
+  · simp [packMemWide, show a - base < S by omega, show base + (a - base) = a by omega,
+      Nat.mod_eq_of_lt (hx.2 a), wordOfNat_val_of_lt (hx.2 a)]
   · rfl
 
 /-! #### Finite multi-cell read/write helpers and unified `RegLayout` -/
@@ -447,8 +402,7 @@ theorem run_readFin {cells wCell : ℕ} :
   | 0, _, m => Prod.ext (funext fun j => j.elim0) rfl
   | _ + 1, idx, m => by
     simp only [readFin, ProbeTree.run_bind, ProbeTree.run_read, run_readFin, ProbeTree.run_pure]
-    refine Prod.ext (funext fun j => ?_) rfl
-    exact j.cases rfl (fun _ => rfl)
+    exact Prod.ext (funext fun j => j.cases rfl fun _ => rfl) rfl
 
 @[simp]
 theorem probes_readFin {cells wCell : ℕ} :
@@ -478,33 +432,6 @@ theorem probes_writeFin {cells wCell : ℕ} :
       probes_writeFin]
     omega
 
-theorem nextMem_writeFin_apply {cells wCell : ℕ} :
-    ∀ {n : ℕ} {idx : Fin n → Fin cells}, Function.Injective idx →
-      ∀ (vals : Fin n → Fin (2 ^ wCell)) (m : Mem cells wCell) (j : Fin n),
-        ((writeFin idx vals).run m).2 (idx j) = vals j
-  | 0, _, _, _, _, j => j.elim0
-  | n + 1, idx, hinj, vals, m, j => by
-    have hinj' : Function.Injective (fun i : Fin n => idx i.succ) := fun a b h =>
-      Fin.succ_injective _ (hinj h)
-    refine j.cases ?_ (fun i => ?_)
-    · simp only [writeFin, ProbeTree.run_bind, ProbeTree.run_write]
-      have hnot : ∀ a : Fin n, idx 0 ≠ idx a.succ := fun a h =>
-        Fin.succ_ne_zero a (hinj h.symm)
-      have hpres : ∀ {k : ℕ} (f : Fin k → Fin cells) (vf : Fin k → Fin (2 ^ wCell))
-          (m₀ : Mem cells wCell) (c : Fin cells),
-          (∀ a : Fin k, c ≠ f a) → ((writeFin f vf).run m₀).2 c = m₀ c := by
-        intro k
-        induction k with
-        | zero => intro _ _ _ _ _; rfl
-        | succ k ih =>
-          intro f vf m₀ c hc
-          simp only [writeFin, ProbeTree.run_bind, ProbeTree.run_write]
-          rw [ih _ _ _ c (fun a => hc a.succ), Function.update_of_ne (hc 0)]
-      rw [hpres _ _ _ (idx 0) hnot, Function.update_self]
-    · simp only [writeFin, ProbeTree.run_bind, ProbeTree.run_write]
-      exact nextMem_writeFin_apply hinj' (fun a : Fin n => vals a.succ)
-        (Function.update m (idx 0) (vals 0)) i
-
 theorem nextMem_writeFin_of_forall_ne {cells wCell : ℕ} :
     ∀ {n : ℕ} (idx : Fin n → Fin cells) (vals : Fin n → Fin (2 ^ wCell))
       (m : Mem cells wCell) (c : Fin cells),
@@ -514,6 +441,19 @@ theorem nextMem_writeFin_of_forall_ne {cells wCell : ℕ} :
     simp only [writeFin, ProbeTree.run_bind, ProbeTree.run_write]
     rw [nextMem_writeFin_of_forall_ne _ _ _ c (fun j => hne j.succ),
       Function.update_of_ne (hne 0)]
+
+theorem nextMem_writeFin_apply {cells wCell : ℕ} :
+    ∀ {n : ℕ} {idx : Fin n → Fin cells}, Function.Injective idx →
+      ∀ (vals : Fin n → Fin (2 ^ wCell)) (m : Mem cells wCell) (j : Fin n),
+        ((writeFin idx vals).run m).2 (idx j) = vals j
+  | 0, _, _, _, _, j => j.elim0
+  | n + 1, idx, hinj, vals, m, j => by
+    simp only [writeFin, ProbeTree.run_bind, ProbeTree.run_write]
+    refine j.cases ?_ (fun i => ?_)
+    · rw [nextMem_writeFin_of_forall_ne _ _ _ (idx 0) fun a h => Fin.succ_ne_zero a (hinj h.symm),
+        Function.update_self]
+    · exact nextMem_writeFin_apply (fun a b h => Fin.succ_injective _ (hinj h))
+        (fun a : Fin n => vals a.succ) (Function.update m (idx 0) (vals 0)) i
 
 /-- Unified register/memory layout for Word-RAM-to-cell-probe simulation over `S + regCells` cells
 of width `wCell` (`w ≤ wCell`). Instantiated by `standardLayout` (`regCells = persCount input`,
@@ -584,13 +524,11 @@ theorem unpack_bounded (L : RegLayout r input base S w regCells wCell)
     (L.unpack argRegs m).Bounded w := by
   refine ⟨fun i => ?_, fun a => ?_⟩
   · by_cases hi : input i = true
-    · rw [L.unpack_regs_input argRegs m i hi]
-      exact harg i hi
+    · exact L.unpack_regs_input argRegs m i hi ▸ harg i hi
     · exact L.unpack_pers_fits argRegs m i (Bool.eq_false_iff.mpr hi)
   · rw [L.unpack_mem]
     split_ifs
-    · exact Nat.mod_lt _ (Nat.two_pow_pos w)
-    · exact fits_zero w
+    exacts [Nat.mod_lt _ (Nat.two_pow_pos w), fits_zero w]
 
 theorem unpack_pack_mem (L : RegLayout r input base S w regCells wCell)
     (argRegs : Fin r → ℕ) {x : Data r} (hx : x.Bounded w) (a : ℕ) :
@@ -599,9 +537,8 @@ theorem unpack_pack_mem (L : RegLayout r input base S w regCells wCell)
   dsimp only [zeroOutside]
   split_ifs with ha
   · rw [L.pack_data x ⟨a - base, by omega⟩]
-    dsimp only
-    have hadd : base + (a - base) = a := by omega
-    rw [hadd, Nat.mod_eq_of_lt (wordOfNat w _).isLt, wordOfNat_val_of_lt (hx.2 a)]
+    simp [show base + (a - base) = a by omega, Nat.mod_eq_of_lt (hx.2 a),
+      wordOfNat_val_of_lt (hx.2 a)]
   · rfl
 
 end RegLayout
@@ -826,17 +763,9 @@ private theorem dirtyCount_empty (S w : ℕ) :
 private theorem dirtyCount_update_le {S w : ℕ} (writeBuf : Fin S → Option (Fin (2 ^ w)))
     (idx : Fin S) (v : Fin (2 ^ w)) :
     dirtyCount (Function.update writeBuf idx (some v)) ≤ dirtyCount writeBuf + 1 := by
-  have hsub :
-      (Finset.univ.filter fun j : Fin S => (Function.update writeBuf idx (some v) j).isSome) ⊆
-        insert idx (Finset.univ.filter fun j : Fin S => (writeBuf j).isSome) := by
-    intro j hj
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hj
-    by_cases hji : j = idx
-    · subst hji
-      exact Finset.mem_insert_self j _
-    · rw [Function.update_of_ne hji] at hj
-      exact Finset.mem_insert_of_mem (by simp [hj])
-  exact (Finset.card_le_card hsub).trans (Finset.card_insert_le _ _)
+  refine (Finset.card_le_card (t := insert idx (Finset.univ.filter fun j => (writeBuf j).isSome))
+    fun j hj => ?_).trans (Finset.card_insert_le _ _)
+  by_cases hji : j = idx <;> simp_all [Function.update_of_ne]
 
 /-- Reconstruct the full Word-RAM `Data r` represented by `(regs, writeBuf, extMem)` over base
 memory `m`. -/
@@ -854,10 +783,34 @@ private theorem reconstructData_init {r : ℕ} {input : Fin r → Bool}
     {base S w regCells wCell : ℕ} (L : RegLayout r input base S w regCells wCell)
     (argRegs : Fin r → ℕ) (m : Mem (S + regCells) wCell) :
     reconstructData (w := w) base m (L.unpack argRegs m).regs (fun _ => none) (fun _ => 0) =
-      L.unpack argRegs m := by
-  ext i
-  · rfl
-  · simp only [reconstructData, L.unpack_mem]
+      L.unpack argRegs m :=
+  Data.ext rfl (funext fun a => (L.unpack_mem argRegs m a).symm)
+
+/-- Buffering a store inside `[base, base + S)` is a memory write on the reconstructed data. -/
+private theorem reconstructData_update_buf {r S regCells w wCell : ℕ} (base : ℕ)
+    (m : Mem (S + regCells) wCell) (regs : Fin r → ℕ) (writeBuf : Fin S → Option (Fin (2 ^ w)))
+    (extMem : ℕ → ℕ) {a v : ℕ} (ha : base ≤ a ∧ a < base + S) (hv : Fits w v) :
+    reconstructData base m regs
+        (Function.update writeBuf ⟨a - base, by omega⟩ (some (wordOfNat w v))) extMem =
+      (reconstructData base m regs writeBuf extMem).write a v := by
+  refine Data.ext rfl (funext fun b => ?_)
+  rcases eq_or_ne b a with rfl | hb
+  · simp [reconstructData, Data.write, ha, wordOfNat_val_of_lt hv]
+  · dsimp only [reconstructData, Data.write]
+    rw [Function.update_of_ne hb]
+    split_ifs with hba
+    · rw [Function.update_of_ne (by fin_index)]
+    · rfl
+
+/-- A store outside `[base, base + S)` is a memory write on the reconstructed data. -/
+private theorem reconstructData_update_ext {r S regCells w wCell : ℕ} (base : ℕ)
+    (m : Mem (S + regCells) wCell) (regs : Fin r → ℕ) (writeBuf : Fin S → Option (Fin (2 ^ w)))
+    (extMem : ℕ → ℕ) {a : ℕ} (v : ℕ) (ha : ¬(base ≤ a ∧ a < base + S)) :
+    reconstructData base m regs writeBuf (Function.update extMem a v) =
+      (reconstructData base m regs writeBuf extMem).write a v := by
+  refine Data.ext rfl (funext fun b => ?_)
+  simp only [reconstructData, Data.write, Function.update_apply]
+  split_ifs with h hb <;> first | rfl | exact absurd (hb ▸ h) ha
 
 /-- Embed a `w`-bit word into `Fin (2 ^ wCell)` when `w ≤ wCell`. -/
 def liftCellWord {w wCell : ℕ} (hw : w ≤ wCell) (v : Fin (2 ^ w)) : Fin (2 ^ wCell) :=
@@ -885,7 +838,8 @@ private theorem flushAux_spec {S regCells w wCell : ℕ} (hw : w ≤ wCell)
     (writeBuf : Fin S → Option (Fin (2 ^ w))) :
     ∀ (j : ℕ) (hj : j ≤ S) (m : Mem (S + regCells) wCell),
       (flushAux hw writeBuf j hj).probes m =
-        ((Finset.univ.filter fun idx : Fin S => idx.1 < j ∧ (writeBuf idx).isSome)).card ∧
+        (∑ i ∈ Finset.range j, if h : i < S then (if (writeBuf ⟨i, h⟩).isSome then 1 else 0)
+          else 0) ∧
       (∀ idx : Fin S, idx.1 < j →
         ((flushAux hw writeBuf j hj).run m).2 (Fin.castAdd regCells idx) =
           match writeBuf idx with
@@ -893,93 +847,35 @@ private theorem flushAux_spec {S regCells w wCell : ℕ} (hw : w ≤ wCell)
           | none => m (Fin.castAdd regCells idx)) ∧
       (∀ c : Fin (S + regCells), j ≤ c.1 →
         ((flushAux hw writeBuf j hj).run m).2 c = m c)
-  | 0, _, m => by
-    dsimp only [flushAux]
-    refine ⟨?_, fun _ h => by omega, fun _ _ => rfl⟩
-    simp
+  | 0, _, m => ⟨rfl, fun _ h => absurd h (Nat.not_lt_zero _), fun _ _ => rfl⟩
   | k + 1, hk, m => by
     obtain ⟨hpr, hlt, hge⟩ := flushAux_spec hw writeBuf k (by omega) m
-    set m₁ := ((flushAux hw writeBuf k (by omega)).run m).2
-    set idx_k : Fin S := ⟨k, hk⟩
-    have hpart :
-        (Finset.univ.filter fun idx : Fin S => idx.1 < k + 1 ∧ (writeBuf idx).isSome) =
-          if (writeBuf idx_k).isSome then
-            insert idx_k (Finset.univ.filter fun idx : Fin S => idx.1 < k ∧ (writeBuf idx).isSome)
-          else
-            Finset.univ.filter fun idx : Fin S => idx.1 < k ∧ (writeBuf idx).isSome := by
-      by_cases hs : (writeBuf idx_k).isSome = true
-      · rw [ite_eq_left_iff.mpr fun h => absurd hs h]
-        refine Finset.ext fun idx => ?_
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert]
-        constructor
-        · rintro ⟨h1, h2⟩
-          rcases Nat.lt_succ_iff_lt_or_eq.mp h1 with hlt_k | heq_k
-          · exact Or.inr ⟨hlt_k, h2⟩
-          · exact Or.inl (Fin.ext heq_k)
-        · rintro (rfl | ⟨hlt_k, h2⟩)
-          · exact ⟨by simp [idx_k], hs⟩
-          · exact ⟨by omega, h2⟩
-      · rw [ite_eq_right_iff.mpr fun h => absurd h hs]
-        refine Finset.ext fun idx => ?_
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-        constructor
-        · rintro ⟨h1, h2⟩
-          rcases Nat.lt_succ_iff_lt_or_eq.mp h1 with hlt_k | heq_k
-          · exact ⟨hlt_k, h2⟩
-          · have : idx = idx_k := Fin.ext heq_k
-            subst this
-            exact absurd h2 hs
-        · rintro ⟨hlt_k, h2⟩
-          exact ⟨by omega, h2⟩
-    have hnotMem :
-        idx_k ∉ (Finset.univ.filter fun idx : Fin S => idx.1 < k ∧ (writeBuf idx).isSome) := by
-      simp [idx_k]
-    dsimp only [flushAux]
-    cases hwb : writeBuf idx_k with
+    have hsplit : ∀ idx : Fin S, idx.1 < k + 1 → idx.1 < k ∨ idx = ⟨k, hk⟩ := fun idx h =>
+      (Nat.lt_succ_iff_lt_or_eq.mp h).imp_right Fin.ext
+    simp only [Finset.sum_range_succ, ← hpr, show k < S from hk, ↓reduceDIte, flushAux]
+    cases hwb : writeBuf ⟨k, hk⟩ with
     | none =>
-      simp only [ProbeTree.probes_bind, ProbeTree.probes_pure, add_zero,
-        ProbeTree.run_bind, ProbeTree.run_pure]
-      refine ⟨?_, ?_, ?_⟩
-      · rw [hpr, hpart]
-        simp only [hwb, Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
-      · intro idx hidx
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hidx with hlt_k | heq_k
-        · exact hlt idx hlt_k
-        · have : idx = idx_k := Fin.ext heq_k
-          subst this
-          rw [hwb]
-          exact hge (Fin.castAdd regCells idx_k) (by simp [idx_k])
-      · intro c hc
-        exact hge c (by omega)
+      simp only [ProbeTree.probes_bind, ProbeTree.probes_pure, ProbeTree.run_bind,
+        ProbeTree.run_pure, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, true_and]
+      refine ⟨fun idx hidx => ?_, fun c hc => hge c (by omega)⟩
+      obtain hlt_k | rfl := hsplit idx hidx
+      · exact hlt idx hlt_k
+      · exact hwb ▸ hge (Fin.castAdd regCells ⟨k, hk⟩) le_rfl
     | some v =>
-      simp only [ProbeTree.probes_bind, ProbeTree.probes_write,
-        ProbeTree.run_bind, ProbeTree.run_write]
-      refine ⟨?_, ?_, ?_⟩
-      · rw [hpr, hpart]
-        simp only [hwb, Option.isSome_some, ↓reduceIte, Finset.card_insert_of_notMem hnotMem]
-      · intro idx hidx
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hidx with hlt_k | heq_k
-        · have hne : Fin.castAdd regCells idx ≠ Fin.castAdd regCells idx_k := by
-            fin_index [idx_k]
-          rw [Function.update_of_ne hne]
-          exact hlt idx hlt_k
-        · have : idx = idx_k := Fin.ext heq_k
-          subst this
-          rw [hwb]
-          exact Function.update_self _ _ _
-      · intro c hc
-        have hne : c ≠ Fin.castAdd regCells idx_k := by fin_index [idx_k]
-        rw [Function.update_of_ne hne]
-        exact hge c (by omega)
+      simp only [ProbeTree.probes_bind, ProbeTree.probes_write, ProbeTree.run_bind,
+        ProbeTree.run_write, Option.isSome_some, ↓reduceIte, true_and]
+      refine ⟨fun idx hidx => ?_, fun c hc => ?_⟩
+      · obtain hlt_k | rfl := hsplit idx hidx
+        · rw [Function.update_of_ne (by fin_index), hlt idx hlt_k]
+        · rw [hwb, Function.update_self]
+      · rw [Function.update_of_ne (by fin_index), hge c (by omega)]
 
 theorem probes_flushWriteBuf {S regCells w wCell : ℕ} (hw : w ≤ wCell)
     (writeBuf : Fin S → Option (Fin (2 ^ w))) (m : Mem (S + regCells) wCell) :
     (flushWriteBuf hw writeBuf).probes m = dirtyCount writeBuf := by
-  obtain ⟨hpr, _, _⟩ := flushAux_spec hw writeBuf S le_rfl m
-  rw [flushWriteBuf, hpr, dirtyCount]
-  congr 1
-  refine Finset.ext fun idx => ?_
-  simp
+  rw [flushWriteBuf, (flushAux_spec hw writeBuf S le_rfl m).1, dirtyCount, Finset.card_filter,
+    ← Fin.sum_univ_eq_sum_range]
+  exact Finset.sum_congr rfl fun i _ => dite_eq_left i.isLt
 
 /-- Flush `writeBuf` and spill persistent registers according to `L`, producing `L.pack y` whenever
 `y = reconstructData base m regs writeBuf extMem` and `y.Bounded w` and `L.ValidMem m`. -/
@@ -998,45 +894,20 @@ theorem commitHalted_spec {r : ℕ} {input : Fin r → Bool} {base S w regCells 
         L.pack (reconstructData base m regs writeBuf extMem) ∧
       (commitHalted L regs writeBuf).probes m = dirtyCount writeBuf + L.spillProbes := by
   set y := reconstructData base m regs writeBuf extMem
-  obtain ⟨hpr_f, hlt_f, hge_f⟩ := flushAux_spec L.hw writeBuf S le_rfl m
-  set m₁ := ((flushWriteBuf L.hw writeBuf).run m).2
-  have hm₁_reg : ∀ d : Fin (S + regCells), S ≤ d.1 → m₁ d = m d := fun d hd => hge_f d hd
-  refine ⟨funext fun c => ?_, ?_⟩
-  · by_cases hc : c.1 < S
-    · let idx : Fin S := ⟨c.1, hc⟩
-      have hc_eq : c = Fin.castAdd regCells idx := Fin.ext rfl
-      rw [hc_eq]
-      simp only [commitHalted, ProbeTree.run_bind]
-      change ((L.spill regs).run m₁).2 (Fin.castAdd regCells idx) = _
-      rw [L.nextMem_spill_data regs m₁ idx, L.pack_data y idx]
-      have hfl : m₁ (Fin.castAdd regCells idx) =
-          match writeBuf idx with
-          | some v => liftCellWord L.hw v
-          | none => m (Fin.castAdd regCells idx) := hlt_f idx hc
-      have hown : base ≤ base + idx.1 ∧ base + idx.1 < base + S := ⟨by omega, by omega⟩
-      have hsub : (⟨base + idx.1 - base, by omega⟩ : Fin S) = idx := by ext; simp
-      have hymem : y.mem (base + idx.1) =
-          match writeBuf idx with
-          | some v => v.1
-          | none => (m (Fin.castAdd regCells idx)).1 % 2 ^ w := by
-        dsimp only [y, reconstructData]
-        split_ifs
-        rw [hsub]
-      rw [hfl]
-      cases hwb : writeBuf idx with
-      | some v =>
-        rw [hymem]
-        simp [hwb, liftCellWord]
-      | none =>
-        have hlt_m : (m (Fin.castAdd regCells idx)).1 < 2 ^ w := L.validMem_data hm idx
-        rw [hymem]
-        simp only [hwb, Nat.mod_eq_of_lt hlt_m, wordOfNat_val_of_lt hlt_m]
-    · have hge : S ≤ c.1 := Nat.le_of_not_lt hc
-      simp only [commitHalted, ProbeTree.run_bind]
-      change ((L.spill y.regs).run m₁).2 c = L.pack y c
-      exact L.nextMem_spill_reg y m₁ c
-        (fun h0 d hd => (hm₁_reg d hd).trans (L.validMem_reg_zero hm h0 y d hd)) hge
-  · simp only [commitHalted, ProbeTree.probes_bind, probes_flushWriteBuf, L.probes_spill]
+  obtain ⟨-, hlt_f, hge_f⟩ := flushAux_spec L.hw writeBuf S le_rfl m
+  refine ⟨funext fun c => ?_, by
+    simp only [commitHalted, ProbeTree.probes_bind, probes_flushWriteBuf, L.probes_spill]⟩
+  simp only [commitHalted, ProbeTree.run_bind, flushWriteBuf]
+  by_cases hc : c.1 < S
+  · obtain ⟨idx, rfl⟩ : ∃ idx : Fin S, c = Fin.castAdd regCells idx := ⟨⟨c.1, hc⟩, rfl⟩
+    have hlt_m := L.validMem_data hm idx
+    cases hwb : writeBuf idx <;>
+      · rw [L.nextMem_spill_data, L.pack_data y idx, hlt_f idx hc]
+        simp only [y, reconstructData, Nat.le_add_right, Nat.add_lt_add_iff_left, idx.isLt,
+          and_self, ↓reduceDIte, Nat.add_sub_cancel_left, Fin.eta, hwb]
+        simp [liftCellWord, Nat.mod_eq_of_lt hlt_m, wordOfNat_val_of_lt hlt_m]
+  · exact L.nextMem_spill_reg y _ c
+      (fun h0 d hd => (hge_f d hd).trans (L.validMem_reg_zero hm h0 y d hd)) (Nat.le_of_not_lt hc)
 
 /-! #### Single-step and clocked deterministic `ProbeTree` simulation -/
 
@@ -1094,42 +965,22 @@ private theorem cond_holds_regs_only {r : ℕ} (c : Cond r) (x : Data r) :
     c.Holds ⟨x.regs, fun _ => 0⟩ ↔ c.Holds x := by
   cases c <;> rfl
 
-theorem simStepDet_nextMem {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ) (p : Program B r)
-    (st : SimOutcome S w r) (m : Mem (S + regCells) wCell) :
-    ((simStepDet (regCells := regCells) (wCell := wCell) base p st).run m).2 = m := by
+/-- A `simStepDet` step leaves cell memory untouched and issues at most one probe. -/
+private theorem simStepDet_nextMem_probes {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ)
+    (p : Program B r) (st : SimOutcome S w r) (m : Mem (S + regCells) wCell) :
+    ((simStepDet (regCells := regCells) (wCell := wCell) base p st).run m).2 = m ∧
+      (simStepDet (regCells := regCells) (wCell := wCell) base p st).probes m ≤ 1 := by
   cases st with
-  | halted => rfl
-  | faulted => rfl
   | running pc regs writeBuf extMem =>
     dsimp only [simStepDet]
-    rcases hp : p[pc]? with _ | instr
-    · rfl
-    · cases instr with
-      | op o =>
-        cases o with
-        | const d v =>
-          dsimp only
-          by_cases hv : Fits w v <;> simp [hv]
-        | copy d src => rfl
-        | alu f d args =>
-          dsimp only
-          cases B.interp w f (regs ∘ args) with
-          | none => rfl
-          | some v =>
-            dsimp only
-            by_cases hv : Fits w v <;> simp [hv]
-        | load d a =>
-          dsimp only
-          split_ifs with ha
-          · cases writeBuf ⟨regs a - base, by omega⟩ <;> simp
-          · rfl
-        | store a src =>
-          dsimp only
-          split_ifs <;> rfl
-      | jump => rfl
-      | branch => rfl
-      | halt => rfl
-      | rand => rfl
+    repeat' split
+    all_goals simp
+  | _ => exact ⟨rfl, Nat.zero_le 1⟩
+
+theorem simStepDet_nextMem {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ) (p : Program B r)
+    (st : SimOutcome S w r) (m : Mem (S + regCells) wCell) :
+    ((simStepDet (regCells := regCells) (wCell := wCell) base p st).run m).2 = m :=
+  (simStepDet_nextMem_probes base p st m).1
 
 /-- Exact single-step correspondence between `simStepDet` and `WordRAM.step`. -/
 theorem simStepDet_spec {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ) (p : Program B r)
@@ -1153,129 +1004,42 @@ theorem simStepDet_spec {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ) (p
   intro x t
   refine ⟨simStepDet_nextMem base p _ m, ?_⟩
   dsimp only [t, simStepDet, step]
-  rcases hp : p[pc]? with _ | instr
+  rcases hp : p[pc]? with _ | (o | tgt | ⟨c, tgt⟩ | i | _)
   · simp
-  · cases instr with
-    | halt i => simp [x, reconstructData]
-    | jump tgt =>
-      exact ⟨writeBuf, extMem, rfl, rfl, by simp⟩
-    | branch c tgt =>
-      dsimp only
-      have hc : c.Holds ⟨regs, fun _ => 0⟩ ↔ c.Holds x := cond_holds_regs_only c x
-      exact ⟨writeBuf, extMem, by simp [hc, x, reconstructData], rfl, by simp⟩
-    | rand _ _ => simp
-    | op o =>
-      cases o with
-      | const d v =>
-        dsimp only
+  · cases o with dsimp only
+    | const d v =>
+      by_cases hv : Fits w v
+      · simp only [Op.eval_const, Data.put_of_fits hv, hv, ↓reduceIte]
+        exact ⟨writeBuf, extMem, rfl, rfl, by simp⟩
+      · simp [Data.put, hv]
+    | copy d src => exact ⟨writeBuf, extMem, rfl, rfl, by simp⟩
+    | alu f d args =>
+      rw [Op.eval_alu, show x.regs ∘ args = regs ∘ args from rfl]
+      cases hbi : B.interp w f (regs ∘ args) with
+      | none => simp
+      | some v =>
         by_cases hv : Fits w v
-        · simp only [Op.eval_const, Data.put_of_fits hv, hv, ↓reduceIte, ProbeTree.run_pure,
-            ProbeTree.probes_pure, zero_add]
-          exact ⟨writeBuf, extMem, rfl, Data.ext rfl rfl,
-            le_add_of_nonneg_left (Nat.zero_le _)⟩
-        · have hput : x.put w d v = none := by simp [Data.put, hv]
-          simp [Op.eval_const, hput, hv]
-      | copy d src =>
-        dsimp only
-        simp only [Op.eval_copy, ProbeTree.run_pure, ProbeTree.probes_pure, zero_add]
-        exact ⟨writeBuf, extMem, rfl, Data.ext rfl rfl,
-          le_add_of_nonneg_left (Nat.zero_le _)⟩
-      | alu f d args =>
-        dsimp only
-        have hargs : (x.regs ∘ args) = (regs ∘ args) := rfl
-        rw [Op.eval_alu, hargs]
-        cases hbi : B.interp w f (regs ∘ args) with
-        | none => simp
-        | some v =>
-          dsimp only [Option.bind]
-          by_cases hv : Fits w v
-          · simp only [Data.put_of_fits hv, hv, ↓reduceIte, ProbeTree.run_pure,
-              ProbeTree.probes_pure, zero_add]
-            exact ⟨writeBuf, extMem, rfl, Data.ext rfl rfl,
-              le_add_of_nonneg_left (Nat.zero_le _)⟩
-          · have hput : x.put w d v = none := by simp [Data.put, hv]
-            simp [hput, hv]
-      | load d a =>
-        dsimp only [Op.eval_load]
-        have haddr : x.regs a = regs a := rfl
-        by_cases ha : base ≤ regs a ∧ regs a < base + S
-        · simp only [ha, and_self, ↓reduceDIte]
-          cases hwb : writeBuf ⟨regs a - base, by omega⟩ with
-          | some v =>
-            have hxmem : x.mem (regs a) = v.1 := by
-              dsimp only [x, reconstructData]
-              split_ifs
-              rw [hwb]
-            simp only [ProbeTree.run_pure, ProbeTree.probes_pure, zero_add]
-            refine ⟨writeBuf, extMem, ?_, ?_, le_add_of_nonneg_left (Nat.zero_le _)⟩
-            · dsimp only [Data.set]
-              rw [haddr, hxmem]
-              rfl
-            · refine Data.ext ?_ rfl
-              funext i
-              dsimp only [Data.set, x, reconstructData]
-          | none =>
-            have hxmem : x.mem (regs a) =
-                (m (Fin.castAdd regCells ⟨regs a - base, by omega⟩)).1 % 2 ^ w := by
-              dsimp only [x, reconstructData]
-              split_ifs
-              rw [hwb]
-            simp only [ProbeTree.run_bind, ProbeTree.run_read, ProbeTree.run_pure,
-              ProbeTree.probes_bind, ProbeTree.probes_read, ProbeTree.probes_pure, add_zero]
-            refine ⟨writeBuf, extMem, ?_, ?_, le_rfl⟩
-            · dsimp only [Data.set]
-              rw [haddr, hxmem]
-              rfl
-            · refine Data.ext ?_ rfl
-              funext i
-              dsimp only [Data.set, x, reconstructData]
-        · simp only [ha, ↓reduceDIte, ProbeTree.run_pure, ProbeTree.probes_pure, zero_add]
-          have hxmem : x.mem (regs a) = extMem (regs a) := by
-            dsimp only [x, reconstructData]
-            split_ifs
-            rfl
-          refine ⟨writeBuf, extMem, ?_, ?_, le_add_of_nonneg_left (Nat.zero_le _)⟩
-          · dsimp only [Data.set]
-            rw [haddr, hxmem]
-            rfl
-          · refine Data.ext ?_ rfl
-            funext i
-            dsimp only [Data.set, x, reconstructData]
-      | store a src =>
-        dsimp only [Op.eval_store]
-        have hfit_val : Fits w (regs src) := hx.1 src
-        by_cases ha : base ≤ regs a ∧ regs a < base + S
-        · simp only [ha, and_self, ↓reduceDIte, ProbeTree.run_pure, ProbeTree.probes_pure, zero_add]
-          set wb' := Function.update writeBuf ⟨regs a - base, by omega⟩
-            (some (wordOfNat w (regs src)))
-          refine ⟨wb', extMem, rfl, ?_, ?_⟩
-          · refine Data.ext rfl (funext fun b => ?_)
-            dsimp only [reconstructData, Data.write, x]
-            by_cases hb : b = regs a
-            · subst hb
-              rw [Function.update_self]
-              split_ifs
-              simp [wb', wordOfNat_val_of_lt hfit_val]
-            · rw [Function.update_of_ne hb]
-              by_cases hba : base ≤ b ∧ b < base + S
-              · have hne_idx : (⟨b - base, by omega⟩ : Fin S) ≠ ⟨regs a - base, by omega⟩ := by
-                  fin_index
-                split_ifs
-                simp only [wb', Function.update_of_ne hne_idx]
-              · split_ifs
-                rfl
-          · exact Nat.add_comm _ 1 ▸ dirtyCount_update_le writeBuf _ _
-        · simp only [ha, ↓reduceDIte, ProbeTree.run_pure, ProbeTree.probes_pure, zero_add]
-          refine ⟨writeBuf, Function.update extMem (regs a) (regs src), rfl, ?_,
-            le_add_of_nonneg_left (Nat.zero_le _)⟩
-          refine Data.ext rfl (funext fun b => ?_)
-          dsimp only [reconstructData, Data.write, x]
-          by_cases hb : b = regs a
-          · subst hb
-            rw [Function.update_self, Function.update_self]
-            split_ifs
-            rfl
-          · rw [Function.update_of_ne hb, Function.update_of_ne hb]
+        · simp only [Option.bind_some, Data.put_of_fits hv, hv, ↓reduceIte]
+          exact ⟨writeBuf, extMem, rfl, rfl, by simp⟩
+        · simp [Data.put, hv]
+    | load d a =>
+      -- In each sub-case the loaded value is `x.mem (regs a)` by definition of `reconstructData`.
+      refine ⟨writeBuf, extMem, ?_, rfl, ?_⟩
+      · dsimp only [Op.eval_load, x, reconstructData]
+        split_ifs with ha <;> [cases writeBuf ⟨regs a - base, by omega⟩ <;> rfl; rfl]
+      · split_ifs with ha <;> [cases writeBuf ⟨regs a - base, by omega⟩ <;> simp; simp]
+    | store a src =>
+      dsimp only [Op.eval_store]
+      split_ifs with ha
+      · exact ⟨_, extMem, rfl, reconstructData_update_buf base m regs writeBuf extMem ha (hx.1 src),
+          by simpa [add_comm] using dirtyCount_update_le writeBuf _ _⟩
+      · exact ⟨writeBuf, _, rfl, reconstructData_update_ext base m regs writeBuf extMem _ ha,
+          by simp⟩
+  · exact ⟨writeBuf, extMem, rfl, rfl, by simp⟩
+  · exact ⟨writeBuf, extMem, congrArg (SimOutcome.running · regs writeBuf extMem)
+      (if_congr (cond_holds_regs_only c x) rfl rfl), rfl, by simp⟩
+  · simp [x, reconstructData]
+  · simp
 
 /-- Run `simStepDet` for `K` clocked steps. -/
 def simLoopDet {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ) (p : Program B r) :
@@ -1284,18 +1048,6 @@ def simLoopDet {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ) (p : Progra
   | K + 1, st => do
       let st' ← simStepDet base p st
       simLoopDet base p K st'
-
-private theorem simLoopDet_add {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ)
-    (p : Program B r) (K₁ K₂ : ℕ) (st : SimOutcome S w r) :
-    simLoopDet (regCells := regCells) (wCell := wCell) base p (K₁ + K₂) st =
-      (do
-        let st' ← simLoopDet (regCells := regCells) (wCell := wCell) base p K₁ st
-        simLoopDet (regCells := regCells) (wCell := wCell) base p K₂ st') := by
-  induction K₁ generalizing st with
-  | zero => simp [simLoopDet]
-  | succ K₁ ih =>
-    rw [Nat.succ_add]
-    simp only [simLoopDet, bind_assoc, ih]
 
 private theorem simLoopDet_halted {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ)
     (p : Program B r) (K : ℕ) (out : ℕ) (regs : Fin r → ℕ)
@@ -1306,94 +1058,46 @@ private theorem simLoopDet_halted {B : Basis} {r S regCells w wCell : ℕ} (base
       = 0 := by
   induction K with
   | zero => exact ⟨rfl, rfl⟩
-  | succ K ih =>
-    simp only [simLoopDet, simStepDet, ProbeTree.run_bind, ProbeTree.run_pure,
-      ProbeTree.probes_bind, ProbeTree.probes_pure, zero_add]
-    exact ih
+  | succ K ih => exact ih
 
-private theorem simLoopDet_of_runs {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ)
-    (p : Program B r) {s t : State r} {n : ℕ}
-    (hruns : Runs w p s t n)
-    {regs : Fin r → ℕ} {wb : Fin S → Option (Fin (2 ^ w))} {ext : ℕ → ℕ}
-    (m : Mem (S + regCells) wCell)
-    (hrec : reconstructData base m regs wb ext = s.data)
-    (hs_bdd : s.data.Bounded w) :
-    ∃ wb' ext',
-      (simLoopDet (regCells := regCells) (wCell := wCell)
-        base p n (.running s.pc regs wb ext)).run m =
-          (.running t.pc t.data.regs wb' ext', m) ∧
-      reconstructData base m t.data.regs wb' ext' = t.data ∧
-      (simLoopDet (regCells := regCells) (wCell := wCell)
-        base p n (.running s.pc regs wb ext)).probes m + dirtyCount wb' ≤
-          n + dirtyCount wb := by
-  induction hruns with
-  | refl =>
-    have hregs : regs = s.data.regs := congrArg Data.regs hrec
-    subst hregs
-    exact ⟨wb, ext, rfl, hrec, by simp [simLoopDet]⟩
-  | tail u v_st n' hpref hstep ih =>
-    obtain ⟨wb₁, ext₁, hrun_pref, hrec₁, hpr_pref⟩ := ih
-    have hu_bdd : u.data.Bounded w := Runs.bounded hpref hs_bdd
-    have hbdd₁ : (reconstructData base m u.data.regs wb₁ ext₁).Bounded w := hrec₁ ▸ hu_bdd
-    have hspec := simStepDet_spec (regCells := regCells) (wCell := wCell) base p u.pc m hbdd₁
-    dsimp only at hspec
-    have hstep_u : step w p u = .next v_st := hstep
-    rw [hrec₁, hstep_u] at hspec
-    obtain ⟨hm_eq, wb', ext', hrun1, hrec', hpr1⟩ := hspec
-    have hstep_run :
-        (simStepDet (regCells := regCells) (wCell := wCell) base p
-          (.running u.pc u.data.regs wb₁ ext₁)).run m =
-            (.running v_st.pc v_st.data.regs wb' ext', m) :=
-      Prod.ext hrun1 hm_eq
-    refine ⟨wb', ext', ?_, hrec', ?_⟩
-    · rw [simLoopDet_add base p n' 1]
-      simp only [ProbeTree.run_bind, hrun_pref, simLoopDet, hstep_run, ProbeTree.run_pure]
-    · rw [simLoopDet_add base p n' 1]
-      simp only [ProbeTree.probes_bind, hrun_pref, simLoopDet, hstep_run, ProbeTree.probes_pure,
-        add_zero]
-      omega
-
+/-- A halting run of `n` continuing steps is reproduced by `simLoopDet` with any fuel `K ≥ n + 1`,
+by induction on the fuel: each `simStepDet` either takes the next step of the run or halts. -/
 private theorem simLoopDet_of_runs_halt {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ)
     (p : Program B r) {s t : State r} {n v K : ℕ}
     (hruns : Runs w p s t n) (hhalt : step w p t = .halt v) (hK : n + 1 ≤ K)
-    {regs : Fin r → ℕ} {wb : Fin S → Option (Fin (2 ^ w))} {ext : ℕ → ℕ}
+    {wb : Fin S → Option (Fin (2 ^ w))} {ext : ℕ → ℕ}
     (m : Mem (S + regCells) wCell)
-    (hrec : reconstructData base m regs wb ext = s.data)
+    (hrec : reconstructData base m s.data.regs wb ext = s.data)
     (hs_bdd : s.data.Bounded w) :
     ∃ wb' ext',
       (simLoopDet (regCells := regCells) (wCell := wCell)
-        base p K (.running s.pc regs wb ext)).run m =
+        base p K (.running s.pc s.data.regs wb ext)).run m =
           (.halted v t.data.regs wb' ext', m) ∧
       reconstructData base m t.data.regs wb' ext' = t.data ∧
       (simLoopDet (regCells := regCells) (wCell := wCell)
-        base p K (.running s.pc regs wb ext)).probes m + dirtyCount wb' ≤
+        base p K (.running s.pc s.data.regs wb ext)).probes m + dirtyCount wb' ≤
           n + dirtyCount wb := by
-  obtain ⟨wb₁, ext₁, hrun_pref, hrec₁, hpr_pref⟩ :=
-    simLoopDet_of_runs (regCells := regCells) (wCell := wCell) base p hruns m hrec hs_bdd
-  have ht_bdd : t.data.Bounded w := hruns.bounded hs_bdd
-  have hbdd₁ : (reconstructData base m t.data.regs wb₁ ext₁).Bounded w := hrec₁ ▸ ht_bdd
-  have hspec := simStepDet_spec (regCells := regCells) (wCell := wCell) base p t.pc m hbdd₁
-  dsimp only at hspec
-  rw [hrec₁, hhalt] at hspec
-  obtain ⟨hm_eq, hrun1, hpr1⟩ := hspec
-  have hstep_run :
-      (simStepDet (regCells := regCells) (wCell := wCell) base p
-        (.running t.pc t.data.regs wb₁ ext₁)).run m = (.halted v t.data.regs wb₁ ext₁, m) :=
-    Prod.ext hrun1 hm_eq
-  have hK_split : K = n + (1 + (K - (n + 1))) := by omega
-  obtain ⟨hrem_run, hrem_pr⟩ :=
-    simLoopDet_halted (regCells := regCells) (wCell := wCell) base p (K - (n + 1)) v
-      t.data.regs wb₁ ext₁ m
-  refine ⟨wb₁, ext₁, ?_, hrec₁, ?_⟩
-  · rw [hK_split, simLoopDet_add base p n (1 + (K - (n + 1)))]
-    simp only [ProbeTree.run_bind, hrun_pref]
-    rw [Nat.add_comm 1, simLoopDet]
-    simp only [ProbeTree.run_bind, hstep_run, hrem_run]
-  · rw [hK_split, simLoopDet_add base p n (1 + (K - (n + 1)))]
-    simp only [ProbeTree.probes_bind, hrun_pref]
-    rw [Nat.add_comm 1, simLoopDet]
-    simp only [ProbeTree.probes_bind, hpr1, hstep_run, hrem_pr]
-    omega
+  induction K generalizing s n wb ext with
+  | zero => omega
+  | succ K ih =>
+    have hspec := simStepDet_spec (regCells := regCells) (wCell := wCell) base p s.pc m
+      (hrec ▸ hs_bdd)
+    dsimp only at hspec
+    rw [hrec] at hspec
+    rcases n with _ | n
+    · obtain rfl := hruns.zero
+      rw [hhalt] at hspec
+      obtain ⟨hm_eq, hrun1, hpr1⟩ := hspec
+      obtain ⟨hrem_run, hrem_pr⟩ := simLoopDet_halted (regCells := regCells) (wCell := wCell)
+        base p K v s.data.regs wb ext m
+      exact ⟨wb, ext, by simp only [simLoopDet, ProbeTree.run_bind, hrun1, hm_eq, hrem_run], hrec,
+        by simp only [simLoopDet, ProbeTree.probes_bind, hpr1, hrun1, hm_eq, hrem_pr]; omega⟩
+    · obtain ⟨u, hstep, hrest⟩ := hruns.succ'
+      rw [show step w p s = .next u from hstep] at hspec
+      obtain ⟨hm_eq, wb₁, ext₁, hrun1, hrec₁, hpr1⟩ := hspec
+      obtain ⟨wb', ext', hrun, hrec', hpr⟩ := ih hrest (by omega) hrec₁ (hstep.bounded hs_bdd)
+      exact ⟨wb', ext', by simp only [simLoopDet, ProbeTree.run_bind, hrun1, hm_eq, hrun], hrec',
+        by simp only [simLoopDet, ProbeTree.probes_bind, hrun1, hm_eq]; omega⟩
 
 theorem nextMem_writeFin_id {cells wCell : ℕ} (vals m : Mem cells wCell) :
     ((writeFin (fun i : Fin cells => i) vals).run m).2 = vals := by
@@ -1435,25 +1139,17 @@ theorem simProgDet_spec {B : Basis} {r S regCells w wCell : ℕ} {input : Fin r 
     (simProgDet L p argRegs decode defaultAns K).run m =
         ((decode v t.data.regs).getD defaultAns, L.pack t.data) ∧
       (simProgDet L p argRegs decode defaultAns K).probes m ≤ n + L.overhead := by
-  have hx₀_bdd : (L.unpack argRegs m).Bounded w := L.unpack_bounded harg m
-  have hrec₀ :
-      reconstructData (w := w) base m (L.unpack argRegs m).regs (fun _ => none) (fun _ => 0) =
-        L.unpack argRegs m :=
-    reconstructData_init L argRegs m
   obtain ⟨wb', ext', hloop_run, hrec', hloop_pr⟩ :=
     simLoopDet_of_runs_halt (regCells := regCells) (wCell := wCell) base p hruns hhalt hK m
-      hrec₀ hx₀_bdd
-  dsimp only at hloop_run hloop_pr
-  have hdirty0 : dirtyCount (fun _ : Fin S => (none : Option (Fin (2 ^ w)))) = 0 :=
-    dirtyCount_empty S w
+      (reconstructData_init L argRegs m) (L.unpack_bounded harg m)
   obtain ⟨hcommit_mem, hcommit_pr⟩ := commitHalted_spec L hm t.data.regs wb' ext'
   rw [hrec'] at hcommit_mem
-  refine ⟨?_, ?_⟩
-  · simp only [simProgDet, ProbeTree.run_bind, L.run_reload, hloop_run, ProbeTree.run_pure]
-    exact Prod.ext rfl hcommit_mem
-  · simp only [simProgDet, ProbeTree.probes_bind, L.probes_reload, L.run_reload, hloop_run,
-      hcommit_pr, ProbeTree.probes_pure, add_zero, RegLayout.overhead]
-    omega
+  simp only [dirtyCount_empty] at hloop_pr
+  refine ⟨by simp only [simProgDet, ProbeTree.run_bind, L.run_reload, hloop_run,
+    ProbeTree.run_pure, hcommit_mem], ?_⟩
+  simp only [simProgDet, ProbeTree.probes_bind, L.probes_reload, L.run_reload, hloop_run,
+    hcommit_pr, ProbeTree.probes_pure, add_zero, RegLayout.overhead]
+  omega
 
 /-- Clocked deterministic `ProbeTree` initializer simulator: starts from externally supplied
 initial registers `initRegs` (`0` reload probes), runs `K` buffered steps of `p` on zeroed cell
@@ -1482,25 +1178,14 @@ theorem simProgInitDet_spec {B : Basis} {r S regCells w wCell : ℕ} {input : Fi
     (hhalt : step w p t = .halt v) (hK : n + 1 ≤ K) :
     (simProgInitDet L p initRegs K).run (fun _ => 0) = (PUnit.unit, L.pack t.data) ∧
       (simProgInitDet L p initRegs K).probes (fun _ => 0) ≤ n + L.spillProbes := by
-  set m₀ : Mem (S + regCells) wCell := fun _ => 0
-  have hx₀_bdd : ({ regs := initRegs, mem := fun _ => 0 } : Data r).Bounded w :=
-    ⟨hregs, fun _ => fits_zero w⟩
-  have hrec₀ :
-      reconstructData (w := w) base m₀ initRegs (fun _ => none) (fun _ => 0) =
-        { regs := initRegs, mem := fun _ => 0 } := by
-    ext i
-    · rfl
-    · simp only [reconstructData, m₀, Fin.val_zero, Nat.zero_mod]
-      split_ifs <;> rfl
   obtain ⟨wb', ext', hloop_run, hrec', hloop_pr⟩ :=
-    simLoopDet_of_runs_halt (regCells := regCells) (wCell := wCell) base p hruns hhalt hK m₀
-      hrec₀ hx₀_bdd
-  dsimp only at hloop_run hloop_pr
-  have hdirty0 : dirtyCount (fun _ : Fin S => (none : Option (Fin (2 ^ w)))) = 0 :=
-    dirtyCount_empty S w
+    simLoopDet_of_runs_halt (regCells := regCells) (wCell := wCell) (wb := fun _ => none)
+      (ext := fun _ => 0) base p hruns hhalt hK (fun _ => 0)
+      (Data.ext rfl (funext fun a => by simp [reconstructData])) ⟨hregs, fun _ => fits_zero w⟩
   obtain ⟨hcommit_mem, hcommit_pr⟩ := commitHalted_spec L hm₀ t.data.regs wb' ext'
   rw [hrec'] at hcommit_mem
-  refine ⟨?_, ?_⟩
+  simp only [dirtyCount_empty] at hloop_pr
+  constructor
   · simp only [simProgInitDet, ProbeTree.run_bind, hloop_run]
     exact Prod.ext rfl hcommit_mem
   · simp only [simProgInitDet, ProbeTree.probes_bind, hloop_run, hcommit_pr]
@@ -1528,13 +1213,9 @@ theorem le_autoFuel_of_runs_halt {B : Basis} {r S regCells w wCell : ℕ} {input
     n + 1 ≤ autoFuel L p argRegs := by
   have hex : Executes w p ⟨0, L.unpack argRegs m⟩ v (n + 1) := ⟨t, n, hruns, hhalt, rfl⟩
   have hmem : ∃ n', ∃ v', Executes w p ⟨0, L.unpack argRegs m⟩ v' n' := ⟨n + 1, v, hex⟩
-  have heq : haltFuel L p argRegs m = n + 1 := by
-    dsimp only [haltFuel]
-    split_ifs
-    obtain ⟨v', hex'⟩ := Classical.choose_spec hmem
-    exact (hex'.unique hex).2
-  rw [← heq]
-  exact Finset.le_sup (f := haltFuel L p argRegs) (Finset.mem_univ m)
+  refine le_of_eq_of_le ?_ (Finset.le_sup (f := haltFuel L p argRegs) (Finset.mem_univ m))
+  simp only [haltFuel, hmem, ↓reduceDIte]
+  exact ((Classical.choose_spec hmem).choose_spec.unique hex).2.symm
 
 /-- Automatic-fuel deterministic `ProbeTree` simulator: chooses fuel uniformly over the finite
 memory space `Mem (S + regCells) wCell` so callers need not supply an external step bound `K`. -/
@@ -1575,16 +1256,11 @@ private theorem simExecWithinLayout {B : Basis} {r S regCells w wCell : ℕ}
     let tree := simProgDetAuto L (c.program retReg) argRegs (fun _ regs => decode regs) defaultAns
     tree.run m = ((decode y.regs).getD defaultAns, L.pack y) ∧
       tree.probes m ≤ T + L.overhead := by
-  intro tree
   obtain ⟨n, hn_le, hex⟩ := hexec
-  have hruns : Runs w (c.program retReg) ⟨0, L.unpack argRegs m⟩ ⟨0 + c.size, y⟩ n :=
-    hex.runs (pc := 0) (p := c.program retReg) (Program.Contains.self _).append_left
-  have hhalt : step w (c.program retReg) ⟨0 + c.size, y⟩ = .halt (y.regs retReg) :=
-    step_halt (by simp [Code.program])
-  obtain ⟨hrun, hpr⟩ :=
-    simProgDetAuto_spec L (c.program retReg) argRegs (fun _ regs => decode regs) defaultAns
-      hm harg hruns hhalt
-  exact ⟨hrun, hpr.trans (Nat.add_le_add_right hn_le L.overhead)⟩
+  exact (simProgDetAuto_spec L (c.program retReg) argRegs (fun _ regs => decode regs) defaultAns
+    hm harg (hex.runs (pc := 0) (p := c.program retReg) (Program.Contains.self _).append_left)
+    (step_halt (i := retReg) (by simp [Code.program]))).imp_right
+      (·.trans (Nat.add_le_add_right hn_le _))
 
 /-- Structured `ExecWithin` simulation in standard `w`-bit layout (`S + persCount input` cells of
 width `w`): simulates `c` in at most `T + 2 * persCount input` probes (`≤ T` when
@@ -1598,11 +1274,9 @@ theorem simExecWithin {B : Basis} {r S w : ℕ} {input : Fin r → Bool} {base :
     let tree := simProgDetAuto (standardLayout input base S w) (c.program retReg) argRegs
       (fun _ regs => decode regs) defaultAns
     tree.run m = ((decode y.regs).getD defaultAns, packMem input base S w y) ∧
-      tree.probes m ≤ T + 2 * persCount input := by
-  obtain ⟨hrun, hpr⟩ := simExecWithinLayout (standardLayout input base S w) c retReg argRegs
-    decode defaultAns harg trivial hexec
-  rw [standardLayout_overhead] at hpr
-  exact ⟨hrun, hpr⟩
+      tree.probes m ≤ T + 2 * persCount input :=
+  standardLayout_overhead input base S w ▸ simExecWithinLayout (standardLayout input base S w)
+    c retReg argRegs decode defaultAns harg trivial hexec
 
 /-- Structured `ExecWithin` simulation in wide-cell single-spill layout (`S + 1` cells of width
 `wideWidth input w`): simulates `c` in at most `T + (if persCount input = 0 then 0 else 2)` probes
@@ -1617,11 +1291,9 @@ theorem simExecWithinWide {B : Basis} {r S w : ℕ} {input : Fin r → Bool} {ba
     let tree := simProgDetAuto (wideLayout input base S w) (c.program retReg) argRegs
       (fun _ regs => decode regs) defaultAns
     tree.run m = ((decode y.regs).getD defaultAns, packMemWide input base S w y) ∧
-      tree.probes m ≤ T + (if persCount input = 0 then 0 else 2) := by
-  obtain ⟨hrun, hpr⟩ := simExecWithinLayout (wideLayout input base S w) c retReg argRegs
-    decode defaultAns harg hm hexec
-  rw [wideLayout_overhead] at hpr
-  exact ⟨hrun, hpr⟩
+      tree.probes m ≤ T + (if persCount input = 0 then 0 else 2) :=
+  wideLayout_overhead input base S w ▸ simExecWithinLayout (wideLayout input base S w)
+    c retReg argRegs decode defaultAns harg hm hexec
 
 
 /-! ### 4. Randomized (`ExecRand`) and unbounded Las Vegas (`ExecProgramDist` / `ExecCodeDist`)
@@ -1666,6 +1338,13 @@ def simStepRand {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ) (p : Progr
     | _ => RandProbeTree.ofProbeTree (simStepDet base p (.running pc regs writeBuf extMem))
   | st => pure st
 
+/-- A running configuration is continuing unless its next deterministic step halts. -/
+private theorem isContinuingCfg_running_iff {B : Basis} {r : ℕ} (w : ℕ) (p : Program B r)
+    (s : State r) :
+    isContinuingCfg p (.running s) = true ↔ ∀ v, step w p s ≠ .halt v := by
+  rcases hp : p[s.pc]? with _ | (o | _ | _ | _ | _) <;> simp only [isContinuingCfg, step, hp] <;>
+    (try split) <;> simp
+
 private theorem simStepRand_spec {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ)
     (p : Program B r) (st : SimOutcome S w r) (m : Mem (S + regCells) wCell)
     (hcfg : (st.toRandCfg (w := w) base m).Bounded w) :
@@ -1678,162 +1357,52 @@ private theorem simStepRand_spec {B : Basis} {r S regCells w wCell : ℕ} (base 
       z.2 + z.1.1.dirty ≤
         (if isContinuingCfg p (st.toRandCfg base m) then 1 else 0) + st.dirty := by
   intro t
-  have hmain :
-      (t.run m).map (fun z => z.1.1.toRandCfg base m) =
+  suffices hmain : (t.run m).map (fun z => z.1.1.toRandCfg base m) =
         (stepRand w p (st.toRandCfg base m)).eval ∧
-      ∀ z ∈ (t.run m).support,
-        z.1.2 = m ∧
-        z.2 + z.1.1.dirty ≤
-          (if isContinuingCfg p (st.toRandCfg base m) then 1 else 0) + st.dirty := by
-    cases st with
-    | halted out regs wb ext =>
-      refine ⟨?_, ?_⟩
-      · simp [t, simStepRand, SimOutcome.toRandCfg, stepRand_halted]
-      · intro z hz
-        simp only [t, simStepRand, RandProbeTree.run_pure, PMF.support_pure,
-          Set.mem_singleton_iff] at hz
-        subst hz
-        exact ⟨rfl, by simp [isContinuingCfg, SimOutcome.toRandCfg, SimOutcome.dirty]⟩
-    | faulted =>
-      refine ⟨?_, ?_⟩
-      · simp [t, simStepRand, SimOutcome.toRandCfg, stepRand_faulted]
-      · intro z hz
-        simp only [t, simStepRand, RandProbeTree.run_pure, PMF.support_pure,
-          Set.mem_singleton_iff] at hz
-        subst hz
-        exact ⟨rfl, by simp [isContinuingCfg, SimOutcome.toRandCfg, SimOutcome.dirty]⟩
-    | running pc regs wb ext =>
-      set x := reconstructData (w := w) base m regs wb ext
-      have hx : x.Bounded w := hcfg
-      have hcfg_st :
-          (SimOutcome.running pc regs wb ext).toRandCfg (w := w) base m = .running ⟨pc, x⟩ := rfl
-      by_cases hrand : ∃ dst src, p[pc]? = some (.rand dst src)
-      · obtain ⟨dst, src, hp⟩ := hrand
-        have hcont : isContinuingCfg p (.running ⟨pc, x⟩) = true := by
-          simp [isContinuingCfg, hp]
-        by_cases hfit : Fits w (regs src)
-        · have hfit' : Fits w (x.regs src) := hfit
-          have hstep : stepRand w p (.running ⟨pc, x⟩) = (do
-              let k ← ProbComp.unifFin (regs src)
-              pure (.running ⟨pc + 1, x.set dst k.val⟩)) :=
-            stepRand_rand_of_fits (s := ⟨pc, x⟩) hp hfit'
-          have ht_eq : t = (do
-              let k ← RandProbeTree.sample (ProbComp.unifFin (regs src))
-              pure (.running (pc + 1) (Function.update regs dst k.val) wb ext)) := by
-            simp [t, simStepRand, hp, hfit]
-          refine ⟨?_, ?_⟩
-          · dsimp only [SimOutcome.toRandCfg]
-            rw [ht_eq, hstep, ProbComp.eval_bind]
-            simp only [RandProbeTree.run_bind, RandProbeTree.run_sample, PMF.map_bind,
-              PMF.bind_map, RandProbeTree.run_pure, PMF.pure_map, ProbComp.eval_pure,
-              Function.comp_def, zero_add]
-            refine congrArg (PMF.bind (ProbComp.unifFin (regs src)).eval) (funext fun k => ?_)
-            exact congrArg PMF.pure (congrArg (RandCfg.running ∘ State.mk (pc + 1))
-              (Data.ext rfl rfl))
-          · intro z hz
-            rw [ht_eq] at hz
-            simp only [RandProbeTree.run_bind, RandProbeTree.run_sample, PMF.mem_support_bind_iff,
-              PMF.mem_support_map_iff, RandProbeTree.run_pure, PMF.support_pure,
-              Set.mem_singleton_iff] at hz
-            obtain ⟨_, ⟨k, _, rfl⟩, _, rfl, rfl⟩ := hz
-            refine ⟨rfl, ?_⟩
-            rw [hcfg_st, hcont]
-            simp [SimOutcome.dirty]
-        · have hfit' : ¬Fits w (x.regs src) := hfit
-          have hstep : stepRand w p (.running ⟨pc, x⟩) = pure .faulted :=
-            stepRand_rand_of_not_fits (s := ⟨pc, x⟩) hp hfit'
-          have ht_eq : t = pure .faulted := by simp [t, simStepRand, hp, hfit]
-          refine ⟨?_, ?_⟩
-          · dsimp only [SimOutcome.toRandCfg]
-            rw [ht_eq, hstep]
-            simp
-          · intro z hz
-            rw [ht_eq] at hz
-            simp only [RandProbeTree.run_pure, PMF.support_pure, Set.mem_singleton_iff] at hz
-            subst hz
-            refine ⟨rfl, ?_⟩
-            rw [hcfg_st, hcont]
-            simp [SimOutcome.dirty]
-      · have hnot_rand : ∀ dst src, p[pc]? ≠ some (.rand dst src) := fun dst src h =>
-          hrand ⟨dst, src, h⟩
-        have ht_eq :
-            t = RandProbeTree.ofProbeTree (simStepDet base p (.running pc regs wb ext)) := by
-          dsimp only [t, simStepRand]
-          rcases hpc : p[pc]? with _ | (_ | _ | _ | _ | ⟨dst, src⟩)
-          · rfl
-          · rfl
-          · rfl
-          · rfl
-          · rfl
-          · exact absurd hpc (hnot_rand dst src)
-        have hstep : stepRand w p (.running ⟨pc, x⟩) = pure (.ofOutcome x (step w p ⟨pc, x⟩)) :=
-          stepRand_eq_ofOutcome_of_ne_rand (s := ⟨pc, x⟩) hnot_rand
-        have hdet := simStepDet_spec (regCells := regCells) (wCell := wCell) base p pc m hx
-        dsimp only at hdet
-        obtain ⟨hm_eq, hdet_out⟩ := hdet
-        refine ⟨?_, ?_⟩
-        · dsimp only [SimOutcome.toRandCfg]
-          rw [ht_eq, RandProbeTree.run_ofProbeTree, PMF.pure_map, hstep, ProbComp.eval_pure]
-          refine congrArg PMF.pure ?_
-          cases hs_out : step w p ⟨pc, x⟩ with
-          | next s' =>
-            rw [hs_out] at hdet_out
-            obtain ⟨wb', ext', hrun1, hrec', _⟩ := hdet_out
-            rw [hrun1]
-            simp [hrec', RandCfg.ofOutcome]
-          | halt v =>
-            rw [hs_out] at hdet_out
-            rw [hdet_out.1]
-            simp [RandCfg.ofOutcome, x]
-          | fault =>
-            rw [hs_out] at hdet_out
-            rw [hdet_out.1]
-            rfl
-        · intro z hz
-          rw [ht_eq, RandProbeTree.run_ofProbeTree, PMF.support_pure, Set.mem_singleton_iff] at hz
-          subst hz
-          refine ⟨hm_eq, ?_⟩
-          cases hs_out : step w p ⟨pc, x⟩ with
-          | next s' =>
-            rw [hs_out] at hdet_out
-            obtain ⟨wb', ext', hrun1, _, hpr1⟩ := hdet_out
-            have hcont : isContinuingCfg p (.running ⟨pc, x⟩) = true := by
-              dsimp only [isContinuingCfg]
-              rcases hpc : p[pc]? with _ | (_ | _ | _ | i | _)
-              · rfl
-              · rfl
-              · rfl
-              · rfl
-              · rw [step_halt (s := ⟨pc, x⟩) hpc] at hs_out
-                cases hs_out
-              · rfl
-            rw [hcfg_st, hcont, hrun1]
-            simpa [SimOutcome.dirty] using hpr1
-          | halt v =>
-            rw [hs_out] at hdet_out
-            rw [hdet_out.1, hdet_out.2]
-            simp [SimOutcome.dirty]
-          | fault =>
-            rw [hs_out] at hdet_out
-            rw [hdet_out.1, hdet_out.2]
-            have hcont : isContinuingCfg p (.running ⟨pc, x⟩) = true := by
-              dsimp only [isContinuingCfg]
-              rcases hpc : p[pc]? with _ | (_ | _ | _ | i | _)
-              · rfl
-              · rfl
-              · rfl
-              · rfl
-              · rw [step_halt (s := ⟨pc, x⟩) hpc] at hs_out
-                cases hs_out
-              · rfl
-            rw [hcfg_st, hcont]
-            simp [SimOutcome.dirty]
-  refine ⟨hmain.1, fun z hz => ?_⟩
-  obtain ⟨hm_z, hpr_z⟩ := hmain.2 z hz
-  have hmem_step : z.1.1.toRandCfg base m ∈ (stepRand w p (st.toRandCfg base m)).support := by
-    rw [← ProbComp.support_eval, ← hmain.1, PMF.mem_support_map_iff]
-    exact ⟨z, hz, rfl⟩
-  exact ⟨hm_z, stepRand_bounded hcfg hmem_step, hpr_z⟩
+      ∀ z ∈ (t.run m).support, z.1.2 = m ∧ z.2 + z.1.1.dirty ≤
+        (if isContinuingCfg p (st.toRandCfg base m) then 1 else 0) + st.dirty from
+    ⟨hmain.1, fun z hz => ⟨(hmain.2 z hz).1, stepRand_bounded hcfg (by
+      rw [← ProbComp.support_eval, ← hmain.1, PMF.mem_support_map_iff]
+      exact ⟨z, hz, rfl⟩), (hmain.2 z hz).2⟩⟩
+  cases st with
+  | halted out regs wb ext =>
+    simp [t, simStepRand, SimOutcome.toRandCfg, stepRand_halted, isContinuingCfg]
+  | faulted => simp [t, simStepRand, SimOutcome.toRandCfg, stepRand_faulted, isContinuingCfg]
+  | running pc regs wb ext =>
+    dsimp only [t, simStepRand, SimOutcome.toRandCfg]
+    set x := reconstructData (w := w) base m regs wb ext
+    have hx : x.Bounded w := hcfg
+    split
+    · next dst src hp =>
+      have hcont : isContinuingCfg p (.running ⟨pc, x⟩) = true :=
+        (isContinuingCfg_running_iff w p _).mpr (by simp [step_rand (s := ⟨pc, x⟩) hp])
+      by_cases hfit : Fits w (regs src)
+      · simp only [hfit, ↓reduceIte, stepRand_rand_of_fits (s := ⟨pc, x⟩) hp hfit,
+          RandProbeTree.run_bind, RandProbeTree.run_sample, PMF.map_bind, PMF.bind_map,
+          RandProbeTree.run_pure, PMF.pure_map, ProbComp.eval_pure, ProbComp.eval_bind,
+          Function.comp_def, zero_add, PMF.mem_support_bind_iff,
+          PMF.support_pure, Set.mem_singleton_iff]
+        refine ⟨rfl, ?_⟩
+        rintro _ ⟨_, _, rfl⟩
+        exact ⟨rfl, by simp [hcont, SimOutcome.dirty]⟩
+      · simp [hfit, stepRand_rand_of_not_fits (s := ⟨pc, x⟩) hp hfit, hcont, SimOutcome.dirty]
+    · next hnot_rand =>
+      obtain ⟨hm_eq, hdet_out⟩ :=
+        simStepDet_spec (regCells := regCells) (wCell := wCell) base p pc m hx
+      rw [stepRand_eq_ofOutcome_of_ne_rand (s := ⟨pc, x⟩) hnot_rand]
+      simp only [RandProbeTree.run_ofProbeTree, PMF.pure_map, ProbComp.eval_pure,
+        PMF.support_pure, Set.mem_singleton_iff, forall_eq, hm_eq, true_and]
+      revert hdet_out
+      cases hs_out : step w p ⟨pc, x⟩ with
+      | next s' =>
+        rintro ⟨wb', ext', hrun1, hrec', hpr1⟩
+        have hcont : isContinuingCfg p (.running ⟨pc, x⟩) = true :=
+          (isContinuingCfg_running_iff w p _).mpr (by simp [hs_out])
+        simpa [hrun1, hrec', RandCfg.ofOutcome, SimOutcome.toRandCfg, SimOutcome.dirty, hcont]
+          using hpr1
+      | halt v | fault =>
+        rintro ⟨hrun1, hpr1⟩
+        simp [hrun1, hpr1, RandCfg.ofOutcome, SimOutcome.dirty, x]
 
 /-- Clocked `K`-step buffered randomized execution in `RandProbeTree`. -/
 def simLoopRand {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ) (p : Program B r) :
@@ -1843,92 +1412,28 @@ def simLoopRand {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ) (p : Progr
       let st' ← simStepRand base p st
       simLoopRand base p K st'
 
-private theorem simLoopRand_add {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ)
-    (p : Program B r) (K₁ K₂ : ℕ) (st : SimOutcome S w r) :
-    simLoopRand (regCells := regCells) (wCell := wCell) base p (K₁ + K₂) st =
-      (do
-        let st' ← simLoopRand (regCells := regCells) (wCell := wCell) base p K₁ st
-        simLoopRand (regCells := regCells) (wCell := wCell) base p K₂ st') := by
-  induction K₁ generalizing st with
+/-- `simLoopRand` unfolded at its last step. -/
+private theorem simLoopRand_succ {B : Basis} {r S regCells w wCell : ℕ} (base : ℕ)
+    (p : Program B r) (K : ℕ) (st : SimOutcome S w r) :
+    simLoopRand (regCells := regCells) (wCell := wCell) base p (K + 1) st =
+      simLoopRand (regCells := regCells) (wCell := wCell) base p K st >>= simStepRand base p := by
+  induction K generalizing st with
   | zero => simp [simLoopRand]
-  | succ K₁ ih =>
-    rw [Nat.succ_add]
-    simp only [simLoopRand, bind_assoc, ih]
+  | succ K ih =>
+    rw [simLoopRand, simLoopRand, bind_assoc]
+    exact congrArg (simStepRand base p st >>= ·) (funext ih)
 
 private theorem simStepRand_worstCase_probes {B : Basis} {r S regCells w wCell : ℕ}
     (base : ℕ) (p : Program B r) (st : SimOutcome S w r) (m : Mem (S + regCells) wCell) :
     ∀ z ∈ ((simStepRand (regCells := regCells) (w := w) (wCell := wCell) base p st).run m).support,
       z.1.2 = m ∧ z.2 ≤ 1 := by
   cases st with
-  | halted =>
-    intro z hz
-    simp only [simStepRand, RandProbeTree.run_pure, PMF.support_pure, Set.mem_singleton_iff] at hz
-    subst hz
-    exact ⟨rfl, by omega⟩
-  | faulted =>
-    intro z hz
-    simp only [simStepRand, RandProbeTree.run_pure, PMF.support_pure, Set.mem_singleton_iff] at hz
-    subst hz
-    exact ⟨rfl, by omega⟩
   | running pc regs wb ext =>
-    intro z hz
-    dsimp only [simStepRand] at hz
-    rcases hp : p[pc]? with _ | instr
-    · simp only [hp, RandProbeTree.run_ofProbeTree, simStepDet, ProbeTree.run_pure,
-        ProbeTree.probes_pure, PMF.support_pure, Set.mem_singleton_iff] at hz
-      subst hz
-      exact ⟨rfl, by omega⟩
-    · cases instr with
-      | rand dst src =>
-        simp only [hp] at hz
-        by_cases hfit : Fits w (regs src)
-        · simp only [hfit, ↓reduceIte, RandProbeTree.run_bind, RandProbeTree.run_sample,
-            PMF.mem_support_bind_iff, PMF.mem_support_map_iff, RandProbeTree.run_pure,
-            PMF.support_pure, Set.mem_singleton_iff] at hz
-          obtain ⟨_, ⟨_, _, rfl⟩, _, rfl, rfl⟩ := hz
-          exact ⟨rfl, by omega⟩
-        · simp only [hfit, ↓reduceIte, RandProbeTree.run_pure, PMF.support_pure,
-            Set.mem_singleton_iff] at hz
-          subst hz
-          exact ⟨rfl, by omega⟩
-      | op o =>
-        simp only [hp, RandProbeTree.run_ofProbeTree, PMF.support_pure,
-          Set.mem_singleton_iff] at hz
-        subst hz
-        refine ⟨simStepDet_nextMem base p _ m, ?_⟩
-        dsimp only [simStepDet]
-        rw [hp]
-        cases o with
-        | const d v => dsimp only; by_cases hv : Fits w v <;> simp [hv]
-        | copy d src => simp
-        | alu f d args =>
-          dsimp only
-          cases B.interp w f (regs ∘ args) with
-          | none => simp
-          | some v => dsimp only; by_cases hv : Fits w v <;> simp [hv]
-        | load d a =>
-          dsimp only
-          split_ifs with ha
-          · cases writeBuf : wb ⟨regs a - base, by omega⟩ <;> simp
-          · simp
-        | store a src =>
-          dsimp only
-          split_ifs <;> simp
-      | jump =>
-        simp only [hp, RandProbeTree.run_ofProbeTree, simStepDet, ProbeTree.run_pure,
-          ProbeTree.probes_pure, PMF.support_pure, Set.mem_singleton_iff] at hz
-        subst hz
-        exact ⟨rfl, by omega⟩
-      | branch =>
-        simp only [hp, RandProbeTree.run_ofProbeTree, simStepDet, ProbeTree.run_pure,
-          ProbeTree.probes_pure, PMF.support_pure, Set.mem_singleton_iff] at hz
-        subst hz
-        exact ⟨rfl, by omega⟩
-      | halt =>
-        simp only [hp, RandProbeTree.run_ofProbeTree, simStepDet, ProbeTree.run_pure,
-          ProbeTree.probes_pure, PMF.support_pure, Set.mem_singleton_iff] at hz
-        subst hz
-        exact ⟨rfl, by omega⟩
+    dsimp only [simStepRand]
+    split
+    · split_ifs <;> simp
+    · simp [simStepDet_nextMem_probes]
+  | _ => simp [simStepRand]
 
 private theorem simLoopRand_worstCase_probes {B : Basis} {r S regCells w wCell : ℕ}
     (base : ℕ) (p : Program B r) (K : ℕ) (st : SimOutcome S w r) (m : Mem (S + regCells) wCell) :
@@ -1936,11 +1441,7 @@ private theorem simLoopRand_worstCase_probes {B : Basis} {r S regCells w wCell :
       ((simLoopRand (regCells := regCells) (w := w) (wCell := wCell) base p K st).run m).support,
       z.1.2 = m ∧ z.2 ≤ K := by
   induction K generalizing st with
-  | zero =>
-    intro z hz
-    simp only [simLoopRand, RandProbeTree.run_pure, PMF.support_pure, Set.mem_singleton_iff] at hz
-    subst hz
-    exact ⟨rfl, le_rfl⟩
+  | zero => simp [simLoopRand]
   | succ K ih =>
     intro z hz
     simp only [simLoopRand, RandProbeTree.run_bind, PMF.mem_support_bind_iff,
@@ -1957,10 +1458,7 @@ private theorem simLoopRand_spec {B : Basis} {r S regCells w wCell : ℕ} (base 
     let loop := simLoopRand (regCells := regCells) (w := w) (wCell := wCell) base p K st
     (loop.run m).map (fun z => z.1.1.toRandCfg base m) =
       (runRand w p K (st.toRandCfg base m)).eval ∧
-    (∀ z ∈ (loop.run m).support,
-      z.1.2 = m ∧
-      (z.1.1.toRandCfg (w := w) base m).Bounded w ∧
-      z.2 + z.1.1.dirty ≤ K + st.dirty) ∧
+    (∀ z ∈ (loop.run m).support, z.1.2 = m ∧ (z.1.1.toRandCfg (w := w) base m).Bounded w) ∧
     (∑' z, (loop.run m) z * ((z.2 + z.1.1.dirty : ℕ) : ℝ≥0∞)) ≤
       (st.dirty : ℝ≥0∞) +
         ∑ t ∈ Finset.range K,
@@ -1968,186 +1466,81 @@ private theorem simLoopRand_spec {B : Basis} {r S regCells w wCell : ℕ} (base 
             {cfg | isContinuingCfg p cfg = true} := by
   induction K with
   | zero =>
-    refine ⟨?_, ?_, ?_⟩
-    · simp [simLoopRand]
-    · intro z hz
-      simp only [simLoopRand, RandProbeTree.run_pure, PMF.support_pure,
-        Set.mem_singleton_iff] at hz
-      subst hz
-      exact ⟨rfl, hcfg, by simp⟩
-    · simp only [simLoopRand, RandProbeTree.run_pure, Finset.range_zero, Finset.sum_empty,
-        add_zero]
-      rw [tsum_eq_single ((st, m), 0) (fun z hz => by simp [PMF.pure_apply, hz])]
-      simp
+    refine ⟨by simp [simLoopRand], by simpa [simLoopRand] using hcfg,
+      (Probability.PMF.tsum_mul_le_of_support _ fun z hz => ?_).trans le_self_add⟩
+    obtain rfl := (PMF.mem_support_pure_iff _ _).mp hz
+    simp
   | succ K ih =>
     obtain ⟨hmap_K, hsup_K, hexp_K⟩ := ih
+    simp only [simLoopRand_succ]
     set loop_K := simLoopRand (regCells := regCells) (w := w) (wCell := wCell) base p K st
-    have hsplit :
-        simLoopRand (regCells := regCells) (w := w) (wCell := wCell) base p (K + 1) st =
-          (loop_K >>= simStepRand base p) := by
-      rw [simLoopRand_add base p K 1 st]
-      refine congrArg (loop_K >>= ·) (funext fun st' => ?_)
-      simp [simLoopRand]
     refine ⟨?_, ?_, ?_⟩
-    · rw [hsplit, RandProbeTree.run_bind, PMF.map_bind, runRand_add w p K 1, ProbComp.eval_bind]
-      have hbind_lhs :
-          ((loop_K.run m).bind fun x =>
-              PMF.map ((fun z => z.1.1.toRandCfg base m) ∘ fun y => (y.1, x.2 + y.2))
-                ((simStepRand base p x.1.1).run x.1.2)) =
-            (loop_K.run m).bind fun x =>
-              (stepRand w p (x.1.1.toRandCfg base m)).eval := by
-        refine PMF.bind_congr_on_support _ _ _ fun z₁ hz₁ => ?_
-        obtain ⟨hm₁, hbdd₁, _⟩ := hsup_K z₁ hz₁
-        rw [hm₁]
-        have h1 := (simStepRand_spec base p z₁.1.1 m hbdd₁).1
-        simpa [Function.comp_def] using h1
-      change ((loop_K.run m).bind fun x =>
-          PMF.map (fun z => z.1.1.toRandCfg base m)
-            (((simStepRand base p x.1.1).run x.1.2).map fun y => (y.1, x.2 + y.2))) = _
-      simp only [PMF.map_comp]
-      rw [hbind_lhs, ← hmap_K, PMF.bind_map]
-      refine congrArg (PMF.bind (loop_K.run m)) (funext fun z₁ => ?_)
-      simp [runRand_succ, runRand_zero]
+    · rw [RandProbeTree.run_bind, PMF.map_bind, runRand_add w p K 1, ProbComp.eval_bind, ← hmap_K,
+        PMF.bind_map]
+      refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨st₁, m₁⟩, p₁⟩ hz₁ => ?_
+      obtain ⟨rfl, hbdd₁⟩ := hsup_K _ hz₁
+      dsimp only [Function.comp_apply]
+      rw [PMF.map_comp, runRand_succ]
+      simp only [runRand_zero, bind_pure]
+      exact (simStepRand_spec base p st₁ m₁ hbdd₁).1
     · intro z hz
-      rw [hsplit, RandProbeTree.run_bind, PMF.mem_support_bind_iff] at hz
-      obtain ⟨z₁, hz₁, hz₂⟩ := hz
-      rw [PMF.mem_support_map_iff] at hz₂
-      obtain ⟨z₂, hz₂_mem, rfl⟩ := hz₂
-      obtain ⟨hm₁, hbdd₁, hpr₁⟩ := hsup_K z₁ hz₁
-      rw [hm₁] at hz₂_mem
-      obtain ⟨hm₂, hbdd₂, hpr₂⟩ := (simStepRand_spec base p z₁.1.1 m hbdd₁).2 z₂ hz₂_mem
-      refine ⟨hm₂, hbdd₂, ?_⟩
+      simp only [RandProbeTree.run_bind, PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hz
+      obtain ⟨z₁, hz₁, z₂, hz₂, rfl⟩ := hz
+      obtain ⟨hm₁, hbdd₁⟩ := hsup_K z₁ hz₁
+      rw [hm₁] at hz₂
+      obtain ⟨hm₂, hbdd₂, -⟩ := (simStepRand_spec base p z₁.1.1 m hbdd₁).2 z₂ hz₂
+      exact ⟨hm₂, hbdd₂⟩
+    · rw [RandProbeTree.run_bind, Probability.PMF.tsum_bind_mul]
+      calc _ ≤ ∑' z₁, (loop_K.run m) z₁ * (((z₁.2 + z₁.1.1.dirty : ℕ) : ℝ≥0∞) +
+              Set.indicator {cfg | isContinuingCfg p cfg = true} 1 (z₁.1.1.toRandCfg base m)) :=
+            Probability.PMF.tsum_mul_mono_support _ fun ⟨⟨st₁, m₁⟩, p₁⟩ hz₁ => ?_
+        _ ≤ _ := by
+            simp only [mul_add]
+            rw [tsum_add, Finset.sum_range_succ, ← add_assoc, ← hmap_K,
+              Probability.PMF.toOuterMeasure_eq_tsum_mul_indicator, Probability.PMF.tsum_map_mul]
+            exact add_le_add hexp_K le_rfl
+      obtain ⟨rfl, hbdd₁⟩ := hsup_K _ hz₁
       dsimp only
-      set d₁ := z₁.1.1.dirty
-      set d₂ := z₂.1.1.dirty
-      set d₀ := st.dirty
-      by_cases hcont : isContinuingCfg p (z₁.1.1.toRandCfg base m) = true
-      · simp only [hcont, ↓reduceIte] at hpr₂
-        omega
-      · simp only [hcont, Bool.false_eq_true, ↓reduceIte] at hpr₂
-        omega
-    · rw [hsplit, RandProbeTree.run_bind, Probability.PMF.tsum_bind_mul]
-      have hstep_le : ∀ z₁,
-          (loop_K.run m) z₁ *
-              (∑' z, (((simStepRand base p z₁.1.1).run z₁.1.2).map
-                (fun y => (y.1, z₁.2 + y.2))) z * ((z.2 + z.1.1.dirty : ℕ) : ℝ≥0∞)) ≤
-            (loop_K.run m) z₁ * ((z₁.2 + z₁.1.1.dirty : ℕ) : ℝ≥0∞) +
-              (loop_K.run m) z₁ *
-                Set.indicator {cfg | isContinuingCfg p cfg = true} 1
-                  (z₁.1.1.toRandCfg base m) := by
-        intro z₁
-        by_cases hz₁ : z₁ ∈ (loop_K.run m).support
-        · obtain ⟨hm₁, hbdd₁, _⟩ := hsup_K z₁ hz₁
-          rw [hm₁, Probability.PMF.tsum_map_mul, ← mul_add]
-          refine mul_le_mul' le_rfl ?_
-          set μ_s := (simStepRand (regCells := regCells) (w := w) (wCell := wCell)
-            base p z₁.1.1).run m
-          set inc : ℝ≥0∞ :=
-            Set.indicator {cfg | isContinuingCfg p cfg = true} 1 (z₁.1.1.toRandCfg base m)
-          have hpt : ∀ z₂,
-              μ_s z₂ * ((z₁.2 + z₂.2 + z₂.1.1.dirty : ℕ) : ℝ≥0∞) ≤
-                μ_s z₂ * (((z₁.2 + z₁.1.1.dirty : ℕ) : ℝ≥0∞) + inc) := by
-            intro z₂
-            by_cases hz₂ : z₂ ∈ μ_s.support
-            · refine mul_le_mul' le_rfl ?_
-              obtain ⟨_, _, hpr₂⟩ := (simStepRand_spec base p z₁.1.1 m hbdd₁).2 z₂ hz₂
-              set d₁ := z₁.1.1.dirty
-              set d₂ := z₂.1.1.dirty
-              by_cases hc : isContinuingCfg p (z₁.1.1.toRandCfg base m) = true
-              · simp only [hc, ↓reduceIte] at hpr₂
-                have hinc : inc = 1 := Set.indicator_of_mem hc 1
-                rw [hinc, ← Nat.cast_one, ← Nat.cast_add]
-                exact (Nat.cast_le (α := ℝ≥0∞)).mpr (by omega)
-              · simp only [hc, Bool.false_eq_true, ↓reduceIte, zero_add] at hpr₂
-                have hinc : inc = 0 := Set.indicator_of_notMem hc 1
-                rw [hinc, add_zero]
-                exact (Nat.cast_le (α := ℝ≥0∞)).mpr (by omega)
-            · rw [(PMF.apply_eq_zero_iff _ _).mpr hz₂, zero_mul, zero_mul]
-          refine (tsum_le_tsum hpt).trans ?_
-          rw [ENNReal.tsum_mul_right, μ_s.tsum_coe, one_mul]
-        · rw [(PMF.apply_eq_zero_iff _ _).mpr hz₁, zero_mul, zero_mul, zero_mul, add_zero]
-      refine (tsum_le_tsum hstep_le).trans ?_
-      rw [tsum_add, Finset.sum_range_succ, ← add_assoc]
-      refine add_le_add hexp_K (le_of_eq ?_)
-      have hpush :
-          (∑' z₁, (loop_K.run m) z₁ *
-              Set.indicator {cfg | isContinuingCfg p cfg = true} 1 (z₁.1.1.toRandCfg base m)) =
-            ∑' cfg, ((loop_K.run m).map (fun z => z.1.1.toRandCfg base m)) cfg *
-              Set.indicator {cfg | isContinuingCfg p cfg = true} 1 cfg := by
-        exact (Probability.PMF.tsum_map_mul (loop_K.run m) (fun z => z.1.1.toRandCfg base m)
-          (Set.indicator {cfg | isContinuingCfg p cfg = true} 1)).symm
-      rw [hpush, hmap_K, ← Probability.PMF.toOuterMeasure_eq_tsum_mul_indicator]
+      rw [Probability.PMF.tsum_map_mul]
+      refine Probability.PMF.tsum_mul_le_of_support _ fun z₂ hz₂ => ?_
+      obtain ⟨-, -, hpr₂⟩ := (simStepRand_spec base p st₁ m₁ hbdd₁).2 z₂ hz₂
+      calc ((p₁ + z₂.2 + z₂.1.1.dirty : ℕ) : ℝ≥0∞)
+          ≤ ((p₁ + st₁.dirty +
+              if isContinuingCfg p (st₁.toRandCfg base m₁) then 1 else 0 : ℕ) : ℝ≥0∞) :=
+            Nat.cast_le.mpr (by omega)
+        _ = _ := by simp [Set.indicator_apply]
 
 /-! #### Exact telescoping of the `.halt` instruction step -/
 
+/-- One-step mass balance, by cases on the outcome of the step: a configuration either continues
+or lands in `haltedSet` after one step exactly when it is running or already halted. -/
 private theorem stepRand_haltedSet_identity {B : Basis} {r w : ℕ} (p : Program B r)
     (cfg : RandCfg r) :
     Set.indicator {c | isContinuingCfg p c = true} (1 : RandCfg r → ℝ≥0∞) cfg +
         (stepRand w p cfg).eval.toOuterMeasure (RandCfg.haltedSet r) =
       Set.indicator (RandCfg.runningSet r) (1 : RandCfg r → ℝ≥0∞) cfg +
         Set.indicator (RandCfg.haltedSet r) (1 : RandCfg r → ℝ≥0∞) cfg := by
-  cases cfg with
-  | halted v d =>
-    have hmem : RandCfg.halted v d ∈ RandCfg.haltedSet r := ⟨v, d, rfl⟩
-    have hnot_run : RandCfg.halted v d ∉ RandCfg.runningSet r := by simp
-    have hnot_cont : ¬isContinuingCfg p (.halted v d) = true := by simp [isContinuingCfg]
-    rw [Set.indicator_of_notMem hnot_cont, Set.indicator_of_notMem hnot_run,
-      Set.indicator_of_mem hmem]
-    simp [stepRand_halted, PMF.toOuterMeasure_pure_apply, hmem]
-  | faulted =>
-    have hnot_h : (RandCfg.faulted : RandCfg r) ∉ RandCfg.haltedSet r := by simp
-    have hnot_r : (RandCfg.faulted : RandCfg r) ∉ RandCfg.runningSet r := by simp
-    have hnot_c : ¬isContinuingCfg p .faulted = true := by simp [isContinuingCfg]
-    rw [Set.indicator_of_notMem hnot_c, Set.indicator_of_notMem hnot_r,
-      Set.indicator_of_notMem hnot_h]
-    simp [stepRand_faulted, PMF.toOuterMeasure_pure_apply, hnot_h]
-  | running s =>
-    have hmem_r : RandCfg.running s ∈ RandCfg.runningSet r := ⟨s, rfl⟩
-    have hnot_h : RandCfg.running s ∉ RandCfg.haltedSet r := by simp
-    rw [Set.indicator_of_mem hmem_r, Set.indicator_of_notMem hnot_h]
-    by_cases hh : ∃ i, p[s.pc]? = some (.halt i)
-    · obtain ⟨i, hp⟩ := hh
-      have hnot_c : ¬isContinuingCfg p (.running s) = true := by simp [isContinuingCfg, hp]
-      have hmem_next : RandCfg.halted (s.data.regs i) s.data ∈ RandCfg.haltedSet r := ⟨_, _, rfl⟩
-      rw [Set.indicator_of_notMem hnot_c, stepRand_halt hp]
-      simp [PMF.toOuterMeasure_pure_apply, hmem_next]
-    · have hc : isContinuingCfg p (.running s) = true := by
-        dsimp only [isContinuingCfg]
-        rcases hp : p[s.pc]? with _ | (_ | _ | _ | i | _)
-        · rfl
-        · rfl
-        · rfl
-        · rfl
-        · exact absurd ⟨i, hp⟩ hh
-        · rfl
-      have hzero : (stepRand w p (.running s)).eval.toOuterMeasure (RandCfg.haltedSet r) = 0 := by
-        rw [PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
-        intro cfg' hmem_s hmem_halt
-        rw [ProbComp.support_eval] at hmem_s
-        obtain ⟨v, d, rfl⟩ := hmem_halt
-        by_cases hrand : ∃ dst src, p[s.pc]? = some (.rand dst src)
-        · obtain ⟨dst, src, hp⟩ := hrand
-          by_cases hfit : Fits w (s.data.regs src)
-          · rw [stepRand_rand_of_fits hp hfit] at hmem_s
-            obtain ⟨k, -, hk⟩ := OracleComp.mem_supportWith_bind_iff.mp hmem_s
-            cases OracleComp.eq_of_mem_supportWith_pure hk
-          · rw [stepRand_rand_of_not_fits hp hfit] at hmem_s
-            cases OracleComp.eq_of_mem_supportWith_pure hmem_s
-        · rw [stepRand_eq_ofOutcome_of_ne_rand fun dst src h => hrand ⟨dst, src, h⟩] at hmem_s
-          have heq := OracleComp.eq_of_mem_supportWith_pure hmem_s
-          cases hs_step : step w p s with
-          | next _ => rw [hs_step] at heq; cases heq
-          | fault => rw [hs_step] at heq; cases heq
-          | halt v' =>
-            rcases hp : p[s.pc]? with _ | (_ | _ | _ | i | _)
-            · simp [step, hp] at hs_step
-            · simp only [step, hp] at hs_step
-              split at hs_step <;> cases hs_step
-            · simp [step, hp] at hs_step
-            · simp [step, hp] at hs_step
-            · exact hh ⟨i, hp⟩
-            · simp [step, hp] at hs_step
-      rw [Set.indicator_of_mem hc, hzero]
+  rcases cfg with s | ⟨v, d⟩ | _
+  · by_cases hrand : ∃ dst src, p[s.pc]? = some (.rand dst src)
+    · obtain ⟨dst, src, hp⟩ := hrand
+      by_cases hfit : Fits w (s.data.regs src) <;>
+        simp [isContinuingCfg_running_iff w p s, step_rand hp, stepRand_rand_of_fits hp,
+          stepRand_rand_of_not_fits hp, hfit, PMF.toOuterMeasure_pure_apply]
+    · rw [stepRand_eq_ofOutcome_of_ne_rand fun dst src h => hrand ⟨dst, src, h⟩]
+      cases hs : step w p s <;>
+        simp [isContinuingCfg_running_iff w p s, hs, RandCfg.ofOutcome,
+          PMF.toOuterMeasure_pure_apply]
+  · simp [show isContinuingCfg p (.halted v d) = false from rfl, stepRand_halted,
+      PMF.toOuterMeasure_pure_apply]
+  · simp [show isContinuingCfg p .faulted = false from rfl, stepRand_faulted,
+      PMF.toOuterMeasure_pure_apply]
+
+/-- `evalRand` unfolded at its last step. -/
+private theorem evalRand_succ_right {B : Basis} {r : ℕ} (w : ℕ) (p : Program B r) (K : ℕ)
+    (s : State r) :
+    evalRand w p (K + 1) s = (evalRand w p K s).bind fun cfg => (stepRand w p cfg).eval := by
+  rw [evalRand, runRand_add w p K 1, ProbComp.eval_bind]
+  simp only [evalRand, runRand_succ, runRand_zero, bind_pure]
 
 theorem continuing_sum_add_halted_eq_running_sum {B : Basis} {r w : ℕ} (p : Program B r)
     (s₀ : State r) (K : ℕ) :
@@ -2156,29 +1549,16 @@ theorem continuing_sum_add_halted_eq_running_sum {B : Basis} {r w : ℕ} (p : Pr
       (evalRand w p K s₀).toOuterMeasure (RandCfg.haltedSet r) =
       ∑ t ∈ Finset.range K, (evalRand w p t s₀).toOuterMeasure (RandCfg.runningSet r) := by
   induction K with
-  | zero =>
-    have hnot : RandCfg.running s₀ ∉ RandCfg.haltedSet r := by simp
-    simp [evalRand, PMF.toOuterMeasure_pure_apply, hnot]
+  | zero => simp [PMF.toOuterMeasure_pure_apply]
   | succ K ih =>
-    have hstep_eval : evalRand w p (K + 1) s₀ =
-        (evalRand w p K s₀).bind (fun cfg => (stepRand w p cfg).eval) := by
-      rw [evalRand, runRand_add w p K 1, ProbComp.eval_bind]
-      simp only [evalRand, runRand_succ, runRand_zero, bind_pure]
     have hstep_rel :
         (evalRand w p K s₀).toOuterMeasure {cfg | isContinuingCfg p cfg = true} +
           (evalRand w p (K + 1) s₀).toOuterMeasure (RandCfg.haltedSet r) =
         (evalRand w p K s₀).toOuterMeasure (RandCfg.runningSet r) +
           (evalRand w p K s₀).toOuterMeasure (RandCfg.haltedSet r) := by
-      rw [hstep_eval, PMF.toOuterMeasure_bind_apply,
-        Probability.PMF.toOuterMeasure_eq_tsum_mul_indicator (evalRand w p K s₀)
-          {cfg | isContinuingCfg p cfg = true},
-        Probability.PMF.toOuterMeasure_eq_tsum_mul_indicator (evalRand w p K s₀)
-          (RandCfg.runningSet r),
-        Probability.PMF.toOuterMeasure_eq_tsum_mul_indicator (evalRand w p K s₀)
-          (RandCfg.haltedSet r),
-        ← tsum_add, ← tsum_add]
-      refine tsum_congr fun cfg => ?_
-      rw [← mul_add, ← mul_add, stepRand_haltedSet_identity (w := w) p cfg]
+      rw [evalRand_succ_right, PMF.toOuterMeasure_bind_apply]
+      simp only [Probability.PMF.toOuterMeasure_eq_tsum_mul_indicator (evalRand w p K s₀),
+        ← tsum_add, ← mul_add, stepRand_haltedSet_identity]
     rw [Finset.sum_range_succ, Finset.sum_range_succ, add_assoc, hstep_rel,
       ← add_assoc, add_right_comm _ _ ((evalRand w p K s₀).toOuterMeasure (RandCfg.haltedSet r)),
       ih]
@@ -2188,36 +1568,16 @@ theorem continuing_sum_le_of_almostSurelyHalts {B : Basis} {r w : ℕ} {p : Prog
     (hexp : expectedTime w p s₀ ≤ T + 1) (K : ℕ) :
     (∑ t ∈ Finset.range K,
         (evalRand w p t s₀).toOuterMeasure {cfg | isContinuingCfg p cfg = true}) ≤ T := by
-  set S_K := ∑ t ∈ Finset.range K,
-    (evalRand w p t s₀).toOuterMeasure {cfg | isContinuingCfg p cfg = true}
-  have hM : ∀ M : ℕ, S_K + (evalRand w p M s₀).toOuterMeasure (RandCfg.haltedSet r) ≤ T + 1 := by
-    intro M
-    let N := max K M
-    have hSK_le : S_K ≤ ∑ t ∈ Finset.range N,
-        (evalRand w p t s₀).toOuterMeasure {cfg | isContinuingCfg p cfg = true} :=
-      Finset.sum_le_sum_of_subset (Finset.range_mono (le_max_left K M))
-    have hHM_le :
-        (evalRand w p M s₀).toOuterMeasure (RandCfg.haltedSet r) ≤
-          (evalRand w p N s₀).toOuterMeasure (RandCfg.haltedSet r) :=
-      evalRand_haltedSet_mono w p s₀ (le_max_right K M)
-    have hsum_le :
-        (∑ t ∈ Finset.range N, (evalRand w p t s₀).toOuterMeasure (RandCfg.runningSet r)) ≤
-          expectedTime w p s₀ :=
-      sum_le_tsum (Finset.range N)
-    exact (add_le_add hSK_le hHM_le).trans
-      ((continuing_sum_add_halted_eq_running_sum p s₀ N).le.trans (hsum_le.trans hexp))
-  have hiSup : S_K + 1 ≤ T + 1 := by
-    have hsup_eq :
-        S_K + (⨆ M : ℕ, (evalRand w p M s₀).toOuterMeasure (RandCfg.haltedSet r)) =
-          ⨆ M : ℕ, (S_K + (evalRand w p M s₀).toOuterMeasure (RandCfg.haltedSet r)) := by
-      rw [add_comm S_K, @ENNReal.iSup_add ℕ]
-      exact iSup_congr fun M => add_comm _ S_K
-    calc S_K + 1
-      _ = S_K + ⨆ M : ℕ, (evalRand w p M s₀).toOuterMeasure (RandCfg.haltedSet r) := by
-          rw [has.2]
-      _ = ⨆ M : ℕ, (S_K + (evalRand w p M s₀).toOuterMeasure (RandCfg.haltedSet r)) := hsup_eq
-      _ ≤ T + 1 := iSup_le hM
-  exact (ENNReal.add_le_add_iff_right ENNReal.one_ne_top).mp hiSup
+  refine (ENNReal.add_le_add_iff_right ENNReal.one_ne_top).mp ?_
+  conv_lhs => rw [← has.2, ENNReal.add_iSup]
+  refine iSup_le fun M => ?_
+  calc _ ≤ (∑ t ∈ Finset.range (max K M),
+          (evalRand w p t s₀).toOuterMeasure {cfg | isContinuingCfg p cfg = true}) +
+        (evalRand w p (max K M) s₀).toOuterMeasure (RandCfg.haltedSet r) :=
+      add_le_add (Finset.sum_le_sum_of_subset (Finset.range_mono (le_max_left K M)))
+        (evalRand_haltedSet_mono w p s₀ (le_max_right K M))
+    _ = _ := continuing_sum_add_halted_eq_running_sum p s₀ _
+    _ ≤ T + 1 := (sum_le_tsum _).trans hexp
 
 /-! #### Halting-limit identification, `ExecProgramDist`, and zero-error fallback -/
 
@@ -2226,19 +1586,28 @@ theorem continuing_sum_le_of_almostSurelyHalts {B : Basis} {r w : ℕ} {p : Prog
     (vy : ℕ × Data r) : ℝ≥0∞ :=
   ⨆ K : ℕ, evalRand w p K ⟨0, x⟩ (.halted vy.1 vy.2)
 
+private theorem halted_injective {r : ℕ} :
+    Function.Injective fun vy : ℕ × Data r => RandCfg.halted vy.1 vy.2 :=
+  fun ⟨_, _⟩ ⟨_, _⟩ h => by cases h; rfl
+
+private theorem tsum_haltedLim_eq_iSup {B : Basis} {r : ℕ} (w : ℕ) (p : Program B r) (x : Data r) :
+    (∑' vy : ℕ × Data r, haltedLim w p x vy) =
+      ⨆ K : ℕ, ∑' vy : ℕ × Data r, evalRand w p K ⟨0, x⟩ (.halted vy.1 vy.2) :=
+  ENNReal.tsum_iSup_of_monotone
+    (f := fun K (vy : ℕ × Data r) => evalRand w p K ⟨0, x⟩ (.halted vy.1 vy.2))
+    fun vy => evalRand_halted_mono w p ⟨0, x⟩ vy.1 vy.2
+
+/-- A weight function of total mass at most `1` that dominates a `PMF` pointwise equals it. -/
+private theorem eq_of_pmf_le {α : Type*} (μ : PMF α) {f : α → ℝ≥0∞} (hle : ∀ a, μ a ≤ f a)
+    (hf : ∑' a, f a ≤ 1) (a : α) : f a = μ a :=
+  le_antisymm (le_of_not_gt fun hlt =>
+    (ENNReal.tsum_lt_tsum μ.tsum_coe_ne_top hle hlt).not_ge (hf.trans_eq μ.tsum_coe.symm)) (hle a)
+
 theorem tsum_haltedLim_le_one {B : Basis} {r : ℕ} (w : ℕ) (p : Program B r) (x : Data r) :
     (∑' vy : ℕ × Data r, haltedLim w p x vy) ≤ 1 := by
-  dsimp only [haltedLim]
-  rw [ENNReal.tsum_iSup_of_monotone (f := fun K (vy : ℕ × Data r) =>
-    evalRand w p K ⟨0, x⟩ (.halted vy.1 vy.2))
-    (fun vy => Cslib.WordRAM.evalRand_halted_mono w p ⟨0, x⟩ vy.1 vy.2)]
-  refine iSup_le fun K => ?_
-  have hinj : Function.Injective (fun vy : ℕ × Data r => RandCfg.halted vy.1 vy.2) := by
-    rintro ⟨v₁, y₁⟩ ⟨v₂, y₂⟩ h
-    cases h
-    rfl
-  refine (tsum_comp_le_tsum_of_injective hinj (evalRand w p K ⟨0, x⟩)).trans ?_
-  rw [(evalRand w p K ⟨0, x⟩).tsum_coe]
+  rw [tsum_haltedLim_eq_iSup]
+  exact iSup_le fun K => (tsum_comp_le_tsum_of_injective halted_injective _).trans_eq
+    (evalRand w p K ⟨0, x⟩).tsum_coe
 
 /-- Distributional execution contract for a flat `WordRAM.Program B r`: from `⟨0, x⟩`, `p` never
 faults, has expected instruction count at most `T`, and dominates `μ : PMF (ℕ × Data r)` at its
@@ -2256,24 +1625,8 @@ namespace ExecProgramDist
 variable {B : Basis} {r w : ℕ} {p : Program B r} {x : Data r} {μ : PMF (ℕ × Data r)} {T : ℝ≥0∞}
 
 theorem haltedLim_eq (h : ExecProgramDist w p x μ T) (vy : ℕ × Data r) :
-    haltedLim w p x vy = μ vy := by
-  refine le_antisymm ?_ (h.2.2 vy)
-  by_contra hnot
-  have hlt : μ vy < haltedLim w p x vy := lt_of_not_ge hnot
-  have hsum_μ := (μ.tsum_coe).symm.trans (tsum_eq_add_tsum_ite (f := fun z => μ z) vy)
-  have hsum_lim := (tsum_eq_add_tsum_ite (f := haltedLim w p x) vy).symm.trans_le
-    (tsum_haltedLim_le_one w p x)
-  have hrest_ne_top :
-      (∑' z : ℕ × Data r, @ite ℝ≥0∞ (z = vy) (Classical.propDecidable _) 0 (μ z)) ≠ ⊤ := by
-    intro htop
-    rw [htop, add_top] at hsum_μ
-    exact ENNReal.one_ne_top hsum_μ
-  refine lt_irrefl (1 : ℝ≥0∞)
-    ((hsum_μ.trans_lt (ENNReal.add_lt_add_of_lt_of_le hrest_ne_top hlt
-      (tsum_le_tsum fun z => ?_))).trans_le hsum_lim)
-  split_ifs
-  · exact le_rfl
-  · exact h.2.2 z
+    haltedLim w p x vy = μ vy :=
+  eq_of_pmf_le μ h.2.2 (tsum_haltedLim_le_one w p x) vy
 
 theorem evalRand_halted_le (h : ExecProgramDist w p x μ T) (K : ℕ) (vy : ℕ × Data r) :
     evalRand w p K ⟨0, x⟩ (.halted vy.1 vy.2) ≤ μ vy := by
@@ -2284,25 +1637,15 @@ theorem almostSurelyHalts (h : ExecProgramDist w p x μ T) :
     AlmostSurelyHalts w p ⟨0, x⟩ := by
   refine ⟨h.2.1, le_antisymm
     (iSup_le fun _ => Probability.PMF.toOuterMeasure_le_one _ _) ?_⟩
-  have h1 : (1 : ℝ≥0∞) = ∑' vy : ℕ × Data r, haltedLim w p x vy := by
-    simp_rw [h.haltedLim_eq]
-    exact μ.tsum_coe.symm
-  rw [h1]
-  dsimp only [haltedLim]
-  rw [ENNReal.tsum_iSup_of_monotone (f := fun K (vy : ℕ × Data r) =>
-    evalRand w p K ⟨0, x⟩ (.halted vy.1 vy.2))
-    (fun vy => evalRand_halted_mono w p ⟨0, x⟩ vy.1 vy.2)]
-  refine iSup_mono fun K => ?_
+  calc (1 : ℝ≥0∞) = ∑' vy : ℕ × Data r, haltedLim w p x vy := by
+        simp_rw [h.haltedLim_eq, μ.tsum_coe]
+    _ = _ := tsum_haltedLim_eq_iSup w p x
+    _ ≤ _ := iSup_mono fun K => ?_
   rw [PMF.toOuterMeasure_apply]
-  have hinj : Function.Injective (fun vy : ℕ × Data r => RandCfg.halted vy.1 vy.2) := by
-    rintro ⟨v₁, y₁⟩ ⟨v₂, y₂⟩ heq
-    cases heq
-    rfl
-  refine (tsum_le_tsum fun vy => ?_).trans
-    (tsum_comp_le_tsum_of_injective hinj
+  refine (tsum_le_tsum fun vy : ℕ × Data r => ?_).trans
+    (tsum_comp_le_tsum_of_injective halted_injective
       (Set.indicator (RandCfg.haltedSet r) (evalRand w p K ⟨0, x⟩)))
-  have hmem : RandCfg.halted vy.1 vy.2 ∈ RandCfg.haltedSet r := ⟨vy.1, vy.2, rfl⟩
-  rw [Set.indicator_of_mem hmem]
+  exact (Set.indicator_of_mem (s := RandCfg.haltedSet r) ⟨vy.1, vy.2, rfl⟩ _).ge
 
 end ExecProgramDist
 
@@ -2313,25 +1656,14 @@ theorem execProgramDist_of_execCodeDist {B : Basis} {r w : ℕ} {c : Code B r} {
     ExecProgramDist w (c.program out) x (μ.map fun y => (y.regs out, y)) (T + 1) := by
   obtain ⟨hexp, hff, _, hdom⟩ := h.program_halts out
   refine ⟨hexp, hff, fun ⟨v, y⟩ => ?_⟩
-  classical
-  rw [PMF.map_apply]
   by_cases hv : v = y.regs out
   · subst hv
-    rw [tsum_eq_single y]
-    · simp only [↓reduceIte]
-      exact hdom y
-    · intro z hzy
-      split_ifs with heq
-      · exact absurd ((Prod.mk.injEq _ _ _ _).mp heq).2.symm hzy
-      · rfl
-  · refine le_trans (le_of_eq ?_) zero_le
-    rw [tsum_eq_zero_iff]
-    intro a
-    split_ifs with heq
-    · obtain ⟨hv_eq, hy_eq⟩ := (Prod.mk.injEq _ _ _ _).mp heq
-      subst hy_eq
-      exact absurd hv_eq hv
-    · rfl
+    exact (Probability.PMF.map_apply_of_injective μ (f := fun y : Data r => (y.regs out, y))
+      (fun _ _ h => (Prod.mk.inj h).2) y).trans_le (hdom y)
+  · refine ((PMF.apply_eq_zero_iff _ _).mpr fun hmem => ?_).trans_le zero_le
+    obtain ⟨a, -, ha⟩ := (PMF.mem_support_map_iff _ _ _).mp hmem
+    cases ha
+    exact hv rfl
 
 /-- Pure-Lean fallback halting outcome for `p` from `⟨0, x⟩`: selects a reachable `(v, y)` with
 positive halting limit `0 < haltedLim w p x (v, y)` when one exists, or `(0, x)` otherwise. -/
@@ -2344,15 +1676,10 @@ theorem fallbackOutcome_mem_support {B : Basis} {r w : ℕ} {p : Program B r} {x
     {μ : PMF (ℕ × Data r)} {T : ℝ≥0∞} (h : ExecProgramDist w p x μ T) :
     fallbackOutcome w p x ∈ μ.support := by
   obtain ⟨vy₀, hvy₀⟩ := μ.support_nonempty
-  have hex : ∃ vy : ℕ × Data r, 0 < haltedLim w p x vy := by
-    refine ⟨vy₀, ?_⟩
-    rw [h.haltedLim_eq vy₀]
-    exact pos_iff_ne_zero.mpr ((PMF.mem_support_iff _ _).mp hvy₀)
-  dsimp only [fallbackOutcome]
-  split_ifs
-  have hpos : 0 < haltedLim w p x (Classical.choose hex) := Classical.choose_spec hex
-  rw [h.haltedLim_eq] at hpos
-  exact (PMF.mem_support_iff _ _).mpr (ne_of_gt hpos)
+  have hex : ∃ vy : ℕ × Data r, 0 < haltedLim w p x vy :=
+    ⟨vy₀, (h.haltedLim_eq vy₀).symm ▸ pos_iff_ne_zero.mpr hvy₀⟩
+  rw [fallbackOutcome, dite_eq_left hex, PMF.mem_support_iff, ← h.haltedLim_eq]
+  exact (Classical.choose_spec hex).ne'
 
 /-- Buffered finite-horizon `RandProbeTree` simulator for a flat `WordRAM.Program B r`:
 1. Reloads persistent registers via `L.reload argRegs` (`regs₀ = (L.unpack argRegs m).regs`).
@@ -2438,23 +1765,19 @@ private theorem finishSimProgRand_fallback_run {B : Basis} {r S regCells w wCell
             (fallbackOutcome w p (L.unpack argRegs m)).2.regs).getD defaultAns,
           L.pack (fallbackOutcome w p (L.unpack argRegs m)).2),
          2 * S + regCells) := by
-  set x₀ := L.unpack argRegs m
   have hx₀_eq :
-      ({ regs := x₀.regs
+      ({ regs := (L.unpack argRegs m).regs
          mem := fun a =>
            if ha : base ≤ a ∧ a < base + S then
              (m (Fin.castAdd regCells ⟨a - base, by omega⟩)).1 % 2 ^ w
-           else 0 } : Data r) = x₀ := by
-    refine Data.ext rfl (funext fun a => ?_)
-    exact (L.unpack_mem argRegs m a).symm
+           else 0 } : Data r) = L.unpack argRegs m :=
+    Data.ext rfl (funext fun a => (L.unpack_mem argRegs m a).symm)
   cases out with
   | halted v regs' wb' ext' => exact absurd rfl (hnot_halt v regs' wb' ext')
   | running _ _ _ _ | faulted =>
-    dsimp only [finishSimProgRand]
-    simp only [RandProbeTree.run_bind, RandProbeTree.run_ofProbeTree, PMF.pure_bind,
-      run_readFin, probes_readFin, RandProbeTree.run_pure, PMF.pure_map, add_zero,
-      probes_writeFin, nextMem_writeFin_id]
-    rw [hx₀_eq]
+    simp only [finishSimProgRand, RandProbeTree.run_bind, RandProbeTree.run_ofProbeTree,
+      PMF.pure_bind, run_readFin, probes_readFin, RandProbeTree.run_pure, PMF.pure_map, add_zero,
+      probes_writeFin, nextMem_writeFin_id, hx₀_eq]
     exact congrArg PMF.pure (Prod.ext rfl (by omega))
 
 /-- Unconditional worst-case probe bound for `simProgRand` on **any** memory `m`: every path issues
@@ -2474,31 +1797,21 @@ theorem simProgRand_worstCase_probes {B : Basis} {r S regCells w wCell : ℕ}
   obtain ⟨z_mid, ⟨z_loop, hz_loop, z_fin, hz_fin, rfl⟩, rfl⟩ := hz
   obtain ⟨hm_loop, hpr_loop⟩ := simLoopRand_worstCase_probes base p K _ m z_loop hz_loop
   rw [hm_loop] at hz_fin
+  have hov : L.overhead = L.reloadProbes + L.spillProbes := rfl
   cases hout : z_loop.1.1 with
   | halted v regs' wb' ext' =>
-    rw [hout] at hz_fin
-    simp only [finishSimProgRand, RandProbeTree.run_bind, RandProbeTree.run_ofProbeTree,
-      PMF.pure_bind, RandProbeTree.run_pure, PMF.pure_map, add_zero, PMF.support_pure,
-      Set.mem_singleton_iff] at hz_fin
-    subst hz_fin
     have hdirty_le : dirtyCount wb' ≤ S := by
       simpa [dirtyCount] using Finset.card_filter_le (Finset.univ : Finset (Fin S)) _
-    have hcom_pr : (commitHalted L regs' wb').probes m = dirtyCount wb' + L.spillProbes := by
-      simp [commitHalted, ProbeTree.probes_bind, probes_flushWriteBuf, L.probes_spill]
-    rw [hcom_pr]
-    have hov : L.overhead = L.reloadProbes + L.spillProbes := rfl
+    simp only [hout, finishSimProgRand, RandProbeTree.run_bind, RandProbeTree.run_ofProbeTree,
+      PMF.pure_bind, RandProbeTree.run_pure, PMF.pure_map, add_zero, PMF.support_pure,
+      Set.mem_singleton_iff, commitHalted, ProbeTree.probes_bind, probes_flushWriteBuf,
+      L.probes_spill] at hz_fin
+    subst hz_fin
     omega
-  | running _ _ _ _ =>
+  | _ =>
     rw [hout, finishSimProgRand_fallback_run L p argRegs decode defaultAns m _ (by simp),
       PMF.support_pure, Set.mem_singleton_iff] at hz_fin
     subst hz_fin
-    have hov : L.overhead = L.reloadProbes + L.spillProbes := rfl
-    omega
-  | faulted =>
-    rw [hout, finishSimProgRand_fallback_run L p argRegs decode defaultAns m _ (by simp),
-      PMF.support_pure, Set.mem_singleton_iff] at hz_fin
-    subst hz_fin
-    have hov : L.overhead = L.reloadProbes + L.spillProbes := rfl
     omega
 
 theorem simProgRand_expectedProbes_le_worstCase {B : Basis} {r S regCells w wCell : ℕ}
@@ -2508,18 +1821,87 @@ theorem simProgRand_expectedProbes_le_worstCase {B : Basis} {r S regCells w wCel
     (decode : ℕ → (Fin r → ℕ) → Option Out) (defaultAns : Out) (K : ℕ)
     (m : Mem (S + regCells) wCell) :
     (simProgRand (w := w) L p argRegs decode defaultAns K).expectedProbes m ≤
-      ((K + 2 * S + regCells + L.overhead : ℕ) : ℝ≥0∞) := by
-  set tree := simProgRand (w := w) L p argRegs decode defaultAns K
-  rw [RandProbeTree.expectedProbes]
-  have hpt : ∀ z, (tree.run m) z * (z.2 : ℝ≥0∞) ≤
-      (tree.run m) z * ((K + 2 * S + regCells + L.overhead : ℕ) : ℝ≥0∞) := by
-    intro z
-    by_cases hz : z ∈ (tree.run m).support
-    · exact mul_le_mul' le_rfl ((Nat.cast_le (α := ℝ≥0∞)).mpr
-        (simProgRand_worstCase_probes L p argRegs decode defaultAns K m z hz))
-    · rw [(PMF.apply_eq_zero_iff _ _).mpr hz, zero_mul, zero_mul]
-  refine (tsum_le_tsum hpt).trans ?_
-  rw [ENNReal.tsum_mul_right, (tree.run m).tsum_coe, one_mul]
+      ((K + 2 * S + regCells + L.overhead : ℕ) : ℝ≥0∞) :=
+  Probability.PMF.tsum_mul_le_of_support _ fun z hz =>
+    Nat.cast_le.mpr (simProgRand_worstCase_probes L p argRegs decode defaultAns K m z hz)
+
+/-- Loop-level facts for the initial configuration of `simProgRand`: the buffered `K`-step loop
+projects onto `evalRand w p K`, and its expected `probes + dirty` count is at most the expected
+number of continuing steps. -/
+private theorem simLoopRand_init {B : Basis} {r S regCells w wCell : ℕ}
+    {input : Fin r → Bool} {base : ℕ} (L : RegLayout r input base S w regCells wCell)
+    (p : Program B r) (argRegs : Fin r → ℕ) (K : ℕ) (m : Mem (S + regCells) wCell)
+    (harg : ∀ i, input i = true → Fits w (argRegs i)) :
+    let loop := simLoopRand (regCells := regCells) (w := w) (wCell := wCell) base p K
+      (.running 0 (L.unpack argRegs m).regs (fun _ => none) (fun _ => 0))
+    (loop.run m).map (fun z => z.1.1.toRandCfg base m) = evalRand w p K ⟨0, L.unpack argRegs m⟩ ∧
+    (∑' z, (loop.run m) z * ((z.2 + z.1.1.dirty : ℕ) : ℝ≥0∞)) ≤
+      ∑ t ∈ Finset.range K, (evalRand w p t ⟨0, L.unpack argRegs m⟩).toOuterMeasure
+        {cfg | isContinuingCfg p cfg = true} := by
+  have hst₀ : (SimOutcome.running 0 (L.unpack argRegs m).regs (fun _ => none)
+      (fun _ => 0)).toRandCfg (w := w) base m = .running ⟨0, L.unpack argRegs m⟩ := by
+    simp [SimOutcome.toRandCfg, reconstructData_init L argRegs m]
+  obtain ⟨hmap, -, hexp⟩ := simLoopRand_spec (regCells := regCells) (wCell := wCell) base p K _ m
+    (by rw [hst₀]; exact L.unpack_bounded harg m)
+  rw [hst₀] at hmap hexp
+  simp only [SimOutcome.dirty, dirtyCount_empty, Nat.cast_zero, zero_add] at hexp
+  exact ⟨hmap, hexp⟩
+
+/-- Closed form of a `simProgRand` run on valid memory: the loop outcome determines the result
+(the halting pair, or the fallback pair when the loop did not halt) and the probe count. -/
+private theorem simProgRand_run {B : Basis} {r S regCells w wCell : ℕ}
+    {input : Fin r → Bool} {base : ℕ} {Out : Type}
+    (L : RegLayout r input base S w regCells wCell)
+    (p : Program B r) (argRegs : Fin r → ℕ)
+    (decode : ℕ → (Fin r → ℕ) → Option Out) (defaultAns : Out) (K : ℕ)
+    {m : Mem (S + regCells) wCell} (hm : L.ValidMem m) :
+    (simProgRand (w := w) L p argRegs decode defaultAns K).run m =
+      ((simLoopRand (regCells := regCells) (w := w) (wCell := wCell) base p K
+        (.running 0 (L.unpack argRegs m).regs (fun _ => none) (fun _ => 0))).run m).map fun z =>
+        ((fun vy : ℕ × Data r => ((decode vy.1 vy.2.regs).getD defaultAns, L.pack vy.2))
+            (match z.1.1.toRandCfg base m with
+              | .halted v y => (v, y)
+              | _ => fallbackOutcome w p (L.unpack argRegs m)),
+          L.reloadProbes + z.2 +
+            match z.1.1 with
+            | .halted _ _ wb _ => dirtyCount wb + L.spillProbes
+            | _ => 2 * S + regCells) := by
+  rw [simProgRand_eq_bind, RandProbeTree.run_bind, RandProbeTree.run_ofProbeTree, L.run_reload,
+    L.probes_reload, PMF.pure_bind]
+  dsimp only
+  rw [RandProbeTree.run_bind, PMF.map_bind, ← PMF.bind_pure_comp]
+  refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨st_l, m_l⟩, p_l⟩ hz_l => ?_
+  obtain rfl : m = m_l := (simLoopRand_worstCase_probes base p K _ m _ hz_l).1.symm
+  dsimp only [Function.comp_apply]
+  cases st_l with
+  | halted v regs' wb' ext' =>
+    obtain ⟨hcm_mem, hcm_pr⟩ := commitHalted_spec L hm regs' wb' ext'
+    simp only [finishSimProgRand, RandProbeTree.run_bind, RandProbeTree.run_ofProbeTree,
+      PMF.pure_bind, RandProbeTree.run_pure, PMF.pure_map, add_zero, hcm_mem, hcm_pr]
+    exact congrArg PMF.pure (Prod.ext rfl (Nat.add_assoc _ _ _).symm)
+  | _ =>
+    rw [finishSimProgRand_fallback_run L p argRegs decode defaultAns m _ (by simp), PMF.pure_map,
+      PMF.pure_map]
+    exact congrArg PMF.pure (Prod.ext rfl (Nat.add_assoc _ _ _).symm)
+
+/-- Output law of `simProgRand` on valid memory: the image of the `K`-step configuration law
+`evalRand w p K` under "halting pair, else fallback pair", then decoded and packed. -/
+private theorem simProgRand_law {B : Basis} {r S regCells w wCell : ℕ}
+    {input : Fin r → Bool} {base : ℕ} {Out : Type}
+    (L : RegLayout r input base S w regCells wCell)
+    (p : Program B r) (argRegs : Fin r → ℕ)
+    (decode : ℕ → (Fin r → ℕ) → Option Out) (defaultAns : Out) (K : ℕ)
+    {m : Mem (S + regCells) wCell} (hm : L.ValidMem m)
+    (harg : ∀ i, input i = true → Fits w (argRegs i)) :
+    ((simProgRand (w := w) L p argRegs decode defaultAns K).run m).map Prod.fst =
+      ((evalRand w p K ⟨0, L.unpack argRegs m⟩).map fun cfg =>
+        match cfg with
+        | .halted v y => (v, y)
+        | _ => fallbackOutcome w p (L.unpack argRegs m)).map fun vy =>
+          ((decode vy.1 vy.2.regs).getD defaultAns, L.pack vy.2) := by
+  rw [simProgRand_run L p argRegs decode defaultAns K hm,
+    ← (simLoopRand_init L p argRegs K m harg).1, PMF.map_comp, PMF.map_comp, PMF.map_comp]
+  rfl
 
 /-- **Main single-step Las Vegas simulation theorem (`simProgRand_lasVegas_spec`):**
 Under `hm : L.ValidMem m`, `harg`, and `hdist : ExecProgramDist w p (L.unpack argRegs m) μ T`:
@@ -2553,251 +1935,78 @@ theorem simProgRand_lasVegas_spec {B : Basis} {r S regCells w wCell : ℕ}
       (∑' om, ((tree.run m).map Prod.fst) om * g om) ≤
         (∑' vy, μ vy * g ((decode vy.1 vy.2.regs).getD defaultAns, L.pack vy.2)) +
           p_run * B_rem := by
-  intro x₀ tree p_run
-  have hx₀_bdd : x₀.Bounded w := L.unpack_bounded harg m
-  set st₀ : SimOutcome S w r := .running 0 x₀.regs (fun _ => none) (fun _ => 0)
-  have hst₀_cfg : st₀.toRandCfg (w := w) base m = .running ⟨0, x₀⟩ := by
-    simp [st₀, SimOutcome.toRandCfg, reconstructData_init L argRegs m, x₀]
-  have hst₀_bdd : (st₀.toRandCfg (w := w) base m).Bounded w := by
-    rw [hst₀_cfg]
-    exact hx₀_bdd
-  obtain ⟨hmap_loop, hsup_loop, hexp_loop⟩ := simLoopRand_spec base p K st₀ m hst₀_bdd
-  rw [hst₀_cfg] at hmap_loop hexp_loop
-  set loop := simLoopRand (regCells := regCells) (w := w) (wCell := wCell) base p K st₀
-  have hdirty_st₀ : st₀.dirty = 0 := dirtyCount_empty S w
-  rw [hdirty_st₀, Nat.cast_zero, zero_add] at hexp_loop
-  have hno_fault : ∀ z ∈ (loop.run m).support, z.1.1 ≠ .faulted := by
-    intro z hz hflt
-    have hmem_eval : (z.1.1.toRandCfg (w := w) base m) ∈ (evalRand w p K ⟨0, x₀⟩).support := by
-      rw [evalRand, ← hmap_loop, PMF.mem_support_map_iff]
-      exact ⟨z, hz, rfl⟩
-    rw [hflt, SimOutcome.toRandCfg, support_evalRand] at hmem_eval
-    exact hdist.2.1 K hmem_eval
-  have htree_run :
-      tree.run m =
-        (loop.run m).bind fun z_l =>
-          ((finishSimProgRand (w := w) L p x₀.regs decode defaultAns z_l.1.1).run z_l.1.2).map
-            fun (out, p₂) => (out, L.reloadProbes + z_l.2 + p₂) := by
-    dsimp only [tree]
-    rw [simProgRand_eq_bind, RandProbeTree.run_bind, RandProbeTree.run_ofProbeTree,
-      L.run_reload, L.probes_reload, PMF.pure_bind]
-    change (RandProbeTree.run (loop >>= _) m).map _ = _
-    rw [RandProbeTree.run_bind, PMF.map_bind]
-    refine congrArg (PMF.bind (loop.run m)) (funext fun ⟨⟨st_l, m_l⟩, p_l⟩ => ?_)
-    rw [PMF.map_comp]
-    refine congrArg
-      (fun f => PMF.map f
-        ((finishSimProgRand (w := w) L p x₀.regs decode defaultAns st_l).run m_l))
-      (funext fun ⟨out, p₂⟩ => Prod.ext rfl (by dsimp only [Function.comp_apply]; omega))
-  have hfin_halted : ∀ v regs' wb' ext',
-      (finishSimProgRand (w := w) L p x₀.regs decode defaultAns (.halted v regs' wb' ext')).run m =
-        PMF.pure (((decode v regs').getD defaultAns,
-          L.pack (reconstructData base m regs' wb' ext')),
-          dirtyCount wb' + L.spillProbes) := by
-    intro v regs' wb' ext'
-    obtain ⟨hcm_mem, hcm_pr⟩ := commitHalted_spec L hm regs' wb' ext'
-    simp only [finishSimProgRand, RandProbeTree.run_bind, RandProbeTree.run_ofProbeTree,
-      PMF.pure_bind, RandProbeTree.run_pure, PMF.pure_map, add_zero]
-    rw [hcm_mem, hcm_pr]
-  refine ⟨?_, ?_, ?_⟩
-  · -- Part 1: 100% zero-error support soundness!
-    intro z hz
-    rw [htree_run, PMF.mem_support_bind_iff] at hz
-    obtain ⟨⟨⟨st_l, m_l⟩, p_l⟩, hz_l, hz_f⟩ := hz
-    rw [PMF.mem_support_map_iff] at hz_f
-    obtain ⟨z_f, hz_f_mem, rfl⟩ := hz_f
-    obtain ⟨hm_l, _, _⟩ := hsup_loop _ hz_l
-    dsimp only at hm_l hz_f_mem
-    rw [hm_l] at hz_f_mem
+  dsimp only
+  set x₀ := L.unpack argRegs m
+  obtain ⟨hmap_loop, hexp_loop⟩ := simLoopRand_init L p argRegs K m harg
+  set loop := simLoopRand (regCells := regCells) (w := w) (wCell := wCell) base p K
+    (.running 0 x₀.regs (fun _ => none) (fun _ => 0))
+  have hlaw := simProgRand_law L p argRegs decode defaultAns K hm harg
+  refine ⟨fun z hz => ?_, ?_, fun g B_rem hg_le => ?_⟩
+  · -- Part 1: zero-error support soundness.
+    have hz' := (PMF.mem_support_map_iff Prod.fst _ z.1).mpr ⟨z, hz, rfl⟩
+    rw [hlaw, PMF.mem_support_map_iff] at hz'
+    obtain ⟨vy, hvy, hvy_eq⟩ := hz'
+    obtain ⟨cfg, hcfg, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hvy
+    refine ⟨_, ?_, hvy_eq.symm⟩
+    cases cfg with
+    | halted v y =>
+      exact (PMF.mem_support_iff _ _).mpr fun h0 =>
+        hcfg (nonpos_iff_eq_zero.mp ((hdist.evalRand_halted_le K (v, y)).trans_eq h0))
+    | _ => exact fallbackOutcome_mem_support hdist
+  · -- Part 2: expected probe bound.
+    rw [RandProbeTree.expectedProbes, simProgRand_run L p argRegs decode defaultAns K hm,
+      Probability.PMF.tsum_map_mul]
+    have hov : L.overhead = L.reloadProbes + L.spillProbes := rfl
+    calc _ ≤ ∑' z, (loop.run m) z * (((z.2 + z.1.1.dirty : ℕ) : ℝ≥0∞) + (L.overhead : ℝ≥0∞) +
+            Set.indicator (RandCfg.runningSet r) 1 (z.1.1.toRandCfg base m) *
+              ((2 * S + regCells : ℕ) : ℝ≥0∞)) :=
+          Probability.PMF.tsum_mul_mono_support _ fun ⟨⟨st_l, m_l⟩, p_l⟩ hz_l => ?_
+      _ ≤ _ := by
+          simp only [mul_add, ← mul_assoc]
+          rw [tsum_add, tsum_add, ENNReal.tsum_mul_right, ENNReal.tsum_mul_right,
+            (loop.run m).tsum_coe, one_mul, ← hmap_loop,
+            Probability.PMF.toOuterMeasure_eq_tsum_mul_indicator, Probability.PMF.tsum_map_mul]
+          exact add_le_add (add_le_add hexp_loop le_rfl) le_rfl
     cases st_l with
-    | faulted => exact absurd rfl (hno_fault _ hz_l)
+    | faulted =>
+      refine absurd ?_ (hdist.2.1 K)
+      rw [← support_evalRand, ← hmap_loop, PMF.mem_support_map_iff]
+      exact ⟨_, hz_l, rfl⟩
     | halted v regs' wb' ext' =>
-      rw [hfin_halted] at hz_f_mem
-      rw [PMF.support_pure, Set.mem_singleton_iff] at hz_f_mem
-      subst hz_f_mem
-      set y := reconstructData (w := w) base m regs' wb' ext'
-      have hmem_eval : RandCfg.halted v y ∈ (evalRand w p K ⟨0, x₀⟩).support := by
-        rw [evalRand, ← hmap_loop, PMF.mem_support_map_iff]
-        exact ⟨((.halted v regs' wb' ext', m_l), p_l), hz_l, rfl⟩
-      have hpos : 0 < evalRand w p K ⟨0, x₀⟩ (.halted v y) :=
-        pos_iff_ne_zero.mpr ((PMF.mem_support_iff _ _).mp hmem_eval)
-      have hvy_mem : (v, y) ∈ μ.support := by
-        rw [PMF.mem_support_iff]
-        exact ne_of_gt (hpos.trans_le (hdist.evalRand_halted_le K (v, y)))
-      exact ⟨(v, y), hvy_mem, rfl⟩
+      rw [Set.indicator_of_notMem (by simp [SimOutcome.toRandCfg])]
+      simp only [SimOutcome.dirty, Nat.cast_add]
+      exact_mod_cast (by omega)
     | running pc regs' wb' ext' =>
-      rw [finishSimProgRand_fallback_run L p argRegs decode defaultAns m _ (by simp)]
-        at hz_f_mem
-      rw [PMF.support_pure, Set.mem_singleton_iff] at hz_f_mem
-      subst hz_f_mem
-      exact ⟨fallbackOutcome w p x₀, fallbackOutcome_mem_support hdist, rfl⟩
-  · -- Part 2: Expected probe bound!
-    rw [RandProbeTree.expectedProbes, htree_run, Probability.PMF.tsum_bind_mul]
-    set S_run : Set (RandCfg r) := RandCfg.runningSet r
-    have hpt : ∀ z_l,
-        (loop.run m) z_l *
-            (∑' z,
-              (((finishSimProgRand (w := w) L p x₀.regs decode defaultAns z_l.1.1).run z_l.1.2).map
-                (fun (out, p₂) => (out, L.reloadProbes + z_l.2 + p₂))) z * (z.2 : ℝ≥0∞)) ≤
-          (loop.run m) z_l * ((z_l.2 + z_l.1.1.dirty : ℕ) : ℝ≥0∞) +
-            (loop.run m) z_l * (L.overhead : ℝ≥0∞) +
-            (loop.run m) z_l *
-              (Set.indicator S_run 1 (z_l.1.1.toRandCfg base m) *
-                ((2 * S + regCells : ℕ) : ℝ≥0∞)) := by
-      rintro ⟨⟨st_l, m_l⟩, p_l⟩
-      by_cases hz_l : ((st_l, m_l), p_l) ∈ (loop.run m).support
-      · obtain ⟨hm_l, _, _⟩ := hsup_loop _ hz_l
-        dsimp only at hm_l ⊢
-        rw [hm_l, Probability.PMF.tsum_map_mul]
-        cases st_l with
-        | faulted => exact absurd rfl (hno_fault _ hz_l)
-        | halted v regs' wb' ext' =>
-          rw [hfin_halted]
-          rw [tsum_eq_single (((decode v regs').getD defaultAns,
-              L.pack (reconstructData base m regs' wb' ext')), dirtyCount wb' + L.spillProbes)
-            (fun z hz => by simp [PMF.pure_apply, hz])]
-          simp only [PMF.pure_apply_self, one_mul, SimOutcome.dirty]
-          have hnot_r : (SimOutcome.halted v regs' wb' ext').toRandCfg (w := w) base m ∉ S_run := by
-            simp [S_run, SimOutcome.toRandCfg]
-          rw [Set.indicator_of_notMem hnot_r, zero_mul, mul_zero, add_zero, ← mul_add,
-            ← Nat.cast_add]
-          refine mul_le_mul' le_rfl ((Nat.cast_le (α := ℝ≥0∞)).mpr ?_)
-          have hov : L.overhead = L.reloadProbes + L.spillProbes := rfl
-          omega
-        | running pc regs' wb' ext' =>
-          rw [finishSimProgRand_fallback_run L p argRegs decode defaultAns m _ (by simp)]
-          set vy := fallbackOutcome w p x₀
-          rw [tsum_eq_single (((decode vy.1 vy.2.regs).getD defaultAns, L.pack vy.2),
-              2 * S + regCells)
-            (fun z hz => by simp [PMF.pure_apply, hz])]
-          simp only [PMF.pure_apply_self, one_mul, SimOutcome.dirty]
-          have hmem_r :
-              (SimOutcome.running pc regs' wb' ext').toRandCfg (w := w) base m ∈ S_run :=
-            ⟨_, rfl⟩
-          rw [Set.indicator_of_mem hmem_r, Pi.one_apply, one_mul, ← mul_add, ← mul_add,
-            ← Nat.cast_add, ← Nat.cast_add]
-          refine mul_le_mul' le_rfl ((Nat.cast_le (α := ℝ≥0∞)).mpr ?_)
-          have hov : L.overhead = L.reloadProbes + L.spillProbes := rfl
-          omega
-      · rw [(PMF.apply_eq_zero_iff _ _).mpr hz_l]
-        simp
-    refine (tsum_le_tsum hpt).trans ?_
-    rw [tsum_add, tsum_add,
-      ENNReal.tsum_mul_right, (loop.run m).tsum_coe, one_mul]
-    have htail_eq :
-        (∑' z_l, (loop.run m) z_l *
-            (Set.indicator S_run 1 (z_l.1.1.toRandCfg base m) *
-              ((2 * S + regCells : ℕ) : ℝ≥0∞))) =
-          p_run * ((2 * S + regCells : ℕ) : ℝ≥0∞) := by
-      simp_rw [← mul_assoc]
-      rw [ENNReal.tsum_mul_right]
-      congr 1
-      have hpush := (Probability.PMF.tsum_map_mul (loop.run m)
-        (fun z => z.1.1.toRandCfg (w := w) base m) (Set.indicator S_run 1)).symm
-      rw [hpush, hmap_loop, ← Probability.PMF.toOuterMeasure_eq_tsum_mul_indicator]
-      rfl
-    rw [htail_eq]
-    exact add_le_add (add_le_add hexp_loop le_rfl) le_rfl
-  · -- Part 3: Continuation coupling inequality!
-    intro g B_rem hg_le
-    rw [Probability.PMF.tsum_map_mul, htree_run, Probability.PMF.tsum_bind_mul]
-    set vy_fb := fallbackOutcome w p x₀
-    set om_fb : Out × Mem (S + regCells) wCell :=
-      ((decode vy_fb.1 vy_fb.2.regs).getD defaultAns, L.pack vy_fb.2)
+      rw [Set.indicator_of_mem (by simp [SimOutcome.toRandCfg])]
+      simp only [SimOutcome.dirty, Nat.cast_add, Pi.one_apply]
+      exact_mod_cast (by omega)
+  · -- Part 3: continuation coupling inequality.
+    rw [hlaw] at hg_le ⊢
+    rw [Probability.PMF.tsum_map_mul, Probability.PMF.tsum_map_mul]
     set f_om : ℕ × Data r → Out × Mem (S + regCells) wCell :=
       fun vy => ((decode vy.1 vy.2.regs).getD defaultAns, L.pack vy.2)
-    set h_cfg : RandCfg r → ℝ≥0∞ := fun cfg =>
-      match cfg with
-      | .halted v y => g (f_om (v, y))
-      | .running _ => B_rem
-      | .faulted => 0
-    have hpt_g : ∀ z_l,
-        (loop.run m) z_l *
-            (∑' z,
-              (((finishSimProgRand (w := w) L p x₀.regs decode defaultAns z_l.1.1).run z_l.1.2).map
-                (fun (out, p₂) => (out, L.reloadProbes + z_l.2 + p₂))) z * g z.1) ≤
-          (loop.run m) z_l * h_cfg (z_l.1.1.toRandCfg base m) := by
-      rintro ⟨⟨st_l, m_l⟩, p_l⟩
-      by_cases hz_l : ((st_l, m_l), p_l) ∈ (loop.run m).support
-      · obtain ⟨hm_l, _, _⟩ := hsup_loop _ hz_l
-        dsimp only at hm_l ⊢
-        rw [hm_l, Probability.PMF.tsum_map_mul]
-        cases st_l with
-        | faulted => exact absurd rfl (hno_fault _ hz_l)
-        | halted v regs' wb' ext' =>
-          rw [hfin_halted]
-          set y := reconstructData (w := w) base m regs' wb' ext'
-          rw [tsum_eq_single (((decode v regs').getD defaultAns, L.pack y),
-              dirtyCount wb' + L.spillProbes)
-            (fun z hz => by simp [PMF.pure_apply, hz])]
-          have hy_regs : y.regs = regs' := rfl
-          simp [SimOutcome.toRandCfg, h_cfg, f_om, y, hy_regs]
-        | running pc regs' wb' ext' =>
-          have hom_mem : om_fb ∈ ((tree.run m).map Prod.fst).support := by
-            rw [PMF.mem_support_map_iff]
-            refine ⟨(om_fb, L.reloadProbes + p_l + (2 * S + regCells)), ?_, rfl⟩
-            rw [htree_run, PMF.mem_support_bind_iff]
-            refine ⟨((.running pc regs' wb' ext', m_l), p_l), hz_l, ?_⟩
-            dsimp only
-            rw [hm_l,
-              finishSimProgRand_fallback_run L p argRegs decode defaultAns m _ (by simp),
-              PMF.pure_map, PMF.support_pure, Set.mem_singleton_iff]
-          rw [finishSimProgRand_fallback_run L p argRegs decode defaultAns m _ (by simp)]
-          change (loop.run m) ((.running pc regs' wb' ext', m), p_l) *
-              (∑' z, (PMF.pure (om_fb, 2 * S + regCells)) z * g z.1) ≤ _
-          rw [tsum_eq_single (om_fb, 2 * S + regCells)
-            (fun z hz => by simp [PMF.pure_apply, hz])]
-          simp only [PMF.pure_apply_self, one_mul, SimOutcome.toRandCfg, h_cfg]
-          exact mul_le_mul' le_rfl (hg_le om_fb hom_mem)
-      · rw [(PMF.apply_eq_zero_iff _ _).mpr hz_l, zero_mul, zero_mul]
-    refine (tsum_le_tsum hpt_g).trans ?_
-    have hpush_g :
-        (∑' z_l, (loop.run m) z_l * h_cfg (z_l.1.1.toRandCfg base m)) =
-          ∑' cfg, (evalRand w p K ⟨0, x₀⟩) cfg * h_cfg cfg := by
-      have hp := (Probability.PMF.tsum_map_mul (loop.run m)
-        (fun z => z.1.1.toRandCfg (w := w) base m) h_cfg).symm
-      rw [hp, hmap_loop]
-      rfl
-    rw [hpush_g]
-    have hcfg_split : ∀ cfg : RandCfg r,
-        (evalRand w p K ⟨0, x₀⟩) cfg * h_cfg cfg =
-          (match cfg with
-           | .halted v y => (evalRand w p K ⟨0, x₀⟩) (.halted v y) * g (f_om (v, y))
-           | _ => 0) +
-          Set.indicator (RandCfg.runningSet r) (evalRand w p K ⟨0, x₀⟩) cfg * B_rem := by
-      intro cfg
-      cases cfg with
-      | halted v y =>
-        have hnot : RandCfg.halted v y ∉ RandCfg.runningSet r := by simp
-        rw [Set.indicator_of_notMem hnot]
-        simp [h_cfg]
-      | running s =>
-        have hmem : RandCfg.running s ∈ RandCfg.runningSet r := ⟨s, rfl⟩
-        rw [Set.indicator_of_mem hmem]
-        simp [h_cfg]
-      | faulted =>
-        have hnot : (RandCfg.faulted : RandCfg r) ∉ RandCfg.runningSet r := by simp
-        rw [Set.indicator_of_notMem hnot]
-        simp [h_cfg]
-    simp_rw [hcfg_split]
-    rw [tsum_add, ENNReal.tsum_mul_right, ← PMF.toOuterMeasure_apply]
-    refine add_le_add ?_ le_rfl
-    set term_halt : RandCfg r → ℝ≥0∞ := fun cfg =>
-      match cfg with
-      | .halted v y => (evalRand w p K ⟨0, x₀⟩) (.halted v y) * g (f_om (v, y))
-      | _ => 0
-    have hinj_halt : Function.Injective (fun vy : ℕ × Data r => RandCfg.halted vy.1 vy.2) :=
-      fun ⟨v₁, y₁⟩ ⟨v₂, y₂⟩ h => by cases h; rfl
-    have heq_vy :
-        (∑' cfg : RandCfg r, term_halt cfg) =
-          ∑' vy : ℕ × Data r, (evalRand w p K ⟨0, x₀⟩) (.halted vy.1 vy.2) * g (f_om vy) := by
-      symm
-      refine Function.Injective.tsum_eq hinj_halt (f := term_halt) fun cfg hcfg => ?_
-      cases cfg with
-      | halted v y => exact ⟨(v, y), rfl⟩
-      | running _ | faulted => exact absurd rfl hcfg
-    rw [heq_vy]
-    exact tsum_le_tsum fun vy => mul_le_mul' (hdist.evalRand_halted_le K vy) le_rfl
+    calc _ ≤ ∑' cfg, (evalRand w p K ⟨0, x₀⟩) cfg *
+            ((match cfg with
+              | .halted v y => g (f_om (v, y))
+              | _ => 0) + Set.indicator (RandCfg.runningSet r) 1 cfg * B_rem) :=
+          Probability.PMF.tsum_mul_mono_support _ fun cfg hcfg => ?_
+      _ = (∑' vy : ℕ × Data r, evalRand w p K ⟨0, x₀⟩ (.halted vy.1 vy.2) * g (f_om vy)) +
+            (evalRand w p K ⟨0, x₀⟩).toOuterMeasure (RandCfg.runningSet r) * B_rem := by
+          simp only [mul_add, ← mul_assoc]
+          rw [tsum_add, ENNReal.tsum_mul_right,
+            ← Probability.PMF.toOuterMeasure_eq_tsum_mul_indicator]
+          refine congrArg (· + _) (halted_injective.tsum_eq fun cfg hcfg => ?_).symm
+          cases cfg with
+          | halted v y => exact ⟨(v, y), rfl⟩
+          | _ => exact absurd (mul_zero _) hcfg
+      _ ≤ _ := add_le_add
+          (tsum_le_tsum fun vy => mul_le_mul' (hdist.evalRand_halted_le K vy) le_rfl) le_rfl
+    cases cfg with
+    | halted v y => exact le_self_add
+    | running s =>
+      simpa using hg_le _ ((PMF.mem_support_map_iff _ _ _).mpr
+        ⟨_, (PMF.mem_support_map_iff _ _ _).mpr ⟨_, hcfg, rfl⟩, rfl⟩)
+    | faulted => exact absurd (support_evalRand w p K _ ▸ hcfg) (hdist.2.1 K)
 
 /-! #### Exact finite-tree `ExecRand` simulation (`simExecRand`, `simExecRandWide`) -/
 
@@ -2812,12 +2021,8 @@ theorem snd_le_probCompMaxSnd {α : Type} :
     cases OracleComp.eq_of_mem_supportWith_pure hz
     exact le_rfl
   | .liftBind n cont, z, hz => by
-    rw [← ProbComp.support_eval] at hz
-    change z ∈ ((ProbComp.unifOracle n).bind fun c => ProbComp.eval (cont c)).support at hz
-    rw [PMF.mem_support_bind_iff] at hz
-    obtain ⟨c, -, hc⟩ := hz
-    rw [ProbComp.support_eval] at hc
-    exact (snd_le_probCompMaxSnd (cont c) hc).trans
+    obtain ⟨c, -, hc⟩ := (PMF.mem_support_bind_iff _ _ _).mp (ProbComp.support_eval _ ▸ hz)
+    exact (snd_le_probCompMaxSnd (cont c) ((ProbComp.support_eval _).symm ▸ hc)).trans
       (Finset.le_sup (f := fun c' : Fin (n + 1) => probCompMaxSnd (cont c')) (Finset.mem_univ c))
 
 /-- Uniform finite-tree fuel across all `m : Mem (S + regCells) wCell` on which `ExecRand` holds. -/
@@ -2837,19 +2042,10 @@ theorem le_autoRandFuel_of_execRand {B : Basis} {r S regCells w wCell : ℕ}
     {mc : ProbComp (Data r × ℕ)} (hexec : ExecRand w c (L.unpack argRegs m) mc)
     {z : Data r × ℕ} (hz : z ∈ mc.support) :
     z.2 + 1 ≤ autoRandFuel L c argRegs := by
-  let nodeFuel : Mem (S + regCells) wCell → ℕ := fun m' =>
-    letI := Classical.propDecidable
-    if h : ∃ mc' : ProbComp (Data r × ℕ), ExecRand w c (L.unpack argRegs m') mc' then
-      probCompMaxSnd (Classical.choose h) + 1
-    else 0
   have hex : ∃ mc' : ProbComp (Data r × ℕ), ExecRand w c (L.unpack argRegs m) mc' := ⟨mc, hexec⟩
-  have hmc_eq : Classical.choose hex = mc := (Classical.choose_spec hex).unique hexec
-  have hle_node : z.2 + 1 ≤ nodeFuel m := by
-    dsimp only [nodeFuel]
-    split_ifs
-    rw [hmc_eq]
-    exact Nat.add_le_add_right (snd_le_probCompMaxSnd mc hz) 1
-  exact hle_node.trans (Finset.le_sup (f := nodeFuel) (Finset.mem_univ m))
+  refine le_trans ?_ (Finset.le_sup (Finset.mem_univ m))
+  rw [dite_eq_left hex, (Classical.choose_spec hex).unique hexec]
+  exact Nat.add_le_add_right (snd_le_probCompMaxSnd mc hz) 1
 
 /-- Exact finite-tree `ExecRand` simulation over an arbitrary `RegLayout`: reproduces the **exact**
 `(output, postMem)` distribution of `mc` with **zero** `η` slack and expected probes bounded by
@@ -2871,71 +2067,25 @@ theorem simExecRandLayout {B : Basis} {r S regCells w wCell : ℕ}
   intro tree
   set K := autoRandFuel L c argRegs
   set x₀ := L.unpack argRegs m
-  have hK : ∀ z ∈ mc.support, z.2 + 1 ≤ K := fun z hz => le_autoRandFuel_of_execRand L hexec hz
-  have hrun_prog := hexec.runRand_program retReg hK
+  have heval : evalRand w (c.program retReg) K ⟨0, x₀⟩ =
+      mc.eval.map fun z => RandCfg.halted (z.1.regs retReg) z.1 := by
+    rw [evalRand, hexec.runRand_program retReg fun z hz => le_autoRandFuel_of_execRand L hexec hz,
+      ProbComp.eval_map]
   have hp_run_zero :
       (evalRand w (c.program retReg) K ⟨0, x₀⟩).toOuterMeasure (RandCfg.runningSet r) = 0 := by
-    rw [PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
-    rintro cfg hmem ⟨u, rfl⟩
-    rw [support_evalRand, hrun_prog] at hmem
-    obtain ⟨z, -, hz_eq⟩ := OracleComp.mem_supportWith_map_iff.mp hmem
-    cases hz_eq
+    simp [heval, PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
   have hcdist : ExecCodeDist w c x₀ (mc.eval.map Prod.fst)
       (ProbComp.expect mc fun z => (z.2 : ℝ≥0∞)) := by
     simpa [ProbComp.eval_map] using ExecCodeDist.of_execRand hexec
   have hpdist := execProgramDist_of_execCodeDist hcdist retReg
-  obtain ⟨_, hexp_sim, hcoupl⟩ :=
+  obtain ⟨_, hexp_sim, -⟩ :=
     simProgRand_lasVegas_spec L (c.program retReg) argRegs (fun _ regs => decode regs)
       defaultAns K hm harg hpdist
   rw [hp_run_zero, zero_mul, add_zero] at hexp_sim
-  have hcont_le :
-      (∑ t ∈ Finset.range K,
-          (evalRand w (c.program retReg) t ⟨0, x₀⟩).toOuterMeasure
-            {cfg | isContinuingCfg (c.program retReg) cfg = true}) ≤
-        ProbComp.expect mc (fun z => (z.2 : ℝ≥0∞)) :=
-    continuing_sum_le_of_almostSurelyHalts hpdist.almostSurelyHalts hpdist.1 K
-  refine ⟨?_, hexp_sim.trans (add_le_add hcont_le le_rfl)⟩
-  set μ₁ := (tree.run m).map Prod.fst
-  set μ₂ := mc.eval.map (fun z : Data r × ℕ => ((decode z.1.regs).getD defaultAns, L.pack z.1))
-  have hdom_om : ∀ om, μ₁ om ≤ μ₂ om := by
-    classical
-    intro om
-    have hg := hcoupl (fun x => if x = om then 1 else 0) 1 (fun x _ => by split_ifs <;> simp)
-    rw [hp_run_zero, zero_mul, add_zero] at hg
-    have hlhs : (∑' x, μ₁ x * (if x = om then (1 : ℝ≥0∞) else 0)) = μ₁ om := by
-      rw [tsum_eq_single om (fun x hx => by simp [hx])]
-      simp
-    have hrhs :
-        (∑' vy : ℕ × Data r,
-            ((mc.eval.map Prod.fst).map fun y => (y.regs retReg, y)) vy *
-              (if ((decode vy.2.regs).getD defaultAns, L.pack vy.2) = om then 1 else 0)) =
-          μ₂ om := by
-      rw [Probability.PMF.tsum_map_mul, Probability.PMF.tsum_map_mul]
-      dsimp only [μ₂]
-      rw [PMF.map_apply]
-      refine tsum_congr fun z => ?_
-      by_cases h : ((decode z.1.regs).getD defaultAns, L.pack z.1) = om
-      · simp [h]
-      · have h' : om ≠ ((decode z.1.regs).getD defaultAns, L.pack z.1) := Ne.symm h
-        simp [h, h']
-    rwa [hlhs, hrhs] at hg
-  ext om
-  refine le_antisymm (hdom_om om) ?_
-  by_contra hnot
-  have hlt : μ₁ om < μ₂ om := lt_of_not_ge hnot
-  have hsum1 := (μ₁.tsum_coe).symm.trans (tsum_eq_add_tsum_ite (f := fun z => μ₁ z) om)
-  have hsum2 := (tsum_eq_add_tsum_ite (f := fun z => μ₂ z) om).symm.trans μ₂.tsum_coe
-  have hrest_ne_top :
-      (∑' z, @ite ℝ≥0∞ (z = om) (Classical.propDecidable _) 0 (μ₁ z)) ≠ ⊤ := by
-    intro htop
-    rw [htop, add_top] at hsum1
-    exact ENNReal.one_ne_top hsum1
-  refine lt_irrefl (1 : ℝ≥0∞)
-    ((hsum1.trans_lt (ENNReal.add_lt_add_of_lt_of_le hrest_ne_top hlt
-      (tsum_le_tsum fun z => ?_))).trans_eq hsum2)
-  split_ifs
-  · exact le_rfl
-  · exact hdom_om z
+  refine ⟨?_, hexp_sim.trans (add_le_add
+    (continuing_sum_le_of_almostSurelyHalts hpdist.almostSurelyHalts hpdist.1 K) le_rfl)⟩
+  rw [simProgRand_law L _ argRegs _ defaultAns K hm harg, heval, PMF.map_comp, PMF.map_comp]
+  rfl
 
 /-- Exact finite-tree `ExecRand` simulation in standard `w`-bit layout (`S + persCount input` cells
 of width `w`, additive overhead `2 * persCount input`). -/
@@ -2952,11 +2102,9 @@ theorem simExecRand {B : Basis} {r S w : ℕ} {input : Fin r → Bool} {base : �
     (tree.run m).map Prod.fst =
         mc.eval.map (fun z => ((decode z.1.regs).getD defaultAns, packMem input base S w z.1)) ∧
       tree.expectedProbes m ≤
-        ProbComp.expect mc (fun z => (z.2 : ℝ≥0∞)) + (2 * persCount input : ℕ) := by
-  intro L tree
-  obtain ⟨hlaw, hexp⟩ := simExecRandLayout L c retReg argRegs decode defaultAns trivial harg hexec
-  refine ⟨hlaw, hexp.trans ?_⟩
-  rw [standardLayout_overhead]
+        ProbComp.expect mc (fun z => (z.2 : ℝ≥0∞)) + (2 * persCount input : ℕ) :=
+  standardLayout_overhead input base S w ▸ simExecRandLayout (standardLayout input base S w)
+    c retReg argRegs decode defaultAns trivial harg hexec
 
 /-- Exact finite-tree `ExecRand` simulation in wide-cell single-spill layout (`S + 1` cells of width
 `wideWidth input w`, additive overhead `if persCount input = 0 then 0 else 2 ≤ 2`). -/
@@ -2976,11 +2124,9 @@ theorem simExecRandWide {B : Basis} {r S w : ℕ} {input : Fin r → Bool} {base
           ((decode z.1.regs).getD defaultAns, packMemWide input base S w z.1)) ∧
       tree.expectedProbes m ≤
         ProbComp.expect mc (fun z => (z.2 : ℝ≥0∞)) +
-          ((if persCount input = 0 then 0 else 2 : ℕ) : ℝ≥0∞) := by
-  intro L tree
-  obtain ⟨hlaw, hexp⟩ := simExecRandLayout L c retReg argRegs decode defaultAns hm harg hexec
-  refine ⟨hlaw, hexp.trans ?_⟩
-  rw [wideLayout_overhead]
+          ((if persCount input = 0 then 0 else 2 : ℕ) : ℝ≥0∞) :=
+  wideLayout_overhead input base S w ▸ simExecRandLayout (wideLayout input base S w)
+    c retReg argRegs decode defaultAns hm harg hexec
 
 /-! #### Antitone tail decay and uniform finite-horizon cutoff selection -/
 
@@ -2989,92 +2135,44 @@ antitone in `K` because `.halted` and `.faulted` are absorbing. -/
 theorem evalRand_runningSet_antitone {B : Basis} {r : ℕ} (w : ℕ) (p : Program B r) (s : State r) :
     Antitone fun K => (evalRand w p K s).toOuterMeasure (RandCfg.runningSet r) := by
   refine antitone_nat_of_succ_le fun K => ?_
-  have hstep : evalRand w p (K + 1) s =
-      (evalRand w p K s).bind (fun cfg => (stepRand w p cfg).eval) := by
-    rw [evalRand, runRand_add w p K 1, ProbComp.eval_bind]
-    simp only [evalRand, runRand_succ, runRand_zero, bind_pure]
-  rw [hstep, PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply]
+  rw [evalRand_succ_right, PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply]
   refine tsum_le_tsum fun cfg => ?_
   cases cfg with
   | running u =>
-    have hmem : RandCfg.running u ∈ RandCfg.runningSet r := ⟨u, rfl⟩
-    rw [Set.indicator_of_mem hmem]
-    simpa using mul_le_mul' le_rfl (Probability.PMF.toOuterMeasure_le_one _ _)
-  | halted v d =>
-    have hnot : RandCfg.halted v d ∉ RandCfg.runningSet r := by simp
-    simp [stepRand_halted, PMF.toOuterMeasure_pure_apply, hnot]
-  | faulted =>
-    have hnot : (RandCfg.faulted : RandCfg r) ∉ RandCfg.runningSet r := by simp
-    simp [stepRand_faulted, PMF.toOuterMeasure_pure_apply, hnot]
+    simpa using mul_le_mul' (le_refl (evalRand w p K s (.running u)))
+      (Probability.PMF.toOuterMeasure_le_one _ _)
+  | halted v d => simp [stepRand_halted, PMF.toOuterMeasure_pure_apply]
+  | faulted => simp [stepRand_faulted, PMF.toOuterMeasure_pure_apply]
 
 /-- For any antitone sequence `a : ℕ → ℝ≥0∞` with `∑' t, a t ≠ ⊤`, `(A + B * K) * a K → 0` as
 `K → ∞`. -/
 theorem exists_cutoff_mul_le {a : ℕ → ℝ≥0∞} (ha : Antitone a) (hsum : (∑' t, a t) ≠ ⊤)
     (A B : ℕ) {η : ℝ≥0∞} (hη : 0 < η) :
     ∃ K₀ : ℕ, 1 ≤ K₀ ∧ ∀ K ≥ K₀, a K * ((A : ℝ≥0∞) + (B : ℝ≥0∞) * (K : ℝ≥0∞)) ≤ η := by
-  have hiSup_all : (∑' t, a t) = ⨆ N : ℕ, ∑ t ∈ Finset.range N, a t := ENNReal.tsum_eq_iSup_nat
-  by_cases hS0 : (∑' t, a t) = 0
-  · refine ⟨1, le_rfl, fun K _ => ?_⟩
-    have haK : a K = 0 := by
-      refine le_antisymm ?_ zero_le
-      calc a K
-        _ ≤ ∑ t ∈ Finset.range (K + 1), a t :=
-            Finset.single_le_sum (fun _ _ => zero_le) (Finset.mem_range.mpr (Nat.lt_succ_self K))
-        _ ≤ ⨆ N : ℕ, ∑ t ∈ Finset.range N, a t :=
-            le_iSup (fun N => ∑ t ∈ Finset.range N, a t) (K + 1)
-        _ = 0 := hiSup_all.symm.trans hS0
-    simp [haK]
-  · set S := ∑' t, a t
-    set C : ℕ := max B 1
-    have h1C : 1 ≤ C := le_max_right B 1
-    have hC_ne_top : ((3 * C : ℕ) : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top (3 * C)
-    set δ : ℝ≥0∞ := min (η / ((3 * C : ℕ) : ℝ≥0∞)) (S / 2)
-    have hδ_pos : 0 < δ := lt_min (ENNReal.div_pos hη.ne' hC_ne_top)
-      (ENNReal.div_pos hS0 (by norm_num))
-    have hsub_lt : S - δ < S := ENNReal.sub_lt_self hsum hS0 hδ_pos.ne'
-    have hsub_lt' : S - δ < ⨆ N : ℕ, ∑ t ∈ Finset.range N, a t := hiSup_all ▸ hsub_lt
-    rw [lt_iSup_iff] at hsub_lt'
-    obtain ⟨N, hN⟩ := hsub_lt'
-    refine ⟨max 1 (2 * N + A + 2), le_max_left _ _, fun K hK => ?_⟩
-    have hK_ge : 2 * N + A + 2 ≤ K := (le_max_right 1 _).trans hK
-    set M : ℕ := K - N
-    have hM_mul_le : (M : ℝ≥0∞) * a K ≤ δ := by
-      have htail_sum : (∑ i ∈ Finset.range M, a (N + i)) ≤ δ := by
-        by_contra hnot
-        have hgt : δ < ∑ i ∈ Finset.range M, a (N + i) := lt_of_not_ge hnot
-        have hlt_sum :
-            (S - δ) + δ < (∑ t ∈ Finset.range N, a t) + ∑ i ∈ Finset.range M, a (N + i) :=
-          ENNReal.add_lt_add hN hgt
-        have hδ_le_S : δ ≤ S := (min_le_right _ _).trans ENNReal.half_le_self
-        rw [tsub_add_cancel_of_le hδ_le_S, ← Finset.sum_range_add] at hlt_sum
-        have hle_S : (∑ t ∈ Finset.range (N + M), a t) ≤ S :=
-          (le_iSup (fun n => ∑ t ∈ Finset.range n, a t) (N + M)).trans_eq hiSup_all.symm
-        exact lt_irrefl S (hlt_sum.trans_le hle_S)
-      have hconst : (M : ℝ≥0∞) * a K = ∑ _i ∈ Finset.range M, a K := by
-        simp [Finset.sum_const]
-      rw [hconst]
-      refine (Finset.sum_le_sum fun i hi => ha ?_).trans htail_sum
-      rw [Finset.mem_range] at hi
-      omega
-    have hnat : A + B * K ≤ (3 * C) * M := by
-      have hBC : B ≤ C := le_max_left B 1
-      have hKM : K ≤ 2 * M := by omega
-      have hAM : A ≤ M := by omega
-      have h1 : A + B * K ≤ M + C * (2 * M) := Nat.add_le_add hAM (Nat.mul_le_mul hBC hKM)
-      have h2 : M ≤ C * M := Nat.le_mul_of_pos_left M h1C
-      have h3 : C * M + C * (2 * M) = (3 * C) * M := by ring
-      omega
-    have hlin_le :
-        (A : ℝ≥0∞) + (B : ℝ≥0∞) * (K : ℝ≥0∞) ≤ ((3 * C : ℕ) : ℝ≥0∞) * (M : ℝ≥0∞) := by
-      rw [← Nat.cast_mul, ← Nat.cast_add, ← Nat.cast_mul]
-      exact Nat.cast_le.mpr hnat
-    calc a K * ((A : ℝ≥0∞) + (B : ℝ≥0∞) * (K : ℝ≥0∞))
-      _ ≤ a K * (((3 * C : ℕ) : ℝ≥0∞) * (M : ℝ≥0∞)) := mul_le_mul' le_rfl hlin_le
-      _ = ((3 * C : ℕ) : ℝ≥0∞) * ((M : ℝ≥0∞) * a K) := by ac_rfl
-      _ ≤ ((3 * C : ℕ) : ℝ≥0∞) * δ := mul_le_mul' le_rfl hM_mul_le
-      _ ≤ ((3 * C : ℕ) : ℝ≥0∞) * (η / ((3 * C : ℕ) : ℝ≥0∞)) :=
-          mul_le_mul' le_rfl (min_le_left _ _)
-      _ ≤ η := ENNReal.mul_div_le
+  set C : ℕ := max B 1
+  have hC_ne_top : ((3 * C : ℕ) : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top (3 * C)
+  -- The tail sums of a summable sequence tend to `0`, so some tail is below `η / (3 * C)`.
+  obtain ⟨N, hN⟩ := ((ENNReal.tendsto_sum_nat_add a hsum).eventually
+    (gt_mem_nhds (ENNReal.div_pos hη.ne' hC_ne_top))).exists
+  refine ⟨max 1 (2 * N + A + 2), le_max_left _ _, fun K hK => ?_⟩
+  have hK_ge : 2 * N + A + 2 ≤ K := (le_max_right 1 _).trans hK
+  set M : ℕ := K - N
+  have hM_mul_le : (M : ℝ≥0∞) * a K ≤ η / ((3 * C : ℕ) : ℝ≥0∞) :=
+    calc (M : ℝ≥0∞) * a K = ∑ _i ∈ Finset.range M, a K := by simp
+      _ ≤ ∑ i ∈ Finset.range M, a (i + N) :=
+          Finset.sum_le_sum fun i hi => ha (by have := Finset.mem_range.mp hi; omega)
+      _ ≤ ∑' k, a (k + N) := sum_le_tsum _
+      _ ≤ _ := hN.le
+  have hnat : A + B * K ≤ 3 * C * M :=
+    calc A + B * K ≤ C * M + C * (2 * M) := Nat.add_le_add
+          ((show A ≤ M by omega).trans (Nat.le_mul_of_pos_left M (lt_max_of_lt_right Nat.one_pos)))
+          (Nat.mul_le_mul (le_max_left B 1) (by omega))
+      _ = 3 * C * M := by ring
+  calc a K * ((A : ℝ≥0∞) + (B : ℝ≥0∞) * (K : ℝ≥0∞))
+    _ ≤ a K * (((3 * C : ℕ) : ℝ≥0∞) * (M : ℝ≥0∞)) := mul_le_mul' le_rfl (mod_cast hnat)
+    _ = ((3 * C : ℕ) : ℝ≥0∞) * ((M : ℝ≥0∞) * a K) := by ac_rfl
+    _ ≤ ((3 * C : ℕ) : ℝ≥0∞) * (η / ((3 * C : ℕ) : ℝ≥0∞)) := mul_le_mul' le_rfl hM_mul_le
+    _ ≤ η := ENNReal.mul_div_le
 
 /-- Uniform finite-horizon cutoff selection across a finite operation alphabet `opsAlphabet` and the
 finite memory space `Mem (S + regCells) wCell`: produces a single `K ≥ 1` such that for every
@@ -3091,28 +2189,13 @@ theorem exists_uniform_cutoff {Op : Type*} {B : Basis} {r S regCells w wCell : �
     ∃ K : ℕ, 1 ≤ K ∧ ∀ o ∈ opsAlphabet, ∀ m, Good o m →
       (evalRand w (prog o) K ⟨0, L.unpack (argRegs o) m⟩).toOuterMeasure (RandCfg.runningSet r) *
         ((A : ℝ≥0∞) + (B : ℝ≥0∞) * (K : ℝ≥0∞)) ≤ η := by
-  classical
-  let kPair : Op × Mem (S + regCells) wCell → ℕ := fun om =>
-    if h : om.1 ∈ opsAlphabet ∧ Good om.1 om.2 then
-      Classical.choose (exists_cutoff_mul_le
-        (evalRand_runningSet_antitone w (prog om.1) ⟨0, L.unpack (argRegs om.1) om.2⟩)
-        (hfin om.1 h.1 om.2 h.2) A B hη)
-    else 1
-  let pairs : Finset (Op × Mem (S + regCells) wCell) := opsAlphabet ×ˢ Finset.univ
-  refine ⟨max 1 (pairs.sup kPair), le_max_left _ _, fun o ho m hgood => ?_⟩
-  have hcond : o ∈ opsAlphabet ∧ Good o m := ⟨ho, hgood⟩
-  have hspec := Classical.choose_spec (exists_cutoff_mul_le
-    (evalRand_runningSet_antitone w (prog o) ⟨0, L.unpack (argRegs o) m⟩)
-    (hfin o ho m hgood) A B hη)
-  have hk_le : kPair (o, m) ≤ max 1 (pairs.sup kPair) := by
-    refine (Finset.le_sup (f := kPair) ?_).trans (le_max_right 1 _)
-    exact Finset.mem_product.mpr ⟨ho, Finset.mem_univ m⟩
-  have hk_eq : kPair (o, m) = Classical.choose (exists_cutoff_mul_le
-      (evalRand_runningSet_antitone w (prog o) ⟨0, L.unpack (argRegs o) m⟩)
-      (hfin o ho m hgood) A B hη) := by
-    dsimp only [kPair]
-    split_ifs
-    rfl
-  exact hspec.2 _ (hk_eq ▸ hk_le)
+  choose! kPair _ hk using fun (o : Op) (m : Mem (S + regCells) wCell) (ho : o ∈ opsAlphabet)
+      (hg : Good o m) =>
+    exists_cutoff_mul_le (evalRand_runningSet_antitone w (prog o) ⟨0, L.unpack (argRegs o) m⟩)
+      (hfin o ho m hg) A B hη
+  refine ⟨max 1 ((opsAlphabet ×ˢ Finset.univ).sup fun om => kPair om.1 om.2), le_max_left _ _,
+    fun o ho m hgood => hk o m ho hgood _ ?_⟩
+  exact (Finset.le_sup (f := fun om : Op × Mem (S + regCells) wCell => kPair om.1 om.2)
+    (b := (o, m)) (Finset.mem_product.mpr ⟨ho, Finset.mem_univ m⟩)).trans (le_max_right 1 _)
 
 end Cslib.CellProbe

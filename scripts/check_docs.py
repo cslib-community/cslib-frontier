@@ -50,6 +50,21 @@ KERNEL_RECURSOR_ANCHORS = frozenset({
     ("Init/Prelude.html", "Eq.rec"),
     ("Init/Prelude.html", "Eq.ndrec"),
 })
+# Kernel- and compiler-generated inductive/structure auxiliary declarations that `doc-gen4`
+# links to in elaborated terms but omits from its generated HTML declaration index.
+GENERATED_RECURSOR_SUFFIXES = frozenset({
+    "rec",
+    "recOn",
+    "casesOn",
+    "brecOn",
+    "binductionOn",
+    "below",
+    "ibelow",
+    "ndrec",
+    "ndrecOn",
+    "noConfusion",
+    "noConfusionType",
+})
 HREF_RE = re.compile(r'href="([^"]*)"')
 ID_ATTR_RE = re.compile(r'id="([^"]*)"')
 DEP_BROKEN_LINK_RE = re.compile(
@@ -120,6 +135,93 @@ def check_config():
 
 def local_modules(names):
     return {name for name in names if name == "CslibFrontier" or name.startswith("CslibFrontier.")}
+
+
+def expected_local_modules():
+    sources = [ROOT / "CslibFrontier.lean", *sorted((ROOT / "CslibFrontier").rglob("*.lean"))]
+    return {".".join(source.relative_to(ROOT).with_suffix("").parts) for source in sources}
+
+
+def remove_cache_artifacts(build):
+    for path in build.glob("api-docs.db*"):
+        if path.is_file() or path.is_symlink():
+            path.unlink()
+    data_dir = build / "doc-data"
+    if data_dir.is_symlink() or data_dir.is_file():
+        data_dir.unlink()
+    elif data_dir.is_dir():
+        shutil.rmtree(data_dir)
+
+
+def marker_module_name(data_dir, path):
+    rel = ".".join(path.relative_to(data_dir).parts)
+    for suffix in (".doc.hash", ".doc.trace", ".doc"):
+        if rel.endswith(suffix):
+            return rel[:-len(suffix)]
+    return None
+
+
+def prune_doc_data(data_dir, expected):
+    if not data_dir.is_dir():
+        return
+    for path in sorted(data_dir.rglob("*"), reverse=True):
+        if not path.is_file() and not path.is_symlink():
+            continue
+        module = marker_module_name(data_dir, path)
+        if module is None or (module in local_modules((module,)) and module not in expected):
+            path.unlink()
+            remove_empty_parents(path, data_dir)
+
+
+def checkpoint_wal(db):
+    row = db.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+    if row is not None and row[0] != 0:
+        raise sqlite3.OperationalError(f"WAL checkpoint remained busy: {row}")
+
+
+def prepare_cache(discard_corrupt=False):
+    build = ROOT / "docbuild/.lake/build"
+    data_dir = build / "doc-data"
+    database = build / "api-docs.db"
+    expected = expected_local_modules()
+    prune_doc_data(data_dir, expected)
+    if not database.is_file():
+        return
+    try:
+        with closing(sqlite3.connect(database)) as db:
+            has_modules = db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'modules'"
+            ).fetchone()
+            require(has_modules is not None,
+                    "Documentation database is missing table: modules")
+            quick = db.execute("PRAGMA quick_check").fetchone()
+            require(quick is not None and quick[0] == "ok",
+                    f"Documentation database integrity check failed: {quick}")
+            existing = [row[0] for row in db.execute("SELECT name FROM modules")]
+            obsolete = sorted(local_modules(existing) - expected)
+            if obsolete:
+                db.execute("PRAGMA foreign_keys = ON")
+                fk_enabled = db.execute("PRAGMA foreign_keys").fetchone()
+                require(fk_enabled is not None and fk_enabled[0] == 1,
+                        "Failed to enable SQLite foreign keys for cache pruning")
+                with db:
+                    db.executemany(
+                        "DELETE FROM modules WHERE name = ?",
+                        [(module,) for module in obsolete],
+                    )
+            checkpoint_wal(db)
+    except (OSError, ValueError, sqlite3.DatabaseError) as error:
+        if not discard_corrupt:
+            raise
+        print(f"Discarding unusable documentation cache ({error}); rebuilding from scratch.")
+        remove_cache_artifacts(build)
+
+
+def checkpoint_cache():
+    database = ROOT / "docbuild/.lake/build/api-docs.db"
+    require(database.is_file(), "Missing documentation database: api-docs.db")
+    with closing(sqlite3.connect(database)) as db:
+        checkpoint_wal(db)
 
 
 def resolve_relative_href(rel_page, href):
@@ -315,7 +417,7 @@ def rewrite_external_dependency_links(docs, index, external_pages):
             local_anchors_by_page[rel].update(page_anchors(docs / rel, anchor_cache))
 
     def recursor_parent_fragment(norm, fragment):
-        """Link omitted generated recursors to their indexed inductive/structure parent."""
+        """Link omitted generated recursors/eliminators to their indexed inductive/structure parent."""
         if not fragment:
             return fragment
         anchor = unquote(fragment)
@@ -323,7 +425,10 @@ def rewrite_external_dependency_links(docs, index, external_pages):
             return fragment
         parent, _, suffix = anchor.rpartition(".")
         info = index.get("declarations", {}).get(parent, {})
-        if suffix != "rec" or info.get("kind") not in ("inductive", "structure"):
+        if (
+            suffix not in GENERATED_RECURSOR_SUFFIXES
+            or info.get("kind") not in ("inductive", "structure")
+        ):
             return fragment
         parent_link = urlsplit(info.get("docLink", ""))
         if (
@@ -665,10 +770,8 @@ def check_output():
         require((docs / name).is_file(), f"Missing documentation output: {name}")
     # doc-gen4 uses a .bmp extension for its JSON search index.
     index = json.loads((docs / "declarations/declaration-data.bmp").read_text())
-    sources = [ROOT / "CslibFrontier.lean", *sorted((ROOT / "CslibFrontier").rglob("*.lean"))]
-    expected_modules = {
-        ".".join(source.relative_to(ROOT).with_suffix("").parts) for source in sources
-    }
+    expected_modules = expected_local_modules()
+    sources = [ROOT / (module.replace(".", "/") + ".lean") for module in sorted(expected_modules)]
     # Reused doc-gen4 caches can retain removed modules. Dependency docs are allowed.
     stale_modules = sorted(local_modules(index["modules"]) - expected_modules)
     require(not stale_modules,
@@ -734,6 +837,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config-only", action="store_true",
                         help="check pins before invoking Lake; do not require built documentation")
+    parser.add_argument("--prepare-cache", action="store_true",
+                        help="prune non-marker files and obsolete local modules before doc build")
+    parser.add_argument("--discard-corrupt", action="store_true",
+                        help="with --prepare-cache, discard corrupt cached DB/markers instead of failing")
+    parser.add_argument("--checkpoint-cache", action="store_true",
+                        help="truncate-checkpoint api-docs.db WAL before caching")
     parser.add_argument("--trim", action="store_true",
                         help="externalize dependency pages and trim declaration data before checking")
     parser.add_argument("--guide", action="store_true",
@@ -743,6 +852,10 @@ def main():
         check_config()
         if args.config_only:
             print("Documentation configuration is consistent.")
+        elif args.prepare_cache:
+            prepare_cache(discard_corrupt=args.discard_corrupt)
+        elif args.checkpoint_cache:
+            checkpoint_cache()
         else:
             if args.trim:
                 trim_output()

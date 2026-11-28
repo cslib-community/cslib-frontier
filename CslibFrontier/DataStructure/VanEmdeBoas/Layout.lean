@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Init
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Universe sizes and a contiguous van Emde Boas layout
@@ -122,9 +124,11 @@ theorem span_le (d : ℕ) : span d ≤ 10 * universeSize d := by
   omega
 
 /-- Relative start of the summary, immediately after the five-word header. -/
+@[wram_arith]
 def summaryOffset : ℕ := 5
 
 /-- Relative start of cluster `i` in a depth-`d + 1` record. The summary occupies slot zero. -/
+@[wram_arith]
 def clusterOffset (d i : ℕ) : ℕ := 5 + (i + 1) * span d
 
 /-- Every header word offset lies strictly within the record span. -/
@@ -133,9 +137,7 @@ theorem header_word_lt_span (d : ℕ) {h : ℕ} (hh : h < 5) : h < span d :=
 
 /-- The entire header precedes every summary word. -/
 theorem header_word_lt_summary_word {h : ℕ} (hh : h < 5) (a : ℕ) :
-    h < summaryOffset + a := by
-  dsimp only [summaryOffset]
-  omega
+    h < summaryOffset + a := by wram_omega
 
 /-- The summary block fits within the parent record's span. -/
 theorem summary_end_le_span (d : ℕ) : summaryOffset + span d ≤ span (d + 1) := by
@@ -204,7 +206,6 @@ theorem span_mono {a b : ℕ} (hab : a ≤ b) : span a ≤ span b := by
   | @step m _ ih =>
     refine ih.trans (show span m ≤ span (m + 1) by
       have h := summary_end_le_span m
-      dsimp only [summaryOffset] at h
-      omega)
+      wram_omega [h])
 
 end Cslib.DataStructure.VanEmdeBoas

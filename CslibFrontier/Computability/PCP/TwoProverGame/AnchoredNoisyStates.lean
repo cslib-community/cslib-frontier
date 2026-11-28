@@ -62,21 +62,15 @@ private theorem map_questionsGivenRest_congr {T : Type*} [Finite T] (f : PairQ �
     unfold Revealed.combine
     by_cases hi : i ∈ C <;>
       simp [Equiv.piEquivPiSubtypeProd_symm_apply, hi, join, full, restoreMessage]
-  have hm (i : Free) : ((p q i).map f) = ((p q' i).map f) := by
-    by_cases hi : i = j
-    · subst i
-      simp only [p, Function.update_self, PMF.pure_map, h]
-    · simp only [p, Function.update_of_ne hi]
+  have hpi (s : PairQ) : ((pi (p s)).map full.combine).map (fun u => f ∘ u) =
+      (pi fun i => (p s i).map f).map join := by
+    rw [PMF.map_comp, hc, ← PMF.map_comp]
+    exact congrArg (PMF.map join) (pi_map (p s) (fun _ => f)).symm
   change ((pi (p q)).map full.combine).map (fun u => f ∘ u) =
     ((pi (p q')).map full.combine).map (fun u => f ∘ u)
-  simp only [PMF.map_comp, hc]
-  simp only [← PMF.map_comp]
-  have hq := pi_map (p q) (fun _ => f)
-  have hq' := pi_map (p q') (fun _ => f)
-  change pi (fun i => (p q i).map f) = (pi (p q)).map (fun u => f ∘ u) at hq
-  change pi (fun i => (p q' i).map f) = (pi (p q')).map (fun u => f ∘ u) at hq'
-  rw [← hq, ← hq']
-  simp only [hm]
+  rw [hpi q, hpi q']
+  congr 2 with i
+  by_cases hi : i = j <;> simp [p, hi, h]
 
 omit [Fintype A] [Fintype B] in
 /-- Keeping Bob's selected question fixed keeps his entire conditional question law fixed. -/
@@ -158,16 +152,12 @@ theorem norm_checkedVectorGivenBob_sq_inl (S : RepeatedStrategy) (j : Free) (t :
       (noise α : ℝ) * ‖checkedVectorGivenRest G α C S j t (none, y) a b‖ ^ 2 +
         (1 - (noise α : ℝ)) * ‖checkedVectorGivenRest G α C S j t (x, y) a b‖ ^ 2 := by
   let L (x' : Option X) := aliceQuestionsGivenRest G α C j t (x', y)
-  have hL :
-      (fun erase : Bool => L (if erase then none else x)) =
-        fun erase => if erase then L none else L x := by
-    funext erase
-    cases erase <;> rfl
   simp only [checkedVectorGivenBob, aliceGivenMessage, noisyQuestion, PMF.bind_map,
     Function.comp_def, checkedVectorGivenRest]
   change ‖S.averagedCheckedVector C ((coin (noise α)).bind fun erase =>
     L (if erase then none else x)) _ a b‖ ^ 2 = _
-  rw [hL, QuantumStrategy.norm_averagedCheckedVector_sq_coin,
+  simp only [apply_ite L]
+  rw [QuantumStrategy.norm_averagedCheckedVector_sq_coin,
     bobQuestionsGivenRest_congr G α C j t (x, y) (none, y) rfl]
 
 end Cslib.PCP.AnchoredDependency

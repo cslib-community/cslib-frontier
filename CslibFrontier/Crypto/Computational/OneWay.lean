@@ -170,14 +170,11 @@ always succeed. -/
 theorem eval_inversionGame_of_rightInverse (f : List Bool → List Bool)
     (inverse : ℕ → List Bool → List Bool) (h : ∀ x, f (inverse x.length (f x)) = f x) (n : ℕ) :
     ProbComp.eval (inversionGame f (fun n y => pure (inverse n y)) n) = PMF.pure true := by
-  have hgame : ProbComp.eval (inversionGame f (fun n y => pure (inverse n y)) n) =
-      (BitString.uniformList n).map fun x => f (inverse n (f x)) == f x := by
-    simp [inversionGame, inversionExperiment]
-  rw [hgame, ← PMF.bind_pure_comp, PMF.bind_congr_on_support _ _ (fun _ => PMF.pure true)
-    fun x hx => by
-      rw [Function.comp_apply, ← BitString.length_of_mem_support_uniformList hx, h,
-        beq_self_eq_true],
-    PMF.bind_const]
+  simp only [inversionGame, inversionExperiment, ProbComp.eval_bind, ProbComp.eval_pure,
+    BitString.eval_sampleList]
+  refine (PMF.bind_congr_on_support _ _ (fun _ => PMF.pure true) fun x hx => ?_).trans
+    (PMF.bind_const _ _)
+  simp [← BitString.length_of_mem_support_uniformList hx, h]
 
 /-- **Inverting with probability bounded away from zero refutes one-wayness**: an efficient
 inverter whose success probability is at least a fixed `c > 0` at every length. -/
@@ -265,15 +262,13 @@ theorem succProbability_inversionGameOn_le_of_imp {f : List Bool → List Bool}
     Game.succProbability (ProbComp.eval (inversionGameOn f valid₁ adversary n)) ≤
       Game.succProbability (ProbComp.eval (inversionGameOn f valid₂ adversary n)) := by
   refine Game.succProbability_mono ?_
-  unfold inversionGameOn
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList]
-  refine PMF.bind_apply_mono_on_support _ _ fun x hx => ?_
-  have hlenx : x.length = n := BitString.mem_support_uniformList_iff.mp hx
-  refine PMF.bind_apply_mono_on_support _ _ fun x' _ => ?_
+  simp only [inversionGameOn, ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList]
+  refine PMF.bind_apply_mono_on_support _ _ fun x hx =>
+    PMF.bind_apply_mono_on_support _ _ fun x' _ => ?_
   cases hwin : (valid₁ n x' && f x' == f x)
   · simp
   · simp only [Bool.and_eq_true, beq_iff_eq] at hwin
-    simp [h x x' hlenx hwin.1 hwin.2, hwin.2]
+    simp [h x x' (BitString.mem_support_uniformList_iff.mp hx) hwin.1 hwin.2, hwin.2]
 
 /-- Shrinking the domain preserves one-wayness. -/
 theorem OneWayOn.mono {f : List Bool → List Bool} {valid₁ valid₂ : ℕ → List Bool → Bool}

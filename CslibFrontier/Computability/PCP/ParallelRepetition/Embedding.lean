@@ -135,9 +135,8 @@ private theorem dist_map_condLaw_shared_le
   -- The event `D_j = b`, read off `T` and off the sample.
   set Eμ : Set (Revealed X Y C × (C → A × B)) := {s | s.1.bit j = b}
   set ES : Set (Sample X Y C) := {ω | ω.1 j = b}
-  have hTV : TV ⁻¹' Eμ = ES := by
-    ext ω
-    simp only [TV, Eμ, ES, Set.mem_preimage, Set.mem_ofPred_eq, bit_revealed]
+  have hTV : TV ⁻¹' Eμ = ES :=
+    Set.ext fun _ => by simp only [TV, Eμ, ES, Set.mem_preimage, Set.mem_ofPred_eq, bit_revealed]
   have hF : (fun ω => (TV ω, ω.2 j)) ⁻¹' (Prod.fst ⁻¹' Eμ) = ES := hTV
   -- (6.7): `D_j = b` has probability `1 / 2` on both sides, so Claim 6.1 applies.
   have hhalf : (P.toOuterMeasure ES).toReal = 1 / 2 := toOuterMeasure_condLaw_bit hC j b
@@ -148,10 +147,8 @@ private theorem dist_map_condLaw_shared_le
   have hq : (((P.map TV).bind κ).toOuterMeasure (Prod.fst ⁻¹' Eμ)).toReal = 1 / 2 := by
     rw [← PMF.toOuterMeasure_map_apply, Cslib.Probability.PMF.map_fst_bind_pair,
       PMF.toOuterMeasure_map_apply, hTV, hhalf]
-  have hpE := (Cslib.Probability.PMF.toOuterMeasure_toReal_pos_iff _ _).mp
-    (by rw [hp]; norm_num)
-  have hqE := (Cslib.Probability.PMF.toOuterMeasure_toReal_pos_iff _ _).mp
-    (by rw [hq]; norm_num)
+  have hpE := (Cslib.Probability.PMF.toOuterMeasure_toReal_pos_iff _ _).mp (by rw [hp]; norm_num)
+  have hqE := (Cslib.Probability.PMF.toOuterMeasure_toReal_pos_iff _ _).mp (by rw [hq]; norm_num)
   have hμE : ∃ s ∈ Eμ, s ∈ (P.map TV).support := by
     obtain ⟨ω, hω, hsupp⟩ := hES
     exact ⟨TV ω, (Set.ext_iff.mp hTV ω).mpr hω,
@@ -176,16 +173,15 @@ private theorem dist_map_condLaw_shared_le
   -- (6.10): `S` and the pair at `j` ignore `D_j`, so the condition drops.
   have hL : ((P.filter ES hES).map fun ω => (TV ω, ω.2 j)).map Φ =
       P.map fun ω => (ω.2 j, shared ha hb j ω) := by
-    have hΦF : (Φ ∘ fun ω => (TV ω, ω.2 j)) = fun ω => (ω.2 j, shared ha hb j ω) := rfl
-    rw [PMF.map_comp, hΦF]
-    exact map_filter_condLaw_bit hC j b _ (fun d c q => by simp only [shared_update]) hES
+    rw [PMF.map_comp]
+    exact map_filter_condLaw_bit hC j b (fun ω => (ω.2 j, shared ha hb j ω))
+      (fun _ _ _ => by simp only [shared_update]) hES
   -- Under `D_j = b`, the revealed half at `j` is `reveal b` of the pair.
   have hsupp : (P.filter ES hES).map (fun ω => ((revealed C ω).halves j, shared ha hb j ω)) =
       (P.filter ES hES).map (fun ω => (reveal b (ω.2 j), shared ha hb j ω)) := by
     refine Cslib.Probability.PMF.map_congr_on_support _ _ _ fun ω hω => ?_
     rw [PMF.support_filter] at hω
-    have hb : ω.1 j = b := hω.1
-    simp only [revealed, hb]
+    simp only [revealed, show ω.1 j = b from hω.1]
   have hR : (((P.filter ES hES).map TV).bind κ).map Φ =
       (P.map fun ω => (reveal b (ω.2 j), shared ha hb j ω)).bind
         fun (r, s) => (pairGiven G r).map (·, s) := by
@@ -196,8 +192,7 @@ private theorem dist_map_condLaw_shared_le
       _ = _ := by
           rw [hsupp, map_filter_condLaw_bit hC j b _
             (fun d c q => by simp only [shared_update]) hES]
-  rw [hL, hR] at h1
-  exact h1
+  rwa [hL, hR] at h1
 
 /-- **Holenstein's (6.7)–(6.12)** [Holenstein, proof of Lemma 6.4, (6.7)–(6.12)][Holenstein2009]:
 under `W_C`, drawing the pair at `j` given only `S` and the half `R_j = reveal b (x_j, y_j)`
@@ -247,9 +242,7 @@ private theorem dist_condLaw_withKernel_condY_le
         fun (r, s) => (pairGiven G r).map (·, s) := by
     simp only [J, PMF.map_comp, PMF.bind_map, Function.comp_def, reveal_false, pairGiven]
     rfl
-  have hJ : J.map Prod.fst = (condLaw G C ha hb hC).map fun ω => ω.2 j := by
-    rw [PMF.map_comp]
-    rfl
+  have hJ : J.map Prod.fst = (condLaw G C ha hb hC).map fun ω => ω.2 j := PMF.map_comp _ _ _
   rw [hR, hJ] at h
   exact h.trans (add_le_add_right (dist_map_le _ _ _) _)
 
@@ -273,9 +266,7 @@ private theorem dist_condLaw_withKernel_condX_le
         fun (r, s) => (pairGiven G r).map (·, s) := by
     simp only [J, PMF.map_comp, PMF.bind_map, Function.comp_def, reveal_true, pairGiven]
     rfl
-  have hJ : J.map Prod.fst = (condLaw G C ha hb hC).map fun ω => ω.2 j := by
-    rw [PMF.map_comp]
-    rfl
+  have hJ : J.map Prod.fst = (condLaw G C ha hb hC).map fun ω => ω.2 j := PMF.map_comp _ _ _
   rw [hR, hJ] at h
   exact h.trans (add_le_add_right (dist_map_le _ _ _) _)
 

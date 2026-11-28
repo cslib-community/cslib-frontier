@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Analysis.Asymptotics.Ring
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Asymptotic cost bounds
@@ -84,10 +85,8 @@ theorem of_le_add_mul {size : α → ℕ} (a b : ℕ) (h : ∀ x, cost x ≤ a +
     (fun _ _ hmn => Nat.add_le_add_left (Nat.mul_le_mul_left b hmn) a) ?_ h
   refine IsBigO.of_bound (a + b) ?_
   filter_upwards [Filter.eventually_ge_atTop 1] with n hn
-  have hn' : (1 : ℝ) ≤ n := by exact_mod_cast hn
   rw [Real.norm_of_nonneg (by positivity), Real.norm_of_nonneg (by positivity)]
-  push_cast
-  nlinarith
+  cast_nlinarith [hn]
 
 end CostIsBigO
 

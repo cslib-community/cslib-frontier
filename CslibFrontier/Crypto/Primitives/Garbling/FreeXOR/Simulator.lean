@@ -138,7 +138,8 @@ private theorem nonXorRank_mono (free : List Bool) {g g' : ℕ} (h : g ≤ g') :
     nonXorRank free g ≤ nonXorRank free g' :=
   (List.take_sublist_take_left h).count_le _
 
-private theorem nonXorRank_lt (free : List Bool) {g g' : ℕ} (hg : g < free.length)
+/-- A non-XOR gate strictly increases `nonXorRank`. -/
+theorem nonXorRank_lt (free : List Bool) {g g' : ℕ} (hg : g < free.length)
     (hf : free[g] = false) (h : g < g') : nonXorRank free g < nonXorRank free g' := by
   have hsucc := nonXorRank_succ free hg
   rw [hf] at hsucc
@@ -188,16 +189,19 @@ private noncomputable def rowCoinIndex (f : ValidCircuit)
     (r : GarbledRow (toCircuit f).topology (freeCircuit f)) : ℕ :=
   f.1.n + f.1.q + 4 * nonXorRank (phiXor.phi f).free r.gate + PointPermute.rowIndex r.2
 
+/-- The non-XOR rank strictly increases past the gate of a garbled row. -/
+private theorem nonXorRank_gate_lt (f : ValidCircuit)
+    (r : GarbledRow (toCircuit f).topology (freeCircuit f)) {j : ℕ} (hj : (r.gate : ℕ) < j) :
+    nonXorRank (phiXor.phi f).free r.gate < nonXorRank (phiXor.phi f).free j := by
+  have hq : (r.gate : ℕ) < f.1.q := r.gate.isLt.trans_eq (size_toCircuit f)
+  have hfree : (phiXor.phi f).free[(r.gate : ℕ)]'(by simp [phiXor, hq]) = false := by
+    simpa [phiXor] using (show isXorGate f.1 ⟨r.gate, hq⟩ = false from r.1.2)
+  exact nonXorRank_lt (phiXor.phi f).free (by simp [phiXor, hq]) hfree hj
+
 private theorem rowCoinIndex_lt (f : ValidCircuit)
     (r : GarbledRow (toCircuit f).topology (freeCircuit f)) :
     rowCoinIndex f r < f.1.n + f.1.q + 4 * nonXorRank (phiXor.phi f).free f.1.q := by
-  have hlt_q : (r.gate : ℕ) < f.1.q := by
-    have hlt := r.gate.isLt
-    have hsz := size_toCircuit f
-    omega
-  have hfree : (phiXor.phi f).free[(r.gate : ℕ)]'(by simp [phiXor, hlt_q]) = false := by
-    simpa [phiXor] using (show isXorGate f.1 ⟨r.gate, hlt_q⟩ = false from r.1.2)
-  have hrank := nonXorRank_lt (phiXor.phi f).free (by simp [phiXor, hlt_q]) hfree hlt_q
+  have hrank := nonXorRank_gate_lt f r (r.gate.isLt.trans_eq (size_toCircuit f))
   have hrow := PointPermute.rowIndex_lt_four (arity_topology_toCircuit f r.gate) r.2
   simp only [rowCoinIndex]
   omega
@@ -229,29 +233,15 @@ private theorem simIndex_bijective (f : ValidCircuit) : Function.Bijective (simI
           nonXorRank (phiXor.phi f).free r'.gate := by omega
       have hrow : PointPermute.rowIndex r.2 = PointPermute.rowIndex r'.2 := by omega
       have hgg : r.gate = r'.gate := by
-        have hsz := size_toCircuit f
-        have hq : (r.gate : ℕ) < f.1.q := by have := r.gate.isLt; omega
-        have hq' : (r'.gate : ℕ) < f.1.q := by have := r'.gate.isLt; omega
-        have hf : (phiXor.phi f).free[(r.gate : ℕ)]'(by simp [phiXor, hq]) = false := by
-          simpa [phiXor] using (show isXorGate f.1 ⟨r.gate, hq⟩ = false from r.1.2)
-        have hf' : (phiXor.phi f).free[(r'.gate : ℕ)]'(by simp [phiXor, hq']) = false := by
-          simpa [phiXor] using (show isXorGate f.1 ⟨r'.gate, hq'⟩ = false from r'.1.2)
         rcases lt_trichotomy (r.gate : ℕ) r'.gate with hlt | heq | hgt
-        · exact absurd (nonXorRank_lt (phiXor.phi f).free (by simp [phiXor, hq]) hf hlt)
-            (by omega)
+        · exact absurd (nonXorRank_gate_lt f r hlt) (by omega)
         · exact Fin.ext heq
-        · exact absurd (nonXorRank_lt (phiXor.phi f).free (by simp [phiXor, hq']) hf' hgt)
-            (by omega)
+        · exact absurd (nonXorRank_gate_lt f r' hgt) (by omega)
       obtain ⟨⟨g, hg⟩, c⟩ := r
       obtain ⟨⟨g', hg'⟩, c'⟩ := r'
       change g = g' at hgg
       subst hgg
-      have hc : c = c' := funext fun a => by
-        have har := arity_topology_toCircuit f g
-        have ht := congrFun (PointPermute.testBit_rowIndex_of_eq_two har c) a
-        have ht' := congrFun (PointPermute.testBit_rowIndex_of_eq_two har c') a
-        rw [← ht, ← ht', hrow]
-      subst hc
+      obtain rfl := PointPermute.rowIndex_injective_of_eq_two (arity_topology_toCircuit f g) hrow
       rfl
   · have hcard := card_garbledRow_toCircuit f
     have hsz := size_toCircuit f
@@ -307,36 +297,16 @@ private theorem simRow_eq_simulateWith (k : ℕ) (f : ValidCircuit) (y : Fin f.1
         (slotTweak (toCircuit f).topology (freeCircuit f) k) y
         (propagate (toCircuit f).topology (freeCircuit f) (simBaseLabels k coins))
         (simFillerRows k f coins)).table (garbledRowOf _ g hg i)) := by
-  have hsize := size_toCircuit f
   have harity := arity_topology_toCircuit f g
-  have hA₁ := f.2.one_le_A (g.cast (size_toCircuit f))
-  have hAB := f.2.A_lt_B (g.cast (size_toCircuit f))
-  have hBg := f.2.B_lt_gate (g.cast (size_toCircuit f))
-  simp only [ConventionalCircuit.topo, Fin.val_cast] at hA₁ hAB hBg
-  have hgs := g.isLt
-  set A := propagate (toCircuit f).topology (freeCircuit f) (simBaseLabels k coins)
-  have hw₀ := wires_toCircuit_zero f g (by omega)
-  have hw₁ := wires_toCircuit_one f g (by omega)
   have hc₀ : (Fin.cast harity.symm 0 : Fin ((toCircuit f).topology.arity g)) = ⟨0, by omega⟩ :=
     Fin.ext rfl
   have hc₁ : (Fin.cast harity.symm 1 : Fin ((toCircuit f).topology.arity g)) = ⟨1, by omega⟩ :=
     Fin.ext rfl
+  set A := propagate (toCircuit f).topology (freeCircuit f) (simBaseLabels k coins)
   rw [simPropWords_q]
   dsimp only [simRow, phiXor, phiTopo, ConventionalCircuit.topo, Fin.val_cast]
-  have hg₀ := HalfGates.getD_ofFn_labels A (i := f.1.n + g.val) (by omega)
-  have hg₁ := HalfGates.getD_ofFn_labels A (i := f.1.A (g.cast (size_toCircuit f)) - 1) (by omega)
-  have hg₂ := HalfGates.getD_ofFn_labels A (i := f.1.B (g.cast (size_toCircuit f)) - 1) (by omega)
-  dsimp only [A] at hg₀ hg₁ hg₂
-  simp only [hg₀, hg₁, hg₂]
-  have hWg : (Wire.ofNat (f.1.n + g.val) (by omega) : Wire f.1.n (toCircuit f).size) = .gate g :=
-    Wire.toNat_injective (by simp)
-  have hWa : (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) (by omega) :
-      Wire f.1.n (toCircuit f).size) =
-      (toCircuit f).topology.wires g (Fin.cast harity.symm 0) := hw₀.symm
-  have hWb : (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega) :
-      Wire f.1.n (toCircuit f).size) =
-      (toCircuit f).topology.wires g (Fin.cast harity.symm 1) := hw₁.symm
-  rw [hWg, hWa, hWb, HalfGates.colourWord_labelBits, HalfGates.colourWord_labelBits]
+  simp only [getD_ofFn_wire_gate, getD_ofFn_wire_A, getD_ofFn_wire_B,
+    HalfGates.colourWord_labelBits]
   set idx := (if (A ((toCircuit f).topology.wires g (Fin.cast harity.symm 0))).2 then 2 else 0) +
     (if (A ((toCircuit f).topology.wires g (Fin.cast harity.symm 1))).2 then 1 else 0) with hidx
   have hidx_eq : idx = PointPermute.rowIndex fun a =>
@@ -344,39 +314,24 @@ private theorem simRow_eq_simulateWith (k : ℕ) (f : ValidCircuit) (y : Fin f.1
     rw [hidx, PointPermute.rowIndex_of_eq_two harity, hc₀, hc₁]
   have hcond : (i = idx) ↔ (garbledRowOf (toCircuit f).topology g hg i).2 =
       fun a => (A ((toCircuit f).topology.wires g a)).2 := by
-    constructor
-    · intro heq
-      subst heq
-      funext a
-      dsimp only [garbledRowOf]
-      rw [hidx_eq]
-      exact congrFun (PointPermute.testBit_rowIndex_of_eq_two harity _) _
-    · intro heq
-      have hr := congrArg PointPermute.rowIndex heq
-      dsimp only [garbledRowOf] at hr
-      rw [PointPermute.rowIndex_testBit_of_eq_two harity hi, ← hidx_eq] at hr
-      exact hr
+    dsimp only [garbledRowOf]
+    conv_lhs => rw [hidx_eq, ← PointPermute.rowIndex_testBit_of_eq_two harity hi]
+    exact (PointPermute.rowIndex_injective_of_eq_two harity).eq_iff
   dsimp only [simulateWith, GarbledRow.gate]
-  have hcond' : (i = idx) ↔ (garbledRowOf (toCircuit f).topology g hg i).snd = fun k_1 =>
-      (A ((toCircuit f).topology.wires
-        (↑(garbledRowOf (toCircuit f).topology g hg i).fst) k_1)).2 := hcond
-  by_cases hhit : i = idx
-  · rw [ite_eq_left hhit, ite_eq_left (hcond'.mp hhit)]
-    conv_rhs =>
+  rw [apply_ite labelBits]
+  refine ite_congr (propext hcond) (fun _ => ?_) (fun _ => ?_)
+  · conv_rhs =>
       change labelBits (A (.gate g) + ∑ k_1 : Fin ((toCircuit f).topology.arity g),
         CCR.atLevel hash k ((A ((toCircuit f).topology.wires g k_1)).1, false)
           (slotTweak (toCircuit f).topology (freeCircuit f) k
             ⟨garbledRowOf (toCircuit f).topology g hg i, k_1⟩))
     rw [labelBits_add, ← Fin.sum_congr' _ harity.symm, Fin.sum_univ_two, labelBits_add,
-      labelBits_atLevel_key, labelBits_atLevel_key]
-    congr 2
-    · congr 1
-      exact (ofFn_slotTweak_garbledRowOf f k g hg hi (Fin.cast harity.symm 0)).symm
-    · congr 1
-      exact (ofFn_slotTweak_garbledRowOf f k g hg hi (Fin.cast harity.symm 1)).symm
-  · rw [ite_eq_right hhit, ite_eq_right (fun h => hhit (hcond'.mpr h)), simFillerRows,
-      labelBits_labelOfWord (PointPermute.length_simLabel k coins _), rowCoinIndex,
-      GarbledRow.gate, garbledRowOf, PointPermute.rowIndex_testBit_of_eq_two harity hi]
+      labelBits_atLevel_key, labelBits_atLevel_key, ofFn_slotTweak_garbledRowOf _ _ _ _ hi,
+      ofFn_slotTweak_garbledRowOf _ _ _ _ hi]
+    rfl
+  · rw [simFillerRows, labelBits_labelOfWord (PointPermute.length_simLabel k coins _),
+      rowCoinIndex, GarbledRow.gate, garbledRowOf,
+      PointPermute.rowIndex_testBit_of_eq_two harity hi]
     rfl
 
 private theorem encodeGate_simulateWith (k : ℕ) (f : ValidCircuit) (y : Fin f.1.m → Bool)
@@ -450,14 +405,7 @@ private theorem simViewWord_eq (k : ℕ) (f : ValidCircuit) (y coins : List Bool
   rw [show (phiXor.phi f).topo.1.q = f.1.q from rfl, simPropWords_q]
   simp only [phiXor, phiTopo, ConventionalCircuit.topo]
   refine congrArg List.ofFn (funext fun o => ?_)
-  have hm := f.2.m_le_q
-  have hsize := size_toCircuit f
-  simp only [ConventionalCircuit.topo] at hm
-  have hout : (Wire.ofNat (f.1.n + f.1.q - f.1.m + o) (by omega) :
-      Wire f.1.n (toCircuit f).size) = (toCircuit f).outputs o :=
-    Wire.toNat_injective (by rw [Wire.toNat_ofNat, toNat_outputs_toCircuit])
-  rw [HalfGates.getD_ofFn_labels _ (i := f.1.n + f.1.q - f.1.m + o) (by omega), hout,
-    HalfGates.colourWord_labelBits]
+  rw [getD_ofFn_wire_output, HalfGates.colourWord_labelBits]
   rfl
 
 /-- **The simulator samples the typed simulator's view.** -/
@@ -737,83 +685,20 @@ variable {hash : List Bool → List Bool → List Bool}
   (hf : ComputableInPolyTime (fun p : List Bool × List Bool => hash p.1 p.2)
     (encPair encBits encBits) encBits)
 
-include hf in
-private theorem simRowNonXor_polyTime :
-    ComputableInPolyTime (fun p : ((ℕ × ℕ × ℕ) × (List Bool × List (List Bool) × List Bool)) ×
-        (ℕ × ℕ × ℕ × ℕ) =>
-        let a := p.1.2.2.1.getD p.2.2.1 []
-        let b := p.1.2.2.1.getD p.2.2.2.1 []
-        let idx := (if HalfGates.colourWord p.1.1.1 a then 2 else 0) +
-          (if HalfGates.colourWord p.1.1.1 b then 1 else 0)
-        if p.2.2.2.2 = idx then
-          List.zipWith xor (p.1.2.2.1.getD (p.1.1.2.1 + p.2.1) [])
-            (List.zipWith xor (keyHashWord hash p.1.1.1 a (PointPermute.tweak p.1.1.1 p.2.1
-                p.2.2.2.2 0))
-              (keyHashWord hash p.1.1.1 b (PointPermute.tweak p.1.1.1 p.2.1 p.2.2.2.2 1)))
-        else PointPermute.simLabel p.1.1.1 p.1.2.2.2
-          (p.1.1.2.1 + p.1.1.2.2 + 4 * nonXorRank p.1.2.1 p.2.1 + p.2.2.2.2))
-      (encPair (encPair (encPair encUnary (encPair encUnary encUnary))
-        (encPair encBits (encPair (encList encBits) encBits)))
-        (encPair encUnary (encPair encUnary (encPair encUnary encUnary)))) encBits := by
-  have hcol : ComputableInPolyTime (fun q : ℕ × List Bool => HalfGates.colourWord q.1 q.2)
-      (encPair encUnary encBits) encBool := by polytime [HalfGates.colourWord]
-  have hxor : ComputableInPolyTime (fun q : List Bool × List Bool => List.zipWith xor q.1 q.2)
-      (encPair encBits encBits) encBits := by polytime
-  have hfst := ComputableInPolyTime.fst
-    (encPair (encPair encUnary (encPair encUnary encUnary))
-      (encPair encBits (encPair (encList encBits) encBits)))
-    (encPair encUnary (encPair encUnary (encPair encUnary encUnary)))
-  have hsnd := ComputableInPolyTime.snd
-    (encPair (encPair encUnary (encPair encUnary encUnary))
-      (encPair encBits (encPair (encList encBits) encBits)))
-    (encPair encUnary (encPair encUnary (encPair encUnary encUnary)))
-  have hk := hfst.fst'.fst'
-  have hn := hfst.fst'.snd'.fst'
-  have hq := hfst.fst'.snd'.snd'
-  have hfree := hfst.snd'.fst'
-  have hlabels := hfst.snd'.snd'.fst'
-  have hcoins := hfst.snd'.snd'.snd'
-  have hg := hsnd.fst'
-  have ha_idx := hsnd.snd'.fst'
-  have hb_idx := hsnd.snd'.snd'.fst'
-  have hi := hsnd.snd'.snd'.snd'
-  have ha := ComputableInPolyTime.listGetDWithInput hlabels ha_idx []
-  have hb := ComputableInPolyTime.listGetDWithInput hlabels hb_idx []
-  have h2bool : ComputableInPolyTime (fun b : Bool => if b then 2 else 0) encBool encUnary := by
-    polytime
-  have h1bool : ComputableInPolyTime (fun b : Bool => if b then 1 else 0) encBool encUnary := by
-    polytime
-  have hidx := ComputableInPolyTime.unary_add' (h2bool.comp (hcol.comp (hk.prod ha)))
-    (h1bool.comp (hcol.comp (hk.prod hb)))
-  have huEq : ComputableInPolyTime (fun q : ℕ × ℕ => decide (q.1 = q.2))
-      (encPair encUnary encUnary) encBool := by polytime
-  have heq_cond : ComputableInPolyTime (fun p => decide (p.2.2.2.2 =
-      ((if HalfGates.colourWord p.1.1.1 (p.1.2.2.1.getD p.2.2.1 []) then 2 else 0) +
-        (if HalfGates.colourWord p.1.1.1 (p.1.2.2.1.getD p.2.2.2.1 []) then 1 else 0))))
-      (encPair (encPair (encPair encUnary (encPair encUnary encUnary))
-        (encPair encBits (encPair (encList encBits) encBits)))
-        (encPair encUnary (encPair encUnary (encPair encUnary encUnary)))) encBool :=
-    huEq.comp (hi.prod hidx)
-  have hout := ComputableInPolyTime.listGetDWithInput hlabels
-    (ComputableInPolyTime.unary_add' hn hg) []
-  have hm₀ := keyHashWord_polyTime hf hk ha (PointPermute.tweak_polyTime hk hg hi
-    (ComputableInPolyTime.const 0))
-  have hm₁ := keyHashWord_polyTime hf hk hb (PointPermute.tweak_polyTime hk hg hi
-    (ComputableInPolyTime.const 1))
-  have hactive := hxor.comp (hout.prod (hxor.comp (hm₀.prod hm₁)))
-  have hrank := nonXorCount_polyTime hfree hg
-  have hfiller := PointPermute.simLabel_polyTime hk hcoins (by
-    have h4r : ComputableInPolyTime (fun p => 4 * nonXorRank p.1.2.1 p.2.1)
-        (encPair (encPair (encPair encUnary (encPair encUnary encUnary))
-          (encPair encBits (encPair (encList encBits) encBits)))
-          (encPair encUnary (encPair encUnary (encPair encUnary encUnary)))) encUnary :=
-      ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const 4).prod hrank)
-    exact ComputableInPolyTime.unary_add'
-      (ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_add' hn hq) h4r) hi)
-  have hite := ComputableInPolyTime.ite' heq_cond hactive hfiller
-  convert hite using 2
-  dsimp only [Function.comp_def]
-  simp only [decide_eq_true_eq]
+/-- Library infrastructure (no cited result): polynomial-time gate-row prefixing shared between
+the Free-XOR simulator and CCR reduction. -/
+theorem rowData_polyTime {γ : Type} {encIn : γ ↪ List Bool}
+    {g i : γ → ℕ} {free body : γ → List Bool}
+    (hfree : ComputableInPolyTime free encIn encBits)
+    (hg : ComputableInPolyTime g encIn encUnary)
+    (hi : ComputableInPolyTime i encIn encUnary)
+    (hbody : ComputableInPolyTime body encIn encBits) :
+    ComputableInPolyTime (fun x =>
+      (if i x = 0 then [(free x).getD (g x) false] else []) ++
+        if (free x).getD (g x) false then [] else body x) encIn encBits := by
+  polytime
+
+attribute [local fun_prop] PointPermute.simLabel_polyTime
 
 include hf in
 private theorem simRowData_polyTime {γ : Type} {encIn : γ ↪ List Bool}
@@ -826,21 +711,26 @@ private theorem simRowData_polyTime {γ : Type} {encIn : γ ↪ List Bool}
     (hb : ComputableInPolyTime b encIn encUnary) (hi : ComputableInPolyTime i encIn encUnary) :
     ComputableInPolyTime (fun x => simRowData hash (k x) (n x) (q x) (free x) (labels x)
       (coins x) (g x) (a x) (b x) (i x)) encIn encBits := by
-  have hisXor := ComputableInPolyTime.bitsGetDWithInput hfree hg false
-  have hi0 : ComputableInPolyTime (fun x => decide (i x = 0)) encIn encBool := by polytime
-  have hsing : ComputableInPolyTime (fun b : Bool => [b]) encBool encBits := by polytime
-  have hpre : ComputableInPolyTime (fun x => if i x = 0 then [(free x).getD (g x) false] else [])
-      encIn encBits := by
-    have h := ComputableInPolyTime.ite' hi0 (hsing.comp hisXor) (ComputableInPolyTime.const [])
-    rwa [show (fun x => if decide (i x = 0) = true then ((fun b => [b]) ∘ fun x =>
-        (free x).getD (g x) false) x else []) =
-      (fun x => if i x = 0 then [(free x).getD (g x) false] else []) from
-      funext fun x => by simp] at h
-  have hbody := (simRowNonXor_polyTime hf).comp
-    (((hk.prod (hn.prod hq)).prod (hfree.prod (hlabels.prod hcoins))).prod
-      (hg.prod (ha.prod (hb.prod hi))))
-  have hpost := ComputableInPolyTime.ite' hisXor (ComputableInPolyTime.const []) hbody
-  exact ComputableInPolyTime.bitsAppend hpre hpost
+  have hla := ComputableInPolyTime.listGetDWithInput hlabels ha []
+  have hlb := ComputableInPolyTime.listGetDWithInput hlabels hb []
+  have hm₀ := keyHashWord_polyTime hf hk hla
+    (PointPermute.tweak_polyTime hk hg hi (ComputableInPolyTime.const 0))
+  have hm₁ := keyHashWord_polyTime hf hk hlb
+    (PointPermute.tweak_polyTime hk hg hi (ComputableInPolyTime.const 1))
+  have hrank := nonXorCount_polyTime hfree hg
+  have hbody : ComputableInPolyTime (fun x =>
+      let la := (labels x).getD (a x) []
+      let lb := (labels x).getD (b x) []
+      let idx := (if HalfGates.colourWord (k x) la then 2 else 0) +
+        (if HalfGates.colourWord (k x) lb then 1 else 0)
+      if i x = idx then
+        List.zipWith xor ((labels x).getD (n x + g x) [])
+          (List.zipWith xor (keyHashWord hash (k x) la (PointPermute.tweak (k x) (g x) (i x) 0))
+            (keyHashWord hash (k x) lb (PointPermute.tweak (k x) (g x) (i x) 1)))
+      else PointPermute.simLabel (k x) (coins x)
+        (n x + q x + 4 * nonXorRank (free x) (g x) + i x)) encIn encBits := by
+    polytime [HalfGates.colourWord]
+  exact rowData_polyTime hfree hg hi hbody
 
 include hf in
 private theorem simViewWord_polyTime :
@@ -848,33 +738,20 @@ private theorem simViewWord_polyTime :
       simViewWord hash p.1.1 p.1.2.1 p.1.2.2 p.2) (encPair encSimInput encBits) encPrvView := by
   have hfst := ComputableInPolyTime.fst encSimInput encBits
   have hcoins := ComputableInPolyTime.snd encSimInput encBits
-  have hk : ComputableInPolyTime (fun p : (ℕ × List Bool × XorTopology) × List Bool => p.1.1)
-      (encPair encSimInput encBits) encUnary := (ComputableInPolyTime.fst _ _).comp hfst
-  have hy : ComputableInPolyTime (fun p : (ℕ × List Bool × XorTopology) × List Bool =>
-      p.1.2.1) (encPair encSimInput encBits) encBits :=
-    (ComputableInPolyTime.snd _ _).fst'.comp hfst
+  have hk := hfst.fst'
+  have hy := hfst.snd'.fst'
   have hd := simData_polyTime.comp hfst
   have hn := hd.fst'
   have hm := hd.snd'.fst'
   have hgates := hd.snd'.snd'
   have hq := (ComputableInPolyTime.length_list _).comp hgates
-  have hfree : ComputableInPolyTime (fun p : (ℕ × List Bool × XorTopology) × List Bool =>
-      p.1.2.2.free) (encPair encSimInput encBits) encBits :=
-    encXorTopology_free_polyTime ((ComputableInPolyTime.snd _ _).snd'.comp hfst)
+  have hfree := encXorTopology_free_polyTime hfst.snd'.snd'
   have hP := simPropWords_polyTime
   have hq_val : ComputableInPolyTime (fun p : (ℕ × List Bool × XorTopology) × List Bool =>
       p.1.2.2.topo.1.q) (encPair encSimInput encBits) encUnary := by
     simpa only [Function.comp_def, Topo.length_gateList] using hq
-  have hcap_eq : (fun p : (ℕ × List Bool × XorTopology) × List Bool =>
-      (simPropWords p.1.1 p.1.2.2.topo.1 p.1.2.2.free p.2 p.1.2.2.topo.1.q).length + 1) =
-      fun p => p.1.2.2.topo.1.n + p.1.2.2.topo.1.q + 1 :=
-    funext fun p => congrArg (· + 1) (length_simPropWords _ _ _ _ le_rfl)
-  have hcap : ComputableInPolyTime (fun p : (ℕ × List Bool × XorTopology) × List Bool =>
-      (simPropWords p.1.1 p.1.2.2.topo.1 p.1.2.2.free p.2 p.1.2.2.topo.1.q).length + 1)
-      (encPair encSimInput encBits) encUnary := by
-    rw [hcap_eq]
-    exact ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_add' hn hq_val)
-      (ComputableInPolyTime.const 1)
+  have hcap := ComputableInPolyTime.unary_add' ((ComputableInPolyTime.length_list _).comp hP)
+    (ComputableInPolyTime.const 1)
   have hx := ComputableInPolyTime.fst (encPair encSimInput encBits)
     (encPair encUnary (encPair encUnary (encPair encUnary encUnary)))
   have hrest := ComputableInPolyTime.snd (encPair encSimInput encBits)
@@ -909,10 +786,7 @@ private theorem simViewWord_polyTime :
       (encPair encUnary (encPair encBits (encPair encUnary (encPair encUnary (encList encBits)))))
       encBits := by
     polytime [HalfGates.colourWord]
-  have hdecOff : ComputableInPolyTime (fun p : (ℕ × List Bool × XorTopology) × List Bool =>
-      p.1.2.2.topo.1.n + p.1.2.2.topo.1.gateList.length - p.1.2.2.topo.1.m)
-      (encPair encSimInput encBits) encUnary := by
-    polytime
+  have hdecOff := ComputableInPolyTime.unary_sub' (ComputableInPolyTime.unary_add' hn hq) hm
   have hdec := hdecRange.comp (hk.prod (hy.prod (hm.prod (hdecOff.prod hP))))
   simp only [simViewWord_eq_data]
   exact encPrvView_mk_polyTime hF hX hdec

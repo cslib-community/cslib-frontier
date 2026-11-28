@@ -33,19 +33,13 @@ theorem eval_blocks_eq_true_iff (q : Bool) (bs : List (List V)) (φ : QBF V) (σ
   induction bs generalizing q σ with
   | nil => simp [blocks, updates]
   | cons vs bs ih =>
-    have key (w : List Bool) (hw : w.length = vs.length) (r : Bool) :
-        (blocks r bs φ).eval (updates σ vs w) = true ↔
-          Cslib.Complexity.Alternation r (bs.map List.length)
-            (fun u => φ.eval (updates σ (vs ++ bs.flatten) (w ++ u)) = true) := by
-      rw [ih]
-      simp only [updates_append hw]
     cases q
-    · rw [blocks, eval_alls_iff_word]
-      simp only [List.map_cons, List.flatten_cons, Cslib.Complexity.alternation_false_cons]
-      exact forall_congr' fun w => imp_congr_right fun hw => key w hw true
-    · rw [blocks, eval_exs_iff_word]
-      simp only [List.map_cons, List.flatten_cons, Cslib.Complexity.alternation_true_cons]
-      exact exists_congr fun w => and_congr_right fun hw => key w hw false
+    · simp only [blocks, eval_alls_iff_word, List.map_cons, List.flatten_cons,
+        Cslib.Complexity.alternation_false_cons]
+      exact forall_congr' fun w => imp_congr_right fun hw => by simp only [ih, updates_append hw]
+    · simp only [blocks, eval_exs_iff_word, List.map_cons, List.flatten_cons,
+        Cslib.Complexity.alternation_true_cons]
+      exact exists_congr fun w => and_congr_right fun hw => by simp only [ih, updates_append hw]
 
 /-- Negation swaps every quantifier in the prefix and negates the matrix. -/
 theorem eval_blocks_dual (q : Bool) (bs : List (List V)) (φ : QBF V) (σ : V → Bool) :

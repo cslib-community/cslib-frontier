@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.WordRAM.Realization.Basic
+public import CslibFrontier.Computability.WordRAM.Realization.Structure
 public import CslibFrontier.DataStructure.PriorityQueue.BinaryHeap.Memory
 
 /-!
@@ -19,6 +19,7 @@ The same encoding is shared by both sifts and the finite family of operation bod
 
 ## Main definitions
 
+* `layoutBodyWords`: faithful three-word encoding of `Memory.Layout n` via `word_enc_structure`.
 * `HeapLayout`, `layoutWords`: the existing layout and its faithful four-word encoding.
 * `IndexArgument`, `indexWords`: append a runtime heap position to the layout.
 * `HandleArgument`, `handleWords`: the same word vector for a typed valid handle.
@@ -38,20 +39,23 @@ namespace Cslib.DataStructure.PriorityQueue.BinaryHeap.Native
 
 open Cslib.WordRAM.Realization
 
+section
+variable {n : ℕ}
+
+/-- Faithful three-word representation of a heap layout: `size` block (`base`, `length`) then
+array `base`. -/
+word_enc_structure layoutBodyWords : Memory.Layout n where
+  size : blockWords,
+  base : wordWords
+
+end
+
 /-- The existing dependent layout, including the runtime number of handles. -/
 abbrev HeapLayout := Σ n, Memory.Layout n
 
 /-- The runtime layout has a faithful four-word representation. -/
-def layoutWords : HeapLayout ↪ (Fin 4 → ℕ) where
-  toFun d := ![d.1, d.2.size.base, d.2.size.length, d.2.base]
-  inj' := by
-    rintro ⟨n, ⟨⟨b, l⟩, a⟩⟩ ⟨n', ⟨⟨b', l'⟩, a'⟩⟩ h
-    have hn : n = n' := by simpa using congrFun h 0
-    have hb : b = b' := by simpa using congrFun h 1
-    have hl : l = l' := by simpa using congrFun h 2
-    have ha : a = a' := by simpa using congrFun h 3
-    subst n'; subst b'; subst l'; subst a'
-    rfl
+def layoutWords : HeapLayout ↪ (Fin 4 → ℕ) :=
+  sigmaWords wordWords fun _ => layoutBodyWords
 
 /-- A runtime layout with a heap position or handle word. -/
 abbrev IndexArgument := HeapLayout × ℕ

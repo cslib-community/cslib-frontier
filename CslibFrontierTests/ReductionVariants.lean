@@ -68,12 +68,8 @@ example : PolyTimeKTruthTableReducible 2 encBits encBits
 
 /-- Pointwise order of answer words is preserved by reading a position. -/
 theorem headD_drop_le {u v : List Bool} (h : List.Forall₂ (· ≤ ·) u v) (n : ℕ) :
-    (u.drop n).headD false ≤ (v.drop n).headD false := by
-  induction h generalizing n with
-  | nil => exact le_rfl
-  | cons hab _ ih => cases n with
-    | zero => exact hab
-    | succ n => exact ih n
+    (u.drop n).headD false ≤ (v.drop n).headD false :=
+  headD_false_le_of_forall₂ (List.forall₂_drop n h)
 
 /-- Majority of three queries: a positive truth-table reduction that is neither disjunctive nor
 conjunctive. -/

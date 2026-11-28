@@ -60,9 +60,9 @@ theorem layeredParameters_inSpace (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
       (fun n => (encNat n).length) := by
   have hin : (fun n => (encNat n).length) ≼ (fun n => (encNat n).length) := .refl _
   have hn := budget_id hin
-  have hB := radix_budget (radixExponent State c) hn hin
+  have hB := radix_budget (radixExponent State c) hn
   exact encLayeredParameters_mk_budget hn hB
-    (budget_natSucc (vertexBound_budget (k := k) hB hin)) (startID_budget ntm hB hin)
+    (budget_natSucc (vertexBound_budget (k := k) hB)) (startID_budget ntm hB)
 
 /-- The parameters can be computed by a native logspace machine from the raw word. -/
 theorem layeredParameters_inLogSpace (ntm : MultiTapeNTM k Bool State) (c : ℕ) :

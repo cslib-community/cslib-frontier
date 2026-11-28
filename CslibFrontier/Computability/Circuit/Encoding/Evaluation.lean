@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Circuit.Boolean.Encoding
+public import CslibFrontier.Computability.Circuit.Encoding.Basic
 import Mathlib.Data.List.GetD
 
 /-!
@@ -116,32 +116,26 @@ theorem getD_evalCode (I : Interpretation σ U) (d : U) (x : List U)
     (evalCode I d x gates).getD (x.length + j) d =
       I gate.1 fun a => gate.2[a.val]?.elim d ((evalCode I d x gates).getD · d) := by
   obtain ⟨hj, rfl⟩ := List.getElem?_eq_some_iff.1 hg
-  have hsplit : gates = gates.take j ++ [gates[j]] ++ gates.drop (j + 1) := by
-    rw [List.append_assoc, List.singleton_append, ← List.drop_eq_getElem_cons hj,
-      List.take_append_drop]
   have hlen : (evalCode I d x (gates.take j)).length = x.length + j := by
     rw [length_evalCode, List.length_take, Nat.min_eq_left hj.le]
   have hpre := prefix_evalCode I d (evalCode I d x (gates.take j ++ [gates[j]]))
     (gates.drop (j + 1))
-  rw [← evalCode_append, ← hsplit, evalCode_append_singleton] at hpre
+  have hsplit : gates.take j ++ [gates[j]] ++ gates.drop (j + 1) = gates := by
+    rw [List.append_assoc, List.singleton_append, ← List.drop_eq_getElem_cons hj,
+      List.take_append_drop]
+  rw [← evalCode_append, hsplit, evalCode_append_singleton] at hpre
   obtain ⟨rest, hrest⟩ := hpre
-  -- the arguments read wires computed before gate `j`
-  have hargs : ∀ i ∈ gates[j].2, i < x.length + j := by
-    intro i hi
-    have := (h.getElem j hj).2 i hi
-    omega
-  have hread (i : ℕ) (hi : i < x.length + j) :
-      (evalCode I d x gates).getD i d = (evalCode I d x (gates.take j)).getD i d := by
-    rw [← hrest, List.append_assoc, List.getD_append _ _ _ _ (by omega)]
-  have hv : (evalCode I d x gates).getD (x.length + j) d = I gates[j].1 fun a =>
-      gates[j].2[a.val]?.elim d ((evalCode I d x (gates.take j)).getD · d) := by
-    rw [← hrest, List.getD_append _ _ _ _ (by simp [hlen]), List.getD_append_right _ _ _ _
-      (by omega), hlen, Nat.sub_self, List.getD_cons_zero]
-  rw [hv]
+  rw [← hrest, List.getD_append _ _ _ _ (by simp [hlen]),
+    List.getD_append_right _ _ _ _ (by omega), hlen, Nat.sub_self, List.getD_cons_zero]
   congr 1 with a : 1
+  -- the arguments read wires computed before gate `j`
   rcases ha : gates[j].2[a.val]? with _ | i
   · rfl
-  · exact (hread i (hargs i (List.mem_of_getElem? ha))).symm
+  · have hi : i < x.length + j := by
+      have := (h.getElem j hj).2 i (List.mem_of_getElem? ha)
+      omega
+    dsimp only [Option.elim]
+    rw [List.append_assoc, List.getD_append _ _ _ _ (by omega)]
 
 /-- Wire `w` is at position `w.toNat` of the inputs followed by the gates. -/
 theorem Wire.getD_append_toNat (x : Fin n → U) (y : Fin k → U) (d : U) (w : Wire n k) :
