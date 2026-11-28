@@ -70,8 +70,7 @@ theorem exec_neighbors {w n q a : ℕ} {keys : Fin n → ℕ} (p : NodeParameter
   have hfu : Frame x u := frame_moved _ _ (by simp [neighborInputs, neighborBank, bank])
   let v := ((u.set (neighborBank 3) 18).set (neighborBank 3) (a + 18)).set (neighborBank 4) 2
   have huv : Exec w neighborAddress u v 3 := by
-    unfold neighborAddress
-    wram_exec [hfu.2 pointer (by decide), hxa]
+    wram_exec [neighborAddress, hfu.2 pointer (by decide), hxa]
   have hfv : Frame u v :=
     (frame_set u _ _ (by decide)).trans
       ((frame_set _ _ _ (by decide)).trans (frame_set _ _ _ (by decide)))

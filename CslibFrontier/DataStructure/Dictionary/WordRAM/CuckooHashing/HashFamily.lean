@@ -592,8 +592,7 @@ theorem copyWordsLoop_exec {w : ℕ} (len src dst : ℕ) {x : Data 19}
     have hfit_src1 : Fits w (src + 1) := by fits
     have hfit_dst1 : Fits w (dst + 1) := by fits
     refine WP.Exact.exists_exec (WP.Exact.loop_iter hc ?_)
-    unfold copyWordsBody
-    wram_exec [hsrc, hdst, hone]
+    wram_exec [copyWordsBody, hsrc, hdst, hone]
     wram_call (ih (src + 1) (dst + 1)
       (by wram_simp) (by wram_simp) (by wram_simp [hend]; omega) (by wram_simp [hone])
       (by omega) (by rwa [show dst + 1 + len = dst + (len + 1) by omega]))
@@ -660,8 +659,7 @@ theorem initTableHashPairCode_execWithin {w hashBase c_exp n_max U M : ℕ} {x :
     refine WP.exists_execWithin (WP.seq ?_)
     wram_call (KWise.initTableCode_execWithin h0 h1 h2 h3 hfit_kw hfit_n hfit_U hfit_q)
       canonical injective_cast18To19 with y_kw ⟨htab_kw, hy_kw0, hy_kw_out⟩
-    unfold copyTableSetup
-    wram_exec [hy_kw0, show hashBase + singleHashSpace c_exp n_max =
+    wram_exec [copyTableSetup, hy_kw0, show hashBase + singleHashSpace c_exp n_max =
       hash2Base hashBase c_exp n_max from rfl]
     wram_call ((copyWordsLoop_exec (singleHashSpace c_exp n_max) hashBase
       (hash2Base hashBase c_exp n_max) (by wram_simp [hy_kw0]) (by wram_simp) (by wram_simp)

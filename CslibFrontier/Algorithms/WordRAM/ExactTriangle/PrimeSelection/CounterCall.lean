@@ -53,8 +53,7 @@ theorem exec_count {w n p scratch a b c A : ℕ} (x : Data 160) (u v z : ℕ →
   have hinj : Function.Injective counterRegisters :=
     fun _ _ h => Fin.ext (congrArg (fun i : Fin 160 => i.val) h)
   refine WP.exists_execWithin ?_
-  unfold count
-  wram_exec [hn, hp, hAB, hBC, hAC, hs]
+  wram_exec [count, hn, hp, hAB, hBC, hAC, hs]
   wram_call (CountPrime.exec (n := n) (p := p) (a := a) (b := b) (c := c) (scratch := scratch)
     _ u v z hp0 rfl rfl rfl rfl rfl rfl
     ha hb hc hu hv hz hinU hinV hinZ hmag hw)

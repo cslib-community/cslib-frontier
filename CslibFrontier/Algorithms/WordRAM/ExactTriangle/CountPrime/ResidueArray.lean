@@ -45,8 +45,7 @@ theorem exec_residues {w n p a b : ℕ} (src dst : Fin 128) (x : Data 128)
   have hd9 : dst ≠ Reg.low9 := fun h => by subst h; contradiction
   have hd10 : dst ≠ Reg.low10 := fun h => by subst h; contradiction
   refine WP.exists_execWithin ?_
-  unfold residues
-  wram_exec [ha, hb, hc, hm, hs, hd9, hd10]
+  wram_exec [residues, ha, hb, hc, hm, hs, hd9, hd10]
   wram_call (ThreeSum.ChanHe.Residues.exec _ values hp hmod
     (by wram_simp) (by wram_simp; exact hv) (by wram_simp; exact haf)
     (by wram_simp; exact hbf) (by wram_simp; exact hdisjoint)

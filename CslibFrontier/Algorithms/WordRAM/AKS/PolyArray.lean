@@ -104,8 +104,7 @@ theorem exec {w : ℕ} (x : Data 10) {b r n e a : ℕ} (hb : x.regs base = b) (h
       rintro _ as v m hI
       have hfit' (u : ℕ) (hu : u ≤ b + r) : Fits w u := hfb.of_le hu
       refine ⟨by rw [hr]; omega, ?_⟩
-      unfold clearBody
-      wram_exec [hb, hfit']
+      wram_exec [clearBody, hb, hfit']
       refine ⟨by wram_simp; omega, fun a' => ?_⟩
       by_cases ha' : a' = b + v i
       · subst ha'; wram_simp; exact (ite_eq_left (by omega)).symm
@@ -194,8 +193,7 @@ theorem exec {w : ℕ} (x : Data 9) {a b r : ℕ} (ha : x.regs p = a) (hb : x.re
     ∃ y, ExecWithin w program x y (11 * r + 5) ∧ y.regs flag ≤ 1 ∧
       (y.regs flag = 1 ↔ ∀ k' < r, x.mem (a + k') = x.mem (b + k')) ∧ y.mem = x.mem := by
   classical
-  unfold program
-  wram_exec
+  wram_exec [program]
   wram_fold (fun rest y => y.regs k + rest.length = r ∧ y.mem = x.mem ∧
       y.regs flag = if ∀ k' < y.regs k, x.mem (a + k') = x.mem (b + k') then 1 else 0)
     over (List.replicate r ()) cost (fun _ => 9)
@@ -212,8 +210,7 @@ theorem exec {w : ℕ} (x : Data 9) {a b r : ℕ} (ha : x.regs p = a) (hb : x.re
       ⟨fun h => ⟨fun k' hk' => h k' (by omega), h (v k) (by omega)⟩,
         fun ⟨h, hK⟩ k' hk' => (Nat.lt_succ_iff_lt_or_eq.mp hk').elim (h k') (· ▸ hK)⟩
     refine ⟨by rw [hr]; omega, ?_⟩
-    unfold body
-    wram_exec [ha, hb, hf1, hf2] <;>
+    wram_exec [body, ha, hb, hf1, hf2] <;>
       exact ⟨by wram_simp; omega, by wram_simp, by wram_simp [hfl, hiff]; simp [hc]⟩
   case post =>
     rintro v m ⟨hk, rfl, hfl⟩

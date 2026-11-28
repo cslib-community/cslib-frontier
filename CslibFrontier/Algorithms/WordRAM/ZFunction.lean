@@ -355,8 +355,7 @@ private theorem while_ext_spec {w : ℕ} (s : List ℕ) (sb zb : ℕ) :
             x₁.mem = x.mem ∧
             ∀ r : Fin 16, r ≠ regk → r ≠ go → r ≠ t0 → r ≠ t1 → x₁.regs r = x.regs r := by
           refine WP.exists_execWithin ?_
-          unfold extBody
-          wram_exec [hr.one_eq, hr.sb_eq, hr.len_eq, hik_lt, hread_k, hread_ik, heq_ch,
+          wram_exec [extBody, hr.one_eq, hr.sb_eq, hr.len_eq, hik_lt, hread_k, hread_ik, heq_ch,
             hf_ik, hf_sbk, hf_sbik, hf_k1]
           refine ⟨by wram_simp, by wram_simp [hgo], rfl, fun r hr1 hr2 hr3 hr4 => ?_⟩
           simp only [Data.set_regs, Function.update_of_ne hr1, Function.update_of_ne hr3,
@@ -1000,8 +999,7 @@ private theorem emptyMatchCode_spec {w : ℕ} (txt : List ℕ)
     have hf_addr : Fits w (outAddr + 1 + j) := hw.of_le (by simp only [outAddr]; omega)
     have hf_j1 : Fits w (j + 1) := hw.of_le (by omega)
     refine WP.exists_execWithin ?_
-    unfold emptyMatchBody
-    wram_exec [so, sout, hf_o1, hf_addr, hf_j1]
+    wram_exec [emptyMatchBody, so, sout, hf_o1, hf_addr, hf_j1]
     refine ⟨⟨by wram_simp [so], by wram_simp [sout], by wram_simp [st1], ?_, ?_, ?_⟩,
       by wram_simp⟩
     · wram_simp [outAddr, shdr]
@@ -1072,8 +1070,8 @@ private theorem filterBody_spec {w : ℕ} (I : MatchInput)
         z.regs outCnt = s.regs outCnt ∧
         z.mem = s.mem := by
       refine WP.exists_execWithin ?_
-      unfold filterBody
-      wram_exec [hrs.one_eq, hrs.pl_eq, hrs.zb_eq, hread_z, hlt_p, hf_mj, hf_zbmj, hf_j1]
+      wram_exec [filterBody,
+        hrs.one_eq, hrs.pl_eq, hrs.zb_eq, hread_z, hlt_p, hf_mj, hf_zbmj, hf_j1]
       exact ⟨⟨by wram_simp [hrs.zero_eq], by wram_simp [hrs.one_eq], by wram_simp [hrs.pl_eq],
         by wram_simp [hrs.tl_eq], by wram_simp [hrs.sb_eq], by wram_simp [hrs.sl_eq],
         by wram_simp [hrs.zb_eq], by wram_simp [hrs.out_eq]⟩,
@@ -1104,8 +1102,7 @@ private theorem filterBody_spec {w : ℕ} (I : MatchInput)
         z.mem = Function.update s.mem
           (3 + 2 * (I.pat.length + I.txt.length) + 1 + ms.length) j := by
       refine WP.exists_execWithin ?_
-      unfold filterBody
-      wram_exec [hrs.one_eq, hrs.pl_eq, hrs.zb_eq, hrs.out_eq, hread_z, hlt_p,
+      wram_exec [filterBody, hrs.one_eq, hrs.pl_eq, hrs.zb_eq, hrs.out_eq, hread_z, hlt_p,
         hf_mj, hf_zbmj, hf_j1, hf_oc1, hf_out_oc]
       refine ⟨⟨by wram_simp [hrs.zero_eq], by wram_simp [hrs.one_eq], by wram_simp [hrs.pl_eq],
         by wram_simp [hrs.tl_eq], by wram_simp [hrs.sb_eq], by wram_simp [hrs.sl_eq],
@@ -1267,8 +1264,7 @@ theorem matchCode_exec {w : ℕ} (I : MatchInput)
   have hsetup_ex : ∃ x₁, ExecWithin w matchSetup x x₁ 9 ∧
       MatchRegs I x₁ ∧ x₁.mem = x.mem := by
     refine WP.exists_execWithin ?_
-    unfold matchSetup
-    wram_exec [x, Data.init_regs, hm1, hm2, hf_1, hf_2, hf_3, hf_sl, hf_zb, hf_out]
+    wram_exec [matchSetup, x, Data.init_regs, hm1, hm2, hf_1, hf_2, hf_3, hf_sl, hf_zb, hf_out]
     exact ⟨⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp, by wram_simp; omega, by wram_simp; omega⟩, rfl⟩
   obtain ⟨x₁, hsetup, hrx₁, hmem₁⟩ := hsetup_ex

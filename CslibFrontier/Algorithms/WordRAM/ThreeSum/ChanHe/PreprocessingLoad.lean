@@ -60,8 +60,7 @@ theorem loadRoot_exec {w U f t : ℕ} {l : Frontend.Layout} {rs : List (ℕ × �
   obtain ⟨y, he, hy⟩ :
       ∃ y, Exec w loadRoot x y 14 ∧ (entry l U f rs t).Loaded y ∧ y.mem = x.mem := by
     refine WP.Exact.exists_exec ?_
-    unfold loadRoot
-    wram_exec [hc, hd, hf, hs, ho, hmul, hbase, hF, hx.2, Nat.add_assoc,
+    wram_exec [loadRoot, hc, hd, hf, hs, ho, hmul, hbase, hF, hx.2, Nat.add_assoc,
       ha' 1 (by decide), ha' 2 (by decide), ha' 3 (by decide), ha' 4 (by decide),
       ha' 5 (by decide)]
     refine ⟨⟨by wram_simp [entry], fun j => ?_, fun j => ?_⟩, by wram_simp⟩

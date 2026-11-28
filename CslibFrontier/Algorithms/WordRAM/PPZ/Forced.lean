@@ -363,8 +363,7 @@ theorem unitScan_spec (τ : Fin n → Option Bool) (x : Fin n) (b : Bool) (φ : 
       z.regs fnd = (φ.any (unitTest τ x b)).toNat := by
   obtain ⟨hz, h1, h2, hx, hst, hfit, hpos⟩ := hf
   refine WP.exists_execWithin ?_
-  unfold unitScan
-  wram_exec [hz]
+  wram_exec [unitScan, hz]
   wram_call (clauseLoop_spec τ x b φ false _ ..) framed [*] with v m ⟨rfl, hfz⟩
   exact ⟨by omega, rfl, by simpa using hfz⟩
 
@@ -379,8 +378,7 @@ theorem forcedCode_spec (φ : CNF (Fin n)) (τ : Fin n → Option Bool) (x : Fin
   obtain ⟨hz, h1, h2, hx, hst, hfit, hpos⟩ := hf
   rw [forced_eq_ite]
   refine WP.exists_execWithin ?_
-  unfold forcedCode
-  wram_exec [h1]
+  wram_exec [forcedCode, h1]
   wram_call (unitScan_spec τ x true φ _ ..) framed [*] with v₁ m₁ ⟨rfl, hfnd₁⟩
   by_cases ht : φ.any (unitTest τ x true) = true
   · wram_exec [hfnd₁, ht, h1]

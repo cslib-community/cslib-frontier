@@ -36,8 +36,7 @@ theorem exec_trial {w : ℕ} (x : Data 160) (hp : 2 ≤ x.regs Reg.cursor)
       y.regs Reg.trialFlag = (if (x.regs Reg.cursor).Prime then 1 else 0) ∧
       y.mem = x.mem ∧ ∀ i, 6 ≤ i.val → y.regs i = x.regs i := by
   let p := x.set Reg.trialArg (x.regs Reg.cursor)
-  unfold trial
-  wram_exec
+  wram_exec [trial]
   wram_call (PrimeTrial.exec (p.comap trialRegisters) hp hfit) renamed trial_injective with
     y ⟨⟨hflag, _, hmem⟩, hframe⟩
   refine ⟨?_, hflag, hmem, ?_⟩

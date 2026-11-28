@@ -32,8 +32,7 @@ private def writeSeven : Code .standard 2 := ram[ a ← #3; b ← #7; *a ← b ]
 private theorem writeSeven_spec {w : ℕ} (x : Data 2) (h7 : Fits w 7) :
     ∃ y, ExecWithin w writeSeven x y 3 ∧
       y.mem = Function.update x.mem 3 7 ∧ y.regs 1 = 7 ∧ y.regs 0 = 3 := by
-  unfold writeSeven
-  wram_exec [h7, h7.of_le (show 3 ≤ 7 by decide)]
+  wram_exec [writeSeven, h7, h7.of_le (show 3 ≤ 7 by decide)]
   wram_simp [Data.write_mem]
 
 private def caller : Code .standard 4 :=
@@ -44,8 +43,7 @@ example {w : ℕ} (x : Data 4) (h9 : Fits w 9) :
     ∃ y, ExecWithin w caller x y 5 ∧ y.mem 3 = 7 ∧ y.mem 9 = 7 ∧
       y.regs 1 = x.regs 1 ∧ y.regs 3 = 9 ∧ y.regs 2 = 3 ∧
       ∀ a, a ≠ 3 → a ≠ 9 → y.mem a = x.mem a := by
-  unfold caller
-  wram_exec [h9]
+  wram_exec [caller, h9]
   wram_call (writeSeven_spec _ (h9.of_le (by omega))) canonical
     (by decide : bank.Injective) with y ⟨hm, hv, ha⟩
   wram_exec [hv]
@@ -118,8 +116,7 @@ example {w : ℕ} (x : Data 4) (h7 : Fits w 7) :
     WP.Exact w (writeSeven.rename bank) x (fun y t => t = 3 ∧ y.regs 1 = x.regs 1) := by
   have he : Exec w writeSeven (x.comap bank)
       ((((x.comap bank).set a 3).set b 7).write 3 7) 3 := by
-    unfold writeSeven
-    wram_exec [h7, h7.of_le (show 3 ≤ 7 by decide)]
+    wram_exec [writeSeven, h7, h7.of_le (show 3 ≤ 7 by decide)]
   wram_call he canonical
   exact ⟨trivial, by wram_simp⟩
 

@@ -62,8 +62,7 @@ theorem exec_locate {w : ℕ} (x : Data registers) (h1 : x.regs one = 1)
       (x.regs inputDepth + 1) * x.regs span + (x.regs inputDepth + 1) * x.regs span) :=
     hw.of_le (by nlinarith)
   refine WP.exists_execWithin_preserves locate_preserves ?_
-  unfold locate
-  wram_exec [h1, h4, hds, hv, hs]
+  wram_exec [locate, h1, h4, hds, hv, hs]
   intro hregs
   wram_simp
   exact ⟨by ring, by ring, by ring, hregs⟩

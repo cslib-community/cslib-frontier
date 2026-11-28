@@ -225,8 +225,7 @@ theorem pushWords_exec {k w F n : ℕ} [NeZero k] (base top cursor width one : F
   have hk : 1 ≤ k := Nat.pos_of_ne_zero (NeZero.ne k)
   have hnk : n * k + k = (n + 1) * k := (Nat.succ_mul n k).symm
   have hn_le : n ≤ n * k := Nat.le_mul_of_pos_right n hk
-  unfold push
-  wram_exec [hbase, htop, hwidth]
+  wram_exec [push, hbase, htop, hwidth]
   refine WP.Exact.name fun x₁ hx₁ => ?_
   obtain ⟨z, hz, hzmem, _, hzregs⟩ := storeCursor_exec (w := w) cursor one fields x₁ hone_cur
     hfields_cur (by wram_simp [hx₁, hone]) (by wram_simp [hx₁]; fits)
@@ -290,8 +289,7 @@ theorem popWords_exec {k w F n : ℕ} [NeZero k] (base top cursor width one : Fi
       ∀ i, ¬PopLocal top cursor fields i → y.regs i = x.regs i := by
   have hk : 1 ≤ k := Nat.pos_of_ne_zero (NeZero.ne k)
   have hn_le : n ≤ n * k := Nat.le_mul_of_pos_right n hk
-  unfold pop
-  wram_exec [hbase, htop, hwidth, hone]
+  wram_exec [pop, hbase, htop, hwidth, hone]
   refine WP.Exact.name fun x₂ hx₂ => ?_
   obtain ⟨y, hy, hymem, hyfields, _, hyregs⟩ := loadCursor_exec cursor one fields x₂ hone_cur
     hfields_cur hfields_one hinj (by wram_simp [hx₂, hone]) (by wram_simp [hx₂]; fits)
