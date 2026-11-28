@@ -83,7 +83,7 @@ private theorem memLp_exp_abs_dotProduct (a : ι → ℝ) :
     MemLp (fun z : ι → ℝ => exp |a ⬝ᵥ z|) 2 (Measure.pi fun _ : ι => gaussianReal 0 1) := by
   have h : MemLp (fun x : ℝ => exp |x|) 2 (gaussianReal 0 (‖WithLp.toLp 2 a‖₊ ^ 2)) := by
     refine (memLp_two_iff_integrable_sq (by fun_prop)).2 ?_
-    simpa only [← exp_nat_mul, Nat.cast_ofNat, id] using integrable_exp_mul_abs (X := id)
+    simpa only [← exp_natCast_mul, Nat.cast_ofNat, id] using integrable_exp_mul_abs (X := id)
       (integrable_exp_mul_gaussianReal 2) (integrable_exp_mul_gaussianReal (-2))
   exact h.comp_measurePreserving ⟨by fun_prop, pi_gaussianReal_map_dotProduct a⟩
 

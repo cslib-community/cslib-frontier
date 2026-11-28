@@ -204,7 +204,7 @@ theorem exp_mul_qaryEntropy_le_succ_mul_choose_mul_pow {q n e : ℕ}
   have hqeq : (((q : ℤ) - 1 : ℤ) : ℝ) = (q : ℝ) - 1 := by push_cast; ring
   have hbin := exp_mul_binEntropy_le_succ_mul_choose hen
   have hpow : exp ((e : ℝ) * log ((q : ℝ) - 1)) = ((q : ℝ) - 1) ^ e := by
-    rw [exp_nat_mul, exp_log hq1]
+    rw [exp_natCast_mul, exp_log hq1]
   have hqent :
       (n : ℝ) * qaryEntropy q ((e : ℝ) / n) =
         (n : ℝ) * binEntropy ((e : ℝ) / n) + (e : ℝ) * log ((q : ℝ) - 1) := by

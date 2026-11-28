@@ -127,8 +127,7 @@ theorem coordMove_symm (g : SpecialLinearGroup (Fin H) ℤ) (c : Fin H → ℤ) 
         c)) i : ℤ) : ZMod L)) = -((SpecialLinearGroup.map (Int.castRingHom (ZMod L)) g⁻¹ :
           Matrix (Fin H) (Fin H) (ZMod L)) *ᵥ fun i ↦ (c i : ZMod L)) := by
       ext i
-      rw [Pi.neg_apply, Pi.neg_apply, Int.cast_neg, SpecialLinearGroup.map_apply_coe,
-        RingHom.mapMatrix_apply]
+      rw [Pi.neg_apply, Pi.neg_apply, Int.cast_neg, SpecialLinearGroup.map_apply_coe]
       exact congrArg Neg.neg (RingHom.map_mulVec (Int.castRingHom (ZMod L)) _ c i)
     simp only [coordMove, Equiv.prodCongr_apply, Prod.map_snd, affineSL_apply, hc, mulVec_add,
       mulVec_neg, mulVec_mulVec, ← SpecialLinearGroup.coe_mul, ← map_mul, mul_inv_cancel, map_one,
@@ -251,31 +250,30 @@ valid wrap maps it to the channel with coordinates `coordMove g c (F, w)`. In pa
 retains `y` again. -/
 theorem variantMove_wrap_eq [NeZero L] (hL : L ≤ P) {y : ZMod P}
     (g : SpecialLinearGroup (Fin H) ℤ) (c : Fin H → ℤ) (A : RetentionSlice P H r L y) :
-    variantMove L g c (wrap L g c (A.1.eval y)) A.1 =
-      ((sliceEquiv hL y).symm (coordMove g c (sliceEquiv hL y A))).1 := by
+    variantMove L g c (wrap L g c (A.val.eval y)) A.val =
+      ((sliceEquiv hL y).symm (coordMove g c (sliceEquiv hL y A))).val := by
   refine (FrameChannel.evalEquiv y).injective (Prod.ext (funext fun i ↦ ?_) ?_)
-  · have hrep : A.1.eval y = fun j ↦ (((A.1.eval y j).val : ℤ) : ZMod P) := by
+  · have hrep : A.val.eval y = fun j ↦ (((A.val.eval y j).val : ℤ) : ZMod P) := by
       ext j
       simp
     have hP : ((SpecialLinearGroup.map (Int.castRingHom (ZMod P)) g : Matrix _ _ (ZMod P)) *ᵥ
-        A.1.eval y) i = ((((g : Matrix _ _ ℤ) *ᵥ fun j ↦ ((A.1.eval y j).val : ℤ)) i : ℤ) :
+        A.val.eval y) i = ((((g : Matrix _ _ ℤ) *ᵥ fun j ↦ ((A.val.eval y j).val : ℤ)) i : ℤ) :
           ZMod P) := by
       conv_lhs => rw [hrep]
-      rw [SpecialLinearGroup.map_apply_coe, RingHom.mapMatrix_apply]
+      rw [SpecialLinearGroup.map_apply_coe]
       exact (RingHom.map_mulVec (Int.castRingHom (ZMod P)) _ _ i).symm
     have hLmod : (((SpecialLinearGroup.map (Int.castRingHom (ZMod L)) g : Matrix _ _ (ZMod L)) *ᵥ
-        fun j ↦ (((A.1.eval y j).val : ℕ) : ZMod L)) i + (c i : ZMod L)) =
-          ((wrapTarget g c (A.1.eval y) i : ℤ) : ZMod L) := by
-      have hcast : (fun j ↦ (((A.1.eval y j).val : ℕ) : ZMod L)) =
-          Int.castRingHom (ZMod L) ∘ fun j ↦ ((A.1.eval y j).val : ℤ) := by
+        fun j ↦ (((A.val.eval y j).val : ℕ) : ZMod L)) i + (c i : ZMod L)) =
+          ((wrapTarget g c (A.val.eval y) i : ℤ) : ZMod L) := by
+      have hcast : (fun j ↦ (((A.val.eval y j).val : ℕ) : ZMod L)) =
+          Int.castRingHom (ZMod L) ∘ fun j ↦ ((A.val.eval y j).val : ℤ) := by
         ext j
         simp
-      rw [wrapTarget, Pi.add_apply, Int.cast_add, SpecialLinearGroup.map_apply_coe,
-        RingHom.mapMatrix_apply, hcast]
+      rw [wrapTarget, Pi.add_apply, Int.cast_add, SpecialLinearGroup.map_apply_coe, hcast]
       exact congrArg (· + (c i : ZMod L))
         (RingHom.map_mulVec (Int.castRingHom (ZMod L)) _ _ i).symm
-    have hval : ((((wrapTarget g c (A.1.eval y) i : ℤ) : ZMod L).val : ℕ) : ZMod P) =
-        ((wrapTarget g c (A.1.eval y) i % L : ℤ) : ZMod P) := by
+    have hval : ((((wrapTarget g c (A.val.eval y) i : ℤ) : ZMod L).val : ℕ) : ZMod P) =
+        ((wrapTarget g c (A.val.eval y) i % L : ℤ) : ZMod P) := by
       rw [← ZMod.val_intCast, Int.cast_natCast]
     simp only [FrameChannel.evalEquiv_apply, eval_variantMove, Pi.add_apply, hP,
       eval_sliceEquiv_symm, sliceEquiv_apply, coordMove, Equiv.prodCongr_apply, Prod.map_snd,
@@ -291,9 +289,9 @@ retaining `y` and any candidate set `Z` of wraps containing the valid one, the s
 the variants passing the wrap test is the value at the conditional move. -/
 theorem sum_ite_isValidWrap [NeZero L] (hL : L ≤ P) {y : ZMod P} {M : Type*} [AddCommMonoid M]
     (g : SpecialLinearGroup (Fin H) ℤ) (c : Fin H → ℤ) (A : RetentionSlice P H r L y)
-    {Z : Finset (Fin H → ℤ)} (hZ : wrap L g c (A.1.eval y) ∈ Z) (f : FrameChannel P H r → M) :
-    ∑ z ∈ Z, (if IsValidWrap L g c z (A.1.eval y) then f (variantMove L g c z A.1) else 0) =
-      f ((sliceEquiv hL y).symm (coordMove g c (sliceEquiv hL y A))).1 := by
+    {Z : Finset (Fin H → ℤ)} (hZ : wrap L g c (A.val.eval y) ∈ Z) (f : FrameChannel P H r → M) :
+    ∑ z ∈ Z, (if IsValidWrap L g c z (A.val.eval y) then f (variantMove L g c z A.val) else 0) =
+      f ((sliceEquiv hL y).symm (coordMove g c (sliceEquiv hL y A))).val := by
   simp only [isValidWrap_iff, sum_ite_eq', hZ, ite_true]
   rw [variantMove_wrap_eq hL]
 
@@ -313,14 +311,14 @@ theorem walk_sliceGraph_ofPerms_eq [NeZero L] (hL : L ≤ P) {y : ZMod P} {K : T
       wrap L (signedMove (σ k) b).1 (signedMove (σ k) b).2 w ∈ Z)
     (f : FrameChannel P H r → ℝ) (A : RetentionSlice P H r L y) :
     (sliceGraph L hL y (RotationMap.ofPerms fun k ↦ coordMove (σ k).1 (σ k).2)).walk
-        (fun B ↦ f B.1) A =
+        (fun B ↦ f B.val) A =
       𝔼 kb : K × Bool, ∑ z ∈ Z,
-        (if IsValidWrap L (signedMove (σ kb.1) kb.2).1 (signedMove (σ kb.1) kb.2).2 z (A.1.eval y)
-          then f (variantMove L (signedMove (σ kb.1) kb.2).1 (signedMove (σ kb.1) kb.2).2 z A.1)
+        (if IsValidWrap L (signedMove (σ kb.1) kb.2).1 (signedMove (σ kb.1) kb.2).2 z (A.val.eval y)
+          then f (variantMove L (signedMove (σ kb.1) kb.2).1 (signedMove (σ kb.1) kb.2).2 z A.val)
           else 0) := by
   rw [RotationMap.walk_apply]
   refine expect_congr rfl fun ⟨k, b⟩ _ ↦ ?_
-  rw [sum_ite_isValidWrap hL _ _ A (hZ k b _ A.2)]
+  rw [sum_ite_isValidWrap hL _ _ A (hZ k b _ A.property)]
   cases b
   · rfl
   · simp only [sliceGraph, RotationMap.neighbor_reindex, RotationMap.neighbor_ofPerms_true,

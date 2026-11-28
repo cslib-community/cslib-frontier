@@ -73,7 +73,7 @@ nodes. -/
 theorem sum_pair_add_swap {M : Type*} [AddCommMonoid M] (G : Fin k → Fin k → M) :
     ∑ e : Pair k, (G e.low e.high + G e.high e.low) = ∑ a, ∑ b, if a = b then 0 else G a b := by
   rw [← (pairEquiv k).symm.sum_comp]
-  change ∑ e : {e : Fin k × Fin k // e.1 < e.2}, (G e.1.1 e.1.2 + G e.1.2 e.1.1) = _
+  change ∑ e : {e : Fin k × Fin k // e.1 < e.2}, (G e.val.1 e.val.2 + G e.val.2 e.val.1) = _
   rw [← Fintype.sum_prod_type' (f := fun a b => if a = b then (0 : M) else G a b),
     sum_add_distrib,
     ← sum_subtype (univ.filter fun e : Fin k × Fin k => e.1 < e.2) (by simp)

@@ -72,7 +72,7 @@ example (k : ℕ) :
 /-- The class containing only the empty set is not closed under finite variations. -/
 example : ¬ ClosedUnderFiniteVariation ({∅} : Set (Set (List Bool))) := fun h => by
   have hmem := h (L := ∅) (L' := {[]}) rfl (by simp)
-  exact Set.singleton_ne_empty _ hmem
+  exact (Set.singleton_nonempty _).ne_empty hmem
 
 /-- Every recursively presentable class is nonempty, since `0 : ℕ` indexes a member. -/
 example {C : Set (Set (List Bool))} (hC : RecursivelyPresentable encBits C) : C.Nonempty := by

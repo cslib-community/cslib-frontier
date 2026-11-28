@@ -1363,7 +1363,7 @@ theorem demandReduction_manipulation :
       norm_num
     have ha_empty : a.bundle false = ∅ := by
       by_contra hne_emp
-      obtain ⟨j, hj⟩ := nonempty_iff_ne_empty.2 hne_emp
+      obtain ⟨j, hj⟩ := ne_empty_iff_nonempty.1 hne_emp
       have hd_ab : Disjoint (a.bundle false) (a.bundle true) := a.disjoint Bool.false_ne_true
       have hj_not_bob : j ∉ a.bundle true := Finset.disjoint_left.1 hd_ab hj
       have hbob_le : (a.bundle true).card ≤ 1 := by

@@ -77,8 +77,8 @@ private def sourceAssignment {φ : CNF ℕ} (σ : Var φ → Bool) : φ.vars.toF
   fun v => σ (.inl v)
 
 private def sourceLiteral {φ : CNF ℕ} (i : Fin φ.length) (l : {l // l ∈ φ[i]}) : Literal (Var φ) :=
-  (.inl ⟨l.1.1, List.mem_toFinset.mpr (CNF.mem_vars.mpr
-    ⟨φ[i], List.getElem_mem _, l.1.2, l.2⟩)⟩, !l.1.2)
+  (.inl ⟨l.val.1, List.mem_toFinset.mpr (CNF.mem_vars.mpr
+    ⟨φ[i], List.getElem_mem _, l.val.2, l.property⟩)⟩, !l.val.2)
 
 private def stepClauses (φ : CNF ℕ) (i : Fin φ.length) (ab : Choice) : CNF (Var φ) :=
   let s := selector i ab
@@ -120,9 +120,9 @@ private theorem eval_stepClauses_iff {φ : CNF ℕ} (σ : Var φ → Bool) (i : 
         (ab.1 = ab.2 ∨ φ[i].eval (φ.extendAssignment (sourceAssignment σ)) = false) := by
   have h (l : {l // l ∈ φ[i]}) :
       σ (sourceLiteral i l).1 = (sourceLiteral i l).2 ↔
-        φ.extendAssignment (sourceAssignment σ) l.1.1 = !l.1.2 := by
+        φ.extendAssignment (sourceAssignment σ) l.val.1 = !l.val.2 := by
     rw [CNF.extendAssignment_of_mem _ (CNF.mem_vars.mpr
-      ⟨φ[i], List.getElem_mem _, l.1.2, l.2⟩)]
+      ⟨φ[i], List.getElem_mem _, l.val.2, l.property⟩)]
     rfl
   simp only [stepClauses, CNF.eval_cons, Bool.and_eq_true, eval_gate_iff]
   split_ifs with ha

@@ -127,7 +127,7 @@ variables and equations). -/
 formulation of `P`, or `⊤` if `P` has none [FioriniMassarPokuttaTiwaryDeWolf2015, Section 3]. -/
 noncomputable def extensionComplexity [Semiring K] [PartialOrder K] [Fintype ι]
     (P : Set (ι → K)) : ℕ∞ :=
-  ⨅ r : {r : ℕ // HasExtendedFormulation P r}, (r.1 : ℕ∞)
+  ⨅ r : {r : ℕ // HasExtendedFormulation P r}, (r.val : ℕ∞)
 
 @[simp] theorem Matrix.slackMatrix_apply [Ring K] [Fintype ι] (A : Matrix μ ι K) (b : μ → K)
     (V : ν → ι → K) (i : μ) (j : ν) : A.slackMatrix b V i j = b i - A i ⬝ᵥ V j := by
@@ -185,7 +185,7 @@ theorem IsExtendedFormulation.hasExtendedFormulation [Fintype σ] [Finite τ]
 theorem IsExtendedFormulation.extensionComplexity_le [Fintype σ] [Finite τ]
     (h : IsExtendedFormulation P E F g E' F' g') :
     extensionComplexity P ≤ Fintype.card σ :=
-  iInf_le (fun r : {r : ℕ // HasExtendedFormulation P r} => (r.1 : ℕ∞))
+  iInf_le (fun r : {r : ℕ // HasExtendedFormulation P r} => (r.val : ℕ∞))
     ⟨_, h.hasExtendedFormulation⟩
 
 /-- Lower bounds on the extension complexity are lower bounds on the number of inequalities of

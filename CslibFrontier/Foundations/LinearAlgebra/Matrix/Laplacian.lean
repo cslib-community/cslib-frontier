@@ -129,7 +129,7 @@ theorem det_submatrix_eq_of_sum_eq_zero {R V : Type*} [CommRing R] [Fintype V] [
       simp only [P, transpose_apply, updateRow_apply, hcol_sum, N, M, submatrix_apply,
         diagonal_mul, mul_diagonal, e, Equiv.subtypeEquiv_apply, s]
       have hswap (k : {x // x ≠ u}) (hk : k ≠ v') : Equiv.swap u v (k : V) = k :=
-        Equiv.swap_apply_of_ne_of_ne k.2 fun h => hk (Subtype.ext h)
+        Equiv.swap_apply_of_ne_of_ne k.property fun h => hk (Subtype.ext h)
       by_cases hi : i = v' <;> by_cases hj : j = v' <;>
         simp (disch := assumption) only [hi, hj, ↓reduceIte, hswap, v', Equiv.swap_apply_right,
           neg_one_mul, one_mul, mul_neg, mul_one, neg_neg]

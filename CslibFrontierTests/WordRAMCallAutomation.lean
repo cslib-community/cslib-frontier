@@ -33,8 +33,7 @@ private def readThird : Code .standard 2 := ram[ a ← #3; b ← *a ]
 private theorem readThird_spec {w : ℕ} (x : Data 2) (h3 : Fits w 3)
     :
     ∃ y, ExecWithin w readThird x y 2 ∧ y.mem = x.mem ∧ y.regs 1 = x.mem 3 := by
-  unfold readThird
-  wram_exec [h3]
+  wram_exec [readThird, h3]
   wram_simp
 
 private def bank (i : Fin 2) : Fin 4 := ⟨i.val + 1, by omega⟩
@@ -53,8 +52,7 @@ private def caller : Code .standard 4 :=
 example {w : ℕ} (x : Data 4) (h9 : Fits w 9) :
     ∃ y, ExecWithin w caller x y 5 ∧ y.mem 9 = x.mem 3 ∧
       y.regs 3 = 9 ∧ ∀ a, a ≠ 9 → y.mem a = x.mem a := by
-  unfold caller
-  wram_exec [h9]
+  wram_exec [caller, h9]
   wram_call (readThird_spec _ (h9.of_le (by omega))) renamed bank_injective with
     y ⟨⟨hm, hv⟩, hf⟩
   have h3 : y.regs 3 = 9 := hf 3 (by
@@ -113,8 +111,7 @@ example : ¬ Fits 2 4 := by decide
 
 private theorem readThird_exact {w : ℕ} (x : Data 2) (h3 : Fits w 3) :
     ∃ y, Exec w readThird x y 2 ∧ y.mem = x.mem ∧ y.regs 1 = x.mem 3 := by
-  unfold readThird
-  wram_exec [h3]
+  wram_exec [readThird, h3]
   wram_simp
 
 /-- An exact contract called in a renamed bank: the call contributes exactly its two instructions
@@ -122,8 +119,7 @@ to the total of five, and the continuation keeps the outside register frame. -/
 example {w : ℕ} (x : Data 4) (h9 : Fits w 9) :
     ∃ y, Exec w caller x y 5 ∧ y.mem 9 = x.mem 3 ∧
       y.regs 3 = 9 ∧ ∀ a, a ≠ 9 → y.mem a = x.mem a := by
-  unfold caller
-  wram_exec [h9]
+  wram_exec [caller, h9]
   wram_call (readThird_exact _ (h9.of_le (by omega))) renamed bank_injective with
     y ⟨⟨hm, hv⟩, hf⟩
   have h3 : y.regs 3 = 9 := hf 3 (by
@@ -141,8 +137,7 @@ example {w : ℕ} (x : Data 4) (h9 : Fits w 9) :
 remains as the false goal `1 + 1 + 2 + 1 = 4`, the call charging exactly its two instructions. -/
 example {w : ℕ} (x : Data 4) (h9 : Fits w 9) (h : (5 : ℕ) = 4) :
     ∃ y, Exec w caller x y 4 ∧ y.mem 9 = x.mem 3 := by
-  unfold caller
-  wram_exec [h9]
+  wram_exec [caller, h9]
   wram_call (readThird_exact _ (h9.of_le (by omega))) renamed bank_injective with
     y ⟨⟨hm, hv⟩, hf⟩
   have h3 : y.regs 3 = 9 := hf 3 (by
@@ -187,8 +182,7 @@ private def bumpParam (k : ℕ) : Code .standard 4 := ram[ out ← #k ]
 
 private theorem bumpParam_spec {w : ℕ} (k : ℕ) (x : Data 4) (hk : Fits w k) :
     ∃ y, ExecWithin w (bumpParam k) x y 1 ∧ y.regs out = k := by
-  unfold bumpParam
-  wram_exec [hk]
+  wram_exec [bumpParam, hk]
   wram_simp
 
 /-- Witness-preserving `wram_call` supplies `ExecWithin` to `regs_frame` automatically,
@@ -205,8 +199,7 @@ example {w : ℕ} (k v : ℕ) (x : Data 4) (hk : Fits w k) (hdest : x.regs dest 
 /-- Direct `ExecWithin` contract without `with`, and `renamed` omitting explicit `hf`. -/
 example {w : ℕ} (x : Data 4) (h9 : Fits w 9) :
     ∃ y, ExecWithin w caller x y 5 ∧ y.mem 9 = x.mem 3 ∧ y.regs dest = 9 := by
-  unfold caller
-  wram_exec [h9]
+  wram_exec [caller, h9]
   have h3 : Fits w 3 := h9.of_le (by omega)
   wram_call readThird_spec renamed with y ⟨⟨hm, hv⟩, _⟩
   wram_exec * [hv]

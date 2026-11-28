@@ -495,11 +495,12 @@ variable (G)
 `|𝔼 v, f v * G.walk f v| / 𝔼 v, f v ^ 2` over the nonzero functions `f` of expectation zero. -/
 theorem spectralExpansion_eq_ciSup :
     G.spectralExpansion =
-      ⨆ f : {f : V → ℝ // 𝔼 v, f v = 0 ∧ f ≠ 0}, |𝔼 v, f.1 v * G.walk f.1 v| / 𝔼 v, f.1 v ^ 2 := by
+      ⨆ f : {f : V → ℝ // 𝔼 v, f v = 0 ∧ f ≠ 0},
+        |𝔼 v, f.val v * G.walk f.val v| / 𝔼 v, f.val v ^ 2 := by
   have hle (f : {f : V → ℝ // 𝔼 v, f v = 0 ∧ f ≠ 0}) :
-      |𝔼 v, f.1 v * G.walk f.1 v| / 𝔼 v, f.1 v ^ 2 ≤ G.spectralExpansion :=
+      |𝔼 v, f.val v * G.walk f.val v| / 𝔼 v, f.val v ^ 2 ≤ G.spectralExpansion :=
     div_le_of_le_mul₀ (expect_nonneg fun _ _ ↦ sq_nonneg _) G.spectralExpansion_nonneg
-      (abs_expect_mul_walk_le f.2.1)
+      (abs_expect_mul_walk_le f.property.1)
   refine le_antisymm ?_ (Real.iSup_le hle G.spectralExpansion_nonneg)
   refine spectralExpansion_le_of_abs_expect_mul_walk_le (Real.iSup_nonneg fun _ ↦ by positivity)
     fun f hf ↦ ?_

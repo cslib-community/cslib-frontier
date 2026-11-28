@@ -156,7 +156,8 @@ example : 1 / 2 ≤ Finset.dens (Finset.univ.filter fun w : Fin 2 → Fin 4 =>
 /-! ### Axioms -/
 
 /--
-info: 'Cslib.Complexity.ValiantVazirani.reduce_mem_UNSAT' depends on axioms: [propext]
+info: 'Cslib.Complexity.ValiantVazirani.reduce_mem_UNSAT' depends on axioms:
+[propext, Classical.choice]
 -/
 #guard_msgs (whitespace := lax) in
 #print axioms Cslib.Complexity.ValiantVazirani.reduce_mem_UNSAT

@@ -780,12 +780,12 @@ private theorem cbcDecisionTrace_prob_lower_bound {ℓ : ℕ} (q : ℕ)
   have hF : Fintype.card (CBCInput n ℓ → BitString n) = (2 ^ n) ^ N := by
     rw [Fintype.card_fun]; congr 1; simp
   let e : Fin k ≃ S := S.equivFin.symm
-  let inputs : Fin k → CBCInput n ℓ := fun i => (e i).1
+  let inputs : Fin k → CBCInput n ℓ := fun i => (e i).val
   have hinj : Function.Injective inputs := fun i j h => e.injective (Subtype.ext h)
   have hmem : ∀ x, x ∈ List.ofFn inputs → x ∈ (cbcQueryRun o0 T).2 := by
     intro x hx
     obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hx
-    exact List.mem_toFinset.1 (e i).2
+    exact List.mem_toFinset.1 (e i).property
   have hpf' : CBCPrefixFree (List.ofFn inputs) := fun x hx y hy hxy =>
     hpf x (hmem x hx) y (hmem y hy) hxy
   have hsm := (cbcSmooth_iff n k ℓ _).1 (cbcSmooth_of_prefixFree n k ℓ) inputs hinj hpf'
@@ -798,7 +798,7 @@ private theorem cbcDecisionTrace_prob_lower_bound {ℓ : ℕ} (q : ℕ)
     intro g _
     rw [hagree]
     constructor
-    · intro h i; exact h _ (e i).2
+    · intro h i; exact h _ (e i).property
     · intro h x hx
       have := h (e.symm ⟨x, hx⟩)
       simpa [inputs] using this

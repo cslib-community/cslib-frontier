@@ -57,7 +57,7 @@ private theorem jacobian_weight_sum_le {S : Type*} [CommRing S] {w : S → ℕ}
   have hnorm_mul (p q : MvPolynomial (Fin n) S) : norm (p * q) ≤ norm p * norm q :=
     sum_mul_le_of_submultiplicative hzero hadd hmul p q
   have hnorm_neg (p : MvPolynomial (Fin n) S) : norm (-p) = norm p := by
-    simp only [norm, sum_def, support_neg, coeff_neg, hneg]
+    simp only [norm, sum_def, support_neg, AddMonoidAlgebra.coeff_neg, Finsupp.neg_apply, hneg]
   have hvar (i : Fin n) : norm (X i) ≤ 1 := by
     change (monomial (Finsupp.single i 1) (1 : S)).coeff.sum (fun _ a => w a) ≤ 1
     rw [sum_monomial_eq hzero]

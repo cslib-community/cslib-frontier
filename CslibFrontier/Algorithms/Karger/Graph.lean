@@ -138,9 +138,9 @@ private theorem exists_sum_lt_le_lt {k : ℕ} (f : Fin k → ℕ) {r : ℕ} (hr 
       r < (∑ a ∈ Finset.univ.filter (· < u), f a) + f u := by
   obtain ⟨⟨u, j⟩, hj⟩ := finSigmaFinEquiv.surjective (⟨r, hr⟩ : Fin (∑ a, f a))
   have hval := finSigmaFinEquiv_apply (n := f) ⟨u, j⟩
-  have hprefix : ∑ i : Fin u.val, f (Fin.castLE u.2.le i) =
+  have hprefix : ∑ i : Fin u.val, f (Fin.castLE u.isLt.le i) =
       ∑ a ∈ Finset.univ.filter (· < u), f a :=
-    Finset.sum_bij (fun i _ => Fin.castLE u.2.le i)
+    Finset.sum_bij (fun i _ => Fin.castLE u.isLt.le i)
       (fun i _ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, i.isLt⟩)
       (fun _ _ _ _ h => Fin.castLE_injective _ h)
       (fun a ha => ⟨⟨a.val, (Finset.mem_filter.mp ha).2⟩, Finset.mem_univ _, rfl⟩) fun _ _ => rfl

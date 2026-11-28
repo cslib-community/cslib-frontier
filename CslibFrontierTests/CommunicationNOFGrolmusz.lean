@@ -66,7 +66,7 @@ theorem run_eq_of_card_one {X : Fin 1 → Type} {Z : Type} (p : Protocol X Z) (x
   induction p with
   | output z => rfl
   | speak i send p₀ p₁ ih₀ ih₁ =>
-    have hv : view i x = view i y := funext fun j => absurd (Subsingleton.elim j.1 i) j.2
+    have hv : view i x = view i y := funext fun j => absurd (Subsingleton.elim j.val i) j.property
     simp only [Protocol.run_speak, hv, ih₀, ih₁]
 
 /-- No protocol computes the generalized inner product of one bit held by one player: its

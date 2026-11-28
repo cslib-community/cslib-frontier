@@ -97,8 +97,8 @@ abbrev UpstreamNeighbors {ι : Type*} {G : SimpleGraph ι} (hT : G.IsTree) (r v 
 
 /-- Every upstream neighbor `c` of `v` in a tree rooted at `r` has `hT.parent r c.1 = v`. -/
 theorem UpstreamNeighbors.parent_eq {ι : Type*} {G : SimpleGraph ι} {hT : G.IsTree} {r v : ι}
-    (c : UpstreamNeighbors hT r v) : hT.parent r c.1 = v :=
-  c.2.2
+    (c : UpstreamNeighbors hT r v) : hT.parent r c.val = v :=
+  c.property.2
 
 /-- A non-root vertex's neighbors other than its downstream parent `hT.parent r v` are precisely its
 upstream neighbors in `UpstreamNeighbors hT r v`. -/
@@ -114,35 +114,35 @@ theorem upstream_neighbor_iff {ι : Type*} {G : SimpleGraph ι} (hT : G.IsTree) 
 /-- Distinct upstream neighbors of `v` have disjoint subtrees `hT.treeSide c.1 v`. -/
 theorem upstream_unique_of_mem_treeSide {ι : Type*} {G : SimpleGraph ι} {hT : G.IsTree}
     {r v : ι} {c c' : UpstreamNeighbors hT r v} {z : ι}
-    (hz : z ∈ hT.treeSide c.1 v) (hz' : z ∈ hT.treeSide c'.1 v) : c = c' :=
+    (hz : z ∈ hT.treeSide c.val v) (hz' : z ∈ hT.treeSide c'.val v) : c = c' :=
   by_contra fun hne => Set.disjoint_left.mp
-    (hT.disjoint_treeSide_of_adj ((hT.adj_iff_parent r).mpr (Or.inr c.2))
-      ((hT.adj_iff_parent r).mpr (Or.inr c'.2)) fun h => hne (Subtype.ext h)) hz hz'
+    (hT.disjoint_treeSide_of_adj ((hT.adj_iff_parent r).mpr (Or.inr c.property))
+      ((hT.adj_iff_parent r).mpr (Or.inr c'.property)) fun h => hne (Subtype.ext h)) hz hz'
 
 /-- Moving from `v` to an upstream neighbor `c` strictly decreases
 `Fintype.card ι - (hT.pathTo r ·).length`. -/
 theorem UpstreamNeighbors.card_sub_length_pathTo_lt {ι : Type*} [Fintype ι] {G : SimpleGraph ι}
     {hT : G.IsTree} {r v : ι} (c : UpstreamNeighbors hT r v) :
-    Fintype.card ι - (hT.pathTo r c.1).length < Fintype.card ι - (hT.pathTo r v).length := by
-  have hlt := (hT.isPath_pathTo r c.1).length_lt
-  have hstep := hT.length_pathTo_parent r c.2.1
-  rw [c.2.2] at hstep
+    Fintype.card ι - (hT.pathTo r c.val).length < Fintype.card ι - (hT.pathTo r v).length := by
+  have hlt := (hT.isPath_pathTo r c.val).length_lt
+  have hstep := hT.length_pathTo_parent r c.property.1
+  rw [c.property.2] at hstep
   omega
 
 /-- For a non-root vertex `v ≠ r`, each upstream neighbor's subtree `hT.treeSide c.1 v` is
 contained in `hT.treeSide v (hT.parent r v)`. -/
 theorem UpstreamNeighbors.treeSide_subset {ι : Type*} {G : SimpleGraph ι} {hT : G.IsTree}
     {r v : ι} (hv : v ≠ r) (c : UpstreamNeighbors hT r v) :
-    hT.treeSide c.1 v ⊆ hT.treeSide v (hT.parent r v) := fun _ hw => by
+    hT.treeSide c.val v ⊆ hT.treeSide v (hT.parent r v) := fun _ hw => by
   rw [hT.treeSide_eq_insert_biUnion (hT.adj_parent r hv)]
   exact Set.mem_insert_of_mem v
-    (mem_iUnion₂.mpr ⟨c.1, (upstream_neighbor_iff hT r hv).mpr c.2, hw⟩)
+    (mem_iUnion₂.mpr ⟨c.val, (upstream_neighbor_iff hT r hv).mpr c.property, hw⟩)
 
 /-- Every non-root vertex `z ≠ r` lies in the subtree `hT.treeSide c.1 r` of some upstream
 neighbor `c` of the root `r`. -/
 theorem exists_upstream_mem_treeSide_root {ι : Type*} {G : SimpleGraph ι} (hT : G.IsTree) (r : ι)
     {z : ι} (hzr : z ≠ r) :
-    ∃ c : UpstreamNeighbors hT r r, z ∈ hT.treeSide c.1 r := by
+    ∃ c : UpstreamNeighbors hT r r, z ∈ hT.treeSide c.val r := by
   refine ⟨⟨hT.parent z r, ((hT.adj_iff_parent r).mp (hT.adj_parent z hzr.symm)).resolve_left
     fun h => h.1 rfl⟩, ?_⟩
   simp only [SimpleGraph.IsTree.mem_treeSide]
@@ -159,14 +159,14 @@ omit [Fintype ι] [DecidableEq ι] [∀ i, Fintype (S i)] in
 /-- Assemble a neighbor mixed-strategy profile at the root `r` from strategies on
 `UpstreamNeighbors hT r r`. -/
 def assembleRootNeighbors {G : SimpleGraph ι} (hT : G.IsTree) (r : ι)
-    (u : ∀ c : UpstreamNeighbors hT r r, S c.1 → ℝ) :
-    ∀ j : G.neighborSet r, S j.1 → ℝ :=
-  fun j => u ⟨j.1, ((hT.adj_iff_parent r).mp j.2).resolve_left fun h => h.1 rfl⟩
+    (u : ∀ c : UpstreamNeighbors hT r r, S c.val → ℝ) :
+    ∀ j : G.neighborSet r, S j.val → ℝ :=
+  fun j => u ⟨j.val, ((hT.adj_iff_parent r).mp j.property).resolve_left fun h => h.1 rfl⟩
 
 omit [Fintype ι] [DecidableEq ι] [∀ i, Fintype (S i)] in
 @[simp] theorem assembleRootNeighbors_restrict {G : SimpleGraph ι} (hT : G.IsTree) (r : ι)
     (p : ∀ i, S i → ℝ) :
-    assembleRootNeighbors hT r (fun c => p c.1) = fun j : G.neighborSet r => p j.1 := by
+    assembleRootNeighbors hT r (fun c => p c.val) = fun j : G.neighborSet r => p j.val := by
   rfl
 
 omit [Fintype ι] [∀ i, Fintype (S i)] in
@@ -174,19 +174,19 @@ omit [Fintype ι] [∀ i, Fintype (S i)] in
 of its unique downstream neighbor `hT.parent r v` and strategies `u` of `UpstreamNeighbors hT r v`.
 -/
 noncomputable def assembleNeighbors {G : SimpleGraph ι} (hT : G.IsTree) (r : ι) {v : ι}
-    (_hv : v ≠ r) (xw : S (hT.parent r v) → ℝ) (u : ∀ c : UpstreamNeighbors hT r v, S c.1 → ℝ) :
-    ∀ j : G.neighborSet v, S j.1 → ℝ :=
+    (_hv : v ≠ r) (xw : S (hT.parent r v) → ℝ) (u : ∀ c : UpstreamNeighbors hT r v, S c.val → ℝ) :
+    ∀ j : G.neighborSet v, S j.val → ℝ :=
   fun j =>
-    if hj : j.1 = hT.parent r v then
+    if hj : j.val = hT.parent r v then
       hj ▸ xw
     else
-      u ⟨j.1, ((hT.adj_iff_parent r).mp j.2).resolve_left fun h => hj h.2.symm⟩
+      u ⟨j.val, ((hT.adj_iff_parent r).mp j.property).resolve_left fun h => hj h.2.symm⟩
 
 omit [Fintype ι] [∀ i, Fintype (S i)] in
 @[simp] theorem assembleNeighbors_restrict {G : SimpleGraph ι} (hT : G.IsTree) (r : ι) {v : ι}
     (hv : v ≠ r) (p : ∀ i, S i → ℝ) :
-    assembleNeighbors hT r hv (p (hT.parent r v)) (fun c => p c.1) =
-      fun j : G.neighborSet v => p j.1 := by
+    assembleNeighbors hT r hv (p (hT.parent r v)) (fun c => p c.val) =
+      fun j : G.neighborSet v => p j.val := by
   ext ⟨j, hj⟩ a
   rcases eq_or_ne j (hT.parent r v) with rfl | hjp <;> simp [assembleNeighbors, *]
 
@@ -200,9 +200,9 @@ def treePassTable (M : GraphicalGame ι S) (hT : M.graph.IsTree) (r : ι)
     False
   else
     xw ∈ allowed (hT.parent r v) ∧ xv ∈ allowed v ∧
-      ∃ u : ∀ c : UpstreamNeighbors hT r v, S c.1 → ℝ,
+      ∃ u : ∀ c : UpstreamNeighbors hT r v, S c.val → ℝ,
         (∀ c : UpstreamNeighbors hT r v,
-          treePassTable M hT r allowed ε c.1 (UpstreamNeighbors.parent_eq c |>.symm ▸ xv) (u c)) ∧
+          treePassTable M hT r allowed ε c.val (UpstreamNeighbors.parent_eq c |>.symm ▸ xv) (u c)) ∧
         M.IsApproxBestResponse ε v xv (assembleNeighbors hT r hv xw u)
 termination_by Fintype.card ι - (hT.pathTo r v).length
 decreasing_by
@@ -214,10 +214,10 @@ pp. 165–166): `u` belongs to the witness list of `(xw, xv)` iff every upstream
 @[expose] def IsTreePassWitness (M : GraphicalGame ι S) (hT : M.graph.IsTree) (r : ι)
     (allowed : ∀ i, Set (S i → ℝ)) (ε : ℝ) {v : ι} (hv : v ≠ r)
     (xw : S (hT.parent r v) → ℝ) (xv : S v → ℝ)
-    (u : ∀ c : UpstreamNeighbors hT r v, S c.1 → ℝ) : Prop :=
+    (u : ∀ c : UpstreamNeighbors hT r v, S c.val → ℝ) : Prop :=
   xw ∈ allowed (hT.parent r v) ∧ xv ∈ allowed v ∧
     (∀ c : UpstreamNeighbors hT r v,
-      treePassTable M hT r allowed ε c.1 (UpstreamNeighbors.parent_eq c |>.symm ▸ xv) (u c)) ∧
+      treePassTable M hT r allowed ε c.val (UpstreamNeighbors.parent_eq c |>.symm ▸ xv) (u c)) ∧
     M.IsApproxBestResponse ε v xv (assembleNeighbors hT r hv xw u)
 
 theorem treePassTable_iff_exists_witness {M : GraphicalGame ι S} {hT : M.graph.IsTree} {r : ι}
@@ -245,10 +245,10 @@ theorem treePassTable_of_isEmpty {M : GraphicalGame ι S} {hT : M.graph.IsTree} 
 /-- Witness predicate at the root `r` ([Kearns2007], §7.3, p. 166). -/
 @[expose] def IsRootPassWitness (M : GraphicalGame ι S) (hT : M.graph.IsTree) (r : ι)
     (allowed : ∀ i, Set (S i → ℝ)) (ε : ℝ) (xr : S r → ℝ)
-    (u : ∀ c : UpstreamNeighbors hT r r, S c.1 → ℝ) : Prop :=
+    (u : ∀ c : UpstreamNeighbors hT r r, S c.val → ℝ) : Prop :=
   xr ∈ allowed r ∧
     (∀ c : UpstreamNeighbors hT r r,
-      treePassTable M hT r allowed ε c.1 (UpstreamNeighbors.parent_eq c |>.symm ▸ xr) (u c)) ∧
+      treePassTable M hT r allowed ε c.val (UpstreamNeighbors.parent_eq c |>.symm ▸ xr) (u c)) ∧
     M.IsApproxBestResponse ε r xr (assembleRootNeighbors hT r u)
 
 /-- One-dimensional root table `T(z)` at the root `r` ([Kearns2007], §7.3, p. 166). -/
@@ -261,9 +261,9 @@ pp. 165–166): `p` is produced by choosing a valid root entry `p r`, a root wit
 witnesses at every non-root vertex `v ≠ r` upstream. -/
 @[expose] def IsTreePassOutput (M : GraphicalGame ι S) (hT : M.graph.IsTree) (r : ι)
     (allowed : ∀ i, Set (S i → ℝ)) (ε : ℝ) (p : ∀ i, S i → ℝ) : Prop :=
-  IsRootPassWitness M hT r allowed ε (p r) (fun c => p c.1) ∧
+  IsRootPassWitness M hT r allowed ε (p r) (fun c => p c.val) ∧
     ∀ v (hv : v ≠ r),
-      IsTreePassWitness M hT r allowed ε hv (p (hT.parent r v)) (p v) (fun c => p c.1)
+      IsTreePassWitness M hT r allowed ε hv (p (hT.parent r v)) (p v) (fun c => p c.val)
 
 /-! ### Subtree equilibrium invariant and master two-pass equivalence -/
 
@@ -293,7 +293,7 @@ theorem treePassTable_iff_exists_subtreeEquilibrium {M : GraphicalGame ι S}
           q v = xv ∧
           (∀ z ∈ hT.treeSide v (hT.parent r v), q z ∈ allowed z) ∧
           (∀ z ∈ hT.treeSide v (hT.parent r v),
-            M.IsApproxBestResponse ε z (q z) (fun j => q j.1)) := by
+            M.IsApproxBestResponse ε z (q z) (fun j => q j.val)) := by
   -- Well-founded induction on `Fintype.card ι - (hT.pathTo r v).length`.
   let rank (v : ι) := Fintype.card ι - (hT.pathTo r v).length
   induction v using (_root_.measure rank).wf.induction with
@@ -302,17 +302,17 @@ theorem treePassTable_iff_exists_subtreeEquilibrium {M : GraphicalGame ι S}
     have hadj_vp : M.graph.Adj v (hT.parent r v) := hT.adj_parent r hv
     have hp_notMem : hT.parent r v ∉ hT.treeSide v (hT.parent r v) :=
       hT.not_mem_treeSide_other hadj_vp
-    have hlt_up : ∀ c : UpstreamNeighbors hT r v, rank c.1 < rank v :=
+    have hlt_up : ∀ c : UpstreamNeighbors hT r v, rank c.val < rank v :=
       fun c => c.card_sub_length_pathTo_lt
     have hsub_up : ∀ c : UpstreamNeighbors hT r v,
-        hT.treeSide c.1 v ⊆ hT.treeSide v (hT.parent r v) := fun c => c.treeSide_subset hv
+        hT.treeSide c.val v ⊆ hT.treeSide v (hT.parent r v) := fun c => c.treeSide_subset hv
     constructor
     · rintro ⟨u, hxw, hxv, hchild, hbr_v⟩
       -- Extract subtree equilibria for each upstream neighbor `c` by IH.
       have hchild_eq : ∀ c : UpstreamNeighbors hT r v,
-          ∃ qc : ∀ i, S i → ℝ, qc v = xv ∧ qc c.1 = u c ∧
-            (∀ z ∈ hT.treeSide c.1 v, qc z ∈ allowed z) ∧
-            (∀ z ∈ hT.treeSide c.1 v, M.IsApproxBestResponse ε z (qc z) (fun j => qc j.1)) := by
+          ∃ qc : ∀ i, S i → ℝ, qc v = xv ∧ qc c.val = u c ∧
+            (∀ z ∈ hT.treeSide c.val v, qc z ∈ allowed z) ∧
+            (∀ z ∈ hT.treeSide c.val v, M.IsApproxBestResponse ε z (qc z) (fun j => qc j.val)) := by
         rintro ⟨c, hc_ne, rfl⟩
         exact ((ih c (hlt_up ⟨c, hc_ne, rfl⟩) hc_ne).mp (hchild ⟨c, hc_ne, rfl⟩)).2
       classical
@@ -322,17 +322,17 @@ theorem treePassTable_iff_exists_subtreeEquilibrium {M : GraphicalGame ι S}
       let q : ∀ i, S i → ℝ := fun i =>
         if hiv : i = v then hiv ▸ xv
         else if hip : i = hT.parent r v then hip ▸ xw
-        else if hex : ∃ c : UpstreamNeighbors hT r v, i ∈ hT.treeSide c.1 v then
+        else if hex : ∃ c : UpstreamNeighbors hT r v, i ∈ hT.treeSide c.val v then
           qc (Classical.choose hex) i
         else fun _ => 0
       have hq_p : q (hT.parent r v) = xw := by simp [q, hadj_vp.ne']
       have hq_v : q v = xv := by simp [q]
       have hq_on_child : ∀ (c : UpstreamNeighbors hT r v) {z : ι},
-          z ∈ hT.treeSide c.1 v → q z = qc c z := fun c z hz => by
+          z ∈ hT.treeSide c.val v → q z = qc c z := fun c z hz => by
         have hzv : z ≠ v := fun h =>
-          hT.not_mem_treeSide_other ((hT.adj_iff_parent r).mpr (Or.inr c.2)).symm (h ▸ hz)
+          hT.not_mem_treeSide_other ((hT.adj_iff_parent r).mpr (Or.inr c.property)).symm (h ▸ hz)
         have hzp : z ≠ hT.parent r v := fun h => hp_notMem (hsub_up c (h ▸ hz))
-        have hex : ∃ c' : UpstreamNeighbors hT r v, z ∈ hT.treeSide c'.1 v := ⟨c, hz⟩
+        have hex : ∃ c' : UpstreamNeighbors hT r v, z ∈ hT.treeSide c'.val v := ⟨c, hz⟩
         simp only [q, hzv, hzp, hex, ↓reduceDIte]
         rw [upstream_unique_of_mem_treeSide (Classical.choose_spec hex) hz]
       refine ⟨hxw, q, hq_p, hq_v, fun z hz => ?_, fun z hz => ?_⟩
@@ -344,7 +344,7 @@ theorem treePassTable_iff_exists_subtreeEquilibrium {M : GraphicalGame ι S}
           simpa only [hq_on_child c hzc] using hqc_allow c z hzc
       · rw [hT.treeSide_eq_insert_biUnion hadj_vp] at hz
         rcases mem_insert_iff.mp hz with rfl | hz_union
-        · have hnbr : (fun j : M.graph.neighborSet z => q j.1) =
+        · have hnbr : (fun j : M.graph.neighborSet z => q j.val) =
               assembleNeighbors hT r hv xw u := funext fun ⟨j, hj⟩ => by
             rcases eq_or_ne j (hT.parent r z) with rfl | hjp
             · simp [assembleNeighbors, hq_p]
@@ -354,17 +354,18 @@ theorem treePassTable_iff_exists_subtreeEquilibrium {M : GraphicalGame ι S}
           rwa [hq_v, hnbr]
         · obtain ⟨c₀, hc₀, hzc⟩ := mem_iUnion₂.mp hz_union
           let c : UpstreamNeighbors hT r v := ⟨c₀, (upstream_neighbor_iff hT r hv).mp hc₀⟩
-          have hnbr : (fun j : M.graph.neighborSet z => q j.1) =
-              (fun j : M.graph.neighborSet z => qc c j.1) := funext fun ⟨j, hj⟩ => by
-            by_cases hjc : j ∈ hT.treeSide c.1 v
+          have hnbr : (fun j : M.graph.neighborSet z => q j.val) =
+              (fun j : M.graph.neighborSet z => qc c j.val) := funext fun ⟨j, hj⟩ => by
+            by_cases hjc : j ∈ hT.treeSide c.val v
             · exact hq_on_child c hjc
-            · have hadj_cv' : M.graph.Adj c.1 v := by simpa [c.2.2] using hT.adj_parent r c.2.1
+            · have hadj_cv' : M.graph.Adj c.val v := by
+                simpa [c.property.2] using hT.adj_parent r c.property.1
               obtain ⟨_, rfl⟩ := hT.eq_of_mem_treeSide_of_adj_notMem hadj_cv' hzc hjc hj
               exact hq_v.trans (hqc_par c).symm
           simpa only [hq_on_child c hzc, hnbr] using hqc_br c z hzc
     · rintro ⟨hxw, q, hq_p, hq_v, hq_allow, hq_br⟩
       have hv_mem : v ∈ hT.treeSide v (hT.parent r v) := hT.self_mem_treeSide_of_adj hadj_vp
-      refine ⟨fun c => q c.1, hxw, hq_v ▸ hq_allow v hv_mem, fun c => ?_, ?_⟩
+      refine ⟨fun c => q c.val, hxw, hq_v ▸ hq_allow v hv_mem, fun c => ?_, ?_⟩
       · have hsub := hsub_up c
         rcases c with ⟨c, hc_ne, rfl⟩
         exact (ih c (hlt_up ⟨c, hc_ne, rfl⟩) hc_ne).mpr ⟨hq_v ▸ hq_allow _ hv_mem, q, hq_v,
@@ -380,16 +381,16 @@ theorem rootPassTable_iff_exists_isApproxNash {M : GraphicalGame ι S} {hT : M.g
   -- Partition `ι \ {r}` into the disjoint subtrees `hT.treeSide c.1 r` over
   -- `c : UpstreamNeighbors hT r r`.
   have hcover : ∀ z : ι, z ≠ r →
-      ∃ c : UpstreamNeighbors hT r r, z ∈ hT.treeSide c.1 r :=
+      ∃ c : UpstreamNeighbors hT r r, z ∈ hT.treeSide c.val r :=
     fun _ hzr => exists_upstream_mem_treeSide_root hT r hzr
   constructor
   · rintro ⟨u, hxr, hchild, hbr_r⟩
     have hchild_eq : ∀ c : UpstreamNeighbors hT r r,
         ∃ qc : ∀ i, S i → ℝ,
           qc r = xr ∧
-          qc c.1 = u c ∧
-          (∀ z ∈ hT.treeSide c.1 r, qc z ∈ allowed z) ∧
-          (∀ z ∈ hT.treeSide c.1 r, M.IsApproxBestResponse ε z (qc z) (fun j => qc j.1)) := by
+          qc c.val = u c ∧
+          (∀ z ∈ hT.treeSide c.val r, qc z ∈ allowed z) ∧
+          (∀ z ∈ hT.treeSide c.val r, M.IsApproxBestResponse ε z (qc z) (fun j => qc j.val)) := by
       rintro ⟨c, hc_ne, hc_par⟩
       obtain ⟨_, qc, hqc_p, hqc_c, hqc_allow, hqc_br⟩ :=
         (treePassTable_iff_exists_subtreeEquilibrium hc_ne).mp (hchild ⟨c, hc_ne, hc_par⟩)
@@ -402,9 +403,9 @@ theorem rootPassTable_iff_exists_isApproxNash {M : GraphicalGame ι S} {hT : M.g
       else qc (Classical.choose (hcover i hir)) i
     have hq_r : q r = xr := by simp [q]
     have hq_on_child : ∀ (c : UpstreamNeighbors hT r r) {z : ι},
-        z ∈ hT.treeSide c.1 r → q z = qc c z := fun c z hz => by
+        z ∈ hT.treeSide c.val r → q z = qc c z := fun c z hz => by
       have hzr : z ≠ r := fun h =>
-        hT.not_mem_treeSide_other ((hT.adj_iff_parent r).mpr (Or.inr c.2)).symm (h ▸ hz)
+        hT.not_mem_treeSide_other ((hT.adj_iff_parent r).mpr (Or.inr c.property)).symm (h ▸ hz)
       simp only [q, hzr, ↓reduceDIte]
       rw [upstream_unique_of_mem_treeSide (Classical.choose_spec (hcover z hzr)) hz]
     refine ⟨q, hq_r, fun i => ?_, M.isApproxNash_iff_local.mpr fun z => ?_⟩
@@ -413,24 +414,24 @@ theorem rootPassTable_iff_exists_isApproxNash {M : GraphicalGame ι S} {hT : M.g
       · have hic := Classical.choose_spec (hcover i hir)
         simpa only [hq_on_child _ hic] using hqc_allow _ i hic
     · rcases eq_or_ne z r with rfl | hzr
-      · have hnbr : (fun j : M.graph.neighborSet z => q j.1) = assembleRootNeighbors hT z u :=
+      · have hnbr : (fun j : M.graph.neighborSet z => q j.val) = assembleRootNeighbors hT z u :=
           funext fun ⟨j, hj⟩ =>
             (hq_on_child ⟨j, ((hT.adj_iff_parent z).mp hj).resolve_left fun h => h.1 rfl⟩
               (hT.self_mem_treeSide_of_adj hj.symm)).trans (hqc_c _)
         rwa [hq_r, hnbr]
       · let c := Classical.choose (hcover z hzr)
         have hzc := Classical.choose_spec (hcover z hzr)
-        have hadj_cr : M.graph.Adj c.1 r := ((hT.adj_iff_parent r).mpr (Or.inr c.2)).symm
-        have hnbr : (fun j : M.graph.neighborSet z => q j.1) =
-            (fun j : M.graph.neighborSet z => qc c j.1) := funext fun ⟨j, hj⟩ => by
-          by_cases hjc : j ∈ hT.treeSide c.1 r
+        have hadj_cr : M.graph.Adj c.val r := ((hT.adj_iff_parent r).mpr (Or.inr c.property)).symm
+        have hnbr : (fun j : M.graph.neighborSet z => q j.val) =
+            (fun j : M.graph.neighborSet z => qc c j.val) := funext fun ⟨j, hj⟩ => by
+          by_cases hjc : j ∈ hT.treeSide c.val r
           · exact hq_on_child c hjc
           · obtain ⟨_, rfl⟩ := hT.eq_of_mem_treeSide_of_adj_notMem hadj_cr hzc hjc hj
             exact hq_r.trans (hqc_r c).symm
         simpa only [hq_on_child c hzc, hnbr] using hqc_br c z hzc
   · rintro ⟨q, rfl, hq_allow, hq_nash⟩
     have hloc := M.isApproxNash_iff_local.mp hq_nash
-    refine ⟨fun c => q c.1, hq_allow r, fun ⟨c, hc_ne, hc_par⟩ => ?_, ?_⟩
+    refine ⟨fun c => q c.val, hq_allow r, fun ⟨c, hc_ne, hc_par⟩ => ?_, ?_⟩
     · rw [eq_rec_symm_self hc_par q]
       exact (treePassTable_iff_exists_subtreeEquilibrium hc_ne).mpr
         ⟨hq_allow _, q, rfl, rfl, fun z _ => hq_allow z, fun z _ => hloc z⟩
@@ -451,7 +452,7 @@ theorem isTreePassOutput_iff_isApproxNash {M : GraphicalGame ι S} {hT : M.graph
     · simpa only [assembleNeighbors_restrict] using (hv_all i hir).2.2.2
   · rintro ⟨hp_allow, hp_loc⟩
     have htab : ∀ (v : ι) (c : UpstreamNeighbors hT r v),
-        treePassTable M hT r allowed ε c.1 (c.parent_eq.symm ▸ p v) (p c.1) := by
+        treePassTable M hT r allowed ε c.val (c.parent_eq.symm ▸ p v) (p c.val) := by
       rintro v ⟨c, hc_ne, hc_par⟩
       rw [eq_rec_symm_self hc_par p]
       exact (treePassTable_iff_exists_subtreeEquilibrium hc_ne).mpr
@@ -465,10 +466,10 @@ theorem isTreePassOutput_iff_isApproxNash {M : GraphicalGame ι S} {hT : M.graph
 private structure NodeChoice (M : GraphicalGame ι S) (hT : M.graph.IsTree) (r : ι)
     (allowed : ∀ i, Set (S i → ℝ)) (ε : ℝ) (i : ι) where
   val : S i → ℝ
-  witness : ∀ c : UpstreamNeighbors hT r i, S c.1 → ℝ
+  witness : ∀ c : UpstreamNeighbors hT r i, S c.val → ℝ
   val_mem : val ∈ allowed i
   valid : ∀ c : UpstreamNeighbors hT r i,
-    treePassTable M hT r allowed ε c.1 (UpstreamNeighbors.parent_eq c |>.symm ▸ val) (witness c)
+    treePassTable M hT r allowed ε c.val (UpstreamNeighbors.parent_eq c |>.symm ▸ val) (witness c)
 
 private def NodeChoice.ofEq {M : GraphicalGame ι S} {hT : M.graph.IsTree} {r : ι}
     {allowed : ∀ i, Set (S i → ℝ)} {ε : ℝ} {i j : ι} (h : i = j)
@@ -521,7 +522,7 @@ theorem isTreePassOutput_treePassUpstream {M : GraphicalGame ι S} (hT : M.graph
     (hroot : rootPassTable M hT r allowed ε xr) :
     IsTreePassOutput M hT r allowed ε (treePassUpstream hT hroot) := by
   have hwit_fun : ∀ i : ι,
-      (fun c : UpstreamNeighbors hT r i => treePassUpstream hT hroot c.1) =
+      (fun c : UpstreamNeighbors hT r i => treePassUpstream hT hroot c.val) =
         (treePassNode hT hroot i).witness := fun i => funext fun ⟨c, hc_ne, hc_par⟩ => by
     subst hc_par
     rw [treePassUpstream, treePassNode]
@@ -601,27 +602,30 @@ omit [Fintype ι] [DecidableEq ι] [∀ i, Fintype (S i)] in
 connected component). -/
 def induceSubgame (M : GraphicalGame ι S) (U : Set ι)
     (hclosed : ∀ ⦃i j : ι⦄, i ∈ U → M.graph.Adj i j → j ∈ U) :
-    GraphicalGame U (fun i : U => S i.1) where
+    GraphicalGame U (fun i : U => S i.val) where
   graph := M.graph.induce U
-  localPayoff i u := M.localPayoff i.1 fun j =>
-    u ⟨⟨j.1, j.2.elim (fun h => h.symm ▸ i.2) (fun hadj => hclosed i.2 hadj)⟩,
-      j.2.imp Subtype.ext id⟩
+  localPayoff i u := M.localPayoff i.val fun j =>
+    u ⟨⟨j.val, j.property.elim (fun h => h.symm ▸ i.property)
+        (fun hadj => hclosed i.property hadj)⟩,
+      j.property.imp Subtype.ext id⟩
 
 private theorem localDeviationPayoff_induceSubgame (M : GraphicalGame ι S) (U : Set ι)
     [Fintype U] (hclosed : ∀ ⦃i j : ι⦄, i ∈ U → M.graph.Adj i j → j ∈ U)
-    (i : U) (a : S i.1) (p : ∀ k, S k → ℝ) :
-    (M.induceSubgame U hclosed).localDeviationPayoff i a (fun j => p j.1.1) =
-      M.localDeviationPayoff i.1 a (fun j => p j.1) := by
+    (i : U) (a : S i.val) (p : ∀ k, S k → ℝ) :
+    (M.induceSubgame U hclosed).localDeviationPayoff i a (fun j => p j.val.val) =
+      M.localDeviationPayoff i.val a (fun j => p j.val) := by
   classical
   rw [localDeviationPayoff_def, localDeviationPayoff_def]
-  let e : (M.induceSubgame U hclosed).graph.neighborSet i ≃ M.graph.neighborSet i.1 :=
-    ⟨fun j => ⟨j.1.1, j.2⟩, fun j => ⟨⟨j.1, hclosed i.2 j.2⟩, j.2⟩, fun _ => rfl, fun _ => rfl⟩
-  let ePi := Equiv.piCongrLeft' (fun j => S j.1.1) e
+  let e : (M.induceSubgame U hclosed).graph.neighborSet i ≃ M.graph.neighborSet i.val :=
+    ⟨fun j => ⟨j.val.val, j.property⟩,
+      fun j => ⟨⟨j.val, hclosed i.property j.property⟩, j.property⟩,
+      fun _ => rfl, fun _ => rfl⟩
+  let ePi := Equiv.piCongrLeft' (fun j => S j.val.val) e
   refine Fintype.sum_equiv ePi _ _ fun u => congrArg₂ (· * ·)
     (Fintype.prod_equiv e _ _ fun j => by simp [ePi, e]) ?_
   rw [localNeighborPayoff_def, localNeighborPayoff_def]
-  refine congrArg (M.localPayoff i.1) (funext fun ⟨k, hk⟩ => ?_)
-  rcases eq_or_ne k i.1 with rfl | hki
+  refine congrArg (M.localPayoff i.val) (funext fun ⟨k, hk⟩ => ?_)
+  rcases eq_or_ne k i.val with rfl | hki
   · simp
   · simp [hki, Subtype.ext_iff, ePi, e]
 
@@ -629,7 +633,7 @@ omit [Fintype ι] [DecidableEq ι] [∀ i, Fintype (S i)] in
 /-- Restriction of a graphical game `M` to a connected component `C : M.graph.ConnectedComponent`.
 -/
 noncomputable def componentGame (M : GraphicalGame ι S) (C : M.graph.ConnectedComponent) :
-    GraphicalGame C.supp (fun i : C.supp => S i.1) :=
+    GraphicalGame C.supp (fun i : C.supp => S i.val) :=
   M.induceSubgame C.supp fun _ _ hi hadj =>
     (SimpleGraph.ConnectedComponent.mem_supp_iff C _).mpr
       ((SimpleGraph.ConnectedComponent.mem_supp_iff C _).mp hi ▸
@@ -650,14 +654,14 @@ theorem isApproxNash_iff_forall_componentGame {M : GraphicalGame ι S} {ε : ℝ
     M.IsApproxNash ε p ↔
       ∀ C : M.graph.ConnectedComponent, by
         classical
-        exact (M.componentGame C).IsApproxNash ε (fun i : C.supp => p i.1) := by
+        exact (M.componentGame C).IsApproxNash ε (fun i : C.supp => p i.val) := by
   classical
   simp only [isApproxNash_iff_local, IsApproxBestResponse]
   have hpay : ∀ (C : M.graph.ConnectedComponent) (i : C.supp) b,
-      (M.componentGame C).localDeviationPayoff i b (fun j => p j.1.1) =
-        M.localDeviationPayoff i.1 b (fun j => p j.1) :=
+      (M.componentGame C).localDeviationPayoff i b (fun j => p j.val.val) =
+        M.localDeviationPayoff i.val b (fun j => p j.val) :=
     fun C i b => M.localDeviationPayoff_induceSubgame C.supp _ i b p
-  refine ⟨fun h C i => by simpa only [hpay] using h i.1, fun h i => ?_⟩
+  refine ⟨fun h C i => by simpa only [hpay] using h i.val, fun h i => ?_⟩
   let C := M.graph.connectedComponentMk i
   have hi : i ∈ C.supp := (SimpleGraph.ConnectedComponent.mem_supp_iff C i).mpr rfl
   simpa only [hpay C ⟨i, hi⟩] using h C ⟨i, hi⟩
@@ -670,7 +674,7 @@ theorem isMixedNash_iff_component_treeNash {M : GraphicalGame ι S} (hA : M.grap
       ∀ C : M.graph.ConnectedComponent, by
         classical
         exact (M.componentGame C).IsTreeNashOutput (M.isTree_componentGame hA C) (rootOf C)
-          (fun i : C.supp => p i.1) := by
+          (fun i : C.supp => p i.val) := by
   classical
   rw [← M.isApproxNash_zero_iff, M.isApproxNash_iff_forall_componentGame]
   refine forall_congr' fun C => ?_
@@ -733,40 +737,40 @@ theorem sum_abs_prod_sub_prod_le.{u₁, u₂} {α : Type u₁} [Fintype α] [Dec
       simp only [Fintype.card_subtype_eq, α', Ne] at hc ⊢; omega
     have herase : univ.erase j₀ = univ.filter (fun j : α => j ≠ j₀) := Finset.ext fun _ => by simp
     let e := (Equiv.piSplitAt j₀ T).symm
-    have hprod_split : ∀ (r : ∀ j, T j → ℝ) (a : T j₀) (v : ∀ j : α', T j.1),
-        ∏ j : α, r j (e (a, v) j) = r j₀ a * ∏ j : α', r j.1 (v j) := fun r a v => by
+    have hprod_split : ∀ (r : ∀ j, T j → ℝ) (a : T j₀) (v : ∀ j : α', T j.val),
+        ∏ j : α, r j (e (a, v) j) = r j₀ a * ∏ j : α', r j.val (v j) := fun r a v => by
       have he_j0 : e (a, v) j₀ = a := by simp [e]
       rw [← Finset.mul_prod_erase univ (fun j => r j (e (a, v) j)) (mem_univ j₀),
         he_j0, herase, Finset.prod_subtype _ (fun _ => mem_filter_univ _)]
       exact congrArg _ (prod_congr rfl fun ⟨j, hj⟩ _ => by simp [e, hj])
-    have hrest_sum : ∑ v : (∀ j : α', T j.1), ∏ j : α', p j.1 (v j) = 1 :=
-      (Fintype.prod_sum (fun j : α' => p j.1)).symm.trans (prod_eq_one fun j _ => hp_sum j.1)
-    have hrest_nn : ∀ v : (∀ j : α', T j.1), 0 ≤ ∏ j : α', p j.1 (v j) :=
-      fun v => prod_nonneg fun j _ => hp_nonneg j.1 (v j)
+    have hrest_sum : ∑ v : (∀ j : α', T j.val), ∏ j : α', p j.val (v j) = 1 :=
+      (Fintype.prod_sum (fun j : α' => p j.val)).symm.trans (prod_eq_one fun j _ => hp_sum j.val)
+    have hrest_nn : ∀ v : (∀ j : α', T j.val), 0 ≤ ∏ j : α', p j.val (v j) :=
+      fun v => prod_nonneg fun j _ => hp_nonneg j.val (v j)
     rw [← Fintype.sum_equiv e _
       (fun u => |∏ j : α, p j (u j) - ∏ j : α, q j (u j)|) (fun _ => rfl),
       Fintype.sum_prod_type]
-    calc ∑ a : T j₀, ∑ v : (∀ j : α', T j.1),
+    calc ∑ a : T j₀, ∑ v : (∀ j : α', T j.val),
           |∏ j : α, p j (e (a, v) j) - ∏ j : α, q j (e (a, v) j)|
-        ≤ ∑ a : T j₀, ∑ v : (∀ j : α', T j.1),
-            (|p j₀ a - q j₀ a| * (∏ j : α', p j.1 (v j)) +
-              q j₀ a * |∏ j : α', p j.1 (v j) - ∏ j : α', q j.1 (v j)|) := by
+        ≤ ∑ a : T j₀, ∑ v : (∀ j : α', T j.val),
+            (|p j₀ a - q j₀ a| * (∏ j : α', p j.val (v j)) +
+              q j₀ a * |∏ j : α', p j.val (v j) - ∏ j : α', q j.val (v j)|) := by
           refine sum_le_sum fun a _ => sum_le_sum fun v _ => ?_
-          have hlin : p j₀ a * (∏ j : α', p j.1 (v j)) - q j₀ a * (∏ j : α', q j.1 (v j)) =
-              (p j₀ a - q j₀ a) * (∏ j : α', p j.1 (v j)) +
-                q j₀ a * ((∏ j : α', p j.1 (v j)) - (∏ j : α', q j.1 (v j))) := by ring
+          have hlin : p j₀ a * (∏ j : α', p j.val (v j)) - q j₀ a * (∏ j : α', q j.val (v j)) =
+              (p j₀ a - q j₀ a) * (∏ j : α', p j.val (v j)) +
+                q j₀ a * ((∏ j : α', p j.val (v j)) - (∏ j : α', q j.val (v j))) := by ring
           rw [hprod_split p a v, hprod_split q a v, hlin]
           exact (abs_add_le _ _).trans <| by
             rw [abs_mul, abs_mul, abs_of_nonneg (hrest_nn v), abs_of_nonneg (hq_nonneg j₀ a)]
-      _ = (∑ a : T j₀, |p j₀ a - q j₀ a|) * (∑ v : (∀ j : α', T j.1), ∏ j : α', p j.1 (v j)) +
+      _ = (∑ a : T j₀, |p j₀ a - q j₀ a|) * (∑ v : (∀ j : α', T j.val), ∏ j : α', p j.val (v j)) +
           (∑ a : T j₀, q j₀ a) *
-            (∑ v : (∀ j : α', T j.1), |∏ j : α', p j.1 (v j) - ∏ j : α', q j.1 (v j)|) := by
+            (∑ v : (∀ j : α', T j.val), |∏ j : α', p j.val (v j) - ∏ j : α', q j.val (v j)|) := by
           simp only [sum_add_distrib, ← mul_sum, ← sum_mul]
-      _ ≤ ∑ a : T j₀, |p j₀ a - q j₀ a| + ∑ j : α', ∑ a : T j.1, |p j.1 a - q j.1 a| := by
+      _ ≤ ∑ a : T j₀, |p j₀ a - q j₀ a| + ∑ j : α', ∑ a : T j.val, |p j.val a - q j.val a| := by
           rw [hrest_sum, hq_sum j₀, mul_one, one_mul]
-          linarith [ih (T := fun j => T j.1) (p := fun j => p j.1) (q := fun j => q j.1)
-            (fun j => hp_nonneg j.1) (fun j => hp_sum j.1)
-            (fun j => hq_nonneg j.1) (fun j => hq_sum j.1) hcard']
+          linarith [ih (T := fun j => T j.val) (p := fun j => p j.val) (q := fun j => q j.val)
+            (fun j => hp_nonneg j.val) (fun j => hp_sum j.val)
+            (fun j => hq_nonneg j.val) (fun j => hq_sum j.val) hcard']
       _ = ∑ j : α, ∑ a : T j, |p j a - q j a| := by
           rw [← Finset.add_sum_erase univ (fun j => ∑ a : T j, |p j a - q j a|) (mem_univ j₀),
             herase, Finset.sum_subtype _ (fun _ => mem_filter_univ _)]
@@ -806,19 +810,19 @@ theorem isApproxNash_of_l1_le {ι : Type*} {S : ι → Type*} [Fintype ι] [Deci
     M.IsApproxNash ((d : ℝ) * τ) q := by
   refine ⟨hq, fun i a => ?_⟩
   -- Bound the product distribution `L₁` distance on `M.graph.neighborSet i` by `d * τ`.
-  let P_nbr : (∀ j : M.graph.neighborSet i, S j.1) → ℝ := fun u => ∏ j, p j.1 (u j)
-  let Q_nbr : (∀ j : M.graph.neighborSet i, S j.1) → ℝ := fun u => ∏ j, q j.1 (u j)
+  let P_nbr : (∀ j : M.graph.neighborSet i, S j.val) → ℝ := fun u => ∏ j, p j.val (u j)
+  let Q_nbr : (∀ j : M.graph.neighborSet i, S j.val) → ℝ := fun u => ∏ j, q j.val (u j)
   have hP_sum : ∑ u, P_nbr u = 1 :=
-    (Fintype.prod_sum _).symm.trans (prod_eq_one fun j _ => (hp.1 j.1).sum_eq_one)
+    (Fintype.prod_sum _).symm.trans (prod_eq_one fun j _ => (hp.1 j.val).sum_eq_one)
   have hQ_sum : ∑ u, Q_nbr u = 1 :=
-    (Fintype.prod_sum _).symm.trans (prod_eq_one fun j _ => (hq j.1).sum_eq_one)
+    (Fintype.prod_sum _).symm.trans (prod_eq_one fun j _ => (hq j.val).sum_eq_one)
   have hTV_le : ∑ u, |Q_nbr u - P_nbr u| ≤ (d : ℝ) * τ := by
     rw [sum_congr rfl fun u _ => abs_sub_comm _ _]
     calc ∑ u, |P_nbr u - Q_nbr u|
-        ≤ ∑ j : M.graph.neighborSet i, ∑ c : S j.1, |p j.1 c - q j.1 c| :=
-          sum_abs_prod_sub_prod_le (fun j => (hp.1 j.1).nonneg) (fun j => (hp.1 j.1).sum_eq_one)
-            (fun j => (hq j.1).nonneg) (fun j => (hq j.1).sum_eq_one)
-      _ ≤ ∑ _j : M.graph.neighborSet i, τ := sum_le_sum fun j _ => hl1 j.1
+        ≤ ∑ j : M.graph.neighborSet i, ∑ c : S j.val, |p j.val c - q j.val c| :=
+          sum_abs_prod_sub_prod_le (fun j => (hp.1 j.val).nonneg) (fun j => (hp.1 j.val).sum_eq_one)
+            (fun j => (hq j.val).nonneg) (fun j => (hq j.val).sum_eq_one)
+      _ ≤ ∑ _j : M.graph.neighborSet i, τ := sum_le_sum fun j _ => hl1 j.val
       _ = (Fintype.card (M.graph.neighborSet i) : ℝ) * τ := by
           rw [sum_const, card_univ, nsmul_eq_mul]
       _ ≤ (d : ℝ) * τ := mul_le_mul_of_nonneg_right
@@ -1050,7 +1054,7 @@ theorem exists_approxTreeNashRootTable {ι : Type*} [Fintype ι] [DecidableEq ι
     ∃ xr, rootPassTable M hT r (fun _ => binaryTauGrid (max 1 ⌈(d : ℝ) / ε⌉₊)) ε xr := by
   obtain ⟨p, hp⟩ := M.toCostGame.exists_isMixedNash
   obtain ⟨q, hq_out, _, _⟩ := M.exists_approxTreeNashOutput_of_isMixedNash hT r hε hpay hdeg hp
-  exact ⟨q r, fun c => q c.1, hq_out.1⟩
+  exact ⟨q r, fun c => q c.val, hq_out.1⟩
 
 /-- Discretized algorithm **`ApproximateTreeNash`** ([Kearns2007], §7.3.1, p. 167): runs the
 two-pass dynamic program restricted to `binaryTauGrid (max 1 ⌈(d : ℝ) / ε⌉₊)` with `ε`-best

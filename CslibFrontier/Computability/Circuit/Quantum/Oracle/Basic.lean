@@ -64,7 +64,7 @@ noncomputable def queryRegisters (A : Fin (a + b) ↪ Fin m) :
 wire indices for the workspace. -/
 @[simp] theorem queryRegisters_apply (A : Fin (a + b) ↪ Fin m) (z : Fin m → Bool) :
     queryRegisters A z =
-      (fun i => z (A (Fin.castAdd b i)), fun i => z (A (Fin.natAdd a i)), fun j => z j.1) := by
+      (fun i => z (A (Fin.castAdd b i)), fun i => z (A (Fin.natAdd a i)), fun j => z j.val) := by
   unfold queryRegisters
   rfl
 

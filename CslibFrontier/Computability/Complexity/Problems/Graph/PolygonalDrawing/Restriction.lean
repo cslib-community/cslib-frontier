@@ -43,10 +43,10 @@ private theorem exists_restriction_radius_of_vertex_contacts {G : Graph} (D : Po
     (hcontacts : ∀ e (i : Fin (D.route e).segments) (t : ℝ), t ∈ Set.Icc 0 1 →
       (D.route e).eval i t = D.vertex v →
         ∃ b, (D.route e).AtEnd i t b ∧ Dart.vertex (e, b) = v)
-    (hvertices : ∀ w ∈ G.1, D.vertex w = D.vertex v → w = v)
+    (hvertices : ∀ w ∈ G.vertices, D.vertex w = D.vertex v → w = v)
     (hgerm : ∀ d : Dart G, d.vertex = v → D.germ d ≠ 0) :
     ∃ ρ > 0,
-      (∀ w ∈ G.1, w ≠ v → 2 * ρ < dist (D.vertex w) (D.vertex v)) ∧
+      (∀ w ∈ G.vertices, w ≠ v → 2 * ρ < dist (D.vertex w) (D.vertex v)) ∧
       (∀ e (i : Fin (D.route e).segments) z,
         z ∈ Metric.closedBall (D.vertex v) ρ →
         z ∈ segment ℝ ((D.route e).point i.castSucc) ((D.route e).point i.succ) →
@@ -55,9 +55,9 @@ private theorem exists_restriction_radius_of_vertex_contacts {G : Graph} (D : Po
       (∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖) := by
   classical
   obtain ⟨ε, hε, hseg⟩ := D.exists_vertex_ball_of_vertex_contacts v hcontacts
-  let K : Set ℂ := D.vertex '' {w | w ∈ G.1 ∧ w ≠ v}
-  have hfinite : Set.Finite {w | w ∈ G.1 ∧ w ≠ v} :=
-    G.1.finite_toSet.subset (fun _ h => h.1)
+  let K : Set ℂ := D.vertex '' {w | w ∈ G.vertices ∧ w ≠ v}
+  have hfinite : Set.Finite {w | w ∈ G.vertices ∧ w ≠ v} :=
+    G.vertices.finite_toSet.subset (fun _ h => h.1)
   have hK : IsClosed K := (hfinite.image D.vertex).isClosed
   have hvK : D.vertex v ∈ Kᶜ := by
     rintro ⟨w, ⟨hw, hne⟩, heq⟩
@@ -100,9 +100,9 @@ private theorem exists_restriction_radius_of_vertex_contacts {G : Graph} (D : Po
 avoids the other declared points, and cuts every incident segment before its first third.
 Repeated vertex declarations and arbitrary natural vertex names are allowed. -/
 theorem IsEmbedding.exists_restriction_radius {G : Graph} {D : PolygonalDrawing G}
-    (hD : D.IsEmbedding) (v : ℕ) (hv : v ∈ G.1) :
+    (hD : D.IsEmbedding) (v : ℕ) (hv : v ∈ G.vertices) :
     ∃ ρ > 0,
-      (∀ w ∈ G.1, D.vertex w ∈ Metric.closedBall (D.vertex v) ρ → w = v) ∧
+      (∀ w ∈ G.vertices, D.vertex w ∈ Metric.closedBall (D.vertex v) ρ → w = v) ∧
       (∀ e (i : Fin (D.route e).segments) z,
         z ∈ Metric.closedBall (D.vertex v) ρ →
         z ∈ segment ℝ ((D.route e).point i.castSucc) ((D.route e).point i.succ) →
@@ -200,7 +200,7 @@ theorem arg_cutPort_sub {G : Graph} (D : PolygonalDrawing G)
     {ρ : ℝ} (hρ : 0 < ρ) (d : Dart G) (hd : D.germ d ≠ 0) :
     (D.cutPort ρ d - D.vertex d.vertex).arg = (D.germ d).arg := by
   have hn : 0 < ‖D.germ d‖ := norm_pos_iff.mpr hd
-  rw [cutPort, add_sub_cancel_left, Complex.real_smul, Complex.arg_real_mul _ (div_pos hρ hn)]
+  rw [cutPort, add_sub_cancel_left, Complex.real_smul, Complex.arg_ofReal_mul (div_pos hρ hn) _]
 
 /-- At one vertex, coincident ports of nonzero germs have the same outgoing direction. -/
 theorem direction_eq_of_cutPort_eq {G : Graph} (D : PolygonalDrawing G)
@@ -257,7 +257,7 @@ private theorem arg_sub_of_mem_segment {a b z : ℂ} (hz : z ∈ segment ℝ a b
     have hr0 : r = 0 := le_antisymm (le_of_not_gt h) hr.1
     exact hne (by rw [hr0, AffineMap.lineMap_apply_zero])
   rw [AffineMap.lineMap_apply_module', add_sub_cancel_right, Complex.real_smul,
-    Complex.arg_real_mul _ hpos]
+    Complex.arg_ofReal_mul hpos _]
 
 /-- Distinct cut stubs can meet only at their common declared endpoint. The
 original drawing may have crossings away from the vertex disks. -/
@@ -318,7 +318,7 @@ theorem eq_vertex_of_mem_cutPort_segment_and_route {G : Graph} (D : PolygonalDra
   have hpos : 0 < u := lt_of_le_of_ne (Route.endTime_mem b ht).1 (fun hu => hz (by
     rwa [← hu, zero_smul, sub_eq_zero] at hpoint))
   have harg := (arg_sub_of_mem_segment ha hz).trans (D.arg_cutPort_sub hρ a hgerm)
-  rw [hpoint, Complex.real_smul, Complex.arg_real_mul _ hpos] at harg
+  rw [hpoint, Complex.real_smul, Complex.arg_ofReal_mul hpos _] at harg
   exact hne (congrArg Prod.fst (hdirections a (e, b) hv.symm
     (congrArg (fun x : ℝ => (x : Real.Angle)) harg.symm)))
 
@@ -331,7 +331,7 @@ of an edge stays unchanged; the two ends of a loop are cut separately. -/
 /-- The exterior part of an edge after cutting at a named vertex. This is route data,
 not a drawing of a graph with invented port vertices. -/
 @[expose] noncomputable def outsideRoute {G : Graph} (D : PolygonalDrawing G)
-    (v : ℕ) (ρ : ℝ) (e : Fin G.2.length) : Route :=
+    (v : ℕ) (ρ : ℝ) (e : Fin G.edges.length) : Route :=
   (D.route e).cutEnds (D.restrictionTime v ρ (e, false))
     (D.restrictionTime v ρ (e, true))
 
@@ -351,7 +351,7 @@ theorem IsEmbedding.restrictionTime_mem {G : Graph} {D : PolygonalDrawing G}
 /-- The two independent end cuts leave a nonempty parameter interval on every route. -/
 theorem IsEmbedding.restrictionTime_bounds {G : Graph} {D : PolygonalDrawing G}
     (hD : D.IsEmbedding) (v : ℕ) {ρ : ℝ} (hρ : 0 < ρ)
-    (hlen : ∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖) (e : Fin G.2.length) :
+    (hlen : ∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖) (e : Fin G.edges.length) :
     0 ≤ D.restrictionTime v ρ (e, false) ∧ 0 ≤ D.restrictionTime v ρ (e, true) ∧
       D.restrictionTime v ρ (e, false) + D.restrictionTime v ρ (e, true) < 1 := by
   have hs := hD.restrictionTime_mem v hρ hlen (e, false)
@@ -361,7 +361,7 @@ theorem IsEmbedding.restrictionTime_bounds {G : Graph} {D : PolygonalDrawing G}
 /-- The two ends of the exterior piece are their respective cut ports or unchanged
 original endpoints, according to actual incidence with the named vertex. -/
 theorem endpoint_outsideRoute {G : Graph} (D : PolygonalDrawing G)
-    (v : ℕ) (ρ : ℝ) (e : Fin G.2.length) (b : Bool) :
+    (v : ℕ) (ρ : ℝ) (e : Fin G.edges.length) (b : Bool) :
     (D.outsideRoute v ρ e).endpoint b =
       if Dart.vertex (e, b) = v then D.cutPort ρ (e, b) else D.vertex (Dart.vertex (e, b)) := by
   rw [outsideRoute, Route.endpoint_cutEnds]
@@ -372,7 +372,7 @@ theorem endpoint_outsideRoute {G : Graph} (D : PolygonalDrawing G)
 number of bends, loop status or the incidence of their other end. -/
 theorem IsEmbedding.outsideRoute_simple {G : Graph} {D : PolygonalDrawing G}
     (hD : D.IsEmbedding) (v : ℕ) {ρ : ℝ} (hρ : 0 < ρ)
-    (hlen : ∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖) (e : Fin G.2.length) :
+    (hlen : ∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖) (e : Fin G.edges.length) :
     (D.outsideRoute v ρ e).IsSimple := by
   obtain ⟨hs, ht, hst⟩ := hD.restrictionTime_bounds v hρ hlen e
   exact (hD.simple e).cutEnds hs ht hst
@@ -380,7 +380,7 @@ theorem IsEmbedding.outsideRoute_simple {G : Graph} {D : PolygonalDrawing G}
 /-- Cutting the star does not create any point outside an old edge's continuous support. -/
 theorem IsEmbedding.support_outsideRoute_subset {G : Graph} {D : PolygonalDrawing G}
     (hD : D.IsEmbedding) (v : ℕ) {ρ : ℝ} (hρ : 0 < ρ)
-    (hlen : ∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖) (e : Fin G.2.length) :
+    (hlen : ∀ d : Dart G, d.vertex = v → 3 * ρ < ‖D.germ d‖) (e : Fin G.edges.length) :
     (D.outsideRoute v ρ e).support ⊆ (D.route e).support := by
   obtain ⟨hs, ht, hst⟩ := hD.restrictionTime_bounds v hρ hlen e
   exact (D.route e).support_cutEnds_subset hs ht hst
@@ -395,7 +395,7 @@ private theorem cutEnds_ball_contact {G : Graph} (D : PolygonalDrawing G)
       z ∈ segment ℝ ((D.route e).point i.castSucc) ((D.route e).point i.succ) →
         (i.val = 0 ∧ Dart.vertex (e, false) = v) ∨
           (i.val + 1 = (D.route e).segments ∧ Dart.vertex (e, true) = v))
-    (e : Fin G.2.length) {s t : ℝ} (hs : 0 ≤ s) (ht : 0 ≤ t) (hst : s + t < 1)
+    (e : Fin G.edges.length) {s t : ℝ} (hs : 0 ≤ s) (ht : 0 ≤ t) (hst : s + t < 1)
     (hcuts : ∀ b, Dart.vertex (e, b) = v → (if b then t else s) = ρ / ‖D.germ (e, b)‖)
     (hgerm : ∀ b, Dart.vertex (e, b) = v → D.germ (e, b) ≠ 0)
     (i : Fin ((D.route e).cutEnds s t).segments) {u : ℝ} (hu : u ∈ Set.Icc 0 1)
@@ -471,7 +471,7 @@ theorem IsEmbedding.cutEnds_ball_contact {G : Graph} {D : PolygonalDrawing G}
       z ∈ segment ℝ ((D.route e).point i.castSucc) ((D.route e).point i.succ) →
         (i.val = 0 ∧ Dart.vertex (e, false) = v) ∨
           (i.val + 1 = (D.route e).segments ∧ Dart.vertex (e, true) = v))
-    (e : Fin G.2.length) {s t : ℝ} (hs : 0 ≤ s) (ht : 0 ≤ t) (hst : s + t < 1)
+    (e : Fin G.edges.length) {s t : ℝ} (hs : 0 ≤ s) (ht : 0 ≤ t) (hst : s + t < 1)
     (hcuts : ∀ b, Dart.vertex (e, b) = v → (if b then t else s) = ρ / ‖D.germ (e, b)‖)
     (i : Fin ((D.route e).cutEnds s t).segments) {u : ℝ} (hu : u ∈ Set.Icc 0 1)
     (hz : ((D.route e).cutEnds s t).eval i u ∈ Metric.closedBall (D.vertex v) ρ) :
@@ -531,7 +531,7 @@ theorem IsEmbedding.outsideRoute_ball_contact {G : Graph} {D : PolygonalDrawing 
       z ∈ segment ℝ ((D.route e).point i.castSucc) ((D.route e).point i.succ) →
         (i.val = 0 ∧ Dart.vertex (e, false) = v) ∨
         (i.val + 1 = (D.route e).segments ∧ Dart.vertex (e, true) = v))
-    (e : Fin G.2.length) (i : Fin (D.outsideRoute v ρ e).segments)
+    (e : Fin G.edges.length) (i : Fin (D.outsideRoute v ρ e).segments)
     {u : ℝ} (hu : u ∈ Set.Icc 0 1)
     (hz : (D.outsideRoute v ρ e).eval i u ∈ Metric.closedBall (D.vertex v) ρ) :
     ∃ b, (D.outsideRoute v ρ e).AtEnd i u b ∧ Dart.vertex (e, b) = v ∧
@@ -545,9 +545,9 @@ theorem IsEmbedding.outsideRoute_ball_contact {G : Graph} {D : PolygonalDrawing 
 conditions. No local disk, prescribed slopes, port coordinates or patch is a premise.
 This stops at the exterior pieces: constructing and attaching a split patch is separate. -/
 theorem IsEmbedding.exists_restriction {G : Graph} {D : PolygonalDrawing G}
-    (hD : D.IsEmbedding) (v : ℕ) (hv : v ∈ G.1) :
+    (hD : D.IsEmbedding) (v : ℕ) (hv : v ∈ G.vertices) :
     ∃ ρ > 0,
-      (∀ w ∈ G.1, D.vertex w ∈ Metric.closedBall (D.vertex v) ρ → w = v) ∧
+      (∀ w ∈ G.vertices, D.vertex w ∈ Metric.closedBall (D.vertex v) ρ → w = v) ∧
       (∀ e, (D.outsideRoute v ρ e).IsSimple) ∧
       (∀ e, (D.outsideRoute v ρ e).support ⊆ (D.route e).support) ∧
       (∀ e (i : Fin (D.outsideRoute v ρ e).segments) (u : ℝ), u ∈ Set.Icc 0 1 →

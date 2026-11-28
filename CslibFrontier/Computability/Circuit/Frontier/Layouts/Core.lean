@@ -49,7 +49,7 @@ open Set
 variable {V E : Type*} {G : Multigraph V E} {d : ℕ} {c : Compression G d}
 
 /-- An edge leaving a block is external. -/
-theorem mem_external_of_mem_edgeCut {B : c.blocks} {e : E} (he : e ∈ G.edgeCut {v | v ∈ B.1}) :
+theorem mem_external_of_mem_edgeCut {B : c.blocks} {e : E} (he : e ∈ G.edgeCut {v | v ∈ B.val}) :
     e ∈ c.external := by
   rw [mem_edgeCut_block] at he
   intro h
@@ -63,28 +63,29 @@ theorem Saturated.add_three_le_ncard_incidenceSet_quotient (hc : c.Saturated) (e
       (c.quotient.incidenceSet (c.quotient.tgt e)).ncard := by
   set B := c.quotient.src e
   set B' := c.quotient.tgt e
-  have hne : B ≠ B' := e.2
-  have hjoin : (G.edgeCut {v | v ∈ B.1} ∩ G.edgeCut {v | v ∈ B'.1}).Nonempty := by
-    refine ⟨e.1, ?_, ?_⟩ <;> rw [mem_edgeCut_block]
+  have hne : B ≠ B' := e.property
+  have hjoin : (G.edgeCut {v | v ∈ B.val} ∩ G.edgeCut {v | v ∈ B'.val}).Nonempty := by
+    refine ⟨e.val, ?_, ?_⟩ <;> rw [mem_edgeCut_block]
     · exact fun h => hne (h.mp rfl).symm
     · exact fun h => hne (h.mpr rfl)
-  have hlt := hc _ B.2 _ B'.2 (fun h => hne (Subtype.ext h)) hjoin
+  have hlt := hc _ B.property _ B'.property (fun h => hne (Subtype.ext h)) hjoin
   -- Some edge `f` leaves `B ∪ B'`, joining a block `Y ∈ {B, B'}` to a block `C ∉ {B, B'}`.
-  obtain ⟨f, hf⟩ := nonempty_of_ncard_ne_zero (s := G.edgeCut ({v | v ∈ B.1} ∪ {v | v ∈ B'.1}))
+  obtain ⟨f, hf⟩ := nonempty_of_ncard_ne_zero (s := G.edgeCut ({v | v ∈ B.val} ∪ {v | v ∈ B'.val}))
     (by omega)
   simp only [mem_edgeCut, mem_union, mem_ofPred_eq, c.mem_iff_blockOf_eq] at hf
   obtain ⟨Y, C, hY, hCB, hCB', hYC⟩ : ∃ Y C : c.blocks, (Y = B ∨ Y = B') ∧ C ≠ B ∧ C ≠ B' ∧
-      (G.edgeCut {v | v ∈ Y.1} ∩ G.edgeCut {v | v ∈ C.1}).Nonempty := by
+      (G.edgeCut {v | v ∈ Y.val} ∩ G.edgeCut {v | v ∈ C.val}).Nonempty := by
     by_cases hs : c.blockOf (G.src f) = B ∨ c.blockOf (G.src f) = B'
     · refine ⟨c.blockOf (G.src f), c.blockOf (G.tgt f), hs, fun h => ?_, fun h => ?_, f, ?_, ?_⟩ <;>
         (try rw [mem_edgeCut_block]) <;> grind
     · refine ⟨c.blockOf (G.tgt f), c.blockOf (G.src f), by tauto, fun h => hs (.inl h),
         fun h => hs (.inr h), f, ?_, ?_⟩ <;> rw [mem_edgeCut_block] <;> grind
   -- The cuts of `B` and `B'` lie in two cuts bounded by saturation, so they are finite.
-  have hYC' := hc _ Y.2 _ C.2 (fun h => by grind [Subtype.ext h]) hYC
-  have hfin : (G.edgeCut {v | v ∈ B.1} ∪ G.edgeCut {v | v ∈ B'.1}).Finite := by
-    refine ((finite_of_ncard_ne_zero (s := G.edgeCut ({v | v ∈ B.1} ∪ {v | v ∈ B'.1}))
-      (by omega)).union (finite_of_ncard_ne_zero (s := G.edgeCut ({v | v ∈ Y.1} ∪ {v | v ∈ C.1}))
+  have hYC' := hc _ Y.property _ C.property (fun h => by grind [Subtype.ext h]) hYC
+  have hfin : (G.edgeCut {v | v ∈ B.val} ∪ G.edgeCut {v | v ∈ B'.val}).Finite := by
+    refine ((finite_of_ncard_ne_zero (s := G.edgeCut ({v | v ∈ B.val} ∪ {v | v ∈ B'.val}))
+      (by omega)).union
+      (finite_of_ncard_ne_zero (s := G.edgeCut ({v | v ∈ Y.val} ∪ {v | v ∈ C.val}))
       (by omega))).subset fun g hg => ?_
     simp only [mem_edgeCut, mem_union, mem_ofPred_eq, c.mem_iff_blockOf_eq] at hg ⊢
     rcases hY with rfl | rfl <;> grind

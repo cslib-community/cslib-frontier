@@ -322,8 +322,7 @@ theorem findLoop_spec (π : List (Literal ℕ)) (ψ : CNF ℕ) (x : Data 32) (N 
     have hNc := hN c (by simp)
     obtain ⟨hcnt, -⟩ := foldl_litStep π c ⟨0, 0, false, none⟩
     refine WP.exists_execWithin (WP.loop_iter (by simp [Cond.holds_eq, haux, hone]) ?_)
-    unfold findBody
-    wram_exec [hlen, hone, hzero]
+    wram_exec [findBody, hlen, hone, hzero]
     wram_call (litLoop_spec (w := w) π c ⟨0, 0, false, none⟩ _ N ..) framed
       with v₂ m₂ ⟨rfl, ⟨hcnt₂, -⟩, hp₂⟩
     rw [hcnt] at hcnt₂
@@ -363,8 +362,7 @@ theorem logConflict_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (log : List ℕ)
   have hout : logOut φ (Trail.lits t) = [clauseAddr φ (φ.findIdx (Falsifies (Trail.lits t)))] := by
     simp only [logOut, hc]
   refine WP.exists_execWithin ?_
-  unfold logConflict
-  wram_exec [h2, h1]
+  wram_exec [logConflict, h2, h1]
   wram_call (findLoop_spec (w := w) (Trail.lits t) φ _ N ..) framed [*] with v m ⟨rfl, hptr⟩
   wram_exec [*]
   wram_simp [*]
@@ -386,8 +384,7 @@ theorem logBranch_spec (φ : CNF ℕ) (N T : ℕ) (l : Literal ℕ) (t : Trail) 
   have hmem' := hmem.update_ge (a := T + 4 * N + 2 + log.length) (by omega) (T + litCode l)
   have hlog' := hlog.append_one (T + litCode l)
   refine WP.exists_execWithin ?_
-  unfold logBranch
-  wram_exec [*]
+  wram_exec [logBranch, *]
   wram_simp [*]
   exact ⟨by simp, by simp; omega⟩
 
@@ -445,8 +442,7 @@ theorem stepBodyLog_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (log : List ℕ)
       obtain ⟨hh₂, hz₂⟩ := outputList_eq_iff.1 hl₂
       have hz₂' : m₂ (T + 4 * N + 1) = 0 := (holdsList_cons_iff.1 hz₂).1
       wram_exec [hgo₂, hz]
-      unfold fixHeader
-      wram_exec [*, hlen', e₁]
+      wram_exec [fixHeader, *, hlen', e₁]
       refine ⟨by wram_simp [*], by wram_simp [*], ?_⟩
       rw [outputList_eq_iff]
       wram_simp [*]
@@ -571,8 +567,7 @@ theorem solverLog_spec (N : ℕ) (φ : CNF ℕ) (hN : ∀ c ∈ φ, ∀ l ∈ c,
     rw [Data.init_mem_succ]; rfl
   obtain ⟨hrun, hwords⟩ := run_nodes N φ
   refine WP.exists_execWithin ?_
-  unfold solverLog setup
-  wram_exec [Data.init_regs, Data.init_mem_zero, hm1]
+  wram_exec [solverLog, setup, Data.init_regs, Data.init_mem_zero, hm1]
   wram_call (mainLoopLog_spec φ N ((encode N φ).length + 1) _ [] [] _ (Trail.answer φ) ..)
     framed [memAt_init N φ hN, Data.init_regs, List.length_nil, holdsList_nil] with v m ⟨ho, hl⟩
   refine ⟨?_, by omega, by rw [ho, hl, List.nil_append, hwords]⟩

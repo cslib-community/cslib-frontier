@@ -157,7 +157,7 @@ theorem quantumValue_anchored [Nonempty A] [Nonempty B] :
   have hc : 0 ≤ c := sq_nonneg _
   have hc₁ : c ≤ 1 := by
     dsimp [c]
-    nlinarith [mul_nonneg α.2.1 (sub_nonneg.mpr α.2.2)]
+    nlinarith [mul_nonneg α.property.1 (sub_nonneg.mpr α.property.2)]
   have hlower {ι κ : Type} [Fintype ι] [DecidableEq ι] [Fintype κ] [DecidableEq κ]
       (S : QuantumStrategy X Y A B ι κ) : 1 - c * (1 - G.quantumWinProb S) ≤ H.quantumValue := by
     simpa only [H, c, quantumWinProb_anchored, restrictStrategy, extendStrategy,

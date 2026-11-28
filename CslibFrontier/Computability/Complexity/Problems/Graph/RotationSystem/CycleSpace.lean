@@ -38,12 +38,12 @@ namespace Cslib.Complexity.Graph
 open Classical in
 /-- Sum of edge bits over actual dart incidences at a natural-number vertex. Both ends of a
 loop occur, so their contributions cancel. Undeclared names with no darts have zero parity. -/
-@[expose] noncomputable def vertexParity (G : Graph) (x : Fin G.2.length → Bool)
+@[expose] noncomputable def vertexParity (G : Graph) (x : Fin G.edges.length → Bool)
     (v : ℕ) : Bool :=
   ∑ d : Dart G, if d.vertex = v then x d.1 else 0
 
 /-- Every vertex has even incidence parity, counting both indexed ends of every loop. -/
-@[expose] def VertexEven (G : Graph) (x : Fin G.2.length → Bool) : Prop :=
+@[expose] def VertexEven (G : Graph) (x : Fin G.edges.length → Bool) : Prop :=
   ∀ v, G.vertexParity x v = false
 
 namespace RotationSystem
@@ -52,7 +52,7 @@ variable {G : Graph} (r : RotationSystem G)
 
 /-- The boundary of face colors labels each edge by the exclusive or of its two incident
 actual face orbits. A bridge incident twice to one face consequently receives `false`. -/
-@[expose] def faceBoundary (q : r.Face → Bool) : Fin G.2.length → Bool :=
+@[expose] def faceBoundary (q : r.Face → Bool) : Fin G.edges.length → Bool :=
   fun i => q (Quotient.mk _ (i, false)) ^^ q (Quotient.mk _ (i, true))
 
 /-- Either end reads the same face boundary. -/
@@ -66,7 +66,7 @@ theorem faceBoundary_dart (q : r.Face → Bool) (d : Dart G) :
 
 /-- Dual-face parity is original vertex parity, with the reversal required by the actual
 dual face successor. No Euler or endpoint declaration assumption is needed. -/
-theorem dual_faceParity_eq_vertexParity (x : Fin G.2.length → Bool) (d : Dart G) :
+theorem dual_faceParity_eq_vertexParity (x : Fin G.edges.length → Bool) (d : Dart G) :
     r.dualRotation.faceParity (fun i => x (Fin.cast r.dualGraph_length i))
         (Quotient.mk _ (r.dualDartEquiv d)) = G.vertexParity x d.reverse.vertex := by
   classical
@@ -82,7 +82,7 @@ theorem dual_faceParity_eq_vertexParity (x : Fin G.2.length → Bool) (d : Dart 
   simp only [Dart.reverse_reverse, vertexParity, eq_comm]
 
 /-- Vertex-even labels are precisely face-even labels on the actual indexed dual. -/
-theorem vertexEven_iff_dual_faceEven (x : Fin G.2.length → Bool) :
+theorem vertexEven_iff_dual_faceEven (x : Fin G.edges.length → Bool) :
     G.VertexEven x ↔
       r.dualRotation.FaceEven (fun i => x (Fin.cast r.dualGraph_length i)) := by
   rw [r.dualRotation.faceEven_iff_dart]
@@ -104,11 +104,11 @@ theorem dual_edgeGradient_faceColors (q : r.Face → Bool) :
     ∃ spin : ℕ → Bool, r.dualGraph.edgeGradient spin =
       fun i => r.faceBoundary q (Fin.cast r.dualGraph_length i) := by
   classical
-  let spin (v : ℕ) := if hv : v ∈ r.dualGraph.1 then
+  let spin (v : ℕ) := if hv : v ∈ r.dualGraph.vertices then
     q (r.faceDualVertexEquiv.symm ⟨v, hv⟩) else false
   have hs (d : Dart G) : spin (r.faceId d) = q (Quotient.mk _ d) := by
-    have hv : r.faceId d ∈ r.dualGraph.1 :=
-      r.faceDualVertexEquiv_mk d ▸ (r.faceDualVertexEquiv (Quotient.mk _ d)).2
+    have hv : r.faceId d ∈ r.dualGraph.vertices :=
+      r.faceDualVertexEquiv_mk d ▸ (r.faceDualVertexEquiv (Quotient.mk _ d)).property
     dsimp only [spin]
     rw [dite_eq_left hv, r.faceDualVertexEquiv.symm_apply_eq.mpr
       (Subtype.ext (r.faceDualVertexEquiv_mk d).symm)]
@@ -133,8 +133,8 @@ include arbitrary disconnected supports, loops, parallels, sparse names, duplica
 vertices, isolated points and empty graphs. This is finite map mathematics, not a geometric
 planarity or Hanani–Tutte statement. -/
 theorem vertexEven_iff_exists_faceColors
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (hgenus : r.NumericalGenusZero)
-    (x : Fin G.2.length → Bool) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hgenus : r.NumericalGenusZero)
+    (x : Fin G.edges.length → Bool) :
     G.VertexEven x ↔ ∃ q : r.Face → Bool, r.faceBoundary q = x := by
   constructor
   · intro hx

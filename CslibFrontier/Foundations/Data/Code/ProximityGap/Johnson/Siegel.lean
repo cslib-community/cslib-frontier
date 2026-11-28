@@ -38,7 +38,7 @@ variable {F : Type*} [Field F]
 private noncomputable def polyOfTable (M : Finset (ℕ × ℕ)) (B : ℕ)
     (c : (M × Fin (B + 1)) → F) : F[X][X][X] :=
   ∑ p ∈ M.attach,
-    C (C (∑ t : Fin (B + 1), C (c (p, t)) * X ^ (t : ℕ)) * X ^ p.1.1) * X ^ p.1.2
+    C (C (∑ t : Fin (B + 1), C (c (p, t)) * X ^ (t : ℕ)) * X ^ p.val.1) * X ^ p.val.2
 
 private theorem coeff_coeff_coeff_polyOfTable (M : Finset (ℕ × ℕ)) (B : ℕ)
     (c : (M × Fin (B + 1)) → F) (a b t : ℕ) :
@@ -48,10 +48,10 @@ private theorem coeff_coeff_coeff_polyOfTable (M : Finset (ℕ × ℕ)) (B : ℕ
       else 0 := by
   rw [polyOfTable, finsetSum_coeff, finsetSum_coeff, finsetSum_coeff]
   have hterm (p : M) :
-      (((C (C (∑ u : Fin (B + 1), C (c (p, u)) * X ^ (u : ℕ)) * X ^ p.1.1) *
-          X ^ p.1.2).coeff b).coeff a).coeff t =
-        if p.1 = (a, b) then if ht : t < B + 1 then c (p, ⟨t, ht⟩) else 0 else 0 := by
-    by_cases hpe : p.1 = (a, b)
+      (((C (C (∑ u : Fin (B + 1), C (c (p, u)) * X ^ (u : ℕ)) * X ^ p.val.1) *
+          X ^ p.val.2).coeff b).coeff a).coeff t =
+        if p.val = (a, b) then if ht : t < B + 1 then c (p, ⟨t, ht⟩) else 0 else 0 := by
+    by_cases hpe : p.val = (a, b)
     · simp only [hpe, ↓reduceIte, coeff_C_mul_X_pow, finsetSum_coeff]
       by_cases ht : t < B + 1
       · rw [dite_eq_left ht, Finset.sum_eq_single ⟨t, ht⟩
@@ -70,7 +70,7 @@ private theorem coeff_coeff_coeff_polyOfTable (M : Finset (ℕ × ℕ)) (B : ℕ
       (fun _ _ hne => ite_eq_right fun h => hne (Subtype.ext h)) (absurd (mem_attach M _))]
     simp
   · rw [dite_eq_right hab]
-    exact Finset.sum_eq_zero fun p _ => ite_eq_right fun h : p.1 = (a, b) => hab (h ▸ p.2)
+    exact Finset.sum_eq_zero fun p _ => ite_eq_right fun h : p.val = (a, b) => hab (h ▸ p.property)
 
 private theorem polyOfTable_eq_zero_iff (M : Finset (ℕ × ℕ)) (B : ℕ)
     (c : (M × Fin (B + 1)) → F) :
@@ -117,17 +117,17 @@ private theorem natDegree_coeff_shift_polyOfTable_le {d D B r : ℕ}
   set cz : F[X] := ∑ t : Fin (B + 1), C (c (p, t)) * X ^ (t : ℕ)
   have hcz_deg : cz.natDegree ≤ B := (natDegree_sum_le _ _).trans (Finset.sup_le fun t _ =>
     (natDegree_C_mul_X_pow_le _ _).trans (by omega))
-  change ((((shift (C x) w (C (C cz * X ^ p.1.1) * X ^ p.1.2)).coeff v).coeff u).natDegree) ≤ _
+  change ((((shift (C x) w (C (C cz * X ^ p.val.1) * X ^ p.val.2)).coeff v).coeff u).natDegree) ≤ _
   rw [C_mul_X_pow_eq_monomial, C_mul_X_pow_eq_monomial, coeff_coeff_shift_monomial]
   refine natDegree_mul_le.trans (Nat.add_le_add ?_ (natDegree_pow_le.trans ?_))
-  · have hre : (p.1.1.choose u : F[X]) * (p.1.2.choose v : F[X]) * cz * (C x) ^ (p.1.1 - u) =
-        C ((p.1.1.choose u : F) * (p.1.2.choose v : F) * x ^ (p.1.1 - u)) * cz := by
+  · have hre : (p.val.1.choose u : F[X]) * (p.val.2.choose v : F[X]) * cz * (C x) ^ (p.val.1 - u) =
+        C ((p.val.1.choose u : F) * (p.val.2.choose v : F) * x ^ (p.val.1 - u)) * cz := by
       simp only [map_mul, map_pow, map_natCast]
       ring
     exact hre ▸ (natDegree_C_mul_le _ _).trans hcz_deg
-  · calc (p.1.2 - v) * w.natDegree ≤ p.1.2 * r := Nat.mul_le_mul (Nat.sub_le _ _) hw
+  · calc (p.val.2 - v) * w.natDegree ≤ p.val.2 * r := Nat.mul_le_mul (Nat.sub_le _ _) hw
       _ ≤ r * maxYDeg d D :=
-        mul_comm _ r ▸ Nat.mul_le_mul_right r (Finset.le_sup (f := Prod.snd) p.2)
+        mul_comm _ r ▸ Nat.mul_le_mul_right r (Finset.le_sup (f := Prod.snd) p.property)
 
 /-- Step 1 (Siegel interpolation in `F[Z][X][Y]`): zero-denominator multiplicity-`m` interpolant
 with explicit `Z`-degree bound `siegelZDeg n m d D r`. -/
@@ -147,23 +147,23 @@ theorem exists_siegel_interpolant [DecidableEq F] {ι : Type*} [Fintype ι] (α 
   set R_eq := Fintype.card ι * (m * (m + 1) / 2)
   let entry : (M × Fin (B + 1)) → (ι × multPairs m × Fin (B + r * D_Y + 1)) → F := fun pt eq =>
     (((shift (C (α eq.1)) (curveWord u eq.1)
-        (C (C (X ^ (pt.2 : ℕ)) * X ^ pt.1.1.1) * X ^ pt.1.1.2)).coeff eq.2.1.1.2).coeff
-      eq.2.1.1.1).coeff (eq.2.2 : ℕ)
+        (C (C (X ^ (pt.2 : ℕ)) * X ^ pt.1.val.1) * X ^ pt.1.val.2)).coeff eq.2.1.val.2).coeff
+      eq.2.1.val.1).coeff (eq.2.2 : ℕ)
   let Φ : ((M × Fin (B + 1)) → F) →ₗ[F] ((ι × multPairs m × Fin (B + r * D_Y + 1)) → F) :=
     { toFun := fun c eq => ∑ pt : M × Fin (B + 1), c pt * entry pt eq
       map_add' := fun _ _ => funext fun _ => by simp [add_mul, Finset.sum_add_distrib]
       map_smul' := fun _ _ => funext fun _ => by simp [smul_eq_mul, mul_assoc, Finset.mul_sum] }
   have hΦ_eq : ∀ c eq, Φ c eq =
-      (((shift (C (α eq.1)) (curveWord u eq.1) (polyOfTable M B c)).coeff eq.2.1.1.2).coeff
-        eq.2.1.1.1).coeff (eq.2.2 : ℕ) := fun c eq => by
+      (((shift (C (α eq.1)) (curveWord u eq.1) (polyOfTable M B c)).coeff eq.2.1.val.2).coeff
+        eq.2.1.val.1).coeff (eq.2.2 : ℕ) := fun c eq => by
     change ∑ pt : M × Fin (B + 1), c pt * entry pt eq = _
     rw [polyOfTable, map_sum, finsetSum_coeff, finsetSum_coeff, finsetSum_coeff,
       Fintype.sum_prod_type]
     refine Finset.sum_congr rfl fun p _ => ?_
     have hsplit :
-        C (C (∑ t : Fin (B + 1), C (c (p, t)) * X ^ (t : ℕ)) * X ^ p.1.1) * X ^ p.1.2 =
+        C (C (∑ t : Fin (B + 1), C (c (p, t)) * X ^ (t : ℕ)) * X ^ p.val.1) * X ^ p.val.2 =
         ∑ t : Fin (B + 1),
-          C (C (C (c (p, t)))) * (C (C (X ^ (t : ℕ)) * X ^ p.1.1) * X ^ p.1.2) := by
+          C (C (C (c (p, t)))) * (C (C (X ^ (t : ℕ)) * X ^ p.val.1) * X ^ p.val.2) := by
       simp only [map_sum, Finset.sum_mul, map_mul, mul_assoc]
     rw [hsplit, map_sum, finsetSum_coeff, finsetSum_coeff, finsetSum_coeff]
     refine Finset.sum_congr rfl fun t _ => ?_

@@ -94,9 +94,9 @@ private theorem bddAbove_range_sub [Fintype Z] (D : PMF Z) {m : ℕ} (hm : 0 < m
   refine ⟨B + B, ?_⟩
   rintro _ ⟨f, rfl⟩
   have h1 : ∑ z, (D z).toReal * (f : Z → ℝ) z ≤ B :=
-    Probability.PMF.sum_mul_le D _ _ fun z => (le_abs_self _).trans (hF f f.2 z)
+    Probability.PMF.sum_mul_le D _ _ fun z => (le_abs_self _).trans (hF f f.property z)
   have h2 : -B ≤ 𝔼 i, (f : Z → ℝ) (S i) :=
-    Finset.le_expect Finset.univ_nonempty fun i _ => neg_le_of_abs_le (hF f f.2 _)
+    Finset.le_expect Finset.univ_nonempty fun i _ => neg_le_of_abs_le (hF f f.property _)
   dsimp only
   linarith
 
@@ -134,7 +134,8 @@ private theorem ciSup_sub_le_sum (D : PMF Z) {m : ℕ} (hm : 0 < m) {F : Set (Z 
   have hbdd (S' : Fin m → Z) :
       BddAbove (Set.range fun g : F => 𝔼 i, ((g : Z → ℝ) (S' i) - (g : Z → ℝ) (S i))) :=
     Fintype.bddAbove_range_expect _ (B := B + B) fun g i =>
-      (le_abs_self _).trans ((abs_sub _ _).trans (by linarith [hF g g.2 (S' i), hF g g.2 (S i)]))
+      (le_abs_self _).trans ((abs_sub _ _).trans
+        (by linarith [hF g g.property (S' i), hF g g.property (S i)]))
   calc ∑ z, (D z).toReal * (f : Z → ℝ) z - 𝔼 i, (f : Z → ℝ) (S i)
       = ∑ S' : Fin m → Z, (P S').toReal * 𝔼 i, ((f : Z → ℝ) (S' i) - (f : Z → ℝ) (S i)) := by
         simp only [Finset.expect_sub_distrib, mul_sub, Finset.sum_sub_distrib,
@@ -190,9 +191,9 @@ private theorem ciSup_expect_sub_swapSamples_le {m : ℕ} {F : Set (Z → ℝ)} 
   rw [expect_sub_swapSamples, hsplit]
   exact add_le_add
     (le_ciSup (bddAbove_range_expect_signVal_mul (fun (g : F) i => (g : Z → ℝ) (p.2 i))
-      (fun g _ => hF g g.2 _) σ) f)
+      (fun g _ => hF g g.property _) σ) f)
     (le_ciSup (bddAbove_range_expect_signVal_mul (fun (g : F) i => (g : Z → ℝ) (p.1 i))
-      (fun g _ => hF g g.2 _) fun i => !σ i) f)
+      (fun g _ => hF g g.property _) fun i => !σ i) f)
 
 omit [Fintype Z] in
 /-- Averaged over the signs, the swapped ghost-sample gap is at most the sum of the two empirical
@@ -290,7 +291,7 @@ private theorem hasBoundedDifferences_ciSup_sub [Fintype Z] (D : PMF Z) {m : ℕ
   refine Probability.HasBoundedDifferences.ciSup (fun _ => div_nonneg (sub_nonneg.2 hab)
     (Nat.cast_nonneg m)) (fun f S i z => ?_) (bddAbove_range_sub D hm fun f hf z =>
       abs_le_max_abs_abs (hF f hf z).1 (hF f hf z).2)
-  have := hasBoundedDifferences_expect_apply (m := m) (hF f f.2) S i z
+  have := hasBoundedDifferences_expect_apply (m := m) (hF f f.property) S i z
   dsimp only at this ⊢
   rw [sub_sub_sub_cancel_left, abs_sub_comm]
   exact this
@@ -309,14 +310,14 @@ theorem hasBoundedDifferences_empiricalRademacherComplexity {m : ℕ} {F : Set (
   refine Probability.HasBoundedDifferences.expect hc fun σ =>
     Probability.HasBoundedDifferences.ciSup hc (fun f => ?_)
       fun S => bddAbove_range_expect_signVal_mul (fun (g : F) i => (g : Z → ℝ) (S i))
-        (fun g _ => hB g g.2 _) σ
+        (fun g _ => hB g g.property _) σ
   have h := Probability.hasBoundedDifferences_sum (α := fun _ : Fin m => Z)
     (score := fun i z => signVal (σ i) * (f : Z → ℝ) z / m) (c := fun _ => (b - a) / m)
     fun i z w => by
       rw [← sub_div, ← mul_sub, abs_div, abs_mul, abs_signVal, one_mul, Nat.abs_cast]
       gcongr
-      have hz := hF f f.2 z
-      have hw := hF f f.2 w
+      have hz := hF f f.property z
+      have hw := hF f f.property w
       rw [abs_le]
       constructor <;> linarith [hz.1, hz.2, hw.1, hw.2]
   simpa only [Fintype.expect_eq_sum_div_card, Fintype.card_fin, Finset.sum_div] using h

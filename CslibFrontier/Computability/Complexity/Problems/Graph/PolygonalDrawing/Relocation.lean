@@ -452,7 +452,7 @@ theorem IsEmbedding.exists_vertex_relocation_radius {G : Graph} {D : PolygonalDr
     have hdir (d : Dart G) (hd : d.vertex ≠ v) :
         (D.relocateVertex v ρ a).direction d = D.direction d := by
       obtain ⟨c, hc, hg⟩ := relocated_inactive_germ hD v hρ hlen a d hd
-      simp only [direction, hg, Complex.real_smul, Complex.arg_real_mul _ hc]
+      simp only [direction, hg, Complex.real_smul, Complex.arg_ofReal_mul hc _]
     rw [hdir x hx, hdir y hy, hdir z hz]
 
 end Cslib.Complexity.Graph.PolygonalDrawing

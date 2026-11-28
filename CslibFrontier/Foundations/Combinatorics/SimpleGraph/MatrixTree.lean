@@ -99,7 +99,7 @@ theorem fromEdgeSet_range_adj {ι : Type*} (g : ι → G.edgeSet) {a b : V} :
   · rintro ⟨k, hk⟩
     refine ⟨⟨k, hk⟩, fun hab => ?_⟩
     subst hab
-    exact G.not_isDiag_of_mem_edgeSet (hk ▸ (g k).2) (Sym2.mk_isDiag_iff.mpr rfl)
+    exact G.not_isDiag_of_mem_edgeSet (hk ▸ (g k).property) (Sym2.mk_isDiag_iff.mpr rfl)
 
 /-- In a connected graph, a vertex `v ≠ r` has a neighbour one step closer to `r`. -/
 private theorem exists_adj_dist_add_one {H : SimpleGraph V} (hH : H.Connected) {r v : V}
@@ -152,7 +152,7 @@ theorem det_orientedIncMatrix_submatrix_sq_eq_one {r : V} (g : {v // v ≠ r} �
   classical
   set H := fromEdgeSet (Set.range fun k => (g k : Sym2 V))
   have hpar : ∀ v : {v // v ≠ r}, ∃ u, H.Adj v u ∧ H.dist u r + 1 = H.dist v r :=
-    fun v => exists_adj_dist_add_one hc v.2
+    fun v => exists_adj_dist_add_one hc v.property
   choose par hparadj hpardist using hpar
   have hk : ∀ v : {v // v ≠ r}, ∃ k, (g k : Sym2 V) = s((v : V), par v) :=
     fun v => (fromEdgeSet_range_adj g).1 (hparadj v)
@@ -224,7 +224,7 @@ private theorem edgeSet_fromEdgeSet_image (s : Set G.edgeSet) :
   ext x
   simp only [Set.mem_sdiff, Sym2.mem_diagSet, and_iff_left_iff_imp]
   rintro ⟨y, -, rfl⟩
-  exact G.not_isDiag_of_mem_edgeSet y.2
+  exact G.not_isDiag_of_mem_edgeSet y.property
 
 omit [DecidableEq V] [DecidableRel G.Adj] in
 /-- On a vertex type with `m + 1` elements, the sets of `m` edges of `G` that form a connected
@@ -232,17 +232,17 @@ spanning subgraph correspond to the spanning trees of `G`. -/
 private theorem bijective_spanningTree {m : ℕ} (hm : Fintype.card V = m + 1) :
     ∃ h : ∀ s : {s : Set.powersetCard G.edgeSet m //
         (fromEdgeSet (Subtype.val '' (s : Set G.edgeSet))).Connected},
-        fromEdgeSet (Subtype.val '' (s.1 : Set G.edgeSet)) ≤ G ∧
-          (fromEdgeSet (Subtype.val '' (s.1 : Set G.edgeSet))).IsTree,
+        fromEdgeSet (Subtype.val '' (s.val : Set G.edgeSet)) ≤ G ∧
+          (fromEdgeSet (Subtype.val '' (s.val : Set G.edgeSet))).IsTree,
       Function.Bijective fun s => (⟨_, h s⟩ : {T : SimpleGraph V // T ≤ G ∧ T.IsTree}) := by
   classical
   refine ⟨fun s => ⟨?_, ?_⟩, fun s t hst => ?_, fun T => ?_⟩
   · rw [← edgeSet_subset_edgeSet, edgeSet_fromEdgeSet_image]
     rintro _ ⟨y, -, rfl⟩
-    exact y.2
+    exact y.property
   · rw [isTree_iff_connected_and_card, edgeSet_fromEdgeSet_image, Nat.card_coe_set_eq,
       Set.ncard_image_of_injective _ Subtype.val_injective, ncard_eq, Nat.card_eq_fintype_card, hm]
-    exact ⟨s.2, rfl⟩
+    exact ⟨s.property, rfl⟩
   · have h2 := congrArg SimpleGraph.edgeSet (congrArg Subtype.val hst)
     simp only [edgeSet_fromEdgeSet_image] at h2
     have h3 := Set.image_injective.mpr Subtype.val_injective h2

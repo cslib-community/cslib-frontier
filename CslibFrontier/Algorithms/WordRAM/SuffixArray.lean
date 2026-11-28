@@ -405,8 +405,8 @@ private theorem kasaiSetupAndZero_spec (I : KasaiInput) {w : ℕ}
       Block.HoldsList 3 I.text s₀.mem ∧
       Block.HoldsList (3 + n) I.sa s₀.mem := by
     refine WP.exists_execWithin ?_
-    unfold kasaiSetup
-    wram_exec [x, Data.init_regs, hm1, hm2, hf_1, hf_2, hf_3, hf_sb, hf_rkb, hf_out, hf_lcpb]
+    wram_exec [kasaiSetup,
+      x, Data.init_regs, hm1, hm2, hf_1, hf_2, hf_3, hf_sb, hf_rkb, hf_out, hf_lcpb]
     refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_⟩
     · wram_simp
     · wram_simp
@@ -464,8 +464,7 @@ private theorem kasaiSetupAndZero_spec (I : KasaiInput) {w : ℕ}
     rfl
   have hinit_exec : ExecWithin w kasaiZeroInit s₀ x₁ (8 * n + 7) :=
     WP.execWithin <| by
-      unfold kasaiZeroInit
-      wram_exec [hrs₀.rkb_eq]
+      wram_exec [kasaiZeroInit, hrs₀.rkb_eq]
       refine WP.of_execWithin ez₁ ?_
       wram_exec [hrs₂.lcpb_eq, hrs₂.tl_eq, hf_lcpe]
       exact WP.of_execWithin ez₂ ⟨by omega, rfl⟩
@@ -546,8 +545,7 @@ private theorem scatterCode_spec (I : KasaiInput) {w : ℕ}
             u.regs regi = r + 1 ∧
             u.mem = Function.update s.mem (3 + n + m + I.sa[r]) r := by
           refine WP.exists_execWithin ?_
-          unfold scatterBody
-          wram_exec [hs.regs.sb_eq, hs.regs.tl_eq, hs.regs.rkb_eq, hs.regs.one_eq,
+          wram_exec [scatterBody, hs.regs.sb_eq, hs.regs.tl_eq, hs.regs.rkb_eq, hs.regs.one_eq,
             hs_sar, hf_sa_addr, hf_rk_addr, hf_r1]
           refine ⟨?_, ?_⟩
           · wram_simp [r]
@@ -569,8 +567,8 @@ private theorem scatterCode_spec (I : KasaiInput) {w : ℕ}
       · have hstep : ∃ u, ExecWithin w scatterBody s u 6 ∧
             u.regs regi = r + 1 ∧ u.mem = s.mem := by
           refine WP.exists_execWithin ?_
-          unfold scatterBody
-          wram_exec [hs.regs.sb_eq, hs.regs.tl_eq, hs.regs.one_eq, hs_sar, hf_sa_addr, hf_r1]
+          wram_exec [scatterBody,
+            hs.regs.sb_eq, hs.regs.tl_eq, hs.regs.one_eq, hs_sar, hf_sa_addr, hf_r1]
           refine ⟨?_, rfl⟩
           wram_simp [r]
         obtain ⟨u, hexec, hur, humem⟩ := hstep
@@ -654,8 +652,7 @@ private theorem kasaiExt_spec (I : KasaiInput) {w : ℕ}
     have hstep : ∃ u, ExecWithin w kasaiExtBody x u 4 ∧
         u.regs go = 0 ∧ u.regs regh = x.regs regh ∧ u.mem = x.mem := by
       refine WP.exists_execWithin ?_
-      unfold kasaiExtBody
-      wram_exec [hrx.tl_eq, hrx.zero_eq, hf_ni]
+      wram_exec [kasaiExtBody, hrx.tl_eq, hrx.zero_eq, hf_ni]
       refine ⟨?_, ?_, rfl⟩
       · wram_simp
       · wram_simp
@@ -686,8 +683,8 @@ private theorem kasaiExt_spec (I : KasaiInput) {w : ℕ}
         have hstep : ∃ u, ExecWithin w kasaiExtBody x u 12 ∧
             u.regs regh = h + 1 ∧ u.regs go = 1 ∧ u.mem = x.mem := by
           refine WP.exists_execWithin ?_
-          unfold kasaiExtBody kasaiExtLoads
-          wram_exec [hrx.tl_eq, hrx.tb_eq, hrx.one_eq, hrx.zero_eq, hgo,
+          wram_exec [kasaiExtBody, kasaiExtLoads,
+            hrx.tl_eq, hrx.tb_eq, hrx.one_eq, hrx.zero_eq, hgo,
             hread_j, hread_i, hf_ni, hf_nh, hf_jh, hf_3jh, hf_ih, hf_3ih, hf_h1]
           refine ⟨?_, ?_, rfl⟩
           · wram_simp [h]
@@ -712,8 +709,7 @@ private theorem kasaiExt_spec (I : KasaiInput) {w : ℕ}
       · have hstep : ∃ u, ExecWithin w kasaiExtBody x u 13 ∧
             u.regs go = 0 ∧ u.regs regh = h ∧ u.mem = x.mem := by
           refine WP.exists_execWithin ?_
-          unfold kasaiExtBody kasaiExtLoads
-          wram_exec [hrx.tl_eq, hrx.tb_eq, hrx.zero_eq,
+          wram_exec [kasaiExtBody, kasaiExtLoads, hrx.tl_eq, hrx.tb_eq, hrx.zero_eq,
             hread_j, hread_i, hf_ni, hf_nh, hf_jh, hf_3jh, hf_ih, hf_3ih]
           refine ⟨?_, ?_, rfl⟩
           · wram_simp
@@ -728,8 +724,7 @@ private theorem kasaiExt_spec (I : KasaiInput) {w : ℕ}
     · have hstep : ∃ u, ExecWithin w kasaiExtBody x u 6 ∧
           u.regs go = 0 ∧ u.regs regh = h ∧ u.mem = x.mem := by
         refine WP.exists_execWithin ?_
-        unfold kasaiExtBody
-        wram_exec [hrx.tl_eq, hrx.zero_eq, hf_ni, hf_nh]
+        wram_exec [kasaiExtBody, hrx.tl_eq, hrx.zero_eq, hf_ni, hf_nh]
         refine ⟨?_, ?_, rfl⟩
         · wram_simp
         · wram_simp [h]
@@ -800,8 +795,8 @@ private theorem kasaiBody_spec (I : KasaiInput) {w : ℕ}
   · have hstep : ∃ y, ExecWithin w kasaiBody x y 4 ∧
         y.regs regi = i + 1 ∧ y.regs regh = h ∧ y.mem = x.mem := by
       refine WP.exists_execWithin ?_
-      unfold kasaiBody
-      wram_exec [hx.regs.rkb_eq, hx.regs.zero_eq, hx.regs.one_eq, hrk_i_mem, hf_rk_i, hf_i1]
+      wram_exec [kasaiBody,
+        hx.regs.rkb_eq, hx.regs.zero_eq, hx.regs.one_eq, hrk_i_mem, hf_rk_i, hf_i1]
       refine ⟨?_, ?_, rfl⟩
       · wram_simp [i]
       · wram_simp [h]
@@ -1064,10 +1059,10 @@ theorem kasaiProgram_computesListInTime :
 word width `w` with `Fits w (4 * |I.text| + 4)`. -/
 theorem kasaiProgram_computesLcpArrayInTime :
     kasaiProgram.ComputesListInTime
-      (fun _ (I : {I : KasaiInput // IsSuffixArray I.text I.sa}) => I.1.encode)
-      (fun I _ => 63 * I.1.text.length + 26)
-      (fun I w => Fits w (4 * I.1.text.length + 4))
-      (fun I => lcpArray I.1.text I.1.sa) := by
+      (fun _ (I : {I : KasaiInput // IsSuffixArray I.text I.sa}) => I.val.encode)
+      (fun I _ => 63 * I.val.text.length + 26)
+      (fun I w => Fits w (4 * I.val.text.length + 4))
+      (fun I => lcpArray I.val.text I.val.sa) := by
   rintro ⟨I, hsa⟩ w hw hfits
   dsimp only at hw hfits ⊢
   have hlen := hsa.length_eq
@@ -1435,8 +1430,7 @@ private theorem cmpLoop_spec (I : SearchInput) {w : ℕ}
             u₂.regs t0 = I.pat[k] ∧ u₂.regs t1 = I.text[pos + k] ∧ u₂.mem = u₁.mem := by
           have hu₁_k : u₁.regs regk = k := Data.set_regs_of_ne (by decide) _
           refine WP.exists_execWithin ?_
-          unfold cmpLoads
-          wram_exec [hru₁.pb_eq, hru₁.tb_eq, hu₁_k, hu₁_pos, hread_p, hread_t,
+          wram_exec [cmpLoads, hru₁.pb_eq, hru₁.tb_eq, hu₁_k, hu₁_pos, hread_p, hread_t,
             hf_pa, hf_pk, hf_ta]
           refine ⟨?_, ?_, rfl⟩
           · wram_simp
@@ -1581,8 +1575,7 @@ private theorem cmpSuffixCode_spec (I : SearchInput) {w : ℕ}
       u.regs posReg = I.sa[s.regs midReg] ∧ u.regs regk = 0 ∧
       u.regs resReg = 1 ∧ u.regs go = 1 ∧ u.mem = s.mem := by
     refine WP.exists_execWithin ?_
-    unfold cmpPrep
-    wram_exec [hs.sb_eq, hs.zero_eq, hs.one_eq, hmem_sa, hf_sa_m]
+    wram_exec [cmpPrep, hs.sb_eq, hs.zero_eq, hs.one_eq, hmem_sa, hf_sa_m]
     refine ⟨?_, ?_, ?_, ?_, rfl⟩
     · wram_simp
     · wram_simp [hs.zero_eq]
@@ -1622,8 +1615,8 @@ private theorem twoBisections_spec (I : SearchInput) {w : ℕ}
   have hsetup : ∃ x₁, ExecWithin w searchSetup x x₁ 13 ∧
       SearchRegs I x₁ ∧ x₁.regs loReg = 0 ∧ x₁.regs hiReg = m := by
     refine WP.exists_execWithin ?_
-    unfold searchSetup
-    wram_exec [x, Data.init_regs, hm1, hm2, hm3, hf_1, hf_2, hf_3, hf_4, hf_sb, hf_pb, hf_out]
+    wram_exec [searchSetup,
+      x, Data.init_regs, hm1, hm2, hm3, hf_1, hf_2, hf_3, hf_4, hf_sb, hf_pb, hf_out]
     exact ⟨⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       htxt, hsa, hpat⟩, by wram_simp, by wram_simp; rfl⟩
@@ -1739,8 +1732,8 @@ theorem rangeSearchCode_exec (I : SearchInput) {w : ℕ}
       y.mem out₀ = 2 ∧ y.mem (out₀ + 1) = lo ∧ y.mem (out₀ + 2) = hi ∧
       (∀ a < out₀, y.mem a = x₂.mem a) := by
     refine WP.exists_execWithin ?_
-    unfold rangeSearchFinish
-    wram_exec [hrx₂.out_eq, hrx₂.one_eq, hrx₂.two_eq, hx₂_sv, hx₂_lo, hf_o1, hf_o2]
+    wram_exec [rangeSearchFinish,
+      hrx₂.out_eq, hrx₂.one_eq, hrx₂.two_eq, hx₂_sv, hx₂_lo, hf_o1, hf_o2]
     refine ⟨by wram_simp [hrx₂.out_eq]; rfl, ?_, ?_, ?_, fun a ha => ?_⟩
     · simp only [Data.write_mem, Data.set_mem]
       rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega), Function.update_self]
@@ -1824,8 +1817,7 @@ theorem occurrencesCode_exec (I : SearchInput) {w : ℕ}
     set u₁ := ((x₂.set hiReg (hi - lo)).write out₀ (hi - lo)).set regk 0
     have e_init : ExecWithin w occCopyInit x₂ u₁ 3 :=
       WP.execWithin <| by
-        unfold occCopyInit
-        wram_exec [hx₂_lo, hx₂_sv, hrx₂.out_eq, hrx₂.zero_eq, hf_cnt]
+        wram_exec [occCopyInit, hx₂_lo, hx₂_sv, hrx₂.out_eq, hrx₂.zero_eq, hf_cnt]
         rfl
     have hru₁ : SearchRegs I u₁ := hrx₂.search_exec e_init fun a ha => by
       simp only [u₁, out₀, Data.set_mem, Data.write_mem]
@@ -1862,8 +1854,7 @@ theorem occurrencesCode_exec (I : SearchInput) {w : ℕ}
             s'.regs regk = k + 1 ∧
             s'.mem = Function.update s.mem (out₀ + 1 + k) I.sa[lo + k] := by
           refine WP.exists_execWithin ?_
-          unfold occCopyBody
-          wram_exec [hs.sv_eq, hs.regs.sb_eq, hs.regs.out_eq, hs.regs.one_eq, hread_sa,
+          wram_exec [occCopyBody, hs.sv_eq, hs.regs.sb_eq, hs.regs.out_eq, hs.regs.one_eq, hread_sa,
             hf_lk, hf_sa_lk, hf_o1, hf_o1k, hf_k1]
           refine ⟨?_, ?_⟩
           · wram_simp [k]

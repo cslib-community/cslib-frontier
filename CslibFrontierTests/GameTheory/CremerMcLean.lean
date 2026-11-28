@@ -83,11 +83,11 @@ def otherFin2 : (i : Fin 2) → {j : Fin 2 // j ≠ i}
   | 1 => ⟨0, by decide⟩
 
 @[simp]
-theorem otherFin2_zero_val : (otherFin2 0).1 = 1 :=
+theorem otherFin2_zero_val : (otherFin2 0).val = 1 :=
   rfl
 
 @[simp]
-theorem otherFin2_one_val : (otherFin2 1).1 = 0 :=
+theorem otherFin2_one_val : (otherFin2 1).val = 0 :=
   rfl
 
 theorem eq_one_of_ne_zero {j : Fin 2} (hj : j ≠ 0) : j = 1 :=
@@ -106,7 +106,7 @@ theorem subsingleton_oppFin2 (i : Fin 2) : Subsingleton {j : Fin 2 // j ≠ i} :
 /-- For `ι = Fin 2` and type family `T`, opponent profiles `OppProfile T 0` are canonically
 equivalent to `T 1`. -/
 def oppEquiv0 {T : Fin 2 → Type*} : T 1 ≃ OppProfile T 0 where
-  toFun x j := (eq_one_of_ne_zero j.2).symm ▸ x
+  toFun x j := (eq_one_of_ne_zero j.property).symm ▸ x
   invFun t_opp := t_opp ⟨1, by decide⟩
   left_inv _ := rfl
   right_inv t_opp := by
@@ -122,7 +122,7 @@ theorem oppEquiv0_apply_one {T : Fin 2 → Type*} (x : T 1) (h : (1 : Fin 2) ≠
 /-- For `ι = Fin 2` and type family `T`, opponent profiles `OppProfile T 1` are canonically
 equivalent to `T 0`. -/
 def oppEquiv1 {T : Fin 2 → Type*} : T 0 ≃ OppProfile T 1 where
-  toFun x j := (eq_zero_of_ne_one j.2).symm ▸ x
+  toFun x j := (eq_zero_of_ne_one j.property).symm ▸ x
   invFun t_opp := t_opp ⟨0, by decide⟩
   left_inv _ := rfl
   right_inv t_opp := by
@@ -437,7 +437,7 @@ theorem not_exists_isBIC_extractsFullSurplus_posAuctionVal_indepBinaryPrior :
     cases b
     · exact absurd rfl hb
     · simp only [mem_univ, mem_singleton]
-  have hcomb : ∑ b : {b : Bool // b ≠ false}, w b • indepBinaryPrior.condBelief i₀ b.1 =
+  have hcomb : ∑ b : {b : Bool // b ≠ false}, w b • indepBinaryPrior.condBelief i₀ b.val =
       indepBinaryPrior.condBelief i₀ false := by
     funext t_opp
     rw [huniv, sum_singleton]
@@ -816,7 +816,7 @@ theorem not_exists_isBIC_extractsFullSurplus_collinearPrior :
       rcases fin3_cases (t 0) with h0 | h0 | h0 <;>
         simp only [Fin.sum_univ_two, collinearVal, h0] at key <;> norm_num at key
   let w : {a : Fin 3 // a ≠ (1 : Fin 3)} → ℝ := fun _ => 1 / 2
-  have hcomb : ∑ a : {a : Fin 3 // a ≠ (1 : Fin 3)}, w a • collinearPrior.condBelief 0 a.1 =
+  have hcomb : ∑ a : {a : Fin 3 // a ≠ (1 : Fin 3)}, w a • collinearPrior.condBelief 0 a.val =
       collinearPrior.condBelief 0 (1 : Fin 3) := by
     rw [univ_fin3_ne_one, sum_pair (by decide)]
     exact collinearPrior_midpoint.symm

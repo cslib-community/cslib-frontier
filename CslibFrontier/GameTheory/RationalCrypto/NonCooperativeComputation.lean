@@ -136,21 +136,21 @@ variable {ι : Type*} {S : ι → Type*} [DecidableEq ι]
 /-- Insert player `i`'s action `a` into a joint strategy profile `s` of the remaining players
 `P_{-i}`. -/
 @[expose] def insertAction (i : ι) (a : S i)
-    (s : ∀ j : { j : ι // j ≠ i }, S j.1) : ∀ j, S j :=
+    (s : ∀ j : { j : ι // j ≠ i }, S j.val) : ∀ j, S j :=
   fun j => if h : j = i then h ▸ a else s ⟨j, h⟩
 
 @[simp]
-theorem insertAction_self (i : ι) (a : S i) (s : ∀ j : { j : ι // j ≠ i }, S j.1) :
+theorem insertAction_self (i : ι) (a : S i) (s : ∀ j : { j : ι // j ≠ i }, S j.val) :
     insertAction i a s i = a := by
   simp [insertAction]
 
-theorem insertAction_of_ne (i : ι) (a : S i) (s : ∀ j : { j : ι // j ≠ i }, S j.1)
+theorem insertAction_of_ne (i : ι) (a : S i) (s : ∀ j : { j : ι // j ≠ i }, S j.val)
     {j : ι} (h : j ≠ i) :
     insertAction i a s j = s ⟨j, h⟩ := by
   simp [insertAction, h]
 
 @[simp]
-theorem update_insertAction (i : ι) (a b : S i) (s : ∀ j : { j : ι // j ≠ i }, S j.1) :
+theorem update_insertAction (i : ι) (a b : S i) (s : ∀ j : { j : ι // j ≠ i }, S j.val) :
     update (insertAction i a s) i b = insertAction i b s := by
   funext j
   by_cases h : j = i
@@ -159,7 +159,7 @@ theorem update_insertAction (i : ι) (a b : S i) (s : ∀ j : { j : ι // j ≠ 
 
 @[simp]
 theorem insertAction_proj (i : ι) (s : ∀ j, S j) :
-    insertAction i (s i) (fun j : { j : ι // j ≠ i } => s j.1) = s := by
+    insertAction i (s i) (fun j : { j : ι // j ≠ i } => s j.val) = s := by
   funext j
   by_cases h : j = i
   · subst h; simp [insertAction]
@@ -169,17 +169,17 @@ variable [Fintype ι] [∀ j, Fintype (S j)]
 
 private theorem sum_insertAction_eq_sum_ite (i : ι) [DecidableEq (S i)] (a : S i)
     (f : (∀ j, S j) → ℝ) :
-    ∑ s : ∀ j : { j : ι // j ≠ i }, S j.1, f (insertAction i a s) =
+    ∑ s : ∀ j : { j : ι // j ≠ i }, S j.val, f (insertAction i a s) =
       ∑ s : ∀ j, S j, if s i = a then f s else 0 := by
   rw [← Finset.sum_filter]
-  refine Finset.sum_nbij' (insertAction i a) (fun s j => s j.1) ?_ ?_ ?_ ?_ (fun _ _ => rfl)
+  refine Finset.sum_nbij' (insertAction i a) (fun s j => s j.val) ?_ ?_ ?_ ?_ (fun _ _ => rfl)
   · intro s _
     simp
   · intro _ _
     exact Finset.mem_univ _
   · intro s _
     funext j
-    exact insertAction_of_ne i a s j.2
+    exact insertAction_of_ne i a s j.property
   · intro s hs
     have hsi : s i = a := (Finset.mem_filter.mp hs).2
     rw [← hsi]
@@ -188,27 +188,27 @@ private theorem sum_insertAction_eq_sum_ite (i : ι) [DecidableEq (S i)] (a : S 
 /-- Player `i`'s expected payoff when playing pure action `a` against a correlated strategy
 `z ∈ Δ(S_{-i})` of the remaining players ([DodisRabin2007], Section 8.4.2, p. 195). -/
 noncomputable def payoffAgainst (G : PayoffGame ι S) (i : ι) (a : S i)
-    (z : Convexity.StdSimplex ℝ (∀ j : { j : ι // j ≠ i }, S j.1)) : ℝ :=
+    (z : Convexity.StdSimplex ℝ (∀ j : { j : ι // j ≠ i }, S j.val)) : ℝ :=
   ∑ s, z.weights s * G.payoff i (insertAction i a s)
 
 theorem payoffAgainst_eq (G : PayoffGame ι S) (i : ι) (a : S i)
-    (z : Convexity.StdSimplex ℝ (∀ j : { j : ι // j ≠ i }, S j.1)) :
+    (z : Convexity.StdSimplex ℝ (∀ j : { j : ι // j ≠ i }, S j.val)) :
     G.payoffAgainst i a z = ∑ s, z.weights s * G.payoff i (insertAction i a s) := by
   rfl
 
 /-- Player `i`'s best-response payoff `max_{a ∈ S_i} u_i(a, z_{-i})` against a correlated strategy
 `z ∈ Δ(S_{-i})` of the remaining players. -/
 noncomputable def bestResponsePayoff (G : PayoffGame ι S) (i : ι) [Nonempty (S i)]
-    (z : Convexity.StdSimplex ℝ (∀ j : { j : ι // j ≠ i }, S j.1)) : ℝ :=
+    (z : Convexity.StdSimplex ℝ (∀ j : { j : ι // j ≠ i }, S j.val)) : ℝ :=
   Finset.univ.sup' Finset.univ_nonempty fun a => G.payoffAgainst i a z
 
 theorem payoffAgainst_le_bestResponsePayoff (G : PayoffGame ι S) (i : ι) [Nonempty (S i)]
-    (a : S i) (z : Convexity.StdSimplex ℝ (∀ j : { j : ι // j ≠ i }, S j.1)) :
+    (a : S i) (z : Convexity.StdSimplex ℝ (∀ j : { j : ι // j ≠ i }, S j.val)) :
     G.payoffAgainst i a z ≤ G.bestResponsePayoff i z := by
   exact Finset.le_sup' (fun b => G.payoffAgainst i b z) (Finset.mem_univ a)
 
 theorem bestResponsePayoff_le_iff (G : PayoffGame ι S) (i : ι) [Nonempty (S i)]
-    (z : Convexity.StdSimplex ℝ (∀ j : { j : ι // j ≠ i }, S j.1)) {c : ℝ} :
+    (z : Convexity.StdSimplex ℝ (∀ j : { j : ι // j ≠ i }, S j.val)) {c : ℝ} :
     G.bestResponsePayoff i z ≤ c ↔ ∀ a : S i, G.payoffAgainst i a z ≤ c := by
   simp only [bestResponsePayoff, Finset.sup'_le_iff, Finset.mem_univ, forall_const]
 
@@ -249,7 +249,7 @@ private theorem isLeast_range_bestResponsePayoff [∀ j, Nonempty (S j)]
     (G : PayoffGame ι S) (i : ι) :
     ∃ v, Cslib.Probability.IsMinimaxValue (fun s a => G.payoff i (insertAction i a s)) v ∧
       IsLeast (Set.range (G.bestResponsePayoff i)) v := by
-  let M : (∀ j : { j : ι // j ≠ i }, S j.1) → S i → ℝ :=
+  let M : (∀ j : { j : ι // j ≠ i }, S j.val) → S i → ℝ :=
     fun s a => G.payoff i (insertAction i a s)
   obtain ⟨v, hv⟩ := Cslib.Probability.exists_isMinimaxValue M
   refine ⟨v, hv, ?_, ?_⟩
@@ -277,7 +277,7 @@ theorem isMinimaxValue_correlatedMinMax [∀ j, Nonempty (S j)]
 expected payoff of at least `G.correlatedMinMax i`. -/
 theorem correlatedMinMax_le_bestResponsePayoff [∀ j, Nonempty (S j)]
     (G : PayoffGame ι S) (i : ι)
-    (z : Convexity.StdSimplex ℝ (∀ j : { j : ι // j ≠ i }, S j.1)) :
+    (z : Convexity.StdSimplex ℝ (∀ j : { j : ι // j ≠ i }, S j.val)) :
     G.correlatedMinMax i ≤ G.bestResponsePayoff i z := by
   obtain ⟨v, _, hleast⟩ := G.isLeast_range_bestResponsePayoff i
   rw [correlatedMinMax, hleast.csInf_eq]
@@ -288,7 +288,7 @@ punishment strategy `z ∈ Δ(S_{-i})` holding player `i`'s best-response payoff
 `G.correlatedMinMax i` ([DodisRabin2007], Section 8.4.2, p. 195). -/
 theorem exists_correlatedMinMax_punisher [∀ j, Nonempty (S j)]
     (G : PayoffGame ι S) (i : ι) :
-    ∃ z : Convexity.StdSimplex ℝ (∀ j : { j : ι // j ≠ i }, S j.1),
+    ∃ z : Convexity.StdSimplex ℝ (∀ j : { j : ι // j ≠ i }, S j.val),
       G.bestResponsePayoff i z = G.correlatedMinMax i := by
   obtain ⟨v, _, hleast⟩ := G.isLeast_range_bestResponsePayoff i
   rw [correlatedMinMax, hleast.csInf_eq]
@@ -298,7 +298,7 @@ theorem exists_correlatedMinMax_punisher [∀ j, Nonempty (S j)]
 marginal weight. -/
 private noncomputable def condOthersDist (σ : Convexity.StdSimplex ℝ (∀ j, S j))
     (i : ι) [DecidableEq (S i)] (a : S i) (ha : 0 < marginalWeight σ i a) :
-    Convexity.StdSimplex ℝ (∀ j : { j : ι // j ≠ i }, S j.1) where
+    Convexity.StdSimplex ℝ (∀ j : { j : ι // j ≠ i }, S j.val) where
   weights := Finsupp.equivFunOnFinite.symm fun s =>
     σ.weights (insertAction i a s) / marginalWeight σ i a
   nonneg s := by
@@ -306,7 +306,7 @@ private noncomputable def condOthersDist (σ : Convexity.StdSimplex ℝ (∀ j, 
     exact div_nonneg (σ.weights_nonneg (insertAction i a s)) ha.le
   total := by
     rw [Finsupp.sum_fintype _ _ (fun _ => rfl)]
-    change (∑ s : ∀ j : { j : ι // j ≠ i }, S j.1,
+    change (∑ s : ∀ j : { j : ι // j ≠ i }, S j.val,
       σ.weights (insertAction i a s) / marginalWeight σ i a) = 1
     rw [← Finset.sum_div, sum_insertAction_eq_sum_ite i a (fun s => σ.weights s),
       ← marginalWeight_eq, div_self ha.ne']
@@ -318,7 +318,7 @@ private theorem payoffAgainst_condOthersDist (G : PayoffGame ι S)
       (∑ s : ∀ j, S j, if s i = a then σ.weights s * G.payoff i (update s i b) else 0) /
         marginalWeight σ i a := by
   rw [payoffAgainst_eq]
-  have h1 : ∀ s : ∀ j : { j : ι // j ≠ i }, S j.1,
+  have h1 : ∀ s : ∀ j : { j : ι // j ≠ i }, S j.val,
       (condOthersDist σ i a ha).weights s * G.payoff i (insertAction i b s) =
         (σ.weights (insertAction i a s) *
           G.payoff i (update (insertAction i a s) i b)) / marginalWeight σ i a := fun s => by
@@ -522,30 +522,30 @@ and `f (t'_i, t_{-i}) ≠ f (t_i, t_{-i})` for at least one `t_{-i}`. -/
 /-- Replace the coordinates of `t` inside coalition `C` with the pooled values `rC`, leaving
 outsiders `j ∉ C` unchanged. -/
 @[expose] def patchProfile [DecidableEq ι] (C : Finset ι)
-    (rC : ∀ j : C, T j.1) (t : ∀ j, T j) : ∀ j, T j :=
+    (rC : ∀ j : C, T j.val) (t : ∀ j, T j) : ∀ j, T j :=
   fun j => if h : j ∈ C then rC ⟨j, h⟩ else t j
 
 @[simp]
-theorem patchProfile_mem [DecidableEq ι] {C : Finset ι} (rC : ∀ j : C, T j.1)
+theorem patchProfile_mem [DecidableEq ι] {C : Finset ι} (rC : ∀ j : C, T j.val)
     (t : ∀ j, T j) {j : ι} (hj : j ∈ C) :
     patchProfile C rC t j = rC ⟨j, hj⟩ := by
   simp [patchProfile, hj]
 
 @[simp]
-theorem patchProfile_notMem [DecidableEq ι] {C : Finset ι} (rC : ∀ j : C, T j.1)
+theorem patchProfile_notMem [DecidableEq ι] {C : Finset ι} (rC : ∀ j : C, T j.val)
     (t : ∀ j, T j) {j : ι} (hj : j ∉ C) :
     patchProfile C rC t j = t j := by
   simp [patchProfile, hj]
 
 @[simp]
 theorem patchProfile_self [DecidableEq ι] (C : Finset ι) (t : ∀ j, T j) :
-    patchProfile C (fun j : C => t j.1) t = t := by
+    patchProfile C (fun j : C => t j.val) t = t := by
   funext j
   by_cases hj : j ∈ C <;> simp [patchProfile, hj]
 
 @[simp]
 theorem patchProfile_patchProfile [DecidableEq ι] (C : Finset ι)
-    (r₁ r₂ : ∀ j : C, T j.1) (t : ∀ j, T j) :
+    (r₁ r₂ : ∀ j : C, T j.val) (t : ∀ j, T j) :
     patchProfile C r₁ (patchProfile C r₂ t) = patchProfile C r₁ t := by
   funext j
   by_cases hj : j ∈ C <;> simp [patchProfile, hj]
@@ -555,15 +555,15 @@ to choose a joint report to the mediator (`none` = abort / `⊥`) and joint outp
 members of `C` ([DodisRabin2007], Section 8.5.1, "Collusions", p. 199). -/
 structure CoalitionDev (T : ι → Type*) (O : Type*) (C : Finset ι) where
   /-- Joint report to the mediator (`none` triggers the mediator's error broadcast). -/
-  report : (∀ j : C, T j.1) → Option (∀ j : C, T j.1)
+  report : (∀ j : C, T j.val) → Option (∀ j : C, T j.val)
   /-- Joint output guesses for all members of `C` given pooled inputs and the mediator reply. -/
-  interpret : (∀ j : C, T j.1) → Option O → C → O
+  interpret : (∀ j : C, T j.val) → Option O → C → O
 
 /-- Output produced by player `j` on true input profile `t` when coalition `C` runs `dev` and
 outsiders `j ∉ C` follow the honest strategy with error rule `fallback`. -/
 private def coalitionOutput [DecidableEq ι] (f : (∀ i, T i) → O) (fallback : ∀ i, T i → O)
     (C : Finset ι) (dev : CoalitionDev T O C) (t : ∀ i, T i) (j : ι) : O :=
-  let tC : ∀ m : C, T m.1 := fun m => t m.1
+  let tC : ∀ m : C, T m.val := fun m => t m.val
   match dev.report tC with
   | some rC =>
     let y := f (patchProfile C rC t)
@@ -596,7 +596,7 @@ canonical honest profile). -/
 joint input `tC` that fixes `f t = c` independently of all outsiders' inputs. -/
 @[expose] def IsKDominated (f : (∀ i, T i) → O) (k : ℕ) : Prop :=
   ∃ (C : Finset ι), C.Nonempty ∧ C.card ≤ k ∧
-    ∃ (tC : ∀ j : C, T j.1) (c : O), ∀ t : ∀ j, T j, (∀ j : C, t j.1 = tC j) → f t = c
+    ∃ (tC : ∀ j : C, T j.val) (c : O), ∀ t : ∀ j, T j, (∀ j : C, t j.val = tC j) → f t = c
 
 /-- A function `f` is **`k`-reversible** if some nonempty coalition `C` of size at most `k` has
 pooled inputs `tC`, alternate reports `rC`, and a recovery map `g : O → O` such that
@@ -604,9 +604,9 @@ pooled inputs `tC`, alternate reports `rC`, and a recovery map `g : O → O` suc
 on at least one profile `t` in the `tC`-fiber. -/
 @[expose] def IsKReversible [DecidableEq ι] (f : (∀ i, T i) → O) (k : ℕ) : Prop :=
   ∃ (C : Finset ι), C.Nonempty ∧ C.card ≤ k ∧
-    ∃ (tC rC : ∀ j : C, T j.1) (g : O → O),
-      (∀ t : ∀ j, T j, (∀ j : C, t j.1 = tC j) → g (f (patchProfile C rC t)) = f t) ∧
-      ∃ t : ∀ j, T j, (∀ j : C, t j.1 = tC j) ∧ f (patchProfile C rC t) ≠ f t
+    ∃ (tC rC : ∀ j : C, T j.val) (g : O → O),
+      (∀ t : ∀ j, T j, (∀ j : C, t j.val = tC j) → g (f (patchProfile C rC t)) = f t) ∧
+      ∃ t : ∀ j, T j, (∀ j : C, t j.val = tC j) ∧ f (patchProfile C rC t) ≠ f t
 
 end NCCDefinitions
 
@@ -634,24 +634,24 @@ theorem IsKDominated.isKReversible [DecidableEq ι] {f : (∀ i, T i) → O} {k 
     · exact ⟨t₂, fun h2 => ht12 (h1.trans h2.symm)⟩
     · exact ⟨t₁, h1⟩
   obtain ⟨tStar, htStar⟩ := hex
-  refine ⟨C, hCne, hCcard, tC, fun j => tStar j.1, fun _ => c, ?_, ?_⟩
+  refine ⟨C, hCne, hCcard, tC, fun j => tStar j.val, fun _ => c, ?_, ?_⟩
   · intro t htC
     exact (hfix t htC).symm
-  · refine ⟨patchProfile C tC tStar, fun j => patchProfile_mem tC tStar j.2, ?_⟩
+  · refine ⟨patchProfile C tC tStar, fun j => patchProfile_mem tC tStar j.property, ?_⟩
     rw [patchProfile_patchProfile, patchProfile_self,
-      hfix (patchProfile C tC tStar) fun j => patchProfile_mem tC tStar j.2]
+      hfix (patchProfile C tC tStar) fun j => patchProfile_mem tC tStar j.property]
     exact htStar
 
 /-- Lift a single player's type `a : T i` to a pooled input on the singleton coalition `{i}`. -/
-private def singletonVal {i : ι} (a : T i) : ∀ j : ({i} : Finset ι), T j.1 :=
-  fun j => (Finset.mem_singleton.mp j.2).symm ▸ a
+private def singletonVal {i : ι} (a : T i) : ∀ j : ({i} : Finset ι), T j.val :=
+  fun j => (Finset.mem_singleton.mp j.property).symm ▸ a
 
 private theorem singletonVal_self {i : ι} (a : T i) :
     singletonVal a ⟨i, Finset.mem_singleton_self i⟩ = a :=
   rfl
 
 private theorem patchProfile_singleton [DecidableEq ι] {i : ι}
-    (rC : ∀ j : ({i} : Finset ι), T j.1) (t : ∀ j, T j) :
+    (rC : ∀ j : ({i} : Finset ι), T j.val) (t : ∀ j, T j) :
     patchProfile {i} rC t = update t i (rC ⟨i, Finset.mem_singleton_self i⟩) := by
   funext j
   by_cases hj : j = i
@@ -813,7 +813,7 @@ theorem isKNCC_one_iff_isNCC {f : (∀ i, T i) → O} {u : ι → (ι → Bool) 
       congr 2
       funext j
       congr 1
-      have htC : (fun m : ({i} : Finset ι) => t m.1) = singletonVal (t i) := by
+      have htC : (fun m : ({i} : Finset ι) => t m.val) = singletonVal (t i) := by
         funext ⟨m, hm⟩
         obtain rfl := Finset.mem_singleton.mp hm
         rfl
@@ -898,12 +898,12 @@ theorem isKNCC_of_not_kDominated_and_not_kReversible {f : (∀ i, T i) → O} {k
     exact hlt.not_ge (hge j hj)
   have hall_out : ∀ t : ∀ m, T m, ∀ j, j ∉ C → coalitionOutput f fallback C dev t j = f t := by
     intro t j hj
-    let tC : ∀ m : C, T m.1 := fun m => t m.1
+    let tC : ∀ m : C, T m.val := fun m => t m.val
     cases hrep : dev.report tC with
     | none =>
       exfalso
       refine hndom ⟨C, ⟨i, hi⟩, hCcard, tC, dev.interpret tC none ⟨i, hi⟩, fun t' ht' => ?_⟩
-      have ht'C : (fun m : C => t' m.1) = tC := funext ht'
+      have ht'C : (fun m : C => t' m.val) = tC := funext ht'
       have hi_eq := hall_mem i hi t'
       simp only [coalitionOutput, ht'C, hrep, hi, ↓reduceDIte] at hi_eq
       exact hi_eq.symm
@@ -913,11 +913,11 @@ theorem isKNCC_of_not_kDominated_and_not_kReversible {f : (∀ i, T i) → O} {k
         refine hnrev ⟨C, ⟨i, hi⟩, hCcard, tC, rC,
           fun y => dev.interpret tC (some y) ⟨i, hi⟩, ?_, t, fun _ => rfl, hne⟩
         intro t' ht'
-        have ht'C : (fun m : C => t' m.1) = tC := funext ht'
+        have ht'C : (fun m : C => t' m.val) = tC := funext ht'
         have hi_eq := hall_mem i hi t'
         simp only [coalitionOutput, ht'C, hrep, hi, ↓reduceDIte] at hi_eq
         exact hi_eq
-      simp only [coalitionOutput, show (fun m : C => t m.1) = tC from rfl, hrep, hj, ↓reduceDIte]
+      simp only [coalitionOutput, show (fun m : C => t m.val) = tC from rfl, hrep, hj, ↓reduceDIte]
       exact hsame
   have hall : ∀ t : ∀ m, T m, ∀ j, coalitionOutput f fallback C dev t j = f t := fun t j =>
     if hj : j ∈ C then hall_mem j hj t else hall_out t j hj
@@ -953,7 +953,7 @@ theorem IsKReversible.not_isKNCC {f : (∀ i, T i) → O} {k : ℕ}
       interpret := fun x m j =>
         match m with
         | some y => if x = tC then g y else y
-        | none => fallback j.1 (x j) }
+        | none => fallback j.val (x j) }
   have hstrict : ∀ i ∈ C,
       (mediatedGame f u D).payoff i (honestProfile fallback) <
         coalitionPayoff f u D fallback C dev i := by
@@ -963,7 +963,7 @@ theorem IsKReversible.not_isKNCC {f : (∀ i, T i) → O} {k : ℕ}
     refine Finset.sum_lt_sum ?_ ⟨t₀, Finset.mem_univ _, ?_⟩
     · intro t _
       refine mul_le_mul_of_nonneg_left ?_ (hDpos t).le
-      let xC : ∀ m : C, T m.1 := fun m => t m.1
+      let xC : ∀ m : C, T m.val := fun m => t m.val
       by_cases hx : xC = tC
       · by_cases hfeq : f (patchProfile C rC t) = f t
         · have hcorr : (fun j => decide (coalitionOutput f fallback C dev t j = f t)) =
@@ -985,7 +985,7 @@ theorem IsKReversible.not_isKNCC {f : (∀ i, T i) → O} {k : ℕ}
           · simp [coalitionOutput, dev, xC, hx, hj]
         rw [hcorr]
     · refine mul_lt_mul_of_pos_left ?_ (hDpos t₀)
-      have hx0 : (fun m : C => t₀ m.1) = tC := funext ht₀C
+      have hx0 : (fun m : C => t₀ m.val) = tC := funext ht₀C
       refine hu.exclusivity i _ (fun _ => true) ?_ (fun _ _ _ => rfl) ?_
       · simp [coalitionOutput, dev, hx0, hi, hg t₀ ht₀C]
       · refine ⟨jOut, fun heq => hjOut (heq ▸ hi), ?_, rfl⟩
@@ -1095,8 +1095,8 @@ private def extBit {n : ℕ} (C : Finset (Fin n)) (tC : C → Bool)
 
 private theorem extBit_mem {n : ℕ} {C : Finset (Fin n)} (tC : C → Bool)
     (S : Finset (Fin n)) (j : C) :
-    extBit C tC S j.1 = tC j := by
-  simp [extBit, j.2]
+    extBit C tC S j.val = tC j := by
+  simp [extBit, j.property]
 
 private theorem patchProfile_extBit {n : ℕ} (C : Finset (Fin n)) (tC rC : C → Bool)
     (S : Finset (Fin n)) :
@@ -1105,7 +1105,7 @@ private theorem patchProfile_extBit {n : ℕ} (C : Finset (Fin n)) (tC rC : C �
   by_cases hj : j ∈ C <;> simp [patchProfile, extBit, hj]
 
 private theorem card_filter_in_eq {n : ℕ} {C : Finset (Fin n)} (aC : C → Bool)
-    (x : BitString n) (hx : ∀ m : C, x m.1 = aC m) :
+    (x : BitString n) (hx : ∀ m : C, x m.val = aC m) :
     (C.filter fun m => x m = true).card = #{m : C | aC m = true} := by
   refine Finset.card_bij (fun m hm => ⟨m, (Finset.mem_filter.mp hm).1⟩) ?_ ?_ ?_
   · intro m hm
@@ -1221,7 +1221,7 @@ private theorem not_isKReversible_threshold {n j k : ℕ} (hkj : k < j) (hjk : j
         Finset.filter_congr fun m hm => by simp [patchProfile_notMem rC t₀ (Finset.mem_compl.mp hm)]
       rw [hout]
       congr 1
-      rw [card_filter_in_eq rC (patchProfile C rC t₀) (fun m => patchProfile_mem rC t₀ m.2),
+      rw [card_filter_in_eq rC (patchProfile C rC t₀) (fun m => patchProfile_mem rC t₀ m.property),
         card_filter_in_eq tC t₀ ht₀C]
       exact heq
     simp only [Cslib.threshold_apply, hw_eq]

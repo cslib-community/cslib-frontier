@@ -172,7 +172,7 @@ private theorem triangle_spanningTree_vcg_eq_two :
     let G : SimpleGraph (Fin 3) := ⊤
     let hconn := completeGraph_fin3_connected
     let hbr := completeGraph_fin3_not_isBridge
-    let c : G.edgeSet → ℝ := fun e => if e.1 = s((0 : Fin 3), 2) then 1 else 0
+    let c : G.edgeSet → ℝ := fun e => if e.val = s((0 : Fin 3), 2) then 1 else 0
     IsMatroidBaseFamily (spanningTreeFamily G) ∧
       HasFrugalityRatioLe (spanningTreeFamily G)
         (vcgMechanism (spanningTreeFamily G) (spanningTreeFamily_nonempty hconn)

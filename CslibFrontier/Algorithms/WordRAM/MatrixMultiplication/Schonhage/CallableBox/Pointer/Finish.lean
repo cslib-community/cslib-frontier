@@ -44,8 +44,7 @@ theorem exec_finish {W b I Q O M : ℕ} (x : Data 163)
       ∀ a, (a < b ∨ b + (I + 1) ≤ a) → (a < b + O ∨ b + O + Q ≤ a) →
         y.mem a = x.mem a := by
   refine WP.exists_execWithin ?_
-  unfold finish CallableBoxProduct.includeThreshold
-  wram_exec *
+  wram_exec * [finish, CallableBoxProduct.includeThreshold]
   wram_call exec_restoreInput with s ⟨sm, sf⟩
   wram_call exec_returnOutput with y ⟨ym, yr, _⟩
   refine ⟨by omega, yr, ?_, ?_, ?_⟩

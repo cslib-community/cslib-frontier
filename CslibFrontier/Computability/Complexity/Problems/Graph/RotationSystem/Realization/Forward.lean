@@ -38,24 +38,25 @@ namespace Cslib.Complexity.Graph.RotationSystem
 listed finite graph has a genuine polygonal embedding realizing its exact clockwise order.
 No geometric patch, separator, drawing or order provider is an additional premise. -/
 theorem exists_polygonalDrawing {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (hr : r.NumericalGenusZero) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hr : r.NumericalGenusZero) :
     ∃ D : PolygonalDrawing G, D.IsEmbedding ∧ D.Realizes r := by
   classical
-  have forward : ∀ n, ∀ G : Graph, G.2.length = n → ∀ r : RotationSystem G,
-      (∀ v ∈ G.incidenceVertices, v ∈ G.1) → r.NumericalGenusZero →
+  have forward : ∀ n, ∀ G : Graph, G.edges.length = n → ∀ r : RotationSystem G,
+      (∀ v ∈ G.incidenceVertices, v ∈ G.vertices) → r.NumericalGenusZero →
         ∃ D : PolygonalDrawing G, D.IsEmbedding ∧ D.Realizes r := by
     intro n
     induction n using Nat.strong_induction_on with
     | ind n ih =>
       intro G hlen r hG hr
-      by_cases hloop : ∀ e : Fin G.2.length,
+      by_cases hloop : ∀ e : Fin G.edges.length,
           Dart.vertex (G := G) (e, false) = Dart.vertex (e, true)
       · exact r.exists_polygonalDrawing_of_loops hG hr hloop
       · push Not at hloop
         obtain ⟨i, hnonloop⟩ := hloop
         obtain ⟨H, u, v, e, hdecl, _, hlenH, hcoord, _, _, hu, hv⟩ := G.exists_lastEdge_reindex i
         have huv : u ≠ v := by rw [hu, hv]; exact hnonloop
-        have hm (w) : w ∈ G.1 ↔ w ∈ (lastEdgeGraph H u v).1 := by simp [lastEdgeGraph, hdecl]
+        have hm (w) : w ∈ G.vertices ↔ w ∈ (lastEdgeGraph H u v).vertices := by
+          simp [lastEdgeGraph, hdecl]
         have hH := endpoints_declared_edge_reindex e hcoord hm hG
         let E : Dart G ≃ Dart (lastEdgeGraph H u v) := e.prodCongr (Equiv.refl Bool)
         have hvE (a b) : (E a).vertex = (E b).vertex ↔ a.vertex = b.vertex := by
@@ -64,7 +65,7 @@ theorem exists_polygonalDrawing {G : Graph} (r : RotationSystem G)
         let s := r.transport E hvE
         have hs : s.NumericalGenusZero :=
           r.numericalGenusZero_transport E hvE (fun _ => rfl) hG hH hr
-        have hsmall : (contractLastEdgeGraph H u v).2.length < n := by
+        have hsmall : (contractLastEdgeGraph H u v).edges.length < n := by
           simp only [contractLastEdgeGraph, Graph.relabel, List.length_map]
           omega
         obtain ⟨D, hD, hR⟩ := ih _ hsmall (contractLastEdgeGraph H u v) rfl
@@ -81,6 +82,6 @@ theorem exists_polygonalDrawing {G : Graph} (r : RotationSystem G)
           change Dart.vertex (e.symm a.1, a.2) = Dart.vertex (e.symm b.1, b.2) ↔ _
           rw [hback, hback]
         exact r.transport_symm E hvE hvBack ▸ hnewR.edgeTransport e.symm hback
-  exact forward G.2.length G rfl r hG hr
+  exact forward G.edges.length G rfl r hG hr
 
 end Cslib.Complexity.Graph.RotationSystem

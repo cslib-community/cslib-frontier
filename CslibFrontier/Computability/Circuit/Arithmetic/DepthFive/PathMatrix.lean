@@ -144,7 +144,7 @@ noncomputable def pathEntry (N M : Fin p.n × Fin p.n × Fin p.n →₀ ℕ) : �
 /-- The matrix of the operator of `IMM_{n,n}` on the slice of bidegree `(a, b)`, in the
 normalized monomial bases `z ^ M / √(M!)`. -/
 noncomputable def pathMatrix : Matrix (Slice p (p.a - p.k, p.b + p.m)) (Slice p (p.a, p.b)) ℝ :=
-  Matrix.of fun N M => pathEntry p N.1 M.1
+  Matrix.of fun N M => pathEntry p N.val M.val
 
 variable {p}
 
@@ -226,14 +226,14 @@ private theorem sqrt_fact_mul (P : Path p.n) (N M : Fin p.n × Fin p.n × Fin p.
 of `IMM_{n,n}` over the reals. -/
 private theorem rank_of_pathEntry (hcard : (Finset.univ.filter fun t => p.isV t).card = p.k)
     (a' b : ℕ) : (Matrix.of fun (N : Slice p (a', b + p.m)) (M : Slice p (a' + p.k, b)) =>
-        pathEntry p N.1 M.1).rank =
+        pathEntry p N.val M.val).rank =
       rankMeasure p.layerVar (p.k, p.m) (a' + p.k, b) (imm ℝ p.n p.n) := by
   classical
   have hentry : (Matrix.of fun (N : Slice p (a', b + p.m)) (M : Slice p (a' + p.k, b)) =>
-      pathEntry p N.1 M.1) = Matrix.diagonal (fun N : Slice p (a', b + p.m) => √(fact N.1)) *
+      pathEntry p N.val M.val) = Matrix.diagonal (fun N : Slice p (a', b + p.m) => √(fact N.val)) *
         sliceMatrix (bidegWeight p.layerVar) (a', b + p.m) (a' + p.k, b)
           (mixedOp p.layerVar (imm ℝ p.n p.n)) *
-        Matrix.diagonal (fun M : Slice p (a' + p.k, b) => (√(fact M.1))⁻¹) :=
+        Matrix.diagonal (fun M : Slice p (a' + p.k, b) => (√(fact M.val))⁻¹) :=
     Matrix.ext fun N M => by
       rw [Matrix.mul_diagonal, Matrix.diagonal_mul, Matrix.of_apply, sliceMatrix, Matrix.of_apply,
         imm_eq_sum_paths, map_sum, LinearMap.sum_apply, coeff_sum, Finset.mul_sum, Finset.sum_mul]
@@ -244,9 +244,9 @@ private theorem rank_of_pathEntry (hcard : (Finset.univ.filter fun t => p.isV t)
     rankMeasure_eq_rank_sliceMatrix,
     (isWeightedHomogeneous_imm ℝ hcard).weightedHomogeneousComponent_same]
   · rw [Matrix.det_diagonal]
-    exact (Finset.prod_ne_zero_iff.2 fun N _ => (hpos N.1).ne').isUnit
+    exact (Finset.prod_ne_zero_iff.2 fun N _ => (hpos N.val).ne').isUnit
   · rw [Matrix.det_diagonal]
-    exact (Finset.prod_ne_zero_iff.2 fun M _ => (inv_pos.2 (hpos M.1)).ne').isUnit
+    exact (Finset.prod_ne_zero_iff.2 fun M _ => (inv_pos.2 (hpos M.val)).ne').isUnit
 
 /-- **The field transfer.** The rank of the real matrix `pathMatrix` is the rank measure of
 `IMM_{n,n}` over every field of characteristic zero. -/
@@ -256,7 +256,7 @@ theorem rank_pathMatrix_eq (K : Type*) [Field K] [CharZero K]
       rankMeasure p.layerVar (p.k, p.m) (p.a, p.b) (imm K p.n p.n) := by
   have h : ∀ a₀, a₀ = p.a - p.k + p.k →
       (Matrix.of fun (N : Slice p (p.a - p.k, p.b + p.m)) (M : Slice p (a₀, p.b)) =>
-        pathEntry p N.1 M.1).rank =
+        pathEntry p N.val M.val).rank =
       rankMeasure p.layerVar (p.k, p.m) (a₀, p.b) (imm K p.n p.n) := by
     rintro _ rfl
     rw [rank_of_pathEntry hcard, ← map_imm (Rat.castHom K), ← map_imm (Rat.castHom ℝ),

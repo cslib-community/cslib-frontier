@@ -156,12 +156,12 @@ private theorem size_roleTm (r : M.Role) : (C.roleTm tab tg hD r).tree.size ≤
   have := H.one_le_Lc
   have l1 := size_listTm_le_mul (u := X * Lc) (a1.trans' H.one_le_Lc)
     (ts := (univ : Finset ((M.law r.1).SlotAt r.2)).toList.map fun e =>
-      C.slotTm tab hD ⟨r.1, e.1⟩ (M.roleParty r)) (by simpa using H.slotsAt r) fun t ht => by
+      C.slotTm tab hD ⟨r.1, e.val⟩ (M.roleParty r)) (by simpa using H.slotsAt r) fun t ht => by
         obtain ⟨e, -, rfl⟩ := List.mem_map.1 ht
         exact size_slotTm tab H _ _
   have l2 := size_listTm_le_mul (u := Lc) H.one_le_Lc
     (ts := (univ : Finset ((M.law r.1).ChannelAt r.2)).toList.map fun ν =>
-      C.valueTm (.newKeys ⟨r.1, ν.1⟩ (decide ((M.law r.1).channelEnd ν.1 false ≠ r.2))))
+      C.valueTm (.newKeys ⟨r.1, ν.val⟩ (decide ((M.law r.1).channelEnd ν.val false ≠ r.2))))
     (by simpa using H.channelsAt r) fun t ht => by
       obtain ⟨ν, -, rfl⟩ := List.mem_map.1 ht
       exact size_valueTm H _

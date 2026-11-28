@@ -574,8 +574,7 @@ private theorem kruskalSetup_exec {w n : ℕ} (es : List (WeightedEdge n ℕ))
   have hm2 : (Data.init (encode es) : Data 26).mem 2 = es.length := by
     simp [encode]
   refine WP.exists_execWithin ?_
-  unfold kruskalSetup
-  wram_exec [Data.init_regs, hm1, hm2]
+  wram_exec [kruskalSetup, Data.init_regs, hm1, hm2]
   exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
     by wram_simp, by wram_simp; omega, by wram_simp; omega, by wram_simp; omega,
     by wram_simp; omega, by wram_simp; omega, by wram_simp; omega⟩
@@ -612,14 +611,13 @@ private theorem keys_exec {w n kb : ℕ} (es : List (WeightedEdge n ℕ)) (x : D
         omega]
       exact (hv_es _ hlt).2.2
     refine WP.exists_execWithin ?_
-    unfold keyBody
-    wram_exec [hvo, hveb, hvkb, hread]
+    wram_exec [keyBody, hvo, hveb, hvkb, hread]
     refine ⟨⟨fun r h1 h2 h3 h4 => ?_, ?_, ?_⟩, by wram_simp⟩
     · simp only [Data.write_regs, Data.set_regs, Function.update_of_ne h1,
         Function.update_of_ne h2, Function.update_of_ne h3, Function.update_of_ne h4]
       exact hfr r h1 h2 h3 h4
     · wram_simp [Data.write_mem]
-      simpa only [Finset.union_idempotent] using
+      simpa only [Finset.union_self] using
         hmodK.trans (Modifies.write_of_owns (base := kb) (n := es.length) ⟨by omega, by omega⟩ _)
     · intro j hj hj'
       wram_simp [Data.write_mem]
@@ -627,8 +625,7 @@ private theorem keys_exec {w n kb : ℕ} (es : List (WeightedEdge n ℕ)) (x : D
       · subst hjeq; exact Function.update_self _ _ _
       · rw [Function.update_of_ne (by omega)]; exact hkeysK j (by omega) hj'
   refine WP.exists_execWithin ?_
-  unfold keysCode
-  wram_exec
+  wram_exec [keysCode]
   refine WP.of_spec
     (ExecWithin.loop_count (index := ctr) (limit := mEdges) (N := es.length) (T := 9)
       (KeyInv es kb x)
@@ -741,14 +738,13 @@ private theorem ufInit_exec {w n pb rb : ℕ} (x : Data 26)
     have hvpb : v.regs parBase = pb := (hfr parBase (by decide) (by decide)).trans hpb
     have hvrb : v.regs rnkBase = rb := (hfr rnkBase (by decide) (by decide)).trans hrb
     refine WP.exists_execWithin ?_
-    unfold ufInitBody
-    wram_exec [hvz, hvo, hvpb, hvrb]
+    wram_exec [ufInitBody, hvz, hvo, hvpb, hvrb]
     refine ⟨⟨fun r h1 h2 => ?_, ?_, ?_, ?_⟩, by wram_simp⟩
     · simp only [Data.write_regs, Data.set_regs, Function.update_of_ne h1,
         Function.update_of_ne h2]
       exact hfr r h1 h2
     · wram_simp [Data.write_mem]
-      simpa only [Finset.union_idempotent] using
+      simpa only [Finset.union_self] using
         (hmodU.trans
           (Modifies.write_of_owns (base := pb) (n := 2 * n) ⟨by omega, by omega⟩ _)).trans
           (Modifies.write_of_owns (base := pb) (n := 2 * n) ⟨by omega, by omega⟩ _)
@@ -765,8 +761,7 @@ private theorem ufInit_exec {w n pb rb : ℕ} (x : Data 26)
       · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
         exact hrnkU i (by omega)
   refine WP.exists_execWithin ?_
-  unfold ufInitCode
-  wram_exec
+  wram_exec [ufInitCode]
   refine WP.of_spec
     (ExecWithin.loop_count (index := ctr) (limit := nVerts) (N := n) (T := 5)
       (UFInitInv pb rb x n)
@@ -960,8 +955,7 @@ private theorem emitAndUnion_exec {w n m eb sb pb rb op s : ℕ}
   · have hru_eq : ru = rv := Fin.ext hsame
     have hrel_t : p.rel e.u e.v = true := by rw [huf.rel_eq]; simp [ru, rv, hru_eq]
     refine WP.exists_execWithin ?_
-    unfold emitAndUnionCode
-    wram_exec [hyru, hyrv, hsame]
+    wram_exec [emitAndUnionCode, hyru, hyrv, hsame]
     refine ⟨by wram_simp [hyz], by wram_simp [hyo], by wram_simp [hy3],
       by wram_simp [hyn], by wram_simp [hym], by wram_simp [hyeb], by wram_simp [hysb],
       by wram_simp [hypb], by wram_simp [hyrb], by wram_simp [hyop], by wram_simp [hys],
@@ -1016,7 +1010,7 @@ private theorem emitAndUnion_exec {w n m eb sb pb rb op s : ℕ}
       refine ⟨?_, fun z => ?_, fun z => ?_, hacc_snoc _ fun c hc1 hc2 => ?_⟩
       · have hown {m₀ : ℕ → ℕ} {c : ℕ} (hc : pb ≤ c ∧ c < pb + (2 * n + 1 + 3 * m)) (v : ℕ) :=
           Modifies.write_of_owns (m := m₀) (base := pb) (n := 2 * n + 1 + 3 * m) (a := c) hc v
-        simpa only [Finset.union_idempotent] using
+        simpa only [Finset.union_self] using
           (((hmod.trans (hown ⟨by omega, by omega⟩ e.u.val)).trans
             (hown ⟨by omega, by omega⟩ e.v.val)).trans
             (hown ⟨by omega, by omega⟩ e.weight)).trans
@@ -1066,7 +1060,7 @@ private theorem emitAndUnion_exec {w n m eb sb pb rb op s : ℕ}
           by wram_simp [hyow]; simp only [List.length_append, List.length_singleton]; omega,
           ?_, by simp [hrel_f]⟩
         · wram_simp [Data.write_mem]
-          simpa only [Finset.union_idempotent] using
+          simpa only [Finset.union_self] using
             hL1.trans
               (Modifies.write_of_owns (base := pb) (n := 2 * n + 1 + 3 * m) ⟨by omega, by omega⟩ _)
         · intro x_v
@@ -1145,8 +1139,7 @@ private theorem kruskalScanBody_exec {w n eb sb pb rb op : ℕ}
     have he2 : y.mem (eb + (perm[s] + perm[s] + perm[s]) + 1 + 1) = e.weight := by
       rwa [hmul3, Nat.add_assoc]
     refine WP.exists_execWithin ?_
-    unfold loadScanEdge
-    wram_exec [hyo, hysb, hyeb, hs_def, hread_i, he0, he1, he2]
+    wram_exec [loadScanEdge, hyo, hysb, hyeb, hs_def, hread_i, he0, he1, he2]
     refine ⟨rfl, fun r h1 h2 h3 h4 h5 h6 => ?_, by wram_simp, by wram_simp, by wram_simp⟩
     simp only [Data.set_regs, Function.update_of_ne h1, Function.update_of_ne h2,
       Function.update_of_ne h3, Function.update_of_ne h4, Function.update_of_ne h5,
@@ -1250,8 +1243,7 @@ private theorem kruskalScan_exec {w n eb sb pb rb op : ℕ}
       outputList yF.mem (yF.regs out) =
         encodeEdges (kruskalScan (Partition.discrete n) sorted) := by
   refine WP.exists_execWithin ?_
-  unfold kruskalScanCode
-  wram_exec
+  wram_exec [kruskalScanCode]
   refine WP.of_spec
     (ExecWithin.loop_count (index := ctr) (limit := mEdges) (N := sorted.length)
       (T := 16 * Nat.log 2 n + 51)
@@ -1279,7 +1271,7 @@ private theorem kruskalScan_exec {w n eb sb pb rb op : ℕ}
           16 * sorted.length * Nat.log 2 n + 53 * sorted.length := by ring
       omega
     · wram_simp [Data.write_mem]
-      simpa only [Finset.union_idempotent] using
+      simpa only [Finset.union_self] using
         hmodS.trans
           (Modifies.write_of_owns (base := pb) (n := 2 * n + 1 + 3 * sorted.length)
             ⟨by omega, by omega⟩ _)

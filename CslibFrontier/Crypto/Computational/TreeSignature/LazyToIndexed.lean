@@ -426,8 +426,8 @@ private theorem map_plantedWin_presampledExp (S : IndexedSignatureScheme)
         fun ((a, b), c) => (a, b, c))
     (fun ((v, e, a), log) => (((v, e), log), signedLogOf front.length a)) _
     (fun q st hst ans st' hm =>
-      (localTreeHandler_planted_step S depth hcap q st hst).2 (ans, st') hm)
-    (fun q st hst => (localTreeHandler_planted_step S depth hcap q st hst).1)
+      (localTreeHandler_planted_step S depth hcap q st hst).support_inv (ans, st') hm)
+    (fun q st hst => (localTreeHandler_planted_step S depth hcap q st hst).map_eq)
     (adversary n pk) initPresampledState hinitInv
   rw [fst_getD_splice front back x 0]
   have hwin := congrArg (PMF.map fun ((msig, ps), sg) =>
@@ -794,8 +794,9 @@ private theorem eval_lazyTreeGame_eq_presampled (S : IndexedSignatureScheme)
   have hproj := ProbOracleComp.run_interpret_map_state_of_invariant _
     (fun q s => ProbComp.eval (lazySignHandler S depth n root q s))
     (fun s => ((nodesOf s.1.1 s.1.2.1, s.1.2.2.1), s.2)) _
-    (fun q s hs a s' hm => (jointKeysHandler_lazy_step S depth hsigCap q s hs).2 (a, s') hm)
-    (fun q s hs => (jointKeysHandler_lazy_step S depth hsigCap q s hs).1)
+    (fun q s hs a s' hm =>
+      (jointKeysHandler_lazy_step S depth hsigCap q s hs).support_inv (a, s') hm)
+    (fun q s hs => (jointKeysHandler_lazy_step S depth hsigCap q s hs).map_eq)
     (adversary n pk) initJ hjInv
   have hexpRun := (ProbOracleComp.IsQueryBounded.run_interpret_bind_comm_of_invariant
     (jointKeysHandler S depth (sigCap n) n)
@@ -826,7 +827,8 @@ private theorem eval_lazyTreeGame_eq_presampled (S : IndexedSignatureScheme)
     refine PMF.bind_congr_on_support _ _ _ fun ⟨msig, st'⟩ hm_run => ?_
     have hjInv' := ProbOracleComp.run_interpret_invariant
       (jointKeysHandler S depth (sigCap n) n) (fun s => JointKeysInv S n root s.1)
-      (fun q s hs a s' hm => (jointKeysHandler_lazy_step S depth hsigCap q s hs).2 (a, s') hm)
+      (fun q s hs a s' hm =>
+        (jointKeysHandler_lazy_step S depth hsigCap q s hs).support_inv (a, s') hm)
       (adversary n pk) initJ hjInv msig st' hm_run
     have hpos' : 0 < st'.1.1.length :=
       hjInv'.len_eq ▸ hjInv'.slots_lt ([], 0) (List.mem_of_lookup_eq_some hjInv'.root_lookup)

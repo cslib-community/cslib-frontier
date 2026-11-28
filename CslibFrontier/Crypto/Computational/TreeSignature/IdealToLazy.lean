@@ -114,7 +114,7 @@ private theorem toOuterMeasure_bad_guardedTreeHandler_le {α σ : Type} (depth :
         fun leaf _ hnot => ?_).trans ?_
       · have hmem : seen.contains leaf = false := Bool.eq_false_iff.mpr fun hc =>
           hnot (Finset.mem_coe.mpr (List.mem_toFinset.mpr (List.contains_iff_mem.mp hc)))
-        simp only [hmem, Bool.false_eq_true, ↓reduceIte, le_zero_iff,
+        simp only [hmem, Bool.false_eq_true, ↓reduceIte, nonpos_iff_eq_zero,
           PMF.toOuterMeasure_apply_eq_zero_iff]
         exact Set.disjoint_left.mpr fun x hx hbad => by supp_cases hx; cases hbad
       · rw [add_zero]
@@ -716,14 +716,15 @@ private theorem eval_lazyTreeGame_eq_guarded (S : IndexedSignatureScheme) (T : S
   have hprojLazy := ProbOracleComp.run_interpret_map_state_of_invariant _
     (fun q s => ProbComp.eval (lazySignHandler S depth n root q s))
     (fun s => (s.1.2, s.2)) _
-    (fun q s hs a s' hm => (hstep q s hs).2 (a, s') hm)
-    (fun q s hs => (hstep q s hs).1) (adversary n pk) jInit hjInv
+    (fun q s hs a s' hm => (hstep q s hs).support_inv (a, s') hm)
+    (fun q s hs => (hstep q s hs).map_eq) (adversary n pk) jInit hjInv
   have hprojGuard := ProbOracleComp.run_interpret_map_state _
     (guardedTreeHandler depth n (coinSignBody S T depth M n)) (fun s => (s.1.1, s.2))
     (fun q ⟨inner, ⟨queried, seen, bad⟩⟩ => (guardedTreeHandler_map depth n
       (body₂ := coinSignBody S T depth M n) Prod.fst (fun _ => True) q inner queried seen bad
       (fun _ => trivial)
-      fun _ _ leaf _ _ => .of_eq (map_dropCaches_jointCoinBody S T depth M n leaf q.2 inner)).1)
+      fun _ _ leaf _ _ => .of_eq (map_dropCaches_jointCoinBody S T depth M n leaf q.2
+          inner)).map_eq)
     (adversary n pk) jInit
   have hwinL := congrArg (PMF.map fun (msig, (_, log)) =>
     (msig.1.length == n) && !log.queried.contains msig.1 && verify S depth pk msig.1 msig.2)

@@ -247,7 +247,7 @@ example : ¬ ∃ P : Fin 3 → List (Fin 4),
 def k3Paths {u v : Fin 3} (huv : u ≠ v) : Fin 2 → (⊤ : SimpleGraph (Fin 3)).Walk u v
   | 0 => .cons huv .nil
   | 1 =>
-    let w : Fin 3 := ⟨3 - u.1 - v.1, by omega⟩
+    let w : Fin 3 := ⟨3 - u.val - v.val, by omega⟩
     have huw : u ≠ w := by refine Fin.ne_of_val_ne ?_; revert u v huv; decide
     have hwv : w ≠ v := by refine Fin.ne_of_val_ne ?_; revert u v huv; decide
     .cons (v := w) huw (.cons hwv .nil)

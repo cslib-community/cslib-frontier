@@ -51,8 +51,8 @@ def inputEncoding : Input ↪ List Bool :=
 
 /-- **Element distinctness is in `P`**, for lists of naturals whose entries are below their
 length. The decider is the word-RAM program `decider`, simulated by a multi-tape machine. -/
-theorem nodup_mem_P : {l : Input | l.1.Nodup} ∈ Cslib.Complexity.P inputEncoding :=
+theorem nodup_mem_P : {l : Input | l.val.Nodup} ∈ Cslib.Complexity.P inputEncoding :=
   uniformLinearTime_nodup.polynomialTime.mem_P checkedOp_polyTime
-    (PolyBounded.self.mono fun l => length_le_length_encList encNat l.1) (.of_eq fun _ => rfl)
+    (PolyBounded.self.mono fun l => length_le_length_encList encNat l.val) (.of_eq fun _ => rfl)
 
 end Cslib.Algorithms.WordRAM.ElementDistinctness

@@ -777,7 +777,7 @@ theorem initClear_exec (C : StateTransitionImpl P D w base params s₀) {x : Dat
     exact le_of_eq (by ac_rfl)
   · obtain ⟨hfr₃, hrep, hpot, hmod₃⟩ := hsupp p hp
     have hmod : Modifies (Block.mk base C.space).footprint x.mem p.2.mem := by
-      simpa only [Finset.union_idempotent] using hmod₂.trans hmod₃
+      simpa only [Finset.union_self] using hmod₂.trans hmod₃
     exact ⟨hfr₃, hrep, hpot, hmod⟩
 
 /-- Relocated `O(space)` dirty-memory initialization along any injective register embedding `f`. -/

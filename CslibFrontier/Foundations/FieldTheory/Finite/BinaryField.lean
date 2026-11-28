@@ -375,8 +375,8 @@ noncomputable def embed {w b : ℕ} (hw : w ≠ 0) (hbw : b ≤ w) : BitString b
     have := congrArg (equivBits hw) h
     simp only [AddEquiv.apply_symm_apply] at this
     funext i
-    have := congrFun this ⟨i, i.2.trans_le hbw⟩
-    simpa [i.2] using this
+    have := congrFun this ⟨i, i.isLt.trans_le hbw⟩
+    simpa [i.isLt] using this
 
 /-- The embedded bit string is the element whose bits are those of the string, padded with
 zeros. -/

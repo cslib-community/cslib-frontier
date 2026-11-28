@@ -52,7 +52,7 @@ example (p : I) : G(Fin 2, p).real {G | ¬G.Connected} ≤ 2 * (1 - p) := by
 example : G(Fin 20, ⟨1 / 2, by norm_num, by norm_num⟩).real {G | ¬G.Connected} < 1 / 20 := by
   have hE := Real.exp_one_gt_d9
   have h10 : (20000 : ℝ) < Real.exp 10 := by
-    have : Real.exp 10 = Real.exp 1 ^ 10 := by rw [← Real.exp_nat_mul]; norm_num
+    have : Real.exp 10 = Real.exp 1 ^ 10 := by rw [← Real.exp_natCast_mul]; norm_num
     rw [this]
     calc (20000 : ℝ) < 2.7 ^ 10 := by norm_num
       _ ≤ Real.exp 1 ^ 10 := by gcongr; linarith

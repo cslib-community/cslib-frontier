@@ -138,7 +138,7 @@ example : toClique ⟨fst2, 0⟩ ∉ Clique := by
   decide
 
 example : toClique ⟨fst2, 1⟩ ∈ Clique :=
-  (toClique_mem_Clique_iff _).2 ⟨fun i => decide (i.1 = 0), by decide, by decide⟩
+  (toClique_mem_Clique_iff _).2 ⟨fun i => decide (i.val = 0), by decide, by decide⟩
 
 /-! ### Hardness -/
 

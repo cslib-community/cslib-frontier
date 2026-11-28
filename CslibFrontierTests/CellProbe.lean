@@ -45,8 +45,8 @@ open scoped ENNReal
 and return `v + 1`; otherwise read cell `2` and overwrite cell `0` with it. -/
 def adaptiveProg : ProbeTree 4 3 (Fin 8) := do
   let v₀ ← ProbeTree.read 0
-  if h : v₀.1 < 4 then
-    let next : Fin 8 := ⟨v₀.1 + 1, by omega⟩
+  if h : v₀.val < 4 then
+    let next : Fin 8 := ⟨v₀.val + 1, by omega⟩
     ProbeTree.write 1 next
     return next
   else
@@ -154,16 +154,16 @@ example :
 /-- Base-4 encoding of `x : Fin 17` across `3` cells of width `w = 2` (`2 ^ 2 = 4`,
 capacity `64`). -/
 def enc17 (x : Fin 17) : Mem 3 2
-  | 0 => ⟨x.1 % 4, by omega⟩
-  | 1 => ⟨(x.1 / 4) % 4, by omega⟩
-  | 2 => ⟨(x.1 / 16) % 4, by omega⟩
+  | 0 => ⟨x.val % 4, by omega⟩
+  | 1 => ⟨(x.val / 4) % 4, by omega⟩
+  | 2 => ⟨(x.val / 16) % 4, by omega⟩
 
 /-- Explicit depth-3 cell-probe decoder recovering `x : Fin 17` from `enc17 x`. -/
 def decode17Tree : ProbeTree 3 2 (Fin 17) := do
   let d₀ ← ProbeTree.read 0
   let d₁ ← ProbeTree.read 1
   let d₂ ← ProbeTree.read 2
-  let val := d₀.1 + 4 * d₁.1 + 16 * d₂.1
+  let val := d₀.val + 4 * d₁.val + 16 * d₂.val
   if h : val < 17 then
     return ⟨val, h⟩
   else
@@ -202,7 +202,7 @@ example (t : ProbeTree 3 2 (Fin 17)) (hdec : ∀ x : Fin 17, (t.run (enc17 x)).1
 on `1` read cell `0` and write cell `1` (`2` probes), giving exact `expectedProbes = 1`. -/
 noncomputable def coinProbeTree : RandProbeTree 2 2 (Fin 4) := do
   let b ← RandProbeTree.sample (ProbComp.unifFin 1)
-  if b.1 == 0 then
+  if b.val == 0 then
     return 0
   else
     let v ← RandProbeTree.read 0
@@ -217,8 +217,8 @@ theorem coinProbeTree_expectedProbes (m : Mem 2 2) :
   rw [Probability.PMF.tsum_map_mul, tsum_fintype]
   have huniv : (Finset.univ : Finset (Fin 2)) = {0, 1} := by decide
   rw [huniv, Finset.sum_pair (by decide)]
-  have h0 : ((0 : Fin 2).1 == 0) = true := rfl
-  have h1 : ((1 : Fin 2).1 == 0) = false := rfl
+  have h0 : ((0 : Fin 2).val == 0) = true := rfl
+  have h1 : ((1 : Fin 2).val == 0) = false := rfl
   simp only [Probability.PMF.uniformOfFintype_apply, Fintype.card_fin, h0, ↓reduceIte,
     RandProbeTree.expectedProbes_pure, mul_zero, zero_add, h1, Bool.false_eq_true,
     RandProbeTree.expectedProbes_bind, RandProbeTree.expectedProbes_read,
@@ -271,10 +271,10 @@ noncomputable def randDictScheme : Randomized.Scheme InfDictOp InfDictResult 2 2
         RandProbeTree.write k fv
     | .query k => do
         let c ← RandProbeTree.sample (ProbComp.unifFin 1)
-        if c.1 == 0 then
+        if c.val == 0 then
           RandProbeTree.read k
         else
-          let _ ← RandProbeTree.read ⟨1 - k.1, by omega⟩
+          let _ ← RandProbeTree.read ⟨1 - k.val, by omega⟩
           RandProbeTree.read k
 
 private theorem randDictScheme_step_support (m : Mem 2 2) (o : InfDictOp)
@@ -295,7 +295,7 @@ private theorem randDictScheme_step_support (m : Mem 2 2) (o : InfDictOp)
     simp only [randDictScheme, RandProbeTree.run_bind, RandProbeTree.run_sample,
       ProbComp.eval_unifFin, PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hout
     obtain ⟨z, ⟨b, _, rfl⟩, hcont⟩ := hout
-    by_cases hb : b.1 == 0
+    by_cases hb : b.val == 0
     · simp only [hb, ↓reduceIte] at hcont
       obtain ⟨a, ha, rfl⟩ := hcont
       change a ∈ (RandProbeTree.run (RandProbeTree.read (w := 2) k) m).support at ha

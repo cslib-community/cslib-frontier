@@ -436,25 +436,25 @@ theorem exists_orientation_outdegree_le [DecidableEq ι] [Fintype ι] {d : ℕ}
   classical
   let E := (oneInclusionEdges S : Set (ι × (ι → Bool)))
   let slots : E → Finset ((ι → Bool) × Fin d) := fun e =>
-    ({e.1.2, Function.update e.1.2 e.1.1 true} : Finset (ι → Bool)) ×ˢ Finset.univ
+    ({e.val.2, Function.update e.val.2 e.val.1 true} : Finset (ι → Bool)) ×ˢ Finset.univ
   have hHall : ∀ A : Finset E, A.card ≤ (A.biUnion slots).card := by
     intro A
     let U : Finset (ι → Bool) :=
-      A.biUnion fun e => ({e.1.2, Function.update e.1.2 e.1.1 true} : Finset (ι → Bool))
+      A.biUnion fun e => ({e.val.2, Function.update e.val.2 e.val.1 true} : Finset (ι → Bool))
     have hprod : A.biUnion slots = U ×ˢ (Finset.univ : Finset (Fin d)) := by
       ext ⟨g, k⟩
       simp [slots, U]
     have hUS : U ⊆ S := by
       intro g hg
       rcases mem_biUnion.mp hg with ⟨e, _, hgpair⟩
-      rcases mem_oneInclusionEdges.mp e.2 with ⟨he0, _, he1⟩
+      rcases mem_oneInclusionEdges.mp e.property with ⟨he0, _, he1⟩
       rcases mem_insert.mp hgpair with rfl | hg1
       · exact he0
       · exact (mem_singleton.mp hg1) ▸ he1
     have hsub_edges : A.image Subtype.val ⊆ oneInclusionEdges U := by
       intro e' he'
       rcases mem_image.mp he' with ⟨e, heA, rfl⟩
-      rcases mem_oneInclusionEdges.mp e.2 with ⟨_, hfalse, _⟩
+      rcases mem_oneInclusionEdges.mp e.property with ⟨_, hfalse, _⟩
       refine mem_oneInclusionEdges.mpr ⟨?_, hfalse, ?_⟩
       · exact mem_biUnion.mpr ⟨e, heA, mem_insert_self _ _⟩
       · exact mem_biUnion.mpr ⟨e, heA, mem_insert_of_mem (mem_singleton_self _)⟩
@@ -492,14 +492,14 @@ theorem exists_orientation_outdegree_le [DecidableEq ι] [Fintype ι] {d : ℕ}
   refine ⟨orient, fun g => ?_⟩
   let outEdges := (oneInclusionEdges S).filter fun e => tailEndpoint orient e = g
   have hinj : Function.Injective
-      (fun x : outEdges => (φ ⟨x.1, (mem_filter.mp x.2).1⟩).2) := by
+      (fun x : outEdges => (φ ⟨x.val, (mem_filter.mp x.property).1⟩).2) := by
     intro x₁ x₂ h2
-    rcases mem_filter.mp x₁.2 with ⟨he₁, ht₁⟩
-    rcases mem_filter.mp x₂.2 with ⟨he₂, ht₂⟩
-    have h1 : (φ ⟨x₁.1, he₁⟩).1 = (φ ⟨x₂.1, he₂⟩).1 :=
-      (htail_eq x₁.1 he₁).symm.trans (ht₁.trans (ht₂.symm.trans (htail_eq x₂.1 he₂)))
-    have hE : (⟨x₁.1, he₁⟩ : E) = ⟨x₂.1, he₂⟩ := hφ_inj (Prod.ext h1 h2)
-    exact Subtype.ext (congrArg (·.1) hE)
+    rcases mem_filter.mp x₁.property with ⟨he₁, ht₁⟩
+    rcases mem_filter.mp x₂.property with ⟨he₂, ht₂⟩
+    have h1 : (φ ⟨x₁.val, he₁⟩).1 = (φ ⟨x₂.val, he₂⟩).1 :=
+      (htail_eq x₁.val he₁).symm.trans (ht₁.trans (ht₂.symm.trans (htail_eq x₂.val he₂)))
+    have hE : (⟨x₁.val, he₁⟩ : E) = ⟨x₂.val, he₂⟩ := hφ_inj (Prod.ext h1 h2)
+    exact Subtype.ext (congrArg (·.val) hE)
   have hcard := (Fintype.card_le_of_injective _ hinj).trans_eq (Fintype.card_fin d)
   simpa only [Fintype.card_coe, oneInclusionOutdegree, outEdges] using hcard
 
@@ -510,10 +510,10 @@ private noncomputable def resFinset (C : ConceptClass α Bool) (U : Finset α) :
     Finset (↑U → Bool) :=
   open Classical in
   letI : DecidableEq α := Classical.decEq α
-  Finset.univ.filter fun f : ↑U → Bool => ∃ c ∈ C, ∀ u : ↑U, f u = c u.1
+  Finset.univ.filter fun f : ↑U → Bool => ∃ c ∈ C, ∀ u : ↑U, f u = c u.val
 
 private theorem mem_resFinset {C : ConceptClass α Bool} {U : Finset α} {f : ↑U → Bool} :
-    f ∈ resFinset C U ↔ ∃ c ∈ C, ∀ u : ↑U, f u = c u.1 := by
+    f ∈ resFinset C U ↔ ∃ c ∈ C, ∀ u : ↑U, f u = c u.val := by
   simp [resFinset]
 
 private theorem card_le_of_setShatters_resFinset {C : ConceptClass α Bool} {U : Finset α}
@@ -586,7 +586,7 @@ noncomputable def oneInclusionLearner (C : ConceptClass α Bool) {m : ℕ}
 private def isOutgoingAt (C : ConceptClass α Bool) (U : Finset α) (c : α → Bool) (x : α) : Prop :=
   letI : DecidableEq α := Classical.decEq α
   ∃ hx : x ∈ U,
-    let g : ↑U → Bool := fun u => c u.1
+    let g : ↑U → Bool := fun u => c u.val
     let e : ↑U × (↑U → Bool) := (⟨x, hx⟩, Function.update g ⟨x, hx⟩ false)
     e ∈ oneInclusionEdges (resFinset C U) ∧ tailEndpoint (canonicalOrient C U) e = g
 
@@ -608,7 +608,7 @@ private theorem mistake_imp_fresh_and_isOutgoingAt {C : ConceptClass α Bool} {m
   let U : Finset α := insert x (Finset.univ.image fun j : Fin m => (S j).1)
   let R := resFinset C U
   let ix : ↑U := ⟨x, mem_insert_self x _⟩
-  let g : ↑U → Bool := fun u => c u.1
+  let g : ↑U → Bool := fun u => c u.val
   let VS := R.filter fun f =>
     ∀ j : Fin m, f ⟨(S j).1, mem_insert_of_mem (mem_image_of_mem _ (mem_univ j))⟩ = (S j).2
   let V0 := VS.filter fun f => f ix = false
@@ -622,9 +622,9 @@ private theorem mistake_imp_fresh_and_isOutgoingAt {C : ConceptClass α Bool} {m
     funext u
     by_cases hu : u = ix
     · subst hu; simp
-    · have hux : u.1 ≠ x := fun heq => hu (Subtype.ext heq)
-      have hu_img : u.1 ∈ Finset.univ.image (fun j : Fin m => (S j).1) :=
-        (mem_insert.mp u.2).resolve_left hux
+    · have hux : u.val ≠ x := fun heq => hu (Subtype.ext heq)
+      have hu_img : u.val ∈ Finset.univ.image (fun j : Fin m => (S j).1) :=
+        (mem_insert.mp u.property).resolve_left hux
       rcases mem_image.mp hu_img with ⟨j, _, hSj⟩
       have hfS := (mem_filter.mp hf).2 j
       have huj : (⟨(S j).1, mem_insert_of_mem (mem_image_of_mem _ (mem_univ j))⟩ : ↑U) = u :=
@@ -693,7 +693,7 @@ theorem oneInclusionLearner_eq_of_forall_consistent {C : ConceptClass α Bool} {
   dsimp only at hf0 hf1
   rw [Function.update_idem] at hf1
   have hb_eq : ∀ v : Bool,
-      Function.update (fun u : ↑(insert x (Finset.univ.image fun k : Fin m => (S k).1)) => c u.1)
+      Function.update (fun u : ↑(insert x (Finset.univ.image fun k : Fin m => (S k).1)) => c u.val)
         ⟨x, hx⟩ v ∈ resFinset C (insert x (Finset.univ.image fun k : Fin m => (S k).1)) →
       b = v := by
     intro v hmem
@@ -742,7 +742,7 @@ theorem card_leaveOneOut_mistakes_le {C : ConceptClass α Bool} {d m : ℕ}
         simpa only [Fin.removeNth, hj] using hs
   let M : Finset (Fin (m + 1)) := Finset.univ.filter fun t : Fin (m + 1) =>
     oneInclusionLearner C (t.removeNth Z) (Z t).1 ≠ (Z t).2
-  let gZ : ↑UZ → Bool := fun u => c u.1
+  let gZ : ↑UZ → Bool := fun u => c u.val
   let OutEdges := (oneInclusionEdges (resFinset C UZ)).filter fun e =>
     tailEndpoint (canonicalOrient C UZ) e = gZ
   have hstep : ∀ t ∈ M,
@@ -756,20 +756,20 @@ theorem card_leaveOneOut_mistakes_le {C : ConceptClass α Bool} {d m : ℕ}
     exact ⟨fun j => h.1 j, h.2⟩
   have hcard_le : M.card ≤ OutEdges.card := by
     let toEdge : M → OutEdges := fun t =>
-      let hx : (Z t.1).1 ∈ UZ := mem_image_of_mem _ (mem_univ t.1)
-      let e : ↑UZ × (↑UZ → Bool) := (⟨(Z t.1).1, hx⟩, Function.update gZ ⟨(Z t.1).1, hx⟩ false)
+      let hx : (Z t.val).1 ∈ UZ := mem_image_of_mem _ (mem_univ t.val)
+      let e : ↑UZ × (↑UZ → Bool) := (⟨(Z t.val).1, hx⟩, Function.update gZ ⟨(Z t.val).1, hx⟩ false)
       ⟨e, by
-        rcases (hstep t.1 t.2).2 with ⟨hx', he_mem, htail⟩
-        have hsub : (⟨(Z t.1).1, hx'⟩ : ↑UZ) = ⟨(Z t.1).1, hx⟩ := rfl
+        rcases (hstep t.val t.property).2 with ⟨hx', he_mem, htail⟩
+        have hsub : (⟨(Z t.val).1, hx'⟩ : ↑UZ) = ⟨(Z t.val).1, hx⟩ := rfl
         exact mem_filter.mpr ⟨he_mem, htail⟩⟩
     have hinj : Function.Injective toEdge := by
       intro t₁ t₂ heq
       by_contra hne
-      have ht_ne : t₂.1 ≠ t₁.1 := fun h => hne (Subtype.ext h.symm)
+      have ht_ne : t₂.val ≠ t₁.val := fun h => hne (Subtype.ext h.symm)
       obtain ⟨j, hj⟩ := Fin.exists_succAbove_eq ht_ne
-      have hZ_eq : (Z t₁.1).1 = (Z t₂.1).1 :=
-        congrArg (fun x : OutEdges => x.1.1.1) heq
-      exact (hstep t₁.1 t₁.2).1 j (hj ▸ hZ_eq.symm)
+      have hZ_eq : (Z t₁.val).1 = (Z t₂.val).1 :=
+        congrArg (fun x : OutEdges => x.val.1.val) heq
+      exact (hstep t₁.val t₁.property).1 j (hj ▸ hZ_eq.symm)
     simpa using Fintype.card_le_of_injective toEdge hinj
   exact hcard_le.trans (oneInclusionOutdegree_canonicalOrient_le hC gZ)
 
@@ -875,7 +875,7 @@ theorem isPACLearnerFor_oneInclusionLearner {C : ConceptClass α Bool} {d m : �
   refine ⟨oneInclusionLearner C, fun D _ hD => ?_⟩
   rw [IsRealizableBy.optimalError_eq_zero hD, zero_add]
   set μ := Measure.pi (fun _ : Fin m => D)
-  have hε : (ε.val : ℝ≥0∞) ≠ 0 := by simpa using ε.2.1.ne'
+  have hε : (ε.val : ℝ≥0∞) ≠ 0 := by simpa using ε.property.1.ne'
   have hpos : ((m + 1 : ℝ≥0∞)) ≠ 0 := by positivity
   have hmeas_err : Measurable fun S : LabeledSample α Bool m =>
       error D (oneInclusionLearner C S) := by
@@ -922,7 +922,7 @@ theorem sampleComplexity_realizableDistributions_le_div_vcDim
   refine Nat.sInf_le ?_
   refine isPACLearnerFor_oneInclusionLearner (fun W hW => hW.card_le_vcDim hC)
     (measurable_of_countable _) ?_
-  have hεδ : 0 < ε.val * δ.val := mul_pos ε.2.1 δ.2.1
+  have hεδ : 0 < ε.val * δ.val := mul_pos ε.property.1 δ.property.1
   have h := Nat.le_ceil ((vcDim C : ℝ≥0) / (ε.val * δ.val))
   rw [div_le_iff₀' hεδ] at h
   exact h.trans (by gcongr; exact le_self_add)

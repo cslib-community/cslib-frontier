@@ -213,7 +213,7 @@ theorem height_pos (n : ℕ) : 1 ≤ height n :=
 /-- `2^(height n) ≤ 2⌊log₂ n⌋ + 2`. -/
 private theorem two_pow_height_le (n : ℕ) : 2 ^ height n ≤ 2 * Nat.log 2 n + 2 := by
   have hlt : 2 ^ (height n - 1) < Nat.log 2 n + 2 :=
-    Nat.pow_pred_clog_lt_self (b := 2) (x := Nat.log 2 n + 2) (by norm_num) (by omega)
+    Nat.pow_pred_clog_lt_self 2 (x := Nat.log 2 n + 2) (by omega)
   rw [← Nat.sub_add_cancel (height_pos n), pow_succ]
   omega
 
@@ -247,7 +247,7 @@ theorem heavy (h : Replaced n U j T) (hn : 1 ≤ n) {M : ℕ}
 /-- After `height n` replacements a set is empty. -/
 theorem eq_empty (h : Replaced n U j T) (hj : height n ≤ j) : T = ∅ := by
   by_contra hne
-  have hcard : 1 ≤ #T := card_pos.mpr (nonempty_iff_ne_empty.mpr hne)
+  have hcard : 1 ≤ #T := card_pos.mpr (ne_empty_iff_nonempty.mp hne)
   -- `n < d_{height n} ≤ d_j ≤ |T| d_j ≤ n`
   have := lt_dSeq_height n
   have := dSeq_mono hj

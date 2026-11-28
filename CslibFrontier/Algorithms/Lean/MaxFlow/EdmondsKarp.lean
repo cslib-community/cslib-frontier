@@ -379,23 +379,24 @@ theorem shortestAugmentingSeq_length_le [DecidableEq V] (hst : N.s ≠ N.t) {T :
     T ≤ N.symArcs.card * (Fintype.card V / 2) := by
   let isCrit (e : V × V) : Finset (Fin T) :=
     Finset.univ.filter fun t =>
-      e ∈ pathArcs (paths t.1) ∧ (flows t.1).resCap e.1 e.2 = (flows t.1).bottleneck (paths t.1)
+      e ∈ pathArcs (paths t.val) ∧
+          (flows t.val).resCap e.1 e.2 = (flows t.val).bottleneck (paths t.val)
   have hcrit_card : ∀ e ∈ N.symArcs, (isCrit e).card ≤ Fintype.card V / 2 := by
     rintro ⟨u, v⟩ _
     have hmaps : ∀ t ∈ isCrit (u, v),
-        (flows t.1).resDist u / 2 ∈ Finset.range (Fintype.card V / 2) := fun t ht => by
-      obtain ⟨hp, _⟩ := hseq t.1 t.2
-      have := (flows t.1).resDist_arc_of_isShortestAugmentingPath hp (Finset.mem_filter.mp ht).2.1
-      have := ((flows t.1).resDist_lt_card_iff_resReachable N.t).mpr
-        ((flows t.1).exists_augmentingPath_iff_resReachable.mp ⟨paths t.1, hp.isAugmentingPath⟩)
+        (flows t.val).resDist u / 2 ∈ Finset.range (Fintype.card V / 2) := fun t ht => by
+      obtain ⟨hp, _⟩ := hseq t.val t.isLt
+      have := (flows t.val).resDist_arc_of_isShortestAugmentingPath hp (Finset.mem_filter.mp ht).2.1
+      have := ((flows t.val).resDist_lt_card_iff_resReachable N.t).mpr
+        ((flows t.val).exists_augmentingPath_iff_resReachable.mp ⟨paths t.val, hp.isAugmentingPath⟩)
       rw [Finset.mem_range]; omega
     have hgap {t₁ t₂ : Fin T} (ht₁ : t₁ ∈ isCrit (u, v)) (ht₂ : t₂ ∈ isCrit (u, v))
-        (hlt : t₁.1 < t₂.1) : (flows t₁.1).resDist u + 2 ≤ (flows t₂.1).resDist u := by
+        (hlt : t₁.val < t₂.val) : (flows t₁.val).resDist u + 2 ≤ (flows t₂.val).resDist u := by
       obtain ⟨he₁, hbot₁⟩ := (Finset.mem_filter.mp ht₁).2
       obtain ⟨he₂, _⟩ := (Finset.mem_filter.mp ht₂).2
-      obtain ⟨hp₁, hnext₁⟩ := hseq t₁.1 t₁.2
-      obtain ⟨hp₂, _⟩ := hseq t₂.1 t₂.2
-      have hzero₁ : (flows (t₁.1 + 1)).resCap u v = 0 := by
+      obtain ⟨hp₁, hnext₁⟩ := hseq t₁.val t₁.isLt
+      obtain ⟨hp₂, _⟩ := hseq t₂.val t₂.isLt
+      have hzero₁ : (flows (t₁.val + 1)).resCap u v = 0 := by
         rw [hnext₁, Flow.resCap_augmentByBottleneck]; simp [he₁, hbot₁]
       obtain ⟨r, hr₁, hr₂, hinc⟩ := exists_zero_to_pos_step (g := fun k => (flows k).resCap u v)
         (by omega) hzero₁ (hp₂.isAugmentingPath.pos_resCap he₂)
@@ -403,26 +404,26 @@ theorem shortestAugmentingSeq_length_le [DecidableEq V] (hst : N.s ≠ N.t) {T :
       have hvu_r : (v, u) ∈ pathArcs (paths r) := by
         rw [hnextr, Flow.resCap_augmentByBottleneck] at hinc
         by_contra h; split_ifs at hinc <;> omega
-      have := ((flows t₁.1).resDist_arc_of_isShortestAugmentingPath hp₁ he₁).1
+      have := ((flows t₁.val).resDist_arc_of_isShortestAugmentingPath hp₁ he₁).1
       have := ((flows r).resDist_arc_of_isShortestAugmentingPath hpr hvu_r).1
-      have := N.resDist_mono_of_seq hseq (i := t₁.1) (j := r) (by omega) (by omega) v
-      have := N.resDist_mono_of_seq hseq (i := r) (j := t₂.1) (by omega) (by omega) u
+      have := N.resDist_mono_of_seq hseq (i := t₁.val) (j := r) (by omega) (by omega) v
+      have := N.resDist_mono_of_seq hseq (i := r) (j := t₂.val) (by omega) (by omega) u
       omega
-    have hinj : Set.InjOn (fun t : Fin T => (flows t.1).resDist u / 2) (isCrit (u, v)) :=
+    have hinj : Set.InjOn (fun t : Fin T => (flows t.val).resDist u / 2) (isCrit (u, v)) :=
       fun t₁ ht₁ t₂ ht₂ heq => by
         dsimp only at heq
-        rcases lt_trichotomy t₁.1 t₂.1 with hlt | heq' | hgt
+        rcases lt_trichotomy t₁.val t₂.val with hlt | heq' | hgt
         · have := hgap ht₁ ht₂ hlt; omega
         · exact Fin.ext heq'
         · have := hgap ht₂ ht₁ hgt; omega
     exact (Finset.card_le_card_of_injOn _ hmaps hinj).trans_eq (Finset.card_range _)
   have hcover : (Finset.univ : Finset (Fin T)) ⊆ N.symArcs.biUnion isCrit := fun t _ => by
-    obtain ⟨hp, _⟩ := hseq t.1 t.2
+    obtain ⟨hp, _⟩ := hseq t.val t.isLt
     have haug := hp.isAugmentingPath
-    obtain ⟨e, he, hbot⟩ := (flows t.1).exists_mem_pathArcs_resCap_eq_bottleneck
+    obtain ⟨e, he, hbot⟩ := (flows t.val).exists_mem_pathArcs_resCap_eq_bottleneck
       (pathArcs_ne_nil_of_head?_ne_getLast? hst haug.head? haug.getLast?)
     have := haug.pos_resCap he
-    have := (flows t.1).resCap_le_cap_add_cap e.1 e.2
+    have := (flows t.val).resCap_le_cap_add_cap e.1 e.2
     exact Finset.mem_biUnion.mpr ⟨e,
       Finset.mem_filter.mpr ⟨Finset.mem_univ _, ne_of_mem_pathArcs haug.nodup he, by omega⟩,
       Finset.mem_filter.mpr ⟨Finset.mem_univ _, he, hbot⟩⟩
@@ -448,11 +449,11 @@ end Network
 section ExecutableFin
 
 /-- Total `Fin n`-indexed lookup on `Vector α n`. -/
-@[expose] def vget {α : Type*} {n : ℕ} (tbl : Vector α n) (v : Fin n) : α := tbl[v.1]
+@[expose] def vget {α : Type*} {n : ℕ} (tbl : Vector α n) (v : Fin n) : α := tbl[v.val]
 
 /-- Total `Fin n`-indexed update on `Vector α n`. -/
 @[expose] def vset {α : Type*} {n : ℕ} (tbl : Vector α n) (v : Fin n) (x : α) : Vector α n :=
-  tbl.set v.1 x v.2
+  tbl.set v.val x v.isLt
 
 @[simp]
 theorem vget_replicate {α : Type*} {n : ℕ} (a : α) (v : Fin n) :
@@ -466,7 +467,7 @@ theorem vget_vset_self {α : Type*} {n : ℕ} (tbl : Vector α n) (v : Fin n) (x
 
 theorem vget_vset_ne {α : Type*} {n : ℕ} (tbl : Vector α n) {u v : Fin n} (x : α) (h : u ≠ v) :
     vget (vset tbl u x) v = vget tbl v := by
-  have hne : u.1 ≠ v.1 := Fin.val_ne_of_ne h
+  have hne : u.val ≠ v.val := Fin.val_ne_of_ne h
   simp [vget, vset, hne]
 
 /-- Lookup entry `(u, v)` in an `n × n` `Vector` matrix. -/

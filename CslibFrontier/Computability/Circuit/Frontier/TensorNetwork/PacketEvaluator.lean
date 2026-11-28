@@ -95,7 +95,7 @@ times its odd denominator is its numerator. -/
 theorem padicInteger_ringHom_ext {S : Type*} [CommRing S] {n : ℕ} (hn : (2 : S) ^ n = 0)
     (φ ψ : ℤ₍₂₎ →+* S) : φ = ψ := by
   ext x
-  have hden : ¬ 2 ∣ (x : ℚ).den := Rat.padicValuation_le_one_iff.mp x.2
+  have hden : ¬ 2 ∣ (x : ℚ).den := Rat.padicValuation_le_one_iff.mp x.property
   have h : x * ((x : ℚ).den : ℤ₍₂₎) = ((x : ℚ).num : ℤ₍₂₎) :=
     Subtype.ext (by push_cast; exact Rat.mul_den_eq_num _)
   have h1 := congrArg φ h

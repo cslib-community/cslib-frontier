@@ -589,7 +589,7 @@ example : ∃ r C : ℕ, ∃ prog : Program .standard r, ¬prog.ReadsWidth ∧
 example :
     ∃ p : Fin nestedCycArbInput.n → Fin nestedCycArbInput.n,
       nestedCycArbInput.expectedParentList =
-        (List.finRange nestedCycArbInput.n).map (fun v => (p v).1) ∧
+        (List.finRange nestedCycArbInput.n).map (fun v => (p v).val) ∧
       (Digraph.parentDigraph nestedCycArbInput.root p).IsInArborescence nestedCycArbInput.root ∧
       Digraph.parentDigraph nestedCycArbInput.root p ≤ nestedCycArbInput.digraph ∧
       ∀ (T : Digraph (Fin nestedCycArbInput.n)) [DecidableRel T.Adj],

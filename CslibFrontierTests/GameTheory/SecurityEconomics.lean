@@ -339,7 +339,7 @@ theorem wrongAgentSpec_fact5_checked :
       (wrongAgentSpec.restrict T).weakestLinkGame.IsPureNash xT →
       wrongAgentSpec.prob (weakestLink xT) ≤
         wrongAgentSpec.prob (weakestLink fun _ : S =>
-          univ.inf' univ_nonempty (fun i : S => ![(2 : ℝ≥0), 3] i.1))) := by
+          univ.inf' univ_nonempty (fun i : S => ![(2 : ℝ≥0), 3] i.val))) := by
   intro S T
   have : Nonempty S := ⟨⟨0, mem_singleton_self 0⟩⟩
   have : Nonempty T := ⟨⟨0, by decide⟩⟩

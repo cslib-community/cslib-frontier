@@ -57,13 +57,13 @@ theorem occurrencePath_eq_unitPath (φ : CNF ℕ) (o : Occurrence ℕ) :
 /-- Every actual occurrence indexes an existing incidence edge. -/
 theorem occurrence_index_lt {φ : CNF ℕ} {o : Occurrence ℕ}
     (ho : o ∈ Cslib.Logic.PL.occurrences φ) :
-    (Cslib.Logic.PL.occurrences φ).idxOf o < (SAT.incidenceGraph φ).2.length := by
+    (Cslib.Logic.PL.occurrences φ).idxOf o < (SAT.incidenceGraph φ).edges.length := by
   simpa only [SAT.incidenceGraph, List.length_map] using List.idxOf_lt_length_of_mem ho
 
 /-- The incidence edge indexed by an actual occurrence joins its variable to its clause. -/
 theorem incidenceGraph_edge_idxOf {φ : CNF ℕ} {o : Occurrence ℕ}
     (ho : o ∈ Cslib.Logic.PL.occurrences φ) :
-    (SAT.incidenceGraph φ).2[(Cslib.Logic.PL.occurrences φ).idxOf o]'(occurrence_index_lt ho) =
+    (SAT.incidenceGraph φ).edges[(Cslib.Logic.PL.occurrences φ).idxOf o]'(occurrence_index_lt ho) =
       (φ.distinctVars.idxOf o.lit.1, φ.distinctVars.length + o.clause) := by
   simp only [SAT.incidenceGraph, List.getElem_map]
   rw [List.getElem_idxOf (List.idxOf_lt_length_of_mem ho)]

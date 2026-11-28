@@ -570,8 +570,7 @@ theorem swapCells_exec {w : ℕ} {a b v1 v2 : Fin 16} {x : Data 16}
       ⟨Function.update (Function.update x.regs v1 (x.mem (x.regs a))) v2 (x.mem (x.regs b)),
         swapMem x.mem (x.regs a) (x.regs b)⟩ 4 := by
   refine WP.Exact.exec ?_
-  unfold swapCells
-  wram_exec [ha1, hb1, ha2, hb2, hv]
+  wram_exec [swapCells, ha1, hb1, ha2, hb2, hv]
   rfl
 
 /-- Dutch National Flag 3-way partition loop invariant on `[lo, hi)`. -/
@@ -618,7 +617,7 @@ private theorem PartInv.of_swap {w vlo vhi vpiv p q : ℕ} {mem₀ : ℕ → ℕ
     PartInv w vlo vhi vpiv mem₀ y :=
   ⟨hone, hlo, hhi, hpiv, hI.fits_hi, h1, h2, h3, h4,
     hmem ▸ (memSlice_swap_perm hp hq x.mem).trans hI.perm,
-    hmem ▸ by simpa only [Finset.union_idempotent] using
+    hmem ▸ by simpa only [Finset.union_self] using
       hI.modifies.trans (modifies_swapMem hp hq x.mem),
     hmem ▸ hlt, hmem ▸ heq, hmem ▸ hgt⟩
 
@@ -629,8 +628,7 @@ private theorem partStep_spec {w vlo vhi vpiv : ℕ} {mem₀ : ℕ → ℕ} {x :
   have h1 := hI.lo_le_lt; have h2 := hI.lt_le_cur; have h3 := hI.gt_le_hi
   have hfit (v : ℕ) (hv : v ≤ vhi) : Fits w v := hI.fits_hi.of_le hv
   refine WP.exists_execWithin ?_
-  unfold partStep swapCells
-  wram_exec [hI.piv_eq, hI.one_eq, hfit]
+  wram_exec [partStep, swapCells, hI.piv_eq, hI.one_eq, hfit]
   · refine ⟨hI.of_swap (p := x.regs lt) (q := x.regs cur) rfl ⟨by omega, by omega⟩
       ⟨by omega, by omega⟩ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_, ?_⟩
     all_goals wram_simp [hI.one_eq, hI.lo_eq, hI.hi_eq, hI.piv_eq]
@@ -910,8 +908,7 @@ private theorem partInit_spec {w vlo vhi k : ℕ} {x : Data 16}
       y.regs lt = vlo ∧ y.regs cur = vlo ∧ y.regs gt = vhi := by
   have hfit_k : Fits w (vlo + k) := hfit.of_le (by omega)
   refine WP.exists_execWithin ?_
-  unfold partInit
-  wram_exec [hlo, hhi, htmp, hfit_k]
+  wram_exec [partInit, hlo, hhi, htmp, hfit_k]
   refine ⟨rfl, ⟨?_, ?_, ?_, ?_, hfit, ?_, ?_, ?_, ?_, List.Perm.refl _, Modifies.refl _ _,
       ?_, ?_, ?_⟩, ?_, ?_, ?_⟩
   all_goals wram_simp [hone, hlo, hhi]
@@ -1011,7 +1008,7 @@ theorem partitionAndPush_spec {w : ℕ} {input : List ℕ} {vlo vhi : ℕ} {S₀
   have hread_final : readStack n y = S₂ := hread_y.trans hS₂_eq
   obtain ⟨hno_y, hperm_y, hmod_y'⟩ := outerInv_mem_after_partition hS hinv₀ hperm₀ hmod₀
     ⟨hPart₆.lo_le_lt, hlt_gt, hPart₆.gt_le_hi⟩ hPart₆.perm hPart₆.modifies hPart₆.lt_zone
-    heq_gt hPart₆.gt_zone (by simpa only [Finset.union_idempotent] using hmod₇.trans hmod_y)
+    heq_gt hPart₆.gt_zone (by simpa only [Finset.union_self] using hmod₇.trans hmod_y)
     hS₂_eq.symm
   obtain ⟨t, ht_le, he_all⟩ := (e_init.seq (e_loop.seq (e_push₁.seq e_push₂))).mono
     (show 5 + (11 * (vhi - vlo) + 2 + (8 + 8)) ≤ 11 * (vhi - vlo) + 23 by omega)
@@ -1045,8 +1042,7 @@ private theorem popAndSample_spec {w n k_sp : ℕ} {x : Data 16}
       ∃ p, Exec w popPrefix x p 7 ∧ p.mem = x.mem ∧ p.regs sp = k_sp ∧
         p.regs lo = vlo ∧ p.regs hi = vhi ∧ p.regs tmp = vhi - vlo - 1 := by
     refine WP.Exact.exists_exec ?_
-    unfold popPrefix readAt
-    wram_exec [hsp, hone, hsLo, hsHi, hfit]
+    wram_exec [popPrefix, readAt, hsp, hone, hsLo, hsHi, hfit]
     wram_simp [Nat.add_sub_cancel, vlo, vhi]
   have hr := ExecRand.rand (B := .standard) (w := w) (dst := tmp) (src := tmp) (x := p)
     (by rw [htmp_p]; exact hfit_all.of_le (by dsimp only [vlo, vhi]; omega))
@@ -1327,8 +1323,7 @@ theorem setup_spec {w : ℕ} {input : List ℕ} (hw : logWidth 3 input.length �
       OuterInv w input x_init ∧ readStack n x_init = (if 2 ≤ n then [(1, n + 1)] else []) by
     obtain ⟨x_init, ⟨t_s, hts_le, he⟩, hI, hs⟩ := h; exact ⟨x_init, t_s, he, hts_le, hI, hs⟩
   refine WP.exists_execWithin ?_
-  unfold setup
-  wram_exec [hx₀_zero, hx₀_len, hfit]
+  wram_exec [setup, hx₀_zero, hx₀_len, hfit]
   wram_call (alloc_stack_spec (dst := stackLo) (base := n + 1) (n := n) (by decide)
     (by wram_simp) (by wram_simp) (hfit 1 (by omega)) (hfit _ (by omega)))
     with s₄ ⟨hs₄_z, hs₄_o, hs₄_lo, hs₄_gt, hs₄_mem, hs₄_fr⟩

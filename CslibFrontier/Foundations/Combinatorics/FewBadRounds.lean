@@ -97,7 +97,7 @@ theorem exists_schedule_few_bad_rounds [Nonempty R] (I : Finset ι) (𝓗 : Fins
       Real.log #𝓗 + #I * B / Fintype.card R := by
   classical
   obtain ⟨ρ', hρ'⟩ := exists_schedule_pow_mul_le 𝓗 (fun h (i : I) => bad h i)
-    (fun h hh i => hB h hh i i.2)
+    (fun h hh i => hB h hh i i.property)
   rw [Fintype.card_coe] at hρ'
   set T := Fintype.card R
   let ρ : ι → R := fun i => if hi : i ∈ I then ρ' ⟨i, hi⟩ else Classical.arbitrary R

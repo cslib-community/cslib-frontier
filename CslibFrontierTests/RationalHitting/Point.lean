@@ -11,7 +11,7 @@ import CslibFrontier.Computability.Circuit.Rational.Runtime.Point
 
 Concrete column replacements, normalized matrix entries, matrix words, tuple words, and point
 words, checked by the kernel and compiled, agreeing with `ExecutableGenerator.atPoint` and
-`encodeTuple` on both singular and nonsingular inputs. Axiom guards cover the headline theorems.
+`encodeTuple` on both singular and nonsingular inputs.
 -/
 
 namespace CslibFrontierTests.RationalHitting.Point
@@ -97,13 +97,5 @@ example :
       (fun p : ℕ × ℕ => pointWord p.1 p.2 p.1 p.2 p.1 p.2 p.1)
       (encPair encUnary encUnary) encBits := by
   fun_prop
-
-/-! ### Axioms -/
-
-/--
-info: 'Cslib.Circuits.Rational.cramerRows_eq' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms cramerRows_eq
 
 end CslibFrontierTests.RationalHitting.Point

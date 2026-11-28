@@ -87,8 +87,7 @@ public theorem exec_reconstruct {w L m N : ℕ}
       omega)
     have fn : Fits w (z.regs Reg.index + 1) := allocated_fits hfit (by omega)
     refine WP.exists_execWithin ?_
-    unfold reconstructStep
-    wram_exec * [hreadIndex, hreadValue, fo, fg, fy, fn]
+    wram_exec * [reconstructStep, hreadIndex, hreadValue, fo, fg, fy, fn]
     refine ⟨⟨by regs_frame, ?_, ?_⟩, by wram_simp⟩
     · intro j hj
       by_cases hij : j = i
@@ -106,8 +105,7 @@ public theorem exec_reconstruct {w L m N : ℕ}
       wram_simp [hne]
       exact hza a ha
   refine WP.exists_execWithin ?_
-  unfold reconstruct
-  wram_exec
+  wram_exec [reconstruct]
   wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.queryCount) hbody
     (by wram_simp; exact Nat.zero_le _)
     ⟨by regs_frame, by wram_simp; simp, fun _ _ => rfl⟩) with y ⟨⟨hyp, hyj, hya⟩, _⟩

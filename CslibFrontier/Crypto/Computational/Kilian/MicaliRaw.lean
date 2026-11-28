@@ -343,7 +343,9 @@ theorem micaliVerifyRawBoundedPure_enc_eq_of_root_le
     ⟨List.replicate σ false, x, hFS (x, prf.root)⟩ prf.root prf.response
     (by simpa [List.length_replicate] using hroot)
   rw [micaliVerifyRawBoundedPure, micaliVerifyPure, unframe_take_encMicaliProof prf hroot,
-    micaliHasRootPrefix_encMicaliProof prf hroot, encMicaliProof_apply, hk]
+    micaliHasRootPrefix_encMicaliProof prf hroot, encMicaliProof_apply]
+  dsimp only
+  rw [hk]
   simp only [hch, Bool.true_and]
   exact kilianVerify_congr_hash V x prf.root (hFS (x, prf.root)) prf.response rfl
 

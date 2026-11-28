@@ -633,8 +633,8 @@ private abbrev bagInduce (T : NiceTree V) (v : V) :=
 `s : RootedShift T C off`. -/
 private def RootedShift.induceHom {T C : NiceTree V} {off : ℕ} (s : RootedShift T C off) (v : V) :
     bagInduce C v →g bagInduce T v where
-  toFun k := ⟨⟨off + k.1.val, by have := k.1.isLt; have := s.bound; omega⟩, by
-    change v ∈ (rootedData T _).2; rw [s.bag k.1]; exact k.2⟩
+  toFun k := ⟨⟨off + k.val.val, by have := k.val.isLt; have := s.bound; omega⟩, by
+    change v ∈ (rootedData T _).2; rw [s.bag k.val]; exact k.property⟩
   map_rel' {a b} hab := by
     have step : ∀ {x y : Fin (C.sizePred + 1)},
         x ≠ 0 → (rootedData C x).1 = y →
@@ -644,27 +644,27 @@ private def RootedShift.induceHom {T C : NiceTree V} {off : ℕ} (s : RootedShif
       intro x y hx hpx
       refine ⟨Fin.ne_of_val_ne (by dsimp; have := s.pos; omega), Fin.ext ?_⟩
       dsimp; rw [s.parent_ne x (Fin.val_ne_of_ne hx), hpx]
-    change (parentTree _).Adj a.1 b.1 at hab
+    change (parentTree _).Adj a.val b.val at hab
     change (parentTree _).Adj _ _
     rw [parentTree_adj (fun k hk => rootedData_parent_lt C k (Fin.val_ne_of_ne hk))] at hab
     rw [parentTree_adj (fun k hk => rootedData_parent_lt T k (Fin.val_ne_of_ne hk))]
     exact hab.imp (fun h => step h.1 h.2) (fun h => step h.1 h.2)
 
 private theorem RootedShift.exists_eq {T C : NiceTree V} {off : ℕ} (s : RootedShift T C off)
-    {v : V} (a : {k | v ∈ (rootedData T k).2}) (h₁ : off ≤ a.1.val)
-    (h₂ : a.1.val < off + (C.sizePred + 1)) :
+    {v : V} (a : {k | v ∈ (rootedData T k).2}) (h₁ : off ≤ a.val.val)
+    (h₂ : a.val.val < off + (C.sizePred + 1)) :
     ∃ (j : {k | v ∈ (rootedData C k).2}), a = s.induceHom v j := by
-  let k : Fin (C.sizePred + 1) := ⟨a.1.val - off, by omega⟩
+  let k : Fin (C.sizePred + 1) := ⟨a.val.val - off, by omega⟩
   have hk : (⟨off + k.val, by have := k.isLt; have := s.bound; omega⟩ : Fin (T.sizePred + 1)) =
-      a.1 := Fin.ext (by dsimp [k]; omega)
-  exact ⟨⟨k, by change v ∈ (rootedData C k).2; rw [← s.bag k, hk]; exact a.2⟩,
+      a.val := Fin.ext (by dsimp [k]; omega)
+  exact ⟨⟨k, by change v ∈ (rootedData C k).2; rw [← s.bag k, hk]; exact a.property⟩,
     Subtype.ext hk.symm⟩
 
 private theorem RootedShift.reach_of_preconnected {T C : NiceTree V} {off : ℕ}
     (s : RootedShift T C off) {v : V} (hc : (bagInduce C v).Preconnected)
     {a b : {k | v ∈ (rootedData T k).2}}
-    (ha₁ : off ≤ a.1.val) (ha₂ : a.1.val < off + (C.sizePred + 1))
-    (hb₁ : off ≤ b.1.val) (hb₂ : b.1.val < off + (C.sizePred + 1)) :
+    (ha₁ : off ≤ a.val.val) (ha₂ : a.val.val < off + (C.sizePred + 1))
+    (hb₁ : off ≤ b.val.val) (hb₂ : b.val.val < off + (C.sizePred + 1)) :
     (bagInduce T v).Reachable a b := by
   obtain ⟨ja, rfl⟩ := s.exists_eq a ha₁ ha₂
   obtain ⟨jb, rfl⟩ := s.exists_eq b hb₁ hb₂
@@ -726,7 +726,7 @@ private theorem rootedData_preconnected_of_mem_bag :
 
 private theorem RootedShift.mem_subtreeVerts {T C : NiceTree V} {off : ℕ}
     (s : RootedShift T C off) {v : V} (a : {k | v ∈ (rootedData T k).2})
-    (h₁ : off ≤ a.1.val) (h₂ : a.1.val < off + (C.sizePred + 1)) : v ∈ C.subtreeVerts := by
+    (h₁ : off ≤ a.val.val) (h₂ : a.val.val < off + (C.sizePred + 1)) : v ∈ C.subtreeVerts := by
   obtain ⟨⟨_, hj⟩, -⟩ := s.exists_eq a h₁ h₂
   exact mem_subtreeVerts_of_rootedData hj
 
@@ -735,32 +735,32 @@ private theorem RootedShift.reach_unary {T child : NiceTree V} (s : RootedShift 
     (hc : (bagInduce child v).Preconnected) (a b : {k | v ∈ (rootedData T k).2}) :
     (bagInduce T v).Reachable a b :=
   s.reach_of_preconnected hc
-    (Nat.one_le_iff_ne_zero.2 (rootedData_val_ne_zero hv a.2)) (by have := a.1.isLt; omega)
-    (Nat.one_le_iff_ne_zero.2 (rootedData_val_ne_zero hv b.2)) (by have := b.1.isLt; omega)
+    (Nat.one_le_iff_ne_zero.2 (rootedData_val_ne_zero hv a.property)) (by have := a.val.isLt; omega)
+    (Nat.one_le_iff_ne_zero.2 (rootedData_val_ne_zero hv b.property)) (by have := b.val.isLt; omega)
 
 private theorem rootedData_preconnected {T : NiceTree V} {v : V} (hvalid : T.LocalValid) :
     (bagInduce T v).Preconnected := fun a b => by
   by_cases hv : v ∈ T.bag
-  · exact (rootedData_preconnected_of_mem_bag hvalid hv a.1 a.2).trans
-      (rootedData_preconnected_of_mem_bag hvalid hv b.1 b.2).symm
+  · exact (rootedData_preconnected_of_mem_bag hvalid hv a.val a.property).trans
+      (rootedData_preconnected_of_mem_bag hvalid hv b.val b.property).symm
   · cases T with
-    | leaf => exact absurd a.2 (Finset.notMem_empty v)
+    | leaf => exact absurd a.property (Finset.notMem_empty v)
     | introduce w child =>
       exact (introduceShift w child).reach_unary hv rfl (rootedData_preconnected hvalid.2) a b
     | forget w child =>
       exact (forgetShift w child).reach_unary hv rfl (rootedData_preconnected hvalid.2) a b
     | join left right =>
       obtain ⟨_, hdisj, hcL, hcR⟩ := hvalid
-      have hpos (c : {k | v ∈ (rootedData (.join left right) k).2}) : 1 ≤ c.1.val :=
-        Nat.one_le_iff_ne_zero.2 (rootedData_val_ne_zero hv c.2)
+      have hpos (c : {k | v ∈ (rootedData (.join left right) k).2}) : 1 ≤ c.val.val :=
+        Nat.one_le_iff_ne_zero.2 (rootedData_val_ne_zero hv c.property)
       have hlast (c : {k | v ∈ (rootedData (.join left right) k).2}) :
-          c.1.val < left.sizePred + 2 + (right.sizePred + 1) := by
-        have := c.1.isLt; simp only [sizePred] at this; omega
+          c.val.val < left.sizePred + 2 + (right.sizePred + 1) := by
+        have := c.val.isLt; simp only [sizePred] at this; omega
       have hnotBoth : ¬(v ∈ left.subtreeVerts ∧ v ∈ right.subtreeVerts) := fun ⟨hL, hR⟩ =>
         Finset.disjoint_left.1 hdisj (Finset.mem_sdiff.2 ⟨hL, hv⟩) hR
       let sL := joinLeftShift left right
       let sR := joinRightShift left right
-      by_cases haL : a.1.val ≤ left.sizePred + 1 <;> by_cases hbL : b.1.val ≤ left.sizePred + 1
+      by_cases haL : a.val.val ≤ left.sizePred + 1 <;> by_cases hbL : b.val.val ≤ left.sizePred + 1
       · exact sL.reach_of_preconnected (rootedData_preconnected hcL)
           (hpos a) (by omega) (hpos b) (by omega)
       · exact absurd ⟨sL.mem_subtreeVerts a (hpos a) (by omega),
@@ -931,7 +931,8 @@ def contractStep {n : ℕ} (R : G.RootedTreeDecomposition (n + 1)) (c : Fin (n +
       have hreach := contractStep_reach R c hc0 hsub parent' (fun _ => rfl) hplt v htop_ne ht'
         fun k hk hnt => by by_contra hnot; exact hnt (R.isTop_iff_mem.2 ⟨hk, Or.inr hnot⟩)
       exact eq_of_preconnected_parentTree hp0 hplt
-        (fun a b => (hreach _ a.1 rfl a.2).trans (hreach _ b.1 rfl b.2).symm) hi hit hj hjt }
+        (fun a b => (hreach _ a.val rfl a.property).trans (hreach _ b.val rfl b.property).symm)
+        hi hit hj hjt }
 
 theorem contractStep_width_le {n : ℕ} (R : G.RootedTreeDecomposition (n + 1)) (c : Fin (n + 2))
     (hc0 : c ≠ 0) (hsub : R.bag c ⊆ R.bag (R.parent c)) :
@@ -983,8 +984,8 @@ theorem prune_nodes_le [Fintype V] {n : ℕ} (R : G.RootedTreeDecomposition n) :
     R.prune.1 ≤ Fintype.card V := by
   classical
   let R' := R.prune.2
-  have hdiff (c : {c : Fin (R.prune.1 + 1) // c ≠ 0}) : ∃ v : V, R'.top v = c.1 := by
-    obtain ⟨v, hvc, hvp⟩ := Finset.not_subset.1 (not_subset_parent_of_prune R c.1 c.2)
+  have hdiff (c : {c : Fin (R.prune.1 + 1) // c ≠ 0}) : ∃ v : V, R'.top v = c.val := by
+    obtain ⟨v, hvc, hvp⟩ := Finset.not_subset.1 (not_subset_parent_of_prune R c.val c.property)
     exact ⟨v, (R'.isTop_iff.1 (R'.isTop_iff_mem.2 ⟨hvc, Or.inr hvp⟩)).symm⟩
   have hcard := Fintype.card_le_of_injective (fun c => (hdiff c).choose) fun a b hab =>
     Subtype.ext (by

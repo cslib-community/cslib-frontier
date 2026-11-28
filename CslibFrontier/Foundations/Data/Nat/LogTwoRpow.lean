@@ -60,7 +60,7 @@ theorem pow_clog_le_mul_rpow_logb {a b n : ℕ} (hb : 1 < b) (ha : 1 ≤ a) (hn 
     simp only [clog_one_right, pow_zero, Nat.cast_one, Real.one_rpow, mul_one]
     exact_mod_cast ha
   · set k := clog b n
-    have hlt : b ^ (k - 1) < n := pow_pred_clog_lt_self hb (by omega)
+    have hlt : b ^ (k - 1) < n := pow_pred_clog_lt_self b (by omega)
     have hk : k = (k - 1) + 1 := (Nat.succ_pred_eq_of_pos (clog_pos hb h)).symm
     calc ((a ^ k : ℕ) : ℝ) = (a : ℝ) * ((b : ℝ) ^ (k - 1)) ^ Real.logb b a := by
           rw [pow_rpow_logb hb ha, Nat.cast_pow, hk, pow_succ, Nat.add_sub_cancel, mul_comm]

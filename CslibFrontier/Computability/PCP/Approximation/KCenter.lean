@@ -172,8 +172,8 @@ private def indexGraph (G : Graph) : SimpleGraph (Fin (domMatrix G).length) :=
 private theorem finDist_domMatrix (G : Graph) [DecidableRel (indexGraph G).Adj]
     (i j : Fin (domMatrix G).length) :
     TSP.finDist (domMatrix G) i j = domDist (indexGraph G) i j := by
-  have hi : (i : ℕ) < G.distinctVertices.length := by simpa using i.2
-  have hj : (j : ℕ) < G.distinctVertices.length := by simpa using j.2
+  have hi : (i : ℕ) < G.distinctVertices.length := by simpa using i.isLt
+  have hj : (j : ℕ) < G.distinctVertices.length := by simpa using j.isLt
   rw [TSP.finDist, dist_domMatrix hi hj, domDist]
   by_cases hij : i = j
   · subst hij
@@ -215,7 +215,7 @@ private theorem mem_centerLabels {A : List (List ℕ) × ℕ → List ℕ} {G : 
   · rintro ⟨i, ⟨hi, hlt⟩, rfl⟩
     exact ⟨⟨i, by simpa using hlt⟩, hi, rfl⟩
   · rintro ⟨i, hi, rfl⟩
-    exact ⟨i, ⟨hi, by simpa using i.2⟩, rfl⟩
+    exact ⟨i, ⟨hi, by simpa using i.isLt⟩, rfl⟩
 
 /-- **The decider is correct** ([WilliamsonShmoys2011], Theorem 2.4): if, on metric instances
 with `1 ≤ k ≤ D.length`, `A` returns at most `k` centers with a radius within a factor `ρ < 2` of
@@ -240,7 +240,7 @@ theorem decideDominatingSet_iff {A : List (List ℕ) × ℕ → List ℕ} {ρ : 
   · rintro ⟨⟨hk, hpos⟩, hdom⟩
     refine ⟨hk, (centerLabels A G k).toFinset, fun v hv => ?_, fun v hv => ?_, ?_⟩
     · obtain ⟨i, -, rfl⟩ := mem_centerLabels.1 (List.mem_toFinset.1 hv)
-      exact G.vertexEquiv_apply (Fin.cast (length_domMatrix G) i) ▸ (G.vertexEquiv _).2
+      exact G.vertexEquiv_apply (Fin.cast (length_domMatrix G) i) ▸ (G.vertexEquiv _).property
     · simpa only [List.mem_toFinset] using hdom v hv
     · rw [hfs]
       refine Finset.card_image_le.trans ?_
@@ -277,7 +277,7 @@ theorem decideDominatingSet_iff {A : List (List ℕ) × ℕ → List ℕ} {ρ : 
         (hfinj.injOn)
     have hTdom : (indexGraph G).IsDominatingSet T := by
       refine SimpleGraph.isDominatingSet_iff.2 fun i => ?_
-      have hfiV : f i ∈ G.vertices := hfe i ▸ (e i).2
+      have hfiV : f i ∈ G.vertices := hfe i ▸ (e i).property
       rcases hS (f i) hfiV with h | ⟨s, hs, hadj⟩
       · exact Or.inl (by simpa [T] using h)
       · obtain ⟨j, rfl⟩ := hsurj s (Graph.mem_distinctVertices.2 (hSV s hs))

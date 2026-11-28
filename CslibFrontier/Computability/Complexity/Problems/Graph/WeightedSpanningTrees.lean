@@ -123,18 +123,18 @@ def weightedSpanningTreeCount (WG : WeightedGraph) : ℤ :=
       (rest.map fun u => rest.map fun v => WG.weightedLaplacianEntry u v)
 
 private theorem distinctVertices_eq_nil_iff {G : Graph} :
-    G.distinctVertices = [] ↔ G.1 = [] := by
+    G.distinctVertices = [] ↔ G.vertices = [] := by
   rw [← List.length_eq_zero_iff, Graph.length_distinctVertices, Finset.card_eq_zero,
     List.toFinset_eq_empty_iff]
 
 private theorem pairWeight_eq_zero_of_not_adj {WG : WeightedGraph}
     {u v : {v // v ∈ WG.vertices}} (hnadj : ¬ WG.toGraph.induced.Adj u v) :
-    WG.pairWeight u.1 v.1 = 0 := by
-  by_cases huv : u.1 = v.1
+    WG.pairWeight u.val v.val = 0 := by
+  by_cases huv : u.val = v.val
   · simp [pairWeight, huv]
   · simp only [pairWeight, huv, ↓reduceIte]
-    have hnot : (u.1, v.1) ∉ WG.toGraph.edges ∧ (v.1, u.1) ∉ WG.toGraph.edges := by
-      have : ¬ WG.toGraph.toSimpleGraph.Adj u.1 v.1 := hnadj
+    have hnot : (u.val, v.val) ∉ WG.toGraph.edges ∧ (v.val, u.val) ∉ WG.toGraph.edges := by
+      have : ¬ WG.toGraph.toSimpleGraph.Adj u.val v.val := hnadj
       rw [Graph.toSimpleGraph_adj] at this; tauto
     rw [List.filter_eq_nil_iff.2 fun e he hdec => by
       rcases of_decide_eq_true hdec with ⟨h1, h2⟩ | ⟨h1, h2⟩
@@ -144,7 +144,7 @@ private theorem pairWeight_eq_zero_of_not_adj {WG : WeightedGraph}
 
 open Classical in
 private lemma weightedLaplacianEntry_eq {WG : WeightedGraph} (u v : {v // v ∈ WG.vertices}) :
-    WG.weightedLaplacianEntry u.1 v.1 =
+    WG.weightedLaplacianEntry u.val v.val =
       ((WG.toGraph.induced.weightedAdjMatrix fun e => WG.symWeight (e.map Subtype.val)).laplacian
         u v) := by
   rw [Matrix.laplacian_apply]
@@ -157,12 +157,12 @@ private lemma weightedLaplacianEntry_eq {WG : WeightedGraph} (u v : {v // v ∈ 
           else 0),
       ← Fin.sum_univ_fun_getElem]
     refine Finset.sum_congr rfl fun i _ => ?_
-    change WG.pairWeight u.1 WG.toGraph.distinctVertices[i] = _
+    change WG.pairWeight u.val WG.toGraph.distinctVertices[i] = _
     rw [← Graph.vertexEquiv_getElem WG.toGraph i]
     split_ifs with hadj
     · simp [symWeight_mk]
     · exact pairWeight_eq_zero_of_not_adj hadj
-  · have hne : u.1 ≠ v.1 := fun h => huv (Subtype.ext h)
+  · have hne : u.val ≠ v.val := fun h => huv (Subtype.ext h)
     simp only [weightedLaplacianEntry, hne, ↓reduceIte, huv, SimpleGraph.weightedAdjMatrix_apply,
       zero_sub]
     split_ifs with hadj
@@ -190,8 +190,8 @@ theorem weightedSpanningTreeCount_eq_finsum (WG : WeightedGraph) :
       (Equiv.subtypeEquivRight fun _ => Graph.mem_distinctVertices) hr
       (WG.toGraph.induced.weightedAdjMatrix fun e => WG.symWeight (e.map Subtype.val)).laplacian
       WG.weightedLaplacianEntry
-      fun u v _ _ => weightedLaplacianEntry_eq ⟨u.1, Graph.mem_distinctVertices.1 u.2⟩
-        ⟨v.1, Graph.mem_distinctVertices.1 v.2⟩
+      fun u v _ _ => weightedLaplacianEntry_eq ⟨u.val, Graph.mem_distinctVertices.1 u.property⟩
+        ⟨v.val, Graph.mem_distinctVertices.1 v.property⟩
     simp only [← hd] at hdet ⊢
     rw [hdet]
     exact SimpleGraph.det_laplacian_weightedAdjMatrix_submatrix_eq_finsum_isTree

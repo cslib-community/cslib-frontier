@@ -74,6 +74,7 @@ noncomputable def bernoulliStructure (p : (Σ l, L.Relations l) → I) (n : ℕ)
 theorem bernoulliStructure_eq_map (p : (Σ l, L.Relations l) → I) (n : ℕ) [Fintype (Atom L n)] :
     bernoulliStructure p n = (PMF.pi fun a : Atom L n => PMF.coin (p a.1)).map atomStructure := by
   rw [bernoulliStructure]
+  dsimp only
   congr
   exact Subsingleton.elim _ _
 

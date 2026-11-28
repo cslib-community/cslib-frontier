@@ -81,8 +81,7 @@ theorem exec_report {w N capacity : ℕ} (x : Data registers) (codes : ℕ → �
         x.regs values + q ≠ x.regs output + y.regs index := by
       rcases hvals with h | h <;> omega
     refine WP.exists_execWithin ?_
-    unfold reportStep
-    wram_exec * [hread', hval', hqa, hva, hoa, hki]
+    wram_exec * [reportStep, hread', hval', hqa, hva, hoa, hki]
     refine ⟨⟨?_, ?_, ?_, ?_, ?_⟩, by wram_simp⟩
     · intro i hi
       by_cases he : i = y.regs index
@@ -113,8 +112,7 @@ theorem exec_report {w N capacity : ℕ} (x : Data registers) (codes : ℕ → �
       wram_simp
       exact hfrozen i (by simp [ReportLocal, h1', h2', h3', h4'])
   refine WP.exists_execWithin ?_
-  unfold report
-  wram_exec
+  wram_exec [report]
   wram_call (ExecWithin.loop_count P
     (fun _ ⟨_, _, _, _, hf⟩ => (hf queryCount (by decide)).trans hN)
     hstep (by wram_simp; exact Nat.zero_le _)

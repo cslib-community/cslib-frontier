@@ -999,7 +999,7 @@ theorem toOuterMeasure_qsMaskedCheckValue_le [Fintype F] [DecidableEq F] {C ι :
 @[expose] def grindingAcceptedEquiv (p : ChallengeParams) :
     {c : BitString p.securityBits // grindingAccepted p c = true} ≃
       BitString p.nonGrindingBits where
-  toFun c j := c.1 ⟨j.val, Nat.lt_of_lt_of_le j.isLt (Nat.sub_le _ _)⟩
+  toFun c j := c.val ⟨j.val, Nat.lt_of_lt_of_le j.isLt (Nat.sub_le _ _)⟩
   invFun x :=
     ⟨fun idx => if h : idx.val < p.nonGrindingBits then x ⟨idx.val, h⟩ else false, by
       rw [grindingAccepted_eq_true_iff]
@@ -1017,7 +1017,7 @@ theorem toOuterMeasure_qsMaskedCheckValue_le [Fintype F] [DecidableEq F] {C ι :
         have := p.grindingBits_le
         simp only [ChallengeParams.nonGrindingBits] at *
         omega⟩
-      have hgc := (grindingAccepted_eq_true_iff p c.1).mp c.2 j
+      have hgc := (grindingAccepted_eq_true_iff p c.val).mp c.property j
       have hidx : (⟨p.nonGrindingBits + j.val, by
           have hj := j.isLt
           have hgrind := p.grindingBits_le
@@ -1180,7 +1180,7 @@ theorem disjoint_range_actRLC_faestDomainByteFin (n : ℕ) :
       (Set.range (appendFaestDomainByteFin (n := n))) := by
   rw [Set.disjoint_left]
   rintro _ ⟨m₁, rfl⟩ ⟨⟨m₂, b⟩, heq⟩
-  exact actRLCDomainByte_notMem_faest (last_eq_of_snoc_eq heq ▸ b.2)
+  exact actRLCDomainByte_notMem_faest (last_eq_of_snoc_eq heq ▸ b.property)
 
 /-- Restricting a single uniform random oracle table `H : K_all → V` along embeddings `ι₁, ι₂` with
 disjoint ranges produces two independent uniform random oracle tables. -/

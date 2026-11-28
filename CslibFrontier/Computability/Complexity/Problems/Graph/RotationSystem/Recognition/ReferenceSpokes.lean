@@ -80,7 +80,7 @@ theorem exists_reference_spokes_at_cutPorts {I : FixedRotationInput} (hI : Valid
     have hpdir (i : Fin (n + 1)) :
         ((p i - D.vertex v).arg : Real.Angle) =
           (referenceDrawing I).direction (subdivisionDart I (d i)) := by
-      simp only [p, add_sub_cancel_left, Complex.real_smul, Complex.arg_real_mul _ (hapos i),
+      simp only [p, add_sub_cancel_left, Complex.real_smul, Complex.arg_ofReal_mul (hapos i) _,
         PolygonalDrawing.direction, w]
     have hpinj : Function.Injective (fun i => ((p i - D.vertex v).arg : Real.Angle)) :=
       fun i j heq => hdinj (referenceDrawing_fixedWord_directions_injective hI hw (hdmem i)

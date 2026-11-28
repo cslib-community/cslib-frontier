@@ -174,11 +174,4 @@ example : ∃ (A : Finset (Fin 5)) (B : Finset (Fin 7)) (p : List Bool),
   exact ⟨A, B, p, hA, hB, by simpa [biTree, DecisionTree.leafCount] using hAc,
     by simpa [biTree, DecisionTree.leafCount] using hBc, hp⟩
 
-/--
-info: 'Cslib.DecisionTree.IsDecisionList.rank_le_one' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms DecisionTree.IsDecisionList.rank_le_one
-
 end ThresholdRectangles

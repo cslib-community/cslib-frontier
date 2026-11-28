@@ -139,15 +139,15 @@ theorem coordCode_pure_isRationalNash : coordCode.IsRationalNash [1, 0] [1, 0] :
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hq
     rcases hq with rfl | rfl <;> norm_num
   · intro i
-    change (∑ j : Fin 2, coordCode.toMatA i j * [1, 0].getD j.1 0) ≤
-      ∑ a : Fin 2, ∑ j : Fin 2, [1, 0].getD a.1 0 * coordCode.toMatA a j * [1, 0].getD j.1 0
+    change (∑ j : Fin 2, coordCode.toMatA i j * [1, 0].getD j.val 0) ≤
+      ∑ a : Fin 2, ∑ j : Fin 2, [1, 0].getD a.val 0 * coordCode.toMatA a j * [1, 0].getD j.val 0
     fin_cases i <;>
       · simp only [Fin.sum_univ_two, Fin.val_zero, Fin.val_one, toMatA, coordCode,
           List.getD_cons_zero, List.getD_cons_succ]
         norm_num
   · intro j
-    change (∑ i : Fin 2, [1, 0].getD i.1 0 * coordCode.toMatB i j) ≤
-      ∑ i : Fin 2, ∑ b : Fin 2, [1, 0].getD i.1 0 * coordCode.toMatB i b * [1, 0].getD b.1 0
+    change (∑ i : Fin 2, [1, 0].getD i.val 0 * coordCode.toMatB i j) ≤
+      ∑ i : Fin 2, ∑ b : Fin 2, [1, 0].getD i.val 0 * coordCode.toMatB i b * [1, 0].getD b.val 0
     fin_cases j <;>
       · simp only [Fin.sum_univ_two, Fin.val_zero, Fin.val_one, toMatB, coordCode,
           List.getD_cons_zero, List.getD_cons_succ]
@@ -186,17 +186,17 @@ theorem penniesCode_uniform_isRationalNash :
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hq
     rcases hq with rfl | rfl <;> norm_num
   · intro i
-    change (∑ j : Fin 2, penniesCode.toMatA i j * [1 / 2, 1 / 2].getD j.1 0) ≤
+    change (∑ j : Fin 2, penniesCode.toMatA i j * [1 / 2, 1 / 2].getD j.val 0) ≤
       ∑ a : Fin 2, ∑ j : Fin 2,
-        [1 / 2, 1 / 2].getD a.1 0 * penniesCode.toMatA a j * [1 / 2, 1 / 2].getD j.1 0
+        [1 / 2, 1 / 2].getD a.val 0 * penniesCode.toMatA a j * [1 / 2, 1 / 2].getD j.val 0
     fin_cases i <;>
       · simp only [Fin.sum_univ_two, Fin.val_zero, Fin.val_one, toMatA, penniesCode,
           List.getD_cons_zero, List.getD_cons_succ]
         norm_num
   · intro j
-    change (∑ i : Fin 2, [1 / 2, 1 / 2].getD i.1 0 * penniesCode.toMatB i j) ≤
+    change (∑ i : Fin 2, [1 / 2, 1 / 2].getD i.val 0 * penniesCode.toMatB i j) ≤
       ∑ i : Fin 2, ∑ b : Fin 2,
-        [1 / 2, 1 / 2].getD i.1 0 * penniesCode.toMatB i b * [1 / 2, 1 / 2].getD b.1 0
+        [1 / 2, 1 / 2].getD i.val 0 * penniesCode.toMatB i b * [1 / 2, 1 / 2].getD b.val 0
     fin_cases j <;>
       · simp only [Fin.sum_univ_two, Fin.val_zero, Fin.val_one, toMatB, penniesCode,
           List.getD_cons_zero, List.getD_cons_succ]
@@ -220,9 +220,9 @@ example : ¬penniesCode.BimatrixNash (encWitness ⟨[1, 0], [1, 0]⟩) := by
   dsimp only at hx hy
   subst hx hy
   have h2 := hrat.2.2.2.2.2.2.2 ⟨1, by decide⟩
-  change (∑ i : Fin 2, [1, 0].getD i.1 0 * penniesCode.toMatB i ⟨1, by decide⟩) ≤
+  change (∑ i : Fin 2, [1, 0].getD i.val 0 * penniesCode.toMatB i ⟨1, by decide⟩) ≤
     ∑ i : Fin 2, ∑ b : Fin 2,
-      [1, 0].getD i.1 0 * penniesCode.toMatB i b * [1, 0].getD b.1 0 at h2
+      [1, 0].getD i.val 0 * penniesCode.toMatB i b * [1, 0].getD b.val 0 at h2
   simp only [Fin.sum_univ_two, Fin.val_zero, Fin.val_one, toMatB, penniesCode,
     List.getD_cons_zero, List.getD_cons_succ] at h2
   norm_num at h2
@@ -238,17 +238,17 @@ theorem stengelCode_mixed_isRationalNash :
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hq
     rcases hq with rfl | rfl <;> norm_num
   · intro i
-    change (∑ j : Fin 2, stengelCode.toMatA i j * [2 / 3, 1 / 3].getD j.1 0) ≤
+    change (∑ j : Fin 2, stengelCode.toMatA i j * [2 / 3, 1 / 3].getD j.val 0) ≤
       ∑ a : Fin 3, ∑ j : Fin 2,
-        [4 / 5, 1 / 5, 0].getD a.1 0 * stengelCode.toMatA a j * [2 / 3, 1 / 3].getD j.1 0
+        [4 / 5, 1 / 5, 0].getD a.val 0 * stengelCode.toMatA a j * [2 / 3, 1 / 3].getD j.val 0
     fin_cases i <;>
       · simp only [Fin.sum_univ_two, Fin.sum_univ_three, Fin.val_zero, Fin.val_one, Fin.val_two,
           toMatA, stengelCode, List.getD_cons_zero, List.getD_cons_succ]
         norm_num
   · intro j
-    change (∑ i : Fin 3, [4 / 5, 1 / 5, 0].getD i.1 0 * stengelCode.toMatB i j) ≤
+    change (∑ i : Fin 3, [4 / 5, 1 / 5, 0].getD i.val 0 * stengelCode.toMatB i j) ≤
       ∑ i : Fin 3, ∑ b : Fin 2,
-        [4 / 5, 1 / 5, 0].getD i.1 0 * stengelCode.toMatB i b * [2 / 3, 1 / 3].getD b.1 0
+        [4 / 5, 1 / 5, 0].getD i.val 0 * stengelCode.toMatB i b * [2 / 3, 1 / 3].getD b.val 0
     fin_cases j <;>
       · simp only [Fin.sum_univ_two, Fin.sum_univ_three, Fin.val_zero, Fin.val_one, Fin.val_two,
           toMatB, stengelCode, List.getD_cons_zero, List.getD_cons_succ]
@@ -286,17 +286,17 @@ example : zeroCode.BimatrixNash (encWitness ⟨[1 / 3, 2 / 3], [1 / 4, 3 / 4]⟩
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hq
     rcases hq with rfl | rfl <;> norm_num
   · intro i
-    change (∑ j : Fin 2, zeroCode.toMatA i j * [1 / 4, 3 / 4].getD j.1 0) ≤
+    change (∑ j : Fin 2, zeroCode.toMatA i j * [1 / 4, 3 / 4].getD j.val 0) ≤
       ∑ a : Fin 2, ∑ j : Fin 2,
-        [1 / 3, 2 / 3].getD a.1 0 * zeroCode.toMatA a j * [1 / 4, 3 / 4].getD j.1 0
+        [1 / 3, 2 / 3].getD a.val 0 * zeroCode.toMatA a j * [1 / 4, 3 / 4].getD j.val 0
     fin_cases i <;>
       · simp only [Fin.sum_univ_two, Fin.val_zero, Fin.val_one, toMatA, zeroCode,
           List.getD_cons_zero, List.getD_cons_succ]
         norm_num
   · intro j
-    change (∑ i : Fin 2, [1 / 3, 2 / 3].getD i.1 0 * zeroCode.toMatB i j) ≤
+    change (∑ i : Fin 2, [1 / 3, 2 / 3].getD i.val 0 * zeroCode.toMatB i j) ≤
       ∑ i : Fin 2, ∑ b : Fin 2,
-        [1 / 3, 2 / 3].getD i.1 0 * zeroCode.toMatB i b * [1 / 4, 3 / 4].getD b.1 0
+        [1 / 3, 2 / 3].getD i.val 0 * zeroCode.toMatB i b * [1 / 4, 3 / 4].getD b.val 0
     fin_cases j <;>
       · simp only [Fin.sum_univ_two, Fin.val_zero, Fin.val_one, toMatB, zeroCode,
           List.getD_cons_zero, List.getD_cons_succ]

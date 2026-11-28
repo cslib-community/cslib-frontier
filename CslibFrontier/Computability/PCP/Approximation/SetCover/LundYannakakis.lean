@@ -110,7 +110,7 @@ private theorem card_pi_update_eq {U : Type*} [Fintype U] [DecidableEq U]
       Fintype.card (∀ u, T u) := by
   classical
   let φ : {f : ∀ u, T u // f u₀ = y₀} × T u₀ ≃ ∀ u, T u :=
-    { toFun := fun p => Function.update p.1.1 u₀ p.2
+    { toFun := fun p => Function.update p.1.val u₀ p.2
       invFun := fun g => (⟨Function.update g u₀ y₀, Function.update_self ..⟩, g u₀)
       left_inv := fun ⟨⟨f, hf⟩, _⟩ => by simp [Function.update_idem, ← hf]
       right_inv := fun g => by simp [Function.update_idem] }
@@ -132,7 +132,7 @@ theorem exists_labelling_of_list_sets {β γ : Type} [DecidableEq γ] [Nonempty 
     (1 - 2 * ρ / t) * (4 / (t : ℝ) ^ 2) ≤ 1 - (g.toGraph projectionEval).unsatVal := by
   classical
   let m := g.edges.length
-  let edge (i : Fin g.edges.length) := g.edges[i.1]'i.2
+  let edge (i : Fin g.edges.length) := g.edges[i.val]'i.isLt
   let a₀ := Classical.arbitrary β
   let b₀ := Classical.arbitrary γ
   have ht0 : (0 : ℝ) < t := by exact_mod_cast ht
@@ -162,15 +162,15 @@ theorem exists_labelling_of_list_sets {β γ : Type} [DecidableEq γ] [Nonempty 
   let VR := (g.edges.map Edge.dst).toFinset
   let L' (u : ℕ) : Finset β := if (L u).Nonempty then L u else {a₀}
   let R' (v : ℕ) : Finset γ := if (R v).Nonempty then R v else {b₀}
-  let Choice := (∀ u : VL, L' u.1) × (∀ v : VR, R' v.1)
+  let Choice := (∀ u : VL, L' u.val) × (∀ v : VR, R' v.val)
   have hneL : ∀ u, (L' u).Nonempty := fun u => by
     dsimp only [L']; split_ifs with h; exacts [h, ⟨a₀, Finset.mem_singleton_self _⟩]
   have hneR : ∀ v, (R' v).Nonempty := fun v => by
     dsimp only [R']; split_ifs with h; exacts [h, ⟨b₀, Finset.mem_singleton_self _⟩]
-  have : Nonempty Choice := ⟨fun u => ⟨_, (hneL u.1).choose_spec⟩,
-    fun v => ⟨_, (hneR v.1).choose_spec⟩⟩
+  have : Nonempty Choice := ⟨fun u => ⟨_, (hneL u.val).choose_spec⟩,
+    fun v => ⟨_, (hneR v.val).choose_spec⟩⟩
   let σ_of (c : Choice) (x : ℕ) : β × γ :=
-    (if hx : x ∈ VL then (c.1 ⟨x, hx⟩).1 else a₀, if hy : x ∈ VR then (c.2 ⟨x, hy⟩).1 else b₀)
+    (if hx : x ∈ VL then (c.1 ⟨x, hx⟩).val else a₀, if hy : x ∈ VR then (c.2 ⟨x, hy⟩).val else b₀)
   let sat (c : Choice) (i : Fin g.edges.length) : Prop :=
     (g.toGraph projectionEval).Satisfies (σ_of c) i
   let hitSet (i : Fin g.edges.length) := Finset.univ.filter fun c : Choice => sat c i
@@ -183,34 +183,34 @@ theorem exists_labelling_of_list_sets {β γ : Type} [DecidableEq γ] [Nonempty 
     obtain ⟨a_star, haL, b_star, hbR, heq⟩ := hmatch i hle
     have hLeq : L' d.src = L d.src := ite_eq_left ⟨a_star, haL⟩
     have hReq : R' d.dst = R d.dst := ite_eq_left ⟨b_star, hbR⟩
-    let u₀ : VL := ⟨d.src, List.mem_toFinset.2 (List.mem_map.2 ⟨d, List.getElem_mem i.2, rfl⟩)⟩
-    let v₀ : VR := ⟨d.dst, List.mem_toFinset.2 (List.mem_map.2 ⟨d, List.getElem_mem i.2, rfl⟩)⟩
-    let yL₀ : L' u₀.1 := ⟨a_star, hLeq ▸ haL⟩
-    let yR₀ : R' v₀.1 := ⟨b_star, hReq ▸ hbR⟩
-    let hitPair := {fL : ∀ u : VL, L' u.1 // fL u₀ = yL₀} ×
-      {fR : ∀ v : VR, R' v.1 // fR v₀ = yR₀}
-    have hcard_mul : Fintype.card hitPair * ((L' u₀.1).card * (R' v₀.1).card) =
+    let u₀ : VL := ⟨d.src, List.mem_toFinset.2 (List.mem_map.2 ⟨d, List.getElem_mem i.isLt, rfl⟩)⟩
+    let v₀ : VR := ⟨d.dst, List.mem_toFinset.2 (List.mem_map.2 ⟨d, List.getElem_mem i.isLt, rfl⟩)⟩
+    let yL₀ : L' u₀.val := ⟨a_star, hLeq ▸ haL⟩
+    let yR₀ : R' v₀.val := ⟨b_star, hReq ▸ hbR⟩
+    let hitPair := {fL : ∀ u : VL, L' u.val // fL u₀ = yL₀} ×
+      {fR : ∀ v : VR, R' v.val // fR v₀ = yR₀}
+    have hcard_mul : Fintype.card hitPair * ((L' u₀.val).card * (R' v₀.val).card) =
         Fintype.card Choice := by
-      have hL := card_pi_update_eq (T := fun u : VL => L' u.1) u₀ yL₀
-      have hR := card_pi_update_eq (T := fun v : VR => R' v.1) v₀ yR₀
+      have hL := card_pi_update_eq (T := fun u : VL => L' u.val) u₀ yL₀
+      have hR := card_pi_update_eq (T := fun v : VR => R' v.val) v₀ yR₀
       simp only [hitPair, Choice, Fintype.card_prod]
       rw [← hL, ← hR, Fintype.card_coe, Fintype.card_coe]
       ring
     have hsub_hit : Fintype.card hitPair ≤ (hitSet i).card := by
       rw [← Fintype.card_coe (hitSet i)]
-      refine Fintype.card_le_of_injective (fun p : hitPair => (⟨(p.1.1, p.2.1), ?_⟩ : hitSet i))
-        fun p q h => Prod.ext (Subtype.ext (congrArg (fun x => x.1.1) h))
-          (Subtype.ext (congrArg (fun x => x.1.2) h))
+      refine Fintype.card_le_of_injective (fun p : hitPair => (⟨(p.1.val, p.2.val), ?_⟩ : hitSet i))
+        fun p q h => Prod.ext (Subtype.ext (congrArg (fun x => x.val.1) h))
+          (Subtype.ext (congrArg (fun x => x.val.2) h))
       refine Finset.mem_filter.2 ⟨Finset.mem_univ _, ?_⟩
-      change (g.toGraph projectionEval).Satisfies (σ_of (p.1.1, p.2.1)) i
+      change (g.toGraph projectionEval).Satisfies (σ_of (p.1.val, p.2.val)) i
       rw [satisfies_toGraph_projectionEval_iff, List.get_eq_getElem]
-      have hu' : d.src ∈ VL := u₀.2
-      have hv' : d.dst ∈ VR := v₀.2
-      have hL : (p.1.1 ⟨d.src, hu'⟩).1 = a_star := congrArg Subtype.val p.1.2
-      have hR : (p.2.1 ⟨d.dst, hv'⟩).1 = b_star := congrArg Subtype.val p.2.2
+      have hu' : d.src ∈ VL := u₀.property
+      have hv' : d.dst ∈ VR := v₀.property
+      have hL : (p.1.val ⟨d.src, hu'⟩).val = a_star := congrArg Subtype.val p.1.property
+      have hR : (p.2.val ⟨d.dst, hv'⟩).val = b_star := congrArg Subtype.val p.2.property
       simp only [σ_of, d, edge, hu', hv', ↓reduceDIte, hL, hR]
       exact heq
-    have hprod_le : 4 * ((L' u₀.1).card * (R' v₀.1).card) ≤ t ^ 2 := by
+    have hprod_le : 4 * ((L' u₀.val).card * (R' v₀.val).card) ≤ t ^ 2 := by
       rw [hLeq, hReq, ← mul_assoc]
       exact (_root_.four_mul_le_sq_add _ _).trans (Nat.pow_le_pow_left hle 2)
     have hnat : 4 * Fintype.card Choice ≤ (hitSet i).card * t ^ 2 := by
@@ -402,11 +402,11 @@ private theorem SideInfo.chooseCover {α : Type} (S : SideInfo α) (hAll : S.Has
       (∀ v ∈ S.V, ∀ r < S.copies v, ∃ k ∈ C, S.item k = (v, r, lab v)) ∧
       ∑ k ∈ C, S.wt (S.item k).1 = ∑ v ∈ S.V, S.deg v := by
   classical
-  let pick (p : Σ v : ↥S.V, Fin (S.copies v.1)) : Fin S.n :=
-    (hAll p.1.1 p.1.2 p.2.1 p.2.2 (lab p.1.1)).choose
-  have hspec (p : Σ v : ↥S.V, Fin (S.copies v.1)) :
-      S.item (pick p) = (p.1.1, p.2.1, lab p.1.1) :=
-    (hAll p.1.1 p.1.2 p.2.1 p.2.2 (lab p.1.1)).choose_spec
+  let pick (p : Σ v : ↥S.V, Fin (S.copies v.val)) : Fin S.n :=
+    (hAll p.1.val p.1.property p.2.val p.2.isLt (lab p.1.val)).choose
+  have hspec (p : Σ v : ↥S.V, Fin (S.copies v.val)) :
+      S.item (pick p) = (p.1.val, p.2.val, lab p.1.val) :=
+    (hAll p.1.val p.1.property p.2.val p.2.isLt (lab p.1.val)).choose_spec
   have hinj : Function.Injective pick := by
     rintro ⟨⟨v₁, hv₁⟩, ⟨r₁, hr₁⟩⟩ ⟨⟨v₂, hv₂⟩, ⟨r₂, hr₂⟩⟩ h
     have h1 := (hspec ⟨⟨v₁, hv₁⟩, ⟨r₁, hr₁⟩⟩).symm.trans
@@ -418,7 +418,7 @@ private theorem SideInfo.chooseCover {α : Type} (S : SideInfo α) (hAll : S.Has
   rw [Finset.sum_image (fun _ _ _ _ h => hinj h), Fintype.sum_sigma]
   refine (Finset.sum_congr rfl fun v _ => ?_).trans (Finset.sum_coe_sort S.V S.deg)
   simp only [hspec, Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
-  exact S.copies_mul_wt v.1 v.2
+  exact S.copies_mul_wt v.val v.property
 
 private theorem SideInfo.exists_candOfCover {α : Type} (S : SideInfo α) (Sub : Finset (Fin S.n)) :
     ∃ (cand : ℕ → Finset α) (rStar : ℕ → ℕ),
@@ -530,39 +530,40 @@ private structure BipartiteCoverModel {β γ : Type} (g : Graph (β → γ)) (G 
   hdegR : right.deg = degR g
   numSets_eq : numSets = left.n + right.n
   weight_left : ∀ k : Fin left.n,
-    weight ⟨k.1, Nat.lt_of_lt_of_eq (Nat.lt_add_right _ k.isLt) numSets_eq.symm⟩ =
+    weight ⟨k.val, Nat.lt_of_lt_of_eq (Nat.lt_add_right _ k.isLt) numSets_eq.symm⟩ =
       left.wt (left.item k).1
   weight_right : ∀ k : Fin right.n,
-    weight ⟨left.n + k.1, Nat.lt_of_lt_of_eq (Nat.add_lt_add_left k.isLt _) numSets_eq.symm⟩ =
+    weight ⟨left.n + k.val, Nat.lt_of_lt_of_eq (Nat.add_lt_add_left k.isLt _) numSets_eq.symm⟩ =
       right.wt (right.item k).1
   ground_elim : ∀ z ∈ ground,
     ∃ e : Fin g.edges.length, ∃ x < G.size,
       ∃ r₁ < left.copies g.edges[e].src, ∃ r₂ < right.copies g.edges[e].dst,
         (∀ k : Fin left.n, (left.item k).1 = g.edges[e].src → (left.item k).2.1 = r₁ →
           G.mem x (g.edges[e].constraint (left.item k).2.2) = false →
-          mem z ⟨k.1, Nat.lt_of_lt_of_eq (Nat.lt_add_right _ k.isLt) numSets_eq.symm⟩) ∧
+          mem z ⟨k.val, Nat.lt_of_lt_of_eq (Nat.lt_add_right _ k.isLt) numSets_eq.symm⟩) ∧
         (∀ k : Fin right.n, (right.item k).1 = g.edges[e].dst → (right.item k).2.1 = r₂ →
           G.mem x (right.item k).2.2 = true →
-          mem z ⟨left.n + k.1, Nat.lt_of_lt_of_eq (Nat.add_lt_add_left k.isLt _) numSets_eq.symm⟩)
+          mem z ⟨left.n + k.val, Nat.lt_of_lt_of_eq (Nat.add_lt_add_left k.isLt _) numSets_eq.symm⟩)
   ground_intro : ∀ (e : Fin g.edges.length) (x : ℕ), x < G.size →
     ∀ r₁ < left.copies g.edges[e].src, ∀ r₂ < right.copies g.edges[e].dst,
       ∃ z ∈ ground,
         (∀ k : Fin left.n,
-          mem z ⟨k.1, Nat.lt_of_lt_of_eq (Nat.lt_add_right _ k.isLt) numSets_eq.symm⟩ →
+          mem z ⟨k.val, Nat.lt_of_lt_of_eq (Nat.lt_add_right _ k.isLt) numSets_eq.symm⟩ →
           (left.item k).1 = g.edges[e].src ∧ (left.item k).2.1 = r₁ ∧
           G.mem x (g.edges[e].constraint (left.item k).2.2) = false) ∧
         (∀ k : Fin right.n,
-          mem z ⟨left.n + k.1, Nat.lt_of_lt_of_eq (Nat.add_lt_add_left k.isLt _) numSets_eq.symm⟩ →
+          mem z ⟨left.n + k.val,
+            Nat.lt_of_lt_of_eq (Nat.add_lt_add_left k.isLt _) numSets_eq.symm⟩ →
           (right.item k).1 = g.edges[e].dst ∧ (right.item k).2.1 = r₂ ∧
           G.mem x (right.item k).2.2 = true)
 
 private def BipartiteCoverModel.idxL {g : Graph (β → γ)} {G : PartitionGadget γ}
     (M : BipartiteCoverModel g G) (k : Fin M.left.n) : Fin M.numSets :=
-  ⟨k.1, Nat.lt_of_lt_of_eq (Nat.lt_add_right _ k.isLt) M.numSets_eq.symm⟩
+  ⟨k.val, Nat.lt_of_lt_of_eq (Nat.lt_add_right _ k.isLt) M.numSets_eq.symm⟩
 
 private def BipartiteCoverModel.idxR {g : Graph (β → γ)} {G : PartitionGadget γ}
     (M : BipartiteCoverModel g G) (k : Fin M.right.n) : Fin M.numSets :=
-  ⟨M.left.n + k.1, Nat.lt_of_lt_of_eq (Nat.add_lt_add_left k.isLt _) M.numSets_eq.symm⟩
+  ⟨M.left.n + k.val, Nat.lt_of_lt_of_eq (Nat.add_lt_add_left k.isLt _) M.numSets_eq.symm⟩
 
 private theorem BipartiteCoverModel.src_mem_leftV {g : Graph (β → γ)} {G : PartitionGadget γ}
     (M : BipartiteCoverModel g G) (e : Fin g.edges.length) : g.edges[e].src ∈ M.left.V :=
@@ -651,13 +652,13 @@ private theorem BipartiteCoverModel.sound_of_isCover [DecidableEq γ] [Nonempty 
   obtain ⟨R, r₂Star, hr₂Star, hR_mem, hsumR⟩ := M.right.exists_candOfCover SubR
   have himgL : SubL.image M.idxL = C.filter fun i : Fin M.numSets => (i : ℕ) < M.left.n := by
     ext i; simp only [SubL, Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and]
-    exact ⟨fun ⟨k, hk, h⟩ => h ▸ ⟨hk, k.isLt⟩, fun ⟨hi, hlt⟩ => ⟨⟨i.1, hlt⟩, hi, Fin.ext rfl⟩⟩
+    exact ⟨fun ⟨k, hk, h⟩ => h ▸ ⟨hk, k.isLt⟩, fun ⟨hi, hlt⟩ => ⟨⟨i.val, hlt⟩, hi, Fin.ext rfl⟩⟩
   have himgR : SubR.image M.idxR = C.filter fun i : Fin M.numSets => M.left.n ≤ (i : ℕ) := by
     ext i; simp only [SubR, Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and]
     refine ⟨fun ⟨k, hk, h⟩ => h ▸ ⟨hk, Nat.le_add_right _ _⟩, fun ⟨hi, hge⟩ => ?_⟩
-    have hlt : i.1 < M.left.n + M.right.n := i.isLt.trans_eq M.numSets_eq
-    have heq : M.idxR ⟨i.1 - M.left.n, by omega⟩ = i := Fin.ext (by dsimp [idxR]; omega)
-    exact ⟨⟨i.1 - M.left.n, by omega⟩, heq ▸ hi, heq⟩
+    have hlt : i.val < M.left.n + M.right.n := i.isLt.trans_eq M.numSets_eq
+    have heq : M.idxR ⟨i.val - M.left.n, by omega⟩ = i := Fin.ext (by dsimp [idxR]; omega)
+    exact ⟨⟨i.val - M.left.n, by omega⟩, heq ▸ hi, heq⟩
   have hpart : (∑ k ∈ SubL, M.left.wt (M.left.item k).1) +
       (∑ k ∈ SubR, M.right.wt (M.right.item k).1) = ∑ i ∈ C, M.weight i := by
     have hL : ∑ k ∈ SubL, M.left.wt (M.left.item k).1 =
@@ -680,13 +681,13 @@ private theorem BipartiteCoverModel.sound_of_isCover [DecidableEq γ] [Nonempty 
   obtain ⟨j, hjC, hjz⟩ := hC z hz
   by_cases hjL : (j : ℕ) < M.left.n
   · left
-    let k : Fin M.left.n := ⟨j.1, hjL⟩
+    let k : Fin M.left.n := ⟨j.val, hjL⟩
     have hkSub : k ∈ SubL := Finset.mem_filter.2 ⟨Finset.mem_univ _, hjC⟩
     obtain ⟨hsrc, hr1, hmem⟩ := hbackL k hjz
     exact ⟨(M.left.item k).2.2, hL_mem k hkSub _ _ hsrc hr1 rfl, hmem⟩
   · right
-    have hlt : j.1 < M.left.n + M.right.n := j.isLt.trans_eq M.numSets_eq
-    let k : Fin M.right.n := ⟨j.1 - M.left.n, by omega⟩
+    have hlt : j.val < M.left.n + M.right.n := j.isLt.trans_eq M.numSets_eq
+    let k : Fin M.right.n := ⟨j.val - M.left.n, by omega⟩
     have hidx : M.idxR k = j := Fin.ext (by dsimp only [idxR, k]; omega)
     have hkSub : k ∈ SubR := Finset.mem_filter.2 ⟨Finset.mem_univ _, hidx ▸ hjC⟩
     obtain ⟨hdst, hr2, hmem⟩ := hbackR k ((congrArg (M.mem z) hidx).mpr hjz)
@@ -817,7 +818,7 @@ private abbrev weightedModel (bs : List β) (gs : List γ) (fallback : γ)
   ground_intro e x hx r₁ hr₁ r₂ hr₂ := by
     obtain rfl : r₁ = 0 := Nat.lt_one_iff.1 hr₁
     obtain rfl : r₂ = 0 := Nat.lt_one_iff.1 hr₂
-    refine ⟨Nat.pair e.1 x, mem_weightedGround.2 ⟨e.1, e.isLt, x, hx, rfl⟩,
+    refine ⟨Nat.pair e.val x, mem_weightedGround.2 ⟨e.val, e.isLt, x, hx, rfl⟩,
       fun k hmem => ?_, fun k hmem => ?_⟩
     · rw [getElem_fin_map_append_left_eq (weightedSetSystemOf_sets bs gs fallback G g) rfl k.isLt]
         at hmem
@@ -986,14 +987,15 @@ theorem setSystemOf_ground_length_ge {bs : List β} {gs : List γ} {fallback : �
     degL_pos_of_mem (mem_leftVertices.2 ⟨g.edges[0], List.getElem_mem hm, rfl⟩)
   have hr₂ : 0 < degR g g.edges[0].dst :=
     degR_pos_of_mem (mem_rightVertices.2 ⟨g.edges[0], List.getElem_mem hm, rfl⟩)
-  let f (x : Fin G.size) : ℕ := Nat.pair (Nat.pair 0 x.1) (Nat.pair 0 0)
+  let f (x : Fin G.size) : ℕ := Nat.pair (Nat.pair 0 x.val) (Nat.pair 0 0)
   have hinj : Function.Injective f := fun _ _ h =>
     Fin.ext (Nat.pair_eq_pair.1 (Nat.pair_eq_pair.1 h).1).2
   calc G.size = (Finset.univ.image f).card := by
         rw [Finset.card_image_of_injective _ hinj, Finset.card_univ, Fintype.card_fin]
     _ ≤ (setSystemOf bs gs fallback G g).ground.toFinset.card := Finset.card_le_card fun z hz => by
         obtain ⟨x, -, rfl⟩ := Finset.mem_image.1 hz
-        refine List.mem_toFinset.2 (mem_unweightedGround.2 ⟨0, hm, x.1, x.isLt, 0, ?_, 0, ?_, rfl⟩)
+        refine List.mem_toFinset.2
+          (mem_unweightedGround.2 ⟨0, hm, x.val, x.isLt, 0, ?_, 0, ?_, rfl⟩)
         · rwa [List.getD_eq_getElem _ _ hm]
         · rwa [List.getD_eq_getElem _ _ hm]
     _ ≤ (setSystemOf bs gs fallback G g).ground.length := List.toFinset_card_le _
@@ -1037,8 +1039,8 @@ private abbrev unweightedModel (bs : List β) (gs : List γ) (fallback : γ)
     · rw [getElem_fin_map_append_right_eq (setSystemOf_sets bs gs fallback G g) rfl rfl k.isLt]
       exact (mem_unweightedRightSet he hx hr₁).2 ⟨hdst.symm, hr₂'.symm, hmem⟩
   ground_intro e x hx r₁ hr₁ r₂ hr₂ := by
-    refine ⟨Nat.pair (Nat.pair e.1 x) (Nat.pair r₁ r₂), mem_unweightedGround.2
-      ⟨e.1, e.isLt, x, hx, r₁, by rwa [List.getD_eq_getElem _ _ e.isLt],
+    refine ⟨Nat.pair (Nat.pair e.val x) (Nat.pair r₁ r₂), mem_unweightedGround.2
+      ⟨e.val, e.isLt, x, hx, r₁, by rwa [List.getD_eq_getElem _ _ e.isLt],
         r₂, by rwa [List.getD_eq_getElem _ _ e.isLt], rfl⟩,
       fun k hmem => ?_, fun k hmem => ?_⟩
     · rw [getElem_fin_map_append_left_eq (setSystemOf_sets bs gs fallback G g) rfl k.isLt] at hmem

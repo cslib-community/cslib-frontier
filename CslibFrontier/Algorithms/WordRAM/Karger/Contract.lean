@@ -504,8 +504,7 @@ private theorem degInnerLoop_exec {w wb db str k t : ℕ} {W : Fin k → Fin k �
     have hv_fit : Fits w (v_val + 1) := hdEnd.of_le (by omega)
     have hread : q.mem (wb + u.val * str + v_val) = W u v := hqmem ▸ hmat u v
     rw [hv_eq] at hqval1
-    unfold degInnerBody
-    wram_exec [hqf.one_eq, hqa1, hv_eq, hread, hqval1, hcell_fit, hsum_fit, hv_fit]
+    wram_exec [degInnerBody, hqf.one_eq, hqa1, hv_eq, hread, hqval1, hcell_fit, hsum_fit, hv_fit]
     refine ⟨⟨by struct_frame hqf, by wram_simp [hqu], by wram_simp [hqtot],
       by wram_simp [hqa1], by wram_simp; omega, ?_, hqmem⟩, by wram_simp [hv_eq]; omega⟩
     wram_simp [prefixSum_succ hv_lt (W u)]; rfl
@@ -546,8 +545,7 @@ theorem computeDegreesAndTotal_exec {w wb db str k : ℕ} {W : Fin k → Fin k �
     have hu_lt : u_val < k := by simpa [Cond.holds_lt, hu_eq, hyf.activeK_eq] using hc
     let u : Fin k := ⟨u_val, hu_lt⟩
     obtain ⟨hmul_fit, hrow_fit⟩ := rowBase_fits hwEnd (Nat.le_of_lt hu_lt)
-    unfold degOuterBody
-    wram_exec [hyf.stride_eq, hyf.wBase_eq, hu_eq, hmul_fit, hrow_fit]
+    wram_exec [degOuterBody, hyf.stride_eq, hyf.wBase_eq, hu_eq, hmul_fit, hrow_fit]
     wram_call (degInnerLoop_exec u hstr hwEnd hdEnd htot hymat (by struct_frame hyf)
       (by wram_simp [hu_eq]; rfl) (by wram_simp; rfl) (by wram_simp) (by wram_simp))
       with q ⟨hqf, hqu, hqtot, hval1, hqmem⟩
@@ -574,8 +572,7 @@ theorem computeDegreesAndTotal_exec {w wb db str k : ℕ} {W : Fin k → Fin k �
     · have hau : a.val ≠ u_val := Fin.val_ne_of_ne hne
       rw [Function.update_of_ne (by omega : db + a.val ≠ db + u_val), hqm]
       exact hydeg a (by rw [hu_eq]; omega)
-  unfold computeDegreesAndTotal
-  wram_exec [h1]
+  wram_exec [computeDegreesAndTotal, h1]
   refine WP.name fun x₀ hx₀_eq => ?_
   have hx₀ : OuterInv x₀ := by
     subst hx₀_eq
@@ -980,8 +977,7 @@ theorem uScan_exec {w wb db str k r_val : ℕ} {W : Fin k → Fin k → ℕ}
   have hlo : prefixSum (rowDeg W) u.val ≤ r_val := by rw [← degBefore_eq_prefixSum]; omega
   have hhi : r_val < prefixSum (rowDeg W) u.val + rowDeg W u := by
     rw [← degBefore_eq_prefixSum]; omega
-  unfold uScan
-  wram_exec [hrem, h1, hdBase, hmem0, hr1_fit, hdb0_fit]
+  wram_exec [uScan, hrem, h1, hdBase, hmem0, hr1_fit, hdb0_fit]
   wram_call (scanThresholdLoop_exec db (tgt := u) (by decide) hlo hhi hr1_fit
     (hdEnd.of_le (by have := u.isLt; omega)) (hdEnd.of_le (by have := u.isLt; omega))
     u.val _ (by wram_simp [h1]) (by wram_simp [hdBase]) (by wram_simp)
@@ -1026,8 +1022,7 @@ theorem vScan_exec {w wb db str k r_val : ℕ} {W : Fin k → Fin k → ℕ}
   have hm0 : x.mem (wb + u.val * str) = W u ⟨0, hk_pos⟩ := by simpa using hmat u ⟨0, hk_pos⟩
   have hlo : prefixSum (W u) v.val ≤ rem_u := by rw [← weightBefore_eq_prefixSum]; omega
   have hhi : rem_u < prefixSum (W u) v.val + W u v := by rw [← weightBefore_eq_prefixSum]; omega
-  unfold vScan
-  wram_exec [huReg, hstride, hwBase, hm0, hmul_fit, hrow_fit]
+  wram_exec [vScan, huReg, hstride, hwBase, hm0, hmul_fit, hrow_fit]
   wram_call (scanThresholdLoop_exec (wb + u.val * str) (tgt := v) (by decide) hlo hhi
     hrem1_fit (hdEnd.of_le (by have := v.isLt; omega))
     (hwEnd.of_le (Nat.le_of_lt (matAddr_lt_end hstr u v)))
@@ -1086,8 +1081,8 @@ theorem phaseADegrees_exec {w wb db str m : ℕ}
     (matAddr_ne_degAddr hstr hdisj u v v).symm
   have hdu_mem : x.mem (db + u.val) = rowDeg W u := hws.2 u
   have hdv_mem : x.mem (db + v.val) = rowDeg W v := hws.2 v
-  unfold phaseADegrees
-  wram_exec [h0, htotS, hv1, ha2, hdBase, huReg, hvReg, hdu_ne, hdv_ne, hdu_mem, hdv_mem,
+  wram_exec [phaseADegrees,
+    h0, htotS, hv1, ha2, hdBase, huReg, hvReg, hdu_ne, hdv_ne, hdu_mem, hdv_mem,
     hS1_fit, hS2_eq, hS2_fit, hdu_addr_fit, hdv_addr_fit, hdu_sub_fit, hdv_sub_fit,
     hdu_new_eq, hdu_new_fit]
   refine ⟨?_, ?_, ?_,
@@ -1135,8 +1130,8 @@ private theorem phaseAPtrs_exec {w wb db str m t : ℕ}
       y.regs idx = 0 := by
   obtain ⟨hmul_u_fit, hrow_u_fit⟩ := rowBase_fits hwEnd (Nat.le_of_lt u.isLt)
   obtain ⟨hmul_v_fit, hrow_v_fit⟩ := rowBase_fits hwEnd (Nat.le_of_lt v.isLt)
-  unfold phaseAPtrs
-  wram_exec [hf.zero_eq, hf.wBase_eq, hf.stride_eq, huReg, hvReg, hmul_u_fit, hrow_u_fit,
+  wram_exec [phaseAPtrs,
+    hf.zero_eq, hf.wBase_eq, hf.stride_eq, huReg, hvReg, hmul_u_fit, hrow_u_fit,
     hmul_v_fit, hrow_v_fit, hwEnd.of_le (Nat.le_of_lt (matAddr_lt_end hstr v u))]
   refine ⟨?_, fun i => ?_, fun i j => ?_, by struct_frame hf, by wram_simp,
     by wram_simp [huReg], by wram_simp [hvReg], by wram_simp, by wram_simp, by wram_simp⟩
@@ -1221,8 +1216,7 @@ private theorem mergeLoop_exec {w wb db str m t : ℕ}
           simpa [mergeStepMatrix, c, hidx_eq, hc_ne_u, hc_ne_v] using hymat u c
         have hne_uc_vc : wb + u.val * str + c_val ≠ wb + v.val * str + c_val :=
           fun h => huv (matAddr_inj hstr (i₁ := u) (j₁ := c) (i₂ := v) (j₂ := c) h).1
-        unfold mergeUpdate
-        wram_exec [hyf.zero_eq, hyf.one_eq, hyf.wBase_eq, hyf.stride_eq,
+        wram_exec [mergeUpdate, hyf.zero_eq, hyf.one_eq, hyf.wBase_eq, hyf.stride_eq,
           hyu, hyv, hya1, hya2, hidx_eq, hcu, hcv, hne_uc_vc, hread_vc, hread_uc,
           hvc_fit, huc_fit, hsum_fit, hcmul_fit, hcrow_fit, hcv_fit, hcu_fit, hc1_fit]
         refine ⟨⟨by struct_frame hyf, by wram_simp [hytot], by wram_simp [hyu],
@@ -1299,8 +1293,8 @@ private theorem compactLoop_exec {w wb db str m t : ℕ}
       have hcv_fit : Fits w (wb + c_val * str + v.val) :=
         hwEnd.of_le (Nat.le_of_lt (matAddr_lt_end hstr c.castSucc v))
       have hread_mc : y.mem (wb + m * str + c_val) = W₁ (Fin.last m) c.castSucc := hyrowm c
-      unfold compactUpdate
-      wram_exec [hyf.one_eq, hyf.wBase_eq, hyf.stride_eq, hyv, hya1, hya2, hidx_eq, hcv,
+      wram_exec [compactUpdate,
+        hyf.one_eq, hyf.wBase_eq, hyf.stride_eq, hyv, hya1, hya2, hidx_eq, hcv,
         hread_mc, hmc_fit, hvc_fit, hcmul_fit, hcrow_fit, hcv_fit, hc1_fit]
       refine ⟨⟨by struct_frame hyf, by wram_simp [hytot], by wram_simp [hyv],
         by wram_simp [hya1], by wram_simp [hya2], by wram_simp; omega,
@@ -1360,8 +1354,7 @@ private theorem compactPhase_exec {w wb db str m t : ℕ}
   have hdm_fit : Fits w (db + m) := hdEnd.of_le (by omega)
   have hdv_fit : Fits w (db + v.val) := hdEnd.of_le (by omega)
   have hread_dm : x.mem (db + m) = rowDeg W₁ (Fin.last m) := hws1.2 (Fin.last m)
-  unfold compactSetup
-  wram_exec [hf.wBase_eq, hf.dBase_eq, hf.stride_eq, hf.activeK_eq, hvReg,
+  wram_exec [compactSetup, hf.wBase_eq, hf.dBase_eq, hf.stride_eq, hf.activeK_eq, hvReg,
     hread_dm, hdm_fit, hdv_fit, hmmul_fit, hmrow_fit, hvmul_fit, hvrow_fit]
   refine WP.name fun x₁ hx₁_eq => ?_
   have hx₁_mem : x₁.mem = Function.update x.mem (db + v.val) (rowDeg W₁ (Fin.last m)) := by
@@ -1415,8 +1408,7 @@ theorem postRandStep_exec {w wb db str m t r_val : ℕ}
   have hdisj_m : wb + str * m ≤ db ∨ db + m ≤ wb := by omega
   have hwEnd_m : Fits w (wb + str * m) := hwEnd.of_le (by omega)
   have hdEnd_m : Fits w (db + m) := hdEnd.of_le (by omega)
-  unfold postRandStep
-  wram_exec
+  wram_exec [postRandStep]
   wram_call (uScan_exec hsamp h0 h1 hwBase hdBase hstride hactiveK htotS hrem hdEnd htot hws.2)
     with y1 ⟨hm1, h1_0, h1_1, h1_wb, h1_db, h1_str, h1_k, h1_t, h1_tot, h1_u, h1_rem⟩
   wram_call (vScan_exec hsamp h1_0 h1_1 h1_wb h1_db h1_str h1_k h1_tot h1_u h1_rem

@@ -664,7 +664,7 @@ section ExecutableBipartite
 /-- Equivalence between `Bool` and `Fin 2` (`false ↦ 0`, `true ↦ 1`). -/
 @[expose] def boolEquivFin2 : Bool ≃ Fin 2 where
   toFun b := if b then 1 else 0
-  invFun i := i.1 == 1
+  invFun i := i.val == 1
   left_inv b := by cases b <;> rfl
   right_inv i := by rcases i with ⟨_ | _ | _, hi⟩ <;> [rfl; rfl; omega]
 

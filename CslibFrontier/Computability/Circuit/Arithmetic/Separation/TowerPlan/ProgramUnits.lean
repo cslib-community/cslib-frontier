@@ -59,7 +59,7 @@ variable (nI oI) in
 /-- The numbers of initial units and the outcomes of the play are at most `U0` and `U1`. -/
 theorem InputBound.ofPlan :
     InputBound (fun x => initialCounts (nI x)) (fun x => outcomeOf R FL Pl (oI x)) U0 U1 :=
-  ⟨fun x a c => Nat.le_of_lt_succ (nI x a c).2, fun x _ => (oI x _).2.le⟩
+  ⟨fun x a c => Nat.le_of_lt_succ (nI x a c).isLt, fun x _ => (oI x _).isLt.le⟩
 
 /-- The units of the play are among the functions `H`: the indicators of the units given at the
 slots, the numbers of units of the moves, the indicators of the numbers `k < TM` below them and,
@@ -148,7 +148,7 @@ private theorem costP_mem_cur (ha : CountsIn (fun x => initialCounts (nI x))
     |>.congr fun x => ?_
   rw [Plan.mem_cur, Plan.mem_seenAt_end]
   refine and_congr_right' ⟨fun h z _ hz => h ⟨_, hz⟩, fun h ⟨z, hz⟩ =>
-    h ((moveSlotEquiv R FL Pl).symm z) ((moveSlotEquiv R FL Pl).symm z).1.2 ?_⟩
+    h ((moveSlotEquiv R FL Pl).symm z) ((moveSlotEquiv R FL Pl).symm z).1.isLt ?_⟩
   simpa [towerPlan] using hz
 
 omit hB' in

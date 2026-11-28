@@ -1033,7 +1033,7 @@ theorem committedLocal_preserves_higher_prepared_idealAuth {P V : Type*} [Fintyp
     unfold computeSlotVal at ho_s
     dsimp only at ho_s
     split_ifs at ho_s with hsc_eq hcard1
-    · exact absurd hsc_eq (Finset.nonempty_iff_ne_empty.mp ⟨c_k, hc_k_sc⟩)
+    · exact absurd hsc_eq (Finset.ne_empty_iff_nonempty.mpr ⟨c_k, hc_k_sc⟩)
     injection ho_s with ho_s_eq
     generalize_proofs hp at ho_s_eq
     have hspec := (Finset.choose_spec (fun _ => True) _ hp).1

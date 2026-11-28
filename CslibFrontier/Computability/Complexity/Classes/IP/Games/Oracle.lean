@@ -920,9 +920,8 @@ private theorem sim_bestCount_eq_value {enc : α ↪ List Bool} {k : ℕ} {Contr
             List.length_singleton, Interaction.length_encodeWord hmLen]
           omega
         set y := Interaction.bestReply F t_n (D - h.length - 1) h m
-        have hyLen : y.length ≤ t_n := BitString.mem_shortWords.1
-          ((BitString.shortWords t_n).exists_max_image _
-            ⟨[], BitString.mem_shortWords.2 (Nat.zero_le _)⟩).choose_spec.1
+        have hyLen : y.length ≤ t_n :=
+          BitString.mem_shortWords.1 (Interaction.bestReply_mem F t_n _ h m)
         have hP : PGame (j + 1) (p ++ v) = Interaction.encodeWord t_n y := by
           dsimp only [PGame, gameProverOfOptimal]
           have hsub : (p ++ v).length - (t_n + 2) = p.length := by

@@ -81,7 +81,7 @@ example : ∃ J : Finset (Fin 3), J.Nonempty ∧
   obtain ⟨J, hJ, hJm⟩ := exists_card_le_and_le_expect_signVal_piecewise_false
     (f := majority 3) (monotone_threshold 2) (by simp) (a := 99 / 100) (by norm_num) (by norm_num)
     (by rw [expect_signVal_majority_three]; norm_num)
-  refine ⟨J, nonempty_iff_ne_empty.2 fun h => ?_, by simpa using hJ, hJm⟩
+  refine ⟨J, ne_empty_iff_nonempty.1 fun h => ?_, by simpa using hJ, hJm⟩
   rw [h, expect_signVal_piecewise_empty, expect_signVal_majority_three] at hJm
   norm_num at hJm
 
@@ -92,7 +92,7 @@ example : ∃ J : Finset (Fin 2), J.Nonempty ∧
   obtain ⟨J, hJ, hJm⟩ := exists_card_le_and_expect_signVal_piecewise_true_le
     (f := threshold 2 2) (monotone_threshold 2) (by simp) (a := 1 / 2) (by norm_num) (by norm_num)
     (by rw [expect_signVal_threshold_two_two])
-  refine ⟨J, nonempty_iff_ne_empty.2 fun h => ?_, by simpa using hJ, hJm⟩
+  refine ⟨J, ne_empty_iff_nonempty.1 fun h => ?_, by simpa using hJ, hJm⟩
   rw [h, expect_signVal_piecewise_empty, expect_signVal_threshold_two_two] at hJm
   norm_num at hJm
 
@@ -109,13 +109,13 @@ example : (∃ J : Finset (Fin 2), J.Nonempty ∧
   · obtain ⟨J, hJ, hJm⟩ := exists_card_le_and_one_sub_le_expect_signVal_piecewise_false
       (f := threshold 2 2) (monotone_threshold 2) (by simp) (by norm_num) hV (ε := 1 / 100)
       (by norm_num) (by norm_num)
-    refine ⟨J, nonempty_iff_ne_empty.2 fun h => ?_, by simpa using hJ, hJm⟩
+    refine ⟨J, ne_empty_iff_nonempty.1 fun h => ?_, by simpa using hJ, hJm⟩
     rw [h, expect_signVal_piecewise_empty, expect_signVal_threshold_two_two] at hJm
     norm_num at hJm
   · obtain ⟨J, hJ, hJm⟩ := exists_card_le_and_expect_signVal_piecewise_true_le_sub_one
       (f := threshold 2 2) (monotone_threshold 2) (by simp) (by norm_num) hV (ε := 1 / 100)
       (by norm_num) (by norm_num)
-    refine ⟨J, nonempty_iff_ne_empty.2 fun h => ?_, by simpa using hJ, hJm⟩
+    refine ⟨J, ne_empty_iff_nonempty.1 fun h => ?_, by simpa using hJ, hJm⟩
     rw [h, expect_signVal_piecewise_empty, expect_signVal_threshold_two_two] at hJm
     norm_num at hJm
 
@@ -128,7 +128,7 @@ example : ∃ J : Finset (Fin 2), J.Nonempty ∧
   obtain ⟨J, hJ, hJm⟩ := exists_card_le_and_one_sub_le_coalitionInfluence
     (f := threshold 2 2) (monotone_threshold 2) (by simp) (by norm_num)
     variance_threshold_two_two.ge (ε := 1 / 100) (by norm_num) (by norm_num)
-  refine ⟨J, nonempty_iff_ne_empty.2 fun h => ?_, by simpa using hJ, hJm⟩
+  refine ⟨J, ne_empty_iff_nonempty.1 fun h => ?_, by simpa using hJ, hJm⟩
   rw [h, coalitionInfluence_eq_zero_of_forall_not _
     fun x hx => by simpa using isUndetermined_iff_outside.1 hx] at hJm
   norm_num at hJm

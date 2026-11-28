@@ -89,15 +89,15 @@ example : persistentRegCount dynDictZeroPersCode = 0 :=
 
 def dynDictZeroPersEncode (o : Dictionary.Dynamic.Op 2) (i : Fin 5) : ℕ :=
   match o with
-  | .query u => if i.val = 1 then u.1 else 0
+  | .query u => if i.val = 1 then u.val else 0
   | .insert u v =>
       if i.val = 0 then 1
-      else if i.val = 1 then u.1
+      else if i.val = 1 then u.val
       else if i.val = 2 then (if v < 3 then v + 1 else 0)
       else 0
   | .delete u =>
       if i.val = 0 then 1
-      else if i.val = 1 then u.1
+      else if i.val = 1 then u.val
       else 0
 
 def dynDictZeroPersArgMatch (o : Dictionary.Dynamic.Op 2) (regs : Fin 5 → ℕ) : Prop :=
@@ -112,7 +112,7 @@ def dynDictZeroPersDecode :
 @[expose] def dynDictZeroPersRep (s : Dictionary.State 2) (x : Data 5) : Prop :=
   x.Bounded 2 ∧
     Dictionary.ValuesBounded 3 s ∧
-    ∀ u : Fin 2, x.mem u.1 = match s u with | none => 0 | some v => v + 1
+    ∀ u : Fin 2, x.mem u.val = match s u with | none => 0 | some v => v + 1
 
 @[expose] def dynDictZeroPersCharge (_ : Dictionary.State 2) : Dictionary.Dynamic.Op 2 → ℕ
   | .query _ => 2
@@ -135,10 +135,10 @@ def dynDictZeroPersDecode :
       intro s o _ i _
       cases o with
       | query u =>
-        have hu := u.2
+        have hu := u.isLt
         (fin_cases i <;> simp [dynDictZeroPersEncode, Fits]); omega
       | insert u v =>
-        have hu := u.2
+        have hu := u.isLt
         fin_cases i <;> simp only [dynDictZeroPersEncode, Fits]
         · norm_num
         · simpa using by omega
@@ -146,16 +146,16 @@ def dynDictZeroPersDecode :
         · norm_num
         · norm_num
       | delete u =>
-        have hu := u.2
+        have hu := u.isLt
         (fin_cases i <;> simp [dynDictZeroPersEncode, Fits]); omega)
     (encode_matches := fun o _ => by simp [dynDictZeroPersArgMatch, dynDictZeroPersCode])
     (rep_supported := fun _ hmem hbdd ⟨_, hvb, hcells⟩ =>
       ⟨hbdd, hvb, fun u => by
-        have hu := u.2
-        have hfp : u.1 ∈ (Block.mk 0 2).footprint := by
+        have hu := u.isLt
+        have hfp : u.val ∈ (Block.mk 0 2).footprint := by
           simp only [Block.mem_footprint, Block.Owns]
           omega
-        exact (hmem u.1 hfp).trans (hcells u)⟩)
+        exact (hmem u.val hfp).trans (hcells u)⟩)
     (potential_supported := fun _ _ _ => rfl)
     (clear_nodup := by decide)
     (params_not_clear := fun j => Fin.elim0 j)
@@ -173,11 +173,11 @@ def dynDictZeroPersDecode :
         by simpa [dynDictZeroPersCode, Data.set] using hfr₁,
         ⟨hbdd₁.set (fits_zero 2), Dictionary.valuesBounded_empty 2 3, fun u => ?_⟩,
         Nat.le_refl 0, Modifies.refl _ _⟩
-      have hu := u.2
-      have hfp : u.1 ∈ (Block.mk 0 2).footprint := by
+      have hu := u.isLt
+      have hfp : u.val ∈ (Block.mk 0 2).footprint := by
         simp only [Block.mem_footprint, Block.Owns]
         omega
-      simpa [Data.set, Dictionary.empty] using hzero u.1 hfp)
+      simpa [Data.set, Dictionary.empty] using hzero u.val hfp)
     (step_exec := by
       intro s x o ⟨hbdd, hvb, hcells⟩ hval hmatch
       dsimp only [dynDictZeroPersArgMatch] at hmatch
@@ -188,7 +188,7 @@ def dynDictZeroPersDecode :
         refine ⟨_, 2, Exec.branch_pos hc Exec.load, ?_, ?_, Modifies.refl _ _,
           by dsimp [dynDictZeroPersCharge]; omega⟩
         · have hmu := hcells u
-          have hr1 : x.regs 1 = u.1 := by simp [hmatch, dynDictZeroPersEncode]
+          have hr1 : x.regs 1 = u.val := by simp [hmatch, dynDictZeroPersEncode]
           cases hsu : s u with
           | none =>
             rw [hsu] at hmu
@@ -201,7 +201,7 @@ def dynDictZeroPersDecode :
         have hv3 : v < 3 := hval.2
         have hc : ¬(Cond.eq (0 : Fin 5) 4).Holds x := by
           simp [Cond.Holds, hmatch, dynDictZeroPersEncode]
-        have hr1 : x.regs 1 = u.1 := by simp [hmatch, dynDictZeroPersEncode]
+        have hr1 : x.regs 1 = u.val := by simp [hmatch, dynDictZeroPersEncode]
         have hr2 : x.regs 2 = v + 1 := by simp [hmatch, dynDictZeroPersEncode, hv3]
         refine ⟨_, 3, Exec.branch_neg hc Exec.store, rfl, ?_, ?_,
           by dsimp [dynDictZeroPersCharge]; omega⟩
@@ -214,13 +214,13 @@ def dynDictZeroPersDecode :
           · by_cases hu' : u' = u
             · subst hu'
               simp [Data.write, hr1, hr2]
-            · have hne : u'.1 ≠ u.1 := Fin.val_ne_of_ne hu'
+            · have hne : u'.val ≠ u.val := Fin.val_ne_of_ne hu'
               dsimp only [Dictionary.Dynamic.spec, StateTransitionSpec.stepFn,
                 StateTransitionSpec.ofFn, Dictionary.Dynamic.step]
               rw [Function.update_of_ne hu']
               simpa [Data.write, hr1, hne] using hcells u'
         · intro a ha
-          have hu := u.2
+          have hu := u.isLt
           have hau : a ≠ x.regs 1 := by
             rw [hr1]
             rintro rfl
@@ -229,7 +229,7 @@ def dynDictZeroPersDecode :
       | delete u =>
         have hc : ¬(Cond.eq (0 : Fin 5) 4).Holds x := by
           simp [Cond.Holds, hmatch, dynDictZeroPersEncode]
-        have hr1 : x.regs 1 = u.1 := by simp [hmatch, dynDictZeroPersEncode]
+        have hr1 : x.regs 1 = u.val := by simp [hmatch, dynDictZeroPersEncode]
         have hr2 : x.regs 2 = 0 := by simp [hmatch, dynDictZeroPersEncode]
         refine ⟨_, 3, Exec.branch_neg hc Exec.store, rfl, ?_, ?_,
           by dsimp [dynDictZeroPersCharge]; omega⟩
@@ -242,13 +242,13 @@ def dynDictZeroPersDecode :
           · by_cases hu' : u' = u
             · subst hu'
               simp [Data.write, hr1, hr2]
-            · have hne : u'.1 ≠ u.1 := Fin.val_ne_of_ne hu'
+            · have hne : u'.val ≠ u.val := Fin.val_ne_of_ne hu'
               dsimp only [Dictionary.Dynamic.spec, StateTransitionSpec.stepFn,
                 StateTransitionSpec.ofFn, Dictionary.Dynamic.step]
               rw [Function.update_of_ne hu']
               simpa [Data.write, hr1, hne] using hcells u'
         · intro a ha
-          have hu := u.2
+          have hu := u.isLt
           have hau : a ≠ x.regs 1 := by
             rw [hr1]
             rintro rfl
@@ -273,7 +273,7 @@ private theorem sampleDynTrace_run_eq :
 
 theorem simZeroPers_trace_and_init_spec :
     let P_cp := simZeroPersBundle.1
-    let C_cp := simZeroPersBundle.2.1
+    let C_cp := simZeroPersBundle.2.val
     (∀ s o, C_cp.charge s o = dynDictZeroPersImpl.charge s o) ∧
       (P_cp.runSeq sampleDynTrace).1 =
         [⟨.insert 0 2, ()⟩, ⟨.insert 1 1, ()⟩, ⟨.query 0, some 2⟩,
@@ -290,7 +290,7 @@ theorem simZeroPers_trace_and_init_spec :
     persistentRegCount_eq_zero_of_all_input fun _ => rfl
   have hchg : ∀ s o, C_cp.charge s o = dynDictZeroPersImpl.charge s o := by
     intro s o
-    simpa [hpers0] using simZeroPersBundle.2.2.2 s o
+    simpa [hpers0] using simZeroPersBundle.2.property.2 s o
   have hv : (Dictionary.Dynamic.spec 2 3 2).ValidHistory (Dictionary.empty 2) sampleDynTrace := by
     dsimp [sampleDynTrace, Dictionary.Dynamic.spec, StateTransitionSpec.ValidHistory,
       StateTransitionSpec.ofFn, Dictionary.Dynamic.valid, Dictionary.Dynamic.step,
@@ -299,7 +299,7 @@ theorem simZeroPers_trace_and_init_spec :
       trivial, trivial, trivial, trivial, trivial⟩
   obtain ⟨htr, _⟩ := C_cp.runSeq_ofFn sampleDynTrace hv
   have hpr_le := C_cp.seqProbes_le_ofFn sampleDynTrace hv
-  have hip0 : C_cp.initPotential = 0 := simZeroPersBundle.2.2.1
+  have hip0 : C_cp.initPotential = 0 := simZeroPersBundle.2.property.1
   have htot :
       (Dictionary.Dynamic.spec 2 3 2).totalCost C_cp.charge (Dictionary.empty 2) sampleDynTrace =
         15 := by
@@ -341,15 +341,15 @@ example : persistentRegCount dynDictRelocCode = 2 := by decide
 
 def dynDictRelocEncode (o : Dictionary.Dynamic.Op 2) (i : Fin 6) : ℕ :=
   match o with
-  | .query u => if i.val = 3 then u.1 else 0
+  | .query u => if i.val = 3 then u.val else 0
   | .insert u v =>
       if i.val = 2 then 1
-      else if i.val = 3 then u.1
+      else if i.val = 3 then u.val
       else if i.val = 4 then (if v < 3 then v + 1 else 0)
       else 0
   | .delete u =>
       if i.val = 2 then 1
-      else if i.val = 3 then u.1
+      else if i.val = 3 then u.val
       else 0
 
 def dynDictRelocArgMatch (o : Dictionary.Dynamic.Op 2) (regs : Fin 6 → ℕ) : Prop :=
@@ -366,7 +366,7 @@ def dynDictRelocRep (s : Dictionary.State 2) (x : Data 6) : Prop :=
     x.regs 0 = 1 ∧
     x.regs 1 = 1 ∧
     Dictionary.ValuesBounded 3 s ∧
-    ∀ u : Fin 2, x.mem (1 + u.1) = match s u with | none => 0 | some v => v + 1
+    ∀ u : Fin 2, x.mem (1 + u.val) = match s u with | none => 0 | some v => v + 1
 
 def dynDictRelocImpl :
     WordRAM.StateTransitionImpl dynDictRelocCode (Dictionary.Dynamic.spec 2 3 2) 3 1 Fin.elim0
@@ -384,10 +384,10 @@ def dynDictRelocImpl :
       intro s o _ i _
       cases o with
       | query u =>
-        have hu := u.2
+        have hu := u.isLt
         (fin_cases i <;> simp [dynDictRelocEncode, Fits]); omega
       | insert u v =>
-        have hu := u.2
+        have hu := u.isLt
         fin_cases i <;> simp only [dynDictRelocEncode, Fits]
         · norm_num
         · norm_num
@@ -396,7 +396,7 @@ def dynDictRelocImpl :
         · split_ifs <;> omega
         · norm_num
       | delete u =>
-        have hu := u.2
+        have hu := u.isLt
         (fin_cases i <;> simp [dynDictRelocEncode, Fits]); omega)
     (encode_matches := fun o regs i hi => by simp [dynDictRelocCode, hi])
     (rep_supported := fun hreg hmem hbdd ⟨_, hr0, hr1, hvb, hcells⟩ =>
@@ -405,11 +405,11 @@ def dynDictRelocImpl :
         (hreg 1 rfl).trans hr1,
         hvb,
         fun u => by
-          have hu := u.2
-          have hfp : 1 + u.1 ∈ (Block.mk 1 2).footprint := by
+          have hu := u.isLt
+          have hfp : 1 + u.val ∈ (Block.mk 1 2).footprint := by
             simp only [Block.mem_footprint, Block.Owns]
             omega
-          exact (hmem (1 + u.1) hfp).trans (hcells u)⟩)
+          exact (hmem (1 + u.val) hfp).trans (hcells u)⟩)
     (potential_supported := fun _ _ _ => rfl)
     (clear_nodup := by decide)
     (params_not_clear := fun j => Fin.elim0 j)
@@ -431,20 +431,20 @@ def dynDictRelocImpl :
           Dictionary.valuesBounded_empty 2 3,
           fun u => ?_⟩,
         Nat.le_refl 0, Modifies.refl _ _⟩
-      have hu := u.2
-      have hfp : 1 + u.1 ∈ (Block.mk 1 2).footprint := by
+      have hu := u.isLt
+      have hfp : 1 + u.val ∈ (Block.mk 1 2).footprint := by
         simp only [Block.mem_footprint, Block.Owns]
         omega
-      simpa [Data.set, Dictionary.empty] using hzero (1 + u.1) hfp)
+      simpa [Data.set, Dictionary.empty] using hzero (1 + u.val) hfp)
     (step_exec := by
       intro s x o ⟨hbdd, hr0, hr1, hvb, hcells⟩ hval hmatch
       cases o with
       | query u =>
-        have hr3 : x.regs 3 = u.1 := by simpa [dynDictRelocEncode] using hmatch 3 (by decide)
+        have hr3 : x.regs 3 = u.val := by simpa [dynDictRelocEncode] using hmatch 3 (by decide)
         have hr2 : x.regs 2 = 0 := by simpa [dynDictRelocEncode] using hmatch 2 (by decide)
         have hr5 : x.regs 5 = 0 := by simpa [dynDictRelocEncode] using hmatch 5 (by decide)
         have hadd_fit : Fits 3 (BinOp.add.eval (x.regs 0) (x.regs 3)) := by
-          have hu := u.2
+          have hu := u.isLt
           simp [BinOp.eval, hr0, hr3, Fits]
           omega
         let x₁ := x.set 3 (BinOp.add.eval (x.regs 0) (x.regs 3))
@@ -466,17 +466,17 @@ def dynDictRelocImpl :
         · exact ⟨(hbdd.set hadd_fit).set (hbdd.2 _), hr0, hr1, hvb, fun u' => hcells u'⟩
       | insert u v =>
         have hv3 : v < 3 := hval.2
-        have hr3 : x.regs 3 = u.1 := by simpa [dynDictRelocEncode] using hmatch 3 (by decide)
+        have hr3 : x.regs 3 = u.val := by simpa [dynDictRelocEncode] using hmatch 3 (by decide)
         have hr2 : x.regs 2 = 1 := by simpa [dynDictRelocEncode] using hmatch 2 (by decide)
         have hr4 : x.regs 4 = v + 1 := by
           simpa [dynDictRelocEncode, hv3] using hmatch 4 (by decide)
         have hr5 : x.regs 5 = 0 := by simpa [dynDictRelocEncode] using hmatch 5 (by decide)
         have hadd_fit : Fits 3 (BinOp.add.eval (x.regs 0) (x.regs 3)) := by
-          have hu := u.2
+          have hu := u.isLt
           simp [BinOp.eval, hr0, hr3, Fits]
           omega
         let x₁ := x.set 3 (BinOp.add.eval (x.regs 0) (x.regs 3))
-        have haddr : x₁.regs 3 = 1 + u.1 := by
+        have haddr : x₁.regs 3 = 1 + u.val := by
           dsimp only [x₁]
           simp [Data.set, BinOp.eval, hr0, hr3]
         have hc : ¬(Cond.eq (2 : Fin 6) 5).Holds x₁ := by
@@ -498,34 +498,34 @@ def dynDictRelocImpl :
             · subst hu'
               dsimp only [x₁]
               simp [Data.write, Data.set, BinOp.eval, hr0, hr3, hr4]
-            · have hne : 1 + u'.1 ≠ 1 + u.1 := by
+            · have hne : 1 + u'.val ≠ 1 + u.val := by
                 have := Fin.val_ne_of_ne hu'
                 omega
               dsimp only [Dictionary.Dynamic.spec, StateTransitionSpec.stepFn,
                 StateTransitionSpec.ofFn, Dictionary.Dynamic.step]
               rw [Function.update_of_ne hu']
-              change Function.update x₁.mem (x₁.regs 3) (x₁.regs 4) (1 + u'.1) = _
+              change Function.update x₁.mem (x₁.regs 3) (x₁.regs 4) (1 + u'.val) = _
               rw [haddr, Function.update_of_ne hne]
               exact hcells u'
         · intro a ha
-          have hu := u.2
-          have hau : a ≠ 1 + u.1 := by
+          have hu := u.isLt
+          have hau : a ≠ 1 + u.val := by
             rintro rfl
             exact ha (by simp only [Block.mem_footprint, Block.Owns]; omega)
           change Function.update x₁.mem (x₁.regs 3) (x₁.regs 4) a = x.mem a
           rw [haddr, Function.update_of_ne hau]
           rfl
       | delete u =>
-        have hr3 : x.regs 3 = u.1 := by simpa [dynDictRelocEncode] using hmatch 3 (by decide)
+        have hr3 : x.regs 3 = u.val := by simpa [dynDictRelocEncode] using hmatch 3 (by decide)
         have hr2 : x.regs 2 = 1 := by simpa [dynDictRelocEncode] using hmatch 2 (by decide)
         have hr4 : x.regs 4 = 0 := by simpa [dynDictRelocEncode] using hmatch 4 (by decide)
         have hr5 : x.regs 5 = 0 := by simpa [dynDictRelocEncode] using hmatch 5 (by decide)
         have hadd_fit : Fits 3 (BinOp.add.eval (x.regs 0) (x.regs 3)) := by
-          have hu := u.2
+          have hu := u.isLt
           simp [BinOp.eval, hr0, hr3, Fits]
           omega
         let x₁ := x.set 3 (BinOp.add.eval (x.regs 0) (x.regs 3))
-        have haddr : x₁.regs 3 = 1 + u.1 := by
+        have haddr : x₁.regs 3 = 1 + u.val := by
           dsimp only [x₁]
           simp [Data.set, BinOp.eval, hr0, hr3]
         have hc : ¬(Cond.eq (2 : Fin 6) 5).Holds x₁ := by
@@ -547,18 +547,18 @@ def dynDictRelocImpl :
             · subst hu'
               dsimp only [x₁]
               simp [Data.write, Data.set, BinOp.eval, hr0, hr3, hr4]
-            · have hne : 1 + u'.1 ≠ 1 + u.1 := by
+            · have hne : 1 + u'.val ≠ 1 + u.val := by
                 have := Fin.val_ne_of_ne hu'
                 omega
               dsimp only [Dictionary.Dynamic.spec, StateTransitionSpec.stepFn,
                 StateTransitionSpec.ofFn, Dictionary.Dynamic.step]
               rw [Function.update_of_ne hu']
-              change Function.update x₁.mem (x₁.regs 3) (x₁.regs 4) (1 + u'.1) = _
+              change Function.update x₁.mem (x₁.regs 3) (x₁.regs 4) (1 + u'.val) = _
               rw [haddr, Function.update_of_ne hne]
               exact hcells u'
         · intro a ha
-          have hu := u.2
-          have hau : a ≠ 1 + u.1 := by
+          have hu := u.isLt
+          have hau : a ≠ 1 + u.val := by
             rintro rfl
             exact ha (by simp only [Block.mem_footprint, Block.Owns]; omega)
           change Function.update x₁.mem (x₁.regs 3) (x₁.regs 4) a = x.mem a
@@ -575,20 +575,20 @@ theorem simReloc_standard_vs_wide_spec :
     let stdB := dynDictRelocImpl.toCellProbe h0.1 h0.2.1 h0.2.2.1
     let wideB := dynDictRelocImpl.toCellProbeWide h0.1 h0.2.1 h0.2.2.1
     wideSubroutineWidth dynDictRelocCode 3 = 6 ∧
-      (∀ s o, stdB.2.1.charge s o = 8) ∧
-      (∀ s o, wideB.2.1.charge s o = 6) ∧
+      (∀ s o, stdB.2.val.charge s o = 8) ∧
+      (∀ s o, wideB.2.val.charge s o = 6) ∧
       (wideB.1.runSeq sampleDynTrace).1 =
         [⟨.insert 0 2, ()⟩, ⟨.insert 1 1, ()⟩, ⟨.query 0, some 2⟩,
           ⟨.delete 0, ()⟩, ⟨.query 0, none⟩, ⟨.query 1, some 1⟩] := by
   intro h0 stdB wideB
   have hpers2 : persistentRegCount dynDictRelocCode = 2 := by decide
-  have hstd_chg : ∀ s o, stdB.2.1.charge s o = 8 := by
+  have hstd_chg : ∀ s o, stdB.2.val.charge s o = 8 := by
     intro s o
-    have h := stdB.2.2.2 s o
+    have h := stdB.2.property.2 s o
     simpa [dynDictRelocImpl, hpers2] using h
-  have hwide_chg : ∀ s o, wideB.2.1.charge s o = 6 := by
+  have hwide_chg : ∀ s o, wideB.2.val.charge s o = 6 := by
     intro s o
-    have h := wideB.2.2.2 s o
+    have h := wideB.2.property.2 s o
     simpa [dynDictRelocImpl, hpers2] using h
   have hv : (Dictionary.Dynamic.spec 2 3 2).ValidHistory (Dictionary.empty 2) sampleDynTrace := by
     dsimp [sampleDynTrace, Dictionary.Dynamic.spec, StateTransitionSpec.ValidHistory,
@@ -596,7 +596,7 @@ theorem simReloc_standard_vs_wide_spec :
       Dictionary.empty]
     refine ⟨⟨Or.inl (by decide), by decide⟩, ⟨Or.inl (by decide), by decide⟩,
       trivial, trivial, trivial, trivial, trivial⟩
-  obtain ⟨htr, _⟩ := wideB.2.1.runSeq_ofFn sampleDynTrace hv
+  obtain ⟨htr, _⟩ := wideB.2.val.runSeq_ofFn sampleDynTrace hv
   exact ⟨by decide, hstd_chg, hwide_chg, htr.trans sampleDynTrace_run_eq⟩
 
 /-! ### 1C. Finite-tree `ExecRand` oblivious-sequence simulation (`exists_cellProbe_of_execRand`) -/

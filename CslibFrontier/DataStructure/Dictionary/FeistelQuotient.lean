@@ -451,7 +451,7 @@ theorem dens_filter_apply_eq_three {Y : Type*} [Fintype Y] [DecidableEq Y]
     simp [hq₁.symm, hq₂.symm]
   have hcard : #T = 3 := by grind
   have h3 := hh.dens_filter_restrict_eq (T := T) (by omega)
-    fun z => if z.1 = q then y else if z.1 = q₁ then y₁ else y₂
+    fun z => if z.val = q then y else if z.val = q₁ then y₁ else y₂
   rw [hcard] at h3
   rw [← h3]
   congr 1

@@ -46,11 +46,11 @@ private abbrev torus : Graph := ⟨[0], [(0, 0), (0, 0)]⟩
 example : verifyRotation torus ⟨[2, 3, 1, 0]⟩ = true ∧
     verifyGenusZero torus ⟨[2, 3, 1, 0]⟩ = false := by decide +kernel
 
-example : (⟨[2, 3, 1, 0]⟩ : RotationCertificate).successor.length = 2 * torus.2.length :=
+example : (⟨[2, 3, 1, 0]⟩ : RotationCertificate).successor.length = 2 * torus.edges.length :=
   length_of_verifyRotation (G := torus) (by decide +kernel)
 
 example : (⟨[]⟩ : RotationCertificate).successor.length =
-    2 * (⟨[5, 5, 99], []⟩ : Graph).2.length :=
+    2 * (⟨[5, 5, 99], []⟩ : Graph).edges.length :=
   length_of_verifyRotation (G := ⟨[5, 5, 99], []⟩) (by decide +kernel)
 
 end CslibFrontierTests.RotationCertificateLength

@@ -138,7 +138,7 @@ private theorem realizesBounded_compPromoteReadCounts :
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, htot, hnt_pos⟩ := h
     have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
     have h1_lt : 1 < globalMetaLen N := by unfold globalMetaLen; omega
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     try simp only [cpSlabSize_mk, StateTransitionSpec.clientState,
       runClient_state_readCompGMGenProg] at *
     try rw [clientResult_readCompGMGenProg h0_lt] at *

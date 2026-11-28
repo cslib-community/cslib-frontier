@@ -359,8 +359,8 @@ theorem stdInterp_caseSem {C : ℕ} (hN : K + outBound K C < N) (c : Code) (hc :
     fun hk h => by have := Code.evaln_bound h; omega
   have hev {d : Code} {k₀ n₀ x₀ : Fin N} (hk : (k₀ : ℕ) ≤ K) (h : Code.evaln k₀ d n₀ = some x₀) :
       stdInterp N K (encode d + 4) [k₀, n₀, x₀] := (stdInterp_ev d k₀ n₀ x₀).2 ⟨hk, h⟩
-  have hl : (n : ℕ).unpair.1 < N := lt_of_le_of_lt (Nat.unpair_left_le _) n.2
-  have hr : (n : ℕ).unpair.2 < N := lt_of_le_of_lt (Nat.unpair_right_le _) n.2
+  have hl : (n : ℕ).unpair.1 < N := lt_of_le_of_lt (Nat.unpair_left_le _) n.isLt
+  have hr : (n : ℕ).unpair.2 < N := lt_of_le_of_lt (Nat.unpair_right_le _) n.isLt
   cases c with
   | zero => exact (evaln_succ_zero_iff (by omega)).1 h
   | succ => exact (evaln_succ_succ_iff (by omega)).1 h

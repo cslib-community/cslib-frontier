@@ -135,7 +135,7 @@ private lemma map_taylor_projection_kernel (M : ℕ) (a : K) (A : ℕ)
     · exact coeff_eq_zero_of_degree_lt ((degree_taylor _ a).trans_lt <|
         (Polynomial.mem_degreeLT.mp (polynomialMap_mem M x)).trans_le (mod_cast Nat.not_lt.mp hjM))
   · rintro ⟨⟨x, hxV, rfl⟩, hx⟩
-    exact ⟨x, ⟨hxV, funext fun j => hx j.1.1 (Nat.lt_succ_of_le j.2)⟩, rfl⟩
+    exact ⟨x, ⟨hxV, funext fun j => hx j.val.val (Nat.lt_succ_of_le j.property)⟩, rfl⟩
 
 /-- The output-side low reverse coordinates mean high ordinary Taylor order. -/
 private lemma map_reverseTaylor_lowSupported (M : ℕ) (a : K) (A : ℕ)

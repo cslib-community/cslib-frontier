@@ -59,7 +59,7 @@ theorem exists_bijective_submatrixRobust (n : ℕ) :
     intro v hv
     have hv0 : fM v + gLin v = 0 := hv
     have hvK : fM v = 0 := Submodule.disjoint_def.mp hC_cod.disjoint _
-      (LinearMap.mem_range_self _ v) (eq_neg_of_add_eq_zero_left hv0 ▸ C_cod.neg_mem (φ _).2)
+      (LinearMap.mem_range_self _ v) (eq_neg_of_add_eq_zero_left hv0 ▸ C_cod.neg_mem (φ _).property)
     rw [hvK, zero_add] at hv0
     have : (⟨v, hvK⟩ : LinearMap.ker fM) = 0 := by
       simpa [gLin, Submodule.projectionOnto_apply_left hC_dom ⟨v, hvK⟩] using hv0
@@ -74,11 +74,10 @@ theorem exists_bijective_submatrixRobust (n : ℕ) :
   have hMr : M.blockRank univ univ = M.rank := by
     rw [blockRank_eq_rank]; exact rank_submatrix M (Equiv.Set.univ _) (Equiv.Set.univ _)
   rw [ncard_univ, Nat.card_eq_fintype_card, Fintype.card_fin, hMr] at hK
-  rw [Module.finrank_fin_fun] at hrank
-  change M.rank + _ = _ at hrank
+  rw [Module.finrank_fin_fun, Matrix.finrank_range_mulVecLin] at hrank
   -- `M = N - E`, where `E` factors through `ker M`.
   have hE : E.rank ≤ Module.finrank (ZMod 2) (LinearMap.ker fM) := by
-    rw [rank, ← Matrix.toLin'_apply', Matrix.toLin'_toMatrix']
+    rw [← Matrix.finrank_range_mulVecLin, ← Matrix.toLin'_apply', Matrix.toLin'_toMatrix']
     exact (Submodule.finrank_mono (LinearMap.range_comp_le_range
       ((LinearMap.ker fM).projectionOnto C_dom hC_dom) (C_cod.subtype ∘ₗ φ.toLinearMap))).trans
       (LinearMap.finrank_range_le _)

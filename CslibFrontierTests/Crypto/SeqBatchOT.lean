@@ -142,7 +142,7 @@ example (F : PrimeOrderGroupFamily) (k n : ℕ) (d : F.Desc)
       Composition.replacementBound (otWorld (F.Carrier d)) noOracleWorld
         (fun _ => F.ddhOTProbProtocol n d) (fun _ => S₂) I (seqBatchOT k (F.Carrier d)).steps
         (fun i => (x i, ()))
-        (fun res => D (fun i : I => ⟨x i.1, ((), (res.1 i).1), (res.1 i).2⟩, res.2)) :=
+        (fun res => D (fun i : I => ⟨x i.val, ((), (res.1 i).1), (res.1 i).2⟩, res.2)) :=
   semiHonestAdvantage_seqBatchOT_compose_le k (F.Carrier d) noOracleWorld
     (F.ddhOTProbProtocol n d) S₂ I x D
 

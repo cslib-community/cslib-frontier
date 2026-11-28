@@ -173,7 +173,7 @@ example (x y : Fin 3) :
 private theorem factorial_bound :
     (1 / 2 : ℝ) * Real.exp (1 / (1 / 4)) * (1 / (1 / 4)) ^ 15 / (Nat.factorial 15) ≤ 1 / 16 := by
   have he : Real.exp 4 ≤ 55 := by
-    have h1 : Real.exp 4 = Real.exp 1 ^ 4 := by rw [← Real.exp_nat_mul]; norm_num
+    have h1 : Real.exp 4 = Real.exp 1 ^ 4 := by rw [← Real.exp_natCast_mul]; norm_num
     rw [h1]
     calc Real.exp 1 ^ 4 ≤ 2.7182818286 ^ 4 :=
           pow_le_pow_left₀ (Real.exp_pos 1).le Real.exp_one_lt_d9.le 4

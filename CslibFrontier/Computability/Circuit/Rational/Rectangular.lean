@@ -85,7 +85,7 @@ lemma no_shrunk_subspace {w q e : ℕ} (he : 0 < e)
     (hVW : ∀ i, V.map (A i).mulVecLin ≤ W) : finrank F V ≤ finrank F W := by
   let g : (Fin e → V) →ₗ[F] (Fin e → W) :=
     { toFun := fun v β => ⟨∑ i, ∑ δ, X i β δ • (A i).mulVec (v δ),
-        W.sum_mem fun i _ => W.sum_mem fun δ _ => W.smul_mem _ (hVW i ⟨v δ, (v δ).2, rfl⟩)⟩
+        W.sum_mem fun i _ => W.sum_mem fun δ _ => W.smul_mem _ (hVW i ⟨v δ, (v δ).property, rfl⟩)⟩
       map_add' := fun v u => funext fun β => Subtype.ext <| by
         simp only [Submodule.coe_add, Pi.add_apply, Matrix.mulVec_add, smul_add,
           Finset.sum_add_distrib]
@@ -127,7 +127,7 @@ private lemma rank_coefficientMatrix {q k : ℕ} (f : Fin q → P)
   have hh := congrArg (Submodule.map b.equivFun.toLinearMap) (span_component_top f)
   rw [Submodule.map_span, ← Set.range_comp, Submodule.map_top,
     LinearMap.range_eq_top.mpr b.equivFun.surjective] at hh
-  rw [Matrix.rank_eq_finrank_span_row]
+  rw [← Matrix.finrank_span_range_row]
   change finrank F (Submodule.span F (Set.range (b.equivFun.toLinearMap ∘ component f))) = k
   rw [hh]
   simp
@@ -174,7 +174,7 @@ private lemma rank_concat_lt {w q k : ℕ}
   have hle : Submodule.span F (Set.range (concatMatrix A (coefficientMatrix f b)).row) ≤ H.ker :=
     Submodule.span_le.mpr fun _ ⟨α, h⟩ => h ▸ concat_row_relation A T f b hker α
   have hr := Submodule.finrank_mono hle
-  rw [← Matrix.rank_eq_finrank_span_row] at hr
+  rw [Matrix.finrank_span_range_row] at hr
   have hd := H.finrank_range_add_finrank_ker
   simp only [Module.finrank_pi, Fintype.card_prod, Fintype.card_fin] at hd
   have hw' : (w - 1) * k + k = w * k := by rw [← Nat.add_one_mul, Nat.sub_add_cancel hw]
@@ -218,7 +218,7 @@ theorem kernel_impossible {w q k e : ℕ} (hw : 1 ≤ w) (he : 0 < e)
     (Submodule.span F (Set.range (coefficientMatrix f b).col))
     (Submodule.span F (Set.range (concatMatrix A (coefficientMatrix f b)).col))
     (coefficient_image_le_concat A (coefficientMatrix f b))
-  rw [← Matrix.rank_eq_finrank_span_cols, ← Matrix.rank_eq_finrank_span_cols,
+  rw [Matrix.finrank_span_range_col, Matrix.finrank_span_range_col,
     rank_coefficientMatrix f b] at hd
   exact absurd (rank_concat_lt A T f b hker hex hw) (by omega)
 

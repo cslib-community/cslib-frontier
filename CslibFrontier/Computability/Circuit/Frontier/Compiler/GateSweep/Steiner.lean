@@ -121,7 +121,7 @@ instance (c : Circuit σ n m) : Finite (Node c) :=
 /-- Topological rank of a computation node: gate line index for inner gates, and `c.size + o` for
 outputs. -/
 @[expose] def Node.rank {c : Circuit σ n m} : Node c → ℕ
-  | .gate g => g.1.val
+  | .gate g => g.val.val
   | .output o => c.size + o.val
 
 /-- A circuit has at most `c.innerSize + m` computation nodes. -/
@@ -230,9 +230,9 @@ private theorem rank_gate_lt_ownerNode {g : InnerGate c} {t : Consumer c}
     (ht : consumed t = (.gate g : ActiveSignal c).toSignal) :
     (Node.gate g).rank < (ownerNode t).rank := by
   rcases t with ⟨⟨h, a⟩, hh⟩ | o
-  · have hw : (c.program.lines h).wires a = .gate g.1 := congrArg Subtype.val ht
-    exact Fin.lt_def.mp (c.program.lt_of_lines_wires_eq_gate h a g.1 hw)
-  · exact lt_of_lt_of_le g.1.isLt (Nat.le_add_right c.size o.val)
+  · have hw : (c.program.lines h).wires a = .gate g.val := congrArg Subtype.val ht
+    exact Fin.lt_def.mp (c.program.lt_of_lines_wires_eq_gate h a g.val hw)
+  · exact lt_of_lt_of_le g.val.isLt (Nat.le_add_right c.size o.val)
 
 /-- No consumer of a gate wire is owned by that gate itself. -/
 private theorem ownerNode_ne_gate {g : InnerGate c} {t : Consumer c}
@@ -296,8 +296,8 @@ theorem ncard_activeSignal_mem_support_gate_le {r : ℕ} (hfan : c.FanInAtMost r
     (g : InnerGate c) :
     {w : ActiveSignal c | Node.gate g ∈ support c w}.ncard ≤ r + 1 := by
   classical
-  let slotSignal : Fin (σ.Arity (c.program.lines g.1).op) → Signal c :=
-    fun a => consumed (.inl ⟨⟨g.1, a⟩, g.2.1⟩)
+  let slotSignal : Fin (σ.Arity (c.program.lines g.val).op) → Signal c :=
+    fun a => consumed (.inl ⟨⟨g.val, a⟩, g.property.1⟩)
   have hsub : ActiveSignal.toSignal '' {w : ActiveSignal c | Node.gate g ∈ support c w} ⊆
       insert ((.gate g : ActiveSignal c).toSignal) (range slotSignal) := by
     rintro _ ⟨w, hw, rfl⟩
@@ -305,7 +305,7 @@ theorem ncard_activeSignal_mem_support_gate_le {r : ℕ} (hfan : c.FanInAtMost r
     | input i hi =>
       obtain ⟨t, ht, ho⟩ := hw
       rcases t with ⟨⟨h, a⟩, hh⟩ | o
-      · have hgh : h = g.1 := congrArg Subtype.val (Node.gate.inj ho)
+      · have hgh : h = g.val := congrArg Subtype.val (Node.gate.inj ho)
         subst hgh
         exact Or.inr ⟨a, ht⟩
       · cases ho
@@ -314,7 +314,7 @@ theorem ncard_activeSignal_mem_support_gate_le {r : ℕ} (hfan : c.FanInAtMost r
       · cases Node.gate.inj h
         exact Or.inl rfl
       · rcases t with ⟨⟨h, a⟩, hh⟩ | o
-        · have hgh : h = g.1 := congrArg Subtype.val (Node.gate.inj ho)
+        · have hgh : h = g.val := congrArg Subtype.val (Node.gate.inj ho)
           subst hgh
           exact Or.inr ⟨a, ht⟩
         · cases ho
@@ -324,14 +324,14 @@ theorem ncard_activeSignal_mem_support_gate_le {r : ℕ} (hfan : c.FanInAtMost r
     _ ≤ (insert ((.gate g : ActiveSignal c).toSignal) (range slotSignal)).ncard :=
         ncard_le_ncard hsub (toFinite _)
     _ ≤ (range slotSignal).ncard + 1 := ncard_insert_le _ _
-    _ ≤ σ.Arity (c.program.lines g.1).op + 1 := by
+    _ ≤ σ.Arity (c.program.lines g.val).op + 1 := by
         have hcard : (range slotSignal).ncard ≤
-            Nat.card (Fin (σ.Arity (c.program.lines g.1).op)) := by
+            Nat.card (Fin (σ.Arity (c.program.lines g.val).op)) := by
           rw [← image_univ]
           exact (ncard_image_le (toFinite _)).trans_eq (ncard_univ _)
         rw [Nat.card_eq_fintype_card, Fintype.card_fin] at hcard
         exact Nat.add_le_add_right hcard 1
-    _ ≤ r + 1 := Nat.add_le_add_right (Program.fanInAtMost_iff.mp hfan g.1) 1
+    _ ≤ r + 1 := Nat.add_le_add_right (Program.fanInAtMost_iff.mp hfan g.val) 1
 
 /-- Every node belongs to the supports of at most `r + 1` active signals. -/
 theorem ncard_activeSignal_mem_support_le {r : ℕ} (hfan : c.FanInAtMost r) (u : Node c) :
@@ -443,8 +443,8 @@ lines reading `.gate g`, plus the number of circuit outputs equal to `.gate g`. 
 private def consumerToSyntactic (g : InnerGate c) :
     {t : Consumer c // consumed t = (.gate g : ActiveSignal c).toSignal} →
       (Σ h : Fin c.size, {a : Fin (σ.Arity (c.program.lines h).op) //
-        (c.program.lines h).wires a = .gate g.1}) ⊕
-      {o : Fin m // c.outputs o = .gate g.1}
+        (c.program.lines h).wires a = .gate g.val}) ⊕
+      {o : Fin m // c.outputs o = .gate g.val}
   | ⟨.inl ⟨⟨h, a⟩, _⟩, ht⟩ => .inl ⟨h, ⟨a, congrArg Subtype.val ht⟩⟩
   | ⟨.inr o, ht⟩ => .inr ⟨o, congrArg Subtype.val ht⟩
 
@@ -461,13 +461,13 @@ private theorem consumerToSyntactic_injective (g : InnerGate c) :
 
 /-- Semantic consumer fan-out of an inner gate is bounded by its syntactic `gateFanout`. -/
 theorem fanout_gate_le_gateFanout (g : InnerGate c) :
-    fanout c ((.gate g : ActiveSignal c).toSignal) ≤ c.gateFanout g.1 := by
+    fanout c ((.gate g : ActiveSignal c).toSignal) ≤ c.gateFanout g.val := by
   calc fanout c ((.gate g : ActiveSignal c).toSignal)
       ≤ Nat.card ((Σ h : Fin c.size, {a : Fin (σ.Arity (c.program.lines h).op) //
-          (c.program.lines h).wires a = .gate g.1}) ⊕
-          {o : Fin m // c.outputs o = .gate g.1}) :=
+          (c.program.lines h).wires a = .gate g.val}) ⊕
+          {o : Fin m // c.outputs o = .gate g.val}) :=
         Nat.card_le_card_of_injective _ (consumerToSyntactic_injective g)
-    _ = c.gateFanout g.1 := by
+    _ = c.gateFanout g.val := by
         rw [Nat.card_eq_fintype_card, Fintype.card_sum, Fintype.card_sigma]
         simp only [Fintype.card_subtype, Circuit.gateFanout]
 
@@ -476,8 +476,8 @@ theorem multiFanoutSize_le_card_gateFanout (c : Circuit σ n m) :
     multiFanoutSize c ≤ (Finset.univ.filter fun g : Fin c.size => 2 ≤ c.gateFanout g).card := by
   rw [multiFanoutSize, ← Nat.card_coe_set_eq, ← Fintype.card_coe, ← Nat.card_eq_fintype_card]
   exact Nat.card_le_card_of_injective
-    (fun g => ⟨g.1.1, Finset.mem_filter.mpr
-      ⟨Finset.mem_univ _, g.2.trans (fanout_gate_le_gateFanout g.1)⟩⟩)
+    (fun g => ⟨g.val.val, Finset.mem_filter.mpr
+      ⟨Finset.mem_univ _, g.property.trans (fanout_gate_le_gateFanout g.val)⟩⟩)
     fun g₁ g₂ h => Subtype.ext (Subtype.ext (congrArg Subtype.val h :))
 
 /-- If every gate of `c` has syntactic `gateFanout` at most one, `multiFanoutSize c = 0`. -/
@@ -1037,22 +1037,22 @@ private theorem steinerEdge_eq_of_mem_frontier {t : ℕ} {e₁ e₂ : SteinerEdg
   dsimp only at hw
   subst hw
   rw [mem_frontier_steinerGraph_iff] at h₁ h₂
-  suffices j₁.1 = j₂.1 from Sigma.ext rfl (heq_of_eq (Fin.ext this))
+  suffices j₁.val = j₂.val from Sigma.ext rfl (heq_of_eq (Fin.ext this))
   by_contra hne
   rcases lt_or_gt_of_ne hne with hlt | hgt
-  · have hle : (π (supportNode c π w ⟨j₁.1 + 1, by omega⟩) : ℕ) ≤
-        (π (supportNode c π w ⟨j₂.1, by omega⟩) : ℕ) :=
+  · have hle : (π (supportNode c π w ⟨j₁.val + 1, by omega⟩) : ℕ) ≤
+        (π (supportNode c π w ⟨j₂.val, by omega⟩) : ℕ) :=
       Fin.le_iff_val_le_val.mp ((pi_supportNode_le_iff (c := c) (π := π)).mpr
         (Fin.mk_le_mk.mpr (Nat.succ_le_of_lt hlt)))
-    change _ ∧ t ≤ (π (supportNode c π w ⟨j₁.1 + 1, _⟩) : ℕ) at h₁
-    change (π (supportNode c π w ⟨j₂.1, _⟩) : ℕ) < t ∧ _ at h₂
+    change _ ∧ t ≤ (π (supportNode c π w ⟨j₁.val + 1, _⟩) : ℕ) at h₁
+    change (π (supportNode c π w ⟨j₂.val, _⟩) : ℕ) < t ∧ _ at h₂
     omega
-  · have hle : (π (supportNode c π w ⟨j₂.1 + 1, by omega⟩) : ℕ) ≤
-        (π (supportNode c π w ⟨j₁.1, by omega⟩) : ℕ) :=
+  · have hle : (π (supportNode c π w ⟨j₂.val + 1, by omega⟩) : ℕ) ≤
+        (π (supportNode c π w ⟨j₁.val, by omega⟩) : ℕ) :=
       Fin.le_iff_val_le_val.mp ((pi_supportNode_le_iff (c := c) (π := π)).mpr
         (Fin.mk_le_mk.mpr (Nat.succ_le_of_lt hgt)))
-    change (π (supportNode c π w ⟨j₁.1, _⟩) : ℕ) < t ∧ _ at h₁
-    change _ ∧ t ≤ (π (supportNode c π w ⟨j₂.1 + 1, _⟩) : ℕ) at h₂
+    change (π (supportNode c π w ⟨j₁.val, _⟩) : ℕ) < t ∧ _ at h₁
+    change _ ∧ t ≤ (π (supportNode c π w ⟨j₂.val + 1, _⟩) : ℕ) at h₂
     omega
 
 /-- **Exact frontier equivalence.** The edges of `steinerGraph c π` crossing `π.initial t`
@@ -1087,15 +1087,15 @@ theorem ncard_frontier_steinerGraph_eq (t : ℕ) :
         have hle := Fin.le_iff_val_le_val.mp ((pi_supportNode_le_iff (c := c) (π := π)).mpr hge)
         rw [supportNode_supportIndex π hv] at hle
         omega
-      have hj1 : j.1 + 1 < (support c w).ncard := by
+      have hj1 : j.val + 1 < (support c w).ncard := by
         have := Fin.lt_def.mp hjv
         have := iv.isLt
         omega
-      have hj1_ge : t ≤ (π (supportNode c π w ⟨j.1 + 1, hj1⟩) : ℕ) := by
+      have hj1_ge : t ≤ (π (supportNode c π w ⟨j.val + 1, hj1⟩) : ℕ) := by
         by_contra! hlt'
-        exact (Fin.le_iff_val_le_val.mp (S.le_max' ⟨j.1 + 1, hj1⟩
-          (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hlt'⟩))).not_gt (Nat.lt_succ_self j.1)
-      exact ⟨⟨w, ⟨j.1, by omega⟩⟩, mem_frontier_steinerGraph_iff.mpr ⟨hj_lt, hj1_ge⟩, rfl⟩
+        exact (Fin.le_iff_val_le_val.mp (S.le_max' ⟨j.val + 1, hj1⟩
+          (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hlt'⟩))).not_gt (Nat.lt_succ_self j.val)
+      exact ⟨⟨w, ⟨j.val, by omega⟩⟩, mem_frontier_steinerGraph_iff.mpr ⟨hj_lt, hj1_ge⟩, rfl⟩
   rw [← himg]
   exact (InjOn.ncard_image fun e₁ h₁ e₂ h₂ hw => steinerEdge_eq_of_mem_frontier h₁ h₂ hw).symm
 
@@ -1128,7 +1128,7 @@ theorem maxDegreeLE_steinerGraph {r : ℕ} (hfan : c.FanInAtMost r) :
     dsimp only [φ] at h
     split_ifs at h with hs₁ hs₂ hs₂
     · cases Subtype.mk.inj (Prod.mk.inj h).1
-      have hpi : π (supportNode c π w₁ ⟨j₁.1, _⟩) = π (supportNode c π w₁ ⟨j₂.1, _⟩) :=
+      have hpi : π (supportNode c π w₁ ⟨j₁.val, _⟩) = π (supportNode c π w₁ ⟨j₂.val, _⟩) :=
         congrArg π (hs₁.trans hs₂.symm)
       rw [pi_supportNode, pi_supportNode] at hpi
       exact Subtype.ext (Sigma.ext rfl (heq_of_eq (Fin.ext
@@ -1136,7 +1136,7 @@ theorem maxDegreeLE_steinerGraph {r : ℕ} (hfan : c.FanInAtMost r) :
     · cases (Prod.mk.inj h).2
     · cases (Prod.mk.inj h).2
     · cases Subtype.mk.inj (Prod.mk.inj h).1
-      have hpi : π (supportNode c π w₁ ⟨j₁.1 + 1, _⟩) = π (supportNode c π w₁ ⟨j₂.1 + 1, _⟩) :=
+      have hpi : π (supportNode c π w₁ ⟨j₁.val + 1, _⟩) = π (supportNode c π w₁ ⟨j₂.val + 1, _⟩) :=
         congrArg π ((he₁.resolve_left hs₁).trans (he₂.resolve_left hs₂).symm)
       rw [pi_supportNode, pi_supportNode] at hpi
       exact Subtype.ext (Sigma.ext rfl (heq_of_eq (Fin.ext
@@ -1174,7 +1174,7 @@ private noncomputable def canonicalEdge {c : Circuit σ n m} (π : Layout (Node 
     {w : ActiveSignal c} {u : Node c} (hu : u ∈ support c w)
     (h2 : 2 ≤ (support c w).ncard) : SteinerEdge c :=
   let idx := supportIndex π hu
-  if idx.1 = 0 then ⟨w, ⟨0, by omega⟩⟩ else ⟨w, ⟨idx.1 - 1, by have := idx.isLt; omega⟩⟩
+  if idx.val = 0 then ⟨w, ⟨0, by omega⟩⟩ else ⟨w, ⟨idx.val - 1, by have := idx.isLt; omega⟩⟩
 
 private theorem canonicalEdge_fst {c : Circuit σ n m} (π : Layout (Node c))
     {w : ActiveSignal c} {u : Node c} (hu : u ∈ support c w)
@@ -1198,9 +1198,9 @@ private theorem canonicalEdge_incident {c : Circuit σ n m} (π : Layout (Node c
     rw [hidx]
     exact supportNode_supportIndex π hu
   · right
-    have hlt : idx.1 - 1 + 1 < (support c w).ncard := by have := idx.isLt; omega
-    change supportNode c π w ⟨idx.1 - 1 + 1, hlt⟩ = u
-    have hidx : (⟨idx.1 - 1 + 1, hlt⟩ : Fin (support c w).ncard) = idx :=
+    have hlt : idx.val - 1 + 1 < (support c w).ncard := by have := idx.isLt; omega
+    change supportNode c π w ⟨idx.val - 1 + 1, hlt⟩ = u
+    have hidx : (⟨idx.val - 1 + 1, hlt⟩ : Fin (support c w).ncard) = idx :=
       Fin.ext (by dsimp only; omega)
     rw [hidx]
     exact supportNode_supportIndex π hu
@@ -1373,8 +1373,8 @@ theorem ncard_readAt_steinerNetwork_le {r : ℕ} (hfan : c.FanInAtMost r) (u : N
       rfl
     exact h1.trans (le_max_right r 1)
   | gate g =>
-    let slotWire : Fin (σ.Arity (c.program.lines g.1).op) → Option (Fin n) := fun a =>
-      match (c.program.lines g.1).wires a with
+    let slotWire : Fin (σ.Arity (c.program.lines g.val).op) → Option (Fin n) := fun a =>
+      match (c.program.lines g.val).wires a with
       | .input i => some i
       | .gate _ => none
     have hslot : ∀ i ∈ (steinerNetwork c I Acc π).readAt (.gate g),
@@ -1383,18 +1383,18 @@ theorem ncard_readAt_steinerNetwork_le {r : ℕ} (hfan : c.FanInAtMost r) (u : N
       obtain ⟨_, hmem⟩ := steinerSite_eq_some hi
       obtain ⟨t, ht, ho⟩ := hmem
       rcases t with ⟨⟨h, a⟩, hh⟩ | o
-      · have hgh : h = g.1 := congrArg Subtype.val (Node.gate.inj ho)
+      · have hgh : h = g.val := congrArg Subtype.val (Node.gate.inj ho)
         subst hgh
         refine ⟨a, ?_⟩
-        have hw : (c.program.lines g.1).wires a = .input i := congrArg Subtype.val ht
+        have hw : (c.program.lines g.val).wires a = .input i := congrArg Subtype.val ht
         simp [slotWire, hw]
       · cases ho
     calc ((steinerNetwork c I Acc π).readAt (.gate g)).ncard
-        ≤ Nat.card (Fin (σ.Arity (c.program.lines g.1).op)) := by
+        ≤ Nat.card (Fin (σ.Arity (c.program.lines g.val).op)) := by
           choose f hf using hslot
           refine (ncard_le_ncard_of_injOn
             (fun i => if h : i ∈ (steinerNetwork c I Acc π).readAt (.gate g) then f i h
-              else ⟨0, Nat.pos_of_ne_zero g.2.2⟩)
+              else ⟨0, Nat.pos_of_ne_zero g.property.2⟩)
             (fun _ _ => mem_univ _) (fun i₁ h₁ i₂ h₂ heq => ?_) (toFinite _)).trans_eq
             (ncard_univ _)
           simp only [h₁, h₂, ↓reduceDIte] at heq
@@ -1404,7 +1404,7 @@ theorem ncard_readAt_steinerNetwork_le {r : ℕ} (hfan : c.FanInAtMost r) (u : N
           exact Option.some.inj (e1.symm.trans e2)
       _ ≤ max r 1 := by
           rw [Nat.card_eq_fintype_card, Fintype.card_fin]
-          exact (Program.fanInAtMost_iff.mp hfan g.1).trans (le_max_left r 1)
+          exact (Program.fanInAtMost_iff.mp hfan g.val).trans (le_max_left r 1)
 
 /-- In a satisfying assignment of `steinerNetwork`, all Steiner edges of `w` carry the value at
 node `0` of `support c w`. -/
@@ -1442,7 +1442,7 @@ private theorem steiner_eq_trace {x : Fin n → U} {α : SteinerEdge c → U}
         | input i' hi' =>
           cases Wire.input.inj haw
           have h2 : 2 ≤ (support c (.input i hi')).ncard := by have := j.isLt; omega
-          rw [steiner_edge_eq_zero hα (.input i hi') h2 j.1 (by have := j.isLt; omega)]
+          rw [steiner_edge_eq_zero hα (.input i hi') h2 j.val (by have := j.isLt; omega)]
           let u0 := supportNode c π (.input i hi') ⟨0, by omega⟩
           have hu0 : u0 ∈ support c (.input i hi') := supportNode_mem c π _ _
           have hsite : steinerSite c π i = some u0 := by simp [steinerSite, hi', u0]
@@ -1450,7 +1450,7 @@ private theorem steiner_eq_trace {x : Fin n → U} {α : SteinerEdge c → U}
           have hc0 : canonicalEdge π hu0 h2 = ⟨.input i hi', ⟨0, by omega⟩⟩ := by
             unfold canonicalEdge
             dsimp only
-            have hidx : (supportIndex π hu0).1 = 0 :=
+            have hidx : (supportIndex π hu0).val = 0 :=
               congrArg Fin.val (supportIndex_supportNode π (.input i hi') ⟨0, by omega⟩)
             simp [hidx]
           rw [← hc0]
@@ -1469,7 +1469,7 @@ private theorem steiner_eq_trace {x : Fin n → U} {α : SteinerEdge c → U}
           | input _ _ => cases haw
           | gate g' =>
             cases Wire.gate.inj haw
-            exact absurd ha0 g'.2.2
+            exact absurd ha0 g'.property.2
       · let ig : InnerGate c := ⟨g, hg, ha0⟩
         have h2 := two_le_ncard_support_gate ig
         obtain ⟨-, -, h3⟩ := hα (.gate ig)
@@ -1486,16 +1486,16 @@ private theorem steiner_eq_trace {x : Fin n → U} {α : SteinerEdge c → U}
           | gate g' =>
             obtain ⟨idx', r', a'⟩ := g'
             cases Wire.gate.inj haw
-            have hjlt : j.1 + 1 < (support c (.gate ig)).ncard := by
-              have hlt : j.1 < (support c (.gate ig)).ncard - 1 := j.isLt
+            have hjlt : j.val + 1 < (support c (.gate ig)).ncard := by
+              have hlt : j.val < (support c (.gate ig)).ncard - 1 := j.isLt
               omega
-            change α ⟨.gate ig, ⟨j.1, by omega⟩⟩ = c.program.trace I x (.gate g)
+            change α ⟨.gate ig, ⟨j.val, by omega⟩⟩ = c.program.trace I x (.gate g)
             rcases he_can : canonicalEdge π (gate_mem_support ig) h2 with ⟨w_c, j_c⟩
             obtain rfl : w_c = .gate ig :=
               (congrArg Sigma.fst he_can).symm.trans (canonicalEdge_fst π _ h2)
             rw [he_can] at htrace_g
-            rw [steiner_edge_eq_zero hα (.gate ig) h2 j.1 hjlt,
-              ← steiner_edge_eq_zero hα (.gate ig) h2 j_c.1 (by have := j_c.isLt; omega)]
+            rw [steiner_edge_eq_zero hα (.gate ig) h2 j.val hjlt,
+              ← steiner_edge_eq_zero hα (.gate ig) h2 j_c.val (by have := j_c.isLt; omega)]
             exact htrace_g
         refine ⟨fun u hu => ?_, hed⟩
         simp only [wireValAt, ha0, ↓reduceDIte]
@@ -1531,7 +1531,7 @@ theorem satisfies_steinerNetwork_trace {x : Fin n → U} (hx : ∀ o, c.eval I x
   cases u with
   | gate g =>
     dsimp only
-    rw [canonicalEdge_fst, show (ActiveSignal.gate g).wire = .gate g.1 from rfl,
+    rw [canonicalEdge_fst, show (ActiveSignal.gate g).wire = .gate g.val from rfl,
       Program.trace_gate]
     exact congrArg _ (funext fun a => (wireValAt_trace _ _ _ _ _).symm)
   | output o =>

@@ -84,7 +84,7 @@ on which `!z` is not acceptable lies in **exactly one** rectangle
 `z`-cover of `R` on `A × B`, or `⊤` if there is none. -/
 noncomputable def partitionCoverNumber (z : Bool) (R : X → Y → Bool → Prop)
     (A : Set X) (B : Set Y) : ℕ∞ :=
-  ⨅ r : {r : ℕ // ∃ C : Fin r → Set X × Set Y, IsPartitionCover z R A B C}, (r.1 : ℕ∞)
+  ⨅ r : {r : ℕ // ∃ C : Fin r → Set X × Set Y, IsPartitionCover z R A B C}, (r.val : ℕ∞)
 
 /-- The partition `z`-cover number of a function `f : X → Y → Bool` on `A × B`. -/
 @[expose] noncomputable def partitionCoverNumberFun (z : Bool) (f : X → Y → Bool)

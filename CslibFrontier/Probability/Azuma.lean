@@ -102,7 +102,8 @@ one-step transition probabilities along its prefixes. -/
 theorem seqProcess_apply (step : ∀ t : ℕ, (Fin t → α) → PMF α) :
     ∀ (n : ℕ) (h : Fin n → α),
       seqProcess step n h =
-        ∏ t : Fin n, step t.1 (fun j : Fin t.1 => h (Fin.castLT j (lt_trans j.isLt t.isLt))) (h t)
+        ∏ t : Fin n,
+          step t.val (fun j : Fin t.val => h (Fin.castLT j (lt_trans j.isLt t.isLt))) (h t)
   | 0, h => by
     rw [seqProcess, Fin.prod_univ_zero, Subsingleton.elim h Fin.elim0, PMF.pure_apply_self]
   | n + 1, h => by

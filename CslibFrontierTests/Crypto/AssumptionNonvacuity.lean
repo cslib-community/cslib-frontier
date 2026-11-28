@@ -305,7 +305,7 @@ theorem not_dcr_const (d : BalancedModulus.Desc) : ¬ DCR (fun _ => PMF.pure d) 
   intro h
   have hmod := h.modulusFactoringHard
   simp only [PMF.pure_map] at hmod
-  exact not_modulusFactoringHard_const d.2.prime_fst.one_lt d.2.prime_snd.one_lt hmod
+  exact not_modulusFactoringHard_const d.property.prime_fst.one_lt d.property.prime_snd.one_lt hmod
 
 /-- **`TotientHard` fails for a fixed RSA descriptor**, since it implies factoring hardness. -/
 theorem not_totientHard_const (desc : RSADesc) : ¬ TotientHard (fun _ => PMF.pure desc) := by

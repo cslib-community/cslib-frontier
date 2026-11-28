@@ -572,16 +572,16 @@ private def feistelQuotScore {U : ℕ} (n_max : ℕ) (S : Finset (Fin U))
 private theorem feistelQuotScore_props {U n_max : ℕ} (W_quot : Finset (Fin U))
     (S : Finset (Fin U)) (hqS : ∀ u ∈ S, keyQuotientFin (bWhp n_max) u ∈ W_quot)
     (b : Fin (numBucketsWhp n_max)) :
-    let g : W_quot → Fin (2 ^ bWhp n_max) → ℝ := fun q y => feistelQuotScore n_max S b q.1 y
+    let g : W_quot → Fin (2 ^ bWhp n_max) → ℝ := fun q y => feistelQuotScore n_max S b q.val y
     (∀ q ∈ (univ : Finset W_quot), ∀ y : Fin (2 ^ bWhp n_max), g q y ∈ Set.Icc (0 : ℝ) 1) ∧
     (∑ q ∈ (univ : Finset W_quot), (𝔼 y, g q y) = (#S : ℝ) / (numBucketsWhp n_max : ℝ)) ∧
     (∀ H : W_quot → Fin (2 ^ bWhp n_max), ∀ h1 : ℕ → ℕ,
-      (∀ q : W_quot, h1 q.1.val = (H q).val) →
+      (∀ q : W_quot, h1 q.val.val = (H q).val) →
       ∑ q ∈ (univ : Finset W_quot), g q (H q) =
         (#(S.filter fun u => feistelBucket (bWhp n_max) h1 u.val = b.val) : ℝ)) := by
   dsimp only
   let S_q (q : W_quot) : Finset (Fin U) :=
-    S.filter fun u => keyQuotient (bWhp n_max) u.val = q.1.val
+    S.filter fun u => keyQuotient (bWhp n_max) u.val = q.val.val
   have hpart_card : ∀ (P : Fin U → Prop) [DecidablePred P],
       #(S.filter P) = ∑ q : W_quot, #((S_q q).filter P) := by
     intro P _
@@ -589,13 +589,13 @@ private theorem feistelQuotScore_props {U n_max : ℕ} (W_quot : Finset (Fin U))
     rw [Finset.card_filter]
     have hpoint : ∀ u ∈ S,
         (if P u then 1 else 0) =
-          ∑ q : W_quot, if keyQuotient (bWhp n_max) u.val = q.1.val ∧ P u then 1 else 0 := by
+          ∑ q : W_quot, if keyQuotient (bWhp n_max) u.val = q.val.val ∧ P u then 1 else 0 := by
       intro u hu
       let q₀ : W_quot := ⟨keyQuotientFin (bWhp n_max) u, hqS u hu⟩
       rw [Fintype.sum_eq_single q₀]
       · simp [q₀, keyQuotientFin]
       · intro q hne
-        have hval_ne : keyQuotient (bWhp n_max) u.val ≠ q.1.val := fun heq =>
+        have hval_ne : keyQuotient (bWhp n_max) u.val ≠ q.val.val := fun heq =>
           hne (Subtype.ext (Fin.ext heq.symm))
         simp [hval_ne]
     rw [Finset.sum_congr rfl hpoint, Finset.sum_comm]
@@ -619,11 +619,11 @@ private theorem feistelQuotScore_props {U n_max : ℕ} (W_quot : Finset (Fin U))
     unfold feistelQuotScore
     exact_mod_cast hle1
   · have hg_exp : ∀ q : W_quot,
-        𝔼 y : Fin (2 ^ bWhp n_max), feistelQuotScore n_max S b q.1 y =
+        𝔼 y : Fin (2 ^ bWhp n_max), feistelQuotScore n_max S b q.val y =
           (#(S_q q) : ℝ) / (numBucketsWhp n_max : ℝ) := by
       intro q
       have hgs (y : Fin (2 ^ bWhp n_max)) :
-          feistelQuotScore n_max S b q.1 y = ∑ u ∈ S_q q,
+          feistelQuotScore n_max S b q.val y = ∑ u ∈ S_q q,
             if (y.val ^^^ keyLow (bWhp n_max) u.val) = b.val then (1 : ℝ) else 0 := by
         unfold feistelQuotScore
         rw [Finset.sum_boole]
@@ -664,7 +664,7 @@ private theorem feistelQuotScore_props {U n_max : ℕ} (W_quot : Finset (Fin U))
     unfold feistelQuotScore
     congr 2
     refine filter_congr fun u hu => ?_
-    have hqu : keyQuotient (bWhp n_max) u.val = q.1.val := (mem_filter.mp hu).2
+    have hqu : keyQuotient (bWhp n_max) u.val = q.val.val := (mem_filter.mp hu).2
     unfold feistelBucket
     rw [hqu, hH q, Nat.mod_eq_of_lt (H q).isLt]
 
@@ -717,10 +717,10 @@ private theorem toOuterMeasure_not_balancedBucket_single_le {c U n_max : ℕ}
     refine ⟨mem_univ _, ?_⟩
     have hsum_T₂ := hsum_H
       (fun q => evalSalted U (w0Whp U) (cTabWhp c * bCharWhp n_max) (cTabWhp c) (dTabWhp c)
-        (bCharWhp n_max) (bWhp n_max) 1 (α₁, T₁, T₂) ((e_in q).1, (e_in q).2.1))
+        (bCharWhp n_max) (bWhp n_max) 1 (α₁, T₁, T₂) ((e_in q).1, (e_in q).2.val))
       (bktHash c U n_max (α₁, T₁, T₂)) fun q => by
         unfold bktHash
-        simp [q.1.isLt, e_in, rRedWhp]
+        simp [q.val.isLt, e_in, rRedWhp]
     rw [sum_sub_distrib, hsum_T₂, hsum_exp]
     set X := #(S.filter fun u =>
       feistelBucket (bWhp n_max) (bktHash c U n_max (α₁, T₁, T₂)) u.val = b.val)
@@ -784,7 +784,7 @@ private theorem toOuterMeasure_not_salt_inj_bot_le {c U n_max : ℕ}
       (fun (T₂ : DoubleTabBotSeed (dTabWhp c) (bCharWhp n_max) (fpBitsWhp n_max))
         (p : Fin (sMaxWhp c n_max) × W_keys) =>
         evalSalted U (w0Whp U) (rRedWhp c n_max) (cTabWhp c) (dTabWhp c)
-          (bCharWhp n_max) (fpBitsWhp n_max) (sMaxWhp c n_max) (α₂, T₁, T₂) (p.1, p.2.1)) :=
+          (bCharWhp n_max) (fpBitsWhp n_max) (sMaxWhp c n_max) (α₂, T₁, T₂) (p.1, p.2.val)) :=
     isKWiseIndependentHash_evalSalted_of_goodTop (sMaxWhp_le_pow_bChar hth)
       (Nat.min_le_right _ _) hgood
   have hper_b : ∀ b : Fin (numBucketsWhp n_max),
@@ -796,14 +796,14 @@ private theorem toOuterMeasure_not_salt_inj_bot_le {c U n_max : ℕ}
         ((2 : ℝ≥0∞) ^ (3 * sMaxWhp c n_max))⁻¹ := by
     intro b
     let S_b : Finset W_keys :=
-      univ.filter fun u : W_keys => feistelBucket (bWhp n_max) h1 u.1.val = b.val
+      univ.filter fun u : W_keys => feistelBucket (bWhp n_max) h1 u.val.val = b.val
     have hcard_Sb : #S_b ≤ 6 * L ^ 12 := by
       rw [← Finset.card_map (Function.Embedding.subtype _)]
       refine (card_le_card fun u hu => ?_).trans (hbkt b)
       simp only [S_b, mem_map, mem_filter, mem_univ, true_and, Function.Embedding.subtype_apply]
         at hu
       obtain ⟨u', hu', rfl⟩ := hu
-      exact mem_filter.mpr ⟨u'.2, hu'⟩
+      exact mem_filter.mpr ⟨u'.property, hu'⟩
     have hAB : 2 ^ 3 * (#S_b ^ 2) ≤ 2 ^ fpBitsWhp n_max := by
       rw [two_pow_fpBitsWhp]
       calc 2 ^ 3 * (#S_b ^ 2) ≤ 2 ^ 3 * (6 * L ^ 12) ^ 2 := by gcongr
@@ -857,13 +857,13 @@ private theorem toOuterMeasure_salt_coll_count_bot_le {c U n_max : ℕ}
       (fun (T₂ : DoubleTabBotSeed (dTabWhp c) (bCharWhp n_max) (fpBitsWhp n_max))
         (p : Fin (sMaxWhp c n_max) × W_keys) =>
         evalSalted U (w0Whp U) (rRedWhp c n_max) (cTabWhp c) (dTabWhp c)
-          (bCharWhp n_max) (fpBitsWhp n_max) (sMaxWhp c n_max) (α₂, T₁, T₂) (p.1, p.2.1)) :=
+          (bCharWhp n_max) (fpBitsWhp n_max) (sMaxWhp c n_max) (α₂, T₁, T₂) (p.1, p.2.val)) :=
     isKWiseIndependentHash_evalSalted_of_goodTop (sMaxWhp_le_pow_bChar hth)
       (Nat.min_le_right _ _) hgood
-  let Q_set : Finset W_keys := univ.filter fun u : W_keys => u.1 ∈ W_ins
+  let Q_set : Finset W_keys := univ.filter fun u : W_keys => u.val ∈ W_ins
   let W_of (u : W_keys) : Finset W_keys :=
     univ.filter fun v : W_keys =>
-      feistelBucket (bWhp n_max) h1 v.1.val = feistelBucket (bWhp n_max) h1 u.1.val
+      feistelBucket (bWhp n_max) h1 v.val.val = feistelBucket (bWhp n_max) h1 u.val.val
   have hQ_card : #Q_set ≤ 3 * L ^ 18 := by
     rw [← Finset.card_map (Function.Embedding.subtype _)]
     refine (card_le_card fun u hu => ?_).trans hW_ins
@@ -874,11 +874,11 @@ private theorem toOuterMeasure_salt_coll_count_bot_le {c U n_max : ℕ}
   have hw_cap : ∀ u ∈ Q_set, #(W_of u) ≤ 6 * L ^ 12 := fun u _ => by
     rw [← Finset.card_map (Function.Embedding.subtype _)]
     refine (card_le_card fun v hv => ?_).trans
-      (hbkt ⟨_, feistelBucket_lt (bWhp n_max) h1 u.1.val⟩)
+      (hbkt ⟨_, feistelBucket_lt (bWhp n_max) h1 u.val.val⟩)
     simp only [W_of, mem_map, mem_filter, mem_univ, true_and, Function.Embedding.subtype_apply]
       at hv
     obtain ⟨v', hv', rfl⟩ := hv
-    exact mem_filter.mpr ⟨v'.2, hv'⟩
+    exact mem_filter.mpr ⟨v'.property, hv'⟩
   have hdens := hk_fp.dens_card_local_salt_colliding_ge_le Q_set W_of hw_cap
   rw [Fintype.card_fin] at hdens
   have hAB : 2 ^ 3 * (#Q_set * (6 * L ^ 12) * sMaxWhp c n_max) ≤ 2 ^ fpBitsWhp n_max := by

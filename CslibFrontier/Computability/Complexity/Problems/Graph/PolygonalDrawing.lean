@@ -38,7 +38,7 @@ structure PolygonalDrawing (G : Graph) where
   /-- The point of each vertex name; undeclared names have no geometric restrictions. -/
   vertex : ℕ → ℂ
   /-- One route per listed edge occurrence, without identifying equal edge pairs. -/
-  route : Fin G.2.length → Polygonal.Route
+  route : Fin G.edges.length → Polygonal.Route
   /-- The two route ends are the corresponding named graph endpoints. -/
   endpoint_eq : ∀ e b, (route e).endpoint b = vertex (Dart.vertex (e, b))
 
@@ -66,12 +66,12 @@ arbitrary real parameters of actual straight segments. Endpoint closure of an in
 loop is permitted by `simple`; different edge routes may meet only at common named ends. -/
 structure IsEmbedding : Prop where
   /-- Distinct declared names, including isolates, have distinct points. -/
-  vertices_injective : Set.InjOn D.vertex {v | v ∈ G.1}
+  vertices_injective : Set.InjOn D.vertex {v | v ∈ G.vertices}
   /-- Each route is simple except for its intended loop closure. -/
   simple : ∀ e, (D.route e).IsSimple
   /-- A declared vertex on an edge route must occur at the corresponding original end. -/
   vertex_contacts : ∀ e (i : Fin (D.route e).segments) (t : ℝ), t ∈ Set.Icc 0 1 →
-    ∀ v ∈ G.1, (D.route e).eval i t = D.vertex v →
+    ∀ v ∈ G.vertices, (D.route e).eval i t = D.vertex v →
       ∃ b, (D.route e).AtEnd i t b ∧ Dart.vertex (e, b) = v
   /-- Different indexed edge occurrences intersect only at common original endpoints. -/
   edge_contacts : ∀ e f, e ≠ f → ∀ (i : Fin (D.route e).segments)
@@ -86,7 +86,7 @@ theorem IsEmbedding.germ_ne_zero {D : PolygonalDrawing G} (hD : D.IsEmbedding) (
 
 /-- Declared isolated vertices are separated just like all other distinct declared names. -/
 theorem IsEmbedding.vertex_ne {D : PolygonalDrawing G} (hD : D.IsEmbedding)
-    {u v : ℕ} (hu : u ∈ G.1) (hv : v ∈ G.1) (huv : u ≠ v) :
+    {u v : ℕ} (hu : u ∈ G.vertices) (hv : v ∈ G.vertices) (huv : u ≠ v) :
     D.vertex u ≠ D.vertex v := fun h => huv (hD.vertices_injective hu hv h)
 
 end PolygonalDrawing

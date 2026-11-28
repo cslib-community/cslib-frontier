@@ -78,10 +78,10 @@ theorem acceptCount_distinctVerifier (φ : CNF ℕ) :
   have hnd : vs.Nodup := CNF.nodup_distinctVars φ
   have hlen : vs.length = φ.numVars := CNF.length_distinctVars φ
   refine CNF.modelCount_eq_card_filter
-    (fun σ (i : Fin φ.numVars) => σ (vs[i.1]'(by rw [hlen]; exact i.2)))
+    (fun σ (i : Fin φ.numVars) => σ (vs[i.val]'(by rw [hlen]; exact i.isLt)))
     (fun w => distinctVerifier (φ, List.ofFn w) = true)
     (fun σ τ _ _ => ⟨fun h v hv => ?_, fun h => funext fun i => h _ (by
-      exact CNF.mem_distinctVars.1 (List.getElem_mem (by rw [hlen]; exact i.2)))⟩)
+      exact CNF.mem_distinctVars.1 (List.getElem_mem (by rw [hlen]; exact i.isLt)))⟩)
     fun w => ⟨fun hw => ?_, ?_⟩
   · have hmem : v ∈ vs := CNF.mem_distinctVars.2 hv
     have hlt : vs.idxOf v < φ.numVars := by
@@ -90,10 +90,11 @@ theorem acceptCount_distinctVerifier (φ : CNF ℕ) :
     have hcon := congrFun h ⟨vs.idxOf v, hlt⟩
     simpa only [List.getElem_idxOf] using hcon
   · refine ⟨fun v => (List.ofFn w).getD (vs.idxOf v) false, hw, funext fun i => ?_⟩
-    have hlt : i.1 < vs.length := by rw [hlen]; exact i.2
+    have hlt : i.val < vs.length := by rw [hlen]; exact i.isLt
     dsimp only
-    rw [hnd.idxOf_getElem i.1 hlt]
-    simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn, i.2, ↓reduceDIte, Option.getD_some]
+    rw [hnd.idxOf_getElem i.val hlt]
+    simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn, i.isLt, ↓reduceDIte,
+        Option.getD_some]
   · rintro ⟨σ, hσ, rfl⟩
     refine (CNF.eval_congr fun v hv => ?_).trans hσ
     have hmem : v ∈ vs := CNF.mem_distinctVars.2 hv

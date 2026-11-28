@@ -86,7 +86,7 @@ private theorem answerGap_eq {α : Type} {A : Set (α × ℕ)} {g f : α × ℕ 
     answerGap g f r d a = if d (a, truthTableAnswers A r a) then
       ∏ i ∈ range (r a), f (a, i) else 0 := by
   classical
-  let v : Fin (r a) → Bool := fun i => decide ((a, i.1) ∈ A)
+  let v : Fin (r a) → Bool := fun i => decide ((a, i.val) ∈ A)
   have hg (i : Fin (r a)) : g (a, i) = if v i then f (a, i) else 0 := by grind
   have hp (w : Fin (r a) → Bool) :
       (∏ i ∈ range (r a), if (List.ofFn w).getD i false then g (a, i) else

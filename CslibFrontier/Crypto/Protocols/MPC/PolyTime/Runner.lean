@@ -511,9 +511,9 @@ private def realSharedMulPure (m : ℕ) (x : Fin m → Bool × Bool) (tr : Order
   (fun i =>
     m • ((x i).1 * (x i).2) +
       ((orderedPairs m).map fun p =>
-        if p.1.1 = i then (tr p).1 else if p.1.2 = i then (tr p).2 else 0).sum,
-   fun i => ((orderedPairs m).map fun p => if p.1.1 = i then [(tr p).1] else []).flatten,
-   fun i => ((orderedPairs m).map fun p => if p.1.2 = i then [(tr p).2] else []).flatten)
+        if p.val.1 = i then (tr p).1 else if p.val.2 = i then (tr p).2 else 0).sum,
+   fun i => ((orderedPairs m).map fun p => if p.val.1 = i then [(tr p).1] else []).flatten,
+   fun i => ((orderedPairs m).map fun p => if p.val.2 = i then [(tr p).2] else []).flatten)
 
 /-- Deterministic extraction of `(ot_c_delta, ot_a_delta)` from one simulated `multiPartyMulSim m I`
 invocation composed with `twoPartyMulSim`. -/
@@ -525,10 +525,10 @@ private def simSharedMulPure (m : ℕ) [NeZero m] (I : Finset (Fin m))
   let rSim := MultiPartyMul.tildeR (MultiPartyMul.pivotParty I) x₀ y₀ r
   (fun i =>
     ((orderedPairs m).map fun p =>
-      if p.1.1 = i then [MultiPartyMul.matrixOfCoins x₀ rSim i p.1.2] else []).flatten,
+      if p.val.1 = i then [MultiPartyMul.matrixOfCoins x₀ rSim i p.val.2] else []).flatten,
    fun i =>
     ((orderedPairs m).map fun p =>
-      if p.1.2 = i then [MultiPartyMul.matrixOfCoins x₀ rSim i p.1.1] else []).flatten)
+      if p.val.2 = i then [MultiPartyMul.matrixOfCoins x₀ rSim i p.val.1] else []).flatten)
 
 /-- Step 2 accumulator `(wires, ot_coins, ot_ans)`. -/
 private abbrev Step2Acc (m : ℕ) : Type :=

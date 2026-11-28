@@ -43,11 +43,11 @@ example :
 noncomputable def dimExpander2 : Fin 3 → BitString 2 →ₗ[Bool] BitString 2
   | ⟨0, _⟩ => LinearMap.id
   | ⟨1, _⟩ =>
-      { toFun := fun x i => if i.1 = 0 then x 1 else x 0
+      { toFun := fun x i => if i.val = 0 then x 1 else x 0
         map_add' := fun x y => by funext i; fin_cases i <;> rfl
         map_smul' := fun c x => by funext i; fin_cases i <;> rfl }
   | ⟨2, _⟩ =>
-      { toFun := fun x i => if i.1 = 0 then x 0 else x 0 + x 1
+      { toFun := fun x i => if i.val = 0 then x 0 else x 0 + x 1
         map_add' := fun x y => by
           funext i
           fin_cases i

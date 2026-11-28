@@ -87,11 +87,11 @@ noncomputable def Ledger.ofAggregates {σ : Signature.{v}} {n s : ℕ} {special 
     {p : Program σ n s} {I : Interpretation σ U} {T : Type*} [CommMonoid T]
     (h : ∀ g : Fin s, special g → Aggregates (I (p.lines g).op) T) :
     Ledger special p I ({g // special g} → T) where
-  contribution w u g := ∏ a with (p.lines g).wires a = w, (h g g.2).choose a u
-  readout m g := (h g g.2).choose_spec.choose (m g)
+  contribution w u g := ∏ a with (p.lines g).wires a = w, (h g g.property).choose a u
+  readout m g := (h g g.property).choose_spec.choose (m g)
   readout_prod v g := by
-    simp only [Finset.prod_apply, (h g g.2).choose_spec.choose_spec]
-    refine congrArg (h g g.2).choose_spec.choose ?_
+    simp only [Finset.prod_apply, (h g g.property).choose_spec.choose_spec]
+    refine congrArg (h g g.property).choose_spec.choose ?_
     -- Group the slots of `g` by the wire they read.
     rw [← Finset.prod_fiberwise Finset.univ (p.lines g).wires]
     refine Finset.prod_congr rfl fun w _ => Finset.prod_congr rfl fun a ha => ?_

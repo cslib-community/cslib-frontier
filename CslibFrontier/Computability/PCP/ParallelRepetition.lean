@@ -187,7 +187,7 @@ theorem exists_winProbOn_insert_le (hCu : C ≠ univ) :
       rw [Finset.sum_const, Finset.card_univ, hcard, nsmul_eq_mul]
       calc _ ≤ _ := hsum
         _ = _ := by rw [← hsqrt]; ring)
-  refine ⟨j, j.2, ?_⟩
+  refine ⟨j, j.property, ?_⟩
   rw [← hcompl]
   exact G.winProbOn_insert_le ha hb C j hC ((hemb j).mono hj)
 

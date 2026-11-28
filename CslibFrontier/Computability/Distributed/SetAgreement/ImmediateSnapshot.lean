@@ -381,15 +381,15 @@ theorem mem_orderedPartitionsAux {k : ℕ} {rem : Finset V} {bs : List (Finset V
 def allISchedules (U : Finset V) : Finset (ISSchedule U) :=
   (orderedPartitionsAux #U U).attach.map
     ⟨fun (x : {bs // bs ∈ orderedPartitionsAux #U U}) =>
-      ({ blocks := x.1
+      ({ blocks := x.val
          blocks_nonempty := by
-           obtain ⟨-, hne, -, -⟩ := mem_orderedPartitionsAux.mp x.2
+           obtain ⟨-, hne, -, -⟩ := mem_orderedPartitionsAux.mp x.property
            exact hne
          blocks_pairwise_disjoint := by
-           obtain ⟨-, -, hdisj, -⟩ := mem_orderedPartitionsAux.mp x.2
+           obtain ⟨-, -, hdisj, -⟩ := mem_orderedPartitionsAux.mp x.property
            exact hdisj
          union_blocks := by
-           obtain ⟨-, -, -, hu⟩ := mem_orderedPartitionsAux.mp x.2
+           obtain ⟨-, -, -, hu⟩ := mem_orderedPartitionsAux.mp x.property
            exact hu } : ISSchedule U),
      fun _ _ h => Subtype.ext (congrArg ISSchedule.blocks h)⟩
 
@@ -728,9 +728,9 @@ into nonempty disjoint blocks correspond bijectively to set assignments satisfyi
 def ISSchedule.equivImmediateSnapshotOn (U : Finset V) :
     ISSchedule U ≃ {S : V → Finset V // IsImmediateSnapshotOn U S} where
   toFun π := ⟨π.snapshot, π.isImmediateSnapshotOn⟩
-  invFun S := ISSchedule.ofImmediateSnapshotOn S.1 S.2
+  invFun S := ISSchedule.ofImmediateSnapshotOn S.val S.property
   left_inv := ISSchedule.ofImmediateSnapshotOn_snapshot
-  right_inv S := Subtype.ext (ISSchedule.snapshot_ofImmediateSnapshotOn S.1 S.2)
+  right_inv S := Subtype.ext (ISSchedule.snapshot_ofImmediateSnapshotOn S.val S.property)
 
 /-- One-shot immediate-snapshot characterization step for #7504 (after
 [Borowsky and Gafni, §3.5, conditions 1–3, p. 5][BorowskyGafni1997]): full-system ordered
@@ -744,8 +744,8 @@ def ISSchedule.equivImmediateSnapshot [Fintype V] :
 @[simp]
 theorem ISSchedule.snapshot_equivImmediateSnapshot_symm [Fintype V]
     (S : {S : V → Finset V // IsImmediateSnapshot S}) :
-    (ISSchedule.equivImmediateSnapshot.symm S).snapshot = S.1 :=
-  ISSchedule.snapshot_ofImmediateSnapshotOn S.1 (isImmediateSnapshotOn_univ_iff.mpr S.2)
+    (ISSchedule.equivImmediateSnapshot.symm S).snapshot = S.val :=
+  ISSchedule.snapshot_ofImmediateSnapshotOn S.val (isImmediateSnapshotOn_univ_iff.mpr S.property)
 
 /-- One-shot immediate-snapshot unique-schedule characterization step for #7504 (after
 [Borowsky and Gafni, §3.5, conditions 1–3, p. 5][BorowskyGafni1997]): a map `S : V → Finset V`

@@ -76,14 +76,14 @@ namespace SimpleGraph
 of their intersection is not congruent to `d` mod `p` [FranklWilson1981]. -/
 def franklWilsonGraph (α : Type*) [DecidableEq α] (p d : ℕ) :
     SimpleGraph {s : Finset α // #s = d} where
-  Adj s t := #(s.1 ∩ t.1) % p ≠ d % p
+  Adj s t := #(s.val ∩ t.val) % p ≠ d % p
   symm := ⟨fun s t h => by rwa [inter_comm]⟩
-  loopless := ⟨fun s h => by rw [inter_self, s.2] at h; exact h rfl⟩
+  loopless := ⟨fun s h => by rw [inter_self, s.property] at h; exact h rfl⟩
 
 variable {α : Type*} [DecidableEq α]
 
 theorem franklWilsonGraph_adj {p d : ℕ} {s t : {s : Finset α // #s = d}} :
-    (franklWilsonGraph α p d).Adj s t ↔ #(s.1 ∩ t.1) % p ≠ d % p := Iff.rfl
+    (franklWilsonGraph α p d).Adj s t ↔ #(s.val ∩ t.val) % p ≠ d % p := Iff.rfl
 
 variable [Fintype α]
 
@@ -94,11 +94,12 @@ theorem cliqueFree_franklWilsonGraph {p d : ℕ} [hp : Fact p.Prime] (hd : d % p
   intro t ht
   let L : Finset (ZMod p) := univ.erase (d : ZMod p)
   have hLc : #L = p - 1 := by simp only [L, card_erase_of_mem (mem_univ _), card_univ, ZMod.card]
-  have h := Fintype.card_le_choose_of_card_inter_mem_zmod (ι := t) (fun s => s.1.1) L
-    (fun s => s.1.2) (fun i j hij => mem_erase.2 ⟨fun h => ht.1 i.2 j.2
+  have h := Fintype.card_le_choose_of_card_inter_mem_zmod (ι := t) (fun s => s.val.val) L
+    (fun s => s.val.property)
+    (fun i j hij => mem_erase.2 ⟨fun h => ht.isClique i.property j.property
       (fun h' => hij (Subtype.ext h')) ((ZMod.natCast_eq_natCast_iff' _ _ _).1 h), mem_univ _⟩)
     (notMem_erase _ _) (by rw [hLc, hd])
-  rw [Fintype.card_coe, ht.2, hLc] at h; omega
+  rw [Fintype.card_coe, ht.card_eq, hLc] at h; omega
 
 /-- For `p > 0`, the Frankl–Wilson graph has no independent set of size `C(|α|, ⌊d / p⌋) + 1`, by
 the Ray-Chaudhuri–Wilson theorem. -/
@@ -109,21 +110,23 @@ theorem indepSetFree_franklWilsonGraph {p d : ℕ} (hp : 0 < p) :
   have hLc : #L = d / p := by
     rw [hL, card_image_of_injective _ (fun a b h =>
       Nat.eq_of_mul_eq_mul_right hp (Nat.add_right_cancel h)), card_range]
-  have h := Fintype.card_le_choose_of_card_inter_mem_of_lt (ι := t) (fun s => s.1.1) L
-    (fun s => s.1.2) (fun i j hij => ?_) ?_
-  · rw [Fintype.card_coe, ht.2, hLc] at h
+  have h := Fintype.card_le_choose_of_card_inter_mem_of_lt (ι := t) (fun s => s.val.val) L
+    (fun s => s.val.property) (fun i j hij => ?_) ?_
+  · rw [Fintype.card_coe, ht.card_eq, hLc] at h
     omega
-  · have hne : i.1 ≠ j.1 := fun h' => hij (Subtype.ext h')
-    have hmod : #(i.1.1 ∩ j.1.1) % p = d % p := not_ne_iff.1 (ht.1 i.2 j.2 hne)
-    have hlt : #(i.1.1 ∩ j.1.1) < d := by
-      refine lt_of_le_of_ne ((card_le_card inter_subset_left).trans_eq i.1.2) fun h3 => hne ?_
-      have hsub : i.1.1 ⊆ j.1.1 :=
-        inter_eq_left.1 (eq_of_subset_of_card_le inter_subset_left (by rw [h3, i.1.2]))
-      exact Subtype.ext (eq_of_subset_of_card_le hsub (by rw [i.1.2, j.1.2]))
-    have e1 := Nat.div_add_mod (#(i.1.1 ∩ j.1.1)) p
+  · have hne : i.val ≠ j.val := fun h' => hij (Subtype.ext h')
+    have hmod : #(i.val.val ∩ j.val.val) % p = d % p :=
+      not_ne_iff.1 (ht.isIndepSet i.property j.property hne)
+    have hlt : #(i.val.val ∩ j.val.val) < d := by
+      refine lt_of_le_of_ne ((card_le_card inter_subset_left).trans_eq i.val.property)
+        fun h3 => hne ?_
+      have hsub : i.val.val ⊆ j.val.val :=
+        inter_eq_left.1 (eq_of_subset_of_card_le inter_subset_left (by rw [h3, i.val.property]))
+      exact Subtype.ext (eq_of_subset_of_card_le hsub (by rw [i.val.property, j.val.property]))
+    have e1 := Nat.div_add_mod (#(i.val.val ∩ j.val.val)) p
     have e2 := Nat.div_add_mod d p
     rw [hL, mem_image]
-    refine ⟨#(i.1.1 ∩ j.1.1) / p, mem_range.2 ?_, ?_⟩
+    refine ⟨#(i.val.val ∩ j.val.val) / p, mem_range.2 ?_, ?_⟩
     · by_contra hc
       have := Nat.mul_le_mul_left p (not_lt.1 hc)
       omega

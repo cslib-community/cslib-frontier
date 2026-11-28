@@ -222,7 +222,8 @@ theorem exists_deterministic_loss_eq_and_minCumLoss_eq [Nonempty ι] {D : (ℕ �
     let ℓ_pre : ℕ → ι → ℝ := fun s i => if hs : s < t then ((prev s hs i).toNat : ℝ) else 0
     let xt := D ℓ_pre t
     fun i =>
-      if i = xt ∨ (∑ s ∈ attach (range t), (prev s.1 (mem_range.mp s.2) i).toNat) + (T - t) ≤ k
+      if i = xt ∨
+          (∑ s ∈ attach (range t), (prev s.val (mem_range.mp s.property) i).toNat) + (T - t) ≤ k
       then true else false
   let bℓ : ℕ → ι → Bool := WellFounded.fix Nat.lt_wfRel.wf step
   let nℓ : ℕ → ι → ℕ := fun t i => (bℓ t i).toNat
@@ -237,7 +238,7 @@ theorem exists_deterministic_loss_eq_and_minCumLoss_eq [Nonempty ι] {D : (ℕ �
     have hD_eq : D (fun s j => if hs : s < t then ((bℓ s j).toNat : ℝ) else 0) t = D ℓ t :=
       hD (fun s hs j => by simp only [hs, ↓reduceDIte]; exact hℓ_mem s j)
         (fun s hs => by funext j; simp only [ℓ, nℓ, hs, ↓reduceDIte])
-    have hsum_att : (∑ s ∈ attach (range t), (bℓ s.1 i).toNat) = ∑ s ∈ range t, nℓ s i :=
+    have hsum_att : (∑ s ∈ attach (range t), (bℓ s.val i).toNat) = ∑ s ∈ range t, nℓ s i :=
       sum_attach (range t) fun s => nℓ s i
     have h1 := congrArg Bool.toNat (congrFun hfix i)
     dsimp only [step] at h1
@@ -454,15 +455,15 @@ private theorem minCumLoss_coinLoss_le [Finite ι] {κ : Type*} [Fintype κ] [De
   rw [sum_range]
   have hfib := sum_fiberwise_of_maps_to (s := (univ : Finset (Fin T)))
     (t := (univ : Finset κ)) (g := block) (fun _ _ => mem_univ _)
-    (fun t : Fin T => coinLoss block emb w t.1 (emb u_star))
+    (fun t : Fin T => coinLoss block emb w t.val (emb u_star))
   rw [← hfib]
   have hinner : ∀ r : κ,
-      ∑ t ∈ S r, coinLoss block emb w t.1 (emb u_star) = L_bit r (u_star r) := by
+      ∑ t ∈ S r, coinLoss block emb w t.val (emb u_star) = L_bit r (u_star r) := by
     intro r
     refine sum_congr rfl fun t ht => ?_
     have hr : block t = r := (mem_filter.mp ht).2
-    rw [coinLoss_emb_apply block emb w t.2 u_star, Fin.eta, hr]
-  calc ∑ r : κ, ∑ t ∈ S r, coinLoss block emb w t.1 (emb u_star)
+    rw [coinLoss_emb_apply block emb w t.isLt u_star, Fin.eta, hr]
+  calc ∑ r : κ, ∑ t ∈ S r, coinLoss block emb w t.val (emb u_star)
       = ∑ r : κ, L_bit r (u_star r) := sum_congr rfl fun r _ => hinner r
     _ = ∑ r : κ, (((S r).card : ℝ) / 2 -
           (1 / 2) * |∑ t : Fin T, (if block t = r then (1 : ℝ) else 0) * signVal (w t)|) :=
@@ -593,27 +594,27 @@ theorem exists_stochastic_regret_ge_sqrt_mul_log (hn : 2 ≤ Fintype.card ι) {T
   have hcard : Fintype.card (Fin k → Bool) ≤ Fintype.card ι := by
     simpa only [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] using h2k
   obtain ⟨emb⟩ := Function.Embedding.nonempty_of_card_le hcard
-  let block : Fin T → Fin k := fun t => ⟨t.1 % k, Nat.mod_lt t.1 hk⟩
+  let block : Fin T → Fin k := fun t => ⟨t.val % k, Nat.mod_lt t.val hk⟩
   refine ⟨coinLoss block emb, coinLoss_binary block emb, fun H hH => ?_⟩
   have hreg := expect_coinLoss_regret_ge block emb hH
   refine le_trans ?_ hreg
   -- Each residue class mod `k` in `Fin T` contains at least `B = T / k` rounds.
   have hfiber : ∀ r : Fin k, B ≤ (univ.filter fun t : Fin T => block t = r).card := by
     intro r
-    let f : Fin B → Fin T := fun q => ⟨q.1 * k + r.1, by
-      have h1 : q.1 * k + r.1 < (q.1 + 1) * k := by nlinarith [r.2]
-      have h2 : (q.1 + 1) * k ≤ B * k := Nat.mul_le_mul_right k q.2
+    let f : Fin B → Fin T := fun q => ⟨q.val * k + r.val, by
+      have h1 : q.val * k + r.val < (q.val + 1) * k := by nlinarith [r.isLt]
+      have h2 : (q.val + 1) * k ≤ B * k := Nat.mul_le_mul_right k q.isLt
       have h3 : B * k ≤ T := Nat.div_mul_le_self T k
       omega⟩
     have hf_inj : Function.Injective f := by
       intro q₁ q₂ hq
-      have hv : q₁.1 * k + r.1 = q₂.1 * k + r.1 := congrArg Fin.val hq
+      have hv : q₁.val * k + r.val = q₂.val * k + r.val := congrArg Fin.val hq
       exact Fin.ext (Nat.eq_of_mul_eq_mul_right hk (Nat.add_right_cancel hv))
     have hf_mem : univ.image f ⊆ univ.filter fun t : Fin T => block t = r := by
       intro t ht
       obtain ⟨q, -, rfl⟩ := mem_image.mp ht
       simp only [mem_filter, mem_univ, true_and, block, f]
-      exact Fin.ext (by dsimp only; rw [Nat.mul_add_mod_self_right, Nat.mod_eq_of_lt r.2])
+      exact Fin.ext (by dsimp only; rw [Nat.mul_add_mod_self_right, Nat.mod_eq_of_lt r.isLt])
     calc B = (univ.image f).card := by rw [card_image_of_injective _ hf_inj, card_univ,
           Fintype.card_fin]
       _ ≤ (univ.filter fun t : Fin T => block t = r).card := card_le_card hf_mem

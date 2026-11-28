@@ -107,7 +107,7 @@ theorem IsEmbedding.exists_vertex_placement {G : Graph} {D : PolygonalDrawing G}
       simpa only [s, List.mem_toFinset.mpr hv, ↓reduceIte] using hepos v hv,
     hg, fun a => ?_, fun e => ?_, fun he => (hsame he).elim⟩
   · obtain ⟨c, hc, he⟩ := hg a
-    simp only [direction, he, Complex.real_smul, Complex.arg_real_mul _ hc]
+    simp only [direction, he, Complex.real_smul, Complex.arg_ofReal_mul hc _]
   · calc
       _ ≤ 25 ^ s.card * (F.route e).segments := hecount e
       _ ≤ 25 ^ s.card * (25 ^ s.card * (D.route e).segments) :=

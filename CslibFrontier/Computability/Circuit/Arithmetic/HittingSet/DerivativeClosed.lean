@@ -153,7 +153,7 @@ theorem not_X_pow_dvd_aeval_logSeries (hindep : AlgebraicIndependent F[X] (logSe
   set k := n * r ^ 2 + 1 with hk
   have hcol (m : Fin r) : PowerSeries.X ^ k ∣ (logDelta F n)^[m] (Ψ f) := by
     refine (pow_dvd_pow _ ?_).trans (X_pow_dvd_iterate_logDelta m hdvd)
-    have := m.2
+    have := m.isLt
     omega
   choose c hc using hcol
   have hlin (m : Fin r) : (logDelta F n)^[m] (Ψ f) =

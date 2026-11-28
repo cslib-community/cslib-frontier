@@ -67,8 +67,7 @@ theorem exec_countDigit {w L c e k : ℕ} (x : Data registers) (hk : k < L)
     obtain ⟨y, hy, hl', hq', hp', hpow', hs', hm'⟩ := this
     exact ⟨y, hy, hl', hq', hp', hpow', hs', hm',
       fun i hi => hy.regs_eq (by unfold DigitLocal at hi; decide +revert)⟩
-  unfold countDigit
-  wram_exec [*]
+  wram_exec [countDigit, *]
   · rename_i hd
     wram_simp [population_succ, starStride, digitAt, hd, hc, hpowq, hpow10]
   · rename_i hd
@@ -120,8 +119,7 @@ theorem exec_inspect {w L s : ℕ} (x : Data registers)
       (hzf _ (by decide)).trans ystars, (hzf _ (by decide)).trans ycomp,
       hzq, hzp, hzpow, hzs, hzm.trans hm⟩, hzl⟩
   refine WP.exists_execWithin ?_
-  unfold inspect inspectSetup
-  wram_exec [*]
+  wram_exec [inspect, inspectSetup, *]
   wram_call (ExecWithin.loop_count P (fun _ hy => hy.1) hb (by wram_simp; exact Nat.zero_le _)
     (by wram_simp [P, population_zero, starStride, pow_zero, Nat.div_one, e, c, *]))
     with y ⟨⟨_, _, _, _, ystars, ycomp, _, hpop, _, hstar, hm⟩, _⟩

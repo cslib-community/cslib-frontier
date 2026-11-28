@@ -273,17 +273,17 @@ private theorem exists_isCrit_not_mem_image {P : Finset (Fin m)} {H : Finset (Fi
     rw [Fintype.card_coe, Fintype.card_coe, card_erase_of_mem hi₀, hP]
     omega
   let e : H ≃ P.erase i₀ := Fintype.equivOfCardEq hcard
-  let g : Fin n → Fin m := fun j => if hj : j ∈ H then (e ⟨j, hj⟩).1 else i₀
+  let g : Fin n → Fin m := fun j => if hj : j ∈ H then (e ⟨j, hj⟩).val else i₀
   refine ⟨g, ⟨fun j hj => ?_, fun j₁ hj₁ j₂ hj₂ heq => ?_⟩, ?_⟩
   · simp only [g, hj, ↓reduceDIte]
-    exact erase_subset i₀ P (e ⟨j, hj⟩).2
+    exact erase_subset i₀ P (e ⟨j, hj⟩).property
   · rw [mem_coe] at hj₁ hj₂
     simp only [g, hj₁, hj₂, ↓reduceDIte] at heq
     simpa using e.injective (Subtype.ext heq)
   · intro h
     obtain ⟨j, hj, heq⟩ := mem_image.1 h
     simp only [g, hj, ↓reduceDIte] at heq
-    exact (mem_erase.1 (e ⟨j, hj⟩).2).1 heq
+    exact (mem_erase.1 (e ⟨j, hj⟩).property).1 heq
 
 /-- If a variable `v` changes truth value when hole `j ∈ H` is updated to `i₀`, then `v` lies in
 column `j` and `matchPair i₀ j` assigns `v` its new truth value. -/

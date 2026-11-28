@@ -605,7 +605,7 @@ private theorem choiceDigits_surjective (p : ℤ → Prop) [DecidablePred p] :
     Function.Surjective (choiceDigits (w := w) p) := by
   intro y
   refine ⟨fun j => (Equiv.sigmaSubtype (j : Fin d)).symm
-    ⟨y j, by simpa [sideSize, mem_wordBlocks.mp j.2] using (y j).isLt⟩, ?_⟩
+    ⟨y j, by simpa [sideSize, mem_wordBlocks.mp j.property] using (y j).isLt⟩, ?_⟩
   funext j
   by_cases h : p (w j)
   · ext
@@ -675,7 +675,7 @@ private theorem relMatrix_wordPoly_apply (τ : ℕ)
   rfl
 
 /-- A matrix containing an identity submatrix has rank at least its size. -/
-private theorem card_le_rank_of_submatrix_eq_one {α β γ F : Type*} [Field F] [Fintype β]
+private theorem card_le_rank_of_submatrix_eq_one {α β γ F : Type*} [Field F] [Finite β]
     [Fintype γ] [DecidableEq γ] (M : Matrix α β F) (f : γ → α) (g : γ → β)
     (h : M.submatrix f g = 1) : Fintype.card γ ≤ M.rank := by
   rw [← Matrix.rank_one (R := F) (n := γ), ← h]

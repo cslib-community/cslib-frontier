@@ -100,7 +100,7 @@ theorem continuous_criticalMinimumValue {A : Type*} [TopologicalSpace A] {ell : 
   · simp only [eval_deformedPolynomial]
     let Domain := (A × Ici (0 : ℝ)) × (Fin n → ℝ)
     have hu : Continuous (fun q : Domain => (q.fst.snd : ℝ)) :=
-      continuous_subtype_val.comp (continuous_snd.comp continuous_fst)
+      continuous_subtypeVal.comp (continuous_snd.comp continuous_fst)
     have hv : Continuous (fun q : Domain => eval q.snd (F q.fst.fst)) :=
       hF.comp ((continuous_fst.comp continuous_fst).prodMk continuous_snd)
     exact ((continuous_eval (potentialPolynomial ell a)).comp continuous_snd).add

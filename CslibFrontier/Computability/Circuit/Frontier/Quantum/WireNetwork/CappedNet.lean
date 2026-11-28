@@ -42,7 +42,7 @@ private theorem OpenState.sum_comp_eq {d : ℕ} {W : Type} [Fintype W] [Decidabl
     (Comp : Set (S.V ⊕ W)) [DecidablePred (· ∈ Comp)] [Fintype Comp]
     (hreach_mem : ∀ q : W, (.inl (S.inVert q) : S.V ⊕ W) ∈ Comp ↔ (.inr q : S.V ⊕ W) ∈ Comp)
     (f : S.V ⊕ W → ℕ) :
-    (∑ w : Comp, f w.1) =
+    (∑ w : Comp, f w.val) =
       (∑ q ∈ Finset.univ.filter (fun q : W => (.inl (S.inVert q) : S.V ⊕ W) ∈ Comp),
         f (.inl (S.inVert q))) +
       (∑ q ∈ Finset.univ.filter (fun q : W => (.inl (S.inVert q) : S.V ⊕ W) ∈ Comp),
@@ -54,7 +54,7 @@ private theorem OpenState.sum_comp_eq {d : ℕ} {W : Type} [Fintype W] [Decidabl
   let outV : W ↪ S.V ⊕ W := ⟨Sum.inr, Sum.inr_injective⟩
   set FW := Finset.univ.filter (fun q : W => (.inl (S.inVert q) : S.V ⊕ W) ∈ Comp)
   set FI := Finset.univ.filter (fun u : S.V => (.inl u : S.V ⊕ W) ∈ Comp ∧ u ∉ Set.range S.inVert)
-  have hsub : (∑ w : Comp, f w.1) = ∑ v ∈ Finset.univ.filter (· ∈ Comp), f v :=
+  have hsub : (∑ w : Comp, f w.val) = ∑ v ∈ Finset.univ.filter (· ∈ Comp), f v :=
     (Finset.sum_subtype (Finset.univ.filter (· ∈ Comp))
       (fun _ => Finset.mem_filter.trans (and_iff_right (Finset.mem_univ _))) f).symm
   rw [hsub]
@@ -147,16 +147,16 @@ private theorem OpenState.toCappedWireNet {d : ℕ} (hd : d = 3 ∨ d = 4) {W : 
     have hloopless_ind : (G_fin.induce Comp).Loopless :=
       (capGraph_loopless S.loopless S.tip).induce Comp
     have hinc_eq (w : Comp) :
-        ((G_fin.induce Comp).incidenceSet w).ncard = (G_fin.incidenceSet w.1).ncard := by
-      have himg : G_fin.incidenceSet w.1 = Subtype.val '' (G_fin.induce Comp).incidenceSet w := by
+        ((G_fin.induce Comp).incidenceSet w).ncard = (G_fin.incidenceSet w.val).ncard := by
+      have himg : G_fin.incidenceSet w.val = Subtype.val '' (G_fin.induce Comp).incidenceSet w := by
         ext e
         constructor
         · intro he
           have hboth : G_fin.src e ∈ Comp ∧ G_fin.tgt e ∈ Comp := by
             have hce := G_fin.edgeCut_eq_empty_iff.mp hComp_cut e
             rcases he with hs | ht
-            · exact ⟨hs ▸ w.2, hce.mp (hs ▸ w.2)⟩
-            · exact ⟨hce.mpr (ht ▸ w.2), ht ▸ w.2⟩
+            · exact ⟨hs ▸ w.property, hce.mp (hs ▸ w.property)⟩
+            · exact ⟨hce.mpr (ht ▸ w.property), ht ▸ w.property⟩
           refine ⟨⟨e, hboth⟩, ?_, rfl⟩
           exact he.imp Subtype.ext Subtype.ext
         · rintro ⟨e', he', rfl⟩
@@ -181,7 +181,7 @@ private theorem OpenState.toCappedWireNet {d : ℕ} (hd : d = 3 ∨ d = 4) {W : 
       rw [← ncard_coe_finset]; congr 1; ext q; simp
     have hcardI : (Finset.univ.filter (· ∈ I_gate)).card = I_gate.ncard := by
       rw [← ncard_coe_finset]; congr 1; ext u; simp
-    have hsum_deg : (∑ w : Comp, (G_fin.incidenceSet w.1).ncard) =
+    have hsum_deg : (∑ w : Comp, (G_fin.incidenceSet w.val).ncard) =
         2 * W_in.ncard + d * I_gate.ncard := by
       rw [S.sum_comp_eq Comp hreach_mem (fun w => (G_fin.incidenceSet w).ncard)]
       change (∑ q ∈ Finset.univ.filter (· ∈ W_in), (G_fin.incidenceSet (inV q)).ncard) +

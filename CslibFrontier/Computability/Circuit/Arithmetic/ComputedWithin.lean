@@ -279,16 +279,16 @@ theorem exists_steps (h : ComputedWithin P s) :
   have hl : ∀ w, l (pos w) = MvPolynomial.rename x (v w) := by
     intro w
     cases w with
-    | input i => simp [l, pos, i.2]
+    | input i => simp [l, pos, i.isLt]
     | gate j =>
       have h1 : ¬ n + (j : ℕ) < n := by omega
       have h2 : n + (j : ℕ) - n = j := by omega
-      simp only [l, pos, dite_eq_right h1, h2, j.2, dite_true]
+      simp only [l, pos, dite_eq_right h1, h2, j.isLt, dite_true]
   have hpos : ∀ w, pos w < n + c.size := by
     intro w
     cases w with
-    | input i => exact lt_of_lt_of_le i.2 (Nat.le_add_right _ _)
-    | gate j => exact Nat.add_lt_add_left j.2 n
+    | input i => exact lt_of_lt_of_le i.isLt (Nat.le_add_right _ _)
+    | gate j => exact Nat.add_lt_add_left j.isLt n
   refine ⟨l, fun k hk => ?_, pos (c.outputs 0), (hpos _).trans_le hs, ?_⟩
   · by_cases hkn : k < n
     · left

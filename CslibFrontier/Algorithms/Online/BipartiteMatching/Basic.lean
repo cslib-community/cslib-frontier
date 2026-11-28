@@ -94,7 +94,7 @@ variable {L R : Type*}
 neighborhood `arrivals[j]`. -/
 @[expose] def graphOfArrivals [DecidableEq L] (arrivals : List (Finset L)) :
     L × Fin arrivals.length → Bool
-  | (u, j) => decide (u ∈ arrivals[j.1])
+  | (u, j) => decide (u ∈ arrivals[j.val])
 
 /-- `M` is a maximal matching in `G` if `M` is a matching and every edge of `G` shares an endpoint
 with some edge in `M`. -/
@@ -369,16 +369,16 @@ private theorem runChoicesFrom_valid (hist : List (Finset L)) (matched : Finset 
 /-- The matching (set of `(offline, online)` edges) produced by `A` on `arrivals`. -/
 @[expose] def runMatching (arrivals : List (Finset L)) : Finset (L × Fin arrivals.length) :=
   Finset.univ.biUnion fun j : Fin arrivals.length =>
-    match (A.runChoices arrivals)[j.1]'(by simp [j.2]) with
+    match (A.runChoices arrivals)[j.val]'(by simp [j.isLt]) with
     | some u => {(u, j)}
     | none => ∅
 
 theorem mem_runMatching_iff (arrivals : List (Finset L)) (u : L) (j : Fin arrivals.length) :
     (u, j) ∈ A.runMatching arrivals ↔
-      (A.runChoices arrivals)[j.1]'(by simp [j.2]) = some u := by
+      (A.runChoices arrivals)[j.val]'(by simp [j.isLt]) = some u := by
   simp only [runMatching, Finset.mem_biUnion, Finset.mem_univ, true_and]
   refine ⟨fun ⟨j', hj'⟩ => ?_, fun h => ⟨j, by simp [h]⟩⟩
-  cases h : (A.runChoices arrivals)[j'.1]'(by simp [j'.2]) with
+  cases h : (A.runChoices arrivals)[j'.val]'(by simp [j'.isLt]) with
   | none => simp [h] at hj'
   | some w =>
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Finset.mem_singleton.mp (by simpa [h] using hj'))
@@ -393,10 +393,10 @@ theorem isMatching_runMatching (arrivals : List (Finset L)) :
   · rintro ⟨u, j⟩ huj
     rw [mem_runMatching_iff] at huj
     simp only [graphOfArrivals, decide_eq_true_eq]
-    exact (hmem j.1 j.2 u huj).1
+    exact (hmem j.val j.isLt u huj).1
   · intro u j₁ j₂ h₁ h₂
     rw [mem_runMatching_iff] at h₁ h₂
-    exact Fin.ext (hinj j₁.1 j₂.1 j₁.2 j₂.2 u h₁ h₂)
+    exact Fin.ext (hinj j₁.val j₂.val j₁.isLt j₂.isLt u h₁ h₂)
   · intro u₁ u₂ j h₁ h₂
     rw [mem_runMatching_iff] at h₁ h₂
     exact Option.some.inj (h₁.symm.trans h₂)
@@ -408,7 +408,7 @@ theorem image_fst_runMatching (arrivals : List (Finset L)) :
   constructor
   · rintro ⟨⟨u', j⟩, hj, rfl⟩
     rw [mem_runMatching_iff] at hj
-    exact ⟨j.1, by simp [j.2], hj⟩
+    exact ⟨j.val, by simp [j.isLt], hj⟩
   · rintro ⟨i, hi, hui⟩
     have hi' : i < arrivals.length := by simpa using hi
     exact ⟨(u, ⟨i, hi'⟩), (A.mem_runMatching_iff arrivals u ⟨i, hi'⟩).mpr hui, rfl⟩
@@ -424,7 +424,7 @@ theorem card_runMatching_eq_card_matchedLeft (arrivals : List (Finset L)) :
   rw [← image_fst_runMatching, Finset.card_image_of_injOn hinj]
 
 private theorem card_filter_isSome_eq_countP {α : Type*} (l : List (Option α)) :
-    (Finset.univ.filter fun j : Fin l.length => l[j.1].isSome).card =
+    (Finset.univ.filter fun j : Fin l.length => l[j.val].isSome).card =
       l.countP Option.isSome := by
   induction l with
   | nil => simp
@@ -442,7 +442,7 @@ private theorem card_filter_isSome_eq_countP {α : Type*} (l : List (Option α))
 theorem card_runMatching_eq_sum (arrivals : List (Finset L)) :
     (A.runMatching arrivals).card =
       ∑ j : Fin arrivals.length,
-        if ((A.runChoices arrivals)[j.1]'(by simp [j.2])).isSome then 1 else 0 := by
+        if ((A.runChoices arrivals)[j.val]'(by simp [j.isLt])).isSome then 1 else 0 := by
   have hM := A.isMatching_runMatching arrivals
   have hinj : Set.InjOn Prod.snd (A.runMatching arrivals : Set (L × Fin arrivals.length)) := by
     intro ⟨u₁, j₁⟩ h₁ ⟨u₂, j₂⟩ h₂ (hv : j₁ = j₂)
@@ -450,7 +450,7 @@ theorem card_runMatching_eq_sum (arrivals : List (Finset L)) :
     exact Prod.ext (hM.2.2 u₁ u₂ j₁ h₁ h₂) rfl
   have himg : (A.runMatching arrivals).image Prod.snd =
       Finset.univ.filter fun j : Fin arrivals.length =>
-        ((A.runChoices arrivals)[j.1]'(by simp [j.2])).isSome := by
+        ((A.runChoices arrivals)[j.val]'(by simp [j.isLt])).isSome := by
     ext j
     simp only [Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and, Prod.exists]
     constructor
@@ -458,7 +458,7 @@ theorem card_runMatching_eq_sum (arrivals : List (Finset L)) :
       rw [mem_runMatching_iff] at hmem
       simp [hmem]
     · intro hsome
-      cases h : (A.runChoices arrivals)[j.1]'(by simp [j.2]) with
+      cases h : (A.runChoices arrivals)[j.val]'(by simp [j.isLt]) with
       | none => simp [h] at hsome
       | some u =>
         exact ⟨u, j, (A.mem_runMatching_iff arrivals u j).mpr h, rfl⟩
@@ -471,13 +471,13 @@ theorem card_runMatching_eq_countP (arrivals : List (Finset L)) :
   rw [card_runMatching_eq_sum, ← card_filter_isSome_eq_countP]
   simp only [Finset.sum_boole, Nat.cast_id]
   have hlen : (A.runChoices arrivals).length = arrivals.length := A.length_runChoices arrivals
-  refine Finset.card_bij (fun j _ => ⟨j.1, by omega⟩) ?_ ?_ ?_
+  refine Finset.card_bij (fun j _ => ⟨j.val, by omega⟩) ?_ ?_ ?_
   · intro j hj
     simpa using hj
   · intro j₁ _ j₂ _ h
     exact Fin.ext (by simpa using congrArg Fin.val h)
   · intro j hj
-    exact ⟨⟨j.1, by omega⟩, by simpa using hj, Fin.ext rfl⟩
+    exact ⟨⟨j.val, by omega⟩, by simpa using hj, Fin.ext rfl⟩
 
 theorem card_runMatching_le_length (arrivals : List (Finset L)) :
     (A.runMatching arrivals).card ≤ arrivals.length := by
@@ -501,12 +501,13 @@ theorem isMaximalMatching_runMatching_of_isGreedy (hA : A.IsGreedy) (arrivals : 
     obtain ⟨⟨u', j'⟩, hmem, rfl⟩ := Finset.mem_image.mp hu
     exact Or.inl ⟨j', hmem⟩
   · right
-    have hu_pre : u ∉ A.matchedLeft (arrivals.take j.1) :=
-      fun hmem => hu (A.matchedLeft_take_subset arrivals j.1 hmem)
+    have hu_pre : u ∉ A.matchedLeft (arrivals.take j.val) :=
+      fun hmem => hu (A.matchedLeft_take_subset arrivals j.val hmem)
     obtain ⟨w, hwN, hwm, hchoose⟩ :=
-      hA (arrivals.take j.1) (A.matchedLeft (arrivals.take j.1)) arrivals[j.1] ⟨u, huj, hu_pre⟩
+      hA (arrivals.take j.val) (A.matchedLeft (arrivals.take j.val))
+        arrivals[j.val] ⟨u, huj, hu_pre⟩
     refine ⟨w, (A.mem_runMatching_iff arrivals w j).mpr ?_⟩
-    rw [A.runChoices_getElem arrivals j.2]
+    rw [A.runChoices_getElem arrivals j.isLt]
     exact onlineStep_eq_some_iff.mpr ⟨hchoose, hwN, hwm⟩
 
 /-- **Greedy `1/2`-competitiveness:** every greedy deterministic online matching algorithm
@@ -525,7 +526,7 @@ end Deterministic
 section DeterministicLowerBound
 
 private def pairVertex (k : ℕ) (i : Fin k) (b : Bool) : Fin (2 * k) :=
-  ⟨2 * i.1 + if b then 1 else 0, by cases b <;> dsimp <;> omega⟩
+  ⟨2 * i.val + if b then 1 else 0, by cases b <;> dsimp <;> omega⟩
 
 /-- Adaptive `k`-gadget adversarial construction on `Fin (2 * k)`: builds `m` pairs of arrivals
 for `0 ≤ i < m`, each pair touching only `{2i, 2i + 1}`, matching at most `1` edge per pair while
@@ -598,7 +599,7 @@ private theorem detHardPrefix_exists_matching (k : ℕ) (A : DetAlg (Fin (2 * k)
     ∃ M : Finset (Fin (2 * k) × Fin (detHardPrefix k A m hm).length),
       IsMatching (graphOfArrivals (detHardPrefix k A m hm)) M ∧
       M.card = 2 * m ∧
-      ∀ e ∈ M, e.1.1 < 2 * m := by
+      ∀ e ∈ M, e.1.val < 2 * m := by
   induction m with
   | zero =>
     refine ⟨∅, ⟨by simp, by simp, by simp⟩, rfl, by simp⟩
@@ -616,7 +617,7 @@ private theorem detHardPrefix_exists_matching (k : ℕ) (A : DetAlg (Fin (2 * k)
     have hfull_eq : full = pref ++ [N₀, N₁] := rfl
     have hlen_pref : pref.length = 2 * m := length_detHardPrefix k A m hm'
     have hlen_full : full.length = 2 * (m + 1) := length_detHardPrefix k A (m + 1) hm
-    let liftJ : Fin pref.length → Fin full.length := fun j => ⟨j.1, by omega⟩
+    let liftJ : Fin pref.length → Fin full.length := fun j => ⟨j.val, by omega⟩
     let M₀' : Finset (Fin (2 * k) × Fin full.length) := M₀.image fun e => (e.1, liftJ e.2)
     have hlift_inj :
         Function.Injective (fun e : Fin (2 * k) × Fin pref.length => (e.1, liftJ e.2)) := by
@@ -627,13 +628,13 @@ private theorem detHardPrefix_exists_matching (k : ℕ) (A : DetAlg (Fin (2 * k)
       rw [Finset.card_image_of_injective _ hlift_inj, hcard₀]
     have hpair : ∃ a₀ a₁ : Fin (2 * k),
         a₀ ∈ N₀ ∧ a₁ ∈ N₁ ∧ a₀ ≠ a₁ ∧
-          (2 * m ≤ a₀.1 ∧ a₀.1 < 2 * (m + 1)) ∧ (2 * m ≤ a₁.1 ∧ a₁.1 < 2 * (m + 1)) := by
-      have hu₀_val : u₀.1 = 2 * m := by simp [u₀, pairVertex]
-      have hu₁_val : u₁.1 = 2 * m + 1 := by simp [u₁, pairVertex]
+          (2 * m ≤ a₀.val ∧ a₀.val < 2 * (m + 1)) ∧ (2 * m ≤ a₁.val ∧ a₁.val < 2 * (m + 1)) := by
+      have hu₀_val : u₀.val = 2 * m := by simp [u₀, pairVertex]
+      have hu₁_val : u₁.val = 2 * m + 1 := by simp [u₁, pairVertex]
       have hne : u₀ ≠ u₁ := fun h => by
         have := congrArg Fin.val h
         omega
-      have hbd {a : Fin (2 * k)} (ha : a = u₀ ∨ a = u₁) : 2 * m ≤ a.1 ∧ a.1 < 2 * (m + 1) := by
+      have hbd {a : Fin (2 * k)} (ha : a = u₀ ∨ a = u₁) : 2 * m ≤ a.val ∧ a.val < 2 * (m + 1) := by
         rcases ha with rfl | rfl <;> omega
       cases hc : c with
       | none =>
@@ -646,13 +647,13 @@ private theorem detHardPrefix_exists_matching (k : ℕ) (A : DetAlg (Fin (2 * k)
     obtain ⟨a₀, a₁, ha₀N₀, ha₁N₁, hne_a, ⟨ha₀_ge, ha₀_lt⟩, ⟨ha₁_ge, ha₁_lt⟩⟩ := hpair
     let j₀ : Fin full.length := ⟨2 * m, by omega⟩
     let j₁ : Fin full.length := ⟨2 * m + 1, by omega⟩
-    have hj₀_val : j₀.1 = 2 * m := rfl
-    have hj₁_val : j₁.1 = 2 * m + 1 := rfl
+    have hj₀_val : j₀.val = 2 * m := rfl
+    have hj₁_val : j₁.val = 2 * m + 1 := rfl
     have hj_ne : j₀ ≠ j₁ := fun h => by
       have := congrArg Fin.val h
       omega
     have hM₀'_lt {x : Fin (2 * k)} {v : Fin full.length} (h : (x, v) ∈ M₀') :
-        x.1 < 2 * m ∧ v.1 < 2 * m := by
+        x.val < 2 * m ∧ v.val < 2 * m := by
       obtain ⟨⟨u, j⟩, hj, heq⟩ := Finset.mem_image.mp h
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq
       exact ⟨hlt₀ (u, j) hj, by dsimp [liftJ]; omega⟩
@@ -680,7 +681,7 @@ private theorem detHardPrefix_exists_matching (k : ℕ) (A : DetAlg (Fin (2 * k)
           rw [List.getElem_append_right (by omega : pref.length ≤ 2 * m + 1)]
           simpa [hlen_pref] using ha₁N₁
         · simp only [graphOfArrivals, decide_eq_true_eq, full, hfull_eq, liftJ]
-          rw [List.getElem_append_left j.2]
+          rw [List.getElem_append_left j.isLt]
           simpa [graphOfArrivals] using hM₀.1 (u, j) hj
       · intro u v₁ v₂ h₁ h₂
         simp only [Finset.mem_insert, Prod.mk.injEq] at h₁ h₂

@@ -190,7 +190,7 @@ private theorem uniformOfFintype_map_counterWords (P : Params) {w count : ℕ}
       ← BitString.ofFn_ofList (length_nonceWord P j)]
     exact congrArg List.ofFn h
   have h := BitString.uniformOfFintype_map_readPrefixes ⟨_, hinj⟩ (fun i => width i)
-    fun i => hwidth i i.2
+    fun i => hwidth i i.isLt
   rw [Fin.sum_univ_eq_sum_range (fun N => width N) count] at h
   rw [← h]
   congr 1

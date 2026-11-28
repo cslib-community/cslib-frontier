@@ -65,7 +65,7 @@ variable {X Y : Type*}
 /-- The `z`-cover number of `R` on `A × B`: the least number of rectangles in a `z`-cover of `R` on
 `A × B`, or `⊤` if there is none. -/
 noncomputable def coverNumber (z : Bool) (R : X → Y → Bool → Prop) (A : Set X) (B : Set Y) : ℕ∞ :=
-  ⨅ r : {r : ℕ // ∃ C : Fin r → Set X × Set Y, IsCover z R A B C}, (r.1 : ℕ∞)
+  ⨅ r : {r : ℕ // ∃ C : Fin r → Set X × Set Y, IsCover z R A B C}, (r.val : ℕ∞)
 
 /-- The `z`-cover number of `f` on `A × B`: `coverNumber` of the relation `f x y = b`. For
 `z = true` on all of `X × Y` this is the rectangle covering bound of the Boolean matrix `f`. -/

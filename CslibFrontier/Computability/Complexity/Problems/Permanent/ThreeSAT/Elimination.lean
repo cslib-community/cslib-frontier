@@ -106,7 +106,7 @@ theorem stageMatrix_succ {k : ℕ} :
 
 theorem stageMatrix_length : stageMatrix φ φ.length = trackMatrix φ := by
   funext u v
-  have := u.2
+  have := u.isLt
   unfold size at this
   simp only [stageMatrix, gadgetFrom, trackMatrix]
   rw [ite_eq_right (by omega), zero_add]
@@ -189,7 +189,7 @@ theorem stageMatrix_succ_col (b : Fin 8) (hb : ∀ p, b ≠ entryE p) (u : Fin (
 
 theorem mem_gadget (u : Fin (size φ)) :
     u ∈ univ.map (gadgetEmb φ k hk) ↔ numAux φ ≤ u.val ∧ (u.val - numAux φ) / 8 = k := by
-  have hu := u.2
+  have hu := u.isLt
   unfold size at hu
   simp only [mem_map, mem_univ, true_and]
   constructor
@@ -334,7 +334,7 @@ theorem stageChoices_succ (k : ℕ) :
       · obtain ⟨p, hp, hm⟩ := hcov j hjk
         exact ⟨p, hp, mem_union_left _ hm⟩
       · obtain ⟨p, hp⟩ := hQ
-        refine ⟨p, p.2, mem_union_right _ (mem_image.2 ⟨p, hp, ?_⟩)⟩
+        refine ⟨p, p.isLt, mem_union_right _ (mem_image.2 ⟨p, hp, ?_⟩)⟩
         rw [show j = k by omega]
 
 /-- After eliminating the gadgets of the first `k` clauses. -/
@@ -399,7 +399,7 @@ theorem permanent_fullMatrix_tracks (hφ : WellFormed φ) :
   refine sum_congr rfl fun P hP => ?_
   have hPsub : P ⊆ range (numOcc φ) := mem_powerset.1 (mem_filter.1 hP).1
   have hR : stageRows φ φ.length P = rowSet φ P := by
-    ext u; have := u.2; unfold size at this
+    ext u; have := u.isLt; unfold size at this
     rw [stageRows, rowSet, mem_filter, mem_filter]
     simp only [mem_univ, true_and]
     unfold InRows
@@ -412,7 +412,7 @@ theorem permanent_fullMatrix_tracks (hφ : WellFormed φ) :
       · exact Or.inl h
       · exact Or.inr (Or.inr h)
   have hC : stageCols φ φ.length P = colSet φ P := by
-    ext u; have := u.2; unfold size at this
+    ext u; have := u.isLt; unfold size at this
     rw [stageCols, colSet, mem_filter, mem_filter]
     simp only [mem_univ, true_and]
     unfold InCols
@@ -483,10 +483,10 @@ theorem card_satOcc (hφ : WellFormed φ) :
       simpa only [getD_varList_idxOf hv'] using this
     · intro h
       funext i
-      exact h _ (CNF.mem_distinctVars.1 (getD_varList_mem i.2))
+      exact h _ (CNF.mem_distinctVars.1 (getD_varList_mem i.isLt))
   · constructor
     · intro ha
-      refine ⟨assignVal φ a, ?_, funext fun i => assignVal_getD a i.2⟩
+      refine ⟨assignVal φ a, ?_, funext fun i => assignVal_getD a i.isLt⟩
       rw [CNF.eval_eq_true_iff]
       intro c hc
       obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hc

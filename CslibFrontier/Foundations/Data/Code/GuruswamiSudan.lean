@@ -430,7 +430,7 @@ theorem isWeightedInterpolant_weightedInterpolant (α w : ι → F) {mult : ι �
   obtain ⟨h0, hwd, hvan⟩ := Sudan.minDegPoly_spec (shiftEntry α w mult) (shiftCoeff α w mult)
     (shiftCoeff_bivariateOf α w mult) hd
     ⟨Q₀, hQ₀.ne_zero, hQ₀.weightedDegree_le,
-      fun row => hQ₀.vanishes row.1 _ _ (mem_multPairs.1 row.2.2)⟩
+      fun row => hQ₀.vanishes row.1 _ _ (mem_multPairs.1 row.2.property)⟩
   exact ⟨h0, hwd, fun i r s hrs => hvan ⟨i, ⟨(r, s), mem_multPairs.2 hrs⟩⟩⟩
 
 /-- **The elimination interpolant has least `Y`-degree** among all weighted-multiplicity
@@ -441,7 +441,7 @@ theorem natDegree_weightedInterpolant_le (α w : ι → F) {mult : ι → ℕ} {
     (weightedInterpolant α w mult d D).natDegree ≤ Q.natDegree :=
   Sudan.natDegree_minDegPoly_le (shiftEntry α w mult) (shiftCoeff α w mult)
     (shiftCoeff_bivariateOf α w mult) hd hQ.ne_zero hQ.weightedDegree_le
-    fun row => hQ.vanishes row.1 _ _ (mem_multPairs.1 row.2.2)
+    fun row => hQ.vanishes row.1 _ _ (mem_multPairs.1 row.2.property)
 
 /-- **The uniform elimination interpolant is a multiplicity-`m` interpolant.** For `d ≥ 1` and
 strictly more monomials of `(1, d)`-weighted degree at most `D` than multiplicity-`m` constraints,

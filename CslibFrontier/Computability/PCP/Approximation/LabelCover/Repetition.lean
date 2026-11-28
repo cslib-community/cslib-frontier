@@ -156,7 +156,7 @@ theorem countP_tuples {α : Type*} (l : List α) :
     rw [card_eq_sum_ones, sum_filter]
     refine Finset.sum_congr rfl fun t _ => ?_
     have hcons : (fun i => l.get ((Fin.consEquiv fun _ => Fin l.length) (a, t) i)) =
-        Fin.cons l[a.1] fun i => l.get (t i) :=
+        Fin.cons l[a.val] fun i => l.get (t i) :=
       funext fun i => Fin.cases (by simp) (fun _ => by simp) i
     rw [hcons]
 
@@ -366,7 +366,7 @@ theorem one_sub_unsatVal_pow_le [Fintype β] [Fintype γ] {g : Graph (β → γ)
   have ht : 0 ≤ (k : ℝ) / Real.logb 2 (Fintype.card β * Fintype.card γ) :=
     div_nonneg k.cast_nonneg (Real.logb_nonneg one_lt_two (by exact_mod_cast (by omega : 1 ≤ _)))
   rcases eq_or_ne g.edges [] with hg | hg
-  · have : IsEmpty (Fin g.edges.length) := ⟨fun i => by simpa [hg] using i.2⟩
+  · have : IsEmpty (Fin g.edges.length) := ⟨fun i => by simpa [hg] using i.isLt⟩
     have h0 := (g.toGraph projectionEval).unsatVal_of_isEmpty
     have hε0 : ε ^ 3 ≤ 0 := Odd.pow_nonpos (by decide) (hε.trans h0.le)
     refine le_trans ?_ (Real.one_le_rpow (by linarith) ht)

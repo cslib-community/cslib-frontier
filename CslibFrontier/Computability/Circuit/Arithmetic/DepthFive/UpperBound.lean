@@ -64,8 +64,8 @@ private theorem prod_block_apply (t j : ℕ) (Q : Fin (t + 1) → Fin n) :
         (Q i.castSucc) (Q i.succ) =
       C (if ∀ i : Fin t, ¬ j * t + i < n → Q i.castSucc = Q i.succ then 1 else 0) *
         ∏ k : Fin (min t (n - j * t)),
-          X ((⟨j * t + k, by have := k.2; omega⟩ : Fin n),
-            Q ⟨k, by have := k.2; omega⟩, Q ⟨k + 1, by have := k.2; omega⟩) := by
+          X ((⟨j * t + k, by have := k.isLt; omega⟩ : Fin n),
+            Q ⟨k, by have := k.isLt; omega⟩, Q ⟨k + 1, by have := k.isLt; omega⟩) := by
   have key (i : Fin t) :
       (if hi : j * t + i < n then immMatrix K n n ⟨j * t + i, hi⟩ else 1)
           (Q i.castSucc) (Q i.succ) =
@@ -73,7 +73,7 @@ private theorem prod_block_apply (t j : ℕ) (Q : Fin (t + 1) → Fin n) :
           X ((⟨j * t + i, by omega⟩ : Fin n), Q ⟨i, by omega⟩, Q ⟨i + 1, by omega⟩) else 1) *
         C (if ¬ j * t + i < n → Q i.castSucc = Q i.succ then (1 : K) else 0) := by
     by_cases hi : j * t + i < n
-    · have hi' : (i : ℕ) < min t (n - j * t) := by have := i.2; omega
+    · have hi' : (i : ℕ) < min t (n - j * t) := by have := i.isLt; omega
       simp only [hi, hi', ↓reduceDIte, not_true_eq_false, IsEmpty.forall_iff, ↓reduceIte,
         map_one, mul_one]
       rfl
@@ -82,8 +82,8 @@ private theorem prod_block_apply (t j : ℕ) (Q : Fin (t + 1) → Fin n) :
   simp_rw [key]
   rw [Finset.prod_mul_distrib, ← List.prod_ofFn,
     List.prod_ofFn_dite_lt (Nat.min_le_left _ _) (fun k : Fin (min t (n - j * t)) =>
-      (X ((⟨j * t + k, by have := k.2; omega⟩ : Fin n),
-        Q ⟨k, by have := k.2; omega⟩, Q ⟨k + 1, by have := k.2; omega⟩) : MvPolynomial _ K)),
+      (X ((⟨j * t + k, by have := k.isLt; omega⟩ : Fin n),
+        Q ⟨k, by have := k.isLt; omega⟩, Q ⟨k + 1, by have := k.isLt; omega⟩) : MvPolynomial _ K)),
     List.prod_ofFn, ← map_prod, Finset.prod_ite_zero, mul_comm]
   simp
 
@@ -99,8 +99,8 @@ theorem exists_circuit_imm_of_le_mul (K : Type*) [CommSemiring K] {n : ℕ} [NeZ
     (Λ := Fin (t + 1) → Fin n) (fun j => min t (n - j * t))
     (fun j a b Q => if Q 0 = a ∧ Q (Fin.last t) = b then
       (if ∀ i : Fin t, ¬ (j : ℕ) * t + i < n → Q i.castSucc = Q i.succ then 1 else 0) else 0)
-    (fun j Q k => ((⟨j * t + k, by have := k.2; omega⟩ : Fin n),
-      Q ⟨k, by have := k.2; omega⟩, Q ⟨k + 1, by have := k.2; omega⟩))
+    (fun j Q k => ((⟨j * t + k, by have := k.isLt; omega⟩ : Fin n),
+      Q ⟨k, by have := k.isLt; omega⟩, Q ⟨k + 1, by have := k.isLt; omega⟩))
   refine ⟨d, hd.trans ?_, by simpa using hs⟩
   rw [imm, ← List.prod_ofFn_dite_lt h (immMatrix K n n), List.ofFn_mul, List.prod_flatten,
     List.map_ofFn]

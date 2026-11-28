@@ -162,8 +162,8 @@ kernel program, and `roundGame ν` the hybrid `j + 1` (`roundEnv_succ_bind_round
         ((s : Fin (spec₁.arity op)) → spec₁.Answer op s)))
     (I : Finset (Fin m)) {State Out : Fin m → Type} {sc₁ : Schedule m spec₁}
     (steps : Steps State Out sc₁) (j : ℕ) (st : (i : Fin m) → State i)
-    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-      Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) →
+    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+      Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i) →
         ProbComp Bool) :
     PMF (Bool ⊕ RoundChallenge sc₂ Coins₂) :=
   match steps, j with
@@ -173,7 +173,7 @@ kernel program, and `roundGame ν` the hybrid `j + 1` (`roundEnv_succ_bind_round
     roundEnv W₁ S₂ ν I next j (fun i => (st i, Round.deliverMessage (send (st s₀)) i))
       fun res => D (fun i : I => ((res.1 i).1,
         (Round.deliverMessage (spec := spec₂) (sender := s₀) (receiver := r₀)
-          (send (st s₀)) i.1, (res.1 i).2)), res.2)
+          (send (st s₀)) i.val, (res.1 i).2)), res.2)
   | .oracle (op := op) (parties := parties) query next, 0 =>
     PMF.pure (Sum.inr
       { op := op
@@ -203,8 +203,8 @@ variable (W₁ : MultiOracleWorld spec₁)
 /-- **The first hybrid is the ideal run.** The game of the environment of hop `0` on the ideal
 joint distributions is the kernel program on these distributions followed by the test. -/
 theorem roundEnv_zero_bind_roundGame (steps : Steps State Out sc₁) (st : (i : Fin m) → State i)
-    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-      Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) →
+    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+      Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i) →
         ProbComp Bool) :
     (roundEnv W₁ S₂ ν I steps 0 st D).bind
         (roundGame fun op J q => ProbComp.eval (idealJoint (W₁ op) J (S₂ op J) q)) =
@@ -226,8 +226,8 @@ theorem roundEnv_zero_bind_roundGame (steps : Steps State Out sc₁) (st : (i : 
 distributions. -/
 theorem roundEnv_succ_bind_roundGame (steps : Steps State Out sc₁) (j : ℕ)
     (st : (i : Fin m) → State i)
-    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-      Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) →
+    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+      Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i) →
         ProbComp Bool) :
     (roundEnv W₁ S₂ ν I steps (j + 1) st D).bind
         (roundGame fun op J q => ProbComp.eval (idealJoint (W₁ op) J (S₂ op J) q)) =
@@ -257,8 +257,8 @@ theorem roundEnv_bind_roundGame_of_oracleRounds_le
         ((s : Fin (spec₁.arity op)) → spec₁.Answer op s)))
     (steps : Steps State Out sc₁) {j : ℕ} (hj : sc₁.oracleRounds ≤ j)
     (st : (i : Fin m) → State i)
-    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-      Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) →
+    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+      Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i) →
         ProbComp Bool) :
     (roundEnv W₁ S₂ ν I steps j st D).bind (roundGame κ) =
       (kernelRun ν I steps st).bind fun res => ProbComp.eval (D res) := by
@@ -296,7 +296,7 @@ the challenge of that round (`Composition.roundEnv`): the guessing stage
     PMF (Bool ⊕ RoundChallenge sc₂ Coins₂) :=
   (ProbComp.eval (OracleComp.pi P.sampleCoins)).bind fun c₁ =>
     roundEnv W₁ S₂ (fun op J q => (Sub op).realJoint W₂ J q) I P.steps j (fun i => (x i, c₁ i))
-      fun res => D (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2)
+      fun res => D (fun i : I => ⟨x i.val, (c₁ i.val, (res.1 i).1), (res.1 i).2⟩, res.2)
 
 section ComposeRoundEnv
 

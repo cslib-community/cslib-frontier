@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Karn Seth
 -/
 
-import CslibFrontier.Crypto.Protocols.UC.Commitment
+import CslibFrontier.Crypto.Protocols.UC.Impossibility.Commitment
 
 /-!
 # Tests for ideal UC bit commitment and the Canetti–Fischlin impossibility theorem
@@ -95,14 +95,14 @@ theorem one_le_sum_advantage_trivialScheme
 for any simulator budget polynomial `g`. -/
 theorem not_realizesWithin_trivialScheme (g : Polynomial ℕ) :
     ¬ RealizesWithin trivialScheme.toProtocol fcom g (fun _ _ _ => (1 / 5 : ℝ≥0)) := by
-  refine not_realizesWithin_fcom (pV := 0) trivialScheme_isPolyBounded.2 g
+  refine not_realizesWithin_fcom (pV := 0) trivialScheme_isPolyBounded.verify g
     (fun _ _ _ => (1 / 5 : ℝ≥0)) 0 ?_
   rw [acceptProb_trivialScheme, acceptProb_trivialScheme]
   norm_num
 
 /-- Asymptotic impossibility: `trivialScheme` does not UC-realize `fcom`. -/
 theorem not_realizes_trivialScheme : ¬ Realizes trivialScheme.toProtocol fcom :=
-  not_realizes_fcom_of_perfectlyComplete trivialScheme_isPolyBounded.2
+  not_realizes_fcom_of_perfectlyComplete trivialScheme_isPolyBounded.verify
     trivialScheme_perfectlyComplete
 
 /-- Randomized one-time-pad commitment scheme: commits to `b` by sampling a uniform Boolean mask
@@ -558,7 +558,7 @@ theorem advantage_oneTimePadEmptySim_honestViewEnv (b : Bool) (P : HonestView �
 schedules `honestCommitEnv` and `honestViewEnv` are perfectly simulated when `C = ∅`, it still
 cannot UC-realize `fcom` in the plain model against static corruptions. -/
 theorem not_realizes_oneTimePadScheme : ¬ Realizes oneTimePadScheme.toProtocol fcom :=
-  not_realizes_fcom_of_perfectlyComplete oneTimePadScheme_isPolyBounded.2
+  not_realizes_fcom_of_perfectlyComplete oneTimePadScheme_isPolyBounded.verify
     oneTimePadScheme_perfectlyComplete
 
 end CslibFrontierTests.Crypto.UCCommitment

@@ -201,7 +201,7 @@ theorem exists_dotProduct_eq_one_of_even {K : Finset (ι → ZMod 2)}
       simpa [comb, Fintype.linearCombination_apply] using ha i
     rw [sum_zmodTwo_smul_eq_sum_filter] at hsum
     have heven := hK ((univ.filter fun x : K => a x ≠ 0).map (Function.Embedding.subtype _))
-      (by intro y hy; obtain ⟨x, -, rfl⟩ := mem_map.1 hy; exact x.2)
+      (by intro y hy; obtain ⟨x, -, rfl⟩ := mem_map.1 hy; exact x.property)
       (by rwa [sum_map])
     rw [card_map] at heven
     simp only [LinearMap.mem_ker, ones, Fintype.linearCombination_apply, smul_eq_mul, mul_one]
@@ -225,14 +225,14 @@ theorem card_filter_forall_mulVec_eq_zero_mul_le {S : Finset (ι → ZMod 2)} (h
     congr 1
     ext r
     simp only [mem_filter, mem_univ, true_and, funext_iff, Pi.zero_apply]
-    exact ⟨fun h x => by simpa [B, mulVec, dotProduct_comm] using h x x.2,
+    exact ⟨fun h x => by simpa [B, mulVec, dotProduct_comm] using h x x.property,
       fun h x hx => by simpa [B, mulVec, dotProduct_comm] using h ⟨x, hx⟩⟩
   have hrank :
       B.rank = Module.finrank (ZMod 2) (Submodule.span (ZMod 2) (↑S : Set (ι → ZMod 2))) := by
     have hrange : Set.range B.row = (↑S : Set (ι → ZMod 2)) := by
       ext x
-      exact ⟨fun ⟨y, hy⟩ => hy ▸ y.2, fun hx => ⟨⟨x, hx⟩, rfl⟩⟩
-    rw [rank_eq_finrank_span_row, hrange]
+      exact ⟨fun ⟨y, hy⟩ => hy ▸ y.property, fun hx => ⟨⟨x, hx⟩, rfl⟩⟩
+    rw [← finrank_span_range_row, hrange]
   have hker := card_ker_mul_two_pow_rank B
   rw [hrank, ← hrows] at hker
   have hle := card_sub_one_le_finrank_span hS

@@ -92,8 +92,8 @@ simulators `S₂` (`expandSimSteps`) and runs `D` on the result. -/
       (Schedule.compose sc₂ sc₁) i) × ((i : Fin m) → Out i) → ProbComp Bool)
     (r : ((i : I) → PartyView In Coins₁ sc₁ i) × ((i : Fin m) → Out i)) : ProbComp Bool := do
   let sub ← expandSimSteps S₂ I P.steps
-    (fun i => (x i.1, (r.1 i).coins)) (fun i => (r.1 i).received)
-  D (fun i => ⟨x i.1, ((r.1 i).coins, (sub i).1), (sub i).2⟩, r.2)
+    (fun i => (x i.val, (r.1 i).coins)) (fun i => (r.1 i).received)
+  D (fun i => ⟨x i.val, ((r.1 i).coins, (sub i).1), (sub i).2⟩, r.2)
 
 /-- **Ideal to hybrid.** The ideal game of a composed protocol with the composed simulator
 `composeSim P S₁ S₂` against `D` is the ideal game of the outer protocol with `S₁` against the
@@ -197,7 +197,7 @@ theorem Protocol.bind_realJoint_composeDistinguisher_eq_kernelRun
         (kernelRun (fun op J q => ProbComp.eval (idealJoint (W₁ op) J (S₂ op J) q)) I P.steps
           (fun i => (x i, c₁ i))).bind fun res =>
             ProbComp.eval
-              (D (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2)) := by
+              (D (fun i : I => ⟨x i.val, (c₁ i.val, (res.1 i).1), (res.1 i).2⟩, res.2)) := by
   have h := congrArg (fun p => p.bind fun r => ProbComp.eval (D r))
     (Protocol.realJoint_bind_expandSimSteps_eq_kernelRun P W₁ S₂ I x)
   simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def] at h
@@ -231,12 +231,12 @@ theorem advantage_replacement_eq_kernelRun (P : Protocol m spec₁ sc₁ In Coin
           (kernelRun (fun op J q => ProbComp.eval (idealJoint (W₁ op) J (S₂ op J) q)) I P.steps
             (fun i => (x i, c₁ i))).bind fun res =>
               ProbComp.eval
-                (D (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2)))
+                (D (fun i : I => ⟨x i.val, (c₁ i.val, (res.1 i).1), (res.1 i).2⟩, res.2)))
         ((ProbComp.eval (OracleComp.pi P.sampleCoins)).bind fun c₁ =>
           (kernelRun (fun op J q => (Sub op).realJoint W₂ J q) I P.steps
             (fun i => (x i, c₁ i))).bind fun res =>
               ProbComp.eval
-                (D (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2))) := by
+                (D (fun i : I => ⟨x i.val, (c₁ i.val, (res.1 i).1), (res.1 i).2⟩, res.2))) := by
   rw [Protocol.bind_realJoint_composeDistinguisher_eq_kernelRun,
     Protocol.realJoint_compose_eq_kernelRun]
   simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def]

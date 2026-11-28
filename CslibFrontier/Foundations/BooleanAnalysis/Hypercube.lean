@@ -203,7 +203,7 @@ private theorem exists_ne_zero_mem_eigenspace_and_eq_zero_of_notMem {V : Finset 
     rw [Module.finrank_pi, Fintype.card_coe, card_compl, Fintype.card_fun, Fintype.card_bool]
     omega
   obtain ⟨w, hw, hw0⟩ := (Submodule.ne_bot_iff _).1 (LinearMap.ker_ne_bot_of_finrank_lt (f := r) hr)
-  exact ⟨w.1, w.2, fun h => hw0 (Subtype.ext h), fun y hy =>
+  exact ⟨w.val, w.property, fun h => hw0 (Subtype.ext h), fun y hy =>
     congrFun (LinearMap.mem_ker.1 hw) ⟨y, mem_compl.2 hy⟩⟩
 
 /-- Huang's eigenvector bound along `S`, for linearly ordered coordinates. -/

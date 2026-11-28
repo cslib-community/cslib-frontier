@@ -79,8 +79,7 @@ private theorem exec_finish {w n : ℕ} (x : Data 16)
   dsimp only [wordBudget] at hf
   refine WP.exists_execWithin_preserves (P := fun i => i ≠ Reg.window ∧ i ≠ Reg.fast)
     (fun i hi => finish_preserves i hi.1 hi.2) ?_
-  unfold finish
-  wram_exec [hb, hv]
+  wram_exec [finish, hb, hv]
   all_goals exact fun hpres =>
     ⟨by wram_simp, by wram_simp [hc], rfl, fun i hw hfast => hpres i ⟨hw, hfast⟩⟩
 

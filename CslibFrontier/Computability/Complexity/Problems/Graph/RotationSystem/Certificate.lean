@@ -147,7 +147,7 @@ private theorem verifyRotation_parts {G : Graph} {c : RotationCertificate}
 /-- Every accepted raw rotation table has exactly one successor entry per indexed dart.
 Unlike `length_ofRotation`, this applies to supplied certificates without a generator premise. -/
 theorem length_of_verifyRotation {G : Graph} {c : RotationCertificate}
-    (h : verifyRotation G c = true) : c.successor.length = 2 * G.2.length :=
+    (h : verifyRotation G c = true) : c.successor.length = 2 * G.edges.length :=
   (verifyRotation_parts h).2.1
 
 private def tableMap (G : Graph) (c : RotationCertificate) (h : verifyRotation G c = true)

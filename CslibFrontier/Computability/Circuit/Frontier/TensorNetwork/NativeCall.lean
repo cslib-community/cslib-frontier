@@ -128,7 +128,7 @@ theorem val_recover_eq_contraction {a u h p Δ : ℕ} (hu : 1 ≤ u) (huM : u �
       exact ⟨kk, by simpa using hk, e⟩
     subst hkt
     have hmult : 0 < mult a u h kk := by rw [mult_eq u h hkk.1]; exact hq
-    have hWk := hW kk hkk.1 hkk.2 hmult k k.2
+    have hWk := hW kk hkk.1 hkk.2 hmult k k.isLt
     rw [← hcard] at hWk
     simp only [v, toNat_node_add]
     rw [mk_liftO hirr, hWk, map_list_sum, List.map_map, TensorNetwork.modeBudget,

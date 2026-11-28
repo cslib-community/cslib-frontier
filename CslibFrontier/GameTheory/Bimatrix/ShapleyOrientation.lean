@@ -197,8 +197,8 @@ private lemma halfEdgeFun_bijective_left {m n : ℕ} (hcard : Fintype.card κ = 
     rcases a with i₁ | j₁ <;> rcases b with i₂ | j₂ <;>
       simp only [Sum.elim_inl, Sum.elim_inr] at hab
     · exact congrArg Sum.inl (ord₁.injective (Subtype.ext hab))
-    · exact absurd (Finset.mem_inter.2 ⟨(ord₁ i₁).2, hab ▸ (ord₂ j₂).2⟩) (hdisj _)
-    · exact absurd (Finset.mem_inter.2 ⟨hab ▸ (ord₁ i₂).2, (ord₂ j₁).2⟩) (hdisj _)
+    · exact absurd (Finset.mem_inter.2 ⟨(ord₁ i₁).property, hab ▸ (ord₂ j₂).property⟩) (hdisj _)
+    · exact absurd (Finset.mem_inter.2 ⟨hab ▸ (ord₁ i₂).property, (ord₂ j₁).property⟩) (hdisj _)
     · exact congrArg Sum.inr (ord₂.injective (Subtype.ext hab))
   · obtain ⟨_, hinter⟩ := mem_inter_of_acl_not_mem hcard hT₁ hT₂ hacl hk₀
     set l := leaveLabel T₁ T₂ k₀
@@ -206,16 +206,17 @@ private lemma halfEdgeFun_bijective_left {m n : ℕ} (hcard : Fintype.card κ = 
     have hcross (i : Fin m) (j : Fin n)
         (h : (if (ord₁ i : κ) = l then k₀ else (ord₁ i : κ)) = (ord₂ j : κ)) : False := by
       split_ifs at h with h1
-      · exact hact (h ▸ (ord₂ j).2)
-      · have hm : (ord₁ i : κ) ∈ T₁ ∩ T₂ := Finset.mem_inter.2 ⟨(ord₁ i).2, h ▸ (ord₂ j).2⟩
+      · exact hact (h ▸ (ord₂ j).property)
+      · have hm : (ord₁ i : κ) ∈ T₁ ∩ T₂ :=
+          Finset.mem_inter.2 ⟨(ord₁ i).property, h ▸ (ord₂ j).property⟩
         rw [hinter, Finset.mem_singleton] at hm
         exact h1 hm
     rcases a with i₁ | j₁ <;> rcases b with i₂ | j₂
     · simp only [halfEdgeFun, Sum.elim_inl] at hab
       split_ifs at hab with h1 h2
       · exact congrArg Sum.inl (ord₁.injective (Subtype.ext (h1.trans h2.symm)))
-      · exact absurd (hab.symm ▸ (ord₁ i₂).2) hk₀1
-      · exact absurd (hab ▸ (ord₁ i₁).2) hk₀1
+      · exact absurd (hab.symm ▸ (ord₁ i₂).property) hk₀1
+      · exact absurd (hab ▸ (ord₁ i₁).property) hk₀1
       · exact congrArg Sum.inl (ord₁.injective (Subtype.ext hab))
     · exact (hcross i₁ j₂ hab).elim
     · exact (hcross i₂ j₁ hab.symm).elim
@@ -527,7 +528,7 @@ theorem halfEdgeIndex_pivot_left_eq_neg {m n : ℕ}
     · have hor_ne_l : (ord₁p i : κ) ≠ l := fun h =>
         hi (ord₁p.injective (Subtype.ext (by simpa only [Equiv.apply_symm_apply] using h)))
       have hor_ne_l' : (ord₁p i : κ) ≠ l' :=
-        (Finset.mem_erase.1 (herase ▸ Finset.mem_erase.2 ⟨hor_ne_l, (ord₁p i).2⟩)).1
+        (Finset.mem_erase.1 (herase ▸ Finset.mem_erase.2 ⟨hor_ne_l, (ord₁p i).property⟩)).1
       simp [hi, hor_ne_l, hor_ne_l']
   set π_p := (Equiv.ofBijective _ hbij_p).trans ref.symm
   set π_q := (Equiv.ofBijective _ hbij_q).trans ref.symm

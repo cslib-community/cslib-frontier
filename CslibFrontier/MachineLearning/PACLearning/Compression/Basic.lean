@@ -218,9 +218,9 @@ theorem measure_pi_lt_error_and_forall_notMem_apply_eq_le (D : Measure (α × β
           dite_true]
     have hsub : Prod.mk u ⁻¹' (e.symm ⁻¹' T) ⊆ {v | ∀ i, h (v i).1 = (v i).2} := by
       intro v hv i
-      have := hv.2 i i.2
+      have := hv.2 i i.property
       rw [hconst v] at this
-      simpa only [e, MeasurableEquiv.piEquivPiSubtypeProd_symm_apply, i.2, dite_false,
+      simpa only [e, MeasurableEquiv.piEquivPiSubtypeProd_symm_apply, i.property, dite_false,
         Subtype.coe_eta] using this
     have hh : ε ≤ error D h := (hv₀.1.trans_eq (congrArg (error D) (hconst v₀))).le
     calc Measure.pi (fun _ : {i // i ∉ J} => D) (Prod.mk u ⁻¹' (e.symm ⁻¹' T))
@@ -268,7 +268,7 @@ theorem measure_pi_lt_error_learner_le (κ : SampleCompressionScheme C k)
     exact mem_iUnion.2 ⟨ι, by rw [hgS]; exact hlt,
       fun i _ => by rw [hgS]; exact κ.learner_apply_eq hS i⟩
   have hJ (ι : Σ j : Fin (k + 1), Fin j → Fin m) : (J ι).card ≤ k :=
-    Finset.card_image_le.trans (by simpa using Nat.lt_succ_iff.1 ι.1.2)
+    Finset.card_image_le.trans (by simpa using Nat.lt_succ_iff.1 ι.1.isLt)
   have hB (ι : Σ j : Fin (k + 1), Fin j → Fin m) : μ (B ι) ≤ (1 - ε) ^ (m - k) := by
     refine (measure_pi_lt_error_and_forall_notMem_apply_eq_le D (J ι) (g := g ι) ?_ ?_ ε).trans
       (pow_le_pow_right_of_le_one' tsub_le_self (Nat.sub_le_sub_left (hJ ι) m))
@@ -300,7 +300,7 @@ theorem isPACLearnerFor (κ : SampleCompressionScheme C k)
   refine ⟨κ.learner, fun D _ hD => ?_⟩
   rw [IsRealizableBy.optimalError_eq_zero hD, zero_add]
   refine (κ.measure_pi_lt_error_learner_le hκ hD m _).trans ?_
-  have hε : ε.val ≤ 1 := ε.2.2.le
+  have hε : ε.val ≤ 1 := ε.property.2.le
   have hm' : ((m + 1) ^ k : ℝ≥0) * (1 - ε.val) ^ (m - k) ≤ δ.val := by
     rw [← NNReal.coe_le_coe]
     push_cast [NNReal.coe_sub hε]
@@ -319,13 +319,13 @@ theorem isPACLearnerFor_of_log_le (κ : SampleCompressionScheme C k)
     (hm : k * Real.log (m + 1) + Real.log (δ.val : ℝ)⁻¹ ≤ ε.val * (m - k : ℕ)) :
     IsPACLearnerFor m ε δ C (realizableDistributions C) := by
   refine κ.isPACLearnerFor hκ ?_
-  have hδ : (0 : ℝ) < δ.val := by exact_mod_cast δ.2.1
+  have hδ : (0 : ℝ) < δ.val := by exact_mod_cast δ.property.1
   rw [Real.log_inv] at hm
   calc ((m : ℝ) + 1) ^ k * (1 - (ε.val : ℝ)) ^ (m - k)
       ≤ Real.exp (k * Real.log (m + 1)) * Real.exp (-(ε.val * (m - k : ℕ))) := by
-        rw [Real.exp_nat_mul, Real.exp_log (by positivity)]
+        rw [Real.exp_natCast_mul, Real.exp_log (by positivity)]
         gcongr
-        exact Real.one_sub_pow_le_exp (by exact_mod_cast ε.2.2.le) (by rw [mul_comm])
+        exact Real.one_sub_pow_le_exp (by exact_mod_cast ε.property.2.le) (by rw [mul_comm])
     _ ≤ δ.val := by
         rw [← Real.exp_add, ← Real.exp_log hδ]
         exact Real.exp_le_exp.2 (by linarith)
@@ -353,9 +353,9 @@ learnable in the realizable setting [LittlestoneWarmuth1986]. -/
 theorem isPACLearnable (κ : SampleCompressionScheme C k)
     (hκ : MeasurableReconstruction κ.reconstruct) :
     IsPACLearnable C (realizableDistributions C) := fun ε δ => by
-  have hε0 : (0 : ℝ) < 1 - ε.val := sub_pos.2 (by exact_mod_cast ε.2.2)
-  have hε1 : 1 - (ε.val : ℝ) < 1 := sub_lt_self _ (by exact_mod_cast ε.2.1)
-  obtain ⟨m, hm⟩ := exists_pow_mul_pow_le k hε0 hε1 (by exact_mod_cast δ.2.1)
+  have hε0 : (0 : ℝ) < 1 - ε.val := sub_pos.2 (by exact_mod_cast ε.property.2)
+  have hε1 : 1 - (ε.val : ℝ) < 1 := sub_lt_self _ (by exact_mod_cast ε.property.1)
+  obtain ⟨m, hm⟩ := exists_pow_mul_pow_le k hε0 hε1 (by exact_mod_cast δ.property.1)
   exact ⟨m, κ.isPACLearnerFor hκ hm⟩
 
 end SampleCompressionScheme

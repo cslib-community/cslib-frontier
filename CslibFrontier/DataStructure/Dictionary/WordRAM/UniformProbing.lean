@@ -535,8 +535,7 @@ theorem allocSpan_execWithin {w base c_exp n_max : ℕ} {x : Data 16}
       x₁.mem = x.mem ∧
       x₁.regs regBase = base ∧
       x₁.regs regV = base + space c_exp n_max := by
-  unfold allocSpan
-  wram_exec [hfr]
+  wram_exec [allocSpan, hfr]
   wram_simp
 
 private theorem fits_of_space {w base c_exp n_max : ℕ} (hS : Fits w (base + space c_exp n_max)) :
@@ -808,8 +807,7 @@ private theorem probeCheckCode_execWithin {w base c_exp U n_max : ℕ} {d : Data
   have hused := (hwf slot).1
   have haddr : base + slotOffset c_exp n_max + slot.val + numBuckets n_max =
       base + slotOffset c_exp n_max + numBuckets n_max + slot.val := by omega
-  unfold probeCheckCode
-  wram_exec [hsbase, hslot, hm, hzero, hu, haddr]
+  wram_exec [probeCheckCode, hsbase, hslot, hm, hzero, hu, haddr]
   all_goals
     refine ⟨?_, ?_, fun r hr₁ hr₂ => ?_⟩
     all_goals wram_simp [mem_otherOccupiedSlots_extractSlots_iff hwf]
@@ -871,9 +869,8 @@ private theorem probeLoop_execWithin_aux {w base c_exp U n_max : ℕ} (θ : Seed
     have := (probePerm θ u ⟨i + 1, hi1_lt⟩).isLt
     have := (strideHash θ u).isLt
     refine WP.exists_execWithin (WP.loop_iter hc ?_)
-    unfold probeStepCode
     wram_exec (disch := first | fits | layout_omega)
-      [hslot, hstride, hmask, ← val_probePerm_succ θ u hi1_lt]
+      [probeStepCode, hslot, hstride, hmask, ← val_probePerm_succ θ u hi1_lt]
     wram_call (probeCheckCode_execWithin hS (by wram_simp [hmem]; exact hwf) u
       (probePerm θ u ⟨i + 1, hi1_lt⟩) (by wram_simp [hsbase]) (by wram_simp)
       (by wram_simp [hm]) (by wram_simp [hzero]) (by wram_simp [hu]))
@@ -1141,8 +1138,8 @@ private theorem finishInsertCode_execWithin {w base c_exp U V n_max : ℕ} {θ :
   have ha2 : base + slotOffset c_exp n_max + numBuckets n_max + slot.val + numBuckets n_max =
       base + slotOffset c_exp n_max + 2 * numBuckets n_max + slot.val := by omega
   refine WP.exists_execWithin ?_
-  unfold finishInsertCode
-  wram_exec (disch := first | fits | layout_omega) [hsbase, hslot, hm, hu, hv, ha1, ha2]
+  wram_exec (disch := first | fits | layout_omega) [finishInsertCode,
+    hsbase, hslot, hm, hu, hv, ha1, ha2]
   have hmem_eq : ((((((((d.set regAddr (base + slotOffset c_exp n_max + slot.val)).set regCond 1
       ).write (base + slotOffset c_exp n_max + slot.val) 1).set regAddr
       (base + slotOffset c_exp n_max + numBuckets n_max + slot.val)).write

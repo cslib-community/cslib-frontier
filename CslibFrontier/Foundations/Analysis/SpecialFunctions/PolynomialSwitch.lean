@@ -210,7 +210,8 @@ theorem exists_lipschitzWith_polynomialTransition4_root :
   have hproj := (LipschitzWith.projIcc (zero_le_one' ℝ)).dist_le_mul x y
   simp only [Subtype.dist_eq, NNReal.coe_one, one_mul, Set.coe_projIcc] at hproj
   simpa only [← root_eq (clamp_mem _), polynomialTransition4] using
-    (hK.dist_le_mul _ (clamp_mem x) _ (clamp_mem y)).trans (mul_le_mul_of_nonneg_left hproj K.2)
+    (hK.dist_le_mul _ (clamp_mem x) _ (clamp_mem y)).trans
+      (mul_le_mul_of_nonneg_left hproj K.property)
 
 /-- The fourth root of the complement is Lipschitz, by reflection at `1/2`. -/
 theorem exists_lipschitzWith_one_sub_polynomialTransition4_root :

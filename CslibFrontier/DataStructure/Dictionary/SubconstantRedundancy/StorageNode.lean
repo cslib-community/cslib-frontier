@@ -654,7 +654,7 @@ noncomputable def ofFinset (S : Finset (Fin (2 ^ I)))
     (hQ : 1 ≤ Q) (hV : 1 ≤ V) (f : Fin (2 ^ I) → Fin Q × Fin V) : StorageTable I m Q V :=
   let iso := S.orderIsoOfFin rfl
   { tableMeta :=
-      { slots := fun i => if hi : i.val < S.card then some (iso ⟨i.val, hi⟩).1 else none
+      { slots := fun i => if hi : i.val < S.card then some (iso ⟨i.val, hi⟩).val else none
         inj_slots := fun i j k hi hj => by
           split_ifs at hi with hlt_i
           split_ifs at hj with hlt_j
@@ -662,7 +662,7 @@ noncomputable def ofFinset (S : Finset (Fin (2 ^ I)))
           have heq := iso.injective (Subtype.ext hk_eq)
           exact Fin.ext (congrArg (fun x : Fin S.card => x.val) heq) }
     payload := fun i =>
-      if hi : i.val < S.card then f (iso ⟨i.val, hi⟩).1 else (⟨0, hQ⟩, ⟨0, hV⟩) }
+      if hi : i.val < S.card then f (iso ⟨i.val, hi⟩).val else (⟨0, hQ⟩, ⟨0, hV⟩) }
 
 @[simp]
 theorem dom_ofFinset (S : Finset (Fin (2 ^ I))) (hS : S.card ≤ m)
@@ -674,7 +674,7 @@ theorem dom_ofFinset (S : Finset (Fin (2 ^ I))) (hS : S.card ≤ m)
   constructor
   · rintro ⟨i, hi⟩
     split_ifs at hi with hlt
-    exact (Option.some.inj hi) ▸ ((S.orderIsoOfFin rfl) ⟨i.val, hlt⟩).2
+    exact (Option.some.inj hi) ▸ ((S.orderIsoOfFin rfl) ⟨i.val, hlt⟩).property
   · intro hk
     let idx := (S.orderIsoOfFin rfl).symm ⟨k, hk⟩
     refine ⟨⟨idx.val, idx.isLt.trans_le hS⟩, ?_⟩

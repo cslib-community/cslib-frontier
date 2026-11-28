@@ -304,8 +304,7 @@ private theorem exec_searchBody {w : ℕ} (y : Data 14) (v : ℕ)
   have hb : Fits w (v.testBit (y.regs rC)).toNat := h1.of_le (Bool.toNat_le _)
   have hs : Fits w (v >>> y.regs rC) := hvf.of_le (Nat.shiftRight_le _ _)
   refine WP.exists_execWithin ?_
-  unfold searchBody
-  wram_exec [hone, hzero, ha, hk, hv, hvf, hb, hs, h1, Nat.shiftRight_and_one]
+  wram_exec [searchBody, hone, hzero, ha, hk, hv, hvf, hb, hs, h1, Nat.shiftRight_and_one]
   all_goals
     refine ⟨by wram_simp, fun i hi => by
         fin_cases i <;> first | exact absurd hi (by decide) | wram_simp,
@@ -384,8 +383,7 @@ private theorem exec_search {w : ℕ} (W : List ℕ) (y : Data 14)
       generalize W.getD (z.regs rK) 0 = v
       cases prefPiv c W (z.regs rK) <;> cases v.testBit c <;> simp
   refine WP.exists_execWithin ?_
-  unfold search
-  wram_exec
+  wram_exec [search]
   wram_call (ExecWithin.loop_count P (fun z hz => ((hz.1 rM (by decide)).trans hm)) hbody
     (by wram_simp; omega)
     ⟨fun i hi => by fin_cases i <;> first | exact absurd hi (by decide) | wram_simp,
@@ -412,8 +410,7 @@ private theorem exec_elimBody {w : ℕ} (y : Data 14) (v : ℕ)
   have hb : Fits w (v.testBit (y.regs rC)).toNat := h1.of_le (Bool.toNat_le _)
   have hs : Fits w (v >>> y.regs rC) := hvf.of_le (Nat.shiftRight_le _ _)
   refine WP.exists_execWithin ?_
-  unfold elimBody
-  wram_exec [hone, ha, hk, hv, hvf, hb, hs, h1, hx, Nat.shiftRight_and_one]
+  wram_exec [elimBody, hone, ha, hk, hv, hvf, hb, hs, h1, hx, Nat.shiftRight_and_one]
   all_goals
     refine ⟨?_, fun i hi => by
       rcases hi with hi | rfl
@@ -471,8 +468,7 @@ private theorem exec_elim {w n : ℕ} (W : List ℕ) (y : Data 14)
       simp only [mem]
       split_ifs <;> first | rfl | omega
   refine WP.exists_execWithin ?_
-  unfold elim
-  wram_exec
+  wram_exec [elim]
   wram_call (ExecWithin.loop_count P (fun z hz => ((hz.1 rM (by decide)).trans hm)) hbody
     (by wram_simp; omega)
     ⟨fun i hi => by rcases hi with hi | rfl
@@ -540,8 +536,7 @@ private theorem exec_checkBody {w : ℕ} (y : Data 14) (v : ℕ)
   have hb : Fits w (v.testBit (y.regs rN)).toNat := h1.of_le (Bool.toNat_le _)
   have hs : Fits w (v >>> y.regs rN) := hvf.of_le (Nat.shiftRight_le _ _)
   refine WP.exists_execWithin ?_
-  unfold checkBody
-  wram_exec [hone, hzero, ha, hk, hv, hvf, hb, hs, h1, Nat.shiftRight_and_one]
+  wram_exec [checkBody, hone, hzero, ha, hk, hv, hvf, hb, hs, h1, Nat.shiftRight_and_one]
   all_goals
     refine ⟨by wram_simp, fun i hi => by
         fin_cases i <;> first | exact absurd hi (by decide) | wram_simp,
@@ -582,8 +577,7 @@ private theorem exec_check {w : ℕ} (W : List ℕ) (y : Data 14)
     generalize (W.take (z.regs rK)).all (fun x => !x.testBit n) = t
     cases v.testBit n <;> cases t <;> simp
   refine WP.exists_execWithin ?_
-  unfold check
-  wram_exec
+  wram_exec [check]
   wram_call (ExecWithin.loop_count P (fun z hz => ((hz.1 rM (by decide)).trans hm)) hbody
     (by wram_simp; omega)
     ⟨fun i hi => by fin_cases i <;> first | exact absurd hi (by decide) | wram_simp,
@@ -612,13 +606,13 @@ abbrev Instance := {q : Input // Width q.width q.rows}
 
 /-- Word-RAM input layout `[n, m] ++ packed rows`. -/
 @[expose]
-def encode (q : Instance) : List ℕ := q.1.width :: q.1.rows.length :: q.1.rows.map rowWord
+def encode (q : Instance) : List ℕ := q.val.width :: q.val.rows.length :: q.val.rows.map rowWord
 
 /-- Admitted widths: a packed row (`n + 1` bits) fits in one word, and so do the row addresses
 `3, …, m + 2`. This is the word-width condition of the bit-packed representation. -/
 @[expose]
 def FitsWidth (q : Instance) (w : ℕ) : Prop :=
-  q.1.width + 1 ≤ w ∧ Fits w (q.1.rows.length + 3)
+  q.val.width + 1 ≤ w ∧ Fits w (q.val.rows.length + 3)
 
 private theorem length_cols (W : List ℕ) : ∀ c, (cols W c).length = W.length
   | 0 => rfl
@@ -629,13 +623,13 @@ private theorem two_pow_le {n w : ℕ} (h : n + 1 ≤ w) : 2 ^ (n + 1) ≤ 2 ^ w
 
 private theorem exec_code {w : ℕ} (q : Instance) (hw : FitsWidth q w) :
     ∃ y, ExecWithin w code (.init (encode q)) y
-        (8 + (q.1.width * (28 * q.1.rows.length + 11) + 2) + (14 * q.1.rows.length + 4)) ∧
-      y.regs rOk = (decide q.1).toNat := by
+        (8 + (q.val.width * (28 * q.val.rows.length + 11) + 2) + (14 * q.val.rows.length + 4)) ∧
+      y.regs rOk = (decide q.val).toNat := by
   obtain ⟨hn1, hm3⟩ := hw
-  set n := q.1.width with hndef
-  set m := q.1.rows.length with hmdef
-  set W := q.1.rows.map rowWord with hWdef
-  have hF : List.Forall₂ (RowRel n 0) W q.1.rows := forall₂_rowWord q.2
+  set n := q.val.width with hndef
+  set m := q.val.rows.length with hmdef
+  set W := q.val.rows.map rowWord with hWdef
+  have hF : List.Forall₂ (RowRel n 0) W q.val.rows := forall₂_rowWord q.property
   have hWlen : W.length = m := by simp [hWdef, hmdef]
   have hpow := two_pow_le hn1
   have hnfit : Fits w (2 ^ (n + 1) - 1) := by
@@ -657,8 +651,7 @@ private theorem exec_code {w : ℕ} (q : Instance) (hw : FitsWidth q w) :
       y₀.mem = (Data.init (encode q) : Data 14).mem ∧ y₀.regs rN = n ∧ y₀.regs rM = m ∧
       y₀.regs rBase = 3 ∧ y₀.regs rOne = 1 ∧ y₀.regs rZero = 0 ∧ y₀.regs rC = 0 := by
     refine WP.exists_execWithin ?_
-    unfold setup
-    wram_exec [hi1, hi2, h1, h2, h3, hnn, hmm]
+    wram_exec [setup, hi1, hi2, h1, h2, h3, hnn, hmm]
     exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp⟩
   obtain ⟨y₀, he₀, hm₀, hN₀, hM₀, hB₀, hO₀, hZ₀, hC₀⟩ := hsetup
@@ -697,7 +690,7 @@ private theorem exec_code {w : ℕ} (q : Instance) (hw : FitsWidth q w) :
   · rw [hlenn] at he₂
     rw [hC₀, show 28 * m + 9 + 2 = 28 * m + 11 by omega] at he₁
     exact (he₀.seq (he₁.seq he₂)).mono (by simp only [Nat.sub_zero]; omega)
-  · rw [hok, hr₁ rN (by decide), hN₀, decide_eq_cols q.1 q.2]
+  · rw [hok, hr₁ rN (by decide), hN₀, decide_eq_cols q.val q.property]
 
 /-- **Word-RAM running time of dense Gaussian elimination over `𝔽₂` (one row per word).**
 The fixed standard-basis program `program` computes `(XORSAT.Dense.decide q).toNat` on every
@@ -707,11 +700,11 @@ addresses fit (`FitsWidth`). On this domain the row-width check of `decide` is c
 `true`. -/
 theorem computesInTime_decide :
     program.ComputesInTime (fun _ => encode)
-      (fun q _ => 30 * (q.1.rows.length + 1) * (q.1.width + 1)) FitsWidth
-      (fun q => (decide q.1).toNat) := by
+      (fun q _ => 30 * (q.val.rows.length + 1) * (q.val.width + 1)) FitsWidth
+      (fun q => (decide q.val).toNat) := by
   refine (code.computesInTime_program rOk
     (time := fun q _ =>
-      8 + (q.1.width * (28 * q.1.rows.length + 11) + 2) + (14 * q.1.rows.length + 4))
+      8 + (q.val.width * (28 * q.val.rows.length + 11) + 2) + (14 * q.val.rows.length + 4))
     ?_).mono ?_ (fun _ _ h => h)
   · intro q w hw _
     exact exec_code q hw
@@ -722,55 +715,55 @@ theorem computesInTime_decide :
 well-formed `m × n` dense system in at most `30 (m + 1) (n + 1)` word instructions at admitted
 widths, which have `w ≥ n + 1` (one packed row per word). -/
 theorem decidesInTime_decide :
-    program.DecidesInTime (fun _ => encode) {q : Instance | Satisfiable q.1.width q.1.rows}
-      (fun q _ => 30 * (q.1.rows.length + 1) * (q.1.width + 1)) FitsWidth := by
+    program.DecidesInTime (fun _ => encode) {q : Instance | Satisfiable q.val.width q.val.rows}
+      (fun q _ => 30 * (q.val.rows.length + 1) * (q.val.width + 1)) FitsWidth := by
   intro q w hw hin
   obtain ⟨k, hexec, hle⟩ := computesInTime_decide q w hw hin
-  refine ⟨(decide q.1).toNat, k, hexec, hle, Bool.toNat_le _, ?_⟩
-  have hiff := decide_eq_true_iff q.1
+  refine ⟨(decide q.val).toNat, k, hexec, hle, Bool.toNat_le _, ?_⟩
+  have hiff := decide_eq_true_iff q.val
   rw [Set.mem_ofPred_eq]
-  cases hd : decide q.1
+  cases hd : decide q.val
   · simp only [Bool.toNat_false, zero_ne_one, false_iff]
-    exact fun hs => absurd (hiff.mpr ⟨q.2, hs⟩) (by simp [hd])
+    exact fun hs => absurd (hiff.mpr ⟨q.property, hs⟩) (by simp [hd])
   · simp only [Bool.toNat_true, true_iff]
     exact (hiff.mp hd).2
 
 /-- On well-formed instances, the decided set is upstream's satisfiable dense systems. -/
 theorem mem_satisfiable_iff (q : Instance) :
-    q ∈ {q : Instance | Satisfiable q.1.width q.1.rows} ↔
-      q.1 ∈ {q : Input | Width q.width q.rows ∧ Satisfiable q.width q.rows} :=
-  ⟨fun h => ⟨q.2, h⟩, fun h => h.2⟩
+    q ∈ {q : Instance | Satisfiable q.val.width q.val.rows} ↔
+      q.val ∈ {q : Input | Width q.width q.rows ∧ Satisfiable q.width q.rows} :=
+  ⟨fun h => ⟨q.property, h⟩, fun h => h.2⟩
 
 /-- Every well-formed instance has an admitted width at which its encoding fits. -/
 theorem inputAdmissible : InputAdmissible (fun _ => encode) FitsWidth := by
   intro q
-  have hm := Nat.lt_two_pow_self (n := q.1.rows.length + 3)
+  have hm := Nat.lt_two_pow_self (n := q.val.rows.length + 3)
   have hmw := Nat.pow_le_pow_right (n := 2) (by decide)
-    (show q.1.rows.length + 3 ≤ q.1.width + q.1.rows.length + 4 by omega)
+    (show q.val.rows.length + 3 ≤ q.val.width + q.val.rows.length + 4 by omega)
   have hnw := Nat.pow_le_pow_right (n := 2) (by decide)
-    (show q.1.width + 1 ≤ q.1.width + q.1.rows.length + 4 by omega)
-  have hn := Nat.lt_two_pow_self (n := q.1.width + 1)
-  refine ⟨q.1.width + q.1.rows.length + 4, ⟨by omega, ?_⟩, ?_, ?_⟩
-  · change q.1.rows.length + 3 < 2 ^ (q.1.width + q.1.rows.length + 4)
+    (show q.val.width + 1 ≤ q.val.width + q.val.rows.length + 4 by omega)
+  have hn := Nat.lt_two_pow_self (n := q.val.width + 1)
+  refine ⟨q.val.width + q.val.rows.length + 4, ⟨by omega, ?_⟩, ?_, ?_⟩
+  · change q.val.rows.length + 3 < 2 ^ (q.val.width + q.val.rows.length + 4)
     omega
-  · change (encode q).length < 2 ^ (q.1.width + q.1.rows.length + 4)
+  · change (encode q).length < 2 ^ (q.val.width + q.val.rows.length + 4)
     simp only [encode, List.length_cons, List.length_map]
     omega
   · intro v hv
-    change v < 2 ^ (q.1.width + q.1.rows.length + 4)
+    change v < 2 ^ (q.val.width + q.val.rows.length + 4)
     simp only [encode, List.mem_cons, List.mem_map] at hv
     rcases hv with hv | hv | ⟨e, he, hv⟩
     · omega
     · omega
-    · have := (rowRel_rowWord (q.2 e he)).lt
+    · have := (rowRel_rowWord (q.property e he)).lt
       omega
 
 /-- **Uniform Word-RAM decidability of dense XOR-SAT** by Gaussian elimination with one packed
 row per word, in at most `30 (m + 1) (n + 1)` standard-basis word instructions at word widths
 `w ≥ n + 1`, bundling width admissibility (`inputAdmissible`). -/
 theorem uniformDecidableInTime_decide :
-    UniformDecidableInTime .standard {q : Instance | Satisfiable q.1.width q.1.rows}
-      (fun _ => encode) (fun q _ => 30 * (q.1.rows.length + 1) * (q.1.width + 1)) FitsWidth :=
+    UniformDecidableInTime .standard {q : Instance | Satisfiable q.val.width q.val.rows}
+      (fun _ => encode) (fun q _ => 30 * (q.val.rows.length + 1) * (q.val.width + 1)) FitsWidth :=
   ⟨14, program, decidesInTime_decide, inputAdmissible⟩
 
 end Cslib.Algorithms.WordRAM.XORSATDense

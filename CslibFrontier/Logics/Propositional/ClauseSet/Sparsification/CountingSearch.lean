@@ -219,17 +219,17 @@ theorem two_le_countingThreshold {M : ℕ} (hM : 2 ≤ M) {j : ℕ} (hj : 1 ≤ 
 (`CountingNormalized k`): uses `countingNext θ k`. -/
 def countingRule {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ θ j) {k : ℕ} (hk : 1 ≤ k) :
     CountingBranchingRule θ V {ψ : CNF V // CountingNormalized k ψ} where
-  toClauseSet ψ := ψ.1.toClauseSet
-  next ψ b := ⟨countingNext θ k ψ.1 b, countingNormalized_countingNext θ hk ψ.2 b⟩
+  toClauseSet ψ := ψ.val.toClauseSet
+  next ψ b := ⟨countingNext θ k ψ.val b, countingNormalized_countingNext θ hk ψ.property b⟩
   exists_choice_next ψ hns :=
-    ⟨_, _, (choice_spec hθ ψ.2.toNormalized hns).1,
-      fun b => toClauseSet_countingNext ψ.2.toNormalized b⟩
+    ⟨_, _, (choice_spec hθ ψ.property.toNormalized hns).1,
+      fun b => toClauseSet_countingNext ψ.property.toNormalized b⟩
 
 /-- Walking along `countingRule` preserves variable support containment for any word `w`. -/
 theorem support_walk_countingRule {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ θ j) {k : ℕ} (hk : 1 ≤ k)
     {s : {ψ : CNF V // CountingNormalized k ψ}} {declared : Finset V}
-    (hs : ∀ C ∈ s.1, ∀ l ∈ C, l.1 ∈ declared) (w : List Bool) :
-    ∀ C ∈ ((countingRule hθ hk).tree.walk s w).1, ∀ l ∈ C, l.1 ∈ declared := by
+    (hs : ∀ C ∈ s.val, ∀ l ∈ C, l.1 ∈ declared) (w : List Bool) :
+    ∀ C ∈ ((countingRule hθ hk).tree.walk s w).val, ∀ l ∈ C, l.1 ∈ declared := by
   induction w generalizing s with
   | nil => exact hs
   | cons b w ih => exact ih (support_countingNext θ k hs b)
@@ -243,12 +243,12 @@ theorem sum_leafWords_countingRule_modelCountOn {θ : ℕ → ℕ} (hθ1 : ∀ j
     (s : {ψ : CNF V // CountingNormalized k ψ})
     (hf : ∀ w, (countingRule hθ1 hk).tree.IsLeafWord s w →
       f ((countingRule hθ1 hk).tree.walk s w) =
-        ((countingRule hθ1 hk).tree.walk s w).1.modelCountOn declared)
+        ((countingRule hθ1 hk).tree.walk s w).val.modelCountOn declared)
     {W : Finset (List Bool)} (hW : ∀ w, w ∈ W ↔ (countingRule hθ1 hk).tree.IsLeafWord s w) :
-    ∑ w ∈ W, f ((countingRule hθ1 hk).tree.walk s w) = s.1.modelCountOn declared := by
+    ∑ w ∈ W, f ((countingRule hθ1 hk).tree.walk s w) = s.val.modelCountOn declared := by
   rw [Finset.sum_congr rfl fun w hw => hf w ((hW w).mp hw)]
   exact BinaryBranching.sum_leafWords_eq (CountingBranchingRule.tree_terminating hθ2)
-    (g := fun t => t.1.modelCountOn declared)
-    (fun t _ => modelCountOn_countingNext t.2.toNormalized declared) s hW
+    (g := fun t => t.val.modelCountOn declared)
+    (fun t _ => modelCountOn_countingNext t.property.toNormalized declared) s hW
 
 end Cslib.Logic.PL.CNF.Sparsification

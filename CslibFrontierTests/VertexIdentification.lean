@@ -42,7 +42,7 @@ example : Nat.card (ComponentFace
 
 -- The generic genus proof retains the separately declared point at 8.
 example : (edgeRotation.mergeVertices (0, false) (0, true) (by decide)).NumericalGenusZero := by
-  have hG : ∀ v ∈ edge.incidenceVertices, v ∈ edge.1 := by decide
+  have hG : ∀ v ∈ edge.incidenceVertices, v ∈ edge.vertices := by decide
   have hr : edgeRotation.NumericalGenusZero := by
     have h := (Graph.RotationCertificate.verifyEuler_eq_true_iff
       (Graph.RotationCertificate.verifyRotation_ofRotation edgeRotation hG)).mp (by decide)

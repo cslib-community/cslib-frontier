@@ -103,7 +103,7 @@ all `m + 1` parties are present. -/
 theorem additiveReconstruct_share {m : ℕ} {G : Type*} [AddCommGroup G]
     (r : Fin m → G) (secret : G) {s : Finset (Fin (m + 1))}
     (hs : (additiveAccessStructure m).authorized s) :
-    additiveReconstruct s (fun j => additiveShare r secret j.1) = secret := by
+    additiveReconstruct s (fun j => additiveShare r secret j.val) = secret := by
   classical
   have huniv := (additiveAccessStructure_authorized_iff m s).mp hs
   simp [additiveReconstruct, additiveShare, huniv, Cslib.ProbComp.sum_completeShares]
@@ -119,11 +119,11 @@ private theorem additiveView_eq_of_not_authorized {m : ℕ} {G : Type*} [AddComm
     not_forall.mp (mt Finset.eq_univ_iff_forall.mpr hne)
   induction j₀ using Fin.lastCases with
   | last =>
-    have hfun : (fun r (j : s) => additiveShare r m₀ j.1) =
-        fun r (j : s) => additiveShare r m₁ j.1 := by
+    have hfun : (fun r (j : s) => additiveShare r m₀ j.val) =
+        fun r (j : s) => additiveShare r m₁ j.val := by
       ext r j
-      obtain ⟨i, hi⟩ := Fin.exists_castSucc_eq.mpr fun h => hj₀ (h ▸ j.2)
-      have hcast : j.1 = Fin.castLE (Nat.sub_le (m + 1) 1) i := hi.symm
+      obtain ⟨i, hi⟩ := Fin.exists_castSucc_eq.mpr fun h => hj₀ (h ▸ j.property)
+      have hcast : j.val = Fin.castLE (Nat.sub_le (m + 1) 1) i := hi.symm
       simp only [hcast, additiveShare, Cslib.ProbComp.completeShares_castLE]
     simp only [AccessStructure.viewDistOf, hfun]
   | cast i₀ =>

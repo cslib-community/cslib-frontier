@@ -96,7 +96,7 @@ theorem card_majTree_ne_le {Ω : Type*} [Fintype Ω] (val : Ω → α) (y : α)
       card_nbij' (fun V => V ⟨0, by simp⟩) (fun ω _ => ω)
         (fun V hV => mem_coe.2 (mem_filter.2 ⟨mem_univ _, (mem_filter.1 (mem_coe.1 hV)).2⟩))
         (fun ω hω => mem_coe.2 (mem_filter.2 ⟨mem_univ _, (mem_filter.1 (mem_coe.1 hω)).2⟩))
-        (fun V _ => funext fun k => congrArg V (Fin.ext (Nat.lt_one_iff.1 k.2).symm))
+        (fun V _ => funext fun k => congrArg V (Fin.ext (Nat.lt_one_iff.1 k.isLt).symm))
         (fun _ _ => rfl)
     rw [this]
     simpa using hρ

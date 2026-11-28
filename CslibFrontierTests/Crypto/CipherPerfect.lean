@@ -41,7 +41,7 @@ def lenDistinguisher :
     TwoStage Unit (MessagePair {w : List Bool // w.length ≤ 1})
       {w : List Bool // w.length ≤ 1} Bool Unit where
   choose _ := pure (⟨⟨[], by decide⟩, ⟨[false], by decide⟩⟩, ())
-  guess _ ct := pure (decide (ct.1.length = 0))
+  guess _ ct := pure (decide (ct.val.length = 0))
 
 theorem lenDistinguisher_advantage :
     Experiment.advantage
@@ -168,10 +168,10 @@ example {σ : Type}
       {w : List Bool // w.length ≤ 2} Bool σ) :
     Game.guessingAdvantage (ProbComp.eval (Experiment.guessBit
       ((variableLengthOTPCipher 2).oneTimeExperiment (ProbComp.uniform (BitString 2))
-        (fun m₀ m₁ => decide (m₀.1.length = m₁.1.length)) A))) = 0 := by
+        (fun m₀ m₁ => decide (m₀.val.length = m₁.val.length)) A))) = 0 := by
   have h := Experiment.advantage_eq_two_mul_guessingAdvantage_guessBit
     ((variableLengthOTPCipher 2).oneTimeExperiment (ProbComp.uniform (BitString 2))
-      (fun m₀ m₁ => decide (m₀.1.length = m₁.1.length)) A)
+      (fun m₀ m₁ => decide (m₀.val.length = m₁.val.length)) A)
   rw [advantage_oneTimeExperiment_variableLengthOTPCipher] at h
   have hcoe : (2 : ℝ≥0) * _ = 0 := h.symm
   rcases mul_eq_zero.mp hcoe with h2 | hg

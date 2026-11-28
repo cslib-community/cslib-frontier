@@ -53,41 +53,41 @@ variable {Rel V : Type} [DecidableEq V] {F : CSP Rel V}
 
 /-- The graph declares precisely the variable interval followed by the constraint interval. -/
 theorem incidenceGraph_vertices (F : CSP Rel V) :
-    (incidenceGraph F).1 = List.range (F.numVars + F.length) := by
+    (incidenceGraph F).vertices = List.range (F.numVars + F.length) := by
   simp [incidenceGraph, SAT.incidenceGraph, CSP.length_distinctVars]
 
 /-- Each occurrence contributes one edge in constraint-then-scope order. Parallel edges remain
 separate list entries; the original scope position is recoverable from the occurrence table. -/
 theorem incidenceGraph_edges (F : CSP Rel V) :
-    (incidenceGraph F).2 = F.occurrences.map
+    (incidenceGraph F).edges = F.occurrences.map
       (fun o => (F.distinctVars.idxOf o.2.2, F.numVars + o.1)) := by
   simp only [incidenceGraph, SAT.incidenceGraph, CSP.occurrences, List.map_map,
     CSP.distinctVars_varCNF, CSP.length_distinctVars, Function.comp_def]
 
 /-- Vertex count includes every constraint position, even identical and nullary constraints. -/
 theorem length_vertices_incidenceGraph (F : CSP Rel V) :
-    (incidenceGraph F).1.length = F.numVars + F.length := by
+    (incidenceGraph F).vertices.length = F.numVars + F.length := by
   rw [incidenceGraph_vertices, List.length_range]
 
 /-- Edge count includes each argument occurrence, even repeated variables. -/
 theorem length_edges_incidenceGraph (F : CSP Rel V) :
-    (incidenceGraph F).2.length = (F.map fun c => c.scope.length).sum := by
+    (incidenceGraph F).edges.length = (F.map fun c => c.scope.length).sum := by
   rw [incidenceGraph_edges, List.length_map, CSP.length_occurrences]
 
 /-- Every listed edge joins the variable part to the constraint-position part. -/
-theorem incidenceGraph_bipartite {e : ℕ × ℕ} (he : e ∈ (incidenceGraph F).2) :
+theorem incidenceGraph_bipartite {e : ℕ × ℕ} (he : e ∈ (incidenceGraph F).edges) :
     e.1 < F.numVars ∧ F.numVars ≤ e.2 ∧ e.2 < F.numVars + F.length := by
   simpa only [CSP.distinctVars_varCNF, CSP.length_distinctVars, CSP.length_varCNF] using
     SAT.incidenceGraph_bipartite he
 
 /-- Both endpoints of every listed edge are declared vertices. -/
-theorem incidenceGraph_endpoints {e : ℕ × ℕ} (he : e ∈ (incidenceGraph F).2) :
-    e.1 ∈ (incidenceGraph F).1 ∧ e.2 ∈ (incidenceGraph F).1 :=
+theorem incidenceGraph_endpoints {e : ℕ × ℕ} (he : e ∈ (incidenceGraph F).edges) :
+    e.1 ∈ (incidenceGraph F).vertices ∧ e.2 ∈ (incidenceGraph F).vertices :=
   SAT.incidenceGraph_endpoints he
 
 /-- Every entry of the flattened incidence-endpoint list is a declared graph vertex. -/
 theorem incidenceVertices_declared (F : CSP Rel V) :
-    ∀ v ∈ (incidenceGraph F).incidenceVertices, v ∈ (incidenceGraph F).1 := by
+    ∀ v ∈ (incidenceGraph F).incidenceVertices, v ∈ (incidenceGraph F).vertices := by
   intro v hv
   obtain ⟨e, he, hv⟩ := List.mem_flatMap.mp hv
   rcases List.mem_cons.mp hv with rfl | hv
@@ -97,7 +97,7 @@ theorem incidenceVertices_declared (F : CSP Rel V) :
     exact (incidenceGraph_endpoints he).2
 
 /-- The two vertex intervals are disjoint, so incidence edges are never loops. -/
-theorem incidenceGraph_loopless {e : ℕ × ℕ} (he : e ∈ (incidenceGraph F).2) : e.1 ≠ e.2 :=
+theorem incidenceGraph_loopless {e : ℕ × ℕ} (he : e ∈ (incidenceGraph F).edges) : e.1 ≠ e.2 :=
   SAT.incidenceGraph_loopless he
 
 /-- Edge-list position of an argument occurrence, retaining parallel edge identity. -/
@@ -105,7 +105,7 @@ theorem incidenceGraph_loopless {e : ℕ × ℕ} (he : e ∈ (incidenceGraph F).
 
 /-- Every argument occurrence indexes a declared edge record. -/
 theorem incidenceEdgeIndex_lt (o : F.Occurrence) :
-    incidenceEdgeIndex o < (incidenceGraph F).2.length := by
+    incidenceEdgeIndex o < (incidenceGraph F).edges.length := by
   rw [incidenceGraph_edges, List.length_map]
   exact List.idxOf_lt_length_of_mem (CSP.mem_occurrences.mpr ⟨o, rfl⟩)
 
@@ -116,7 +116,7 @@ theorem incidenceEdgeIndex_injective : Function.Injective (incidenceEdgeIndex (F
   exact (List.idxOf_inj (CSP.mem_occurrences.mpr ⟨o, rfl⟩)).mp h
 
 /-- Every edge-list position comes from an argument occurrence. -/
-theorem exists_incidenceEdgeIndex (i : ℕ) (hi : i < (incidenceGraph F).2.length) :
+theorem exists_incidenceEdgeIndex (i : ℕ) (hi : i < (incidenceGraph F).edges.length) :
     ∃ o : F.Occurrence, incidenceEdgeIndex o = i := by
   have hi' : i < F.occurrences.length := by
     simpa only [incidenceGraph_edges, List.length_map] using hi
@@ -127,7 +127,7 @@ theorem exists_incidenceEdgeIndex (i : ℕ) (hi : i < (incidenceGraph F).2.lengt
 
 /-- The occurrence's listed edge connects its dense variable name to its constraint position. -/
 theorem getElem_incidenceEdgeIndex (o : F.Occurrence) :
-    (incidenceGraph F).2[incidenceEdgeIndex o]'(incidenceEdgeIndex_lt o) =
+    (incidenceGraph F).edges[incidenceEdgeIndex o]'(incidenceEdgeIndex_lt o) =
       (F.distinctVars.idxOf o.var, F.numVars + o.1) := by
   simp only [incidenceGraph_edges, List.getElem_map, incidenceEdgeIndex]
   rw [List.getElem_idxOf (List.idxOf_lt_length_of_mem (CSP.mem_occurrences.mpr ⟨o, rfl⟩))]

@@ -222,8 +222,8 @@ theorem isKnuthValid_knuthWeight (n : ℕ) (p q : ℕ → ℕ) :
     (monotoneOnIntervals_knuthWeight (fun _ => Nat.zero_le _) (fun _ => Nat.zero_le _)) n
 
 theorem inputAdmissible_knuthValid :
-    InputAdmissible (fun _ (I : {I : OptimalBSTInstance // I.IsKnuthValid}) => I.1.encode)
-      (fun I w => I.1.FitsWidth w) :=
+    InputAdmissible (fun _ (I : {I : OptimalBSTInstance // I.IsKnuthValid}) => I.val.encode)
+      (fun I w => I.val.FitsWidth w) :=
   fun ⟨I, _⟩ => inputAdmissible I
 
 end OptimalBSTInstance
@@ -605,8 +605,7 @@ private theorem exec_bstSetup {w : ℕ} (I : OptimalBSTInstance) (hwAddr : Fits 
   have hlen := I.length_encode
   have hm0 : (Data.init I.encode : Data 22).mem 0 = I.encode.length := rfl
   have hm1 : (Data.init I.encode : Data 22).mem 1 = I.numKeys := by simp [OptimalBSTInstance.encode]
-  unfold bstSetup
-  wram_exec *
+  wram_exec * [bstSetup]
   refine ⟨?_, by wram_simp *, rfl⟩
   constructor <;> wram_simp *
 
@@ -662,8 +661,7 @@ private theorem exec_evalCandCode {w : ℕ} (I : OptimalBSTInstance)
       s1.mem = st.mem ∧
       (∀ idx : Fin 22, idx.val < 18 → s1.regs idx = st.regs idx) ∧
       s1.regs regTmp0 = optCost I.weightFn i (k - 1) := by
-    unfold evalCandLeft
-    wram_exec * [hm_left]
+    wram_exec * [evalCandLeft, hm_left]
     · exact ⟨rfl, fun _ hidx =>
         set5_regs_lt18 _ (by decide) (by decide) (by decide) (by decide) (by decide) hidx,
         by wram_simp * [hm_left]⟩
@@ -678,8 +676,7 @@ private theorem exec_evalCandCode {w : ℕ} (I : OptimalBSTInstance)
       s2.mem = s1.mem ∧
       (∀ idx : Fin 22, idx.val < 18 → s2.regs idx = s1.regs idx) ∧
       s2.regs regCand = optCost I.weightFn i (k - 1) + optCost I.weightFn k j := by
-    unfold evalCandRight
-    wram_exec * [hm_right1, hfit_cand]
+    wram_exec * [evalCandRight, hm_right1, hfit_cand]
     · exact ⟨rfl, fun _ hidx =>
         set5_regs_lt18 _ (by decide) (by decide) (by decide) (by decide) (by decide) hidx,
         by wram_simp * [hm_right1]⟩
@@ -761,8 +758,7 @@ private theorem exec_scanUpdateCode {w : ℕ} (c : ℕ → ℕ) (e : Entry ℕ) 
       st'.mem = st.mem ∧
       (∀ idx : Fin 22, idx ≠ regBestCost → idx ≠ regBestRoot → st'.regs idx = st.regs idx) ∧
       (⟨st'.regs regBestCost, st'.regs regBestRoot⟩ : Entry ℕ) = bestStep c e k := by
-  unfold scanUpdateCode
-  wram_exec *
+  wram_exec * [scanUpdateCode]
   · refine ⟨rfl, fun idx h1 _ => Data.set_regs_of_ne h1 _, ?_⟩
     wram_simp *
     rw [bestStep, ite_eq_right (by omega)]
@@ -908,8 +904,7 @@ private theorem exec_cellWriteCode {w : ℕ} (I : OptimalBSTInstance)
       s1.regs regI = i ∧ s1.regs regTmp0 = i * stride I + j ∧
       s1.regs regBestCost = optCost I.weightFn i j ∧
       s1.regs regBestRoot = optRoot I.weightFn i j := by
-    unfold cellAddWeight
-    wram_exec * [hread_w, hfit_sum]
+    wram_exec * [cellAddWeight, hread_w, hfit_sum]
     · refine ⟨rfl, by regs_frame, by wram_simp *, by wram_simp *, by wram_simp *,
         by wram_simp *, by wram_simp *, ?_, by wram_simp *⟩
       wram_simp * [hread_w]; exact hbc_opt
@@ -922,8 +917,7 @@ private theorem exec_cellWriteCode {w : ℕ} (I : OptimalBSTInstance)
       s2.mem = Function.update
         (Function.update s1.mem (costAddr I i j) (optCost I.weightFn i j))
         (rootAddr I i j) (optRoot I.weightFn i j) := by
-    unfold cellStoreBoth
-    wram_exec *
+    wram_exec * [cellStoreBoth]
     · refine ⟨by regs_frame, by wram_simp *, by wram_simp *, by wram_simp *, by wram_simp *, ?_⟩
       rw [Data.set_mem, Data.write_mem, Data.set_mem, Data.write_mem, Data.set_mem]
       dsimp only [costAddr, rootAddr]
@@ -982,8 +976,7 @@ private theorem exec_bstCode {w : ℕ} (I : OptimalBSTInstance) (hw : I.FitsWidt
         st1.mem = st.mem ∧ FixedRegs I st1 ∧
         st1.regs regD = d ∧ st1.regs regLen = d + 1 ∧
         st1.regs regILim = I.numKeys - d ∧ st1.regs regI = 0 := by
-      unfold diagPreCode
-      wram_exec *
+      wram_exec * [diagPreCode]
       refine ⟨rfl, by regs_frame, by wram_simp *, by wram_simp *, ?_, by wram_simp *⟩
       wram_simp *; omega
     obtain ⟨st1, hpre_ex, hm1, hfix1, hd1, hlen1, hilim1, hi1⟩ := hpre
@@ -1091,8 +1084,7 @@ private theorem exec_bstCode {w : ℕ} (I : OptimalBSTInstance) (hw : I.FitsWidt
     simpa only [costAddr, Nat.zero_mul, Nat.add_zero] using congrArg Entry.cost hfin_cell
   have hfinal : ∃ xf, ExecWithin w bstFinalRead x₁ xf 2 ∧
       xf.regs regOut = optCost I.weightFn 0 I.numKeys := by
-    unfold bstFinalRead
-    wram_exec * [hmem_out]
+    wram_exec * [bstFinalRead, hmem_out]
     wram_simp * [hmem_out]
   obtain ⟨xf, hfin_ex, hres⟩ := hfinal
   unfold bstCode
@@ -1115,8 +1107,7 @@ private theorem exec_plainWindowCode {w : ℕ} (I : OptimalBSTInstance)
       st'.regs regHi = (Window.plain : Window ℕ).hi (memTable I st.mem) i (i + d + 1) := by
   dsimp only [OptimalBSTInstance.addrBound] at hwAddr
   have hlen := I.length_encode
-  unfold plainWindowCode
-  wram_exec *
+  wram_exec * [plainWindowCode]
   exact ⟨rfl, by regs_frame, by wram_simp *, by wram_simp *, by wram_simp *,
     by wram_simp *, by wram_simp *, by wram_simp *; rfl, by wram_simp *; rfl⟩
 
@@ -1189,8 +1180,7 @@ private theorem exec_knuthWindowCode {w : ℕ} (I : OptimalBSTInstance)
     have hmul2 : (i + 1) * (I.numKeys + 1) ≤ (I.numKeys + 1) * (I.numKeys + 1) := by omega
     have hmt1 := memTable_in_bounds I st.mem (a := i) (b := i + d + 1 - 1) (by omega) (by omega)
     have hmt2 := memTable_in_bounds I st.mem (a := i + 1) (b := i + d + 1) (by omega) (by omega)
-    unfold knuthWindowPos
-    wram_exec * [hd0]
+    wram_exec * [knuthWindowPos, hd0]
     · refine ⟨rfl, by regs_frame, by wram_simp *, by wram_simp *, by wram_simp *,
         by wram_simp *, by wram_simp *, ?_, ?_⟩
       · wram_simp *
@@ -1240,13 +1230,13 @@ private theorem exec_knuthBSTCode {w : ℕ} (I : OptimalBSTInstance)
 `OptimalBSTInstance.IsKnuthValid`. -/
 theorem computesInTime_knuthBST :
     knuthBSTProgram.ComputesInTime
-      (fun _ (I : {I : OptimalBSTInstance // I.IsKnuthValid}) => I.1.encode)
-      (fun I _ => 58 * (I.1.numKeys + 1) ^ 2)
-      (fun I w => I.1.FitsWidth w)
-      (fun I => (knuthBST I.1.weightFn I.1.numKeys).cost) :=
+      (fun _ (I : {I : OptimalBSTInstance // I.IsKnuthValid}) => I.val.encode)
+      (fun I _ => 58 * (I.val.numKeys + 1) ^ 2)
+      (fun I w => I.val.FitsWidth w)
+      (fun I => (knuthBST I.val.weightFn I.val.numKeys).cost) :=
   ((bstCode knuthWindowCode).computesInTime_program regOut
     (time := fun (I : {I : OptimalBSTInstance // I.IsKnuthValid}) _ =>
-      58 * I.1.numKeys ^ 2 + 8 * I.1.numKeys + 15)
+      58 * I.val.numKeys ^ 2 + 8 * I.val.numKeys + 15)
     (fun ⟨I, hqi, hmono⟩ _ hw _ => exec_knuthBSTCode I hqi hmono hw)).mono
     (fun ⟨_, _⟩ _ => by nlinarith) (fun _ _ h => h)
 
@@ -1266,10 +1256,10 @@ satisfying `OptimalBSTInstance.IsKnuthValid`. -/
 theorem uniformComputableInTime_knuthBST :
     UniformComputableInTime .standard
       (fun I : {I : OptimalBSTInstance // I.IsKnuthValid} =>
-        (knuthBST I.1.weightFn I.1.numKeys).cost)
-      (fun _ I => I.1.encode)
-      (fun I _ => 58 * (I.1.numKeys + 1) ^ 2)
-      (fun I w => I.1.FitsWidth w) :=
+        (knuthBST I.val.weightFn I.val.numKeys).cost)
+      (fun _ I => I.val.encode)
+      (fun I _ => 58 * (I.val.numKeys + 1) ^ 2)
+      (fun I w => I.val.FitsWidth w) :=
   ⟨22, knuthBSTProgram, computesInTime_knuthBST, OptimalBSTInstance.inputAdmissible_knuthValid⟩
 
 end Cslib.Algorithms.WordRAM.OptimalBST

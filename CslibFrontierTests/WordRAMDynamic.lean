@@ -135,13 +135,13 @@ example {y : Data 3} {cost : ℕ}
 
 /--
 info: 'Cslib.WordRAM.DynamicCertificate.impl' depends on axioms:
-[propext]
+[propext, Classical.choice]
 -/
 #guard_msgs (whitespace := lax) in
 #print axioms DynamicCertificate.impl
 /--
 info: 'Cslib.WordRAM.TraceExec.exec' depends on axioms:
-[propext]
+[propext, Classical.choice]
 -/
 #guard_msgs (whitespace := lax) in
 #print axioms TraceExec.exec

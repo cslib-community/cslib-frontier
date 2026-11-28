@@ -389,7 +389,7 @@ def groupMeasurementMatrix {A : Type*} [Fintype A] (Q r A₀ R : ℕ) {n h : ℕ
     (K : Type*) [CommRing K] (place : A → Fin h × AuxLabel Q r) (varOf : A → Fin n)
     (a : Fin n → Fin Q → Fin r) (t : Fin Q) (g : Fin r) :
     Matrix (Fin h × measurementIndices Q r A₀ R) (varGroup a t g) K :=
-  fun p v => varMeasurementMatrix Q r A₀ R K place varOf p v.1
+  fun p v => varMeasurementMatrix Q r A₀ R K place varOf p v.val
 
 /-- **Equation (4.16) row count identity (p. 32)**: each of the `r` matrices `C_{t,g}` has
 `h * #(measurementIndices Q r A₀ R)` rows, so their total row count across `g : Fin r` is
@@ -518,7 +518,7 @@ theorem sum_abs_varMeasurementMatrix_le {A : Type*} [Fintype A] (Q r A₀ R : �
   refine (sum_le_sum fun v _ => abs_sum_le_sum_abs _ _).trans ?_
   rw [sum_filter_and_fiber]
   refine (sum_filter_place_fst_le hinj p.1 fun _ => abs_nonneg _).trans ?_
-  refine (sum_le_sum fun y _ => abs_eigenvecInt_le_one p.2.1 y).trans_eq ?_
+  refine (sum_le_sum fun y _ => abs_eigenvecInt_le_one p.2.val y).trans_eq ?_
   rw [sum_const, card_univ, card_auxLabel]
   simp
 
@@ -542,18 +542,18 @@ theorem abs_varMeasurementMatrix_mulVec_le_of_zero_one {A : Type*} [Fintype A]
 /-! ### 4. Explicit `ℓ₁`-coefficient norm bounds (Lemma 4.6, p. 33) -/
 
 private theorem coeffNorm1_prod_C_sub_X_le {Q : ℕ} (E : Finset (Fin Q)) :
-    (∏ s ∈ E, (C ((s.1 : ℤ) + 1) - X)).coeffNorm1 ≤ ∏ s ∈ E, ((s.1 + 1) + 1) := by
+    (∏ s ∈ E, (C ((s.val : ℤ) + 1) - X)).coeffNorm1 ≤ ∏ s ∈ E, ((s.val + 1) + 1) := by
   classical
   induction E using Finset.induction_on with
   | empty => simp
   | insert s E hs ih =>
     rw [prod_insert hs, prod_insert hs]
     refine (coeffNorm1_C_sub_X_mul_le _ _).trans ?_
-    rw [show ((s.1 : ℤ) + 1).natAbs = s.1 + 1 by omega]
+    rw [show ((s.val : ℤ) + 1).natAbs = s.val + 1 by omega]
     gcongr
 
 private theorem prod_add_one_add_one_le {Q : ℕ} (E : Finset (Fin Q)) :
-    (∏ s ∈ E, ((s.1 + 1) + 1)) ≤ ∏ s ∈ E, (2 * (s.1 + 1)) := by
+    (∏ s ∈ E, ((s.val + 1) + 1)) ≤ ∏ s ∈ E, (2 * (s.val + 1)) := by
   classical
   induction E using Finset.induction_on with
   | empty => simp
@@ -567,27 +567,27 @@ theorem coeffNorm1_mismatchAnnihilatorScaledInt_le {Q r : ℕ} (u y : AuxLabel Q
     (mismatchAnnihilatorScaledInt u y).coeffNorm1 ≤ Q.factorial * 2 ^ Q := by
   unfold mismatchAnnihilatorScaledInt
   have hnat :
-      (∏ s ∈ (mismatchSet u y)ᶜ, ((s.1 : ℤ) + 1)).natAbs =
-        ∏ s ∈ (mismatchSet u y)ᶜ, (s.1 + 1) := by
+      (∏ s ∈ (mismatchSet u y)ᶜ, ((s.val : ℤ) + 1)).natAbs =
+        ∏ s ∈ (mismatchSet u y)ᶜ, (s.val + 1) := by
     rw [Int.natAbs_prod]; exact prod_congr rfl fun _ _ => by omega
   calc
-    (C (∏ s ∈ (mismatchSet u y)ᶜ, ((s.1 : ℤ) + 1)) *
-        ∏ s ∈ mismatchSet u y, (C ((s.1 : ℤ) + 1) - X)).coeffNorm1 ≤
-      (∏ s ∈ (mismatchSet u y)ᶜ, ((s.1 : ℤ) + 1)).natAbs *
-        (∏ s ∈ mismatchSet u y, (C ((s.1 : ℤ) + 1) - X)).coeffNorm1 :=
+    (C (∏ s ∈ (mismatchSet u y)ᶜ, ((s.val : ℤ) + 1)) *
+        ∏ s ∈ mismatchSet u y, (C ((s.val : ℤ) + 1) - X)).coeffNorm1 ≤
+      (∏ s ∈ (mismatchSet u y)ᶜ, ((s.val : ℤ) + 1)).natAbs *
+        (∏ s ∈ mismatchSet u y, (C ((s.val : ℤ) + 1) - X)).coeffNorm1 :=
       coeffNorm1_C_mul_le _ _
-    _ = (∏ s ∈ (mismatchSet u y)ᶜ, (s.1 + 1)) *
-        (∏ s ∈ mismatchSet u y, (C ((s.1 : ℤ) + 1) - X)).coeffNorm1 := by
+    _ = (∏ s ∈ (mismatchSet u y)ᶜ, (s.val + 1)) *
+        (∏ s ∈ mismatchSet u y, (C ((s.val : ℤ) + 1) - X)).coeffNorm1 := by
       rw [hnat]
-    _ ≤ (∏ s ∈ (mismatchSet u y)ᶜ, (s.1 + 1)) *
-        ∏ s ∈ mismatchSet u y, ((s.1 + 1) + 1) :=
+    _ ≤ (∏ s ∈ (mismatchSet u y)ᶜ, (s.val + 1)) *
+        ∏ s ∈ mismatchSet u y, ((s.val + 1) + 1) :=
       Nat.mul_le_mul_left _ (coeffNorm1_prod_C_sub_X_le _)
-    _ ≤ (∏ s ∈ (mismatchSet u y)ᶜ, (s.1 + 1)) *
-        ∏ s ∈ mismatchSet u y, (2 * (s.1 + 1)) :=
+    _ ≤ (∏ s ∈ (mismatchSet u y)ᶜ, (s.val + 1)) *
+        ∏ s ∈ mismatchSet u y, (2 * (s.val + 1)) :=
       Nat.mul_le_mul_left _ (prod_add_one_add_one_le _)
     _ = 2 ^ #(mismatchSet u y) * Q.factorial := by
       rw [prod_mul_distrib, prod_const, ← mul_assoc,
-        mul_comm (∏ s ∈ (mismatchSet u y)ᶜ, (s.1 + 1)) (2 ^ #(mismatchSet u y)),
+        mul_comm (∏ s ∈ (mismatchSet u y)ᶜ, (s.val + 1)) (2 ^ #(mismatchSet u y)),
         mul_assoc, prod_compl_mul_prod,
         Fin.prod_univ_eq_prod_range (fun i => i + 1) Q,
         Finset.prod_range_add_one_eq_factorial]

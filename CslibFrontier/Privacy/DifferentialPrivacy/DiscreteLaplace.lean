@@ -242,7 +242,7 @@ theorem twoSidedGeometric_apply_le (h0 : 0 < α) (h1 : α < 1) {Δ : ℝ} (z d :
   refine ENNReal.ofReal_le_ofReal ?_
   have hC : 0 ≤ (1 - α) / (1 + α) := div_nonneg (by linarith) (by linarith)
   have hpow (n : ℕ) : α ^ n = Real.exp (n * Real.log α) := by
-    rw [Real.exp_nat_mul, Real.exp_log h0]
+    rw [Real.exp_natCast_mul, Real.exp_log h0]
   rw [hpow, hpow, mul_left_comm, ← Real.exp_add]
   refine mul_le_mul_of_nonneg_left (Real.exp_le_exp.mpr ?_) hC
   rw [Real.log_inv]
@@ -280,7 +280,7 @@ theorem discreteLaplace_apply (t : ℝ) (ht : 0 < t) (z : ℤ) :
         Real.exp (-|(z : ℝ)| / t)) := by
   rw [discreteLaplace, twoSidedGeometric_apply]
   congr 1
-  rw [← Real.exp_nat_mul, Nat.cast_natAbs, Int.cast_abs,
+  rw [← Real.exp_natCast_mul, Nat.cast_natAbs, Int.cast_abs,
     show Real.exp (-1 / t) = (Real.exp (1 / t))⁻¹ by rw [← Real.exp_neg, neg_div]]
   have := Real.exp_pos (1 / t)
   congr 1
@@ -307,7 +307,7 @@ theorem discreteLaplace_toOuterMeasure_Ici {ε : ℝ} (hε : 0 < ε) (m : ℕ) :
   rw [discreteLaplace, twoSidedGeometric_toOuterMeasure_Ici,
     show -1 / (1 / ε) = -ε by field_simp]
   congr 1
-  rw [div_eq_div_iff (by positivity) (by positivity), ← Real.exp_nat_mul, mul_add, mul_add,
+  rw [div_eq_div_iff (by positivity) (by positivity), ← Real.exp_natCast_mul, mul_add, mul_add,
     ← Real.exp_add, ← Real.exp_add, mul_one, mul_one]
   ring_nf
 
@@ -325,7 +325,7 @@ theorem discreteLaplace_toOuterMeasure_Iic {ε : ℝ} (hε : 0 < ε) (m : ℕ) :
 theorem discreteLaplace_toOuterMeasure_le_natAbs (t : ℝ) (ht : 0 < t) {m : ℕ} (hm : m ≠ 0) :
     (discreteLaplace t ht).toOuterMeasure {z | m ≤ z.natAbs} =
       ENNReal.ofReal (2 * Real.exp (-m / t) / (1 + Real.exp (-1 / t))) := by
-  rw [show -(m : ℝ) / t = m * (-1 / t) by ring, Real.exp_nat_mul]
+  rw [show -(m : ℝ) / t = m * (-1 / t) by ring, Real.exp_natCast_mul]
   exact twoSidedGeometric_toOuterMeasure_le_natAbs _ _ hm
 
 /-- The discrete Laplace distribution with scale `t` exceeds `a ≥ 0` in absolute value with

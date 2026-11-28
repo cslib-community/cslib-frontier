@@ -83,7 +83,7 @@ variable {n : ℕ}
 theorem Valid.exists_gate_of_normal {S : State n} {f : BooleanFunction n} {d : ℕ}
     (hS : S.Valid f) (hf : IsAffineDisperser f d) (ha : d < S.a) (_hN : S.Normal) :
     S.gates.Nonempty := by
-  refine Finset.nonempty_iff_ne_empty.2 fun hne => ?_
+  refine Finset.ne_empty_iff_nonempty.1 fun hne => ?_
   cases hout : S.out.arg with
   | const b =>
     refine Valid.out_not_affine hS hf ha (b ^^ S.out.neg) (Finset.empty_subset _) fun val _ _ => ?_

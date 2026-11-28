@@ -296,8 +296,7 @@ theorem zeroFillCode_exec (P : SubroutineCode B r_ds k_init)
     all_goals simp only [Cond.holds_lt, xs]; wram_simp [x_c, hfr₁]
     omega
   refine WP.exists_execWithin (WP.bounded hx₁ ?_)
-  unfold zeroFillCode
-  wram_exec [hb₁, hfr₁]
+  wram_exec [zeroFillCode, hb₁, hfr₁]
   case pos =>
     refine WP.of_execWithin hloop fun hb => ⟨by omega, hb, ?_, ?_, fun j => ?_,
       fun a ha => clear_of_owns (Block.mem_footprint.mp ha),
@@ -501,7 +500,7 @@ theorem initClear_exec (C : SubroutineBase P Result valid w base params s₀) {x
   obtain ⟨y, he₃, hfr₃, hrep, hpot, hmod₃⟩ := C.setup_exec hx₂ hb₂ hfr₂ hpar₂ hz₂
   rw [hm₁] at hmod₂
   have hmod : Modifies (Block.mk base C.space).footprint x.mem y.mem := by
-    simpa only [Finset.union_idempotent] using hmod₂.trans hmod₃
+    simpa only [Finset.union_self] using hmod₂.trans hmod₃
   exact ⟨y, (he₁.seq (he₂.seq he₃)).mono (by wram_omega), hfr₃, hrep, hpot, hmod⟩
 
 /-- Relocated dirty-memory initialization along any injective register embedding `f`, in

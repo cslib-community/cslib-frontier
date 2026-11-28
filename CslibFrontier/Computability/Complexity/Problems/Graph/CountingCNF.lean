@@ -81,7 +81,7 @@ open Cslib.Logic.PL Turing.MultiTapeTM ComputableInPolyTime Circuits Boolean
 
 /-- Executable width-`2` CNF encoding of the independent sets of `G.induced` on `|V|` variables. -/
 @[expose] def toIndepSetCNF (G : Graph) : CNF ℕ :=
-  CNF.indepSetCNF G.1 G.2
+  CNF.indepSetCNF G.vertices G.edges
 
 /-- Every clause of `G.toIndepSetCNF` has exact length `2`. -/
 theorem length_clause_toIndepSetCNF {G : Graph} {c : Clause ℕ} (hc : c ∈ G.toIndepSetCNF) :
@@ -90,29 +90,30 @@ theorem length_clause_toIndepSetCNF {G : Graph} {c : Clause ℕ} (hc : c ∈ G.t
 
 /-- `G.toIndepSetCNF` has exactly `G.1.toFinset.card` occurring variables. -/
 @[simp]
-theorem numVars_toIndepSetCNF (G : Graph) : G.toIndepSetCNF.numVars = G.1.toFinset.card :=
-  CNF.numVars_indepSetCNF G.1 G.2
+theorem numVars_toIndepSetCNF (G : Graph) : G.toIndepSetCNF.numVars = G.vertices.toFinset.card :=
+  CNF.numVars_indepSetCNF G.vertices G.edges
 
 /-- Occurring variables of `G.toIndepSetCNF` are bounded by `(encGraph G).length`. -/
 theorem numVars_toIndepSetCNF_le_enc (G : Graph) :
     G.toIndepSetCNF.numVars ≤ (encGraph G).length := by
   rw [numVars_toIndepSetCNF]
-  exact G.1.toFinset_card_le.trans G.length_vertices_le_encGraph
+  exact G.vertices.toFinset_card_le.trans G.length_vertices_le_encGraph
 
 /-- Explicit bijection between satisfying assignments of `G.toIndepSetCNF` on `G.1.toFinset`
 and independent sets of `G.induced`. -/
 def indepSetCNFEquiv (G : Graph) :
-    {σ : G.1.toFinset → Bool //
-      G.toIndepSetCNF.eval (fun v => if hv : v ∈ G.1.toFinset then σ ⟨v, hv⟩ else false) =
+    {σ : G.vertices.toFinset → Bool //
+      G.toIndepSetCNF.eval (fun v => if hv : v ∈ G.vertices.toFinset then σ ⟨v, hv⟩ else false) =
         true} ≃
-      {S : Finset {v : ℕ // v ∈ G.1} // G.induced.IsIndepSet (S : Set {v : ℕ // v ∈ G.1})} :=
+      {S : Finset {v : ℕ // v ∈ G.vertices} //
+        G.induced.IsIndepSet (S : Set {v : ℕ // v ∈ G.vertices})} :=
   CNF.indepSetCNFEquiv (G := G.induced) fun _ _ => Graph.induced_adj.trans Graph.toSimpleGraph_adj
 
 /-- **Exact model count of `G.toIndepSetCNF`**: number of independent sets of `G.induced`. -/
 theorem modelCount_toIndepSetCNF (G : Graph) :
     G.toIndepSetCNF.modelCount =
-      Nat.card {S : Finset {v : ℕ // v ∈ G.1} //
-        G.induced.IsIndepSet (S : Set {v : ℕ // v ∈ G.1})} :=
+      Nat.card {S : Finset {v : ℕ // v ∈ G.vertices} //
+        G.induced.IsIndepSet (S : Set {v : ℕ // v ∈ G.vertices})} :=
   CNF.modelCount_indepSetCNF (G := G.induced) fun _ _ =>
     Graph.induced_adj.trans Graph.toSimpleGraph_adj
 
@@ -144,7 +145,7 @@ theorem computableInPolyTime_toIndepSetCNF :
 /-- Executable CNF encoding of proper `q`-colourings of `G.induced` over dense natural variables
 `0, …, q * |V| - 1`, with clause width at most `max q 2`. -/
 @[expose] def toColoringCNF (q : ℕ) (G : Graph) : CNF ℕ :=
-  (CNF.coloringCNF q G.1 G.2).relabel (coloringVar q G)
+  (CNF.coloringCNF q G.vertices G.edges).relabel (coloringVar q G)
 
 /-- Every clause of `G.toColoringCNF q` has width at most `max q 2`. -/
 theorem length_clause_toColoringCNF_le {q : ℕ} {G : Graph} {c : Clause ℕ}
@@ -155,7 +156,7 @@ theorem length_clause_toColoringCNF_le {q : ℕ} {G : Graph} {c : Clause ℕ}
   exact CNF.length_clause_coloringCNF_le hc₀
 
 private theorem coloringVar_injOn (q : ℕ) (G : Graph) :
-    Set.InjOn (coloringVar q G) {p | p ∈ (CNF.coloringCNF q G.1 G.2).vars} := by
+    Set.InjOn (coloringVar q G) {p | p ∈ (CNF.coloringCNF q G.vertices G.edges).vars} := by
   intro ⟨v₁, c₁⟩ h₁ ⟨v₂, c₂⟩ h₂ heq
   obtain ⟨hv₁, hc₁⟩ := CNF.mem_vars_coloringCNF.mp h₁
   obtain ⟨hv₂, hc₂⟩ := CNF.mem_vars_coloringCNF.mp h₂
@@ -200,7 +201,7 @@ theorem vars_toColoringCNF (q : ℕ) (G : Graph) :
     have hdiv : k / q < G.distinctVertices.length := (Nat.div_lt_iff_lt_mul hq).mpr
       (by simpa only [Nat.mul_comm] using hk)
     let v := G.distinctVertices[k / q]
-    have hv : v ∈ G.1 := Graph.mem_distinctVertices.mp (List.getElem_mem hdiv)
+    have hv : v ∈ G.vertices := Graph.mem_distinctVertices.mp (List.getElem_mem hdiv)
     refine ⟨(v, k % q), CNF.mem_vars_coloringCNF.mpr ⟨hv, Nat.mod_lt k hq⟩, ?_⟩
     rw [coloringVar, (Graph.nodup_distinctVertices G).idxOf_getElem (k / q) hdiv]
     have := Nat.div_add_mod k q
@@ -209,7 +210,7 @@ theorem vars_toColoringCNF (q : ℕ) (G : Graph) :
 /-- `G.toColoringCNF q` uses exactly `q * G.1.toFinset.card` variables. -/
 @[simp]
 theorem numVars_toColoringCNF (q : ℕ) (G : Graph) :
-    (G.toColoringCNF q).numVars = q * G.1.toFinset.card := by
+    (G.toColoringCNF q).numVars = q * G.vertices.toFinset.card := by
   rw [CNF.numVars, vars_toColoringCNF, Finset.card_range, Graph.length_distinctVertices]
 
 theorem validDeclaredInput_toColoringCNF (q : ℕ) (G : Graph) :
@@ -220,64 +221,64 @@ theorem validDeclaredInput_toColoringCNF (q : ℕ) (G : Graph) :
 
 /-- Variable-domain bijection `G.1.toFinset ×ˢ Finset.range q ≃ Finset.range (q * |V|)`. -/
 private def coloringDomainEquiv (q : ℕ) (G : Graph) :
-    ↥(G.1.toFinset ×ˢ Finset.range q) ≃ ↥(Finset.range (q * G.distinctVertices.length)) where
-  toFun p := ⟨coloringVar q G p.1, by
-    have hp := Finset.mem_product.mp p.2
-    have hvG : p.1.1 ∈ G.1 := List.mem_toFinset.mp hp.1
-    have hc : p.1.2 < q := Finset.mem_range.mp hp.2
-    have hidx : G.distinctVertices.idxOf p.1.1 < G.distinctVertices.length :=
+    ↥(G.vertices.toFinset ×ˢ Finset.range q) ≃ ↥(Finset.range (q * G.distinctVertices.length)) where
+  toFun p := ⟨coloringVar q G p.val, by
+    have hp := Finset.mem_product.mp p.property
+    have hvG : p.val.1 ∈ G.vertices := List.mem_toFinset.mp hp.1
+    have hc : p.val.2 < q := Finset.mem_range.mp hp.2
+    have hidx : G.distinctVertices.idxOf p.val.1 < G.distinctVertices.length :=
       List.idxOf_lt_length_iff.mpr (Graph.mem_distinctVertices.mpr hvG)
-    have h1 : q * G.distinctVertices.idxOf p.1.1 + p.1.2 <
-        q * (G.distinctVertices.idxOf p.1.1 + 1) := by
+    have h1 : q * G.distinctVertices.idxOf p.val.1 + p.val.2 <
+        q * (G.distinctVertices.idxOf p.val.1 + 1) := by
       rw [Nat.mul_add, Nat.mul_one]
       omega
     exact Finset.mem_range.mpr (h1.trans_le (Nat.mul_le_mul_left q (Nat.succ_le_of_lt hidx)))⟩
-  invFun k := ⟨(G.distinctVertices[k.1 / q]'(by
+  invFun k := ⟨(G.distinctVertices[k.val / q]'(by
       have hq : 0 < q := by
         by_contra h0
         have : q = 0 := by omega
-        have hk := Finset.mem_range.mp k.2
+        have hk := Finset.mem_range.mp k.property
         subst this
         simp at hk
       exact (Nat.div_lt_iff_lt_mul hq).mpr
-        (by simpa only [Nat.mul_comm] using Finset.mem_range.mp k.2)), k.1 % q), by
-    have hk := Finset.mem_range.mp k.2
+        (by simpa only [Nat.mul_comm] using Finset.mem_range.mp k.property)), k.val % q), by
+    have hk := Finset.mem_range.mp k.property
     have hq : 0 < q := by
       by_contra h0
       have : q = 0 := by omega
       subst this
       simp at hk
-    have hdiv : k.1 / q < G.distinctVertices.length :=
+    have hdiv : k.val / q < G.distinctVertices.length :=
       (Nat.div_lt_iff_lt_mul hq).mpr (by simpa only [Nat.mul_comm] using hk)
     exact Finset.mem_product.mpr
       ⟨List.mem_toFinset.mpr (Graph.mem_distinctVertices.mp (List.getElem_mem hdiv)),
-        Finset.mem_range.mpr (Nat.mod_lt k.1 hq)⟩⟩
+        Finset.mem_range.mpr (Nat.mod_lt k.val hq)⟩⟩
   left_inv p := by
-    have hp := Finset.mem_product.mp p.2
-    have hvG : p.1.1 ∈ G.1 := List.mem_toFinset.mp hp.1
-    have hc : p.1.2 < q := Finset.mem_range.mp hp.2
+    have hp := Finset.mem_product.mp p.property
+    have hvG : p.val.1 ∈ G.vertices := List.mem_toFinset.mp hp.1
+    have hc : p.val.2 < q := Finset.mem_range.mp hp.2
     have hq : 0 < q := Nat.zero_lt_of_lt hc
-    have hdiv : (q * G.distinctVertices.idxOf p.1.1 + p.1.2) / q =
-        G.distinctVertices.idxOf p.1.1 := by
+    have hdiv : (q * G.distinctVertices.idxOf p.val.1 + p.val.2) / q =
+        G.distinctVertices.idxOf p.val.1 := by
       rw [Nat.add_comm, Nat.add_mul_div_left _ _ hq, Nat.div_eq_of_lt hc, Nat.zero_add]
-    have hmod : (q * G.distinctVertices.idxOf p.1.1 + p.1.2) % q = p.1.2 := by
+    have hmod : (q * G.distinctVertices.idxOf p.val.1 + p.val.2) % q = p.val.2 := by
       rw [Nat.add_comm, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hc]
     refine Subtype.ext (Prod.ext ?_ hmod)
     simp only [coloringVar, hdiv]
     exact List.getElem_idxOf (List.idxOf_lt_length_iff.mpr (Graph.mem_distinctVertices.mpr hvG))
   right_inv k := by
-    have hk := Finset.mem_range.mp k.2
+    have hk := Finset.mem_range.mp k.property
     have hq : 0 < q := by
       by_contra h0
       have : q = 0 := by omega
       subst this
       simp at hk
-    have hdiv : k.1 / q < G.distinctVertices.length :=
+    have hdiv : k.val / q < G.distinctVertices.length :=
       (Nat.div_lt_iff_lt_mul hq).mpr (by simpa only [Nat.mul_comm] using hk)
     refine Subtype.ext ?_
     dsimp only [coloringVar]
-    rw [(Graph.nodup_distinctVertices G).idxOf_getElem (k.1 / q) hdiv]
-    have := Nat.div_add_mod k.1 q
+    rw [(Graph.nodup_distinctVertices G).idxOf_getElem (k.val / q) hdiv]
+    have := Nat.div_add_mod k.val q
     omega
 
 /-- Explicit bijection between satisfying assignments of `G.toColoringCNF q` on
@@ -293,37 +294,37 @@ noncomputable def coloringCNFEquiv (q : ℕ) (G : Graph) :
         (G.toColoringCNF q).eval
           (fun k => if hk : k ∈ Finset.range (q * G.distinctVertices.length) then σ ⟨k, hk⟩
             else false) = true} ≃
-      {σ : G.1.toFinset ×ˢ Finset.range q → Bool //
-        (CNF.coloringCNF q G.1 G.2).eval
-          (fun p => if hp : p ∈ G.1.toFinset ×ˢ Finset.range q then σ ⟨p, hp⟩ else false) =
+      {σ : G.vertices.toFinset ×ˢ Finset.range q → Bool //
+        (CNF.coloringCNF q G.vertices G.edges).eval
+          (fun p => if hp : p ∈ G.vertices.toFinset ×ˢ Finset.range q then σ ⟨p, hp⟩ else false) =
             true} :=
-    { toFun := fun σ => ⟨fun p => σ.1 (coloringDomainEquiv q G p), by
-        have h := σ.2
+    { toFun := fun σ => ⟨fun p => σ.val (coloringDomainEquiv q G p), by
+        have h := σ.property
         dsimp only [toColoringCNF] at h
         rw [CNF.eval_relabel] at h
         refine (CNF.eval_congr fun p hp => ?_).trans h
-        have hp' : p ∈ G.1.toFinset ×ˢ Finset.range q := by
+        have hp' : p ∈ G.vertices.toFinset ×ˢ Finset.range q := by
           obtain ⟨hv, hc⟩ := CNF.mem_vars_coloringCNF.mp hp
           exact Finset.mem_product.mpr ⟨List.mem_toFinset.mpr hv, Finset.mem_range.mpr hc⟩
         have hmem : coloringVar q G p ∈ Finset.range (q * G.distinctVertices.length) :=
-          (coloringDomainEquiv q G ⟨p, hp'⟩).2
+          (coloringDomainEquiv q G ⟨p, hp'⟩).property
         simp only [Function.comp_def, hp', ↓reduceDIte, hmem]
         rfl⟩
-      invFun := fun σ => ⟨fun k => σ.1 ((coloringDomainEquiv q G).symm k), by
+      invFun := fun σ => ⟨fun k => σ.val ((coloringDomainEquiv q G).symm k), by
         dsimp only [toColoringCNF]
         rw [CNF.eval_relabel]
-        refine (CNF.eval_congr fun p hp => ?_).trans σ.2
-        have hp' : p ∈ G.1.toFinset ×ˢ Finset.range q := by
+        refine (CNF.eval_congr fun p hp => ?_).trans σ.property
+        have hp' : p ∈ G.vertices.toFinset ×ˢ Finset.range q := by
           obtain ⟨hv, hc⟩ := CNF.mem_vars_coloringCNF.mp hp
           exact Finset.mem_product.mpr ⟨List.mem_toFinset.mpr hv, Finset.mem_range.mpr hc⟩
         have hmem : coloringVar q G p ∈ Finset.range (q * G.distinctVertices.length) :=
-          (coloringDomainEquiv q G ⟨p, hp'⟩).2
+          (coloringDomainEquiv q G ⟨p, hp'⟩).property
         simp only [Function.comp_def, hmem, ↓reduceDIte, hp']
-        exact congrArg σ.1 ((coloringDomainEquiv q G).symm_apply_apply ⟨p, hp'⟩)⟩
+        exact congrArg σ.val ((coloringDomainEquiv q G).symm_apply_apply ⟨p, hp'⟩)⟩
       left_inv := fun σ => Subtype.ext (funext fun k =>
-        congrArg σ.1 ((coloringDomainEquiv q G).apply_symm_apply k))
+        congrArg σ.val ((coloringDomainEquiv q G).apply_symm_apply k))
       right_inv := fun σ => Subtype.ext (funext fun p =>
-        congrArg σ.1 ((coloringDomainEquiv q G).symm_apply_apply p)) }
+        congrArg σ.val ((coloringDomainEquiv q G).symm_apply_apply p)) }
   exact eAssign.trans (CNF.coloringCNFEquiv (G := G.induced) fun _ _ =>
     Graph.induced_adj.trans Graph.toSimpleGraph_adj)
 
@@ -452,7 +453,7 @@ theorem length_clause_toPerfectMatchingCNF {G : Graph} {c : Clause ℕ}
   length_of_mem_tseitinSatCNF hc
 
 /-- `G.edgeList` has at most `G.2.length` entries. -/
-theorem length_edgeList_le (G : Graph) : G.edgeList.length ≤ G.2.length :=
+theorem length_edgeList_le (G : Graph) : G.edgeList.length ≤ G.edges.length :=
   (List.eraseDupsBy_sublist _).length_le.trans List.filter_sublist.length_le
 
 private theorem mem_perfectMatchingWires_lt (G : Graph) :
@@ -544,11 +545,11 @@ noncomputable def perfectMatchingCNFEquiv (G : Graph) :
         ∀ v ∈ G.vertices, ∃! i, i < G.edgeList.length ∧
           Graph.incident (G.edgeList.getD i (0, 0)) v = true ∧ i ∈ S} :=
     { toFun := fun x =>
-        ⟨(Finset.univ.filter fun i : Fin G.edgeList.length => x.1 i = true).map
+        ⟨(Finset.univ.filter fun i : Fin G.edgeList.length => x.val i = true).map
             ⟨Fin.val, Fin.val_injective⟩, by
-          have hx := x.2
+          have hx := x.property
           dsimp only [perfectMatchingCircuit] at hx
-          have hev := evalOutput_seqExactlyOneAll (x := List.ofFn x.1)
+          have hev := evalOutput_seqExactlyOneAll (x := List.ofFn x.val)
             (wss := G.perfectMatchingWires)
             (by simpa only [List.length_ofFn] using mem_perfectMatchingWires_lt G)
           simp only [List.length_ofFn] at hev
@@ -564,19 +565,19 @@ noncomputable def perfectMatchingCNFEquiv (G : Graph) :
             rw [List.countP_eq_length_filter, List.filter_filter,
               List.length_filter_range_eq_one_iff] at hcnt
             obtain ⟨i, ⟨hi, hp⟩, huniq⟩ := hcnt
-            rw [Bool.and_eq_true, List.getD_ofFn_of_lt x.1 hi false] at hp
+            rw [Bool.and_eq_true, List.getD_ofFn_of_lt x.val hi false] at hp
             refine ⟨i, ⟨hi, hp.2, Finset.mem_map.mpr
               ⟨⟨i, hi⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hp.1⟩, rfl⟩⟩, ?_⟩
             intro j ⟨hj, hjinc, hjs⟩
             obtain ⟨j', hj', rfl⟩ := Finset.mem_map.mp hjs
             have hjxt := (Finset.mem_filter.mp hj').2
-            refine huniq j'.1 ⟨j'.isLt, ?_⟩
-            rw [Bool.and_eq_true, List.getD_ofFn_of_lt x.1 j'.isLt false]
+            refine huniq j'.val ⟨j'.isLt, ?_⟩
+            rw [Bool.and_eq_true, List.getD_ofFn_of_lt x.val j'.isLt false]
             exact ⟨hjxt, hjinc⟩⟩
-      invFun := fun S => ⟨fun i => decide (i.1 ∈ S.1), by
+      invFun := fun S => ⟨fun i => decide (i.val ∈ S.val), by
         dsimp only [perfectMatchingCircuit]
         have hev := evalOutput_seqExactlyOneAll
-          (x := List.ofFn fun i : Fin G.edgeList.length => decide (i.1 ∈ S.1))
+          (x := List.ofFn fun i : Fin G.edgeList.length => decide (i.val ∈ S.val))
           (wss := G.perfectMatchingWires)
           (by simpa only [List.length_ofFn] using mem_perfectMatchingWires_lt G)
         simp only [List.length_ofFn] at hev
@@ -586,7 +587,7 @@ noncomputable def perfectMatchingCNFEquiv (G : Graph) :
         obtain ⟨v, hv, rfl⟩ := hws
         rw [decide_eq_true_eq, List.countP_eq_length_filter, List.filter_filter,
           List.length_filter_range_eq_one_iff]
-        obtain ⟨i, ⟨hi, hinc, hiS⟩, huniq⟩ := S.2.2 v hv
+        obtain ⟨i, ⟨hi, hinc, hiS⟩, huniq⟩ := S.property.2 v hv
         refine ⟨i, ⟨hi, ?_⟩, fun j ⟨hj, hjp⟩ => huniq j ⟨hj, ?_⟩⟩
         · rw [Bool.and_eq_true, List.getD_ofFn_of_lt _ hi false, decide_eq_true_eq]
           exact ⟨hiS, hinc⟩
@@ -653,8 +654,10 @@ private theorem seqExactlyOneStep_eq_zipIdx (nextWire seen1 seen2 : ℕ) (ws : L
   induction ws generalizing nextWire seen1 seen2 with
   | nil => rfl
   | cons w ws ih =>
-    rw [seqExactlyOneStep, ih (nextWire + 3) (nextWire + 2) (nextWire + 1),
-      List.zipIdx_cons', List.flatMap_cons, List.flatMap_map]
+    rw [seqExactlyOneStep]
+    dsimp only
+    rw [ih (nextWire + 3) (nextWire + 2) (nextWire + 1), List.zipIdx_cons', List.flatMap_cons,
+      List.flatMap_map]
     dsimp only [Nat.mul_zero, Nat.add_zero, ↓reduceIte]
     congr 1
     refine List.flatMap_congr fun ⟨u, j⟩ _ => ?_
@@ -726,6 +729,7 @@ private theorem seqExactlyOneFold_eq_zipIdx (n base acc : ℕ) (wss : List (List
     have hacc : nextAcc = n + (base + (3 * ws.length + 4)) - 1 := by omega
     obtain ⟨ih1, ih2⟩ := ih (base + cl.gates.length + 1) nextAcc
     rw [seqExactlyOneFold]
+    dsimp only
     refine ⟨?_, ?_⟩
     · rw [ih1, List.zipIdx_cons', List.flatMap_cons, List.flatMap_map]
       dsimp only [List.take_zero, List.map_nil, List.sum_nil, Nat.add_zero, ↓reduceIte, cl]
@@ -784,7 +788,7 @@ private theorem gateClauses_eq_ite (w : ℕ) (gate : Op × List ℕ) :
   | or => rfl
 
 private theorem list_zipIdx_eq_map_finRange {α : Type*} (l : List α) :
-    l.zipIdx = (List.finRange l.length).map fun i : Fin l.length => (l[i], i.1) := by
+    l.zipIdx = (List.finRange l.length).map fun i : Fin l.length => (l[i], i.val) := by
   refine List.ext_getElem (by simp) fun i h1 h2 => ?_
   simp only [List.length_zipIdx] at h1
   simp [List.getElem_zipIdx]

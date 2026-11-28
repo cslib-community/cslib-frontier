@@ -685,15 +685,15 @@ theorem isDepthTwoOverWeights_eval_embedUpdate {κ : Type*} [Fintype κ]
     choose c₀ d hcd using hlin
     let eU : Fin #U ≃ U := Fintype.equivOfCardEq (by simp)
     let g : Fin #U → (κ → Bool) → Bool := fun r u =>
-      ltfEval (inputWeight c.program (eU r).1) (c.program.lines (eU r).1).op.threshold
+      ltfEval (inputWeight c.program (eU r).val) (c.program.lines (eU r).val).op.threshold
         (embedUpdate emb w u)
-    let a : Fin #U ⊕ κ → ℝ := Sum.elim (fun r => gateWeight c.program top (eU r).1)
+    let a : Fin #U ⊕ κ → ℝ := Sum.elim (fun r => gateWeight c.program top (eU r).val)
       (fun j => inputWeight c.program top (emb j) + ∑ k ∈ F, gateWeight c.program top k * d k j)
     let θ : ℝ := (c.program.lines top).op.threshold -
       ((∑ i ∈ (univ.image emb)ᶜ, inputWeight c.program top i * (w i).toNat) +
         ∑ k ∈ F, gateWeight c.program top k * c₀ k)
-    refine ⟨g, fun r => Or.inr ⟨fun j => inputWeight c.program (eU r).1 (emb j),
-      mem_image_of_mem _ (mem_filter.mp (eU r).2).1, _, ltfEval_embedUpdate hinj _ _ w⟩,
+    refine ⟨g, fun r => Or.inr ⟨fun j => inputWeight c.program (eU r).val (emb j),
+      mem_image_of_mem _ (mem_filter.mp (eU r).property).1, _, ltfEval_embedUpdate hinj _ _ w⟩,
       a, θ, fun u => ?_⟩
     dsimp only; rw [Circuit.eval_of_output_eq_gate hout, eval_gate_eq, sum_mul_embedUpdate hinj]
     have hgate_split : (∑ k : Fin c.size, gateWeight c.program top k * ev k u) =
@@ -712,7 +712,7 @@ theorem isDepthTwoOverWeights_eval_embedUpdate {κ : Type*} [Fintype κ]
         ∑ r : Fin #U, a (Sum.inl r) * ((depthTwoFeatures #U g (Sum.inl r) u).toNat : ℝ) := by
       rw [← sum_coe_sort U, ← eU.sum_comp]; refine sum_congr rfl fun r _ => ?_
       simp only [a, g, ev, depthTwoFeatures, Sum.elim_inl,
-        hk_ltf (eU r).1 (mem_filter.mp (eU r).2).1]
+        hk_ltf (eU r).val (mem_filter.mp (eU r).property).1]
     have hF_sum : (∑ k ∈ F, gateWeight c.program top k * ev k u) =
         (∑ k ∈ F, gateWeight c.program top k * c₀ k) +
           ∑ j : κ, (∑ k ∈ F, gateWeight c.program top k * d k j) * (u j).toNat := by

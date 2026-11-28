@@ -51,9 +51,9 @@ abbrev gridWidth := PlanarCompile.gridWidth
 abbrev gridHeight := PlanarCompile.gridHeight
 
 private def CellBound (φ : CNF ℕ) (p : Point) : Prop :=
-  0 ≤ p.1 ∧ p.1 ≤ 8 * ((SAT.incidenceGraph φ).1.length : ℤ) ∧
-    0 ≤ p.2 ∧ p.2 ≤ 8 * ((SAT.incidenceGraph φ).1.length : ℤ) +
-      2 * (SAT.incidenceGraph φ).2.length
+  0 ≤ p.1 ∧ p.1 ≤ 8 * ((SAT.incidenceGraph φ).vertices.length : ℤ) ∧
+    0 ≤ p.2 ∧ p.2 ≤ 8 * ((SAT.incidenceGraph φ).vertices.length : ℤ) +
+      2 * (SAT.incidenceGraph φ).edges.length
 
 private def OutputBound (φ : CNF ℕ) (p : Point) : Prop :=
   0 ≤ p.1 ∧ p.1 ≤ gridWidth φ ∧ 0 ≤ p.2 ∧ p.2 ≤ gridHeight φ
@@ -70,7 +70,7 @@ private theorem cellBound_path {φ : CNF ℕ} {r : Route} (hr : r ∈ paths φ)
     {p : Point} (hp : p ∈ r) : CellBound φ p := by
   change r ∈ (SAT.incidenceGraph φ).unitPaths at hr
   obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hr
-  have hi' : i < (SAT.incidenceGraph φ).2.length := by simpa using hi
+  have hi' : i < (SAT.incidenceGraph φ).edges.length := by simpa using hi
   have hp' : p ∈ (SAT.incidenceGraph φ).unitPath i := by
     simpa only [Graph.unitPath, List.getD_eq_getElem _ _ hi] using hp
   exact Graph.unitPath_bounds _ (fun _ he => SAT.incidenceGraph_endpoints he)
@@ -91,7 +91,7 @@ private theorem cellBound_crossing {φ : CNF ℕ} {p : Point} (hp : p ∈ crossi
 
 private theorem cellBound_clause {φ : CNF ℕ} {i : ℕ} (hi : i < φ.length) :
     CellBound φ (Layout.center (φ.distinctVars.length + i)) := by
-  have hn : φ.distinctVars.length + i < (SAT.incidenceGraph φ).1.length := by
+  have hn : φ.distinctVars.length + i < (SAT.incidenceGraph φ).vertices.length := by
     grind [SAT.length_vertices_incidenceGraph, CNF.length_distinctVars]
   simp only [CellBound, Layout.center, Nat.cast_add]
   omega

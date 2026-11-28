@@ -122,7 +122,7 @@ theorem permOn_empty_left (M : Matrix V V R) (T : Finset V) :
         exists_false, not_false_eq_true, forall_const, true_and, mem_singleton]
       exact ⟨fun h => funext h, fun h i => h ▸ rfl⟩
     rw [this, sum_singleton, prod_empty]
-  · obtain ⟨t, ht⟩ := nonempty_iff_ne_empty.2 hT
+  · obtain ⟨t, ht⟩ := ne_empty_iff_nonempty.1 hT
     refine sum_eq_zero fun f hf => ?_
     obtain ⟨i, hi, -⟩ := (mem_bijOn.1 hf).2.2.1 t ht
     exact absurd hi (notMem_empty i)

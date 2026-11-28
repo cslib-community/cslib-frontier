@@ -231,7 +231,7 @@ unit given at a slot of the role is absent; otherwise the slots are read through
   if ∀ e, ∀ id ∈ ids e, y id ≠ none then
     ∑ i : Fin (t * ub) → (M.law x).Index,
       ∑ g : ∀ k, ∀ ν : (M.law x).ChannelAt p, BitString ((M.law x).length (i k) ν),
-        if ∀ ν : (M.law x).ChannelAt p, ChannelOk ⟨x, ν.1⟩ (o ⟨x, ν.1⟩)
+        if ∀ ν : (M.law x).ChannelAt p, ChannelOk ⟨x, ν.val⟩ (o ⟨x, ν.val⟩)
           (sideString (M.law x).label (fun j => (M.law x).length j ν) i fun k => g k ν) y
         then ∏ k : Fin (t * ub),
           (M.law x).table p (i k) (fun e => (slotBits t (ids e) y).getD k false) (g k)
@@ -313,7 +313,7 @@ variable {F : Type*} [CommSemiring F] {A A' E U0 U1 ub : ℕ} {M : Moves F (A + 
 /-- The table of a role in the play. -/
 @[expose] noncomputable def roleTableAt (P : Plan M U0 U1) (n : Fin A → Fin A → Fin (U0 + 1))
     (o : M.Channel → Fin U1) (r : M.Role) (y : UnitId A U0 M.Channel U1 → UnitContent ub) : F :=
-  roleTable M r.1 r.2 (P.count n o r.1) (fun e => P.ids n o ⟨r.1, e.1⟩) o y
+  roleTable M r.1 r.2 (P.count n o r.1) (fun e => P.ids n o ⟨r.1, e.val⟩) o y
 
 /-- The table of the party `a` after all moves, as a function of its copies of all units that it
 has ever held: its table `init` at the beginning times the tables of its roles. -/

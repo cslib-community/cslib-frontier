@@ -47,9 +47,8 @@ variable {σ τ R : Type*} [CommSemiring R]
 /-- Evaluating a substitution at `x` evaluates the substituted polynomial at the values of the
 substituted polynomials. -/
 theorem eval_aeval (x : σ → R) (L : τ → MvPolynomial σ R) (q : MvPolynomial τ R) :
-    eval x (aeval L q) = eval (fun k => eval x (L k)) q := by
-  rw [aeval_eq_bind₁]
-  exact eval₂Hom_bind₁ _ _ _ _
+    eval x (aeval L q) = eval (fun k => eval x (L k)) q :=
+  comp_aeval_apply L (aeval x) q
 
 /-- **Chain rule for Hessians**: at `x`, the Hessian of `p ∘ L` is `Jᵀ · Hess p (L x) · J` plus
 the Hessians of the `L k` weighted by the gradient of `p` at `L x`, where `J` is the Jacobian of
@@ -92,9 +91,10 @@ theorem hessian_mul_C (x : σ → R) (p : MvPolynomial σ R) (c : R) :
 
 /-- An affine substitution does not increase the rank of the Hessian: the Hessian of `p ∘ L` at
 `x` has rank at most that of the Hessian of `p` at `L x`. -/
-theorem rank_hessian_aeval_le {K : Type*} [Field K] [Fintype σ] [Fintype τ] (x : σ → K)
+theorem rank_hessian_aeval_le {K : Type*} [Field K] [Finite σ] [Finite τ] (x : σ → K)
     (L : τ → MvPolynomial σ K) (hL : ∀ k, (L k).totalDegree ≤ 1) (p : MvPolynomial τ K) :
     (hessian x (aeval L p)).rank ≤ (hessian (fun k => eval x (L k)) p).rank := by
+  have := Fintype.ofFinite τ
   rw [hessian_aeval, Finset.sum_eq_zero fun k _ => by
     rw [hessian_eq_zero_of_totalDegree_le_one x (hL k), smul_zero], add_zero]
   exact (Matrix.rank_mul_le_left _ _).trans (Matrix.rank_mul_le_right _ _)

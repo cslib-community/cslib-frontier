@@ -61,7 +61,7 @@ theorem choose_sub_le_choose_mul_exp {n u : ℕ} (hu : u ≤ n) (ℓ : ℕ) :
     calc (1 - (u : ℝ) / n) ^ ℓ ≤ Real.exp (-(u / n)) ^ ℓ :=
           pow_le_pow_left₀ hbase (Real.one_sub_le_exp_neg _) ℓ
       _ = Real.exp (-(u * ℓ / n)) := by
-          rw [← Real.exp_nat_mul]
+          rw [← Real.exp_natCast_mul]
           congr 1
           ring
   rw [hratio] at h

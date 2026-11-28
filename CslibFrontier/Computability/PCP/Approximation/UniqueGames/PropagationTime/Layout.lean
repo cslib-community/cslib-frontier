@@ -343,10 +343,10 @@ structure ConstRegs {L : ℕ} (g : Graph (Fin L → Fin L)) (x : Data 34) : Prop
 @[wram_simps] theorem ConstRegs.write_iff {L : ℕ} {g : Graph (Fin L → Fin L)}
     (x : Data 34) (a v : ℕ) : ConstRegs g (x.write a v) ↔ ConstRegs g x := by
   simp only [Data.write]
-  exact ⟨fun h => ⟨h.1, h.2, h.3, h.4, h.5, h.6, h.7, h.8, h.9, h.10, h.11, h.12, h.13, h.14,
-      h.15, h.16, h.17⟩,
-    fun h => ⟨h.1, h.2, h.3, h.4, h.5, h.6, h.7, h.8, h.9, h.10, h.11, h.12, h.13, h.14,
-      h.15, h.16, h.17⟩⟩
+  exact ⟨fun h => ⟨h.zero, h.one, h.two, h.regL, h.stride, h.regN, h.regE, h.edgeB, h.headB,
+      h.nodeB, h.visB, h.tabB, h.candB, h.invB, h.stackB, h.compB, h.outB⟩,
+    fun h => ⟨h.zero, h.one, h.two, h.regL, h.stride, h.regN, h.regE, h.edgeB, h.headB,
+      h.nodeB, h.visB, h.tabB, h.candB, h.invB, h.stackB, h.compB, h.outB⟩⟩
 
 /-- Updating any scratch/mutable register `17 ≤ r.val` preserves `ConstRegs`. -/
 @[wram_simps] theorem ConstRegs.set_iff {L : ℕ} {g : Graph (Fin L → Fin L)}
@@ -399,15 +399,16 @@ theorem Phase3Regs.refl (x : Data 34) : Phase3Regs x x :=
 /-- Transitivity of `Phase3Regs`. -/
 theorem Phase3Regs.trans {x y z : Data 34}
     (h2 : Phase3Regs y z) (h1 : Phase3Regs x y) : Phase3Regs x z :=
-  ⟨h2.1.trans h1.1, h2.2.trans h1.2, h2.3.trans h1.3, h2.4.trans h1.4,
-    h2.5.trans h1.5, h2.6.trans h1.6, h2.7.trans h1.7, h2.8.trans h1.8⟩
+  ⟨h2.edgeIdx.trans h1.edgeIdx, h2.src.trans h1.src, h2.dst.trans h1.dst,
+    h2.stackLen.trans h1.stackLen, h2.compLen.trans h1.compLen, h2.curNode.trans h1.curNode,
+    h2.rem.trans h1.rem, h2.outerIdx.trans h1.outerIdx⟩
 
 /-- Memory writes preserve `Phase3Regs`. -/
 @[wram_simps] theorem Phase3Regs.write_iff (x y : Data 34) (a v : ℕ) :
     Phase3Regs x (y.write a v) ↔ Phase3Regs x y := by
   simp only [Data.write]
-  exact ⟨fun h => ⟨h.1, h.2, h.3, h.4, h.5, h.6, h.7, h.8⟩,
-    fun h => ⟨h.1, h.2, h.3, h.4, h.5, h.6, h.7, h.8⟩⟩
+  exact ⟨fun h => ⟨h.edgeIdx, h.src, h.dst, h.stackLen, h.compLen, h.curNode, h.rem, h.outerIdx⟩,
+    fun h => ⟨h.edgeIdx, h.src, h.dst, h.stackLen, h.compLen, h.curNode, h.rem, h.outerIdx⟩⟩
 
 /-- Updating registers outside `17 .. 27` preserves `Phase3Regs`. -/
 @[wram_simps] theorem Phase3Regs.set_iff (x y : Data 34) {r : Fin 34} (v : ℕ)
@@ -650,8 +651,7 @@ theorem edgeVisLoad_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (F
   have hd_lt : g.edges[j].dst < slots g := dst_lt_slots (List.getElem_mem hj)
   have : Fits w (visBase g + g.edges[j].src) := fits_top hw (by wram_omega)
   have : Fits w (visBase g + g.edges[j].dst) := fits_top hw (by wram_omega)
-  unfold edgeVisLoad
-  wram_exec [hS.consts.visB, hsrc_reg, hdst_reg]
+  wram_exec [edgeVisLoad, hS.consts.visB, hsrc_reg, hdst_reg]
   exact ⟨by wram_simp [hS.consts], by wram_simp, by wram_simp,
     by wram_simp [Phase3Regs.refl], by wram_simp⟩
 
@@ -672,8 +672,7 @@ theorem extendPrep_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (fromReg toReg
   have : Fits w (tabBase g + u * L) := fits_top hw (by wram_omega)
   have : Fits w (tabBase g + v * L) := fits_top hw (by wram_omega)
   rcases hregs with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;>
-  · unfold extendPrep
-    wram_exec [hc1.zero, hc1.regL, hc1.tabB, hfrom, hto]
+  · wram_exec [extendPrep, hc1.zero, hc1.regL, hc1.tabB, hfrom, hto]
     exact ⟨by wram_simp [hc1], by wram_simp, by wram_simp, by wram_simp,
       by wram_simp [Phase3Regs.refl], by wram_simp⟩
 

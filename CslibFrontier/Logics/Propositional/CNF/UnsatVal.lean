@@ -197,7 +197,7 @@ variable [Fintype ι] [DecidableEq ι]
 private theorem expect_signVal_eval (v : ι) : (𝔼 σ : ι → Bool, signVal (σ v)) = 0 := by
   have h : (fun σ : ι → Bool => signVal (σ v)) = chi ℝ {v} :=
     funext fun σ => (chi_singleton v σ).symm
-  rw [h, expect_chi, ite_eq_right_iff.2 fun h0 => absurd h0 (singleton_ne_empty v)]
+  rw [h, expect_chi, ite_eq_right_iff.2 fun h0 => absurd h0 (singleton_nonempty v).ne_empty]
 
 /-- Over a uniform random assignment `σ : ι → Bool`, two distinct variables have uncorrelated
 signs. -/
@@ -217,7 +217,7 @@ private theorem expect_signVal_mul_three_of_ne {v₁ v₂ v₃ : ι} (h12 : v₁
       chi ℝ ({v₁, v₂, v₃} : Finset ι) := funext fun σ => by
     rw [chi_eq_prod_signVal, prod_insert (by simp [h12, h13]), prod_insert (by simp [h23]),
       prod_singleton, mul_assoc]
-  rw [hchi, expect_chi, ite_eq_right_iff.2 fun h0 => absurd h0 (insert_ne_empty _ _)]
+  rw [hchi, expect_chi, ite_eq_right_iff.2 fun h0 => absurd h0 (insert_nonempty _ _).ne_empty]
 
 /-- **A uniform random assignment falsifies any 3-clause on three distinct variables with
 probability `1 / 8`.** -/

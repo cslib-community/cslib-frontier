@@ -146,7 +146,7 @@ theorem exists_mem_colorHittingSet_eval_ne_zero (c : Fin n → Fin r) {ε : Fin 
     choose v hcv hdv using fun i : ε.support => exists_color_eq_of_weight_colorWeight_pos c
       (d := d) (i := i) <| by
         rw [hg hd]
-        exact Nat.one_le_iff_ne_zero.2 (Finsupp.mem_support_iff.1 i.2)
+        exact Nat.one_le_iff_ne_zero.2 (Finsupp.mem_support_iff.1 i.property)
     set α : Fin ε.support.card → Fin n := fun j => v (ε.support.equivFin.symm j) with hα
     have hinj : Function.Injective α := fun i j h => ε.support.equivFin.symm.injective <|
       Subtype.ext <| by rw [← hcv, ← hcv, show v _ = v _ from h]

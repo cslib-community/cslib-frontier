@@ -525,7 +525,7 @@ theorem one_sub_exp_neg_div_mul_le_submodularGreedy
     calc
       (1 - 1 / (k : ℝ)) ^ m ≤ (Real.exp (-(1 / (k : ℝ)))) ^ m :=
         pow_le_pow_left₀ hfactor_nonneg (Real.one_sub_le_exp_neg (1 / (k : ℝ))) m
-      _ = Real.exp ((m : ℝ) * (-(1 / (k : ℝ)))) := (Real.exp_nat_mul _ m).symm
+      _ = Real.exp ((m : ℝ) * (-(1 / (k : ℝ)))) := (Real.exp_natCast_mul m _).symm
       _ = Real.exp (-(m : ℝ) / (k : ℝ)) := by ring_nf
   have hOPT_nonneg : 0 ≤ f OPT := nonneg_of_empty_nonneg_of_monotone hf0 hmono OPT
   have hcoef : 1 - Real.exp (-(m : ℝ) / (k : ℝ)) ≤ 1 - (1 - 1 / (k : ℝ)) ^ m := by linarith

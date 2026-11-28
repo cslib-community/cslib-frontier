@@ -250,7 +250,7 @@ theorem log_le_cikkSamples (e g h : ℕ) :
 /-- **`k` is linear in `g`**: `k ≤ 2 ^ (e + 10) (6g + 3e + 36)`. -/
 theorem cikkK_le (e g : ℕ) : cikkK e g ≤ 2 ^ (e + 10) * (6 * g + 3 * e + 36) := by
   have hL : 0 < Nat.clog 2 (6 * g + 3 * e + 36) := Nat.clog_pos (by norm_num) (by omega)
-  have hlt := Nat.pow_pred_clog_lt_self (b := 2) (x := 6 * g + 3 * e + 36) (by norm_num)
+  have hlt := Nat.pow_pred_clog_lt_self 2 (x := 6 * g + 3 * e + 36)
     (by omega)
   simp only [cikkK, cikkLogK]
   generalize Nat.clog 2 (6 * g + 3 * e + 36) = L at hL hlt ⊢

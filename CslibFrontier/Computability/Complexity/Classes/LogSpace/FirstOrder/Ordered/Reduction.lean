@@ -104,13 +104,13 @@ theorem encodedMap_eq_encodedMapWith :
     let J := I.toFOInterpretation
     let _ := (ModelChecker.formulaCompiler v).expand hn (v.decode a)
     let g : Fin (modelCard J Fin.revPerm a.1) → Fin k → Fin M.size :=
-      fun i => ((rankEquiv J Fin.revPerm a.1).symm i).1
+      fun i => ((rankEquiv J Fin.revPerm a.1).symm i).val
     have hrank (i) : J.domainRank Fin.revPerm a.1 (lexRank (g i)) = i := by
       have hi := congrArg Fin.val ((rankEquiv J Fin.revPerm a.1).apply_symm_apply i)
       rw [rankEquiv_apply_val] at hi
       exact hi
     obtain ⟨hc, hu⟩ := I.unrank_eq_of_strictMono (M := M) g
-      (fun i => ((rankEquiv J Fin.revPerm a.1).symm i).2)
+      (fun i => ((rankEquiv J Fin.revPerm a.1).symm i).property)
       (fun x hx => ⟨rankEquiv J Fin.revPerm a.1 (Interpretation.Model.mk x hx), by
         simp only [g, Equiv.symm_apply_apply]
         rfl⟩)

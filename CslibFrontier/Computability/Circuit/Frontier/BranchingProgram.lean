@@ -169,10 +169,10 @@ theorem IsAcceptingPath.splice {x y z : ι → U} {γ δ : ℕ → M} (hγ : P.I
     · exact hδ.accept
   rcases lt_or_ge s t with hst | hts
   · have hz : (P.newly s).domRestrict z = (P.newly s).domRestrict x :=
-      funext fun i => hzx (P.newly_subset_revealed hst i.2)
+      funext fun i => hzx (P.newly_subset_revealed hst i.property)
     simpa only [ite_eq_left hst.le, ite_eq_left (Nat.succ_le_of_lt hst), hz] using hγ.edge s hs
   · have hz : (P.newly s).domRestrict z = (P.newly s).domRestrict y :=
-      funext fun i => hzy (P.newly_subset_compl hts i.2)
+      funext fun i => hzy (P.newly_subset_compl hts i.property)
     have hδs : (if s ≤ t then γ s else δ s) = δ s := by grind
     rw [hδs, ite_eq_right (by omega), hz]
     exact hδ.edge s hs

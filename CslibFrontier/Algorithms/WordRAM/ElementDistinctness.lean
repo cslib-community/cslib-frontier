@@ -194,16 +194,15 @@ private theorem fits_two_mul_add_one {n : ℕ} (hw : logWidth 2 n ≤ w) : Fits 
 
 /-- Every instance fits at the logarithmic threshold used by the decider, and at every larger
 word size. Thus the input-fit premise in its uniform decision theorem is always satisfied. -/
-theorem inputFits (a : Input) (hw : logWidth 2 a.1.length ≤ w) : InputFits w a.1 := by
-  have hn : Fits w a.1.length := (fits_two_mul_add_one hw).of_le (by omega)
-  exact ⟨hn, fun v hv => hn.of_le (a.2 v hv).le⟩
+theorem inputFits (a : Input) (hw : logWidth 2 a.val.length ≤ w) : InputFits w a.val := by
+  have hn : Fits w a.val.length := (fits_two_mul_add_one hw).of_le (by omega)
+  exact ⟨hn, fun v hv => hn.of_le (a.property v hv).le⟩
 
 private theorem setup_spec (hw : Fits w (2 * l.length + 1)) :
     ∃ y, ExecWithin w setup (.init l) y (4 * l.length + 13) ∧ Invariant l y := by
   have h1 : Fits w 1 := hw.of_le (by omega)
   refine WP.exists_execWithin ?_
-  unfold setup
-  wram_exec [Data.init_regs, Data.init_mem_zero]
+  wram_exec [setup, Data.init_regs, Data.init_mem_zero]
   refine WP.of_execWithin (alloc_exec (w := w) (frontier := front) (count := cnt) (result := base)
     (cur := cur) (zero := zero) (one := one) (by decide) h1
     (hw.of_le (by wram_simp; omega))).within ?_
@@ -236,8 +235,7 @@ private theorem body_spec (hl : ∀ v ∈ l, v < l.length) (hw : Fits w (2 * l.l
   have hyt : y.mem (t + 1) = l[t] := hy.input t htn
   have hfit (v : ℕ) (h : v ≤ 2 * l.length + 1) : Fits w v := hw.of_le h
   refine WP.exists_execWithin ?_
-  unfold body readAt writeAt
-  wram_exec [hbase, hone, ht, hyt, hseen _ hv, hfit]
+  wram_exec [body, readAt, writeAt, hbase, hone, ht, hyt, hseen _ hv, hfit]
   · have hfound : l[t] ∈ l.take t := by
       by_contra hnf; simp only [hnf, ↓reduceIte] at *; omega
     refine ⟨⟨?_, ?_, ?_, ?_, fun j hj => by simpa using hy.input j hj,
@@ -289,44 +287,46 @@ theorem answers (hl : ∀ v ∈ l, v < l.length) (hw : Fits w (2 * l.length + 1)
 length `n`, the compiled decider decides whether there are no duplicates within `16 (n + 1)`
 instructions, the final `halt` included, at every word size of at least `2 (⌊log₂ n⌋ + 1)`. -/
 theorem decidesInTime_nodup :
-    (decider.program ans).DecidesInTime (fun _ (l : Input) => l.1) {l | l.1.Nodup}
-      (fun l _ => 16 * (l.1.length + 1)) (fun l w => logWidth 2 l.1.length ≤ w) :=
-  (decider.decidesInTime_program (encode := fun _ (l : Input) => l.1)
-    (allowed := fun l w => logWidth 2 l.1.length ≤ w)
-    (time := fun (l : Input) _ => 14 * l.1.length + 15)
-    (A := {l | l.1.Nodup}) ans fun a _ hw _ => answers a.2 (fits_two_mul_add_one hw)).mono
+    (decider.program ans).DecidesInTime (fun _ (l : Input) => l.val) {l | l.val.Nodup}
+      (fun l _ => 16 * (l.val.length + 1)) (fun l w => logWidth 2 l.val.length ≤ w) :=
+  (decider.decidesInTime_program (encode := fun _ (l : Input) => l.val)
+    (allowed := fun l w => logWidth 2 l.val.length ≤ w)
+    (time := fun (l : Input) _ => 14 * l.val.length + 15)
+    (A := {l | l.val.Nodup}) ans fun a _ hw _ => answers a.property (fits_two_mul_add_one hw)).mono
     (fun a _ => by omega) fun _ _ h => h
 
 /-- **Element distinctness is uniformly in linear time** on the word RAM, for lists whose entries
 are below their length. -/
 theorem uniformLinearTime_nodup :
-    UniformLinearTime .standard {l : Input | l.1.Nodup} (fun _ l => l.1) (fun l => l.1.length) :=
+    UniformLinearTime .standard {l : Input | l.val.Nodup} (fun _ l => l.val)
+      (fun l => l.val.length) :=
   ⟨16, 2, by decide, _, _, decidesInTime_nodup, inputAdmissible_of_widthIndependent _ _⟩
 
 /-- Element distinctness also has a bounded nonuniform linear-time family. -/
 theorem linearTime_nodup :
-    LinearTime .standard {l : Input | l.1.Nodup} (fun _ l => l.1) (fun l => l.1.length) :=
+    LinearTime .standard {l : Input | l.val.Nodup} (fun _ l => l.val) (fun l => l.val.length) :=
   uniformLinearTime_nodup.linearTime
 
 /-- **Element distinctness in linear time over `Basis.additive`.** -/
 theorem decidesInTime_nodup_additive :
-    (deciderAdditive.program ans).DecidesInTime (fun _ (l : Input) => l.1) {l | l.1.Nodup}
-      (fun l _ => 16 * (l.1.length + 1)) (fun l w => logWidth 2 l.1.length ≤ w) := by
+    (deciderAdditive.program ans).DecidesInTime (fun _ (l : Input) => l.val) {l | l.val.Nodup}
+      (fun l _ => 16 * (l.val.length + 1)) (fun l w => logWidth 2 l.val.length ≤ w) := by
   intro a w hw hi
   have h := decidesInTime_nodup a w hw hi
-  change (decider.program ans).Answers w a.1 a.1.Nodup (16 * (a.1.length + 1)) at h
-  change (deciderAdditive.program ans).Answers w a.1 a.1.Nodup (16 * (a.1.length + 1))
+  change (decider.program ans).Answers w a.val a.val.Nodup (16 * (a.val.length + 1)) at h
+  change (deciderAdditive.program ans).Answers w a.val a.val.Nodup (16 * (a.val.length + 1))
   rwa [← deciderAdditive_mapOp, Code.program_mapOp, Program.answers_mapOp_iff] at h
 
 /-- **Element distinctness is uniformly in linear time over `Basis.additive`**, for lists whose
 entries are below their length. -/
 theorem uniformLinearTime_nodup_additive :
-    UniformLinearTime .additive {l : Input | l.1.Nodup} (fun _ l => l.1) (fun l => l.1.length) :=
+    UniformLinearTime .additive {l : Input | l.val.Nodup} (fun _ l => l.val)
+      (fun l => l.val.length) :=
   ⟨16, 2, by decide, _, _, decidesInTime_nodup_additive, inputAdmissible_of_widthIndependent _ _⟩
 
 /-- Element distinctness also has a bounded nonuniform linear-time family over `Basis.additive`. -/
 theorem linearTime_nodup_additive :
-    LinearTime .additive {l : Input | l.1.Nodup} (fun _ l => l.1) (fun l => l.1.length) :=
+    LinearTime .additive {l : Input | l.val.Nodup} (fun _ l => l.val) (fun l => l.val.length) :=
   uniformLinearTime_nodup_additive.linearTime
 
 end Cslib.Algorithms.WordRAM.ElementDistinctness

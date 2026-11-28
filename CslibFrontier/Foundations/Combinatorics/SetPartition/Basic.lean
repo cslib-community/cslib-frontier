@@ -127,7 +127,7 @@ private theorem extendMap_injective_ker {N j : ℕ} :
       Setoid.ker (extendMap f) ⟨j + t, hp⟩ ⟨i, by omega⟩ ↔ f t = i := by
     intro f i
     rw [Setoid.ker_def]
-    simp only [extendMap, show ¬(j + (t : ℕ) < j) by omega, i.2, ↓reduceDIte]
+    simp only [extendMap, show ¬(j + (t : ℕ) < j) by omega, i.isLt, ↓reduceDIte]
     simp only [add_tsub_cancel_left, Fin.eta]
   have h1 : Setoid.ker (extendMap f₁) ⟨j + t, hp⟩ ⟨f₁ t, by omega⟩ := (key f₁ (f₁ t)).mpr rfl
   simp only at h

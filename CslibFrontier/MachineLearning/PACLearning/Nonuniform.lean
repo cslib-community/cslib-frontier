@@ -106,7 +106,7 @@ theorem isNonuniformLearnable_iUnion [DecidableEq β] [Nonempty (α → β)] {ι
   obtain ⟨w⟩ := Weighting.nonempty (ι := ι)
   intro ε₀ δ₀
   set δ : ℝ := (δ₀.val : ℝ)
-  have hδ : 0 < δ := by exact_mod_cast δ₀.2.1
+  have hδ : 0 < δ := by exact_mod_cast δ₀.property.1
   -- The penalty of class `i` at sample size `m`.
   set pen : ℕ → ι → ℝ := fun m i => max (ε i m (w i * δ)) 0 + (e i : ℝ) / m
   have hpen_top : ∀ m, 0 < m → Tendsto (pen m) cofinite atTop := fun m hm => by
@@ -126,7 +126,7 @@ theorem isNonuniformLearnable_iUnion [DecidableEq β] [Nonempty (α → β)] {ι
     have h1 : Tendsto (fun m => max (ε i m (w i * δ)) 0) atTop (𝓝 0) := by
       simpa using (hε i _ (mul_pos (w.pos i) hδ)).max (tendsto_const_nhds (x := (0 : ℝ)))
     simpa using ((h1.add (tendsto_const_div_atTop_nhds_zero_nat (e i : ℝ))).const_mul 2)
-  have hε₀ : (0 : ℝ) < ε₀.val := by exact_mod_cast ε₀.2.1
+  have hε₀ : (0 : ℝ) < ε₀.val := by exact_mod_cast ε₀.property.1
   obtain ⟨m₀, hm₀⟩ := eventually_atTop.1 (hlim.eventually_lt_const hε₀)
   refine ⟨max m₀ 1, fun m hmm D _ hD => ?_⟩
   have hm : 0 < m := lt_of_lt_of_le one_pos (le_of_max_le_right hmm)
@@ -154,7 +154,8 @@ theorem isNonuniformLearnable_of_countable [Nonempty (α → β)] {C : ConceptCl
     ext g
     simp
   rw [hU]
-  exact isNonuniformLearnable_iUnion (fun h => hasUniformConvergenceRate_singleton (hmeas h h.2))
+  exact isNonuniformLearnable_iUnion
+    (fun h => hasUniformConvergenceRate_singleton (hmeas h h.property))
     fun _ δ _ => tendsto_sqrt_log_div_two_mul_atTop (2 / δ)
 
 end Cslib.MachineLearning.PACLearning

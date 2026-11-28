@@ -101,7 +101,7 @@ theorem error_negligible : Negligible error := by
   have hexp (n : ℕ) : Real.exp (-4 * ((n : ℝ) + 1)) =
       Real.exp (-4) ^ n * Real.exp (-4) := by
     rw [show -4 * ((n : ℝ) + 1) = n * (-4) + (-4) by ring,
-      Real.exp_add, Real.exp_nat_mul]
+      Real.exp_add, Real.exp_natCast_mul]
   apply (((hgeom.mul_const (Real.exp (-4))).const_mul 2).add
     (negligible_iff_coe.mp (negligible_geometric (ratio := (1 / 2 : ℝ≥0)) (by norm_num)))).congr
   intro n

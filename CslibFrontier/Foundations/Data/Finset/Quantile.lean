@@ -52,16 +52,18 @@ theorem exists_quantile (s : Finset α) (hs : s.Nonempty) (score : α → β)
   have : Nonempty s := hs.to_subtype
   obtain ⟨_, ⟨p, rfl⟩, hlt, hle⟩ :=
     Cslib.Probability.PMF.exists_quantile (Cslib.Probability.PMF.uniformOfFintype s)
-      (fun x : s => score x.1) ha ha₁
-  rw [Cslib.Probability.PMF.sum_subtype_uniformOfFintype_ite_toReal s (score · < score p.1)] at hlt
-  rw [Cslib.Probability.PMF.sum_subtype_uniformOfFintype_ite_toReal s (score · ≤ score p.1)] at hle
+      (fun x : s => score x.val) ha ha₁
+  rw [Cslib.Probability.PMF.sum_subtype_uniformOfFintype_ite_toReal s (score · < score p.val)]
+    at hlt
+  rw [Cslib.Probability.PMF.sum_subtype_uniformOfFintype_ite_toReal s (score · ≤ score p.val)]
+    at hle
   have hpos : (0 : ℝ) < s.card := Nat.cast_pos.mpr hs.card_pos
-  have hcompl : ((s.filter fun x => score x < score p.1).card : ℝ) +
-      ((s.filter fun x => score p.1 ≤ score x).card : ℝ) = s.card := by
+  have hcompl : ((s.filter fun x => score x < score p.val).card : ℝ) +
+      ((s.filter fun x => score p.val ≤ score x).card : ℝ) = s.card := by
     simpa only [not_lt] using
       (Nat.cast_add _ _).symm.trans
-        (congrArg Nat.cast (s.card_filter_add_card_filter_not fun x => score x < score p.1))
-  refine ⟨p.1, p.2, (le_div_iff₀ hpos).mp hle, ?_⟩
+        (congrArg Nat.cast (s.card_filter_add_card_filter_not fun x => score x < score p.val))
+  refine ⟨p.val, p.property, (le_div_iff₀ hpos).mp hle, ?_⟩
   have := (div_le_iff₀ hpos).mp hlt
   linarith
 

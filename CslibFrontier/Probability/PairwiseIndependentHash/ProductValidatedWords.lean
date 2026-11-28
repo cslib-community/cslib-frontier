@@ -210,7 +210,7 @@ theorem componentStepWrap_mem [∀ j, NeZero (P j)] {L : Fin J → ℕ} [∀ j, 
     {y : ∀ j, ZMod (P j)} (e : ComponentLazyStep H J) (A : ComponentSlice H M P L y) :
     componentStepWrap L y e (componentSliceVal A) ∈ affineWrapBox H := by
   rcases e with ⟨⟨j, k⟩ | k, b⟩ | d
-  · exact wrap_affineGenerator_mem k b (A.1 j).2
+  · exact wrap_affineGenerator_mem k b (A.1 j).property
   all_goals exact zero_mem_affineWrapBox H
 
 /-- On the product retention slice, the ambient variant with `componentStepWrap` coincides with the

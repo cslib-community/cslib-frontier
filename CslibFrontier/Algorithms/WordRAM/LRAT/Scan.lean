@@ -122,8 +122,7 @@ theorem litBody_spec (F : Literal ℕ → Bool) (l : Literal ℕ) (st : ScanStat
   obtain ⟨h0, u0, b0⟩ := st
   simp only at hhas hunit hbad
   refine WP.exists_execWithin ?_
-  unfold litBody
-  wram_exec [hlit, hone, litCodeBy_xor_one, hhas, hzero, hunit]
+  wram_exec [litBody, hlit, hone, litCodeBy_xor_one, hhas, hzero, hunit]
   all_goals wram_simp
   · simp [scanStep, hFl.mp ‹_›, hhas, hunit, hbad, hzero, hone]
   · simp [scanStep, mt hFl.mpr ‹_›, Bool.toNat_eq_zero.mp ‹_›, hbad, hzero, hone]

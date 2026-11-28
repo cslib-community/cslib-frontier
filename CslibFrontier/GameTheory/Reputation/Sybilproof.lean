@@ -296,7 +296,7 @@ structure SybilStrategy {V : Type} [Fintype V] [DecidableEq V] (G : TrustGraph V
   /-- Embedding of honest users `w ≠ v` into `Vertex`. -/
   honestEmbed : {w : V // w ≠ v} → Vertex
   /-- `collapse` is left-inverse to `honestEmbed`. -/
-  collapse_honestEmbed : ∀ w : {w : V // w ≠ v}, collapse (honestEmbed w) = w.1
+  collapse_honestEmbed : ∀ w : {w : V // w ≠ v}, collapse (honestEmbed w) = w.val
   /-- Every non-Sybil vertex (`collapse x ≠ v`) is the image of its honest user. -/
   honestEmbed_collapse : ∀ (x : Vertex) (hx : collapse x ≠ v), honestEmbed ⟨collapse x, hx⟩ = x
   /-- Collapsing the Sybil cluster onto `v` yields `G`. -/
@@ -423,10 +423,10 @@ theorem IsKRankSybilproof.mono {K₁ K₂ : ℕ} (hK : K₁ ≤ K₂) {F : Globa
   fun G v S hcard => h G v S (hcard.trans (Nat.add_le_add_right hK 1))
 
 private def clampFin {n k : ℕ} (hk : 1 ≤ k) (i : Fin n) : Fin k :=
-  ⟨min i.1 (k - 1), by omega⟩
+  ⟨min i.val (k - 1), by omega⟩
 
 private def stepFin {k : ℕ} (hk : 1 ≤ k) (i : Fin (k + 1)) : Fin k :=
-  ⟨min i.1 (k - 1), by omega⟩
+  ⟨min i.val (k - 1), by omega⟩
 
 private theorem stepFin_comp_clampFin {n k : ℕ} (hk : 1 ≤ k) :
     stepFin hk ∘ clampFin (Nat.le_add_left 1 k) = clampFin (n := n) hk := by
@@ -466,7 +466,7 @@ theorem not_isKRankSybilproof_of_isSymmetric {K : ℕ} (hK : 1 ≤ K) {F : Globa
         graph := G.disjointUnion (H 1 le_rfl)
         collapse := Sum.elim id (fun _ => v)
         exists_collapse_eq := ⟨Sum.inr 0, rfl⟩
-        honestEmbed := fun w => Sum.inl w.1
+        honestEmbed := fun w => Sum.inl w.val
         collapse_honestEmbed := fun _ => rfl
         honestEmbed_collapse := fun x hx => by
           cases x with | inl _ => rfl | inr _ => exact absurd rfl hx
@@ -512,19 +512,19 @@ theorem not_isKRankSybilproof_of_isSymmetric {K : ℕ} (hK : 1 ≤ K) {F : Globa
             graph := G.disjointUnion (H (m + 1) (by omega))
             collapse := πStep
             exists_collapse_eq := ⟨Sum.inr ⟨m, by omega⟩, by simp [πStep, target, stepFin]⟩
-            honestEmbed := fun w => Sum.map id (Fin.castLE (by omega)) w.1
+            honestEmbed := fun w => Sum.map id (Fin.castLE (by omega)) w.val
             collapse_honestEmbed := fun ⟨w, hw⟩ => by
               rcases w with i | j
               · rfl
-              · have hne : j.1 ≠ m - 1 := fun hv => hw (congrArg Sum.inr (Fin.ext hv))
-                have hjm : j.1 ≤ m - 1 := by omega
+              · have hne : j.val ≠ m - 1 := fun hv => hw (congrArg Sum.inr (Fin.ext hv))
+                have hjm : j.val ≤ m - 1 := by omega
                 simp [πStep, stepFin, Nat.min_eq_left hjm]
             honestEmbed_collapse := fun x hx => by
               rcases x with i | j
               · rfl
               · simp only [πStep, Sum.map_inr, stepFin, target, ne_eq, Sum.inr.injEq,
                   Fin.ext_iff] at hx
-                have hjm : j.1 ≤ m - 1 := by omega
+                have hjm : j.val ≤ m - 1 := by omega
                 simp [πStep, stepFin, Nat.min_eq_left hjm]
             contract_eq := by
               have hcomp : (H (m + 1) (by omega)).contract (stepFin hm_ge1) = H m hm_ge1 := by
@@ -582,7 +582,7 @@ theorem not_isRankStrategyproof_of_isSymmetric {F : GlobalRepFn} (hSym : F.IsSym
   have hlt : F G (e v₀) < F G (e w₀) := by rwa [hSym G₀ e v₀, hSym G₀ e w₀]
   -- Prefix graphs `G_pref k` turn on outgoing edges of vertices `< k` one vertex at a time.
   let G_pref : ℕ → TrustGraph (Fin n) := fun k =>
-    { weight := fun u v => if u.1 < k then G.weight u v else 0
+    { weight := fun u v => if u.val < k then G.weight u v else 0
       weight_nonneg := fun u v => by
         split_ifs
         exacts [G.weight_nonneg u v, le_rfl]
@@ -603,7 +603,7 @@ theorem not_isRankStrategyproof_of_isSymmetric {F : GlobalRepFn} (hSym : F.IsSym
       let uk : Fin n := ⟨k, hkn⟩
       have hout : ∀ a : Fin n, a ≠ uk → ∀ b : Fin n,
           (G_pref (k + 1)).weight a b = (G_pref k).weight a b := fun a ha _ => by
-        have hak : a.1 < k + 1 ↔ a.1 < k := ⟨fun h => Nat.lt_of_le_of_ne (Nat.lt_succ_iff.mp h)
+        have hak : a.val < k + 1 ↔ a.val < k := ⟨fun h => Nat.lt_of_le_of_ne (Nat.lt_succ_iff.mp h)
           fun hv => ha (Fin.ext hv), Nat.lt_succ_of_lt⟩
         simp [G_pref, hak]
       have heq_uk : ∀ z : Fin n, F (G_pref (k + 1)) uk = F (G_pref (k + 1)) z := fun z =>
@@ -611,7 +611,7 @@ theorem not_isRankStrategyproof_of_isSymmetric {F : GlobalRepFn} (hSym : F.IsSym
           not_lt.mp fun hlt_z => ((hRSP (G_pref (k + 1)) (G_pref k) uk
             (fun a ha b => (hout a ha b).symm) z).1 hlt_z).ne (ihk uk z)
       exact (heq_uk x).symm.trans (heq_uk y)
-  have hGn : G_pref n = G := TrustGraph.ext (funext₂ fun u _ => ite_eq_left u.2)
+  have hGn : G_pref n = G := TrustGraph.ext (funext₂ fun u _ => ite_eq_left u.isLt)
   exact hlt.ne (hGn ▸ hconst n le_rfl (e v₀) (e w₀))
 
 end GlobalRepFn
@@ -731,7 +731,7 @@ noncomputable def maxFlowCounterexampleSybil : SybilStrategy maxFlowCounterexamp
     | 2 => 2
     | 3 => 1
   exists_collapse_eq := ⟨1, rfl⟩
-  honestEmbed w := if w.1 = 0 then 0 else 2
+  honestEmbed w := if w.val = 0 then 0 else 2
   collapse_honestEmbed := by
     rintro ⟨w, hw⟩
     fin_cases w

@@ -483,7 +483,7 @@ theorem Valid.out_not_affine {f : BooleanFunction n} {d : ℕ} (hS : S.Valid f)
     ¬ ∀ val, S.Consistent val → S.Locus val → S.out.eval val = c + ∑ j ∈ T, val j :=
   Valid.out_not_affine_of (fun hx c R hR hxR b hout =>
       Valid.false_of_fix hS hf ha hx c R hR hxR b hout)
-    (Finset.nonempty_iff_ne_empty.2 fun h => by simp [a, m, h] at ha) c hT
+    (Finset.ne_empty_iff_nonempty.1 fun h => by simp [a, m, h] at ha) c hT
 
 end State
 

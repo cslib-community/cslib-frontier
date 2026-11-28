@@ -124,7 +124,7 @@ private theorem position_lt (N : ℕ) (i : Φ.Var) {idx : ℕ} (h : idx < N ^ �
   unfold position
   calc ℓ.block i * N ^ ℓ.degree + idx < (ℓ.block i + 1) * N ^ ℓ.degree := by
         rw [Nat.add_mul, Nat.one_mul]; omega
-    _ ≤ ℓ.blocks * N ^ ℓ.degree := Nat.mul_le_mul_right _ (ℓ.block i).2
+    _ ≤ ℓ.blocks * N ^ ℓ.degree := Nat.mul_le_mul_right _ (ℓ.block i).isLt
 
 /-- Positions determine the relation variable and the index of the tuple. -/
 theorem position_injective (N : ℕ) {i j : Φ.Var} {idx idx' : ℕ} (h : idx < N ^ ℓ.degree)
@@ -225,7 +225,7 @@ def relBit (a : EncodedStructure) (N : ℕ) (w : List Bool) {l : ℕ}
     (R : (L.sum (varLanguage Φ.arity)).Relations l) (idx : ℕ) : Bool :=
   match R with
   | .inl r => (v.table a ⟨_, r⟩).getD idx false
-  | .inr r => w.getD (ℓ.position N r.1 idx) false
+  | .inr r => w.getD (ℓ.position N r.val idx) false
 
 /-- The evaluator of the first-order part on an input `a` of encoded length `N`, a certificate
 `w`, and an environment of bound variables: quantifiers range over the `a.1` elements. -/
@@ -275,7 +275,7 @@ theorem relBit_eq_true_iff {l : ℕ} (R : (L.sum (varLanguage Φ.arity)).Relatio
     ℓ.relBit v a N w R (tupleIndex y) = true ↔ (ℓ.expansion v a N w).RelMap R y := by
   rcases R with r | r
   · exact Iff.rfl
-  · change _ ↔ y ∘ Fin.cast r.2 ∈ ℓ.certRel a.1 N w r.1
+  · change _ ↔ y ∘ Fin.cast r.property ∈ ℓ.certRel a.1 N w r.val
     simp only [certRel, Set.mem_ofPred_eq, relBit, tupleIndex_comp_cast]
 
 private theorem ofFn_val_snoc {k : ℕ} (xs : Fin k → Fin a.1) (x : Fin a.1) :
@@ -313,7 +313,7 @@ theorem eval_eq_true_iff :
     constructor
     · intro h x
       rw [← eval_eq_true_iff φ, ofFn_val_snoc]
-      exact h x x.2
+      exact h x x.isLt
     · intro h x hx
       have := (eval_eq_true_iff φ (Fin.snoc xs ⟨x, hx⟩)).2 (h ⟨x, hx⟩)
       rwa [ofFn_val_snoc] at this
@@ -416,7 +416,7 @@ theorem computableInPolyTime_relBit {l : ℕ}
   match R with
   | .inl r => bitsGetDWithInput (v.computableInPolyTime_table ⟨_, r⟩ ha) hidx false
   | .inr r => bitsGetDWithInput hw (unary_add'
-      (unary_mul' (const (ℓ.block r.1 : ℕ)) ((unary_pow _).comp hN)) hidx) false
+      (unary_mul' (const (ℓ.block r.val : ℕ)) ((unary_pow _).comp hN)) hidx) false
 
 /-- **The evaluator is polynomial-time** for each fixed formula, by induction on the formula. The
 input type is generalized, as the body of a quantifier takes the current element as well. -/

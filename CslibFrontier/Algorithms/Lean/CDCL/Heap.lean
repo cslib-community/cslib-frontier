@@ -72,7 +72,7 @@ theorem maxF_eq (heap : BinaryHeap α) : heap.maxF = heap.max := by unfold maxF 
 
 /-- The larger child, `maxChild` with an exposed body. -/
 def maxChildF {sz : Nat} (a : Vector α sz) (i : Fin sz) : Option (Fin sz) :=
-  let left := 2 * i.1 + 1
+  let left := 2 * i.val + 1
   let right := left + 1
   if hleft : left < sz then
     if hright : right < sz then
@@ -94,7 +94,7 @@ def heapifyUpF : (fuel : Nat) → {sz : Nat} → Vector α sz → Fin sz → Vec
     else a
 
 /-- With fuel above the position, `heapifyUpF` is `heapifyUp`. -/
-theorem heapifyUpF_eq : ∀ (fuel : Nat) {sz : Nat} (a : Vector α sz) (i : Fin sz), i.1 < fuel →
+theorem heapifyUpF_eq : ∀ (fuel : Nat) {sz : Nat} (a : Vector α sz) (i : Fin sz), i.val < fuel →
     heapifyUpF fuel a i = heapifyUp a i
   | 0, _, _, _, h => absurd h (Nat.not_lt_zero _)
   | _ + 1, _, a, ⟨0, _⟩, _ => by rw [heapifyUpF, heapifyUp.eq_def]
@@ -116,8 +116,8 @@ def heapifyDownF : (fuel : Nat) → {sz : Nat} → Vector α sz → Fin sz → V
 
 /-- With fuel above the distance to the end, `heapifyDownF` is `heapifyDown`. -/
 theorem heapifyDownF_eq : ∀ (fuel : Nat) {sz : Nat} (a : Vector α sz) (i : Fin sz),
-    sz - i.1 ≤ fuel → heapifyDownF fuel a i = heapifyDown a i
-  | 0, _, _, i, h => absurd h (by have := i.2; omega)
+    sz - i.val ≤ fuel → heapifyDownF fuel a i = heapifyDown a i
+  | 0, _, _, i, h => absurd h (by have := i.isLt; omega)
   | fuel + 1, _, a, i, h => by
     rw [heapifyDownF]
     split
@@ -198,6 +198,7 @@ theorem heapifyUpF_perm : ∀ (fuel : Nat) {sz : Nat} (a : Vector α sz) (i : Fi
   | _ + 1, _, _, ⟨0, _⟩ => .refl _
   | fuel + 1, _, a, ⟨i' + 1, hi⟩ => by
     rw [heapifyUpF]
+    dsimp only
     split
     · exact (heapifyUpF_perm fuel _ _).trans (Vector.swap_perm ..)
     · exact .refl _

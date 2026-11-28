@@ -135,8 +135,8 @@ theorem complexity_trialGuess_answers_le (D : Design ℓ n a m) (test : BooleanF
       complexity interpretation (single F) ≤
           complexity interpretation (single test) + m * (2 ^ a * (2 * a + 3) + 1) + 1 ∧
         ∀ (f : BooleanFunction n) (z : Fin q → Bool),
-          (∀ (i : Fin q) (hi : i.1 < (trialPoints D t).length),
-            z i = f ((trialPoints D t)[i.1])) →
+          (∀ (i : Fin q) (hi : i.val < (trialPoints D t).length),
+            z i = f ((trialPoints D t)[i.val])) →
           ∀ x, trialGuess D f test t x = F (Fin.append z x) := by
   classical
   -- the point read by output bit `j`, as a function of the overlap bits of `x`

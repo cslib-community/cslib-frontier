@@ -116,8 +116,7 @@ theorem exec_scatter {w L m N Q : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ × �
       rw [hf _ (by omega) (by omega) (by omega)]
       exact hz.2.2.2.2.2 a ha
   refine WP.exists_execWithin ?_
-  unfold scatter
-  wram_exec
+  wram_exec [scatter]
   wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.queryCount) hb
     (by wram_simp; exact Nat.zero_le _)
     ⟨by regs_frame, hinput, htable, fun t ht => by

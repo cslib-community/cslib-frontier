@@ -379,7 +379,7 @@ private theorem norm_det_vandermonde_sq_le {d : ℕ} (hd : 2 ≤ d) (r : Fin d �
         simp only [W, Matrix.updateRow_self, Pi.add_apply, Pi.smul_apply, smul_eq_mul, neg_mul,
           one_mul, ← sub_eq_add_neg, V, Matrix.vandermonde_apply]
       rw [hWj]
-      have hdiff := norm_pow_sub_pow_le hnorm k.2 hd
+      have hdiff := norm_pow_sub_pow_le hnorm k.isLt hd
       rw [norm_sub_rev (r j₀) (r i₀)] at hdiff
       refine (pow_le_pow_left₀ (norm_nonneg _) hdiff 2).trans_eq ?_
       rw [mul_pow, mul_pow, ← pow_mul, mul_comm (d - 2) 2]
@@ -446,7 +446,7 @@ theorem mignotte_sep_mahler_complex {p : ℤ[X]} (hd : 2 ≤ p.natDegree)
   have hlen : pC.roots.toList.length = pC.natDegree := by
     rw [Multiset.length_toList, ← hsplits.natDegree_eq_card_roots]
   let L := pC.roots.toList
-  let r : Fin pC.natDegree → ℂ := fun i => L[i.1]'(i.2.trans_eq hlen.symm)
+  let r : Fin pC.natDegree → ℂ := fun i => L[i.val]'(i.isLt.trans_eq hlen.symm)
   have hList_eq : List.ofFn r = L := List.ext_get (by rw [List.length_ofFn, hlen]) fun n _ _ => by
     simp only [List.get_eq_getElem, List.getElem_ofFn, r]
   have hr_roots : Finset.univ.val.map r = pC.roots := by

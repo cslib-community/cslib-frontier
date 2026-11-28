@@ -783,6 +783,7 @@ private theorem initialTile_history (M : OneMachine S Q) (input : List S) (posit
           (historyTile M input 0 position) := by
   dsimp only
   rw [initialTile]
+  dsimp only
   split_ifs with hposition
   · rfl
   · congr 1
@@ -898,6 +899,7 @@ private theorem next_initialTile_of_hMatches_mem
     (hmem : right ∈ tiles M input) :
     right = initialTile M input (position + 1) := by
   rw [initialTile] at hmatch ⊢
+  dsimp only at hmatch ⊢
   rcases (mem_tiles_iff M input right).1 hmem with
     ⟨next, hnext, rfl⟩ | rfl | ⟨history, _hhistory, rfl⟩ <;> split_ifs at hmatch with hposition
   · obtain rfl : next = position + 1 :=

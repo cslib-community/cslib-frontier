@@ -47,7 +47,7 @@ theorem dist_map_le_of_edgePoint_dist_le [Finite V] {W : WeightedGraph V}
       dist (f (edgePoint d r)) (f (vertex d.snd)) ≤ (1 - (r : ℝ)) * W.weight d.edge := by
     rw [← edgePoint_zero d, ← edgePoint_one d]
     refine ⟨(hdart d r 0).trans_eq ?_, (hdart d r 1).trans_eq ?_⟩
-    · rw [Set.Icc.coe_zero, sub_zero, abs_of_nonneg r.2.1]
+    · rw [Set.Icc.coe_zero, sub_zero, abs_of_nonneg r.property.1]
     · rw [Set.Icc.coe_one, abs_sub_comm, abs_of_nonneg (unitInterval.one_sub_nonneg r)]
   have hvertex (u v : V) :
       dist (f (vertex u)) (f (vertex v)) ≤ dist (vertex u : MetricGraph W) (vertex v) := by

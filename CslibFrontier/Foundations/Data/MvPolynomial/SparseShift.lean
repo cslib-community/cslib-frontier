@@ -143,7 +143,7 @@ theorem finrank_iteratedPDerivSpan_homogeneousComponent_shift_le {p : MvPolynomi
   -- a linearly independent family of derivatives of `h` spanning all of them
   obtain ⟨b, hbsub, hbspan, hbli⟩ := exists_linearIndependent K
     (Set.range fun x : Σ k, Fin k → σ => iteratedPDeriv x.2 h)
-  choose idx hidx using fun x : b => hbsub x.2
+  choose idx hidx using fun x : b => hbsub x.property
   have hk (x : b) : (idx x).1 ≤ m := not_lt.1 fun hlt =>
     hbli.ne_zero x (hidx x ▸ iteratedPDeriv_homogeneousComponent_eq_zero hlt _ _)
   -- the lifts of the derivatives to correlated shifted partials of `g`

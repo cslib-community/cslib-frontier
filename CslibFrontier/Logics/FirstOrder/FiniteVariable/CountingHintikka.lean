@@ -153,10 +153,10 @@ noncomputable def countingHintikka [Finite (Σ l, L.Relations l)] :
   | _ + 1, S, T =>
     (pebbleAtomicDiagram S T.1).toCounting ⊓ FiniteVariable.GenFormula.iInf fun j : Fin k =>
       FiniteVariable.GenFormula.iInf (fun τ : (T.2 j).toFinset =>
-          FiniteVariable.CountingFormula.exactly ((T.2 j).count τ.1) j
-            (countingHintikka (insert j S) τ.1)) ⊓
+          FiniteVariable.CountingFormula.exactly ((T.2 j).count τ.val) j
+            (countingHintikka (insert j S) τ.val)) ⊓
         .all j (FiniteVariable.GenFormula.iSup fun τ : (T.2 j).toFinset =>
-          countingHintikka (insert j S) τ.1)
+          countingHintikka (insert j S) τ.val)
 
 theorem realize_countingHintikka [Finite (Σ l, L.Relations l)] [Fintype M] :
     ∀ {n : ℕ} (S : Set (Fin k)) (T : CountingType L k n) (a : Fin k → M),
@@ -191,9 +191,9 @@ theorem quantifierRank_countingHintikka_le [Finite (Σ l, L.Relations l)] :
       FiniteVariable.GenFormula.quantifierRank_all]
     refine ⟨FiniteVariable.GenFormula.quantifierRank_iInf_le fun τ => ?_,
       Nat.succ_le_succ (FiniteVariable.GenFormula.quantifierRank_iSup_le fun τ =>
-        quantifierRank_countingHintikka_le _ τ.1)⟩
+        quantifierRank_countingHintikka_le _ τ.val)⟩
     rw [FiniteVariable.CountingFormula.quantifierRank_exactly]
-    exact Nat.succ_le_succ (quantifierRank_countingHintikka_le _ τ.1)
+    exact Nat.succ_le_succ (quantifierRank_countingHintikka_le _ τ.val)
 
 theorem freeVars_countingHintikka_subset [Finite (Σ l, L.Relations l)] :
     ∀ {n : ℕ} (S : Set (Fin k)) (T : CountingType L k n), ↑(countingHintikka S T).freeVars ⊆ S
@@ -210,10 +210,10 @@ theorem freeVars_countingHintikka_subset [Finite (Σ l, L.Relations l)] :
       ← Set.insert_eq]
     refine ⟨FiniteVariable.GenFormula.freeVars_iInf_subset fun τ => ?_,
       FiniteVariable.GenFormula.freeVars_iSup_subset fun τ =>
-        freeVars_countingHintikka_subset _ τ.1⟩
+        freeVars_countingHintikka_subset _ τ.val⟩
     rw [FiniteVariable.CountingFormula.freeVars_exactly, Finset.coe_erase, Set.sdiff_subset_iff,
       ← Set.insert_eq]
-    exact freeVars_countingHintikka_subset _ τ.1
+    exact freeVars_countingHintikka_subset _ τ.val
 
 /-! ### The game characterization of `C^k` -/
 

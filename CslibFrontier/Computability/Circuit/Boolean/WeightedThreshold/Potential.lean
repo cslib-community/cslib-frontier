@@ -481,10 +481,10 @@ theorem existsUnique_ilpValid {M : Fin g → ℝ} {x : Fin n → Bool}
 /-- Backwards positive priority `λ_i = 1 + ∑_{j > i} λ_j |b_{j, i}|`. -/
 def priority (i : Fin g) : ℝ :=
   1 + ∑ j ∈ univ.attach,
-    if _ : i < j.1 then priority j.1 * |P.gateWeight j.1 i| else 0
+    if _ : i < j.val then priority j.val * |P.gateWeight j.val i| else 0
 termination_by g - 1 - i.val
 decreasing_by
-  have := j.1.isLt
+  have := j.val.isLt
   omega
 
 /-- Unfolding equation for the backwards priority `P.priority i`. -/

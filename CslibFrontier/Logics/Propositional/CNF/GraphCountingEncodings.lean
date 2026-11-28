@@ -117,26 +117,26 @@ independent sets of `G`. -/
 def indepSetCNFEquiv [DecidableEq V] {vs : List V} {es : List (V × V)}
     {G : SimpleGraph {v : V // v ∈ vs}}
     (hG : ∀ (u w : {v : V // v ∈ vs}), G.Adj u w ↔
-      u.1 ≠ w.1 ∧ ((u.1, w.1) ∈ es ∨ (w.1, u.1) ∈ es)) :
+      u.val ≠ w.val ∧ ((u.val, w.val) ∈ es ∨ (w.val, u.val) ∈ es)) :
     {σ : vs.toFinset → Bool //
       (indepSetCNF vs es).eval (fun v => if hv : v ∈ vs.toFinset then σ ⟨v, hv⟩ else false) =
         true} ≃
       {S : Finset {v : V // v ∈ vs} // G.IsIndepSet (S : Set {v : V // v ∈ vs})} where
   toFun σ :=
-    ⟨Finset.univ.filter fun u => σ.1 ⟨u.1, List.mem_toFinset.mpr u.2⟩ = true, by
+    ⟨Finset.univ.filter fun u => σ.val ⟨u.val, List.mem_toFinset.mpr u.property⟩ = true, by
       intro u hu w hw hne hadj
       rw [Finset.coe_filter, Set.mem_ofPred_eq] at hu hw
       obtain ⟨-, h1 | h2⟩ := (hG u w).mp hadj
-      · exact ((eval_indepSetCNF vs es _).mp σ.2 (u.1, w.1) h1 u.2 w.2
+      · exact ((eval_indepSetCNF vs es _).mp σ.property (u.val, w.val) h1 u.property w.property
           (fun h => hne (Subtype.ext h)))
-          (by simpa [List.mem_toFinset.mpr u.2] using hu.2)
-          (by simpa [List.mem_toFinset.mpr w.2] using hw.2)
-      · exact ((eval_indepSetCNF vs es _).mp σ.2 (w.1, u.1) h2 w.2 u.2
+          (by simpa [List.mem_toFinset.mpr u.property] using hu.2)
+          (by simpa [List.mem_toFinset.mpr w.property] using hw.2)
+      · exact ((eval_indepSetCNF vs es _).mp σ.property (w.val, u.val) h2 w.property u.property
           (fun h => hne (Subtype.ext h.symm)))
-          (by simpa [List.mem_toFinset.mpr w.2] using hw.2)
-          (by simpa [List.mem_toFinset.mpr u.2] using hu.2)⟩
+          (by simpa [List.mem_toFinset.mpr w.property] using hw.2)
+          (by simpa [List.mem_toFinset.mpr u.property] using hu.2)⟩
   invFun S :=
-    ⟨fun v => decide (⟨v.1, List.mem_toFinset.mp v.2⟩ ∈ S.1), by
+    ⟨fun v => decide (⟨v.val, List.mem_toFinset.mp v.property⟩ ∈ S.val), by
       rw [eval_indepSetCNF]
       intro e he h1 h2 hne hs1 hs2
       have hm1 : e.1 ∈ vs.toFinset := List.mem_toFinset.mpr h1
@@ -144,11 +144,11 @@ def indepSetCNFEquiv [DecidableEq V] {vs : List V} {es : List (V × V)}
       simp only [hm1, ↓reduceDIte, decide_eq_true_eq] at hs1
       simp only [hm2, ↓reduceDIte, decide_eq_true_eq] at hs2
       have hadj : G.Adj ⟨e.1, h1⟩ ⟨e.2, h2⟩ := (hG _ _).mpr ⟨hne, Or.inl he⟩
-      exact S.2 hs1 hs2 (fun h => hne (congrArg Subtype.val h)) hadj⟩
+      exact S.property hs1 hs2 (fun h => hne (congrArg Subtype.val h)) hadj⟩
   left_inv σ := by
     obtain ⟨σ, hσ⟩ := σ
     ext v
-    have hmv := List.mem_toFinset.mp v.2
+    have hmv := List.mem_toFinset.mp v.property
     simp
   right_inv S := by
     obtain ⟨S, hS⟩ := S
@@ -159,7 +159,7 @@ def indepSetCNFEquiv [DecidableEq V] {vs : List V} {es : List (V × V)}
 theorem modelCount_indepSetCNF [DecidableEq V] {vs : List V} {es : List (V × V)}
     {G : SimpleGraph {v : V // v ∈ vs}}
     (hG : ∀ (u w : {v : V // v ∈ vs}), G.Adj u w ↔
-      u.1 ≠ w.1 ∧ ((u.1, w.1) ∈ es ∨ (w.1, u.1) ∈ es)) :
+      u.val ≠ w.val ∧ ((u.val, w.val) ∈ es ∨ (w.val, u.val) ∈ es)) :
     (indepSetCNF vs es).modelCount =
       Nat.card {S : Finset {v : V // v ∈ vs} // G.IsIndepSet (S : Set {v : V // v ∈ vs})} := by
   classical
@@ -260,7 +260,7 @@ private noncomputable def coloringDecode [DecidableEq V] {q : ℕ} {vs : List V}
     (hσ : (coloringCNF q vs es).eval
       (fun p => if hp : p ∈ vs.toFinset ×ˢ Finset.range q then σ ⟨p, hp⟩ else false) = true)
     (u : {v : V // v ∈ vs}) : Fin q :=
-  let h := ((eval_coloringCNF q vs es _).mp hσ).1 u.1 u.2
+  let h := ((eval_coloringCNF q vs es _).mp hσ).1 u.val u.property
   ⟨h.1.choose, h.1.choose_spec.1⟩
 
 private theorem coloringDecode_spec [DecidableEq V] {q : ℕ} {vs : List V} {es : List (V × V)}
@@ -268,19 +268,20 @@ private theorem coloringDecode_spec [DecidableEq V] {q : ℕ} {vs : List V} {es 
     (hσ : (coloringCNF q vs es).eval
       (fun p => if hp : p ∈ vs.toFinset ×ˢ Finset.range q then σ ⟨p, hp⟩ else false) = true)
     (u : {v : V // v ∈ vs}) :
-    (if hp : (u.1, (coloringDecode hσ u).1) ∈ vs.toFinset ×ˢ Finset.range q
-      then σ ⟨(u.1, (coloringDecode hσ u).1), hp⟩ else false) = true :=
-  (((eval_coloringCNF q vs es _).mp hσ).1 u.1 u.2).1.choose_spec.2
+    (if hp : (u.val, (coloringDecode hσ u).val) ∈ vs.toFinset ×ˢ Finset.range q
+      then σ ⟨(u.val, (coloringDecode hσ u).val), hp⟩ else false) = true :=
+  (((eval_coloringCNF q vs es _).mp hσ).1 u.val u.property).1.choose_spec.2
 
 private def coloringEncode [DecidableEq V] {q : ℕ} {vs : List V}
     {G : SimpleGraph {v : V // v ∈ vs}}
     (C : G.Coloring (Fin q)) : (vs.toFinset ×ˢ Finset.range q : Finset (V × ℕ)) → Bool :=
-  fun p => decide (p.1.2 = (C ⟨p.1.1, List.mem_toFinset.mp (Finset.mem_product.mp p.2).1⟩).1)
+  fun p => decide (p.val.2 =
+    (C ⟨p.val.1, List.mem_toFinset.mp (Finset.mem_product.mp p.property).1⟩).val)
 
 private theorem eval_coloringEncode [DecidableEq V] {q : ℕ} {vs : List V} {es : List (V × V)}
     {G : SimpleGraph {v : V // v ∈ vs}}
     (hG : ∀ (u w : {v : V // v ∈ vs}), G.Adj u w ↔
-      u.1 ≠ w.1 ∧ ((u.1, w.1) ∈ es ∨ (w.1, u.1) ∈ es))
+      u.val ≠ w.val ∧ ((u.val, w.val) ∈ es ∨ (w.val, u.val) ∈ es))
     (C : G.Coloring (Fin q)) :
     (coloringCNF q vs es).eval
       (fun p =>
@@ -291,7 +292,7 @@ private theorem eval_coloringEncode [DecidableEq V] {q : ℕ} {vs : List V} {es 
     Finset.mem_product.mpr ⟨List.mem_toFinset.mpr hw, Finset.mem_range.mpr hc⟩
   rw [eval_coloringCNF]
   refine ⟨fun v hv =>
-    ⟨⟨(C ⟨v, hv⟩).1, (C ⟨v, hv⟩).2, by simp [coloringEncode, hmem hv (C ⟨v, hv⟩).2]⟩,
+    ⟨⟨(C ⟨v, hv⟩).val, (C ⟨v, hv⟩).isLt, by simp [coloringEncode, hmem hv (C ⟨v, hv⟩).isLt]⟩,
       fun c₁ hc₁ c₂ hc₂ h1 h2 => ?_⟩,
     fun e he h1 h2 hne c hc hs1 hs2 => ?_⟩
   · simp only [coloringEncode, hmem hv hc₁, hmem hv hc₂, ↓reduceDIte, decide_eq_true_eq] at h1 h2
@@ -304,22 +305,23 @@ private theorem eval_coloringEncode [DecidableEq V] {q : ℕ} {vs : List V} {es 
 noncomputable def coloringCNFEquiv [DecidableEq V] {q : ℕ} {vs : List V} {es : List (V × V)}
     {G : SimpleGraph {v : V // v ∈ vs}}
     (hG : ∀ (u w : {v : V // v ∈ vs}), G.Adj u w ↔
-      u.1 ≠ w.1 ∧ ((u.1, w.1) ∈ es ∨ (w.1, u.1) ∈ es)) :
+      u.val ≠ w.val ∧ ((u.val, w.val) ∈ es ∨ (w.val, u.val) ∈ es)) :
     {σ : (vs.toFinset ×ˢ Finset.range q : Finset (V × ℕ)) → Bool //
       (coloringCNF q vs es).eval
         (fun p => if hp : p ∈ vs.toFinset ×ˢ Finset.range q then σ ⟨p, hp⟩ else false) =
           true} ≃
       G.Coloring (Fin q) where
   toFun σ :=
-    SimpleGraph.Coloring.mk (coloringDecode σ.2) fun {u w} hadj hfin => by
-      have heqcol : (coloringDecode σ.2 u).1 = (coloringDecode σ.2 w).1 := congrArg Fin.val hfin
+    SimpleGraph.Coloring.mk (coloringDecode σ.property) fun {u w} hadj hfin => by
+      have heqcol : (coloringDecode σ.property u).val = (coloringDecode σ.property w).val :=
+        congrArg Fin.val hfin
       obtain ⟨hne, h1 | h2⟩ := (hG u w).mp hadj
-      · exact ((eval_coloringCNF q vs es _).mp σ.2).2 (u.1, w.1) h1 u.2 w.2
-          (fun h => hne h) (coloringDecode σ.2 u).1 (coloringDecode σ.2 u).2
-          (coloringDecode_spec σ.2 u) (heqcol ▸ coloringDecode_spec σ.2 w)
-      · exact ((eval_coloringCNF q vs es _).mp σ.2).2 (w.1, u.1) h2 w.2 u.2
-          (fun h => hne h.symm) (coloringDecode σ.2 u).1 (coloringDecode σ.2 u).2
-          (heqcol ▸ coloringDecode_spec σ.2 w) (coloringDecode_spec σ.2 u)
+      · exact ((eval_coloringCNF q vs es _).mp σ.property).2 (u.val, w.val) h1 u.property w.property
+          (fun h => hne h) (coloringDecode σ.property u).val (coloringDecode σ.property u).isLt
+          (coloringDecode_spec σ.property u) (heqcol ▸ coloringDecode_spec σ.property w)
+      · exact ((eval_coloringCNF q vs es _).mp σ.property).2 (w.val, u.val) h2 w.property u.property
+          (fun h => hne h.symm) (coloringDecode σ.property u).val (coloringDecode σ.property u).isLt
+          (heqcol ▸ coloringDecode_spec σ.property w) (coloringDecode_spec σ.property u)
   invFun C :=
     ⟨coloringEncode C, eval_coloringEncode hG C⟩
   left_inv σ := by
@@ -328,8 +330,8 @@ noncomputable def coloringCNFEquiv [DecidableEq V] {q : ℕ} {vs : List V} {es :
     have hv : v ∈ vs := List.mem_toFinset.mp (Finset.mem_product.mp hp).1
     have hc : c < q := Finset.mem_range.mp (Finset.mem_product.mp hp).2
     have huniq := ((eval_coloringCNF q vs es _).mp hσ).1 v hv
-    let col : ℕ := (coloringDecode hσ ⟨v, hv⟩).1
-    have hcolLt : col < q := (coloringDecode hσ ⟨v, hv⟩).2
+    let col : ℕ := (coloringDecode hσ ⟨v, hv⟩).val
+    have hcolLt : col < q := (coloringDecode hσ ⟨v, hv⟩).isLt
     have hpcol : (v, col) ∈ vs.toFinset ×ˢ Finset.range q :=
       Finset.mem_product.mpr ⟨List.mem_toFinset.mpr hv, Finset.mem_range.mpr hcolLt⟩
     have hσcol : σ ⟨(v, col), hpcol⟩ = true := by
@@ -355,18 +357,18 @@ noncomputable def coloringCNFEquiv [DecidableEq V] {q : ℕ} {vs : List V} {es :
     have hσ0 : (coloringCNF q vs es).eval
         (fun p => if hp : p ∈ vs.toFinset ×ˢ Finset.range q then σ0 ⟨p, hp⟩ else false) =
         true := eval_coloringEncode hG C
-    change (coloringDecode hσ0 ⟨u, hu⟩).1 = (C ⟨u, hu⟩).1
+    change (coloringDecode hσ0 ⟨u, hu⟩).val = (C ⟨u, hu⟩).val
     have hspec := coloringDecode_spec hσ0 ⟨u, hu⟩
-    have hp : (u, (coloringDecode hσ0 ⟨u, hu⟩).1) ∈ vs.toFinset ×ˢ Finset.range q :=
+    have hp : (u, (coloringDecode hσ0 ⟨u, hu⟩).val) ∈ vs.toFinset ×ˢ Finset.range q :=
       Finset.mem_product.mpr ⟨List.mem_toFinset.mpr hu,
-        Finset.mem_range.mpr (coloringDecode hσ0 ⟨u, hu⟩).2⟩
+        Finset.mem_range.mpr (coloringDecode hσ0 ⟨u, hu⟩).isLt⟩
     simpa only [σ0, coloringEncode, hp, ↓reduceDIte, decide_eq_true_eq] using hspec
 
 /-- **`coloringCNF` preserves the exact count of proper `q`-colourings.** -/
 theorem modelCount_coloringCNF [DecidableEq V] {q : ℕ} {vs : List V} {es : List (V × V)}
     {G : SimpleGraph {v : V // v ∈ vs}}
     (hG : ∀ (u w : {v : V // v ∈ vs}), G.Adj u w ↔
-      u.1 ≠ w.1 ∧ ((u.1, w.1) ∈ es ∨ (w.1, u.1) ∈ es)) :
+      u.val ≠ w.val ∧ ((u.val, w.val) ∈ es ∨ (w.val, u.val) ∈ es)) :
     (coloringCNF q vs es).modelCount = Nat.card (G.Coloring (Fin q)) := by
   classical
   have hvars : (coloringCNF q vs es).vars.toFinset = vs.toFinset ×ˢ Finset.range q := by
@@ -432,15 +434,15 @@ def setSplittingCNFEquiv [DecidableEq V] (U : Finset V) (sets : List (List V))
         P.1 ∪ P.2 = U ∧ Disjoint P.1 P.2 ∧
           ∀ s ∈ sets, (∃ x ∈ s, x ∈ P.1) ∧ (∃ y ∈ s, y ∈ P.2)} where
   toFun σ :=
-    ⟨(U.filter fun v => if hv : v ∈ U then σ.1 ⟨v, hv⟩ = true else False,
-      U.filter fun v => if hv : v ∈ U then σ.1 ⟨v, hv⟩ = false else False), by
+    ⟨(U.filter fun v => if hv : v ∈ U then σ.val ⟨v, hv⟩ = true else False,
+      U.filter fun v => if hv : v ∈ U then σ.val ⟨v, hv⟩ = false else False), by
       refine ⟨?_, ?_, ?_⟩
       · ext v
         simp only [Finset.mem_union, Finset.mem_filter]
         constructor
         · rintro (⟨hv, _⟩ | ⟨hv, _⟩) <;> exact hv
         · intro hv
-          cases h : σ.1 ⟨v, hv⟩
+          cases h : σ.val ⟨v, hv⟩
           · exact Or.inr ⟨hv, by simp [hv, h]⟩
           · exact Or.inl ⟨hv, by simp [hv, h]⟩
       · rw [Finset.disjoint_left]
@@ -450,7 +452,7 @@ def setSplittingCNFEquiv [DecidableEq V] (U : Finset V) (sets : List (List V))
         simp only [hv, ↓reduceDIte] at h1 h2
         exact Bool.noConfusion (h1.symm.trans h2.2)
       · intro s hs
-        obtain ⟨⟨x, hx, hxt⟩, ⟨y, hy, hyf⟩⟩ := (eval_setSplittingCNF sets _).mp σ.2 s hs
+        obtain ⟨⟨x, hx, hxt⟩, ⟨y, hy, hyf⟩⟩ := (eval_setSplittingCNF sets _).mp σ.property s hs
         have hxU := hsets s hs x hx
         have hyU := hsets s hs y hy
         refine ⟨⟨x, hx, Finset.mem_filter.mpr ⟨hxU, ?_⟩⟩,
@@ -459,7 +461,7 @@ def setSplittingCNFEquiv [DecidableEq V] (U : Finset V) (sets : List (List V))
         · simpa [hyU] using hyf⟩
   invFun P :=
     let ⟨⟨A, _⟩, _, hdisj, hsp⟩ := P
-    ⟨fun v => decide (v.1 ∈ A), by
+    ⟨fun v => decide (v.val ∈ A), by
       rw [eval_setSplittingCNF]
       intro s hs
       obtain ⟨⟨x, hx, hx1⟩, ⟨y, hy, hy2⟩⟩ := hsp s hs
@@ -472,7 +474,7 @@ def setSplittingCNFEquiv [DecidableEq V] (U : Finset V) (sets : List (List V))
   left_inv σ := by
     obtain ⟨σ, hσ⟩ := σ
     ext v
-    simp [v.2]
+    simp [v.property]
   right_inv P := by
     obtain ⟨⟨A, B⟩, hAB, hdisj, hsp⟩ := P
     ext v

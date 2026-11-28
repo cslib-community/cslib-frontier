@@ -280,10 +280,10 @@ theorem blockCoeff_eq_listCoeff (k : P × G) (β : M → ℕ) (Y X : E → Bool)
   let σ : Fin l.length ≃ {e // S.rowBlock e = k} :=
     Equiv.ofBijective (fun j => ⟨l.get j, (hmem _).1 (List.get_mem _ _)⟩)
       ⟨fun j j' h => (hl.get_inj_iff).1 (congrArg Subtype.val h), fun e => by
-        obtain ⟨j, hj⟩ := List.mem_iff_get.1 ((hmem e.1).2 e.2)
+        obtain ⟨j, hj⟩ := List.mem_iff_get.1 ((hmem e.val).2 e.property)
         exact ⟨j, Subtype.ext hj⟩⟩
   have hl' : (l.map fun e => S.choiceTerm Y X e) =
-      List.ofFn fun j => S.choiceTerm Y X (σ j).1 := by
+      List.ofFn fun j => S.choiceTerm Y X (σ j).val := by
     conv_lhs => rw [← List.ofFn_get l, List.map_ofFn]
     rfl
   have hcard (φ : {e // S.rowBlock e = k} → Option M) (Z : M) :
@@ -304,10 +304,11 @@ row and the column bits when it is a column. -/
 theorem child_tensor_inl [DecidableEq V] (β : M → ℕ) (g : G) (v : {v // S.group v = g})
     (y : {e // S.group (N.src e) = g} ⊕ {e // S.group (N.tgt e) = g} → Bool) :
     (S.child β g).tensor (.inl v) y =
-      if S.side v.1 then
-        N.tensor v.1 fun e => if h : N.src e = v.1 then y (.inl ⟨e, h ▸ v.2⟩) else false
+      if S.side v.val then
+        N.tensor v.val fun e => if h : N.src e = v.val then y (.inl ⟨e, h ▸ v.property⟩) else false
       else
-        N.tensor v.1 fun e => if h : N.tgt e = v.1 then y (.inr ⟨e, h ▸ v.2⟩) else false :=
+        N.tensor v.val fun e =>
+          if h : N.tgt e = v.val then y (.inr ⟨e, h ▸ v.property⟩) else false :=
   rfl
 
 /-- A packet vertex of a child has the packet tensor at the bits of its ports. -/

@@ -99,8 +99,8 @@ theorem exists_balanced_sum_placement {S V I : Type*} [Fintype S] [Nonempty S] [
   have hcap : Nat.card {v : V // (j v).1 = s} ≤ m := by
     calc
       _ ≤ Nat.card (Fin m) :=
-        Nat.card_le_card_of_injective (fun v : {v : V // (j v).1 = s} => (j v.1).2)
-          fun a b h => Subtype.ext (j.injective (Prod.ext (a.2.trans b.2.symm) h))
+        Nat.card_le_card_of_injective (fun v : {v : V // (j v).1 = s} => (j v.val).2)
+          fun a b h => Subtype.ext (j.injective (Prod.ext (a.property.trans b.property.symm) h))
       _ = m := Nat.card_fin _
   rw [Nat.card_subtype_sum]
   exact Nat.add_le_add hcap (hfixed s)
