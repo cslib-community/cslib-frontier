@@ -19,15 +19,17 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.HittingSet.ColorDeg
 Over a field of characteristic zero, `boundedDegreeHittingSet F n w δ` is an explicit set of
 points on which no nonzero polynomial in `n` variables of individual degree at most `δ` computed
 by read-once oblivious branching programs of width `w` in every variable order vanishes
-(`isHittingSet_boundedDegreeHittingSet_roabp`). For `δ = 1` this is Theorem 1.1 of Shpilka
-[Shpilka2026], formalized by `isHittingSet_anyOrderHittingSet_roabp`. For every fixed `δ`,
-the size of the set is polynomial in `n` and `w` (`card_boundedDegreeHittingSet_le`).
+(`isHittingSet_boundedDegreeHittingSet_roabp`). The proof uses the split-rank bound across every
+partition (`IsAnyOrderROABP.splitRankLE`). The cardinality bound (`card_boundedDegreeHittingSet_le`)
+contains a factor `(δ * n + 1) ^ δ` from the colour recursion and is polynomial in `n` and `w`
+for each fixed `δ`.
 
-The explicit cardinality bound contains a factor `(δ * n + 1) ^ δ` from the colour-degree
-recursion. A bound polynomial jointly in `n`, `w` and `δ` remains open [Shpilka2026, §4].
-The bounded-degree construction and proof are original. As in the multilinear case, the
-split-rank criterion (`MvPolynomial.SplitRankLE`) includes the branching programs
-(`IsAnyOrderROABP.splitRankLE`).
+The November 9 version of [Shpilka2026, Theorem 1.1] treats the multilinear case, formalized in
+characteristic zero by `isHittingSet_anyOrderHittingSet_roabp`. The bounded-degree construction
+here predates the November 21 revision. Its abstract credits Claude Fable 5.2 with finding the
+proof and Aviv Bar Natan with communicating it. The revised Theorem 1.1 gives a bound
+`(n * δ * w) ^ O(δ)` over sufficiently large fields of any characteristic [Shpilka2026Rev1, p. 3].
+A bound jointly polynomial in all three parameters remains open [Shpilka2026Rev1, §5, item 1].
 
 ## Proof
 
@@ -61,7 +63,10 @@ split-rank criterion (`MvPolynomial.SplitRankLE`) includes the branching program
 
 * [A. Shpilka, *Polynomial-size hitting sets for multilinear any-order read-once algebraic
   branching programs and for set-multilinear depth-3 circuits with constant-size variable
-  sets*][Shpilka2026], Theorem 1.1 and §4 (unrefereed preprint)
+  sets*][Shpilka2026], November 9 version, Theorem 1.1 and §4, item 1
+* [A. Shpilka, *Polynomial-size hitting sets for any-order read-once algebraic branching
+  programs with bounded individual degrees*][Shpilka2026Rev1], November 21 revision, abstract,
+  Theorem 1.1 (p. 3) and §5, item 1 (p. 14)
 * [M. A. Forbes, R. Saptharishi, A. Shpilka, *Pseudorandomness for multilinear read-once
   algebraic branching programs, in any order*][ForbesSaptharishiShpilka2014]
 -/

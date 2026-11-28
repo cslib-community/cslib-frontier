@@ -36,8 +36,9 @@ values are reached from values of `g (X + b)` by finite differences
 (`exists_eval_ne_zero_of_eval_colorComponent_ne_zero`): `g` does not vanish at `z • (y ⊙ a) + b`
 for a natural number `z ≤ D` and a zero-one vector `y` indexed by the colours.
 
-The recursion is original. For fixed `n`, `r`, `w` and total-degree bound `D`, each level
-contributes the same cardinality factor (`card_colorHittingSet_le`).
+This recursion was developed before Shpilka's November 21 revision [Shpilka2026Rev1, §3].
+For fixed `n`, `r`, `w` and total-degree bound `D`, each level contributes the same cardinality
+factor (`card_colorHittingSet_le`).
 
 ## Main definitions
 

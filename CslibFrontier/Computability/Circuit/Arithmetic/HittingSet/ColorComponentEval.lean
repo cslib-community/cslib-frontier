@@ -26,8 +26,8 @@ scaling the variables of colour `i` by `z * y i`, for natural numbers `y i ≤ �
 (`exists_eval_ne_zero_of_eval_colorComponent_ne_zero`).
 
 The case `ε = (1, …, 1)` is [Shpilka2026, Lemma 3.2]
-(`exists_eval_ne_zero_of_eval_colorPart_ne_zero`), proved by inclusion–exclusion. The statement
-for a general colour degree, and its proof by finite differences, are not from a source.
+(`exists_eval_ne_zero_of_eval_colorPart_ne_zero`), proved by inclusion–exclusion. The
+finite-difference argument here for general colour degree predates [Shpilka2026Rev1, §3].
 Scaling the variables of colour `i` by a new variable `yᵢ` turns `G` into a polynomial `T` in `y`
 whose coefficient at `ε` is the value at `x` of the component (`coeff_aeval_monomial`). Substituting
 `kᵢ * z` for `yᵢ` and taking the `ε i`-th forward difference at `0` in every `kᵢ` gives a
