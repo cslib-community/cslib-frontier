@@ -312,6 +312,6 @@ category config, history/cache semantics, local regression tests and output over
 Generated counts and pages are not versioned and are not inputs to either manual PDF.
 
 The docs workflow also builds the [codebase views](https://www.cslib.io/cslib-frontier/viz/).
-Its **Agent activity** page reads public GitHub disclosures with issue and pull request read
-access. The [visualisation README](../tools/viz/README.md#agent-activity) describes how to rebuild
-the page from a saved summary and how to interpret the session counts.
+Its **Worker activity** page reads public GitHub disclosures with issue and pull request read
+access. The [visualisation README](../tools/viz/README.md#worker-activity) describes how to rebuild
+the page from a saved summary and how to interpret the worker ID counts.

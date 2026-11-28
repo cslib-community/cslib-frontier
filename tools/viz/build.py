@@ -251,6 +251,8 @@ def main() -> int:
     agents = None
     if args.agent_activity_json:
         agents = json.loads(args.agent_activity_json.read_text())
+        if agents.get("metric") != "worker_ids":
+            ap.error("--agent-activity-json needs a worker-ID report from the current generator")
     elif args.fetch_agent_activity:
         t = time.time()
         now = dt.datetime.now(dt.timezone.utc)

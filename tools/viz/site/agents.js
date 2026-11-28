@@ -6,26 +6,22 @@
 (() => {
   const { activity } = V.data;
   const { esc, int, sparkline, when } = V;
-  V.header("Agent activity");
+  V.header("Worker activity");
   const tiles = document.getElementById("tiles");
   const table = document.getElementById("accounts");
-  const coverage = document.getElementById("coverage");
   const buttons = [...document.querySelectorAll("#window button")];
 
   document.getElementById("as-of").textContent = "As of " + when(activity.as_of);
 
   const tilesToShow = [
-    ["sessions", "Observed session IDs", "var(--s1)"],
-    ["worker", "Worker sessions", "var(--s2)"],
-    ["coordinator", "Coordinator sessions", "var(--s3)"],
-    ["without_session", "Records without a session", "var(--other)"],
+    ["workers", "Active worker IDs", "var(--s1)"],
+    ["events", "Records with a worker ID", "var(--s2)"],
   ];
 
   function render(days) {
     const summary = activity.windows[days];
     const daily = summary.daily;
     const dates = daily.map((row) => row.date);
-    const maxRole = Math.max(1, ...summary.accounts.map((row) => Math.max(row.worker, row.coordinator)));
 
     tiles.innerHTML = tilesToShow.map(([key, label]) =>
       `<div class="card tile"><div class="label">${label}</div>
@@ -36,29 +32,15 @@
       sparkline(svg, dates, daily.map((row) => row[key]));
       svg.querySelector("polyline").setAttribute("stroke", color);
     });
-    coverage.textContent = `${int(summary.events)} disclosed records · ` +
-      `${int(summary.events - summary.without_session)} with a usable session ID · ` +
-      `${int(summary.events - summary.without_role)} with a usable role · ` +
-      `${int(summary.both)} session IDs observed in both roles`;
-
-    function roleCell(value, color) {
-      return `<td class="r"><span class="agent-role" style="--role-color:${color};--role-width:${100 * value / maxRole}%">
-        ${int(value)}</span></td>`;
-    }
-
     table.innerHTML = summary.accounts.map((row) => {
       const account = row.login
         ? `<a href="https://github.com/${encodeURIComponent(row.login)}">@${esc(row.login)}</a>`
         : "Unknown account";
-      const evidence = row.evidence.filter((url) => url.startsWith("https://github.com/")).map((url, i) => {
-        const number = new URL(url).pathname.split("/").pop();
-        return `<a href="${esc(url)}" aria-label="Record ${i + 1} for ${esc(row.login || "unknown account")}, #${esc(number)}">#${esc(number)}</a>`;
-      }).join(" · ");
-      return `<tr><th scope="row" class="name">${account}${row.sessions > 1 ?
-        '<span class="small agent-shared">Multiple sessions</span>' : ""}
-        </th><td class="r">${int(row.sessions)}</td>
-        ${roleCell(row.worker, "var(--s2)")}${roleCell(row.coordinator, "var(--s3)")}
-        <td class="r">${int(row.events)}</td><td>${evidence}</td></tr>`;
+      const workers = row.workers_by_id.filter(({url}) => url.startsWith("https://github.com/"))
+        .map(({id, url}) => `<a class="mono" href="${esc(url)}">${esc(id)}</a>`).join(" · ");
+      return `<tr><th scope="row" class="name">${account}</th>
+        <td class="r">${int(row.workers)}</td><td class="r">${int(row.events)}</td>
+        <td class="name">${workers}</td></tr>`;
     }).join("");
     document.getElementById("empty").hidden = summary.accounts.length > 0;
     buttons.forEach((button) => button.setAttribute("aria-pressed", button.dataset.days === days));

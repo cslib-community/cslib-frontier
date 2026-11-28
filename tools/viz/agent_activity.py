@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Christian Reitwiessner. All rights reserved.
 # Released under Apache 2.0 license as described in the file LICENSE.
 # Authors: Christian Reitwiessner
-"""Collect and summarize public GitHub work records that disclose agent activity."""
+"""Collect and summarize public GitHub work records that identify workers."""
 
 from __future__ import annotations
 
@@ -16,67 +16,27 @@ import urllib.request
 import github_prs
 
 WINDOWS = (7, 30)
-ROLES = ("worker", "coordinator")
-SESSION = r"[a-z0-9][a-z0-9_-]{3,79}"
-# Recognize explicit fields and the first-person claim formats used in the repository.
-FIELDS = re.compile(rf"^Agent session:[ \t]*`?({SESSION})`?[ \t]*$", re.I | re.M)
-ROLE = re.compile(r"^Agent role:[ \t]*(worker|coordinator)[ \t]*$", re.I | re.M)
-WORKER = re.compile(
-    r"^(?:Codex session `?([0-9a-f]{8,64})`? (?:claims|extends|submitted|is extending)\b|"
-    r"Claimed by a Claude Code worker session \([^\n]*, session ([0-9a-f]{8,64})\))",
-    re.I,
-)
-# These are self-signatures, distinct from references to a coordinator elsewhere in a post.
-SIGNATURES = {
-    "worker": re.compile(rf"^— Codex worker(?:, session)? `?({SESSION})`?(?:,|[ \t]*$)",
-                         re.I | re.M),
-    "coordinator": re.compile(
-        rf"^— `?(coordinator-{SESSION})`? \(agent(?: coordination)?\)[ \t]*$|"
-        rf"^— `?({SESSION})`?, queue coordinator\b",
-        re.I | re.M),
-}
-SELF_IDENTIFICATION = {
-    "worker": re.compile(
-        rf"^Worker `?(codex-{SESSION})`? is taking\b|"
-        r"^awaiting review[^\n]*\(worker session `?([0-9a-f]{8,64})`?\)",
-        re.I,
-    ),
-    "coordinator": re.compile(
-        rf"^I[’']m taking [^\n]+? as coordinator `(codex-{SESSION})`", re.I,
-    ),
-}
-DISCLOSED_ROLE = re.compile(
-    r"^\*?AI (?:assistance|disclosure): (?:written|authored) by an? (?:AI )?"
-    r"(?:coding )?agent acting as (?:a )?(worker|coordinator)\b",
-    re.I | re.M,
-)
-DISCLOSURE = re.compile(
-    r"^\*?Authored by an AI agent\b|^\*?\(?Independent non-author(?:ing)? (?:agent|AI)\b",
-    re.I | re.M,
+ID = r"[a-z0-9][a-z0-9_-]{3,79}"
+WORKER_FIELD = re.compile(rf"^Worker ID:[ \t]*`?({ID})`?[ \t]*$", re.I | re.M)
+WORKER_CLAIM = re.compile(rf"^Worker `?({ID})`? (?:is taking|claims|has claimed)\b", re.I)
+WORKER_SIGNATURE = re.compile(
+    rf"^— Codex worker `?({ID})`?(?:,|[ \t]*$)", re.I | re.M,
 )
 
 
-def disclosure(body: str) -> tuple[str | None, str | None] | None:
-    """Return an explicitly disclosed session and role, or no recognizable AI disclosure."""
-    # Ignore quoted messages and fenced examples. A review label may name a task rather than
-    # a session, and a review can come from either operational role.
+def worker_id(body: str) -> str | None:
+    """Read a public worker ID from a field, self-claim, or named worker signature."""
     body = re.sub(r"(?s)<!--.*?(?:-->|\Z)", "", body.replace("\r\n", "\n"))
     body = re.sub(r"(?ms)^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?(?:^[ \t]*\1[ \t]*$|\Z)", "", body)
-    sessions = {s.lower() for s in FIELDS.findall(body)}
-    roles = {r.lower() for pattern in (ROLE, DISCLOSED_ROLE) for r in pattern.findall(body)}
-    for role, signature in SIGNATURES.items():
-        for match in signature.finditer(body):
-            sessions.add(next(s for s in match.groups() if s).lower())
-            roles.add(role)
-    for role, pattern in (("worker", WORKER), *SELF_IDENTIFICATION.items()):
-        claim = pattern.match(body.lstrip("\n"))
-        if claim:
-            sessions.add(next(s for s in claim.groups() if s).lower())
-            roles.add(role)
-    if sessions or roles or DISCLOSURE.search(body):
-        return (next(iter(sessions)) if len(sessions) == 1 else None,
-                next(iter(roles)) if len(roles) == 1 else None)
-    return None
+    fields = WORKER_FIELD.findall(body)
+    if fields:
+        ids = {value.lower() for value in fields}
+        return next(iter(ids)) if len(ids) == 1 else None
+    ids = {value.lower() for value in WORKER_SIGNATURE.findall(body)}
+    claim = WORKER_CLAIM.match(body.lstrip("\n"))
+    if claim:
+        ids.add(claim[1].lower())
+    return next(iter(ids)) if len(ids) == 1 else None
 
 
 def _records(url, token):
@@ -172,32 +132,24 @@ def fetch(repo: str, token: str, prs: list[dict], now: dt.datetime) -> list[dict
         when = github_prs.parse_iso(row[date_key])
         if not since <= when <= now:
             continue
-        attribution = disclosure(row.get("body") or "")
-        if attribution is None:
+        identifier = worker_id(row.get("body") or "")
+        if identifier is None:
             continue
         link = row[url_key]
         if not public_urls.fullmatch(link):
             raise ValueError("Unexpected public work record URL")
-        session, role = attribution
         login = (row.get(user_key) or {}).get("login")
         events[link] = {"time": int(when.timestamp()), "account": login.lower() if login else None,
-                        "session": session, "role": role, "url": link}
+                        "worker_id": identifier, "url": link}
     return list(events.values())
 
 
 def _counts(events):
-    sessions = {event["session"] for event in events if event["session"]}
-    roles = {role: {event["session"] for event in events
-                    if event["session"] and event["role"] == role} for role in ROLES}
-    return {"sessions": len(sessions), **{role: len(ids) for role, ids in roles.items()},
-            "both": len(roles["worker"] & roles["coordinator"]),
-            "without_session": sum(event["session"] is None for event in events),
-            "without_role": sum(event["role"] is None for event in events),
-            "events": len(events)}
+    return {"workers": len({event["worker_id"] for event in events}), "events": len(events)}
 
 
 def summarize(events: list[dict], now: dt.datetime) -> dict:
-    """Produce window counts and account evidence without exporting session identifiers."""
+    """Count distinct public worker IDs and link them to their public records."""
     end = int(now.timestamp())
     day = 86400
     ordered = sorted(events, key=lambda event: (event["time"], event["url"]), reverse=True)
@@ -210,12 +162,13 @@ def summarize(events: list[dict], now: dt.datetime) -> dict:
             by_account[event["account"]].append(event)
         accounts = []
         for login, activity in by_account.items():
-            # Prefer records supporting attribution. Keep evidence for both roles when present.
-            evidence = [next((e for e in activity if e["session"] and e["role"] == role), None)
-                        for role in ROLES]
-            evidence = list(dict.fromkeys(e["url"] for e in evidence + activity if e))[:3]
-            accounts.append({"login": login, **_counts(activity), "evidence": evidence})
-        accounts.sort(key=lambda row: (-row["sessions"], -row["events"], row["login"] or ""))
+            latest = {}
+            for event in activity:
+                latest.setdefault(event["worker_id"], event["url"])
+            accounts.append({"login": login, **_counts(activity),
+                             "workers_by_id": [{"id": key, "url": latest[key]}
+                                               for key in sorted(latest)]})
+        accounts.sort(key=lambda row: (-row["workers"], -row["events"], row["login"] or ""))
         daily = []
         for offset in reversed(range(days + 1)):
             date = midnight - dt.timedelta(days=offset)
@@ -226,4 +179,4 @@ def summarize(events: list[dict], now: dt.datetime) -> dict:
                 event for event in recent if start <= event["time"] < start + day
             ])})
         windows[str(days)] = {**_counts(recent), "accounts": accounts, "daily": daily}
-    return {"as_of": end, "windows": windows}
+    return {"metric": "worker_ids", "as_of": end, "windows": windows}

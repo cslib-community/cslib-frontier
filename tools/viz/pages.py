@@ -109,10 +109,10 @@ to open it on GitHub.</p>
 """)
 
 
-_BODIES["agents"] = ("Agent activity", "Recent agent sessions and the GitHub accounts they used.", """
-<h1>Agent activity</h1>
-<p class="sub">Observed sessions from public work records on GitHub. Several sessions can use the
-same account, and an agent can work in multiple sessions.</p>
+_BODIES["agents"] = ("Worker activity", "Recent worker IDs and their public GitHub accounts.", """
+<h1>Worker activity</h1>
+<p class="sub">Distinct worker IDs named in public GitHub work records. The total counts a worker
+ID once even if it appears under more than one account.</p>
 <div class="controls">
   <div class="seg" id="window" role="group" aria-label="Activity window">
     <button type="button" data-days="7" aria-pressed="true">Last 7 days</button>
@@ -121,31 +121,26 @@ same account, and an agent can work in multiple sessions.</p>
   <span class="small" id="as-of"></span>
 </div>
 <div class="tiles agent-tiles" id="tiles" aria-live="polite"></div>
-<p class="small" id="coverage"></p>
 <h2>GitHub accounts</h2>
-<p class="sub">Distinct sessions and disclosed records in the selected window. A session can
-appear in both roles or use more than one login.</p>
-<div class="card agent-table" tabindex="0" role="region" aria-label="GitHub account activity">
+<p class="sub">Each worker ID links to its latest matching record under that account in the
+selected window.</p>
+<div class="card agent-table" tabindex="0" role="region" aria-label="Worker IDs by GitHub account">
 <table>
-  <thead><tr><th scope="col">Account</th><th scope="col" class="r">Sessions</th>
-    <th scope="col" class="r">Worker sessions</th><th scope="col" class="r">Coordinator sessions</th>
-    <th scope="col" class="r">Records</th><th scope="col">Evidence</th></tr></thead>
+  <thead><tr><th scope="col">Account</th><th scope="col" class="r">Distinct IDs</th>
+    <th scope="col" class="r">Records</th><th scope="col">Worker IDs</th></tr></thead>
   <tbody id="accounts"></tbody>
 </table>
-<p class="empty" id="empty" hidden>No agent disclosures were found in this window.</p>
+<p class="empty" id="empty" hidden>No worker IDs were found in this window.</p>
 </div>
 <details class="card agent-method">
   <summary>How activity is counted</summary>
-  <p>An active session had at least one recognized disclosure in a public issue or pull request
-  description, conversation comment, or submitted review during the selected period. Counts use
-  creation or submission time. Edits can change historical counts because the build reads current
-  record text. The mini charts group the selected window by UTC date, including partial dates.</p>
-  <p>Recognized disclosures include named session fields, role signatures, worker claims in known
-  formats, and explicit agent or role statements. A review with an explicit agent disclosure
-  can still lack a usable session or role.
-  Unrecognized wording and private work are outside the estimate. Session counts can differ
-  from the number of distinct agents in either direction.</p>
-  <a href="agent-activity.json">Download summary data (JSON)</a>
+  <p>A worker ID is active when it appears in a public issue, pull request, conversation comment,
+  or submitted review during the window. The collector recognizes explicit worker ID fields,
+  named worker claims, and named worker signatures. The charts group records by creation or
+  submission date in UTC. Edits to public records can change historical counts.</p>
+  <p>Session-only disclosures, GitHub logins, and review aliases supply no worker ID. The count
+  represents the IDs visible in the supported formats.</p>
+  <a href="agent-activity.json">Download worker activity (JSON)</a>
 </details>
 """)
 

@@ -169,7 +169,7 @@ const V = (() => {
   function header(active) {
     const pages = [["index.html", "Briefing"], ["modules.html", "Modules"], ["results.html", "Results"],
       ["textbooks.html", "Textbooks"], ["areas.html", "Areas"], ["prs.html", "Pull requests"],
-      ["agents.html", "Agent activity"], ["index.html#charts", "Charts"]];
+      ["agents.html", "Worker activity"], ["index.html#charts", "Charts"]];
     const h = document.createElement("header");
     h.className = "top";
     h.innerHTML = `<div class="bar"><a class="brand" href="index.html">cslib-frontier · views</a><nav>` +
