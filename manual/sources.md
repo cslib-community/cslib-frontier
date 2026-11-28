@@ -782,8 +782,12 @@ The LNCS page numbers come from the DOI record and were not checked against the 
 ## bks13-prefix
 
 Widmer Bland, Gregory Kucherov and W. F. Smyth.
-“Prefix Table Construction and Conversion.” *Combinatorial Algorithms*, IWOCA 2013, LNCS 8288, pp. 41–53.
-The publisher’s abstract describes conversion in both directions for ordinary strings. Its prefix table records the longest match starting at each position (the Z-table), and its border array is the KMP prefix table. The Lean development uses zero-based indices. [Published abstract](https://doi.org/10.1007/978-3-642-45278-9_5)
+“Prefix Table Construction and Conversion.”
+*Combinatorial Algorithms*, IWOCA 2013, LNCS 8288, pp. 41–53.
+The publisher’s abstract describes conversion in both directions for ordinary strings.
+Its prefix table records the longest match starting at each position (the Z-table), and its border array is the KMP prefix table.
+The Lean development uses zero-based indices.
+[Published abstract](https://doi.org/10.1007/978-3-642-45278-9_5)
 
 <a id="bland77"></a>
 ## bland77
