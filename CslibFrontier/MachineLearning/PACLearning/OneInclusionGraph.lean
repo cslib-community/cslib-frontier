@@ -10,8 +10,7 @@ module
 public import CslibFrontier.MachineLearning.PACLearning.RealizableSample
 public import CslibFrontier.MachineLearning.PACLearning.VCDimension
 import CslibFrontier.MachineLearning.PACLearning.DualVCDimension
--- The indicator-weight argument unfolds `hypercubeEdgeMinSum` in this proof.
-import all CslibFrontier.MachineLearning.PACLearning.HausslerPacking
+import CslibFrontier.MachineLearning.PACLearning.HausslerPacking
 import Mathlib.Combinatorics.Hall.Finite
 import Mathlib.Data.Fintype.Pi
 import Mathlib.MeasureTheory.Constructions.Pi
@@ -127,7 +126,7 @@ theorem card_oneInclusionEdges_le_mul_card [DecidableEq ι] [Fintype ι] {d : �
     simp [μ]
   have hedges : hypercubeEdgeMinSum μ = ((oneInclusionEdges S).card : ℝ) := by
     let edgeWeight (e : ι × (ι → Bool)) : ℝ := if e ∈ oneInclusionEdges S then 1 else 0
-    rw [hypercubeEdgeMinSum]
+    rw [hypercubeEdgeMinSum_eq_sum]
     calc
       _ = ∑ i : ι, ∑ f : ι → Bool, edgeWeight (i, f) := by
         refine sum_congr rfl fun i _ => sum_congr rfl fun f _ => ?_

@@ -37,7 +37,7 @@ theorem hypercubeEdgeMinSum_const_one_fin_three :
       hypercubeEdgeMinSum (fun _ : Fin 3 → Bool => (1 : ℝ)) ≤
         3 * ∑ _ : Fin 3 → Bool, (1 : ℝ) := by
   have heval : hypercubeEdgeMinSum (fun _ : Fin 3 → Bool => (1 : ℝ)) = 12 := by
-    unfold hypercubeEdgeMinSum
+    rw [hypercubeEdgeMinSum_eq_sum]
     simp only [min_self, Fin.sum_univ_three]
     have hcoord : ∀ i : Fin 3,
         (∑ f : Fin 3 → Bool, if f i = false then (1 : ℝ) else 0) = 4 := by

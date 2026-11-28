@@ -91,6 +91,12 @@ noncomputable def hypercubeEdgeMinSum [DecidableEq ι] [Fintype ι] (μ : (ι �
   ∑ i : ι, ∑ f : ι → Bool,
     if f i = false then min (μ f) (μ (Function.update f i true)) else 0
 
+/-- The edge-minimum sum counts each edge at its endpoint with coordinate `i` equal to `false`. -/
+theorem hypercubeEdgeMinSum_eq_sum [DecidableEq ι] [Fintype ι] (μ : (ι → Bool) → ℝ) :
+    hypercubeEdgeMinSum μ = ∑ i : ι, ∑ f : ι → Bool,
+      if f i = false then min (μ f) (μ (Function.update f i true)) else 0 := by
+  rw [hypercubeEdgeMinSum]
+
 private theorem min_add_min_le_min_max_add_min_min (a₀ a₁ b₀ b₁ : ℝ) :
     min a₀ b₀ + min a₁ b₁ ≤ min (max a₀ a₁) (max b₀ b₁) + min (min a₀ a₁) (min b₀ b₁) := by
   rcases le_total a₀ a₁ with ha | ha <;> rcases le_total b₀ b₁ with hb | hb
