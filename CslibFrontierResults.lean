@@ -23,6 +23,7 @@ import CslibFrontierResults.Entries.SaksZhouLogSpace
 import CslibFrontierResults.Entries.DeterminantalUniversality
 import CslibFrontierResults.Entries.StatisticalDifference
 import CslibFrontierResults.Entries.RoutingBeckmann
+import CslibFrontierResults.Entries.EditDistance
 import CslibFrontierResults.Entries.SponsoredSearch
 import CslibFrontierResults.Entries.AdWords
 import CslibFrontierResults.Entries.DistributedVectorClock
