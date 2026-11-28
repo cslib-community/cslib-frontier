@@ -52,9 +52,12 @@ instead, and diagonalizes against verifiers.
 
 ## Main results
 
-* `Cslib.Complexity.Diagonal.lazyLanguage_notMem_NTIME`: the lazy diagonal is not in `NTIME T`
-  when certificates of length `L` and `β` simulated steps eventually suffice for every verifier
-  of a problem in `NTIME T`.
+* `Cslib.Complexity.Diagonal.exists_length_ge_lazyLanguage_disagree`: when certificates of
+  length `L` and `β` simulated steps eventually suffice for every verifier of a problem in
+  `NTIME T`, every problem in `NTIME T` differs from the lazy diagonal at inputs of every
+  sufficiently large length.
+* `Cslib.Complexity.Diagonal.lazyLanguage_notMem_NTIME`: under the same conditions, the lazy
+  diagonal is not in `NTIME T`.
 
 ## References
 
@@ -107,24 +110,27 @@ accepted by `Cslib.Complexity.Diagonal.lazyVerifier β L H`. -/
 def lazyLanguage (β : List Bool → List Bool → ℕ) (L H : ℕ → ℕ) : Set (List Bool) :=
   {x | ∃ v : List Bool, v.length = L (x.length + 1) ∧ lazyVerifier β L H (x, v) = true}
 
-/-- **The lazy diagonal is not decidable in nondeterministic time `O(T)`** once certificates of
-length `L` (`hL`) and `β` simulated steps (`hβ`) eventually suffice for the linear-time verifiers
-of `Cslib.Complexity.exists_verifier_of_mem_NTIME`, and every interval is nonempty (`hH`). -/
-theorem lazyLanguage_notMem_NTIME {β : List Bool → List Bool → ℕ} {L H T : ℕ → ℕ}
+/-- **Every problem in nondeterministic time `O(T)` differs from the lazy diagonal at arbitrarily
+large lengths**, once certificates of length `L` (`hL`) and `β` simulated steps (`hβ`) eventually
+suffice for the linear-time verifiers of `Cslib.Complexity.exists_verifier_of_mem_NTIME`, and every
+interval is nonempty (`hH`). The diagonal therefore also lies outside every class of problems that
+agree with a member of `NTIME encBits T` on all long enough inputs. -/
+theorem exists_length_ge_lazyLanguage_disagree {β : List Bool → List Bool → ℕ} {L H T : ℕ → ℕ}
     (hL : ∀ c, ∃ M, ∀ m, M ≤ m → c * T m + c ≤ L m)
     (hβ : ∀ c₂, ∃ M, ∀ y v : List Bool, M ≤ y.length → v.length = L y.length →
       c₂ * ((encPair encBits encBits (y, v)).length + 1) ≤ β y v)
-    (hH : ∀ P, P + 1 < 2 ^ H P) :
-    lazyLanguage β L H ∉ NTIME encBits T := by
-  intro hD
-  obtain ⟨V, c, hV, hmem⟩ := exists_verifier_of_mem_NTIME hD
+    (hH : ∀ P, P + 1 < 2 ^ H P) {B : Set (List Bool)} (hB : B ∈ NTIME encBits T) (N₀ : ℕ) :
+    ∃ y : List Bool, N₀ ≤ y.length ∧ ¬ (y ∈ lazyLanguage β L H ↔ y ∈ B) := by
+  by_contra hcon
+  push Not at hcon
+  obtain ⟨V, c, hV, hmem⟩ := exists_verifier_of_mem_NTIME hB
   obtain ⟨c₂, ⟨k, State, hfin, tm, htm⟩, -⟩ := hV
   have := Fintype.ofFinite State
   let eS : State ↪ ℕ := (Fintype.equivFin State).toEmbedding.trans Fin.valEmbedding
   set code := eDesc (desc eS eBit tm) with hcode
   obtain ⟨M₁, hM₁⟩ := hL c
   obtain ⟨M₂, hM₂⟩ := hβ c₂
-  set M := M₁ + M₂ with hM
+  set M := M₁ + M₂ + N₀ with hM
   -- the universal function runs the verifier exactly on long enough words
   have hsim (y v : List Bool) (hy : M ≤ y.length) (hv : v.length = L y.length) :
       lazyAccepts β code y v = V (y, v) := by
@@ -138,7 +144,7 @@ theorem lazyLanguage_notMem_NTIME {β : List Bool → List Bool → ℕ} {L H T 
   have hiff (y : List Bool) (hy : M ≤ y.length) : y ∈ lazyLanguage β L H ↔
       ∃ v : List Bool, v.length = L y.length ∧ lazyAccepts β code y v = true := by
     have h := hmem y (L y.length) (by simpa [encBits_apply] using hM₁ y.length (by omega))
-    rw [h]
+    rw [hcon y (by omega), h]
     exact exists_congr fun v => and_congr_right fun hv => by rw [hsim y v hy hv]
   -- the interval of `w`
   set w := frame code ++ List.replicate (2 ^ code.length + M) true with hw
@@ -196,6 +202,18 @@ theorem lazyLanguage_notMem_NTIME {β : List Bool → List Bool → ℕ} {L H T 
   have h := hchain (U - P) le_rfl
   rw [Nat.sub_sub_self (by omega), hend] at h
   exact iff_not_self h
+
+/-- **The lazy diagonal is not decidable in nondeterministic time `O(T)`** once certificates of
+length `L` (`hL`) and `β` simulated steps (`hβ`) eventually suffice for the linear-time verifiers
+of `Cslib.Complexity.exists_verifier_of_mem_NTIME`, and every interval is nonempty (`hH`). -/
+theorem lazyLanguage_notMem_NTIME {β : List Bool → List Bool → ℕ} {L H T : ℕ → ℕ}
+    (hL : ∀ c, ∃ M, ∀ m, M ≤ m → c * T m + c ≤ L m)
+    (hβ : ∀ c₂, ∃ M, ∀ y v : List Bool, M ≤ y.length → v.length = L y.length →
+      c₂ * ((encPair encBits encBits (y, v)).length + 1) ≤ β y v)
+    (hH : ∀ P, P + 1 < 2 ^ H P) :
+    lazyLanguage β L H ∉ NTIME encBits T := fun hD =>
+  let ⟨_, _, hy⟩ := exists_length_ge_lazyLanguage_disagree hL hβ hH hD 0
+  hy Iff.rfl
 
 end Diagonal
 
