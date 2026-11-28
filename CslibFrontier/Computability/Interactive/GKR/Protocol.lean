@@ -265,15 +265,6 @@ theorem lineStep_rbrSound (W : (Fin (C.width i) → Bool) → F) :
 /-- The number of sumcheck variables of layer `i`. -/
 abbrev sumcheckVars (i : ℕ) : ℕ := C.width i + C.width i
 
-private theorem samplers_iterate_succ {n : ℕ} (d : ℕ) (P : MvPolynomial (Fin n) F) (k : ℕ) :
-    (Reduction.iterate (s := fun _ => Sumcheck.roundSpec F) (S := Sumcheck.Claim F)
-      (W := fun _ => Unit) (Sumcheck.round d P) (k + 1)).verifier.samplers =
-    PerChallenge.append _ _
-      (Reduction.iterate (s := fun _ => Sumcheck.roundSpec F) (S := Sumcheck.Claim F)
-        (W := fun _ => Unit) (Sumcheck.round d P) k).verifier.samplers
-      (Sumcheck.round d P k).verifier.samplers :=
-  rfl
-
 /-- The challenge samplers of `k` sumcheck rounds: one uniform field element per round. -/
 noncomputable def sumcheckSamplers :
     (k : ℕ) → PerChallenge ProbComp (iterSpec (fun _ => Sumcheck.roundSpec F) k)
@@ -286,7 +277,9 @@ theorem samplers_iterate_round {n : ℕ} (d : ℕ) (P : MvPolynomial (Fin n) F) 
       (W := fun _ => Unit) (Sumcheck.round d P) k).verifier.samplers = sumcheckSamplers k := by
   induction k with
   | zero => rfl
-  | succ k ih => rw [samplers_iterate_succ, ih]; rfl
+  | succ k ih =>
+    simp only [Reduction.iterate, Reduction.append, Verifier.append, ih]
+    rfl
 
 /-- The sumcheck stage of layer `i`, for the values `W` of layer `i`: on a claim `(z, v)` about
 layer `i + 1`, sumcheck on the summand `f_z`, bundled over `z`. -/
