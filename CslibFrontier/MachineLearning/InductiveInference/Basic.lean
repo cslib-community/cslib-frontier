@@ -55,7 +55,7 @@ and its union.
 
 The model is the ineffective one: a learner is any function on finite sequences, computable or
 not, and conjectures a language rather than a name (grammar index) for one; the two come to the
-same when effectiveness is not required. In the classical formulation learners output names;
+same when effectiveness is not required. Gold's learners output names [Gold1967, §2];
 Angluin's characterization [Angluin1980] concerns effective learners of indexed families of
 recursive languages, which additionally need the telltales to be uniformly enumerable. Neither the
 effective model nor Angluin's theorem is formalized here; `identifiable_iff` is the ineffective
@@ -329,21 +329,24 @@ theorem identifiable_of_finite {𝓛 : Set (Set α)} (h : 𝓛.Finite) : Identif
     fun L' hL' hT hss ↦ hxL' ⟨L', hL', hss⟩ (hT ⟨_, rfl⟩)⟩
 
 /-- The class of finite languages is identifiable from text, by conjecturing the strings presented
-so far. -/
+so far [Gold1967, §8, p. 460]. -/
 theorem identifiable_setOf_finite : Identifiable {L : Set α | L.Finite} :=
   ⟨content, fun _ hL t ht => by
     filter_upwards [Text.eventually_subset_content_take hL ht.symm.subset] with n hn
     exact (ht ▸ t.content_take_subset n).antisymm hn⟩
 
-/-- **Gold's theorem** [Gold1967] (locator not verified): a class containing an infinite language
-and all its finite subsets is not identifiable in the limit from text. In particular no class
-containing every finite language and an infinite one is ("superfinite" classes).
+/-- **Gold's theorem** [Gold1967, §8, "Language identifiability", p. 460]: a class containing an
+infinite language and all its finite subsets is not identifiable in the limit from text. Gold
+states that, from arbitrary text, the class of finite languages is ineffectively identifiable "but
+every proper superclass is not"; this is the case of a class containing every finite language and
+an infinite one. His construction (§9, pp. 460–461) uses only the finite subsets of the one
+infinite language, which is the hypothesis here.
 
-Relative to the classical formulation (the model in the source has not been checked against this
-statement): learners are arbitrary functions conjecturing languages rather than names, which
-strengthens the impossibility, since it holds even for non-effective learners; texts may contain
-pauses, which changes nothing for the nonempty languages involved; and strings form an arbitrary
-countable type rather than the words over a finite alphabet. -/
+Deviations from the source: learners conjecture languages rather than names (§2, pp. 450–451),
+which loses nothing for ineffective learners; texts may contain pauses, which Gold's texts (§2,
+p. 450) do not, and which impose no extra requirement on nonempty languages, since a learner can
+treat a pause as a repetition; and strings form an arbitrary countable type rather than the words
+over a finite alphabet. -/
 theorem not_identifiable_of_finite_subsets [Countable α] {𝓛 : Set (Set α)} {L : Set α}
     (hL : L ∈ 𝓛) (hinf : L.Infinite) (hfin : ∀ T ⊆ L, T.Finite → T ∈ 𝓛) : ¬Identifiable 𝓛 :=
   fun h ↦ by
