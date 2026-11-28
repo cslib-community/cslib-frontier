@@ -165,6 +165,40 @@ theorem iterate {δ σ : Type} {body : δ × σ → Prog σ} {safe : ℕ → δ 
     a₀ s ⟨h₀, Modifies.refl S s⟩
   exact ⟨hsafe, h.mono le_rfl fun a t ⟨hi, hm⟩ => hpost a t hi hm⟩
 
+/-- Allocate a dirty block of `k` cells at a frontier `fr` known by an equation, then continue
+from the enlarged state with the block `⟨fr, k⟩`. Stating the frontier as `fr` avoids rewriting a
+frontier expression inside the program. -/
+theorem allocBlockDirty_bind_at {k fr : ℕ} {next : Block → Prog α} (hfr : s.frontier = fr)
+    (hk : Fits w (fr + k)) (h : FramedTriple w ⟨s.mem, fr + k⟩ (next ⟨fr, k⟩) c S Q) :
+    FramedTriple w s (Memory.allocBlockDirty k >>= next) (c + 1) S Q := by
+  subst hfr; exact allocBlockDirty_bind hk h
+
+/-- A framed triple whose postcondition keeps the frontier gives the older form of a memory
+specification: an admissible history, the cost bound, the unchanged frontier, every changed cell
+in `S`, and the postcondition, read through the realization interpreter. -/
+theorem realization_of_frontier_eq {p : Prog α}
+    (h : FramedTriple w s p c S fun r s' => s'.frontier = s.frontier ∧ Q r s') :
+    (spec w).ValidHistory s ((spec w).clientHistory s p) ∧ memoryCost p s ≤ c ∧
+    let s' := (spec 0).clientState s p
+    s'.frontier = s.frontier ∧ (∀ a, s'.mem a ≠ s.mem a → a ∈ S) ∧
+    Q ((spec 0).clientResult s p) s' := by
+  obtain ⟨hv, hc, -, hfr, hq⟩ := framedTriple_iff_realization.mp h
+  refine ⟨hv, hc, hfr, fun a ha => by_contra fun haS => ha ?_, hq⟩
+  rw [← clientState_width w] at hfr ⊢
+  exact h.mem_eq_of_frontier_eq hfr a haS
+
+/-- A program specified in the older form (admissible history, unchanged frontier, every changed
+cell in `S`) meets a framed triple at its own cost that fixes its result and final state, so that
+`FramedTriple.call_eq` can call it. -/
+theorem of_realization {p : Prog α}
+    (hv : (spec w).ValidHistory s ((spec w).clientHistory s p))
+    (hfr : ((spec 0).clientState s p).frontier = s.frontier)
+    (hS : ∀ a, ((spec 0).clientState s p).mem a ≠ s.mem a → a ∈ S) :
+    FramedTriple w s p (memoryCost p s) S fun r t =>
+      r = (spec 0).clientResult s p ∧ t = (spec 0).clientState s p :=
+  framedTriple_iff_realization.mpr
+    ⟨hv, le_rfl, ⟨hfr.ge, fun a _ haS => by_contra fun h => haS (hS a h)⟩, rfl, rfl⟩
+
 end Cslib.DataStructure.Memory.FramedTriple
 
 public meta section
@@ -239,12 +273,9 @@ macro (name := regionOmega) "region_omega" : tactic => `(tactic|
      | omega
      | wram_omega_silent))
 
-/-- One structural step of `framed_triple` on the main goal: a read, write, allocation or
-return, a conditional, or a call of a sub-program through a framed triple for it in the local
-context (`FramedTriple.call_eq` when the triple fixes the result and final state,
-`FramedTriple.seq` otherwise). Side conditions are tried with `region_omega` and left open
-otherwise. -/
-macro (name := framedTripleStep) "framed_triple_step" : tactic => `(tactic|
+/-- A primitive step of `framed_triple_step`: a read, write, allocation or return, with its side
+conditions tried by `region_omega`. -/
+macro (name := framedTriplePrim) "framed_triple_prim" : tactic => `(tactic|
   first
   | (eapply Cslib.DataStructure.Memory.FramedTriple.read_bind; on_goal 1 => try region_omega)
   | (eapply Cslib.DataStructure.Memory.FramedTriple.write_bind_of_mem
@@ -258,7 +289,20 @@ macro (name := framedTripleStep) "framed_triple_step" : tactic => `(tactic|
      on_goal 1 => try region_omega)
   | (eapply Cslib.DataStructure.Memory.FramedTriple.allocDirty_bind; on_goal 1 => try region_omega)
   | (eapply Cslib.DataStructure.Memory.FramedTriple.alloc_bind; on_goal 1 => try region_omega)
-  | eapply Cslib.DataStructure.Memory.FramedTriple.pure (c := 0)
+  | (eapply Cslib.DataStructure.Memory.FramedTriple.allocBlockDirty_bind
+     on_goal 1 => try region_omega)
+  | (eapply Cslib.DataStructure.Memory.FramedTriple.allocBlock_bind; on_goal 1 => try region_omega)
+  | eapply Cslib.DataStructure.Memory.FramedTriple.pure (c := 0))
+
+/-- One structural step of `framed_triple` on the main goal. A read, write, allocation or return
+that appears literally is taken by its primitive rule; a call of a sub-program goes through a
+framed triple for it in the local context (`FramedTriple.call_eq` when the triple fixes the
+result and final state, `FramedTriple.seq` otherwise); then conditionals; and only then a
+primitive rule up to unfolding of definitions, which enters a sub-program that has no triple in
+context. Side conditions are tried with `region_omega` and left open otherwise. -/
+macro (name := framedTripleStep) "framed_triple_step" : tactic => `(tactic|
+  first
+  | with_reducible framed_triple_prim
   | (eapply Cslib.DataStructure.Memory.FramedTriple.call_eq
      on_goal 1 => assumption
      on_goal 1 => first | exact subset_rfl | exact Set.empty_subset _ | try region_omega)
@@ -266,7 +310,8 @@ macro (name := framedTripleStep) "framed_triple_step" : tactic => `(tactic|
      on_goal 1 => assumption
      on_goal 1 => first | exact subset_rfl | exact Set.empty_subset _ | try region_omega)
   | (eapply Cslib.DataStructure.Memory.FramedTriple.ite_max <;> intro)
-  | (eapply Cslib.DataStructure.Memory.FramedTriple.dite_max <;> intro))
+  | (eapply Cslib.DataStructure.Memory.FramedTriple.dite_max <;> intro)
+  | framed_triple_prim)
 
 /-- Walk the `do` block of a `Memory.FramedTriple` goal with `framed_triple_step`. The cost is
 synthesized and compared with the stated bound at the end by `omega`; side conditions are tried
