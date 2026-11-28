@@ -266,8 +266,7 @@ private theorem scatterBody_wp {n sz base w maxDeg curD : ℕ} {a : Data rFib}
   have hku4 : a.mem (base + T_cur.root.val) = st.key T_cur.root := rfl
   have hku5 : a.mem (base + slotTrees[idx].root.val) = st.key slotTrees[idx].root := rfl
   refine WP.bounded hb ?_
-  unfold scatterBody
-  wram_exec [hfit, hbr.regs_consBase, hbr.regs_baseReg, hbr.regs_zeroP, hbr.regs_oneP,
+  wram_exec [scatterBody, hfit, hbr.regs_consBase, hbr.regs_baseReg, hbr.regs_zeroP, hbr.regs_oneP,
     hs3_eq, ha_curD, ha_s4, hku4, hku5]
   wram_call (@prioLTFlag_exec n base) [BaseRegs.set_iff, BaseRegs.write_iff, hbr]
   wram_call (scatterSwapBranch_wp (w := w) (base := base) (st := st) (st₁ := st₁)
@@ -386,8 +385,7 @@ theorem scatterRootCode_exec {n sz base w maxDeg₀ : ℕ} {x : Data rFib}
     obtain ⟨y, t, he, slotTrees', maxDeg', ht, hby, hbry, hmod, hymd, hc⟩ := hwp
     exact ⟨y, slotTrees', maxDeg', t, he, ht, hby, hbry, hmod,
       fun r hr => he.regs_eq (scatterRootCode_preserves r hr), hymd, hc⟩
-  unfold scatterRootCode
-  wram_exec [hfit, hbr.regs_degBase, hbr.regs_consBase, hx_ic, hm_du0, hm_cd0]
+  wram_exec [scatterRootCode, hfit, hbr.regs_degBase, hbr.regs_consBase, hx_ic, hm_du0, hm_cd0]
   have hst1 : RawState.ofData n base
       (((((x.set s4 T₀.root.val).set s0 (base + 5 * n + T₀.root.val)).set curDReg T₀.deg).set s0
         (base + 8 * n + T₀.deg)).set s3 (st.cons T₀.deg)) = st := by
@@ -569,8 +567,7 @@ private theorem childScatterBody_wp {n sz base w : ℕ} {z : Fin n}
   have hm_r : a.mem (base + 4 * n + T_u.root.val) = st.right T_u.root := rfl
   have hm_mk : a.mem (base + 6 * n + T_u.root.val) = st.mark T_u.root := rfl
   have hnm_reg : a.regs numMarkedReg = st.numMarked := rfl
-  unfold childScatterBody
-  wram_exec -split [hfit, hbr.regs_rightBase, hbr.regs_parBase, hbr.regs_markBase,
+  wram_exec -split [childScatterBody, hfit, hbr.regs_rightBase, hbr.regs_parBase, hbr.regs_markBase,
     hbr.regs_zeroP, hu_ic, hm_r, hm_mk]
   refine WP.cut (fun a_mid t_m => t_m ≤ 3 ∧ a_mid.Bounded w ∧ BaseRegs n base a_mid ∧
       Modifies (Block.mk base (space n)).footprint a.mem a_mid.mem ∧
@@ -685,8 +682,8 @@ private theorem gatherSlotBody_occ_wp {n sz base w maxDeg curD idx : ℕ} {a : D
   have hu_lt := slotTrees[idx].root.isLt
   have hm_c : a.mem (base + 8 * n + curD) = st.cons curD := by
     simp only [st, RawState.ofData, hd_le_n, ↓reduceIte]
-  unfold gatherSlotBody
-  wram_exec [hfit, hbr.regs_consBase, hbr.regs_zeroP, hbr.regs_oneP, hcurD, hm_c, hcons_eq]
+  wram_exec [gatherSlotBody,
+    hfit, hbr.regs_consBase, hbr.regs_zeroP, hbr.regs_oneP, hcurD, hm_c, hcons_eq]
   have hb3 : ((((a.set s0 (base + 8 * n + curD)).set s3 (slotTrees[idx].root.val + 1)).write
       (base + 8 * n + curD) 0).set iterCur slotTrees[idx].root.val).Bounded w := by
     wram_bounded <;> exact hfit _ (by omega)
@@ -754,9 +751,9 @@ private theorem gatherSlotsLoop_exec {n sz base w maxDeg : ℕ} (rem : ℕ) :
           t_b ≤ 6 ∧ a3.Bounded w ∧ BaseRegs n base a3 ∧ a3.mem = a.mem ∧
           a3.regs curDReg = curD + 1 ∧ a3.regs maxDegReg = maxDeg + 1 ∧
           RawState.ofData n base a3 = RawState.ofData n base a := by
-        unfold gatherSlotBody; refine WP.bounded hb ?_
-        wram_exec [hfit, hfit_cd1, hbr.regs_consBase, hbr.regs_zeroP, hbr.regs_oneP,
-          hcurD, hm_c, hc0]
+        refine WP.bounded hb ?_
+        wram_exec [gatherSlotBody, hfit, hfit_cd1, hbr.regs_consBase, hbr.regs_zeroP,
+          hbr.regs_oneP, hcurD, hm_c, hc0]
         intro hb3
         exact ⟨by omega, hb3, by wram_simp [BaseRegs.set_iff, hbr], rfl,
           by wram_simp, by wram_simp [hmaxD], by wram_simp [ofData_set_scratch]⟩
@@ -878,8 +875,7 @@ private theorem extractFinishCode_wp {n K_max w base maxDeg_1 : ℕ} {s : Indexe
         maxDeg_2 ≤ 2 * Nat.log 2 (IndexedMinPQ.dom s).card + 1 := by
   have hfit := hbr_A1.fits_of_le hb_A1
   have hnr_xA1 : x_A1.regs numRootsReg = E.length + 1 := hc₁.scattered.numRoots.trans hD.numRoots
-  unfold extractFinishCode
-  wram_exec [hfit, hbr_A1.regs_oneP, hnr_xA1, hpr]
+  wram_exec [extractFinishCode, hfit, hbr_A1.regs_oneP, hnr_xA1, hpr]
   refine WP.name fun x_tr hx_tr => ?_
   have hb_tr : x_tr.Bounded w := by subst hx_tr; wram_bounded; exact hfit _ (by omega)
   have hst_tr : RawState.ofData n base x_tr = RawState.ofData n base x_A1 := by

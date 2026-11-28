@@ -121,9 +121,32 @@ example (b : Bool) :
 /-- The concrete composition theorem on `relay`, with its explicit simulator overhead. -/
 example (b : Bool) :
     EmulatesWithin (compose relay (bitFunc b).toProtocol) (compose relay (bitFunc b).toProtocol)
-      (Polynomial.X * ((Polynomial.X * (1 + 1) + 1).comp (Polynomial.X + 1) + 1 + 1) +
-        ((Polynomial.X * (1 + 1) + 1).comp (Polynomial.X + 1) + 1)) (fun _ _ _ => 0) :=
+      (compSimPoly ((compSimPoly 1).comp (Polynomial.X + 1) + 1)) (fun _ _ _ => 0) :=
   ((emulatesDummyWithin_refl b).emulatesWithin).compose relay_polyBounded
+
+/-- Evaluation check for `eval_compSimPoly` on the composed simulator overhead above. -/
+example (κ : ℕ) :
+    (compSimPoly ((compSimPoly 1).comp (Polynomial.X + 1) + 1)).eval κ =
+      κ * (2 * κ + 5) + (2 * κ + 4) := by
+  simp only [eval_compSimPoly, Polynomial.eval_add, Polynomial.eval_comp, Polynomial.eval_X,
+    Polynomial.eval_one]
+  ring
+
+/-- Signature check for `RealizesWithin.compose_trans` on `relay` and `bitFunc b` with a
+hypothetical outer realization `hρG` (not a security claim; non-vacuity of composition is
+`not_emulatesDummyWithin_compose_relay`). -/
+example {GQ GR : Type} (b : Bool) (G : IdealFunctionality 1 Unit Bool GQ GR)
+    (g' : Polynomial ℕ) (ε' : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0)
+    (hρG : RealizesWithin (compose relay (bitFunc b).toProtocol) G g' ε')
+    (hmono : ∀ p p' pZ κ, (∀ κ', p.eval κ' ≤ p'.eval κ') → ε' p pZ κ ≤ ε' p' pZ κ) :
+    RealizesWithin (compose relay (bitFunc b).toProtocol) G
+      (g'.comp (Polynomial.X + compSimPoly ((compSimPoly 1).comp (Polynomial.X + 1) + 1)))
+      (fun pA pZ κ => 0 +
+        ε' ((compSimPoly ((compSimPoly 1).comp (Polynomial.X + 1) + 1)).comp
+          (Polynomial.X + pA)) pZ κ) :=
+  RealizesWithin.compose_trans relay_polyBounded
+    (show RealizesWithin (bitFunc b).toProtocol (bitFunc b) (compSimPoly 1) (fun _ _ _ => 0) from
+      (emulatesDummyWithin_refl b).emulatesWithin) hρG hmono
 
 /-- The asymptotic composition theorem on `relay`. -/
 example (b : Bool) :

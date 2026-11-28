@@ -269,8 +269,7 @@ theorem allocSpan_execWithin {base w w₀ n k : ℕ}
       x₁.mem = x.mem ∧
       x₁.regs (qfReg 0) = base ∧
       x₁.regs (qfReg 240) = base + space w w₀ n k := by
-  unfold allocSpan
-  wram_exec [hfr]
+  wram_exec [allocSpan, hfr]
   exact ⟨rfl, by wram_simp, by wram_simp⟩
 
 /-- Initialize the Four-Russians carryless multiplication table, sample the two-stage quotient seed,
@@ -527,8 +526,7 @@ theorem opCode_execWithin {U base w w₀ n k : ℕ}
       Rep U w base w₀ n k p (stepSet S o) y ∧
       decode o y.regs = some (simResult U w₀ n k p S o) ∧
       Modifies (Block.mk base (space w w₀ n k)).footprint x.mem y.mem := by
-    unfold opCode
-    wram_exec [h1]
+    wram_exec [opCode, h1]
     have hs1_bdd : (x.set (qfReg 246) u.val).Bounded w := by
       simpa [h1] using (Exec.copy (B := .exact) (w := w) (x := x)
         (d := qfReg 246) (s := qfReg 1)).within.bounded hx_bdd

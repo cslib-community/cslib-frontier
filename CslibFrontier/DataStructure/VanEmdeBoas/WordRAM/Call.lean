@@ -130,8 +130,7 @@ theorem insert_dispatch_spec {d w base key : ℕ} {tree : Tree d} {s : Data 32}
       (∀ a, a < base ∨ base + span d ≤ a → z.mem a = s.mem a) := by
   have hw : Fits w 5 := ha.of_le (by have := five_le_span d; omega)
   apply WP.exists_execWithin
-  unfold program setup
-  wram_exec [hroot, harg, htag]
+  wram_exec [program, setup, hroot, harg, htag]
   wram_call (insertLoop_spec (base := base) (key := key) (tree := tree) ..) framed [hr]
     with v m ⟨hrep, hframe⟩
   exact ⟨by omega, hrep, hframe⟩
@@ -195,8 +194,7 @@ theorem member_dispatch_spec {d w base query : ℕ} {tree : Tree d} {s : Data 32
       z.regs out = (if tree.member query then 1 else 0) ∧ z.mem = s.mem := by
   have hw : Fits w 5 := ha.of_le (by have := five_le_span d; omega)
   apply WP.exists_execWithin
-  unfold program setup
-  wram_exec [hroot, harg, htag]
+  wram_exec [program, setup, hroot, harg, htag]
   wram_call (memberLoop_spec (base := base) (query := query) (tree := tree) ..) framed [hr]
     with v m ⟨hout, hmem⟩
   exact ⟨by omega, hout, hmem⟩
@@ -266,8 +264,7 @@ theorem successor_dispatch_spec {d w base stackBase₀ query : ℕ} {tree : Tree
       (∀ a, a < stackBase₀ ∨ stackBase₀ + 4 * d ≤ a → z.mem a = s.mem a) := by
   have hw : Fits w 5 := hstk_fit.of_le (by have := five_le_span d; omega)
   apply WP.exists_execWithin
-  unfold program setup
-  wram_exec [hroot, hstk, harg, htag]
+  wram_exec [program, setup, hroot, hstk, harg, htag]
   wram_call (successor_loop_spec (stackBase₀ := stackBase₀) (base := base) (query := query)
     (tree := tree) ..) framed [hr, hstk] with v m ⟨hans, hsp, hrep, hframe⟩
   exact ⟨by omega, hans, hrep, hsp, hframe⟩
@@ -471,8 +468,7 @@ theorem dispatch_spec {d w base stackBase₀ : ℕ} {s : Finset ℕ} {x : Data 3
     have hprep_tag : ((dynamicProgram d w).prepare (.insert k) x).regs tag = 0 := rfl
     wram_call (insert_dispatch_spec (key := k) hvalid hprep_rep ho ha hprep_root rfl hprep_tag)
       framed with v m ⟨hy_rep, -, hy_frame⟩
-    unfold nativeResultCode
-    wram_exec [hprep_tag] <;>
+    wram_exec [nativeResultCode, hprep_tag] <;>
       exact fun hy_b => ⟨by omega, rfl,
         ⟨hy_b, by wram_simp [hprep_root], by wram_simp [hprep_stk],
           t.insert k, Tree.valid_insert hvalid ho, Tree.elements_insert hvalid ho,
@@ -501,8 +497,7 @@ theorem dispatch_spec {d w base stackBase₀ : ℕ} {s : Finset ℕ} {x : Data 3
     have hprep_tag : ((dynamicProgram d w).prepare (.successor q) x).regs tag = 2 := rfl
     wram_call (successor_dispatch_spec (query := q) hvalid hprep_rep hstk_lo hstk_fit
       hprep_root hprep_stk rfl hprep_tag) framed with v m ⟨hy_ans, hy_rep, -, hy_frame⟩
-    unfold nativeResultCode
-    wram_exec [hprep_tag] <;>
+    wram_exec [nativeResultCode, hprep_tag] <;>
     · intro hy_b
       refine ⟨by omega, ?_, ⟨hy_b, by wram_simp [hprep_root], by wram_simp [hprep_stk],
         t, hvalid, rfl, by wram_simp; exact hy_rep⟩,

@@ -60,8 +60,7 @@ theorem exec_prepareHost {r w : ℕ} (x : Data (registerCount r)) :
       controllerRegisters r i ≠ hostRegisters r (Host.hostRegisters j) :=
     controller_ne_host i _
   refine WP.exists_execWithin ?_
-  unfold prepareHost
-  wram_exec
+  wram_exec [prepareHost]
   simp +decide [Data.comap_regs, Data.set_regs, Data.set_mem, hh, hph, hmh]
 
 /-- Boolean OR costs at most three native instructions and changes no other register or cell. -/
@@ -73,8 +72,7 @@ theorem exec_receive {r w b v : ℕ} (x : Data (registerCount r))
       y.regs (controllerRegisters r answer) = (if v = 1 then 1 else b) ∧
       (∀ i, i ≠ controllerRegisters r answer → y.regs i = x.regs i) ∧ y.mem = x.mem := by
   refine WP.exists_execWithin ?_
-  unfold receive
-  wram_exec [ho, hb, hv] <;>
+  wram_exec [receive, ho, hb, hv] <;>
     exact ⟨by wram_simp [hc], fun i hi => by wram_simp [Function.update_of_ne hi], by wram_simp⟩
 
 /-- Invoke the existing certified solver on the current actual packed block, preserving the

@@ -311,7 +311,7 @@ private theorem mul_sub_le_of_mem_polynomialLatencies {d : ℕ} {c : ℝ → ℝ
     _ = _ := by ring
 
 /-- `1 - d (d+1)^{-(d+1)/d} > 0`, so the polynomial Pigou bound is finite. -/
-private theorem one_sub_pigouConst_pos (d : ℕ) :
+theorem one_sub_pigouConst_pos (d : ℕ) :
     0 < 1 - (d : ℝ) * ((d : ℝ) + 1) ^ (-((d + 1 : ℝ) / d)) := by
   obtain ⟨ht0, ht1, htd, hβ⟩ := pigouParam_spec d
   set t := ((d : ℝ) + 1) ^ (-(1 / (d : ℝ)))
@@ -427,12 +427,17 @@ theorem pigouNetwork_latency_zero (c : ℝ → ℝ) (r : ℝ) : (pigouNetwork c 
 theorem pigouNetwork_latency_one (c : ℝ → ℝ) (r : ℝ) :
     (pigouNetwork c r).latency 1 = fun _ => c r := rfl
 
+/-- In a Pigou-like network each link is its own path, so the flow on a link is the flow on that
+path. -/
+@[simp]
+theorem pigouNetwork_edgeFlow (c : ℝ → ℝ) (r : ℝ) (f : Fin 2 → ℝ) (e : Fin 2) :
+    (pigouNetwork c r).edgeFlow f e = f e := by
+  simp [edgeFlow, pigouNetwork, Finset.filter_eq]
+
 /-- The cost of a flow `f` in a Pigou-like network is `f 0 * c (f 0) + f 1 * c r`. -/
 theorem pigouNetwork_cost (c : ℝ → ℝ) (r : ℝ) (f : Fin 2 → ℝ) :
     (pigouNetwork c r).cost f = f 0 * c (f 0) + f 1 * c r := by
-  have hflow : ∀ e, (pigouNetwork c r).edgeFlow f e = f e := fun e => by
-    simp [edgeFlow, pigouNetwork, Finset.filter_eq]
-  simp only [cost, pathLatency, hflow, Fin.sum_univ_two]
+  simp only [cost, pathLatency, pigouNetwork_edgeFlow, Fin.sum_univ_two]
   simp [pigouNetwork]
 
 /-- Routing `x ∈ [0, r]` units over the first link of a Pigou-like network, and the rest over the
@@ -446,10 +451,8 @@ theorem pigouNetwork_isFeasible (c : ℝ → ℝ) {r x : ℝ} (hx : 0 ≤ x) (hx
 theorem pigouNetwork_isWardrop (c : ℝ → ℝ) {r : ℝ} (hr : 0 ≤ r) :
     (pigouNetwork c r).IsWardrop ![r, 0] := by
   refine ⟨by simpa using pigouNetwork_isFeasible c hr le_rfl, fun p q _ _ => ?_⟩
-  have hflow : ∀ e, (pigouNetwork c r).edgeFlow ![r, 0] e = ![r, 0] e := fun e => by
-    simp [edgeFlow, pigouNetwork, Finset.filter_eq]
   have hlat : ∀ p, (pigouNetwork c r).pathLatency ![r, 0] p = c r := fun p => by
-    simp only [pathLatency, hflow]
+    simp only [pathLatency, pigouNetwork_edgeFlow]
     fin_cases p <;> simp [pigouNetwork]
   rw [hlat, hlat]
 

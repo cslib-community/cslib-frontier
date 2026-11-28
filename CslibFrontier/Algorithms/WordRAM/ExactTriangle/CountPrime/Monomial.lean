@@ -58,8 +58,7 @@ theorem exec_writeCoefficients {w : ℕ} (x : Data 128)
     have hy2 := (hr Reg.two (by decide) (by decide)).trans h2
     have hlt : y.regs Reg.coefficient < x.regs Reg.modulus := by
       simpa only [Cond.holds_lt, hmod] using hcond
-    unfold writeCoefficient
-    wram_exec [hbase, hres, hy0, hy1, hy2] <;>
+    wram_exec [writeCoefficient, hbase, hres, hy0, hy1, hy2] <;>
     · refine ⟨⟨fun i hc' ha' => by wram_simp [hc', ha', hr i hc' ha'],
         by wram_simp; omega, ?_, ?_⟩, by wram_simp; omega⟩
       · intro j hj; wram_simp at hj
@@ -71,8 +70,7 @@ theorem exec_writeCoefficients {w : ℕ} (x : Data 128)
         dsimp only [Data.set_mem, Data.write_mem]
         rw [Function.update_of_ne (by omega)]; exact hf a (by omega)
   refine WP.exists_execWithin ?_
-  unfold writeCoefficients
-  wram_exec
+  wram_exec [writeCoefficients]
   wram_call (ExecWithin.loop_invariant I
     (fun y => x.regs Reg.modulus - y.regs Reg.coefficient) hbody
     ⟨fun i hc ha => by wram_simp [hc], by wram_simp; exact Nat.zero_le _,

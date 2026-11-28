@@ -1005,8 +1005,6 @@ private theorem outputColor_colorToBits (c : Fin 3) :
     Sperner2D.outputColor (colorToBits c) = c := by
   fin_cases c <;> decide
 
-attribute [local irreducible] ComputableInPolyTime
-
 private theorem computableInPolyTime_lsbValue {α : Type} {enc : α ↪ List Bool}
     {bits : α → List Bool} (hbits : ComputableInPolyTime bits enc encBits) :
     ComputableInPolyTime (fun a => lsbValue (bits a)) enc encNat :=

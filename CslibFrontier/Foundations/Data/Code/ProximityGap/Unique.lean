@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Data.Code.ReedSolomon
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Cramer
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 import CslibFrontier.Foundations.Data.Code.BerlekampWelch
 import CslibFrontier.Foundations.Data.Hamming
@@ -387,29 +388,6 @@ private lemma exists_max_indep_cols {κ ι' : Type*} [Finite κ]
   obtain ⟨w, hw⟩ := hspan
   exact ⟨C, j₀, w, hC_li, hj₀, hw⟩
 
-private lemma map_cramer_eq_det_mul {C : Type*} [Fintype C] [DecidableEq C]
-    {K : Type*} [Field K] (iK : F[X] →+* K) (N : Matrix C C F[X]) (v : C → F[X])
-    (w : C → K) (hdet : (N.map iK).det ≠ 0) (hw : (N.map iK).mulVec w = fun c => iK (v c))
-    (c : C) : iK (N.cramer v c) = iK N.det * w c := by
-  let NK := N.map iK
-  obtain ⟨U, hU⟩ := (Matrix.isUnit_iff_isUnit_det NK).2 (isUnit_iff_ne_zero.2 hdet)
-  have hmul : NK.mulVec (NK.cramer (fun c => iK (v c))) = NK.mulVec (NK.det • w) := by
-    rw [Matrix.mulVec_cramer, Matrix.mulVec_smul, hw]
-  have hvec : NK.cramer (fun c => iK (v c)) = NK.det • w := by
-    have h1 := congrArg (↑U⁻¹ : Matrix C C K).mulVec hmul
-    rwa [Matrix.mulVec_mulVec, Matrix.mulVec_mulVec, ← hU, Units.inv_mul,
-      Matrix.one_mulVec, Matrix.one_mulVec, hU] at h1
-  have hupd : (N.updateCol c v).map iK = NK.updateCol c (fun c' => iK (v c')) := by
-    ext a b
-    by_cases hbc : b = c
-    · simp only [hbc, Matrix.map_apply, Matrix.updateCol_self]
-    · simp only [Matrix.map_apply, Matrix.updateCol_ne hbc, NK]
-  have h1 : iK (N.cramer v c) = NK.cramer (fun c' => iK (v c')) c := by
-    rw [Matrix.cramer_apply, Matrix.cramer_apply]
-    exact (RingHom.map_det iK (N.updateCol c v)).trans (congrArg Matrix.det hupd)
-  rw [h1, hvec, Pi.smul_apply, smul_eq_mul,
-    show NK.det = iK N.det from (RingHom.map_det iK N).symm]
-
 /-- Extract a nonzero vector in the kernel of a matrix over `F[X]` with linearly dependent columns
 over `FractionRing F[X]`, bounding each entry's degree by the sum of all *other* column degrees. -/
 private lemma exists_cramer_kernel_vec {κ ι' : Type*} [Fintype κ] [DecidableEq κ] [Finite ι']
@@ -433,12 +411,13 @@ private lemma exists_cramer_kernel_vec {κ ι' : Type*} [Fintype κ] [DecidableE
   let v : C → F[X] := fun c => M (ρ c) j₀
   let x : κ → F[X] := fun j =>
     if j = j₀ then N.det else if hj : j ∈ C then -(N.cramer v ⟨j, hj⟩) else 0
-  have hcramer_eq : ∀ c : C, iK (N.cramer v c) = iK N.det * w c :=
-    map_cramer_eq_det_mul iK N v w hNK_det <| funext fun c => by
-      have hrc := congrFun hw (ρ c)
-      simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] at hrc
-      simp only [Matrix.mulVec, dotProduct, Matrix.map_apply, N, Matrix.submatrix_apply, v]
-      exact (Finset.sum_congr rfl fun b _ => mul_comm _ _).trans hrc
+  have hNw : (N.map iK).mulVec w = fun c => iK (v c) := funext fun c => by
+    have hrc := congrFun hw (ρ c)
+    simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] at hrc
+    simp only [Matrix.mulVec, dotProduct, Matrix.map_apply, N, Matrix.submatrix_apply, v]
+    exact (Finset.sum_congr rfl fun b _ => mul_comm _ _).trans hrc
+  have hcramer_eq (c : C) : iK (N.cramer v c) = iK N.det * w c :=
+    congrFun (Matrix.map_cramer_eq_det_smul iK hNw) c
   have hMx : M.mulVec x = 0 := funext fun r => IsFractionRing.injective F[X] K <| by
     rw [Pi.zero_apply, map_zero]
     simp only [Matrix.mulVec, dotProduct, map_sum, map_mul]

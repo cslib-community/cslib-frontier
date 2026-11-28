@@ -138,8 +138,7 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
               (by wram_simp [st_v, hcur])
               (by wram_simp [st_v, hedge]) hpcsr
           simp only [List.length_cons, List.length_nil] at hlen_p
-          unfold implFillBody
-          wram_exec [hc1, hpR, hi, hlen_p, hmem_a, hf_na]
+          wram_exec [implFillBody, hc1, hpR, hi, hlen_p, hmem_a, hf_na]
           refine WP.of_execWithin hy₁_ex ?_
           wram_exec [hy₁_fr, st_v, hc1, hi, hf_p2, hf_i1]
           refine ⟨?_, fun addr_a ha => ?_, by wram_simp, ?_, fun r hr => ?_⟩
@@ -170,8 +169,7 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
               (by wram_simp [hy₁_fr, st_v1, hc1])
               (by wram_simp [hy₁_fr, st_v1, hcur])
               (by wram_simp [hy₁_fr, st_v1, hedge]) (hg₁_map.symm ▸ hy₁_p)
-          unfold implFillBody
-          wram_exec [hc1, hpR, hi, hlen_p, hmem_a, hmem_b, hf_na]
+          wram_exec [implFillBody, hc1, hpR, hi, hlen_p, hmem_a, hmem_b, hf_na]
           refine WP.of_execWithin hy₁_ex ?_
           wram_exec [hy₁_fr, st_v1, hc1, hf_nb]
           refine WP.of_execWithin hy₂_ex ?_

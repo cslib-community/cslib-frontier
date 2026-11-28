@@ -44,8 +44,7 @@ theorem exec_save {W : ℕ} (x : Data 640) (h0 : Fits W 0) :
       ∀ j : Fin 640, j.val < 143 → y.regs j = x.regs j := by
   let _ := h0
   refine WP.exists_execWithin_preserves (fun j hj => save_preserves_low j hj) ?_
-  unfold save
-  wram_exec
+  wram_exec [save]
   intro hpres
   exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
     by wram_simp, by wram_simp, by wram_simp, by wram_simp, hpres⟩
@@ -62,8 +61,7 @@ theorem exec_restore {W : ℕ} (x : Data 640) :
       y.regs Reg.result = x.regs CallableFixedPrime.Reg.found ∧
       ∀ j : Fin 640, 7 ≤ j.val → y.regs j = x.regs j := by
   refine WP.exists_execWithin_preserves (fun j hj => restore_preserves_high j hj) ?_
-  unfold restore
-  wram_exec
+  wram_exec [restore]
   intro hpres
   exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
     by wram_simp, by wram_simp, by wram_simp, hpres⟩

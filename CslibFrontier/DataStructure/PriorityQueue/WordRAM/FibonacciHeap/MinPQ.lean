@@ -620,7 +620,7 @@ theorem allocSpan_exec {n_max w base : ℕ} (hS : Fits w (base + space n_max))
   have hfit (v : ℕ) (hv : v ≤ base + (FibonacciHeap.space n_max + n_max + n_max)) : Fits w v :=
     hS.of_le (by omega)
   refine WP.exists_execWithin ?_
-  unfold allocSpan; wram_exec [hfr]
+  wram_exec [allocSpan, hfr]
   wram_call (FibonacciHeap.allocSpan_exec
       (show Fits w (base + FibonacciHeap.space n_max) from hfit _ (by omega))
       ((show (x.set valBaseReg base).Bounded w by wram_bounded; exact hfit _ (by omega)).comap f42)
@@ -645,8 +645,7 @@ theorem initSetup_exec {n_max U V w base : ℕ} {x₁ : Data rMinPQ}
   have hfit (v : ℕ) (hv : v ≤ base + (FibonacciHeap.space n_max + n_max + n_max)) : Fits w v :=
     hS.of_le (by omega)
   refine WP.exists_execWithin (WP.bounded hx₁ ?_)
-  unfold initSetup
-  wram_exec [hfit, hfr₁, hn, hsp]
+  wram_exec [initSetup, hfit, hfr₁, hn, hsp]
   wram_call (FibonacciHeap.initSetup_exec (K_max := U)
       ((show Data.Bounded w _ by wram_bounded <;> exact hfit _ (by omega)).comap f42)
       (by wram_simp [hb₁]) (by wram_simp; omega)
@@ -1258,8 +1257,7 @@ theorem nativeResultCode_spec {n U V w : ℕ} {x : Data rMinPQ}
       ∀ i, i ≠ outFlag → i ≠ outK → y.regs i = x.regs i := by
   cases o <;> simp only [nativeResultReady] at hready
   all_goals
-    unfold nativeResultCode
-    wram_exec [hzero, hready] <;>
+    wram_exec [nativeResultCode, hzero, hready] <;>
     simp_all only [minPQSpec, PriorityQueue.MinPQ.Op.Result, StateTransitionSpec.ofFn_result,
       decode, ne_eq, ne_comm, not_true_eq_false, not_false_eq_true, decide_false, decide_true,
       nativeResultType, ResultType.Value, Data.set, Function.update_eq_self, Function.update_idem,

@@ -36,12 +36,10 @@ import CslibFrontier.Probability.PMF.Uniform
 This module connects `MaxSAT` (`MaxSAT.thresholdCircuit`, `MaxSAT.optimum`) and general `Max-CSP`
 (`MaxCSPInstance`, `MaxCSPSampling`) to supplied fixed-width `k`-SAT solvers (`3 ≤ k`):
 
-1. **Structured encodings (`StructInstance`, `ThresholdQuery`, `StructSolution`,
-   `encMaxCSPInstance`):**
-   `#4391`-compliant documented structures with `enc_structure` (and a parameterized field-tuple
-   embedding for `MaxCSPInstance Rel ℕ`), bridging directly to `MaxSAT.Instance`,
-   `MaxCSPInstance.ofCNF`, and the `2 ^ (n + 1) * exp (-2 * s * δ ^ 2)` (and `1 - η` sample-size)
-   subsampling concentration and `2 * δ * m` optimality-loss theorems.
+1. **Structured encodings:** `enc_structure` encodes `StructInstance`, `ThresholdQuery`,
+   `StructSolution`, and the parameterized `MaxCSPInstance Rel ℕ`. They connect to
+   `MaxSAT.Instance`, `MaxCSPInstance.ofCNF`, and the `2 ^ (n + 1) * exp (-2 * s * δ ^ 2)`
+   (and `1 - η` sample-size) subsampling concentration and `2 * δ * m` optimality-loss theorems.
 2. **Threshold compilation (`thresholdToCNF`):** compiles a `ThresholdQuery` in polynomial time via
    `MaxSAT.thresholdCircuit` and `Compiler.toSatCNF` to a 3-CNF formula (`KSAT k` for every `3 ≤ k`)
    with at most `thresholdVarBudget workSize = 957 * workSize + 957` variables, satisfiable iff
@@ -407,38 +405,12 @@ end StructInstance
 
 /-! ### Parameterized encoding for `MaxCSPInstance` -/
 
-/-- Encoding of `MaxCSPInstance Rel ℕ` as `(numVars, constraints)` with unary `numVars` and
-constraints encoded by `encCSP` (`enc_structure` requires unparameterized structures, so this
-parameterized structure defines the identical field-pair embedding). -/
-@[expose] def encMaxCSPInstance {Rel : Type} (encRel : Rel ↪ List Bool) :
-    MaxCSPInstance Rel ℕ ↪ List Bool :=
-  ⟨fun F => encPair encUnary (encCSP encRel encNat) (F.numVars, F.constraints),
-    fun a b h => by
-      have h' := (encPair encUnary (encCSP encRel encNat)).injective h
-      cases a; cases b; simp_all⟩
+variable {Rel : Type} in
+/-- The framed unary variable count followed by the constraints encoded by `encCSP`. -/
+enc_structure encMaxCSPInstance (encRel : Rel ↪ List Bool) : MaxCSPInstance Rel ℕ where
+  numVars : encUnary, constraints : (encCSP encRel encNat)
 
-@[simp]
-theorem encMaxCSPInstance_apply {Rel : Type} (encRel : Rel ↪ List Bool)
-    (F : MaxCSPInstance Rel ℕ) :
-    encMaxCSPInstance encRel F =
-      encPair encUnary (encCSP encRel encNat) (F.numVars, F.constraints) :=
-  rfl
-
-@[fun_prop]
-theorem computableInPolyTime_maxCSP_numVars {Rel γ : Type} {encIn : γ ↪ List Bool}
-    {encRel : Rel ↪ List Bool} {g : γ → MaxCSPInstance Rel ℕ}
-    (hg : ComputableInPolyTime g encIn (encMaxCSPInstance encRel)) :
-    ComputableInPolyTime (fun a => (g a).numVars) encIn encUnary :=
-  ((fst encUnary (encCSP encRel encNat)).comp
-    (ComputableInPolyTime.of_eq (fun _ => rfl))).comp hg
-
-@[fun_prop]
-theorem computableInPolyTime_maxCSP_constraints {Rel γ : Type} {encIn : γ ↪ List Bool}
-    {encRel : Rel ↪ List Bool} {g : γ → MaxCSPInstance Rel ℕ}
-    (hg : ComputableInPolyTime g encIn (encMaxCSPInstance encRel)) :
-    ComputableInPolyTime (fun a => (g a).constraints) encIn (encCSP encRel encNat) :=
-  ((snd encUnary (encCSP encRel encNat)).comp
-    (ComputableInPolyTime.of_eq (fun _ => rfl))).comp hg
+attribute [fun_prop] encMaxCSPInstance_numVars_polyTime encMaxCSPInstance_constraints_polyTime
 
 /-- Width-guarded compilation of a Boolean `MaxCSPInstance Rel ℕ` to a `StructInstance` via
 forbidden-pattern `CSP.toCNFBounded`. -/
@@ -450,9 +422,9 @@ forbidden-pattern `CSP.toCNFBounded`. -/
 theorem computableInPolyTime_maxCSPToStruct {Rel : Type} [Finite Rel] (encRel : Rel ↪ List Bool)
     (w : ℕ) (sem : Rel → List Bool → Bool) :
     ComputableInPolyTime (maxCSPToStruct w sem) (encMaxCSPInstance encRel) encStructInstance :=
-  encStructInstance_mk_polyTime (computableInPolyTime_maxCSP_numVars ComputableInPolyTime.id')
+  encStructInstance_mk_polyTime (encMaxCSPInstance_numVars_polyTime encRel .id')
     ((CSP.computableInPolyTime_toCNFBounded_of_finite encRel encNat w sem).comp
-      (computableInPolyTime_maxCSP_constraints ComputableInPolyTime.id'))
+      (encMaxCSPInstance_constraints_polyTime encRel .id'))
 
 theorem optimum_maxCSPToStruct_add_length {Rel : Type} {w : ℕ} (sem : Rel → List Bool → Bool)
     {F : MaxCSPInstance Rel ℕ} (hw : ∀ c ∈ F.constraints, c.scope.length ≤ w) :
@@ -1475,7 +1447,7 @@ theorem computableInPolyTime_maxCSPOptimumBounded_of_KSAT {Rel : Type} [Finite R
   exact binary_sub'
     (binary_add' ((computableInPolyTime_optimum_of_KSAT hk hpoly hspec).comp hstruct)
       (unary_to_binary.comp ((length_list (encConstraint encRel encNat)).comp
-        (computableInPolyTime_maxCSP_constraints ComputableInPolyTime.id'))))
+        (encMaxCSPInstance_constraints_polyTime encRel .id'))))
     (unary_to_binary.comp ((length_list (encList (encPair encNat encBool))).comp
       (encStructInstance_clauses_polyTime hstruct)))
 
@@ -1524,7 +1496,7 @@ theorem computableInPolyTime_maxCSPOptimizeBounded {Rel : Type} [Finite Rel]
     (binary_sub'
       (binary_add' (encStructSolution_optValue_polyTime hsol)
         (unary_to_binary.comp ((length_list (encConstraint encRel encNat)).comp
-          (computableInPolyTime_maxCSP_constraints ComputableInPolyTime.id'))))
+          (encMaxCSPInstance_constraints_polyTime encRel .id'))))
       (unary_to_binary.comp ((length_list (encList (encPair encNat encBool))).comp
         (encStructInstance_clauses_polyTime hstruct))))
     (encStructSolution_assignmentBits_polyTime hsol)

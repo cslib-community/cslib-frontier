@@ -23,8 +23,9 @@ that for every set of corrupted parties `C` and every environment `Z` making at 
 the environment, as in [Canetti2020]. `UC.RealizesWithin π F g ε` is emulation of the ideal
 protocol of the functionality `F`.
 
-The simulator is chosen after the adversary but before the corruption set and the environment, so
-one simulator serves every environment. Emulation is reflexive with zero error
+The simulator is chosen after the adversary and before the environment, so one simulator serves
+every environment. Like every `ExecAdversary`, it is a family `S κ C` that receives the static
+corruption set `C`, as in static-corruption UC. Emulation is reflexive with zero error
 (`UC.EmulatesWithin.refl`) and transitive (`UC.EmulatesWithin.trans`): the simulators compose and
 the errors add, the second error being evaluated at the budget `g₁₂.comp (X + pA)` of the
 intermediate simulator, which requires that error to be monotone in the adversary's budget.
@@ -90,8 +91,9 @@ have unbounded complexity. It differs from the source as follows.
   variant that Section 4.4 says gives a weaker guarantee, a simulator of unlimited computational
   power; here its call budget is at most `g` at `κ + pA κ`, where Definition 15 bounds its running
   time by `g(pA)`.
-* Corruptions are static: the corrupted set `C` is fixed before the execution and quantified after
-  the simulator, as with the non-adaptive corruptions of Section 7.1.1, p. 74.
+* Corruptions are static: the corrupted set `C` is fixed before the execution; the simulator is
+  chosen before `C` is quantified but, as an `ExecAdversary`, receives `C` as an argument, as with
+  the non-adaptive corruptions of Section 7.1.1, p. 74.
 * Environments are not identity-bounded (Canetti's `ξ = {0,1}*`), and the bound holds at every `κ`
   and for auxiliary inputs `z` of every length, where Definition 15 asks for it at large enough `k`
   and for inputs of length `pE(k)`.
@@ -119,7 +121,15 @@ under it. -/
         ∀ (C : Finset (Fin n)) (Z : Environment n In Out AdvQ AdvR) (pZ : Polynomial ℕ),
           Z.PolyBounded pZ → ∀ (κ : ℕ) (z : List Bool), advantage π φ A S C Z κ z ≤ ε pA pZ κ
 
-/-- Concrete UC realization: protocol `π` emulates the ideal protocol of the functionality `F`. -/
+/-- Concrete UC realization: protocol `π` emulates the ideal protocol of `F` with simulator call
+overhead `g` and distinguishing error `ε`. This is UC realization of [Canetti2020] (ePrint revision
+of February 11, 2020), Definition 20, p. 58, with `EmulatesWithin` in place of Definition 9's UC
+emulation (see `EmulatesWithin` for the concrete call-budget and error bounds and the differences
+from Definition 15), and without Definition 20's further requirement that `π` be
+subroutine-respecting. Like `EmulatesWithin`, it is novel to this library: it is not
+source-identical, and no implication to or from Definitions 15 or 20 is established here. It implies
+`Realizes` whenever every `ε pA pZ` is negligible (`EmulatesWithin.emulates`), and is plausible for
+the same reasons (`RealizesWithin.compose_trans`, `not_realizesWithin_fcom`). -/
 abbrev RealizesWithin (π : Protocol n In Out NetQ NetR)
     (F : IdealFunctionality n In Out BackQ BackR)
     (g : Polynomial ℕ) (ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0) : Prop :=

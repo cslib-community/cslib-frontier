@@ -16,6 +16,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.Loop
 import all CslibFrontier.DataStructure.PriorityQueue.WordRAM.SoftHeap.Program
 import all CslibFrontier.DataStructure.PriorityQueue.WordRAM.SoftHeap.Model
 import CslibFrontier.Foundations.Data.Nat.HalvingRecurrence
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.DataStructure.Memory.Frame
 -- Record writes use the private `Block.mem_writeList_of_not_mem` frame lemma.
@@ -170,58 +171,32 @@ private theorem shInsertInit_spec {rt w itemBase nodeBase itemIdx nodeIdx val or
   · rw [hs_eq]; exact hs₂_nd 11 (by decide)
 
 private theorem combineWriteParent_spec {w nodeBase z y p rank target : ℕ} {s : Memory.State}
-    (h16 : Fits w 16) (_hwf : Memory.WellFormed w s)
     (hp_lt : nodeBase + 12 * p + 11 < s.frontier)
     (hz_fit : Fits w z) (hy_fit : Fits w y) (hrk_fit : Fits w rank) (htg_fit : Fits w target) :
-    let d : Fin 6 → ℕ := ![nodeBase, z, y, p, rank, target]
-    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (combineWriteParent d)) ∧
-    memoryCost (combineWriteParent d) s = 12 ∧
-    let s' := (Memory.spec 0).clientState s (combineWriteParent d)
-    s'.frontier = s.frontier ∧
-    (∀ a, s'.mem a ≠ s.mem a → ∃ j < 12, a = nodeBase + 12 * p + j) ∧
-    (∀ j < 12, s'.mem (nodeBase + 12 * p + j) =
-      match j with
-      | 0 => 0 | 1 => rank | 2 => target | 3 => 0 | 4 => 0 | 5 => 0
-      | 6 => z | 7 => y | 8 => 0 | 9 => 0 | 10 => 0 | 11 => 0 | _ => 0) := by
-  have h0_fit : Fits w 0 := h16.of_le (by lia)
-  let words := [0, rank, target, 0, 0, 0, z, y, 0, 0, 0, 0]
-  have hp_eq : combineWriteParent ![nodeBase, z, y, p, rank, target] =
-      Block.writeList (nodeBase + 12 * p) words := by
-    dsimp only [combineWriteParent]
-    simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
-    simp only [words, Block.writeList_cons, Block.writeList_nil, pure_unit_eq, bind_pure,
-      Nat.add_assoc, Nat.reduceAdd]
-  have hp_bound : nodeBase + 12 * p + words.length ≤ s.frontier := by
-    change nodeBase + 12 * p + 12 ≤ s.frontier
-    lia
-  have hp_fits : ∀ v ∈ words, Fits w v := by
-    simp only [words, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff,
-      implies_true, and_true, h0_fit, hrk_fit, htg_fit, hz_fit, hy_fit]
-  obtain ⟨hv, hm, hfr, hmod, hhold⟩ :=
-    writeRecord_spec w (nodeBase + 12 * p) words s hp_bound hp_fits
-  change _ ∧ _ ∧ _
-  simp only [hp_eq]
-  refine ⟨hv, hm, hfr, hmod, ?_⟩
-  intro j hj
-  have hget := hhold.get j hj
-  interval_cases j <;> exact hget
+    Memory.FramedTriple w s (combineWriteParent ![nodeBase, z, y, p, rank, target]) 12
+      {a | ∃ j < 12, a = nodeBase + 12 * p + j} fun _ s' => s'.frontier = s.frontier ∧
+      ∀ j < 12, s'.mem (nodeBase + 12 * p + j) =
+        match j with
+        | 0 => 0 | 1 => rank | 2 => target | 3 => 0 | 4 => 0 | 5 => 0
+        | 6 => z | 7 => y | 8 => 0 | 9 => 0 | 10 => 0 | 11 => 0 | _ => 0 := by
+  unfold combineWriteParent
+  simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
+  framed_triple
+  all_goals try (simp; done)
+  refine ⟨rfl, fun j hj => ?_⟩
+  interval_cases j <;> simp
 
 private theorem combineInitParent_spec {rt w nodeBase z y p zRank : ℕ} {s : Memory.State}
-    (h16 : Fits w 16) (hwf : Memory.WellFormed w s)
     (hp_lt : nodeBase + 12 * p + 11 < s.frontier)
     (hz_fit : Fits w z) (hy_fit : Fits w y)
     (hrk_fit : Fits w (zRank + 1)) (htg_fit : Fits w (targetSize rt (zRank + 1))) :
-    let zTgt := targetSize rt zRank
-    let d : Fin 7 → ℕ := ![nodeBase, z, y, p, zRank, zTgt, rt]
-    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (combineInitParent d)) ∧
-    memoryCost (combineInitParent d) s = 12 ∧
-    let s' := (Memory.spec 0).clientState s (combineInitParent d)
-    s'.frontier = s.frontier ∧
-    (∀ a, s'.mem a ≠ s.mem a → ∃ j < 12, a = nodeBase + 12 * p + j) ∧
-    (∀ j < 12, s'.mem (nodeBase + 12 * p + j) =
-      match j with
-      | 0 => 0 | 1 => zRank + 1 | 2 => targetSize rt (zRank + 1) | 3 => 0 | 4 => 0 | 5 => 0
-      | 6 => z | 7 => y | 8 => 0 | 9 => 0 | 10 => 0 | 11 => 0 | _ => 0) := by
+    Memory.FramedTriple w s
+      (combineInitParent ![nodeBase, z, y, p, zRank, targetSize rt zRank, rt]) 12
+      {a | ∃ j < 12, a = nodeBase + 12 * p + j} fun _ s' => s'.frontier = s.frontier ∧
+      ∀ j < 12, s'.mem (nodeBase + 12 * p + j) =
+        match j with
+        | 0 => 0 | 1 => zRank + 1 | 2 => targetSize rt (zRank + 1) | 3 => 0 | 4 => 0 | 5 => 0
+        | 6 => z | 7 => y | 8 => 0 | 9 => 0 | 10 => 0 | 11 => 0 | _ => 0 := by
   have hprog : combineInitParent ![nodeBase, z, y, p, zRank, targetSize rt zRank, rt] =
       combineWriteParent ![nodeBase, z, y, p, zRank + 1, targetSize rt (zRank + 1)] := by
     dsimp only [combineInitParent]
@@ -232,122 +207,50 @@ private theorem combineInitParent_spec {rt w nodeBase z y p zRank : ℕ} {s : Me
     · by_cases h2 : (zRank + 1 - rt) % 2 = 1
       · simp only [h1, h2, ↓reduceIte]
       · simp only [h1, h2, ↓reduceIte]
-  dsimp only
   rw [hprog]
-  exact combineWriteParent_spec h16 hwf hp_lt hz_fit hy_fit hrk_fit htg_fit
+  exact combineWriteParent_spec hp_lt hz_fit hy_fit hrk_fit htg_fit
 
 private theorem combinePopFront_spec {w nodeBase : ℕ} {s : Memory.State}
     {y : SHTree} {rest : List SHTree}
-    (h16 : Fits w 16)
     (hrep : RootListRep nodeBase s.mem 0 (y :: rest))
     (hpos : ∀ t ∈ y :: rest, 0 < t.rootId)
     (hlt : ∀ t ∈ y :: rest, nodeBase + 12 * t.rootId + 11 < s.frontier)
     (hnd : ((y :: rest).map SHTree.rootId).Nodup) :
-    let d : Fin 2 → ℕ := ![nodeBase, y.rootId]
-    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (combinePopFront d)) ∧
-    memoryCost (combinePopFront d) s ≤ 2 ∧
-    (Memory.spec 0).clientResult s (combinePopFront d) = rest.head?.elim 0 SHTree.rootId ∧
-    let s' := (Memory.spec 0).clientState s (combinePopFront d)
-    s'.frontier = s.frontier ∧
-    (∀ a, s'.mem a ≠ s.mem a →
-      ∃ r0, rest.head? = some r0 ∧ a = nodeBase + 12 * r0.rootId + 9) ∧
-    RootListRep nodeBase s'.mem 0 rest := by
+    Memory.FramedTriple w s (combinePopFront ![nodeBase, y.rootId]) 2
+      {a | ∃ r0, rest.head? = some r0 ∧ a = nodeBase + 12 * r0.rootId + 9}
+      fun r s' => s'.frontier = s.frontier ∧ r = rest.head?.elim 0 SHTree.rootId ∧
+        RootListRep nodeBase s'.mem 0 rest := by
   have hy_lt := hlt y (by simp)
   rcases hrep with ⟨_, _, hy_10, _, hrest_rep⟩
+  unfold combinePopFront
+  simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one]
   cases rest with
   | nil =>
-    have hn0 : ([] : List SHTree).head?.elim 0 SHTree.rootId = 0 := rfl
-    rw [hn0] at hy_10
-    have hv : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (combinePopFront ![nodeBase, y.rootId])) := by
-      dsimp only [combinePopFront]
-      simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one]
-      refine validHistory_read_bind (by omega) ?_
-      simp only [hy_10, ne_eq, not_true_eq_false, ↓reduceIte]
-      exact validHistory_pure w _ _
-    have hm : memoryCost (combinePopFront ![nodeBase, y.rootId]) s ≤ 2 := by
-      dsimp only [combinePopFront]
-      simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one]
-      rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read]
-      simp only [hy_10, ne_eq, not_true_eq_false, ↓reduceIte, memoryCost_pure]
-      decide
-    have hres : (Memory.spec 0).clientResult s (combinePopFront ![nodeBase, y.rootId]) = 0 := by
-      dsimp only [combinePopFront]
-      simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one]
-      rw [clientResult_bind_read]
-      simp only [hy_10, ne_eq, not_true_eq_false, ↓reduceIte]
-      rfl
-    have hs' : (Memory.spec 0).clientState s (combinePopFront ![nodeBase, y.rootId]) = s := by
-      dsimp only [combinePopFront]
-      simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one]
-      rw [clientState_bind_read]
-      simp only [hy_10, ne_eq, not_true_eq_false, ↓reduceIte]
-      rfl
-    refine ⟨hv, hm, hres, ?_, ?_, ?_⟩
-    · rw [hs']
-    · intro a ha; rw [hs'] at ha; exact absurd rfl ha
-    · rw [hs']; trivial
+    simp only [List.head?_nil, Option.elim_none] at hy_10 ⊢
+    framed_triple_step
+    simp only [hy_10, ne_eq, not_true_eq_false, ↓reduceIte]
+    framed_triple
   | cons r0 rest' =>
-    have hr0_pos : 0 < r0.rootId := hpos r0 (by simp)
-    have hr0_ne0 : r0.rootId ≠ 0 := by omega
     have hr0_lt := hlt r0 (by simp)
-    have hy_10' : s.mem (nodeBase + 12 * y.rootId + 10) = r0.rootId := by
-      simpa using hy_10
-    have h0_fit : Fits w 0 := h16.of_le (by omega)
-    have hv : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (combinePopFront ![nodeBase, y.rootId])) := by
-      dsimp only [combinePopFront]
-      simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one]
-      refine validHistory_read_bind (by omega) ?_
-      simp only [hy_10', hr0_ne0, ne_eq, not_false_eq_true, ↓reduceIte]
-      exact validHistory_write_bind (by omega) h0_fit (validHistory_pure w _ _)
-    have hm : memoryCost (combinePopFront ![nodeBase, y.rootId]) s ≤ 2 := by
-      dsimp only [combinePopFront]
-      simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one]
-      rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read]
-      simp only [hy_10', hr0_ne0, ne_eq, not_false_eq_true, ↓reduceIte,
-        memoryCost_bind', memoryCost_write, memoryCost_pure]
-      decide
-    have hres : (Memory.spec 0).clientResult s (combinePopFront ![nodeBase, y.rootId]) =
-        r0.rootId := by
-      dsimp only [combinePopFront]
-      simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one]
-      rw [clientResult_bind_read]
-      simp only [hy_10', hr0_ne0, ne_eq, not_false_eq_true, ↓reduceIte]
-      rw [StateTransitionSpec.clientResult_bind, clientState_write]
-      rfl
-    have hs' : (Memory.spec 0).clientState s (combinePopFront ![nodeBase, y.rootId]) =
-        ⟨Function.update s.mem (nodeBase + 12 * r0.rootId + 9) 0, s.frontier⟩ := by
-      dsimp only [combinePopFront]
-      simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one]
-      rw [clientState_bind_read]
-      simp only [hy_10', hr0_ne0, ne_eq, not_false_eq_true, ↓reduceIte]
-      rw [clientState_bind_write, StateTransitionSpec.clientState_pure]
-    have hrest' : RootListRep nodeBase
-        (Function.update s.mem (nodeBase + 12 * r0.rootId + 9) 0) 0 (r0 :: rest') := by
-      rcases hrest_rep with ⟨hr0_rk, _, hr0_10, hr0_11, htail⟩
-      refine ⟨hr0_rk, Function.update_self _ _ _, ?_, ?_, ?_⟩
-      · rw [Function.update_of_ne (by omega)]; exact hr0_10
-      · rw [Function.update_of_ne (by omega)]; exact hr0_11
-      · refine RootListRep.congr (fun t ht j hj => ?_) htail
-        have hnd' : ((r0 :: rest').map SHTree.rootId).Nodup := by
-          rw [List.map_cons, List.nodup_cons] at hnd; exact hnd.2
-        rw [List.map_cons, List.nodup_cons] at hnd'
-        have hne : t.rootId ≠ r0.rootId := fun heq => hnd'.1 (heq ▸ List.mem_map_of_mem ht)
-        rcases hj with rfl | rfl | rfl <;> exact (Function.update_of_ne (by omega) _ _).symm
-    refine ⟨hv, hm, ?_, ?_, ?_, ?_⟩
-    · simpa using hres
-    · rw [hs']
-    · intro a ha
-      rw [hs'] at ha
-      by_cases ha9 : a = nodeBase + 12 * r0.rootId + 9
-      · exact ⟨r0, rfl, ha9⟩
-      · simp only [Function.update_of_ne ha9] at ha; exact absurd rfl ha
-    · rw [hs']; exact hrest'
+    have hr0_ne0 : r0.rootId ≠ 0 := (hpos r0 (by simp)).ne'
+    simp only [List.head?_cons, Option.elim_some] at hy_10 ⊢
+    framed_triple_step
+    simp only [hy_10, hr0_ne0, ne_eq, not_false_eq_true, ↓reduceIte]
+    framed_triple
+    · exact ⟨r0, rfl, rfl⟩
+    rcases hrest_rep with ⟨hr0_rk, _, hr0_10, hr0_11, htail⟩
+    rw [List.map_cons, List.map_cons, List.nodup_cons, List.nodup_cons] at hnd
+    dsimp only
+    refine ⟨rfl, rfl, hr0_rk, Function.update_self _ _ _, ?_, ?_, ?_⟩
+    · rw [Function.update_of_ne (by omega)]; exact hr0_10
+    · rw [Function.update_of_ne (by omega)]; exact hr0_11
+    · refine RootListRep.congr (fun t ht j hj => ?_) htail
+      have hne : t.rootId ≠ r0.rootId := fun heq => hnd.2.1 (heq ▸ List.mem_map_of_mem ht)
+      rcases hj with rfl | rfl | rfl <;> exact (Function.update_of_ne (by omega) _ _).symm
 
 private theorem combinePreInit_spec {rt w itemBase nodeBase nc fuel : ℕ} {s : Memory.State}
     {z y : SHTree} {rest : List SHTree}
-    (h16 : Fits w 16) (hwf : Memory.WellFormed w s)
+    (hwf : Memory.WellFormed w s)
     (hz_mem : TreeMemRep rt itemBase nodeBase s.mem z)
     (hy_mem : TreeMemRep rt itemBase nodeBase s.mem y)
     (hz_val : z.Valid rt 0) (hy_val : y.Valid rt 0)
@@ -383,8 +286,9 @@ private theorem combinePreInit_spec {rt w itemBase nodeBase nc fuel : ℕ} {s : 
   have hz_rlt : nodeBase + 12 * z.rootId + 11 < s.frontier := hz_lt z.rootId z.rootId_mem_nodeIds
   have hz_rk := hz_mem.rank_eq
   have hz_tgt := hz_mem.target_eq
-  have hpop := combinePopFront_spec h16 hrep hpos hlt_roots hnd_roots
-  rcases hpop with ⟨hv_pop, hm_pop, hres_pop, hfr_pop, hmem_pop, hrest_pop⟩
+  have hpop := Memory.FramedTriple.realization_of_frontier_eq
+    (combinePopFront_spec (w := w) hrep hpos hlt_roots hnd_roots)
+  rcases hpop with ⟨hv_pop, hm_pop, hfr_pop, hmem_pop, hres_pop, hrest_pop⟩
   obtain ⟨s₁, hs₁_eq⟩ : ∃ s₁, s₁ = (Memory.spec 0).clientState s
       (combinePopFront ![nodeBase, y.rootId]) := ⟨_, rfl⟩
   rw [← hs₁_eq] at hfr_pop hmem_pop hrest_pop
@@ -393,8 +297,8 @@ private theorem combinePreInit_spec {rt w itemBase nodeBase nc fuel : ℕ} {s : 
   have hz_fit : Fits w z.rootId := hwf₁.fits_of_lt_frontier (by omega)
   have hy_lt0 := hy_lt y.rootId y.rootId_mem_nodeIds
   have hy_fit : Fits w y.rootId := hwf₁.fits_of_lt_frontier (by omega)
-  have hinit := combineInitParent_spec h16 hwf₁ (by rw [hfr_pop]; exact hp_lt)
-    hz_fit hy_fit hrk_fit htg_fit
+  have hinit := (combineInitParent_spec (w := w) (rt := rt)
+    (by rw [hfr_pop]; exact hp_lt) hz_fit hy_fit hrk_fit htg_fit).realization_of_frontier_eq
   rcases hinit with ⟨hv_in, hm_in, hfr_in, hmem_in, hs2_fields⟩
   obtain ⟨s₂, hs₂_eq⟩ : ∃ s₂, s₂ = (Memory.spec 0).clientState s₁
       (combineInitParent
@@ -665,7 +569,7 @@ private theorem combineOne_spec {rt w ic₀ nc₀ maxItems maxNodes itemBase nod
       have := (hinv.itemIds_range it.id hit_f).2
       have := hinv.ic_lt; omega
     rcases hinv.pools_disj with hd | hd <;> omega
-  have hpre := combinePreInit_spec (fuel := fuel) h16 hwf hinv.z_mem (hinv.rem_mem y (by simp))
+  have hpre := combinePreInit_spec (fuel := fuel) hwf hinv.z_mem (hinv.rem_mem y (by simp))
     hinv.z_valid (hinv.rem_valid y (by simp)) hrk_eq hinv.rem_rootList hpos_yr hlt_yr hnd_roots
     hz_lt hy_lt hp_lt hp_fresh_z hp_fresh_y hp_fresh_rest hp_fit hrk_fit htg_fit hdisj_pre
   rcases hpre with ⟨hv_pre, hm_pre, hres_pre, hfr_pre, hmem_pre, hp_mem, hp_val, hrest_pre, _⟩
@@ -1067,46 +971,18 @@ private theorem combineStep_spec {rt w ic₀ nc₀ maxItems maxNodes itemBase no
   | nil =>
     have hn0 : ([] : List SHTree).head?.elim 0 SHTree.rootId = 0 := rfl
     simp only [hn0]
-    have hv : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
-        (combineStep ((itemBase, nodeBase, rt, fuel), (z.rootId, 0, nc, cont)))) := by
+    have hft : Memory.FramedTriple w s
+        (combineStep ((itemBase, nodeBase, rt, fuel), (z.rootId, 0, nc, cont))) 2 ∅
+        fun r t => r = (z.rootId, 0, nc, 0) ∧ t = s := by
       dsimp only [combineStep, combineItemBase, combineNodeBase, combineRankThreshold,
-          combineFuel,
-      combineZ, combineFirstRoot, combineNodeCount]
-      refine validHistory_read_bind (by omega) ?_
+          combineFuel, combineZ, combineFirstRoot, combineNodeCount]
       simp only [↓reduceIte]
-      exact validHistory_pure w _ _
-    have hsafe : combineStepSafe w
-        ((itemBase, nodeBase, rt, fuel), (z.rootId, 0, nc, cont)) s :=
-      ⟨h16, fun h => absurd rfl h⟩
-    have hm : memoryCost
-        (combineStep ((itemBase, nodeBase, rt, fuel), (z.rootId, 0, nc, cont))) s ≤ 2 := by
-      dsimp only [combineStep, combineItemBase, combineNodeBase, combineRankThreshold,
-          combineFuel,
-      combineZ, combineFirstRoot, combineNodeCount]
-      rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read]
-      simp only [↓reduceIte, memoryCost_pure]
-      decide
-    have hres : (Memory.spec 0).clientResult s
-        (combineStep ((itemBase, nodeBase, rt, fuel), (z.rootId, 0, nc, cont))) =
-        (z.rootId, 0, nc, 0) := by
-      dsimp only [combineStep, combineItemBase, combineNodeBase, combineRankThreshold,
-          combineFuel,
-      combineZ, combineFirstRoot, combineNodeCount]
-      rw [clientResult_bind_read]
-      simp only [↓reduceIte]
-      rfl
-    have hs' : (Memory.spec 0).clientState s
-        (combineStep ((itemBase, nodeBase, rt, fuel), (z.rootId, 0, nc, cont))) = s := by
-      dsimp only [combineStep, combineItemBase, combineNodeBase, combineRankThreshold,
-          combineFuel,
-      combineZ, combineFirstRoot, combineNodeCount]
-      rw [clientState_bind_read]
-      simp only [↓reduceIte]
-      rfl
+      framed_triple
+    obtain ⟨hv, hm, -, hres, hs'⟩ := framedTriple_iff_realization.mp hft
     have hinv0 : CombineInv rt w ic₀ nc₀ maxItems maxNodes itemBase nodeBase itemCount origItems
         origEntries newIt z [] nc 0 created s :=
       { hinv with cont_zero_lt := fun _ u hu => by cases hu }
-    refine ⟨hv, hsafe, ?_, ?_, z, [], nc, 0, created, ?_, le_rfl, ?_,
+    refine ⟨hv, ⟨h16, fun h => absurd rfl h⟩, ?_, ?_, z, [], nc, 0, created, ?_, le_rfl, ?_,
       Or.inr ⟨rfl, rfl, rfl, hm, hs'⟩⟩
     · simp [hs']
     · intro a ha; rw [hs'] at ha; exact absurd rfl ha
@@ -1127,60 +1003,27 @@ private theorem combineStep_spec {rt w ic₀ nc₀ maxItems maxNodes itemBase no
     · have hone := combineOne_spec hinv hrk_eq hfuel_ge hf_fit
       rcases hone with ⟨hv_one, hsafe_one, hres_one, hfr_one, hmem_one, z', created',
         hz'_rt, hz'_rk, hinv', hcost_one⟩
-      obtain ⟨s', hs'_eq⟩ : ∃ s', s' = (Memory.spec 0).clientState s
-          (combineOne ![itemBase, nodeBase, z.rootId, y.rootId, nc, fuel, rt]) := ⟨_, rfl⟩
-      rw [← hs'_eq] at hfr_one hmem_one hinv'
-      have hv : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
-          (combineStep ((itemBase, nodeBase, rt, fuel), (z.rootId, y.rootId, nc, cont)))) := by
+      have hone_ft := Memory.FramedTriple.of_realization
+        (S := {a | InPoolRaw ic₀ nc₀ maxItems maxNodes itemBase nodeBase a}) hv_one hfr_one hmem_one
+      rw [hres_one] at hone_ft
+      have hft : Memory.FramedTriple w s
+          (combineStep ((itemBase, nodeBase, rt, fuel), (z.rootId, y.rootId, nc, cont)))
+          (memoryCost (combineOne ![itemBase, nodeBase, z.rootId, y.rootId, nc, fuel, rt]) s + 2)
+          {a | InPoolRaw ic₀ nc₀ maxItems maxNodes itemBase nodeBase a} fun r t =>
+            r = (nc + 1, rest.head?.elim 0 SHTree.rootId, nc + 1, 1) ∧
+            t = (Memory.spec 0).clientState s
+              (combineOne ![itemBase, nodeBase, z.rootId, y.rootId, nc, fuel, rt]) := by
         dsimp only [combineStep, combineItemBase, combineNodeBase, combineRankThreshold,
           combineFuel, combineZ, combineFirstRoot, combineNodeCount]
-        refine validHistory_read_bind (by omega) ?_
         simp only [hy_ne0, ↓reduceIte]
-        refine validHistory_read_bind (by omega) ?_
-        rw [hz_rk, hy_rk, hrk_eq]
-        simp only [ne_eq, not_true_eq_false, ↓reduceIte]
-        exact validHistory_bind_step hv_one (validHistory_pure w _ _)
-      have hsafe : combineStepSafe w
-          ((itemBase, nodeBase, rt, fuel), (z.rootId, y.rootId, nc, cont)) s := by
-        refine ⟨h16, fun _ _ => hsafe_one⟩
-      have hm : memoryCost
-          (combineStep ((itemBase, nodeBase, rt, fuel), (z.rootId, y.rootId, nc, cont))) s =
-          2 + memoryCost
-            (combineOne ![itemBase, nodeBase, z.rootId, y.rootId, nc, fuel, rt]) s := by
-        dsimp only [combineStep, combineItemBase, combineNodeBase, combineRankThreshold,
-          combineFuel, combineZ, combineFirstRoot, combineNodeCount]
-        rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read]
-        simp only [hy_ne0, ↓reduceIte]
-        rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-          hz_rk, hy_rk, hrk_eq]
-        simp only [ne_eq, not_true_eq_false, ↓reduceIte, memoryCost_bind', memoryCost_pure,
-          add_zero]
-        omega
-      have hres : (Memory.spec 0).clientResult s
-          (combineStep ((itemBase, nodeBase, rt, fuel), (z.rootId, y.rootId, nc, cont))) =
-          (nc + 1, rest.head?.elim 0 SHTree.rootId, nc + 1, 1) := by
-        dsimp only [combineStep, combineItemBase, combineNodeBase, combineRankThreshold,
-          combineFuel, combineZ, combineFirstRoot, combineNodeCount]
-        rw [clientResult_bind_read]
-        simp only [hy_ne0, ↓reduceIte]
-        rw [clientResult_bind_read, hz_rk, hy_rk, hrk_eq]
-        simp only [ne_eq, not_true_eq_false, ↓reduceIte]
-        rw [StateTransitionSpec.clientResult_bind, hres_one]
-        rfl
-      have hs_eq : (Memory.spec 0).clientState s
-          (combineStep ((itemBase, nodeBase, rt, fuel), (z.rootId, y.rootId, nc, cont))) = s' := by
-        dsimp only [combineStep, combineItemBase, combineNodeBase, combineRankThreshold,
-          combineFuel, combineZ, combineFirstRoot, combineNodeCount]
-        rw [clientState_bind_read]
-        simp only [hy_ne0, ↓reduceIte]
-        rw [clientState_bind_read, hz_rk, hy_rk, hrk_eq]
-        simp only [ne_eq, not_true_eq_false, ↓reduceIte]
-        rw [StateTransitionSpec.clientState_bind, ← hs'_eq]
-        rfl
+        refine FramedTriple.read_bind (by omega) (FramedTriple.read_bind (by omega) ?_)
+        simp only [hz_rk, hy_rk, hrk_eq, ne_eq, not_true_eq_false, ↓reduceIte]
+        exact FramedTriple.call_eq (c₂ := 0) hone_ft subset_rfl (FramedTriple.pure ⟨rfl, rfl⟩)
+      obtain ⟨hv, hm, -, hres, hs_eq⟩ := framedTriple_iff_realization.mp hft
       have hphi_drop : (memoryCost (combineStep
             ((itemBase, nodeBase, rt, fuel), (z.rootId, y.rootId, nc, cont))) s : ℚ) +
           totalPhi rt (z' :: rest) ≤ totalPhi rt (z :: y :: rest) := by
-        rw [hm]
+        refine le_trans (add_le_add (Nat.cast_le.mpr hm) le_rfl) ?_
         simp only [totalPhi_cons rt, hz'_rk]
         have hpop_z : popDeficit rt z = 0 := hinv.z_pop
         have hpop_z' : popDeficit rt z' = 0 := hinv'.z_pop
@@ -1192,55 +1035,24 @@ private theorem combineStep_spec {rt w ic₀ nc₀ maxItems maxNodes itemBase no
         rw [hpop_z, hpop_z', hrc_z, hrc_y, hrc_z']
         push_cast
         linarith
-      refine ⟨hv, hsafe, ?_, ?_, z', rest, nc + 1, 1, created', ?_, by omega, ?_,
-        Or.inl ⟨rfl, by simp, ?_⟩⟩
+      refine ⟨hv, ⟨h16, fun _ _ => hsafe_one⟩, ?_, ?_, z', rest, nc + 1, 1, created', ?_,
+        by omega, ?_, Or.inl ⟨rfl, by simp, ?_⟩⟩
       · simpa [hhd, hs_eq] using hfr_one
       · intro a ha; simp only [hhd, hs_eq] at ha; exact hmem_one a ha
       · simpa [hhd, hz'_rt] using hres
       · simpa [hhd, hs_eq] using hinv'
       · simpa [hhd] using hphi_drop
-    · have hv : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
-          (combineStep ((itemBase, nodeBase, rt, fuel), (z.rootId, y.rootId, nc, cont)))) := by
+    · have hft : Memory.FramedTriple w s
+          (combineStep ((itemBase, nodeBase, rt, fuel), (z.rootId, y.rootId, nc, cont))) 2 ∅
+          fun r t => r = (z.rootId, y.rootId, nc, 0) ∧ t = s := by
         dsimp only [combineStep, combineItemBase, combineNodeBase, combineRankThreshold,
           combineFuel, combineZ, combineFirstRoot, combineNodeCount]
-        refine validHistory_read_bind (by omega) ?_
         simp only [hy_ne0, ↓reduceIte]
-        refine validHistory_read_bind (by omega) ?_
-        rw [hz_rk, hy_rk]
-        simp only [hrk_eq, ne_eq, not_false_eq_true, ↓reduceIte]
-        exact validHistory_pure w _ _
-      have hsafe : combineStepSafe w
-          ((itemBase, nodeBase, rt, fuel), (z.rootId, y.rootId, nc, cont)) s := by
-        refine ⟨h16, fun _ h => absurd (by rw [hz_rk, hy_rk] at h; exact h) hrk_eq⟩
-      have hm : memoryCost
-          (combineStep ((itemBase, nodeBase, rt, fuel), (z.rootId, y.rootId, nc, cont))) s ≤ 2 := by
-        dsimp only [combineStep, combineItemBase, combineNodeBase, combineRankThreshold,
-          combineFuel, combineZ, combineFirstRoot, combineNodeCount]
-        rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read]
-        simp only [hy_ne0, ↓reduceIte]
-        rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-          hz_rk, hy_rk]
-        simp only [hrk_eq, ne_eq, not_false_eq_true, ↓reduceIte, memoryCost_pure]
-        decide
-      have hres : (Memory.spec 0).clientResult s
-          (combineStep ((itemBase, nodeBase, rt, fuel), (z.rootId, y.rootId, nc, cont))) =
-          (z.rootId, y.rootId, nc, 0) := by
-        dsimp only [combineStep, combineItemBase, combineNodeBase, combineRankThreshold,
-          combineFuel, combineZ, combineFirstRoot, combineNodeCount]
-        rw [clientResult_bind_read]
-        simp only [hy_ne0, ↓reduceIte]
-        rw [clientResult_bind_read, hz_rk, hy_rk]
-        simp only [hrk_eq, ne_eq, not_false_eq_true, ↓reduceIte]
-        rfl
-      have hs' : (Memory.spec 0).clientState s
-          (combineStep ((itemBase, nodeBase, rt, fuel), (z.rootId, y.rootId, nc, cont))) = s := by
-        dsimp only [combineStep, combineItemBase, combineNodeBase, combineRankThreshold,
-          combineFuel, combineZ, combineFirstRoot, combineNodeCount]
-        rw [clientState_bind_read]
-        simp only [hy_ne0, ↓reduceIte]
-        rw [clientState_bind_read, hz_rk, hy_rk]
-        simp only [hrk_eq, ne_eq, not_false_eq_true, ↓reduceIte]
-        rfl
+        framed_triple_step
+        framed_triple_step
+        simp only [hz_rk, hy_rk, hrk_eq, ne_eq, not_false_eq_true, ↓reduceIte]
+        framed_triple
+      obtain ⟨hv, hm, -, hres, hs'⟩ := framedTriple_iff_realization.mp hft
       have hlt_all : ∀ u ∈ y :: rest, z.rank < u.rank := by
         intro u hu
         rcases List.mem_cons.mp hu with rfl | hu'
@@ -1249,6 +1061,9 @@ private theorem combineStep_spec {rt w ic₀ nc₀ maxItems maxNodes itemBase no
       have hinv0 : CombineInv rt w ic₀ nc₀ maxItems maxNodes itemBase nodeBase itemCount origItems
           origEntries newIt z (y :: rest) nc 0 created s :=
         { hinv with cont_zero_lt := fun _ => hlt_all }
+      have hsafe : combineStepSafe w
+          ((itemBase, nodeBase, rt, fuel), (z.rootId, y.rootId, nc, cont)) s :=
+        ⟨h16, fun _ h => absurd (by rw [hz_rk, hy_rk] at h; exact h) hrk_eq⟩
       refine ⟨hv, hsafe, ?_, ?_, z, y :: rest, nc, 0, created, ?_, le_rfl, ?_,
         Or.inr ⟨rfl, rfl, rfl, hm, hs'⟩⟩
       · simpa [hhd] using congrArg Memory.State.frontier hs'
@@ -1376,7 +1191,7 @@ private theorem combine_while_spec {rt w ic₀ nc₀ maxItems maxNodes itemBase 
 
 private theorem shInsertLinkRoot_spec {w nodeBase : ℕ} {s : Memory.State}
     {z : SHTree} {remRoots : List SHTree}
-    (h16 : Fits w 16) (hwf : Memory.WellFormed w s)
+    (hwf : Memory.WellFormed w s)
     (hz_ck : s.mem (nodeBase + 12 * z.rootId) = z.ckey)
     (hz_pos : 0 < z.rootId)
     (hz_lt : nodeBase + 12 * z.rootId + 11 < s.frontier)
@@ -1385,64 +1200,21 @@ private theorem shInsertLinkRoot_spec {w nodeBase : ℕ} {s : Memory.State}
     (hinfo : ∀ t ∈ remRoots, s.mem (nodeBase + 12 * t.rootId) = t.ckey ∧ 0 < t.rootId ∧
       nodeBase + 12 * t.rootId + 11 < s.frontier)
     (hnd : ((z :: remRoots).map SHTree.rootId).Nodup) :
-    let d : Fin 3 → ℕ := ![nodeBase, z.rootId, remRoots.head?.elim 0 SHTree.rootId]
-    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (shInsertLinkRoot d)) ∧
-    memoryCost (shInsertLinkRoot d) s ≤ 7 ∧
-    let s' := (Memory.spec 0).clientState s (shInsertLinkRoot d)
-    s'.frontier = s.frontier ∧
-    (∀ a, s'.mem a ≠ s.mem a →
-      a = nodeBase + 12 * z.rootId + 9 ∨ a = nodeBase + 12 * z.rootId + 10 ∨
-      a = nodeBase + 12 * z.rootId + 11 ∨
-      (∃ r0, remRoots.head? = some r0 ∧ a = nodeBase + 12 * r0.rootId + 9)) ∧
-    RootListRep nodeBase s'.mem 0 (z :: remRoots) := by
-  have h0_fit : Fits w 0 := h16.of_le (by omega)
+    Memory.FramedTriple w s
+      (shInsertLinkRoot ![nodeBase, z.rootId, remRoots.head?.elim 0 SHTree.rootId]) 7
+      {a | a = nodeBase + 12 * z.rootId + 9 ∨ a = nodeBase + 12 * z.rootId + 10 ∨
+        a = nodeBase + 12 * z.rootId + 11 ∨
+        (∃ r0, remRoots.head? = some r0 ∧ a = nodeBase + 12 * r0.rootId + 9)}
+      fun _ s' => s'.frontier = s.frontier ∧ RootListRep nodeBase s'.mem 0 (z :: remRoots) := by
   have hz_fit : Fits w z.rootId := hwf.fits_of_lt_frontier (by omega)
+  unfold shInsertLinkRoot
   cases remRoots with
   | nil =>
-    have hn0 : ([] : List SHTree).head?.elim 0 SHTree.rootId = 0 := rfl
-    rw [hn0]
-    have hv : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (shInsertLinkRoot ![nodeBase, z.rootId, 0])) := by
-      dsimp only [shInsertLinkRoot]
-      simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val, ↓reduceIte]
-      exact validHistory_write_bind (by omega) h0_fit (validHistory_write_bind (by dsimp; omega)
-        h0_fit (validHistory_write (by dsimp; omega) hz_fit))
-    have hm : memoryCost (shInsertLinkRoot ![nodeBase, z.rootId, 0]) s ≤ 7 := by
-      dsimp only [shInsertLinkRoot]
-      simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val, ↓reduceIte]
-      rw [memoryCost_bind', memoryCost_write, clientState_write, memoryCost_bind',
-        memoryCost_write, clientState_write, memoryCost_write]
-      decide
-    have hs' : (Memory.spec 0).clientState s (shInsertLinkRoot ![nodeBase, z.rootId, 0]) =
-        ⟨Function.update (Function.update (Function.update s.mem
-          (nodeBase + 12 * z.rootId + 9) 0)
-          (nodeBase + 12 * z.rootId + 10) 0)
-          (nodeBase + 12 * z.rootId + 11) z.rootId, s.frontier⟩ := by
-      dsimp only [shInsertLinkRoot]
-      simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val, ↓reduceIte]
-      rw [clientState_bind_write, clientState_bind_write, clientState_write]
-    refine ⟨hv, hm, ?_, ?_, ?_⟩
-    · rw [hs']
-    · intro a ha
-      rw [hs'] at ha; dsimp only at ha
-      by_cases h11 : a = nodeBase + 12 * z.rootId + 11
-      · exact Or.inr (Or.inr (Or.inl h11))
-      · by_cases h10 : a = nodeBase + 12 * z.rootId + 10
-        · exact Or.inr (Or.inl h10)
-        · by_cases h9 : a = nodeBase + 12 * z.rootId + 9
-          · exact Or.inl h9
-          · simp only [Function.update_of_ne h11, Function.update_of_ne h10,
-              Function.update_of_ne h9] at ha
-            exact absurd rfl ha
-    · rw [hs']; simp only [RootListRep, suffixMinTree, Option.elim_some]
-      refine ⟨hrk, ?_, ?_, ?_, trivial⟩
-      · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-          Function.update_self]
-      · rw [Function.update_of_ne (by omega), Function.update_self]; rfl
-      · rw [Function.update_self]
+    simp +decide only [List.head?_nil, Option.elim_none, Matrix.cons_val_zero,
+      Matrix.cons_val_one, Matrix.cons_val, ↓reduceIte]
+    framed_triple
+    exact ⟨rfl, hrk, by simp, by simp, by simp [suffixMinTree], trivial⟩
   | cons r0 rest =>
-    have hhd : (r0 :: rest).head?.elim 0 SHTree.rootId = r0.rootId := rfl
-    rw [hhd]
     obtain ⟨hr0_ck, hr0_pos, hr0_lt⟩ := hinfo r0 (by simp)
     have hr0_ne0 : r0.rootId ≠ 0 := by omega
     have hr0_fit : Fits w r0.rootId := hwf.fits_of_lt_frontier (by omega)
@@ -1451,98 +1223,44 @@ private theorem shInsertLinkRoot_spec {w nodeBase : ℕ} {s : Memory.State}
     | none => rw [hsm_eq] at hsm_spec; simp at hsm_spec
     | some sm =>
       rw [hsm_eq] at hsm_spec
-      rcases hsm_spec with ⟨hsm_mem, _⟩
-      obtain ⟨hsm_ck, hsm_pos, hsm_lt⟩ := hinfo sm hsm_mem
-      have hsm_fit : Fits w sm.rootId := hwf.fits_of_lt_frontier (by omega)
+      obtain ⟨hsm_ck, hsm_pos, hsm_lt⟩ := hinfo sm hsm_spec.1
       have hr0_11 : s.mem (nodeBase + 12 * r0.rootId + 11) = sm.rootId := by
         rcases hrep with ⟨_, _, _, h11, _⟩
         simpa [hsm_eq] using h11
-      have hv : (Memory.spec w).ValidHistory s
-          ((Memory.spec w).clientHistory s
-            (shInsertLinkRoot ![nodeBase, z.rootId, r0.rootId])) := by
-        dsimp only [shInsertLinkRoot]
-        simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val, hr0_ne0,
-          ↓reduceIte]
-        refine validHistory_read_bind (by omega) (validHistory_read_bind (by omega) ?_)
-        rw [hr0_11]
-        refine validHistory_read_bind (by omega) ?_
-        refine validHistory_write_bind (by omega) h0_fit (validHistory_write_bind (by dsimp; omega)
-          hr0_fit (validHistory_write_bind (by dsimp; omega) hz_fit ?_))
-        split_ifs
-        · exact validHistory_write (by dsimp; omega) hz_fit
-        · exact validHistory_write (by dsimp; omega) hsm_fit
-      have hm : memoryCost (shInsertLinkRoot ![nodeBase, z.rootId, r0.rootId]) s ≤ 7 := by
-        dsimp only [shInsertLinkRoot]
-        simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val, hr0_ne0,
-          ↓reduceIte]
-        repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
-        rw [hr0_11]
-        repeat (rw [memoryCost_bind', memoryCost_write, clientState_write])
-        split_ifs <;> rw [memoryCost_write]
-      have hs' : (Memory.spec 0).clientState s
-          (shInsertLinkRoot ![nodeBase, z.rootId, r0.rootId]) =
-          ⟨Function.update (Function.update (Function.update (Function.update s.mem
-            (nodeBase + 12 * z.rootId + 9) 0)
-            (nodeBase + 12 * z.rootId + 10) r0.rootId)
-            (nodeBase + 12 * r0.rootId + 9) z.rootId)
-            (nodeBase + 12 * z.rootId + 11)
-            ((suffixMinTree (z :: r0 :: rest)).elim 0 SHTree.rootId), s.frontier⟩ := by
-        dsimp only [shInsertLinkRoot]
-        simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val, hr0_ne0,
-          ↓reduceIte]
-        repeat rw [clientState_bind_read]
-        rw [hr0_11, hz_ck, hsm_ck]
-        repeat rw [clientState_bind_write]
-        split_ifs with hck_le <;>
-          (rw [clientState_write]; simp [suffixMinTree, hsm_eq, hck_le])
-      have hne_zr0 : z.rootId ≠ r0.rootId := by
-        rw [List.map_cons, List.nodup_cons] at hnd
-        exact fun h => hnd.1 (h ▸ List.mem_cons_self)
-      have hrep_out : RootListRep nodeBase ((Memory.spec 0).clientState s
-          (shInsertLinkRoot ![nodeBase, z.rootId, r0.rootId])).mem 0 (z :: r0 :: rest) := by
-        rw [hs']; dsimp only
-        refine ⟨hrk, ?_, ?_, ?_, ?_⟩
+      have hsm_fit : Fits w (s.mem (nodeBase + 12 * r0.rootId + 11)) :=
+        hr0_11 ▸ hwf.fits_of_lt_frontier (by omega)
+      rw [List.map_cons, List.map_cons, List.nodup_cons, List.mem_cons, not_or,
+        List.nodup_cons] at hnd
+      have hpost : ∀ v, v = (suffixMinTree (z :: r0 :: rest)).elim 0 SHTree.rootId →
+          RootListRep nodeBase (Function.update (Function.update (Function.update
+            (Function.update s.mem (nodeBase + 12 * z.rootId + 9) 0)
+            (nodeBase + 12 * z.rootId + 10) r0.rootId) (nodeBase + 12 * r0.rootId + 9) z.rootId)
+            (nodeBase + 12 * z.rootId + 11) v) 0 (z :: r0 :: rest) := by
+        rintro v rfl
+        rcases hrep with ⟨hr0_rk, _, hr0_10, hr0_11', htail⟩
+        refine ⟨hrk, ?_, ?_, Function.update_self _ _ _, hr0_rk, ?_, ?_, ?_, ?_⟩
         · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
             Function.update_of_ne (by omega), Function.update_self]
         · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
             Function.update_self]; rfl
-        · rw [Function.update_self]
-        · rcases hrep with ⟨hr0_rk, _, hr0_10, hr0_11', htail⟩
-          refine ⟨hr0_rk, ?_, ?_, ?_, ?_⟩
-          · rw [Function.update_of_ne (by omega), Function.update_self]
-          · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-              Function.update_of_ne (by omega), Function.update_of_ne (by omega)]; exact hr0_10
-          · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-              Function.update_of_ne (by omega), Function.update_of_ne (by omega)]; exact hr0_11'
-          · refine RootListRep.congr (fun t ht j hj => ?_) htail
-            have hne_zt : t.rootId ≠ z.rootId := by
-              rw [List.map_cons, List.nodup_cons] at hnd
-              exact fun h => hnd.1 (h ▸ List.mem_cons_of_mem _ (List.mem_map_of_mem ht))
-            have hne_r0t : t.rootId ≠ r0.rootId := by
-              rw [List.map_cons, List.nodup_cons, List.map_cons, List.nodup_cons] at hnd
-              exact fun h => hnd.2.1 (h ▸ List.mem_map_of_mem ht)
-            rcases hj with rfl | rfl | rfl
-            · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-                Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-            · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-                Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-            · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-                Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-      refine ⟨hv, hm, ?_, ?_, hrep_out⟩
-      · rw [hs']
-      · intro a ha
-        rw [hs'] at ha; dsimp only at ha
-        by_cases h11 : a = nodeBase + 12 * z.rootId + 11
-        · exact Or.inr (Or.inr (Or.inl h11))
-        · by_cases hr9 : a = nodeBase + 12 * r0.rootId + 9
-          · exact Or.inr (Or.inr (Or.inr ⟨r0, rfl, hr9⟩))
-          · by_cases h10 : a = nodeBase + 12 * z.rootId + 10
-            · exact Or.inr (Or.inl h10)
-            · by_cases h9 : a = nodeBase + 12 * z.rootId + 9
-              · exact Or.inl h9
-              · simp only [Function.update_of_ne h11, Function.update_of_ne hr9,
-                  Function.update_of_ne h10, Function.update_of_ne h9] at ha
-                exact absurd rfl ha
+        · rw [Function.update_of_ne (by omega), Function.update_self]
+        · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
+            Function.update_of_ne (by omega), Function.update_of_ne (by omega)]; exact hr0_10
+        · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
+            Function.update_of_ne (by omega), Function.update_of_ne (by omega)]; exact hr0_11'
+        · refine RootListRep.congr (fun t ht j hj => ?_) htail
+          have hne_zt : t.rootId ≠ z.rootId := fun h => hnd.1.2 (h ▸ List.mem_map_of_mem ht)
+          have hne_r0t : t.rootId ≠ r0.rootId := fun h => hnd.2.1 (h ▸ List.mem_map_of_mem ht)
+          rcases hj with rfl | rfl | rfl <;>
+            rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
+              Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+      simp +decide only [List.head?_cons, Option.elim_some, Matrix.cons_val_zero,
+        Matrix.cons_val_one, Matrix.cons_val, hr0_ne0, ↓reduceIte]
+      framed_triple
+      all_goals try (simp; done)
+      all_goals rename_i hle; rw [hr0_11, hz_ck, hsm_ck] at hle
+      · exact ⟨rfl, hpost _ (by simp [suffixMinTree, hsm_eq, hle])⟩
+      · exact ⟨rfl, hpost _ (by simp [suffixMinTree, hsm_eq, hle, hr0_11])⟩
 
 /-- Insert `(val, origKey)` into the soft heap, maintaining `SHInv`, reporting entry keys and
 permutation of items, framing all writes inside `InSHPool`, and paying `O(h.rankThreshold + 1)`
@@ -1774,8 +1492,9 @@ theorem shInsert_spec {w ic₀ nc₀ maxItems maxNodes val origKey fuel : ℕ}
           exact List.Sublist.cons_cons id
             (List.Sublist.trans ih (List.sublist_append_right _ _))
     exact hsub.nodup hinv_end.nodeIds_nodup
-  have hlink := shInsertLinkRoot_spec h16 hinv_end.wf hinv_end.z_mem.ckey_eq hlink_pos_z
-    hlink_lt_z (hinv_end.cont_zero_lt rfl) hinv_end.rem_rootList hlink_info hlink_nd
+  have hlink := Memory.FramedTriple.realization_of_frontier_eq (shInsertLinkRoot_spec hinv_end.wf
+    hinv_end.z_mem.ckey_eq hlink_pos_z hlink_lt_z (hinv_end.cont_zero_lt rfl)
+    hinv_end.rem_rootList hlink_info hlink_nd)
   rcases hlink with ⟨hv_lk, hm_lk, hfr_lk, hmem_lk, hrep_lk⟩
   obtain ⟨s₃, hs₃_eq⟩ : ∃ s₃, s₃ = (Memory.spec 0).clientState s₂
       (shInsertLinkRoot ![h.nodeBase, z_end.rootId, rem_end.head?.elim 0 SHTree.rootId]) :=

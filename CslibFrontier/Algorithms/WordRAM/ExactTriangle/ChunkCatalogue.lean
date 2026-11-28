@@ -312,8 +312,7 @@ theorem exec {w : ℕ} (x : Data 32) (C : ℕ → ℕ)
       rw [hzi, hnext] at ha
       rw [hzframe _ (by rw [hyh]; omega), hyframe _ (by omega)]
   refine WP.exists_execWithin ?_
-  unfold program
-  wram_exec
+  wram_exec [program]
   wram_call (ExecWithin.loop_invariant I (fun y => p - y.regs cursor) hbody
     ⟨fun i hi hi' => by
       have hne : i ≠ one ∧ i ≠ three ∧ i ≠ cursor ∧ i ≠ written ∧ i ≠ heap ∧ i ≠ stride := by

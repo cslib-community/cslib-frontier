@@ -46,8 +46,7 @@ theorem exec_firstCopy {W : ℕ} (x : Data 640) (hc : x.regs Reg.constant = 5)
       y.regs (copyBank 1) = x.regs Reg.base + 5 ∧
       y.regs (copyBank 2) = x.regs Reg.area ∧ y.regs (copyBank 7) = 0 ∧
       ∀ j : Fin 640, j.val < 620 → y.regs j = x.regs j := by
-  unfold firstCopy
-  wram_exec [hc]
+  wram_exec [firstCopy, hc]
   exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
     fun j hj => by have hn := copyBank_ne_of_not_mem (Or.inl hj); wram_simp [hn]⟩
 
@@ -60,8 +59,7 @@ theorem exec_nextCopy {W : ℕ} (src : Fin 640) (x : Data 640)
       y.regs (copyBank 2) = x.regs (copyBank 2) ∧
       y.regs (copyBank 7) = x.regs (copyBank 7) ∧
       ∀ j : Fin 640, j.val < 620 → y.regs j = x.regs j := by
-  unfold nextCopy
-  wram_exec
+  wram_exec [nextCopy]
   exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
     fun j hj => by have hn := copyBank_ne_of_not_mem (Or.inl hj); wram_simp [hn]⟩
 

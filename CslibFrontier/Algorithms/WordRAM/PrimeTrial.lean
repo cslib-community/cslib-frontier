@@ -77,16 +77,14 @@ theorem exec {w : ℕ} (x : Data 6) (hp : 2 ≤ x.regs arg)
       y.regs arg = x.regs arg ∧ y.mem = x.mem := by
   classical
   let p := x.regs arg
-  unfold program
-  wram_exec
+  wram_exec [program]
   let P (j : ℕ) (y : Data 6) : Prop := y.regs arg = p ∧ y.regs one = 1 ∧
     y.regs zero = 0 ∧ 2 ≤ j ∧ y.regs flag = (if Good p j then 1 else 0) ∧ y.mem = x.mem
   refine WP.of_spec
     (ExecWithin.loop_count (N := p) (T := 5) P (fun _ hy => hy.1) ?_ ?_ ?_) ?_
   · rintro y ⟨ha, ho, hz, hd, hf, hm⟩ hlt
     have hg := good_succ p (y.regs divisor) hd
-    unfold body
-    wram_exec [ha, ho, hz]
+    wram_exec [body, ha, ho, hz]
     · have hng : ¬Good p (y.regs divisor + 1) := fun h => (hg.mp h).2 hc
       dsimp only [P]
       wram_simp [ha, ho, hz, hm, hng]

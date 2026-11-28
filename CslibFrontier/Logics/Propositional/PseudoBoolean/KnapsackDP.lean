@@ -647,16 +647,6 @@ theorem Sub.refl (db : List (ℕ × PBConstr)) : Sub db db := fun _ _ h => h
 theorem Sub.trans {a b c : List (ℕ × PBConstr)} (h₁ : Sub a b) (h₂ : Sub b c) : Sub a c :=
   fun k x h => h₂ k x (h₁ k x h)
 
-private theorem runTop_append (F : List PBConstr) (obj : Option Objective) :
-    ∀ (s : State) (a b : List TopStep),
-      runTop F obj s (a ++ b) = (runTop F obj s a).bind fun s' => runTop F obj s' b
-  | s, [], b => by simp [runTop_nil]
-  | s, t :: a, b => by
-    rw [List.cons_append, runTop_cons, runTop_cons]
-    cases stepTop F obj s t with
-    | none => rfl
-    | some s' => exact runTop_append F obj s' a b
-
 private theorem push_steps (e : ProofLog) (ss : List TopStep) (dn dv : ℕ) :
     (e.push ss dn dv).steps.reverse = e.steps.reverse ++ ss := by
   simp [ProofLog.push]

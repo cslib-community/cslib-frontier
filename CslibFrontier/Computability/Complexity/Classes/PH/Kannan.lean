@@ -402,8 +402,6 @@ private theorem isAlternatingVerifier_verifier (k : ℕ) :
 
 /-! ### Polynomial time -/
 
-attribute [local irreducible] ComputableInPolyTime
-
 open ComputableInPolyTime in
 /-- The verifier for Kannan's language is polynomial-time. -/
 private theorem computableInPolyTime_verifier (k : ℕ) :

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.Embedding.Bundle
 public import CslibFrontier.Computability.Complexity.Problems.NCL.ConstraintGraph.WellFormed
+import CslibFrontier.Foundations.Data.List.Counting
 
 /-!
 # Incidence orders in canonical drawings
@@ -36,13 +37,8 @@ theorem mem_pairLabels (es : List E) (p : Port E) : p âˆˆ Sinks.pairLabels es â†
 
 /-- Each listed edge contributes its two incidence labels. -/
 theorem length_pairLabels (es : List E) : (Sinks.pairLabels es).length = 2 * es.length := by
-  induction es with
-  | nil => rfl
-  | cons _ es ih =>
-    simp only [Sinks.pairLabels, List.flatMap_cons, List.length_append, List.length_cons,
-      List.length_nil]
-    change 2 + (Sinks.pairLabels es).length = 2 * (es.length + 1)
-    omega
+  rw [Nat.mul_comm]
+  exact List.length_flatMap_of_forall_length_eq fun _ _ => rfl
 
 /-- Distinct edges give distinct paired incidence labels. -/
 theorem pairLabels_nodup {es : List E} (hn : es.Nodup) : (Sinks.pairLabels es).Nodup := by

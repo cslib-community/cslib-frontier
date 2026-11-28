@@ -64,19 +64,6 @@ family no padding happens. -/
     BitString n :=
   BitString.ofList n (family (List.ofFn key) (List.ofFn x))
 
-/-- For a length-preserving family, the table `PRF.atLevel family n key` presents the keyed word
-oracle `prfOracle family n key`. -/
-private theorem randomFunctionOracle_atLevel {family : List Bool → List Bool → List Bool}
-    (hlength : ∀ key query, query.length = key.length → (family key query).length = key.length)
-    (n : ℕ) (key : BitString n) (query : List Bool) :
-    randomFunctionOracle n (atLevel family n key) query =
-      prfOracle family n (List.ofFn key) query := by
-  unfold randomFunctionOracle prfOracle atLevel
-  split_ifs with hquery
-  · rw [BitString.ofFn_ofList hquery, BitString.ofFn_ofList]
-    rw [hlength _ _ (by rw [List.length_ofFn, hquery]), List.length_ofFn]
-  · rfl
-
 /-- For a length-preserving family, the finite real PRF experiment on `(OracleCodec.bitString
 n).adapt (A n [])` against `PRF.atLevel family n` has the same Boolean law as
 `prfRealGame id family A n`. -/
@@ -85,9 +72,12 @@ theorem eval_realExperiment_atLevel_adapt {family : List Bool → List Bool → 
     (A : OracleDistinguisher) (n : ℕ) :
     ProbComp.eval (realExperiment (atLevel family n) ((OracleCodec.bitString n).adapt (A n []))) =
       ProbComp.eval (prfRealGame id family A n) := by
+  have hwidth (key query : List Bool) (hk : key.length = n) (hq : query.length = n) :
+      (family key query).length = n :=
+    (hlength key query (hq.trans hk.symm)).trans hk
   simp only [realExperiment, prfRealGame, id_eq, ProbComp.eval_bind, ProbComp.eval_uniform,
     BitString.eval_sampleList, BitString.uniformList, PMF.bind_map, OracleCodec.run_adapt,
-    wordOracle_bitString, Function.comp_def, randomFunctionOracle_atLevel hlength]
+    wordOracle_bitString, Function.comp_def, atLevel, randomFunctionOracle_keyed hwidth]
 
 /-- The finite ideal PRF experiment on `(OracleCodec.bitString n).adapt (A n [])` equals
 `prfIdealGame id id A n`. -/

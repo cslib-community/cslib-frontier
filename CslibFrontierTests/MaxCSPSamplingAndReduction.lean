@@ -226,6 +226,10 @@ example {Rel V : Type} (encRel : Rel ↪ List Bool) (encV : V ↪ List Bool) (c 
 
 example {Rel : Type} (encRel : Rel ↪ List Bool) (F : MaxCSPInstance Rel ℕ) :
     encMaxCSPInstance encRel F =
+      encPair encUnary (encCSP encRel encNat) (F.numVars, F.constraints) := rfl
+
+example {Rel : Type} (encRel : Rel ↪ List Bool) (F : MaxCSPInstance Rel ℕ) :
+    encMaxCSPInstance encRel F =
       encPair encUnary (encList (encPair encRel (encList encNat)))
         (F.numVars, F.constraints.map fun c => (c.rel, c.scope)) := by
   simp only [encMaxCSPInstance_apply, encPair_apply, encList, Function.Embedding.coeFn_mk,

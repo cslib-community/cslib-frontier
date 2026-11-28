@@ -326,8 +326,7 @@ declaration unchanged. Classification unfolds only `@[reducible]` constants, and
 looks for a universe in the type of a term, which unfolding a `Prop`-valued constant never
 produces. A module cannot change the reducible status of an imported constant without
 `allowUnsafeReducibility`; a change to that status, or to a constant that is not `Prop`-valued,
-makes the invocation classify imported declarations itself. `[local irreducible]
-ComputableInPolyTime` keeps the shared classifications. -/
+makes the invocation classify imported declarations itself. -/
 private meta def importedClassificationsStable : MetaM Bool := do
   let env ← getEnv
   let state := reducibilityExtraExt.getState env
@@ -525,10 +524,6 @@ meta def Internal.withPlainRuleCache (action : TacticM Unit) : TacticM Unit :=
         return certificates.insert key entries
     let env := searchRuleState Cslib.Tactic.certificateExt env fun _ => certificates
     let env ← plainBuiltinEnvironment env
-    -- Match plain certificates on their programs and encodings, without comparing existential
-    -- machine witnesses when a candidate fails to match one of those arguments.
-    let env := searchRuleState reducibilityExtraExt env fun status =>
-      status.insert ``ComputableInPolyTime .irreducible
     withEnv env action
 
 open Lean Meta in

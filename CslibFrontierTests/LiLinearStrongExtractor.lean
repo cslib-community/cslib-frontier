@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.AltExt
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.LinearStrongExtractor
+public meta import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.LinearStrongExtractor
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
 import CslibFrontier.Probability.MinEntropy
 import CslibFrontier.Probability.PMF.Map
@@ -21,7 +22,10 @@ import Mathlib.Tactic.NormNum
 * `CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.AltExt`
 
 Exercises concrete non-vacuous witnesses, linearity & structural checks, boundary behavior, and
-alternating-extraction / polynomial-correlation-breaker compositions. -/
+alternating-extraction / polynomial-correlation-breaker compositions. The `#guard` checks run the
+compiled blocks of `rrvWeakDesign` and `rrvWeakDesignTwo`. -/
+
+set_option linter.hashCommand false
 
 public section
 
@@ -68,6 +72,28 @@ theorem rrvWeakDesignTwo_2_2_overlap_le :
 theorem rrvWeakDesignTwo_2_2_card_block (i : Fin 2) :
     #((rrvWeakDesignTwo 2 2 (by omega)).block i) = 2 :=
   (rrvWeakDesignTwo 2 2 (by omega)).card_block i
+
+/-! The `#guard`s below run the compiled blocks of the RRV designs, element values in increasing
+order. The expected values of the first three come from an independent implementation of the
+greedy choice. -/
+
+#guard (List.finRange 2).map (fun i =>
+    ((List.finRange (2 * (2 * 2))).filter (· ∈ (rrvWeakDesignTwo 2 2 (by omega)).block i)).map
+      Fin.val) == [[0, 4], [1, 5]]
+
+#guard (List.finRange 4).map (fun i =>
+    ((List.finRange (8 * 2)).filter (· ∈ (rrvWeakDesign 8 2 4 (by omega)).block i)).map
+      Fin.val) ==
+  [[0, 2, 4, 6, 8, 10, 12, 14], [1, 3, 5, 7, 9, 11, 13, 15], [0, 3, 4, 7, 8, 11, 12, 15],
+    [1, 2, 5, 6, 9, 10, 13, 14]]
+
+-- With no earlier blocks every potential is `0`, so the first block takes value `0` at every
+-- coordinate.
+#guard ((List.finRange (40 * 2)).filter (· ∈ (rrvWeakDesign 40 2 1 (by omega)).block 0)).map
+    Fin.val == (List.range 40).map (2 * ·)
+
+-- With `t = 0` every block is empty.
+#guard ((rrvWeakDesign 0 2 3 (by omega)).block 2).card == 0
 
 /-- Concatenated RS–Hadamard code XOR-linearity witness. -/
 theorem rsHadamardCode_4_2_add (x y : BitString 4) (idx : BitString (2 + 2)) :
