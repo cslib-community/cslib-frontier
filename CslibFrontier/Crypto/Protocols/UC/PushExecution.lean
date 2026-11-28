@@ -45,7 +45,8 @@ under `#6043`.
 
 * `runFrom_iterate_step_succ_of_not_mem_halted`, `runFrom_iterate_step_succ_of_mem_halted`,
   `runFrom_iterate_step_of_output_isSome`: three-branch operational unfolding of
-  `OracleComp.iterate _ (step S)` against `SSP.parFin`.
+  `OracleComp.iterate _ (step S)` against `SSP.parFin`, with
+  `runFrom_iterate_step_succ_of_handle_eq_pure` for deterministic handler steps.
 * `isQueryBounded_step`, `isQueryBounded_iterate_step`, `isQueryBounded_pushRun`: query-count
   budgets for single steps, `fuel`-step runs, and closed push executions of bounded reactive
   nodes (call-count budgets only; computational polynomial time is open in `#6043`).
@@ -174,6 +175,19 @@ theorem runFrom_iterate_step_succ_of_not_mem_halted (S : PushSystem m Msg) (κ f
   rw [OracleComp.iterate_succ_bind, step_of_not_mem_halted S ho hh, bind_assoc]
   simp only [pure_bind, Machine.runFrom_bind, Machine.runFrom_query, SSP.parFin_handle,
     bind_map_left]
+
+/-- Library infrastructure (no cited result): when `ts.target`'s handler on `ts.delivery`
+deterministically returns `(out, v)`, one active scheduler step against `SSP.parFin` continues
+with `ts.next S out` from the state `s'` obtained by writing `v` into `ts.target`'s slot. -/
+theorem runFrom_iterate_step_succ_of_handle_eq_pure (S : PushSystem m Msg) (κ f : ℕ)
+    {ts : TokenState m Msg} (ho : ts.output = none) (hh : ts.target ∉ ts.halted)
+    {s s' : (SSP.parFin (S.node κ)).State} {out : Outcome m Msg}
+    {v : (S.node κ ts.target).State}
+    (hstep : ((S.node κ ts.target).handle ts.delivery).run (s ts.target) = pure (out, v))
+    (hs : (Function.update s ts.target v : (SSP.parFin (S.node κ)).State) = s') :
+    (SSP.parFin (S.node κ)).runFrom (OracleComp.iterate (f + 1) (step S) ts) s =
+      (SSP.parFin (S.node κ)).runFrom (OracleComp.iterate f (step S) (ts.next S out)) s' := by
+  rw [runFrom_iterate_step_succ_of_not_mem_halted S κ f ho hh s, hstep, pure_bind, hs]
 
 /-- Library infrastructure (no cited result): one scheduler step on a halted target against
 `SSP.parFin` makes no node activation and returns control to `S.initial` with `.resume`. -/

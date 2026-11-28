@@ -23,8 +23,10 @@ it visits is `loopStep^[k] (initialState C)` for some `k ≤ 5 n + 7 C.size` (`r
 the run:
 
 * no step creates a parameter, auxiliary variable or gate name: these only move between roles or
-  are deleted, so every such name stays below `n + C.size` (`nameSet_iterate`). Equation names are
-  not bounded here (`moveAffine` takes the fresh name `freshEqn`); only the number of equations is;
+  are deleted, so every such name stays below `n + C.size` (`nameSet_iterate`);
+* the initial state has no equations and each step adds at most the fresh name `freshEqn`, so after
+  `k` steps every equation name is below `k`, and below `5 n + 7 C.size` in the state `refute`
+  searches (`eqns_iterate`, `eqns_refuterLoop`);
 * the state stays valid and the measure does not increase (`valid_iterate`, from
   `applyStep_valid`), which bounds the numbers of parameters, gates, equations and pairs, and the
   terms per equation (`sizes_iterate`).
@@ -43,6 +45,9 @@ the run:
 * `Cslib.Circuits.Boolean.AffineDisperser4n.refuterMeasure_initialState`: the initial measure is
   exactly `5 n + 7 · C.program.cost binaryB2Cost`.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.refute_steps`: at most `5 n + 7 C.size` steps.
+* `Cslib.Circuits.Boolean.AffineDisperser4n.eqns_iterate`,
+  `Cslib.Circuits.Boolean.AffineDisperser4n.eqns_refuterLoop`: equation names are below the number
+  of steps, and below `5 n + 7 C.size` at the end of the run.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.nameSet_iterate`,
   `Cslib.Circuits.Boolean.AffineDisperser4n.sizes_iterate`: names, counts and `varBound` of every
   state along the run, bounded in `n` and `C.size`.
@@ -142,37 +147,48 @@ theorem refute_steps (C : Circuit (fullSignature 2 Bool) n 1) :
 def nameSet (S : State n) : Finset ℕ :=
   S.params ∪ S.aux ∪ S.gates
 
-/-- `S'` has no parameter, auxiliary variable or gate that `S` lacks, role by role. -/
+/-- `S'` has no parameter, auxiliary variable, gate or equation that `S` lacks, role by role. -/
 private def Shrinks (S' S : State n) : Prop :=
-  S'.params ⊆ S.params ∧ S'.aux ⊆ S.aux ∧ S'.gates ⊆ S.gates
+  S'.params ⊆ S.params ∧ S'.aux ⊆ S.aux ∧ S'.gates ⊆ S.gates ∧ S'.eqns ⊆ S.eqns
 
 private theorem Shrinks.trans {S₁ S₂ S₃ : State n} (h₁ : Shrinks S₁ S₂) (h₂ : Shrinks S₂ S₃) :
     Shrinks S₁ S₃ :=
-  ⟨h₁.1.trans h₂.1, h₁.2.1.trans h₂.2.1, h₁.2.2.trans h₂.2.2⟩
+  ⟨h₁.1.trans h₂.1, h₁.2.1.trans h₂.2.1, h₁.2.2.1.trans h₂.2.2.1, h₁.2.2.2.trans h₂.2.2.2⟩
 
 private theorem Shrinks.nameSet {S' S : State n} (h : Shrinks S' S) : nameSet S' ⊆ nameSet S :=
-  Finset.union_subset_union (Finset.union_subset_union h.1 h.2.1) h.2.2
+  Finset.union_subset_union (Finset.union_subset_union h.1 h.2.1) h.2.2.1
+
+/-- What one step keeps: no new parameter, auxiliary variable or gate name, and at most the fresh
+equation name `S.freshEqn`. -/
+private def StepBound (S' S : State n) : Prop :=
+  nameSet S' ⊆ nameSet S ∧ S'.eqns ⊆ insert S.freshEqn S.eqns
+
+private theorem Shrinks.stepBound {S' S : State n} (h : Shrinks S' S) : StepBound S' S :=
+  ⟨h.nameSet, h.2.2.2.trans (Finset.subset_insert _ _)⟩
+
+private theorem StepBound.refl (S : State n) : StepBound S S :=
+  ⟨subset_rfl, Finset.subset_insert _ _⟩
 
 private theorem shrinks_restrict (S : State n) (x : ℕ) (ℓ : Lit) (P : Finset ZeroPair) :
     Shrinks (S.restrict x ℓ P) S :=
-  ⟨Finset.erase_subset _ _, subset_rfl, subset_rfl⟩
+  ⟨Finset.erase_subset _ _, subset_rfl, subset_rfl, subset_rfl⟩
 
 private theorem shrinks_fixConst (S : State n) (w : ℕ) (b : Bool) : Shrinks (S.fixConst w b) S :=
   shrinks_restrict _ _ _ _
 
 private theorem shrinks_addPair (S : State n) (pr : ZeroPair) : Shrinks (S.addPair pr) S :=
-  ⟨subset_rfl, subset_rfl, subset_rfl⟩
+  ⟨subset_rfl, subset_rfl, subset_rfl, subset_rfl⟩
 
 private theorem shrinks_deleteGate (S : State n) (J : ℕ) (ℓ : Lit) :
     Shrinks (S.deleteGate J ℓ) S :=
-  ⟨subset_rfl, subset_rfl, Finset.erase_subset _ _⟩
+  ⟨subset_rfl, subset_rfl, Finset.erase_subset _ _, subset_rfl⟩
 
 private theorem shrinks_deleteEqn (S : State n) (e v : ℕ) (ℓ : Lit) :
     Shrinks (S.deleteEqn e v ℓ) S :=
-  ⟨subset_rfl, Finset.erase_subset _ _, subset_rfl⟩
+  ⟨subset_rfl, Finset.erase_subset _ _, subset_rfl, Finset.erase_subset _ _⟩
 
 private theorem shrinks_dropTrivialEqn (S : State n) (e : ℕ) : Shrinks (S.dropTrivialEqn e) S :=
-  ⟨subset_rfl, subset_rfl, subset_rfl⟩
+  ⟨subset_rfl, subset_rfl, subset_rfl, Finset.erase_subset _ _⟩
 
 private theorem shrinks_deleteConstraint (S : State n) (N : ℕ ⊕ ℕ) :
     Shrinks (S.deleteConstraint N) S := by
@@ -244,16 +260,34 @@ private theorem nameSet_unitDelete (S : State n) (x e : ℕ) :
     · exact Or.inr h
   · exact subset_rfl
 
-/-- A step chosen by the refuter creates no parameter, auxiliary variable or gate name. -/
-theorem nameSet_applyStep {S : State n} {c : StepChoice} (hc : chooseStep? S = some c) :
-    nameSet (applyStep S c) ⊆ nameSet S := by
+/-- `unitDelete` adds no equation. -/
+private theorem eqns_unitDelete (S : State n) (x e : ℕ) : (unitDelete S x e).eqns ⊆ S.eqns := by
+  unfold unitDelete
+  split
+  · exact Finset.erase_subset _ _
+  · exact subset_rfl
+
+private theorem stepBound_unitDelete (S : State n) (x e : ℕ) : StepBound (unitDelete S x e) S :=
+  ⟨nameSet_unitDelete S x e, (eqns_unitDelete S x e).trans (Finset.subset_insert _ _)⟩
+
+/-- `unitDelete` after a shrinking operation. -/
+private theorem stepBound_unitDelete_trans {S' S : State n} (x e : ℕ) (h : Shrinks S' S) :
+    StepBound (unitDelete S' x e) S :=
+  ⟨(nameSet_unitDelete S' x e).trans h.nameSet,
+    ((eqns_unitDelete S' x e).trans h.2.2.2).trans (Finset.subset_insert _ _)⟩
+
+/-- One step chosen by the refuter: no new parameter, auxiliary variable or gate name, and at most
+the one fresh equation name `S.freshEqn` (taken by `moveAffine`). -/
+private theorem stepBound_applyStep {S : State n} {c : StepChoice} (hc : chooseStep? S = some c) :
+    StepBound (applyStep S c) S := by
   cases c with
-  | deleteConstantGate J => exact (shrinks_deleteConstraint _ _).nameSet
-  | deleteDeadGate J => exact (shrinks_deleteGate _ _ _).nameSet
-  | deleteShortEqn e => exact (shrinks_deleteConstraint _ _).nameSet
-  | deleteUnitParam x e => exact nameSet_unitDelete _ _ _
+  | deleteConstantGate J => exact (shrinks_deleteConstraint _ _).stepBound
+  | deleteDeadGate J => exact (shrinks_deleteGate _ _ _).stepBound
+  | deleteShortEqn e => exact (shrinks_deleteConstraint _ _).stepBound
+  | deleteUnitParam x e => exact stepBound_unitDelete _ _ _
   | moveAffine J =>
     have hJ : J ∈ S.gates := mem_gates_of_chooseStep?_moveAffine hc
+    refine ⟨?_, subset_rfl⟩
     intro i hi
     change i ∈ S.params ∪ insert J S.aux ∪ S.gates.erase J at hi
     simp only [Finset.mem_union, Finset.mem_insert, Finset.mem_erase] at hi
@@ -268,34 +302,34 @@ theorem nameSet_applyStep {S : State n} {c : StepChoice} (hc : chooseStep? S = s
     simp only [applyStep]
     split
     · split_ifs
-      · exact (shrinks_fixConst _ _ _).nameSet
+      · exact (shrinks_fixConst _ _ _).stepBound
       · split
         · exact ((shrinks_deleteConstraint _ _).trans ((shrinks_deleteConstraint _ _).trans
-            (shrinks_fixConst _ _ _))).nameSet
-        · exact subset_rfl
-    · exact subset_rfl
+            (shrinks_fixConst _ _ _))).stepBound
+        · exact StepBound.refl _
+    · exact StepBound.refl _
   | partnersShareChild p =>
     simp only [applyStep]
     split
-    · exact (shrinks_partnersShareChildStep _ _ _).nameSet
-    · exact subset_rfl
+    · exact (shrinks_partnersShareChildStep _ _ _).stepBound
+    · exact StepBound.refl _
   | pairInSystem p =>
     simp only [applyStep]
     split
     · split
       · split_ifs
-        · exact ((shrinks_deleteConstraint _ _).trans (shrinks_fixConst _ _ _)).nameSet
-        · exact (nameSet_unitDelete _ _ _).trans
-            ((shrinks_deleteConstraint _ _).trans (shrinks_fixConst _ _ _)).nameSet
-      · exact subset_rfl
-    · exact subset_rfl
+        · exact ((shrinks_deleteConstraint _ _).trans (shrinks_fixConst _ _ _)).stepBound
+        · exact stepBound_unitDelete_trans _ _
+            ((shrinks_deleteConstraint _ _).trans (shrinks_fixConst _ _ _))
+      · exact StepBound.refl _
+    · exact StepBound.refl _
   | andOnPair G p =>
     simp only [applyStep]
     split
     · split
-      · exact (shrinks_andOnPairStep _ _ _ _ _ _ _ _ _ _ _).nameSet
-      · exact subset_rfl
-    · exact subset_rfl
+      · exact (shrinks_andOnPairStep _ _ _ _ _ _ _ _ _ _ _).stepBound
+      · exact StepBound.refl _
+    · exact StepBound.refl _
   | swapAuxIn G =>
     simp only [applyStep]
     split
@@ -308,31 +342,46 @@ theorem nameSet_applyStep {S : State n} {c : StepChoice} (hc : chooseStep? S = s
           · cases hab; exact h₂
         · cases hab
       split_ifs
-      · exact (shrinks_deleteGate _ _ _).nameSet
-      · exact (shrinks_deleteGate _ _ _).nameSet
+      · exact (shrinks_deleteGate _ _ _).stepBound
+      · exact (shrinks_deleteGate _ _ _).stepBound
       · split
         · rename_i y hy
           have hy' : y ∈ (findAffineRep S a).2 :=
             (Finset.mem_sort _).1 (List.mem_of_find?_eq_some hy)
           have hyp : y ∈ S.params := (Finset.mem_filter.1 hy').1
-          exact nameSet_swap _ _ (by unfold nameSet; simp [hyp]) (by unfold nameSet; simp [ha])
-        · exact subset_rfl
-    · exact subset_rfl
+          exact ⟨nameSet_swap _ _ (by unfold nameSet; simp [hyp]) (by unfold nameSet; simp [ha]),
+            Finset.subset_insert _ _⟩
+        · exact StepBound.refl _
+    · exact StepBound.refl _
   | pairCreation G =>
     simp only [applyStep]
     split
     · split
       · exact ((shrinks_deleteConstraint _ _).trans ((shrinks_deleteGate _ _ _).trans
-          (shrinks_addPair _ _))).nameSet
-      · exact subset_rfl
-    · exact subset_rfl
+          (shrinks_addPair _ _))).stepBound
+      · exact StepBound.refl _
+    · exact StepBound.refl _
 
-theorem nameSet_loopStep (S : State n) : nameSet (loopStep S) ⊆ nameSet S := by
+/-- A step chosen by the refuter creates no parameter, auxiliary variable or gate name. -/
+theorem nameSet_applyStep {S : State n} {c : StepChoice} (hc : chooseStep? S = some c) :
+    nameSet (applyStep S c) ⊆ nameSet S :=
+  (stepBound_applyStep hc).1
+
+/-- A step chosen by the refuter adds at most the equation name `S.freshEqn`. -/
+theorem eqns_applyStep {S : State n} {c : StepChoice} (hc : chooseStep? S = some c) :
+    (applyStep S c).eqns ⊆ insert S.freshEqn S.eqns :=
+  (stepBound_applyStep hc).2
+
+private theorem stepBound_loopStep (S : State n) : StepBound (loopStep S) S := by
   unfold loopStep
   split
   · rename_i c hc
-    exact nameSet_applyStep hc
-  · exact subset_rfl
+    exact stepBound_applyStep hc
+  · exact StepBound.refl S
+
+/-- One iteration of the loop creates no parameter, auxiliary variable or gate name. -/
+theorem nameSet_loopStep (S : State n) : nameSet (loopStep S) ⊆ nameSet S :=
+  (stepBound_loopStep S).1
 
 /-- The initial names are below `n + C.size`. -/
 theorem nameSet_initialState (C : Circuit (fullSignature 2 Bool) n 1) :
@@ -355,6 +404,43 @@ theorem nameSet_iterate (C : Circuit (fullSignature 2 Bool) n 1) (k : ℕ) :
   | succ k ih =>
     rw [Function.iterate_succ_apply']
     exact (nameSet_loopStep _).trans ih
+
+/-! ### Equation names -/
+
+/-- One iteration of the loop adds at most the equation name `S.freshEqn`. -/
+theorem eqns_loopStep (S : State n) : (loopStep S).eqns ⊆ insert S.freshEqn S.eqns :=
+  (stepBound_loopStep S).2
+
+/-- If every equation name is below `k`, the fresh equation name is at most `k`. -/
+private theorem freshEqn_le {S : State n} {k : ℕ} (h : S.eqns ⊆ Finset.range k) :
+    S.freshEqn ≤ k := by
+  change (if hne : S.eqns.Nonempty then S.eqns.max' hne + 1 else 0) ≤ k
+  split_ifs with hne
+  · exact Finset.mem_range.1 (h (S.eqns.max'_mem hne))
+  · exact Nat.zero_le _
+
+/-- Along the run, every equation name is below the number of steps taken: the initial state has
+no equations, and each step adds at most one fresh name. -/
+theorem eqns_iterate (C : Circuit (fullSignature 2 Bool) n 1) (k : ℕ) :
+    (loopStep^[k] (initialState C)).eqns ⊆ Finset.range k := by
+  induction k with
+  | zero =>
+    change (ofCircuitBinary C).eqns ⊆ _
+    simp
+  | succ k ih =>
+    rw [Function.iterate_succ_apply']
+    intro e he
+    rcases Finset.mem_insert.1 (eqns_loopStep _ he) with rfl | he
+    · exact Finset.mem_range.2 (Nat.lt_succ_of_le (freshEqn_le ih))
+    · exact Finset.mem_range.2 (Nat.lt_succ_of_lt (Finset.mem_range.1 (ih he)))
+
+/-- Every equation name of the state `refute` searches is below `5 n + 7 C.size`. -/
+theorem eqns_refuterLoop (C : Circuit (fullSignature 2 Bool) n 1) :
+    (refuterLoop (initialState C) (refuterMeasure (initialState C))).eqns ⊆
+      Finset.range (5 * n + 7 * C.size) := by
+  rw [refuterLoop_eq_iterate]
+  exact (eqns_iterate C _).trans fun x hx =>
+    Finset.mem_range.2 ((Finset.mem_range.1 hx).trans_le (refute_steps C))
 
 /-! ### Validity and counts along the run -/
 

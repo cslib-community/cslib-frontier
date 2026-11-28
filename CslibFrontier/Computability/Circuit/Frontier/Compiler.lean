@@ -65,7 +65,9 @@ This file proves the graph-theoretic and counting properties of `Compiler.graph 
 * `Cslib.Circuits.Frontier.Compiler.card_signal_le_innerSize`,
   `Cslib.Circuits.Frontier.Compiler.card_signal_le`: there are at most `r s + m` (hence at most
   `r * c.size + m`) reachable signals.
-* `Cslib.Circuits.Frontier.Compiler.card_vertex_le`: there are at most `2 r s + 3 m` vertices.
+* `Cslib.Circuits.Frontier.Compiler.card_vertex_le` and
+  `Cslib.Circuits.Frontier.Compiler.card_edge_le` bound the vertex count by `2 r s + 3 m`
+  and the edge count by `2 (r s + m)`.
 
 ## References
 
@@ -90,6 +92,20 @@ theorem loopless : (graph c).Loopless := by
   · change Vertex.junction j = owner (junctionEquiv c j) at h
     generalize junctionEquiv c j = t at h
     rcases t with a | o <;> cases h
+
+/-- The vertex reading an exterior input has at most one internal edge. -/
+theorem ncard_incidenceSet_site_le_one {i : Fin n} {v : Vertex c} (hsite : site c i = some v) :
+    ((graph c).incidenceSet v).ncard ≤ 1 := by
+  obtain ⟨hi, rfl⟩ := site_eq_some hsite
+  have hsub : (graph c).incidenceSet (.signal ⟨.input i, hi⟩) ⊆
+      {head ⟨.input i, hi⟩} := by
+    intro e he
+    rw [mem_singleton_iff]
+    rcases he with hs | ht
+    · exact eq_head_of_src_eq_signal hs
+    · obtain ⟨a, ha, -⟩ := exists_slot_of_tgt_eq_signal ht
+      nomatch ha
+  exact (ncard_le_ncard hsub (toFinite _)).trans (by simp)
 
 /-- A gate has at most `r` argument slots when the fan-in is at most `r`. -/
 private theorem ncard_slot_le {r : ℕ} (hfan : c.FanInAtMost r) (w : Wire n c.size) :
@@ -576,6 +592,13 @@ theorem cycleRank_add_ncard_read_le {r : ℕ} (hfan : c.FanInAtMost r)
     (graph c).cycleRank + (network c I Acc).read.ncard ≤ (r - 1) * c.innerSize + 1 :=
   (cycleRank_add_ncard_read_le_multiarySize I Acc hfan hconn).trans
     (Nat.add_le_add_right (Nat.mul_le_mul_left _ c.multiarySize_le_innerSize) 1)
+
+/-- Two edges serve each consumer. There are at most `r` consumers per inner gate, plus one
+per output. -/
+theorem card_edge_le {r : ℕ} (hfan : c.FanInAtMost r) :
+    Nat.card (Edge c) ≤ 2 * (r * c.innerSize + m) := by
+  rw [card_edge, card_consumer]
+  exact Nat.mul_le_mul_left _ (Nat.add_le_add_right (card_slot_le_innerSize hfan) _)
 
 /-- **The number of vertices** is at most `2 r s + 3 m` for fan-in at most `r`, where `s` counts
 the inner gates and `m` the outputs. -/

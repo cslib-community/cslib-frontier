@@ -47,9 +47,9 @@ comparisons, stated in the shape of the rank bound.
    a counting argument over distinct comparison transcripts rather than distinct results.
 
 Given a tree of size `n` with distinct keys `xs` and distinct values, and a fresh key `k ∉ xs`,
-the `n + 1` key functions that send `xs[j]` to `2 * j` and `k` either to `2 * i` for some `i < n`
-or to the odd number `2 * n + 1` keep `xs` strictly increasing. Under the `i`-th one the lookup of
-`k` must return the `i`-th value, and under the last one `none`. Applying
+the `n + 1` key functions that send `xs[j]` to `j` and `k` to `i ∈ {0, …, n}` keep `xs` strictly
+increasing. The lookup of `k` returns the value at index `i` when `i < n` and `none` when `i = n`.
+Applying
 `FreeM.exists_countQueries_ge_clog` to the binary-response query type `LEQuery α` shows that one
 of these oracles forces `⌈log₂(n + 1)⌉` comparisons (`lookup_lowerBound_infinite`). Bulk-loading
 `n` distinct keys with `n` distinct values via `exists_isWF_toList_map_snd_eq` lifts this to
@@ -152,52 +152,46 @@ theorem lookup_lowerBound_infinite [Infinite α]
   have hn : l.length = n := length_toList
   obtain ⟨k, hk⟩ : ∃ k : α, k ∉ xs := by
     simpa using Infinite.exists_notMem_finset xs.toFinset
-  let key : Fin (n + 1) → α → ℕ := fun i a =>
-    if a = k then (if (i : ℕ) < n then 2 * i else 2 * n + 1) else 2 * xs.idxOf a
-  have key_getElem (i : Fin (n + 1)) (j : ℕ) (hj : j < l.length) : key i l[j].1 = 2 * j := by
+  let key (i : Fin (n + 1)) (a : α) := if a = k then (i : ℕ) else xs.idxOf a
+  have key_getElem (i : Fin (n + 1)) (j : ℕ) (hj : j < l.length) : key i l[j].1 = j := by
     have hxs : xs[j]'(by rwa [List.length_map]) = l[j].1 := List.getElem_map ..
     have hne : l[j].1 ≠ k := fun he => hk (he ▸ hxs ▸ List.getElem_mem _)
     simp only [key, hne, ↓reduceIte]
     rw [← hxs]
-    exact congrArg (2 * ·) (hkeys.idxOf_getElem j _)
+    exact hkeys.idxOf_getElem j _
   have hsorted (i : Fin (n + 1)) : (l.map fun x => key i x.1).Pairwise (· < ·) := by
     refine List.pairwise_iff_getElem.mpr fun a b ha hb hab => ?_
-    rw [List.length_map] at ha hb
-    rw [List.getElem_map, List.getElem_map, key_getElem i a ha, key_getElem i b hb]
-    omega
-  let ans : Fin (n + 1) → Option β := fun i =>
-    if hi : (i : ℕ) < n then some (l[(i : ℕ)]'(by omega)).2 else none
+    simp only [List.length_map] at ha hb
+    simpa only [List.getElem_map, key_getElem] using hab
+  let vals := l.map Prod.snd
+  let ans (i : Fin (n + 1)) := vals[(i : ℕ)]?
+  have hlen : vals.length = l.length := List.length_map _
   have heval (i : Fin (n + 1)) : (prog k tree).eval (LEQuery.keyOracle (key i)) = ans i := by
     rw [h.correct (key i) k tree (hsorted i)]
-    by_cases hi : (i : ℕ) < n
-    · have hki : key i k = 2 * i := by simp [key, hi]
-      have hnodup : ((l.map fun x => (key i x.1, x.2)).map Prod.fst).Nodup := by
-        rw [List.map_map]
-        exact (hsorted i).imp Nat.ne_of_lt
-      have hans : ans i = some (l[(i : ℕ)]'(by omega)).2 := by simp only [ans, hi, ↓reduceDIte]
-      rw [hki, hans, List.lookup_eq_some_iff_mem hnodup]
-      exact List.mem_map.mpr ⟨l[(i : ℕ)]'(by omega), List.getElem_mem _, by
-        rw [key_getElem i i (by omega)]⟩
-    · have hki : key i k = 2 * n + 1 := by simp [key, hi]
-      have hans : ans i = none := by simp only [ans, hi, ↓reduceDIte]
-      rw [hki, hans]
+    have hki : key i k = i := by simp [key]
+    change (l.map fun x => (key i x.1, x.2)).lookup (key i k) = vals[(i : ℕ)]?
+    rw [hki]
+    by_cases hi : (i : ℕ) < l.length
+    · rw [List.getElem?_eq_getElem (show (i : ℕ) < vals.length by rwa [hlen]),
+        List.getElem_map, List.lookup_eq_some_iff_mem (by
+          rw [List.map_map]
+          exact (hsorted i).imp Nat.ne_of_lt)]
+      exact List.mem_map.mpr ⟨l[(i : ℕ)], List.getElem_mem _, by rw [key_getElem i i hi]⟩
+    · rw [List.getElem?_eq_none (hlen.trans_le (Nat.le_of_not_gt hi))]
       refine List.lookup_eq_none_of_forall_ne fun p hp => ?_
       obtain ⟨x, hx, rfl⟩ := List.mem_map.mp hp
       obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hx
-      rw [key_getElem i j hj]
-      omega
+      exact (key_getElem i j hj).trans_ne (by omega)
   have hans : Function.Injective ans := by
     intro i j hij
-    have hi' := i.isLt
-    have hj' := j.isLt
-    simp only [ans] at hij
-    split_ifs at hij with hi hj
-    · have hget : (l.map Prod.snd)[(i : ℕ)]'(by rw [List.length_map]; omega) =
-          (l.map Prod.snd)[(j : ℕ)]'(by rw [List.length_map]; omega) := by
-        rw [List.getElem_map, List.getElem_map]
-        exact Option.some.inj hij
-      exact Fin.ext (hvals.getElem_inj_iff.mp hget)
-    · exact Fin.ext (by omega)
+    apply Fin.ext
+    by_cases hi : (i : ℕ) < vals.length
+    · exact hvals.eq_of_getElem?_eq hi hij
+    by_cases hj : (j : ℕ) < vals.length
+    · exact (hvals.eq_of_getElem?_eq hj hij.symm).symm
+    have := i.isLt
+    have := j.isLt
+    omega
   obtain ⟨i, hi⟩ := FreeM.exists_countQueries_ge_clog 2 LEQuery.cardResponse_le_two
     (prog k tree) (fun i => LEQuery.keyOracle (key i)) (by omega)
     fun i j hij => hans ((heval i).symm.trans (hij.trans (heval j)))

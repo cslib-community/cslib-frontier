@@ -24,6 +24,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCo
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficientSign
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalPolynomialEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.RelativeWordCriterion
 import CslibFrontier.Computability.Complexity.RealAlgebraic.WordCoordinateFingerprintLabels
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchGrowth
@@ -938,5 +939,43 @@ example :
   simp only [L, R, Controlled.degreeBound_boundedDegreePiece,
     Controlled.massExponent_boundedDegreePiece, Controlled.cutoff_boundedDegreePiece]
   simp [C, Controlled.coordinate]
+
+-- At bound 2, the two-bit prefix 10 selects degree 2 and 11 wraps to 0.
+example (suffix : List Bool) :
+    (Controlled.decodeDegreeChoice 2 ([true, false] ++ suffix)).val = 2 ∧
+      (Controlled.decodeDegreeChoice 2 ([true, true] ++ suffix)).val = 0 ∧
+        ([true, false] ++ suffix).drop 2 = suffix := by
+  simp only [Controlled.decodeDegreeChoice, show (2 : ℕ).size = 2 by decide,
+    List.take_left' (by decide : [true, false].length = 2),
+    List.take_left' (by decide : [true, true].length = 2),
+    List.drop_left' (by decide : [true, false].length = 2)]
+  decide
+
+-- The controlled lift uses the source budgets for both empty and nonempty words.
+example :
+    let C : Controlled (fun _ : ℕ => X (0 : Fin 2)) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 0) (.const 0)
+    let W := C.wordDegreePiece (n := fun _ => 1) Decoder.nat (.const 1)
+    W.cutoff (0, [true, false]) = 2 ∧ W.degreeBound (0, []) = 4 := by
+  intro C W
+  simp only [W, Controlled.wordDegreePiece, Controlled.cutoff_boundedDegreePiece,
+    Controlled.degreeBound_boundedDegreePiece]
+  exact ⟨rfl, rfl⟩
+
+-- The constant polynomial 1 has an empty zero fiber even when both blocks have arity zero.
+example :
+    let P : MvPolynomial (Fin (0 + 0)) ℤ := 1
+    let E := finiteRelativeValueSection (n := 0) (m := 0) (ell := 1) (by decide) P (by simp [P])
+    let N := E.totalDegree
+    ∃ word : List Bool, word.length = N.size +
+      coordinateFingerprintWitnessWidth (2 * (2 * (N + 1) + 1) + 1) 1 := by
+  intro P E N
+  have hpos (x z : Fin 0 → ℝ) : 0 ≤ eval₂ (Int.castRingHom ℝ) (Fin.addCases z x) P := by
+    simp [P]
+  obtain ⟨word, hlength, _⟩ := (exists_emptyFiber_iff_selectionWord
+    (n := 0) (m := 0) (ell := 1) (by decide) (by decide) P (by simp [P]) hpos
+    N E.coeffNorm1.size le_rfl (Nat.lt_size_self _).le).mp
+      ⟨Fin.elim0, fun _ => by simp [P]⟩
+  exact ⟨word, by simpa only [Nat.zero_add, pow_one] using hlength⟩
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

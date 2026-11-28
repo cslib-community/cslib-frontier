@@ -12,7 +12,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.NonnegativeForm
 public import Mathlib.Data.Nat.Factorial.Basic
 import Mathlib.Algebra.Order.Group.MinMax
 import Mathlib.LinearAlgebra.Matrix.AbsoluteValue
-import Mathlib.LinearAlgebra.Matrix.Adjugate
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Cramer
 import Mathlib.LinearAlgebra.Matrix.ToLinearEquiv
 import Mathlib.LinearAlgebra.Matrix.DotProduct
 
@@ -111,12 +111,6 @@ private theorem abs_sum_mul_le {u v : m → ℤ} {B : ℕ} (hu : ∀ i, |u i| �
         (abs_mul _ _).trans_le (mul_le_mul (hu i) (hv i) (abs_nonneg _) (Nat.cast_nonneg _))
     _ = (Fintype.card m * B ^ 2 : ℕ) := by simp [sq]
 
-/-- `|det M| ≤ (card n)! * C ^ card n` for an integer matrix with entries of absolute value at
-most `C` (`Matrix.det_le` with the usual absolute value). -/
-private theorem abs_det_le [DecidableEq n] {M : Matrix n n ℤ} {C : ℕ}
-    (hM : ∀ j k, |M j k| ≤ C) : |M.det| ≤ ((Fintype.card n)! * C ^ Fintype.card n : ℕ) := by
-  simpa using det_le (abv := AbsoluteValue.abs) hM
-
 /-- **The Gram system of a basic solution.** If `A *ᵥ y = b` and no nonzero kernel vector of `A`
 is supported inside the support of `y`, then `y` is the unique solution of a square integer
 system `G *ᵥ y = c`: the Gram system `Aᵀ A` restricted to the support of `y`, padded by the
@@ -182,26 +176,6 @@ private theorem exists_gram_system [DecidableEq n] {A : Matrix m n ℤ} {b : m �
     · exact abs_one.trans_le (by exact_mod_cast Nat.le_add_left 1 _)
     · exact abs_zero.trans_le (Nat.cast_nonneg _)
 
-omit [Fintype m] in
-/-- **Cramer's rule over an extension.** If the integer system `G *ᵥ y = c` holds after casting
-into a commutative ring `R`, then the cast of Cramer's integer vector `cramer G c` is
-`det G • y`. -/
-private theorem intCast_cramer_eq_det_smul {R : Type*} [CommRing R] [DecidableEq n]
-    {G : Matrix n n ℤ} {c : n → ℤ} {y : n → R}
-    (hGy : G.map (Int.cast : ℤ → R) *ᵥ y = fun j => (c j : R)) :
-    (fun j => (cramer G c j : R)) = (G.det : R) • y := by
-  have h := (Int.castRingHom R).map_mulVec (adjugate G) c
-  simp only [eq_intCast, Int.coe_castRingHom] at h
-  have hadj : (adjugate G).map (Int.cast : ℤ → R) = adjugate (G.map Int.cast) :=
-    (Int.castRingHom R).map_adjugate G
-  have hdet : ((G.det : ℤ) : R) = (G.map (Int.cast : ℤ → R)).det := (Int.castRingHom R).map_det G
-  calc (fun j => (cramer G c j : R))
-      = (adjugate G).map (Int.cast : ℤ → R) *ᵥ fun j => (c j : R) := by
-        rw [cramer_eq_adjugate_mulVec]
-        exact funext h
-    _ = (G.det : R) • y := by
-        rw [← hGy, mulVec_mulVec, hadj, adjugate_mul, smul_mulVec, one_mulVec, hdet]
-
 /-- **Small basic solutions.** If an integer system `A *ᵥ x = b` with entries of absolute value at
 most `B` has a nonnegative solution over some linearly ordered field, then it has a nonnegative
 rational solution `p / d` with `p` and `d` integers bounded by
@@ -219,14 +193,14 @@ theorem exists_int_nonneg_mulVec_eq {A : Matrix m n ℤ} {b : m → ℤ} {B : �
   obtain ⟨y, hy, hAy, -, hymin⟩ := exists_nonneg_mulVec_eq_forall_mulVec_eq_zero hx hAx
   obtain ⟨G, c, hGy, hd0, hc, hG⟩ := exists_gram_system hA hb hAy hymin
   -- Both `det G` and the entries of `cramer G c` are determinants of matrices with small entries.
-  have hdbound : |G.det| ≤ N := abs_det_le hG
-  have hpbound : ∀ j, |cramer G c j| ≤ N := fun j => by
-    rw [cramer_apply]
-    exact abs_det_le fun k l => by rw [updateCol_apply]; split_ifs; exacts [hc k, hG k l]
+  have hdbound : |G.det| ≤ N := by
+    simpa [N, nsmul_eq_mul] using det_le (abv := AbsoluteValue.abs) hG
+  have hpbound : ∀ j, |cramer G c j| ≤ N := abs_cramer_le hG hc
   -- Normalize the sign: `d = |det G|` and `p = ±cramer G c` still satisfy `p = d • y` in `K`.
   obtain ⟨d, p, hd, hpy, hdN, hpN⟩ : ∃ (d : ℤ) (p : n → ℤ), 0 < d ∧
       (fun j => (p j : K)) = (d : K) • y ∧ d ≤ N ∧ ∀ j, |p j| ≤ N := by
-    have hp := intCast_cramer_eq_det_smul hGy
+    have hp : (fun j => (cramer G c j : K)) = (G.det : K) • y :=
+      map_cramer_eq_det_smul (Int.castRingHom K) hGy
     rcases lt_or_gt_of_ne hd0 with hneg | hpos
     · exact ⟨-G.det, -cramer G c, neg_pos.2 hneg,
         by simp only [Pi.neg_apply, Int.cast_neg, neg_smul, ← hp]; rfl,

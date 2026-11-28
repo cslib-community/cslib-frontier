@@ -2,7 +2,7 @@
 """Advisory check that the Lean names a PR description mentions exist at the checked-out revision.
 
 Usage: python3 scripts/check_pr_names.py (--pr N | --file PATH | --event PATH) [--strict]
-           [--base REF] [--root DIR] [--github] [--no-core]
+           [--base REF] [--root DIR] [--github] [--no-core] [--fetch-deps]
 
 A pull request's description maps its source to the Lean declarations that formalize it, and a
 reviewer reads it against the code. A name that the code does not declare, usually one renamed or
@@ -42,21 +42,25 @@ almost certainly a slip. Names that this repository declared at the base commit 
 default the merge base of HEAD with `origin/main`) are marked as removed or renamed by the change:
 a refactoring PR names what it removes. The tool is advisory and exits 0; `--strict` makes it exit
 1 when a name is reported that the change did not remove. With `--github` it also writes the
-report to the job summary (`$GITHUB_STEP_SUMMARY`) and as a notice annotation. CI runs it on pull
-requests after the build, so the package sources are present, with the PR body from the event
-payload, the checked-out merge commit of the PR head into its base, and that commit's first parent
-as the base.
+report to the job summary (`$GITHUB_STEP_SUMMARY`) and as a notice annotation. With `--fetch-deps`,
+when tokens remain unresolved in local sources and `.lake/packages` or `lean` is absent, it
+shallow-fetches the locked package sources from `lake-manifest.json` and Lean's `Init`, `Std` and
+`Lean` sources from `lean-toolchain` into a temporary directory, so CI's early `pr-notices` job can
+run without waiting for cache restoration or compilation.
 """
 
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
+import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -332,6 +336,105 @@ def source_roots(root: Path, core: bool = True) -> list[Path]:
     return roots
 
 
+SAFE_IDENT = re.compile(r"[A-Za-z0-9_.-]+")
+SAFE_URL = re.compile(r"(?:https?|file)://[^\s-]+[^\s]*")
+
+
+def _safe_rel_subdir(sub_dir: object) -> Path | None:
+    if sub_dir is None or sub_dir == "":
+        return Path()
+    if not isinstance(sub_dir, str) or "\\" in sub_dir or sub_dir.startswith("/"):
+        return None
+    parts = sub_dir.split("/")
+    if any(part in ("", ".", "..") for part in parts):
+        return None
+    return Path(*parts)
+
+
+def _fetch_git_tree(url: str, ref: str, dest: Path, sparse_dirs: tuple[str, ...] = (),
+                    attempts: int = 3, timeout: int = 60) -> bool:
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    filter_args = ["--filter=blob:none"] if sparse_dirs and url.startswith("https://") else []
+    for attempt in range(1, attempts + 1):
+        shutil.rmtree(dest, ignore_errors=True)
+        dest.mkdir(parents=True, exist_ok=True)
+        try:
+            subprocess.run(["git", "init", "-q"], cwd=dest, check=True, env=env,
+                           capture_output=True, text=True, timeout=timeout)
+            if sparse_dirs:
+                subprocess.run(["git", "sparse-checkout", "set", "--cone", *sparse_dirs],
+                               cwd=dest, check=True, env=env, capture_output=True, text=True,
+                               timeout=timeout)
+            subprocess.run(["git", "fetch", "--quiet", "--no-tags", "--depth=1", *filter_args,
+                            url, ref],
+                           cwd=dest, check=True, env=env, capture_output=True, text=True,
+                           timeout=timeout)
+            subprocess.run(["git", "checkout", "--quiet", "--detach", "FETCH_HEAD"],
+                           cwd=dest, check=True, env=env, capture_output=True, text=True,
+                           timeout=timeout)
+            return True
+        except (OSError, subprocess.SubprocessError) as error:
+            if attempt < attempts:
+                time.sleep(2)
+            else:
+                print(f"warning: could not fetch {url}@{ref}: {error}", file=sys.stderr)
+    return False
+
+
+def fetch_dependency_sources(root: Path, temp_dir: Path, core: bool = True) -> list[Path]:
+    """Shallow-fetch missing `.lake/packages` and Lean core sources into `temp_dir`."""
+    jobs: list[tuple[str, str, Path, tuple[str, ...], tuple[Path, ...]]] = []
+    manifest_path = root / "lake-manifest.json"
+    if manifest_path.is_file() and not (root / ".lake" / "packages").is_dir():
+        try:
+            raw_manifest = json.loads(manifest_path.read_text(encoding="utf-8", errors="replace"))
+            raw_packages = raw_manifest.get("packages") if isinstance(raw_manifest, dict) else []
+            packages = raw_packages if isinstance(raw_packages, list) else []
+        except (OSError, ValueError):
+            packages = []
+        seen_names: set[str] = set()
+        for pkg in packages:
+            if not isinstance(pkg, dict) or pkg.get("type") != "git":
+                continue
+            name, url, rev = pkg.get("name", ""), pkg.get("url", ""), pkg.get("rev", "")
+            sub = _safe_rel_subdir(pkg.get("subDir"))
+            if (not isinstance(name, str) or name in (".", "..") or not SAFE_IDENT.fullmatch(name)
+                    or name in seen_names
+                    or not isinstance(url, str) or not SAFE_URL.fullmatch(url)
+                    or not isinstance(rev, str) or not re.fullmatch(r"[0-9a-f]{40}", rev)
+                    or sub is None):
+                continue
+            seen_names.add(name)
+            dest = temp_dir / "packages" / name
+            jobs.append((url, rev, dest, (), (dest / sub,)))
+    toolchain_path = root / "lean-toolchain"
+    if core and not shutil.which("lean") and toolchain_path.is_file():
+        try:
+            spec = toolchain_path.read_text(encoding="utf-8", errors="replace").strip()
+        except OSError:
+            spec = ""
+        repo, sep, tag = spec.partition(":")
+        if not sep:
+            repo, tag = "leanprover/lean4", spec
+        core_url = os.environ.get("LEAN_CORE_GIT_URL") or f"https://github.com/{repo}"
+        repo_ok = all(SAFE_IDENT.fullmatch(p) and p not in (".", "..") for p in repo.split("/"))
+        if (spec and len(repo.split("/")) == 2 and repo_ok and SAFE_URL.fullmatch(core_url)
+                and SAFE_IDENT.fullmatch(tag) and not tag.startswith("-")):
+            dest = temp_dir / "lean-core"
+            core_dirs = tuple(dest / "src" / d for d in ("Init", "Std", "Lean"))
+            jobs.append((core_url, tag, dest, ("src/Init", "src/Std", "src/Lean"), core_dirs))
+    if not jobs:
+        return []
+    extra: list[Path] = []
+    with ThreadPoolExecutor(max_workers=min(6, len(jobs))) as pool:
+        futures = [(pool.submit(_fetch_git_tree, url, ref, dest, sparse), out_dirs)
+                   for url, ref, dest, sparse, out_dirs in jobs]
+        for future, out_dirs in futures:
+            if future.result():
+                extra += [d for d in out_dirs if d.is_dir()]
+    return extra
+
+
 def lean_files(roots: list[Path]) -> list[Path]:
     files: list[Path] = []
     for r in roots:
@@ -545,7 +648,8 @@ def resolve_base(root: Path, base: str | None) -> str | None:
     return merge_base if merge_base and merge_base != head else None
 
 
-def check(text: str, root: Path = ROOT, core: bool = True, base: str | None = None) -> Report:
+def check(text: str, root: Path = ROOT, core: bool = True, base: str | None = None,
+          fetch_deps: bool = False) -> Report:
     """Check the candidate names of a Markdown text against the sources under `root`.
 
     Names that are not declared are compared with the repository at the commit `base`, if given."""
@@ -557,8 +661,8 @@ def check(text: str, root: Path = ROOT, core: bool = True, base: str | None = No
     local_roots = tuple(str(root / d) + os.sep for d in LOCAL_DIRS)
     texts: dict[Path, str] = {}
 
-    def read(words: set[str]) -> None:
-        for path in files_mentioning(roots, words):
+    def read(words: set[str], search_roots: list[Path]) -> None:
+        for path in files_mentioning(search_roots, words):
             if path in texts:
                 continue
             try:
@@ -569,18 +673,29 @@ def check(text: str, root: Path = ROOT, core: bool = True, base: str | None = No
             if str(path).startswith(local_roots):
                 parse_source(texts[path], local)
 
+    def resolve_against(candidates: list[str], search_roots: list[Path],
+                        known_modules: set[str]) -> list[str]:
+        pending = [t for t in candidates if t.removeprefix("_root_.") not in known_modules]
+        read(set().union(set(), *(search_words(t) for t in pending)), search_roots)
+        pending = [t for t in pending if not resolves(t, decls, known_modules)]
+        if more := set().union(set(), *(head_words(t) for t in pending)):
+            read(more, search_roots)
+            pending = [t for t in pending if not resolves(t, decls, known_modules)]
+        return pending
+
     # Module names (`Init`, `Crypto.PRF`), script names and generated names in field notation
     # (`.ext_iff`) need no source files; checking them first avoids reading every file that
     # mentions a word as common as `Lean`.
     modules, python = module_suffixes(roots), python_names(root)
-    unresolved = [t for t in tokens if t.removeprefix("_root_.") not in modules
-                  and not all(part in python for part in t.split("."))
+    unresolved = [t for t in tokens if not all(part in python for part in t.split("."))
                   and not (t.startswith(".") and t[1:] in GENERATED)]
-    read(set().union(set(), *(search_words(t) for t in unresolved)))
-    unresolved = [t for t in unresolved if not resolves(t, decls, set())]
-    if more := set().union(set(), *(head_words(t) for t in unresolved)):
-        read(more)
-        unresolved = [t for t in unresolved if not resolves(t, decls, set())]
+    unresolved = resolve_against(unresolved, roots, modules)
+    if unresolved and fetch_deps:
+        with tempfile.TemporaryDirectory(prefix="pr-names-deps-") as temp:
+            extra_roots = fetch_dependency_sources(root, Path(temp), core=core)
+            if extra_roots:
+                modules |= module_suffixes(extra_roots)
+                unresolved = resolve_against(unresolved, extra_roots, modules)
     findings = []
     for token in unresolved:
         last = token.lstrip(".").rsplit(".", 1)[-1]
@@ -654,6 +769,8 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
                         help="also write the job summary and a notice annotation")
     parser.add_argument("--no-core", action="store_true",
                         help="do not search the Lean toolchain's Init, Std and Lean sources")
+    parser.add_argument("--fetch-deps", action="store_true",
+                        help="shallow-fetch missing package and toolchain sources on demand")
     parser.add_argument("--root", type=Path, default=root,
                         help="checkout to check against (default: this script's checkout)")
     parser.add_argument("--base", help="commit before the change, to recognize names it removed "
@@ -661,7 +778,8 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
     args = parser.parse_args(argv)
     root = args.root.resolve()
     base = resolve_base(root, args.base)
-    report = check(load_body(args, root), root, core=not args.no_core, base=base)
+    report = check(load_body(args, root), root, core=not args.no_core, base=base,
+                   fetch_deps=args.fetch_deps)
     text = markdown(report, revision(root))
     print(text, end="")
     if args.github and report.unexplained:

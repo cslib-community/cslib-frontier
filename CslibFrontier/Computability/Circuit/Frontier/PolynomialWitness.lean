@@ -20,6 +20,7 @@ import Mathlib.Algebra.Ring.GeomSum
 import Mathlib.Analysis.SpecialFunctions.Pow.Asymptotics
 import Mathlib.Data.Fintype.Powerset
 import Mathlib.Tactic.FinCases
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Low-degree polynomial witnesses for worst-case and average-case frontier bounds
@@ -1062,8 +1063,7 @@ private theorem rectangleBias_of_pivot_blocks {n p s K₀ K : ℕ} {b₀ : ℝ}
         have hunion : rectangle X (Set.range a) B' = R₁ ∪ R₂ := by
           ext x
           simp only [R₁, R₂, mem_rectangle, Set.mem_union, Set.mem_sdiff]
-          have := @hB₀_sub (Xᶜ.domRestrict x)
-          tauto
+          lrat_tauto [@hB₀_sub (Xᶜ.domRestrict x)]
         have hn₁ : R₁.ncard = s * s := by rw [ncard_rectangle, hA₀_card, hB₀_card]
         rw [hunion]
         refine (abs_inter_union_sub_half_le hdisj S).trans ?_
@@ -1104,8 +1104,7 @@ private theorem rectangleBias_of_pivot_blocks {n p s K₀ K : ℕ} {b₀ : ℝ}
         have hunion : rectangle X A' B' = R₁ ∪ R₂ := by
           ext x
           simp only [R₁, R₂, mem_rectangle, Set.mem_union, Set.mem_sdiff]
-          have := @hA₀_sub (X.domRestrict x)
-          tauto
+          lrat_tauto [@hA₀_sub (X.domRestrict x)]
         rw [hunion]
         refine (abs_inter_union_sub_half_le hdisj S).trans ?_
         have hlin₁_b : b₀ * (s * B'.ncard : ℕ) + b₀ * ((A' \ A₀).ncard * B'.ncard : ℕ) =

@@ -75,6 +75,9 @@ semigroup property gives the rate `log 2 / T`
 * `Matrix.exp_smul_mulVec_eq_of_pow_mulVec_eq_zero`
 * `Matrix.re_le_of_forall_norm_le`
 * `Matrix.isHurwitz_iff_isExponentiallyStable`
+* `Matrix.exists_mem_spectrum_le_re_of_posSemidef`: a shifted Lyapunov inequality with an
+  indefinite `P` puts an eigenvalue in `re μ ≥ ε`
+* `Matrix.IsHurwitz.re_lt_of_sub`: if `A - σ • 1` is Hurwitz, the spectrum lies in `re μ < σ`
 * `Matrix.IsHurwitz.existsUnique_lyapunov_eq`, `Matrix.IsHurwitz.posDef_of_lyapunov_eq`
 * `Matrix.IsHurwitz.existsUnique_isHermitian_lyapunov_eq`,
   `Matrix.IsHurwitz.existsUnique_posDef_lyapunov_eq`
@@ -389,6 +392,47 @@ exponentially stable in the Euclidean norm: there are `M` and `α > 0` with
 theorem isHurwitz_iff_isExponentiallyStable {A : Matrix n n ℝ} :
     A.IsHurwitz ↔ (toEuclideanCLM (𝕜 := ℝ) A).IsExponentiallyStable :=
   ⟨IsHurwitz.isExponentiallyStable, isHurwitz_of_isExponentiallyStable⟩
+
+/-- **Eigenvalues to the left of a shift.** If `A - σ • 1` is Hurwitz, every complex eigenvalue
+of `A` has real part less than `σ`. -/
+theorem IsHurwitz.re_lt_of_sub {A : Matrix n n ℝ} {σ : ℝ} (h : (A - σ • 1).IsHurwitz) :
+    ∀ μ ∈ spectrum ℂ (A.map (algebraMap ℝ ℂ)), μ.re < σ := by
+  intro μ hμ
+  have hA : (A - σ • 1).map (algebraMap ℝ ℂ) =
+      A.map (algebraMap ℝ ℂ) + algebraMap ℂ _ (-(σ : ℂ)) := by
+    ext i j
+    rcases eq_or_ne i j with rfl | hij
+    · simp [algebraMap_eq_diagonal, sub_eq_add_neg]
+    · simp [algebraMap_eq_diagonal, one_apply_ne hij, hij]
+  have h' := h (μ + -(σ : ℂ)) <| by
+    rw [hA, ← spectrum.add_singleton_eq]
+    exact Set.add_mem_add hμ rfl
+  simp only [Complex.add_re, Complex.neg_re, Complex.ofReal_re] at h'
+  linarith
+
+/-- **An eigenvalue to the right of `ε`.** If `-((A - ε • 1)ᵀ * P + P * (A - ε • 1)) ⪰ 0` and
+`x₀ ⬝ᵥ P *ᵥ x₀ < 0`, then `A` has a complex eigenvalue `μ` with `ε ≤ re μ`: the shifted matrix
+`A - ε • 1` is not asymptotically stable
+(`Matrix.not_isAsymptoticallyStable_toEuclideanCLM_of_posSemidef` with rate `0`), hence not
+Hurwitz. `P` need not be definite and `ε` may have any sign. -/
+theorem exists_mem_spectrum_le_re_of_posSemidef {A P : Matrix n n ℝ} {ε : ℝ}
+    (hQ : (-((A - ε • 1)ᵀ * P + P * (A - ε • 1))).PosSemidef) {x₀ : n → ℝ}
+    (hx₀ : x₀ ⬝ᵥ P *ᵥ x₀ < 0) : ∃ μ ∈ spectrum ℂ (A.map (algebraMap ℝ ℂ)), ε ≤ μ.re := by
+  set B := A - ε • 1 with hBdef
+  have hB : ¬B.IsHurwitz := fun hB =>
+    not_isAsymptoticallyStable_toEuclideanCLM_of_posSemidef le_rfl
+      (by simpa only [zero_smul, sub_zero] using hQ) hx₀
+      hB.isExponentiallyStable.isAsymptoticallyStable
+  simp only [IsHurwitz, not_forall, not_lt] at hB
+  obtain ⟨μ, hμ, hre⟩ := hB
+  refine ⟨μ + ε, ?_, by simpa using hre⟩
+  have hA : A.map (algebraMap ℝ ℂ) = B.map (algebraMap ℝ ℂ) + algebraMap ℂ _ (ε : ℂ) := by
+    ext i j
+    rcases eq_or_ne i j with rfl | hij
+    · simp [hBdef, algebraMap_eq_diagonal]
+    · simp [hBdef, algebraMap_eq_diagonal, one_apply_ne hij, hij]
+  rw [hA, ← spectrum.add_singleton_eq]
+  exact Set.add_mem_add hμ rfl
 
 /-! ### The Lyapunov equation -/
 
