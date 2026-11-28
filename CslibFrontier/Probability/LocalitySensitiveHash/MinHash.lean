@@ -186,10 +186,10 @@ private theorem card_argminSet_eq {S : Finset α} {s t : α} (hs : s ∈ S) (ht 
     · rw [Equiv.swap_apply_right]
     · rw [Equiv.swap_apply_of_ne_of_ne hau hav]
       exact hσ a ha
-  exact Finset.card_bij' (fun σ _ => σ * Equiv.swap s t) (fun σ _ => σ * Equiv.swap s t)
-    (fun _ hσ => step hs ht hσ) (fun _ hσ => Equiv.swap_comm s t ▸ step ht hs hσ)
-    (fun σ _ => by rw [mul_assoc, Equiv.swap_mul_self, mul_one])
-    (fun σ _ => by rw [mul_assoc, Equiv.swap_mul_self, mul_one])
+  refine Finset.card_equiv (Equiv.mulRight (Equiv.swap s t)) fun σ => ?_
+  change σ ∈ argminSet S s ↔ σ * Equiv.swap s t ∈ argminSet S t
+  refine ⟨step hs ht, fun h => ?_⟩
+  simpa only [Equiv.swap_comm t s, mul_assoc, Equiv.swap_mul_self, mul_one] using step ht hs h
 
 /-- Each element of `S` has the least rank under the same number `|α|! / |S|` of permutations. -/
 private theorem card_mul_card_argminSet {S : Finset α} {s : α} (hs : s ∈ S) :

@@ -1340,12 +1340,8 @@ theorem card_filter_agreesOn_eq_two_pow (n : ℕ) (S : Finset (BitString n))
   have hbij : (Finset.univ.filter fun T : BitString (2 ^ n) =>
         ∀ y ∈ S, (MCSP.truthTable n).symm T y = g y).card =
       (Finset.univ.filter fun f : BooleanFunction n => ∀ y ∈ S, f y = g y).card := by
-    refine Finset.card_bij (fun T _ => (MCSP.truthTable n).symm T)
-      (fun T hT => ?_) (fun T₁ _ T₂ _ h => (MCSP.truthTable n).symm.injective h)
-      (fun f hf => ⟨MCSP.truthTable n f, ?_, by simp⟩)
-    · exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, (Finset.mem_filter.mp hT).2⟩
-    · refine Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩
-      simpa using (Finset.mem_filter.mp hf).2
+    refine Finset.card_equiv (MCSP.truthTable n).symm fun T => ?_
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
   rw [hbij, Fintype.card_filter_forall_mem_eq, Fintype.card_bool, Finset.card_compl]
   simp [BitString]
 

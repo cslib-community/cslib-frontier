@@ -172,10 +172,10 @@ theorem interedges_empty_right (S : Finset V) : G.interedges S ∅ = ∅ := by
 
 /-- Reversing the darts matches the edges from `S` to `T` with those from `T` to `S`. -/
 theorem card_interedges_comm (S T : Finset V) : #(G.interedges S T) = #(G.interedges T S) := by
-  refine card_nbij' G.rot G.rot (fun p hp ↦ ?_) (fun p hp ↦ ?_) (fun p _ ↦ G.rot_rot p)
-    (fun p _ ↦ G.rot_rot p) <;>
-  · rw [mem_coe, mem_interedges] at hp ⊢
-    simpa [neighbor] using hp.symm
+  refine card_equiv (Function.Involutive.toPerm G.rot G.rot_rot) fun p => ?_
+  change p ∈ G.interedges S T ↔ G.rot p ∈ G.interedges T S
+  rw [mem_interedges, mem_interedges]
+  simp only [neighbor, Prod.mk.eta, G.rot_rot, and_comm]
 
 /-- Every edge at a vertex of `S` leads into `T` or into its complement. -/
 theorem card_interedges_add_card_interedges_compl [Fintype V] (S T : Finset V) :

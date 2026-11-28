@@ -55,16 +55,12 @@ theorem schwartz_zippel_totalDegree_fintype {R σ : Type*} [CommRing R] [IsDomai
   have hsz := schwartz_zippel_totalDegree hp' S
   rw [hdeg] at hsz
   convert hsz using 3
-  refine card_bij' (fun f _ => f ∘ e.symm) (fun g _ => g ∘ e) ?_ ?_
-    (fun f _ => funext fun i => by simp) (fun g _ => funext fun i => by simp)
-  · intro f hf
-    simp only [mem_filter, mem_piFinset] at hf ⊢
-    refine ⟨fun _ => hf.1 _, ?_⟩
-    rw [eval_rename, Function.comp_assoc, e.symm_comp_self, Function.comp_id]
-    exact hf.2
-  · intro g hg
-    simp only [mem_filter, mem_piFinset, eval_rename] at hg ⊢
-    exact ⟨fun _ => hg.1 _, hg.2⟩
+  refine card_equiv (Equiv.arrowCongr e (Equiv.refl R)) fun f => ?_
+  change f ∈ (_ : Finset _) ↔ f ∘ e.symm ∈ (_ : Finset _)
+  simp only [mem_filter, mem_piFinset, eval_rename, Function.comp_assoc, e.symm_comp_self,
+    Function.comp_id, Function.comp_apply]
+  exact and_congr ⟨fun h i => h _, fun h i => by simpa only [e.symm_apply_apply] using h (e i)⟩
+    Iff.rfl
 
 /-- The **Schwartz–Zippel lemma** over a finite integral domain with `q` elements, in counting
 form: a nonzero polynomial in `n` variables of total degree at most `d` has at most `d * q ^ n / q`

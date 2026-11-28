@@ -194,11 +194,7 @@ private theorem optimalProfitTwo_comp_equiv {ι' : Type*} [Fintype ι] [Fintype 
   have hcard : ∀ j : ι',
       (univ.filter fun i : ι' => b (e j) ≤ b (e i)).card =
         (univ.filter fun i : ι => b (e j) ≤ b i).card := fun j =>
-    Finset.card_bij (fun i _ => e i)
-      (fun i hi => mem_filter.2 ⟨mem_univ _, (mem_filter.1 hi).2⟩)
-      (fun _ _ _ _ h => e.injective h)
-      (fun i hi => ⟨e.symm i, mem_filter.2 ⟨mem_univ _, by
-        simpa only [Equiv.apply_symm_apply] using (mem_filter.1 hi).2⟩, e.apply_symm_apply i⟩)
+    Finset.card_equiv e fun i => by simp
   apply le_antisymm
   · refine singlePriceProfitOn_le (singlePriceProfitOn_nonneg fun i _ => hb i) fun j _ hj => ?_
     dsimp only [Function.comp_apply] at hj ⊢

@@ -99,31 +99,19 @@ theorem boolMatrixWeight_add_compl [Fintype α] [Fintype β] (A : Matrix α β B
 theorem boolMatrixWeight_eq_sum_row [Fintype α] [Fintype β] (A : Matrix α β Bool) :
     boolMatrixWeight A = ∑ i : α, #(univ.filter fun j : β => A i j = true) := by
   rw [boolMatrixWeight, ← card_sigma]
-  refine card_bij (fun p _ => ⟨p.1, p.2⟩) ?_ ?_ ?_
-  · intro p hp
-    simpa only [mem_sigma, mem_univ, mem_filter, true_and] using hp
-  · rintro ⟨i₁, j₁⟩ - ⟨i₂, j₂⟩ - h
-    simp only [Sigma.mk.injEq, heq_eq_eq] at h
-    rw [h.1, h.2]
-  · rintro ⟨i, j⟩ hp
-    exact ⟨(i, j), by simpa only [mem_sigma, mem_univ, mem_filter, true_and] using hp, rfl⟩
+  refine card_equiv (Equiv.sigmaEquivProd _ _).symm fun p => ?_
+  simp only [mem_sigma, mem_univ, mem_filter, true_and]
+  rfl
 
 /-- Reindexing rows and columns by equivalences preserves Boolean matrix weight. -/
 theorem boolMatrixWeight_reindex [Fintype α] [Fintype β] [Fintype α'] [Fintype β']
     (e₁ : α ≃ α') (e₂ : β ≃ β') (A : Matrix α β Bool) :
     boolMatrixWeight (Matrix.reindex e₁ e₂ A) = boolMatrixWeight A := by
   unfold boolMatrixWeight
-  refine card_bij (fun p _ => (e₁.symm p.1, e₂.symm p.2)) ?_ ?_ ?_
-  · intro p hp
-    rw [mem_filter] at hp ⊢
-    exact ⟨mem_univ _, hp.2⟩
-  · rintro ⟨i₁, j₁⟩ - ⟨i₂, j₂⟩ - h
-    simp only [Prod.mk.injEq, Equiv.apply_eq_iff_eq] at h
-    rw [h.1, h.2]
-  · rintro ⟨i, j⟩ hp
-    rw [mem_filter] at hp
-    refine ⟨(e₁ i, e₂ j), mem_filter.mpr ⟨mem_univ _, ?_⟩, by simp only [Equiv.symm_apply_apply]⟩
-    simpa only [Matrix.reindex_apply, Matrix.submatrix_apply, Equiv.symm_apply_apply] using hp.2
+  refine card_equiv (e₁.symm.prodCongr e₂.symm) fun p => ?_
+  rw [mem_filter, mem_filter]
+  simp only [mem_univ, true_and]
+  rfl
 
 /-- A Boolean matrix `A` is *`k`-rectangle-free* (*`k`-free*) if no `k` rows and `k` columns form
 an all-`true` `k × k` submatrix ([Sergeev2014ORComplement], p. 1). -/

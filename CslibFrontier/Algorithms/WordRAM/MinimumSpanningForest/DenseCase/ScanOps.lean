@@ -1494,15 +1494,11 @@ theorem extractRawProg_spec_n {w n K : ℕ} {ctx : FTCtx} {s : Memory.State}
       (framed hn_c hK ctx.fhBase).abs m ⟨z.val, hcn.symm ▸ z.isLt⟩ :=
     fun m z => framed_abs_congr hcn.symm hn hn_c hK m z
   have hdom_card : (IndexedMinPQ.dom ((framed hn hK ctx.fhBase).abs s)).card =
-      (IndexedMinPQ.dom ((framed hn_c hK ctx.fhBase).abs s)).card :=
-    Finset.card_bij (fun z _ => (⟨z.val, hcn.symm ▸ z.isLt⟩ : Fin ctx.n))
-      (fun z hz => by
-        simp only [IndexedMinPQ.dom, Finset.mem_filter, Finset.mem_univ, true_and] at hz ⊢
-        rw [← hcast_abs s z]; exact hz)
-      (fun _ _ _ _ h => Fin.ext (congrArg (Fin.val : Fin ctx.n → ℕ) h))
-      (fun z hz => ⟨⟨z.val, hcn ▸ z.isLt⟩, by
-        simp only [IndexedMinPQ.dom, Finset.mem_filter, Finset.mem_univ, true_and] at hz ⊢
-        rw [hcast_abs]; simpa only [Fin.eta] using hz, Fin.ext rfl⟩)
+      (IndexedMinPQ.dom ((framed hn_c hK ctx.fhBase).abs s)).card := by
+    refine Finset.card_equiv (finCongr hcn.symm) fun z => ?_
+    simp only [IndexedMinPQ.dom, Finset.mem_filter, Finset.mem_univ, true_and, finCongr_apply]
+    rw [hcast_abs s z]
+    rfl
   have hpot_s : potential n ((layout n ctx.fhBase).abs s) =
       potential ctx.n ((layout ctx.n ctx.fhBase).abs s) := potential_congr hcn.symm s
   have hpot_s' : potential n ((layout n ctx.fhBase).abs

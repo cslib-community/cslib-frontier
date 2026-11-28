@@ -698,12 +698,9 @@ theorem isSmoothMechanism_grid {K : ℕ} (hK : 1 ≤ K) :
               mul_nonneg (by positivity) (utility_nonneg_of_le b i₀ (hgrid_le k))
     have hico_eq : ∑ k ∈ univ.filter (fun k : Fin K => k₀.val ≤ k.val),
           1 / (K : ℝ) * (v i₀ * q ^ (k.val + 1)) =
-        ∑ m ∈ Ico k₀.val K, 1 / (K : ℝ) * (v i₀ * q ^ (m + 1)) :=
-      sum_bij (fun k _ => k.val) (fun k hk => mem_Ico.2 ⟨(mem_filter.1 hk).2, k.isLt⟩)
-        (fun _ _ _ _ h => Fin.ext h)
-        (fun m hm => ⟨⟨m, (mem_Ico.1 hm).2⟩,
-          mem_filter.2 ⟨Finset.mem_univ _, (mem_Ico.1 hm).1⟩, rfl⟩)
-        fun _ _ => rfl
+        ∑ m ∈ Ico k₀.val K, 1 / (K : ℝ) * (v i₀ * q ^ (m + 1)) := by
+      rw [← Fin.map_valEmbedding_Ici, Finset.sum_map, ← Finset.filter_le_eq_Ici]
+      rfl
     have hsum_sub : ∑ m ∈ Ico k₀.val K, (q ^ m - q ^ (m + 1)) = q ^ k₀.val - q ^ K := by
       suffices ∀ n, k₀.val ≤ n → ∑ m ∈ Ico k₀.val n, (q ^ m - q ^ (m + 1)) = q ^ k₀.val - q ^ n from
         this K k₀.isLt.le
