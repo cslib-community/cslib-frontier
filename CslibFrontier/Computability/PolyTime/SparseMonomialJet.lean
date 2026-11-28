@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Foundations.BooleanAnalysis.SparseClearedSpecialization
 import CslibFrontier.Foundations.Data.Int.Order
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Foundations.Data.List.Blocks
 import CslibFrontier.Foundations.Data.List.OfFn
 import Mathlib.Algebra.Order.BigOperators.Group.List
 import Mathlib.Algebra.Polynomial.Div
@@ -459,13 +460,8 @@ theorem getD_zero_evalAffineInputZJet_of_unit_row {J w : ℕ} (hJ : 1 ≤ J) (dD
     Finset.sum_ite_eq', ite_eq_left (Finset.mem_range.mpr hw)]
 
 private lemma polyNorm1_eq_sum_range_getD (l : List ℤ) :
-    polyNorm1 l = ∑ j ∈ Finset.range l.length, (l.getD j 0).natAbs := by
-  have hl : l = (List.range l.length).map fun j => l.getD j 0 :=
-    List.ext_getElem (by simp only [List.length_map, List.length_range]) fun j hj _ => by
-      rw [List.getElem_map, List.getElem_range, List.getD_eq_getElem _ 0 hj]
-  conv_lhs => rw [polyNorm1, hl]
-  rw [List.map_map, List.sum_map_range,
-    Fin.sum_univ_eq_sum_range (Int.natAbs ∘ fun j => l.getD j 0) l.length]; rfl
+    polyNorm1 l = ∑ j ∈ Finset.range l.length, (l.getD j 0).natAbs :=
+  (List.sum_range_getD_eq_sum_map l 0 Int.natAbs).symm
 
 private lemma natAbs_getD_evalAffineInputZJet_le {J j : ℕ} (hj : j < J) (t : ℤ)
     (rowCoeffs : List (List ℤ)) (U x : List Bool) :
@@ -494,14 +490,10 @@ theorem polyNorm1_evalAffineInputZJet_le_sum_taylorShiftZJet (J : ℕ) (t : ℤ)
   rw [polyNorm1_eq_sum_range_getD, length_evalAffineInputZJet]
   refine (Finset.sum_le_sum fun j hj =>
     natAbs_getD_evalAffineInputZJet_le (Finset.mem_range.mp hj) t rowCoeffs U x).trans_eq ?_
-  rw [Finset.sum_comm]
-  have hmap : rowCoeffs = (List.range rowCoeffs.length).map fun u => rowCoeffs.getD u [] :=
-    List.ext_getElem (by simp only [List.length_map, List.length_range]) fun u hu _ => by
-      rw [List.getElem_map, List.getElem_range, List.getD_eq_getElem _ [] hu]
-  conv_rhs => rw [hmap]
-  rw [List.map_map, List.sum_map_range]
+  rw [Finset.sum_comm, ← List.sum_range_getD_eq_sum_map rowCoeffs [],
+    ← Fin.sum_univ_eq_sum_range (fun i => polyNorm1 (taylorShiftZJet J t (rowCoeffs.getD i [])))]
   exact Finset.sum_congr rfl fun i _ => by
-    simp only [Function.comp_apply, polyNorm1_eq_sum_range_getD (taylorShiftZJet J t _),
+    simp only [polyNorm1_eq_sum_range_getD (taylorShiftZJet J t _),
       length_taylorShiftZJet]
 
 /-- **Appendix B.2 $B_0$-style $\ell_1$-norm bound for `evalAffineInputZJet`** ([OpenAI2026ETH],

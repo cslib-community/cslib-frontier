@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Substitution.LocalParity
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.ConstraintParity
+import CslibFrontier.Foundations.Data.List.Blocks
 import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Foundations.Data.List.OfFnGetD
 import Mathlib.Data.List.GetD
@@ -66,7 +67,7 @@ theorem sum_copiedFreeLabels_eq_false
       let a : Fin g.numAux := ⟨j, by simpa only [length_auxiliaryBoundaryBlocks] using hj⟩
       simpa only [shiftBlock, List.map_map, Function.comp_def, List.getD_eq_getElem _ _ hj,
         a, g, w, bit] using sum_auxiliaryBlock_eq_false gadgets witnesses B hB F i a x hx
-    rw [List.map_flatten, List.sum_flatten, List.map_map]
+    rw [← List.flatMap_id', List.sum_map_flatMap]
     exact (congrArg List.sum (List.map_congr_left hz)).trans (by simp [← Bool.zero_eq_false])
   have hp := ((flatten_boundaryBlocks_perm_range g w).map bit).sum_eq
   rw [List.flatten_append, List.map_append, List.sum_append, haux, htotal] at hp
@@ -76,6 +77,6 @@ theorem sum_copiedFreeLabels_eq_false
     (((freeBoundaryBlocks g w).getD a.val []).map bit).sum).sum = false
   rw [List.ofFn_getD_eq_map_of_length (fun block : List ℕ => (block.map bit).sum) []
     (length_freeBoundaryBlocks g w)]
-  simpa only [List.map_flatten, List.sum_flatten, List.map_map, Function.comp_def] using hfree
+  simpa only [← List.flatMap_id', List.sum_map_flatMap] using hfree
 
 end Cslib.Complexity.CSP.GadgetRotation

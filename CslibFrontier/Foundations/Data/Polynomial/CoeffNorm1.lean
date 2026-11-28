@@ -13,7 +13,7 @@ public import Mathlib.Algebra.Polynomial.CoeffList
 public import Mathlib.Algebra.Polynomial.Derivative
 public import Mathlib.Algebra.Polynomial.Reverse
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import CslibFrontier.Foundations.Data.List.OfFn
+import CslibFrontier.Foundations.Data.List.Blocks
 import CslibFrontier.Foundations.Data.Polynomial.CoeffSumBounds
 import Mathlib.Algebra.Order.Ring.Abs
 import Mathlib.Data.List.GetD
@@ -322,12 +322,7 @@ theorem coeffNorm1_ofCoeffList (l : List ℤ) :
       by_contra hge
       exact (mem_support_iff.1 hi)
         (by rw [coeff_ofCoeffList, List.getD_eq_default l 0 (by omega)])
-  rw [coeffNorm1_eq_sum_of_support_subset hsub,
-    ← Fin.sum_univ_eq_sum_range (fun i => ((ofCoeffList l).coeff i).natAbs),
-    ← List.sum_map_range l.length (fun i => ((ofCoeffList l).coeff i).natAbs)]
-  congr 1; apply List.ext_getElem (by simp only [List.length_map, List.length_range])
-  intro i hi₁ _
-  have hi : i < l.length := by simpa only [List.length_map, List.length_range] using hi₁
-  simp only [List.getElem_map, List.getElem_range, coeff_ofCoeffList, List.getD_eq_getElem l 0 hi]
+  rw [coeffNorm1_eq_sum_of_support_subset hsub, ← List.sum_range_getD_eq_sum_map l 0 Int.natAbs]
+  simp only [coeff_ofCoeffList]
 
 end Polynomial

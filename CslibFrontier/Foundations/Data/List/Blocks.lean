@@ -40,8 +40,8 @@ Small facts about list sums and lists of natural numbers.
 
 ## Main results
 
-* `List.sum_map_range_eq_sum_range`, `List.map_getD_range`, `List.sum_map_flatMap`,
-  `List.length_filter_eq_sum`, `Finset.sum_list_sum_comm`: sums.
+* `List.sum_map_range_eq_sum_range`, `List.map_getD_range`, `List.sum_range_getD_eq_sum_map`,
+  `List.sum_map_flatMap`, `List.length_filter_eq_sum`, `Finset.sum_list_sum_comm`: sums.
 * `List.flatMap_blockRange`, `List.flatMap_range_mul`: consecutive blocks.
 * `List.sum_filter_mod`, `List.sum_residueClass`, `List.sum_length_filter_mod`,
   `List.length_residueClass_le`: residue classes.
@@ -64,6 +64,13 @@ theorem sum_map_range_eq_sum_range {M : Type*} [AddCommMonoid M] (n : ℕ) (f : 
 theorem map_getD_range {α : Type*} (l : List α) (x : α) :
     (List.range l.length).map (l.getD · x) = l := by
   exact List.ext_getElem (by simp) fun _ _ h₂ => by simp [List.getElem?_eq_getElem h₂]
+
+/-- Summing over the valid indices of a list sums its mapped entries. -/
+theorem sum_range_getD_eq_sum_map {α M : Type*} [AddCommMonoid M]
+    (l : List α) (d : α) (f : α → M) :
+    ∑ i ∈ Finset.range l.length, f (l.getD i d) = (l.map f).sum := by
+  have h := congrArg (fun xs => (xs.map f).sum) (map_getD_range l d)
+  simpa only [map_map, Function.comp_def, sum_map_range_eq_sum_range] using h
 
 /-- A sum over a `flatMap` sums the inner sums. -/
 theorem sum_map_flatMap {α β M : Type*} [AddMonoid M] (l : List α) (f : α → List β)
