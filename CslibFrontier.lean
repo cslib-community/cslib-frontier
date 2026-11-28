@@ -1091,6 +1091,7 @@ public import CslibFrontier.Logics.FirstOrder.Projection
 public import CslibFrontier.GameTheory.Graphical.TreeNash
 public import CslibFrontier.Computability.Circuit.Encoding.Combinators
 public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph.Powers
+public import CslibFrontier.Computability.Circuit.Boolean.ACC0.CodeLength
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Encoding
 public import CslibFrontier.Foundations.Data.List.Palindrome
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Agreement
@@ -1589,6 +1590,7 @@ public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.P
 public import CslibFrontier.Computability.Circuit.InnerSize
 public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Planarized.Emit
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.Forest
+public import CslibFrontier.Foundations.Data.Nat.PolynomialBound.SuccPow
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.Random
 public import CslibFrontier.Computability.Machines.ReadMachine.Basic
 public import CslibFrontier.Algorithms.MatrixMultiplication.Schonhage.Magnitude
@@ -5772,6 +5774,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.LazyDiago
 public import CslibFrontier.Foundations.Data.Nat.MasterTheoremAsymptotics
 public import CslibFrontier.Computability.TreeEval.Reader.Correct
 public import CslibFrontier.Crypto.Computational.DiffieHellman.Blinded
+public import CslibFrontier.Foundations.Data.Nat.NthRootGrowth
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferencePatchAssembly
 public import CslibFrontier.Foundations.Data.ZMod.CRTUnits
 public import CslibFrontier.DataStructure.BTree.Insert
@@ -8712,6 +8715,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.BGW
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastBaseProg.SliceBuf
 public import CslibFrontier.Probability.Fooling.DecisionTree
 public import CslibFrontier.Foundations.BooleanAnalysis.FourierBitVal
+public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.TableGeneratorList
 public import CslibFrontier.GameTheory.SocialChoice.Ranking
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.Primal.Graph
 public import CslibFrontier.Probability.Product.Event
@@ -9952,6 +9956,7 @@ public import CslibFrontier.Crypto.Protocols.PolynomialCommitment.LigeroBatchIOP
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched.MinBound
 public import CslibFrontier.Foundations.BooleanAnalysis.Bonami
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute.EpochParams
+public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.TableGeneratorListPolyTime
 public import CslibFrontier.DataStructure.Memory.Field
 public import CslibFrontier.Crypto.Negligible.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.EncodedTree
@@ -10509,6 +10514,7 @@ public import CslibFrontier.Foundations.Combinatorics.TailSum
 public import CslibFrontier.Algorithms.Lean.Kruskal.Basic
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Dealing.StepSize
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.Embedding.Stub
+public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.TableGenerator
 public import CslibFrontier.Logics.Propositional.CNF.Johnson
 public import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.BoundaryRotateProgram
@@ -10542,6 +10548,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.PolyTime
 public import CslibFrontier.Foundations.Probability.Gaussian.OffCenterTail
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBufferTrieProg.Insert
 public import CslibFrontier.Crypto.Computational.MLDSA.SplitMatrix
+public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.PolySchedule
 public import CslibFrontier.Algorithms.WordRAM.Karger.OutputLaw
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Interp
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.IndependentSources
