@@ -29,8 +29,7 @@ the separate probabilistic-program interface for independently sampled runs.
 
 ## Main definitions
 
-* `Cslib.Complexity.repeatOutputs` and `Cslib.Complexity.repeatVotes`: collect ordered outputs
-  or Boolean votes.
+* `Cslib.Complexity.repeatVotes`: collect the ordered trial outputs.
 * `Cslib.Complexity.repeatAny`: accept if any vote is `true`.
 * `Cslib.Complexity.repeatMajority`: accept if more than half of `2 r(n)` votes are `true`.
 
@@ -61,32 +60,22 @@ variable {α : Type}
 
 /-- Collect outputs on fixed-width rows of a supplied random tape, padding missing bits with
 `false` and ignoring bits beyond the prescribed rows. Zero-width rows still contribute outputs. -/
-def repeatOutputs {β : Type} (trials width : ℕ) (evaluate : α × List Bool → β)
+def repeatVotes {β : Type} (trials width : ℕ) (evaluate : α × List Bool → β)
     (input : α × List Bool) : List β :=
   (BitString.listRows trials width input.2).map (fun row => evaluate (input.1, row))
 
 /-- Repetition produces one output for each prescribed trial, even on a short tape. -/
 @[simp]
-theorem length_repeatOutputs {β : Type} (trials width : ℕ) (V : α × List Bool → β)
-    (input : α × List Bool) : (repeatOutputs trials width V input).length = trials := by
-  simp [repeatOutputs]
-
-/-- Collect Boolean votes on fixed-width rows of a supplied random tape. -/
-def repeatVotes (trials width : ℕ) (V : α × List Bool → Bool) (input : α × List Bool) : List Bool :=
-  repeatOutputs trials width V input
-
-/-- Repetition produces one vote for each prescribed trial, even on a short tape. -/
-@[simp]
-theorem length_repeatVotes (trials width : ℕ) (V : α × List Bool → Bool)
-    (input : α × List Bool) : (repeatVotes trials width V input).length = trials :=
-  length_repeatOutputs trials width V input
+theorem length_repeatVotes {β : Type} (trials width : ℕ) (V : α × List Bool → β)
+    (input : α × List Bool) : (repeatVotes trials width V input).length = trials := by
+  simp [repeatVotes]
 
 /-- On a full tape, votes are evaluations on its finite blocks, in order. -/
-theorem repeatVotes_ofFn {trials width : ℕ} {V : α × List Bool → Bool} (a : α)
+theorem repeatVotes_ofFn {β : Type} {trials width : ℕ} {V : α × List Bool → β} (a : α)
     (x : BitString (trials * width)) :
     repeatVotes trials width V (a, List.ofFn x) =
       List.ofFn (fun i => V (a, List.ofFn (BitString.block x i))) := by
-  simp [repeatVotes, repeatOutputs, BitString.listRows_ofFn, List.map_ofFn, Function.comp_def]
+  simp [repeatVotes, BitString.listRows_ofFn, List.map_ofFn, Function.comp_def]
 
 /-- Producing votes takes polynomial time when the verifier and the unary dimensions do.
 The dimensions may depend on the complete input, and output uses the raw bit-list encoding. -/
@@ -98,7 +87,7 @@ theorem computableInPolyTime_repeatVotes {enc : α ↪ List Bool}
     (hwidth : ComputableInPolyTime width (encPair enc encBits) encUnary) :
     ComputableInPolyTime (fun input => repeatVotes (trials input) (width input) V input)
       (encPair enc encBits) encBits := by
-  unfold repeatVotes repeatOutputs
+  unfold repeatVotes
   fun_prop
 
 /-- Collecting framed outputs charges polynomial overhead for the input and unary dimensions
@@ -111,7 +100,7 @@ theorem computableInO_repeatOutputs {β : Type} {enc : α ↪ List Bool} {encOut
     (htr : ComputableInO trials (encPair enc encBits) encUnary Ttr Str)
     (hw : ComputableInO width (encPair enc encBits) encUnary Tw Sw)
     (hR : ∀ p row, row.length = width p → Tv (p.1, row) ≤ R p) :
-    let outputs (p : α × List Bool) := repeatOutputs (trials p) (width p) V p
+    let outputs (p : α × List Bool) := repeatVotes (trials p) (width p) V p
     ∃ d S, ComputableInO outputs (encPair enc encBits) (encList encOut)
       (fun p => (trials p + 1) *
         (((encPair enc encBits p).length + Ttr p + Tw p + 1) ^ d +
@@ -170,7 +159,7 @@ theorem computableInO_repeatOutputs {β : Type} {enc : α ↪ List Bool} {encOut
   have hmap := ComputableInO.mapWith hV (ComputableInO.fst enc encBits) hrows
   refine ⟨max d 1, _, (hmap.mono_time (4 + 2 * m) (fun p => ?_)).of_enc_eq
     (fun _ => rfl)⟩
-  let out := (encList encOut (repeatOutputs (trials p) (width p) V p)).length
+  let out := (encList encOut (repeatVotes (trials p) (width p) V p)).length
   have hi : (input p).length ≤ budget p := by
     have := hbase_le p
     dsimp only [base] at this
@@ -239,13 +228,13 @@ theorem computableInO_repeatVotes {enc : α ↪ List Bool}
     rw [encUnary_apply, List.length_replicate] at h
     exact h.trans (Nat.mul_le_mul_left _ ((by dsimp only [base]; omega :
       Ttr p + 1 ≤ base).trans hbase))
-  have houtlen : (encList encBool (repeatOutputs (trials p) (width p) V p)).length ≤
+  have houtlen : (encList encBool (repeatVotes (trials p) (width p) V p)).length ≤
       3 * trials p := by
-    simpa only [length_repeatOutputs, Nat.mul_comm] using
-      length_encList_le encBool (repeatOutputs (trials p) (width p) V p) (b := 1)
+    simpa only [length_repeatVotes, Nat.mul_comm] using
+      length_encList_le encBool (repeatVotes (trials p) (width p) V p) (b := 1)
         (fun v _ => by cases v <;> decide)
   change (trials p + 1) *
-    (base ^ d + (encList encBool (repeatOutputs (trials p) (width p) V p)).length + R p) ≤ _
+    (base ^ d + (encList encBool (repeatVotes (trials p) (width p) V p)).length + R p) ≤ _
   calc
     _ ≤ (trials p + 1) * (budget + 3 * (m * budget) + R p) :=
       Nat.mul_le_mul_left _ (Nat.add_le_add_right

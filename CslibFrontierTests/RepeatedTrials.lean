@@ -26,7 +26,7 @@ example : repeatVotes 3 2 (fun x => x.2 == [true, false])
   decide
 
 /-- Repeated counts retain the order and multiplicity of outputs on a padded tape. -/
-example : repeatOutputs 3 2 (fun x => x.2.countP id)
+example : repeatVotes 3 2 (fun x => x.2.countP id)
     (([] : List Bool), [true, true, false, true, true]) = [2, 1, 1] := by
   decide
 
