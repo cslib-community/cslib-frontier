@@ -76,10 +76,8 @@ private theorem clientResult_compAppendTailReadGMProg {U V w N metaBase b : ℕ}
   have hr_eq : 4 + (b + b + b) + 1 = gmRIdx b := by unfold gmRIdx; omega
   have h1_lt : 1 < globalMetaLen N := by unfold globalMetaLen; omega
   dsimp only [compAppendTailReadGMProg]
-  rw [hr_eq, StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg hr_idx_lt,
-    clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
-    clientResult_readCompGMGenProg h1_lt, clientState_readCompGMGenProg]
-  rfl
+  simp only [client_simps, StateTransitionSpec.clientState, runClient_state_readCompGMGenProg,
+    hr_eq, clientResult_readCompGMGenProg hr_idx_lt, clientResult_readCompGMGenProg h1_lt]
 
 private def compAppendTailWrite1Prog :
     ((CompParams × ℕ) × ℕ) × (ℕ × ℕ) → Memory.Prog Unit

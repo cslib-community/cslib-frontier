@@ -83,12 +83,10 @@ private theorem clientResult_compGmPushReadProg {U V w N metaBase b : ℕ}
         compGmAt metaBase U w N s.mem (gmSlabTopIdx b)) := by
   obtain ⟨hq_idx_lt, hq_eq, htop_idx_lt, htop_eq, h0_lt⟩ := gmPush_q_indices hb_pos hb
   dsimp only [compGmPushReadProg]
-  rw [hq_eq, StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg hq_idx_lt,
-    clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
-    clientResult_readCompGMGenProg h0_lt, clientState_readCompGMGenProg,
-    htop_eq, StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg htop_idx_lt,
-    clientState_readCompGMGenProg]
-  rfl
+  simp only [client_simps, StateTransitionSpec.clientState, runClient_state_readCompGMGenProg,
+    hq_eq, htop_eq,
+    clientResult_readCompGMGenProg hq_idx_lt, clientResult_readCompGMGenProg h0_lt,
+    clientResult_readCompGMGenProg htop_idx_lt]
 
 private def compGmPushWriteOwnerProg :
     ((CompParams × ℕ) × (ℕ × ℕ)) × (ℕ × ℕ) → Memory.Prog Unit

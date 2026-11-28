@@ -136,13 +136,8 @@ theorem compGmUnlinkTopSlabGenProg_effect {metaBase itemBase U V w N m_items b :
       (compGmUnlinkTopSlabGenProg ((mkCompParams U V w N, metaBase), b)) =
       gm (gmSlabTopIdx b) := by
     dsimp only [compGmUnlinkTopSlabGenProg, compGmUnlinkWriteProg, cpGmSlabMetaBase_mk, gm]
-    dsimp only [gm] at hbel_eq
-    rw [hq_eq, htop_eq, StateTransitionSpec.clientResult_bind,
-      clientResult_readCompGMGenProg htop_idx_lt, clientState_readCompGMGenProg,
-      StateTransitionSpec.clientResult_bind, clientState_readCompGMGenProg,
-      StateTransitionSpec.clientResult_bind, clientState_readCompGMGenProg,
-      StateTransitionSpec.clientResult_bind]
-    rfl
+    simp only [client_simps, StateTransitionSpec.clientState, runClient_state_readCompGMGenProg,
+      hq_eq, htop_eq, clientResult_readCompGMGenProg htop_idx_lt]
   have hst : s' = (Memory.spec 0).clientState
       ((Memory.spec 0).clientState s
         (writeCompGMGenProg (((mkCompParams U V w N, metaBase), gmSlabTopIdx b),
