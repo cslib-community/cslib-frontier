@@ -2020,46 +2020,16 @@ p. 325). -/
     ⟨acc.wSet, acc.mSet, acc.gSet, sNext⟩
 
 omit [Fintype N] in
-private theorem oneCaStep_wSet_eq (σ : N → OneCaStrategy N M) (past : List (WrapperState N M))
+private theorem oneCaStep_eq (σ : N → OneCaStrategy N M) (past : List (WrapperState N M))
     (st : WrapperState N M) (acc : OneCaAcc N M) (i : N) :
-    (oneCaStep σ past st acc i).wSet =
-      if (oneCaPickBundle σ past st acc i).card ≤ Nat.sqrt (Fintype.card M) then
-        if oneCaPickBundle σ past st acc i ⊆
-            freeItems acc.wSet (Function.update acc.bundles i (oneCaPickBundle σ past st acc i))
-        then insert i acc.wSet else acc.wSet
-      else acc.wSet := by
-  dsimp only [oneCaStep]
-  split_ifs <;> rfl
-
-omit [Fintype N] in
-private theorem oneCaStep_mSet_eq (σ : N → OneCaStrategy N M) (past : List (WrapperState N M))
-    (st : WrapperState N M) (acc : OneCaAcc N M) (i : N) :
-    (oneCaStep σ past st acc i).mSet =
-      if (oneCaPickBundle σ past st acc i).card ≤ Nat.sqrt (Fintype.card M) then
-        if oneCaPickBundle σ past st acc i ⊆
-            freeItems acc.mSet (Function.update acc.bundles i (oneCaPickBundle σ past st acc i))
-        then insert i acc.mSet else acc.mSet
-      else acc.mSet := by
-  dsimp only [oneCaStep]
-  split_ifs <;> rfl
-
-omit [Fintype N] in
-private theorem oneCaStep_gSet_eq (σ : N → OneCaStrategy N M) (past : List (WrapperState N M))
-    (st : WrapperState N M) (acc : OneCaAcc N M) (i : N) :
-    (oneCaStep σ past st acc i).gSet =
-      if (oneCaPickBundle σ past st acc i).card ≤ Nat.sqrt (Fintype.card M) then
-        if oneCaPickBundle σ past st acc i ⊆
-            freeItems acc.gSet (Function.update acc.bundles i (oneCaPickBundle σ past st acc i))
-        then insert i acc.gSet else acc.gSet
-      else acc.gSet := by
-  dsimp only [oneCaStep]
-  split_ifs <;> rfl
-
-omit [Fintype N] in
-private theorem oneCaStep_bundles_eq (σ : N → OneCaStrategy N M) (past : List (WrapperState N M))
-    (st : WrapperState N M) (acc : OneCaAcc N M) (i : N) :
-    (oneCaStep σ past st acc i).bundles =
-      Function.update acc.bundles i (oneCaPickBundle σ past st acc i) := by
+    oneCaStep σ past st acc i =
+      let bNew := oneCaPickBundle σ past st acc i
+      let sNext := Function.update acc.bundles i bNew
+      let updateSet (A : Finset N) :=
+        if bNew.card ≤ Nat.sqrt (Fintype.card M) then
+          if bNew ⊆ freeItems A sNext then insert i A else A
+        else A
+      ⟨updateSet acc.wSet, updateSet acc.mSet, updateSet acc.gSet, sNext⟩ := by
   dsimp only [oneCaStep]
   split_ifs <;> rfl
 
@@ -2318,20 +2288,13 @@ private theorem oneCaStep_preserves_inv (σ : N → OneCaStrategy N M)
       · subst hbi; rw [hsNext_self]; exact hb_sub
       · rw [hsNext_ne b hbi]
     exact (hinv.m_pw ha hb hne).mono hsub_a hsub_b
-  have hW_eq : (oneCaStep σ past st acc i).wSet =
-      if bNew.card ≤ Nat.sqrt (Fintype.card M) then
-        if bNew ⊆ freeItems acc.wSet sNext then insert i acc.wSet else acc.wSet
-      else acc.wSet := oneCaStep_wSet_eq σ past st acc i
-  have hM_eq : (oneCaStep σ past st acc i).mSet =
-      if bNew.card ≤ Nat.sqrt (Fintype.card M) then
-        if bNew ⊆ freeItems acc.mSet sNext then insert i acc.mSet else acc.mSet
-      else acc.mSet := oneCaStep_mSet_eq σ past st acc i
-  have hG_eq : (oneCaStep σ past st acc i).gSet =
-      if bNew.card ≤ Nat.sqrt (Fintype.card M) then
-        if bNew ⊆ freeItems acc.gSet sNext then insert i acc.gSet else acc.gSet
-      else acc.gSet := oneCaStep_gSet_eq σ past st acc i
+  have hstep := oneCaStep_eq σ past st acc i
+  have hW_eq := congrArg OneCaAcc.wSet hstep
+  have hM_eq := congrArg OneCaAcc.mSet hstep
+  have hG_eq := congrArg OneCaAcc.gSet hstep
+  dsimp only at hW_eq hM_eq hG_eq
   have hbundles_eq : (oneCaStep σ past st acc i).bundles = sNext :=
-    oneCaStep_bundles_eq σ past st acc i
+    congrArg OneCaAcc.bundles hstep
   have hsubW : acc.wSet ⊆ (oneCaStep σ past st acc i).wSet := by
     rw [hW_eq]; split_ifs <;> [exact Finset.subset_insert _ _; exact Subset.rfl; exact Subset.rfl]
   have hsubM : acc.mSet ⊆ (oneCaStep σ past st acc i).mSet := by
@@ -2432,15 +2395,15 @@ private theorem oneCaStep_preserves_inv (σ : N → OneCaStrategy N M)
     · subst hki; rw [hsNext_self]; exact hb_dich
     · rw [hsNext_ne k hki]; exact hinv.bundle_dichotomy k
   · rw [hbundles_eq, hW_eq]
-    by_cases hc : bNew.card ≤ Nat.sqrt (Fintype.card M) <;> simp only [hc, ↓reduceIte]
+    split
     · exact hpw_insert acc.wSet hw_pw0
     · exact hw_pw0
   · rw [hbundles_eq, hM_eq]
-    by_cases hc : bNew.card ≤ Nat.sqrt (Fintype.card M) <;> simp only [hc, ↓reduceIte]
+    split
     · exact hpw_insert acc.mSet hm_pw0
     · exact hm_pw0
   · rw [hbundles_eq, hG_eq]
-    by_cases hc : bNew.card ≤ Nat.sqrt (Fintype.card M) <;> simp only [hc, ↓reduceIte]
+    split
     · exact hpw_insert acc.gSet hg_pw0
     · exact hg_pw0
   · intro k hk; rw [hbundles_eq]
@@ -2465,6 +2428,9 @@ private theorem oneCaStep_preserves_inv (σ : N → OneCaStrategy N M)
         exact (subset_freeItems_iff acc.gSet acc.bundles bNew).1
           (hval.2.1.trans Finset.inter_subset_left) l hl
       rw [hG_eq]
+      change k ∈ (if bNew.card ≤ Nat.sqrt (Fintype.card M) then
+        if bNew ⊆ freeItems acc.gSet sNext then insert k acc.gSet else acc.gSet
+        else acc.gSet)
       simp only [hval.2.2, hfree_next, ↓reduceIte, Finset.mem_insert_self]
     · have hkne : k ≠ i := fun h => hi_fresh (h ▸ hkvis)
       rw [hsNext_ne k hkne] at hltM
@@ -2539,7 +2505,7 @@ private theorem oneCaFold_preserves_inv (σ : N → OneCaStrategy N M)
     · intro k hk hkW
       rw [List.mem_cons, not_or] at hk
       refine hnotW2 k hk.2 (hnot_step acc.wSet k hk.1 hkW _ fun y hy => ?_)
-      rw [oneCaStep_wSet_eq] at hy
+      simp only [oneCaStep_eq] at hy
       split_ifs at hy
       · exact Finset.mem_insert.1 hy
       · exact Or.inr hy
@@ -2547,7 +2513,7 @@ private theorem oneCaFold_preserves_inv (σ : N → OneCaStrategy N M)
     · intro k hk hkM
       rw [List.mem_cons, not_or] at hk
       refine hnotM2 k hk.2 (hnot_step acc.mSet k hk.1 hkM _ fun y hy => ?_)
-      rw [oneCaStep_mSet_eq] at hy
+      simp only [oneCaStep_eq] at hy
       split_ifs at hy
       · exact Finset.mem_insert.1 hy
       · exact Or.inr hy
@@ -2555,7 +2521,7 @@ private theorem oneCaFold_preserves_inv (σ : N → OneCaStrategy N M)
     · intro k hk hkG
       rw [List.mem_cons, not_or] at hk
       refine hnotG2 k hk.2 (hnot_step acc.gSet k hk.1 hkG _ fun y hy => ?_)
-      rw [oneCaStep_gSet_eq] at hy
+      simp only [oneCaStep_eq] at hy
       split_ifs at hy
       · exact Finset.mem_insert.1 hy
       · exact Or.inr hy
@@ -2979,7 +2945,7 @@ private theorem oneCaStrategyClass_invariants [Nonempty M] {σ : N → OneCaStra
         · obtain ⟨pre, suf, iMax, accBefore, _, _, _, _, _, _, _, hbi_eq, _, _, _, _, _, _, _,
             hbun_end, _, _, _, _⟩ := oneCaRunAcc_split_at σ cur.2 cur.1
             (mem_losers_iff_val_eq_zero oneCaProc σ j) (oneCaStateInv_of_run σ j) ht hpos
-          rw [hbun_end, oneCaStep_bundles_eq, Function.update_self]
+          simp only [hbun_end, oneCaStep_eq, Function.update_self]
           simp only [oneCaPickBundle]
           by_cases hW : i ∈ cur.1.winners
           · simp only [hW, ↓reduceIte, hbi_eq]; exact ih
@@ -3139,7 +3105,7 @@ theorem dominateOneCaStrategy_weaklyDominates [Nonempty M] (p : SingleValuePlaye
           have hB' : (wrapperState P σ₁ (j + 1)).bundle i =
               (oneCaRunAcc σ₁ cur.2 cur.1).bundles i :=
             congrFun (wrapperState_succ_bundle hnotT₁) i
-          rw [hB', hbun_end₁, oneCaStep_bundles_eq, Function.update_self, hpick₁]
+          simp only [hB', hbun_end₁, oneCaStep_eq, Function.update_self, hpick₁]
         classical
         simp only [WrapperProc.utility, WrapperProc.alloc, WrapperProc.payment]
         split_ifs with hT₁ hW
@@ -3216,19 +3182,19 @@ theorem dominateOneCaStrategy_weaklyDominates [Nonempty M] (p : SingleValuePlaye
             accBefore.bundles := by
           rw [← hbi_eq, Function.update_eq_self]
         have hstep_notW : i ∉ (oneCaStep σ₁ cur.2 cur.1 accBefore i).wSet := by
-          rw [oneCaStep_wSet_eq, hsilent, hsNext_eq]
+          simp only [oneCaStep_eq, hsilent, hsNext_eq]
           split_ifs with hc hf
           · exact absurd ⟨hc, Or.inl hf⟩ hnotFree
           · exact hiNotW0
           · exact hiNotW0
         have hstep_notM : i ∉ (oneCaStep σ₁ cur.2 cur.1 accBefore i).mSet := by
-          rw [oneCaStep_mSet_eq, hsilent, hsNext_eq]
+          simp only [oneCaStep_eq, hsilent, hsNext_eq]
           split_ifs with hc hf
           · exact absurd ⟨hc, Or.inr (Or.inl hf)⟩ hnotFree
           · exact hiNotM0
           · exact hiNotM0
         have hstep_notG : i ∉ (oneCaStep σ₁ cur.2 cur.1 accBefore i).gSet := by
-          rw [oneCaStep_gSet_eq, hsilent, hsNext_eq]
+          simp only [oneCaStep_eq, hsilent, hsNext_eq]
           split_ifs with hc hf
           · exact absurd ⟨hc, Or.inr (Or.inr hf)⟩ hnotFree
           · exact hiNotG0
@@ -3456,7 +3422,7 @@ theorem oneCaProc_isLocalApproxOn [Nonempty M] (players : N → SingleValuePlaye
         exact (hf l hl).mono_left hb_sub
       rcases hfree_or with hfW | hfM | hfG
       · have hmem : i ∈ (oneCaStep σ cur.2 st accBefore i).wSet := by
-          rw [oneCaStep_wSet_eq]
+          simp only [oneCaStep_eq]
           have hfw : bNew ⊆ freeItems accBefore.wSet sNext := hfree_trans _ hiNotW0 hfW
           change i ∈ if bNew.card ≤ Nat.sqrt m then
             if bNew ⊆ freeItems accBefore.wSet sNext then insert i accBefore.wSet
@@ -3465,7 +3431,7 @@ theorem oneCaProc_isLocalApproxOn [Nonempty M] (players : N → SingleValuePlaye
           simp only [hb_card, hfw, ↓reduceIte, Finset.mem_insert_self]
         exact hiNotW (hW_step_sub hmem)
       · have hmem : i ∈ (oneCaStep σ cur.2 st accBefore i).mSet := by
-          rw [oneCaStep_mSet_eq]
+          simp only [oneCaStep_eq]
           have hfm : bNew ⊆ freeItems accBefore.mSet sNext := hfree_trans _ hiNotM0 hfM
           change i ∈ if bNew.card ≤ Nat.sqrt m then
             if bNew ⊆ freeItems accBefore.mSet sNext then insert i accBefore.mSet
@@ -3474,7 +3440,7 @@ theorem oneCaProc_isLocalApproxOn [Nonempty M] (players : N → SingleValuePlaye
           simp only [hb_card, hfm, ↓reduceIte, Finset.mem_insert_self]
         exact hiNotM (hM_step_sub hmem)
       · have hmem : i ∈ (oneCaStep σ cur.2 st accBefore i).gSet := by
-          rw [oneCaStep_gSet_eq]
+          simp only [oneCaStep_eq]
           have hfg : bNew ⊆ freeItems accBefore.gSet sNext := hfree_trans _ hiNotG0 hfG
           change i ∈ if bNew.card ≤ Nat.sqrt m then
             if bNew ⊆ freeItems accBefore.gSet sNext then insert i accBefore.gSet
@@ -3501,7 +3467,7 @@ theorem oneCaProc_isLocalApproxOn [Nonempty M] (players : N → SingleValuePlaye
         rw [Function.update_of_ne hli]
         exact (subset_freeItems_iff _ _ _).1 (hval_b'.2.1.trans Finset.inter_subset_left) l hl
       have hmemG : i ∈ (oneCaStep σ cur.2 st accBefore i).gSet := by
-        rw [oneCaStep_gSet_eq]
+        simp only [oneCaStep_eq]
         simp only [hpick, hval_b'.2.2, hfree_g, ↓reduceIte, Finset.mem_insert_self]
       exact hiNotG (hG_step_sub hmemG)
     -- Since `alloc i` is nonempty, `⊆ st.bundle i`, and `card ≤ √m`, it hits `accBefore.gSet`.
