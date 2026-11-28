@@ -20,7 +20,8 @@ For every list of `n ≥ 2` distinct keys and every correct second-minimum algor
 order forces at least `n + ⌈log₂ n⌉ − 2` comparisons. The program can compare arbitrary keys of
 the ambient type, including keys outside the input. This is the order-dual of the unnumbered
 corollary concluding §2, p. 562 of [Kislitsyn][Kislitsyn1964]. The paper's
-`n - 1 + ⌊log₂(n - 1)⌋` equals `n + ⌈log₂ n⌉ - 2` for `n ≥ 2`.
+`n - 1 + ⌊log₂(n - 1)⌋` equals `n + ⌈log₂ n⌉ - 2` for `n ≥ 2`. See also
+[Knuth][Knuth1998], volume 3, second edition, §5.3.3, Theorem S.
 
 Whenever two undefeated input keys meet, the adversary favors the one with more wins over
 previously undefeated keys. Moving the chosen winner to the bottom of the current order preserves
