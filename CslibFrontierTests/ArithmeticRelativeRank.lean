@@ -47,9 +47,9 @@ private theorem blockMonomial_pick {n : ℕ} (b : Fin 2) (k : Fin n) :
 private theorem card_block (n : ℕ) (b : Fin 2) :
     Fintype.card {x : Fin 2 × Fin n // x.1 = b} = n :=
   (Fintype.card_congr
-    { toFun := fun x => x.1.2
+    { toFun := fun x => x.val.2
       invFun := fun k => ⟨(b, k), rfl⟩
-      left_inv := fun x => Subtype.ext (Prod.ext x.2.symm rfl)
+      left_inv := fun x => Subtype.ext (Prod.ext x.property.symm rfl)
       right_inv := fun _ => rfl }).trans (Fintype.card_fin n)
 
 private theorem card_blockChoice_singleton (n : ℕ) (b : Fin 2) :

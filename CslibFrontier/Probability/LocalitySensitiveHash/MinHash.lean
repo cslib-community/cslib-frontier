@@ -87,7 +87,7 @@ theorem jaccard_self (A : Finset α) : jaccard A A = 1 := by
   rw [jaccard, Finset.union_self, Finset.inter_self]
   split_ifs with hA
   · rfl
-  · exact div_self (by exact_mod_cast Finset.card_ne_zero.2 (Finset.nonempty_iff_ne_empty.2 hA))
+  · exact div_self (by exact_mod_cast Finset.card_ne_zero.2 (Finset.ne_empty_iff_nonempty.1 hA))
 
 theorem jaccard_nonneg (A B : Finset α) : 0 ≤ jaccard A B := by
   rw [jaccard]
@@ -110,7 +110,7 @@ theorem jaccard_eq_one_iff {A B : Finset α} : jaccard A B = 1 ↔ A = B := by
   split_ifs at h with hAB
   · exact (Finset.union_eq_empty.1 hAB).1.trans (Finset.union_eq_empty.1 hAB).2.symm
   · have hpos : ((A ∪ B).card : ℚ) ≠ 0 := by
-      exact_mod_cast Finset.card_ne_zero.2 (Finset.nonempty_iff_ne_empty.2 hAB)
+      exact_mod_cast Finset.card_ne_zero.2 (Finset.ne_empty_iff_nonempty.1 hAB)
     rw [div_eq_one_iff_eq hpos, Nat.cast_inj] at h
     have hU : A ∪ B ⊆ A ∩ B :=
       (Finset.eq_of_subset_of_card_le Finset.inter_subset_union h.ge).symm.subset
@@ -147,7 +147,7 @@ theorem minHash_eq_of_isMin {σ : Equiv.Perm α} {A : Finset α} {s : α} (hs : 
 /-- A set whose MinHash value is the rank `σ s` contains `s`. -/
 private theorem mem_of_minHash_eq_coe {σ : Equiv.Perm α} {B : Finset α} {s : α}
     (h : minHash σ B = σ s) : s ∈ B := by
-  have hB0 : B.Nonempty := Finset.nonempty_iff_ne_empty.2 fun h0 =>
+  have hB0 : B.Nonempty := Finset.ne_empty_iff_nonempty.1 fun h0 =>
     WithTop.top_ne_coe ((h0 ▸ minHash_empty σ).symm.trans h)
   obtain ⟨t, ht, hbt⟩ := Finset.exists_mem_eq_inf B hB0 fun b => (σ b : WithTop α)
   rwa [← σ.injective (WithTop.coe_injective (hbt.symm.trans h))]
@@ -226,7 +226,7 @@ theorem collisionProb_minHash (A B : Finset α) :
   · obtain ⟨rfl, rfl⟩ := Finset.union_eq_empty.1 hS
     simp only [Set.mem_ofPred_eq, Finset.filter_true, Finset.card_univ, Rat.cast_one]
     exact div_self (by exact_mod_cast Fintype.card_ne_zero)
-  · obtain ⟨s, hs⟩ := Finset.nonempty_iff_ne_empty.2 hS
+  · obtain ⟨s, hs⟩ := Finset.ne_empty_iff_nonempty.1 hS
     have hcoll : Finset.univ.filter (· ∈ {σ : Equiv.Perm α | minHash σ A = minHash σ B}) =
         (A ∩ B).biUnion (argminSet (A ∪ B)) := by
       ext σ

@@ -71,13 +71,13 @@ theorem fanInAtMost_or₂ : (or₂ K).FanInAtMost (2 ^ 3 - 1) :=
 
 /-- A uniformly random bit has sign `0` on average. -/
 theorem expect_signVal (k : Fin (K + 2)) : 𝔼 x : Fin (K + 2) → Bool, signVal (x k) = 0 := by
-  simp only [← chi_singleton, expect_chi, singleton_ne_empty, ↓reduceIte]
+  simp only [← chi_singleton, expect_chi, (singleton_nonempty _).ne_empty, ↓reduceIte]
 
 /-- Two distinct uniformly random bits have uncorrelated signs. -/
 theorem expect_signVal_mul_signVal :
     𝔼 x : Fin (K + 2) → Bool, signVal (x 0) * signVal (x 1) = 0 := by
   simp only [← chi_singleton, ← chi_union (disjoint_singleton.2 zero_ne_one), expect_chi,
-    union_eq_empty, singleton_ne_empty, false_and, ↓reduceIte]
+    union_eq_empty, (singleton_nonempty _).ne_empty, false_and, ↓reduceIte]
 
 /-- Under the uniform distribution, `OR` of two bits is true with probability `3 / 4`. -/
 theorem expect_bitVal_or₂ :
@@ -271,7 +271,7 @@ theorem isKWiseIndependent_parityPair (K : ℕ) : IsKWiseIndependent K (parityPa
 its marginal outside `{0}` is not uniform. -/
 theorem bias_parityPair_second (K : ℕ) : bias (parityPair K) (firstHalf K)ᶜ = 1 := by
   have h (x : ParityPair K) : parityOn (firstHalf K)ᶜ (x : Fin (2 * K + 2) → Bool) = false :=
-    (mem_parityPair_iff.1 x.2).2
+    (mem_parityPair_iff.1 x.property).2
   rw [parityPair, bias_uniformOfFintype_map]
   simp only [chi_eq_signVal_parityOn, h, signVal_false]
   exact Fintype.expect_const 1

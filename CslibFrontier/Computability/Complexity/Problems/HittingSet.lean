@@ -122,7 +122,7 @@ theorem mem_HittingSet_iff (x : HittingSetInstance) :
     refine ⟨H.map (.subtype _), fun u hu => ?_, (Finset.card_map _).trans_le hcard,
       fun S hS => ?_⟩
     · obtain ⟨v, -, rfl⟩ := Finset.mem_map.1 hu
-      exact v.2
+      exact v.property
     · obtain ⟨u, huH, huS⟩ := hhit S hS
       exact ⟨u, Finset.mem_map_of_mem _ huH, huS⟩
   · rintro ⟨H, hmem, hcard, hhit⟩

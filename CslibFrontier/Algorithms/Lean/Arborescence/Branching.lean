@@ -76,19 +76,19 @@ last index. -/
     Option V ≃ Fin (FinEnum.card V + 1) where
   toFun
     | none => ⟨FinEnum.card V, Nat.lt_succ_self _⟩
-    | some v => ⟨((@FinEnum.equiv V _) v).1, Nat.lt_succ_of_lt ((@FinEnum.equiv V _) v).isLt⟩
+    | some v => ⟨((@FinEnum.equiv V _) v).val, Nat.lt_succ_of_lt ((@FinEnum.equiv V _) v).isLt⟩
   invFun i :=
-    if h : i.1 < FinEnum.card V then some ((@FinEnum.equiv V _).symm ⟨i.1, h⟩) else none
+    if h : i.val < FinEnum.card V then some ((@FinEnum.equiv V _).symm ⟨i.val, h⟩) else none
   left_inv
     | none => by simp
     | some v => by
-      have hv : ((@FinEnum.equiv V _) v).1 < FinEnum.card V := ((@FinEnum.equiv V _) v).isLt
+      have hv : ((@FinEnum.equiv V _) v).val < FinEnum.card V := ((@FinEnum.equiv V _) v).isLt
       simp [hv]
   right_inv i := by
-    by_cases h : i.1 < FinEnum.card V
+    by_cases h : i.val < FinEnum.card V
     · ext
       simp [h]
-    · have hi : i.1 = FinEnum.card V := by omega
+    · have hi : i.val = FinEnum.card V := by omega
       ext
       simp [hi]
 

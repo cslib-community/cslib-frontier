@@ -269,7 +269,7 @@ theorem exists_isBlockingPair_of_lt {μ : PartialMatching m n}
       exact ⟨x, hnot q hq r x hqr hxD hxlt, r, hqr, hxD⟩
     have honto : ∀ p ∈ B, ∃ q ∈ B, ∃ r : Fin n, μ q = some r ∧ D p = some r := by
       let f : {q // q ∈ B} → {p // p ∈ B} := fun q =>
-        ⟨(hclosed q.1 q.2).choose, (hclosed q.1 q.2).choose_spec.1⟩
+        ⟨(hclosed q.val q.property).choose, (hclosed q.val q.property).choose_spec.1⟩
       have hfinj : Function.Injective f := by
         rintro ⟨q₁, hq₁⟩ ⟨q₂, hq₂⟩ heq
         obtain ⟨r₁, hμ₁, hD₁⟩ := (hclosed q₁ hq₁).choose_spec.2

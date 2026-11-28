@@ -142,9 +142,9 @@ example :
     have hlen : (isolateRoots [(-2 : ℚ), 0, 1]).length = 2 := by decide +kernel
     let r₀ := isolatedRoot hsep ⟨0, by omega⟩
     let r₁ := isolatedRoot hsep ⟨1, by omega⟩
-    r₀.1 = -√2 ∧ r₁.1 = √2 ∧ r₀.1 < r₁.1 := by
+    r₀.val = -√2 ∧ r₁.val = √2 ∧ r₀.val < r₁.val := by
   intro hsep hlen r₀ r₁
-  have hmono : r₀.1 < r₁.1 :=
+  have hmono : r₀.val < r₁.val :=
     isolatedRoot_strictMono hsep (by decide : (⟨0, by omega⟩ : Fin _) < ⟨1, by omega⟩)
   have heval_list : isolateRoots [(-2 : ℚ), 0, 1] =
       [{ lower := -4, upper := 0 }, { lower := 0, upper := 4 }] := by decide +kernel
@@ -171,9 +171,9 @@ example :
   have hneg_root : ((ofCoeffList [(-2 : ℚ), 0, 1]).map (algebraMap ℚ ℝ)).IsRoot (-√2) := by
     rw [IsRoot.def, hmap, eval_sub, eval_pow, eval_X, eval_ofNat, neg_sq,
       Real.sq_sqrt (by norm_num), sub_self]
-  have hr0_eq : r₀.1 = -√2 := hiso0.2.unique ⟨hmem0.1, hmem0.2, r₀.2⟩
+  have hr0_eq : r₀.val = -√2 := hiso0.2.unique ⟨hmem0.1, hmem0.2, r₀.property⟩
     ⟨by norm_num; exact hsqrt2, by norm_num, hneg_root⟩
-  have hr1_eq : r₁.1 = √2 := hiso1.2.unique ⟨hmem1.1, hmem1.2, r₁.2⟩
+  have hr1_eq : r₁.val = √2 := hiso1.2.unique ⟨hmem1.1, hmem1.2, r₁.property⟩
     ⟨by norm_num, by norm_num; exact hsqrt2, hpos_root⟩
   exact ⟨hr0_eq, hr1_eq, hmono⟩
 
@@ -280,7 +280,8 @@ example :
 -- `x^2 - 2`.
 example :
     ∃! i : Fin (isolateRoots [(-2 : ℚ), 0, 1]).length,
-      (isolatedRoot (PerfectField.separable_iff_squarefree.mpr squarefree_sqSubTwo) i).1 = √2 := by
+      (isolatedRoot (PerfectField.separable_iff_squarefree.mpr squarefree_sqSubTwo) i).val =
+          √2 := by
   have hbij₁ := isolateRoots_bijective
     (PerfectField.separable_iff_squarefree.mpr squarefree_sqSubTwo)
   have hbij₂ := isolateRoots_bijective_of_squarefree squarefree_sqSubTwo
@@ -320,9 +321,9 @@ example :
     have hlen : (isolatePolyRoots wilkCubicQ).length = 3 := by
       rw [isolatePolyRoots_eq, wilkCubicQ_coeffsBelow]
       decide +kernel
-    let r₀ := (polyIsolatedRoot hsq ⟨0, by omega⟩).1
-    let r₁ := (polyIsolatedRoot hsq ⟨1, by omega⟩).1
-    let r₂ := (polyIsolatedRoot hsq ⟨2, by omega⟩).1
+    let r₀ := (polyIsolatedRoot hsq ⟨0, by omega⟩).val
+    let r₁ := (polyIsolatedRoot hsq ⟨1, by omega⟩).val
+    let r₂ := (polyIsolatedRoot hsq ⟨2, by omega⟩).val
     (-9 : ℝ) ≤ r₀ ∧ r₀ ≤ (0 : ℝ) ∧
       ((9 / 8 : ℚ) : ℝ) ≤ r₁ ∧ r₁ ≤ ((27 / 16 : ℚ) : ℝ) ∧
       ((27 / 16 : ℚ) : ℝ) ≤ r₂ ∧ r₂ ≤ ((9 / 4 : ℚ) : ℝ) ∧
@@ -394,7 +395,7 @@ theorem isolateRootsTotal_sqSubTwo_spec :
         (Function.onFun Disjoint fun J => Set.Icc (J.lower : ℝ) (J.upper : ℝ)) ∧
       (∃ f : Fin (isolateRootsTotal [(-2 : ℚ), 0, 1]).length →
           {x : ℝ // Polynomial.aeval x (X ^ 2 - (2 : ℚ[X])) = 0},
-        Function.Bijective f ∧ StrictMono (fun i => (f i).1)) ∧
+        Function.Bijective f ∧ StrictMono (fun i => (f i).val)) ∧
       mignotteBisectionDepth [(-2 : ℚ), 0, 1] ≤ 5 ^ 2 * 4 := by
   have hB : HasCoeffBitBound 2 [(-2 : ℚ), 0, 1] := by
     have hcb : coeffBitBound [(-2 : ℚ), 0, 1] = 2 := by decide +kernel
@@ -413,9 +414,9 @@ example :
     have hlen : (isolatePolyRootsTotal wilkCubicQ).length = 3 := by
       rw [isolatePolyRootsTotal_eq, wilkCubicQ_coeffsBelow]
       decide +kernel
-    let r₀ := (polyTotalIsolatedRoot hsq ⟨0, by omega⟩).1
-    let r₁ := (polyTotalIsolatedRoot hsq ⟨1, by omega⟩).1
-    let r₂ := (polyTotalIsolatedRoot hsq ⟨2, by omega⟩).1
+    let r₀ := (polyTotalIsolatedRoot hsq ⟨0, by omega⟩).val
+    let r₁ := (polyTotalIsolatedRoot hsq ⟨1, by omega⟩).val
+    let r₂ := (polyTotalIsolatedRoot hsq ⟨2, by omega⟩).val
     r₀ ∈ Set.Icc (-9 : ℝ) (0 : ℝ) ∧
       r₁ ∈ Set.Icc ((9 / 8 : ℚ) : ℝ) ((45 / 32 : ℚ) : ℝ) ∧
       r₂ ∈ Set.Icc ((27 / 16 : ℚ) : ℝ) ((9 / 4 : ℚ) : ℝ) ∧

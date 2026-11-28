@@ -122,7 +122,7 @@ theorem Circuit.linearCapacity_affine {F : Type*} [Field F] (c : Circuit (affine
     c.LinearCapacity (affineInterpretation F) := by
   intro W hW
   have := Fintype.ofFinite W
-  choose L b hL using fun w : W => c.program.exists_affine_trace w.1
+  choose L b hL using fun w : W => c.program.exists_affine_trace w.val
   let Φ : (Fin n → F) →ₗ[F] (W → F) := LinearMap.pi L
   have hΦ : Function.Injective Φ := fun x y hxy => hW (funext fun w => by
     have := congrFun hxy w
@@ -258,7 +258,7 @@ frontier determine the input. -/
 theorem exists_injective_frontier (hM : M.IsTotallyRegular) (hc : c.Computes I fun x => M *ᵥ x)
     (π : Layout (Vertex c)) :
     ∃ t, Function.Injective fun (x : Fin N → F) (e : (graph c).frontier π t) =>
-      c.program.trace I x e.1.signal.1 := by
+      c.program.trace I x e.val.signal.val := by
   classical
   set G := network c I fun _ => univ
   -- `a t` counts the inputs read and the outputs held by the first `t` vertices.
@@ -293,7 +293,7 @@ theorem exists_injective_frontier (hM : M.IsTotallyRegular) (hc : c.Computes I f
   set Y := outs P
   have hXY : X.ncard + Y.ncard = N := hat
   have hcut : ∀ e ∈ (graph c).edgeCut P,
-      c.program.trace I x e.signal.1 = c.program.trace I x' e.signal.1 :=
+      c.program.trace I x e.signal.val = c.program.trace I x' e.signal.val :=
     fun e he => congrFun hxx' ⟨e, he⟩
   have hcompl : ∀ S : Set (Fin N), Sᶜ.ncard = N - S.ncard := fun S => by
     have := ncard_add_ncard_compl_fin S; omega
@@ -328,9 +328,9 @@ private theorem le_width_of_isTotallyRegular (hM : M.IsTotallyRegular)
     (hcap : c.LinearCapacity I) (π : Layout (Vertex c)) : N ≤ (graph c).width π := by
   obtain ⟨t, ht⟩ := exists_injective_frontier hM hc π
   -- The wires carried by the frontier.
-  set W := (fun e : Edge c => e.signal.1) '' (graph c).frontier π t
+  set W := (fun e : Edge c => e.signal.val) '' (graph c).frontier π t
   have hW : Function.Injective fun (x : Fin N → F) (w : W) => c.program.trace I x w :=
-    fun x x' h => ht (funext fun e => congrFun h ⟨_, mem_image_of_mem _ e.2⟩)
+    fun x x' h => ht (funext fun e => congrFun h ⟨_, mem_image_of_mem _ e.property⟩)
   exact (hcap W hW).trans ((ncard_image_le (toFinite _)).trans
     ((graph c).ncard_frontier_le_width π t))
 
@@ -346,13 +346,13 @@ theorem eval_eq_of_eqOn_inCut {U : Type*} {n m : ℕ} {c : Circuit σ n m} (I : 
     {P : Set (Vertex c)} {x x' : Fin n → U}
     (hin : EqOn x x' ((network c I fun _ => univ).readIn P))
     (hcut : ∀ e ∈ (graph c).inCut P,
-      c.program.trace I x e.signal.1 = c.program.trace I x' e.signal.1)
+      c.program.trace I x e.signal.val = c.program.trace I x' e.signal.val)
     {o : Fin m} (ho : Vertex.output o ∈ P) :
     c.eval I x o = c.eval I x' o := by
   have hjunc : ∀ (w : Signal c),
-      (Vertex.signal w ∈ P → c.program.trace I x w.1 = c.program.trace I x' w.1) →
+      (Vertex.signal w ∈ P → c.program.trace I x w.val = c.program.trace I x' w.val) →
         ∀ (k : ℕ) (hk : k < fanout c w), Vertex.junction ⟨w, ⟨k, hk⟩⟩ ∈ P →
-          c.program.trace I x w.1 = c.program.trace I x' w.1 := by
+          c.program.trace I x w.val = c.program.trace I x' w.val := by
     intro w hw k
     induction k with
     | zero => exact fun hk hj => (em _).elim hw fun hs => hcut (.feed ⟨w, ⟨0, hk⟩⟩) ⟨hs, hj⟩
@@ -366,7 +366,7 @@ theorem eval_eq_of_eqOn_inCut {U : Type*} {n m : ℕ} {c : Circuit σ n m} (I : 
     refine congrArg _ (funext fun a => ?_)
     set e := argEdge hg a
     have htgt : (graph c).tgt e = Vertex.signal ⟨.gate g, hg⟩ := tgt_deliverEdge (.inl ⟨⟨g, a⟩, hg⟩)
-    have hsig : e.signal.1 = (c.program.lines g).wires a :=
+    have hsig : e.signal.val = (c.program.lines g).wires a :=
       congrArg Subtype.val (signal_deliverEdge (.inl ⟨⟨g, a⟩, hg⟩))
     by_cases hs : (graph c).src e ∈ P
     · set j := (junctionEquiv c).symm (.inl ⟨⟨g, a⟩, hg⟩)
@@ -375,19 +375,19 @@ theorem eval_eq_of_eqOn_inCut {U : Type*} {n m : ℕ} {c : Circuit σ n m} (I : 
         fst_junctionEquiv_symm (.inl ⟨⟨g, a⟩, hg⟩)
       have hval := hjunc j.1 (fun hsigP => by
         rw [hj1] at hsigP ⊢
-        exact ih a (.arg a hg) hsigP) j.2.1 j.2.isLt hjP
+        exact ih a (.arg a hg) hsigP) j.2.val j.2.isLt hjP
       rwa [hj1] at hval
     · exact hsig ▸ hcut e ⟨hs, htgt ▸ hP⟩
   have htgt : (graph c).tgt (outEdge c o) = Vertex.output o := tgt_deliverEdge (.inr o)
-  have hsig : (outEdge c o).signal.1 = c.outputs o :=
+  have hsig : (outEdge c o).signal.val = c.outputs o :=
     congrArg Subtype.val (signal_deliverEdge (.inr o))
   change c.program.trace I x (c.outputs o) = c.program.trace I x' (c.outputs o)
   by_cases hs : (graph c).src (outEdge c o) ∈ P
   · set j := (junctionEquiv c).symm (.inr o)
     have hjP : Vertex.junction j ∈ P := hs
-    have hjw : j.1.1 = c.outputs o :=
+    have hjw : j.1.val = c.outputs o :=
       congrArg Subtype.val (fst_junctionEquiv_symm (.inr o))
-    exact hjw ▸ hjunc j.1 (hwire j.1.1 j.1.2) j.2.1 j.2.isLt hjP
+    exact hjw ▸ hjunc j.1 (hwire j.1.val j.1.property) j.2.val j.2.isLt hjP
   · exact hsig ▸ hcut (outEdge c o) ⟨hs, htgt ▸ ho⟩
 
 /-- **Entering cut demand for totally regular maps.** For every set `P` of vertices in the graph of
@@ -413,14 +413,14 @@ theorem min_le_ncard_inCut (hM : M.IsTotallyRegular) (hc : c.Computes I fun x =>
     have := ncard_add_ncard_compl_fin B
     rw [compl_compl, ncard_coe_finset, hC₀k] at this
     omega
-  set Win : Set (Wire N c.size) := (fun e : Edge c => e.signal.1) '' (graph c).inCut P
+  set Win : Set (Wire N c.size) := (fun e : Edge c => e.signal.val) '' (graph c).inCut P
   set W' : Set (Wire N c.size) := Win ∪ (Wire.input '' B)
   have hinj : Function.Injective fun (x : Fin N → F) (w : W') => c.program.trace I x w := by
     intro x x' hxx'
     have hB : EqOn x x' B := fun i hi => congrFun hxx' ⟨.input i, Or.inr ⟨i, hi, rfl⟩⟩
     have hcut : ∀ e ∈ (graph c).inCut P,
-        c.program.trace I x e.signal.1 = c.program.trace I x' e.signal.1 :=
-      fun e he => congrFun hxx' ⟨e.signal.1, Or.inl ⟨e, he, rfl⟩⟩
+        c.program.trace I x e.signal.val = c.program.trace I x' e.signal.val :=
+      fun e he => congrFun hxx' ⟨e.signal.val, Or.inl ⟨e, he, rfl⟩⟩
     have hout : ∀ o ∈ Y, c.eval I x o = c.eval I x' o :=
       fun o ho => eval_eq_of_eqOn_inCut I (hB.mono hXB) hcut ho
     refine sub_eq_zero.mp (hM.eq_zero_of_mulVec_eq_zero (rows := Y.toFinset)

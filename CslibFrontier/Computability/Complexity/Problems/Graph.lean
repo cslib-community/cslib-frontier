@@ -255,7 +255,7 @@ theorem exists_subtype_pairwise_iff {G : Graph} {P : ℕ → ℕ → Prop} {m : 
   constructor
   · rintro ⟨S, hS, rfl⟩
     refine ⟨S.map (.subtype _),
-      fun v hv => by obtain ⟨u, _, rfl⟩ := Finset.mem_map.1 hv; exact u.2,
+      fun v hv => by obtain ⟨u, _, rfl⟩ := Finset.mem_map.1 hv; exact u.property,
       ?_, Finset.card_map _⟩
     intro u hu v hv huv
     rw [Finset.mem_coe, Finset.mem_map] at hu hv

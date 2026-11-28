@@ -285,7 +285,7 @@ theorem IsInteractiveProof.mem_NP {V : α → WordOracleComp Unit Bool} {A : Set
     (hV : IsOraclePPTOn enc encBool V) (h : IsInteractiveProof V A c 0) (hc : 0 < c) :
     A ∈ NP enc :=
   mem_NP_of_exists_pos_acceptProb hV (fun a ha => (h.complete a ha).imp fun _ hP => hc.trans_le hP)
-    fun a ha P => le_zero_iff.1 (h.sound a ha P)
+    fun a ha P => nonpos_iff_eq_zero.1 (h.sound a ha P)
 
 end NP
 

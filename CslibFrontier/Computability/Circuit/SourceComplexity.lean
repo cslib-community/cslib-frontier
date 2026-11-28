@@ -129,14 +129,14 @@ theorem Circuit.computesFrom_iff_computesOn_range (c : Circuit σ n m)
 does so. Every operation has finite natural-number cost; supplying the sources is free. -/
 noncomputable def ecomplexityFrom (I : Interpretation σ U) (cost : σ.Op → ℕ)
     (target : X → Fin m → U) (sources : X → Fin n → U) : ℕ∞ :=
-  ⨅ c : {c : Circuit σ n m // c.ComputesFrom I target sources}, (c.1.program.cost cost : ℕ∞)
+  ⨅ c : {c : Circuit σ n m // c.ComputesFrom I target sources}, (c.val.program.cost cost : ℕ∞)
 
 /-- Every circuit computing `target` from `sources` bounds `ecomplexityFrom` by its weighted
 cost. -/
 theorem ecomplexityFrom_le_of_computesFrom (c : Circuit σ n m)
     (hc : c.ComputesFrom I target sources) :
     ecomplexityFrom I cost target sources ≤ c.program.cost cost :=
-  iInf_le (fun c : {c // c.ComputesFrom I target sources} => (c.1.program.cost cost : ℕ∞)) ⟨c, hc⟩
+  iInf_le (fun c : {c // c.ComputesFrom I target sources} => (c.val.program.cost cost : ℕ∞)) ⟨c, hc⟩
 
 /-- `ecomplexityFrom` is finite (`≠ ⊤`) if and only if some circuit computes `target` from
 `sources`. -/
@@ -160,7 +160,7 @@ theorem exists_computesFrom_cost_eq_ecomplexityFrom
   have : Nonempty {c : Circuit σ n m // c.ComputesFrom I target sources} := nonempty_subtype.mpr h
   obtain ⟨⟨c, hc⟩, hmin⟩ := ENat.exists_eq_iInf
     (fun c : {c : Circuit σ n m // c.ComputesFrom I target sources} =>
-      (c.1.program.cost cost : ℕ∞))
+      (c.val.program.cost cost : ℕ∞))
   exact ⟨c, hc, hmin⟩
 
 /-- Every finite weighted budget is witnessed by a circuit. -/
@@ -221,8 +221,8 @@ theorem ecomplexityFrom_comp_le (f : X → Fin m → U) (g : X → Fin p → U)
       ecomplexityFrom I cost f sources + ecomplexityFrom I cost g f := by
   conv_rhs => simp only [ecomplexityFrom, ENat.iInf_add, ENat.add_iInf]
   refine le_iInf fun d => le_iInf fun c => ?_
-  exact (ecomplexityFrom_le_of_computesFrom (cost := cost) (d.1.comp c.1) (c.2.comp d.2)).trans_eq
-    (by rw [Circuit.cost_program_comp, Nat.cast_add])
+  exact (ecomplexityFrom_le_of_computesFrom (cost := cost) (d.val.comp c.val)
+    (c.property.comp d.property)).trans_eq (by rw [Circuit.cost_program_comp, Nat.cast_add])
 
 /-- Computing two families from the same sources costs at most the sum of their complexities. -/
 theorem ecomplexityFrom_append_le (f : X → Fin m → U) (g : X → Fin p → U)
@@ -231,8 +231,8 @@ theorem ecomplexityFrom_append_le (f : X → Fin m → U) (g : X → Fin p → U
       ecomplexityFrom I cost f sources + ecomplexityFrom I cost g sources := by
   conv_rhs => simp only [ecomplexityFrom, ENat.iInf_add, ENat.add_iInf]
   refine le_iInf fun d => le_iInf fun c => ?_
-  exact (ecomplexityFrom_le_of_computesFrom (cost := cost) (c.1.append d.1)
-    (c.2.append d.2)).trans_eq
+  exact (ecomplexityFrom_le_of_computesFrom (cost := cost) (c.val.append d.val)
+    (c.property.append d.property)).trans_eq
     (by rw [Circuit.cost_program_append, Nat.cast_add])
 
 /-- Unit weights and the support subtype recover native support complexity. -/

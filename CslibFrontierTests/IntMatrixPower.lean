@@ -53,5 +53,5 @@ example : ComputableInPolyTime
 
 example {n : ℕ} (M : Matrix (Fin n) (Fin n) ℤ) (s : ℕ) (i : Fin n) :
     IntTable.powerColumn (List.ofFn fun j => List.ofFn (M j)) s i.val =
-      List.ofFn fun j : Fin n => (Algorithms.PlantedClique.powerColumnVector M s i)[j.1] := by
+      List.ofFn fun j : Fin n => (Algorithms.PlantedClique.powerColumnVector M s i)[j.val] := by
   simp only [IntTable.powerColumn_ofFn, Algorithms.PlantedClique.getElem_powerColumnVector]

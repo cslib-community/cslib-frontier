@@ -98,10 +98,10 @@ private theorem eval_isLeast_of_neg_isGreatest {α : Type*} (S : Set α) (f : α
   linarith [hmax.2 ⟨y, hy, rfl⟩]
 
 private theorem ciSup_subtype_eq_of_isGreatest {α : Type*} {P : α → Prop} {f : α → ℝ} {v : ℝ}
-    (h : IsGreatest (f '' {x | P x}) v) : (⨆ x : {x // P x}, f x.1) = v := by
+    (h : IsGreatest (f '' {x | P x}) v) : (⨆ x : {x // P x}, f x.val) = v := by
   obtain ⟨⟨x₀, hx₀, hx₀_eq⟩, hmax⟩ := h
   let _ : Nonempty {x // P x} := ⟨⟨x₀, hx₀⟩⟩
-  have hbdd : BddAbove (Set.range fun x : {x // P x} => f x.1) := by
+  have hbdd : BddAbove (Set.range fun x : {x // P x} => f x.val) := by
     refine ⟨v, ?_⟩
     rintro _ ⟨⟨x, hx⟩, rfl⟩
     exact hmax ⟨x, hx, rfl⟩
@@ -109,10 +109,10 @@ private theorem ciSup_subtype_eq_of_isGreatest {α : Type*} {P : α → Prop} {f
     (hx₀_eq.symm.trans_le (le_ciSup hbdd ⟨x₀, hx₀⟩))
 
 private theorem ciInf_subtype_eq_of_isLeast {α : Type*} {P : α → Prop} {f : α → ℝ} {u : ℝ}
-    (h : IsLeast (f '' {y | P y}) u) : (⨅ y : {y // P y}, f y.1) = u := by
+    (h : IsLeast (f '' {y | P y}) u) : (⨅ y : {y // P y}, f y.val) = u := by
   obtain ⟨⟨y₀, hy₀, hy₀_eq⟩, hmin⟩ := h
   let _ : Nonempty {y // P y} := ⟨⟨y₀, hy₀⟩⟩
-  have hbdd : BddBelow (Set.range fun y : {y // P y} => f y.1) := by
+  have hbdd : BddBelow (Set.range fun y : {y // P y} => f y.val) := by
     refine ⟨u, ?_⟩
     rintro _ ⟨⟨y, hy⟩, rfl⟩
     exact hmin ⟨y, hy, rfl⟩
@@ -143,7 +143,7 @@ variable {H : Bool → Type v} {Act : ∀ i, H i → Type}
 
 theorem ExtensiveTree.leafSeqPair_eq_iff (T : ExtensiveTree Bool H Act) (z : Terminal T)
     (σ₀ : SeqVar T false) (σ₁ : SeqVar T true) :
-    T.leafSeqPair z = (σ₀, σ₁) ↔ z.seq false = σ₀.1 ∧ z.seq true = σ₁.1 := by
+    T.leafSeqPair z = (σ₀, σ₁) ↔ z.seq false = σ₀.val ∧ z.seq true = σ₁.val := by
   simp only [ExtensiveTree.leafSeqPair, Prod.mk.injEq, Subtype.ext_iff]
 
 open Classical in
@@ -154,15 +154,15 @@ theorem seqPayoffMat_apply [∀ i h, Fintype (Act i h)]
     (T : ExtensiveTree Bool H Act) (p : Bool) (σ₀ : SeqVar T false) (σ₁ : SeqVar T true) :
     T.seqPayoffMat p σ₀ σ₁ =
       ∑ z : Terminal T,
-        if z.seq false = σ₀.1 ∧ z.seq true = σ₁.1 then z.chanceWeight * z.payoff p else 0 := by
+        if z.seq false = σ₀.val ∧ z.seq true = σ₁.val then z.chanceWeight * z.payoff p else 0 := by
   classical
-  let r₀ : Seq H Act false → ℝ := fun σ => if σ = σ₀.1 then 1 else 0
-  let r₁ : Seq H Act true → ℝ := fun τ => if τ = σ₁.1 then 1 else 0
+  let r₀ : Seq H Act false → ℝ := fun σ => if σ = σ₀.val then 1 else 0
+  let r₁ : Seq H Act true → ℝ := fun τ => if τ = σ₁.val then 1 else 0
   have hb := seqPayoffMat_bilinear T p r₀ r₁
-  have hr0 : (fun σ : SeqVar T false => r₀ σ.1) = Pi.single σ₀ (1 : ℝ) := by
+  have hr0 : (fun σ : SeqVar T false => r₀ σ.val) = Pi.single σ₀ (1 : ℝ) := by
     ext σ
     simp [r₀, Pi.single_apply, Subtype.ext_iff]
-  have hr1 : (fun τ : SeqVar T true => r₁ τ.1) = Pi.single σ₁ (1 : ℝ) := by
+  have hr1 : (fun τ : SeqVar T true => r₁ τ.val) = Pi.single σ₁ (1 : ℝ) := by
     ext τ
     simp [r₁, Pi.single_apply, Subtype.ext_iff]
   have hlhs : (Pi.single σ₀ (1 : ℝ)) ⬝ᵥ (T.seqPayoffMat p *ᵥ Pi.single σ₁ (1 : ℝ)) =
@@ -170,7 +170,7 @@ theorem seqPayoffMat_apply [∀ i h, Fintype (Act i h)]
   rw [hr0, hr1, hlhs] at hb
   rw [hb]
   refine sum_congr rfl fun z _ => ?_
-  by_cases h0 : z.seq false = σ₀.1 <;> by_cases h1 : z.seq true = σ₁.1 <;>
+  by_cases h0 : z.seq false = σ₀.val <;> by_cases h1 : z.seq true = σ₁.val <;>
     simp [r₀, r₁, h0, h1]
 
 open Classical in
@@ -247,12 +247,12 @@ theorem dotProduct_seqPayoffMat_mulVec_eq_sum_terminal [∀ i h, Fintype (Act i 
   let r₁ : Seq H Act true → ℝ := fun τ => if h : ∃ z : Terminal T, τ <+: z.seq true then
     y ⟨τ, h⟩ else 0
   have hb := seqPayoffMat_bilinear T p r₀ r₁
-  have hr0 : (fun σ : SeqVar T false => r₀ σ.1) = x := by
+  have hr0 : (fun σ : SeqVar T false => r₀ σ.val) = x := by
     ext σ
-    simp [r₀, σ.2]
-  have hr1 : (fun τ : SeqVar T true => r₁ τ.1) = y := by
+    simp [r₀, σ.property]
+  have hr1 : (fun τ : SeqVar T true => r₁ τ.val) = y := by
     ext τ
-    simp [r₁, τ.2]
+    simp [r₁, τ.property]
   rw [hr0, hr1] at hb
   rw [hb]
   refine sum_congr rfl fun z _ => ?_
@@ -362,7 +362,7 @@ realization plans `y` of player `true`. -/
 @[expose] noncomputable def ExtensiveTree.seqLowerVal [∀ i h, Fintype (Act i h)]
     (T : ExtensiveTree Bool H Act) (x : SeqVar T false → ℝ) : ℝ :=
   ⨅ y : {y : SeqVar T true → ℝ // T.IsRealizationPlan true y},
-    x ⬝ᵥ (T.seqPayoffMat false *ᵥ y.1)
+    x ⬝ᵥ (T.seqPayoffMat false *ᵥ y.val)
 
 open Classical in
 /-- Worst-case sequence-form loss `⨆ x, x ⬝ᵥ (T.seqPayoffMat false *ᵥ y)` over all valid
@@ -370,7 +370,7 @@ realization plans `x` of player `false`. -/
 @[expose] noncomputable def ExtensiveTree.seqUpperVal [∀ i h, Fintype (Act i h)]
     (T : ExtensiveTree Bool H Act) (y : SeqVar T true → ℝ) : ℝ :=
   ⨆ x : {x : SeqVar T false → ℝ // T.IsRealizationPlan false x},
-    x.1 ⬝ᵥ (T.seqPayoffMat false *ᵥ y)
+    x.val ⬝ᵥ (T.seqPayoffMat false *ᵥ y)
 
 open Classical in
 theorem isLeast_seqLowerVal [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (Act i h)]
@@ -463,7 +463,7 @@ private noncomputable def behaviorToPlanSub [∀ i h, Fintype (Act i h)]
     (hpr : T.PerfectRecall i)
     (β : {β : ∀ h : H i, Act i h → ℝ // IsBehaviorStrategy β}) :
     {x : SeqVar T i → ℝ // T.IsRealizationPlan i x} :=
-  ⟨T.behaviorToRealizationPlan i β.1, isRealizationPlan_behaviorToRealizationPlan hpr β.2⟩
+  ⟨T.behaviorToRealizationPlan i β.val, isRealizationPlan_behaviorToRealizationPlan hpr β.property⟩
 
 open Classical in
 private theorem surjective_behaviorToPlanSub [∀ i h, Fintype (Act i h)]
@@ -536,8 +536,8 @@ theorem isSeqNash_iff_saddlePoint [∀ i h, Fintype (Act i h)] [∀ i h, Nonempt
           x ⬝ᵥ (T.seqPayoffMat false *ᵥ y) ≤ x ⬝ᵥ (T.seqPayoffMat false *ᵥ y')) := by
     obtain ⟨β₀, hβ₀⟩ := surjective_behaviorToPlanSub (hpr false) ⟨x, hx⟩
     obtain ⟨β₁, hβ₁⟩ := surjective_behaviorToPlanSub (hpr true) ⟨y, hy⟩
-    let β : ∀ i, ∀ h : H i, Act i h → ℝ := fun | false => β₀.1 | true => β₁.1
-    have hbeh : ∀ i, IsBehaviorStrategy (β i) := fun | false => β₀.2 | true => β₁.2
+    let β : ∀ i, ∀ h : H i, Act i h → ℝ := fun | false => β₀.val | true => β₁.val
+    have hbeh : ∀ i, IsBehaviorStrategy (β i) := fun | false => β₀.property | true => β₁.property
     have hx_eq : T.behaviorToRealizationPlan false (β false) = x := congrArg Subtype.val hβ₀
     have hy_eq : T.behaviorToRealizationPlan true (β true) = y := congrArg Subtype.val hβ₁
     have hnash : T.IsBehaviorNash β ↔ T.IsSeqNash x y := by
@@ -592,10 +592,10 @@ theorem seq_iSup_iInf_eq_iInf_iSup [∀ i h, Fintype (Act i h)] [∀ i h, Nonemp
     (hpr : ∀ i, T.PerfectRecall i) (hzs : T.IsZeroSum) :
     (⨆ x : {x : SeqVar T false → ℝ // T.IsRealizationPlan false x},
         ⨅ y : {y : SeqVar T true → ℝ // T.IsRealizationPlan true y},
-          x.1 ⬝ᵥ (T.seqPayoffMat false *ᵥ y.1)) =
+          x.val ⬝ᵥ (T.seqPayoffMat false *ᵥ y.val)) =
       ⨅ y : {y : SeqVar T true → ℝ // T.IsRealizationPlan true y},
         ⨆ x : {x : SeqVar T false → ℝ // T.IsRealizationPlan false x},
-          x.1 ⬝ᵥ (T.seqPayoffMat false *ᵥ y.1) := by
+          x.val ⬝ᵥ (T.seqPayoffMat false *ᵥ y.val) := by
   obtain ⟨v, hmax, hmin, _⟩ := hzs.seq_minimax_duality hpr
   exact (ciSup_subtype_eq_of_isGreatest hmax).trans (ciInf_subtype_eq_of_isLeast hmin).symm
 
@@ -645,10 +645,10 @@ theorem payoff_eq [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (Act i h)]
     {x : SeqVar T false → ℝ} {y : SeqVar T true → ℝ} (hnash : T.IsSeqNash x y) :
     x ⬝ᵥ (T.seqPayoffMat false *ᵥ y) =
       (⨆ x' : {x' : SeqVar T false → ℝ // T.IsRealizationPlan false x'},
-        T.seqLowerVal x'.1) ∧
+        T.seqLowerVal x'.val) ∧
       x ⬝ᵥ (T.seqPayoffMat false *ᵥ y) =
         ⨅ y' : {y' : SeqVar T true → ℝ // T.IsRealizationPlan true y'},
-          T.seqUpperVal y'.1 := by
+          T.seqUpperVal y'.val := by
   obtain ⟨⟨_, hmax⟩, ⟨_, hmin⟩⟩ := (hzs.isSeqNash_iff_maximin_minimax hpr x y).1 hnash
   obtain ⟨hx, hy, hbest0, hbest1⟩ := (hzs.isSeqNash_iff_saddlePoint hpr x y).1 hnash
   obtain ⟨hlo, hup⟩ := seqLowerVal_seqUpperVal_eq_of_saddle hpr hx hy hbest0 hbest1
@@ -687,7 +687,7 @@ behavioral strategies `β₁` of player `true`. -/
 @[expose] noncomputable def ExtensiveTree.behaviorLowerVal [∀ i h, Fintype (Act i h)]
     (T : ExtensiveTree Bool H Act) (β₀ : ∀ h : H false, Act false h → ℝ) : ℝ :=
   ⨅ β₁ : {β₁ : ∀ h : H true, Act true h → ℝ // IsBehaviorStrategy β₁},
-    T.evalBehavior (fun | false => β₀ | true => β₁.1) false
+    T.evalBehavior (fun | false => β₀ | true => β₁.val) false
 
 open Classical in
 /-- Worst-case expected loss `⨆ β₀, T.evalBehavior (false => β₀, true => β₁) false` over all
@@ -695,7 +695,7 @@ behavioral strategies `β₀` of player `false`. -/
 @[expose] noncomputable def ExtensiveTree.behaviorUpperVal [∀ i h, Fintype (Act i h)]
     (T : ExtensiveTree Bool H Act) (β₁ : ∀ h : H true, Act true h → ℝ) : ℝ :=
   ⨆ β₀ : {β₀ : ∀ h : H false, Act false h → ℝ // IsBehaviorStrategy β₀},
-    T.evalBehavior (fun | false => β₀.1 | true => β₁) false
+    T.evalBehavior (fun | false => β₀.val | true => β₁) false
 
 open Classical in
 /-- Under perfect recall for player `true`, behavioral lower value equals the sequence-form lower
@@ -725,10 +725,10 @@ theorem behavior_minimax_eq_seq_minimax [∀ i h, Fintype (Act i h)] [∀ i h, N
     {T : ExtensiveTree Bool H Act}
     (hpr : ∀ i, T.PerfectRecall i) (_hzs : T.IsZeroSum) :
     (⨆ β₀ : {β₀ : ∀ h : H false, Act false h → ℝ // IsBehaviorStrategy β₀},
-        T.behaviorLowerVal β₀.1) =
-      ⨆ x : {x : SeqVar T false → ℝ // T.IsRealizationPlan false x}, T.seqLowerVal x.1 :=
+        T.behaviorLowerVal β₀.val) =
+      ⨆ x : {x : SeqVar T false → ℝ // T.IsRealizationPlan false x}, T.seqLowerVal x.val :=
   iSup_eq_of_surjective (surjective_behaviorToPlanSub (hpr false)) fun β₀ =>
-    behaviorLowerVal_eq_seqLowerVal (hpr true) β₀.1
+    behaviorLowerVal_eq_seqLowerVal (hpr true) β₀.val
 
 open Classical in
 /-- **Behavioral minimax equality** ([vonStengel2007], §3.10): in a zero-sum extensive game with
@@ -739,17 +739,17 @@ theorem behavior_iSup_iInf_eq_iInf_iSup [∀ i h, Fintype (Act i h)] [∀ i h, N
     (hpr : ∀ i, T.PerfectRecall i) (hzs : T.IsZeroSum) :
     (⨆ β₀ : {β₀ : ∀ h : H false, Act false h → ℝ // IsBehaviorStrategy β₀},
         ⨅ β₁ : {β₁ : ∀ h : H true, Act true h → ℝ // IsBehaviorStrategy β₁},
-          T.evalBehavior (fun | false => β₀.1 | true => β₁.1) false) =
+          T.evalBehavior (fun | false => β₀.val | true => β₁.val) false) =
       ⨅ β₁ : {β₁ : ∀ h : H true, Act true h → ℝ // IsBehaviorStrategy β₁},
         ⨆ β₀ : {β₀ : ∀ h : H false, Act false h → ℝ // IsBehaviorStrategy β₀},
-          T.evalBehavior (fun | false => β₀.1 | true => β₁.1) false := by
+          T.evalBehavior (fun | false => β₀.val | true => β₁.val) false := by
   have hmax : (⨅ β₁ : {β₁ : ∀ h : H true, Act true h → ℝ // IsBehaviorStrategy β₁},
-        T.behaviorUpperVal β₁.1) =
-      ⨅ y : {y : SeqVar T true → ℝ // T.IsRealizationPlan true y}, T.seqUpperVal y.1 :=
+        T.behaviorUpperVal β₁.val) =
+      ⨅ y : {y : SeqVar T true → ℝ // T.IsRealizationPlan true y}, T.seqUpperVal y.val :=
     iInf_eq_of_surjective (surjective_behaviorToPlanSub (hpr true)) fun β₁ =>
-      behaviorUpperVal_eq_seqUpperVal (hpr false) β₁.1
-  change (⨆ β₀ : {β₀ // IsBehaviorStrategy β₀}, T.behaviorLowerVal β₀.1) =
-    ⨅ β₁ : {β₁ // IsBehaviorStrategy β₁}, T.behaviorUpperVal β₁.1
+      behaviorUpperVal_eq_seqUpperVal (hpr false) β₁.val
+  change (⨆ β₀ : {β₀ // IsBehaviorStrategy β₀}, T.behaviorLowerVal β₀.val) =
+    ⨅ β₁ : {β₁ // IsBehaviorStrategy β₁}, T.behaviorUpperVal β₁.val
   rw [hzs.behavior_minimax_eq_seq_minimax hpr, hmax]
   exact hzs.seq_iSup_iInf_eq_iInf_iSup hpr
 
@@ -799,11 +799,11 @@ private theorem eq_behavior_and_seq_minimax_of_isSeqNash
     {x : SeqVar T false → ℝ} {y : SeqVar T true → ℝ} (hseq : T.IsSeqNash x y)
     {val : ℝ} (hval : val = x ⬝ᵥ (T.seqPayoffMat false *ᵥ y)) :
     val = (⨆ β₀ : {β₀ : ∀ h : H false, Act false h → ℝ // IsBehaviorStrategy β₀},
-        T.behaviorLowerVal β₀.1) ∧
+        T.behaviorLowerVal β₀.val) ∧
       val = (⨆ x' : {x' : SeqVar T false → ℝ // T.IsRealizationPlan false x'},
-        T.seqLowerVal x'.1) := by
+        T.seqLowerVal x'.val) := by
   have heq : val = ⨆ x' : {x' : SeqVar T false → ℝ // T.IsRealizationPlan false x'},
-      T.seqLowerVal x'.1 :=
+      T.seqLowerVal x'.val :=
     hval.trans (hseq.payoff_eq hpr hzs).1
   exact ⟨heq.trans (hzs.behavior_minimax_eq_seq_minimax hpr).symm, heq⟩
 
@@ -818,10 +818,10 @@ theorem evalBehavior_eq [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (Act i h
     {β : ∀ i, ∀ h : H i, Act i h → ℝ} (hβ : T.IsBehaviorNash β) :
     T.evalBehavior β false =
         (⨆ β₀ : {β₀ : ∀ h : H false, Act false h → ℝ // IsBehaviorStrategy β₀},
-          T.behaviorLowerVal β₀.1) ∧
+          T.behaviorLowerVal β₀.val) ∧
       T.evalBehavior β false =
         (⨆ x : {x : SeqVar T false → ℝ // T.IsRealizationPlan false x},
-          T.seqLowerVal x.1) :=
+          T.seqLowerVal x.val) :=
   eq_behavior_and_seq_minimax_of_isSeqNash hpr hzs
     ((isBehaviorNash_iff_isSeqNash hpr β).1 hβ).2 (evalBehavior_eq_seqPayoffMat T β false)
 
@@ -869,9 +869,9 @@ theorem isBehaviorNash_of_saddle [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty
         (T.behaviorToRealizationPlan true (β true)) ∧
       T.evalBehavior β false = v ∧
       (⨆ β₀ : {β₀ : ∀ h : H false, Act false h → ℝ // IsBehaviorStrategy β₀},
-        T.behaviorLowerVal β₀.1) = v ∧
+        T.behaviorLowerVal β₀.val) = v ∧
       (⨆ x : {x : SeqVar T false → ℝ // T.IsRealizationPlan false x},
-        T.seqLowerVal x.1) = v := by
+        T.seqLowerVal x.val) = v := by
   have heq_prof : T.evalBehavior (fun | false => β false | true => β true) false =
       T.evalBehavior β false :=
     congrArg (fun f => T.evalBehavior f false) (bool_profile_eq β)
@@ -899,7 +899,7 @@ theorem mixedToRealizationPlan_behaviorToMixed {ι : Type u} {H : ι → Type v}
     {β : ∀ h : H i, Act i h → ℝ} (hβ : IsBehaviorStrategy β) :
     T.mixedToRealizationPlan i (behaviorToMixed β) = T.behaviorToRealizationPlan i β := by
   ext σ
-  obtain ⟨z, _, hz⟩ := σ.2
+  obtain ⟨z, _, hz⟩ := σ.property
   have hzn := hpr.noRepeatedInfoSet z
   rw [← hz, List.map_append] at hzn
   rw [ExtensiveTree.mixedToRealizationPlan_def, ExtensiveTree.behaviorToRealizationPlan_apply]
@@ -912,7 +912,7 @@ mixed strategies `μ₁` of player `true`. -/
     [∀ i, DecidableEq (H i)] [∀ i h, Fintype (Act i h)] (T : ExtensiveTree Bool H Act)
     (μ₀ : PureStrategy H Act false → ℝ) : ℝ :=
   ⨅ μ₁ : {μ₁ : PureStrategy H Act true → ℝ // IsMixedStrategy μ₁},
-    T.evalMixed (fun | false => μ₀ | true => μ₁.1) false
+    T.evalMixed (fun | false => μ₀ | true => μ₁.val) false
 
 open Classical in
 /-- Worst-case expected loss `⨆ μ₀, T.evalMixed (false => μ₀, true => μ₁) false` over all mixed
@@ -921,7 +921,7 @@ strategies `μ₀` of player `false`. -/
     [∀ i, DecidableEq (H i)] [∀ i h, Fintype (Act i h)] (T : ExtensiveTree Bool H Act)
     (μ₁ : PureStrategy H Act true → ℝ) : ℝ :=
   ⨆ μ₀ : {μ₀ : PureStrategy H Act false → ℝ // IsMixedStrategy μ₀},
-    T.evalMixed (fun | false => μ₀.1 | true => μ₁) false
+    T.evalMixed (fun | false => μ₀.val | true => μ₁) false
 
 open Classical in
 private noncomputable def mixedToPlanSub [∀ i, Fintype (H i)] [∀ i, DecidableEq (H i)]
@@ -929,7 +929,7 @@ private noncomputable def mixedToPlanSub [∀ i, Fintype (H i)] [∀ i, Decidabl
     {T : ExtensiveTree Bool H Act} {i : Bool} (hpr : T.PerfectRecall i)
     (μ : {μ : PureStrategy H Act i → ℝ // IsMixedStrategy μ}) :
     {x : SeqVar T i → ℝ // T.IsRealizationPlan i x} :=
-  ⟨T.mixedToRealizationPlan i μ.1, isRealizationPlan_mixedToRealizationPlan hpr μ.2⟩
+  ⟨T.mixedToRealizationPlan i μ.val, isRealizationPlan_mixedToRealizationPlan hpr μ.property⟩
 
 open Classical in
 private theorem surjective_mixedToPlanSub [∀ i, Fintype (H i)] [∀ i, DecidableEq (H i)]
@@ -972,11 +972,11 @@ theorem mixed_minimax_eq_behavior_minimax [∀ i, Fintype (H i)] [∀ i, Decidab
     [∀ i h, Fintype (Act i h)] [∀ i h, Nonempty (Act i h)]
     {T : ExtensiveTree Bool H Act} (hpr : ∀ i, T.PerfectRecall i) (hzs : T.IsZeroSum) :
     (⨆ μ₀ : {μ₀ : PureStrategy H Act false → ℝ // IsMixedStrategy μ₀},
-        T.mixedLowerVal μ₀.1) =
+        T.mixedLowerVal μ₀.val) =
       ⨆ β₀ : {β₀ : ∀ h : H false, Act false h → ℝ // IsBehaviorStrategy β₀},
-        T.behaviorLowerVal β₀.1 :=
+        T.behaviorLowerVal β₀.val :=
   (iSup_eq_of_surjective (surjective_mixedToPlanSub (hpr false)) fun μ₀ =>
-      mixedLowerVal_eq_seqLowerVal (hpr true) μ₀.1).trans
+      mixedLowerVal_eq_seqLowerVal (hpr true) μ₀.val).trans
     (hzs.behavior_minimax_eq_seq_minimax hpr).symm
 
 open Classical in
@@ -987,17 +987,17 @@ theorem mixed_iSup_iInf_eq_iInf_iSup [∀ i, Fintype (H i)] [∀ i, DecidableEq 
     {T : ExtensiveTree Bool H Act} (hpr : ∀ i, T.PerfectRecall i) (hzs : T.IsZeroSum) :
     (⨆ μ₀ : {μ₀ : PureStrategy H Act false → ℝ // IsMixedStrategy μ₀},
         ⨅ μ₁ : {μ₁ : PureStrategy H Act true → ℝ // IsMixedStrategy μ₁},
-          T.evalMixed (fun | false => μ₀.1 | true => μ₁.1) false) =
+          T.evalMixed (fun | false => μ₀.val | true => μ₁.val) false) =
       ⨅ μ₁ : {μ₁ : PureStrategy H Act true → ℝ // IsMixedStrategy μ₁},
         ⨆ μ₀ : {μ₀ : PureStrategy H Act false → ℝ // IsMixedStrategy μ₀},
-          T.evalMixed (fun | false => μ₀.1 | true => μ₁.1) false := by
+          T.evalMixed (fun | false => μ₀.val | true => μ₁.val) false := by
   have hmax : (⨅ μ₁ : {μ₁ : PureStrategy H Act true → ℝ // IsMixedStrategy μ₁},
-        T.mixedUpperVal μ₁.1) =
-      ⨅ y : {y : SeqVar T true → ℝ // T.IsRealizationPlan true y}, T.seqUpperVal y.1 :=
+        T.mixedUpperVal μ₁.val) =
+      ⨅ y : {y : SeqVar T true → ℝ // T.IsRealizationPlan true y}, T.seqUpperVal y.val :=
     iInf_eq_of_surjective (surjective_mixedToPlanSub (hpr true)) fun μ₁ =>
-      mixedUpperVal_eq_seqUpperVal (hpr false) μ₁.1
-  change (⨆ μ₀ : {μ₀ // IsMixedStrategy μ₀}, T.mixedLowerVal μ₀.1) =
-    ⨅ μ₁ : {μ₁ // IsMixedStrategy μ₁}, T.mixedUpperVal μ₁.1
+      mixedUpperVal_eq_seqUpperVal (hpr false) μ₁.val
+  change (⨆ μ₀ : {μ₀ // IsMixedStrategy μ₀}, T.mixedLowerVal μ₀.val) =
+    ⨅ μ₁ : {μ₁ // IsMixedStrategy μ₁}, T.mixedUpperVal μ₁.val
   rw [hzs.mixed_minimax_eq_behavior_minimax hpr, hzs.behavior_minimax_eq_seq_minimax hpr, hmax]
   exact hzs.seq_iSup_iInf_eq_iInf_iSup hpr
 
@@ -1010,10 +1010,10 @@ theorem isMixedNash_evalMixed_eq [∀ i, Fintype (H i)] [∀ i, DecidableEq (H i
     {μ : ∀ i, PureStrategy H Act i → ℝ} (hμ : T.toCostGame.IsMixedNash μ) :
     T.evalMixed μ false =
         (⨆ β₀ : {β₀ : ∀ h : H false, Act false h → ℝ // IsBehaviorStrategy β₀},
-          T.behaviorLowerVal β₀.1) ∧
+          T.behaviorLowerVal β₀.val) ∧
       T.evalMixed μ false =
         ⨆ x : {x : SeqVar T false → ℝ // T.IsRealizationPlan false x},
-          T.seqLowerVal x.1 :=
+          T.seqLowerVal x.val :=
   eq_behavior_and_seq_minimax_of_isSeqNash hpr hzs
     ((isMixedNash_toCostGame_iff_isSeqNash hpr μ).1 hμ).2 (evalMixed_eq_seqPayoffMat T μ false)
 
@@ -1262,14 +1262,14 @@ theorem backwardInduction_payoff_eq_seq_minimax {T : PerfectInfoTree Bool} (hzs 
     T.backwardInduction.payoff false =
         (⨆ x : {x : SeqVar T.toExtensiveTree false → ℝ //
             T.toExtensiveTree.IsRealizationPlan false x},
-          T.toExtensiveTree.seqLowerVal x.1) ∧
+          T.toExtensiveTree.seqLowerVal x.val) ∧
       T.backwardInduction.payoff false =
         (⨅ y : {y : SeqVar T.toExtensiveTree true → ℝ //
             T.toExtensiveTree.IsRealizationPlan true y},
-          T.toExtensiveTree.seqUpperVal y.1) ∧
+          T.toExtensiveTree.seqUpperVal y.val) ∧
       T.backwardInduction.payoff false =
         (⨆ β₀ : {β₀ : ∀ h : T.InfoSet false, h.Act → ℝ // IsBehaviorStrategy β₀},
-          T.toExtensiveTree.behaviorLowerVal β₀.1) := by
+          T.toExtensiveTree.behaviorLowerVal β₀.val) := by
   have hzsE : T.toExtensiveTree.IsZeroSum := (toExtensiveTree_isZeroSum_iff T).2 hzs
   have hbi : T.toExtensiveTree.IsBehaviorNash
       (T.toExtensiveBehavior T.backwardInduction.strategy) :=
@@ -1281,9 +1281,9 @@ theorem backwardInduction_payoff_eq_seq_minimax {T : PerfectInfoTree Bool} (hzs 
     rw [toExtensiveBehavior_evalBehavior, ← backwardInduction_payoff]
   have hseq_eq :
       (⨆ x : {x : SeqVar T.toExtensiveTree false → ℝ //
-          T.toExtensiveTree.IsRealizationPlan false x}, T.toExtensiveTree.seqLowerVal x.1) =
+          T.toExtensiveTree.IsRealizationPlan false x}, T.toExtensiveTree.seqLowerVal x.val) =
         ⨅ y : {y : SeqVar T.toExtensiveTree true → ℝ //
-            T.toExtensiveTree.IsRealizationPlan true y}, T.toExtensiveTree.seqUpperVal y.1 :=
+            T.toExtensiveTree.IsRealizationPlan true y}, T.toExtensiveTree.seqUpperVal y.val :=
     hzsE.seq_iSup_iInf_eq_iInf_iSup T.toExtensiveTree_perfectRecall
   refine ⟨hval.trans heq.2, (hval.trans heq.2).trans hseq_eq, hval.trans heq.1⟩
 

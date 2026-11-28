@@ -136,10 +136,10 @@ variable {Φ}
 `ψ`, those of `V(R, b)` the arguments of `R`, and those of a clause defining `X(ψ, a)` are the
 bound variables of `ψ` and one more, the value of the quantified variable when `ψ = ∀x χ`. -/
 def GroundTag.Coord : Φ.GroundTag → Type
-  | .var s => Fin s.1.1
+  | .var s => Fin s.val.1
   | .relVar r => Fin (Φ.arity r)
   | .top => Fin 0
-  | .clause s _ => Fin (s.1.1 + 1)
+  | .clause s _ => Fin (s.val.1 + 1)
 
 /-- Every tag `t : Φ.GroundTag` has a finite coordinate type `t.Coord`. -/
 instance instFiniteGroundTagCoord : ∀ t : Φ.GroundTag, Finite t.Coord
@@ -153,7 +153,7 @@ def termCoord {k : ℕ} (t : (L.sum (varLanguage Φ.arity)).Term (Empty ⊕ Fin 
   (termVar t).elim Empty.elim Fin.castSucc
 
 /-- The template relating a clause to the variable `X(ψ, a)` of its subformula. -/
-def selfVar (s : Φ.Subformula) (i : Fin 3) (guard : L.Formula (Fin (s.1.1 + 1))) :
+def selfVar (s : Φ.Subformula) (i : Fin 3) (guard : L.Formula (Fin (s.val.1 + 1))) :
     Template L GroundTag.Coord (GroundTag.clause s i) :=
   ⟨.var s, guard, fun j => some j.castSucc⟩
 
@@ -169,10 +169,10 @@ def clauseTemplates : (s : Φ.Subformula) → (i : Fin 3) → Bool →
       else ∼(R.formula fun j => .var (termCoord (ts j))))]
   | ⟨⟨k, .rel (.inr r) ts⟩, hs⟩, 0, false => [selfVar ⟨⟨k, .rel (.inr r) ts⟩, hs⟩ 0 ⊤]
   | ⟨⟨_, .rel (.inr r) ts⟩, _⟩, 0, true =>
-    [⟨.relVar r.1, ⊤, fun j => some (termCoord (ts (Fin.cast r.2 j)))⟩]
+    [⟨.relVar r.val, ⊤, fun j => some (termCoord (ts (Fin.cast r.property j)))⟩]
   | ⟨⟨k, .rel (.inr r) ts⟩, hs⟩, 1, true => [selfVar ⟨⟨k, .rel (.inr r) ts⟩, hs⟩ 1 ⊤]
   | ⟨⟨_, .rel (.inr r) ts⟩, _⟩, 1, false =>
-    [⟨.relVar r.1, ⊤, fun j => some (termCoord (ts (Fin.cast r.2 j)))⟩]
+    [⟨.relVar r.val, ⊤, fun j => some (termCoord (ts (Fin.cast r.property j)))⟩]
   | ⟨⟨k, .imp ψ χ⟩, hs⟩, 0, false =>
     [selfVar ⟨⟨k, .imp ψ χ⟩, hs⟩ 0 ⊤,
       ⟨.var ⟨⟨k, ψ⟩, mem_subformulas_of_imp_left hs⟩, ⊤, fun j => some j.castSucc⟩]
@@ -226,7 +226,7 @@ section Clauses
 variable {M : Type w} [L.Structure M]
 
 /-- The variable `X(ψ, a)`. -/
-private def atom (s : Φ.Subformula) (a : Fin s.1.1 → M) : Φ.groundInterpretation.Model M :=
+private def atom (s : Φ.Subformula) (a : Fin s.val.1 → M) : Φ.groundInterpretation.Model M :=
   ⟨.var s, a, formula_realize_top⟩
 
 /-- The variable `V(R, b)`. -/
@@ -236,10 +236,10 @@ private def relAtom (r : Φ.Var) (b : Fin (Φ.arity r) → M) : Φ.groundInterpr
 private theorem clauseSat_iff (A : Φ.groundInterpretation.Model M → Prop)
     (c : Φ.groundInterpretation.Model M) :
     ClauseSatisfied A c ↔
-      (∃ τ ∈ Φ.groundTemplates c.1 true, τ.guard.Realize c.2.1 ∧
-        ∃ y hy, τ.Compat c.2.1 y ∧ A ⟨τ.target, y, hy⟩) ∨
-      (∃ τ ∈ Φ.groundTemplates c.1 false, τ.guard.Realize c.2.1 ∧
-        ∃ y hy, τ.Compat c.2.1 y ∧ ¬A ⟨τ.target, y, hy⟩) :=
+      (∃ τ ∈ Φ.groundTemplates c.1 true, τ.guard.Realize c.2.val ∧
+        ∃ y hy, τ.Compat c.2.val y ∧ A ⟨τ.target, y, hy⟩) ∨
+      (∃ τ ∈ Φ.groundTemplates c.1 false, τ.guard.Realize c.2.val ∧
+        ∃ y hy, τ.Compat c.2.val y ∧ ¬A ⟨τ.target, y, hy⟩) :=
   clauseSatisfied_iff_of_templates groundInterpretation_rel_lit A c
 
 omit [L.Structure M] in
@@ -279,21 +279,21 @@ private theorem clauseSat_of_singletons {c : Φ.groundInterpretation.Model M} {t
     {g₀ : t₀.Coord → c.1.Coord} {g₁ : t₁.Coord → c.1.Coord}
     (h₀ : Φ.groundTemplates c.1 true = [⟨t₀, ⊤, fun j => some (g₀ j)⟩])
     (h₁ : Φ.groundTemplates c.1 false = [⟨t₁, ⊤, fun j => some (g₁ j)⟩])
-    {hy₀ : (Φ.groundInterpretation.domain t₀).Realize fun j => c.2.1 (g₀ j)}
-    {hy₁ : (Φ.groundInterpretation.domain t₁).Realize fun j => c.2.1 (g₁ j)} :
+    {hy₀ : (Φ.groundInterpretation.domain t₀).Realize fun j => c.2.val (g₀ j)}
+    {hy₁ : (Φ.groundInterpretation.domain t₁).Realize fun j => c.2.val (g₁ j)} :
     ClauseSatisfied A c ↔
-      (A ⟨t₁, fun j => c.2.1 (g₁ j), hy₁⟩ → A ⟨t₀, fun j => c.2.1 (g₀ j), hy₀⟩) := by
+      (A ⟨t₁, fun j => c.2.val (g₁ j), hy₁⟩ → A ⟨t₀, fun j => c.2.val (g₀ j), hy₀⟩) := by
   rw [clauseSat_iff, h₀, h₁]
   constructor
   · rintro (⟨τ, hτ, -, y, hy, hc, ha⟩ | ⟨τ, hτ, -, y, hy, hc, ha⟩)
     · obtain rfl := List.mem_singleton.1 hτ
-      obtain rfl : y = fun j => c.2.1 (g₀ j) := funext fun j => hc j _ rfl
+      obtain rfl : y = fun j => c.2.val (g₀ j) := funext fun j => hc j _ rfl
       exact fun _ => ha
     · obtain rfl := List.mem_singleton.1 hτ
-      obtain rfl : y = fun j => c.2.1 (g₁ j) := funext fun j => hc j _ rfl
+      obtain rfl : y = fun j => c.2.val (g₁ j) := funext fun j => hc j _ rfl
       exact fun h => (ha h).elim
   · intro h
-    by_cases ha : A ⟨t₁, fun j => c.2.1 (g₁ j), hy₁⟩
+    by_cases ha : A ⟨t₁, fun j => c.2.val (g₁ j), hy₁⟩
     · exact .inl ⟨_, List.mem_singleton.2 rfl, formula_realize_top, _, hy₀,
         fun j i hj => by cases Option.some.inj hj; rfl, h ha⟩
     · exact .inr ⟨_, List.mem_singleton.2 rfl, formula_realize_top, _, hy₁,
@@ -305,25 +305,25 @@ exactly when `φ` does. -/
 private theorem clauseSat_guarded {c : Φ.groundInterpretation.Model M} {t : Φ.GroundTag}
     {g : t.Coord → c.1.Coord} {φ : L.Formula c.1.Coord}
     (h : ∀ b, Φ.groundTemplates c.1 b = [⟨t, if b then φ else ∼φ, fun j => some (g j)⟩])
-    {hy : (Φ.groundInterpretation.domain t).Realize fun j => c.2.1 (g j)} :
-    ClauseSatisfied A c ↔ (A ⟨t, fun j => c.2.1 (g j), hy⟩ ↔ φ.Realize c.2.1) := by
+    {hy : (Φ.groundInterpretation.domain t).Realize fun j => c.2.val (g j)} :
+    ClauseSatisfied A c ↔ (A ⟨t, fun j => c.2.val (g j), hy⟩ ↔ φ.Realize c.2.val) := by
   rw [clauseSat_iff, h, h]
   constructor
   · rintro (⟨τ, hτ, hg, y, hy, hc, ha⟩ | ⟨τ, hτ, hg, y, hy, hc, ha⟩)
     · obtain rfl := List.mem_singleton.1 hτ
-      obtain rfl : y = fun j => c.2.1 (g j) := funext fun j => hc j _ rfl
+      obtain rfl : y = fun j => c.2.val (g j) := funext fun j => hc j _ rfl
       exact iff_of_true ha hg
     · obtain rfl := List.mem_singleton.1 hτ
-      obtain rfl : y = fun j => c.2.1 (g j) := funext fun j => hc j _ rfl
+      obtain rfl : y = fun j => c.2.val (g j) := funext fun j => hc j _ rfl
       exact iff_of_false ha hg
   · intro h
-    by_cases he : φ.Realize c.2.1
+    by_cases he : φ.Realize c.2.val
     · exact .inl ⟨_, List.mem_singleton.2 rfl, he, _, hy,
         fun j i hj => by cases Option.some.inj hj; rfl, h.2 he⟩
     · exact .inr ⟨_, List.mem_singleton.2 rfl, he, _, hy,
         fun j i hj => by cases Option.some.inj hj; rfl, mt h.1 he⟩
 
-private theorem clauseSat_var (s : Φ.Subformula) (a : Fin s.1.1 → M) (ha) :
+private theorem clauseSat_var (s : Φ.Subformula) (a : Fin s.val.1 → M) (ha) :
     ClauseSatisfied A ⟨.var s, a, ha⟩ :=
   (clauseSat_of_singletons A (c := ⟨.var s, a, ha⟩) (hy₀ := ha) (hy₁ := ha) rfl rfl).2 id
 
@@ -381,21 +381,21 @@ private theorem clauseSat_relInl {l : ℕ} {R : L.Relations l}
 /-- The arguments of an atom of a relation variable, read from the coordinates of a clause. -/
 private def relArgs {l : ℕ} (r : (varLanguage Φ.arity).Relations l)
     (ts : Fin l → (L.sum (varLanguage Φ.arity)).Term (Empty ⊕ Fin k)) :
-    Fin (Φ.arity r.1) → M :=
-  fun j => x (termCoord (ts (Fin.cast r.2 j)))
+    Fin (Φ.arity r.val) → M :=
+  fun j => x (termCoord (ts (Fin.cast r.property j)))
 
 private theorem clauseSat_relInr₀ {l : ℕ} {r : (varLanguage Φ.arity).Relations l}
     {ts : Fin l → (L.sum (varLanguage Φ.arity)).Term (Empty ⊕ Fin k)}
     (hs : ⟨k, .rel (.inr r) ts⟩ ∈ subformulas Φ.matrix) (hx) :
     ClauseSatisfied A ⟨.clause ⟨⟨k, .rel (.inr r) ts⟩, hs⟩ 0, x, hx⟩ ↔
-      (A (atom ⟨⟨k, .rel (.inr r) ts⟩, hs⟩ (Fin.init x)) → A (relAtom r.1 (relArgs x r ts))) :=
+      (A (atom ⟨⟨k, .rel (.inr r) ts⟩, hs⟩ (Fin.init x)) → A (relAtom r.val (relArgs x r ts))) :=
   clauseSat_of_singletons A (by rfl) (by rfl)
 
 private theorem clauseSat_relInr₁ {l : ℕ} {r : (varLanguage Φ.arity).Relations l}
     {ts : Fin l → (L.sum (varLanguage Φ.arity)).Term (Empty ⊕ Fin k)}
     (hs : ⟨k, .rel (.inr r) ts⟩ ∈ subformulas Φ.matrix) (hx) :
     ClauseSatisfied A ⟨.clause ⟨⟨k, .rel (.inr r) ts⟩, hs⟩ 1, x, hx⟩ ↔
-      (A (relAtom r.1 (relArgs x r ts)) → A (atom ⟨⟨k, .rel (.inr r) ts⟩, hs⟩ (Fin.init x))) :=
+      (A (relAtom r.val (relArgs x r ts)) → A (atom ⟨⟨k, .rel (.inr r) ts⟩, hs⟩ (Fin.init x))) :=
   clauseSat_of_singletons A (by rfl) (by rfl)
 
 section Imp
@@ -550,7 +550,7 @@ private theorem atom_iff_realize [Nonempty M] {A : Φ.groundInterpretation.Model
     · have h₀ := (clauseSat_relInr₀ A x hs (realize_domain_clause hs 0 x)).1 (hA _)
       have h₁ := (clauseSat_relInr₁ A x hs (realize_domain_clause hs 1 x)).1 (hA _)
       refine Iff.trans ⟨h₀, h₁⟩ ?_
-      change _ ↔ A (relAtom r.1 fun j => (ts (Fin.cast r.2 j)).realize _)
+      change _ ↔ A (relAtom r.val fun j => (ts (Fin.cast r.property j)).realize _)
       simp only [term_realize]
       rfl
   | imp ψ χ ih₁ ih₂ =>
@@ -581,7 +581,7 @@ private theorem atom_iff_realize [Nonempty M] {A : Φ.groundInterpretation.Model
 when `R` holds of `b`. -/
 private def canonicalAssignment (R : ∀ i, Set (Fin (Φ.arity i) → M)) :
     Φ.groundInterpretation.Model M → Prop
-  | ⟨.var s, a, _⟩ => letI := varLanguage.structure R; s.1.2.Realize default a
+  | ⟨.var s, a, _⟩ => letI := varLanguage.structure R; s.val.2.Realize default a
   | ⟨.relVar r, b, _⟩ => b ∈ R r
   | _ => False
 
@@ -621,8 +621,8 @@ private theorem satisfies_canonicalAssignment (R : ∀ i, Set (Fin (Φ.arity i) 
         change (RelMap R fun i => (ts i).realize _) ↔ _
         simp only [term_realize]
       · have hiff : canonicalAssignment R (atom ⟨⟨k, .rel (.inr r) ts⟩, hs⟩ (Fin.init x)) ↔
-            canonicalAssignment R (relAtom r.1 (relArgs x r ts)) := by
-          change (fun j => (ts (Fin.cast r.2 j)).realize _) ∈ R r.1 ↔ _
+            canonicalAssignment R (relAtom r.val (relArgs x r ts)) := by
+          change (fun j => (ts (Fin.cast r.property j)).realize _) ∈ R r.val ↔ _
           simp only [term_realize]
           rfl
         fin_cases i <;> try exact absurd hx (not_realize_domain_clause hs _ x)
@@ -669,7 +669,7 @@ def constInterpretation (s : Φ.Var → Bool) :
   domain := ⊤
   rel R := match R with
     | .inl R => R.formula fun i => .var (i, ())
-    | .inr r => if s r.1 then ⊤ else ⊥
+    | .inr r => if s r.val then ⊤ else ⊥
 
 /-- On structures with at most one element, every relation is empty or full: the first-order
 sentence that `Φ` holds for some choice of empty and full relations. -/
@@ -692,9 +692,9 @@ private def constStructureEquiv (s : Φ.Var → Bool) :
     (fun f => isEmptyElim f) fun r x => match r with
       | .inl _ => Iff.rfl
       | .inr r => by
-        change _ ∈ constRel s r.1 ↔ (if s r.1 then ⊤ else ⊥ : L.Formula _).Realize _
+        change _ ∈ constRel s r.val ↔ (if s r.val then ⊤ else ⊥ : L.Formula _).Realize _
         unfold constRel
-        cases s r.1 <;> simp
+        cases s r.val <;> simp
 
 /-- The interpretation substituting `⊤` and `⊥` interprets the expansion by empty and full
 relations. -/
@@ -793,7 +793,7 @@ theorem Definable.reduces_SAT {K : Set (Bundled.{w} L.Structure)} (hK : Definabl
     rw [cnf.satisfiable_iff_of_equiv (reindexEquiv _ e M),
       Sentence.satisfiable_groundInterpretation_iff]
   · rcases isEmpty_or_nonempty M with hM' | hM'
-    · have : IsEmpty (Φ.subsingletonInterpretation.Model M) := ⟨fun x => isEmptyElim (x.1 ())⟩
+    · have : IsEmpty (Φ.subsingletonInterpretation.Model M) := ⟨fun x => isEmptyElim (x.val ())⟩
       exact iff_of_true (hempty M hM')
         (cnf.satisfiable_of_isEmpty (M := Φ.subsingletonInterpretation.Model M))
     · rw [hΦ M]

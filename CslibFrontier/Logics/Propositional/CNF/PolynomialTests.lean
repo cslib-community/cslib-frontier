@@ -503,7 +503,7 @@ variable [Fintype V] [DecidableEq V]
 @[simp] theorem CNF.modelCountOn_univ (φ : CNF V) :
     φ.modelCountOn Finset.univ = #{σ : V → Bool | φ.eval σ = true} := by
   unfold CNF.modelCountOn
-  refine Finset.card_nbij' (fun σ v => σ ⟨v, Finset.mem_univ v⟩) (fun τ v => τ v.1)
+  refine Finset.card_nbij' (fun σ v => σ ⟨v, Finset.mem_univ v⟩) (fun τ v => τ v.val)
     (fun σ hσ => ?_) (fun τ hτ => ?_) (fun _ _ => rfl) (fun _ _ => rfl)
   · simp only [Finset.mem_coe, Finset.mem_filter, Finset.mem_univ, true_and, dite_true] at hσ ⊢
     exact hσ

@@ -99,7 +99,7 @@ open Classical in
 /-- The semantic answers to a fixed indexed batch, in increasing index order. This definition
 does not assert that membership in the indexed language is computable. -/
 noncomputable def truthTableAnswers (A : Set (α × ℕ)) (r : α → ℕ) (a : α) : List Bool :=
-  List.ofFn fun i : Fin (r a) => decide ((a, i.1) ∈ A)
+  List.ofFn fun i : Fin (r a) => decide ((a, i.val) ∈ A)
 
 /-- The answer word has one bit per query. -/
 @[simp]

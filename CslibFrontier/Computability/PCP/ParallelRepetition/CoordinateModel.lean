@@ -242,7 +242,7 @@ question pairs. -/
     shared ha hb j (Function.update d j b, q) = shared ha hb j (d, q) := by
   simp only [shared, revealed, Shared.ofRevealed, Shared.mk.injEq, true_and, and_true]
   funext i
-  rw [Function.update_of_ne i.2]
+  rw [Function.update_of_ne i.property]
 
 end Model
 

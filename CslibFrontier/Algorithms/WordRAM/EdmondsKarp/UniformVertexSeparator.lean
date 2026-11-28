@@ -90,7 +90,7 @@ private theorem length_encodeBoolVec {n : ℕ} (v : Vector Bool n) :
   simp [encodeBoolVec]
 
 private theorem getElem_encodeBoolVec {n : ℕ} (v : Vector Bool n) (i : Fin n) :
-    (encodeBoolVec v)[i.1]'(by rw [length_encodeBoolVec]; exact i.2) =
+    (encodeBoolVec v)[i.val]'(by rw [length_encodeBoolVec]; exact i.isLt) =
       if vget v i then 1 else 0 := by
   simp [encodeBoolVec]
 
@@ -103,28 +103,28 @@ private theorem length_encodeSepInput {n : ℕ} (G : SimpleGraph (Fin n)) [Decid
 
 private theorem sepInit_mem_Z {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     (Z A B : Vector Bool n) (v : Fin n) :
-    (Memory.State.init (encodeSepInput G Z A B)).mem (2 + v.1) =
+    (Memory.State.init (encodeSepInput G Z A B)).mem (2 + v.val) =
       if vget Z v then 1 else 0 := by
-  have hv : v.1 < (encodeBoolVec Z).length := by rw [length_encodeBoolVec]; exact v.2
-  change (if 2 + v.1 = 0 then (encodeSepInput G Z A B).length
-    else (encodeSepInput G Z A B).getD (2 + v.1 - 1) 0) = _
-  rw [ite_eq_right (by omega), show 2 + v.1 - 1 = v.1 + 1 by omega]
+  have hv : v.val < (encodeBoolVec Z).length := by rw [length_encodeBoolVec]; exact v.isLt
+  change (if 2 + v.val = 0 then (encodeSepInput G Z A B).length
+    else (encodeSepInput G Z A B).getD (2 + v.val - 1) 0) = _
+  rw [ite_eq_right (by omega), show 2 + v.val - 1 = v.val + 1 by omega]
   change (encodeBoolVec Z ++ encodeBoolVec A ++ encodeBoolVec B ++
-    flattenMatrix (fun u w : Fin n => if G.Adj u w then 1 else 0)).getD v.1 0 = _
+    flattenMatrix (fun u w : Fin n => if G.Adj u w then 1 else 0)).getD v.val 0 = _
   rw [List.getD_eq_getElem?_getD, List.append_assoc, List.append_assoc,
     List.getElem?_append_left hv, List.getElem?_eq_getElem hv, Option.getD_some,
     getElem_encodeBoolVec]
 
 private theorem sepInit_mem_A {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     (Z A B : Vector Bool n) (v : Fin n) :
-    (Memory.State.init (encodeSepInput G Z A B)).mem (2 + n + v.1) =
+    (Memory.State.init (encodeSepInput G Z A B)).mem (2 + n + v.val) =
       if vget A v then 1 else 0 := by
-  have hv : v.1 < (encodeBoolVec A).length := by rw [length_encodeBoolVec]; exact v.2
-  change (if 2 + n + v.1 = 0 then (encodeSepInput G Z A B).length
-    else (encodeSepInput G Z A B).getD (2 + n + v.1 - 1) 0) = _
-  rw [ite_eq_right (by omega), show 2 + n + v.1 - 1 = (n + v.1) + 1 by omega]
+  have hv : v.val < (encodeBoolVec A).length := by rw [length_encodeBoolVec]; exact v.isLt
+  change (if 2 + n + v.val = 0 then (encodeSepInput G Z A B).length
+    else (encodeSepInput G Z A B).getD (2 + n + v.val - 1) 0) = _
+  rw [ite_eq_right (by omega), show 2 + n + v.val - 1 = (n + v.val) + 1 by omega]
   change (encodeBoolVec Z ++ encodeBoolVec A ++ encodeBoolVec B ++
-    flattenMatrix (fun u w : Fin n => if G.Adj u w then 1 else 0)).getD (n + v.1) 0 = _
+    flattenMatrix (fun u w : Fin n => if G.Adj u w then 1 else 0)).getD (n + v.val) 0 = _
   rw [List.getD_eq_getElem?_getD, List.append_assoc, List.append_assoc,
     List.getElem?_append_right (by rw [length_encodeBoolVec]; omega),
     length_encodeBoolVec, Nat.add_sub_cancel_left,
@@ -133,17 +133,17 @@ private theorem sepInit_mem_A {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
 
 private theorem sepInit_mem_B {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     (Z A B : Vector Bool n) (v : Fin n) :
-    (Memory.State.init (encodeSepInput G Z A B)).mem (2 + 2 * n + v.1) =
+    (Memory.State.init (encodeSepInput G Z A B)).mem (2 + 2 * n + v.val) =
       if vget B v then 1 else 0 := by
-  have hv : v.1 < (encodeBoolVec B).length := by rw [length_encodeBoolVec]; exact v.2
-  change (if 2 + 2 * n + v.1 = 0 then (encodeSepInput G Z A B).length
-    else (encodeSepInput G Z A B).getD (2 + 2 * n + v.1 - 1) 0) = _
-  rw [ite_eq_right (by omega), show 2 + 2 * n + v.1 - 1 = (2 * n + v.1) + 1 by omega]
+  have hv : v.val < (encodeBoolVec B).length := by rw [length_encodeBoolVec]; exact v.isLt
+  change (if 2 + 2 * n + v.val = 0 then (encodeSepInput G Z A B).length
+    else (encodeSepInput G Z A B).getD (2 + 2 * n + v.val - 1) 0) = _
+  rw [ite_eq_right (by omega), show 2 + 2 * n + v.val - 1 = (2 * n + v.val) + 1 by omega]
   change (encodeBoolVec Z ++ encodeBoolVec A ++ encodeBoolVec B ++
-    flattenMatrix (fun u w : Fin n => if G.Adj u w then 1 else 0)).getD (2 * n + v.1) 0 = _
+    flattenMatrix (fun u w : Fin n => if G.Adj u w then 1 else 0)).getD (2 * n + v.val) 0 = _
   rw [List.getD_eq_getElem?_getD, List.append_assoc, List.append_assoc,
     List.getElem?_append_right (by rw [length_encodeBoolVec]; omega),
-    length_encodeBoolVec, show 2 * n + v.1 - n = n + v.1 by omega,
+    length_encodeBoolVec, show 2 * n + v.val - n = n + v.val by omega,
     List.getElem?_append_right (by rw [length_encodeBoolVec]; omega),
     length_encodeBoolVec, Nat.add_sub_cancel_left,
     List.getElem?_append_left hv, List.getElem?_eq_getElem hv, Option.getD_some,
@@ -151,18 +151,19 @@ private theorem sepInit_mem_B {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
 
 private theorem sepInit_mem_edge {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     (Z A B : Vector Bool n) (u v : Fin n) :
-    (Memory.State.init (encodeSepInput G Z A B)).mem (2 + 3 * n + u.1 * n + v.1) =
+    (Memory.State.init (encodeSepInput G Z A B)).mem (2 + 3 * n + u.val * n + v.val) =
       if G.Adj u v then 1 else 0 := by
   have hlt :
-      u.1 * n + v.1 < (flattenMatrix (fun a b : Fin n => if G.Adj a b then 1 else 0)).length := by
-    rw [length_flattenMatrix]; exact List.mul_add_lt_sq u.2 v.2
-  change (if 2 + 3 * n + u.1 * n + v.1 = 0 then (encodeSepInput G Z A B).length
-    else (encodeSepInput G Z A B).getD (2 + 3 * n + u.1 * n + v.1 - 1) 0) = _
-  rw [ite_eq_right (by omega), show 2 + 3 * n + u.1 * n + v.1 - 1 =
-    (3 * n + (u.1 * n + v.1)) + 1 by omega]
+      u.val * n + v.val <
+        (flattenMatrix (fun a b : Fin n => if G.Adj a b then 1 else 0)).length := by
+    rw [length_flattenMatrix]; exact List.mul_add_lt_sq u.isLt v.isLt
+  change (if 2 + 3 * n + u.val * n + v.val = 0 then (encodeSepInput G Z A B).length
+    else (encodeSepInput G Z A B).getD (2 + 3 * n + u.val * n + v.val - 1) 0) = _
+  rw [ite_eq_right (by omega), show 2 + 3 * n + u.val * n + v.val - 1 =
+    (3 * n + (u.val * n + v.val)) + 1 by omega]
   change (encodeBoolVec Z ++ encodeBoolVec A ++ encodeBoolVec B ++
     flattenMatrix (fun a b : Fin n => if G.Adj a b then 1 else 0)).getD
-      (3 * n + (u.1 * n + v.1)) 0 = _
+      (3 * n + (u.val * n + v.val)) 0 = _
   rw [List.getD_eq_getElem?_getD,
     List.getElem?_append_right (by simp only [List.length_append, length_encodeBoolVec]; omega),
     show (encodeBoolVec Z ++ encodeBoolVec A ++ encodeBoolVec B).length = 3 * n by
@@ -194,7 +195,7 @@ private theorem inputFits_encodeSepInput {n w : ℕ} (G : SimpleGraph (Fin n)) [
     have hn : 0 < n := Nat.pos_of_ne_zero fun h => by simp [h] at hi
     have hu : i / n < n := Nat.div_lt_of_lt_mul hi
     have hv : i % n < n := Nat.mod_lt i hn
-    have hidx : i = (⟨i / n, hu⟩ : Fin n).1 * n + (⟨i % n, hv⟩ : Fin n).1 :=
+    have hidx : i = (⟨i / n, hu⟩ : Fin n).val * n + (⟨i % n, hv⟩ : Fin n).val :=
       (Nat.div_add_mod' i n).symm
     have he := getElem_flattenMatrix (W := fun a b : Fin n => if G.Adj a b then 1 else 0)
       ⟨i / n, hu⟩ ⟨i % n, hv⟩
@@ -502,25 +503,25 @@ private theorem validHistory_sepMain {w n : ℕ} {st : Memory.State}
   exact validHistory_bind_step hex (validHistory_pure _ _ _)
 
 private theorem splitNode_equivFin_val {n : ℕ} :
-    (SplitNode.equivFin n .src).1 = 0 ∧
-    (SplitNode.equivFin n .snk).1 = 1 ∧
-    (∀ v : Fin n, (SplitNode.equivFin n (.inV v)).1 = v.1 + 2) ∧
-    (∀ v : Fin n, (SplitNode.equivFin n (.outV v)).1 = v.1 + n + 2) :=
+    (SplitNode.equivFin n .src).val = 0 ∧
+    (SplitNode.equivFin n .snk).val = 1 ∧
+    (∀ v : Fin n, (SplitNode.equivFin n (.inV v)).val = v.val + 2) ∧
+    (∀ v : Fin n, (SplitNode.equivFin n (.outV v)).val = v.val + n + 2) :=
   ⟨rfl, rfl, fun _ => rfl, fun _ => rfl⟩
 
 private theorem sepBuild_spec {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     (Z A B : Vector Bool n) {st : Memory.State}
-    (hZ : ∀ v : Fin n, st.mem (2 + v.1) = if vget Z v then 1 else 0)
-    (hA : ∀ v : Fin n, st.mem (2 + n + v.1) = if vget A v then 1 else 0)
-    (hB : ∀ v : Fin n, st.mem (2 + 2 * n + v.1) = if vget B v then 1 else 0)
-    (hG : ∀ u v : Fin n, st.mem (2 + 3 * n + u.1 * n + v.1) = if G.Adj u v then 1 else 0) :
+    (hZ : ∀ v : Fin n, st.mem (2 + v.val) = if vget Z v then 1 else 0)
+    (hA : ∀ v : Fin n, st.mem (2 + n + v.val) = if vget A v then 1 else 0)
+    (hB : ∀ v : Fin n, st.mem (2 + 2 * n + v.val) = if vget B v then 1 else 0)
+    (hG : ∀ u v : Fin n, st.mem (2 + 3 * n + u.val * n + v.val) = if G.Adj u v then 1 else 0) :
     let st1 := (Memory.spec 0).clientState st
       (fillRange ((sepMatBase n, 0), sepNodes n * sepNodes n))
     let st2 := (Memory.spec 0).clientState st1 (iterate sepVertStep n n 0)
     let st3 := (Memory.spec 0).clientState st2 (iterate sepEdgeOuter n n 0)
     (∀ a < sepMatBase n, st3.mem a = st.mem a) ∧
       ∀ x y : Fin (sepNodes n),
-        st3.mem (sepMatBase n + x.1 * sepNodes n + y.1) =
+        st3.mem (sepMatBase n + x.val * sepNodes n + y.val) =
           ((vertexSplitNetwork G Z A B).reindex (SplitNode.equivFin n)).cap x y := by
   intro st1 st2 st3
   have h1 := fillRange_spec (sepMatBase n) 0 (sepNodes n * sepNodes n) st
@@ -547,7 +548,7 @@ private theorem sepBuild_spec {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
   -- `Inv f t`: `t` agrees with `st` below the matrix and holds the matrix `f`.
   obtain ⟨Inv, hInv⟩ : ∃ Inv : (ℕ → ℕ → ℕ) → Memory.State → Prop, ∀ f t, Inv f t ↔
       (∀ a < sepMatBase n, t.mem a = st.mem a) ∧ ∀ x y : Fin (sepNodes n),
-        t.mem (sepMatBase n + x.1 * sepNodes n + y.1) = f x.1 y.1 :=
+        t.mem (sepMatBase n + x.val * sepNodes n + y.val) = f x.val y.val :=
     ⟨_, fun _ _ => Iff.rfl⟩
   -- Writing `v` to the cell `(a, b)` turns the matrix `f` into `f'` when they differ only there.
   have hwrite : ∀ {f f' : ℕ → ℕ → ℕ} {addr a b v} {t : Memory.State},
@@ -559,13 +560,13 @@ private theorem sepBuild_spec {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
     subst haddr
     refine (hInv _ _).2 ⟨fun a' ha' => (Function.update_of_ne (by omega) _ _).trans (hlo a' ha'),
       fun x y => ?_⟩
-    have hc : sepMatBase n + x.1 * sepNodes n + y.1 = sepMatBase n + a * sepNodes n + b ↔
-        x.1 = a ∧ y.1 = b :=
+    have hc : sepMatBase n + x.val * sepNodes n + y.val = sepMatBase n + a * sepNodes n + b ↔
+        x.val = a ∧ y.val = b :=
       ⟨fun h => (List.fin_mul_add_inj (x₂ := ⟨a, ha⟩) (y₂ := ⟨b, hb⟩)
         (by dsimp only; omega)).imp (congrArg Fin.val) (congrArg Fin.val),
         fun ⟨h1, h2⟩ => by rw [h1, h2]⟩
     refine (Function.update_apply _ _ _ _).trans <| (if_congr hc rfl (hmat x y)).trans ?_
-    by_cases h : x.1 = a ∧ y.1 = b
+    by_cases h : x.val = a ∧ y.val = b
     · rw [ite_eq_left h, h.1, h.2, hv]
     · exact (ite_eq_right h).trans (hF _ _ h)
   have h2 := iterate_invariant_of sepVertStep n
@@ -596,7 +597,7 @@ private theorem sepBuild_spec {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
         fun x y h => if_congr Iff.rfl rfl (if_congr Iff.rfl rfl (if_congr (by omega) rfl rfl))⟩)
     (n := n) (a := 0) (s := st1) ⟨Nat.zero_add _, (hInv _ _).2 ⟨fun a ha => h1.2 a (Or.inl ha),
       fun x y => by
-        rw [Nat.add_assoc, h1.1 _ (List.mul_add_lt_sq x.2 y.2)]
+        rw [Nat.add_assoc, h1.1 _ (List.mul_add_lt_sq x.isLt y.isLt)]
         dsimp only [F]; split_ifs <;> omega⟩⟩
   obtain ⟨hk2, hI2⟩ := h2
   rw [Nat.add_zero] at hk2
@@ -642,57 +643,57 @@ private theorem sepBuild_spec {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
     ((SplitNode.equivFin n).symm y)
   generalize (SplitNode.equivFin n).symm x = sx at hx_eq
   generalize (SplitNode.equivFin n).symm y = sy at hy_eq
-  have hxval : x.1 = (SplitNode.equivFin n sx).1 := congrArg Fin.val hx_eq
-  have hyval : y.1 = (SplitNode.equivFin n sy).1 := congrArg Fin.val hy_eq
+  have hxval : x.val = (SplitNode.equivFin n sx).val := congrArg Fin.val hx_eq
+  have hyval : y.val = (SplitNode.equivFin n sy).val := congrArg Fin.val hy_eq
   cases sx <;> cases sy <;>
     simp only [hsrc0, hsnk1, hinV, houtV, vertexSplitNetwork, vertexSplitCap] at hxval hyval ⊢ <;>
     dsimp only [F]
   all_goals try (split_ifs <;> omega)
   · rename_i v
-    have := v.2
-    rw [ite_eq_left (by omega), show y.1 - 2 = v.1 by omega, hcA, hA v]
+    have := v.isLt
+    rw [ite_eq_left (by omega), show y.val - 2 = v.val by omega, hcA, hA v]
     cases vget A v <;> rfl
   · rename_i u v
-    have := u.2; have := v.2
+    have := u.isLt; have := v.isLt
     rw [ite_eq_right (by omega), ite_eq_right (by omega)]
     by_cases huv : u = v
     · subst huv
-      rw [ite_eq_left (by omega), show x.1 - 2 = u.1 by omega, hcZ, hZ u]
+      rw [ite_eq_left (by omega), show x.val - 2 = u.val by omega, hcZ, hZ u]
       cases vget Z u <;> simp
-    · have hne : u.1 ≠ v.1 := fun h => huv (Fin.ext h)
+    · have hne : u.val ≠ v.val := fun h => huv (Fin.ext h)
       rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right (fun h => huv h.1)]
   · rename_i u
-    have := u.2
-    rw [ite_eq_right (by omega), ite_eq_left (by omega), show x.1 - n - 2 = u.1 by omega, hcB,
+    have := u.isLt
+    rw [ite_eq_right (by omega), ite_eq_left (by omega), show x.val - n - 2 = u.val by omega, hcB,
       hB u]
     cases vget B u <;> rfl
   · rename_i u v
-    have := u.2; have := v.2
+    have := u.isLt; have := v.isLt
     rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right (by omega),
-      ite_eq_left (Or.inl (by omega)), show x.1 - n - 2 = u.1 by omega,
-      show y.1 - 2 = v.1 by omega, hcE, hG u v]
+      ite_eq_left (Or.inl (by omega)), show x.val - n - 2 = u.val by omega,
+      show y.val - 2 = v.val by omega, hcE, hG u v]
     by_cases h : G.Adj u v <;> simp [h]
 
 private theorem sepExtract_spec {n : ℕ} (st : Memory.State) :
     let st' := (Memory.spec 0).clientState st (iterate sepExtractStep n n 0)
-    (∀ v : Fin n, st'.mem (sepOutBase n + v.1) =
-      if st.mem (2 + v.1) = 0 ∧
-         st.mem (sepScrBase n + sepNodes n * sepNodes n + (v.1 + 2)) < sepNodes n ∧
-         st.mem (sepScrBase n + sepNodes n * sepNodes n + (v.1 + n + 2)) = sepNodes n
+    (∀ v : Fin n, st'.mem (sepOutBase n + v.val) =
+      if st.mem (2 + v.val) = 0 ∧
+         st.mem (sepScrBase n + sepNodes n * sepNodes n + (v.val + 2)) < sepNodes n ∧
+         st.mem (sepScrBase n + sepNodes n * sepNodes n + (v.val + n + 2)) = sepNodes n
       then 1 else 0) ∧
-    (∀ v : Fin n, st'.mem (sepSideBase n + v.1) =
-      if st.mem (sepScrBase n + sepNodes n * sepNodes n + (v.1 + n + 2)) < sepNodes n
+    (∀ v : Fin n, st'.mem (sepSideBase n + v.val) =
+      if st.mem (sepScrBase n + sepNodes n * sepNodes n + (v.val + n + 2)) < sepNodes n
       then 1 else 0) := by
   have h := iterate_invariant_of sepExtractStep n
     (fun rem (k : ℕ) t => k + rem = n ∧
       (∀ a < sepOutBase n, t.mem a = st.mem a) ∧
-      (∀ v : Fin n, v.1 < k → t.mem (sepOutBase n + v.1) =
-        if st.mem (2 + v.1) = 0 ∧
-           st.mem (sepScrBase n + sepNodes n * sepNodes n + (v.1 + 2)) < sepNodes n ∧
-           st.mem (sepScrBase n + sepNodes n * sepNodes n + (v.1 + n + 2)) = sepNodes n
+      (∀ v : Fin n, v.val < k → t.mem (sepOutBase n + v.val) =
+        if st.mem (2 + v.val) = 0 ∧
+           st.mem (sepScrBase n + sepNodes n * sepNodes n + (v.val + 2)) < sepNodes n ∧
+           st.mem (sepScrBase n + sepNodes n * sepNodes n + (v.val + n + 2)) = sepNodes n
         then 1 else 0) ∧
-      (∀ v : Fin n, v.1 < k → t.mem (sepSideBase n + v.1) =
-        if st.mem (sepScrBase n + sepNodes n * sepNodes n + (v.1 + n + 2)) < sepNodes n
+      (∀ v : Fin n, v.val < k → t.mem (sepSideBase n + v.val) =
+        if st.mem (sepScrBase n + sepNodes n * sepNodes n + (v.val + n + 2)) < sepNodes n
         then 1 else 0))
     (fun rem k t ⟨hsum, hlo, hout, hside⟩ => by
       have hz : t.mem (2 + k) = st.mem (2 + k) := hlo _ (by sep_omega)
@@ -710,11 +711,11 @@ private theorem sepExtract_spec {n : ℕ} (st : Memory.State) :
       · rw [Function.update_of_ne (by dsimp only [sepSideBase]; omega),
           Function.update_of_ne (by omega)]
         exact hlo a ha
-      · rw [Function.update_of_ne (by have := v.2; dsimp only [sepSideBase]; omega)]
-        by_cases hvk : v.1 = k
+      · rw [Function.update_of_ne (by have := v.isLt; dsimp only [sepSideBase]; omega)]
+        by_cases hvk : v.val = k
         · rw [hvk, Function.update_self, hz, hdin, hdout]
         · rw [Function.update_of_ne (by omega)]; exact hout v (by omega)
-      · by_cases hvk : v.1 = k
+      · by_cases hvk : v.val = k
         · rw [hvk, Function.update_self, hdout]
         · rw [Function.update_of_ne (by omega),
             Function.update_of_ne (by dsimp only [sepSideBase]; omega)]
@@ -751,8 +752,8 @@ theorem exists_minSeparator_program :
             vget out.side v = true) ∧
           (∀ {v : Fin n}, vget B v = true → vget out.side v = false) ∧
           res = out.sep.length ∧
-          (∀ v : Fin n, y.mem (sepOutAddr n v.1) = if v ∈ out.sep then 1 else 0) ∧
-          (∀ v : Fin n, y.mem (sepSideAddr n v.1) = if vget out.side v then 1 else 0) := by
+          (∀ v : Fin n, y.mem (sepOutAddr n v.val) = if v ∈ out.sep then 1 else 0) ∧
+          (∀ v : Fin n, y.mem (sepSideAddr n v.val) = if vget out.side v then 1 else 0) := by
   obtain ⟨R, C₀, pc, prog, _, _, hprog⟩ :=
     sepProg_realizes.exists_standard_init_program_state_from_words 0
   refine ⟨R, 5204 * C₀ + 2, pc, by omega, prog, ?_⟩
@@ -780,15 +781,16 @@ theorem exists_minSeparator_program :
   have hlo0 : ∀ a < sepMatBase n, st0.mem a = st.mem a := fun a ha =>
     Memory.mem_step_of_lt_frontier st (.alloc (sepScratch n))
       (by rw [hfr]; dsimp only [sepMatBase] at ha; omega) (by simp)
-  have hZ0 : ∀ v : Fin n, st0.mem (2 + v.1) = if vget Z v then 1 else 0 := fun v => by
-    rw [hlo0 _ (by have := v.2; dsimp only [sepMatBase]; omega)]; exact sepInit_mem_Z G Z A B v
-  have hA0 : ∀ v : Fin n, st0.mem (2 + n + v.1) = if vget A v then 1 else 0 := fun v => by
-    rw [hlo0 _ (by have := v.2; dsimp only [sepMatBase]; omega)]; exact sepInit_mem_A G Z A B v
-  have hB0 : ∀ v : Fin n, st0.mem (2 + 2 * n + v.1) = if vget B v then 1 else 0 := fun v => by
-    rw [hlo0 _ (by have := v.2; dsimp only [sepMatBase]; omega)]; exact sepInit_mem_B G Z A B v
-  have hG0 : ∀ u v : Fin n, st0.mem (2 + 3 * n + u.1 * n + v.1) = if G.Adj u v then 1 else 0 := by
+  have hZ0 : ∀ v : Fin n, st0.mem (2 + v.val) = if vget Z v then 1 else 0 := fun v => by
+    rw [hlo0 _ (by have := v.isLt; dsimp only [sepMatBase]; omega)]; exact sepInit_mem_Z G Z A B v
+  have hA0 : ∀ v : Fin n, st0.mem (2 + n + v.val) = if vget A v then 1 else 0 := fun v => by
+    rw [hlo0 _ (by have := v.isLt; dsimp only [sepMatBase]; omega)]; exact sepInit_mem_A G Z A B v
+  have hB0 : ∀ v : Fin n, st0.mem (2 + 2 * n + v.val) = if vget B v then 1 else 0 := fun v => by
+    rw [hlo0 _ (by have := v.isLt; dsimp only [sepMatBase]; omega)]; exact sepInit_mem_B G Z A B v
+  have hG0 : ∀ u v : Fin n,
+      st0.mem (2 + 3 * n + u.val * n + v.val) = if G.Adj u v then 1 else 0 := by
     intro u v
-    have hlt := List.mul_add_lt_sq u.2 v.2
+    have hlt := List.mul_add_lt_sq u.isLt v.isLt
     rw [hlo0 _ (by dsimp only [sepMatBase]; omega)]; exact sepInit_mem_edge G Z A B u v
   obtain ⟨hlo3, hmat3⟩ := sepBuild_spec G Z A B hZ0 hA0 hB0 hG0
   set st1 := (Memory.spec 0).clientState st0
@@ -805,15 +807,15 @@ theorem exists_minSeparator_program :
       simp only [vertexSplitCap] <;> first | omega | (split_ifs <;> omega)
   have hEk := ekProg_flow_spec (mb := sepMatBase n) (sb := sepScrBase n) (B := n + 1)
     NFin hst_ne hcap_le (le_refl _) hmat3
-  have hs0 : NFin.s.1 = 0 := rfl
-  have ht1 : NFin.t.1 = 1 := rfl
+  have hs0 : NFin.s.val = 0 := rfl
+  have ht1 : NFin.t.val = 1 := rfl
   rw [hs0, ht1] at hEk
   obtain ⟨hEk_frame, _, _, hdist_le, _, hminFin, _, _, hres_ek⟩ := hEk
   set st4 := (Memory.spec 0).clientState st3
     (ekProg (⟨sepNodes n, sepMatBase n, sepScrBase n, n + 1⟩, (0, 1)))
   set CFin : Finset (Fin (sepNodes n)) :=
     Finset.univ.filter fun x =>
-      st4.mem (distAddr ⟨sepNodes n, sepMatBase n, sepScrBase n, n + 1⟩ x.1) < sepNodes n
+      st4.mem (distAddr ⟨sepNodes n, sepMatBase n, sepScrBase n, n + 1⟩ x.val) < sepNodes n
   set S : Finset (SplitNode n) := Network.cutOfReindex (SplitNode.equivFin n) CFin
   have hS_min : (vertexSplitNetwork G Z A B).IsMinCut S :=
     Network.isMinCut_cutOfReindex (SplitNode.equivFin n) hminFin
@@ -858,31 +860,32 @@ theorem exists_minSeparator_program :
       separatorOfCut_length_sep_eq_cutCapacity hS_min]
   · intro v
     rw [hymem]
-    have haddr : sepOutAddr n v.1 = sepOutBase n + v.1 := by
+    have haddr : sepOutAddr n v.val = sepOutBase n + v.val := by
       dsimp only [sepOutAddr, sepOutBase, sepScrBase, sepMatBase, sepNodes, ekScratch]; ring
     rw [haddr, hOut_mem v]
-    have hZ4 : st4.mem (2 + v.1) = if vget Z v then 1 else 0 := by
-      rw [hEk_frame _ (Or.inl (by have := v.2; sep_omega)),
-        hlo3 _ (by have := v.2; dsimp only [sepMatBase]; omega)]
+    have hZ4 : st4.mem (2 + v.val) = if vget Z v then 1 else 0 := by
+      rw [hEk_frame _ (Or.inl (by have := v.isLt; sep_omega)),
+        hlo3 _ (by have := v.isLt; dsimp only [sepMatBase]; omega)]
       exact hZ0 v
-    have hin_iff : st4.mem (sepScrBase n + sepNodes n * sepNodes n + (v.1 + 2)) < sepNodes n ↔
+    have hin_iff : st4.mem (sepScrBase n + sepNodes n * sepNodes n + (v.val + 2)) < sepNodes n ↔
         SplitNode.inV v ∈ S := by
-      have : (SplitNode.equivFin n (.inV v)).1 = v.1 + 2 := rfl
+      have : (SplitNode.equivFin n (.inV v)).val = v.val + 2 := rfl
       rw [← this]
       simp [S, Network.cutOfReindex, CFin, distAddr]
-    have hout_iff : st4.mem (sepScrBase n + sepNodes n * sepNodes n + (v.1 + n + 2)) = sepNodes n ↔
-        SplitNode.outV v ∉ S := by
+    have hout_iff :
+        st4.mem (sepScrBase n + sepNodes n * sepNodes n + (v.val + n + 2)) = sepNodes n ↔
+          SplitNode.outV v ∉ S := by
       have hle := hdist_le (SplitNode.equivFin n (.outV v))
-      have : (SplitNode.equivFin n (.outV v)).1 = v.1 + n + 2 := rfl
+      have : (SplitNode.equivFin n (.outV v)).val = v.val + n + 2 := rfl
       rw [this] at hle
       dsimp only [distAddr] at hle
-      have hlt_iff : st4.mem (sepScrBase n + sepNodes n * sepNodes n + (v.1 + n + 2)) <
+      have hlt_iff : st4.mem (sepScrBase n + sepNodes n * sepNodes n + (v.val + n + 2)) <
           sepNodes n ↔ SplitNode.outV v ∈ S := by
         rw [← this]; simp [S, Network.cutOfReindex, CFin, distAddr]
       rw [← hlt_iff]
       dsimp only [sepNodes] at hle ⊢
       omega
-    have hZ_iff : st4.mem (2 + v.1) = 0 ↔ vget Z v = false := by
+    have hZ_iff : st4.mem (2 + v.val) = 0 ↔ vget Z v = false := by
       rw [hZ4]; cases vget Z v <;> simp
     have hmem_sep : v ∈ out.sep ↔
         vget Z v = false ∧ SplitNode.inV v ∈ S ∧ SplitNode.outV v ∉ S := by
@@ -891,14 +894,14 @@ theorem exists_minSeparator_program :
     exact if_congr ((and_congr hZ_iff (and_congr hin_iff hout_iff)).trans hmem_sep.symm) rfl rfl
   · intro v
     rw [hymem]
-    have haddr : sepSideAddr n v.1 = sepSideBase n + v.1 := by
+    have haddr : sepSideAddr n v.val = sepSideBase n + v.val := by
       dsimp only [sepSideAddr, sepSideBase, sepOutBase, sepScrBase, sepMatBase, sepNodes,
         ekScratch]
       ring
     rw [haddr, hSide_mem v]
-    have hout_iff : st4.mem (sepScrBase n + sepNodes n * sepNodes n + (v.1 + n + 2)) <
+    have hout_iff : st4.mem (sepScrBase n + sepNodes n * sepNodes n + (v.val + n + 2)) <
         sepNodes n ↔ vget out.side v = true := by
-      have : (SplitNode.equivFin n (.outV v)).1 = v.1 + n + 2 := rfl
+      have : (SplitNode.equivFin n (.outV v)).val = v.val + n + 2 := rfl
       rw [← this]
       simp [out, separatorOfCut, vget, S, Network.cutOfReindex, CFin, distAddr]
     exact if_congr hout_iff rfl rfl

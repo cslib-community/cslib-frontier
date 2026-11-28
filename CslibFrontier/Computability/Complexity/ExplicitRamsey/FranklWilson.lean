@@ -117,15 +117,15 @@ the second is not congruent to `d` mod `p`. The input is `(p, d, a, b)`. -/
 
 /-- The name of a `d`-subset of `Fin n`: its elements in increasing order. -/
 def subsetLabel {n d : ℕ} (s : {s : Finset (Fin n) // #s = d}) : List ℕ :=
-  (s.1.sort).map Fin.val
+  (s.val.sort).map Fin.val
 
 private theorem sortedLT_subsetLabel {n d : ℕ} (s : {s : Finset (Fin n) // #s = d}) :
     (subsetLabel s).SortedLT := by
   rw [subsetLabel, List.sortedLT_iff_isChain, List.isChain_map]
-  exact List.sortedLT_iff_isChain.1 (sortedLT_sort s.1)
+  exact List.sortedLT_iff_isChain.1 (sortedLT_sort s.val)
 
 private theorem mem_subsetLabel {n d : ℕ} (s : {s : Finset (Fin n) // #s = d}) (x : Fin n) :
-    (x : ℕ) ∈ subsetLabel s ↔ x ∈ s.1 := by
+    (x : ℕ) ∈ subsetLabel s ↔ x ∈ s.val := by
   rw [subsetLabel, List.mem_map]
   exact ⟨fun ⟨y, hy, hyx⟩ => Fin.ext hyx ▸ (mem_sort _).1 hy, fun h => ⟨x, (mem_sort _).2 h, rfl⟩⟩
 
@@ -146,9 +146,9 @@ theorem range_subsetLabel (n d : ℕ) :
   constructor
   · rintro ⟨s, rfl⟩
     refine ⟨⟨?_, sortedLT_subsetLabel s⟩, fun x hx => ?_⟩
-    · rw [subsetLabel, List.length_map, length_sort, s.2]
+    · rw [subsetLabel, List.length_map, length_sort, s.property]
     · obtain ⟨y, -, rfl⟩ := List.mem_map.1 hx
-      exact y.2
+      exact y.isLt
   · rintro ⟨⟨hlen, hsort⟩, hlt⟩
     let u : Finset (Fin n) := univ.filter fun i => (i : ℕ) ∈ l
     have hmem (a : ℕ) : a ∈ (u.sort).map Fin.val ↔ a ∈ l := by
@@ -160,9 +160,9 @@ theorem range_subsetLabel (n d : ℕ) :
     exact ⟨⟨u, by rw [← length_sort (· ≤ ·), ← List.length_map (f := Fin.val), heq, hlen]⟩, heq⟩
 
 private theorem card_inter_eq_length {n d : ℕ} (s t : {s : Finset (Fin n) // #s = d}) :
-    #(s.1 ∩ t.1) = ((subsetLabel s).filter fun x => decide (x ∈ subsetLabel t)).length := by
+    #(s.val ∩ t.val) = ((subsetLabel s).filter fun x => decide (x ∈ subsetLabel t)).length := by
   have hnd : ((subsetLabel s).filter fun x => decide (x ∈ subsetLabel t)).Nodup :=
-    (List.Nodup.map Fin.val_injective (sort_nodup s.1 _)).filter _
+    (List.Nodup.map Fin.val_injective (sort_nodup s.val _)).filter _
   rw [← List.toFinset_card_of_nodup hnd, ← card_map Fin.valEmbedding]
   congr 1
   ext x
@@ -172,7 +172,7 @@ private theorem card_inter_eq_length {n d : ℕ} (s t : {s : Finset (Fin n) // #
   · rintro ⟨y, ⟨hys, hyt⟩, rfl⟩
     exact ⟨(mem_subsetLabel s y).2 hys, (mem_subsetLabel t y).2 hyt⟩
   · rintro ⟨hxs, hxt⟩
-    obtain ⟨y, -, rfl⟩ := List.mem_map.1 (show x ∈ (s.1.sort (· ≤ ·)).map Fin.val from hxs)
+    obtain ⟨y, -, rfl⟩ := List.mem_map.1 (show x ∈ (s.val.sort (· ≤ ·)).map Fin.val from hxs)
     exact ⟨y, ⟨(mem_subsetLabel s y).1 hxs, (mem_subsetLabel t y).1 hxt⟩, rfl⟩
 
 /-- Adjacency in the Frankl–Wilson graph on the `d`-subsets of `Fin n` is `subsetAdj` on names. -/

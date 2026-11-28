@@ -1000,10 +1000,10 @@ private theorem eventually_badDegree_le_exp_neg {p : ℕ → I}
   refine hbd.trans ?_
   have h4eq : (4 : ℝ) ^ n = Real.exp ((n : ℝ) * (2 * Real.log 2)) := by
     have h4 : (4 : ℝ) = Real.exp (2 * Real.log 2) := by
-      rw [show (2 : ℝ) * Real.log 2 = ((2 : ℕ) : ℝ) * Real.log 2 by norm_num, Real.exp_nat_mul,
+      rw [show (2 : ℝ) * Real.log 2 = ((2 : ℕ) : ℝ) * Real.log 2 by norm_num, Real.exp_natCast_mul,
         Real.exp_log (by norm_num)]
       norm_num
-    rw [h4, ← Real.exp_nat_mul]
+    rw [h4, ← Real.exp_natCast_mul]
   rw [mul_assoc, h4eq, ← Real.exp_add]
   refine mul_le_mul_of_nonneg_left (Real.exp_le_exp.2 ?_) (by norm_num)
   have hlog_mul : (2 * Real.log 2 + 1) * 24 ≤ η ^ 2 * κ * ε₀ * Real.log (n : ℝ) := by
@@ -1741,7 +1741,7 @@ theorem exists_game_adversarial_linear_mutant_beats_all_incumbent_neighbors :
     refine Summable.of_norm_bounded_eventually_nat hgeom ?_
     filter_upwards [hp_hi, eventually_ge_atTop 1] with n hpn hn1
     have hn0 : 0 < n := by omega
-    rw [Real.norm_of_nonneg measureReal_nonneg, ← Real.exp_nat_mul]
+    rw [Real.norm_of_nonneg measureReal_nonneg, ← Real.exp_natCast_mul]
     simp only [B_deg, hn0, ↓reduceDIte]
     have hμ : ((Fintype.card (Fin n) - 1 : ℕ) : ℝ) * (p n : ℝ) ≤ q' * (n : ℝ) := by
       rw [Fintype.card_fin]

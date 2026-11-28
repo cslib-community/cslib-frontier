@@ -41,7 +41,7 @@ open Cslib.Algorithms.Lean.MaxFlow
 `(2, 1)`. -/
 def clrsNet : Network (Fin 6) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 16
     | 0, 2 => 13
     | 1, 2 => 10
@@ -103,7 +103,7 @@ example : ∃ flows : ℕ → clrsNet.Flow, clrsNet.IsDinitzRun 2 flows ∧
 phases augment along paths of lengths `1`, `2` and `3`. -/
 def tightNet : Network (Fin 4) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 3 => 1
     | 0, 1 => 2
     | 1, 3 => 1
@@ -125,7 +125,7 @@ example : (dinitzDense tightNet).phases = Fintype.card (Fin 4) - 1 := by decide
 its reverse residual arc. -/
 def revNet : Network (Fin 8) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 1
     | 0, 2 => 1
     | 1, 3 => 1
@@ -148,7 +148,7 @@ example : (dinitzDense revNet).flow.value = 2 ∧ (dinitzDense revNet).phases = 
 /-- Unit arcs `0 → 1`, `0 → 2`, `1 → 2`, `1 → 3`, `2 → 3`, with `s = 0` and `t = 3`. -/
 def unitNet : Network (Fin 4) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 1
     | 0, 2 => 1
     | 1, 2 => 1
@@ -161,7 +161,7 @@ def unitNet : Network (Fin 4) where
 /-- The flow along the path `0 → 1 → 2 → 3`. -/
 def zigFlow : unitNet.Flow where
   toFun u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 1
     | 1, 2 => 1
     | 2, 3 => 1
@@ -194,7 +194,7 @@ example : (dinitzDense loopNet).phases = 0 ∧ (dinitzDense loopNet).flow.value 
 
 /-- A network whose sink is unreachable. -/
 def cutOffNet : Network (Fin 3) where
-  cap u v := if u.1 = 0 ∧ v.1 = 1 then 5 else 0
+  cap u v := if u.val = 0 ∧ v.val = 1 then 5 else 0
   s := 0
   t := 2
 

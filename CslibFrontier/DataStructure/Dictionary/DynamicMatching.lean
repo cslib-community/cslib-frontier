@@ -677,8 +677,8 @@ theorem rounds_le_card {U' n' : ℕ} (h : Scheme U' n')
 `Algorithm 1`) for any active ball set `A ⊆ Fin U'` of size `A.card ≤ n'`. -/
 def matching {U' n' : ℕ} (h : Scheme U' n') (A : Finset (Fin U'))
     (hA : A.card ≤ n') : A ↪ Fin n' where
-  toFun a := (matchOpt h A a.1).get <|
-    (matchOptOn_isSome_iff h (by simpa using hA) a.1).mpr a.2
+  toFun a := (matchOpt h A a.val).get <|
+    (matchOptOn_isSome_iff h (by simpa using hA) a.val).mpr a.property
   inj' a₁ a₂ heq := Subtype.ext <|
     matchOptOn_injective h A Finset.univ
       ((Option.some_get _).symm.trans (congrArg some heq))
@@ -687,7 +687,7 @@ def matching {U' n' : ℕ} (h : Scheme U' n') (A : Finset (Fin U'))
 @[simp]
 theorem matching_apply {U' n' : ℕ} (h : Scheme U' n') (A : Finset (Fin U'))
     (hA : A.card ≤ n') (a : A) :
-    matchOpt h A a.1 = some (matching h A hA a) :=
+    matchOpt h A a.val = some (matching h A hA a) :=
   (Option.some_get _).symm
 
 /-! ### Expected round bound (`Claim 3.3`) -/
@@ -1192,7 +1192,7 @@ private theorem stateAt_balls_eq_empty_of_roundsOn_le {U' n' : ℕ} (h : Scheme 
       (t := (Finset.range U').filter fun j => (stateAt h A B j).1.Nonempty) fun j hj =>
       have hjle := Nat.lt_succ_iff.mp (mem_range.mp hj)
       mem_filter.mpr ⟨mem_range.mpr (hjle.trans_lt hiU),
-        (nonempty_iff_ne_empty.mpr hne).mono (stateAt_balls_mono h A B hjle)⟩
+        (ne_empty_iff_nonempty.mp hne).mono (stateAt_balls_mono h A B hjle)⟩
     rw [card_range] at hcard; dsimp only [roundsOn] at hi; omega
   · exact stateAt_balls_eq_empty h hle
       ((show A.card ≤ U' by simpa using A.card_le_univ).trans (Nat.le_of_not_lt hiU))

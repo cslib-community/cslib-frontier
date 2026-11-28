@@ -73,8 +73,8 @@ theorem HiddenCoupling.congr {d₁ d₁' : PMF α} {exp₀ : PMF γ} {exp : α �
     (hd₁ : d₁ = d₁') (hd₂ : ∀ k ∈ exp₀.support, d₂ k = d₂' k)
     (hinv : ∀ a ∈ d₁.support, inv₁ a → inv₂ a) : HiddenCoupling d₁' exp₀ exp rep d₂' inv₂ := by
   subst hd₁
-  exact ⟨h.1.trans (bind_congr_on_support _ _ _ fun k hk => by rw [hd₂ k hk]),
-    fun a ha => hinv a ha (h.2 a ha)⟩
+  exact ⟨h.bind_eq.trans (bind_congr_on_support _ _ _ fun k hk => by rw [hd₂ k hk]),
+    fun a ha => hinv a ha (h.support_inv a ha)⟩
 
 /-- Sequence two `HiddenCoupling` stages with distributions and continuations inferred. -/
 theorem HiddenCoupling.bind {d₁ : PMF α₁} {exp₀ : PMF γ} {exp₁ : α₁ → PMF γ} {rep₁ : α₁ → β₁}
@@ -84,12 +84,13 @@ theorem HiddenCoupling.bind {d₁ : PMF α₁} {exp₀ : PMF γ} {exp₁ : α₁
       HiddenCoupling (f₁ a) (exp₁ a) exp rep (fun k => f₂ k (rep₁ a)) inv) :
     HiddenCoupling (d₁.bind f₁) exp₀ exp rep (fun k => (d₂ k).bind (f₂ k)) inv := by
   refine ⟨?_, fun b hb => ?_⟩
-  · rw [PMF.bind_bind, bind_congr_on_support _ _ _ fun a ha => (hf a ha (hd.2 a ha)).1]
-    have h2 := congrArg (fun d => d.bind fun (k, b₁) => (f₂ k b₁).map (k, ·)) hd.1
+  · rw [PMF.bind_bind,
+      bind_congr_on_support _ _ _ fun a ha => (hf a ha (hd.support_inv a ha)).bind_eq]
+    have h2 := congrArg (fun d => d.bind fun (k, b₁) => (f₂ k b₁).map (k, ·)) hd.bind_eq
     simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def] at h2 ⊢
     exact h2.trans (bind_congr_on_support _ _ _ fun _ _ => by simp only [PMF.map_bind])
   · obtain ⟨a, ha, hmem⟩ := (PMF.mem_support_bind_iff _ _ _).mp hb
-    exact (hf a ha (hd.2 a ha)).2 b hmem
+    exact (hf a ha (hd.support_inv a ha)).support_inv b hmem
 
 /-- Sequence a `HiddenCoupling` whose ideal first stage is `PMF.pure (b k)` with a continuation
 `fun k => f₂ k (b k)`. -/
@@ -151,10 +152,10 @@ theorem RepInv.bind {d₁ : PMF α₁} {d₂ : PMF β₁} {rep₁ : α₁ → β
     (hf : ∀ a ∈ d₁.support, inv₁ a → RepInv (f₁ a) (f₂ (rep₁ a)) rep inv) :
     RepInv (d₁.bind f₁) (d₂.bind f₂) rep inv := by
   refine ⟨?_, fun b hb => ?_⟩
-  · rw [PMF.map_bind, ← hd.1, PMF.bind_map]
-    exact bind_congr_on_support _ _ _ fun a ha => (hf a ha (hd.2 a ha)).1
+  · rw [PMF.map_bind, ← hd.map_eq, PMF.bind_map]
+    exact bind_congr_on_support _ _ _ fun a ha => (hf a ha (hd.support_inv a ha)).map_eq
   · obtain ⟨a, ha, hmem⟩ := (PMF.mem_support_bind_iff _ _ _).mp hb
-    exact (hf a ha (hd.2 a ha)).2 b hmem
+    exact (hf a ha (hd.support_inv a ha)).support_inv b hmem
 
 /-- Postprocess both sides of a `RepInv` coupling on `d₁.support`. -/
 theorem RepInv.map {d₁ : PMF α₁} {d₂ : PMF β₁} {rep₁ : α₁ → β₁} {inv₁ : α₁ → Prop}
@@ -184,6 +185,6 @@ theorem iterate_bind_invariant
     (hstep : ∀ i < m, ∀ a, inv i a → ∀ a' ∈ (step a).support, inv (i + 1) a') :
     ∀ a ∈ (Nat.iterate (fun d => d.bind step) m (PMF.pure init)).support, inv m a :=
   (RepInv.iterate (step₂ := fun _ => PMF.pure ()) (rep := fun _ => ()) inv rfl hinit
-    fun i hi a ha => ⟨PMF.map_const _ _, hstep i hi a ha⟩).2
+    fun i hi a ha => ⟨PMF.map_const _ _, hstep i hi a ha⟩).support_inv
 
 end Cslib.Probability.PMF

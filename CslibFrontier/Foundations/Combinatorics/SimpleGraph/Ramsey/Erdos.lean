@@ -121,11 +121,11 @@ theorem exists_cliqueFree_indepSetFree_of_choose {n k l : ℕ}
   obtain ⟨x, -, hx⟩ := exists_mem_notMem_of_card_lt_card hlt
   exact ⟨ofMarks x,
     fun t ht => hx (mem_union_left _ <| mem_biUnion.2
-      ⟨t, mem_powersetCard.2 ⟨subset_univ _, ht.2⟩,
-        mem_filter.2 ⟨mem_univ _, forall_pairs_of_isClique ht.1⟩⟩),
+      ⟨t, mem_powersetCard.2 ⟨subset_univ _, ht.card_eq⟩,
+        mem_filter.2 ⟨mem_univ _, forall_pairs_of_isClique ht.isClique⟩⟩),
     fun t ht => hx (mem_union_right _ <| mem_biUnion.2
-      ⟨t, mem_powersetCard.2 ⟨subset_univ _, ht.2⟩,
-        mem_filter.2 ⟨mem_univ _, forall_pairs_of_isIndepSet ht.1⟩⟩)⟩
+      ⟨t, mem_powersetCard.2 ⟨subset_univ _, ht.card_eq⟩,
+        mem_filter.2 ⟨mem_univ _, forall_pairs_of_isIndepSet ht.isIndepSet⟩⟩)⟩
 
 /-- The counting bound as a lower bound on `R(k, l)`. -/
 theorem lt_ramseyNumber_of_choose {n k l : ℕ}

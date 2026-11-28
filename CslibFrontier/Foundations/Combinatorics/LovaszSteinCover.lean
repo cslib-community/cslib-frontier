@@ -153,7 +153,7 @@ theorem exists_cover_card_le_of_mul_le_card_hit {S β : Type*} [Fintype S] [None
           (Nat.ceil_pos.2 (div_pos hlog_pos hp)).ne'
       have hkp : Real.log W.card ≤ (k : ℝ) * p := (div_le_iff₀ hp).1 (Nat.le_ceil _)
       have hexp_le : Real.exp (-p) ^ k ≤ (W.card : ℝ)⁻¹ := by
-        rw [← Real.exp_nat_mul, ← Real.exp_log (by positivity : (0 : ℝ) < W.card),
+        rw [← Real.exp_natCast_mul, ← Real.exp_log (by positivity : (0 : ℝ) < W.card),
           ← Real.exp_neg]
         exact Real.exp_le_exp.2 (by linarith)
       calc ((U k).card : ℝ)
@@ -223,13 +223,13 @@ theorem exists_subset_cover_card_le_of_uniform {α : Type*} [DecidableEq α]
     obtain ⟨A, hA⟩ := card_pos.1 hpos₀
     exact ⟨A, (mem_filter.1 hA).1⟩
   let _ : Nonempty F := hFne.coe_sort
-  let hit : F → α → Prop := fun A x => x ∈ A.1
+  let hit : F → α → Prop := fun A x => x ∈ A.val
   have hcard_hit : ∀ x, (univ.filter (hit · x)).card = (F.filter (x ∈ ·)).card := by
     intro x
-    refine card_bij (fun A _ => A.1) (fun A hA => ?_) (fun A₁ _ A₂ _ h => Subtype.ext h)
+    refine card_bij (fun A _ => A.val) (fun A hA => ?_) (fun A₁ _ A₂ _ h => Subtype.ext h)
       (fun B hB => ?_)
     · rw [mem_filter] at hA
-      exact mem_filter.2 ⟨A.2, hA.2⟩
+      exact mem_filter.2 ⟨A.property, hA.2⟩
     · rw [mem_filter] at hB
       exact ⟨⟨B, hB.1⟩, mem_filter.2 ⟨mem_univ _, hB.2⟩, rfl⟩
   have hconst : ∀ x₁ ∈ X, ∀ x₂ ∈ X,
@@ -240,8 +240,8 @@ theorem exists_subset_cover_card_le_of_uniform {α : Type*} [DecidableEq α]
   have hsum_eq : ∑ A : F, ((X.filter (hit A ·)).card : ℝ) = M := by
     rw [univ_eq_attach]
     refine (sum_congr rfl fun A _ => ?_).trans (sum_attach F fun A => (A.card : ℝ))
-    change ((X.filter (· ∈ A.1)).card : ℝ) = _
-    rw [filter_mem_eq_inter, inter_eq_right.2 (mem_powerset.1 (hF A.2))]
+    change ((X.filter (· ∈ A.val)).card : ℝ) = _
+    rw [filter_mem_eq_inter, inter_eq_right.2 (mem_powerset.1 (hF A.property))]
   have hM0 : 0 < M := by
     obtain ⟨A₀, hA₀⟩ := card_pos.1 hpos₀
     rw [mem_filter] at hA₀
@@ -252,10 +252,10 @@ theorem exists_subset_cover_card_le_of_uniform {α : Type*} [DecidableEq α]
   refine ⟨G, ?_, ?_, ?_⟩
   · intro A hA
     obtain ⟨A', _, rfl⟩ := mem_image.1 hA
-    exact A'.2
+    exact A'.property
   · intro x hx
     obtain ⟨A', hA'G, hxA'⟩ := hG'cov x hx
-    exact mem_biUnion.2 ⟨A'.1, mem_image.2 ⟨A', hA'G, rfl⟩, hxA'⟩
+    exact mem_biUnion.2 ⟨A'.val, mem_image.2 ⟨A', hA'G, rfl⟩, hxA'⟩
   · have hG_le : (G.card : ℝ) ≤ G'.card := by exact_mod_cast card_image_le
     have hFcard : (Fintype.card F : ℝ) = F.card := by exact_mod_cast Fintype.card_coe F
     have hFpos : (0 : ℝ) < F.card := by exact_mod_cast hFne.card_pos

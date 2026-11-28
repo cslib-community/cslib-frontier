@@ -131,7 +131,7 @@ theorem card_interedges_eq_length (G : Graph) (S : Finset ℕ) {l : List (ℕ ×
     List.mem_toFinset, hmem]
   constructor
   · rintro ⟨u, v, ⟨hu, hv, huv⟩, rfl, rfl⟩
-    exact ⟨u.2, v.2, huv, hu, hv⟩
+    exact ⟨u.property, v.property, huv, hu, hv⟩
   · rintro ⟨ha, hb, hab, haS, hbS⟩
     exact ⟨⟨a, ha⟩, ⟨b, hb⟩, ⟨haS, hbS, hab⟩, rfl, rfl⟩
 
@@ -144,10 +144,10 @@ theorem mem_SimpleMaxCut_iff {x : SimpleMaxCutInstance} :
   · rintro ⟨T, hT⟩
     refine ⟨T.map (Function.Embedding.subtype _), fun v hv => ?_, ?_⟩
     · obtain ⟨u, -, rfl⟩ := Finset.mem_map.1 hv
-      exact u.2
+      exact u.property
     · have hT' : (T.map (Function.Embedding.subtype _)).subtype (· ∈ x.graph.vertices) = T := by
         ext u
-        simp [u.2]
+        simp [u.property]
       rwa [hT']
   · rintro ⟨S, -, hS⟩
     exact ⟨_, hS⟩
@@ -568,7 +568,7 @@ theorem empty_not_mem_SimpleMaxCut : (⟨⟨[], []⟩, 1⟩ : SimpleMaxCutInstan
   rintro ⟨S, hS⟩
   have : (Graph.induced ⟨[], []⟩).interedges S Sᶜ = ∅ := by
     ext ⟨u, -⟩
-    exact absurd u.2 (List.not_mem_nil)
+    exact absurd u.property (List.not_mem_nil)
   simp [this] at hS
 
 /-- `NAEEUThreeSAT` reduces to `SimpleMaxCut` in polynomial time; malformed formulas map to an

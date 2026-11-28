@@ -165,12 +165,12 @@ def labelWordEquiv {r : ℕ} (hr : 1 ≤ r) (Q : ℕ) :
     Fin (r ^ Q) ≃ {w : List ℕ // w.length = Q ∧ ∀ x ∈ w, x < r} where
   toFun j := ⟨decodeLabelWord r Q j.val, length_decodeLabelWord r Q j.val,
     fun _ hx => mem_decodeLabelWord_lt hr hx⟩
-  invFun w := ⟨Nat.ofDigits r w.1,
-    by simpa only [w.2.1] using Nat.ofDigits_lt_base_pow_length_of_pos hr w.1 w.2.2⟩
+  invFun w := ⟨Nat.ofDigits r w.val,
+    by simpa only [w.property.1] using Nat.ofDigits_lt_base_pow_length_of_pos hr w.val w.property.2⟩
   left_inv j := Fin.ext (ofDigits_decodeLabelWord j.isLt)
   right_inv w := Subtype.ext (by
-    have h := decodeLabelWord_ofDigits hr w.2.2
-    rwa [w.2.1] at h)
+    have h := decodeLabelWord_ofDigits hr w.property.2
+    rwa [w.property.1] at h)
 
 /-- Convert a concrete digit list `w : List ℕ` into a typed schedule `Fin Q → Fin r`, clamping
 out-of-range digits to `0`. -/

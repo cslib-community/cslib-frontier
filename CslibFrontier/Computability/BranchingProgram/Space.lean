@@ -123,7 +123,7 @@ def Storage.ofBounded {w : Fin k → ℕ} :
   | (state, workTapes, workTapePos) =>
     { state := state
       workTapes := fun j z => if hz : z ∈ window (w j) then workTapes j ⟨z, hz⟩ else none
-      workTapePos := fun j => (workTapePos j).1 }
+      workTapePos := fun j => (workTapePos j).val }
 
 /-- Reconstructing a storage that fits in the windows `w` from its bounded restriction recovers
 the original storage. -/

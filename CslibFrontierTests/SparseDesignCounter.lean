@@ -42,7 +42,7 @@ def testRows3 : List (Fin testCNF3.length → Bool) :=
 /-- Explicit equivalence between the unbranched variables `{1, 2}` (`univ \ {0}` in `Fin 3`) and
 `Fin 2`. -/
 def freeVarEquiv3 : ↥((univ : Finset (Fin 3)) \ ({0} : Finset (Fin 3))) ≃ Fin 2 where
-  toFun v := if v.1 = 1 then 0 else 1
+  toFun v := if v.val = 1 then 0 else 1
   invFun i := if i = 0 then ⟨1, by decide⟩ else ⟨2, by decide⟩
   left_inv := by decide
   right_inv := by decide
@@ -143,7 +143,7 @@ def nonconstBranchFactorAssign : Fin testRows3.length ⊕ Fin 2 → Fin 1 → Fi
 def nonconstBranchCopy (e : ScopeIncidence sampleBranchNeutralScope) : Fin 2 :=
   match e.1 with
   | Sum.inl ⟨0, _⟩ => 0
-  | Sum.inl ⟨1, _⟩ => if e.2.1 = 0 then 1 else 0
+  | Sum.inl ⟨1, _⟩ => if e.2.val = 0 then 1 else 0
   | Sum.inr _ => 0
 
 /-- Injective placement for `nonconstBranchDesign`. -/
@@ -251,7 +251,7 @@ example {E_ℓ : ℕ} (hE : ∀ j < 4, (Polynomial.parityBaseDigit 4 j).coeffNor
       (varMeasurementMatrix 1 2 0 2 ℚ nonconstBranchDesign.place
         (scopeVarOf sampleBranchNeutralScope)).mulVec (fun u => bitVal ℚ (branchAssign₂ u)) := by
     funext p
-    exact absurd p.2.2 (by decide +revert)
+    exact absurd p.2.property (by decide +revert)
   have heval0 :
       (designReplacementMap nonconstBranchDesign Sum.inl branchAssign₁ ⟨1, by decide⟩ 1).eval 0 =
         1 := by
@@ -404,7 +404,7 @@ def emptyFreeVarEquiv16384 :
     ↥((univ : Finset (Fin 16384)) \
       heavyVars univ (univ : Finset (Fin ([] : List (Fin emptyCNF16384.length → Bool)).length))
         (fun j => equationScope (emptyCNF16384.parityRowSystem [] j)) 0) ≃ Fin 16384 where
-  toFun v := v.1
+  toFun v := v.val
   invFun v := ⟨v, by
     rw [mem_sdiff]
     refine ⟨mem_univ v, ?_⟩

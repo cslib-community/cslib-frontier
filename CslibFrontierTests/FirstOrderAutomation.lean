@@ -114,7 +114,7 @@ example (x y : M) :
   fo_simp
 
 example (x : complementSize.Model M) :
-    RelMap sizedGraph.size ![x] ↔ ¬ RelMap sizedGraph.size ![x.1 ()] := by
+    RelMap sizedGraph.size ![x] ↔ ¬ RelMap sizedGraph.size ![x.val ()] := by
   fo_simp
 
 example (x y : M) (h : (complementSize.unitStructure M).RelMap sizedGraph.adj ![x, y]) :
@@ -139,7 +139,8 @@ example (x : Fin 2 → M) :
 /-- The relations of a composite are those of the iterated interpretation. -/
 example (x y : (complementEdges.comp complementSize).Model M) :
     RelMap sizedGraph.adj ![x, y] ↔
-      ¬ RelMap sizedGraph.adj ![x.1 ((), ()), y.1 ((), ())] ∧ x.1 ((), ()) ≠ y.1 ((), ()) := by
+      ¬ RelMap sizedGraph.adj ![x.val ((), ()), y.val ((), ())] ∧
+          x.val ((), ()) ≠ y.val ((), ()) := by
   fo_simp
 
 /-- The domain and relation formulas of a composite interpretation simplify directly. -/
@@ -167,7 +168,8 @@ example (x : Unit × Unit → M) :
 
 example (x y : (complementEdges.comp restrictToSize).Model M) :
     RelMap sizedGraph.adj ![x, y] ↔
-      ¬ RelMap sizedGraph.adj ![x.1 ((), ()), y.1 ((), ())] ∧ x.1 ((), ()) ≠ y.1 ((), ()) := by
+      ¬ RelMap sizedGraph.adj ![x.val ((), ()), y.val ((), ())] ∧
+          x.val ((), ()) ≠ y.val ((), ()) := by
   fo_simp
 
 /-- Higher-dimensional interpretations simplify on the full tuple domain. -/
@@ -197,9 +199,9 @@ example (N : Language) [N.IsRelational] {G : Type*} [N.Structure G] [Language.gr
       (Projection.offDiagonalComplement N)).numeric.Model G) :
     (((Projection.offDiagonalComplement N).comp
       (Projection.offDiagonalComplement N)).inputStructure G).RelMap Language.adj ![x, y] ↔
-      x.1 ((), ()) ≠ y.1 ((), ()) ∧
-        ¬(x.1 ((), ()) ≠ y.1 ((), ()) ∧
-          ¬RelMap Language.adj (fun i => (![x, y] i).1 ((), ()))) := by
+      x.val ((), ()) ≠ y.val ((), ()) ∧
+        ¬(x.val ((), ()) ≠ y.val ((), ()) ∧
+          ¬RelMap Language.adj (fun i => (![x, y] i).val ((), ()))) := by
   fo_simp
 
 example (N : Language) [N.IsRelational] {G : Type*} [N.Structure G] [Language.graph.Structure G]

@@ -100,7 +100,7 @@ theorem Walk.induction {adj : V → List (V × W)} {u : V} {motive : ∀ v : V, 
     {v : V} (p : Walk adj u v) : motive v p := by
   induction p with
   | nil => exact nil
-  | cons p e ih => exact snoc p e.2 ih
+  | cons p e ih => exact snoc p e.property ih
 
 /-- The vertices visited by a walk, in order. -/
 def Walk.support {adj : V → List (V × W)} {u v : V} (p : Walk adj u v) : List V :=
@@ -150,7 +150,7 @@ variable [AddMonoid W]
 /-- The weight of a walk: the sum of the weights of its edges. -/
 def walkWeight {adj : V → List (V × W)} {u v : V} (p : Walk adj u v) : W :=
   Quiver.Path.addWeight (V := Vertex adj)
-    (fun {i j} (e : i ⟶ j) => (show {w : W // ((j : V), w) ∈ adj (i : V)} from e).1) p
+    (fun {i j} (e : i ⟶ j) => (show {w : W // ((j : V), w) ∈ adj (i : V)} from e).val) p
 
 @[simp] theorem walkWeight_nil {adj : V → List (V × W)} {u : V} :
     walkWeight (Quiver.Path.nil : Walk adj u u) = 0 :=

@@ -41,7 +41,7 @@ theorem IsEmbedding.restoredRoute_edge_contacts {G : Graph} {u v : ℕ}
       (contractionLift G u v d.val).vertex = u → f a < f (D.cutPort ρ d.val))
     (hpb : ∀ d : {d : Dart (contractLastEdgeGraph G u v) // d.vertex = v},
       (contractionLift G u v d.val).vertex = v → f (D.cutPort ρ d.val) < f b)
-    (e g : Fin G.2.length) (heg : e ≠ g)
+    (e g : Fin G.edges.length) (heg : e ≠ g)
     (i : Fin (D.restoredRoute ρ a b e).segments) (j : Fin (D.restoredRoute ρ a b g).segments)
     {s t : ℝ} (hs : s ∈ Set.Icc 0 1) (ht : t ∈ Set.Icc 0 1)
     (heq : (D.restoredRoute ρ a b e).eval i s = (D.restoredRoute ρ a b g).eval j t) :
@@ -50,12 +50,12 @@ theorem IsEmbedding.restoredRoute_edge_contacts {G : Graph} {u v : ℕ}
         Dart.vertex (G := G) (e, side) = Dart.vertex (G := G) (g, tag) := by
   have hedge : contractedIndex G u v e ≠ contractedIndex G u v g :=
     fun h => heg ((contractedIndex G u v).injective h)
-  have htarget (e : Fin G.2.length) (side : Bool)
+  have htarget (e : Fin G.edges.length) (side : Bool)
       (h : Dart.vertex (G := G) (e, side) = u ∨ Dart.vertex (e, side) = v) :
       Dart.vertex (contractedIndex G u v e, side) = v :=
     (contractionLift_vertex_eq_iff G u v _).mpr
       (by simpa only [contractionLift_vertex_contractedIndex] using h)
-  have hmixed (e g : Fin G.2.length) (hne : e ≠ g) (side : Bool)
+  have hmixed (e g : Fin G.edges.length) (hne : e ≠ g) (side : Bool)
       (hactive : Dart.vertex (G := G) (e, side) = u ∨ Dart.vertex (e, side) = v)
       (k : Fin (D.outsideRoute v ρ (contractedIndex G u v g)).segments)
       {σ τ : ℝ} (hσ : σ ∈ Set.Icc 0 1) (hτ : τ ∈ Set.Icc 0 1)
@@ -81,7 +81,7 @@ theorem IsEmbedding.restoredRoute_edge_contacts {G : Graph} {u v : ℕ}
           (hD.cutPort_injective hρ _ _ hv (hport.symm.trans (hEq.trans hgport))))
       have heactive := mt (htarget e side) hvne
       have hgactive := mt (htarget g tag) fun h => hvne (hv.trans h)
-      have hupdate (e : Fin G.2.length) (side : Bool)
+      have hupdate (e : Fin G.edges.length) (side : Bool)
           (hn : ¬(Dart.vertex (G := G) (e, side) = u ∨ Dart.vertex (e, side) = v)) :
           Dart.vertex (contractedIndex G u v e, side) = Dart.vertex (G := G) (e, side) := by
         rw [vertex_contractedIndex, Function.update_of_ne fun h => hn (Or.inl h)]
@@ -129,7 +129,7 @@ theorem IsEmbedding.restoredRoute_connector_contacts {G : Graph} {u v : ℕ}
       (contractionLift G u v d.val).vertex = u → f a < f (D.cutPort ρ d.val))
     (hpb : ∀ d : {d : Dart (contractLastEdgeGraph G u v) // d.vertex = v},
       (contractionLift G u v d.val).vertex = v → f (D.cutPort ρ d.val) < f b)
-    (e : Fin G.2.length) (i : Fin (D.restoredRoute ρ a b e).segments)
+    (e : Fin G.edges.length) (i : Fin (D.restoredRoute ρ a b e).segments)
     (j : Fin (Route.line a b).segments) {s t : ℝ}
     (hs : s ∈ Set.Icc 0 1) (ht : t ∈ Set.Icc 0 1)
     (heq : (D.restoredRoute ρ a b e).eval i s = (Route.line a b).eval j t) :
@@ -156,11 +156,11 @@ theorem IsEmbedding.restoredRoute_connector_contacts {G : Graph} {u v : ℕ}
 /-- A declared point on the new connector is exactly one of its original named ends. -/
 theorem connector_vertex_contacts {G : Graph} {u v : ℕ}
     (D : PolygonalDrawing (contractLastEdgeGraph G u v)) (huv : u ≠ v)
-    {ρ : ℝ} (hpoints : ∀ w ∈ (contractLastEdgeGraph G u v).1,
+    {ρ : ℝ} (hpoints : ∀ w ∈ (contractLastEdgeGraph G u v).vertices,
       D.vertex w ∈ Metric.closedBall (D.vertex v) ρ → w = v)
     {a b : ℂ} (ha : a ∈ Metric.ball (D.vertex v) ρ) (hb : b ∈ Metric.ball (D.vertex v) ρ)
     (hab : a ≠ b) (i : Fin (Route.line a b).segments) {t : ℝ} (ht : t ∈ Set.Icc 0 1)
-    (w : ℕ) (hw : w ∈ G.1) (heq : (Route.line a b).eval i t = D.restoredVertex a b w) :
+    (w : ℕ) (hw : w ∈ G.vertices) (heq : (Route.line a b).eval i t = D.restoredVertex a b w) :
     ∃ side, (Route.line a b).AtEnd i t side ∧ (if side then v else u) = w := by
   rw [Route.eval_line] at heq
   have hin := (convex_closedBall (D.vertex v) ρ).lineMap_mem

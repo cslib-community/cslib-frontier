@@ -369,7 +369,7 @@ theorem exists_rooted [Finite ι] (D : G.TreeDecomposition ι) :
         (parentTree parent).induce {i | v ∈ D.bag (e i)} :=
       { toFun := fun t => ⟨e.symm t, by
           rw [Set.mem_ofPred_eq, e.apply_symm_apply]
-          exact t.2⟩
+          exact t.property⟩
         map_rel' := fun h => by
           change (parentTree parent).Adj (e.symm _) (e.symm _)
           simpa [hadj] using h }

@@ -192,14 +192,14 @@ private theorem expect_fin_lt {M j : ℕ} (hj : j ≤ M) :
   rw [Fintype.expect_eq_sum_div_card, Finset.sum_boole, Fintype.card_fin]
   have hcard : (Finset.univ.filter fun a : Fin M => (a : ℕ) < j).card = j := by
     let emb : {k : ℕ // k ∈ Finset.range j} ↪ Fin M :=
-      ⟨fun k => ⟨k.1, lt_of_lt_of_le (Finset.mem_range.mp k.2) hj⟩,
+      ⟨fun k => ⟨k.val, lt_of_lt_of_le (Finset.mem_range.mp k.property) hj⟩,
         fun _ _ h => Subtype.ext (Fin.mk.inj h)⟩
     have hmap : (Finset.range j).attach.map emb =
         Finset.univ.filter fun a : Fin M => (a : ℕ) < j := by
       ext a
       simp only [Finset.mem_map, Finset.mem_attach, true_and, Subtype.exists, Finset.mem_range,
         Finset.mem_filter, Finset.mem_univ, emb]
-      exact ⟨fun ⟨k, hk, heq⟩ => heq ▸ hk, fun ha => ⟨a.1, ha, rfl⟩⟩
+      exact ⟨fun ⟨k, hk, heq⟩ => heq ▸ hk, fun ha => ⟨a.val, ha, rfl⟩⟩
     rw [← hmap, Finset.card_map, Finset.card_attach, Finset.card_range]
   rw [hcard]
 
@@ -274,10 +274,10 @@ private def subCompAux {V : Type*} [Fintype V] [DecidableEq V] (parent : V → O
   | 0, ⟨_, hk⟩ => absurd hk (Nat.not_lt_zero _)
   | k + 1, ⟨u, hk⟩ =>
     insert u ((Finset.univ.filter fun v => parent v = some u).attach.biUnion fun v =>
-      have hv : rank v.1 < k := by
-        have := hrank v.1 u (Finset.mem_filter.mp v.2).2
+      have hv : rank v.val < k := by
+        have := hrank v.val u (Finset.mem_filter.mp v.property).2
         omega
-      let sc := subCompAux parent rank hrank B k ⟨v.1, hv⟩
+      let sc := subCompAux parent rank hrank B k ⟨v.val, hv⟩
       if sc.card ≤ B then sc else ∅)
 
 private theorem subCompAux_irrel {V : Type*} [Fintype V] [DecidableEq V] (parent : V → Option V)
@@ -290,10 +290,10 @@ private theorem subCompAux_irrel {V : Type*} [Fintype V] [DecidableEq V] (parent
     simp only [subCompAux]
     congr 1
     refine Finset.biUnion_congr rfl fun v _ => ?_
-    have hvp : parent v.1 = some u := (Finset.mem_filter.mp v.2).2
-    have hv₁ : rank v.1 < k₁ := by have := hrank v.1 u hvp; omega
-    have hv₂ : rank v.1 < k₂ := by have := hrank v.1 u hvp; omega
-    have heq := subCompAux_irrel parent rank hrank B k₁ k₂ v.1 hv₁ hv₂
+    have hvp : parent v.val = some u := (Finset.mem_filter.mp v.property).2
+    have hv₁ : rank v.val < k₁ := by have := hrank v.val u hvp; omega
+    have hv₂ : rank v.val < k₂ := by have := hrank v.val u hvp; omega
+    have heq := subCompAux_irrel parent rank hrank B k₁ k₂ v.val hv₁ hv₂
     rw [heq]
 
 private def subComp {V : Type*} [Fintype V] [DecidableEq V] (parent : V → Option V)
@@ -539,8 +539,8 @@ theorem exists_layout_signalWidth_of_piece (c : Circuit σ n m) {r : ℕ} (hfan 
     rw [← ncard_eq_toFinset_card _ (toFinite _)]
     exact ncard_image_le (toFinite _)
   let bad : Fin M → (κ → Fin M) → ActiveSignal c → Prop := fun j ω w =>
-    ((∃ u ∈ P w, (ω u : ℕ) < j.1) ∧ (∃ u ∈ P w, j.1 ≤ (ω u : ℕ))) ∨
-      ∃ u ∈ P w, (ω u : ℕ) = j.1
+    ((∃ u ∈ P w, (ω u : ℕ) < j.val) ∧ (∃ u ∈ P w, j.val ≤ (ω u : ℕ))) ∨
+      ∃ u ∈ P w, (ω u : ℕ) = j.val
   let f : Fin M → (κ → Fin M) → ℝ := fun j ω =>
     ((Finset.univ.filter fun w : ActiveSignal c => bad j ω w).card : ℝ)
   let T : κ → Finset (ActiveSignal c) := fun u => Finset.univ.filter fun w => u ∈ P w
@@ -586,24 +586,25 @@ theorem exists_layout_signalWidth_of_piece (c : Circuit σ n m) {r : ℕ} (hfan 
           (1 - (1 / 2 : ℝ) ^ ((P w).card - 1)) + ((P w).card : ℝ) / M := by
       have hpwise (ω : κ → Fin M) :
           (if bad j ω w then (1 : ℝ) else 0) ≤
-            (1 - (if ∀ u ∈ P w, (ω u : ℕ) < j.1 then (1 : ℝ) else 0) -
-              (if ∀ u ∈ P w, j.1 ≤ (ω u : ℕ) then (1 : ℝ) else 0)) +
-            ∑ u ∈ P w, if (ω u : ℕ) = j.1 then (1 : ℝ) else 0 := by
+            (1 - (if ∀ u ∈ P w, (ω u : ℕ) < j.val then (1 : ℝ) else 0) -
+              (if ∀ u ∈ P w, j.val ≤ (ω u : ℕ) then (1 : ℝ) else 0)) +
+            ∑ u ∈ P w, if (ω u : ℕ) = j.val then (1 : ℝ) else 0 := by
         obtain ⟨u₀, hu₀⟩ := hP_ne w
-        have hS0 : (0 : ℝ) ≤ ∑ u ∈ P w, if (ω u : ℕ) = j.1 then (1 : ℝ) else 0 :=
+        have hS0 : (0 : ℝ) ≤ ∑ u ∈ P w, if (ω u : ℕ) = j.val then (1 : ℝ) else 0 :=
           Finset.sum_nonneg fun _ _ => by positivity
-        by_cases ha1 : ∀ u ∈ P w, (ω u : ℕ) < j.1
-        · have ha2 : ¬∀ u ∈ P w, j.1 ≤ (ω u : ℕ) := fun h => (h u₀ hu₀).not_gt (ha1 u₀ hu₀)
+        by_cases ha1 : ∀ u ∈ P w, (ω u : ℕ) < j.val
+        · have ha2 : ¬∀ u ∈ P w, j.val ≤ (ω u : ℕ) := fun h => (h u₀ hu₀).not_gt (ha1 u₀ hu₀)
           have hb : ¬bad j ω w := by
             rintro (⟨_, u, hu, h⟩ | ⟨u, hu, h⟩) <;> have := ha1 u hu <;> omega
           simp only [hb, eq_true ha1, ha2, ↓reduceIte]
           linarith
-        by_cases ha2 : ∀ u ∈ P w, j.1 ≤ (ω u : ℕ)
+        by_cases ha2 : ∀ u ∈ P w, j.val ≤ (ω u : ℕ)
         · simp only [ha1, eq_true ha2, ↓reduceIte]
           split_ifs with hb
           · obtain ⟨⟨u, hu, h⟩, _⟩ | ⟨u, hu, h⟩ := hb
             · exact absurd (ha2 u hu) (by omega)
-            · have h1 := Finset.single_le_sum (f := fun u => if (ω u : ℕ) = j.1 then (1 : ℝ) else 0)
+            · have h1 := Finset.single_le_sum
+                (f := fun u => if (ω u : ℕ) = j.val then (1 : ℝ) else 0)
                 (fun _ _ => by positivity) hu
               simp only [h, ↓reduceIte] at h1
               linarith
@@ -612,17 +613,18 @@ theorem exists_layout_signalWidth_of_piece (c : Circuit σ n m) {r : ℕ} (hfan 
           split_ifs <;> linarith
       have hexp_le₁ := Finset.expect_le_expect fun ω (_ : ω ∈ Finset.univ) => hpwise ω
       rw [Finset.expect_add_distrib, Finset.expect_sub_distrib, Finset.expect_sub_distrib,
-        Fintype.expect_const, expect_all_apply (P w) (fun a : Fin M => (a : ℕ) < j.1),
-        expect_all_apply (P w) (fun a : Fin M => j.1 ≤ (a : ℕ)),
+        Fintype.expect_const, expect_all_apply (P w) (fun a : Fin M => (a : ℕ) < j.val),
+        expect_all_apply (P w) (fun a : Fin M => j.val ≤ (a : ℕ)),
         expect_fin_lt j.isLt.le, expect_fin_ge j.isLt.le, Finset.expect_sum_comm] at hexp_le₁
       have hone (u : κ) :
-          (𝔼 ω : κ → Fin M, if (ω u : ℕ) = j.1 then (1 : ℝ) else 0) = 1 / (M : ℝ) := by
+          (𝔼 ω : κ → Fin M, if (ω u : ℕ) = j.val then (1 : ℝ) else 0) = 1 / (M : ℝ) := by
         rw [← Fintype.expect_expect_update
-          (fun ω : κ → Fin M => if (ω u : ℕ) = j.1 then (1 : ℝ) else 0) u]
+          (fun ω : κ → Fin M => if (ω u : ℕ) = j.val then (1 : ℝ) else 0) u]
         simp only [Function.update_self, expect_fin_eq j.isLt, Fintype.expect_const]
       rw [Finset.sum_congr rfl fun u _ => hone u, Finset.sum_const, nsmul_eq_mul,
         mul_one_div] at hexp_le₁
-      have h1 : (j.1 : ℝ) / M ≤ 1 := (div_le_one (by positivity)).mpr (by exact_mod_cast j.isLt.le)
+      have h1 : (j.val : ℝ) / M ≤ 1 :=
+        (div_le_one (by positivity)).mpr (by exact_mod_cast j.isLt.le)
       have hconv := one_sub_pow_add_pow_le (by positivity) h1 (Finset.card_pos.mpr (hP_ne w))
       linarith
     have hinc : ∑ w : ActiveSignal c, ((P w).card : ℝ) ≤ (r + 1) * Nat.card (Node c) := by
@@ -865,11 +867,11 @@ theorem exists_node_cut_margin (c : Circuit σ n m) {r : ℕ} (hfan : c.FanInAtM
     [Fintype {i : Fin n // Reach c (.input i)}] [Fintype (InnerGate c)] :
     ∃ A : Set (Node c),
       (∑ i : {i : Fin n // Reach c (.input i)},
-        (1 / 2 : ℝ) ^ (support c (.input i.1 i.2)).ncard) -
+        (1 / 2 : ℝ) ^ (support c (.input i.val i.property)).ncard) -
         (r + 1 : ℝ) * √(3 * (Nat.card (Node c) : ℝ)) ≤
           ({i : Fin n | ∃ hi : Reach c (.input i), support c (.input i hi) ⊆ A}.ncard : ℝ) ∧
       (∑ i : {i : Fin n // Reach c (.input i)},
-        (1 / 2 : ℝ) ^ (support c (.input i.1 i.2)).ncard) -
+        (1 / 2 : ℝ) ^ (support c (.input i.val i.property)).ncard) -
         (r + 1 : ℝ) * √(3 * (Nat.card (Node c) : ℝ)) ≤
           ({i : Fin n | ∃ hi : Reach c (.input i), support c (.input i hi) ⊆ Aᶜ}.ncard : ℝ) ∧
       ({g : InnerGate c | ActiveSignal.gate g ∈ signalFrontier c A}.ncard : ℝ) ≤
@@ -878,11 +880,11 @@ theorem exists_node_cut_margin (c : Circuit σ n m) {r : ℕ} (hfan : c.FanInAtM
   classical
   have := Fintype.ofFinite (Node c)
   let emb_in : {i : Fin n // Reach c (.input i)} ↪ ActiveSignal c :=
-    ⟨fun x => .input x.1 x.2, fun _ _ h => Subtype.ext (ActiveSignal.input.inj h)⟩
+    ⟨fun x => .input x.val x.property, fun _ _ h => Subtype.ext (ActiveSignal.input.inj h)⟩
   let emb_gt : InnerGate c ↪ ActiveSignal c :=
     ⟨ActiveSignal.gate, fun _ _ h => ActiveSignal.gate.inj h⟩
   let S_in (x : {i : Fin n // Reach c (.input i)}) : Finset (Node c) :=
-    (toFinite (support c (.input x.1 x.2))).toFinset
+    (toFinite (support c (.input x.val x.property))).toFinset
   let S_gt (g : InnerGate c) : Finset (Node c) :=
     (toFinite (support c (.gate g))).toFinset
   let f : Fin 3 → (Node c → Bool) → ℝ
@@ -925,11 +927,11 @@ theorem exists_node_cut_margin (c : Circuit σ n m) {r : ℕ} (hfan : c.FanInAtM
         ((Finset.univ.filter fun x : {i : Fin n // Reach c (.input i)} =>
           ∀ v ∈ S_in x, ω' v = b).card : ℝ)) =
         ∑ x : {i : Fin n // Reach c (.input i)},
-          (1 / 2 : ℝ) ^ (support c (.input x.1 x.2)).ncard := by
+          (1 / 2 : ℝ) ^ (support c (.input x.val x.property)).ncard := by
     simp only [Finset.natCast_card_filter, Finset.expect_sum_comm]
     refine Finset.sum_congr rfl fun x _ => ?_
     rw [expect_all_apply (S_in x) (fun a : Bool => a = b), Fintype.expect_bool,
-      ← ncard_eq_toFinset_card _ (toFinite (support c (.input x.1 x.2)))]
+      ← ncard_eq_toFinset_card _ (toFinite (support c (.input x.val x.property)))]
     cases b <;> norm_num
   have hexp2 :
       (𝔼 ω' : Node c → Bool, f ⟨2, by decide⟩ ω') =

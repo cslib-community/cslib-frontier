@@ -76,7 +76,7 @@ theorem exists_ne_zero_forall_eval_eq_zero (H : Finset (σ → F)) (T : Finset (
     refine mem_support_iff.1 hd ?_
     rw [hι, coeff_sum]
     exact sum_eq_zero fun m _ => by
-      rw [coeff_monomial, ite_eq_right fun h : (m : σ →₀ ℕ) = d => hdT (h ▸ m.2)]
+      rw [coeff_monomial, ite_eq_right fun h : (m : σ →₀ ℕ) = d => hdT (h ▸ m.property)]
   · have := congrFun (LinearMap.mem_ker.1 hc) ⟨a, ha⟩
     simpa [E, aeval_eq_eval] using this
 

@@ -112,7 +112,8 @@ theorem sum_resource (bits : K ≃+ BitString b) (scalar : Fin s ≃ {c : K // c
   simp only [resource]
   rw [← Finset.sum_apply, ← map_sum, sum_scalar scalar
       (fun c => codeword bits C place f z (place a).1 ((place a).2.1 + c • v)),
-    codeword, C.sum_extend _ _ _ hv, C.extend_eq _ _ (place a).2.1.2, AddEquiv.apply_symm_apply]
+    codeword, C.sum_extend _ _ _ hv, C.extend_eq _ _ (place a).2.1.property,
+    AddEquiv.apply_symm_apply]
   exact packedBit_place a z
 
 section Card

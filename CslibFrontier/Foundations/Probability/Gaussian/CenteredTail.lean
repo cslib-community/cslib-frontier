@@ -81,12 +81,12 @@ private theorem two_pow_mul_exp_lt_quarter_pow (n : ℕ) (hn : 0 < n) :
     rw [Real.exp_sub, Real.exp_log (by norm_num : (0 : ℝ) < 2)] at hh
     have hr : Real.exp (-2 * Real.log 2) = (1 / 4 : ℝ) := by
       rw [show -2 * Real.log 2 = -((2 : ℕ) * Real.log 2) by ring, Real.exp_neg,
-        Real.exp_nat_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
+        Real.exp_natCast_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
       norm_num
     rw [hr] at hh
     simpa only [neg_mul, neg_div, Real.exp_neg, div_eq_mul_inv] using hh
   have hp := pow_lt_pow_left₀ he (by positivity : (0 : ℝ) ≤ 2 * Real.exp (-3 * Real.pi / 4)) hn.ne'
-  rw [mul_pow, ← Real.exp_nat_mul] at hp
+  rw [mul_pow, ← Real.exp_natCast_mul] at hp
   convert hp using 1
   congr 2
   ring

@@ -225,7 +225,7 @@ private theorem sixteen_pow_mul_card_filter_no_isolation_le {M t B : ℕ} {S : F
   let idx : Fin t → Fin T := fun i => ⟨i * (M + 3) + k₀, by
     calc i * (M + 3) + k₀ < i * (M + 3) + (M + 3) := by omega
       _ = (i + 1) * (M + 3) := by ring
-      _ ≤ t * (M + 3) := Nat.mul_le_mul_right _ i.2⟩
+      _ ≤ t * (M + 3) := Nat.mul_le_mul_right _ i.isLt⟩
   have hidx : Function.Injective idx := fun i i' h => by
     simp only [idx, Fin.mk.injEq] at h
     exact Fin.ext (Nat.eq_of_mul_eq_mul_right (by omega)

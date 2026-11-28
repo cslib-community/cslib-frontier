@@ -213,7 +213,7 @@ queried in that epoch. -/
   | .eval u :: rest, g =>
     ⟨.eval u, g ⟨u, Finset.mem_insert_self u (currentEpochKeys rest)⟩⟩ ::
       currentEpochPrefixTranscript m rest
-        (fun x => g ⟨x.1, Finset.mem_insert_of_mem x.2⟩)
+        (fun x => g ⟨x.val, Finset.mem_insert_of_mem x.property⟩)
 
 /-- Ideal multi-epoch transcript distribution of a `k`-wise independent hash family with codomain
 `Fin m`: in each epoch, the values on `currentEpochKeys ops` are drawn uniformly from
@@ -304,7 +304,7 @@ theorem transcriptMatches_of_mem_support_evalOps {Seed : Type u} {U m : ℕ}
 
 private theorem restrict_comp_inclusion {U m : ℕ} (f : Fin U → Fin m) (u : Fin U)
     (s : Finset (Fin U)) :
-    (fun x : s => (insert u s).restrict f ⟨x.1, Finset.mem_insert_of_mem x.2⟩) =
+    (fun x : s => (insert u s).restrict f ⟨x.val, Finset.mem_insert_of_mem x.property⟩) =
       s.restrict f := rfl
 
 /-- On a single-epoch sequence (`afterCurrentEpoch ops = none`), `evalOpsFromSeed` reduces to a

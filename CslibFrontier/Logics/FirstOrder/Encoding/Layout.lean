@@ -186,9 +186,9 @@ theorem encStructurePrefix_zero (a : EncodedStructure) :
   simp [encStructurePrefix]
 
 theorem encStructurePrefix_succ (a : EncodedStructure) (i : Fin v.count) :
-    v.encStructurePrefix a (i.1 + 1) =
-      v.encStructurePrefix a i.1 ++ frame (v.table a (v.symbol i)) := by
-  simp [encStructurePrefix, List.take_add_one, i.2, List.append_assoc]
+    v.encStructurePrefix a (i.val + 1) =
+      v.encStructurePrefix a i.val ++ frame (v.table a (v.symbol i)) := by
+  simp [encStructurePrefix, List.take_add_one, i.isLt, List.append_assoc]
 
 theorem encStructurePrefix_count {a : EncodedStructure} (ha : v.WellFormed a) :
     v.encStructurePrefix a v.count = encStructure a := by

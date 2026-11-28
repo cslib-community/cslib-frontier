@@ -196,7 +196,7 @@ theorem initCode_spec {w base capNodes t : ℕ} {x : Data 20}
   · change allocCount base y ≤ capNodes
     omega
   · rw [hymem]
-    simpa only [Finset.union_idempotent] using
+    simpa only [Finset.union_self] using
       (Modifies.write_of_owns (base := base) (n := arenaWords t capNodes)
         ⟨le_rfl, by simp only [arenaWords]; omega⟩ 0).trans
         (Modifies.write_of_owns (base := base) (n := arenaWords t capNodes)

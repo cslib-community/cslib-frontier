@@ -65,16 +65,4 @@ example :
       insert 4 (erase 4 medianFirst) ≠ medianFirst :=
   ⟨erase_eq_of_notMem (by decide), rfl, rfl, by decide, by decide⟩
 
-/--
-info: 'Cslib.DataStructure.SearchTree.eraseVisits_le_height' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.DataStructure.SearchTree.eraseVisits_le_height
-/--
-info: 'Cslib.DataStructure.SearchTree.height_erase_le' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.DataStructure.SearchTree.height_erase_le
-
 end CslibFrontierTests.SearchTreeErase

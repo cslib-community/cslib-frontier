@@ -199,7 +199,8 @@ example (P : Set (Compiler.Vertex arbCircuit)) :
 example (π : Layout (Compiler.Vertex arbCircuit)) (t : ℕ) (X : Set (Fin 3 → Bool)) :
     Real.logb 2 (((fun x =>
         (Compiler.network arbCircuit Boolean.interpretation (fun _ => {true})).frontierValues π t
-          (fun e => arbCircuit.program.trace Boolean.interpretation x e.signal.1)) '' X).ncard : ℝ)
+          (fun e => arbCircuit.program.trace Boolean.interpretation x e.signal.val)) ''
+              X).ncard : ℝ)
       ≤ ((cutWires arbCircuit (π.initial t)).ncard : ℝ) -
         ((arbCircuit.program.forwardDetermined (cutWires arbCircuit (π.initial t))).ncard : ℝ) -
         (53 / 200 : ℝ) * (clauseCappedEdges arbCircuit.program Boolean.interpretation
@@ -215,7 +216,8 @@ example (π : Layout (Compiler.Vertex arbCircuit)) (t : ℕ) (X : Set (Fin 3 →
 example (π : Layout (Compiler.Vertex arbCircuit)) (t : ℕ) (X : Set (Fin 3 → Bool)) :
     Real.logb 2 (((fun x =>
         (Compiler.network arbCircuit Boolean.interpretation (fun _ => {true})).frontierValues π t
-          (fun e => arbCircuit.program.trace Boolean.interpretation x e.signal.1)) '' X).ncard : ℝ)
+          (fun e => arbCircuit.program.trace Boolean.interpretation x e.signal.val)) ''
+              X).ncard : ℝ)
       ≤ ((cutWires arbCircuit (π.initial t)).ncard : ℝ) -
         (1 / 4 : ℝ) * (twoCappedClauseEdges arbCircuit.program Boolean.interpretation
           (cutWires arbCircuit (π.initial t)) : ℝ) :=

@@ -94,12 +94,12 @@ private def eraseValues [DecidableEq N] (v₀ : N) (w : N) : Set (P.scope w → 
     | .leaf => P.values w
     | .union c =>
       {a | ∃ (u : N) (hu : u ∈ c),
-        (fun i : P.scope u => a ⟨i.1, P.scope_union w c hg u hu ▸ i.2⟩) ∈ eraseValues v₀ u}
+        (fun i : P.scope u => a ⟨i.val, P.scope_union w c hg u hu ▸ i.property⟩) ∈ eraseValues v₀ u}
     | .product l r =>
       {a | (fun i : P.scope l =>
-          a ⟨i.1, P.scope_product w l r hg ▸ mem_union_left _ i.2⟩) ∈ eraseValues v₀ l ∧
+          a ⟨i.val, P.scope_product w l r hg ▸ mem_union_left _ i.property⟩) ∈ eraseValues v₀ l ∧
         (fun i : P.scope r =>
-          a ⟨i.1, P.scope_product w l r hg ▸ mem_union_right _ i.2⟩) ∈ eraseValues v₀ r}
+          a ⟨i.val, P.scope_product w l r hg ▸ mem_union_right _ i.property⟩) ∈ eraseValues v₀ r}
 termination_by P.rank w
 decreasing_by
   · exact P.rank_union w c hg u hu

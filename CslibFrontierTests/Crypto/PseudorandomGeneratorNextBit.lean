@@ -161,24 +161,25 @@ private theorem succProbability_nextBitPredictionGame_appendFalse_constFalse (n 
   rw [PMF.bind_comm (BitString.uniformList n) (PMF.uniformOfFintype (Fin (n + 1)))]
   have hslice (i : Fin (n + 1)) :
       ((BitString.uniformList n).bind fun seed =>
-        PMF.pure (decide (false = (appendFalse seed).getD i.1 false))) true =
-        if i.1 < n then (2 : ℝ≥0∞)⁻¹ else 1 := by
+        PMF.pure (decide (false = (appendFalse seed).getD i.val false))) true =
+        if i.val < n then (2 : ℝ≥0∞)⁻¹ else 1 := by
     split_ifs with hi
     · have hleft :
           ((BitString.uniformList n).bind fun seed =>
-            PMF.pure (decide (false = (appendFalse seed).getD i.1 false))) =
+            PMF.pure (decide (false = (appendFalse seed).getD i.val false))) =
           ((BitString.uniformList n).bind fun seed =>
-            (PMF.pure false : PMF Bool).map fun guess => decide (guess = seed.getD i.1 false)) := by
+            (PMF.pure false : PMF Bool).map fun guess =>
+              decide (guess = seed.getD i.val false)) := by
         refine Probability.PMF.bind_congr_on_support _ _ _ fun seed hseed => ?_
         have hlen := BitString.length_of_mem_support_uniformList hseed
         simp [appendFalse, List.getD_eq_getElem?_getD,
           List.getElem?_append_left (lt_of_lt_of_eq hi hlen.symm)]
       rw [hleft, uniformList_bind_take_getD_eq_uniform_bool hi (fun _ => PMF.pure false),
         PMF.uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat]
-    · have hin : i.1 = n := by omega
+    · have hin : i.val = n := by omega
       have hpure :
           ((BitString.uniformList n).bind fun seed =>
-            PMF.pure (decide (false = (appendFalse seed).getD i.1 false))) =
+            PMF.pure (decide (false = (appendFalse seed).getD i.val false))) =
           (BitString.uniformList n).bind fun _ => PMF.pure true := by
         refine Probability.PMF.bind_congr_on_support _ _ _ fun seed hseed => ?_
         have hlen := BitString.length_of_mem_support_uniformList hseed
@@ -187,10 +188,11 @@ private theorem succProbability_nextBitPredictionGame_appendFalse_constFalse (n 
   rw [Game.coe_succProbability, PMF.bind_apply, tsum_fintype]
   simp only [PMF.uniformOfFintype_apply, Fintype.card_fin]
   rw [← Finset.mul_sum, Finset.sum_congr rfl fun i _ => by convert hslice i, Fin.sum_univ_castSucc]
-  have hcast (j : Fin n) : (if (j.castSucc : Fin (n + 1)).1 < n then (2 : ℝ≥0∞)⁻¹ else 1) =
+  have hcast (j : Fin n) :
+      (if (j.castSucc : Fin (n + 1)).val < n then (2 : ℝ≥0∞)⁻¹ else 1) =
       (2 : ℝ≥0∞)⁻¹ := by
     simp [j.isLt]
-  have hlast : (if (Fin.last n : Fin (n + 1)).1 < n then (2 : ℝ≥0∞)⁻¹ else 1) = 1 := by
+  have hlast : (if (Fin.last n : Fin (n + 1)).val < n then (2 : ℝ≥0∞)⁻¹ else 1) = 1 := by
     simp
   rw [Finset.sum_congr rfl fun j _ => hcast j, hlast, Finset.sum_const, Finset.card_fin,
     nsmul_eq_mul]
@@ -291,16 +293,16 @@ theorem nextBitUnpredictableRandomIndex_id : NextBitUnpredictableRandomIndex id 
       rw [PMF.bind_comm (BitString.uniformList n) (PMF.uniformOfFintype (Fin n))]
       have hslice (i : Fin n) :
           ((BitString.uniformList n).bind fun seed =>
-            (ProbComp.eval (predictor n (seed.take i.1))).bind fun guess =>
-              PMF.pure (decide (guess = seed.getD i.1 false))) =
+            (ProbComp.eval (predictor n (seed.take i.val))).bind fun guess =>
+              PMF.pure (decide (guess = seed.getD i.val false))) =
             PMF.uniformOfFintype Bool := by
         have hmap :
             ((BitString.uniformList n).bind fun seed =>
-              (ProbComp.eval (predictor n (seed.take i.1))).bind fun guess =>
-                PMF.pure (decide (guess = seed.getD i.1 false))) =
+              (ProbComp.eval (predictor n (seed.take i.val))).bind fun guess =>
+                PMF.pure (decide (guess = seed.getD i.val false))) =
             ((BitString.uniformList n).bind fun seed =>
-              (ProbComp.eval (predictor n (seed.take i.1))).map
-                fun guess => decide (guess = seed.getD i.1 false)) := rfl
+              (ProbComp.eval (predictor n (seed.take i.val))).map
+                fun guess => decide (guess = seed.getD i.val false)) := rfl
         exact hmap.trans (uniformList_bind_take_getD_eq_uniform_bool i.isLt fun prefixWord =>
           ProbComp.eval (predictor n prefixWord))
       trans (PMF.uniformOfFintype (Fin n)).bind fun _ => PMF.uniformOfFintype Bool

@@ -54,12 +54,12 @@ theorem finrank_lowDegree (D : ℕ) :
     finrank K (lowDegree K ι D) = #{S : Finset ι | #S ≤ D} := by
   classical
   have hli := (linearIndependent_monomial (K := K) (ι := ι)).comp
-    (fun S : {S : Finset ι // #S ≤ D} => S.1) Subtype.val_injective
-  have hrange : Set.range (fun S : {S : Finset ι // #S ≤ D} => monomial K S.1) =
+    (fun S : {S : Finset ι // #S ≤ D} => S.val) Subtype.val_injective
+  have hrange : Set.range (fun S : {S : Finset ι // #S ≤ D} => monomial K S.val) =
       monomial K '' {S | #S ≤ D} := by
     ext f
     simp
-  change LinearIndependent K (fun S : {S : Finset ι // #S ≤ D} => monomial K S.1) at hli
+  change LinearIndependent K (fun S : {S : Finset ι // #S ≤ D} => monomial K S.val) at hli
   have hdim := (linearIndependent_iff_card_eq_finrank_span.mp hli).symm
   rw [Set.finrank, hrange, ← lowDegree] at hdim
   simpa only [Fintype.card_subtype] using hdim

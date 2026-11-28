@@ -55,7 +55,7 @@ variable {A : Type} [CommRing A] {θ : List Bool → A} {supp : Finset (List Boo
   | .start₂, .nil => some (.base (.start₂ false))
   | .eval, .nil => some (.base .evalNil)
   | .eval, .cons => some (.base .evalCons)
-  | .decode j, .cons => if h : j.1 < 10 then some (.base (.decodeStep ⟨j.1, h⟩)) else none
+  | .decode j, .cons => if h : j.val < 10 then some (.base (.decodeStep ⟨j.val, h⟩)) else none
   | .decode 0, .nil => some (.base .decode₀)
   | .decode 1, .nil => some (.base .decode₁)
   | .decode 2, .nil => some (.base .decode₂)
@@ -92,9 +92,9 @@ variable {A : Type} [CommRing A] {θ : List Bool → A} {supp : Finset (List Boo
   | .thetaHead p, .nil => some (.thetaRead p)
   | .thetaHead p, .cons => some (.thetaNext p)
   | .thetaBit p, .cons =>
-    if h : p.1 ++ [true] ∈ prefixes supp then some (.thetaBit p ⟨_, h⟩ true rfl) else none
+    if h : p.val ++ [true] ∈ prefixes supp then some (.thetaBit p ⟨_, h⟩ true rfl) else none
   | .thetaBit p, .nil =>
-    if h : p.1 ++ [false] ∈ prefixes supp then some (.thetaBit p ⟨_, h⟩ false rfl) else none
+    if h : p.val ++ [false] ∈ prefixes supp then some (.thetaBit p ⟨_, h⟩ false rfl) else none
   | _, _ => none
 
 /-- The rules that are chosen by the input or by a guess. -/
@@ -111,7 +111,7 @@ theorem nextRule_rule (r : Rule supp) (hr : ¬ IsChosen r) :
     | decodeGuess b => exact absurd (Or.inr (Or.inr ⟨b, rfl⟩)) hr
     | start₂ b | frameCons b | frameIte b | frameRun b
     | head b | tail b | ite₁ b | ite₂ b => cases b <;> rfl
-    | decodeStep j => exact dite_eq_left j.2
+    | decodeStep j => exact dite_eq_left j.isLt
     | _ => rfl
   | thetaStart h => exact dite_eq_left h
   | thetaRead _ | thetaNext _ => rfl

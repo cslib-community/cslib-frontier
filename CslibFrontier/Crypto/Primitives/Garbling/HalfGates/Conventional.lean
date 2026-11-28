@@ -71,29 +71,30 @@ end ConventionalCircuit
 
 /-- Valid conventional circuits whose gates all compute XOR or AND: the circuits that half-gates
 garbling garbles. -/
-abbrev XorAndCircuit : Type := {f : ValidCircuit // f.1.IsXorAnd}
+abbrev XorAndCircuit : Type := {f : ValidCircuit // f.val.IsXorAnd}
 
 /-- The conventional circuit of an XOR–AND circuit. -/
-abbrev XorAndCircuit.circuit (f : XorAndCircuit) : ConventionalCircuit := f.1.1
+abbrev XorAndCircuit.circuit (f : XorAndCircuit) : ConventionalCircuit := f.val.val
 
 /-- The conventional circuit of an XOR–AND circuit is valid. -/
-theorem XorAndCircuit.isValid (f : XorAndCircuit) : f.circuit.IsValid := f.1.2
+theorem XorAndCircuit.isValid (f : XorAndCircuit) : f.circuit.IsValid := f.val.property
 
 /-- Every gate of an XOR–AND circuit computes XOR or AND. -/
-theorem XorAndCircuit.isXorAnd (f : XorAndCircuit) : f.circuit.IsXorAnd := f.2
+theorem XorAndCircuit.isXorAnd (f : XorAndCircuit) : f.circuit.IsXorAnd := f.property
 
 /-- XOR–AND circuits as words, by `encValidCircuit`. -/
 def encXorAndCircuit : XorAndCircuit ↪ List Bool :=
   (Function.Embedding.subtype _).trans encValidCircuit
 
 /-- An XOR–AND circuit is written as its valid circuit. -/
-theorem encXorAndCircuit_apply (f : XorAndCircuit) : encXorAndCircuit f = encValidCircuit f.1 := by
+theorem encXorAndCircuit_apply (f : XorAndCircuit) :
+    encXorAndCircuit f = encValidCircuit f.val := by
   simp only [encXorAndCircuit, Function.Embedding.trans_apply, Function.Embedding.coe_subtype]
 
 /-- An XOR–AND circuit is written as its valid circuit, so reading the valid circuit costs
 nothing. -/
 theorem XorAndCircuit.val_polyTime :
-    Turing.MultiTapeTM.ComputableInPolyTime (fun f : XorAndCircuit => f.1) encXorAndCircuit
+    Turing.MultiTapeTM.ComputableInPolyTime (fun f : XorAndCircuit => f.val) encXorAndCircuit
       encValidCircuit :=
   .of_eq fun _ => rfl
 
@@ -134,7 +135,7 @@ private theorem isSome_ofCode (f : XorAndCircuit) :
       (gateCode f.circuit, ConventionalCircuit.outputCode f.circuit) :
       Option (Circuit signature f.circuit.n f.circuit.m)).isSome := by
   have h := Circuit.isSome_ofCode_iff.mp (by
-    rw [← ConventionalCircuit.code_toCircuit f.1, Circuit.ofCode_code]; rfl :
+    rw [← ConventionalCircuit.code_toCircuit f.val, Circuit.ofCode_code]; rfl :
     (Circuit.ofCode f.circuit.n f.circuit.m
       (ConventionalCircuit.gateCode f.circuit, ConventionalCircuit.outputCode f.circuit) :
       Option (Circuit (fullSignature 2 Bool) f.circuit.n f.circuit.m)).isSome)
@@ -160,7 +161,7 @@ theorem code_toCircuit (f : XorAndCircuit) :
 /-- **Back in the full binary basis.** Translating `toCircuit f` along `toFull` gives the
 conventional circuit's own translation `ConventionalCircuit.toCircuit f`. -/
 theorem mapOp_toCircuit (f : XorAndCircuit) :
-    (toCircuit f).mapOp toFull = ConventionalCircuit.toCircuit f.1 :=
+    (toCircuit f).mapOp toFull = ConventionalCircuit.toCircuit f.val :=
   Circuit.code_injective (by
     rw [Circuit.code_mapOp, code_toCircuit, ConventionalCircuit.code_toCircuit, map_gateCode])
 
@@ -172,8 +173,8 @@ theorem size_toCircuit (f : XorAndCircuit) : (toCircuit f).size = f.circuit.q :=
 `ConventionalCircuit.toCircuit f`. -/
 private theorem code_lines_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
     (toFull (op (toCircuit f) g), ((toCircuit f).program.lines g).code.2) =
-      ((ConventionalCircuit.toCircuit f.1).program.lines (g.cast
-        ((size_toCircuit f).trans (ConventionalCircuit.size_toCircuit f.1).symm))).code := by
+      ((ConventionalCircuit.toCircuit f.val).program.lines (g.cast
+        ((size_toCircuit f).trans (ConventionalCircuit.size_toCircuit f.val).symm))).code := by
   have h := congrArg Prod.fst ((Circuit.code_mapOp toFull (toCircuit f)).symm.trans
     (congrArg Circuit.code (mapOp_toCircuit f)))
   simp only [Circuit.code] at h
@@ -186,7 +187,7 @@ private theorem code_lines_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).
 theorem op_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
     op (toCircuit f) g = opOf (f.circuit.G (g.cast (size_toCircuit f))) := by
   have h := (congrArg Prod.fst (code_lines_toCircuit f g)).trans
-    (congrArg Line.op (ConventionalCircuit.lines_toCircuit f.1 _))
+    (congrArg Line.op (ConventionalCircuit.lines_toCircuit f.val _))
   cases hop : op (toCircuit f) g <;> rw [hop] at h <;>
     have h11 := congrFun (FullOp.fn.inj h) fun _ => true <;>
     simp_all [opOf, Fin.cast_cast]
@@ -196,7 +197,7 @@ theorem toNat_left_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
     (left (toCircuit f) g).toNat = f.circuit.A (g.cast (size_toCircuit f)) - 1 := by
   have h := congrArg (fun code => code.getD 0 0)
     ((congrArg Prod.snd (code_lines_toCircuit f g)).trans
-      (ConventionalCircuit.ofFn_toNat_wires_toCircuit f.1 _))
+      (ConventionalCircuit.ofFn_toNat_wires_toCircuit f.val _))
   simpa [Line.code, left, List.getD_eq_getElem?_getD, Fin.cast_cast] using h
 
 /-- The second argument of gate `g` of `toCircuit f` is the 0-indexed wire `B g - 1`. -/
@@ -204,13 +205,13 @@ theorem toNat_right_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
     (right (toCircuit f) g).toNat = f.circuit.B (g.cast (size_toCircuit f)) - 1 := by
   have h := congrArg (fun code => code.getD 1 0)
     ((congrArg Prod.snd (code_lines_toCircuit f g)).trans
-      (ConventionalCircuit.ofFn_toNat_wires_toCircuit f.1 _))
+      (ConventionalCircuit.ofFn_toNat_wires_toCircuit f.val _))
   simpa [Line.code, right, List.getD_eq_getElem?_getD, Fin.cast_cast] using h
 
 /-- Output `o` of `toCircuit f` is the 0-indexed wire `n + q - m + o`. -/
 theorem toNat_outputs_toCircuit (f : XorAndCircuit) (o : Fin f.circuit.m) :
     ((toCircuit f).outputs o).toNat = f.circuit.n + f.circuit.q - f.circuit.m + o := by
-  rw [← ConventionalCircuit.toNat_outputs_toCircuit f.1, ← mapOp_toCircuit]
+  rw [← ConventionalCircuit.toNat_outputs_toCircuit f.val, ← mapOp_toCircuit]
   rfl
 
 /-- The value of wire `w` of `toCircuit f` on an `n`-bit input is wire `w` of the conventional
@@ -220,11 +221,11 @@ theorem trace_toCircuit (f : XorAndCircuit) (x : Fin f.circuit.n → Bool)
     (toCircuit f).program.trace interpretation x w =
       (f.circuit.wires (List.ofFn x) f.circuit.q).getD w.toNat false := by
   have h : ∀ (c : Circuit (fullSignature 2 Bool) f.circuit.n f.circuit.m),
-      c = ConventionalCircuit.toCircuit f.1 → ∀ w : Wire f.circuit.n c.size,
+      c = ConventionalCircuit.toCircuit f.val → ∀ w : Wire f.circuit.n c.size,
         c.program.trace fullInterpretation x w =
           (f.circuit.wires (List.ofFn x) f.circuit.q).getD w.toNat false := by
     rintro c rfl w
-    exact ConventionalCircuit.trace_toCircuit f.1 x w
+    exact ConventionalCircuit.trace_toCircuit f.val x w
   refine Eq.trans ?_ (h _ (mapOp_toCircuit f) w)
   exact congrFun (congrArg (Wire.elim x) (Program.eval_mapOp (I := interpretation)
     (J := fullInterpretation) (toCircuit f).program x).symm) w

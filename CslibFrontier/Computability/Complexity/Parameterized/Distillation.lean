@@ -170,7 +170,7 @@ theorem IsPolyEquivalence.comap {encC : β ↪ List Bool} {r : β × β → Bool
   obtain ⟨T, hTc, hTr⟩ := hT (q.eval n)
   -- the classes met by images of instances up to length `n`, each with a chosen preimage
   let P : β → Prop := fun z => ∃ y, (enc y).length ≤ n ∧ r (z, g y) = true
-  refine ⟨(T.filter P).attach.image fun z => (mem_filter.1 z.2).2.choose,
+  refine ⟨(T.filter P).attach.image fun z => (mem_filter.1 z.property).2.choose,
     card_image_le.trans (card_attach.trans_le ((card_filter_le _ _).trans hTc)),
     fun a ha => ?_⟩
   obtain ⟨z, hzT, hz⟩ := hTr (g a) ((hq a).trans (q.eval_mono ha))

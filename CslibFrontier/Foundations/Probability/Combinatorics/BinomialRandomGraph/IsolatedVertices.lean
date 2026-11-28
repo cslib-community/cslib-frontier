@@ -250,7 +250,7 @@ theorem binomialRandom_real_forall_not_isIsolated_le [Fintype V] [Nonempty V] (p
     intro G hG
     have : X G = 0 := by
       simp only [hX, Nat.cast_eq_zero]
-      exact Nat.card_eq_zero.2 (Or.inl ⟨fun v => hG v.1 v.2⟩)
+      exact Nat.card_eq_zero.2 (Or.inl ⟨fun v => hG v.val v.property⟩)
     simp only [Set.mem_ofPred_eq, this, hE, zero_sub, abs_neg, abs_of_pos hμ0, le_refl]
   have hvar : variance X G(V, p) = n * (n - 1) * (1 - p : ℝ) ^ (2 * n - 3) + μ - μ ^ 2 := by
     rw [variance_eq_sub hmem, ← hE]
@@ -302,7 +302,7 @@ private theorem one_div_mul_one_sub_pow_le {n : ℕ} (hn : 0 < n) {p : ℝ} (hp0
     have hr : 0 ≤ p / (1 - p) := div_nonneg hp0 hq.le
     calc Real.exp (-(n * (p / (1 - p)))) ≤ Real.exp (-((n - 1 : ℕ) * (p / (1 - p)))) :=
           Real.exp_le_exp.2 (by cast_nlinarith [Nat.sub_le n 1])
-      _ = Real.exp (-(p / (1 - p))) ^ (n - 1) := by rw [← Real.exp_nat_mul]; ring_nf
+      _ = Real.exp (-(p / (1 - p))) ^ (n - 1) := by rw [← Real.exp_natCast_mul]; ring_nf
       _ ≤ (1 - p) ^ (n - 1) := pow_le_pow_left₀ (Real.exp_pos _).le h1' _
   have h5 : Real.exp (-(n * p + 2 * (Real.log n ^ 2 / n))) ≤ (1 - p) ^ (n - 1) := by
     refine le_trans (Real.exp_le_exp.2 ?_) h4
@@ -344,7 +344,7 @@ theorem tendsto_binomialRandom_real_exists_isIsolated_atTop {p : ℕ → I}
   have h1 : (1 - p n : ℝ) ^ (n - 1) ≤ Real.exp (-(p n * ((n : ℝ) - 1))) := by
     calc (1 - p n : ℝ) ^ (n - 1) ≤ Real.exp (-(p n : ℝ)) ^ (n - 1) :=
           pow_le_pow_left₀ (by linarith) (Real.one_sub_le_exp_neg _) _
-      _ = _ := by rw [← Real.exp_nat_mul, Nat.cast_sub hn, Nat.cast_one]; congr 1; ring
+      _ = _ := by rw [← Real.exp_natCast_mul, Nat.cast_sub hn, Nat.cast_one]; congr 1; ring
   have h2 : Real.exp (-(p n * ((n : ℝ) - 1))) ≤ Real.exp 1 * Real.exp (-(n * p n)) := by
     rw [← Real.exp_add]
     exact Real.exp_le_exp.2 (by nlinarith)

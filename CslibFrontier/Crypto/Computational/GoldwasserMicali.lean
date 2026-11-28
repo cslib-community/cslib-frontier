@@ -613,14 +613,14 @@ theorem advantage_encrypt_idealEncrypt_le (d : ModulusDesc) (n : ℕ)
 noncomputable def publicKeyLaw (setup : ℕ → PMF ModulusDesc) (n : ℕ) : PMF (List Bool) := do
   let d ← setup n
   let z ← PMF.uniformOfFintype (positiveNonresidues d.p d.q)
-  pure (encPair encNat encNat (d.p * d.q, z.1.val.val))
+  pure (encPair encNat encNat (d.p * d.q, z.val.val.val))
 
 /-- Lossy quadratic-residue public-key distribution ([KatzLindell2020], proof of Theorem 15.29):
 sample `d ← setup n` and `y` uniformly from `quadResidueSet d.p d.q`. -/
 noncomputable def qrPublicKeyLaw (setup : ℕ → PMF ModulusDesc) (n : ℕ) : PMF (List Bool) := do
   let d ← setup n
   let y ← PMF.uniformOfFintype (quadResidueSet d.p d.q)
-  pure (encPair encNat encNat (d.p * d.q, y.1.val.val))
+  pure (encPair encNat encNat (d.p * d.q, y.val.val.val))
 
 private theorem distinguishingGame_publicKeyLaw (setup : ℕ → PMF ModulusDesc) (D : Distinguisher)
     (n : ℕ) :
@@ -658,14 +658,15 @@ theorem advantage_publicKeyGame_qrPublicKeyLaw_le {setup : ℕ → PMF ModulusDe
   let idealGame (bit : Bool) : Game := do
     let d ← setup n
     let y ← PMF.uniformOfFintype (quadResidueSet d.p d.q)
-    let choice ← ProbComp.eval (adversary.choose n (encPair encNat encNat (d.p * d.q, y.1.val.val)))
-    let ct ← idealEncrypt (d.p * d.q) y.1
+    let choice ← ProbComp.eval
+      (adversary.choose n (encPair encNat encNat (d.p * d.q, y.val.val.val)))
+    let ct ← idealEncrypt (d.p * d.q) y.val
       (if bit then ChoiceOut.msg₁ choice else ChoiceOut.msg₀ choice)
     ProbComp.eval (adversary.guess n (ChoiceOut.state choice) ct)
   have hideal_eq : idealGame false = idealGame true := by
     dsimp only [idealGame]; simp only [PMF.monad_bind_eq_bind]
     refine congrArg (PMF.bind _) (funext fun d => congrArg (PMF.bind _) (funext fun y => ?_))
-    have hy_sq : IsSquare y.1 := (Finset.mem_filter.mp y.2).2
+    have hy_sq : IsSquare y.val := (Finset.mem_filter.mp y.property).2
     refine congrArg (PMF.bind _) (funext fun choice => ?_)
     have htrue := idealEncrypt_of_isSquare (d.p * d.q) hy_sq true
     cases ChoiceOut.msg₀ choice <;> cases ChoiceOut.msg₁ choice <;>
@@ -678,7 +679,7 @@ theorem advantage_publicKeyGame_qrPublicKeyLaw_le {setup : ℕ → PMF ModulusDe
     refine Game.advantage_bind_le_of_support _ _ _ fun d hd =>
       Game.advantage_bind_le_nnreal _ _ _ fun y =>
         Game.advantage_bind_le_nnreal _ _ _ fun _ =>
-          advantage_encrypt_idealEncrypt_le d n (hsize d hd) y.1 _ _
+          advantage_encrypt_idealEncrypt_le d n (hsize d hd) y.val _ _
   have h4 := Game.advantage_four_hop_le (hhop false) (hhop true)
   rw [hideal_eq, Game.advantage_self, add_zero] at h4
   exact h4.trans_eq (by ring)
@@ -905,10 +906,10 @@ theorem advantage_blumGame_le_qr {gen : ℕ → ProbComp ModulusDesc} {n : ℕ}
     refine Game.advantage_bind_le_of_support _ _ _ fun d hd => ?_
     simpa only [PMF.bind_const, PMF.monad_bind_eq_bind] using
       Game.advantage_bind_le_nnreal (PMF.uniformOfFintype (quadResidueSet d.p d.q))
-        (fun y => ProbComp.eval (blumQRDistinguisher adversary n (d.p * d.q, y.1.val.val)))
+        (fun y => ProbComp.eval (blumQRDistinguisher adversary n (d.p * d.q, y.val.val.val)))
         (fun _ => idealBody d false) fun y => by
-          obtain ⟨s, hs⟩ := (Finset.mem_filter.mp y.2).2
-          exact hbody d hd false y.1 s
+          obtain ⟨s, hs⟩ := (Finset.mem_filter.mp y.property).2
+          exact hbody d hd false y.val s
             (by simp only [hs, Bool.false_eq_true, ↓reduceIte, one_mul, pow_two])
   have hideal : Game.advantage
       (qrIdealGame (fun n => ProbComp.eval (gen n)) (blumQRDistinguisher adversary) n)
@@ -916,12 +917,12 @@ theorem advantage_blumGame_le_qr {gen : ℕ → ProbComp ModulusDesc} {n : ℕ}
     refine Game.advantage_bind_le_of_support _ _ _ fun d hd => ?_
     simpa only [PMF.bind_const, PMF.monad_bind_eq_bind] using
       Game.advantage_bind_le_nnreal (PMF.uniformOfFintype (positiveNonresidues d.p d.q))
-        (fun y => ProbComp.eval (blumQRDistinguisher adversary n (d.p * d.q, y.1.val.val)))
+        (fun y => ProbComp.eval (blumQRDistinguisher adversary n (d.p * d.q, y.val.val.val)))
         (fun _ => idealBody d true) fun y => by
           -- `QNR_N^{+1}` is the coset of `QR_N` containing `-1`.
           obtain ⟨s, hs⟩ := isSquare_mul_of_mem_positiveNonresidues d.p d.q d.ne_pq d.two_lt_p
-            d.two_lt_q (neg_one_mem_positiveNonresidues d.p d.q (hblum d hd)) y.2
-          refine hbody d hd true y.1 s ?_
+            d.two_lt_q (neg_one_mem_positiveNonresidues d.p d.q (hblum d hd)) y.property
+          refine hbody d hd true y.val s ?_
           simp only [↓reduceIte, pow_two]
           rw [← hs, ← mul_assoc, neg_one_mul, neg_neg, one_mul]
   exact (Game.advantage_four_hop_le
@@ -1187,10 +1188,10 @@ theorem advantage_publicKeyWordGame_le_qr (maxLen : ℕ → ℕ) {setup : ℕ �
   let idealWordGame (bit : Bool) : Game := do
     let d ← setup n
     let y ← PMF.uniformOfFintype (quadResidueSet d.p d.q)
-    let pk := encPair encNat encNat (d.p * d.q, y.1.val.val)
+    let pk := encPair encNat encNat (d.p * d.q, y.val.val.val)
     let choice ← ProbComp.eval (adversary.choose n pk)
     if validBoundedWords maxLen n pk (ChoiceOut.msg₀ choice) (ChoiceOut.msg₁ choice) then
-      let cts ← idealEncryptBits (d.p * d.q) y.1
+      let cts ← idealEncryptBits (d.p * d.q) y.val
         (if bit then ChoiceOut.msg₁ choice else ChoiceOut.msg₀ choice)
       ProbComp.eval (adversary.guess n (ChoiceOut.state choice) (encList encBits cts))
     else
@@ -1198,7 +1199,7 @@ theorem advantage_publicKeyWordGame_le_qr (maxLen : ℕ → ℕ) {setup : ℕ �
   have hideal_eq : idealWordGame false = idealWordGame true := by
     dsimp only [idealWordGame]; simp only [PMF.monad_bind_eq_bind]
     refine congrArg (PMF.bind _) (funext fun d => congrArg (PMF.bind _) (funext fun y => ?_))
-    have hy_sq : IsSquare y.1 := (Finset.mem_filter.mp y.2).2
+    have hy_sq : IsSquare y.val := (Finset.mem_filter.mp y.property).2
     refine congrArg (PMF.bind _) (funext fun choice => ?_)
     refine ite_congr rfl (fun hv => ?_) fun _ => rfl
     simp only [validBoundedWords, Bool.and_eq_true, beq_iff_eq] at hv
@@ -1218,7 +1219,7 @@ theorem advantage_publicKeyWordGame_le_qr (maxLen : ℕ → ℕ) {setup : ℕ �
           maxLen n := by
         simp only [validBoundedWords, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hv
         cases bit <;> simp only [↓reduceIte, Bool.false_eq_true] <;> omega
-      exact (advantage_encryptBits_idealEncryptBits_le d n (hsize d hd) y.1 _ _).trans
+      exact (advantage_encryptBits_idealEncryptBits_le d n (hsize d hd) y.val _ _).trans
         (by gcongr)
     · simp only [Game.advantage_self, zero_le]
   have h4 := Game.advantage_four_hop_le (hhop false) (hhop true)

@@ -127,10 +127,10 @@ private def varElt (c : Fin 3) (v : M) : cnfInterpretation.Model M :=
 private theorem clauseSatisfied_iff' (A : cnfInterpretation.Model M → Prop)
     (e : cnfInterpretation.Model M) :
     ClauseSatisfied A e ↔
-      (∃ τ ∈ coloringClauseTemplates e.1 true, τ.guard.Realize e.2.1 ∧
-        ∃ y hy, τ.Compat e.2.1 y ∧ A ⟨τ.target, y, hy⟩) ∨
-      (∃ τ ∈ coloringClauseTemplates e.1 false, τ.guard.Realize e.2.1 ∧
-        ∃ y hy, τ.Compat e.2.1 y ∧ ¬A ⟨τ.target, y, hy⟩) :=
+      (∃ τ ∈ coloringClauseTemplates e.1 true, τ.guard.Realize e.2.val ∧
+        ∃ y hy, τ.Compat e.2.val y ∧ A ⟨τ.target, y, hy⟩) ∨
+      (∃ τ ∈ coloringClauseTemplates e.1 false, τ.guard.Realize e.2.val ∧
+        ∃ y hy, τ.Compat e.2.val y ∧ ¬A ⟨τ.target, y, hy⟩) :=
   clauseSatisfied_iff_of_templates cnfInterpretation_rel_lit A e
 
 /-- Every vertex has a color under a satisfying assignment. -/
@@ -262,7 +262,7 @@ private theorem threeSat_cnfSubsingleton_iff [Subsingleton M] [Nonempty M] :
   obtain ⟨v⟩ := ‹Nonempty M›
   have hpos (e e' : cnfSubsingleton.Model M) :
       RelMap cnf.pos ![e, e'] ↔ ¬RelMap adj ![v, v] := by
-    fo_simp [Subsingleton.elim (e.1 ()) v]
+    fo_simp [Subsingleton.elim (e.val ()) v]
   have hneg (e e' : cnfSubsingleton.Model M) : ¬RelMap cnf.neg ![e, e'] := id
   have : Subsingleton (cnfSubsingleton.Model M) :=
     ⟨fun x y => Interpretation.Model.ext (Subsingleton.elim _ _)⟩
@@ -284,7 +284,7 @@ theorem reduces_ThreeColorable_ThreeSAT : Reduces ThreeColorable.{w} ThreeSAT.{w
       satisfiable_cnfInterpretation_iff.2 h⟩, fun h => satisfiable_cnfInterpretation_iff.1 h.2⟩)
     (fun M _ hM => ?_)
   rcases isEmpty_or_nonempty M with hM' | hM'
-  · have : IsEmpty (cnfSubsingleton.Model M) := ⟨fun x => isEmptyElim (x.1 ())⟩
+  · have : IsEmpty (cnfSubsingleton.Model M) := ⟨fun x => isEmptyElim (x.val ())⟩
     exact iff_of_true colorable_of_isEmpty
       ⟨isThreeCNF_of_isEmpty (M := cnfSubsingleton.Model M),
         satisfiable_of_isEmpty (M := cnfSubsingleton.Model M)⟩

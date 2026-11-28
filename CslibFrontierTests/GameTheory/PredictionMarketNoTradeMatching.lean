@@ -47,10 +47,10 @@ open Finset Cslib.Complexity Cslib.GameTheory Cslib.GameTheory.PredictionMarket 
 /-! ### 1. Partition model, Aumann Agreement, Fully Revealing REE, and Milgrom–Stokey No-Trade -/
 
 /-- Agent 0 distinguishes `{0, 1}` from `{2, 3}` on `Fin 4`. -/
-def part0 : Setoid (Fin 4) := Setoid.ker fun ω : Fin 4 => decide (ω.1 < 2)
+def part0 : Setoid (Fin 4) := Setoid.ker fun ω : Fin 4 => decide (ω.val < 2)
 
 /-- Agent 1 distinguishes `{0, 2}` from `{1, 3}` on `Fin 4`. -/
-def part1 : Setoid (Fin 4) := Setoid.ker fun ω : Fin 4 => decide (ω.1 % 2 = 0)
+def part1 : Setoid (Fin 4) := Setoid.ker fun ω : Fin 4 => decide (ω.val % 2 = 0)
 
 /-- Two-agent partition profile on `Fin 4`. -/
 def twoAgentParts : Fin 2 → Setoid (Fin 4) := ![part0, part1]
@@ -68,8 +68,8 @@ private theorem combinedPartition_twoAgentParts :
   rw [combinedPartition_rel, Setoid.bot_def]
   constructor
   · intro h
-    have h0 : decide (ω₁.1 < 2) = decide (ω₂.1 < 2) := h 0
-    have h1 : decide (ω₁.1 % 2 = 0) = decide (ω₂.1 % 2 = 0) := h 1
+    have h0 : decide (ω₁.val < 2) = decide (ω₂.val < 2) := h 0
+    have h1 : decide (ω₁.val % 2 = 0) = decide (ω₂.val % 2 = 0) := h 1
     fin_cases ω₁ <;> fin_cases ω₂ <;> simp_all
   · rintro rfl i
     exact (twoAgentParts i).refl' _
@@ -79,12 +79,14 @@ private theorem commonKnowledgePartition_twoAgentParts :
   rw [Setoid.eq_top_iff]
   intro ω₁ ω₂
   have h01 : commonKnowledgePartition twoAgentParts 0 1 :=
-    le_iSup twoAgentParts 0 (show decide ((0 : Fin 4).1 < 2) = decide ((1 : Fin 4).1 < 2) by decide)
+    le_iSup twoAgentParts 0
+      (show decide ((0 : Fin 4).val < 2) = decide ((1 : Fin 4).val < 2) by decide)
   have h02 : commonKnowledgePartition twoAgentParts 0 2 :=
     le_iSup twoAgentParts 1
-      (show decide ((0 : Fin 4).1 % 2 = 0) = decide ((2 : Fin 4).1 % 2 = 0) by decide)
+      (show decide ((0 : Fin 4).val % 2 = 0) = decide ((2 : Fin 4).val % 2 = 0) by decide)
   have h23 : commonKnowledgePartition twoAgentParts 2 3 :=
-    le_iSup twoAgentParts 0 (show decide ((2 : Fin 4).1 < 2) = decide ((3 : Fin 4).1 < 2) by decide)
+    le_iSup twoAgentParts 0
+      (show decide ((2 : Fin 4).val < 2) = decide ((3 : Fin 4).val < 2) by decide)
   have h03 : commonKnowledgePartition twoAgentParts 0 3 :=
     (commonKnowledgePartition twoAgentParts).trans' h02 h23
   have hto0 (ω : Fin 4) : commonKnowledgePartition twoAgentParts 0 ω := by
@@ -112,13 +114,13 @@ example :
   have hpos : 0 < eventProb unif4 (Finset.univ : Finset (Fin 4)) := by
     simp only [eventProb_apply, Fin.sum_univ_four, unif4]; norm_num
   have hcell0 (a b : Fin 4)
-      (hmem : ∀ x : Fin 4, (decide (a.1 < 2) = decide (x.1 < 2)) ↔ x = a ∨ x = b) :
+      (hmem : ∀ x : Fin 4, (decide (a.val < 2) = decide (x.val < 2)) ↔ x = a ∨ x = b) :
       infoCell (twoAgentParts 0) a = {a, b} := by
     ext x
     simp only [mem_infoCell, Finset.mem_insert, Finset.mem_singleton]
     exact hmem x
   have hcell1 (a b : Fin 4)
-      (hmem : ∀ x : Fin 4, (decide (a.1 % 2 = 0) = decide (x.1 % 2 = 0)) ↔ x = a ∨ x = b) :
+      (hmem : ∀ x : Fin 4, (decide (a.val % 2 = 0) = decide (x.val % 2 = 0)) ↔ x = a ∨ x = b) :
       infoCell (twoAgentParts 1) a = {a, b} := by
     ext x
     simp only [mem_infoCell, Finset.mem_insert, Finset.mem_singleton]
@@ -193,13 +195,13 @@ example : commonKnowledgePartition twoAgentParts = ⊤ :=
 /-- Fully revealing REE witness on `Fin 4`: injective price `Pstar ω = ω.1` is fully revealing,
 forms an REE for `f ω = ω.1` under average clearing, and equals every agent's posterior. -/
 example :
-    let Pstar : Fin 4 → ℝ := fun ω => (ω.1 : ℝ)
+    let Pstar : Fin 4 → ℝ := fun ω => (ω.val : ℝ)
     let clearAvg : (Fin 2 → Fin 4 → ℝ) → Fin 4 → ℝ := fun g ω => (g 0 ω + g 1 ω) / 2
     IsFullyRevealingPrice twoAgentParts Pstar ∧
       IsREE unif4 twoAgentParts (fun _ => Pstar) clearAvg Pstar := by
   intro Pstar clearAvg
   have hinj : Function.Injective Pstar := fun a b h => by
-    have : a.1 = b.1 := Nat.cast_injective h
+    have : a.val = b.val := Nat.cast_injective h
     exact Fin.ext this
   have hfr : IsFullyRevealingPrice twoAgentParts Pstar :=
     isFullyRevealingPrice_of_injective combinedPartition_twoAgentParts hinj
@@ -389,7 +391,7 @@ example :
     HasDivisibleMatch [o₁, o₂] ∧ ¬ HasIndivisibleMatch [o₁, o₂] := by
   intro o₁ o₂
   constructor
-  · refine ⟨fun i => if i.1 = 0 then 1 / 2 else 1,
+  · refine ⟨fun i => if i.val = 0 then 1 / 2 else 1,
       fun i => by dsimp only; split_ifs <;> norm_num,
       ⟨⟨1, by simp⟩, by norm_num⟩, fun ω => ?_⟩
     rw [auctioneerPayoff_pair]

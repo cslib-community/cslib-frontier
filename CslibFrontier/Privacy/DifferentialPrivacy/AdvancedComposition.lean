@@ -278,7 +278,7 @@ theorem tsum_tsub_transcriptWeight_le {K L : List R → R → ℝ≥0∞} {ε : 
   refine (Probability.tsum_tsub_le_renyiMoment hα _ _ _).trans ?_
   refine (mul_le_mul' le_rfl hmom).trans ?_
   rw [← ENNReal.ofReal_pow (Real.exp_pos _).le, ← ENNReal.ofReal_mul (Real.exp_pos _).le,
-    ← Real.exp_nat_mul, ← Real.exp_add, hα_sub]
+    ← Real.exp_natCast_mul, ← Real.exp_add, hα_sub]
   refine ENNReal.ofReal_le_ofReal (le_of_eq (congrArg Real.exp ?_))
   field_simp
   ring

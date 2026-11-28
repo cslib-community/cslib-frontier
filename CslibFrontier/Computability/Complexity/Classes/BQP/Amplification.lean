@@ -138,10 +138,10 @@ variable {m : ℕ}
 /-- The first `m ≤ w` qubits of each of the blocks `1, …, k` of the threshold register. -/
 def blocks (w k t : ℕ) (hm : m ≤ w) : Fin k × Fin m ↪ Fin (width w k t) where
   toFun p := ⟨p.2 + (p.1 + 1) * w,
-    (block_lt p.1.2 (lt_of_lt_of_le p.2.2 hm)).trans base_lt_width⟩
+    (block_lt p.1.isLt (lt_of_lt_of_le p.2.isLt hm)).trans base_lt_width⟩
   inj' p p' h := by
     have h' : (p.2 : ℕ) + (p.1 + 1) * w = p'.2 + (p'.1 + 1) * w := congrArg Fin.val h
-    have := Nat.eq_of_add_mul_eq (lt_of_lt_of_le p.2.2 hm) (lt_of_lt_of_le p'.2.2 hm) h'
+    have := Nat.eq_of_add_mul_eq (lt_of_lt_of_le p.2.isLt hm) (lt_of_lt_of_le p'.2.isLt hm) h'
     exact Prod.ext (Fin.ext (by omega)) (Fin.ext this.1)
 
 @[simp] theorem blocks_apply_val (hm : m ≤ w) (p : Fin k × Fin m) :
@@ -155,7 +155,7 @@ theorem block_le_width {j : ℕ} (hj : j < k) : (j + 1) * w + w ≤ width w k t 
 
 /-- The first `m ≤ w` qubits of block `j` of the threshold register. -/
 def block (hm : m ≤ w) (j : Fin k) : Fin m ↪ Fin (width w k t) :=
-  blockEmb ((j + 1) * w) (by have := block_le_width (w := w) (t := t) j.2; omega)
+  blockEmb ((j + 1) * w) (by have := block_le_width (w := w) (t := t) j.isLt; omega)
 
 theorem block_apply (hm : m ≤ w) (j : Fin k) (i : Fin m) :
     block (t := t) hm j i = blocks w k t hm (j, i) := rfl
@@ -330,7 +330,7 @@ theorem sum_accepting_counter_swap (hm : m ≤ w) (hm0 : 0 < m) {X : Fin (width 
       · rw [readBit_of_lt _ hcN, readBit_of_lt _ hcN]
         refine hY _ fun q h => ?_
         have h' : (q.2 : ℕ) + (q.1 + 1) * w = c := congrArg Fin.val h
-        have := block_lt (k := k) q.1.2 (lt_of_lt_of_le q.2.2 hm)
+        have := block_lt (k := k) q.1.isLt (lt_of_lt_of_le q.2.isLt hm)
         omega
       · rw [readBit_of_le _ (not_lt.mp hcN), readBit_of_le _ (not_lt.mp hcN)]
     have hbit (j : Fin k) : readBit Y ((j + 1) * w) = (Y ∘ blocks w k t hm) (j, ⟨0, hm0⟩) := by
@@ -345,7 +345,7 @@ theorem sum_accepting_counter_swap (hm : m ≤ w) (hm0 : 0 < m) {X : Fin (width 
       simp only [mem_filter, mem_range, mem_map, mem_univ, true_and, Fin.valEmbedding_apply,
         Function.comp_apply]
       exact ⟨fun ⟨hs, h⟩ => ⟨⟨s, hs⟩, (hbit ⟨s, hs⟩).symm.trans h, rfl⟩,
-        fun ⟨j, h, hj⟩ => hj ▸ ⟨j.2, (hbit j).trans h⟩⟩
+        fun ⟨j, h, hj⟩ => hj ▸ ⟨j.isLt, (hbit j).trans h⟩⟩
     have hacc : (classicalRun (Counter.codes (base w k) (t + 1) (fun s => (s + 1) * w) k ++
         swapCodes (answer w k t)) Y ∈ accepting (width w k t)) ↔
         t < (univ.filter fun j : Fin k => (Y ∘ blocks w k t hm) (j, ⟨0, hm0⟩) = true).card := by

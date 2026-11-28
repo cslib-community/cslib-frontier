@@ -105,6 +105,8 @@ theorem justesenSourceRegistersOfRequest_eq {k : ℕ} {State : Type} [Fintype St
       (configurationFieldContext ntm c w)).adjacency, source, setup.targetID⟩ :
         JustesenSourceContext) = _
     rw [h]
-  rw [justesenSourceRegistersOfRequest, hctx, configurationJustesenSourceContext_size]
+  rw [justesenSourceRegistersOfRequest, hctx]
+  dsimp only
+  rw [configurationJustesenSourceContext_size]
 
 end Cslib.Complexity.STCON

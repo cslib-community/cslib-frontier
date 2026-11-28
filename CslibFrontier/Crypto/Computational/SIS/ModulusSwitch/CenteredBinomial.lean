@@ -211,7 +211,7 @@ theorem negligible_moduleLWECBD_switch_failure (m : (l : ℕ) → Fin (l + 1) �
   refine ((ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _) (by positivity)).mp
     (toOuterMeasure_moduleLWECBD_switch_failure_le l (m l))).trans_eq ?_
   push_cast
-  rw [← Real.exp_nat_mul]
+  rw [← Real.exp_natCast_mul]
   refine congrArg₂ (· * ·) (by ring) (congrArg Real.exp ?_)
   push_cast
   ring

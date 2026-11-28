@@ -200,7 +200,7 @@ theorem sum_spectralWeight_le_one (k : ℕ) (A : (α → Bool) → Bool) :
       simp only [notMem_empty, and_false, ↓reduceIte, sum_const_zero]
       exact sq_nonneg _
     · have hpos : (0 : ℝ) < #T := by
-        exact_mod_cast card_pos.2 (nonempty_iff_ne_empty.2 hT0)
+        exact_mod_cast card_pos.2 (ne_empty_iff_nonempty.1 hT0)
       have hsum :
           (∑ x : α, if #T < k ∧ x ∈ T then
             fourierCoeff (fun g => signVal (A g)) T ^ 2 / #T else 0) =
@@ -251,7 +251,7 @@ private theorem ite_fourierCoeff_sq_mul_le (π : β → γ) (k : ℕ)
     · simp
   split_ifs with hT
   · obtain ⟨hTk, hne⟩ := hT
-    obtain ⟨_, hy⟩ := nonempty_iff_ne_empty.2 hne
+    obtain ⟨_, hy⟩ := ne_empty_iff_nonempty.1 hne
     obtain ⟨x₀, hx₀T, rfl⟩ := exists_mem_of_mem_projectSet hy
     have hpos : (0 : ℝ) < #T := by exact_mod_cast card_pos.2 ⟨x₀, hx₀T⟩
     have hA : fourierCoeff (fun g => signVal (A g)) T ^ 2 ≤
@@ -405,7 +405,7 @@ theorem two_mul_sub_le_sum_lowDegree_cube_mul {ρ ε δ : ℝ} (hρ0 : 0 < ρ) (
     have hlog : Real.log (1 / ε) ≤ 2 * ρ * k := (div_le_iff₀' (by positivity)).1 hk
     rw [one_div, Real.log_inv] at hlog
     calc w ^ k ≤ Real.exp (-(2 * ρ)) ^ k := pow_le_pow_left₀ hw0 hexp k
-      _ = Real.exp (-(2 * ρ * k)) := by rw [← Real.exp_nat_mul]; ring_nf
+      _ = Real.exp (-(2 * ρ * k)) := by rw [← Real.exp_natCast_mul]; ring_nf
       _ ≤ Real.exp (Real.log ε) := Real.exp_le_exp.2 (by linarith)
       _ = ε := Real.exp_log hε
   -- Each high-degree term is at most `F̂(T) ^ 2 * w ^ k`.

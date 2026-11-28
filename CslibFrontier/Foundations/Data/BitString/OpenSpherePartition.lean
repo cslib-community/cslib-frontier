@@ -93,8 +93,8 @@ theorem exists_openSpherePartition (r : ℕ) :
     univ.filter (fun c => Matrix.vecMul c (Matrix.of fun i j => label i j) = 0)
   let e : {c // c ∈ C} ≃
       {c : BitString (2 ^ r) // Matrix.vecMul c (Matrix.of fun i j => label i j) = 0} :=
-    { toFun := fun c => ⟨c.1, by simpa only [C, mem_filter, mem_univ, true_and] using c.2⟩
-      invFun := fun c => ⟨c.1, by simpa only [C, mem_filter, mem_univ, true_and] using c.2⟩
+    { toFun := fun c => ⟨c.val, by simpa only [C, mem_filter, mem_univ, true_and] using c.property⟩
+      invFun := fun c => ⟨c.val, by simpa only [C, mem_filter, mem_univ, true_and] using c.property⟩
       left_inv := fun _ => rfl
       right_inv := fun _ => rfl }
   have hbij : Function.Bijective (fun p : {c // c ∈ C} × Fin (2 ^ r) => flipOn {p.2} p.1.val) :=

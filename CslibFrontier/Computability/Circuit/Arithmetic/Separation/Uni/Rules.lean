@@ -153,7 +153,7 @@ inductive Rule (supp : Finset (List Bool)) where
   /-- one more bit of the name follows -/
   | thetaNext (p : Name supp)
   /-- the bit `b` extends `p` to `p'` -/
-  | thetaBit (p p' : Name supp) (b : Bool) (h : p'.1 = p.1 ++ [b])
+  | thetaBit (p p' : Name supp) (b : Bool) (h : p'.val = p.val ++ [b])
   deriving DecidableEq
 
 /-- `Rule` as a sum. -/
@@ -169,7 +169,7 @@ inductive Rule (supp : Finset (List Bool)) where
     | .thetaBit p p' b h => .inr (.inr (.inr (.inr ⟨(p, p', b), h⟩)))
   invFun
     | .inl r => .base r
-    | .inr (.inl u) => .thetaStart u.2
+    | .inr (.inl u) => .thetaStart u.property
     | .inr (.inr (.inl p)) => .thetaRead p
     | .inr (.inr (.inr (.inl p))) => .thetaNext p
     | .inr (.inr (.inr (.inr ⟨(p, p', b), h⟩))) => .thetaBit p p' b h
@@ -261,7 +261,7 @@ setting registers `1` to `4` to `d₁ d₂ d₃ d₄` (register `0` stays `0`). 
   | .base r => baseRule r
   | .thetaStart h => .basic .ret (.thetaHead ⟨[], h⟩) .theta 2 .garbage 0 0 0 1 5 0 0
   | .thetaRead p => { (.basic (.thetaHead p) .ret .nil 1 .garbage 0 0 0 0 2 0 0 :
-      RuleData A (Name supp)) with wt := θ p.1 }
+      RuleData A (Name supp)) with wt := θ p.val }
   | .thetaNext p => .basic (.thetaHead p) (.thetaBit p) .cons 1 .garbage 0 0 0 5 6 2 0
   | .thetaBit p p' b _ =>
     .basic (.thetaBit p) (.thetaHead p') (consOrNil b) 1 .garbage 0 0 0 2 3 0 0

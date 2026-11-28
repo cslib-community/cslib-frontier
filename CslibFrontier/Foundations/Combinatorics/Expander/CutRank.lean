@@ -85,7 +85,7 @@ theorem IsSimple.card_mul_card_le_card_neighbors_mul (hG : G.IsSimple) (S : Fins
   classical
   by_cases hS : S = ∅
   · simp [hS]
-  have hSne : S.Nonempty := nonempty_iff_ne_empty.mpr hS
+  have hSne : S.Nonempty := ne_empty_iff_nonempty.mp hS
   have : Nonempty V := ⟨hSne.choose⟩
   let T := S.biUnion (fun v ↦ G.toSimpleGraph.neighborFinset v)
   have hinter : G.interedges S T = S ×ˢ univ := by

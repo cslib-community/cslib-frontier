@@ -261,7 +261,7 @@ private theorem exists_card_le_and_nonneg_of_step {m : Finset ι → ℝ} {c δ 
     linarith
   · have hpow : 2 / δ ≤ (1 + c) ^ k := by
       rw [← exp_log (show 0 < 2 / δ by positivity), ← exp_log (show 0 < (1 + c) by linarith),
-        ← exp_nat_mul]
+        ← exp_natCast_mul]
       refine exp_le_exp.2 ?_
       rw [← div_le_iff₀ hlc]
       exact Nat.le_ceil _
@@ -299,7 +299,7 @@ private theorem exists_card_le_and_one_sub_le_of_step {m : Finset ι → ℝ} {c
   have hpow : (1 - c) ^ k ≤ ε := by
     calc (1 - c) ^ k ≤ exp (-c) ^ k :=
           pow_le_pow_left₀ (by linarith) (by linarith [add_one_le_exp (-c)]) k
-      _ = exp (-(c * k)) := by rw [← exp_nat_mul]; ring_nf
+      _ = exp (-(c * k)) := by rw [← exp_natCast_mul]; ring_nf
       _ ≤ exp (-log (1 / ε)) := by
           refine exp_le_exp.2 (neg_le_neg ?_)
           rw [mul_comm, ← div_le_iff₀ hc]

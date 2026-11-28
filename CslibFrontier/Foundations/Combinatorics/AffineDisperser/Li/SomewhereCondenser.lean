@@ -87,11 +87,11 @@ splits `x ∈ BitString (m + m)` into `(x₁, x₂)` and outputs the `2 * d + 2`
     BitString (m + m) →ₗ[Bool] (Fin (2 * d + 2) → BitString m) where
   toFun x idx :=
     let p := (appendLinearEquiv m m).symm x
-    if h0 : idx.1 = 0 then p.1
-    else if h1 : idx.1 = 1 then p.2
+    if h0 : idx.val = 0 then p.1
+    else if h1 : idx.val = 1 then p.2
     else
-      if (idx.1 - 2) % 2 = 0 then p.1 + T ⟨(idx.1 - 2) / 2, by have := idx.2; omega⟩ p.2
-      else p.2 + T ⟨(idx.1 - 2) / 2, by have := idx.2; omega⟩ p.1
+      if (idx.val - 2) % 2 = 0 then p.1 + T ⟨(idx.val - 2) / 2, by have := idx.isLt; omega⟩ p.2
+      else p.2 + T ⟨(idx.val - 2) / 2, by have := idx.isLt; omega⟩ p.1
   map_add' x y := by
     funext idx
     have hxy : (appendLinearEquiv m m).symm (x + y) =
@@ -100,9 +100,9 @@ splits `x ∈ BitString (m + m)` into `(x₁, x₂)` and outputs the `2 * d + 2`
       rw [map_add]; rfl
     dsimp only
     rw [hxy]
-    by_cases h0 : idx.1 = 0
+    by_cases h0 : idx.val = 0
     · simp only [h0, ↓reduceDIte, Pi.add_apply]
-    · by_cases h1 : idx.1 = 1
+    · by_cases h1 : idx.val = 1
       · simp only [h1, one_ne_zero, ↓reduceDIte, Pi.add_apply]
       · simp only [h0, h1, ↓reduceDIte, Pi.add_apply]
         split_ifs <;> simp only [map_add] <;> abel
@@ -113,9 +113,9 @@ splits `x ∈ BitString (m + m)` into `(x₁, x₂)` and outputs the `2 * d + 2`
       rw [map_smul]; rfl
     dsimp only
     rw [hsmul]
-    by_cases h0 : idx.1 = 0
+    by_cases h0 : idx.val = 0
     · simp only [h0, ↓reduceDIte, RingHom.id_apply, Pi.smul_apply]
-    · by_cases h1 : idx.1 = 1
+    · by_cases h1 : idx.val = 1
       · simp only [h1, one_ne_zero, ↓reduceDIte, RingHom.id_apply, Pi.smul_apply]
       · simp only [h0, h1, ↓reduceDIte, RingHom.id_apply, Pi.smul_apply]
         split_ifs <;> simp only [map_smul, smul_add]
@@ -134,7 +134,7 @@ private theorem basicCond_one {m d : ℕ} (T : Fin d → BitString m →ₗ[Bool
 
 private theorem basicCond_even {m d : ℕ} (T : Fin d → BitString m →ₗ[Bool] BitString m)
     (x : BitString (m + m)) (i : Fin d) :
-    basicCond T x ⟨2 + 2 * i.1, by omega⟩ = projLeft m x + T i (projRight m x) := by
+    basicCond T x ⟨2 + 2 * i.val, by omega⟩ = projLeft m x + T i (projRight m x) := by
   simp only [basicCond, projLeft, projRight, LinearMap.coe_mk, AddHom.coe_mk]
   rw [dite_eq_right_of_eq_false (eq_false (by omega)),
     dite_eq_right_of_eq_false (eq_false (by omega))]
@@ -145,7 +145,7 @@ private theorem basicCond_even {m d : ℕ} (T : Fin d → BitString m →ₗ[Boo
 
 private theorem basicCond_odd {m d : ℕ} (T : Fin d → BitString m →ₗ[Bool] BitString m)
     (x : BitString (m + m)) (i : Fin d) :
-    basicCond T x ⟨2 + 2 * i.1 + 1, by omega⟩ = projRight m x + T i (projLeft m x) := by
+    basicCond T x ⟨2 + 2 * i.val + 1, by omega⟩ = projRight m x + T i (projLeft m x) := by
   simp only [basicCond, projLeft, projRight, LinearMap.coe_mk, AddHom.coe_mk]
   rw [dite_eq_right_of_eq_false (eq_false (by omega)),
     dite_eq_right_of_eq_false (eq_false (by omega))]
@@ -284,7 +284,7 @@ private theorem basicCond_subspace_boost_case1 {m d : ℕ} (hd : 3 ≤ d) {α : 
   have hexpand := hT A' hm_bound
   obtain ⟨i, hi_pig⟩ := exists_finrank_sup_ge_of_finrank_iSup (by omega : 0 < d) B
     (fun j => A'.map (T j))
-  let idx : Fin (2 * d + 2) := ⟨2 + 2 * i.1 + 1, by omega⟩
+  let idx : Fin (2 * d + 2) := ⟨2 + 2 * i.val + 1, by omega⟩
   let M : Submodule Bool (BitString m) := V.map (basicCondAt T idx)
   have hB_le_M : B ≤ M := by
     rw [hB_eq]
@@ -328,7 +328,7 @@ private theorem basicCond_subspace_boost_case2 {m d : ℕ} (hd : 3 ≤ d) {α : 
   have hexpand := hT B hm_bound
   obtain ⟨i, hi_pig⟩ := exists_finrank_sup_ge_of_finrank_iSup (by omega : 0 < d) A'
     (fun j => B.map (T j))
-  let idx : Fin (2 * d + 2) := ⟨2 + 2 * i.1, by omega⟩
+  let idx : Fin (2 * d + 2) := ⟨2 + 2 * i.val, by omega⟩
   let M : Submodule Bool (BitString m) := V.map (basicCondAt T idx)
   have hTB_le_M : B.map (T i) ≤ M := by
     rw [hB_eq]

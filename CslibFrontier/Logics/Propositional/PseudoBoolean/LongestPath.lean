@@ -201,7 +201,7 @@ private theorem eq_empty_of_circulation (hG : Acyclic fun u v => ∃ e, src e = 
   have : IsTrans (Fin m) r := ⟨fun _ _ _ hab hbc => hbc.trans hab⟩
   have : Std.Irrefl r := ⟨fun a h => hG.irrefl a h⟩
   obtain ⟨a, ha, hmin⟩ := (Finite.wellFounded_of_trans_of_irrefl r).has_min
-    (S.image dst : Set (Fin m)) (by simpa [Finset.nonempty_iff_ne_empty] using hne)
+    (S.image dst : Set (Fin m)) (by simpa using hne)
   obtain ⟨e, he, rfl⟩ := Finset.mem_image.1 ha
   have hloop : src e ≠ dst e := fun h => hG.irrefl (dst e) (.single ⟨e, h, rfl⟩)
   have hfe : unitFlow (src e) (dst e) (dst e) = -1 := by simp [unitFlow, hloop]

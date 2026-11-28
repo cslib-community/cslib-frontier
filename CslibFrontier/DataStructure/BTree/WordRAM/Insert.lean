@@ -251,7 +251,7 @@ theorem insertCode_spec {w base capNodes t k v : ℕ} {tr : BTree ℕ ℕ} {x : 
         · rw [hy_b0, hmb1]; exact hrange_y
       simp only [x₃, Data.set_mem] at hmod_loop
       refine ⟨y, readTree (l + 1) base t y.mem (cnt + 1), he, hrep, ?_, ?_,
-        by simpa only [Finset.union_idempotent] using hmod_sr.trans hmod_loop⟩
+        by simpa only [Finset.union_self] using hmod_sr.trans hmod_loop⟩
       · rw [htr_y]
         have htr_x₃ : readTree (l + 1) base t x₃.mem (cnt + 1) =
             readTree (l + 1) base t (memSplitRoot base t oldRoot cnt x.mem) (cnt + 1) := by

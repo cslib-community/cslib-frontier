@@ -617,7 +617,7 @@ private theorem PartInv.of_swap {w vlo vhi vpiv p q : ℕ} {mem₀ : ℕ → ℕ
     PartInv w vlo vhi vpiv mem₀ y :=
   ⟨hone, hlo, hhi, hpiv, hI.fits_hi, h1, h2, h3, h4,
     hmem ▸ (memSlice_swap_perm hp hq x.mem).trans hI.perm,
-    hmem ▸ by simpa only [Finset.union_idempotent] using
+    hmem ▸ by simpa only [Finset.union_self] using
       hI.modifies.trans (modifies_swapMem hp hq x.mem),
     hmem ▸ hlt, hmem ▸ heq, hmem ▸ hgt⟩
 
@@ -1008,7 +1008,7 @@ theorem partitionAndPush_spec {w : ℕ} {input : List ℕ} {vlo vhi : ℕ} {S₀
   have hread_final : readStack n y = S₂ := hread_y.trans hS₂_eq
   obtain ⟨hno_y, hperm_y, hmod_y'⟩ := outerInv_mem_after_partition hS hinv₀ hperm₀ hmod₀
     ⟨hPart₆.lo_le_lt, hlt_gt, hPart₆.gt_le_hi⟩ hPart₆.perm hPart₆.modifies hPart₆.lt_zone
-    heq_gt hPart₆.gt_zone (by simpa only [Finset.union_idempotent] using hmod₇.trans hmod_y)
+    heq_gt hPart₆.gt_zone (by simpa only [Finset.union_self] using hmod₇.trans hmod_y)
     hS₂_eq.symm
   obtain ⟨t, ht_le, he_all⟩ := (e_init.seq (e_loop.seq (e_push₁.seq e_push₂))).mono
     (show 5 + (11 * (vhi - vlo) + 2 + (8 + 8)) ≤ 11 * (vhi - vlo) + 23 by omega)

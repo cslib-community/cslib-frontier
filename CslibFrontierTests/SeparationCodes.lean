@@ -47,6 +47,6 @@ example {p p' : Σ i : Fin 2 → Bool, ∀ k, Cslib.BitString (len (i k))}
 
 /-- The first unit alone does not: it holds the label and the first bit of the first block. -/
 example : codeWord lab len 2 1 idx (fun _ _ => true) =
-    codeWord lab len 2 1 idx (fun k b => k = 0 ∧ b.1 = 0) := by decide
+    codeWord lab len 2 1 idx (fun k b => k = 0 ∧ b.val = 0) := by decide
 
 end CslibFrontierTests.SeparationCodes

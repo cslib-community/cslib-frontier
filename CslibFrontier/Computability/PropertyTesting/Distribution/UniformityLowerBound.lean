@@ -184,7 +184,7 @@ theorem collisionProbability_paninskiMixture [NeZero m] {ε : ℝ} (hε : |ε| �
 
 private theorem one_add_pow_le_exp {k : ℕ} {x : ℝ} (hx : -1 ≤ x) :
     (1 + x) ^ k ≤ Real.exp (k * x) := by
-  rw [Real.exp_nat_mul]
+  rw [Real.exp_natCast_mul]
   exact pow_le_pow_left₀ (by linarith) (by linarith [Real.add_one_le_exp x]) k
 
 /-- The second-moment bound for Paninski's mixture: `(2m)^k ‖Q‖₂² ≤ exp(k² ε⁴ / (2m))`. -/
@@ -241,7 +241,7 @@ theorem collisionProbability_paninskiMixture_le [NeZero m] {ε : ℝ} (hε : |ε
     _ ≤ Real.exp (lam ^ 2 / 2) ^ m :=
         pow_le_pow_left₀ (Real.cosh_pos _).le (Real.cosh_le_exp_half_sq _) m
     _ = Real.exp (k ^ 2 * ε ^ 4 / (2 * m)) := by
-        rw [← Real.exp_nat_mul, hlam]
+        rw [← Real.exp_natCast_mul, hlam]
         congr 1
         field_simp
 

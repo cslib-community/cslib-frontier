@@ -32,8 +32,8 @@ example (μ ν e₁ e₂ : ℕ) :
         ↥(states ν e₂) → ℤ,
       (∀ a b c d, ∑ N, Ψ N a b c d = (if a = c then 1 else 0) * (if b = d then 1 else 0)) ∧
       ∀ N : Fin (2 * (e₁ + e₂) + 1),
-        ∃ (g : Fin ((N.1 + 1) * stateCount N) → ↥(states μ e₁) × ↥(states ν e₂) → ℤ)
-          (h : Fin ((N.1 + 1) * stateCount N) → ↥(states ν e₂) × ↥(states μ e₁) → ℤ),
+        ∃ (g : Fin ((N.val + 1) * stateCount N) → ↥(states μ e₁) × ↥(states ν e₂) → ℤ)
+          (h : Fin ((N.val + 1) * stateCount N) → ↥(states ν e₂) × ↥(states μ e₁) → ℤ),
           ∀ a b c d, Ψ N a b c d = ∑ k, g k (a, d) * h k (b, c) :=
   let ⟨Ψ, ha, hb, _⟩ := exists_crossing_identity μ ν e₁ e₂
   ⟨Ψ, ha, hb⟩
@@ -63,13 +63,13 @@ example (s₀ s₁ : ↥(states 1 4)) (t₀ : ↥(states 1 2)) (h₀ : s₀.val 
         ↥(states 1 2) → ℤ,
       (∑ N, Ψ N s₀ t₀ s₀ t₀ = 1) ∧ (∑ N, Ψ N s₀ t₀ s₁ t₀ = 0) ∧
       (∀ N : Fin (2 * (4 + 2) + 1),
-        ∃ (g : Fin ((N.1 + 1) * stateCount N) → ↥(states 1 4) × ↥(states 1 2) → ℤ)
-          (h : Fin ((N.1 + 1) * stateCount N) → ↥(states 1 2) × ↥(states 1 4) → ℤ),
+        ∃ (g : Fin ((N.val + 1) * stateCount N) → ↥(states 1 4) × ↥(states 1 2) → ℤ)
+          (h : Fin ((N.val + 1) * stateCount N) → ↥(states 1 2) × ↥(states 1 4) → ℤ),
           Ψ N s₀ t₀ s₁ t₀ = ∑ k, g k (s₀, t₀) * h k (t₀, s₁)) ∧
       ∀ N : Fin (2 * (4 + 2) + 1),
-        ∃ (g : Fin ((2 * (4 + 2) - N.1 + 1) * stateCount (2 * (4 + 2) - N.1)) →
+        ∃ (g : Fin ((2 * (4 + 2) - N.val + 1) * stateCount (2 * (4 + 2) - N.val)) →
             ↥(states 1 4) × ↥(states 1 2) → ℤ)
-          (h : Fin ((2 * (4 + 2) - N.1 + 1) * stateCount (2 * (4 + 2) - N.1)) →
+          (h : Fin ((2 * (4 + 2) - N.val + 1) * stateCount (2 * (4 + 2) - N.val)) →
             ↥(states 1 4) × ↥(states 1 2) → ℤ),
           Ψ N s₀ t₀ s₁ t₀ = ∑ k, g k (s₀, t₀) * h k (s₁, t₀) := by
   obtain ⟨Ψ, ha, hb, hc⟩ := exists_crossing_identity 1 1 4 2

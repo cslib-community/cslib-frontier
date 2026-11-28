@@ -134,7 +134,7 @@ theorem mem_mistakeRounds {A : OnlineLearner α Bool} {S : List (α × Bool)} {t
     t ∈ mistakeRounds A S ↔ ∃ ht : t < S.length, A (S.take t) S[t].1 ≠ S[t].2 := by
   simp only [mistakeRounds, Finset.mem_map, Finset.mem_filter, Finset.mem_univ, true_and,
     Fin.valEmbedding_apply]
-  exact ⟨fun ⟨a, ha, heq⟩ => heq ▸ ⟨a.2, ha⟩, fun ⟨ht, h⟩ => ⟨⟨t, ht⟩, h, rfl⟩⟩
+  exact ⟨fun ⟨a, ha, heq⟩ => heq ▸ ⟨a.isLt, ha⟩, fun ⟨ht, h⟩ => ⟨⟨t, ht⟩, h, rfl⟩⟩
 
 /-- Negating `A`'s prediction in round `t` exactly when `t` is one of its mistakes gives the label
 of round `t`. -/

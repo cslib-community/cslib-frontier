@@ -371,8 +371,8 @@ theorem two_pow_two_pow_le_two_mul_ncard_setOf_lt_complexity (hn : 16 ≤ n) :
     have h : {f : BooleanFunction n | complexity interpretation (single f) ≤ s} =
         (computableFunctions n s : Set (BooleanFunction n)) := by
       ext f
-      simp only [Set.mem_ofPred_eq, Finset.mem_coe, mem_computableFunctions_iff_complexity_le]
-    rw [h, Set.ncard_coe_finset]
+      simp only [Set.mem_ofPred_eq, mem_computableFunctions_iff_complexity_le]
+    rw [h]
     exact card_computableFunctions_two_pow_div_five_mul_le hn
   have hsum := Set.ncard_add_ncard_compl {f : BooleanFunction n |
     complexity interpretation (single f) ≤ s}

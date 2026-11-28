@@ -235,10 +235,10 @@ theorem preimageCount_eq_card_fin (G : LocalMap) (target : List Bool) :
       (Finset.univ.filter fun σ : Fin G.numVars → Bool =>
         G.eval (fun v => if h : v < G.numVars then σ ⟨v, h⟩ else false) = target).card := by
   refine Finset.card_bij
-    (fun σ _ v => σ ⟨v.1, Finset.mem_range.mpr v.2⟩)
+    (fun σ _ v => σ ⟨v.val, Finset.mem_range.mpr v.isLt⟩)
     (fun σ hσ => by simpa [Finset.mem_range] using hσ)
     (fun σ₁ _ σ₂ _ h => funext fun ⟨v, hv⟩ => congrFun h ⟨v, Finset.mem_range.mp hv⟩)
-    (fun τ hτ => ⟨fun v => τ ⟨v.1, Finset.mem_range.mp v.2⟩,
+    (fun τ hτ => ⟨fun v => τ ⟨v.val, Finset.mem_range.mp v.property⟩,
       by simpa [Finset.mem_range] using hτ, funext fun ⟨_, _⟩ => rfl⟩)
 
 /-- When `target.length ≠ G.numOutputs`, `G.preimageCount target = 0`. -/
@@ -334,7 +334,7 @@ theorem preimageCount_pos_iff {k : ℕ} {G : LocalMap} (hG : G.Valid k = true)
       Option.map_some, Option.getD_some]
     rfl
   · rintro ⟨x, hxlen, hx⟩
-    refine ⟨fun v => x.getD v.1 false, Finset.mem_univ _, ?_⟩
+    refine ⟨fun v => x.getD v.val false, Finset.mem_univ _, ?_⟩
     rw [← hx, evalBits]
     exact eval_congr hG fun v hv => by simp [Finset.mem_range.mpr hv]
 

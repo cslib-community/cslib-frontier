@@ -222,8 +222,9 @@ theorem isPACLearnerFor_realizableDistributions_of_vcSampleSize_le {C : ConceptC
   obtain ⟨A, hA⟩ := exists_isConsistent (m := m) hne
   refine ⟨A, fun D _ hD => ?_⟩
   simpa only [ENNReal.ofReal_coe_nnreal, IsRealizableBy.optimalError_eq_zero hD, zero_add] using
-    hA.measure_pi_lt_error_le_of_vcSampleSize_le hC hD (by exact_mod_cast ε.2.1)
-      (by exact_mod_cast ε.2.2.le) (by exact_mod_cast δ.2.1) (by exact_mod_cast δ.2.2.le) hm
+    hA.measure_pi_lt_error_le_of_vcSampleSize_le hC hD (by exact_mod_cast ε.property.1)
+      (by exact_mod_cast ε.property.2.le) (by exact_mod_cast δ.property.1)
+      (by exact_mod_cast δ.property.2.le) hm
 
 /-- The realizable sample complexity of a class of finite VC dimension on a countable domain is at
 most `⌈(8 / ε) (vcDim C log (48 / ε) + log (4 / δ))⌉`. -/

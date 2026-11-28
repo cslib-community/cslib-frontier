@@ -181,7 +181,7 @@ private lemma exists_approxFixedPt_of_upperHemicontinuousOn
       ∀ x ∈ Metric.ball (a : E) ρ ∩ K, F x ⊆ Metric.thickening (ε / 2) (F a) := by
     intro a
     have hev := (upperHemicontinuousOn_iff_forall_isOpen.mp hF_uhc)
-      a a.2 (Metric.thickening (ε / 2) (F a)) Metric.isOpen_thickening
+      a a.property (Metric.thickening (ε / 2) (F a)) Metric.isOpen_thickening
       (Metric.self_subset_thickening (half_pos hε) (F a))
     obtain ⟨ρ, hρ, hsub⟩ := Metric.mem_nhdsWithin_iff.mp hev
     exact ⟨ρ, hρ, fun x hx => hsub hx⟩
@@ -192,7 +192,7 @@ private lemma exists_approxFixedPt_of_upperHemicontinuousOn
     mem_iUnion.mpr ⟨⟨x, hx⟩, Metric.mem_ball_self (hδ_pos ⟨x, hx⟩)⟩
   obtain ⟨s, hs_cov⟩ := hcomp.elim_finite_subcover
     (fun a : K => Metric.ball (a : E) (δ a)) (fun _ => Metric.isOpen_ball) hK_cov
-  choose y hy_mem using fun a : K => hF_ne a a.2
+  choose y hy_mem using fun a : K => hF_ne a a.property
   let wfn : K → E → ℝ := fun a x => max 0 (δ a - dist x (a : E))
   let W : E → ℝ := fun x => ∑ a ∈ s, wfn a x
   have hW_pos : ∀ x ∈ K, 0 < W x := by
@@ -204,7 +204,7 @@ private lemma exists_approxFixedPt_of_upperHemicontinuousOn
   have hf_maps : MapsTo f K K := by
     intro x hx
     refine hconv.sum_mem (fun a _ => div_nonneg (le_max_left 0 _) (hW_pos x hx).le)
-      ?_ (fun a _ => hF_sub a a.2 (hy_mem a))
+      ?_ (fun a _ => hF_sub a a.property (hy_mem a))
     rw [← Finset.sum_div, div_self (hW_pos x hx).ne']
   have hw_cont : ∀ a : K, Continuous (wfn a) := fun a =>
     continuous_const.max (continuous_const.sub (continuous_id.dist continuous_const))
@@ -245,7 +245,7 @@ private lemma exists_approxFixedPt_of_upperHemicontinuousOn
         _ ≤ δ a₀ + δ a₀ := by gcongr
         _ = min (ρ a₀) ε := by dsimp [δ]; ring
         _ ≤ ρ a₀ := min_le_left _ _
-    exact hρ_sub a₀ a ⟨Metric.mem_ball.mpr hle_ρ, a.2⟩ (hy_mem a)
+    exact hρ_sub a₀ a ⟨Metric.mem_ball.mpr hle_ρ, a.property⟩ (hy_mem a)
   have hW_act : W x = ∑ a ∈ s_act, wfn a x := by
     symm
     refine Finset.sum_filter_of_ne fun a _ hne0 => ?_
@@ -256,7 +256,7 @@ private lemma exists_approxFixedPt_of_upperHemicontinuousOn
     have hw0 : wfn a x ≠ 0 := fun h0 => hne0 (by simp [h0])
     exact lt_of_le_of_ne (le_max_left 0 _) (Ne.symm hw0)
   have hx_mem_U₀ : x ∈ U₀ := by
-    have hconvU₀ : Convex ℝ U₀ := (hF_conv a₀ a₀.2).thickening (ε / 2)
+    have hconvU₀ : Convex ℝ U₀ := (hF_conv a₀ a₀.property).thickening (ε / 2)
     have hcomb : (∑ a ∈ s_act, (wfn a x / W x) • y a) ∈ U₀ := by
       refine hconvU₀.sum_mem (fun a _ => div_nonneg (le_max_left 0 _) (hW_pos x hxK).le)
         ?_ hya_mem
@@ -269,7 +269,7 @@ private lemma exists_approxFixedPt_of_upperHemicontinuousOn
   have hxa₀_eps : dist x (a₀ : E) < ε :=
     ha₀_dist.trans_le (by dsimp [δ]; linarith [min_le_right (ρ a₀) ε])
   have hxw_eps : dist x w < ε := (Metric.mem_ball.mp hxw).trans (half_lt_self hε)
-  exact ⟨x, hxK, a₀, a₀.2, w, hw_mem, hxa₀_eps, hxw_eps⟩
+  exact ⟨x, hxK, a₀, a₀.property, w, hw_mem, hxa₀_eps, hxw_eps⟩
 
 /-- **Kakutani's fixed-point theorem** ([Kakutani1941]; primary PDF unverified): an upper
 hemicontinuous correspondence `F` mapping a nonempty compact convex subset `K` of a

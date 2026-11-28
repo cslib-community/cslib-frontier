@@ -227,8 +227,8 @@ abbrev ValidCircuit := {f : ConventionalCircuit // f.IsValid}
 return `(n, m, q)` and its semantics `ev` is `ConventionalCircuit.evalCirc`
 ([BellareHoangRogaway2012], Section 3.1). -/
 def Scheme.IsCircuitScheme (G : Scheme ValidCircuit) : Prop :=
-  (∀ f : ValidCircuit, G.inLen f = f.1.n ∧ G.outLen f = f.1.m ∧ G.size f = f.1.q) ∧
-    ∀ (f : ValidCircuit) (x : List Bool), G.ev f x = f.1.evalCirc x
+  (∀ f : ValidCircuit, G.inLen f = f.val.n ∧ G.outLen f = f.val.m ∧ G.size f = f.val.q) ∧
+    ∀ (f : ValidCircuit) (x : List Bool), G.ev f x = f.val.evalCirc x
 
 /-- Assemble a conventional circuit from a topology `t` and gate truth tables `G`. -/
 def ofTopo (t : Topo) (G : Fin t.q → Bool → Bool → Bool) : ConventionalCircuit :=
@@ -264,15 +264,16 @@ structure ValidShape where
 /-- `Φ_topo(f) = (n, m, q, A, B)`: side information revealing the circuit topology
 ([BellareHoangRogaway2012], Section 3.3). -/
 def phiTopo : SideInfo ValidCircuit ValidTopo where
-  phi f := ⟨f.1.topo, f.2⟩
-  inLen t := t.1.n
-  outLen t := t.1.m
-  size t := t.1.q
+  phi f := ⟨f.val.topo, f.property⟩
+  inLen t := t.val.n
+  outLen t := t.val.m
+  size t := t.val.q
 
 /-- `Φ_size(f) = (n, m, q)`: side information revealing only the input count, output count and
 gate count ([BellareHoangRogaway2012], Section 3.3). -/
 def phiSize : SideInfo ValidCircuit ValidShape where
-  phi f := ⟨f.1.n, f.1.m, f.1.q, f.2.two_le_n, f.2.one_le_m, f.2.one_le_q, f.2.m_le_q⟩
+  phi f := ⟨f.val.n, f.val.m, f.val.q, f.property.two_le_n, f.property.one_le_m,
+    f.property.one_le_q, f.property.m_le_q⟩
   inLen s := s.n
   outLen s := s.m
   size s := s.q
@@ -281,9 +282,9 @@ def phiSize : SideInfo ValidCircuit ValidShape where
 ([BellareHoangRogaway2012], Section 3.3). -/
 def phiCirc : SideInfo ValidCircuit ValidCircuit where
   phi := id
-  inLen f := f.1.n
-  outLen f := f.1.m
-  size f := f.1.q
+  inLen f := f.val.n
+  outLen f := f.val.m
+  size f := f.val.q
 
 theorem phiTopo_compatible {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
     phiTopo.Compatible G := fun f =>
@@ -314,7 +315,7 @@ def mTopoGates (t : Topo) (y : List Bool) : Fin t.q → Bool → Bool → Bool :
 from a valid topology `t` and output string `y`, build the circuit with topology `t` and constant
 gates `mTopoGates t y` paired with the all-zero input `0^n`. -/
 def mTopo (t : ValidTopo) (y : List Bool) : Query ValidCircuit :=
-  ⟨⟨ofTopo t.1 (mTopoGates t.1 y), t.2⟩, List.replicate t.1.n false⟩
+  ⟨⟨ofTopo t.val (mTopoGates t.val y), t.property⟩, List.replicate t.val.n false⟩
 
 /-- The canonical wiring for a shape `(n, m, q)` ([BellareHoangRogaway2012], Section 4.1,
 Proposition 1): every gate takes wires `A(g) = 1` and `B(g) = 2`. -/
@@ -337,7 +338,7 @@ def mSize (s : ValidShape) (y : List Bool) : Query ValidCircuit :=
   mTopo ⟨sizeTopo s, sizeTopo_isValid s⟩ y
 
 /-- The `Φ_topo`-inverter built from `mTopo` by setting `y = 0^m`. -/
-def mTopoInv (t : ValidTopo) : ValidCircuit := (mTopo t (List.replicate t.1.m false)).fn
+def mTopoInv (t : ValidTopo) : ValidCircuit := (mTopo t (List.replicate t.val.m false)).fn
 
 /-- The `Φ_size`-inverter built from `mSize` by setting `y = 0^m`. -/
 def mSizeInv (s : ValidShape) : ValidCircuit := (mSize s (List.replicate s.m false)).fn
@@ -409,8 +410,8 @@ theorem phiTopo_isEvInverter {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) 
   · rw [(hG.1 _).1]
     exact List.length_replicate
   · rw [hG.2, hG.2]
-    exact evalCirc_ofTopo_mTopoGates f.1.topo f.2.m_le_q (f.1.evalCirc x)
-      (f.1.length_evalCirc x f.2.m_le_q)
+    exact evalCirc_ofTopo_mTopoGates f.val.topo f.property.m_le_q (f.val.evalCirc x)
+      (f.val.length_evalCirc x f.property.m_le_q)
 
 /-- `mSize` is a `(Φ_size, ev)`-inverter for every circuit garbling scheme (proof of
 [BellareHoangRogaway2012], Section 4.1, Proposition 1). Strict polynomial running time is certified
@@ -422,8 +423,8 @@ theorem phiSize_isEvInverter {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) 
   · rw [(hG.1 _).1]
     exact List.length_replicate
   · rw [hG.2, hG.2]
-    exact evalCirc_ofTopo_mTopoGates (sizeTopo (phiSize.phi f)) f.2.m_le_q (f.1.evalCirc x)
-      (f.1.length_evalCirc x f.2.m_le_q)
+    exact evalCirc_ofTopo_mTopoGates (sizeTopo (phiSize.phi f)) f.property.m_le_q (f.val.evalCirc x)
+      (f.val.length_evalCirc x f.property.m_le_q)
 
 /-! ## Indistinguishability and simulation advantages for circuit side information -/
 

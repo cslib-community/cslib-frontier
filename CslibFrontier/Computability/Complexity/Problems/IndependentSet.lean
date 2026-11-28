@@ -246,12 +246,12 @@ private theorem countSat_mem_IndependentSet (φ : CNF ℕ) (σ : ℕ → Bool) :
   classical
   let I := Finset.univ.filter fun i : Fin φ.length => φ[i].eval σ = true
   have hcl (i : I) : ∃ j : Fin φ[i.val].length, σ φ[i.val][j].1 = φ[i.val][j].2 := by
-    obtain ⟨l, hl, hσl⟩ := (Clause.eval_eq_true_iff _ _).1 (Finset.mem_filter.1 i.2).2
+    obtain ⟨l, hl, hσl⟩ := (Clause.eval_eq_true_iff _ _).1 (Finset.mem_filter.1 i.property).2
     obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hl
     exact ⟨⟨j, hj⟩, hσl⟩
   choose J hJ using hcl
   let o : I → Occurrence ℕ := fun i => ⟨i.val, J i, φ[i.val][J i]⟩
-  have ho (i : I) : o i ∈ occurrences φ := mem_occurrences.2 ⟨i.val.2, (J i).2, rfl⟩
+  have ho (i : I) : o i ∈ occurrences φ := mem_occurrences.2 ⟨i.val.isLt, (J i).isLt, rfl⟩
   have hoinj : Function.Injective fun i => (o i).vertex :=
     fun _ _ h => Subtype.ext (Fin.ext (Nat.pair_eq_pair.1 h).1)
   rw [mem_IndependentSet_iff]

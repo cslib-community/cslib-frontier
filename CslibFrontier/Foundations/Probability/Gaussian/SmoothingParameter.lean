@@ -470,7 +470,7 @@ private theorem two_pow_mul_exp_le_half_pow_div (n : ℕ) (hn : 0 < n) :
     linarith
   have hpow : (2 : ℝ) ^ n * Real.exp (-3 * Real.pi * n / 4) ≤ (1 / 4 : ℝ) ^ n := by
     have hp := pow_le_pow_left₀ (by positivity) hstep n
-    rw [mul_pow, ← Real.exp_nat_mul] at hp
+    rw [mul_pow, ← Real.exp_natCast_mul] at hp
     convert hp using 3
     ring
   have hx : (1 / 2 : ℝ) ^ n ≤ 1 / 2 := pow_le_of_le_one (by norm_num) (by norm_num) hn.ne'

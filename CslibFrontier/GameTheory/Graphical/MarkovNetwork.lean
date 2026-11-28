@@ -142,11 +142,11 @@ private noncomputable def simplexOfFun {X : Type*} [Fintype X] (w : X → ℝ)
 private theorem neighborhoodMarginal_eq_sum {ι : Type*} {S : ι → Type*}
     [Fintype ι] [DecidableEq ι] [∀ i, Fintype (S i)] (G : SimpleGraph ι)
     (σ : Convexity.StdSimplex ℝ (∀ i, S i)) (i : ι)
-    [DecidableEq (∀ j : ClosedNeighborhood G i, S j.1)]
-    (u : ∀ j : ClosedNeighborhood G i, S j.1) :
+    [DecidableEq (∀ j : ClosedNeighborhood G i, S j.val)]
+    (u : ∀ j : ClosedNeighborhood G i, S j.val) :
     neighborhoodMarginal G σ i u =
       ∑ s : (∀ k, S k),
-        if (fun j : ClosedNeighborhood G i => s j.1) = u then σ.weights s else 0 := by
+        if (fun j : ClosedNeighborhood G i => s j.val) = u then σ.weights s else 0 := by
   rw [neighborhoodMarginal_def, Finsupp.sum_fintype]
   intro s
   split_ifs <;> rfl
@@ -154,24 +154,24 @@ private theorem neighborhoodMarginal_eq_sum {ι : Type*} {S : ι → Type*}
 private theorem sum_mul_local_eq_sum_neighborhoodMarginal {ι : Type*} {S : ι → Type*}
     [Fintype ι] [DecidableEq ι] [∀ i, Fintype (S i)] (G : SimpleGraph ι) [DecidableRel G.Adj]
     (σ : Convexity.StdSimplex ℝ (∀ i, S i)) (i : ι)
-    (f : (∀ j : ClosedNeighborhood G i, S j.1) → ℝ) :
-    σ.weights.sum (fun s w => w * f (fun j => s j.1)) =
-      ∑ u : (∀ j : ClosedNeighborhood G i, S j.1), neighborhoodMarginal G σ i u * f u := by
+    (f : (∀ j : ClosedNeighborhood G i, S j.val) → ℝ) :
+    σ.weights.sum (fun s w => w * f (fun j => s j.val)) =
+      ∑ u : (∀ j : ClosedNeighborhood G i, S j.val), neighborhoodMarginal G σ i u * f u := by
   classical
   rw [Finsupp.sum_fintype _ _ (fun _ => zero_mul _)]
   simp_rw [neighborhoodMarginal_eq_sum, sum_mul]
   rw [sum_comm]
   refine sum_congr rfl fun s _ => ?_
   simp only [ite_mul, zero_mul,
-    sum_ite_eq univ (fun j : ClosedNeighborhood G i => s j.1) (fun u => σ.weights s * f u),
+    sum_ite_eq univ (fun j : ClosedNeighborhood G i => s j.val) (fun u => σ.weights s * f u),
     mem_univ, ↓reduceIte]
 
 private theorem sum_ite_neighborhoodMarginal {ι : Type*} {S : ι → Type*}
     [Fintype ι] [DecidableEq ι] [∀ i, Fintype (S i)] (G : SimpleGraph ι) [DecidableRel G.Adj]
     (σ : Convexity.StdSimplex ℝ (∀ i, S i)) (i : ι)
-    (p : (∀ j : ClosedNeighborhood G i, S j.1) → Prop) [DecidablePred p] :
+    (p : (∀ j : ClosedNeighborhood G i, S j.val) → Prop) [DecidablePred p] :
     (∑ u, if p u then neighborhoodMarginal G σ i u else 0) =
-      ∑ s : (∀ j, S j), if p (fun j => s j.1) then σ.weights s else 0 := by
+      ∑ s : (∀ j, S j), if p (fun j => s j.val) then σ.weights s else 0 := by
   have h := sum_mul_local_eq_sum_neighborhoodMarginal G σ i (fun u => if p u then 1 else 0)
   rw [Finsupp.sum_fintype _ _ (fun _ => zero_mul _)] at h
   simpa only [mul_ite, mul_one, mul_zero] using h.symm
@@ -179,7 +179,7 @@ private theorem sum_ite_neighborhoodMarginal {ι : Type*} {S : ι → Type*}
 private theorem neighborhoodMarginal_nonneg {ι : Type*} {S : ι → Type*}
     [Finite ι] [∀ i, Finite (S i)] (G : SimpleGraph ι)
     (σ : Convexity.StdSimplex ℝ (∀ i, S i)) (i : ι)
-    (u : ∀ j : ClosedNeighborhood G i, S j.1) :
+    (u : ∀ j : ClosedNeighborhood G i, S j.val) :
     0 ≤ neighborhoodMarginal G σ i u := by
   classical
   have := Fintype.ofFinite ι
@@ -190,7 +190,7 @@ private theorem neighborhoodMarginal_nonneg {ι : Type*} {S : ι → Type*}
 private theorem sum_neighborhoodMarginal {ι : Type*} {S : ι → Type*}
     [Fintype ι] [DecidableEq ι] [∀ i, Fintype (S i)] (G : SimpleGraph ι) [DecidableRel G.Adj]
     (σ : Convexity.StdSimplex ℝ (∀ i, S i)) (i : ι) :
-    ∑ u : (∀ j : ClosedNeighborhood G i, S j.1), neighborhoodMarginal G σ i u = 1 := by
+    ∑ u : (∀ j : ClosedNeighborhood G i, S j.val), neighborhoodMarginal G σ i u = 1 := by
   have h := sum_mul_local_eq_sum_neighborhoodMarginal G σ i (fun _ => (1 : ℝ))
   simp only [mul_one] at h
   rw [← h, σ.total]
@@ -198,7 +198,7 @@ private theorem sum_neighborhoodMarginal {ι : Type*} {S : ι → Type*}
 private theorem neighborhoodMarginal_le_one {ι : Type*} {S : ι → Type*}
     [Finite ι] [∀ i, Finite (S i)] (G : SimpleGraph ι)
     (σ : Convexity.StdSimplex ℝ (∀ i, S i)) (i : ι)
-    (u : ∀ j : ClosedNeighborhood G i, S j.1) :
+    (u : ∀ j : ClosedNeighborhood G i, S j.val) :
     neighborhoodMarginal G σ i u ≤ 1 := by
   classical
   have := Fintype.ofFinite ι
@@ -210,7 +210,7 @@ private theorem neighborhoodMarginal_convexCombPair {ι : Type*} {S : ι → Typ
     [Finite ι] [∀ i, Finite (S i)] (G : SimpleGraph ι)
     {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) (hab : a + b = 1)
     (σ₁ σ₂ : Convexity.StdSimplex ℝ (∀ i, S i)) (i : ι)
-    (u : ∀ j : ClosedNeighborhood G i, S j.1) :
+    (u : ∀ j : ClosedNeighborhood G i, S j.val) :
     neighborhoodMarginal G (Convexity.convexCombPair a b ha hb hab σ₁ σ₂) i u =
       a * neighborhoodMarginal G σ₁ i u + b * neighborhoodMarginal G σ₂ i u := by
   classical
@@ -235,18 +235,18 @@ constant `Z > 0` such that `σ.weights s = (∏ i, ψ i (fun j => s j.1)) / Z` f
 -/
 @[expose] def IsLocalMarkovNetwork [Fintype ι] (G : SimpleGraph ι)
     (σ : Convexity.StdSimplex ℝ (∀ i, S i)) : Prop :=
-  ∃ (ψ : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ) (Z : ℝ),
+  ∃ (ψ : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ) (Z : ℝ),
     (∀ i u, 0 ≤ ψ i u) ∧ 0 < Z ∧
-      ∀ s : (∀ i, S i), σ.weights s = (∏ i : ι, ψ i (fun j => s j.1)) / Z
+      ∀ s : (∀ i, S i), σ.weights s = (∏ i : ι, ψ i (fun j => s j.val)) / Z
 
 /-- A joint distribution `σ` is representable as a **strictly positive local Markov network** with
 graph `G` if its potentials in Definition 7.11 ([Kearns2007], p. 172) are everywhere strictly
 positive (`0 < ψ i u`). -/
 @[expose] def IsPositiveLocalMarkovNetwork [Fintype ι] (G : SimpleGraph ι)
     (σ : Convexity.StdSimplex ℝ (∀ i, S i)) : Prop :=
-  ∃ (ψ : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ) (Z : ℝ),
+  ∃ (ψ : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ) (Z : ℝ),
     (∀ i u, 0 < ψ i u) ∧ 0 < Z ∧
-      ∀ s : (∀ i, S i), σ.weights s = (∏ i : ι, ψ i (fun j => s j.1)) / Z
+      ∀ s : (∀ i, S i), σ.weights s = (∏ i : ι, ψ i (fun j => s j.val)) / Z
 
 theorem IsPositiveLocalMarkovNetwork.isLocalMarkovNetwork [Fintype ι] {G : SimpleGraph ι}
     {σ : Convexity.StdSimplex ℝ (∀ i, S i)} (h : IsPositiveLocalMarkovNetwork G σ) :
@@ -267,10 +267,10 @@ determined as the partition function `∑ s, ∏ i, ψ i (fun j => s j.1)` ([Kea
 Definition 7.11, p. 172). -/
 theorem partition_eq_of_weights_eq_prod_div [Fintype ι] [DecidableEq ι] [∀ i, Fintype (S i)]
     {G : SimpleGraph ι} {σ : Convexity.StdSimplex ℝ (∀ i, S i)}
-    {ψ : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ} {Z : ℝ} (hZ : 0 < Z)
-    (hfac : ∀ s : (∀ i, S i), σ.weights s = (∏ i : ι, ψ i (fun j => s j.1)) / Z) :
-    Z = ∑ s : (∀ i, S i), ∏ i : ι, ψ i (fun j => s j.1) := by
-  have hsum : (1 : ℝ) = (∑ s : (∀ i, S i), ∏ i : ι, ψ i (fun j => s j.1)) / Z := by
+    {ψ : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ} {Z : ℝ} (hZ : 0 < Z)
+    (hfac : ∀ s : (∀ i, S i), σ.weights s = (∏ i : ι, ψ i (fun j => s j.val)) / Z) :
+    Z = ∑ s : (∀ i, S i), ∏ i : ι, ψ i (fun j => s j.val) := by
+  have hsum : (1 : ℝ) = (∑ s : (∀ i, S i), ∏ i : ι, ψ i (fun j => s j.val)) / Z := by
     rw [← σ.total_of_fintype, div_eq_mul_inv, sum_mul]
     exact sum_congr rfl fun s _ => by rw [hfac s, div_eq_mul_inv]
   have hne : Z ≠ 0 := hZ.ne'
@@ -280,11 +280,11 @@ theorem partition_eq_of_weights_eq_prod_div [Fintype ι] [DecidableEq ι] [∀ i
 private theorem exists_prod_div_iff_exists_prod [Fintype ι] [Nonempty ι] {G : SimpleGraph ι}
     {σ : Convexity.StdSimplex ℝ (∀ i, S i)} (P : ℝ → Prop)
     (hdiv : ∀ x Z, P x → 0 < Z → P (x / Z)) :
-    (∃ (ψ : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ) (Z : ℝ),
+    (∃ (ψ : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ) (Z : ℝ),
       (∀ i u, P (ψ i u)) ∧ 0 < Z ∧
-        ∀ s : (∀ i, S i), σ.weights s = (∏ i : ι, ψ i (fun j => s j.1)) / Z) ↔
-      ∃ ψ : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ,
-        (∀ i u, P (ψ i u)) ∧ ∀ s : (∀ i, S i), σ.weights s = ∏ i : ι, ψ i (fun j => s j.1) := by
+        ∀ s : (∀ i, S i), σ.weights s = (∏ i : ι, ψ i (fun j => s j.val)) / Z) ↔
+      ∃ ψ : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ,
+        (∀ i u, P (ψ i u)) ∧ ∀ s : (∀ i, S i), σ.weights s = ∏ i : ι, ψ i (fun j => s j.val) := by
   classical
   constructor
   · rintro ⟨ψ, Z, hP, hZ, hfac⟩
@@ -294,9 +294,9 @@ private theorem exists_prod_div_iff_exists_prod [Fintype ι] [Nonempty ι] {G : 
       split_ifs
       · exact hdiv _ _ (hP i u) hZ
       · exact hP i u
-    · rw [hfac s, ← mul_prod_erase univ (fun i => ψ i (fun j => s j.1)) (mem_univ i₀),
-        ← mul_prod_erase univ (fun i => if i = i₀ then ψ i (fun j => s j.1) / Z
-          else ψ i (fun j => s j.1)) (mem_univ i₀)]
+    · rw [hfac s, ← mul_prod_erase univ (fun i => ψ i (fun j => s j.val)) (mem_univ i₀),
+        ← mul_prod_erase univ (fun i => if i = i₀ then ψ i (fun j => s j.val) / Z
+          else ψ i (fun j => s j.val)) (mem_univ i₀)]
       simp only [↓reduceIte, div_mul_eq_mul_div]
       congr 1
       refine congrArg (ψ i₀ _ * ·) (prod_congr rfl fun i hi => ?_)
@@ -309,16 +309,16 @@ unnormalized factorization for `IsLocalMarkovNetwork`. -/
 theorem isLocalMarkovNetwork_iff_exists_prod [Fintype ι] [Nonempty ι] {G : SimpleGraph ι}
     {σ : Convexity.StdSimplex ℝ (∀ i, S i)} :
     IsLocalMarkovNetwork G σ ↔
-      ∃ ψ : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ,
-        (∀ i u, 0 ≤ ψ i u) ∧ ∀ s : (∀ i, S i), σ.weights s = ∏ i : ι, ψ i (fun j => s j.1) :=
+      ∃ ψ : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ,
+        (∀ i u, 0 ≤ ψ i u) ∧ ∀ s : (∀ i, S i), σ.weights s = ∏ i : ι, ψ i (fun j => s j.val) :=
   exists_prod_div_iff_exists_prod (0 ≤ ·) fun _ _ hx hZ => div_nonneg hx hZ.le
 
 /-- Unnormalized characterization of `IsPositiveLocalMarkovNetwork` on a nonempty player set. -/
 theorem isPositiveLocalMarkovNetwork_iff_exists_prod [Fintype ι] [Nonempty ι] {G : SimpleGraph ι}
     {σ : Convexity.StdSimplex ℝ (∀ i, S i)} :
     IsPositiveLocalMarkovNetwork G σ ↔
-      ∃ ψ : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ,
-        (∀ i u, 0 < ψ i u) ∧ ∀ s : (∀ i, S i), σ.weights s = ∏ i : ι, ψ i (fun j => s j.1) :=
+      ∃ ψ : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ,
+        (∀ i u, 0 < ψ i u) ∧ ∀ s : (∀ i, S i), σ.weights s = ∏ i : ι, ψ i (fun j => s j.val) :=
   exists_prod_div_iff_exists_prod (0 < ·) fun _ _ hx hZ => div_pos hx hZ
 
 /-- Adding edges preserves representability as a local Markov network. -/
@@ -326,7 +326,7 @@ theorem IsLocalMarkovNetwork.mono [Fintype ι] {G H : SimpleGraph ι} (hGH : G �
     {σ : Convexity.StdSimplex ℝ (∀ i, S i)} (h : IsLocalMarkovNetwork G σ) :
     IsLocalMarkovNetwork H σ := by
   obtain ⟨ψ, Z, hnn, hZ, hfac⟩ := h
-  refine ⟨fun i u => ψ i fun j => u ⟨j.1, j.2.imp id (fun hadj => hGH hadj)⟩, Z,
+  refine ⟨fun i u => ψ i fun j => u ⟨j.val, j.property.imp id (fun hadj => hGH hadj)⟩, Z,
     fun i u => hnn i _, hZ, fun s => hfac s⟩
 
 /-- Every joint distribution is representable as a local Markov network on the complete graph `⊤`
@@ -338,7 +338,7 @@ theorem isLocalMarkovNetwork_top [Fintype ι] (σ : Convexity.StdSimplex ℝ (�
   · obtain ⟨i₀⟩ := hι
     have : Nonempty ι := ⟨i₀⟩
     rw [isLocalMarkovNetwork_iff_exists_prod]
-    let fullOf : ∀ i (u : ∀ j : ClosedNeighborhood (⊤ : SimpleGraph ι) i, S j.1), (∀ k, S k) :=
+    let fullOf : ∀ i (u : ∀ j : ClosedNeighborhood (⊤ : SimpleGraph ι) i, S j.val), (∀ k, S k) :=
       fun i u k => u ⟨k, if hki : k = i then Or.inl hki
         else Or.inr ((SimpleGraph.top_adj i k).mpr (Ne.symm hki))⟩
     refine ⟨fun i u => if i = i₀ then σ.weights (fullOf i u) else 1, fun i u => ?_, fun s => ?_⟩
@@ -367,7 +367,7 @@ private instance : DecidableRel cycle4.Adj := by
   infer_instance
 
 private def cycle4UnitPayoffNat (i : Fin 4) (s : Fin 4 → Bool) : ℕ :=
-  if (univ.filter fun j : ClosedNeighborhood cycle4 i => s j.1).card = 1 then 1 else 0
+  if (univ.filter fun j : ClosedNeighborhood cycle4 i => s j.val).card = 1 then 1 else 0
 
 private def cycle4UnitGame : GraphicalGame (Fin 4) (fun _ => Bool) where
   graph := cycle4
@@ -436,7 +436,7 @@ private theorem cycle4UnitPayoff_unitProfile :
 
 private theorem cycle4UnitProfile_opp_restrict :
     ∀ (i : Fin 4) (j : ClosedNeighborhood cycle4 i),
-      cycle4UnitProfile (i + 2) j.1 = false := by
+      cycle4UnitProfile (i + 2) j.val = false := by
   decide
 
 private theorem cycle4UnitDist_expectedPayoff (i : Fin 4) :
@@ -592,11 +592,11 @@ theorem exists_ce_not_expectedPayoffEquiv_isLocalMarkovNetwork_cycle4 :
           (isWeightOne_iff_exists_unitProfile _).mpr ⟨i + 2, rfl⟩
         simp [cycle4UnitDist, hw1]
       rw [hfac (cycle4UnitProfile (i + 2))] at hw
-      have hprod_pos : 0 < ∏ j : Fin 4, ψ j (fun k => cycle4UnitProfile (i + 2) k.1) :=
+      have hprod_pos : 0 < ∏ j : Fin 4, ψ j (fun k => cycle4UnitProfile (i + 2) k.val) :=
         (div_pos_iff_of_pos_right hZ).mp hw
-      have hfactor_ne : ψ i (fun k => cycle4UnitProfile (i + 2) k.1) ≠ 0 := fun h0 =>
+      have hfactor_ne : ψ i (fun k => cycle4UnitProfile (i + 2) k.val) ≠ 0 := fun h0 =>
         hprod_pos.ne' (prod_eq_zero (mem_univ i) h0)
-      have hrestrict : (fun k : ClosedNeighborhood cycle4 i => cycle4UnitProfile (i + 2) k.1) =
+      have hrestrict : (fun k : ClosedNeighborhood cycle4 i => cycle4UnitProfile (i + 2) k.val) =
           fun _ => false := funext fun k => cycle4UnitProfile_opp_restrict i k
       rw [hrestrict] at hfactor_ne
       exact (hnn i _).lt_of_ne' hfactor_ne
@@ -648,10 +648,10 @@ theorem exists_isPositiveLocalMarkovNetwork_of_exists_pos (G : SimpleGraph ι)
     let X := ∀ i : ι, S i
     let K : Set (Convexity.StdSimplex ℝ X) := {τ | LocalNeighborhoodEquiv G τ σ}
     -- Step 1: `K` is compact and nonempty.
-    have hcont_marg (i : ι) (u : ∀ j : ClosedNeighborhood G i, S j.1) :
+    have hcont_marg (i : ι) (u : ∀ j : ClosedNeighborhood G i, S j.val) :
         Continuous (fun τ : Convexity.StdSimplex ℝ X => neighborhoodMarginal G τ i u) := by
       have heq : (fun τ : Convexity.StdSimplex ℝ X => neighborhoodMarginal G τ i u) =
-          fun τ => ∑ s : X, if (fun j : ClosedNeighborhood G i => s j.1) = u
+          fun τ => ∑ s : X, if (fun j : ClosedNeighborhood G i => s j.val) = u
             then τ.weights s else 0 :=
         funext fun τ => neighborhoodMarginal_eq_sum G τ i u
       rw [heq]
@@ -660,7 +660,7 @@ theorem exists_isPositiveLocalMarkovNetwork_of_exists_pos (G : SimpleGraph ι)
       · exact Convexity.StdSimplex.continuous_weights_apply (R := ℝ) (M := X) s
       · exact continuous_const
     have hK_closed : IsClosed K := by
-      have hK_eq : K = ⋂ i : ι, ⋂ u : (∀ j : ClosedNeighborhood G i, S j.1),
+      have hK_eq : K = ⋂ i : ι, ⋂ u : (∀ j : ClosedNeighborhood G i, S j.val),
           {τ : Convexity.StdSimplex ℝ X |
             neighborhoodMarginal G τ i u = neighborhoodMarginal G σ i u} := by
         ext τ
@@ -762,10 +762,10 @@ theorem exists_isPositiveLocalMarkovNetwork_of_exists_pos (G : SimpleGraph ι)
         linarith
       exact not_lt_of_ge (hτStar_max hτt_mem) hgt
     -- Step 4: First-order stationarity along the kernel of the neighborhood-marginal linear map.
-    let Y := Σ i : ι, ∀ j : ClosedNeighborhood G i, S j.1
+    let Y := Σ i : ι, ∀ j : ClosedNeighborhood G i, S j.val
     let A : (X → ℝ) →ₗ[ℝ] (Y → ℝ) :=
       { toFun := fun v y =>
-          ∑ s : X, if (fun j : ClosedNeighborhood G y.1 => s j.1) = y.2 then v s else 0
+          ∑ s : X, if (fun j : ClosedNeighborhood G y.1 => s j.val) = y.2 then v s else 0
         map_add' := fun v w => by
           ext ⟨i, u⟩
           simp only [Pi.add_apply, ← sum_add_distrib]
@@ -787,13 +787,13 @@ theorem exists_isPositiveLocalMarkovNetwork_of_exists_pos (G : SimpleGraph ι)
       rw [Submodule.mem_dualAnnihilator]
       intro v hv
       rw [LinearMap.mem_ker] at hv
-      have hv_marg : ∀ (i : ι) (u : ∀ j : ClosedNeighborhood G i, S j.1),
-          (∑ s : X, if (fun j : ClosedNeighborhood G i => s j.1) = u then v s else 0) = 0 :=
+      have hv_marg : ∀ (i : ι) (u : ∀ j : ClosedNeighborhood G i, S j.val),
+          (∑ s : X, if (fun j : ClosedNeighborhood G i => s j.val) = u then v s else 0) = 0 :=
         fun i u => congrFun hv ⟨i, u⟩
       obtain ⟨i₀⟩ := hι
       have hv_sum : ∑ s : X, v s = 0 := by
-        have hsum0 : ∑ u : (∀ j : ClosedNeighborhood G i₀, S j.1),
-            (∑ s : X, if (fun j : ClosedNeighborhood G i₀ => s j.1) = u then v s else 0) = 0 :=
+        have hsum0 : ∑ u : (∀ j : ClosedNeighborhood G i₀, S j.val),
+            (∑ s : X, if (fun j : ClosedNeighborhood G i₀ => s j.val) = u then v s else 0) = 0 :=
           sum_eq_zero fun u _ => hv_marg i₀ u
         rw [sum_comm] at hsum0
         simpa only [sum_ite_eq univ, mem_univ, ↓reduceIte] using hsum0
@@ -830,11 +830,11 @@ theorem exists_isPositiveLocalMarkovNetwork_of_exists_pos (G : SimpleGraph ι)
           intro i u
           rw [neighborhoodMarginal_eq_sum]
           simp only [τt, simplexOfFun_weights]
-          have hsplit : (∑ s : X, if (fun j : ClosedNeighborhood G i => s j.1) = u
+          have hsplit : (∑ s : X, if (fun j : ClosedNeighborhood G i => s j.val) = u
                 then τStar.weights s + t * v s else 0) =
-              (∑ s : X, if (fun j : ClosedNeighborhood G i => s j.1) = u
+              (∑ s : X, if (fun j : ClosedNeighborhood G i => s j.val) = u
                 then τStar.weights s else 0) +
-              t * (∑ s : X, if (fun j : ClosedNeighborhood G i => s j.1) = u
+              t * (∑ s : X, if (fun j : ClosedNeighborhood G i => s j.val) = u
                 then v s else 0) := by
             rw [mul_sum, ← sum_add_distrib]
             refine sum_congr rfl fun s _ => ?_
@@ -859,33 +859,33 @@ theorem exists_isPositiveLocalMarkovNetwork_of_exists_pos (G : SimpleGraph ι)
     -- Step 5: Dual map surjectivity yields Lagrange multipliers on closed neighborhoods.
     rw [← LinearMap.range_dualMap_eq_dualAnnihilator_ker] at hφ_ker
     obtain ⟨η, hη⟩ := hφ_ker
-    let ψ : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ :=
+    let ψ : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ :=
       fun i u => Real.exp (-η (Pi.single ⟨i, u⟩ 1))
     refine ⟨τStar, hτStar_mem, ψ, Real.exp 1, fun i u => Real.exp_pos _, Real.exp_pos 1,
       fun s => ?_⟩
     have hsingle : A (Pi.single s 1) =
-        ∑ i : ι, Pi.single (⟨i, fun j : ClosedNeighborhood G i => s j.1⟩ : Y) (1 : ℝ) := by
+        ∑ i : ι, Pi.single (⟨i, fun j : ClosedNeighborhood G i => s j.val⟩ : Y) (1 : ℝ) := by
       ext ⟨i', u'⟩
       simp only [A, LinearMap.coe_mk, AddHom.coe_mk, Finset.sum_apply]
-      have hLHS : (∑ t : X, if (fun j : ClosedNeighborhood G i' => t j.1) = u'
+      have hLHS : (∑ t : X, if (fun j : ClosedNeighborhood G i' => t j.val) = u'
             then (Pi.single s (1 : ℝ) : X → ℝ) t else 0) =
-          if (fun j : ClosedNeighborhood G i' => s j.1) = u' then (1 : ℝ) else 0 := by
+          if (fun j : ClosedNeighborhood G i' => s j.val) = u' then (1 : ℝ) else 0 := by
         rw [sum_eq_single s (fun t _ hts => by simp [Pi.single_eq_of_ne hts])
           (fun h => (h (mem_univ s)).elim)]
         simp
-      have hRHS : (∑ i : ι, (Pi.single (⟨i, fun j : ClosedNeighborhood G i => s j.1⟩ : Y)
+      have hRHS : (∑ i : ι, (Pi.single (⟨i, fun j : ClosedNeighborhood G i => s j.val⟩ : Y)
             (1 : ℝ) : Y → ℝ) ⟨i', u'⟩) =
-          if (fun j : ClosedNeighborhood G i' => s j.1) = u' then (1 : ℝ) else 0 := by
+          if (fun j : ClosedNeighborhood G i' => s j.val) = u' then (1 : ℝ) else 0 := by
         rw [sum_eq_single i'
           (fun i _ hii' => Pi.single_eq_of_ne (fun heq => hii' (congrArg Sigma.fst heq).symm) _)
           (fun h => (h (mem_univ i')).elim)]
-        by_cases hu : (fun j : ClosedNeighborhood G i' => s j.1) = u'
+        by_cases hu : (fun j : ClosedNeighborhood G i' => s j.val) = u'
         · subst hu; simp
-        · have hne : (⟨i', u'⟩ : Y) ≠ ⟨i', fun j : ClosedNeighborhood G i' => s j.1⟩ := by
+        · have hne : (⟨i', u'⟩ : Y) ≠ ⟨i', fun j : ClosedNeighborhood G i' => s j.val⟩ := by
             intro h; cases h; exact hu rfl
           simp [Pi.single_eq_of_ne hne, hu]
       rw [hLHS, hRHS]
-    have hdual : ∑ i : ι, η (Pi.single ⟨i, fun j : ClosedNeighborhood G i => s j.1⟩ 1) =
+    have hdual : ∑ i : ι, η (Pi.single ⟨i, fun j : ClosedNeighborhood G i => s j.val⟩ 1) =
         -Real.log (τStar.weights s) - 1 := by
       have hev := congrArg (fun f : Module.Dual ℝ (X → ℝ) => f (Pi.single s 1)) hη
       simp only [LinearMap.dualMap_apply, hsingle, map_sum, φ, LinearMap.coe_mk,
@@ -895,12 +895,12 @@ theorem exists_isPositiveLocalMarkovNetwork_of_exists_pos (G : SimpleGraph ι)
       simpa only [Pi.single_eq_same, mul_one] using hev
     calc τStar.weights s
         = Real.exp (Real.log (τStar.weights s)) := (Real.exp_log (hτStar_pos s)).symm
-      _ = Real.exp ((∑ i : ι, -η (Pi.single ⟨i, fun j => s j.1⟩ 1)) - 1) := by
+      _ = Real.exp ((∑ i : ι, -η (Pi.single ⟨i, fun j => s j.val⟩ 1)) - 1) := by
           rw [sum_neg_distrib, hdual]
           congr 1; ring
-      _ = Real.exp (∑ i : ι, -η (Pi.single ⟨i, fun j => s j.1⟩ 1)) / Real.exp 1 :=
+      _ = Real.exp (∑ i : ι, -η (Pi.single ⟨i, fun j => s j.val⟩ 1)) / Real.exp 1 :=
           Real.exp_sub _ _
-      _ = (∏ i : ι, ψ i (fun j => s j.1)) / Real.exp 1 := by
+      _ = (∏ i : ι, ψ i (fun j => s j.val)) / Real.exp 1 := by
           rw [Real.exp_sum]
   · have : IsEmpty ι := not_nonempty_iff.mp hι
     refine ⟨σ, fun _ _ => rfl, fun i => isEmptyElim i, 1, fun i => isEmptyElim i, zero_lt_one,
@@ -959,7 +959,7 @@ private theorem exists_posMarkov_mixUniform (G : SimpleGraph ι)
     (σ : Convexity.StdSimplex ℝ (∀ i, S i)) {δ : ℝ} (hδ_pos : 0 < δ) (hδ_le : δ ≤ 1) :
     ∃ (τ : Convexity.StdSimplex ℝ (∀ i, S i)),
       IsPositiveLocalMarkovNetwork G τ ∧
-      (∀ (i : ι) (u : ∀ j : ClosedNeighborhood G i, S j.1),
+      (∀ (i : ι) (u : ∀ j : ClosedNeighborhood G i, S j.val),
         |neighborhoodMarginal G τ i u - neighborhoodMarginal G σ i u| ≤ δ) ∧
       ∃ (uDist : Convexity.StdSimplex ℝ (∀ i, S i)),
         LocalNeighborhoodEquiv G τ
@@ -1001,7 +1001,7 @@ theorem exists_isPositiveLocalMarkovNetwork_neighborhoodMarginal_approx (G : Sim
     (σ : Convexity.StdSimplex ℝ (∀ i, S i)) {ε : ℝ} (hε : 0 < ε) :
     ∃ τ : Convexity.StdSimplex ℝ (∀ i, S i),
       IsPositiveLocalMarkovNetwork G τ ∧
-      ∀ (i : ι) (u : ∀ j : ClosedNeighborhood G i, S j.1),
+      ∀ (i : ι) (u : ∀ j : ClosedNeighborhood G i, S j.val),
         |neighborhoodMarginal G τ i u - neighborhoodMarginal G σ i u| ≤ ε := by
   let δ : ℝ := min (1 / 2) ε
   have hδ_pos : 0 < δ := lt_min (by norm_num) hε
@@ -1022,7 +1022,7 @@ theorem GraphicalGame.exists_isPositiveLocalMarkovNetwork_isApproxCorrelatedEqui
       M.toCostGame.IsApproxCorrelatedEquilibrium (fun _ => ε) τ ∧
       (∀ i : ι, |τ.weights.sum (fun s w => w * M.payoff i s) -
           σ.weights.sum (fun s w => w * M.payoff i s)| ≤ ε) ∧
-      (∀ (i : ι) (u : ∀ j : ClosedNeighborhood M.graph i, S j.1),
+      (∀ (i : ι) (u : ∀ j : ClosedNeighborhood M.graph i, S j.val),
         |neighborhoodMarginal M.graph τ i u - neighborhoodMarginal M.graph σ i u| ≤ ε) := by
   classical
   have := fun i => Fintype.ofFinite (S i)
@@ -1113,36 +1113,36 @@ variable {ι : Type*} {S : ι → Type*}
 /-- Marginal of a local neighborhood family `q` at vertex `i` on an arbitrary subset
 `T ⊆ ClosedNeighborhood G i`. -/
 noncomputable def restrictMarginal [Fintype ι] [∀ i, Fintype (S i)] (G : SimpleGraph ι)
-    (q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ) (i : ι) (T : Set ι)
-    (hT : ∀ k ∈ T, k = i ∨ G.Adj i k) (y : ∀ k : T, S k.1) : ℝ :=
+    (q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ) (i : ι) (T : Set ι)
+    (hT : ∀ k ∈ T, k = i ∨ G.Adj i k) (y : ∀ k : T, S k.val) : ℝ :=
   open Classical in
-  ∑ u : (∀ j : ClosedNeighborhood G i, S j.1),
-    if (fun k : T => u ⟨k.1, hT k.1 k.2⟩) = y then q i u else 0
+  ∑ u : (∀ j : ClosedNeighborhood G i, S j.val),
+    if (fun k : T => u ⟨k.val, hT k.val k.property⟩) = y then q i u else 0
 
 theorem restrictMarginal_def [Fintype ι] [∀ i, Fintype (S i)] (G : SimpleGraph ι)
     [DecidableRel G.Adj] [DecidableEq ι]
-    (q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ) (i : ι) (T : Set ι)
-    (hT : ∀ k ∈ T, k = i ∨ G.Adj i k) [DecidableEq (∀ k : T, S k.1)]
-    (y : ∀ k : T, S k.1) :
+    (q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ) (i : ι) (T : Set ι)
+    (hT : ∀ k ∈ T, k = i ∨ G.Adj i k) [DecidableEq (∀ k : T, S k.val)]
+    (y : ∀ k : T, S k.val) :
     restrictMarginal G q i T hT y =
-      ∑ u : (∀ j : ClosedNeighborhood G i, S j.1),
-        if (fun k : T => u ⟨k.1, hT k.1 k.2⟩) = y then q i u else 0 := by
+      ∑ u : (∀ j : ClosedNeighborhood G i, S j.val),
+        if (fun k : T => u ⟨k.val, hT k.val k.property⟩) = y then q i u else 0 := by
   unfold restrictMarginal
   convert rfl
 
 /-- Edge marginal induced by `q i` on `{i, j}` for an edge `G.Adj i j`. -/
 noncomputable def edgeMarginal [Fintype ι] [∀ i, Fintype (S i)] (G : SimpleGraph ι)
-    (q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ) (i j : ι) (hadj : G.Adj i j)
+    (q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ) (i j : ι) (hadj : G.Adj i j)
     (a : S i) (b : S j) : ℝ :=
   open Classical in
-  ∑ u : (∀ k : ClosedNeighborhood G i, S k.1),
+  ∑ u : (∀ k : ClosedNeighborhood G i, S k.val),
     if u ⟨i, Or.inl rfl⟩ = a ∧ u ⟨j, Or.inr hadj⟩ = b then q i u else 0
 
 theorem edgeMarginal_def [Fintype ι] [∀ i, Fintype (S i)] (G : SimpleGraph ι)
-    [DecidableRel G.Adj] [DecidableEq ι] (q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ)
+    [DecidableRel G.Adj] [DecidableEq ι] (q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ)
     (i j : ι) (hadj : G.Adj i j) [DecidableEq (S i)] [DecidableEq (S j)] (a : S i) (b : S j) :
     edgeMarginal G q i j hadj a b =
-      ∑ u : (∀ k : ClosedNeighborhood G i, S k.1),
+      ∑ u : (∀ k : ClosedNeighborhood G i, S k.val),
         if u ⟨i, Or.inl rfl⟩ = a ∧ u ⟨j, Or.inr hadj⟩ = b then q i u else 0 := by
   unfold edgeMarginal
   convert rfl
@@ -1150,14 +1150,14 @@ theorem edgeMarginal_def [Fintype ι] [∀ i, Fintype (S i)] (G : SimpleGraph ι
 /-- **Local distribution constraints** ([Kearns2007], §7.4.3, constraint (ii), p. 175): each `q i`
 is nonnegative and sums to `1` over `ClosedNeighborhood G i`. -/
 @[expose] def IsLocalDistribution [Fintype ι] [∀ i, Fintype (S i)] (G : SimpleGraph ι)
-    (q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ) : Prop :=
+    (q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ) : Prop :=
   ∀ i : ι, (∀ u, 0 ≤ q i u) ∧ (open Classical in ∑ u, q i u = 1)
 
 /-- **Edge consistency**: for every edge `G.Adj i j`, the `{i, j}`-marginals of `q i` and `q j`
 agree. On trees, this is equivalent to full intersection consistency (`IsIntersectionConsistent`).
 -/
 @[expose] def IsEdgeConsistent [Fintype ι] [∀ i, Fintype (S i)] (G : SimpleGraph ι)
-    (q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ) : Prop :=
+    (q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ) : Prop :=
   ∀ (i j : ι) (hadj : G.Adj i j) (a : S i) (b : S j),
     edgeMarginal G q i j hadj a b = edgeMarginal G q j i hadj.symm b a
 
@@ -1165,8 +1165,8 @@ agree. On trees, this is equivalent to full intersection consistency (`IsInterse
 for all players `i` and `j`, `q i` and `q j` induce the same marginal distribution on
 `N_G(i) ∩ N_G(j)`. -/
 @[expose] def IsIntersectionConsistent [Fintype ι] [∀ i, Fintype (S i)] (G : SimpleGraph ι)
-    (q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ) : Prop :=
-  ∀ (i j : ι) (y : ∀ k : ({k : ι | (k = i ∨ G.Adj i k) ∧ (k = j ∨ G.Adj j k)} : Set ι), S k.1),
+    (q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ) : Prop :=
+  ∀ (i j : ι) (y : ∀ k : ({k : ι | (k = i ∨ G.Adj i k) ∧ (k = j ∨ G.Adj j k)} : Set ι), S k.val),
     restrictMarginal G q i {k : ι | (k = i ∨ G.Adj i k) ∧ (k = j ∨ G.Adj j k)} (fun _ h => h.1) y =
       restrictMarginal G q j {k : ι | (k = i ∨ G.Adj i k) ∧ (k = j ∨ G.Adj j k)}
         (fun _ h => h.2) y
@@ -1176,14 +1176,14 @@ p. 175): for every player `i`, recommended action `a`, and deviation `b`, switch
 does not increase player `i`'s local expected payoff under `q i`. -/
 @[expose] def GraphicalGame.SatisfiesLocalCE [Fintype ι] [DecidableEq ι] [∀ i, Fintype (S i)]
     (M : GraphicalGame ι S)
-    (q : ∀ i : ι, (∀ j : ClosedNeighborhood M.graph i, S j.1) → ℝ) : Prop :=
+    (q : ∀ i : ι, (∀ j : ClosedNeighborhood M.graph i, S j.val) → ℝ) : Prop :=
   open Classical in
   ∀ (i : ι) (a b : S i),
-    (∑ u : (∀ j : ClosedNeighborhood M.graph i, S j.1),
+    (∑ u : (∀ j : ClosedNeighborhood M.graph i, S j.val),
       if u ⟨i, Or.inl rfl⟩ = a then
         q i u * M.localPayoff i (update u ⟨i, Or.inl rfl⟩ b)
       else 0) ≤
-    (∑ u : (∀ j : ClosedNeighborhood M.graph i, S j.1),
+    (∑ u : (∀ j : ClosedNeighborhood M.graph i, S j.val),
       if u ⟨i, Or.inl rfl⟩ = a then q i u * M.localPayoff i u else 0)
 
 /-- **Kearns's local correlated-equilibrium linear program** ([Kearns2007], §7.4.3, constraints
@@ -1191,7 +1191,7 @@ does not increase player `i`'s local expected payoff under `q i`. -/
 constraints, simplex constraints, and pairwise neighborhood-intersection consistency. -/
 @[expose] def GraphicalGame.IsLocalCorrelatedEquilibrium [Fintype ι] [DecidableEq ι]
     [∀ i, Fintype (S i)] (M : GraphicalGame ι S)
-    (q : ∀ i : ι, (∀ j : ClosedNeighborhood M.graph i, S j.1) → ℝ) : Prop :=
+    (q : ∀ i : ι, (∀ j : ClosedNeighborhood M.graph i, S j.val) → ℝ) : Prop :=
   M.SatisfiesLocalCE q ∧ IsLocalDistribution M.graph q ∧ IsIntersectionConsistent M.graph q
 
 /-! #### Private junction-tree lifting construction on finite trees -/
@@ -1199,27 +1199,27 @@ constraints, simplex constraints, and pairwise neighborhood-intersection consist
 section TreeLiftPrivate
 
 private def override {P : ι → Prop} [DecidablePred P]
-    (s₀ : ∀ i, S i) (x : ∀ z : {z : ι // P z}, S z.1) (i : ι) : S i :=
+    (s₀ : ∀ i, S i) (x : ∀ z : {z : ι // P z}, S z.val) (i : ι) : S i :=
   if hi : P i then x ⟨i, hi⟩ else s₀ i
 
 private theorem override_of_pos {P : ι → Prop} [DecidablePred P]
-    (s₀ : ∀ i, S i) (x : ∀ z : {z : ι // P z}, S z.1) {i : ι} (hi : P i) :
+    (s₀ : ∀ i, S i) (x : ∀ z : {z : ι // P z}, S z.val) {i : ι} (hi : P i) :
     override s₀ x i = x ⟨i, hi⟩ :=
   dite_eq_left hi
 
 private theorem override_of_neg {P : ι → Prop} [DecidablePred P]
-    (s₀ : ∀ i, S i) (x : ∀ z : {z : ι // P z}, S z.1) {i : ι} (hi : ¬ P i) :
+    (s₀ : ∀ i, S i) (x : ∀ z : {z : ι // P z}, S z.val) {i : ι} (hi : ¬ P i) :
     override s₀ x i = s₀ i :=
   dite_eq_right hi
 
 private noncomputable def piEquivDisjointUnion {κ : Type*} {P : ι → Prop} {R : κ → ι → Prop}
     (hsub : ∀ k z, R k z → P z) (hcov : ∀ z, P z → ∃ k, R k z)
     (hdisj : ∀ k₁ k₂ z, R k₁ z → R k₂ z → k₁ = k₂) :
-    (∀ z : {z : ι // P z}, S z.1) ≃ (∀ k : κ, ∀ z : {z : ι // R k z}, S z.1) where
-  toFun x k z := x ⟨z.1, hsub k z.1 z.2⟩
+    (∀ z : {z : ι // P z}, S z.val) ≃ (∀ k : κ, ∀ z : {z : ι // R k z}, S z.val) where
+  toFun x k z := x ⟨z.val, hsub k z.val z.property⟩
   invFun y z :=
-    let hex := hcov z.1 z.2
-    y (Classical.choose hex) ⟨z.1, Classical.choose_spec hex⟩
+    let hex := hcov z.val z.property
+    y (Classical.choose hex) ⟨z.val, Classical.choose_spec hex⟩
   left_inv x := by
     ext ⟨z, hz⟩
     rfl
@@ -1236,12 +1236,13 @@ private noncomputable def piEquivDisjointUnion {κ : Type*} {P : ι → Prop} {R
 private noncomputable def piEquivSplit {P Q R : ι → Prop} [DecidablePred Q]
     (hsubQ : ∀ z, Q z → P z) (hsubR : ∀ z, R z → P z)
     (hcov : ∀ z, P z → Q z ∨ R z) (hdisj : ∀ z, Q z → R z → False) :
-    (∀ z : {z : ι // P z}, S z.1) ≃
-      (∀ z : {z : ι // Q z}, S z.1) × (∀ z : {z : ι // R z}, S z.1) where
-  toFun x := (fun z => x ⟨z.1, hsubQ z.1 z.2⟩, fun z => x ⟨z.1, hsubR z.1 z.2⟩)
+    (∀ z : {z : ι // P z}, S z.val) ≃
+      (∀ z : {z : ι // Q z}, S z.val) × (∀ z : {z : ι // R z}, S z.val) where
+  toFun x :=
+    (fun z => x ⟨z.val, hsubQ z.val z.property⟩, fun z => x ⟨z.val, hsubR z.val z.property⟩)
   invFun y z :=
-    if hq : Q z.1 then y.1 ⟨z.1, hq⟩
-    else y.2 ⟨z.1, (hcov z.1 z.2).resolve_left hq⟩
+    if hq : Q z.val then y.1 ⟨z.val, hq⟩
+    else y.2 ⟨z.val, (hcov z.val z.property).resolve_left hq⟩
   left_inv x := by
     ext ⟨z, hz⟩
     dsimp only
@@ -1253,9 +1254,9 @@ private noncomputable def piEquivSplit {P Q R : ι → Prop} [DecidablePred Q]
       simp [hnq]
 
 private theorem pairwiseDisjoint_filter_treeSide [Fintype ι] {G : SimpleGraph ι} (hT : G.IsTree)
-    (r v : ι) [∀ c : UpstreamNeighbors hT r v, DecidablePred (· ∈ hT.treeSide c.1 v)] :
+    (r v : ι) [∀ c : UpstreamNeighbors hT r v, DecidablePred (· ∈ hT.treeSide c.val v)] :
     Set.PairwiseDisjoint (Set.univ : Set (UpstreamNeighbors hT r v))
-      (fun c => univ.filter (fun z => z ∈ hT.treeSide c.1 v)) := by
+      (fun c => univ.filter (fun z => z ∈ hT.treeSide c.val v)) := by
   intro c₁ _ c₂ _ hne
   dsimp only [Function.onFun]
   rw [Finset.disjoint_left]
@@ -1265,7 +1266,8 @@ private theorem pairwiseDisjoint_filter_treeSide [Fintype ι] {G : SimpleGraph �
 private noncomputable def nonRootEdgeEquiv {G : SimpleGraph ι} (hT : G.IsTree) (r : ι) :
     {v : ι // v ≠ r} ≃ G.edgeSet :=
   Equiv.ofBijective
-    (fun v => ⟨s(v.1, hT.parent r v.1), (SimpleGraph.mem_edgeSet G).mpr (hT.adj_parent r v.2)⟩)
+    (fun v => ⟨s(v.val, hT.parent r v.val),
+      (SimpleGraph.mem_edgeSet G).mpr (hT.adj_parent r v.property)⟩)
     ⟨by
       rintro ⟨u, hu⟩ ⟨v, hv⟩ heq
       have hsym : s(u, hT.parent r u) = s(v, hT.parent r v) := congrArg Subtype.val heq
@@ -1289,8 +1291,8 @@ variable [Fintype ι] [∀ i, Fintype (S i)]
 /-- Rooted tree potential `ψ_v` for junction-tree lifting: `q r` at the root `r`, and
 `q v / edgeMarginal v (parent r v)` at non-root vertices `v ≠ r` (with `0 / 0 = 0`). -/
 private noncomputable def treePotential {G : SimpleGraph ι} (hT : G.IsTree)
-    (q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ) (r v : ι)
-    (u : ∀ j : ClosedNeighborhood G v, S j.1) : ℝ := by
+    (q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ) (r v : ι)
+    (u : ∀ j : ClosedNeighborhood G v, S j.val) : ℝ := by
   classical
   exact if hv : v = r then q v u
   else
@@ -1299,8 +1301,8 @@ private noncomputable def treePotential {G : SimpleGraph ι} (hT : G.IsTree)
         (u ⟨v, Or.inl rfl⟩) (u ⟨hT.parent r v, Or.inr (hT.adj_parent r hv)⟩)
 
 private theorem treePotential_nonneg {G : SimpleGraph ι} (hT : G.IsTree)
-    {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ}
-    (hnn : ∀ i u, 0 ≤ q i u) (r v : ι) (u : ∀ j : ClosedNeighborhood G v, S j.1) :
+    {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ}
+    (hnn : ∀ i u, 0 ≤ q i u) (r v : ι) (u : ∀ j : ClosedNeighborhood G v, S j.val) :
     0 ≤ treePotential hT q r v u := by
   classical
   unfold treePotential
@@ -1311,11 +1313,11 @@ private theorem treePotential_nonneg {G : SimpleGraph ι} (hT : G.IsTree)
     exact sum_nonneg fun w _ => by split_ifs <;> [exact hnn v w; exact le_rfl]
 
 private noncomputable def treeWeight {G : SimpleGraph ι} (hT : G.IsTree)
-    (q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ) (r : ι) (s : ∀ i, S i) : ℝ :=
-  ∏ v : ι, treePotential hT q r v (fun j => s j.1)
+    (q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ) (r : ι) (s : ∀ i, S i) : ℝ :=
+  ∏ v : ι, treePotential hT q r v (fun j => s j.val)
 
 private theorem treeWeight_nonneg {G : SimpleGraph ι} (hT : G.IsTree)
-    {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ}
+    {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ}
     (hnn : ∀ i u, 0 ≤ q i u) (r : ι) (s : ∀ i, S i) :
     0 ≤ treeWeight hT q r s :=
   prod_nonneg fun v _ => treePotential_nonneg hT hnn r v _
@@ -1323,19 +1325,19 @@ private theorem treeWeight_nonneg {G : SimpleGraph ι} (hT : G.IsTree)
 /-- Key re-rooting invariance: under edge consistency, `treeWeight hT q r s` is completely
 independent of the chosen root `r` (even when some edge marginals vanish, via `0 / 0 = 0`). -/
 private theorem treeWeight_root_indep {G : SimpleGraph ι} (hT : G.IsTree)
-    {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ}
+    {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ}
     (hedge : IsEdgeConsistent G q) (r₁ r₂ : ι) (s : ∀ i, S i) :
     treeWeight hT q r₁ s = treeWeight hT q r₂ s := by
   classical
   have hdiv (r : ι) :
       treeWeight hT q r s =
-        (∏ v : ι, q v (fun j => s j.1)) /
+        (∏ v : ι, q v (fun j => s j.val)) /
           ∏ v : {v : ι // v ≠ r},
-            edgeMarginal G q v.1 (hT.parent r v.1) (hT.adj_parent r v.2)
-              (s v.1) (s (hT.parent r v.1)) := by
+            edgeMarginal G q v.val (hT.parent r v.val) (hT.adj_parent r v.property)
+              (s v.val) (s (hT.parent r v.val)) := by
     have hpot (v : ι) :
-        treePotential hT q r v (fun j => s j.1) =
-          q v (fun j => s j.1) /
+        treePotential hT q r v (fun j => s j.val) =
+          q v (fun j => s j.val) /
             (if hv : v = r then (1 : ℝ)
               else edgeMarginal G q v (hT.parent r v) (hT.adj_parent r hv)
                 (s v) (s (hT.parent r v))) := by
@@ -1355,7 +1357,7 @@ private theorem treeWeight_root_indep {G : SimpleGraph ι} (hT : G.IsTree)
   let e : {v : ι // v ≠ r₁} ≃ {v : ι // v ≠ r₂} :=
     (nonRootEdgeEquiv hT r₁).trans (nonRootEdgeEquiv hT r₂).symm
   refine Fintype.prod_equiv e _ _ fun v => ?_
-  have hedge_eq : s(v.1, hT.parent r₁ v.1) = s((e v).1, hT.parent r₂ (e v).1) := by
+  have hedge_eq : s(v.val, hT.parent r₁ v.val) = s((e v).val, hT.parent r₂ (e v).val) := by
     have h1 : nonRootEdgeEquiv hT r₂ (e v) = nonRootEdgeEquiv hT r₁ v :=
       Equiv.apply_symm_apply _ _
     exact (congrArg Subtype.val h1).symm
@@ -1374,9 +1376,9 @@ private theorem treeWeight_root_indep {G : SimpleGraph ι} (hT : G.IsTree)
   · exact key₂ _ _ _ _ _ _ h1 h2
 
 private theorem q_eq_zero_of_edgeMarginal_eq_zero {G : SimpleGraph ι}
-    {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ}
+    {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ}
     (hnn : ∀ i u, 0 ≤ q i u) {i j : ι} (hadj : G.Adj i j)
-    {u : ∀ k : ClosedNeighborhood G i, S k.1}
+    {u : ∀ k : ClosedNeighborhood G i, S k.val}
     (h0 : edgeMarginal G q i j hadj (u ⟨i, Or.inl rfl⟩) (u ⟨j, Or.inr hadj⟩) = 0) :
     q i u = 0 := by
   classical
@@ -1391,14 +1393,14 @@ summing the upstream subtree product `∏ z ∈ treeSide v (parent r v), treePot
 actions strictly above `v` yields `1` if the edge marginal on `(v, parent r v)` is nonzero and `0`
 otherwise. -/
 private theorem sum_subtree_treePotential {G : SimpleGraph ι} (hT : G.IsTree) (r : ι)
-    {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ}
+    {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ}
     (hnn : ∀ i u, 0 ≤ q i u) (hedge : IsEdgeConsistent G q)
     {v : ι} (hv : v ≠ r) (s₀ : ∀ i, S i) :
     by
       classical
-      exact ∑ x : (∀ z : {z : ι // z ∈ hT.treeSide v (hT.parent r v) ∧ z ≠ v}, S z.1),
+      exact ∑ x : (∀ z : {z : ι // z ∈ hT.treeSide v (hT.parent r v) ∧ z ≠ v}, S z.val),
         ∏ z ∈ univ.filter (fun z => z ∈ hT.treeSide v (hT.parent r v)),
-          treePotential hT q r z (fun j => override s₀ x j.1) =
+          treePotential hT q r z (fun j => override s₀ x j.val) =
       if edgeMarginal G q v (hT.parent r v) (hT.adj_parent r hv) (s₀ v) (s₀ (hT.parent r v)) = 0
       then 0 else 1 := by
   classical
@@ -1407,16 +1409,17 @@ private theorem sum_subtree_treePotential {G : SimpleGraph ι} (hT : G.IsTree) (
   | ind n ih =>
     have hadj_vp : G.Adj v (hT.parent r v) := hT.adj_parent r hv
     have hlt_up : ∀ c : UpstreamNeighbors hT r v,
-        Fintype.card ι - (hT.pathTo r c.1).length < n := fun c => hn ▸ c.card_sub_length_pathTo_lt
-    have hadj_cv : ∀ c : UpstreamNeighbors hT r v, G.Adj c.1 v := fun c => by
-      simpa [c.2.2] using hT.adj_parent r c.2.1
+        Fintype.card ι - (hT.pathTo r c.val).length < n := fun c => hn ▸ c.card_sub_length_pathTo_lt
+    have hadj_cv : ∀ c : UpstreamNeighbors hT r v, G.Adj c.val v := fun c => by
+      simpa [c.property.2] using hT.adj_parent r c.property.1
     have hsub_up : ∀ c : UpstreamNeighbors hT r v,
-        hT.treeSide c.1 v ⊆ hT.treeSide v (hT.parent r v) := fun c => c.treeSide_subset hv
+        hT.treeSide c.val v ⊆ hT.treeSide v (hT.parent r v) := fun c => c.treeSide_subset hv
     -- Step A: Split `treeSide v (parent r v) \ {v}` into `UpstreamNeighbors hT r v` and
     -- `⋃ c, (treeSide c v \ {c})`.
     let Pv : ι → Prop := fun z => z ∈ hT.treeSide v (hT.parent r v) ∧ z ≠ v
     let Qv : ι → Prop := fun z => z ≠ r ∧ hT.parent r z = v
-    let Rv : ι → Prop := fun z => ∃ c : UpstreamNeighbors hT r v, z ∈ hT.treeSide c.1 v ∧ z ≠ c.1
+    let Rv : ι → Prop := fun z =>
+      ∃ c : UpstreamNeighbors hT r v, z ∈ hT.treeSide c.val v ∧ z ≠ c.val
     have hsubQ : ∀ z, Qv z → Pv z := fun z hz => by
       let hc : UpstreamNeighbors hT r v := ⟨z, hz⟩
       exact ⟨hsub_up hc (hT.self_mem_treeSide_of_adj (hadj_cv hc)), (hadj_cv hc).ne⟩
@@ -1426,8 +1429,8 @@ private theorem sum_subtree_treePotential {G : SimpleGraph ι} (hT : G.IsTree) (
       rw [hT.treeSide_eq_insert_biUnion hadj_vp] at hz
       obtain ⟨c₀, hc₀, hzc⟩ := Set.mem_iUnion₂.mp (hz.resolve_left hzv)
       let c : UpstreamNeighbors hT r v := ⟨c₀, (upstream_neighbor_iff hT r hv).mp hc₀⟩
-      by_cases hzc_eq : z = c.1
-      · exact Or.inl (hzc_eq ▸ c.2)
+      by_cases hzc_eq : z = c.val
+      · exact Or.inl (hzc_eq ▸ c.property)
       · exact Or.inr ⟨c, hzc, hzc_eq⟩
     have hdisjQR : ∀ z, Qv z → Rv z → False := fun z hz ⟨c, hzc, hzne⟩ => by
       let cz : UpstreamNeighbors hT r v := ⟨z, hz⟩
@@ -1435,26 +1438,26 @@ private theorem sum_subtree_treePotential {G : SimpleGraph ι} (hT : G.IsTree) (
       exact hzne (congrArg Subtype.val heq)
     let e1 := piEquivSplit (S := S) hsubQ hsubR hcovQR hdisjQR
     let e2 := piEquivDisjointUnion (S := S)
-      (P := Rv) (R := fun (c : UpstreamNeighbors hT r v) z => z ∈ hT.treeSide c.1 v ∧ z ≠ c.1)
+      (P := Rv) (R := fun (c : UpstreamNeighbors hT r v) z => z ∈ hT.treeSide c.val v ∧ z ≠ c.val)
       (fun c z hz => ⟨c, hz⟩) (fun z hz => hz)
       (fun c₁ c₂ z h1 h2 => upstream_unique_of_mem_treeSide h1.1 h2.1)
-    let eAll : (∀ z : {z : ι // Pv z}, S z.1) ≃
-        (∀ c : UpstreamNeighbors hT r v, S c.1) ×
+    let eAll : (∀ z : {z : ι // Pv z}, S z.val) ≃
+        (∀ c : UpstreamNeighbors hT r v, S c.val) ×
         (∀ c : UpstreamNeighbors hT r v,
-          ∀ z : {z : ι // z ∈ hT.treeSide c.1 v ∧ z ≠ c.1}, S z.1) :=
+          ∀ z : {z : ι // z ∈ hT.treeSide c.val v ∧ z ≠ c.val}, S z.val) :=
       e1.trans (Equiv.prodCongr (Equiv.refl _) e2)
     -- Step B: Rewrite the sum over `x` via `eAll.symm`, separating `v`'s factor from subtrees.
-    let sMid (a : ∀ c : UpstreamNeighbors hT r v, S c.1) : ∀ i, S i :=
+    let sMid (a : ∀ c : UpstreamNeighbors hT r v, S c.val) : ∀ i, S i :=
       override s₀ (P := Qv) a
-    have hfactor : ∀ (a : ∀ c : UpstreamNeighbors hT r v, S c.1)
+    have hfactor : ∀ (a : ∀ c : UpstreamNeighbors hT r v, S c.val)
         (y : ∀ c : UpstreamNeighbors hT r v,
-          ∀ z : {z : ι // z ∈ hT.treeSide c.1 v ∧ z ≠ c.1}, S z.1),
+          ∀ z : {z : ι // z ∈ hT.treeSide c.val v ∧ z ≠ c.val}, S z.val),
         (∏ z ∈ univ.filter (fun z => z ∈ hT.treeSide v (hT.parent r v)),
-            treePotential hT q r z (fun j => override s₀ (eAll.symm (a, y)) j.1)) =
-        treePotential hT q r v (fun j => sMid a j.1) *
+            treePotential hT q r z (fun j => override s₀ (eAll.symm (a, y)) j.val)) =
+        treePotential hT q r v (fun j => sMid a j.val) *
           ∏ c : UpstreamNeighbors hT r v,
-            ∏ z ∈ univ.filter (fun z => z ∈ hT.treeSide c.1 v),
-              treePotential hT q r z (fun j => override (sMid a) (y c) j.1) := by
+            ∏ z ∈ univ.filter (fun z => z ∈ hT.treeSide c.val v),
+              treePotential hT q r z (fun j => override (sMid a) (y c) j.val) := by
       intro a y
       -- Split the Finset `treeSide v (parent r v)` into `{v}` and the disjoint `treeSide c v`.
       have hv_mem : v ∈ univ.filter (fun z => z ∈ hT.treeSide v (hT.parent r v)) :=
@@ -1462,7 +1465,7 @@ private theorem sum_subtree_treePotential {G : SimpleGraph ι} (hT : G.IsTree) (
       rw [← mul_prod_erase _ _ hv_mem]
       have herase_eq : (univ.filter (fun z => z ∈ hT.treeSide v (hT.parent r v))).erase v =
           univ.biUnion fun c : UpstreamNeighbors hT r v =>
-            univ.filter (fun z => z ∈ hT.treeSide c.1 v) := by
+            univ.filter (fun z => z ∈ hT.treeSide c.val v) := by
         ext z
         simp only [mem_erase, mem_filter, mem_univ, true_and, mem_biUnion]
         constructor
@@ -1501,16 +1504,16 @@ private theorem sum_subtree_treePotential {G : SimpleGraph ι} (hT : G.IsTree) (
             rfl
       · -- Inside each subtree `treeSide c v`, every `j ∈ ClosedNeighborhood G z` agrees.
         refine prod_congr rfl fun c _ => prod_congr rfl fun z hz => ?_
-        have hzc : z ∈ hT.treeSide c.1 v := (mem_filter.mp hz).2
+        have hzc : z ∈ hT.treeSide c.val v := (mem_filter.mp hz).2
         congr 1
         ext ⟨j, hj⟩
         dsimp only
-        by_cases hjc : j ∈ hT.treeSide c.1 v
-        · by_cases hj_eq : j = c.1
+        by_cases hjc : j ∈ hT.treeSide c.val v
+        · by_cases hj_eq : j = c.val
           · subst hj_eq
-            have hqj : Qv c.1 := c.2
-            have hpj : Pv c.1 := hsubQ c.1 hqj
-            have hnr : ¬ (c.1 ∈ hT.treeSide c.1 v ∧ c.1 ≠ c.1) := fun h => h.2 rfl
+            have hqj : Qv c.val := c.property
+            have hpj : Pv c.val := hsubQ c.val hqj
+            have hnr : ¬ (c.val ∈ hT.treeSide c.val v ∧ c.val ≠ c.val) := fun h => h.2 rfl
             rw [override_of_pos _ _ hpj]
             simp only [override, hnr, ↓reduceDIte, sMid, hqj]
             simp only [eAll, e1, Equiv.symm_trans_apply, Equiv.prodCongr_symm, Equiv.refl_symm,
@@ -1528,7 +1531,7 @@ private theorem sum_subtree_treePotential {G : SimpleGraph ι} (hT : G.IsTree) (
             have hkeq : Classical.choose hrc = c :=
               upstream_unique_of_mem_treeSide hspec.1 hjc
             have key : ∀ (c' : UpstreamNeighbors hT r v)
-                (h' : j ∈ hT.treeSide c'.1 v ∧ j ≠ c'.1),
+                (h' : j ∈ hT.treeSide c'.val v ∧ j ≠ c'.val),
                 c' = c → y c' ⟨j, h'⟩ = y c ⟨j, ⟨hjc, hj_eq⟩⟩ := by
               rintro _ _ rfl
               rfl
@@ -1540,7 +1543,7 @@ private theorem sum_subtree_treePotential {G : SimpleGraph ι} (hT : G.IsTree) (
             · exact (hT.eq_of_mem_treeSide_of_adj_notMem (hadj_cv c) hzc hjc hadj_zj).2
           subst j
           have hnv : ¬ Pv v := fun h => h.2 rfl
-          have hnc : ¬ (v ∈ hT.treeSide c.1 v ∧ v ≠ c.1) := fun h =>
+          have hnc : ¬ (v ∈ hT.treeSide c.val v ∧ v ≠ c.val) := fun h =>
             hT.not_mem_treeSide_other (hadj_cv c) h.1
           have hnq : ¬ Qv v := fun h => by
             have := hT.length_pathTo_parent r h.1
@@ -1548,23 +1551,23 @@ private theorem sum_subtree_treePotential {G : SimpleGraph ι} (hT : G.IsTree) (
           simp only [override, hnv, hnc, sMid, hnq, ↓reduceDIte]
     -- Step C: Apply `Fintype.sum_equiv eAll.symm`, `Fintype.prod_sum`, and the IH on every `c`.
     rw [← Fintype.sum_equiv eAll.symm _ _ (fun _ => rfl), Fintype.sum_prod_type]
-    have hinner : ∀ a : ∀ c : UpstreamNeighbors hT r v, S c.1,
+    have hinner : ∀ a : ∀ c : UpstreamNeighbors hT r v, S c.val,
         (∑ y : (∀ c : UpstreamNeighbors hT r v,
-            ∀ z : {z : ι // z ∈ hT.treeSide c.1 v ∧ z ≠ c.1}, S z.1),
+            ∀ z : {z : ι // z ∈ hT.treeSide c.val v ∧ z ≠ c.val}, S z.val),
           ∏ z ∈ univ.filter (fun z => z ∈ hT.treeSide v (hT.parent r v)),
-            treePotential hT q r z (fun j => override s₀ (eAll.symm (a, y)) j.1)) =
-        treePotential hT q r v (fun j => sMid a j.1) := by
+            treePotential hT q r z (fun j => override s₀ (eAll.symm (a, y)) j.val)) =
+        treePotential hT q r v (fun j => sMid a j.val) := by
       intro a
       simp_rw [hfactor a, ← mul_sum]
       rw [← Fintype.prod_sum (fun (c : UpstreamNeighbors hT r v)
-        (x : ∀ z : {z : ι // z ∈ hT.treeSide c.1 v ∧ z ≠ c.1}, S z.1) =>
-        ∏ z ∈ univ.filter (fun z => z ∈ hT.treeSide c.1 v),
-          treePotential hT q r z (fun j => override (sMid a) x j.1))]
+        (x : ∀ z : {z : ι // z ∈ hT.treeSide c.val v ∧ z ≠ c.val}, S z.val) =>
+        ∏ z ∈ univ.filter (fun z => z ∈ hT.treeSide c.val v),
+          treePotential hT q r z (fun j => override (sMid a) x j.val))]
       have hih_c : ∀ c : UpstreamNeighbors hT r v,
-          (∑ x : (∀ z : {z : ι // z ∈ hT.treeSide c.1 v ∧ z ≠ c.1}, S z.1),
-            ∏ z ∈ univ.filter (fun z => z ∈ hT.treeSide c.1 v),
-              treePotential hT q r z (fun j => override (sMid a) x j.1)) =
-          if edgeMarginal G q c.1 v (hadj_cv c) (a c) (s₀ v) = 0 then 0 else 1 := by
+          (∑ x : (∀ z : {z : ι // z ∈ hT.treeSide c.val v ∧ z ≠ c.val}, S z.val),
+            ∏ z ∈ univ.filter (fun z => z ∈ hT.treeSide c.val v),
+              treePotential hT q r z (fun j => override (sMid a) x j.val)) =
+          if edgeMarginal G q c.val v (hadj_cv c) (a c) (s₀ v) = 0 then 0 else 1 := by
         rintro ⟨c, hc_ne, rfl⟩
         have hstep := ih _ (hlt_up ⟨c, hc_ne, rfl⟩) hc_ne (sMid a) rfl
         have hsmid_c : sMid a c = a ⟨c, hc_ne, rfl⟩ := by
@@ -1576,20 +1579,20 @@ private theorem sum_subtree_treePotential {G : SimpleGraph ι} (hT : G.IsTree) (
         simpa only [hsmid_c, hsmid_p] using hstep
       simp_rw [hih_c]
       by_cases hex : ∃ c : UpstreamNeighbors hT r v,
-          edgeMarginal G q c.1 v (hadj_cv c) (a c) (s₀ v) = 0
+          edgeMarginal G q c.val v (hadj_cv c) (a c) (s₀ v) = 0
       · obtain ⟨c, hc0⟩ := hex
         have hprod0 : (∏ c' : UpstreamNeighbors hT r v,
-            if edgeMarginal G q c'.1 v (hadj_cv c') (a c') (s₀ v) = 0 then (0 : ℝ) else 1) = 0 :=
+            if edgeMarginal G q c'.val v (hadj_cv c') (a c') (s₀ v) = 0 then (0 : ℝ) else 1) = 0 :=
           prod_eq_zero (mem_univ c) (by simp [hc0])
-        have hvc0 : edgeMarginal G q v c.1 (hadj_cv c).symm (s₀ v) (a c) = 0 := by
-          rwa [hedge v c.1 (hadj_cv c).symm (s₀ v) (a c)]
+        have hvc0 : edgeMarginal G q v c.val (hadj_cv c).symm (s₀ v) (a c) = 0 := by
+          rwa [hedge v c.val (hadj_cv c).symm (s₀ v) (a c)]
         have hsmid_v : sMid a v = s₀ v := override_of_neg s₀ (P := Qv) a fun h => by
           have := hT.length_pathTo_parent r h.1; rw [h.2] at this; omega
-        have hsmid_c : sMid a c.1 = a c := override_of_pos s₀ (P := Qv) a c.2
-        have hqv0 : q v (fun j => sMid a j.1) = 0 :=
+        have hsmid_c : sMid a c.val = a c := override_of_pos s₀ (P := Qv) a c.property
+        have hqv0 : q v (fun j => sMid a j.val) = 0 :=
           q_eq_zero_of_edgeMarginal_eq_zero hnn (hadj_cv c).symm
             (by simpa [hsmid_v, hsmid_c] using hvc0)
-        have hpot0 : treePotential hT q r v (fun j => sMid a j.1) = 0 := by
+        have hpot0 : treePotential hT q r v (fun j => sMid a j.val) = 0 := by
           unfold treePotential
           split_ifs
           · exact hqv0
@@ -1597,7 +1600,7 @@ private theorem sum_subtree_treePotential {G : SimpleGraph ι} (hT : G.IsTree) (
         rw [hprod0, hpot0, mul_zero]
       · push Not at hex
         have hprod1 : (∏ c' : UpstreamNeighbors hT r v,
-            if edgeMarginal G q c'.1 v (hadj_cv c') (a c') (s₀ v) = 0 then (0 : ℝ) else 1) = 1 :=
+            if edgeMarginal G q c'.val v (hadj_cv c') (a c') (s₀ v) = 0 then (0 : ℝ) else 1) = 1 :=
           prod_eq_one fun c' _ => ite_eq_right (hex c')
         rw [hprod1, mul_one]
     simp_rw [hinner]
@@ -1607,21 +1610,21 @@ private theorem sum_subtree_treePotential {G : SimpleGraph ι} (hT : G.IsTree) (
     have hsmid_p (a) : sMid a (hT.parent r v) = s₀ (hT.parent r v) :=
       override_of_neg s₀ (P := Qv) a fun h =>
         hT.not_mem_treeSide_other hadj_vp (hsubQ _ h).1
-    have hpot_eq (a) : treePotential hT q r v (fun j => sMid a j.1) =
-        q v (fun j => sMid a j.1) /
+    have hpot_eq (a) : treePotential hT q r v (fun j => sMid a j.val) =
+        q v (fun j => sMid a j.val) /
           edgeMarginal G q v (hT.parent r v) hadj_vp (s₀ v) (s₀ (hT.parent r v)) := by
       unfold treePotential
       simp only [hv, ↓reduceDIte, hsmid_v, hsmid_p]
     simp_rw [hpot_eq, div_eq_mul_inv, ← sum_mul, ← div_eq_mul_inv]
     -- Biject `∀ c : UpstreamNeighbors hT r v, S c.1` with neighborhood settings fixing `v` and `p`.
-    let eN : (∀ c : UpstreamNeighbors hT r v, S c.1) ≃
-        {u : ∀ j : ClosedNeighborhood G v, S j.1 //
+    let eN : (∀ c : UpstreamNeighbors hT r v, S c.val) ≃
+        {u : ∀ j : ClosedNeighborhood G v, S j.val //
           u ⟨v, Or.inl rfl⟩ = s₀ v ∧ u ⟨hT.parent r v, Or.inr hadj_vp⟩ = s₀ (hT.parent r v)} :=
-      { toFun := fun a => ⟨fun j => sMid a j.1, hsmid_v a, hsmid_p a⟩
-        invFun := fun u c => u.1 ⟨c.1, Or.inr (hadj_cv c).symm⟩
+      { toFun := fun a => ⟨fun j => sMid a j.val, hsmid_v a, hsmid_p a⟩
+        invFun := fun u c => u.val ⟨c.val, Or.inr (hadj_cv c).symm⟩
         left_inv := fun a => by
           ext c
-          exact override_of_pos s₀ (P := Qv) a c.2
+          exact override_of_pos s₀ (P := Qv) a c.property
         right_inv := fun ⟨u, huv, hup⟩ => by
           ext ⟨j, hj⟩
           dsimp only
@@ -1632,12 +1635,12 @@ private theorem sum_subtree_treePotential {G : SimpleGraph ι} (hT : G.IsTree) (
               exact (hsmid_p _).trans hup.symm
             · have hqj : Qv j := (upstream_neighbor_iff hT r hv).mp ⟨hadj_vj, hjp⟩
               exact override_of_pos s₀ (P := Qv) _ hqj }
-    have hsum_q : (∑ a : ∀ c : UpstreamNeighbors hT r v, S c.1, q v (fun j => sMid a j.1)) =
+    have hsum_q : (∑ a : ∀ c : UpstreamNeighbors hT r v, S c.val, q v (fun j => sMid a j.val)) =
         edgeMarginal G q v (hT.parent r v) hadj_vp (s₀ v) (s₀ (hT.parent r v)) := by
       rw [edgeMarginal_def, ← sum_filter]
-      refine (Fintype.sum_equiv eN (fun a => q v (fun j => sMid a j.1))
-        (fun u => q v u.1) (fun _ => rfl)).trans ?_
-      rw [← sum_subtype (univ.filter fun u : (∀ j : ClosedNeighborhood G v, S j.1) =>
+      refine (Fintype.sum_equiv eN (fun a => q v (fun j => sMid a j.val))
+        (fun u => q v u.val) (fun _ => rfl)).trans ?_
+      rw [← sum_subtype (univ.filter fun u : (∀ j : ClosedNeighborhood G v, S j.val) =>
           u ⟨v, Or.inl rfl⟩ = s₀ v ∧ u ⟨hT.parent r v, Or.inr hadj_vp⟩ = s₀ (hT.parent r v))
         (fun _ => mem_filter_univ _)]
     rw [hsum_q]
@@ -1648,47 +1651,48 @@ private theorem sum_subtree_treePotential {G : SimpleGraph ι} (hT : G.IsTree) (
 
 /-- Root marginal of `treeWeight hT q r` equals `q r u_r`. -/
 private theorem sum_treeWeight_restrict_root {G : SimpleGraph ι} (hT : G.IsTree) (r : ι)
-    {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ}
+    {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ}
     (hnn : ∀ i u, 0 ≤ q i u) (hedge : IsEdgeConsistent G q) (hne : ∀ i, Nonempty (S i))
-    (u_r : ∀ j : ClosedNeighborhood G r, S j.1) :
+    (u_r : ∀ j : ClosedNeighborhood G r, S j.val) :
     by
       classical
       exact ∑ s : (∀ i, S i),
-        (if (fun j : ClosedNeighborhood G r => s j.1) = u_r then treeWeight hT q r s else 0) =
+        (if (fun j : ClosedNeighborhood G r => s j.val) = u_r then treeWeight hT q r s else 0) =
       q r u_r := by
   classical
-  have hadj_cr : ∀ c : UpstreamNeighbors hT r r, G.Adj c.1 r := fun c => by
-    simpa [c.2.2] using hT.adj_parent r c.2.1
+  have hadj_cr : ∀ c : UpstreamNeighbors hT r r, G.Adj c.val r := fun c => by
+    simpa [c.property.2] using hT.adj_parent r c.property.1
   let sBase : ∀ i, S i := fun i =>
     if hi : i = r ∨ G.Adj r i then u_r ⟨i, hi⟩ else (hne i).some
-  have hsBase_restrict : (fun j : ClosedNeighborhood G r => sBase j.1) = u_r := by
+  have hsBase_restrict : (fun j : ClosedNeighborhood G r => sBase j.val) = u_r := by
     ext ⟨j, hj⟩
     simp [sBase, hj]
   let Pout : ι → Prop := fun z => ¬ (z = r ∨ G.Adj r z)
   have hsub : ∀ (c : UpstreamNeighbors hT r r) z,
-      (z ∈ hT.treeSide c.1 r ∧ z ≠ c.1) → Pout z := by
+      (z ∈ hT.treeSide c.val r ∧ z ≠ c.val) → Pout z := by
     rintro c z ⟨hzc, hzne⟩ (rfl | hadj_rz)
     · exact hT.not_mem_treeSide_other (hadj_cr c) hzc
     · let cz : UpstreamNeighbors hT r r :=
         ⟨z, ((hT.adj_iff_parent r).mp hadj_rz).resolve_left fun h => h.1 rfl⟩
       have heq := upstream_unique_of_mem_treeSide (hT.self_mem_treeSide_of_adj (hadj_cr cz)) hzc
       exact hzne (congrArg Subtype.val heq)
-  have hcov : ∀ z, Pout z → ∃ c : UpstreamNeighbors hT r r, z ∈ hT.treeSide c.1 r ∧ z ≠ c.1 := by
+  have hcov : ∀ z, Pout z →
+      ∃ c : UpstreamNeighbors hT r r, z ∈ hT.treeSide c.val r ∧ z ≠ c.val := by
     intro z hz
     have hzr : z ≠ r := fun h => hz (Or.inl h)
     obtain ⟨c, hzc⟩ := exists_upstream_mem_treeSide_root hT r hzr
     exact ⟨c, hzc, fun h => hz (Or.inr (h ▸ (hadj_cr c).symm))⟩
   have hdisj : ∀ (c₁ c₂ : UpstreamNeighbors hT r r) z,
-      (z ∈ hT.treeSide c₁.1 r ∧ z ≠ c₁.1) → (z ∈ hT.treeSide c₂.1 r ∧ z ≠ c₂.1) → c₁ = c₂ :=
+      (z ∈ hT.treeSide c₁.val r ∧ z ≠ c₁.val) → (z ∈ hT.treeSide c₂.val r ∧ z ≠ c₂.val) → c₁ = c₂ :=
     fun _ _ _ h1 h2 => upstream_unique_of_mem_treeSide h1.1 h2.1
-  let eBase : (∀ z : {z : ι // Pout z}, S z.1) ≃
-      {s : ∀ i, S i // (fun j : ClosedNeighborhood G r => s j.1) = u_r} :=
+  let eBase : (∀ z : {z : ι // Pout z}, S z.val) ≃
+      {s : ∀ i, S i // (fun j : ClosedNeighborhood G r => s j.val) = u_r} :=
     { toFun := fun x => ⟨override sBase x, by
         ext ⟨j, hj⟩
         have hnp : ¬ Pout j := fun h => h hj
         rw [override_of_neg _ _ hnp]
         exact congrFun hsBase_restrict ⟨j, hj⟩⟩
-      invFun := fun s z => s.1 z.1
+      invFun := fun s z => s.val z.val
       left_inv := fun x => by
         ext ⟨z, hz⟩
         exact override_of_pos sBase x hz
@@ -1702,21 +1706,21 @@ private theorem sum_treeWeight_restrict_root {G : SimpleGraph ι} (hT : G.IsTree
           exact (congrFun hsBase_restrict ⟨i, hmem⟩).trans (congrFun hs ⟨i, hmem⟩).symm }
   let eOut := piEquivDisjointUnion (S := S) hsub hcov hdisj
   let eAll : (∀ c : UpstreamNeighbors hT r r,
-      ∀ z : {z : ι // z ∈ hT.treeSide c.1 r ∧ z ≠ c.1}, S z.1) ≃
-      {s : ∀ i, S i // (fun j : ClosedNeighborhood G r => s j.1) = u_r} :=
+      ∀ z : {z : ι // z ∈ hT.treeSide c.val r ∧ z ≠ c.val}, S z.val) ≃
+      {s : ∀ i, S i // (fun j : ClosedNeighborhood G r => s j.val) = u_r} :=
     eOut.symm.trans eBase
   have hfactor : ∀ y : (∀ c : UpstreamNeighbors hT r r,
-        ∀ z : {z : ι // z ∈ hT.treeSide c.1 r ∧ z ≠ c.1}, S z.1),
-      treeWeight hT q r (eAll y).1 =
+        ∀ z : {z : ι // z ∈ hT.treeSide c.val r ∧ z ≠ c.val}, S z.val),
+      treeWeight hT q r (eAll y).val =
         q r u_r *
           ∏ c : UpstreamNeighbors hT r r,
-            ∏ z ∈ univ.filter (fun z => z ∈ hT.treeSide c.1 r),
-              treePotential hT q r z (fun j => override sBase (y c) j.1) := by
+            ∏ z ∈ univ.filter (fun z => z ∈ hT.treeSide c.val r),
+              treePotential hT q r z (fun j => override sBase (y c) j.val) := by
     intro y
     rw [treeWeight, ← mul_prod_erase univ _ (mem_univ r)]
     have herase_eq : univ.erase r =
         univ.biUnion fun c : UpstreamNeighbors hT r r =>
-          univ.filter (fun z => z ∈ hT.treeSide c.1 r) := by
+          univ.filter (fun z => z ∈ hT.treeSide c.val r) := by
       ext z
       simp only [mem_erase, mem_univ, and_true, mem_biUnion, mem_filter, true_and]
       exact ⟨fun hzr => exists_upstream_mem_treeSide_root hT r hzr,
@@ -1725,18 +1729,18 @@ private theorem sum_treeWeight_restrict_root {G : SimpleGraph ι} (hT : G.IsTree
       pairwiseDisjoint_filter_treeSide hT r r)]
     congr 1
     · unfold treePotential
-      simp only [↓reduceDIte, (eAll y).2]
+      simp only [↓reduceDIte, (eAll y).property]
     · refine prod_congr rfl fun c _ => prod_congr rfl fun z hz => ?_
-      have hzc : z ∈ hT.treeSide c.1 r := (mem_filter.mp hz).2
+      have hzc : z ∈ hT.treeSide c.val r := (mem_filter.mp hz).2
       congr 1
       ext ⟨j, hj⟩
       dsimp only
-      by_cases hjc : j ∈ hT.treeSide c.1 r
-      · by_cases hj_eq : j = c.1
+      by_cases hjc : j ∈ hT.treeSide c.val r
+      · by_cases hj_eq : j = c.val
         · subst hj_eq
-          have hnp : ¬ Pout c.1 := fun h => h (Or.inr (hadj_cr c).symm)
-          have hnr : ¬ (c.1 ∈ hT.treeSide c.1 r ∧ c.1 ≠ c.1) := fun h => h.2 rfl
-          change override sBase (eOut.symm y) c.1 = override sBase (y c) c.1
+          have hnp : ¬ Pout c.val := fun h => h (Or.inr (hadj_cr c).symm)
+          have hnr : ¬ (c.val ∈ hT.treeSide c.val r ∧ c.val ≠ c.val) := fun h => h.2 rfl
+          change override sBase (eOut.symm y) c.val = override sBase (y c) c.val
           simp only [override, hnp, hnr, ↓reduceDIte]
         · have hpj : Pout j := hsub c j ⟨hjc, hj_eq⟩
           change override sBase (eOut.symm y) j = override sBase (y c) j
@@ -1746,7 +1750,7 @@ private theorem sum_treeWeight_restrict_root {G : SimpleGraph ι} (hT : G.IsTree
           have hkeq : Classical.choose (hcov j hpj) = c :=
             upstream_unique_of_mem_treeSide hspec.1 hjc
           have key : ∀ (c' : UpstreamNeighbors hT r r)
-              (h' : j ∈ hT.treeSide c'.1 r ∧ j ≠ c'.1),
+              (h' : j ∈ hT.treeSide c'.val r ∧ j ≠ c'.val),
               c' = c → y c' ⟨j, h'⟩ = y c ⟨j, ⟨hjc, hj_eq⟩⟩ := by
             rintro _ _ rfl
             rfl
@@ -1757,26 +1761,26 @@ private theorem sum_treeWeight_restrict_root {G : SimpleGraph ι} (hT : G.IsTree
           · exact (hT.eq_of_mem_treeSide_of_adj_notMem (hadj_cr c) hzc hjc hadj_zj).2
         subst j
         have hnp : ¬ Pout r := fun h => h (Or.inl rfl)
-        have hnc : ¬ (r ∈ hT.treeSide c.1 r ∧ r ≠ c.1) := fun h =>
+        have hnc : ¬ (r ∈ hT.treeSide c.val r ∧ r ≠ c.val) := fun h =>
           hT.not_mem_treeSide_other (hadj_cr c) h.1
         change override sBase (eOut.symm y) r = override sBase (y c) r
         simp only [override, hnp, hnc, ↓reduceDIte]
   rw [← sum_filter,
     sum_subtype (univ.filter fun s : (∀ i, S i) =>
-        (fun j : ClosedNeighborhood G r => s j.1) = u_r)
+        (fun j : ClosedNeighborhood G r => s j.val) = u_r)
       (fun _ => mem_filter_univ _),
     ← Fintype.sum_equiv eAll _ _ (fun _ => rfl)]
   simp_rw [hfactor, ← mul_sum]
   rw [← Fintype.prod_sum (fun (c : UpstreamNeighbors hT r r)
-    (x : ∀ z : {z : ι // z ∈ hT.treeSide c.1 r ∧ z ≠ c.1}, S z.1) =>
-    ∏ z ∈ univ.filter (fun z => z ∈ hT.treeSide c.1 r),
-      treePotential hT q r z (fun j => override sBase x j.1))]
+    (x : ∀ z : {z : ι // z ∈ hT.treeSide c.val r ∧ z ≠ c.val}, S z.val) =>
+    ∏ z ∈ univ.filter (fun z => z ∈ hT.treeSide c.val r),
+      treePotential hT q r z (fun j => override sBase x j.val))]
   have hsub_c : ∀ c : UpstreamNeighbors hT r r,
-      (∑ x : (∀ z : {z : ι // z ∈ hT.treeSide c.1 r ∧ z ≠ c.1}, S z.1),
-        ∏ z ∈ univ.filter (fun z => z ∈ hT.treeSide c.1 r),
-          treePotential hT q r z (fun j => override sBase x j.1)) =
-      if edgeMarginal G q c.1 r (hadj_cr c)
-          (u_r ⟨c.1, Or.inr (hadj_cr c).symm⟩) (u_r ⟨r, Or.inl rfl⟩) = 0
+      (∑ x : (∀ z : {z : ι // z ∈ hT.treeSide c.val r ∧ z ≠ c.val}, S z.val),
+        ∏ z ∈ univ.filter (fun z => z ∈ hT.treeSide c.val r),
+          treePotential hT q r z (fun j => override sBase x j.val)) =
+      if edgeMarginal G q c.val r (hadj_cr c)
+          (u_r ⟨c.val, Or.inr (hadj_cr c).symm⟩) (u_r ⟨r, Or.inl rfl⟩) = 0
       then 0 else 1 := by
     rintro ⟨c, hc_ne, hc_par⟩
     have hstep := sum_subtree_treePotential hT r hnn hedge hc_ne sBase
@@ -1792,50 +1796,50 @@ private theorem sum_treeWeight_restrict_root {G : SimpleGraph ι} (hT : G.IsTree
       rw [hs_c, hs_r]
     rw [← hedge_eq _ (hT.adj_parent r hc_ne) hc_par]
     have key_sum : ∀ (p : ι) (hp : p = hT.parent r c),
-        (∑ x : (∀ z : {z : ι // z ∈ hT.treeSide c p ∧ z ≠ c}, S z.1),
+        (∑ x : (∀ z : {z : ι // z ∈ hT.treeSide c p ∧ z ≠ c}, S z.val),
           ∏ z ∈ univ.filter (fun z => z ∈ hT.treeSide c p),
-            treePotential hT q r z (fun j => override sBase x j.1)) =
-        (∑ x : (∀ z : {z : ι // z ∈ hT.treeSide c (hT.parent r c) ∧ z ≠ c}, S z.1),
+            treePotential hT q r z (fun j => override sBase x j.val)) =
+        (∑ x : (∀ z : {z : ι // z ∈ hT.treeSide c (hT.parent r c) ∧ z ≠ c}, S z.val),
           ∏ z ∈ univ.filter (fun z => z ∈ hT.treeSide c (hT.parent r c)),
-            treePotential hT q r z (fun j => override sBase x j.1)) := by
+            treePotential hT q r z (fun j => override sBase x j.val)) := by
       rintro _ rfl
       rfl
     rw [key_sum r hc_par.symm]
     exact hstep
   simp_rw [hsub_c]
   by_cases hex : ∃ c : UpstreamNeighbors hT r r,
-      edgeMarginal G q c.1 r (hadj_cr c)
-        (u_r ⟨c.1, Or.inr (hadj_cr c).symm⟩) (u_r ⟨r, Or.inl rfl⟩) = 0
+      edgeMarginal G q c.val r (hadj_cr c)
+        (u_r ⟨c.val, Or.inr (hadj_cr c).symm⟩) (u_r ⟨r, Or.inl rfl⟩) = 0
   · obtain ⟨c, hc0⟩ := hex
     have hprod0 : (∏ c' : UpstreamNeighbors hT r r,
-        if edgeMarginal G q c'.1 r (hadj_cr c')
-            (u_r ⟨c'.1, Or.inr (hadj_cr c').symm⟩) (u_r ⟨r, Or.inl rfl⟩) = 0
+        if edgeMarginal G q c'.val r (hadj_cr c')
+            (u_r ⟨c'.val, Or.inr (hadj_cr c').symm⟩) (u_r ⟨r, Or.inl rfl⟩) = 0
         then (0 : ℝ) else 1) = 0 :=
       prod_eq_zero (mem_univ c) (by simp [hc0])
-    have hrc0 : edgeMarginal G q r c.1 (hadj_cr c).symm
-        (u_r ⟨r, Or.inl rfl⟩) (u_r ⟨c.1, Or.inr (hadj_cr c).symm⟩) = 0 := by
-      rwa [hedge r c.1 (hadj_cr c).symm _ _]
+    have hrc0 : edgeMarginal G q r c.val (hadj_cr c).symm
+        (u_r ⟨r, Or.inl rfl⟩) (u_r ⟨c.val, Or.inr (hadj_cr c).symm⟩) = 0 := by
+      rwa [hedge r c.val (hadj_cr c).symm _ _]
     have hqr0 : q r u_r = 0 := q_eq_zero_of_edgeMarginal_eq_zero hnn (hadj_cr c).symm hrc0
     rw [hprod0, hqr0, mul_zero]
   · push Not at hex
     have hprod1 : (∏ c' : UpstreamNeighbors hT r r,
-        if edgeMarginal G q c'.1 r (hadj_cr c')
-            (u_r ⟨c'.1, Or.inr (hadj_cr c').symm⟩) (u_r ⟨r, Or.inl rfl⟩) = 0
+        if edgeMarginal G q c'.val r (hadj_cr c')
+            (u_r ⟨c'.val, Or.inr (hadj_cr c').symm⟩) (u_r ⟨r, Or.inl rfl⟩) = 0
         then (0 : ℝ) else 1) = 1 :=
       prod_eq_one fun c' _ => ite_eq_right (hex c')
     rw [hprod1, mul_one]
 
 private theorem nonempty_of_isLocalDistribution {G : SimpleGraph ι}
-    {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ}
+    {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ}
     (hloc : IsLocalDistribution G q) (i : ι) : Nonempty (S i) := by
   classical
   by_contra hne
   have : IsEmpty (S i) := not_nonempty_iff.mp hne
-  have : IsEmpty (∀ j : ClosedNeighborhood G i, S j.1) :=
+  have : IsEmpty (∀ j : ClosedNeighborhood G i, S j.val) :=
     ⟨fun u => isEmptyElim (u ⟨i, Or.inl rfl⟩)⟩
   have hsum := (hloc i).2
-  have h0 : (∑ u : (∀ j : ClosedNeighborhood G i, S j.1), q i u) = 0 := Fintype.sum_empty (q i)
-  have hsum' : (∑ u : (∀ j : ClosedNeighborhood G i, S j.1), q i u) = 1 := by
+  have h0 : (∑ u : (∀ j : ClosedNeighborhood G i, S j.val), q i u) = 0 := Fintype.sum_empty (q i)
+  have hsum' : (∑ u : (∀ j : ClosedNeighborhood G i, S j.val), q i u) = 1 := by
     convert hsum
   linarith
 
@@ -1852,11 +1856,11 @@ given any finite tree `hT : G.IsTree` and any locally normalized, edge-consisten
 closed neighborhoods of `G`, there exists a global joint distribution `σ` that is a nonnegative
 local Markov network on `G` and realizes `q` as its exact closed-neighborhood marginals. -/
 theorem treeLift_exists_isLocalMarkovNetwork {G : SimpleGraph ι} (hT : G.IsTree)
-    {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ}
+    {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ}
     (hloc : IsLocalDistribution G q) (hedge : IsEdgeConsistent G q) :
     ∃ σ : Convexity.StdSimplex ℝ (∀ i, S i),
       IsLocalMarkovNetwork G σ ∧
-      ∀ (i : ι) (u : ∀ j : ClosedNeighborhood G i, S j.1),
+      ∀ (i : ι) (u : ∀ j : ClosedNeighborhood G i, S j.val),
         neighborhoodMarginal G σ i u = q i u := by
   classical
   have hnn : ∀ i u, 0 ≤ q i u := fun i => (hloc i).1
@@ -1864,16 +1868,18 @@ theorem treeLift_exists_isLocalMarkovNetwork {G : SimpleGraph ι} (hT : G.IsTree
   obtain ⟨r₀⟩ := hT.connected.nonempty
   have hsum : ∑ s : (∀ i, S i), treeWeight hT q r₀ s = 1 := by
     have hpart : ∑ s : (∀ i, S i), treeWeight hT q r₀ s =
-        ∑ u : (∀ j : ClosedNeighborhood G r₀, S j.1),
+        ∑ u : (∀ j : ClosedNeighborhood G r₀, S j.val),
           ∑ s : (∀ i, S i),
-            if (fun j : ClosedNeighborhood G r₀ => s j.1) = u then treeWeight hT q r₀ s else 0 := by
+            if (fun j : ClosedNeighborhood G r₀ => s j.val) = u then
+              treeWeight hT q r₀ s
+            else 0 := by
       rw [sum_comm]
       refine sum_congr rfl fun s _ => ?_
       simp only [sum_ite_eq univ, mem_univ, ↓reduceIte]
     rw [hpart]
-    have hinner : ∀ u : (∀ j : ClosedNeighborhood G r₀, S j.1),
+    have hinner : ∀ u : (∀ j : ClosedNeighborhood G r₀, S j.val),
         (∑ s : (∀ i, S i),
-          if (fun j : ClosedNeighborhood G r₀ => s j.1) = u then treeWeight hT q r₀ s else 0) =
+          if (fun j : ClosedNeighborhood G r₀ => s j.val) = u then treeWeight hT q r₀ s else 0) =
         q r₀ u :=
       fun u => sum_treeWeight_restrict_root hT r₀ hnn hedge hne u
     simp_rw [hinner]
@@ -1884,9 +1890,9 @@ theorem treeLift_exists_isLocalMarkovNetwork {G : SimpleGraph ι} (hT : G.IsTree
       simp only [σ, simplexOfFun_weights, div_one, treeWeight]⟩, fun i u => ?_⟩
   rw [neighborhoodMarginal_eq_sum]
   have hrew : (∑ s : (∀ k, S k),
-        if (fun j : ClosedNeighborhood G i => s j.1) = u then σ.weights s else 0) =
+        if (fun j : ClosedNeighborhood G i => s j.val) = u then σ.weights s else 0) =
       ∑ s : (∀ k, S k),
-        if (fun j : ClosedNeighborhood G i => s j.1) = u then treeWeight hT q i s else 0 :=
+        if (fun j : ClosedNeighborhood G i => s j.val) = u then treeWeight hT q i s else 0 :=
     sum_congr rfl fun s _ => by
       simp only [σ, simplexOfFun_weights, treeWeight_root_indep hT hedge r₀ i s]
   rw [hrew]
@@ -1925,14 +1931,15 @@ theorem isIntersectionConsistent_neighborhoodMarginal (G : SimpleGraph ι)
   let T : Set ι := {k : ι | (k = i ∨ G.Adj i k) ∧ (k = j ∨ G.Adj j k)}
   have hside : ∀ (x : ι) (hx : ∀ k ∈ T, k = x ∨ G.Adj x k),
       restrictMarginal G (neighborhoodMarginal G σ) x T hx y =
-        ∑ s : (∀ k, S k), if (fun k : T => s k.1) = y then σ.weights s else 0 := by
+        ∑ s : (∀ k, S k), if (fun k : T => s k.val) = y then σ.weights s else 0 := by
     intro x hx
     rw [restrictMarginal_def]
-    exact sum_ite_neighborhoodMarginal G σ x (fun u => (fun k : T => u ⟨k.1, hx k.1 k.2⟩) = y)
+    exact sum_ite_neighborhoodMarginal G σ x
+      (fun u => (fun k : T => u ⟨k.val, hx k.val k.property⟩) = y)
   exact (hside i (fun _ h => h.1)).trans (hside j (fun _ h => h.2)).symm
 
 private theorem isEdgeConsistent_of_isIntersectionConsistent_of_isTree {G : SimpleGraph ι}
-    (hT : G.IsTree) {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ}
+    (hT : G.IsTree) {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ}
     (hint : IsIntersectionConsistent G q) :
     IsEdgeConsistent G q := by
   classical
@@ -1961,12 +1968,13 @@ private theorem isEdgeConsistent_of_isIntersectionConsistent_of_isTree {G : Simp
     · rintro (rfl | rfl)
       · exact ⟨Or.inl rfl, Or.inr hadj.symm⟩
       · exact ⟨Or.inr hadj, Or.inl rfl⟩
-  let y : ∀ k : T, S k.1 := fun k =>
-    if hki : k.1 = i then hki ▸ a else ((hT_eq k.1).mp k.2).resolve_left hki ▸ b
+  let y : ∀ k : T, S k.val := fun k =>
+    if hki : k.val = i then hki ▸ a else ((hT_eq k.val).mp k.property).resolve_left hki ▸ b
   have hy_i : y ⟨i, (hT_eq i).mpr (Or.inl rfl)⟩ = a := by simp [y]
   have hy_j : y ⟨j, (hT_eq j).mpr (Or.inr rfl)⟩ = b := by simp [y, hadj.ne']
-  have hcond_i : ∀ u : (∀ k : ClosedNeighborhood G i, S k.1),
-      ((fun k : T => u ⟨k.1, k.2.1⟩) = y) ↔ (u ⟨i, Or.inl rfl⟩ = a ∧ u ⟨j, Or.inr hadj⟩ = b) := by
+  have hcond_i : ∀ u : (∀ k : ClosedNeighborhood G i, S k.val),
+      ((fun k : T => u ⟨k.val, k.property.1⟩) = y) ↔
+        (u ⟨i, Or.inl rfl⟩ = a ∧ u ⟨j, Or.inr hadj⟩ = b) := by
     intro u
     constructor
     · intro h
@@ -1980,8 +1988,8 @@ private theorem isEdgeConsistent_of_isIntersectionConsistent_of_isTree {G : Simp
       rcases (hT_eq k).mp hk with rfl | rfl
       · simpa [hy_i] using ha
       · simpa [hy_j] using hb
-  have hcond_j : ∀ v : (∀ k : ClosedNeighborhood G j, S k.1),
-      ((fun k : T => v ⟨k.1, k.2.2⟩) = y) ↔
+  have hcond_j : ∀ v : (∀ k : ClosedNeighborhood G j, S k.val),
+      ((fun k : T => v ⟨k.val, k.property.2⟩) = y) ↔
         (v ⟨j, Or.inl rfl⟩ = b ∧ v ⟨i, Or.inr hadj.symm⟩ = a) := by
     intro v
     constructor
@@ -1999,15 +2007,15 @@ private theorem isEdgeConsistent_of_isIntersectionConsistent_of_isTree {G : Simp
   have heq := hint i j y
   unfold restrictMarginal at heq
   rw [edgeMarginal_def, edgeMarginal_def]
-  have hL : (∑ u : (∀ k : ClosedNeighborhood G i, S k.1),
+  have hL : (∑ u : (∀ k : ClosedNeighborhood G i, S k.val),
         if u ⟨i, Or.inl rfl⟩ = a ∧ u ⟨j, Or.inr hadj⟩ = b then q i u else 0) =
-      ∑ u : (∀ k : ClosedNeighborhood G i, S k.1),
-        if (fun k : T => u ⟨k.1, k.2.1⟩) = y then q i u else 0 :=
+      ∑ u : (∀ k : ClosedNeighborhood G i, S k.val),
+        if (fun k : T => u ⟨k.val, k.property.1⟩) = y then q i u else 0 :=
     sum_congr rfl fun u _ => by simp only [hcond_i]
-  have hR : (∑ v : (∀ k : ClosedNeighborhood G j, S k.1),
+  have hR : (∑ v : (∀ k : ClosedNeighborhood G j, S k.val),
         if v ⟨j, Or.inl rfl⟩ = b ∧ v ⟨i, Or.inr hadj.symm⟩ = a then q j v else 0) =
-      ∑ v : (∀ k : ClosedNeighborhood G j, S k.1),
-        if (fun k : T => v ⟨k.1, k.2.2⟩) = y then q j v else 0 :=
+      ∑ v : (∀ k : ClosedNeighborhood G j, S k.val),
+        if (fun k : T => v ⟨k.val, k.property.2⟩) = y then q j v else 0 :=
     sum_congr rfl fun v _ => by simp only [hcond_j]
   rw [hL, hR]
   convert heq
@@ -2015,7 +2023,7 @@ private theorem isEdgeConsistent_of_isIntersectionConsistent_of_isTree {G : Simp
 /-- On any finite tree `G`, full neighborhood-intersection consistency is equivalent to edge
 consistency for locally normalized families `q`. -/
 theorem isIntersectionConsistent_iff_isEdgeConsistent_of_isTree {G : SimpleGraph ι}
-    (hT : G.IsTree) {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.1) → ℝ}
+    (hT : G.IsTree) {q : ∀ i : ι, (∀ j : ClosedNeighborhood G i, S j.val) → ℝ}
     (hloc : IsLocalDistribution G q) :
     IsIntersectionConsistent G q ↔ IsEdgeConsistent G q := by
   refine ⟨isEdgeConsistent_of_isIntersectionConsistent_of_isTree hT, fun hedge => ?_⟩
@@ -2072,7 +2080,7 @@ private theorem isCorrelatedEquilibrium_iff_satisfiesLocalCE [DecidableEq ι]
   rw [CostGame.isCorrelatedEquilibrium_iff]
   refine forall_congr' fun i => forall_congr' fun a => forall_congr' fun b => ?_
   have hL : σ.weights.sum (fun s w => w * if s i = a then M.toCostGame.cost i s else 0) =
-      -(∑ u : (∀ j : ClosedNeighborhood M.graph i, S j.1),
+      -(∑ u : (∀ j : ClosedNeighborhood M.graph i, S j.val),
         if u ⟨i, Or.inl rfl⟩ = a then
           neighborhoodMarginal M.graph σ i u * M.localPayoff i u
         else 0) := by
@@ -2083,13 +2091,13 @@ private theorem isCorrelatedEquilibrium_iff_satisfiesLocalCE [DecidableEq ι]
     exact sum_congr rfl fun u _ => by split_ifs <;> ring
   have hR : σ.weights.sum (fun s w =>
         w * if s i = a then M.toCostGame.cost i (update s i b) else 0) =
-      -(∑ u : (∀ j : ClosedNeighborhood M.graph i, S j.1),
+      -(∑ u : (∀ j : ClosedNeighborhood M.graph i, S j.val),
         if u ⟨i, Or.inl rfl⟩ = a then
           neighborhoodMarginal M.graph σ i u * M.localPayoff i (update u ⟨i, Or.inl rfl⟩ b)
         else 0) := by
     have hupd : ∀ s : (∀ k, S k),
         M.payoff i (update s i b) =
-          M.localPayoff i (update (fun j : ClosedNeighborhood M.graph i => s j.1)
+          M.localPayoff i (update (fun j : ClosedNeighborhood M.graph i => s j.val)
             ⟨i, Or.inl rfl⟩ b) := fun s => by
       rw [GraphicalGame.payoff_eq_localPayoff]
       congr 1
@@ -2134,13 +2142,13 @@ correlated equilibrium `σ` of `M.toCostGame` that is a nonnegative local Markov
 expected payoff and social welfare. -/
 theorem GraphicalGame.exists_isCorrelatedEquilibrium_of_edgeConsistent [DecidableEq ι]
     (M : GraphicalGame ι S) (hT : M.graph.IsTree)
-    {q : ∀ i : ι, (∀ j : ClosedNeighborhood M.graph i, S j.1) → ℝ}
+    {q : ∀ i : ι, (∀ j : ClosedNeighborhood M.graph i, S j.val) → ℝ}
     (hce : M.SatisfiesLocalCE q) (hloc : IsLocalDistribution M.graph q)
     (hedge : IsEdgeConsistent M.graph q) :
     ∃ σ : Convexity.StdSimplex ℝ (∀ i, S i),
       M.toCostGame.IsCorrelatedEquilibrium σ ∧
       IsLocalMarkovNetwork M.graph σ ∧
-      (∀ (i : ι) (u : ∀ j : ClosedNeighborhood M.graph i, S j.1),
+      (∀ (i : ι) (u : ∀ j : ClosedNeighborhood M.graph i, S j.val),
         neighborhoodMarginal M.graph σ i u = q i u) ∧
       (∀ i : ι, σ.weights.sum (fun s w => w * M.payoff i s) =
         open Classical in ∑ u, q i u * M.localPayoff i u) ∧
@@ -2152,7 +2160,7 @@ theorem GraphicalGame.exists_isCorrelatedEquilibrium_of_edgeConsistent [Decidabl
   have hσ_ce : M.toCostGame.IsCorrelatedEquilibrium σ :=
     (isCorrelatedEquilibrium_iff_satisfiesLocalCE M σ).mpr (hq_eq.symm ▸ hce)
   have hpay : ∀ i : ι, σ.weights.sum (fun s w => w * M.payoff i s) =
-      ∑ u : (∀ j : ClosedNeighborhood M.graph i, S j.1), q i u * M.localPayoff i u := by
+      ∑ u : (∀ j : ClosedNeighborhood M.graph i, S j.val), q i u * M.localPayoff i u := by
     intro i
     have h1 := sum_mul_local_eq_sum_neighborhoodMarginal M.graph σ i (M.localPayoff i)
     simpa only [GraphicalGame.payoff_eq_localPayoff, hmarg] using h1
@@ -2167,12 +2175,12 @@ equilibrium `σ` of `M.toCostGame` (represented as a nonnegative local Markov ne
 with identical closed-neighborhood marginals, per-player expected payoffs, and social welfare. -/
 theorem GraphicalGame.exists_isCorrelatedEquilibrium_of_isLocalCorrelatedEquilibrium
     [DecidableEq ι] (M : GraphicalGame ι S) (hT : M.graph.IsTree)
-    {q : ∀ i : ι, (∀ j : ClosedNeighborhood M.graph i, S j.1) → ℝ}
+    {q : ∀ i : ι, (∀ j : ClosedNeighborhood M.graph i, S j.val) → ℝ}
     (hq : M.IsLocalCorrelatedEquilibrium q) :
     ∃ σ : Convexity.StdSimplex ℝ (∀ i, S i),
       M.toCostGame.IsCorrelatedEquilibrium σ ∧
       IsLocalMarkovNetwork M.graph σ ∧
-      (∀ (i : ι) (u : ∀ j : ClosedNeighborhood M.graph i, S j.1),
+      (∀ (i : ι) (u : ∀ j : ClosedNeighborhood M.graph i, S j.val),
         neighborhoodMarginal M.graph σ i u = q i u) ∧
       (∀ i : ι, σ.weights.sum (fun s w => w * M.payoff i s) =
         open Classical in ∑ u, q i u * M.localPayoff i u) ∧
@@ -2187,11 +2195,11 @@ p. 175): on a finite tree graphical game `M`, a local marginal family `q` satisf
 of some global correlated equilibrium `σ` of `M.toCostGame`. -/
 theorem GraphicalGame.isLocalCorrelatedEquilibrium_iff_exists_isCorrelatedEquilibrium
     [DecidableEq ι] (M : GraphicalGame ι S) (hT : M.graph.IsTree)
-    {q : ∀ i : ι, (∀ j : ClosedNeighborhood M.graph i, S j.1) → ℝ} :
+    {q : ∀ i : ι, (∀ j : ClosedNeighborhood M.graph i, S j.val) → ℝ} :
     M.IsLocalCorrelatedEquilibrium q ↔
       ∃ σ : Convexity.StdSimplex ℝ (∀ i, S i),
         M.toCostGame.IsCorrelatedEquilibrium σ ∧
-        ∀ (i : ι) (u : ∀ j : ClosedNeighborhood M.graph i, S j.1),
+        ∀ (i : ι) (u : ∀ j : ClosedNeighborhood M.graph i, S j.val),
           neighborhoodMarginal M.graph σ i u = q i u := by
   constructor
   · intro hq
@@ -2228,7 +2236,7 @@ when every player has at most `m` pure strategies and degree at most `d` in a tr
 theorem GraphicalGame.treeLocalCE_size_bounds [DecidableEq ι] (M : GraphicalGame ι S)
     [DecidableRel M.graph.Adj] (hT : M.graph.IsTree) {m d : ℕ}
     (hm : ∀ i, Fintype.card (S i) ≤ m) (hd : ∀ i, M.graph.degree i ≤ d) :
-    Fintype.card (Σ i : ι, ∀ j : ClosedNeighborhood M.graph i, S j.1) = M.tableEntries ∧
+    Fintype.card (Σ i : ι, ∀ j : ClosedNeighborhood M.graph i, S j.val) = M.tableEntries ∧
     M.tableEntries ≤ Fintype.card ι * m ^ (d + 1) ∧
     Fintype.card (Σ i : ι, S i × S i) ≤ Fintype.card ι * m ^ 2 ∧
     Fintype.card (Σ e : M.graph.Dart, S e.fst × S e.snd) ≤

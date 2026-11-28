@@ -478,7 +478,7 @@ private theorem two_pow_mul_one_sub_pow_le {ε : ℝ} (hε : ε ≤ 1) {s m : �
   have h₁ : (1 - ε) ^ m ≤ Real.exp (-ε) ^ m :=
     pow_le_pow_left₀ (by linarith) (Real.one_sub_le_exp_neg ε) m
   have h₂ : Real.exp (-ε) ^ m ≤ Real.exp (-1) ^ (s + 3) := by
-    rw [← Real.exp_nat_mul, ← Real.exp_nat_mul, Real.exp_le_exp]
+    rw [← Real.exp_natCast_mul, ← Real.exp_natCast_mul, Real.exp_le_exp]
     push_cast
     linarith
   have h₃ : Real.exp (-1) ≤ 1 / 2 := by

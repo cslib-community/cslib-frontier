@@ -310,7 +310,7 @@ strategies, strategy `k` uses the in-range resources listed in `strategy i k`, a
 cost of resource `e` at load `k` is entry `k - 1` of its cost table, or `0` if there is none. -/
 def toGame (c : CongestionCode) :
     CongestionGame (Fin c.players) (fun i => Fin (c.numStrategies i)) (Fin c.resources) where
-  resources i a := Finset.univ.filter fun e => e.1 ∈ c.strategy i a
+  resources i a := Finset.univ.filter fun e => e.val ∈ c.strategy i a
   latency e k := ((c.costs e).getD (k - 1) 0 : ℝ)
 
 /-- The strategy profile of `c.toGame` decoded from a profile string. -/
@@ -384,7 +384,7 @@ theorem profileList_update (c : CongestionCode)
   · intro j h1 h2
     simp only [profileList, updateProfile, List.getElem_ofFn, List.getElem_map,
       List.getElem_range, List.length_ofFn]
-    by_cases hj : j = i.1
+    by_cases hj : j = i.val
     · subst hj
       simp
     · have hne : (⟨j, by simpa using h1⟩ : Fin c.players) ≠ i := fun h => hj (by rw [← h])
@@ -438,8 +438,8 @@ theorem decode_encode (c : CongestionCode) (s : ∀ i : Fin c.players, Fin (c.nu
   simp only [decode, encode]
   rw [BitString.listBlock_flatMap _ (by simp) _ i (by simp)]
   simp only [profileList, List.getElem_ofFn, count_thermometer]
-  rw [min_eq_left ((s i).2.le.trans (c.numStrategies_le_width i))]
-  simp [clampStrategy, (s i).2]
+  rw [min_eq_left ((s i).isLt.le.trans (c.numStrategies_le_width i))]
+  simp [clampStrategy, (s i).isLt]
 
 /-- Updating an entry preserves the length. -/
 theorem length_updateProfile (p : List ℕ) (i k : ℕ) : (updateProfile p i k).length = p.length := by
@@ -476,7 +476,7 @@ theorem pureNash_eq_localOptRel :
   | none =>
     simp only [Option.elim, decodeList_eq, le_refl, iff_true]
     intro i a
-    have := List.find?_eq_none.1 hf (i, a) (mem_moves.2 ⟨i.2, a.2⟩)
+    have := List.find?_eq_none.1 hf (i, a) (mem_moves.2 ⟨i.isLt, a.isLt⟩)
     simpa [improving, not_lt] using this
   | some m =>
     obtain ⟨hi, hk⟩ := mem_moves.1 (List.mem_of_find?_eq_some hf)
@@ -515,7 +515,7 @@ theorem pureNash_iff (c : CongestionCode) (u : List Bool) :
         c.potential (c.decodeList u) ≤ c.potential (updateProfile (c.decodeList u) i k) := by
   rw [PureNash, isPureNash_toGame_iff, decodeList_eq]
   refine and_congr_right fun _ => ⟨fun h i hi k hk => h ⟨i, hi⟩ ⟨k, hk⟩, fun h i a => ?_⟩
-  exact h i i.2 a a.2
+  exact h i i.isLt a a.isLt
 
 end CongestionCode
 

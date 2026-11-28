@@ -257,8 +257,8 @@ theorem route_reaches [Finite I] (hnext : T.next.IsCycleOn Set.univ) {J : ∀ i,
     have ho : o = ⟨o.1, J o.1⟩ := by
       have h1 : T.port (g, T.side J g) = o := by rw [← e, T.port_slot_symm]
       exact h1 ▸ sel_eq hsel
-    have h := hchain o.1 (hheads o.1) (j : ℕ) (by rw [← ho]; exact j.2.le)
-    rw [← ho, place, dite_eq_left j.2, Fin.eta, e] at h
+    have h := hchain o.1 (hheads o.1) (j : ℕ) (by rw [← ho]; exact j.isLt.le)
+    rw [← ho, place, dite_eq_left j.isLt, Fin.eta, e] at h
     have h2 := hstep _ h
     have e1 : f (.tip g (T.side J g)) = .mid g := by simp [f, route]
     rw [e1] at h2
@@ -420,7 +420,7 @@ theorem exists_selection [Finite I] (hσ : σ.IsCycleOn Set.univ) (he : ∀ p, T
     rw [T.port_slot_symm] at ho
     obtain ⟨i, a⟩ := o
     obtain rfl : a = J i := eq_of_heq (Sigma.mk.inj_iff.1 ho).2
-    exact hchosen i j j.2
+    exact hchosen i j j.isLt
   have hall : ∀ g, T.Sel J (g, d g) := by
     intro g
     let A : Vtx I G → Prop

@@ -56,8 +56,8 @@ variable {V E : Type*} (G : Multigraph V E)
 
 /-- The multigraph keeping the edges in `F`, and all the vertices. -/
 def edgeRestrict (F : Set E) : Multigraph V F where
-  src e := G.src e.1
-  tgt e := G.tgt e.1
+  src e := G.src e.val
+  tgt e := G.tgt e.val
 
 variable {G}
 
@@ -74,8 +74,8 @@ theorem exists_spanningTree [Finite V] (hG : G.toSimpleGraph.Connected) :
     ∃ F : Set E, (G.edgeRestrict F).toSimpleGraph.Connected ∧ Nat.card F + 1 = Nat.card V := by
   obtain ⟨T, hTG, hT⟩ := hG.exists_isTree_le
   -- Every edge of the spanning tree is the pair of ends of an edge of `G`.
-  have hends (s : T.edgeSet) : ∃ e, G.ends e = s.1 := by
-    have hs := SimpleGraph.edgeSet_mono hTG s.2
+  have hends (s : T.edgeSet) : ∃ e, G.ends e = s.val := by
+    have hs := SimpleGraph.edgeSet_mono hTG s.property
     rw [toSimpleGraph_eq, _root_.Cslib.Multigraph.edgeSet_toSimpleGraph] at hs
     exact hs.1
   choose g hg using hends
@@ -100,7 +100,7 @@ theorem exists_width_le_of_card_add_one_eq [Finite V] [Finite E] {d : ℕ}
     -- The cuts of the blocks add up to `2 |E_B| < 2 |B|`: some block has at most one edge
     -- leaving it.
     obtain ⟨B, -, hB⟩ : ∃ B ∈ (Finset.univ : Finset c.blocks),
-        (G.edgeCut {v | v ∈ B.1}).ncard < 2 := by
+        (G.edgeCut {v | v ∈ B.val}).ncard < 2 := by
       refine Finset.exists_lt_of_sum_lt ?_
       rw [c.sum_ncard_edgeCut, Finset.sum_const, Finset.card_univ, smul_eq_mul,
         ← Nat.card_eq_fintype_card]

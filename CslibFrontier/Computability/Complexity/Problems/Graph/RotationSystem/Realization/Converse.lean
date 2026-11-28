@@ -45,7 +45,7 @@ namespace Cslib.Complexity.Graph.PolygonalDrawing
 numerical genus zero on every component, including isolated declared vertices. -/
 theorem IsEmbedding.numericalGenusZero {G : Graph} {D : PolygonalDrawing G}
     (hD : D.IsEmbedding) {r : RotationSystem G}
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (hR : D.Realizes r) :
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hR : D.Realizes r) :
     r.NumericalGenusZero :=
   r.numericalGenusZero_of_vertexEven_faceBoundary hG
     (fun x hx => hD.exists_faceColors hR hG x hx)

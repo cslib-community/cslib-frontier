@@ -275,8 +275,8 @@ languages. -/
 theorem of_finite [Finite α] {L : _root_.Language α} (hL : Set.Finite (L : Set (List α))) :
     IsStarFree L := by
   have := hL.to_subtype
-  suffices (⨆ v : {w // w ∈ L}, ({v.1} : _root_.Language α)) = L from
-    this ▸ iSup fun v => singleton v.1
+  suffices (⨆ v : {w // w ∈ L}, ({v.val} : _root_.Language α)) = L from
+    this ▸ iSup fun v => singleton v.val
   ext w
   simp [Language.mem_iSup]
 

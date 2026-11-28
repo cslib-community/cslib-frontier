@@ -157,7 +157,7 @@ theorem two_mul_le_of_pow_le {k n c : ℕ} (hk : k ≠ 0) {A m : ℝ} (hA : 0 < 
     2 * (n : ℝ) ≤ 4 ^ k * (c + m) := by
   -- Each factor is at most an exponential: `b ≤ exp t` gives `b ^ j ≤ exp (j t)`.
   have hpow {b t : ℝ} (j : ℕ) (hb : 0 ≤ b) (hbt : b ≤ Real.exp t) : b ^ j ≤ Real.exp (j * t) :=
-    (pow_le_pow_left₀ hb hbt j).trans_eq (Real.exp_nat_mul _ j).symm
+    (pow_le_pow_left₀ hb hbt j).trans_eq (Real.exp_natCast_mul j _).symm
   have h0 : 0 ≤ 1 - 2 / (2 : ℝ) ^ k :=
     sub_nonneg.mpr ((div_le_one (by positivity)).mpr (le_self_pow₀ one_le_two hk))
   have hexp := hpow n h0 (Real.one_sub_le_exp_neg _)

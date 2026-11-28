@@ -117,7 +117,7 @@ private theorem size_baseBody_le (hK : K + K ≤ X) (hU0 : U0 ≤ X) (hS : Finty
         X * (X * (4 * Lc + 2) + 2) + 1 :=
     size_keysEnc_le (by simpa using hK) fun ks hks => by
       obtain ⟨b, rfl⟩ := List.mem_ofFn.1 hks
-      refine ⟨by simpa using (Nat.lt_succ_iff.1 (m b).2).trans hU0, fun k hk' => ?_⟩
+      refine ⟨by simpa using (Nat.lt_succ_iff.1 (m b).isLt).trans hU0, fun k hk' => ?_⟩
       obtain ⟨_, -, rfl⟩ := List.mem_map.1 hk'
       exact hf _ _
   have h1 : (keysEnc (baseBody ρ n key dkey p).writeKeys).size ≤
@@ -202,7 +202,7 @@ theorem size_scriptEnc_le (hX : 1 ≤ X) (hLc : 1 ≤ Lc) (hK : K + K ≤ X) (hU
       X * (X * X * (8 * Lc + 4) + 8 * X + 16) := by
     refine sum_map_le ((nodup_groupRoles grp g M).length_le_card.trans hR) fun r _ => ?_
     have hs := size_keysEnc_le (X := X) (Lc := Lc) (kss := (slotList (M.law r.1) r.2).map fun e =>
-      ((P.ids n o ⟨r.1, e.1⟩).map fun u => key ⟨M.roleParty r, u⟩).reverse)
+      ((P.ids n o ⟨r.1, e.val⟩).map fun u => key ⟨M.roleParty r, u⟩).reverse)
       (by simpa [slotList] using hsl r) fun ks hks => by
         obtain ⟨e, -, rfl⟩ := List.mem_map.1 hks
         refine ⟨?_, fun k hk' => ?_⟩
@@ -210,11 +210,12 @@ theorem size_scriptEnc_le (hX : 1 ≤ X) (hLc : 1 ≤ Lc) (hK : K + K ≤ X) (hU
         · rcases List.mem_map.1 (List.mem_reverse.1 hk') with ⟨_, -, rfl⟩
           exact hk _
     have hc := size_keysEnc_le (X := X) (Lc := Lc) (kss := (channelList (M.law r.1) r.2).map
-      fun ν => (indicesBelow (o ⟨r.1, ν.1⟩).succ).map fun k =>
-        key ⟨M.roleParty r, .new ⟨r.1, ν.1⟩ k⟩)
+      fun ν => (indicesBelow (o ⟨r.1, ν.val⟩).succ).map fun k =>
+        key ⟨M.roleParty r, .new ⟨r.1, ν.val⟩ k⟩)
       (by simpa [channelList] using hcn r) fun ks hks => by
         obtain ⟨ν, -, rfl⟩ := List.mem_map.1 hks
-        refine ⟨by simpa using Nat.succ_le_of_lt ((o ⟨r.1, ν.1⟩).2.trans_le hU1), fun k hk' => ?_⟩
+        refine ⟨by simpa using Nat.succ_le_of_lt ((o ⟨r.1, ν.val⟩).isLt.trans_le hU1),
+          fun k hk' => ?_⟩
         obtain ⟨_, -, rfl⟩ := List.mem_map.1 hk'
         exact hk _
     have := htg r

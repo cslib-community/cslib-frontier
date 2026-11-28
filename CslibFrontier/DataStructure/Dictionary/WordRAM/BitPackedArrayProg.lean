@@ -149,7 +149,8 @@ theorem validHistory_writePackedProg {w base offset N k idx val : ℕ} {s : Memo
   valid_prog
   all_goals first
     | ((try dsimp only); omega)
-    | exact Nat.xor_lt_two_pow (hwf.2 _) (shiftLeft_lt_two_pow_of_lt xor_masked_lt (by omega))
+    | exact Nat.xor_lt_two_pow (hwf.mem_fits _)
+        (shiftLeft_lt_two_pow_of_lt xor_masked_lt (by omega))
 
 /-- `writePackedProg` preserves `Memory.WellFormed w` at every interpreter width `w'` whenever
 `0 < w` and `k ≤ w`. -/
@@ -158,7 +159,7 @@ theorem wellFormed_clientState_writePackedProg {w w' base offset k idx val : ℕ
     Memory.WellFormed w
       ((Memory.spec w').clientState s (writePackedProg base offset k w idx val)) := by
   rw [clientState_width, clientState_writePackedProg]
-  exact ⟨hwf.1, writePacked_lt_two_pow hw hkw hwf.2 idx val⟩
+  exact ⟨hwf.frontier_fits, writePacked_lt_two_pow hw hkw hwf.mem_fits idx val⟩
 
 /-- `readPackedCode` does not invoke `Op.width`. -/
 theorem readPackedCode_not_readsWidth :

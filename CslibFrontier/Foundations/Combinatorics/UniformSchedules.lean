@@ -364,7 +364,7 @@ abbrev ScopeIncidence {F V : Type*} (scope : F → Finset V) : Type _ :=
 
 /-- Variable projection `(f, v) ↦ v` on `ScopeIncidence scope`. -/
 @[expose] def scopeVarOf {F V : Type*} (scope : F → Finset V) (e : ScopeIncidence scope) : V :=
-  e.2.1
+  e.2.val
 
 /-- Factor projection `(f, v) ↦ f` on `ScopeIncidence scope`. -/
 @[expose] def scopeFactorOf {F V : Type*} (scope : F → Finset V) (e : ScopeIncidence scope) : F :=

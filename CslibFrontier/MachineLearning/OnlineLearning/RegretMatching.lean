@@ -395,7 +395,7 @@ action has positive regret. -/
 noncomputable def regretMatchingProb (ℓ : ℕ → ι → ℝ) : ℕ → ι → ℝ :=
   WellFounded.fix Nat.lt_wfRel.wf fun t p =>
     regretMatchingStep fun a =>
-      max 0 (∑ s : Fin t, (∑ b, p s.1 s.2 b * ℓ s.1 b - ℓ s.1 a))
+      max 0 (∑ s : Fin t, (∑ b, p s.val s.isLt b * ℓ s.val b - ℓ s.val a))
 
 /-- Unfolding equation for `regretMatchingProb`: round `t` applies `regretMatchingStep` to the
 positive cumulative external regrets from rounds `< t`. -/
@@ -622,7 +622,7 @@ regret-transition matrix formed from the positive cumulative internal regrets of
 noncomputable def internalRegretMatchingProb (ℓ : ℕ → ι → ℝ) : ℕ → ι → ℝ :=
   WellFounded.fix Nat.lt_wfRel.wf fun t p =>
     Matrix.stationaryVec (internalRegretTransition fun j k =>
-      max 0 (∑ s : Fin t, p s.1 s.2 j * (ℓ s.1 j - ℓ s.1 k)))
+      max 0 (∑ s : Fin t, p s.val s.isLt j * (ℓ s.val j - ℓ s.val k)))
 
 /-- Unfolding equation for `internalRegretMatchingProb`. -/
 theorem internalRegretMatchingProb_eq (ℓ : ℕ → ι → ℝ) (t : ℕ) :

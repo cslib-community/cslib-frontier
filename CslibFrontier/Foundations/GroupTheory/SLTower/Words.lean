@@ -106,7 +106,7 @@ theorem gen_eq_El (k : Fin h) : (gen h2 k : G h n) =
     by rfl
 
 /-- An elementary matrix `1 + E_{i,i+1}` on the superdiagonal is a generator. -/
-private theorem WL.el_succ {i j : Fin h} (hij : i ≠ j) (hd : i.1 + 1 = j.1) :
+private theorem WL.el_succ {i j : Fin h} (hij : i ≠ j) (hd : i.val + 1 = j.val) :
     WL h2 (SpecialLinearGroup.transvection hij 1 : G h n) 1 := by
   have hj : j ≠ 0 := fun e => by simp [e] at hd
   have h1 : j - 1 = i := Fin.ext <| by
@@ -120,12 +120,12 @@ private theorem WL.el_succ {i j : Fin h} (hij : i ≠ j) (hd : i.1 + 1 = j.1) :
   exact h1 ▸ h3
 
 /-- Constant elementary matrices above the diagonal. -/
-theorem WL.upper (d : ℕ) (i j : Fin h) (hij : i ≠ j) (hd : i.1 + (d + 1) = j.1) :
+theorem WL.upper (d : ℕ) (i j : Fin h) (hij : i ≠ j) (hd : i.val + (d + 1) = j.val) :
     WL h2 (SpecialLinearGroup.transvection hij 1 : G h n) (4 ^ d) := by
   induction d generalizing j with
   | zero => exact (WL.el_succ hij (by omega)).mono (by simp)
   | succ d ih =>
-    let k : Fin h := ⟨j.1 - 1, by omega⟩
+    let k : Fin h := ⟨j.val - 1, by omega⟩
     have hik : i ≠ k := fun e => by
       have := congrArg Fin.val e
       dsimp [k] at this
@@ -143,8 +143,8 @@ theorem WL.upper (d : ℕ) (i j : Fin h) (hij : i ≠ j) (hd : i.1 + (d + 1) = j
 theorem WL.upper' (i j : Fin h)
     (hij : i < j) : WL h2 (SpecialLinearGroup.transvection hij.ne 1 : G h n) (4 ^ h) := by
   have := Fin.lt_def.1 hij
-  have := j.2
-  exact (WL.upper (j.1 - i.1 - 1) i j hij.ne (by omega)).mono
+  have := j.isLt
+  exact (WL.upper (j.val - i.val - 1) i j hij.ne (by omega)).mono
     (Nat.pow_le_pow_right (by omega) (by omega))
 
 theorem zero_sub_one (h2 : 2 ≤ h) : (0 : Fin h) - 1 = last h := by
@@ -155,8 +155,8 @@ theorem zero_sub_one (h2 : 2 ≤ h) : (0 : Fin h) - 1 = last h := by
 
 theorem lt_last {i : Fin h} (hi : i ≠ last h) : i < last h := by
   rw [Fin.lt_def]
-  have := i.2
-  have : i.1 ≠ h - 1 := fun e => hi (Fin.ext e)
+  have := i.isLt
+  have : i.val ≠ h - 1 := fun e => hi (Fin.ext e)
   simp only [last]
   omega
 
@@ -245,7 +245,7 @@ theorem WL.el_one (h3 : 3 ≤ h) (i j : Fin h) (hij : i ≠ j) :
   have he2 : 2 ^ e ≤ 2 * (n + 1) := by
     rcases Nat.eq_zero_or_pos n with rfl | hn
     · simp [e]
-    · have := Nat.pow_pred_clog_lt_self (b := 2) (by omega) (show 1 < n + 1 by omega)
+    · have := Nat.pow_pred_clog_lt_self 2 (show 1 < n + 1 by omega)
       obtain ⟨c, hc'⟩ := Nat.exists_eq_add_of_lt
         (Nat.clog_pos (b := 2) (by omega) (show 1 < n + 1 by omega))
       dsimp only [e]

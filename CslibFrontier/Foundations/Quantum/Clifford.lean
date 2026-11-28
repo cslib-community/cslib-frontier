@@ -99,8 +99,8 @@ private theorem neg_kronecker_right {m n p q : Type*} (A : Matrix m n ℂ) (B : 
 
 private noncomputable def cliffordStep {m : ℕ} {α : Type*} [DecidableEq α]
     (G : Fin m → Matrix α α ℂ) (i : Fin (m + 2)) : Matrix (Bool × α) (Bool × α) ℂ :=
-  if hlt : i.1 < m then pauliZ ⊗ₖ G ⟨i.1, hlt⟩
-  else if i.1 = m then pauliX ⊗ₖ (1 : Matrix α α ℂ)
+  if hlt : i.val < m then pauliZ ⊗ₖ G ⟨i.val, hlt⟩
+  else if i.val = m then pauliX ⊗ₖ (1 : Matrix α α ℂ)
   else pauliY ⊗ₖ (1 : Matrix α α ℂ)
 
 private theorem isHermitian_cliffordStep {m : ℕ} {α : Type*} [DecidableEq α]
@@ -126,36 +126,36 @@ private theorem cliffordStep_anticommute {m : ℕ} {α : Type*} [Fintype α] [De
     (hanti : ∀ {i j : Fin m}, i ≠ j → G i * G j = -(G j * G i))
     {i j : Fin (m + 2)} (hij : i ≠ j) :
     cliffordStep G i * cliffordStep G j = -(cliffordStep G j * cliffordStep G i) := by
-  have hij_val : i.1 ≠ j.1 := fun h => hij (Fin.ext h)
-  by_cases hi1 : i.1 < m
-  · by_cases hj1 : j.1 < m
-    · have hne : (⟨i.1, hi1⟩ : Fin m) ≠ ⟨j.1, hj1⟩ := fun h => hij_val (Fin.mk.inj h)
+  have hij_val : i.val ≠ j.val := fun h => hij (Fin.ext h)
+  by_cases hi1 : i.val < m
+  · by_cases hj1 : j.val < m
+    · have hne : (⟨i.val, hi1⟩ : Fin m) ≠ ⟨j.val, hj1⟩ := fun h => hij_val (Fin.mk.inj h)
       simp only [cliffordStep, hi1, hj1, ↓reduceDIte]
       rw [← mul_kronecker_mul, ← mul_kronecker_mul, pauliZ_mul_self, hanti hne,
         neg_kronecker_right]
-    · by_cases hj2 : j.1 = m
+    · by_cases hj2 : j.val = m
       · simp only [cliffordStep, hi1, hj2, lt_irrefl, ↓reduceDIte, ↓reduceIte]
         rw [← mul_kronecker_mul, ← mul_kronecker_mul, Matrix.mul_one, Matrix.one_mul,
           pauliZ_mul_pauliX, neg_kronecker_left]
       · simp only [cliffordStep, hi1, hj1, hj2, ↓reduceDIte, ↓reduceIte]
         rw [← mul_kronecker_mul, ← mul_kronecker_mul, Matrix.mul_one, Matrix.one_mul,
           pauliZ_mul_pauliY, neg_kronecker_left]
-  · by_cases hi2 : i.1 = m
-    · by_cases hj1 : j.1 < m
+  · by_cases hi2 : i.val = m
+    · by_cases hj1 : j.val < m
       · have hZX : pauliX * pauliZ = -(pauliZ * pauliX) := by rw [pauliZ_mul_pauliX, neg_neg]
         simp only [cliffordStep, hi2, lt_irrefl, hj1, ↓reduceDIte, ↓reduceIte]
         rw [← mul_kronecker_mul, ← mul_kronecker_mul, Matrix.one_mul, Matrix.mul_one,
           hZX, neg_kronecker_left]
-      · have hj2 : j.1 ≠ m := fun h => hij_val (hi2.trans h.symm)
+      · have hj2 : j.val ≠ m := fun h => hij_val (hi2.trans h.symm)
         simp only [cliffordStep, hi2, lt_irrefl, hj1, hj2, ↓reduceDIte, ↓reduceIte]
         rw [← mul_kronecker_mul, ← mul_kronecker_mul, Matrix.mul_one,
           pauliX_mul_pauliY, neg_kronecker_left]
-    · by_cases hj1 : j.1 < m
+    · by_cases hj1 : j.val < m
       · have hZY : pauliY * pauliZ = -(pauliZ * pauliY) := by rw [pauliZ_mul_pauliY, neg_neg]
         simp only [cliffordStep, hi1, hi2, hj1, ↓reduceDIte, ↓reduceIte]
         rw [← mul_kronecker_mul, ← mul_kronecker_mul, Matrix.one_mul, Matrix.mul_one,
           hZY, neg_kronecker_left]
-      · have hj2 : j.1 = m := by omega
+      · have hj2 : j.val = m := by omega
         have hYX : pauliY * pauliX = -(pauliX * pauliY) := by rw [pauliX_mul_pauliY, neg_neg]
         simp only [cliffordStep, hi1, hi2, hj2, lt_irrefl, ↓reduceDIte, ↓reduceIte]
         rw [← mul_kronecker_mul, ← mul_kronecker_mul, Matrix.mul_one,
@@ -170,7 +170,7 @@ noncomputable def cliffordGen :
     (k : ℕ) → Fin (2 * k) → Matrix (Fin k → Bool) (Fin k → Bool) ℂ
   | 0 => Fin.elim0
   | k + 1 => fun i =>
-    submatrix (cliffordStep (cliffordGen k) ⟨i.1, by omega⟩) (qubitConsEquiv k) (qubitConsEquiv k)
+    submatrix (cliffordStep (cliffordGen k) ⟨i.val, by omega⟩) (qubitConsEquiv k) (qubitConsEquiv k)
 
 theorem isHermitian_cliffordGen (k : ℕ) (i : Fin (2 * k)) :
     (cliffordGen k i).IsHermitian := by
@@ -194,7 +194,7 @@ theorem cliffordGen_anticommute (k : ℕ) {i j : Fin (2 * k)} (hij : i ≠ j) :
   induction k with
   | zero => exact i.elim0
   | succ k ih =>
-    have hij' : (⟨i.1, by omega⟩ : Fin (2 * k + 2)) ≠ ⟨j.1, by omega⟩ :=
+    have hij' : (⟨i.val, by omega⟩ : Fin (2 * k + 2)) ≠ ⟨j.val, by omega⟩ :=
       fun h => hij (Fin.ext (Fin.mk.inj h))
     simp only [cliffordGen]
     rw [submatrix_mul_equiv _ _ (qubitConsEquiv k) (qubitConsEquiv k) (qubitConsEquiv k),
@@ -226,7 +226,7 @@ theorem trace_cliffordGen_mul (k : ℕ) (i j : Fin (2 * k)) :
 associated with a real vector `u ∈ ℝ^m`. -/
 @[expose] noncomputable def cliffordObservable {m : ℕ} (u : EuclideanSpace ℝ (Fin m)) :
     Matrix (Fin ((m + 1) / 2) → Bool) (Fin ((m + 1) / 2) → Bool) ℂ :=
-  ∑ j : Fin m, (u.ofLp j : ℂ) • cliffordGen ((m + 1) / 2) ⟨j.1, by omega⟩
+  ∑ j : Fin m, (u.ofLp j : ℂ) • cliffordGen ((m + 1) / 2) ⟨j.val, by omega⟩
 
 theorem isHermitian_cliffordObservable {m : ℕ} (u : EuclideanSpace ℝ (Fin m)) :
     (cliffordObservable u).IsHermitian := by
@@ -238,7 +238,7 @@ theorem cliffordObservable_mul_self_eq_norm_sq {m : ℕ} (u : EuclideanSpace ℝ
     cliffordObservable u * cliffordObservable u = ((‖u‖ ^ 2 : ℝ) : ℂ) • 1 := by
   let k := (m + 1) / 2
   let G (j : Fin m) : Matrix (Fin k → Bool) (Fin k → Bool) ℂ :=
-    cliffordGen k ⟨j.1, by omega⟩
+    cliffordGen k ⟨j.val, by omega⟩
   have hG_sq (j : Fin m) : G j * G j = 1 := cliffordGen_mul_self k _
   have hG_anti {i j : Fin m} (hij : i ≠ j) : G i * G j = -(G j * G i) :=
     cliffordGen_anticommute k (fun h => hij (Fin.ext (Fin.mk.inj h)))
@@ -320,13 +320,13 @@ theorem trace_cliffordObservable_mul {m : ℕ} (u v : EuclideanSpace ℝ (Fin m)
   unfold cliffordObservable
   rw [Finset.sum_mul, trace_sum]
   have hrow (i : Fin m) :
-      ((∑ j : Fin m, ((u.ofLp i : ℂ) • cliffordGen k ⟨i.1, by omega⟩) *
-          ((v.ofLp j : ℂ) • cliffordGen k ⟨j.1, by omega⟩))).trace =
+      ((∑ j : Fin m, ((u.ofLp i : ℂ) • cliffordGen k ⟨i.val, by omega⟩) *
+          ((v.ofLp j : ℂ) • cliffordGen k ⟨j.val, by omega⟩))).trace =
         ((u.ofLp i * v.ofLp i : ℝ) : ℂ) * (Fintype.card (Fin k → Bool) : ℂ) := by
     rw [trace_sum]
     have hterm (j : Fin m) :
-        (((u.ofLp i : ℂ) • cliffordGen k ⟨i.1, by omega⟩) *
-            ((v.ofLp j : ℂ) • cliffordGen k ⟨j.1, by omega⟩)).trace =
+        (((u.ofLp i : ℂ) • cliffordGen k ⟨i.val, by omega⟩) *
+            ((v.ofLp j : ℂ) • cliffordGen k ⟨j.val, by omega⟩)).trace =
           if j = i then ((u.ofLp i * v.ofLp i : ℝ) : ℂ) * (Fintype.card (Fin k → Bool) : ℂ)
           else 0 := by
       rw [Matrix.smul_mul, Matrix.mul_smul, smul_smul, trace_smul, smul_eq_mul,
@@ -334,7 +334,7 @@ theorem trace_cliffordObservable_mul {m : ℕ} (u v : EuclideanSpace ℝ (Fin m)
       by_cases hij : j = i
       · subst hij
         simp only [↓reduceIte, Complex.ofReal_mul]
-      · have hne : (⟨i.1, by omega⟩ : Fin (2 * k)) ≠ ⟨j.1, by omega⟩ :=
+      · have hne : (⟨i.val, by omega⟩ : Fin (2 * k)) ≠ ⟨j.val, by omega⟩ :=
           fun h => hij (Fin.ext (Fin.mk.inj h)).symm
         simp only [hne, hij, ↓reduceIte, mul_zero]
     rw [Finset.sum_eq_single i (fun j _ hj => by rw [hterm j, ite_eq_right_iff.mpr (by tauto)])
@@ -342,14 +342,14 @@ theorem trace_cliffordObservable_mul {m : ℕ} (u v : EuclideanSpace ℝ (Fin m)
     simp only [eq_self, ↓reduceIte]
   -- Distribute `(u_i • G_i) * ∑ j, ...` inside the outer sum first:
   have hdist (i : Fin m) :
-      (((u.ofLp i : ℂ) • cliffordGen k ⟨i.1, by omega⟩) *
-          ∑ j : Fin m, (v.ofLp j : ℂ) • cliffordGen k ⟨j.1, by omega⟩).trace =
+      (((u.ofLp i : ℂ) • cliffordGen k ⟨i.val, by omega⟩) *
+          ∑ j : Fin m, (v.ofLp j : ℂ) • cliffordGen k ⟨j.val, by omega⟩).trace =
         ((u.ofLp i * v.ofLp i : ℝ) : ℂ) * (Fintype.card (Fin k → Bool) : ℂ) := by
     rw [Finset.mul_sum]
     exact hrow i
   have hsum_dist :
-      (∑ i : Fin m, (((u.ofLp i : ℂ) • cliffordGen ((m + 1) / 2) ⟨i.1, by omega⟩) *
-          ∑ j : Fin m, (v.ofLp j : ℂ) • cliffordGen ((m + 1) / 2) ⟨j.1, by omega⟩).trace) =
+      (∑ i : Fin m, (((u.ofLp i : ℂ) • cliffordGen ((m + 1) / 2) ⟨i.val, by omega⟩) *
+          ∑ j : Fin m, (v.ofLp j : ℂ) • cliffordGen ((m + 1) / 2) ⟨j.val, by omega⟩).trace) =
         ∑ i : Fin m, ((u.ofLp i * v.ofLp i : ℝ) : ℂ) * (Fintype.card (Fin k → Bool) : ℂ) :=
     Finset.sum_congr rfl fun i _ => hdist i
   rw [hsum_dist, ← Finset.sum_mul, PiLp.inner_apply, Complex.ofReal_sum]

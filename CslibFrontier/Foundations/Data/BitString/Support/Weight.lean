@@ -97,21 +97,21 @@ exposed so downstream proofs can reduce the forward map to `indicatorVector`. -/
 @[expose] def fixedSupportEquiv (n w : ℕ) :
     ↥((range n).powersetCard w) ≃ ↥(weightLayer n w) where
   toFun S := by
-    refine ⟨indicatorVector n S.1, mem_weightLayer.mpr ?_⟩
+    refine ⟨indicatorVector n S.val, mem_weightLayer.mpr ?_⟩
     exact (weight_indicatorVector (mem_powersetCard.mp S.property).1).trans
       (mem_powersetCard.mp S.property).2
   invFun x := by
-    refine ⟨natSupport x.1, mem_powersetCard.mpr ⟨natSupport_subset_range x.1, ?_⟩⟩
-    exact (card_natSupport x.1).trans (mem_weightLayer.mp x.property)
+    refine ⟨natSupport x.val, mem_powersetCard.mpr ⟨natSupport_subset_range x.val, ?_⟩⟩
+    exact (card_natSupport x.val).trans (mem_weightLayer.mp x.property)
   left_inv S := by
     apply Subtype.ext
     exact natSupport_indicatorVector (mem_powersetCard.mp S.property).1
   right_inv x := by
     apply Subtype.ext
-    exact indicatorVector_natSupport x.1
+    exact indicatorVector_natSupport x.val
 
 @[simp] theorem fixedSupportEquiv_apply (n w : ℕ) (S : ↥((range n).powersetCard w)) :
-    (fixedSupportEquiv n w S).1 = indicatorVector n S.1 :=
+    (fixedSupportEquiv n w S).val = indicatorVector n S.val :=
   rfl
 
 end Cslib.BitString

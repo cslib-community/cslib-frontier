@@ -233,7 +233,7 @@ private theorem binomialRandom_real_isClique_inter_le [Countable V] (p : I) {s t
     rw [← card_edgesOn, edgesOn_inter, card_union_add_card_inter, card_edgesOn, card_edgesOn,
       hs, ht]
     rfl
-  have hp0 : (0 : ℝ) ≤ p := p.2.1
+  have hp0 : (0 : ℝ) ≤ p := p.property.1
   have hj : #(s ∩ t) ≤ 3 := hs ▸ card_le_card inter_subset_left
   by_cases hst : s = t
   · subst hst
@@ -355,7 +355,7 @@ theorem binomialRandom_real_not_cliqueFree_three_le (n : ℕ) (p : I) :
   have h := Nat.choose_le_pow_div (α := ℝ) 3 n
   rw [show ((3 : ℕ).factorial : ℝ) = 6 by norm_num [Nat.factorial]] at h
   calc (n.choose 3 : ℝ) * (p : ℝ) ^ 3
-      ≤ (n : ℝ) ^ 3 / 6 * (p : ℝ) ^ 3 := mul_le_mul_of_nonneg_right h (pow_nonneg p.2.1 _)
+      ≤ (n : ℝ) ^ 3 / 6 * (p : ℝ) ^ 3 := mul_le_mul_of_nonneg_right h (pow_nonneg p.property.1 _)
     _ = (n * p) ^ 3 / 6 := by ring
 
 /-- **Below the triangle threshold** [Alon and Spencer, Section 4.4][AlonSpencer2016]: if

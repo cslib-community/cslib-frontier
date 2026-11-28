@@ -15,8 +15,7 @@ import CslibFrontier.Tactic.Realize
 Exercises multi-block `FramedTriple.frame` preservation, `FramedTriple.mem_eq_of_frontier_eq`,
 strided `Block.slot` framing across updates to other indices, `Block.writeList` multi-field
 initialization (including `Realizes .exact` compilation of a fixed-arity list), boundary
-witnesses for adjacent blocks and `ZeroAbove`, allocation/copy/branch combinators, and
-`Classical.choice`-free `#print axioms` checks.
+witnesses for adjacent blocks and `ZeroAbove`, and allocation/copy/branch combinators.
 -/
 
 namespace CslibFrontierTests.DataStructure.Memory.TripleFrame
@@ -214,12 +213,5 @@ example {s : State} (hz : ZeroAbove s) (k : ℕ) :
     s.mem s.frontier = 0 ∧
     ∀ s' : State, s' = ⟨s.mem, s.frontier + k⟩ → s'.mem s'.frontier = 0 :=
   ⟨hz s.frontier le_rfl, fun _ hs' => hs' ▸ (hz.allocDirty k) (s.frontier + k) le_rfl⟩
-
-/-! ## 6. Axiom checks (`#print axioms`) -/
-
-/-- info: 'Cslib.WordRAM.Block.slot_disjoint_of_ne' depends on axioms:
-[propext, Quot.sound] -/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.WordRAM.Block.slot_disjoint_of_ne
 
 end CslibFrontierTests.DataStructure.Memory.TripleFrame

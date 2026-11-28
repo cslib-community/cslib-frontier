@@ -975,13 +975,13 @@ theorem measureReal_straddlesOn_le_equicorr {V κ : Type*} [Fintype V] {s : Fins
       equicorrStraddle s.card ρ := by
   classical
   have hs_ne : s.Nonempty := Finset.card_pos.mp (by omega)
-  let uSub : s → EuclideanSpace ℝ V := fun i => u i.1
+  let uSub : s → EuclideanSpace ℝ V := fun i => u i.val
   let vSub : s → EuclideanSpace ℝ (Unit ⊕ s) := equicorrVec ρ
-  have huSub (i : s) : ‖uSub i‖ = 1 := hu i.1 i.2
+  have huSub (i : s) : ‖uSub i‖ = 1 := hu i.val i.property
   have hvSub (i : s) : ‖vSub i‖ = 1 := norm_equicorrVec hρ0 hρ1.le i
   have hpSub (i j : s) (hij : i ≠ j) : ⟪vSub i, vSub j⟫ ≤ ⟪uSub i, uSub j⟫ := by
     rw [inner_equicorrVec_of_ne hρ0 hij]
-    exact hpair i.1 i.2 j.1 j.2 (Subtype.coe_ne_coe.mpr hij)
+    exact hpair i.val i.property j.val j.property (Subtype.coe_ne_coe.mpr hij)
   have hlow := le_measureReal_forall_inner_le_of_le_inner huSub hvSub hpSub (fun _ => t)
   have hhigh := le_measureReal_forall_le_inner_of_le_inner huSub hvSub hpSub (fun _ => t)
   have hrewrite_low :
@@ -1566,7 +1566,7 @@ private theorem rEvalEven_qExpOddPoly_pow_le_exp (m : ℕ) {S : ℕ} (hS : 1 ≤
   have hS0 : (S : ℝ) ≠ 0 := by positivity
   calc _ ≤ exp (-x ^ 2 / (2 * S)) ^ S := pow_le_pow_left₀ h0 ((rEvalEven_qExpOddPoly_le_exp m
         (by positivity) x).trans_eq (congrArg exp (by push_cast; ring))) S
-    _ = exp (-x ^ 2 / 2) := by rw [← exp_nat_mul]; congr 1; field_simp
+    _ = exp (-x ^ 2 / 2) := by rw [← exp_natCast_mul]; congr 1; field_simp
 
 /-- Rational lower bound on the even centered-cdf moment
 `2 * ∫_{z > 0} φ(z) (Φ(γ z) - 1/2) ^ d`. -/

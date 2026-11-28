@@ -617,9 +617,9 @@ signature across all agent counts `n : ℕ` for `Cslib.Query.UpperBound`. -/
     FreeM (RWQuery (Fin n)) α → FreeM (RWQuery ℕ) α
   | .pure x => .pure x
   | .liftBind (.eval i a b) cont =>
-      .liftBind (.eval i.1 a b) (fun y => liftFin (cont y))
+      .liftBind (.eval i.val a b) (fun y => liftFin (cont y))
   | .liftBind (.cut i a t) cont =>
-      .liftBind (.cut i.1 a t) (fun y => liftFin (cont y))
+      .liftBind (.cut i.val a t) (fun y => liftFin (cont y))
 
 /-- Query count of `liftFin p` against an `ℕ`-indexed oracle equals the query count of `p` against
 the restricted `Fin n`-indexed oracle. -/
@@ -630,8 +630,8 @@ theorem countQueries_liftFin {n : ℕ} {α : Type}
     (liftFin p).countQueries oracle =
       p.countQueries (fun {ι} q =>
         match q with
-        | .eval i a b => oracle (.eval i.1 a b)
-        | .cut i a t => oracle (.cut i.1 a t)) := by
+        | .eval i a b => oracle (.eval i.val a b)
+        | .cut i a t => oracle (.cut i.val a t)) := by
   induction p with
   | pure _ => rfl
   | lift_bind op _ ih => cases op <;> exact congrArg (1 + ·) (ih _)

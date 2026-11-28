@@ -195,7 +195,7 @@ private theorem card_ker_mul_pow_dvd_totient {n m p e : ℕ} [NeZero n] (hp : p.
     refine Nat.Coprime.pow_right _ ((Nat.coprime_comm.1 ((Nat.Prime.coprime_iff_not_dvd hp).2
       fun hdvd => ?_)))
     obtain ⟨x, hx⟩ := exists_prime_orderOf_dvd_card' p hdvd
-    have hx2 : (x : (ZMod n)ˣ) ^ (2 * m) = 1 := x.2
+    have hx2 : (x : (ZMod n)ˣ) ^ (2 * m) = 1 := x.property
     have hpm : p ∣ n - 1 := by
       rw [← hx, ← Subgroup.orderOf_coe]
       exact (orderOf_dvd_of_pow_eq_one hx2).trans hm

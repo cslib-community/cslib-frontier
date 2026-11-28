@@ -296,7 +296,7 @@ private theorem exists_add_pow_le_two_rpow {r ε : ℝ} (hr : 0 < r) (hε : 0 < 
       _ = n ^ (k + 2) := by ring
   calc (n : ℝ) + n ^ k ≤ ((n ^ (k + 2) : ℕ) : ℝ) := mod_cast hnat
     _ = Real.exp (((k + 2 : ℕ) : ℝ) * Real.log n) := by
-        rw [Real.exp_nat_mul, Real.exp_log hnpos]
+        rw [Real.exp_natCast_mul, Real.exp_log hnpos]
         norm_cast
     _ ≤ Real.exp (Real.log 2 * (ε * (n : ℝ) ^ r)) := Real.exp_le_exp.2 hlog
     _ = 2 ^ (ε * (n : ℝ) ^ r) := (Real.rpow_def_of_pos two_pos _).symm

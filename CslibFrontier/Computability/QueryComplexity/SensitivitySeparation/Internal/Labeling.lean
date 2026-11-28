@@ -71,9 +71,9 @@ private theorem goodLabeling_exists_of_power_bound (hr : 0 < r) (hN : 120 ≤ k 
   obtain ⟨A, _, hA⟩ := Finset.exists_mem_notMem_of_card_lt_card hc
   refine ⟨⟨fun i j => A (i, j), fun I hI m => ?_⟩⟩
   let e : Fin 16 ≃ I := (Finset.equivFinOfCardEq hI).symm
-  obtain ⟨i, j, ha, hne⟩ := T.labeled_edge_of_not_bad A hA (fun i => (e i).1)
+  obtain ⟨i, j, ha, hne⟩ := T.labeled_edge_of_not_bad A hA (fun i => (e i).val)
     (Subtype.val_injective.comp e.injective) m
-  exact ⟨(e i).1, (e i).2, (e j).1, (e j).2, ha, hne⟩
+  exact ⟨(e i).val, (e i).property, (e j).val, (e j).property, ha, hne⟩
 
 end Tournament
 

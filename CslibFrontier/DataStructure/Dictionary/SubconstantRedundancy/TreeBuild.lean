@@ -442,7 +442,7 @@ private noncomputable def canonicalStoreLvlAux {P : TreeSchedule} (seeds : P.See
 noncomputable def canonicalStoreLvl {P : TreeSchedule} (seeds : P.SeedAssignment)
     (S : Finset (Fin P.paddedUniv)) (hgood : seeds.AllGoodSeeds S) : Fin P.paddedUniv → ℕ :=
   (canonicalStoreLvlAux seeds S hgood (P.depth - 1) 1 (by have := P.two_le_depth; omega)
-    le_rfl (Nat.one_le_of_lt P.two_le_depth)).1
+    le_rfl (Nat.one_le_of_lt P.two_le_depth)).val
 
 theorem validStoreLvl_canonicalStoreLvl {P : TreeSchedule} (seeds : P.SeedAssignment)
     (S : Finset (Fin P.paddedUniv)) (hgood : seeds.AllGoodSeeds S) :
@@ -450,10 +450,10 @@ theorem validStoreLvl_canonicalStoreLvl {P : TreeSchedule} (seeds : P.SeedAssign
   let res := canonicalStoreLvlAux seeds S hgood (P.depth - 1) 1
     (by have := P.two_le_depth; omega) le_rfl (Nat.one_le_of_lt P.two_le_depth)
   exact
-    { bounds := res.2.2.2.1 rfl
-      outside := res.2.1
-      inner_card := fun ℓ h2 hlt u => res.2.2.2.2.1 ℓ (by omega) h2 hlt u
-      leaf_card := res.2.2.2.2.2.1 }
+    { bounds := res.property.2.2.1 rfl
+      outside := res.property.1
+      inner_card := fun ℓ h2 hlt u => res.property.2.2.2.1 ℓ (by omega) h2 hlt u
+      leaf_card := res.property.2.2.2.2.1 }
 
 private noncomputable def nodePayloadOf {P : TreeSchedule} (d : P.PaddedDict)
     (seeds : P.SeedAssignment) (ℓ : ℕ) (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth)

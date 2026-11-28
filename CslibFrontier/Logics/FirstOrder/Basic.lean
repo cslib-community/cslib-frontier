@@ -212,7 +212,7 @@ theorem realize_isZero {V : Type*} (v : V → Fin B) (u : V) :
   fo_simp [isZero, hlt]
   refine ⟨fun h => ?_, by omega⟩
   by_contra hne
-  have := h ⟨0, Nat.lt_of_le_of_lt (Nat.zero_le _) (v u).2⟩
+  have := h ⟨0, Nat.lt_of_le_of_lt (Nat.zero_le _) (v u).isLt⟩
   fin_index
 
 /-- On `Fin B`, with `r` read as `<`, `isMax r u` holds exactly when `u` is assigned `B - 1`. -/
@@ -220,7 +220,7 @@ theorem realize_isZero {V : Type*} (v : V → Fin B) (u : V) :
 theorem realize_isMax {V : Type*} (v : V → Fin B) (u : V) :
     (isMax r u).Realize v ↔ (v u : ℕ) = B - 1 := by
   fo_simp [isMax, hlt]
-  have hu := (v u).2
+  have hu := (v u).isLt
   refine ⟨fun h => ?_, by omega⟩
   by_contra hne
   have := h ⟨(v u : ℕ) + 1, by omega⟩
@@ -232,8 +232,8 @@ successor of the value of `u`. -/
 theorem realize_succ {V : Type*} (v : V → Fin B) (u w : V) :
     (succ r u w).Realize v ↔ (v w : ℕ) = (v u : ℕ) + 1 := by
   fo_simp [succ, realize_lt hlt, hlt]
-  have hu := (v u).2
-  have hw := (v w).2
+  have hu := (v u).isLt
+  have hw := (v w).isLt
   constructor
   · rintro ⟨hlt', hmid⟩
     rw [Fin.lt_def] at hlt'
@@ -289,7 +289,7 @@ sentence asserting that the truth values `i ↦ (M ⊨ φ i)` satisfy `P`. -/
 noncomputable def truthTableSentence {m : ℕ} (φ : Fin m → L.Sentence)
     (P : (Fin m → Bool) → Prop) : L.Sentence :=
   BoundedFormula.iSup fun s : {s : Fin m → Bool // P s} =>
-    BoundedFormula.iInf fun i : Fin m => if s.1 i then φ i else ∼(φ i)
+    BoundedFormula.iInf fun i : Fin m => if s.val i then φ i else ∼(φ i)
 
 open scoped Classical in
 /-- `truthTableSentence φ P` holds exactly when the truth values of the sentences `φ i` satisfy

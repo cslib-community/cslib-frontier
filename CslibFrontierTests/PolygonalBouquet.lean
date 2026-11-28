@@ -22,9 +22,9 @@ namespace CslibFrontierTests.PolygonalBouquet
 open Cslib Cslib.Complexity Cslib.Complexity.Graph
 open Polygonal RotationSystem
 
-private theorem star_dual_loops (n : ℕ) (e : Fin (starRotation n).dualGraph.2.length) :
+private theorem star_dual_loops (n : ℕ) (e : Fin (starRotation n).dualGraph.edges.length) :
     (Dart.vertex (G := (starRotation n).dualGraph) (e, false)) = Dart.vertex (e, true) := by
-  let i : Fin (starGraph n).2.length := ⟨e.val, by simpa using e.isLt⟩
+  let i : Fin (starGraph n).edges.length := ⟨e.val, by simpa using e.isLt⟩
   have he (b : Bool) : (e, b) = (starRotation n).dualDartEquiv (i, b) := rfl
   rw [he false, he true, vertex_dualDartEquiv, vertex_dualDartEquiv, faceId_eq_iff]
   exact sameFace_starRotation _ _

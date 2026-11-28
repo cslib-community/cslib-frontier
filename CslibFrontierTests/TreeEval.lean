@@ -102,36 +102,36 @@ def sampleNontrivial : NontrivialInstance := ⟨⟨2, 2, sample⟩, by decide, b
 
 /-- The encoded sample instance has `110` bits (`6` header bits, `3 * 32` gate bits, `4 * 2` leaf
 bits). -/
-example : (encInstance sampleNontrivial.1).length = 110 := by decide
+example : (encInstance sampleNontrivial.val).length = 110 := by decide
 
 open Turing MultiTapeTM in
-example : sampleNontrivial.1.ell < (encNat (encInstance sampleNontrivial.1).length).length :=
-  ell_lt_length_encNat_length_encInstance sampleNontrivial.2.2
+example : sampleNontrivial.val.ell < (encNat (encInstance sampleNontrivial.val).length).length :=
+  ell_lt_length_encNat_length_encInstance sampleNontrivial.property.2
 
 open Turing MultiTapeTM in
-example : sampleNontrivial.1.height < (encNat (encInstance sampleNontrivial.1).length).length :=
-  height_lt_length_encNat_length_encInstance sampleNontrivial.2.1
+example : sampleNontrivial.val.height < (encNat (encInstance sampleNontrivial.val).length).length :=
+  height_lt_length_encNat_length_encInstance sampleNontrivial.property.1
 
 open Turing MultiTapeTM Reader in
 /-- On `sampleNontrivial`, the raw space bound is `15 + 7 = 22` and the `6 · log n · log log n`
 upper bound is `6 * (7 * 3) = 126`. -/
-example : spaceBound sampleNontrivial.1.ell sampleNontrivial.1.height +
-      (encNat ((encInstance sampleNontrivial.1).length + 1)).length = 22 ∧
-    6 * ((encNat (encInstance sampleNontrivial.1).length).length *
-      (encNat (encNat (encInstance sampleNontrivial.1).length).length).length) = 126 := by
+example : spaceBound sampleNontrivial.val.ell sampleNontrivial.val.height +
+      (encNat ((encInstance sampleNontrivial.val).length + 1)).length = 22 ∧
+    6 * ((encNat (encInstance sampleNontrivial.val).length).length *
+      (encNat (encNat (encInstance sampleNontrivial.val).length).length).length) = 126 := by
   decide
 
 open Turing MultiTapeTM Reader in
-example : spaceBound sampleNontrivial.1.ell sampleNontrivial.1.height +
-      (encNat ((encInstance sampleNontrivial.1).length + 1)).length ≤
-    6 * ((encNat (encInstance sampleNontrivial.1).length).length *
-      (encNat (encNat (encInstance sampleNontrivial.1).length).length).length) :=
-  spaceBound_add_length_le_log_mul_log_log sampleNontrivial.2.1 sampleNontrivial.2.2
+example : spaceBound sampleNontrivial.val.ell sampleNontrivial.val.height +
+      (encNat ((encInstance sampleNontrivial.val).length + 1)).length ≤
+    6 * ((encNat (encInstance sampleNontrivial.val).length).length *
+      (encNat (encNat (encInstance sampleNontrivial.val).length).length).length) :=
+  spaceBound_add_length_le_log_mul_log_log sampleNontrivial.property.1 sampleNontrivial.property.2
 
 open Turing MultiTapeTM in
 /-- **Tree Evaluation in space `O(log n · log log n)`** on nontrivial instances. -/
 example : ∃ t, ComputableInBigO
-    (fun I : NontrivialInstance => List.ofFn I.1.tree.eval) encNontrivialInstance encBits t
+    (fun I : NontrivialInstance => List.ofFn I.val.tree.eval) encNontrivialInstance encBits t
     fun I => (encNat (encNontrivialInstance I).length).length *
       (encNat (encNat (encNontrivialInstance I).length).length).length :=
   computableInSpace_eval_log_mul_log_log
@@ -145,11 +145,11 @@ example : ∃ (t c k : ℕ) (State : Type) (_ : Finite State) (tm : MultiTapeTM 
       (c * (t + 1)) (c * 22) := by
   obtain ⟨t, c, k, State, hfinite, tm, htm⟩ := computableInSpace_eval_log_mul_log_log
   have h : tm.ComputesInTimeAndSpace (encNontrivialInstance sampleNontrivial)
-      (List.ofFn sampleNontrivial.1.tree.eval) (c * (t sampleNontrivial + 1))
+      (List.ofFn sampleNontrivial.val.tree.eval) (c * (t sampleNontrivial + 1))
       (c * ((encNat (encNontrivialInstance sampleNontrivial).length).length *
         (encNat (encNat (encNontrivialInstance sampleNontrivial).length).length).length + 1)) :=
     htm sampleNontrivial
-  have hval : List.ofFn sampleNontrivial.1.tree.eval = [false, true] := by decide
+  have hval : List.ofFn sampleNontrivial.val.tree.eval = [false, true] := by decide
   have hspace : (encNat (encNontrivialInstance sampleNontrivial).length).length *
       (encNat (encNat (encNontrivialInstance sampleNontrivial).length).length).length + 1 =
       22 := by decide

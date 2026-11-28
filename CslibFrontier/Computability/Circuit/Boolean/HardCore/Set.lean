@@ -224,7 +224,7 @@ functions of De Morgan circuit complexity at most `s`, then `f` has a hard-core 
 theorem IsHardCoreMeasure.exists_isHardCoreSet_sub {f : BooleanFunction n} {s : ℕ} {δ ε η : ℝ}
     {M : BitString n → ℝ} (hM : IsHardCoreMeasure f s δ ε M) (hε : 0 ≤ ε) (hη : 0 ≤ η)
     (hηδ : η < δ)
-    (hcount : (#(computableFunctions n s) + 1) * Real.exp (-2 * η ^ 2 * 2 ^ n) < 1) :
+    (hcount : ((computableFunctions n s).ncard + 1) * Real.exp (-2 * η ^ 2 * 2 ^ n) < 1) :
     ∃ H, IsHardCoreSet f s (δ - η) (ε + η / (δ - η)) H := by
   have hN : (0 : ℝ) < 2 ^ n := by positivity
   have hexp : -2 * (η * 2 ^ n) ^ 2 / 2 ^ n = -2 * η ^ 2 * 2 ^ n := by field_simp
@@ -236,13 +236,15 @@ theorem IsHardCoreMeasure.exists_isHardCoreSet_sub {f : BooleanFunction n} {s : 
     rcases min_choice (1 / 2 + ε) 1 with hmin | hmin <;> rw [hmin]
     · exact h
     · linarith only [hle]
+  have hfin := (computableFunctions n s).toFinite
   obtain ⟨H, hsize, hH⟩ := exists_finset_card_agree_lt (t := η * 2 ^ n) f M hM.mem_Icc
-    (computableFunctions n s) ⟨le_min (by linarith only [hε]) zero_le_one, min_le_right _ _⟩
-    hagree (by positivity) (by rw [hexp]; exact hcount)
+    hfin.toFinset ⟨le_min (by linarith only [hε]) zero_le_one, min_le_right _ _⟩
+    (fun g hg => hagree g (hfin.mem_toFinset.mp hg)) (by positivity)
+    (by rw [hexp, ← Set.ncard_eq_toFinset_card _ hfin]; exact hcount)
   have hcard : (δ - η) * 2 ^ n < #H := by
     rw [sub_mul]; linarith only [hsize, hM.mul_two_pow_le_sum]
   refine ⟨H, hcard.le, fun g hg => ?_⟩
-  have h := hH g (Circuits.mem_computableFunctions_iff_complexity_le.mpr hg)
+  have h := hH g (hfin.mem_toFinset.mpr (Circuits.mem_computableFunctions_iff_complexity_le.mpr hg))
   have hmin : min (1 / 2 + ε) 1 * (#H : ℝ) ≤ (1 / 2 + ε) * #H :=
     mul_le_mul_of_nonneg_right (min_le_left _ _) (Nat.cast_nonneg _)
   have hslack : η * 2 ^ n ≤ η / (δ - η) * #H := by
@@ -302,7 +304,7 @@ density `δ + γ δ (1 - δ)` (`IsHardCoreMeasure.pad`), so that rounding it
 theorem IsHardCoreMeasure.exists_isHardCoreSet {f : BooleanFunction n} {s : ℕ} {δ ε γ : ℝ}
     {M : BitString n → ℝ} (hM : IsHardCoreMeasure f s δ ε M) (hδ : 0 < δ) (hδ1 : δ < 1)
     (hε : 0 ≤ ε) (hγ : 0 < γ) (hγ1 : γ ≤ 1)
-    (hcount : (#(computableFunctions n s) + 1) *
+    (hcount : ((computableFunctions n s).ncard + 1) *
       Real.exp (-2 * (γ * δ * (1 - δ)) ^ 2 * 2 ^ n) < 1) :
     ∃ H, IsHardCoreSet f s δ (ε + 2 * γ) H := by
   have hγδ : γ * δ ≤ 1 := (mul_le_of_le_one_right hγ.le hδ1.le).trans hγ1
@@ -333,7 +335,7 @@ theorem exists_isHardCoreSet {f : BooleanFunction n} {s T : ℕ} {δ ε γ : ℝ
     (hf : ∀ g : BooleanFunction n,
       complexity interpretation (single g) ≤ T * s + (2 + T * (2 * (T + 2))) →
         (#{x | g x = f x} : ℝ) / 2 ^ n ≤ 1 - δ)
-    (hcount : (#(computableFunctions n s) + 1) *
+    (hcount : ((computableFunctions n s).ncard + 1) *
       Real.exp (-2 * (γ * δ * (1 - δ)) ^ 2 * 2 ^ n) < 1) :
     ∃ H, IsHardCoreSet f s δ (ε + 2 * γ) H := by
   obtain ⟨M, hM⟩ := exists_isHardCoreMeasure hδ hε hT hf
@@ -351,7 +353,7 @@ theorem exists_isHardCoreSet_of_le {f : BooleanFunction n} {S T : ℕ} {δ ε γ
     (hS : 2 + T * (2 * (T + 2)) ≤ S)
     (hf : ∀ g : BooleanFunction n, complexity interpretation (single g) ≤ S →
       (#{x | g x = f x} : ℝ) / 2 ^ n ≤ 1 - δ)
-    (hcount : (#(computableFunctions n ((S - (2 + T * (2 * (T + 2)))) / T)) + 1) *
+    (hcount : ((computableFunctions n ((S - (2 + T * (2 * (T + 2)))) / T)).ncard + 1) *
       Real.exp (-2 * (γ * δ * (1 - δ)) ^ 2 * 2 ^ n) < 1) :
     ∃ H, IsHardCoreSet f ((S - (2 + T * (2 * (T + 2)))) / T) δ (ε + 2 * γ) H := by
   obtain ⟨M, hM⟩ := exists_isHardCoreMeasure_of_le hδ hε hT hS hf

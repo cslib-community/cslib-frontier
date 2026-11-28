@@ -119,7 +119,7 @@ theorem drawingPosition_clause {φ : CNF V} (a : FormulaDrawing φ) (_ha : a.Val
 
 /-- The occurrence at an edge-list index is the same occurrence used to build its route. -/
 theorem indexed_route {φ : CNF V} (a : FormulaDrawing φ) {i : ℕ}
-    (hi : i < (SAT.incidenceGraph φ).2.length) :
+    (hi : i < (SAT.incidenceGraph φ).edges.length) :
     a.routes.getD i [] = a.incidenceRoute
       ((Cslib.Logic.PL.occurrences φ)[i]'(by simpa [SAT.incidenceGraph] using hi)) := by
   rw [routes, List.getD_eq_getElem _ _ (by simpa [SAT.incidenceGraph] using hi),
@@ -128,10 +128,10 @@ theorem indexed_route {φ : CNF V} (a : FormulaDrawing φ) {i : ℕ}
 /-- Local occurrence-indexed certificates give a drawing of the actual formula incidence graph. -/
 theorem isPlanarOrthogonalDrawing {φ : CNF V} (a : FormulaDrawing φ) (ha : a.Valid) :
     Graph.IsPlanarOrthogonalDrawing (SAT.incidenceGraph φ) a.drawing := by
-  have hlen : (SAT.incidenceGraph φ).2.length = (Cslib.Logic.PL.occurrences φ).length := by
+  have hlen : (SAT.incidenceGraph φ).edges.length = (Cslib.Logic.PL.occurrences φ).length := by
     simp [SAT.incidenceGraph]
-  have hei (i : ℕ) (hi : i < (SAT.incidenceGraph φ).2.length) :
-      (SAT.incidenceGraph φ).2[i] =
+  have hei (i : ℕ) (hi : i < (SAT.incidenceGraph φ).edges.length) :
+      (SAT.incidenceGraph φ).edges[i] =
         (φ.distinctVars.idxOf ((Cslib.Logic.PL.occurrences φ)[i]'(hlen ▸ hi)).lit.1,
         φ.distinctVars.length + ((Cslib.Logic.PL.occurrences φ)[i]'(hlen ▸ hi)).clause) := by
     simp only [SAT.incidenceGraph, List.getElem_map]

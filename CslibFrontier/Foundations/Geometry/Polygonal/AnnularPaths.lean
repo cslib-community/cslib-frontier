@@ -88,7 +88,7 @@ theorem exists_annular_paths (n : ℕ) (z : ℂ) {r R : ℝ} (hr : 0 < r) (hrR :
       Complex.norm_real, Real.norm_of_nonneg (hrad t ht).le]
   refine ⟨γ, ?_, ?_, ?_, ?_, hnorm, ?_⟩
   · exact fun i => continuous_const.add ((Complex.continuous_ofReal.comp lineMap_continuous).mul
-      (continuous_subtype_val.comp (Circle.exp.continuous.comp lineMap_continuous)))
+      (continuous_subtypeVal.comp (Circle.exp.continuous.comp lineMap_continuous)))
   · intro i
     let Ka := nndist (P ((p i - z).arg : Real.Angle)) (Q ((q i - z).arg : Real.Angle))
     let Kr := nndist r R

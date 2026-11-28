@@ -132,21 +132,21 @@ of at most `L` bits, of length `ℓ`, is XORed with the first `ℓ` bits of the 
 `k[0 .. ℓ - 1] ⊕ w`. -/
 def varXor (k : BitString L) (w : {w : List Bool // w.length ≤ L}) :
     {w : List Bool // w.length ≤ L} :=
-  ⟨List.zipWith Bool.xor ((List.ofFn k).take w.1.length) w.1, by
-    have := w.2
+  ⟨List.zipWith Bool.xor ((List.ofFn k).take w.val.length) w.val, by
+    have := w.property
     simp only [List.length_zipWith, List.length_take, List.length_ofFn]
     omega⟩
 
 /-- The underlying word of `varXor`: the word XORed with as many leading key bits as it has. -/
 theorem coe_varXor (k : BitString L) (w : {w : List Bool // w.length ≤ L}) :
-    (varXor L k w).1 = List.zipWith Bool.xor ((List.ofFn k).take w.1.length) w.1 := by
+    (varXor L k w).val = List.zipWith Bool.xor ((List.ofFn k).take w.val.length) w.val := by
   simp only [varXor]
 
 /-- `varXor` preserves the length of a word. -/
 @[simp]
 theorem length_varXor (k : BitString L) (w : {w : List Bool // w.length ≤ L}) :
-    (varXor L k w).1.length = w.1.length := by
-  have := w.2
+    (varXor L k w).val.length = w.val.length := by
+  have := w.property
   simp only [coe_varXor, List.length_zipWith, List.length_take, List.length_ofFn]
   omega
 
@@ -173,24 +173,24 @@ same set as a `Finset`. -/
 the length of `m`. -/
 theorem variableLengthOTP_ciphertextDist_map_val (m : {w : List Bool // w.length ≤ L}) :
     ((variableLengthOTP L).ciphertextDist m).map Subtype.val =
-      BitString.uniformList m.1.length := by
+      BitString.uniformList m.val.length := by
   have hfun : (Subtype.val ∘ fun k => varXor L k m) =
-      (fun pad => List.zipWith Bool.xor pad m.1) ∘ List.take m.1.length ∘ List.ofFn := rfl
+      (fun pad => List.zipWith Bool.xor pad m.val) ∘ List.take m.val.length ∘ List.ofFn := rfl
   rw [variableLengthOTP, EncScheme.ciphertextDist_ofPure, PMF.map_comp, hfun, ← PMF.map_comp,
     ← PMF.map_comp]
-  change ((BitString.uniformList L).map (List.take m.1.length)).map _ = _
-  rw [BitString.uniformList_take m.2, BitString.uniformList_map_zipWith_xor]
+  change ((BitString.uniformList L).map (List.take m.val.length)).map _ = _
+  rw [BitString.uniformList_take m.property, BitString.uniformList_map_zipWith_xor]
 
 /-- Two messages have the same ciphertext law under the variable-length one-time pad exactly when
 they have the same length: a precise form of the remark in [BonehShoup2023], Example 2.5 (p. 9),
 that the ciphertext leaks the length of the message and nothing else. -/
 theorem variableLengthOTP_ciphertextDist_eq_iff (m₀ m₁ : {w : List Bool // w.length ≤ L}) :
     (variableLengthOTP L).ciphertextDist m₀ = (variableLengthOTP L).ciphertextDist m₁ ↔
-      m₀.1.length = m₁.1.length := by
+      m₀.val.length = m₁.val.length := by
   refine ⟨fun h => ?_, fun h => ?_⟩
   · have h' := congrArg (PMF.map Subtype.val) h
     rw [variableLengthOTP_ciphertextDist_map_val, variableLengthOTP_ciphertextDist_map_val] at h'
-    obtain ⟨w, hw⟩ := (BitString.uniformList m₀.1.length).support_nonempty
+    obtain ⟨w, hw⟩ := (BitString.uniformList m₀.val.length).support_nonempty
     have h₀ := BitString.length_of_mem_support_uniformList hw
     rw [h'] at hw
     exact h₀.symm.trans (BitString.length_of_mem_support_uniformList hw)
@@ -201,7 +201,7 @@ theorem variableLengthOTP_ciphertextDist_eq_iff (m₀ m₁ : {w : List Bool // w
 has probability `0`: the mass `Pr[E(k, m₁) = c] = 0` for a 2-bit `m₁` and a 1-bit `c` in
 [BonehShoup2023], Example 2.5 (p. 9). -/
 theorem variableLengthOTP_ciphertextDist_apply_of_length_ne {L : ℕ}
-    {m c : {w : List Bool // w.length ≤ L}} (h : c.1.length ≠ m.1.length) :
+    {m c : {w : List Bool // w.length ≤ L}} (h : c.val.length ≠ m.val.length) :
     (variableLengthOTP L).ciphertextDist m c = 0 := by
   rw [← map_apply_of_injective _ Subtype.val_injective, variableLengthOTP_ciphertextDist_map_val,
     PMF.apply_eq_zero_iff]
@@ -221,8 +221,8 @@ theorem variableLengthOTP_ciphertextIndist_iff :
     simp at this
   · rintro rfl m₀ m₁
     rw [variableLengthOTP_ciphertextDist_eq_iff]
-    have h₀ := m₀.2
-    have h₁ := m₁.2
+    have h₀ := m₀.property
+    have h₁ := m₁.property
     omega
 
 /-- **The variable-length one-time pad is not perfectly secret** when `0 < L`: [BonehShoup2023],

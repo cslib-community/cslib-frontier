@@ -1703,9 +1703,10 @@ private theorem zeroFaultTotalOrderAlg_eventually_delivers_slot
   have hfair_q := bcastProcFair_of_admissibleZero hadm q
   rcases hadm with ⟨hs0, he, _, _⟩
   have hex_recv : ∀ i : Fin (m + 1),
-      ∃ j, xs j = some ⟨q, Sum.inr (.ordered i.1 ((seqRunLog leader xs K)[i.1]'(by omega)))⟩ := by
+      ∃ j, xs j =
+          some ⟨q, Sum.inr (.ordered i.val ((seqRunLog leader xs K)[i.val]'(by omega)))⟩ := by
     intro i
-    obtain ⟨t, _, hmsg⟩ := seqRunLog_ordered_sent hs0 he q K i.1 (by omega)
+    obtain ⟨t, _, hmsg⟩ := seqRunLog_ordered_sent hs0 he q K i.val (by omega)
     obtain ⟨j, _, hxj⟩ := hfair_q _ rfl (t + 1) hmsg
     exact ⟨j, hxj⟩
   choose jFn hjFn using hex_recv
@@ -1717,16 +1718,16 @@ private theorem zeroFaultTotalOrderAlg_eventually_delivers_slot
   rcases htr_star with ⟨_, hstep_star⟩
   have hinv_star := seqInv_runLog hs0 he jStar
   have hinv_next := seqInv_runLog hs0 he (jStar + 1)
-  let itemMax := (seqRunLog leader xs K)[iMax.1]'(by omega)
-  let bufStar : List (SlotEntry P V) := ⟨iMax.1, itemMax⟩ :: ((ss jStar).proc q).state.buf
-  have hall_in_bufStar : ∀ i : Fin (m + 1), (lookupSlot i.1 bufStar).isSome := by
+  let itemMax := (seqRunLog leader xs K)[iMax.val]'(by omega)
+  let bufStar : List (SlotEntry P V) := ⟨iMax.val, itemMax⟩ :: ((ss jStar).proc q).state.buf
+  have hall_in_bufStar : ∀ i : Fin (m + 1), (lookupSlot i.val bufStar).isSome := by
     intro i
     have hij_le : jFn i ≤ jStar := hiMax i (Finset.mem_univ i)
     by_cases hlt : jFn i < jStar
     · have htr_i := he (jFn i)
       rw [hjFn i] at htr_i
       rcases htr_i with ⟨_, hstep_i⟩
-      have hin_next : ⟨i.1, (seqRunLog leader xs K)[i.1]'(by omega)⟩ ∈
+      have hin_next : ⟨i.val, (seqRunLog leader xs K)[i.val]'(by omega)⟩ ∈
           ((ss (jFn i + 1)).proc q).state.buf := by
         rw [hstep_i]
         simp [zeroFaultTotalOrderAlg, TotalOrderBroadcastAlg.recvEvent]

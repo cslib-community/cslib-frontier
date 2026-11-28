@@ -482,7 +482,7 @@ private theorem twoBlockBound_le_evalWith_runFrom {law : List Bool → PMF Bool}
     have hs : 1 - v ≤ 1 := tsub_le_self
     have htol : 0 < P.verifierTolerance := hk0.trans hk
     have hδ : (k.val : ℝ≥0∞) / P.grid ≤ 1 :=
-      ENNReal.div_le_of_le_mul (by rw [one_mul]; exact_mod_cast Nat.lt_succ_iff.1 k.2)
+      ENNReal.div_le_of_le_mul (by rw [one_mul]; exact_mod_cast Nat.lt_succ_iff.1 k.isLt)
     -- One round, with the bound for the next transcript as the value after it.
     have key := fun hab => le_evalWith_runFrom_succ (law := law) P (twoBlockProposer P m k κ₁ κ₀)
       B n history stateA stateA stateB (twoBlockClaim m k κ₁ κ₀ history.bits) rfl
@@ -637,7 +637,7 @@ theorem le_evalWith_run_twoBlockProposer (P : Params) (m : ℕ) (hrounds : P.rou
     rw [hκ, Nat.cast_mul, Nat.cast_ofNat, mul_div_assoc]
   have ha2 : 2 * ((κ₀.val : ℝ≥0∞) / P.grid) ≤ 1 := by
     rw [← ha₁]
-    exact ENNReal.div_le_of_le_mul (by rw [one_mul]; exact_mod_cast Nat.lt_succ_iff.1 κ₁.2)
+    exact ENNReal.div_le_of_le_mul (by rw [one_mul]; exact_mod_cast Nat.lt_succ_iff.1 κ₁.isLt)
   have h := twoBlockBound_le_evalWith_runFrom
     (law := (twoBlockMachine m).stepLaw (twoBlockOracle (PMF.pure false) c hc0 hc1)) P m k κ₁ κ₀
     v _ (fun bits hbits => stepLaw_twoBlockMachine_start _ hbits)
@@ -656,7 +656,7 @@ private theorem exp_neg_six_le : Real.exp (-6) ≤ 1 / 400 := by
   have h6 : (400 : ℝ) ≤ Real.exp 6 := by
     have h := Real.exp_one_gt_d9
     have hpow : (2.7182818283 : ℝ) ^ 6 ≤ Real.exp 1 ^ 6 := by gcongr
-    rw [← Real.exp_nat_mul] at hpow
+    rw [← Real.exp_natCast_mul] at hpow
     norm_num at hpow ⊢
     linarith
   rw [Real.exp_neg, one_div]
@@ -808,7 +808,7 @@ private theorem exists_proposer_two_fifths_lt_twoBlock (K : ℝ≥0) (d : ℕ)
     calc (1 - 1 / (4 * (d : ℝ) + 1)) ^ m
         ≤ Real.exp (-(1 / (4 * (d : ℝ) + 1))) ^ m :=
           pow_le_pow_left₀ (by linarith) (Real.one_sub_le_exp_neg _) m
-      _ = Real.exp (m * -(1 / (4 * (d : ℝ) + 1))) := (Real.exp_nat_mul _ _).symm
+      _ = Real.exp (m * -(1 / (4 * (d : ℝ) + 1))) := (Real.exp_natCast_mul _ _).symm
       _ ≤ Real.exp (-1) := by
         refine Real.exp_le_exp.2 ?_
         rw [mul_neg, neg_le_neg_iff, mul_one_div, le_div_iff₀ (by positivity)]

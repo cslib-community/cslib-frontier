@@ -285,13 +285,13 @@ private theorem boolMarkovKernel_traj_real (qLo qHi : I) (m : ℕ) (x : Π n, Bo
     simp [hcond, Cslib.Probability.PMF.coin_apply, ENNReal.toReal_ofReal (unitInterval.nonneg _)]
 
 private def histCount (n : ℕ) (h : Π i : Finset.Iic n, BoolSeq i) : ℕ :=
-  ∑ t : Fin n, if h ⟨t.1 + 1, Finset.mem_Iic.mpr t.isLt⟩ then 1 else 0
+  ∑ t : Fin n, if h ⟨t.val + 1, Finset.mem_Iic.mpr t.isLt⟩ then 1 else 0
 
 private theorem histCount_frestrictLe (n : ℕ) (x : Π i, BoolSeq i) :
     histCount n (Preorder.frestrictLe n x) = adaptedCount succTrueEvent n x := by
   rw [histCount, adaptedCount, ← Fin.sum_univ_eq_sum_range]
   refine Finset.sum_congr rfl fun s _ => ?_
-  by_cases hx : x (s.1 + 1) = true <;> simp [succTrueEvent, Preorder.frestrictLe, hx]
+  by_cases hx : x (s.val + 1) = true <;> simp [succTrueEvent, Preorder.frestrictLe, hx]
 
 private noncomputable def stopCountKernel (r : ℕ) (qLo qHi : I) (n : ℕ) :
     Kernel (Π i : Finset.Iic n, BoolSeq i) (BoolSeq (n + 1)) where

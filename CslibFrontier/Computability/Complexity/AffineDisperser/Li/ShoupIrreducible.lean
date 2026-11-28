@@ -574,7 +574,7 @@ section FieldInterpretation
 private noncomputable def evalL {K L : Type*} [CommRing K] [CommRing L]
     [Algebra (ZMod 2) K] [Algebra K L] (ζ : K) (y : L) (q : ℕ)
     (v : List (List Bool)) : L :=
-  ∑ i : Fin q, algebraMap K L ((polyOfBits (v.getD i.1 [])).aeval ζ) * y ^ i.1
+  ∑ i : Fin q, algebraMap K L ((polyOfBits (v.getD i.val [])).aeval ζ) * y ^ i.val
 
 private theorem evalL_shoupLAdd {K L : Type*} [Field K] [Field L]
     [Algebra (ZMod 2) K] [Algebra K L] (ζ : K) (y : L) (q : ℕ)
@@ -582,7 +582,7 @@ private theorem evalL_shoupLAdd {K L : Type*} [Field K] [Field L]
     evalL ζ y q (shoupLAdd q a b) = evalL ζ y q a + evalL ζ y q b := by
   simp only [evalL, shoupLAdd, ← Finset.sum_add_distrib]
   refine Finset.sum_congr rfl fun i _ => ?_
-  rw [List.getD_map_range _ _ i.2, polyOfBits_polyAdd, map_add, map_add, add_mul]
+  rw [List.getD_map_range _ _ i.isLt, polyOfBits_polyAdd, map_add, map_add, add_mul]
 
 private theorem evalL_shoupLMul {K L : Type*} [Field K] [Field L]
     [Algebra (ZMod 2) K] [Algebra K L] {ζ : K} {y : L} {q : ℕ} (hq0 : 0 < q)
@@ -604,7 +604,7 @@ private theorem evalL_shoupLMul {K L : Type*} [Field K] [Field L]
         polyOfBits_polyAdd, map_add, ih, Finset.sum_range_succ]
   let T : ℕ → ℕ → L := fun i j =>
     algebraMap K L ((polyOfBits (polyMul (a.getD i []) (b.getD j []))).aeval ζ) * y ^ (i + j)
-  have hprod : evalL ζ y q a * evalL ζ y q b = ∑ p : Fin q × Fin q, T p.1.1 p.2.1 := by
+  have hprod : evalL ζ y q a * evalL ζ y q b = ∑ p : Fin q × Fin q, T p.1.val p.2.val := by
     rw [evalL, evalL, Finset.sum_mul_sum, Fintype.sum_prod_type]
     exact Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => by
       simp only [T, polyOfBits_polyMul, map_mul, pow_add]; ring
@@ -613,28 +613,31 @@ private theorem evalL_shoupLMul {K L : Type*} [Field K] [Field L]
       fun p => by ext <;> simp, fun p => by ext <;> simp⟩
   rw [hprod, ← Equiv.sum_comp e, Fintype.sum_prod_type, Finset.sum_comm, evalL]
   refine Finset.sum_congr rfl fun k _ => ?_
-  rw [shoupLMul, List.getD_map_range _ _ k.2, hmod, polyOfBits_polyAdd, map_add,
+  rw [shoupLMul, List.getD_map_range _ _ k.isLt, hmod, polyOfBits_polyAdd, map_add,
     polyOfBits_false_cons, map_mul, aeval_X, hfold, hfold, map_add, map_sum, map_mul,
     map_sum, add_mul, Finset.sum_mul, Finset.mul_sum, Finset.sum_mul]
   have hsub : ∀ i : Fin q,
-      T i.1 (k - i).1 = if i.1 ≤ k.1 then T i.1 (k.1 - i.1) else T i.1 (q + k.1 - i.1) := by
+      T i.val (k - i).val =
+        if i.val ≤ k.val then T i.val (k.val - i.val) else T i.val (q + k.val - i.val) := by
     intro i; split_ifs with hik
     · rw [Fin.sub_val_of_le hik]
-    · rw [show (k - i).1 = q + k.1 - i.1 by rw [Fin.val_sub, Nat.mod_eq_of_lt (by omega)]; omega]
+    · rw [show (k - i).val = q + k.val - i.val by
+        rw [Fin.val_sub, Nat.mod_eq_of_lt (by omega)]; omega]
   simp_rw [e, Equiv.coe_fn_mk, hsub]
   rw [Fin.sum_univ_eq_sum_range (fun i =>
-    if i ≤ k.1 then T i (k.1 - i) else T i (q + k.1 - i)) q]
+    if i ≤ k.val then T i (k.val - i) else T i (q + k.val - i)) q]
   conv_rhs =>
-    rw [congrArg Finset.range (show q = k.1 + 1 + (q - 1 - k.1) by omega), Finset.sum_range_add]
+    rw [congrArg Finset.range (show q = k.val + 1 + (q - 1 - k.val) by omega), Finset.sum_range_add]
   refine congrArg₂ (· + ·)
     (Finset.sum_congr rfl fun i hi => by
-      have hi' : i ≤ k.1 := Nat.lt_succ_iff.mp (Finset.mem_range.mp hi)
+      have hi' : i ≤ k.val := Nat.lt_succ_iff.mp (Finset.mem_range.mp hi)
       rw [ite_eq_left hi']; simp only [T, Nat.add_sub_cancel' hi'])
     (Finset.sum_congr rfl fun t ht => by
       have ht' := Finset.mem_range.mp ht
-      rw [ite_eq_right (by omega : ¬ k.1 + 1 + t ≤ k.1)]
+      rw [ite_eq_right (by omega : ¬ k.val + 1 + t ≤ k.val)]
       dsimp only [T]
-      rw [show k.1 + 1 + t + (q + k.1 - (k.1 + 1 + t)) = q + k.1 by omega, pow_add, hy]; ring)
+      rw [show k.val + 1 + t + (q + k.val - (k.val + 1 + t)) = q + k.val by omega,
+        pow_add, hy]; ring)
 
 private theorem evalL_shoupLFrobQ {K L : Type*} [Field K] [Field L]
     [Algebra (ZMod 2) K] [Algebra K L] {ζ : K} {y : L} {q : ℕ} (hq0 : 0 < q)
@@ -656,7 +659,7 @@ private theorem evalL_single {K L : Type*} [Field K] [Field L]
   rw [evalL, Finset.sum_eq_single ⟨idx, hidx⟩]
   · rw [List.getD_map_range _ _ hidx]; simp [bitEquiv_symm_true]
   · intro i _ hi
-    rw [List.getD_map_range _ _ i.2, beq_false_of_ne fun h => hi (Fin.ext h)]; simp
+    rw [List.getD_map_range _ _ i.isLt, beq_false_of_ne fun h => hi (Fin.ext h)]; simp
   · exact fun hm => absurd (Finset.mem_univ (⟨idx, hidx⟩ : Fin q)) hm
 
 private theorem evalL_shoupBeta {K L : Type*} [Field K] [Field L]
@@ -745,26 +748,27 @@ private theorem shoupMinPolyMatrix_mulVec_zero_iff {K L : Type*} [Field K] [Fiel
     {q m : ℕ} (hm0 : 0 < m) (ζ : K) (y βL : L)
     (pbK : PowerBasis (ZMod 2) K) (pbL : PowerBasis K L)
     (hpbK_dim : pbK.dim = m) (hpbL_dim : pbL.dim = q)
-    (hpbK_coe : ∀ idx : Fin pbK.dim, pbK.basis idx = ζ ^ idx.1)
-    (hpbL_coe : ∀ idx : Fin pbL.dim, pbL.basis idx = y ^ idx.1)
+    (hpbK_coe : ∀ idx : Fin pbK.dim, pbK.basis idx = ζ ^ idx.val)
+    (hpbL_coe : ∀ idx : Fin pbL.dim, pbL.basis idx = y ^ idx.val)
     (pows : List (List (List Bool))) (hpows_len : pows.length = q + 1)
     (hpows_eval : ∀ c < q + 1, evalL ζ y q (pows.getD c []) = βL ^ c)
     (hpows_entry_len : ∀ c < q + 1, ∀ i < q, ((pows.getD c []).getD i []).length ≤ m)
     (v : Fin (q + 1) → ZMod 2) :
     rowsToZModMatrix (q * m) (q + 1) (shoupMinPolyMatrix q m pows) *ᵥ v = 0 ↔
-      ∑ c : Fin (q + 1), v c • βL ^ c.1 = 0 := by
+      ∑ c : Fin (q + 1), v c • βL ^ c.val = 0 := by
   let bL : Basis (Fin q) K L := pbL.basis.reindex (finCongr hpbL_dim)
   let bK : Basis (Fin m) (ZMod 2) K := pbK.basis.reindex (finCongr hpbK_dim)
-  have hbL : ∀ i : Fin q, bL i = y ^ i.1 := fun i => by rw [Basis.reindex_apply, hpbL_coe]; rfl
-  have hbK : ∀ j : Fin m, bK j = ζ ^ j.1 := fun j => by rw [Basis.reindex_apply, hpbK_coe]; rfl
+  have hbL : ∀ i : Fin q, bL i = y ^ i.val := fun i => by rw [Basis.reindex_apply, hpbL_coe]; rfl
+  have hbK : ∀ j : Fin m, bK j = ζ ^ j.val := fun j => by rw [Basis.reindex_apply, hpbK_coe]; rfl
   let d : Fin q → Fin m → ZMod 2 := fun i j =>
-    ∑ c : Fin (q + 1), v c * bitEquiv.symm (((pows.getD c.1 []).getD i.1 []).getD j.1 false)
-  have heq : (∑ c : Fin (q + 1), v c • βL ^ c.1) =
+    ∑ c : Fin (q + 1), v c * bitEquiv.symm (((pows.getD c.val []).getD i.val []).getD j.val false)
+  have heq : (∑ c : Fin (q + 1), v c • βL ^ c.val) =
       ∑ i : Fin q, (∑ j : Fin m, d i j • bK j) • bL i := by
-    have hterm : ∀ c : Fin (q + 1), v c • βL ^ c.1 = ∑ i : Fin q,
-        (∑ j : Fin m, (v c * bitEquiv.symm (((pows.getD c.1 []).getD i.1 []).getD j.1 false)) •
-          bK j) • bL i := fun c => by
-      rw [← hpows_eval c.1 c.2, evalL, Finset.smul_sum]
+    have hterm : ∀ c : Fin (q + 1), v c • βL ^ c.val = ∑ i : Fin q,
+        (∑ j : Fin m,
+          (v c * bitEquiv.symm (((pows.getD c.val []).getD i.val []).getD j.val false)) •
+            bK j) • bL i := fun c => by
+      rw [← hpows_eval c.val c.isLt, evalL, Finset.smul_sum]
       refine Finset.sum_congr rfl fun i _ => ?_
       rw [← smul_mul_assoc, Algebra.smul_def (R := ZMod 2),
         IsScalarTower.algebraMap_apply (ZMod 2) K L, ← map_mul,
@@ -772,8 +776,8 @@ private theorem shoupMinPolyMatrix_mulVec_zero_iff {K L : Type*} [Field K] [Fiel
       refine congrArg (· • bL i) ?_
       rw [aeval_polyOfBits, Finset.smul_sum]
       trans ∑ j ∈ Finset.range m,
-          (v c * bitEquiv.symm (((pows.getD c.1 []).getD i.1 []).getD j false)) • ζ ^ j
-      · rw [← Finset.sum_subset (Finset.range_mono (hpows_entry_len c.1 c.2 i.1 i.2))]
+          (v c * bitEquiv.symm (((pows.getD c.val []).getD i.val []).getD j false)) • ζ ^ j
+      · rw [← Finset.sum_subset (Finset.range_mono (hpows_entry_len c.val c.isLt i.val i.isLt))]
         · exact Finset.sum_congr rfl fun _ _ => smul_smul ..
         · intro j _ hj
           rw [List.getD_eq_default _ _ (not_lt.mp (Finset.mem_range.not.mp hj)),
@@ -786,14 +790,14 @@ private theorem shoupMinPolyMatrix_mulVec_zero_iff {K L : Type*} [Field K] [Fiel
     exact congrArg (· • bL i) (Finset.sum_congr rfl fun j _ => (Finset.sum_smul ..).symm)
   have hmul : ∀ idx : Fin (q * m),
       (rowsToZModMatrix (q * m) (q + 1) (shoupMinPolyMatrix q m pows) *ᵥ v) idx =
-        d ⟨idx.1 / m, Nat.div_lt_of_lt_mul (mul_comm q m ▸ idx.2)⟩
-          ⟨idx.1 % m, Nat.mod_lt _ hm0⟩ := fun idx => by
+        d ⟨idx.val / m, Nat.div_lt_of_lt_mul (mul_comm q m ▸ idx.isLt)⟩
+          ⟨idx.val % m, Nat.mod_lt _ hm0⟩ := fun idx => by
     simp only [Matrix.mulVec, dotProduct, rowsToZModMatrix, bitsToZModVec]
     refine Finset.sum_congr rfl fun c _ => ?_
-    have hc : c.1 < pows.length := by
+    have hc : c.val < pows.length := by
       rw [hpows_len]
-      exact c.2
-    rw [shoupMinPolyMatrix, List.getD_map_range _ _ idx.2,
+      exact c.isLt
+    rw [shoupMinPolyMatrix, List.getD_map_range _ _ idx.isLt,
       List.getD_eq_getElem _ _ (by simp [hc]), List.getElem_map,
       ← List.getD_eq_getElem pows [] hc, mul_comm]
   rw [heq]
@@ -802,11 +806,12 @@ private theorem shoupMinPolyMatrix_mulVec_zero_iff {K L : Type*} [Field K] [Fiel
     refine Finset.sum_eq_zero fun i _ => ?_
     suffices ∀ j, d i j = 0 by simp [this]
     intro j
-    have hidx : m * i.1 + j.1 < q * m := by nlinarith [i.2, j.2]
-    simpa [Nat.mul_add_div hm0, Nat.div_eq_of_lt j.2, Nat.mul_add_mod, Nat.mod_eq_of_lt j.2] using
-      (hmul ⟨m * i.1 + j.1, hidx⟩).symm.trans (congrFun h0 ⟨m * i.1 + j.1, hidx⟩)
+    have hidx : m * i.val + j.val < q * m := by nlinarith [i.isLt, j.isLt]
+    simpa [Nat.mul_add_div hm0, Nat.div_eq_of_lt j.isLt, Nat.mul_add_mod,
+      Nat.mod_eq_of_lt j.isLt] using
+      (hmul ⟨m * i.val + j.val, hidx⟩).symm.trans (congrFun h0 ⟨m * i.val + j.val, hidx⟩)
   · intro h0; funext idx; rw [hmul, Pi.zero_apply]
-    let i : Fin q := ⟨idx.1 / m, Nat.div_lt_of_lt_mul (mul_comm q m ▸ idx.2)⟩
+    let i : Fin q := ⟨idx.val / m, Nat.div_lt_of_lt_mul (mul_comm q m ▸ idx.isLt)⟩
     have hci := (linearIndependent_iff'.mp bL.linearIndependent Finset.univ
       (fun i => ∑ j : Fin m, d i j • bK j) h0) i (Finset.mem_univ _)
     exact (linearIndependent_iff'.mp bK.linearIndependent Finset.univ (d i) hci) _
@@ -821,7 +826,7 @@ private theorem shoupBeta_minpoly_natDegree {K L : Type*} [Field K] [Field L]
     (hζ_root : (polyOfBits f).aeval ζ = 0) (hy_pow : y ^ q = algebraMap K L ζ)
     (hy_card : y ^ (2 ^ (m * q)) = y)
     (pbL : PowerBasis K L) (hpbL_dim : pbL.dim = q)
-    (hpbL_coe : ∀ idx : Fin pbL.dim, pbL.basis idx = y ^ idx.1) :
+    (hpbL_coe : ∀ idx : Fin pbL.dim, pbL.basis idx = y ^ idx.val) :
     let βL : L := evalL ζ y q (shoupBeta q f)
     (∀ a : ZMod 2, βL ≠ algebraMap (ZMod 2) L a) ∧ (minpoly (ZMod 2) βL).natDegree = q := by
   set βL : L := evalL ζ y q (shoupBeta q f)
@@ -839,7 +844,7 @@ private theorem shoupBeta_minpoly_natDegree {K L : Type*} [Field K] [Field L]
       rw [← add_one_mul, Nat.sub_add_cancel (by omega)], hy_card]
   have hβ_notin : ∀ a : ZMod 2, βL ≠ algebraMap (ZMod 2) L a := fun a heq => by
     let bL : Basis (Fin q) K L := pbL.basis.reindex (finCongr hpbL_dim)
-    have hbL : ∀ i : Fin q, bL i = y ^ i.1 := fun i => by rw [Basis.reindex_apply, hpbL_coe]; rfl
+    have hbL : ∀ i : Fin q, bL i = y ^ i.val := fun i => by rw [Basis.reindex_apply, hpbL_coe]; rfl
     have hLHS : bL.repr βL ⟨1, by omega⟩ = 1 := by
       rw [hβL_eq, map_sum, Finsupp.finsetSum_apply, Finset.sum_eq_single 0]
       · rw [zero_mul, pow_zero, pow_one, ← (hbL ⟨1, by omega⟩).trans (pow_one y),
@@ -898,7 +903,7 @@ private theorem shoupBeta_minpoly_natDegree {K L : Type*} [Field K] [Field L]
     rw [← mul_left_inj w, ← pow_succ, Nat.sub_add_cancel Nat.one_le_two_pow, one_mul]
     exact Units.ext (Subtype.ext (by
       simpa only [Units.val_pow_eq_pow_val, IntermediateField.coe_pow] using
-        show ((w : E) : L) ^ (2 ^ q) = ((w : E) : L) from hE_le (w : E).2))
+        show ((w : E) : L) ^ (2 ^ q) = ((w : E) : L) from hE_le (w : E).property))
   rcases hq.eq_one_or_self_of_dvd d ((Nat.pow_sub_one_dvd_pow_sub_one_iff one_lt_two).mp
       (hw_ord ▸ orderOf_dvd_iff_pow_eq_one.mpr hw_pow)) with h1 | hq_eq
   · obtain ⟨c, hc⟩ := minpoly.natDegree_eq_one_iff.mp h1; exact absurd hc.symm (hβ_notin c)
@@ -925,17 +930,17 @@ private theorem kernelVecBits_eq_minpoly {L : Type*} [Field L] [Algebra (ZMod 2)
     (hmin_deg : (minpoly (ZMod 2) βL).natDegree = q)
     {M : List (List Bool)} (hM_len : M.length = r) (hM_mem : ∀ row ∈ M, row.length = q + 1)
     (hmul_iff : ∀ v : Fin (q + 1) → ZMod 2,
-      rowsToZModMatrix r (q + 1) M *ᵥ v = 0 ↔ ∑ c : Fin (q + 1), v c • βL ^ c.1 = 0) :
+      rowsToZModMatrix r (q + 1) M *ᵥ v = 0 ↔ ∑ c : Fin (q + 1), v c • βL ^ c.val = 0) :
     let kv := kernelVecBits (q + 1) M
     Irreducible (polyOfBits kv) ∧ (polyOfBits kv).natDegree = q ∧
       polyTrim kv = kv ∧ kv.length = q + 1 := by
   set P := minpoly (ZMod 2) βL; set kv := kernelVecBits (q + 1) M
   have hP_monic : P.Monic := minpoly.monic hβ_int
-  have hv0_ne : (fun c : Fin (q + 1) => P.coeff c.1) ≠ 0 := fun h0 => by
+  have hv0_ne : (fun c : Fin (q + 1) => P.coeff c.val) ≠ 0 := fun h0 => by
     have hq0 := congrFun h0 ⟨q, Nat.lt_succ_self q⟩
     simp only [Pi.zero_apply, ← hmin_deg, hP_monic.coeff_natDegree] at hq0
     exact one_ne_zero hq0
-  have hv0_mul : rowsToZModMatrix r (q + 1) M *ᵥ (fun c => P.coeff c.1) = 0 := by
+  have hv0_mul : rowsToZModMatrix r (q + 1) M *ᵥ (fun c => P.coeff c.val) = 0 := by
     rw [hmul_iff]
     have hev := minpoly.aeval (ZMod 2) βL
     rw [aeval_def, eval₂_eq_sum_range, hmin_deg, ← Fin.sum_univ_eq_sum_range] at hev
@@ -1060,7 +1065,7 @@ private theorem primeDisperser_isMulTable {g : List Bool} {q : ℕ}
     [Fact (Irreducible (polyOfBits g))] (_hdeg : (polyOfBits g).natDegree = q)
     (htrim : polyTrim g = g) (hlen : g.length = q + 1)
     (b : Basis (Fin q) (ZMod 2) (AdjoinRoot (polyOfBits g)))
-    (hb : ∀ i : Fin q, b i = AdjoinRoot.root (polyOfBits g) ^ i.1) :
+    (hb : ∀ i : Fin q, b i = AdjoinRoot.root (polyOfBits g) ^ i.val) :
     IsMulTable b (powerMulTable g) := by
   obtain h | ⟨l, hl⟩ := polyTrim_eq_nil_or_append_true g
   · simp [htrim ▸ h] at hlen
@@ -1081,7 +1086,7 @@ theorem isAffineDisperser_primeDisperser (N : ℕ) :
   have hpb_dim : pb.dim = q := (AdjoinRoot.powerBasis_dim _).trans hdeg
   let b : Basis (Fin q) (ZMod 2) (AdjoinRoot (polyOfBits g)) :=
     pb.basis.reindex (finCongr hpb_dim)
-  have hb : ∀ i : Fin q, b i = AdjoinRoot.root (polyOfBits g) ^ i.1 := fun i => by
+  have hb : ∀ i : Fin q, b i = AdjoinRoot.root (polyOfBits g) ^ i.val := fun i => by
     rw [Basis.reindex_apply, pb.coe_basis, AdjoinRoot.powerBasis_gen]; rfl
   have hmul : IsMulTable b (powerMulTable g) := primeDisperser_isMulTable hdeg htrim hlen b hb
   have ht : 0 < primeSymDeg N := lt_of_lt_of_le one_pos (le_max_left _ _)

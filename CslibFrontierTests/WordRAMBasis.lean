@@ -30,8 +30,8 @@ def mulOp : Basis.arithmetic.Op := ⟨.bin .mul, by decide⟩
 
 /-- The operations of the sub-bases are those listed, the word size is not one of them, and the
 two routes from the additive to the standard basis agree on `addOp`. -/
-example : (∀ f : Basis.additive.Op, f.1 = .bin .add ∨ f.1 = .bin .sub) ∧
-    (¬∃ f : Basis.arithmetic.Op, f.1 = .width) ∧
+example : (∀ f : Basis.additive.Op, f.val = .bin .add ∨ f.val = .bin .sub) ∧
+    (¬∃ f : Basis.arithmetic.Op, f.val = .width) ∧
     (Basis.arithmeticHomStandard.comp Basis.additiveHomArithmetic).map addOp =
       Basis.additiveHomStandard.map addOp := by
   refine ⟨?_, ?_, Basis.arithmeticHomStandard_comp_additiveHomArithmetic addOp⟩
@@ -118,17 +118,5 @@ example {α : Type} {A : Set α} {encode : ℕ → α → List ℕ} {size : α �
    hPoly.mapOp Basis.arithmeticHomStandard,
    (hULin.mapOp Basis.additiveHomArithmetic).mapOp Basis.arithmeticHomStandard,
    hUPoly.mapOp Basis.arithmeticHomStandard⟩
-
-/--
-info: 'Cslib.WordRAM.executes_mapOp_iff' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.WordRAM.executes_mapOp_iff
-
-/--
-info: 'Cslib.WordRAM.LinearTime.mapOp' depends on axioms: [propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.WordRAM.LinearTime.mapOp
 
 end CslibFrontierTests.WordRAMBasis

@@ -56,7 +56,7 @@ theorem exists_pairComparison {n k d B M : ℕ}
   let m := Fintype.card V
   let e : Fin m ≃ V := (Fintype.equivFin V).symm
   let select : Fin m → Logic.PL.Literal (Fin n) := fun u =>
-    Sum.elim (fun v : I => (v.1, true)) (fun v : J => (v.1, false)) (e u)
+    Sum.elim (fun v : I => (v.val, true)) (fun v : J => (v.val, false)) (e u)
   let a : ℕ → Bool := fun w =>
     decide ((w : ZMod k) + si ≠ (Fintype.card J : ZMod k) + sj)
   have hm' : m ≤ M := by
@@ -71,14 +71,14 @@ theorem exists_pairComparison {n k d B M : ℕ}
   · rwa [AltFormula.size_mapInputs]
   rw [AltFormula.eval_mapInputs, he]
   let z : Fin m → Bool := fun u => Logic.PL.Literal.eval x (select u)
-  have hz : weight z = weight (Sum.elim (fun u : I => x u.1)
-      (fun u : J => !(x u.1))) := by
+  have hz : weight z = weight (Sum.elim (fun u : I => x u.val)
+      (fun u : J => !(x u.val))) := by
     rw [weight_eq_sum_toNat, weight_eq_sum_toNat]
     apply Fintype.sum_equiv e
     intro u
     dsimp [z, select]
     cases e u <;> simp [Logic.PL.Literal.eval]
-  have hw := weight_pair_not_add (fun u : I => x u.1) (fun u : J => x u.1)
+  have hw := weight_pair_not_add (fun u : I => x u.val) (fun u : J => x u.val)
   rw [← hz] at hw
   change weight z + blockWeight residueBlock x j =
     blockWeight residueBlock x i + Fintype.card J at hw
@@ -161,11 +161,11 @@ theorem exists_exact_altFormula {n d B M : ℕ} {ι : Type*} [Fintype ι]
   have hcard : Fintype.card W ≤ 2 ^ n := by
     simpa [W] using Fintype.card_subtype_le (fun x : BitString n => weight x = t.val)
   have hw (x : W) (i : ι) :
-      (∑ a : ZMod (k i), (blockWeight residueBlock x.1 a : ZMod (k i))) = t.val := by
-    rw [← Nat.cast_sum, sum_blockWeight (residueBlock (k := k i)) x.1, x.2]
+      (∑ a : ZMod (k i), (blockWeight residueBlock x.val a : ZMod (k i))) = t.val := by
+    rw [← Nat.cast_sum, sum_blockWeight (residueBlock (k := k i)) x.val, x.property]
   have cover := exists_simultaneous_shiftTest_cover
     (G := fun i => ZMod (k i)) (fun i => (t.val : ZMod (k i)))
-    (fun x : W => fun i a => (blockWeight residueBlock x.1 a : ZMod (k i))) n hcard hw
+    (fun x : W => fun i a => (blockWeight residueBlock x.val a : ZMod (k i))) n hcard hw
   rw [show (∑ i, Fintype.card (ZMod (k i))) = ∑ i, k i by simp] at cover
   obtain ⟨tests, hcover⟩ := cover
   choose fs hs he using fun j => exists_test_altFormula k ih hm t.val (tests j)
@@ -197,7 +197,7 @@ theorem exists_symmetric_altFormula_succ {n d B M : ℕ} {ι : Type*} [Fintype �
         (1 + (3 ^ (∑ i, k i) * (n + 1)) * (2 + (∑ i, (k i) ^ 2) * (B + 2))) ∧
       ∀ x, AltFormula.eval .or f x = a (weight x) := by
     let T := {t : Fin (n + 1) // a t.val = true}
-    choose fs hs he using fun t : T => exists_exact_altFormula k hc hn ih hm t.1
+    choose fs hs he using fun t : T => exists_exact_altFormula k hc hn ih hm t.val
     refine ⟨AltFormula.merge fs, ?_, ?_⟩
     · apply (AltFormula.size_merge_le fs).trans
       apply Nat.add_le_add_left
@@ -213,7 +213,7 @@ theorem exists_symmetric_altFormula_succ {n d B M : ℕ} {ι : Type*} [Fintype �
     · intro x
       apply Bool.eq_iff_iff.2
       rw [AltFormula.eval_merge_or]
-      refine ⟨fun ⟨t, ht⟩ => (he t x).1 ht ▸ t.2, fun hx => ?_⟩
+      refine ⟨fun ⟨t, ht⟩ => (he t x).1 ht ▸ t.property, fun hx => ?_⟩
       have hweight : weight x < n + 1 := by simpa using Nat.lt_succ_of_le (weight_le x)
       exact ⟨⟨⟨weight x, hweight⟩, hx⟩, (he _ x).2 rfl⟩
   cases op with

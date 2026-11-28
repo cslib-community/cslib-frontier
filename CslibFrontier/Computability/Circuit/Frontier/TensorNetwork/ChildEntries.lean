@@ -127,19 +127,19 @@ group `g`, reading at each of its edges the child edge of that edge: a row its r
 column its column ports. -/
 theorem child_tensor_inl_eq_tensor (β : M → ℕ) (g : G) (v : {v // S.group v = g})
     (y : {e // S.group (N.src e) = g} ⊕ {e // S.group (N.tgt e) = g} → Bool) :
-    (S.child β g).tensor (.inl v) y = N.tensor v.1 fun e =>
-      if S.side v.1 then (if h : S.group (N.src e) = g then y (.inl ⟨e, h⟩) else false)
+    (S.child β g).tensor (.inl v) y = N.tensor v.val fun e =>
+      if S.side v.val then (if h : S.group (N.src e) = g then y (.inl ⟨e, h⟩) else false)
       else (if h : S.group (N.tgt e) = g then y (.inr ⟨e, h⟩) else false) := by
-  cases hv : S.side v.1
+  cases hv : S.side v.val
   · simp only [child, hv, Bool.false_eq_true, ↓reduceIte]
     refine N.tensor_congr _ _ _ fun e he => ?_
-    by_cases ht : N.tgt e = v.1
-    · rw [dite_eq_left ht, dite_eq_left (ht ▸ v.2)]
+    by_cases ht : N.tgt e = v.val
+    · rw [dite_eq_left ht, dite_eq_left (ht ▸ v.property)]
     · exact absurd (he.resolve_right ht ▸ S.side_src e) (hv ▸ Bool.noConfusion)
   · simp only [child, hv, ↓reduceIte]
     refine N.tensor_congr _ _ _ fun e he => ?_
-    by_cases hs : N.src e = v.1
-    · rw [dite_eq_left hs, dite_eq_left (hs ▸ v.2)]
+    by_cases hs : N.src e = v.val
+    · rw [dite_eq_left hs, dite_eq_left (hs ▸ v.property)]
     · exact absurd (he.resolve_left hs ▸ S.side_tgt e) (hv ▸ Bool.noConfusion)
 
 end ModeSplitting
@@ -164,7 +164,7 @@ private theorem filter_isLeft_map {g : G}
   | cons c cs ih =>
     rcases c with c | c
     · rw [List.filter_cons_of_pos rfl, List.filterMap_cons_some (f := Sum.getLeft?) rfl,
-        List.map_cons, List.map_cons, List.map_cons, ih, dite_eq_left c.2]
+        List.map_cons, List.map_cons, List.map_cons, ih, dite_eq_left c.property]
       rfl
     · rw [List.filter_cons_of_neg (by simp), List.filterMap_cons_none (f := Sum.getLeft?) rfl, ih]
 
@@ -183,7 +183,7 @@ private theorem filter_isLeft_false_map {g : G}
     · rw [List.filter_cons_of_neg (by simp), List.filterMap_cons_none (f := Sum.getRight?) rfl,
         ih]
     · rw [List.filter_cons_of_pos rfl, List.filterMap_cons_some (f := Sum.getRight?) rfl,
-        List.map_cons, List.map_cons, List.map_cons, ih, dite_eq_left c.2]
+        List.map_cons, List.map_cons, List.map_cons, ih, dite_eq_left c.property]
       rfl
 
 end Ports
@@ -254,7 +254,7 @@ theorem map_val_entry_child_inr [DecidableEq V] {T : Type} {ev : T → List Bool
     simp only [List.mem_map, List.mem_filterMap, Sum.getLeft?_eq_some_iff]
     refine ⟨?_, fun ⟨hq, hg⟩ => ?_⟩
     · rintro ⟨e', ⟨_, hc, rfl⟩, rfl⟩
-      exact ⟨(hcs' _).1 hc, by simpa using e'.2⟩
+      exact ⟨(hcs' _).1 hc, by simpa using e'.property⟩
     · have hg' : (cauchyModeSplitting side hsrc htgt horient hslot hia κ ζ hp ht hti hti').group
           (N.src e) = g := by simpa using hg
       exact ⟨⟨e, hg'⟩, ⟨.inl ⟨e, hg'⟩, (hcs' _).2 hq, rfl⟩, rfl⟩
@@ -263,7 +263,7 @@ theorem map_val_entry_child_inr [DecidableEq V] {T : Type} {ev : T → List Bool
     simp only [List.mem_map, List.mem_filterMap, Sum.getRight?_eq_some_iff]
     refine ⟨?_, fun ⟨hq, hg⟩ => ?_⟩
     · rintro ⟨e', ⟨_, hc, rfl⟩, rfl⟩
-      exact ⟨(hcs' _).1 hc, by simpa using e'.2⟩
+      exact ⟨(hcs' _).1 hc, by simpa using e'.property⟩
     · have hg' : (cauchyModeSplitting side hsrc htgt horient hslot hia κ ζ hp ht hti hti').group
           (N.tgt e) = g := by simpa using hg
       exact ⟨⟨e, hg'⟩, ⟨.inr ⟨e, hg'⟩, (hcs' _).2 hq, rfl⟩, rfl⟩

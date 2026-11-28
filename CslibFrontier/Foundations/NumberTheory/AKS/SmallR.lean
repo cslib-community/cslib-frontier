@@ -213,7 +213,7 @@ theorem exists_lt_orderOf_logb {n : ℕ} (hn : 2 ≤ n) :
   -- `c ≤ 2 log₂ n`, since `2^(c - 1) < n`.
   have hcpred : ((c - 1 : ℕ) : ℝ) < Real.logb 2 n := by
     rw [Real.lt_logb_iff_rpow_lt one_lt_two hn0, Real.rpow_natCast]
-    exact_mod_cast Nat.pow_pred_clog_lt_self one_lt_two (by omega)
+    exact_mod_cast Nat.pow_pred_clog_lt_self 2 (by omega)
   have hc1 : 1 ≤ c := Nat.clog_pos one_lt_two (by omega)
   have hc2 : (c : ℝ) ≤ 2 * Real.logb 2 n := by
     have : ((c - 1 : ℕ) : ℝ) = c - 1 := by push_cast [Nat.cast_sub hc1]; ring

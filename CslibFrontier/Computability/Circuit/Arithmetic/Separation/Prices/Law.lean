@@ -78,10 +78,10 @@ theorem exists_wireId {ι : Type} [Fintype ι] {a b : E → V} {c d : N → V} {
     ∃ tab, WireId K a b c d n len tab := by
   classical
   obtain ⟨L, hL⟩ := h
-  refine ⟨fun i p x g => L i p (fun e j => equivFin _ (x ⟨e, at_of_end j.2⟩))
-    (fun ν j => equivFin _ (g ⟨ν, at_of_end j.2⟩)), fun X => ?_⟩
+  refine ⟨fun i p x g => L i p (fun e j => equivFin _ (x ⟨e, at_of_end j.property⟩))
+    (fun ν j => equivFin _ (g ⟨ν, at_of_end j.property⟩)), fun X => ?_⟩
   let x : ∀ p, (wires K a b fun e => 2 ^ n e).Index p := fun p e j =>
-    equivFin _ (X p ⟨e, at_of_end j.2⟩)
+    equivFin _ (X p ⟨e, at_of_end j.property⟩)
   have h1 : (wires K a b fun e => 2 ^ n e).entry x =
       if ∀ e, X (a e) ⟨e, Or.inl rfl⟩ = X (b e) ⟨e, Or.inr rfl⟩ then (1 : K) else 0 := by
     have key : ∀ e, (wire K (2 ^ n e) (a e) (b e)).entry (fun p => x p e) =
@@ -95,7 +95,7 @@ theorem exists_wireId {ι : Type} [Fintype ι] {a b : E → V} {c d : N → V} {
   rw [← h1, hL]
   refine Finset.sum_congr rfl fun i _ => ?_
   let Φ : (∀ p, (wires K c d fun ν => 2 ^ len i ν).Index p) ≃ (∀ ν, Fin 2 → Fin (2 ^ len i ν)) :=
-    ⟨fun y ν j => y (![c ν, d ν] j) ν ⟨j, rfl⟩, fun z p ν j => z ν j.1,
+    ⟨fun y ν j => y (![c ν, d ν] j) ν ⟨j, rfl⟩, fun z p ν j => z ν j.val,
       fun y => by
         funext p ν j
         obtain ⟨j, rfl⟩ := j

@@ -100,7 +100,7 @@ open scoped ENNReal
 
 /-- Restrict a constant value at party `i` to the singleton coalition `{i}`. -/
 private def restrictSingleton {F : Fin 2 → Type} (i : Fin 2) (x : F i) :
-    (j : ({i} : Finset (Fin 2))) → F j.1 :=
+    (j : ({i} : Finset (Fin 2))) → F j.val :=
   fun ⟨_, hj⟩ => Finset.mem_singleton.mp hj ▸ x
 
 private theorem restrictSingleton_eq {F : Fin 2 → Type} (i : Fin 2) (f : (j : Fin 2) → F j) :

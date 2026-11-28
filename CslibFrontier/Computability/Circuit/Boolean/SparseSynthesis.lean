@@ -539,7 +539,7 @@ private theorem graphFinset_injective (p : ℕ) :
 /-- Fewer functions on `p + p` bits have circuits with `2 ^ (p - 4)` gates than there are maps
 from `p` bits to `p` bits. The count of circuits does not even need its factorial saving. -/
 private theorem card_computableFunctions_lt {p : ℕ} (hp : 4 ≤ p) :
-    #(computableFunctions (p + p) (2 ^ (p - 4))) < 2 ^ (p * 2 ^ p) := by
+    (computableFunctions (p + p) (2 ^ (p - 4))).ncard < 2 ^ (p * 2 ^ p) := by
   set s := 2 ^ (p - 4)
   have hs : 2 ^ p = 16 * s := by
     rw [show p = 4 + (p - 4) by omega, pow_add]
@@ -560,7 +560,7 @@ private theorem card_computableFunctions_lt {p : ℕ} (hp : 4 ≤ p) :
   have hexp : p + (2 * p + 5) * s + (p + 1) < p * 2 ^ p := by
     rw [hs]
     nlinarith only [hp, hs1]
-  calc #(computableFunctions (p + p) s)
+  calc (computableFunctions (p + p) s).ncard
       ≤ (s + 1) * (5 * (p + p + s + 1) ^ 2) ^ s * (p + p + s) := hcount
     _ ≤ 2 ^ p * (2 ^ (2 * p + 5)) ^ s * 2 ^ (p + 1) := by
       gcongr
@@ -582,8 +582,8 @@ private theorem exists_hard_graphFinset {p : ℕ} (hp : 4 ≤ p) :
   have hcard : #family = 2 ^ (p * 2 ^ p) := by
     rw [card_image_of_injective _ hinj]
     simp [← pow_mul]
-  obtain ⟨f, hf, hhard⟩ := exists_mem_notMem_of_card_lt_card
-    ((card_computableFunctions_lt hp).trans_eq hcard.symm)
+  obtain ⟨f, hf, hhard⟩ := Set.exists_mem_notMem_of_ncard_lt_ncard (t := (family : Set _))
+    ((card_computableFunctions_lt hp).trans_eq (by rw [Set.ncard_coe_finset, hcard]))
   obtain ⟨φ, -, rfl⟩ := mem_image.mp hf
   refine ⟨graphFinset φ, card_graphFinset φ, not_le.mp fun h => hhard ?_⟩
   exact mem_computableFunctions.mpr (complexity_le_iff.mp h)
@@ -648,14 +648,15 @@ theorem not_isLittleO_of_dist_complexity_le (b : ℕ → ℝ)
 /-- The sets of inputs on `n` bits whose indicators have De Morgan circuits with at most `s`
 gates, the supports of `computableFunctions n s`: the concept class of circuits of size `s`. -/
 noncomputable def circuitSets (n s : ℕ) : Finset (Finset (BitString n)) :=
-  (computableFunctions n s).image fun f => ({x | f x = true} : Finset (BitString n))
+  (computableFunctions n s).toFinite.toFinset.image fun f =>
+    ({x | f x = true} : Finset (BitString n))
 
 /-- A set is in the concept class of circuits of size `s` exactly when a circuit with at most `s`
 gates computes its indicator. -/
 @[simp] theorem mem_circuitSets {n s : ℕ} {T : Finset (BitString n)} :
     T ∈ circuitSets n s ↔ ∃ c : Circuit signature n 1,
       c.Computes interpretation (single fun x => decide (x ∈ T)) ∧ c.size ≤ s := by
-  simp only [circuitSets, mem_image, mem_computableFunctions]
+  simp only [circuitSets, mem_image, Set.Finite.mem_toFinset, mem_computableFunctions]
   constructor
   · rintro ⟨f, ⟨c, hc, hs⟩, rfl⟩
     exact ⟨c, fun x => (hc x).trans (by simp), hs⟩

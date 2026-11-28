@@ -27,8 +27,8 @@ variable {G : Graph} (r : RotationSystem G)
 vertex are disjoint or strictly nested. This derives the ordering from the numerical
 hypothesis; a noncrossing matching is not an input. -/
 theorem portRank_loops_laminar
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (hr : r.NumericalGenusZero)
-    (e f : Fin G.2.length) (hef : e ≠ f)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hr : r.NumericalGenusZero)
+    (e f : Fin G.edges.length) (hef : e ≠ f)
     (he : (Dart.vertex (G := G) (e, false)) = Dart.vertex (e, true))
     (hf : (Dart.vertex (G := G) (f, false)) = Dart.vertex (f, true))
     (hv : (Dart.vertex (G := G) (e, false)) = Dart.vertex (f, false)) :
@@ -44,7 +44,7 @@ theorem portRank_loops_laminar
           min (r.portRank (e, false)) (r.portRank (e, true)) ∧
         max (r.portRank (e, false)) (r.portRank (e, true)) <
           max (r.portRank (f, false)) (r.portRank (f, true))) := by
-  have hends (i : Fin G.2.length) : (i, false) ≠ (i, true) := by simp
+  have hends (i : Fin G.edges.length) : (i, false) ≠ (i, true) := by simp
   have hcross (b c : Bool) : (e, b) ≠ (f, c) :=
     fun h => hef (congrArg Prod.fst h)
   have hva : (Dart.vertex (G := G) (f, false)) = Dart.vertex (e, false) := hv.symm

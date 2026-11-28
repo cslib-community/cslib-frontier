@@ -177,7 +177,7 @@ private theorem realize_isMinVarFormula {α : Type*} {M : Type} [L.Structure M] 
   · intro h
     by_contra hne
     have h0 : 0 < (e (val p) : ℕ) := by omega
-    have hn : 0 < n := h0.trans (e (val p)).2
+    have hn : 0 < n := h0.trans (e (val p)).isLt
     have := h (e.symm ⟨0, hn⟩)
     simp [Fin.lt_def, h0] at this
   · intro h z
@@ -190,11 +190,11 @@ noncomputable def powerLtFormula : (L.sum ESO.orderLanguage).Formula (Fin 2 × F
   Formula.iSup fun i : Fin k =>
     ltVarFormula (0, i) (1, i) ⊓
       Formula.iInf fun j : {j : Fin k // i < j} =>
-        Term.equal (.var (0, j.1)) (.var (1, j.1))
+        Term.equal (.var (0, j.val)) (.var (1, j.val))
 
 /-- The formula testing that all coordinates at indices `≥ a` are the minimum element. -/
 noncomputable def highZeroFormula (a : ℕ) : (L.sum ESO.orderLanguage).Formula (Fin 1 × Fin k) :=
-  Formula.iInf fun i : {i : Fin k // a ≤ (i : ℕ)} => isMinVarFormula (0, i.1)
+  Formula.iInf fun i : {i : Fin k // a ≤ (i : ℕ)} => isMinVarFormula (0, i.val)
 
 /-- The formula defining `powerTableBit idx` on a `k`-tuple. -/
 noncomputable def powerTableBitFormula (idx : Fin v.count) :
@@ -248,7 +248,7 @@ def powerEquiv (M : Type) [L.Structure M] {n : ℕ} (e : M ≃ Fin n) :
     (v.powerInterpretation k har).Model M ≃[v.powerLanguage] Fin (n ^ k) :=
   letI := ESO.varLanguage.structure (arity := fun _ : Unit => 2) (ESO.orderRelOfEquiv e)
   letI := v.powerStructure (v.encode M e) (n ^ k)
-  { toFun := fun x => finFunctionFinEquiv (e ∘ x.1)
+  { toFun := fun x => finFunctionFinEquiv (e ∘ x.val)
     invFun := fun m => ⟨e.symm ∘ finFunctionFinEquiv.symm m, Formula.realize_top.2 trivial⟩
     left_inv := fun x => FO.Interpretation.Model.ext <| funext fun i => by
       simp [Function.comp_def]
@@ -261,34 +261,35 @@ def powerEquiv (M : Type) [L.Structure M] {n : ℕ} (e : M ≃ Fin n) :
     map_rel' := fun {m} r x => match m, r with
       | 1, .inl () => by
         change (v.powerStructure (v.encode M e) (n ^ k)).RelMap v.powerIsElem _ ↔
-          (highZeroFormula (L := L) k 1).Realize (fun p : Fin 1 × Fin k => (x p.1).1 p.2)
+          (highZeroFormula (L := L) k 1).Realize (fun p : Fin 1 × Fin k => (x p.1).val p.2)
         rw [realize_highZeroFormula k e 1 hk, relMap_powerIsElem]
         simp [Vocabulary.encode, tupleIndex]
       | 1, .inr (.inl idx) => by
         change (v.powerStructure (v.encode M e) (n ^ k)).RelMap (v.powerInTable idx) _ ↔
           (highZeroFormula (L := L) k (v.arity idx)).Realize
-            (fun p : Fin 1 × Fin k => (x p.1).1 p.2)
+            (fun p : Fin 1 × Fin k => (x p.1).val p.2)
         rw [realize_highZeroFormula k e (v.arity idx) (har idx), relMap_powerInTable]
         simp [Vocabulary.encode, tupleIndex]
       | 1, .inr (.inr idx) => by
         change (v.powerStructure (v.encode M e) (n ^ k)).RelMap (v.powerTableBit idx) _ ↔
-          (v.powerTableBitFormula k har idx).Realize (fun p : Fin 1 × Fin k => (x p.1).1 p.2)
+          (v.powerTableBitFormula k har idx).Realize (fun p : Fin 1 × Fin k => (x p.1).val p.2)
         rw [powerTableBitFormula, Formula.realize_inf,
           realize_highZeroFormula k e (v.arity idx) (har idx), relMap_powerTableBit]
-        change (tupleIndex (e ∘ (x 0).1) < n ^ v.arity idx ∧
-            (v.table (v.encode M e) (v.symbol idx)).getD (tupleIndex (e ∘ (x 0).1)) false = true) ↔
-          tupleIndex (e ∘ (x 0).1) < n ^ v.arity idx ∧
-            RelMap (v.symbol idx).2 (fun j => (x 0).1 (Fin.castLE (har idx) j))
+        change (tupleIndex (e ∘ (x 0).val) < n ^ v.arity idx ∧
+            (v.table (v.encode M e) (v.symbol idx)).getD
+              (tupleIndex (e ∘ (x 0).val)) false = true) ↔
+          tupleIndex (e ∘ (x 0).val) < n ^ v.arity idx ∧
+            RelMap (v.symbol idx).2 (fun j => (x 0).val (Fin.castLE (har idx) j))
         refine and_congr_right fun hlt => ?_
-        have hhigh := (tupleIndex_lt_pow_iff (har idx) (e ∘ (x 0).1)).1 hlt
+        have hhigh := (tupleIndex_lt_pow_iff (har idx) (e ∘ (x 0).val)).1 hlt
         have heq := tupleIndex_eq_of_high_zero (har idx) hhigh
         rw [v.table_encode M e (v.symbol idx), heq]
         have hget := getD_relTable_eq_true_iff M e (v.symbol idx).2
-          (fun j => e ((x 0).1 (Fin.castLE (har idx) j)))
+          (fun j => e ((x 0).val (Fin.castLE (har idx) j)))
         simpa [Vocabulary.arity, Function.comp_def] using hget
       | 2, () => by
         change (v.powerStructure (v.encode M e) (n ^ k)).RelMap v.powerLt _ ↔
-          (powerLtFormula (L := L) k).Realize (fun p : Fin 2 × Fin k => (x p.1).1 p.2)
+          (powerLtFormula (L := L) k).Realize (fun p : Fin 2 × Fin k => (x p.1).val p.2)
         rw [realize_powerLtFormula k e, relMap_powerLt]
         rfl }
 

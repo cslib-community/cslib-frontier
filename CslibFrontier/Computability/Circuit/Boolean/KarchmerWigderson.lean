@@ -185,8 +185,8 @@ private theorem eval_kwFormula (p : KWProtocol (Fin n))
     · simp [kwFormula, hA]
     by_cases hB : B = ∅
     · simp [kwFormula, hA, hB]
-    obtain ⟨x₀, hx₀⟩ := Set.nonempty_iff_ne_empty.2 hA
-    obtain ⟨y₀, hy₀⟩ := Set.nonempty_iff_ne_empty.2 hB
+    obtain ⟨x₀, hx₀⟩ := Set.ne_empty_iff_nonempty.1 hA
+    obtain ⟨y₀, hy₀⟩ := Set.ne_empty_iff_nonempty.1 hB
     by_cases h : ∃ x ∈ A, x i = true
     · obtain ⟨x₁, hx₁, hx₁i⟩ := h
       have hy₀i : y₀ i = false := by simpa [hx₁i] using (hp x₁ hx₁ y₀ hy₀).symm

@@ -202,17 +202,18 @@ variable (G : RotationMap V D)
 /-- The **restriction** of `G` to a set `S` of vertices closed under taking neighbors: the
 rotation map of `G` on the darts at the vertices of `S`. -/
 def restrict (S : Set V) (hS : ∀ v ∈ S, ∀ i, G.neighbor v i ∈ S) : RotationMap S D where
-  rot p := (⟨G.neighbor p.1 p.2, hS _ p.1.2 _⟩, (G.rot (p.1, p.2)).2)
+  rot p := (⟨G.neighbor p.1 p.2, hS _ p.1.property _⟩, (G.rot (p.1, p.2)).2)
   rot_involutive p := by
     refine Prod.ext (Subtype.ext ?_) ?_
     · exact G.neighbor_neighbor_rot p.1 p.2
-    · change (G.rot ((G.rot (p.1.1, p.2)).1, (G.rot (p.1.1, p.2)).2)).2 = p.2
+    · change (G.rot ((G.rot (p.1.val, p.2)).1, (G.rot (p.1.val, p.2)).2)).2 = p.2
       rw [Prod.mk.eta, rot_rot]
 
 /-- The rotation map of a restriction of `G` is the rotation map of `G`. -/
 @[simp]
 theorem rot_restrict (S : Set V) (hS : ∀ v ∈ S, ∀ i, G.neighbor v i ∈ S) (p : S × D) :
-    (G.restrict S hS).rot p = (⟨G.neighbor p.1 p.2, hS p.1 p.1.2 p.2⟩, (G.rot (p.1, p.2)).2) :=
+    (G.restrict S hS).rot p =
+      (⟨G.neighbor p.1 p.2, hS p.1 p.1.property p.2⟩, (G.rot (p.1, p.2)).2) :=
   rfl
 
 /-- The inclusion of a restriction of `G` into `G` is a homomorphism. -/
@@ -299,7 +300,7 @@ variable (G)
 theorem mem_of_reachable {S : Set V} (hS : ∀ v ∈ S, ∀ i, G.neighbor v i ∈ S) {u v : V}
     (hu : u ∈ S) (h : G.toSimpleGraph.Reachable u v) : v ∈ S := by
   obtain ⟨w, -, rfl⟩ := (G.restrictHom S hS).exists_reachable_apply_eq (u := ⟨u, hu⟩) h
-  exact w.2
+  exact w.property
 
 /-- The vertices reachable from `s` are closed under taking neighbors. -/
 theorem neighbor_mem_setOf_reachable (s : V) :
@@ -324,7 +325,8 @@ theorem componentHom_apply (s : V) (v : {v | G.toSimpleGraph.Reachable s v}) :
 
 /-- The connected component of a vertex is connected. -/
 theorem preconnected_componentGraph (s : V) : (G.componentGraph s).toSimpleGraph.Preconnected :=
-  fun u v ↦ ((G.componentHom s).reachable_apply_iff Subtype.val_injective).1 (u.2.symm.trans v.2)
+  fun u v ↦ ((G.componentHom s).reachable_apply_iff Subtype.val_injective).1
+    (u.property.symm.trans v.property)
 
 /-- The connected component of `s` has the same edge multiplicities as `G`. -/
 @[simp]

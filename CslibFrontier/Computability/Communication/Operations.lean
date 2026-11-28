@@ -305,8 +305,8 @@ theorem ecomplexity_decides_le {P : X → Y → Prop} [∀ x y, Decidable (P x y
     ecomplexity (fun x y (z : Bool) => z = true ↔ P x y) A B ≤
       ecomplexityFun (fun x y => decide (P x y)) := by
   refine (ecomplexity_mono (Set.subset_univ _) (Set.subset_univ _)).trans ?_
-  refine le_iInf fun p => iInf_le_of_le ⟨p.1, fun x _ y _ => ?_⟩ le_rfl
-  rw [← p.2 x trivial y trivial]
+  refine le_iInf fun p => iInf_le_of_le ⟨p.val, fun x _ y _ => ?_⟩ le_rfl
+  rw [← p.property x trivial y trivial]
   exact decide_eq_true_iff
 
 end Protocol

@@ -34,7 +34,7 @@ theorem exists_vertex_ball_of_vertex_contacts {G : Graph} (D : PolygonalDrawing 
       w ∈ segment ℝ ((D.route e).point i.castSucc) ((D.route e).point i.succ) →
         (i.val = 0 ∧ Dart.vertex (e, false) = v) ∨
         (i.val + 1 = (D.route e).segments ∧ Dart.vertex (e, true) = v) := by
-  let ι := (e : Fin G.2.length) × Fin (D.route e).segments
+  let ι := (e : Fin G.edges.length) × Fin (D.route e).segments
   obtain ⟨ε, hε, hball⟩ := Polygonal.exists_ball_only_incident_segments
     (fun p : ι => (D.route p.1).point p.2.castSucc)
     (fun p : ι => (D.route p.1).point p.2.succ) (D.vertex v)
@@ -62,7 +62,7 @@ theorem exists_vertex_ball_of_vertex_contacts {G : Graph} (D : PolygonalDrawing 
 /-- Near a declared vertex, every segment met by an embedding is an actual first or last
 segment at that named vertex. -/
 theorem IsEmbedding.exists_vertex_ball {G : Graph} {D : PolygonalDrawing G}
-    (hD : D.IsEmbedding) (v : ℕ) (hv : v ∈ G.1) :
+    (hD : D.IsEmbedding) (v : ℕ) (hv : v ∈ G.vertices) :
     ∃ ε > 0, ∀ e (i : Fin (D.route e).segments) w,
       w ∈ Metric.ball (D.vertex v) ε →
       w ∈ segment ℝ ((D.route e).point i.castSucc) ((D.route e).point i.succ) →

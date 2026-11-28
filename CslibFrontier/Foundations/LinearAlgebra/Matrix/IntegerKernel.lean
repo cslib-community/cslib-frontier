@@ -39,7 +39,7 @@ and entry bound `B`. -/
 
 private lemma sum_ne_eq_sum_erase {n α : Type*} [Fintype n] [DecidableEq n] [AddCommMonoid α]
     (j₀ : n) (f : n → α) :
-    ∑ j : { j : n // j ≠ j₀ }, f j.1 = ∑ j ∈ Finset.univ.erase j₀, f j :=
+    ∑ j : { j : n // j ≠ j₀ }, f j.val = ∑ j ∈ Finset.univ.erase j₀, f j :=
   (Finset.sum_subtype _ (fun _ => by simp) f).symm
 
 /-- A rationally dependent family of integer columns has a bounded nonzero integer kernel
@@ -69,16 +69,17 @@ theorem exists_int_mulVec_eq_zero_of_not_injective {m n : Type*} [Fintype m] [Fi
       mul_one]
     exact hj₀ j
   let n' := { j : n // j ≠ j₀ }
-  let A' : Matrix m n' ℤ := fun i j => A i j.1
-  let b' : m → ℤ := fun i => -A i j₀ + ∑ j : n', A i j.1
-  let x' : n' → ℚ := fun j => w j.1 + 1
+  let A' : Matrix m n' ℤ := fun i j => A i j.val
+  let b' : m → ℤ := fun i => -A i j₀ + ∑ j : n', A i j.val
+  let x' : n' → ℚ := fun j => w j.val + 1
   have hx'_nonneg : 0 ≤ x' := fun j =>
-    show (0 : ℚ) ≤ w j.1 + 1 by linarith [(abs_le.1 (hw_abs j.1)).1]
+    show (0 : ℚ) ≤ w j.val + 1 by linarith [(abs_le.1 (hw_abs j.val)).1]
   have hAx' : (A'.map Int.cast) *ᵥ x' = fun i => (b' i : ℚ) := by
     ext i
     have hrow : ∑ j : n, ((A i j : ℤ) : ℚ) * w j = 0 := congrFun hw_mul i
     rw [← Finset.add_sum_erase _ _ (Finset.mem_univ j₀), hw_j₀, ← sum_ne_eq_sum_erase] at hrow
-    change ∑ j : n', ((A i j.1 : ℤ) : ℚ) * (w j.1 + 1) = ((-A i j₀ + ∑ j : n', A i j.1 : ℤ) : ℚ)
+    change ∑ j : n', ((A i j.val : ℤ) : ℚ) * (w j.val + 1) =
+      ((-A i j₀ + ∑ j : n', A i j.val : ℤ) : ℚ)
     simp only [Int.cast_add, Int.cast_neg, Int.cast_sum, mul_add, mul_one, Finset.sum_add_distrib]
     linarith
   let B' : ℕ := (r + 1) * B
@@ -87,13 +88,13 @@ theorem exists_int_mulVec_eq_zero_of_not_injective {m n : Type*} [Fintype m] [Fi
       Finset.card_univ]
     omega
   have hA'_bd : ∀ i (j : n'), |A' i j| ≤ B' := fun i j =>
-    (hA i j.1).trans (by exact_mod_cast Nat.le_mul_of_pos_left B (Nat.succ_pos _))
+    (hA i j.val).trans (by exact_mod_cast Nat.le_mul_of_pos_left B (Nat.succ_pos _))
   have hb'_bd : ∀ i, |b' i| ≤ B' := fun i => by
-    have hsum_bd : |∑ j : n', A i j.1| ≤ Fintype.card n' * B :=
+    have hsum_bd : |∑ j : n', A i j.val| ≤ Fintype.card n' * B :=
       ((Finset.abs_sum_le_sum_abs _ _).trans
-        (Finset.sum_le_sum fun (j : n') _ => hA i j.1)).trans_eq (by simp)
+        (Finset.sum_le_sum fun (j : n') _ => hA i j.val)).trans_eq (by simp)
     have : (Fintype.card n' : ℤ) ≤ r := by exact_mod_cast hn'
-    calc |b' i| ≤ |-A i j₀| + |∑ j : n', A i j.1| := abs_add_le _ _
+    calc |b' i| ≤ |-A i j₀| + |∑ j : n', A i j.val| := abs_add_le _ _
       _ ≤ B + Fintype.card n' * B := add_le_add (by simpa [abs_neg] using hA i j₀) hsum_bd
       _ ≤ (B' : ℤ) := by dsimp only [B']; push_cast; nlinarith [Int.natCast_nonneg B]
   obtain ⟨d, p', hd_pos, hp'_nonneg, hAp', hd_le, hp'_le⟩ :=
@@ -117,7 +118,8 @@ theorem exists_int_mulVec_eq_zero_of_not_injective {m n : Type*} [Fintype m] [Fi
     rw [← Finset.add_sum_erase _ _ (Finset.mem_univ j₀), ← sum_ne_eq_sum_erase,
       show c j₀ = d from dite_eq_left rfl,
       Finset.sum_congr rfl fun (j : n') _ => show A i j * c j = A' i j * p' j - d * A i j by
-        simp only [c, dite_eq_right j.2, A']; ring, Finset.sum_sub_distrib, hAp_i, ← Finset.mul_sum]
+        simp only [c, dite_eq_right j.property, A']; ring,
+      Finset.sum_sub_distrib, hAp_i, ← Finset.mul_sum]
     simp only [b']
     ring
   · intro j
@@ -150,10 +152,10 @@ theorem exists_int_mulVec_eq_zero_of_card_lt {m n : Type*} [Fintype m] [Fintype 
   have hS_card : Fintype.card S = Fintype.card m + 1 := by simp [Fintype.card_coe, hS]
   let AS : Matrix m S ℤ := A.submatrix id Subtype.val
   obtain ⟨cS, hcS0, hAS, hcS_bd⟩ := exists_int_mulVec_eq_zero_of_succ AS
-    (fun i j => hA i j.1) hS_card
+    (fun i j => hA i j.val) hS_card
   let c : n → ℤ := fun j => if hj : j ∈ S then cS ⟨j, hj⟩ else 0
   refine ⟨c, ?_, ?_, ?_⟩
-  · exact fun hc0 => hcS0 (funext fun j => by simpa [c, j.2] using congrFun hc0 j.1)
+  · exact fun hc0 => hcS0 (funext fun j => by simpa [c, j.property] using congrFun hc0 j.val)
   · ext i
     change ∑ j : n, A i j * c j = 0
     rw [← Finset.sum_subset (Finset.subset_univ S) fun j _ hj => by simp [c, hj],

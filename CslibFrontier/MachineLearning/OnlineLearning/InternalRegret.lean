@@ -547,7 +547,7 @@ private theorem prob_hedgeFactor_le_of_dominated {η ε : ℝ} (hη : 0 ≤ η)
         refine exp_le_exp.mpr ?_
         have hmul := mul_le_mul_of_nonneg_left hcum_dom hη
         linarith
-    _ = (exp (-(η * ε))) ^ t := exp_nat_mul _ _
+    _ = (exp (-(η * ε))) ^ t := exp_natCast_mul _ _
 
 /-- **Cumulative Hedge weight on an action `ε`-dominated by a mixed strategy**
 [BlumMansour2007AGT, §4.4.4 and Exercise 4.8, pp. 91–92, 101]: if `0 < η`, `0 < ε`, and in every

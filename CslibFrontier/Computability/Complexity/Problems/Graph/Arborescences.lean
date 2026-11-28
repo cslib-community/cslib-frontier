@@ -74,7 +74,7 @@ private theorem ite_any_distinctVertices_eq_dite {α : Type*} (G : Graph) (r : �
 appears in `G.edges`. -/
 @[expose]
 def toDigraph (G : Graph) : Digraph {v // v ∈ G.vertices} where
-  Adj u v := (u.1, v.1) ∈ G.edges
+  Adj u v := (u.val, v.val) ∈ G.edges
 
 /-- Entry `(u, v)` of the out-degree integer Laplacian of `G.toDigraph`. -/
 @[expose]
@@ -103,14 +103,14 @@ private lemma any_eq_decide_mem (arcs : List (ℕ × ℕ)) (u v : ℕ) :
 
 open Classical in
 private lemma digraphLaplacianEntry_eq (G : Graph) (u v : {v // v ∈ G.vertices}) :
-    G.digraphLaplacianEntry u.1 v.1 = ((G.toDigraph.adjMatrix ℤ).laplacian u v) := by
+    G.digraphLaplacianEntry u.val v.val = ((G.toDigraph.adjMatrix ℤ).laplacian u v) := by
   classical
   rw [Matrix.laplacian_apply]
   by_cases huv : u = v
   · subst huv
     have hdiag :
         G.distinctVertices.countP (fun w =>
-            decide (w ≠ u.1) && G.edges.any fun e => decide (e.1 = u.1 ∧ e.2 = w)) =
+            decide (w ≠ u.val) && G.edges.any fun e => decide (e.1 = u.val ∧ e.2 = w)) =
           (Finset.univ.filter fun w : {v // v ∈ G.vertices} =>
             G.toDigraph.Adj u w ∧ w ≠ u).card := by
       rw [List.countP_eq_card_filter_getElem, ← Fintype.card_subtype, ← Fintype.card_subtype]
@@ -126,7 +126,7 @@ private lemma digraphLaplacianEntry_eq (G : Graph) (u v : {v // v ∈ G.vertices
   · simp only [digraphLaplacianEntry, mt Subtype.ext huv, ↓reduceIte, huv, any_eq_decide_mem,
       Digraph.adjMatrix_apply, zero_sub, decide_eq_true_eq]
     dsimp only [toDigraph]
-    by_cases hadj : (u.1, v.1) ∈ G.edges <;> simp [hadj]
+    by_cases hadj : (u.val, v.val) ∈ G.edges <;> simp [hadj]
 
 /-- `G.digraphInArborescenceCount r` equals the number of spanning in-arborescences of
 `G.toDigraph` rooted at `r` (and `0` when `r ∉ G.vertices`). -/
@@ -141,8 +141,8 @@ theorem digraphInArborescenceCount_eq_natCard (G : Graph) (r : ℕ) :
   rw [detRows_filter_ne_equiv_eq G.nodup_distinctVertices
       (Equiv.subtypeEquivRight fun _ => Graph.mem_distinctVertices) hr_dist
       (G.toDigraph.adjMatrix ℤ).laplacian G.digraphLaplacianEntry
-      fun u v _ _ => G.digraphLaplacianEntry_eq ⟨u.1, Graph.mem_distinctVertices.1 u.2⟩
-        ⟨v.1, Graph.mem_distinctVertices.1 v.2⟩,
+      fun u v _ _ => G.digraphLaplacianEntry_eq ⟨u.val, Graph.mem_distinctVertices.1 u.property⟩
+        ⟨v.val, Graph.mem_distinctVertices.1 v.property⟩,
     Digraph.det_laplacian_adjMatrix_submatrix_eq_natCard_isInArborescence]
   exact Int.toNat_natCast _
 
@@ -205,7 +205,7 @@ private lemma multiLaplacianEntry_eq {mem : ℕ → Prop} [Fintype {v // mem v}]
       ⟨arcs[i].1, (harcs _ (List.getElem_mem i.isLt)).1⟩
     let tgt : Fin arcs.length → {v // mem v} := fun i =>
       ⟨arcs[i].2, (harcs _ (List.getElem_mem i.isLt)).2⟩
-    multiLaplacianEntry arcs u.1 v.1 = ((Multidigraph.arcMatrix src tgt ℤ).laplacian u v) := by
+    multiLaplacianEntry arcs u.val v.val = ((Multidigraph.arcMatrix src tgt ℤ).laplacian u v) := by
   classical
   intro src tgt
   rw [Matrix.laplacian_apply]

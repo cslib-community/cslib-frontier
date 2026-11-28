@@ -40,7 +40,7 @@ open Cslib.Algorithms.Lean.MaxFlow Network.PushRelabel
 `(2, 1)`. -/
 def clrsNet : Network (Fin 6) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 16
     | 0, 2 => 13
     | 1, 2 => 10
@@ -93,7 +93,7 @@ example : (init clrsNet).Inv := inv_init clrsNet_st
 present. -/
 def antiNet : Network (Fin 4) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 2
     | 0, 2 => 2
     | 1, 2 => 1
@@ -109,7 +109,7 @@ example : (pushRelabel antiNet).flow.value = 4 := by decide
 /-- The sink `2` is unreachable from the source `0`. -/
 def cutOffNet : Network (Fin 3) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 5
     | 2, 1 => 5
     | _, _ => 0
@@ -122,7 +122,7 @@ example : cutOffNet.cutCapacity (pushRelabel cutOffNet).cut = 0 := by decide
 
 /-- A single arc `s → t`: no operation is needed. -/
 def directNet : Network (Fin 2) where
-  cap u v := if u.1 = 0 ∧ v.1 = 1 then 7 else 0
+  cap u v := if u.val = 0 ∧ v.val = 1 then 7 else 0
   s := 0
   t := 1
 

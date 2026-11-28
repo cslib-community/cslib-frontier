@@ -85,12 +85,12 @@ abbrev ParentTable (n : ℕ) : Type := Vector (Fin n) n
 
 @[simp]
 theorem getElem_initAdjTable (n : ℕ) (adj : Fin n → Fin n → Bool) (u w : Fin n) :
-    (initAdjTable n adj)[u.1][w.1] = adj u w := by
+    (initAdjTable n adj)[u.val][w.val] = adj u w := by
   simp [initAdjTable]
 
 @[simp]
 theorem getElem_initCostTable {β : Type*} (n : ℕ) (cost : Fin n → Fin n → β) (u w : Fin n) :
-    (initCostTable n cost)[u.1][w.1] = cost u w := by
+    (initCostTable n cost)[u.val][w.val] = cost u w := by
   simp [initCostTable]
 
 /-- Scan `List.finRange n` for the first minimizer of `val` satisfying `pred`. -/
@@ -132,28 +132,29 @@ check feasibility, and materialize the parent vector `f`. -/
     SelectParentsResult n :=
   let opts := Vector.ofFn fun v : Fin n =>
     if v = r then some r
-    else argMinFin n (fun w => a[v.1][w.1] && w != v) (fun w => c[v.1][w.1])
-  let feas := (List.finRange n).foldl (fun acc v => acc && opts[v.1].isSome) true
-  let tbl := Vector.ofFn fun v : Fin n => opts[v.1].getD v
+    else argMinFin n (fun w => a[v.val][w.val] && w != v) (fun w => c[v.val][w.val])
+  let feas := (List.finRange n).foldl (fun acc v => acc && opts[v.val].isSome) true
+  let tbl := Vector.ofFn fun v : Fin n => opts[v.val].getD v
   { feasible := feas, parents := tbl }
 
 private theorem selectParents_eq (a : AdjTable n) (c : CostTable β n) (r : Fin n) :
     let optFn : Fin n → Option (Fin n) := fun v =>
       if v = r then some r
-      else ((List.finRange n).filter fun w => a[v.1][w.1] && w != v).argmin (fun w => c[v.1][w.1])
+      else ((List.finRange n).filter fun w => a[v.val][w.val] && w != v).argmin
+        (fun w => c[v.val][w.val])
     selectParents a c r =
       { feasible := (List.finRange n).all (fun v => (optFn v).isSome)
       , parents := Vector.ofFn fun v => (optFn v).getD v } := by
   intro optFn
   have hopts : (Vector.ofFn fun v : Fin n =>
       if v = r then some r
-      else argMinFin n (fun w => a[v.1][w.1] && w != v) (fun w => c[v.1][w.1])) =
+      else argMinFin n (fun w => a[v.val][w.val] && w != v) (fun w => c[v.val][w.val])) =
       Vector.ofFn optFn := by
     ext i hi
     simp only [Vector.getElem_ofFn, optFn]
     split_ifs <;> simp [argMinFin_eq_argmin]
   have hfold : ∀ (l : List (Fin n)) (b : Bool),
-      l.foldl (fun acc v => acc && (Vector.ofFn optFn)[v.1].isSome) b =
+      l.foldl (fun acc v => acc && (Vector.ofFn optFn)[v.val].isSome) b =
         (b && l.all fun v => (optFn v).isSome) := by
     intro l
     induction l with
@@ -177,22 +178,22 @@ private structure CycleSearchState (n : ℕ) where
 def hasCycleFrom (x : Fin n) (f : ParentTable n) : Bool :=
   let st := (List.range n).foldl
     (fun (st : CycleSearchState n) _ =>
-      let nxt := f[st.current.1]
+      let nxt := f[st.current.val]
       { current := nxt, hit := st.hit || (nxt == x) : CycleSearchState n })
     ({ current := x, hit := false } : CycleSearchState n)
   st.hit
 
 theorem hasCycleFrom_eq (x : Fin n) (f : ParentTable n) :
     hasCycleFrom x f =
-      (List.range n).any fun k => (fun i : Fin n => f[i.1])^[k + 1] x == x := by
+      (List.range n).any fun k => (fun i : Fin n => f[i.val])^[k + 1] x == x := by
   unfold hasCycleFrom
   have hinv : ∀ m : ℕ,
       (List.range m).foldl
         (fun (st : CycleSearchState n) _ =>
-          { current := f[st.current.1], hit := st.hit || (f[st.current.1] == x) })
+          { current := f[st.current.val], hit := st.hit || (f[st.current.val] == x) })
         { current := x, hit := false } =
-      { current := (fun i : Fin n => f[i.1])^[m] x,
-        hit := (List.range m).any fun k => (fun i : Fin n => f[i.1])^[k + 1] x == x } := by
+      { current := (fun i : Fin n => f[i.val])^[m] x,
+        hit := (List.range m).any fun k => (fun i : Fin n => f[i.val])^[k + 1] x == x } := by
     intro m
     induction m with
     | zero => rfl
@@ -235,10 +236,10 @@ private theorem foldl_find_step {α : Type*} (p : α → Bool) :
 private theorem findCycleTable_eq (r : Fin n) (f : ParentTable n) :
     findCycleTable r f =
       (List.finRange n).find? fun x =>
-        x != r && (List.range n).any fun k => (fun i : Fin n => f[i.1])^[k + 1] x == x := by
+        x != r && (List.range n).any fun k => (fun i : Fin n => f[i.val])^[k + 1] x == x := by
   unfold findCycleTable
   let p : Fin n → Bool := fun x =>
-    x != r && (List.range n).any fun k => (fun i : Fin n => f[i.1])^[k + 1] x == x
+    x != r && (List.range n).any fun k => (fun i : Fin n => f[i.val])^[k + 1] x == x
   rw [show (fun acc x => _) = findStep p from funext fun acc => funext fun x => by
     cases acc with
     | some _ => rfl
@@ -258,7 +259,7 @@ def cycleMask (f : ParentTable n) (x0 : Fin n) : Vector Bool n :=
   let st := (List.range n).foldl
     (fun (st : CycleMaskState n) _ =>
       let cur := st.current
-      { current := f[cur.1], mask := st.mask.set cur.1 true cur.2 : CycleMaskState n })
+      { current := f[cur.val], mask := st.mask.set cur.val true cur.isLt : CycleMaskState n })
     ({ current := x0, mask := init } : CycleMaskState n)
   st.mask
 
@@ -267,19 +268,20 @@ private theorem cycleMask_loop_spec (f : ParentTable n) (x0 : Fin n) :
       let res := (List.range m).foldl
         (fun (st : CycleMaskState n) _ =>
           let cur := st.current
-          { current := f[cur.1], mask := st.mask.set cur.1 true cur.2 : CycleMaskState n })
+          { current := f[cur.val], mask := st.mask.set cur.val true cur.isLt : CycleMaskState n })
         ({ current := x0, mask := init } : CycleMaskState n)
-      res.current = (fun i : Fin n => f[i.1])^[m] x0 ∧
+      res.current = (fun i : Fin n => f[i.val])^[m] x0 ∧
         ∀ j : Fin n,
-          (res.mask[j.1] = true ↔ init[j.1] = true ∨ ∃ k < m, (fun i : Fin n => f[i.1])^[k] x0 = j)
+          (res.mask[j.val] = true ↔
+            init[j.val] = true ∨ ∃ k < m, (fun i : Fin n => f[i.val])^[k] x0 = j)
   | 0, _ => by simp
   | m + 1, init => by
     rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
     obtain ⟨ih1, ih2⟩ := cycleMask_loop_spec f x0 m init
     refine ⟨by simp only [ih1, Function.iterate_succ_apply'], fun j => ?_⟩
     simp only [Vector.getElem_set, ih1, Nat.lt_succ_iff_lt_or_eq]
-    by_cases hj : ((fun i : Fin n => f[i.1])^[m] x0).1 = j.1
-    · have hj' : (fun i : Fin n => f[i.1])^[m] x0 = j := Fin.ext hj
+    by_cases hj : ((fun i : Fin n => f[i.val])^[m] x0).val = j.val
+    · have hj' : (fun i : Fin n => f[i.val])^[m] x0 = j := Fin.ext hj
       simp only [hj, ↓reduceIte, true_iff]
       exact Or.inr ⟨m, Or.inr rfl, hj'⟩
     · simp only [hj, ↓reduceIte, ih2 j]
@@ -289,7 +291,7 @@ private theorem cycleMask_loop_spec (f : ParentTable n) (x0 : Fin n) :
       · exact absurd (congrArg Fin.val h) hj
 
 theorem getElem_cycleMask (f : ParentTable n) (x0 y : Fin n) :
-    (cycleMask f x0)[y.1] = true ↔ ∃ k < n, (fun i : Fin n => f[i.1])^[k] x0 = y := by
+    (cycleMask f x0)[y.val] = true ↔ ∃ k < n, (fun i : Fin n => f[i.val])^[k] x0 = y := by
   unfold cycleMask
   simpa using (cycleMask_loop_spec f x0 n (Vector.ofFn fun _ : Fin n => false)).2 y
 
@@ -297,13 +299,13 @@ theorem getElem_cycleMask (f : ParentTable n) (x0 y : Fin n) :
 @[expose] def bestEntryTable (a : AdjTable n) (c : CostTable β n) (inCycle : Vector Bool n) :
     Vector (Option (Fin n)) n :=
   Vector.ofFn fun u : Fin n =>
-    argMinFin n (fun y => inCycle[y.1] && a[u.1][y.1]) (fun y => c[u.1][y.1])
+    argMinFin n (fun y => inCycle[y.val] && a[u.val][y.val]) (fun y => c[u.val][y.val])
 
 private theorem getElem_bestEntryTable (a : AdjTable n) (c : CostTable β n)
     (inCycle : Vector Bool n) (u : Fin n) :
-    (bestEntryTable a c inCycle)[u.1] =
-      ((List.finRange n).filter fun y => inCycle[y.1] && a[u.1][y.1]).argmin
-        (fun y => c[u.1][y.1]) := by
+    (bestEntryTable a c inCycle)[u.val] =
+      ((List.finRange n).filter fun y => inCycle[y.val] && a[u.val][y.val]).argmin
+        (fun y => c[u.val][y.val]) := by
   simp [bestEntryTable, argMinFin_eq_argmin]
 
 section AddMonoidLevel
@@ -315,9 +317,9 @@ using subtraction. -/
 @[expose] def otherCycleCost (c : CostTable β n) (f : ParentTable n)
     (inCycle : Vector Bool n) : Vector β n :=
   Vector.ofFn fun x : Fin n =>
-    if inCycle[x.1] then
+    if inCycle[x.val] then
       (List.finRange n).foldl
-        (fun acc y => if inCycle[y.1] && y != x then acc + c[y.1][f[y.1].1] else acc)
+        (fun acc y => if inCycle[y.val] && y != x then acc + c[y.val][f[y.val].val] else acc)
         0
     else 0
 
@@ -332,9 +334,9 @@ private theorem foldl_add_filter {α : Type*} (pred : α → Bool) (val : α →
 
 omit [LinearOrder β] in
 private theorem getElem_otherCycleCost (c : CostTable β n) (f : ParentTable n)
-    (inCycle : Vector Bool n) (C : Finset (Fin n)) (hC : ∀ y : Fin n, inCycle[y.1] = true ↔ y ∈ C)
+    (inCycle : Vector Bool n) (C : Finset (Fin n)) (hC : ∀ y : Fin n, inCycle[y.val] = true ↔ y ∈ C)
     {x : Fin n} (hx : x ∈ C) :
-    (otherCycleCost c f inCycle)[x.1] = ∑ y ∈ C.erase x, c[y.1][f[y.1].1] := by
+    (otherCycleCost c f inCycle)[x.val] = ∑ y ∈ C.erase x, c[y.val][f[y.val].val] := by
   unfold otherCycleCost
   simp only [Vector.getElem_ofFn, (hC x).mpr hx, ↓reduceIte, foldl_add_filter, zero_add]
   rw [← List.sum_toFinset _ ((List.nodup_finRange n).filter _)]
@@ -346,14 +348,14 @@ private theorem getElem_otherCycleCost (c : CostTable β n) (f : ParentTable n)
 @[expose] def bestExitTable (a : AdjTable n) (c : CostTable β n)
     (inCycle : Vector Bool n) (other : Vector β n) : Vector (Option (Fin n)) n :=
   Vector.ofFn fun w : Fin n =>
-    argMinFin n (fun x => inCycle[x.1] && a[x.1][w.1])
-      (fun x => c[x.1][w.1] + other[x.1])
+    argMinFin n (fun x => inCycle[x.val] && a[x.val][w.val])
+      (fun x => c[x.val][w.val] + other[x.val])
 
 private theorem getElem_bestExitTable (a : AdjTable n) (c : CostTable β n)
     (inCycle : Vector Bool n) (other : Vector β n) (w : Fin n) :
-    (bestExitTable a c inCycle other)[w.1] =
-      ((List.finRange n).filter fun x => inCycle[x.1] && a[x.1][w.1]).argmin
-        (fun x => c[x.1][w.1] + other[x.1]) := by
+    (bestExitTable a c inCycle other)[w.val] =
+      ((List.finRange n).filter fun x => inCycle[x.val] && a[x.val][w.val]).argmin
+        (fun x => c[x.val][w.val] + other[x.val]) := by
   simp [bestExitTable, argMinFin_eq_argmin]
 
 end AddMonoidLevel
@@ -362,23 +364,23 @@ end AddMonoidLevel
 @[expose] def contractAdjTable (a : AdjTable n) (inCycle : Vector Bool n)
     (bestEntry bestExit : Vector (Option (Fin n)) n) (x0 r : Fin n) : AdjTable n :=
   Vector.ofFn fun u : Fin n => Vector.ofFn fun w : Fin n =>
-    if inCycle[u.1] then
-      if u == x0 then !(inCycle[w.1]) && (bestExit[w.1]).isSome
+    if inCycle[u.val] then
+      if u == x0 then !(inCycle[w.val]) && (bestExit[w.val]).isSome
       else w == r
     else
-      if inCycle[w.1] then (w == x0) && (bestEntry[u.1]).isSome
-      else a[u.1][w.1]
+      if inCycle[w.val] then (w == x0) && (bestEntry[u.val]).isSome
+      else a[u.val][w.val]
 
 @[simp]
 theorem getElem_contractAdjTable (a : AdjTable n) (inCycle : Vector Bool n)
     (bestEntry bestExit : Vector (Option (Fin n)) n) (x0 r u w : Fin n) :
-    (contractAdjTable a inCycle bestEntry bestExit x0 r)[u.1][w.1] =
-      if inCycle[u.1] then
-        if u == x0 then !(inCycle[w.1]) && (bestExit[w.1]).isSome
+    (contractAdjTable a inCycle bestEntry bestExit x0 r)[u.val][w.val] =
+      if inCycle[u.val] then
+        if u == x0 then !(inCycle[w.val]) && (bestExit[w.val]).isSome
         else w == r
       else
-        if inCycle[w.1] then (w == x0) && (bestEntry[u.1]).isSome
-        else a[u.1][w.1] := by
+        if inCycle[w.val] then (w == x0) && (bestEntry[u.val]).isSome
+        else a[u.val][w.val] := by
   simp [contractAdjTable]
 
 omit [LinearOrder β] in
@@ -387,37 +389,37 @@ omit [LinearOrder β] in
     (other : Vector β n) (bestEntry bestExit : Vector (Option (Fin n)) n) (x0 : Fin n) :
     CostTable β n :=
   Vector.ofFn fun u : Fin n => Vector.ofFn fun w : Fin n =>
-    if inCycle[u.1] then
+    if inCycle[u.val] then
       if u == x0 then
-        match bestExit[w.1] with
-        | some x => c[x.1][w.1] + other[x.1]
-        | none => c[u.1][w.1]
+        match bestExit[w.val] with
+        | some x => c[x.val][w.val] + other[x.val]
+        | none => c[u.val][w.val]
       else 0
     else
       if w == x0 then
-        match bestEntry[u.1] with
-        | some y => c[u.1][y.1]
-        | none => c[u.1][w.1]
-      else c[u.1][w.1]
+        match bestEntry[u.val] with
+        | some y => c[u.val][y.val]
+        | none => c[u.val][w.val]
+      else c[u.val][w.val]
 
 omit [LinearOrder β] in
 @[simp]
 theorem getElem_contractCostTable [AddCommMonoid β] (c : CostTable β n)
     (inCycle : Vector Bool n) (other : Vector β n)
     (bestEntry bestExit : Vector (Option (Fin n)) n) (x0 u w : Fin n) :
-    (contractCostTable c inCycle other bestEntry bestExit x0)[u.1][w.1] =
-      if inCycle[u.1] then
+    (contractCostTable c inCycle other bestEntry bestExit x0)[u.val][w.val] =
+      if inCycle[u.val] then
         if u == x0 then
-          match bestExit[w.1] with
-          | some x => c[x.1][w.1] + other[x.1]
-          | none => c[u.1][w.1]
+          match bestExit[w.val] with
+          | some x => c[x.val][w.val] + other[x.val]
+          | none => c[u.val][w.val]
         else 0
       else
         if w == x0 then
-          match bestEntry[u.1] with
-          | some y => c[u.1][y.1]
-          | none => c[u.1][w.1]
-        else c[u.1][w.1] := by
+          match bestEntry[u.val] with
+          | some y => c[u.val][y.val]
+          | none => c[u.val][w.val]
+        else c[u.val][w.val] := by
   simp [contractCostTable]
 
 /-- Expand a contracted parent vector `q` using the precomputed level tables. -/
@@ -425,24 +427,24 @@ theorem getElem_contractCostTable [AddCommMonoid β] (c : CostTable β n)
     (bestEntry bestExit : Vector (Option (Fin n)) n) (x0 : Fin n) (q : ParentTable n) :
     ParentTable n :=
   Vector.ofFn fun v : Fin n =>
-    if inCycle[v.1] then
-      match bestExit[(q[x0.1]).1] with
-      | some x => if v == x then q[x0.1] else f[v.1]
-      | none => f[v.1]
-    else if q[v.1] == x0 then (bestEntry[v.1]).getD v
-    else q[v.1]
+    if inCycle[v.val] then
+      match bestExit[(q[x0.val]).val] with
+      | some x => if v == x then q[x0.val] else f[v.val]
+      | none => f[v.val]
+    else if q[v.val] == x0 then (bestEntry[v.val]).getD v
+    else q[v.val]
 
 @[simp]
 theorem getElem_expandParentTable (f : ParentTable n) (inCycle : Vector Bool n)
     (bestEntry bestExit : Vector (Option (Fin n)) n) (x0 : Fin n) (q : ParentTable n)
     (v : Fin n) :
-    (expandParentTable f inCycle bestEntry bestExit x0 q)[v.1] =
-      if inCycle[v.1] then
-        match bestExit[(q[x0.1]).1] with
-        | some x => if v == x then q[x0.1] else f[v.1]
-        | none => f[v.1]
-      else if q[v.1] == x0 then (bestEntry[v.1]).getD v
-      else q[v.1] := by
+    (expandParentTable f inCycle bestEntry bestExit x0 q)[v.val] =
+      if inCycle[v.val] then
+        match bestExit[(q[x0.val]).val] with
+        | some x => if v == x then q[x0.val] else f[v.val]
+        | none => f[v.val]
+      else if q[v.val] == x0 then (bestEntry[v.val]).getD v
+      else q[v.val] := by
   simp [expandParentTable]
 
 end Level
@@ -481,21 +483,22 @@ omit [AddCommMonoid β] in
 private theorem selectParents_spec {V : Type*} [FinEnum V]
     (a : AdjTable (FinEnum.card V)) (c : CostTable β (FinEnum.card V))
     (aV : V → V → Bool) (cV : V → V → β) (rV : V)
-    (ha : ∀ u w, a[u.1][w.1] =
+    (ha : ∀ u w, a[u.val][w.val] =
       aV ((@FinEnum.equiv V _).symm u) ((@FinEnum.equiv V _).symm w))
-    (hc : ∀ u w, c[u.1][w.1] =
+    (hc : ∀ u w, c[u.val][w.val] =
       cV ((@FinEnum.equiv V _).symm u) ((@FinEnum.equiv V _).symm w)) :
     let sel := selectParents a c (@FinEnum.equiv V _ rV)
     (sel.feasible = true ↔ ∀ v : V, v ≠ rV → candidates aV v ≠ []) ∧
       ∀ i : Fin (FinEnum.card V),
-        (@FinEnum.equiv V _).symm (sel.parents[i.1]) =
+        (@FinEnum.equiv V _).symm (sel.parents[i.val]) =
           cheapestParent aV cV rV ((@FinEnum.equiv V _).symm i) := by
   let e : V ≃ Fin (FinEnum.card V) := @FinEnum.equiv V _
   let optFn : Fin (FinEnum.card V) → Option (Fin (FinEnum.card V)) := fun v =>
     if v = e rV then some (e rV)
-    else ((List.finRange _).filter fun w => a[v.1][w.1] && w != v).argmin (fun w => c[v.1][w.1])
+    else ((List.finRange _).filter fun w => a[v.val][w.val] && w != v).argmin
+      (fun w => c[v.val][w.val])
   have hcand (v : Fin (FinEnum.card V)) :
-      ((List.finRange _).filter fun w => a[v.1][w.1] && w != v).map e.symm =
+      ((List.finRange _).filter fun w => a[v.val][w.val] && w != v).map e.symm =
         candidates aV (e.symm v) := by
     unfold candidates FinEnum.toList
     rw [List.filter_map]
@@ -540,12 +543,12 @@ private theorem selectParents_spec {V : Type*} [FinEnum V]
 private theorem findCycleTable_spec {V : Type*} [FinEnum V] (f : ParentTable (FinEnum.card V))
     (fV : V → V)
     (hf : ∀ i : Fin (FinEnum.card V),
-      (@FinEnum.equiv V _).symm f[i.1] = fV ((@FinEnum.equiv V _).symm i))
+      (@FinEnum.equiv V _).symm f[i.val] = fV ((@FinEnum.equiv V _).symm i))
     (rV : V) :
     (findCycleTable (@FinEnum.equiv V _ rV) f).map (@FinEnum.equiv V _).symm =
       findCycle rV fV := by
   let e : V ≃ Fin (FinEnum.card V) := @FinEnum.equiv V _
-  have hsem : Function.Semiconj e.symm (fun i => f[i.1]) fV := hf
+  have hsem : Function.Semiconj e.symm (fun i => f[i.val]) fV := hf
   rw [findCycleTable_eq]
   unfold findCycle FinEnum.toList
   rw [List.find?_map]
@@ -563,11 +566,11 @@ private theorem findCycleTable_spec {V : Type*} [FinEnum V] (f : ParentTable (Fi
 
 private theorem cycleMask_spec {V : Type*} [FinEnum V] (f : ParentTable (FinEnum.card V))
     (fV : V → V)
-    (hf : ∀ i, (@FinEnum.equiv V _).symm f[i.1] = fV ((@FinEnum.equiv V _).symm i))
+    (hf : ∀ i, (@FinEnum.equiv V _).symm f[i.val] = fV ((@FinEnum.equiv V _).symm i))
     (x0 y : Fin (FinEnum.card V)) :
-    (cycleMask f x0)[y.1] = true ↔
+    (cycleMask f x0)[y.val] = true ↔
       (@FinEnum.equiv V _).symm y ∈ cycleOf fV ((@FinEnum.equiv V _).symm x0) := by
-  have hsem : Function.Semiconj (@FinEnum.equiv V _).symm (fun i => f[i.1]) fV := hf
+  have hsem : Function.Semiconj (@FinEnum.equiv V _).symm (fun i => f[i.val]) fV := hf
   rw [getElem_cycleMask, mem_cycleOf]
   exact ⟨fun ⟨k, hk, h⟩ => ⟨k, hk, by rw [← hsem.iterate_right k x0, h]⟩,
     fun ⟨k, hk, h⟩ => ⟨k, hk, (@FinEnum.equiv V _).symm.injective (by rw [hsem.iterate_right, h])⟩⟩
@@ -577,16 +580,16 @@ private theorem otherCycleCost_spec {V : Type*} [FinEnum V]
     (c : CostTable β (FinEnum.card V)) (f : ParentTable (FinEnum.card V))
     (inCycle : Vector Bool (FinEnum.card V))
     (cV : V → V → β) (fV : V → V) (C : Finset V)
-    (hc : ∀ u w, c[u.1][w.1] =
+    (hc : ∀ u w, c[u.val][w.val] =
       cV ((@FinEnum.equiv V _).symm u) ((@FinEnum.equiv V _).symm w))
-    (hf : ∀ i, (@FinEnum.equiv V _).symm f[i.1] = fV ((@FinEnum.equiv V _).symm i))
-    (hmask : ∀ y, inCycle[y.1] = true ↔ (@FinEnum.equiv V _).symm y ∈ C)
-    {x : Fin (FinEnum.card V)} (hx : inCycle[x.1] = true) :
-    (otherCycleCost c f inCycle)[x.1] =
+    (hf : ∀ i, (@FinEnum.equiv V _).symm f[i.val] = fV ((@FinEnum.equiv V _).symm i))
+    (hmask : ∀ y, inCycle[y.val] = true ↔ (@FinEnum.equiv V _).symm y ∈ C)
+    {x : Fin (FinEnum.card V)} (hx : inCycle[x.val] = true) :
+    (otherCycleCost c f inCycle)[x.val] =
       ∑ y ∈ C.erase ((@FinEnum.equiv V _).symm x), cV y (fV y) := by
   let e : V ≃ Fin (FinEnum.card V) := @FinEnum.equiv V _
-  let CFin : Finset (Fin (FinEnum.card V)) := Finset.univ.filter fun y => inCycle[y.1] = true
-  have hCFin y : inCycle[y.1] = true ↔ y ∈ CFin := by simp [CFin]
+  let CFin : Finset (Fin (FinEnum.card V)) := Finset.univ.filter fun y => inCycle[y.val] = true
+  have hCFin y : inCycle[y.val] = true ↔ y ∈ CFin := by simp [CFin]
   rw [getElem_otherCycleCost c f inCycle CFin hCFin ((hCFin x).mp hx)]
   refine Finset.sum_bij (fun y _ => e.symm y)
     (fun y hy => by
@@ -597,28 +600,28 @@ private theorem otherCycleCost_spec {V : Type*} [FinEnum V]
       rw [Finset.mem_erase] at hy
       exact ⟨e y, Finset.mem_erase.mpr ⟨fun h => hy.1 (by simpa [e] using congrArg e.symm h),
         (hCFin (e y)).mp ((hmask (e y)).mpr (by simpa [e] using hy.2))⟩, by simp [e]⟩)
-    (fun y _ => by rw [hc y f[y.1], hf y])
+    (fun y _ => by rw [hc y f[y.val], hf y])
 
 omit [AddCommMonoid β] in
 private theorem bestEntryTable_spec {V : Type*} [FinEnum V]
     (a : AdjTable (FinEnum.card V)) (c : CostTable β (FinEnum.card V))
     (inCycle : Vector Bool (FinEnum.card V))
     (aV : V → V → Bool) (cV : V → V → β) (C : Finset V)
-    (ha : ∀ u w, a[u.1][w.1] =
+    (ha : ∀ u w, a[u.val][w.val] =
       aV ((@FinEnum.equiv V _).symm u) ((@FinEnum.equiv V _).symm w))
-    (hc : ∀ u w, c[u.1][w.1] =
+    (hc : ∀ u w, c[u.val][w.val] =
       cV ((@FinEnum.equiv V _).symm u) ((@FinEnum.equiv V _).symm w))
-    (hmask : ∀ y, inCycle[y.1] = true ↔ (@FinEnum.equiv V _).symm y ∈ C)
+    (hmask : ∀ y, inCycle[y.val] = true ↔ (@FinEnum.equiv V _).symm y ∈ C)
     (u : Fin (FinEnum.card V)) :
-    (bestEntryTable a c inCycle)[u.1].map (@FinEnum.equiv V _).symm =
+    (bestEntryTable a c inCycle)[u.val].map (@FinEnum.equiv V _).symm =
       bestEntry aV cV C ((@FinEnum.equiv V _).symm u) := by
   let e : V ≃ Fin (FinEnum.card V) := @FinEnum.equiv V _
   rw [getElem_bestEntryTable]
   unfold bestEntry FinEnum.toList
-  rw [show (fun y => c[u.1][y.1]) = cV (e.symm u) ∘ e.symm from funext (hc u),
+  rw [show (fun y => c[u.val][y.val]) = cV (e.symm u) ∘ e.symm from funext (hc u),
     List.argmin_map_equiv e.symm, List.filter_map]
   refine congrArg (List.argmin _) (congrArg (List.map e.symm) (List.filter_congr fun y _ => ?_))
-  have hy : inCycle[y.1] = decide (e.symm y ∈ C) := Bool.eq_iff_iff.mpr (by simpa using hmask y)
+  have hy : inCycle[y.val] = decide (e.symm y ∈ C) := Bool.eq_iff_iff.mpr (by simpa using hmask y)
   rw [hy, ha u y]
   rfl
 
@@ -626,29 +629,29 @@ private theorem bestExitTable_spec {V : Type*} [FinEnum V]
     (a : AdjTable (FinEnum.card V)) (c : CostTable β (FinEnum.card V))
     (inCycle : Vector Bool (FinEnum.card V)) (other : Vector β (FinEnum.card V))
     (aV : V → V → Bool) (cV : V → V → β) (fV : V → V) (C : Finset V)
-    (ha : ∀ u w, a[u.1][w.1] =
+    (ha : ∀ u w, a[u.val][w.val] =
       aV ((@FinEnum.equiv V _).symm u) ((@FinEnum.equiv V _).symm w))
-    (hc : ∀ u w, c[u.1][w.1] =
+    (hc : ∀ u w, c[u.val][w.val] =
       cV ((@FinEnum.equiv V _).symm u) ((@FinEnum.equiv V _).symm w))
-    (hmask : ∀ y, inCycle[y.1] = true ↔ (@FinEnum.equiv V _).symm y ∈ C)
-    (hother : ∀ {x}, inCycle[x.1] = true →
-      other[x.1] = ∑ y ∈ C.erase ((@FinEnum.equiv V _).symm x), cV y (fV y))
+    (hmask : ∀ y, inCycle[y.val] = true ↔ (@FinEnum.equiv V _).symm y ∈ C)
+    (hother : ∀ {x}, inCycle[x.val] = true →
+      other[x.val] = ∑ y ∈ C.erase ((@FinEnum.equiv V _).symm x), cV y (fV y))
     (w : Fin (FinEnum.card V)) :
-    (bestExitTable a c inCycle other)[w.1].map (@FinEnum.equiv V _).symm =
+    (bestExitTable a c inCycle other)[w.val].map (@FinEnum.equiv V _).symm =
       bestExit aV cV fV C ((@FinEnum.equiv V _).symm w) := by
   let e : V ≃ Fin (FinEnum.card V) := @FinEnum.equiv V _
-  set l := (List.finRange (FinEnum.card V)).filter fun x => inCycle[x.1] && a[x.1][w.1]
+  set l := (List.finRange (FinEnum.card V)).filter fun x => inCycle[x.val] && a[x.val][w.val]
   rw [getElem_bestExitTable]
   unfold bestExit FinEnum.toList
-  have hcomp : l.argmin (fun x => c[x.1][w.1] + other[x.1]) =
+  have hcomp : l.argmin (fun x => c[x.val][w.val] + other[x.val]) =
       l.argmin ((fun x => exitCost cV fV C x (e.symm w)) ∘ e.symm) :=
     List.argmin_congr_mem l l (fun _ h => h) fun x hx => by
-      have hxin : inCycle[x.1] = true := (Bool.and_eq_true _ _ |>.mp (List.mem_filter.mp hx).2).1
+      have hxin : inCycle[x.val] = true := (Bool.and_eq_true _ _ |>.mp (List.mem_filter.mp hx).2).1
       dsimp only [Function.comp_def, exitCost]
       rw [hc x w, hother hxin]
   rw [hcomp, List.argmin_map_equiv e.symm, List.filter_map]
   refine congrArg (List.argmin _) (congrArg (List.map e.symm) (List.filter_congr fun x _ => ?_))
-  have hx : inCycle[x.1] = decide (e.symm x ∈ C) := Bool.eq_iff_iff.mpr (by simpa using hmask x)
+  have hx : inCycle[x.val] = decide (e.symm x ∈ C) := Bool.eq_iff_iff.mpr (by simpa using hmask x)
   rw [hx, ha x w]
   rfl
 
@@ -657,14 +660,14 @@ private theorem contractAdjTable_eq {V : Type*} [FinEnum V] {n : ℕ} (e : V ≃
     (a : AdjTable n) (inCycle : Vector Bool n)
     (bEntry bExit : Vector (Option (Fin n)) n)
     (x0 : Fin n) (aV : V → V → Bool) (C : Finset V) (rV : V)
-    (ha : ∀ u w, a[u.1][w.1] = aV (e.symm u) (e.symm w))
-    (hmask : ∀ y, inCycle[y.1] = true ↔ e.symm y ∈ C)
-    (hbEntry_isSome : ∀ u : Fin n, bEntry[u.1].isSome =
-      ((List.finRange n).any fun y => inCycle[y.1] && a[u.1][y.1]))
-    (hbExit_isSome : ∀ w : Fin n, bExit[w.1].isSome =
-      ((List.finRange n).any fun x => inCycle[x.1] && a[x.1][w.1]))
+    (ha : ∀ u w, a[u.val][w.val] = aV (e.symm u) (e.symm w))
+    (hmask : ∀ y, inCycle[y.val] = true ↔ e.symm y ∈ C)
+    (hbEntry_isSome : ∀ u : Fin n, bEntry[u.val].isSome =
+      ((List.finRange n).any fun y => inCycle[y.val] && a[u.val][y.val]))
+    (hbExit_isSome : ∀ w : Fin n, bExit[w.val].isSome =
+      ((List.finRange n).any fun x => inCycle[x.val] && a[x.val][w.val]))
     (u w : Fin n) :
-    (contractAdjTable a inCycle bEntry bExit x0 (e rV))[u.1][w.1] =
+    (contractAdjTable a inCycle bEntry bExit x0 (e rV))[u.val][w.val] =
       contractAdj aV C (e.symm x0) rV (e.symm u) (e.symm w) := by
   have hany : ∀ (p : Fin n → Bool) (q : V → Bool),
       (∀ x, p x = q (e.symm x)) → (List.finRange n).any p = (FinEnum.toList V).any q :=
@@ -672,11 +675,12 @@ private theorem contractAdjTable_eq {V : Type*} [FinEnum V] {n : ℕ} (e : V ≃
       simp only [List.any_eq_true, FinEnum.mem_toList, List.mem_finRange, true_and]
       exact ⟨fun ⟨x, hx⟩ => ⟨e.symm x, hpq x ▸ hx⟩,
         fun ⟨y, hy⟩ => ⟨e y, by rw [hpq, e.symm_apply_apply]; exact hy⟩⟩)
-  have hdec y : inCycle[y.1] = decide (e.symm y ∈ C) := Bool.eq_iff_iff.mpr (by simpa using hmask y)
-  have hex : bExit[w.1].isSome =
+  have hdec y : inCycle[y.val] = decide (e.symm y ∈ C) :=
+    Bool.eq_iff_iff.mpr (by simpa using hmask y)
+  have hex : bExit[w.val].isSome =
       (FinEnum.toList V).any (fun x => decide (x ∈ C) && aV x (e.symm w)) :=
     (hbExit_isSome w).trans (hany _ _ fun x => by rw [hdec, ha x w])
-  have hen : bEntry[u.1].isSome =
+  have hen : bEntry[u.val].isSome =
       (FinEnum.toList V).any (fun y => decide (y ∈ C) && aV (e.symm u) y) :=
     (hbEntry_isSome u).trans (hany _ _ fun y => by rw [hdec, ha u y])
   have hwr : (w == e rV) = decide (e.symm w = rV) :=
@@ -685,14 +689,14 @@ private theorem contractAdjTable_eq {V : Type*} [FinEnum V] {n : ℕ} (e : V ≃
     Bool.eq_iff_iff.mpr (by simp [beq_iff_eq, e.symm.injective.eq_iff])
   rw [getElem_contractAdjTable]
   unfold contractAdj
-  by_cases hu : inCycle[u.1] = true
+  by_cases hu : inCycle[u.val] = true
   · simp only [hu, ↓reduceIte, (hmask u).mp hu]
     by_cases hux : u = x0
     · subst hux
       simp [hex, hdec w]
     · simp [hux, e.symm.injective.eq_iff, hwr]
   · simp only [hu, Bool.false_eq_true, ↓reduceIte, (hmask u).not.mp hu]
-    by_cases hw : inCycle[w.1] = true
+    by_cases hw : inCycle[w.val] = true
     · simp [hw, (hmask w).mp hw, hen, hwx]
     · simp [hw, (hmask w).not.mp hw, ha u w]
 
@@ -702,29 +706,29 @@ private theorem contractCostTable_spec {V : Type*} [FinEnum V]
     (bEntry bExit : Vector (Option (Fin (FinEnum.card V))) (FinEnum.card V))
     (x0 : Fin (FinEnum.card V))
     (aV : V → V → Bool) (cV : V → V → β) (fV : V → V) (C : Finset V)
-    (hc : ∀ u w, c[u.1][w.1] =
+    (hc : ∀ u w, c[u.val][w.val] =
       cV ((@FinEnum.equiv V _).symm u) ((@FinEnum.equiv V _).symm w))
-    (hmask : ∀ y, inCycle[y.1] = true ↔ (@FinEnum.equiv V _).symm y ∈ C)
-    (hother : ∀ {x}, inCycle[x.1] = true →
-      other[x.1] = ∑ y ∈ C.erase ((@FinEnum.equiv V _).symm x), cV y (fV y))
-    (hbEntry : ∀ u : Fin (FinEnum.card V), bEntry[u.1].map (@FinEnum.equiv V _).symm =
+    (hmask : ∀ y, inCycle[y.val] = true ↔ (@FinEnum.equiv V _).symm y ∈ C)
+    (hother : ∀ {x}, inCycle[x.val] = true →
+      other[x.val] = ∑ y ∈ C.erase ((@FinEnum.equiv V _).symm x), cV y (fV y))
+    (hbEntry : ∀ u : Fin (FinEnum.card V), bEntry[u.val].map (@FinEnum.equiv V _).symm =
       bestEntry aV cV C ((@FinEnum.equiv V _).symm u))
-    (hbExit : ∀ w : Fin (FinEnum.card V), bExit[w.1].map (@FinEnum.equiv V _).symm =
+    (hbExit : ∀ w : Fin (FinEnum.card V), bExit[w.val].map (@FinEnum.equiv V _).symm =
       bestExit aV cV fV C ((@FinEnum.equiv V _).symm w))
-    (hbExit_mem : ∀ (w xs : Fin (FinEnum.card V)), bExit[w.1] = some xs → inCycle[xs.1] = true)
+    (hbExit_mem : ∀ (w xs : Fin (FinEnum.card V)), bExit[w.val] = some xs → inCycle[xs.val] = true)
     (u w : Fin (FinEnum.card V)) :
-    (contractCostTable c inCycle other bEntry bExit x0)[u.1][w.1] =
+    (contractCostTable c inCycle other bEntry bExit x0)[u.val][w.val] =
       contractCost aV cV fV C ((@FinEnum.equiv V _).symm x0)
         ((@FinEnum.equiv V _).symm u) ((@FinEnum.equiv V _).symm w) := by
   rw [getElem_contractCostTable]
   unfold contractCost
-  by_cases hu : inCycle[u.1] = true
+  by_cases hu : inCycle[u.val] = true
   · simp only [hu, ↓reduceIte, (hmask u).mp hu]
     by_cases hux' : u = x0
     · subst hux'
       rw [← hbExit w]
       simp only [beq_self_eq_true, ↓reduceIte]
-      cases hbx : bExit[w.1] with
+      cases hbx : bExit[w.val] with
       | none => exact hc u w
       | some xs =>
         simp only [Option.map_some]
@@ -735,7 +739,7 @@ private theorem contractCostTable_spec {V : Type*} [FinEnum V]
     · subst hwx'
       rw [← hbEntry u]
       simp only [beq_self_eq_true, ↓reduceIte]
-      cases bEntry[u.1] <;> simp [hc]
+      cases bEntry[u.val] <;> simp [hc]
     · simp [beq_iff_eq, hwx', (@FinEnum.equiv V _).symm.injective.eq_iff, hc u w]
 
 private theorem expandParentTable_spec {V : Type*} [FinEnum V]
@@ -743,28 +747,28 @@ private theorem expandParentTable_spec {V : Type*} [FinEnum V]
     (bEntry bExit : Vector (Option (Fin (FinEnum.card V))) (FinEnum.card V))
     (x0 : Fin (FinEnum.card V)) (q : ParentTable (FinEnum.card V))
     (aV : V → V → Bool) (cV : V → V → β) (fV : V → V) (C : Finset V) (qV : V → V)
-    (hf : ∀ i, (@FinEnum.equiv V _).symm f[i.1] = fV ((@FinEnum.equiv V _).symm i))
-    (hq : ∀ v, (@FinEnum.equiv V _).symm q[(@FinEnum.equiv V _ v).1] = qV v)
-    (hmask : ∀ y, inCycle[y.1] = true ↔ (@FinEnum.equiv V _).symm y ∈ C)
-    (hbEntry : ∀ u : Fin (FinEnum.card V), bEntry[u.1].map (@FinEnum.equiv V _).symm =
+    (hf : ∀ i, (@FinEnum.equiv V _).symm f[i.val] = fV ((@FinEnum.equiv V _).symm i))
+    (hq : ∀ v, (@FinEnum.equiv V _).symm q[(@FinEnum.equiv V _ v).val] = qV v)
+    (hmask : ∀ y, inCycle[y.val] = true ↔ (@FinEnum.equiv V _).symm y ∈ C)
+    (hbEntry : ∀ u : Fin (FinEnum.card V), bEntry[u.val].map (@FinEnum.equiv V _).symm =
       bestEntry aV cV C ((@FinEnum.equiv V _).symm u))
-    (hbExit : ∀ w : Fin (FinEnum.card V), bExit[w.1].map (@FinEnum.equiv V _).symm =
+    (hbExit : ∀ w : Fin (FinEnum.card V), bExit[w.val].map (@FinEnum.equiv V _).symm =
       bestExit aV cV fV C ((@FinEnum.equiv V _).symm w))
     (v : V) :
     (@FinEnum.equiv V _).symm
-        ((expandParentTable f inCycle bEntry bExit x0 q)[(@FinEnum.equiv V _ v).1]) =
+        ((expandParentTable f inCycle bEntry bExit x0 q)[(@FinEnum.equiv V _ v).val]) =
       expandParent aV cV fV C ((@FinEnum.equiv V _).symm x0) qV v := by
   let e : V ≃ Fin (FinEnum.card V) := @FinEnum.equiv V _
-  have hv : inCycle[(@FinEnum.equiv V _ v).1] = true ↔ v ∈ C := by
+  have hv : inCycle[(@FinEnum.equiv V _ v).val] = true ↔ v ∈ C := by
     simpa [e] using hmask (e v)
   rw [getElem_expandParentTable]
   unfold expandParent
-  by_cases hvC : inCycle[(@FinEnum.equiv V _ v).1] = true
+  by_cases hvC : inCycle[(@FinEnum.equiv V _ v).val] = true
   · rw [ite_eq_left_of_eq_true _ _ (eq_true hvC), ite_eq_left_of_eq_true _ _ (eq_true (hv.mp hvC))]
-    have hqx0 : e.symm q[x0.1] = qV (e.symm x0) := by simpa [e] using hq (e.symm x0)
-    have hbo := hbExit q[x0.1]
+    have hqx0 : e.symm q[x0.val] = qV (e.symm x0) := by simpa [e] using hq (e.symm x0)
+    have hbo := hbExit q[x0.val]
     rw [hqx0] at hbo
-    cases hbx : bExit[q[x0.1].1] with
+    cases hbx : bExit[q[x0.val].val] with
     | none => rw [← hbo, hbx]; simpa [e] using hf (e v)
     | some xs =>
       rw [← hbo, hbx, Option.map_some]
@@ -778,7 +782,7 @@ private theorem expandParentTable_spec {V : Type*} [FinEnum V]
         simpa [e] using hf (e v)
   · have hvV : v ∉ C := fun h => hvC (hv.mpr h)
     rw [ite_eq_right_of_eq_false _ _ (eq_false hvC), ite_eq_right_of_eq_false _ _ (eq_false hvV)]
-    by_cases hqeq : q[(@FinEnum.equiv V _ v).1] = x0
+    by_cases hqeq : q[(@FinEnum.equiv V _ v).val] = x0
     · have hqV : qV v = (@FinEnum.equiv V _).symm x0 :=
         (hq v).symm.trans (congrArg (@FinEnum.equiv V _).symm hqeq)
       rw [ite_eq_left_of_eq_true _ _ (eq_true (beq_iff_eq.mpr hqeq)),
@@ -786,7 +790,7 @@ private theorem expandParentTable_spec {V : Type*} [FinEnum V]
       have hbi := hbEntry (@FinEnum.equiv V _ v)
       rw [show (@FinEnum.equiv V _).symm (@FinEnum.equiv V _ v) = v by simp] at hbi
       rw [← hbi]
-      cases bEntry[(@FinEnum.equiv V _ v).1] <;> simp
+      cases bEntry[(@FinEnum.equiv V _ v).val] <;> simp
     · have hqV : qV v ≠ (@FinEnum.equiv V _).symm x0 :=
         fun h => hqeq ((@FinEnum.equiv V _).symm.injective ((hq v).trans h))
       rw [ite_eq_right_of_eq_false _ _ (eq_false (by simp [beq_iff_eq, hqeq])),
@@ -799,12 +803,12 @@ materialized table solver `edmondsTableAux` computes the exact same parent map (
 theorem edmondsTableAux_eq_edmondsAux {V : Type*} [FinEnum V] :
     ∀ (fuel : ℕ) (a : AdjTable (FinEnum.card V)) (c : CostTable β (FinEnum.card V))
       (aV : V → V → Bool) (cV : V → V → β) (rV : V),
-      (∀ u w, a[u.1][w.1] =
+      (∀ u w, a[u.val][w.val] =
         aV ((@FinEnum.equiv V _).symm u) ((@FinEnum.equiv V _).symm w)) →
-      (∀ u w, c[u.1][w.1] =
+      (∀ u w, c[u.val][w.val] =
         cV ((@FinEnum.equiv V _).symm u) ((@FinEnum.equiv V _).symm w)) →
       (edmondsTableAux (@FinEnum.equiv V _ rV) fuel a c).map
-        (fun p v => (@FinEnum.equiv V _).symm p[((@FinEnum.equiv V _) v).1]) =
+        (fun p v => (@FinEnum.equiv V _).symm p[((@FinEnum.equiv V _) v).val]) =
         edmondsAux rV fuel aV cV
   | 0, _, _, _, _, _, _, _ => rfl
   | fuel + 1, a, c, aV, cV, rV, ha, hc => by
@@ -832,13 +836,13 @@ theorem edmondsTableAux_eq_edmondsAux {V : Type*} [FinEnum V] :
         set bExit := bestExitTable a c inCycle other
         set a' := contractAdjTable a inCycle bEntry bExit x0 (e rV)
         set c' := contractCostTable c inCycle other bEntry bExit x0
-        have hmask y : inCycle[y.1] = true ↔ e.symm y ∈ C := cycleMask_spec sel.parents fV hf x0 y
-        have hother {x} (hx : inCycle[x.1] = true) :
-            other[x.1] = ∑ y ∈ C.erase (e.symm x), cV y (fV y) :=
+        have hmask y : inCycle[y.val] = true ↔ e.symm y ∈ C := cycleMask_spec sel.parents fV hf x0 y
+        have hother {x} (hx : inCycle[x.val] = true) :
+            other[x.val] = ∑ y ∈ C.erase (e.symm x), cV y (fV y) :=
           otherCycleCost_spec c sel.parents inCycle cV fV C hc hf hmask hx
-        have hbEntry u : bEntry[u.1].map e.symm = bestEntry aV cV C (e.symm u) :=
+        have hbEntry u : bEntry[u.val].map e.symm = bestEntry aV cV C (e.symm u) :=
           bestEntryTable_spec a c inCycle aV cV C ha hc hmask u
-        have hbExit w : bExit[w.1].map e.symm = bestExit aV cV fV C (e.symm w) :=
+        have hbExit w : bExit[w.val].map e.symm = bestExit aV cV fV C (e.symm w) :=
           bestExitTable_spec a c inCycle other aV cV fV C ha hc hmask hother w
         have hih := edmondsTableAux_eq_edmondsAux fuel a' c'
           (contractAdj aV C (e.symm x0) rV) (contractCost aV cV fV C (e.symm x0)) rV
@@ -861,7 +865,7 @@ theorem edmondsTableAux_eq_edmondsAux {V : Type*} [FinEnum V] :
           simp only [Option.map_some]
           exact congrArg some (funext fun v =>
             expandParentTable_spec sel.parents inCycle bEntry bExit x0 q aV cV fV C
-              (fun w => e.symm q[(e w).1]) hf (fun _ => rfl) hmask hbEntry hbExit v)
+              (fun w => e.symm q[(e w).val]) hf (fun _ => rfl) hmask hbEntry hbExit v)
     · have hncondV : ¬ ∀ v, v ≠ rV → candidates aV v ≠ [] := fun h => hcond (hfeas.mpr h)
       have hret : edmondsTableAux (e rV) (fuel + 1) a c = none := by
         dsimp only [edmondsTableAux, sel]
@@ -879,7 +883,7 @@ transporting `G` and `c` onto flat `Fin (FinEnum.card V)` tables via `FinEnum.eq
   let e : V ≃ Fin (FinEnum.card V) := @FinEnum.equiv V _
   let a := initAdjTable (FinEnum.card V) fun u w => decide (G.Adj (e.symm u) (e.symm w))
   let ct := initCostTable (FinEnum.card V) fun u w => c (e.symm u) (e.symm w)
-  (edmondsTableAux (e r) (FinEnum.card V) a ct).map fun p v => e.symm p[(e v).1]
+  (edmondsTableAux (e r) (FinEnum.card V) a ct).map fun p v => e.symm p[(e v).val]
 
 /-- **Equivalence with `ChuLiuEdmonds.edmonds`:** `edmondsTable` returns the exact same parent
 map as `edmonds`. -/
@@ -918,7 +922,7 @@ theorem edmondsTable_optimal [IsOrderedAddMonoid β] {V : Type*} [FinEnum V]
   let e : V ≃ Fin (FinEnum.card V) := @FinEnum.equiv V _
   let a := initAdjTable (FinEnum.card V) fun u w => decide (G.Adj (e.symm w) (e.symm u))
   let ct := initCostTable (FinEnum.card V) fun u w => c (e.symm w) (e.symm u)
-  (edmondsTableAux (e r) (FinEnum.card V) a ct).map fun p v => e.symm p[(e v).1]
+  (edmondsTableAux (e r) (FinEnum.card V) a ct).map fun p v => e.symm p[(e v).val]
 
 /-- `edmondsOutTable` computes the exact same parent map as `edmondsOut`. -/
 theorem edmondsOutTable_eq_edmondsOut {V : Type*} [FinEnum V] (G : Digraph V)

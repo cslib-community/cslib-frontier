@@ -99,7 +99,7 @@ theorem add {f g : MvPolynomial (Σ p, T p) ℝ} (hf : IsBlockAffine f) (hg : Is
 
 theorem neg {f : MvPolynomial (Σ p, T p) ℝ} (hf : IsBlockAffine f) : IsBlockAffine (-f) := by
   intro m hm
-  rw [mem_support_iff, coeff_neg, neg_ne_zero, ← mem_support_iff] at hm
+  rw [support_neg] at hm
   exact hf m hm
 
 theorem sub {f g : MvPolynomial (Σ p, T p) ℝ} (hf : IsBlockAffine f) (hg : IsBlockAffine g) :

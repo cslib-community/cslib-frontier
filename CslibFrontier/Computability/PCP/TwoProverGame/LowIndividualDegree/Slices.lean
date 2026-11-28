@@ -272,8 +272,9 @@ theorem lineAgrees_appendLineAnswer_iff (x : F) (L : Finset (Point F m)) (w : Po
     have hsub : (⟨appendPoint x z, hw⟩ : appendLine x K) = e ⟨z, hz⟩ := Subtype.ext rfl
     exact ⟨hz, by simpa only [hsub, e.symm_apply_apply] using heval⟩
   · rintro ⟨hw, heval⟩
-    have hsub : (⟨appendPoint x w, (e ⟨w, hw⟩).2⟩ : appendLine x K) = e ⟨w, hw⟩ := Subtype.ext rfl
-    exact ⟨(e ⟨w, hw⟩).2, by simpa only [hsub, e.symm_apply_apply] using heval⟩
+    have hsub : (⟨appendPoint x w, (e ⟨w, hw⟩).property⟩ : appendLine x K) = e ⟨w, hw⟩ :=
+      Subtype.ext rfl
+    exact ⟨(e ⟨w, hw⟩).property, by simpa only [hsub, e.symm_apply_apply] using heval⟩
 
 omit [Field F] [Fintype F] [DecidableEq F] in
 private theorem appendLineAnswer_injective (x : F) :

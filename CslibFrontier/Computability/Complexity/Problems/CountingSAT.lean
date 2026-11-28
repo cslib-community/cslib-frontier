@@ -385,7 +385,7 @@ private theorem eval_padMajority_eq_true_iff (σ : ℕ → Bool) (φ : CNF ℕ) 
 the dummy variables `2, 4, …, 2 Q`, and the variables of `shiftOdd φ`. -/
 private def padSplit (φ : CNF ℕ) (Q : ℕ) (σ : ℕ → Bool) :
     Bool × (Fin Q → Bool) × ((shiftOdd φ).vars.toFinset → Bool) :=
-  (σ 0, fun j => σ (j.1 + j.1 + 2), fun v => σ v.1)
+  (σ 0, fun j => σ (j.val + j.val + 2), fun v => σ v.val)
 
 /-- Two assignments have the same coordinates exactly when they agree on the variables of
 `padMajority φ Q`. -/
@@ -407,8 +407,9 @@ private theorem padSplit_surjective (φ : CNF ℕ) (Q : ℕ) : Function.Surjecti
     else (shiftOdd φ).extendAssignment τ v,
     Prod.ext rfl (Prod.ext (funext fun j => ?_) (funext fun ⟨v, hv⟩ => ?_))⟩
   · -- The dummy variable `2 j + 2` is even and nonzero.
-    simp only [padSplit, show j.1 + j.1 + 2 ≠ 0 by omega, show (j.1 + j.1 + 2) % 2 = 0 by omega,
-      show (j.1 + j.1 + 2) / 2 - 1 = j.1 by omega, j.2, ↓reduceIte, ↓reduceDIte, Fin.eta]
+    simp only [padSplit, show j.val + j.val + 2 ≠ 0 by omega,
+      show (j.val + j.val + 2) % 2 = 0 by omega,
+      show (j.val + j.val + 2) / 2 - 1 = j.val by omega, j.isLt, ↓reduceIte, ↓reduceDIte, Fin.eta]
   · -- The variables of `shiftOdd φ` are odd.
     have hv' := List.mem_toFinset.1 hv
     have := odd_of_mem_vars_shiftOdd hv'

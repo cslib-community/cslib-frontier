@@ -126,15 +126,15 @@ theorem sum_eq {M : Type*} [AddCommMonoid M] (g : Move R ch FL → M) :
 /-- The nodes at the roles of a move. -/
 @[expose] noncomputable def party : (mv : Move R ch FL) → mv.law.Role → T.Node
   | .relay x _ => x.party R ch
-  | .vertex l => fun p => .ofChamber l.stage.2
-      ((T.chamberEquiv l.stage.2 l.type).symm (l.vertex, FL.place l.kind p))
+  | .vertex l => fun p => .ofChamber l.stage.isLt
+      ((T.chamberEquiv l.stage.isLt l.type).symm (l.vertex, FL.place l.kind p))
 
 /-- The nodes at the roles of a move are different. -/
 theorem party_injective (mv : Move R ch FL) : Function.Injective mv.party := by
   rcases mv with ⟨x, hx⟩ | l
   · exact Relay.party_injective hx
   · intro p q hpq
-    have h1 := Tower.Node.ofChamber_inj (hj := l.stage.2) (hj' := l.stage.2) |>.1 hpq
+    have h1 := Tower.Node.ofChamber_inj (hj := l.stage.isLt) (hj' := l.stage.isLt) |>.1 hpq
     exact (FL.place l.kind).injective (by simpa using congrArg (T.co l.type) h1)
 
 /-- The time of a move: the law moves of a stage come after its relays. -/
@@ -147,12 +147,12 @@ level at its vertex. -/
 @[expose] noncomputable def target : (mv : Move R ch FL) → mv.law.Channel → Target T m A
   | .relay x _ => x.target R ch
   | .vertex l => fun ν => .edge l.stage.succ
-      ((T.nr l.stage.2 l.type).symm (l.vertex, FL.nearPair l.kind ν)).1
+      ((T.nr l.stage.isLt l.type).symm (l.vertex, FL.nearPair l.kind ν)).val
 
 theorem time_lt_endTime (mv : Move R ch FL) : mv.time < endTime J m := by
   rcases mv with ⟨x, hx⟩ | l
   · exact x.time_lt_endTime
-  · have := l.stage.2
+  · have := l.stage.isLt
     simp only [time, endTime]
     omega
 

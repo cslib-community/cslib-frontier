@@ -109,7 +109,7 @@ theorem full_firstFlags (b : Fin n → (Fin N → F) → F) (hb : ∀ i, b i ∈
     (by simp only [sum_const, card_univ, Fintype.card_fin, smul_eq_mul, mul_one]; omega)
   rintro _ ⟨i, rfl⟩
   refine ⟨i, funext fun x => ?_⟩
-  simp only [firstFlags_eq_prefixZero, hval i i.2.le]
+  simp only [firstFlags_eq_prefixZero, hval i i.isLt.le]
 
 /-- The indicator that a vector of `n` available functions is nonzero costs `n + 1` gates of the
 full binary basis. -/
@@ -143,7 +143,7 @@ theorem full_nonzero (v : Fin n → (Fin N → F) → F) (hv : ∀ l, v l ∈ s)
   change chainValue 0 op g (Fin.last n : ℕ) x = _
   rw [Fin.val_last, hval n le_rfl x]
   congr 1
-  exact propext ⟨fun h => funext fun l => h l l.2, fun h l _ => congrFun h l⟩
+  exact propext ⟨fun h => funext fun l => h l l.isLt, fun h l _ => congrFun h l⟩
 
 omit [DecidableEq F] in
 /-- A dot product of two vectors of `n` available functions costs `2 * n + 1` gates. -/

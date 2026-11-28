@@ -912,7 +912,7 @@ theorem isAcyclic_length_le_finset_sub_one {n : ℕ} (S : Finset (Fin n))
     simp [hnil]
   · have hpos : 0 < S.card := Nat.pos_of_ne_zero hS
     let eS := S.equivFin
-    let ι : Fin S.card → Fin n := fun i => (eS.symm i).1
+    let ι : Fin S.card → Fin n := fun i => (eS.symm i).val
     have hι : Function.Injective ι := fun a b hab =>
       eS.symm.injective (Subtype.ext hab)
     let F' : List (WeightedEdge S.card ℕ) := F.pmap

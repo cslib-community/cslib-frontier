@@ -715,7 +715,7 @@ theorem charge_extractMin_le_tExt (n : ℕ) (s : IndexedMinPQ.State n) :
 theorem modifies_block_trans {b : Block} {m₁ m₂ m₃ : ℕ → ℕ}
     (h₁ : Modifies b.footprint m₁ m₂) (h₂ : Modifies b.footprint m₂ m₃) :
     Modifies b.footprint m₁ m₃ := by
-  simpa only [Finset.union_idempotent] using h₁.trans h₂
+  simpa only [Finset.union_self] using h₁.trans h₂
 
 theorem BaseRegs.fits_stop {n base w : ℕ} {x : Data rFib} (hb : x.Bounded w)
     (hbr : BaseRegs n base x) : Fits w (base + space n) :=

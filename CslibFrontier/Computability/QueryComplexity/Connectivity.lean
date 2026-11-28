@@ -115,7 +115,7 @@ private theorem free_card_le_depth {n : ℕ} (t : DecisionTree (Fin (edgeCount n
         cases b <;> simp only [DecisionTree.depth_node, Bool.cond_false, Bool.cond_true] at hb ⊢ <;>
           omega
       let e : Edge n := (edgeEquiv n).symm i
-      by_cases hb : (upperGraph ρ).IsBridge e.1
+      by_cases hb : (upperGraph ρ).IsBridge e.val
       · have hUeq : upperGraph (Function.update ρ i (some true)) = upperGraph ρ := by
           simp only [upperGraph, PartialAssignment.fill_update]
           rw [Function.update_eq_self_iff.mpr
@@ -126,12 +126,12 @@ private theorem free_card_le_depth {n : ℕ} (t : DecisionTree (Fin (edgeCount n
         have hdiag := SimpleGraph.not_isDiag_of_mem_edgeSet _ ha
         have hbit := (mem_edgeSet_graph _ ⟨a, hdiag⟩).mp ha
         by_cases hai : edgeEquiv n ⟨a, hdiag⟩ = i
-        · have hae : a = e.1 := congrArg Subtype.val ((Equiv.eq_symm_apply _).mpr hai)
+        · have hae : a = e.val := congrArg Subtype.val ((Equiv.eq_symm_apply _).mpr hai)
           exact hae ▸ hb
         · rw [Function.update_of_ne hai] at hbit
           exact hbridge a ((mem_edgeSet_graph _ ⟨a, hdiag⟩).mpr hbit)
       · have hUeq : upperGraph (Function.update ρ i (some false)) =
-            (upperGraph ρ).deleteEdges {e.1} := by
+            (upperGraph ρ).deleteEdges {e.val} := by
           simp only [upperGraph, PartialAssignment.fill_update, graph_update_false, e]
         have hLeq : lowerGraph (Function.update ρ i (some false)) = lowerGraph ρ := by
           simp only [lowerGraph, PartialAssignment.fill_update]

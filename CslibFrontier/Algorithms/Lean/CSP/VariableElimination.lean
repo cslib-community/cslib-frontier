@@ -150,10 +150,10 @@ size `d`. -/
   let outScope := bucketOutScope x bucket
   { scope := outScope
     entries := Array.ofFn fun idx : Fin (d ^ outScope.length) =>
-      let digits := lsbDecode d outScope.length idx.1
+      let digits := lsbDecode d outScope.length idx.val
       let assign := assignScope outScope digits
       ∑ a : Fin d,
-        (bucket.map fun f => f.evalAt d fun v => if v = x then a.1 else assign v).prod }
+        (bucket.map fun f => f.evalAt d fun v => if v = x then a.val else assign v).prod }
 
 /-- Perform one elementary variable elimination step on `x`. -/
 @[expose] def elimVar [Semiring R] [DecidableEq V] (d : ℕ) (x : V)
@@ -263,7 +263,7 @@ private theorem evalAt_elimBucketTable [CommSemiring R] [DecidableEq V] {d : ℕ
     (hlt : ∀ v ∈ bucketOutScope x bucket, σ v < d) :
     (elimBucketTable d x bucket).evalAt d σ =
       ∑ a : Fin d,
-        (bucket.map fun f => f.evalAt d fun v => if v = x then a.1 else σ v).prod := by
+        (bucket.map fun f => f.evalAt d fun v => if v = x then a.val else σ v).prod := by
   let outScope := bucketOutScope x bucket
   have hlt_map : ∀ k ∈ outScope.map σ, k < d := by
     intro k hk; rcases List.mem_map.mp hk with ⟨v, hv, rfl⟩; exact hlt v hv
@@ -315,23 +315,23 @@ theorem eval_elimVar [CommSemiring R] [DecidableEq V] (d : ℕ) (x : V) (s : Eli
           rw [List.map_cons, List.prod_cons, evalAt_elimBucketTable_zero, zero_mul])).trans
           (mul_zero s.scalar)
     · let eSplit : (U → Fin d) ≃ Fin d × (U' → Fin d) :=
-        { toFun := fun σ => (σ ⟨x, hxU⟩, fun v => σ ⟨v.1, Finset.mem_of_mem_erase v.2⟩)
+        { toFun := fun σ => (σ ⟨x, hxU⟩, fun v => σ ⟨v.val, Finset.mem_of_mem_erase v.property⟩)
           invFun := fun p v =>
-            if h : v.1 = x then p.1 else p.2 ⟨v.1, Finset.mem_erase.mpr ⟨h, v.2⟩⟩
+            if h : v.val = x then p.1 else p.2 ⟨v.val, Finset.mem_erase.mpr ⟨h, v.property⟩⟩
           left_inv := fun σ => funext fun v => by
-            by_cases hvx : v.1 = x
+            by_cases hvx : v.val = x
             · simp only [hvx, ↓reduceDIte]; exact congrArg σ (Subtype.ext hvx.symm)
             · simp [hvx]
           right_inv := fun p => by
             ext v
             · simp
-            · simp [Finset.ne_of_mem_erase v.2] }
+            · simp [Finset.ne_of_mem_erase v.property] }
       let bucket := s.live.filter fun f => decide (x ∈ f.scope)
       let rest := s.live.filter fun f => decide (x ∉ f.scope)
       have hrest_eq : (s.live.filter fun f => !decide (x ∈ f.scope)) = rest := by
         simp only [decide_not, rest]
-      let ext0 : (U' → Fin d) → V → ℕ := fun τ v => if h : v ∈ U' then (τ ⟨v, h⟩).1 else 0
-      let ext : (U' → Fin d) → Fin d → V → ℕ := fun τ a v => if v = x then a.1 else ext0 τ v
+      let ext0 : (U' → Fin d) → V → ℕ := fun τ v => if h : v ∈ U' then (τ ⟨v, h⟩).val else 0
+      let ext : (U' → Fin d) → Fin d → V → ℕ := fun τ a v => if v = x then a.val else ext0 τ v
       have hs_eq : s.eval d = s.scalar * ∑ τ : U' → Fin d,
           ∑ a : Fin d, (s.live.map fun f => f.evalAt d (ext τ a)).prod := by
         rw [ElimState.eval, FactorTable.contractionOn]
@@ -419,7 +419,8 @@ theorem eval_eq_result_of_remaining_nil [Semiring R] [DecidableEq V] (d : ℕ)
     Fintype.sum_unique]
   refine congrArg (s.scalar * List.prod ·) (List.map_congr_left fun f _ => ?_)
   rw [FactorTable.evalAt, show (fun v : V => if h : v ∈ (∅ : Finset V) then
-    ((default : (∅ : Finset V) → Fin d) ⟨v, h⟩).1 else 0) = fun _ => 0 from funext fun _ => by simp,
+    ((default : (∅ : Finset V) → Fin d) ⟨v, h⟩).val else 0) = fun _ => 0 from
+      funext fun _ => by simp,
     ofDigits_map_zero]
 
 /-- If `order` covers all initial declared variables `init.remaining`, eliminating along `order`

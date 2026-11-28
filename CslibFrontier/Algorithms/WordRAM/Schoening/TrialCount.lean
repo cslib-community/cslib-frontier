@@ -278,7 +278,7 @@ theorem div_sub_one_pow_le_three {k : ℕ} (hk : 3 ≤ k) :
   calc ((k : ℝ) / ((k : ℝ) - 1)) ^ (k - 3) ≤ Real.exp (1 / ((k : ℝ) - 1)) ^ (k - 3) := by
         rw [h1]
         exact pow_le_pow_left₀ (by positivity) (Real.add_one_le_exp _) _
-    _ = Real.exp ((k - 3 : ℕ) * (1 / ((k : ℝ) - 1))) := by rw [Real.exp_nat_mul]
+    _ = Real.exp ((k - 3 : ℕ) * (1 / ((k : ℝ) - 1))) := by rw [Real.exp_natCast_mul]
     _ ≤ Real.exp 1 := by
         rw [Real.exp_le_exp, hcast, ← mul_div_assoc, mul_one, div_le_one hk1]
         linarith

@@ -253,11 +253,11 @@ private theorem exists_distinct_pebble_enum {M N : Type*} [L.Structure M] [L.Str
   let m : ℕ := B.card
   have hm : m < k := Finset.card_image_le.trans_lt hS'_lt
   let e : Fin m ≃ B := B.equivFin.symm
-  let x : Fin m → N := fun t => (e t).1
+  let x : Fin m → N := fun t => (e t).val
   have hx : Function.Injective x := Subtype.val_injective.comp e.injective
-  let idx : Fin m → Fin k := fun t => (Finset.mem_image.1 (e t).2).choose
+  let idx : Fin m → Fin k := fun t => (Finset.mem_image.1 (e t).property).choose
   have hidx_spec : ∀ t : Fin m, idx t ∈ S' ∧ b (idx t) = x t :=
-    fun t => (Finset.mem_image.1 (e t).2).choose_spec
+    fun t => (Finset.mem_image.1 (e t).property).choose_spec
   let y : Fin m → M := fun t => a (idx t)
   let pos : ∀ j ∈ S, j ≠ i → Fin m := fun j hj hne =>
     e.symm ⟨b j, Finset.mem_image_of_mem b (Finset.mem_filter.2 ⟨Finset.mem_univ j, hj, hne⟩)⟩
@@ -376,7 +376,7 @@ theorem satisfiesInfinitary_iff_radoGraph_of_extensionAxiom_lt {V : Type*} [None
   exact realizeInfinitary_iff_of_isPebbleBackAndForth hInv (partialIsoOn_empty a b) hφ
 
 private noncomputable def graphExtensionSentence (k : ℕ) : Language.graph.Sentence :=
-  BoundedFormula.iInf fun q : (m : Fin k) × (Fin m.1 → Bool) => extensionAxiom q.1.1 q.2
+  BoundedFormula.iInf fun q : (m : Fin k) × (Fin m.val → Bool) => extensionAxiom q.1.val q.2
 
 private theorem satisfies_graphExtensionSentence_iff {V : Type*} (G : SimpleGraph V) (k : ℕ) :
     Satisfies G (graphExtensionSentence k) ↔
@@ -661,15 +661,15 @@ variable [L.IsRelational] [Finite (Σ l, L.Relations l)] [IsEmpty (L.Relations 0
 omit [L.IsRelational] [IsEmpty (L.Relations 0)] in
 private noncomputable def relationalExtensionFinset (k : ℕ) : Finset L.Sentence := by
   classical
-  let _ : Finite ((m : Fin k) × (NewAtom L m.1 → Bool)) := inferInstance
-  let _ : Fintype ((m : Fin k) × (NewAtom L m.1 → Bool)) := Fintype.ofFinite _
-  exact Finset.univ.image fun q : (m : Fin k) × (NewAtom L m.1 → Bool) =>
-    extensionAxiom q.1.1 q.2
+  let _ : Finite ((m : Fin k) × (NewAtom L m.val → Bool)) := inferInstance
+  let _ : Fintype ((m : Fin k) × (NewAtom L m.val → Bool)) := Fintype.ofFinite _
+  exact Finset.univ.image fun q : (m : Fin k) × (NewAtom L m.val → Bool) =>
+    extensionAxiom q.1.val q.2
 
 omit [L.IsRelational] [IsEmpty (L.Relations 0)] in
 private theorem mem_relationalExtensionFinset {k : ℕ} {ψ : L.Sentence} :
     ψ ∈ relationalExtensionFinset (L := L) k ↔
-      ∃ (m : Fin k) (p : NewAtom L m.1 → Bool), extensionAxiom m.1 p = ψ := by
+      ∃ (m : Fin k) (p : NewAtom L m.val → Bool), extensionAxiom m.val p = ψ := by
   classical
   simp only [relationalExtensionFinset, Finset.mem_image, Finset.mem_univ, true_and, Sigma.exists]
 
@@ -699,7 +699,7 @@ private theorem tendsto_relationalExtensionFinset_uniform {k : ℕ}
     {ψ : L.Sentence} (hψ : ψ ∈ relationalExtensionFinset (L := L) k) :
     Tendsto (fun n => sentenceProb (uniformStructure n) ψ) atTop (nhds 1) := by
   obtain ⟨m, q, rfl⟩ := mem_relationalExtensionFinset.1 hψ
-  exact tendsto_sentenceProb_extensionAxiom m.1 q
+  exact tendsto_sentenceProb_extensionAxiom m.val q
 
 omit [IsEmpty (L.Relations 0)] in
 private theorem tendsto_relationalExtensionFinset_bernoulli
@@ -707,7 +707,7 @@ private theorem tendsto_relationalExtensionFinset_bernoulli
     {ψ : L.Sentence} (hψ : ψ ∈ relationalExtensionFinset (L := L) k) :
     Tendsto (fun n => sentenceProb (bernoulliStructure p n) ψ) atTop (nhds 1) := by
   obtain ⟨m, q, rfl⟩ := mem_relationalExtensionFinset.1 hψ
-  exact tendsto_sentenceProb_bernoulliStructure_extensionAxiom hp m.1 q
+  exact tendsto_sentenceProb_bernoulliStructure_extensionAxiom hp m.val q
 
 /-- **The Kolaitis–Vardi `0-1` law for `uniformStructure n`** over a finite relational vocabulary
 without nullary relation symbols ([KolaitisVardi1992]). For every closed `L^k_{∞ω}` formula `φ`,

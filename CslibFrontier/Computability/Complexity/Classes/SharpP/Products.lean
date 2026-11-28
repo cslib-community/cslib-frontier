@@ -76,7 +76,7 @@ theorem acceptCount_indexedProductVerifier (r k : α → ℕ)
   refine card_equiv BitString.blocksEquiv fun x => ?_
   simp only [mem_filter, mem_univ, true_and, indexedProductVerifier, List.all_eq_true,
     List.mem_range, Fintype.mem_piFinset]
-  exact ⟨fun h i => by simpa [BitString.listRow_eq_ofFn] using h i i.2,
+  exact ⟨fun h i => by simpa [BitString.listRow_eq_ofFn] using h i i.isLt,
     fun h i hi => by simpa [BitString.listRow_eq_ofFn (k a) ⟨i, hi⟩] using h ⟨i, hi⟩⟩
 
 /-- A jointly uniform #P family on an instance and unary index may be multiplied over a
@@ -141,6 +141,6 @@ theorem GapP.prod_range_mem {g : α × ℕ → ℤ} {r : α → ℕ}
   rw [← Fin.prod_univ_eq_prod_range]
   apply prod_congr rfl
   intro i _
-  simp [select, List.getD, i.2]
+  simp [select, List.getD, i.isLt]
 
 end Cslib.Complexity

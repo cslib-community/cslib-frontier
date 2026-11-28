@@ -123,7 +123,7 @@ theorem exists_circuit_of_computes {s : ℕ} {p : MvPolynomial (Fin n) K}
       · exact .inr rfl
   obtain ⟨c, hc, hs⟩ := Synthesis.exists_circuit_polynomial
     ((key s le_rfl).mono le_rfl (Set.singleton_subset_iff.mpr ⟨k₀, hk₀, rfl⟩) le_rfl)
-  exact ⟨c, by simp [hc, F], hs⟩
+  exact ⟨c, by simp [hc, F, aeval_X_left_apply], hs⟩
 
 /-! ### Translating families -/
 
@@ -191,7 +191,7 @@ theorem ofS_mem_VNP {g : Statement.Family K} (hg : g ∈ Statement.VNP K) : ofS 
 theorem VP_subset_VNP_statement : Statement.VP K ⊆ Statement.VNP K := fun g hg =>
   ⟨fun _ => 0, fun n => rename Sum.inl (g.poly n),
     mem_VP_of_equiv hg (fun n => (Equiv.sumEmpty _ _).symm) (fun n => rfl),
-    fun n => by simp [bind₁_rename, Function.comp_def]⟩
+    fun n => by simp [aeval_rename, Function.comp_def, aeval_X_left_apply]⟩
 
 /-! ### The equivalence -/
 

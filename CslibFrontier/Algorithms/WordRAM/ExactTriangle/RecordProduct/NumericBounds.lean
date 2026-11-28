@@ -95,7 +95,7 @@ theorem wordBound_le_pow {n D g p A κ : ℕ} (hn : 1 ≤ n)
   let b := n + 2
   have hb : 1 < b := by dsimp only [b]; omega
   have hc := Nat.clog_pos (by decide : 1 < (2 : ℕ)) hb
-  have hp2 := Nat.pow_pred_clog_lt_self (by decide : 1 < (2 : ℕ)) hb
+  have hp2 := Nat.pow_pred_clog_lt_self 2 hb
   have he : Nat.clog 2 b = (Nat.clog 2 b).pred + 1 := (Nat.succ_pred_eq_of_pos hc).symm
   have hbase : 2 ^ Nat.clog 2 b ≤ b ^ 2 := by
     rw [he, pow_succ]

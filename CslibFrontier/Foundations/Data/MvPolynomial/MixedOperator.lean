@@ -87,7 +87,7 @@ private theorem mixedSubalgebra_le :
     exact commute_mixedGen s j i
 
 private noncomputable instance : CommSemiring (mixedSubalgebra (R := R) s) where
-  mul_comm a b := Subtype.ext (b.2 a (mixedSubalgebra_le s a.2))
+  mul_comm a b := Subtype.ext (b.property a (mixedSubalgebra_le s a.property))
 
 /-- The action of a polynomial `Q` on polynomials, with `∂ᵢ` substituted for the variables `i`
 in `s` and multiplication by `X j` for the variables `j` outside `s`. -/

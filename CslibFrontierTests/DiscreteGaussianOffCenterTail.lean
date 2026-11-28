@@ -74,7 +74,7 @@ private theorem dual_small1 : ZLattice.gaussianMass D1 (1 / 2) 0 - 1 ≤ 1 / 2 :
   have he := Real.exp_lt_exp.mpr (show -3 * Real.pi / 4 < -3 * Real.log 2 by linarith)
   have hr : Real.exp (-3 * Real.log 2) = (1 / 8 : ℝ) := by
     rw [show -3 * Real.log 2 = -((3 : ℕ) * Real.log 2) by ring, Real.exp_neg,
-      Real.exp_nat_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
+      Real.exp_natCast_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
     norm_num
   rw [hr] at he
   have hbound : (2 : ℝ) * Real.exp (-3 * Real.pi / 4) ≤ 1 / 3 := by linarith
@@ -338,7 +338,7 @@ private theorem dual_small2 : ZLattice.gaussianMass D2 (1 / 2) 0 - 1 ≤ 1 / 4 :
   have he_gt : (2.7 : ℝ) < Real.exp 1 := lt_trans (by norm_num) Real.exp_one_gt_d9
   have he9 : (2.7 : ℝ) ^ 9 < Real.exp 9 := by
     have hp := pow_lt_pow_left₀ he_gt (by norm_num : (0 : ℝ) ≤ 2.7) (by decide : 9 ≠ 0)
-    rwa [← Real.exp_nat_mul, show ((9 : ℕ) : ℝ) * 1 = 9 by norm_num] at hp
+    rwa [← Real.exp_natCast_mul, show ((9 : ℕ) : ℝ) * 1 = 9 by norm_num] at hp
   have h3pi : (9 : ℝ) < 3 * Real.pi := by linarith [Real.pi_gt_three]
   have h20 : (20 : ℝ) < Real.exp (3 * Real.pi) := by
     have hnum : (20 : ℝ) < (2.7 : ℝ) ^ 9 := by norm_num

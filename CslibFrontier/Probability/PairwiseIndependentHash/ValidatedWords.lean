@@ -90,13 +90,13 @@ theorem walk_pow_sliceGraph_lazy_ofPerms_eq [Nonempty K] [NeZero L] (hL : L ≤ 
       wrap L (signedMove (σ k) b).1 (signedMove (σ k) b).2 w ∈ Z)
     (f : FrameChannel P H r → ℝ) (t : ℕ) (A : RetentionSlice P H r L y) :
     ((sliceGraph L hL y (ofPerms fun k ↦ coordMove (σ k).1 (σ k).2).lazy).walk ^ t)
-        (fun B ↦ f B.1) A =
-      (validatedStep L σ Z y)^[t] f A.1 := by
+        (fun B ↦ f B.val) A =
+      (validatedStep L σ Z y)^[t] f A.val := by
   induction t generalizing A with
   | zero => rfl
   | succ t ih =>
     have hfun : ((sliceGraph L hL y (ofPerms fun k ↦ coordMove (σ k).1 (σ k).2).lazy).walk ^ t)
-        (fun B ↦ f B.1) = fun B ↦ (validatedStep L σ Z y)^[t] f B.1 := funext ih
+        (fun B ↦ f B.val) = fun B ↦ (validatedStep L σ Z y)^[t] f B.val := funext ih
     rw [pow_succ', mul_apply_eq_comp, hfun, Function.iterate_succ_apply']
     set h := (validatedStep L σ Z y)^[t] f
     have hstep := walk_sliceGraph_ofPerms_eq hL σ hZ h A
@@ -133,12 +133,12 @@ theorem wrap_affineGenerator_mem (k : {p : Fin H × Fin H // p.1 ≠ p.2} ⊕ Fi
   refine (abs_wrap_le _ _ hw i).trans ?_
   rcases k with p | j
   · cases b
-    · have := sum_abs_transvection_le p.2 1 i
+    · have := sum_abs_transvection_le p.property 1 i
       simp only [signedMove, affineGenerator, Sum.elim_inl, Bool.cond_false, Pi.zero_apply,
         abs_zero, add_zero]
       norm_num at this
       linarith
-    · have := sum_abs_transvection_le p.2 (-1) i
+    · have := sum_abs_transvection_le p.property (-1) i
       simp only [signedMove, affineGenerator, Sum.elim_inl, Bool.cond_true,
         Matrix.SpecialLinearGroup.transvection_inv, Matrix.mulVec_zero, neg_zero, Pi.zero_apply,
         abs_zero, add_zero]
@@ -158,8 +158,9 @@ of `y` equal `t` iterations of the validated step of the affine generators, with
 wraps `{-3, …, 3} ^ H`, a box independent of `P`, `L`, `y` and `t`. -/
 theorem walk_pow_sliceGraph_lazy_affineMove_eq [NeZero H] [NeZero L] (hL : L ≤ P) {y : ZMod P}
     (f : FrameChannel P H r → ℝ) (t : ℕ) (A : RetentionSlice P H r L y) :
-    ((sliceGraph L hL y (ofPerms (affineMove P H L r)).lazy).walk ^ t) (fun B ↦ f B.1) A =
-      (validatedStep L (affineGenerator H) (Fintype.piFinset fun _ ↦ Icc (-3) 3) y)^[t] f A.1 := by
+    ((sliceGraph L hL y (ofPerms (affineMove P H L r)).lazy).walk ^ t) (fun B ↦ f B.val) A =
+      (validatedStep L (affineGenerator H)
+        (Fintype.piFinset fun _ ↦ Icc (-3) 3) y)^[t] f A.val := by
   have : Nonempty ({p : Fin H × Fin H // p.1 ≠ p.2} ⊕ Fin H) := ⟨.inr 0⟩
   exact walk_pow_sliceGraph_lazy_ofPerms_eq hL (affineGenerator H)
     (fun k b _ hw ↦ wrap_affineGenerator_mem k b hw) f t A

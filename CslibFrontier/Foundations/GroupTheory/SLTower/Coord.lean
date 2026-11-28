@@ -74,7 +74,7 @@ theorem evG_th (i : Fin h) (u : U h) : evG (th i u : G h n) = thQ i u := by
   refine Subtype.ext ?_
   ext a b
   rw [thQ]
-  change (evG (th0 i u.1 : G h n)).1 a b = (evG (th0 i u.1 : G h 0)).1 a b
+  change (evG (th0 i u.val : G h n)).val a b = (evG (th0 i u.val : G h 0)).val a b
   rw [evG_th0, evG_th0]
 
 theorem thQ_injective (i : Fin h) : Function.Injective (thQ i : U h →* SL2 h) := by
@@ -90,7 +90,7 @@ theorem coQ_mul (i : Fin h) (u : U h) (q : SL2 h) : coQ i (thQ i u * q) = u * co
 omit [NeZero h] in
 theorem x_ne_one (l : Fin (h - 1)) : x h l ≠ 1 := by
   intro e
-  have h1 := congrFun (congrFun (congrArg (fun u : U h => u.1.1) e) (lo l)) (hi l)
+  have h1 := congrFun (congrFun (congrArg (fun u : U h => u.val.val) e) (lo l)) (hi l)
   simp [x_val, Matrix.one_apply_ne (lo_ne_hi l)] at h1
 
 omit [NeZero h] in

@@ -226,7 +226,7 @@ theorem det_expectedSeqProbes_ge_linear (withQueries : Bool) {U V n cells w : �
     have hdec (s' : HardKeyValSeed U V n) :
         decodeDict D_det n (memAt D_det (s'.modeOps withQueries) n) =
           (windowDict s'.permKeyEmb (fun idx => s'.kv (s'.permKeyEmb idx))
-            0 (Nat.zero_le n)).1 := by
+            0 (Nat.zero_le n)).val := by
       have hlen : ((s'.modeOps withQueries).take n).length = n := by
         simpa only [Nat.mul_zero, Nat.add_zero] using
           s'.length_take_modeOps withQueries (Nat.zero_le n)
@@ -240,12 +240,12 @@ theorem det_expectedSeqProbes_ge_linear (withQueries : Bool) {U V n cells w : �
         simpa only [Nat.mul_zero, Nat.add_zero] using
           s'.run_take_modeOps_fst withQueries (Nat.zero_le n))
     have hdict_eq : (windowDict s.permKeyEmb (fun idx => s.kv (s.permKeyEmb idx)) 0
-        (Nat.zero_le n)).1 =
-        (windowDict s₂.permKeyEmb (fun idx => s₂.kv (s₂.permKeyEmb idx)) 0 (Nat.zero_le n)).1 :=
+        (Nat.zero_le n)).val =
+        (windowDict s₂.permKeyEmb (fun idx => s₂.kv (s₂.permKeyEmb idx)) 0 (Nat.zero_le n)).val :=
       (hdec s).symm.trans ((congrArg (decodeDict D_det n) hmem_n).trans (hdec s₂))
     let u := s.keys ⟨i.val, by have := i.isLt; omega⟩
     have hu1 : (windowDict s.permKeyEmb (fun idx => s.kv (s.permKeyEmb idx)) 0
-        (Nat.zero_le n)).1 u = some (s.kv u).val := by
+        (Nat.zero_le n)).val u = some (s.kv u).val := by
       rw [windowDict_coe]
       let k₀ : Fin n := s.delPerm.symm i
       have hk₀ : windowEmb s.permKeyEmb 0 (Nat.zero_le n) k₀ = u := by
@@ -255,7 +255,7 @@ theorem det_expectedSeqProbes_ge_linear (withQueries : Bool) {U V n cells w : �
       rw [← hk₀, dictOfEmb_apply_self]
       simp only [windowVals_apply, windowEmb_apply]
     have hu2 : (windowDict s₂.permKeyEmb (fun idx => s₂.kv (s₂.permKeyEmb idx)) 0
-        (Nat.zero_le n)).1 u = none := by
+        (Nat.zero_le n)).val u = none := by
       rw [windowDict_coe]
       refine dictOfEmb_apply_eq_none _ _ fun k heq => ?_
       dsimp only [s₂] at heq

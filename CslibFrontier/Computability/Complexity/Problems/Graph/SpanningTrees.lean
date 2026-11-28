@@ -82,7 +82,7 @@ private theorem degree_induced (G : Graph) (u : {v // v ∈ G.vertices}) :
   refine Finset.card_bij (fun v _ => (v : ℕ))
     (fun v hv => by
       simp only [List.mem_toFinset, List.mem_filter, mem_distinctVertices, adjBool_eq_true_iff]
-      exact ⟨v.2, (G.induced.mem_neighborFinset u v).1 hv⟩)
+      exact ⟨v.property, (G.induced.mem_neighborFinset u v).1 hv⟩)
     (fun _ _ _ _ h => Subtype.ext h) fun w hw => ?_
   simp only [List.mem_toFinset, List.mem_filter, mem_distinctVertices, adjBool_eq_true_iff] at hw
   exact ⟨⟨w, hw.1⟩, (G.induced.mem_neighborFinset u ⟨w, hw.1⟩).2 hw.2, rfl⟩
@@ -107,8 +107,8 @@ theorem spanningTreeCount_eq_natCard (G : Graph) :
   unfold spanningTreeCount
   split_ifs with h
   · have : IsEmpty {v // v ∈ G.vertices} :=
-      ⟨fun v => by simpa [h] using mem_distinctVertices.2 v.2⟩
-    rw [Nat.card_eq_zero.2 (Or.inl ⟨fun T => this.elim T.2.2.connected.nonempty.some⟩)]
+      ⟨fun v => by simpa [h] using mem_distinctVertices.2 v.property⟩
+    rw [Nat.card_eq_zero.2 (Or.inl ⟨fun T => this.elim T.property.2.connected.nonempty.some⟩)]
     rfl
   · obtain ⟨a, rest, hvs⟩ := List.exists_cons_of_ne_nil h
     have hnd := List.nodup_cons.1 (hvs ▸ G.nodup_distinctVertices)
@@ -119,11 +119,11 @@ theorem spanningTreeCount_eq_natCard (G : Graph) :
     have hlen : G.reducedLaplacianRows.length = rest.length := by
       rw [reducedLaplacianRows, List.length_map, htail]
     let f : Fin G.reducedLaplacianRows.length → {v : {v // v ∈ G.vertices} // v ≠ r} := fun i =>
-      ⟨⟨rest[i.1]'(hlen ▸ i.2), hmem (List.getElem_mem _)⟩, fun hr => hnd.1 <| by
-        rw [← show rest[i.1]'(hlen ▸ i.2) = a from congrArg Subtype.val hr]
+      ⟨⟨rest[i.val]'(hlen ▸ i.isLt), hmem (List.getElem_mem _)⟩, fun hr => hnd.1 <| by
+        rw [← show rest[i.val]'(hlen ▸ i.isLt) = a from congrArg Subtype.val hr]
         exact List.getElem_mem _⟩
     have hf : Function.Bijective f :=
-      ⟨fun _ _ hij => Fin.ext ((hnd.2.getElem_inj_iff).1 (congrArg (fun v => v.1.1) hij)),
+      ⟨fun _ _ hij => Fin.ext ((hnd.2.getElem_inj_iff).1 (congrArg (fun v => v.val.val) hij)),
        fun ⟨⟨w, hw⟩, hwr⟩ =>
         let ⟨k, hk, hkw⟩ := List.getElem_of_mem <|
           (List.mem_cons.1 (hvs ▸ mem_distinctVertices.2 hw)).resolve_left fun h =>
@@ -134,18 +134,20 @@ theorem spanningTreeCount_eq_natCard (G : Graph) :
     congr 1
     ext i j
     simp only [ofRows, Matrix.of_apply, Matrix.submatrix_apply]
-    rw [rowEntry_reducedLaplacianRows G (htail ▸ hlen ▸ i.2) (htail ▸ hlen ▸ j.2)]
+    rw [rowEntry_reducedLaplacianRows G (htail ▸ hlen ▸ i.isLt) (htail ▸ hlen ▸ j.isLt)]
     simp only [f, Equiv.ofBijective_apply, SimpleGraph.lapMatrix, Matrix.sub_apply,
       SimpleGraph.degMatrix, SimpleGraph.adjMatrix_apply, laplacianEntry, htail]
     by_cases hij : i = j
     · subst hij
       simp [degree_induced]
-    · have hne : rest[i.1]'(hlen ▸ i.2) ≠ rest[j.1]'(hlen ▸ j.2) :=
+    · have hne : rest[i.val]'(hlen ▸ i.isLt) ≠ rest[j.val]'(hlen ▸ j.isLt) :=
         fun h => hij (Fin.ext ((hnd.2.getElem_inj_iff).1 h))
-      have hne' : (⟨rest[i.1]'(hlen ▸ i.2), hmem (List.getElem_mem _)⟩ : {v // v ∈ G.vertices}) ≠
-          ⟨rest[j.1]'(hlen ▸ j.2), hmem (List.getElem_mem _)⟩ :=
+      have hne' :
+          (⟨rest[i.val]'(hlen ▸ i.isLt), hmem (List.getElem_mem _)⟩ : {v // v ∈ G.vertices}) ≠
+          ⟨rest[j.val]'(hlen ▸ j.isLt), hmem (List.getElem_mem _)⟩ :=
         fun h => hne (congrArg Subtype.val h)
-      by_cases hadj : G.toSimpleGraph.Adj (rest[i.1]'(hlen ▸ i.2)) (rest[j.1]'(hlen ▸ j.2)) <;>
+      by_cases hadj :
+          G.toSimpleGraph.Adj (rest[i.val]'(hlen ▸ i.isLt)) (rest[j.val]'(hlen ▸ j.isLt)) <;>
         simp [hne, hne', hadj]
 
 /-! ### Polynomial time -/

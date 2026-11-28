@@ -104,18 +104,19 @@ second. -/
 /-- The name of a vertex of `SimpleGraph.nagyGraph (Fin t)`: its three elements in increasing
 order. -/
 def nagyLabel {t : ℕ} (s : {s : Finset (Fin t) // #s = 3}) : ℕ × ℕ × ℕ :=
-  (s.1.orderEmbOfFin s.2 0, s.1.orderEmbOfFin s.2 1, s.1.orderEmbOfFin s.2 2)
+  (s.val.orderEmbOfFin s.property 0, s.val.orderEmbOfFin s.property 1,
+    s.val.orderEmbOfFin s.property 2)
 
 /-- Distinct vertices have distinct names. -/
 theorem nagyLabel_injective {t : ℕ} : Function.Injective (nagyLabel (t := t)) := by
   intro s s' h
   simp only [nagyLabel, Prod.mk.injEq, Fin.val_inj] at h
   obtain ⟨h0, h1, h2⟩ := h
-  have he : ∀ i, s.1.orderEmbOfFin s.2 i = s'.1.orderEmbOfFin s'.2 i := by
+  have he : ∀ i, s.val.orderEmbOfFin s.property i = s'.val.orderEmbOfFin s'.property i := by
     intro i; fin_cases i
     exacts [h0, h1, h2]
   apply Subtype.ext
-  rw [← image_orderEmbOfFin_univ s.1 s.2, ← image_orderEmbOfFin_univ s'.1 s'.2]
+  rw [← image_orderEmbOfFin_univ s.val s.property, ← image_orderEmbOfFin_univ s'.val s'.property]
   exact image_congr fun i _ => he i
 
 /-- The names are exactly the triples accepted by `nagyIsLabel`, the increasing triples below
@@ -128,9 +129,9 @@ theorem range_nagyLabel (t : ℕ) :
   · rintro ⟨s, hs⟩
     simp only [nagyLabel, Prod.mk.injEq] at hs
     obtain ⟨rfl, rfl, rfl⟩ := hs
-    have hm := (s.1.orderEmbOfFin s.2).strictMono
+    have hm := (s.val.orderEmbOfFin s.property).strictMono
     exact ⟨⟨hm (by decide : (0 : Fin 3) < 1), hm (by decide : (1 : Fin 3) < 2)⟩,
-      (s.1.orderEmbOfFin s.2 2).2⟩
+      (s.val.orderEmbOfFin s.property 2).isLt⟩
   · rintro ⟨⟨hab, hbc⟩, hct⟩
     let f : Fin 3 → Fin t := ![⟨a, by omega⟩, ⟨b, by omega⟩, ⟨c, hct⟩]
     have hf : StrictMono f := by
@@ -146,15 +147,16 @@ theorem range_nagyLabel (t : ℕ) :
     rfl
 
 private theorem card_inter_eq_sum {t : ℕ} (s s' : {s : Finset (Fin t) // #s = 3}) :
-    #(s.1 ∩ s'.1) = ∑ i : Fin 3, if s.1.orderEmbOfFin s.2 i ∈ s'.1 then 1 else 0 := by
+    #(s.val ∩ s'.val) =
+      ∑ i : Fin 3, if s.val.orderEmbOfFin s.property i ∈ s'.val then 1 else 0 := by
   rw [← filter_mem_eq_inter]
-  conv_lhs => rw [← map_orderEmbOfFin_univ s.1 s.2]
+  conv_lhs => rw [← map_orderEmbOfFin_univ s.val s.property]
   rw [filter_map, card_map, card_filter]
   rfl
 
 private theorem mem_iff_memTriple {t : ℕ} (x : Fin t) (s : {s : Finset (Fin t) // #s = 3}) :
-    x ∈ s.1 ↔ memTriple x (nagyLabel s) = true := by
-  rw [← Finset.mem_coe, ← range_orderEmbOfFin s.1 s.2]
+    x ∈ s.val ↔ memTriple x (nagyLabel s) = true := by
+  rw [← Finset.mem_coe, ← range_orderEmbOfFin s.val s.property]
   simp only [Set.mem_range, nagyLabel, memTriple, Bool.or_eq_true, beq_iff_eq, Fin.val_inj]
   constructor
   · rintro ⟨i, rfl⟩
@@ -171,13 +173,13 @@ private theorem exactlyOne_eq_true_iff (p q r : Bool) :
 theorem nagyGraph_adj_iff_nagyAdj {t : ℕ} (s s' : {s : Finset (Fin t) // #s = 3}) :
     (nagyGraph (Fin t)).Adj s s' ↔ nagyAdj (nagyLabel s, nagyLabel s') = true := by
   rw [nagyGraph_adj, card_inter_eq_sum, Fin.sum_univ_three]
-  have h0 := mem_iff_memTriple (s.1.orderEmbOfFin s.2 0) s'
-  have h1 := mem_iff_memTriple (s.1.orderEmbOfFin s.2 1) s'
-  have h2 := mem_iff_memTriple (s.1.orderEmbOfFin s.2 2) s'
+  have h0 := mem_iff_memTriple (s.val.orderEmbOfFin s.property 0) s'
+  have h1 := mem_iff_memTriple (s.val.orderEmbOfFin s.property 1) s'
+  have h2 := mem_iff_memTriple (s.val.orderEmbOfFin s.property 2) s'
   have he : nagyAdj (nagyLabel s, nagyLabel s') =
-      exactlyOne (memTriple (s.1.orderEmbOfFin s.2 0) (nagyLabel s'))
-        (memTriple (s.1.orderEmbOfFin s.2 1) (nagyLabel s'))
-        (memTriple (s.1.orderEmbOfFin s.2 2) (nagyLabel s')) := rfl
+      exactlyOne (memTriple (s.val.orderEmbOfFin s.property 0) (nagyLabel s'))
+        (memTriple (s.val.orderEmbOfFin s.property 1) (nagyLabel s'))
+        (memTriple (s.val.orderEmbOfFin s.property 2) (nagyLabel s')) := rfl
   rw [he, exactlyOne_eq_true_iff]
   simp only [h0, h1, h2]
 

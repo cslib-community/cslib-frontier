@@ -491,17 +491,17 @@ theorem path3ChickenLocalQ_restrictMarginal_eval :
       (fun _ hk => Or.inr (hk.symm ▸ path3_adj_21)) (fun _ => true) = 1 / 3 := by
   have heval : ∀ (i : Fin 3) (hT : ∀ k ∈ ({1} : Set (Fin 3)), k = i ∨ path3Graph.Adj i k),
       (∑ u : ClosedNeighborhood path3Graph i → Bool,
-        if (fun k : ({1} : Set (Fin 3)) => u ⟨k.1, hT k.1 k.2⟩) = (fun _ => true) then
+        if (fun k : ({1} : Set (Fin 3)) => u ⟨k.val, hT k.val k.property⟩) = (fun _ => true) then
           chickenLocalQNum i u else 0) = 1 →
       restrictMarginal (S := fun _ => Bool) path3Graph path3ChickenLocalQ i ({1} : Set (Fin 3))
         hT (fun _ => true) = 1 / 3 := by
     intro i hT hnat
     rw [restrictMarginal_def]
     have hrew : ∑ u : ClosedNeighborhood path3Graph i → Bool,
-          (if (fun k : ({1} : Set (Fin 3)) => u ⟨k.1, hT k.1 k.2⟩) = (fun _ => true) then
+          (if (fun k : ({1} : Set (Fin 3)) => u ⟨k.val, hT k.val k.property⟩) = (fun _ => true) then
             path3ChickenLocalQ i u else 0) =
         ((∑ u : ClosedNeighborhood path3Graph i → Bool,
-          if (fun k : ({1} : Set (Fin 3)) => u ⟨k.1, hT k.1 k.2⟩) = (fun _ => true) then
+          if (fun k : ({1} : Set (Fin 3)) => u ⟨k.val, hT k.val k.property⟩) = (fun _ => true) then
             chickenLocalQNum i u else 0 : ℕ) : ℝ) / 3 := by
       simp only [path3ChickenLocalQ_eq_div, Nat.cast_sum, div_eq_mul_inv, sum_mul]
       exact sum_congr rfl fun u _ => by split_ifs <;> ring

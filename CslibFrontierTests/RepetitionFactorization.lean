@@ -66,15 +66,16 @@ example [Nonempty A] [Nonempty B] (ha : (Fin 1 → X) → Fin 1 → A)
   have hC : ∃ q ∈ G.winsOn ha hb ∅, q ∈ (G.pow 1).questions.support := ⟨q, by simp, hq⟩
   let j : {i // i ∉ (∅ : Finset (Fin 1))} := ⟨0, Finset.notMem_empty 0⟩
   -- `S` has no questions, halves or answers.
-  let s₀ : Shared X Y A B (∅ : Finset (Fin 1)) j := ⟨fun i => absurd i.2 (Finset.notMem_empty _),
-    fun i => absurd (Subtype.ext (Subsingleton.elim _ _)) i.2,
-    fun i => absurd i.2 (Finset.notMem_empty _)⟩
+  let s₀ : Shared X Y A B (∅ : Finset (Fin 1)) j :=
+    ⟨fun i => absurd i.property (Finset.notMem_empty _),
+      fun i => absurd (Subtype.ext (Subsingleton.elim _ _)) i.property,
+      fun i => absurd i.property (Finset.notMem_empty _)⟩
   have hS : ∀ ω, shared ha hb j ω = s₀ := by
     intro ω
     simp only [shared, Shared.ofRevealed, s₀, Shared.mk.injEq]
-    exact ⟨funext fun i => absurd i.2 (Finset.notMem_empty _),
-      funext fun i => absurd (Subtype.ext (Subsingleton.elim _ _)) i.2,
-      funext fun i => absurd i.2 (Finset.notMem_empty _)⟩
+    exact ⟨funext fun i => absurd i.property (Finset.notMem_empty _),
+      funext fun i => absurd (Subtype.ext (Subsingleton.elim _ _)) i.property,
+      funext fun i => absurd i.property (Finset.notMem_empty _)⟩
   -- The pair at the coordinate has the law of the questions.
   have hpair : (condLaw G ∅ ha hb hC).map (fun ω => ω.2 j) = G.questions := by
     have h := congrArg (PMF.map fun q : Fin 1 → X × Y => q j) (map_snd_condLaw hC)

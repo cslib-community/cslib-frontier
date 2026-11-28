@@ -672,8 +672,8 @@ theorem prec_trans [DecidableEq P] {H : History P Op Resp} {e₀ e₁ e₂ : OpI
 /-- On the subtype of completed operations of `H`, real-time precedence `<_H` forms a
 `Relation.IsIntervalOrder` (`Cslib.Foundations.Relation.Defs`). -/
 theorem isIntervalOrder_prec_completed [DecidableEq P] (H : History P Op Resp) :
-    IsIntervalOrder (fun a b : { e : OpId P // IsCompletedOp H e } => prec H a.1 b.1) := by
-  refine ⟨{ irrefl := fun a => prec_irrefl H a.1
+    IsIntervalOrder (fun a b : { e : OpId P // IsCompletedOp H e } => prec H a.val b.val) := by
+  refine ⟨{ irrefl := fun a => prec_irrefl H a.val
             trans := fun _ _ _ => prec_trans }, ?_⟩
   rintro ⟨a₁, _⟩ ⟨b₁, _⟩ ⟨a₂, _⟩ ⟨b₂, _⟩ ⟨⟨r₁, i₁, hr₁, hi₁, h₁⟩, ⟨r₂, i₂, hr₂, hi₂, h₂⟩⟩
   obtain ⟨ia₂, hia₂, hlt₂⟩ := invPos_of_respPos hr₂

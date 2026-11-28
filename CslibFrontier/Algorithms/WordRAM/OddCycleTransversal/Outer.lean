@@ -124,17 +124,19 @@ theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
   set s_col := (Memory.spec 0).clientState s_sep (fillRange ((colBase n, 0), n))
   have hs_col := fillRange_spec (colBase n) 0 n s_sep
   have hs_col_G : MatrixLoaded G s_col := fun u v => by
-    have ha1 : 3 + u.1 * n + v.1 < colBase n := by dsimp only [colBase]; nlinarith [u.2, v.2]
-    have ha2 : 3 + u.1 * n + v.1 < sepBase n := by dsimp only [sepBase]; nlinarith [u.2, v.2]
+    have ha1 : 3 + u.val * n + v.val < colBase n := by
+      dsimp only [colBase]; nlinarith [u.isLt, v.isLt]
+    have ha2 : 3 + u.val * n + v.val < sepBase n := by
+      dsimp only [sepBase]; nlinarith [u.isLt, v.isLt]
     rw [hs_col.2 _ (Or.inl ha1), hs_sep.2 _ (Or.inl ha2), hs_al_pre _ ha2]
     exact hG₀ u v
   have hoct0 : OctStateAt G 0 k s_col := by
-    have hsep0 : ∀ v : Fin n, s_col.mem (sepBase n + v.1) = 0 := fun v =>
-      (hs_col.2 _ (Or.inl (by dsimp only [sepBase, colBase]; omega))).trans (hs_sep.1 v.1 v.2)
-    have hcol0 : ∀ v : Fin n, s_col.mem (colBase n + v.1) = 0 := fun v => hs_col.1 v.1 v.2
+    have hsep0 : ∀ v : Fin n, s_col.mem (sepBase n + v.val) = 0 := fun v =>
+      (hs_col.2 _ (Or.inl (by dsimp only [sepBase, colBase]; omega))).trans (hs_sep.1 v.val v.isLt)
+    have hcol0 : ∀ v : Fin n, s_col.mem (colBase n + v.val) = 0 := fun v => hs_col.1 v.val v.isLt
     refine ⟨fun v => ⟨by rw [hsep0]; decide, by rw [hcol0]; decide⟩, ?_⟩
     dsimp only
-    have hempty : (Finset.univ.filter fun v : Fin n => s_col.mem (sepBase n + v.1) = 1) = ∅ := by
+    have hempty : (Finset.univ.filter fun v : Fin n => s_col.mem (sepBase n + v.val) = 1) = ∅ := by
       ext v; simp [hsep0 v]
     rw [hempty]
     exact ⟨Nat.zero_le k, fun u _ hadj => absurd hadj.2.1 (Nat.not_lt_zero _)⟩
@@ -155,7 +157,7 @@ theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
     have hm_lt : m < n := by omega
     by_cases hal : alive = 1
     · obtain ⟨h01_st, hS_card, hS_prop⟩ := hal1 hal
-      set S : Finset (Fin n) := Finset.univ.filter fun v => st.mem (sepBase n + v.1) = 1
+      set S : Finset (Fin n) := Finset.univ.filter fun v => st.mem (sepBase n + v.val) = 1
       let Wset : Finset (Fin n) := insert ⟨m, hm_lt⟩ S
       obtain ⟨htW_low, hW⟩ := buildWProg_spec hm_lt fun v => (h01_st v).1
       set L := (Memory.spec 0).clientResult st (buildWProg (n, m))
@@ -166,11 +168,11 @@ theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
         exact (Finset.card_insert_le _ _).trans (Nat.add_le_add_right hS_card 1)
       have hcW_prop : ∀ u v : Fin n, (prefixGraph G (m + 1)).Adj u v →
           u ∉ Wset → v ∉ Wset →
-          (tW.mem (colBase n + u.1) == 1) ≠ (tW.mem (colBase n + v.1) == 1) := by
+          (tW.mem (colBase n + u.val) == 1) ≠ (tW.mem (colBase n + v.val) == 1) := by
         intro u v ⟨hadj, hum1, hvm1⟩ huW hvW
-        have hum : u.1 ≠ m :=
+        have hum : u.val ≠ m :=
           fun h => huW ((Fin.ext h : u = ⟨m, hm_lt⟩) ▸ Finset.mem_insert_self _ _)
-        have hvm : v.1 ≠ m :=
+        have hvm : v.val ≠ m :=
           fun h => hvW ((Fin.ext h : v = ⟨m, hm_lt⟩) ▸ Finset.mem_insert_self _ _)
         have huS : u ∉ S := fun h => huW (Finset.mem_insert_of_mem h)
         have hvS : v ∉ S := fun h => hvW (Finset.mem_insert_of_mem h)
@@ -178,7 +180,7 @@ theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
           htW_low _ (by dsimp only [colBase, wBase]; omega)]
         exact hS_prop u v ⟨hadj, by omega, by omega⟩ huS hvS
       have hG_tW : MatrixLoaded G tW := fun u v =>
-        (htW_low _ (by dsimp only [wBase]; nlinarith [u.2, v.2])).trans (hG_st u v)
+        (htW_low _ (by dsimp only [wBase]; nlinarith [u.isLt, v.isLt])).trans (hG_st u v)
       have hcost_step : memoryCost (octStep ((n, k), (m, alive))) st ≤
           655 * 3 ^ k * (n + 1) ^ 4 := by
         unfold octStep
@@ -217,11 +219,11 @@ theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
         dsimp only [LoopInv]
         refine ⟨by omega, fun u v => ?_, by decide, fun _ => ?_, fun h0 => absurd h0 (by decide)⟩
         · dsimp only
-          rw [Function.update_of_ne (by dsimp only [sepBase]; nlinarith [u.2, v.2])]
+          rw [Function.update_of_ne (by dsimp only [sepBase]; nlinarith [u.isLt, v.isLt])]
           exact hG_tW u v
         · refine ⟨fun v => ⟨?_, ?_⟩, ?_⟩
           · dsimp only
-            by_cases hvm : v.1 = m
+            by_cases hvm : v.val = m
             · rw [hvm, Function.update_self]
             · rw [Function.update_of_ne (by omega),
                 htW_low _ (by dsimp only [sepBase, wBase]; omega)]
@@ -232,10 +234,10 @@ theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
             exact (h01_st v).2
           · dsimp only
             have hS_new : (Finset.univ.filter fun v : Fin n =>
-                Function.update tW.mem (sepBase n + m) 1 (sepBase n + v.1) = 1) = Wset := by
+                Function.update tW.mem (sepBase n + m) 1 (sepBase n + v.val) = 1) = Wset := by
               ext v
               simp only [Finset.mem_filter, Finset.mem_univ, true_and, Wset, Finset.mem_insert, S]
-              by_cases hvm : v.1 = m
+              by_cases hvm : v.val = m
               · have hveq : v = ⟨m, hm_lt⟩ := Fin.ext hvm
                 subst hveq
                 dsimp only
@@ -252,7 +254,7 @@ theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
             exact hcW_prop u v hadj huW hvW
       · rw [ite_eq_right hLk, ite_eq_left hL_le_n, clientResult_bind, clientResult_pure,
           clientState_bind, clientState_pure]
-        have hcol01_tW : ∀ v : Fin n, tW.mem (colBase n + v.1) ≤ 1 := fun v =>
+        have hcol01_tW : ∀ v : Fin n, tW.mem (colBase n + v.val) ≤ 1 := fun v =>
           (htW_low _ (by dsimp only [colBase, wBase]; omega)).trans_le (h01_st v).2
         obtain ⟨hcp_low, hcp_le, hcp_sound, hcp_comp⟩ :=
           compressProg_spec (k := k) (m := m + 1) hG_tW hW hcol01_tW hcW_prop
@@ -260,7 +262,8 @@ theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
         set tC := (Memory.spec 0).clientState tW (compressProg (((n, k), m + 1), L))
         dsimp only [LoopInv]
         refine ⟨by omega,
-          fun u v => (hcp_low _ (by dsimp only [sepBase]; nlinarith [u.2, v.2])).trans (hG_tW u v),
+          fun u v => (hcp_low _ (by dsimp only [sepBase]; nlinarith [u.isLt, v.isLt])).trans
+            (hG_tW u v),
           hcp_le, hcp_sound, fun hok0 ⟨T, hToct, hTk⟩ => ?_⟩
         have h1 : ok = 1 := hcp_comp ⟨T, hToct.anti (prefixGraph_le G (m + 1)), hTk⟩
         omega
@@ -337,8 +340,9 @@ theorem octProg_spec_and_cost {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel 
   rw [hres_eq, ht_eq]
   refine ⟨htotal_cost, hal_end_le, ⟨fun h1 => ?_, fun hex => ?_⟩, hal_end_1⟩
   · obtain ⟨_, hcard, hprop⟩ := hal_end_1 h1
-    let S := Finset.univ.filter fun v : Fin n => s_end.mem (sepBase n + v.1) = 1
-    refine ⟨S, isOddCycleTransversal_iff_exists_bool.mpr ⟨fun v => s_end.mem (colBase n + v.1) == 1,
+    let S := Finset.univ.filter fun v : Fin n => s_end.mem (sepBase n + v.val) = 1
+    refine ⟨S,
+        isOddCycleTransversal_iff_exists_bool.mpr ⟨fun v => s_end.mem (colBase n + v.val) == 1,
       fun u v hadj hu hv => ?_⟩, hcard⟩
     rw [← prefixGraph_of_le G (le_refl n)] at hadj
     exact hprop u v hadj hu hv

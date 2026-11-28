@@ -211,7 +211,7 @@ def bandwidthCertificate : ConstraintGraph.BandwidthCertificate (network H n).gr
   ConstraintGraph.BandwidthCertificate.ofBlocks (network H n).graph rowEquiv (by
     intro u v p hp r hr he
     have hpu := ((network H n).endpoints.mem_ports _ u p.port p.weight).mp hp
-    have hrv := ((network H n).endpoints.mem_ports _ v r.1 r.2).mp hr
+    have hrv := ((network H n).endpoints.mem_ports _ v r.port r.weight).mp hr
     have hrow (v : SelectorNetwork.Vert (Fin n) (Fin n × Fin q) (RelationSite q n)) :
         (rowEquiv v).1 = vertexRow v := by rcases v with i | (c | c) <;> rfl
     simp only [hrow]

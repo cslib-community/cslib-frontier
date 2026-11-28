@@ -95,24 +95,25 @@ abbrev Desc.generatorResidue (d : Desc) : ℕ := rawGeneratorResidue d.val
 /-- The generator as a unit modulo `p`. -/
 def generatorUnit (d : Desc) : (ZMod d.modulus)ˣ :=
   ZMod.unitOfCoprime d.generatorResidue ((Nat.coprime_comm.mp
-    ((d.2.prime_modulus.coprime_iff_not_dvd).mpr
-      (Nat.not_dvd_of_pos_of_lt (by have := d.2.one_lt_generator; lia) d.2.generator_lt))))
+    ((d.property.prime_modulus.coprime_iff_not_dvd).mpr
+      (Nat.not_dvd_of_pos_of_lt (by have := d.property.one_lt_generator; lia)
+        d.property.generator_lt))))
 
 /-- The Schnorr group of a description, written additively. -/
 abbrev Carrier (d : Desc) : Type := Additive (Subgroup.zpowers (generatorUnit d))
 
-instance (d : Desc) : Fact d.order.Prime := ⟨d.2.prime_order⟩
+instance (d : Desc) : Fact d.order.Prime := ⟨d.property.prime_order⟩
 
 /-- The generator has order dividing `q`. -/
 theorem generatorUnit_pow_order (d : Desc) : generatorUnit d ^ d.order = 1 := by
   ext
   rw [Units.val_pow_eq_pow_val, generatorUnit, ZMod.coe_unitOfCoprime, Units.val_one,
-    ← Nat.cast_pow, ← ZMod.natCast_mod, d.2.generator_pow, Nat.cast_one]
+    ← Nat.cast_pow, ← ZMod.natCast_mod, d.property.generator_pow, Nat.cast_one]
 
 /-- Every element of the Schnorr group has order dividing `q`. -/
 theorem pow_order (d : Desc) (x : Subgroup.zpowers (generatorUnit d)) :
     x ^ d.order = 1 := by
-  obtain ⟨k, hk⟩ := Subgroup.mem_zpowers_iff.mp x.2
+  obtain ⟨k, hk⟩ := Subgroup.mem_zpowers_iff.mp x.property
   ext
   rw [Subgroup.coe_pow, ← hk, ← zpow_natCast, ← zpow_mul, mul_comm, zpow_mul, zpow_natCast,
     generatorUnit_pow_order, one_zpow, Subgroup.coe_one]
@@ -121,15 +122,15 @@ instance (d : Desc) : Module (ZMod d.order) (Carrier d) :=
   AddCommMonoid.zmodModule fun x => Additive.toMul.injective (by
     rw [toMul_nsmul, pow_order, toMul_zero])
 
-instance (d : Desc) : NeZero d.modulus := ⟨d.2.prime_modulus.ne_zero⟩
+instance (d : Desc) : NeZero d.modulus := ⟨d.property.prime_modulus.ne_zero⟩
 
 /-- The generator is not the identity. -/
 theorem generatorUnit_ne_one (d : Desc) : generatorUnit d ≠ 1 := fun h => by
   have hval := congrArg (fun u : (ZMod d.modulus)ˣ => (u : ZMod d.modulus).val) h
   simp only [generatorUnit, ZMod.coe_unitOfCoprime, ZMod.val_natCast,
-    Nat.mod_eq_of_lt d.2.generator_lt, Units.val_one,
-    ZMod.val_one_eq_one_mod, Nat.mod_eq_of_lt d.2.prime_modulus.one_lt] at hval
-  exact absurd hval (ne_of_gt d.2.one_lt_generator)
+    Nat.mod_eq_of_lt d.property.generator_lt, Units.val_one,
+    ZMod.val_one_eq_one_mod, Nat.mod_eq_of_lt d.property.prime_modulus.one_lt] at hval
+  exact absurd hval (ne_of_gt d.property.one_lt_generator)
 
 /-- The generator of the Schnorr group. -/
 def generator (d : Desc) : Carrier d :=
@@ -137,7 +138,7 @@ def generator (d : Desc) : Carrier d :=
 
 /-- The Schnorr group has `q` elements. -/
 theorem card_carrier (d : Desc) : Nat.card (Carrier d) = d.order := by
-  change Nat.card (Subgroup.zpowers (generatorUnit d)) = d.1.2.1
+  change Nat.card (Subgroup.zpowers (generatorUnit d)) = d.val.2.1
   rw [Nat.card_zpowers, orderOf_eq_prime (generatorUnit_pow_order d) (generatorUnit_ne_one d)]
 
 /-- The generator is not the identity of the Schnorr group. -/
@@ -177,9 +178,9 @@ theorem smul_encode (d : Desc) (a : ℕ) (x : Carrier d) :
 
 /-- The encoded generator is the binary digits of `g`. -/
 theorem encode_generator (d : Desc) : encode d (generator d) = d.generatorResidue.bits := by
-  change (((generatorUnit d : (ZMod d.1.1)ˣ) : ZMod d.1.1).val).bits = _
+  change (((generatorUnit d : (ZMod d.val.1)ˣ) : ZMod d.val.1).val).bits = _
   rw [generatorUnit, ZMod.coe_unitOfCoprime, ZMod.val_natCast,
-    Nat.mod_eq_of_lt d.2.generator_lt]
+    Nat.mod_eq_of_lt d.property.generator_lt]
 
 /-- Encode the public group parameters as the binary triple `(p, q, g)`. The validity proofs in
 `Desc` do not contribute bits. -/
@@ -213,7 +214,7 @@ theorem computableInPolyTime_add :
   have := computableInPolyTime_val
   simpa only [add, Desc.modulus, rawModulus, encNat_apply, Function.comp_def] using
     (ComputableInPolyTime.binary_mod' (input := encPair encDesc (encPair encBits encBits))
-      (left := fun p => ofBits p.2.1 * ofBits p.2.2) (right := fun p => p.1.1.1)
+      (left := fun p => ofBits p.2.1 * ofBits p.2.2) (right := fun p => p.1.val.1)
       (by fun_prop) (by fun_prop)).encoding_comp
 
 /-- Exponentiation modulo `p` is computable in polynomial time, by square-and-multiply. -/
@@ -221,10 +222,10 @@ theorem computableInPolyTime_smul :
     ComputableInPolyTime smul (encPair encDesc (encPair encNat encBits)) encBits := by
   have hval := computableInPolyTime_val
   have hpow : ComputableInPolyTime
-      (fun input : Desc × ℕ × List Bool => ofBits input.2.2 ^ input.2.1 % input.1.1.1)
+      (fun input : Desc × ℕ × List Bool => ofBits input.2.2 ^ input.2.1 % input.1.val.1)
       (encPair encDesc (encPair encNat encBits)) encNat :=
     ComputableInPolyTime.binary_powMod (by fun_prop) (by fun_prop) (by fun_prop)
-      fun input => input.1.2.prime_modulus.pos
+      fun input => input.1.property.prime_modulus.pos
   unfold smul Desc.modulus rawModulus
   fun_prop
 
@@ -238,7 +239,7 @@ def schnorrGroups : PrimeOrderGroupFamily where
   Desc := SchnorrGroup.Desc
   encDesc := SchnorrGroup.encDesc
   order := Desc.order
-  prime_order d := d.2.prime_order
+  prime_order d := d.property.prime_order
   Carrier := Carrier
   generator := generator
   card_carrier := card_carrier

@@ -154,7 +154,7 @@ the guesses of `k` bits (`Nondeterministic.HasCover`). -/
 `z`: the least `k` such that `R` has a `z`-cover on `A × B` by `2 ^ k` rectangles, or `⊤` if there
 is none. -/
 noncomputable def ecomplexity (z : Bool) (R : X → Y → Bool → Prop) (A : Set X) (B : Set Y) : ℕ∞ :=
-  ⨅ k : {k : ℕ // HasCover z R A B k}, (k.1 : ℕ∞)
+  ⨅ k : {k : ℕ // HasCover z R A B k}, (k.val : ℕ∞)
 
 /-- The nondeterministic communication complexity of `f` on `A × B` for the value `z`:
 `ecomplexity` of the relation `f x y = b`. `N¹` is `z = true`, and `N⁰` is `z = false`. -/
@@ -336,8 +336,8 @@ theorem _root_.Cslib.Communication.Protocol.Solves.hasCover {p : Protocol X Y Bo
   · have hrun : p.run x y = z := by
       have := hp x hxA y hyB
       cases hb : p.run x y <;> cases z <;> simp_all
-    refine ⟨e.symm ⟨p.leaf x y, (p.leaf x y).2.trans_le p.leafCount_le_two_pow_depth⟩, ?_⟩
-    simp only [Equiv.apply_symm_apply, (p.leaf x y).2, dite_true, Fin.eta,
+    refine ⟨e.symm ⟨p.leaf x y, (p.leaf x y).isLt.trans_le p.leafCount_le_two_pow_depth⟩, ?_⟩
+    simp only [Equiv.apply_symm_apply, (p.leaf x y).isLt, dite_true, Fin.eta,
       ← Protocol.run_eq_leafOutput_leaf, hrun, ite_true]
     exact ⟨Protocol.mem_leafAlice_leaf, Protocol.mem_leafBob_leaf⟩
 

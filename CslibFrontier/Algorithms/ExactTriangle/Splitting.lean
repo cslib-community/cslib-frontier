@@ -436,7 +436,7 @@ theorem hasCommonNeighbor_lopInstance_iff (hp : p ≠ 0)
   constructor
   · -- A common neighbor `(c, σ)` carries the label `σ` of `(a,c)` and of `(b,c)`.
     rintro ⟨⟨c, σ⟩, hA, hB⟩
-    exact ⟨c, c.2, (weightSum_modEq_zero_iff wAB wBC wAC hϱ c).mpr (hA.symm.trans hB)⟩
+    exact ⟨c, c.property, (weightSum_modEq_zero_iff wAB wBC wAC hϱ c).mpr (hA.symm.trans hB)⟩
   · -- If the two labels agree, the vertex `c` with that label is a common neighbor.
     rintro ⟨c, hc, hS⟩
     have hB := resFin_modEq hp (-wBC q.2 c)

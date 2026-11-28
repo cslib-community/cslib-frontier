@@ -193,7 +193,7 @@ private theorem card_cand_le_exp_mul (hwf : I.WellFormed Δ) (hk : Odd k) (hΔ :
   have hℓ : ((w * lam : ℕ) : ℝ) ≤ 2 ^ ℓ := by exact_mod_cast Nat.le_pow_clog Nat.one_lt_two _
   have hcard : (Fintype.card (BooleanFunction ℓ) : ℝ) = Real.exp (2 ^ ℓ * Real.log 2) := by
     have : Fintype.card (BooleanFunction ℓ) = 2 ^ 2 ^ ℓ := by simp [BooleanFunction, BitString]
-    rw [this, show (2 : ℝ) ^ ℓ = ((2 ^ ℓ : ℕ) : ℝ) by push_cast; rfl, Real.exp_nat_mul,
+    rw [this, show (2 : ℝ) ^ ℓ = ((2 ^ ℓ : ℕ) : ℝ) by push_cast; rfl, Real.exp_natCast_mul,
       Real.exp_log two_pos]
     push_cast
     rfl
@@ -449,12 +449,13 @@ theorem three_mul_card_toInstance_mem_PartialMCSP_le (Δ k P : ℕ) (hP : 0 < P)
       ((s : ℝ) + 1) * (2 * L + 3) := by exact_mod_cast hM
   have hlog := log_le_of_parts hl2.le hη rfl hMr hM1 hM2 hM3 hn' hBθ
   rw [hγ] at hc0 hlog
-  exact three_mul_card_le_of_log_le hI hk hΔ hδ₀ hδ₀' hkδ
-    (computableFunctions (inputLength I Δ k lam) (sizeThreshold I lam P))
-    (card_computableFunctions_le_two_pow _ _) (fun f => toInstance I Δ k lam P f ∈ PartialMCSP)
+  have hfin := (computableFunctions (inputLength I Δ k lam) (sizeThreshold I lam P)).toFinite
+  exact three_mul_card_le_of_log_le hI hk hΔ hδ₀ hδ₀' hkδ hfin.toFinset
+    (by rw [← Set.ncard_eq_toFinset_card _ hfin]; exact card_computableFunctions_le_two_pow _ _)
+    (fun f => toInstance I Δ k lam P f ∈ PartialMCSP)
     (fun f hf => by
       obtain ⟨h, hmem, hh⟩ := mem_iff_exists_mem_computableFunctions.1 hf
-      exact ⟨h, hmem, agreesWith_toInstance_iff.1 hh⟩) hc0 hlog
+      exact ⟨h, hfin.mem_toFinset.2 hmem, agreesWith_toInstance_iff.1 hh⟩) hc0 hlog
 
 /-- **No soundness for any small family of functions.** Let `k` be odd, `0 ≤ δ₀ ≤ 1 / 2` with
 `(1 - 2 δ₀) ^ k ≤ 1 / (2 Δ ²)`, and `g (log 2 - H(δ₀)) > κ log 2`. There is a constant `λ₀ ≥ 1`

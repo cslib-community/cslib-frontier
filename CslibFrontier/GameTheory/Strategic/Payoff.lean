@@ -159,14 +159,14 @@ theorem weaklyDominatesOn_iff_toCostGame {R : ∀ j, Set (S j)} {i : ι} {a b : 
       (G.toCostGame.restrict R).IsWeaklyDominatedBy i ⟨b, hb⟩ ⟨a, ha⟩ := by
   have hcoe (r : ∀ j, R j) (x : R i) :
       (fun j => ((Function.update r i x j : R j) : S j)) =
-        Function.update (fun j => (r j : S j)) i x.1 :=
+        Function.update (fun j => (r j : S j)) i x.val :=
     funext (Function.apply_update (fun j (y : R j) => (y : S j)) r i x)
   simp only [WeaklyDominatesOn, CostGame.IsWeaklyDominatedBy, CostGame.restrict_cost,
     toCostGame_cost, hcoe, neg_le_neg_iff, neg_lt_neg_iff]
   exact ⟨fun ⟨hle, s, hs, hlt⟩ =>
-      ⟨fun r => hle _ fun j => (r j).2, ⟨fun j => ⟨s j, hs j⟩, hlt⟩⟩,
+      ⟨fun r => hle _ fun j => (r j).property, ⟨fun j => ⟨s j, hs j⟩, hlt⟩⟩,
     fun ⟨hle, r, hlt⟩ =>
-      ⟨fun s hs => hle fun j => ⟨s j, hs j⟩, fun j => (r j).1, fun j => (r j).2, hlt⟩⟩
+      ⟨fun s hs => hle fun j => ⟨s j, hs j⟩, fun j => (r j).val, fun j => (r j).property, hlt⟩⟩
 
 /-- Weakly dominated strategies in `PayoffGame` on `R` coincide with `CostGame.IsWeaklyDominated`
 on `G.toCostGame.restrict R` ([DodisRabin2007], Definition 8.8). -/

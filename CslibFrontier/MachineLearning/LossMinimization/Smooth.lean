@@ -129,8 +129,8 @@ theorem IsRLM.mul_sub_le_of_lipschitzWith_fderiv {ℓ : E → Z → ℝ} {R : E 
   have hX := hstep (S i) (A S) (A (Function.update S i z'))
   have hY := hstep z' (A (Function.update S i z')) (A S)
   rw [norm_sub_rev] at hY
-  have h := smooth_gap_arith (s := σ * m) β.2 hβ (norm_nonneg _) (Real.sqrt_nonneg _) hgrowth hX
-    hY
+  have h := smooth_gap_arith (s := σ * m) β.property hβ (norm_nonneg _) (Real.sqrt_nonneg _)
+    hgrowth hX hY
   rw [Real.sq_sqrt (by have := hnonneg (A S) (S i); positivity),
     Real.sq_sqrt (by have := hnonneg (A (Function.update S i z')) z'; positivity)] at h
   linarith
@@ -289,7 +289,7 @@ theorem IsRLM.integral_trueRisk_le_add_of_lipschitzWith_fderiv {ℓ : E → Z �
     nlinarith [pow_pos hB 2]
   have hβ : 2 * (β : ℝ) ≤ r * m := by
     have : 0 ≤ (1 - ε) * (r * m) := mul_nonneg (by linarith) (by positivity)
-    nlinarith [β.2]
+    nlinarith [β.property]
   have hc : 5 * (β : ℝ) / (r * m) ≤ ε / 10 := by
     rw [div_le_div_iff₀ (by positivity) (by norm_num)]
     linarith

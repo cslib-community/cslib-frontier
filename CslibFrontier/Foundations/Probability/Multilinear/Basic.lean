@@ -240,7 +240,7 @@ omit [DecidableEq ι] in
 theorem multilinearEval_of_forall_nonempty {c : Finset ι → ℝ}
     (hc : ∀ S : Finset ι, S.Nonempty → c S = 0) (z : ι → ℝ) : multilinearEval c z = c ∅ := by
   rw [multilinearEval, sum_eq_single ∅ (fun S _ hS => by
-    rw [hc S (nonempty_iff_ne_empty.2 hS), zero_mul]) (by simp)]
+    rw [hc S (ne_empty_iff_nonempty.1 hS), zero_mul]) (by simp)]
   simp
 
 omit [Fintype ι] in
@@ -315,7 +315,7 @@ private theorem integral_multilinearEval_sq_aux (μ : ι → Measure ℝ)
     have hS : ∑ S, c S ^ 2 = c ∅ ^ 2 := sum_eq_single ∅
       (fun S _ hS => by rw [hc S (by simpa [subset_empty] using hS)]; simp) (by simp)
     simp [multilinearEval_of_forall_nonempty fun S hS => hc S (by
-      simpa [subset_empty, nonempty_iff_ne_empty] using hS), hS]
+      simpa [subset_empty] using hS), hS]
   | insert a T _ ih =>
     intro c hc
     have h4 (c' : Finset ι → ℝ) := integrable_multilinearEval_pow μ hμ c' (j := 2) (by norm_num)

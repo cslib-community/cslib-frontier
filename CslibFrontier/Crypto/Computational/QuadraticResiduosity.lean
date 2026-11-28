@@ -415,7 +415,7 @@ noncomputable def qrRealGame (setup : ℕ → PMF ModulusDesc)
     (adversary : ℕ → ℕ × ℕ → ProbComp Bool) (n : ℕ) : Game := do
   let d ← setup n
   let y ← PMF.uniformOfFintype (quadResidueSet d.p d.q)
-  ProbComp.eval (adversary n (d.p * d.q, y.1.val.val))
+  ProbComp.eval (adversary n (d.p * d.q, y.val.val.val))
 
 /-- Ideal quadratic residuosity experiment: sample `N = p * q` and a uniform quadratic
 nonresidue `y ∈ QNR_N^{+1}` with Jacobi symbol `+1`, and give `(N, y)` to the distinguisher. -/
@@ -423,7 +423,7 @@ noncomputable def qrIdealGame (setup : ℕ → PMF ModulusDesc)
     (adversary : ℕ → ℕ × ℕ → ProbComp Bool) (n : ℕ) : Game := do
   let d ← setup n
   let y ← PMF.uniformOfFintype (positiveNonresidues d.p d.q)
-  ProbComp.eval (adversary n (d.p * d.q, y.1.val.val))
+  ProbComp.eval (adversary n (d.p * d.q, y.val.val.val))
 
 /-- The computational quadratic residuosity assumption ([KatzLindell2020], Section 15.4.3;
 locator not independently inspected in the 3rd-edition PDF): no uniform strict PPT distinguisher
@@ -554,7 +554,7 @@ theorem qrRealGame_factorToQR (setup : ℕ → PMF ModulusDesc)
   simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
     PMF.monad_pure_eq_pure, PMF.bind_map,
     fun (d : ModulusDesc) (y : quadResidueSet d.p d.q) a b =>
-      qrEulerTest_of_mem_quadResidueSet d y.2 a b,
+      qrEulerTest_of_mem_quadResidueSet d y.property a b,
     PMF.bind_const]
   rfl
 
@@ -565,7 +565,7 @@ theorem qrIdealGame_factorToQR (setup : ℕ → PMF ModulusDesc)
   unfold qrIdealGame factorToQR
   simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
     fun (d : ModulusDesc) (y : positiveNonresidues d.p d.q) a b =>
-      qrEulerTest_of_mem_positiveNonresidues d y.2 a b,
+      qrEulerTest_of_mem_positiveNonresidues d y.property a b,
     PMF.bind_const]
 
 /-- The QR distinguishing advantage of `factorToQR F` equals the factoring success probability of

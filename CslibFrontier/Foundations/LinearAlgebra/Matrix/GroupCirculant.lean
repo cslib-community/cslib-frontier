@@ -315,9 +315,10 @@ theorem isUnit_cubeCharMatrix {K ι : Type*} [Field K] [Fintype ι] [DecidableEq
   exact (isUnit_iff_isUnit_det _).mpr
     (IsUnit.mk0 _ (right_ne_zero_of_mul_eq_one (by rw [← det_mul, hmul, det_one])))
 
-theorem rank_cubeCharMatrix {K ι : Type*} [Field K] [Fintype ι] [DecidableEq ι]
+theorem rank_cubeCharMatrix {K ι : Type*} [Field K] [Fintype ι]
     (h2 : (2 : K) ≠ 0) :
     (cubeCharMatrix K ι).rank = 2 ^ Fintype.card ι := by
+  classical
   simpa using rank_of_isUnit (cubeCharMatrix K ι) (isUnit_cubeCharMatrix h2)
 
 /-- Right-multiplying a Boolean-cube circulant `circulant w` by `cubeCharMatrix R ι` scales column

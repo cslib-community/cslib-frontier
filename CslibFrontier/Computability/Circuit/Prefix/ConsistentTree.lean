@@ -525,14 +525,15 @@ private def buildConsistentChainAux {k h : ℕ} (hk : 2 ≤ k)
         a + chainWidthBound k d h 2 := by
       rw [chainWidthBound_two hmd]
       omega
-    let ch := (ConsistentChain.two t₁.1 t₂.1).castRight hb
+    let ch := (ConsistentChain.two t₁.val t₂.val).castRight hb
     ⟨⟨a + segmentWidth k (d - 1) h, ch⟩, by
       rw [ConsistentChain.inDepth_castRight, ConsistentChain.maxOutDepth_castRight,
         ConsistentChain.arity_castRight, ConsistentChain.fanoutAtMost_castRight]
       simp only [ConsistentChain.inDepth, ConsistentChain.maxOutDepth, ConsistentChain.arity,
         ConsistentChain.FanoutAtMost]
-      exact ⟨by have := t₁.2.1; have := t₂.2.1; omega,
-        Nat.max_le.mpr ⟨t₁.2.2.1, t₂.2.2.1⟩, trivial, t₁.2.2.2, t₂.2.2.2⟩⟩
+      exact ⟨by have := t₁.property.1; have := t₂.property.1; omega,
+        Nat.max_le.mpr ⟨t₁.property.2.1, t₂.property.2.1⟩, trivial,
+        t₁.property.2.2, t₂.property.2.2⟩⟩
   | a, d, m + 2, _, hmd, hmk =>
     let init := buildConsistentChainAux hk buildTree a (d - 1) (m + 1) (by omega) (by omega)
       (by omega)
@@ -540,15 +541,16 @@ private def buildConsistentChainAux {k h : ℕ} (hk : 2 ≤ k)
     have hb : a + chainWidthBound k (d - 1) h (m + 2) + segmentWidth k (d - 1) h =
         a + chainWidthBound k d h (m + 3) := by
       rw [Nat.add_assoc, chainWidthBound_snoc (by omega) (by omega)]
-    let ch := (ConsistentChain.snoc init.1.2 last.1).castRight hb
-    ⟨⟨init.1.1, ch⟩, by
+    let ch := (ConsistentChain.snoc init.val.2 last.val).castRight hb
+    ⟨⟨init.val.1, ch⟩, by
       rw [ConsistentChain.inDepth_castRight, ConsistentChain.maxOutDepth_castRight,
         ConsistentChain.arity_castRight, ConsistentChain.fanoutAtMost_castRight]
       simp only [ConsistentChain.inDepth, ConsistentChain.maxOutDepth, ConsistentChain.arity,
         ConsistentChain.FanoutAtMost]
-      exact ⟨by have := init.2.1; have := last.2.1; omega,
-        Nat.max_le.mpr ⟨init.2.2.1, last.2.2.1⟩, by have := init.2.2.2.1; omega,
-        init.2.2.2.2, last.2.2.2⟩⟩
+      exact ⟨by have := init.property.1; have := last.property.1; omega,
+        Nat.max_le.mpr ⟨init.property.2.1, last.property.2.1⟩,
+        by have := init.property.2.2.1; omega,
+        init.property.2.2.2, last.property.2.2⟩⟩
 
 private def buildConsistentTree {k : ℕ} (hk : 2 ≤ k) :
     ∀ (a d h : ℕ),
@@ -577,22 +579,23 @@ private def buildConsistentTree {k : ℕ} (hk : 2 ≤ k) :
       simp only [chainWidthBound, show ¬(l + 1 ≤ 1) by omega, ↓reduceIte, Nat.add_sub_cancel, hmin,
         segmentWidth]
       rfl
-    let t := (ConsistentTree.split ch.1.2).castRight hb
+    let t := (ConsistentTree.split ch.val.2).castRight hb
     ⟨t, by
       rw [ConsistentTree.inDepth_castRight, ConsistentTree.outDepth_castRight,
         ConsistentTree.fanoutAtMost_castRight]
       simp only [ConsistentTree.inDepth, ConsistentTree.outDepth, ConsistentTree.FanoutAtMost]
-      exact ⟨ch.2.1, Nat.succ_le_succ ch.2.2.1, ⟨by have := ch.2.2.2.1; omega, ch.2.2.2.2⟩⟩⟩
+      exact ⟨ch.property.1, Nat.succ_le_succ ch.property.2.1,
+          ⟨by have := ch.property.2.2.1; omega, ch.property.2.2.2⟩⟩⟩
 
 private theorem maxConsistentWidth_eq_segmentWidth {k : ℕ} (hk : 2 ≤ k) (d h : ℕ) :
     maxConsistentWidth k d h = segmentWidth k d h := by
   unfold maxConsistentWidth
   let built := buildConsistentTree hk 0 d h
   let p₀ : ConsistentTreePair k d h :=
-    ⟨0, segmentWidth k d h, built.1.castRight (Nat.zero_add _),
-      by rw [ConsistentTree.inDepth_castRight]; exact built.2.1,
-      by rw [ConsistentTree.outDepth_castRight]; exact built.2.2.1,
-      by rw [ConsistentTree.fanoutAtMost_castRight]; exact built.2.2.2⟩
+    ⟨0, segmentWidth k d h, built.val.castRight (Nat.zero_add _),
+      by rw [ConsistentTree.inDepth_castRight]; exact built.property.1,
+      by rw [ConsistentTree.outDepth_castRight]; exact built.property.2.1,
+      by rw [ConsistentTree.fanoutAtMost_castRight]; exact built.property.2.2⟩
   apply le_antisymm
   · apply csSup_le
     · exact ⟨segmentWidth k d h, ⟨p₀, Nat.sub_zero _⟩⟩

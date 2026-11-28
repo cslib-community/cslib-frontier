@@ -279,7 +279,7 @@ theorem isExponentiallyStable_of_inner_pos [FiniteDimensional ℝ E]
   have h := hx.norm_sq_le hm hc.le hlow hup
     (fun y => by simpa only [neg_apply, inner_neg_right] using hcQ y) ht
   refine pow_le_pow_iff_left₀ (norm_nonneg _) (by positivity) two_ne_zero |>.1 ?_
-  rw [mul_pow, mul_pow, Real.sq_sqrt (by positivity), ← Real.exp_nat_mul]
+  rw [mul_pow, mul_pow, Real.sq_sqrt (by positivity), ← Real.exp_natCast_mul]
   convert h using 3
   push_cast
   ring_nf
@@ -374,7 +374,7 @@ theorem IsTrajectoryOn.sqrt_mul_exp_le_norm (hx : A.IsTrajectoryOn x (Ici 0)) {�
   have hP := norm_pos_of_inner_neg h0
   have h := hx.exp_mul_neg_inner_le hK ht
   refine (pow_le_pow_iff_left₀ (by positivity) (norm_nonneg _) two_ne_zero).1 ?_
-  rw [mul_pow, Real.sq_sqrt (div_nonneg (by linarith) hP.le), ← Real.exp_nat_mul,
+  rw [mul_pow, Real.sq_sqrt (div_nonneg (by linarith) hP.le), ← Real.exp_natCast_mul,
     div_mul_eq_mul_div, div_le_iff₀ hP]
   convert h using 1 <;> push_cast <;> ring_nf
 

@@ -131,7 +131,7 @@ theorem compl_adj_iff {G : Graph} {u v : ℕ} (hu : u ∈ G.vertices) (hv : v �
 theorem induced_compl (G : Graph) :
     (G.compl.induced : SimpleGraph {v // v ∈ G.vertices}) = G.inducedᶜ := by
   ext u v
-  exact (compl_adj_iff (G := G) u.2 v.2).trans
+  exact (compl_adj_iff (G := G) u.property v.property).trans
     ((and_congr_left' Subtype.ext_iff.not.symm).trans (G.induced.compl_adj u v).symm)
 
 /-- **Independent sets are cliques of the complement.** -/

@@ -426,9 +426,9 @@ offline vertex `u` is deleted, then in the full graph `j` is matched to some ver
 `key a ≤ key w`. -/
 theorem rankingByKey_monotone_choice {key : L → ℕ} (hkey : Function.Injective key)
     (u : L) (arrivals : List (Finset L)) (j : Fin arrivals.length) {w : L}
-    (hw : ((rankingByKey key hkey).runChoices (deleteOffline u arrivals))[j.1]'(by simp [j.2]) =
-      some w) :
-    ∃ a, ((rankingByKey key hkey).runChoices arrivals)[j.1]'(by simp [j.2]) = some a ∧
+    (hw : ((rankingByKey key hkey).runChoices (deleteOffline u arrivals))[j.val]'(by
+      simp [j.isLt]) = some w) :
+    ∃ a, ((rankingByKey key hkey).runChoices arrivals)[j.val]'(by simp [j.isLt]) = some a ∧
       key a ≤ key w := by
   suffices ∀ (hist hist' : List (Finset L)) (S S' : Finset L) (rest : List (Finset L)),
       StepRel u S S' →
@@ -437,7 +437,7 @@ theorem rankingByKey_monotone_choice {key : L → ℕ} (hkey : Function.Injectiv
           (deleteOffline u rest))[i]'(by simp [hi]) = some w →
         ∃ a, ((rankingByKey key hkey).runChoicesFrom hist S rest)[i]'(by simp [hi]) = some a ∧
           key a ≤ key w from
-    this [] [] ∅ ∅ arrivals (StepRel.same ∅ (by simp)) j.1 j.2 w hw
+    this [] [] ∅ ∅ arrivals (StepRel.same ∅ (by simp)) j.val j.isLt w hw
   intro hist hist' S S' rest
   induction rest generalizing hist hist' S S' with
   | nil => intro _ i hi; simp at hi
@@ -496,32 +496,33 @@ offline vertex `u` remains unmatched by `rankingByKey key hkey` on `arrivals`, t
    strictly higher priority (`key w < key u`). -/
 theorem rankingByKey_dominance {key : L → ℕ} (hkey : Function.Injective key)
     (u : L) (arrivals : List (Finset L)) (j : Fin arrivals.length)
-    (huj : u ∈ arrivals[j.1])
+    (huj : u ∈ arrivals[j.val])
     (hnot : u ∉ (rankingByKey key hkey).matchedLeft arrivals) :
     (rankingByKey key hkey).runChoices arrivals =
       (rankingByKey key hkey).runChoices (deleteOffline u arrivals) ∧
-    ∃ w, ((rankingByKey key hkey).runChoices (deleteOffline u arrivals))[j.1]'(by simp [j.2]) =
+    ∃ w, ((rankingByKey key hkey).runChoices (deleteOffline u arrivals))[j.val]'(by simp [j.isLt]) =
         some w ∧ key w < key u := by
   have heq : (rankingByKey key hkey).runChoices arrivals =
       (rankingByKey key hkey).runChoices (deleteOffline u arrivals) :=
     rankingByKey_runChoices_eq_deleteOffline_of_notMem hkey u [] [] ∅ arrivals hnot
   refine ⟨heq, ?_⟩
-  set pre := (rankingByKey key hkey).matchedLeft (arrivals.take j.1)
+  set pre := (rankingByKey key hkey).matchedLeft (arrivals.take j.val)
   have hu_pre : u ∉ pre :=
-    fun hm => hnot ((rankingByKey key hkey).matchedLeft_take_subset arrivals j.1 hm)
-  have hne : (arrivals[j.1] \ pre).Nonempty := ⟨u, Finset.mem_sdiff.mpr ⟨huj, hu_pre⟩⟩
-  cases hc : minByKey key hkey (arrivals[j.1] \ pre) with
+    fun hm => hnot ((rankingByKey key hkey).matchedLeft_take_subset arrivals j.val hm)
+  have hne : (arrivals[j.val] \ pre).Nonempty := ⟨u, Finset.mem_sdiff.mpr ⟨huj, hu_pre⟩⟩
+  cases hc : minByKey key hkey (arrivals[j.val] \ pre) with
   | none => exact absurd ((minByKey_eq_none_iff key hkey _).mp hc) hne.ne_empty
   | some w =>
     obtain ⟨_, hwmin⟩ := (minByKey_eq_some_iff key hkey _ w).mp hc
-    have hget : ((rankingByKey key hkey).runChoices arrivals)[j.1]'(by simp [j.2]) = some w := by
-      rw [(rankingByKey key hkey).runChoices_getElem arrivals j.2, onlineStep_rankingByKey]
+    have hget :
+        ((rankingByKey key hkey).runChoices arrivals)[j.val]'(by simp [j.isLt]) = some w := by
+      rw [(rankingByKey key hkey).runChoices_getElem arrivals j.isLt, onlineStep_rankingByKey]
       exact hc
     have hwu : w ≠ u := by
       rintro rfl
       apply hnot
       rw [DetAlg.mem_matchedLeft_iff, List.mem_iff_getElem]
-      exact ⟨j.1, by simp [j.2], hget⟩
+      exact ⟨j.val, by simp [j.isLt], hget⟩
     exact ⟨w, by simpa only [heq] using hget,
       lt_of_le_of_ne (hwmin u (Finset.mem_sdiff.mpr ⟨huj, hu_pre⟩)) (fun h => hwu (hkey h))⟩
 
@@ -579,24 +580,24 @@ variable {L : Type*} [Fintype L]
 /-- Lexicographic priority key `n * y(u) + ord(u)` for discrete ranks `y : L → Fin K` with
 deterministic tie-breaking `ord : L ≃ Fin (Fintype.card L)`. -/
 @[expose] def gridKey {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fintype.card L)) (u : L) : ℕ :=
-  Fintype.card L * (y u).1 + (ord u).1
+  Fintype.card L * (y u).val + (ord u).val
 
 theorem gridKey_injective {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fintype.card L)) :
     Function.Injective (gridKey y ord) := by
   intro u v h
   have hmod := congrArg (· % Fintype.card L) h
-  simp only [gridKey, Nat.mul_add_mod, Nat.mod_eq_of_lt (ord u).2,
-    Nat.mod_eq_of_lt (ord v).2] at hmod
+  simp only [gridKey, Nat.mul_add_mod, Nat.mod_eq_of_lt (ord u).isLt,
+    Nat.mod_eq_of_lt (ord v).isLt] at hmod
   exact ord.injective (Fin.ext hmod)
 
 private theorem val_le_of_gridKey_le {K : ℕ} {y : L → Fin K} {ord : L ≃ Fin (Fintype.card L)}
     {u v : L} (h : gridKey y ord u ≤ gridKey y ord v) :
-    (y u).1 ≤ (y v).1 := by
+    (y u).val ≤ (y v).val := by
   simp only [gridKey] at h
   by_contra! hgt
   have hmul := Nat.mul_le_mul_left (Fintype.card L) hgt
   rw [Nat.mul_succ] at hmul
-  have := (ord v).2
+  have := (ord v).isLt
   omega
 
 end GridKey
@@ -619,14 +620,14 @@ noncomputable def rankingGridAlg (L : Type*) [Fintype L] [DecidableEq L]
 else `0`. -/
 noncomputable def djkDualLeft {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fintype.card L))
     (arrivals : List (Finset L)) (u : L) : ℝ :=
-  if u ∈ (rankingGridDet y ord).matchedLeft arrivals then djkWeight K (y u).1 else 0
+  if u ∈ (rankingGridDet y ord).matchedLeft arrivals then djkWeight K (y u).val else 0
 
 /-- DJK dual variable `β(y, j)` for online vertex `j`: `1 - djkWeight K (y a)` if `j` is matched
 to `a`, else `0`. -/
 noncomputable def djkDualRight {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fintype.card L))
     (arrivals : List (Finset L)) (j : Fin arrivals.length) : ℝ :=
-  match ((rankingGridDet y ord).runChoices arrivals)[j.1]'(by simp [j.2]) with
-  | some a => 1 - djkWeight K (y a).1
+  match ((rankingGridDet y ord).runChoices arrivals)[j.val]'(by simp [j.isLt]) with
+  | some a => 1 - djkWeight K (y a).val
   | none => 0
 
 theorem djkDualLeft_nonneg {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fintype.card L))
@@ -634,16 +635,16 @@ theorem djkDualLeft_nonneg {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fintype
     0 ≤ djkDualLeft y ord arrivals u := by
   unfold djkDualLeft
   split_ifs
-  · exact djkWeight_nonneg K (y u).1
+  · exact djkWeight_nonneg K (y u).val
   · exact le_rfl
 
 theorem djkDualRight_nonneg {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fintype.card L))
     (arrivals : List (Finset L)) (j : Fin arrivals.length) :
     0 ≤ djkDualRight y ord arrivals j := by
   unfold djkDualRight
-  cases ((rankingGridDet y ord).runChoices arrivals)[j.1]'(by simp [j.2]) with
+  cases ((rankingGridDet y ord).runChoices arrivals)[j.val]'(by simp [j.isLt]) with
   | none => exact le_rfl
-  | some a => linarith [djkWeight_le_one K (y a).1]
+  | some a => linarith [djkWeight_le_one K (y a).val]
 
 /-- **Exact primal-dual equality:** for every discrete rank vector `y`, the dual variables sum to
 the matching size `|M(y)|`. -/
@@ -656,7 +657,7 @@ theorem sum_djkDual_eq_card {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fintyp
   set M := A.runMatching arrivals
   have hM := A.isMatching_runMatching arrivals
   have hleft : (∑ u : L, djkDualLeft y ord arrivals u) =
-      ∑ e ∈ M, djkWeight K (y e.1).1 := by
+      ∑ e ∈ M, djkWeight K (y e.1).val := by
     have hfilt : Finset.univ.filter (· ∈ (rankingGridDet y ord).matchedLeft arrivals) =
         A.matchedLeft arrivals := by
       ext u
@@ -666,17 +667,17 @@ theorem sum_djkDual_eq_card {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fintyp
     intro ⟨u₁, j₁⟩ h₁ ⟨u₂, j₂⟩ h₂ (hu : u₁ = u₂)
     exact Prod.ext hu (hM.2.1 u₁ j₁ j₂ h₁ (hu ▸ h₂))
   have hright : (∑ j : Fin arrivals.length, djkDualRight y ord arrivals j) =
-      ∑ e ∈ M, (1 - djkWeight K (y e.1).1) := by
+      ∑ e ∈ M, (1 - djkWeight K (y e.1).val) := by
     rw [← Finset.sum_subset (Finset.subset_univ (M.image Prod.snd)), Finset.sum_image]
     · refine Finset.sum_congr rfl fun ⟨a, j⟩ haj => ?_
-      have hc : ((rankingGridDet y ord).runChoices arrivals)[j.1]'(by simp [j.2]) = some a :=
+      have hc : ((rankingGridDet y ord).runChoices arrivals)[j.val]'(by simp [j.isLt]) = some a :=
         (A.mem_runMatching_iff arrivals a j).mp haj
       simp [djkDualRight, hc]
     · intro ⟨u₁, j₁⟩ h₁ ⟨u₂, j₂⟩ h₂ (hv : j₁ = j₂)
       exact Prod.ext (hM.2.2 u₁ u₂ j₁ h₁ (hv ▸ h₂)) hv
     · intro j _ hnot
       unfold djkDualRight
-      cases hc : ((rankingGridDet y ord).runChoices arrivals)[j.1]'(by simp [j.2]) with
+      cases hc : ((rankingGridDet y ord).runChoices arrivals)[j.val]'(by simp [j.isLt]) with
       | none => rfl
       | some a =>
         exact absurd
@@ -699,29 +700,29 @@ private theorem rankingGridDet_deleteOffline_update {K : ℕ} (y : L → Fin K)
 (`u ∈ arrivals[j]`) and any ranks `y` on the other vertices, summing `α + β` over all `K`
 choices of `y u` is at least `K * (1 - (K / (K + 1)) ^ K)`. -/
 theorem sum_djkDual_update_ge {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fintype.card L))
-    (arrivals : List (Finset L)) (u : L) (j : Fin arrivals.length) (huj : u ∈ arrivals[j.1]) :
+    (arrivals : List (Finset L)) (u : L) (j : Fin arrivals.length) (huj : u ∈ arrivals[j.val]) :
     (K : ℝ) * (1 - ((K : ℝ) / ((K : ℝ) + 1)) ^ K) ≤
       ∑ k : Fin K,
         (djkDualLeft (Function.update y u k) ord arrivals u +
           djkDualRight (Function.update y u k) ord arrivals j) := by
   have hdom : ∀ k : Fin K,
       u ∉ (rankingGridDet (Function.update y u k) ord).matchedLeft arrivals →
-      ∃ w', ((rankingGridDet y ord).runChoices (deleteOffline u arrivals))[j.1]'(by simp [j.2]) =
-          some w' ∧
+      ∃ w', ((rankingGridDet y ord).runChoices (deleteOffline u arrivals))[j.val]'(by
+          simp [j.isLt]) = some w' ∧
         gridKey (Function.update y u k) ord w' < gridKey (Function.update y u k) ord u := by
     intro k hnot
     obtain ⟨_, w', hw', hlt⟩ :=
       rankingByKey_dominance (gridKey_injective (Function.update y u k) ord) u arrivals j huj hnot
     change ((rankingGridDet (Function.update y u k) ord).runChoices
-      (deleteOffline u arrivals))[j.1]'(by simp [j.2]) = some w' at hw'
+      (deleteOffline u arrivals))[j.val]'(by simp [j.isLt]) = some w' at hw'
     have hupd := rankingGridDet_deleteOffline_update y ord u k arrivals
     simp only [hupd] at hw'
     exact ⟨w', hw', hlt⟩
   cases hw :
-      ((rankingGridDet y ord).runChoices (deleteOffline u arrivals))[j.1]'(by simp [j.2]) with
+      ((rankingGridDet y ord).runChoices (deleteOffline u arrivals))[j.val]'(by simp [j.isLt]) with
   | none =>
     have hα : ∀ k : Fin K,
-        djkDualLeft (Function.update y u k) ord arrivals u = djkWeight K k.1 := by
+        djkDualLeft (Function.update y u k) ord arrivals u = djkWeight K k.val := by
       intro k
       have hu_matched : u ∈ (rankingGridDet (Function.update y u k) ord).matchedLeft arrivals := by
         by_contra hnot
@@ -733,7 +734,7 @@ theorem sum_djkDual_update_ge {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fint
           have := djkWeight_balance (K := K) (t := K) le_rfl
           simp only [djkWeight, Nat.sub_self, pow_zero, sub_self, mul_zero, add_zero] at this
           exact this.symm
-      _ = ∑ k : Fin K, djkWeight K k.1 := (Fin.sum_univ_eq_sum_range (djkWeight K) K).symm
+      _ = ∑ k : Fin K, djkWeight K k.val := (Fin.sum_univ_eq_sum_range (djkWeight K) K).symm
       _ ≤ ∑ k : Fin K,
             (djkDualLeft (Function.update y u k) ord arrivals u +
               djkDualRight (Function.update y u k) ord arrivals j) := by
@@ -742,17 +743,17 @@ theorem sum_djkDual_update_ge {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fint
           linarith [djkDualRight_nonneg (Function.update y u k) ord arrivals j]
   | some w =>
     have hwu : w ≠ u := by
-      have hmem : (w, ⟨j.1, by simp [j.2]⟩) ∈
+      have hmem : (w, ⟨j.val, by simp [j.isLt]⟩) ∈
           (rankingGridDet y ord).runMatching (deleteOffline u arrivals) :=
         ((rankingGridDet y ord).mem_runMatching_iff (deleteOffline u arrivals) w _).mpr hw
       have hedge := ((rankingGridDet y ord).isMatching_runMatching (deleteOffline u arrivals)).1
         _ hmem
       simp only [graphOfArrivals, deleteOffline, List.getElem_map, decide_eq_true_eq] at hedge
       exact (Finset.mem_erase.mp hedge).1
-    set t := (y w).1
-    have htK : t < K := (y w).2
-    have hα_lt : ∀ k : Fin K, k.1 < t →
-        djkDualLeft (Function.update y u k) ord arrivals u = djkWeight K k.1 := by
+    set t := (y w).val
+    have htK : t < K := (y w).isLt
+    have hα_lt : ∀ k : Fin K, k.val < t →
+        djkDualLeft (Function.update y u k) ord arrivals u = djkWeight K k.val := by
       intro k hk
       have hu_matched : u ∈ (rankingGridDet (Function.update y u k) ord).matchedLeft arrivals := by
         by_contra hnot
@@ -768,35 +769,35 @@ theorem sum_djkDual_update_ge {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fint
       intro k
       have hw_k :
           ((rankingGridDet (Function.update y u k) ord).runChoices
-            (deleteOffline u arrivals))[j.1]'(by simp [j.2]) = some w := by
+            (deleteOffline u arrivals))[j.val]'(by simp [j.isLt]) = some w := by
         have hupd := rankingGridDet_deleteOffline_update y ord u k arrivals
         simp only [hupd, hw]
       obtain ⟨a, ha, hkey_le⟩ :=
         rankingByKey_monotone_choice (gridKey_injective (Function.update y u k) ord) u arrivals j
           hw_k
       change ((rankingGridDet (Function.update y u k) ord).runChoices
-        arrivals)[j.1]'(by simp [j.2]) = some a at ha
-      have hya : (Function.update y u k a).1 ≤ t := by
+        arrivals)[j.val]'(by simp [j.isLt]) = some a at ha
+      have hya : (Function.update y u k a).val ≤ t := by
         have hle := val_le_of_gridKey_le hkey_le
         simpa only [Function.update_of_ne hwu] using hle
-      have hgw : djkWeight K (Function.update y u k a).1 ≤ djkWeight K t :=
+      have hgw : djkWeight K (Function.update y u k a).val ≤ djkWeight K t :=
         djkWeight_mono hya
       have hr : djkDualRight (Function.update y u k) ord arrivals j =
-          1 - djkWeight K (Function.update y u k a).1 := by
+          1 - djkWeight K (Function.update y u k a).val := by
         simp [djkDualRight, ha]
       linarith
     have hsum_α : ∑ k ∈ Finset.range t, djkWeight K k ≤
         ∑ k : Fin K, djkDualLeft (Function.update y u k) ord arrivals u := by
-      have hsub : (Finset.univ.filter fun k : Fin K => k.1 < t) ⊆ Finset.univ :=
+      have hsub : (Finset.univ.filter fun k : Fin K => k.val < t) ⊆ Finset.univ :=
         Finset.subset_univ _
       calc ∑ k ∈ Finset.range t, djkWeight K k
-          = ∑ k ∈ Finset.univ.filter (fun k : Fin K => k.1 < t), djkWeight K k.1 := by
+          = ∑ k ∈ Finset.univ.filter (fun k : Fin K => k.val < t), djkWeight K k.val := by
             refine Finset.sum_bij (fun k hk => ⟨k, by have := Finset.mem_range.mp hk; omega⟩)
               (fun k hk => Finset.mem_filter.mpr ⟨Finset.mem_univ _, Finset.mem_range.mp hk⟩)
               (fun _ _ _ _ h => congrArg Fin.val h)
-              (fun k hk => ⟨k.1, Finset.mem_range.mpr (Finset.mem_filter.mp hk).2, Fin.ext rfl⟩)
+              (fun k hk => ⟨k.val, Finset.mem_range.mpr (Finset.mem_filter.mp hk).2, Fin.ext rfl⟩)
               (fun _ _ => rfl)
-        _ = ∑ k ∈ Finset.univ.filter (fun k : Fin K => k.1 < t),
+        _ = ∑ k ∈ Finset.univ.filter (fun k : Fin K => k.val < t),
               djkDualLeft (Function.update y u k) ord arrivals u :=
             Finset.sum_congr rfl fun k hk => (hα_lt k (Finset.mem_filter.mp hk).2).symm
         _ ≤ ∑ k : Fin K, djkDualLeft (Function.update y u k) ord arrivals u :=
@@ -852,7 +853,7 @@ theorem rankingGrid_competitive_ratio (K : ℕ) (hK : 0 < K)
       (1 - ((K : ℝ) / ((K : ℝ) + 1)) ^ K) * (Fintype.card (L → Fin K) : ℝ) ≤
         ∑ y : L → Fin K, (djkDualLeft y ord arrivals e.1 + djkDualRight y ord arrivals e.2) := by
     intro ⟨u, j⟩ huj
-    have huN : u ∈ arrivals[j.1] := by
+    have huN : u ∈ arrivals[j.val] := by
       simpa [graphOfArrivals] using hM.1 (u, j) huj
     have hKsum :
         (K : ℝ) * ((1 - ((K : ℝ) / ((K : ℝ) + 1)) ^ K) * (Fintype.card (L → Fin K) : ℝ)) ≤
@@ -962,16 +963,16 @@ private theorem sum_injective_grid_eq (K : ℕ) (ord : L ≃ Fin (Fintype.card L
           · subst heq; exact le_rfl
           · have h1 : p.2 a < p.2 b :=
               lt_of_le_of_ne (Fin.le_def.mpr hab) (fun h => heq (p.2.injective h))
-            have h2 : (y a).1 < (y b).1 := Fin.lt_def.mp ((hlt a b).mp h1)
+            have h2 : (y a).val < (y b).val := Fin.lt_def.mp ((hlt a b).mp h1)
             simp only [gridKey]
-            have ha_lt : (ord a).1 < Fintype.card L := (ord a).2
-            have hmul : Fintype.card L * (y a).1 + Fintype.card L ≤
-                Fintype.card L * (y b).1 := by
+            have ha_lt : (ord a).val < Fintype.card L := (ord a).isLt
+            have hmul : Fintype.card L * (y a).val + Fintype.card L ≤
+                Fintype.card L * (y b).val := by
               rw [← Nat.mul_succ]
               exact Nat.mul_le_mul_left _ h2
             omega
         · intro hab
-          have hy_le : (y a).1 ≤ (y b).1 := val_le_of_gridKey_le hab
+          have hy_le : (y a).val ≤ (y b).val := val_le_of_gridKey_le hab
           by_cases heq : a = b
           · subst heq; exact le_rfl
           · have h2 : y a < y b :=
@@ -987,7 +988,7 @@ private theorem card_injective_grid (K : ℕ) :
       K.descFactorial (Fintype.card L) := by
   classical
   let hequiv : {y : L → Fin K // Function.Injective y} ≃ (L ↪ Fin K) :=
-    ⟨fun y => ⟨y.1, y.2⟩, fun f => ⟨f, f.injective⟩, fun _ => rfl, fun _ => rfl⟩
+    ⟨fun y => ⟨y.val, y.property⟩, fun f => ⟨f, f.injective⟩, fun _ => rfl, fun _ => rfl⟩
   rw [← Fintype.card_subtype, Fintype.card_congr hequiv, Fintype.card_embedding_eq,
     Fintype.card_fin]
 
@@ -1123,7 +1124,7 @@ section YaoUpperBound
 /-- Permuted upper-triangular arrival sequence `triArrivals n σ` on `Fin n`: online vertex `j` is
 adjacent to `{σ(i) | j ≤ i < n}`, i.e. `{u | j ≤ σ⁻¹(u)}`. -/
 @[expose] def triArrivals (n : ℕ) (σ : Equiv.Perm (Fin n)) : List (Finset (Fin n)) :=
-  (List.finRange n).map fun j => Finset.univ.filter fun u => j.1 ≤ (σ.symm u).1
+  (List.finRange n).map fun j => Finset.univ.filter fun u => j.val ≤ (σ.symm u).val
 
 @[simp] theorem length_triArrivals (n : ℕ) (σ : Equiv.Perm (Fin n)) :
     (triArrivals n σ).length = n := by
@@ -1133,7 +1134,7 @@ adjacent to `{σ(i) | j ≤ i < n}`, i.e. `{u | j ≤ σ⁻¹(u)}`. -/
 @[expose] def triPerfectMatching (n : ℕ) (σ : Equiv.Perm (Fin n)) :
     Finset (Fin n × Fin (triArrivals n σ).length) :=
   Finset.univ.image fun j : Fin (triArrivals n σ).length =>
-    (σ ⟨j.1, by simpa using j.2⟩, j)
+    (σ ⟨j.val, by simpa using j.isLt⟩, j)
 
 theorem isMatching_triPerfectMatching (n : ℕ) (σ : Equiv.Perm (Fin n)) :
     IsMatching (graphOfArrivals (triArrivals n σ)) (triPerfectMatching n σ) := by
@@ -1165,7 +1166,7 @@ theorem card_triPerfectMatching (n : ℕ) (σ : Equiv.Perm (Fin n)) :
   exact (Prod.mk.inj h).2
 
 private def activeSet (n : ℕ) (σ : Equiv.Perm (Fin n)) (t : ℕ) : Finset (Fin n) :=
-  Finset.univ.filter fun u => t ≤ (σ.symm u).1
+  Finset.univ.filter fun u => t ≤ (σ.symm u).val
 
 private def availCount {n : ℕ} (A : DetAlg (Fin n)) (σ : Equiv.Perm (Fin n)) (t : ℕ) : ℕ :=
   (activeSet n σ t \ A.matchedLeft ((triArrivals n σ).take t)).card
@@ -1175,12 +1176,12 @@ private def matchedStep {n : ℕ} (A : DetAlg (Fin n)) (σ : Equiv.Perm (Fin n))
   if ((A.runChoices (triArrivals n σ))[t]'(by simp [ht])).isSome then 1 else 0
 
 private theorem sum_matchedStep_eq_card {n : ℕ} (A : DetAlg (Fin n)) (σ : Equiv.Perm (Fin n)) :
-    (∑ t : Fin n, matchedStep A σ t.1 t.2) = (A.runMatching (triArrivals n σ)).card := by
+    (∑ t : Fin n, matchedStep A σ t.val t.isLt) = (A.runMatching (triArrivals n σ)).card := by
   rw [DetAlg.card_runMatching_eq_sum]
-  refine Finset.sum_bij (fun t _ => ⟨t.1, by simp [t.2]⟩) ?_ ?_ ?_ ?_
+  refine Finset.sum_bij (fun t _ => ⟨t.val, by simp [t.isLt]⟩) ?_ ?_ ?_ ?_
   · intro _ _; exact Finset.mem_univ _
   · intro t₁ _ t₂ _ h; exact Fin.ext (by simpa using congrArg Fin.val h)
-  · intro j _; exact ⟨⟨j.1, by simpa using j.2⟩, Finset.mem_univ _, Fin.ext rfl⟩
+  · intro j _; exact ⟨⟨j.val, by simpa using j.isLt⟩, Finset.mem_univ _, Fin.ext rfl⟩
   · intro _ _; rfl
 
 private theorem activeSet_succ (n : ℕ) (σ : Equiv.Perm (Fin n)) (t : ℕ) (ht : t < n) :
@@ -1191,7 +1192,7 @@ private theorem activeSet_succ (n : ℕ) (σ : Equiv.Perm (Fin n)) (t : ℕ) (ht
   omega
 
 private theorem activeSet_swap_eq (n : ℕ) (σ : Equiv.Perm (Fin n)) {t r : ℕ}
-    (ht : t < n) {j : Fin n} (hj : t ≤ j.1) (hr : r ≤ t) :
+    (ht : t < n) {j : Fin n} (hj : t ≤ j.val) (hr : r ≤ t) :
     activeSet n (σ * Equiv.swap ⟨t, ht⟩ j) r = activeSet n σ r := by
   ext u
   simp only [activeSet, Finset.mem_filter, Finset.mem_univ, true_and]
@@ -1205,7 +1206,7 @@ private theorem activeSet_swap_eq (n : ℕ) (σ : Equiv.Perm (Fin n)) {t r : ℕ
     · rw [Equiv.swap_apply_of_ne_of_ne hx₁ hx₂]
 
 private theorem take_triArrivals_swap_eq (n : ℕ) (σ : Equiv.Perm (Fin n)) {t : ℕ}
-    (ht : t < n) {j : Fin n} (hj : t ≤ j.1) :
+    (ht : t < n) {j : Fin n} (hj : t ≤ j.val) :
     (triArrivals n (σ * Equiv.swap ⟨t, ht⟩ j)).take (t + 1) =
       (triArrivals n σ).take (t + 1) := by
   refine List.ext_getElem ?_ ?_
@@ -1258,12 +1259,12 @@ private theorem sum_availCount_succ {n : ℕ} (A : DetAlg (Fin n)) (t : ℕ) (ht
       (n - t - 1) *
         ((∑ σ : Equiv.Perm (Fin n), availCount A σ t) -
           ∑ σ : Equiv.Perm (Fin n), matchedStep A σ t ht) := by
-  let J : Finset (Fin n) := Finset.univ.filter fun j : Fin n => t ≤ j.1
+  let J : Finset (Fin n) := Finset.univ.filter fun j : Fin n => t ≤ j.val
   have hJcard : J.card = n - t := by
     have hbij : J.card = (Finset.Ico t n).card := by
-      refine Finset.card_bij (fun j _ => j.1) ?_ ?_ ?_
+      refine Finset.card_bij (fun j _ => j.val) ?_ ?_ ?_
       · intro j hj
-        exact Finset.mem_Ico.mpr ⟨(Finset.mem_filter.mp hj).2, j.2⟩
+        exact Finset.mem_Ico.mpr ⟨(Finset.mem_filter.mp hj).2, j.isLt⟩
       · intro j₁ _ j₂ _ h
         exact Fin.ext h
       · intro m hm
@@ -1293,7 +1294,7 @@ private theorem sum_availCount_succ {n : ℕ} (A : DetAlg (Fin n)) (t : ℕ) (ht
         availCount A (σ * Equiv.swap ⟨t, ht⟩ j) (t + 1) =
           B.card - (if σ j ∈ B then 1 else 0) := by
       intro j hj
-      have hj_ge : t ≤ j.1 := (Finset.mem_filter.mp hj).2
+      have hj_ge : t ≤ j.val := (Finset.mem_filter.mp hj).2
       have hact : activeSet n (σ * Equiv.swap ⟨t, ht⟩ j) t = activeSet n σ t :=
         activeSet_swap_eq n σ ht hj_ge le_rfl
       have htake : (triArrivals n (σ * Equiv.swap ⟨t, ht⟩ j)).take (t + 1) =
@@ -1324,7 +1325,7 @@ private theorem sum_availCount_succ {n : ℕ} (A : DetAlg (Fin n)) (t : ℕ) (ht
         exact σ.injective h
       · intro u hu
         have hu_act : u ∈ activeSet n σ t := (Finset.mem_sdiff.mp hu).1
-        have hu_ge : t ≤ (σ.symm u).1 := (Finset.mem_filter.mp hu_act).2
+        have hu_ge : t ≤ (σ.symm u).val := (Finset.mem_filter.mp hu_act).2
         refine ⟨σ.symm u, Finset.mem_filter.mpr
           ⟨Finset.mem_filter.mpr ⟨Finset.mem_univ _, hu_ge⟩, by simpa using hu⟩, by simp⟩
     have hsum_split :
@@ -1370,8 +1371,8 @@ private theorem sum_availCount_succ {n : ℕ} (A : DetAlg (Fin n)) (t : ℕ) (ht
 private theorem sum_matchedStep_div_le_one {n : ℕ} (hn : 1 ≤ n) (A : DetAlg (Fin n)) :
     let P : ℕ := Fintype.card (Equiv.Perm (Fin n))
     ∑ t : Fin n,
-      ((∑ σ : Equiv.Perm (Fin n), (matchedStep A σ t.1 t.2 : ℝ)) / (P : ℝ)) /
-        ((n - t.1 : ℕ) : ℝ) ≤ 1 := by
+      ((∑ σ : Equiv.Perm (Fin n), (matchedStep A σ t.val t.isLt : ℝ)) / (P : ℝ)) /
+        ((n - t.val : ℕ) : ℝ) ≤ 1 := by
   intro P
   have hPpos : (0 : ℝ) < (P : ℝ) := by positivity
   let U : ℕ → ℝ := fun t => (∑ σ : Equiv.Perm (Fin n), (availCount A σ t : ℝ)) / (P : ℝ)
@@ -1432,23 +1433,23 @@ private theorem sum_matchedStep_div_le_one {n : ℕ} (hn : 1 ≤ n) (A : DetAlg 
     refine Finset.sum_le_sum fun σ _ => ?_
     exact_mod_cast (triArrivals_step_split A σ (n - 1) (by omega)).1
   have hsplit_fin :
-      (∑ t : Fin n, p t.1 t.2 / ((n - t.1 : ℕ) : ℝ)) =
+      (∑ t : Fin n, p t.val t.isLt / ((n - t.val : ℕ) : ℝ)) =
         (∑ t ∈ Finset.range (n - 1),
           if ht : t < n then p t ht / ((n - t : ℕ) : ℝ) else 0) +
         p (n - 1) (by omega) / ((n - (n - 1) : ℕ) : ℝ) := by
     have hrange :
-        (∑ t : Fin n, p t.1 t.2 / ((n - t.1 : ℕ) : ℝ)) =
+        (∑ t : Fin n, p t.val t.isLt / ((n - t.val : ℕ) : ℝ)) =
           ∑ t ∈ Finset.range n, if ht : t < n then p t ht / ((n - t : ℕ) : ℝ) else 0 := by
-      refine Finset.sum_bij (fun t _ => t.1) ?_ ?_ ?_ ?_
-      · intro t _; exact Finset.mem_range.mpr t.2
+      refine Finset.sum_bij (fun t _ => t.val) ?_ ?_ ?_ ?_
+      · intro t _; exact Finset.mem_range.mpr t.isLt
       · intro t₁ _ t₂ _ h; exact Fin.ext h
       · intro m hm; exact ⟨⟨m, Finset.mem_range.mp hm⟩, Finset.mem_univ _, rfl⟩
-      · intro t _; rw [dite_eq_left t.2]
+      · intro t _; rw [dite_eq_left t.isLt]
     have hset : Finset.range n = insert (n - 1) (Finset.range (n - 1)) := by
       rw [← Finset.range_add_one, show n - 1 + 1 = n by omega]
     rw [hrange, hset, Finset.sum_insert Finset.notMem_range_self, add_comm,
       dite_eq_left (by omega)]
-  change ∑ t : Fin n, p t.1 t.2 / ((n - t.1 : ℕ) : ℝ) ≤ 1
+  change ∑ t : Fin n, p t.val t.isLt / ((n - t.val : ℕ) : ℝ) ≤ 1
   rw [hsplit_fin, htelescope (n - 1) le_rfl, hU0, show n - (n - 1) = 1 by omega]
   simp only [Nat.cast_one, div_one]
   linarith
@@ -1465,18 +1466,18 @@ theorem det_triArrivals_avg_le_harmonic {n s : ℕ} (hn : 1 ≤ n) (hs : s ≤ n
   set P := Fintype.card (Equiv.Perm (Fin n))
   have hPpos : (0 : ℝ) < (P : ℝ) := by positivity
   let p : Fin n → ℝ := fun t =>
-    (∑ σ : Equiv.Perm (Fin n), (matchedStep A σ t.1 t.2 : ℝ)) / (P : ℝ)
+    (∑ σ : Equiv.Perm (Fin n), (matchedStep A σ t.val t.isLt : ℝ)) / (P : ℝ)
   have hp_nonneg : ∀ t : Fin n, 0 ≤ p t := fun t =>
     div_nonneg (Finset.sum_nonneg fun _ _ => Nat.cast_nonneg _) hPpos.le
   have hp_le_one : ∀ t : Fin n, p t ≤ 1 := fun t => by
     rw [div_le_one hPpos]
-    calc ∑ σ : Equiv.Perm (Fin n), (matchedStep A σ t.1 t.2 : ℝ)
+    calc ∑ σ : Equiv.Perm (Fin n), (matchedStep A σ t.val t.isLt : ℝ)
         ≤ ∑ _σ : Equiv.Perm (Fin n), (1 : ℝ) := by
           refine Finset.sum_le_sum fun σ _ => ?_
           unfold matchedStep
           split_ifs <;> norm_num
       _ = (P : ℝ) := by simp [P]
-  have hbudget : ∑ t : Fin n, p t / ((n - t.1 : ℕ) : ℝ) ≤ 1 :=
+  have hbudget : ∑ t : Fin n, p t / ((n - t.val : ℕ) : ℝ) ≤ 1 :=
     sum_matchedStep_div_le_one hn A
   have havg_eq :
       (∑ σ : Equiv.Perm (Fin n), ((A.runMatching (triArrivals n σ)).card : ℝ)) / (P : ℝ) =
@@ -1487,38 +1488,38 @@ theorem det_triArrivals_avg_le_harmonic {n s : ℕ} (hn : 1 ≤ n) (hs : s ≤ n
     refine Finset.sum_congr rfl fun σ _ => ?_
     exact_mod_cast (sum_matchedStep_eq_card A σ).symm
   have hterm : ∀ t : Fin n,
-      p t ≤ (s : ℝ) * (p t / ((n - t.1 : ℕ) : ℝ)) +
-        if s < n - t.1 then 1 - (s : ℝ) / ((n - t.1 : ℕ) : ℝ) else 0 := by
+      p t ≤ (s : ℝ) * (p t / ((n - t.val : ℕ) : ℝ)) +
+        if s < n - t.val then 1 - (s : ℝ) / ((n - t.val : ℕ) : ℝ) else 0 := by
     intro t
-    have hd_pos : (0 : ℝ) < ((n - t.1 : ℕ) : ℝ) := by
-      have : 0 < n - t.1 := by omega
+    have hd_pos : (0 : ℝ) < ((n - t.val : ℕ) : ℝ) := by
+      have : 0 < n - t.val := by omega
       positivity
     split_ifs with hlt
-    · have hfrac : (s : ℝ) / ((n - t.1 : ℕ) : ℝ) ≤ 1 := by
+    · have hfrac : (s : ℝ) / ((n - t.val : ℕ) : ℝ) ≤ 1 := by
         rw [div_le_one hd_pos]
         exact_mod_cast hlt.le
-      have h1 : (1 - (s : ℝ) / ((n - t.1 : ℕ) : ℝ)) * p t ≤
-          (1 - (s : ℝ) / ((n - t.1 : ℕ) : ℝ)) * 1 :=
+      have h1 : (1 - (s : ℝ) / ((n - t.val : ℕ) : ℝ)) * p t ≤
+          (1 - (s : ℝ) / ((n - t.val : ℕ) : ℝ)) * 1 :=
         mul_le_mul_of_nonneg_left (hp_le_one t) (by linarith)
-      have hring : (s : ℝ) * (p t / ((n - t.1 : ℕ) : ℝ)) +
-          (1 - (s : ℝ) / ((n - t.1 : ℕ) : ℝ)) * p t = p t := by ring
+      have hring : (s : ℝ) * (p t / ((n - t.val : ℕ) : ℝ)) +
+          (1 - (s : ℝ) / ((n - t.val : ℕ) : ℝ)) * p t = p t := by ring
       linarith
-    · have hge : (1 : ℝ) ≤ (s : ℝ) / ((n - t.1 : ℕ) : ℝ) := by
+    · have hge : (1 : ℝ) ≤ (s : ℝ) / ((n - t.val : ℕ) : ℝ) := by
         rw [one_le_div hd_pos]
-        exact_mod_cast (show n - t.1 ≤ s by omega)
-      have hmul : 1 * p t ≤ ((s : ℝ) / ((n - t.1 : ℕ) : ℝ)) * p t :=
+        exact_mod_cast (show n - t.val ≤ s by omega)
+      have hmul : 1 * p t ≤ ((s : ℝ) / ((n - t.val : ℕ) : ℝ)) * p t :=
         mul_le_mul_of_nonneg_right hge (hp_nonneg t)
-      have hring : ((s : ℝ) / ((n - t.1 : ℕ) : ℝ)) * p t =
-          (s : ℝ) * (p t / ((n - t.1 : ℕ) : ℝ)) := by ring
+      have hring : ((s : ℝ) / ((n - t.val : ℕ) : ℝ)) * p t =
+          (s : ℝ) * (p t / ((n - t.val : ℕ) : ℝ)) := by ring
       linarith
   have hharm :
-      ∑ t : Fin n, (if s < n - t.1 then (1 : ℝ) - (s : ℝ) / ((n - t.1 : ℕ) : ℝ) else 0) =
+      ∑ t : Fin n, (if s < n - t.val then (1 : ℝ) - (s : ℝ) / ((n - t.val : ℕ) : ℝ) else 0) =
         ((n - s : ℕ) : ℝ) - (s : ℝ) * ((harmonic n : ℝ) - (harmonic s : ℝ)) := by
     have hbij :
-        ∑ t : Fin n, (if s < n - t.1 then (1 : ℝ) - (s : ℝ) / ((n - t.1 : ℕ) : ℝ) else 0) =
+        ∑ t : Fin n, (if s < n - t.val then (1 : ℝ) - (s : ℝ) / ((n - t.val : ℕ) : ℝ) else 0) =
         ∑ k ∈ Finset.Ico s n, ((1 : ℝ) - (s : ℝ) / ((k : ℝ) + 1)) := by
       rw [← Finset.sum_filter]
-      refine Finset.sum_bij (fun t _ => n - 1 - t.1) ?_ ?_ ?_ ?_
+      refine Finset.sum_bij (fun t _ => n - 1 - t.val) ?_ ?_ ?_ ?_
       · intro t ht
         have hlt := (Finset.mem_filter.mp ht).2
         exact Finset.mem_Ico.mpr ⟨by omega, by omega⟩
@@ -1532,8 +1533,8 @@ theorem det_triArrivals_avg_le_harmonic {n s : ℕ} (hn : 1 ≤ n) (hs : s ≤ n
         omega
       · intro t ht
         have hlt := (Finset.mem_filter.mp ht).2
-        have hcast : ((n - t.1 : ℕ) : ℝ) = ((n - 1 - t.1 : ℕ) : ℝ) + 1 := by
-          exact_mod_cast (show n - t.1 = (n - 1 - t.1) + 1 by omega)
+        have hcast : ((n - t.val : ℕ) : ℝ) = ((n - 1 - t.val : ℕ) : ℝ) + 1 := by
+          exact_mod_cast (show n - t.val = (n - 1 - t.val) + 1 by omega)
         rw [hcast]
     have hH : ∑ k ∈ Finset.Ico s n, ((k : ℝ) + 1)⁻¹ = (harmonic n : ℝ) - (harmonic s : ℝ) := by
       have hcast : ∀ m : ℕ, (harmonic m : ℝ) = ∑ k ∈ Finset.range m, ((k : ℝ) + 1)⁻¹ := fun m => by
@@ -1544,10 +1545,10 @@ theorem det_triArrivals_avg_le_harmonic {n s : ℕ} (hn : 1 ≤ n) (hs : s ≤ n
     simp only [div_eq_mul_inv, ← Finset.mul_sum, hH]
   rw [havg_eq]
   calc ∑ t : Fin n, p t
-      ≤ ∑ t : Fin n, ((s : ℝ) * (p t / ((n - t.1 : ℕ) : ℝ)) +
-          if s < n - t.1 then 1 - (s : ℝ) / ((n - t.1 : ℕ) : ℝ) else 0) :=
+      ≤ ∑ t : Fin n, ((s : ℝ) * (p t / ((n - t.val : ℕ) : ℝ)) +
+          if s < n - t.val then 1 - (s : ℝ) / ((n - t.val : ℕ) : ℝ) else 0) :=
         Finset.sum_le_sum fun t _ => hterm t
-    _ = (s : ℝ) * (∑ t : Fin n, p t / ((n - t.1 : ℕ) : ℝ)) +
+    _ = (s : ℝ) * (∑ t : Fin n, p t / ((n - t.val : ℕ) : ℝ)) +
           (((n - s : ℕ) : ℝ) - (s : ℝ) * ((harmonic n : ℝ) - (harmonic s : ℝ))) := by
         rw [Finset.sum_add_distrib, ← Finset.mul_sum, hharm]
     _ ≤ (s : ℝ) * 1 +

@@ -120,7 +120,7 @@ theorem nodeCount_ofFinsupp (f : SPFormula K n →₀ K) :
 theorem productDepth_ofFinsupp_le {f : SPFormula K n →₀ K} {t : ℕ}
     (h : ∀ H ∈ f.support, H.productDepth ≤ t) : (ofFinsupp f).productDepth ≤ t := by
   rw [ofFinsupp, productDepth_add]
-  exact Finset.sup_le fun j _ => h _ (f.support.equivFin.symm j).2
+  exact Finset.sup_le fun j _ => h _ (f.support.equivFin.symm j).property
 
 /-- The formulas of the combination of `F` are no deeper in products than `F`. -/
 theorem productDepth_le_of_mem_support_linComb (F : SPFormula K n) :

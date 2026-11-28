@@ -336,14 +336,15 @@ def extendFreeAssignment [Fintype ι] [DecidableEq ι] (S : Finset ι) (e : ↥(
 /-- Restricting an assignment `z : ι → Bool` to `ι'` along `e : ↥(univ \ S) ≃ ι'`. -/
 def restrictToFreeVars [Fintype ι] [DecidableEq ι] (S : Finset ι) (e : ↥(univ \ S) ≃ ι')
     (z : ι → Bool) (w : ι') : Bool :=
-  z (e.symm w).1
+  z (e.symm w).val
 
 @[simp]
 theorem restrictToFreeVars_extendFreeAssignment [Fintype ι] [DecidableEq ι] (S : Finset ι)
     (e : ↥(univ \ S) ≃ ι') (y : ι' → Bool) :
     restrictToFreeVars S e (extendFreeAssignment S e y) = y := by
   ext w
-  simp only [restrictToFreeVars, extendFreeAssignment, (e.symm w).2, ↓reduceDIte, Subtype.coe_eta,
+  simp only [restrictToFreeVars, extendFreeAssignment, (e.symm w).property, ↓reduceDIte,
+    Subtype.coe_eta,
     Equiv.apply_symm_apply]
 
 theorem extendFreeAssignment_mem_subproblemAssignments [Fintype ι] [DecidableEq ι]
@@ -417,7 +418,7 @@ theorem monomialSum_relabelRestrictedMonomials [Fintype ι] [DecidableEq ι] [De
     Subtype.val_injective.injOn
     (fun v hv => ⟨⟨v, hsub hv⟩, mem_coe.mpr (mem_subtype.mpr hv), rfl⟩)
     (fun x _ => ?_)
-  simp only [extendFreeAssignment, x.2, ↓reduceDIte]
+  simp only [extendFreeAssignment, x.property, ↓reduceDIte]
 
 /-- **§5.5–5.6 (Theorem 2.2 additive branch decomposition on the relabeled free-variable cube
 `ι' → Bool`)**: for any branch variable set `S` and equivalence `e : ↥(univ \ S) ≃ ι'`, the
@@ -451,7 +452,7 @@ private theorem symm_mem_equationScope_restrictMonomials [Fintype ι] [Decidable
     [DecidableEq ι'] {S : Finset ι} {e : ↥(univ \ S) ≃ ι'} {b : ι → Bool}
     {𝓜 : Finset (Finset ι)} {w : ι'}
     (hw : w ∈ equationScope (relabelRestrictedMonomials S e b 𝓜)) :
-    (e.symm w).1 ∈ equationScope (restrictMonomials S b 𝓜) := by
+    (e.symm w).val ∈ equationScope (restrictMonomials S b 𝓜) := by
   rcases mem_biUnion.mp hw with ⟨_, hM', hwM'⟩
   rcases mem_image.mp hM' with ⟨M, hM, rfl⟩
   rcases mem_image.mp hwM' with ⟨v, hv, rfl⟩
@@ -483,13 +484,13 @@ theorem varIncidence_relabelRestrictedMonomials_heavyVars_le [Fintype ι] [Decid
   let S := heavyVars univ F (fun i => equationScope (P i)) b₀
   calc
     varIncidence I (fun i => equationScope (relabelRestrictedMonomials S e b (P i))) w
-      ≤ varIncidence F (fun i => equationScope (restrictMonomials S b (P i))) (e.symm w).1 :=
+      ≤ varIncidence F (fun i => equationScope (restrictMonomials S b (P i))) (e.symm w).val :=
         card_le_card fun i hi => mem_filter.mpr
           ⟨hIF (mem_filter.mp hi).1,
             symm_mem_equationScope_restrictMonomials (mem_filter.mp hi).2⟩
     _ ≤ b₀ :=
         varIncidence_equationScope_restrictMonomials_heavyVars_le univ F P b₀
-          (fun _ _ => subset_univ _) b (e.symm w).1
+          (fun _ _ => subset_univ _) b (e.symm w).val
 
 end BranchRelabeling
 

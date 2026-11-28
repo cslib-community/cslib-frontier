@@ -958,7 +958,7 @@ private theorem exists_shifts_params {m B : ℕ} [NeZero (dG m B)] (hB : 1 ≤ B
       exact pow_le_pow_right₀ (by norm_num) (by omega)
     have he4 : (8 : ℝ) < Real.exp 4 := by
       linarith [Real.quadratic_le_exp_of_nonneg (by norm_num : (0 : ℝ) ≤ 4)]
-    rw [show (4 : ℝ) * (mu m : ℝ) = (mu m : ℝ) * 4 by ring, Real.exp_nat_mul]
+    rw [show (4 : ℝ) * (mu m : ℝ) = (mu m : ℝ) * 4 by ring, Real.exp_natCast_mul]
     exact h8.trans_lt (pow_lt_pow_left₀ he4 (by norm_num) (by omega))
 private theorem exists_localMatrix_params {m B : ℕ} (hm : 1 ≤ m) (hB : 1 ≤ B) :
     ∃ A : Fin (cG m B) → Fin (dG m B) → Bool,

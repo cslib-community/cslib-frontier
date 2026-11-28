@@ -353,7 +353,7 @@ theorem coinStore_state_grows_two_outcomes :
           (WordInterface.protocol coinPartyPort unitPort) coinStoreCodec ⟨1, 4, ∅⟩
           (Sum.inl (), coinPartyPort.query ((0 : Fin 2), true)) [false, true]) := by
     intro c
-    have hdec : coinPartyPort.queryDecoder.1 (coinPartyPort.query ((0 : Fin 2), true)) =
+    have hdec : coinPartyPort.queryDecoder.decode (coinPartyPort.query ((0 : Fin 2), true)) =
         ((0 : Fin 2), true) := coinPartyPort.queryDecoder.decode_enc ((0 : Fin 2), true)
     have hsupp : ((none : Option (List Bool)), ((true ^^ c) :: [false, true] : coinStore.State)) ∈
         ((coinStore.onInput (0 : Fin 2) true).run ([false, true] : coinStore.State)).eval.support :=
@@ -377,7 +377,7 @@ theorem coinStore_reply_grows_with_state (s : List Bool) :
         (WordInterface.protocol coinPartyPort unitPort) coinStoreCodec p req s) ∧
     (coinPartyPort.reply (some s)).length = s.length + 1 := by
   refine ⟨?_, ?_⟩
-  · have hdec : coinPartyPort.queryDecoder.1 (coinPartyPort.query ((1 : Fin 2), false)) =
+  · have hdec : coinPartyPort.queryDecoder.decode (coinPartyPort.query ((1 : Fin 2), false)) =
         ((1 : Fin 2), false) := coinPartyPort.queryDecoder.decode_enc ((1 : Fin 2), false)
     have hsupp : ((some s : Option (List Bool)), (s : coinStore.State)) ∈
         ((coinStore.onInput (1 : Fin 2) false).run (s : coinStore.State)).eval.support :=

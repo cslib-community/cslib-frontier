@@ -472,10 +472,10 @@ theorem asymBimatrix_leontief_correspondence :
           Fin.sum_univ_two] <;> norm_num
   let e := bimatrixLeontiefNashEquivEquilibriumPrice asymBimatrix hA hB
   let π := e ⟨(![1 / 4, 3 / 4], ![1 / 3, 2 / 3]), hnash⟩
-  have hinv : (e.symm π).1 = (![1 / 4, 3 / 4], ![1 / 3, 2 / 3]) :=
+  have hinv : (e.symm π).val = (![1 / 4, 3 / 4], ![1 / 3, 2 / 3]) :=
     congrArg Subtype.val (e.left_inv _)
   rw [bimatrixLeontiefNashEquivEquilibriumPrice_symm_apply] at hinv
-  exact ⟨π.1, π.2, hinv⟩
+  exact ⟨π.val, π.property, hinv⟩
 
 /-- Boundary zero-price pure Nash witness on a `2 × 2` strictly positive coordination game:
 pure Nash equilibrium `(![1, 0], ![1, 0])` corresponds to normalized equilibrium price vector

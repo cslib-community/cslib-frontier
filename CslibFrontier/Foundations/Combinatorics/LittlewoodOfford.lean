@@ -123,21 +123,21 @@ theorem card_filter_sum_bool_le_of_subset {ι : Type*} [Fintype ι] [DecidableEq
       2 ^ (Fintype.card ι - #S) * (#S).choose (#S / 2) := by
   let e := Equiv.piEquivPiSubtypeProd (· ∈ S) (fun _ => Bool)
   have hsum (w : ι → Bool) : (∑ i : ι, a i * (w i).toNat) =
-      (∑ i : {i // i ∈ S}, a i.1 * ((e w).1 i).toNat) +
-        ∑ i : {i // i ∉ S}, a i.1 * ((e w).2 i).toNat := by
+      (∑ i : {i // i ∈ S}, a i.val * ((e w).1 i).toNat) +
+        ∑ i : {i // i ∉ S}, a i.val * ((e w).2 i).toNat := by
     rw [← sum_add_sum_compl S (fun i => a i * (w i).toNat),
       Finset.sum_subtype S (fun _ => Iff.rfl), Finset.sum_subtype Sᶜ (fun _ => mem_compl)]
     rfl
   simp only [card_filter, hsum]
   rw [e.sum_comp (fun p : ({i // i ∈ S} → Bool) × ({i // i ∉ S} → Bool) =>
-    if P ((∑ i : {i // i ∈ S}, a i.1 * (p.1 i).toNat) +
-      ∑ i : {i // i ∉ S}, a i.1 * (p.2 i).toNat) then 1 else 0),
+    if P ((∑ i : {i // i ∈ S}, a i.val * (p.1 i).toNat) +
+      ∑ i : {i // i ∉ S}, a i.val * (p.2 i).toNat) then 1 else 0),
     Fintype.sum_prod_type_right]
   simp_rw [← card_filter]
   refine (sum_le_sum (g := fun _ => (#S).choose (#S / 2)) fun v _ => ?_).trans_eq ?_
   · simpa [Fintype.card_coe] using card_filter_sum_bool_le_choose_of_forall_le_abs
-      (fun i : {i // i ∈ S} => a i.1) (fun x => P (x + ∑ i : {i // i ∉ S}, a i.1 * (v i).toNat))
-      (fun i => hδ i.1 i.2) fun x y hx hy => by
+      (fun i : {i // i ∈ S} => a i.val) (fun x => P (x + ∑ i : {i // i ∉ S}, a i.val * (v i).toNat))
+      (fun i => hδ i.val i.property) fun x y hx hy => by
         simpa [add_sub_add_right_eq_sub] using hP _ _ hx hy
   · rw [sum_const, card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_subtype_compl,
       Fintype.card_coe, smul_eq_mul]

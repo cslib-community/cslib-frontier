@@ -488,7 +488,7 @@ theorem toCostSharingGame_eq_sum_orGame [Fintype A] :
 
 theorem restrict_toCostSharingGame_eq_sum_orGame (R : Finset A) :
     M.toCostSharingGame.restrict R =
-      ∑ v : V, orGame (Finset.univ.filter fun x : R => M.tree.IsAncestor v (M.loc x.1))
+      ∑ v : V, orGame (Finset.univ.filter fun x : R => M.tree.IsAncestor v (M.loc x.val))
         (M.edgeCost v) := by
   classical
   ext S
@@ -814,11 +814,11 @@ plus incoming nonnegative child surplus messages `max 0 (nodeWelfare b c - edgeC
 ([FeigenbaumPapadimitriouShenker2001]; [FeigenbaumSchapiraShenker2007]). -/
 noncomputable def nodeWelfare (b : A → ℝ) (u : V) : ℝ :=
   (∑ i : A with M.loc i = u, max (b i) 0) +
-    ∑ c ∈ (M.tree.children u).attach, max 0 (nodeWelfare b c.1 - M.edgeCost c.1)
+    ∑ c ∈ (M.tree.children u).attach, max 0 (nodeWelfare b c.val - M.edgeCost c.val)
 termination_by M.tree.maxDepth + 1 - M.tree.depth u
 decreasing_by
-  have hdc := M.tree.depth_of_mem_children c.2
-  have hle := M.tree.depth_le_maxDepth c.1
+  have hdc := M.tree.depth_of_mem_children c.property
+  have hle := M.tree.depth_le_maxDepth c.val
   omega
 
 /-- Net surplus `nodeWelfare b u - edgeCost u` of the subtree rooted at `u` (including link `u`). -/
@@ -1911,7 +1911,7 @@ theorem exists_welfareLoss_gt_harmonic_sub_one
         Function.Injective seq ∧
         (∀ t : Fin r, seq t ∉ W) ∧
         (∀ t : Fin r,
-          C / ((n - t.1 : ℕ) : ℝ) ≤
+          C / ((n - t.val : ℕ) : ℝ) ≤
             ξ.share (W ∪ (Finset.univ.filter fun s : Fin r => t ≤ s).image seq) (seq t)) := by
     intro r
     induction r with
@@ -1989,13 +1989,13 @@ theorem exists_welfareLoss_gt_harmonic_sub_one
     have hmul := mul_le_mul_of_nonneg_left (min_le_right _ _ : δ ≤ ε / (2 * (n : ℝ))) hn_rpos.le
     have : (n : ℝ) * (ε / (2 * (n : ℝ))) = ε / 2 := by field_simp
     linarith
-  let b : A → ℝ := fun x => C / ((n - (eqv.symm x).1 : ℕ) : ℝ) - δ
+  let b : A → ℝ := fun x => C / ((n - (eqv.symm x).val : ℕ) : ℝ) - δ
   have hb_nn : ∀ x : A, 0 ≤ b x := fun x => by
-    have hk_le : ((n - (eqv.symm x).1 : ℕ) : ℝ) ≤ (n : ℝ) := by exact_mod_cast Nat.sub_le n _
-    have hk_pos : (0 : ℝ) < ((n - (eqv.symm x).1 : ℕ) : ℝ) :=
+    have hk_le : ((n - (eqv.symm x).val : ℕ) : ℝ) ≤ (n : ℝ) := by exact_mod_cast Nat.sub_le n _
+    have hk_pos : (0 : ℝ) < ((n - (eqv.symm x).val : ℕ) : ℝ) :=
       Nat.cast_pos.mpr (by omega)
     have := div_le_div_of_nonneg_left hC.le hk_pos
-      (by linarith : ((n - (eqv.symm x).1 : ℕ) : ℝ) ≤ 2 * n)
+      (by linarith : ((n - (eqv.symm x).val : ℕ) : ℝ) ≤ 2 * n)
     dsimp only [b]; linarith
   have hserv_emp : ξ.moulinServiced b = ∅ := by
     rcases (ξ.moulinServiced b).eq_empty_or_nonempty with hemp | hSne
@@ -2016,7 +2016,7 @@ theorem exists_welfareLoss_gt_harmonic_sub_one
       have hcm_le := hcm hS_sub ha_in_S
       have hpeel_ge := hshare t₀
       have hwill_t₀ := (ξ.isGreatest_isWilling_moulinServiced hcm b).1 (seq t₀) ha_in_S
-      have hb_t₀ : b (seq t₀) = C / ((n - t₀.1 : ℕ) : ℝ) - δ := by
+      have hb_t₀ : b (seq t₀) = C / ((n - t₀.val : ℕ) : ℝ) - δ := by
         have hsymm : eqv.symm (seq t₀) = t₀ := eqv.symm_apply_apply t₀
         simp [b, hsymm]
       linarith
@@ -2044,12 +2044,12 @@ section PathLowerBound
 /-- Rooted path tree `0 — 1 — 2 — … — k — (k + 1)` on `Fin (k + 2)` with root `0`. -/
 def pathRootedTree (k : ℕ) : RootedTree (Fin (k + 2)) where
   root := ⟨0, by omega⟩
-  parent v := ⟨v.1 - 1, by omega⟩
+  parent v := ⟨v.val - 1, by omega⟩
   parent_root := rfl
-  reaches_root v := ⟨v.1, by
+  reaches_root v := ⟨v.val, by
     have hiter : ∀ m : ℕ, ∀ w : Fin (k + 2),
-        ((fun u : Fin (k + 2) => (⟨u.1 - 1, by omega⟩ : Fin (k + 2)))^[m] w) =
-          ⟨w.1 - m, by omega⟩ := by
+        ((fun u : Fin (k + 2) => (⟨u.val - 1, by omega⟩ : Fin (k + 2)))^[m] w) =
+          ⟨w.val - m, by omega⟩ := by
       intro m
       induction m with
       | zero => intro w; rfl
@@ -2061,7 +2061,7 @@ def pathRootedTree (k : ℕ) : RootedTree (Fin (k + 2)) where
     ext; simp⟩
 
 private theorem pathRootedTree_iterate_parent (k m : ℕ) (w : Fin (k + 2)) :
-    (pathRootedTree k).parent^[m] w = ⟨w.1 - m, by omega⟩ := by
+    (pathRootedTree k).parent^[m] w = ⟨w.val - m, by omega⟩ := by
   induction m with
   | zero => rfl
   | succ m ih =>
@@ -2069,8 +2069,8 @@ private theorem pathRootedTree_iterate_parent (k m : ℕ) (w : Fin (k + 2)) :
     ext; simp [pathRootedTree]; omega
 
 private theorem pathRootedTree_isAncestor_iff (k : ℕ) (u w : Fin (k + 2)) :
-    (pathRootedTree k).IsAncestor u w ↔ u.1 ≤ w.1 := by
-  refine ⟨?_, fun hle => ⟨w.1 - u.1,
+    (pathRootedTree k).IsAncestor u w ↔ u.val ≤ w.val := by
+  refine ⟨?_, fun hle => ⟨w.val - u.val,
     (pathRootedTree_iterate_parent k _ w).trans (Fin.ext (Nat.sub_sub_self hle))⟩⟩
   rintro ⟨m, rfl⟩
   simp [pathRootedTree_iterate_parent]
@@ -2082,15 +2082,15 @@ private theorem pathRootedTree_isAncestor_iff (k : ℕ) (u w : Fin (k + 2)) :
 def pathMulticast (k : ℕ) : MulticastInstance (Fin (k + 2)) (Fin k ⊕ Unit) where
   tree := pathRootedTree k
   edgeCost v :=
-    if v.1 = 0 ∨ v.1 = k + 1 then 0
-    else (((k + 1).factorial : ℕ) : ℝ) * ((((k + 1).factorial + 1 : ℕ) : ℝ) ^ (v.1 - 1))
+    if v.val = 0 ∨ v.val = k + 1 then 0
+    else (((k + 1).factorial : ℕ) : ℝ) * ((((k + 1).factorial + 1 : ℕ) : ℝ) ^ (v.val - 1))
   edgeCost_root := by simp [pathRootedTree]
   edgeCost_nonneg v := by
     split_ifs
     · exact le_rfl
     · positivity
   loc
-    | Sum.inl t => ⟨t.1 + 1, by omega⟩
+    | Sum.inl t => ⟨t.val + 1, by omega⟩
     | Sum.inr () => ⟨k + 1, by omega⟩
 
 /-- Exact `shShare` of Bob's bottom receiver `Sum.inr ()` when Alice's active spine receivers are
@@ -2205,7 +2205,7 @@ theorem pathBottomShare_injective (k : ℕ) : Function.Injective (pathBottomShar
               (pathMulticast k).tree.IsAncestor v ((pathMulticast k).loc j)).card : ℝ)
         else 0) = ∑ v ∈ Finset.range (k + 2), termNat v := by
       rw [← Fin.sum_univ_eq_sum_range termNat]
-      exact Finset.sum_congr rfl fun v _ => by simp only [termNat, v.2, ↓reduceDIte]
+      exact Finset.sum_congr rfl fun v _ => by simp only [termNat, v.isLt, ↓reduceDIte]
     rw [hsum_fin, Finset.sum_range_succ,
       show termNat (k + 1) = 0 by simp [termNat, pathMulticast], add_zero, Finset.sum_range_succ',
       show termNat 0 = 0 by simp [termNat, pathMulticast], add_zero]
@@ -2239,7 +2239,7 @@ theorem pathBottomShare_injective (k : ℕ) : Function.Injective (pathBottomShar
             true_and, Finset.mem_singleton, reduceCtorEq, or_false, Finset.mem_insert,
             false_or, A_n]
           change (z r = true ∧
-              (pathRootedTree k).IsAncestor ⟨n + 1, hn_lt⟩ ⟨r.1 + 1, by omega⟩) ↔
+              (pathRootedTree k).IsAncestor ⟨n + 1, hn_lt⟩ ⟨r.val + 1, by omega⟩) ↔
             (⟨n, hnk⟩ : Fin k) ≤ r ∧ z r = true
           rw [pathRootedTree_isAncestor_iff, Fin.le_def]
           dsimp
@@ -2260,19 +2260,19 @@ theorem pathBottomShare_injective (k : ℕ) : Function.Injective (pathBottomShar
   have hdig_eq := digits_eq_of_sum_eq (Nat.le_add_left 1 L) (dig x) (dig x') k
     (hdig_lt x) (hdig_lt x') (Nat.cast_injective heq)
   have hcnt_eq : ∀ t : Fin k, cnt x t = cnt x' t := fun t => by
-    have hd := hdig_eq t.1 t.2
-    simp only [dig, t.2, ↓reduceDIte] at hd
+    have hd := hdig_eq t.val t.isLt
+    simp only [dig, t.isLt, ↓reduceDIte] at hd
     have h1 := Nat.div_mul_cancel (hcnt_dvd x t)
     rw [hd] at h1
     have hdiv_pos : 0 < L / cnt x' t :=
       Nat.div_pos ((hcnt_bounds x' t).2.trans (Nat.self_le_factorial (k + 1))) (hcnt_bounds x' t).1
     exact Nat.eq_of_mul_eq_mul_left hdiv_pos (h1.trans (Nat.div_mul_cancel (hcnt_dvd x' t)).symm)
-  suffices htail : ∀ m (t : Fin k), k - t.1 ≤ m → x t = x' t from funext fun t => htail _ t le_rfl
+  suffices htail : ∀ m (t : Fin k), k - t.val ≤ m → x t = x' t from funext fun t => htail _ t le_rfl
   intro m
   induction m with
   | zero =>
     intro t hm
-    have := t.2
+    have := t.isLt
     omega
   | succ m ih =>
     intro t hm
@@ -2281,8 +2281,8 @@ theorem pathBottomShare_injective (k : ℕ) : Function.Injective (pathBottomShar
       ext r
       simp only [Finset.mem_filter, Finset.mem_univ, true_and]
       exact and_congr_right fun htr => by
-        have : t.1 < r.1 := htr
-        have := r.2
+        have : t.val < r.val := htr
+        have := r.isLt
         rw [ih r (by omega)]
     have hflt_z (z : Cslib.BitString k) :
         (Finset.univ.filter fun r : Fin k => t ≤ r ∧ z r = true) =
@@ -2332,9 +2332,10 @@ theorem mem_pathMulticast_shMechanism_serviced_iff (k : ℕ) (x y : Cslib.BitStr
     have hw_t := hw (Sum.inl t) hmem
     simp only [MulticastInstance.shScheme_share, MulticastInstance.shShare_apply, hmem, ↓reduceIte,
       b, pathBidProfile, hxt, Bool.false_eq_true] at hw_t
-    let vt : Fin (k + 2) := ⟨t.1 + 1, by omega⟩
+    let vt : Fin (k + 2) := ⟨t.val + 1, by omega⟩
     have hvt_cost_pos : 0 < I.edgeCost vt := by
-      simp only [I, pathMulticast, vt, show ¬ (t.1 + 1 = 0 ∨ t.1 + 1 = k + 1) by omega, ↓reduceIte]
+      simp only [I, pathMulticast, vt,
+        show ¬ (t.val + 1 = 0 ∨ t.val + 1 = k + 1) by omega, ↓reduceIte]
       have := Nat.factorial_pos (k + 1)
       positivity
     have hcard_pos : (0 : ℝ) < ((S.filter fun j => I.tree.IsAncestor vt (I.loc j)).card : ℝ) := by

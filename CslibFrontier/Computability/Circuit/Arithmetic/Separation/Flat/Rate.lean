@@ -134,9 +134,9 @@ theorem networkPolynomial_size_ge_of_sqrt_le {K : Type} [Field K] (hK : FlatCase
     (balancedSets_nonempty hk)
   have h1 := F'.apply_le_of_borderCoveredBy Sum.inl (push Sum.inl (networkTensor K k ℓ))
     (fun q hq => by
-      have : IsEmpty {a // Sum.inl a = q} := ⟨fun a => hq ⟨a.1, a.2⟩⟩
+      have : IsEmpty {a // Sum.inl a = q} := ⟨fun a => hq ⟨a.val, a.property⟩⟩
       exact inferInstanceAs (Subsingleton (∀ a : {a // Sum.inl a = q}, _)))
-    hcov.borderCoveredBy fun S : balancedSets k => hmax S S.2
+    hcov.borderCoveredBy fun S : balancedSets k => hmax S S.property
   have hcard : (Fintype.card (balancedSets k) : ℝ) ^ F'.unitExponent Sum.inl ≤
       2 ^ (k * F'.unitExponent Sum.inl) := by
     rw [Real.rpow_mul two_pos.le, Real.rpow_natCast]
