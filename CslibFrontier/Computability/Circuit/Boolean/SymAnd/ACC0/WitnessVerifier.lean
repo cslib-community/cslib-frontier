@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.SuccinctVerifier
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.ACC0.SAT
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.FineNondeterministicExponentialTime
+public import CslibFrontier.Foundations.Data.BitString.List.Binary
 import CslibFrontier.Computability.Circuit.CompositionDepth
 import CslibFrontier.Computability.Circuit.Encoding.Check
 import CslibFrontier.Computability.Circuit.Encoding.Combinators
@@ -29,6 +30,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Foundations.Data.Nat.LogRpow
+import CslibFrontier.Foundations.Data.Nat.NthRootGrowth
 import Mathlib.Analysis.SpecialFunctions.Pow.Asymptotics
 import Mathlib.Analysis.SpecialFunctions.Pow.NthRootLemmas
 import Mathlib.Tactic.Linarith
@@ -63,30 +65,47 @@ describing `2 ^ q` clauses over `2 ^ r` variables in the interleaved address/sig
    uniform depth-`≤ dD` `ACC⁰[m]` succinct 3-CNF has a satisfying assignment computable by a
    depth-`≤ dW` `ACC⁰[m]` circuit of code length at most `2 ^ Nat.nthRoot r_w n`.
 4. **Hard-witness transfer (`exists_hard_acc0Witness_of_quasilinear_reduction`)**: combines the
-   simulation with the fine nondeterministic exponential time hierarchy
-   (`Cslib.Complexity.NTIME_two_pow_sub_rpow_ssubset`, [Zak1983]) to produce a single language
-   `H ∈ NTIME(2 ^ n)` such that every polynomial-time uniform depth-`≤ dD` `ACC⁰[m]` quasilinear
-   succinct 3-CNF reduction of `H` has a satisfiable instance `x ∈ H` admitting no depth-`≤ dW`,
+   simulation with the fine nondeterministic exponential time hierarchy at arbitrarily large
+   lengths (`Cslib.Complexity.exists_mem_NTIME_two_pow_forall_exists_length_ge`, [Zak1983]) to
+   produce a single language `H ∈ NTIME(2 ^ n)` such that every polynomial-time
+   uniform depth-`≤ dD` `ACC⁰[m]` quasilinear succinct 3-CNF reduction of `H` has satisfiable
+   instances `x ∈ H` of every sufficiently large length admitting no depth-`≤ dW`,
    code-length-`≤ 2 ^ Nat.nthRoot r_w |x|` `ACC⁰[m]` satisfying witness circuit.
+5. **Checked decoders (`CheckedACC0Decoders`, `checkedACC0WitnessLanguage_mem_NTIME_of_acc0SAT`,
+   `exists_hard_checkedACC0Witness`)**: the same simulation and transfer when the decoder
+   `D (x, e)` depends on a guessed certificate `e` of polynomial length `ℓ x`, which a second
+   constant-depth `ACC⁰[m]` circuit `C₁ (x, e)` must certify by being unsatisfiable. The machine
+   guesses `e` and the witness certificate, pads `C₁ (x, e)` and `certificateCircuitExt (D (x, e))`
+   to a common input count, and runs `exists_acc0SAT_decider` once on their disjunction. Items 3
+   and 4 are the case without a certificate, with the constant `false` check circuit.
 
 ## Scope note
 
-This module proves the witness-verifier and diagonalization-transfer steps unconditionally. It does
-not construct the quasilinear `O(T log T)` succinct 3-CNF reduction for `NTIME(2 ^ n)`
-([Williams2014], Fact 3.1) or the nondeterministic `ACC⁰` compression of De Morgan circuits
-([Williams2014], Lemma 3.1), so it does not claim the full `E^NP ⊄ ACC⁰` or `NEXP ⊄ ACC⁰`
-separations ([Williams2014], Theorems 1.1–1.2).
+This module proves the witness-verifier and diagonalization-transfer steps unconditionally. The
+quasilinear succinct 3-CNF reduction for `NTIME(2 ^ n)` ([Williams2014], Fact 3.1) is
+`Cslib.Complexity.CookLevin.Quasilinear.exists_polySuccinctReduction`, and the compression of its
+decoders into checked `ACC⁰` decoders ([Williams2014], Lemma 3.1) is
+`SymAnd.exists_checkedDecoders`; `SymAnd.ENPNotACC0` combines them with
+`exists_hard_checkedACC0Witness` into `E^NP ⊄ ACC⁰` (`SymAnd.not_forall_ENP_mem_ACC0`).
+`NEXP ⊄ ACC⁰` ([Williams2014], Theorem 1.1) also needs the easy-witness lemma of
+Impagliazzo, Kabanets and Wigderson; `SymAnd.NEXPNotACC0` applies it to the formulas of the same
+reduction.
 
 ## Main definitions
 
 * `Cslib.Circuits.Boolean.SymAnd.clauseExt`, `Cslib.Circuits.Boolean.SymAnd.toCNFExt`:
   succinct 3-CNF represented by an `ACC⁰[m]` decoder circuit.
+* `Cslib.Circuits.Boolean.SymAnd.variableIndex`: the number of a variable of `r` bits.
+* `Cslib.Circuits.Boolean.SymAnd.CheckedACC0Decoders`: polynomial-time uniform constant-depth
+  decoders `D (x, e)` with check circuits `C₁ (x, e)`, for a certificate `e` of polynomial length.
 * `Cslib.Circuits.Boolean.SymAnd.badClauseExt`: constant-depth `ACC⁰[m]` bad-clause verifier.
 * `Cslib.Circuits.Boolean.SymAnd.decodeExtWitness`,
   `Cslib.Circuits.Boolean.SymAnd.certificateCircuitExt`: depth-capped witness decoder and total
   verifier circuit compiler.
 * `Cslib.Circuits.Boolean.SymAnd.smallACC0WitnessLanguage`: language of inputs whose succinct
   3-CNF admits a small constant-depth `ACC⁰[m]` satisfying witness circuit.
+* `Cslib.Circuits.Boolean.SymAnd.checkedACC0WitnessLanguage`: the checked-decoder variant, where
+  the decoder depends on a certificate `e` that a second circuit `C₁ (x, e)` must reject.
 
 ## Main results
 
@@ -96,13 +115,17 @@ separations ([Williams2014], Theorems 1.1–1.2).
   `Cslib.Circuits.Boolean.SymAnd.not_mem_SignatureCircuitSAT_badClauseExt_iff`: size, depth, and
   correctness of `badClauseExt`.
 * `Cslib.Circuits.Boolean.SymAnd.exists_cert_not_mem_SignatureCircuitSAT_iff`,
+  `Cslib.Circuits.Boolean.SymAnd.computableInPolyTime_decodeExtWitness`,
   `Cslib.Circuits.Boolean.SymAnd.computableInPolyTime_certificateCircuitExt`: witness equivalence
-  and native polynomial-time compilation.
+  and native polynomial-time decoding and compilation.
 * `Cslib.Circuits.Boolean.SymAnd.smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT`: unconditional
   `NTIME(⌊2 ^ (n - c₀ * n ^ δ)⌋₊)` upper bound via `exists_acc0SAT_decider`.
 * `Cslib.Circuits.Boolean.SymAnd.exists_hard_acc0Witness_of_quasilinear_reduction`: witness-circuit
   lower bound for every quasilinear `ACC⁰[m]` succinct 3-CNF reduction of a hard language in
   `NTIME(2 ^ n)`.
+* `Cslib.Circuits.Boolean.SymAnd.checkedACC0WitnessLanguage_mem_NTIME_of_acc0SAT`,
+  `Cslib.Circuits.Boolean.SymAnd.exists_hard_checkedACC0Witness`: the same `NTIME` upper bound and
+  hard-witness lower bound for checked decoders.
 
 ## References
 
@@ -137,6 +160,10 @@ variables. -/
 @[expose] def toCNFExt (m : ℕ) (D : Circuit Unbounded.extSignature q (3 * (r + 1))) :
     CNF (BitString r) :=
   (BitString.enum q).map (clauseExt m D)
+
+/-- The number of an `r`-bit variable: its bits read most significant first. -/
+@[expose] def variableIndex {r : ℕ} (v : BitString r) : ℕ :=
+  Cslib.BitString.binaryValue (List.ofFn v)
 
 /-- The expanded formula `toCNFExt m D` holds on an assignment `a` iff every clause address is
 satisfied. -/
@@ -351,20 +378,21 @@ theorem depth_and_codeLength_of_decodeExtWitness_eq_some {d r : ℕ} {w : List B
     have := length_unframe_add_dropFrame_le w
     exact ⟨hd, by omega⟩
 
-/-- Constant `true` circuit on `q` inputs over `Unbounded.extSignature` (one nullary AND gate,
-depth `1`, always satisfiable). -/
-private def constTrueExt (q : ℕ) : Circuit Unbounded.extSignature q 1 :=
-  Circuit.oneGate (σ := Unbounded.extSignature) (.ac (.and 0)) Fin.elim0
-
-private theorem depth_constTrueExt (q : ℕ) : (constTrueExt q).depth ≤ 1 := by
-  simp [constTrueExt, Circuit.depth_oneGate]
-
-private theorem constTrueExt_mem_SignatureCircuitSAT (m q : ℕ) :
-    ⟨q, constTrueExt q⟩ ∈ SignatureCircuitSAT (Unbounded.extInterpretation (modGate m)) := by
+/-- The constant `true` circuit is always satisfiable. -/
+private theorem constCircuit_true_mem_SignatureCircuitSAT (m q : ℕ) :
+    ⟨q, Unbounded.constCircuit Unbounded.toExt true⟩ ∈
+      SignatureCircuitSAT (Unbounded.extInterpretation (modGate m)) := by
   rw [mem_SignatureCircuitSAT]
-  refine ⟨fun _ => false, ?_⟩
-  simp only [constTrueExt, Circuit.eval_oneGate]
-  exact decide_eq_true fun j => j.elim0
+  exact ⟨fun _ => false, Unbounded.eval_constCircuit _ _ _⟩
+
+/-- The constant `false` circuit is never satisfiable. -/
+private theorem constCircuit_false_not_mem_SignatureCircuitSAT (m q : ℕ) :
+    ⟨q, Unbounded.constCircuit Unbounded.toExt false⟩ ∉
+      SignatureCircuitSAT (Unbounded.extInterpretation (modGate m)) := by
+  rw [mem_SignatureCircuitSAT]
+  rintro ⟨x, hx⟩
+  rw [Unbounded.eval_constCircuit] at hx
+  exact Bool.false_ne_true hx
 
 /-- **Total depth-capped verifier circuit**: decodes `w` as a depth-`≤ d` witness circuit `W` and
 emits `badClauseExt D W`; if `w` is malformed or exceeds depth `d`, emits the always-satisfiable
@@ -374,7 +402,7 @@ def certificateCircuitExt {q r : ℕ}
     Circuit Unbounded.extSignature q 1 :=
   match decodeExtWitness d r w with
   | some W => badClauseExt D W
-  | none => constTrueExt q
+  | none => Unbounded.constCircuit Unbounded.toExt true
 
 /-- `certificateCircuitExt D d w` always has depth at most `D.depth + d + 5`. -/
 theorem depth_certificateCircuitExt_le {q r : ℕ}
@@ -382,7 +410,7 @@ theorem depth_certificateCircuitExt_le {q r : ℕ}
     (certificateCircuitExt D d w).depth ≤ D.depth + d + 5 := by
   unfold certificateCircuitExt
   cases h : decodeExtWitness d r w with
-  | none => exact (depth_constTrueExt q).trans (by omega)
+  | none => exact (Unbounded.depth_constCircuit_le true).trans (by omega)
   | some W =>
     have hW := (depth_and_codeLength_of_decodeExtWitness_eq_some h).1
     exact (depth_badClauseExt_le D W).trans (by omega)
@@ -399,7 +427,7 @@ theorem not_mem_SignatureCircuitSAT_certificateCircuitExt_iff {q r : ℕ} (m : �
   unfold certificateCircuitExt
   cases h : decodeExtWitness d r w with
   | none =>
-    simp [constTrueExt_mem_SignatureCircuitSAT]
+    simp [constCircuit_true_mem_SignatureCircuitSAT]
   | some W =>
     simp only [Option.some.injEq, exists_eq_left']
     exact not_mem_SignatureCircuitSAT_badClauseExt_iff m D W
@@ -511,6 +539,173 @@ private theorem computableInPolyTime_badClauseExtCode :
     (Circuit.computableInPolyTime_compCode hnMidBin (.const violationTestExt.code)
       (Circuit.computableInPolyTime_appendCode hnMidBin hpi hsign)) hD
 
+attribute [local irreducible] ComputableInPolyTime in
+/-- Decoding the certificate `w a` into a depth-`≤ d` witness circuit is computable in polynomial
+time. -/
+theorem computableInPolyTime_decodeExtWitness {α : Type} {enc : α ↪ List Bool}
+    {r : α → ℕ} {w : α → List Bool} (hr : ComputableInPolyTime r enc encUnary)
+    (hw : ComputableInPolyTime w enc encBits) (d : ℕ) :
+    ComputableInPolyTime
+      (fun a : α => (decodeExtWitness d (r a) (w a)).map
+        fun W => (⟨r a, W⟩ : Σ n, Circuit Unbounded.extSignature n 1))
+      enc (encOption (Unbounded.encExtCircuit 1)) := by
+  let encC := Circuit.encCode Unbounded.encExtOp
+  let encRaw := encPair encUnary encC
+  let dec (a : α) := decExtCode.decode (unframe (w a))
+  have hrP : ComputableInPolyTime (fun a : α => r a) enc encUnary := hr
+  have hu : ComputableInPolyTime (fun a : α => unframe (w a)) enc encBits :=
+    Internal.DecoderWords.unframe_degree.computableInPolyTime.comp hw
+  have hcode : ComputableInPolyTime dec enc encC := decExtCode.computableInPolyTime.comp hu
+  have hcan : ComputableInPolyTime
+      (fun a : α => decide (Circuit.encCode Unbounded.encExtOp (dec a) = unframe (w a)))
+      enc encBool :=
+    ComputableInPolyTime.decide_eq' (hcode.of_enc_eq (encD := encBits) fun _ => rfl) hu
+  have hck := Circuits.computableInPolyTime_codeCheck computableInPolyTime_extArity hrP hcode.fst'
+  have hlen1 : ComputableInPolyTime (fun a : α => decide ((dec a).2.length = 1)) enc encBool :=
+    ComputableInPolyTime.decide_eq'
+      ((ComputableInPolyTime.length encNat).comp hcode.snd') (.const 1)
+  have hhead0 : ComputableInPolyTime (fun a : α => (dec a).2.getD 0 0) enc encNat :=
+    ((ComputableInPolyTime.headD (encA := encNat) (encL := encList encNat) 0).comp
+      hcode.snd').of_enc_eq fun a => congrArg encNat <| by
+        dsimp only [Function.comp_apply, dec]
+        cases (dec a).2 <;> rfl
+  have houtLt : ComputableInPolyTime
+      (fun a : α => decide ((dec a).2.getD 0 0 < r a + (dec a).1.length)) enc encBool :=
+    ComputableInPolyTime.binary_lt' hhead0
+      (ComputableInPolyTime.unary_to_binary.comp
+        (ComputableInPolyTime.unary_add' hrP
+          ((ComputableInPolyTime.length (Circuit.encGate Unbounded.encExtOp)).comp hcode.fst')))
+  have hvalid := ComputableInPolyTime.bool_and' hcan
+    (ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and' hck hlen1) houtLt)
+  let rawOpt (a : α) : Option (Σ n, Circuit Unbounded.extSignature n 1) :=
+    if Circuit.encCode Unbounded.encExtOp (dec a) = unframe (w a) then
+      (Circuit.ofCode (σ := Unbounded.extSignature) (r a) 1 (dec a)).map fun W => ⟨r a, W⟩
+    else none
+  have hrawOpt : ComputableInPolyTime rawOpt enc (encOption (Unbounded.encExtCircuit 1)) := by
+    refine (hvalid.ite ((ComputableInPolyTime.optionSome encRaw).comp (hrP.prod hcode))
+      (.const none)).of_enc_eq fun a => ?_
+    dsimp only [rawOpt, Function.comp_apply]
+    by_cases hcanp : Circuit.encCode Unbounded.encExtOp (dec a) = unframe (w a)
+    · have hval : (codeCheck Unbounded.extSignature (r a) (dec a).1 &&
+          decide ((dec a).2.length = 1) &&
+          decide ((dec a).2.getD 0 0 < r a + (dec a).1.length)) =
+          (Circuit.ofCode (σ := Unbounded.extSignature) (r a) 1 (dec a)).isSome :=
+        Bool.eq_iff_iff.mpr (validRaw_iff _)
+      simp only [hcanp, ↓reduceIte, decide_true, Bool.true_and, hval]
+      rcases hof : Circuit.ofCode (σ := Unbounded.extSignature) (r a) 1 (dec a) with _ | W
+      · simp
+      · simp [Unbounded.encExtCircuit, Circuit.encCircuit_apply,
+          Circuit.code_of_ofCode_eq_some hof, encRaw, encC, dec]
+    · simp only [hcanp, ↓reduceIte, decide_false, Bool.false_and, Bool.false_eq_true,
+        encOption_none]
+  let witnessOpt : α → Option (Σ n, Circuit Unbounded.extSignature n 1) :=
+    fun a => (decodeExtWitness d (r a) (w a)).map fun W => ⟨r a, W⟩
+  have hwitnessOpt : ComputableInPolyTime witnessOpt enc
+      (encOption (Unbounded.encExtCircuit 1)) := by
+    have hbody : ComputableInPolyTime
+        (fun q : α × (Σ n, Circuit Unbounded.extSignature n 1) =>
+          if decide (q.2.2.depth ≤ d) then some q.2 else none)
+        (encPair enc (Unbounded.encExtCircuit 1)) (encOption (Unbounded.encExtCircuit 1)) :=
+      (ComputableInPolyTime.unary_le'
+          (computableInPolyTime_extCircuit_depth.comp (ComputableInPolyTime.snd _ _))
+          (ComputableInPolyTime.const d)).ite
+        ((ComputableInPolyTime.optionSome _).comp (ComputableInPolyTime.snd _ _))
+        (ComputableInPolyTime.const none)
+    have helim := hrawOpt.optionElimWithInput
+      (body := fun _ c => if decide (c.2.depth ≤ d) then some c else none)
+      (ComputableInPolyTime.const none) hbody
+    refine helim.of_enc_eq fun a => congrArg (encOption (Unbounded.encExtCircuit 1)) ?_
+    dsimp only [witnessOpt, rawOpt, decodeExtWitness, dec]
+    split_ifs with hcanp
+    · cases hof : Circuit.ofCode (σ := Unbounded.extSignature) (r a) 1
+          (decExtCode.decode (unframe (w a))) with
+      | none => rfl
+      | some W =>
+        simp only [Option.map_some, Option.elim_some, decide_eq_true_eq]
+        split_ifs <;> rfl
+    · rfl
+  exact hwitnessOpt
+
+/-- The code of the constant-`true` circuit on `q a` inputs is polynomial-time computable. -/
+private theorem computableInPolyTime_constTrue_raw {α : Type} {enc : α ↪ List Bool}
+    {q : α → ℕ} (hq : ComputableInPolyTime q enc encUnary) :
+    ComputableInPolyTime
+      (fun a : α => (q a, (Unbounded.constCircuit Unbounded.toExt true : Circuit _ (q a) 1).code))
+      enc (encPair encUnary (Circuit.encCode Unbounded.encExtOp)) := by
+  have h1 : ComputableInPolyTime
+      (fun a : α => (Unbounded.constCircuit Unbounded.toExt true : Circuit _ (q a) 1).code)
+      enc (Circuit.encCode Unbounded.encExtOp) := by
+    have hcodeConst (k : ℕ) :
+        (Unbounded.constCircuit Unbounded.toExt true : Circuit _ k 1).code =
+          ([(Unbounded.ExtOp.ac (.and 0), [])], [k]) := rfl
+    simp only [hcodeConst]
+    exact (ComputableInPolyTime.const [(Unbounded.ExtOp.ac (.and 0), ([] : List ℕ))]).prod
+      ((ComputableInPolyTime.unary_to_binary.comp hq).cons' (ComputableInPolyTime.const []))
+  exact hq.prod h1
+
+/-- The code of `badClauseExt (D a) W` is polynomial-time computable from `a` and `W`. -/
+private theorem computableInPolyTime_badClauseExt_raw {α : Type} {enc : α ↪ List Bool}
+    {q r : α → ℕ} (D : (a : α) → Circuit Unbounded.extSignature (q a) (3 * (r a + 1)))
+    (hq : ComputableInPolyTime q enc encUnary) (hr : ComputableInPolyTime r enc encUnary)
+    (hD : ComputableInPolyTime (fun a => (D a).code) enc (Circuit.encCode Unbounded.encExtOp)) :
+    ComputableInPolyTime
+      (fun s : α × (Σ n, Circuit Unbounded.extSignature n 1) =>
+        (q s.1, badClauseExtCode (q s.1) (r s.1) (D s.1).code s.2.2.code))
+      (encPair enc (Unbounded.encExtCircuit 1))
+      (encPair encUnary (Circuit.encCode Unbounded.encExtOp)) := by
+  have hWcode : ComputableInPolyTime
+      (fun s : α × (Σ n, Circuit Unbounded.extSignature n 1) => s.2.2.code)
+      (encPair enc (Unbounded.encExtCircuit 1)) (Circuit.encCode Unbounded.encExtOp) :=
+    (Circuit.computableInPolyTime_arity_code (σ := Unbounded.extSignature)
+      Unbounded.encExtOp 1).snd'.comp (ComputableInPolyTime.snd _ _)
+  have hqS := hq.comp (ComputableInPolyTime.fst enc (Unbounded.encExtCircuit 1))
+  have hrS := hr.comp (ComputableInPolyTime.fst enc (Unbounded.encExtCircuit 1))
+  have hDS := hD.comp (ComputableInPolyTime.fst enc (Unbounded.encExtCircuit 1))
+  exact hqS.prod
+    (computableInPolyTime_badClauseExtCode.comp ((hqS.prod hrS).prod (hDS.prod hWcode)))
+
+/-- Compiling `a ↦ ⟨q a, certificateCircuitExt (D a) d (w a)⟩` is computable in polynomial time
+for a polynomial-time uniform family of decoders `D` and a polynomial-time certificate map `w`. -/
+private theorem computableInPolyTime_certificateCircuitExt_of {α : Type} {enc : α ↪ List Bool}
+    {q r : α → ℕ}
+    (D : (a : α) → Circuit Unbounded.extSignature (q a) (3 * (r a + 1))) {w : α → List Bool}
+    (hq : ComputableInPolyTime q enc encUnary)
+    (hr : ComputableInPolyTime r enc encUnary)
+    (hD : ComputableInPolyTime (fun a => (D a).code) enc (Circuit.encCode Unbounded.encExtOp))
+    (hw : ComputableInPolyTime w enc encBits) (d : ℕ) :
+    ComputableInPolyTime
+      (fun a : α =>
+        (⟨q a, certificateCircuitExt (D a) d (w a)⟩ : Σ n, Circuit Unbounded.extSignature n 1))
+      enc (Unbounded.encExtCircuit 1) := by
+  let witnessOpt : α → Option (Σ n, Circuit Unbounded.extSignature n 1) :=
+    fun a => (decodeExtWitness d (r a) (w a)).map fun W => ⟨r a, W⟩
+  have hwitnessOpt : ComputableInPolyTime witnessOpt enc
+      (encOption (Unbounded.encExtCircuit 1)) :=
+    computableInPolyTime_decodeExtWitness hr hw d
+  have hconstCode := computableInPolyTime_constTrue_raw hq
+  have hbadBody := computableInPolyTime_badClauseExt_raw D hq hr hD
+  have hfinal : ComputableInPolyTime
+      (fun a : α => (witnessOpt a).elim
+        (q a, (Unbounded.constCircuit Unbounded.toExt true : Circuit _ (q a) 1).code)
+        (fun c => (q a, badClauseExtCode (q a) (r a) (D a).code c.2.code)))
+      enc (encPair encUnary (Circuit.encCode Unbounded.encExtOp)) :=
+    ComputableInPolyTime.optionElimWithInput (value := witnessOpt)
+      (fallback := fun a : α =>
+        (q a, (Unbounded.constCircuit Unbounded.toExt true : Circuit _ (q a) 1).code))
+      (body := fun a c => (q a, badClauseExtCode (q a) (r a) (D a).code c.2.code))
+      hwitnessOpt hconstCode hbadBody
+  refine ComputableInPolyTime.of_enc_eq (encD := Unbounded.encExtCircuit 1)
+    (g := fun a : α =>
+      (⟨q a, certificateCircuitExt (D a) d (w a)⟩ : Σ n, Circuit Unbounded.extSignature n 1))
+    hfinal fun a => ?_
+  dsimp only [witnessOpt, certificateCircuitExt]
+  cases h : decodeExtWitness d (r a) (w a) with
+  | none =>
+    simp only [Option.map_none, Option.elim_none, Unbounded.encExtCircuit, Circuit.encCircuit_apply]
+  | some W =>
+    simp only [Option.map_some, Option.elim_some, Unbounded.encExtCircuit, Circuit.encCircuit_apply,
+      code_badClauseExt]
+
 /-- **Native polynomial-time compilation of `certificateCircuitExt`**: given any polynomial-time
 uniform family of `ACC⁰` succinct 3-CNF decoders `D` and fixed depth cap `d`, compiling `(x, w)`
 to `⟨q x, certificateCircuitExt (D x) d w⟩` is computable in polynomial time. -/
@@ -525,125 +720,12 @@ theorem computableInPolyTime_certificateCircuitExt
       (fun p : List Bool × List Bool =>
         (⟨q p.1, certificateCircuitExt (D p.1) d p.2⟩ : Σ n, Circuit Unbounded.extSignature n 1))
       (encPair encBits encBits) (Unbounded.encExtCircuit 1) := by
-  let P := List Bool × List Bool
-  let encP := encPair encBits encBits
-  let encC := Circuit.encCode Unbounded.encExtOp
-  let encRaw := encPair encUnary encC
-  let dec (p : P) := decExtCode.decode (unframe p.2)
-  have hqP : ComputableInPolyTime (fun p : P => q p.1) encP encUnary :=
-    hq.comp (.fst encBits encBits)
-  have hrP : ComputableInPolyTime (fun p : P => r p.1) encP encUnary :=
-    hr.comp (.fst encBits encBits)
-  have hDP : ComputableInPolyTime (fun p : P => (D p.1).code) encP encC :=
-    hD.comp (.fst encBits encBits)
-  have hu : ComputableInPolyTime (fun p : P => unframe p.2) encP encBits :=
-    Internal.DecoderWords.unframe_degree.computableInPolyTime.comp (.snd encBits encBits)
-  have hcode : ComputableInPolyTime dec encP encC := decExtCode.computableInPolyTime.comp hu
-  have hcan : ComputableInPolyTime
-      (fun p : P => decide (Circuit.encCode Unbounded.encExtOp (dec p) = unframe p.2))
-      encP encBool :=
-    ComputableInPolyTime.decide_eq' (hcode.of_enc_eq (encD := encBits) fun _ => rfl) hu
-  have hck := Circuits.computableInPolyTime_codeCheck computableInPolyTime_extArity hrP hcode.fst'
-  have hlen1 : ComputableInPolyTime (fun p : P => decide ((dec p).2.length = 1)) encP encBool :=
-    ComputableInPolyTime.decide_eq'
-      ((ComputableInPolyTime.length encNat).comp hcode.snd') (.const 1)
-  have hhead0 : ComputableInPolyTime (fun p : P => (dec p).2.getD 0 0) encP encNat :=
-    ((ComputableInPolyTime.headD (encA := encNat) (encL := encList encNat) 0).comp
-      hcode.snd').of_enc_eq fun p => congrArg encNat <| by
-        dsimp only [Function.comp_apply, dec]
-        cases (dec p).2 <;> rfl
-  have houtLt : ComputableInPolyTime
-      (fun p : P => decide ((dec p).2.getD 0 0 < r p.1 + (dec p).1.length)) encP encBool :=
-    ComputableInPolyTime.binary_lt' hhead0
-      (ComputableInPolyTime.unary_to_binary.comp
-        (ComputableInPolyTime.unary_add' hrP
-          ((ComputableInPolyTime.length (Circuit.encGate Unbounded.encExtOp)).comp hcode.fst')))
-  have hvalid := ComputableInPolyTime.bool_and' hcan
-    (ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and' hck hlen1) houtLt)
-  let rawOpt (p : P) : Option (Σ n, Circuit Unbounded.extSignature n 1) :=
-    if Circuit.encCode Unbounded.encExtOp (dec p) = unframe p.2 then
-      (Circuit.ofCode (σ := Unbounded.extSignature) (r p.1) 1 (dec p)).map fun W => ⟨r p.1, W⟩
-    else none
-  have hrawOpt : ComputableInPolyTime rawOpt encP (encOption (Unbounded.encExtCircuit 1)) := by
-    refine (hvalid.ite ((ComputableInPolyTime.optionSome encRaw).comp (hrP.prod hcode))
-      (.const none)).of_enc_eq fun p => ?_
-    dsimp only [rawOpt, Function.comp_apply]
-    by_cases hcanp : Circuit.encCode Unbounded.encExtOp (dec p) = unframe p.2
-    · have hval : (codeCheck Unbounded.extSignature (r p.1) (dec p).1 &&
-          decide ((dec p).2.length = 1) &&
-          decide ((dec p).2.getD 0 0 < r p.1 + (dec p).1.length)) =
-          (Circuit.ofCode (σ := Unbounded.extSignature) (r p.1) 1 (dec p)).isSome :=
-        Bool.eq_iff_iff.mpr (validRaw_iff _)
-      simp only [hcanp, ↓reduceIte, decide_true, Bool.true_and, hval]
-      rcases hof : Circuit.ofCode (σ := Unbounded.extSignature) (r p.1) 1 (dec p) with _ | W
-      · simp
-      · simp [Unbounded.encExtCircuit, Circuit.encCircuit_apply,
-          Circuit.code_of_ofCode_eq_some hof, encRaw, encC, dec]
-    · simp only [hcanp, ↓reduceIte, decide_false, Bool.false_and, Bool.false_eq_true,
-        encOption_none]
-  let witnessOpt : List Bool × List Bool → Option (Σ n, Circuit Unbounded.extSignature n 1) :=
-    fun p => (decodeExtWitness d (r p.1) p.2).map fun W => ⟨r p.1, W⟩
-  have hwitnessOpt : ComputableInPolyTime witnessOpt encP
-      (encOption (Unbounded.encExtCircuit 1)) := by
-    have hbody : ComputableInPolyTime
-        (fun q : (List Bool × List Bool) × (Σ n, Circuit Unbounded.extSignature n 1) =>
-          if decide (q.2.2.depth ≤ d) then some q.2 else none)
-        (encPair encP (Unbounded.encExtCircuit 1)) (encOption (Unbounded.encExtCircuit 1)) :=
-      (ComputableInPolyTime.unary_le'
-          (computableInPolyTime_extCircuit_depth.comp (ComputableInPolyTime.snd _ _))
-          (ComputableInPolyTime.const d)).ite
-        ((ComputableInPolyTime.optionSome _).comp (ComputableInPolyTime.snd _ _))
-        (ComputableInPolyTime.const none)
-    have helim := hrawOpt.optionElimWithInput
-      (body := fun _ c => if decide (c.2.depth ≤ d) then some c else none)
-      (ComputableInPolyTime.const none) hbody
-    refine helim.of_enc_eq fun p => congrArg (encOption (Unbounded.encExtCircuit 1)) ?_
-    dsimp only [witnessOpt, rawOpt, decodeExtWitness, dec]
-    split_ifs with hcanp
-    · cases hof : Circuit.ofCode (σ := Unbounded.extSignature) (r p.1) 1
-          (decExtCode.decode (unframe p.2)) with
-      | none => rfl
-      | some W =>
-        simp only [Option.map_some, Option.elim_some, decide_eq_true_eq]
-        split_ifs <;> rfl
-    · rfl
-  have hconstCode : ComputableInPolyTime
-      (fun p : List Bool × List Bool => (q p.1, (constTrueExt (q p.1)).code))
-      encP encRaw := by
-    have h1 : ComputableInPolyTime (fun p : List Bool × List Bool => (constTrueExt (q p.1)).code)
-        encP (Circuit.encCode Unbounded.encExtOp) := by
-      have hcodeConst (k : ℕ) : (constTrueExt k).code = ([(.ac (.and 0), [])], [k]) := by
-        simp [constTrueExt, Circuit.code_oneGate]
-      simp only [hcodeConst]
-      exact (ComputableInPolyTime.const [(Unbounded.ExtOp.ac (.and 0), ([] : List ℕ))]).prod
-        ((ComputableInPolyTime.unary_to_binary.comp hqP).cons' (ComputableInPolyTime.const []))
-    exact hqP.prod h1
-  have hbadBody : ComputableInPolyTime
-      (fun s : (List Bool × List Bool) × (Σ n, Circuit Unbounded.extSignature n 1) =>
-        (q s.1.1, badClauseExtCode (q s.1.1) (r s.1.1) (D s.1.1).code s.2.2.code))
-      (encPair encP (Unbounded.encExtCircuit 1)) encRaw := by
-    have hWcode : ComputableInPolyTime
-        (fun s : (List Bool × List Bool) × (Σ n, Circuit Unbounded.extSignature n 1) => s.2.2.code)
-        (encPair encP (Unbounded.encExtCircuit 1)) (Circuit.encCode Unbounded.encExtOp) :=
-      (Circuit.computableInPolyTime_arity_code (σ := Unbounded.extSignature)
-        Unbounded.encExtOp 1).snd'.comp (ComputableInPolyTime.snd _ _)
-    have hqS := hqP.comp (ComputableInPolyTime.fst encP (Unbounded.encExtCircuit 1))
-    have hrS := hrP.comp (ComputableInPolyTime.fst encP (Unbounded.encExtCircuit 1))
-    have hDS := hDP.comp (ComputableInPolyTime.fst encP (Unbounded.encExtCircuit 1))
-    exact hqS.prod
-      (computableInPolyTime_badClauseExtCode.comp ((hqS.prod hrS).prod (hDS.prod hWcode)))
-  have hfinal := hwitnessOpt.optionElimWithInput
-    (body := fun p c => (q p.1, badClauseExtCode (q p.1) (r p.1) (D p.1).code c.2.code))
-    hconstCode hbadBody
-  refine hfinal.of_enc_eq fun p => ?_
-  dsimp only [witnessOpt, certificateCircuitExt]
-  cases h : decodeExtWitness d (r p.1) p.2 with
-  | none =>
-    simp only [Option.map_none, Option.elim_none, Unbounded.encExtCircuit, Circuit.encCircuit_apply,
-      encRaw, encC]
-  | some W =>
-    simp only [Option.map_some, Option.elim_some, Unbounded.encExtCircuit, Circuit.encCircuit_apply,
-      code_badClauseExt, encRaw, encC]
+  exact computableInPolyTime_certificateCircuitExt_of (fun p : List Bool × List Bool => D p.1)
+    (hq.comp (ComputableInPolyTime.fst encBits encBits))
+    (hr.comp (ComputableInPolyTime.fst encBits encBits))
+    (hD.comp (ComputableInPolyTime.fst encBits encBits)) (ComputableInPolyTime.snd encBits encBits)
+    d
+
 
 end CertDecode
 
@@ -651,90 +733,207 @@ end CertDecode
 
 section PadAndAsymptotics
 
-/-- Pad a single-output circuit on `q` inputs with unused dummy inputs up to `max q n`. -/
-private def padInputs {q : ℕ} (C : Circuit Unbounded.extSignature q 1) (n : ℕ) :
-    Circuit Unbounded.extSignature (max q n) 1 :=
-  C.comp (Circuit.wiring Unbounded.extSignature (Fin.castLE (le_max_left q n)))
+/-- Pad a single-output circuit on `q` inputs with unused dummy inputs up to `N ≥ q`. -/
+private def padTo {q : ℕ} (C : Circuit Unbounded.extSignature q 1) (N : ℕ) (h : q ≤ N) :
+    Circuit Unbounded.extSignature N 1 :=
+  C.comp (Circuit.wiring Unbounded.extSignature (Fin.castLE h))
 
-private theorem depth_padInputs_le {q : ℕ} (C : Circuit Unbounded.extSignature q 1) (n : ℕ) :
-    (padInputs C n).depth ≤ C.depth := by
-  unfold padInputs
-  have h := Circuit.depth_comp_le C
-    (Circuit.wiring Unbounded.extSignature (Fin.castLE (le_max_left q n)))
+private theorem depth_padTo_le {q : ℕ} (C : Circuit Unbounded.extSignature q 1) (N : ℕ)
+    (h : q ≤ N) : (padTo C N h).depth ≤ C.depth := by
+  unfold padTo
+  have h := Circuit.depth_comp_le C (Circuit.wiring Unbounded.extSignature (Fin.castLE h))
   simpa only [Circuit.depth_wiring, Nat.add_zero] using h
 
-private theorem padInputs_mem_SignatureCircuitSAT_iff {q : ℕ} (m : ℕ)
-    (C : Circuit Unbounded.extSignature q 1) (n : ℕ) :
-    (⟨max q n, padInputs C n⟩ ∈ SignatureCircuitSAT (Unbounded.extInterpretation (modGate m))) ↔
+private theorem padTo_mem_SignatureCircuitSAT_iff {q : ℕ} (m : ℕ)
+    (C : Circuit Unbounded.extSignature q 1) (N : ℕ) (h : q ≤ N) :
+    (⟨N, padTo C N h⟩ ∈ SignatureCircuitSAT (Unbounded.extInterpretation (modGate m))) ↔
       ⟨q, C⟩ ∈ SignatureCircuitSAT (Unbounded.extInterpretation (modGate m)) := by
-  simp only [mem_SignatureCircuitSAT, padInputs, Circuit.eval_comp, Circuit.eval_wiring]
+  simp only [mem_SignatureCircuitSAT, padTo, Circuit.eval_comp, Circuit.eval_wiring]
   constructor
   · rintro ⟨x, hx⟩
-    exact ⟨fun i => x (Fin.castLE (le_max_left q n) i), hx⟩
+    exact ⟨fun i => x (Fin.castLE h i), hx⟩
   · rintro ⟨y, hy⟩
     refine ⟨fun i => if hi : i.1 < q then y ⟨i.1, hi⟩ else false, ?_⟩
     have hfun : (fun i : Fin q =>
-        if hi : (Fin.castLE (le_max_left q n) i).1 < q then y ⟨(Fin.castLE _ i).1, hi⟩
+        if hi : (Fin.castLE h i).1 < q then y ⟨(Fin.castLE h i).1, hi⟩
         else false) = y := by
       funext i
       simp [i.isLt]
     simpa only [Function.comp_def, hfun] using hy
 
-private theorem code_padInputs {q : ℕ} (C : Circuit Unbounded.extSignature q 1) (n : ℕ) :
-    (padInputs C n).code = Circuit.compCode (max q n) C.code ([], List.range q) := by
-  have hw : (Circuit.wiring Unbounded.extSignature (Fin.castLE (le_max_left q n))).code =
+private theorem code_padTo {q : ℕ} (C : Circuit Unbounded.extSignature q 1) (N : ℕ)
+    (h : q ≤ N) : (padTo C N h).code = Circuit.compCode N C.code ([], List.range q) := by
+  have hw : (Circuit.wiring Unbounded.extSignature (Fin.castLE h)).code =
       ([], List.range q) := by
     simpa using Circuit.code_wiring_eq_map (σ := Unbounded.extSignature)
-      (f := Fin.castLE (le_max_left q n)) (g := id) fun _ => rfl
-  simp only [padInputs, Circuit.code_comp, hw]
+      (f := Fin.castLE h) (g := id) fun _ => rfl
+  simp only [padTo, Circuit.code_comp, hw]
+
+/-- The binary disjunction gate on two wires. -/
+private def orGate : Circuit Unbounded.extSignature 2 1 :=
+  Circuit.oneGate (σ := Unbounded.extSignature) (.ac (.or 2)) fun i => i
+
+/-- Disjunction of two single-output circuits on the same inputs. -/
+private def orExt {n : ℕ} (A B : Circuit Unbounded.extSignature n 1) :
+    Circuit Unbounded.extSignature n 1 :=
+  orGate.comp (A.append B)
+
+private theorem depth_orExt_le {n : ℕ} (A B : Circuit Unbounded.extSignature n 1) :
+    (orExt A B).depth ≤ max A.depth B.depth + 1 := by
+  have h1 := Circuit.depth_comp_le orGate (A.append B)
+  have h2 := Circuit.depth_append_le A B
+  have h3 : orGate.depth = 1 := Circuit.depth_oneGate _ _
+  unfold orExt
+  omega
+
+private theorem orExt_mem_SignatureCircuitSAT_iff {n : ℕ} (m : ℕ)
+    (A B : Circuit Unbounded.extSignature n 1) :
+    (⟨n, orExt A B⟩ ∈ SignatureCircuitSAT (Unbounded.extInterpretation (modGate m))) ↔
+      ⟨n, A⟩ ∈ SignatureCircuitSAT (Unbounded.extInterpretation (modGate m)) ∨
+        ⟨n, B⟩ ∈ SignatureCircuitSAT (Unbounded.extInterpretation (modGate m)) := by
+  simp only [mem_SignatureCircuitSAT, orExt, orGate, Circuit.eval_comp, Circuit.eval_oneGate,
+    Circuit.eval_append, Unbounded.extInterpretation_ac, Unbounded.interpretation_or,
+    Fin.exists_fin_two, ← exists_or]
+  refine exists_congr fun x => ?_
+  have h0 : ∀ f g : Fin 1 → Bool, Fin.append f g (0 : Fin (1 + 1)) = f 0 := fun f g => rfl
+  have h1 : ∀ f g : Fin 1 → Bool, Fin.append f g (1 : Fin (1 + 1)) = g 0 := fun f g => rfl
+  simp only [h0, h1, decide_eq_true_eq]
+
+private theorem code_orExt {n : ℕ} (A B : Circuit Unbounded.extSignature n 1) :
+    (orExt A B).code = Circuit.compCode n orGate.code (Circuit.appendCode n A.code B.code) := by
+  simp only [orExt, Circuit.code_comp, Circuit.code_append]
+
+/-- The padded disjunction of a check circuit `C₁` on `q₁` inputs and the certificate verifier
+`certificateCircuitExt D dW w`, both lifted to `N` inputs. -/
+private def checkedCircuit {q₁ q r : ℕ} (C₁ : Circuit Unbounded.extSignature q₁ 1)
+    (D : Circuit Unbounded.extSignature q (3 * (r + 1))) (dW : ℕ) (w : List Bool) (N : ℕ)
+    (h₁ : q₁ ≤ N) (h₂ : q ≤ N) : Circuit Unbounded.extSignature N 1 :=
+  orExt (padTo C₁ N h₁) (padTo (certificateCircuitExt D dW w) N h₂)
+
+private theorem depth_checkedCircuit_le {q₁ q r : ℕ} (C₁ : Circuit Unbounded.extSignature q₁ 1)
+    (D : Circuit Unbounded.extSignature q (3 * (r + 1))) (dW : ℕ) (w : List Bool) (N : ℕ)
+    (h₁ : q₁ ≤ N) (h₂ : q ≤ N) :
+    (checkedCircuit C₁ D dW w N h₁ h₂).depth ≤ max C₁.depth (D.depth + dW + 5) + 1 := by
+  have h := depth_orExt_le (padTo C₁ N h₁) (padTo (certificateCircuitExt D dW w) N h₂)
+  have h3 := depth_padTo_le C₁ N h₁
+  have h4 := depth_padTo_le (certificateCircuitExt D dW w) N h₂
+  have h5 := depth_certificateCircuitExt_le D dW w
+  unfold checkedCircuit
+  omega
+
+private theorem checkedCircuit_not_mem_SignatureCircuitSAT_iff {q₁ q r : ℕ} (m : ℕ)
+    (C₁ : Circuit Unbounded.extSignature q₁ 1)
+    (D : Circuit Unbounded.extSignature q (3 * (r + 1))) (dW : ℕ) (w : List Bool) (N : ℕ)
+    (h₁ : q₁ ≤ N) (h₂ : q ≤ N) :
+    (⟨N, checkedCircuit C₁ D dW w N h₁ h₂⟩ ∉
+        SignatureCircuitSAT (Unbounded.extInterpretation (modGate m))) ↔
+      (⟨q₁, C₁⟩ ∉ SignatureCircuitSAT (Unbounded.extInterpretation (modGate m))) ∧
+        ⟨q, certificateCircuitExt D dW w⟩ ∉
+          SignatureCircuitSAT (Unbounded.extInterpretation (modGate m)) := by
+  simp only [checkedCircuit, orExt_mem_SignatureCircuitSAT_iff, padTo_mem_SignatureCircuitSAT_iff,
+    not_or]
+
+private theorem code_checkedCircuit {q₁ q r : ℕ} (C₁ : Circuit Unbounded.extSignature q₁ 1)
+    (D : Circuit Unbounded.extSignature q (3 * (r + 1))) (dW : ℕ) (w : List Bool) (N : ℕ)
+    (h₁ : q₁ ≤ N) (h₂ : q ≤ N) :
+    (checkedCircuit C₁ D dW w N h₁ h₂).code =
+      Circuit.compCode N orGate.code
+        (Circuit.appendCode N (Circuit.compCode N C₁.code ([], List.range q₁))
+          (Circuit.compCode N (certificateCircuitExt D dW w).code ([], List.range q))) := by
+  simp only [checkedCircuit, code_orExt, code_padTo]
+
+/-- The maximum of two unary polynomial-time computable quantities. -/
+private theorem computableInPolyTime_max_unary {α : Type} {enc : α ↪ List Bool} {f g : α → ℕ}
+    (hf : ComputableInPolyTime f enc encUnary) (hg : ComputableInPolyTime g enc encUnary) :
+    ComputableInPolyTime (fun a => max (f a) (g a)) enc encUnary :=
+  ((ComputableInPolyTime.unary_le' hf hg).ite hg hf).of_enc_eq fun a =>
+    congrArg encUnary (by
+      simp only [decide_eq_true_eq]
+      split_ifs with h
+      · rw [Nat.max_eq_right h]
+      · rw [Nat.max_eq_left (Nat.le_of_not_ge h)])
+
+/-- The padded checked-decoder circuit for the certificate `p.2 = e ++ w` with `|e| = ℓ p.1`: the
+check circuit `C₁ (p.1, e)` and the certificate verifier of the decoder `D (p.1, e)` for the
+witness `w`, lifted to `max (max (q₁ p.1) (q p.1)) |p.1|` inputs. -/
+private def checkedPad {q₁ q r ℓ : List Bool → ℕ} (dW : ℕ)
+    (C₁ : (p : List Bool × List Bool) → Circuit Unbounded.extSignature (q₁ p.1) 1)
+    (D : (p : List Bool × List Bool) → Circuit Unbounded.extSignature (q p.1) (3 * (r p.1 + 1)))
+    (p : List Bool × List Bool) : Σ n, Circuit Unbounded.extSignature n 1 :=
+  ⟨max (max (q₁ p.1) (q p.1)) p.1.length,
+    checkedCircuit (C₁ (p.1, p.2.take (ℓ p.1))) (D (p.1, p.2.take (ℓ p.1))) dW
+      (p.2.drop (ℓ p.1)) _ ((le_max_left _ _).trans (le_max_left _ _))
+      ((le_max_right _ _).trans (le_max_left _ _))⟩
 
 attribute [local irreducible] ComputableInPolyTime in
-private theorem computableInPolyTime_padCertificateCircuitExt
-    {q r : List Bool → ℕ}
-    (D : (x : List Bool) → Circuit Unbounded.extSignature (q x) (3 * (r x + 1)))
-    (hq : ComputableInPolyTime q encBits encUnary)
-    (hr : ComputableInPolyTime r encBits encUnary)
-    (hD : ComputableInPolyTime (fun x => (D x).code) encBits (Circuit.encCode Unbounded.encExtOp))
-    (d : ℕ) :
-    ComputableInPolyTime
-      (fun p : List Bool × List Bool =>
-        (⟨max (q p.1) p.1.length, padInputs (certificateCircuitExt (D p.1) d p.2) p.1.length⟩ :
-          Σ n, Circuit Unbounded.extSignature n 1))
-      (encPair encBits encBits) (Unbounded.encExtCircuit 1) := by
+private theorem computableInPolyTime_checkedPad {q₁ q r ℓ : List Bool → ℕ}
+    (C₁ : (p : List Bool × List Bool) → Circuit Unbounded.extSignature (q₁ p.1) 1)
+    (D : (p : List Bool × List Bool) → Circuit Unbounded.extSignature (q p.1) (3 * (r p.1 + 1)))
+    (hq₁ : ComputableInPolyTime q₁ encBits encUnary) (hq : ComputableInPolyTime q encBits encUnary)
+    (hr : ComputableInPolyTime r encBits encUnary) (hℓ : ComputableInPolyTime ℓ encBits encUnary)
+    (hC₁ : ComputableInPolyTime (fun p => (C₁ p).code) (encPair encBits encBits)
+      (Circuit.encCode Unbounded.encExtOp))
+    (hD : ComputableInPolyTime (fun p => (D p).code) (encPair encBits encBits)
+      (Circuit.encCode Unbounded.encExtOp)) (dW : ℕ) :
+    ComputableInPolyTime (checkedPad (ℓ := ℓ) dW C₁ D) (encPair encBits encBits)
+      (Unbounded.encExtCircuit 1) := by
   let encP := encPair encBits encBits
-  have hcert := computableInPolyTime_certificateCircuitExt D hq hr hD d
+  have hfst : ComputableInPolyTime (fun p : List Bool × List Bool => p.1) encP encBits :=
+    ComputableInPolyTime.fst encBits encBits
+  have hsnd : ComputableInPolyTime (fun p : List Bool × List Bool => p.2) encP encBits :=
+    ComputableInPolyTime.snd encBits encBits
+  have hq₁P : ComputableInPolyTime (fun p : List Bool × List Bool => q₁ p.1) encP encUnary :=
+    hq₁.comp hfst
+  have hqP : ComputableInPolyTime (fun p : List Bool × List Bool => q p.1) encP encUnary :=
+    hq.comp hfst
+  have hrP : ComputableInPolyTime (fun p : List Bool × List Bool => r p.1) encP encUnary :=
+    hr.comp hfst
+  have hℓP : ComputableInPolyTime (fun p : List Bool × List Bool => ℓ p.1) encP encUnary :=
+    hℓ.comp hfst
+  have hlenP : ComputableInPolyTime (fun p : List Bool × List Bool => p.1.length) encP encUnary :=
+    ((ComputableInPolyTime.encoding_length encBits).comp hfst).of_enc_eq fun _ => rfl
+  have he : ComputableInPolyTime (fun p : List Bool × List Bool => p.2.take (ℓ p.1)) encP
+      encBits := ComputableInPolyTime.bitsTakeWithInput hsnd hℓP
+  have hwc : ComputableInPolyTime (fun p : List Bool × List Bool => p.2.drop (ℓ p.1)) encP
+      encBits := ComputableInPolyTime.bitsDropWithInput hsnd hℓP
+  have hpe : ComputableInPolyTime
+      (fun p : List Bool × List Bool => (p.1, p.2.take (ℓ p.1))) encP encP := hfst.prod he
+  have hC₁c : ComputableInPolyTime
+      (fun p : List Bool × List Bool => (C₁ (p.1, p.2.take (ℓ p.1))).code) encP
+      (Circuit.encCode Unbounded.encExtOp) := hC₁.comp hpe
+  have hDc : ComputableInPolyTime
+      (fun p : List Bool × List Bool => (D (p.1, p.2.take (ℓ p.1))).code) encP
+      (Circuit.encCode Unbounded.encExtOp) := hD.comp hpe
+  have hcert := computableInPolyTime_certificateCircuitExt_of (enc := encP)
+    (q := fun p : List Bool × List Bool => q p.1) (r := fun p : List Bool × List Bool => r p.1)
+    (fun p : List Bool × List Bool => D (p.1, p.2.take (ℓ p.1))) hqP hrP hDc hwc dW
   have hcertCode : ComputableInPolyTime
-      (fun p : List Bool × List Bool => (certificateCircuitExt (D p.1) d p.2).code)
+      (fun p : List Bool × List Bool =>
+        (certificateCircuitExt (D (p.1, p.2.take (ℓ p.1))) dW (p.2.drop (ℓ p.1))).code)
       encP (Circuit.encCode Unbounded.encExtOp) :=
     (Circuit.computableInPolyTime_arity_code (σ := Unbounded.extSignature)
       Unbounded.encExtOp 1).snd'.comp hcert
-  have hqP : ComputableInPolyTime (fun p : List Bool × List Bool => q p.1) encP encUnary :=
-    hq.comp (ComputableInPolyTime.fst encBits encBits)
-  have hlenP : ComputableInPolyTime (fun p : List Bool × List Bool => p.1.length) encP encUnary :=
-    ((ComputableInPolyTime.encoding_length encBits).comp
-      (ComputableInPolyTime.fst encBits encBits)).of_enc_eq fun _ => rfl
-  have hmax : ComputableInPolyTime (fun p : List Bool × List Bool => max (q p.1) p.1.length)
-      encP encUnary :=
-    ((ComputableInPolyTime.unary_le' hqP hlenP).ite hlenP hqP).of_enc_eq fun p =>
-      congrArg encUnary (by
-        simp only [decide_eq_true_eq]
-        split_ifs with h
-        · rw [Nat.max_eq_right h]
-        · rw [Nat.max_eq_left (Nat.le_of_not_ge h)])
-  have hrange : ComputableInPolyTime
-      (fun p : List Bool × List Bool =>
-        (([] : List (Unbounded.ExtOp × List ℕ)), List.range (q p.1)))
-      encP (Circuit.encCode Unbounded.encExtOp) :=
+  have hmax : ComputableInPolyTime
+      (fun p : List Bool × List Bool => max (max (q₁ p.1) (q p.1)) p.1.length) encP encUnary :=
+    computableInPolyTime_max_unary (computableInPolyTime_max_unary hq₁P hqP) hlenP
+  have hmaxBin : ComputableInPolyTime
+      (fun p : List Bool × List Bool => max (max (q₁ p.1) (q p.1)) p.1.length) encP encNat :=
+    (ComputableInPolyTime.unary_to_binary.comp hmax).of_enc_eq fun _ => rfl
+  have hrange (f : List Bool × List Bool → ℕ) (hf : ComputableInPolyTime f encP encUnary) :
+      ComputableInPolyTime
+        (fun p : List Bool × List Bool => (([] : List (Unbounded.ExtOp × List ℕ)),
+          List.range (f p))) encP (Circuit.encCode Unbounded.encExtOp) :=
     (ComputableInPolyTime.const []).prod
       ((ComputableInPolyTime.unary_to_binary.map.comp
-        (ComputableInPolyTime.range.comp hqP)).of_enc_eq fun p =>
+        (ComputableInPolyTime.range.comp hf)).of_enc_eq fun p =>
         congrArg (encList encNat) (by simp only [Function.comp_apply, List.map_id']))
-  have hmaxBin : ComputableInPolyTime (fun p : List Bool × List Bool => max (q p.1) p.1.length)
-      encP encNat :=
-    (ComputableInPolyTime.unary_to_binary.comp hmax).of_enc_eq fun _ => rfl
-  have hcomp := Circuit.computableInPolyTime_compCode hmaxBin hcertCode hrange
-  exact (hmax.prod hcomp).of_enc_eq fun p => by
-    rw [Unbounded.encExtCircuit, Circuit.encCircuit_apply, code_padInputs]
+  have hc1 := Circuit.computableInPolyTime_compCode hmaxBin hC₁c (hrange _ hq₁P)
+  have hc2 := Circuit.computableInPolyTime_compCode hmaxBin hcertCode (hrange _ hqP)
+  have happ := Circuit.computableInPolyTime_appendCode hmaxBin hc1 hc2
+  have hcode := Circuit.computableInPolyTime_compCode hmaxBin
+    (ComputableInPolyTime.const orGate.code) happ
+  exact (hmax.prod hcode).of_enc_eq fun p => by
+    rw [Unbounded.encExtCircuit, Circuit.encCircuit_apply, checkedPad, code_checkedCircuit]
 
 private theorem nthRoot_le_rpow_real {r_w : ℕ} (hr : 0 < r_w) (n : ℕ) :
     (Nat.nthRoot r_w n : ℝ) ≤ (n : ℝ) ^ ((r_w : ℝ)⁻¹) := by
@@ -770,16 +969,10 @@ private theorem eventually_poly_mul_two_pow_nthRoot_le {r_w : ℕ} (hr : 0 < r_w
     (K := (2 * (C.size + d + 1) : ℝ)) (by positivity) hε
   have hbound := eventually_mul_rpow_le_rpow hlt (2 * ((d : ℝ) + 1))
   filter_upwards [hlog, hbound] with n hln hsn
-  have hC : C ≤ 2 ^ C.size := (Nat.lt_size_self C).le
-  have hnp : (n + 1) ^ d ≤ 2 ^ (d * (Nat.log 2 (n + 1) + 1)) := by
-    have h1 : n + 1 ≤ 2 ^ (Nat.log 2 (n + 1) + 1) :=
-      (Nat.lt_pow_succ_log_self Nat.one_lt_two (n + 1)).le
-    calc (n + 1) ^ d ≤ (2 ^ (Nat.log 2 (n + 1) + 1)) ^ d := Nat.pow_le_pow_left h1 d
-      _ = 2 ^ (d * (Nat.log 2 (n + 1) + 1)) := by rw [← pow_mul, mul_comm]
   have hnat : C * (n + 1) ^ d * 2 ^ (d * Nat.nthRoot r_w n) ≤
       2 ^ (C.size + d * (Nat.log 2 (n + 1) + 1) + d * Nat.nthRoot r_w n) := by
-    rw [pow_add, pow_add]
-    exact Nat.mul_le_mul_right _ (Nat.mul_le_mul hC hnp)
+    rw [pow_add _ (C.size + _)]
+    exact Nat.mul_le_mul_right _ (Nat.mul_pow_succ_le_two_pow C d n)
   have hcast : ((C * (n + 1) ^ d * 2 ^ (d * Nat.nthRoot r_w n) : ℕ) : ℝ) ≤
       (2 : ℝ) ^ (((C.size + d * (Nat.log 2 (n + 1) + 1) + d * Nat.nthRoot r_w n : ℕ) : ℝ)) := by
     rw [Real.rpow_natCast]
@@ -845,56 +1038,15 @@ of depth at most `dW` and canonical code length at most `L x`. -/
     (toCNFExt m (D x)).eval
       (fun y => W.eval (Unbounded.extInterpretation (modGate m)) y 0) = true}
 
-/-- **Subexponential-savings `NTIME` simulation of small `ACC⁰` witnesses** ([Williams2014],
-Theorem 3.2 witness-checking step combined with Theorem 4.1 `exists_acc0SAT_decider`): for every
-constant decoder depth `dD`, witness depth `dW`, and modulus `m > 0`, there exist `r_w > 0`,
-`0 < δ < 1`, and `c₀ > 0` (depending only on `dD`, `dW`, and `m`) such that for every
-polynomial-time uniform depth-`≤ dD` `ACC⁰[m]` succinct 3-CNF family `D` with quasilinear
-clause-index count `q x ≤ |x| + c * Nat.log 2 (|x| + 2) + c`, deciding whether `toCNFExt m (D x)`
-has a depth-`≤ dW`, code-length-`≤ 2 ^ Nat.nthRoot r_w |x|` `ACC⁰[m]` satisfying witness lies in
-`NTIME(⌊2 ^ (n - c₀ * n ^ δ)⌋₊)`. -/
-theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (hm : 0 < m) :
-    ∃ (r_w : ℕ) (δ c₀ : ℝ), 0 < r_w ∧ 0 < δ ∧ δ < 1 ∧ 0 < c₀ ∧
-      ∀ {q r : List Bool → ℕ}
-        (D : (x : List Bool) → Circuit Unbounded.extSignature (q x) (3 * (r x + 1)))
-        (c : ℕ),
-        ComputableInPolyTime q encBits encUnary →
-        ComputableInPolyTime r encBits encUnary →
-        ComputableInPolyTime (fun x => (D x).code) encBits (Circuit.encCode Unbounded.encExtOp) →
-        (∀ x, (D x).depth ≤ dD) →
-        (∀ x, q x ≤ x.length + c * Nat.log 2 (x.length + 2) + c) →
-        smallACC0WitnessLanguage m dW D (fun x => 2 ^ Nat.nthRoot r_w x.length) ∈
-          NTIME encBits fun n => ⌊(2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ)⌋₊ := by
-  classical
-  obtain ⟨ε, δ, c₀, hε, hεδ, hδ1, hc₀, decideSAT, T_sat, hSAT_O, hSAT_corr, M_sat, hSAT_time⟩ :=
-    exists_acc0SAT_decider (dD + dW + 5) hm
-  set r_w : ℕ := Nat.ceil (2 / ε) + 1
-  have hrw_pos : 0 < r_w := Nat.succ_pos _
-  have hrw_lt : (r_w : ℝ)⁻¹ < ε := by
-    rw [inv_lt_comm₀ (by positivity) hε]
-    have : 2 / ε ≤ (Nat.ceil (2 / ε) : ℝ) := Nat.le_ceil _
-    have : 1 / ε < 2 / ε := by
-      gcongr
-      norm_num
-    dsimp only [r_w]
-    push_cast
-    linarith [one_div ε]
-  refine ⟨r_w, δ, c₀ / 2, hrw_pos, lt_trans hε hεδ, hδ1, by positivity, ?_⟩
-  intro q r D c hq hr hD hdepth hq_le
-  let padCert : List Bool × List Bool → Σ n, Circuit Unbounded.extSignature n 1 := fun p =>
-    ⟨max (q p.1) p.1.length, padInputs (certificateCircuitExt (D p.1) dW p.2) p.1.length⟩
-  have hpad_poly : ComputableInPolyTime padCert (encPair encBits encBits)
-      (Unbounded.encExtCircuit 1) :=
-    computableInPolyTime_padCertificateCircuitExt D hq hr hD dW
-  obtain ⟨Tc, Sc, hTc, hSc, hpadO⟩ := hpad_poly.exists_computableInO
-  obtain ⟨_, d_out, hdeg⟩ := hpad_poly.exists_degree
-  obtain ⟨C_out, hC_out⟩ := hdeg.2
-  obtain ⟨Ct, dt, hTc_le⟩ := hTc.exists_le
-  -- 1. Certificate length `ℓ x = 2 * 2 ^ Nat.nthRoot r_w x.length + 1` in unary
+/-- The unary witness-budget length `2 * 2 ^ Nat.nthRoot r_w |x| + 1` is computable with time
+at most `C * (|x| + 1) ^ d * 2 ^ (d * Nat.nthRoot r_w |x|)`. -/
+private theorem exists_computableInO_witnessLength {r_w : ℕ} (hr : 0 < r_w) :
+    ∃ (T S : List Bool → ℕ) (C d : ℕ),
+      ComputableInO (fun x : List Bool => 2 * 2 ^ Nat.nthRoot r_w x.length + 1)
+        encBits encUnary T S ∧
+      ∀ x : List Bool, T x ≤ C * (x.length + 1) ^ d * 2 ^ (d * Nat.nthRoot r_w x.length) := by
   have hnr_self (k : ℕ) : Nat.nthRoot r_w k ≤ k :=
-    (Nat.le_self_pow hrw_pos.ne' _).trans
-      (Nat.pow_nthRoot_le (n := r_w) (a := k) (Or.inl hrw_pos.ne'))
-  let ℓ : List Bool → ℕ := fun x => 2 * 2 ^ Nat.nthRoot r_w x.length + 1
+    (Nat.le_self_pow hr.ne' _).trans (Nat.pow_nthRoot_le (n := r_w) (a := k) (Or.inl hr.ne'))
   have hroot : ComputableInPolyTime (fun x : List Bool => Nat.nthRoot r_w x.length)
       encBits encUnary := by
     have hlen_bits : ComputableInPolyTime (fun x : List Bool => x.length) encBits encUnary := by
@@ -910,66 +1062,145 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
   have h2p1_poly : ComputableInPolyTime (fun k : ℕ => 2 * k + 1) encUnary encUnary := by fun_prop
   obtain ⟨Tm, Sm, hTm, hSm, hmO⟩ := h2p1_poly.exists_computableInO
   obtain ⟨Cm, dm, hTm_le⟩ := hTm.exists_le
-  have hℓO : ComputableInO ℓ encBits encUnary _ _ := hmO.comp hpowO
-  -- 2. Asymptotic threshold `M₀` where `|enc (padCert (x, w))| ≤ 2 ^ (n ^ ε)`
-  have hpair_le (x w : List Bool) (hw : w.length = ℓ x) :
-      (encPair encBits encBits (x, w)).length + 1 ≤
-        7 * (x.length + 1) * 2 ^ Nat.nthRoot r_w x.length := by
-    set n := x.length with hn
-    set P := 2 ^ Nat.nthRoot r_w n with hP
-    have hP1 : 1 ≤ P := Nat.one_le_two_pow
-    simp only [length_encPair, encBits_apply, hw, ℓ]
-    rw [← hn, ← hP]
-    have h1 : 2 * n + 3 ≤ 5 * (n + 1) * P :=
-      (by omega : 2 * n + 3 ≤ 5 * (n + 1)).trans (Nat.le_mul_of_pos_right _ hP1)
-    have h2 : 2 * P ≤ 2 * (n + 1) * P := Nat.mul_le_mul_right P (by omega)
-    have : 7 * (n + 1) * P = 5 * (n + 1) * P + 2 * (n + 1) * P := by ring
-    omega
-  let C_enc : ℕ := (C_out + 1) * 7 ^ d_out
-  have henc_ev := eventually_poly_mul_two_pow_nthRoot_le hrw_pos hrw_lt C_enc d_out
+  have hℓO : ComputableInO (fun x : List Bool => 2 * 2 ^ Nat.nthRoot r_w x.length + 1)
+      encBits encUnary _ _ := hmO.comp hpowO
+  refine ⟨_, _, Cr + 1 + Cm * 2 ^ dm, dr + dm + 1, hℓO, fun x => ?_⟩
+  set n := x.length with hn
+  set P := 2 ^ Nat.nthRoot r_w n with hP
+  have hP1 : 1 ≤ P := Nat.one_le_two_pow
+  set E := (n + 1) ^ (dr + dm + 1) * 2 ^ ((dr + dm + 1) * Nat.nthRoot r_w n) with hE
+  have hn1 : n + 1 ≤ (n + 1) ^ (dr + dm + 1) := Nat.le_self_pow (by omega) _
+  have h2P : P ≤ 2 ^ ((dr + dm + 1) * Nat.nthRoot r_w n) := by
+    rw [hP]
+    exact Nat.pow_le_pow_right Nat.one_lt_two.le (Nat.le_mul_of_pos_left _ (by omega))
+  have h2one : 1 ≤ 2 ^ ((dr + dm + 1) * Nat.nthRoot r_w n) := Nat.one_le_two_pow
+  have hTr_b : Tr x ≤ Cr * E := by
+    have h1 : (n + 1) ^ dr ≤ E :=
+      (Nat.pow_le_pow_right (Nat.succ_pos _) (by omega)).trans (Nat.le_mul_of_pos_right _ h2one)
+    have := hTr_le x
+    simp only [encBits_apply, ← hn] at this
+    exact this.trans (Nat.mul_le_mul_left Cr h1)
+  have hExp_b : (Nat.nthRoot r_w n + 1) * P ≤ E :=
+    Nat.mul_le_mul ((Nat.add_le_add_right (hnr_self n) 1).trans hn1) h2P
+  have hTm_b : Tm P ≤ Cm * 2 ^ dm * E := by
+    have h1 := hTm_le P
+    simp only [encUnary_apply, List.length_replicate] at h1
+    have hP2 : (P + 1) ^ dm ≤ 2 ^ dm * P ^ dm := by
+      rw [← Nat.mul_pow]
+      exact Nat.pow_le_pow_left (by omega) dm
+    have h3 : P ^ dm ≤ E := by
+      have h4 : P ^ dm ≤ 2 ^ ((dr + dm + 1) * Nat.nthRoot r_w n) := by
+        rw [hP, ← pow_mul]
+        exact Nat.pow_le_pow_right Nat.one_lt_two.le (by
+          rw [Nat.mul_comm (Nat.nthRoot r_w n) dm]
+          exact Nat.mul_le_mul_right _ (by omega))
+      exact h4.trans (Nat.le_mul_of_pos_left _ (Nat.pow_pos (Nat.succ_pos n)))
+    calc Tm P ≤ Cm * (P + 1) ^ dm := h1
+      _ ≤ Cm * (2 ^ dm * P ^ dm) := Nat.mul_le_mul_left Cm hP2
+      _ = Cm * 2 ^ dm * P ^ dm := by ring
+      _ ≤ Cm * 2 ^ dm * E := Nat.mul_le_mul_left _ h3
+  have heq : (Cr + 1 + Cm * 2 ^ dm) * E = Cr * E + E + Cm * 2 ^ dm * E := by ring
+  have hfin : (Cr + 1 + Cm * 2 ^ dm) * (n + 1) ^ (dr + dm + 1) *
+      2 ^ ((dr + dm + 1) * Nat.nthRoot r_w n) = (Cr + 1 + Cm * 2 ^ dm) * E := by
+    rw [hE, Nat.mul_assoc]
+  omega
+
+/-- **Shared `NTIME` simulation of padded unsatisfiability checks.** Suppose a language `L` is
+the set of `x` for which some certificate `w` of length `ℓ x` makes the padded `ACC⁰[m]` circuit
+`g (x, w)` of depth at most `d0` unsatisfiable, where `g` is polynomial-time computable, the input
+count of `g (x, w)` is quasilinear, and the certificate length, the encoding size and the time to
+compute `ℓ` are bounded by `a * (|x| + 1) ^ a * 2 ^ (a * Nat.nthRoot r_w |x|)`. Then `L` is in
+`NTIME(⌊2 ^ (n - c₀ * n ^ δ)⌋₊)`, for `r_w`, `δ`, `c₀` depending only on `d0` and `m`. -/
+private theorem exists_ntime_of_padded_unsat (d0 : ℕ) {m : ℕ} (hm : 0 < m) :
+    ∃ (r_w : ℕ) (δ c₀ : ℝ), 0 < r_w ∧ 0 < δ ∧ δ < 1 ∧ 0 < c₀ ∧
+      ∀ {ℓ Sℓ : List Bool → ℕ}
+        (g : List Bool × List Bool → Σ n, Circuit Unbounded.extSignature n 1)
+        (L : Set (List Bool)) (a c : ℕ), 0 < a →
+        ComputableInO ℓ encBits encUnary
+          (fun x => a * ((x.length + 1) ^ a * 2 ^ (a * Nat.nthRoot r_w x.length))) Sℓ →
+        ComputableInPolyTime g (encPair encBits encBits) (Unbounded.encExtCircuit 1) →
+        (∀ x w, w.length = ℓ x → (encPair encBits encBits (x, w)).length + 1 ≤
+          a * ((x.length + 1) ^ a * 2 ^ (a * Nat.nthRoot r_w x.length))) →
+        (∀ x w, (g (x, w)).2.depth ≤ d0) →
+        (∀ x w, x.length ≤ (g (x, w)).1) →
+        (∀ x w, (g (x, w)).1 ≤ x.length + c * Nat.log 2 (x.length + 2) + c) →
+        (∀ x, x ∈ L ↔ ∃ w : List Bool, w.length = ℓ x ∧
+          g (x, w) ∉ SignatureCircuitSAT (Unbounded.extInterpretation (modGate m))) →
+        L ∈ NTIME encBits fun n => ⌊(2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ)⌋₊ := by
+  classical
+  obtain ⟨ε, δ, c₀, hε, hεδ, hδ1, hc₀, decideSAT, T_sat, hSAT_O, hSAT_corr, M_sat, hSAT_time⟩ :=
+    exists_acc0SAT_decider d0 hm
+  set r_w : ℕ := Nat.ceil (2 / ε) + 1
+  have hrw_pos : 0 < r_w := Nat.succ_pos _
+  have hrw_lt : (r_w : ℝ)⁻¹ < ε := by
+    rw [inv_lt_comm₀ (by positivity) hε]
+    have : 2 / ε ≤ (Nat.ceil (2 / ε) : ℝ) := Nat.le_ceil _
+    have : 1 / ε < 2 / ε := by
+      gcongr
+      norm_num
+    dsimp only [r_w]
+    push_cast
+    linarith [one_div ε]
+  refine ⟨r_w, δ, c₀ / 2, hrw_pos, lt_trans hε hεδ, hδ1, by positivity, ?_⟩
+  intro ℓ Sℓ g L a c ha hℓO₀ hg_poly hpair₀ hdepth hn_le hq_le hL
+  obtain ⟨Φ, hΦ⟩ : ∃ Φ : ℕ → ℕ, ∀ n, Φ n = (n + 1) ^ a * 2 ^ (a * Nat.nthRoot r_w n) :=
+    ⟨_, fun _ => rfl⟩
+  have hℓO : ComputableInO ℓ encBits encUnary (fun x => a * Φ x.length) Sℓ := by
+    simpa only [hΦ] using hℓO₀
+  have hpair : ∀ x w, w.length = ℓ x →
+      (encPair encBits encBits (x, w)).length + 1 ≤ a * Φ x.length := fun x w hw => by
+    rw [hΦ]; exact hpair₀ x w hw
+  obtain ⟨Tc, Sc, hTc, hSc, hpadO⟩ := hg_poly.exists_computableInO
+  obtain ⟨_, d_out, hdeg⟩ := hg_poly.exists_degree
+  obtain ⟨C_out, hC_out⟩ := hdeg.2
+  obtain ⟨Ct, dt, hTc_le⟩ := hTc.exists_le
+  have hΦ1 (n : ℕ) : 1 ≤ Φ n := by
+    rw [hΦ]; exact Nat.mul_pos (Nat.pow_pos (Nat.succ_pos _)) (Nat.pow_pos (by norm_num))
+  have hΦpow (n k : ℕ) :
+      Φ n ^ k = (n + 1) ^ (a * k) * 2 ^ ((a * k) * Nat.nthRoot r_w n) := by
+    rw [hΦ, mul_pow, ← pow_mul, ← pow_mul, Nat.mul_right_comm a (Nat.nthRoot r_w n) k]
+  have hnΦ (n : ℕ) : n ≤ Φ n := by
+    rw [hΦ]
+    exact (Nat.le_succ n).trans ((Nat.le_self_pow ha.ne' _).trans
+      (Nat.le_mul_of_pos_right _ (Nat.pow_pos (by norm_num))))
+  -- 2. Asymptotic threshold `M₀` where `|enc (g (x, w))| ≤ 2 ^ (n ^ ε)`
+  let C_enc : ℕ := C_out * a ^ d_out
+  have henc_ev := eventually_poly_mul_two_pow_nthRoot_le hrw_pos hrw_lt C_enc (a * d_out)
   obtain ⟨M₀, hM₀⟩ := Filter.eventually_atTop.mp henc_ev
   have hpad_len_bound (x w : List Bool) (hw : w.length = ℓ x) :
-      (Unbounded.encExtCircuit 1 (padCert (x, w))).length ≤
-        C_enc * (x.length + 1) ^ d_out * 2 ^ (d_out * Nat.nthRoot r_w x.length) := by
-    set n := x.length with hn
-    set P := 2 ^ Nat.nthRoot r_w n with hP
-    have hpair : (encPair encBits encBits (x, w)).length + 1 ≤ 7 * (n + 1) * P :=
-      hpair_le x w hw
-    have h1 := hC_out (x, w)
-    calc (Unbounded.encExtCircuit 1 (padCert (x, w))).length
-        ≤ C_out * ((encPair encBits encBits (x, w)).length + 1) ^ d_out := h1
-      _ ≤ (C_out + 1) * (7 * (n + 1) * P) ^ d_out :=
-          Nat.mul_le_mul (Nat.le_succ _) (Nat.pow_le_pow_left hpair d_out)
-      _ = ((C_out + 1) * 7 ^ d_out) * (n + 1) ^ d_out * P ^ d_out := by
-          rw [Nat.mul_pow, Nat.mul_pow]; ring
-      _ = C_enc * (n + 1) ^ d_out * 2 ^ (d_out * Nat.nthRoot r_w n) := by
-          rw [show P ^ d_out = 2 ^ (d_out * Nat.nthRoot r_w n) by
-            dsimp only [P]; rw [← pow_mul, mul_comm]]
+      (Unbounded.encExtCircuit 1 (g (x, w))).length ≤
+        C_enc * (x.length + 1) ^ (a * d_out) *
+          2 ^ ((a * d_out) * Nat.nthRoot r_w x.length) := by
+    calc (Unbounded.encExtCircuit 1 (g (x, w))).length
+        ≤ C_out * ((encPair encBits encBits (x, w)).length + 1) ^ d_out := hC_out (x, w)
+      _ ≤ C_out * (a * Φ x.length) ^ d_out :=
+          Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (hpair x w hw) d_out)
+      _ = C_enc * Φ x.length ^ d_out := by simp only [C_enc, Nat.mul_pow, Nat.mul_assoc]
+      _ = _ := by rw [hΦpow, ← Nat.mul_assoc]
   have hpad_guarded (x w : List Bool) (hx : M₀ ≤ x.length) (hw : w.length = ℓ x) :
-      (padCert (x, w)).2.depth ≤ dD + dW + 5 ∧
-        ((Unbounded.encExtCircuit 1 (padCert (x, w))).length : ℝ) ≤
-          (2 : ℝ) ^ (((padCert (x, w)).1 : ℝ) ^ ε) := by
-    refine ⟨(depth_padInputs_le _ _).trans
-      ((depth_certificateCircuitExt_le (D x) dW w).trans (by have := hdepth x; omega)), ?_⟩
-    have h1 : ((Unbounded.encExtCircuit 1 (padCert (x, w))).length : ℝ) ≤
-        ((C_enc * (x.length + 1) ^ d_out * 2 ^ (d_out * Nat.nthRoot r_w x.length) : ℕ) : ℝ) := by
+      (g (x, w)).2.depth ≤ d0 ∧
+        ((Unbounded.encExtCircuit 1 (g (x, w))).length : ℝ) ≤
+          (2 : ℝ) ^ (((g (x, w)).1 : ℝ) ^ ε) := by
+    refine ⟨hdepth x w, ?_⟩
+    have h1 : ((Unbounded.encExtCircuit 1 (g (x, w))).length : ℝ) ≤
+        ((C_enc * (x.length + 1) ^ (a * d_out) *
+          2 ^ ((a * d_out) * Nat.nthRoot r_w x.length) : ℕ) : ℝ) := by
       exact_mod_cast hpad_len_bound x w hw
     have h2 := hM₀ x.length hx
-    have h3 : (2 : ℝ) ^ ((x.length : ℝ) ^ ε) ≤ (2 : ℝ) ^ (((padCert (x, w)).1 : ℝ) ^ ε) := by
+    have h3 : (2 : ℝ) ^ ((x.length : ℝ) ^ ε) ≤ (2 : ℝ) ^ (((g (x, w)).1 : ℝ) ^ ε) := by
       refine Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_
       refine Real.rpow_le_rpow (Nat.cast_nonneg _) ?_ hε.le
-      exact_mod_cast le_max_right (q x) x.length
+      exact_mod_cast hn_le x w
     exact (h1.trans h2).trans h3
   -- 3. Finite lookup table for `x.length < M₀`, and verifier `V`
-  let L_target := smallACC0WitnessLanguage m dW D fun y => 2 ^ Nat.nthRoot r_w y.length
   let S_fin : List (List Bool) :=
-    ((List.range M₀).flatMap BitString.enumList).filter fun x => decide (x ∈ L_target)
-  have hS_fin (x : List Bool) (hx : x.length < M₀) : x ∈ S_fin ↔ x ∈ L_target := by
+    ((List.range M₀).flatMap BitString.enumList).filter fun x => decide (x ∈ L)
+  have hS_fin (x : List Bool) (hx : x.length < M₀) : x ∈ S_fin ↔ x ∈ L := by
     simp only [S_fin, List.mem_filter, List.mem_flatMap, List.mem_range, BitString.mem_enumList,
       decide_eq_true_eq]
     exact ⟨fun h => h.2, fun h => ⟨⟨x.length, hx, rfl⟩, h⟩⟩
   let V : List Bool × List Bool → Bool := fun p =>
-    if p.1.length < M₀ then decide (p.1 ∈ S_fin) else !decideSAT (padCert p)
+    if p.1.length < M₀ then decide (p.1 ∈ S_fin) else !decideSAT (g p)
   have hguard_poly : ComputableInPolyTime
       (fun p : List Bool × List Bool => decide (p.1.length < M₀))
       (encPair encBits encBits) encBool := by fun_prop
@@ -981,97 +1212,80 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
       (ComputableInPolyTime.fst encBits encBits)
   obtain ⟨Tf, Sf, hTf, hSf, hfinO⟩ := hfin_poly.exists_computableInO
   obtain ⟨Cf, df, hTf_le⟩ := hTf.exists_le
-  have hnotSAT : ComputableInO (fun p : List Bool × List Bool => !decideSAT (padCert p))
+  have hnotSAT : ComputableInO (fun p : List Bool × List Bool => !decideSAT (g p))
       (encPair encBits encBits) encBool _ _ :=
     (ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
       fun b : Bool => !b).inO_one.comp (hSAT_O.comp hpadO)
   have hVO := (hguardO.ite hfinO hnotSAT).of_enc_eq (g := V) fun p => congrArg encBool (by
     simp only [V, decide_eq_true_eq])
   -- 4. Exactness of the verifier language
-  have hlang : {x | ∃ w : List Bool, w.length = ℓ x ∧ V (x, w) = true} = L_target := by
+  have hlang : {x | ∃ w : List Bool, w.length = ℓ x ∧ V (x, w) = true} = L := by
     ext x
     simp only [Set.mem_ofPred_eq]
     by_cases hx : x.length < M₀
     · simp only [V, hx, ↓reduceIte, decide_eq_true_eq, hS_fin x hx]
       exact ⟨fun ⟨_, _, h⟩ => h, fun h => ⟨List.replicate (ℓ x) false, by simp, h⟩⟩
-    · simp only [V, hx, ↓reduceIte, Bool.not_eq_true', ← Bool.not_eq_true]
-      refine (exists_congr fun w => and_congr_right fun hw => ?_).trans
-        (exists_cert_not_mem_SignatureCircuitSAT_iff m (D x) dW (2 ^ Nat.nthRoot r_w x.length))
-      obtain ⟨hd, hl⟩ := hpad_guarded x w (Nat.le_of_not_lt hx) hw
-      exact not_congr ((hSAT_corr _ hd hl).trans (padInputs_mem_SignatureCircuitSAT_iff m _ _))
+    · have hxge : M₀ ≤ x.length := Nat.le_of_not_lt hx
+      simp only [V, hx, ↓reduceIte, Bool.not_eq_true']
+      rw [hL x]
+      constructor
+      · rintro ⟨w, hw, hsatf⟩
+        obtain ⟨hd, hl⟩ := hpad_guarded x w hxge hw
+        refine ⟨w, hw, ?_⟩
+        rw [← hSAT_corr _ hd hl, hsatf]; decide
+      · rintro ⟨w, hw, hnot⟩
+        obtain ⟨hd, hl⟩ := hpad_guarded x w hxge hw
+        refine ⟨w, hw, ?_⟩
+        cases hb : decideSAT (g (x, w))
+        · rfl
+        · exact absurd ((hSAT_corr _ hd hl).1 hb) hnot
   -- 5. Uniform time envelope for `setOf_exists_mem_NTIME`
-  let D_all : ℕ := dr + dm + dg + df + dt + 2
-  let C_poly : ℕ := (10 + Cr + Cm * 2 ^ dm + Cg * 7 ^ dg + Cf * 7 ^ df + Ct * 7 ^ dt) * 4
-  have hev_poly := eventually_poly_mul_two_pow_nthRoot_le hrw_pos hrw_lt C_poly D_all
+  let D_all : ℕ := dg + df + dt + 1
+  let C_poly : ℕ := a + 1 + Cg * a ^ dg + Cf * a ^ df + Ct * a ^ dt + 2
+  have hev_poly := eventually_poly_mul_two_pow_nthRoot_le hrw_pos hrw_lt C_poly (a * D_all)
   have hev_env := eventually_subexp_envelope hε hεδ hδ1 hc₀ c
   obtain ⟨M₁, hM₁⟩ := Filter.eventually_atTop.mp (hev_poly.and hev_env)
   set M_cut := max M₀ M₁
   let tBound : ℕ → ℕ := fun n => ⌊(2 : ℝ) ^ ((n : ℝ) - (c₀ / 2) * (n : ℝ) ^ δ)⌋₊
-  -- Coarse `n`-only upper bound valid for ALL `n < M_cut` (and polynomial part for all `n`)
   let polyEnv : ℕ → ℕ := fun n =>
-    C_poly * (n + 1) ^ D_all * 2 ^ (D_all * Nat.nthRoot r_w n)
+    C_poly * (n + 1) ^ (a * D_all) * 2 ^ ((a * D_all) * Nat.nthRoot r_w n)
   let satEnv : ℕ → ℕ := fun n =>
     (M_sat + 1) * 2 ^ (n + c * Nat.log 2 (n + 2) + c) + M_sat + 1
   let B_fin : ℕ := (Finset.range M_cut).sup fun n => polyEnv n + satEnv n + 4
   let C_total : ℕ := max (2 * M_sat + 4) (B_fin + M_sat + 4)
-  change L_target ∈ NTIME encBits tBound
+  change L ∈ NTIME encBits tBound
   rw [← hlang]
   refine setOf_exists_mem_NTIME hℓO hVO (C := C_total) fun x w hw => ?_
   set n := x.length with hn
-  set P := 2 ^ Nat.nthRoot r_w n with hP
-  have hP1 : 1 ≤ P := Nat.one_le_two_pow
-  have hnr_le : Nat.nthRoot r_w n ≤ n := hnr_self n
-  have hpair : (encPair encBits encBits (x, w)).length + 1 ≤ 7 * (n + 1) * P := hpair_le x w hw
-  have hpow_le (k : ℕ) (hk : k ≤ D_all) :
-      ((n + 1) ^ k * P ^ k) ≤ (n + 1) ^ D_all * 2 ^ (D_all * Nat.nthRoot r_w n) := by
-    have h1 : (n + 1) ^ k ≤ (n + 1) ^ D_all := Nat.pow_le_pow_right (Nat.succ_pos _) hk
-    have h2 : P ^ k ≤ 2 ^ (D_all * Nat.nthRoot r_w n) := by
-      dsimp only [P]
-      rw [← pow_mul, mul_comm]
-      exact Nat.pow_le_pow_right Nat.one_lt_two.le (Nat.mul_le_mul_right _ hk)
-    exact Nat.mul_le_mul h1 h2
-  set E_base := (n + 1) ^ D_all * 2 ^ (D_all * Nat.nthRoot r_w n)
-  have hE1 : 1 ≤ E_base := Nat.mul_pos (Nat.pow_pos (Nat.succ_pos _)) Nat.one_le_two_pow
+  have hpair' := hpair x w hw
+  rw [← hn] at hpair'
+  have hΦ1' := hΦ1 n
+  have hnΦ' := hnΦ n
+  have hΦX : Φ n ≤ Φ n ^ D_all := Nat.le_self_pow (by dsimp only [D_all]; omega) _
+  have hX1 : 1 ≤ Φ n ^ D_all := hΦ1'.trans hΦX
   have hPairPow (k : ℕ) (hk : k ≤ D_all) :
-      ((encPair encBits encBits (x, w)).length + 1) ^ k ≤ 7 ^ k * E_base := by
-    calc ((encPair encBits encBits (x, w)).length + 1) ^ k
-        ≤ (7 * (n + 1) * P) ^ k := Nat.pow_le_pow_left hpair k
-      _ = 7 ^ k * ((n + 1) ^ k * P ^ k) := by rw [Nat.mul_pow, Nat.mul_pow, Nat.mul_assoc]
-      _ ≤ 7 ^ k * E_base := Nat.mul_le_mul_left _ (hpow_le k hk)
-  have hTr_b : Tr x ≤ Cr * E_base :=
-    (hTr_le x).trans <| Nat.mul_le_mul_left Cr <|
-      (Nat.le_mul_of_pos_right _ (Nat.pow_pos hP1)).trans
-        (hpow_le dr (by dsimp only [D_all]; omega))
-  have h1_b : (n + 1) * P ≤ E_base := by
-    simpa using hpow_le 1 (by dsimp only [D_all]; omega)
-  have hExp_b : (Nat.nthRoot r_w n + 1) * P ≤ E_base :=
-    (Nat.mul_le_mul_right P (by omega)).trans h1_b
-  have hn_b : n ≤ E_base :=
-    ((Nat.le_succ n).trans (Nat.le_mul_of_pos_right _ hP1)).trans h1_b
-  have hTm_b : Tm P ≤ Cm * 2 ^ dm * E_base := by
-    have h1 := hTm_le P
-    simp only [encUnary_apply, List.length_replicate] at h1
-    have h3 : P ^ dm ≤ E_base :=
-      (Nat.le_mul_of_pos_left _ (Nat.pow_pos (Nat.succ_pos n))).trans
-        (hpow_le dm (by dsimp only [D_all]; omega))
-    calc Tm P ≤ Cm * (P + 1) ^ dm := h1
-      _ ≤ Cm * (2 * P) ^ dm := Nat.mul_le_mul_left Cm (Nat.pow_le_pow_left (by omega) dm)
-      _ = Cm * 2 ^ dm * P ^ dm := by rw [Nat.mul_pow, Nat.mul_assoc]
-      _ ≤ Cm * 2 ^ dm * E_base := Nat.mul_le_mul_left _ h3
+      ((encPair encBits encBits (x, w)).length + 1) ^ k ≤ a ^ k * Φ n ^ D_all :=
+    calc ((encPair encBits encBits (x, w)).length + 1) ^ k ≤ (a * Φ n) ^ k :=
+          Nat.pow_le_pow_left hpair' k
+      _ = a ^ k * Φ n ^ k := Nat.mul_pow _ _ _
+      _ ≤ a ^ k * Φ n ^ D_all := Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hΦ1' hk)
   have hPairB {T : List Bool × List Bool → ℕ} {C d : ℕ}
       (hT : ∀ p, T p ≤ C * ((encPair encBits encBits p).length + 1) ^ d) (hd : d ≤ D_all) :
-      T (x, w) ≤ C * 7 ^ d * E_base := by
+      T (x, w) ≤ C * a ^ d * Φ n ^ D_all := by
     rw [Nat.mul_assoc]
     exact (hT (x, w)).trans (Nat.mul_le_mul_left C (hPairPow d hd))
   have hTg_b := hPairB hTg_le (by dsimp only [D_all]; omega)
   have hTf_b := hPairB hTf_le (by dsimp only [D_all]; omega)
   have hTc_b := hPairB hTc_le (by dsimp only [D_all]; omega)
-  have hpoly_sum : n + (Tr x + (Nat.nthRoot r_w n + 1) * P + Tm P) +
-      (Tg (x, w) + max (Tf (x, w)) (Tc (x, w) + 2)) ≤ polyEnv n := by
-    have heq : polyEnv n =
-        4 * ((10 * E_base + Cr * E_base + Cm * 2 ^ dm * E_base + Cg * 7 ^ dg * E_base +
-          Cf * 7 ^ df * E_base + Ct * 7 ^ dt * E_base)) := by
-      dsimp only [polyEnv, C_poly, E_base]; ring
+  have hpolyEnv : polyEnv n = C_poly * Φ n ^ D_all := by
+    simp only [polyEnv]; rw [hΦpow, Nat.mul_assoc]
+  have hpoly_sum : n + a * Φ n + (Tg (x, w) + max (Tf (x, w)) (Tc (x, w) + 2)) ≤ polyEnv n := by
+    have hmax_le : max (Tf (x, w)) (Tc (x, w) + 2) ≤ Tf (x, w) + Tc (x, w) + 2 := by omega
+    have haX : a * Φ n ≤ a * Φ n ^ D_all := Nat.mul_le_mul_left a hΦX
+    have heq : C_poly * Φ n ^ D_all = a * Φ n ^ D_all + Φ n ^ D_all + Cg * a ^ dg * Φ n ^ D_all +
+        Cf * a ^ df * Φ n ^ D_all + Ct * a ^ dt * Φ n ^ D_all + 2 * Φ n ^ D_all := by
+      simp only [C_poly]; ring
+    rw [hpolyEnv, heq]
     omega
   -- Split on `n < M_cut` vs `M_cut ≤ n`
   simp only [encBits_apply, encBool_apply, List.length_singleton]
@@ -1087,25 +1301,23 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
     · simp only [hlt0, decide_false, Bool.false_eq_true, ↓reduceIte]
       have hge0 : M₀ ≤ n := Nat.le_of_not_lt hlt0
       obtain ⟨hd, hl⟩ := hpad_guarded x w hge0 hw
-      have hsatR := hSAT_time (padCert (x, w)) hd hl
-      have hq'le : ((padCert (x, w)).1 : ℝ) ≤ ((n + c * Nat.log 2 (n + 2) + c : ℕ) : ℝ) :=
-        mod_cast max_le
-          (by simpa only [← hn] using hq_le x)
-          (by dsimp only; omega)
-      have hpowR : (2 : ℝ) ^ (((padCert (x, w)).1 : ℝ) - c₀ * ((padCert (x, w)).1 : ℝ) ^ δ) ≤
+      have hsatR := hSAT_time (g (x, w)) hd hl
+      have hq'le : ((g (x, w)).1 : ℝ) ≤ ((n + c * Nat.log 2 (n + 2) + c : ℕ) : ℝ) :=
+        mod_cast hq_le x w
+      have hpowR : (2 : ℝ) ^ (((g (x, w)).1 : ℝ) - c₀ * ((g (x, w)).1 : ℝ) ^ δ) ≤
           (2 : ℝ) ^ (n + c * Nat.log 2 (n + 2) + c) := by
         rw [← Real.rpow_natCast]
         exact Real.rpow_le_rpow_of_exponent_le (by norm_num)
           (by
-            have hnn := mul_nonneg hc₀.le (Real.rpow_nonneg (Nat.cast_nonneg (padCert (x, w)).1) δ)
+            have hnn := mul_nonneg hc₀.le (Real.rpow_nonneg (Nat.cast_nonneg (g (x, w)).1) δ)
             linarith)
-      have hTsat_nat : T_sat (padCert (x, w)) ≤ satEnv n := mod_cast
+      have hTsat_nat : T_sat (g (x, w)) ≤ satEnv n := mod_cast
         (by
           have hmul := mul_le_mul_of_nonneg_left hpowR (Nat.cast_nonneg (α := ℝ) M_sat)
           dsimp only [satEnv]
           push_cast
           linarith [show (0 : ℝ) ≤ (2 : ℝ) ^ (n + c * Nat.log 2 (n + 2) + c) by positivity] :
-          (T_sat (padCert (x, w)) : ℝ) ≤ (satEnv n : ℝ))
+          (T_sat (g (x, w)) : ℝ) ≤ (satEnv n : ℝ))
       have hCge : B_fin ≤ C_total := by dsimp only [C_total]; omega
       omega
   · -- Large `n ≥ M_cut`: both `M₀ ≤ n` and `M₁ ≤ n` hold!
@@ -1125,30 +1337,30 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
     have hpoly_le_target : (polyEnv n : ℝ) ≤ target :=
       hpolyR.trans (Real.rpow_le_rpow_of_exponent_le (by norm_num) hε_le)
     obtain ⟨hd, hl⟩ := hpad_guarded x w hge0 hw
-    have hsatR := hSAT_time (padCert (x, w)) hd hl
-    have hq'_ge : n ≤ (padCert (x, w)).1 := le_max_right (q x) n
-    have hq'_le : (padCert (x, w)).1 ≤ n + c * Nat.log 2 (n + 2) + c :=
-      max_le (by simpa only [← hn] using hq_le x) (by dsimp only; omega)
-    have hexp_sat : ((padCert (x, w)).1 : ℝ) - c₀ * ((padCert (x, w)).1 : ℝ) ^ δ ≤
+    have hsatR := hSAT_time (g (x, w)) hd hl
+    have hq'_ge : n ≤ (g (x, w)).1 := hn_le x w
+    have hq'_le : (g (x, w)).1 ≤ n + c * Nat.log 2 (n + 2) + c :=
+      hq_le x w
+    have hexp_sat : ((g (x, w)).1 : ℝ) - c₀ * ((g (x, w)).1 : ℝ) ^ δ ≤
         (n : ℝ) - (c₀ / 2) * (n : ℝ) ^ δ := by
-      have h1 : ((padCert (x, w)).1 : ℝ) ≤ (n : ℝ) + (c : ℝ) * ((Nat.log 2 (n + 2) : ℝ) + 1) := by
-        have hcast : ((padCert (x, w)).1 : ℝ) ≤ ((n + c * Nat.log 2 (n + 2) + c : ℕ) : ℝ) := by
+      have h1 : ((g (x, w)).1 : ℝ) ≤ (n : ℝ) + (c : ℝ) * ((Nat.log 2 (n + 2) : ℝ) + 1) := by
+        have hcast : ((g (x, w)).1 : ℝ) ≤ ((n + c * Nat.log 2 (n + 2) + c : ℕ) : ℝ) := by
           exact_mod_cast hq'_le
         push_cast at hcast
         linarith
-      have h2 : (n : ℝ) ^ δ ≤ ((padCert (x, w)).1 : ℝ) ^ δ :=
+      have h2 : (n : ℝ) ^ δ ≤ ((g (x, w)).1 : ℝ) ^ δ :=
         Real.rpow_le_rpow (Nat.cast_nonneg _) (by exact_mod_cast hq'_ge) (lt_trans hε hεδ).le
-      have h3 : c₀ * (n : ℝ) ^ δ ≤ c₀ * ((padCert (x, w)).1 : ℝ) ^ δ :=
+      have h3 : c₀ * (n : ℝ) ^ δ ≤ c₀ * ((g (x, w)).1 : ℝ) ^ δ :=
         mul_le_mul_of_nonneg_left h2 hc₀.le
       linarith
-    have hsat_le_target : (T_sat (padCert (x, w)) : ℝ) ≤ (M_sat : ℝ) * target + (M_sat : ℝ) :=
+    have hsat_le_target : (T_sat (g (x, w)) : ℝ) ≤ (M_sat : ℝ) * target + (M_sat : ℝ) :=
       hsatR.trans (by
         have h2 := Real.rpow_le_rpow_of_exponent_le (by norm_num : (1 : ℝ) ≤ 2) hexp_sat
         have := mul_le_mul_of_nonneg_left h2 (Nat.cast_nonneg (α := ℝ) M_sat)
         linarith)
-    have hsum_nat : polyEnv n + T_sat (padCert (x, w)) + 2 ≤
+    have hsum_nat : polyEnv n + T_sat (g (x, w)) + 2 ≤
         (2 * M_sat + 4) * tBound n + (M_sat + 4) := by
-      have hR : ((polyEnv n + T_sat (padCert (x, w)) + 2 : ℕ) : ℝ) ≤
+      have hR : ((polyEnv n + T_sat (g (x, w)) + 2 : ℕ) : ℝ) ≤
           (((2 * M_sat + 4) * tBound n + (M_sat + 4) : ℕ) : ℝ) := by
         push_cast
         have hMnn : (0 : ℝ) ≤ (M_sat : ℝ) := Nat.cast_nonneg _
@@ -1161,13 +1373,341 @@ theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (h
     have hmul : (2 * M_sat + 4) * tBound n ≤ C_total * tBound n := Nat.mul_le_mul_right _ hC1
     omega
 
+/-- **Checked `ACC⁰` decoders of a succinct 3-CNF**: for an instance `x`, a certificate `e` of
+length `certLength x`, polynomial in `|x|`, selects a decoder `decoder (x, e)` of `J x` output bits
+on `q x` inputs and a check circuit `check (x, e)` on `q₁ x` inputs; the decoder is only to be
+trusted when the check circuit is unsatisfiable. Both families are polynomial-time uniform and of
+constant depth. This is the form in which Williams compresses the polynomial-size decoders of a
+succinct reduction into `ACC⁰[m]` under `P ⊆ ACC⁰` ([Williams2014], Lemma 3.1);
+`exists_checkedDecoders` builds it. -/
+structure CheckedACC0Decoders (dC dD : ℕ) (q₁ q J : List Bool → ℕ) where
+  /-- The length of the certificate `e` of an instance. -/
+  certLength : List Bool → ℕ
+  /-- The constant in the polynomial bound on the certificate length. -/
+  slack : ℕ
+  /-- The check circuit `check (x, e)`; the certificate `e` is good when it is unsatisfiable. -/
+  check : (p : List Bool × List Bool) → Circuit Unbounded.extSignature (q₁ p.1) 1
+  /-- The decoder `decoder (x, e)` of the bits of a clause from its address. -/
+  decoder : (p : List Bool × List Bool) → Circuit Unbounded.extSignature (q p.1) (J p.1)
+  /-- The certificate length is computable in unary in polynomial time. -/
+  certLength_polyTime : ComputableInPolyTime certLength encBits encUnary
+  /-- The certificate length is polynomial. -/
+  certLength_le : ∀ x, certLength x ≤ slack * (x.length + 1) ^ slack
+  /-- The code of the check circuit is computable in polynomial time. -/
+  check_polyTime : ComputableInPolyTime (fun p => (check p).code) (encPair encBits encBits)
+    (Circuit.encCode Unbounded.encExtOp)
+  /-- The code of the decoder is computable in polynomial time. -/
+  decoder_polyTime : ComputableInPolyTime (fun p => (decoder p).code) (encPair encBits encBits)
+    (Circuit.encCode Unbounded.encExtOp)
+  /-- The check circuits have depth at most `dC`. -/
+  depth_check_le : ∀ p, (check p).depth ≤ dC
+  /-- The decoders have depth at most `dD`. -/
+  depth_decoder_le : ∀ p, (decoder p).depth ≤ dD
+
+/-- **Checked-decoder small-witness language**: inputs `x` with a certificate `e` of length
+`ℓ x` such that the check circuit `C₁ (x, e)` is unsatisfiable and the formula of the decoder
+`D (x, e)` has a satisfying assignment computable by an `ACC⁰[m]` circuit of depth at most `dW` and
+canonical code length at most `L x`. -/
+@[expose] def checkedACC0WitnessLanguage (m dW : ℕ) {q₁ q r : List Bool → ℕ}
+    (C₁ : (p : List Bool × List Bool) → Circuit Unbounded.extSignature (q₁ p.1) 1)
+    (D : (p : List Bool × List Bool) → Circuit Unbounded.extSignature (q p.1) (3 * (r p.1 + 1)))
+    (ℓ L : List Bool → ℕ) : Set (List Bool) :=
+  {x | ∃ e : List Bool, e.length = ℓ x ∧
+    (⟨q₁ x, C₁ (x, e)⟩ ∉ SignatureCircuitSAT (Unbounded.extInterpretation (modGate m))) ∧
+    ∃ W : Circuit Unbounded.extSignature (r x) 1, W.depth ≤ dW ∧
+      (Circuit.encCode Unbounded.encExtOp W.code).length ≤ L x ∧
+      (toCNFExt m (D (x, e))).eval
+        (fun y => W.eval (Unbounded.extInterpretation (modGate m)) y 0) = true}
+
+/-- **Subexponential-savings `NTIME` simulation of checked small `ACC⁰` witnesses**: the
+checked-decoder analogue of `smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT`. The decoder
+`R.decoder (x, e)` may depend on a certificate `e` of polynomial length `R.certLength x`, which a
+second constant-depth `ACC⁰[m]` circuit `R.check (x, e)` must certify by being unsatisfiable. For
+every depth bounds `dC`, `dD`, `dW` and modulus `m > 0` there are `r_w > 0`, `0 < δ < 1`, `c₀ > 0`
+such that for every polynomial-time uniform such family with quasilinear input counts `q₁`, `q`
+the language `checkedACC0WitnessLanguage m dW R.check R.decoder R.certLength
+(fun x => 2 ^ Nat.nthRoot r_w |x|)` lies in `NTIME(⌊2 ^ (n - c₀ * n ^ δ)⌋₊)`. The machine guesses
+`e` and the witness circuit and runs the `ACC⁰-SAT` algorithm once on the disjunction of the two
+padded circuits. -/
+theorem checkedACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dC dD dW : ℕ) {m : ℕ} (hm : 0 < m) :
+    ∃ (r_w : ℕ) (δ c₀ : ℝ), 0 < r_w ∧ 0 < δ ∧ δ < 1 ∧ 0 < c₀ ∧
+      ∀ {q₁ q r : List Bool → ℕ} (R : CheckedACC0Decoders dC dD q₁ q fun x => 3 * (r x + 1))
+        (c : ℕ),
+        ComputableInPolyTime q₁ encBits encUnary →
+        ComputableInPolyTime q encBits encUnary →
+        ComputableInPolyTime r encBits encUnary →
+        (∀ x, q₁ x ≤ x.length + c * Nat.log 2 (x.length + 2) + c) →
+        (∀ x, q x ≤ x.length + c * Nat.log 2 (x.length + 2) + c) →
+        checkedACC0WitnessLanguage m dW R.check R.decoder R.certLength
+          (fun x => 2 ^ Nat.nthRoot r_w x.length) ∈
+          NTIME encBits fun n => ⌊(2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ)⌋₊ := by
+  obtain ⟨r_w, δ, c₀, hrw_pos, hδ0, hδ1, hc₀, hgen⟩ :=
+    exists_ntime_of_padded_unsat (max dC (dD + dW + 5) + 1) hm
+  refine ⟨r_w, δ, c₀, hrw_pos, hδ0, hδ1, hc₀, ?_⟩
+  intro q₁ q r R c₁ hq₁ hq hr hq₁_le₀ hq_le₀
+  obtain ⟨ℓ, cℓ, C₁, D, hℓ, hℓ_le₀, hC₁, hD, hdC, hdD⟩ := R
+  obtain ⟨c, hq₁_le, hq_le, hℓ_le⟩ : ∃ c : ℕ,
+      (∀ x, q₁ x ≤ x.length + c * Nat.log 2 (x.length + 2) + c) ∧
+      (∀ x, q x ≤ x.length + c * Nat.log 2 (x.length + 2) + c) ∧
+      ∀ x, ℓ x ≤ c * (x.length + 1) ^ c := by
+    refine ⟨c₁ + cℓ, fun x => ?_, fun x => ?_, fun x => ?_⟩
+    · have := hq₁_le₀ x
+      rw [Nat.add_mul]
+      omega
+    · have := hq_le₀ x
+      rw [Nat.add_mul]
+      omega
+    · exact (hℓ_le₀ x).trans (Nat.mul_le_mul (by omega) (Nat.pow_le_pow_right (Nat.succ_pos _)
+        (by omega)))
+  have hpad_poly := computableInPolyTime_checkedPad (ℓ := ℓ) C₁ D hq₁ hq hr hℓ hC₁ hD dW
+  obtain ⟨T, S, C, d, hℓ₂O, hT⟩ := exists_computableInO_witnessLength hrw_pos
+  obtain ⟨Tℓ, Sℓ, hTℓ, hSℓ, hℓaO⟩ := hℓ.exists_computableInO
+  obtain ⟨Cℓ, dℓ, hTℓ_le⟩ := hTℓ.exists_le
+  obtain ⟨Ta, Sa, hTa, hSa, haddO⟩ := ComputableInPolyTime.unary_add.exists_computableInO
+  obtain ⟨Ca, da, hTa_le⟩ := hTa.exists_le
+  have hΛO : ComputableInO (fun x : List Bool => ℓ x + (2 * 2 ^ Nat.nthRoot r_w x.length + 1))
+      encBits encUnary _ _ := haddO.comp (hℓaO.prod hℓ₂O)
+  let a : ℕ := (c + d + dℓ + 8) * (da + 1)
+  let K : ℕ := Cℓ + C + Ca * (2 * c + 7) ^ da
+  have ha1 : c + d + dℓ + 8 ≤ a := Nat.le_mul_of_pos_right _ (Nat.succ_pos _)
+  have ha2 : (c + 1) * da ≤ a := by
+    dsimp only [a]
+    nlinarith [Nat.zero_le da, Nat.zero_le c, Nat.zero_le d, Nat.zero_le dℓ]
+  have ha3 : da ≤ a := by
+    dsimp only [a]
+    nlinarith [Nat.zero_le da, Nat.zero_le c, Nat.zero_le d, Nat.zero_le dℓ]
+  have hbound : ∀ x : List Bool,
+      Tℓ x + T x + Ta (ℓ x, 2 * 2 ^ Nat.nthRoot r_w x.length + 1) ≤
+        K * ((x.length + 1) ^ a * 2 ^ (a * Nat.nthRoot r_w x.length)) := by
+    intro x
+    have hlx := hℓ_le x
+    have h1 := hTℓ_le x
+    have h2 := hT x
+    have h3 := hTa_le (ℓ x, 2 * 2 ^ Nat.nthRoot r_w x.length + 1)
+    simp only [encBits_apply] at h1
+    simp only [length_encPair, encUnary_apply, List.length_replicate] at h3
+    set n := x.length with hn
+    set P := 2 ^ Nat.nthRoot r_w n with hP
+    have hP1 : 1 ≤ P := Nat.one_le_two_pow
+    have hn1 : n + 1 ≤ (n + 1) ^ (c + 1) := Nat.le_self_pow (by omega) _
+    set Y := (n + 1) ^ (c + 1) * P with hY
+    have hY1 : n + 1 ≤ Y := hn1.trans (Nat.le_mul_of_pos_right _ hP1)
+    have hcY : c * (n + 1) ^ c ≤ c * Y := by
+      refine Nat.mul_le_mul_left c ?_
+      calc (n + 1) ^ c ≤ (n + 1) ^ (c + 1) := Nat.pow_le_pow_right (Nat.succ_pos _) (by omega)
+        _ ≤ Y := Nat.le_mul_of_pos_right _ hP1
+    have hPY : P ≤ Y := Nat.le_mul_of_pos_left _ (Nat.pow_pos (Nat.succ_pos _))
+    have hlen : (2 * ℓ x + (2 * P + 1)) + 1 + 1 ≤ (2 * c + 7) * Y := by
+      have : (2 * c + 7) * Y = 2 * (c * Y) + 7 * Y := by ring
+      omega
+    have e1 : (n + 1) ^ dℓ ≤ (n + 1) ^ a * 2 ^ (a * Nat.nthRoot r_w n) :=
+      (Nat.pow_le_pow_right (Nat.succ_pos _) (by omega)).trans
+        (Nat.le_mul_of_pos_right _ Nat.one_le_two_pow)
+    have e2 : (n + 1) ^ d * 2 ^ (d * Nat.nthRoot r_w n) ≤
+        (n + 1) ^ a * 2 ^ (a * Nat.nthRoot r_w n) :=
+      Nat.mul_le_mul (Nat.pow_le_pow_right (Nat.succ_pos _) (by omega))
+        (Nat.pow_le_pow_right (by norm_num) (Nat.mul_le_mul_right _ (by omega)))
+    have e3 : Y ^ da ≤ (n + 1) ^ a * 2 ^ (a * Nat.nthRoot r_w n) := by
+      calc Y ^ da = ((n + 1) ^ (c + 1)) ^ da * P ^ da := Nat.mul_pow _ _ _
+        _ = (n + 1) ^ ((c + 1) * da) * 2 ^ (Nat.nthRoot r_w n * da) := by
+          rw [← pow_mul, hP, ← pow_mul]
+        _ ≤ _ := Nat.mul_le_mul (Nat.pow_le_pow_right (Nat.succ_pos _) ha2)
+          (Nat.pow_le_pow_right (by norm_num) (by
+            rw [Nat.mul_comm a]; exact Nat.mul_le_mul_left _ ha3))
+    have h3' : Ta (ℓ x, 2 * P + 1) ≤ Ca * ((2 * c + 7) ^ da * Y ^ da) := by
+      refine h3.trans (Nat.mul_le_mul_left _ ?_)
+      rw [← Nat.mul_pow]
+      exact Nat.pow_le_pow_left (by omega) da
+    generalize (n + 1) ^ a * 2 ^ (a * Nat.nthRoot r_w n) = Φ at e1 e2 e3 ⊢
+    have h1' : Tℓ x ≤ Cℓ * Φ := h1.trans (Nat.mul_le_mul_left _ e1)
+    have h2' : T x ≤ C * Φ := by
+      rw [Nat.mul_assoc] at h2
+      exact h2.trans (Nat.mul_le_mul_left _ e2)
+    have h3'' : Ta (ℓ x, 2 * P + 1) ≤ Ca * (2 * c + 7) ^ da * Φ := by
+      calc _ ≤ Ca * ((2 * c + 7) ^ da * Y ^ da) := h3'
+        _ ≤ Ca * ((2 * c + 7) ^ da * Φ) := Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ e3)
+        _ = _ := by ring
+    have heq : K * Φ = Cℓ * Φ + C * Φ + Ca * (2 * c + 7) ^ da * Φ := by
+      simp only [K]; ring
+    omega
+  have hΛO' := hΛO.mono_time (T' := fun x => a * ((x.length + 1) ^ a *
+      2 ^ (a * Nat.nthRoot r_w x.length))) K fun x => by
+    refine (hbound x).trans ?_
+    generalize (x.length + 1) ^ a * 2 ^ (a * Nat.nthRoot r_w x.length) = Φ
+    have ha : 0 < a := by omega
+    exact Nat.mul_le_mul_left K ((Nat.le_mul_of_pos_left Φ ha).trans (Nat.le_succ _))
+  refine hgen (checkedPad (ℓ := ℓ) dW C₁ D) (checkedACC0WitnessLanguage m dW C₁ D ℓ
+    fun x => 2 ^ Nat.nthRoot r_w x.length) a c (by omega) hΛO' hpad_poly ?_ ?_ ?_ ?_ ?_
+  · intro x w hw
+    have hw' : w.length = ℓ x + (2 * 2 ^ Nat.nthRoot r_w x.length + 1) := hw
+    have hlx := hℓ_le x
+    set n := x.length with hn
+    set P := 2 ^ Nat.nthRoot r_w n with hP
+    have hP1 : 1 ≤ P := Nat.one_le_two_pow
+    have hn1 : n + 1 ≤ (n + 1) ^ (c + 1) := Nat.le_self_pow (by omega) _
+    have hcY : c * (n + 1) ^ c ≤ c * ((n + 1) ^ (c + 1) * P) := by
+      refine Nat.mul_le_mul_left c ?_
+      calc (n + 1) ^ c ≤ (n + 1) ^ (c + 1) := Nat.pow_le_pow_right (Nat.succ_pos _) (by omega)
+        _ ≤ _ := Nat.le_mul_of_pos_right _ hP1
+    have hY1 : n + 1 ≤ (n + 1) ^ (c + 1) * P := hn1.trans (Nat.le_mul_of_pos_right _ hP1)
+    have hPY : P ≤ (n + 1) ^ (c + 1) * P := Nat.le_mul_of_pos_left _ (Nat.pow_pos (Nat.succ_pos _))
+    have hY : (n + 1) ^ (c + 1) * P ≤ (n + 1) ^ a * 2 ^ (a * Nat.nthRoot r_w n) :=
+      Nat.mul_le_mul (Nat.pow_le_pow_right (Nat.succ_pos _) (by omega))
+        (Nat.pow_le_pow_right (by norm_num) (Nat.le_mul_of_pos_left _ (by omega)))
+    have hlen : (encPair encBits encBits (x, w)).length + 1 ≤
+        (c + 7) * ((n + 1) ^ (c + 1) * P) := by
+      simp only [length_encPair, encBits_apply, hw']
+      have : (c + 7) * ((n + 1) ^ (c + 1) * P) =
+          c * ((n + 1) ^ (c + 1) * P) + 7 * ((n + 1) ^ (c + 1) * P) := by ring
+      omega
+    exact hlen.trans (Nat.mul_le_mul (by omega) hY)
+  · intro x w
+    refine (depth_checkedCircuit_le (C₁ (x, w.take (ℓ x))) (D (x, w.take (ℓ x))) dW
+      (w.drop (ℓ x)) _ ((le_max_left _ _).trans (le_max_left _ _))
+      ((le_max_right _ _).trans (le_max_left _ _))).trans ?_
+    have h2 := hdC (x, w.take (ℓ x))
+    have h3 := hdD (x, w.take (ℓ x))
+    omega
+  · intro x w
+    exact le_max_right _ _
+  · intro x w
+    exact max_le (max_le (hq₁_le x) (hq_le x)) (by change x.length ≤ _; omega)
+  · intro x
+    have hmem (w' : List Bool) :
+        (checkedPad (ℓ := ℓ) dW C₁ D (x, w') ∉
+            SignatureCircuitSAT (Unbounded.extInterpretation (modGate m))) ↔
+          (⟨q₁ x, C₁ (x, w'.take (ℓ x))⟩ ∉
+              SignatureCircuitSAT (Unbounded.extInterpretation (modGate m))) ∧
+            ⟨q x, certificateCircuitExt (D (x, w'.take (ℓ x))) dW (w'.drop (ℓ x))⟩ ∉
+              SignatureCircuitSAT (Unbounded.extInterpretation (modGate m)) :=
+      checkedCircuit_not_mem_SignatureCircuitSAT_iff m _ _ dW _ _ _ _
+    constructor
+    · rintro ⟨e, he, hC, W, hWd, hWl, hWs⟩
+      obtain ⟨w, hw, hcert⟩ := (exists_cert_not_mem_SignatureCircuitSAT_iff m (D (x, e)) dW
+        (2 ^ Nat.nthRoot r_w x.length)).2 ⟨W, hWd, hWl, hWs⟩
+      refine ⟨e ++ w, by simp only [List.length_append, he, hw], (hmem _).2 ?_⟩
+      rw [List.take_left' he, List.drop_left' he]
+      exact ⟨hC, hcert⟩
+    · rintro ⟨w', hw', hunsat⟩
+      obtain ⟨h1, h2⟩ := (hmem w').1 hunsat
+      have hw'' : w'.length = ℓ x + (2 * 2 ^ Nat.nthRoot r_w x.length + 1) := hw'
+      have hlen1 : (w'.take (ℓ x)).length = ℓ x := by rw [List.length_take]; omega
+      have hlen2 : (w'.drop (ℓ x)).length = 2 * 2 ^ Nat.nthRoot r_w x.length + 1 := by
+        rw [List.length_drop]; omega
+      exact ⟨w'.take (ℓ x), hlen1, h1,
+        (exists_cert_not_mem_SignatureCircuitSAT_iff m (D (x, w'.take (ℓ x))) dW
+          (2 ^ Nat.nthRoot r_w x.length)).1 ⟨w'.drop (ℓ x), hlen2, h2⟩⟩
+
+/-- **Hard-witness transfer for checked quasilinear `ACC⁰` succinct 3-CNF reductions**: the
+checked-decoder analogue of `exists_hard_acc0Witness_of_quasilinear_reduction`. For every depth
+bounds `dC`, `dD`, `dW` and modulus `m > 0` there are `r_w > 0` and a language
+`H ∈ NTIME encBits (2 ^ n)` such that whenever checked decoders `R` with quasilinear input counts
+`q₁`, `q` reduce `H` in the sense that every certificate `e` of length `R.certLength x` passing the
+check `R.check (x, e)` and whose formula `toCNFExt m (R.decoder (x, e))` is satisfiable puts `x`
+in `H`, there are `x ∈ H` of arbitrarily large length with no certificate `e` passing the check
+and admitting a depth-`≤ dW`, code-length-`≤ 2 ^ Nat.nthRoot r_w |x|` `ACC⁰[m]` satisfying
+witness circuit. -/
+theorem exists_hard_checkedACC0Witness (dC dD dW : ℕ) {m : ℕ} (hm : 0 < m) :
+    ∃ (r_w : ℕ) (H : Set (List Bool)), 0 < r_w ∧ H ∈ NTIME encBits (fun n => 2 ^ n) ∧
+      ∀ {q₁ q r : List Bool → ℕ} (R : CheckedACC0Decoders dC dD q₁ q fun x => 3 * (r x + 1))
+        (c : ℕ),
+        ComputableInPolyTime q₁ encBits encUnary →
+        ComputableInPolyTime q encBits encUnary →
+        ComputableInPolyTime r encBits encUnary →
+        (∀ x, q₁ x ≤ x.length + c * Nat.log 2 (x.length + 2) + c) →
+        (∀ x, q x ≤ x.length + c * Nat.log 2 (x.length + 2) + c) →
+        (∀ x e, e.length = R.certLength x →
+          ⟨q₁ x, R.check (x, e)⟩ ∉ SignatureCircuitSAT (Unbounded.extInterpretation (modGate m)) →
+          (toCNFExt m (R.decoder (x, e))).Satisfiable → x ∈ H) →
+        ∀ N₀ : ℕ, ∃ x ∈ H, N₀ ≤ x.length ∧ ¬ ∃ e : List Bool, e.length = R.certLength x ∧
+          (⟨q₁ x, R.check (x, e)⟩ ∉ SignatureCircuitSAT (Unbounded.extInterpretation (modGate m))) ∧
+          ∃ W : Circuit Unbounded.extSignature (r x) 1, W.depth ≤ dW ∧
+            (Circuit.encCode Unbounded.encExtOp W.code).length ≤ 2 ^ Nat.nthRoot r_w x.length ∧
+            (toCNFExt m (R.decoder (x, e))).eval
+              (fun y => W.eval (Unbounded.extInterpretation (modGate m)) y 0) = true := by
+  obtain ⟨r_w, δ, c₀, hrw_pos, hδ, _, hc₀, hsim⟩ :=
+    checkedACC0WitnessLanguage_mem_NTIME_of_acc0SAT dC dD dW hm
+  obtain ⟨H, hH_mem, hH_ne⟩ := exists_mem_NTIME_two_pow_forall_exists_length_ge hδ hc₀
+  refine ⟨r_w, H, hrw_pos, hH_mem, ?_⟩
+  intro q₁ q r R c hq₁ hq hr hq₁_le hq_le hred N₀
+  obtain ⟨x, hx, hne⟩ := hH_ne _ (hsim R c hq₁ hq hr hq₁_le hq_le) N₀
+  have hsub : x ∈ checkedACC0WitnessLanguage m dW R.check R.decoder R.certLength
+      (fun x => 2 ^ Nat.nthRoot r_w x.length) → x ∈ H :=
+    fun ⟨e, he, hC, W, _, _, hsat⟩ =>
+      hred x e he hC ⟨fun y => W.eval (Unbounded.extInterpretation (modGate m)) y 0, hsat⟩
+  by_cases hxH : x ∈ H
+  · exact ⟨x, hxH, hx, fun hW => hne ⟨fun _ => hW, fun _ => hxH⟩⟩
+  · exact absurd (hne ⟨fun h => absurd h hxH, fun h => absurd (hsub h) hxH⟩) id
+
+/-- The checked decoders of an unchecked family `D`: no certificate, and the constant `false`
+check circuit, which is unsatisfiable. -/
+private def uncheckedDecoders {dD : ℕ} {q r : List Bool → ℕ}
+    (D : (x : List Bool) → Circuit Unbounded.extSignature (q x) (3 * (r x + 1)))
+    (hD : ComputableInPolyTime (fun x => (D x).code) encBits (Circuit.encCode Unbounded.encExtOp))
+    (hdepth : ∀ x, (D x).depth ≤ dD) :
+    CheckedACC0Decoders 1 dD (fun _ => 0) q fun x => 3 * (r x + 1) where
+  certLength _ := 0
+  slack := 0
+  check _ := Unbounded.constCircuit Unbounded.toExt false
+  decoder p := D p.1
+  certLength_polyTime := ComputableInPolyTime.const 0
+  certLength_le _ := Nat.zero_le _
+  check_polyTime := ComputableInPolyTime.const _
+  decoder_polyTime := hD.comp (ComputableInPolyTime.fst encBits encBits)
+  depth_check_le _ := Unbounded.depth_constCircuit_le false
+  depth_decoder_le p := hdepth p.1
+
+/-- **Subexponential-savings `NTIME` simulation of small `ACC⁰` witnesses** ([Williams2014],
+Theorem 3.2 witness-checking step combined with Theorem 4.1 `exists_acc0SAT_decider`): for every
+constant decoder depth `dD`, witness depth `dW`, and modulus `m > 0`, there exist `r_w > 0`,
+`0 < δ < 1`, and `c₀ > 0` (depending only on `dD`, `dW`, and `m`) such that for every
+polynomial-time uniform depth-`≤ dD` `ACC⁰[m]` succinct 3-CNF family `D` with quasilinear
+clause-index count `q x ≤ |x| + c * Nat.log 2 (|x| + 2) + c`, deciding whether `toCNFExt m (D x)`
+has a depth-`≤ dW`, code-length-`≤ 2 ^ Nat.nthRoot r_w |x|` `ACC⁰[m]` satisfying witness lies in
+`NTIME(⌊2 ^ (n - c₀ * n ^ δ)⌋₊)`. This is the checked version
+(`checkedACC0WitnessLanguage_mem_NTIME_of_acc0SAT`) with no certificate `e` and the check circuit
+the constant `false`. -/
+theorem smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT (dD dW : ℕ) {m : ℕ} (hm : 0 < m) :
+    ∃ (r_w : ℕ) (δ c₀ : ℝ), 0 < r_w ∧ 0 < δ ∧ δ < 1 ∧ 0 < c₀ ∧
+      ∀ {q r : List Bool → ℕ}
+        (D : (x : List Bool) → Circuit Unbounded.extSignature (q x) (3 * (r x + 1)))
+        (c : ℕ),
+        ComputableInPolyTime q encBits encUnary →
+        ComputableInPolyTime r encBits encUnary →
+        ComputableInPolyTime (fun x => (D x).code) encBits (Circuit.encCode Unbounded.encExtOp) →
+        (∀ x, (D x).depth ≤ dD) →
+        (∀ x, q x ≤ x.length + c * Nat.log 2 (x.length + 2) + c) →
+        smallACC0WitnessLanguage m dW D (fun x => 2 ^ Nat.nthRoot r_w x.length) ∈
+          NTIME encBits fun n => ⌊(2 : ℝ) ^ ((n : ℝ) - c₀ * (n : ℝ) ^ δ)⌋₊ := by
+  obtain ⟨r_w, δ, c₀, hrw, hδ0, hδ1, hc₀, hsim⟩ :=
+    checkedACC0WitnessLanguage_mem_NTIME_of_acc0SAT 1 dD dW hm
+  refine ⟨r_w, δ, c₀, hrw, hδ0, hδ1, hc₀, ?_⟩
+  intro q r D c hq hr hD hdepth hq_le
+  have hset : smallACC0WitnessLanguage m dW D (fun x => 2 ^ Nat.nthRoot r_w x.length) =
+      checkedACC0WitnessLanguage m dW (q₁ := fun _ => 0) (q := q) (r := r)
+        (uncheckedDecoders D hD hdepth).check (uncheckedDecoders D hD hdepth).decoder
+        (uncheckedDecoders D hD hdepth).certLength (fun x => 2 ^ Nat.nthRoot r_w x.length) := by
+    ext x
+    constructor
+    · rintro ⟨W, hW⟩
+      exact ⟨[], rfl, constCircuit_false_not_mem_SignatureCircuitSAT m 0, W, hW⟩
+    · rintro ⟨e, -, -, W, hW⟩
+      exact ⟨W, hW⟩
+  rw [hset]
+  exact hsim (uncheckedDecoders D hD hdepth) c (ComputableInPolyTime.const 0) hq hr
+    (fun _ => Nat.zero_le _) hq_le
+
 /-- **Hard-witness transfer for quasilinear `ACC⁰` succinct 3-CNF reductions** ([Williams2014],
 Section 3, Theorem 3.2 diagonalization step): for every constant decoder depth `dD`, witness
 depth `dW`, and modulus `m > 0`, there exist `r_w > 0` and a single language
 `H ∈ NTIME encBits (2 ^ n)` such that every polynomial-time uniform depth-`≤ dD` `ACC⁰[m]`
-quasilinear succinct 3-CNF reduction `D` of `H` has a satisfiable instance `x ∈ H` whose
-represented 3-CNF `toCNFExt m (D x)` admits **no** satisfying assignment computable by a
-depth-`≤ dW` `ACC⁰[m]` circuit of code length at most `2 ^ Nat.nthRoot r_w x.length`. -/
+quasilinear succinct 3-CNF reduction `D` of `H` has satisfiable instances `x ∈ H` of every
+sufficiently large length whose represented 3-CNF `toCNFExt m (D x)` admits **no** satisfying
+assignment computable by a depth-`≤ dW` `ACC⁰[m]` circuit of code length at most
+`2 ^ Nat.nthRoot r_w x.length`. Hard instances of arbitrarily large length, rather than one, are
+what an assumed asymptotic circuit bound can contradict: the witness budget is too small for any
+circuit at short lengths. This is the checked version (`exists_hard_checkedACC0Witness`) with no
+certificate `e` and the check circuit the constant `false`. -/
 theorem exists_hard_acc0Witness_of_quasilinear_reduction (dD dW : ℕ) {m : ℕ} (hm : 0 < m) :
     ∃ (r_w : ℕ) (H : Set (List Bool)), 0 < r_w ∧ H ∈ NTIME encBits (fun n => 2 ^ n) ∧
       ∀ {q r : List Bool → ℕ}
@@ -1179,27 +1719,19 @@ theorem exists_hard_acc0Witness_of_quasilinear_reduction (dD dW : ℕ) {m : ℕ}
         (∀ x, (D x).depth ≤ dD) →
         (∀ x, q x ≤ x.length + c * Nat.log 2 (x.length + 2) + c) →
         (∀ x, x ∈ H ↔ (toCNFExt m (D x)).Satisfiable) →
-        ∃ x ∈ H, ¬ ∃ W : Circuit Unbounded.extSignature (r x) 1,
+        ∀ N₀ : ℕ, ∃ x ∈ H, N₀ ≤ x.length ∧ ¬ ∃ W : Circuit Unbounded.extSignature (r x) 1,
           W.depth ≤ dW ∧
           (Circuit.encCode Unbounded.encExtOp W.code).length ≤ 2 ^ Nat.nthRoot r_w x.length ∧
           (toCNFExt m (D x)).eval
             (fun y => W.eval (Unbounded.extInterpretation (modGate m)) y 0) = true := by
-  obtain ⟨r_w, δ, c₀, hrw_pos, hδ, _, hc₀, hsim⟩ :=
-    smallACC0WitnessLanguage_mem_NTIME_of_acc0SAT dD dW hm
-  have hss := NTIME_two_pow_sub_rpow_ssubset hδ hc₀
-  obtain ⟨H, hH_mem, hH_notMem⟩ := Set.exists_of_ssubset hss
-  refine ⟨r_w, H, hrw_pos, hH_mem, ?_⟩
-  intro q r D c hq hr hD hdepth hq_le hred
-  by_contra hno
-  push Not at hno
-  have heq : H = smallACC0WitnessLanguage m dW D (fun x => 2 ^ Nat.nthRoot r_w x.length) := by
-    ext x
-    constructor
-    · exact hno x
-    · rintro ⟨W, _, _, hsat⟩
-      exact (hred x).2 ⟨fun y => W.eval (Unbounded.extInterpretation (modGate m)) y 0, hsat⟩
-  rw [heq] at hH_notMem
-  exact hH_notMem (hsim D c hq hr hD hdepth hq_le)
+  obtain ⟨r_w, H, hrw, hH, hhard⟩ := exists_hard_checkedACC0Witness 1 dD dW hm
+  refine ⟨r_w, H, hrw, hH, ?_⟩
+  intro q r D c hq hr hD hdepth hq_le hred N₀
+  obtain ⟨x, hxH, hx, hno⟩ := hhard (uncheckedDecoders D hD hdepth) c
+    (ComputableInPolyTime.const 0) hq hr (fun _ => Nat.zero_le _) hq_le
+    (fun x _ _ _ hsat => (hred x).2 hsat) N₀
+  exact ⟨x, hxH, hx, fun ⟨W, hWd, hWl, hWe⟩ =>
+    hno ⟨[], rfl, constCircuit_false_not_mem_SignatureCircuitSAT m 0, W, hWd, hWl, hWe⟩⟩
 
 end WitnessTransfer
 
