@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Algorithms.Lean.EditDistance.Hirschberg
+meta import CslibFrontier.Algorithms.Lean.EditDistance.Hirschberg
 
 /-!
 # Hirschberg reconstruction on directed costs and tied longest common subsequences
@@ -17,15 +18,25 @@ namespace CslibFrontierTests.Hirschberg
 
 open Cslib.Algorithms.Lean.EditDistance
 
-private def directed : Costs Nat where
-  del a := a + 5
-  ins b := b + 1
-  sub a b := if a = b then 0 else 20
+private def directionalCosts : Costs Bool where
+  del _ := 4
+  ins _ := 1
+  sub a b := if a == b || !a then 0 else 8
 
--- Transposing the short and long inputs must also transpose prices and emitted operations.
-#guard (hirschbergAlign directed [1] [0, 2, 0]).cost directed == 11
-#guard (hirschbergAlign directed [0, 2, 0] [1]).cost directed == 19
-#guard (hirschbergAlign directed [] [1, 2]).tgt == [1, 2]
+-- Swapping the two words changes the true optimum. The first case transposes the DP orientation.
+#guard
+  let s := hirschbergAlign directionalCosts [false] [true, true, true]
+  s.src == [false] && s.tgt == [true, true, true] && s.cost directionalCosts == 2
+
+#guard
+  let s := hirschbergAlign directionalCosts [true, true, true] [false]
+  s.src == [true, true, true] && s.tgt == [false] && s.cost directionalCosts == 13
+
+-- Width zero and a long single-column alignment exercise the degenerate subproblems.
+#guard hirschbergAlign directionalCosts [] [true, false] == [.ins true, .ins false]
+#guard
+  let s := hirschbergAlign directionalCosts (List.replicate 32 false) [true]
+  s.src.length == 32 && s.tgt == [true] && s.cost directionalCosts == 124
 
 -- Either tied solution is acceptable. A repeated match must still be used at most once.
 example : (hirschbergLCS [0, 1, 0] [1, 0, 1]).length = 2 := by
