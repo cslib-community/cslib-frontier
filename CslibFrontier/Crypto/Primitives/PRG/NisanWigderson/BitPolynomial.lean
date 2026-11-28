@@ -222,7 +222,7 @@ end Design
 
 /-- The degree `e = max 1 ⌈log₂ n⌉` of the binary field for `n` rows: the least positive `e` with
 `n ≤ 2 ^ e`. -/
-def binaryFieldDegree (n : ℕ) : ℕ :=
+@[expose] def binaryFieldDegree (n : ℕ) : ℕ :=
   max 1 (Nat.clog 2 n)
 
 theorem binaryFieldDegree_ne_zero (n : ℕ) : binaryFieldDegree n ≠ 0 :=
@@ -245,13 +245,29 @@ theorem binaryFieldDegree_le_self (hn : 1 ≤ n) : binaryFieldDegree n ≤ n :=
 
 /-- The numbering `BinaryField e ≃ Fin (2 ^ e)` of the field elements by their bits, least
 significant first. -/
-noncomputable def binaryFieldNum {e : ℕ} (he : e ≠ 0) : BinaryField e ≃ Fin (2 ^ e) :=
+noncomputable def binaryFieldNum {e : ℕ} (he : e ≠ 0) :
+    BinaryField e ≃ Fin (2 ^ e) :=
   (BinaryField.equivBits he).toEquiv.trans (BitString.equivFin e)
 
+/-- The number of a field element is the number of its bits. -/
+theorem binaryFieldNum_apply {e : ℕ} (he : e ≠ 0) (x : BinaryField e) :
+    binaryFieldNum he x = BitString.equivFin e (BinaryField.equivBits he x) := by
+  unfold binaryFieldNum
+  rfl
+
 /-- The points `r_j`, `j < n`: the elements of `BinaryField (binaryFieldDegree n)` numbered `j`. -/
-noncomputable def binaryFieldPoints (n : ℕ) : Fin n ↪ BinaryField (binaryFieldDegree n) :=
+noncomputable def binaryFieldPoints (n : ℕ) :
+    Fin n ↪ BinaryField (binaryFieldDegree n) :=
   (Fin.castLEEmb (le_two_pow_binaryFieldDegree n)).trans
     (binaryFieldNum (binaryFieldDegree_ne_zero n)).symm.toEmbedding
+
+/-- The point `r_j` is the field element whose bits number `j`. -/
+theorem binaryFieldPoints_apply (n : ℕ) (j : Fin n) :
+    binaryFieldPoints n j = (BinaryField.equivBits (binaryFieldDegree_ne_zero n)).symm
+      ((BitString.equivFin (binaryFieldDegree n)).symm
+        (Fin.castLE (le_two_pow_binaryFieldDegree n) j)) := by
+  unfold binaryFieldPoints binaryFieldNum
+  rfl
 
 /-- **The bit-indexed polynomial design over the explicit binary field**
 [CarmosinoImpagliazzoKabanetsKolokolova2016, §3.1]: an
