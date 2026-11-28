@@ -255,14 +255,25 @@ theorem P_corruptMark_adaptive_corrupt_marks_zero (mem : PartyMemory) (κ : ℕ)
           trace := fun _ => [false] })).support) :
     (∃ report, y.1 = .corrupt (some report) ∧ report.current = true) ∧
       y.2.inner.parties 0 = true ∧ y.2.inner.parties 1 = false := by
+  let M := adaptiveRouter .adaptive (P_corruptMark.toAdaptive mem) κ ∅
+  let q : AdaptivePartyQ 2 MsgIn ⊕ AdaptiveNetQ 2 MsgIn Unit := .inr (.corrupt 0)
+  let sM : M.State :=
+    { inner := { parties := fun _ => false, net := false }
+      corrupted := ∅
+      trace := fun _ => [false] }
+  let yM : AdaptiveNetR Bool Bool Bool × M.State := y
+  have hy' : yM ∈ (Machine.closeEval (M.runFrom (ProbOracleComp.query q) sM)).support := hy
   have h0 : (0 : Fin 2) ∉ (∅ : Finset (Fin 2)) := by decide
-  rw [Machine.runFrom_query] at hy
-  dsimp only [adaptiveRouter, StateT.run] at hy
-  simp only [h0, ↓reduceIte] at hy
-  erw [Machine.mem_support_closeEval_pure] at hy
-  subst hy
-  refine ⟨⟨_, rfl, ?_⟩, ?_, ?_⟩ <;>
-    simp [AdaptiveProtocol.corruptionReport, DistributedProtocol.toAdaptive, P_corruptMark]
+  rw [Machine.runFrom_query] at hy'
+  dsimp only [M, q, sM, adaptiveRouter, StateT.run] at hy'
+  simp only [h0, ↓reduceIte] at hy'
+  erw [Machine.mem_support_closeEval_pure] at hy'
+  refine ⟨⟨_, congrArg Prod.fst hy', ?_⟩, ?_, ?_⟩
+  · simp [AdaptiveProtocol.corruptionReport, DistributedProtocol.toAdaptive, P_corruptMark]
+  · have := congrArg (fun p => p.2.inner.parties 0) hy'
+    simpa [DistributedProtocol.toAdaptive, P_corruptMark] using this
+  · have := congrArg (fun p => p.2.inner.parties 1) hy'
+    simpa [DistributedProtocol.toAdaptive, P_corruptMark] using this
 
 /-- Under `.adaptive` routing on `P_msg` (where `onCorrupt` is the identity), when party `0` starts
 uncorrupted, activating party `0`, querying the network, and corrupting party `0` returns
