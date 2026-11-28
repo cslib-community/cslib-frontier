@@ -40,6 +40,9 @@ cycle-cover analysis of gadget constructions, such as those of Valiant's theorem
 * `Matrix.permOn_split`: generalized Laplace expansion along a set of rows.
 * `Matrix.permOn_add`: the permanent sum of a sum of two matrices.
 * `Matrix.permOn_laplace`: expansion along one row.
+* `Matrix.permOn_map_map`: reindexing the rows and the columns along embeddings.
+* `Matrix.sum_perm_filter_eq_mul_permOn`: the permutations with prescribed images of a set of
+  rows contribute the prescribed entries times a permanent sum of the other rows.
 * `Matrix.permOn_eq_permOnList`: `permOn` evaluated by `permOnList`.
 * `Matrix.permOn_eq_card`: for a 0/1 matrix, `permOn` counts the bijections along `1`-entries.
 
@@ -295,6 +298,132 @@ theorem permOn_laplace (M : Matrix V V R) {S : Finset V} {i : V} (hi : i ∈ S) 
       zero_mul]
     exact singleton_subset_iff.1 (hj ▸ mem_powerset.1 hT')
 
+/-- The permanent sum between all rows and all columns, with each row `i` matched to `σ i`. -/
+theorem permOn_univ_eq_sum (M : Matrix V V R) :
+    permOn M univ univ = ∑ σ : Equiv.Perm V, ∏ i, M i (σ i) := by
+  rw [← permanent_eq_permOn, ← permanent_transpose]
+  rfl
+
+/-- **Reindexing the permanent sum** along an embedding of the rows and one of the columns. -/
+theorem permOn_map_map {U : Type*} [Fintype U] [DecidableEq U] (M : Matrix V V R) (g h : U ↪ V)
+    (S T : Finset U) :
+    permOn M (S.map g) (T.map h) = permOn (of fun x y => M (g x) (h y)) S T := by
+  classical
+  -- `lift f` extends `f` to `V`, conjugated by the embeddings; `unlift f'` reverses it.
+  let lift : (U → U) → V → V := fun f =>
+    Function.extend g (fun x => if x ∈ S then h (f x) else g x) id
+  let unlift : (V → V) → U → U := fun f' x =>
+    if x ∈ S then Function.extend h id (fun _ => x) (f' (g x)) else x
+  have lift_g (f : U → U) (x : U) : lift f (g x) = if x ∈ S then h (f x) else g x :=
+    g.injective.extend_apply _ _ x
+  have lift_out (f : U → U) (y : V) (hy : y ∉ S.map g) : lift f y = y := by
+    by_cases hr : ∃ x, g x = y
+    · obtain ⟨x, rfl⟩ := hr
+      rw [lift_g, ite_eq_right fun hx => hy (mem_map_of_mem g hx)]
+    · exact Function.extend_apply' _ _ _ hr
+  have unlift_h {f' : V → V} {x : U} (hx : x ∈ S) {t : U} (ht : f' (g x) = h t) :
+      unlift f' x = t := by
+    simp only [unlift, ite_eq_left hx, ht, h.injective.extend_apply, id]
+  -- Every bijection onto `T.map h` takes the rows `S.map g` into the image of `h`.
+  have hval {f' : V → V} (hf' : f' ∈ bijOn (S.map g) (T.map h)) {x : U} (hx : x ∈ S) :
+      ∃ t ∈ T, f' (g x) = h t := by
+    obtain ⟨t, ht, he⟩ := mem_map.1 ((mem_bijOn.1 hf').1 _ (mem_map_of_mem g hx))
+    exact ⟨t, ht, he.symm⟩
+  simp only [permOn, of_apply]
+  symm
+  refine sum_nbij' lift unlift (fun f hf => ?_) (fun f' hf' => ?_) (fun f hf => ?_)
+    (fun f' hf' => ?_) (fun f hf => ?_)
+  · obtain ⟨h1, h2, h3, h4⟩ := mem_bijOn.1 hf
+    refine mem_bijOn.2 ⟨fun y hy => ?_, fun y₁ hy₁ y₂ hy₂ he => ?_, fun t ht => ?_,
+      fun y hy => lift_out f y hy⟩
+    · obtain ⟨x, hx, rfl⟩ := mem_map.1 hy
+      rw [lift_g, ite_eq_left hx]
+      exact mem_map_of_mem h (h1 x hx)
+    · obtain ⟨x₁, hx₁, rfl⟩ := mem_map.1 hy₁
+      obtain ⟨x₂, hx₂, rfl⟩ := mem_map.1 hy₂
+      rw [lift_g, lift_g, ite_eq_left hx₁, ite_eq_left hx₂] at he
+      rw [h2 x₁ hx₁ x₂ hx₂ (h.injective he)]
+    · obtain ⟨t', ht', rfl⟩ := mem_map.1 ht
+      obtain ⟨x, hx, hxt⟩ := h3 t' ht'
+      exact ⟨g x, mem_map_of_mem g hx, by rw [lift_g, ite_eq_left hx, hxt]⟩
+  · obtain ⟨h1, h2, h3, h4⟩ := mem_bijOn.1 hf'
+    refine mem_bijOn.2 ⟨fun x hx => ?_, fun x₁ hx₁ x₂ hx₂ he => ?_, fun t ht => ?_,
+      fun x hx => ite_eq_right hx⟩
+    · obtain ⟨t, ht, he⟩ := hval hf' hx
+      rwa [unlift_h hx he]
+    · obtain ⟨t₁, -, he₁⟩ := hval hf' hx₁
+      obtain ⟨t₂, -, he₂⟩ := hval hf' hx₂
+      rw [unlift_h hx₁ he₁, unlift_h hx₂ he₂] at he
+      subst he
+      exact g.injective (h2 _ (mem_map_of_mem g hx₁) _ (mem_map_of_mem g hx₂) (he₁.trans he₂.symm))
+    · obtain ⟨y, hy, hyt⟩ := h3 (h t) (mem_map_of_mem h ht)
+      obtain ⟨x, hx, rfl⟩ := mem_map.1 hy
+      exact ⟨x, hx, unlift_h hx hyt⟩
+  · funext x
+    by_cases hx : x ∈ S
+    · exact unlift_h hx (by rw [lift_g, ite_eq_left hx])
+    · exact ((ite_eq_right hx).trans ((mem_bijOn.1 hf).2.2.2 x hx).symm)
+  · funext y
+    by_cases hy : y ∈ S.map g
+    · obtain ⟨x, hx, rfl⟩ := mem_map.1 hy
+      obtain ⟨t, -, he⟩ := hval hf' hx
+      rw [lift_g, ite_eq_left hx, unlift_h hx he, he]
+    · rw [lift_out _ y hy, (mem_bijOn.1 hf').2.2.2 y hy]
+  · rw [prod_map]
+    exact prod_congr rfl fun x hx => by rw [lift_g, ite_eq_left hx]
+
+/-- Rows whose only possibly nonzero entry lies in a prescribed column: the permanent sum is the
+product along the prescription when the columns are exactly the prescribed ones, and `0`
+otherwise. -/
+private theorem permOn_of_rows_single (N : Matrix V V R) (c : V → V) (Z : Finset V)
+    (hc : Set.InjOn c Z) (hN : ∀ z ∈ Z, ∀ j, j ≠ c z → N z j = 0) (T : Finset V) :
+    permOn N Z T = if T = Z.image c then ∏ z ∈ Z, N z (c z) else 0 := by
+  induction Z using Finset.induction_on generalizing T with
+  | empty =>
+    rw [permOn_empty_left, image_empty, prod_empty]
+  | insert z Z hz ih =>
+    have hcz : c z ∉ Z.image c := fun hm => by
+      obtain ⟨z', hz', he⟩ := mem_image.1 hm
+      exact hz (hc (mem_insert_of_mem hz') (mem_insert_self z Z) he ▸ hz')
+    have ih' := ih (hc.mono (by simp)) (fun z' hz' => hN z' (mem_insert_of_mem hz'))
+    rw [permOn_laplace N (mem_insert_self z Z), erase_insert hz, image_insert,
+      prod_insert hz]
+    by_cases hT : c z ∈ T
+    · rw [sum_eq_single_of_mem (c z) hT fun j _ hj => by
+        rw [hN z (mem_insert_self z Z) j hj, zero_mul], ih']
+      have : T.erase (c z) = Z.image c ↔ T = insert (c z) (Z.image c) :=
+        ⟨fun he => by rw [← he, insert_erase hT], fun he => by rw [he, erase_insert hcz]⟩
+      simp only [this, mul_ite, mul_zero]
+    · rw [sum_eq_zero fun j hj => by
+        rw [hN z (mem_insert_self z Z) j fun he => hT (he ▸ hj), zero_mul],
+        ite_eq_right fun he => hT (by rw [he]; exact mem_insert_self _ _)]
+
+/-- **Prescribing the images of a set of rows.** The permutations `σ` with `σ z = c z` for all `z`
+in `Z` contribute the product of the prescribed entries times the permanent sum from the other
+rows onto the columns that `c` does not reach. -/
+theorem sum_perm_filter_eq_mul_permOn (M : Matrix V V R) (Z : Finset V) (c : V → V)
+    (hc : Set.InjOn c Z) :
+    ∑ σ : Equiv.Perm V with ∀ z ∈ Z, σ z = c z, ∏ i, M i (σ i) =
+      (∏ z ∈ Z, M z (c z)) * permOn M (univ \ Z) (univ \ Z.image c) := by
+  classical
+  set N : Matrix V V R := of fun i j => if i ∈ Z then (if j = c i then M i j else 0) else M i j
+  have hrow : ∀ σ : Equiv.Perm V, ∏ i, N i (σ i) =
+      if ∀ z ∈ Z, σ z = c z then ∏ i, M i (σ i) else 0 := fun σ => by
+    split_ifs with hσ
+    · exact prod_congr rfl fun i _ => by
+        by_cases hi : i ∈ Z <;> simp [N, hi, hσ]
+    · obtain ⟨z, hz, hne⟩ := not_forall₂.1 hσ
+      exact prod_eq_zero (mem_univ z) (by simp [N, hz, hne])
+  rw [sum_filter, ← sum_congr rfl fun σ _ => hrow σ, ← permOn_univ_eq_sum,
+    permOn_split N (subset_univ Z) univ]
+  rw [sum_eq_single_of_mem (Z.image c) (mem_powerset.2 (subset_univ _)) fun T' _ hT' => by
+    rw [permOn_of_rows_single N c Z hc (fun z hz j hj => by simp [N, hz, hj]), ite_eq_right hT',
+      zero_mul]]
+  rw [permOn_of_rows_single N c Z hc (fun z hz j hj => by simp [N, hz, hj]), ite_eq_left rfl]
+  congr 1
+  · exact prod_congr rfl fun z hz => by simp [N, hz]
+  · exact permOn_congr fun i hi j _ => by simp [N, (mem_sdiff.1 hi).2]
+
 /-- Laplace expansion along explicit lists of rows and columns: the rows are expanded in list
 order, each matched to a remaining column. -/
 def permOnList {V R : Type*} [DecidableEq V] [CommSemiring R] (M : V → V → R) :
@@ -302,6 +431,30 @@ def permOnList {V R : Type*} [DecidableEq V] [CommSemiring R] (M : V → V → R
   | [], [] => 1
   | [], _ :: _ => 0
   | i :: is, cols => (cols.map fun j => M i j * permOnList M is (cols.erase j)).sum
+
+/-- `permOnList` along lists of indices mapped by an embedding reads the matrix through it. -/
+theorem permOnList_map {U V R : Type*} [DecidableEq U] [DecidableEq V] [CommSemiring R]
+    (M : V → V → R) (g : U ↪ V) (l c : List U) :
+    permOnList M (l.map g) (c.map g) = permOnList (fun a b => M (g a) (g b)) l c := by
+  induction l generalizing c with
+  | nil => cases c <;> rfl
+  | cons i is ih =>
+    simp only [List.map_cons, permOnList, List.map_map]
+    congr 1
+    refine List.map_congr_left fun j _ => ?_
+    simp only [Function.comp_apply, ← ih, List.map_erase g.injective]
+
+/-- A ring homomorphism commutes with `permOnList`. -/
+theorem map_permOnList {V R S : Type*} [DecidableEq V] [CommSemiring R]
+    [CommSemiring S] (f : R →+* S) (M : V → V → R) (l c : List V) :
+    f (permOnList M l c) = permOnList (fun a b => f (M a b)) l c := by
+  induction l generalizing c with
+  | nil => cases c <;> simp [permOnList]
+  | cons i is ih =>
+    simp only [permOnList, map_list_sum, List.map_map]
+    congr 1
+    refine List.map_congr_left fun j _ => ?_
+    simp only [Function.comp_apply, map_mul, ih]
 
 /-- `permOn` is evaluated by `permOnList` on duplicate-free lists of its rows and columns. -/
 theorem permOn_eq_permOnList (M : Matrix V V R) (rows cols : List V) (hr : rows.Nodup)

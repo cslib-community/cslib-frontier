@@ -25,7 +25,8 @@ added clause follows from the hinted clauses by unit propagation: it is a *RUP* 
 `Cslib.Logic.PL.CNF.checkLRAT φ cert` checks a certificate in the format of Lean core's
 `Std.Tactic.BVDecide.LRAT.IntAction`: literals are nonzero integers in DIMACS style, so the
 variable `v` of `φ : CNF ℕ` is written `v + 1`, and is negated by negating the integer. It accepts
-RUP steps, empty-clause steps and deletions, and rejects RAT steps. It is written with structural
+RUP steps, empty-clause steps and deletions, and rejects RAT steps, which
+`Cslib.Logic.PL.CNF.checkLRATRat` also checks. It is written with structural
 recursion on lists, so the kernel can evaluate it and `decide` proves that it accepts a given
 certificate. Lean core's `Std.Tactic.BVDecide.LRAT.check` checks the same format, but the kernel
 cannot evaluate it, and it is only proved sound, not complete.

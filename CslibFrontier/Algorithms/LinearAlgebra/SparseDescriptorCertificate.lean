@@ -166,7 +166,8 @@ theorem ofSparse_oneSparse (n : ℕ) : ofSparse n n (oneSparse n) = 1 := by
 @[expose] def hiCols (k : ℕ) (r : List (ℕ × ℚ)) : List (ℕ × ℚ) :=
   (r.filter fun e => Nat.ble k e.1).map fun e => (e.1 - k, e.2)
 
-private theorem sparseGet_loCols (k : ℕ) (r : List (ℕ × ℚ)) {j : ℕ} (hj : j < k) :
+/-- `loCols` keeps the entries in the columns below `k`. -/
+theorem sparseGet_loCols (k : ℕ) (r : List (ℕ × ℚ)) {j : ℕ} (hj : j < k) :
     sparseGet (loCols k r) j = sparseGet r j := by
   induction r with
   | nil => rfl
@@ -177,7 +178,8 @@ private theorem sparseGet_loCols (k : ℕ) (r : List (ℕ × ℚ)) {j : ℕ} (hj
     · rw [List.filter_cons_of_neg (by simpa using he), ih, sparseGet_cons,
         ite_eq_right (by omega)]
 
-private theorem sparseGet_hiCols (k : ℕ) (r : List (ℕ × ℚ)) (j : ℕ) :
+/-- `hiCols` shifts the entries in the columns from `k` on. -/
+theorem sparseGet_hiCols (k : ℕ) (r : List (ℕ × ℚ)) (j : ℕ) :
     sparseGet (hiCols k r) j = sparseGet r (k + j) := by
   induction r with
   | nil => rfl
@@ -356,11 +358,13 @@ namespace SparseDecouplingCert
 
 variable {c : SparseDecouplingCert} {N : ℕ}
 
-private theorem realOfSparse_mul {l m n : ℕ} (X Y : List (List (ℕ × ℚ))) (hY : Y.length ≤ m) :
+/-- `sparseMul` computes the real matrix product when the right factor has at most `m` rows. -/
+theorem realOfSparse_mul {l m n : ℕ} (X Y : List (List (ℕ × ℚ))) (hY : Y.length ≤ m) :
     realOfSparse l n (sparseMul X Y) = realOfSparse l m X * realOfSparse m n Y := by
   rw [realOfSparse, ofSparse_sparseMul _ _ hY, map_mul_ratCast]
 
-private theorem realOfSparse_sub {m n : ℕ} (X Y : List (List (ℕ × ℚ))) :
+/-- `subSparse` computes the real difference. -/
+theorem realOfSparse_sub {m n : ℕ} (X Y : List (List (ℕ × ℚ))) :
     realOfSparse m n (subSparse X Y) = realOfSparse m n X - realOfSparse m n Y := by
   ext i j
   simp [ofSparse_subSparse]

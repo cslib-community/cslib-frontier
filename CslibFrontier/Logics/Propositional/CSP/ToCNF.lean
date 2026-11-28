@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Data.BitString.Enumeration
 public import CslibFrontier.Logics.Propositional.CSP
+import CslibFrontier.Foundations.Data.List.Counting
 
 /-!
 # Forbidden-pattern compilation from Boolean CSPs to CNF
@@ -227,16 +228,9 @@ theorem length_clause_mem_toCNF {k : ℕ} {sem : Rel → List Bool → Bool} {F 
 theorem length_toCNF_le {k : ℕ} (sem : Rel → List Bool → Bool) {F : CSP Rel V}
     (hF : ∀ c ∈ F, c.scope.length ≤ k) :
     (F.toCNF sem).length ≤ 2 ^ k * F.length := by
-  induction F with
-  | nil => simp [toCNF]
-  | cons c F ih =>
-    simp only [toCNF, List.flatMap_cons, List.length_append, List.length_cons, Nat.mul_succ]
-    have hc : (Constraint.toCNF sem c).length ≤ 2 ^ k :=
-      (Constraint.length_toCNF_le sem c).trans
-        (Nat.pow_le_pow_right (by decide) (hF c List.mem_cons_self))
-    have hrest : (List.flatMap (Constraint.toCNF sem) F).length ≤ 2 ^ k * F.length :=
-      ih fun c' hc' => hF c' (List.mem_cons_of_mem c hc')
-    omega
+  rw [Nat.mul_comm]
+  exact List.length_flatMap_le fun c hc =>
+    (Constraint.length_toCNF_le sem c).trans (Nat.pow_le_pow_right (by decide) (hF c hc))
 
 /-- Every variable occurring in `F.toCNF sem` occurs in `F.vars`. -/
 theorem mem_vars_toCNF {sem : Rel → List Bool → Bool} {F : CSP Rel V} {v : V}

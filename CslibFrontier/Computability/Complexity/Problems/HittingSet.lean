@@ -213,21 +213,12 @@ theorem toHittingSet_mem_iff (x : VertexCoverInstance) :
   · -- Both sides ask for the same set of at most `k` declared vertices: hitting the subset
     -- `[u, v]` of every proper edge is covering the graph.
     rw [mem_HittingSet_iff, and_iff_right hk]
-    refine exists_congr fun H => and_congr_right fun _ => and_comm.trans (and_congr_left
-      fun _ => ⟨fun h u hu v hv huv => ?_, fun h S hS => ?_⟩)
-    · have hpair : ∀ a b, (a, b) ∈ properEdges G → a ∈ H ∨ b ∈ H := fun a b hab => by
-        obtain ⟨w, hw, hwab⟩ := h [a, b] (List.mem_map.2 ⟨(a, b), hab, rfl⟩)
-        simp only [List.mem_cons, List.not_mem_nil, or_false] at hwab
-        rcases hwab with rfl | rfl
-        exacts [Or.inl hw, Or.inr hw]
-      obtain ⟨hne, he | he⟩ := Graph.toSimpleGraph_adj.1 huv
-      · exact hpair u v (mem_properEdges.2 ⟨he, hu, hv, hne⟩)
-      · exact (hpair v u (mem_properEdges.2 ⟨he, hv, hu, Ne.symm hne⟩)).symm
-    · obtain ⟨e, he, rfl⟩ := List.mem_map.1 hS
-      obtain ⟨he, hu, hv, hne⟩ := mem_properEdges.1 he
-      rcases h e.1 hu e.2 hv (Graph.toSimpleGraph_adj.2 ⟨hne, Or.inl he⟩) with h1 | h2
-      · exact ⟨e.1, h1, List.mem_cons_self⟩
-      · exact ⟨e.2, h2, List.mem_cons_of_mem _ List.mem_cons_self⟩
+    refine exists_congr fun H => and_congr_right fun _ => and_comm.trans
+      (and_congr_left fun _ => ?_)
+    rw [← covers_properEdges_iff]
+    change (∀ S ∈ (properEdges G).map (fun e => [e.1, e.2]), ∃ u ∈ H, u ∈ S) ↔ _
+    simp only [List.forall_mem_map, List.mem_cons, List.not_mem_nil, or_false, and_or_left,
+      exists_or, exists_eq_right]
   · refine iff_of_false ?_ fun h => hk h.1
     rw [mem_HittingSet_iff]
     rintro ⟨H, -, -, hhit⟩

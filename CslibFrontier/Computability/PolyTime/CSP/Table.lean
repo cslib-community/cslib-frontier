@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Bool
 
 /-!
 # Native polynomial-time explicit relation tables
@@ -202,8 +203,6 @@ theorem computableInPolyTime_tableExactlyOne :
 theorem length_encTable {table : Cslib.Logic.PL.CSP.Table} (h : table.wellFormed = true) :
     (encTable table).length = 2 * (encNat table.arity).length + 1 +
       table.rows.length * (6 * table.arity + 1) := by
-  have hbits (row : List Bool) : (encList encBool row).length = 3 * row.length := by
-    simp [length_encList, Nat.mul_comm]
   have hrows : (encList (encList encBool) table.rows).length =
       table.rows.length * (6 * table.arity + 1) := by
     rw [length_encList]
@@ -212,7 +211,7 @@ theorem length_encTable {table : Cslib.Logic.PL.CSP.Table} (h : table.wellFormed
         congr 1
         apply List.map_congr_left
         intro row hr
-        rw [hbits, wellFormed_eq_true.mp h row hr]
+        rw [length_encList_encBool, wellFormed_eq_true.mp h row hr]
         omega
       _ = _ := by simp [Nat.mul_comm]
   rw [encTable_apply, length_encPair, hrows]

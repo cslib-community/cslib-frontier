@@ -56,6 +56,8 @@ test and the final `halt` is charged by the Word-RAM semantics.
 
 ## Main results
 
+* `Cslib.Algorithms.WordRAM.XORSATDense.rowRel_rowWord`: the packed word of a row of length `n`
+  represents it before elimination.
 * `Cslib.Algorithms.WordRAM.XORSATDense.forall₂_cols`, `decide_eq_cols`: packed elimination
   represents `XORSAT.Dense.step^[c]` bit for bit and agrees with `XORSAT.Dense.decide`.
 * `Cslib.Algorithms.WordRAM.XORSATDense.computesInTime_decide`: `program` computes
@@ -95,7 +97,8 @@ structure RowRel (n c x : ℕ) (e : Row) : Prop where
   rhs : x.testBit n = e.rhs
   lt : x < 2 ^ (n + 1)
 
-private theorem rowRel_rowWord {n : ℕ} {e : Row} (h : e.coeffs.length = n) :
+/-- The packed word of a row with `n` coefficients represents it before elimination. -/
+theorem rowRel_rowWord {n : ℕ} {e : Row} (h : e.coeffs.length = n) :
     RowRel n 0 (rowWord e) e where
   len := by simpa using h
   coeff j hj := by

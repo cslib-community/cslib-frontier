@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.EraseDupsBy
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Tactic.OptionMatch
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Bool
 
 /-!
 # Native polynomial-time complete optimization
@@ -66,10 +67,8 @@ private theorem checkedStep_growth (F : CSP Table ℕ) (state : OptimizeState) :
       simp [checkedStep, hi, encOptimizeState, encBool_apply]
     | some out =>
       have hw := safeImprove_width ⟨F, bits⟩ hi
-      have hlen : (encList encBool out).length = 3 * out.length := by
-        simp [length_encList, encBool_apply, Nat.mul_comm]
       simp only [checkedStep, Bool.false_eq_true, ↓reduceIte, hi, Option.elim_some,
-        encOptimizeState, length_encPair, hlen, encBool_apply, List.length_cons,
+        encOptimizeState, length_encPair, length_encList_encBool, encBool_apply, List.length_cons,
         List.length_nil, occurrences_eq_map_incidenceList, List.length_map] at hw ⊢
       omega
 

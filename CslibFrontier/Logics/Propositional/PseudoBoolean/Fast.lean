@@ -44,7 +44,7 @@ applies to it unchanged.
   constraint. Distinct deletion numbers are checked with a hash set.
 
 The proof is by a representation invariant on the compiled state, preserved by each step, as for
-`Cslib.Logic.PL.CNF.checkLRATFast_eq_checkLRAT`. The representation and the compiled steps are
+`Cslib.Logic.PL.CNF.checkLRATFast_eq_checkLRATRat`. The representation and the compiled steps are
 private. The structures are updated in place when
 uniquely referenced. That speed is measured, not proved.
 

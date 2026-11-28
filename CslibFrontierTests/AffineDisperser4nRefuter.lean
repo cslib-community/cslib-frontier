@@ -162,4 +162,16 @@ def terminalAndOnPairState : State 4 :=
   | some x => terminalAndOnPairCircuit.eval fullInterpretation x 0 != x ⟨2, by decide⟩
   | none => false
 
+/-! The final search tries the `2^d` candidates of the terminal state in order: here `2^1`, and
+one of them is a disagreement. The search returns the first such candidate. -/
+
+#guard (candidates 1 terminalAndOnPairState).length == 2
+#guard (candidates 1 terminalAndOnPairState).any fun x =>
+  terminalAndOnPairCircuit.eval fullInterpretation x 0 != x ⟨2, by decide⟩
+#guard (candidates 3 terminalAndOnPairState).length == 8
+#guard findCounterexample terminalAndOnPairCircuit (fun x => x ⟨2, by decide⟩) 1
+    terminalAndOnPairState ==
+  (candidates 1 terminalAndOnPairState).find? fun x =>
+    terminalAndOnPairCircuit.eval fullInterpretation x 0 != x ⟨2, by decide⟩
+
 end CslibFrontierTests.AffineDisperser4nRefuter
