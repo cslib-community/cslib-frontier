@@ -8,6 +8,7 @@ module
 -- upstream: local-only (real-arithmetic semantic and codec regression tests)
 
 import CslibFrontier.Computability.Complexity.Classes.ExistsReal
+import CslibFrontier.Computability.Complexity.RealAlgebraic.SingleEquationCounting
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 public meta import CslibFrontier.Logics.RealArithmetic.Encoding
@@ -25,6 +26,24 @@ public section
 namespace CslibFrontierTests.RealArithmetic
 
 open Cslib.Logic.RealArithmetic Cslib.Complexity Turing.MultiTapeTM
+
+-- Unused ambient coordinates are not part of a constant term's word.
+example : encTerm 100 (.const 0) ∈ RealSingleEquation :=
+  (encTerm_mem_RealSingleEquation _).mpr ⟨fun _ => 0, by simp [Term.eval]⟩
+
+example : encTerm 0 (.const 1) ∉ RealSingleEquation := by
+  intro h
+  obtain ⟨x, hx⟩ := (encTerm_mem_RealSingleEquation (.const 1 : Term 0)).mp h
+  simp [Term.eval] at hx
+
+-- The empty word encodes no term, even when the evaluation point is empty.
+example : [] ∉ RealSingleEquation := by
+  rintro ⟨t, ht, _⟩
+  have h := Term.evalTermWord_encTerm 1 [] t
+  rw [ht] at h
+  have hnone : Term.evalTermWord 1 [] [] = none := by decide +kernel
+  rw [hnone] at h
+  cases h
 
 -- The second coordinate is absent, and the negative constant is reduced modulo a composite.
 example :

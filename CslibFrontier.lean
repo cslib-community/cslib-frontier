@@ -5750,6 +5750,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Uni.Alph
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Derivation
 public import CslibFrontier.Computability.LogSpaceDerandomization.PolynomialAtomCutoffs
 public import CslibFrontier.Foundations.Data.BitString.Weight
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.SingleEquationCounting
 public import CslibFrontier.Foundations.Data.Code.LowDegreeExtension.Constant
 public import CslibFrontier.Computability.Probabilistic.Oracle.Time.Basic
 public import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystemPerfect
