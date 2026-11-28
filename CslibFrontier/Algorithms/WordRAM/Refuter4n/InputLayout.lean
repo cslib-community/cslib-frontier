@@ -45,11 +45,13 @@ gate-table builder of `SemiCircuit.ofCircuitBinary`: line `j` reads the literal 
 (`litCode`) of the earlier lines, absorbs the negations of its operands into its
 truth table, and is either a function of one operand (`unaryLit`) or the binary gate `n + j` with
 gate row `⟨tt, left, right⟩`. The arithmetic decoder that the program computes is private and is
-proved equal to the builder line by line (literal codes and gate rows) through the builder's public
-prefix and last-line lemmas (`programGateLit_castSucc`, `programGateLit_last`,
-`mem_programBinaryGates_gate_of_lt`, `mem_programBinaryGates_gate_last`,
-`programBinaryGate_gate_of_ne`, `programBinaryGate_gate_last`), so the public statement is about
-`initialPacked C` itself.
+proved equal to the builder line by line (literal codes and gate rows) through the public interface
+of `SemiCircuit.OfCircuit`: the per-line literal and gate `lineBinaryLit`, `lineBinaryGate`, the
+wire literals (`programWireLit_input`, `programWireLit_gate`), the prefix and last-line lemmas
+(`programGateLit_castSucc`, `programGateLit_last`, `mem_programBinaryGates_gate_of_ne`,
+`mem_programBinaryGates_gate_last`, `programBinaryGate_gate_of_ne`, `programBinaryGate_gate_last`)
+and `ofCircuitBinary_gates`, `ofCircuitBinary_gate`, `ofCircuitBinary_out`. So the public
+statement is about `initialPacked C` itself.
 
 **Memory image** (`Layout`, `Stored`). From a base address, the parameter mask, auxiliary mask,
 gate mask, output literal and number of pairs, then `N` gate rows of three words, `E` equation
@@ -277,8 +279,7 @@ private theorem decodeLines_progWords : ∀ {g : ℕ} (p : Program (fullSignatur
     congr 1
     · refine List.ofFn_inj.2 (funext fun j => ?_)
       rw [Fin.val_castSucc]
-      have hj : n + (j : ℕ) < n + g := by have := j.isLt; omega
-      simp only [programGateLit_castSucc, mem_programBinaryGates_gate_of_lt p line hj,
+      simp only [programGateLit_castSucc, mem_programBinaryGates_gate_of_ne p line (hne j),
         programBinaryGate_gate_of_ne p line (hne j)]
     · rw [lineOut_lineWords (programWireLit p) _ (programWireLit_input p) (fun k => by
           rw [List.getD_eq_getElem _ _ (by simp), List.getElem_map, List.getElem_ofFn,
