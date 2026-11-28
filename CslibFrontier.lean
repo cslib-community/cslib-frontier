@@ -9292,6 +9292,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Algorithms.MatrixMultiplication.Schonhage.Sparse
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Copy
 public import CslibFrontier.DataStructure.WordRAM.Resizable.Randomized.ObliviousSequence
+public import CslibFrontier.Computability.Complexity.ProofSystem.Optimal
 public import CslibFrontier.Computability.PCP.TwoProverGame.Seeded
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PreparationLocality
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Probe
