@@ -184,19 +184,17 @@ omit [DecidableEq E] in
 private theorem min_le_sum_mul_of_unitFeasible {G : NonatomicCongestionGame Unit P E}
     (hr : G.rate () = 1) {g : P → ℝ} (hg : G.IsFeasible g) (w : P → ℝ) :
     ∃ p₀ : P, w p₀ ≤ ∑ p, g p * w p := by
-  have hne : (univ : Finset P).Nonempty := by
-    by_contra hempty
-    rw [not_nonempty_iff_eq_empty] at hempty
-    have hsum := hg.2 ()
-    rw [hempty, filter_empty, sum_empty, hr] at hsum
-    norm_num at hsum
-  obtain ⟨p₀, _, hp₀⟩ := exists_min_image univ w hne
   have hsum_g : ∑ p, g p = 1 := by
     simpa only [eq_iff_true_of_subsingleton, filter_true, hr] using hg.2 ()
+  have : Nonempty P := by
+    by_contra h
+    have : IsEmpty P := not_nonempty_iff.mp h
+    simp at hsum_g
+  obtain ⟨p₀, hp₀⟩ := Finite.exists_min w
   refine ⟨p₀, ?_⟩
   calc w p₀ = (∑ p, g p) * w p₀ := by rw [hsum_g, one_mul]
     _ = ∑ p, g p * w p₀ := sum_mul _ _ _
-    _ ≤ ∑ p, g p * w p := sum_le_sum fun p hp => mul_le_mul_of_nonneg_left (hp₀ p hp) (hg.1 p)
+    _ ≤ ∑ p, g p * w p := sum_le_sum fun p _ => mul_le_mul_of_nonneg_left (hp₀ p) (hg.1 p)
 
 /-- In a single-commodity unit-rate network (`K = Unit`, `G.rate () = 1`), `G.IsApproxWardrop ε f`
 is equivalent to `G.IsFeasible f ∧ ∀ p, G.cost f ≤ G.pathLatency f p + ε`, matching

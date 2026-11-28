@@ -112,12 +112,10 @@ theorem disjoint_agreeOffForced {x x' : BitString N} (hx : φ.eval x = true) (hx
     (hne : x ≠ x') : Disjoint (φ.agreeOffForced σ x) (φ.agreeOffForced σ x') := by
   refine disjoint_left.2 fun y hy hy' => ?_
   -- the first variable where `x` and `x'` differ
-  obtain ⟨v₀, hv₀⟩ := Function.ne_iff.1 hne
-  obtain ⟨v, hv, hmin⟩ := exists_min_image (univ.filter fun v => x v ≠ x' v) (fun v => σ v)
-    ⟨v₀, mem_filter.2 ⟨mem_univ v₀, hv₀⟩⟩
-  have hxv : x v ≠ x' v := (mem_filter.1 hv).2
+  have : Nonempty {v // x v ≠ x' v} := nonempty_subtype.2 (Function.ne_iff.1 hne)
+  obtain ⟨⟨v, hxv⟩, hmin⟩ := Finite.exists_min (fun v : {v // x v ≠ x' v} => σ v)
   have hagree (u) (hu : σ u < σ v) : x u = x' u :=
-    by_contra fun h => not_le.2 hu (hmin u (mem_filter.2 ⟨mem_univ u, h⟩))
+    by_contra fun h => hu.not_ge (hmin ⟨u, h⟩)
   -- `v` is forced on one of them, by a clause false under the other
   have key {a b : BitString N} (hb : φ.eval b = true) (hab : a v ≠ b v)
       (hagr : ∀ u, σ u < σ v → a u = b u) (hforced : v ∈ φ.forced σ a) : False := by

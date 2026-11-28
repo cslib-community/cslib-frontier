@@ -11,8 +11,8 @@ public import CslibFrontier.Init
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
 public import Mathlib.Basic.Real.Basic
 public import Mathlib.Data.Finset.Lattice.Fold
-import Mathlib.Data.Finset.Max
 import Mathlib.Data.Fintype.EquivFin
+import Mathlib.Data.Fintype.Lattice
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -323,10 +323,8 @@ omit [DecidableEq ι] [Fintype Ω] in
 /-- A welfare-maximizing outcome rule exists when there are finitely many outcomes. -/
 theorem exists_isWelfareMaximizing [Finite Ω] :
     ∃ f : (ι → Ω → ℝ) → Ω, IsWelfareMaximizing f := by
-  have := Fintype.ofFinite Ω
-  choose f hf using fun b : ι → Ω → ℝ =>
-    Finset.exists_max_image Finset.univ (welfare b) Finset.univ_nonempty
-  exact ⟨f, fun b ω' => (hf b).2 ω' (Finset.mem_univ _)⟩
+  choose f hf using fun b : ι → Ω → ℝ => Finite.exists_max (welfare b)
+  exact ⟨f, hf⟩
 
 omit [Fintype Ω] in
 /-- **Vickrey–Clarke–Groves** ([Roughgarden2013CS364A], Lecture 7, Theorem 2.1): in every general

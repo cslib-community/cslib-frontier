@@ -14,8 +14,8 @@ public import Mathlib.Data.Finset.BooleanAlgebra
 public import Mathlib.Data.Fintype.Powerset
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.LinearProgramming
 import Mathlib.Algebra.BigOperators.Field
-import Mathlib.Data.Finset.Max
 import Mathlib.Data.Fintype.BigOperators
+import Mathlib.Data.Fintype.Lattice
 import Mathlib.Data.Fintype.Prod
 import Mathlib.Data.Fintype.Sum
 import Mathlib.Tactic.Linarith
@@ -422,10 +422,8 @@ quasilinear utility `v S - ∑ j ∈ S, p j` over all bundles `S : Finset M`
 /-- Every valuation on a finite item set has at least one demand bundle at any item prices `p`. -/
 theorem exists_isDemand {M : Type*} [Finite M] (v : Finset M → ℝ) (p : M → ℝ) :
     ∃ T : Finset M, IsDemand v p T := by
-  have := Fintype.ofFinite M
-  obtain ⟨T, -, hmax⟩ := Finset.exists_max_image (Finset.univ : Finset (Finset M))
-    (fun S => v S - ∑ j ∈ S, p j) ⟨∅, Finset.mem_univ ∅⟩
-  exact ⟨T, fun S => hmax S (Finset.mem_univ S)⟩
+  let _ := Fintype.ofFinite M
+  exact Finite.exists_max (fun S => v S - ∑ j ∈ S, p j)
 
 /-- A *Walrasian equilibrium* consists of nonnegative item prices `p : M → ℝ` and an allocation
 `a : Allocation N M` such that every bidder receives a demand bundle at prices `p`, and every
