@@ -245,8 +245,8 @@ private theorem splitChildShifts_spec {w base capNodes t u m slot : ℕ} {x₁ :
       (base + u * (6 * t) + 1)).set rSrc au).set rSrc (au + 1)).set rSrc
       (au + 2)).set rDst m).set rLim (m - slot)
   have hp1 : ExecWithin w splitChildPre1 x₁ x₂ 8 := by
-    unfold splitChildPre1; dsimp only [x₂]
-    wram_exec [ho₁, hb₁_reg, hst₁, hcur₁, hnk₁, hsl₁, hna_u,
+    dsimp only [x₂]
+    wram_exec [splitChildPre1, ho₁, hb₁_reg, hst₁, hcur₁, hnk₁, hsl₁, hna_u,
       hf_umul, hf_ub0, hf_ub1, hf_au, hf_au1, hf_au2, hf_ms]
   obtain ⟨x₃, hs1, hb₃, hmem₃, hreg₃⟩ :=
     shiftLoop_spec (arrBase := au + 2) (upper := m) (count := m - slot)

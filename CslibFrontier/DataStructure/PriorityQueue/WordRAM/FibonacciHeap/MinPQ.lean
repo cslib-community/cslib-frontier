@@ -620,7 +620,7 @@ theorem allocSpan_exec {n_max w base : ℕ} (hS : Fits w (base + space n_max))
   have hfit (v : ℕ) (hv : v ≤ base + (FibonacciHeap.space n_max + n_max + n_max)) : Fits w v :=
     hS.of_le (by omega)
   refine WP.exists_execWithin ?_
-  unfold allocSpan; wram_exec [hfr]
+  wram_exec [allocSpan, hfr]
   wram_call (FibonacciHeap.allocSpan_exec
       (show Fits w (base + FibonacciHeap.space n_max) from hfit _ (by omega))
       ((show (x.set valBaseReg base).Bounded w by wram_bounded; exact hfit _ (by omega)).comap f42)

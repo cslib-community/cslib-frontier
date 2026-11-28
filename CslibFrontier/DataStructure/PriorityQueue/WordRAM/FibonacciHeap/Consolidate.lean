@@ -751,9 +751,9 @@ private theorem gatherSlotsLoop_exec {n sz base w maxDeg : ℕ} (rem : ℕ) :
           t_b ≤ 6 ∧ a3.Bounded w ∧ BaseRegs n base a3 ∧ a3.mem = a.mem ∧
           a3.regs curDReg = curD + 1 ∧ a3.regs maxDegReg = maxDeg + 1 ∧
           RawState.ofData n base a3 = RawState.ofData n base a := by
-        unfold gatherSlotBody; refine WP.bounded hb ?_
-        wram_exec [hfit, hfit_cd1, hbr.regs_consBase, hbr.regs_zeroP, hbr.regs_oneP,
-          hcurD, hm_c, hc0]
+        refine WP.bounded hb ?_
+        wram_exec [gatherSlotBody, hfit, hfit_cd1, hbr.regs_consBase, hbr.regs_zeroP,
+          hbr.regs_oneP, hcurD, hm_c, hc0]
         intro hb3
         exact ⟨by omega, hb3, by wram_simp [BaseRegs.set_iff, hbr], rfl,
           by wram_simp, by wram_simp [hmaxD], by wram_simp [ofData_set_scratch]⟩

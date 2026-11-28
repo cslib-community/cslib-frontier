@@ -333,7 +333,7 @@ private theorem thresholdCode_exec {w k : ℕ} {x : Data 24} (hk : 7 ≤ k)
       ∃ x₀, ExecWithin w thresholdPre x x₀ 7 ∧ I x₀ ∧ x₀.regs targetT = 2 := by
     have hkk : k * (k - 1) ≤ 2 * k * (k - 1) := by rw [Nat.mul_assoc]; omega
     have : k - 1 ≤ k * (k - 1) := Nat.le_mul_of_pos_left _ (by omega : 0 < k)
-    unfold thresholdPre; wram_exec [hactiveK]
+    wram_exec [thresholdPre, hactiveK]
     exact ⟨⟨rfl, by wram_simp, by wram_simp [hactiveK], by wram_simp, by wram_simp,
       by wram_simp, by wram_simp; exact ht_ge2, by wram_simp⟩, by wram_simp⟩
   obtain ⟨y, hex_loop, ⟨hym, _, hyk, hyrem, _, hyt_ge, hyt_le, hyv1⟩, hc_exit⟩ :=
@@ -431,7 +431,7 @@ private theorem copySubRow_exec {w wb str dstBase t : ℕ} {W : Fin t → Fin t 
   have : u.val * t + t ≤ t * t := by stride_omega
   have := u.isLt
   refine WP.exists_execWithin ?_
-  unfold copySubRowBody; wram_exec
+  wram_exec [copySubRowBody]
   refine WP.of_execWithin hex_in ?_
   wram_exec [copySubRowPost, h1, (by regs_frame : q₁.regs stride = str), ht, hidx, hrem,
     (by regs_frame : q₁.regs uReg = u.val)]
@@ -466,7 +466,7 @@ private theorem copySubmatrixCode_exec {w wb str dstBase t : ℕ} {W : Fin t →
       by change t - z.regs uReg < t - u.val; have := u.isLt; omega⟩
   obtain ⟨x₀, hx₀, hx₀I, hu0⟩ :
       ∃ x₀, ExecWithin w copySubPre x x₀ 3 ∧ I x₀ ∧ x₀.regs uReg = 0 := by
-    unfold copySubPre; wram_exec [hwBase, hdst]
+    wram_exec [copySubPre, hwBase, hdst]
     exact ⟨⟨by wram_simp [hone], by wram_simp [hstride], by wram_simp [htargetT],
       by wram_simp; omega, by wram_simp; omega, by wram_simp; omega, Modifies.refl _ _,
       fun _ _ h => by simp at h⟩, by wram_simp⟩
@@ -805,7 +805,7 @@ private theorem baseCaseAndPop_law {n w fp parentFp b k : ℕ} {W₀ : Fin n →
           ExecWithin w basePost z y_p 6 ∧ y_p.mem = z.mem ∧
           y_p.regs zero = 0 ∧ y_p.regs fpReg = parentFp ∧ y_p.regs spReg = b ∧
           y_p.regs retVal = z.mem (wb + 1) := by
-        unfold basePost; wram_exec [hz_wb, hz_fp, hz_sp, hz_p]
+        wram_exec [basePost, hz_wb, hz_fp, hz_sp, hz_p]
         exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
       have hv : z.mem (wb + 1) = _ := hst_c.mem_add_one hW'
       exact (ExecRandLaw.of_execWithin (f := fun y => y.regs retVal) e_p
@@ -987,7 +987,7 @@ private theorem branchContractAndPush_law {n w fp b k : ℕ} {W₀ : Fin n → F
       x_s.regs rem = k * k ∧ x_s.regs fpReg = fp ∧ x_s.regs spReg = b + 1 := by
     have : 49 ≤ k * k := Nat.mul_le_mul hk7 hk7
     dsimp only [wb, db] at hdEnd hwd ⊢
-    unfold branchSetup; wram_exec [hk_th, hfp_th, hwd]
+    wram_exec [branchSetup, hk_th, hfp_th, hwd]
     exact ⟨hm_th, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp [hk_th], by wram_simp [hk_th], by wram_simp [ht_th]; rfl, by wram_simp,
       by wram_simp [hfp_th], by wram_simp [hsp_th]⟩
