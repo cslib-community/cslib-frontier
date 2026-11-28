@@ -132,10 +132,6 @@ private theorem seen_succ (m : List Bool) (i : ℕ) :
     (m.take (i + 1)).any id = (m.headD false || (m.tail.take i).any id) := by
   cases m <;> simp
 
-private theorem getD_succ (m : List Bool) (i : ℕ) :
-    m.getD (i + 1) false = m.tail.getD i false := by
-  cases m <;> simp [List.getD_eq_getElem?_getD]
-
 /-- The indexed scan emits the current position before sweeping the remaining mask. -/
 theorem scan_succ (k n : ℕ) (m : List Bool) (seen : Bool) :
     scan k (n + 1) m seen = collect k seen (m.headD false) ++
@@ -144,8 +140,8 @@ theorem scan_succ (k n : ℕ) (m : List Bool) (seen : Bool) :
   rw [List.range_succ_eq_map]
   simp only [List.flatMap_cons, List.flatMap_map]
   simp only [
-    List.take_zero, List.any_nil, Bool.or_false, Nat.add_zero, ← List.headD_eq_getD,
-    seen_succ, getD_succ,
+    List.take_zero, List.any_nil, Bool.or_false, Nat.add_zero, ← List.headD_eq_getD]
+  simp only [seen_succ, List.getD_eq_getElem?_getD, List.getElem?_tail,
     Bool.or_assoc, Nat.add_assoc, Nat.add_comm 1, List.append_assoc]
 
 /-- Emit every remaining clause and join its value to the preceding accumulator. -/

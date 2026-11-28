@@ -7,11 +7,10 @@ Authors: Samuel Schlesinger, Erik Demaine
 module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildChallenge
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.AdjacentPRF
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildReductionLaw
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRoutingPPT
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildTableLaw
-import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.SampledReductionLaw
 import Mathlib.Data.Set.Finite.List
 
 /-!
@@ -187,13 +186,15 @@ example :
       pure ([], state) :=
   ⟨rfl, rfl⟩
 
-example :
-    (cascadeChildRouter (realValid 2) (fun _ => 1) toggle 2 1
-      (adaptiveSides 2 [])).IsQueryBounded 3 := by
-  apply isQueryBounded_cascadeChildRouter
-  exact (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
+private theorem adaptiveSides_isQueryBounded : (adaptiveSides 2 []).IsQueryBounded 3 :=
+  (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
     (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
       (ProbOracleComp.IsQueryBounded.query _).bind fun _ => .pure _ 0
+
+example :
+    (cascadeChildRouter (realValid 2) (fun _ => 1) toggle 2 1
+      (adaptiveSides 2 [])).IsQueryBounded 3 :=
+  isQueryBounded_cascadeChildRouter _ _ _ _ _ adaptiveSides_isQueryBounded
 
 -- A short label determines the order in which the two parents are visited.
 private def visitBothParents : WordOracleComp Unit Bool := do
@@ -372,3 +373,18 @@ example :
         (PMF.uniformOfFintype (BitString 1 → BitString 2)) source router :=
   bind_evalWith_cascadeChildChallengeProgram_eq_game toggle
     (fun key block hk _ => by unfold toggle; split <;> simpa using hk) 4 3 _ _
+
+-- Mixed-length, prefix-free queries use the single-key PRF game across one adjacent step.
+example :
+    let reduction := cascadeChildDistinguisher realValid (fun _ => 1) (fun _ => 1)
+      (fun _ => 3) (fun _ => 2) toggle adaptiveSides
+    Game.advantage
+        (ProbComp.eval (cascadePrefixHybridGame realValid (fun _ => 1) toggle adaptiveSides 2 1))
+        (ProbComp.eval (cascadePrefixHybridGame realValid (fun _ => 1) toggle adaptiveSides 2 2)) =
+      (4 : ℕ) * Game.advantage
+        (ProbComp.eval (prfRealGame (fun _ => 1) toggle reduction 2))
+        (ProbComp.eval (prfIdealGame (fun _ => 1) id reduction 2)) :=
+  advantage_cascadePrefixHybridGame_succ_eq realValid (fun _ => 1) (fun _ => 1)
+    (fun _ => 3) (fun _ => 2) toggle adaptiveSides 2 (by decide) (fun _ _ => Nat.one_dvd _)
+    (fun key block _ => length_toggle key block) adaptiveSides_prefixFree
+    adaptiveSides_isQueryBounded (by decide)

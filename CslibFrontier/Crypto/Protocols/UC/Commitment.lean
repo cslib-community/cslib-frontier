@@ -27,9 +27,10 @@ result here is narrower:
 - `PlainCommitmentScheme` sends exactly one commitment message and one opening message;
 - the asymptotic statement `not_realizes_fcom` assumes that the honest acceptance probabilities on
   `false` and `true` eventually sum to at least `1 + c` for a constant `c > 0`;
-- `Realizes` supplies one simulator before the environment is chosen (the concrete trade-off
-  `acceptProb_add_le_one_add_advantage` does allow independent simulators for `C = {0}` and
-  `C = {1}`);
+- `Realizes` supplies one simulator family `S κ C` before the environment is chosen; `S` receives
+  the static corruption set, so separate simulators for `C = {0}` and `C = {1}` (as in the concrete
+  trade-off `acceptProb_add_le_one_add_advantage`) are components of one such family, and what is
+  not covered is the source's simulator that may depend on the environment;
 - `PolyBounded` counts oracle calls and allows arbitrary pure computation between them, so the
   budgets of `corruptReceiverEnv_polyBounded` and `corruptCommitterEnv_polyBounded` are call
   counts, not efficient machine realizations.
@@ -1366,10 +1367,10 @@ theorem acceptProb_le_ideal_add_advantage [DecidableEq CommitMsg] [DecidableEq O
 for every plain-model commitment scheme `scheme`, every corrupted-receiver simulator `S₁`
 (`C = {1}`), and every corrupted-committer simulator `S₀` (`C = {0}`), the sum of the honest
 acceptance probabilities on `false` and `true` is bounded by `1` plus the four dummy-adversary
-distinguishing advantages on `corruptReceiverEnv` and `corruptCommitterEnv`. Allowing `S₁` and `S₀`
-to be arbitrary independent simulators shows that impossibility holds even if the simulator is
-allowed to depend arbitrarily on the static corruption set; setting `S₁ = S₀ = S_D` specializes to
-a single UC simulator. -/
+distinguishing advantages on `corruptReceiverEnv` and `corruptCommitterEnv`. `S₁` and `S₀` are
+arbitrary; since every simulator receives the static corruption set, they are the `C = {1}` and
+`C = {0}` components of one simulator family (`not_emulatesDummyWithin_fcom`, and hence
+`not_realizesWithin_fcom`, as well as `not_realizes_fcom`, instantiate `S₁ = S₀ = S`). -/
 theorem acceptProb_add_le_one_add_advantage [DecidableEq CommitMsg] [DecidableEq OpenMsg]
     (scheme : PlainCommitmentScheme CommitMsg OpenMsg)
     (S₁ S₀ : PlainCommitmentSim CommitMsg OpenMsg)
