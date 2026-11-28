@@ -9,7 +9,13 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.Refuter4n.Evaluator
 public meta import CslibFrontier.Algorithms.WordRAM.Refuter4n.Evaluator
+public import CslibFrontier.Foundations.Data.BitString.Parity
+public meta import CslibFrontier.Foundations.Data.BitString.Parity
+import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.Notation
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Foundations.Data.BitString.Binary
+import CslibFrontier.Foundations.Data.BitString.ListParity
 import CslibFrontier.Foundations.Data.Nat.Bitwise.Projection
 
 /-!
@@ -19,7 +25,9 @@ import CslibFrontier.Foundations.Data.Nat.Bitwise.Projection
   stored at `[src, src + k)` and writes the results to `[dst, dst + k)`, through
   `FramedEvaluator.exec_loop`, within `k * (E.cost + 7) + 4` instructions: every call charged.
   Memory outside the window and the output block is kept (`exec_evalMany`).
-* `exec_evalMany` instantiated with `parityEvaluator` as an ordinary module client.
+* `parityEvaluator n`: an evaluator for `Cslib.parity n` by a shift-and-mask loop over the `n`
+  bits of the packed point, with no workspace, at the widths `w ≥ n + 1`, within `6 n + 6`
+  instructions; `exec_evalMany` instantiated with it as an ordinary module client.
 * `windowEvaluator`: an evaluator with a one-cell window that it writes before reading, with
   `exec_evalMany` at a window disjoint from the source and output blocks, and interpreter runs
   from a dirty window.
@@ -175,6 +183,106 @@ theorem exec_evalMany (E : FramedEvaluator n f r) {w b src dst : ℕ} (xs : List
   ring
 
 /-! ### The parity instance -/
+
+section Parity
+
+/-- Input register: the packed point. -/
+private abbrev pInp : Fin 7 := 0
+/-- Workspace base register (unused: the parity code has no workspace). -/
+private abbrev pBase : Fin 7 := 1
+/-- Result register: the running parity. -/
+private abbrev pOut : Fin 7 := 2
+/-- Bit counter. -/
+private abbrev pI : Fin 7 := 3
+/-- Bit count `n`. -/
+private abbrev pLim : Fin 7 := 4
+/-- Scratch register. -/
+private abbrev pT : Fin 7 := 5
+/-- Constant one. -/
+private abbrev pOne : Fin 7 := 6
+
+/-- One loop iteration: exclusive-or bit `i` of the input into the result. -/
+private def parityBody : Code .standard 7 := ram[
+  pT ← pInp >>> pI; pT ← pT &&& pOne; pOut ← pOut ^^^ pT; pI ← pI + pOne ]
+
+/-- The parity evaluator's program: the exclusive or of bits `0, …, n - 1` of register `0` into
+register `2`, with registers `3` to `6` as scratch. -/
+def parityCode (n : ℕ) : Code .standard 7 :=
+  .seq (ram[ pOut ← #0; pI ← #0; pLim ← #n; pOne ← #1 ]) (.loop (.lt pI pLim) parityBody)
+
+private theorem toNat_xor (a b : Bool) : a.toNat ^^^ b.toNat = (a ^^ b).toNat := by
+  cases a <;> cases b <;> rfl
+
+private theorem exec_parityBody {w : ℕ} (y : Data 7) (hone : y.regs pOne = 1)
+    (hi : Fits w (y.regs pI + 1)) (hinp : Fits w (y.regs pInp)) (h1 : Fits w 1) (b : Bool)
+    (hout : y.regs pOut = b.toNat) :
+    ∃ z, ExecWithin w parityBody y z 4 ∧ z.mem = y.mem ∧
+      z.regs pI = y.regs pI + 1 ∧
+      z.regs pOut = (b ^^ (y.regs pInp).testBit (y.regs pI)).toNat ∧
+      z.regs pInp = y.regs pInp ∧ z.regs pBase = y.regs pBase ∧ z.regs pLim = y.regs pLim ∧
+      z.regs pOne = y.regs pOne := by
+  have hs : Fits w (y.regs pInp >>> y.regs pI) := hinp.of_le (Nat.shiftRight_le _ _)
+  have hb : ∀ c : Bool, Fits w c.toNat := fun c => h1.of_le (Bool.toNat_le c)
+  refine WP.exists_execWithin ?_
+  unfold parityBody
+  wram_exec [hone, hout, hs, hi, Nat.shiftRight_and_one, toNat_xor, hb]
+  exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+    by wram_simp⟩
+
+/-- **The parity evaluator's certificate.** At every width `w ≥ n + 1`, from any data with the
+packed point `pointWord x` in register `0`, `parityCode n` leaves `(parity n x).toNat` in
+register `2` within `6 n + 6` instructions, keeps registers `0` and `1`, and keeps all memory. -/
+private theorem exec_parityCode {w : ℕ} (x : BitString n) (s : Data 7) (hw : n + 1 ≤ w)
+    (hx : s.regs 0 = pointWord x) :
+    ∃ t, ExecWithin w (parityCode n) s t (6 * n + 6) ∧ t.regs 2 = (parity n x).toNat ∧
+      t.regs 0 = s.regs 0 ∧ t.regs 1 = s.regs 1 ∧ t.mem = s.mem := by
+  have h1 : Fits w 1 := fits_one (by omega)
+  have hn : Fits w n := (fits_self w).of_le (by omega)
+  have hinp : Fits w (s.regs pInp) := hx ▸ fits_pointWord x (by omega)
+  let P (k : ℕ) (z : Data 7) : Prop :=
+    z.regs pInp = s.regs pInp ∧ z.regs pBase = s.regs pBase ∧ z.regs pLim = n ∧
+      z.regs pOne = 1 ∧ z.mem = s.mem ∧
+        z.regs pOut = (wordParity ((List.ofFn x).take k)).toNat
+  have hbody (y : Data 7) (hy : P (y.regs pI) y) (hlt : y.regs pI < n) :
+      ∃ z, ExecWithin w parityBody y z 4 ∧ P (y.regs pI + 1) z ∧
+        z.regs pI = y.regs pI + 1 := by
+    obtain ⟨hyi, hyb, hyl, hyo, hym, hyout⟩ := hy
+    obtain ⟨z, he, hzm, hzi, hzout, hzinp, hzb, hzl, hzo⟩ := exec_parityBody y hyo
+      (hn.of_le (by omega)) (hyi ▸ hinp) h1 _ hyout
+    refine ⟨z, he, ⟨hzinp.trans hyi, hzb.trans hyb, hzl.trans hyl, hzo.trans hyo,
+      hzm.trans hym, ?_⟩, hzi⟩
+    rw [hzout, hyi, hx, testBit_equivFin x ⟨_, hlt⟩, List.take_add_one, List.getElem?_ofFn,
+      wordParity_eq_sum, wordParity_eq_sum, List.sum_append]
+    simp [hlt, Bool.add_eq_xor]
+  refine WP.exists_execWithin ?_
+  unfold parityCode
+  wram_exec [hn, h1]
+  wram_call (ExecWithin.loop_count P (fun _ ⟨_, _, hl, _⟩ => hl) hbody (by wram_simp; omega)
+    ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+      by wram_simp; simp⟩)
+    with z ⟨⟨hzi, hzb, -, -, hzm, hzout⟩, -⟩
+  refine ⟨by wram_simp; omega, ?_, hzi, hzb, hzm⟩
+  rw [hzout, List.take_of_length_le (by simp), wordParity_ofFn]
+  rfl
+
+/-- **The parity evaluator**: `parityCode n` as a framed evaluator for `Cslib.parity n`, with the
+point in register `0`, the (unused) base in register `1`, the result in register `2`, no
+workspace, at the widths `w ≥ n + 1`, within `6 n + 6` instructions per call. -/
+@[expose] def parityEvaluator (n : ℕ) : FramedEvaluator n (parity n) 7 where
+  code := parityCode n
+  inp := 0
+  base := 1
+  out := 2
+  space := 0
+  cost := 6 * n + 6
+  inp_ne_base := by decide
+  space_le_cost := Nat.zero_le _
+  exec x s hw _ hx := by
+    obtain ⟨t, ht, hout, hinp, hbase, hmem⟩ := exec_parityCode x s hw hx
+    exact ⟨t, ht, ⟨hout, hinp, hbase, hmem ▸ Modifies.refl _ _⟩⟩
+
+end Parity
+
 
 /-- The certificate of `parityEvaluator 4` at width `5`, as an ordinary module client. -/
 example (x : BitString 4) (s : Data 7) (hx : s.regs 0 = pointWord x) (hb : s.regs 1 = 0) :
