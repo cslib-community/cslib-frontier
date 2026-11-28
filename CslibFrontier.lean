@@ -1823,6 +1823,7 @@ public import CslibFrontier.Computability.Automata.Weighted.Loop
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.RationalRamp
 public import CslibFrontier.DataStructure.BPlusTree.TreeMap
 public import CslibFrontier.Computability.Complexity.Classes.Toda.SharpSAT
+public import CslibFrontier.Computability.Complexity.CookLevin.IndexBound
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.EdgeDeletionTransport
 public import CslibFrontier.Logics.Propositional.Algebraic.Nullstellensatz.Proof
 public import CslibFrontier.Computability.Kolmogorov.ChaitinOmega
