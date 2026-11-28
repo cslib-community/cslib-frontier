@@ -250,6 +250,14 @@ example : lpBlockValid (fun _ => 2) 3 [] = true ∧
     rw [hFresh]
     rfl
 
+private theorem lpBlockValid_two_append {n : ℕ} {word block : List Bool}
+    (hWord : lpBlockValid (fun _ => 2) n word = true) (hBlock : block.length = n) :
+    lpBlockValid (fun _ => 3) n (word ++ block) = true := by
+  obtain ⟨hdiv, hcap⟩ := lpBlockValid_spec hWord
+  simp only [lpBlockValid, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq, List.length_append,
+    hBlock, Nat.add_mod_right, Nat.mod_eq_zero_of_dvd hdiv, true_and]
+  omega
+
 -- The cascade bound accepts the empty message and its one-block extension in the same batch.
 example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) :
     ∃ reduction : OracleDistinguisher, IsOraclePPT encBool reduction ∧
@@ -258,24 +266,32 @@ example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunct
         (fun _ d (key : BitString d) => cascadeFamily id family (List.ofFn key)) emptyWordBatch 3) ≤
       (6 : ℕ) * Game.advantage (ProbComp.eval (prfRealGame id family reduction 3))
         (ProbComp.eval (prfIdealGame id id reduction 3)) + (2 : ℕ).choose 2 / (2 : ℝ≥0) ^ 3 := by
-  have hFacts (cap : ℕ) {word : List Bool} (hWord : lpBlockValid (fun _ => cap) 3 word = true) :
-      3 ∣ word.length ∧ word.length ≤ cap * 3 := by
-    simp only [lpBlockValid, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hWord
-    exact ⟨Nat.dvd_of_mod_eq_zero hWord.1, hWord.2⟩
   refine succProbability_multiQueryGame_cascade_le_pointwise emptyWordBatch 3 2 2
     ComputableInPolyTime.id' (computableInPolyTime_lpBlockValid (.const 2))
     (computableInPolyTime_lpBlockValid (.const 3)) hF.length_eq hF.polyTime
     (ComputableInPolyTime.const [[], [false, false, false]]).isPPTOn (by decide)
-    (fun _ hWord => (hFacts 2 hWord).1) (fun _ hWord => (hFacts 2 hWord).2)
-    (fun _ hWord => (hFacts 3 hWord).1) (fun _ hWord => (hFacts 3 hWord).2)
-    (by decide) ?_ ?_
-  · intro word block hWord hBlock
-    obtain ⟨hdiv, hcap⟩ := hFacts 2 hWord
-    have hBlockLength : block.length = 3 := hBlock
-    simp only [lpBlockValid, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq, List.length_append,
-      hBlockLength, Nat.add_mod_right, Nat.mod_eq_zero_of_dvd hdiv, true_and]
-    omega
-  · intro guesses hGuesses
-    simp only [emptyWordBatch, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hGuesses
-    subst guesses
-    decide
+    (fun _ hWord => (lpBlockValid_spec hWord).1) (fun _ hWord => (lpBlockValid_spec hWord).2)
+    (fun _ hWord => (lpBlockValid_spec hWord).1) (fun _ hWord => (lpBlockValid_spec hWord).2)
+    (by decide) lpBlockValid_two_append ?_
+  intro guesses hGuesses
+  simp only [emptyWordBatch, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hGuesses
+  subst guesses
+  decide
+
+-- At parameter zero the full domain includes the empty word. The multi-query theorem
+-- still yields single-pair security through the shared two-message bridge.
+example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) :
+    lpBlockValid (fun _ => 2) 0 [] = true ∧
+    IsComputationalUHF encUnary encBits pure (fun _ d => lpBlockValid (fun _ => 2) d)
+      (fun _ d (key : BitString d) => cascadeFamily id family (List.ofFn key)) := by
+  refine ⟨by decide, IsMultiQueryUHF.isComputationalUHF ?_⟩
+  refine hF.isMultiQueryUHF_cascade ComputableInPolyTime.id' (.const 2)
+    (computableInPolyTime_lpBlockValid (.const 2)) (computableInPolyTime_lpBlockValid (.const 3))
+    (fun _ _ hWord => (lpBlockValid_spec hWord).1) (fun _ _ hWord => (lpBlockValid_spec hWord).2)
+    (fun _ _ hWord => (lpBlockValid_spec hWord).1) (fun _ _ hWord => (lpBlockValid_spec hWord).2)
+    lpBlockValid_two_append ?_
+    negligible_inv_two_pow
+  refine Filter.Eventually.of_forall fun n => ?_
+  simp only [lpBlockValid, List.length_replicate, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq,
+    Nat.mod_self, true_and, id_eq]
+  omega

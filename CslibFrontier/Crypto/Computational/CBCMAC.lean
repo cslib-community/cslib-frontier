@@ -400,6 +400,12 @@ def cbcBlockValid (ℓ : ℕ → ℕ) (n : ℕ) (msg : List Bool) : Bool :=
 def lpBlockValid (L : ℕ → ℕ) (n : ℕ) (msg : List Bool) : Bool :=
   (msg.length % n == 0) && decide (msg.length ≤ L n * n)
 
+/-- A valid bounded block word is aligned and respects its cap in bits, including at width zero. -/
+theorem lpBlockValid_spec {L : ℕ → ℕ} {n : ℕ} {word : List Bool}
+    (hWord : lpBlockValid L n word = true) : n ∣ word.length ∧ word.length ≤ L n * n := by
+  simp only [lpBlockValid, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hWord
+  exact ⟨Nat.dvd_of_mod_eq_zero hWord.1, hWord.2⟩
+
 /-- `cbcBlockValid ℓ` is computable in polynomial time whenever `ℓ` is computable in polynomial time
 in unary. -/
 theorem computableInPolyTime_cbcBlockValid {ℓ : ℕ → ℕ}

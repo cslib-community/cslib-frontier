@@ -19,6 +19,13 @@ Appending one fresh block to each candidate hash input gives a prefix-free batch
 and preserves every collision. The cascade reduction then compares that batch against
 the base PRF. The loss is the query budget times the extended block cap, plus the
 ideal birthday term.
+
+## Main results
+
+* `Cslib.Crypto.PseudorandomFunctionOver.isMultiQueryUHF_cascade` proves the asymptotic
+  cascade case of Corollary 7.5. `UHF.IsMultiQueryUHF.isComputationalUHF` gives single-pair security.
+* `Cslib.Crypto.UHF.succProbability_multiQueryGame_cascade_le_pointwise` proves (7.11)
+  with the exact unordered-pair birthday term.
 -/
 
 public section
@@ -44,7 +51,7 @@ private theorem cascade_collision_extend
 /-- The multi-query cascade conclusion of [BonehShoup2023], v0.6, Corollary 7.5
 (printed p. 260). The word predicates describe the hash domain of at most `hops n`
 blocks and the PRF domain with one extra block. The reciprocal of the block alphabet
-size is negligible. Hash inputs use positive-width blocks, the extended domain
+size is negligible, so the block width is eventually positive. The extended domain
 eventually admits the all-zero block, and the keys and digests are `n` bits. -/
 theorem PseudorandomFunctionOver.isMultiQueryUHF_cascade
     {width hops : ℕ → ℕ} {valid oracleValid : ℕ → List Bool → Bool}
@@ -56,7 +63,7 @@ theorem PseudorandomFunctionOver.isMultiQueryUHF_cascade
       (encPair encUnary encBits) encBool)
     (hOracleValid : ComputableInPolyTime (fun p : ℕ × List Bool => oracleValid p.1 p.2)
       (encPair encUnary encBits) encBool)
-    (hAligned : ∀ n word, valid n word = true → 0 < width n ∧ width n ∣ word.length)
+    (hAligned : ∀ n word, valid n word = true → width n ∣ word.length)
     (hBlocks : ∀ n word, valid n word = true → word.length ≤ hops n * width n)
     (hOracleAligned : ∀ n word, oracleValid n word = true → width n ∣ word.length)
     (hOracleBlocks : ∀ n word, oracleValid n word = true → word.length ≤ (hops n + 1) * width n)
@@ -72,14 +79,35 @@ theorem PseudorandomFunctionOver.isMultiQueryUHF_cascade
     simp [Nat.eq_zero_of_le_zero h] at hn
   have hPRF := hF.prefixFree_cascade hOracleValid hIn
     (hHops.unary_add' (.const 1)) hWidth hOracleAligned hOracleBlocks
-  refine UHF.isMultiQueryUHF_of_extendable_prefixFreePRF hPRF hIn hValid hAligned
-    (fun n word hw => Nat.div_le_of_le_mul (by simpa only [Nat.mul_comm] using hBlocks n word hw))
-    hHops.polynomiallyBounded hDomain hProbe ?_ hAlphabet negligible_inv_two_pow
-  intro n key left right block hk hl hr hb heq
-  obtain ⟨hw, hleft⟩ := hAligned n left hl
-  exact cascade_collision_extend hF.length_eq (by simpa only [hk] using hw)
-    (by simpa only [hk] using hleft) (by simpa only [hk] using (hAligned n right hr).2)
-    (by simpa only [hk] using hb) heq
+  let positiveDomain n word := decide (0 < width n) && valid n word
+  have hPositive : ComputableInPolyTime (fun p : ℕ × List Bool => positiveDomain p.1 p.2)
+      (encPair encUnary encBits) encBool :=
+    ((ComputableInPolyTime.const 0).unary_lt' (hIn.comp (.fst _ _))).bool_and' hValid
+  have hValidOfPositive {n word} (h : positiveDomain n word = true) : valid n word = true :=
+    (Bool.and_eq_true_iff.mp h).2
+  have hPositiveAligned n word (h : positiveDomain n word = true) :
+      0 < width n ∧ width n ∣ word.length :=
+    ⟨of_decide_eq_true (Bool.and_eq_true_iff.mp h).1, hAligned n word (hValidOfPositive h)⟩
+  have hExtend {n : ℕ} {key left right block : List Bool} (hk : key.length = n)
+      (hl : positiveDomain n left = true) (hr : positiveDomain n right = true)
+      (hb : block.length = width n)
+      (heq : cascadeFamily width family key left = cascadeFamily width family key right) :
+      cascadeFamily width family key (left ++ block) =
+        cascadeFamily width family key (right ++ block) := by
+    obtain ⟨hw, hleft⟩ := hPositiveAligned n left hl
+    exact cascade_collision_extend hF.length_eq (by simpa only [hk] using hw)
+      (by simpa only [hk] using hleft) (by simpa only [hk] using (hPositiveAligned n right hr).2)
+      (by simpa only [hk] using hb) heq
+  have hSecure := UHF.isMultiQueryUHF_of_extendable_prefixFreePRF hPRF hIn hPositive
+    hPositiveAligned (fun n word hw => Nat.div_le_of_le_mul (by
+      simpa only [Nat.mul_comm] using hBlocks n word (hValidOfPositive hw)))
+    hHops.polynomiallyBounded (fun hw hb => hDomain (hValidOfPositive hw) hb) hProbe
+    hExtend hAlphabet negligible_inv_two_pow
+  apply Game.Indistinguishable.of_negligible_succProbability
+  intro guess hGuess
+  apply negligible_of_eventually_le (hSecure.negligible_succProbability guess hGuess)
+  filter_upwards [hWidth] with n hn
+  simp [UHF.multiQueryGame, positiveDomain, hn]
 
 namespace UHF
 

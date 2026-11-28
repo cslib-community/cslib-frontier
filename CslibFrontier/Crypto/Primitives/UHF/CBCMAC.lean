@@ -19,8 +19,8 @@ This proves the CBC-MAC case of [BonehShoup2023], v0.6, Corollary 7.5 (printed p
 The collision game includes the empty word. The prefix-free wrapper appends one block before
 querying the CBC oracle, so its queries are in the nonempty CBC domain. Composing the batch
 wrapper with the CBC-to-PRF reduction gives an explicit distinguisher and a birthday bound.
-The single-pair bound applies it to a two-message batch. The cascade application also depends
-on the Chapter 6 construction and security proof in #5801.
+The single-pair bound applies it to a two-message batch. The cascade case is in
+`CslibFrontier/Crypto/Primitives/UHF/Cascade.lean`.
 
 ## Main definitions
 
@@ -42,11 +42,6 @@ namespace Cslib.Crypto
 
 open Probability Turing.MultiTapeTM
 open scoped NNReal
-
-private theorem lpBlockValid_spec {ℓ : ℕ → ℕ} {n : ℕ} {word : List Bool}
-    (hw : lpBlockValid ℓ n word = true) : n ∣ word.length ∧ word.length ≤ ℓ n * n := by
-  simp only [lpBlockValid, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hw
-  exact ⟨Nat.dvd_of_mod_eq_zero hw.1, hw.2⟩
 
 private theorem lpBlockValid_blockCount_le {ℓ : ℕ → ℕ} {n : ℕ} {word : List Bool}
     (hw : lpBlockValid ℓ n word = true) : word.length / n ≤ ℓ n :=
@@ -168,8 +163,7 @@ end UHF
 
 /-- The CBC-MAC case of [BonehShoup2023], v0.6, Corollary 7.5 (printed p. 260), for batches.
 CBC-MAC on zero to `ℓ n` whole blocks is a multi-query UHF under a length-preserving secure
-PRF. The word model uses uniform `n`-bit keys and a unary polynomial-time block cap.
-The cascade case depends on #5801. -/
+PRF. The word model uses uniform `n`-bit keys and a unary polynomial-time block cap. -/
 theorem PseudorandomFunction.isMultiQueryUHF_cbcMac
     {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
     {ℓ : ℕ → ℕ} (hℓ : ComputableInPolyTime ℓ encUnary encUnary) :
