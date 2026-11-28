@@ -585,6 +585,17 @@ structure Stored (L : Layout) (P : PackedState) (mem : ℕ → ℕ) : Prop where
   pairs : Cslib.WordRAM.Realization.HoldsRecords 2 (L.pairAddr 0 0)
     (P.pairs.map fun pr => ![pr.1, pr.2]) mem
 
+/-- One-word records: the words `mem (base + i) = xs.getD i 0` give the stride-one record array
+of `xs`. -/
+private theorem holdsRecords_one_of_words {base : ℕ} {xs : List ℕ} {mem : ℕ → ℕ}
+    (h : ∀ i < xs.length, mem (base + i) = xs.getD i 0) :
+    Cslib.WordRAM.Realization.HoldsRecords 1 base (xs.map fun x => ![x]) mem := by
+  intro i hi c
+  rw [List.length_map] at hi
+  rw [Fin.fin_one_eq_zero c, Fin.val_zero, Nat.one_mul, Nat.add_zero, List.getElem_map, h i hi,
+    List.getD_eq_getElem _ _ hi]
+  rfl
+
 /-- `Stored` from its words, row by row. -/
 private theorem stored_of_words {L : Layout} {P : PackedState} {mem : ℕ → ℕ}
     (h₀ : mem L.base = P.params) (h₁ : mem (L.base + 1) = P.aux)
@@ -598,7 +609,11 @@ private theorem stored_of_words {L : Layout} {P : PackedState} {mem : ℕ → �
     (hq : ∀ k < P.pairs.length, mem (L.pairAddr k 0) = (P.pairs.getD k (0, 0)).1 ∧
       mem (L.pairAddr k 1) = (P.pairs.getD k (0, 0)).2) :
     Stored L P mem := by
-  refine ⟨h₀, h₁, h₂, h₃, h₄, fun J hJ c => ?_, fun e hE c => ?_, fun i hi c => ?_,
+  refine ⟨h₀, h₁, h₂, h₃, h₄, fun J hJ c => ?_,
+    holdsRecords_one_of_words fun e hE => (congrArg mem (by unfold Layout.eqnAddr; omega)).trans
+      (he e hE),
+    holdsRecords_one_of_words fun i hi => (congrArg mem (by unfold Layout.phiAddr; omega)).trans
+      (hp i hi),
     fun k hk c => ?_⟩
   · rw [List.length_map] at hJ
     obtain ⟨a, b, d⟩ := hg J hJ
@@ -608,16 +623,6 @@ private theorem stored_of_words {L : Layout} {P : PackedState} {mem : ℕ → �
     rw [hA, List.getElem_map]
     fin_cases c
     exacts [a, b, d]
-  · rw [List.length_map] at hE
-    have hA : L.eqnAddr 0 + 1 * e + (c : ℕ) = L.eqnAddr e := by
-      rw [Fin.fin_one_eq_zero c, Fin.val_zero]; unfold Layout.eqnAddr; omega
-    rw [hA, List.getElem_map, Fin.fin_one_eq_zero c, he e hE, List.getD_eq_getElem _ _ hE]
-    rfl
-  · rw [List.length_map] at hi
-    have hA : L.phiAddr 0 + 1 * i + (c : ℕ) = L.phiAddr i := by
-      rw [Fin.fin_one_eq_zero c, Fin.val_zero]; unfold Layout.phiAddr; omega
-    rw [hA, List.getElem_map, Fin.fin_one_eq_zero c, hp i hi, List.getD_eq_getElem _ _ hi]
-    rfl
   · rw [List.length_map] at hk
     obtain ⟨a, b⟩ := hq k hk
     rw [List.getD_eq_getElem _ _ hk] at a b
