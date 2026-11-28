@@ -39,7 +39,7 @@ This module connects `MaxSAT` (`MaxSAT.thresholdCircuit`, `MaxSAT.optimum`) and 
 1. **Structured encodings:** `enc_structure` encodes `StructInstance`, `ThresholdQuery`,
    `StructSolution`, and the parameterized `MaxCSPInstance Rel ℕ`. They connect to
    `MaxSAT.Instance`, `MaxCSPInstance.ofCNF`, and the `2 ^ (n + 1) * exp (-2 * s * δ ^ 2)`
-   (and `1 - η` sample-size) subsampling concentration and optimality-loss theorems.
+   (and `1 - η` sample-size) subsampling concentration and `2 * δ * m` optimality-loss theorems.
 2. **Threshold compilation (`thresholdToCNF`):** compiles a `ThresholdQuery` in polynomial time via
    `MaxSAT.thresholdCircuit` and `Compiler.toSatCNF` to a 3-CNF formula (`KSAT k` for every `3 ≤ k`)
    with at most `thresholdVarBudget workSize = 957 * workSize + 957` variables, satisfiable iff
