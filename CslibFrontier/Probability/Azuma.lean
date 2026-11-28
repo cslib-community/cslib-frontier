@@ -106,8 +106,7 @@ theorem tsum_seqProcess_le_initial (step : ∀ t : ℕ, (Fin t → α) → PMF �
     ∑' h : Fin n → α, seqProcess step n h * Z n h ≤ Z 0 Fin.elim0 := by
   induction n with
   | zero =>
-    rw [seqProcess, tsum_eq_single Fin.elim0 fun h hh => absurd (Subsingleton.elim h _) hh]
-    simp
+    rw [seqProcess, tsum_pure_mul]
   | succ n ih =>
     rw [seqProcess, tsum_bind_mul]
     refine (tsum_le_tsum fun h => ?_).trans (ih fun k hk => hstep k (Nat.lt_succ_of_lt hk))
@@ -201,8 +200,7 @@ theorem seqProcess_mul_exp_le (step : ∀ t : ℕ, (Fin t → α) → PMF α)
       ENNReal.ofReal (Real.exp (s ^ 2 * (∑ k ∈ Finset.range n, c k ^ 2) / 8)) := by
   induction n with
   | zero =>
-    rw [seqProcess, tsum_eq_single Fin.elim0 fun h hh =>
-      absurd (Subsingleton.elim h Fin.elim0) hh]
+    rw [seqProcess, tsum_pure_mul]
     simp
   | succ n ih =>
     have ih' := ih (fun k hk => hmean k (Nat.lt_succ_of_lt hk))
