@@ -2,6 +2,7 @@ import CslibFrontierResults.Entries.ODonnellLowDegreePart
 import CslibFrontierResults.Entries.ODonnellKhintchineKahane
 import CslibFrontierResults.Entries.ExtensiveGames
 import CslibFrontierResults.Entries.ODonnellUncertainty
+import CslibFrontierResults.Entries.EvolutionaryGraphESS
 import CslibFrontierResults.Entries
 import CslibFrontierResults.Entries.MinimumSpanningTree
 import CslibFrontierResults.Entries.SergeevORComplement

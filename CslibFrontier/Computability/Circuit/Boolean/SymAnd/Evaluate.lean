@@ -706,8 +706,9 @@ private theorem computableInO_radixSortLSB {α γ : Type} {encα : α ↪ List B
       (fun q => (encList encElem q.2).length +
         ((encNat q.1).length + listMax (fun p => (encElem p).length) q.2 + 1) ^ d) := by
     have hcomp := (ComputableInO.natSucc.comp (ComputableInO.fst encNat (encList encElem))).prod hp
-    refine hcomp.weaken ⟨4, fun q => ?_⟩ ⟨4, fun q => ?_⟩
-    · dsimp only [encElem, encState]
+    refine hcomp.weaken ⟨4, ?_⟩ ⟨4, ?_⟩ <;> intro q
+    all_goals
+      dsimp only [encElem, encState]
       rw [length_encPair]
       have hdp : ((encNat q.1).length +
             listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^ dp ≤
@@ -719,7 +720,7 @@ private theorem computableInO_radixSortLSB {α γ : Type} {encα : α ↪ List B
             listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^ d :=
         (Nat.le_add_right _ _ |>.trans (Nat.le_add_right _ _)).trans
           (Nat.le_self_pow (Nat.ne_of_gt (lt_of_lt_of_le (by decide) (le_max_right dp 2))) _)
-      have h2 : ((encNat q.1).length + 1) ^ 2 ≤
+    · have h2 : ((encNat q.1).length + 1) ^ 2 ≤
           ((encNat q.1).length +
             listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^ d :=
         (Nat.pow_le_pow_left (by omega) 2).trans
@@ -731,19 +732,7 @@ private theorem computableInO_radixSortLSB {α γ : Type} {encα : α ↪ List B
             listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^ d :=
         Nat.le_mul_of_pos_left _ (Nat.succ_pos _)
       omega
-    · dsimp only [encElem, encState]
-      rw [length_encPair]
-      have hdp : ((encNat q.1).length +
-            listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^ dp ≤
-          ((encNat q.1).length +
-            listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^ d :=
-        Nat.pow_le_pow_right (Nat.succ_pos _) (le_max_left dp 2)
-      have h1 : (encNat q.1).length ≤
-          ((encNat q.1).length +
-            listMax (fun p => (encPair encBits encα p).length) q.2 + 1) ^ d :=
-        (Nat.le_add_right _ _ |>.trans (Nat.le_add_right _ _)).trans
-          (Nat.le_self_pow (Nat.ne_of_gt (lt_of_lt_of_le (by decide) (le_max_right dp 2))) _)
-      omega
+    · omega
   have hinit : ComputableInO (fun x => ((0 : ℕ), L x)) encIn encState
       (fun x => (encIn x).length + TL x) (fun x => SL x) :=
     ((ComputableInO.constZero (encIn := encIn) (encMid := encNat) (0 : ℕ)).prod hL).weaken
@@ -2729,9 +2718,10 @@ private theorem computableInO_yatesZeta :
             Nat.mul_le_mul_left 5 hmul_b
         _ = 5 * (2 * 3 ^ (D_st + 1) * 2 ^ D_st) * symBox C_y (fun _ => 0) x := by ring
         _ ≤ 18 ^ (D_st + 2) * symBox C_y (fun _ => 0) x := Nat.mul_le_mul_right _ hc18
-  refine ⟨C_y, symBox_zero_weaken (hit.weaken ⟨4 * 18 ^ (D_st + 2) + 8, fun x => ?_⟩
-      ⟨4 * 18 ^ (D_st + 2) + 8, fun x => ?_⟩)⟩
-  · dsimp only
+  refine ⟨C_y, symBox_zero_weaken (hit.weaken ⟨4 * 18 ^ (D_st + 2) + 8, ?_⟩
+    ⟨4 * 18 ^ (D_st + 2) + 8, ?_⟩)⟩ <;> intro x
+  all_goals
+    dsimp only
     set K := 18 ^ (D_st + 2)
     set B := symBox C_y (fun _ => 0) x
     have hx := enc_le_symBox (c := C_y) (by dsimp only [C_y]; omega) (fun _ => 0) x
@@ -2739,14 +2729,17 @@ private theorem computableInO_yatesZeta :
       calc _ = symBox c_cm (fun _ => 0) x := by simp only [symBox, Nat.zero_add, Nat.mul_one]
         _ ≤ B := symBox_mono (by dsimp only [C_y]; omega : c_cm ≤ C_y) (fun _ => le_rfl) x
             (F₁ := fun _ => 0) (F₂ := fun _ => 0)
-    have hN_R : (x.n + 1) * R_y x ≤ K * B := by
-      simpa only [pow_one] using hR_bound 1 le_rfl x
     have hB_le : 2 ^ x.n * (2 * (x.n + Nat.log2 ((encSymAndInstance x).length + 1) + 1) + 1) ≤
         R_y x := by dsimp only [R_y]; omega
+    have hlen_n := encNat_length_le_succ x.n
+    have hbox_pos : 1 ≤ B := symBox_pos C_y (fun _ => 0) x
+    have hK_pos : 1 ≤ K := Nat.one_le_pow _ _ (by decide)
+    have hKB : K * B ≤ K * (B + 1) := Nat.mul_le_mul_left K (Nat.le_succ B)
+  · have hN_R : (x.n + 1) * R_y x ≤ K * B := by
+      simpa only [pow_one] using hR_bound 1 le_rfl x
     have hN_B : (x.n + 1) *
         (2 ^ x.n * (2 * (x.n + Nat.log2 ((encSymAndInstance x).length + 1) + 1) + 1)) ≤ K * B :=
       (Nat.mul_le_mul_left _ hB_le).trans hN_R
-    have hlen_n := encNat_length_le_succ x.n
     have hN3 : (x.n + 1) ^ 3 ≤ B :=
       n_pow_le_symBox (by dsimp only [C_y]; omega : 3 ≤ C_y) (fun _ => 0) x
     have hN_sq : (x.n + 1) * ((encNat x.n).length + 1) ^ 2 ≤ 4 * B := by
@@ -2754,32 +2747,15 @@ private theorem computableInO_yatesZeta :
       calc _ ≤ (x.n + 1) * (4 * (x.n + 1) ^ 2) := Nat.mul_le_mul_left _ hsq
         _ = 4 * (x.n + 1) ^ 3 := by ring
         _ ≤ 4 * B := Nat.mul_le_mul_left 4 hN3
-    have hbox_pos : 1 ≤ B := symBox_pos C_y (fun _ => 0) x
-    have hK_pos : 1 ≤ K := Nat.one_le_pow _ _ (by decide)
-    have hKB : K * B ≤ K * (B + 1) := Nat.mul_le_mul_left K (Nat.le_succ B)
     rw [Nat.mul_add, Nat.mul_add]
     calc _ ≤ B + B + K * B + K * B + 4 * B := by omega
       _ = 6 * B + 2 * (K * B) := by ring
       _ ≤ 8 * (B + 1) + 4 * (K * (B + 1)) := by omega
       _ = (4 * K + 8) * (B + 1) := by ring
-  · dsimp only
-    set K := 18 ^ (D_st + 2)
-    set B := symBox C_y (fun _ => 0) x
-    have hx := enc_le_symBox (c := C_y) (by dsimp only [C_y]; omega) (fun _ => 0) x
-    have hcm_le : (2 ^ x.n + ((encSymAndInstance x).length + 1) ^ c_cm) * (x.n + 1) ^ c_cm ≤ B := by
-      calc _ = symBox c_cm (fun _ => 0) x := by simp only [symBox, Nat.zero_add, Nat.mul_one]
-        _ ≤ B := symBox_mono (by dsimp only [C_y]; omega : c_cm ≤ C_y) (fun _ => le_rfl) x
-            (F₁ := fun _ => 0) (F₂ := fun _ => 0)
-    have hR : R_y x ≤ K * B := by
+  · have hR : R_y x ≤ K * B := by
       simpa only [pow_zero, Nat.one_mul] using hR_bound 0 (Nat.zero_le 1) x
-    have hB_le : 2 ^ x.n * (2 * (x.n + Nat.log2 ((encSymAndInstance x).length + 1) + 1) + 1) ≤
-        R_y x := by dsimp only [R_y]; omega
-    have hlen_n := encNat_length_le_succ x.n
     have hN1 := n_pow_le_symBox (by dsimp only [C_y]; omega : 1 ≤ C_y) (fun _ => 0) x
     rw [pow_one] at hN1
-    have hbox_pos : 1 ≤ B := symBox_pos C_y (fun _ => 0) x
-    have hK_pos : 1 ≤ K := Nat.one_le_pow _ _ (by decide)
-    have hKB : K * B ≤ K * (B + 1) := Nat.mul_le_mul_left K (Nat.le_succ B)
     calc _ ≤ B + B + K * B + K * B + B := by omega
       _ = 3 * B + 2 * (K * B) := by ring
       _ ≤ (4 * K + 8) * (B + 1) := by
