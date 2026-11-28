@@ -40,20 +40,32 @@ inputs the resulting function, two gates larger, agrees with it on a `δ` fracti
 Fixing a prefix `u` of the input of a language `L`, and reading only the first `P` of `Q` new
 inputs, gives a function `r ↦ [u ++ (first P bits of r) ∈ L]` at most two gates larger than the
 slice of `L` at length `|u| + P` (`Cslib.Circuits.Boolean.complexity_le_of_append_take`). This is
-the circuit of a verifier with its instance hardwired, used in derandomization.
+the circuit of a verifier with its instance hardwired, used in derandomization. When the slices of
+`L` have circuits of size `C (N + 1) ^ d` and the prefix is polynomially long, so do the hardwired
+slices (`Cslib.Circuits.Boolean.complexity_slice_le_of_prefix_of_le`).
+
+The substitution `padInputs m n` feeds the first `m` of `n` inputs from `m` variables and the
+others with `false`; it shows that extending a function by ignored inputs does not make it easier
+(`Cslib.Circuits.Boolean.complexity_le_extend`).
 
 ## Main definitions
 
 * `Cslib.Circuits.Boolean.substitute`, `Cslib.Circuits.Boolean.appendInputs`,
-  `Cslib.Circuits.Boolean.prependInputs`.
-* `Cslib.Circuits.Boolean.substituteCircuit`: executable substitution with two shared constants.
+  `Cslib.Circuits.Boolean.prependInputs`, `Cslib.Circuits.Boolean.padInputs`.
+* `Cslib.Circuits.Boolean.projectionCircuit`: executable substitution from a bank of two constant
+  outputs, over any basis, with its evaluation, cost, size and depth.
+* `Cslib.Circuits.Boolean.substituteCircuit`: executable substitution with two shared constants,
+  the projection circuit of the De Morgan constant gates.
 * `Cslib.BitString.PartialAssignment.toSubstitution`: a partial assignment as a substitution.
 
 ## Main results
 
 * `Cslib.Circuits.Boolean.complexity_substitute_le`: a substitution costs at most two gates.
+* `Cslib.Circuits.Boolean.complexity_le_extend`: ignored inputs do not make a function easier.
 * `Cslib.Circuits.Boolean.exists_complexity_le_of_agree_prefix`: fixing ignored inputs.
 * `Cslib.Circuits.Boolean.complexity_le_of_append_take`: hardwiring a prefix of a language's input.
+* `Cslib.Circuits.Boolean.complexity_slice_le_of_prefix_of_le`: hardwiring a polynomially long
+  prefix into polynomial-size circuits.
 -/
 
 @[expose] public section
@@ -77,28 +89,75 @@ def substitute (ρ : Fin N → Fin n ⊕ Bool) (x : Fin n → Bool) : Fin N → 
     {b : Bool} (h : ρ j = .inr b) : substitute ρ x j = b := by
   simp [substitute, h]
 
+/-- Substituting along a composite of substitutions: first `τ`, then `σ`. -/
+theorem substitute_bind {M : ℕ} (σ : Fin N → Fin M ⊕ Bool) (τ : Fin M → Fin n ⊕ Bool)
+    (x : Fin n → Bool) :
+    substitute (fun j => (σ j).elim τ Sum.inr) x = substitute σ (substitute τ x) := by
+  funext j
+  rcases h : σ j with i | b <;> simp [substitute, h]
+
+/-- The output of a two-output constant circuit that carries the constant `b`: `false` is output
+`0` and `true` is output `1`. -/
+def constIndex (b : Bool) : Fin 2 := if b then 1 else 0
+
+/-- **A projection from a bank of two constants.** Over any basis, `K` is a circuit whose outputs
+`0` and `1` are the constants `false` and `true`; the projection circuit appends the outputs of
+`K` to the live inputs and wires output `j` from input `i` when `ρ j = .inl i`, and from the
+output of `K` carrying `b` when `ρ j = .inr b`. Gates exist only in `K`: it costs exactly what `K`
+costs, and adds no depth beyond that of `K`. -/
+def projectionCircuit {σ : Signature} {n N : ℕ} (K : Circuit σ n 2) (ρ : Fin N → Fin n ⊕ Bool) :
+    Circuit σ n N :=
+  (Circuit.wiring σ fun j =>
+    (ρ j).elim (Fin.castAdd 2) fun b => Fin.natAdd n (constIndex b)).comp
+    ((Circuit.id σ n).append K)
+
+section Projection
+
+variable {σ : Signature} {n N : ℕ} (K : Circuit σ n 2) (ρ : Fin N → Fin n ⊕ Bool)
+
+/-- If `K` carries the constants, the projection circuit evaluates `substitute ρ`. -/
+theorem eval_projectionCircuit {I : Interpretation σ Bool}
+    (hK : ∀ (x : BitString n) (b : Bool), K.eval I x (constIndex b) = b) (x : BitString n) :
+    (projectionCircuit K ρ).eval I x = substitute ρ x := by
+  funext j
+  rcases h : ρ j with i | b <;>
+    simp [projectionCircuit, substitute, h, Circuit.eval_comp, Circuit.eval_append, hK]
+
+/-- A projection circuit costs what its constant bank costs. -/
+theorem cost_program_projectionCircuit (cost : σ.Op → ℕ) :
+    (projectionCircuit K ρ).program.cost cost = K.program.cost cost := by
+  unfold projectionCircuit
+  erw [Circuit.cost_program_comp, Circuit.cost_program_wiring, Circuit.cost_program_append]
+  simp [Circuit.id]
+
+/-- A projection circuit has as many gates as its constant bank. -/
+theorem size_projectionCircuit : (projectionCircuit K ρ).size = K.size := by
+  simpa only [Program.cost_const, one_mul] using cost_program_projectionCircuit K ρ (fun _ => 1)
+
+/-- A projection circuit is no deeper than its constant bank. -/
+theorem depth_projectionCircuit_le : (projectionCircuit K ρ).depth ≤ K.depth := by
+  circuit_bound [projectionCircuit]
+
+end Projection
+
 /-- Implement a substitution using one shared gate for each Boolean constant.
 Both gates are included even when unused or when the output is empty. -/
 def substituteCircuit {n N : ℕ} (ρ : Fin N → Fin n ⊕ Bool) : Circuit signature n N :=
-  (Circuit.wiring signature (fun j => (ρ j).elim (Fin.castAdd 2)
-    (fun b => Fin.natAdd n (if b then 1 else 0)))).comp
-    ((Circuit.id signature n).append
-      (Circuit.pi fun i : Fin 2 => (Formula.const (i == 1)).toCircuit))
+  projectionCircuit (Circuit.pi fun i : Fin 2 => (Formula.const (i == 1)).toCircuit) ρ
 
 /-- The shared-constant circuit implements its input substitution. -/
 @[simp] theorem eval_substituteCircuit {n N : ℕ} (ρ : Fin N → Fin n ⊕ Bool) (x : BitString n) :
-    (substituteCircuit ρ).eval interpretation x = substitute ρ x := by
-  funext j
-  rcases h : ρ j with i | (_ | _) <;> simp [substituteCircuit, substitute, h]
+    (substituteCircuit ρ).eval interpretation x = substitute ρ x :=
+  eval_projectionCircuit _ ρ (fun x b => by cases b <;> simp [constIndex]) x
 
 /-- Substitution charges each of the two shared constant gates once. -/
 theorem cost_program_substituteCircuit {n N : ℕ} (ρ : Fin N → Fin n ⊕ Bool)
     (cost : signature.Op → ℕ) :
     (substituteCircuit ρ).program.cost cost = cost (.const false) + cost (.const true) := by
   unfold substituteCircuit
-  erw [Circuit.cost_program_comp, Circuit.cost_program_wiring, Circuit.cost_program_append,
-    Circuit.cost_program_pi]
-  simp [Circuit.id, Formula.cost_toCircuit, Fin.sum_univ_two, Formula.const]
+  rw [cost_program_projectionCircuit]
+  erw [Circuit.cost_program_pi]
+  simp [Formula.cost_toCircuit, Fin.sum_univ_two, Formula.const]
 
 /-- The substitution circuit has exactly two gates, regardless of the output width. -/
 @[simp] theorem size_substituteCircuit {n N : ℕ} (ρ : Fin N → Fin n ⊕ Bool) :
@@ -111,7 +170,7 @@ theorem cost_program_substituteCircuit {n N : ℕ} (ρ : Fin N → Fin n ⊕ Boo
 @[circuit_bound]
 theorem depth_substituteCircuit_le {n N : ℕ} (ρ : Fin N → Fin n ⊕ Bool) :
     (substituteCircuit ρ).depth ≤ 1 := by
-  circuit_bound [substituteCircuit]
+  circuit_bound [substituteCircuit, projectionCircuit]
 
 /-- A substitution costs at most two gates, one for each constant. -/
 theorem complexity_substitute_le_two (ρ : Fin N → Fin n ⊕ Bool) :
@@ -176,6 +235,56 @@ theorem complexity_le_of_append_take (L : Language Bool) (u : List Bool) {P Q : 
     rw [Bool.eq_iff_iff, Language.slice_eq_true_iff, ofFn_substitute_prefixWiring, hf]
   rw [h]
   exact complexity_substitute_le _ _
+
+/-- **Hardwiring a polynomially long prefix.** If `x ∈ L` exactly when `pre ++ x ∈ M` for the
+words of length `n`, the slices of `M` have circuits of size `C (N + 1) ^ d`, and
+`|pre| + n + 1 ≤ a (n + 1) ^ K`, then the slice of `L` at length `n` has circuits of size
+`(C a ^ d + 2) (n + 1) ^ (K d)`. -/
+theorem complexity_slice_le_of_prefix_of_le {L M : Language Bool} (pre : List Bool)
+    {n C d a K : ℕ} (h : ∀ x : List Bool, x.length = n → (x ∈ L ↔ pre ++ x ∈ M))
+    (hM : ∀ N, complexity interpretation (single (M.slice N)) ≤ C * (N + 1) ^ d)
+    (hpre : pre.length + n + 1 ≤ a * (n + 1) ^ K) :
+    complexity interpretation (single (L.slice n)) ≤ (C * a ^ d + 2) * (n + 1) ^ (K * d) := by
+  have h1 := complexity_le_of_append_take M pre (le_refl n) (f := L.slice n) fun r => by
+    rw [Language.slice_eq_true_iff, List.take_of_length_le (by rw [List.length_ofFn])]
+    exact h _ List.length_ofFn
+  have h3 : (pre.length + n + 1) ^ d ≤ a ^ d * (n + 1) ^ (K * d) := by
+    rw [pow_mul, ← Nat.mul_pow]
+    exact Nat.pow_le_pow_left hpre d
+  have h4 : 1 ≤ (n + 1) ^ (K * d) := Nat.one_le_pow _ _ (by omega)
+  calc complexity interpretation (single (L.slice n))
+      ≤ C * (pre.length + n + 1) ^ d + 2 := h1.trans (Nat.add_le_add_right (hM _) 2)
+    _ ≤ C * (a ^ d * (n + 1) ^ (K * d)) + 2 * (n + 1) ^ (K * d) :=
+        Nat.add_le_add (Nat.mul_le_mul_left _ h3) (by omega)
+    _ = (C * a ^ d + 2) * (n + 1) ^ (K * d) := by rw [Nat.add_mul, Nat.mul_assoc]
+
+/-- The substitution feeding the first `m` of `n` inputs from `m` variables and the others with
+`false`. -/
+def padInputs (m n : ℕ) (j : Fin n) : Fin m ⊕ Bool :=
+  if h : j.val < m then .inl ⟨j.val, h⟩ else .inr false
+
+/-- For `m ≤ n`, the first `m` substituted inputs of `padInputs m n` are the variables. -/
+theorem take_ofFn_substitute_padInputs {m n : ℕ} (h : m ≤ n) (y : Fin m → Bool) :
+    (List.ofFn (substitute (padInputs m n) y)).take m = List.ofFn y := by
+  refine List.ext_getElem (by simp [h]) fun i h₁ h₂ => ?_
+  simp only [List.length_ofFn] at h₂
+  simp [padInputs, substitute, h₂]
+
+/-- **Ignored inputs do not make a function easier.** A function `f` of `n ≤ N` variables costs at
+most two gates more than its extension to `N` inputs that reads the first `n`. -/
+theorem complexity_le_extend (hle : n ≤ N) (f : BooleanFunction n) :
+    complexity interpretation (single f) ≤
+      complexity interpretation (single fun y : Fin N → Bool => f fun i => y (Fin.castLE hle i))
+        + 2 := by
+  have h := complexity_substitute_le (padInputs n N)
+    fun y : Fin N → Bool => f fun i => y (Fin.castLE hle i)
+  have heq : (fun x : Fin n → Bool => f fun i => substitute (padInputs n N) x (Fin.castLE hle i))
+      = f := by
+    funext x
+    congr 1
+    funext i
+    simp [substitute, padInputs]
+  simpa only [heq] using h
 
 open Finset in
 /-- **Fixing ignored inputs.** If `g` on `N` inputs agrees with a function `E` of its first `n`
