@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Oracle
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.RunsWords
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Tidy
+import CslibFrontier.Foundations.Data.Nat.PolynomialBound.SuccPow
 
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Exponential.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Oracle.Normalization
@@ -51,11 +52,6 @@ end IsOracleExpTimeOn
 variable {Operation α β γ : Type} [DecidableEq Operation]
   {input : α ↪ List Bool} {middle : β ↪ List Bool} {output : γ ↪ List Bool}
 
-/-- `n + 1 ≤ 2 ^ n`, raised to the power `d`. -/
-private theorem succ_pow_le_two_pow_mul (n d : ℕ) : (n + 1) ^ d ≤ 2 ^ (d * n) := by
-  rw [Nat.pow_mul']
-  exact Nat.pow_le_pow_left Nat.lt_two_pow_self d
-
 /-- **A polynomial clock is an exponential clock.** The clean realization of a strict oracle PPT
 certificate keeps its result once it halts, so its polynomial clock can be raised to
 `c * 2 ^ (d * n)`. -/
@@ -63,7 +59,7 @@ theorem IsOraclePPTOn.isOracleExpTimeOn {program : α → WordOracleComp Operati
     (h : IsOraclePPTOn input output program) : IsOracleExpTimeOn input output program := by
   obtain ⟨hops, k, Control, hfinite, machine, c, d, hmachine⟩ := h.oraclePhase
   exact IsOracleExpTimeOn.of_computesTidily machine c d
-    (fun a => Nat.mul_le_mul_left c (succ_pow_le_two_pow_mul _ d)) hmachine
+    (fun a => Nat.mul_le_mul_left c (Nat.succ_pow_le_two_pow_mul _ d)) hmachine
 
 /-- Arithmetic for `preprocess_exp`: the two phases and the charged intermediate word fit in one
 exponential clock. -/
