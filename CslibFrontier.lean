@@ -2664,7 +2664,6 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.SubmatrixRobust
 public import CslibFrontier.Computability.Complexity.Problems.Clique
 public import CslibFrontier.Computability.PCP.TwoProverGame.Quantum
 public import CslibFrontier.Computability.Circuit.Boolean.MassProduction.Schedule
-public import CslibFrontier.Languages.Electrical.CapacitanceRange
 public import CslibFrontier.Languages.Electrical.LinearCircuit
 public import CslibFrontier.Probability.Product.ConditionalExpectation
 public import CslibFrontier.Logics.Propositional.CNF.Moser.LocalLemma
@@ -9096,6 +9095,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.PlaintextIntegrity
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.Exec.MigrateActive
 public import CslibFrontier.Computability.Complexity.Problems.UDistance.Completeness
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Primitives
+public import CslibFrontier.Languages.Electrical.CapacitanceRange
 public import CslibFrontier.Algorithms.MatrixMultiplication.Schonhage.Sparse
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Copy
 public import CslibFrontier.DataStructure.WordRAM.Resizable.Randomized.ObliviousSequence
