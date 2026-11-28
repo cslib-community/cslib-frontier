@@ -266,16 +266,15 @@ private theorem integral_mul_sub_eq_setIntegral_tail (hμ : HasValueDensity μ f
     hint_mul hμ.measurable_virtualValue hμ.integrable_virtualValue
   set ν : Measure ℝ := volume.restrict (Ioc (g 0) (g h)) with hν_def
   have : IsFiniteMeasure ν := isFiniteMeasure_restrict.2 measure_Ioc_lt_top.ne
-  set S : Set (ℝ × ℝ) := {p | p.2 ≤ g p.1} with hS_def
+  set S : Set (ℝ × ℝ) := {p | p.2 ≤ g p.1}
   have hS_meas : MeasurableSet S := measurableSet_le measurable_snd (hg.comp measurable_fst)
   set F : ℝ × ℝ → ℝ := S.indicator (fun p => ψ p.1) with hF_def
   have hF_int : Integrable F (μ.prod ν) := by
     refine Integrable.mono' (g := fun p : ℝ × ℝ => ‖ψ p.1‖ * 1)
       (hψ_int.norm.mul_prod (integrable_const (1 : ℝ)))
       ((hψ_meas.comp measurable_fst).indicator hS_meas).aestronglyMeasurable ?_
-    exact Filter.Eventually.of_forall fun p => by
-      rw [mul_one, hF_def]
-      exact norm_indicator_le_norm_self _ _
+    exact Filter.Eventually.of_forall fun p =>
+      (norm_indicator_le_norm_self _ _).trans_eq (mul_one _).symm
   have hswap := integral_integral_swap (μ := μ) (ν := ν) (f := fun z t => F (z, t)) hF_int
   have hL : ∀ᵐ z ∂μ, ∫ t, F (z, t) ∂ν = ψ z * g z - ψ z * g 0 := by
     filter_upwards [hμ.ae_mem] with z hz
@@ -296,17 +295,16 @@ private theorem integral_mul_sub_eq_setIntegral_tail (hμ : HasValueDensity μ f
       integral_mul_const, hψ0, zero_mul, sub_zero, hψg, integral_sub hint_bar hint_vv]
   rw [← hLHS_eq, hswap, hν_def]
   refine setIntegral_congr_fun measurableSet_Ioc fun t ht => ?_
-  set U : Set ℝ := {z ∈ Icc 0 h | t ≤ g z} with hU_def
-  set vt : ℝ := sInf U with hvt_def
+  set U : Set ℝ := {z ∈ Icc 0 h | t ≤ g z}
+  set vt : ℝ := sInf U
   have hU_ne : U.Nonempty := ⟨h, ⟨hh, le_rfl⟩, ht.2⟩
   have hU_bdd : BddBelow U := ⟨0, fun _ hz => hz.1.1⟩
   have hae_ind : (fun z => F (z, t)) =ᵐ[μ] (Ioi vt).indicator ψ := by
     filter_upwards [hμ.ae_mem, μ.ae_ne vt] with z hz hzne
     rcases lt_or_gt_of_ne hzne with hlt | hgt
-    · have hnotU : z ∉ U := fun hzU => absurd (csInf_le hU_bdd hzU) (not_le.2 hlt)
-      have hnotle : ¬ t ≤ g z := fun htle => hnotU ⟨hz, htle⟩
-      have hnotIoi : z ∉ Ioi vt := not_lt.2 hlt.le
-      rw [hF_def, indicator_of_notMem (show (z, t) ∉ S from hnotle), indicator_of_notMem hnotIoi]
+    · have hnotle : ¬ t ≤ g z := fun htle => hlt.not_ge (csInf_le hU_bdd ⟨hz, htle⟩)
+      rw [hF_def, indicator_of_notMem (show (z, t) ∉ S from hnotle),
+        indicator_of_notMem (show z ∉ Ioi vt from not_lt.2 hlt.le)]
     · obtain ⟨w, hwU, hwz⟩ := exists_lt_of_csInf_lt hU_ne hgt
       have htle : t ≤ g z := hwU.2.trans (hgm hwU.1 hz hwz.le)
       rw [hF_def, indicator_of_mem (show (z, t) ∈ S from htle),
@@ -361,10 +359,8 @@ theorem integral_virtualValue_mul_eq (hμ : HasValueDensity μ f h)
     · rw [← hvt0_eq, Measure.restrict_eq_self_of_ae_mem (s := Ioi 0) hμ.ae_pos, hφ.integral_eq,
         sub_self]
     · rcases hvth.eq_or_lt with hvth_eq | hvt_lt
-      · rw [hvth_eq]
-        have h0 : μ.restrict (Ioi h) = 0 :=
-          Measure.restrict_eq_zero.2 (hμ.measure_Ioi_eq_zero le_rfl)
-        rw [h0, integral_zero_measure, integral_zero_measure, sub_self]
+      · rw [hvth_eq, Measure.restrict_eq_zero.2 (hμ.measure_Ioi_eq_zero le_rfl),
+          integral_zero_measure, integral_zero_measure, sub_self]
       · have hle := hφ.setIntegral_Ioi_le vt ⟨hvt0, hvth⟩
         rcases hle.eq_or_lt with heq | hlt
         · linarith
@@ -374,16 +370,13 @@ theorem integral_virtualValue_mul_eq (hμ : HasValueDensity μ f h)
           have hε_pos : 0 < ε := lt_min (half_pos hδ) (half_pos hvt_pos)
           have hzl_mem : vt - ε ∈ Ioc 0 h :=
             ⟨by linarith [min_le_right (δ / 2) (vt / 2)], by linarith⟩
-          have hzl_dist : |(vt - ε) - vt| < δ := by
-            rw [show (vt - ε) - vt = -ε by ring, abs_neg, abs_of_pos hε_pos]
-            linarith [min_le_left (δ / 2) (vt / 2)]
+          have hzl_dist : |(vt - ε) - vt| < δ :=
+            abs_sub_lt_iff.2 ⟨by linarith, by linarith [min_le_left (δ / 2) (vt / 2)]⟩
           obtain ⟨zr, hzrU, hzr_lt⟩ :=
             exists_lt_of_csInf_lt hU_ne (show vt < vt + δ / 2 by linarith)
           have hvt_le_zr : vt ≤ zr := csInf_le hU_bdd hzrU
           have hzr_mem : zr ∈ Ioc 0 h := ⟨hvt_pos.trans_le hvt_le_zr, hzrU.1.2⟩
-          have hzr_dist : |zr - vt| < δ := by
-            rw [abs_of_nonneg (sub_nonneg.2 hvt_le_zr)]
-            linarith
+          have hzr_dist : |zr - vt| < δ := abs_sub_lt_iff.2 ⟨by linarith, by linarith⟩
           have hφ_eq : φBar (vt - ε) = φBar zr :=
             (hconst (vt - ε) hzl_mem hzl_dist).trans (hconst zr hzr_mem hzr_dist).symm
           have hgzl : t ≤ g (vt - ε) :=
@@ -487,9 +480,8 @@ theorem integral_sum_payment_le_ironed_myerson_of_isIronedVirtualValue
     {M : Mechanism ι} (hM : M.IsDSIC) (hIR : M.IsIR)
     (hMX : ∀ v, 0 ≤ v → M.allocation v ∈ X) (hMm : ∀ i, Measurable fun v => M.allocation v i) :
     ∫ v, ∑ i, M.payment v i ∂Measure.pi μ ≤ ∫ v, ∑ i, (myerson x).payment v i ∂Measure.pi μ := by
-  have hbound : ∀ y ∈ X, ∀ i, |y i| ≤ 1 := fun y hy i => by
-    rw [abs_of_nonneg (hX y hy i).1]
-    exact (hX y hy i).2
+  have hbound : ∀ y ∈ X, ∀ i, |y i| ≤ 1 := fun y hy i =>
+    (abs_of_nonneg (hX y hy i).1).trans_le (hX y hy i).2
   have hMB : ∀ v, 0 ≤ v → ∀ i, |M.allocation v i| ≤ 1 := fun v hv => hbound _ (hMX v hv)
   have hxB : ∀ v, 0 ≤ v → ∀ i, |x v i| ≤ 1 := fun v hv => hbound _ (hx v hv).1
   refine (hM.integral_sum_payment_le_ironed hIR hμ hφ hMm hMB).trans ?_
@@ -577,9 +569,7 @@ valuations `φBar`: evaluates `virtualWinnerAllocation` on the ironed virtual bi
 theorem virtualWinnerAllocation_binary (w : ι → ℝ) (i : ι) :
     virtualWinnerAllocation w i = 0 ∨ virtualWinnerAllocation w i = 1 := by
   unfold virtualWinnerAllocation
-  split_ifs
-  · exact Or.inr rfl
-  · exact Or.inl rfl
+  split_ifs <;> simp
 
 open Classical in
 theorem measurable_ironedAllocation [Countable ι] {φBar : ι → ℝ → ℝ}
@@ -612,9 +602,7 @@ private theorem virtualWinnerAllocation_mem_and_max [Fintype ι] (w : ι → ℝ
   rcases isEmpty_or_nonempty ι with hι | hι
   · simp only [Finset.univ_eq_empty, Finset.sum_empty, le_refl]
   obtain ⟨k, hk⟩ := exists_wins w
-  have hy0 : ∀ j, 0 ≤ y j := fun j => by
-    rcases hy.1 j with h | h <;> rw [h]
-    exact zero_le_one
+  have hy0 : ∀ j, 0 ≤ y j := fun j => by rcases hy.1 j with h | h <;> simp [h]
   have hle_max : ∀ j, w j ≤ max 0 (w k) := fun j => by
     by_cases hj : j = k
     · subst hj
@@ -638,8 +626,7 @@ private theorem virtualWinnerAllocation_mem_and_max [Fintype ι] (w : ι → ℝ
     · rw [mul_one, max_eq_right h.2]
     · have hwk : w k ≤ 0 := le_of_not_ge fun h0 => h ⟨hk, h0⟩
       rw [mul_zero, max_eq_left hwk]
-  rw [hR]
-  exact hL
+  exact hL.trans_eq hR.symm
 
 theorem ironedAllocation_mem_singleItemFeasible [Fintype ι] (φBar : ι → ℝ → ℝ) (b : ι → ℝ) :
     ironedAllocation φBar b ∈ singleItemFeasible :=
@@ -713,13 +700,9 @@ theorem isMonotone_virtualSurplusMaximizer_iff {ι : Type*} [Fintype ι] [Decida
     obtain ⟨hx1_mem, hx1_opt⟩ := hx_max b₁ hb₁
     obtain ⟨hx2_mem, hx2_opt⟩ := hx_max b₂ hb₂
     have hy1_mem : Function.update (x b₁) i 1 ∈ digitalGoodsFeasible := fun j => by
-      by_cases hj : j = i
-      · subst hj; rw [Function.update_self]; exact ⟨zero_le_one, le_rfl⟩
-      · rw [Function.update_of_ne hj]; exact hx1_mem j
+      rw [Function.update_apply]; split_ifs; exacts [⟨zero_le_one, le_rfl⟩, hx1_mem j]
     have hy2_mem : Function.update (x b₂) i 0 ∈ digitalGoodsFeasible := fun j => by
-      by_cases hj : j = i
-      · subst hj; rw [Function.update_self]; exact ⟨le_rfl, zero_le_one⟩
-      · rw [Function.update_of_ne hj]; exact hx2_mem j
+      rw [Function.update_apply]; split_ifs; exacts [⟨le_rfl, zero_le_one⟩, hx2_mem j]
     have hopt1 := hx1_opt _ hy1_mem
     have hopt2 := hx2_opt _ hy2_mem
     rw [Finset.sum_apply_update_of_mem (Finset.mem_univ i)
@@ -729,12 +712,8 @@ theorem isMonotone_virtualSurplusMaximizer_iff {ι : Type*} [Fintype ι] [Decida
         (fun j val => (φ j (b₂ j) - c₀) * val),
       ← Finset.add_sum_erase _ _ (Finset.mem_univ i)] at hopt2
     simp only [b₁, b₂, c₀, Function.update_self] at hopt1 hopt2
-    have hxi1 : x b₁ i = 1 := by
-      have := (hx1_mem i).2
-      nlinarith
-    have hxi2 : x b₂ i = 0 := by
-      have := (hx2_mem i).1
-      nlinarith
+    have hxi1 : x b₁ i = 1 := by nlinarith [(hx1_mem i).2]
+    have hxi2 : x b₂ i = 0 := by nlinarith [(hx2_mem i).1]
     have hmono := hx_mono i 0 le_rfl hv₁ hv₂ hv12
     change x b₁ i ≤ x b₂ i at hmono
     linarith
@@ -779,9 +758,7 @@ theorem not_isImplementable_of_isVirtualWelfareMaximizing {ι : Type*} [Fintype 
   obtain ⟨hx2_mem, hx2_opt⟩ := hx b₂ (update_nonneg hb i (hv₁.trans hv12.le))
   have hunit : ∀ q : ι, Function.update (0 : ι → ℝ) q 1 ∈ Vickrey.singleItemFeasible := fun q => by
     refine ⟨fun k => ?_, ?_⟩
-    · by_cases hkq : k = q
-      · subst hkq; exact Or.inr (by simp only [Function.update_self])
-      · exact Or.inl (by simp only [Function.update_of_ne hkq, Pi.zero_apply])
+    · rw [Function.update_apply]; split_ifs; exacts [Or.inr rfl, Or.inl rfl]
     · rw [Fintype.sum_eq_single q
           (fun k hk => by simp only [Function.update_of_ne hk, Pi.zero_apply])]
       simp only [Function.update_self, le_refl]
@@ -873,12 +850,10 @@ theorem not_isImplementable_iid_of_virtualValue_gt {ι : Type*} [Fintype ι] [De
       linarith [max_lt hpos hlt]
     · rw [Function.update_of_ne hkj]
       exact hφ0.trans_lt hpos
-  · rw [Function.update_self, hφw]
+  all_goals
+    rw [Function.update_self, hφw]
     dsimp only [target]
-    linarith [le_max_left 0 (φ v₂)]
-  · rw [Function.update_self, hφw]
-    dsimp only [target]
-    linarith [le_max_right 0 (φ v₂)]
+    linarith [le_max_left 0 (φ v₂), le_max_right 0 (φ v₂)]
 
 /-! ### Seller production costs and reservation value `v₀ ≥ 0` (Theorem 13.10 & Exercise 13.1) -/
 
@@ -940,6 +915,13 @@ private theorem sum_mul_sub_const_mul_sum {ι : Type*} [Fintype ι] (ψ y : ι �
     (∑ i, ψ i * y i) - v₀ * ∑ i, y i = ∑ i, (ψ i - v₀) * y i := by
   rw [Finset.mul_sum, ← Finset.sum_sub_distrib]
   exact Finset.sum_congr rfl fun _ _ => by ring
+
+/-- If the payment total is not integrable but the seller cost is, the profit integral is `0`. -/
+private theorem integral_sub_eq_zero_of_not_integrable {α : Type*} [MeasurableSpace α]
+    {ν : Measure α} {F G : α → ℝ} (hG : Integrable G ν) (hF : ¬ Integrable F ν) :
+    ∫ v, (F v - G v) ∂ν = 0 :=
+  integral_undef fun hsub => hF ((hsub.add hG).congr
+    (Filter.Eventually.of_forall fun _ => sub_add_cancel _ _))
 
 private theorem integrable_sellerCost {ι : Type*} [Fintype ι] {μ : ι → Measure ℝ}
     [∀ i, IsProbabilityMeasure (μ i)] {f : ι → ℝ → NNReal} {h : ι → ℝ}
@@ -1022,11 +1004,7 @@ theorem integral_profit_le_sellerReserve {ι : Type*} [Fintype ι] [LinearOrder 
       rw [sum_mul_sub_const_mul_sum, sum_mul_sub_const_mul_sum]
       exact (isVirtualWelfareMaximizing_reserveAllocation (ι := ι) hφ₀_mono hφ₀_zero v hv).2 _
         (hMX v hv)
-  · have hnot_int : ¬ Integrable (fun v => (∑ i, M.payment v i) - v₀ * ∑ i, M.allocation v i)
-        (Measure.pi fun _ : ι => μ) :=
-      fun hsub => hp ((hsub.add hc_M).congr
-        (Filter.Eventually.of_forall fun _ => sub_add_cancel _ _))
-    rw [integral_undef hnot_int]
+  · rw [integral_sub_eq_zero_of_not_integrable hc_M hp]
     refine integral_nonneg_of_ae ?_
     filter_upwards [ae_nonneg fun _ : ι => hμ] with v hv
     have h0 := (isVirtualWelfareMaximizing_reserveAllocation (ι := ι) hφ₀_mono hφ₀_zero v hv).2 0
@@ -1100,11 +1078,7 @@ theorem integral_profit_le_ironed_sellerReserve_of_isIronedVirtualValue
     filter_upwards [ae_nonneg hμ] with v hv
     rw [sum_mul_sub_const_mul_sum, sum_mul_sub_const_mul_sum]
     exact (virtualWinnerAllocation_mem_and_max (fun i => φ₀ i (v i))).2 _ (hMX v hv)
-  · have hnot_int : ¬ Integrable (fun v => (∑ i, M.payment v i) - v₀ * ∑ i, M.allocation v i)
-        (Measure.pi μ) :=
-      fun hsub => hp ((hsub.add hc_M).congr
-        (Filter.Eventually.of_forall fun _ => sub_add_cancel _ _))
-    rw [integral_undef hnot_int]
+  · rw [integral_sub_eq_zero_of_not_integrable hc_M hp]
     refine integral_nonneg_of_ae ?_
     filter_upwards [ae_nonneg hμ] with v _
     have h0 := (virtualWinnerAllocation_mem_and_max (fun i => φ₀ i (v i))).2 0
@@ -1220,10 +1194,8 @@ private theorem integral_myersonCurve_le_monopolyPrice {μ : Measure ℝ} [IsPro
     {h pStar : ℝ} (hμ : ∀ᵐ v ∂μ, v ∈ Icc 0 h) (hpStar : IsMonopolyPrice μ pStar) {g : ℝ → ℝ}
     (hg : Measurable g) (hgm : MonotoneOn g (Ici 0)) (hg01 : ∀ z, 0 ≤ z → 0 ≤ g z ∧ g z ≤ 1) :
     ∫ v, (v * g v - ∫ z in (0 : ℝ)..v, g z) ∂μ ≤ pStar * μ.real (Ici pStar) := by
-  have hh : 0 ≤ h := by
-    obtain ⟨v, hv⟩ := hμ.exists
-    exact hv.1.trans hv.2
-  set θ : ℝ → ℝ := fun u => if u ≤ g h then sInf {w ∈ Icc 0 h | u ≤ g w} else h with hθ_def
+  have hh : 0 ≤ h := let ⟨_, hv⟩ := hμ.exists; hv.1.trans hv.2
+  set θ : ℝ → ℝ := fun u => if u ≤ g h then sInf {w ∈ Icc 0 h | u ≤ g w} else h
   have hθ_mono : Monotone θ := by
     intro u₁ u₂ hu
     dsimp only [θ]
@@ -1231,18 +1203,15 @@ private theorem integral_myersonCurve_le_monopolyPrice {μ : Measure ℝ} [IsPro
     · exact csInf_le_csInf ⟨0, fun _ hw => hw.1.1⟩ ⟨h, ⟨hh, le_rfl⟩, h2⟩
         fun w hw => ⟨hw.1, hu.trans hw.2⟩
     · exact csInf_le ⟨0, fun _ hw => hw.1.1⟩ ⟨⟨hh, le_rfl⟩, h1⟩
-    · exact absurd (hu.trans h2) h1
-    · exact le_rfl
+    exacts [absurd (hu.trans h2) h1, le_rfl]
   have hθ_nonneg : ∀ u, 0 ≤ θ u := fun u => by
     dsimp only [θ]
     split_ifs with h1
-    · exact le_csInf ⟨h, ⟨hh, le_rfl⟩, h1⟩ fun _ hw => hw.1.1
-    · exact hh
+    exacts [le_csInf ⟨h, ⟨hh, le_rfl⟩, h1⟩ fun _ hw => hw.1.1, hh]
   have hθ_le_h : ∀ u, θ u ≤ h := fun u => by
     dsimp only [θ]
     split_ifs with h1
-    · exact csInf_le ⟨0, fun _ hw => hw.1.1⟩ ⟨⟨hh, le_rfl⟩, h1⟩
-    · exact le_rfl
+    exacts [csInf_le ⟨0, fun _ hw => hw.1.1⟩ ⟨⟨hh, le_rfl⟩, h1⟩, le_rfl]
   have hcurve : ∀ v ∈ Icc 0 h,
       v * g v - (∫ z in (0 : ℝ)..v, g z) =
         ∫ u in Ioc (0 : ℝ) 1, (if u ≤ g v then θ u else 0) := by
@@ -1252,7 +1221,7 @@ private theorem integral_myersonCurve_le_monopolyPrice {μ : Measure ℝ} [IsPro
     set νu : Measure ℝ := volume.restrict (Ioc 0 1)
     have : IsFiniteMeasure νz := isFiniteMeasure_restrict.2 measure_Ioc_lt_top.ne
     have : IsFiniteMeasure νu := isFiniteMeasure_restrict.2 measure_Ioc_lt_top.ne
-    set T : Set (ℝ × ℝ) := {p | g p.1 < p.2 ∧ p.2 ≤ g v} with hT_def
+    set T : Set (ℝ × ℝ) := {p | g p.1 < p.2 ∧ p.2 ≤ g v}
     have hT_meas : MeasurableSet T :=
       (measurableSet_lt (hg.comp measurable_fst) measurable_snd).inter
         (measurableSet_le measurable_snd measurable_const)
@@ -1271,8 +1240,7 @@ private theorem integral_myersonCurve_le_monopolyPrice {μ : Measure ℝ} [IsPro
       have hg_int : IntegrableOn g (Ioc 0 v) := by
         refine Integrable.of_bound hg.aestronglyMeasurable 1 ?_
         filter_upwards [ae_restrict_mem measurableSet_Ioc] with z hz
-        rw [Real.norm_eq_abs, abs_of_nonneg (hg01 z hz.1.le).1]
-        exact (hg01 z hz.1.le).2
+        exact (Real.norm_of_nonneg (hg01 z hz.1.le).1).trans_le (hg01 z hz.1.le).2
       rw [setIntegral_congr_fun measurableSet_Ioc hin,
         integral_sub (integrableOn_const measure_Ioc_lt_top.ne) hg_int,
         setIntegral_const, Real.volume_real_Ioc_of_le hv.1, sub_zero, smul_eq_mul,
@@ -1283,37 +1251,28 @@ private theorem integral_myersonCurve_le_monopolyPrice {μ : Measure ℝ} [IsPro
       by_cases huv : u ≤ g v
       · simp only [huv, ↓reduceIte]
         have huh : u ≤ g h := huv.trans (hgm hv.1 hh hv.2)
-        have hθu : θ u = sInf {w ∈ Icc 0 h | u ≤ g w} := by
-          dsimp only [θ]
-          simp only [huh, ↓reduceIte]
+        have hθu : θ u = sInf {w ∈ Icc 0 h | u ≤ g w} := ite_eq_left huh
         have hU_ne : ({w ∈ Icc 0 h | u ≤ g w}).Nonempty := ⟨v, hv, huv⟩
         have hU_bdd : BddBelow {w ∈ Icc 0 h | u ≤ g w} := ⟨0, fun _ hw => hw.1.1⟩
-        have hθ_le_v : θ u ≤ v := by rw [hθu]; exact csInf_le hU_bdd ⟨hv, huv⟩
+        have hθ_le_v : θ u ≤ v := hθu ▸ csInf_le hU_bdd ⟨hv, huv⟩
         have hae_G : (fun z => G (z, u)) =ᵐ[νz] (Iic (θ u)).indicator fun _ => (1 : ℝ) := by
           filter_upwards [ae_restrict_mem measurableSet_Ioc,
             ae_restrict_of_ae (volume.ae_ne (θ u))] with z hz hzne
           rcases lt_or_gt_of_ne hzne with hlt | hgt
-          · rw [hθu] at hlt
-            have hnot : z ∉ {w ∈ Icc 0 h | u ≤ g w} :=
-              fun hw => absurd (csInf_le hU_bdd hw) (not_le.2 hlt)
-            have hgu : g z < u := lt_of_not_ge fun hle => hnot ⟨⟨hz.1.le, hz.2.trans hv.2⟩, hle⟩
-            have hle_θ : z ≤ θ u := by rw [hθu]; exact hlt.le
+          · have hgu : g z < u := lt_of_not_ge fun hle =>
+              (hθu ▸ hlt).not_ge (csInf_le hU_bdd ⟨⟨hz.1.le, hz.2.trans hv.2⟩, hle⟩)
             rw [hG_def, indicator_of_mem (show (z, u) ∈ T from ⟨hgu, huv⟩),
-              indicator_of_mem (show z ∈ Iic (θ u) from hle_θ)]
-          · rw [hθu] at hgt
-            obtain ⟨w, hwU, hwz⟩ := exists_lt_of_csInf_lt hU_ne hgt
+              indicator_of_mem (show z ∈ Iic (θ u) from hlt.le)]
+          · obtain ⟨w, hwU, hwz⟩ := exists_lt_of_csInf_lt hU_ne (hθu ▸ hgt)
             have hnotlt : ¬ g z < u := not_lt.2 (hwU.2.trans (hgm hwU.1.1 hz.1.le hwz.le))
-            have hnotle : ¬ z ≤ θ u := not_le.2 (by rwa [hθu])
             rw [hG_def, indicator_of_notMem (show (z, u) ∉ T from fun hT => hnotlt hT.1),
-              indicator_of_notMem (show z ∉ Iic (θ u) from hnotle)]
+              indicator_of_notMem (show z ∉ Iic (θ u) from not_le.2 hgt)]
         rw [integral_congr_ae hae_G, integral_indicator measurableSet_Iic,
           Measure.restrict_restrict measurableSet_Iic, Iic_inter_Ioc_eq hθ_le_v, setIntegral_const,
           Real.volume_real_Ioc_of_le (hθ_nonneg u), sub_zero, smul_eq_mul, mul_one]
-      · simp only [huv, ↓reduceIte]
-        have h0 : (fun z => G (z, u)) = fun _ => 0 := by
-          ext z
-          exact indicator_of_notMem (show (z, u) ∉ T from fun hT => huv hT.2) _
-        rw [h0, integral_zero]
+      · have h0 : (fun z => G (z, u)) = fun _ => 0 :=
+          funext fun z => indicator_of_notMem (show (z, u) ∉ T from fun hT => huv hT.2) _
+        simp only [huv, ↓reduceIte, h0, integral_zero]
     rw [← hL, hswap, hR]
   set νu : Measure ℝ := volume.restrict (Ioc 0 1)
   have : IsFiniteMeasure νu := isFiniteMeasure_restrict.2 measure_Ioc_lt_top.ne
@@ -1324,11 +1283,8 @@ private theorem integral_myersonCurve_le_monopolyPrice {μ : Measure ℝ} [IsPro
   have hH_int : Integrable H (μ.prod νu) := by
     refine Integrable.of_bound hH_meas.aestronglyMeasurable h
       (Filter.Eventually.of_forall fun p => ?_)
-    by_cases hp : p.2 ≤ g p.1
-    · rw [hH_def, indicator_of_mem hp, Real.norm_eq_abs, abs_of_nonneg (hθ_nonneg p.2)]
-      exact hθ_le_h p.2
-    · rw [hH_def, indicator_of_notMem hp, Real.norm_eq_abs, abs_zero]
-      exact hh
+    exact (norm_indicator_le_norm_self _ _).trans
+      ((Real.norm_of_nonneg (hθ_nonneg p.2)).trans_le (hθ_le_h p.2))
   have hLHS : ∫ v, (v * g v - ∫ z in (0 : ℝ)..v, g z) ∂μ = ∫ v, (∫ u, H (v, u) ∂νu) ∂μ := by
     refine integral_congr_ae (hμ.mono fun v hv => ?_)
     dsimp only
@@ -1344,13 +1300,9 @@ private theorem integral_myersonCurve_le_monopolyPrice {μ : Measure ℝ} [IsPro
     have hsub_ae : ({v | u ≤ g v} : Set ℝ) ≤ᵐ[μ] Ici (θ u) := by
       filter_upwards [hμ] with v hv huv
       have huh : u ≤ g h := huv.trans (hgm hv.1 hh hv.2)
-      change θ u ≤ v
-      dsimp only [θ]
-      simp only [huh, ↓reduceIte]
-      exact csInf_le ⟨0, fun _ hw => hw.1.1⟩ ⟨hv, huv⟩
-    have hmeas_le : μ.real {v | u ≤ g v} ≤ μ.real (Ici (θ u)) := by
-      rw [measureReal_def, measureReal_def]
-      exact ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono_ae hsub_ae)
+      exact (ite_eq_left huh).trans_le (csInf_le ⟨0, fun _ hw => hw.1.1⟩ ⟨hv, huv⟩)
+    have hmeas_le : μ.real {v | u ≤ g v} ≤ μ.real (Ici (θ u)) :=
+      ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono_ae hsub_ae)
     exact (mul_le_mul_of_nonneg_left hmeas_le (hθ_nonneg u)).trans (hpStar.2 (θ u) (hθ_nonneg u))
   refine (setIntegral_mono_on hH_int.integral_prod_right
     (integrableOn_const measure_Ioc_lt_top.ne) measurableSet_Ioc h_ub).trans ?_
@@ -1382,7 +1334,6 @@ theorem integral_sum_payment_le_postedPriceDigitalGoods {ι : Type*} [Fintype ι
       (max 0 (h i) + max 0 (h i)) ?_
     filter_upwards [hae_box] with v hv
     have hv0 : 0 ≤ v := fun j => (hv j).1
-    have hhi : 0 ≤ max 0 (h i) := le_max_left _ _
     have hvi : v i ≤ max 0 (h i) := (hv i).2.trans (le_max_right _ _)
     have h1 : ‖v i * M.allocation v i‖ ≤ max 0 (h i) := by
       rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg (hv i).1,
@@ -1392,8 +1343,7 @@ theorem integral_sum_payment_le_postedPriceDigitalGoods {ι : Type*} [Fintype ι
       intervalIntegral.norm_integral_le_of_norm_le_const fun z hz => by
         rw [uIoc_of_le (hv i).1] at hz
         have h01 := hMX _ (update_nonneg hv0 i hz.1.le) i
-        rw [Real.norm_eq_abs, abs_of_nonneg h01.1]
-        exact h01.2
+        exact (Real.norm_of_nonneg h01.1).trans_le h01.2
     rw [one_mul, sub_zero, abs_of_nonneg (hv i).1] at h2
     exact (norm_sub_le _ _).trans (add_le_add h1 (h2.trans hvi))
   have hle_mye : ∫ v, ∑ i, M.payment v i ∂Measure.pi μ ≤
@@ -1492,11 +1442,8 @@ theorem IsDiscreteDSIC.monotone {x p : Fin (m + 1) → ℝ} (hdsic : D.IsDiscret
   intro k l hkl
   rcases hkl.eq_or_lt with rfl | hlt
   · exact le_rfl
-  · have h1 := hdsic k l
-    have h2 := hdsic l k
-    have hv : D.val k < D.val l := D.strictMono hlt
-    by_contra hcon
-    nlinarith [lt_of_not_ge hcon]
+  · by_contra hcon
+    nlinarith [lt_of_not_ge hcon, hdsic k l, hdsic l k, D.strictMono hlt]
 
 private theorem sum_filter_succ_le_succ {n : ℕ} (g : Fin n → ℝ) (r : Fin n) :
     (∑ j : Fin n with j.succ ≤ r.succ, g j) =
@@ -1532,10 +1479,7 @@ theorem payment_le_envelopePayment {x p : Fin (m + 1) → ℝ} (hdsic : D.IsDisc
   | zero =>
     simp only [envelopePayment, filter_succ_le_zero, Finset.sum_empty, sub_zero]
     linarith [hir 0]
-  | succ i ih =>
-    have hic := hdsic i.succ i.castSucc
-    have hstep := D.envelopePayment_succ_sub x i
-    linarith
+  | succ i ih => linarith [hdsic i.succ i.castSucc, D.envelopePayment_succ_sub x i]
 
 /-- Pairing a grid allocation rule `x` with `D.envelopePayment x` is DSIC on `D` if and only if
 `x` is monotone. -/
@@ -1552,9 +1496,7 @@ theorem envelopePayment_isDiscreteDSIC_iff {x : Fin (m + 1) → ℝ} :
     intro j hjk
     obtain ⟨d, hd⟩ : ∃ d, k.1 - j.1 = d := ⟨_, rfl⟩
     induction d generalizing j with
-    | zero =>
-      have hjk_eq : j = k := Fin.ext (by omega)
-      rw [hjk_eq]
+    | zero => rw [show j = k from Fin.ext (by omega)]
     | succ d ih =>
       have hjlt : j.1 < m := lt_of_lt_of_le (by omega) (Nat.le_of_lt_succ k.isLt)
       let i : Fin m := ⟨j.1, hjlt⟩
@@ -1572,16 +1514,11 @@ theorem envelopePayment_isDiscreteDSIC_iff {x : Fin (m + 1) → ℝ} :
   have hdown : ∀ j : Fin (m + 1), k ≤ j → u j ≤ u k := by
     intro j hkj
     induction j using Fin.induction with
-    | zero =>
-      have hk0 : k = 0 := Fin.ext (Nat.eq_zero_of_le_zero hkj)
-      rw [hk0]
+    | zero => rw [show k = 0 from Fin.ext (Nat.eq_zero_of_le_zero hkj)]
     | succ i ih =>
       rcases hkj.eq_or_lt with hkeq | hklt
       · rw [hkeq]
-      · have hk_le : k ≤ i.castSucc := by
-          rw [Fin.lt_def, Fin.val_succ] at hklt
-          rw [Fin.le_def, Fin.val_castSucc]
-          omega
+      · have hk_le : k ≤ i.castSucc := Fin.le_castSucc_iff.2 hklt
         have hdiff := hstep i
         have hnonpos : (D.val k - D.val i.succ) * (x i.succ - x i.castSucc) ≤ 0 :=
           mul_nonpos_of_nonpos_of_nonneg (sub_nonpos.2 (D.strictMono hklt).le)
@@ -1779,8 +1716,7 @@ theorem expectedDiscreteSumPayment_le_ironed_of_isDiscreteIronedVirtualValue
         ∑ k : ∀ j, Fin (m j + 1), (∏ j, (D j).prob (k j)) *
           ∑ r : Fin (m i + 1), (D i).prob r * G (Function.update k i r) r := by
     intro i G
-    -- Split k into (k i, k_{-i}) by summing over r' = k i on LHS!
-    -- Equivalently, introduce `x.2` via `(D i).sum_prob = 1` and swap `(x.1 i, x.2)`.
+    -- Introduce a dummy coordinate `x.2` via `(D i).sum_prob = 1`, then swap it with `x.1 i`.
     have hinv : Function.Involutive fun x : (∀ j, Fin (m j + 1)) × Fin (m i + 1) =>
         (Function.update x.1 i x.2, x.1 i) := fun x => by simp
     calc ∑ k : ∀ j, Fin (m j + 1), (∏ j, (D j).prob (k j)) * G k (k i)
@@ -1923,12 +1859,9 @@ theorem empiricalSinglePriceRevenue_le_empiricalMonopolyPriceOn {ι : Type*} (S 
         exact Or.inr ⟨j₀, ⟨hj₀S, hp_pos.le.trans hp_le_bj₀⟩, rfl⟩
       have hsub : (S.filter fun j => p ≤ b j) ⊆ S.filter fun j => b j₀ ≤ b j := fun j hj =>
         Finset.mem_filter.2 ⟨(Finset.mem_filter.1 hj).1, hmin j hj⟩
-      have hcard : ((S.filter fun j => p ≤ b j).card : ℝ) ≤
-          ((S.filter fun j => b j₀ ≤ b j).card : ℝ) := by
-        exact_mod_cast Finset.card_le_card hsub
-      have hstep : empiricalSinglePriceRevenue S b p ≤ empiricalSinglePriceRevenue S b (b j₀) := by
-        simp only [empiricalSinglePriceRevenue]
-        exact mul_le_mul hp_le_bj₀ hcard (Nat.cast_nonneg _) (hp_pos.le.trans hp_le_bj₀)
+      have hstep : empiricalSinglePriceRevenue S b p ≤ empiricalSinglePriceRevenue S b (b j₀) :=
+        mul_le_mul hp_le_bj₀ (mod_cast Finset.card_le_card hsub) (Nat.cast_nonneg _)
+          (hp_pos.le.trans hp_le_bj₀)
       exact hstep.trans (Finset.le_sup' (empiricalSinglePriceRevenue S b) hbj₀_cand)
     · rw [Finset.not_nonempty_iff_eq_empty] at hW
       simpa only [empiricalSinglePriceRevenue, hW, Finset.card_empty, Nat.cast_zero, mul_zero] using
@@ -2013,18 +1946,14 @@ private theorem mem_empiricalCandidatePrices_dopBadBids {k : ℕ} {S : Finset (F
   rcases hp with rfl | ⟨j, _, rfl⟩
   · exact Or.inl rfl
   · simp only [dopBadBids]
-    split_ifs
-    · exact Or.inr (Or.inr rfl)
-    · exact Or.inr (Or.inl rfl)
+    split_ifs <;> simp
 
 private theorem filter_one_le_dopBadBids {k : ℕ} (hk : 1 ≤ k) (S : Finset (Fin (k ^ 2)))
     (inst : DecidablePred fun j : Fin (k ^ 2) => (1 : ℝ) ≤ dopBadBids k j) :
     @Finset.filter _ _ inst S = S :=
   (@Finset.filter_eq_self _ _ inst S).2 fun j _ => by
     simp only [dopBadBids]
-    split_ifs
-    · exact_mod_cast hk
-    · exact le_rfl
+    split_ifs <;> simp [hk]
 
 private theorem filter_univ_coe_le_dopBadBids {k : ℕ} (hk : 2 ≤ k) (hk_sq : k < k ^ 2)
     (inst : DecidablePred fun j : Fin (k ^ 2) => (k : ℝ) ≤ dopBadBids k j) :
@@ -2163,14 +2092,11 @@ theorem empiricalSingleItemMechanism_payment {ι : Type*} [Fintype ι] [LinearOr
     {b : ι → ℝ} (hb : 0 ≤ b) :
     empiricalSingleItemMechanism.payment b = Vickrey.mechanism.payment b := by
   funext i
-  have hmax : max (empiricalMonopolyPrice b i) (Vickrey.highestOtherBid b i) =
-      Vickrey.highestOtherBid b i :=
-    max_eq_right (empiricalMonopolyPrice_le_highestOtherBid b i)
-  have halloc := congrFun (empiricalSingleItemMechanism_allocation hb) i
   change max (empiricalMonopolyPrice b i) (Vickrey.highestOtherBid b i) *
       empiricalSingleItemMechanism.allocation b i =
     Vickrey.highestOtherBid b i * Vickrey.mechanism.allocation b i
-  rw [hmax, halloc]
+  rw [max_eq_right (empiricalMonopolyPrice_le_highestOtherBid b i),
+    congrFun (empiricalSingleItemMechanism_allocation hb) i]
 
 theorem empiricalSingleItemMechanism_isDSIC {ι : Type*} [Fintype ι] [LinearOrder ι] :
     (empiricalSingleItemMechanism (ι := ι)).IsDSIC :=

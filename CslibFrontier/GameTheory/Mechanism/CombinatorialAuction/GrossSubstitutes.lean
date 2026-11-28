@@ -164,19 +164,14 @@ private theorem exists_isDemand_max_inter {M : Type*} [Finite M] [DecidableEq M]
 theorem IsDemand.price_le_sub_erase {M : Type*} [DecidableEq M] {v : Finset M → ℝ}
     {p : M → ℝ} {A : Finset M} (hA : IsDemand v p A) {j : M} (hj : j ∈ A) :
     p j ≤ v A - v (A.erase j) := by
-  have h := hA (A.erase j)
-  have hsum : ∑ x ∈ A, p x = p j + ∑ x ∈ A.erase j, p x :=
-    (add_sum_erase _ _ hj).symm
-  linarith
+  linarith [hA (A.erase j), add_sum_erase A p hj]
 
 /-- Marginal-price lower bound outside a demanded bundle: if `IsDemand v p A` and `j ∉ A`, then
 `v (insert j A) - v A ≤ p j`. -/
 theorem IsDemand.sub_insert_le_price {M : Type*} [DecidableEq M] {v : Finset M → ℝ}
     {p : M → ℝ} {A : Finset M} (hA : IsDemand v p A) {j : M} (hj : j ∉ A) :
     v (insert j A) - v A ≤ p j := by
-  have h := hA (insert j A)
-  rw [sum_insert hj] at h
-  linarith
+  linarith [hA (insert j A), sum_insert (f := p) hj]
 
 /-- **Additive valuation** `S ↦ ∑ j ∈ S, w j` ([BlumrosenNisan2007], Definition 11.17, p. 280),
 reducible alias of `Cslib.Algorithms.Lean.Submodular.modularSum`. -/
@@ -202,24 +197,14 @@ theorem isGrossSubstitutes_additiveValuation {M : Type*} [Finite M] (w : M → �
   have hD_pos : ∀ j ∈ D, 0 ≤ w j - q j := by
     intro j hj
     rcases (mem_filter.1 hj).2 with ⟨hjA, hpq_eq⟩ | hpos
-    · rw [← hpq_eq]
-      exact hA_nonneg j hjA
+    · exact hpq_eq ▸ hA_nonneg j hjA
     · exact hpos.le
-  have hD_nonpos : ∀ j, j ∉ D → w j - q j ≤ 0 := by
-    intro j hj
-    have hnot : ¬ ((j ∈ A ∧ p j = q j) ∨ 0 < w j - q j) := fun h =>
-      hj (mem_filter.2 ⟨mem_univ j, h⟩)
-    push Not at hnot
-    exact hnot.2
+  have hD_nonpos : ∀ j, j ∉ D → w j - q j ≤ 0 := fun j hj =>
+    not_lt.1 fun h => hj (mem_filter.2 ⟨mem_univ j, Or.inr h⟩)
   refine ⟨D, fun S => ?_, fun j hjA hpq_eq => mem_filter.2 ⟨mem_univ j, Or.inl ⟨hjA, hpq_eq⟩⟩⟩
   simp only [Cslib.Algorithms.Lean.Submodular.modularSum]
-  rw [← sum_sub_distrib, ← sum_sub_distrib]
-  have hsplit_S : ∑ j ∈ S, (w j - q j) =
-      ∑ j ∈ S \ D, (w j - q j) + ∑ j ∈ S ∩ D, (w j - q j) := by
-    rw [← sum_union (disjoint_sdiff_inter S D), sdiff_union_inter]
-  have hsplit_D : ∑ j ∈ D, (w j - q j) =
-      ∑ j ∈ D \ S, (w j - q j) + ∑ j ∈ S ∩ D, (w j - q j) := by
-    rw [inter_comm, ← sum_union (disjoint_sdiff_inter D S), sdiff_union_inter]
+  rw [← sum_sub_distrib, ← sum_sub_distrib, ← sum_inter_add_sum_sdiff S D,
+    ← sum_inter_add_sum_sdiff D S, inter_comm D S]
   have hsdiff_le : ∑ j ∈ S \ D, (w j - q j) ≤ 0 :=
     sum_nonpos fun j hj => hD_nonpos j (mem_sdiff.1 hj).2
   have hds_ge : 0 ≤ ∑ j ∈ D \ S, (w j - q j) :=
@@ -317,10 +302,8 @@ theorem isGrossSubstitutes_unitDemandValuation {M : Type*} [Finite M] {w : M →
     let D' := insert j₀ D₀
     have hD'_dem : IsDemand (unitDemandValuation w) q D' := by
       intro S
-      have hv_le : unitDemandValuation w D₀ ≤ unitDemandValuation w D' :=
-        unitDemandValuation_monotone w (subset_insert j₀ D₀)
-      have hsum_eq : ∑ x ∈ D', q x = q j₀ + ∑ x ∈ D₀, q x := sum_insert hj₀D₀
-      linarith [hD₀ S]
+      rw [sum_insert hj₀D₀]
+      linarith [hD₀ S, unitDemandValuation_monotone w (subset_insert j₀ D₀)]
     exact (card_inter_lt_of_subset_of_mem hj₀S₀ hj₀D₀ (mem_insert_self j₀ D₀)
       fun x hx => mem_insert_of_mem (mem_inter.1 hx).1).not_ge (hD₀_max D' hD'_dem)
   · -- Positive price `0 < p j₀ = q j₀`: `j₀` uniquely attains `unitDemandValuation w A = w j₀`.
@@ -328,10 +311,8 @@ theorem isGrossSubstitutes_unitDemandValuation {M : Type*} [Finite M] {w : M →
     have herase_le : unitDemandValuation w (A.erase j₀) ≤ unitDemandValuation w A - p j₀ := by
       linarith [hA.price_le_sub_erase hj₀A]
     have hvA_eq : unitDemandValuation w A = w j₀ := by
-      have hins : insert j₀ (A.erase j₀) = A := insert_erase hj₀A
       have hmax : unitDemandValuation w A = max (w j₀) (unitDemandValuation w (A.erase j₀)) := by
-        conv_lhs => rw [← hins]
-        rw [unitDemandValuation_insert]
+        rw [← unitDemandValuation_insert, insert_erase hj₀A]
       rcases max_choice (w j₀) (unitDemandValuation w (A.erase j₀)) with h1 | h2
       · exact hmax.trans h1
       · linarith [hmax.trans h2]
@@ -372,9 +353,7 @@ theorem isGrossSubstitutes_unitDemandValuation {M : Type*} [Finite M] {w : M →
         have hswap_A := hA (insert m (A.erase j₀))
         have hwm_le_ins : w m ≤ unitDemandValuation w (insert m (A.erase j₀)) :=
           le_unitDemandValuation w (mem_insert_self m _)
-        have hsum_A : ∑ x ∈ A, p x = p j₀ + ∑ x ∈ A.erase j₀, p x :=
-          (add_sum_erase _ _ hj₀A).symm
-        rw [sum_insert hm_not_erase, hvA_eq, hsum_A] at hswap_A
+        rw [sum_insert hm_not_erase, hvA_eq, ← add_sum_erase A p hj₀A] at hswap_A
         have hwm_pm : w m - p m ≤ w j₀ - p j₀ := by linarith
         have hwm_qm : w m - q m ≤ w j₀ - q j₀ := by linarith [hpq m]
         let D' := insert j₀ (D₀.erase m)
@@ -383,16 +362,11 @@ theorem isGrossSubstitutes_unitDemandValuation {M : Type*} [Finite M] {w : M →
           intro S
           have hwj₀_le : w j₀ ≤ unitDemandValuation w D' :=
             le_unitDemandValuation w (mem_insert_self j₀ _)
-          have hsum_D₀ : ∑ x ∈ D₀, q x = q m + ∑ x ∈ D₀.erase m, q x :=
-            (add_sum_erase _ _ hmD₀).symm
           rw [sum_insert hj₀_not_erase]
-          linarith [hD₀ S, hm_eq, hsum_D₀]
-        have hsub : ∀ x ∈ D₀ ∩ S₀, x ∈ D' := by
-          intro x hx
-          have hxD₀ : x ∈ D₀ := (mem_inter.1 hx).1
+          linarith [hD₀ S, hm_eq, add_sum_erase D₀ q hmD₀]
+        have hsub : ∀ x ∈ D₀ ∩ S₀, x ∈ D' := fun x hx =>
           have hxA : x ∈ A := (mem_filter.1 (mem_inter.1 hx).2).1
-          have hxm : x ≠ m := fun h => hmA (h ▸ hxA)
-          exact mem_insert_of_mem (mem_erase.2 ⟨hxm, hxD₀⟩)
+          mem_insert_of_mem (mem_erase.2 ⟨fun h => hmA (h ▸ hxA), (mem_inter.1 hx).1⟩)
         exact (card_inter_lt_of_subset_of_mem hj₀S₀ hj₀D₀ (mem_insert_self j₀ _) hsub).not_ge
           (hD₀_max D' hD'_dem)
 
@@ -420,8 +394,7 @@ theorem isGrossSubstitutes_downwardSlopingValuation {M : Type*} [Finite M] {w : 
   · -- `D₀ ⊆ A` and `j₀ ∈ A \ D₀`, so `D₀.card ≤ A.card - 1` and `q j₀ = p j₀ ≤ w (A.card - 1) ≤
     -- w D₀.card`: inserting `j₀` into `D₀` preserves optimality at `q`!
     have hlt_card : D₀.card < A.card := card_lt_card ⟨hsubA, fun hrev => hj₀D₀ (hrev hj₀A)⟩
-    have hcard_pos : 1 ≤ A.card := Nat.one_le_iff_ne_zero.2 (Nat.pos_of_ne_zero
-      (by intro h0; rw [h0] at hlt_card; exact Nat.not_lt_zero _ hlt_card)).ne'
+    have hcard_pos : 1 ≤ A.card := by omega
     have hpj₀_le : p j₀ ≤ w (A.card - 1) := by
       have h := hA.price_le_sub_erase hj₀A
       have hcard_er : (A.erase j₀).card = A.card - 1 := card_erase_of_mem hj₀A
@@ -453,9 +426,7 @@ theorem isGrossSubstitutes_downwardSlopingValuation {M : Type*} [Finite M] {w : 
     have hv_eqA : downwardSlopingValuation w (insert b (A.erase j₀)) =
         downwardSlopingValuation w A := by
       simp [downwardSlopingValuation, hcard_swapA]
-    have hsum_A : ∑ x ∈ A, p x = p j₀ + ∑ x ∈ A.erase j₀, p x :=
-      (add_sum_erase _ _ hj₀A).symm
-    rw [hv_eqA, sum_insert hb_not_er, hsum_A] at hswapA
+    rw [hv_eqA, sum_insert hb_not_er, ← add_sum_erase A p hj₀A] at hswapA
     have hqj₀_le_qb : q j₀ ≤ q b := by linarith [hpq b]
     let D' := insert j₀ (D₀.erase b)
     have hj₀_not_er : j₀ ∉ D₀.erase b := fun h => hj₀D₀ (mem_of_mem_erase h)
@@ -466,15 +437,11 @@ theorem isGrossSubstitutes_downwardSlopingValuation {M : Type*} [Finite M] {w : 
       intro S
       have hv_eqD : downwardSlopingValuation w D' = downwardSlopingValuation w D₀ := by
         simp [downwardSlopingValuation, hcard_swapD]
-      have hsum_D₀ : ∑ x ∈ D₀, q x = q b + ∑ x ∈ D₀.erase b, q x :=
-        (add_sum_erase _ _ hbD₀).symm
       rw [hv_eqD, sum_insert hj₀_not_er]
-      linarith [hD₀ S, hsum_D₀]
-    have hsub : ∀ x ∈ D₀ ∩ S₀, x ∈ D' := by
-      intro x hx
-      have hxD₀ : x ∈ D₀ := (mem_inter.1 hx).1
+      linarith [hD₀ S, add_sum_erase D₀ q hbD₀]
+    have hsub : ∀ x ∈ D₀ ∩ S₀, x ∈ D' := fun x hx =>
       have hxA : x ∈ A := (mem_filter.1 (mem_inter.1 hx).2).1
-      exact mem_insert_of_mem (mem_erase.2 ⟨fun h => hbA (h ▸ hxA), hxD₀⟩)
+      mem_insert_of_mem (mem_erase.2 ⟨fun h => hbA (h ▸ hxA), (mem_inter.1 hx).1⟩)
     exact (card_inter_lt_of_subset_of_mem hj₀S₀ hj₀D₀ (mem_insert_self j₀ _) hsub).not_ge
       (hD₀_max D' hD'_dem)
 
@@ -498,6 +465,8 @@ theorem IsGrossSubstitutes.insert_insert_add_le {M : Type*} [Finite M] [Decidabl
   have hV_nn : 0 ≤ V := sum_nonneg fun _ _ => abs_nonneg _
   have habs_v : ∀ B : Finset M, |v B| ≤ V := fun B =>
     single_le_sum (fun T _ => abs_nonneg (v T)) (mem_univ B)
+  have hlo : ∀ B : Finset M, -V ≤ v B := fun B => neg_le_of_abs_le (habs_v B)
+  have hhi : ∀ B : Finset M, v B ≤ V := fun B => le_of_abs_le (habs_v B)
   set K : ℝ := 20 * V + 1
   let px : ℝ := v Sx - v S + δ / 2
   let py : ℝ := v Sy - v S + δ / 2
@@ -509,24 +478,15 @@ theorem IsGrossSubstitutes.insert_insert_add_le {M : Type*} [Finite M] [Decidabl
     intro j
     dsimp only [p, q]
     split_ifs <;> linarith
-  have hδ_le : δ ≤ 4 * V := by
-    have h1 := le_abs_self (v Sxy)
-    have h2 := le_abs_self (v S)
-    have h3 := neg_le_abs (v Sx)
-    have h4 := neg_le_abs (v Sy)
-    linarith [habs_v Sxy, habs_v S, habs_v Sx, habs_v Sy]
+  have hδ_le : δ ≤ 4 * V := by linarith [hhi Sxy, hhi S, hlo Sx, hlo Sy]
   have hpx_abs : |px| ≤ 4 * V := by
     dsimp only [px]
     rw [abs_le]
-    have h1 := le_abs_self (v Sx); have h2 := neg_le_abs (v Sx)
-    have h3 := le_abs_self (v S); have h4 := neg_le_abs (v S)
-    constructor <;> linarith [habs_v Sx, habs_v S]
+    constructor <;> linarith [hlo Sx, hhi Sx, hlo S, hhi S]
   have hpy_abs : |py| ≤ 4 * V := by
     dsimp only [py]
     rw [abs_le]
-    have h1 := le_abs_self (v Sy); have h2 := neg_le_abs (v Sy)
-    have h3 := le_abs_self (v S); have h4 := neg_le_abs (v S)
-    constructor <;> linarith [habs_v Sy, habs_v S]
+    constructor <;> linarith [hlo Sy, hhi Sy, hlo S, hhi S]
   -- Penalty lemma: for both `r = p` and `r = q`, any bundle `B` violating `S ⊆ B ∧ B ⊆ Sxy`
   -- is strictly dominated by `S`.
   have houtside : ∀ (r : M → ℝ),
@@ -574,13 +534,7 @@ theorem IsGrossSubstitutes.insert_insert_add_le {M : Type*} [Finite M] [Decidabl
     have hcard_BS : (B ∩ S).card ≤ S.card := card_le_card inter_subset_right
     have hpen_ge_one : 1 ≤ (S.card - (B ∩ S).card) + Bout.card := by
       by_contra hzero
-      have h0 : (S.card - (B ∩ S).card) + Bout.card = 0 := Nat.eq_zero_of_not_pos hzero
-      have hSB : S ⊆ B := by
-        have hcard_eq : (B ∩ S).card = S.card := by omega
-        have heq := eq_of_subset_of_card_le inter_subset_right hcard_eq.ge
-        intro j hj
-        rw [← heq] at hj
-        exact (mem_inter.1 hj).1
+      have hSB : S ⊆ B := inter_eq_right.1 (eq_of_subset_of_card_le inter_subset_right (by omega))
       have hBout_empty : Bout = ∅ := card_eq_zero.1 (by omega)
       have hBSxy : B ⊆ Sxy := by
         intro j hj
@@ -589,22 +543,15 @@ theorem IsGrossSubstitutes.insert_insert_add_le {M : Type*} [Finite M] [Decidabl
         · have hjBS : j ∈ B \ S := mem_sdiff.2 ⟨hj, hjS⟩
           rw [hB_split2, hBout_empty, empty_union] at hjBS
           rcases mem_insert.1 (mem_inter.1 hjBS).2 with hjx | hjy
-          · rw [hjx]
-            exact mem_insert_self x _
-          · rw [mem_singleton.1 hjy]
-            exact mem_insert_of_mem (mem_insert_self y S)
+          · exact hjx ▸ mem_insert_self x _
+          · exact mem_singleton.1 hjy ▸ mem_insert_of_mem (mem_insert_self y S)
       exact hnot ⟨hSB, hBSxy⟩
     have hK_pos : 0 < K := by positivity
     have hpen_real : K ≤ ((S.card : ℝ) - ((B ∩ S).card : ℝ) + (Bout.card : ℝ)) * K := by
-      have hcast : (1 : ℝ) ≤ (S.card : ℝ) - ((B ∩ S).card : ℝ) + (Bout.card : ℝ) := by
-        have : (1 : ℝ) ≤ (((S.card - (B ∩ S).card) + Bout.card : ℕ) : ℝ) := by
-          exact_mod_cast hpen_ge_one
-        rwa [Nat.cast_add, Nat.cast_sub hcard_BS] at this
-      nlinarith
-    have hv_diff : -2 * V ≤ v S - v B := by
-      have h1 := neg_le_abs (v S)
-      have h2 := le_abs_self (v B)
-      linarith [habs_v S, habs_v B]
+      refine le_mul_of_one_le_left hK_pos.le ?_
+      rw [← Nat.cast_sub hcard_BS, ← Nat.cast_add]
+      exact_mod_cast hpen_ge_one
+    have hv_diff : -2 * V ≤ v S - v B := by linarith [hlo S, hhi B]
     rw [hsum_B, hsum_BS, hsum_Bout, hsum_S]
     dsimp only [K] at hpen_real ⊢
     linarith
@@ -670,10 +617,7 @@ theorem IsGrossSubstitutes.insert_insert_add_le {M : Type*} [Finite M] [Decidabl
     by_contra hnot_sub
     have hlt_S := houtside q (fun j hj => by simp [q, hj]) (fun j hj => by simp [q, hout j hj])
       (by rwa [hqx_val])
-      (by
-        rw [hqy_val]
-        have h1 := le_abs_self py; have h2 := neg_le_abs py
-        rw [abs_le]; constructor <;> linarith [abs_le.1 hpy_abs])
+      (by rw [hqy_val, abs_le]; constructor <;> linarith [abs_le.1 hpy_abs])
       D (fun h => hnot_sub h.2)
     linarith [hD_dem S]
   -- Since `S ⊆ D ⊆ Sxy` and `x ∈ D`, `D` is `Sx` or `Sxy`, both strictly beaten by `S` at `q`!
@@ -689,11 +633,9 @@ theorem IsGrossSubstitutes.insert_insert_add_le {M : Type*} [Finite M] [Decidabl
     ring
   rcases hfour D hSD hDSxy with rfl | rfl | rfl | rfl
   · exact hxS hxD
-  · have := hD_dem S
-    linarith [hSx_q]
+  · linarith [hD_dem S, hSx_q]
   · exact hxSy hxD
-  · have := hD_dem S
-    linarith [hSxy_q]
+  · linarith [hD_dem S, hSxy_q]
 
 /-- Antitone marginal values for gross-substitutes valuations: for `S ⊆ T` and `x ∉ T`,
 `v (insert x T) - v T ≤ v (insert x S) - v S`. -/
@@ -781,9 +723,8 @@ structure IsEpsWalrasianEquilibrium {N M : Type*} [DecidableEq M]
 theorem isEpsWalrasianEquilibrium_zero_iff {N M : Type*} [DecidableEq M]
     (v : N → Finset M → ℝ) (p : M → ℝ) (a : Allocation N M) :
     IsEpsWalrasianEquilibrium v 0 p a ↔ IsWalrasianEquilibrium v p a := by
-  have hp_eq : ∀ S : Finset M, personalizedPrice 0 p S = p := fun S => by
-    funext j
-    simp [personalizedPrice]
+  have hp_eq : ∀ S : Finset M, personalizedPrice 0 p S = p := fun S =>
+    funext fun j => by simp [personalizedPrice]
   constructor
   · rintro ⟨hp, hdem, hunalloc⟩
     exact ⟨hp, fun i => hp_eq (a.bundle i) ▸ hdem i, hunalloc⟩
@@ -840,9 +781,7 @@ theorem IsEpsWalrasianEquilibrium.welfare_le {N M : Type*} [Fintype N] [Fintype 
     fun i₁ _ i₂ _ hne => b.disjoint hne
   have hcard_le : (∑ i : N, ((b.bundle i).card : ℝ)) ≤ (Fintype.card M : ℝ) := by
     exact_mod_cast (card_biUnion hdisj_b).symm.le.trans (card_le_univ (univ.biUnion b.bundle))
-  have herr_le : (∑ i : N, ((b.bundle i).card : ℝ)) * ε ≤ (Fintype.card M : ℝ) * ε :=
-    mul_le_mul_of_nonneg_right hcard_le hε
-  linarith [heq.welfare_sub_sum_card_le hε b]
+  linarith [heq.welfare_sub_sum_card_le hε b, mul_le_mul_of_nonneg_right hcard_le hε]
 
 /-- When comparing against an allocation `b` that assigns each bidder at most one item
 (`∀ i, (b.bundle i).card ≤ 1`, as in unit-demand environments), the `|N| * ε` bound printed in
@@ -856,9 +795,7 @@ theorem IsEpsWalrasianEquilibrium.welfare_le_of_card_le_one {N M : Type*} [Finty
     calc (∑ i : N, ((b.bundle i).card : ℝ))
         ≤ ∑ _i : N, (1 : ℝ) := sum_le_sum fun i _ => Nat.cast_le_one.2 (hb i)
       _ = (Fintype.card N : ℝ) := by simp
-  have herr_le : (∑ i : N, ((b.bundle i).card : ℝ)) * ε ≤ (Fintype.card N : ℝ) * ε :=
-    mul_le_mul_of_nonneg_right hcard_le hε
-  linarith [heq.welfare_sub_sum_card_le hε b]
+  linarith [heq.welfare_sub_sum_card_le hε b, mul_le_mul_of_nonneg_right hcard_le hε]
 
 /-- Aggregate valuation bound `∑ i, ∑ S, |v i S|` bounding every item's price throughout the
 Kelso–Crawford ascending auction without requiring monotonicity or `[Nonempty]` hypotheses. -/
@@ -986,8 +923,7 @@ theorem AuctionState.IsValid.kelsoCrawfordUpdate {N M : Type*} [Fintype N] [Fint
           mem_sdiff] at hk
         exact hk ⟨hjSk, hjD⟩
     have hj_not_sdiff : j ∉ D \ st.alloc.bundle i := fun h => hjD (mem_sdiff.1 h).1
-    dsimp only [st', CombinatorialAuction.kelsoCrawfordUpdate]
-    simp only [hj_not_sdiff, ↓reduceIte, hst.unallocated_price_zero j hj_old]
+    exact (ite_eq_right hj_not_sdiff).trans (hst.unallocated_price_zero j hj_old)
   · -- `exists_superset_demand` (Claim 11.31!)
     intro k
     by_cases hki : k = i
@@ -997,11 +933,8 @@ theorem AuctionState.IsValid.kelsoCrawfordUpdate {N M : Type*} [Fintype N] [Fint
         funext j
         dsimp only [st', CombinatorialAuction.kelsoCrawfordUpdate, personalizedPrice]
         simp only [↓reduceIte, mem_sdiff]
-        by_cases hjD : j ∈ D <;> by_cases hjS : j ∈ st.alloc.bundle k
-        · simp [hjD, hjS]
-        · simp [hjD, hjS]
-        · exact (hjD (hSD hjS)).elim
-        · simp [hjD, hjS]
+        by_cases hjD : j ∈ D <;> by_cases hjS : j ∈ st.alloc.bundle k <;>
+          first | exact (hjD (hSD hjS)).elim | simp [hjD, hjS]
       have hbundle_i : st'.alloc.bundle k = D := by
         simp [st', CombinatorialAuction.kelsoCrawfordUpdate]
       exact ⟨D, hq_eq ▸ hD_dem, hbundle_i.le⟩
@@ -1036,18 +969,14 @@ theorem AuctionState.IsValid.kelsoCrawfordUpdate {N M : Type*} [Fintype N] [Fint
     dsimp only [st', CombinatorialAuction.kelsoCrawfordUpdate]
     split_ifs with hjsdiff
     · obtain ⟨hjD, hjSi⟩ := mem_sdiff.1 hjsdiff
-      have hqj : personalizedPrice ε st.price (st.alloc.bundle i) j = st.price j + ε := by
-        simp [personalizedPrice, hjSi]
       have hle_diff := hD_dem.price_le_sub_erase hjD
-      rw [hqj] at hle_diff
+      rw [personalizedPrice_of_notMem ε st.price hjSi] at hle_diff
       exact hle_diff.trans (sub_erase_le_valuationBound v i hjD)
     · exact hst.price_le j
   · -- Strict total-price increase `∑ j, st.price j + ε ≤ ∑ j, st'.price j`
     obtain ⟨j₀, hj₀⟩ := hsdiff_ne
     rw [← add_sum_erase univ st.price (mem_univ j₀), ← add_sum_erase univ st'.price (mem_univ j₀)]
-    have hj₀_eq : st'.price j₀ = st.price j₀ + ε := by
-      dsimp only [st', CombinatorialAuction.kelsoCrawfordUpdate]
-      simp only [hj₀, ↓reduceIte]
+    have hj₀_eq : st'.price j₀ = st.price j₀ + ε := ite_eq_left hj₀
     have hrest_le : ∑ j ∈ univ.erase j₀, st.price j ≤ ∑ j ∈ univ.erase j₀, st'.price j := by
       refine sum_le_sum fun j _ => ?_
       dsimp only [st', CombinatorialAuction.kelsoCrawfordUpdate]
@@ -1098,12 +1027,7 @@ private theorem kelsoCrawfordLoop_eq_self {N M : Type*} [Fintype N] [Fintype M]
   cases fuel with
   | zero => rfl
   | succ fuel =>
-    have hex : ¬ ∃ i : N,
-        ¬ IsDemand (v i) (personalizedPrice ε st.price (st.alloc.bundle i))
-          (st.alloc.bundle i) := by
-      rintro ⟨i, hi⟩
-      exact hi (hdem i)
-    simp only [kelsoCrawfordLoop, hex, ↓reduceDIte]
+    simp [kelsoCrawfordLoop, hdem]
 
 /-- When `∅` is already a demand bundle for every bidder at uniform surcharge prices `fun _ => ε`,
 `kelsoCrawford v ε` halts immediately at `kelsoCrawfordInit N M`. -/
@@ -1112,9 +1036,8 @@ theorem kelsoCrawford_eq_init {N M : Type*} [Fintype N] [Fintype M]
     (hdem : ∀ i : N, IsDemand (v i) (fun _ => ε) ∅) :
     kelsoCrawford v ε = kelsoCrawfordInit N M := by
   refine kelsoCrawfordLoop_eq_self (kelsoCrawfordFuel v ε) fun i => ?_
-  have hp : personalizedPrice ε (kelsoCrawfordInit N M).price (∅ : Finset M) = fun _ => ε := by
-    funext j
-    simp [personalizedPrice]
+  have hp : personalizedPrice ε (kelsoCrawfordInit N M).price (∅ : Finset M) = fun _ => ε :=
+    funext fun j => by simp [personalizedPrice]
   rw [kelsoCrawfordInit_bundle, hp]
   exact hdem i
 
@@ -1163,10 +1086,8 @@ private theorem kelsoCrawfordLoop_terminates {N M : Type*} [Fintype N] [Fintype 
       refine ih _ hst' ?_
       push_cast at hlt
       linarith
-    · have hstep_eq : kelsoCrawfordLoop v ε (fuel + 1) st = st := by
-        simp only [kelsoCrawfordLoop, hex, ↓reduceDIte]
-      rw [hstep_eq]
-      push Not at hex
+    · push Not at hex
+      rw [kelsoCrawfordLoop_eq_self _ hex]
       exact ⟨⟨hst.price_nonneg, hex, hst.unallocated_price_zero⟩, hst.price_le⟩
 
 /-- **Theorem 11.30 ([BlumrosenNisan2007], p. 291; [KelsoCrawford1982]):** for any profile of
@@ -1243,43 +1164,28 @@ theorem exists_isWalrasianEquilibrium_of_isGrossSubstitutes {N M : Type*} [Finit
   · -- Pass `IsDemand` at `personalizedPrice (ε (φ n))` to the `n → ∞` limit!
     have hstep : ∀ n : ℕ,
         v i S - ∑ j ∈ S, personalizedPrice (ε (φ n)) (run (φ n)).price (a.bundle i) j ≤
-          v i (a.bundle i) - ∑ j ∈ a.bundle i, (run (φ n)).price j := by
-      intro n
-      have hd := (hrun (φ n)).1.demand i S
-      rwa [ha_eq n, sum_personalizedPrice_self] at hd
+          v i (a.bundle i) - ∑ j ∈ a.bundle i, (run (φ n)).price j := fun n => by
+      simpa only [ha_eq n, sum_personalizedPrice_self] using (hrun (φ n)).1.demand i S
     have hq_coord : ∀ j : M,
         Filter.Tendsto (fun n => personalizedPrice (ε (φ n)) (run (φ n)).price (a.bundle i) j)
           Filter.atTop (𝓝 (p j)) := by
       intro j
-      by_cases hj : j ∈ a.bundle i
-      · simp only [personalizedPrice, hj, ↓reduceIte]
-        exact hp_coord j
-      · simp only [personalizedPrice, hj, ↓reduceIte]
-        simpa only [add_zero] using (hp_coord j).add hε_lim
-    have hsum_tendsto : ∀ (T : Finset M) (g : ℕ → M → ℝ) (g₀ : M → ℝ),
-        (∀ j ∈ T, Filter.Tendsto (fun n => g n j) Filter.atTop (𝓝 (g₀ j))) →
-          Filter.Tendsto (fun n => ∑ j ∈ T, g n j) Filter.atTop (𝓝 (∑ j ∈ T, g₀ j)) := by
-      intro T g g₀ hg
-      induction T using Finset.induction with
-      | empty => simpa only [sum_empty] using tendsto_const_nhds
-      | insert j T hjT ih =>
-        simp only [sum_insert hjT]
-        exact (hg j (mem_insert_self j T)).add (ih fun k hk => hg k (mem_insert_of_mem hk))
+      by_cases hj : j ∈ a.bundle i <;> simp only [personalizedPrice, hj, ↓reduceIte]
+      · exact hp_coord j
+      · simpa only [add_zero] using (hp_coord j).add hε_lim
     have hL : Filter.Tendsto
         (fun n => v i S - ∑ j ∈ S, personalizedPrice (ε (φ n)) (run (φ n)).price (a.bundle i) j)
         Filter.atTop (𝓝 (v i S - ∑ j ∈ S, p j)) :=
-      tendsto_const_nhds.sub (hsum_tendsto S _ _ fun j _ => hq_coord j)
+      tendsto_const_nhds.sub (tendsto_finsetSum S fun j _ => hq_coord j)
     have hR : Filter.Tendsto
         (fun n => v i (a.bundle i) - ∑ j ∈ a.bundle i, (run (φ n)).price j)
         Filter.atTop (𝓝 (v i (a.bundle i) - ∑ j ∈ a.bundle i, p j)) :=
-      tendsto_const_nhds.sub (hsum_tendsto (a.bundle i) _ _ fun j _ => hp_coord j)
+      tendsto_const_nhds.sub (tendsto_finsetSum (a.bundle i) fun j _ => hp_coord j)
     exact le_of_tendsto_of_tendsto hL hR (Filter.Eventually.of_forall hstep)
   · -- Unallocated item has `p_{φ n} j = 0` for all `n`, hence `p j = 0`.
     have hzero_n : ∀ n : ℕ, (run (φ n)).price j = 0 := fun n =>
       (hrun (φ n)).1.unallocated_price_zero j (by rw [ha_eq n]; exact hj_none)
-    exact tendsto_nhds_unique (hp_coord j)
-      (by simpa only [hzero_n] using
-        (tendsto_const_nhds : Filter.Tendsto (fun _ : ℕ => (0 : ℝ)) _ _))
+    exact tendsto_nhds_unique (hp_coord j) (by simp only [hzero_n]; exact tendsto_const_nhds)
 
 /-- **Zero `LPR` integrality gap for gross-substitutes valuations**
 ([BlumrosenNisan2007], Corollary 11.16 and §11.7.1, pp. 279, 290–291): whenever `∀ i, 0 ≤ v i ∅`
@@ -1359,8 +1265,7 @@ theorem demandReduction_manipulation :
         cases i₁ <;> cases i₂ <;> first | exact (hne rfl).elim | decide⟩
     have hw_ge := heq.welfare_le aOpt
     have hwOpt : welfare demandReductionVal aOpt = 10 := by
-      simp [welfare, aOpt, demandReductionVal, Cslib.Algorithms.Lean.Submodular.modularSum]
-      norm_num
+      norm_num [welfare, aOpt, demandReductionVal, Cslib.Algorithms.Lean.Submodular.modularSum]
     have ha_empty : a.bundle false = ∅ := by
       by_contra hne_emp
       obtain ⟨j, hj⟩ := nonempty_iff_ne_empty.2 hne_emp
@@ -1387,9 +1292,7 @@ theorem demandReduction_manipulation :
       intro j
       have hd := heq.demand false {j}
       rw [ha_empty] at hd
-      simp only [demandReductionVal, Bool.false_eq_true, ↓reduceIte, unitDemandValuation_singleton,
-        unitDemandValuation_empty, sum_singleton, sum_empty, sub_zero] at hd
-      norm_num at hd
+      norm_num [demandReductionVal] at hd
       exact hd
     by_cases hb_univ : a.bundle true = univ
     · rw [hb_univ, Fintype.sum_bool]

@@ -138,12 +138,8 @@ private theorem exists_weighted_median (w : V → ℝ) (hw : ∀ v, 0 ≤ w v) (
   have hW : 0 ≤ W := sum_nonneg fun v _ => hw v
   set A : Finset V := univ.filter fun u => W ≤ 2 * ∑ v with f v ≤ f u, w v
   obtain ⟨v_max, -, hv_max⟩ := univ.exists_max_image f univ_nonempty
-  have hA_ne : A.Nonempty := by
-    refine ⟨v_max, mem_filter.2 ⟨mem_univ _, ?_⟩⟩
-    have hall : (univ.filter fun v => f v ≤ f v_max) = univ :=
-      filter_true_of_mem fun v _ => hv_max v (mem_univ v)
-    rw [hall]
-    linarith
+  have hA_ne : A.Nonempty := ⟨v_max, mem_filter.2 ⟨mem_univ _, by
+    rw [filter_true_of_mem fun v _ => hv_max v (mem_univ v)]; linarith⟩⟩
   obtain ⟨v₀, hv₀A, hv₀_min⟩ := A.exists_min_image f hA_ne
   refine ⟨f v₀, ?_, ?_⟩
   · have hv₀W : W ≤ 2 * ∑ v with f v ≤ f v₀, w v := (mem_filter.1 hv₀A).2
@@ -152,8 +148,7 @@ private theorem exists_weighted_median (w : V → ℝ) (hw : ∀ v, 0 ≤ w v) (
     linarith
   · set L : Finset V := univ.filter fun v => f v < f v₀
     rcases L.eq_empty_or_nonempty with hL | hL
-    · rw [hL, sum_empty, mul_zero]
-      exact hW
+    · simpa only [hL, sum_empty, mul_zero] using hW
     · obtain ⟨v₁, hv₁L, hv₁_max⟩ := L.exists_max_image f hL
       have hv₁_lt : f v₁ < f v₀ := (mem_filter.1 hv₁L).2
       have hv₁_notA : v₁ ∉ A := fun hmem => not_le.2 hv₁_lt (hv₀_min v₁ hmem)
@@ -288,16 +283,11 @@ private theorem two_mul_sum_le_sum_abs_sub_of_level {c : ℝ} (w : V → ℝ) (�
       exact hlevel u hu_pos
     have ih := two_mul_sum_le_sum_abs_sub_of_level w ψ' hψ'_nonneg hlevel'
     have hsum_w : ∑ v, ψ' v * w v = ∑ v, ψ v * w v - ψ v₀ * ∑ v ∈ T, w v := by
-      have hsplit : ∑ v, ψ v * w v = ∑ v ∈ T, ψ v * w v := by
-        refine (sum_subset (subset_univ T) fun v _ hv => ?_).symm
-        rw [hT_zero v hv, zero_mul]
-      have hsplit' : ∑ v, ψ' v * w v = ∑ v ∈ T, (ψ v - ψ v₀) * w v := by
-        rw [← sum_subset (subset_univ T)]
-        · exact sum_congr rfl fun v hv => by simp only [ψ', hv, ↓reduceIte]
-        · intro v _ hv
-          simp only [ψ', hv, ↓reduceIte, zero_mul]
-      rw [hsplit, hsplit', mul_sum, ← sum_sub_distrib]
-      exact sum_congr rfl fun v _ => by ring
+      rw [← sum_ite_mem_eq T, mul_sum, ← sum_sub_distrib]
+      refine sum_congr rfl fun v _ => ?_
+      by_cases hv : v ∈ T
+      · simp only [ψ', hv, ↓reduceIte]; ring
+      · simp only [ψ', hv, ↓reduceIte, hT_zero v hv, zero_mul, mul_zero, sub_zero]
     rw [sum_congr rfl fun e he => abs_sub_peel_min G hψ hT_zero hmin e he, sum_add_distrib,
       ← mul_sum, sum_boundary_indicator]
     have hcut_T : c * (∑ v ∈ T, w v) ≤ #(G.interedges T Tᶜ) := by
@@ -396,6 +386,9 @@ theorem IsRegularOfDegree.vol_eq {G : SimpleGraph V} [DecidableRel G.Adj] {d : �
     G.vol S = d * #S := by
   simp only [vol, hd.degree_eq, sum_const, smul_eq_mul, Nat.mul_comm]
 
+private theorem degree_pos_of_adj {u v : V} (h : G.Adj u v) : 0 < G.degree u :=
+  (G.degree_pos_iff_exists_adj u).2 ⟨v, h⟩
+
 private theorem degree_eq_zero_of_eq_bot (hbot : G = ⊥) (v : V) : G.degree v = 0 :=
   Nat.eq_zero_of_not_pos ((G.degree_pos_iff_exists_adj v).not.2 fun ⟨_, hw⟩ => by
     rw [hbot] at hw; exact hw)
@@ -418,8 +411,7 @@ theorem two_mul_degree_le_totalVol (u : V) : 2 * G.degree u ≤ G.totalVol := by
         = ∑ _w ∈ G.neighborFinset u, 1 := by
           simp only [sum_const, card_neighborFinset_eq_degree, smul_eq_mul, mul_one]
       _ ≤ ∑ w ∈ G.neighborFinset u, G.degree w := by
-          refine sum_le_sum fun w hw => ?_
-          exact (G.degree_pos_iff_exists_adj w).2 ⟨u, ((G.mem_neighborFinset u w).1 hw).symm⟩
+          exact sum_le_sum fun w hw => G.degree_pos_of_adj ((G.mem_neighborFinset u w).1 hw).symm
       _ ≤ G.vol ({u} : Finset V)ᶜ := G.vol_mono hsub
   have hcompl := G.vol_add_vol_compl {u}
   rw [vol_singleton] at hcompl
@@ -498,17 +490,15 @@ theorem conductance_mul_vol_le {S : Finset V} (hS : 2 * G.vol S ≤ G.totalVol) 
 
 theorem conductance_le_setConductance {S : Finset V} (hpos : 0 < min (G.vol S) (G.vol Sᶜ)) :
     G.conductance ≤ G.setConductance S := by
+  have key : ∀ T : Finset V, 0 < G.vol T → 2 * G.vol T ≤ G.totalVol →
+      G.conductance ≤ G.setConductance T := fun T hT h2 => by
+    rw [G.setConductance_eq_of_two_mul_vol_le h2, le_div_iff₀ (Nat.cast_pos.2 hT)]
+    exact G.conductance_mul_vol_le h2
   have hcompl := G.vol_add_vol_compl S
   rcases le_total (G.vol S) (G.vol Sᶜ) with hle | hle
-  · have h2 : 2 * G.vol S ≤ G.totalVol := by omega
-    have hvol_pos : 0 < G.vol S := by omega
-    rw [G.setConductance_eq_of_two_mul_vol_le h2, le_div_iff₀ (Nat.cast_pos.2 hvol_pos)]
-    exact G.conductance_mul_vol_le h2
-  · have h2 : 2 * G.vol Sᶜ ≤ G.totalVol := by omega
-    have hvol_pos : 0 < G.vol Sᶜ := by omega
-    rw [← G.setConductance_compl S, G.setConductance_eq_of_two_mul_vol_le h2,
-      le_div_iff₀ (Nat.cast_pos.2 hvol_pos)]
-    exact G.conductance_mul_vol_le h2
+  · exact key S (by omega) (by omega)
+  · rw [← G.setConductance_compl S]
+    exact key Sᶜ (by omega) (by omega)
 
 omit [DecidableEq V] in
 private theorem nonempty_validCut_of_ne_bot (hG : G ≠ ⊥) :
@@ -516,7 +506,7 @@ private theorem nonempty_validCut_of_ne_bot (hG : G ≠ ⊥) :
   classical
   obtain ⟨e, he⟩ := edgeFinset_nonempty.2 hG
   induction e using Sym2.ind with | _ u w =>
-  have hu_pos : 0 < G.degree u := (G.degree_pos_iff_exists_adj u).2 ⟨w, mem_edgeFinset.1 he⟩
+  have hu_pos : 0 < G.degree u := G.degree_pos_of_adj (mem_edgeFinset.1 he)
   exact ⟨⟨{u}, by simpa only [vol_singleton] using hu_pos,
     by simpa only [vol_singleton] using G.two_mul_degree_le_totalVol u⟩⟩
 
@@ -531,9 +521,8 @@ theorem conductance_eq_iInf_setConductance :
         simp only [vol, degree_eq_zero_of_eq_bot G hbot, sum_const_zero, min_self,
           lt_irrefl] at hpos⟩
     exact (Real.iInf_of_isEmpty _).symm
-  · obtain ⟨⟨S₀, hS₀_pos, hS₀_2⟩⟩ := nonempty_validCut_of_ne_bot G hbot
-    have hne1 : Nonempty {S : Finset V // 0 < G.vol S ∧ 2 * G.vol S ≤ G.totalVol} :=
-      ⟨⟨S₀, hS₀_pos, hS₀_2⟩⟩
+  · have hne1 := nonempty_validCut_of_ne_bot G hbot
+    obtain ⟨⟨S₀, hS₀_pos, hS₀_2⟩⟩ := id hne1
     have hne2 : Nonempty {S : Finset V // 0 < min (G.vol S) (G.vol Sᶜ)} := by
       have hcompl := G.vol_add_vol_compl S₀
       exact ⟨⟨S₀, by omega⟩⟩
@@ -565,23 +554,18 @@ theorem conductance_le_one : G.conductance ≤ 1 := by
     exact zero_le_one
   · obtain ⟨⟨S, hS_pos, hS_2⟩⟩ := nonempty_validCut_of_ne_bot G hbot
     have hmul := G.conductance_mul_vol_le hS_2
-    have hreal : (#(G.interedges S Sᶜ) : ℝ) ≤ G.vol S := by
-      exact_mod_cast G.card_interedges_compl_le_vol S
-    have hvol_pos : (0 : ℝ) < G.vol S := Nat.cast_pos.2 hS_pos
-    exact (le_div_iff₀ hvol_pos).2 (hmul.trans hreal) |>.trans_eq (div_self hvol_pos.ne')
+    have hreal : (#(G.interedges S Sᶜ) : ℝ) ≤ G.vol S :=
+      mod_cast G.card_interedges_compl_le_vol S
+    exact le_of_mul_le_mul_right ((hmul.trans hreal).trans_eq (one_mul _).symm)
+      (Nat.cast_pos.2 hS_pos)
 
 /-- For any connected simple graph on at least two vertices, `2 / vol(G) ≤ h_G`
 ([Chung1997], §2.3, p. 28). -/
 theorem two_div_totalVol_le_conductance [Nontrivial V] (hconn : G.Connected) :
     2 / (G.totalVol : ℝ) ≤ G.conductance := by
-  have hne_bot : G ≠ ⊥ := by
-    obtain ⟨u, w, huw⟩ := exists_pair_ne V
-    obtain ⟨p⟩ := hconn u w
-    rcases p with _ | @⟨_, x, _, hadj, _⟩
-    · exact absurd rfl huw
-    · intro hbot
-      rw [hbot] at hadj
-      exact hadj
+  have hne_bot : G ≠ ⊥ := fun hbot =>
+    (hconn.preconnected.degree_pos_of_nontrivial (Classical.arbitrary V)).ne'
+      (G.degree_eq_zero_of_eq_bot hbot _)
   have htot_pos : (0 : ℝ) < G.totalVol :=
     Nat.cast_pos.2 (Nat.pos_of_ne_zero (G.totalVol_eq_zero_iff.not.2 hne_bot))
   refine (G.le_conductance_iff hne_bot).2 fun S hpos h2 => ?_
@@ -668,11 +652,9 @@ theorem normLapMatrix_apply (u v : V) :
   · simp only [↓reduceIte, G.loopless.irrefl u, sub_zero]
     rcases Nat.eq_zero_or_pos (G.degree u) with h0 | hpos
     · simp only [h0, ↓reduceIte, Nat.cast_zero, Real.sqrt_zero, _root_.inv_zero, zero_mul]
-    · have hne : G.degree u ≠ 0 := hpos.ne'
-      have hcast_pos : (0 : ℝ) < G.degree u := Nat.cast_pos.2 hpos
-      have hsqrt_ne : Real.sqrt (G.degree u) ≠ 0 := (Real.sqrt_pos.2 hcast_pos).ne'
-      simp only [hne, ↓reduceIte]
-      field_simp [hsqrt_ne]
+    · have hcast_pos : (0 : ℝ) < G.degree u := Nat.cast_pos.2 hpos
+      simp only [hpos.ne', ↓reduceIte]
+      field_simp [(Real.sqrt_pos.2 hcast_pos).ne']
       exact (Real.sq_sqrt hcast_pos.le).symm
   · simp only [huv, ↓reduceIte]
     by_cases hadj : G.Adj u v
@@ -687,15 +669,13 @@ theorem isSymm_normLapMatrix : G.normLapMatrix.IsSymm := by
   rw [IsSymm, normLapMatrix, transpose_mul, transpose_mul, G.isSymm_degInvSqrtMatrix.eq,
     (G.isSymm_lapMatrix ℝ).eq, Matrix.mul_assoc]
 
-theorem isHermitian_normLapMatrix : G.normLapMatrix.IsHermitian := by
-  rw [IsHermitian, conjTranspose_eq_transpose_of_trivial]
-  exact G.isSymm_normLapMatrix
+theorem isHermitian_normLapMatrix : G.normLapMatrix.IsHermitian :=
+  (conjTranspose_eq_transpose_of_trivial _).trans G.isSymm_normLapMatrix
 
 /-- `𝓛_G` is positive semidefinite ([Chung1997], §1.2, p. 3). -/
 theorem posSemidef_normLapMatrix : G.normLapMatrix.PosSemidef := by
-  have hconj : G.degInvSqrtMatrixᴴ = G.degInvSqrtMatrix := by
-    rw [conjTranspose_eq_transpose_of_trivial]
-    exact G.isSymm_degInvSqrtMatrix
+  have hconj : G.degInvSqrtMatrixᴴ = G.degInvSqrtMatrix :=
+    (conjTranspose_eq_transpose_of_trivial _).trans G.isSymm_degInvSqrtMatrix
   rw [normLapMatrix]
   nth_rw 1 [← hconj]
   exact (G.posSemidef_lapMatrix ℝ).conjTranspose_mul_mul_same G.degInvSqrtMatrix
@@ -711,8 +691,7 @@ theorem IsRegularOfDegree.normLapMatrix_eq {G : SimpleGraph V} [DecidableRel G.A
   · simp only [↓reduceIte, hd.degree_eq u, hd_pos.ne', G.loopless.irrefl u, mul_zero, sub_zero]
   · simp only [huv, ↓reduceIte, hd.degree_eq u, hd.degree_eq v]
     by_cases hadj : G.Adj u v
-    · have hd_nn : (0 : ℝ) ≤ d := Nat.cast_nonneg d
-      simp only [hadj, ↓reduceIte, ← sq, Real.sqrt_sq hd_nn, mul_one, zero_sub]
+    · simp only [hadj, ↓reduceIte, ← sq, Real.sqrt_sq (Nat.cast_nonneg d), mul_one, zero_sub]
     · simp only [hadj, ↓reduceIte, mul_zero, sub_zero]
 
 /-- `T^{1/2} 1 = (v ↦ √(d_v))` lies in the kernel of `𝓛_G` ([Chung1997], §1.2, p. 4). -/
@@ -729,9 +708,7 @@ theorem normLapMatrix_mulVec_sqrt_degree :
   have hlap : G.lapMatrix ℝ *ᵥ (fun v => if G.degree v = 0 then (0 : ℝ) else 1) = 0 := by
     rw [lapMatrix_mulVec_eq_zero_iff_forall_adj]
     intro u v hadj
-    have hu : G.degree u ≠ 0 := ((G.degree_pos_iff_exists_adj u).2 ⟨v, hadj⟩).ne'
-    have hv : G.degree v ≠ 0 := ((G.degree_pos_iff_exists_adj v).2 ⟨u, hadj.symm⟩).ne'
-    simp only [hu, hv, ↓reduceIte]
+    simp only [(G.degree_pos_of_adj hadj).ne', (G.degree_pos_of_adj hadj.symm).ne', ↓reduceIte]
   rw [normLapMatrix, Matrix.mul_assoc, ← mulVec_mulVec, ← mulVec_mulVec, hproj, hlap, mulVec_zero]
 
 /-- Combinatorial Dirichlet identity:
@@ -765,9 +742,8 @@ theorem dotProduct_mulVec_normLapMatrix_mul_sqrt (f : V → ℝ) :
   congr 1
   refine sum_congr rfl fun e he => ?_
   have hadj := (G.mem_interedges_iff.1 he).2.2
-  have he1 : G.degree e.1 ≠ 0 := ((G.degree_pos_iff_exists_adj e.1).2 ⟨e.2, hadj⟩).ne'
-  have he2 : G.degree e.2 ≠ 0 := ((G.degree_pos_iff_exists_adj e.2).2 ⟨e.1, hadj.symm⟩).ne'
-  simp only [hf₀_apply, he1, he2, ↓reduceIte]
+  simp only [hf₀_apply, (G.degree_pos_of_adj hadj).ne', (G.degree_pos_of_adj hadj.symm).ne',
+    ↓reduceIte]
 
 /-- **Normalized Rayleigh quotient** `R_G(f) = (f ⬝ᵥ L f) / ∑_v f(v)² d_v`
 ([Chung1997], Eq. (1.1), p. 3). -/
@@ -832,19 +808,21 @@ theorem normSpectralGap_eq_zero_of_eq_bot (hbot : G = ⊥) : G.normSpectralGap =
 theorem normSpectralGap_bot : (⊥ : SimpleGraph V).normSpectralGap = 0 :=
   (⊥ : SimpleGraph V).normSpectralGap_eq_zero_of_eq_bot rfl
 
+/-- Degree-weighted sums of `g ∘ f` for the two-point test vector `f` (`d_b` at `a`, `-d_a` at
+`b`, `0` elsewhere) only see the two points `a` and `b`. -/
+private theorem sum_pair_test {a b : V} (hab : a ≠ b) (g : ℝ → ℝ) (hg : g 0 = 0) :
+    ∑ v, g (if v = a then (G.degree b : ℝ) else if v = b then -(G.degree a : ℝ) else 0) *
+      G.degree v = g (G.degree b) * G.degree a + g (-(G.degree a : ℝ)) * G.degree b := by
+  rw [← sum_subset (subset_univ ({a, b} : Finset V)), sum_pair hab]
+  · simp only [hab.symm, ↓reduceIte]
+  · intro v _ hv
+    rw [mem_insert, mem_singleton, not_or] at hv
+    simp only [hv.1, hv.2, ↓reduceIte, hg, zero_mul]
+
 private theorem pair_orthog_sum {a b : V} (hab : a ≠ b) :
     ∑ v, (if v = a then (G.degree b : ℝ) else if v = b then -(G.degree a : ℝ) else 0) *
-      G.degree v = 0 := by
-  let f : V → ℝ := fun v =>
-    if v = a then G.degree b else if v = b then -(G.degree a : ℝ) else 0
-  have hsub : ∑ v, f v * G.degree v = ∑ v ∈ ({a, b} : Finset V), f v * G.degree v := by
-    refine (sum_subset (subset_univ _) fun v _ hv => ?_).symm
-    rw [mem_insert, mem_singleton, not_or] at hv
-    simp only [f, hv.1, hv.2, ↓reduceIte, zero_mul]
-  change ∑ v, f v * G.degree v = 0
-  rw [hsub, sum_pair hab]
-  simp only [f, hab.symm, ↓reduceIte]
-  ring
+      G.degree v = 0 :=
+  (G.sum_pair_test hab (fun x => x) rfl).trans (by ring)
 
 omit [DecidableEq V] in
 private theorem nonempty_orthog_of_ne_bot (hG : G ≠ ⊥) :
@@ -854,9 +832,8 @@ private theorem nonempty_orthog_of_ne_bot (hG : G ≠ ⊥) :
   induction e using Sym2.ind with | _ u w =>
   have hadj : G.Adj u w := mem_edgeFinset.1 he
   have huw : u ≠ w := G.ne_of_adj hadj
-  have hdu : (0 : ℝ) < G.degree u := Nat.cast_pos.2 ((G.degree_pos_iff_exists_adj u).2 ⟨w, hadj⟩)
-  have hdw : (0 : ℝ) < G.degree w :=
-    Nat.cast_pos.2 ((G.degree_pos_iff_exists_adj w).2 ⟨u, hadj.symm⟩)
+  have hdu : (0 : ℝ) < G.degree u := Nat.cast_pos.2 (G.degree_pos_of_adj hadj)
+  have hdw : (0 : ℝ) < G.degree w := Nat.cast_pos.2 (G.degree_pos_of_adj hadj.symm)
   let f : V → ℝ := fun v => if v = u then G.degree w else if v = w then -(G.degree u : ℝ) else 0
   have hpos : 0 < ∑ v, f v ^ 2 * G.degree v := by
     have hterm : 0 < f u ^ 2 * G.degree u := by simp only [f, ↓reduceIte]; positivity
@@ -897,10 +874,8 @@ theorem normSpectralGap_top (hn : 2 ≤ Fintype.card V) :
   have hd_pos : (0 : ℝ) < (Fintype.card V : ℝ) - 1 := by
     have : (2 : ℝ) ≤ Fintype.card V := by exact_mod_cast hn
     linarith
-  have hd_nat : ∀ v : V, ((⊤ : SimpleGraph V).degree v : ℝ) = (Fintype.card V : ℝ) - 1 := by
-    intro v
-    have hd_eq : (⊤ : SimpleGraph V).degree v = Fintype.card V - 1 := by simp
-    rw [hd_eq, Nat.cast_sub (by omega), Nat.cast_one]
+  have hd_nat : ∀ v : V, ((⊤ : SimpleGraph V).degree v : ℝ) = (Fintype.card V : ℝ) - 1 :=
+    fun v => by simp [Nat.cast_sub (show 1 ≤ Fintype.card V by omega)]
   have hray : ∀ f : V → ℝ,
       ∑ v, f v * ((⊤ : SimpleGraph V).degree v : ℝ) = 0 →
       0 < ∑ v, f v ^ 2 * ((⊤ : SimpleGraph V).degree v : ℝ) →
@@ -937,14 +912,8 @@ theorem normSpectralGap_le_one_of_ne_top {a b : V} (hab : a ≠ b) (hnadj : ¬ G
     if v = a then G.degree b else if v = b then -(G.degree a : ℝ) else 0
   have horth : ∑ v, f v * G.degree v = 0 := pair_orthog_sum G hab
   have hdenom : ∑ v, f v ^ 2 * G.degree v =
-      (G.degree b : ℝ) ^ 2 * G.degree a + (G.degree a : ℝ) ^ 2 * G.degree b := by
-    have hsub : ∑ v, f v ^ 2 * G.degree v = ∑ v ∈ ({a, b} : Finset V), f v ^ 2 * G.degree v := by
-      refine (sum_subset (subset_univ _) fun v _ hv => ?_).symm
-      rw [mem_insert, mem_singleton, not_or] at hv
-      simp only [f, hv.1, hv.2, ↓reduceIte, zero_pow two_ne_zero, zero_mul]
-    rw [hsub, sum_pair hab]
-    simp only [f, hab.symm, ↓reduceIte]
-    ring
+      (G.degree b : ℝ) ^ 2 * G.degree a + (G.degree a : ℝ) ^ 2 * G.degree b :=
+    (G.sum_pair_test hab (· ^ 2) (zero_pow two_ne_zero)).trans (by ring)
   have hda' : (0 : ℝ) < G.degree a := Nat.cast_pos.2 hda
   have hdb' : (0 : ℝ) < G.degree b := Nat.cast_pos.2 hdb
   have hpos : 0 < ∑ v, f v ^ 2 * G.degree v := by rw [hdenom]; positivity
@@ -1054,9 +1023,7 @@ private theorem exists_level_cut_of_nonneg {φ : V → ℝ} (hφ : ∀ v, 0 ≤ 
       ∑ e ∈ G.interedges univ univ, (φ e.1 - φ e.2) ^ 2 := by
     refine sum_congr rfl fun e he => ?_
     have hadj := (G.mem_interedges_iff.1 he).2.2
-    have h1 : G.degree e.1 ≠ 0 := ((G.degree_pos_iff_exists_adj e.1).2 ⟨e.2, hadj⟩).ne'
-    have h2 : G.degree e.2 ≠ 0 := ((G.degree_pos_iff_exists_adj e.2).2 ⟨e.1, hadj.symm⟩).ne'
-    simp only [φ₀, h1, h2, ↓reduceIte]
+    simp only [φ₀, (G.degree_pos_of_adj hadj).ne', (G.degree_pos_of_adj hadj.symm).ne', ↓reduceIte]
   have hray_eq : G.normRayleigh φ₀ = G.normRayleigh φ := by
     rw [normRayleigh, normRayleigh, G.dotProduct_mulVec_lapMatrix, G.dotProduct_mulVec_lapMatrix,
       hD_eq, hN_eq]
@@ -1144,16 +1111,9 @@ private theorem exists_weighted_half_rayleigh_le {w f : V → ℝ} (hw : ∀ v, 
   let g_pos : V → ℝ := fun v => max (f v - m) 0
   let g_neg : V → ℝ := fun v => max (-(f v - m)) 0
   have hsupp_pos : 2 * (∑ v with 0 < g_pos v, w v) ≤ ∑ v, w v := by
-    have heq : (univ.filter fun v => 0 < g_pos v) = univ.filter fun v => m < f v := by
-      ext v
-      simp only [g_pos, mem_filter, mem_univ, true_and, lt_max_iff, lt_irrefl, or_false, sub_pos]
-    rwa [heq]
+    simpa only [g_pos, lt_max_iff, lt_irrefl, or_false, sub_pos] using hm_hi
   have hsupp_neg : 2 * (∑ v with 0 < g_neg v, w v) ≤ ∑ v, w v := by
-    have heq : (univ.filter fun v => 0 < g_neg v) = univ.filter fun v => f v < m := by
-      ext v
-      simp only [g_neg, mem_filter, mem_univ, true_and, lt_max_iff, lt_irrefl, or_false,
-        neg_pos, sub_neg]
-    rwa [heq]
+    simpa only [g_neg, lt_max_iff, lt_irrefl, or_false, neg_pos, sub_neg] using hm_lo
   set N_pos := ∑ v, g_pos v ^ 2 * w v
   set N_neg := ∑ v, g_neg v ^ 2 * w v
   have hN_pos_nn : 0 ≤ N_pos := sum_nonneg fun v _ => mul_nonneg (sq_nonneg _) (hw v)
@@ -1224,9 +1184,8 @@ theorem exists_sweep_cut_le {f : V → ℝ} (horth : ∑ v, f v * G.degree v = 0
       simp only [S, hdu, mem_filter, mem_univ, true_and, and_iff_left (le_max_right _ _)]
     have hS_vol : G.vol S = G.totalVol := by
       simp only [vol, totalVol, hS_all]
-      refine sum_subset (subset_univ _) fun v _ hv => ?_
-      simp only [mem_filter, mem_univ, true_and, not_not] at hv
-      exact hv
+      exact sum_subset (subset_univ _) fun v _ hv => by
+        simpa only [mem_filter, mem_univ, true_and, not_not] using hv
     omega
   have hs : S = univ.filter fun v => G.degree v ≠ 0 ∧ d u ≤ d v := by
     have hdu : max (d u) 0 = d u := max_eq_left hdu_pos.le
@@ -1252,10 +1211,8 @@ theorem one_sub_sqrt_one_sub_conductance_sq_le_normSpectralGap :
     have hcompl := G.vol_add_vol_compl S
     have hc_le : G.conductance ≤ G.setConductance S :=
       G.conductance_le_setConductance (by omega)
-    have hsq_le : G.conductance ^ 2 ≤ G.setConductance S ^ 2 :=
-      pow_le_pow_left₀ G.conductance_nonneg hc_le 2
     have hsqrt_ge : Real.sqrt (1 - G.setConductance S ^ 2) ≤ Real.sqrt (1 - G.conductance ^ 2) :=
-      Real.sqrt_le_sqrt (by linarith)
+      Real.sqrt_le_sqrt (by linarith [pow_le_pow_left₀ G.conductance_nonneg hc_le 2])
     linarith
 
 /-- **Cheeger lower bound** ([Chung1997], §2.3, Theorem 2.2, p. 26):
@@ -1287,12 +1244,7 @@ for any connected graph `G` on at least two vertices, `h_G² / 2 < λ_G`. -/
 theorem conductance_sq_div_two_lt_normSpectralGap_of_connected [Nontrivial V]
     (hconn : G.Connected) :
     G.conductance ^ 2 / 2 < G.normSpectralGap := by
-  have hiso : ∀ v, 0 < G.degree v := fun v => by
-    obtain ⟨w, hvw⟩ := exists_ne v
-    obtain ⟨p⟩ := hconn v w
-    rcases p with _ | @⟨_, x, _, hadj, _⟩
-    · exact absurd rfl hvw.symm
-    · exact (G.degree_pos_iff_exists_adj v).2 ⟨x, hadj⟩
+  have hiso : ∀ v, 0 < G.degree v := fun v => hconn.preconnected.degree_pos_of_nontrivial v
   exact G.conductance_sq_div_two_lt_normSpectralGap ((G.connected_iff_conductance_pos hiso).1 hconn)
 
 /-- On at least two vertices with no isolated vertices, `G` is connected iff `0 < λ_G`
@@ -1341,11 +1293,14 @@ theorem algConnectivity_def :
 theorem isoperimetricNum_nonneg : 0 ≤ G.isoperimetricNum := by
   exact Real.iInf_nonneg fun _ => by positivity
 
-theorem algConnectivity_nonneg : 0 ≤ G.algConnectivity := by
-  exact Real.iInf_nonneg fun ⟨f, _, _⟩ => by
-    rw [G.dotProduct_mulVec_lapMatrix]
-    exact div_nonneg (div_nonneg (sum_nonneg fun _ _ => sq_nonneg _) zero_le_two)
-      (sum_nonneg fun v _ => mul_self_nonneg (f v))
+private theorem lapRayleigh_nonneg (f : V → ℝ) :
+    0 ≤ (f ⬝ᵥ (G.lapMatrix ℝ *ᵥ f)) / (f ⬝ᵥ f) := by
+  rw [G.dotProduct_mulVec_lapMatrix]
+  exact div_nonneg (div_nonneg (sum_nonneg fun _ _ => sq_nonneg _) zero_le_two)
+    (sum_nonneg fun v _ => mul_self_nonneg (f v))
+
+theorem algConnectivity_nonneg : 0 ≤ G.algConnectivity :=
+  Real.iInf_nonneg fun f => G.lapRayleigh_nonneg f.1
 
 theorem isoperimetricNum_eq_zero_of_subsingleton [Subsingleton V] : G.isoperimetricNum = 0 := by
   have : IsEmpty {S : Finset V // S.Nonempty ∧ 2 * #S ≤ Fintype.card V} :=
@@ -1391,10 +1346,7 @@ theorem algConnectivity_le_rayleigh {f : V → ℝ} (horth : ∑ v, f v = 0) (hn
     G.algConnectivity ≤ (f ⬝ᵥ (G.lapMatrix ℝ *ᵥ f)) / (f ⬝ᵥ f) := by
   have hb : BddBelow (Set.range fun g : {f : V → ℝ // ∑ v, f v = 0 ∧ ∃ v, f v ≠ 0} =>
       (g.1 ⬝ᵥ (G.lapMatrix ℝ *ᵥ g.1)) / (g.1 ⬝ᵥ g.1)) :=
-    ⟨0, Set.forall_mem_range.2 fun ⟨g, _, _⟩ => by
-      rw [G.dotProduct_mulVec_lapMatrix]
-      exact div_nonneg (div_nonneg (sum_nonneg fun _ _ => sq_nonneg _) zero_le_two)
-        (sum_nonneg fun v _ => mul_self_nonneg (g v))⟩
+    ⟨0, Set.forall_mem_range.2 fun g => G.lapRayleigh_nonneg g.1⟩
   exact ciInf_le hb ⟨f, horth, hne⟩
 
 /-- **Combinatorial Cheeger upper bound** ([Chung1997], §2.5, p. 35; [AlonMilman1985]):
@@ -1473,10 +1425,9 @@ theorem exists_card_sweep_cut_le {f : V → ℝ} (horth : ∑ v, f v = 0) (hne :
     φ (fun _ => le_max_right _ _) hlevel
   simp only [mul_one] at hquad
   have hdeg_le : ∑ v, φ v ^ 2 * G.degree v ≤ G.maxDegree * ∑ v, φ v ^ 2 := by
-    rw [mul_sum]
-    refine sum_le_sum fun v _ => ?_
-    rw [mul_comm (G.maxDegree : ℝ)]
-    exact mul_le_mul_of_nonneg_left (Nat.cast_le.2 (G.degree_le_maxDegree v)) (sq_nonneg _)
+    rw [mul_comm, sum_mul]
+    gcongr with v
+    exact_mod_cast G.degree_le_maxDegree v
   set D := ∑ e ∈ G.interedges univ univ, (φ e.1 - φ e.2) ^ 2
   have hD_nn : 0 ≤ D := sum_nonneg fun _ _ => sq_nonneg _
   have hrhs_le : D * (4 * (∑ v, φ v ^ 2 * G.degree v) - D) ≤
@@ -1552,16 +1503,13 @@ theorem IsRegularOfDegree.conductance_eq {G : SimpleGraph V} [DecidableRel G.Adj
     (hd : G.IsRegularOfDegree d) (hd_pos : 0 < d) :
     G.conductance = G.isoperimetricNum / d := by
   rcases subsingleton_or_nontrivial V with hsub | hnt
-  · have hbot : G = ⊥ := by
-      ext u v
-      simp only [Subsingleton.elim u v, G.loopless.irrefl, bot_adj]
+  · have hbot : G = ⊥ := Subsingleton.elim _ _
     rw [G.conductance_eq_zero_of_eq_bot hbot, G.isoperimetricNum_eq_zero_of_subsingleton, zero_div]
   · have htot : G.totalVol = d * Fintype.card V := by
       simpa only [totalVol, card_univ] using hd.vol_eq univ
     have hd_real : (0 : ℝ) < d := Nat.cast_pos.2 hd_pos
-    obtain ⟨v₀⟩ := (inferInstance : Nonempty V)
-    obtain ⟨w₀, hvw₀⟩ := (G.degree_pos_iff_exists_adj v₀).1 (hd.degree_eq v₀ ▸ hd_pos)
-    have hne_bot : G ≠ ⊥ := fun h => by rw [h] at hvw₀; exact hvw₀
+    have hne_bot : G ≠ ⊥ := fun h => hd_pos.ne'
+      ((hd.degree_eq _).symm.trans (G.degree_eq_zero_of_eq_bot h (Classical.arbitrary V)))
     refine le_antisymm ?_ ((G.le_conductance_iff hne_bot).2 fun S _ h2 => ?_)
     · rw [le_div_iff₀ hd_real]
       refine G.le_isoperimetricNum_iff.2 fun S _ h2 => ?_
@@ -1579,15 +1527,12 @@ theorem IsRegularOfDegree.normSpectralGap_eq {G : SimpleGraph V} [DecidableRel G
     (hd : G.IsRegularOfDegree d) (hd_pos : 0 < d) :
     G.normSpectralGap = G.algConnectivity / d := by
   rcases subsingleton_or_nontrivial V with hsub | hnt
-  · have hbot : G = ⊥ := by
-      ext u v
-      simp only [Subsingleton.elim u v, G.loopless.irrefl, bot_adj]
+  · have hbot : G = ⊥ := Subsingleton.elim _ _
     rw [G.normSpectralGap_eq_zero_of_eq_bot hbot, G.algConnectivity_eq_zero_of_subsingleton,
       zero_div]
   · have hd_real : (0 : ℝ) < d := Nat.cast_pos.2 hd_pos
-    obtain ⟨v₀⟩ := (inferInstance : Nonempty V)
-    obtain ⟨w₀, hvw₀⟩ := (G.degree_pos_iff_exists_adj v₀).1 (hd.degree_eq v₀ ▸ hd_pos)
-    have hne_bot : G ≠ ⊥ := fun h => by rw [h] at hvw₀; exact hvw₀
+    have hne_bot : G ≠ ⊥ := fun h => hd_pos.ne'
+      ((hd.degree_eq _).symm.trans (G.degree_eq_zero_of_eq_bot h (Classical.arbitrary V)))
     have := nonempty_orthog_of_ne_bot G hne_bot
     have := nonempty_zeroSum_of_nontrivial (V := V)
     have hray : ∀ f : V → ℝ,

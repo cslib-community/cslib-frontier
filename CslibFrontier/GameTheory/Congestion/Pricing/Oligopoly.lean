@@ -796,10 +796,8 @@ theorem IsOligopolyEquilibrium.price_le_mul_deriv_add_markup {d R : ℝ}
     hxi.trans_le (Finset.single_le_sum (fun m _ => hoe.2.1.1.1 m)
       (Finset.mem_filter.mpr ⟨Finset.mem_univ i, rfl⟩))
   have hSinv_pos : 0 < Sinv :=
-    (inv_pos.mpr (hcomp_pos q₀ hq₀_comp)).trans_le
-      (Finset.single_le_sum (fun q hq => inv_nonneg.mpr
-        (hcomp_pos q (Finset.mem_filter.mp hq).2).le)
-        (Finset.mem_filter.mpr ⟨Finset.mem_univ q₀, hq₀_comp⟩))
+    Finset.sum_pos (fun q hq => inv_pos.mpr (hcomp_pos q (Finset.mem_filter.mp hq).2))
+      hcomp_nonempty
   refine le_mul_deriv_add_of_forall_pos_add (h.hasDerivAt i (x i) hxi.le)
     fun ε η hε hη => ?_
   -- Continuity of latency i at x i ensures latency i (x i + u) - latency i (x i) < p i / 2
@@ -819,10 +817,9 @@ theorem IsOligopolyEquilibrium.price_le_mul_deriv_add_markup {d R : ℝ}
     (min_le_left _ _).trans_lt (half_lt_self (hoe.price_pos_and_flow_pos h hzs hpos q).2)
   have hlat_q_pos : ∀ q ∈ compSet, 0 < latency q (x q) := fun q hq => by
     have hxq := (hoe.price_pos_and_flow_pos h hzs hpos q).2
-    have hdq := hcomp_pos q (Finset.mem_filter.mp hq).2
-    rcases (h.latency_nonneg q hxq.le).eq_or_lt with hz | hp
-    · exact False.elim (hdq.ne' ((h.latency_eq_zero_iff_deriv_eq_zero q hxq).mp hz.symm))
-    · exact hp
+    exact (h.latency_nonneg q hxq.le).lt_of_ne fun hz =>
+      (hcomp_pos q (Finset.mem_filter.mp hq).2).ne'
+        ((h.latency_eq_zero_iff_deriv_eq_zero q hxq).mp hz.symm)
   let dropMin : ℝ :=
     compSet.inf' hcomp_nonempty fun q => latency q (x q) - latency q (x q - rStep q)
   have hdrop_pos : 0 < dropMin := by
@@ -877,14 +874,10 @@ theorem IsOligopolyEquilibrium.price_le_mul_deriv_add_markup {d R : ℝ}
     have hxq_pos : 0 < x q := (hoe.price_pos_and_flow_pos h hzs hpos q).2
     have hst_lt_x : step q < x q := (hstep_lt q hq).trans (hrStep_lt_x q hq)
     have hconv := h.add_deriv_mul_le q hxq_pos.le (show 0 ≤ x q - step q by linarith)
-    have hdq_eq := hstep_eq q hq
-    have hmul_le : μ ≤ latencyDeriv q (x q) * step q := by linarith
     rw [← div_eq_mul_inv, div_le_iff₀ hdq_pos]
-    linarith
-  have hlat_i_inc : latency i (x i + Δ) - latency i (x i) < p i / 2 := by
-    refine hball_i ?_
-    rw [Real.dist_eq, add_sub_cancel_left, abs_of_pos hΔ0]
-    exact hΔη₁
+    linarith [hstep_eq q hq]
+  have hlat_i_inc : latency i (x i + Δ) - latency i (x i) < p i / 2 :=
+    hball_i (by rwa [Real.dist_eq, add_sub_cancel_left, abs_of_pos hΔ0])
   have hneg_sum : ∑ q ∈ compSet, (-step q) = -Δ := by simp [Δ, Finset.sum_neg_distrib]
   have hsub_neg : x i - -Δ = x i + Δ := sub_neg_eq_add (x i) Δ
   have hpΔ_raw := hoe.profit_flowShift_bound hsum
@@ -986,10 +979,8 @@ theorem IsOligopolyEquilibrium.price_eq_min_markup {d R : ℝ}
       hxi.trans_le (Finset.single_le_sum (fun m _ => hoe.2.1.1.1 m)
         (Finset.mem_filter.mpr ⟨Finset.mem_univ i, rfl⟩))
     have hSinv_pos : 0 < Sinv :=
-      (inv_pos.mpr (hcomp_pos q₀ hq₀_comp)).trans_le
-        (Finset.single_le_sum (fun q hq => inv_nonneg.mpr
-          (hcomp_pos q (Finset.mem_filter.mp hq).2).le)
-          (Finset.mem_filter.mpr ⟨Finset.mem_univ q₀, hq₀_comp⟩))
+      Finset.sum_pos (fun q hq => inv_pos.mpr (hcomp_pos q (Finset.mem_filter.mp hq).2))
+        hcomp_nonempty
     have hlb : x i * latencyDeriv i (x i) + Xs / Sinv ≤ p i := by
       -- Suffices: ∀ ε > 0, x i * l'_i ≤ p i - Xs / Sinv + ε, via mul_deriv_le_of_forall_pos_sub:
       by_contra hlt_lb
@@ -1007,11 +998,9 @@ theorem IsOligopolyEquilibrium.price_eq_min_markup {d R : ℝ}
         have hinc_pos : 0 < incMin := by
           rw [Finset.lt_inf'_iff]
           intro q hq
-          have hdq := hcomp_pos q (Finset.mem_filter.mp hq).2
           have hconv := h.add_deriv_mul_le q (hoe.2.1.1.1 q)
             (show 0 ≤ x q + rStep by linarith [hoe.2.1.1.1 q])
-          have hpos_m : 0 < latencyDeriv q (x q) * rStep := mul_pos hdq hrStep_pos
-          linarith
+          linarith [mul_pos (hcomp_pos q (Finset.mem_filter.mp hq).2) hrStep_pos]
         let μ : ℝ := min (min ((R - cStar) / 2) (incMin / 2)) (ε / 2)
         have hμ0 : 0 < μ :=
           lt_min (lt_min (by linarith) (half_pos hinc_pos)) (half_pos hε)
@@ -1052,10 +1041,8 @@ theorem IsOligopolyEquilibrium.price_eq_min_markup {d R : ℝ}
           have hdq_pos : 0 < latencyDeriv q (x q) := hcomp_pos q (Finset.mem_filter.mp hq).2
           have hconv := h.add_deriv_mul_le q (hoe.2.1.1.1 q)
             (show 0 ≤ x q + step q by linarith [hoe.2.1.1.1 q, hstep_pos q hq])
-          have hdq_eq := hstep_eq q hq
-          have hmul_ge : latencyDeriv q (x q) * step q ≤ μ := by linarith
           rw [← div_eq_mul_inv, le_div_iff₀ hdq_pos]
-          linarith
+          linarith [hstep_eq q hq]
         have hlat_i_le : latency i (x i - Δ) ≤ latency i (x i) :=
           h.latency_le i (by linarith) (by linarith)
         have hpΔ_raw := hoe.profit_flowShift_bound hsum_d
@@ -1382,12 +1369,10 @@ theorem oligopoly_surplus_five_sixths {Link Provider : Type*} [Fintype Link] [De
                   (hcomp_pos q (Finset.mem_filter.mp hq).2).le)
                   (Finset.mem_filter.mpr ⟨Finset.mem_univ q₀, hq₀⟩))
             have hdU_Xs : dU * ∑ q ∈ compSet, (latencyDeriv q (x q))⁻¹ ≤
-                ∑ r ∈ ownSet, x r := by
-              have hle_div : dU ≤ (∑ r ∈ ownSet, x r) /
-                  (∑ q ∈ compSet, (latencyDeriv q (x q))⁻¹) := by
+                ∑ r ∈ ownSet, x r :=
+              (le_div_iff₀ hSinv_pos).mp (by
                 simp only [ownSet, compSet, s₀]
-                linarith [hub_i₀, hdU_eq_diff]
-              exact (le_div_iff₀ hSinv_pos).mp hle_div
+                linarith [hub_i₀, hdU_eq_diff])
             have hd_split : d = (∑ r ∈ ownSet, x r) + ∑ q ∈ compSet, x q := by
               rw [← hsum_d]
               exact (Finset.sum_filter_add_sum_filter_not Finset.univ
@@ -1852,21 +1837,13 @@ theorem le_quadratic_upper (hu : SmoothConcaveMarginalUtility u uDeriv uSecondDe
       (uDeriv x - uSecondDeriv x * x) * t + (uSecondDeriv x / 2) * (t * t)
     let q' : ℝ → ℝ := fun t => uDeriv x + uSecondDeriv x * (t - x)
     have hq_deriv : ∀ t, HasDerivAt q (q' t) t := fun t => by
-      have hd1 : HasDerivAt (fun s => (uDeriv x - uSecondDeriv x * x) * s)
-          ((uDeriv x - uSecondDeriv x * x) * 1) t :=
-        (hasDerivAt_id' t).const_mul (uDeriv x - uSecondDeriv x * x)
-      have hsq : HasDerivAt (fun s => s * s) (1 * t + t * 1) t :=
-        (hasDerivAt_id' t).mul (hasDerivAt_id' t)
-      have hd2 : HasDerivAt (fun s => (uSecondDeriv x / 2) * (s * s))
-          ((uSecondDeriv x / 2) * (1 * t + t * 1)) t :=
-        hsq.const_mul (uSecondDeriv x / 2)
-      convert hd1.add hd2 using 1
+      convert ((hasDerivAt_id' t).const_mul (uDeriv x - uSecondDeriv x * x)).add
+        (((hasDerivAt_id' t).mul (hasDerivAt_id' t)).const_mul (uSecondDeriv x / 2)) using 1
       simp only [q']
       ring
-    have hint_q : IntervalIntegrable q' MeasureTheory.volume x y := by
-      have hcont_q' : Continuous q' :=
-        continuous_const.add (continuous_const.mul (continuous_id.sub continuous_const))
-      exact hcont_q'.intervalIntegrable x y
+    have hint_q : IntervalIntegrable q' MeasureTheory.volume x y :=
+      (continuous_const.add (continuous_const.mul (continuous_id.sub continuous_const))
+        : Continuous q').intervalIntegrable x y
     have hftc_q : ∫ t in x..y, q' t = q y - q x :=
       intervalIntegral.integral_eq_sub_of_hasDerivAt (fun t _ => hq_deriv t) hint_q
     have hmono : ∫ t in x..y, uDeriv t ≤ ∫ t in x..y, q' t :=
@@ -2010,16 +1987,10 @@ theorem exists_isElasticPricedWardrop_of_socialOptimum {Link : Type*} [Fintype L
           (hl.convexOn i).2 (Set.mem_Ici.mpr hb_pos.le) (Set.mem_Ici.mpr le_rfl) hw1 hw2 hw_sum
         rw [hcomb] at hconv
         simp only [hl.zero_at_zero i, smul_eq_mul, mul_zero, add_zero] at hconv
-        have hlat_b : K * latency i t₁ ≤ latency i b := by
-          have hm := mul_le_mul_of_nonneg_left hconv hK_pos.le
-          have hc : K * (1 / K * latency i b) = latency i b := by field_simp
-          linarith
+        have hlat_b : K * latency i t₁ ≤ latency i b :=
+          (le_div_iff₀' hK_pos).mp (hconv.trans_eq (one_div_mul_eq_div _ _))
         have hK_ge : uDeriv 0 / latency i t₁ + 1 ≤ K := le_max_right _ _
-        have hu0_lt : uDeriv 0 < K * latency i t₁ := by
-          have hm := mul_le_mul_of_nonneg_right hK_ge hlt₁.le
-          have hc : (uDeriv 0 / latency i t₁ + 1) * latency i t₁ = uDeriv 0 + latency i t₁ := by
-            field_simp
-          linarith
+        have hu0_lt : uDeriv 0 < K * latency i t₁ := (div_lt_iff₀ hlt₁).mp (by linarith)
         have hud_le : uDeriv b ≤ uDeriv 0 :=
           hu.deriv_le le_rfl hb_pos.le
         exact ⟨b, hb_pos, by linarith⟩
@@ -2038,9 +2009,7 @@ theorem exists_isElasticPricedWardrop_of_socialOptimum {Link : Type*} [Fintype L
           have hsum_y : ∑ k, y k = t := by simp [y, Finset.sum_update_of_mem]
           have hlat_y : ∑ k, latency k (y k) * y k = 0 := Finset.sum_eq_zero fun k _ => by
             by_cases hki : k = i <;> simp [y, hki, hlat_z t ht]
-          have hle := hopt.2 y hy0
-          simp only [elasticSocialSurplus, hsum_y, hlat_y, sub_zero] at hle
-          exact hle
+          simpa only [M, elasticSocialSurplus, hsum_y, hlat_y, sub_zero] using hopt.2 y hy0
         -- Either ∃ c > 0 with uDeriv c < uDeriv 0, or uDeriv ≡ uDeriv 0 (contradicting u ≤ M):
         by_cases hdec : ∃ c : ℝ, 0 < c ∧ uDeriv c < uDeriv 0
         · obtain ⟨c, hc_pos, huc_lt⟩ := hdec
@@ -2061,10 +2030,7 @@ theorem exists_isElasticPricedWardrop_of_socialOptimum {Link : Type*} [Fintype L
           rw [hlhs] at hmul
           have hub_b : uDeriv b ≤ uDeriv 0 - K * δ := by simp only [δ]; linarith
           have hK_ge : uDeriv 0 / δ + 1 ≤ K := le_max_right _ _
-          have hKδ : uDeriv 0 + δ ≤ K * δ := by
-            have hm := mul_le_mul_of_nonneg_right hK_ge hδ_pos.le
-            have hc2 : (uDeriv 0 / δ + 1) * δ = uDeriv 0 + δ := by field_simp
-            linarith
+          have hKδ : uDeriv 0 < K * δ := (div_lt_iff₀ hδ_pos).mp (by linarith)
           exact ⟨b, hb_pos, by rw [hlat_z b hb_pos.le]; linarith⟩
         · exfalso
           push Not at hdec
@@ -2079,9 +2045,8 @@ theorem exists_isElasticPricedWardrop_of_socialOptimum {Link : Type*} [Fintype L
           linarith [le_max_right 0 M]
     choose b hb using hex_b
     let B : ℝ := (∑ k, b k) + 1
-    have hB_pos : 0 < B := by
-      have hsum_nn : 0 ≤ ∑ k, b k := Finset.sum_nonneg fun k _ => (hb k).1.le
-      linarith
+    have hB_pos : 0 < B :=
+      add_pos_of_nonneg_of_pos (Finset.sum_nonneg fun k _ => (hb k).1.le) one_pos
     -- Minimize Beckmann's elastic potential Φ(y) := (∑ k, ∫_0^{y k} effExt k) - ∫_0^{∑ y} uDerivExt
     let effExt : Link → ℝ → ℝ := fun k t => latency k (max 0 t) + p' k
     have heff_cont : ∀ k, Continuous (effExt k) := fun k =>
@@ -2127,6 +2092,9 @@ theorem exists_isElasticPricedWardrop_of_socialOptimum {Link : Type*} [Fintype L
       fun k a => by simpa only [add_zero] using (hterm_deriv k (a + 0)).comp_const_add a 0
     let X : ℝ := ∑ k, x' k
     have hX0 : 0 ≤ X := Finset.sum_nonneg fun k _ => hx'Feas.1 k
+    have heff : ∀ k, effExt k (x' k) = latency k (x' k) + p' k := fun k => by
+      simp [effExt, max_eq_right (hx'Feas.1 k)]
+    have hud_X : uDerivExt X = uDeriv X := by simp [uDerivExt, max_eq_right hX0]
     -- (1) Decreasing x' i (for 0 < x' i) gives latency i (x' i) + p' i ≤ uDeriv X:
     have hact_le : ∀ i, 0 < x' i → latency i (x' i) + p' i ≤ uDeriv X := by
       intro i hi
@@ -2143,10 +2111,7 @@ theorem exists_isElasticPricedWardrop_of_socialOptimum {Link : Type*} [Fintype L
           simpa only [sub_zero] using (huPot_deriv (X - 0)).comp_const_sub X 0
         have htot :=
           ((hterm_sub i (x' i)).add_const (∑ k ∈ Finset.univ.erase i, termPot k (x' k))).sub hd2
-        have heff_i : effExt i (x' i) = latency i (x' i) + p' i := by
-          simp [effExt, max_eq_right hi.le]
-        have hud_X : uDerivExt X = uDeriv X := by simp [uDerivExt, max_eq_right hX0]
-        rw [heff_i, hud_X] at htot
+        rw [heff i, hud_X] at htot
         convert htot using 1
         ring
       have h0 : 0 ≤ uDeriv X - (latency i (x' i) + p' i) := by
@@ -2189,11 +2154,7 @@ theorem exists_isElasticPricedWardrop_of_socialOptimum {Link : Type*} [Fintype L
         simp only [funext hg_eq]
         have htot := ((hterm_sub i (x' i)).add (hterm_add j (x' j))).add_const
           ((∑ k ∈ (Finset.univ.erase j).erase i, termPot k (x' k)) - uPot X)
-        have heff_i : effExt i (x' i) = latency i (x' i) + p' i := by
-          simp [effExt, max_eq_right hi.le]
-        have heff_j : effExt j (x' j) = latency j (x' j) + p' j := by
-          simp [effExt, max_eq_right (hx'Feas.1 j)]
-        rw [heff_i, heff_j] at htot
+        rw [heff i, heff j] at htot
         convert htot using 1
         ring
       have h0 : 0 ≤ (latency j (x' j) + p' j) - (latency i (x' i) + p' i) := by
@@ -2218,10 +2179,7 @@ theorem exists_isElasticPricedWardrop_of_socialOptimum {Link : Type*} [Fintype L
             simpa only [add_zero] using (huPot_deriv (X + 0)).comp_const_add X 0
           have htot :=
             ((hterm_add j (x' j)).add_const (∑ k ∈ Finset.univ.erase j, termPot k (x' k))).sub hd2
-          have heff_j : effExt j (x' j) = latency j (x' j) + p' j := by
-            simp [effExt, max_eq_right (hx'Feas.1 j)]
-          have hud_X : uDerivExt X = uDeriv X := by simp [uDerivExt, max_eq_right hX0]
-          rw [heff_j, hud_X] at htot
+          rw [heff j, hud_X] at htot
           convert htot using 1
         have h0 : 0 ≤ (latency j (x' j) + p' j) - uDeriv X := by
           refine nonneg_of_hasDerivAt_of_forall_pos (sub_pos.mpr hlt_B) hg_deriv
@@ -2292,16 +2250,13 @@ theorem IsElasticOligopolyEquilibrium.mul_latencyDeriv_le_price {Link : Type*} [
     have hw' : IsElasticPricedWardrop uDeriv latency (Function.update p i p') x' := by
       refine ⟨fun k => ?_, fun k hxk => ?_, fun k => ?_⟩
       · simp only [x', Function.update_apply]; split_ifs <;> linarith [hoe.2.1.1 k]
-      · rw [hx'sum, hud_eq]
+      all_goals
+        rw [hx'sum, hud_eq]
         by_cases hki : k = i
         · subst hki; simp [x', p']
-        · simp only [x', Function.update_of_ne hki] at hxk ⊢
-          exact hoe.2.1.2.1 k hxk
-      · rw [hx'sum, hud_eq]
-        by_cases hki : k = i
-        · subst hki; simp [x', p']
-        · simp only [x', Function.update_of_ne hki]
-          exact hoe.2.1.2.2 k
+        simp only [x', Function.update_of_ne hki]
+      · exact hoe.2.1.2.1 k (by simpa only [x', Function.update_of_ne hki] using hxk)
+      · exact hoe.2.1.2.2 k
     have hbest := hoe.2.2 i p' x' hp'0 hw'
     simp only [x', p', Function.update_self, ← hi_eff] at hbest
     exact ⟨δ, hδ0, hδη, hδx, div_mul_le_of_mul_le hδ0 (by nlinarith)⟩
@@ -2878,10 +2833,8 @@ theorem IsElasticOligopolyEquilibrium.price_sub_mul_deriv_le_elastic {Link : Typ
       linarith [hstep_eq q hq]
     simp only [Δ]
     linarith
-  have hlat_i_inc : latency i (x i + Δ) - latency i (x i) < p i / 2 := by
-    refine hball_i ?_
-    rw [Real.dist_eq, add_sub_cancel_left, abs_of_pos hΔ0]
-    exact hΔη₁
+  have hlat_i_inc : latency i (x i + Δ) - latency i (x i) < p i / 2 :=
+    hball_i (by rwa [Real.dist_eq, add_sub_cancel_left, abs_of_pos hΔ0])
   let x' : Link → ℝ := Function.update (fun k => x k - step k) i (x i + Δ)
   let p' : ℝ := cStar - μ - latency i (x i + Δ)
   have hp'0 : 0 ≤ p' := by simp only [p', ← hi_eff]; linarith
@@ -2917,8 +2870,7 @@ theorem IsElasticOligopolyEquilibrium.price_sub_mul_deriv_le_elastic {Link : Typ
   rw [hi_prod] at hbest
   have hdiv_μ : (μ / Δ) * x i ≤ ((U2 + δ') * x i) / (1 + (U2 + δ') * Sinv) := by
     have hid_inv : ((U2 + δ')⁻¹ + Sinv) * (U2 + δ') = 1 + (U2 + δ') * Sinv := by
-      have hne_u : U2 + δ' ≠ 0 := hU2d_pos.ne'
-      field_simp
+      field_simp [hU2d_pos.ne']
     rw [div_mul_eq_mul_div, div_le_div_iff₀ hΔ0 (by positivity), ← hid_inv]
     linarith [mul_le_mul_of_nonneg_right hΔ_ge (by positivity : (0 : ℝ) ≤ (U2 + δ') * x i)]
   refine ⟨Δ, hΔ0, hΔη, ?_⟩
@@ -3180,78 +3132,18 @@ private theorem hasDerivAt_elasticTightnessUtility (n : ℕ) (x : ℝ) :
     (hc.stronglyMeasurableAtFilter MeasureTheory.volume (nhds x)) hc.continuousAt
 
 private theorem concaveOn_of_hasDerivAt_antitone {f f' : ℝ → ℝ}
-    (hd : ∀ x, HasDerivAt f (f' x) x) (hcont : Continuous f') (hant : Antitone f') :
+    (hd : ∀ x, HasDerivAt f (f' x) x) (_hcont : Continuous f') (hant : Antitone f') :
     ConcaveOn ℝ (Set.Ici 0) f := by
-  refine ⟨convex_Ici 0, ?_⟩
-  have hpair : ∀ a b : ℝ, a ≤ b → ∀ w₁ w₂ : ℝ, 0 ≤ w₁ → 0 ≤ w₂ → w₁ + w₂ = 1 →
-      w₁ * f a + w₂ * f b ≤ f (w₁ * a + w₂ * b) := by
-    intro a b hab w₁ w₂ hw₁ hw₂ hw
-    let c : ℝ := w₁ * a + w₂ * b
-    have hac : a ≤ c := by
-      have hid1 : c - a = w₂ * (b - a) := by
-        simp only [c]
-        rw [show w₁ = 1 - w₂ by linarith]
-        ring
-      linarith [mul_nonneg hw₂ (sub_nonneg.mpr hab)]
-    have hcb : c ≤ b := by
-      have hid2 : b - c = w₁ * (b - a) := by
-        simp only [c]
-        rw [show w₂ = 1 - w₁ by linarith]
-        ring
-      linarith [mul_nonneg hw₁ (sub_nonneg.mpr hab)]
-    have hftc1 : ∫ t in a..c, f' t = f c - f a :=
-      intervalIntegral.integral_eq_sub_of_hasDerivAt (fun t _ => hd t)
-        (hcont.intervalIntegrable a c)
-    have hftc2 : ∫ t in c..b, f' t = f b - f c :=
-      intervalIntegral.integral_eq_sub_of_hasDerivAt (fun t _ => hd t)
-        (hcont.intervalIntegrable c b)
-    have hge1 : (c - a) * f' c ≤ f c - f a := by
-      have hm : ∫ _t in a..c, f' c ≤ ∫ t in a..c, f' t :=
-        intervalIntegral.integral_mono_on hac (continuous_const.intervalIntegrable a c)
-          (hcont.intervalIntegrable a c) fun t ht => hant ht.2
-      rw [intervalIntegral.integral_const, smul_eq_mul, hftc1] at hm
-      exact hm
-    have hle2 : f b - f c ≤ (b - c) * f' c := by
-      have hm : ∫ t in c..b, f' t ≤ ∫ _t in c..b, f' c :=
-        intervalIntegral.integral_mono_on hcb (hcont.intervalIntegrable c b)
-          (continuous_const.intervalIntegrable c b) fun t ht => hant ht.1
-      rw [intervalIntegral.integral_const, smul_eq_mul, hftc2] at hm
-      exact hm
-    have hm1 := mul_le_mul_of_nonneg_left hge1 hw₁
-    have hm2 := mul_le_mul_of_nonneg_left hle2 hw₂
-    have hid : w₁ * ((c - a) * f' c) - w₂ * ((b - c) * f' c) = 0 := by
-      simp only [c]
-      rw [show w₁ = 1 - w₂ by linarith]
-      ring
-    have hgoal : 0 ≤ w₁ * (f c - f a) - w₂ * (f b - f c) := by linarith
-    have hsum_c : w₁ * (f c - f a) - w₂ * (f b - f c) =
-        (w₁ + w₂) * f c - (w₁ * f a + w₂ * f b) := by ring
-    rw [hsum_c, hw, one_mul] at hgoal
-    linarith
-  intro a _ b _ w₁ w₂ hw₁ hw₂ hw
-  simp only [smul_eq_mul]
-  rcases le_total a b with hab | hba
-  · exact hpair a b hab w₁ w₂ hw₁ hw₂ hw
-  · have h := hpair b a hba w₂ w₁ hw₂ hw₁ (by linarith)
-    rw [show w₂ * b + w₁ * a = w₁ * a + w₂ * b by ring] at h
-    linarith
+  have hdiff : Differentiable ℝ f := fun x => (hd x).differentiableAt
+  have hderiv : deriv f = f' := funext fun x => (hd x).deriv
+  exact AntitoneOn.concaveOn_of_deriv (convex_Ici 0) hdiff.continuous.continuousOn
+    hdiff.differentiableOn (hderiv ▸ hant.antitoneOn _)
 
 private theorem antitone_elasticTightnessDeriv (n : ℕ) :
-    Antitone (elasticTightnessUtilityDeriv n) := by
-  intro a b hab
-  have hc := continuous_elasticTightnessSecondDeriv n
-  have hftc : ∫ t in a..b, elasticTightnessUtilitySecondDeriv n t =
-      elasticTightnessUtilityDeriv n b - elasticTightnessUtilityDeriv n a :=
-    intervalIntegral.integral_eq_sub_of_hasDerivAt
-      (fun t _ => hasDerivAt_elasticTightnessDeriv n t) (hc.intervalIntegrable a b)
-  have hnp : ∀ t, elasticTightnessUtilitySecondDeriv n t ≤ 0 := fun t => by
+    Antitone (elasticTightnessUtilityDeriv n) :=
+  antitone_of_hasDerivAt_nonpos (hasDerivAt_elasticTightnessDeriv n) fun t => by
     simp only [elasticTightnessUtilitySecondDeriv]
     exact max_le (by norm_num) (min_le_left _ _)
-  have hm : ∫ t in a..b, elasticTightnessUtilitySecondDeriv n t ≤ ∫ _t in a..b, (0 : ℝ) :=
-    intervalIntegral.integral_mono_on hab (hc.intervalIntegrable a b)
-      (continuous_const.intervalIntegrable a b) fun t _ => hnp t
-  rw [intervalIntegral.integral_const, smul_eq_mul, mul_zero, hftc] at hm
-  linarith
 
 theorem elasticTightness_smoothConcave (n : ℕ) :
     SmoothConcaveMarginalUtility (elasticTightnessUtility n)

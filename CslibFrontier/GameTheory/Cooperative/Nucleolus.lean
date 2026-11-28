@@ -288,8 +288,7 @@ private theorem card_filter_le_sortDesc {κ : Type*} [Fintype κ] (u : κ → �
   · intro k hk
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_range] at hk ⊢
     omega
-  · intro k₁ _ k₂ _ heq
-    exact Fin.ext heq
+  · exact fun _ _ _ _ heq => Fin.ext heq
   · intro i hi
     rw [Finset.mem_range] at hi
     exact ⟨⟨i, hi.trans_le hle⟩, Finset.mem_filter.2 ⟨Finset.mem_univ _, hi⟩, rfl⟩
@@ -319,13 +318,11 @@ private theorem card_filter_lt_sortDesc {κ : Type*} [Fintype κ] (u : κ → �
       simp only [S_lt, Finset.mem_filter, Finset.mem_univ, true_and]
       exact hlt_iff (u s) ⟨s, rfl⟩
     rw [hfilt_k, hfilt_s, card_filter_le_sortDesc, countGe_eq_filter]
-  · rw [Finset.not_nonempty_iff_eq_empty.1 hne, Finset.card_empty]
-    have hno : ∀ s, ¬ (r < u s) := fun s hs =>
-      hne ⟨s, Finset.mem_filter.2 ⟨Finset.mem_univ s, hs⟩⟩
-    rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
+  · rw [Finset.not_nonempty_iff_eq_empty.1 hne, Finset.card_empty, Finset.card_eq_zero,
+      Finset.filter_eq_empty_iff]
     intro k _ hk
     obtain ⟨s, hs⟩ := sortDesc_mem_range u k
-    exact hno s (hs ▸ hk)
+    exact hne ⟨s, Finset.mem_filter.2 ⟨Finset.mem_univ s, hs ▸ hk⟩⟩
 
 private theorem card_filter_eq_add_lt {ι : Type*} [Fintype ι] (g : ι → ℝ) (a : ℝ) :
     (Finset.univ.filter fun i => g i = a).card +
@@ -338,9 +335,7 @@ private theorem card_filter_eq_add_lt {ι : Type*} [Fintype ι] (g : ι → ℝ)
     simp only [Finset.mem_union, Finset.mem_filter, Finset.mem_univ, true_and]
     rw [eq_comm]
     exact le_iff_eq_or_lt.symm
-  · rw [Finset.disjoint_filter]
-    intro i _ heq hlt
-    exact hlt.ne heq.symm
+  · exact Finset.disjoint_filter.2 fun _ _ heq hlt => hlt.ne heq.symm
 
 private theorem list_count_map_eq_card_filter {ι : Type*} [Fintype ι]
     (l : List ι) (hl : l.Nodup) (hmem : ∀ i, i ∈ l) (g : ι → ℝ) (a : ℝ) :
@@ -393,13 +388,9 @@ theorem sortDesc_lex_lt_iff_countGe {κ : Type*} [Fintype κ] (u v : κ → ℝ)
       ext j
       simp only [Finset.mem_filter, Finset.mem_univ, true_and]
       rcases lt_or_ge j k with hjk | hkj
-      · have heqj : sortDesc u j = sortDesc v j := hk_eq j hjk
-        rw [heqj]
-      · have hu : ¬ (t ≤ sortDesc u j) := not_le.2
-          ((sortDesc_antitone u hkj).trans_lt (hk_lt.trans ht))
-        have hv : ¬ (t ≤ sortDesc v j) := not_le.2
-          ((sortDesc_antitone v hkj).trans_lt ht)
-        simp only [hu, hv]
+      · rw [show sortDesc u j = sortDesc v j from hk_eq j hjk]
+      · exact iff_of_false (not_le.2 ((sortDesc_antitone u hkj).trans_lt (hk_lt.trans ht)))
+          (not_le.2 ((sortDesc_antitone v hkj).trans_lt ht))
   · rintro ⟨r, hlt, heqt⟩
     have hlt_card : countGe u r < Fintype.card κ := lt_of_lt_of_le hlt (countGe_le_card v r)
     let k : Fin (Fintype.card κ) := ⟨countGe u r, hlt_card⟩
@@ -415,9 +406,7 @@ theorem sortDesc_lex_lt_iff_countGe {κ : Type*} [Fintype κ] (u v : κ → ℝ)
         have hv : j.1 + 1 ≤ countGe v t :=
           (Nat.succ_le_of_lt (hjk.trans hlt)).trans (countGe_mono v htr)
         exact iff_of_true hu hv
-    · have h1 : sortDesc u k < r := (sortDesc_lt_iff u k r).2 le_rfl
-      have h2 : r ≤ sortDesc v k := (le_sortDesc_iff v k r).2 hlt
-      exact h1.trans_le h2
+    · exact ((sortDesc_lt_iff u k r).2 le_rfl).trans_le ((le_sortDesc_iff v k r).2 hlt)
 
 private theorem sortDesc_lex_lt_of_countGe_lt {κ : Type*} [Fintype κ] {u v : κ → ℝ} (r₀ : ℝ)
     (hlt : countGe u r₀ < countGe v r₀) (hle : ∀ t : ℝ, r₀ ≤ t → countGe u t ≤ countGe v t) :
@@ -430,13 +419,10 @@ private theorem sortDesc_lex_lt_of_countGe_lt {κ : Type*} [Fintype κ] {u v : �
     ((sortDesc_lt_iff u k r₀).2 le_rfl).trans_le hr₀_v
   have hle_top : ∀ j : Fin (Fintype.card κ), j ≤ k → sortDesc u j ≤ sortDesc v j := by
     intro j hj
-    have hr₀_vj : r₀ ≤ sortDesc v j := hr₀_v.trans (sortDesc_antitone v hj)
-    by_contra hnot
-    have hgt := lt_of_not_ge hnot
-    have ht : r₀ ≤ sortDesc u j := (hr₀_vj.trans_lt hgt).le
+    by_contra! hgt
     have hu : j.1 + 1 ≤ countGe u (sortDesc u j) := (le_sortDesc_iff u j _).1 le_rfl
     have hv : countGe v (sortDesc u j) ≤ j.1 := (sortDesc_lt_iff v j _).1 hgt
-    have hge := hle (sortDesc u j) ht
+    have hge := hle (sortDesc u j) ((hr₀_v.trans (sortDesc_antitone v hj)).trans hgt.le)
     omega
   let diff : Finset (Fin (Fintype.card κ)) :=
     Finset.univ.filter fun j => sortDesc u j ≠ sortDesc v j
@@ -447,8 +433,8 @@ private theorem sortDesc_lex_lt_of_countGe_lt {κ : Type*} [Fintype κ] {u v : �
     Finset.min'_le diff k (Finset.mem_filter.2 ⟨Finset.mem_univ k, hlt_k.ne⟩)
   refine ⟨j₀, fun i hi => ?_, lt_of_le_of_ne (hle_top j₀ hj₀_le_k) (Finset.mem_filter.1 hj₀_mem).2⟩
   by_contra hne_i
-  have hi_mem : i ∈ diff := Finset.mem_filter.2 ⟨Finset.mem_univ i, hne_i⟩
-  exact absurd (Finset.min'_le diff i hi_mem) (not_le.2 hi)
+  exact absurd (Finset.min'_le diff i (Finset.mem_filter.2 ⟨Finset.mem_univ i, hne_i⟩))
+    (not_le.2 hi)
 
 private theorem sortDesc_lex_lt_of_tail_pres {κ : Type*} [Fintype κ] {u' u : κ → ℝ} (r₀ : ℝ)
     (hpres : ∀ t : ℝ, r₀ ≤ t → ∀ s : κ, t ≤ u' s → t ≤ u s)
@@ -470,12 +456,9 @@ private theorem sortDesc_midpoint_lt_aux {κ : Type*} [Fintype κ] {u v : κ →
     toLex (sortDesc fun s => (u s + v s) / 2) < toLex (sortDesc u) := by
   classical
   set w : κ → ℝ := fun s => (u s + v s) / 2
-  have hw_lt : ∀ s, u s ≠ v s → w s < M := by
-    intro s hs
-    have hmax := hD_le s hs
-    have hu_le : u s ≤ M := le_trans (le_max_left _ _) hmax
-    have hv_le : v s ≤ M := le_trans (le_max_right _ _) hmax
-    rcases lt_or_gt_of_ne hs with h | h <;> dsimp only [w] <;> linarith
+  have hw_lt : ∀ s, u s ≠ v s → w s < M := fun s hs => by
+    have hmax := max_le_iff.1 (hD_le s hs)
+    rcases lt_or_gt_of_ne hs with h | h <;> dsimp only [w] <;> linarith [hmax.1, hmax.2]
   rw [sortDesc_lex_lt_iff_countGe]
   refine ⟨M, ?_, ?_⟩
   · obtain ⟨s₀, hs₀ne, hs₀eq⟩ := hs₀
@@ -487,22 +470,17 @@ private theorem sortDesc_midpoint_lt_aux {κ : Type*} [Fintype κ] {u v : κ →
         dsimp only [w] at hMs
         linarith
       · exact absurd hMs (not_le.2 (hw_lt s hne))
-    · have hs₀_mem : s₀ ∈ Finset.univ.filter fun s => M ≤ u s :=
-        Finset.mem_filter.2 ⟨Finset.mem_univ s₀, hs₀eq.ge⟩
-      have hs₀_w : s₀ ∈ Finset.univ.filter fun s => M ≤ w s := hsub hs₀_mem
-      exact absurd (Finset.mem_filter.1 hs₀_w).2 (not_le.2 (hw_lt s₀ hs₀ne))
+    · exact absurd (Finset.mem_filter.1 (hsub (Finset.mem_filter.2
+        ⟨Finset.mem_univ s₀, hs₀eq.ge⟩))).2 (not_le.2 (hw_lt s₀ hs₀ne))
   · intro t ht
     simp only [countGe]
     congr 1
     ext s
     simp only [Finset.mem_filter, Finset.mem_univ, true_and]
     by_cases hne : u s = v s
-    · dsimp only [w]
-      rw [hne]
-      simp only [add_self_div_two]
-    · have hu_lt : u s < t := (le_trans (le_max_left _ _) (hD_le s hne)).trans_lt ht
-      have hw_lt' : w s < t := (hw_lt s hne).trans ht
-      exact iff_of_false (not_le.2 hw_lt') (not_le.2 hu_lt)
+    · simp only [w, hne, add_self_div_two]
+    · exact iff_of_false (not_le.2 ((hw_lt s hne).trans ht))
+        (not_le.2 ((le_trans (le_max_left _ _) (hD_le s hne)).trans_lt ht))
 
 /-- **Schmeidler's midpoint descent lemma** ([Schmeidler1969]): if `u, v : κ → ℝ` are distinct
 vectors with identical descendingly sorted tuples `sortDesc u = sortDesc v`, then their midpoint
@@ -554,9 +532,7 @@ private theorem exists_lexMin_of_continuous {X : Type*} [TopologicalSpace X] :
     obtain ⟨x, hxK', hxmin⟩ :=
       exists_lexMin_of_continuous m (fun i => f i.succ) (fun i => hf i.succ) K' hK'ne hK'comp
     refine ⟨x, hxK'.1, fun y hy => ?_⟩
-    have hx_le : f 0 x ≤ v₀ := hxK'.2
-    have hv₀_le_x : v₀ ≤ f 0 x := isMinOn_iff.1 hx₀min x hxK'.1
-    have hx_eq : f 0 x = v₀ := le_antisymm hx_le hv₀_le_x
+    have hx_eq : f 0 x = v₀ := le_antisymm hxK'.2 (isMinOn_iff.1 hx₀min x hxK'.1)
     have hv₀_le_y : v₀ ≤ f 0 y := isMinOn_iff.1 hx₀min y hy
     rcases lt_or_eq_of_le (hx_eq ▸ hv₀_le_y) with hlt | heq
     · exact le_of_lt ⟨0, fun _ hj => absurd hj (Nat.not_lt_zero _), hlt⟩
@@ -616,82 +592,34 @@ theorem IsDummyAgent.val_singleton [DecidableEq A] {G : CooperativeGame A} {i : 
 
 theorem AreSymmetric.perm_swap_eq [DecidableEq A] {G : CooperativeGame A} {i j : A}
     (hsym : G.AreSymmetric i j) : G.perm (Equiv.swap i j) = G := by
-  have hid : ∀ z : A, Equiv.swap i j (Equiv.swap i j z) = z := fun z => by
-    simp
   ext S
   simp only [perm_val]
-  have himg : S.map (Equiv.swap i j).symm.toEmbedding = S.image (Equiv.swap i j) := by
-    ext x
-    simp only [Finset.mem_map, Equiv.coe_toEmbedding, Equiv.symm_swap, Finset.mem_image]
-  rw [himg]
+  -- Membership in the swapped coalition is membership of the swapped agent.
+  have hmem : ∀ x, x ∈ S.map (Equiv.swap i j).symm.toEmbedding ↔ Equiv.swap i j x ∈ S :=
+    fun x => by rw [Finset.mem_map_equiv, Equiv.symm_symm]
   by_cases hi : i ∈ S <;> by_cases hj : j ∈ S
   · congr 1
     ext x
-    simp only [Finset.mem_image, Equiv.swap_apply_def]
-    constructor
-    · rintro ⟨y, hy, rfl⟩
-      split_ifs with h1 h2
-      · subst h1; exact hj
-      · subst h2; exact hi
-      · exact hy
-    · intro hx
-      refine ⟨Equiv.swap i j x, ?_, ?_⟩
-      · simp only [Equiv.swap_apply_def]
-        split_ifs with h1 h2
-        · subst h1; exact hj
-        · subst h2; exact hi
-        · exact hx
-      · exact hid x
-  · have hsub : S.image (Equiv.swap i j) = insert j (S.erase i) := by
+    rw [hmem, Equiv.swap_apply_def]
+    split_ifs <;> simp_all
+  · have hij : i ≠ j := fun h => hj (h ▸ hi)
+    have hsub : S.map (Equiv.swap i j).symm.toEmbedding = insert j (S.erase i) := by
       ext x
-      simp only [Finset.mem_image, Finset.mem_insert, Finset.mem_erase, Equiv.swap_apply_def]
-      constructor
-      · rintro ⟨y, hy, rfl⟩
-        split_ifs with h1 h2
-        · left; rfl
-        · subst h2; exact absurd hy hj
-        · right; exact ⟨h1, hy⟩
-      · rintro (rfl | ⟨hne, hx⟩)
-        · exact ⟨i, hi, by simp⟩
-        · refine ⟨x, hx, ?_⟩
-          have hx_ne : x ≠ j := fun h => hj (h ▸ hx)
-          simp [hne, hx_ne]
-    have hS : S = insert i (S.erase i) := (Finset.insert_erase hi).symm
-    rw [hsub,
-      ← hsym (S.erase i) (Finset.notMem_erase i S) fun h => hj (Finset.mem_of_mem_erase h),
-      ← hS]
-  · have hsub : S.image (Equiv.swap i j) = insert i (S.erase j) := by
+      rw [hmem, Equiv.swap_apply_def]
+      split_ifs <;> simp_all [eq_comm]
+    rw [hsub, ← hsym (S.erase i) (Finset.notMem_erase i S) fun h => hj (Finset.mem_of_mem_erase h),
+      Finset.insert_erase hi]
+  · have hij : i ≠ j := fun h => hi (h ▸ hj)
+    have hsub : S.map (Equiv.swap i j).symm.toEmbedding = insert i (S.erase j) := by
       ext x
-      simp only [Finset.mem_image, Finset.mem_insert, Finset.mem_erase, Equiv.swap_apply_def]
-      constructor
-      · rintro ⟨y, hy, rfl⟩
-        split_ifs with h1 h2
-        · subst h1; exact absurd hy hi
-        · left; rfl
-        · right; exact ⟨h2, hy⟩
-      · rintro (rfl | ⟨hne, hx⟩)
-        · exact ⟨j, hj, by simp⟩
-        · refine ⟨x, hx, ?_⟩
-          have hx_ne : x ≠ i := fun h => hi (h ▸ hx)
-          simp [hx_ne, hne]
-    have hS : S = insert j (S.erase j) := (Finset.insert_erase hj).symm
-    rw [hsub,
-      hsym (S.erase j) (fun h => hi (Finset.mem_of_mem_erase h)) (Finset.notMem_erase j S),
-      ← hS]
+      rw [hmem, Equiv.swap_apply_def]
+      split_ifs <;> simp_all [eq_comm]
+    rw [hsub, hsym (S.erase j) (fun h => hi (Finset.mem_of_mem_erase h)) (Finset.notMem_erase j S),
+      Finset.insert_erase hj]
   · congr 1
     ext x
-    simp only [Finset.mem_image, Equiv.swap_apply_def]
-    constructor
-    · rintro ⟨y, hy, rfl⟩
-      split_ifs with h1 h2
-      · subst h1; exact absurd hy hi
-      · subst h2; exact absurd hy hj
-      · exact hy
-    · intro hx
-      refine ⟨x, hx, ?_⟩
-      have hxi : x ≠ i := fun h => hi (h ▸ hx)
-      have hxj : x ≠ j := fun h => hj (h ▸ hx)
-      simp [hxi, hxj]
+    rw [hmem, Equiv.swap_apply_def]
+    split_ifs <;> simp_all
 
 /-! ## Excesses, preimputations, and imputations -/
 
@@ -797,19 +725,12 @@ private theorem isCompact_cappedPreimputations [Fintype A]
   have hbox : IsCompact (Set.univ.pi fun i : A => Set.Icc (lb i) (ub i)) :=
     isCompact_univ_pi fun i => ConditionallyCompleteLinearOrder.isCompact_Icc (lb i) (ub i)
   have hclosed : IsClosed (G.cappedPreimputations lb) := by
-    have hsum : Continuous fun x : A → ℝ => ∑ i : A, x i :=
-      continuous_finsetSum Finset.univ fun i _ => continuous_apply i
-    have heq : G.cappedPreimputations lb =
-        {x : A → ℝ | ∑ i : A, x i = G.val Finset.univ} ∩
-          ⋂ i : A, {x : A → ℝ | lb i ≤ x i} := by
-      ext x
-      simp [cappedPreimputations]
-    rw [heq]
-    exact (isClosed_eq hsum continuous_const).inter
-      (isClosed_iInter fun i => isClosed_le continuous_const (continuous_apply i))
-  refine hbox.of_isClosed_subset hclosed fun x hx => ?_
-  intro i _
-  refine ⟨hx.2 i, ?_⟩
+    have hlb : IsClosed {x : A → ℝ | ∀ i, lb i ≤ x i} := by
+      simp only [Set.ofPred_forall]
+      exact isClosed_iInter fun i => isClosed_le continuous_const (continuous_apply i)
+    exact (isClosed_eq (continuous_finsetSum Finset.univ fun i _ => continuous_apply i)
+      continuous_const).inter hlb
+  refine hbox.of_isClosed_subset hclosed fun x hx i _ => ⟨hx.2 i, ?_⟩
   have hsplit : x i + ∑ j ∈ Finset.univ.erase i, x j = G.val Finset.univ := by
     simpa only [Finset.add_sum_erase _ _ (Finset.mem_univ i)] using hx.1
   have hsum_lb : ∑ j ∈ Finset.univ.erase i, lb j ≤ ∑ j ∈ Finset.univ.erase i, x j :=
@@ -889,17 +810,11 @@ private theorem countGe_all_eq_proper [Fintype A] [DecidableEq A] (G : Cooperati
         (S.Nonempty ∧ S ≠ Finset.univ) ∧ r ≤ G.excess S z).card =
       countGe (fun S : {S : Finset A // S ∈ properNonemptyCoalitions A} => G.excess S.1 z) r := by
     simp only [countGe]
-    refine Finset.card_bij
+    exact Finset.card_bij
       (fun S hS => ⟨S, mem_properNonemptyCoalitions.2 (Finset.mem_filter.1 hS).2.1⟩)
-      ?_ ?_ ?_
-    · intro S hS
-      exact Finset.mem_filter.2 ⟨Finset.mem_univ _, (Finset.mem_filter.1 hS).2.2⟩
-    · intro S₁ _ S₂ _ h
-      exact congrArg Subtype.val h
-    · intro S hS
-      refine ⟨S.1, Finset.mem_filter.2
-        ⟨Finset.mem_univ _, mem_properNonemptyCoalitions.1 S.2, (Finset.mem_filter.1 hS).2⟩,
-        rfl⟩
+      (fun S hS => Finset.mem_filter.2 ⟨Finset.mem_univ _, (Finset.mem_filter.1 hS).2.2⟩)
+      (fun _ _ _ _ h => congrArg Subtype.val h) fun S hS => ⟨S.1, Finset.mem_filter.2
+        ⟨Finset.mem_univ _, mem_properNonemptyCoalitions.1 S.2, (Finset.mem_filter.1 hS).2⟩, rfl⟩
   rw [countGe_eq_filter, hsplit, Finset.card_union_of_disjoint hdisj, hbij]
 
 theorem sortExcess_lex_lt_iff_proper [Fintype A] [DecidableEq A] (G : CooperativeGame A)
@@ -1089,9 +1004,9 @@ theorem existsUnique_prenucleolus [Fintype A] (G : CooperativeGame A) :
     refine ⟨hxK.1, fun y hy => ?_⟩
     by_cases hyK : y ∈ K
     · exact hxmin y hyK
-    · have hnot : ¬ ∀ i : A, lb i ≤ y i := fun h => hyK ⟨hy, h⟩
-      push Not at hnot
-      obtain ⟨i, hi_lt⟩ := hnot
+    · obtain ⟨i, hi_lt⟩ : ∃ i, y i < lb i := by
+        by_contra! h
+        exact hyK ⟨hy, h⟩
       have hM_lt_ex : M < G.excess {i} y := by
         simp only [excess, Finset.sum_singleton]
         dsimp only [lb] at hi_lt
@@ -1241,9 +1156,7 @@ private theorem kohlberg_forward [Fintype A] [DecidableEq A] (G : CooperativeGam
           dsimp only [T_max]
           rw [hTeq]
           have hT' := Finset.mem_sdiff.1 hT
-          have hnot : ¬ (t ≤ G.excess T x) := fun h =>
-            hT'.2 (Finset.mem_filter.2 ⟨hT'.1, h⟩)
-          exact (lt_of_not_ge hnot).trans_le ht_min_ge
+          exact (lt_of_not_ge fun h => hT'.2 (Finset.mem_filter.2 ⟨hT'.1, h⟩)).trans_le ht_min_ge
         let den : ℝ := 2 * (1 + ∑ j : A, |d j|)
         have hS_nn : 0 ≤ ∑ j : A, |d j| := Finset.sum_nonneg fun j _ => abs_nonneg _
         have hden_pos : 0 < den := by dsimp only [den]; linarith
@@ -1261,8 +1174,7 @@ private theorem kohlberg_forward [Fintype A] [DecidableEq A] (G : CooperativeGam
         rw [G.excess_add_smul]
         nlinarith [mul_le_mul_of_nonneg_left hsum_abs hε0.le,
           mul_le_mul_of_nonneg_right hε1 (by linarith : (0 : ℝ) ≤ 1 + ∑ j : A, |d j|)]
-      · refine ⟨1, zero_lt_one, fun S hSP hSℬ => ?_⟩
-        exact absurd ⟨S, Finset.mem_sdiff.2 ⟨hSP, hSℬ⟩⟩ hrem
+      · exact ⟨1, zero_lt_one, fun S hSP hSℬ => absurd ⟨S, Finset.mem_sdiff.2 ⟨hSP, hSℬ⟩⟩ hrem⟩
     obtain ⟨ε₁, hε₁, hε₁_lt⟩ := hgap
     let ε := min ε₀ ε₁
     have hε0 : 0 < ε := lt_min hε₀ hε₁
@@ -1309,13 +1221,10 @@ private theorem kohlberg_forward [Fintype A] [DecidableEq A] (G : CooperativeGam
       have h2 : -(∑ j : A, d j) ≤ 0 := by
         simpa [M, Matrix.mulVec, dotProduct, Finset.sum_neg_distrib] using hd (.inr (.inl ()))
       have hd_sum : ∑ j : A, d j = 0 := le_antisymm h1 (by linarith)
-      have hd_I : ∀ j ∈ I, 0 ≤ d j := by
-        intro j hj
-        have hrow := hd (.inr (.inr (.inl ⟨j, hj⟩)))
-        simp only [M, Matrix.mulVec, dotProduct, Sum.elim_inr, Sum.elim_inl, Pi.zero_apply,
+      have hd_I : ∀ j ∈ I, 0 ≤ d j := fun j hj => by
+        simpa only [M, Matrix.mulVec, dotProduct, Sum.elim_inr, Sum.elim_inl, Pi.zero_apply,
           ite_mul, neg_mul, one_mul, zero_mul, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte,
-          neg_nonpos] at hrow
-        exact hrow
+          neg_nonpos] using hd (.inr (.inr (.inl ⟨j, hj⟩)))
       have hd_ℬ : ∀ S ∈ ℬ, 0 ≤ ∑ j ∈ S, d j := by
         intro S hS
         have hrow := hd (.inr (.inr (.inr ⟨S, hS⟩)))
@@ -1330,6 +1239,10 @@ private theorem kohlberg_forward [Fintype A] [DecidableEq A] (G : CooperativeGam
     let c : ℝ := y (.inl ()) - y (.inr (.inl ()))
     let u : A → ℝ := fun j => if hj : j ∈ I then y (.inr (.inr (.inl ⟨j, hj⟩))) else 0
     let w : Finset A → ℝ := fun S => if hS : S ∈ ℬ then y (.inr (.inr (.inr ⟨S, hS⟩))) else 0
+    have hu_nn : ∀ j, 0 ≤ u j := fun j => by
+      dsimp only [u]; split_ifs <;> [exact hy0 _; exact le_rfl]
+    have hw_nn : ∀ S, 0 ≤ w S := fun S => by
+      dsimp only [w]; split_ifs <;> [exact hy0 _; exact le_rfl]
     have heq_row : ∀ j : A, u j + (∑ S with j ∈ S, w S) + (if j ∈ S₀ then 1 else 0) = c := by
       intro j
       have hyj := congrFun hyM j
@@ -1339,16 +1252,12 @@ private theorem kohlberg_forward [Fintype A] [DecidableEq A] (G : CooperativeGam
       have hsum_I : ∑ a : {a : A // a ∈ I}, (if j = a.1 then -y (.inr (.inr (.inl a))) else 0) =
           -u j := by
         by_cases hjI : j ∈ I
-        · rw [Finset.sum_eq_single ⟨j, hjI⟩]
-          · simp [u, hjI]
-          · intro a _ ha
-            have hne : j ≠ a.1 := fun h => ha (Subtype.ext h.symm)
-            simp [hne]
-          · intro hmem; exact absurd (Finset.mem_univ _) hmem
+        · rw [Finset.sum_eq_single ⟨j, hjI⟩
+            (fun a _ ha => ite_eq_right fun h => ha (Subtype.ext h.symm))
+            fun h => absurd (Finset.mem_univ _) h]
+          simp [u, hjI]
         · simp only [u, hjI, ↓reduceDIte, neg_zero]
-          refine Finset.sum_eq_zero fun a _ => ?_
-          have hne : j ≠ a.1 := fun h => hjI (h ▸ a.2)
-          simp [hne]
+          exact Finset.sum_eq_zero fun a _ => ite_eq_right fun (h : j = a.1) => hjI (h ▸ a.2)
       have hsum_ℬ : ∑ S : {S : Finset A // S ∈ ℬ},
           (if j ∈ S.1 then -y (.inr (.inr (.inr S))) else 0) = -(∑ S with j ∈ S, w S) := by
         have hid : ∑ S : {S : Finset A // S ∈ ℬ},
@@ -1360,13 +1269,8 @@ private theorem kohlberg_forward [Fintype A] [DecidableEq A] (G : CooperativeGam
           rw [hsub_w, ← Finset.sum_subtype ℬ (fun _ => Iff.rfl)
             (fun S => if j ∈ S then w S else 0), ← Finset.sum_filter]
           exact sum_filter_mem_eq_of_eq_zero j fun S hSℬ => by simp [w, hSℬ]
-        have hneg : ∑ S : {S : Finset A // S ∈ ℬ},
-            (if j ∈ S.1 then -y (.inr (.inr (.inr S))) else 0) =
-            -∑ S : {S : Finset A // S ∈ ℬ},
-              (if j ∈ S.1 then y (.inr (.inr (.inr S))) else 0) := by
-          rw [← Finset.sum_neg_distrib]
-          refine Finset.sum_congr rfl fun S _ => by split_ifs <;> simp
-        rw [hneg, hid]
+        rw [← hid, ← Finset.sum_neg_distrib]
+        exact Finset.sum_congr rfl fun S _ => by split_ifs <;> simp
       rw [hsum_I, hsum_ℬ] at hyj
       dsimp only [c, obj] at hyj ⊢
       linarith
@@ -1375,16 +1279,9 @@ private theorem kohlberg_forward [Fintype A] [DecidableEq A] (G : CooperativeGam
       obtain ⟨j₀, hj₀⟩ := hS₀_ne
       have hj₀eq := heq_row j₀
       simp only [hj₀, ↓reduceIte] at hj₀eq
-      have hu_nn : 0 ≤ u j₀ := by
-        dsimp only [u]; split_ifs <;> [exact hy0 _; exact le_rfl]
-      have hw_nn : 0 ≤ ∑ S with j₀ ∈ S, w S := Finset.sum_nonneg fun S _ => by
-        dsimp only [w]; split_ifs <;> [exact hy0 _; exact le_rfl]
-      linarith
-    exact ⟨c, u, w, hc1,
-      fun j => by dsimp only [u]; split_ifs <;> [exact hy0 _; exact le_rfl],
-      fun j hj => by simp [u, hj],
-      fun S => by dsimp only [w]; split_ifs <;> [exact hy0 _; exact le_rfl],
-      fun S hS => by simp [w, hS],
+      linarith [hu_nn j₀,
+        (Finset.sum_nonneg fun S _ => hw_nn S : 0 ≤ ∑ S with j₀ ∈ S, w S)]
+    exact ⟨c, u, w, hc1, hu_nn, fun j hj => by simp [u, hj], hw_nn, fun S hS => by simp [w, hS],
       heq_row⟩
   choose cs us ws hcs hus_nn hus_zero hws_nn hws_zero hrow_eq using hsingle
   let C : ℝ := ∑ S₀ ∈ ℬ.attach, cs S₀.1 S₀.2
@@ -1448,10 +1345,10 @@ private theorem kohlberg_backward [Fintype A] [DecidableEq A] (G : CooperativeGa
         ∀ j : A, u j + (∑ S with j ∈ S, w S) = 1) :
     G.IsLexMinimizerOn K x := by
   refine ⟨hxK, fun y hyK => ?_⟩
+  have hx_pre : x ∈ G.preimputations := hK_pre hxK
+  have hy_pre : y ∈ G.preimputations := hK_pre hyK
   by_cases hA : Fintype.card A < 2
   · have hsub : Subsingleton A := Fintype.card_le_one_iff_subsingleton.1 (Nat.lt_succ_iff.1 hA)
-    have hx_pre : x ∈ G.preimputations := hK_pre hxK
-    have hy_pre : y ∈ G.preimputations := hK_pre hyK
     have hyx : y = x := by
       funext i
       have huniv : (Finset.univ : Finset A) = {i} := by
@@ -1462,13 +1359,10 @@ private theorem kohlberg_backward [Fintype A] [DecidableEq A] (G : CooperativeGa
       exact hy_i.trans hx_i.symm
     rw [hyx]
   · have hA2 : 2 ≤ Fintype.card A := le_of_not_gt hA
-    have hx_pre : x ∈ G.preimputations := hK_pre hxK
-    have hy_pre : y ∈ G.preimputations := hK_pre hyK
     let d : A → ℝ := fun j => y j - x j
     have hd_sum : ∑ j : A, d j = 0 := by
-      have hxsum : ∑ j : A, x j = G.val Finset.univ := hx_pre
-      have hysum : ∑ j : A, y j = G.val Finset.univ := hy_pre
-      simp only [d, Finset.sum_sub_distrib, hysum, hxsum, sub_self]
+      simp only [d, Finset.sum_sub_distrib, sub_eq_zero]
+      exact (hy_pre : ∑ j, y j = _).trans (hx_pre : ∑ j, x j = _).symm
     let D : Finset (Finset A) := (properNonemptyCoalitions A).filter fun S => ∑ j ∈ S, d j ≠ 0
     by_cases hD : D.Nonempty
     · let r : ℝ := D.sup' hD fun S => G.excess S x
@@ -1542,8 +1436,7 @@ private theorem kohlberg_backward [Fintype A] [DecidableEq A] (G : CooperativeGa
         have hnotD : ({i} : Finset A) ∉ D := fun hmem => hD ⟨{i}, hmem⟩
         have hsingle : ∑ j ∈ ({i} : Finset A), d j = 0 := not_not.1 fun hne =>
           hnotD (Finset.mem_filter.2 ⟨singleton_mem_properNonemptyCoalitions hA2 i, hne⟩)
-        simp only [Finset.sum_singleton, d, sub_eq_zero] at hsingle
-        exact hsingle
+        simpa only [Finset.sum_singleton, d, sub_eq_zero] using hsingle
       rw [hyx]
 
 /-- **Kohlberg's balanced-collection theorem for the prenucleolus** ([Kohlberg1971]): a
@@ -1596,15 +1489,14 @@ theorem isNucleolus_iff_kohlberg [Fintype A] [DecidableEq A] (G : CooperativeGam
             fun j => (x j - G.val {j}) / (-d j)
           dsimp only [ε₀]
           rw [hj_eq]
-          have hj_lt := (Finset.mem_filter.1 hjJ).2
-          exact div_pos (sub_pos.2 hj_lt.1) (neg_pos.2 hj_lt.2)
+          exact div_pos (sub_pos.2 (Finset.mem_filter.1 hjJ).2.1)
+            (neg_pos.2 (Finset.mem_filter.1 hjJ).2.2)
         · refine ⟨1, zero_lt_one, fun j hj => absurd ⟨j, hj⟩ hJ⟩
       obtain ⟨ε₀, hε₀, hε₀_le⟩ := hε
       refine ⟨ε₀, hε₀, fun ε hε_pos hε_le => ⟨?_, fun j => ?_⟩⟩
-      · have hx_pre : x ∈ G.preimputations := hx.1
-        simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Finset.sum_add_distrib,
+      · simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Finset.sum_add_distrib,
           ← Finset.mul_sum, hd_sum, mul_zero, add_zero]
-        exact hx_pre
+        exact hx.1
       · simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
         by_cases hdj : 0 ≤ d j
         · exact le_add_of_le_of_nonneg (hx.2 j) (mul_nonneg hε_pos.le hdj)
@@ -1616,16 +1508,15 @@ theorem isNucleolus_iff_kohlberg [Fintype A] [DecidableEq A] (G : CooperativeGam
           linarith
     obtain ⟨w, u, hw_pos, hw_zero, hu_nn, hu_zero, hrow⟩ :=
       kohlberg_forward G hx.1 hx_opt I hmove (fun _ hy => hy.1) hℬ
-    refine ⟨w, u, hw_pos, hw_zero, hu_nn, fun j hj => ?_, hrow⟩
-    exact hu_zero j fun hjI => hj.ne' (Finset.mem_filter.1 hjI).2
+    exact ⟨w, u, hw_pos, hw_zero, hu_nn,
+      fun j hj => hu_zero j fun hjI => hj.ne' (Finset.mem_filter.1 hjI).2, hrow⟩
   · intro hbal
     refine kohlberg_backward G hx (fun _ hy => hy.1) fun t hℬ => ?_
     obtain ⟨w, u, hw_pos, hw_zero, hu_nn, hu_slack, hrow⟩ := hbal t hℬ
     refine ⟨w, u, hw_pos, hw_zero, hu_nn, fun y hy j => ?_, hrow⟩
     by_cases hlt : G.val {j} < x j
     · rw [hu_slack j hlt, zero_mul]
-    · have hx_le : x j ≤ G.val {j} := le_of_not_gt hlt
-      exact mul_nonneg (hu_nn j) (sub_nonneg.2 (hx_le.trans (hy.2 j)))
+    · exact mul_nonneg (hu_nn j) (sub_nonneg.2 ((le_of_not_gt hlt).trans (hy.2 j)))
 
 end Kohlberg
 
@@ -1906,22 +1797,16 @@ private theorem dummy_pos_contradiction [Fintype A] [DecidableEq A] {G : Coopera
           Finset.notMem_erase i T⟩
       have hS_le : G.excess S x ≤ M := Finset.le_sup' (fun S => G.excess S x) hS_Pw
       have hex_T : G.excess T x = G.excess S x - x i := by
-        have hT_eq : insert i S = T := Finset.insert_erase hiT
-        have hval_T : G.val T = G.val S := by
-          rw [← hT_eq]
-          exact hd S (Finset.notMem_erase i T)
-        have hsum_T : ∑ j ∈ T, x j = x i + ∑ j ∈ S, x j := by
-          rw [← hT_eq, Finset.sum_insert (Finset.notMem_erase i T)]
-        simp only [excess, hval_T, hsum_T]
+        conv_lhs => rw [← Finset.insert_erase hiT]
+        simp only [S, excess, hd (T.erase i) (Finset.notMem_erase i T),
+          Finset.sum_insert (Finset.notMem_erase i T)]
         ring
       linarith
   obtain ⟨w, u, hw_zero, hu0, hrow⟩ := hbal
-  have hsum_zero : ∑ S with i ∈ S, w S = 0 := by
-    refine Finset.sum_eq_zero fun S hS => ?_
-    have hiS : i ∈ S := (Finset.mem_filter.1 hS).2
-    refine hw_zero S fun hSℬ => ?_
-    have hmem := Finset.mem_filter.1 hSℬ
-    exact absurd (hlt_M S hmem.1 hiS) (not_lt.2 hmem.2)
+  have hsum_zero : ∑ S with i ∈ S, w S = 0 :=
+    Finset.sum_eq_zero fun S hS => hw_zero S fun hSℬ =>
+      (hlt_M S (Finset.mem_filter.1 hSℬ).1 (Finset.mem_filter.1 hS).2).not_ge
+        (Finset.mem_filter.1 hSℬ).2
   linarith
 
 /-- **Dummy-player property of the nucleolus**: a dummy agent receives zero payoff in
@@ -1984,19 +1869,15 @@ theorem prenucleolus_isDummyAgent [Fintype A] [DecidableEq A] {G : CooperativeGa
       set t := G.excess T₀ x
       have hℬne : (G.upperLevel x t).Nonempty := ⟨T₀, Finset.mem_filter.2 ⟨hT₀prop, le_rfl⟩⟩
       obtain ⟨w, hw_pos, hw_zero, hw_sum⟩ := hkohl t hℬne
-      have hi_mem_all : ∀ S ∈ G.upperLevel x t, i ∈ S := by
-        intro S hSℬ
+      have hi_mem_all : ∀ S ∈ G.upperLevel x t, i ∈ S := fun S hSℬ => by
         by_contra hiS
-        have hS_Pw : S ∈ P_without := Finset.mem_filter.2 ⟨(Finset.mem_filter.1 hSℬ).1, hiS⟩
-        have hle_M : G.excess S x ≤ M := Finset.le_sup' (fun S => G.excess S x) hS_Pw
-        have ht_le : t ≤ G.excess S x := (Finset.mem_filter.1 hSℬ).2
-        exact absurd (ht_le.trans hle_M) (not_le.2 hM_lt_T₀)
+        exact hM_lt_T₀.not_ge ((Finset.mem_filter.1 hSℬ).2.trans (Finset.le_sup'
+          (fun S => G.excess S x) (Finset.mem_filter.2 ⟨(Finset.mem_filter.1 hSℬ).1, hiS⟩)))
       have hsum_all : (∑ S : Finset A, w S) = 1 := by
         rw [← hw_sum i]
         refine (Finset.sum_subset (Finset.filter_subset _ _) fun S _ hnot => ?_).symm
-        have hS_not_ℬ : S ∉ G.upperLevel x t := fun hSℬ =>
+        exact hw_zero S fun hSℬ =>
           hnot (Finset.mem_filter.2 ⟨Finset.mem_univ _, hi_mem_all S hSℬ⟩)
-        exact hw_zero S hS_not_ℬ
       obtain ⟨j, hjT₀⟩ : ∃ j : A, j ∉ T₀ := by
         by_contra! hall
         exact (mem_properNonemptyCoalitions.1 hT₀prop).2 (Finset.eq_univ_iff_forall.2 hall)
