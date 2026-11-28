@@ -32,7 +32,6 @@ import Mathlib.Data.List.GetD
 import Mathlib.LinearAlgebra.Dimension.Finrank
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
-import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 
 /-!
@@ -41,7 +40,7 @@ import Mathlib.Tactic.Ring
 This module formalizes compound conditional securities, indivisible and divisible order matching,
 the linear-programming and small-support Farkas dual characterizations, and the native
 `coNP`-completeness of divisible compound order matching from
-[PennockSami2007, §26.3.1, pp. 658–661].
+[PennockSami2007, §26.3–§26.3.1, pp. 658–661].
 
 ## Model and conventions
 
@@ -122,7 +121,7 @@ the unconditional tautology `⊤`), together with rational quantity `q : ℚ` (`
 ## References
 
 * [D. M. Pennock, R. Sami, *Computational Aspects of Prediction Markets*, Chapter 26 of
-  *Algorithmic Game Theory*, §26.3.1, pp. 658–661][PennockSami2007]
+  *Algorithmic Game Theory*, §26.3–§26.3.1, pp. 658–661][PennockSami2007]
 -/
 
 public section
@@ -553,13 +552,6 @@ private theorem exists_small_int_farkas (O : List CompoundOrder) (hno : ¬ HasDi
     simp only [Aint, bint, xint, mulVec, dotProduct, Fintype.sum_sum_type, Matrix.map_apply,
       Matrix.of_apply, Sum.elim_inl, Sum.elim_inr, Int.cast_one]
     have hdiag : ∑ j : Fin m, ((if i = j then (-1 : ℤ) else 0 : ℤ) : ℝ) *
-        ((∑ s : T, (intOrderPayoff O[i] (evalState O s.1) : ℝ) * z (.inl s.1)) - 1) =
-        -((∑ s : T, (intOrderPayoff O[i] (evalState O s.1) : ℝ) * z (.inl s.1)) - 1) := by
-      have h1 : ∀ j : Fin m, ((if i = j then (-1 : ℤ) else 0 : ℤ) : ℝ) =
-          if i = j then -1 else 0 := fun j => by split_ifs <;> simp
-      simp only [h1, ite_mul, neg_mul, one_mul, zero_mul, Finset.sum_ite_eq, Finset.mem_univ,
-        ↓reduceIte]
-    have hdiag' : ∑ j : Fin m, ((if i = j then (-1 : ℤ) else 0 : ℤ) : ℝ) *
         ((∑ s : T, (intOrderPayoff O[j] (evalState O s.1) : ℝ) * z (.inl s.1)) - 1) =
         -((∑ s : T, (intOrderPayoff O[i] (evalState O s.1) : ℝ) * z (.inl s.1)) - 1) := by
       have h1 : ∀ j : Fin m, ((if i = j then (-1 : ℤ) else 0 : ℤ) : ℝ) =
@@ -632,6 +624,24 @@ private theorem exists_small_int_farkas (O : List CompoundOrder) (hno : ¬ HasDi
 
 /-! ### Small-support Farkas & subset-infeasibility characterizations (p. 661) -/
 
+private theorem not_hasDivisibleMatchOn_of_farkas {O : List CompoundOrder}
+    {S : Finset (ℕ → Bool)} {w : (ℕ → Bool) → ℚ}
+    (hw_nn : ∀ ω ∈ S, 0 ≤ w ω)
+    (hw_pos : ∀ i : Fin O.length, 0 < ∑ ω ∈ S, (w ω : ℝ) * orderPayoff O[i] ω) :
+    ¬ HasDivisibleMatchOn O S := by
+  rintro ⟨α, hbounds, ⟨i₀, hi₀⟩, hpay⟩
+  have hpos : 0 < ∑ i : Fin O.length, α i * ∑ ω ∈ S, (w ω : ℝ) * orderPayoff O[i] ω :=
+    sum_pos' (fun i _ => mul_nonneg (hbounds i).1 (hw_pos i).le)
+      ⟨i₀, mem_univ i₀, mul_pos hi₀ (hw_pos i₀)⟩
+  have hnonneg : 0 ≤ ∑ ω ∈ S, (w ω : ℝ) * auctioneerPayoff O α ω :=
+    sum_nonneg fun ω hω => mul_nonneg (by exact_mod_cast hw_nn ω hω) (hpay ω hω)
+  have hrel : ∑ ω ∈ S, (w ω : ℝ) * auctioneerPayoff O α ω =
+      -(∑ i : Fin O.length, α i * ∑ ω ∈ S, (w ω : ℝ) * orderPayoff O[i] ω) := by
+    simp only [auctioneerPayoff, Finset.mul_sum, ← Finset.sum_neg_distrib]
+    rw [Finset.sum_comm]
+    exact sum_congr rfl fun i _ => sum_congr rfl fun ω _ => by ring
+  linarith
+
 /-- **Small-support rational Farkas certificate** [PennockSami2007, Theorem 26.6(ii) proof,
 p. 661]: a list of `m = O.length` compound orders admits no divisible match if and only if there
 exist at most `m` states `S` (hence `S.card ≤ m + 1`) and nonnegative rational weights
@@ -650,10 +660,8 @@ theorem not_hasDivisibleMatch_iff_exists_small_farkas (O : List CompoundOrder) :
       ∑ s ∈ T.filter fun s => evalState O s = ω, (wint s : ℚ)
     refine ⟨S, w, Finset.card_image_le.trans hTcard, fun ω _ =>
       sum_nonneg fun s hs => by exact_mod_cast (hw_nn s (mem_filter.mp hs).1).1, fun i => ?_⟩
-    have hD_pos : (0 : ℝ) < (O[i].quantity.den : ℝ) * (O[i].price.den : ℝ) := by
-      have h1 : (0 : ℝ) < O[i].quantity.den := Nat.cast_pos.mpr O[i].quantity.pos
-      have h2 : (0 : ℝ) < O[i].price.den := Nat.cast_pos.mpr O[i].price.pos
-      positivity
+    have hD_pos : (0 : ℝ) < (O[i].quantity.den : ℝ) * (O[i].price.den : ℝ) :=
+      mul_pos (Nat.cast_pos.mpr O[i].quantity.pos) (Nat.cast_pos.mpr O[i].price.pos)
     have hsum_eq : ∑ ω ∈ S, (w ω : ℝ) * orderPayoff O[i] ω =
         (∑ s ∈ T, (wint s : ℝ) * orderPayoff O[i] (evalState O s)) := by
       have hfib : ∑ ω ∈ S, ∑ s ∈ T.filter (fun s => evalState O s = ω),
@@ -676,18 +684,8 @@ theorem not_hasDivisibleMatch_iff_exists_small_farkas (O : List CompoundOrder) :
         (0 : ℝ) < ((∑ s ∈ T, wint s * intOrderPayoff O[i] (evalState O s) : ℤ) : ℝ) := by
       exact_mod_cast hw_pos i
     nlinarith
-  · rintro ⟨S, w, -, hw_nn, hw_pos⟩ ⟨α, hbounds, ⟨i₀, hi₀⟩, hpay⟩
-    have hneg : 0 < ∑ i : Fin O.length, α i * ∑ ω ∈ S, (w ω : ℝ) * orderPayoff O[i] ω :=
-      sum_pos' (fun i _ => mul_nonneg (hbounds i).1 (hw_pos i).le)
-        ⟨i₀, mem_univ i₀, mul_pos hi₀ (hw_pos i₀)⟩
-    have hnonneg : 0 ≤ ∑ ω ∈ S, (w ω : ℝ) * auctioneerPayoff O α ω :=
-      sum_nonneg fun ω hω => mul_nonneg (by exact_mod_cast hw_nn ω hω) (hpay ω)
-    have hrel : ∑ ω ∈ S, (w ω : ℝ) * auctioneerPayoff O α ω =
-        -(∑ i : Fin O.length, α i * ∑ ω ∈ S, (w ω : ℝ) * orderPayoff O[i] ω) := by
-      simp only [auctioneerPayoff, Finset.mul_sum, ← Finset.sum_neg_distrib]
-      rw [Finset.sum_comm]
-      exact sum_congr rfl fun i _ => sum_congr rfl fun ω _ => by ring
-    linarith
+  · rintro ⟨S, w, -, hw_nn, hw_pos⟩ ⟨α, hbounds, hpos, hpay⟩
+    exact not_hasDivisibleMatchOn_of_farkas hw_nn hw_pos ⟨α, hbounds, hpos, fun ω _ => hpay ω⟩
 
 /-- **Small-constraint infeasibility characterization** [PennockSami2007, Theorem 26.6(ii) proof,
 p. 661]: no divisible match exists for `m = O.length` orders if and only if there exists a subset
@@ -700,19 +698,7 @@ theorem not_hasDivisibleMatch_iff_exists_small_subset (O : List CompoundOrder) :
   · intro hno
     obtain ⟨S, w, hcard, hw_nn, hw_pos⟩ :=
       (not_hasDivisibleMatch_iff_exists_small_farkas O).mp hno
-    refine ⟨S, hcard, ?_⟩
-    rintro ⟨α, hbounds, ⟨i₀, hi₀⟩, hpay⟩
-    have hpos : 0 < ∑ i : Fin O.length, α i * ∑ ω ∈ S, (w ω : ℝ) * orderPayoff O[i] ω :=
-      sum_pos' (fun i _ => mul_nonneg (hbounds i).1 (hw_pos i).le)
-        ⟨i₀, mem_univ i₀, mul_pos hi₀ (hw_pos i₀)⟩
-    have hnonneg : 0 ≤ ∑ ω ∈ S, (w ω : ℝ) * auctioneerPayoff O α ω :=
-      sum_nonneg fun ω hω => mul_nonneg (by exact_mod_cast hw_nn ω hω) (hpay ω hω)
-    have hrel : ∑ ω ∈ S, (w ω : ℝ) * auctioneerPayoff O α ω =
-        -(∑ i : Fin O.length, α i * ∑ ω ∈ S, (w ω : ℝ) * orderPayoff O[i] ω) := by
-      simp only [auctioneerPayoff, Finset.mul_sum, ← Finset.sum_neg_distrib]
-      rw [Finset.sum_comm]
-      exact sum_congr rfl fun i _ => sum_congr rfl fun ω _ => by ring
-    linarith
+    exact ⟨S, hcard, not_hasDivisibleMatchOn_of_farkas hw_nn hw_pos⟩
   · rintro ⟨S, -, hnoS⟩ ⟨α, hbounds, hpos, hpay⟩
     exact hnoS ⟨α, hbounds, hpos, fun ω _ => hpay ω⟩
 
@@ -765,10 +751,8 @@ private theorem notMem_of_farkasCertCheck {O : List CompoundOrder}
   have hord_pos (i : Fin O.length) :
       0 < (cert.map fun p => (p.2 : ℝ) * orderPayoff O[i] (orderAssignment O p.1)).sum := by
     have hi := hpos O[i] (List.getElem_mem i.2)
-    have hD_pos : (0 : ℝ) < (O[i].quantity.den : ℝ) * (O[i].price.den : ℝ) := by
-      have h1 : (0 : ℝ) < O[i].quantity.den := Nat.cast_pos.mpr O[i].quantity.pos
-      have h2 : (0 : ℝ) < O[i].price.den := Nat.cast_pos.mpr O[i].price.pos
-      positivity
+    have hD_pos : (0 : ℝ) < (O[i].quantity.den : ℝ) * (O[i].price.den : ℝ) :=
+      mul_pos (Nat.cast_pos.mpr O[i].quantity.pos) (Nat.cast_pos.mpr O[i].price.pos)
     have hscale := cert_scale_eq O O[i] cert
     have hiR : (0 : ℝ) <
         ((cert.map fun p => p.2 * intOrderPayoff O[i] (orderAssignment O p.1)).sum : ℝ) := by
@@ -871,28 +855,26 @@ private theorem computableInPolyTime_intOrderPayoff :
       (fun p : (List CompoundOrder × List Bool) × CompoundOrder =>
         intOrderPayoff p.2 (orderAssignment p.1.1 p.1.2))
       (encPair (encPair encOrderList encBits) encCompoundOrder) encIntBin := by
-  have heval_cond :
-      ComputableInPolyTime
-        (fun p : (List CompoundOrder × List Bool) × CompoundOrder =>
-          p.2.condition.eval (orderAssignment p.1.1 p.1.2))
-        (encPair (encPair encOrderList encBits) encCompoundOrder) encBool := by
-    apply CNF.computableInPolyTime_eval (encV := encNat) (by fun_prop)
-    have hin : ComputableInPolyTime
+  have hassign : ComputableInPolyTime
+      (fun q : ((List CompoundOrder × List Bool) × CompoundOrder) × ℕ =>
+        orderAssignment q.1.1.1 q.1.1.2 q.2)
+      (encPair (encPair (encPair encOrderList encBits) encCompoundOrder) encNat) encBool :=
+    computableInPolyTime_orderAssignment.comp
+      (by fun_prop : ComputableInPolyTime
         (fun q : ((List CompoundOrder × List Bool) × CompoundOrder) × ℕ => (q.1.1, q.2))
         (encPair (encPair (encPair encOrderList encBits) encCompoundOrder) encNat)
-        (encPair (encPair encOrderList encBits) encNat) := by fun_prop
-    exact computableInPolyTime_orderAssignment.comp hin
-  have heval_event :
+        (encPair (encPair encOrderList encBits) encNat))
+  have heval (sel : CompoundOrder → CNF ℕ)
+      (hsel : ComputableInPolyTime
+        (fun p : (List CompoundOrder × List Bool) × CompoundOrder => sel p.2)
+        (encPair (encPair encOrderList encBits) encCompoundOrder) encCNF) :
       ComputableInPolyTime
         (fun p : (List CompoundOrder × List Bool) × CompoundOrder =>
-          p.2.event.eval (orderAssignment p.1.1 p.1.2))
-        (encPair (encPair encOrderList encBits) encCompoundOrder) encBool := by
-    apply CNF.computableInPolyTime_eval (encV := encNat) (by fun_prop)
-    have hin : ComputableInPolyTime
-        (fun q : ((List CompoundOrder × List Bool) × CompoundOrder) × ℕ => (q.1.1, q.2))
-        (encPair (encPair (encPair encOrderList encBits) encCompoundOrder) encNat)
-        (encPair (encPair encOrderList encBits) encNat) := by fun_prop
-    exact computableInPolyTime_orderAssignment.comp hin
+          (sel p.2).eval (orderAssignment p.1.1 p.1.2))
+        (encPair (encPair encOrderList encBits) encCompoundOrder) encBool :=
+    CNF.computableInPolyTime_eval (encV := encNat) hsel hassign
+  have heval_cond := heval CompoundOrder.condition (by fun_prop)
+  have heval_event := heval CompoundOrder.event (by fun_prop)
   have hqnum : ComputableInPolyTime
       (fun p : (List CompoundOrder × List Bool) × CompoundOrder => p.2.quantity.num)
       (encPair (encPair encOrderList encBits) encCompoundOrder) encIntBin := by fun_prop
@@ -961,13 +943,8 @@ private theorem unsatToOrderMatching_mem_iff (φ : CNF ℕ) :
   change ¬ φ.Satisfiable ↔ HasDivisibleMatch [o]
   have hpay_single (α : Fin [o].length → ℝ) (ω : ℕ → Bool) :
       auctioneerPayoff [o] α ω = -(α ⟨0, by simp⟩) * orderPayoff o ω := by
-    have huniv : (Finset.univ : Finset (Fin [o].length)) = {⟨0, by simp⟩} := by
-      ext ⟨k, hk⟩
-      simp only [List.length_singleton] at hk
-      simp only [Finset.mem_univ, Finset.mem_singleton, Fin.mk.injEq, true_iff]
-      omega
-    simp only [auctioneerPayoff, huniv, Finset.sum_singleton]
-    rfl
+    simp only [auctioneerPayoff]
+    exact Fin.sum_univ_one fun i : Fin 1 => -(α i) * orderPayoff [o][i] ω
   constructor
   · intro hunsat
     refine ⟨fun _ => 1, fun _ => ⟨by norm_num, le_rfl⟩, ⟨⟨0, by simp⟩, by norm_num⟩, fun ω => ?_⟩

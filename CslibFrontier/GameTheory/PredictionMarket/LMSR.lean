@@ -498,6 +498,18 @@ theorem lmsrCondPrice_apply [DecidableEq Ω] (b : ℝ) (q : Ω → ℝ) (φ ψ :
   rfl
 
 omit [Fintype Ω] in
+@[simp]
+theorem lmsrCondUpdate_apply [DecidableEq Ω] (b : ℝ) (φ ψ : Finset Ω) (q : Ω → ℝ) (δ : ℝ)
+    (ω : Ω) :
+    lmsrCondUpdate b φ ψ q δ ω =
+      if ω ∈ ψ then
+        if ω ∈ φ then q ω + δ else q ω
+      else
+        q ω + (lmsrCondCost b ψ (fun ω' => q ω' + if ω' ∈ φ then δ else 0) -
+          lmsrCondCost b ψ q) := by
+  rfl
+
+omit [Fintype Ω] in
 private theorem sum_exp_pos_on {ψ : Finset Ω} (hψ : ψ.Nonempty) (b : ℝ) (q : Ω → ℝ) :
     0 < ∑ ω ∈ ψ, Real.exp (q ω / b) :=
   sum_pos (fun _ _ => Real.exp_pos _) hψ
@@ -562,15 +574,10 @@ theorem integral_lmsrCondPrice_eq_sub_lmsrCondCost [DecidableEq Ω] {b : ℝ} (h
       by_cases hω : ω ∈ φ
       · simp only [hω, ↓reduceIte]; fun_prop
       · simp only [hω, ↓reduceIte, add_zero]; fun_prop
-    have hsum_cont (S : Finset Ω) :
-        Continuous (fun t : ℝ => ∑ ω ∈ S, Real.exp ((q ω + if ω ∈ φ then t else 0) / b)) := by
-      induction S using Finset.cons_induction with
-      | empty => simpa only [Finset.sum_empty] using continuous_const
-      | cons a s ha ih =>
-        have ha' := hterm_cont a
-        simp only [Finset.sum_cons]
-        fun_prop
-    exact Continuous.div (hsum_cont (φ ∩ ψ)) (hsum_cont ψ) fun t => (sum_exp_pos_on hψ b _).ne'
+    exact Continuous.div
+      (continuous_finsetSum (φ ∩ ψ) fun ω _ => hterm_cont ω)
+      (continuous_finsetSum ψ fun ω _ => hterm_cont ω)
+      fun t => (sum_exp_pos_on hψ b _).ne'
   have hint := intervalIntegral.integral_eq_sub_of_hasDerivAt
     (fun t _ => hasDerivAt_lmsrCondCost_shift hb φ hψ q t) (hcont.intervalIntegrable 0 δ)
   simpa only [ite_self, add_zero] using hint

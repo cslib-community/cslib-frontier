@@ -274,13 +274,8 @@ example :
 private theorem auctioneerPayoff_single (o : CompoundOrder) (α : Fin [o].length → ℝ)
     (ω : ℕ → Bool) :
     auctioneerPayoff [o] α ω = -(α ⟨0, by simp⟩) * orderPayoff o ω := by
-  have huniv : (Finset.univ : Finset (Fin [o].length)) = {⟨0, by simp⟩} := by
-    ext ⟨k, hk⟩
-    simp only [List.length_singleton] at hk
-    simp only [Finset.mem_univ, Finset.mem_singleton, Fin.mk.injEq, true_iff]
-    omega
-  simp only [auctioneerPayoff, huniv, Finset.sum_singleton]
-  rfl
+  simp only [auctioneerPayoff]
+  exact Fin.sum_univ_one fun i : Fin 1 => -(α i) * orderPayoff [o][i] ω
 
 private theorem auctioneerPayoff_pair (o₁ o₂ : CompoundOrder) (α : Fin [o₁, o₂].length → ℝ)
     (ω : ℕ → Bool) :

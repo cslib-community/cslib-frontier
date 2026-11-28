@@ -12,9 +12,7 @@ public import CslibFrontier.GameTheory.MixedStrategy
 public import Mathlib.Order.Setoid.Basic
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Data.Finset.Image
-import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 
 /-!
