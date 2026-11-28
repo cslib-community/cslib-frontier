@@ -17,7 +17,7 @@ register_result "z-table-to-kmp-prefix-table" where
   title := "Linear-time conversion from a Z-table to the KMP prefix table"
   topic := "string algorithms"
   sources := [
-    { paper := BlandKucherovSmyth2013, theorem := "Prefix-table to border-array transformation",
+    { paper := BlandKucherovSmyth2013, theorem := unverified,
       locator := "IWOCA 2013, published abstract, p. 41" }
   ]
   theorems := [Cslib.Algorithms.WordRAM.ZFunction.toPrefixProgram_executes_zArray]
@@ -29,7 +29,7 @@ register_result "kmp-prefix-table-to-z-table" where
   title := "Linear-time conversion from a KMP prefix table to the Z-table"
   topic := "string algorithms"
   sources := [
-    { paper := BlandKucherovSmyth2013, theorem := "Border-array to prefix-table transformation",
+    { paper := BlandKucherovSmyth2013, theorem := unverified,
       locator := "IWOCA 2013, published abstract, p. 41" }
   ]
   theorems := [Cslib.Algorithms.WordRAM.ZFunction.fromPrefixProgram_executes_computePrefix]
