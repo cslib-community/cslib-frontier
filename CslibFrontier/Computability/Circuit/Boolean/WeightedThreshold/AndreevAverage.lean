@@ -71,10 +71,6 @@ private def andreevSubcubeEmbedding {b r : ℕ} (hr : r ≤ b) (p : BitString b)
     funext k; have hk := congrFun h ⟨r + k.val, by omega⟩
     simpa [show ¬ (r + k.val < r) by omega] using hk
 
-private theorem andreevSubcubeEmbedding_apply {b r : ℕ} (hr : r ≤ b) (p : BitString b)
-    (z : BitString (b - r)) (j : Fin b) :
-    andreevSubcubeEmbedding hr p z j = if h : j.val < r then p j else z ⟨j.val - r, by omega⟩ := rfl
-
 /-- When `r ≤ b`, `andreevSubcube b r p` has cardinality `2 ^ (b - r)`. -/
 theorem card_andreevSubcube {b r : ℕ} (hr : r ≤ b) (p : BitString b) :
     #(andreevSubcube b r p) = 2 ^ (b - r) := by
@@ -82,10 +78,13 @@ theorem card_andreevSubcube {b r : ℕ} (hr : r ≤ b) (p : BitString b) :
       (univ : Finset (BitString (b - r))).map (andreevSubcubeEmbedding hr p) := by
     ext c; simp only [mem_andreevSubcube, mem_andreevPrefixCoords, mem_map, mem_univ, true_and]
     refine ⟨fun hc => ⟨fun k => c ⟨r + k.val, by omega⟩, ?_⟩, ?_⟩
-    · funext j; rw [andreevSubcubeEmbedding_apply]; split_ifs with hj
+    · funext j
+      change dite (j.val < r) (fun _ => p j) _ = c j
+      split_ifs with hj
       · exact (hc j hj).symm
-      · congr 1; ext; dsimp; omega
-    · rintro ⟨z, rfl⟩ j hj; rw [andreevSubcubeEmbedding_apply]; simp [hj]
+      · exact congrArg c (Fin.ext (by dsimp; omega))
+    · rintro ⟨z, rfl⟩ j hj
+      exact dite_eq_left hj
   rw [hmap, card_map, card_univ, BitString.card]
 
 /-- Summing `chi ℤ S c * chi ℤ S p` over `S ∈ andreevPrefixSubsets b r` detects membership in

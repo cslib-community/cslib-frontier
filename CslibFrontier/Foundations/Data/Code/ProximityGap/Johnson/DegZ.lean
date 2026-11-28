@@ -54,23 +54,6 @@ private theorem coeff_coeff_coeff_toOuterZ {R : Type*} [CommSemiring R] (Q : R[X
 noncomputable def degZ₂ {R : Type*} [CommSemiring R] (f : R[X][X]) : ℕ :=
   (Bivariate.swap f).natDegree
 
-private theorem degZ₂_zero {R : Type*} [CommSemiring R] : degZ₂ (0 : R[X][X]) = 0 := by
-  simp [degZ₂]
-
-private theorem degZ₂_one {R : Type*} [CommSemiring R] : degZ₂ (1 : R[X][X]) = 0 := by
-  rw [degZ₂, map_one, natDegree_one]
-
-private theorem degZ₂_neg {R : Type*} [CommRing R] (f : R[X][X]) : degZ₂ (-f) = degZ₂ f := by
-  simp [degZ₂]
-
-private theorem degZ₂_add_le {R : Type*} [CommSemiring R] (f g : R[X][X]) :
-    degZ₂ (f + g) ≤ max (degZ₂ f) (degZ₂ g) := by
-  simpa [degZ₂, map_add] using natDegree_add_le (Bivariate.swap f) (Bivariate.swap g)
-
-private theorem degZ₂_mul_le {R : Type*} [CommSemiring R] (f g : R[X][X]) :
-    degZ₂ (f * g) ≤ degZ₂ f + degZ₂ g := by
-  simpa [degZ₂, map_mul] using natDegree_mul_le (p := Bivariate.swap f) (q := Bivariate.swap g)
-
 theorem degZ₂_mul {R : Type*} [CommRing R] [IsDomain R] {f g : R[X][X]}
     (hf : f ≠ 0) (hg : g ≠ 0) :
     degZ₂ (f * g) = degZ₂ f + degZ₂ g := by
@@ -175,11 +158,15 @@ structure DegBound (R : Type*) [CommRing R] where
 /-- `Z`-degree packaged as a `DegBound` on `R[X][X]`. -/
 @[expose] noncomputable def DegBound.degZ₂ (R : Type*) [CommRing R] : DegBound R[X][X] where
   deg := ProximityGap.degZ₂
-  zero := by exact degZ₂_zero
-  one := by exact degZ₂_one
-  neg := by exact degZ₂_neg
-  add_le := by exact degZ₂_add_le
-  mul_le := by exact degZ₂_mul_le
+  zero := by simp [ProximityGap.degZ₂]
+  one := by simp [ProximityGap.degZ₂]
+  neg _ := by simp [ProximityGap.degZ₂]
+  add_le f g := by
+    simpa only [ProximityGap.degZ₂, map_add] using
+      natDegree_add_le (Bivariate.swap f) (Bivariate.swap g)
+  mul_le f g := by
+    simpa only [ProximityGap.degZ₂, map_mul] using
+      (natDegree_mul_le (p := Bivariate.swap f) (q := Bivariate.swap g))
 
 theorem DegBound.sub_le {R : Type*} [CommRing R] (db : DegBound R) (x y : R) :
     db.deg (x - y) ≤ max (db.deg x) (db.deg y) :=
