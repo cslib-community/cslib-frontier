@@ -12,6 +12,11 @@ import CslibFrontier.Algorithms.Lean.ZFunction.FromPrefix
 import CslibFrontier.Algorithms.Lean.ZFunction.ToPrefix
 meta import CslibFrontier.Algorithms.Lean.ZFunction.FromPrefix
 meta import CslibFrontier.Algorithms.Lean.ZFunction.ToPrefix
+import CslibFrontier.Algorithms.WordRAM.ZFunction.FromPrefix
+import CslibFrontier.Algorithms.WordRAM.ZFunction.ToPrefix
+meta import CslibFrontier.Algorithms.WordRAM.ZFunction.FromPrefix
+meta import CslibFrontier.Algorithms.WordRAM.ZFunction.ToPrefix
+meta import CslibFrontier.Computability.WordRAM.Structured.FastEval
 
 /-!
 # Conversions between Z-values and KMP prefix tables
@@ -20,6 +25,7 @@ The examples exercise shared prefixes of different lengths, overlapping occurren
 first entry where the two table conventions differ.
 -/
 
+set_option linter.privateModule false
 set_option linter.hashCommand false
 
 namespace Cslib.Algorithms.Lean.ZFunction.Tests
@@ -40,5 +46,22 @@ namespace Cslib.Algorithms.Lean.ZFunction.Tests
 example (w : Array Bool) :
     ((prefixTableEquiv Bool) ⟨zArray w, ⟨w, rfl⟩⟩).val = KMP.computePrefix w :=
   zToPrefix_zArray w
+
+open Cslib.WordRAM
+open Cslib.Algorithms.WordRAM.ZFunction
+
+private meta def checkRun {r : ℕ} (p : Program .standard r) (w budget : ℕ)
+    (input expected : List ℕ) : Bool :=
+  match p.runFastList w budget input with
+  | none => false
+  | some (result, steps) => result == expected && steps ≤ budget
+
+-- Empty input at the minimum width, intersecting Z-boxes, and out-of-range numeric entries.
+#guard checkRun toPrefixProgram 1 9 [] []
+#guard checkRun fromPrefixProgram 1 19 [] []
+#guard checkRun toPrefixProgram 4 (20 * 5 + 9) [5, 0, 3, 0, 1] [0, 0, 1, 2, 3]
+#guard checkRun fromPrefixProgram 4 (50 * 5 + 19) [0, 0, 1, 2, 3] [5, 0, 3, 0, 1]
+#guard checkRun fromPrefixProgram 3 (50 * 3 + 19) [0, 7, 1] [3, 0, 1]
+#guard checkRun toPrefixProgram 3 (20 * 3 + 9) [0, 7, 0] [0, 1, 2]
 
 end Cslib.Algorithms.Lean.ZFunction.Tests
