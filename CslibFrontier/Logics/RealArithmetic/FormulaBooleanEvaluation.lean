@@ -220,7 +220,8 @@ private theorem gateValuesAux_getD (word : List Bool) (answer : ℕ → Bool)
       rw [Nat.succ_sub_succ]
       exact ih count
 
-private theorem formulaWordGateValues_getD_step (word : List Bool)
+/-- A gate reads the values already computed strictly to its right in the prefix stream. -/
+theorem formulaWordGateValues_getD_step (word : List Bool)
     (termSign : List Bool → SignType) (index : ℕ) (hi : index < (formulaWordTokens word).length) :
     (formulaWordGateValues word termSign).getD index false = formulaWordGateValue word index
       termSign (fun child => if index < child then
