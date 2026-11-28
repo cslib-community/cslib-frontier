@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.GameTheory.Market.Core
-import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Tactic.Linarith
@@ -65,21 +64,22 @@ improvements for every consumer already strictly exceed each consumer's budget v
   `Cslib.GameTheory.Market.ProductionEconomy.walras_law`: aggregate wealth identity and **Walras's
   law** for private-ownership production economies.
 * `Cslib.GameTheory.Market.ProductionEconomy.IsCompetitiveEquilibrium.isParetoOptimal`: **First
-  Fundamental Theorem of Welfare Economics** ([ArrowDebreu1954]; [MasColellWhinstonGreen1995],
-  Section 16.C, primary PDF unverified): under `IsLocallyNonsatiatedOn`, every competitive
-  equilibrium allocation is Pareto optimal.
+  Fundamental Theorem of Welfare Economics** ([Arrow1951Welfare]; [Debreu1959], Chapter 6,
+  primary PDF unverified; [MasColellWhinstonGreen1995], Section 16.C, primary PDF unverified): under
+  `IsLocallyNonsatiatedOn`, every competitive equilibrium allocation is Pareto optimal.
 * `Cslib.GameTheory.Market.ProductionEconomy.IsCompetitiveEquilibrium.isWeaklyParetoOptimal`:
   weak First Welfare Theorem without local nonsatiation (requires only `[Nonempty I]`).
 * `Cslib.GameTheory.Market.ProductionEconomy.IsCompetitiveEquilibrium.isInCore`: under
   `IsLocallyNonsatiatedOn`, every competitive equilibrium lies in the share-weighted core.
 * `Cslib.GameTheory.Market.ExchangeMarket.toProductionEconomy_isCompetitiveEquilibrium_iff`,
   `Cslib.GameTheory.Market.ExchangeMarket.toProductionEconomy_isParetoOptimal_iff`,
-  `Cslib.GameTheory.Market.ExchangeMarket.toProductionEconomy_isInCore_iff`,
-  `Cslib.GameTheory.Market.ExchangeMarket.IsCompetitiveEquilibrium.isParetoOptimal_via_production`:
+  `Cslib.GameTheory.Market.ExchangeMarket.toProductionEconomy_isInCore_iff`:
   exact correspondence between `ExchangeMarket` and `ProductionEconomy`.
 
 ## References
 
+* [K. J. Arrow,
+  *An Extension of the Basic Theorems of Classical Welfare Economics*][Arrow1951Welfare]
 * [K. J. Arrow and G. Debreu,
   *Existence of an Equilibrium for a Competitive Economy*][ArrowDebreu1954]
 * [G. Debreu, *Theory of Value*][Debreu1959] (primary PDF unverified)
@@ -417,10 +417,10 @@ private theorem sum_expenditure_le_sum_income_univ {E : ProductionEconomy I J G}
   refine sum_expenditure_le_sum_income_of_supplySet hp hsup hfeas.2.1 fun g => ?_
   simpa only [E.share_sum, one_mul, totalSupply, totalEndowment, totalProduction] using hfeas.2.2 g
 
-/-- **First Fundamental Theorem of Welfare Economics with production** ([ArrowDebreu1954];
-[MasColellWhinstonGreen1995], Section 16.C, primary PDF unverified): if every consumer's utility
-is locally nonsatiated on `E.consumptionSet i`, every competitive equilibrium `(x, y, p)` is Pareto
-optimal. -/
+/-- **First Fundamental Theorem of Welfare Economics with production** ([Arrow1951Welfare];
+[Debreu1959], Chapter 6, primary PDF unverified; [MasColellWhinstonGreen1995], Section 16.C,
+primary PDF unverified): if every consumer's utility is locally nonsatiated on
+`E.consumptionSet i`, every competitive equilibrium `(x, y, p)` is Pareto optimal. -/
 theorem IsCompetitiveEquilibrium.isParetoOptimal {E : ProductionEconomy I J G}
     {x : I → G → ℝ} {y : J → G → ℝ} {p : G → ℝ}
     (heq : E.IsCompetitiveEquilibrium x y p)
@@ -593,15 +593,6 @@ theorem toProductionEconomy_isCompetitiveEquilibrium_iff (E : ExchangeMarket I G
     E.toProductionEconomy.IsCompetitiveEquilibrium x y p ↔ E.IsCompetitiveEquilibrium x p := by
   simp [ProductionEconomy.IsCompetitiveEquilibrium, ExchangeMarket.IsCompetitiveEquilibrium,
     ProductionEconomy.supplySet]
-
-/-- Derivation of `ExchangeMarket.IsCompetitiveEquilibrium.isParetoOptimal` directly from
-`ProductionEconomy.IsCompetitiveEquilibrium.isParetoOptimal` via `toProductionEconomy`. -/
-theorem IsCompetitiveEquilibrium.isParetoOptimal_via_production {E : ExchangeMarket I G}
-    {x : I → G → ℝ} {p : G → ℝ} (heq : E.IsCompetitiveEquilibrium x p)
-    (hlns : ∀ i, IsLocallyNonsatiated (E.utility i)) : E.IsParetoOptimal x := by
-  rw [← E.toProductionEconomy_isParetoOptimal_iff x Empty.elim]
-  exact ProductionEconomy.IsCompetitiveEquilibrium.isParetoOptimal
-    ((E.toProductionEconomy_isCompetitiveEquilibrium_iff x Empty.elim p).mpr heq) hlns
 
 end WithGoodsFintype
 

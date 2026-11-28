@@ -143,12 +143,6 @@ theorem IsCompetitiveEquilibrium.isInCore {E : ExchangeMarket I G} {x : I → G 
     E.IsInCore x := by
   refine ⟨heq.isFeasibleAllocation, fun S z hblock => ?_⟩
   obtain ⟨_, hz_nn, hz_endow, hz_le, ⟨i₀, hi₀S, hi₀_lt⟩⟩ := hblock
-  have hdem : ∀ i, x i ∈ Market.demandSet (E.utility i) p (E.income p i) :=
-    fun i => (E.mem_demandSet).1 (heq.2.1 i)
-  have hsum_lt : ∑ i ∈ S, E.income p i < ∑ i ∈ S, expenditure p (z i) :=
-    sum_lt_sum
-      (fun i hi => (hlns i).le_expenditure_of_mem_demandSet (hdem i) (hz_nn i hi) (hz_le i hi))
-      ⟨i₀, hi₀S, lt_expenditure_of_mem_demandSet (hdem i₀) (hz_nn i₀ hi₀S) hi₀_lt⟩
   have hsum_le : ∑ i ∈ S, expenditure p (z i) ≤ ∑ i ∈ S, E.income p i := by
     calc
       ∑ i ∈ S, expenditure p (z i) = ∑ g : G, p g * ∑ i ∈ S, z i g := by
@@ -159,7 +153,11 @@ theorem IsCompetitiveEquilibrium.isInCore {E : ExchangeMarket I G} {x : I → G 
       _ = ∑ i ∈ S, E.income p i := by
         simp only [income_eq, expenditure_eq_sum, mul_sum]
         exact sum_comm
-  linarith
+  exact not_exists_paretoImprovementOn (X := fun _ => {b | ∀ g, 0 ≤ b g})
+    (fun i _ => mem_demandSetOn.2 <| by
+      obtain ⟨hx, hmax⟩ := Market.mem_demandSet.1 ((E.mem_demandSet).1 (heq.2.1 i))
+      exact ⟨⟨hx.1, hx.2⟩, fun b' ⟨hb'1, hb'2⟩ => hmax b' ⟨hb'1, hb'2⟩⟩)
+    (fun i _ => hlns i) (fun i hi => hz_nn i hi) hsum_le ⟨hz_le, i₀, hi₀S, hi₀_lt⟩
 
 end Core
 

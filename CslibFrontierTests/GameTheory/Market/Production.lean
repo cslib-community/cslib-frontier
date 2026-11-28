@@ -27,14 +27,16 @@ import Mathlib.Tactic.NormNum
   firm that fails to maximize profit, consumer demand optimality plus exact clearing fail even weak
   Pareto optimality.
 * **Exchange-market bridge witness (`bridgeEx`):** verifies
-  `ExchangeMarket.toProductionEconomy_isCompetitiveEquilibrium_iff` and
-  `ExchangeMarket.IsCompetitiveEquilibrium.isParetoOptimal_via_production`.
+  `ExchangeMarket.toProductionEconomy_isCompetitiveEquilibrium_iff`,
+  `ExchangeMarket.toProductionEconomy_isParetoOptimal_iff`, and
+  `ProductionEconomy.IsCompetitiveEquilibrium.isParetoOptimal`.
 -/
 
-@[expose] public section
+public section
 
-namespace Cslib.GameTheory.Market.ProductionTests
+namespace CslibFrontierTests.GameTheory.Market.Production
 
+open Cslib.GameTheory.Market
 open Finset
 
 section RobinsonCrusoe
@@ -78,7 +80,7 @@ theorem robinsonCrusoe_isCompetitiveEquilibrium :
     · have hy0 : y' 0 ≤ 0 := hy'.1
       linarith
   · intro _
-    rw [ProductionEconomy.mem_demandSet, Market.mem_demandSetOn]
+    rw [ProductionEconomy.mem_demandSet, mem_demandSetOn]
     refine ⟨⟨fun g => by fin_cases g <;> norm_num, ?_⟩, ?_⟩
     · simp only [ProductionEconomy.income_eq, robinsonCrusoe, Finset.univ_unique,
         Finset.sum_singleton, expenditure_eq_sum, Fin.sum_univ_two, Matrix.cons_val_zero,
@@ -139,7 +141,7 @@ theorem satiatedEcon_isCompetitiveEquilibrium :
     satiatedEcon.IsCompetitiveEquilibrium (fun _ _ => 1) Empty.elim (fun _ => 1) := by
   refine ⟨fun _ => zero_le_one, fun j => j.elim, ?_, ?_, ?_⟩
   · intro i
-    rw [ProductionEconomy.mem_demandSet, Market.mem_demandSetOn]
+    rw [ProductionEconomy.mem_demandSet, mem_demandSetOn]
     fin_cases i
     · refine ⟨⟨fun _ => zero_le_one, ?_⟩, fun b _ => le_rfl⟩
       simp [satiatedEcon, ProductionEconomy.income_eq, expenditure_eq_sum]
@@ -191,7 +193,7 @@ theorem nonProfitMaxEcon_failure_without_profitMax :
     dsimp [nonProfitMaxEcon]
     linarith
   · intro _
-    rw [ProductionEconomy.mem_demandSet, Market.mem_demandSetOn]
+    rw [ProductionEconomy.mem_demandSet, mem_demandSetOn]
     refine ⟨⟨fun g => by fin_cases g <;> norm_num, ?_⟩, ?_⟩
     · simp [nonProfitMaxEcon, ProductionEconomy.income_eq, expenditure_eq_sum, Fin.sum_univ_two]
     · rintro b ⟨_, hb_exp⟩
@@ -242,7 +244,7 @@ theorem bridgeEx_equilibrium_and_pareto :
   have heq : bridgeEx.IsCompetitiveEquilibrium (fun _ => ![1, 1]) (fun _ => 1) := by
     refine ⟨fun _ => zero_le_one, ?_, ?_, ?_⟩
     · intro i
-      rw [ExchangeMarket.mem_demandSet, Market.mem_demandSet]
+      rw [ExchangeMarket.mem_demandSet, Cslib.GameTheory.Market.mem_demandSet]
       refine ⟨⟨fun g => by fin_cases g <;> norm_num, ?_⟩, fun b hb => ?_⟩
       · fin_cases i <;>
           simp [bridgeEx, ExchangeMarket.income_eq, expenditure_eq_sum, Fin.sum_univ_two] <;>
@@ -267,9 +269,17 @@ theorem bridgeEx_equilibrium_and_pareto :
       ?_⟩
     dsimp [bridgeEx]
     linarith
-  exact ⟨(bridgeEx.toProductionEconomy_isCompetitiveEquilibrium_iff _ Empty.elim _).mpr heq,
-    heq.isParetoOptimal_via_production hlns⟩
+  have heqProd :
+      bridgeEx.toProductionEconomy.IsCompetitiveEquilibrium
+        (fun _ => ![1, 1]) Empty.elim (fun _ => 1) :=
+    (bridgeEx.toProductionEconomy_isCompetitiveEquilibrium_iff _ Empty.elim _).mpr heq
+  exact ⟨heqProd,
+    (bridgeEx.toProductionEconomy_isParetoOptimal_iff _ Empty.elim).mp
+      (heqProd.isParetoOptimal fun i => by
+        rw [ExchangeMarket.toProductionEconomy_consumptionSet,
+          ExchangeMarket.toProductionEconomy_utility]
+        exact hlns i)⟩
 
 end BridgeTest
 
-end Cslib.GameTheory.Market.ProductionTests
+end CslibFrontierTests.GameTheory.Market.Production
