@@ -2622,66 +2622,35 @@ private theorem planarModelOut_sound {b : Cert.BoxI} {st : Cert.PlanarStep}
       have hsRange_m : MemI √D ⟨st.slo, st.shi⟩ := ⟨hv1.hslo_sD, hv1.hshi_sD⟩
       have hk0S_m := memI_divPos hv1.hk00_m hsRange_m hv1.hslo_i
       have hk1S_m := memI_divPos hv1.hk11_m hsRange_m hv1.hslo_i
-      obtain ⟨hk0_rad, hvK0_nn⟩ := ival_mid_rad hk0S_m
-      obtain ⟨hk1_rad, hvK1_nn⟩ := ival_mid_rad hk1S_m
+      have hk0_rad := (ival_mid_rad hk0S_m).1
+      have hk1_rad := (ival_mid_rad hk1S_m).1
       set mK0_i := ((Cert.ivDivPos s1.k00 ⟨st.slo, st.shi⟩).lo +
         (Cert.ivDivPos s1.k00 ⟨st.slo, st.shi⟩).hi) / 2
-      set vK0_i := Cert.cdiv ((Cert.ivDivPos s1.k00 ⟨st.slo, st.shi⟩).hi -
-        (Cert.ivDivPos s1.k00 ⟨st.slo, st.shi⟩).lo) 2
       set mK1_i := ((Cert.ivDivPos s1.k11 ⟨st.slo, st.shi⟩).lo +
         (Cert.ivDivPos s1.k11 ⟨st.slo, st.shi⟩).hi) / 2
-      set vK1_i := Cert.cdiv ((Cert.ivDivPos s1.k11 ⟨st.slo, st.shi⟩).hi -
-        (Cert.ivDivPos s1.k11 ⟨st.slo, st.shi⟩).lo) 2
       set bK0_sl := (valI s2.cxU.hi * valI mK0_i) / (4 * π)
       set bK1_sl := (valI s2.ceU.hi * valI mK1_i) / (4 * π)
       have hbK0_sl_m := memI_divPos (memI_mul (memI_const s2.cxU.hi) (memI_const mK0_i))
         h4pi_m h4pi_pos
       have hbK1_sl_m := memI_divPos (memI_mul (memI_const s2.ceU.hi) (memI_const mK1_i))
         h4pi_m h4pi_pos
-      have hbK0_rem : valI s2.cxU.hi * (pairO2 u - boxMid b.o20 b.o21) *
-            (K00 / √D - valI mK0_i) / (4 * π) ≤
-          valI (Cert.ivDivPos (Cert.ivMul (Cert.ivMul (Cert.ivConst s2.cxU.hi)
-            (Cert.ivConst vK0_i)) (Cert.ivConst s3.do2Hi)) (Cert.ivScaleInt 4 Cert.ivPi)).hi := by
-        have hnum : valI s2.cxU.hi * (pairO2 u - boxMid b.o20 b.o21) *
-            (K00 / √D - valI mK0_i) ≤ (valI s2.cxU.hi * valI vK0_i) * valI s3.do2Hi := by
-          calc valI s2.cxU.hi * (pairO2 u - boxMid b.o20 b.o21) * (K00 / √D - valI mK0_i)
-              ≤ |valI s2.cxU.hi * (pairO2 u - boxMid b.o20 b.o21) * (K00 / √D - valI mK0_i)| :=
-                le_abs_self _
-            _ = valI s2.cxU.hi * |pairO2 u - boxMid b.o20 b.o21| * |K00 / √D - valI mK0_i| := by
-                rw [abs_mul, abs_mul, abs_of_nonneg hv2.hcxU_hi_nn]
-            _ ≤ valI s2.cxU.hi * valI s3.do2Hi * valI vK0_i := by
-                have hv0_nn : 0 ≤ valI vK0_i := by
-                  unfold valI; exact div_nonneg (by exact_mod_cast hvK0_nn) (by norm_num)
-                have hdo_nn : 0 ≤ valI s3.do2Hi := by
-                  unfold valI; exact div_nonneg (by exact_mod_cast hv3.hdo2.2) (by norm_num)
-                exact mul_le_mul (mul_le_mul_of_nonneg_left hv3.hdo2.1 hv2.hcxU_hi_nn) hk0_rad
-                  (abs_nonneg _) (mul_nonneg hv2.hcxU_hi_nn hdo_nn)
-            _ = (valI s2.cxU.hi * valI vK0_i) * valI s3.do2Hi := by ring
+      have remainder_bound {coeff xRad yRad : ℤ} {x y : ℝ} (hc : 0 ≤ valI coeff)
+          (hx : |x| ≤ valI xRad) (hy : |y| ≤ valI yRad) :
+          valI coeff * x * y / (4 * π) ≤
+            valI (Cert.ivDivPos (Cert.ivMul (Cert.ivMul (Cert.ivConst coeff) (Cert.ivConst yRad))
+              (Cert.ivConst xRad)) (Cert.ivScaleInt 4 Cert.ivPi)).hi := by
+        have hnum : valI coeff * x * y ≤ valI coeff * valI yRad * valI xRad := calc
+          valI coeff * x * y ≤ |valI coeff * x * y| := le_abs_self _
+          _ = valI coeff * |x| * |y| := by rw [abs_mul, abs_mul, abs_of_nonneg hc]
+          _ ≤ valI coeff * valI xRad * valI yRad :=
+            mul_le_mul (mul_le_mul_of_nonneg_left hx hc) hy (abs_nonneg _)
+              (mul_nonneg hc ((abs_nonneg _).trans hx))
+          _ = valI coeff * valI yRad * valI xRad := by ring
         exact (div_le_div_of_nonneg_right hnum (by positivity)).trans
-          (memI_divPos (memI_mul (memI_mul (memI_const s2.cxU.hi) (memI_const vK0_i))
-            (memI_const s3.do2Hi)) h4pi_m h4pi_pos).2
-      have hbK1_rem : valI s2.ceU.hi * (pairO1 u - boxMid b.o10 b.o11) *
-            (K11 / √D - valI mK1_i) / (4 * π) ≤
-          valI (Cert.ivDivPos (Cert.ivMul (Cert.ivMul (Cert.ivConst s2.ceU.hi)
-            (Cert.ivConst vK1_i)) (Cert.ivConst s3.do1Hi)) (Cert.ivScaleInt 4 Cert.ivPi)).hi := by
-        have hnum : valI s2.ceU.hi * (pairO1 u - boxMid b.o10 b.o11) *
-            (K11 / √D - valI mK1_i) ≤ (valI s2.ceU.hi * valI vK1_i) * valI s3.do1Hi := by
-          calc valI s2.ceU.hi * (pairO1 u - boxMid b.o10 b.o11) * (K11 / √D - valI mK1_i)
-              ≤ |valI s2.ceU.hi * (pairO1 u - boxMid b.o10 b.o11) * (K11 / √D - valI mK1_i)| :=
-                le_abs_self _
-            _ = valI s2.ceU.hi * |pairO1 u - boxMid b.o10 b.o11| * |K11 / √D - valI mK1_i| := by
-                rw [abs_mul, abs_mul, abs_of_nonneg hv2.hceU_hi_nn]
-            _ ≤ valI s2.ceU.hi * valI s3.do1Hi * valI vK1_i := by
-                have hv1_nn : 0 ≤ valI vK1_i := by
-                  unfold valI; exact div_nonneg (by exact_mod_cast hvK1_nn) (by norm_num)
-                have hdo_nn : 0 ≤ valI s3.do1Hi := by
-                  unfold valI; exact div_nonneg (by exact_mod_cast hv3.hdo1.2) (by norm_num)
-                exact mul_le_mul (mul_le_mul_of_nonneg_left hv3.hdo1.1 hv2.hceU_hi_nn) hk1_rad
-                  (abs_nonneg _) (mul_nonneg hv2.hceU_hi_nn hdo_nn)
-            _ = (valI s2.ceU.hi * valI vK1_i) * valI s3.do1Hi := by ring
-        exact (div_le_div_of_nonneg_right hnum (by positivity)).trans
-          (memI_divPos (memI_mul (memI_mul (memI_const s2.ceU.hi) (memI_const vK1_i))
-            (memI_const s3.do1Hi)) h4pi_m h4pi_pos).2
+          (memI_divPos (memI_mul (memI_mul (memI_const coeff) (memI_const yRad))
+            (memI_const xRad)) h4pi_m h4pi_pos).2
+      have hbK0_rem := remainder_bound hv2.hcxU_hi_nn hv3.hdo2.1 hk0_rad
+      have hbK1_rem := remainder_bound hv2.hceU_hi_nn hv3.hdo1.1 hk1_rad
       -- Quadratic bound on `pairCAB`:
       have hdSq_m := memI_sq hv1.hd_m
       have h4_m : MemI 4 (Cert.ivConst (4 * Cert.certScale)) := by
