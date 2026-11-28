@@ -8,12 +8,10 @@ module
 -- upstream: local-only (tests)
 
 import CslibFrontier.Computability.Complexity.Classes.Space.Quantitative
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NestedLoop
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Context
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.InputBit
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Recursion
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.BitsGetElem
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Context
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NestedLoop
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Recursion
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.BitsGetElem
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength

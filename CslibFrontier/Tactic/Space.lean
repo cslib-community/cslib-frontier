@@ -22,16 +22,13 @@ do: every occurrence in the goal is unfolded before the search, and a name that 
 at its turn is an error. Every form then runs the preparation shared with `polytime`, `ppt` and
 `logspace` (`Cslib.Tactic.prepareCertificateGoal`): it inlines literal `let`s in the goal and
 local encoding `let`s, and adds the certificates stored in local structures as local facts.
-Local routine certificates are reused; unproved size inequalities and iteration invariants are
-not guessed. When
-the search fails, the `fun_prop` error ends with a note naming these inputs.
+The discharger handles reflexive bounds and sums of terms covered by the given budget. Supply
+other size inequalities and iteration invariants explicitly.
 
 A local certificate is also reused when its function is not a routine applied to the argument,
 for example `h : ComputableInSpace (fun p => edge p.2 p.1.1) …` or the bit of the input at a
-computed position: when a first search fails, `space` unfolds the indicated definitions in the
-function of the goal, replaces every occurrence of the certified expression there by a variable
-and searches again. The budget of the goal is left as written, so that it still is the budget of
-the certificates.
+computed position. When the first search fails, `space` abstracts the certified expressions in
+the goal's function and searches again with the same budget.
 
 This tactic does not assert logarithmic space in the original input: the goal specifies the
 encoding and budget. In particular, a Savitch callback is linear-space in the stored state,
@@ -46,9 +43,8 @@ evaluates the enumeration of `A × B` until `maximum recursion depth`, and neste
 fail exponentially slowly. Nor does it unfold `decide`, which would evaluate the decision
 procedure of a condition that a rule does not match. Side conditions are first tried with
 reducible unfolding and then with the usual unfolding, except between the length of a word and an
-arithmetic expression: these are never equal by unfolding, and comparing them evaluates the
-encodings under the length. Without this exception a body in context form ran out of heartbeats
-on the first side condition that fails, that of copying the whole input.
+arithmetic expression, where the comparison can evaluate the encodings under the length.
+Without this exception, a context-form body ran out of heartbeats when trying to copy the input.
 
 Conditions built from `∧`, `∨` and `≤`, and equalities through the canonical finite encoding
 (`budget_decideAnd`, `budget_decideOr`, `budget_natLe`, `budget_decideEq_encFinite`), are tried
@@ -93,9 +89,8 @@ private def isArithmetic (e : Expr) : MetaM Bool := do
 private def isLength (e : Expr) : MetaM Bool := do
   return (← whnfR (← instantiateMVars e)).isAppOf ``List.length
 
-/-- Whether one of `x` and `y` is visibly a length and the other visibly arithmetic. Such terms
-are never equal by unfolding definitions, and comparing them with the usual unfolding evaluates
-the encodings under the length until the heartbeats run out. -/
+/-- Whether one of `x` and `y` is visibly a length and the other visibly arithmetic. Comparing
+them with the usual unfolding can spend the heartbeat budget evaluating the encoded word. -/
 private def clash (x y : Expr) : MetaM Bool := do
   return ((← isLength x) && (← isArithmetic y)) || ((← isArithmetic x) && (← isLength y))
 
@@ -223,12 +218,9 @@ private def rewriteFunction (k : Expr → MetaM Expr) : TacticM Unit :=
     let some g := args[2]? | return some goal
     return some (← goal.replaceTargetDefEq (mkAppN target.getAppFn (args.set! 2 (← k g))))
 
-/-- Unfold the definitions `defs` in the function of the goal and replace every expression in it
-that a local certificate certifies by a fresh variable applied to the argument, so that `fun_prop`
-uses the certificate. The local certificates are expected in the form that
-`normalizeCertificates` leaves. -/
-private def abstractCertificates (defs : Array Name) : TacticM Unit := do
-  rewriteFunction fun g => do Core.betaReduce (← deltaExpand g defs.contains)
+/-- Abstract certified expressions in the goal's function so that `fun_prop` can use their
+certificates. Run after `normalizeCertificates`. -/
+private def abstractCertificates : TacticM Unit := do
   repeat
     let goal ← getMainGoal
     -- the largest certified expression first, so that it is not broken up by a part of it
@@ -285,7 +277,7 @@ elab_rules : tactic
           let composite ← withMainContext do
             (← getLCtx).anyM fun decl => return (← compositeCertificate? decl).isSome
           if composite then
-            abstractCertificates (← defs.mapM fun d => realizeGlobalConstNoOverloadWithInfo d)
+            abstractCertificates
             let s' ← saveState
             try
               evalTactic funProp

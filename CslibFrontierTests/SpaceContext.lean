@@ -56,18 +56,17 @@ theorem step_inSpace :
     budget_inputBit (budget_ofBits hreg.fst') (.refl _)
   space [step]
 
-/-- The same body under the budget written inline, with the registers and the input bit as local
-certificates: `space` rewrites the function of the goal and leaves its budget as written. -/
-example : ComputableInSpace step (encPair encReg encBits) (encOption encReg)
-    fun p => (encReg p.1).length + Nat.log2 (encBits p.2).length := by
-  have hreg := budget_registers (encR := encReg) (encA := encBits)
-    (Bs := fun p => (encReg p.1).length + Nat.log2 (encBits p.2).length) (.refl _)
-  have hbit : ComputableInSpace
-      (fun p : (List Bool × List Bool) × List Bool => p.2[ofBits p.1.1]?)
-      (encPair encReg encBits) (encOption encBool)
-      fun p => (encReg p.1).length + Nat.log2 (encBits p.2).length :=
-    budget_inputBit (budget_ofBits hreg.fst') (.refl _)
-  space [step]
+/-- The input length occurs both in a certificate and in the goal's workspace budget. -/
+example {α : Type} (encA : α ↪ List Bool) (test : α → List Bool → Bool)
+    (htest : ComputableInSpace (fun p : List Bool × α => test p.2 p.1)
+      (encPair encBits encA) encBool
+      fun p => (encBits p.1).length + Nat.log2 (encA p.2).length) :
+    ComputableInSpace (fun p : List Bool × α => !(test p.2 p.1))
+      (encPair encBits encA) encBool
+      fun p => (encBits p.1).length + Nat.log2 (encA p.2).length := by
+  have hlen := budget_inputLength (encR := encBits) (encA := encA)
+    (Bs := fun p => (encBits p.1).length + Nat.log2 (encA p.2).length) (.refl _)
+  space
 
 /-- A budget with a third summand: the registers are found by `space`, which proves that the
 budget covers them as a bound of a sum by a sum that contains its terms. -/
