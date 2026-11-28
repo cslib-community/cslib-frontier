@@ -7237,6 +7237,7 @@ public import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.Embeddi
 public import CslibFrontier.Computability.Communication.Lifting.DiscrepancyOracle
 public import CslibFrontier.Computability.Probabilistic.Sampling
 public import CslibFrontier.Crypto.Protocols.MPC.BatchOT.SequentialProg
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Flattening
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandCollect
 public import CslibFrontier.Crypto.Computational.Encryption.MessageRecovery
 public import CslibFrontier.Logics.Propositional.Algebraic.PolynomialCalculus.Proof

@@ -10,16 +10,16 @@ module
 public import CslibFrontier.Computability.Circuit.Arithmetic.MatrixMultiplication.Exponent
 public import Cslib.Computability.Circuit.Simulation
 import CslibFrontier.Computability.Circuit.Program
+import CslibFrontier.Foundations.LinearAlgebra.Tensor.Flattening
 import CslibFrontier.Computability.Circuit.Simulation
-import Mathlib.Algebra.Polynomial.Eval.Defs
-import Mathlib.Algebra.Polynomial.Roots
+import Mathlib.Algebra.Polynomial.AlgebraMap
 import Mathlib.Data.Fintype.Prod
 
 /-!
 # Strassen bi-homogeneous rank extraction from matrix-multiplication circuits
 
-Converse to Strassen's block recursion (`admissibleExponent_of_rank`): over any infinite integral
-domain `K` (in particular any characteristic-zero field), an arithmetic circuit
+Converse to Strassen's block recursion (`admissibleExponent_of_rank`): over any commutative ring
+`K`, an arithmetic circuit
 `C : Circuit (arithSignature K) (n * n + n * n) (n * n)` computing `n × n` matrix multiplication
 yields a bilinear algorithm of rank at most `2 * C.program.cost ArithOp.mulCost` — and hence at
 most `2 * C.size` — for `Tensor.mm n n n` (`rank_mm_two_mul_mulCost`, `rank_mm_two_mul_size`,
@@ -30,21 +30,27 @@ multiplications by constants, which Strassen's nonscalar count omits).
 
 Feeding `(s • A, t • B)` in the bivariate polynomial ring `K[t][s]` isolates the `(1, 1)`
 bi-homogeneous component of every wire, where each `.mul` gate contributes at most two rank-one
-bilinear products `(L_A(x) · R_B(y)) + (L_A(y) · R_B(x))`. Consequently (`exists_rank_mm_le_rpow`),
-over any characteristic-zero field `K` and every `τ > omega K`, there exists `c > 0` such that
-`Tensor.mm D D D` has rank at most `c * D ^ τ` for every `D ≥ 1`.
+bilinear products `(L_A(x) · R_B(y)) + (L_A(y) · R_B(x))`. Since the circuit computes the product
+formally (`ComputesMatMul`), its output on `(s • A, t • B)` is `s t (A * B)`, whose `(1, 1)`
+component is `A * B`. Consequently (`exists_rank_mm_le_rpow`), over any commutative ring `K` and
+every `τ > omega K`, there exists `c > 0` such that `Tensor.mm D D D` has rank at most `c * D ^ τ`
+for every `D ≥ 1`. Together with block recursion this identifies `omega K` with the rank exponent
+`rankExponent K` over every nontrivial commutative ring (`omega_eq_rankExponent`).
 
 ## Main results
 
 * `Cslib.Circuits.Arithmetic.MatrixMultiplication.two_le_omega`: over a nontrivial commutative
   semiring `K`, `2 ≤ omega K`.
 * `Cslib.Circuits.Arithmetic.MatrixMultiplication.rank_mm_two_mul_mulCost`: `ComputesMatMul K C`
-  implies `Tensor.Rank (2 * C.program.cost ArithOp.mulCost) (Tensor.mm n n n)` over an infinite
-  integral domain `K`.
+  implies `Tensor.Rank (2 * C.program.cost ArithOp.mulCost) (Tensor.mm n n n)` over a
+  commutative ring `K`.
 * `Cslib.Circuits.Arithmetic.MatrixMultiplication.rank_mm_two_mul_size`: `ComputesMatMul K C`
-  implies `Tensor.Rank (2 * C.size) (Tensor.mm n n n)` over an infinite integral domain `K`.
-* `Cslib.Circuits.Arithmetic.MatrixMultiplication.exists_rank_mm_le_rpow`: for every `τ > omega K`
-  in characteristic zero, `Tensor.mm D D D` has rank `O(D ^ τ)`.
+  implies `Tensor.Rank (2 * C.size) (Tensor.mm n n n)` over a commutative ring `K`.
+* `Cslib.Circuits.Arithmetic.MatrixMultiplication.exists_rank_mm_le_rpow`: for every `τ > omega K`,
+  `Tensor.mm D D D` has rank `O(D ^ τ)`.
+* `Cslib.Circuits.Arithmetic.MatrixMultiplication.rankExponent`,
+  `Cslib.Circuits.Arithmetic.MatrixMultiplication.omega_eq_rankExponent`: `omega K` is the rank
+  exponent over every nontrivial commutative ring.
 
 ## References
 
@@ -113,39 +119,6 @@ private noncomputable def bivMatInputs {K : Type*} [CommSemiring K] {n : ℕ}
   Fin.append
     (fun i => Polynomial.C (Polynomial.C (A (finProdFinEquiv.symm i))) * Polynomial.X)
     (fun j => Polynomial.C (Polynomial.C (B (finProdFinEquiv.symm j)) * Polynomial.X))
-
-/-- Evaluate `P(s, t) ∈ K[t][s]` at `(s₀, t₀) ∈ K × K`. -/
-private noncomputable def evalBiv {K : Type*} [CommSemiring K] (s₀ t₀ : K) : Biv K →+* K :=
-  Polynomial.eval₂RingHom (Polynomial.evalRingHom t₀) s₀
-
-private theorem evalBiv_bivMatInputs {K : Type*} [CommSemiring K] {n : ℕ}
-    (A B : Fin n × Fin n → K) (s₀ t₀ : K) :
-    evalBiv s₀ t₀ ∘ bivMatInputs A B =
-      matrixInputs K (Matrix.of fun i j => s₀ * A (i, j))
-        (Matrix.of fun i j => t₀ * B (i, j)) := by
-  funext idx
-  refine Fin.addCases (fun i => ?_) (fun j => ?_) idx
-  · simp only [Function.comp_apply, bivMatInputs, matrixInputs, Fin.append_left, evalBiv, entry,
-      Matrix.of_apply, Prod.mk.eta, Polynomial.coe_eval₂RingHom, Polynomial.eval₂_mul,
-      Polynomial.eval₂_C, Polynomial.eval₂_X, Polynomial.coe_evalRingHom, Polynomial.eval_C,
-      mul_comm]
-  · simp only [Function.comp_apply, bivMatInputs, matrixInputs, Fin.append_right, evalBiv, entry,
-      Matrix.of_apply, Prod.mk.eta, Polynomial.coe_eval₂RingHom, Polynomial.eval₂_C,
-      Polynomial.coe_evalRingHom, Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_X,
-      mul_comm]
-
-/-- Evaluating an arithmetic circuit in `Biv K` and specializing `(s, t) := (s₀, t₀)` agrees with
-evaluating the circuit in `K` at the specialized inputs. -/
-private theorem evalBiv_circuit_eval {K : Type*} [CommSemiring K] {m p : ℕ}
-    (C : Circuit (arithSignature K) m p) (inp : Fin m → Biv K) (s₀ t₀ : K) (o : Fin p) :
-    evalBiv s₀ t₀
-        (C.eval (arithInterpretationWith K (Polynomial.C ∘ Polynomial.C)) inp o) =
-      C.eval (arithInterpretation K) (evalBiv s₀ t₀ ∘ inp) o := by
-  let h : Homomorphism (arithInterpretationWith K (Polynomial.C ∘ Polynomial.C))
-      (arithInterpretation K) :=
-    ⟨evalBiv s₀ t₀, fun op args => by
-      cases op <;> simp [arithInterpretation, arithInterpretationWith, evalBiv]⟩
-  simpa [h, Function.comp_def] using congrFun (C.map_eval h inp) o
 
 private theorem trace_gate_add {K : Type*} [CommSemiring K] {m p : ℕ}
     (C : Circuit (arithSignature K) m p) (I : Interpretation (arithSignature K) (Biv K))
@@ -358,12 +331,12 @@ private theorem exists_biv_wire_decomp {K : Type*} [CommRing K] {n : ℕ}
       rw [htr, (bivCoeff_const c).2.2.2]
       simp
 
-/-- **Strassen `(1, 1)` bi-homogeneous rank extraction (multiplication count).** Over any infinite
-integral domain `K` (in particular any characteristic-zero field), an arithmetic circuit computing
+/-- **Strassen `(1, 1)` bi-homogeneous rank extraction (multiplication count).** Over any
+commutative ring `K`, an arithmetic circuit computing
 `n × n` matrix multiplication with `m = C.program.cost ArithOp.mulCost` multiplication gates
 yields a bilinear algorithm of rank at most `2 * m` for `Tensor.mm n n n`. Here `ArithOp.mulCost`
 counts all `.mul` gates in division-free `arithSignature K` circuits. -/
-theorem rank_mm_two_mul_mulCost {K : Type*} [CommRing K] [IsDomain K] [Infinite K] {n : ℕ}
+theorem rank_mm_two_mul_mulCost {K : Type*} [CommRing K] {n : ℕ}
     {C : Circuit (arithSignature K) (n * n + n * n) (n * n)} (hC : ComputesMatMul K C) :
     Rank (2 * C.program.cost ArithOp.mulCost) (mm n n n : Tensor K _ _ _) := by
   set m := C.program.cost ArithOp.mulCost
@@ -386,47 +359,44 @@ theorem rank_mm_two_mul_mulCost {K : Type*} [CommRing K] [IsDomain K] [Infinite 
     (bivMatInputs A B) (finProdFinEquiv c)
   change bivCoeff 1 1 P = ∑ j, A (c.1, j) * B (j, c.2)
   set val : K := ∑ j, A (c.1, j) * B (j, c.2)
-  have heval (s₀ t₀ : K) : evalBiv s₀ t₀ P = s₀ * (t₀ * val) := by
+  -- the inputs `(s • A, t • B)` are matrices over the `K`-algebra `K[t][s]`
+  have hin : bivMatInputs A B = matrixInputs (Biv K)
+      (Matrix.of fun i j => Polynomial.C (Polynomial.C (A (i, j))) * Polynomial.X)
+      (Matrix.of fun i j => Polynomial.C (Polynomial.C (B (i, j)) * Polynomial.X)) := by
+    funext idx
+    refine Fin.addCases (fun i => ?_) (fun j => ?_) idx
+    · simp only [bivMatInputs, matrixInputs, Fin.append_left, entry, Matrix.of_apply, Prod.mk.eta]
+    · simp only [bivMatInputs, matrixInputs, Fin.append_right, entry, Matrix.of_apply, Prod.mk.eta]
+  have hmap : (Polynomial.C ∘ Polynomial.C : K → Biv K) = algebraMap K (Biv K) :=
+    funext fun k => by simp [Polynomial.algebraMap_apply]
+  have hP : P = Polynomial.C (Polynomial.C val * Polynomial.X) * Polynomial.X := by
     dsimp only [P]
-    rw [evalBiv_circuit_eval, evalBiv_bivMatInputs, hC]
-    simp only [entry, Equiv.symm_apply_apply, Matrix.mul_apply, Matrix.of_apply]
-    dsimp only [val]
-    rw [Finset.mul_sum, Finset.mul_sum]
+    rw [hin, hmap, hC.eval_algebra]
+    simp only [entry, Equiv.symm_apply_apply, Matrix.mul_apply, Matrix.of_apply, val, map_sum,
+      Finset.sum_mul]
     refine Finset.sum_congr rfl fun j _ => ?_
+    simp only [map_mul]
     ring
-  have hcoeff1_eval (t₀ : K) : (P.coeff 1).eval t₀ = t₀ * val := by
-    have hpoly : P.map (Polynomial.evalRingHom t₀) = Polynomial.C (t₀ * val) * Polynomial.X := by
-      refine Polynomial.funext fun s₀ => ?_
-      rw [Polynomial.eval_map]
-      change evalBiv s₀ t₀ P = _
-      rw [heval s₀ t₀, Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_X, mul_comm]
-    have hc1 := congrArg (fun q : Polynomial K => q.coeff 1) hpoly
-    simpa [Polynomial.coeff_map] using hc1
-  have hp1 : P.coeff 1 = Polynomial.C val * Polynomial.X := by
-    refine Polynomial.funext fun t₀ => ?_
-    rw [hcoeff1_eval, Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_X, mul_comm]
-  dsimp only [bivCoeff]
-  rw [hp1]
-  simp
+  rw [hP]
+  simp [bivCoeff]
 
-/-- **Strassen `(1, 1)` bi-homogeneous rank extraction (circuit size).** Over any infinite integral
-domain `K` (in particular any characteristic-zero field), an arithmetic circuit of size `s`
+/-- **Strassen `(1, 1)` bi-homogeneous rank extraction (circuit size).** Over any commutative ring
+`K`, an arithmetic circuit of size `s`
 computing `n × n` matrix multiplication yields a bilinear algorithm of rank at most `2 * s` for
 `Tensor.mm n n n`. -/
-theorem rank_mm_two_mul_size {K : Type*} [CommRing K] [IsDomain K] [Infinite K] {n : ℕ}
+theorem rank_mm_two_mul_size {K : Type*} [CommRing K] {n : ℕ}
     {C : Circuit (arithSignature K) (n * n + n * n) (n * n)} (hC : ComputesMatMul K C) :
     Rank (2 * C.size) (mm n n n : Tensor K _ _ _) := by
   have hcost : C.program.cost ArithOp.mulCost ≤ C.size := by
     simpa using C.program.cost_le_mul (b := 1) fun op => by cases op <;> simp [ArithOp.mulCost]
   exact (rank_mm_two_mul_mulCost hC).mono (Nat.mul_le_mul_left 2 hcost)
 
-/-- **From `omega K` to bilinear rank of square matrix multiplication.** Over a characteristic-zero
-field `K`, for every `τ > omega K` there exists `c > 0` such that for all `D ≥ 1`, `Tensor.mm D D D`
-has rank `r ≤ c * D ^ τ`. -/
-theorem exists_rank_mm_le_rpow (K : Type*) [Field K] [CharZero K] {τ : ℝ} (hτ : omega K < τ) :
+/-- **From `omega K` to bilinear rank of square matrix multiplication.** Over a commutative ring
+`K`, for every `τ > omega K` there exists `c > 0` such that for all `D ≥ 1`, `Tensor.mm D D D` has
+rank `r ≤ c * D ^ τ`. -/
+theorem exists_rank_mm_le_rpow (K : Type*) [CommRing K] {τ : ℝ} (hτ : omega K < τ) :
     ∃ c : ℝ, 0 < c ∧ ∀ D : ℕ, 1 ≤ D →
       ∃ r : ℕ, (r : ℝ) ≤ c * (D : ℝ) ^ τ ∧ Rank r (mm D D D : Tensor K _ _ _) := by
-  have : Infinite K := Infinite.of_injective (Nat.cast : ℕ → K) Nat.cast_injective
   set ε : ℝ := (τ - omega K) / 2
   have hε : 0 < ε := by dsimp only [ε]; linarith
   have hne : {τ' : ℝ | AdmissibleExponent K τ'}.Nonempty := ⟨3, admissibleExponent_three (K := K)⟩
@@ -441,5 +411,63 @@ theorem exists_rank_mm_le_rpow (K : Type*) [Field K] [CharZero K] {τ : ℝ} (h�
   refine ⟨2 * C.size, ?_, rank_mm_two_mul_size hcomp⟩
   push_cast
   linarith
+
+/-! ### The exponent is the rank exponent -/
+
+/-- The *rank exponent* of matrix multiplication over `K`: the infimum of the `τ` such that, for
+some `v ≥ 2`, the tensor `⟨v, v, v⟩` has a rank decomposition with at most `v ^ τ` terms. -/
+noncomputable def rankExponent (K : Type*) [CommSemiring K] : ℝ :=
+  sInf {τ : ℝ | ∃ v r : ℕ, 2 ≤ v ∧ Rank r (mm v v v : Tensor K _ _ _) ∧ (r : ℝ) ≤ (v : ℝ) ^ τ}
+
+private theorem rankExponent_set_nonempty (K : Type*) [CommSemiring K] :
+    {τ : ℝ | ∃ v r : ℕ, 2 ≤ v ∧ Rank r (mm v v v : Tensor K _ _ _) ∧
+      (r : ℝ) ≤ (v : ℝ) ^ τ}.Nonempty :=
+  ⟨3, 2, 2 * 2 * 2, le_rfl, rank_mm 2 2 2, by norm_num⟩
+
+/-- Every exponent of a rank decomposition of `⟨v, v, v⟩`, `v ≥ 2`, is at least `2`
+(`Tensor.mul_self_le_of_rank_mm`). -/
+private theorem two_le_of_mem_rankExponent_set {K : Type*} [CommRing K] [Nontrivial K] {τ : ℝ}
+    (hτ : τ ∈ {τ : ℝ | ∃ v r : ℕ, 2 ≤ v ∧ Rank r (mm v v v : Tensor K _ _ _) ∧
+      (r : ℝ) ≤ (v : ℝ) ^ τ}) : 2 ≤ τ := by
+  obtain ⟨v, r, hv, hr, hrτ⟩ := hτ
+  have hv1 : (1 : ℝ) < v := by exact_mod_cast hv
+  have h2 : (v : ℝ) ^ (2 : ℝ) ≤ (v : ℝ) ^ τ := by
+    rw [Real.rpow_two, sq]
+    exact le_trans (by exact_mod_cast mul_self_le_of_rank_mm hr) hrτ
+  exact (Real.rpow_le_rpow_left_iff hv1).1 h2
+
+/-- **Strassen's characterization of the exponent** ([Bürgisser, Clausen and
+Shokrollahi][BurgisserClausenShokrollahi1997], Chapter 15): over every nontrivial commutative ring,
+the exponent of matrix multiplication by circuits is the rank exponent. Block recursion
+(`admissibleExponent_of_rank`) gives `omega K ≤ rankExponent K`, and the rank extraction
+(`exists_rank_mm_le_rpow`) gives the converse. -/
+theorem omega_eq_rankExponent (K : Type*) [CommRing K] [Nontrivial K] :
+    omega K = rankExponent K := by
+  have hbdd : BddBelow {τ : ℝ | ∃ v r : ℕ, 2 ≤ v ∧ Rank r (mm v v v : Tensor K _ _ _) ∧
+      (r : ℝ) ≤ (v : ℝ) ^ τ} := ⟨2, fun _ hτ => two_le_of_mem_rankExponent_set hτ⟩
+  refine le_antisymm (le_csInf (rankExponent_set_nonempty K) fun τ hτ => ?_)
+    (le_of_forall_pos_le_add fun ε hε => ?_)
+  · -- block recursion at every exponent `τ + ε`
+    have h2 := two_le_of_mem_rankExponent_set hτ
+    obtain ⟨v, r, hv, hr, hrτ⟩ := hτ
+    refine le_of_forall_pos_le_add fun ε hε => omega_le_of_admissibleExponent
+      (admissibleExponent_of_rank hv hr (hrτ.trans ?_) (by linarith))
+    exact Real.rpow_le_rpow_of_exponent_le (by exact_mod_cast (by omega : 1 ≤ v)) (by linarith)
+  · -- the rank extraction at `omega K + ε / 2`, for `v` large
+    obtain ⟨c, hc, hrank⟩ := exists_rank_mm_le_rpow K (by linarith : omega K < omega K + ε / 2)
+    set v : ℕ := max 2 ⌈c ^ (2 / ε)⌉₊
+    have hv : 2 ≤ v := le_max_left _ _
+    have hv0 : (0 : ℝ) < v := by exact_mod_cast (by omega : 0 < v)
+    obtain ⟨r, hr, hrk⟩ := hrank v (by omega)
+    have hcv : c ≤ (v : ℝ) ^ (ε / 2) := by
+      calc c = (c ^ (2 / ε)) ^ (ε / 2) := by
+            rw [← Real.rpow_mul hc.le, show 2 / ε * (ε / 2) = 1 by field_simp, Real.rpow_one]
+        _ ≤ (v : ℝ) ^ (ε / 2) := by
+            refine Real.rpow_le_rpow (by positivity) ?_ (by positivity)
+            exact (Nat.le_ceil _).trans (by exact_mod_cast le_max_right _ _)
+    refine csInf_le hbdd ⟨v, r, hv, hrk, hr.trans ?_⟩
+    calc c * (v : ℝ) ^ (omega K + ε / 2) ≤ (v : ℝ) ^ (ε / 2) * (v : ℝ) ^ (omega K + ε / 2) :=
+          mul_le_mul_of_nonneg_right hcv (by positivity)
+      _ = (v : ℝ) ^ (omega K + ε) := by rw [← Real.rpow_add hv0]; ring_nf
 
 end Cslib.Circuits.Arithmetic.MatrixMultiplication
