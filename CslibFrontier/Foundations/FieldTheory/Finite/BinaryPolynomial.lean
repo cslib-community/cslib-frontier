@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Foundations.Data.BitString.List.Binary
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryField
 public import Mathlib.RingTheory.AdjoinRoot
 import Mathlib.Data.List.GetD
@@ -71,6 +72,17 @@ theorem polyOfBits_nil : polyOfBits [] = 0 := rfl
 theorem polyOfBits_cons (b : Bool) (l : List Bool) :
     polyOfBits (b :: l) = C (bitEquiv.symm b) + X * polyOfBits l := rfl
 
+/-- Coefficient `i` of `polyOfBits l` is the `i`-th supplied bit, or zero past the list. -/
+theorem coeff_polyOfBits (l : List Bool) (i : ℕ) :
+    (polyOfBits l).coeff i = bitEquiv.symm (l.getD i false) := by
+  induction l generalizing i with
+  | nil => simp
+  | cons b l ih =>
+    rw [polyOfBits_cons, coeff_add, coeff_C]
+    cases i with
+    | zero => simp
+    | succ k => simp [coeff_X_mul, ih k]
+
 /-- Concatenating coefficient lists shifts the upper polynomial by `X ^ l.length`. -/
 theorem polyOfBits_append (l l' : List Bool) :
     polyOfBits (l ++ l') = polyOfBits l + X ^ l.length * polyOfBits l' := by
@@ -91,7 +103,8 @@ private theorem polyOfBits_replicate_append_true (k : ℕ) :
     polyOfBits (List.replicate k false ++ [true]) = X ^ k := by
   simp [polyOfBits_append, bitEquiv_symm_true]
 
-private theorem polyOfBits_zipWith_xor {l l' : List Bool} (h : l.length = l'.length) :
+/-- Equal-length coefficient lists add by pointwise XOR. -/
+theorem polyOfBits_zipWith_xor {l l' : List Bool} (h : l.length = l'.length) :
     polyOfBits (l.zipWith xor l') = polyOfBits l + polyOfBits l' := by
   induction l generalizing l' with
   | nil => cases l' <;> simp_all
@@ -166,6 +179,18 @@ theorem polyOfBits_bits (m : ℕ) : polyOfBits m.bits = polyOfCode m := by
     rw [Nat.bits_append_bit _ _ hn, polyOfBits_cons, ih, Nat.bit_val]
     have hb : (bitEquiv.symm b).val = b.toNat := by cases b <;> rfl
     rw [← hb, ← polyOfCode_two_mul_add, add_comm]
+
+/-- A fixed-width little-endian word represents the same binary polynomial as its bounded code. -/
+theorem polyOfBits_lowBits {width code : ℕ} (hcode : code < 2 ^ width) :
+    polyOfBits (lowBits width code) = polyOfCode code := by
+  ext i
+  rw [coeff_polyOfBits, coeff_polyOfCode]
+  by_cases hi : i < width
+  · simp [lowBits, hi]
+  · have hpow : code < 2 ^ i :=
+      hcode.trans_le (Nat.pow_le_pow_right Nat.two_pos (Nat.le_of_not_gt hi))
+    rw [Nat.testBit_lt_two_pow hpow]
+    simp [lowBits, hi, bitEquiv_symm_false]
 
 /-- The binary digits of a nonzero number end with a one. -/
 theorem exists_bits_eq_append_true {m : ℕ} (hm : m ≠ 0) : ∃ l, m.bits = l ++ [true] := by
@@ -261,6 +286,23 @@ private theorem modStep_foldl (l f p a : List Bool) (hp : p.length = l.length)
         simp only [Bool.false_eq_true, ↓reduceIte, polyOfBits_zipWith_xor (ha.trans hp.symm),
           bitEquiv_symm_false, bitEquiv_symm_true, map_add, map_mul, map_zero, map_one] <;>
         ring
+
+/-- Folding `modStep` from a power `p` and accumulator `a` computes
+`a + p * polyOfBits f` in the quotient by the monic polynomial `l ++ [true]`. -/
+theorem mk_polyOfBits_foldl_modStep (l f p a : List Bool) (hp : p.length = l.length)
+    (ha : a.length = l.length) :
+    AdjoinRoot.mk (polyOfBits (l ++ [true]))
+        (polyOfBits (f.foldl (modStep (l ++ [true])) (p, a)).2) =
+      AdjoinRoot.mk (polyOfBits (l ++ [true]))
+        (polyOfBits a + polyOfBits p * polyOfBits f) :=
+  (modStep_foldl l f p a hp ha).2.2.2
+
+/-- `modStep` preserves the declared remainder width in both state components. -/
+theorem length_foldl_modStep (l f p a : List Bool) (hp : p.length = l.length)
+    (ha : a.length = l.length) :
+    (f.foldl (modStep (l ++ [true])) (p, a)).1.length = l.length ∧
+      (f.foldl (modStep (l ++ [true])) (p, a)).2.length = l.length :=
+  ⟨(modStep_foldl l f p a hp ha).1, (modStep_foldl l f p a hp ha).2.1⟩
 
 private theorem length_modBits (l f : List Bool) : (modBits (l ++ [true]) f).length = l.length := by
   have hlen : (l ++ [true]).length - 1 = l.length := by simp
