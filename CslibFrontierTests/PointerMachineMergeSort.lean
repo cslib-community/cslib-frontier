@@ -75,8 +75,8 @@ private meta def ternaryLists : ℕ → List (List ℕ)
 private meta def countSteps (keys : List ℕ) : Option ℕ :=
   (execute (100 * (keys.length + 1) ^ 2) (input keys (List.range keys.length))).map Prod.snd
 
-#guard countSteps (List.range 32) == some 303
-#guard countSteps (List.range 32).reverse == some 3439
-#guard countSteps ((List.range 128).map fun i => (47 * i + 11) % 17) == some 21505
+#guard countSteps (List.range 32) == some 298
+#guard countSteps (List.range 32).reverse == some 3177
+#guard countSteps ((List.range 128).map fun i => (47 * i + 11) % 17) == some 19725
 
 end CslibFrontierTests.PointerMachineMergeSort

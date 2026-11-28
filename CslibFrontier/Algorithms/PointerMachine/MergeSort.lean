@@ -15,6 +15,7 @@ public import CslibFrontier.Computability.PointerMachine.Assemble
 The input is a null-terminated singly linked list with one key per record. Each pass
 cuts consecutive nondecreasing runs and merges adjacent pairs by relinking their nodes.
 When one run is exhausted, the remaining suffix is spliced in one operation on the output link.
+The first pair starts the output list, so later appends can write directly to its tail.
 Ties go to the earlier run. The program stops after a pass finds only one run, and
 returns the head in the original register. It uses no allocation or scalar arithmetic.
 
@@ -74,30 +75,40 @@ private def cutRun (lt : M.Test) (runTail : Fin layout.ptrRegs) : Code M layout 
         (move runTail probe ▷ readNext pending runTail ▷ move probe pending)) ▷
   writeNext runTail nil
 
+private def startOutput (first final : Fin layout.ptrRegs) : Code M layout :=
+  move result first ▷ move tail final
+
 private def appendRun (first final : Fin layout.ptrRegs) : Code M layout :=
-  .branch (.ptrEq tail nil) (move result first) (writeNext tail first) ▷ move tail final
+  writeNext tail first ▷ move tail final
 
 -- Save the successor before attaching the chosen node to the output.
-private def emit (src : Fin layout.ptrRegs) : Code M layout :=
-  move last src ▷ readNext src src ▷ appendRun last last
+private def emit (attach : Fin layout.ptrRegs → Fin layout.ptrRegs → Code M layout)
+    (src : Fin layout.ptrRegs) : Code M layout :=
+  move last src ▷ readNext src src ▷ attach last last
+
+private def emitLeast (lt : M.Test)
+    (attach : Fin layout.ptrRegs → Fin layout.ptrRegs → Code M layout) : Code M layout :=
+  .op (.loadData 0 0 right) ▷ .op (.loadData 1 0 left) ▷
+    .branch (.data lt 0 1) (emit attach right) (emit attach left)
 
 private def mergeRuns (lt : M.Test) : Code M layout :=
   .loopUntil (.ptrEq left nil)
     (.branch (.ptrEq right nil)
       (appendRun left leftLast ▷ clear left)
-      (.op (.loadData 0 0 right) ▷ .op (.loadData 1 0 left) ▷
-        .branch (.data lt 0 1) (emit right) (emit left))) ▷
+      (emitLeast lt appendRun)) ▷
   .branch (.ptrEq right nil) .skip (appendRun right rightLast)
 
-private def mergePair (lt : M.Test) : Code M layout :=
+-- The first pair starts an output list. Later pairs use its existing tail.
+private def mergePair (lt : M.Test) (first : Bool) : Code M layout :=
   move left pending ▷ cutRun lt leftLast ▷ move right pending ▷
   .branch (.ptrEq right nil)
-    (appendRun left leftLast)
-    (move merged right ▷ cutRun lt rightLast ▷ mergeRuns lt)
+    ((if first then startOutput else appendRun) left leftLast)
+    (move merged right ▷ cutRun lt rightLast ▷
+      (if first then emitLeast lt startOutput else .skip) ▷ mergeRuns lt)
 
 private def mergePass (lt : M.Test) : Code M layout :=
-  move pending head ▷ clear result ▷ clear tail ▷ clear merged ▷
-  .loopUntil (.ptrEq pending nil) (mergePair lt) ▷
+  move pending head ▷ clear merged ▷ mergePair lt true ▷
+  .loopUntil (.ptrEq pending nil) (mergePair lt false) ▷
   move head result
 
 /-- Stably sort a singly linked list in place. The predicate `lt` tests strict key order. -/
@@ -120,8 +131,8 @@ theorem heap_length_eq {lt : M.Test} {x y : State M layout} {t : ℕ}
   | storePtr _ base _ | storeData _ base _ =>
     cases hp : a.ptr base <;> simp [Op.effect, Op.instr, Instr.effect, State.modify, hp]
   | create =>
-    simp [code, mergePass, mergePair, mergeRuns, emit, appendRun, cutRun, clear, move,
-      readNext, writeNext] at ho
+    simp [code, mergePass, mergePair, mergeRuns, emitLeast, emit, startOutput, appendRun,
+      cutRun, clear, move, readNext, writeNext] at ho
   | _ => rfl
 
 end Cslib.Algorithms.PointerMachine.MergeSort
