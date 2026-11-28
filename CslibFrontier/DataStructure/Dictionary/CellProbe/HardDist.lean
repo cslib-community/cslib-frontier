@@ -1078,21 +1078,6 @@ theorem take_init_insertDeleteSeq {U V n : ℕ}
     (insertDeleteSeq keys vals delPerm).take n = initInsertSeq keys vals := by
   simpa using take_insertDeleteSeq (t := 0) keys vals delPerm
 
-private theorem drop_take_of_take_add {α : Type*} {xs pref mid : List α} {a b : ℕ}
-    (htake : xs.take (a + b) = pref ++ mid) (ha : pref.length = a) (hb : mid.length = b) :
-    (xs.drop a).take b = mid := by
-  have hsplit : xs.take (a + b) = xs.take a ++ (xs.drop a).take b := List.take_add
-  have hpref_le : a ≤ xs.length := by
-    have hlen := congrArg List.length htake
-    rw [List.length_take, List.length_append, ha, hb] at hlen
-    omega
-  have hlen_a : (xs.take a).length = a := List.length_take_of_le hpref_le
-  exact List.append_inj_right' (hsplit.symm.trans htake)
-    (by
-      have htot := congrArg List.length (hsplit.symm.trans htake)
-      rw [List.length_append, List.length_append, hlen_a, ha, hb] at htot
-      omega)
-
 private theorem drop_take_hardSeq {U V n : ℕ} (c : ℕ)
     (keys : Fin (2 * n) ↪ Fin U) (vals : Fin (2 * n) → Fin V)
     (metaOp : Fin n → List (Dynamic.Op U)) (hc : ∀ k, (metaOp k).length = c) (j : Fin n) :
@@ -1102,7 +1087,8 @@ private theorem drop_take_hardSeq {U V n : ℕ} (c : ℕ)
   have hidx : n + c * (j.val + 1) = (n + c * j.val) + c := by ring
   rw [hidx, List.take_succ_finRange j.isLt, List.flatMap_append, List.flatMap_cons,
     List.flatMap_nil, List.append_nil, ← List.append_assoc] at htake
-  refine drop_take_of_take_add htake ?_ (hc j)
+  rw [List.take_drop, htake]
+  apply List.drop_left'
   rw [List.length_append, length_initInsertSeq, length_flatMap_const c _ _ hc,
     List.length_take, List.length_finRange, min_eq_left j.isLt.le]
 

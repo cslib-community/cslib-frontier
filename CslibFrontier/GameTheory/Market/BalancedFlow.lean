@@ -1088,26 +1088,6 @@ strictly smaller surplus than buyer `i`, there is no path from `j` to `i` in `R(
     (f : G → I → ℝ) : Prop :=
   ∀ j i : I, M.surplus f j < M.surplus f i → ¬ M.ResidualReachable p f j i
 
-private theorem filter_length_le_one_of_nodup {α : Type*} [DecidableEq α] {L : List α}
-    (hnd : L.Nodup) (x : α) : (L.filter fun a => a = x).length ≤ 1 := by
-  induction L with
-  | nil => simp
-  | cons a tl ih =>
-    rw [List.nodup_cons] at hnd
-    simp only [List.filter_cons]
-    by_cases hax : a = x
-    · subst hax
-      simp only [decide_true, ↓reduceIte, List.length_cons]
-      have hnil : tl.filter (fun b => decide (b = a)) = [] := by
-        rw [List.filter_eq_nil_iff]
-        intro b hb
-        simp only [decide_eq_true_eq]
-        exact fun hba => hnd.1 (hba ▸ hb)
-      rw [hnil]
-      simp
-    · simp only [hax, decide_false, Bool.false_eq_true, ↓reduceIte]
-      exact ih hnd.2
-
 /-- Generic augmentation along a simple buyer residual chain `b₀ → … → bₖ` in `R(f) - {s, t}`:
 transfers `ε > 0` units of spending from `b₀` to `bₖ` while preserving every good's outflow and
 every intermediate buyer's spending. -/
@@ -1190,12 +1170,9 @@ private theorem exists_shift_along_resChain {E : G → I → Prop} {a : G → �
   have hcard_fst (x : I) : ((pathArcs path).filter fun e => e.1 = x).length ≤ 1 := by
     have hnodup_fst : ((pathArcs path).map Prod.fst).Nodup :=
       hnodup.sublist (map_fst_pathArcs_sublist path)
-    have hlen : ((pathArcs path).filter fun e => e.1 = x).length =
-        (((pathArcs path).map Prod.fst).filter fun a => a = x).length := by
-      rw [List.filter_map, List.length_map]
-      rfl
-    rw [hlen]
-    exact filter_length_le_one_of_nodup hnodup_fst x
+    have hcount := List.nodup_iff_count_le_one.mp hnodup_fst x
+    rw [List.count_eq_length_filter, List.filter_map, List.length_map] at hcount
+    simpa only [Function.comp_def, Bool.beq_eq_decide_eq] using hcount
   have hd_pos_edge : ∀ g x, 0 < d g x → E g x := by
     intro g x hpos
     by_contra hnotE

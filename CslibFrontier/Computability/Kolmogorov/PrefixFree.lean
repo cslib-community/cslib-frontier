@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Kolmogorov.Incompleteness
 import CslibFrontier.Computability.Kolmogorov.Incompressibility
 import CslibFrontier.Computability.Kolmogorov.Uncomputability
 import CslibFrontier.Foundations.Data.BitString.List.PrefixFree
+import CslibFrontier.Foundations.Data.List.Append
 import CslibFrontier.Foundations.Data.List.Primrec
 import CslibFrontier.Foundations.Data.List.SortedAssoc
 import CslibFrontier.Foundations.Data.List.UnaryCode
@@ -134,16 +135,6 @@ only if `selfDelimitingCode b ++ p = q`. -/
   else
     none
 
-private theorem take_idxOf_false_append (q : List Bool) (hk : q.idxOf false < q.length) :
-    q.take (q.idxOf false + 1) = List.replicate (q.idxOf false) true ++ [false] := by
-  induction q with
-  | nil => simp at hk
-  | cons b q' ih =>
-    cases b
-    · rfl
-    · rw [List.idxOf_cons_ne _ Bool.false_ne_true.symm, List.take_succ_cons,
-        ih (by simp [List.idxOf_cons_ne] at hk; omega), List.replicate_succ, List.cons_append]
-
 private theorem drop_take_foldr_eq {r : List Bool} {k : ℕ} (hk : k ≤ r.length)
     (hsize : ((r.take k).foldr Nat.bit 0).size = k) :
     r.take k = ((r.take k).foldr Nat.bit 0).bits :=
@@ -163,9 +154,8 @@ theorem decodeSelfDelimiting?_eq_some_iff {q b p : List Bool} :
     set n := (r.take k).foldr Nat.bit 0
     set b' := (r.drop k).take n
     set p' := (r.drop k).drop n
-    have hq_split : q = List.replicate k true ++ false :: r := by
-      have htd := List.take_append_drop (k + 1) q
-      rwa [take_idxOf_false_append q hk, List.append_assoc, List.singleton_append, eq_comm] at htd
+    have hq_split : q = List.replicate k true ++ false :: r :=
+      List.eq_replicate_idxOf_false (List.idxOf_lt_length_iff.mp hk)
     have hbits : r.take k = n.bits := drop_take_foldr_eq (by omega) hsize
     have hblen : b'.length = n := List.length_take_of_le (by simp; omega)
     have hr_split : r = n.bits ++ (b' ++ p') := by
