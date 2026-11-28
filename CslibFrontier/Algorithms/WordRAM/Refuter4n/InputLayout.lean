@@ -620,7 +620,6 @@ private theorem exec_classBlk {w W : ℕ} (y : Data 24) (hW : Fits w W) (hw : 5 
     (hthree : y.regs rThree = 3) (hfour : y.regs rFour = 4) (hfive : y.regs rFive = 5)
     (ht : y.regs rT < 16) (hx₀ : y.regs rX0 + 1 ≤ W) (hx₁ : y.regs rX1 + 1 ≤ W)
     (hrow : y.regs rRow + 3 * (y.regs rN + y.regs rI) + 2 ≤ W)
-    (hcode : (y.regs rN + y.regs rI) + (y.regs rN + y.regs rI) + 4 ≤ W)
     (hg : y.regs rG + y.regs rP ≤ W)
     (hz : ∀ c < 3, y.mem (y.regs rRow + 3 * (y.regs rN + y.regs rI) + c) = 0) :
     ∃ z, ExecWithin w classBlk y z 30 ∧
@@ -644,6 +643,537 @@ private theorem exec_classBlk {w W : ℕ} (y : Data 24) (hW : Fits w W) (hw : 5 
   interval_cases c <;> simp only [Data.write, Data.set_mem, Function.update_apply] <;>
     split_ifs <;> first | rfl | omega
 
+
+private theorem absorb_lt {t : ℕ} (ht : t < 16) (x₀ x₁ : ℕ) : absorb t x₀ x₁ < 16 := by
+  have h1 : (if x₁ &&& 1 = 1 then swapLo t else t) < 16 := by
+    split_ifs
+    exacts [swapLo_lt t ht, ht]
+  simp only [absorb]
+  split_ifs at h1 ⊢ <;> first | exact swapHi_lt _ h1 | exact h1
+
+/-- Read the three words of a line. -/
+private def readBlk : Code .standard 24 := ram[
+  rT ← *rA; rA ← rA + rOne; rX0 ← *rA; rA ← rA + rOne; rX1 ← *rA; rA ← rA + rOne ]
+
+/-- The literal code `2 c` of a constant line with tag `16 + c`. -/
+private def conBlk : Code .standard 24 := ram[ rC ← rT - r16; rC ← rC + rC ]
+
+/-- Store the literal code of the line and advance to the next line. -/
+private def storeBlk : Code .standard 24 := ram[
+  rV ← rLit + rI; *rV ← rC; rP ← rP + rP; rI ← rI + rOne ]
+
+/-- A `.fn` line: operand literals, absorption, classification. -/
+private def fnBlk : Code .standard 24 := .seq litX0 (.seq litX1 (.seq absorbBlk classBlk))
+
+/-- One line of the decoder. -/
+private def lineBody : Code .standard 24 :=
+  .seq readBlk (.seq (.branch (.lt rT r16) fnBlk conBlk) storeBlk)
+
+private theorem exec_lineBody {w W : ℕ} (y : Data 24) (L : List ℕ) (tr : ℕ × ℕ × ℕ)
+    (hW : Fits w W) (hw : 5 ≤ w)
+    (hone : y.regs rOne = 1) (hzero : y.regs rZero = 0) (htwo : y.regs rTwo = 2)
+    (hthree : y.regs rThree = 3) (hfour : y.regs rFour = 4) (hfive : y.regs rFive = 5)
+    (h16 : y.regs r16 = 16)
+    (htr₀ : y.mem (y.regs rA) = tr.1) (htr₁ : y.mem (y.regs rA + 1) = tr.2.1)
+    (htr₂ : y.mem (y.regs rA + 1 + 1) = tr.2.2) (hok : TripleOK (y.regs rN) (y.regs rI) tr)
+    (hL : ∀ k < y.regs rI, y.mem (k + y.regs rLit) = L.getD k 0)
+    (hLb : ∀ k < y.regs rI, L.getD k 0 + 1 ≤ W)
+    (hn : 2 * (y.regs rN + y.regs rI) + 4 ≤ W) (hA : y.regs rA + 3 ≤ W)
+    (hlit : y.regs rLit + y.regs rI + 1 ≤ W)
+    (hrow : y.regs rRow + 3 * (y.regs rN + y.regs rI) + 3 ≤ y.regs rLit)
+    (hg : y.regs rG + y.regs rP ≤ W) (hP : y.regs rP + y.regs rP ≤ W)
+    (hz : ∀ c < 3, y.mem (y.regs rRow + 3 * (y.regs rN + y.regs rI) + c) = 0) :
+    ∃ z, ExecWithin w lineBody y z 71 ∧
+      (∀ i : Fin 24, i.val < 13 → z.regs i = y.regs i) ∧
+      z.regs rA = y.regs rA + 3 ∧ z.regs rI = y.regs rI + 1 ∧
+      z.regs rP = y.regs rP + y.regs rP ∧
+      z.regs rG = y.regs rG +
+        (if (lineOut (y.regs rN) (y.regs rI) L tr).2.isSome then y.regs rP else 0) ∧
+      z.mem (y.regs rLit + y.regs rI) = (lineOut (y.regs rN) (y.regs rI) L tr).1 ∧
+      (∀ c < 3, z.mem (y.regs rRow + 3 * (y.regs rN + y.regs rI) + c) =
+        rowField (lineOut (y.regs rN) (y.regs rI) L tr).2 c) ∧
+      ∀ a, a ≠ y.regs rLit + y.regs rI → (a < y.regs rRow + 3 * (y.regs rN + y.regs rI) ∨
+        y.regs rRow + 3 * (y.regs rN + y.regs rI) + 3 ≤ a) → z.mem a = y.mem a := by
+  obtain ⟨y₁, he₁, hm₁, hr₁, hT₁, hX0₁, hX1₁, hA₁⟩ : ∃ y₁, ExecWithin w readBlk y y₁ 6 ∧
+      y₁.mem = y.mem ∧
+      (∀ i : Fin 24, i ≠ rT → i ≠ rX0 → i ≠ rX1 → i ≠ rA → y₁.regs i = y.regs i) ∧
+      y₁.regs rT = tr.1 ∧ y₁.regs rX0 = tr.2.1 ∧ y₁.regs rX1 = tr.2.2 ∧
+      y₁.regs rA = y.regs rA + 3 := by
+    refine WP.exists_execWithin ?_
+    unfold readBlk
+    wram_exec [hone, htr₀, htr₁, htr₂]
+    exact ⟨rfl, fun i h1 h2 h3 h4 => by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+      by wram_simp⟩
+  have r₁ : ∀ i : Fin 24, i.val < 17 → i ≠ rA → y₁.regs i = y.regs i := fun i hi hiA =>
+    hr₁ i (fun h => absurd (h ▸ hi) (by decide)) (fun h => absurd (h ▸ hi) (by decide))
+      (fun h => absurd (h ▸ hi) (by decide)) hiA
+  set n := y.regs rN with hn_def
+  set j := y.regs rI with hj_def
+  set R := y.regs rRow + 3 * (n + j) with hR_def
+  set o := lineOut n j L tr with ho_def
+  have hbr : ∃ y₂, ExecWithin w (.branch (.lt rT r16) fnBlk conBlk) y₁ y₂ 61 ∧
+      (∀ i : Fin 24, i.val < 16 → y₂.regs i = y₁.regs i) ∧
+      y₂.regs rC = o.1 ∧ y₂.regs rG = y.regs rG + (if o.2.isSome then y.regs rP else 0) ∧
+      (∀ c < 3, y₂.mem (R + c) = rowField o.2 c) ∧
+      ∀ a, (a < R ∨ R + 3 ≤ a) → y₂.mem a = y.mem a := by
+    have hc16 : y₁.regs r16 = 16 := (r₁ r16 (by decide) (by decide)).trans h16
+    by_cases ht : tr.1 < 16
+    · obtain ⟨ha₀, ha₁⟩ := hok.2 ht
+      have eN₁ : y₁.regs rN = n := r₁ rN (by decide) (by decide)
+      have eLit₁ : y₁.regs rLit = y.regs rLit := r₁ rLit (by decide) (by decide)
+      obtain ⟨z₁, e₁, m₁, f₁, v₁⟩ := exec_litX0 y₁ L hW
+        ((r₁ rFour (by decide) (by decide)).trans hfour) (by rw [hX0₁]; omega)
+        (by rw [hX0₁, eN₁, eLit₁]; omega)
+        (fun hge => by rw [hm₁, hX0₁, eN₁, eLit₁]; exact hL _ (by rw [hX0₁, eN₁] at hge; omega))
+      have eX1₁ : z₁.regs rX1 = tr.2.2 := (f₁ rX1 (by decide)).trans hX1₁
+      have eN₂ : z₁.regs rN = n := (f₁ rN (by decide)).trans eN₁
+      have eLit₂ : z₁.regs rLit = y.regs rLit := (f₁ rLit (by decide)).trans eLit₁
+      obtain ⟨z₂, e₂, m₂, f₂, v₂⟩ := exec_litX1 z₁ L hW
+        ((f₁ rFour (by decide)).trans ((r₁ rFour (by decide) (by decide)).trans hfour))
+        (by rw [eX1₁]; omega) (by rw [eX1₁, eN₂, eLit₂]; omega)
+        (fun hge => by
+          rw [m₁, hm₁, eX1₁, eN₂, eLit₂]; exact hL _ (by rw [eX1₁, eN₂] at hge; omega))
+      have ec : ∀ i : Fin 24, i.val < 17 → i ≠ rA → z₂.regs i = y.regs i := fun i hi hiA =>
+        (f₂ i (fun h => absurd (h ▸ hi) (by decide))).trans
+          ((f₁ i (fun h => absurd (h ▸ hi) (by decide))).trans (r₁ i hi hiA))
+      have eT₂ : z₂.regs rT = tr.1 :=
+        (f₂ rT (by decide)).trans ((f₁ rT (by decide)).trans hT₁)
+      have eX0₂ : z₂.regs rX0 = wireLit n L tr.2.1 := by
+        rw [f₂ rX0 (by decide), v₁, eN₁, hX0₁]
+      have eX1₂ : z₂.regs rX1 = wireLit n L tr.2.2 := by rw [v₂, eN₂, eX1₁]
+      obtain ⟨z₃, e₃, m₃, f₃, v₃⟩ := exec_absorbBlk z₂ hw
+        ((ec rOne (by decide) (by decide)).trans hone)
+        ((ec rTwo (by decide) (by decide)).trans htwo)
+        ((ec rThree (by decide) (by decide)).trans hthree)
+        ((ec rFive (by decide) (by decide)).trans hfive) (by rw [eT₂]; exact ht)
+      have ec₃ : ∀ i : Fin 24, i.val < 17 → i ≠ rA → i ≠ rU → i ≠ rV → z₃.regs i = y.regs i :=
+        fun i hi hiA hU hV => (f₃ i (fun h => absurd (h ▸ hi) (by decide)) hU hV).trans
+          (ec i hi hiA)
+      have eX0₃ : z₃.regs rX0 = wireLit n L tr.2.1 :=
+        (f₃ rX0 (by decide) (by decide) (by decide)).trans eX0₂
+      have eX1₃ : z₃.regs rX1 = wireLit n L tr.2.2 :=
+        (f₃ rX1 (by decide) (by decide) (by decide)).trans eX1₂
+      have eT₃ : z₃.regs rT = absorb tr.1 (wireLit n L tr.2.1) (wireLit n L tr.2.2) := by
+        rw [v₃, eT₂, eX0₂, eX1₂]
+      have hwl : ∀ x, x < n + j → wireLit n L x + 1 ≤ W := fun x hx => by
+        unfold wireLit
+        split_ifs with h
+        · omega
+        · exact hLb _ (by omega)
+      have g := fun (i : Fin 24) (hi : i.val < 13) =>
+        ec₃ i (by omega) (fun h => absurd (h ▸ hi) (by decide))
+          (fun h => absurd (h ▸ hi) (by decide)) (fun h => absurd (h ▸ hi) (by decide))
+      have eI₃ : z₃.regs rI = j := ec₃ rI (by decide) (by decide) (by decide) (by decide)
+      have eG₃ : z₃.regs rG = y.regs rG := ec₃ rG (by decide) (by decide) (by decide) (by decide)
+      have eP₃ : z₃.regs rP = y.regs rP := ec₃ rP (by decide) (by decide) (by decide) (by decide)
+      have eN₃ : z₃.regs rN = n := g rN (by decide)
+      have eRow₃ : z₃.regs rRow = y.regs rRow := g rRow (by decide)
+      have hmem₃ : z₃.mem = y.mem := m₃.trans (m₂.trans (m₁.trans hm₁))
+      obtain ⟨z₄, e₄, f₄, v₄, vG₄, vR₄, vF₄⟩ := exec_classBlk z₃ hW hw
+        ((g rOne (by decide)).trans hone) ((g rZero (by decide)).trans hzero)
+        ((g rTwo (by decide)).trans htwo) ((g rThree (by decide)).trans hthree)
+        ((g rFour (by decide)).trans hfour) ((g rFive (by decide)).trans hfive)
+        (by rw [eT₃]; exact absorb_lt ht _ _) (by rw [eX0₃]; exact hwl _ ha₀)
+        (by rw [eX1₃]; exact hwl _ ha₁) (by rw [eRow₃, eN₃, eI₃]; omega)
+        (by rw [eG₃, eP₃]; exact hg)
+        (fun c hc => by rw [hmem₃, eRow₃, eN₃, eI₃]; exact hz c hc)
+      have hcl : classify (z₃.regs rN) (z₃.regs rI) (z₃.regs rT) (z₃.regs rX0) (z₃.regs rX1) =
+          o := by
+        rw [eN₃, eI₃, eT₃, eX0₃, eX1₃, ho_def, lineOut]
+        simp only [ht, ↓reduceIte]
+      rw [hcl] at v₄
+      rw [hcl, eG₃, eP₃] at vG₄
+      rw [hcl, eRow₃, eN₃, eI₃] at vR₄
+      rw [eRow₃, eN₃, eI₃] at vF₄
+      refine ⟨z₄, (ExecWithin.branch_pos (by rw [Cond.holds_lt, hT₁, hc16]; exact ht)
+        (e₁.seq (e₂.seq (e₃.seq e₄)))).mono (by omega), fun i hi => ?_, v₄, vG₄, vR₄,
+        fun a ha => (vF₄ a ha).trans (by rw [hmem₃])⟩
+      rw [f₄ i (fun h => absurd (h ▸ hi) (by decide)) (fun h => absurd (h ▸ hi) (by decide))
+        (fun h => absurd (h ▸ hi) (by decide)) (fun h => absurd (h ▸ hi) (by decide))
+        (fun h => absurd (h ▸ hi) (by decide)),
+        f₃ i (fun h => absurd (h ▸ hi) (by decide)) (fun h => absurd (h ▸ hi) (by decide))
+          (fun h => absurd (h ▸ hi) (by decide)),
+        f₂ i (fun h => absurd (h ▸ hi) (by decide)), f₁ i (fun h => absurd (h ▸ hi) (by decide))]
+    · have ho : o = ((tr.1 - 16) + (tr.1 - 16), none) := by
+        rw [ho_def, lineOut]; simp only [ht, ↓reduceIte]
+      obtain ⟨z, e, mz, fz, vz⟩ : ∃ z, ExecWithin w conBlk y₁ z 2 ∧ z.mem = y₁.mem ∧
+          (∀ i : Fin 24, i ≠ rC → z.regs i = y₁.regs i) ∧
+          z.regs rC = (tr.1 - 16) + (tr.1 - 16) := by
+        have := hok.1
+        refine WP.exists_execWithin ?_
+        unfold conBlk
+        wram_exec [hc16, hT₁]
+        exact ⟨rfl, fun i h1 => by wram_simp, by wram_simp⟩
+      refine ⟨z, (ExecWithin.branch_neg (by rw [Cond.holds_lt, hT₁, hc16]; exact ht) e).mono
+        (by omega), fun i hi => fz i (fun h => absurd (h ▸ hi) (by decide)), by rw [vz, ho],
+        ?_, fun c hc => ?_, fun a _ => by rw [mz, hm₁]⟩
+      · rw [fz rG (by decide), r₁ rG (by decide) (by decide), ho]; simp
+      · rw [mz, hm₁, ho, hz c hc]; rfl
+  obtain ⟨y₂, he₂, f₂, vC₂, vG₂, vR₂, vF₂⟩ := hbr
+  have e₂ : ∀ i : Fin 24, i.val < 16 → i ≠ rA → y₂.regs i = y.regs i := fun i hi hiA =>
+    (f₂ i hi).trans (r₁ i (by omega) hiA)
+  have eLit₂ : y₂.regs rLit = y.regs rLit := e₂ rLit (by decide) (by decide)
+  have eI₂ : y₂.regs rI = j := e₂ rI (by decide) (by decide)
+  have eP₂ : y₂.regs rP = y.regs rP := e₂ rP (by decide) (by decide)
+  have eOne₂ : y₂.regs rOne = 1 := (e₂ rOne (by decide) (by decide)).trans hone
+  obtain ⟨z, he₃, mz, fz, vI, vP⟩ : ∃ z, ExecWithin w storeBlk y₂ z 4 ∧
+      z.mem = Function.update y₂.mem (y.regs rLit + j) o.1 ∧
+      (∀ i : Fin 24, i ≠ rV → i ≠ rP → i ≠ rI → z.regs i = y₂.regs i) ∧
+      z.regs rI = j + 1 ∧ z.regs rP = y.regs rP + y.regs rP := by
+    refine WP.exists_execWithin ?_
+    unfold storeBlk
+    wram_exec [eLit₂, eI₂, eP₂, eOne₂, vC₂]
+    exact ⟨by wram_simp, fun i h1 h2 h3 => by wram_simp, by wram_simp, by wram_simp⟩
+  have hA₂ : y₂.regs rA = y.regs rA + 3 := (f₂ rA (by decide)).trans hA₁
+  refine ⟨z, (he₁.seq (he₂.seq he₃)).mono (by omega), fun i hi => ?_,
+    by rw [fz rA (by decide) (by decide) (by decide), hA₂], vI, vP, ?_, ?_, fun c hc => ?_,
+    fun a ha hR => ?_⟩
+  · rw [fz i (fun h => absurd (h ▸ hi) (by decide)) (fun h => absurd (h ▸ hi) (by decide))
+      (fun h => absurd (h ▸ hi) (by decide))]
+    exact e₂ i (by omega) (fun h => absurd (h ▸ hi) (by decide))
+  · rw [fz rG (by decide) (by decide) (by decide), vG₂]
+  · rw [mz, Function.update_self]
+  · rw [mz, Function.update_of_ne (by omega)]
+    exact vR₂ c hc
+  · rw [mz, Function.update_of_ne ha]
+    exact vF₂ a hR
+
+/-- One `phi` row `2 ^ i` per parameter. -/
+private def phiBody : Code .standard 24 := ram[
+  rA ← rPhi + rI; *rA ← rP; rP ← rP + rP; rI ← rI + rOne ]
+
+/-- Read `n` and `s`, set the constants and the base addresses of the layout. -/
+private def setup : Code .standard 24 := ram[
+  rT ← #1; rN ← *rT; rT ← #2; rS ← *rT;
+  rOne ← #1; rZero ← #0; rTwo ← #2; rThree ← #3; rFour ← #4; rFive ← #5; r16 ← #16;
+  rBase ← rS * rThree; rBase ← rBase + rFour; rRow ← rBase + rFive;
+  rU ← rN + rS; rV ← rU * rThree; rPhi ← rRow + rV;
+  rV ← rN * rFive; rPhi ← rPhi + rV; rW ← #7; rV ← rS * rW; rPhi ← rPhi + rV;
+  rLit ← rPhi + rN; rLit ← rLit + rU; rLit ← rLit + rU;
+  rP ← #1; rG ← #0; rI ← #0 ]
+
+/-- Store the parameter mask `2 ^ n - 1` and start the line loop. -/
+private def mid : Code .standard 24 := ram[
+  rV ← rP - rOne; *rBase ← rV; rI ← #0; rA ← #3 ]
+
+/-- Read the output wire. -/
+private def final₁ : Code .standard 24 := ram[ rX0 ← *rA ]
+
+/-- Store the output literal and the gate mask. -/
+private def final₂ : Code .standard 24 := ram[
+  rV ← rBase + rThree; *rV ← rX0; rV ← rBase + rTwo; *rV ← rG ]
+
 end Program
+
+open Cslib.WordRAM
+
+/-- The fixed standard-basis program that decodes the input circuit and builds the packed initial
+state `initialPacked C` at the addresses of `layout C`. -/
+def initCode : Code .standard 24 :=
+  .seq setup (.seq (.loop (.lt rI rN) phiBody) (.seq mid (.seq (.loop (.lt rI rS) lineBody)
+    (.seq final₁ (.seq litX0 final₂)))))
+
+/-- The instruction bound of `initCode`: `6 n + 73 s + 50` for `s = C.size` lines. -/
+@[expose] def initTime (C : Circuit (fullSignature 2 Bool) n 1) : ℕ :=
+  6 * n + 73 * C.size + 50
+
+/-- The gate mask after `k` lines. -/
+private def gmask (C : Circuit (fullSignature 2 Bool) n 1) (k : ℕ) : ℕ :=
+  ∑ j ∈ Finset.range k, if ((outs C).getD j (0, none)).2.isSome then 2 ^ (n + j) else 0
+
+private theorem gmask_add (C : Circuit (fullSignature 2 Bool) n 1) (k : ℕ) :
+    gmask C k + 2 ^ n ≤ 2 ^ (n + k) := by
+  induction k with
+  | zero => simp [gmask]
+  | succ k ih =>
+    rw [gmask, Finset.sum_range_succ, ← gmask, ← Nat.add_assoc, pow_succ]
+    split_ifs <;> omega
+
+private theorem getD_take_outs (C : Circuit (fullSignature 2 Bool) n 1) {k j : ℕ} (hj : j < k) :
+    (((outs C).take k).map Prod.fst).getD j 0 = ((outs C).getD j (0, none)).1 := by
+  rw [List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD, List.getElem?_map,
+    List.getElem?_take_of_lt hj]
+  cases (outs C)[j]? <;> rfl
+
+private theorem rowField_getD (o : Option GateRow) :
+    rowField o 0 = (o.getD ⟨0, 0, 0⟩).tt ∧ rowField o 1 = (o.getD ⟨0, 0, 0⟩).left ∧
+      rowField o 2 = (o.getD ⟨0, 0, 0⟩).right := by
+  cases o <;> exact ⟨rfl, rfl, rfl⟩
+
+/-- **Charged decoding and initial state.** At every admitted width, `initCode` runs from the
+input `encode C` in at most `initTime C = 6 n + 73 C.size + 50` instructions (in the library's
+Word-RAM cost model, every load, store, arithmetic and bitwise operation, branch and loop test
+counted) and leaves the packed initial state `initialPacked C` at the addresses of `layout C`.
+It writes only the workspace `[(layout C).base, workEnd C)`: the input and every cell from
+`workEnd C` on are unchanged. -/
+theorem exec_initCode (C : Circuit (fullSignature 2 Bool) n 1) {w : ℕ} (hw : FitsWidth C w) :
+    ∃ y, ExecWithin w initCode (.init (encode C)) y (initTime C) ∧
+      Stored (layout C) (initialPacked C) y.mem ∧
+      ∀ a, (a < (layout C).base ∨ workEnd C ≤ a) →
+        y.mem a = (Data.init (encode C) : Data 24).mem a := by
+  obtain ⟨hwN, hw5, hWE⟩ := hw
+  obtain ⟨m₀, hm₀def⟩ : ∃ m, m = (Data.init (encode C) : Data 24).mem := ⟨_, rfl⟩
+  obtain ⟨hi1, hi2, hitr, hiout, hi0⟩ := init_encode C
+  rw [← hm₀def] at hi1 hi2 hitr hiout hi0
+  rw [← hm₀def]
+  obtain ⟨htl, hok⟩ := progTriples_ok C.program
+  have hNB : nameBound C = n + C.size := rfl
+  rw [hNB] at hwN
+  set s := C.size with hs
+  set base := 4 + 3 * s with hbase
+  set row := base + 5 with hrow
+  set phi := row + 3 * (n + s) + (5 * n + 7 * s) with hphi
+  set top := phi + n + 2 * (n + s) with htop
+  have hWE' : top + s < 2 ^ w := by
+    have := hWE
+    simp only [Fits, workEnd, layout, Layout.top, nameBound, eqnBound] at this
+    omega
+  obtain ⟨W, hWdef⟩ : ∃ W, W = 2 ^ w - 1 := ⟨_, rfl⟩
+  have hW : Fits w W := by
+    rw [hWdef]; change 2 ^ w - 1 < 2 ^ w; have := Nat.two_pow_pos w; omega
+  have hWt : top + s ≤ W := by omega
+  have hpN : 2 ^ (n + s) + 2 ^ (n + s) ≤ W := by
+    have := Nat.pow_le_pow_right (n := 2) two_pos (show n + s + 2 ≤ w by omega)
+    rw [pow_succ, pow_succ] at this; omega
+  have hpw : ∀ k ≤ n + s, 2 ^ k + 2 ^ k ≤ W := fun k hk => by
+    have := Nat.pow_le_pow_right (n := 2) two_pos hk; omega
+  have h16w : 16 ≤ W := by
+    have := Nat.pow_le_pow_right (n := 2) two_pos hw5; omega
+  -- setup
+  obtain ⟨y₀, he₀, hm₀, eN, eS, eOne, eZero, eTwo, eThree, eFour, eFive, e16, eRow, eLit, ePhi,
+      eBase, eP₀, eG₀, eI₀⟩ : ∃ y₀, ExecWithin w setup (.init (encode C)) y₀ 28 ∧ y₀.mem = m₀ ∧
+      y₀.regs rN = n ∧ y₀.regs rS = s ∧ y₀.regs rOne = 1 ∧ y₀.regs rZero = 0 ∧
+      y₀.regs rTwo = 2 ∧ y₀.regs rThree = 3 ∧ y₀.regs rFour = 4 ∧ y₀.regs rFive = 5 ∧
+      y₀.regs r16 = 16 ∧ y₀.regs rRow = row ∧ y₀.regs rLit = top ∧ y₀.regs rPhi = phi ∧
+      y₀.regs rBase = base ∧ y₀.regs rP = 1 ∧ y₀.regs rG = 0 ∧ y₀.regs rI = 0 := by
+    refine WP.exists_execWithin ?_
+    unfold setup
+    have hj1 : (Data.init (encode C) : Data 24).mem 1 = n := by rw [← hm₀def]; exact hi1
+    have hj2 : (Data.init (encode C) : Data 24).mem 2 = s := by rw [← hm₀def]; exact hi2
+    wram_exec [hj1, hj2]
+    refine ⟨hm₀def.symm, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+      wram_simp <;> omega
+  -- the `phi` rows
+  let P₁ (i : ℕ) (y : Data 24) : Prop :=
+    (∀ r : Fin 24, r.val < 13 → y.regs r = y₀.regs r) ∧ y.regs rP = 2 ^ i ∧ y.regs rG = 0 ∧
+      (∀ k < i, y.mem (phi + k) = 2 ^ k) ∧ ∀ a, ¬(phi ≤ a ∧ a < phi + i) → y.mem a = m₀ a
+  obtain ⟨y₁, he₁, ⟨hr₁, hP₁, hG₁, hphi₁, hf₁⟩, hI₁⟩ := ExecWithin.loop_count
+    (body := phiBody) (index := rI) (limit := rN) (N := n) (T := 4) (w := w) P₁
+    (fun y hy => (hy.1 rN (by decide)).trans eN)
+    (fun y hy hlt => by
+      obtain ⟨hr, hp, hg, hm, hf⟩ := hy
+      have ePh : y.regs rPhi = phi := (hr rPhi (by decide)).trans ePhi
+      have eO : y.regs rOne = 1 := (hr rOne (by decide)).trans eOne
+      have hlt' : y.regs rI < n := hlt
+      have := hpw (y.regs rI) (by omega)
+      obtain ⟨z, he, mz, rz, Pz, Iz, Gz⟩ : ∃ z, ExecWithin w phiBody y z 4 ∧
+          z.mem = Function.update y.mem (phi + y.regs rI) (2 ^ y.regs rI) ∧
+          (∀ r : Fin 24, r.val < 13 → z.regs r = y.regs r) ∧
+          z.regs rP = 2 ^ y.regs rI + 2 ^ y.regs rI ∧ z.regs rI = y.regs rI + 1 ∧
+          z.regs rG = y.regs rG := by
+        refine WP.exists_execWithin ?_
+        unfold phiBody
+        wram_exec [ePh, eO, hp]
+        exact ⟨by wram_simp, fun r hr => by
+          fin_cases r <;> first | exact absurd hr (by decide) | wram_simp,
+          by wram_simp, by wram_simp, by wram_simp⟩
+      obtain ⟨hm', hf'⟩ := prefix_write_step (e := fun k => 2 ^ k) hm hf mz
+      exact ⟨z, he, ⟨fun r hr' => (rz r hr').trans (hr r hr'), by rw [Pz, pow_succ]; ring,
+        by rw [Gz, hg], hm', hf'⟩, Iz⟩)
+    (by rw [eI₀]; omega)
+    (by rw [eI₀]; exact ⟨fun _ _ => rfl, eP₀, eG₀, fun k hk => absurd hk (Nat.not_lt_zero _),
+      fun a _ => by rw [hm₀]⟩)
+  -- the parameter mask, start of the line loop
+  have eO₁ : y₁.regs rOne = 1 := (hr₁ rOne (by decide)).trans eOne
+  have eB₁ : y₁.regs rBase = base := (hr₁ rBase (by decide)).trans eBase
+  have := hpw n (by omega)
+  obtain ⟨y₂, he₂, hm₂, hr₂, hP₂, hG₂, hI₂, hA₂⟩ : ∃ y₂, ExecWithin w mid y₁ y₂ 4 ∧
+      y₂.mem = Function.update y₁.mem base (2 ^ n - 1) ∧
+      (∀ r : Fin 24, r.val < 13 → y₂.regs r = y₁.regs r) ∧ y₂.regs rP = 2 ^ n ∧
+      y₂.regs rG = 0 ∧ y₂.regs rI = 0 ∧ y₂.regs rA = 3 := by
+    refine WP.exists_execWithin ?_
+    unfold mid
+    wram_exec [eO₁, eB₁, hP₁]
+    exact ⟨by wram_simp, fun r hr => by
+      fin_cases r <;> first | exact absurd hr (by decide) | wram_simp,
+      by wram_simp; exact hP₁, by wram_simp; exact hG₁, by wram_simp, by wram_simp⟩
+  obtain ⟨m₁, hm₁def⟩ : ∃ m, m = y₂.mem := ⟨_, rfl⟩
+  -- memory before the line loop
+  have hm₁in : ∀ a, a < base → m₁ a = m₀ a := fun a ha => by
+    rw [hm₁def, hm₂, Function.update_of_ne (by omega), hf₁ a (by omega)]
+  have hm₁z : ∀ a, base < a → a < phi → m₁ a = 0 := fun a h1 h2 => by
+    rw [hm₁def, hm₂, Function.update_of_ne (by omega), hf₁ a (by omega), hi0 a (by omega)]
+  -- the line loop
+  let Q (k : ℕ) (y : Data 24) : Prop :=
+    (∀ r : Fin 24, r.val < 13 → y.regs r = y₀.regs r) ∧ y.regs rA = 3 + 3 * k ∧
+      y.regs rP = 2 ^ (n + k) ∧ y.regs rG = gmask C k ∧
+      (∀ j < k, y.mem (top + j) = ((outs C).getD j (0, none)).1) ∧
+      (∀ j < k, ∀ c < 3, y.mem (row + 3 * (n + j) + c) =
+        rowField ((outs C).getD j (0, none)).2 c) ∧
+      ∀ a, ¬(top ≤ a ∧ a < top + k) → ¬(row + 3 * n ≤ a ∧ a < row + 3 * (n + k)) →
+        y.mem a = m₁ a
+  obtain ⟨y₃, he₃, ⟨hr₃, hA₃, hP₃, hG₃, hlit₃, hrow₃, hf₃⟩, hI₃⟩ := ExecWithin.loop_count
+    (body := lineBody) (index := rI) (limit := rS) (N := s) (T := 71) (w := w) Q
+    (fun y hy => (hy.1 rS (by decide)).trans eS)
+    (fun y hy hlt => by
+      obtain ⟨hr, hA, hp, hg, hlit, hrw, hf⟩ := hy
+      set k := y.regs rI with hk
+      have hks : k < s := hlt
+      have hin : ∀ a, a < base → y.mem a = m₀ a := fun a ha => by
+        rw [hf a (by omega) (by omega), hm₁in a ha]
+      have g := fun (r : Fin 24) (h : r.val < 13) => hr r h
+      have hgm := gmask_add C k
+      have hpk := hpw (n + k) (by omega)
+      have hpk1 := hpw (n + k + 1) (by omega)
+      obtain ⟨z, he, rz, Az, Iz, Pz, Gz, litz, rowz, fz⟩ := exec_lineBody y
+        (((outs C).take k).map Prod.fst) ((progTriples C.program).getD k (0, 0, 0)) hW hw5
+        ((g rOne (by decide)).trans eOne) ((g rZero (by decide)).trans eZero)
+        ((g rTwo (by decide)).trans eTwo) ((g rThree (by decide)).trans eThree)
+        ((g rFour (by decide)).trans eFour) ((g rFive (by decide)).trans eFive)
+        ((g r16 (by decide)).trans e16)
+        (by rw [hA, hin _ (by omega)]; exact hitr k hks 0 (by decide))
+        (by rw [hA, hin _ (by omega)]; exact hitr k hks 1 (by decide))
+        (by rw [hA, hin _ (by omega), show 3 + 3 * k + 1 + 1 = 3 + 3 * k + 2 by omega]
+            exact hitr k hks 2 (by decide))
+        (by rw [g rN (by decide), eN]; exact hok k hks)
+        (fun j hj => by
+          rw [g rLit (by decide), eLit, Nat.add_comm, hlit j hj, getD_take_outs C hj])
+        (fun j hj => by
+          rw [getD_take_outs C hj]
+          have := code_lt C (show j < C.size by omega)
+          rw [hNB] at this; omega)
+        (by rw [g rN (by decide), eN]; omega) (by rw [hA]; omega)
+        (by rw [g rLit (by decide), eLit]; omega)
+        (by rw [g rRow (by decide), eRow, g rLit (by decide), eLit, g rN (by decide), eN]; omega)
+        (by rw [hg, hp]; omega) (by rw [hp]; omega)
+        (fun c hc => by
+          rw [g rRow (by decide), eRow, g rN (by decide), eN,
+            hf _ (by omega) (by omega), hm₁z _ (by omega) (by omega)])
+      have hlo : lineOut n k (((outs C).take k).map Prod.fst)
+          ((progTriples C.program).getD k (0, 0, 0)) = (outs C).getD k (0, none) :=
+        (getD_decodeLines _ (by rw [htl]; exact hks)).symm
+      rw [g rN (by decide), eN, hlo] at Gz litz rowz
+      rw [g rN (by decide), eN] at fz
+      rw [g rLit (by decide), eLit] at litz fz
+      rw [g rRow (by decide), eRow] at rowz fz
+      refine ⟨z, he, ⟨fun r hr' => (rz r hr').trans (hr r hr'), by rw [Az, hA]; ring,
+        by rw [Pz, hp, ← Nat.add_assoc, pow_succ]; ring,
+        by rw [Gz, hg, hp, gmask, gmask, Finset.sum_range_succ], fun j hj => ?_,
+        fun j hj c hc => ?_, fun a ha1 ha2 => ?_⟩, Iz⟩
+      · rcases Nat.lt_succ_iff_lt_or_eq.1 hj with hj | rfl
+        · rw [fz _ (by omega) (by omega)]; exact hlit j hj
+        · exact litz
+      · rcases Nat.lt_succ_iff_lt_or_eq.1 hj with hj | rfl
+        · rw [fz _ (by omega) (by omega)]; exact hrw j hj c hc
+        · exact rowz c hc
+      · rw [fz a (by omega) (by omega)]
+        exact hf a (by omega) (by omega))
+    (by rw [hI₂]; omega)
+    (by
+      rw [hI₂]
+      refine ⟨fun r hr => (hr₂ r hr).trans (hr₁ r hr), by rw [hA₂], by rw [hP₂, Nat.add_zero], by
+        rw [hG₂]; rfl, fun j hj => absurd hj (Nat.not_lt_zero _),
+        fun j hj => absurd hj (Nat.not_lt_zero _), fun a _ _ => by rw [hm₁def]⟩)
+  -- the output literal and the gate mask
+  have hin₃ : ∀ a, a < base → y₃.mem a = m₀ a := fun a ha => by
+    rw [hf₃ a (by omega) (by omega), hm₁in a ha]
+  obtain ⟨y₄, he₄, hm₄, hr₄, hX₄⟩ : ∃ y₄, ExecWithin w final₁ y₃ y₄ 1 ∧ y₄.mem = y₃.mem ∧
+      (∀ r : Fin 24, r ≠ rX0 → y₄.regs r = y₃.regs r) ∧
+      y₄.regs rX0 = wireCode (C.outputs 0) := by
+    refine WP.exists_execWithin ?_
+    unfold final₁
+    wram_exec [hA₃, hin₃ _ (show 3 + 3 * s < base by omega), hiout]
+    exact ⟨rfl, fun r hr => by wram_simp, by wram_simp; exact hiout⟩
+  have g₄ : ∀ r : Fin 24, r.val < 13 → y₄.regs r = y₀.regs r := fun r hr =>
+    (hr₄ r (fun h => absurd (h ▸ hr) (by decide))).trans (hr₃ r hr)
+  have hwo := wireCode_lt (C.outputs 0)
+  obtain ⟨y₅, he₅, hm₅, hr₅, hX₅⟩ := exec_litX0 y₄ ((outs C).map Prod.fst) hW
+    ((g₄ rFour (by decide)).trans eFour) (by rw [hX₄]; omega)
+    (by rw [hX₄, g₄ rN (by decide), eN, g₄ rLit (by decide), eLit]; omega)
+    (fun hge => by
+      rw [hX₄, g₄ rN (by decide), eN] at hge ⊢
+      rw [hm₄, g₄ rLit (by decide), eLit, Nat.add_comm, hlit₃ _ (by omega)]
+      rw [← getD_take_outs C (k := s) (by omega), List.take_of_length_le (by rw [length_outs])])
+  have hout : y₅.regs rX0 = litCode (initialState C).out := by
+    rw [hX₅, g₄ rN (by decide), eN, hX₄, out_eq]
+  have g₅ : ∀ r : Fin 24, r.val < 13 → y₅.regs r = y₀.regs r := fun r hr =>
+    (hr₅ r (fun h => absurd (h ▸ hr) (by decide))).trans (g₄ r hr)
+  have eG₅ : y₅.regs rG = gmask C s :=
+    (hr₅ rG (by decide)).trans ((hr₄ rG (by decide)).trans hG₃)
+  obtain ⟨y₆, he₆, hm₆⟩ : ∃ y₆, ExecWithin w final₂ y₅ y₆ 4 ∧
+      y₆.mem = Function.update (Function.update y₅.mem (base + 3) (litCode (initialState C).out))
+        (base + 2) (gmask C s) := by
+    refine WP.exists_execWithin ?_
+    unfold final₂
+    wram_exec [g₅ rBase (by decide), eBase, g₅ rThree (by decide), eThree,
+      g₅ rTwo (by decide), eTwo, hout, eG₅]
+    exact by wram_simp
+  -- assembling the bound and the stored state
+  have hmem₂ : y₆.mem (base + 2) = gmask C s := by rw [hm₆, Function.update_self]
+  have hmem₃ : y₆.mem (base + 3) = litCode (initialState C).out := by
+    rw [hm₆, Function.update_of_ne (by omega), Function.update_self]
+  have hmemo : ∀ a, a ≠ base + 2 → a ≠ base + 3 → y₆.mem a = y₃.mem a := fun a h2 h3 => by
+    rw [hm₆, Function.update_of_ne h2, Function.update_of_ne h3, hm₅, hm₄]
+  have hrest₀ : y₃.mem base = 2 ^ n - 1 := by
+    rw [hf₃ base (by omega) (by omega), hm₁def, hm₂, Function.update_self]
+  have hrestz : ∀ a, base < a → a < phi → ¬(row + 3 * n ≤ a ∧ a < row + 3 * (n + s)) →
+      y₃.mem a = 0 := fun a h1 h2 h3 => by
+    rw [hf₃ a (by omega) h3, hm₁def, hm₂, Function.update_of_ne (by omega), hf₁ a (by omega),
+      hi0 a (by omega)]
+  refine ⟨y₆, (he₀.seq (he₁.seq (he₂.seq (he₃.seq (he₄.seq (he₅.seq he₆)))))).mono ?_, ?_,
+    fun a ha => ?_⟩
+  · rw [eI₀, hI₂]; simp only [initTime, Nat.sub_zero]; omega
+  · refine ⟨?_, ?_, ?_, ?_, ?_, fun J hJ => ?_, fun e he => ?_, fun i hi => ?_,
+      fun k hk => absurd hk (by simp [initialPacked])⟩
+    · change y₆.mem base = maskOf (Finset.range n)
+      rw [hmemo base (by omega) (by omega), hrest₀, maskOf_range]
+    · change y₆.mem (base + 1) = 0
+      rw [hmemo (base + 1) (by omega) (by omega), hrestz _ (by omega) (by omega) (by omega)]
+    · change y₆.mem (base + 2) = maskOf (initialState C).gates
+      rw [hmem₂, maskOf_gates]; rfl
+    · exact hmem₃
+    · change y₆.mem (base + 4) = 0
+      rw [hmemo (base + 4) (by omega) (by omega), hrestz _ (by omega) (by omega) (by omega)]
+    · have hJN : J < n + s := by simpa [initialPacked, nameBound] using hJ
+      have hrowJ : (initialPacked C).gateRows.getD J ⟨0, 0, 0⟩ =
+          if J ∈ (initialState C).gates then rowOf ((initialState C).gate J) else ⟨0, 0, 0⟩ := by
+        rw [List.getD_eq_getElem _ _ hJ]; simp [initialPacked]
+      have hadd : ∀ c, (layout C).rowAddr J c = row + 3 * J + c := fun c => by
+        simp only [Layout.rowAddr, layout]; omega
+      rw [hadd 0, hadd 1, hadd 2, hrowJ, hmemo (row + 3 * J + 0) (by omega) (by omega),
+        hmemo (row + 3 * J + 1) (by omega) (by omega), hmemo (row + 3 * J + 2) (by omega)
+        (by omega)]
+      rcases Nat.lt_or_ge J n with hJn | hJn
+      · have hJg : J ∉ (initialState C).gates := fun h => by
+          have := mem_gates_ofCircuitBinary h; omega
+        simp only [hJg, ↓reduceIte]
+        exact ⟨hrestz _ (by omega) (by omega) (by omega), hrestz _ (by omega) (by omega)
+          (by omega), hrestz _ (by omega) (by omega) (by omega)⟩
+      · obtain ⟨j, rfl⟩ : ∃ j, J = n + j := ⟨J - n, by omega⟩
+        have hj : j < s := by omega
+        have hro : ((outs C).getD j (0, none)).2 = if n + j ∈ (initialState C).gates then
+            some (rowOf ((initialState C).gate (n + j))) else none := by
+          rw [getD_outs C hj]
+        obtain ⟨h0, h1, h2⟩ := rowField_getD ((outs C).getD j (0, none)).2
+        rw [hrow₃ j hj 0 (by decide), hrow₃ j hj 1 (by decide), hrow₃ j hj 2 (by decide), h0, h1,
+          h2, hro]
+        split_ifs <;> exact ⟨rfl, rfl, rfl⟩
+    · have heE : e < 5 * n + 7 * s := by simpa [initialPacked, eqnBound] using he
+      have : (layout C).eqnAddr e = row + 3 * (n + s) + e := by
+        simp only [Layout.eqnAddr, layout, nameBound]; omega
+      rw [this, hmemo _ (by omega) (by omega), hrestz _ (by omega) (by omega) (by omega)]
+      simp [initialPacked]
+    · have hin : i < n := by simpa [initialPacked] using hi
+      have : (layout C).phiAddr i = phi + i := by
+        simp only [Layout.phiAddr, layout, nameBound, eqnBound]; omega
+      rw [this, hmemo _ (by omega) (by omega), hf₃ _ (by omega) (by omega), hm₁def, hm₂,
+        Function.update_of_ne (by omega), hphi₁ i hin, List.getD_eq_getElem _ _ hi]
+      simp [initialPacked]
+  · have hb : (layout C).base = base := rfl
+    have he : workEnd C = top + s := by
+      simp only [workEnd, layout, Layout.top, nameBound, eqnBound]; omega
+    rw [hb, he] at ha
+    rw [hmemo a (by omega) (by omega), hf₃ a (by omega) (by omega), hm₁def, hm₂,
+      Function.update_of_ne (by omega), hf₁ a (by omega)]
 
 end Cslib.Algorithms.WordRAM.Refuter4n
