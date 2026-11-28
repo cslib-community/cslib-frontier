@@ -26,7 +26,7 @@ register_result "nrtv-num-kkt-shadow-price-decentralization" where
   sources := [
     { paper := OzdaglarSrikant2007,
       theorem := "Eqs. (22.1)–(22.7) (KKT optimality and shadow-price decentralization)",
-      locator := "Chapter 22, §22.1, pp. 572–574" },
+      locator := "Chapter 22, §22.1, pp. 572–575" },
     { paper := Kelly1997,
       theorem := unverified,
       locator := unverified }
@@ -72,12 +72,16 @@ register_result "nrtv-weighted-proportional-fairness-myopic-alignment" where
     myopicBid_isMax_iff_derivWithin_eq
   ]
   scope := "Finite multi-link network NetworkUtilityModel R L with positive bids w > 0. Proves \
-    equivalence between weighted proportional fairness ∑_r w_r (y_r - x_r) / x_r ≤ 0, \
+    equivalence between the weighted variational inequality ∑_r w_r (y_r - x_r) / x_r ≤ 0, \
     maximization of ∑_r w_r log x_r over strictly positive feasible rates (Eq. (22.8)), and the \
     KKT system Eqs. (22.9)–(22.12) (correcting the printed sum index typo in Eq. (22.9) from \
-    r : l ∈ r to l : l ∈ r). Existence and uniqueness assume nonempty routes and strictly \
-    positive link capacities. Also proves alignment with social optimality under \
-    w_r = x̂_r U'_r(x̂_r) and equivalence of myopic bid maximization with U'_r(w_r / q_r) = q_r."
+    r : l ∈ r to l : l ∈ r). Relative to Vazirani2007 §5.13 p. 125, NetworkUtilityModel \
+    formalizes the single-route (k_i = 1) specialization of Eq. (5.2) and states the exact \
+    weighted variational inequality ∑_r w_r (y_r - x_r) / x_r ≤ 0 (whereas p. 125 displays the \
+    unweighted inequality alongside max ∑ m_i log f_i). Existence and uniqueness assume nonempty \
+    routes and strictly positive link capacities. Also proves alignment with social optimality \
+    under w_r = x̂_r U'_r(x̂_r) and equivalence of myopic bid maximization with \
+    U'_r(w_r / q_r) = q_r."
 
 register_result "nrtv-dual-congestion-control-lyapunov-convergence" where
   title := "Lyapunov stability and global asymptotic convergence of dual congestion control"

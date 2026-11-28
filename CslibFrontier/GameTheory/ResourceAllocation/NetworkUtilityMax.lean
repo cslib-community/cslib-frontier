@@ -39,7 +39,7 @@ This module formalizes Section 22.1 of Ozdaglar and Srikant ([OzdaglarSrikant200
 building on [Kelly1997]): competitive pricing and decentralized dual congestion control in
 multi-link communication networks, together with the wireless Max-Weight scheduling extension.
 
-1. **Multi-link Network Utility Maximization (`NUM`, Eqs. (22.1)–(22.7), pp. 572–574):**
+1. **Multi-link Network Utility Maximization (`NUM`, Eqs. (22.1)–(22.7), pp. 572–575):**
    A finite network `NetworkUtilityModel R L` consists of sources/routes `R`, links `L`, route
    incidence `route : R → Finset L`, link capacities `capacity : L → ℝ`, and utility functions
    `utility : R → ℝ → ℝ`. The aggregate rate on link `l` is `linkLoad x l = ∑_{r : l ∈ r} x_r`,
@@ -702,9 +702,9 @@ theorem isSocialOptimum_of_priceTaking [Fintype R] [Finite L] [DecidableEq L]
   change ∑ r, M.utility r (y r) ≤ ∑ r, M.utility r (x r)
   linarith
 
-/-- **Price-taking decentralization** ([OzdaglarSrikant2007], §22.1, Eqs. (22.6)–(22.7), p. 574):
-at any KKT pair `(x, p)` for concave utilities differentiable on `[0, ∞)`, each source `r`
-maximizes its price-taking net utility `U_r(t) - q_r t` over `t ≥ 0` at `t = x_r`. -/
+/-- **Price-taking decentralization** ([OzdaglarSrikant2007], §22.1, Eqs. (22.6)–(22.7),
+pp. 573–574): at any KKT pair `(x, p)` for concave utilities differentiable on `[0, ∞)`, each
+source `r` maximizes its price-taking net utility `U_r(t) - q_r t` over `t ≥ 0` at `t = x_r`. -/
 theorem IsKKT.priceTaking_optimal [Fintype R] [DecidableEq L] {M : NetworkUtilityModel R L}
     {x : R → ℝ} {p : L → ℝ} (hkkt : M.IsKKT x p)
     (hconc : ∀ r, ConcaveOn ℝ (Ici 0) (M.utility r))
@@ -1941,7 +1941,7 @@ theorem IsDualPriceTrajectory.tendsto_of_fixedBids [Fintype R] [Finite L] [Decid
   exact ⟨hq_lim, hx_lim, fun hinj => M.tendsto_price_of_tendsto_routePrice hinj hq_lim⟩
 
 /-- **Lyapunov stability for myopic dual congestion control** ([OzdaglarSrikant2007], §22.1,
-Eqs. (22.13), (22.15), p. 576): under `U'_r(x_r(t)) = q_r(t)` with concave differentiable
+Eqs. (22.13), (22.15), pp. 575–576): under `U'_r(x_r(t)) = q_r(t)` with concave differentiable
 utilities, `lyapunov pStar ∘ p` is nonincreasing on `[0, ∞)`. -/
 theorem IsDualPriceTrajectory.antitoneOn_lyapunov_of_myopic [Fintype R] [Fintype L]
     [DecidableEq L] {M : NetworkUtilityModel R L} {x : ℝ → R → ℝ} {p : ℝ → L → ℝ}
@@ -1961,9 +1961,9 @@ theorem IsDualPriceTrajectory.antitoneOn_lyapunov_of_myopic [Fintype R] [Fintype
       (M.myopic_rate_drift_nonpos hU (hx0 t ht) hkkt.feasible.1 (hctrl t ht) hxStar_eq)⟩
 
 /-- **Global asymptotic convergence of myopic dual congestion control** ([OzdaglarSrikant2007],
-§22.1, Eqs. (22.13), (22.15), p. 576): for strictly concave admissible utilities, any trajectory of
-`ṗ_l = (y_l - c_l)^+_{p_l}` with `U'_r(x_r) = q_r` converges globally: `x(t) → x*`, `q(t) → q*`,
-and under full row rank (`Function.Injective M.routePrice`) `p(t) → p*`. -/
+§22.1, Eqs. (22.13), (22.15), pp. 575–576): for strictly concave admissible utilities, any
+trajectory of `ṗ_l = (y_l - c_l)^+_{p_l}` with `U'_r(x_r) = q_r` converges globally: `x(t) → x*`,
+`q(t) → q*`, and under full row rank (`Function.Injective M.routePrice`) `p(t) → p*`. -/
 theorem IsDualPriceTrajectory.tendsto_of_myopic [Fintype R] [Finite L] [DecidableEq L]
     {M : NetworkUtilityModel R L} {x : ℝ → R → ℝ} {p : ℝ → L → ℝ}
     {xStar : R → ℝ} {pStar : L → ℝ}
