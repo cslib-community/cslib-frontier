@@ -769,8 +769,7 @@ noncomputable opaque ICfg.commandAtLookupCompiler :
         let (description, word, cfg, _coin) := input
         NativeCompiler.firstMatch
           (description.table, cfg.key word ((cfg.control.getD none).getD 0)))
-      (encPair eDesc (encPair (encList encUnary) (encPair eICfg encBool)))
-      (encOption eBranches) := by
+      eCommandAtInput (encOption eBranches) := by
   let description := NativeCompiler.first eDesc
     (encPair (encList encUnary) (encPair eICfg encBool))
   let table := Desc.tableCompiler.comp description

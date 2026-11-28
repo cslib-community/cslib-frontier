@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.De
 public import CslibFrontier.Computability.Probabilistic.Oracle.Time
 public import CslibFrontier.Languages.Probabilistic.Oracle.Codec
 public import CslibFrontier.Languages.Probabilistic.Iteration
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Prefix
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bound
 import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Languages.Probabilistic.QueryCount.Iterate
@@ -35,9 +36,9 @@ arbitrarily long, so the typed correspondence assumes that these bits contain th
 the observable symbols for every supported handler reply. The codec answers malformed requests
 locally.
 
-The traffic bounds count private coins and calls, request symbols and encoded bits, and
-the source-symbol and encoded-bit reply prefixes. The runtime word includes one framed copy of
-the supplied description followed by the clock, input and reply budget.
+The traffic bounds on the word program count private coins, calls, request symbols and
+encoded bits, and the source-symbol and encoded-bit reply prefixes. The runtime word includes
+one framed copy of the supplied description followed by the clock, input and reply budget.
 `Turing.MultiTapePTM.Universal.NativeInterpreter.artifact` provides the retained machine,
 its installed description and its construction clock. Executing a separately installed handler
 has its own costs.
@@ -59,8 +60,6 @@ has its own costs.
   their source-symbol and encoded-bit bounds.
 * `Turing.MultiTapePTM.Universal.runInputSize_eq_framed`: the exact framed partition of the
   supplied descriptor and the other runtime parameters.
-* `Turing.MultiTapePTM.Universal.unaryListDecoder_take_encList`: a sufficient reply prefix decodes
-  every source reply symbol the instruction clock can observe.
 
 ## References
 
@@ -703,49 +702,6 @@ private theorem sourceRun_eq_runOracle (d : Desc) (fuel : ℕ) (input : List ℕ
 def unaryListDecoder : Turing.MultiTapeTM.Decoder (encList encUnary) :=
   .list .unary
 
-/-- Complete framed list elements remain the initial frames after appending any raw suffix. -/
-private theorem frames_encList_append {α : Type} (enc : α ↪ List Bool)
-    (values : List α) (suffix : List Bool) :
-    frames (encList enc values ++ suffix) = values.map enc ++ frames suffix := by
-  induction values with
-  | nil => simp only [encList_nil, List.nil_append, List.map_nil]
-  | cons value values ih =>
-    rw [encList_cons, List.append_assoc, frames_frame_append, ih, List.map_cons,
-      List.cons_append]
-
-/-- Copying enough bits to contain the encoding of the first `fuel` reply symbols makes those
-symbols decode exactly. Extra copied bits and a final incomplete frame cannot affect the prefix. -/
-theorem unaryListDecoder_take_encList (reply : List ℕ) (fuel replyBits : ℕ)
-    (hfit : (encList encUnary (reply.take fuel)).length ≤ replyBits) :
-    (unaryListDecoder.decode ((encList encUnary reply).take replyBits)).take fuel =
-      reply.take fuel := by
-  by_cases hshort : reply.length ≤ fuel
-  · have htake : reply.take fuel = reply := List.take_of_length_le hshort
-    rw [htake] at hfit ⊢
-    rw [List.take_of_length_le hfit, unaryListDecoder.decode_enc,
-      List.take_of_length_le hshort]
-  · have hfuel : fuel ≤ reply.length := Nat.le_of_lt (Nat.lt_of_not_ge hshort)
-    have hprefixLength : (reply.take fuel).length = fuel := by
-      simp only [List.length_take, Nat.min_eq_left hfuel]
-    have henc : encList encUnary reply =
-        encList encUnary (reply.take fuel) ++ encList encUnary (reply.drop fuel) := by
-      rw [← encList_append, List.take_append_drop]
-    change ((frames ((encList encUnary reply).take replyBits)).map
-      (fun word => word.length)).take fuel = reply.take fuel
-    rw [henc, List.take_append, List.take_of_length_le hfit, frames_encList_append,
-      List.map_append, List.map_map]
-    have hmap : (fun word : ℕ => (encUnary word).length) = id := by
-      funext word
-      simp only [encUnary_apply, List.length_replicate, id_eq]
-    rw [show ((fun word => word.length) ∘ encUnary) = id by
-      funext word
-      exact congrFun hmap word, List.map_id]
-    simpa only [hprefixLength] using
-      (List.take_append_length (l₁ := reply.take fuel)
-        (l₂ := (frames
-          ((encList encUnary (reply.drop fuel)).take
-            (replyBits - (encList encUnary (reply.take fuel)).length))).map List.length))
-
 /-- Source-level execution of one instruction on fixed Boolean channels. Semantically only
 `replyBits` bits of the encoded reply and the first `fuel` decoded source symbols are observed.
 The native witness must separately charge prefix copying and decoding; this definition does not
@@ -1037,7 +993,7 @@ private theorem runWith_wordQuery_eq_sourceQuery {r : ℕ} {State : Type}
   apply PMF.bind_congr_on_support
   rintro ⟨reply, nextState⟩ hreply
   simp only [Function.comp_apply]
-  rw [unaryListDecoder_take_encList reply fuel replyBits
+  rw [unaryListDecoder, Decoder.list_decode_take .unary reply fuel replyBits
     (hfit (operation, request) state reply nextState hreply)]
 
 /-- One fixed-channel Boolean interpreter step has the same complete output/private-state law as

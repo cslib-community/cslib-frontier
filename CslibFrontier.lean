@@ -4884,6 +4884,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Layered.Size
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Lyubashevsky
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS
 public import CslibFrontier.Computability.Circuit.Frontier.TensorRank.ThreeWayCut.SampleSpace
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Prefix
 public import CslibFrontier.Computability.Circuit.Encoding.MapOp
 public import CslibFrontier.Computability.Complexity.Classes.WPP
 public import CslibFrontier.Computability.Probabilistic.Repeat

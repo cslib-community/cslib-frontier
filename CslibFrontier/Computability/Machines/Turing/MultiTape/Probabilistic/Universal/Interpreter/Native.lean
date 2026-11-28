@@ -89,9 +89,8 @@ def loopStateDecoder : Decoder eLoopState :=
   (Decoder.pair descDecoder
     (.pair (.list .unary)
       (.pair .unary (.pair .unary (.pair .unary iCfgDecoder))))).map
-    (fun state =>
-      ⟨state.1, state.2.1, state.2.2.1, state.2.2.2.1, state.2.2.2.2.1,
-        state.2.2.2.2.2⟩)
+    (fun (desc, input, fuel, replyBits, remaining, cfg) =>
+      ⟨desc, input, fuel, replyBits, remaining, cfg⟩)
     (fun state =>
       (state.desc, state.input, state.fuel, state.replyBits, state.remaining, state.cfg))
     (fun _ => rfl) fun _ => rfl
@@ -144,91 +143,49 @@ the runtime input and supplied-description coordinates. -/
 
 /-! ### Concrete deterministic layouts -/
 
-private abbrev LoopTail1 := List ℕ × (ℕ × (ℕ × (ℕ × ICfg)))
-private abbrev LoopTail2 := ℕ × (ℕ × (ℕ × ICfg))
-private abbrev LoopTail3 := ℕ × (ℕ × ICfg)
-private abbrev LoopTail4 := ℕ × ICfg
+private abbrev eLoopTail4 := encPair encUnary eICfg
+private abbrev eLoopTail3 := encPair encUnary eLoopTail4
+private abbrev eLoopTail2 := encPair encUnary eLoopTail3
+private abbrev eLoopTail1 := encPair (encList encUnary) eLoopTail2
 
-private def eLoopTail1 : LoopTail1 ↪ List Bool :=
-  encPair (encList encUnary)
-    (encPair encUnary (encPair encUnary (encPair encUnary eICfg)))
-private def eLoopTail2 : LoopTail2 ↪ List Bool :=
-  encPair encUnary (encPair encUnary (encPair encUnary eICfg))
-private def eLoopTail3 : LoopTail3 ↪ List Bool := encPair encUnary (encPair encUnary eICfg)
-private def eLoopTail4 : LoopTail4 ↪ List Bool := encPair encUnary eICfg
-
-private def loopFields (state : LoopState) : Desc × LoopTail1 :=
+private def loopFields (state : LoopState) :=
   (state.desc, state.input, state.fuel, state.replyBits, state.remaining, state.cfg)
 
-/-- Retained loop-state description projection. -/
+private noncomputable def tail1Compiler :=
+  (NativeCompiler.second eDesc eLoopTail1).ofInputEq (encIn := eLoopState) loopFields fun _ => rfl
+
+private noncomputable def tail2Compiler :=
+  (NativeCompiler.second (encList encUnary) eLoopTail2).comp tail1Compiler
+
+private noncomputable def tail3Compiler :=
+  (NativeCompiler.second encUnary eLoopTail3).comp tail2Compiler
+
+private noncomputable def tail4Compiler :=
+  (NativeCompiler.second encUnary eLoopTail4).comp tail3Compiler
+
 private noncomputable def descCompiler : NativeCompiler LoopState.desc eLoopState eDesc :=
   ((NativeCompiler.first eDesc eLoopTail1).ofInputEq
     (encIn := eLoopState) loopFields fun _ => rfl).ofOutputEq fun _ => rfl
 
-/-- Retained loop-state source-input projection. -/
 private noncomputable def inputCompiler :
     NativeCompiler LoopState.input eLoopState (encList encUnary) :=
-  (((NativeCompiler.first (encList encUnary) eLoopTail2).comp
-    (NativeCompiler.second eDesc eLoopTail1)).ofInputEq
-      (encIn := eLoopState) loopFields fun _ => rfl).ofOutputEq fun _ => rfl
+  (NativeCompiler.first (encList encUnary) eLoopTail2).comp tail1Compiler
 
-/-- Retained original-fuel projection. -/
-noncomputable def fuelCompiler : NativeCompiler LoopState.fuel eLoopState encUnary := by
-  let fields (state : LoopState) :
-      Desc × (List ℕ × (ℕ × (ℕ × (ℕ × ICfg)))) :=
-    (state.desc, state.input, state.fuel, state.replyBits, state.remaining, state.cfg)
-  let tail₁ := encPair (encList encUnary)
-    (encPair encUnary (encPair encUnary (encPair encUnary eICfg)))
-  let tail₂ := encPair encUnary (encPair encUnary (encPair encUnary eICfg))
-  let tail₃ := encPair encUnary (encPair encUnary eICfg)
-  exact (((NativeCompiler.first encUnary tail₃).comp
-    ((NativeCompiler.second (encList encUnary) tail₂).comp
-      (NativeCompiler.second eDesc tail₁))).ofInputEq
-        (encIn := eLoopState) fields fun _ => rfl).ofOutputEq fun _ => rfl
+/-- Read the original source fuel from the retained loop state. -/
+noncomputable opaque fuelCompiler : NativeCompiler LoopState.fuel eLoopState encUnary :=
+  (NativeCompiler.first encUnary eLoopTail3).comp tail2Compiler
 
-/-- Retained reply-prefix budget projection. -/
-noncomputable def replyBitsCompiler :
-    NativeCompiler LoopState.replyBits eLoopState encUnary := by
-  let fields (state : LoopState) :
-      Desc × (List ℕ × (ℕ × (ℕ × (ℕ × ICfg)))) :=
-    (state.desc, state.input, state.fuel, state.replyBits, state.remaining, state.cfg)
-  let tail₁ := encPair (encList encUnary)
-    (encPair encUnary (encPair encUnary (encPair encUnary eICfg)))
-  let tail₂ := encPair encUnary (encPair encUnary (encPair encUnary eICfg))
-  let tail₃ := encPair encUnary (encPair encUnary eICfg)
-  let tail₄ := encPair encUnary eICfg
-  exact (((NativeCompiler.first encUnary tail₄).comp
-    ((NativeCompiler.second encUnary tail₃).comp
-      ((NativeCompiler.second (encList encUnary) tail₂).comp
-        (NativeCompiler.second eDesc tail₁)))).ofInputEq
-          (encIn := eLoopState) fields fun _ => rfl).ofOutputEq fun _ => rfl
+/-- Read the maximum number of copied reply bits from the retained loop state. -/
+noncomputable opaque replyBitsCompiler : NativeCompiler LoopState.replyBits eLoopState encUnary :=
+  (NativeCompiler.first encUnary eLoopTail4).comp tail3Compiler
 
-/-- Retained remaining-round projection. -/
 private noncomputable def remainingCompiler :
     NativeCompiler LoopState.remaining eLoopState encUnary :=
-  (((NativeCompiler.first encUnary eICfg).comp
-    ((NativeCompiler.second encUnary eLoopTail4).comp
-      ((NativeCompiler.second encUnary eLoopTail3).comp
-        ((NativeCompiler.second (encList encUnary) eLoopTail2).comp
-          (NativeCompiler.second eDesc eLoopTail1))))).ofInputEq
-            (encIn := eLoopState) loopFields fun _ => rfl).ofOutputEq fun _ => rfl
+  (NativeCompiler.first encUnary eICfg).comp tail4Compiler
 
-/-- Retained first-order configuration projection. -/
-noncomputable def cfgCompiler : NativeCompiler LoopState.cfg eLoopState eICfg := by
-  let fields (state : LoopState) :
-      Desc × (List ℕ × (ℕ × (ℕ × (ℕ × ICfg)))) :=
-    (state.desc, state.input, state.fuel, state.replyBits, state.remaining, state.cfg)
-  let tail₁ := encPair (encList encUnary)
-    (encPair encUnary (encPair encUnary (encPair encUnary eICfg)))
-  let tail₂ := encPair encUnary (encPair encUnary (encPair encUnary eICfg))
-  let tail₃ := encPair encUnary (encPair encUnary eICfg)
-  let tail₄ := encPair encUnary eICfg
-  exact (((NativeCompiler.second encUnary eICfg).comp
-    ((NativeCompiler.second encUnary tail₄).comp
-      ((NativeCompiler.second encUnary tail₃).comp
-        ((NativeCompiler.second (encList encUnary) tail₂).comp
-          (NativeCompiler.second eDesc tail₁))))).ofInputEq
-            (encIn := eLoopState) fields fun _ => rfl).ofOutputEq fun _ => rfl
+/-- Read the current first-order configuration from the retained loop state. -/
+noncomputable opaque cfgCompiler : NativeCompiler LoopState.cfg eLoopState eICfg :=
+  (NativeCompiler.second encUnary eICfg).comp tail4Compiler
 
 /-- Actual initializer for the optional typed loop state, including the runtime channel-count
 test and the retained first-order blank-storage constructor. -/
@@ -317,14 +274,7 @@ private noncomputable def advanceCurrentCompiler :
       eBodyInput eBodyInput :=
   advanceSomeCompiler.comp (bodyStateCompiler.pair bodyCfgCompiler)
 
-private abbrev CommandAtInput := Desc × (List ℕ × (ICfg × Bool))
-private def eCommandAtInput : CommandAtInput ↪ List Bool :=
-  encPair eDesc (encPair (encList encUnary) (encPair eICfg encBool))
-private abbrev CommandAtLookupInput := CommandAtInput × Option Branches
-private def eCommandAtLookupInput : CommandAtLookupInput ↪ List Bool :=
-  encPair eCommandAtInput (encOption eBranches)
-
-private def toCommandAtInput (input : CoinInput) : CommandAtInput :=
+private def toCommandAtInput (input : CoinInput) : Desc × (List ℕ × (ICfg × Bool)) :=
   let state := input.1.getD default
   (state.desc, state.input, state.cfg, input.2)
 
@@ -566,10 +516,9 @@ private noncomputable def preparedQuery (r : ℕ) (fallback operation : Fin r) :
 private noncomputable def queryPostArtifact (r : ℕ) (fallback : Fin r) :=
   NativeOracleProgram.ofCompiler (r := r) (queryPostCompiler r fallback)
 
-/-- Every raw word that can be returned by the fixed query primitive after prefix copying. This
-finite proof list is never part of the retained machine or installed description. -/
-private noncomputable def replyPrefixes (r : ℕ) (input : CommandInput r) : List (List Bool) :=
-  (BitString.shortWords (commandState input.1).replyBits).toList
+/-- Possible copied prefixes, enumerated only to choose a common clock. -/
+private noncomputable def replyWords (replyBits : ℕ) : List (List Bool) :=
+  (BitString.shortWords replyBits).toList
 
 /-- Uniform phase bounds for the deterministic post-query pipeline over every copied reply prefix
 that the external handler can produce. -/
@@ -578,14 +527,14 @@ private noncomputable def queryPostOnline (r : ℕ) (fallback : Fin r) :
   time := fun phase input =>
     listMax (fun reply =>
       (queryPostArtifact r fallback).online.time phase (input, reply))
-      (replyPrefixes r input)
+      (replyWords (commandState input.1).replyBits)
 
 private theorem queryPostOnline_le (r : ℕ) (fallback : Fin r)
     (input : CommandInput r) (reply : List Bool)
     (hreply : reply.length ≤ (commandState input.1).replyBits) (phase : OnlinePhase) :
     (queryPostArtifact r fallback).online.time phase (input, reply) ≤
         (queryPostOnline r fallback).time phase input := by
-  have hmem : reply ∈ replyPrefixes r input := by
+  have hmem : reply ∈ replyWords (commandState input.1).replyBits := by
     exact Finset.mem_toList.mpr (BitString.mem_shortWords.mpr hreply)
   exact le_listMax (f := fun reply =>
     (queryPostArtifact r fallback).online.time phase (input, reply)) hmem
@@ -1011,9 +960,6 @@ theorem stagedRun_eq_run (r : ℕ) : stagedRun r = run r := by
     rw [iterate_step_withDynamic]
     simp [run, hcount, output, withDynamic]
   · simp [stagedRun, initialState, hcount, rounds, output, run]
-
-private noncomputable def replyWords (replyBits : ℕ) : List (List Bool) :=
-  (BitString.shortWords replyBits).toList
 
 private def successorForReply {r : ℕ} (state : LoopState) (operation : Fin r) (next : ℕ)
     (pending : ICfg) (reply : List Bool) : BodyInput :=
