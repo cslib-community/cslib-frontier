@@ -81,15 +81,12 @@ theorem card_powersetCard_superset (T : Finset ι) {k : ℕ} (hk : k ≤ Fintype
     #{S ∈ powersetCard k (univ : Finset ι) | T ⊆ S} =
       (Fintype.card ι - #T).choose (Fintype.card ι - k) := by
   rw [← card_compl, ← card_powersetCard]
-  refine card_bij' (fun S _ => Sᶜ) (fun S _ => Sᶜ) ?_ ?_ (fun _ _ => compl_compl _)
-    (fun _ _ => compl_compl _)
-  · intro S hS
-    simp only [mem_filter, mem_powersetCard, subset_univ, true_and] at hS
-    simp [mem_powersetCard, hS.1, hS.2, card_compl]
-  · intro S hS
-    simp only [mem_powersetCard] at hS
-    simp only [mem_filter, mem_powersetCard, subset_univ, true_and, card_compl, hS.2]
-    exact ⟨by omega, by rw [← compl_subset_compl, compl_compl]; exact hS.1⟩
+  refine card_equiv ((show Function.Involutive (compl : Finset ι → Finset ι)
+    from compl_compl).toPerm _) fun S => ?_
+  simp only [Function.Involutive.coe_toPerm, mem_filter, mem_powersetCard, subset_univ, true_and,
+    compl_subset_compl, card_compl]
+  have := card_le_univ S
+  exact (and_congr (by omega) Iff.rfl).trans and_comm
 
 /-! ## Functions by the set of places with a property -/
 

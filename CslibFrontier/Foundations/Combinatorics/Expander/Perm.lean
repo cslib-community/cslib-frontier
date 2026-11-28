@@ -102,10 +102,8 @@ theorem neighbor_ofPerms_true (v : V) (k : K) :
 private theorem card_filter_symm_apply_notMem [DecidableEq V] (τ : Equiv.Perm V)
     (S : Finset V) : #{v ∈ S | τ.symm v ∉ S} = #{v ∈ S | τ v ∉ S} := by
   have h : #{v ∈ S | τ.symm v ∈ S} = #{v ∈ S | τ v ∈ S} := by
-    refine card_nbij' τ.symm τ (fun v hv ↦ ?_) (fun v hv ↦ ?_) (fun v _ ↦ by simp)
-      (fun v _ ↦ by simp) <;>
-    · simp only [coe_filter] at hv ⊢
-      simpa using hv.symm
+    refine card_equiv τ.symm fun v => ?_
+    simp only [mem_filter, Equiv.apply_symm_apply, and_comm]
   have h₁ := card_filter_add_card_filter_not (s := S) fun v ↦ τ.symm v ∈ S
   have h₂ := card_filter_add_card_filter_not (s := S) fun v ↦ τ v ∈ S
   omega
