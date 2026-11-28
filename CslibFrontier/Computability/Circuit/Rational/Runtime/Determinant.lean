@@ -96,10 +96,10 @@ lemma step_bound {n : ℕ} (A F : Matrix (Fin n) (Fin n) ℤ) (B C : ℕ)
   have hprod : |∑ k ∈ Finset.Ioi i, F i k * A k j| ≤ (n * C * B : ℕ) := by
     calc _ ≤ ∑ k ∈ Finset.Ioi i, |F i k * A k j| := Finset.abs_sum_le_sum_abs _ _
          _ ≤ ∑ _k ∈ Finset.Ioi i, ((C : ℤ) * (B : ℤ)) := by
-            apply Finset.sum_le_sum
-            intro k _
-            rw [abs_mul]
-            exact mul_le_mul (hF i k) (hA k j) (abs_nonneg _) (by positivity)
+            simp only [abs_mul]
+            gcongr with k
+            · exact hF i k
+            · exact hA k j
          _ ≤ (n * C * B : ℕ) := by
             simp only [Finset.sum_const, nsmul_eq_mul, Nat.cast_mul]
             exact_mod_cast (Nat.mul_le_mul_right (C * B) hc).trans_eq (Nat.mul_assoc n C B).symm
@@ -107,9 +107,9 @@ lemma step_bound {n : ℕ} (A F : Matrix (Fin n) (Fin n) ℤ) (B C : ℕ)
   calc _ ≤ |(-(∑ k ∈ Finset.Ioi i, F k k)) * A i j| +
           |∑ k ∈ Finset.Ioi i, F i k * A k j| := abs_add_le _ _
        _ ≤ (n * C : ℕ) * (B : ℤ) + (n * C * B : ℕ) := by
-          apply add_le_add _ hprod
           rw [abs_mul, abs_neg]
-          exact mul_le_mul hsum (hA i j) (abs_nonneg _) (by positivity)
+          gcongr
+          exact hA i j
        _ = _ := by push_cast; ring
 
 /-- Every stored table entry has only linearly many multiplicative growth stages. -/

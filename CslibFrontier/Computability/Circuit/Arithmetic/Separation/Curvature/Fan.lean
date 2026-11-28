@@ -370,7 +370,7 @@ theorem from_z (F : IsFan K w x m z D T n d) (b : Bool) (i k i' k' : ℤ) (h0 : 
   rw [fanPt_mk, fanPt_mk, F.z_G _ _ _ (clamp_le _ _), F.z_G _ _ _ (clamp_le _ _),
     clamp_window h0 h1, clamp_window h0' h1'] at h6
   rw [fanDist, fanLen, fanLen, fanPt_mk, fanPt_mk, F.price.symm (G b _ _) (G b _ _)]
-  exact mul_le_mul_of_nonneg_left (by linarith) (sq_nonneg _)
+  gcongr; linarith
 
 /-- A step in the direction (0,1) has length at most θL_i. -/
 theorem step_iii (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i k : ℤ)
@@ -417,7 +417,7 @@ theorem fanPot_sub_le (F : IsFan K w x m z D T n d) (b : Bool) (P P' : ℤ × �
   have h := F.price.triangle (FanPts.old (x b)) (fanPt T n (b, P')) (fanPt T n (b, P))
   rw [F.price.symm (fanPt T n (b, P')) (fanPt T n (b, P))] at h
   unfold fanPot fanDist
-  exact mul_le_mul_of_nonneg_left (by linarith) (sq_nonneg _)
+  gcongr; linarith
 
 /-- Steps in the direction (1,0) lead to a common end: the two ends have distance 0, so their
 distances from x and v add

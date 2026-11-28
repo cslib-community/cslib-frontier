@@ -294,9 +294,8 @@ theorem Active.le_taper (h : Active C s d M p) (hs : 2 ≤ s) :
   calc σ / (2 ^ 17 * C) = σ * σ / (2 ^ 17 * C * σ) := (Nat.mul_div_mul_right _ _ hσ).symm
     _ ≤ n / (2 ^ 17 * C * σ) := Nat.div_le_div_right (Nat.sqrt_le n)
     _ ≤ n / (2 ^ 17 * 2 ^ d) := by
-        refine Nat.div_le_div_left ?_ (by positivity)
         rw [mul_assoc]
-        exact Nat.mul_le_mul_left _ h2d
+        gcongr
     _ = taper s d := by rw [taper, pow_add]
 
 end Active
@@ -681,7 +680,7 @@ theorem card_modeBudget_le {C s d M p : ℕ} (hA : Active C s d M p) (hs : 2 ≤
       _ = x * y * 2 ^ 10 * (2 ^ d * 8 ^ d) := by rw [pow_add]; ring
       _ ≤ 15 * M * 2 ^ 10 * 16 ^ d := by
           rw [← mul_pow]
-          exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ hxy)
+          gcongr; decide
       _ = 15360 * (16 ^ d * M) := by ring
       _ ≤ 15360 * (C * s) := Nat.mul_le_mul_left _ hA.edges_le
       _ = 15360 * C * s := by ring
@@ -725,7 +724,7 @@ theorem sum_branchExponent_le (C : ℕ) {s D : ℕ} (hs : 2 ≤ s) (hD : D ≤ N
   have hX : X ≤ 15360 * C * S + 15360 * C := Nat.mul_div_le_mul_div_add _ _ _
   have hterm : ∀ d, 15360 * C * s / (σ * 8 ^ d) ≤ X / 2 ^ d := fun d => by
     rw [← Nat.div_div_eq_div_mul]
-    exact Nat.div_le_div_left (Nat.pow_le_pow_left (by norm_num) d) (by positivity)
+    gcongr; norm_num
   have hgeo : ∑ d ∈ range D, X / 2 ^ d ≤ 2 * X := by
     have h := sum_div_two_pow_succ_le (2 * X) D
     have heq : ∀ d, 2 * X / 2 ^ (d + 1) = X / 2 ^ d := fun d => by
