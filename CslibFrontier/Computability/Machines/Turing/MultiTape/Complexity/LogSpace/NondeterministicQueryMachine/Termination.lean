@@ -92,8 +92,8 @@ theorem choose_haltsFrom {input : List Bool} (Inv : (Fin k → List Bool) → Pr
       (fun inp w => inp = input ∧ w = ws) (fun _ _ _ _ => True) t s)
     {ws : Fin k → List Bool} (hInv : Inv ws) (out : List Bool) :
     ∃ t, HaltsFrom I P F C (wordsCfg input (some .choose) ws out) t := by
-  induction hn : rank ws using Nat.strong_induction_on generalizing ws out with
-  | ind n ih =>
+  induction ws using (_root_.measure rank).wf.induction generalizing out with
+  | h ws ih =>
     have branches : ∀ b, ∃ t, HaltsFrom I P F C
         (wordsCfg input (some (.pass b (P b).q₀)) ws out) t := by
       intro b
@@ -102,7 +102,7 @@ theorem choose_haltsFrom {input : List Bool} (Inv : (Fin k → List Bool) → Pr
       obtain ⟨q, hhead', hlast', _, _⟩ := q₀.exists_running (by rw [hqlast]; rfl)
       obtain ⟨tNext, hCheck⟩ := haltsFrom_check_dispatch I P F C (ws := ws') (out := out ++ e)
         (fun _ => let ⟨tF, _, htF⟩ := hF ws' hpost.1; ⟨tF, finish_haltsFrom I P F C (out ++ e) htF⟩)
-        (fun hne => ih (rank ws') (hn ▸ hpost.2 hne) hpost.1 (out ++ e) rfl)
+        (fun hne => ih ws' (hpost.2 hne) hpost.1 (out ++ e))
       refine ⟨q.length + (1 + tNext), HaltsFrom.of_drop I P F C hCheck fun p hhead hp => ?_⟩
       have heq := follows_pass I P F C b p q
         (by simp [hhead, hhead', hqhead, mapState_wordsCfg, passState])

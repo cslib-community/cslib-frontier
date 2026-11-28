@@ -274,13 +274,13 @@ private theorem eq_zero_of_forall_sub_single_notMem (hE : IsLowerSet (E : Set (F
 theorem bobScale_mul_eq_expoPow (hE : IsLowerSet (E : Set (Fin n →₀ ℕ))) {q : Coord E m → ℝ}
     (h : ∀ e, eval q (chainEq (m := m) e) = 0) (e : E) :
     bobScale E * q (bCoord e) = expoPow (fun i => q (aCoord i)) e := by
-  induction hk : ∑ i, e.1 i using Nat.strong_induction_on generalizing e with
-  | _ k ih =>
+  induction e using (_root_.measure fun e : E => ∑ i, e.1 i).wf.induction with
+  | h e ih =>
     have he := h e
     unfold chainEq at he
     split_ifs at he with hne
     · have hl := hne.choose_spec
-      have hrec := ih _ (hk ▸ sum_sub_single_lt hl.1) ⟨_, hl.2⟩ rfl
+      have hrec := ih ⟨_, hl.2⟩ (sum_sub_single_lt hl.1)
       rw [expoPow_sub_single _ hl.1, ← hrec]
       simp only [map_sub, map_mul, eval_C, eval_X] at he
       linarith

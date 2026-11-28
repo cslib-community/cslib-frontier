@@ -150,8 +150,9 @@ theorem choose_output (a : α) (p : R.machine.RunPath (enc a)) (s : σ)
     (hhalt : p.last.Halted) :
     ∃ s', (M.withInit (start a)).Reachable (enc a) s' ∧ M.halted s' = true ∧
       p.last.output = out ++ [M.accept s'] := by
-  induction hn : p.length using Nat.strong_induction_on generalizing p s flag out with
-  | ind n ih =>
+  induction p using (_root_.measure fun p : R.machine.RunPath (enc a) => p.length).wf.induction
+      generalizing s flag out with
+  | h p ih =>
     have hpos : 0 < p.length := R.runPath_length_pos hhead hhalt
     have hone : 1 < p.length + 1 := by omega
     have hfirst : R.machine.Step p.head (p ⟨1, hone⟩) := p.step ⟨0, hpos⟩
@@ -188,9 +189,9 @@ theorem choose_output (a : α) (p : R.machine.RunPath (enc a)) (s : σ)
       refine ⟨_, hreach, hhalt', ?_⟩
       simpa only [RelSeries.last_drop] using R.finish_output a _ hreach _ out (p.drop cut)
         (by simpa [cut, hblank] using hnext) (by simpa using hhalt)
-    · simpa only [RelSeries.last_drop] using ih (p.drop cut).length
-        (by simp only [RelSeries.drop_length, cut]; omega) (p.drop cut) _ hreach _ out
-        (by simpa [cut, hblank] using hnext) (by simpa using hhalt) rfl
+    · simpa only [RelSeries.last_drop] using ih (p.drop cut)
+        (show (p.drop cut).length < p.length by simp only [RelSeries.drop_length, cut]; omega)
+        _ hreach _ out (by simpa [cut, hblank] using hnext) (by simpa using hhalt)
 
 private theorem exists_finish_path (a : α) (s : σ)
     (hs : (M.withInit (start a)).Reachable (enc a) s)

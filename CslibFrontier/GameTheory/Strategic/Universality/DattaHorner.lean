@@ -594,10 +594,11 @@ theorem eval_nodeVal_of_chainEq {q : Coord F → ℝ} {j : Fin m}
     ∀ p ∈ nodes (degreeVec (F j)),
       eval q (nodeVal F j p) = horner (F j) (fun i => q (aCoord i)) p.var p.expo := by
   rintro ⟨k, e⟩ hp
-  induction ht : n - k.val using Nat.strong_induction_on generalizing k e with
-  | _ t iht =>
-  induction hs : degreeVec (F j) k - e k using Nat.strong_induction_on generalizing e with
-  | _ s ihs =>
+  induction k using (_root_.measure fun k : Fin n => n - k.val).wf.induction generalizing e
+  rename_i k iht
+  let degreeGap (e : Fin n →₀ ℕ) := degreeVec (F j) k - e k
+  induction e using (_root_.measure degreeGap).wf.induction
+  rename_i e ihs
   have hlt : e k < degreeVec (F j) k := (mem_nodes.1 hp).2.1
   have hce := hc _ hp
   rw [chainEq, map_sub, sub_eq_zero] at hce
@@ -609,13 +610,14 @@ theorem eval_nodeVal_of_chainEq {q : Coord F → ℝ} {j : Fin m}
     rcases eq_or_lt_of_le (le_of_level_eq_some hi).1 with hik | hik
     · have : k = i := Fin.ext hik
       subst this
-      refine ihs _ ?_ _ hmem rfl
-      simp only [Finsupp.coe_add, Pi.add_apply, Finsupp.single_eq_same]
+      refine ihs _ ?_ hmem
+      change degreeGap (e + Finsupp.single k 1) < degreeGap e
+      simp only [degreeGap, Finsupp.coe_add, Pi.add_apply, Finsupp.single_eq_same]
       omega
-    · exact iht _ (by omega) i _ hmem rfl
+    · exact iht i (show n - i.val < n - k.val by omega) _ hmem
   · refine eval_term fun i hi => ?_
     have hmem := mem_nodes_of_level_succ hp hi
-    exact iht _ (by have := (le_of_level_eq_some hi).1; omega) i _ hmem rfl
+    exact iht i (show n - i.val < n - k.val by have := (le_of_level_eq_some hi).1; omega) _ hmem
 
 /-! ### Bob's weights -/
 
