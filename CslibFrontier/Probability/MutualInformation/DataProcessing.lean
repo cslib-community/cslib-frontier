@@ -13,6 +13,7 @@ import CslibFrontier.Probability.Divergence
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.UniformSubset
 
@@ -287,12 +288,8 @@ theorem mutualInfo_eq_entropy_map_snd_sub_logb_of_const_fiber [Finite α] [Finit
       · simp only [hb, ↓reduceIte, conditionalSnd_apply p a ha, hzero a ha b hb, ENNReal.zero_div]
     rw [hcond_eq, entropy_uniformOfFinset (unseen a) hne, hca]
   have hcond : conditionalEntropy p = Real.logb 2 c := by
-    rw [conditionalEntropy_eq_sum, Finset.sum_congr rfl fun a _ =>
-      (?_ : _ = ((p.map Prod.fst) a).toReal * Real.logb 2 c), ← Finset.sum_mul, sum_toReal,
-      one_mul]
-    by_cases ha : a ∈ (p.map Prod.fst).support
-    · rw [hcond_supp a ha]
-    · simp [(PMF.apply_eq_zero_iff (p.map Prod.fst) a).mpr ha]
+    rw [conditionalEntropy_eq_sum, sum_toReal_mul_congr_support (p.map Prod.fst) hcond_supp,
+      ← Finset.sum_mul, sum_toReal, one_mul]
   rw [mutualInfo_eq_entropy_map_snd_sub_conditionalEntropy, hcond]
 
 end Cslib.Probability.PMF

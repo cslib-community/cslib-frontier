@@ -250,10 +250,8 @@ theorem mutualInfo_bind_mul_log_two_eq_sum_klDiv_sub [Fintype V] [Finite X]
   simp only [hsplit, Finset.sum_sub_distrib]
   congr 1
   · rw [Finset.sum_comm]
-    refine Finset.sum_congr rfl fun v _ => ?_
-    by_cases hv : v ∈ μ.support
-    · rw [← Finset.mul_sum, toReal_klDiv_toMeasure (hQ v hv)]
-    · simp [(_root_.PMF.apply_eq_zero_iff μ v).mpr hv]
+    simp only [← Finset.mul_sum]
+    exact sum_toReal_mul_congr_support μ fun v hv => (toReal_klDiv_toMeasure (hQ v hv)).symm
   · exact Finset.sum_congr rfl fun x _ => by rw [← Finset.sum_mul, hbar_apply x]
 
 /-- **KL-center upper bound on mutual information** (Yang–Barron / [Tsybakov2009], Section 2.6):

@@ -808,11 +808,8 @@ theorem expectedMatchingSize_nonneg (μ : RandAlg L) (arrivals : List (Finset L)
   tsum_nonneg fun _ => mul_nonneg ENNReal.toReal_nonneg (Nat.cast_nonneg _)
 
 @[simp] theorem expectedMatchingSize_pure (A : DetAlg L) (arrivals : List (Finset L)) :
-    expectedMatchingSize (PMF.pure A) arrivals = (A.runMatching arrivals).card := by
-  rw [expectedMatchingSize, tsum_eq_single A]
-  · simp
-  · intro A' hA'
-    simp [PMF.pure_apply_of_ne _ _ hA']
+    expectedMatchingSize (PMF.pure A) arrivals = (A.runMatching arrivals).card :=
+  Probability.PMF.tsum_pure_toReal_mul A fun A' => (A'.runMatching arrivals).card
 
 /-- Expected matching size of a randomized algorithm drawn by mapping a finite distribution `ν`. -/
 theorem expectedMatchingSize_map {α : Type*} [Fintype α] (ν : PMF α) (f : α → DetAlg L)

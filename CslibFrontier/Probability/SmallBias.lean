@@ -12,6 +12,7 @@ public import CslibFrontier.Probability.Collision
 public import Mathlib.Data.Matrix.Mul
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.PMF.Uniform
 
 /-!
@@ -114,9 +115,8 @@ theorem abs_bias_le_one (X : PMF (ι → Bool)) (S : Finset ι) : |bias X S| ≤
 
 /-- A point mass has the bias of its point: the value of the character there. -/
 @[simp]
-theorem bias_pure (x : ι → Bool) (S : Finset ι) : bias (PMF.pure x) S = chi ℝ S x := by
-  rw [bias, sum_eq_single x (fun y _ hy => by simp [PMF.pure_apply, hy]) (by simp)]
-  simp
+theorem bias_pure (x : ι → Bool) (S : Finset ι) : bias (PMF.pure x) S = chi ℝ S x :=
+  sum_pure_toReal_mul (mem_univ x) (chi ℝ S)
 
 /-- The bias of the image of a distribution is the expectation of the character of the image. -/
 theorem bias_map {α : Type*} [Fintype α] (X : PMF α) (g : α → ι → Bool) (S : Finset ι) :
