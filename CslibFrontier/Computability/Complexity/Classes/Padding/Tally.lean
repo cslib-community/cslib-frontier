@@ -68,8 +68,6 @@ namespace Cslib.Complexity
 
 open Turing.MultiTapeTM
 
-attribute [local irreducible] ComputableInPolyTime
-
 /-- The number whose binary digits, least significant first, are `u` followed by a one. -/
 def tallyCode (u : List Bool) : ℕ :=
   ofBits (u ++ [true])

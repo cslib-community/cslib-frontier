@@ -213,9 +213,8 @@ No runtime bound or fair-coin efficiency follows from this oracle-call bound alo
 theorem targetForger_queryBound (target : Message → Opening → Target)
     (A : ExtractedForger PK Message Opening Sig) (pk : PK) {q : Nat}
     (hA : (A pk).IsQueryBounded q) : (targetForger target A pk).IsQueryBounded q := by
-  unfold targetForger
-  apply (OracleComp.isCostBounded_map_iff _ _ _).mpr
-  exact hA.simulate fun _ => ProbOracleComp.IsQueryBounded.query _
+  exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
+    (hA.simulate fun _ => ProbOracleComp.IsQueryBounded.query _)
 
 /-- A `q`-query attack leaves at most `q` entries for the binding search, including repeated
 requests. This bounds the search's input length without treating target evaluation as free time. -/
@@ -241,17 +240,15 @@ private theorem targetExperiment_eq [DecidableEq Target] [Inhabited Sig]
       targetAccept S target <$> runExtracted S target A := by
   simp only [Signature.Scheme.eufCmaExperiment, forgeExperiment, targetForger,
     ProbOracleComp.runLogWith_map, runExtracted, map_bind, bind_map_left]
-  apply bind_congr
-  rintro ⟨pk, sk⟩
+  refine bind_congr fun ⟨pk, sk⟩ => ?_
   have hsigner : Signer.ofSign S.sign sk = fun _ message => some (S.sign sk message) := by
-    funext log message
+    funext _ _
     exact Signer.ofSign_apply _ _ _ _
   rw [hsigner, ProbOracleComp.runLogWith_some, ProbOracleComp.runLog_simulate_query]
   simp only [bind_map_left]
-  apply bind_congr
-  rintro ⟨output, log⟩
-  simp only [targetAccept, Token.valid, freshMessage, map_pure, Prod.map, id_eq]
-  simp only [List.map_map, Function.comp_def]
+  refine bind_congr fun ⟨output, log⟩ => ?_
+  simp only [targetAccept, Token.valid, freshMessage, map_pure, Prod.map, id_eq, List.map_map,
+    Function.comp_def]
 
 private theorem extractedAccept_cases [DecidableEq Message] [DecidableEq Target]
     (S : Signature.Scheme PK SK Target Sig) (target : Message → Opening → Target)
@@ -260,31 +257,22 @@ private theorem extractedAccept_cases [DecidableEq Message] [DecidableEq Target]
       (findBindingWitness target run.output.payload run.log).any (checkBindingWitness target) =
         true := by
   obtain ⟨hvalid, hfresh⟩ := Bool.and_eq_true_iff.mp h
-  have hfresh' : run.output.payload.message ∉ run.log.map (fun entry => entry.1.message) :=
-    of_decide_eq_true hfresh
   cases hfind : run.log.find? (fun entry => decide
       (target entry.1.message entry.1.opening =
         target run.output.payload.message run.output.payload.opening)) with
   | none =>
-    left
-    have hnone := List.find?_eq_none.mp hfind
+    refine Or.inl ?_
     have ht : target run.output.payload.message run.output.payload.opening ∉
-        run.log.map (fun entry => target entry.1.message entry.1.opening) := by
-      intro hmem
+        run.log.map (fun entry => target entry.1.message entry.1.opening) := fun hmem => by
       obtain ⟨entry, hentry, heq⟩ := List.mem_map.mp hmem
-      exact hnone entry hentry (decide_eq_true heq)
+      exact List.find?_eq_none.mp hfind entry hentry (decide_eq_true heq)
     simp [targetAccept, hvalid, ht]
   | some entry =>
-    right
-    have hentry := List.mem_of_find?_eq_some hfind
+    refine Or.inr ?_
     have hsame := List.find?_some hfind
-    have heq : target entry.1.message entry.1.opening =
-        target run.output.payload.message run.output.payload.opening :=
-      of_decide_eq_true hsame
-    have hne : run.output.payload.message ≠ entry.1.message := by
-      intro hm
-      exact hfresh' (List.mem_map.mpr ⟨entry, hentry, hm.symm⟩)
-    simp [findBindingWitness, hfind, checkBindingWitness, hne, heq]
+    have hne : run.output.payload.message ≠ entry.1.message := fun hm =>
+      of_decide_eq_true hfresh (List.mem_map.mpr ⟨entry, List.mem_of_find?_eq_some hfind, hm.symm⟩)
+    simp [findBindingWitness, hfind, checkBindingWitness, hne, of_decide_eq_true hsame]
 
 /-- Explicit extracted-witness composition: a fresh semantic authorization yields either a fresh
 target certificate or two differently messaged openings to the same target. The success loss is
@@ -299,10 +287,8 @@ theorem extracted_succProbability_le [DecidableEq Message] [DecidableEq Target] 
   rw [targetExperiment_eq]
   simp only [extractedExperiment, bindingExperiment, bindingReduction,
     Experiment.succProbability, ProbComp.eval_map, PMF.map_comp, Function.comp_def,
-    Game.succProbability]
-  rw [← ENNReal.toNNReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)]
-  apply ENNReal.toNNReal_mono (ENNReal.add_ne_top.mpr
-    ⟨PMF.apply_ne_top _ _, PMF.apply_ne_top _ _⟩)
-  exact PMF.map_true_le_add _ fun run _ h => extractedAccept_cases S target run h
+    Game.succProbability, ← ENNReal.toNNReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)]
+  exact ENNReal.toNNReal_mono (ENNReal.add_ne_top.mpr ⟨PMF.apply_ne_top _ _, PMF.apply_ne_top _ _⟩)
+    (PMF.map_true_le_add _ fun run _ => extractedAccept_cases S target run)
 
 end Cslib.Crypto.AnonymousToken

@@ -34,13 +34,8 @@ open Cslib.WordRAM
 /-- Three distinct input positions require at least three entries. -/
 theorem not_hasSolution_of_length_lt_three {n : ℕ} (x : Fin n → ℤ) (hn : n < 3) :
     ¬Cslib.Algorithms.ThreeSum.HasSolution x := by
-  rintro ⟨i, j, k, hij, hjk, hik, _⟩
-  have hi := i.isLt
-  have hj := j.isLt
-  have hk := k.isLt
-  have hij' : i.val ≠ j.val := fun h => hij (Fin.ext h)
-  have hjk' : j.val ≠ k.val := fun h => hjk (Fin.ext h)
-  have hik' : i.val ≠ k.val := fun h => hik (Fin.ext h)
+  rintro ⟨⟨i, hi⟩, ⟨j, hj⟩, ⟨k, hk⟩, hij, hjk, hik, _⟩
+  simp only [ne_eq, Fin.mk.injEq] at hij hjk hik
   omega
 
 /-- The length header and constants are read by actual native instructions. -/
@@ -87,9 +82,7 @@ theorem exec_small {κ w r : ℕ} (input : List ℤ) (c : Host.Callee r)
     simpa only [hself] using (ExecWithin.copy (B := .standard) (w := w)
       (x := y) (d := controllerRegisters r answer) (s := controllerRegisters r answer))
   refine ⟨y, ?_, ha, not_hasSolution_of_length_lt_three _ hn⟩
-  have he := hr.seq (hcopy.branch_pos (neg := large κ c.code) (show
-      (Cond.lt (controllerRegisters r inputLength) (controllerRegisters r three)).Holds y by
-    simpa only [Cond.holds_lt, hlen, ht] using hn))
-  simpa only [program] using he
+  simpa only [program] using hr.seq (hcopy.branch_pos (neg := large κ c.code)
+    (by simpa only [Cond.holds_lt, hlen, ht] using hn))
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Decision

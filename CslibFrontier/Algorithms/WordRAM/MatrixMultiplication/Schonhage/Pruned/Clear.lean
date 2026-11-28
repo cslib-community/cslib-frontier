@@ -57,14 +57,11 @@ theorem zeroQueryPrefix_succ (mem : ℕ → ℕ) (base : ℕ) (input : ℕ → �
 theorem zeroQueryPrefix_outside {mem : ℕ → ℕ} {base capacity k : ℕ} {input : ℕ → ℕ}
     (hcode : ∀ i < k, input i < capacity) {a : ℕ}
     (ha : ¬(Block.mk base capacity).Owns a) : zeroQueryPrefix mem base input k a = mem a := by
-  have hnot : a ∉ (range k).image (fun i => base + input i) := by
-    rintro h
-    obtain ⟨i, hi, rfl⟩ := mem_image.mp h
-    apply ha
-    change base ≤ base + input i ∧ base + input i < base + capacity
-    have := hcode i (mem_range.mp hi)
-    omega
-  simp only [zeroQueryPrefix, piecewise, hnot, ↓reduceIte]
+  simp only [zeroQueryPrefix, piecewise, mem_image, mem_range, ite_eq_right_iff,
+    forall_exists_index, and_imp]
+  rintro i hi rfl
+  exact absurd (show (Block.mk base capacity).Owns (base + input i) from
+    ⟨Nat.le_add_right _ _, Nat.add_lt_add_left (hcode i hi) _⟩) ha
 
 /-- Every requested value in the processed prefix is actually zero in the resulting memory. -/
 theorem zeroQueryPrefix_at {mem : ℕ → ℕ} {base k i : ℕ} {input : ℕ → ℕ} (hi : i < k) :

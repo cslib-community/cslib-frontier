@@ -80,30 +80,26 @@ theorem exists_eval₂_pos_at_root_iff_neg_shiftedRootLabel_prod {D N b : ℕ}
       exists_sparseIntegerRootLabel hp hpD hDN hqD hpb hqb hex
     obtain ⟨e, he, hnz⟩ := exists_aeval_shiftedRootLabel_ne_zero (A := ℂ) p (label L) hpD
     let g := shiftedRootLabel D e (label L)
-    have hxneg : labelEval g x < 0 := sign_eq_neg_one_iff.mp (by
-      rw [hsign L hL he hx, sign_pos hpos])
+    have hxneg : labelEval g x < 0 :=
+      sign_eq_neg_one_iff.mp (by rw [hsign L hL he hx, sign_pos hpos])
     have hreal : (∏ y ∈ realRoots, labelEval g y) < 0 := by
       rw [← mul_prod_erase realRoots (labelEval g) ((hmem x).mpr hx)]
-      refine mul_neg_of_neg_of_pos hxneg (prod_pos fun y hy => ?_)
+      refine mul_neg_of_neg_of_pos hxneg (prod_pos fun y hy => sign_eq_one_iff.mp ?_)
       obtain ⟨hne, hy⟩ := mem_erase.mp hy
-      have hy0 := (hmem y).mp hy
-      exact sign_eq_one_iff.mp (by rw [hsign L hL he hy0, sign_neg (hother y hy0 hne), neg_neg])
-    have hupper : 0 < ∏ z ∈ upperRoots, Complex.normSq (aeval z g) :=
-      prod_pos fun z hz => Complex.normSq_pos.mpr
-        (hnz z (Multiset.mem_toFinset.mp (mem_filter.mp hz).1))
-    exact ⟨L, hL, e, he, (hfactor g).trans_lt (mul_neg_of_neg_of_pos hreal hupper)⟩
+      rw [hsign L hL he ((hmem y).mp hy), sign_neg (hother y ((hmem y).mp hy) hne), neg_neg]
+    refine ⟨L, hL, e, he, (hfactor g).trans_lt (mul_neg_of_neg_of_pos hreal <|
+      prod_pos fun z hz =>
+        Complex.normSq_pos.mpr (hnz z (Multiset.mem_toFinset.mp (mem_filter.mp hz).1)))⟩
   · rintro ⟨L, hL, e, he, hprod⟩
     by_contra! hn
     let g := shiftedRootLabel D e (label L)
-    have hreal : 0 ≤ ∏ x ∈ realRoots, labelEval g x := by
-      refine prod_nonneg fun x hx => le_of_not_gt fun hneg => ?_
-      have hx0 := (hmem x).mp hx
-      have hs := sign_neg hneg
-      change SignType.sign (labelEval (shiftedRootLabel D e (label L)) x) = -1 at hs
-      rw [hsign L hL he hx0, neg_inj] at hs
-      exact (not_lt_of_ge (hn x hx0)) ((hmarg L hL hx0).2.mp (sign_eq_one_iff.mp hs)).1
-    have hupper : 0 ≤ ∏ z ∈ upperRoots, Complex.normSq (aeval z g) :=
-      prod_nonneg fun z _ => Complex.normSq_nonneg _
-    exact (not_lt_of_ge (mul_nonneg hreal hupper)) ((hfactor g).symm.trans_lt hprod)
+    have hreal : 0 ≤ ∏ x ∈ realRoots, labelEval g x :=
+      prod_nonneg fun x hx => le_of_not_gt fun hneg => by
+        have hx0 := (hmem x).mp hx
+        have hs : SignType.sign (labelEval (shiftedRootLabel D e (label L)) x) = -1 := sign_neg hneg
+        rw [hsign L hL he hx0, neg_inj] at hs
+        exact not_lt_of_ge (hn x hx0) ((hmarg L hL hx0).2.mp (sign_eq_one_iff.mp hs)).1
+    exact not_lt_of_ge (mul_nonneg hreal (prod_nonneg fun _ _ => Complex.normSq_nonneg _))
+      ((hfactor g).symm.trans_lt hprod)
 
 end Polynomial

@@ -631,33 +631,23 @@ theorem familyInversionGame_parallelCore_negligible {f : List Bool → List Bool
       BitString.sampleList (t (N - 1) * seedLen (N - 1))
   have hB_ppt : IsPPT encBits B_inv := by
     open ComputableInPolyTime in
-    apply IsPPTOn.isPPT
-    have hsnd := snd encUnary encBits
     have hw : ComputableInPolyTime w encUnary encUnary := unary_add' id' (const 1)
     have hq : ComputableInPolyTime (fun N => q.eval N) encUnary encUnary := unary_eval q
     have hk : ComputableInPolyTime k encUnary encUnary :=
       unary_mul' (unary_mul' (const 2) (hq.comp hw)) hw
-    have hp : ComputableInPolyTime p encUnary encUnary := (unary_pow (deg + 1)).comp hw
-    have ht : ComputableInPolyTime t encUnary encUnary :=
-      unary_mul' (unary_mul' (const 4) (hq.comp hw)) (unary_mul' hk hp)
-    have hB : ComputableInPolyTime B encUnary encUnary :=
-      unary_mul' (const cA) ((unary_pow dA).comp
-        (unary_add' (unary_add' (unary_mul' (const 2) id') (unary_mul' hk (houtLen.comp hw)))
-          (const 2)))
+    have ht : ComputableInPolyTime t encUnary encUnary := unary_mul'
+      (unary_mul' (const 4) (hq.comp hw)) (unary_mul' hk ((unary_pow (deg + 1)).comp hw))
     have hseedLen : ComputableInPolyTime seedLen encUnary encUnary :=
-      unary_add' (unary_mul' hk hw) hB
+      unary_add' (unary_mul' hk hw) (unary_mul' (const cA) ((unary_pow dA).comp
+        (unary_add' (unary_add' (unary_mul' (const 2) id') (unary_mul' hk (houtLen.comp hw)))
+          (const 2))))
     have hn : ComputableInPolyTime (fun pair : ℕ × List Bool => pair.1 - 1)
         (encPair encUnary encBits) encUnary :=
       unary_sub.comp ((fst encUnary encBits).prod (const 1))
-    have hsample_len : ComputableInPolyTime
-        (fun pair : ℕ × List Bool => t (pair.1 - 1) * seedLen (pair.1 - 1))
-        (encPair encUnary encBits) encUnary :=
-      (unary_mul' ht hseedLen).comp hn
     have hfst2 := fst (encPair encUnary encBits) encBits
-    have hsnd2 := snd (encPair encUnary encBits) encBits
-    have hrun := computable_runTrials hk hw ht hseedLen hweak.polyTime hevalA
-      (hn.comp hfst2) (hsnd.comp hfst2) hsnd2
-    exact IsPPTOn.map_with hsample_len.sampleList hrun
+    exact IsPPTOn.isPPT (IsPPTOn.map_with ((unary_mul' ht hseedLen).comp hn).sampleList
+      (computable_runTrials hk hw ht hseedLen hweak.polyTime hevalA (hn.comp hfst2)
+        ((snd encUnary encBits).comp hfst2) (snd _ encBits)))
   have hweak_w : ∀ᶠ n in atTop,
       (Game.succProbability (ProbComp.eval (inversionGame f B_inv (w n))) : ℝ) <
         1 - 1 / ((q.eval (w n) : ℕ) : ℝ) :=
@@ -722,13 +712,8 @@ theorem WeakOneWay.exists_oneWay {f : List Bool → List Bool} (hf : WeakOneWay 
       (Nat.mul_pos (Nat.mul_pos (by decide) (hq_pos (w n))) (Nat.succ_pos n))
   have hw_comp : ComputableInPolyTime w encUnary encUnary :=
     ComputableInPolyTime.unary_add' .id' (.const 1)
-  have hq_comp : ComputableInPolyTime (fun N => q.eval N) encUnary encUnary :=
-    ComputableInPolyTime.unary_eval q
-  have hk_comp : ComputableInPolyTime k encUnary encUnary :=
-    ComputableInPolyTime.unary_mul'
-      (ComputableInPolyTime.unary_mul' (.const 2) (hq_comp.comp hw_comp)) hw_comp
-  have hm_comp : ComputableInPolyTime m encUnary encUnary :=
-    ComputableInPolyTime.unary_mul' hk_comp hw_comp
+  have hk_comp : ComputableInPolyTime k encUnary encUnary := .unary_mul'
+    (.unary_mul' (.const 2) ((ComputableInPolyTime.unary_eval q).comp hw_comp)) hw_comp
   have hcore_comp : ComputableInPolyTime
       (fun p : ℕ × List Bool => OneWayAmplification.parallelCore k w g p.1 p.2)
       (encPair encUnary encBits) encBits := by
@@ -743,7 +728,7 @@ theorem WeakOneWay.exists_oneWay {f : List Bool → List Bool} (hf : WeakOneWay 
       ((hw_comp.comp hfst).comp hfst2) hsnd2 (hsnd.comp hfst2)
     exact hg_at.polyTime.comp hrow
   refine ⟨OneWayReindex.reindex m (OneWayAmplification.parallelCore k w g), ?_⟩
-  exact OneWayReindex.oneWay hm_comp hm_ge hcore_comp fun A hA =>
+  exact OneWayReindex.oneWay (hk_comp.unary_mul' hw_comp) hm_ge hcore_comp fun A hA =>
     OneWayAmplification.familyInversionGame_parallelCore_negligible
       houtLen hlen hq_pos hg_at A hA
 

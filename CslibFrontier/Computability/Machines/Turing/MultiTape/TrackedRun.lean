@@ -126,23 +126,18 @@ theorem TrackedAgrees.trackedStep {tm : MultiTapeTM k Bool State} {w : List Bool
     (h : TrackedAgrees c cfg) : TrackedAgrees (trackedStep tm c) (tm.step cfg) := by
   cases hs : cfg.state with
   | none =>
-    have hc : c.1.state = none := h.state.trans hs
     rw [MultiTapeTM.step_of_halt hs]
     unfold Turing.MultiTapeTM.trackedStep
-    rw [hc]
-    exact h
+    simpa only [h.state.trans hs] using h
   | some q =>
-    have hc : c.1.state = some q := h.state.trans hs
     rw [MultiTapeTM.step_of_state hs]
     unfold Turing.MultiTapeTM.trackedStep
-    rw [hc]
+    rw [h.state.trans hs]
     dsimp only
     rw [h.inputSymbol, h.workTapeSymbols]
-    refine ⟨h.input, rfl, ?_, ?_, fun i => ?_, ?_⟩
+    refine ⟨h.input, rfl, ?_, by rw [h.workTapePos]; rfl, fun i => ?_, ?_⟩
     · simp only [FiniteCfg.step, Action.apply, val_moveInputPos_eq_moveInputPosNat, h.inputPos,
         h.input]
-    · rw [h.workTapePos]
-      rfl
     · have hstep := (h.workTapes i).step ((tm.tr q cfg.inputSymbol cfg.workTapeSymbols).workTapes i)
       cases hw : ((tm.tr q cfg.inputSymbol cfg.workTapeSymbols).workTapes i).1 <;>
         simpa [FiniteCfg.step, Action.apply, hw] using hstep
@@ -173,34 +168,31 @@ theorem computableInPolyTime_trackedStep (tm : MultiTapeTM k Bool State) :
     ComputableInPolyTime (trackedStep tm) (encTrackedCfg)
       (encTrackedCfg) := by
   classical
-  let key (c : FiniteCfg k Bool State × (Fin k → ℤ)) :
-      Option State × Option Bool × (Fin k → Option Bool) :=
-    (c.1.state, c.1.inputSymbol, c.1.workTapeSymbols)
   let branch (tag : Option State × Option Bool × (Fin k → Option Bool))
       (c : FiniteCfg k Bool State × (Fin k → ℤ)) : FiniteCfg k Bool State × (Fin k → ℤ) :=
     match tag.1 with
     | none => c
     | some q => (c.1.step (tm.tr q tag.2.1 tag.2.2),
         fun i => c.2 i + ((tm.tr q tag.2.1 tag.2.2).workTapes i).2)
-  have heq : trackedStep tm = fun c => branch (key c) c := by
+  have heq : trackedStep tm =
+      fun c => branch (c.1.state, c.1.inputSymbol, c.1.workTapeSymbols) c := by
     funext c
     rcases c with ⟨⟨_, _ | _, _, _, _⟩, _⟩ <;> rfl
   rw [heq]
   refine ComputableInPolyTime.finite_cases
-    (tagEncoding := encPair (encFinite _) (encPair (encFinEnum _) (encFinEnum _))) ?_ fun tag => ?_
-  · exact (ComputableInPolyTime.finiteCfg_state.prod
+    (tagEncoding := encPair (encFinite _) (encPair (encFinEnum _) (encFinEnum _)))
+    ((ComputableInPolyTime.finiteCfg_state.prod
       (ComputableInPolyTime.finiteCfg_inputSymbol.prod
-        ComputableInPolyTime.finiteCfg_workTapeSymbols)).comp (.fst _ _)
-  · rcases tag with ⟨_ | q, symbol, work⟩
-    · exact ComputableInPolyTime.id'
-    · refine ((ComputableInPolyTime.finiteCfg_step _).comp (.fst _ _)).prod
-        (ComputableInPolyTime.pi fun i => ?_)
-      have hi : ComputableInPolyTime (fun c : FiniteCfg k Bool State × (Fin k → ℤ) => c.2 i)
-          (encTrackedCfg) encIntUnary :=
-        (ComputableInPolyTime.pi_apply encIntUnary i).comp (.snd _ _)
-      have hmove := (ComputableInPolyTime.int_sub_sign
-        (-((tm.tr q symbol work).workTapes i).2)).comp hi
-      simpa only [SignType.coe_neg, sub_neg_eq_add, Function.comp_def] using hmove
+        ComputableInPolyTime.finiteCfg_workTapeSymbols)).comp (.fst _ _))
+    fun ⟨q, symbol, work⟩ => ?_
+  cases q with
+  | none => exact ComputableInPolyTime.id'
+  | some q =>
+    refine ((ComputableInPolyTime.finiteCfg_step _).comp (.fst _ _)).prod
+      (ComputableInPolyTime.pi fun i => ?_)
+    simpa only [SignType.coe_neg, sub_neg_eq_add, Function.comp_def] using
+      (ComputableInPolyTime.int_sub_sign (-((tm.tr q symbol work).workTapes i).2)).comp
+        ((ComputableInPolyTime.pi_apply encIntUnary i).comp (.snd _ _))
 
 /-- Storage bounds along a tracked run of `steps` steps on an input of length at most
 `inputSize`. -/
@@ -220,16 +212,16 @@ private theorem TrackedBound.trackedStep {tm : MultiTapeTM k Bool State} {inputS
   · exact ⟨h.input, fun i => (h.work i).trans (by lia), h.output.trans (by lia),
       fun i => (h.positions i).trans (by lia)⟩
   · rename_i q _
-    refine ⟨h.input, fun i => ?_, ?_, fun i => ?_⟩
-    · exact (BiTape.spaceUsed_step_le _ _).trans (Nat.add_le_add_right (h.work i) 1)
-    · simpa only [FiniteCfg.step, List.length_append] using
-        Nat.add_le_add h.output Option.length_toList_le
-    · have hp := h.positions i
-      have hs : |(((tm.tr q c.1.inputSymbol c.1.workTapeSymbols).workTapes i).2 : ℤ)| ≤ 1 := by
-        rcases ((tm.tr q c.1.inputSymbol c.1.workTapeSymbols).workTapes i).2 with _ | _ | _ <;>
-          simp [SignType.cast]
-      calc |c.2 i + _| ≤ |c.2 i| + |_| := abs_add_le _ _
-        _ ≤ steps + 1 := by lia
+    refine ⟨h.input,
+      fun i => (BiTape.spaceUsed_step_le _ _).trans (Nat.add_le_add_right (h.work i) 1),
+      by simpa only [FiniteCfg.step, List.length_append] using
+        Nat.add_le_add h.output Option.length_toList_le, fun i => ?_⟩
+    have hp := h.positions i
+    have hs : |(((tm.tr q c.1.inputSymbol c.1.workTapeSymbols).workTapes i).2 : ℤ)| ≤ 1 := by
+      rcases ((tm.tr q c.1.inputSymbol c.1.workTapeSymbols).workTapes i).2 with _ | _ | _ <;>
+        simp [SignType.cast]
+    calc |c.2 i + _| ≤ |c.2 i| + |_| := abs_add_le _ _
+      _ ≤ steps + 1 := by lia
 
 /-- The encoding of tracked storage is linear in the input size and the number of steps. -/
 private theorem length_encTracked_le : ∃ C : ℕ, ∀ (inputSize steps : ℕ)
@@ -238,10 +230,8 @@ private theorem length_encTracked_le : ∃ C : ℕ, ∀ (inputSize steps : ℕ)
   obtain ⟨C, hC⟩ := length_encFiniteConfig_le (k := k) (State := State) (Oracle := Empty)
   refine ⟨2 * C + 2 + k * 5, fun inputSize steps c h => ?_⟩
   have hfin : (encFiniteCfg c.1).length ≤ C * (inputSize + steps + 0 + 1) := by
-    have hbound : FiniteConfig.SpaceBound inputSize steps 0
-        (⟨c.1, Empty.elim⟩ : FiniteConfig k Bool State Empty) :=
-      ⟨h.input, h.work, h.output, fun e => e.elim, fun e => e.elim⟩
-    refine le_trans ?_ (hC _ _ _ _ hbound)
+    refine le_trans ?_ (hC _ _ 0 (⟨c.1, Empty.elim⟩ : FiniteConfig k Bool State Empty)
+      ⟨h.input, h.work, h.output, fun e => e.elim, fun e => e.elim⟩)
     simp only [encFiniteConfig_apply, length_encPair]
     lia
   have hpos : (encPi encIntUnary c.2).length ≤ k * (2 * (steps + 1) + 1) := by

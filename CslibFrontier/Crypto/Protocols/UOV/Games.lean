@@ -104,20 +104,13 @@ theorem centralMap_vanishesOn
     (A : Fin o → Matrix (Fin (v + o)) (Fin (v + o)) F) :
     MultivariateQuadraticMap.VanishesOn (centralMap v o A) (oilSubspace F v o) := by
   intro x hx
-  change ∀ i, i.val < v → x i = 0 at hx
   ext k
   calc
     centralMap v o A x k =
         x ⬝ᵥ ((fun i j => if i ≤ j ∧ i.val < v then A k i j else 0) *ᵥ x) :=
       MultivariateQuadraticMap.ofMatrices_apply _ _ _
-    _ = 0 := by
-      change (∑ i, x i * ∑ j,
-        (if i ≤ j ∧ i.val < v then A k i j else 0) * x j) = 0
-      apply Finset.sum_eq_zero
-      intro i _
-      by_cases hv : i.val < v
-      · rw [hx i hv, zero_mul]
-      · simp [hv]
+    _ = 0 := Finset.sum_eq_zero fun i _ => by
+      by_cases hv : i.val < v <;> simp [mulVec, dotProduct, hv, hx i]
 
 /-- The public UOV map, with hiding orientation `P = Q ∘ T`. -/
 @[expose] def IdealKeyMaterial.publicMap (key : IdealKeyMaterial F v o) :

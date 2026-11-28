@@ -14,7 +14,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Tactic.PPT
+import CslibFrontier.Computability.Probabilistic.PPT.Capture
+import CslibFrontier.Tactic.PolyTime.Init
 
 /-!
 # Target collision resistance from second-preimage resistance (`H(k ⊕ m)`)
@@ -130,10 +131,11 @@ uniformly strict PPT. -/
 theorem isPPT_xorTargetToSecondPreimage {adversary : TargetCollisionFinder}
     (ha : adversary.IsPPT) :
     IsPPT encBits (xorTargetToSecondPreimage adversary) := by
-  have hc := ha.choose
-  have hf := ha.find
-  unfold xorTargetToSecondPreimage
-  ppt
+  refine IsPPTOn.bind_with (ha.choose.preprocess (by fun_prop)) ?_
+  refine IsPPTOn.bind_with (ha.find.preprocess (prepare :=
+    fun p : (ℕ × List Bool) × (List Bool × List Bool) =>
+      (p.1.1, p.2.2, BitString.listXor p.1.1 [p.1.2, p.2.1])) (by fun_prop)) ?_
+  exact ComputableInPolyTime.isPPTOn (by fun_prop)
 
 /-- **Theorem 8.12, concrete bound** ([BonehShoup2023], Section 8.11.3, pp. 338–339): for every
 target-collision adversary `adversary` attacking `xorTargetHash H` on `n`-bit messages and any
@@ -163,11 +165,7 @@ theorem succProbability_targetCollisionGame_xorTargetHash_le
       ProbComp.eval_pure, BitString.eval_sampleList, PMF.bind_bind, PMF.pure_bind]
     rw [PMF.bind_comm]
     refine PMF.bind_congr_on_support _ _ _ fun choice _ => ?_
-    have hmask :
-        (BitString.uniformList n).map (fun m => BitString.listXor n [m, choice.1]) =
-          BitString.uniformList n :=
-      BitString.uniformList_map_listXor n choice.1
-    conv_rhs => rw [← hmask, PMF.bind_map]
+    conv_rhs => rw [← BitString.uniformList_map_listXor n choice.1, PMF.bind_map]
     refine PMF.bind_congr_on_support _ _ _ fun m hm => ?_
     have hm_len : m.length = n := BitString.mem_support_uniformList_iff.mp hm
     have hrec : BitString.listXor n [choice.1, BitString.listXor n [m, choice.1]] = m := by
@@ -191,14 +189,7 @@ theorem succProbability_targetCollisionGame_xorTargetHash_le
       fun heq => hne ((BitString.listXor_pair_left_inj hm₁_len hm₀_len k).mp heq).symm
     have hv' : valid n (BitString.listXor n [m₁, k]) = true :=
       hvalid _ (BitString.length_listXor n [m₁, k])
-    have hwin :
-        (valid n (BitString.listXor n [m₁, k]) &&
-          ((BitString.listXor n [m₁, k] != BitString.listXor n [choice.1, k]) &&
-            (H (BitString.listXor n [m₁, k]) == H (BitString.listXor n [choice.1, k])))) =
-          true := by
-      rw [Bool.and_eq_true, Bool.and_eq_true, bne_iff_ne, beq_iff_eq]
-      exact ⟨hv', hne', hH.symm⟩
-    simp [hwin]
+    simp [hv', hne', hH.symm]
 
 /-- **Theorem 8.12** ([BonehShoup2023], Section 8.11.3, p. 338): if `H` is second-preimage
 resistant on a domain `valid` that eventually admits all `n`-bit words (in particular

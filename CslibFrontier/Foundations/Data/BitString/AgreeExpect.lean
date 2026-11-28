@@ -53,14 +53,11 @@ including `S = ∅`, and for any decision procedure of the event. -/
 theorem expect_ite_forall_mem_eq {ι : Type*} [Fintype ι] [DecidableEq ι] (S : Finset ι)
     (b : ι → Bool) [DecidablePred fun x : ι → Bool => ∀ i ∈ S, x i = b i] :
     𝔼 x : ι → Bool, (if ∀ i ∈ S, x i = b i then (1 : ℝ) else 0) = 2⁻¹ ^ #S := by
-  have hcard : #{x : ι → Bool | ∀ i ∈ S, x i = b i} = 2 ^ #Sᶜ := by
-    rw [Fintype.card_filter_forall_mem_eq S b, Fintype.card_bool]
-  have hS : #S ≤ Fintype.card ι := card_le_univ S
-  rw [expect_eq_sum_div_card, sum_boole, hcard, card_compl, card_univ, Fintype.card_fun,
-    Fintype.card_bool]
-  obtain ⟨m, hm⟩ := Nat.exists_eq_add_of_le hS
-  rw [hm, Nat.add_sub_cancel_left, Nat.cast_pow, Nat.cast_pow, Nat.cast_ofNat, pow_add, inv_pow,
-    mul_comm, ← div_div, div_self (pow_ne_zero _ two_ne_zero), one_div]
+  obtain ⟨m, hm⟩ := Nat.exists_eq_add_of_le (card_le_univ S)
+  rw [expect_eq_sum_div_card, sum_boole, Fintype.card_filter_forall_mem_eq S b, card_compl,
+    card_univ, Fintype.card_fun, Fintype.card_bool, hm, Nat.add_sub_cancel_left, Nat.cast_pow,
+    Nat.cast_pow, Nat.cast_ofNat, pow_add, inv_pow, mul_comm, ← div_div,
+    div_self (pow_ne_zero _ two_ne_zero), one_div]
 
 /-- Some bit of a set `S` of uniformly random bits equals `b` with probability `1 - 2 ^ (-|S|)`,
 for any decision procedure of the event. -/
@@ -86,13 +83,11 @@ theorem expect_ite_card_filter_eq {ι : Type*} [Fintype ι] [DecidableEq ι] (S 
   have hcard (x : ι → Bool) : #{i ∈ S | x i = true} = weight fun i : S => x i := by
     rw [weight, ← card_map (Function.Embedding.subtype _)]
     congr 1
-    ext i
+    ext
     simp [and_comm]
-  simp only [hcard]
-  rw [Fintype.expect_restrict_coordinates (p := (· ∈ S))
-      (fun y => if weight y = m then (1 : ℝ) else 0)]
-  simp only [Fintype.expect_boole, nnratCast_dens, Fintype.card_fun, Fintype.card_bool,
-    Fintype.card_coe, Nat.cast_pow, Nat.cast_ofNat]
+  simp only [hcard, Fintype.expect_restrict_coordinates (p := (· ∈ S))
+    (fun y => if weight y = m then (1 : ℝ) else 0), Fintype.expect_boole, nnratCast_dens,
+    Fintype.card_fun, Fintype.card_bool, Fintype.card_coe, Nat.cast_pow, Nat.cast_ofNat]
   congr 2
   convert card_filter_weight_eq (ι := S) m
   simp

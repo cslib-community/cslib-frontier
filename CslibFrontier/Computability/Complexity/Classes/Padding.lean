@@ -54,7 +54,11 @@ problem is in `NP` with respect to `encBits` by definition: checking the coins i
 If every computation path on
 `enc a` with at least `t a` steps has halted, and `c * |x|` is at least `M * t a` for the number
 `M` of actions, the padded word `x = frame (enc a) ++ u` is in the padded problem exactly when
-`a ∈ A` (`Turing.MultiTapeNTM.DecidesInTime.frame_append_mem_padded_iff`).
+`a ∈ A` (`Turing.MultiTapeNTM.DecidesInTime.frame_append_mem_padded_iff`). So every problem in
+`NTIME t` is decided by a problem in `NP` on the words `frame (enc a) ++ u` with `t |enc a| ≤ |u|`
+(`Cslib.Complexity.exists_mem_NP_frame_append_mem_iff_of_mem_NTIME`), and for exponential padding
+`u = 1^{2 ^ f n}` the padded word is written within time `2 ^ O(f n)`
+(`Cslib.Complexity.exists_computableInO_frame_append_two_pow`).
 
 ## The translation lemma
 
@@ -102,6 +106,10 @@ exponential padding yields an `NEXP` decider without a collapse hypothesis.
 * `Turing.MultiTapeNTM.padded_mem_NP`,
   `Turing.MultiTapeNTM.DecidesInTime.frame_append_mem_padded_iff`: the padded problem is in `NP`,
   and decides the original problem on padded instances.
+* `Cslib.Complexity.exists_mem_NP_frame_append_mem_iff_of_mem_NTIME`: every problem in `NTIME t`
+  is decided on instances padded by at least `t n` bits by a problem in `NP`.
+* `Cslib.Complexity.exists_computableInO_frame_append_two_pow`: exponentially padded instances
+  are written within time `2 ^ O(f n)`.
 * `Cslib.Complexity.NTIME_subset_iUnion_DTIME_of_NP_subset_P`: the translation lemma;
   `Cslib.Complexity.NTIME_subset_iUnion_DTIME_of_agree_padded`: the same from agreement on padded
   instances.
@@ -149,8 +157,7 @@ def padded (ntm : MultiTapeNTM k Bool State) (c : ℕ) : Set (List Bool) :=
 /-- The padded problem is in `NP`, with certificates of length `c * |x|`. -/
 theorem padded_mem_NP (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
     ntm.padded c ∈ Cslib.Complexity.NP encBits :=
-  ⟨Polynomial.C c * Polynomial.X, ntm.checkPadded,
-    (ntm.computableInPolyTime_checkPadded),
+  ⟨Polynomial.C c * Polynomial.X, ntm.checkPadded, ntm.computableInPolyTime_checkPadded,
     fun x => by simp [padded]⟩
 
 /-- **Padded instances.** If `ntm` decides `A` within `t`, then the padded word
@@ -216,9 +223,7 @@ private theorem exists_computableInO_two_pow_length {f : ℕ → ℕ}
 private theorem padTime_add_one_le {n m d M : ℕ} (hn : n ≤ M) (hm : m ≤ M) :
     n + (n + (n + 1) ^ d + (m + 1) * 2 ^ m) + 1 ≤ 2 ^ ((d + 2) * M + 2) := by
   have hM : M < 2 ^ M := Nat.lt_two_pow_self
-  have hpow : (n + 1) ^ d ≤ 2 ^ (d * M) := by
-    rw [pow_mul']
-    exact Nat.pow_le_pow_left (by omega) d
+  have hpow : (n + 1) ^ d ≤ 2 ^ (d * M) := pow_mul' 2 d M ▸ Nat.pow_le_pow_left (by omega) d
   have hdbl : (m + 1) * 2 ^ m ≤ 2 ^ (2 * M) := by
     rw [two_mul, pow_add]
     exact Nat.mul_le_mul (by omega) (Nat.pow_le_pow_right (by norm_num) hm)
@@ -228,6 +233,21 @@ private theorem padTime_add_one_le {n m d M : ℕ} (hn : n ≤ M) (hm : m ≤ M)
   rw [pow_add]
   omega
 
+/-- **Writing an exponentially padded instance.** If `f` is computable in unary in polynomial time
+and `n ≤ f n`, then `a ↦ frame (enc a) ++ 1^{2 ^ f |enc a|}` is computable within time
+`O(2 ^ (d * f n))` for some `d`. -/
+theorem exists_computableInO_frame_append_two_pow {f : ℕ → ℕ}
+    (hf : Turing.MultiTapeTM.ComputableInPolyTime f encUnary encUnary) (hn : ∀ n, n ≤ f n) :
+    ∃ (d : ℕ) (S : α → ℕ), ComputableInO
+      (fun a => frame (enc a) ++ List.replicate (2 ^ f (enc a).length) true) enc encBits
+      (fun a => 2 ^ (d * f (enc a).length)) S := by
+  obtain ⟨d, hpad⟩ := exists_computableInO_two_pow_length hf
+  refine ⟨d + 2, _, (computableInO_frame_append_replicate (t := fun n => 2 ^ f n) hpad).mono_time 4
+    fun a => ?_⟩
+  have := padTime_add_one_le (d := d) (hn (enc a).length) le_rfl
+  rw [pow_add] at this
+  omega
+
 /-- A padded instance of length below `2 ^ (X + 3)` raised to the power `d` stays within
 `2 ^ (e * (X + 3))` for every `e ≥ d`. -/
 private theorem pow_le_two_pow_mul_of_add_one_le {L X d e : ℕ} (hL : L + 1 ≤ 2 ^ (X + 3))
@@ -235,6 +255,20 @@ private theorem pow_le_two_pow_mul_of_add_one_le {L X d e : ℕ} (hL : L + 1 ≤
   calc L ^ d ≤ (2 ^ (X + 3)) ^ d := Nat.pow_le_pow_left (by omega) d
     _ = 2 ^ (d * (X + 3)) := (pow_mul' 2 d (X + 3)).symm
     _ ≤ 2 ^ (e * (X + 3)) := Nat.pow_le_pow_right (by norm_num) (Nat.mul_le_mul_right _ hd)
+
+/-- **Padding into `NP`.** A problem `A` decidable by a nondeterministic machine within time
+`O(t n)` is decided on padded instances by a problem in `NP`: some `B ∈ NP` contains
+`frame (enc a) ++ u`, for every padding `u` of length at least `t |enc a|`, exactly when `a ∈ A`.
+The problem `B` is the padded problem of the machine (`Turing.MultiTapeNTM.padded`). -/
+theorem exists_mem_NP_frame_append_mem_iff_of_mem_NTIME {A : Set α} {t : ℕ → ℕ}
+    (hA : A ∈ NTIME enc t) :
+    ∃ B ∈ NP encBits, ∀ (a : α) (u : List Bool), t (enc a).length ≤ u.length →
+      (frame (enc a) ++ u ∈ B ↔ a ∈ A) := by
+  obtain ⟨c₁, c₂, k, State, hfinite, ntm, hA⟩ := hA
+  refine ⟨ntm.padded (Nat.card (Turing.Action k Bool State) * (c₁ + c₂)), ntm.padded_mem_NP _,
+    fun a u hu => hA.frame_append_mem_padded_iff ?_⟩
+  simp only [List.length_append, length_frame, Nat.mul_assoc]
+  exact Nat.mul_le_mul_left _ (by nlinarith)
 
 /-- **The translation lemma on padded instances.** Suppose every problem in `NP` agrees with some
 problem in `P` on the words `frame u ++ 1^{t |u|}`, and `t n` is computable in unary from any word
@@ -250,9 +284,9 @@ theorem NTIME_subset_iUnion_DTIME_of_agree_padded {t T : ℕ → ℕ}
     (hpad : Turing.MultiTapeTM.ComputableInO (fun x : List Bool => t x.length) encBits encUnary
       (fun x => T x.length) S) :
     NTIME enc t ⊆ ⋃ d, DTIME enc fun n => (n + T n + 1) ^ d := by
-  rintro A ⟨c₁, c₂, k, State, hfinite, ntm, hA⟩
-  set c := Nat.card (Turing.Action k Bool State) * (c₁ + c₂)
-  obtain ⟨B', hB', hagree⟩ := hNP _ (ntm.padded_mem_NP c)
+  intro A hA
+  obtain ⟨B, hB, hAB⟩ := exists_mem_NP_frame_append_mem_iff_of_mem_NTIME hA
+  obtain ⟨B', hB', hagree⟩ := hNP B hB
   obtain ⟨d, hd⟩ := mem_P_iff_exists_mem_DTIME.mp hB'
   -- the reduction: frame the instance and append `t n` ones
   let g (a : α) : List Bool := frame (enc a) ++ List.replicate (t (enc a).length) true
@@ -260,29 +294,19 @@ theorem NTIME_subset_iUnion_DTIME_of_agree_padded {t T : ℕ → ℕ}
       fun a => (enc a).length + S (enc a) :=
     computableInO_frame_append_replicate hpad
   obtain ⟨c', hc'⟩ := hpad.length_le_time
-  have hlen (a : α) : (g a).length = 2 * (enc a).length + 1 + t (enc a).length := by
-    simp [g]
+  have hlen (a : α) : (g a).length = 2 * (enc a).length + 1 + t (enc a).length := by simp [g]
   have ht (a : α) : t (enc a).length ≤ c' * (T (enc a).length + 1) := by
     simpa only [encUnary_apply, List.length_replicate] using hc' (enc a)
-  have hpre : A = g ⁻¹' B' := by
-    ext a
-    refine Iff.trans ?_ (hagree (enc a)).symm
-    refine (hA.frame_append_mem_padded_iff ?_).symm
-    rw [List.length_append, List.length_replicate, length_frame]
-    have : c₁ * t (enc a).length + c₂ ≤ (c₁ + c₂) * (2 * (enc a).length + 1 + t (enc a).length) :=
-      by nlinarith
-    rw [Nat.mul_assoc]
-    exact Nat.mul_le_mul_left _ this
+  have hpre : A = g ⁻¹' B' := Set.ext fun a =>
+    (hAB a _ List.length_replicate.ge).symm.trans (hagree (enc a)).symm
   refine Set.mem_iUnion.mpr ⟨d + 1, hpre ▸ preimage_mem_DTIME (C := (c' + 2) ^ d + 1) hd hg
     fun a => ?_⟩
   rw [encBits_apply, hlen]
   set n := (enc a).length
   set X := n + T n + 1
   have hX : 1 ≤ X := by omega
-  have hL : 2 * n + 1 + t n ≤ (c' + 2) * X := by
-    have := ht a
-    simp only [X]
-    nlinarith
+  have htn : t n ≤ c' * (T n + 1) := ht a
+  have hL : 2 * n + 1 + t n ≤ (c' + 2) * X := by dsimp only [X]; nlinarith
   have h₁ : (2 * n + 1 + t n) ^ d ≤ (c' + 2) ^ d * X ^ (d + 1) := by
     calc (2 * n + 1 + t n) ^ d ≤ ((c' + 2) * X) ^ d := Nat.pow_le_pow_left hL d
       _ = (c' + 2) ^ d * X ^ d := Nat.mul_pow _ _ _
@@ -315,12 +339,9 @@ theorem NTIME_two_pow_subset_iUnion_DTIME_of_expPaddedNPEasy (hNP : ExpPaddedNPE
     NTIME enc (fun n => 2 ^ f n) ⊆ ⋃ d, DTIME enc fun n => 2 ^ (d * f n) := by
   intro A hA
   obtain ⟨d, hpad⟩ := exists_computableInO_two_pow_length hf
-  have hagree : ∀ B ∈ NP encBits, ∃ B' ∈ P encBits, ∀ u : List Bool,
-      (frame u ++ List.replicate (2 ^ f u.length) true ∈ B' ↔
-        frame u ++ List.replicate (2 ^ f u.length) true ∈ B) := fun B hB => by
-    obtain ⟨B', hB', h⟩ := hNP B hB
-    exact ⟨B', hB', fun u => h u _ (Nat.pow_le_pow_right (by norm_num) (hn _))⟩
-  obtain ⟨D, hD⟩ := Set.mem_iUnion.mp (NTIME_subset_iUnion_DTIME_of_agree_padded hagree
+  obtain ⟨D, hD⟩ := Set.mem_iUnion.mp (NTIME_subset_iUnion_DTIME_of_agree_padded
+    (fun B hB => (hNP B hB).imp fun B' ⟨hB', h⟩ =>
+      ⟨hB', fun u => h u _ (Nat.pow_le_pow_right (by norm_num) (hn _))⟩)
     (T := fun n => n + (n + 1) ^ d + (f n + 1) * 2 ^ f n) hpad hA)
   -- the padded instances are written within time `2 ^ O(f n)`
   refine Set.mem_iUnion.mpr ⟨(d + 2) * D, DTIME_mono_of_le_mul_add (C := 2 ^ (2 * D))
@@ -420,14 +441,9 @@ theorem preimage_mem_NTIME_of_mem_NP {B : Set (List Bool)} {g : α → List Bool
         final.tapes.state = none := by
     intro final hfinal
     rw [MultiTapePTM.eval_runClosedConfigFrom_ofDeterministic, PMF.mem_support_pure_iff] at hfinal
-    subst hfinal
-    change (tm.runFrom (tm.initCfg (enc a)) (t₁ a)).state = none
-    rw [htm_run a]
-    rfl
-  have hout₁ (a : α) :
-      ProbComp.eval (M_pad.runClosed (t₁ a) (enc a)) = PMF.pure (g a) := by
-    rw [MultiTapePTM.eval_runClosed_ofDeterministic, htm_run a]
-    rfl
+    exact hfinal ▸ congrArg (·.state) (htm_run a)
+  have hout₁ (a : α) : ProbComp.eval (M_pad.runClosed (t₁ a) (enc a)) = PMF.pure (g a) := by
+    rw [MultiTapePTM.eval_runClosed_ofDeterministic, htm_run a]; rfl
   -- Unpack `B ∈ NP encBits` into a halting fair-coin machine `M_NP`
   obtain ⟨p, V, hV, hVer⟩ := hB
   obtain ⟨k₁, State₁, hfinite₁, M_NP, c₁, d₁, heval₂, hhalt₂⟩ :=
@@ -441,8 +457,7 @@ theorem preimage_mem_NTIME_of_mem_NP {B : Set (List Bool)} {g : α → List Bool
           (M_NP.runClosedConfigFrom (t₂ a) (M_NP.initialConfig word))).support,
           final.tapes.state = none := by
     intro word hword final hfinal
-    rw [hout₁ a, PMF.mem_support_pure_iff] at hword
-    subst hword
+    obtain rfl : word = g a := by simpa [hout₁ a] using hword
     rw [M_NP.eval_runClosedConfigFrom_eq_of_halted _ (ht₂_le a) (hhalt₂ (g a))] at hfinal
     exact hhalt₂ (g a) final hfinal
   let M_comp := M_NP.comp M_pad false
@@ -491,16 +506,14 @@ theorem preimage_pad_mem_NEXP {B : Set (List Bool)} (hB : B ∈ NP encBits) {f :
     (hf : Turing.MultiTapeTM.ComputableInPolyTime f encUnary encUnary) (hn : ∀ n, n ≤ f n) :
     (fun a : α => frame (enc a) ++ List.replicate (2 ^ f (enc a).length) true) ⁻¹' B ∈
       NEXP enc := by
-  obtain ⟨d, hpad⟩ := exists_computableInO_two_pow_length hf
-  obtain ⟨D, hD⟩ := preimage_mem_NTIME_of_mem_NP hB
-    (T₀ := fun n => n + (n + (n + 1) ^ d + (f n + 1) * 2 ^ f n))
-    (computableInO_frame_append_replicate (t := fun n => 2 ^ f n) hpad)
+  obtain ⟨d, S, hg⟩ := exists_computableInO_frame_append_two_pow (enc := enc) hf hn
+  obtain ⟨D, hD⟩ := preimage_mem_NTIME_of_mem_NP hB (T₀ := fun n => 2 ^ (d * f n)) hg
   -- the padded instance is written within time `2 ^ O(f n)`, and `f` is polynomially bounded
   have := hf.polynomiallyBounded
-  refine NTIME_two_pow_subset_NEXP (h := fun n => ((d + 2) * f n + 2) * D) (by fun_prop)
+  refine NTIME_two_pow_subset_NEXP (h := fun n => (d * f n + 1) * D) (by fun_prop)
     (NTIME_mono (fun n => ?_) hD)
-  rw [pow_mul]
-  exact Nat.pow_le_pow_left (padTime_add_one_le (hn n) le_rfl) D
+  rw [pow_mul 2 _ D, pow_succ]
+  exact Nat.pow_le_pow_left (by have := Nat.one_le_two_pow (n := d * f n); omega) D
 
 /-- Pulling back `B ∈ NP encBits` along `x ↦ x ++ List.replicate (2 ^ x.length) true` gives a
 problem in `NEXP encBits`. -/
@@ -520,9 +533,7 @@ theorem preimage_append_two_pow_mem_NEXP {B : Set (List Bool)} (hB : B ∈ NP en
   rw [pow_mul]
   refine Nat.pow_le_pow_left ?_ D
   have := padTime_add_one_le (d := 0) (le_refl n) (le_refl n)
-  rw [pow_zero, zero_add] at this
-  simp only [T₀]
-  omega
+  simp only [pow_zero, zero_add, T₀] at this ⊢; omega
 
 /-- Pulling back `B ∈ P (encPair encBits encBits)` along
 `(a, y) ↦ (frame (enc a) ++ List.replicate (2 ^ f (enc a).length) true, y)`, where `f` is
@@ -557,13 +568,10 @@ theorem preimage_pad_prod_id_mem_EXP {B : Set (List Bool × List Bool)}
       (frame (enc p.1) ++ List.replicate (2 ^ f n) true, p.2)).length + 1 ≤ 2 ^ (X + 3) := by
     have h2f : 2 ^ f n ≤ 2 ^ X := Nat.pow_le_pow_right (by norm_num) hfX
     simp only [length_encPair, encBits_apply, List.length_append, length_frame,
-      List.length_replicate]
-    rw [pow_add]
+      List.length_replicate, pow_add]
     omega
-  have hpow : (encPair encBits encBits
-      (frame (enc p.1) ++ List.replicate (2 ^ f n) true, p.2)).length ^ d ≤ 2 ^ E :=
-    pow_le_two_pow_mul_of_add_one_le hlen (by omega)
-  omega
+  have hpow := pow_le_two_pow_mul_of_add_one_le (d := d) (e := d₀ + d + 2) hlen (by omega)
+  rw [← hE] at hpow; omega
 
 /-- Pulling back `B ∈ P (encPair encBits encUnary)` along
 `a ↦ (frame (enc a) ++ List.replicate (2 ^ f (enc a).length) true, 2 ^ g (enc a).length)`, where
@@ -599,13 +607,10 @@ theorem preimage_pad_prod_two_pow_mem_EXP {B : Set (List Bool × ℕ)}
     have h2f : 2 ^ f n ≤ 2 ^ X := Nat.pow_le_pow_right (by norm_num) (Nat.le_add_right _ _)
     have h2g : 2 ^ g n ≤ 2 ^ X := Nat.pow_le_pow_right (by norm_num) (Nat.le_add_left _ _)
     simp only [length_encPair, encBits_apply, encUnary_apply, List.length_append, length_frame,
-      List.length_replicate]
-    rw [pow_add]
+      List.length_replicate, pow_add]
     omega
-  have hpow : (encPair encBits encUnary
-      (frame (enc a) ++ List.replicate (2 ^ f n) true, 2 ^ g n)).length ^ d ≤ 2 ^ E :=
-    pow_le_two_pow_mul_of_add_one_le hlen (by omega)
-  omega
+  have hpow := pow_le_two_pow_mul_of_add_one_le (d := d) (e := d₀ + d₁ + d + 2) hlen (by omega)
+  rw [← hE] at hpow; omega
 
 end Translation
 

@@ -1036,18 +1036,10 @@ private theorem map_pair_extractSingleSeed_eval_resampleHashPairComp
     exact map_pair_extractSingleSeed_eval_resampleSecondBlockComp
       (htab.2.congr_of_footprint (block2_in_of_block1_out hframe1))
   rw [hcongr]
-  have hbind :
-      (resampleSingleComp hashBase c_exp n_max U M x).eval.bind
-        (fun z1 : Data 19 × ℕ =>
-          (PMF.uniformOfFintype (SingleSeed c_exp n_max U M)).map
-            (extractSingleSeed hashBase c_exp n_max U M z1.1.mem, ·)) =
-      (((resampleSingleComp hashBase c_exp n_max U M x).eval).map
-          (fun z1 => extractSingleSeed hashBase c_exp n_max U M z1.1.mem)).bind
-        (fun θ₁ => (PMF.uniformOfFintype (SingleSeed c_exp n_max U M)).map (θ₁, ·)) := by
-    rw [PMF.bind_map]
-    rfl
-  rw [hbind, map_extractSingleSeed_eval_resampleSingleComp,
-    PMF.uniformOfFintype_prod]
+  erw [← PMF.bind_map (resampleSingleComp hashBase c_exp n_max U M x).eval
+    (fun z1 => extractSingleSeed hashBase c_exp n_max U M z1.1.mem)
+    (fun θ₁ => (PMF.uniformOfFintype (SingleSeed c_exp n_max U M)).map (θ₁, ·))]
+  rw [map_extractSingleSeed_eval_resampleSingleComp, PMF.uniformOfFintype_prod]
 
 /-- **Exact uniformity of `resampleHashPairComp`**: the extracted seed
 `extractSeed hashBase c_exp n_max U M z.1.mem` is distributed according to

@@ -32,15 +32,10 @@ theorem nodup_flatten_variableCycleWords
     (hc : RotationCertificate.verifyRotation (incidenceGraph F) c = true) :
     (F.distinctVars.flatMap fun v => RotationCertificate.cycleWord c
       (2 * F.vars.idxOf v)).Nodup := by
-  apply List.nodup_flatMap.mpr
-  refine ⟨fun v hv => nodup_first_variable_cycleWord hc v (CSP.mem_distinctVars.mp hv), ?_⟩
-  have hn : F.distinctVars.Nodup := by
-    rw [← CSP.distinctVars_varCNF]
-    exact CNF.nodup_distinctVars _
-  apply hn.imp_of_mem
-  intro v u hv hu hne
-  apply List.disjoint_left.mpr
-  intro index hv' hu'
+  refine List.nodup_flatMap.mpr
+    ⟨fun v hv => nodup_first_variable_cycleWord hc v (CSP.mem_distinctVars.mp hv), ?_⟩
+  have hn : F.distinctVars.Nodup := CSP.distinctVars_varCNF (F := F) ▸ CNF.nodup_distinctVars _
+  refine hn.imp_of_mem fun {v u} hv hu hne index hv' hu' => ?_
   obtain ⟨o, ho, hov⟩ :=
     (mem_first_variable_cycleWord_iff hc v (CSP.mem_distinctVars.mp hv) index).mp hv'
   obtain ⟨p, hp, hpu⟩ :=
@@ -54,19 +49,17 @@ theorem mem_flatten_variableCycleWords_iff
     (hc : RotationCertificate.verifyRotation (incidenceGraph F) c = true) (index : ℕ) :
     index ∈ (F.distinctVars.flatMap fun v => RotationCertificate.cycleWord c
       (2 * F.vars.idxOf v)) ↔ ∃ i < F.occurrences.length, index = 2 * i := by
-  constructor
-  · intro hm
-    obtain ⟨v, hv, hm⟩ := List.mem_flatMap.mp hm
+  refine ⟨fun hm => ?_, ?_⟩
+  · obtain ⟨v, hv, hm⟩ := List.mem_flatMap.mp hm
     obtain ⟨o, ho, _⟩ :=
       (mem_first_variable_cycleWord_iff hc v (CSP.mem_distinctVars.mp hv) index).mp hm
-    refine ⟨incidenceEdgeIndex o, ?_, ho⟩
-    simpa only [incidenceGraph_edges, List.length_map] using incidenceEdgeIndex_lt o
+    exact ⟨incidenceEdgeIndex o,
+      by simpa only [incidenceGraph_edges, List.length_map] using incidenceEdgeIndex_lt o, ho⟩
   · rintro ⟨i, hi, rfl⟩
     obtain ⟨o, ho⟩ := exists_incidenceEdgeIndex (F := F) i
       (by simpa only [incidenceGraph_edges, List.length_map] using hi)
-    apply List.mem_flatMap.mpr
-    refine ⟨o.var, CSP.mem_distinctVars.mpr o.var_mem, ?_⟩
-    exact (mem_first_variable_cycleWord_iff hc o.var o.var_mem _).mpr ⟨o, by rw [ho], rfl⟩
+    exact List.mem_flatMap.mpr ⟨o.var, CSP.mem_distinctVars.mpr o.var_mem,
+      (mem_first_variable_cycleWord_iff hc o.var o.var_mem _).mpr ⟨o, by rw [ho], rfl⟩⟩
 
 /-- Splicing blocks through the source's supplied clockwise cycles only reorders the actual
 indexed source incidences. This includes singleton cycles and the empty source body. -/
@@ -74,9 +67,8 @@ theorem flatten_variableCycleWords_perm
     (hc : RotationCertificate.verifyRotation (incidenceGraph F) c = true) :
     (F.distinctVars.flatMap fun v => RotationCertificate.cycleWord c
       (2 * F.vars.idxOf v)).Perm ((List.range F.occurrences.length).map (2 * ·)) := by
-  apply (List.perm_ext_iff_of_nodup (nodup_flatten_variableCycleWords hc)
-    (List.nodup_range.map (fun _ _ he => by omega))).mpr
-  intro index
+  refine (List.perm_ext_iff_of_nodup (nodup_flatten_variableCycleWords hc)
+    (List.nodup_range.map fun _ _ he => by omega)).mpr fun index => ?_
   simp only [mem_flatten_variableCycleWords_iff hc, List.mem_map, List.mem_range, eq_comm]
 
 end Cslib.Complexity.CSP

@@ -31,23 +31,16 @@ theorem classify_eq_nodeAt {k q s : ℕ} {Q : Type}
     classify k (σ, q, path.map Fin.val) =
       kind ((encodedTree (MultiTapePTM.ofDeterministic M) w b
         (scheduleOfNat k q σ) e).nodeAt path) := by
-  have hall : (path.map Fin.val).all (fun j => decide (j < k * 3 + 1)) = true := by
-    apply List.all_eq_true.mpr
-    intro j hj
-    obtain ⟨p, _, rfl⟩ := List.mem_map.mp hj
-    exact decide_eq_true p.isLt
-  have hv : ImplicitPath.valid k (σ, q, path.map Fin.val) =
-      decide (path.length ≤ q) := by
-    simp only [ImplicitPath.valid, List.length_map, hall, Bool.and_true]
+  have hall : (path.map Fin.val).all (fun j => decide (j < k * 3 + 1)) = true :=
+    List.all_eq_true.mpr fun _ hj =>
+      let ⟨p, _, hp⟩ := List.mem_map.mp hj
+      hp ▸ decide_eq_true p.isLt
   rw [encodedTree, tree, Descending.nodeAt_tree]
-  simp only [classify, hv, List.length_map, decide_eq_true_eq, Descending.lookup]
-  by_cases hlt : path.length < q
-  · have hle : path.length ≤ q := hlt.le
-    have hne : path.length ≠ q := by omega
-    simp only [hlt, hle, hne, ↓reduceIte, kind]
-  · by_cases heq : path.length = q
-    · simp [heq, kind]
-    · have hle : ¬path.length ≤ q := by omega
-      simp only [hlt, hle, heq, ↓reduceIte, kind]
+  simp only [classify, ImplicitPath.valid, List.length_map, hall, Bool.and_true,
+    decide_eq_true_eq, Descending.lookup]
+  rcases lt_trichotomy path.length q with hlt | heq | hgt
+  · simp [hlt, hlt.le, hlt.ne, kind]
+  · simp [heq, kind]
+  · simp [hgt.not_gt, hgt.not_ge, hgt.ne', kind]
 
 end Turing.MultiTapePTM.BlockComputation.ImplicitNode

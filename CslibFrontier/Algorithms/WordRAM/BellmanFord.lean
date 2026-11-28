@@ -297,16 +297,13 @@ theorem decodeAnswer_answerWords (G : Instance) :
   cases hbf : bellmanFord G.adj (List.finRange G.n) G.source with
   | none => rfl
   | some d =>
-    have hne : ((List.finRange G.n).map fun v => encodeDist (d v)).isEmpty = false := by
-      rw [Bool.eq_false_iff, ne_eq, List.isEmpty_iff]
-      intro hnil
-      have hlen := congrArg List.length hnil
-      simp only [List.length_map, List.length_finRange, List.length_nil] at hlen
-      exact Nat.ne_of_gt G.n_pos hlen
-    simp only [hne, Bool.false_eq_true, ↓reduceIte, Option.some.injEq]
+    have hne : ((List.finRange G.n).map fun v => encodeDist (d v)) ≠ [] :=
+      List.ne_nil_of_length_pos (by simp [G.n_pos])
+    simp only [Bool.eq_false_iff.mpr (mt List.isEmpty_iff.mp hne), Bool.false_eq_true, ↓reduceIte,
+      Option.some.injEq]
     funext v
-    have hv : v.val < (List.finRange G.n).length := by simp
-    rw [List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_eq_getElem hv,
+    rw [List.getD_eq_getElem?_getD, List.getElem?_map,
+      List.getElem?_eq_getElem (by simp : v.val < (List.finRange G.n).length),
       List.getElem_finRange]
     simp
 
@@ -317,12 +314,7 @@ theorem answerWords_eq_nil_iff (G : Instance) :
   unfold answerWords
   cases bellmanFord G.adj (List.finRange G.n) G.source with
   | none => simp
-  | some d =>
-    simp only [reduceCtorEq, iff_false]
-    intro hnil
-    have hlen := congrArg List.length hnil
-    simp only [List.length_map, List.length_finRange, List.length_nil] at hlen
-    exact Nat.ne_of_gt G.n_pos hlen
+  | some d => exact iff_of_false (List.ne_nil_of_length_pos (by simp [G.n_pos])) (by simp)
 
 /-- When `answerWords G ≠ []`, entry `v` decodes to the shortest-path weight from `G.source` to
 `v`. -/
@@ -620,50 +612,34 @@ private structure CtxInv (G : Instance) (x : Data (21 + 9)) : Prop where
 private def DistRep (G : Instance) (d : Fin G.n → WithTop ℤ) (mem : ℕ → ℕ) : Prop :=
   ∀ v : Fin G.n, mem (G.distAddrBase + v.val) = encodeDist (d v)
 
+private theorem CtxInv.of_regs_mem_eq {G : Instance} {x y : Data (21 + 9)} (hx : CtxInv G x)
+    (hm : ∀ a < G.outAddrBase, y.mem a = x.mem a)
+    (hr : ∀ q : Fin (21 + 9), 9 ≤ q.val → q.val < 18 → y.regs q = x.regs q) : CtxInv G y where
+  czero := (hr cZero (by decide) (by decide)).trans hx.czero
+  cone := (hr cOne (by decide) (by decide)).trans hx.cone
+  ctwo := (hr cTwo (by decide) (by decide)).trans hx.ctwo
+  cthree := (hr cThree (by decide) (by decide)).trans hx.cthree
+  hnv := (hr nv (by decide) (by decide)).trans hx.hnv
+  hsrc := (hr src (by decide) (by decide)).trans hx.hsrc
+  hebase := (hr ebase (by decide) (by decide)).trans hx.hebase
+  houtBase := (hr outBase (by decide) (by decide)).trans hx.houtBase
+  hdbase := (hr dbase (by decide) (by decide)).trans hx.hdbase
+  mem_input a ha := (hm a ha).trans (hx.mem_input a ha)
+
 private theorem CtxInv.of_frame {G : Instance} {x y : Data (21 + 9)} (hx : CtxInv G x)
     (hf : Signed.Frame x y) : CtxInv G y :=
-  { czero := (hf.2 cZero (Or.inr (by decide))).trans hx.czero
-    cone := (hf.2 cOne (Or.inr (by decide))).trans hx.cone
-    ctwo := (hf.2 cTwo (Or.inr (by decide))).trans hx.ctwo
-    cthree := (hf.2 cThree (Or.inr (by decide))).trans hx.cthree
-    hnv := (hf.2 nv (Or.inr (by decide))).trans hx.hnv
-    hsrc := (hf.2 src (Or.inr (by decide))).trans hx.hsrc
-    hebase := (hf.2 ebase (Or.inr (by decide))).trans hx.hebase
-    houtBase := (hf.2 outBase (Or.inr (by decide))).trans hx.houtBase
-    hdbase := (hf.2 dbase (Or.inr (by decide))).trans hx.hdbase
-    mem_input := fun a ha => (congrFun hf.1 a).trans (hx.mem_input a ha) }
+  hx.of_regs_mem_eq (fun a _ => congrFun hf.1 a) fun q h9 _ => hf.2 q (Or.inr h9)
 
 private theorem CtxInv.set {G : Instance} {x : Data (21 + 9)} (hx : CtxInv G x)
     {r : Fin (21 + 9)} (hr : r.val < 9 ∨ 18 ≤ r.val) {val : ℕ} :
     CtxInv G (x.set r val) :=
-  have hne (q : Fin (21 + 9)) (hq : 9 ≤ q.val ∧ q.val < 18) : q ≠ r := by
-    intro heq
-    have := congrArg Fin.val heq
-    omega
-  { czero := (Data.set_regs_of_ne (hne cZero (by decide)) val).trans hx.czero
-    cone := (Data.set_regs_of_ne (hne cOne (by decide)) val).trans hx.cone
-    ctwo := (Data.set_regs_of_ne (hne cTwo (by decide)) val).trans hx.ctwo
-    cthree := (Data.set_regs_of_ne (hne cThree (by decide)) val).trans hx.cthree
-    hnv := (Data.set_regs_of_ne (hne nv (by decide)) val).trans hx.hnv
-    hsrc := (Data.set_regs_of_ne (hne src (by decide)) val).trans hx.hsrc
-    hebase := (Data.set_regs_of_ne (hne ebase (by decide)) val).trans hx.hebase
-    houtBase := (Data.set_regs_of_ne (hne outBase (by decide)) val).trans hx.houtBase
-    hdbase := (Data.set_regs_of_ne (hne dbase (by decide)) val).trans hx.hdbase
-    mem_input := hx.mem_input }
+  hx.of_regs_mem_eq (fun _ _ => rfl) fun _ h9 h18 =>
+    Data.set_regs_of_ne (Fin.ne_of_val_ne (by omega)) val
 
 private theorem CtxInv.write_ge {G : Instance} {x : Data (21 + 9)} (hx : CtxInv G x)
     {a : ℕ} (ha : G.outAddrBase ≤ a) {val : ℕ} :
     CtxInv G (x.write a val) :=
-  { czero := hx.czero
-    cone := hx.cone
-    ctwo := hx.ctwo
-    cthree := hx.cthree
-    hnv := hx.hnv
-    hsrc := hx.hsrc
-    hebase := hx.hebase
-    houtBase := hx.houtBase
-    hdbase := hx.hdbase
-    mem_input := fun q hq => (Data.write_mem_of_ne (by omega) val).trans (hx.mem_input q hq) }
+  hx.of_regs_mem_eq (fun _ hq => Data.write_mem_of_ne (by omega) val) fun _ _ _ => rfl
 
 private theorem CtxInv.offset_eq {G : Instance} {x : Data (21 + 9)} (hx : CtxInv G x)
     {u₀ : ℕ} (hu₀ : u₀ ≤ G.n) : x.mem (3 + u₀) = G.offset u₀ := by
@@ -839,13 +815,15 @@ private theorem testImproveCode_spec (G : Instance) {w B : ℕ} (hfit : Fits w G
     wram_exec [hx.hdbase, hu, hdu_mem, hdu, encodeDist_coe, hx.ctwo, hj, hx.hebase, hx.cone,
       htarget_mem, hweight_mem, hf_du, hf_2j, hf_et, hf_ew, hne1]
     refine WP.name fun x₁ hx₁ => ?_
-    have hadd_ex : ∃ y₁, ExecWithin w Signed.add x₁ y₁ 15 ∧
-        y₁.regs Signed.result = Signed.encode (a + c₀) ∧ Signed.Frame x₁ y₁ := by
-      have hx₁_l : x₁.regs Signed.left = Signed.encode a := by rw [hx₁]; wram_simp
-      have hx₁_r : x₁.regs Signed.right = Signed.encode c₀ := by rw [hx₁]; wram_simp
-      simpa only [hw_eq, GenericRAM.Signed.Arithmetic.eval] using
-        Signed.exec_add ha_sfit hc_sfit x₁ hx₁_l hx₁_r
-    obtain ⟨y₁, hy₁_ex, hy₁_res, hy₁_fr⟩ := hadd_ex
+    have hx₁_l : x₁.regs Signed.left = Signed.encode a := by
+      rw [hx₁]
+      wram_simp
+    have hx₁_r : x₁.regs Signed.right = Signed.encode c₀ := by
+      rw [hx₁]
+      wram_simp
+    obtain ⟨y₁, hy₁_ex, hy₁_res, hy₁_fr⟩ := Signed.exec_add ha_sfit hc_sfit x₁ hx₁_l hx₁_r
+    rw [hw_eq] at hy₁_ex
+    dsimp only [GenericRAM.Signed.Arithmetic.eval] at hy₁_res
     have hx₁_ctx : CtxInv G x₁ := by
       rw [hx₁]
       exact (((((((((hx.set (by decide)).set (by decide)).set (by decide)).set (by decide)).set
@@ -905,13 +883,7 @@ private theorem testImproveCode_spec (G : Instance) {w B : ℕ} (hfit : Fits w G
         (hy₂_fr.2 rndLim (Or.inr (by decide))).trans (by rw [hx₂]; wram_simp [hy₁_rndLim]),
         (hy₂_fr.2 ok (Or.inr (by decide))).trans (by rw [hx₂]; wram_simp [hy₁_ok])⟩
       · rw [hy₂_res]
-        by_cases hlt : a + c₀ < b
-        · have hd1 : decide ((a : WithTop ℤ) + c₀ < b) = true :=
-            decide_eq_true (by rw [← WithTop.coe_add, WithTop.coe_lt_coe]; exact hlt)
-          simp [hlt, hd1]
-        · have hd0 : decide ((a : WithTop ℤ) + c₀ < b) = false :=
-            decide_eq_false (by rw [← WithTop.coe_add, WithTop.coe_lt_coe]; exact hlt)
-          simp [hlt, hd0]
+        by_cases hlt : a + c₀ < b <;> simp [hlt, ← WithTop.coe_add]
       · intro _
         have hy₂_sum : y₂.regs sumReg = Signed.encode (a + c₀) :=
           (hy₂_fr.2 sumReg (Or.inr (by decide))).trans (by rw [hx₂]; wram_simp)
@@ -934,38 +906,30 @@ private theorem relaxEdgeCode_spec (G : Instance) {w B : ℕ} (hfit : Fits w G.w
   have hf_dv : Fits w (G.distAddrBase + v₀.val) := by
     have := v₀.isLt
     exact G.fits_of_linear hfit (by unfold Instance.distAddrBase; omega)
+  unfold relaxEdgeCode
+  suffices ∃ y, ExecWithin w _ y₁ y 3 ∧ CtxInv G y ∧ DistRep G (relax d u₀ v₀ c₀) y.mem ∧
+      y.regs u = u₀.val ∧ y.regs j = G.offset u₀ + i ∧ y.regs jEnd = x.regs jEnd ∧
+      y.regs rnd = x.regs rnd ∧ y.regs rndLim = x.regs rndLim by
+    obtain ⟨y, hy_ex, hy_post⟩ := this
+    exact ⟨y, (hy₁_ex.seq hy_ex).mono (by omega), hy_post⟩
   by_cases himp : d u₀ + c₀ < d v₀
   · have hres1 : y₁.regs Signed.result = 1 := by simp [hy₁_res, himp]
     have hsum := hy₁_sum himp
-    have htail : ∃ y, ExecWithin w
-        (ram[ if result = cOne then [ addr ← dbase + vReg; *addr ← sumReg ] else [ dv ← dv ] ])
-        y₁ y 3 ∧ CtxInv G y ∧ DistRep G (relax d u₀ v₀ c₀) y.mem ∧
-        y.regs u = u₀.val ∧ y.regs j = G.offset u₀ + i ∧ y.regs jEnd = x.regs jEnd ∧
-        y.regs rnd = x.regs rnd ∧ y.regs rndLim = x.regs rndLim := by
-      wram_exec [hres1, hy₁_ctx.cone, hy₁_ctx.hdbase, hy₁_v, hsum, hf_dv]
-      refine ⟨(hy₁_ctx.set (by decide)).write_ge
-          (by unfold Instance.outAddrBase Instance.distAddrBase; omega),
-        ?_, by wram_simp [hy₁_u], by wram_simp [hy₁_j], by wram_simp [hy₁_jEnd],
-        by wram_simp [hy₁_rnd], by wram_simp [hy₁_rndLim]⟩
-      change DistRep G (relax d u₀ v₀ c₀)
-        (Function.update y₁.mem (G.distAddrBase + v₀.val) (encodeDist (d u₀ + c₀)))
-      rw [hy₁_mem, show relax d u₀ v₀ c₀ = Function.update d v₀ (d u₀ + c₀) by simp [relax, himp]]
-      exact distRep_update hd v₀ (d u₀ + c₀)
-    obtain ⟨y, hy_ex, hy_post⟩ := htail
-    exact ⟨y, (hy₁_ex.seq hy_ex).mono (by omega), hy_post⟩
+    wram_exec [hres1, hy₁_ctx.cone, hy₁_ctx.hdbase, hy₁_v, hsum, hf_dv]
+    refine ⟨(hy₁_ctx.set (by decide)).write_ge
+        (by simp only [Instance.outAddrBase, Instance.distAddrBase]; omega),
+      ?_, by wram_simp [hy₁_u], by wram_simp [hy₁_j], by wram_simp [hy₁_jEnd],
+      by wram_simp [hy₁_rnd], by wram_simp [hy₁_rndLim]⟩
+    change DistRep G (relax d u₀ v₀ c₀)
+      (Function.update y₁.mem (G.distAddrBase + v₀.val) (encodeDist (d u₀ + c₀)))
+    rw [hy₁_mem, show relax d u₀ v₀ c₀ = Function.update d v₀ (d u₀ + c₀) by simp [relax, himp]]
+    exact distRep_update hd v₀ (d u₀ + c₀)
   · have hres0 : y₁.regs Signed.result = 0 := by simp [hy₁_res, himp]
-    have htail : ∃ y, ExecWithin w
-        (ram[ if result = cOne then [ addr ← dbase + vReg; *addr ← sumReg ] else [ dv ← dv ] ])
-        y₁ y 3 ∧ CtxInv G y ∧ DistRep G (relax d u₀ v₀ c₀) y.mem ∧
-        y.regs u = u₀.val ∧ y.regs j = G.offset u₀ + i ∧ y.regs jEnd = x.regs jEnd ∧
-        y.regs rnd = x.regs rnd ∧ y.regs rndLim = x.regs rndLim := by
-      wram_exec [hres0, hy₁_ctx.cone]
-      refine ⟨hy₁_ctx.set (by decide), ?_, by wram_simp [hy₁_u], by wram_simp [hy₁_j],
-        by wram_simp [hy₁_jEnd], by wram_simp [hy₁_rnd], by wram_simp [hy₁_rndLim]⟩
-      change DistRep G (relax d u₀ v₀ c₀) y₁.mem
-      rwa [hy₁_mem, show relax d u₀ v₀ c₀ = d by simp [relax, himp]]
-    obtain ⟨y, hy_ex, hy_post⟩ := htail
-    exact ⟨y, (hy₁_ex.seq hy_ex).mono (by omega), hy_post⟩
+    wram_exec [hres0, hy₁_ctx.cone]
+    refine ⟨hy₁_ctx.set (by decide), ?_, by wram_simp [hy₁_u], by wram_simp [hy₁_j],
+      by wram_simp [hy₁_jEnd], by wram_simp [hy₁_rnd], by wram_simp [hy₁_rndLim]⟩
+    change DistRep G (relax d u₀ v₀ c₀) y₁.mem
+    rwa [hy₁_mem, show relax d u₀ v₀ c₀ = d by simp [relax, himp]]
 
 /-- `relaxEdgeLoop` scans a suffix `es` of `G.adj u₀`. -/
 private theorem relaxEdgeLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound)
@@ -1206,33 +1170,26 @@ private theorem checkEdgeCode_spec (G : Instance) {w B : ℕ} (hfit : Fits w G.w
   have hy₁_ok' : y₁.regs ok = b₀.toNat := hy₁_ok.trans hok
   set v₀ := (G.adj u₀)[i].1
   set c₀ := (G.adj u₀)[i].2
+  suffices ∃ y, ExecWithin (B := .standard) w
+      (ram[ if result = cOne then [ ok ← cZero ] else [ dv ← dv ] ])
+      y₁ y 3 ∧ CtxInv G y ∧ y.mem = x.mem ∧
+      y.regs ok = (b₀ && decide (d v₀ ≤ d u₀ + c₀)).toNat ∧
+      y.regs u = u₀.val ∧ y.regs j = G.offset u₀ + i ∧ y.regs jEnd = x.regs jEnd by
+    obtain ⟨y, hy_ex, hy_post⟩ := this
+    exact ⟨y, (hy₁_ex.seq hy_ex).mono (by omega), hy_post⟩
   by_cases himp : d u₀ + c₀ < d v₀
   · have hres1 : y₁.regs Signed.result = 1 := by simp [hy₁_res, himp]
     have hle_false : decide (d v₀ ≤ d u₀ + c₀) = false := decide_eq_false (not_le.2 himp)
-    have htail : ∃ y, ExecWithin (B := .standard) w
-        (ram[ if result = cOne then [ ok ← cZero ] else [ dv ← dv ] ])
-        y₁ y 3 ∧ CtxInv G y ∧ y.mem = x.mem ∧
-        y.regs ok = (b₀ && decide (d v₀ ≤ d u₀ + c₀)).toNat ∧
-        y.regs u = u₀.val ∧ y.regs j = G.offset u₀ + i ∧ y.regs jEnd = x.regs jEnd := by
-      wram_exec [hres1, hy₁_ctx.cone, hy₁_ctx.czero]
-      rw [hle_false, Bool.and_false]
-      exact ⟨hy₁_ctx.set (by decide), hy₁_mem, by wram_simp; rfl,
-        by wram_simp [hy₁_u], by wram_simp [hy₁_j], by wram_simp [hy₁_jEnd]⟩
-    obtain ⟨y, hy_ex, hy_post⟩ := htail
-    exact ⟨y, (hy₁_ex.seq hy_ex).mono (by omega), hy_post⟩
+    wram_exec [hres1, hy₁_ctx.cone, hy₁_ctx.czero]
+    rw [hle_false, Bool.and_false]
+    exact ⟨hy₁_ctx.set (by decide), hy₁_mem, Data.set_regs_self _ _ _,
+      by wram_simp [hy₁_u], by wram_simp [hy₁_j], by wram_simp [hy₁_jEnd]⟩
   · have hres0 : y₁.regs Signed.result = 0 := by simp [hy₁_res, himp]
     have hle_true : decide (d v₀ ≤ d u₀ + c₀) = true := decide_eq_true (not_lt.1 himp)
-    have htail : ∃ y, ExecWithin (B := .standard) w
-        (ram[ if result = cOne then [ ok ← cZero ] else [ dv ← dv ] ])
-        y₁ y 3 ∧ CtxInv G y ∧ y.mem = x.mem ∧
-        y.regs ok = (b₀ && decide (d v₀ ≤ d u₀ + c₀)).toNat ∧
-        y.regs u = u₀.val ∧ y.regs j = G.offset u₀ + i ∧ y.regs jEnd = x.regs jEnd := by
-      wram_exec [hres0, hy₁_ctx.cone]
-      rw [hle_true, Bool.and_true]
-      exact ⟨hy₁_ctx.set (by decide), hy₁_mem, by wram_simp [hy₁_ok'],
-        by wram_simp [hy₁_u], by wram_simp [hy₁_j], by wram_simp [hy₁_jEnd]⟩
-    obtain ⟨y, hy_ex, hy_post⟩ := htail
-    exact ⟨y, (hy₁_ex.seq hy_ex).mono (by omega), hy_post⟩
+    wram_exec [hres0, hy₁_ctx.cone]
+    rw [hle_true, Bool.and_true]
+    exact ⟨hy₁_ctx.set (by decide), hy₁_mem, by wram_simp [hy₁_ok'],
+      by wram_simp [hy₁_u], by wram_simp [hy₁_j], by wram_simp [hy₁_jEnd]⟩
 
 /-- `checkEdgeLoop` tests a suffix `es` of `G.adj u₀` without writing memory. -/
 private theorem checkEdgeLoop_spec (G : Instance) {w B : ℕ} (hfit : Fits w G.wordBound)
@@ -1404,11 +1361,8 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           hy₄_d ⟨i.val, hi_lt⟩]
         simp
   obtain ⟨y₅, hy₅_ex, hy₅_out, hy₅_list⟩ := hfinish
-  have htot : ExecWithin w solver (Data.init G.encode) y₅
-      (11 + ((5 * G.n + 5) + (((G.n - 1) * (9 * G.n + 50 * G.m + 6) + 4) +
-        ((9 * G.n + 50 * G.m + 4) + 3)))) :=
-    hy₁_ex.seq (hy₂_ex.seq (hy₃_ex.seq (hy₄_ex.seq hy₅_ex)))
-  refine ⟨y₅, htot.mono ?_, hy₅_out, by rwa [hy₅_out]⟩
+  refine ⟨y₅, (hy₁_ex.seq (hy₂_ex.seq (hy₃_ex.seq (hy₄_ex.seq hy₅_ex)))).mono ?_,
+    hy₅_out, by rwa [hy₅_out]⟩
   have hn1 : 1 ≤ G.n := G.n_pos
   have hsub : G.n - 1 + 1 = G.n := by omega
   have hmul : (G.n - 1) * (9 * G.n + 50 * G.m + 6) + (9 * G.n + 50 * G.m + 6) =

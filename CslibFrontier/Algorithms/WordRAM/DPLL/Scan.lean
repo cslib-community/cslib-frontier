@@ -150,11 +150,8 @@ theorem codeOn_litCode (π : List (Literal ℕ)) (l : Literal ℕ) :
     codeOn π (litCode l) = π.contains l := by
   unfold codeOn
   rw [Bool.eq_iff_iff, List.any_eq_true, List.contains_iff_mem]
-  constructor
-  · rintro ⟨l', hl', h⟩
-    obtain rfl := litCodeBy_injective Function.injective_id (by simpa using h)
-    exact hl'
-  · exact fun h => ⟨l, h, by simp⟩
+  exact ⟨fun ⟨_, hl', h⟩ => litCodeBy_injective Function.injective_id (by simpa using h) ▸ hl',
+    fun h => ⟨l, h, by simp⟩⟩
 
 theorem unitCode_eq (π : List (Literal ℕ)) (c : Clause ℕ) (o : Option ℕ) :
     (if (c.foldl (litStep π) ⟨0, 0, false, o⟩).cnt == 1 &&
@@ -331,13 +328,12 @@ theorem clauseEnd_spec (π : List (Literal ℕ)) (r : LitRegs) (s : ScanRegs) (x
     cases su <;> cases b <;> cases hco : codeOn π u <;> rw [hco] at hmem <;>
       wram_exec [hcnt, huc, hsat, huf, hzero, hone, hmem] <;>
       wram_simp [endClause, hco, hconf, halls, huf, hunit, hopf, hov] <;> simp
-  · have hk0 : ¬k = 0 := by omega
-    have hk1 : ¬k = 1 := by omega
-    have hb0 : (k == 0) = false := by simpa using hk0
-    have hb1 : (k == 1) = false := by simpa using hk1
+  · have hk0 : k ≠ 0 := by omega
+    have hk1 : k ≠ 1 := by omega
     cases b <;>
       wram_exec [hcnt, hsat, hzero, hone, hk0, hk1] <;>
-      wram_simp [endClause, hconf, halls, huf, hunit, hopf, hov, hb0, hb1] <;> simp
+      wram_simp [endClause, hconf, halls, huf, hunit, hopf, hov,
+        beq_false_of_ne hk0, beq_false_of_ne hk1] <;> simp
 
 private theorem sum_scan_cost (ψ : CNF ℕ) :
     (ψ.map fun c => 17 * c.length + 21 + 2).sum ≤ 23 * (ψ.flatMap encodeClause).length := by

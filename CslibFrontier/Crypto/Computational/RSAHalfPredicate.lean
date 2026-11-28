@@ -207,7 +207,7 @@ theorem isPPT_halfToLSBPredictor {H : RSAPredictor} (hH : H.IsPPT) :
            challenge := ⟨(x.challenge : ℕ) * ((x.publicKey.N + 1) / 2) ^ x.publicKey.e %
              x.publicKey.N, Nat.mod_lt _ x.challenge.pos⟩ } : RSAInput))
       encRSAInput encRSAInput :=
-    encRSAInput_mk_polyTime (by fun_prop) (by fun_prop) hval
+    encRSAInput_mk_polyTime (by fun_prop) (by fun_prop) hval.encoding_comp
   exact hH.preprocess hprepare
 
 /-- Under `RSAOneWay gen` and eventually odd moduli, no uniform strict-PPT predictor says with

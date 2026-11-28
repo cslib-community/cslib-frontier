@@ -53,67 +53,45 @@ theorem projectAugmentation_spec (hF : EdgeInstance F) {f : OccurrenceLabeling F
   let vs := internal w
   have hne := touched_ne_nil w hb.2.2.1
   have hroot : p.start ∈ defects f := mem_defects.mpr hp.2.1
-  have hstart : p.start ∉ vs := by
-    intro hv
-    have hm : p.start ∈ defects f ∩ vs.toFinset := mem_inter.mpr
-      ⟨hroot, List.mem_toFinset.mpr hv⟩
-    rw [defects_inter_internal hb] at hm
-    exact hx (mem_singleton.mp hm)
+  have hstart : p.start ∉ vs := fun hv => hx <| mem_singleton.mp <|
+    defects_inter_internal hb ▸ mem_inter.mpr ⟨hroot, List.mem_toFinset.mpr hv⟩
   by_cases hall : p.edges.all (fun o => !vs.contains o.var) = true
-  · have hno : ∀ o ∈ p.edges, o.var ∉ vs := by
-      intro o ho
-      simpa using List.all_eq_true.mp hall o ho
-    have hagree : ∀ o : Occurrence F, o.var ∈ vs → p.flip f o = f o := by
-      intro o ho
-      have hn : o ∉ p.edges := fun hm => hno o hm ho
+  · have hagree : ∀ o : Occurrence F, o.var ∈ vs → p.flip f o = f o := fun o ho => by
+      have hn : o ∉ p.edges := fun hm => by simpa [ho] using List.all_eq_true.mp hall o hm
       simp [Walk.flip, BitString.flipOn_apply, hn]
-    have hv := hp.1.1.valid_take p.steps.length le_rfl
-    simp only [Walk.take, List.take_length] at hv
-    have hproj := valid_projectZero hf hv vs hne hagree
+    have hv : ValidLabeling sem (p.flip f) := by
+      simpa only [Walk.take, List.take_length] using hp.1.1.valid_take p.steps.length le_rfl
     have hcard := card_defects_transport_zero hF f (p.flip f) vs hne
     have hi := defects_inter_eq_of_eqOn vs.toFinset
       (fun o ho => hagree o (List.mem_toFinset.mp ho))
     rw [hi, defects_inter_internal hb, card_singleton] at hcard
     have ha := hp.card_defects_flip_add_two hF
-    refine ⟨projectZero f vs (p.flip f), ?_, hproj, ?_⟩
-    · unfold projectAugmentation
-      exact ite_eq_left hall
-    · change (defects (transport f vs (p.flip f) (fun _ => false)
-        (listSingle (connectors F vs).length 0))).card + 2 = _
-      omega
+    refine ⟨projectZero f vs (p.flip f), by unfold projectAugmentation; exact ite_eq_left hall,
+      valid_projectZero hf hv vs hne hagree, ?_⟩
+    dsimp only [projectZero]; omega
   · have hex : ∃ o ∈ p.edges, o.var ∈ vs := by
-      by_contra hn
-      apply hall
-      apply List.all_eq_true.mpr
-      intro o ho
-      have hnot : o.var ∉ vs := fun hv => hn ⟨o, ho, hv⟩
-      simpa using hnot
-    obtain ⟨hk, heinside, hbefore⟩ := Walk.boundaryIndex_spec hp.1.1.1 vs hstart hex
+      simpa only [List.all_eq_true, Bool.not_eq_true', not_forall, Bool.not_eq_false,
+        List.contains_iff_mem, exists_prop] using hall
+    obtain ⟨hk, hevs, hbefore⟩ := Walk.boundaryIndex_spec hp.1.1.1 vs hstart hex
     let k := p.boundaryIndex vs
     let a := p.steps[k].1
     let e := p.steps[k].2
     let current := (p.take (k + 1)).flip f
     have haout : a.var ∉ vs := (hp.1.1.1.input_eq_finish_take k hk).symm ▸
       (p.take k).finish_property (P := fun v => v ∉ vs) hstart hbefore
-    have hevs : e.var ∈ vs := heinside
     have hinside : ∀ o : Occurrence F, o.var ∈ vs →
         current o = if o = e then !(f o) else f o := by
       intro o ho
       have hn : o ∉ (p.take k).edges := fun hm => hbefore o hm ho
       have hna : o ≠ a := fun he => haout (congrArg Occurrence.var he ▸ ho)
-      have hsteps : (p.take (k + 1)).steps = (p.take k).steps ++ [(a, e)] :=
-        List.take_succ_eq_append_getElem hk
       have hedges : (p.take (k + 1)).edges = (p.take k).edges ++ [a, e] := by
-        change Walk.edgesOf (p.take (k + 1)).steps = _
-        rw [hsteps, Walk.edgesOf_append]
+        rw [Walk.edges, Walk.take, List.take_succ_eq_append_getElem hk, Walk.edgesOf_append]
         rfl
       simp only [current, Walk.flip, BitString.flipOn_apply, List.mem_toFinset, hedges,
         List.mem_append, List.mem_cons, List.not_mem_nil, hn, hna, false_or, or_false]
     have hvalid : ValidLabeling sem current := hp.1.1.valid_take (k + 1) (by omega)
-    have hproj := valid_projectOne hf hvalid vs e hevs hinside
     have hd : defects current \ vs.toFinset = (defects f \ vs.toFinset).erase p.start := by
-      rw [(hp.1.1.1.take (k + 1)).defects_flip hF,
-        Walk.finish_take_succ p hk]
+      rw [(hp.1.1.1.take (k + 1)).defects_flip hF, Walk.finish_take_succ p hk]
       change (defects f ∆ {p.start} ∆ {e.var}) \ vs.toFinset =
         (defects f \ vs.toFinset).erase p.start
       ext v
@@ -122,20 +100,17 @@ theorem projectAugmentation_spec (hF : EdgeInstance F) {f : OccurrenceLabeling F
       · simp only [hv, not_true_eq_false, and_false]
       · have hve : v ≠ e.var := fun he => hv (he.symm ▸ hevs)
         by_cases hvr : v = p.start
-        · subst v
-          simp [hroot, hve, hstart]
+        · subst v; simp [hroot, hve, hstart]
         · simp [hv, hve, hvr]
-    have hrootout : p.start ∈ defects f \ vs.toFinset :=
-      mem_sdiff.mpr ⟨hroot, by simpa only [List.mem_toFinset] using hstart⟩
-    have hcount := card_erase_add_one hrootout
+    have hcount := card_erase_add_one
+      (mem_sdiff.mpr ⟨hroot, List.mem_toFinset.not.mpr hstart⟩)
     have htotal := card_sdiff_add_card_inter (defects f) vs.toFinset
     rw [defects_inter_internal hb, card_singleton] at htotal
-    refine ⟨projectOne f vs current e.1, ?_, hproj, ?_⟩
-    · unfold projectAugmentation
-      rw [ite_eq_right hall]
-      exact dite_eq_left hk
-    · rw [defects_projectOne hF, hd]
-      omega
+    refine ⟨projectOne f vs current e.1,
+      by unfold projectAugmentation; rw [ite_eq_right hall]; exact dite_eq_left hk,
+      valid_projectOne hf hvalid vs e hevs hinside, ?_⟩
+    rw [defects_projectOne hF, hd]
+    omega
 
 /-- Lemma 42 for the actual executable whole-instance contraction. Optimality of its prepared
 reference implies optimality of the original prepared labeling, with no model or oracle. -/
@@ -143,10 +118,7 @@ theorem isOptimal_of_reference (hF : EdgeInstance F) {f : OccurrenceLabeling F B
     (hb : w.IsBlossom sem f) (hf : ValidLabeling sem f)
     (hM : EdgeInstance.EvenConstraints sem F)
     (hopt : IsOptimalLabeling sem (reference f (internal w))) : IsOptimalLabeling sem f := by
-  refine ⟨hf, ?_⟩
-  intro g hg
-  by_contra hn
-  have hlt : (defects g).card < (defects f).card := Nat.lt_of_not_ge hn
+  refine ⟨hf, fun g hg => not_lt.mp fun hlt => ?_⟩
   obtain ⟨p, _, hp, hx, _⟩ := hF.augmentingWalk_spec hM hf hg hlt w.start
   obtain ⟨comparison, _, hv, hc⟩ := projectAugmentation_spec hF hb hf hp hx
   have ho := hopt.2 comparison hv

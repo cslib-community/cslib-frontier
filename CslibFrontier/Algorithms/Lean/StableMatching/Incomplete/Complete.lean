@@ -64,13 +64,8 @@ theorem mem_toIncompleteInstance_recvPref (r p : Fin n) :
 /-- In the list of a permutation, an agent's position is its rank. -/
 private theorem idxOf_ofFn_perm (σ : Equiv.Perm (Fin n)) (a : Fin n) :
     (List.ofFn σ).idxOf a = (σ.symm a).val := by
-  have hlen : (σ.symm a).val < (List.ofFn σ).length := by
-    rw [List.length_ofFn]; exact (σ.symm a).isLt
-  have hget : (List.ofFn σ)[(σ.symm a).val] = a := by
-    rw [List.getElem_ofFn]
-    exact σ.apply_symm_apply a
-  conv_lhs => rw [← hget]
-  exact (List.nodup_ofFn.2 σ.injective).idxOf_getElem _ hlen
+  simpa [σ.apply_symm_apply a] using
+    (List.nodup_ofFn.2 σ.injective).idxOf_getElem (σ.symm a).val (by simp)
 
 theorem toIncompleteInstance_propRank_some (p r : Fin n) :
     I.toIncompleteInstance.propRank p (some r) = (I.propRank p r).val :=
@@ -128,12 +123,9 @@ theorem isStable_toIncompleteInstance_iff_exists (ν : PartialMatching n n) :
     let f : Fin n → Fin n := fun p => (ν p).get (hsome p)
     have hf : Function.Injective f := fun p q h =>
       ν.inj (b := f p) (Option.get_mem _) (h ▸ Option.get_mem _)
-    refine ⟨permOfInjective f hf, ?_, ?_⟩
-    · have heq : (permOfInjective f hf).toPEquiv = ν :=
-        PEquiv.ext fun p => (Option.some_get (hsome p))
-      rw [← I.isStable_toIncompleteInstance_iff, heq]
-      exact hν
-    · exact PEquiv.ext fun p => Option.some_get (hsome p)
+    have heq : (permOfInjective f hf).toPEquiv = ν :=
+      PEquiv.ext fun p => Option.some_get (hsome p)
+    exact ⟨permOfInjective f hf, (I.isStable_toIncompleteInstance_iff _).1 (heq.symm ▸ hν), heq⟩
   · rintro ⟨μ, hμ, rfl⟩
     exact (I.isStable_toIncompleteInstance_iff μ).2 hμ
 

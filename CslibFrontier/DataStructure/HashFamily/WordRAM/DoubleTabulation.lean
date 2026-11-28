@@ -535,16 +535,12 @@ theorem map_extractSeed_eval_resampleComp (base c d b M : ℕ) (x : Data 12) :
         (fun z2 : Data 6 × ℕ => (z2.1.extend fillMap12 x2, 5 + (z1.2 + (4 + z2.2)))) <$> m2 :=
       bind_pure_comp _ _
     rw [hd, ProbComp.eval_map, PMF.map_comp]
-    have hcongr :
-        m2.eval.map
-          ((fun z : Data 12 × ℕ => extractSeed base c d b M z.1.mem) ∘
-            fun z2 : Data 6 × ℕ => (z2.1.extend fillMap12 x2, 5 + (z1.2 + (4 + z2.2)))) =
-        m2.eval.map
-          ((fun T₂ => (extractTop base c d b z1.1.mem, T₂)) ∘
-            botSliceEquiv d b M ∘
-            fun z2 : Data 6 × ℕ =>
-              Tabulation.extractSlice (base + c * d * 2 ^ b) M (d * 2 ^ b) z2.1.mem) := by
-      refine Cslib.Probability.PMF.map_congr_on_support _ _ _ fun z2 hz2 => ?_
+    trans m2.eval.map
+      ((fun T₂ => (extractTop base c d b z1.1.mem, T₂)) ∘
+        botSliceEquiv d b M ∘
+        fun z2 : Data 6 × ℕ =>
+          Tabulation.extractSlice (base + c * d * 2 ^ b) M (d * 2 ^ b) z2.1.mem)
+    · refine Cslib.Probability.PMF.map_congr_on_support _ _ _ fun z2 hz2 => ?_
       rw [ProbComp.support_eval] at hz2
       obtain ⟨_, _, _, _, _, _, _, hframe2⟩ := Tabulation.mem_support_randFillComp hz2
       have htop_eq : extractTop base c d b z2.1.mem = extractTop base c d b z1.1.mem := by
@@ -556,36 +552,15 @@ theorem map_extractSeed_eval_resampleComp (base c d b M : ℕ) (x : Data 12) :
         rfl
       dsimp only [Function.comp_apply, extractSeed, extractBot, Data.extend]
       rw [htop_eq]
-    rw [hcongr, ← PMF.map_comp, ← PMF.map_comp, Tabulation.map_extractSlice_eval_randFillComp,
-      PMF.uniformOfFintype_map_equiv]
+    · rw [← PMF.map_comp, ← PMF.map_comp, Tabulation.map_extractSlice_eval_randFillComp,
+        PMF.uniformOfFintype_map_equiv]
   dsimp only [resampleComp]
-  rw [ProbComp.eval_bind, PMF.map_bind]
-  have hbind : m1.eval.bind
-      (fun z1 =>
-        (let x2 := resampleSetup2Data base c d b M (z1.1.extend fillMap12 x1)
-         (do
-           let z2 ←
-             Tabulation.randFillComp M (base + c * d * 2 ^ b) (d * 2 ^ b) (x2.comap fillMap12)
-           pure (z2.1.extend fillMap12 x2, 5 + (z1.2 + (4 + z2.2)))).eval).map
-          (fun z : Data 12 × ℕ => extractSeed base c d b M z.1.mem)) =
-      m1.eval.bind
-        (fun z1 =>
-          (PMF.uniformOfFintype (DoubleTabBotSeed d b M)).map
-            (fun T₂ => (extractTop base c d b z1.1.mem, T₂))) := by
-    congr 1
-    funext z1
-    exact hinner z1
-  rw [hbind]
-  have hmap_bind :
-      m1.eval.bind
-        (fun z1 =>
-          (PMF.uniformOfFintype (DoubleTabBotSeed d b M)).map
-            (fun T₂ => (extractTop base c d b z1.1.mem, T₂))) =
-      (m1.eval.map (fun z1 => extractTop base c d b z1.1.mem)).bind
-        (fun T₁ => (PMF.uniformOfFintype (DoubleTabBotSeed d b M)).map (T₁, ·)) := by
-    rw [PMF.bind_map]
+  rw [ProbComp.eval_bind, PMF.map_bind, congrArg m1.eval.bind (funext hinner)]
+  trans (m1.eval.map fun z1 => extractTop base c d b z1.1.mem).bind
+    fun T₁ => (PMF.uniformOfFintype (DoubleTabBotSeed d b M)).map (T₁, ·)
+  · rw [PMF.bind_map]
     rfl
-  rw [hmap_bind, hm1_unif, PMF.uniformOfFintype_prod]
+  · rw [hm1_unif, PMF.uniformOfFintype_prod]
 
 /-! ## Section 3: Register-by-register deterministic query evaluation (`evalCode`) -/
 
@@ -1052,24 +1027,18 @@ theorem doubleTabFailureProb_eight_mul_le {c b k : ℕ} (hc : 1 ≤ c)
         ((2 ^ (6 * b) : ℕ) : ℝ≥0∞) := by
   dsimp only [doubleTabFailureProb]
   rw [sdiff_doubleTabGoodTop]
-  have hcard := card_not_isKUnique_eight_mul_le hc hbound
   have hcast : ((2 ^ (6 * b) : ℕ) : ℝ≥0∞) *
       (((Finset.univ.filter fun T₁ : DoubleTabTopSeed c (8 * c) b =>
         ¬ IsKUnique k (simpleTabTuple T₁)).card : ℕ) : ℝ≥0∞) ≤
       ((2 * (doubleTabCodeBound c (8 * c) 4 k) ^ 2 : ℕ) : ℝ≥0∞) *
         (Fintype.card (DoubleTabTopSeed c (8 * c) b) : ℝ≥0∞) := by
-    exact_mod_cast hcard
-  have hN_ne_zero : (Fintype.card (DoubleTabTopSeed c (8 * c) b) : ℝ≥0∞) ≠ 0 :=
-    Nat.cast_ne_zero.mpr Fintype.card_ne_zero
-  have hN_ne_top : (Fintype.card (DoubleTabTopSeed c (8 * c) b) : ℝ≥0∞) ≠ ⊤ :=
-    ENNReal.natCast_ne_top _
-  have hW_ne_zero : ((2 ^ (6 * b) : ℕ) : ℝ≥0∞) ≠ 0 :=
-    Nat.cast_ne_zero.mpr (Nat.pos_iff_ne_zero.mp (Nat.two_pow_pos (6 * b)))
-  have hW_ne_top : ((2 ^ (6 * b) : ℕ) : ℝ≥0∞) ≠ ⊤ :=
-    ENNReal.natCast_ne_top _
-  rw [ENNReal.div_le_iff_le_mul (Or.inl hN_ne_zero) (Or.inl hN_ne_top),
+    exact_mod_cast card_not_isKUnique_eight_mul_le hc hbound
+  rw [ENNReal.div_le_iff_le_mul (Or.inl (Nat.cast_ne_zero.mpr Fintype.card_ne_zero))
+      (Or.inl (ENNReal.natCast_ne_top _)),
     div_eq_mul_inv, mul_right_comm, ← div_eq_mul_inv,
-    ENNReal.le_div_iff_mul_le (Or.inl hW_ne_zero) (Or.inl hW_ne_top),
+    ENNReal.le_div_iff_mul_le
+      (Or.inl (Nat.cast_ne_zero.mpr (Nat.two_pow_pos (6 * b)).ne'))
+      (Or.inl (ENNReal.natCast_ne_top _)),
     mul_comm]
   exact hcast
 

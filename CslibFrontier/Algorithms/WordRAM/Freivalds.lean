@@ -181,11 +181,7 @@ theorem inputFits_encode {w q k l m n : ℕ} [NeZero q] (A : Matrix (Fin l) (Fin
   refine ⟨hw.of_le (by rw [length_encode]; unfold wordBound; omega), fun v hv => ?_⟩
   simp only [encode, List.mem_cons, List.mem_append] at hv
   rcases hv with rfl | rfl | rfl | rfl | rfl | ((hA | hB) | hC)
-  · exact hw.of_le (by unfold wordBound; omega)
-  · exact hw.of_le (by unfold wordBound; omega)
-  · exact hw.of_le (by unfold wordBound; omega)
-  · exact hw.of_le (by unfold wordBound; omega)
-  · exact hw.of_le (by unfold wordBound; omega)
+  any_goals try exact hw.of_le (by wram_omega)
   · exact hw.of_le (by have := mem_encodeMatrix_lt A hA; unfold wordBound; omega)
   · exact hw.of_le (by have := mem_encodeMatrix_lt B hB; unfold wordBound; omega)
   · exact hw.of_le (by have := mem_encodeMatrix_lt C hC; unfold wordBound; omega)
@@ -474,10 +470,9 @@ private theorem dotLoop_spec {w q cols mBase vBase : ℕ} [NeZero q]
         set j := y.regs col with hj_eq
         symm at hj_eq
         have hqpos : 0 < q := NeZero.pos q
-        have h1 : y.regs one = 1 := by regs_frame
-        have hq' : y.regs qReg = q := by regs_frame
-        have hmCur' : y.regs mCur = mBase := by regs_frame
-        have hvec' : y.regs vecPtr = vBase := by regs_frame
+        have ⟨h1, hq', hmCur', hvec'⟩ :
+            y.regs one = 1 ∧ y.regs qReg = q ∧ y.regs mCur = mBase ∧ y.regs vecPtr = vBase := by
+          regs_frame
         have hmcell : y.mem (mBase + j) = (u ⟨j, hj⟩).val := by rw [hym]; exact hu ⟨j, hj⟩
         have hvcell : y.mem (vBase + j) = x.mem (vBase + j) := by rw [hym]
         have hult : (u ⟨j, hj⟩).val < q := ZMod.val_lt _
@@ -487,25 +482,9 @@ private theorem dotLoop_spec {w q cols mBase vBase : ℕ} [NeZero q]
         have hacc_lt : (partialDot u v j).val < q := ZMod.val_lt _
         have hpmod_lt : ((u ⟨j, hj⟩).val * (x.mem (vBase + j) % q)) % q < q :=
           Nat.mod_lt _ hqpos
-        have hsum_mod_lt :
-            (((partialDot u v j).val + ((u ⟨j, hj⟩).val * (x.mem (vBase + j) % q)) % q) % q) < q :=
-          Nat.mod_lt _ hqpos
-        have : Fits w (mBase + j) := hw_m.of_le (by omega)
-        have : Fits w (vBase + j) := hw_v.of_le (by omega)
-        have : Fits w (x.mem (vBase + j) % q) := hw_arith.of_le (by omega)
-        have : Fits w ((u ⟨j, hj⟩).val * (x.mem (vBase + j) % q)) :=
-          hw_arith.of_le (by omega)
-        have : Fits w (((u ⟨j, hj⟩).val * (x.mem (vBase + j) % q)) % q) :=
-          hw_arith.of_le (by omega)
-        have : Fits w ((partialDot u v j).val +
-            ((u ⟨j, hj⟩).val * (x.mem (vBase + j) % q)) % q) :=
-          hw_arith.of_le (by omega)
-        have : Fits w (((partialDot u v j).val +
-            ((u ⟨j, hj⟩).val * (x.mem (vBase + j) % q)) % q) % q) :=
-          hw_arith.of_le (by omega)
-        have : Fits w (j + 1) := hw_m.of_le (by omega)
         refine WP.exists_execWithin (w := w) (c := dotBody) ?_
-        wram_exec [dotBody, hj_eq, h1, hq', hmCur', hvec', hmcell, hvcell, hyacc]
+        wram_exec (disch := first | fits | omega | wram_omega) [dotBody]
+          [hj_eq, h1, hq', hmCur', hvec', hmcell, hvcell, hyacc]
         refine ⟨⟨hym, ?_, fun i hi => by
           simp only [Data.set_regs, Function.update_apply]
           split_ifs <;> first | (subst_vars; exact absurd hi (by decide)) | exact hyregs i hi⟩,
@@ -567,21 +546,17 @@ theorem mulVecCode_spec {w q rows cols mBase vBase oBase : ℕ} [NeZero q]
       exact hM ⟨r, hr⟩ j
     have hv_eq : readVec q y.mem vBase cols = v :=
       readVec_frame fun a ha1 ha2 => hout_y a (by rcases hdisj_v with h | h <;> omega)
-    have : Fits w (oBase + r) := hw_o.of_le (by omega)
-    have : Fits w (mBase + r * cols + cols) := hw_m.of_le hrow_end
-    have : Fits w (r + 1) := hw_o.of_le (by omega)
     apply WP.exists_execWithin
-    wram_exec [mulVecRowBody, hz']
+    wram_exec (disch := first | fits | omega | wram_omega) [mulVecRowBody, hz']
     wram_call (dotLoop_spec (w := w) (mBase := mBase + r * cols) (vBase := vBase) (M ⟨r, hr⟩))
       [hM_row, hw_arith, hw_m.of_le hrow_end, hw_v] with y₂ ⟨hym₂, hyacc₂, hyregs₂⟩
     wram_simp at hym₂ hyacc₂
     rw [hv_eq] at hyacc₂
-    have hy₂_row : y₂.regs row = r := by regs_frame
-    have hy₂_mCur : y₂.regs mCur = mBase + r * cols := by regs_frame
-    have hy₂_one : y₂.regs one = 1 := by regs_frame
-    have hy₂_oPtr : y₂.regs outPtr = oBase := by regs_frame
-    have hy₂_cols : y₂.regs colsReg = cols := by regs_frame
-    wram_exec [hy₂_oPtr, hy₂_row, hy₂_mCur, hy₂_cols, hy₂_one]
+    have ⟨hy₂_row, hy₂_mCur, hy₂_one, hy₂_oPtr, hy₂_cols⟩ :
+        y₂.regs row = r ∧ y₂.regs mCur = mBase + r * cols ∧ y₂.regs one = 1 ∧
+        y₂.regs outPtr = oBase ∧ y₂.regs colsReg = cols := by regs_frame
+    wram_exec (disch := first | fits | omega | wram_omega)
+      [hy₂_oPtr, hy₂_row, hy₂_mCur, hy₂_cols, hy₂_one]
     have hout_val : y₂.regs acc = outVec r := by
       simp only [outVec, hr, ↓reduceDIte, Matrix.mulVec]
       exact hyacc₂
@@ -634,19 +609,16 @@ private theorem vecEqCode_spec {w q l zAddr wAddr : ℕ} [NeZero q]
     obtain ⟨hym_y, hyacc_y, hyregs_y⟩ := hyP
     set j := y.regs row with hj_eq
     symm at hj_eq
-    have hz' : y.regs zero = 0 := by regs_frame
-    have ho' : y.regs one = 1 := by regs_frame
-    have hzPtr' : y.regs zBase = zAddr := by regs_frame
-    have hwPtr' : y.regs wBase = wAddr := by regs_frame
+    have ⟨hz', ho', hzPtr', hwPtr'⟩ :
+        y.regs zero = 0 ∧ y.regs one = 1 ∧ y.regs zBase = zAddr ∧ y.regs wBase = wAddr := by
+      regs_frame
     have hzj : y.mem (zAddr + j) = (zvec ⟨j, hj⟩).val := by rw [hym_y]; exact hzv ⟨j, hj⟩
     have hwj : y.mem (wAddr + j) = (wvec ⟨j, hj⟩).val := by rw [hym_y]; exact hwv ⟨j, hj⟩
-    have : Fits w (zAddr + j) := hw_z.of_le (by omega)
-    have : Fits w (wAddr + j) := hw_w.of_le (by omega)
-    have : Fits w (j + 1) := hw_z.of_le (by omega)
     by_cases heq : (zvec ⟨j, hj⟩).val = (wvec ⟨j, hj⟩).val
     · have hzweq : zvec ⟨j, hj⟩ = wvec ⟨j, hj⟩ := ZMod.val_injective q heq
       refine WP.exists_execWithin (c := vecEqBody) ?_
-      wram_exec [vecEqBody, hj_eq, hzPtr', hwPtr', hzj, hwj, heq, ho', hyacc_y]
+      wram_exec (disch := first | fits | omega | wram_omega) [vecEqBody]
+        [hj_eq, hzPtr', hwPtr', hzj, hwj, heq, ho', hyacc_y]
       refine ⟨⟨hym_y, ?_, fun i hi => by
         simp only [Data.set_regs, Function.update_apply]
         split_ifs <;> first | (subst_vars; exact absurd hi (by decide)) | exact hyregs_y i hi⟩,
@@ -661,7 +633,8 @@ private theorem vecEqCode_spec {w q l zAddr wAddr : ℕ} [NeZero q]
       · exact hprev i (by omega)
     · have hzwne : zvec ⟨j, hj⟩ ≠ wvec ⟨j, hj⟩ := fun h => heq (congrArg ZMod.val h)
       refine WP.exists_execWithin (c := vecEqBody) ?_
-      wram_exec [vecEqBody, hj_eq, hzPtr', hwPtr', hzj, hwj, heq, hz', ho']
+      wram_exec (disch := first | fits | omega | wram_omega) [vecEqBody]
+        [hj_eq, hzPtr', hwPtr', hzj, hwj, heq, hz', ho']
       refine ⟨⟨hym_y, ?_, fun i hi => by
         simp only [Data.set_regs, Function.update_apply]
         split_ifs <;> first | (subst_vars; exact absurd hi (by decide)) | exact hyregs_y i hi⟩,
@@ -733,19 +706,17 @@ private theorem checkCurrentVec_spec {w q k l m n : ℕ} [NeZero q]
   set yAddr := xAddr + n with hyAddr
   set zAddr := yAddr + m with hzAddr
   set wAddr := zAddr + l with hwAddr
-  have hw_arith : Fits w (q * q + 2 * q) := hw.of_le (by unfold wordBound; omega)
+  have hw_arith : Fits w (q * q + 2 * q) := hw.of_le (by wram_omega)
   have hxvec : readVec q x.mem xAddr n = bit ∘ σ := readVec_eq_bit_comp_bitsAt hbits
-  have : Fits w ((curOk && check A B C (bit ∘ σ)).toNat) := by
-    cases curOk && check A B C (bit ∘ σ) <;>
-      simp only [Bool.toNat_false, Bool.toNat_true] <;>
-      exact hw.of_le (by unfold wordBound; omega)
-  have hw_mB : Fits w ((6 + l * m) + m * n) := hw.of_le (by unfold wordBound; omega)
-  have hw_vX : Fits w (xAddr + n) := hw.of_le (by unfold wordBound; omega)
-  have hw_oY : Fits w (yAddr + m) := hw.of_le (by unfold wordBound; omega)
-  have hw_mA : Fits w (6 + l * m) := hw.of_le (by unfold wordBound; omega)
-  have hw_oZ : Fits w (zAddr + l) := hw.of_le (by unfold wordBound; omega)
-  have hw_mC : Fits w ((6 + l * m + m * n) + l * n) := hw.of_le (by unfold wordBound; omega)
-  have hw_oW : Fits w (wAddr + l) := hw.of_le (by unfold wordBound; omega)
+  have : Fits w ((curOk && check A B C (bit ∘ σ)).toNat) :=
+    (hw.of_le (by wram_omega) : Fits w 1).of_le (Bool.toNat_le _)
+  have hw_mB : Fits w ((6 + l * m) + m * n) := hw.of_le (by wram_omega)
+  have hw_vX : Fits w (xAddr + n) := hw.of_le (by wram_omega)
+  have hw_oY : Fits w (yAddr + m) := hw.of_le (by wram_omega)
+  have hw_mA : Fits w (6 + l * m) := hw.of_le (by wram_omega)
+  have hw_oZ : Fits w (zAddr + l) := hw.of_le (by wram_omega)
+  have hw_mC : Fits w ((6 + l * m + m * n) + l * n) := hw.of_le (by wram_omega)
+  have hw_oW : Fits w (wAddr + l) := hw.of_le (by wram_omega)
   apply WP.exists_execWithin
   unfold checkCurrentVec callMulB callMulA callMulC
   -- 1. `callMulB`: compute `y = B *ᵥ (bit ∘ σ)` at `yAddr`
@@ -983,24 +954,8 @@ private theorem setupCode_spec {w q k l m n : ℕ}
   simp only [holdsList_cons_iff, holdsList_append_iff, List.length_append,
     length_encodeMatrix] at hin
   obtain ⟨-, -, -, -, -, ⟨hA, hB⟩, hC⟩ := hin
-  have : Fits w 0 := fits_zero w
-  have : Fits w 1 := hw.of_le (by unfold wordBound; omega)
-  have : Fits w 2 := hw.of_le (by unfold wordBound; omega)
-  have : Fits w 3 := hw.of_le (by unfold wordBound; omega)
-  have : Fits w 4 := hw.of_le (by unfold wordBound; omega)
-  have : Fits w 5 := hw.of_le (by unfold wordBound; omega)
-  have : Fits w 6 := hw.of_le (by unfold wordBound; omega)
-  have : Fits w (l * m) := hw.of_le (by unfold wordBound; omega)
-  have : Fits w (6 + l * m) := hw.of_le (by unfold wordBound; omega)
-  have : Fits w (m * n) := hw.of_le (by unfold wordBound; omega)
-  have : Fits w (6 + l * m + m * n) := hw.of_le (by unfold wordBound; omega)
-  have : Fits w (l * n) := hw.of_le (by unfold wordBound; omega)
-  have : Fits w (6 + l * m + m * n + l * n) := hw.of_le (by unfold wordBound; omega)
-  have : Fits w (6 + l * m + m * n + l * n + n) := hw.of_le (by unfold wordBound; omega)
-  have : Fits w (6 + l * m + m * n + l * n + n + m) := hw.of_le (by unfold wordBound; omega)
-  have : Fits w (6 + l * m + m * n + l * n + n + m + l) := hw.of_le (by unfold wordBound; omega)
   refine WP.exists_execWithin (w := w) (c := setupCode) ?_
-  wram_exec [setupCode, hm1, hm2, hm3, hm4, hm5]
+  wram_exec (disch := first | fits | omega | wram_omega) [setupCode, hm1, hm2, hm3, hm4, hm5]
   refine ⟨⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, ?_, ?_, ?_⟩,
     rfl, rfl⟩
   · simpa only [Data.set_mem] using hA

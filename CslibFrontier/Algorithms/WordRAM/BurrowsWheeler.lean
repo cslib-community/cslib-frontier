@@ -454,11 +454,9 @@ theorem buildTablesCode_exec {w : ℕ} (x : Data 16) (L : List ℕ)
       (∀ i : Fin 16, i.val ≤ 6 → y.regs i = x.regs i) := by
   obtain ⟨y₁, he₁, hm₁, hr₁_raw, hz₁, ho₁⟩ :=
     Histogram.exec_clearBlock cBase sigma idx addr zero one (by decide) x h1 hc
-  have hr₁ : ∀ i : Fin 16, i.val ≤ 6 → y₁.regs i = x.regs i := fun i hi =>
-    hr₁_raw i (by fin_cases i <;> norm_num at hi <;> decide)
-      (by fin_cases i <;> norm_num at hi <;> decide)
-      (by fin_cases i <;> norm_num at hi <;> decide)
-      (by fin_cases i <;> norm_num at hi <;> decide)
+  have hr₁ : ∀ i : Fin 16, i.val ≤ 6 → y₁.regs i = x.regs i := fun i hi => by
+    have hne {r : Fin 16} (hr : ¬r.val ≤ 6 := by decide) : i ≠ r := fun h => hr (h ▸ hi)
+    exact hr₁_raw i hne hne hne hne
   have hsrc₁ := hr₁ src (by decide)
   have hlen₁ := hr₁ len (by decide)
   have hsig₁ := hr₁ sigma (by decide)
@@ -472,51 +470,31 @@ theorem buildTablesCode_exec {w : ℕ} (x : Data 16) (L : List ℕ)
     (by rw [hsrc₁, hcb₁]; exact hdisj_sc)
     (by rw [hcb₁, hsig₁, hpb₁]; exact hdisj_cp)
     (by rwa [hsig₁])
-    (by
-      intro i hi
-      rw [hsrc₁, hm₁]
-      have hnot : ¬(x.regs cBase ≤ x.regs src + i ∧
-          x.regs src + i < x.regs cBase + x.regs sigma) := by omega
-      simp only [Cslib.WordRAM.clear, hnot, ↓reduceIte]
+    (fun i hi => by
+      rw [hsrc₁, hm₁, Cslib.WordRAM.clear, ite_eq_right (by omega)]
       exact hinput i hi)
-    (by
-      intro b hb
-      rw [hcb₁, hm₁]
-      have hlt : b < x.regs sigma := by omega
-      simp [Cslib.WordRAM.clear, hlt])
+    (fun b hb => by
+      rw [hcb₁, hm₁, Cslib.WordRAM.clear, ite_eq_left (by omega)])
     hz₁ ho₁
   have hcb₂ := (hr₂ cBase (by decide)).trans hcb₁
   have hsig₂ := (hr₂ sigma (by decide)).trans hsig₁
   obtain ⟨y₃, he₃, hm₃, hr₃⟩ := exec_prefixSumC y₂ L
     (by rwa [hcb₂, hsig₂])
     (hs.of_le (by omega))
-    (by
-      intro b hb
-      rw [hcb₂, hm₂, hcb₁, hsig₁]
-      have hlt : b < x.regs sigma := by omega
-      have hcond : x.regs cBase ≤ x.regs cBase + b ∧
-          x.regs cBase + b < x.regs cBase + x.regs sigma := by omega
-      simp only [rankCountMem, hcond, and_self, ↓reduceIte, Nat.add_sub_cancel_left,
-        List.take_length])
+    (fun b hb => by
+      rw [hcb₂, hm₂, hcb₁, hsig₁, rankCountMem, ite_eq_left (by omega)]
+      simp [List.take_length])
     hz₂ ho₂
   refine ⟨y₃, (he₁.seq (he₂.seq he₃)).mono (by rw [hsig₂]; omega), ?_, ?_, ?_,
     fun i hi => (hr₃ i hi).trans ((hr₂ i hi).trans (hr₁ i hi))⟩
   · intro b hb
-    rw [hm₃, hcb₂, hsig₂]
-    have hcond : x.regs cBase ≤ x.regs cBase + b ∧
-        x.regs cBase + b < x.regs cBase + x.regs sigma := by omega
-    simp only [cTableMem, hcond, and_self, ↓reduceIte, Nat.add_sub_cancel_left]
+    rw [hm₃, hcb₂, hsig₂, cTableMem, ite_eq_left (by omega), Nat.add_sub_cancel_left]
   · intro ⟨i, hi_rt⟩
     have hi : i < L.length := by simpa only [length_rankTable] using hi_rt
     change y₃.mem (x.regs pBase + i) = (rankTable L)[i]
-    rw [getElem_rankTable L hi, hm₃, hcb₂, hsig₂]
-    have hnot_c : ¬(x.regs cBase ≤ x.regs pBase + i ∧
-        x.regs pBase + i < x.regs cBase + x.regs sigma) := by omega
-    simp only [cTableMem, hnot_c, ↓reduceIte, hm₂, hcb₁, hsig₁, hpb₁]
-    have hcond_p : x.regs pBase ≤ x.regs pBase + i ∧
-        x.regs pBase + i < x.regs pBase + L.length := by omega
-    have hget : L.getD i 0 = L[i] := List.getD_eq_getElem L 0 hi
-    simp only [rankCountMem, hnot_c, ↓reduceIte, hcond_p, and_self, Nat.add_sub_cancel_left, hget]
+    rw [getElem_rankTable L hi, hm₃, hcb₂, hsig₂, cTableMem, ite_eq_right (by omega),
+      hm₂, hcb₁, hsig₁, hpb₁, rankCountMem, ite_eq_right (by omega)]
+    rw [ite_eq_left (by omega), Nat.add_sub_cancel_left, List.getD_eq_getElem L 0 hi]
   · intro a hnc hnp
     rw [hm₃, hcb₂, hsig₂]
     simp only [cTableMem, hnc, ↓reduceIte, hm₂, hcb₁, hsig₁, hpb₁, rankCountMem, hnp,
@@ -555,12 +533,10 @@ private theorem while_lfStepBody_spec {w : ℕ} (L : List ℕ) (σ : ℕ)
   | zero =>
     intro x accList _ _ _ _ _ _ _ hz _ _ hrem hacc hsum hidx _ _ _ hhold
     have hstop : ¬(Cond.lt zero rem).Holds x := by simp only [Cond.holds_lt, hz, hrem]; omega
-    refine ⟨x, ExecWithin.loop_exit hstop, ?_, by omega, ?_, ?_⟩
-    · simp only [lfDecode, hacc]
-    · simp only [lfDecode]
-      omega
-    · simp only [lfDecode, hidx]
-      exact hhold
+    simp only [lfDecode]
+    refine ⟨x, ExecWithin.loop_exit hstop, hacc, ?_, ?_, hidx ▸ hhold⟩
+    · omega
+    · omega
   | succ k' ih =>
     intro x accList hf_buf hf_src hf_cb hf_pb hd_sb hd_cb hd_pb hz ho hlen hrem hacc hsum hidx
       hL hC hP hhold
@@ -577,15 +553,6 @@ private theorem while_lfStepBody_spec {w : ℕ} (L : List ℕ) (σ : ℕ)
           lfMap L (x.regs row) := by
         rw [lfMap, List.getElem?_eq_getElem hlt, Nat.add_comm]
       have hlf_le : lfMap L (x.regs row) ≤ L.length := lfMap_le_length L hlt
-      have hf_sr : Fits w (x.regs src + x.regs row) := hf_src.of_le (by omega)
-      have hf_idx_sub : Fits w (x.regs idx - 1) := hf_buf.of_le (by omega)
-      have hf_acc1 : Fits w (x.regs acc + 1) := hf_buf.of_le (by omega)
-      have hf_rem1 : Fits w (x.regs rem - 1) := hf_buf.of_le (by omega)
-      have hf_pr : Fits w (x.regs pBase + x.regs row) := hf_pb.of_le (by omega)
-      have hf_cs : Fits w (x.regs cBase + L[x.regs row]) := hf_cb.of_le (by omega)
-      have hf_lf : Fits w ((L.take (x.regs row)).count L[x.regs row] +
-          L.countP (· < L[x.regs row])) :=
-        hf_buf.of_le (by omega)
       have hstep_true : ∃ x₁, ExecWithin w (ram[
           addr ← src + row;
           sym ← *addr;
@@ -598,17 +565,25 @@ private theorem while_lfStepBody_spec {w : ℕ} (L : List ℕ) (σ : ℕ)
           addr ← cBase + sym;
           row ← *addr;
           row ← tmp + row ]) x x₁ 11 ∧
-        (∀ i : Fin 16, (i = src ∨ i = len ∨ i = cBase ∨ i = pBase ∨ i = buf ∨
-          i = zero ∨ i = one) → x₁.regs i = x.regs i) ∧
+        (∀ i : Fin 16, i ∈ ([src, len, cBase, pBase, buf, zero, one] : List (Fin 16)) →
+          x₁.regs i = x.regs i) ∧
         x₁.regs idx = x.regs buf + k' ∧
         x₁.regs acc = accList.length + 1 ∧
         x₁.regs rem = k' ∧
         x₁.regs row = lfMap L (x.regs row) ∧
         x₁.mem = Function.update x.mem (x.regs buf + (k' + 1)) L[x.regs row] := by
         refine WP.exists_execWithin ?_
-        wram_exec [ho, hread_L, hread_P, hread_C, hf_sr, hf_idx_sub, hf_acc1, hf_rem1,
-          hf_pr, hf_cs, hf_lf]
+        wram_exec [ho, hread_L, hread_P, hread_C,
+          hf_src.of_le (by omega : x.regs src + x.regs row ≤ x.regs src + L.length),
+          hf_buf.of_le (by omega : x.regs idx - 1 ≤ x.regs buf + L.length),
+          hf_buf.of_le (by omega : x.regs acc + 1 ≤ x.regs buf + L.length),
+          hf_buf.of_le (by omega : x.regs rem - 1 ≤ x.regs buf + L.length),
+          hf_pb.of_le (by omega : x.regs pBase + x.regs row ≤ x.regs pBase + L.length),
+          hf_cb.of_le (by omega : x.regs cBase + L[x.regs row] ≤ x.regs cBase + σ),
+          hf_buf.of_le (by omega : (L.take (x.regs row)).count L[x.regs row] +
+            L.countP (· < L[x.regs row]) ≤ x.regs buf + L.length)]
         exact ⟨fun i hi => by
+            simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
             rcases hi with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> wram_simp,
           by wram_simp [hidx, ho]; omega,
           by wram_simp [hacc, ho],
@@ -617,15 +592,16 @@ private theorem while_lfStepBody_spec {w : ℕ} (L : List ℕ) (σ : ℕ)
           by wram_simp [hidx, hread_L]⟩
       obtain ⟨x₁, hb_t, hfr, hx₁_idx, hx₁_acc, hx₁_rem, hx₁_row, hx₁_mem⟩ := hstep_true
       have hb : ExecWithin w lfStepBody x x₁ 12 := ExecWithin.branch_pos hcond hb_t
-      have hs₁ := hfr src (Or.inl rfl)
-      have hl₁ := hfr len (Or.inr (Or.inl rfl))
-      have hc₁ := hfr cBase (Or.inr (Or.inr (Or.inl rfl)))
-      have hp₁ := hfr pBase (Or.inr (Or.inr (Or.inr (Or.inl rfl))))
-      have hb₁ := hfr buf (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl)))))
-      have hz₁ := hfr zero (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl rfl))))))
-      have ho₁ := hfr one (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr rfl))))))
+      have hs₁ := hfr src (by decide)
+      have hl₁ := hfr len (by decide)
+      have hc₁ := hfr cBase (by decide)
+      have hp₁ := hfr pBase (by decide)
+      have hb₁ := hfr buf (by decide)
+      have hz₁ := hfr zero (by decide)
+      have ho₁ := hfr one (by decide)
       have hhold₁ : Block.HoldsList (x₁.regs buf + k' + 1) (L[x.regs row] :: accList) x₁.mem := by
-        rw [hb₁, hx₁_mem, show x.regs buf + k' + 1 = x.regs buf + (k' + 1) by omega]
+        have hidx' : x.regs buf + k' + 1 = x.regs buf + (k' + 1) := by omega
+        rw [hb₁, hx₁_mem, hidx']
         exact Block.holdsList_cons_iff.mpr ⟨Function.update_self _ _ _,
           hhold.frame fun a ha _ => Function.update_of_ne (by omega) _ _⟩
       obtain ⟨y, hy, hy_acc, hy_le, hy_sum, hy_hold⟩ := ih x₁ (L[x.regs row] :: accList)
@@ -638,16 +614,13 @@ private theorem while_lfStepBody_spec {w : ℕ} (L : List ℕ) (σ : ℕ)
         (by rw [hx₁_acc, List.length_cons])
         (by rw [List.length_cons]; omega)
         (by rw [hb₁]; exact hx₁_idx)
-        (by
-          intro i hi
+        (fun i hi => by
           rw [hs₁, hx₁_mem, Function.update_of_ne (by omega)]
           exact hL i hi)
-        (by
-          intro b hb_lt
+        (fun b hb_lt => by
           rw [hc₁, hx₁_mem, Function.update_of_ne (by omega)]
           exact hC b hb_lt)
-        (by
-          intro i hi
+        (fun i hi => by
           rw [hp₁, hx₁_mem, Function.update_of_ne (by omega)]
           exact hP i hi)
         hhold₁
@@ -664,18 +637,14 @@ private theorem while_lfStepBody_spec {w : ℕ} (L : List ℕ) (σ : ℕ)
         ExecWithin.const (fits_zero w)
       have hb : ExecWithin w lfStepBody x x₁ 3 := ExecWithin.branch_neg hcond hb_f
       have hstop : ¬(Cond.lt zero rem).Holds x₁ := by simp +decide [Cond.holds_lt, x₁, hz]
-      have hnone : L[x.regs row]? = none := List.getElem?_eq_none (by omega)
       have hdec : lfDecode L (k' + 1) (x.regs row) accList = accList := by
-        rw [lfDecode, hnone]
+        rw [lfDecode, List.getElem?_eq_none (by omega)]
       have hx₁_idx : x₁.regs idx = x.regs buf + (k' + 1) := by simp +decide [x₁, hidx]
-      have hx₁_acc : x₁.regs acc = accList.length := by simp +decide [x₁, hacc]
+      simp only [hdec]
       refine ⟨x₁, (ExecWithin.loop_once hc hb hstop).mono (by omega),
-        by rw [hdec, hx₁_acc],
-        by omega,
-        by rw [hdec, hx₁_idx]; omega,
-        ?_⟩
-      rw [hdec, hx₁_idx]
-      exact hhold
+        by simp +decide [x₁, hacc],
+        by omega, by omega, ?_⟩
+      rwa [hx₁_idx]
 
 /-- `lfDecodeCode` computes `inverseBwt (L, row)` as a length-prefixed array inside `[buf..buf+|L|]`
 within `14 * |L| + 9` instructions. -/
@@ -764,26 +733,13 @@ theorem decodeCode_exec (inp : Input) (w : ℕ)
   have h2 : Fits w 2 := hw.of_le (by omega)
   have h3 : Fits w 3 := hw.of_le (by omega)
   have hm0 : (Data.init inp.encode : Data 16).mem 0 = inp.last.length + 2 := rfl
-  have hm1 : (Data.init inp.encode : Data 16).mem 1 = inp.index := by
-    change (Data.init inp.encode : Data 16).mem (0 + 1) = inp.index
-    rw [Data.init_mem_succ]
-    rfl
-  have hm2 : (Data.init inp.encode : Data 16).mem 2 = inp.alphabetSize := by
-    change (Data.init inp.encode : Data 16).mem (1 + 1) = inp.alphabetSize
-    rw [Data.init_mem_succ]
-    rfl
+  have hm1 : (Data.init inp.encode : Data 16).mem 1 = inp.index := by simp [Input.encode]
+  have hm2 : (Data.init inp.encode : Data 16).mem 2 = inp.alphabetSize := by simp [Input.encode]
   have hL_init : ∀ i (hi : i < inp.last.length),
-      (Data.init inp.encode : Data 16).mem (3 + i) = inp.last[i] := by
-    intro i hi
+      (Data.init inp.encode : Data 16).mem (3 + i) = inp.last[i] := fun i hi => by
     have haddr : 3 + i = (i + 2) + 1 := by omega
     rw [haddr, Data.init_mem_succ]
-    change (inp.index :: inp.alphabetSize :: inp.last).getD (i + 2) 0 = inp.last[i]
-    simpa only [List.getD_cons_succ] using List.getD_eq_getElem inp.last 0 hi
-  have hf_n : Fits w inp.last.length := hw.of_le (by omega)
-  have hf_cb : Fits w (3 + inp.last.length) := hw.of_le (by omega)
-  have hf_pb : Fits w (3 + inp.last.length + inp.alphabetSize) := hw.of_le (by omega)
-  have hf_buf : Fits w (3 + inp.last.length + inp.alphabetSize + inp.last.length) :=
-    hw.of_le (by omega)
+    simpa only [Input.encode, List.getD_cons_succ] using List.getD_eq_getElem inp.last 0 hi
   have hsetup_spec : ∃ x₁, ExecWithin w (ram[
       zero ← #0;
       one ← #1;
@@ -805,7 +761,13 @@ theorem decodeCode_exec (inp : Input) (w : ℕ)
     x₁.regs buf = 3 + 2 * inp.last.length + inp.alphabetSize ∧
     x₁.mem = (Data.init inp.encode : Data 16).mem := by
     refine WP.exists_execWithin ?_
-    wram_exec [h1, h2, h3, hm0, hm1, hm2, hf_n, hf_cb, hf_pb, hf_buf]
+    wram_exec [h1, h2, h3, hm0, hm1, hm2,
+      hw.of_le (by omega : inp.last.length ≤ 3 * inp.last.length + inp.alphabetSize + 4),
+      hw.of_le (by omega : 3 + inp.last.length ≤ 3 * inp.last.length + inp.alphabetSize + 4),
+      hw.of_le (by omega :
+        3 + inp.last.length + inp.alphabetSize ≤ 3 * inp.last.length + inp.alphabetSize + 4),
+      hw.of_le (by omega : 3 + inp.last.length + inp.alphabetSize + inp.last.length ≤
+        3 * inp.last.length + inp.alphabetSize + 4)]
     exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp, by wram_simp, by wram_simp; omega, by wram_simp⟩
   obtain ⟨x₁, hsetup, hs₁, hl₁, hsig₁, hr₁, hcb₁, hpb₁, hbuf₁, hmem₁⟩ := hsetup_spec
@@ -889,17 +851,17 @@ theorem decodeProgram_bwt (u : List ℕ) (σ w : ℕ)
     refine ⟨hw.of_le (by dsimp only [inp]; rw [length_encode, hlen_last]; omega), ?_⟩
     intro x hx
     simp only [Input.encode, inp, List.mem_cons] at hx
+    refine hw.of_le ?_
     rcases hx with rfl | rfl | hx
-    · exact hw.of_le (by omega)
-    · exact hw.of_le (by omega)
-    · have hlt : x < σ := hvalid x hx
-      exact hw.of_le (by omega)
+    · omega
+    · omega
+    · have : x < σ := hvalid x hx
+      omega
   obtain ⟨t, hexec, ht⟩ := decodeProgram_computesListInTime inp w ⟨hvalid, hw_inp⟩ hfits
-  dsimp only at hexec ht
-  have hinv : inverseBwt (inp.last, inp.index) = u := by
-    simpa only [inp, ← fst_bwt, ← snd_bwt, Prod.eta] using inverseBwt_bwt u
-  rw [hinv] at hexec
+  have hinv : inverseBwt (bwtLast u, bwtIndex u) = u := by
+    simpa only [← fst_bwt, ← snd_bwt, Prod.eta] using inverseBwt_bwt u
   dsimp only [inp] at hexec ht
+  rw [hinv] at hexec
   rw [hlen_last] at ht
   exact ⟨t, hexec, ht⟩
 

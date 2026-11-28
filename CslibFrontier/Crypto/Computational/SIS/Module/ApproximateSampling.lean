@@ -15,7 +15,7 @@ import CslibFrontier.Computability.Probabilistic.Repeat
 public import CslibFrontier.Languages.Probabilistic.Repeat
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Languages.Probabilistic.Vector
+import CslibFrontier.Languages.Probabilistic.UniformNat.Residue
 import CslibFrontier.Probability.PMF.Uniform
 
 /-!
@@ -64,26 +64,13 @@ private theorem sampledWord_ppt
       (encPair (encPair (encPair (encPair encUnary encUnary) encUnary) encNat)
         (encList (encList (encList encNat)))) encBits) :
     IsPPTOn inputEncoding encBits (sampledWord expand) := by
-  have h := isPPTOn_sampleModNat
-    (show ComputableInPolyTime (fun a : Params => a.2.1) inputEncoding encUnary by
-      unfold inputEncoding; fun_prop)
-    (show ComputableInPolyTime (fun a : Params => a.2.2) inputEncoding encNat by
-      unfold inputEncoding; fun_prop)
-  have hr := ((h.replicate
-      (show ComputableInPolyTime (fun a : Params => a.1.2) inputEncoding encUnary by
-        unfold inputEncoding; fun_prop)).replicate
-      (show ComputableInPolyTime (fun a : Params => a.1.1.2) inputEncoding encUnary by
-        unfold inputEncoding; fun_prop)).replicate
-      (show ComputableInPolyTime (fun a : Params => a.1.1.1) inputEncoding encUnary by
-        unfold inputEncoding; fun_prop)
-  exact hr.map_with (hexpand.comp (by unfold inputEncoding; fun_prop))
-
-private theorem eval_modNat_residue (width q : ℕ) :
-    eval (sampleModNat width q) =
-      (eval ((Nat.cast : ℕ → ZMod q) <$> sampleModNat width q)).map ZMod.val := by
-  rw [eval_map, eval_sampleModNat, PMF.map_comp, PMF.map_comp]
-  congr 1 with i : 1
-  simp only [Function.comp_apply, ZMod.val_natCast, Nat.mod_mod]
+  unfold inputEncoding sampledWord
+  refine ((((isPPTOn_sampleModNat
+    (by fun_prop)
+    (by fun_prop)).replicate
+    (by fun_prop)).replicate
+    (by fun_prop)).replicate
+    (by fun_prop)).map_with (hexpand.comp (by fun_prop))
 
 /-- Drawing every coefficient of a `d × k` module matrix with the bounded modular sampler gives
 the canonical residues of a matrix whose coefficients are independent sampler outputs read in
@@ -94,9 +81,8 @@ theorem eval_sampleModNat_coefficients (d k n width q : ℕ) [NeZero q] :
       (PMF.pi fun _ : Fin d => PMF.pi fun _ : Fin k => PMF.pi fun _ : Fin n =>
         (eval (sampleModNat width q)).map (Nat.cast : ℕ → ZMod q)).map
           (fun A => List.ofFn fun i => List.ofFn fun j => List.ofFn fun l => (A i j l).val) := by
-  have h := eval_replicateFin_map
-    (eval_replicateFin_map (eval_replicateFin_map (eval_modNat_residue width q) n) k) d
-  simpa only [eval_replicateFin, eval_map] using h
+  simpa only [eval_replicateFin, eval_map] using eval_replicateFin_map
+    (eval_replicateFin_map (eval_replicateFin_map (eval_sampleModNat_eq_map_val width q) n) k) d
 
 /-- The coefficientwise sampler law is within `d * k * n * q / 2 ^ width` of a uniform `d × k`
 module matrix. -/
@@ -107,8 +93,7 @@ theorem closeTo_uniform_pi_sampleModNat (d k n width q : ℕ) [NeZero q] :
       ((d : ℝ≥0∞) * k * n * q / 2 ^ width) := by
   have h := (((closeTo_uniform_sampleModNat width q).iid n).iid k).iid d
   simp only [PMF.iid_eq_pi, PMF.pi_uniformOfFintype] at h
-  rw [show (d : ℝ≥0∞) * k * n * q / 2 ^ width = d * (k * (n * (q / 2 ^ width))) by
-    simp only [mul_div_assoc, mul_assoc]]
+  simp only [mul_div_assoc, mul_assoc]
   exact h
 
 /-- At `q.size + precision` fair bits per coefficient, the coefficientwise sampler law is within
@@ -185,14 +170,11 @@ theorem exists_isPPTOn_sampleEncodedModuleMatrixWithPrecision :
           (eval (sample (((d, k), n), precision, q)))
           ((d : ℝ≥0∞) * k * n / 2 ^ precision) := by
   obtain ⟨sample, hppt, hlaw⟩ := exists_isPPTOn_approximateEncodedModuleMatrix
-  refine ⟨fun a => sample (a.1, a.2.2.size + a.2.1, a.2.2), hppt.preprocess ?_, ?_⟩
-  · fun_prop
-  · intro d k n precision q hq
-    let : NeZero q := ⟨hq.ne'⟩
-    obtain ⟨heq, -⟩ := hlaw d k n (q.size + precision) q hq
-    refine ⟨heq, ?_⟩
-    rw [heq]
-    exact (closeTo_uniform_pi_sampleModNat_precision d k n precision q).map
-      ModuleSIS.encodeMatrix
+  refine ⟨fun a => sample (a.1, a.2.2.size + a.2.1, a.2.2), hppt.preprocess (by fun_prop),
+    fun d k n precision q hq => ?_⟩
+  let : NeZero q := ⟨hq.ne'⟩
+  obtain ⟨heq, -⟩ := hlaw d k n (q.size + precision) q hq
+  exact ⟨heq, heq ▸ (closeTo_uniform_pi_sampleModNat_precision d k n precision q).map
+    ModuleSIS.encodeMatrix⟩
 
 end Cslib.Crypto

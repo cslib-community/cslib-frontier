@@ -85,27 +85,19 @@ theorem exec_setup {w : ℕ} (L : ℕ) (x : Data 32) (hheader : x.mem 1 = L)
       ∃ z, ExecWithin w powerBody y z 3 ∧ P (y.regs stage + 1) z ∧
         z.regs stage = y.regs stage + 1 := by
     obtain ⟨hm, hd, hi, hcap, ho, hs, ht⟩ := hy
-    have hpi : Fits w (y.regs inputSize * 7) := by
-      rw [hi, ← pow_succ]
-      exact hpow 7 _ (by decide) (by omega)
-    have hpc : Fits w (y.regs capacity * 10) := by
-      rw [hcap, ← pow_succ]
-      exact hpow 10 _ (by decide) (by omega)
-    have hjfit : Fits w (y.regs stage + 1) :=
-      haddr.of_le (by unfold addressBound; omega)
+    have hpi : Fits w (y.regs inputSize * 7) :=
+      hi ▸ pow_succ 7 (y.regs stage) ▸ hpow 7 _ (by decide) (by omega)
+    have hpc : Fits w (y.regs capacity * 10) :=
+      hcap ▸ pow_succ 10 (y.regs stage) ▸ hpow 10 _ (by decide) (by omega)
+    have hjfit : Fits w (y.regs stage + 1) := haddr.of_le (by rw [addressBound]; omega)
     refine WP.exists_execWithin ?_
     wram_exec [powerBody, hi, hcap, ho, hs, ht, hpi, hpc, hjfit]
     dsimp only [P]
     wram_simp [hd, ho, hs, ht, pow_succ]
     exact hm
-  have hout : Fits w (2 + 7 ^ L) := haddr.of_le (by
-    have := Nat.pow_le_pow_left (by decide : 7 ≤ 10) L
-    unfold addressBound
-    omega)
-  have hscratch : Fits w (2 + 7 ^ L + 10 ^ L) := haddr.of_le (by
-    have := Nat.pow_le_pow_left (by decide : 7 ≤ 10) L
-    unfold addressBound
-    omega)
+  have h7_10 := Nat.pow_le_pow_left (by decide : 7 ≤ 10) L
+  have hout : Fits w (2 + 7 ^ L) := haddr.of_le (by rw [addressBound]; omega)
+  have hscratch : Fits w (2 + 7 ^ L + 10 ^ L) := haddr.of_le (by rw [addressBound]; omega)
   refine WP.exists_execWithin ?_
   unfold setup setupHead setupTail
   wram_exec [hheader, h1, h7, h10]

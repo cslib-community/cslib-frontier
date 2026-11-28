@@ -29,6 +29,9 @@ cannot be decided in time $2^{o(n \log n)}$ [LokshtanovMarxSaurabh2018, Theorem 
 Ilango's reduction to partial-function MCSP [Ilango2020FOCS, Section III.B, p. 427; ECCC TR20-183,
 Section 3, Theorem 10, p. 20].
 
+The same threshold-table reduction gives SH lower bounds for both encodings, using a fixed
+power bound on the number of threshold bits.
+
 ## Formulations and faithfulness
 
 Two equivalent presentations appear in the literature:
@@ -425,10 +428,8 @@ private theorem wordLen_le (N : ℕ) : wordLen N ≤ 6 * blockSize N := by
   unfold wordLen
   omega
 
-/-- **Sublinear search-exponent bound**: for every $M \ge 1$, the number of threshold bits is at
-most $N / M + 48 \cdot (48 M)^3$. -/
-theorem searchBits_le_div_add (N : ℕ) {M : ℕ} (hM : 0 < M) :
-    searchBits N ≤ N / M + 48 * (48 * M) ^ 3 := by
+private theorem searchBits_le_block_power (N : ℕ) :
+    searchBits N ≤ 48 * (2 ^ (Nat.log 2 N / 4)) ^ 3 := by
   set k := Nat.log 2 N / 4
   have hA : numAssignments N = 4 * (2 ^ k) ^ 2 := by
     unfold numAssignments blockSize
@@ -440,23 +441,49 @@ theorem searchBits_le_div_add (N : ℕ) {M : ℕ} (hM : 0 < M) :
     calc wordLen N ≤ 6 * (k + 1) := h1
       _ ≤ 6 * 2 ^ (k + 1) := Nat.mul_le_mul_left 6 h2
       _ = 12 * 2 ^ k := by rw [pow_succ]; ring
-  have hSB : searchBits N ≤ 48 * (2 ^ k) ^ 3 := by
-    calc searchBits N = numAssignments N * wordLen N := rfl
-      _ ≤ 4 * (2 ^ k) ^ 2 * (12 * 2 ^ k) := by rw [hA]; exact Nat.mul_le_mul_left _ hW
-      _ = 48 * (2 ^ k) ^ 3 := by ring
+  calc
+    searchBits N = numAssignments N * wordLen N := rfl
+    _ ≤ 4 * (2 ^ k) ^ 2 * (12 * 2 ^ k) := by rw [hA]; exact Nat.mul_le_mul_left _ hW
+    _ = 48 * (2 ^ k) ^ 3 := by ring
+
+private theorem block_fourth_power_le (N : ℕ) (hN : N ≠ 0) :
+    (2 ^ (Nat.log 2 N / 4)) ^ 4 ≤ N := by
+  rw [← pow_mul, Nat.mul_comm]
+  exact (Nat.pow_le_pow_right two_pos (by omega)).trans (Nat.pow_log_le_self 2 hN)
+
+/-- **Sublinear search-exponent bound**: for every $M \ge 1$, the number of threshold bits is at
+most $N / M + 48 \cdot (48 M)^3$. -/
+theorem searchBits_le_div_add (N : ℕ) {M : ℕ} (hM : 0 < M) :
+    searchBits N ≤ N / M + 48 * (48 * M) ^ 3 := by
+  set k := Nat.log 2 N / 4
+  have hSB : searchBits N ≤ 48 * (2 ^ k) ^ 3 := searchBits_le_block_power N
   by_cases hk : 2 ^ k ≤ 48 * M
   · exact (hSB.trans (Nat.mul_le_mul_left 48 (Nat.pow_le_pow_left hk 3))).trans
       (Nat.le_add_left _ _)
   · have hN0 : N ≠ 0 := by rintro rfl; simp [k] at hk; omega
-    have h4k : 4 * k ≤ Nat.log 2 N := by omega
-    have hpow4 : (2 ^ k) ^ 4 ≤ N := by
-      rw [← pow_mul, Nat.mul_comm]
-      exact (Nat.pow_le_pow_right two_pos h4k).trans (Nat.pow_log_le_self 2 hN0)
+    have hpow4 : (2 ^ k) ^ 4 ≤ N := block_fourth_power_le N hN0
     have hmul : 48 * (2 ^ k) ^ 3 * M ≤ N := by
       rw [Nat.mul_right_comm]
       exact (Nat.mul_le_mul_right _ (Nat.le_of_not_le hk)).trans
         ((pow_succ' (2 ^ k) 3).symm.trans_le hpow4)
     exact (hSB.trans ((Nat.le_div_iff_mul_le hM).2 hmul)).trans (Nat.le_add_right _ _)
+
+private theorem searchBits_le_three_quarters (N : ℕ) :
+    (searchBits N : ℝ) ≤ ((48 : ℕ) : ℝ) * (N + 1 : ℝ) ^ (3 / 4 : ℝ) := by
+  let s : ℕ := 2 ^ (Nat.log 2 N / 4)
+  have hs : s ^ 4 ≤ N + 1 := by
+    rcases eq_or_ne N 0 with rfl | hN
+    · decide
+    · exact (block_fourth_power_le N hN).trans (Nat.le_succ N)
+  have hpow : (s : ℝ) ^ 3 ≤ (N + 1 : ℝ) ^ (3 / 4 : ℝ) := by
+    calc
+      (s : ℝ) ^ 3 = ((s : ℝ) ^ 4) ^ (3 / 4 : ℝ) := by
+        rw [← Real.rpow_natCast (s : ℝ) 4, ← Real.rpow_mul (by positivity)]
+        rw [show ((4 : ℕ) : ℝ) * (3 / 4) = (3 : ℕ) by norm_num, Real.rpow_natCast]
+      _ ≤ _ := Real.rpow_le_rpow (by positivity) (by exact_mod_cast hs) (by norm_num)
+  have hsize : (searchBits N : ℝ) ≤ ((48 : ℕ) : ℝ) * (s : ℝ) ^ 3 := by
+    exact_mod_cast searchBits_le_block_power N
+  exact hsize.trans (mul_le_mul_of_nonneg_left hpow (by norm_num))
 
 /-! ### Block-coloring extraction, threshold decoding, and `bpisOfColoring` -/
 
@@ -799,8 +826,6 @@ theorem mem_ThreeColoring_iff_exists_bpisOfColoring (H : Graph) :
 
 /-! ### Polynomial-time computability of the reduction -/
 
-attribute [local irreducible] ComputableInPolyTime
-
 @[local fun_prop]
 private theorem computableInPolyTime_unary_log_two :
     ComputableInPolyTime (Nat.log 2) encUnary encUnary :=
@@ -1066,7 +1091,42 @@ theorem decidableInExpTime_ThreeColoring_of_bpis {M : ℕ} (hM : 0 < M) {δ : �
     (fun H r => by have := fst_bpisOfColoring_mul_log_le H r; omega)
     (fun H => searchBits_le_div_add H.vertices.length hM) hδ
 
+private theorem not_decidableInPowerExpTime_of_SH (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) {enc : BipartitePermutationGraph ↪ List Bool}
+    (hf : ComputableInPolyTime bpisOfColoring (encPair encGraph encNat) enc) :
+    ¬DecidableInPowerExpTime BipartitePermutationIndependentSet enc (fun G => G.1) p := by
+  intro hFast
+  apply h.not_decidableInPowerExpTime_ThreeColoring_vertices
+    (hp.trans_le (le_max_right (3 / 4 : ℝ) p)) (max_lt_iff.mpr ⟨by norm_num, hp1⟩)
+  simpa only [one_mul] using hFast.of_exhaustiveSearch hf computableInPolyTime_searchBits_length
+    mem_ThreeColoring_iff_exists_bpisOfColoring (C := 48) (K := 1) (q := 3 / 4) (b := 1)
+    (fun H => searchBits_le_three_quarters H.vertices.length) (fun H r => by
+      rw [Real.rpow_one]
+      norm_num only [Nat.cast_one, one_add_one_eq_two]
+      have hN := numBlocks_le H.vertices.length
+      exact_mod_cast (show (bpisOfColoring (H, r)).1 + 1 ≤ 2 * (H.vertices.length + 1) by
+        change numBlocks H.vertices.length + 1 ≤ _
+        omega)) hp.le
+
 end BipartitePermutationIndependentSet
+
+/-- Under SH, the unary-encoded Bipartite Permutation Independent Set problem admits no fixed
+power saving in the exponent measured in the size of one permutation block. The reduction from
+3-coloring enumerates threshold tables with `O((|V| + 1) ^ (3/4))` bits. -/
+theorem SH.not_decidableInPowerExpTime_BipartitePermutationIndependentSet (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) :
+    ¬DecidableInPowerExpTime BipartitePermutationIndependentSet encBipartitePermutationGraph
+      (fun G => G.1) p :=
+  BipartitePermutationIndependentSet.not_decidableInPowerExpTime_of_SH h hp hp1
+    BipartitePermutationIndependentSet.computableInPolyTime_bpisOfColoring
+
+/-- Under SH, the same block-size lower bound holds with binary coordinates. -/
+theorem SH.not_decidableInPowerExpTime_BipartitePermutationIndependentSet_binary (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) :
+    ¬DecidableInPowerExpTime BipartitePermutationIndependentSet encBipartitePermutationGraphBinary
+      (fun G => G.1) p :=
+  BipartitePermutationIndependentSet.not_decidableInPowerExpTime_of_SH h hp hp1
+    BipartitePermutationIndependentSet.computableInPolyTime_bpisOfColoring_binary
 
 open BipartitePermutationIndependentSet in
 /-- **Subexponential-time transfer from `BipartitePermutationIndependentSet` to `ThreeColoring`**:

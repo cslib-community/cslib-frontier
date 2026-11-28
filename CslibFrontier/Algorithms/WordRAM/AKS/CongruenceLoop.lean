@@ -120,13 +120,9 @@ theorem exec {w : ℕ} (x : Data 29) {a b t r n A₀ : ℕ} (ha : x.regs R = a) 
     have hy₁ok : y₁.regs ok = y.regs ok := hout₁ ok (by decide)
     have hy₁1 : y₁.regs c1 = 1 := (hout₁ c1 (by decide)).trans hy1
     have hall_iff : (∀ v, 1 ≤ v → v < V + 1 → Congruence n r v) ↔
-        (∀ v, 1 ≤ v → v < V → Congruence n r v) ∧ Congruence n r V := by
-      constructor
-      · intro h; exact ⟨fun v hv1' hv => h v hv1' (by omega), h V hv1 (by omega)⟩
-      · rintro ⟨h, hC⟩ v hv1' hv
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hv with hv | rfl
-        · exact h v hv1' hv
-        · exact hC
+        (∀ v, 1 ≤ v → v < V → Congruence n r v) ∧ Congruence n r V :=
+      ⟨fun h => ⟨fun v hv1' hv => h v hv1' (by omega), h V hv1 (by omega)⟩,
+       fun ⟨h, hC⟩ v hv1' hv => (Nat.lt_succ_iff_lt_or_eq.mp hv).elim (h v hv1') (· ▸ hC)⟩
     by_cases hC : Congruence n r V
     · have hf1 : y₁.regs flag = 1 := hiff.mpr hC
       wram_exec [hf1, hy₁1, hy₁ok, hy₁v]
@@ -148,11 +144,7 @@ theorem exec {w : ℕ} (x : Data 29) {a b t r n A₀ : ℕ} (ha : x.regs R = a) 
     ExecWithin.loop_count P (fun _ ⟨_, _, _, _, _, hlim, _⟩ => hlim) hstep
       (by omega) hx₀P
   refine WP.of_execWithin hrun ⟨?_, hyok, ?_, hyR, hyB, hyT, hyr, hyn⟩
-  · rw [hv₀, show A₀ + 1 - 1 = A₀ by omega, show Congruence.time r n + 4 + 2 =
-      Congruence.time r n + 6 by ring]
-    unfold time
-    omega
-  · rw [hyiff]
-    exact ⟨fun h v hv1 hv => h v hv1 (by omega), fun h v hv1 hv => h v hv1 (by omega)⟩
+  · rw [hv₀, Nat.add_sub_cancel, time]
+  · simp only [hyiff, Nat.lt_succ_iff]
 
 end Cslib.Algorithms.WordRAM.AKS.CongruenceLoop

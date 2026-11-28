@@ -93,10 +93,8 @@ theorem mem (hf : IsSelector A f) {x y : α} (h : x ∈ A ∨ y ∈ A) : f x y �
 
 /-- An instance beaten by a member of `A`, in either order, is in `A`. -/
 theorem mem_of_mem_of_eq {x y : α} (hf : IsSelector A f) (hy : y ∈ A)
-    (h : f x y = x ∨ f y x = x) : x ∈ A := by
-  rcases h with h | h
-  · exact h ▸ hf.mem (.inr hy)
-  · exact h ▸ hf.mem (.inl hy)
+    (h : f x y = x ∨ f y x = x) : x ∈ A :=
+  h.elim (· ▸ hf.mem (.inr hy)) (· ▸ hf.mem (.inl hy))
 
 end IsSelector
 
@@ -106,34 +104,25 @@ theorem mem_PSel_iff_bool {α : Type} {enc : α ↪ List Bool} {A : Set α} :
     A ∈ PSel enc ↔ ∃ g : α × α → Bool, ComputableInPolyTime g (encPair enc enc) encBool ∧
       ∀ x y, x ∈ A ∨ y ∈ A → (if g (x, y) then x else y) ∈ A := by
   classical
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨f, hf, hsel⟩
-    refine ⟨fun p => decide (f p.1 p.2 = p.1), ComputableInPolyTime.decide_eq' hf (.fst enc enc),
-      fun x y hxy => ?_⟩
-    change (if decide (f x y = x) = true then x else y) ∈ A
-    by_cases hx : f x y = x
-    · rw [decide_eq_true hx, ite_eq_left rfl, ← hx]
-      exact hsel.mem hxy
-    · rw [decide_eq_false hx, ite_eq_right Bool.false_ne_true,
-        ← (hsel.eq_or_eq x y).resolve_left hx]
-      exact hsel.mem hxy
+    refine ⟨fun p => decide (f p.1 p.2 = p.1), .decide_eq' hf (.fst enc enc), fun x y hxy => ?_⟩
+    by_cases hx : f x y = x <;>
+      simp only [hx, decide_true, decide_false, ↓reduceIte, Bool.false_eq_true]
+    · exact hx ▸ hsel.mem hxy
+    · exact (hsel.eq_or_eq x y).resolve_left hx ▸ hsel.mem hxy
   · rintro ⟨g, hg, hA⟩
-    refine ⟨fun x y => if g (x, y) then x else y, hg.ite' (.fst enc enc) (.snd enc enc),
-      fun x y => ⟨?_, hA x y⟩⟩
-    by_cases h : g (x, y) = true
-    · exact .inl (ite_eq_left h)
-    · exact .inr (ite_eq_right h)
+    exact ⟨fun x y => if g (x, y) then x else y, hg.ite' (.fst enc enc) (.snd enc enc),
+      fun x y => ⟨by by_cases h : g (x, y) <;> simp [h], hA x y⟩⟩
 
 /-- **`P ⊆ PSel`**: a polynomial-time decider `d` gives the selector picking the first instance
 exactly when `d` accepts it. -/
 theorem P_subset_PSel {α : Type} {enc : α ↪ List Bool} : P enc ⊆ PSel enc := by
   rintro A ⟨d, hd, hA⟩
   refine mem_PSel_iff_bool.2 ⟨fun p => d p.1, hd.comp (.fst enc enc), fun x y hxy => ?_⟩
-  by_cases h : d x = true
-  · rw [ite_eq_left h]
-    exact (hA x).2 h
-  · rw [ite_eq_right h]
-    exact hxy.resolve_left fun hx => h ((hA x).1 hx)
+  split_ifs with h
+  · exact (hA x).2 h
+  · exact hxy.resolve_left fun hx => h ((hA x).1 hx)
 
 /-- **Complements.** The complement of a P-selective set is P-selective: pick the instance the
 selector rejects. -/
@@ -142,19 +131,9 @@ theorem compl_mem_PSel {α : Type} {enc : α ↪ List Bool} {A : Set α} (hA : A
   obtain ⟨g, hg, hsel⟩ := mem_PSel_iff_bool.1 hA
   refine mem_PSel_iff_bool.2 ⟨fun p => !g p, ComputableInPolyTime.bool_not.comp hg,
     fun x y hxy => ?_⟩
-  change (if (!g (x, y)) = true then x else y) ∈ Aᶜ
   by_cases h : g (x, y) = true
-  · rw [h, Bool.not_true, ite_eq_right Bool.false_ne_true]
-    intro hy
-    have hx := hsel x y (.inr hy)
-    rw [ite_eq_left h] at hx
-    exact hxy.elim (· hx) (· hy)
-  · rw [Bool.not_eq_true] at h
-    rw [h, Bool.not_false, ite_eq_left rfl]
-    intro hx
-    have hy := hsel x y (.inl hx)
-    rw [h, ite_eq_right Bool.false_ne_true] at hy
-    exact hxy.elim (· hx) (· hy)
+  · simpa [h] using fun hy : y ∈ A => hxy.elim (· (by simpa [h] using hsel x y (.inr hy))) (· hy)
+  · simpa [h] using fun hx : x ∈ A => hxy.elim (· hx) (· (by simpa [h] using hsel x y (.inl hx)))
 
 /-- **Reductions.** A set that reduces to a P-selective set in polynomial time is P-selective:
 select between the images [Selman1979]. -/
@@ -166,11 +145,9 @@ theorem PolyTimeReducible.mem_PSel {α β : Type} {encA : α ↪ List Bool} {enc
   refine mem_PSel_iff_bool.2 ⟨fun p => g (r p.1, r p.2),
     hg.comp ((hr.comp (.fst encA encA)).prod (hr.comp (.snd encA encA))), fun x y hxy => ?_⟩
   have hsel' := hsel (r x) (r y) (hxy.imp (hrA x).1 (hrA y).1)
-  by_cases h : g (r x, r y) = true
-  · rw [ite_eq_left h] at hsel' ⊢
-    exact (hrA x).2 hsel'
-  · rw [ite_eq_right h] at hsel' ⊢
-    exact (hrA y).2 hsel'
+  split_ifs at hsel' ⊢
+  · exact (hrA x).2 hsel'
+  · exact (hrA y).2 hsel'
 
 /-- **Lower sets are P-selective.** If a linear order on the instances is compared in polynomial
 time, every lower set of it is P-selective: the minimum of two instances is a selector. -/
@@ -179,10 +156,8 @@ theorem mem_PSel_of_isLowerSet {α : Type} [LinearOrder α] {enc : α ↪ List B
     (hle : ComputableInPolyTime (fun p : α × α => decide (p.1 ≤ p.2)) (encPair enc enc) encBool) :
     A ∈ PSel enc := by
   refine mem_PSel_iff_bool.2 ⟨_, hle, fun x y hxy => ?_⟩
-  by_cases h : x ≤ y
-  · rw [decide_eq_true h, ite_eq_left rfl]
-    exact hxy.elim id (hA h)
-  · rw [decide_eq_false h, ite_eq_right Bool.false_ne_true]
-    exact hxy.elim (hA ((le_total x y).resolve_left h)) id
+  by_cases h : x ≤ y <;> simp only [h, decide_true, decide_false, ↓reduceIte, Bool.false_eq_true]
+  · exact hxy.elim id (hA h)
+  · exact hxy.elim (hA ((le_total x y).resolve_left h)) id
 
 end Cslib.Complexity

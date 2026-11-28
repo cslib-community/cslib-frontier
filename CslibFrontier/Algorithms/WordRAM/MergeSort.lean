@@ -514,6 +514,30 @@ private theorem mergeElemBody_exec {w kb pb bb W lo_v mid_v hi_v : ℕ}
     hu_keys.frame fun a ha1 ha2 => Modifies.block_iff.mp hmod_in a (by dsimp only; omega)
   have hv_L : Block.HoldsList pb L v.mem :=
     hu_L.frame fun a ha1 ha2 => Modifies.block_iff.mp hmod_in a (by dsimp only; omega)
+  have hstep (elem pa' pb' : ℕ) (v' : Data 18)
+      (hbds : lo_v ≤ pa' ∧ pa' ≤ mid_v ∧ mid_v ≤ pb' ∧ pb' ≤ hi_v ∧
+        (mid_v - pa') + (hi_v - pb') = hi_v - (v.regs outIdx + 1))
+      (hmrg : elem :: List.merge (slice L pa' (mid_v - pa')) (slice L pb' (hi_v - pb'))
+          (fun a b => decide (keys.getD a 0 ≤ keys.getD b 0)) =
+        List.merge (slice L (v.regs pA) (mid_v - v.regs pA))
+          (slice L (v.regs pB) (hi_v - v.regs pB))
+          (fun a b => decide (keys.getD a 0 ≤ keys.getD b 0)))
+      (hmem : v'.mem = Function.update v.mem (bb + v.regs outIdx) elem)
+      (ho : v'.regs one = 1) (hn : v'.regs len = keys.length)
+      (hkb : v'.regs keyBase = kb) (hpb : v'.regs permBase = pb) (hbb : v'.regs bufBase = bb)
+      (hw : v'.regs wRun = W) (hlo : v'.regs lo = lo_v) (hmid : v'.regs mid = mid_v)
+      (hhi : v'.regs hi = hi_v) (hpA : v'.regs pA = pa') (hpB : v'.regs pB = pb')
+      (hout : v'.regs outIdx = v.regs outIdx + 1) :
+      InInv keys L kb pb bb W lo_v mid_v hi_v u_mem (v.regs outIdx + 1) v' ∧
+        v'.regs outIdx = v.regs outIdx + 1 := by
+    obtain ⟨hpA1, hpA2, hpB1, hpB2, hrem⟩ := hbds
+    obtain ⟨hmod_snoc, hmem_snoc⟩ :=
+      prefix_snoc_mem (elem := elem) hpref_len hidx_lo hmod_in hpref_mem
+    refine ⟨⟨ho, hn, hkb, hpb, hbb, hw, hlo, hmid, hhi,
+      hpA ▸ hpA1, hpA ▸ hpA2, hpB ▸ hpB1, hpB ▸ hpB2, by omega,
+      by rwa [hpA, hpB], hmem ▸ hmod_snoc, pref ++ [elem],
+      by simp [hpref_len]; omega, hmem ▸ hmem_snoc, ?_⟩, hout⟩
+    rw [List.append_assoc, List.singleton_append, hpA, hpB, hmrg, hmerge_inv]
   refine WP.exists_execWithin ?_
   unfold mergeElemBody
   by_cases hcA : v.regs pA < mid_v
@@ -527,76 +551,39 @@ private theorem mergeElemBody_exec {w kb pb bb W lo_v mid_v hi_v : ℕ}
       by_cases hcW : keys.getD L[v.regs pB] 0 < keys.getD L[v.regs pA] 0
       · have hcmp_f : decide (keys.getD L[v.regs pA] 0 ≤ keys.getD L[v.regs pB] 0) = false := by
           simp only [decide_eq_false_iff_not]; omega
-        obtain ⟨hmod_snoc, hmem_snoc⟩ :=
-          prefix_snoc_mem (elem := L[v.regs pB]) hpref_len hidx_lo hmod_in hpref_mem
         wram_exec [hvo, hvkb, hvpb, hvbb, hvmid, hvhi, hcA, hcB,
           hread_uA, hread_uB, hread_wA, hread_wB, hcW]
-        refine ⟨⟨by wram_simp [hvo], by wram_simp [hvn],
-          by wram_simp [hvkb], by wram_simp [hvpb], by wram_simp [hvbb],
-          by wram_simp [hvw], by wram_simp [hvlo], by wram_simp [hvmid],
-          by wram_simp [hvhi], by wram_simp [hpa1], by wram_simp [hpa2],
-          by wram_simp; omega, by wram_simp; omega, by omega,
-          by wram_simp; omega, by wram_simp [Data.write_mem]; exact hmod_snoc,
-          pref ++ [L[v.regs pB]], by simp [hpref_len]; omega,
-          by wram_simp [Data.write_mem]; exact hmem_snoc, ?_⟩, by wram_simp⟩
-        wram_simp
-        rw [List.append_assoc, List.singleton_append, ← hmerge_inv, hslA, hslB,
-          List.cons_merge_cons, hcmp_f]
-        rfl
+        refine hstep L[v.regs pB] (v.regs pA) (v.regs pB + 1) _ (by omega) ?_
+          ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
+        · rw [hslA, hslB, List.cons_merge_cons, hcmp_f]
+          rfl
+        all_goals wram_simp [Data.write_mem, hvo, hvn, hvkb, hvpb, hvbb, hvw, hvlo, hvmid, hvhi]
       · have hcmp_t : decide (keys.getD L[v.regs pA] 0 ≤ keys.getD L[v.regs pB] 0) = true := by
           simp only [decide_eq_true_eq]; omega
-        obtain ⟨hmod_snoc, hmem_snoc⟩ :=
-          prefix_snoc_mem (elem := L[v.regs pA]) hpref_len hidx_lo hmod_in hpref_mem
         wram_exec [hvo, hvkb, hvpb, hvbb, hvmid, hvhi, hcA, hcB,
           hread_uA, hread_uB, hread_wA, hread_wB, hcW]
-        refine ⟨⟨by wram_simp [hvo], by wram_simp [hvn],
-          by wram_simp [hvkb], by wram_simp [hvpb], by wram_simp [hvbb],
-          by wram_simp [hvw], by wram_simp [hvlo], by wram_simp [hvmid],
-          by wram_simp [hvhi], by wram_simp; omega, by wram_simp; omega,
-          by wram_simp [hpb1], by wram_simp [hpb2], by omega,
-          by wram_simp; omega, by wram_simp [Data.write_mem]; exact hmod_snoc,
-          pref ++ [L[v.regs pA]], by simp [hpref_len]; omega,
-          by wram_simp [Data.write_mem]; exact hmem_snoc, ?_⟩, by wram_simp⟩
-        wram_simp
-        rw [List.append_assoc, List.singleton_append, ← hmerge_inv, hslA, hslB,
-          List.cons_merge_cons, hcmp_t]
-        rfl
-    · have hslB : slice L (v.regs pB) (hi_v - v.regs pB) = [] := by
-        rw [show hi_v - v.regs pB = 0 by omega, slice_zero]
-      obtain ⟨hmod_snoc, hmem_snoc⟩ :=
-        prefix_snoc_mem (elem := L[v.regs pA]) hpref_len hidx_lo hmod_in hpref_mem
+        refine hstep L[v.regs pA] (v.regs pA + 1) (v.regs pB) _ (by omega) ?_
+          ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
+        · rw [hslA, hslB, List.cons_merge_cons, hcmp_t]
+          rfl
+        all_goals wram_simp [Data.write_mem, hvo, hvn, hvkb, hvpb, hvbb, hvw, hvlo, hvmid, hvhi]
+    · have hsubB : hi_v - v.regs pB = 0 := by omega
+      have hslB : slice L (v.regs pB) (hi_v - v.regs pB) = [] := by rw [hsubB, slice_zero]
       wram_exec [hvo, hvpb, hvbb, hvmid, hvhi, hcA, hcB, hread_uA]
-      refine ⟨⟨by wram_simp [hvo], by wram_simp [hvn],
-        by wram_simp [hvkb], by wram_simp [hvpb], by wram_simp [hvbb],
-        by wram_simp [hvw], by wram_simp [hvlo], by wram_simp [hvmid],
-        by wram_simp [hvhi], by wram_simp; omega, by wram_simp; omega,
-        by wram_simp [hpb1], by wram_simp [hpb2], by omega,
-        by wram_simp; omega, by wram_simp [Data.write_mem]; exact hmod_snoc,
-        pref ++ [L[v.regs pA]], by simp [hpref_len]; omega,
-        by wram_simp [Data.write_mem]; exact hmem_snoc, ?_⟩, by wram_simp⟩
-      wram_simp
-      rw [List.append_assoc, List.singleton_append, ← hmerge_inv, hslA, hslB]
-      simp
+      refine hstep L[v.regs pA] (v.regs pA + 1) (v.regs pB) _ (by omega) ?_
+        ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
+      · simp [hslA, hslB]
+      all_goals wram_simp [Data.write_mem, hvo, hvn, hvkb, hvpb, hvbb, hvw, hvlo, hvmid, hvhi]
   · have hcB : v.regs pB < hi_v := by omega
-    have hpb_lt_L : v.regs pB < L.length := by omega
-    have hread_uB : v.mem (pb + v.regs pB) = L[v.regs pB] := hv_L.get _ hpb_lt_L
-    have hslA : slice L (v.regs pA) (mid_v - v.regs pA) = [] := by
-      rw [show mid_v - v.regs pA = 0 by omega, slice_zero]
+    have hread_uB : v.mem (pb + v.regs pB) = L[v.regs pB]'(by omega) := hv_L.get _ (by omega)
+    have hsubA : mid_v - v.regs pA = 0 := by omega
+    have hslA : slice L (v.regs pA) (mid_v - v.regs pA) = [] := by rw [hsubA, slice_zero]
     have hslB := slice_eq_cons L hcB (by omega)
-    obtain ⟨hmod_snoc, hmem_snoc⟩ :=
-      prefix_snoc_mem (elem := L[v.regs pB]) hpref_len hidx_lo hmod_in hpref_mem
     wram_exec [hvo, hvpb, hvbb, hvmid, hcA, hread_uB]
-    refine ⟨⟨by wram_simp [hvo], by wram_simp [hvn],
-      by wram_simp [hvkb], by wram_simp [hvpb], by wram_simp [hvbb],
-      by wram_simp [hvw], by wram_simp [hvlo], by wram_simp [hvmid],
-      by wram_simp [hvhi], by wram_simp [hpa1], by wram_simp [hpa2],
-      by wram_simp; omega, by wram_simp; omega, by omega,
-      by wram_simp; omega, by wram_simp [Data.write_mem]; exact hmod_snoc,
-      pref ++ [L[v.regs pB]], by simp [hpref_len]; omega,
-      by wram_simp [Data.write_mem]; exact hmem_snoc, ?_⟩, by wram_simp⟩
-    wram_simp
-    rw [List.append_assoc, List.singleton_append, ← hmerge_inv, hslA, hslB]
-    simp
+    refine hstep L[v.regs pB] (v.regs pA) (v.regs pB + 1) _ (by omega) ?_
+      ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
+    · simp [hslA, hslB]
+    all_goals wram_simp [Data.write_mem, hvo, hvn, hvkb, hvpb, hvbb, hvw, hvlo, hvmid, hvhi]
 
 private theorem mergePassSetup_exec {w kb pb bb W lo_v mid_v hi_v : ℕ}
     (keys L : List ℕ) (u : Data 18)
@@ -610,6 +597,22 @@ private theorem mergePassSetup_exec {w kb pb bb W lo_v mid_v hi_v : ℕ}
     ∃ u1 : Data 18, ExecWithin w mergePassSetup u u1 11 ∧
       InInv keys L kb pb bb W lo_v mid_v hi_v u.mem (u1.regs outIdx) u1 ∧
       u1.regs outIdx = lo_v := by
+  have hle1 : lo_v ≤ mid_v := by omega
+  have hle2 : mid_v ≤ hi_v := by omega
+  have hrem : (mid_v - lo_v) + (hi_v - mid_v) = hi_v - lo_v := by omega
+  have hinv (u1 : Data 18) (hmem : u1.mem = u.mem)
+      (ho : u1.regs one = 1) (hn : u1.regs len = keys.length)
+      (hkb : u1.regs keyBase = kb) (hpb : u1.regs permBase = pb) (hbb : u1.regs bufBase = bb)
+      (hw : u1.regs wRun = W) (hlo : u1.regs lo = lo_v) (hmid : u1.regs mid = mid_v)
+      (hhi : u1.regs hi = hi_v) (hpA : u1.regs pA = lo_v) (hpB : u1.regs pB = mid_v)
+      (hout : u1.regs outIdx = lo_v) :
+      InInv keys L kb pb bb W lo_v mid_v hi_v u.mem (u1.regs outIdx) u1 ∧
+        u1.regs outIdx = lo_v :=
+    ⟨⟨ho, hn, hkb, hpb, hbb, hw, hlo, hmid, hhi, hpA.symm ▸ le_rfl, hpA.symm ▸ hle1,
+      hpB.symm ▸ le_rfl, hpB.symm ▸ hle2, hout.symm ▸ le_rfl,
+      by rwa [hpA, hpB, hout], hmem ▸ Modifies.refl _ _, [],
+      by simp [hout], fun d hd => absurd hd (Nat.not_lt_zero d),
+      by simp [hpA, hpB]⟩, hout⟩
   refine WP.exists_execWithin ?_
   unfold mergePassSetup
   by_cases hm1 : keys.length < lo_v + W
@@ -617,50 +620,20 @@ private theorem mergePassSetup_exec {w kb pb bb W lo_v mid_v hi_v : ℕ}
     have hh2 : keys.length < keys.length + W := by omega
     have hh_eq : hi_v = keys.length := by omega
     wram_exec [hun, huw, hlo_def, hm1, hh2]
-    refine ⟨⟨by wram_simp [huo], by wram_simp [hun],
-      by wram_simp [hukb], by wram_simp [hupb], by wram_simp [hubb],
-      by wram_simp [huw], by wram_simp [hlo_def], by wram_simp [hm_eq],
-      by wram_simp [hh_eq], by wram_simp [hlo_def]; omega,
-      by wram_simp [hlo_def, hm_eq]; omega,
-      by wram_simp [hm_eq]; omega, by wram_simp [hm_eq, hh_eq]; omega,
-      by wram_simp [hlo_def]; omega,
-      by wram_simp [hlo_def, hm_eq, hh_eq],
-      Modifies.refl _ _, [], by wram_simp [hlo_def]; rfl,
-      fun d hd => absurd hd (Nat.not_lt_zero d),
-      by wram_simp [hlo_def, hm_eq, hh_eq]; simp⟩,
-      by wram_simp [hlo_def]⟩
+    refine hinv _ rfl ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
+    all_goals wram_simp [huo, hun, hukb, hupb, hubb, huw, hlo_def, hm_eq, hh_eq]
   · have hm_eq : mid_v = lo_v + W := by omega
     by_cases hh2 : keys.length < mid_v + W
     · have hh_eq : hi_v = keys.length := by omega
       have hh2' : keys.length < lo_v + W + W := by omega
       wram_exec [hun, huw, hlo_def, hm1, hh2']
-      refine ⟨⟨by wram_simp [huo], by wram_simp [hun],
-        by wram_simp [hukb], by wram_simp [hupb], by wram_simp [hubb],
-        by wram_simp [huw], by wram_simp [hlo_def], by wram_simp [hm_eq],
-        by wram_simp [hh_eq], by wram_simp [hlo_def]; omega,
-        by wram_simp [hlo_def, hm_eq]; omega,
-        by wram_simp [hm_eq]; omega, by wram_simp [hm_eq, hh_eq]; omega,
-        by wram_simp [hlo_def]; omega,
-        by wram_simp [hlo_def, hm_eq, hh_eq]; omega,
-        Modifies.refl _ _, [], by wram_simp [hlo_def]; rfl,
-        fun d hd => absurd hd (Nat.not_lt_zero d),
-        by wram_simp [hlo_def, hm_eq, hh_eq]; simp⟩,
-        by wram_simp [hlo_def]⟩
+      refine hinv _ rfl ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
+      all_goals wram_simp [huo, hun, hukb, hupb, hubb, huw, hlo_def, hm_eq, hh_eq]
     · have hh_eq : hi_v = lo_v + W + W := by omega
       have hh2' : ¬ (keys.length < lo_v + W + W) := by omega
       wram_exec [hun, huw, hlo_def, hm1, hh2']
-      refine ⟨⟨by wram_simp [huo], by wram_simp [hun],
-        by wram_simp [hukb], by wram_simp [hupb], by wram_simp [hubb],
-        by wram_simp [huw], by wram_simp [hlo_def], by wram_simp [hm_eq],
-        by wram_simp [hh_eq], by wram_simp [hlo_def]; omega,
-        by wram_simp [hlo_def, hm_eq]; omega,
-        by wram_simp [hm_eq]; omega, by wram_simp [hm_eq, hh_eq]; omega,
-        by wram_simp [hlo_def]; omega,
-        by wram_simp [hlo_def, hm_eq, hh_eq]; omega,
-        Modifies.refl _ _, [], by wram_simp [hlo_def]; rfl,
-        fun d hd => absurd hd (Nat.not_lt_zero d),
-        by wram_simp [hlo_def, hm_eq, hh_eq]; simp⟩,
-        by wram_simp [hlo_def]⟩
+      refine hinv _ rfl ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_
+      all_goals wram_simp [huo, hun, hukb, hupb, hubb, huw, hlo_def, hm_eq, hh_eq]
 
 private theorem mergeRuns_stable {keys L M : List ℕ} {W p lo_v mid_v hi_v : ℕ}
     (hL_len : L.length = keys.length)
@@ -781,6 +754,23 @@ private theorem mergePassBody_exec {w kb pb bb W : ℕ}
     unfold mergePassBody
     refine (hex_ms.seq (hex_in.seq ExecWithin.copy)).mono ?_
     rw [hout1]; omega
+  have hslice_accM (q : ℕ) :
+      slice (acc ++ M) (q * (2 * W)) (2 * W) = slice acc (q * (2 * W)) (2 * W) ∨
+        (q = p ∧ slice (acc ++ M) (q * (2 * W)) (2 * W) = M) ∨
+        slice (acc ++ M) (q * (2 * W)) (2 * W) = [] := by
+    rcases lt_trichotomy q p with hqp | rfl | hpq
+    · have hq1 := Nat.mul_le_mul_right (2 * W) (Nat.succ_le_of_lt hqp)
+      rw [Nat.succ_mul] at hq1
+      exact Or.inl (slice_append_left (by omega))
+    · have hq_eq : q * (2 * W) = acc.length := by omega
+      refine Or.inr (Or.inl ⟨rfl, ?_⟩)
+      rw [slice, hq_eq, List.drop_left' rfl, List.take_of_length_le (by omega)]
+    · have hp1 := Nat.mul_le_mul_right (2 * W) (Nat.succ_le_of_lt hpq)
+      rw [Nat.succ_mul] at hp1
+      have hge_end : (acc ++ M).length ≤ q * (2 * W) := by
+        simp only [List.length_append, hacc_len, hM_len]; omega
+      refine Or.inr (Or.inr ?_)
+      rw [slice, List.drop_eq_nil_of_le hge_end, List.take_nil]
   refine ⟨u', 18 * (hi_v - lo_v) + 14, hex_mp, ?_, ?_⟩
   · refine ⟨by wram_simp [u', hu2o], by wram_simp [u', hu2n],
       by wram_simp [u', hu2kb], by wram_simp [u', hu2pb], by wram_simp [u', hu2bb],
@@ -803,39 +793,19 @@ private theorem mergePassBody_exec {w kb pb bb W : ℕ}
         exact h1.trans (hacc_mem j hj_acc)
       · have hj_ge : acc.length ≤ j := by omega
         have hd_lt : j - lo_v < M.length := by simp at hj; omega
+        have haddr : bb + lo_v + (j - lo_v) = bb + j := by omega
         rw [List.getElem_append_right hj_ge]
-        simpa [u', hacc_len, show bb + lo_v + (j - lo_v) = bb + j by omega] using
-          hM_mem (j - lo_v) hd_lt
+        simpa [u', hacc_len, haddr] using hM_mem (j - lo_v) hd_lt
     · intro q
-      rcases lt_trichotomy q p with hqp | rfl | hpq
-      · have hle_acc : q * (2 * W) + 2 * W ≤ acc.length := by
-          have hq1 := Nat.mul_le_mul_right (2 * W) (Nat.succ_le_of_lt hqp)
-          rw [Nat.succ_mul] at hq1; omega
-        rw [slice_append_left hle_acc]; exact hacc_pw q
-      · have hdrop_eq : slice (acc ++ M) (q * (2 * W)) (2 * W) = M := by
-          rw [slice, show q * (2 * W) = acc.length by omega,
-            List.drop_left' rfl, List.take_of_length_le (by omega)]
-        rw [hdrop_eq]; exact hM_pw
-      · have hge_end : (acc ++ M).length ≤ q * (2 * W) := by
-          have hp1 := Nat.mul_le_mul_right (2 * W) (Nat.succ_le_of_lt hpq)
-          rw [Nat.succ_mul] at hp1
-          simp only [List.length_append, hacc_len, hM_len]; omega
-        rw [slice, List.drop_eq_nil_of_le hge_end, List.take_nil]; exact .nil
+      rcases hslice_accM q with h | ⟨-, h⟩ | h
+      · exact h.symm ▸ hacc_pw q
+      · exact h.symm ▸ hM_pw
+      · exact h.symm ▸ .nil
     · intro q z hz
-      rcases lt_trichotomy q p with hqp | rfl | hpq
-      · have hle_acc : q * (2 * W) + 2 * W ≤ acc.length := by
-          have hq1 := Nat.mul_le_mul_right (2 * W) (Nat.succ_le_of_lt hqp)
-          rw [Nat.succ_mul] at hq1; omega
-        rw [slice_append_left hle_acc] at hz; exact hacc_rng q z hz
-      · have hdrop_eq : slice (acc ++ M) (q * (2 * W)) (2 * W) = M := by
-          rw [slice, show q * (2 * W) = acc.length by omega,
-            List.drop_left' rfl, List.take_of_length_le (by omega)]
-        rw [hdrop_eq] at hz; exact hM_rng z hz
-      · have hge_end : (acc ++ M).length ≤ q * (2 * W) := by
-          have hp1 := Nat.mul_le_mul_right (2 * W) (Nat.succ_le_of_lt hpq)
-          rw [Nat.succ_mul] at hp1
-          simp only [List.length_append, hacc_len, hM_len]; omega
-        rw [slice, List.drop_eq_nil_of_le hge_end, List.take_nil] at hz; simp at hz
+      rcases hslice_accM q with h | ⟨rfl, h⟩ | h
+      · exact hacc_rng q z (h ▸ hz)
+      · exact hM_rng z (h ▸ hz)
+      · simp [h] at hz
   · have hlo_u' : u'.regs lo = hi_v := by wram_simp [u', hu2hi]
     rw [hlo_u']
     have hk1 : 18 * (hi_v - lo_v) + 16 ≤ 34 * (hi_v - lo_v) := by omega

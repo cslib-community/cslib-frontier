@@ -74,23 +74,14 @@ theorem memory_succ (mem : ℕ → ℕ) (dst p₀ p₁ p₂ p₃ k : ℕ) :
         (memory mem dst p₀ p₁ p₂ p₃ k) (dst + 4 * k) p₀)
           (dst + 4 * k + 1) p₁) (dst + 4 * k + 2) p₂) (dst + 4 * k + 3) p₃ := by
   funext a
-  by_cases h₀ : a = dst + 4 * k
-  · subst a; simp [memory, pattern]
-  by_cases h₁ : a = dst + 4 * k + 1
-  · subst a
-    simp [memory, pattern, show dst + 4 * k + 1 - dst = 4 * k + 1 by omega,
-      show dst ≤ dst + 4 * k + 1 ∧ dst + 4 * k + 1 < dst + 4 * (k + 1) by omega]
-  by_cases h₂ : a = dst + 4 * k + 2
-  · subst a
-    simp [memory, pattern, show dst + 4 * k + 2 - dst = 4 * k + 2 by omega,
-      show dst ≤ dst + 4 * k + 2 ∧ dst + 4 * k + 2 < dst + 4 * (k + 1) by omega]
-  by_cases h₃ : a = dst + 4 * k + 3
-  · subst a
-    simp [memory, pattern, show dst + 4 * k + 3 - dst = 4 * k + 3 by omega,
-      show dst ≤ dst + 4 * k + 3 ∧ dst + 4 * k + 3 < dst + 4 * (k + 1) by omega]
-  simp only [Function.update_of_ne h₃, Function.update_of_ne h₂, Function.update_of_ne h₁,
-    Function.update_of_ne h₀, memory,
-    show (dst ≤ a ∧ a < dst + 4 * (k + 1)) ↔ (dst ≤ a ∧ a < dst + 4 * k) by omega]
+  simp only [Function.update_apply]
+  split_ifs with h₃ h₂ h₁ h₀
+  · simp [h₃, memory, pattern, add_assoc, Nat.mul_add]
+  · simp [h₂, memory, pattern, add_assoc, Nat.mul_add]
+  · simp [h₁, memory, pattern, add_assoc, Nat.mul_add]
+  · simp [h₀, memory, pattern]
+  · simp only [memory]
+    split_ifs <;> omega
 
 /-- Every address, store and increment of a four-word group is charged. -/
 def body : Code .standard 10 := ram[

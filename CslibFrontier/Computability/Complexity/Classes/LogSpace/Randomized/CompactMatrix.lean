@@ -156,26 +156,20 @@ theorem compactCoinMatrix_pow_accept (c : ℕ) {w : List Bool}
   have hinput (v : V) : v.val.input = w := input_of_reachable (hr v)
   have hfit (v : V) : Fits B (registers v.val) := fits_of_runsInSpace c hs (hr v)
   let e : V ↪ Fin (vertexBound (k := k) B) :=
-    ⟨fun v => ⟨vertexID B v.val, vertexID_lt (hfit v)⟩, by
-      intro v z hvz
-      apply Subtype.ext
-      exact vertexID_injective ((hinput v).trans (hinput z).symm)
+    ⟨fun v => ⟨vertexID B v.val, vertexID_lt (hfit v)⟩, fun v z hvz => Subtype.ext
+      (vertexID_injective ((hinput v).trans (hinput z).symm)
         (canonical_of_reachable machine (hr v)) (canonical_of_reachable machine (hr z))
-        (hfit v) (hfit z) (congrArg Fin.val hvz)⟩
+        (hfit v) (hfit z) (congrArg Fin.val hvz))⟩
   have hclosed (v : V) (z : Fin (vertexBound (k := k) B)) (hz : z ∉ Set.range e) :
       compactCoinMatrix machine R B w (e v) z = 0 := by
     have hzero (bit : Bool) : edgeWithSymbol (machine.withCoin bit).toTM.toMultiTapeNTM
         B w.length (vertexID B v.val) z w[queryIndex (k := k) B (vertexID B v.val)]? = false := by
-      apply Bool.eq_false_iff.mpr
-      intro hedge
-      have hedge' : Edge (machine.withCoin bit).toTM.toMultiTapeNTM B v.val.input
-          (vertexID B v.val) z := by
-        simpa only [Edge, hinput v] using hedge
-      obtain ⟨next, hstep, _, hid, _⟩ := edge_sound (hfit v) hedge'
-      have hnext := (viewStep_withCoin_iff machine bit).mp hstep
-      have hn : next ∈ V := (hreach next).mpr
-        ((hr v).tail (machine.viewStep_toNTM_iff.mpr ⟨bit, hnext⟩))
-      exact hz ⟨⟨next, hn⟩, Fin.ext hid.symm⟩
+      refine Bool.eq_false_iff.mpr fun hedge => ?_
+      obtain ⟨next, hstep, _, hid, _⟩ :=
+        edge_sound (hfit v) (by simpa only [Edge, hinput v] using hedge)
+      exact hz ⟨⟨next, (hreach next).mpr ((hr v).tail
+        (machine.viewStep_toNTM_iff.mpr ⟨bit, (viewStep_withCoin_iff machine bit).mp hstep⟩))⟩,
+        Fin.ext hid.symm⟩
     change (coinCountWithSymbol machine B w.length (vertexID B v.val) z
       w[queryIndex (k := k) B (vertexID B v.val)]? : R) / 2 = 0
     simp [coinCountWithSymbol, hzero]
@@ -188,21 +182,18 @@ theorem compactCoinMatrix_pow_accept (c : ℕ) {w : List Bool}
     rw [coinCountWithSymbol_eq_configMatrix_of_reachable machine c hs
       (fun v hv => (hreach v).mp hv) v z, div_eq_inv_mul]
   have hreward : compactAcceptVec (k := k) (State := State) R B w.length ∘ e =
-      FiniteCfg.acceptVec R V := by
-    funext v
+      FiniteCfg.acceptVec R V := funext fun v => by
     have hb := bad_vertexID (hfit v)
     rw [hinput v] at hb
     change (if bad (k := k) (State := State) B w.length (vertexID B v.val)
       then (1 : R) else 0) = FiniteCfg.acceptVec R V v
     simp only [hb, FiniteCfg.acceptVec]
-  have he : e ⟨machine.toNTM.initView w, hinit⟩ = compactStart machine c hs := by
-    apply Fin.ext
-    exact vertexID_init machine.toNTM B w
   have hp := Matrix.submatrix_pow_mulVec_of_closed (compactCoinMatrix machine R B w) e
     hclosed (compactAcceptVec (k := k) (State := State) R B w.length) t
   rw [hmatrix, hreward] at hp
   have hv := congrFun hp ⟨machine.toNTM.initView w, hinit⟩
-  rw [Function.comp_apply, he] at hv
+  rw [Function.comp_apply, show e ⟨machine.toNTM.initView w, hinit⟩ = compactStart machine c hs
+    from Fin.ext (vertexID_init machine.toNTM B w)] at hv
   exact hv.symm.trans
     (machine.acceptCoins_div_eq_configMatrix_pow_mulVec R hclosedV hinit t).symm
 

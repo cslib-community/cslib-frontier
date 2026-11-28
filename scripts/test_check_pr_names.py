@@ -343,6 +343,87 @@ def ordinaryEncoder : Nat := 0
                                        str(self.root)], root=self.root), 0)
         self.assertIn("All 1 backticked names", out.getvalue())
 
+    def test_fetch_deps_skips_network_when_local_sources_resolve_all_tokens(self) -> None:
+        with mock.patch.object(cpn, "fetch_dependency_sources") as fetch:
+            report = cpn.check("Uses `Cslib.Demo.Pair` and `Cslib.Demo.pair_first_eq`.",
+                               self.root, core=False, fetch_deps=True)
+        self.assertEqual(report.findings, [])
+        fetch.assert_not_called()
+
+    def test_fetch_deps_resolves_manifest_packages_and_core_sources_and_skips_bad_entries(self) -> None:
+        def make_git_repo(rel: str, files: dict[str, str], tag: str | None = None) -> tuple[str, str]:
+            repo = self.root / rel
+            repo.mkdir(parents=True)
+            for path, content in files.items():
+                target = repo / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(content, encoding="utf-8")
+            env = {**cpn.os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                   "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True, env=env)
+            subprocess.run(["git", "add", "."], cwd=repo, check=True, env=env)
+            subprocess.run(["git", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"],
+                           cwd=repo, check=True, env=env)
+            rev = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+            if tag:
+                subprocess.run(["git", "tag", tag], cwd=repo, check=True, env=env)
+            return repo.as_uri(), rev
+
+        pkg_url, pkg_rev = make_git_repo(
+            "remotes/extpkg",
+            {"ExtPkg/Basic.lean": "namespace ExtPkg\ntheorem ext_bridge : True := trivial\nend ExtPkg\n"},
+        )
+        sub_url, sub_rev = make_git_repo(
+            "remotes/subpkg",
+            {"nested/SubPkg/Basic.lean": "namespace SubPkg\ntheorem sub_bridge : True := trivial\nend SubPkg\n",
+             "outside/Ignored.lean": "namespace Ignored\ntheorem not_in_subdir : True := trivial\nend Ignored\n"},
+        )
+        core_url, _ = make_git_repo(
+            "remotes/lean4",
+            {"src/Init/CoreDemo.lean": "namespace Init\ntheorem core_refl : True := trivial\nend Init\n"},
+            tag="v4.99.0-test",
+        )
+        manifest = {
+            "version": "1.3.0",
+            "packages": [
+                42,
+                {"type": "git", "name": "nonsub", "url": pkg_url, "rev": pkg_rev, "subDir": 123},
+                {"type": "git", "name": "listsub", "url": pkg_url, "rev": pkg_rev, "subDir": ["nested"]},
+                {"type": "git", "name": "extpkg", "url": pkg_url, "rev": pkg_rev, "subDir": None},
+                {"type": "git", "name": "extpkg", "url": pkg_url, "rev": pkg_rev, "subDir": "../escape"},
+                {"type": "git", "name": "subpkg", "url": sub_url, "rev": sub_rev, "subDir": "nested"},
+                {"type": "git", "name": "../escape", "url": pkg_url, "rev": pkg_rev, "subDir": None},
+                {"type": "git", "name": "badrev", "url": pkg_url, "rev": "not-a-sha", "subDir": None},
+                {"type": "git", "name": "badurl", "url": "-oProxyCommand=evil", "rev": pkg_rev, "subDir": None},
+            ],
+        }
+        (self.root / "lake-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        (self.root / "lean-toolchain").write_text("leanprover/lean4:v4.99.0-test\n", encoding="utf-8")
+        body = ("Combines `Cslib.Demo.Pair`, `ExtPkg.ext_bridge`, `SubPkg.sub_bridge`, "
+                "`Init.core_refl`, `Ignored.not_in_subdir`, and `missingSlip`.")
+        with mock.patch.object(cpn.shutil, "which", side_effect=lambda cmd: None if cmd == "lean"
+                               else shutil_which(cmd)), \
+                mock.patch.dict(cpn.os.environ, {"LEAN_CORE_GIT_URL": core_url}):
+            without_fetch = cpn.check(body, self.root, core=True, fetch_deps=False)
+            with_fetch = cpn.check(body, self.root, core=True, fetch_deps=True)
+        self.assertEqual([f.token for f in without_fetch.findings],
+                         ["ExtPkg.ext_bridge", "SubPkg.sub_bridge", "Init.core_refl",
+                          "Ignored.not_in_subdir", "missingSlip"])
+        self.assertEqual([f.token for f in with_fetch.findings],
+                         ["Ignored.not_in_subdir", "missingSlip"])
+
+        for malformed in ('{"packages": 123}', '{"packages": null}', '[]', '{not-json'):
+            with self.subTest(malformed=malformed):
+                (self.root / "lake-manifest.json").write_text(malformed, encoding="utf-8")
+                with mock.patch.object(cpn.shutil, "which", side_effect=lambda cmd: None if cmd == "lean"
+                                       else shutil_which(cmd)):
+                    report = cpn.check("Uses `Cslib.Demo.Pair` and `missingSlip`.",
+                                       self.root, core=False, fetch_deps=True)
+                self.assertEqual([f.token for f in report.findings], ["missingSlip"])
+
+
+shutil_which = cpn.shutil.which
+
 
 if __name__ == "__main__":
     unittest.main()

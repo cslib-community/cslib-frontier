@@ -77,7 +77,10 @@ between tests and predictors are `Cslib.Crypto.PRG.nextBitPredictor` and
 * `Cslib.Crypto.PRG.Generator.advantage_predictionTest`: the test built from a predictor has the
   advantage of the predictor.
 
-The uniform next-bit theorem for strict-PPT adversaries is open (#5293).
+The uniform next-bit theorem for strict-PPT adversaries is
+`Cslib.Crypto.pseudorandomGenerator_iff_nextBitUnpredictable`, with the random-position form
+`Cslib.Crypto.pseudorandomGenerator_iff_nextBitUnpredictableRandomIndex`, in
+`CslibFrontier.Crypto.Computational.PseudorandomGenerator.NextBit`.
 
 ## References
 

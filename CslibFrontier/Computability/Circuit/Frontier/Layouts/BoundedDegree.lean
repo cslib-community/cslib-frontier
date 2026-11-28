@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Core
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.MultiGaussian
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Real.Pi.Bounds
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
 
@@ -71,35 +72,27 @@ theorem vertexCoefficient_pos {d : ℕ} (hd : 3 ≤ d) : 0 < vertexCoefficient d
 
 /-- The layout coefficient `degreeCoefficient d` is positive for `d ≥ 3`. -/
 theorem degreeCoefficient_pos {d : ℕ} (hd : 3 ≤ d) : 0 < degreeCoefficient d := by
-  have hD : (3 : ℝ) ≤ d := by exact_mod_cast hd
-  exact mul_pos (div_pos (by linarith) (by linarith)) (vertexCoefficient_pos hd)
+  exact mul_pos (div_pos (by cast_linarith [hd]) (by cast_linarith)) (vertexCoefficient_pos hd)
 
 /-- In degree three the coefficient `3 arccos (2√2/3) / π ≈ 0.3245` is at most `1/3`, since
 `cos (π/9) ≤ 2√2/3`. -/
 theorem degreeCoefficient_three_le : degreeCoefficient 3 ≤ 1 / 3 := by
-  have hsqrt : (141421 : ℝ) / 100000 < √2 := (lt_sqrt (by norm_num)).mpr (by norm_num)
-  have hpi := pi_gt_d2
-  have hpi' := pi_lt_d2
-  set θ := π / 9 with hθ
-  have hθ0 : 0 ≤ θ := by positivity
-  have hθlo : 0.3488 ≤ θ := by
-    rw [hθ]
-    linarith
-  have hθhi : θ ≤ 0.35 := by
-    rw [hθ]
-    linarith
-  have hcos : cos θ ≤ 2 * √2 / 3 := by
-    have hb := cos_bound (x := θ) (by rw [abs_of_nonneg hθ0]; linarith)
+  have hsqrt : (141421 : ℝ) / 100000 < √2 :=
+    (lt_sqrt (by norm_num)).mpr
+      (by norm_num)
+  have hθ0 : 0 ≤ π / 9 := by positivity
+  have hθlo : 0.3488 ≤ π / 9 := by linarith [pi_gt_d2]
+  have hθhi : π / 9 ≤ 0.35 := by linarith [pi_lt_d2]
+  have hcos : cos (π / 9) ≤ 2 * √2 / 3 := by
+    have hb := cos_bound (x := π / 9) (by rw [abs_of_nonneg hθ0]; linarith)
     rw [abs_of_nonneg hθ0] at hb
-    have h2 : θ ^ 2 ≥ 0.3488 ^ 2 := by gcongr
-    have h4 : θ ^ 4 ≤ 0.35 ^ 4 := by gcongr
+    have h2 : (π / 9) ^ 2 ≥ 0.3488 ^ 2 := by gcongr
+    have h4 : (π / 9) ^ 4 ≤ 0.35 ^ 4 := by gcongr
     nlinarith [(abs_le.mp hb).2]
-  have harccos : arccos (2 * √2 / 3) ≤ θ :=
-    (arccos_le_arccos hcos).trans_eq (arccos_cos hθ0 (by rw [hθ]; linarith))
+  have harccos : arccos (2 * √2 / 3) ≤ π / 9 :=
+    (arccos_le_arccos hcos).trans_eq (arccos_cos hθ0 (by linarith [pi_lt_d2]))
   have hρ : vertexCorrelation 3 = 2 * √2 / 3 := by norm_num [vertexCorrelation]
-  unfold degreeCoefficient vertexCoefficient
-  rw [hρ, mul_div_assoc', div_le_iff₀ pi_pos]
-  norm_num
+  rw [degreeCoefficient, vertexCoefficient, hρ, mul_div_assoc', div_le_iff₀ pi_pos]
   linarith
 
 end Gaussian
@@ -111,11 +104,10 @@ theorem Multigraph.Compression.Saturated.card_external_le_div_mul_cycleRank
     {Q : G.Compression d} (hQ : Q.Saturated) (hG : G.toSimpleGraph.Connected)
     (two : 1 < Nat.card Q.blocks) :
     (Nat.card Q.external : ℝ) ≤ 3 * d / (2 * d - 3) * G.cycleRank := by
-  have hD : (3 : ℝ) ≤ d := by exact_mod_cast hd
   have h := Nat.cast_le (α := ℝ).mpr (hQ.mul_card_external_le hG two)
   push_cast [Nat.cast_sub (by omega : 3 ≤ 2 * d)] at h
-  rw [div_mul_eq_mul_div, le_div_iff₀ (by linarith)]
-  linarith
+  rw [div_mul_eq_mul_div, le_div_iff₀ (by cast_linarith [hd])]
+  cast_linarith
 
 /-- Since `3 d / (2 d - 3) ≤ 3` for `d ≥ 3`, a saturated quotient has at most `3 β₁` external edges
 and at most `3 β₁` blocks. -/
@@ -125,12 +117,11 @@ theorem Multigraph.Compression.Saturated.card_external_and_blocks_le_three_mul_c
     (two : 1 < Nat.card Q.blocks) :
     (Nat.card Q.external : ℝ) ≤ 3 * G.cycleRank ∧
       (Nat.card Q.blocks : ℝ) ≤ 3 * G.cycleRank := by
-  have hD : (3 : ℝ) ≤ d := by exact_mod_cast hd
   have hE3 : (Nat.card Q.external : ℝ) ≤ 3 * G.cycleRank := by
     refine (hQ.card_external_le_div_mul_cycleRank hd hG two).trans
       (mul_le_mul_of_nonneg_right ?_ (Nat.cast_nonneg _))
-    rw [div_le_iff₀ (by linarith)]
-    linarith
+    rw [div_le_iff₀ (by cast_linarith [hd])]
+    cast_linarith
   exact ⟨hE3, (Nat.cast_le.mpr (hQ.card_blocks_le_card_external hG two)).trans hE3⟩
 
 /-- **Gaussian vertex-score layouts.** For `d ≥ 3`, connected, loopless multigraphs of maximum
@@ -149,10 +140,8 @@ theorem layoutBound_degree {d : ℕ} (hd : 3 ≤ d) :
   refine ⟨σ, hσ.trans ?_⟩
   have hE := hQ.card_external_le_div_mul_cycleRank hd hG two
   have ⟨_, hV⟩ := hQ.card_external_and_blocks_le_three_mul_cycleRank hd hG two
-  have hmain := mul_le_mul_of_nonneg_left hE (Gaussian.vertexCoefficient_pos hd).le
-  have hslack := mul_le_mul_of_nonneg_left hV (show 0 ≤ η / 3 by positivity)
   unfold Gaussian.degreeCoefficient
-  nlinarith
+  nlinarith [Gaussian.vertexCoefficient_pos hd]
 
 /-- **The layout hypothesis with coefficient one third** for maximum degree three, from Gaussian
 vertex-score layouts: `A_3 = 3 arccos (2√2/3) / π ≤ 1/3`. -/

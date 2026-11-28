@@ -81,16 +81,10 @@ theorem blockSensitivityAt_eq_queryComplexity_blockSensitivityAt (f : BooleanFun
     · exact Nat.zero_le _
   · obtain ⟨hsens, hdisj⟩ := mem_sensitiveFamilies.mp hF
     refine Finset.le_sup_of_le (mem_univ F) ?_
-    split_ifs with h
-    · rfl
-    · exfalso
-      apply h
-      refine ⟨fun A hA B hB hAB => hdisj hA hB hAB, fun B hB => ⟨?_, ?_⟩⟩
-      · rw [Finset.nonempty_iff_ne_empty]
-        rintro rfl
-        exact hsens _ hB (by rw [BitString.flipBlock_empty])
-      · rw [BitString.flipOn_eq_flipBlock]
-        exact hsens B hB
+    rw [ite_eq_left ⟨fun A hA B hB hAB => hdisj hA hB hAB, fun B hB =>
+      ⟨Finset.nonempty_iff_ne_empty.mpr fun h0 =>
+          hsens _ hB (congrArg f (h0 ▸ BitString.flipBlock_empty x)),
+        (BitString.flipOn_eq_flipBlock B x).symm ▸ hsens B hB⟩⟩]
 
 /-- On `Fin n`, the internal block sensitivity is `QueryComplexity.blockSensitivity`. -/
 theorem blockSensitivity_eq_queryComplexity_blockSensitivity (f : BooleanFunction n) :

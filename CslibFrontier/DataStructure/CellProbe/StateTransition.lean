@@ -116,18 +116,16 @@ theorem ExecOp.eq_of_execOp {Op : Type v} {Result : Op → Type} {cells w : ℕ}
     a = ((P.step o).run m).1 ∧
       m' = ((P.step o).run m).2 ∧
       tr = ⟨(P.step o).probes m, (P.step o).probedCells m⟩ := by
-  obtain ⟨hrun, hpr, hcells⟩ := he
-  cases tr
-  simp only [OperationTrace.mk.injEq] at hpr hcells ⊢
-  exact ⟨(congrArg Prod.fst hrun).symm, (congrArg Prod.snd hrun).symm, hpr, hcells⟩
+  rcases tr with ⟨_, _⟩
+  exact ⟨(congrArg Prod.fst he.1).symm, (congrArg Prod.snd he.1).symm,
+    OperationTrace.mk.injEq .. ▸ ⟨he.2.1, he.2.2⟩⟩
 
 /-- On any `ExecOp P` step, the number of distinct probed cells is at most `tr.probes`. -/
 theorem ExecOp.card_probedCells_le_probes {Op : Type v} {Result : Op → Type} {cells w : ℕ}
     {P : Scheme Op Result cells w} {m m' : Mem cells w} {o : Op} {a : Result o}
     {tr : OperationTrace cells} (he : ExecOp P m o a m' tr) :
-    tr.probedCells.card ≤ tr.probes := by
-  rw [he.2.1, he.2.2]
-  exact (P.step o).card_probedCells_le_probes m
+    tr.probedCells.card ≤ tr.probes :=
+  he.2.1 ▸ he.2.2 ▸ (P.step o).card_probedCells_le_probes m
 
 /-! ### Deterministic cell-probe `StateTransitionImpl` -/
 
@@ -193,12 +191,7 @@ abbrev ofFn {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D.HasS
 theorem ofFn_rep {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D.HasStepFn f]
     (rep : D.State → Mem cells w → Prop) (charge : D.State → D.Op → ℕ)
     (init_rep : rep s₀ P.init) (potential : Mem cells w → ℕ) (initPotential : ℕ)
-    (init_potential : potential P.init ≤ initPotential)
-    (step_exec : ∀ (s : D.State) (m : Mem cells w) (o : D.Op),
-      rep s m → D.valid s o →
-      ((P.step o).run m).1 = (D.stepFn s o).2 ∧
-      rep (D.stepFn s o).1 ((P.step o).run m).2 ∧
-      (P.step o).probes m + potential ((P.step o).run m).2 ≤ charge s o + potential m) :
+    (init_potential step_exec) :
     (ofFn (P := P) (s₀ := s₀) rep charge init_rep potential initPotential init_potential
       step_exec).rep = rep :=
   rfl
@@ -207,12 +200,7 @@ theorem ofFn_rep {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D
 theorem ofFn_potential {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D.HasStepFn f]
     (rep : D.State → Mem cells w → Prop) (charge : D.State → D.Op → ℕ)
     (init_rep : rep s₀ P.init) (potential : Mem cells w → ℕ) (initPotential : ℕ)
-    (init_potential : potential P.init ≤ initPotential)
-    (step_exec : ∀ (s : D.State) (m : Mem cells w) (o : D.Op),
-      rep s m → D.valid s o →
-      ((P.step o).run m).1 = (D.stepFn s o).2 ∧
-      rep (D.stepFn s o).1 ((P.step o).run m).2 ∧
-      (P.step o).probes m + potential ((P.step o).run m).2 ≤ charge s o + potential m) :
+    (init_potential step_exec) :
     (ofFn (P := P) (s₀ := s₀) rep charge init_rep potential initPotential init_potential
       step_exec).potential = potential :=
   rfl
@@ -221,12 +209,7 @@ theorem ofFn_potential {f : (s : D.State) → (o : D.Op) → D.State × D.Result
 theorem ofFn_initPotential {f : (s : D.State) → (o : D.Op) → D.State × D.Result o}
     [D.HasStepFn f] (rep : D.State → Mem cells w → Prop) (charge : D.State → D.Op → ℕ)
     (init_rep : rep s₀ P.init) (potential : Mem cells w → ℕ) (initPotential : ℕ)
-    (init_potential : potential P.init ≤ initPotential)
-    (step_exec : ∀ (s : D.State) (m : Mem cells w) (o : D.Op),
-      rep s m → D.valid s o →
-      ((P.step o).run m).1 = (D.stepFn s o).2 ∧
-      rep (D.stepFn s o).1 ((P.step o).run m).2 ∧
-      (P.step o).probes m + potential ((P.step o).run m).2 ≤ charge s o + potential m) :
+    (init_potential step_exec) :
     (ofFn (P := P) (s₀ := s₀) rep charge init_rep potential initPotential init_potential
       step_exec).initPotential = initPotential :=
   rfl
@@ -235,19 +218,15 @@ theorem ofFn_initPotential {f : (s : D.State) → (o : D.Op) → D.State × D.Re
 theorem ofFn_charge {f : (s : D.State) → (o : D.Op) → D.State × D.Result o} [D.HasStepFn f]
     (rep : D.State → Mem cells w → Prop) (charge : D.State → D.Op → ℕ)
     (init_rep : rep s₀ P.init) (potential : Mem cells w → ℕ) (initPotential : ℕ)
-    (init_potential : potential P.init ≤ initPotential)
-    (step_exec : ∀ (s : D.State) (m : Mem cells w) (o : D.Op),
-      rep s m → D.valid s o →
-      ((P.step o).run m).1 = (D.stepFn s o).2 ∧
-      rep (D.stepFn s o).1 ((P.step o).run m).2 ∧
-      (P.step o).probes m + potential ((P.step o).run m).2 ≤ charge s o + potential m) :
+    (init_potential step_exec) :
     (ofFn (P := P) (s₀ := s₀) rep charge init_rep potential initPotential init_potential
       step_exec).charge = charge :=
   rfl
 
 /-- Project a cell-probe `StateTransitionImpl` to the backend-agnostic
 `Cslib.DataStructure.StateTransitionImpl D (ExecOp P)`. -/
-@[expose] def toBaseImpl (C : StateTransitionImpl D P s₀) :
+@[expose, simps -fullyApplied rep]
+def toBaseImpl (C : StateTransitionImpl D P s₀) :
     DataStructure.StateTransitionImpl D (ExecOp P) where
   rep := C.rep
   total o _ _ := ⟨_, _, _, execOp_run P _ o⟩
@@ -257,19 +236,13 @@ theorem ofFn_charge {f : (s : D.State) → (o : D.Op) → D.State × D.Result o}
     obtain ⟨s', hstep, hr', _⟩ := C.step_exec o hr hv
     exact ⟨s', hstep, hr'⟩
 
-@[simp]
-theorem toBaseImpl_rep (C : StateTransitionImpl D P s₀) :
-    C.toBaseImpl.rep = C.rep := by
-  rfl
-
 /-- Project a cell-probe `StateTransitionImpl` to `Cslib.DataStructure.Amortized` with probe count
 weight `OperationTrace.probes`. -/
 theorem toAmortized (C : StateTransitionImpl D P s₀) :
     DataStructure.Amortized C.toBaseImpl OperationTrace.probes
       (fun _ m => C.potential m) C.charge where
-  step {s m o a m' tr} hr hv he := by
-    obtain ⟨ha, hm', htr⟩ := he.eq_of_execOp
-    subst ha hm' htr
+  step {_ _ o _ _ _} hr hv he := by
+    obtain ⟨rfl, rfl, rfl⟩ := he.eq_of_execOp
     exact C.step_exec o hr hv
 
 /-- When `C.potential` is identically zero, `StateTransitionImpl` projects directly to a worst-case
@@ -341,21 +314,18 @@ theorem runFrom_amortized (C : StateTransitionImpl D P s₀)
       P.probesFrom m ops + C.potential (P.runFrom m ops).2 ≤
         D.totalCostTranscript C.charge s tr + C.potential m := by
   induction ops generalizing s m with
-  | nil =>
-    exact ⟨[], s, rfl, rfl, .nil s, hr, Nat.le_refl _⟩
+  | nil => exact ⟨[], s, rfl, rfl, .nil s, hr, le_rfl⟩
   | cons o rest ih =>
     obtain ⟨hv_o, hv_rest⟩ := hv
     obtain ⟨s₁, hstep, hr₁, hpot₁⟩ := C.step_exec o hr hv_o
     obtain ⟨tr_rest, s₂, hops_rest, hlbl_rest, htr_rest, hr₂, hpot₂⟩ :=
       ih hr₁ (hv_rest s₁ ((P.step o).run m).1 hstep)
-    refine ⟨⟨o, ((P.step o).run m).1, s₁⟩ :: tr_rest, s₂,
-      congrArg (o :: ·) hops_rest, ?_,
-      .cons _ hv_o hstep htr_rest, ?_, ?_⟩
-    · simp only [Scheme.runFrom_cons, StateTransitionSpec.Transcript.labels_cons, hlbl_rest]
-    · simpa only [Scheme.runFrom_cons] using hr₂
-    · simp only [Scheme.probesFrom_cons, Scheme.runFrom_cons,
-        StateTransitionSpec.totalCostTranscript_cons]
-      omega
+    refine ⟨⟨o, ((P.step o).run m).1, s₁⟩ :: tr_rest, s₂, congrArg (o :: ·) hops_rest,
+      by simp only [Scheme.runFrom_cons, StateTransitionSpec.Transcript.labels_cons, hlbl_rest],
+      .cons _ hv_o hstep htr_rest, by simpa only [Scheme.runFrom_cons] using hr₂, ?_⟩
+    simp only [Scheme.probesFrom_cons, Scheme.runFrom_cons,
+      StateTransitionSpec.totalCostTranscript_cons]
+    omega
 
 /-- Multi-operation execution of `P.runSeq ops` from `P.init`: every demonically admissible
 sequence `D.ValidOpSeq s₀ ops` produces a valid relational transcript `tr` matching
@@ -371,12 +341,10 @@ theorem runSeq_amortized (C : StateTransitionImpl D P s₀)
       P.seqProbes ops + C.potential (P.runSeq ops).2 ≤
         C.initPotential + D.totalCostTranscript C.charge s₀ tr := by
   obtain ⟨tr, s', hops, hlbl, htr, hr', hpot⟩ := C.runFrom_amortized ops C.init_rep hv
-  have hrun : P.runFrom P.init ops = P.runSeq ops := rfl
-  have hpr : P.probesFrom P.init ops = P.seqProbes ops := rfl
-  rw [hrun] at hlbl hr' hpot
-  rw [hpr] at hpot
-  have hinit := C.init_potential
-  exact ⟨tr, s', hops, hlbl, htr, hr', by omega⟩
+  refine ⟨tr, s', hops, hlbl, htr, hr', ?_⟩
+  have := C.init_potential
+  change P.probesFrom P.init ops + C.potential (P.runFrom P.init ops).2 ≤ _
+  omega
 
 /-- On a deterministic specification (`D.HasStepFn f`), `P.runSeq ops` on any admissible history
 `D.ValidHistory s₀ ops` produces the exact canonical transcript `(D.run s₀ ops).2`, reaches a
@@ -390,9 +358,8 @@ theorem runSeq_ofFn (C : StateTransitionImpl D P s₀)
       P.seqProbes ops + C.potential (P.runSeq ops).2 ≤
         C.initPotential + D.totalCost C.charge s₀ ops := by
   obtain ⟨tr, s', hops, hlbl, htr, hr', hpot⟩ :=
-    C.runSeq_amortized ops ((D.validOpSeq_iff_validHistory s₀ ops).mpr hv)
-  obtain ⟨_, hs', htr_eq⟩ := (D.validTranscript_iff_run s₀ tr s').mp htr
-  subst hs'
+    C.runSeq_amortized ops ((D.validOpSeq_iff_validHistory s₀ _).mpr hv)
+  obtain ⟨_, rfl, htr_eq⟩ := (D.validTranscript_iff_run s₀ tr s').mp htr
   rw [hops] at htr_eq hr'
   rw [htr_eq, D.canonicalTranscript_labels] at hlbl
   rw [htr_eq, D.totalCostTranscript_canonicalTranscript] at hpot
@@ -411,7 +378,8 @@ theorem seqProbes_le_ofFn (C : StateTransitionImpl D P s₀)
 /-- Lift a deterministic cell-probe `StateTransitionImpl` from `cells` cells to `cells'` cells
 (`cells ≤ cells'`) via `Cslib.CellProbe.Scheme.padCells`, preserving `initPotential` and `charge`.
 -/
-@[expose] def padCells (h : cells ≤ cells') (C : StateTransitionImpl D P s₀) :
+@[expose, simps -fullyApplied initPotential charge]
+def padCells (h : cells ≤ cells') (C : StateTransitionImpl D P s₀) :
     StateTransitionImpl D (P.padCells h) s₀ where
   rep s m' := ∃ m : Mem cells w, m' = padMem h m ∧ C.rep s m
   potential m' := C.potential (fun i => m' (Fin.castLE h i))
@@ -446,16 +414,6 @@ theorem padCells_rep (h : cells ≤ cells') (C : StateTransitionImpl D P s₀) (
 theorem padCells_potential (h : cells ≤ cells') (C : StateTransitionImpl D P s₀)
     (m' : Mem cells' w) :
     (C.padCells h).potential m' = C.potential (fun i => m' (Fin.castLE h i)) :=
-  rfl
-
-@[simp]
-theorem padCells_initPotential (h : cells ≤ cells') (C : StateTransitionImpl D P s₀) :
-    (C.padCells h).initPotential = C.initPotential :=
-  rfl
-
-@[simp]
-theorem padCells_charge (h : cells ≤ cells') (C : StateTransitionImpl D P s₀) :
-    (C.padCells h).charge = C.charge :=
   rfl
 
 end StateTransitionImpl

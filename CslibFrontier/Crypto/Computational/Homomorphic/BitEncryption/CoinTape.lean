@@ -100,10 +100,8 @@ theorem eval_spliceEncryptedBit_eq_map_coins (E : Scheme)
     E.eval_encryptBits_eq_map_coins evaluate n encCoins pk (List.replicate before false)
       (fun bit _ => hencrypt bit),
     E.eval_encryptBits_eq_map_coins evaluate n encCoins pk after (fun bit _ => hencrypt bit),
-    List.length_replicate, PMF.bind_map, Function.comp_def]
-  rw [Nat.add_mul]
-  unfold spliceEncryptedBitCoins
-  simpa only [PMF.map, Function.comp_def] using
+    List.length_replicate, PMF.bind_map, Function.comp_def, Nat.add_mul]
+  simpa only [spliceEncryptedBitCoins, PMF.map, Function.comp_def] using
     (BitString.uniformList_map_split _ _ _).symm
 
 /-- Padding the complete splice tape preserves its exact law. -/
@@ -135,23 +133,19 @@ theorem eval_spliceEncryptedBit_eq_map_coins_of_le (E : Scheme)
     (htape : ComputableInPolyTime tape input encBits) :
     ComputableInPolyTime (fun a => encryptBitsCoins evaluate (n a) (encCoins a)
       (pk a) (bits a) (tape a)) input (encList encBits) := by
-  have hrows : ComputableInPolyTime (fun a =>
-      BitString.listRows (bits a).length (encCoins a) (tape a)) input (encList encBits) := by
-    fun_prop
   have hpairs := (ComputableInPolyTime.zip encBool encBits).comp
-    ((ComputableInPolyTime.bitsToList.comp hbits).prod hrows)
+    ((ComputableInPolyTime.bitsToList.comp hbits).prod
+      (by fun_prop : ComputableInPolyTime
+        (fun a => BitString.listRows (bits a).length (encCoins a) (tape a))
+        input (encList encBits)))
   have hstep : ComputableInPolyTime
       (fun p : α × Bool × List Bool => evaluate (n p.1, pk p.1, p.2.1) p.2.2)
       (encPair input (encPair encBool encBits)) encBits :=
-    hevaluate.comp (show ComputableInPolyTime
-      (fun p : α × Bool × List Bool => ((n p.1, pk p.1, p.2.1), p.2.2))
-      (encPair input (encPair encBool encBits))
-      (encPair (encPair encUnary (encPair encBits encBool)) encBits) by fun_prop)
-  have hmap := ComputableInPolyTime.mapWithInput
-    (f := fun a pair => evaluate (n a, pk a, pair.1) pair.2) hpairs hstep
-  convert hmap using 1
-  funext a
-  exact List.map_uncurry_zip_eq_zipWith.symm
+    hevaluate.comp (by fun_prop : ComputableInPolyTime
+      (fun p : α × Bool × List Bool => ((n p.1, pk p.1, p.2.1), p.2.2)) _ _)
+  convert ComputableInPolyTime.mapWithInput
+    (f := fun a pair => evaluate (n a, pk a, pair.1) pair.2) hpairs hstep using 1
+  exact funext fun _ => List.map_uncurry_zip_eq_zipWith.symm
 
 /-- Native splice replay retains the actual supplied challenge and charges its full length. -/
 @[fun_prop] theorem computableInPolyTime_spliceEncryptedBitCoins

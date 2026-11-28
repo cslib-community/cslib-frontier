@@ -8,6 +8,7 @@ module
 -- upstream: local-only (controlled-polynomial certificate and modular-value tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.Controlled
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFeasibility
 
 /-! Nonempty controlled families include zero arity, signed constants and binary powers. -/
 
@@ -43,5 +44,16 @@ example : powers.evaluate (10, 5, [2]) = 4 := by
 -- Composite and zero moduli are allowed inputs to the total evaluator.
 example : powers.evaluate (10, 0, [2]) = 1 := by
   simp [powers, Controlled.pow, powMod]
+
+-- The empty word suffices when the first system is zero and the second is a nonzero constant.
+example : (Set.univ : Set (List Bool)) ∈ CountingLevel 27 encBits := by
+  let CP := Controlled.constant (enc := encPair encBits encBits) (a := 0) (n := fun _ => 0)
+    (.const 0) (fun _ => 0) (.const 0)
+  let CQ := Controlled.constant (enc := encPair encBits encBits) (a := 0) (n := fun _ => 1)
+    (.const 1) (fun _ => 1) (.const 1)
+  have h := CP.boundedFeasibilityTests_mem CQ Decoder.bits (fun _ => 0) (.const 0)
+  convert h using 1
+  ext w
+  simp
 
 end CslibFrontierTests.RealAlgebraicControlled

@@ -430,16 +430,13 @@ private theorem le_tableBound_of_lt (I : CYKInstance) (d i : ℕ)
     d * I.word.length + i ≤ I.word.length * I.word.length * I.numNTs ∧
     (d * I.word.length + i) * I.numNTs + I.numNTs ≤
       I.word.length * I.word.length * I.numNTs := by
-  have hd1 : d + 1 ≤ I.word.length := hd
-  have hi1 : i + 1 ≤ I.word.length := hi
-  have hV : 1 ≤ I.numNTs := by have := I.initial.isLt; omega
-  have hidx : d * I.word.length + i + 1 ≤ I.word.length * I.word.length := by nlinarith
+  have hV : 1 ≤ I.numNTs := Nat.pos_of_ne_zero fun h => Fin.elim0 (h ▸ I.initial)
   have hmul : (d * I.word.length + i + 1) * I.numNTs ≤
-      I.word.length * I.word.length * I.numNTs := Nat.mul_le_mul_right _ hidx
+      I.word.length * I.word.length * I.numNTs :=
+    Nat.mul_le_mul_right _ (by nlinarith)
   have h1 : d * I.word.length + i ≤ (d * I.word.length + i) * I.numNTs :=
-    Nat.le_mul_of_pos_right _ (by omega)
-  have hexp : (d * I.word.length + i + 1) * I.numNTs =
-      (d * I.word.length + i) * I.numNTs + I.numNTs := by ring
+    Nat.le_mul_of_pos_right _ hV
+  rw [Nat.add_one_mul] at hmul
   exact ⟨by omega, by omega, by omega⟩
 
 private theorem cellBase_add_le_tableEnd (I : CYKInstance) (d i : ℕ)
@@ -477,17 +474,8 @@ private theorem exec_cykSetup {w : ℕ} (I : CYKInstance) (hw : I.FitsWidth w) :
   have hm5 : (Data.init I.encode : Data 24).mem 5 = I.word.length := by simp [CYKInstance.encode]
   wram_exec * [cykSetup]
   · refine ⟨rfl, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_⟩
-    · wram_simp *
-    · wram_simp *
-    · wram_simp *
-    · wram_simp *
-    · wram_simp *
-    · wram_simp *
-    · wram_simp *
-    · wram_simp *; omega
-    · wram_simp *
-    · wram_simp *
-    · wram_simp *
+    all_goals wram_simp *
+    omega
   all_goals exact hw.of_le (by omega)
 
 /-- Memory invariant at the boundary before filling cell `(d, i)` (`0 ≤ d ≤ |w|`,
@@ -959,30 +947,27 @@ private theorem exec_nodeCellStep {w : ℕ} (I : CYKInstance) (hw : I.FitsWidth 
       hp1_z hp1_P (fun _ h => ⟨h.2.2.2.1, h.1.one⟩) (hw.of_le (by omega))
   have hmono_bound : 5 + (d * (21 * I.rules.length + 16 + 2) + 3) ≤
       (I.word.length - 1) * (21 * I.rules.length + 18) + 8 := by
-    have hmul := Nat.mul_le_mul_right (21 * I.rules.length + 18)
+    change 5 + (d * (21 * I.rules.length + 18) + 3) ≤ _
+    have := Nat.mul_le_mul_right (21 * I.rules.length + 18)
       (show d ≤ I.word.length - 1 by omega)
-    have heq : d * (21 * I.rules.length + 16 + 2) = d * (21 * I.rules.length + 18) := rfl
     omega
   refine ⟨p2.set regI (i + 1), (hpre_ex.seq htail).mono hmono_bound,
     by regs_frame, by regs_frame, by regs_frame, Data.set_regs_self p2 regI (i + 1),
     cellBoundaryMem_finish_cell I _ (fun A => ?_) hp2_mem⟩
   rw [table, level_apply (G := I.grammar), ite_eq_left ⟨rfl, by omega⟩, cell,
     ite_eq_right (by omega), mem_nodeCell (G := I.grammar), Nat.add_sub_cancel]
-  unfold NodeAccProp SplitMatch
+  simp only [NodeAccProp, SplitMatch, Nat.not_lt_zero, false_and, exists_false, or_false]
   constructor
-  · rintro (⟨k', hk', r, hr_mem, B, C, rfl, hB, hC⟩ | ⟨_, hlt, _⟩)
-    · refine ⟨k', hk', B, C, hr_mem, ?_, ?_⟩
-      · rwa [table_eq_of_le (G := I.grammar) (by omega) i]
-      · rw [show d + 1 - k' - 1 = d - k' by omega]
-        rwa [table_eq_of_le (G := I.grammar) (by omega) (i + k' + 1)]
-    · cases hlt
+  · rintro ⟨k', hk', _, hr_mem, B, C, rfl, hB, hC⟩
+    have hk_sub : d + 1 - k' - 1 = d - k' := by omega
+    refine ⟨k', hk', B, C, hr_mem, ?_, ?_⟩
+    · rwa [table_eq_of_le (G := I.grammar) (by omega) i]
+    · rwa [hk_sub, table_eq_of_le (G := I.grammar) (by omega) (i + k' + 1)]
   · rintro ⟨k', hk', B, C, hr_mem, hB, hC⟩
-    refine Or.inl ⟨k', hk', .node A B C, hr_mem, B, C, rfl, ?_, ?_⟩
-    · rw [table_eq_of_le (G := I.grammar) (by omega) i] at hB
-      exact hB
-    · rw [show d + 1 - k' - 1 = d - k' by omega] at hC
-      rw [table_eq_of_le (G := I.grammar) (by omega) (i + k' + 1)] at hC
-      exact hC
+    have hk_sub : d + 1 - k' - 1 = d - k' := by omega
+    refine ⟨k', hk', .node A B C, hr_mem, B, C, rfl, ?_, ?_⟩
+    · rwa [table_eq_of_le (G := I.grammar) (by omega) i] at hB
+    · rwa [hk_sub, table_eq_of_le (G := I.grammar) (by omega) (i + k' + 1)] at hC
 
 private theorem exec_nodeLevels {w : ℕ} (I : CYKInstance) (hw : I.FitsWidth w)
     (hn_pos : 0 < I.word.length) (x₁ : Data 24)
@@ -1028,13 +1013,11 @@ private theorem exec_nodeLevels {w : ℕ} (I : CYKInstance) (hw : I.FitsWidth w)
           ((I.word.length - 1) * (21 * I.rules.length + 18) + 8 + 2) + 3) ≤
           (I.word.length - 1) *
             ((I.word.length - 1) * (21 * I.rules.length + 18) + 10) + 5 := by
-      have hmul := Nat.mul_le_mul_right
+      change 2 + ((I.word.length - d) *
+        ((I.word.length - 1) * (21 * I.rules.length + 18) + 10) + 3) ≤ _
+      have := Nat.mul_le_mul_right
         ((I.word.length - 1) * (21 * I.rules.length + 18) + 10)
         (show I.word.length - d ≤ I.word.length - 1 by omega)
-      have heq : (I.word.length - d) *
-          ((I.word.length - 1) * (21 * I.rules.length + 18) + 8 + 2) =
-          (I.word.length - d) *
-            ((I.word.length - 1) * (21 * I.rules.length + 18) + 10) := rfl
       omega
     exact ⟨p2.set regD (d + 1), (hpre_ex.seq htail).mono hmono,
       ⟨by omega, by regs_frame, cellBoundaryMem_next_level I d hp2_mem⟩,

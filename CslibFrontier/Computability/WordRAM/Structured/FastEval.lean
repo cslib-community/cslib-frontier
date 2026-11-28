@@ -105,10 +105,7 @@ theorem toData_set (x : FastData r) (i : Fin r) (v : ℕ) :
     (x.set i v).toData = x.toData.set i v := by
   ext j
   · simp only [toData, set, reg, Data.set_regs, Function.update_apply, Vector.getElem_set,
-      Fin.val_inj]
-    by_cases h : i = j
-    · simp [h]
-    · simp [h, Ne.symm h]
+      Fin.val_inj, @eq_comm _ i j]
   · rfl
 
 /-- `FastData.put` agrees with `Data.put` on the data represented. -/
@@ -125,10 +122,8 @@ theorem toData_write (x : FastData r) (a v : ℕ) :
   ext b
   · rfl
   · simp only [toData, write, read, Data.write_mem, Function.update_apply,
-      Std.HashMap.getElem?_insert, beq_iff_eq]
-    by_cases h : a = b
-    · simp [h]
-    · simp [h, Ne.symm h]
+      Std.HashMap.getElem?_insert, beq_iff_eq, @eq_comm _ a b]
+    split_ifs <;> rfl
 
 end FastData
 
@@ -159,11 +154,9 @@ theorem Op.evalFast_toData (w : ℕ) (o : Op B r) (x : FastData r) :
   | const d v => exact FastData.toData_put w x d v
   | copy d s => exact congrArg some (FastData.toData_set x d (x.reg s))
   | alu f d args =>
-    simp only [evalFast, eval]
-    change (Option.bind _ _).map _ = Option.bind (B.interp w f (x.reg ∘ args)) _
-    cases B.interp w f (x.reg ∘ args) with
-    | none => rfl
-    | some v => exact FastData.toData_put w x d v
+    have h : x.toData.regs = x.reg := rfl
+    simp only [evalFast, eval, h, Option.bind_eq_bind]
+    cases B.interp w f (x.reg ∘ args) <;> simp [FastData.toData_put]
   | load d a => exact congrArg some (FastData.toData_set x d (x.read (x.reg a)))
   | store a s => exact congrArg some (FastData.toData_write x (x.reg a) (x.reg s))
 
@@ -205,10 +198,7 @@ theorem Code.evalLoopFast_toData (c : Cond r) {f : FastData r → Option (FastDa
     · rw [← hfg x]
       cases f x with
       | none => rfl
-      | some ym =>
-        change ((evalLoopFast c f fuel ym.1).map _).map _ = (evalLoop c g fuel ym.1.toData).map _
-        rw [← ih ym.1, Option.map_map, Option.map_map]
-        rfl
+      | some ym => simp [Option.bind_eq_bind, ← ih ym.1, Option.map_map, Function.comp_def]
     · rfl
 
 /-- `Code.evalFast` computes `Code.eval`. -/
@@ -222,17 +212,10 @@ theorem Code.evalFast_toData (w fuel : ℕ) (c : Code B r) (x : FastData r) :
     simp only [evalFast, eval, ← ih₁]
     cases c₁.evalFast w fuel x with
     | none => rfl
-    | some ym =>
-      change ((evalFast w fuel c₂ ym.1).map _).map _ = (eval w fuel c₂ ym.1.toData).map _
-      rw [← ih₂, Option.map_map, Option.map_map]
-      rfl
+    | some ym => simp [Option.bind_eq_bind, ← ih₂, Option.map_map, Function.comp_def]
   | branch c pos neg ihp ihn =>
     simp only [evalFast, eval, Cond.holdsFast_eq, decide_eq_true_eq]
-    split
-    · rw [← ihp, Option.map_map, Option.map_map]
-      rfl
-    · rw [← ihn, Option.map_map, Option.map_map]
-      rfl
+    split <;> simp only [← ihp, ← ihn, Option.map_map] <;> rfl
   | loop c body ih =>
     exact evalLoopFast_toData c (fun y => ih y) fuel x
   | rand dst src => rfl
@@ -289,43 +272,22 @@ private theorem Program.runFastLoop_map_eq_run (w : ℕ) (p : Program B r) (fuel
     cases hp : p[pc]? with
     | none => simp [step, hp]
     | some instr =>
+      have hshift (s' : State r) :
+          (run w p fuel s').map (fun vn => (vn.1, vn.2 + (steps + 1))) =
+            ((run w p fuel s').map fun vn => (vn.1, vn.2 + 1)).map
+              fun vn => (vn.1, vn.2 + steps) := by
+        cases run w p fuel s' <;> simp [Nat.add_assoc, Nat.add_comm 1]
       cases instr with
       | op o =>
         have hop := Op.evalFast_toData w o x
-        cases ho : o.evalFast w x with
-        | none =>
-          rw [ho] at hop
-          simp [step, hp, ho, ← hop]
-        | some x' =>
-          rw [ho] at hop
-          simp only [step, hp, ho, ← hop, Option.map_some, ih]
-          cases run w p fuel ⟨pc + 1, x'.toData⟩ with
-          | none => rfl
-          | some vn =>
-            simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq, true_and]
-            omega
-      | jump t =>
-        simp only [step, hp, ih]
-        cases run w p fuel ⟨t, x.toData⟩ with
-        | none => rfl
-        | some vn =>
-          simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq, true_and]
-          omega
+        cases ho : o.evalFast w x <;> rw [ho] at hop
+        · simp [step, hp, ho, ← hop]
+        · simpa only [step, hp, ho, ← hop, Option.map_some, ih] using hshift _
+      | jump t => simpa only [step, hp, ih] using hshift _
       | branch c t =>
-        simp only [step, hp, Cond.holdsFast_eq, ih]
-        by_cases hc : c.Holds x.toData
-        · simp only [hc, decide_true, ↓reduceIte]
-          cases run w p fuel ⟨t, x.toData⟩ with
-          | none => rfl
-          | some vn =>
-            simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq, true_and]
-            omega
-        · simp only [hc, decide_false, Bool.false_eq_true, ↓reduceIte]
-          cases run w p fuel ⟨pc + 1, x.toData⟩ with
-          | none => rfl
-          | some vn =>
-            simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq, true_and]
-            omega
+        by_cases hc : c.Holds x.toData <;>
+          simpa only [step, hp, Cond.holdsFast_eq, hc, decide_true, decide_false,
+            Bool.false_eq_true, ↓reduceIte, ih] using hshift _
       | halt i =>
         simp only [step, hp, Option.map_some, FastData.toData, Option.some.injEq, Prod.mk.injEq,
           true_and]
@@ -390,15 +352,10 @@ theorem Program.runFastList_sound {w fuel : ℕ} {p : Program B r} {input l : Li
     ∃ t m v, Runs w p (.init input) t m ∧ step w p t = .halt v ∧
       (List.range (t.data.mem v)).map (fun i => t.data.mem (v + 1 + i)) = l ∧
       n = m + 1 := by
-  unfold Program.runFastList at h
-  cases hloop : Program.runFastLoop w p.toArray fuel 0 (.ofData (.init input)) 0 with
-  | none => simp [hloop] at h
-  | some yvn =>
-    obtain ⟨y, v, n'⟩ := yvn
-    rw [hloop] at h
-    obtain ⟨rfl, rfl⟩ := Option.some.inj h
-    obtain ⟨pc', m, hr, hh, rfl⟩ := Program.runFastLoop_sound hloop
-    rw [FastData.toData_ofData] at hr
-    exact ⟨⟨pc', y.toData⟩, m, v, hr, hh, rfl, by omega⟩
+  obtain ⟨⟨y, v, n'⟩, hloop, hmap⟩ := Option.map_eq_some_iff.mp h
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj hmap.symm
+  obtain ⟨pc', m, hr, hh, rfl⟩ := Program.runFastLoop_sound hloop
+  rw [FastData.toData_ofData] at hr
+  exact ⟨⟨pc', y.toData⟩, m, v, hr, hh, rfl, by omega⟩
 
 end Cslib.WordRAM

@@ -166,8 +166,8 @@ private theorem blackConstraints_polyTime [Finite Rel] (encRel : Rel ↪ List Bo
   unfold blackConstraints encCSP
   apply ComputableInPolyTime.mapWithInput
     (ComputableInPolyTime.filterWithInput hz (by fun_prop))
-  exact (ht.comp (g := fun p : CSP Rel ℕ × (Constraint Rel ℕ × ℕ) => p.2.1.rel)
-    (by fun_prop)).prod
+  exact encConstraint_mk_polyTime
+    (ht.comp (g := fun p : CSP Rel ℕ × (Constraint Rel ℕ × ℕ) => p.2.1.rel) (by fun_prop))
     (hscope.comp (g := fun p : CSP Rel ℕ × (Constraint Rel ℕ × ℕ) =>
       ((p.1, p.2.2), p.2.1.scope)) (by fun_prop))
 

@@ -79,7 +79,7 @@ example (S : List (Unit × Bool)) (hS : S.length ≤ 100) (c : Unit → Bool)
 
 /-- **Deterministic learners cannot.** Every deterministic learner can be made to err in all
 `100` rounds while a constant classifier errs in at most `50`. -/
-example (A : OnlineLearner Unit) :
+example (A : OnlineLearner Unit Bool) :
     ∃ S : List (Unit × Bool), S.length = 100 ∧ mistakes A S = 100 ∧
       ∃ c ∈ (↑constants : Set (Unit → Bool)), 2 * S.countP (fun p => c p.1 ≠ p.2) ≤ 100 :=
   exists_mistakes_eq_length_of_const_mem (by simp [constants]) (by simp [constants]) A () 100

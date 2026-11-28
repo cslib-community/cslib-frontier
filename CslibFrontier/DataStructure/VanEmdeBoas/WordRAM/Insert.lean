@@ -265,16 +265,11 @@ theorem insertLoop_spec {d w base key : ℕ} {tree : Tree d} {s : Data 32}
         simp only [Data.set_mem, Data.write_mem, hy_mem, m₁, writeBounds, ch, clusterOffset, i, lo,
           Nat.add_assoc]
       obtain ⟨next, he_step, hentry, hnext_mem⟩ := hstep
-      have hrc_up : Rep ((cluster i).withBounds (some (lo, lo))) ch next.mem := by
-        rw [hnext_mem]
-        exact rep_writeBounds (hr₁.2.2 i) (some (lo, lo))
       have hr₂ : Rep (.node (some (min m key, max M key)) summary
           (Function.update cluster i ((cluster i).withBounds (some (lo, lo)))))
-          base next.mem := by
-        apply rep_replace_cluster hr₁ i hrc_up
-        intro a ha'
-        rw [hnext_mem]
-        exact writeBounds_away (some (lo, lo)) (by dsimp only [ch]; omega)
+          base next.mem :=
+        rep_replace_cluster hr₁ i (hnext_mem ▸ rep_writeBounds (hr₁.2.2 i) (some (lo, lo)))
+          fun a ha' => hnext_mem ▸ writeBounds_away (some (lo, lo)) (by dsimp only [ch]; omega)
       have hfit_sum : Fits w (base + summaryOffset + span d) :=
         ha.of_le (by have := summary_end_le_span d; omega)
       obtain ⟨z, hz_loop, hrs_z, hframe_z⟩ :=
@@ -287,16 +282,9 @@ theorem insertLoop_spec {d w base key : ℕ} {tree : Tree d} {s : Data 32}
         simpa only [Tree.insert, heq, ↓reduceIte, hi, ↓reduceDIte, i, lo, hcb] using hr_final
       · intro a ha'
         have hsum_end := summary_end_le_span d
-        have hf1 : z.mem a = next.mem a := by
-          apply hframe_z a
-          dsimp only [summaryOffset] at hsum_end ⊢
-          omega
-        have hf2 : next.mem a = m₁ a := by
-          rw [hnext_mem]
-          exact writeBounds_away (some (lo, lo)) (by dsimp only [ch, i] at hend ⊢; omega)
-        have hf3 : m₁ a = s.mem a :=
-          writeBounds_away (some (min m key, max M key)) (by omega)
-        exact hf1.trans (hf2.trans hf3)
+        rw [hframe_z a (by dsimp only [summaryOffset] at hsum_end ⊢; omega), hnext_mem,
+          writeBounds_away (some (lo, lo)) (by dsimp only [ch, i] at hend ⊢; omega)]
+        exact writeBounds_away (some (min m key, max M key)) (by omega)
     | some cbounds =>
       have hch1 : s.mem ch = 1 := by
         simpa only [ch, hcb, Option.isSome_some, ↓reduceIte] using (hr.2.2 i).header.1
@@ -328,14 +316,8 @@ theorem insertLoop_spec {d w base key : ℕ} {tree : Tree d} {s : Data 32}
         dsimp only [i] at hcb
         simpa only [Tree.insert, heq, ↓reduceIte, hi, ↓reduceDIte, i, lo, hcb] using hr_final
       · intro a ha'
-        have hf1 : z.mem a = next.mem a := by
-          apply hframe_z a
-          have hstart : 5 ≤ clusterOffset d i.val := by dsimp only [clusterOffset]; omega
-          dsimp only [ch, i] at hend ⊢
-          omega
-        have hf2 : next.mem a = s.mem a := by
-          rw [hnext_mem]
-          exact writeBounds_away (some (min m key, max M key)) (by omega)
-        exact hf1.trans hf2
+        have hstart : 5 ≤ clusterOffset d i.val := by dsimp only [clusterOffset]; omega
+        rw [hframe_z a (by dsimp only [ch, i] at hend ⊢; omega), hnext_mem]
+        exact writeBounds_away (some (min m key, max M key)) (by omega)
 
 end Cslib.DataStructure.VanEmdeBoas.WordRAM

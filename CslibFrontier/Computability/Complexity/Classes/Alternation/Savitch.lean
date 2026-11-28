@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.Alternation.GuessVerify
 public import CslibFrontier.Computability.Complexity.Classes.Alternation.TQBF
 public import CslibFrontier.Computability.Complexity.Classes.Space
+public import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.Savitch
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
@@ -46,6 +47,16 @@ Stockmeyer][ChandraKozenStockmeyer1981] [Sipser, Section 10.3][Sipser2013]
 exactly those in `PSPACE` (`Cslib.Complexity.mem_PSPACE_iff_exists_isGameVerifier`). Like `AP` and
 `PSPACE`, the statements are relative to the encoding of instances.
 
+The game characterization holds at any space bound: a machine whose reachable views have encodings
+of at most `w` bits accepts exactly when the existential player wins the midpoint game of
+`2 * ((2 * w + 3) * (2 * w + 2))` moves on their codes
+(`Turing.MultiTapeNTM.accepts_iff_alternation_midpointGame`), so every problem in `NSPACE s` is a
+midpoint game of `O((n + s n) ^ 2)` moves (`Cslib.Complexity.exists_midpointGame_of_mem_NSPACE`).
+This is the game behind `NSPACE(s) ⊆ ATIME(s ^ 2)` [Chandra, Kozen and
+Stockmeyer][ChandraKozenStockmeyer1981];
+`Cslib.Complexity.NSPACE_subset_ATIME_sq_of_timeConstructible` plays it within time
+`O((n + s n) ^ 2)` for a time-constructible `s` (#4086 tracks removing time-constructibility).
+
 ## Main definitions
 
 * `Cslib.Reachability.midpointMoves`, `Cslib.Reachability.midpointGame`: Savitch's midpoint game.
@@ -62,6 +73,10 @@ exactly those in `PSPACE` (`Cslib.Complexity.mem_PSPACE_iff_exists_isGameVerifie
 * `Cslib.Complexity.PSPACE_subset_AP`, `Cslib.Complexity.AP_eq_PSPACE`: `AP = PSPACE`.
 * `Cslib.Complexity.mem_PSPACE_iff_exists_isGameVerifier`: `PSPACE` is the class of games of
   polynomially many moves with a polynomial-time winning condition.
+* `Turing.MultiTapeNTM.accepts_iff_alternation_midpointGame`: a nondeterministic machine is the
+  midpoint game on the codes of its views.
+* `Cslib.Complexity.exists_midpointGame_of_mem_NSPACE`: every problem in `NSPACE s` is a midpoint
+  game of `O((n + s n) ^ 2)` moves.
 
 ## References
 
@@ -272,6 +287,31 @@ theorem computableInPolyTime_midpointStep :
 
 end Cslib.Reachability
 
+namespace Turing.MultiTapeNTM
+
+/-! ### Nondeterministic machines as midpoint games -/
+
+open MultiTapeTM Cslib.Complexity Cslib.Reachability
+
+variable {k : ℕ} {State : Type} [Finite State] {ntm : MultiTapeNTM k Bool State}
+  {input : List Bool}
+
+/-- **A machine is Savitch's midpoint game on the codes of its views.** If every view reachable
+from the initial view of `ntm` on `input` has an encoding of at most `w` bits, `ntm` accepts
+`input` exactly when the existential player wins the midpoint game on the codes of `2 * w + 2`
+bits, at depth `2 * w + 2`, from the code of the initial view to the accepting code: a game of
+`2 * ((2 * w + 3) * (2 * w + 2))` single-bit moves. -/
+theorem accepts_iff_alternation_midpointGame {w : ℕ}
+    (hw : ∀ finite, Relation.ReflTransGen ntm.ViewStep (ntm.initView input) finite →
+      (encFiniteCfg finite).length ≤ w) :
+    ntm.Accepts input ↔
+      Alternation true (List.replicate (2 * ((2 * w + 2 + 1) * (2 * w + 2))) 1) fun z =>
+        midpointGame ntm.codeEdge (2 * w + 2) (2 * w + 2) (viewCode w (ntm.initView input))
+          (acceptCode w) z = true := by
+  rw [alternation_midpointGame_iff, accepts_iff_reach hw]
+
+end Turing.MultiTapeNTM
+
 namespace Cslib.Complexity
 
 open _root_.Turing _root_.Turing.MultiTapeTM Cslib.Reachability
@@ -295,10 +335,7 @@ theorem computableInPolyTime_savitchVerifier :
     Turing.MultiTapeTM.ComputableInPolyTime (savitchVerifier (enc := enc) ntm c d)
       (encPair enc encBits)
       encBool := by
-  have hword : ComputableInPolyTime (fun x : α × List Bool => enc x.1) (encPair enc encBits)
-      encBits :=
-    (ComputableInPolyTime.of_eq (encOut := encBits) fun _ => rfl).comp
-      (ComputableInPolyTime.fst enc encBits)
+  have hword := (ComputableInPolyTime.fst enc encBits).encoding_comp
   have hwidth : ComputableInPolyTime (fun x : α × List Bool => ntm.codeWidth c d (enc x.1))
       (encPair enc encBits) encUnary :=
     (MultiTapeNTM.computableInPolyTime_codeWidth c d).comp (ComputableInPolyTime.fst enc encBits)
@@ -385,5 +422,37 @@ theorem mem_PSPACE_iff_exists_isGameVerifier : A ∈ PSPACE enc ↔
       Turing.MultiTapeTM.ComputableInPolyTime V (encPair enc encBits) encBool ∧ IsGameVerifier enc p
         V A :=
   ⟨exists_isGameVerifier_of_mem_PSPACE, fun ⟨_, _, hV, h⟩ => h.mem_PSPACE hV⟩
+
+/-- **Every problem in `NSPACE s` is a midpoint game of `O((n + s n) ^ 2)` moves** on the views of
+a nondeterministic machine deciding it: for some machine, some constant `K` and every width
+`w ≥ K * (n + s n + 1)`, where `n` is the length of `enc a`, `a ∈ A` exactly when the existential
+player wins Savitch's midpoint game on the codes of `2 * w + 2` bits, at depth `2 * w + 2`, from the
+code of the initial view to the accepting code, a game of `2 * ((2 * w + 3) * (2 * w + 2))`
+single-bit moves.
+
+This is not `NSPACE(s) ⊆ ATIME(s ^ 2)` [Chandra, Kozen and Stockmeyer][ChandraKozenStockmeyer1981];
+it is the game that the alternating machine of that simulation plays, which
+`Cslib.Complexity.NSPACE_subset_ATIME_sq_of_timeConstructible` does within time `O((n + s n) ^ 2)`
+for a time-constructible `s` (#4086). The views record the input, so the width of the codes is
+linear in `n + s n` rather than in `s n`, and the game has `O(s n ^ 2)` moves only when
+`n = O(s n)`. -/
+theorem exists_midpointGame_of_mem_NSPACE {s : ℕ → ℕ} (h : A ∈ NSPACE enc s) :
+    ∃ (k : ℕ) (State : Type) (_ : Finite State) (ntm : MultiTapeNTM k Bool State) (K : ℕ),
+      ∀ a w, K * ((enc a).length + s (enc a).length + 1) ≤ w →
+        (a ∈ A ↔ Alternation true (List.replicate (2 * ((2 * w + 2 + 1) * (2 * w + 2))) 1)
+          fun z => midpointGame ntm.codeEdge (2 * w + 2) (2 * w + 2)
+            (MultiTapeNTM.viewCode w (ntm.initView (enc a))) (MultiTapeNTM.acceptCode w) z =
+              true) := by
+  obtain ⟨k, State, hfin, ntm, c₁, c₂, hA⟩ := h
+  refine ⟨k, State, hfin, ntm, (10 + 2 * Nat.card (Option State) + 200 * k) * (c₁ + c₂ + 1),
+    fun a w hw => ?_⟩
+  rw [(hA.recognizesInSpace a).2]
+  refine MultiTapeNTM.accepts_iff_alternation_midpointGame fun finite hfinite =>
+    (MultiTapeNTM.length_encFiniteCfg_le (hA.recognizesInSpace a).1 hfinite).trans
+      (le_trans ?_ hw)
+  rw [MultiTapeNTM.viewLengthBound, mul_assoc]
+  refine Nat.mul_le_mul_left _ ?_
+  nlinarith [Nat.zero_le (c₁ * (enc a).length), Nat.zero_le (c₂ * (enc a).length),
+    Nat.zero_le (c₂ * s (enc a).length)]
 
 end Cslib.Complexity

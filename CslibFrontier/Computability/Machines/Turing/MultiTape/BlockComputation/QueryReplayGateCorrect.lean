@@ -36,9 +36,8 @@ theorem runFrom_eq (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) (w : List Bool)
   | succ t ih =>
     rw [QueryMachine.runFrom_succ, ih, QueryMachine.runFrom_succ]
     simp only [QueryMachine.step, machine, QueryMachine.read]
-    by_cases h : (QueryReplay.machine M).halted ((QueryReplay.machine M).runFrom w q t) = true
-    · simp [h]
-    · simp [h]
+    by_cases h : (QueryReplay.machine M).halted ((QueryReplay.machine M).runFrom w q t) = true <;>
+      simp [h]
 
 /-- A local call stops at its requested runtime width, even if native control halted earlier. -/
 theorem halted_runFrom_load (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) (w : List Bool)
@@ -49,8 +48,7 @@ theorem halted_runFrom_load (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) (w : Li
   change decide (((QueryReplay.machine M).runFrom w
     (Load.load (N, b, (positive, negative), raw)) b).remaining = 0) = true
   rw [remaining_runFrom]
-  change decide (b - b = 0) = true
-  simp
+  exact decide_eq_true (Nat.sub_self b)
 
 /-- Before the requested duration, the local call remains live. Together with the stopping
 lemma this supplies the exact first-halt contract for state-returning query calls. -/
@@ -85,18 +83,16 @@ theorem finish_runFrom_load (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) (w : Li
   let q := (QueryReplay.machine M).runFrom w (loadView w.length b J view) b
   let c := M.runFrom (embedCfg (input := w) b J view.1 view.2) b
   have hwidth : q.width = b := width_runFrom M w _ b
-  have hrep := runFrom_loadView_represents (w := w) M b J view le_rfl
-  have hmotion := Motion.valid_iff positive negative expected q c J hwidth hinput hrep
+  have hmotion := Motion.valid_iff positive negative expected q c J hwidth hinput
+    (runFrom_loadView_represents (w := w) M b J view le_rfl)
   have hview : (rawResult q).toView b = (c.blockControl b, c.windowContents b J) :=
     (toView_rawResult q b hwidth).trans (result_runFrom_loadView (w := w) M b J view)
-  have hvalid : Encoding.NativeEncode.valid (b, true, rawResult q) = true := by
-    apply List.all_eq_true.mpr
-    intro flag hflag
-    obtain ⟨h, rfl⟩ := List.mem_ofFn.mp hflag
-    apply decide_eq_true
-    change (((QueryReplay.machine M).runFrom w (loadView w.length b J view) b).cells h).length = _
-    rw [length_cells_runFrom]
-    simp [loadView]
+  have hvalid : Encoding.NativeEncode.valid (b, true, rawResult q) = true :=
+    List.all_eq_true.mpr fun _ hflag => by
+      obtain ⟨h, rfl⟩ := List.mem_ofFn.mp hflag
+      refine decide_eq_true ?_
+      rw [length_cells_runFrom]
+      simp [loadView]
   change Encoding.NativeEncode.serialize e
     (q.width, Motion.valid (positive, negative, expected, q), rawResult q) =
       List.ofFn (Encoding.encode e (if ∀ head,
@@ -108,7 +104,7 @@ theorem finish_runFrom_load (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) (w : Li
     rw [hc, Encoding.NativeEncode.serialize_some e (rawResult q) hvalid, hview]
     simp [hm]
   · have hc : Motion.valid (positive, negative, expected, q) = false :=
-      Bool.eq_false_iff.mpr (fun h => hm (hmotion.mp h))
+      Bool.eq_false_iff.mpr (mt hmotion.mp hm)
     rw [hc, Encoding.NativeEncode.serialize_fail e (rawResult q) hvalid]
     simp [hm]
 
@@ -125,9 +121,8 @@ theorem length_runFrom_load_le (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) (w :
       2 * (encContext (positive, negative, expected)).length + 1 +
         1024 * (k + 1) * (b + Nat.log2 w.length + Nat.card (Option Q) +
           Nat.card OutputTrack + 1) := by
-  rw [runFrom_eq]
   have h := Load.length_runFrom_load_le M w b positive negative raw hcanonical J hinput t
-  rw [encState, length_encPair]
+  rw [runFrom_eq, encState, length_encPair]
   dsimp only [Prod.fst, Prod.snd]
   omega
 

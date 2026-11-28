@@ -244,29 +244,13 @@ halting. -/
 `halted`. -/
 theorem TokenState.halted_subset_next (S : PushSystem m Msg) (ts : TokenState m Msg)
     (a : Outcome m Msg) : ts.halted ⊆ (ts.next S a).halted := by
-  cases a with
-  | write r t p =>
-    simp only [TokenState.next]
-    split_ifs <;> exact Finset.Subset.refl _
-  | yield => exact Finset.Subset.refl _
-  | halt b =>
-    simp only [TokenState.next]
-    split_ifs
-    · exact Finset.Subset.refl _
-    · exact Finset.subset_insert _ _
+  cases a <;> simp only [TokenState.next] <;> (try split_ifs) <;>
+    first | exact Finset.Subset.refl _ | exact Finset.subset_insert _ _
 
 /-- Library infrastructure (no cited result): `TokenState.next` only appends to `log`. -/
 theorem TokenState.log_prefix_next (S : PushSystem m Msg) (ts : TokenState m Msg)
     (a : Outcome m Msg) : ts.log <+: (ts.next S a).log := by
-  cases a with
-  | write r t p =>
-    simp only [TokenState.next]
-    split_ifs
-    · exact List.prefix_append _ _
-    · exact List.prefix_rfl
-  | yield => exact List.prefix_rfl
-  | halt b =>
-    simp only [TokenState.next]
-    split_ifs <;> exact List.prefix_rfl
+  cases a <;> simp only [TokenState.next] <;> (try split_ifs) <;>
+    first | exact List.prefix_append _ _ | exact List.prefix_rfl
 
 end Cslib.Crypto.Protocols.UC.Push

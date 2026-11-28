@@ -99,6 +99,17 @@ theorem interpret_iterate {κ : Type w} {target : OracleSpec.{w, v} κ}
   | zero => rfl
   | succ count ih => simp only [iterate_succ, interpret_bind, ih]
 
+/-- Interpreting a bounded loop against an answer function iterates the interpreted body. -/
+theorem interpret_id_iterate (answer : (q : ι) → spec q) (n : ℕ)
+    (step : State → OracleComp spec State) (s : State) :
+    OracleComp.interpret (m := Id) answer (OracleComp.iterate n step s) =
+      (fun s => OracleComp.interpret (m := Id) answer (step s))^[n] s := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+    rw [OracleComp.iterate_succ, OracleComp.interpret_bind, Function.iterate_succ_apply', ← ih]
+    rfl
+
 /-- Interpreting a loop with a stateful handler is a loop on the joint program and handler state.
 The hidden state is retained between iterations, including effects of the last transition. -/
 theorem run_interpret_iterate {Hidden : Type v} {κ : Type w}

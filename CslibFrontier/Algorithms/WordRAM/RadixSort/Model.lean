@@ -98,20 +98,15 @@ theorem partition_pairwise {b : ℕ} {xs : List ℕ}
   have he (v : ℕ) : v % 2 ^ (b + 1) = v % 2 ^ b + 2 ^ b * digit b v := by
     rw [Nat.pow_succ, Nat.mod_mul, digit]
   have hp (t : ℕ) :
-      (select b t xs).Pairwise (fun u v => u % 2 ^ (b + 1) ≤ v % 2 ^ (b + 1)) := by
-    apply (hs.filter _).imp_of_mem
-    intro u v hu hv huv
-    change u ∈ select b t xs at hu
-    change v ∈ select b t xs at hv
-    rw [mem_select] at hu hv
-    rw [he, he, hu.2, hv.2]
-    omega
-  apply List.pairwise_append.mpr
-  refine ⟨hp 0, hp 1, ?_⟩
-  intro u hu v hv
+      (select b t xs).Pairwise (fun u v => u % 2 ^ (b + 1) ≤ v % 2 ^ (b + 1)) :=
+    (hs.filter _).imp_of_mem fun {u v} hu hv huv => by
+      simp only [select, List.mem_filter, decide_eq_true_eq] at hu hv
+      rw [he, he, hu.2, hv.2]
+      omega
+  refine List.pairwise_append.mpr ⟨hp 0, hp 1, fun u hu v hv => ?_⟩
   rw [mem_select] at hu hv
+  have := Nat.mod_lt u (Nat.two_pow_pos b)
   rw [he, he, hu.2, hv.2]
-  have hmod := Nat.mod_lt u (Nat.two_pow_pos b)
   omega
 
 /-- The output is sorted on the low `bits` bits. -/
@@ -124,11 +119,9 @@ theorem passes_pairwise (bits : ℕ) (xs : List ℕ) :
 /-- Keys strictly below `2^bits` are sorted in unsigned order after `bits` passes. -/
 theorem passes_correct (bits : ℕ) (xs : List ℕ)
     (hbound : ∀ v ∈ xs, v < 2 ^ bits) :
-    (passes bits xs).Perm xs ∧ (passes bits xs).Pairwise (· ≤ ·) := by
-  refine ⟨passes_perm bits xs, (passes_pairwise bits xs).imp_of_mem ?_⟩
-  intro u v hu hv huv
-  have hu' := hbound u ((passes_perm bits xs).mem_iff.mp hu)
-  have hv' := hbound v ((passes_perm bits xs).mem_iff.mp hv)
-  simpa only [Nat.mod_eq_of_lt hu', Nat.mod_eq_of_lt hv'] using huv
+    (passes bits xs).Perm xs ∧ (passes bits xs).Pairwise (· ≤ ·) :=
+  ⟨passes_perm bits xs, (passes_pairwise bits xs).imp_of_mem fun {u v} hu hv => by
+    simp [Nat.mod_eq_of_lt (hbound u ((passes_perm bits xs).mem_iff.mp hu)),
+      Nat.mod_eq_of_lt (hbound v ((passes_perm bits xs).mem_iff.mp hv))]⟩
 
 end Cslib.Algorithms.WordRAM.RadixSort

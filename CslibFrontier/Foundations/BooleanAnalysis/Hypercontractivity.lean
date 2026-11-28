@@ -94,11 +94,9 @@ private theorem exists_eq_mul_le_sqrt {r s ρ : ℝ} (hr : 0 ≤ r) (hρ : 0 ≤
   rw [Real.sqrt_mul hr] at hρ'
   rcases (Real.sqrt_nonneg r).eq_or_lt with h | h
   · rw [← h, zero_mul] at hρ'
-    exact ⟨0, 0, by rw [zero_mul, le_antisymm hρ' hρ], le_rfl, h ▸ le_rfl, le_rfl,
-      Real.sqrt_nonneg s⟩
-  · refine ⟨√r, ρ / √r, (mul_div_cancel₀ ρ h.ne').symm, h.le, le_rfl, div_nonneg hρ h.le, ?_⟩
-    rw [div_le_iff₀ h, mul_comm]
-    exact hρ'
+    exact ⟨0, 0, by linarith, le_rfl, h ▸ le_rfl, le_rfl, Real.sqrt_nonneg s⟩
+  · exact ⟨√r, ρ / √r, (mul_div_cancel₀ ρ h.ne').symm, h.le, le_rfl, div_nonneg hρ h.le,
+      (div_le_iff₀ h).2 (mul_comm √s √r ▸ hρ')⟩
 
 /-! ### Two-function hypercontractivity -/
 
@@ -108,16 +106,15 @@ private theorem exists_eq_mul_le_sqrt {r s ρ : ℝ} (hr : 0 ≤ r) (hρ : 0 ≤
 theorem expect_mul_noiseOp_le_lpNorm_mul_lpNorm {r s ρ : ℝ} (hr : 0 ≤ r) (hr' : r ≤ 1)
     (hs : 0 ≤ s) (hs' : s ≤ 1) (hρ : 0 ≤ ρ) (hρ' : ρ ≤ √(r * s)) (f g : (ι → Bool) → ℝ) :
     𝔼 x, f x * noiseOp ρ g x ≤ lpNorm (1 + r) f * lpNorm (1 + s) g := by
-  have hrs : √(r * s) ≤ 1 := Real.sqrt_le_one.2 (by nlinarith)
-  refine expect_mul_noiseOp_le_of_unit (by linarith) (by linarith) hρ (hρ'.trans hrs)
-    (fun f g => ?_) f g
+  refine expect_mul_noiseOp_le_of_unit (by linarith) (by linarith) hρ
+    (hρ'.trans (Real.sqrt_le_one.2 (by nlinarith))) (fun f g => ?_) f g
   obtain ⟨ρ₁, ρ₂, rfl, h₁, h₁', h₂, h₂'⟩ := exists_eq_mul_le_sqrt hr hρ hρ'
-  refine (expect_mul_noiseOp_mul_le ρ₁ ρ₂ f g).trans
-    (mul_le_mul ?_ ?_ (lpNorm_nonneg _ _) (lpNorm_nonneg _ _))
-  · exact lpNorm_two_noiseOp_le_of_unit (by linarith) (by linarith) h₁
-      (by rwa [add_sub_cancel_left]) f
-  · exact lpNorm_two_noiseOp_le_of_unit (by linarith) (by linarith) h₂
-      (by rwa [add_sub_cancel_left]) g
+  exact (expect_mul_noiseOp_mul_le ρ₁ ρ₂ f g).trans (mul_le_mul
+    (lpNorm_two_noiseOp_le_of_unit (by linarith) (by linarith) h₁
+      (by rwa [add_sub_cancel_left]) f)
+    (lpNorm_two_noiseOp_le_of_unit (by linarith) (by linarith) h₂
+      (by rwa [add_sub_cancel_left]) g)
+    (lpNorm_nonneg _ _) (lpNorm_nonneg _ _))
 
 /-! ### `(p, 2)`-hypercontractivity -/
 
@@ -132,15 +129,14 @@ theorem lpNorm_two_noiseOp_le {p ρ : ℝ} (hp : 1 ≤ p) (hp' : p ≤ 2) (hρ :
     (by linarith) (mul_nonneg hρ hρ) hρρ f f
   rw [expect_mul_noiseOp_mul, add_sub_cancel] at h
   refine (pow_le_pow_iff_left₀ (lpNorm_nonneg _ _) (lpNorm_nonneg _ _) two_ne_zero).1 ?_
-  rw [lpNorm_two_sq, sq (lpNorm p f)]
+  rw [lpNorm_two_sq]
   simpa only [sq] using h
 
 /-- **The `(p, 2)`-Hypercontractivity Theorem, as a bound on noise stability**: for
 `0 ≤ ρ ≤ 1`, `Stab_ρ[f] ≤ ‖f‖_{1 + ρ} ^ 2` [O'Donnell, Chapter 9][ODonnell2014]. -/
 theorem noiseStability_le_lpNorm_sq {ρ : ℝ} (hρ : 0 ≤ ρ) (hρ' : ρ ≤ 1) (f : (ι → Bool) → ℝ) :
     noiseStability ρ f ≤ lpNorm (1 + ρ) f ^ 2 := by
-  rw [sq]
-  exact expect_mul_noiseOp_le_lpNorm_mul_lpNorm hρ hρ' hρ hρ' hρ
+  simpa only [sq, noiseStability] using expect_mul_noiseOp_le_lpNorm_mul_lpNorm hρ hρ' hρ hρ' hρ
     (Real.sqrt_mul_self hρ).ge f f
 
 /-- **The `(4/3, 2)`-Hypercontractivity Theorem**: `Stab_{1/3}[f] ≤ ‖f‖_{4/3} ^ 2`
@@ -157,7 +153,6 @@ theorem noiseStability_one_third_le (f : (ι → Bool) → ℝ) :
 theorem lpNorm_noiseOp_le_lpNorm_two {q ρ : ℝ} (hq : 2 ≤ q) (hρ : 0 ≤ ρ)
     (hρ' : ρ ≤ (√(q - 1))⁻¹) (f : (ι → Bool) → ℝ) : lpNorm q (noiseOp ρ f) ≤ lpNorm 2 f := by
   set u := noiseOp ρ f
-  have hq0 : 0 < q := by linarith
   have hq1 : 0 < q - 1 := by linarith
   set r := (q - 1)⁻¹ with hr
   have hr0 : 0 ≤ r := inv_nonneg.2 hq1.le
@@ -182,20 +177,17 @@ theorem lpNorm_noiseOp_le_lpNorm_two {q ρ : ℝ} (hq : 2 ≤ q) (hρ : 0 ≤ ρ
     at key
   set A := 𝔼 x, |u x| ^ q
   have hA : 0 ≤ A := expect_abs_rpow_nonneg q u
-  have hlp : lpNorm (1 + r) h = A ^ (1 + r)⁻¹ := by
-    simp only [lpNorm, habs, A]
-  rw [hlp, one_add_one_eq_two] at key
+  simp only [lpNorm, habs, one_add_one_eq_two] at key
   change A ^ q⁻¹ ≤ lpNorm 2 f
   rcases hA.eq_or_lt with h0 | hpos
-  · rw [← h0, Real.zero_rpow (inv_ne_zero hq0.ne')]
+  · rw [← h0, Real.zero_rpow (inv_ne_zero (by linarith))]
     exact lpNorm_nonneg _ _
   · have hexp : q⁻¹ + (1 + r)⁻¹ = 1 := by
       rw [hr]
       field_simp
       ring
     refine le_of_mul_le_mul_right ?_ (Real.rpow_pos_of_pos hpos (1 + r)⁻¹)
-    rw [← Real.rpow_add hpos, hexp, Real.rpow_one, mul_comm]
-    exact key
+    rwa [← Real.rpow_add hpos, hexp, Real.rpow_one, mul_comm]
 
 /-- **Hypercontractivity for `p ≤ 2 ≤ q`**: for `1 ≤ p ≤ 2 ≤ q` and
 `0 ≤ ρ ≤ √((p - 1) / (q - 1))`, `‖T_ρ f‖_q ≤ ‖f‖_p`, composing the `(p, 2)` and `(2, q)`
@@ -218,9 +210,9 @@ theorem lpNorm_noiseOp_le_lpNorm {p q ρ : ℝ} (hp : 1 ≤ p) (hp' : p ≤ 2) (
 `𝔼 (T_{1/√3} f) ^ 4 ≤ (𝔼 f ^ 2) ^ 2` [O'Donnell, Section 9.2][ODonnell2014]. -/
 theorem expect_noiseOp_pow_four_le (f : (ι → Bool) → ℝ) :
     𝔼 x, noiseOp (√3)⁻¹ f x ^ 4 ≤ (𝔼 x, f x ^ 2) ^ 2 := by
-  have h := lpNorm_noiseOp_le_lpNorm_two (by norm_num : (2 : ℝ) ≤ 4)
-    (inv_nonneg.2 (Real.sqrt_nonneg 3)) (by norm_num) f
-  have h4 := pow_le_pow_left₀ (lpNorm_nonneg _ _) h 4
+  have h4 := pow_le_pow_left₀ (lpNorm_nonneg _ _)
+    (lpNorm_noiseOp_le_lpNorm_two (by norm_num : (2 : ℝ) ≤ 4)
+      (inv_nonneg.2 (Real.sqrt_nonneg 3)) (by norm_num) f) 4
   rw [show lpNorm 2 f ^ 4 = (lpNorm 2 f ^ 2) ^ 2 by ring, lpNorm_two_sq,
     ← Real.rpow_natCast, Nat.cast_ofNat, lpNorm_rpow (by norm_num)] at h4
   simpa only [Real.rpow_ofNat, Even.pow_abs (by decide : Even 4)] using h4

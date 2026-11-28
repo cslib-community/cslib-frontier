@@ -125,13 +125,9 @@ private theorem status_min {A : ℕ → Prop} [DecidablePred A] {m : ℕ} {y : D
     y.regs answer = minOrOne {q ∈ Nat.primesLE m | A q} := by
   let S := {q ∈ Nat.primesLE m | A q}
   rcases h with ⟨hf, ha, hn⟩ | ⟨hf, hk, hp, hA, hn⟩
-  · have hs : S = ∅ := by
-      apply Finset.eq_empty_iff_forall_notMem.mpr
-      intro q hq
-      have hq' := Finset.mem_filter.mp hq
-      have hmem := Finset.mem_filter.mp (by
-        simpa only [Nat.primesLE_eq_filter_range] using hq'.1)
-      exact hn q (Finset.mem_range.mp hmem.1) ⟨hmem.2, hq'.2⟩
+  · have hs : S = ∅ := Finset.eq_empty_iff_forall_notMem.mpr fun q hq => by
+      simp only [S, Finset.mem_filter, Nat.primesLE_eq_filter_range, Finset.mem_range] at hq
+      exact hn q hq.1.1 ⟨hq.1.2, hq.2⟩
     rw [ha]
     change 1 = minOrOne S
     simp [hs, minOrOne]
@@ -139,15 +135,11 @@ private theorem status_min {A : ℕ → Prop} [DecidablePred A] {m : ℕ} {y : D
       simp only [S, Finset.mem_filter, Nat.primesLE_eq_filter_range, Finset.mem_range]
       exact ⟨⟨hk, hp⟩, hA⟩
     have hs : S.Nonempty := ⟨_, hmem⟩
-    have hmin : S.min' hs = y.regs answer := by
-      apply le_antisymm (Finset.min'_le _ _ hmem)
-      apply Finset.le_min'
-      intro q hq
-      by_contra hnot
-      have hq' := Finset.mem_filter.mp hq
-      have hpq := (Finset.mem_filter.mp (by
-        simpa only [Nat.primesLE_eq_filter_range] using hq'.1)).2
-      exact hn q (by omega) ⟨hpq, hq'.2⟩
+    have hmin : S.min' hs = y.regs answer :=
+      le_antisymm (Finset.min'_le _ _ hmem) (Finset.le_min' _ _ _ fun q hq =>
+        not_lt.mp fun hlt => by
+          simp only [S, Finset.mem_filter, Nat.primesLE_eq_filter_range, Finset.mem_range] at hq
+          exact hn q hlt ⟨hq.1.2, hq.2⟩)
     change y.regs answer = minOrOne S
     simp only [minOrOne, dite_eq_left hs, hmin]
 
@@ -192,19 +184,18 @@ private theorem exec_driver {w T : ℕ} (x : Data 64) (A : ℕ → Prop) [Decida
             (by subst hu; regs_frame) (by subst hu; regs_frame) (by subst hu; regs_frame)
             (by rwa [hucur]))
           with v ⟨hvs, hvg, hvr⟩
-        have hvcur : v.regs cursor = y.regs cursor := (hvr cursor (by decide)).trans hucur
-        have hvo : v.regs one = 1 :=
-          (hvr one (by decide)).trans (by subst hu; regs_frame)
-        have hvf : v.regs found = 0 :=
-          (hvr found (by decide)).trans (by subst hu; regs_frame)
-        have hva : v.regs answer = 1 :=
-          (hvr answer (by decide)).trans (by subst hu; regs_frame)
-        have hvsp : v.regs stop = m + 1 :=
-          (hvr stop (by decide)).trans (by subst hu; regs_frame)
-        have hvz : v.regs zero = 0 :=
-          (hvr zero (by decide)).trans (by subst hu; regs_frame)
-        have hvt : v.regs two = 2 :=
-          (hvr two (by decide)).trans (by subst hu; regs_frame)
+        have hvy (i : Fin 64) (hc : Control i) : v.regs i = y.regs i := by
+          refine (hvr i hc).trans ?_
+          subst hu
+          dsimp only [Control] at hc
+          update_simp [addr, bit]
+        have hvcur : v.regs cursor = y.regs cursor := hvy cursor (by decide)
+        have hvo : v.regs one = 1 := (hvy one (by decide)).trans ho
+        have hvf : v.regs found = 0 := (hvy found (by decide)).trans hf
+        have hva : v.regs answer = 1 := (hvy answer (by decide)).trans ha
+        have hvsp : v.regs stop = m + 1 := (hvy stop (by decide)).trans hstop
+        have hvz : v.regs zero = 0 := (hvy zero (by decide)).trans hz
+        have hvt : v.regs two = 2 := (hvy two (by decide)).trans ht
         rw [hucur] at hvg
         by_cases hA : A (y.regs cursor)
         · wram_exec [hvg, hvo, hvcur, hA, hinc]
@@ -390,21 +381,11 @@ theorem exec {w : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ)
             x.regs CollisionTest.card ≤ x.regs (CollisionTest.threshold 1) ∧
           coll ((Finset.range (x.regs (CountCall.length 2))).image (values 2)) M *
             x.regs CollisionTest.card ≤ x.regs (CollisionTest.threshold 2) := by
-        constructor
-        · intro h; exact ⟨h 0, h 1, h 2⟩
-        · intro h j
-          fin_cases j
-          · exact h.1
-          · exact h.2.1
-          · exact h.2.2
+        simp [A, M, Fin.forall_fin_succ]
       simpa only [hlen, hcard, hcut, ← hA] using hgood
   obtain ⟨y, he, hs, ha⟩ := exec_driver x A hfit haddr hbefore hbitmap hquery
   refine ⟨y, he.mono ?_, hs.1, hs.2, ha⟩
   dsimp only [T]
-  have hcost : 34 * (x.regs (CountCall.length 0) + x.regs (CountCall.length 1) +
-      x.regs (CountCall.length 2)) + 15 * (x.regs factor * x.regs limit) + 87 + 15 =
-      34 * (x.regs (CountCall.length 0) + x.regs (CountCall.length 1) +
-        x.regs (CountCall.length 2)) + 15 * (x.regs factor * x.regs limit) + 102 := by omega
-  rw [hcost]
+  exact Nat.add_le_add_right (Nat.mul_le_mul_left _ (by omega)) 9
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Search

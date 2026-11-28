@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Init
 public import Mathlib.NumberTheory.Padics.RingHoms
 public import Mathlib.RingTheory.Valuation.Integers
-import Mathlib.NumberTheory.Padics.PadicVal.Basic
 
 /-!
 # The `p`-adic valuation of rationals: integers and reduction modulo `p ^ n`

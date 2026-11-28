@@ -92,20 +92,17 @@ private theorem exec_arithmetic {w : ℕ} {a b : ℤ} (f : Arithmetic)
     (x : WordRAM.Data (r + 9)) (hxa : x.regs left = encode a) (hxb : x.regs right = encode b) :
     ∃ y, ExecWithin (w + 2) (arithmeticCode f) x y 20 ∧
       y.regs result = encode (f.eval a b) ∧ Frame x y := by
+  have lift {t : ℕ} {c : Code .standard (r + 9)} {v : ℤ} (ht : t ≤ 20)
+      (h : ∃ y, ExecWithin (w + 2) c x y t ∧ y.regs result = encode v ∧ Frame x y) :
+      ∃ y, ExecWithin (w + 2) c x y 20 ∧ y.regs result = encode v ∧ Frame x y := by
+    obtain ⟨y, hy, hv', hf⟩ := h
+    exact ⟨y, hy.mono ht, hv', hf⟩
   cases f with
-  | add =>
-    obtain ⟨y, hy, hv, hf⟩ := exec_add ha hb x hxa hxb
-    exact ⟨y, hy.mono (by decide), hv, hf⟩
-  | sub =>
-    obtain ⟨y, hy, hv, hf⟩ := exec_subtract ha hb x hxa hxb
-    exact ⟨y, hy.mono (by decide), hv, hf⟩
-  | mul =>
-    obtain ⟨y, hy, hv, hf⟩ := exec_multiply ha hb hv x hxa hxb
-    exact ⟨y, hy.mono (by decide), hv, hf⟩
+  | add => exact lift (by decide) (exec_add ha hb x hxa hxb)
+  | sub => exact lift (by decide) (exec_subtract ha hb x hxa hxb)
+  | mul => exact lift (by decide) (exec_multiply ha hb hv x hxa hxb)
   | div => exact exec_divide ha hb x hxa hxb
-  | mod =>
-    obtain ⟨y, hy, hv, hf⟩ := exec_modulo ha hb x hxa hxb
-    exact ⟨y, hy.mono (by decide), hv, hf⟩
+  | mod => exact lift (by decide) (exec_modulo ha hb x hxa hxb)
 
 /-- Nonnegative signed addresses are decoded in two instructions without changing source data. -/
 theorem exec_address {w : ℕ} {s : GenericRAM.Data model r} {x : WordRAM.Data (r + 9)}
@@ -205,9 +202,7 @@ theorem exec_compileCond {w : ℕ} {s : GenericRAM.Data model r} {x : WordRAM.Da
   | test f args =>
     cases f with
     | eq =>
-      change some (decide (s.regs (args 0) = s.regs (args 1))) = some b at he
-      have hb := Option.some.inj he
-      subst b
+      obtain ⟨rfl⟩ : some (decide (s.regs (args 0) = s.regs (args 1))) = some b := he
       have hq : Represents w s (x.set two 1) := hx.scratch (i := two) (by dsimp [two]; omega) 1
       simp only [compileCond]
       wram_exec [hx.regs, h1]
@@ -217,15 +212,13 @@ theorem exec_compileCond {w : ℕ} {s : GenericRAM.Data model r} {x : WordRAM.Da
         simp only [encode_injective.eq_iff] at hc
         simp [hc]
     | lt =>
-      change some (decide (s.regs (args 0) < s.regs (args 1))) = some b at he
-      have hb := Option.some.inj he
-      subst b
+      obtain ⟨rfl⟩ : some (decide (s.regs (args 0) < s.regs (args 1))) = some b := he
       obtain ⟨z, hz, hza, hzb, hzr⟩ := exec_operands hx (args 0) (args 1)
       obtain ⟨y, hy, hyr, hyf⟩ := exec_less (two_fits w) z hza hzb
-      let q := y.set two 1
-      have hlast := Exec.const (B := .standard) (x := y) (d := two) h1
-      refine ⟨q, hz.seq (hy.seq hlast.within), ?_, by simp [q],
+      refine ⟨y.set two 1,
+        hz.seq (hy.seq (Exec.const (B := .standard) (x := y) (d := two) h1).within),
+        by simpa [result, two, Fin.mk.injEq] using hyr,
+        by simp,
         (hzr.of_frame hyf).scratch (i := two) (by dsimp [two]; omega) _⟩
-      simpa [q, result, two, Fin.mk.injEq] using hyr
 
 end Cslib.GenericRAM.Signed.ToWordRAM

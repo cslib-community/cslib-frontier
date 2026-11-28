@@ -853,15 +853,14 @@ theorem baseCaseAndPop_spec {n w fp parentFp b k : ℕ} {W₀ : Fin n → Fin n 
 theorem frameSize_le_fastCutScratch (m : ℕ) :
     frameSize m ≤ fastCutScratch m := by
   by_cases hm : 7 ≤ m
-  · rw [fastCutScratch_of_ge_seven hm]
-    exact Nat.le_add_right _ _
+  · simp [fastCutScratch_of_ge_seven hm]
   · rw [fastCutScratch_of_lt_seven (by omega)]
 
 private theorem two_mul_pred_le_frameSize (k : ℕ) :
     2 * k * (k - 1) ≤ frameSize k := by
   unfold frameSize
-  have hle : k * (k - 1) ≤ k * k := Nat.mul_le_mul_left k (Nat.sub_le k 1)
-  have h2 : 2 * k * (k - 1) = 2 * (k * (k - 1)) := by ring
+  have := Nat.mul_le_mul_left k (Nat.sub_le k 1)
+  rw [Nat.mul_assoc]
   omega
 
 private theorem branch_step_bound {k t n_th n_cp n_deg n_c n_tail : ℕ}
@@ -1364,8 +1363,7 @@ private theorem fastCutNode_branch2_law {n w d' fp parentFp b k : ℕ}
     (hs1.mono (fun z ⟨hmod, hstg, hv, rest⟩ => ⟨hmod, ⟨hstg, hv⟩, rest⟩) le_rfl le_rfl)
     (fun _ _ hmod ⟨hs, hv⟩ => ⟨by unfold frameSize at hmod; mem_frame,
       by unfold frameSize at hmod; mem_frame⟩)
-    (fun ht hd hz0 hzfp hzsp hmp hmk hms hmc hcc hfc hsc =>
-      hih ht hd hz0 hzfp hzsp hmp hmk hms hmc hcc hfc hsc)
+    @hih
   have hfinal := hbranch₂.trans
     (Q := fun z => Modifies (Finset.Ico (fp + 2 + k * k) (fp + fastCutScratch k)) mem₀ z.mem ∧
       z.regs zero = 0 ∧ z.regs fpReg = parentFp ∧ z.regs spReg = b)
@@ -1415,16 +1413,13 @@ theorem fastCutNode_law {n w : ℕ} {W₀ : Fin n → Fin n → ℕ}
       have hfirst := composeBranchWithChild_law (P_frame := fun mem => mem (fp + 2 + k * k) = 1)
         hk7 hd' hfit hsp_fit hs0
         (fun _ _ hmod h1 => (hmod _ (by rw [Finset.mem_Ico]; unfold frameSize; omega)).trans h1)
-        fun ht hd hz0 hzfp hzsp hmp hmk hms hmc hcc hfc hsc =>
-          ih ht hd hz0 hzfp hzsp hmp hmk hms hmc hcc hfc hsc
+        (@ih (fp + frameSize k) fp (b + 1) t)
       have htotal := hfirst.trans
         (κ := fun a => ((Lean.Karger.contractLaw (⟨k, W_k⟩, t)).bind
           (Lean.Karger.fastCutLaw t)).map (min a))
         fun y ⟨hmod₁, hstg₁, hy0, hyfp, hysp⟩ =>
           fastCutNode_branch2_law htot hk7 hd' hfit hsp_fit hC hm_p hm_k hmat
-            hmod₁ hstg₁ hy0 hyfp hysp
-            fun ht hd hz0 hzfp hzsp hmp hmk hms hmc hcc hfc hsc =>
-              ih ht hd hz0 hzfp hzsp hmp hmk hms hmc hcc hfc hsc
+            hmod₁ hstg₁ hy0 hyfp hysp (@ih (fp + frameSize k) fp (b + 1) t)
       refine (htotal.congr_law (Lean.Karger.fastCutLaw_node hk7 _).symm).mono (fun _ h => h) ?_ ?_
       · rw [fastCutNodeTime_of_ge_seven hk7]; omega
       · rw [fastCutNodeQueries_of_ge_seven hk7]; omega

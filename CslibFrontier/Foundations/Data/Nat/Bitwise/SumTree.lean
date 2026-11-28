@@ -11,7 +11,6 @@ public import CslibFrontier.Init
 public import Mathlib.Data.Nat.BitIndices
 public import Mathlib.Algebra.BigOperators.Ring.Finset
 import Batteries.Data.Nat.Lemmas
-import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
 /-!
@@ -59,14 +58,14 @@ theorem sumTree_le (f : ℕ → Bool) (j q : ℕ) : sumTree f j q ≤ 2 ^ j := b
     rw [sumTree, pow_succ]
     have := ih (2 * q)
     have := ih (2 * q + 1)
-    lia
+    omega
 
 /-- Each count occupies at most `j+1` bits, including the all-one block. -/
 theorem sumTree_lt (f : ℕ → Bool) (j q : ℕ) : sumTree f j q < 2 ^ (j + 1) := by
   have := sumTree_le f j q
   have := Nat.two_pow_pos j
   rw [pow_succ]
-  lia
+  omega
 
 /-- The balanced tree counts its contiguous block, in increasing position order. -/
 theorem sumTree_eq_sum (f : ℕ → Bool) (j q : ℕ) :
@@ -75,15 +74,7 @@ theorem sumTree_eq_sum (f : ℕ → Bool) (j q : ℕ) :
   | zero => simp [sumTree]
   | succ j ih =>
     rw [sumTree, ih, ih, pow_succ, Nat.mul_two, sum_range_add]
-    congr 1
-    · apply sum_congr rfl
-      intro i _
-      congr 2
-      ring
-    · apply sum_congr rfl
-      intro i _
-      congr 2
-      ring
+    congr 1 <;> refine sum_congr rfl fun _ _ => congrArg (fun n => (f n).toNat) (by ring)
 
 /-- Counting all the bit positions containing a numeral gives its number of set bits. -/
 theorem _root_.Nat.sum_testBit_eq_length_bitIndices {x k : ℕ} (hx : x < 2 ^ k) :
@@ -91,12 +82,8 @@ theorem _root_.Nat.sum_testBit_eq_length_bitIndices {x k : ℕ} (hx : x < 2 ^ k)
   have hbits : (range k).filter (fun i => x.testBit i = true) = x.bitIndices.toFinset := by
     ext i
     simp only [mem_filter, mem_range, List.mem_toFinset, Nat.mem_bitIndices]
-    constructor
-    · exact And.right
-    · intro hi
-      refine ⟨?_, hi⟩
-      have := Nat.ge_two_pow_of_testBit hi
-      exact (Nat.pow_lt_pow_iff_right Nat.one_lt_two).mp (lt_of_le_of_lt this hx)
+    exact ⟨And.right, fun hi => ⟨(Nat.pow_lt_pow_iff_right Nat.one_lt_two).mp
+      ((Nat.ge_two_pow_of_testBit hi).trans_lt hx), hi⟩⟩
   calc
     (∑ i ∈ range k, (x.testBit i).toNat) =
         ∑ i ∈ range k, if x.testBit i = true then 1 else 0 := by
@@ -118,33 +105,27 @@ def sumTreeAddress (m j b q : ℕ) : ℕ := (j + b + 3) * 2 ^ (m - j) + q
 /-- All valid node bits fit in four times the number of leaves. -/
 theorem sumTreeAddress_lt {m j b q : ℕ} (hj : j ≤ m) (hb : b ≤ j)
     (hq : q < 2 ^ (m - j)) : sumTreeAddress m j b q < 4 * 2 ^ m := by
-  have hc : j + b + 4 ≤ 4 * 2 ^ j := by
-    have h : j + 1 ≤ 2 ^ j := Nat.lt_two_pow_self
-    lia
+  have hc : j + b + 4 ≤ 4 * 2 ^ j := by have := Nat.lt_two_pow_self (n := j); omega
   have hp : 2 ^ j * 2 ^ (m - j) = 2 ^ m := by rw [← pow_add, Nat.add_sub_of_le hj]
-  have hh := Nat.mul_le_mul_right (2 ^ (m - j)) hc
-  dsimp [sumTreeAddress]
-  nlinarith
+  calc sumTreeAddress m j b q < (j + b + 3) * 2 ^ (m - j) + 2 ^ (m - j) := Nat.add_lt_add_left hq _
+    _ = (j + b + 4) * 2 ^ (m - j) := by ring
+    _ ≤ 4 * 2 ^ j * 2 ^ (m - j) := Nat.mul_le_mul_right _ hc
+    _ = 4 * 2 ^ m := by rw [Nat.mul_assoc, hp]
 
 /-- Increasing the level moves its entire bit plane before the preceding level. -/
 private theorem plane_separated {m i j : ℕ} (hij : i < j) (hj : j ≤ m) :
     (2 * j + 4) * 2 ^ (m - j) ≤ (i + 3) * 2 ^ (m - i) := by
   have hg (d : ℕ) : 2 * (i + d + 1) + 4 ≤ (i + 3) * 2 ^ (d + 1) := by
     induction d with
-    | zero => simp only [Nat.add_zero]; lia
-    | succ d ih =>
-      rw [pow_succ]
-      nlinarith
+    | zero => simp only [Nat.add_zero]; omega
+    | succ d ih => rw [pow_succ, ← Nat.mul_assoc]; omega
   have h := hg (j - i - 1)
-  have hd : i + (j - i - 1) + 1 = j := by lia
-  have he : j - i - 1 + 1 = j - i := by lia
-  rw [hd, he] at h
-  have hm := Nat.mul_le_mul_right (2 ^ (m - j)) h
+  rw [show i + (j - i - 1) + 1 = j by omega, show j - i - 1 + 1 = j - i by omega] at h
   have hp : 2 ^ (j - i) * 2 ^ (m - j) = 2 ^ (m - i) := by
-    rw [← pow_add]
-    congr 1
-    lia
-  rwa [Nat.mul_assoc, hp] at hm
+    rw [← pow_add]; congr 1; omega
+  calc (2 * j + 4) * 2 ^ (m - j) ≤ (i + 3) * 2 ^ (j - i) * 2 ^ (m - j) :=
+        Nat.mul_le_mul_right _ h
+    _ = (i + 3) * 2 ^ (m - i) := by rw [Nat.mul_assoc, hp]
 
 /-- Valid bits at different levels, nodes or bit positions never share an address. -/
 theorem sumTreeAddress_injective {m j b q j' b' q' : ℕ}
@@ -152,25 +133,21 @@ theorem sumTreeAddress_injective {m j b q j' b' q' : ℕ}
     (hj' : j' ≤ m) (hb' : b' ≤ j') (hq' : q' < 2 ^ (m - j'))
     (he : sumTreeAddress m j b q = sumTreeAddress m j' b' q') :
     j = j' ∧ b = b' ∧ q = q' := by
+  have hrange {j b q : ℕ} (hb : b ≤ j) (hq : q < 2 ^ (m - j)) :
+      (j + 3) * 2 ^ (m - j) ≤ sumTreeAddress m j b q ∧
+        sumTreeAddress m j b q < (2 * j + 4) * 2 ^ (m - j) :=
+    ⟨le_trans (Nat.mul_le_mul_right _ (by omega)) (Nat.le_add_right _ _),
+      calc sumTreeAddress m j b q < (j + b + 3) * 2 ^ (m - j) + 2 ^ (m - j) :=
+            Nat.add_lt_add_left hq _
+        _ = (j + b + 4) * 2 ^ (m - j) := by ring
+        _ ≤ (2 * j + 4) * 2 ^ (m - j) := Nat.mul_le_mul_right _ (by omega)⟩
   have hlevels : j = j' := by
     by_contra hne
     rcases lt_or_gt_of_ne hne with hlt | hlt
-    · have hs := plane_separated hlt hj'
-      have hlo : (j + 3) * 2 ^ (m - j) ≤ sumTreeAddress m j b q := by
-        dsimp [sumTreeAddress]
-        nlinarith
-      have hhi : sumTreeAddress m j' b' q' < (2 * j' + 4) * 2 ^ (m - j') := by
-        dsimp [sumTreeAddress]
-        nlinarith
-      lia
-    · have hs := plane_separated hlt hj
-      have hlo : (j' + 3) * 2 ^ (m - j') ≤ sumTreeAddress m j' b' q' := by
-        dsimp [sumTreeAddress]
-        nlinarith
-      have hhi : sumTreeAddress m j b q < (2 * j + 4) * 2 ^ (m - j) := by
-        dsimp [sumTreeAddress]
-        nlinarith
-      lia
+    · have := plane_separated hlt hj'
+      have := (hrange hb hq).1; have := (hrange hb' hq').2; omega
+    · have := plane_separated hlt hj
+      have := (hrange hb' hq').1; have := (hrange hb hq).2; omega
   subst j'
   have hpos := Nat.two_pow_pos (m - j)
   have hdiv := congrArg (· / 2 ^ (m - j)) he
@@ -181,7 +158,7 @@ theorem sumTreeAddress_injective {m j b q j' b' q' : ℕ}
     Nat.div_eq_of_lt hq', Nat.add_zero] at hdiv
   simp only [sumTreeAddress, Nat.mul_add_mod_self_right, Nat.mod_eq_of_lt hq,
     Nat.mod_eq_of_lt hq'] at hmod
-  exact ⟨rfl, by lia, hmod⟩
+  exact ⟨rfl, by omega, hmod⟩
 
 /-- The packed bit planes of the actual addition tree, with unused positions set to zero. -/
 def sumTreeBits (f : ℕ → Bool) (m a : ℕ) : Bool :=
@@ -200,7 +177,7 @@ theorem sumTreeBits_address (f : ℕ → Bool) {m j b q : ℕ}
       (Nat.le_of_lt_succ j'.isLt) (Nat.le_of_lt_succ b'.isLt) q'.isLt hj hb hq he
     simpa only [hj', hb', hq'] using ht
   · intro ht
-    exact ⟨⟨j, by lia⟩, ⟨b, by lia⟩, ⟨q, hq⟩, rfl, ht⟩
+    exact ⟨⟨j, Nat.lt_succ_of_le hj⟩, ⟨b, Nat.lt_succ_of_le hb⟩, ⟨q, hq⟩, rfl, ht⟩
 
 /-- A fixed tuple of eight `h`-bit words stores the tree's bit planes. -/
 def sumTreeWords (f : ℕ → Bool) (m h : ℕ) (r : Fin 8) : ℕ :=
@@ -218,7 +195,7 @@ theorem sumTreeWords_testBit (f : ℕ → Bool) (m h : ℕ) (r : Fin 8) {b : ℕ
 /-- The eight words collectively contain every address below `8h`. -/
 theorem exists_sumTreeWords_address {h a : ℕ} (ha : a < 8 * h) :
     ∃ r : Fin 8, ∃ b : Fin h, r.val * h + b.val = a := by
-  have hh : 0 < h := by lia
+  have hh : 0 < h := Nat.pos_of_ne_zero fun h0 => by simp [h0] at ha
   refine ⟨⟨a / h, (Nat.div_lt_iff_lt_mul hh).mpr ha⟩,
     ⟨a % h, Nat.mod_lt _ hh⟩, ?_⟩
   simpa only [Nat.mul_comm] using Nat.div_add_mod a h

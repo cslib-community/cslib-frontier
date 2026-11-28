@@ -66,12 +66,8 @@ private theorem modifies_of_eq {n base : ℕ} {m₁ m₂ : ℕ → ℕ}
 
 private theorem numMarked_pos_of_mark {n : ℕ} {st : RawState n} {u : Fin n}
     (hnm : st.numMarked = markedCount st) (hin : st.inHeap u ≠ 0) (hm : st.mark u ≠ 0) :
-    1 ≤ st.numMarked := by
-  have hmem : u ∈ markedSet st := by
-    simp only [markedSet, Finset.mem_filter, Finset.mem_univ, true_and]
-    exact ⟨hin, hm⟩
-  have hpos : 0 < markedCount st := Finset.card_pos.mpr ⟨u, hmem⟩
-  omega
+    1 ≤ st.numMarked :=
+  hnm ▸ Finset.card_pos.mpr ⟨u, Finset.mem_filter.mpr ⟨Finset.mem_univ u, hin, hm⟩⟩
 
 private theorem potential_eq_of_evalCascGuard {x y : Data rFib}
     (hreg : ∀ r : Fin rFib, r ≠ s0 → r ≠ s1 → r ≠ s2 → r ≠ iterCur → y.regs r = x.regs r) :
@@ -265,11 +261,8 @@ theorem cutNodeCode_raw {n base w : ℕ} {x : Data rFib}
   have hx7_nr : x7.regs numRootsReg = st.numRoots := by regs_frame
   wram_exec [hfit, hbr7.regs_oneP, hx7_nr]
   have hnm' : nm' = st.numMarked - st.mark cur := by
-    by_cases hmk0 : st.mark cur = 0
-    · simp only [nm', hmk0, ↓reduceIte, Nat.sub_zero]
-    · simp only [nm', hmk0, ↓reduceIte]
-      have h1 : st.mark cur = 1 := by omega
-      rw [h1]
+    dsimp only [nm']
+    split_ifs <;> omega
   have hcs : RawState.ofData n base (x7.set numRootsReg (st.numRoots + 1)) =
       cutState st cur p m r' left₁ right₁ child₁ := by
     rw [ofData_set_numRoots, hst7, hst4, hst2, hnm']; rfl
@@ -340,11 +333,9 @@ private theorem fibRawInv_of_tail {n K_max : ℕ} {s' : IndexedMinPQ.State n}
       minRoot := if IndexedMinPQ.PrioLT (v, st.key v) (m, st.key m)
         then v.val + 1 else m.val + 1 }) :
     FibRawInv n K_max s' st' := by
-  refine hcut.to_fibRawInv
-    (by subst hupd; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩) ?_
-  by_cases hlt : IndexedMinPQ.PrioLT (v, st.key v) (m, st.key m)
-  · exact Or.inl ⟨hlt, by rw [hupd]; simp only [hlt, ↓reduceIte]⟩
-  · exact Or.inr ⟨hlt, by rw [hupd]; simp only [hlt, ↓reduceIte]⟩
+  subst hupd
+  refine hcut.to_fibRawInv ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ ?_
+  by_cases hlt : IndexedMinPQ.PrioLT (v, st.key v) (m, st.key m) <;> simp [hlt]
 
 /-- Loop invariant during the cascading-cut `while` loop in `decreaseKeyCode`. -/
 private def CascLoopInv (n K_max w base : ℕ) (s : IndexedMinPQ.State n)

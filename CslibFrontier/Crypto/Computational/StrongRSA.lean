@@ -187,16 +187,13 @@ theorem powMod_knownOrderRoot {N u v g : ℕ} (hu : 0 < u) (hg : g ^ u ≡ 1 [MO
     (hv : Nat.Coprime v u) : powMod N (knownOrderRoot N u v g) v = g % N := by
   rcases Nat.eq_zero_or_pos N with rfl | hN
   · -- Modulo `0`, `g ^ u = 1` with `0 < u` forces `g = 1`.
-    have hg1 : g = 1 :=
-      (Nat.pow_eq_one.mp (by simpa only [Nat.ModEq, Nat.mod_zero] using hg)).resolve_right hu.ne'
-    simp [powMod, hg1]
-  · have hinv : BinaryGcd.modInv v u * v ≡ 1 [MOD u] := by
-      rw [mul_comm]
-      exact BinaryGcd.mul_modInv_modEq_one hu hv
+    simp [powMod, (Nat.pow_eq_one.mp
+      (by simpa only [Nat.ModEq, Nat.mod_zero] using hg)).resolve_right hu.ne']
+  · rw [knownOrderRoot, powMod_powMod, powMod_of_ne_zero hN.ne', ← ZMod.natCast_eq_natCast_iff']
     have hgu : (g : ZMod N) ^ u = 1 := by
       exact_mod_cast (ZMod.natCast_eq_natCast_iff _ _ _).mpr hg
-    rw [knownOrderRoot, powMod_powMod, powMod_of_ne_zero hN.ne', ← ZMod.natCast_eq_natCast_iff']
-    exact_mod_cast (pow_eq_pow_of_modEq hinv hgu).trans (pow_one _)
+    exact_mod_cast (pow_eq_pow_of_modEq (mul_comm _ v ▸ BinaryGcd.mul_modInv_modEq_one hu hv)
+      hgu).trans (pow_one _)
 
 /-- The adversary of [BonehShoup2023], §10.9, p. 421, for exponents `u` and `v` computed from the
 security parameter and the public parameters: on `(n, (N, g))` it outputs
@@ -213,12 +210,8 @@ theorem isPPT_knownOrderAdversary {u v : ℕ → GUOParams → ℕ}
     (hv : ComputableInPolyTime (fun p : ℕ × GUOParams => v p.1 p.2)
       (encPair encUnary encGUOParams) encNat) :
     (knownOrderAdversary u v).IsPPT := by
-  have hroot : ComputableInPolyTime
-      (fun p : ℕ × GUOParams => knownOrderRoot p.2.modulus (u p.1 p.2) (v p.1 p.2) p.2.base)
-      (encPair encUnary encGUOParams) encNat :=
-    computableInPolyTime_powMod (by fun_prop) (by fun_prop)
-      (ComputableInPolyTime.binary_modInv' hv hu)
-  exact (hroot.prod hv).isPPTOn
+  exact ((computableInPolyTime_powMod (by fun_prop) (by fun_prop)
+    (ComputableInPolyTime.binary_modInv' hv hu)).prod hv).isPPTOn
 
 /-- The known-order adversary wins `strongRSAGame` with probability `1` at a security parameter
 `n` where, for every `(N, g)` in the support of `setup n`, `g ^ u ≡ 1 [MOD N]`, `v` is coprime to
@@ -275,7 +268,7 @@ theorem strongRSAGame_orderMultipleAdversary (setup : ℕ → PMF GUOParams) (u 
     (n : ℕ) (h : ∀ p ∈ (setup n).support, 0 < u n p ∧ p.base ^ u n p ≡ 1 [MOD p.modulus]) :
     strongRSAGame setup (orderMultipleAdversary u) n = PMF.pure true :=
   strongRSAGame_knownOrderAdversary setup u _ n fun p hp =>
-    ⟨(h p hp).2, by simp, by have := (h p hp).1; omega⟩
+    ⟨(h p hp).2, by simp, Nat.ne_of_gt (Nat.succ_lt_succ (h p hp).1)⟩
 
 /-- **The strong RSA assumption does not hold when a multiple of the order is known**
 ([BonehShoup2023], §10.9, p. 421). If a polynomial-time function `u` of the security parameter and
@@ -288,9 +281,7 @@ theorem not_strongRSA_of_orderMultiple {setup : ℕ → PMF GUOParams} {u : ℕ 
       (encPair encUnary encGUOParams) encNat)
     (h : ∀ n, ∀ p ∈ (setup n).support, 0 < u n p ∧ p.base ^ u n p ≡ 1 [MOD p.modulus]) :
     ¬ StrongRSA setup := by
-  intro hS
-  have hneg := hS _ (isPPT_orderMultipleAdversary hu)
-  simp only [strongRSAGame_orderMultipleAdversary setup u _ (h _)] at hneg
-  exact not_negligible_const (by simp [Game.succProbability]) hneg
+  exact not_strongRSA_of_knownOrder hu (v := fun n p => u n p + 1) (by fun_prop) fun n p hp =>
+    ⟨(h n p hp).2, by simp, Nat.ne_of_gt (Nat.succ_lt_succ (h n p hp).1)⟩
 
 end Cslib.Crypto

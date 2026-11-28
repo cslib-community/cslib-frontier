@@ -140,13 +140,10 @@ theorem polygonGraph_endpoints {edge : ℕ × ℕ} (he : edge ∈ (polygonGraph 
     edge.1 ∈ (polygonGraph F).vertices ∧ edge.2 ∈ (polygonGraph F).vertices := by
   obtain ⟨record, hrecord, rfl⟩ := List.mem_map.mp he
   obtain ⟨o, rfl⟩ := CSP.mem_occurrences.mp hrecord
-  simp only [CSP.Occurrence.record, polygonNext_occurrence, polygonGraph, List.mem_range]
-  constructor
-  · rw [← CSP.length_distinctVars]
-    exact List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr o.var_mem)
-  · rw [← CSP.length_distinctVars]
-    exact List.idxOf_lt_length_of_mem
-      (CSP.mem_distinctVars.mpr (argumentSuccessor o).var_mem)
+  simp only [CSP.Occurrence.record, polygonNext_occurrence, polygonGraph, List.mem_range,
+    ← CSP.length_distinctVars]
+  exact ⟨List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr o.var_mem),
+    List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr (argumentSuccessor o).var_mem)⟩
 
 /-- Dense vertex count is bounded by actual scope occurrences, independent of label sizes. -/
 theorem length_vertices_polygonGraph_le (F : CSP Rel V) :
@@ -159,10 +156,8 @@ theorem length_vertices_polygonGraph_le (F : CSP Rel V) :
 theorem polygon_scope_word (i : Fin F.length) :
     (List.ofFn fun j : Fin F[i.val].scope.length => (polygonDart (⟨i, j⟩ : F.Occurrence)
       false).vertex) = F[i.val].scope.map (F.distinctVars.idxOf ·) := by
-  apply List.ext_getElem
-  · simp
-  · intro j hj hk
-    simp [CSP.Occurrence.var]
+  refine List.ext_getElem (by simp) fun _ _ _ => ?_
+  simp [CSP.Occurrence.var]
 
 /-- With positive actual scopes, constraint positions are also bounded by occurrences. -/
 theorem length_constraints_le_polygon_edges

@@ -15,9 +15,6 @@ namespace CslibFrontierTests.GGM
 
 open Turing.MultiTapeTM Cslib Cslib.Crypto Cslib.Probability
 
--- Search compares certificate programs and encodings without unfolding machine witnesses.
-attribute [local irreducible] ComputableInPolyTime
-
 example : GGM.eval (fun seed => seed ++ seed.reverse ++ [true]) [false, true] [true, false] =
     [true, false] := by decide
 
@@ -64,18 +61,18 @@ example : IsPPTOn (encPair encUnary encUnary) encBool
 -- An empty seed and query still create exactly one empty root entry.
 example (generator : List Bool → List Bool) :
     GGM.frontierOracle generator 0 0 [] [] = pure ([], [([], [])]) := by
-  simp [GGM.frontierOracle, memoize, BitString.sampleList]
+  simp [GGM.frontierOracle, prefixHybridOracle, memoize, BitString.sampleList]
 
 -- Rejection does not touch arbitrary preassigned private state.
 example (generator : List Bool → List Bool) (depth : ℕ) (cache : GGM.Cache) :
     GGM.frontierOracle generator 1 depth [] cache = pure ([], cache) := by
-  simp [GGM.frontierOracle]
+  simp [GGM.frontierOracle, prefixHybridOracle]
 
 -- Repeated keys use the first entry; depths past the query length are also well defined.
 example (generator : List Bool → List Bool) :
     GGM.frontierOracle generator 1 3 [false] [([false], [true]), ([false], [false])] =
       pure ([true], [([false], [true]), ([false], [false])]) := by
-  simp [GGM.frontierOracle, memoize]
+  simp [GGM.frontierOracle, prefixHybridOracle, memoize]
 
 -- When the client makes no queries, lazily deferring the root draw preserves its private coin.
 example (generator : List Bool → List Bool) (n : ℕ) :

@@ -1,3 +1,4 @@
+import CslibFrontier.Logics.FirstOrder.Operator.Definability.Finite
 import CslibFrontier.Logics.FirstOrder.Operator.LeastFixedPoint.Definability
 import CslibFrontier.Logics.FirstOrder.Operator.Relabel
 import CslibFrontier.Logics.FirstOrder.Operator.TransitiveClosure.Definability
@@ -193,6 +194,30 @@ example (a : α) : Operator.Definable (L := L) LFP.policy M (fun _ => LFP.interp
     (fun _ => Operator.RelEnv.empty) (fun _ v => ∃ x, x = v a) := by
   fo_definable
 
+-- Tuple binders compose with fixed list conjunctions across the whole family of structures.
+example (a : α) (pairs : List (α × α)) :
+    Operator.Definable (L := L) LFP.policy M (fun _ => LFP.interpretation)
+      (fun _ => Operator.RelEnv.empty)
+      (fun i v => ∃ xs : Fin 2 → M i, xs 0 = v a ∧
+        ∀ p ∈ pairs, v p.1 = v p.2) := by
+  fo_definable
+
+-- Quantifying no variables does not assume the domain is inhabited.
+example : Operator.Definable (L := Language.empty) LFP.policy
+    (fun _ : Unit => Empty) (fun _ => LFP.interpretation) (fun _ => Operator.RelEnv.empty)
+    (fun _ (_ : Empty → Empty) => ∃ _xs : Fin 0 → Empty, True) := by
+  fo_definable
+
+-- List conjunction and tuple quantification retain positive occurrences of the bound relation.
+example (indices : List (Fin 2)) :
+    Operator.PolarityDefinable (L := Language.empty) LFP.policy
+      (LFP.headMark (Γ := []) (k := 2)) true
+      (fun _ : Set (Fin 2 → Bool) => Bool) (fun _ => LFP.interpretation)
+      (fun R => Operator.RelEnv.cons R Operator.RelEnv.empty)
+      (fun R (_ : Empty → Bool) => ∃ xs : Fin 2 → Bool,
+        xs ∈ R ∧ ∀ j ∈ indices, xs j = xs j) := by
+  fo_definable
+
 example (r : L.Relations 2) (xs ys : Fin 1 → L.Term α) :
     Operator.Definable (L := L) TC.policy M (fun _ => TC.interpretation)
       (fun _ => Operator.RelEnv.empty)
@@ -234,6 +259,17 @@ example : True := by
         (fun _ : Set (Fin 1 → Bool) => Bool) (fun _ => LFP.interpretation)
         (fun R => Operator.RelEnv.cons R Operator.RelEnv.empty)
         (fun R v => ¬ v ∈ R) := by
+      fo_definable
+  trivial
+
+-- A tuple binder cannot hide a negative occurrence of the recursive relation.
+example : True := by
+  fail_if_success
+    have : Operator.PolarityDefinable (L := Language.empty) LFP.policy
+        (LFP.headMark (Γ := []) (k := 2)) true
+        (fun _ : Set (Fin 2 → Bool) => Bool) (fun _ => LFP.interpretation)
+        (fun R => Operator.RelEnv.cons R Operator.RelEnv.empty)
+        (fun R (_ : Empty → Bool) => ∃ xs : Fin 2 → Bool, xs ∉ R) := by
       fo_definable
   trivial
 

@@ -104,32 +104,22 @@ theorem supportLE_classicalQuantumState_iff (p q : PMF X) {ρ σ : X → Matrix 
     SupportLE (classicalQuantumState p ρ) (classicalQuantumState q σ) ↔
       p.support ⊆ q.support ∧ ∀ x ∈ p.support, SupportLE (ρ x) (σ x) := by
   classical
+  have hnz {r : PMF X} {x : X} (hx : x ∈ r.support) : (r x).toReal ≠ 0 :=
+    ENNReal.toReal_ne_zero.mpr ⟨hx, r.apply_ne_top x⟩
   rw [classicalQuantumState, classicalQuantumState, supportLE_blockDiagonal_iff]
   constructor
   · intro h
-    have hpq : p.support ⊆ q.support := by
-      intro x hx
-      by_contra hy
-      have hq0 : q x = 0 := (q.apply_eq_zero_iff x).mpr hy
-      have hp0 : (p x).toReal ≠ 0 := ENNReal.toReal_ne_zero.mpr ⟨hx, p.apply_ne_top x⟩
+    have hpq : p.support ⊆ q.support := fun x hx hy => by
       have hz (v : ι → ℂ) : ρ x *ᵥ v = 0 := by
-        have hx' := h x v (by simp [hq0])
-        simpa only [smul_mulVec, smul_eq_zero, hp0, false_or] using hx'
-      have hzero : ρ x = 0 := by
-        ext i j
-        change ρ x i j = 0
-        simpa only [mulVec_single_one, Matrix.col_apply, Pi.zero_apply] using
+        simpa only [smul_mulVec, smul_eq_zero, hnz hx, false_or] using h x v (by simp [hy])
+      have hzero : ρ x = 0 := Matrix.ext fun i j => by
+        simpa only [mulVec_single_one, Matrix.col_apply, Matrix.zero_apply, Pi.zero_apply] using
           congrFun (hz (Pi.single j 1)) i
-      have ht := (hρ x).trace_eq_one
-      rw [hzero, trace_zero] at ht
-      exact zero_ne_one ht
-    refine ⟨hpq, fun x hx => ?_⟩
-    exact (supportLE_smul_iff (ENNReal.toReal_ne_zero.mpr ⟨hx, p.apply_ne_top x⟩)
-      (ENNReal.toReal_ne_zero.mpr ⟨hpq hx, q.apply_ne_top x⟩)).mp (h x)
+      simpa [hzero] using (hρ x).trace_eq_one
+    exact ⟨hpq, fun x hx => (supportLE_smul_iff (hnz hx) (hnz (hpq hx))).mp (h x)⟩
   · rintro ⟨hpq, h⟩ x
     by_cases hx : x ∈ p.support
-    · exact (supportLE_smul_iff (ENNReal.toReal_ne_zero.mpr ⟨hx, p.apply_ne_top x⟩)
-        (ENNReal.toReal_ne_zero.mpr ⟨hpq hx, q.apply_ne_top x⟩)).mpr (h x hx)
+    · exact (supportLE_smul_iff (hnz hx) (hnz (hpq hx))).mpr (h x hx)
     · simp [SupportLE, (p.apply_eq_zero_iff x).mpr hx]
 
 
@@ -420,7 +410,7 @@ theorem mutualInformation_classicalQuantumState_prod (p : PMF (X × Y))
     rw [sum_weighted_relativeEntropy_eq_coe _ hs,
       mutualInformation_classicalQuantumState_eq_coe_sum _ (fun y => hρ (x, y)),
       relativeEntropy_of_supportLE hm', ← WithTop.coe_add] at h
-    exact ((WithTop.coe_injective h).trans (add_comm _ _))
+    exact (WithTop.coe_injective h).trans (add_comm _ _)
   rw [mutualInformation_classicalQuantumState_eq_coe_sum p hρ,
     mutualInformation_classicalQuantumState_eq_coe_sum (p.map Prod.fst) hμx,
     partialTraceRight_classicalQuantumState_map_fst]

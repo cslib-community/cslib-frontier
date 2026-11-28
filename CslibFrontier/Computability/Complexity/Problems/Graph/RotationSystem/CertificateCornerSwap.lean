@@ -64,26 +64,19 @@ theorem ofRotation_mergeVertices {G : Graph} (r : RotationSystem G) (h k : Dart 
     have hi : d.index < (RotationCertificate.ofRotation r).successor.length := by
       rw [RotationCertificate.length_ofRotation]
       exact (Dart.indexEquiv G d).isLt
-    have hj (a b : Dart G) : a.index = b.index ↔ a = b := by
-      constructor
-      · intro he
-        exact (Dart.indexEquiv G).injective (Fin.ext he)
-      · exact congrArg Dart.index
+    have hj (a b : Dart G) : a.index = b.index ↔ a = b :=
+      ⟨fun he => (Dart.indexEquiv G).injective (Fin.ext he), congrArg Dart.index⟩
     rw [show (mergeDartEquiv h k d).index = d.index from rfl,
       RotationCertificate.getD_swapSuccessors _ _ _ _ hi]
     simp only [hj, rotate_mergeVertices, Equiv.permCongr_apply, Equiv.symm_apply_apply,
       Equiv.Perm.coe_mul, Function.comp_apply]
-    by_cases hd : d = h
-    · subst d
-      simp only [ite_true, Equiv.swap_apply_left, RotationCertificate.getD_ofRotation]
-      rfl
-    · by_cases he : d = k
-      · subst d
-        simp only [hd, ite_false, ite_true, Equiv.swap_apply_right,
+    change _ = (r.rotate (Equiv.swap h k d)).index
+    rcases eq_or_ne d h with rfl | hd
+    · simp only [ite_true, Equiv.swap_apply_left, RotationCertificate.getD_ofRotation]
+    · rcases eq_or_ne d k with rfl | he
+      · simp only [hd, ite_false, ite_true, Equiv.swap_apply_right,
           RotationCertificate.getD_ofRotation]
-        rfl
       · simp only [hd, he, ite_false, Equiv.swap_apply_of_ne_of_ne hd he,
           RotationCertificate.getD_ofRotation]
-        rfl
 
 end Cslib.Complexity.Graph.RotationSystem

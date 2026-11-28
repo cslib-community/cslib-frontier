@@ -82,10 +82,7 @@ theorem exec_input {κ w : ℕ} (input : List ℤ) (hw : width κ input.length �
   let U := (n + 2) ^ κ
   let l := layout κ n
   let x : Data 128 := Data.init (input.map Signed.encode)
-  have hparam : ChanHe.Parameters.width κ n ≤ w := by
-    change ChanHe.Parameters.width κ input.length ≤ w
-    dsimp only [width] at hw
-    omega
+  have hparam : ChanHe.Parameters.width κ n ≤ w := by dsimp only [width, n] at hw ⊢; omega
   have hp := ChanHe.Parameters.budget_fits hparam
   have hfront := array_budget_fits hw
   have hN : Fits w (1 + 4 * n) := hp.of_le (by
@@ -119,13 +116,11 @@ theorem exec_input {κ w : ℕ} (input : List ℤ) (hw : width κ input.length �
       intro he; have := congrArg Fin.val he; dsimp only [parameterRegisters, radixRegisters] at this
       omega
     simp only [Data.set_regs, Function.update_of_ne (hne _)]
-  have hmem : Block.HoldsList 1 (input.map Signed.encode) (b.comap radixRegisters).mem := by
-    intro i
-    change b.mem (1 + i.val) = (input.map Signed.encode)[i.val]
-    rw [hbm, ham]
-    dsimp only [x]
-    rw [Nat.add_comm, Data.init_mem_succ]
-    simp only [List.getD, List.getElem?_eq_getElem i.isLt, Option.getD_some]
+  have hmem : Block.HoldsList 1 (input.map Signed.encode) (b.comap radixRegisters).mem :=
+    fun i => by
+      change b.mem (1 + i.val) = (input.map Signed.encode)[i.val]
+      rw [hbm, ham, Nat.add_comm]
+      simp [x, Data.init_mem_succ, List.getD, List.getElem?_eq_getElem i.isLt]
   obtain ⟨q, rs, heq, hqout, hqkeys, hqcounts, hnodup, horder, hset, hcounts, hframe⟩ :=
     RadixSort.deduplicate_exec (input.map Signed.encode) (b.comap radixRegisters)
       (by simpa only [List.length_map] using hb_len) hb_src
@@ -198,26 +193,21 @@ theorem exec_input {κ w : ℕ} (input : List ℤ) (hw : width κ input.length �
       (hprf _).trans hop.want, (hprf _).trans hop.primeBound,
       (hprf _).trans hop.packedLen, (hprf _).trans hop.padding⟩
   · intro baddr hbaddr
-    have hbfront : baddr ∉ (Block.mk l.descriptors (l.endpoint - l.descriptors)).footprint := by
-      intro hba
-      apply hbaddr
+    have hnot (s k : ℕ) (hs : 1 ≤ s) (he : s + k ≤ l.endpoint) :
+        baddr ∉ (Block.mk s k).footprint := fun hba => hbaddr (by
       change baddr ∈ (Block.mk 1 (l.endpoint - 1)).footprint
       rw [Block.mem_footprint] at hba ⊢
       dsimp only [Block.Owns] at hba ⊢
-      have hdesc : 1 ≤ l.descriptors := by dsimp [Layout.descriptors]; omega
+      omega)
+    have hdesc : 1 ≤ l.descriptors := by dsimp only [Layout.descriptors]; omega
+    have hde : l.descriptors ≤ l.endpoint := by
+      dsimp only [Layout.endpoint, Layout.pointer, Layout.payloads, Layout.descriptors, l, layout]
       omega
-    have hbradix : baddr ∉ (Block.mk 1 (4 * n)).footprint := by
-      intro hba
-      apply hbaddr
-      change baddr ∈ (Block.mk 1 (l.endpoint - 1)).footprint
-      rw [Block.mem_footprint] at hba ⊢
-      dsimp only [Block.Owns] at hba ⊢
-      have hbe : 1 + 4 * n ≤ l.endpoint := by
-        dsimp only [Layout.endpoint, Layout.pointer, Layout.payloads, Layout.descriptors, l, layout]
-        omega
+    have hbe : 1 + 4 * n ≤ l.endpoint := by
+      dsimp only [Layout.endpoint, Layout.pointer, Layout.payloads, Layout.descriptors, l, layout]
       omega
-    rw [hrframe baddr hbfront, Data.extend_mem,
-      hframe baddr (by simpa only [List.length_map, n] using hbradix),
+    rw [hrframe baddr (hnot _ _ hdesc (by omega)), Data.extend_mem,
+      hframe baddr (by simpa only [List.length_map, n] using hnot 1 (4 * n) le_rfl hbe),
       Data.comap_mem, hbm, ham]
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Frontend

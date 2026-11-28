@@ -179,7 +179,7 @@ theorem respects_iInf {ι : Type*} [Nonempty ι] {P : ι → M → ℝ} (nonneg 
 
 /-- `x ≤ inf S * inf T` when `x ≤ a * b` for all `a ∈ S` and `b ∈ T`, for nonempty sets of
 numbers `≥ 0`. -/
-private theorem le_sInf_mul_sInf {S T : Set ℝ} (hS : S.Nonempty) (hT : T.Nonempty)
+theorem le_sInf_mul_sInf {S T : Set ℝ} (hS : S.Nonempty) (hT : T.Nonempty)
     (hS0 : ∀ a ∈ S, 0 ≤ a) (hT0 : ∀ b ∈ T, 0 ≤ b) {x : ℝ} (h : ∀ a ∈ S, ∀ b ∈ T, x ≤ a * b) :
     x ≤ sInf S * sInf T := by
   have key : ∀ {S : Set ℝ} (_ : S.Nonempty) {b : ℝ} (_ : 0 ≤ b), (∀ a ∈ S, x ≤ a * b) →

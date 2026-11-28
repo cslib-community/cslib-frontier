@@ -105,9 +105,8 @@ theorem length_generate (w : GenWitness) :
 /-- The printed table as a list of an indexed table. -/
 theorem generate_eq_ofFn (w : GenWitness) :
     generate Δ k w = List.ofFn fun x : Fin (2 ^ inputLength w.inst Δ k w.lam) =>
-      genEntry Δ k w x := by
-  refine List.ext_getElem (by simp) fun i h₁ h₂ => ?_
-  simp [generate]
+      genEntry Δ k w x :=
+  List.ext_getElem (by simp) fun _ _ _ => by simp [generate]
 
 /-- The size bound of the honest witness: `(4 Δ + 3) |enc I| + 3 + (4 θ + 2) λ`. -/
 @[expose] def sizeBound (I : CMMSAInstance) (lam : ℕ) : ℕ :=
@@ -147,15 +146,13 @@ private theorem consistent_generate_ofSat (hwf : I.WellFormed Δ) {τ : ℕ → 
     simpa only [formulaIndex_equivFin_symm] using formulaIndex_lt_of_entry_eq_some hx
   obtain ⟨htj, hS⟩ := hτ _ hj
   have hτΔ := htj.trans_le (hwf.length_le (List.getD_mem [] hj))
-  have hpar := termParityN_eq (f := f) (T := setTables f S) x ⟨_, hτΔ⟩ fun q hq =>
-    IsVarTable.of_getD_eq (getD_setTables (hS q hq))
-  have hentry := termParity_eq_of_entry_eq_some hx ⟨_, hτΔ⟩
-    (by rw [formulaIndex_equivFin_symm]; exact htj)
   have hchoice : ((List.range I.formulas.length).map τ).getD ((x : ℕ) % 2 ^ indexWidth I) 0 =
       τ ((x : ℕ) % 2 ^ indexWidth I) := by
     simp [List.getD_eq_getElem?_getD, hj]
   simp only [genEntry, ofSat, hchoice]
-  exact hpar.trans hentry
+  exact (termParityN_eq (f := f) (T := setTables f S) x ⟨_, hτΔ⟩ fun q hq =>
+    IsVarTable.of_getD_eq (getD_setTables (hS q hq))).trans
+    (termParity_eq_of_entry_eq_some hx ⟨_, hτΔ⟩ (by rwa [formulaIndex_equivFin_symm]))
 
 /-- **The size bound** of the honest witness, for an assignment `S` of weight at most `θ`. -/
 private theorem length_enc_ofSat_le (hwf : I.WellFormed Δ) (hlam : 1 ≤ lam) {τ : ℕ → ℕ}
@@ -176,23 +173,18 @@ private theorem length_enc_ofSat_le (hwf : I.WellFormed Δ) (hlam : 1 ≤ lam) {
   have hsum : ∑ v ∈ Finset.range I.weights.length,
       (if v ∈ S then varTable f v else []).length = ∑ v ∈ S, 2 ^ varLength I lam v := by
     rw [← Finset.sum_subset hSn fun v _ hv => by simp [hv]]
-    refine Finset.sum_congr rfl fun v hv => ?_
-    simp [hv, varTable, Finset.mem_range.1 (hSn hv)]
+    exact Finset.sum_congr rfl fun v hv => by simp [hv, varTable, Finset.mem_range.1 (hSn hv)]
   have htables : (encList encBits (setTables f S)).length ≤
       2 * (2 * I.weight S * lam) + I.weights.length := by
-    have h := sum_two_pow_varLength_le_two_mul_weight hSn hwf hlam
+    have := sum_two_pow_varLength_le_two_mul_weight hSn hwf hlam
     rw [length_encList, setTables, List.map_map, List.sum_map_range_eq_sum_range]
     simp only [Function.comp_apply, encBits_apply]
     rw [Finset.sum_add_distrib, ← Finset.mul_sum, hsum]
-    simp only [Finset.sum_const, Finset.card_range, smul_eq_mul, mul_one]
-    omega
-  have hm := CMMSAInstance.length_formulas_le I
-  have hn := CMMSAInstance.length_weights_le I
-  have hΔm : I.formulas.length * Δ ≤ (CMMSAInstance.encoding I).length * Δ := by gcongr
-  have hwl : I.weight S * lam ≤ I.threshold * lam := Nat.mul_le_mul_right _ hw
+    simp only [Finset.sum_const, Finset.card_range, smul_eq_mul, mul_one]; omega
   simp only [enc_apply, encFields, length_encPair, encUnary_apply, List.length_replicate, ofSat]
   unfold sizeBound
-  nlinarith
+  nlinarith [CMMSAInstance.length_formulas_le I, CMMSAInstance.length_weights_le I,
+    Nat.mul_le_mul_right Δ (CMMSAInstance.length_formulas_le I), Nat.mul_le_mul_right lam hw]
 
 /-- **The generator for a Yes instance.** If `I` is a Yes instance of `GapCMMSA Δ g σ`, then for
 every `λ ≥ 1` and every choice of the functions `f`, some witness for `I` and `λ` prints a table

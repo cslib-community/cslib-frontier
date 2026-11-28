@@ -580,71 +580,51 @@ private theorem graphColor_eq_tile {N : ℕ} {P S : ℕ → ℕ} {M x y : ℕ}
     (hx0 : 16 ≤ x) (hx1 : x < 16 * (N + 1)) (hy0 : 16 ≤ y) (hy1 : y < 16 * (N + 1)) :
     graphColor N P S M (x, y) =
       tileColor (tileKind N P S (x / 16 - 1) (y / 16 - 1)) (x % 16) (y % 16) := by
-  have hxne0 : x ≠ 0 := by omega
-  have hyne0 : y ≠ 0 := by omega
-  have hxneM : x ≠ M := by omega
-  have hyneM : y ≠ M := by omega
-  simp [graphColor, graphInteriorColor, hxne0, hyne0, hxneM, hyneM, hx0, hx1, hy0, hy1]
+  have hbd : ¬(x = 0 ∨ y = 0 ∨ x = M ∨ y = M) := by omega
+  simp [graphColor, graphInteriorColor, hbd, hx0, hx1, hy0, hy1]
 
 private theorem graphColor_east_edge {N : ℕ} {P S : ℕ → ℕ} {M y : ℕ}
     (hN : 1 ≤ N) (hM : 16 * (N + 1) ≤ M) (hy0 : 16 ≤ y) (hy1 : y < 16 * (N + 1)) :
     graphColor N P S M (16 * (N + 1) - 1, y) = 0 := by
-  have hx0 : 16 ≤ 16 * (N + 1) - 1 := by omega
-  have hx1 : 16 * (N + 1) - 1 < 16 * (N + 1) := by omega
-  rw [graphColor_eq_tile hM hx0 hx1 hy0 hy1]
+  have hbnd : 16 ≤ 16 * (N + 1) - 1 ∧ 16 * (N + 1) - 1 < 16 * (N + 1) ∧
+      y / 16 - 1 < N ∧ N - 1 < N := by omega
   have hdiv : (16 * (N + 1) - 1) / 16 - 1 = N - 1 := by omega
   have hmod : (16 * (N + 1) - 1) % 16 = 15 := by omega
-  have hY : y / 16 - 1 < N := by omega
-  have hmY : y % 16 < 16 := Nat.mod_lt y (by decide)
-  rw [hdiv, hmod, tileColor_east hmY, tilePorts_tileKind (by omega : N - 1 < N) hY]
-  rw [eastPort_top N P S (y / 16 - 1) hY]
+  rw [graphColor_eq_tile hM hbnd.1 hbnd.2.1 hy0 hy1, hdiv, hmod,
+    tileColor_east (Nat.mod_lt y (by decide)), tilePorts_tileKind hbnd.2.2.2 hbnd.2.2.1,
+    eastPort_top N P S _ hbnd.2.2.1]
   rfl
 
 private theorem graphColor_north_edge {N : ℕ} {P S : ℕ → ℕ} {M x : ℕ}
     (hN : 1 ≤ N) (hM : 16 * (N + 1) ≤ M) (hx0 : 16 ≤ x) (hx1 : x < 16 * (N + 1)) :
     graphColor N P S M (x, 16 * (N + 1) - 1) = 0 := by
-  have hy0 : 16 ≤ 16 * (N + 1) - 1 := by omega
-  have hy1 : 16 * (N + 1) - 1 < 16 * (N + 1) := by omega
-  rw [graphColor_eq_tile hM hx0 hx1 hy0 hy1]
+  have hbnd : 16 ≤ 16 * (N + 1) - 1 ∧ 16 * (N + 1) - 1 < 16 * (N + 1) ∧
+      x / 16 - 1 < N ∧ N - 1 < N := by omega
   have hdiv : (16 * (N + 1) - 1) / 16 - 1 = N - 1 := by omega
   have hmod : (16 * (N + 1) - 1) % 16 = 15 := by omega
-  have hX : x / 16 - 1 < N := by omega
-  have hmX : x % 16 < 16 := Nat.mod_lt x (by decide)
-  rw [hdiv, hmod, tileColor_north hmX, tilePorts_tileKind hX (by omega : N - 1 < N)]
-  rw [northPort_top N P S (x / 16 - 1) hX]
+  rw [graphColor_eq_tile hM hx0 hx1 hbnd.1 hbnd.2.1, hdiv, hmod,
+    tileColor_north (Nat.mod_lt x (by decide)), tilePorts_tileKind hbnd.2.2.1 hbnd.2.2.2,
+    northPort_top N P S _ hbnd.2.2.1]
   rfl
 
 private theorem graphColor_west_edge {N : ℕ} {P S : ℕ → ℕ} {M y : ℕ}
     (hN : 1 ≤ N) (hM : 16 * (N + 1) ≤ M) (hy0 : 16 ≤ y) (hy1 : y < 16 * (N + 1)) :
     graphColor N P S M (16, y) = 0 := by
-  have hx0 : 16 ≤ 16 := le_rfl
-  have hx1 : 16 < 16 * (N + 1) := by omega
-  rw [graphColor_eq_tile hM hx0 hx1 hy0 hy1]
-  have hdiv : 16 / 16 - 1 = 0 := rfl
-  have hmod : 16 % 16 = 0 := rfl
-  have hY : y / 16 - 1 < N := by omega
-  have hmY : y % 16 < 16 := Nat.mod_lt y (by decide)
-  rw [hdiv, hmod, tileColor_west hmY, tilePorts_tileKind hN hY, westPort_zero]
+  have hbnd : 16 < 16 * (N + 1) ∧ y / 16 - 1 < N := by omega
+  rw [graphColor_eq_tile hM le_rfl hbnd.1 hy0 hy1, tileColor_west (Nat.mod_lt y (by decide)),
+    tilePorts_tileKind hN hbnd.2, westPort_zero]
   rfl
 
 private theorem graphColor_south_edge {N : ℕ} {P S : ℕ → ℕ} {M x : ℕ}
     (hN : 1 ≤ N) (hM : 16 * (N + 1) ≤ M) (hx0 : 16 ≤ x) (hx1 : x < 16 * (N + 1)) :
     graphColor N P S M (x, 16) =
       if activeOut N P S 0 then (if x = 23 then 1 else if x = 24 then 2 else 0) else 0 := by
-  have hy0 : 16 ≤ 16 := le_rfl
-  have hy1 : 16 < 16 * (N + 1) := by omega
-  rw [graphColor_eq_tile hM hx0 hx1 hy0 hy1]
-  have hdiv : 16 / 16 - 1 = 0 := rfl
-  have hmod : 16 % 16 = 0 := rfl
-  have hX : x / 16 - 1 < N := by omega
-  have hmX : x % 16 < 16 := Nat.mod_lt x (by decide)
-  rw [hdiv, hmod, tileColor_south hmX, tilePorts_tileKind hX hN, southPort_zero]
+  have hbnd : 16 < 16 * (N + 1) ∧ x / 16 - 1 < N := by omega
+  rw [graphColor_eq_tile hM hx0 hx1 le_rfl hbnd.1, tileColor_south (Nat.mod_lt x (by decide)),
+    tilePorts_tileKind hbnd.2 hN, southPort_zero]
   by_cases hX0 : x / 16 - 1 = 0
-  · have hlo : 16 ≤ x := hx0
-    have hhi : x < 32 := by omega
-    have hm7 : x % 16 = 7 ↔ x = 23 := by omega
-    have hm8 : x % 16 = 8 ↔ x = 24 := by omega
-    cases activeOut N P S 0 <;> simp [hX0, portColorV, hm7, hm8]
+  · have hm : (x % 16 = 7 ↔ x = 23) ∧ (x % 16 = 8 ↔ x = 24) := by omega
+    cases activeOut N P S 0 <;> simp [hX0, portColorV, hm.1, hm.2]
   · have hnot : x ≠ 23 ∧ x ≠ 24 := by omega
     cases activeOut N P S 0 <;> simp [hX0, portColorV, hnot.1, hnot.2]
 
@@ -935,20 +915,12 @@ private theorem trichromatic_graphColor_imp {N : ℕ} {P S : ℕ → ℕ} {M : �
               graphColor N P S M (t.corner k) =
                 tileColor (tileKind N P S X Y) (t'.corner k).1 (t'.corner k).2 := by
             have ⟨⟨_, _⟩, ⟨_, _⟩⟩ := corner_bounds t k
-            have hdivx : (t.corner k).1 / 16 - 1 = X := by
-              rcases t with ⟨_ | _, x, y⟩ <;> dsimp only [X] at hxm15 ⊢ <;>
-                fin_cases k <;> simp only [corner, hdiv_succ x hxm15]
-            have hdivy : (t.corner k).2 / 16 - 1 = Y := by
-              rcases t with ⟨_ | _, x, y⟩ <;> dsimp only [Y] at hym15 ⊢ <;>
-                fin_cases k <;> simp only [corner, hdiv_succ y hym15]
-            have hmodx : (t.corner k).1 % 16 = (t'.corner k).1 := by
-              rcases t with ⟨_ | _, x, y⟩ <;> dsimp only [t'] at hxm15 ⊢ <;>
-                fin_cases k <;> simp only [corner, hmod_succ x hxm15]
-            have hmody : (t.corner k).2 % 16 = (t'.corner k).2 := by
-              rcases t with ⟨_ | _, x, y⟩ <;> dsimp only [t'] at hym15 ⊢ <;>
-                fin_cases k <;> simp only [corner, hmod_succ y hym15]
-            rw [graphColor_eq_tile hM (by omega) (by omega) (by omega) (by omega),
-              hdivx, hdivy, hmodx, hmody]
+            have hbnd : 16 ≤ (t.corner k).1 ∧ (t.corner k).1 < 16 * (N + 1) ∧
+                16 ≤ (t.corner k).2 ∧ (t.corner k).2 < 16 * (N + 1) := by omega
+            rw [graphColor_eq_tile hM hbnd.1 hbnd.2.1 hbnd.2.2.1 hbnd.2.2.2]
+            rcases t with ⟨_ | _, x, y⟩ <;> dsimp only [X, Y, t'] at hxm15 hym15 ⊢ <;>
+              fin_cases k <;> simp only [corner, hdiv_succ x hxm15, hdiv_succ y hym15,
+                hmod_succ x hxm15, hmod_succ y hym15]
           have htri' : Trichromatic (fun p => tileColor (tileKind N P S X Y) p.1 p.2) t' := by
             intro k₁ k₂ heq
             exact htri (by simpa only [Function.comp_apply, hcorner] using heq)
@@ -984,28 +956,21 @@ private theorem activeNbr_eq_hasNbr (n : ℕ) (fCode gCode : CircuitCode) {X : �
         (if isOut then cf (lowBits n X) ≠ zeroVertex n else lowBits n X ≠ zeroVertex n)) := by
   intro F G cf cg
   have hFlt : F X < 2 ^ n := evalNat_lt n fCode X
-  have h0lt : 0 < 2 ^ n := Nat.two_pow_pos n
+  have hinj {a b : ℕ} (ha : a < 2 ^ n) (hb : b < 2 ^ n) :
+      lowBits n a = lowBits n b ↔ a = b :=
+    ⟨lowBits_injective_of_lt ha hb, congrArg _⟩
   rw [decide_eq_decide]
   have h1 : G (F X) = X ↔ cg (cf (lowBits n X)) = lowBits n X := by
-    simp only [F, G, cf, cg, ← lowBits_evalNat n fCode X]
-    constructor
-    · intro heq
-      rw [← lowBits_evalNat n gCode (evalNat n fCode X), heq]
-    · intro heq
-      rw [← lowBits_evalNat n gCode (evalNat n fCode X)] at heq
-      exact lowBits_injective_of_lt (evalNat_lt _ _ _) hX heq
+    rw [← hinj (evalNat_lt _ _ _) hX, lowBits_evalNat, lowBits_evalNat]
   have h2 : F X ≠ X ↔ cf (lowBits n X) ≠ lowBits n X := by
-    simp only [F, cf, ← lowBits_evalNat n fCode X]
-    exact ⟨fun hne heq => hne (lowBits_injective_of_lt hFlt hX heq),
-      fun hne heq => hne (congrArg (lowBits n) heq)⟩
+    rw [ne_eq, ne_eq, ← not_congr (hinj hFlt hX), lowBits_evalNat]
   have h3 : (if isOut then F X ≠ 0 else X ≠ 0) ↔
       (if isOut then cf (lowBits n X) ≠ zeroVertex n else lowBits n X ≠ zeroVertex n) := by
-    cases isOut <;>
-      simp only [← lowBits_zero_eq n, F, cf, ← lowBits_evalNat n fCode X]
-    · exact ⟨fun hne heq => hne (lowBits_injective_of_lt hX h0lt heq),
-        fun hne heq => hne (congrArg (lowBits n) heq)⟩
-    · exact ⟨fun hne heq => hne (lowBits_injective_of_lt hFlt h0lt heq),
-        fun hne heq => hne (congrArg (lowBits n) heq)⟩
+    cases isOut
+    · rw [ite_eq_right Bool.false_ne_true, ite_eq_right Bool.false_ne_true, ne_eq, ne_eq,
+        ← lowBits_zero_eq n, ← not_congr (hinj hX (Nat.two_pow_pos n))]
+    · rw [ite_eq_left rfl, ite_eq_left rfl, ne_eq, ne_eq, ← lowBits_zero_eq n,
+        ← not_congr (hinj hFlt (Nat.two_pow_pos n)), lowBits_evalNat]
   exact ⟨fun h => ⟨h1.mp h.2.2.2, h2.mp h.2.1, h3.mp h.2.2.1⟩,
     fun h => ⟨hFlt, h2.mpr h.2.1, h3.mpr h.2.2, h1.mpr h.1⟩⟩
 
@@ -1039,8 +1004,6 @@ private theorem length_colorToBits (c : Fin 3) : (colorToBits c).length = 3 := b
 private theorem outputColor_colorToBits (c : Fin 3) :
     Sperner2D.outputColor (colorToBits c) = c := by
   fin_cases c <;> decide
-
-attribute [local irreducible] ComputableInPolyTime
 
 private theorem computableInPolyTime_lsbValue {α : Type} {enc : α ↪ List Bool}
     {bits : α → List Bool} (hbits : ComputableInPolyTime bits enc encBits) :

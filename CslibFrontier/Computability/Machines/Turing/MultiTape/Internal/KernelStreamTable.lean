@@ -77,11 +77,11 @@ theorem transformsTapes_onWords {k : ℕ} {State : Type}
     (word := input) (tapes₀ := fun _ => [])
     (tapes₁ := Function.update (fun _ => []) (Fin.last k) output) (emitted := []) path
   rw [onWords]
-  refine key.imp (fun _ tapes htapes => ?_)
-    (fun _ tapes tapes' emitted htapes ⟨htapes', hemitted⟩ => ⟨?_, hemitted⟩)
-    (by omega) (by omega)
-  · rw [htapes, MultiTapeTM.append_nil_eq_update]
-  · rw [htapes, htapes', onWords_post]
+  exact key.imp (fun _ _ htapes => htapes.trans (MultiTapeTM.append_nil_eq_update input).symm)
+    (fun _ _ _ _ htapes ⟨htapes', hemitted⟩ =>
+      ⟨htapes'.trans (htapes ▸ onWords_post input output), hemitted⟩)
+    (by omega)
+    (by omega)
 
 /-- Run a tidy explicit table between two selected tapes, preserving the input and emitting
 nothing. -/
@@ -105,8 +105,7 @@ theorem transformsTapes_onWords_extendTapes {k : ℕ} {State : Type}
     (fun _ _ htapes => htapes.2) (fun _ _ _ _ _ hpost => hpost)
     le_rfl le_rfl).extendTapes_update embedding
   rw [hvalue, htarget] at hselected
-  rw [toTM_extendTapes]
-  exact hselected.imp (fun _ _ htapes => ⟨trivial, htapes⟩)
+  simpa only [toTM_extendTapes] using hselected.imp (fun _ _ htapes => ⟨trivial, htapes⟩)
     (fun _ _ _ _ _ hpost => hpost) le_rfl le_rfl
 
 /-- Copy the word on selected source tape `embedding 1` to blank target `embedding 0`. -/
@@ -125,22 +124,15 @@ private theorem transformsTapes_copyWord
       (fun _ tapes tapes' emitted =>
         tapes' = Function.update tapes (embedding 0) word ∧ emitted = [])
       (3 * word.length + 10) (4 * word.length + K + 15) := by
+  have hK : 3 ≤ K := by simpa using Fintype.card_le_of_embedding embedding
   rw [copyWord, toTM_extendTapes]
   refine ((transformsTapes_onWords
-    (machine := tidyCopy Bool)
-    (input := word) (output := word) mark
+    (machine := tidyCopy Bool) (input := word) (output := word) mark
     (computesTidily_tidyCopy word)).extendTapes embedding).imp
-    (P' := fun _ tapes =>
-      tapes (embedding 1) = word ∧ tapes (embedding 0) = [] ∧ tapes (embedding 2) = [])
-    (Q' := fun _ tapes tapes' emitted =>
-      tapes' = Function.update tapes (embedding 0) word ∧ emitted = [])
-    (t' := 3 * word.length + 10) (s' := 4 * word.length + K + 15)
     (fun _ tapes ⟨h₁, h₀, h₂⟩ => ?_)
     (fun _ tapes tapes' _ ⟨h₁, h₀, h₂⟩ ⟨⟨hword, hemitted⟩, hextra⟩ => ⟨?_, hemitted⟩)
     (by omega)
-    (by have := Fintype.card_le_of_embedding embedding
-        simp only [Fintype.card_fin] at this
-        omega)
+    (by omega)
   · funext selected
     fin_cases selected <;> simp [h₀, h₁, h₂]
   · funext tape
@@ -149,6 +141,22 @@ private theorem transformsTapes_copyWord
       have := congrFun hword selected
       fin_cases selected <;> simp_all [embedding.injective.eq_iff]
     · rw [hextra tape htape, Function.update_of_ne fun h => htape ⟨0, h.symm⟩]
+
+/-- Clearing one selected tape while preserving all other tapes. -/
+private theorem transformsTapes_clearWork_tapeEmb
+    (tape : Fin K) (word : List Bool) (tapes₀ tapes₁ : Fin K → List Bool)
+    (hword : tapes₀ tape = word) (hpost : Function.update tapes₀ tape [] = tapes₁) :
+    MultiTapeTM.TransformsTapes
+      ((clearWork Bool).extendTapes (MultiTapeTM.tapeEmb tape)).toTM
+      (fun _ tapes => tapes = tapes₀)
+      (fun _ _ tapes' output => tapes' = tapes₁ ∧ output = [])
+      (3 * (word.length + 1)) (word.length + 1 + K) := by
+  rw [toTM_extendTapes]
+  exact ((transformsTapes_clearWork word).tapeEmb tape).imp
+    (fun _ _ h => h ▸ hword)
+    (fun _ _ _ _ htapes ⟨_, ⟨hvalue, he⟩, hextra⟩ =>
+      ⟨by rw [hextra, hvalue, htapes, hpost], he⟩)
+    le_rfl (by have := tape.pos; omega)
 
 /-- Emit from `value`, compute a next state into `next`, move it back to `value`, and clean up. -/
 private def frozenRound (emitter : MultiTapeMachine K Bool EmitState Empty Id)
@@ -195,51 +203,27 @@ private theorem transformsTapes_frozenRound
     funext tape
     simp only [tapes₃, tapes₂, tapes₁, tapes₀, Function.update_apply]
     split_ifs <;> simp_all
-  have h₀ : MultiTapeTM.TransformsTapes emitter.toTM
-      (fun _ tapes => tapes = tapes₀)
-      (fun _ _ tapes' output => tapes' = tapes₀ ∧ output = emitted)
-      emitterTime emitterSpace :=
-    hEmitter.imp (fun _ _ h => h)
-      (fun _ _ _ _ htapes ⟨h, he⟩ => ⟨h.trans htapes, he⟩) le_rfl le_rfl
-  have h₁ : MultiTapeTM.TransformsTapes nextMachine.toTM
-      (fun _ tapes => tapes = tapes₀)
-      (fun _ _ tapes' output => tapes' = tapes₁ ∧ output = []) nextTime nextSpace :=
-    hNext.imp (fun _ _ h => h)
-      (fun _ _ _ _ htapes ⟨h, he⟩ => ⟨by rw [h, htapes], he⟩) le_rfl le_rfl
-  have h₂ : MultiTapeTM.TransformsTapes
-      ((clearWork Bool).extendTapes (MultiTapeTM.tapeEmb value)).toTM
-      (fun _ tapes => tapes = tapes₁)
-      (fun _ _ tapes' output => tapes' = tapes₂ ∧ output = [])
-      (3 * (word.length + 1)) (word.length + 1 + K) := by
-    rw [toTM_extendTapes]
-    exact ((transformsTapes_clearWork word).tapeEmb value).imp
-      (fun _ _ h => by simp [h, tapes₁, tapes₀, hValueNext])
-      (fun _ _ _ _ htapes ⟨_, ⟨hvalue, he⟩, hextra⟩ =>
-        ⟨by rw [hextra, hvalue, htapes], he⟩) le_rfl
-      (by have := value.pos; omega)
+  have h₀ := hEmitter.imp
+    (Q' := fun _ _ tapes' output => tapes' = tapes₀ ∧ output = emitted)
+    (fun _ _ h => h) (fun _ _ _ _ htapes ⟨h, he⟩ => ⟨h.trans htapes, he⟩) le_rfl le_rfl
+  have h₁ := hNext.imp
+    (Q' := fun _ _ tapes' output => tapes' = tapes₁ ∧ output = [])
+    (fun _ _ h => h) (fun _ _ _ _ htapes ⟨h, he⟩ => ⟨by rw [h, htapes], he⟩) le_rfl le_rfl
+  have h₂ := transformsTapes_clearWork_tapeEmb value word tapes₁ tapes₂
+    (by simp [tapes₁, tapes₀, hValueNext]) rfl
   have h₃ := (transformsTapes_copyWord
     (MultiTapeTM.threeTapes value next flag hValueNext hValueFlag hNextFlag)
     true nextWord).imp
     (P' := fun _ tapes => tapes = tapes₂)
     (Q' := fun _ _ tapes' output => tapes' = tapes₃ ∧ output = [])
     (fun _ _ h => by
-      subst h
-      simp [MultiTapeTM.threeTapes, tapes₂, tapes₁, tapes₀,
+      simp [h, MultiTapeTM.threeTapes, tapes₂, tapes₁, tapes₀,
         hValueNext.symm, hValueFlag.symm, hNextFlag.symm])
     (fun _ _ _ _ htapes ⟨h, he⟩ =>
       ⟨by rw [h, htapes]; simp [MultiTapeTM.threeTapes, tapes₃], he⟩) le_rfl le_rfl
-  have h₄ : MultiTapeTM.TransformsTapes
-      ((clearWork Bool).extendTapes (MultiTapeTM.tapeEmb next)).toTM
-      (fun _ tapes => tapes = tapes₃)
-      (fun _ _ tapes' output =>
-        tapes' = Function.update (fun _ => []) value nextWord ∧ output = [])
-      (3 * (nextWord.length + 1)) (nextWord.length + 1 + K) := by
-    rw [toTM_extendTapes]
-    exact ((transformsTapes_clearWork nextWord).tapeEmb next).imp
-      (fun _ _ h => by simp [h, tapes₃, tapes₂, tapes₁, hValueNext.symm])
-      (fun _ _ _ _ htapes ⟨_, ⟨hvalue, he⟩, hextra⟩ =>
-        ⟨by rw [hextra, hvalue, htapes, htapes₄], he⟩) le_rfl
-      (by have := next.pos; omega)
+  have h₄ := transformsTapes_clearWork_tapeEmb next nextWord tapes₃
+    (Function.update (fun _ => []) value nextWord)
+    (by simp [tapes₃, tapes₂, tapes₁, hValueNext.symm]) htapes₄
   rw [frozenRound, toTM_seq, toTM_seq, toTM_seq, toTM_seq]
   exact (h₀.seq_eq (h₁.seq_eq (h₂.seq_eq (h₃.seq_eq h₄)))).imp
     (fun _ _ h => h) (fun _ _ _ _ _ ⟨h, he⟩ => ⟨h, by simp [he]⟩) le_rfl le_rfl
@@ -301,13 +285,11 @@ theorem transformsTapesAt_streamRound
   have hfrozen := (transformsTapes_frozenRound hValueNext hValueFlag hNextFlag
     hEmitter hNext).freezeInput
   rw [streamRound, toTM_seq, toTM_freezeInput]
-  refine (MultiTapeTM.transformsTapesAt_seq hread hfrozen ?_).imp
-    (fun _ _ _ h => h) ?_ le_rfl le_rfl
-  · rintro _ _ tapes _ _ _ ⟨-, -, htapes⟩ ⟨-, htapes', -⟩
-    rw [htapes', htapes, Function.update_idem]
-  · rintro _ _ _ _ _ _ _ ⟨_, _, _, _, ⟨hpos, -, rfl⟩,
-      ⟨rfl, htapes, rfl⟩, rfl⟩
-    exact ⟨hpos, htapes, rfl⟩
+  refine (MultiTapeTM.transformsTapesAt_seq hread hfrozen
+    fun _ _ _ _ _ _ ⟨_, _, htapes⟩ ⟨_, htapes', _⟩ => by
+      rw [htapes', htapes, Function.update_idem]).imp (fun _ _ _ h => h) ?_ le_rfl le_rfl
+  rintro _ _ _ _ _ _ _ ⟨_, _, _, _, ⟨hpos, -, rfl⟩, ⟨rfl, htapes, rfl⟩, rfl⟩
+  exact ⟨hpos, htapes, rfl⟩
 
 /-- The complete explicit streaming fold: initialize, iterate, finalize, clean, and rewind input. -/
 def stream (reader : MultiTapeTM.InputReader Bool Q)
@@ -373,17 +355,9 @@ theorem computesTidily_stream_after
       tapes' = Function.update (fun _ => []) value finalWord ∧ output = finalOutput)
     (fun _ _ h => h)
     (fun _ _ _ _ htapes ⟨h, he⟩ => ⟨h.trans htapes, he⟩) le_rfl le_rfl
-  have hclear : MultiTapeTM.TransformsTapes
-      ((clearWork Bool).extendTapes (MultiTapeTM.tapeEmb value)).toTM
-      (fun _ tapes => tapes = Function.update (fun _ => []) value finalWord)
-      (fun _ _ tapes' output => tapes' = (fun _ => []) ∧ output = [])
-      (3 * (finalWord.length + 1)) (finalWord.length + 1 + K) := by
-    rw [toTM_extendTapes]
-    exact ((transformsTapes_clearWork finalWord).tapeEmb value).imp
-      (fun _ _ htapes => by rw [htapes, Function.update_self])
-      (fun _ _ _ _ htapes ⟨_, ⟨hvalue, he⟩, hextra⟩ =>
-        ⟨by rw [hextra, hvalue, htapes, Function.update_idem]; simp, he⟩)
-      le_rfl (by have := value.pos; omega)
+  have hclear := transformsTapes_clearWork_tapeEmb value finalWord
+    (Function.update (fun _ => []) value finalWord) (fun _ => [])
+    (Function.update_self _ _ _) (by rw [Function.update_idem]; simp)
   have hfin := (hFinal'.seq_eq hclear).freezeInput_eq input (1 + input.length)
   have hrewind := (MultiTapeMachine.transformsTapesAt_rewindInputOn (k := K) input).imp
     (P' := fun actualInput position tapes => actualInput = input ∧

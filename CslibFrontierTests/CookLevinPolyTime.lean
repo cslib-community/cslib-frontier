@@ -20,9 +20,6 @@ are inhabited; certificate variables remain available even for an empty control-
 
 namespace CslibFrontierTests.CookLevinPolyTime
 
--- Keep certificate search at the function-level API, without expanding machine witnesses.
-attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
-
 open Turing.MultiTapeTM Cslib.Complexity Cslib.Complexity.CookLevin
 
 example {k : ℕ} {State : Type} [Fintype State] (tm : Turing.MultiTapeTM k Bool State) :

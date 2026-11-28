@@ -329,11 +329,10 @@ private theorem popOne_spec {w n wb wtb s : ℕ} (hn_pos : 0 < n)
   unfold popOne
   by_cases hi : x.regs i1 < n
   · have hq1_eq := mkQ1_eq_cons hn_pos sws trees hi
-    have hsws_getD : sws.getD (x.regs i1) 0 = sws[x.regs i1]'(by omega) := by
-      simp [List.getD_eq_getElem?_getD,
-        List.getElem?_eq_getElem (by omega : x.regs i1 < sws.length)]
     have hread1 : x.mem (wtb + x.regs i1) = sws.getD (x.regs i1) 0 := by
-      rw [hsws_getD]; exact hsws.get _ (by omega)
+      rw [List.getD_eq_getElem?_getD,
+        List.getElem?_eq_getElem (by omega : x.regs i1 < sws.length)]
+      exact hsws.get _ (by omega)
     by_cases hh : x.regs h2 < s
     · have hq2_eq := mkQ2_eq_cons hn_pos trees x.mem wb hh
       rw [hq1_eq, hq₂, hq2_eq] at hpm
@@ -553,31 +552,30 @@ private theorem popTwo_exec {w wtb wb pb_init fo_init s : ℕ}
   have hy1'_sws : Block.HoldsList wtb sws y₁'.mem := hmem1 ▸ hy_sws
   have hi1_1' : y₁'.regs i1 = y₁.regs i1 := by wram_simp [y₁']
   have hh2_1' : y₁'.regs h2 = y₁.regs h2 := by wram_simp [y₁']
+  have hfr1' (r : Fin 23)
+      (hr : r ∉ ([i1, h2, uA, wA, uB, wB, addr, tmp1, tmp2] : List (Fin 23)) := by decide) :
+      y₁'.regs r = y.regs r := by
+    simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hr
+    rcases hr with ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9⟩
+    simp only [y₁', Data.set_regs, Function.update_of_ne h4, Function.update_of_ne h3]
+    exact hfr1 r h1 h2 h5 h6 h7 h8 h9
   obtain ⟨y₂, hex2, u_b, wt_b, q₂'', hmem2, hfr2, huB2, hwB2, hi1_2, hh2_2, hsz2,
     hub_lt, hub_av1, hav2, hwf2, hq2_2, hpop2⟩ :=
     popOne_spec (s := s) (trees := trees) hn_pos rfl y₁'
-      (by wram_simp [y₁']; rw [hfr1 one (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)]; exact hyo)
-      (by wram_simp [y₁']; rw [hfr1 len (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)]; exact hyn)
-      (by wram_simp [y₁']; rw [hfr1 wtBase (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)]; exact hywtb)
-      (by wram_simp [y₁']; rw [hfr1 workBase (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)]; exact hywb)
-      (by wram_simp [y₁']; rw [hfr1 step (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)]; exact hys)
-      (by rw [hi1_1']; exact hi1_1)
-      (by rw [hh2_1']; exact hh2_1)
+      ((hfr1' one).trans hyo) ((hfr1' len).trans hyn) ((hfr1' wtBase).trans hywtb)
+      ((hfr1' workBase).trans hywb) ((hfr1' step).trans hys)
+      (hi1_1'.trans_le hi1_1) (hh2_1'.trans_le hh2_1)
       (by omega) (by rw [hi1_1', hh2_1']; omega)
       hy1'_sws hfit_wtb hfit_wb2 hwf1
       (by dsimp only [y₁', Data.set_mem]; rw [hh2_1', hmem1]; exact hq2_1)
   simp only [hi1_1', hh2_1'] at hsz2 hub_av1 hav2 hpop2
-  have fr12 (r : Fin 23) (h1 : r ≠ i1) (h2 : r ≠ h2) (h3 : r ≠ uA) (h4 : r ≠ wA)
-      (h5 : r ≠ uB) (h6 : r ≠ wB) (h7 : r ≠ addr) (h8 : r ≠ tmp1) (h9 : r ≠ tmp2) :
+  have fr12 (r : Fin 23)
+      (hr : r ∉ ([i1, h2, uA, wA, uB, wB, addr, tmp1, tmp2] : List (Fin 23)) := by decide) :
       y₂.regs r = y.regs r := by
-    rw [hfr2 r h1 h2 h5 h6 h7 h8 h9]
-    simp only [y₁', Data.set_regs, Function.update_of_ne h4, Function.update_of_ne h3]
-    exact hfr1 r h1 h2 h5 h6 h7 h8 h9
+    simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hr
+    rcases hr with ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9⟩
+    exact (hfr2 r h1 h2 h5 h6 h7 h8 h9).trans
+      (hfr1' r (by simp [h1, h2, h3, h4, h5, h6, h7, h8, h9]))
   have huA2 : y₂.regs uA = u_a := by
     rw [hfr2 uA (by decide) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide)]
@@ -592,24 +590,9 @@ private theorem popTwo_exec {w wtb wb pb_init fo_init s : ℕ}
     unfold mergePopTwo
     exact (hex1.seq (ExecWithin.copy.seq (ExecWithin.copy.seq hex2))).mono (by omega)
   refine ⟨y₂, u_a, wt_a, u_b, wt_b, y₁.regs i1, q₂', q₂'', hex_pop2, hmem2.trans hmem1,
-    (fr12 zero (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide)).trans hyz,
-    (fr12 one (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide)).trans hyo,
-    (fr12 len (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide)).trans hyn,
-    (fr12 wtBase (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide)).trans hywtb,
-    (fr12 workBase (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide)).trans hywb,
-    (fr12 nSub1 (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide)).trans hyns,
-    (fr12 permBase (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide)).trans hypb,
-    (fr12 finalOut (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide)).trans hyfo,
-    (fr12 step (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide) (by decide) (by decide)).trans hys,
+    (fr12 zero).trans hyz, (fr12 one).trans hyo, (fr12 len).trans hyn,
+    (fr12 wtBase).trans hywtb, (fr12 workBase).trans hywb, (fr12 nSub1).trans hyns,
+    (fr12 permBase).trans hypb, (fr12 finalOut).trans hyfo, (fr12 step).trans hys,
     huA2, hwA2, huB2, hwB2, hi1_2, hh2_2,
     pool_step_arith hlt hpool_sz hsz1 hsz2 hh2_2,
     hua_lt, hub_lt, hua_av, hub_av.1, hub_av.2,
@@ -822,34 +805,31 @@ private theorem depthBody_exec {w wb pb_init fo_init : ℕ}
   set j := y.regs step with hj_def
   obtain ⟨hyz, hyo, hyn, hywb, hyns, hypb, hyfo, hyout, hym_out, hym_child,
     hmodD, hdepth_inv⟩ := hy
-  obtain ⟨k, hk_def⟩ : ∃ kv, kv = sws.length - 2 - j := ⟨_, rfl⟩
+  let k := sws.length - 2 - j
   have hk_lt : k < sws.length - 1 := by omega
   have hm_eq : sws.length - 1 - j = k + 1 := by omega
   have hm_next : sws.length - 1 - (j + 1) = k := by omega
   rcases hhist k hk_lt with ⟨hl_lt, hr_lt, hne_lr, hbr_k, hav_l, hav_r, hav_step⟩
-  obtain ⟨u_l, hul_def⟩ : ∃ v, v = yM_mem (wb + sws.length + k) := ⟨_, rfl⟩
-  obtain ⟨u_r, hur_def⟩ : ∃ v, v = yM_mem (wb + 2 * sws.length + k) := ⟨_, rfl⟩
-  rw [← hul_def] at hl_lt hne_lr hbr_k hav_l hav_step
-  rw [← hur_def] at hr_lt hne_lr hbr_k hav_r hav_step
-  have hy_lc : y.mem (wb + sws.length + k) = u_l :=
-    (hym_child _ (by omega) (by omega)).trans hul_def.symm
+  let u_l := yM_mem (wb + sws.length + k)
+  let u_r := yM_mem (wb + 2 * sws.length + k)
+  change trees.getD (sws.length + k) dfltTree =
+    .branch (trees.getD u_l dfltTree) (trees.getD u_r dfltTree) at hbr_k
+  have hy_lc : y.mem (wb + sws.length + k) = u_l := hym_child _ (by omega) (by omega)
   have hparent_av : Avail sws.length (i1_hist (sws.length - 1 - j))
       (h2_hist (sws.length - 1 - j)) (sws.length - 1 - j) (sws.length + k) := by
-    rw [hm_eq]; exact (hav_step (sws.length + k)).mpr (Or.inr rfl)
+    rw [hm_eq]
+    exact (hav_step (sws.length + k)).mpr (Or.inr rfl)
   obtain ⟨_, hd_le, hparent_enc⟩ := hdepth_inv (sws.length + k) hparent_av
-  obtain ⟨d_val, hd_def⟩ : ∃ dv, dv = y.mem (wb + 3 * sws.length + 1 + (sws.length + k)) :=
-    ⟨_, rfl⟩
-  rw [← hd_def] at hd_le hparent_enc
+  let d_val := y.mem (wb + 3 * sws.length + 1 + (sws.length + k))
   have hy_dp : y.mem (wb + 3 * sws.length + 1 +
-      (sws.length + ((sws.length - 1 - 1) - j))) = d_val := by
-    rw [hd_def]; congr 1; omega
+      (sws.length + ((sws.length - 1 - 1) - j))) = d_val := rfl
   have hy_lc' : y.mem (wb + sws.length + ((sws.length - 1 - 1) - j)) = u_l := by
-    rw [show wb + sws.length + ((sws.length - 1 - 1) - j) = wb + sws.length + k by omega]
-    exact hy_lc
+    simpa only [show wb + sws.length + ((sws.length - 1 - 1) - j) =
+      wb + sws.length + k by omega] using hy_lc
   have hy_rc' : y.mem (wb + sws.length + sws.length + ((sws.length - 1 - 1) - j)) = u_r := by
     rw [show wb + sws.length + sws.length + ((sws.length - 1 - 1) - j) =
       wb + 2 * sws.length + k by omega]
-    exact (hym_child _ (by omega) (by omega)).trans hur_def.symm
+    exact hym_child _ (by omega) (by omega)
   refine WP.exists_execWithin ?_
   wram_exec [depthBody, hyo, hyn, hywb, hyns, hyout, ← hj_def, hy_dp, hy_lc', hy_rc']
   refine ⟨⟨by wram_simp [hyz], by wram_simp [hyo], by wram_simp [hyn],
@@ -876,11 +856,7 @@ private theorem depthBody_exec {w wb pb_init fo_init : ℕ}
       refine ⟨hnd_p.1, fun a c hc => ?_⟩
       have hp_c : (trees.getD (sws.length + k) dfltTree).encodeSym a =
           some (false :: c) := by
-        rw [hbr_k]
-        change (match (trees.getD u_l dfltTree).encodeSym a with
-          | some c => some (false :: c)
-          | none => Option.map (true :: ·) ((trees.getD u_r dfltTree).encodeSym a)) =
-          some (false :: c)
+        simp only [hbr_k, CodeTree.encodeSym]
         rw [hc]
       obtain ⟨cr, hcr, hlen_cr⟩ := henc_p a (false :: c) hp_c
       exact ⟨cr, hcr, by simp only [List.length_cons] at hlen_cr; omega⟩
@@ -898,13 +874,8 @@ private theorem depthBody_exec {w wb pb_init fo_init : ℕ}
           hnd_p.2.2 a hal a ha_in_r rfl
         have hp_c : (trees.getD (sws.length + k) dfltTree).encodeSym a =
             some (true :: c) := by
-          rw [hbr_k]
-          change (match (trees.getD u_l dfltTree).encodeSym a with
-            | some c => some (false :: c)
-            | none => Option.map (true :: ·) ((trees.getD u_r dfltTree).encodeSym a)) =
-            some (true :: c)
-          rw [CodeTree.encodeSym_eq_none_of_notMem ha_not_l, hc]
-          rfl
+          simp only [hbr_k, CodeTree.encodeSym, CodeTree.encodeSym_eq_none_of_notMem ha_not_l]
+          rw [hc]; rfl
         obtain ⟨cr, hcr, hlen_cr⟩ := henc_p a (true :: c) hp_c
         exact ⟨cr, hcr, by simp only [List.length_cons] at hlen_cr; omega⟩
       · have hu_prev : Avail sws.length (i1_hist (sws.length - 1 - j))
@@ -1113,9 +1084,7 @@ private theorem twoQueueCore_exec {w wtb wb : ℕ} (sws : List ℕ) (x : Data 23
           intro i j hi hj hij
           simpa [symWeight] using hsorted i j (by simpa using hi) (by simpa using hj) hij
         have hne_fin : (List.finRange sws.length : List (Fin sws.length)) ≠ [] := by
-          intro hnil
-          have := congrArg List.length hnil
-          simp [hn_pos.ne'] at this
+          simp [hn_pos.ne']
         obtain ⟨T₀, hT₀_eq, hT₀_build, hT₀_perm⟩ :=
           huffmanFromSorted_spec hne_fin hsorted_fin (fun _ _ => Nat.zero_le _)
         have hroot_eq : T_root = T₀ := Option.some.inj (hhuff_eq.symm.trans hT₀_eq)
@@ -1207,12 +1176,8 @@ theorem fromSortedCode_exec {w : ℕ} (ws : List ℕ)
     hout_eq, hlens_len, hnil, fun hne hs => ?_⟩
   obtain ⟨T, hT_eq, hT_build, hT_perm, hT_enc⟩ := hpos hne hs
   refine ⟨T, hT_eq, hT_build, hT_perm, hT_enc, fun code hinj hud => ?_⟩
-  have hne_fin : (List.finRange ws.length) ≠ [] := by
-    intro h0
-    have := congrArg List.length h0
-    simp [(List.length_pos_iff.mpr hne).ne'] at this
   exact hT_build.weightedPathLength_le_of_isUniquelyDecodable
-    hne_fin (List.nodup_finRange _) (fun _ _ => Nat.zero_le _) hinj hud
+    (by simp [hne]) (List.nodup_finRange _) (fun _ _ => Nat.zero_le _) hinj hud
 
 /-- **Linear-Time `O(n)` Word-RAM Huffman Construction from Pre-Sorted Weights**
 ([VanLeeuwen1976]): on any list `ws : List ℕ` of `n = ws.length` nondecreasing symbol weights in
@@ -1543,12 +1508,8 @@ private theorem transport_unsorted_huffman (ws perm sws sortedLens finalLens : L
     have hfl_j : finalLens.getD (permFn j).val 0 = sortedLens.getD j.val 0 :=
       hfl_perm j.val (by omega) (by omega)
     exact ⟨c, hT_enc_j, hc_len.trans hfl_j.symm⟩
-  · have hne_fin : (List.finRange ws.length) ≠ [] := by
-      intro h0
-      have := congrArg List.length h0
-      simp [(List.length_pos_iff.mpr hne).ne'] at this
-    exact hT_build.weightedPathLength_le_of_isUniquelyDecodable
-      hne_fin (List.nodup_finRange _) (fun _ _ => Nat.zero_le _) hinj hud
+  · exact hT_build.weightedPathLength_le_of_isUniquelyDecodable
+      (by simp [hne]) (List.nodup_finRange _) (fun _ _ => Nat.zero_le _) hinj hud
 
 private theorem setupSortGather_exec {w : ℕ} (ws : List ℕ)
     (hfit_mem : Fits w (10 * ws.length + 3)) :
@@ -1667,9 +1628,8 @@ theorem huffmanCode_exec {w : ℕ} (ws : List ℕ)
     hyG_perm.frame fun a ha1 ha2 =>
       Modifies.block_iff.mp hmodQ a (by dsimp only; rw [hsws_len]; omega)
   have htqOut_lt : yQ.regs out + ws.length < 9 * ws.length + 2 := by
-    by_cases hsws_nil : sws = []
-    · simp only [hyQout, hsws_nil, ↓reduceIte]; omega
-    · simp only [hyQout, hsws_nil, ↓reduceIte, hsws_len]; omega
+    rw [hyQout]
+    split_ifs <;> omega
   obtain ⟨yF, hex_scat, hmodSc, hyF_out, hyF_mfo, hscat_done⟩ :=
     scatter_exec ws perm sortedLens yQ hyQz hyQo (hyQn.trans hsws_len)
       (hyQpb.trans hyGpb) rfl (hyQfo.trans hyGfo)
@@ -1683,25 +1643,22 @@ theorem huffmanCode_exec {w : ℕ} (ws : List ℕ)
     refine (hex_setup.seq (hex_sort.seq (hex_gath.seq (hex_tq.seq hex_scat)))).mono ?_
     rw [hsws_len]
     omega
-  obtain ⟨finalLens, hfl_def⟩ : ∃ l : List ℕ, l = outputList yF.mem (9 * ws.length + 2) :=
-    ⟨_, rfl⟩
-  have hfl_len : finalLens.length = ws.length := by simp [hfl_def, hyF_mfo]
-  have hout_eq : outputList yF.mem (yF.regs out) = finalLens := by rw [hyF_out, hfl_def]
+  let finalLens := outputList yF.mem (9 * ws.length + 2)
+  have hfl_len : finalLens.length = ws.length := by simp [finalLens, hyF_mfo]
+  have hout_eq : outputList yF.mem (yF.regs out) = finalLens := by rw [hyF_out]
   refine ⟨yF, finalLens, hex_all, hyF_ws, hyF_out, hout_eq, hfl_len,
     fun hnil => List.length_eq_zero_iff.mp (by simpa [hnil] using hfl_len),
     fun hne => ?_⟩
-  have hsws_ne : sws ≠ [] := by
-    intro h0
-    have := congrArg List.length h0
-    simp [hsws_len, (List.length_pos_iff.mpr hne).ne'] at this
+  have hsws_ne : sws ≠ [] := List.ne_nil_of_length_pos (hsws_len ▸ List.length_pos_iff.mpr hne)
   obtain ⟨T_s, _, hTs_build, hTs_perm, hTs_enc⟩ := hQ_pos hsws_ne hsws_sorted
   refine transport_unsorted_huffman ws perm sws sortedLens finalLens hne
     hperm_range hperm_len hperm_bound hperm_nodup hsws_def hsws_len hfl_len
     (fun j hj hjp => ?_) T_s hTs_build hTs_perm hTs_enc
   have hj_lt : perm[j] < finalLens.length := by
-    rw [hfl_len]; exact hperm_bound _ (List.getElem_mem hjp)
+    rw [hfl_len]
+    exact hperm_bound _ (List.getElem_mem hjp)
   rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hj_lt]
-  simp only [hfl_def, getElem_outputList]
+  simp only [finalLens, getElem_outputList]
   exact hscat_done j hj hjp
 
 /-- Compiled `O(n log n)` Word-RAM Huffman program returning the codeword-length list via

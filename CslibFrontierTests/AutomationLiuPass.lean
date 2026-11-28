@@ -35,9 +35,6 @@ namespace Cslib.Crypto.AutomationLiuPassTests
 
 open Cslib.Complexity Probability Probability.PMF BitString Filter Kolmogorov Turing.MultiTapeTM
 
--- Search compares certificate programs and encodings without unfolding machine witnesses.
-attribute [local irreducible] ComputableInPolyTime
-
 /-- The original threshold arithmetic, reproduced only for its automation regression. -/
 def thresholdValue (γ d c n : ℕ) : ℕ :=
   let m := n + γ * Nat.log 2 n - c

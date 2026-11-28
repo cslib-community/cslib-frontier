@@ -24,13 +24,14 @@ within time and space bounded by polynomially bounded functions of the length of
 `Turing.MultiTapeTM.ComputableInTimeAndSpaceOfLength`; that a polynomial time bound already bounds
 the space is a lemma about machines, not part of the definition.
 
-The predicate is registered with `fun_prop`. This file proves the closure rules that need no
-machine construction beyond upstream's: the identity, constants, functions on finite types and
-changes of representation.
+The predicate is registered with `fun_prop`. Its structure keeps the machine semantics out of
+unification when a candidate rule uses a different encoding. The closure rules here cover the
+identity, constants, functions on finite types and changes of representation.
 
 ## Main definitions
 
-* `Turing.MultiTapeTM.ComputableInPolyTime`: computability in polynomial time.
+* `Turing.MultiTapeTM.ComputableInPolyTime`: computability in polynomial time, characterized
+  by `Turing.MultiTapeTM.computableInPolyTime_def` in terms of independent time and space bounds.
 
 ## Main results
 
@@ -45,7 +46,7 @@ changes of representation.
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09]
 -/
 
-@[expose] public section
+public section
 
 namespace Turing.MultiTapeTM
 
@@ -53,11 +54,24 @@ open Cslib
 
 /-- `f` is computable in polynomial time: some machine with a binary alphabet and finitely many
 states computes `f`, relative to the encodings `encIn` and `encOut`, within time and space
-bounded by polynomially bounded functions of the length of the encoded input. -/
-def ComputableInPolyTime {α β : Type*} (f : α → β) (encIn : α ↪ List Bool)
-    (encOut : β ↪ List Bool) : Prop :=
-  ∃ t s : ℕ → ℕ, PolynomiallyBounded t ∧ PolynomiallyBounded s ∧
+bounded by polynomially bounded functions of the length of the encoded input.
+
+Use `⟨t, s, ht, hs, h⟩` to build or destructure a certificate. Its `exists_bounds` field
+gives the witnesses, and `Turing.MultiTapeTM.computableInPolyTime_def` rewrites the predicate
+as an existential. -/
+structure ComputableInPolyTime {α β : Type*} (f : α → β) (encIn : α ↪ List Bool)
+    (encOut : β ↪ List Bool) : Prop where
+  /-- Polynomially bounded time and space bounds and a machine computing `f` within them. -/
+  exists_bounds : ∃ t s : ℕ → ℕ, PolynomiallyBounded t ∧ PolynomiallyBounded s ∧
     ComputableInTimeAndSpaceOfLength f encIn encOut t s
+
+/-- Polynomial-time computability is equivalent to the existence of polynomially bounded time
+and space bounds for a machine computing the function. -/
+theorem computableInPolyTime_def {α β : Type*} {f : α → β} {encIn : α ↪ List Bool}
+    {encOut : β ↪ List Bool} :
+    ComputableInPolyTime f encIn encOut ↔ ∃ t s : ℕ → ℕ, PolynomiallyBounded t ∧
+      PolynomiallyBounded s ∧ ComputableInTimeAndSpaceOfLength f encIn encOut t s :=
+  ⟨fun h => h.exists_bounds, fun h => ⟨h⟩⟩
 
 namespace ComputableInPolyTime
 

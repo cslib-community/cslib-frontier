@@ -105,11 +105,9 @@ theorem ValidLinks.drop {n : ℕ} {keys : List (List Bool × List Bool)}
   induction start generalizing keys links with
   | zero => exact h
   | succ start ih =>
-    rcases keys with _ | ⟨k₁, _ | ⟨k₂, ks⟩⟩ <;> cases h
-    · simp [ValidLinks]
-    · simp [ValidLinks]
-    · rename_i htail
-      exact ih htail
+    rcases keys with _ | ⟨_, _ | _⟩ <;> cases h
+    case cons.cons.cons htail => exact ih htail
+    all_goals simp [ValidLinks]
 
 variable {E} in
 /-- At each link index, the link freshly encrypts that level's secret under the next public key.
@@ -120,15 +118,13 @@ theorem ValidLinks.getD {n : ℕ} {keys : List (List Bool × List Bool)}
     E.FreshInputs n (keys.getD (i + 1) ([], [])).1 (keys.getD i ([], [])).2
       (links.getD i []) := by
   have hlength := h.length_eq
-  have hfirst : i < keys.length := by omega
-  have hnext : i + 1 < keys.length := by omega
   have hadjacent : i < (keys.zip keys.tail).length := by
     simp only [List.length_zip, List.length_tail]
     omega
-  have hget := List.Forall₂.get h hadjacent hi
   simpa only [List.get_eq_getElem, List.getElem_zip, List.getElem_tail,
-    List.getD_eq_getElem keys _ hfirst, List.getD_eq_getElem keys _ hnext,
-    List.getD_eq_getElem links _ hi] using hget
+    List.getD_eq_getElem keys _ (by omega : i < keys.length),
+    List.getD_eq_getElem keys _ (by omega : i + 1 < keys.length),
+    List.getD_eq_getElem links _ hi] using List.Forall₂.get h hadjacent hi
 
 /-- The actual key-chain sampler produces exactly supported keys and valid encrypted links. -/
 theorem mem_support_generateKeyChain_iff (n depth : ℕ)
@@ -138,16 +134,13 @@ theorem mem_support_generateKeyChain_iff (n depth : ℕ)
       (∀ key ∈ keys, key ∈ (ProbComp.eval (E.keyGen n)).support) ∧
       E.ValidLinks n keys links := by
   simp only [generateKeyChain, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff]
+    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq,
+    mem_support_generateKeys_iff, mem_support_encryptKeyLinks_iff]
   constructor
-  · rintro ⟨keys', hkeys, links', hlinks, hpair⟩
-    obtain ⟨rfl, rfl⟩ := Prod.mk.inj hpair
-    exact ⟨((E.mem_support_generateKeys_iff n depth keys).1 hkeys).1,
-      ((E.mem_support_generateKeys_iff n depth keys).1 hkeys).2,
-      (E.mem_support_encryptKeyLinks_iff n keys links).1 hlinks⟩
+  · rintro ⟨_, hkeys, _, hlinks, rfl, rfl⟩
+    exact ⟨hkeys.1, hkeys.2, hlinks⟩
   · rintro ⟨hcount, hkeys, hlinks⟩
-    exact ⟨keys, (E.mem_support_generateKeys_iff n depth keys).2 ⟨hcount, hkeys⟩,
-      links, (E.mem_support_encryptKeyLinks_iff n keys links).2 hlinks, rfl⟩
+    exact ⟨keys, ⟨hcount, hkeys⟩, links, hlinks, rfl, rfl⟩
 
 /-- Every supported key chain has the requested number of transitions and one additional key. -/
 theorem lengths_of_mem_support_generateKeyChain {n depth : ℕ}

@@ -64,42 +64,28 @@ theorem exec_cells {w : ℕ} (hw : 0 < w) (side : Bool) (x : Data 32)
       ∃ z, ExecWithin (w + 2) (cellBody side) y z 205 ∧ Inv (y.regs cell + 1) z ∧
         z.regs cell = y.regs cell + 1 := by
     obtain ⟨hr, hm, hf⟩ := hy
-    have hys : y.regs src = s := by regs_frame
-    have hyd : y.regs dst = d := by regs_frame
-    have hyn : y.regs stride = n := by regs_frame
-    have hy7 : y.regs seven = 7 := by regs_frame
-    have hy10 : y.regs ten = 10 := by regs_frame
-    have hy1 : y.regs one = 1 := by regs_frame
     have hyinput (a : Fin 7) :
         y.mem (s + (y.regs cell / (10 * n) * 7 + a.val) * n + y.regs cell % n) =
           encode (v (y.regs cell) a) := by
-      have hp : y.regs cell / (10 * n) < P := by
-        apply (Nat.div_lt_iff_lt_mul (by positivity : 0 < 10 * n)).mpr
-        dsimp only [N] at hi
-        nlinarith
+      have hp : y.regs cell / (10 * n) < P :=
+        (Nat.div_lt_iff_lt_mul (by positivity)).mpr
+          (by dsimp only [N] at hi; nlinarith)
       have hmod := Nat.mod_lt (y.regs cell) hnpos
-      have hprefix : y.regs cell / (10 * n) * 7 + a.val < P * 7 := by omega
-      have hproduct := Nat.mul_le_mul_right n (Nat.succ_le_of_lt hprefix)
+      have hproduct : (y.regs cell / (10 * n) * 7 + a.val + 1) * n ≤ 7 * P * n :=
+        Nat.mul_le_mul_right n (by omega)
       have hoff : (y.regs cell / (10 * n) * 7 + a.val) * n + y.regs cell % n <
-          P * 7 * n := by nlinarith only [hproduct, hmod]
-      rw [Nat.mul_comm P 7] at hoff
-      rw [hf _ ?_]
-      · exact hmem _ hi a
-      · rcases hdisj with h | h <;> dsimp only [N] at hi <;> omega
+          7 * P * n := by nlinarith only [hproduct, hmod]
+      rw [hf _ (by rcases hdisj with h | h <;> dsimp only [N] at hi <;> omega)]
+      exact hmem _ hi a
     obtain ⟨z, he, hzmem, hzcell, hzreg⟩ := exec_cell hw side y P n s d (y.regs cell)
-      hP hnpos hi hys hyd rfl hyn hy7 hy10 hy1 (v (y.regs cell)) B hB (hv _ hi)
-      hyinput hval haddr
+      hP hnpos hi (by regs_frame) (by regs_frame) rfl (by regs_frame) (by regs_frame)
+      (by regs_frame) (by regs_frame) (v (y.regs cell)) B hB (hv _ hi) hyinput hval haddr
     obtain ⟨hm', hf'⟩ :=
       prefix_write_step (e := fun i => encode (stageResult side n v i)) hm hf hzmem
     exact ⟨z, he, ⟨fun a ha hl => (hzreg a ha hl).trans (hr a ha hl), hm', hf'⟩, hzcell⟩
-  have hx : Inv (x.regs cell) x := by
-    refine ⟨fun _ _ _ => rfl, ?_, ?_⟩
-    · simp only [hcell, Nat.not_lt_zero, false_implies, implies_true]
-    · intro a _
-      rfl
   obtain ⟨y, he, ⟨hr, hm, hf⟩, _⟩ := ExecWithin.loop_count Inv
     (fun _ hy => (hy.1 stageSize (by decide) (by decide)).trans hsize) hbody
-    (by simp [hcell]) hx
+    (by simp [hcell]) ⟨fun _ _ _ => rfl, by simp [hcell], fun _ _ => rfl⟩
   refine ⟨y, ?_, hm, hf, hr⟩
   simpa only [hcell, N, Nat.sub_zero, Nat.add_comm, Nat.mul_comm] using he
 
@@ -135,10 +121,9 @@ theorem exec_stageBody {w : ℕ} (hw : 0 < w) (side : Bool) (x : Data 32)
   have h10P : Fits (w + 2) (P * 10) := haddr.of_le (by nlinarith)
   have hN : Fits (w + 2) (P * 10 * n) := haddr.of_le (by nlinarith)
   have hnfit : Fits (w + 2) n := haddr.of_le (by nlinarith)
-  have hdiv : 7 * n / 7 = n := by omega
   refine WP.exists_execWithin ?_
   unfold stageBody stageHead stageTail
-  wram_exec [hn, hseven, hp, hten, hdiv, hnfit, h10P, hN]
+  wram_exec [hn, hseven, hp, hten, Nat.mul_div_right n (by decide : 0 < 7), hnfit, h10P, hN]
   wram_call (exec_cells hw side _ P n s d hP hnpos (by wram_simp [hsrc]) (by wram_simp [hdst])
     (by wram_simp) (by wram_simp) (by wram_simp [hseven]) (by wram_simp [hten])
     (by wram_simp [hone]) (by wram_simp; ring) v B hB hv hmem hval haddr hdisj)

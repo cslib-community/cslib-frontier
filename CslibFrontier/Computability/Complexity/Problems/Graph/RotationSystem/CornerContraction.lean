@@ -46,17 +46,12 @@ theorem rotate_contractLastEdge_insertEdge {G : Graph} (r : RotationSystem G)
     ((Dart.relabelEquiv G (Function.update id h.vertex k.vertex)).optionCongr.optionCongr.permCongr
       ((cornerDartEquiv h k).permCongr ((r.insertEdge h k).rotate *
         swap (newCornerDart h k true) (newCornerDart h k false))))) = _
-  rw [Equiv.permCongr_mul]
-  rw [cornerDartEquiv_rotate]
+  rw [Equiv.permCongr_mul, cornerDartEquiv_rotate]
   have hs : (cornerDartEquiv h k).permCongr
-      (swap (newCornerDart h k true) (newCornerDart h k false)) =
-        swap (some none) none := by
-    apply Equiv.ext
-    intro z
-    rw [Equiv.permCongr_apply, (cornerDartEquiv h k).injective.map_swap,
-      Equiv.apply_symm_apply]
-    simp only [newCornerDart, Equiv.apply_symm_apply, ↓reduceIte]
-    exact congrArg (fun f : Perm (Option (Option (Dart G))) => f z) (swap_comm _ _)
+      (swap (newCornerDart h k true) (newCornerDart h k false)) = swap (some none) none :=
+    Equiv.ext fun z => by
+      rw [Equiv.permCongr_apply, (cornerDartEquiv h k).injective.map_swap, swap_comm]
+      simp [newCornerDart]
   rw [hs, removeNone_permCongr_option, removeNone_permCongr_option,
     removeNone_twice_insertAfter_mul_swap r.rotate h k
       (fun he => hk (congrArg Dart.vertex he))]

@@ -47,8 +47,6 @@ namespace Cslib.Complexity
 
 open Turing.MultiTapeTM Finset
 
-attribute [local irreducible] ComputableInPolyTime
-
 variable {α : Type} {enc : α ↪ List Bool}
 
 namespace SharpP
@@ -74,19 +72,12 @@ theorem acceptCount_indexedProductVerifier (r k : α → ℕ)
     acceptCount (indexedProductVerifier r k V) a (r a * k a) =
       ∏ i ∈ range (r a), acceptCount V (a, i) (k a) := by
   rw [← Fin.prod_univ_eq_prod_range]
-  simp only [acceptCount]
-  rw [← Fintype.card_piFinset]
-  apply card_equiv BitString.blocksEquiv
-  intro x
+  simp only [acceptCount, ← Fintype.card_piFinset]
+  refine card_equiv BitString.blocksEquiv fun x => ?_
   simp only [mem_filter, mem_univ, true_and, indexedProductVerifier, List.all_eq_true,
     List.mem_range, Fintype.mem_piFinset]
-  constructor
-  · intro h i
-    simpa only [BitString.listRow_eq_ofFn (k a) i, BitString.ofList_ofFn,
-      BitString.blocksEquiv_apply] using h i i.2
-  · intro h i hi
-    simpa only [BitString.listRow_eq_ofFn (k a) ⟨i, hi⟩, BitString.ofList_ofFn,
-      BitString.blocksEquiv_apply] using h ⟨i, hi⟩
+  exact ⟨fun h i => by simpa [BitString.listRow_eq_ofFn] using h i i.2,
+    fun h i hi => by simpa [BitString.listRow_eq_ofFn (k a) ⟨i, hi⟩] using h ⟨i, hi⟩⟩
 
 /-- A jointly uniform #P family on an instance and unary index may be multiplied over a
 polynomial-time unary range. If the original certificate polynomial is `p`, a common row width

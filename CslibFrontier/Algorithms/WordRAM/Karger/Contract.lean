@@ -192,9 +192,7 @@ theorem getElem_flattenMatrix {n : ℕ} (W : Fin n → Fin n → ℕ) (u v : Fin
 theorem mem_flattenMatrix_le_totalDoubledWeight {n : ℕ} (W : Fin n → Fin n → ℕ)
     {x : ℕ} (hx : x ∈ flattenMatrix W) :
     x ≤ totalDoubledWeight W := by
-  unfold flattenMatrix at hx
-  rw [List.mem_ofFn] at hx
-  rcases hx with ⟨idx, rfl⟩
+  rcases List.mem_ofFn.mp hx with ⟨_, rfl⟩
   exact entry_le_totalDoubledWeight W _ _
 
 /-! ### Relocatable workspace representation and address geometry -/
@@ -227,14 +225,10 @@ theorem holdsMatrix_init_single {r n : ℕ} (W : Fin n → Fin n → ℕ) :
 the input length `1 + n * n` and the leading word `a`, and the matrix total fits. -/
 theorem inputFits_cons_flattenMatrix {w a n B : ℕ} {W : Fin n → Fin n → ℕ} (hB : Fits w B)
     (hlen : 1 + n * n ≤ B) (ha : a ≤ B) (htot : Fits w (totalDoubledWeight W)) :
-    InputFits w (a :: flattenMatrix W) := by
-  refine ⟨?_, ?_⟩
-  · simp only [List.length_cons, length_flattenMatrix]
-    exact hB.of_le (by omega)
-  · intro v hv
-    rcases List.mem_cons.mp hv with rfl | hmem
-    · exact hB.of_le ha
-    · exact htot.of_le (mem_flattenMatrix_le_totalDoubledWeight W hmem)
+    InputFits w (a :: flattenMatrix W) :=
+  ⟨by simpa only [List.length_cons, length_flattenMatrix] using hB.of_le (by omega),
+    List.forall_mem_cons.mpr ⟨hB.of_le ha, fun _ hmem =>
+      htot.of_le (mem_flattenMatrix_le_totalDoubledWeight W hmem)⟩⟩
 
 /-- Memory `mem` stores `W : Fin k → Fin k → ℕ` at `(wb, str)` and its row degrees `rowDeg W` at
 `db`. -/
@@ -287,9 +281,7 @@ theorem ContractState.mem_add_one {w wb db str t : ℕ} {W : Fin 2 → Fin 2 →
 private theorem ContractState.eq_of_heldGraph_eq {w wb db str k t : ℕ} {W W' : Fin k → Fin k → ℕ}
     {x : Data 16} (hst : ContractState w wb db str k t W x) (h : heldGraph wb str x = ⟨k, W'⟩) :
     W = W' := by
-  have h' := hst.heldGraph_eq.symm.trans h
-  simp only [Lean.Karger.Graph.mk.injEq, heq_eq_eq, true_and] at h'
-  exact h'
+  simpa only [Lean.Karger.Graph.mk.injEq, heq_eq_eq, true_and] using hst.heldGraph_eq.symm.trans h
 
 theorem matAddr_lt_end {wb str k : ℕ} (hstr : k ≤ str) (i j : Fin k) :
     wb + i.val * str + j.val < wb + str * k := by
@@ -347,10 +339,8 @@ theorem modifies_trans_subset {F F₁ F₂ : Finset ℕ} {m₀ m₁ m₂ : ℕ �
   (h₂ a fun h => ha (hs₂ h)).trans (h₁ a fun h => ha (hs₁ h))
 
 theorem modifies_update_of_mem {F : Finset ℕ} {a : ℕ} (ha : a ∈ F) (m : ℕ → ℕ) (v : ℕ) :
-    Modifies F m (Function.update m a v) := by
-  intro b hb
-  have hne : b ≠ a := fun h => hb (h ▸ ha)
-  exact Function.update_of_ne hne v m
+    Modifies F m (Function.update m a v) :=
+  fun b hb => Function.update_of_ne (fun h : b = a => hb (h ▸ ha)) v m
 
 private theorem modifies_step_update {F : Finset ℕ} {m₁ m₂ : ℕ → ℕ} {a : ℕ}
     (h : Modifies F m₁ m₂) (ha : a ∈ F) (v : ℕ) :
@@ -406,10 +396,7 @@ private theorem prefixSum_succ {k j : ℕ} (hj : j < k) (f : Fin k → ℕ) :
 /-- `prefixSum` up to `k` is the full `Finset.univ` sum. -/
 private theorem prefixSum_full {k : ℕ} (f : Fin k → ℕ) :
     prefixSum f k = ∑ b : Fin k, f b := by
-  unfold prefixSum
-  refine Finset.sum_congr ?_ fun _ _ => rfl
-  ext b
-  simp
+  simp [prefixSum]
 
 /-- `prefixSum` is monotone in its cutoff `j`. -/
 private theorem prefixSum_mono {k : ℕ} (f : Fin k → ℕ) {i j : ℕ} (hle : i ≤ j) :
@@ -802,10 +789,7 @@ private theorem mergeStepMatrix_zero {k : ℕ} {W : Fin k → Fin k → ℕ} (hW
 private theorem mergeStepMatrix_full {k : ℕ} (W : Fin k → Fin k → ℕ) (u v : Fin k)
     (i j : Fin k) :
     mergeStepMatrix W u v k i j = mergePair W u v i j := by
-  unfold mergeStepMatrix
-  have hj : ¬ (k ≤ j.val) := Nat.not_le_of_lt j.isLt
-  have hi : ¬ (k ≤ i.val) := Nat.not_le_of_lt i.isLt
-  simp [hj, hi]
+  simp [mergeStepMatrix, Nat.not_le_of_lt i.isLt, Nat.not_le_of_lt j.isLt]
 
 private theorem mergeStepMatrix_step_eq_of_mem {k : ℕ} (W : Fin k → Fin k → ℕ) (u v : Fin k)
     {c : ℕ} (hc : c = u.val ∨ c = v.val) (i j : Fin k) :
@@ -874,8 +858,7 @@ private theorem compactStepMatrix_step_eq_of_eq {m : ℕ} (W₁ : Fin (m + 1) �
   subst hc
   have aux {a b : Fin m} :
       (a.val = v.val ∧ b.val ≠ v.val ∧ v.val + 1 ≤ b.val) ↔
-        (a.val = v.val ∧ b.val ≠ v.val ∧ v.val ≤ b.val) :=
-    ⟨fun ⟨h1, h2, h3⟩ => ⟨h1, h2, by omega⟩, fun ⟨h1, h2, h3⟩ => ⟨h1, h2, by omega⟩⟩
+        (a.val = v.val ∧ b.val ≠ v.val ∧ v.val ≤ b.val) := by omega
   simp only [compactStepMatrix, aux]
 
 private theorem compactStepMatrix_succ {m : ℕ} {W₁ : Fin (m + 1) → Fin (m + 1) → ℕ}
@@ -1512,13 +1495,8 @@ private theorem contractStep_law_zero {w wb db str t m : ℕ}
     simp only [Op.eval_bin, BinOp.eval, hst.regs_activeK, h1, Nat.add_sub_cancel]
     exact Data.put_of_fits (hst.fits_dEnd.of_le (by omega))
   have hws_next : HoldsWorkspace x_next.mem wb db str (contractMatrix W 0 (Fin.last m)) :=
-    ⟨fun i j => by
-      have hw1 : x.mem (wb + i.val * str + j.val) = W i.castSucc j.castSucc :=
-        hst.workspace.1 i.castSucc j.castSucc
-      change x.mem (wb + i.val * str + j.val) = _; rw [hw1, hW_zero, hcm_zero],
-     fun i => by
-      have hw2 : x.mem (db + i.val) = rowDeg W i.castSucc := hst.workspace.2 i.castSucc
-      change x.mem (db + i.val) = _; rw [hw2, hdeg_zero]; unfold rowDeg; simp [hW_zero]⟩
+    ⟨fun i j => (hst.workspace.1 i.castSucc j.castSucc).trans (by rw [hW_zero, hcm_zero]),
+     fun i => (hst.workspace.2 i.castSucc).trans (by simp [rowDeg, hW_zero, hcm_zero])⟩
   have hst_next : ContractState w wb db str m t (contractMatrix W 0 (Fin.last m)) x_next :=
     ⟨by wram_simp [x_next, hst.regs_wBase], by wram_simp [x_next, hst.regs_dBase],
       by wram_simp [x_next, hst.regs_stride], by wram_simp [x_next],
@@ -1802,11 +1780,9 @@ theorem contractDownToAt_spec {r n w wb db str k t : ℕ} (hr : 16 ≤ r)
     rcases hsup₀ z₀ hz₀ with ⟨ht0, hmod0, W', part', hC', hst'⟩
     exact ⟨ht0, hmod0, fun j hj => Data.extend_castLE_regs_of_le (hrs := hr) z₀.1 x j hj,
       W', part', hC', by rwa [Data.comap_extend hf]⟩
-  · rw [ProbComp.eval_map, PMF.toOuterMeasure_map_apply]
-    convert hsurv₀ B hmin hBnt hBmin using 2
-    ext z; change SurvivalPost W₀ wb db str t (pullbackCut part B) ((z.1.extend f x).comap f) ↔
-      SurvivalPost W₀ wb db str t (pullbackCut part B) z.1
-    rw [Data.comap_extend hf]
+  · simp only [ProbComp.eval_map, PMF.toOuterMeasure_map_apply, Set.preimage, Set.mem_ofPred_eq, f,
+      Data.comap_extend hf]
+    exact hsurv₀ B hmin hBnt hBmin
 
 end Contract
 

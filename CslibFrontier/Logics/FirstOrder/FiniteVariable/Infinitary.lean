@@ -310,9 +310,7 @@ theorem realize_congr {M : Type w₁} [L.Structure M] [Quantifier Q M]
       forall_eq] at h
     rw [realize_equal, realize_equal, h.1, h.2]
   | rel R f =>
-    rw [realize_rel, realize_rel]
-    have hcomp : a ∘ f = a' ∘ f := funext fun t => h (f t) ⟨t, rfl⟩
-    rw [hcomp]
+    rw [realize_rel, realize_rel, show a ∘ f = a' ∘ f from funext fun t => h (f t) ⟨t, rfl⟩]
   | not φ ih =>
     exact not_congr (ih h)
   | iSup f ih =>
@@ -322,9 +320,8 @@ theorem realize_congr {M : Type w₁} [L.Structure M] [Quantifier Q M]
     simp only [freeVars_quant, Set.mem_sdiff, Set.mem_singleton_iff] at h
     rw [realize_quant, realize_quant]
     refine Quantifier.eval_congr q fun c => ih fun j hj => ?_
-    by_cases hji : j = i
-    · subst hji
-      simp only [Function.update_self]
+    rcases eq_or_ne j i with rfl | hji
+    · simp only [Function.update_self]
     · simp only [Function.update_of_ne hji, h j ⟨hj, hji⟩]
 
 /-! #### Finite quantifier-rank bounds -/
@@ -423,12 +420,11 @@ theorem QuantifierRankLE.mono {φ : InfinitaryGenFormula.{w, u, v} Q L k} {m n :
   | not φ ih => exact ih hmn h
   | iSup f ih => exact fun idx => ih idx hmn (h idx)
   | quant _ _ _ ih =>
-    cases m with
-    | zero => exact False.elim h
-    | succ m =>
-      cases n with
-      | zero => omega
-      | succ n => exact ih (by omega) h
+    rcases m with _ | m
+    · exact h.elim
+    rcases n with _ | n
+    · omega
+    exact ih (by omega) h
 
 end InfinitaryGenFormula
 
@@ -1058,9 +1054,9 @@ private theorem bijPebbleWins_of_forall_same_univ (L : Language.{u, v}) {k : ℕ
       simp only [not_forall] at hnot
       obtain ⟨ψ, hr, hS', hiff⟩ := hnot
       by_cases hψ : evalSum x ψ
-      · exact ⟨ψ, hr, hS', hψ, fun h₂ => hiff ⟨fun _ => h₂, fun _ => hψ⟩⟩
+      · exact ⟨ψ, hr, hS', hψ, fun h₂ => hiff (iff_of_true hψ h₂)⟩
       · exact ⟨ψ.not, hr, hS', (evalSum_not x ψ).2 hψ,
-          fun h₂ => hiff ⟨fun h₁ => absurd h₁ hψ, fun h₃ => absurd h₃ ((evalSum_not z ψ).1 h₂)⟩⟩
+          fun h₂ => hiff (iff_of_false hψ ((evalSum_not z ψ).1 h₂))⟩
     choose ψ hr hS' hx_sat hnot using hsep
     let _ : Fintype Bad := Fintype.ofFinite Bad
     let e : Bad ≃ Fin (Fintype.card Bad) := Fintype.equivFin Bad
@@ -1073,24 +1069,16 @@ private theorem bijPebbleWins_of_forall_same_univ (L : Language.{u, v}) {k : ℕ
       exact fun idx => hS' _
     have hΦx : evalSum x Φ := (evalSum_iInf x _).2 fun idx => hx_sat _
     have hΦ_iff : ∀ z : M' ⊕ N', evalSum z Φ ↔ bijSumRel L n S a b i z x := fun z =>
-      ⟨fun hΦz => by
-        by_contra hnb
+      ⟨fun hΦz => by_contra fun hnb => by
         let y : Bad := ⟨z, fun hb => hnb (sX.symm hb)⟩
-        have hy := (evalSum_iInf z _).1 hΦz (ULift.up (e y))
-        dsimp only at hy
-        rw [e.symm_apply_apply] at hy
-        exact hnot y hy,
+        exact hnot y (by simpa only [e.symm_apply_apply] using (evalSum_iInf z _).1 hΦz ⟨e y⟩),
       fun hb => ((hbij_iff z x).1 hb Φ hΦr hΦS).2 hΦx⟩
     have hsetM : {c : M' | Φ.Realize (Function.update a i c)} =
-        {c : M' | qM c = Quotient.mk sX x} := by
-      ext c
-      simp only [Set.mem_ofPred_eq, qM, Quotient.eq]
-      exact hΦ_iff (.inl c)
+        {c : M' | qM c = Quotient.mk sX x} :=
+      Set.ext fun c => (hΦ_iff (.inl c)).trans (Quotient.eq (r := sX)).symm
     have hsetN : {d : N' | Φ.Realize (Function.update b i d)} =
-        {d : N' | qN d = Quotient.mk sX x} := by
-      ext d
-      simp only [Set.mem_ofPred_eq, qN, Quotient.eq]
-      exact hΦ_iff (.inr d)
+        {d : N' | qN d = Quotient.mk sX x} :=
+      Set.ext fun d => (hΦ_iff (.inr d)).trans (Quotient.eq (r := sX)).symm
     let m := {c : M' | qM c = Quotient.mk sX x}.ncard
     let Ψ : InfinitaryCountingFormula.{w, u, v} L k := InfinitaryCountingFormula.exactly m i Φ
     have hΨr : Ψ.QuantifierRankLE (n + 1) := by
@@ -1235,11 +1223,7 @@ theorem realize_walkFormula {V : Type w₁} (G : SimpleGraph V) (d : ℕ) (a : F
           (walkFormula d).Realize (Function.update (Function.update a 2 z) 0 w)) ↔
         ∃ z : V, G.Adj (a 0) z ∧ (walkFormula d).Realize (Function.update a 0 z) := by
       refine exists_congr fun z => and_congr ?_ ?_
-      · have hcomp : Function.update a 2 z ∘ ![0, 2] = ![a 0, z] := by
-          ext t; fin_cases t
-          · exact Function.update_of_ne (by decide : (0 : Fin 3) ≠ 2) ..
-          · exact Function.update_self 2 z a
-        rw [hcomp]; rfl
+      · exact Iff.rfl
       · have hcongr : (walkFormula d).Realize (Function.update (Function.update a 2 z) 0 z) ↔
             (walkFormula d).Realize (Function.update a 0 z) :=
           (walkFormula d).realize_congr fun j hj => by

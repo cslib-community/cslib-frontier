@@ -145,10 +145,8 @@ open ComputableInSpace
 private theorem replayArgs :
     ComputableInSpace (fun p : α × List Bool => (p.2.reverse, enc p.1)) (encPair enc encBits)
       (encPair encBits encBits) fun p => (encPair enc encBits p).length := by
-  have hfst : ComputableInSpace (fun p : α × List Bool => enc p.1) (encPair enc encBits) encBits
-      fun p => (encPair enc encBits p).length :=
-    (fst enc encBits).of_enc_eq fun _ => rfl
-  exact budget_prod (budget_comp_linear bitsReverse (snd enc encBits)) hfst
+  exact budget_prod (budget_comp_linear bitsReverse (snd enc encBits))
+    ((fst enc encBits).of_enc_eq fun _ => rfl)
 
 /-- A flag of the state reached by the moves, within the length of the pair. -/
 private theorem stateFlag (φ : Option State → Bool) :
@@ -176,14 +174,11 @@ flag and a test of the replayed output. -/
 private theorem computableInSpace_acceptedAfter :
     ComputableInSpace (fun p : α × List Bool => atm.acceptedAfter (enc p.1, p.2))
       (encPair enc encBits) encBool fun p => (encPair enc encBits p).length := by
-  have hrev : ComputableInSpace (fun p : α × List Bool => (p.1, p.2.reverse)) (encPair enc encBits)
-      (encPair enc encBits) fun p => (encPair enc encBits p).length :=
-    budget_prod (fst enc encBits) (budget_comp_linear bitsReverse (snd enc encBits))
   have hout := budget_comp_linear (of_inO (MultiTapePTM.computableInO_decide_runClosedCoins
-    (enc := enc) atm.toPTM)) hrev
+    (enc := enc) atm.toPTM))
+    (budget_prod (fst enc encBits) (budget_comp_linear bitsReverse (snd enc encBits)))
   refine (budget_boolAnd atm.computableInSpace_haltedAfter hout).of_enc_eq fun p => ?_
-  simp only [acceptedAfter, cfgAfter, MultiTapePTM.runClosedCoins_eq_output_stepCoins]
-  rfl
+  simp only [acceptedAfter, cfgAfter, MultiTapePTM.runClosedCoins_eq_output_stepCoins]; rfl
 
 /-- **Acceptance within `m` moves in space `O(n + m)`.** If every computation path of `atm` on
 `enc a` of at least `m a` steps ends halted, the value of the game of `atm` on `enc a` with fuel

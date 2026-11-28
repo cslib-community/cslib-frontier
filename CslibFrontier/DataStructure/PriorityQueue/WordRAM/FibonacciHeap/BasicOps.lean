@@ -193,26 +193,23 @@ theorem addRootAndUpdateMin_exec {n base w : ℕ} {x : Data rFib}
     have hkm_mem : x2.mem (base + m.val) = st.key m := congrFun (congrArg RawState.key hst2) m
     wram_exec [hfit, hbr2.regs_baseReg, hx2_u, hx2_s1, hku_mem, hkm_mem]
     refine WP.name fun x4 hx4 => ?_
-    have hbr4 : BaseRegs n base x4 := by subst hx4; wram_simp [BaseRegs.set_iff, hbr2]
-    have he_plt := prioLTFlag_exec (w := w) hbr4 uReg s3 s1 s4 s5
-    dsimp only at he_plt
-    have hx4_s3 : x4.regs s3 = st.key u := by subst hx4; wram_simp
-    have hx4_s4 : x4.regs s4 = st.key m := by subst hx4; wram_simp
-    have hx4_u : x4.regs uReg = u.val := by subst hx4; wram_simp [hx2_u]
-    have hx4_s1 : x4.regs s1 = m.val := by subst hx4; wram_simp [hx2_s1]
-    rw [hx4_s3, hx4_s4, hx4_u, hx4_s1] at he_plt
-    have he_plt' : ExecWithin w (prioLTFlag uReg s3 s1 s4 s5) x4
-        (x4.set s5 (if IndexedMinPQ.PrioLT (u, st.key u) (m, st.key m) then 1 else 0)) 6 := he_plt
-    refine WP.of_execWithin he_plt' ?_
+    have hbr4 : BaseRegs n base x4 := by
+      subst hx4
+      wram_simp [BaseRegs.set_iff, hbr2]
+    have hflag : (x4.regs s3 < x4.regs s4 ∨ x4.regs s3 = x4.regs s4 ∧ x4.regs uReg < x4.regs s1) ↔
+        IndexedMinPQ.PrioLT (u, st.key u) (m, st.key m) := by
+      subst hx4
+      wram_simp [hx2_u, hx2_s1]
+      rfl
+    refine WP.of_execWithin (prioLTFlag_exec (w := w) hbr4 uReg s3 s1 s4 s5) ?_
+    simp only [hflag]
     subst hx4
     have hx2_nr : x2.regs numRootsReg = st.numRoots := congrArg RawState.numRoots hst2
-    by_cases hlt : IndexedMinPQ.PrioLT (u, st.key u) (m, st.key m)
-    · wram_exec [hfit, hbr2.regs_zeroP, hbr2.regs_oneP, hx2_u, hx2_nr, hlt]
-      refine ⟨by wram_simp [BaseRegs.set_iff, hbr2], hmod2, Or.inr ⟨m, r, hmin_m, hr_eq, ?_⟩⟩
-      wram_simp [ofData_set_numRoots, ofData_set_minRoot, ofData_set_scratch, hst2, ← hst_def, hlt]
-    · wram_exec [hfit, hbr2.regs_zeroP, hbr2.regs_oneP, hx2_u, hx2_nr, hlt]
-      refine ⟨by wram_simp [BaseRegs.set_iff, hbr2], hmod2, Or.inr ⟨m, r, hmin_m, hr_eq, ?_⟩⟩
-      wram_simp [ofData_set_numRoots, ofData_set_scratch, hst2, ← hst_def, hlt, ← hmin_m]
+    by_cases hlt : IndexedMinPQ.PrioLT (u, st.key u) (m, st.key m) <;>
+      · wram_exec [hfit, hbr2.regs_zeroP, hbr2.regs_oneP, hx2_u, hx2_nr, hlt]
+        refine ⟨by wram_simp [BaseRegs.set_iff, hbr2], hmod2, Or.inr ⟨m, r, hmin_m, hr_eq, ?_⟩⟩
+        wram_simp [ofData_set_numRoots, ofData_set_minRoot, ofData_set_scratch, hst2, ← hst_def,
+          hlt, ← hmin_m]
 
 /-! ## `allocSpan`, `initSetup`, and `incCur` -/
 
@@ -261,17 +258,13 @@ theorem initSetup_exec {n K_max w base : ℕ} {x₁ : Data rFib}
   · (refine ⟨by wram_simp [hn], by wram_simp [hfr₁], by wram_simp [hb₁],
         ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
       wram_simp) <;> omega
-  · apply FibRawInv.empty
-    · intro v
-      exact hz _ (Block.mem_footprint.mpr (owns_arr_addr (by decide) v.isLt))
-    · intro d hd
-      change (if d ≤ n then x₁.mem (base + 8 * n + d) else 0) = 0
-      simp only [hd, ↓reduceIte]
-      exact hz _ (Block.mem_footprint.mpr (owns_cons_addr hd))
-    · wram_simp [RawState.ofData]
-    · wram_simp [RawState.ofData]
-    · wram_simp [RawState.ofData]
-    · wram_simp [RawState.ofData]
+  · refine FibRawInv.empty
+      (fun v => hz _ (Block.mem_footprint.mpr (owns_arr_addr (by decide) v.isLt)))
+      (fun d hd => by
+        change (if d ≤ n then x₁.mem (base + 8 * n + d) else 0) = 0
+        simp only [hd, ↓reduceIte]
+        exact hz _ (Block.mem_footprint.mpr (owns_cons_addr hd)))
+      ?_ ?_ ?_ ?_ <;> wram_simp [RawState.ofData]
 
 /-! ## `isEmptyCode`, `getKeyCode`, and `insertCode` -/
 
@@ -284,12 +277,7 @@ theorem isEmptyCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {x : 
       Modifies (Block.mk base (space n)).footprint x.mem y.mem ∧
       t + potential y ≤ 3 + potential x := by
   obtain ⟨hb, hbr, hraw⟩ := hinv
-  change WP w isEmptyCode x fun y t =>
-    code.decode (n := n) (K_max := K_max) .isEmpty y.regs =
-      some (decide (IndexedMinPQ.dom s = ∅)) ∧
-    FibInv n K_max w base s y ∧
-    Modifies (Block.mk base (space n)).footprint x.mem y.mem ∧
-    t + potential y ≤ 3 + potential x
+  change WP w isEmptyCode x fun y t => _
   unfold isEmptyCode
   refine WP.bounded hb ?_
   wram_exec [hbr.regs_zeroP, hbr.regs_oneP]
@@ -331,11 +319,7 @@ theorem getKeyCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {x : D
   let st := RawState.ofData n base x
   have hraw' : FibRawInv n K_max s st := hraw
   rcases hraw with ⟨_, _, _, _, hin_spec, hkey_spec, _, _, _, _, _⟩
-  change WP w getKeyCode x fun y t =>
-    code.decode (K_max := K_max) (.getKey v) y.regs = some (s v) ∧
-    FibInv n K_max w base s y ∧
-    Modifies (Block.mk base (space n)).footprint x.mem y.mem ∧
-    t + potential y ≤ 7 + potential x
+  change WP w getKeyCode x fun y t => _
   unfold getKeyCode
   refine WP.bounded hb ?_
   cases hsv : s v with
@@ -378,10 +362,7 @@ theorem insertCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {x : D
   have hroot : st.minRoot = 0 ∨ ∃ (m : Fin n) (rtail : List (Fin n)),
       st.minRoot = m.val + 1 ∧ IsCircList st.left st.right (m :: rtail) :=
     FibonacciHeap.minRoot_cases hraw
-  change WP w insertCode x fun y t =>
-    FibInv n K_max w base (Function.update s v (some k)) y ∧
-    Modifies (Block.mk base (space n)).footprint x.mem y.mem ∧
-    t + potential y ≤ 121 + potential x
+  change WP w insertCode x fun y t => _
   unfold insertCode
   refine WP.bounded hb ?_
   wram_exec [hfit, hbr.regs_baseReg, hbr.regs_parBase, hbr.regs_childBase, hbr.regs_degBase,

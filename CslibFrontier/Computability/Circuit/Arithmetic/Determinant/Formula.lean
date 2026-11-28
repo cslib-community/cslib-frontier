@@ -77,20 +77,12 @@ private theorem exists_isSubstABP (F : Formula (arithSignature K) n) :
     exact ⟨0, le_rfl, .of_isSubstEntry (.X i)⟩
   | gate op args ih =>
     cases op with
-    | const c =>
-      exact ⟨0, Nat.zero_le _, .of_isSubstEntry (.C c)⟩
-    | add =>
+    | const c => exact ⟨0, Nat.zero_le _, .of_isSubstEntry (.C c)⟩
+    | add | mul =>
       obtain ⟨k₀, h₀, hM₀⟩ := ih 0
       obtain ⟨k₁, h₁, hM₁⟩ := ih 1
-      refine ⟨k₀ + k₁ + 1, ?_, hM₀.add hM₁⟩
-      simp only [size_gate, Fin.sum_univ_two]
-      omega
-    | mul =>
-      obtain ⟨k₀, h₀, hM₀⟩ := ih 0
-      obtain ⟨k₁, h₁, hM₁⟩ := ih 1
-      refine ⟨k₀ + k₁ + 1, ?_, hM₀.mul hM₁⟩
-      simp only [size_gate, Fin.sum_univ_two]
-      omega
+      refine ⟨k₀ + k₁ + 1, by simp only [size_gate, Fin.sum_univ_two]; omega, ?_⟩
+      first | exact hM₀.add hM₁ | exact hM₀.mul hM₁
 
 /-- **Formula universality for the determinant**: over every commutative ring `K`, the formal
 polynomial computed by an arithmetic formula `F` is a projection of the
