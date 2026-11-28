@@ -64,8 +64,7 @@ private theorem singletonColumn_spec (C : Costs α) (a : α) (y : List α) :
     have hd := editDist_cons_left_le C a [] y
     have hin := optScript_spec C [] y
     rw [optScript_nil] at hin hs
-    dsimp only
-    rw [singletonColumn]
+    simp +zetaHave only [singletonColumn]
     split <;> rename_i h
     all_goals
       simp only [hi, hs, hb] at h ⊢
