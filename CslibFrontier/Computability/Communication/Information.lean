@@ -13,6 +13,7 @@ public import CslibFrontier.Probability.MutualInformation
 public import Mathlib.Basic.Real.ENatENNReal
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Information cost of communication protocols
@@ -568,16 +569,10 @@ theorem internalInfoCost_le_externalInfoCost (π : PublicCoin X Y Z) (μ : PMF (
 /-- **Information is at most communication** for public-coin protocols. -/
 theorem externalInfoCost_le_depth (π : PublicCoin X Y Z) (μ : PMF (X × Y)) :
     π.externalInfoCost μ ≤ π.depth := by
-  calc π.externalInfoCost μ ≤ ∑' p, π p * (π.depth : ℝ≥0∞) :=
-        tsum_le_tsum fun p => by
-          by_cases hp : p ∈ π.support
-          · gcongr
-            calc ENNReal.ofReal (Communication.externalInfoCost (p.transcriptLaw μ))
-                ≤ ENNReal.ofReal p.depth :=
-                  ENNReal.ofReal_le_ofReal (p.externalInfoCost_le_depth μ)
-              _ ≤ π.depth := by simpa using ENat.toENNReal_le.mpr (depth_le_depth hp)
-          · simp [(PMF.apply_eq_zero_iff π p).mpr hp]
-    _ = π.depth := by rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+  refine Cslib.Probability.PMF.tsum_mul_le_of_support π fun p hp => ?_
+  calc ENNReal.ofReal (Communication.externalInfoCost (p.transcriptLaw μ))
+      ≤ ENNReal.ofReal p.depth := ENNReal.ofReal_le_ofReal (p.externalInfoCost_le_depth μ)
+    _ ≤ π.depth := by simpa using ENat.toENNReal_le.mpr (depth_le_depth hp)
 
 theorem internalInfoCost_le_depth (π : PublicCoin X Y Z) (μ : PMF (X × Y)) :
     π.internalInfoCost μ ≤ π.depth :=

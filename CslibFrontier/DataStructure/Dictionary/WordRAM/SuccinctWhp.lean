@@ -13,6 +13,7 @@ public import CslibFrontier.DataStructure.WordRAM.Randomized.HighProbability
 import CslibFrontier.Computability.WordRAM.Width
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Probability.PMF.Uniform
 
 /-!
@@ -1359,25 +1360,23 @@ succinct dynamic dictionary (`Dynamic.spec U V n_max`). -/
             (ν.bind μ_step).toOuterMeasure {q | worstCaseTimeWhp c < q.2} ≤
               (ν.map Prod.fst).toOuterMeasure {θ | ¬ IsFastStepHit c U n_max ops o θ} := by
           rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_map_apply,
-            PMF.toOuterMeasure_apply]
-          refine tsum_le_tsum fun p => ?_
-          by_cases hp : p ∈ ν.support
-          · dsimp only [μ_step]
-            rw [PMF.toOuterMeasure_pure_apply]
-            have hspec := Classical.choose_spec
-              (exec_opCode hc hw hnU hU hV hfit (hsupp p hp).1 hval_op (hsupp p hp).2)
-            have hd_eq : detStep p = Classical.choose
-                (exec_opCode hc hw hnU hU hV hfit (hsupp p hp).1 hval_op (hsupp p hp).2) :=
-              dite_eq_left hp
-            by_cases hlt : worstCaseTimeWhp c < (detStep p).2
-            · have hnot_hit : ¬ IsFastStepHit c U n_max ops o p.1 := by
-                intro hhit
-                have hle := hspec.2.2.2.2 hhit
-                rw [← hd_eq] at hle
-                omega
-              simp [hlt, hnot_hit]
-            · simp [hlt]
-          · simp [(PMF.apply_eq_zero_iff _ _).mpr hp]
+            Cslib.Probability.PMF.toOuterMeasure_eq_tsum_mul_indicator]
+          refine Cslib.Probability.PMF.tsum_mul_mono_support ν fun p hp => ?_
+          dsimp only [μ_step]
+          rw [PMF.toOuterMeasure_pure_apply]
+          have hspec := Classical.choose_spec
+            (exec_opCode hc hw hnU hU hV hfit (hsupp p hp).1 hval_op (hsupp p hp).2)
+          have hd_eq : detStep p = Classical.choose
+              (exec_opCode hc hw hnU hU hV hfit (hsupp p hp).1 hval_op (hsupp p hp).2) :=
+            dite_eq_left hp
+          by_cases hlt : worstCaseTimeWhp c < (detStep p).2
+          · have hnot_hit : ¬ IsFastStepHit c U n_max ops o p.1 := by
+              intro hhit
+              have hle := hspec.2.2.2.2 hhit
+              rw [← hd_eq] at hle
+              omega
+            simp [hlt, hnot_hit]
+          · simp [hlt]
         have hseed_le :
             (ν.map Prod.fst).toOuterMeasure {θ | ¬ IsFastStepHit c U n_max ops o θ} ≤
               (seedLawWhp c U n_max).toOuterMeasure {θ | ¬ IsFastStepHit c U n_max ops o θ} := by
@@ -1575,12 +1574,7 @@ theorem poly_seq_whp {c c₀ U V w n_max base : ℕ}
     exact hfail.trans (by rwa [hcast] at hp)
   have hcompl := Cslib.Probability.PMF.one_sub_le_toOuterMeasure_compl τ_final _ hfail_poly
   refine ⟨ν₀, τ_final, hhalts, heval₀, hsupp₀, hex, hsupp_fin, hfail_poly, hcompl.trans ?_⟩
-  rw [PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply]
-  refine tsum_le_tsum fun tr => ?_
-  by_cases htr : tr ∈ τ_final.support
-  · have htrans := (hsupp_fin tr htr).2.1
-    by_cases hle : tr.maxSteps ≤ worstCaseTimeWhp (c + c₀) <;> simp [hle, htrans]
-  · simp [Set.indicator_apply, (PMF.apply_eq_zero_iff _ _).mpr htr]
+  exact τ_final.toOuterMeasure_mono fun tr ⟨hle, htr⟩ => ⟨not_lt.mp hle, (hsupp_fin tr htr).2.1⟩
 
 /-- **Headline per-operation with-high-probability theorem after an arbitrary-length prefix
 (`reachable_step_whp`)**:
