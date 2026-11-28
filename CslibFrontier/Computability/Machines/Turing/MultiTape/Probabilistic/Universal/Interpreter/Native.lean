@@ -1367,8 +1367,8 @@ private noncomputable abbrev reachable (r : ℕ) :=
   ProbOracleComp.reachableIn (successors r)
 
 /-- All reachable typed states at indices used by the bounded-iteration certificate. -/
-private noncomputable def reachablePrefix (r : ℕ) (initial : BodyInput) : List BodyInput :=
-  (List.range (rounds initial + 1)).flatMap (reachable r initial)
+private noncomputable abbrev reachablePrefix (r : ℕ) (initial : BodyInput) : List BodyInput :=
+  ProbOracleComp.reachableThrough (successors r) initial (rounds initial)
 
 private theorem support_mem_successors (r : ℕ) (current next : BodyInput)
     (OracleState : Type)
@@ -1520,12 +1520,6 @@ private theorem invariant_last (r : ℕ) (initial current : BodyInput)
       have hzero : second.remaining = 0 := by omega
       simp [step, hzero]
 
-private theorem mem_reachablePrefix {r : ℕ} {initial current : BodyInput} {count : ℕ}
-    (hcount : count ≤ rounds initial) (hcurrent : current ∈ reachable r initial count) :
-    current ∈ reachablePrefix r initial := by
-  simp only [reachablePrefix, List.mem_flatMap]
-  exact ⟨count, List.mem_range.mpr (by omega), hcurrent⟩
-
 /-- Maximum encoded typed-state length over every finitely enumerated reachable prefix state. -/
 private noncomputable def lengthBound (r : ℕ) (initial : BodyInput) : ℕ :=
   listMax (fun state => (encOption eLoopState state).length) (reachablePrefix r initial)
@@ -1539,7 +1533,7 @@ private theorem body_resource_bound (r : ℕ) (initial : BodyInput) (count : ℕ
     (hcount : count ≤ rounds initial) (current : BodyInput)
     (hinvariant : Invariant r initial count current) (phase : OnlinePhase) :
     (body r).online.time phase current ≤ (roundOnline r).time phase initial := by
-  have hmem := mem_reachablePrefix hcount hinvariant.2
+  have hmem := ProbOracleComp.mem_reachableThrough hcount hinvariant.2
   exact le_listMax hmem
 
 private theorem state_length_bound (r : ℕ) (initial : BodyInput) (count : ℕ)
@@ -1547,7 +1541,7 @@ private theorem state_length_bound (r : ℕ) (initial : BodyInput) (count : ℕ)
     (hinvariant : Invariant r initial count current) :
     (encOption eLoopState current).length ≤ lengthBound r initial :=
   le_listMax (f := fun state => (encOption eLoopState state).length)
-    (mem_reachablePrefix hcount hinvariant.2)
+    (ProbOracleComp.mem_reachableThrough hcount hinvariant.2)
 
 /-! ### Complete retained artifact -/
 

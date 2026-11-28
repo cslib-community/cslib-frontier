@@ -23,7 +23,9 @@ public section
 
 namespace Cslib.ProbOracleComp
 
-variable {α σ Q : Type} {spec : Q → Type}
+universe u v s
+
+variable {α : Type v}
 
 /-- Enumerate an enclosure of the states after exactly `n` steps. -/
 @[expose] def reachableIn (next : α → List α) (initial : α) (n : ℕ) : List α :=
@@ -36,9 +38,20 @@ theorem mem_reachableIn_succ {next : α → List α} {initial middle final : α}
   rw [reachableIn, Function.iterate_succ_apply']
   exact List.mem_flatMap.mpr ⟨middle, hmiddle, hfinal⟩
 
+/-- Enclose the states that occur at any iteration from zero through `n`, inclusively. -/
+def reachableThrough (next : α → List α) (initial : α) (n : ℕ) : List α :=
+  (List.range (n + 1)).flatMap (reachableIn next initial)
+
+/-- The enclosure through `n` contains every member of an enclosure at an earlier iteration. -/
+theorem mem_reachableThrough {next : α → List α} {initial current : α} {i n : ℕ}
+    (hi : i ≤ n) (hcurrent : current ∈ reachableIn next initial i) :
+    current ∈ reachableThrough next initial n :=
+  List.mem_flatMap.mpr ⟨i, List.mem_range.mpr (by omega), hcurrent⟩
+
 /-- A one-step enclosure for all reachable oracle states encloses every supported loop result. -/
-theorem mem_reachableIn_of_runWith_iterate (step : α → ProbOracleComp spec α)
-    (next : α → List α) (oracle : (q : Q) → StateT σ PMF (spec q))
+theorem mem_reachableIn_of_runWith_iterate {α : Type} {Q : Type u} {spec : Q → Type}
+    {σ : Type s} (step : α → ProbOracleComp spec α)
+    (next : α → List α) (oracle : (q : Q) → σ → PMF (spec q × σ))
     (hstep : ∀ a b s t, (b, t) ∈ (runWith oracle (step a) s).support → b ∈ next a)
     (initial : α) (n : ℕ) (s : σ) {final : α} {t : σ}
     (hfinal : (final, t) ∈ (runWith oracle (OracleComp.iterate n step initial) s).support) :

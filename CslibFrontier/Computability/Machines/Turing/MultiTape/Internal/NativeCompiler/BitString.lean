@@ -9,19 +9,15 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BitListCodec
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Bool
 
 /-!
-# Named native raw-bit lookup
+# Retained lookup and prefix copying on raw bit words
 
-This definitions-only module retains binary-indexed access to a raw bit word. The concrete
-compiler first inserts the standard Boolean-list framing with the shared finite-state codec, then
-reuses the retained single-pass binary list lookup. Out-of-range indices return the caller-supplied
-fallback.
-
-## Main definitions
-
-* `Turing.MultiTapeTM.Internal.NativeCompiler.bitsGetDNatCompiler`: total binary-indexed lookup in
-  a raw bit word.
+Both compilers first convert the raw input into a framed list of Booleans.
+`bitsGetDNatCompiler` looks up a binary index and returns the supplied fallback if necessary.
+`takeBits` copies a unary-bounded prefix and unframes it. Its certified time and workspace
+are linear in the input length and requested count, including the full initial scan.
 -/
 
 public section
@@ -31,7 +27,7 @@ namespace Turing.MultiTapeTM.Internal.NativeCompiler
 open Turing.MultiTapeTM.Internal
 
 /-- Retained conversion from a raw word to its framed Boolean-list representation. -/
-@[expose] noncomputable def frameBits :
+private noncomputable def frameBits :
     NativeCompiler (id : List Bool → List Bool) encBits (encList encBool) := by
   let convert : NativeCompiler (fun word : List Bool =>
       bitsToBoolListT.run bitsToBoolListT.q₀ word)
@@ -42,22 +38,13 @@ open Turing.MultiTapeTM.Internal
 
 /-- Binary-indexed access to a raw bit word, with an explicit out-of-range fallback. The compiler
 retains the framing conversion and the complete framed-list scan. -/
-@[expose] noncomputable def bitsGetDNatCompiler (fallback : Bool) :
+noncomputable def bitsGetDNatCompiler (fallback : Bool) :
     NativeCompiler (fun p : List Bool × ℕ => p.1.getD p.2 fallback)
       (encPair encBits encNat) encBool := by
   let bits := first encBits encNat
   let index := second encBits encNat
   let listedInput := frameBits.comp bits
   exact (listGetDNatCompiler fallback encBool).comp (listedInput.pair index)
-
-private theorem length_encList_bool (word : List Bool) :
-    (encList encBool word).length = 3 * word.length := by
-  induction word with
-  | nil => rfl
-  | cons bit word ih =>
-    simp only [encList_cons, List.length_append, length_frame, encBool_apply,
-      List.length_nil, List.length_cons, ih]
-    omega
 
 private noncomputable def unframeBits :
     NativeCompiler (id : List Bool → List Bool) (encList encBool) encBits :=
@@ -89,7 +76,7 @@ theorem time_takeBits_expanded (input : List Bool × ℕ) :
   simp only [takeBits, takeBitsFramed, takeBitsInput, frameBits, encodeFrame, unframeBits,
     NativeCompiler.comp, NativeCompiler.pair, first, second,
     ofTransducer, takeUnary, takeDropUnary, NativeCompiler.ofOutputEq, id_eq, length_frame,
-    length_encList_bool,
+    length_encList_encBool,
     length_encPair, encBits_apply, encUnary_apply, List.length_replicate]
   omega
 
@@ -100,7 +87,7 @@ theorem workspace_takeBits_expanded (input : List Bool × ℕ) :
   simp only [takeBits, takeBitsFramed, takeBitsInput, frameBits, encodeFrame, unframeBits,
     NativeCompiler.comp, NativeCompiler.pair, first, second,
     ofTransducer, takeUnary, takeDropUnary, NativeCompiler.ofOutputEq, id_eq, length_frame,
-    length_encList_bool,
+    length_encList_encBool,
     length_encPair, encBits_apply, encUnary_apply, List.length_replicate]
   omega
 

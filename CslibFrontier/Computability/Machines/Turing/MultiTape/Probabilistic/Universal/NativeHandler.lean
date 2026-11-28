@@ -33,9 +33,9 @@ A handler with no external channels specializes the branch to a closed `MultiTap
 The locally installed handler receives the selected operation, the encoded request and its
 private state. Its retained compiler emits a raw reply and the next private state. The controller
 copies the specified raw prefix, decodes it and updates the source and handler state together.
-The finite-state instance constructs the loop and output bounds by enumerating reachable
-prefixes. The handler supplies its own native artifact and a clock bound for reply installation
-on supported outputs.
+The finite-state instance bounds time over an enclosure of the loop states. At each query it
+includes every bounded raw reply paired with every possible private state. The handler supplies
+its own native artifact and a clock bound for reply installation on supported outputs.
 
 * `run_handlerRunProgram_eq_runState` gives the source output together with the final handler
   state, including rejection of malformed operation counts.
@@ -889,9 +889,9 @@ structure LoopCertificate [Inhabited HandlerState] (r : ℕ)
     (hpost : PostBound (r + 1) encHandlerState handler postOnline) where
   /-- Retraction for the private handler-state encoding. -/
   handlerStateDecoder : Decoder encHandlerState
-  /-- Maximum encoded loop-state length on the certified reachable prefix. -/
+  /-- An upper bound for encoded loop-state length through the stopping round. -/
   lengthBound : QueryResult HandlerState → ℕ
-  /-- Phasewise maximum of one concrete handler body on the certified reachable prefix. -/
+  /-- Upper bounds on the body clock for states satisfying the invariant. -/
   roundOnline : OnlineAccounting (QueryResult HandlerState)
   /-- Reachability and progress invariant indexed by completed source rounds. -/
   invariant : QueryResult HandlerState → ℕ → QueryResult HandlerState → Prop
@@ -960,9 +960,9 @@ private noncomputable abbrev finiteReachable [Fintype HandlerState] (r : ℕ) :=
   ProbOracleComp.reachableIn (finiteSuccessors r (HandlerState := HandlerState))
 
 /-- All finitely enumerated retained states at indices used by the loop certificate. -/
-private noncomputable def finiteReachablePrefix [Fintype HandlerState] (r : ℕ)
+private noncomputable abbrev finiteReachablePrefix [Fintype HandlerState] (r : ℕ)
     (initial : QueryResult HandlerState) : List (QueryResult HandlerState) :=
-  (List.range (handlerRounds initial + 1)).flatMap (finiteReachable r initial)
+  ProbOracleComp.reachableThrough (finiteSuccessors r) initial (handlerRounds initial)
 
 private theorem support_mem_finiteSuccessors [Inhabited HandlerState] [Fintype HandlerState] (r : ℕ)
     (handler : HandlerCall (r + 1) HandlerState →
@@ -1132,14 +1132,6 @@ private theorem finiteInvariant_last [Inhabited HandlerState] [Fintype HandlerSt
       rw [handlerBodyProgram_exhausted r handler second hzero]
       simp [eQueryResult]
 
-private theorem mem_finiteReachablePrefix [Fintype HandlerState]
-    {r : ℕ} {initial current : QueryResult HandlerState} {count : ℕ}
-    (hcount : count ≤ handlerRounds initial)
-    (hcurrent : current ∈ finiteReachable r initial count) :
-    current ∈ finiteReachablePrefix r initial := by
-  simp only [finiteReachablePrefix, List.mem_flatMap]
-  exact ⟨count, List.mem_range.mpr (by omega), hcurrent⟩
-
 /-- Maximum encoded retained-state length on the finite reachable prefix. -/
 private noncomputable def finiteLengthBound [Fintype HandlerState]
     (encHandlerState : HandlerState ↪ List Bool) (r : ℕ)
@@ -1147,7 +1139,7 @@ private noncomputable def finiteLengthBound [Fintype HandlerState]
   listMax (fun state => (eQueryResult encHandlerState state).length)
     (finiteReachablePrefix r initial)
 
-/-- Phasewise maxima of the concrete retained body on the finite reachable prefix. -/
+/-- Phasewise maxima of the certified body clock over the finite prefix enclosure. -/
 private noncomputable def finiteRoundOnline [Inhabited HandlerState]
     [Fintype HandlerState] (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool)
@@ -1182,14 +1174,14 @@ noncomputable def finiteLoopCertificate [Inhabited HandlerState] [Fintype Handle
   invariant := FiniteInvariant r
   base := finiteInvariant_zero r
   time := fun _ _ hcount _ hinvariant _ =>
-    le_listMax (mem_finiteReachablePrefix hcount hinvariant.2)
+    le_listMax (ProbOracleComp.mem_reachableThrough hcount hinvariant.2)
   preserve := fun _ _ hcount _ hinvariant OracleState oracle state state' _
       hnext => finiteInvariant_successor handler hcount hinvariant OracleState oracle state state'
         hnext
   last := finiteInvariant_last r handler
   length := fun _ _ hcount _ hinvariant =>
     le_listMax (f := fun s => (eQueryResult encHandlerState s).length)
-      (mem_finiteReachablePrefix hcount hinvariant.2)
+      (ProbOracleComp.mem_reachableThrough hcount hinvariant.2)
 
 /-- Exact closed loop semantics before runtime initialization and final-output projection. -/
 noncomputable def handlerLoopProgram [Inhabited HandlerState] (r : ℕ)
@@ -1443,8 +1435,7 @@ structure RunCertificate [Inhabited HandlerState] (r : ℕ)
             (handlerOutputCompiler encHandlerState)).online.time phase current ≤
             outputOnline.time phase input
 
-/-- Phasewise maxima of final output copying over the finite set of reachable final retained
-states. -/
+/-- Phasewise maxima of the certified output-copy clock over the finite final-state enclosure. -/
 private noncomputable def finiteOutputOnline [Inhabited HandlerState]
     [Fintype HandlerState] (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool) :

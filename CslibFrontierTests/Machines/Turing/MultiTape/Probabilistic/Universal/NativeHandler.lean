@@ -13,7 +13,9 @@ import CslibFrontier.Foundations.Control.Monad.StateT
 
 /-! Ordinary-import boundary client for a closed retained stateful handler and its typed loop. -/
 
-public section
+-- This ordinary-import test keeps its concrete machines and inputs private.
+set_option linter.privateModule false
+
 
 namespace CslibFrontierTests.Machines.Turing.MultiTape.Probabilistic.Universal.NativeHandler
 
@@ -25,7 +27,7 @@ open Turing.MultiTapePTM.Universal.NativeHandler
 
 /-- A nonconstant retained handler: every request receives the raw all-false unary word, while the
 private Boolean state is flipped on each call. -/
-def falseHandler (call : HandlerCall 1 Bool) :
+private def falseHandler (call : HandlerCall 1 Bool) :
     WordOracleComp (Fin 0) (HandlerResult Bool) :=
   pure { reply := [false], state := !call.state }
 
@@ -45,7 +47,7 @@ private noncomputable def falseHandlerCompiler :
   exact (reply.pair flipped).ofOutputEq fun call => by cases call.state <;> rfl
 
 /-- The fixture is an actual closed retained machine, not a semantic handler assumption. -/
-noncomputable def falseHandlerArtifact :
+private noncomputable def falseHandlerArtifact :
     NativeOracleProgram 0 falseHandler (eHandlerCall 1 encBool) (eHandlerResult encBool) :=
   NativeOracleProgram.ofCompiler (r := 0)
     (ClassifiedCompiler.inPhase .localStep falseHandlerCompiler)
@@ -96,13 +98,13 @@ example (state : RetainedState Bool) (request : List ℕ) (next : ℕ) (pending 
   handlerQueryInput_query 0 state 0 request next pending
 
 /-- Exact reply-installer ledger for the sole result returned by `falseHandler`. -/
-noncomputable def falsePostOnline : OnlineAccounting (QueryInput 1 Bool) where
+private noncomputable def falsePostOnline : OnlineAccounting (QueryInput 1 Bool) where
   time := fun phase input =>
     (installReplyArtifact 0 1 encBool).online.time phase
       (input, { reply := [false], state := !input.handlerState })
 
 /-- The exact ledger bounds every supported result of the concrete handler. -/
-theorem falsePostBound : PostBound 1 encBool falseHandler falsePostOnline := by
+private theorem falsePostBound : PostBound 1 encBool falseHandler falsePostOnline := by
   intro input OracleState oracle state result state' hresult phase
   simp only [falseHandler, ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
     Prod.mk.injEq] at hresult
@@ -110,7 +112,7 @@ theorem falsePostBound : PostBound 1 encBool falseHandler falsePostOnline := by
   exact Nat.le_refl _
 
 /-- The complete output certificate is constructed rather than assumed. -/
-noncomputable def falseRunCertificate :
+private noncomputable def falseRunCertificate :
     RunCertificate 0 encBool falseHandler falseHandlerArtifact falsePostOnline falsePostBound :=
   finiteRunCertificate 0 encBool Decoder.bool falseHandlerArtifact falsePostOnline falsePostBound
 
@@ -125,14 +127,14 @@ example : NativeCompiler.takeBits.time ([true, false], 0) = 383 ∧
 
 /-- A valid one-operation description whose first instruction queries its sole channel for either
 private coin. -/
-def positiveQueryDesc : Desc :=
+private def positiveQueryDesc : Desc :=
   let base : Desc := ⟨0, 2, 1, 0, []⟩
   let cfg := ICfg.init base
   let branches : Branches := ⟨.query 0 1, .query 0 1⟩
   { base with table := [(cfg.key [] 0, branches)] }
 
 /-- Concrete valid runtime input with positive fuel and a nondefault initial handler state. -/
-def positiveRunInput : HandlerRunInput Bool :=
+private def positiveRunInput : HandlerRunInput Bool :=
   { source := { desc := positiveQueryDesc, fuel := 1, input := [], replyBits := 1 }
     handlerState := true }
 
@@ -149,7 +151,7 @@ private theorem positive_command (coin : Bool) :
 
 /-- The concrete complete program therefore has a positive-fuel execution that enters the locally
 installed handler branch, while remaining a closed `Fin 0` oracle program. -/
-@[expose] noncomputable def positiveClosedRun : WordOracleComp (Fin 0) (HandlerRunOutput Bool) :=
+private noncomputable def positiveClosedRun : WordOracleComp (Fin 0) (HandlerRunOutput Bool) :=
   handlerRunProgram 0 falseHandler positiveRunInput
 
 /-- The positive-fuel client reaches the public complete `runState` law, including its final
@@ -163,7 +165,7 @@ example :
   run_handlerRunProgram_eq_runState 0 falseHandler positiveRunInput
 
 /-- The constructed final artifact is inhabited for the same concrete locally installed handler. -/
-noncomputable def falseFinalArtifact :
+private noncomputable def falseFinalArtifact :
     NativeOracleProgram 0 (handlerRunProgram 0 falseHandler)
       (eHandlerRunInput encBool) (eHandlerRunOutput encBool) :=
   Turing.MultiTapePTM.Universal.NativeHandler.artifact 0 encBool falseHandlerArtifact
