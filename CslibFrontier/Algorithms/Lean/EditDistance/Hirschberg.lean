@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.EditDistance.HirschbergBase
 public import CslibFrontier.Algorithms.Lean.EditDistance.HirschbergSplit
+public import CslibFrontier.Algorithms.Lean.EditDistance.LCS
 
 /-!
 # Optimal alignments by Hirschberg's divide-and-conquer algorithm
@@ -18,12 +19,14 @@ Split the source in half and use the forward and reverse score rows to find the 
 where some optimal alignment crosses the split. Solve the two smaller alignment problems, then
 join their scripts. The empty and singleton cases construct scripts directly. Hirschberg gives
 Algorithm C for common subsequences on p. 342 and its minimum-trace-cost variant on p. 343
-[Hirschberg1975].
+[Hirschberg1975]. For weighted alignments, see also [Kleinberg–Tardos, §§6.6–6.7,
+(6.19)–(6.20)][KleinbergTardos2006].
 
 `hirschbergAlign` places the shorter input across the score row. When it exchanges the inputs,
 it transposes the costs and emits operations in the original direction. This works for arbitrary
 natural insertion, deletion and substitution costs. Each leaf prepends its operations to the output
-tail, so joining two subproblems takes no traversal of their scripts.
+tail, so joining two subproblems takes no traversal of their scripts. For longest common
+subsequences, `hirschbergLCS` keeps the matched letters of an optimal insertion–deletion alignment.
 -/
 
 public section
@@ -155,5 +158,26 @@ theorem hirschbergAlign_spec (C : Costs α) (x y : List α) :
     obtain ⟨hst, htt, hct⟩ := EditScript.transpose_spec C s
     rw [h, List.append_nil]
     exact ⟨hst.trans ht, htt.trans hs, hct.trans (hc.trans (editDist_transpose C x y))⟩
+
+/-- Reconstruct a longest common subsequence by keeping the matched letters of an optimal
+insertion–deletion alignment. Distinct letters aligned as a substitution cost two. -/
+def hirschbergLCS [DecidableEq α] (x y : List α) : List α :=
+  (hirschbergAlign Costs.indel x y).kept
+
+/-- The reconstructed word is a sublist of each input and attains the optimal LCS length. -/
+theorem hirschbergLCS_spec [DecidableEq α] (x y : List α) :
+    (hirschbergLCS x y).Sublist x ∧ (hirschbergLCS x y).Sublist y ∧
+      (hirschbergLCS x y).length = lcsLength x y := by
+  let s := hirschbergAlign Costs.indel x y
+  obtain ⟨hsrc, htgt, hcost⟩ := hirschbergAlign_spec Costs.indel x y
+  change s.src = x at hsrc
+  change s.tgt = y at htgt
+  change s.cost Costs.indel = editDist Costs.indel x y at hcost
+  change s.kept.Sublist x ∧ s.kept.Sublist y ∧ s.kept.length = lcsLength x y
+  refine ⟨hsrc ▸ s.kept_sublist_src, htgt ▸ s.kept_sublist_tgt, ?_⟩
+  have h := s.cost_indel_add_two_mul
+  rw [hcost, hsrc, htgt] at h
+  have := editDist_indel_add_two_mul x y
+  omega
 
 end Cslib.Algorithms.Lean.EditDistance
