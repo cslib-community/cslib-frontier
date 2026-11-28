@@ -40,6 +40,9 @@ namespace Cslib.Algorithms.Lean.ZFunction.Tests
 -- A singleton Z-table must start with 1. Inverse laws require realizability.
 #guard fromPrefix (zToPrefix #[0]) ≠ #[0]
 
+-- The out-of-range entry gets a fresh representative; the next positive entry copies index zero.
+#guard prefixWord #[0, 9, 1] = #[0, 1, 0]
+
 example (w : Array Bool) :
     ((prefixTableEquiv Bool) ⟨zArray w, ⟨w, rfl⟩⟩).val = KMP.computePrefix w :=
   zToPrefix_zArray w
