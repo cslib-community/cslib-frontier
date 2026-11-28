@@ -279,11 +279,7 @@ theorem mutualInfo_bind_mul_log_two_le_of_klDiv_le [Finite V] [Finite X]
   let _ := Fintype.ofFinite V
   refine (mutualInfo_bind_mul_log_two_le_sum_klDiv μ P hQ).trans ?_
   calc ∑ v, (μ v).toReal * (klDiv (P v).toMeasure Q.toMeasure).toReal
-      ≤ ∑ v, (μ v).toReal * β := by
-        refine Finset.sum_le_sum fun v _ => ?_
-        by_cases hv : v ∈ μ.support
-        · exact mul_le_mul_of_nonneg_left (hβ v hv) ENNReal.toReal_nonneg
-        · simp [(_root_.PMF.apply_eq_zero_iff μ v).mpr hv]
+      ≤ ∑ v, (μ v).toReal * β := sum_toReal_mul_mono_support μ hβ
     _ = β := by rw [← Finset.sum_mul, sum_toReal, one_mul]
 
 /-- **Pairwise-KL upper bound on mutual information**: when `P v` and `P w` have matching supports

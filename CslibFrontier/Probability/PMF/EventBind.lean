@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Event probabilities after a random first stage
@@ -140,14 +141,11 @@ theorem toOuterMeasure_bind_le_mul_ennreal {α β : Type*} (p : PMF α) (kernel 
     (p.bind kernel).toOuterMeasure failure
       ≤ p.toOuterMeasure stillFailing * q₂ := by
         rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_right]
-        refine tsum_le_tsum fun a => ?_
-        by_cases hs : a ∈ p.support
-        · by_cases ha : a ∈ stillFailing
-          · simp only [Set.indicator_of_mem ha]
-            exact mul_le_mul_of_nonneg_left (hfail a hs ha) zero_le
-          · simp [Set.indicator_of_notMem ha, hsucc a hs ha]
-        · have hz : p a = 0 := by simpa only [PMF.mem_support_iff, not_not] using hs
-          simp [hz]
+        simp_rw [← Set.indicator_mul_const, Set.indicator_mul_right]
+        refine tsum_mul_mono_support p fun a hs => ?_
+        by_cases ha : a ∈ stillFailing
+        · simpa only [Set.indicator_of_mem ha] using hfail a hs ha
+        · simp [Set.indicator_of_notMem ha, hsucc a hs ha]
     _ ≤ q₁ * q₂ := mul_le_mul_of_nonneg_right hp zero_le
 
 /-- If a first stage `p` lands in `pre` with probability at least `s₁` and for every supported
