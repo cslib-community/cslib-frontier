@@ -37,9 +37,9 @@ the obstruction to learning from text is the lack of negative data, not the size
 ## Implementation notes
 
 As for texts, learners are arbitrary functions conjecturing languages (the ineffective model).
-Gold's informants present the strings over a finite alphabet with their bits; here the strings
-form an arbitrary type, and the result needs no countability of it (a type with an informant is
-countable anyway, since an informant enumerates it).
+Classically, informants present the words over a finite alphabet with their bits; here the
+strings form an arbitrary type, and the result needs no countability of it (a type with an
+informant is countable anyway, since an informant enumerates it).
 
 ## References
 
@@ -80,10 +80,10 @@ def IdentifiableFromInformant (𝓛 : Set (Set α)) : Prop :=
 (locator not verified), by identification by enumeration: conjecture the first language of an
 enumeration of the class that agrees with every labelled string presented so far.
 
-Deviations from the source: learners are arbitrary functions conjecturing languages rather than
-names; strings form an arbitrary type; and the class is any countable class, where Gold states
-the result for classes given by an effective enumeration (such as the primitive recursive
-languages) and uses effective learners. -/
+Relative to the classical formulation (the model in the source has not been checked against this
+statement): learners are arbitrary functions conjecturing languages rather than names, strings
+form an arbitrary type, and the class is any countable class, with no effective enumeration or
+effective learner required. -/
 theorem identifiableFromInformant_of_countable {𝓛 : Set (Set α)} (hc : 𝓛.Countable) :
     IdentifiableFromInformant 𝓛 := by
   classical

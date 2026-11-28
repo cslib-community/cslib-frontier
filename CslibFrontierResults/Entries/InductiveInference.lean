@@ -6,7 +6,7 @@ Authors: Matthew Doty, Alexandre Rademaker
 
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
-import CslibFrontier.MachineLearning.InductiveInference.Basic
+import CslibFrontier.MachineLearning.InductiveInference.Informant
 
 /-! # Language identification in the limit -/
 
@@ -24,3 +24,25 @@ register_result "gold-superfinite-not-identifiable" where
     corollaries for regular and context-free languages are in \
     `CslibFrontier.MachineLearning.InductiveInference.FormalLanguages`. The general statement \
     assumes the class contains one infinite language and all of its finite subsets."
+
+register_result "blum-blum-locking-sequence" where
+  title := "Locking-sequence lemma: a learner identifying a language from text has a locking \
+    sequence for it"
+  topic := "inductive inference"
+  sources := [
+    { paper := BlumBlum1975, theorem := unverified, locator := unverified }
+  ]
+  theorems := [Cslib.MachineLearning.InductiveInference.Identifies.exists_isLockingSequence]
+  scope := "Ineffective learners conjecturing languages, over an arbitrary countable type of \
+    strings; texts may contain pauses. The lemma is stated for a single language and learner."
+
+register_result "gold-informant-identifiable" where
+  title := "Every countable class of languages is identifiable in the limit from informant"
+  topic := "inductive inference"
+  sources := [
+    { paper := Gold1967, theorem := unverified, locator := unverified }
+  ]
+  theorems := [Cslib.MachineLearning.InductiveInference.identifiableFromInformant_of_countable]
+  scope := "Ineffective learners conjecturing languages, by identification by enumeration. Any \
+    countable class over an arbitrary type of strings; no effective enumeration of the class or \
+    effective learner is required."
