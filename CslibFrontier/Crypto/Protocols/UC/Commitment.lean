@@ -285,14 +285,17 @@ theorem corruptRouter_fcom_isBounded (κ : ℕ) (C : Finset (Fin 2)) :
     (corruptRouter C (fcom.toProtocol κ C)).IsBounded 0 := by
   refine ⟨OracleComp.IsCostBounded.pure _ 0, fun q s => ?_⟩
   rcases q with ⟨i, x⟩ | ⟨⟨i, x⟩ | q⟩
-  · by_cases hi : i ∈ C <;> simp only [corruptRouter, hi, ↓reduceIte]
-    · exact OracleComp.IsCostBounded.pure _ 0
-    · exact (fcom_isBounded κ C).2 (.inl (i, x)) s
-  · by_cases hi : i ∈ C <;> simp only [corruptRouter, hi, ↓reduceIte]
-    · erw [StateT.run_map]
+  · by_cases hi : i ∈ C
+    · simp only [corruptRouter_handle_inl_of_mem C _ hi]
+      exact OracleComp.IsCostBounded.pure _ 0
+    · simp only [corruptRouter_handle_inl_of_notMem C _ hi]
+      exact (fcom_isBounded κ C).2 (.inl (i, x)) s
+  · by_cases hi : i ∈ C
+    · simp only [corruptRouter_handle_inr_inl_of_mem C _ hi]
       exact (OracleComp.isCostBounded_map_iff _ _ _).mpr ((fcom_isBounded κ C).2 (.inl (i, x)) s)
-    · exact OracleComp.IsCostBounded.pure _ 0
-  · erw [StateT.run_map]
+    · simp only [corruptRouter_handle_inr_inl_of_notMem C _ hi]
+      exact OracleComp.IsCostBounded.pure _ 0
+  · rw [corruptRouter_handle_inr_inr]
     exact (OracleComp.isCostBounded_map_iff _ _ _).mpr ((fcom_isBounded κ C).2 (.inr q) s)
 
 /-- Adversaries (and simulators) facing `fcom`: environment queries `AdvQ` with replies `AdvR`,
@@ -554,9 +557,9 @@ probability `1` at every security parameter. -/
           pure (none, s)
         else
           match x, s.1 with
-          | .commit b, .idle =>
-            ProbOracleComp.sample (scheme.commit κ b) >>= fun co =>
-              pure (none, (.committed co.1 co.2, s.2))
+          | .commit b, .idle => do
+            let co ← ProbOracleComp.sample (scheme.commit κ b)
+            return (none, (.committed co.1 co.2, s.2))
           | .openCom, .committed c o =>
             pure (none, (.opened c o, s.2))
           | _, _ => pure (none, s)
@@ -597,15 +600,15 @@ probability `1` at every security parameter. -/
       | .deliverOpen o =>
         match s.2 with
         | .committed c =>
-          if (0 : Fin 2) ∈ C then
-            ProbOracleComp.sample (scheme.verify κ c o) >>= fun res =>
-              pure (.ack, (s.1, .finished res))
+          if (0 : Fin 2) ∈ C then do
+            let res ← ProbOracleComp.sample (scheme.verify κ c o)
+            return (.ack, (s.1, .finished res))
           else
             match s.1 with
             | .opened _ o' =>
-              if o = o' then
-                ProbOracleComp.sample (scheme.verify κ c o) >>= fun res =>
-                  pure (.ack, (s.1, .finished res))
+              if o = o' then do
+                let res ← ProbOracleComp.sample (scheme.verify κ c o)
+                return (.ack, (s.1, .finished res))
               else
                 pure (.ack, s)
             | _ => pure (.ack, s)
@@ -661,24 +664,17 @@ message `o` to receiver `1`, and checks whether receiver `1` outputs `some (.ope
     Environment 2 CommitmentInput CommitmentOutput
       (RoutedNetQ 2 CommitmentInput (PlainNetQ CommitMsg OpenMsg))
       (RoutedNetR CommitmentOutput (PlainNetR CommitMsg OpenMsg)) := fun _ _ => do
-  let _ ← ProbOracleComp.query
-    (spec := execSpec 2 CommitmentInput CommitmentOutput _ _) (Sum.inl (0, .commit b))
-  let r₁ ← ProbOracleComp.query
-    (spec := execSpec 2 CommitmentInput CommitmentOutput _ _) (Sum.inr (.inr .readCommit))
+  let _ ← queryParty 0 (.commit b)
+  let r₁ ← queryAdv (.inr .readCommit)
   match r₁ with
   | .inr (.commitMsg (some c)) =>
-    let _ ← ProbOracleComp.query
-      (spec := execSpec 2 CommitmentInput CommitmentOutput _ _) (Sum.inr (.inr (.deliverCommit c)))
-    let _ ← ProbOracleComp.query
-      (spec := execSpec 2 CommitmentInput CommitmentOutput _ _) (Sum.inl (0, .openCom))
-    let r₂ ← ProbOracleComp.query
-      (spec := execSpec 2 CommitmentInput CommitmentOutput _ _) (Sum.inr (.inr .readOpen))
+    let _ ← queryAdv (.inr (.deliverCommit c))
+    let _ ← queryParty 0 .openCom
+    let r₂ ← queryAdv (.inr .readOpen)
     match r₂ with
     | .inr (.openMsg (some o)) =>
-      let _ ← ProbOracleComp.query
-        (spec := execSpec 2 CommitmentInput CommitmentOutput _ _) (Sum.inr (.inr (.deliverOpen o)))
-      let out ← ProbOracleComp.query
-        (spec := execSpec 2 CommitmentInput CommitmentOutput _ _) (Sum.inl (1, .query))
+      let _ ← queryAdv (.inr (.deliverOpen o))
+      let out ← queryParty 1 .query
       return decide (out = some (.opened b))
     | _ => return false
   | _ => return false
@@ -701,8 +697,10 @@ private theorem handle_plainRouter_commit [DecidableEq CommitMsg] [DecidableEq O
       (plainRouterState scheme κ C .idle s₂) =
       (fun co => (none, plainRouterState scheme κ C (.committed co.1 co.2) s₂)) <$>
         ProbOracleComp.sample (scheme.commit κ b) := by
-  dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run]
+  rw [corruptRouter_handle_inl_of_notMem C _ h0]
+  dsimp only [PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run]
   simp only [h0, ↓reduceIte, bind_pure_comp]
+  rfl
 
 private theorem handle_plainRouter_openCom [DecidableEq CommitMsg] [DecidableEq OpenMsg]
     (scheme : PlainCommitmentScheme CommitMsg OpenMsg) (κ : ℕ) (C : Finset (Fin 2))
@@ -710,8 +708,10 @@ private theorem handle_plainRouter_openCom [DecidableEq CommitMsg] [DecidableEq 
     ((corruptRouter C (scheme.toProtocol κ C)).handle (Sum.inl (0, .openCom))).run
       (plainRouterState scheme κ C (.committed c o) s₂) =
       pure (none, plainRouterState scheme κ C (.opened c o) s₂) := by
-  dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run]
+  rw [corruptRouter_handle_inl_of_notMem C _ h0]
+  dsimp only [PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run]
   simp only [h0, ↓reduceIte]
+  rfl
 
 private theorem handle_plainRouter_readCommit [DecidableEq CommitMsg] [DecidableEq OpenMsg]
     (scheme : PlainCommitmentScheme CommitMsg OpenMsg) (κ : ℕ) (C : Finset (Fin 2))
@@ -732,9 +732,9 @@ private theorem handle_plainRouter_deliverCommit_empty [DecidableEq CommitMsg] [
     ((corruptRouter ∅ (scheme.toProtocol κ ∅)).handle (Sum.inr (.inr (.deliverCommit c)))).run
       (plainRouterState scheme κ ∅ (.committed c o) .waiting) =
       pure (.inr .ack, plainRouterState scheme κ ∅ (.committed c o) (.committed c)) := by
-  dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run,
-    Functor.map, StateT.map]
-  simp
+  rw [corruptRouter_handle_inr_inr]
+  simp only [PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run, Finset.notMem_empty,
+    ↓reduceIte, map_pure]
 
 private theorem handle_plainRouter_deliverOpen_empty [DecidableEq CommitMsg] [DecidableEq OpenMsg]
     (scheme : PlainCommitmentScheme CommitMsg OpenMsg) (κ : ℕ) (c : CommitMsg) (o : OpenMsg) :
@@ -742,9 +742,9 @@ private theorem handle_plainRouter_deliverOpen_empty [DecidableEq CommitMsg] [De
       (plainRouterState scheme κ ∅ (.opened c o) (.committed c)) =
       (fun res => (.inr .ack, plainRouterState scheme κ ∅ (.opened c o) (.finished res))) <$>
         ProbOracleComp.sample (scheme.verify κ c o) := by
-  dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run,
-    Functor.map, StateT.map]
-  simp [Functor.map_map]
+  rw [corruptRouter_handle_inr_inr]
+  simp only [PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run, Finset.notMem_empty,
+    ↓reduceIte, bind_pure_comp, Functor.map_map]
 
 private theorem handle_plainRouter_query_finished
     [DecidableEq CommitMsg] [DecidableEq OpenMsg]
@@ -754,7 +754,8 @@ private theorem handle_plainRouter_query_finished
       (plainRouterState scheme κ C s₁ (.finished res)) =
       pure (res.map CommitmentOutput.opened, plainRouterState scheme κ C s₁ (.finished res)) := by
   have h10 : (1 : Fin 2) ≠ 0 := by decide
-  dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run]
+  rw [corruptRouter_handle_inl_of_notMem C _ h1]
+  dsimp only [PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run]
   cases res <;> simp only [h10, h1, ↓reduceIte] <;> rfl
 
 private theorem handle_plainRouter_deliverCommit_zero [DecidableEq CommitMsg] [DecidableEq OpenMsg]
@@ -779,9 +780,9 @@ private theorem handle_plainRouter_deliverOpen_zero [DecidableEq CommitMsg] [Dec
       (plainRouterState scheme κ {0} s₁ (.committed c)) =
       (fun res => (.inr .ack, plainRouterState scheme κ {0} s₁ (.finished res))) <$>
         ProbOracleComp.sample (scheme.verify κ c o) := by
-  dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run,
-    Functor.map, StateT.map]
-  simp [Functor.map_map]
+  rw [corruptRouter_handle_inr_inr]
+  simp only [PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run, Finset.mem_singleton,
+    ↓reduceIte, bind_pure_comp, Functor.map_map]
 
 /-- With no corruptions (`C = ∅`) and `dummyAdversary`, running `honestCommitEnv b` on
 `scheme.toProtocol` has the exact distribution `scheme.acceptGame κ b`. -/
@@ -821,16 +822,12 @@ verification `scheme.verify κ c o` internally to test whether `res = some b`. -
     Environment 2 CommitmentInput CommitmentOutput
       (RoutedNetQ 2 CommitmentInput (PlainNetQ CommitMsg OpenMsg))
       (RoutedNetR CommitmentOutput (PlainNetR CommitMsg OpenMsg)) := fun κ _ => do
-  let _ ← ProbOracleComp.query
-    (spec := execSpec 2 CommitmentInput CommitmentOutput _ _) (Sum.inl (0, .commit b))
-  let r₁ ← ProbOracleComp.query
-    (spec := execSpec 2 CommitmentInput CommitmentOutput _ _) (Sum.inr (.inr .readCommit))
+  let _ ← queryParty 0 (.commit b)
+  let r₁ ← queryAdv (.inr .readCommit)
   match r₁ with
   | .inr (.commitMsg (some c)) =>
-    let _ ← ProbOracleComp.query
-      (spec := execSpec 2 CommitmentInput CommitmentOutput _ _) (Sum.inl (0, .openCom))
-    let r₂ ← ProbOracleComp.query
-      (spec := execSpec 2 CommitmentInput CommitmentOutput _ _) (Sum.inr (.inr .readOpen))
+    let _ ← queryParty 0 .openCom
+    let r₂ ← queryAdv (.inr .readOpen)
     match r₂ with
     | .inr (.openMsg (some o)) =>
       let res ← ProbOracleComp.sample (scheme.verify κ c o)
@@ -931,8 +928,7 @@ deliver `c` to honest receiver `1` and return `some (st₁, recDel₁)`. -/
   let ((r₁, st₁), recDel₁) ← ProbOracleComp.sample (simCommit S₁ κ)
   match r₁ with
   | .inr (.commitMsg (some c)) =>
-    let _ ← ProbOracleComp.query
-      (spec := execSpec 2 CommitmentInput CommitmentOutput _ _) (Sum.inr (.inr (.deliverCommit c)))
+    let _ ← queryAdv (.inr (.deliverCommit c))
     return some (st₁, recDel₁)
   | _ => return none
 
@@ -947,17 +943,13 @@ receiver `1`, and check whether receiver `1` outputs `some (.opened b)`. -/
       (RoutedNetQ 2 CommitmentInput (PlainNetQ CommitMsg OpenMsg))
       (RoutedNetR CommitmentOutput (PlainNetR CommitMsg OpenMsg))) Bool
   | some (st₁, recDel₁) => do
-    let recOut ← ProbOracleComp.query
-      (spec := execSpec 2 CommitmentInput CommitmentOutput _ _) (Sum.inl (1, .query))
+    let recOut ← queryParty 1 .query
     if recOut = some .receipt then
       let r₂ ← ProbOracleComp.sample (simOpen S₁ b κ st₁ recDel₁)
       match r₂ with
       | .inr (.openMsg (some o)) =>
-        let _ ← ProbOracleComp.query
-          (spec := execSpec 2 CommitmentInput CommitmentOutput _ _)
-          (Sum.inr (.inr (.deliverOpen o)))
-        let openOut ← ProbOracleComp.query
-          (spec := execSpec 2 CommitmentInput CommitmentOutput _ _) (Sum.inl (1, .query))
+        let _ ← queryAdv (.inr (.deliverOpen o))
+        let openOut ← queryParty 1 .query
         return decide (openOut = some (.opened b))
       | _ => return false
     else
@@ -1043,9 +1035,6 @@ private theorem handle_execMachine_fcom_openCom {AdvQ AdvR : Type}
       (fcomExecState S₁ κ {1} st₁ (.committed b recDel₁)) =
       pure (none, fcomExecState S₁ κ {1} st₁ (.opened b recDel₁)) := rfl
 
-private def fcomRouterStateVal (κ : ℕ) (C : Finset (Fin 2))
-    (s : (corruptRouter C (fcom.toProtocol κ C)).State) : CommitmentState := s
-
 private def fcomCommittedStateVal (s : fcomCommittedView.State) : Bool := s
 
 private def execReplyInr {AdvQ AdvR : Type} (q : AdvQ) (r : AdvR) :
@@ -1060,24 +1049,8 @@ private theorem handle_execMachine_fcom_committed_inr {AdvQ AdvR : Type}
         (execReplyInr q x.1.1,
           fcomExecState S₁ κ {1} x.1.2 (.committed b (fcomCommittedStateVal x.2)))) <$>
         fcomCommittedView.runFrom (((S₁ κ {1}).handle q).run st₀) (fcomCommittedState recDel) := by
-  change Equiv.prodAssoc _ _ _ <$>
-    (corruptRouter ({1} : Finset (Fin 2)) (fcom.toProtocol κ {1})).runFrom
-      (liftNet (((S₁ κ {1}).handle q).run st₀)) (.committed b recDel) = _
-  rw [runFrom_fcom_committed κ b, Functor.map_map]
+  rw [execMachine_handle_inr, fcomExecState, runFrom_fcom_committed κ b, Functor.map_map]
   rfl
-
-private theorem handle_execMachine_fcom_opened_inr {AdvQ AdvR : Type}
-    (S₁ : FcomAdversary AdvQ AdvR)
-    (b : Bool) (κ : ℕ) (q : AdvQ) (st₁ : (S₁ κ {1}).State) (recDel₁ : Bool) :
-    ((execMachine fcom.toProtocol S₁ κ {1}).handle (Sum.inr q)).run
-      (fcomExecState S₁ κ {1} st₁ (.opened b recDel₁)) =
-      (fun x : (AdvR × (S₁ κ {1}).State) ×
-          (corruptRouter ({1} : Finset (Fin 2)) (fcom.toProtocol κ {1})).State =>
-        (execReplyInr q x.1.1,
-          fcomExecState S₁ κ {1} x.1.2 (fcomRouterStateVal κ {1} x.2))) <$>
-        (corruptRouter ({1} : Finset (Fin 2)) (fcom.toProtocol κ {1})).runFrom
-          (liftNet (((S₁ κ {1}).handle q).run st₁))
-          (fcomRouterState κ {1} (.opened b recDel₁)) := rfl
 
 /-- In the ideal world with `C = {1}`, running `corruptReceiverEnv scheme b` with simulator `S₁`
 against `fcom` produces `simulatedTranscriptGame scheme S₁ b κ`. -/
@@ -1101,12 +1074,15 @@ theorem exec_fcom_corruptReceiverEnv_eq (scheme : PlainCommitmentScheme CommitMs
   simp only [execReplyInr, Machine.runFrom_bind, Machine.runFrom_query,
     Machine.closeProgram_bind, map_bind]
   rw [handle_execMachine_fcom_openCom, Machine.closeProgram_pure, pure_bind,
-    handle_execMachine_fcom_opened_inr]
+    execMachine_handle_inr]
   simp only [Machine.closeProgram_map, bind_map_left]
   refine bind_congr fun y => ?_
   rcases y with ⟨⟨r₂, st₂⟩, sP⟩
   rcases r₂ with _ | ⟨_ | (_ | o) | _⟩ <;> try rfl
-  simp only [execReplyInr, bind_pure_comp, Machine.runFrom_map, Machine.runFrom_sample,
+  let s' : (execMachine fcom.toProtocol S₁ κ {1}).State := (st₂, sP)
+  change Prod.fst <$> Machine.closeProgram
+    ((execMachine fcom.toProtocol S₁ κ {1}).runFrom _ s') = _
+  simp only [bind_pure_comp, Machine.runFrom_map, Machine.runFrom_sample,
     Machine.closeProgram_map, Machine.closeProgram_sample, Functor.map_map]
   rfl
 
