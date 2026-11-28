@@ -31,7 +31,7 @@ formulas are at least as strong as for formulas whose negations sit at the leave
 * `Cslib.Circuits.Formula.orList`, `Cslib.Circuits.Formula.andList`: the disjunction and the
   conjunction of a list of formulas as balanced trees of binary gates (`Formula.balanced`).
 * `Cslib.Circuits.Formula.literal`: the literal of bit `i` that is true at `z`.
-* `Cslib.Circuits.Formula.minterm`: the conjunction of the literals true at `z`.
+* `Cslib.Circuits.Formula.minterm`: the balanced conjunction of one matching literal per input.
 * `Cslib.Circuits.Boolean.formulaDepth`: the least depth of a De Morgan formula for a function,
   with negations and constants free.
 
@@ -336,16 +336,19 @@ def literal (z : BitString n) (i : Fin n) : Formula signature n :=
   unfold literal
   split <;> simp
 
-/-- The minterm of `z`: the balanced conjunction of one literal per input position,
-with each sign chosen to make that literal true at `z`. -/
+/-- The conjunction testing an entire assignment. For zero inputs it is constant true. -/
 def minterm (z : BitString n) : Formula signature n :=
   andList ((List.finRange n).map (literal z))
 
-/-- The minterm of `z` is true exactly at `z`. -/
-@[simp] theorem eval_minterm (z : BitString n) :
+/-- A minterm evaluates to true exactly on its assignment. -/
+@[simp] theorem eval_minterm (z x : BitString n) :
     (minterm z).eval interpretation x = decide (x = z) := by
-  rw [minterm, eval_andList, Bool.eq_iff_iff, List.all_eq_true, decide_eq_true_iff, funext_iff]
-  simp
+  apply Bool.eq_iff_iff.mpr
+  simp [minterm, List.all_eq_true, funext_iff]
+
+/-- A minterm has exactly one literal occurrence per input. -/
+@[simp] theorem leafSize_minterm (z : BitString n) : (minterm z).leafSize = n := by
+  simp [minterm, List.map_map, Function.comp_def]
 
 /-- The minterm of a string of `n` bits has depth at most `1 + ⌈log₂ n⌉`: a negation under a
 balanced conjunction of `n` literals. -/
