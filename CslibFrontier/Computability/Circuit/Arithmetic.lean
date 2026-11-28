@@ -137,6 +137,20 @@ def ArithOp.addCost : ArithOp F → ℕ
   | .add => 1
   | .mul | .const _ => 0
 
+/-- Evaluating the formal polynomial computed by a circuit, with coefficients in `S`, along a
+ring homomorphism `f : S →+* R` agrees with evaluating the circuit in `R` with the constants mapped
+by `f`. -/
+theorem Circuit.eval₂_arithInterpretationWith_mvPolynomial {S R : Type*} [CommSemiring S]
+    [CommSemiring R] {n m : ℕ} (c : Circuit (arithSignature F) n m) (constant : F → S)
+    (f : S →+* R) (x : Fin n → R) (j : Fin m) :
+    MvPolynomial.eval₂ f x
+        (c.eval (arithInterpretationWith F (MvPolynomial.C ∘ constant)) MvPolynomial.X j) =
+      c.eval (arithInterpretationWith F (f ∘ constant)) x j := by
+  let h : Homomorphism (arithInterpretationWith F (MvPolynomial.C ∘ constant))
+      (arithInterpretationWith F (f ∘ constant)) :=
+    ⟨MvPolynomial.eval₂ f x, fun op args => by cases op <;> simp [arithInterpretationWith]⟩
+  simpa [h, Function.comp_def] using congrFun (c.map_eval h MvPolynomial.X) j
+
 /-- Evaluating the formal polynomial computed by a circuit agrees with evaluating the circuit
 in the coefficient semiring. The converse need not hold over a finite field. -/
 theorem Circuit.eval_arithInterpretationWith_mvPolynomial {R : Type*} [CommSemiring R]
@@ -144,11 +158,8 @@ theorem Circuit.eval_arithInterpretationWith_mvPolynomial {R : Type*} [CommSemir
     (j : Fin m) :
     MvPolynomial.eval x
         (c.eval (arithInterpretationWith F (MvPolynomial.C ∘ constant)) MvPolynomial.X j) =
-      c.eval (arithInterpretationWith F constant) x j := by
-  let h : Homomorphism (arithInterpretationWith F (MvPolynomial.C ∘ constant))
-      (arithInterpretationWith F constant) :=
-    ⟨MvPolynomial.eval x, fun op args => by cases op <;> simp [arithInterpretationWith]⟩
-  simpa [h, Function.comp_def] using congrFun (c.map_eval h MvPolynomial.X) j
+      c.eval (arithInterpretationWith F constant) x j :=
+  c.eval₂_arithInterpretationWith_mvPolynomial constant (RingHom.id R) x j
 
 /-- An interpretation is *polynomial* when every operation is given by a polynomial in its
 arguments. -/

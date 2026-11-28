@@ -198,18 +198,14 @@ variable {C : Circuit (arithSignature K) (n * n + n * n) (n * n)}
 theorem ComputesMatMul.eval_algebra [Algebra K R] (hC : ComputesMatMul K C)
     (A B : Matrix (Fin n) (Fin n) R) :
     C.eval (arithInterpretationWith K (algebraMap K R)) (matrixInputs R A B) = entry R (A * B) := by
-  let f := MvPolynomial.aeval (R := K) (matrixInputs R A B)
-  let h : Homomorphism (arithInterpretationWith K MvPolynomial.C)
-      (arithInterpretationWith K (algebraMap K R)) :=
-    ⟨f, fun op args => by cases op <;> simp [arithInterpretationWith, f]⟩
-  have hX : h.map ∘ MvPolynomial.X = matrixInputs R A B :=
-    funext fun i => MvPolynomial.aeval_X _ _
-  rw [← hX, ← C.map_eval h, hC]
   funext t
-  have := map_entry_mul f.toRingHom MvPolynomial.X t
-  simp only [AlgHom.toRingHom_eq_coe, RingHom.coe_coe] at this
-  rw [Function.comp_apply, show h.map = f from rfl, this, show (⇑f ∘ MvPolynomial.X) = h.map ∘
-    MvPolynomial.X from rfl, hX, leftMatrix_matrixInputs, rightMatrix_matrixInputs]
+  let f := MvPolynomial.eval₂Hom (algebraMap K R) (matrixInputs R A B)
+  have e := C.eval₂_arithInterpretationWith_mvPolynomial id (algebraMap K R) (matrixInputs R A B) t
+  rw [Function.comp_id, Function.comp_id, hC] at e
+  have hX : ⇑f ∘ MvPolynomial.X = matrixInputs R A B :=
+    funext fun i => MvPolynomial.eval₂Hom_X' _ _ _
+  rw [← e, ← MvPolynomial.coe_eval₂Hom, map_entry_mul f, hX, leftMatrix_matrixInputs,
+    rightMatrix_matrixInputs]
 
 /-- A circuit computing matrix multiplication formally outputs the product of any two matrices
 over `K`. -/
