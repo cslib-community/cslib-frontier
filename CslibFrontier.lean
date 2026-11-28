@@ -560,6 +560,7 @@ public import CslibFrontier.Computability.Communication.Lifting.RatioProbability
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityColors
 public import CslibFrontier.Foundations.BooleanAnalysis.KahnKalaiLinial
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.RotationMap.TowerTable
+public import CslibFrontier.GameTheory.Mechanism.CombinatorialAuction.BiddingLanguage
 public import CslibFrontier.Algorithms.WordRAM.Schoening.TrialCount
 public import CslibFrontier.Algorithms.Lean.GomoryHu.Basic
 public import CslibFrontier.Computability.Complexity.Problems.NCL.HWord.ConstraintGraph
