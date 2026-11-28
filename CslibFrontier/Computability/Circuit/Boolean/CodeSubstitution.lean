@@ -74,14 +74,14 @@ private theorem toNat_outputs_substituteCircuit {n N : ℕ}
       (ρ i).elim Fin.val (fun b => n + if b then 1 else 0) := by
   cases h : ρ i with
   | inl j =>
-    simp only [substituteCircuit, Circuit.comp, Circuit.wiring, Function.comp_apply, h,
-      Sum.elim_inl, Program.appendedWire_input, Circuit.append]
+    simp only [substituteCircuit, projectionCircuit, Circuit.comp, Circuit.wiring,
+      Function.comp_apply, h, Sum.elim_inl, Program.appendedWire_input, Circuit.append]
     rw [Fin.append_left]
     rfl
   | inr b =>
     cases b <;>
-    · simp only [substituteCircuit, Circuit.comp, Circuit.wiring, Function.comp_apply,
-        h, Sum.elim_inr, Program.appendedWire_input, Circuit.append]
+    · simp only [substituteCircuit, projectionCircuit, constIndex, Circuit.comp, Circuit.wiring,
+        Function.comp_apply, h, Sum.elim_inr, Program.appendedWire_input, Circuit.append]
       rw [Fin.append_right]
       rfl
 

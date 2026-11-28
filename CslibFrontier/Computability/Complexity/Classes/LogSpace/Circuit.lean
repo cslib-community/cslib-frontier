@@ -176,12 +176,13 @@ private theorem code_substitution {n N : ℕ} (ρ : Fin N → Fin n ⊕ Bool) :
     funext i
     cases h : ρ i with
     | inl j =>
-      simp [substituteCircuit, Circuit.comp, Circuit.wiring, Circuit.append, Circuit.id,
-        Function.comp_def, h, Wire.toNat, Program.appendedWire]
+      simp [substituteCircuit, projectionCircuit, constIndex, Circuit.comp, Circuit.wiring,
+        Circuit.append, Circuit.id, Function.comp_def, h, Wire.toNat, Program.appendedWire]
       rfl
     | inr b =>
-      cases b <;> simp [substituteCircuit, Circuit.comp, Circuit.wiring, Circuit.append, Circuit.id,
-        Function.comp_def, h, Wire.toNat, Program.appendedWire] <;> rfl
+      cases b <;> simp [substituteCircuit, projectionCircuit, constIndex, Circuit.comp,
+        Circuit.wiring, Circuit.append, Circuit.id, Function.comp_def, h, Wire.toNat,
+        Program.appendedWire] <;> rfl
 
 private noncomputable def inputCircuit (D n : ℕ) :
     Circuit Unbounded.signature n (vertices k D n * vertices k D n) :=
