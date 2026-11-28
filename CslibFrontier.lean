@@ -6624,6 +6624,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.KEMDEM
 public import CslibFrontier.MachineLearning.OnlineLearning.HighProbabilityOnlineToBatch
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.ProgRun
 public import CslibFrontier.GameTheory.NetworkFormation.FairConnection
+public import CslibFrontier.Crypto.Protocols.UC.AdaptiveStorage
 public import CslibFrontier.Foundations.NumberTheory.Padics.AdjoinRootValuation
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.CrossoverLayout
 public import CslibFrontier.Crypto.Computational.TrapdoorFunction
