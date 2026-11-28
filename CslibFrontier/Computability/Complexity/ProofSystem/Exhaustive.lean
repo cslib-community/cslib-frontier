@@ -8,8 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.ProofSystem
-import CslibFrontier.Computability.Complexity.CookLevin.Completeness
-import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -29,14 +27,6 @@ prescribes, the proof is checked when `m ≤ ⌊log₂ |π|⌋`. For a nonempty 
 certificate. When it passes, checking that the complement's verifier rejects every certificate of
 length `m` takes time polynomial in the length of the proof.
 
-The dichotomy of [Cook and Reckhow][CookReckhow1979] then holds for one fixed proof system, as in
-[Goldreich, Theorem B.13][Goldreich2007DraftR6]. Some proof system for the unsatisfiable formulas in
-conjunctive normal form is polynomially bounded exactly when `NP = coNP`
-(`Cslib.Complexity.ProofSystem.exists_polynomiallyBounded_iff_NP_eq_coNP`). The source derives it
-from the coNP-completeness of its tautologies. The proof here chooses the system by cases on
-`NP = coNP`. If they are equal, it is a polynomially bounded system. If not, it is the exhaustive
-system, and no system for that set is polynomially bounded.
-
 ## Main definitions
 
 * `Cslib.Complexity.ProofSystem.exhaustive`: the exhaustive proof system of a verifier for the
@@ -49,17 +39,9 @@ system, and no system for that set is polynomially bounded.
   a word whose decoded instance is not in the set proves the default member.
 * `Cslib.Complexity.ProofSystem.nonempty_of_mem_coNP`: every nonempty `coNP` set with a decodable
   encoding has a proof system.
-* `Cslib.Complexity.ProofSystem.exists_polynomiallyBounded_iff_coNP_subset_NP`: for a nonempty
-  decodable `coNP`-complete set, one proof system is polynomially bounded exactly when
-  `coNP ⊆ NP`.
-* `Cslib.Complexity.ProofSystem.exists_polynomiallyBounded_iff_NP_eq_coNP`: Goldreich's
-  Theorem B.13, for refutations of formulas in conjunctive normal form.
 
 ## References
 
-* [O. Goldreich, *Computational Complexity: A Conceptual Perspective*, May 2007 draft `r6.pdf`,
-  Appendix B.4][Goldreich2007DraftR6], Definition B.12 and Theorem B.13 (printed p. 527,
-  PDF p. 19)
 * [S. A. Cook, R. A. Reckhow, *The relative efficiency of propositional proof
   systems*][CookReckhow1979]
 -/
@@ -180,49 +162,5 @@ theorem nonempty_of_mem_coNP (D : Decoder enc) (hL : L ∈ coNP enc) (hne : L.No
     Nonempty (ProofSystem enc L) :=
   let ⟨_, _, hV, hVL⟩ := hL
   ⟨exhaustive D hV hVL hne.some_mem⟩
-
-/-- **One proof system decides `coNP ⊆ NP`**: a nonempty `coNP`-complete set with a decodable
-encoding has a proof system that is polynomially bounded exactly when `coNP ⊆ NP`, for problems
-with every encoding of their instances. The system is chosen by cases: a polynomially bounded one
-when `coNP ⊆ NP`, and any one otherwise (`nonempty_of_mem_coNP`), which then is not polynomially
-bounded by `coNP_subset_NP_iff_exists_polynomiallyBounded`. -/
-theorem exists_polynomiallyBounded_iff_coNP_subset_NP {β : Type} {encB : β ↪ List Bool}
-    {B : Set β} (hB : coNPComplete encB B) (D : Decoder encB) (hne : B.Nonempty) :
-    ∃ M : ProofSystem encB B,
-      (M.PolynomiallyBounded ↔ ∀ {γ : Type} (encC : γ ↪ List Bool), coNP encC ⊆ NP encC) := by
-  have hCR := coNP_subset_NP_iff_exists_polynomiallyBounded hB D hne
-  by_cases h : ∀ {γ : Type} (encC : γ ↪ List Bool), coNP encC ⊆ NP encC
-  · obtain ⟨M, hM⟩ := hCR.1 h
-    exact ⟨M, iff_of_true hM h⟩
-  · exact let ⟨M⟩ := nonempty_of_mem_coNP D hB.1 hne
-      ⟨M, iff_of_false (fun hM => h (hCR.2 ⟨M, hM⟩)) h⟩
-
-/-- **A fixed proof system is polynomially bounded exactly when `NP = coNP`**
-([Goldreich, Theorem B.13][Goldreich2007DraftR6], after [CookReckhow1979]): there is a proof
-system `M` for the unsatisfiable formulas in conjunctive normal form such that `M` is polynomially
-bounded if and only if `NP = coNP`, for problems with every encoding of their instances.
-
-Deviations from the source, which states the theorem for propositional tautologies and proof
-systems given as verifiers (Definition B.12):
-* Proofs here refute unsatisfiable CNF formulas, the refutation view the source adopts in the rest
-  of Appendix B.4.
-* A proof system is a Cook–Reckhow function onto the set (`ProofSystem`), computable in
-  polynomial time in the length of the proof. A verifier `M(π, T)` running in time polynomial in
-  `|π| + |T|` gives such a function by encoding both the formula and its certificate in the proof
-  word (prove `T` when `M` accepts, a fixed member otherwise). Conversely, a function `f` gives the
-  verifier that evaluates `f π` and compares it with `T`. Polynomial boundedness transfers in both
-  directions, but the proofs and their exact lengths need not agree.
-* "`L_M` is upper-bounded by a polynomial" is `PolynomiallyBounded`, a polynomial bound on a
-  shortest proof of each member, which is the per-instance form of the bound on the maximum.
-
-The source derives the theorem from the coNP-completeness of the tautologies. The proof here
-chooses `M` by cases on `NP = coNP`, a polynomially bounded system if they are equal and the
-exhaustive system otherwise, so `M` is not explicit. -/
-theorem exists_polynomiallyBounded_iff_NP_eq_coNP :
-    ∃ M : ProofSystem encCNF UNSAT,
-      (M.PolynomiallyBounded ↔ ∀ {γ : Type} (encC : γ ↪ List Bool), NP encC = coNP encC) := by
-  obtain ⟨M, hM⟩ := exists_polynomiallyBounded_iff_coNP_subset_NP CookLevin.UNSAT_coNPComplete
-    cnfDecoder ⟨[[]], fun ⟨_, h⟩ => by simp at h⟩
-  exact ⟨M, hM.trans NP_eq_coNP_iff_coNP_subset_NP.symm⟩
 
 end Cslib.Complexity.ProofSystem
