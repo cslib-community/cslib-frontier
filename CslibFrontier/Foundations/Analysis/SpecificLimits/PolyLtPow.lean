@@ -34,17 +34,10 @@ theorem eventually_mul_add_one_pow_lt_pow (K : ℝ) (k : ℕ) {r : ℝ} (hr : 1 
     ∀ᶠ n : ℕ in atTop, K * ((n : ℝ) + 1) ^ k < r ^ n := by
   have hr0 : 0 < r := by linarith
   have hK : 0 < |K| + 1 := by positivity
-  have hδ : 0 < (r * (|K| + 1))⁻¹ := inv_pos.2 (mul_pos hr0 hK)
   have hlim := (tendsto_pow_const_div_const_pow_of_one_lt k hr).comp (tendsto_add_atTop_nat 1)
-  filter_upwards [hlim.eventually (gt_mem_nhds hδ)] with n hn
+  filter_upwards [hlim.eventually (gt_mem_nhds (div_pos one_pos (mul_pos hr0 hK)))] with n hn
   simp only [Function.comp_apply, Nat.cast_add, Nat.cast_one] at hn
-  have hrn : 0 < r ^ (n + 1) := pow_pos hr0 _
-  rw [div_lt_iff₀ hrn, pow_succ] at hn
-  have hpow : 0 ≤ ((n : ℝ) + 1) ^ k := by positivity
+  rw [div_lt_div_iff₀ (pow_pos hr0 _) (mul_pos hr0 hK), one_mul, pow_succ] at hn
   have h1 : K * ((n : ℝ) + 1) ^ k ≤ (|K| + 1) * ((n : ℝ) + 1) ^ k :=
-    mul_le_mul_of_nonneg_right (by linarith [le_abs_self K]) hpow
-  have h2 : (|K| + 1) * ((n : ℝ) + 1) ^ k < (|K| + 1) * ((r * (|K| + 1))⁻¹ * (r ^ n * r)) :=
-    mul_lt_mul_of_pos_left hn hK
-  have h3 : (|K| + 1) * ((r * (|K| + 1))⁻¹ * (r ^ n * r)) = r ^ n := by
-    field_simp
-  linarith
+    mul_le_mul_of_nonneg_right ((le_abs_self K).trans (lt_add_one _).le) (by positivity)
+  nlinarith

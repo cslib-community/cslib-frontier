@@ -93,26 +93,23 @@ theorem precision_error_lt (m L : ℕ) :
 /-- The magnitude hypothesis implies the strict starting bound for the CRT doubling argument. -/
 theorem magnitude_lt (m L : ℕ) (X : ℤ) (hX : |X| ≤ (2 : ℤ) ^ m) :
     |(X : ℚ)| < (1 / 6 : ℚ) * (∏ p : primes m L, modulus m L p : ℤ) := by
-  have hZ : 16 ≤ max 16 (max m L) := le_max_left _ _
-  have hm : m ≤ max 16 (max m L) := (le_max_left m L).trans (le_max_right _ _)
-  have hL : L ≤ max 16 (max m L) := (le_max_right m L).trans (le_max_right _ _)
-  have hprod := Nat.six_mul_two_pow_lt_prod_primesLE_sdiff hZ hL hm
   have hprodq : (6 : ℚ) * 2 ^ m < (∏ p ∈ primes m L, p : ℕ) := by
-    exact_mod_cast hprod
+    exact_mod_cast Nat.six_mul_two_pow_lt_prod_primesLE_sdiff (le_max_left _ _)
+      ((le_max_right m L).trans (le_max_right _ _))
+      ((le_max_left m L).trans (le_max_right _ _))
   have hXq : |(X : ℚ)| ≤ (2 : ℚ) ^ m := by exact_mod_cast hX
   rw [prod_modulus_eq, Int.cast_natCast]
-  nlinarith
+  linarith
 
 /-- The manuscript doubling limit is large enough to reach the magnitude window. -/
 theorem product_cutoff_le (m L : ℕ) :
     (1 / 6 : ℚ) * (∏ p : primes m L, modulus m L p : ℤ) ≤
       (2 : ℚ) ^ (cutoff m L * (cutoff m L).size + 1) := by
-  have hprod := Nat.prod_primesLE_sdiff_le_two_pow (cutoff m L) L
-  have hprodq : (∏ p ∈ primes m L, p : ℕ) ≤ (2 : ℚ) ^
-      (cutoff m L * (cutoff m L).size) := by exact_mod_cast hprod
-  rw [prod_modulus_eq, Int.cast_natCast, pow_succ]
+  have hprodq : (∏ p ∈ primes m L, p : ℕ) ≤ (2 : ℚ) ^ (cutoff m L * (cutoff m L).size) := by
+    exact_mod_cast Nat.prod_primesLE_sdiff_le_two_pow (cutoff m L) L
   have hp : (0 : ℚ) ≤ (∏ p ∈ primes m L, p : ℕ) := by positivity
-  nlinarith
+  rw [prod_modulus_eq, Int.cast_natCast, pow_succ]
+  linarith
 
 /-- Mathematical first-flag correctness from supplied weighted coefficients.
 The local congruences are the sole component-specific premise: all prime-window, magnitude,

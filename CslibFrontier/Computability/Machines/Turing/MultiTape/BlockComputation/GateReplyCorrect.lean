@@ -30,11 +30,8 @@ private theorem resolve_eq_walk {k q : ℕ} (σ : ℕ)
     Descending.resolve (BlockComputation.child (scheduleOfNat k q σ)) q path =
       ImplicitPath.walk k (σ, q, path.map Fin.val) := by
   have hnext : Descending.next (BlockComputation.child (scheduleOfNat k q σ)) =
-      BlockComputation.child (scheduleOfNat k q σ) := by
-    funext n j
-    cases n with
-    | zero => rfl
-    | succ n => simp [Descending.next]
+      BlockComputation.child (scheduleOfNat k q σ) :=
+    funext fun | 0 => rfl | _ + 1 => funext fun _ => by simp [Descending.next]
   rw [Descending.resolve, hnext, ImplicitPath.walk_eq]
 
 /-- At an internal typed path, lookup uses exactly the interval reached by native navigation. -/
@@ -47,12 +44,9 @@ theorem nodeAt_eq_gate {k q s : ℕ} {Q : Type}
         (Encoding.encode e) (Encoding.decode e)
         (ImplicitPath.walk k (σ, q, path.map Fin.val))) := by
   rw [encodedTree, tree, Descending.nodeAt_tree]
-  simp only [Descending.lookup, hdepth, ↓reduceIte, resolve_eq_walk]
-  congr 1
-  unfold Descending.paddedGate
+  simp only [Descending.lookup, hdepth, ↓reduceIte, resolve_eq_walk, Descending.paddedGate]
   split_ifs with hz
-  · rw [hz]
-    rfl
+  · rw [hz]; rfl
   · rfl
 
 /-- The active branch preserves every physical clock of the vector subroutine. -/

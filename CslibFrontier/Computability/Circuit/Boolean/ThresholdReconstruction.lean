@@ -67,12 +67,9 @@ private theorem residueTest_eq_true {k t R w : ℕ} (hlo : k ≤ w) (hhi : w ≤
 private theorem residueTest_eq_false {k t R w : ℕ}
     (hR : 4 * t ≤ R) (hlo : k < w + 2 * t) (hhi : w < k) :
     residueTest k t R w = false := by
-  simp only [residueTest, decide_eq_false_iff_not]
-  rintro hmem
-  obtain ⟨j, hj, hmod⟩ := Finset.mem_image.mp hmem
-  obtain ⟨hjlo, hjhi⟩ := Finset.mem_Icc.mp hj
-  have hgap : w + R ≤ j :=
-    (show Nat.ModEq R w j from hmod.symm).add_le_of_lt (by omega)
+  simp only [residueTest, decide_eq_false_iff_not, Finset.mem_image, Finset.mem_Icc]
+  rintro ⟨j, ⟨hjlo, hjhi⟩, hmod⟩
+  have := (Nat.ModEq.symm hmod).add_le_of_lt (hhi.trans_le hjlo)
   omega
 
 /-- The majority reconstruction step of [Sergeev2025Symmetric], §2, equation (2). It is a
@@ -87,16 +84,13 @@ theorem maj3_eq_threshold_of_approx {k t R w : ℕ} (lower upper : Bool)
     (hupper_one : k + 2 * t ≤ w → upper = true) :
     maj3 lower upper (residueTest k t R w) = decide (k ≤ w) := by
   by_cases hw : k ≤ w
-  · have hlower := hlower_one hw
-    by_cases hfar : k + 2 * t ≤ w
-    · simp [maj3, hlower, hupper_one hfar, hw]
-    · have hres := residueTest_eq_true (t := t) (R := R) hw (by omega)
-      simp [maj3, hlower, hres, hw]
-  · have hupper := hupper_zero (by omega)
-    by_cases hfar : w + 2 * t ≤ k
-    · simp [maj3, hlower_zero hfar, hupper, hw]
-    · have hres := residueTest_eq_false (k := k) (w := w) hR (by omega) (by omega)
-      simp [maj3, hupper, hres, hw]
+  · by_cases hfar : k + 2 * t ≤ w
+    · simp [maj3, hlower_one hw, hupper_one hfar, hw]
+    · simp [maj3, hlower_one hw, residueTest_eq_true (t := t) (R := R) hw (by omega), hw]
+  · by_cases hfar : w + 2 * t ≤ k
+    · simp [maj3, hlower_zero hfar, hupper_zero (not_le.mp hw).le, hw]
+    · simp [maj3, hupper_zero (not_le.mp hw).le,
+        residueTest_eq_false hR (by omega) (not_le.mp hw), hw]
 
 variable {n : ℕ}
 
@@ -125,10 +119,8 @@ theorem depth_circuit_le (lower upper residue : Circuit signature n 1) :
   have hmajority : (maj3Formula (0 : Fin 3) 1 2).toCircuit.depth ≤ 3 :=
     (Formula.depth_toCircuit_le _).trans (depth_maj3Formula_le _ _ _)
   have hparallel : (Circuit.pi ![lower, upper, residue]).depth ≤
-      max (max lower.depth upper.depth) residue.depth := by
-    apply Circuit.depth_pi_le
-    intro i
-    fin_cases i <;> dsimp <;> omega
+      max (max lower.depth upper.depth) residue.depth :=
+    Circuit.depth_pi_le _ fun i => by fin_cases i <;> dsimp <;> omega
   exact (Circuit.depth_comp_le _ _).trans (by omega)
 
 /-- Correctness of the native reconstruction step. The supplied circuits may behave arbitrarily

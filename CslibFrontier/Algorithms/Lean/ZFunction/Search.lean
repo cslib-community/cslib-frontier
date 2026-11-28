@@ -87,21 +87,10 @@ theorem mem_zMatches_iff (p t : List α) (i : ℕ) :
         Nat.add_sub_cancel_left]
     rw [hget, List.length_le_lcpLen_append_iff]
     exact ⟨fun ⟨_, h⟩ => ⟨by omega, h⟩, fun ⟨_, h⟩ => ⟨by omega, h⟩⟩
-  · constructor
-    · rintro ⟨hit, hle⟩
-      have hit : i = t.length := by omega
-      subst hit
-      rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_none (by omega),
-        Option.getD_none] at hle
-      have hp : p = [] := List.eq_nil_of_length_eq_zero (by simpa using hle)
-      subst hp
-      exact ⟨le_refl _, List.nil_prefix⟩
-    · rintro ⟨hit, hpre⟩
-      have hit : i = t.length := by omega
-      subst hit
-      rw [List.drop_length, List.prefix_nil] at hpre
-      subst hpre
-      exact ⟨by omega, by simp only [List.length_nil, Nat.zero_le]⟩
+  · rcases eq_or_gt_of_not_lt hi with rfl | hgt
+    · rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_none (by omega), Option.getD_none]
+      simp
+    · simp [Nat.not_lt.mpr (Nat.succ_le_of_lt hgt), Nat.not_le.mpr hgt]
 
 /-- `zMatches p t` lists the shifts in strictly increasing order. -/
 theorem pairwise_lt_zMatches (p t : List α) : (zMatches p t).Pairwise (· < ·) :=

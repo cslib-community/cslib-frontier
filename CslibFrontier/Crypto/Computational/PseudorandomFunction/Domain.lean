@@ -123,12 +123,10 @@ theorem eval_prfIdealGameOn_eq_eager_of_codec {Q : Type} [Fintype Q] [DecidableE
         OracleComp.interpret_pure, ProbComp.eval_pure]
       rfl
     | some q =>
-      have henc : (codec.encodeQuery q).2 = query :=
-        congrArg Prod.snd ((codec.decodeQuery_eq_some_iff ((), query) q).mp hdec)
       simp only [adapter, hdec, Option.isSome_some, ↓reduceIte, ProbOracleComp.interpret_query,
         ProbComp.eval_memoize, BitString.eval_sampleList]
       change memoize (fun _ => BitString.uniformList w) (codec.encodeQuery q).2 cache = _
-      rw [henc]
+      rw [congrArg Prod.snd ((codec.decodeQuery_eq_some_iff ((), query) q).mp hdec)]
   have heager (table : Q → BitString w) (request : Unit × List Bool) : OracleComp.interpret
       (OracleComp.sumHandler ProbComp.unifOracle (fun key => PMF.pure (List.ofFn (table key))))
         (adapter request.2) =
@@ -140,10 +138,9 @@ theorem eval_prfIdealGameOn_eq_eager_of_codec {Q : Type} [Fintype Q] [DecidableE
     | some q =>
       simp [adapter, hdec, hreply q]
   rw [ProbComp.eval_map, ProbOracleComp.eval_run_interpret]
-  have hsymm := h.symm
   simpa only [ProbOracleComp.interpret_simulate, hstep, heager, PMF.pi_uniformOfFintype,
     PMF.monad_bind_eq_bind, ProbOracleComp.eval_run, ProbComp.eval_pure,
-    OracleCodec.interpret_adapt] using hsymm
+    OracleCodec.interpret_adapt] using h.symm
 
 /-- On fixed `inLen n`-bit inputs, `prfIdealGameOn` is identical in distribution to
 `prfIdealGame`. -/
@@ -151,14 +148,10 @@ theorem eval_prfIdealGameOn_length_eq (inLen outLen : ℕ → ℕ) (adversary : 
     (n : ℕ) :
     ProbComp.eval (prfIdealGameOn (fun m q => q.length == inLen m) outLen adversary n) =
       ProbComp.eval (prfIdealGame inLen outLen adversary n) := by
-  have heq := eval_prfIdealGameOn_eq_eager_of_codec
-    (valid := fun q => q.length == inLen n)
-    (OracleCodec.bitStrings (inLen n) (outLen n))
-    (fun query => by
-      by_cases hq : query.length = inLen n <;> simp [OracleCodec.bitStrings, hq])
-    (fun _ => rfl)
-    (adversary n [])
-  rw [prfIdealGameOn, heq]
+  rw [prfIdealGameOn, eval_prfIdealGameOn_eq_eager_of_codec
+    (valid := fun q => q.length == inLen n) (OracleCodec.bitStrings (inLen n) (outLen n))
+    (fun query => by by_cases hq : query.length = inLen n <;> simp [OracleCodec.bitStrings, hq])
+    (fun _ => rfl) (adversary n [])]
   simp only [prfIdealGame, ProbComp.eval_bind, ProbComp.eval_uniform, ProbOracleComp.eval_run,
     ProbComp.eval_pure, ← PMF.monad_pure_eq_pure, OracleCodec.interpret_adapt,
     wordOracle_bitStrings]

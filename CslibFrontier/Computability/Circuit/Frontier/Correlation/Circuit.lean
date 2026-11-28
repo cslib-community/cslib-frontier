@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Rectangle
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 
@@ -79,12 +80,10 @@ theorem sq_correlation_quadForm_mul_le_of_unread (Q : Matrix (Fin n) (Fin n) (ZM
   refine (sq_correlation_quadForm_mul_le Q T (fun x => decide (x ∈ T)) D
     (fun x y h => by simpa using h) fun x => ?_).trans ?_
   · by_cases hx : x ∈ T
-    · refine ⟨univ, Dᶜ.domRestrict '' T, ?_⟩
-      rw [← eq_rectangle_of_dependsOn hdep]
-      exact Set.ext fun y => by by_cases hy : y ∈ T <;> simp [hx, hy]
-    · refine ⟨univ, Dᶜ.domRestrict '' Tᶜ, ?_⟩
-      rw [← eq_rectangle_of_dependsOn hdep']
-      exact Set.ext fun y => by by_cases hy : y ∈ T <;> simp [hx, hy]
+    · exact ⟨univ, Dᶜ.domRestrict '' T, (Set.ext fun y => by
+        by_cases hy : y ∈ T <;> simp [hx, hy]).trans (eq_rectangle_of_dependsOn hdep)⟩
+    · exact ⟨univ, Dᶜ.domRestrict '' Tᶜ, (Set.ext fun y => by
+        by_cases hy : y ∈ T <;> simp [hx, hy]).trans (eq_rectangle_of_dependsOn hdep')⟩
   · have := ncard_le_card (range fun x => decide (x ∈ T))
     rw [Nat.card_eq_fintype_card, Fintype.card_bool] at this
     exact_mod_cast this
@@ -117,13 +116,8 @@ theorem sq_correlation_quadForm_mul_le_of_layout (Q : Matrix (Fin n) (Fin n) (ZM
   have hT₀ : P₀.accepted = Tᶜ := by
     rw [Network.accepted_branchingProgram, accepted_network_eq_eval]
     rfl
-  have hX₁ : P₁.revealed t = X := by
-    change N₁.revealedBy π t = X
-    simp only [Network.revealedBy, ht, ite_true, X]
-  have hX₀ : P₀.revealed t = X := by
-    change N₀.revealedBy π t = X
-    simp only [Network.revealedBy, ht, ite_true, X]
-    rfl
+  have hX₁ : P₁.revealed t = X := ite_eq_left ht
+  have hX₀ : P₀.revealed t = X := ite_eq_left ht
   have htP₁ : t ≤ P₁.length := Nat.le_succ_of_le ht
   have htP₀ : t ≤ P₀.length := Nat.le_succ_of_le ht
   -- The message of an input: its output, and the state of its accepting path at layer `t`.
@@ -146,11 +140,8 @@ theorem sq_correlation_quadForm_mul_le_of_layout (Q : Matrix (Fin n) (Fin n) (ZM
         Prod.mk false '' ((fun x => P₀.path x t) '' N₀.accepted) := by
       rintro _ ⟨x, rfl⟩
       by_cases hx : x ∈ T
-      · refine Or.inl ⟨_, ⟨x, ?_, rfl⟩, by simp [msg, hx]⟩
-        rwa [accepted_network_eq_eval]
-      · refine Or.inr ⟨_, ⟨x, ?_, rfl⟩, by simp [msg, hx]⟩
-        rw [accepted_network_eq_eval]
-        exact hx
+      · exact Or.inl ⟨_, ⟨x, (accepted_network_eq_eval ..).symm ▸ hx, rfl⟩, by simp [msg, hx]⟩
+      · exact Or.inr ⟨_, ⟨x, (accepted_network_eq_eval ..).symm ▸ hx, rfl⟩, by simp [msg, hx]⟩
     have h₁ : ((fun x => P₁.path x t) '' N₁.accepted).ncard ≤
         2 ^ ((Compiler.graph c).frontier π t).ncard := by
       have := N₁.ncard_image_path_le π ht
@@ -186,19 +177,16 @@ theorem ncard_le_cutRank_add_of_bisection {M : Matrix (Fin n) (Fin n) (ZMod 2)} 
     (by rw [ncard_univ, Nat.card_eq_fintype_card, Fintype.card_fin]; omega)
   have h₁ := M.ncard_add_cutRank_le_of_subset hDU
   rw [hU] at h₁
-  have h₂ : (D.ncard : ℝ) + M.cutRank U ≤ M.cutRank D + (n / 2 : ℕ) := by exact_mod_cast h₁
-  linarith [hM U hU]
+  cast_linarith [h₁, hM U hU]
 
 /-- A bound `y · 2^ρ ≤ 2 · 2^m` with `ρ ≥ r` gives `y ≤ 2^{1 + m - r}` in real exponents. -/
 theorem le_rpow_of_mul_two_pow_le {y : ℝ} {ρ m : ℕ} {r : ℝ} (hy : y * 2 ^ ρ ≤ 2 * 2 ^ m)
     (hr : r ≤ ρ) : y ≤ (2 : ℝ) ^ (1 + m - r) := by
-  have hpos : (0 : ℝ) < 2 ^ ρ := by positivity
-  have h₁ : y ≤ 2 * 2 ^ m / 2 ^ ρ := (le_div_iff₀ hpos).mpr hy
   have h₂ : (2 * 2 ^ m / 2 ^ ρ : ℝ) = (2 : ℝ) ^ ((1 + m - ρ : ℝ)) := by
     rw [Real.rpow_sub (by norm_num), Real.rpow_add (by norm_num), Real.rpow_one,
       Real.rpow_natCast, Real.rpow_natCast]
-  rw [h₂] at h₁
-  exact h₁.trans (Real.rpow_le_rpow_of_exponent_le (by norm_num) (by linarith))
+  exact ((le_div_iff₀ (by positivity)).mpr hy).trans
+    (h₂ ▸ Real.rpow_le_rpow_of_exponent_le (by norm_num) (by linarith))
 
 /-- **Unread inputs, finite form.** If every set of `⌊n/2⌋` coordinates has cut rank at least
 `⌊n/2⌋ - e` in `Q + Qᵀ`, a circuit that leaves at least `k ≤ ⌊n/2⌋` inputs unread has

@@ -36,24 +36,15 @@ modulus, base and target; its logarithm specification requires a primitive prime
 theorem modularLogSum_eq_generatorLogSum {p : ℕ} (hp : p ≠ 0) (g x : ℕ) :
     modularLogSum p g x = ZMod.generatorLogSum p (g : ZMod p) (x : ZMod p) := by
   unfold modularLogSum ZMod.generatorLogSum
-  apply Finset.sum_congr rfl
-  intro e _
-  have h : Turing.MultiTapeTM.powMod p g e = x % p ↔ (g : ZMod p) ^ e = (x : ZMod p) := by
-    rw [powMod_of_ne_zero hp]
-    simpa only [Nat.cast_pow] using (ZMod.natCast_eq_natCast_iff' (g ^ e) x p).symm
-  simp only [h]
+  refine Finset.sum_congr rfl fun e _ => if_congr ?_ rfl rfl
+  rw [powMod_of_ne_zero hp]
+  simpa only [Nat.cast_pow] using (ZMod.natCast_eq_natCast_iff' (g ^ e) x p).symm
 
 /-- Computing a logarithm sum from binary modulus, base and target takes one function level.
 Its range endpoint is short even when its value is exponential. -/
 theorem modularLogSum_mem_CountingFunction :
     (fun (p, g, x) => modularLogSum p g x) ∈
       CountingFunction 1 encNat3 encNat := by
-  have hp : ComputableInPolyTime (fun x : ℕ × ℕ × ℕ => x.1) encNat3 encNat := by
-    fun_prop
-  have hg : ComputableInPolyTime (fun x : ℕ × ℕ × ℕ => x.2.1) encNat3 encNat := by
-    fun_prop
-  have hx : ComputableInPolyTime (fun x : ℕ × ℕ × ℕ => x.2.2) encNat3 encNat := by
-    fun_prop
   have hpower : ComputableInPolyTime
       (fun x : (ℕ × ℕ × ℕ) × ℕ =>
         Turing.MultiTapeTM.powMod x.1.1 x.1.2.1 x.2)
@@ -63,22 +54,16 @@ theorem modularLogSum_mem_CountingFunction :
       (fun x : (ℕ × ℕ × ℕ) × ℕ => x.1.2.2 % x.1.1)
       (encPair encNat3 encNat) encNat :=
     ComputableInPolyTime.binary_mod.comp
-      ((hx.comp (ComputableInPolyTime.fst _ _)).prod
-        (hp.comp (ComputableInPolyTime.fst _ _)))
-  have htest : ComputableInPolyTime
-      (fun x : (ℕ × ℕ × ℕ) × ℕ => decide
-        (Turing.MultiTapeTM.powMod x.1.1 x.1.2.1 x.2 = x.1.2.2 % x.1.1))
-      (encPair encNat3 encNat) encBool :=
-    (ComputableInPolyTime.decide_eq' hpower htarget)
+      (show ComputableInPolyTime (fun x : (ℕ × ℕ × ℕ) × ℕ => (x.1.2.2, x.1.1)) _ _ by fun_prop)
   have hterm : ComputableInPolyTime
       (fun x : (ℕ × ℕ × ℕ) × ℕ =>
         if Turing.MultiTapeTM.powMod x.1.1 x.1.2.1 x.2 = x.1.2.2 % x.1.1 then x.2 else 0)
       (encPair encNat3 encNat) encNat := by
     simpa only [decide_eq_true_eq] using
-      ComputableInPolyTime.ite' htest (ComputableInPolyTime.snd _ _)
-        (ComputableInPolyTime.const 0)
+      ComputableInPolyTime.ite' (.decide_eq' hpower htarget) (.snd _ _) (.const 0)
   exact CountingFunction.sum_range (Decoder.pair Decoder.nat (Decoder.pair Decoder.nat Decoder.nat))
-    (CountingFunction.of_polyTime hterm) (ComputableInPolyTime.binary_sub' hp (.const 1))
+    (CountingFunction.of_polyTime hterm)
+    (ComputableInPolyTime.binary_sub' (by fun_prop) (.const 1))
 
 /-- At a primitive root, the computed natural sum is its target's unique bounded logarithm. -/
 theorem modularLogSum_spec {p : ℕ} [Fact p.Prime] {g x : ℕ}

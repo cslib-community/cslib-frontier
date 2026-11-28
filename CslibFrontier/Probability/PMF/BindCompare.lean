@@ -19,7 +19,8 @@ pairs on the support with `bind_apply_add_eq_on_support`. Continuations that agr
 from one exceptional first-stage result differ by at most `ε` plus that result's probability
 (`bind_apply_le_add_of_ne`). Stateful experiments whose first stages agree on good states, and
 whose continuations agree on good states and keep bad states bad, give good outcomes equal
-probability (`bind_apply_eq_of_good`).
+probability (`bind_apply_eq_of_good`). A sampler that keeps the first draw on an event and
+otherwise resamples from its conditional law has that law (`bind_pure_or_resample_eq`).
 
 The one-sided bounds, where the continuations need only be compared on the support, are in
 `CslibFrontier.Probability.PMF.Bind`.
@@ -33,6 +34,7 @@ The one-sided bounds, where the continuations need only be compared on the suppo
   result.
 * `Cslib.Probability.PMF.bind_apply_eq_of_good`: stateful experiments that agree until a bad
   state.
+* `Cslib.Probability.PMF.bind_pure_or_resample_eq`: keep a successful draw or resample.
 -/
 
 public section
@@ -105,5 +107,27 @@ theorem bind_apply_eq_of_good {α β σ : Type*} {bad : σ → Prop} {p₁ p₂ 
   · rw [(PMF.apply_eq_zero_iff _ _).mpr fun hm => hy (h₁ x hx y hm),
       (PMF.apply_eq_zero_iff _ _).mpr fun hm => hy (h₂ x hx y hm), mul_zero, mul_zero]
   · rw [hp x hx, hf x hx y hy]
+
+/-- If the masses of `p` on `s` are a common multiple of the masses of `q`, then drawing from
+`p`, keeping a draw in `s`, and otherwise drawing from `q` gives exactly `q`. -/
+theorem bind_pure_or_resample_eq {α : Type*} {p q : PMF α} (s : Set α) [DecidablePred (· ∈ s)]
+    {c : ℝ≥0∞} (h : ∀ a, s.indicator p a = c * q a) :
+    p.bind (fun a => if a ∈ s then PMF.pure a else q) = q := by
+  classical
+  have hsum : ∑' a, s.indicator p a = c := by
+    simp only [h, ENNReal.tsum_mul_left, q.tsum_coe, mul_one]
+  have hmass : c + ∑' a, sᶜ.indicator p a = 1 := by
+    rw [← hsum, ← tsum_add, ← p.tsum_coe]
+    exact tsum_congr fun a => by by_cases ha : a ∈ s <;> simp [ha]
+  ext b
+  have hterm (a : α) :
+      p a * (if a ∈ s then PMF.pure a else q) b =
+        (if b = a then s.indicator p a else 0) + sᶜ.indicator p a * q b := by
+    by_cases ha : a ∈ s
+    · by_cases hba : b = a <;> simp [ha, hba, PMF.pure_apply]
+    · simp [ha]
+  rw [PMF.bind_apply]
+  simp only [hterm, tsum_add, tsum_ite_eq', ENNReal.tsum_mul_right, h, ← add_mul, hmass,
+    one_mul]
 
 end Cslib.Probability.PMF

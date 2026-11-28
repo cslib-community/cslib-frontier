@@ -26,8 +26,8 @@ register_result "odonnell-margulis-russo-formula" where
     source's −1, so a bit read through signVal has mean μ = 1 − 2p and standard deviation \
     σ = 2√(p(1 − p)). The source's E[f^{(p)}] as a function of μ is \
     m ↦ bernoulliAverage ((1 − m)/2) h, and its derivative at μ is σ⁻¹ Σᵢ f̂^{(p)}(i), with \
-    f̂^{(p)}(i) written out as E_p[h · (signVal (x i) − μ)/σ] (Definitions 8.39 and 8.40) \
-    rather than through a p-biased Fourier basis."
+    σ = biasedStd p and f̂^{(p)}(i) = biasedFourierCoeff p h {i}, the p-biased Fourier \
+    coefficient E_p[h · (signVal (x i) − μ)/σ] of Definitions 8.39 and 8.40."
 
 register_result "odonnell-margulis-russo-monotone" where
   title := "Margulis–Russo Formula for monotone Boolean functions"

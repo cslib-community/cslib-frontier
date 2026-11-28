@@ -69,4 +69,48 @@ TM polynomial time or logarithmic space, or PPT
 #guard_msgs (whitespace := lax) in
 attribute [program_certificate] noProgram
 
+/-- Helper function used to test eager premise validation on valid efficiency certificates. -/
+private def wrapBit (f : List Bool → List Bool) (x : List Bool) : List Bool := f x
+
+private theorem wrapBit_polyTime {f : List Bool → List Bool}
+    (hf : ComputableInPolyTime f encBits encBits) :
+    ComputableInPolyTime (wrapBit f) encBits encBits := hf
+
+/--
+error: unknown eager premise `hlist` for `program_certificate` on
+`ProgramCertificateDiagnostics.wrapBit_polyTime`; available hypotheses: `hf`
+-/
+#guard_msgs (whitespace := lax) in
+attribute [local program_certificate hlist] wrapBit_polyTime
+
+/--
+error: eager premise `f` for `program_certificate` on
+`ProgramCertificateDiagnostics.wrapBit_polyTime` is not a hypothesis; available hypotheses: `hf`
+-/
+#guard_msgs (whitespace := lax) in
+attribute [local program_certificate f] wrapBit_polyTime
+
+/--
+error: duplicate eager premise `hf` for `program_certificate` on
+`ProgramCertificateDiagnostics.wrapBit_polyTime`
+-/
+#guard_msgs (whitespace := lax) in
+attribute [local program_certificate hf hf] wrapBit_polyTime
+
+/-- A nullary efficiency certificate used to check the no-hypothesis error message. -/
+private def idBit (x : List Bool) : List Bool := x
+
+private theorem idBit_polyTime : ComputableInPolyTime idBit encBits encBits :=
+  ComputableInPolyTime.id'
+
+/--
+error: unknown eager premise `hf` for `program_certificate` on
+`ProgramCertificateDiagnostics.idBit_polyTime`; available hypotheses: none
+-/
+#guard_msgs (whitespace := lax) in
+attribute [local program_certificate hf] idBit_polyTime
+
+-- Valid eager premise names register cleanly.
+attribute [local program_certificate hf] wrapBit_polyTime
+
 end ProgramCertificateDiagnostics

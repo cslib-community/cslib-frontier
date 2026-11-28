@@ -67,13 +67,10 @@ constant along the embedded updates. -/
 theorem forcedToConst_image_iff {κ ι : Type*} [Fintype κ] [DecidableEq ι] {emb : κ → ι}
     (hinj : Function.Injective emb) (f : (ι → Bool) → Bool) (w : ι → Bool) :
     ForcedToConst f (univ.image emb) w ↔ ∀ u v : κ → Bool,
-      f (embedUpdate emb w u) = f (embedUpdate emb w v) := by
-  constructor
-  · rintro ⟨b, hb⟩ u v
-    exact (hb (liftAssign emb u)).trans (hb (liftAssign emb v)).symm
-  · intro h
-    exact ⟨f (embedUpdate emb w fun _ => false), fun u => by
-      rw [restrictUpdate_image_eq_embedUpdate hinj, h]⟩
+      f (embedUpdate emb w u) = f (embedUpdate emb w v) :=
+  ⟨fun ⟨_, hb⟩ u v => (hb (liftAssign emb u)).trans (hb (liftAssign emb v)).symm,
+    fun h => ⟨f (embedUpdate emb w fun _ => false), fun _ => by
+      rw [restrictUpdate_image_eq_embedUpdate hinj, h]⟩⟩
 
 variable {κ : Type*} [Fintype κ] {n : ℕ}
 
@@ -146,9 +143,7 @@ theorem circuitLiveForm_mixed_eq (c : Circuit signature n 1) (o : Fin 1) (emb : 
         ∑ k ∈ U, (gateWeight c.program top k * (g k ![true, false]).toNat +
           gateWeight c.program top k * (g k ![false, true]).toNat) :=
       sum_congr rfl fun k hk => by
-        rw [← mul_add, ← mul_add]
-        congr 1
-        exact_mod_cast hg k hk
+        rw [← mul_add, ← mul_add, ← Nat.cast_add, ← Nat.cast_add, hg k hk]
     rw [sum_add_distrib, sum_add_distrib] at h
     simp only [Fin.sum_univ_two, Matrix.cons_val_zero, Matrix.cons_val_one, Bool.toNat_false,
       Bool.toNat_true, Nat.cast_zero, Nat.cast_one]
@@ -177,8 +172,7 @@ theorem isUpperLevelSet_eval_embedUpdate (c : Circuit signature n 1) (hd : c.dep
     refine ⟨1 - ∑ i ∈ (univ.image emb)ᶜ, (if i = i₀ then (1 : ℝ) else 0) * (w i).toNat,
       fun u => ?_⟩
     dsimp only
-    rw [hval, ltfEval_embedUpdate hinj]
-    rfl
+    rw [hval, ltfEval_embedUpdate hinj]; rfl
   | gate top =>
     dsimp only
     have htop : c.program.depths top ≤ 2 := by simpa [Circuit.outputDepths, hout] using hout_le
@@ -192,11 +186,7 @@ theorem isUpperLevelSet_eval_embedUpdate (c : Circuit signature n 1) (hd : c.dep
         (by have := depths_lt_of_mem_gateSupport c.program hk; omega)
     have hconst (k : Fin c.size) : ∃ b : Bool, k ∈ S → k ∉ U → ∀ u, R k u = b := by
       by_cases hk : k ∈ S ∧ k ∉ U
-      · have hf : ForcedToConst
-            (ltfEval (inputWeight c.program k) (c.program.lines k).op.threshold)
-            (univ.image emb) w := by
-          by_contra hnf; exact hk.2 (mem_filter.mpr ⟨hk.1, hnf⟩)
-        obtain ⟨b, hb⟩ := hf
+      · obtain ⟨b, hb⟩ := Classical.byContradiction fun hnf => hk.2 (mem_filter.mpr ⟨hk.1, hnf⟩)
         exact ⟨b, fun _ _ u => hb (liftAssign emb u)⟩
       · exact ⟨false, fun h₁ h₂ => absurd ⟨h₁, h₂⟩ hk⟩
     choose b hb using hconst
@@ -249,7 +239,8 @@ theorem card_image_eval_embedUpdate_le [DecidableEq κ] (c : Circuit signature n
     simp only [E, Prod.mk.injEq] at h
     obtain ⟨⟨hS, hg⟩, hcard⟩ := h
     refine eq_of_isUpperLevelSet_of_card_eq (hlevel w) ?_ hcard
-    rw [hS, hg]; exact hlevel w'
+    rw [hS, hg]
+    exact hlevel w'
   -- `f` factors through `E` on `s`.
   have hle₁ : #(s.image f) ≤ #(s.image E) := by
     refine card_le_card_of_surjOn (fun e => f (Function.invFunOn E ↑s e)) fun y hy => ?_
@@ -269,17 +260,13 @@ theorem card_image_eval_embedUpdate_le [DecidableEq κ] (c : Circuit signature n
       by_cases hk : k ∈ S w
       · simp only [gs, hk, ↓reduceIte, NC, mem_filter, mem_univ, true_and]
         refine ⟨⟨_, ltfEval_embedUpdate hinj _ _ w⟩, ?_⟩
-        by_contra hconst
-        push Not at hconst
+        by_contra! hconst
         exact not_forcedToConst_of_mem_circuitSplitGates hk
           ((forcedToConst_image_iff hinj _ w).mpr hconst)
       · simp [gs, hk]
-    · refine mem_range.mpr (Nat.lt_succ_of_le ((card_filter_le _ _).trans_eq ?_))
-      simp
+    · exact mem_range.mpr (Nat.lt_succ_of_le ((card_filter_le _ _).trans_eq (by simp)))
   have hle₂ : #(s.image E) ≤ #(P ×ˢ range (2 ^ Fintype.card κ + 1)) :=
-    card_le_card fun e he => by
-      obtain ⟨w, hw, rfl⟩ := mem_image.mp he
-      exact hmem w hw
+    card_le_card (image_subset_iff.mpr hmem)
   have hP : #P ≤ B.card.choose D * (2 ^ Fintype.card κ - 1) ^ D := by
     refine card_biUnion_le.trans ?_
     rw [← card_powersetCard, ← smul_eq_mul, ← sum_const]

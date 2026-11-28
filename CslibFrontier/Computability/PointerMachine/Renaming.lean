@@ -81,15 +81,8 @@ structure Model.Renaming (M : Model) where
 /-- Undo a data renaming. -/
 @[simp] theorem State.rename_symm (ρ : M.Renaming) (x : State M L) :
     (x.rename ρ).rename ρ.symm = x := by
-  have hr : (Record.rename ρ.symm ∘ Record.rename ρ : Record M L → Record M L) = id := by
-    funext n
-    cases n
-    simp [Record.rename, Model.Renaming.symm, Function.comp_def]
   cases x
-  simp only [State.rename, List.map_map, hr, List.map_id]
-  congr 1
-  funext s
-  exact ρ.value.symm_apply_apply _
+  simp [State.rename, Record.rename, Model.Renaming.symm, Function.comp_def]
 
 /-- Instructions commute with renaming. -/
 theorem Instr.effect_rename (ρ : M.Renaming) (i : Instr M L) (x : State M L) :
@@ -134,9 +127,8 @@ theorem Instr.next_rename (ρ : M.Renaming) (i : Instr M L) (x : State M L) :
 /-- Every program step commutes with renaming. -/
 theorem step_rename (ρ : M.Renaming) (code : List (Instr M L)) (x : State M L) :
     step code (x.rename ρ) = (step code x).map (State.rename ρ) := by
-  have hpc : (x.rename ρ).pc = x.pc := rfl
   unfold step
-  rw [hpc]
+  rw [show (x.rename ρ).pc = x.pc from rfl]
   cases code[x.pc]? with
   | none => rfl
   | some i => cases i <;> simp only [Instr.effect_rename, Instr.next_rename] <;> rfl

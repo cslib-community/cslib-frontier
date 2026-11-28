@@ -102,25 +102,20 @@ theorem boundedHalting_polyTimeReducible :
   have := Fintype.ofFinite State
   let eS : (Option State × Option Bool) ↪ ℕ :=
     (Fintype.equivFin (Option State × Option Bool)).toEmbedding.trans Fin.valEmbedding
-  let d : Desc := desc eS eBit tm.partialize
-  refine ⟨fun w => mk d w (List.replicate (k * w.length + c₁ + c₂ + 1) true),
-    ?_, fun w => ?_⟩
-  · fun_prop
-  · have hc : c₁ * 2 ^ (k * w.length) + c₂ ≤
-        binaryValue (List.replicate (k * w.length + c₁ + c₂ + 1) true) :=
-      le_binaryValue_replicate_true (k * w.length) c₁ c₂
-    obtain ⟨hhalt, hout⟩ := (htm w).runFrom_of_le hc
-    change _ = [g w] at hout
-    simp only [encBits_apply] at hhalt hout
-    -- The wrapper's halting test is exact at this SAME step count, with no simulation loss.
-    -- True is the complement-decider's yes verdict, hence is precisely the looping branch.
-    change w ∈ BoundedHalting ↔
-      mk (desc eS eBit tm.partialize) w
-        (List.replicate (k * w.length + c₁ + c₂ + 1) true) ∈ BoundedTermination
-    rw [mk_desc_mem_iff, runFrom_partialize, Partialize.liftCfg_halted_iff]
-    simpa only [Cfg.Halted, hhalt, hout, true_and, Partialize.verdict, List.head?_cons, ne_eq,
-      Option.some.injEq,
-      Set.mem_compl_iff, not_not] using not_congr (hg w)
+  refine ⟨fun w => mk (desc eS eBit tm.partialize) w
+    (List.replicate (k * w.length + c₁ + c₂ + 1) true), by fun_prop, fun w => ?_⟩
+  obtain ⟨hhalt, hout⟩ := (htm w).runFrom_of_le
+    (le_binaryValue_replicate_true (k * w.length) c₁ c₂)
+  change _ = [g w] at hout
+  simp only [encBits_apply] at hhalt hout
+  -- The wrapper's halting test is exact at this SAME step count, with no simulation loss.
+  -- True is the complement-decider's yes verdict, hence is precisely the looping branch.
+  change w ∈ BoundedHalting ↔
+    mk (desc eS eBit tm.partialize) w
+      (List.replicate (k * w.length + c₁ + c₂ + 1) true) ∈ BoundedTermination
+  rw [mk_desc_mem_iff, runFrom_partialize, Partialize.liftCfg_halted_iff]
+  simpa only [Cfg.Halted, hhalt, hout, true_and, Partialize.verdict, List.head?_cons, ne_eq,
+    Option.some.injEq, Set.mem_compl_iff, not_not] using not_congr (hg w)
 
 /-- Every E problem reduces to bounded termination, by composing existing bounded-acceptance
 hardness with the exact-verdict bridge. -/

@@ -48,12 +48,9 @@ theorem computableInO_indicator_of_mem_DSPACE {A : Set α} {s : ℕ → ℕ}
     (h : A ∈ DSPACE enc s) :
     ∃ T : α → ℕ, ComputableInO (indicator A) enc encBool T fun a => s (enc a).length := by
   obtain ⟨c₁, c₂, t, hA⟩ := h
-  refine ⟨fun a => t (enc a).length, .of_bounds hA (c₁ + c₂ + 1) (fun a => ?_) (fun a => ?_)
-    fun a => ?_⟩
-  · nlinarith
-  · nlinarith
-  · simp only [encBool_apply, List.length_singleton]
-    nlinarith
+  exact ⟨fun a => t (enc a).length, .of_bounds hA (c₁ + c₂ + 1) (fun _ => by nlinarith)
+    (fun _ => by nlinarith)
+    fun _ => by simp only [encBool_apply, List.length_singleton]; nlinarith⟩
 
 /-- A Boolean function, computable within a space bound of the length of the encoded instance,
 decides a problem within that space. -/
@@ -61,11 +58,9 @@ theorem setOf_mem_DSPACE_of_computableInO {f : α → Bool} {T S : α → ℕ} {
     (h : ComputableInO f enc encBool T S) (hS : ∀ a, S a ≤ s (enc a).length) :
     {a | f a = true} ∈ DSPACE enc s := by
   obtain ⟨c, hc, -⟩ := h
-  refine mem_DSPACE_iff.mpr ⟨c, c, fun a => c * (T a + 1),
-    decidableInTimeAndSpace_iff.mpr ⟨f, hc.mono (fun _ => le_rfl) fun a => ?_, fun _ => Iff.rfl⟩⟩
-  have := Nat.mul_le_mul_left c (hS a)
-  rw [Nat.mul_add, Nat.mul_one]
-  omega
+  refine mem_DSPACE_iff.mpr ⟨c, c, fun a => c * (T a + 1), decidableInTimeAndSpace_iff.mpr
+    ⟨f, hc.mono (fun _ => le_rfl) fun a => ?_, fun _ => Iff.rfl⟩⟩
+  linarith [Nat.mul_le_mul_left c (hS a)]
 
 /-- A Boolean function computable within a workspace budget (`Turing.MultiTapeTM.ComputableInSpace`)
 that is a function of the length of the encoded instance decides a problem within that space. -/

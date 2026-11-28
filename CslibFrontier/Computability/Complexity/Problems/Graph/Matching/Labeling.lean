@@ -80,29 +80,22 @@ theorem pinOccurrence_false {f : OccurrenceLabeling G.matchingInstance Bool}
     (hf : ValidLabeling Table.sem f) (v : ℕ) (hv : v ∈ G.vertices) :
     f (G.pinOccurrence v hv) = false := by
   have hh := hf (G.pinOccurrence v hv).1
-  have he : localTuple f (G.pinOccurrence v hv).1 = [f (G.pinOccurrence v hv)] := by
-    apply List.ext_getElem
-    · simp [localTuple, pinOccurrence, getElem_matchingInstance_pin hv]
-    · intro j hj hk
-      have hj0 : j = 0 := by
-        have : j < 1 := by simpa only [List.length_singleton] using hk
-        omega
-      subst j
-      simp [localTuple, pinOccurrence]
-  rw [he] at hh
   have ht : G.matchingInstance[(G.pinOccurrence v hv).1].rel = Table.pinTable false := by
     simp [pinOccurrence, getElem_matchingInstance_pin hv]
-  rw [ht, Table.sem_eq_true] at hh
+  have he : localTuple f (G.pinOccurrence v hv).1 = [f (G.pinOccurrence v hv)] :=
+    List.ext_getElem (by simp [localTuple, pinOccurrence, getElem_matchingInstance_pin hv])
+      fun j _ hk => by
+        obtain rfl : j = 0 := by simpa using hk
+        simp [localTuple, pinOccurrence]
+  rw [he, ht, Table.sem_eq_true] at hh
   simpa only [Table.pinTable, List.mem_singleton, List.cons.injEq, and_true] using hh.2
 
 /-- Unary pins prevent every private unmatched port from being mutually selected. -/
 theorem not_selected_private {f : OccurrenceLabeling G.matchingInstance Bool}
     (hf : ValidLabeling Table.sem f) (v : ℕ) (hv : v ∈ G.vertices) :
-    2 * v + 1 ∉ selectedVariables f := by
-  intro hs
-  have hh := (mem_selectedVariables.mp hs).2 (G.pinOccurrence v hv) (var_pinOccurrence v hv)
-  rw [pinOccurrence_false hf v hv] at hh
-  contradiction
+    2 * v + 1 ∉ selectedVariables f := fun hs =>
+  Bool.false_ne_true ((pinOccurrence_false hf v hv).symm.trans
+    ((mem_selectedVariables.mp hs).2 (G.pinOccurrence v hv) (var_pinOccurrence v hv)))
 
 /-- Two true ports in one choice constraint name the same variable. -/
 theorem choice_unique {f : OccurrenceLabeling G.matchingInstance Bool}
@@ -110,12 +103,11 @@ theorem choice_unique {f : OccurrenceLabeling G.matchingInstance Bool}
     (hx : x ∈ G.matchingScope v) (hy : y ∈ G.matchingScope v)
     (hfx : f (G.choiceOccurrence v hv x hx) = true)
     (hfy : f (G.choiceOccurrence v hv y hy) = true) : x = y := by
-  have hh := hf (G.choiceOccurrence v hv x hx).1
-  have ht : G.matchingInstance[(G.choiceOccurrence v hv x hx).1].rel =
-      Table.exactlyOne (G.matchingScope v) := by
-    simp [choiceOccurrence, getElem_matchingInstance_vertex hv]
-  rw [ht, Table.sem_exactlyOne_eq_true] at hh
   let i := (G.choiceOccurrence v hv x hx).1
+  have hh := hf i
+  have ht : G.matchingInstance[i].rel = Table.exactlyOne (G.matchingScope v) := by
+    simp [i, choiceOccurrence, getElem_matchingInstance_vertex hv]
+  rw [ht, Table.sem_exactlyOne_eq_true] at hh
   have hcard : ((Finset.univ : Finset (Fin G.matchingInstance[i.val].scope.length)).filter
       fun j => f ⟨i, j⟩ = true).card = 1 := by
     simpa only [localTuple, List.count_eq_countP, List.countP_ofFn, beq_true,
@@ -123,9 +115,8 @@ theorem choice_unique {f : OccurrenceLabeling G.matchingInstance Bool}
   have hj : (G.choiceOccurrence v hv x hx).2 = (G.choiceOccurrence v hv y hy).2 :=
     Finset.card_le_one.mp hcard.le _ (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hfx⟩)
       _ (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hfy⟩)
-  have ho : G.choiceOccurrence v hv x hx = G.choiceOccurrence v hv y hy :=
-    Sigma.ext rfl (heq_of_eq hj)
-  simpa only [var_choiceOccurrence] using congrArg Occurrence.var ho
+  simpa only [var_choiceOccurrence] using congrArg Occurrence.var
+    (Sigma.ext rfl (heq_of_eq hj) : G.choiceOccurrence v hv x hx = G.choiceOccurrence v hv y hy)
 
 end Cslib.Complexity.Graph
 
@@ -148,10 +139,9 @@ variable {G : Graph}
 theorem isMatching_positionsOfLabeling {f : OccurrenceLabeling G.matchingInstance Bool}
     (hf : ValidLabeling Table.sem f) :
     (G.matchingOfPositions (G.positionsOfLabeling f)).IsMatching := by
-  apply isMatching_matchingOfPositions
-  intro v hv i hi j hj hinc hinc'
-  obtain ⟨hi, hsi⟩ := mem_positionsOfLabeling f i |>.mp hi
-  obtain ⟨hj, hsj⟩ := mem_positionsOfLabeling f j |>.mp hj
+  refine isMatching_matchingOfPositions fun v hv i hi j hj hinc hinc' => ?_
+  obtain ⟨hi, hsi⟩ := (mem_positionsOfLabeling f i).mp hi
+  obtain ⟨hj, hsj⟩ := (mem_positionsOfLabeling f j).mp hj
   have hxi := (G.mem_matchingScope_even v i).mpr ⟨hi, hinc⟩
   have hxj := (G.mem_matchingScope_even v j).mpr ⟨hj, hinc'⟩
   have he := choice_unique hf v hv (2 * i) (2 * j) hxi hxj
@@ -164,15 +154,13 @@ theorem selectedVariables_eq_image {f : OccurrenceLabeling G.matchingInstance Bo
     (hf : ValidLabeling Table.sem f) :
     selectedVariables f = (G.positionsOfLabeling f).image (2 * ·) := by
   ext x
-  constructor
-  · intro hx
-    rcases (mem_vars_matchingInstance G).mp (mem_selectedVariables.mp hx).1 with
+  refine ⟨fun hx => ?_, fun hx => ?_⟩
+  · rcases (mem_vars_matchingInstance G).mp (mem_selectedVariables.mp hx).1 with
       ⟨i, hi, rfl⟩ | ⟨v, hv, rfl⟩
     · exact Finset.mem_image.mpr ⟨i, (mem_positionsOfLabeling f i).mpr ⟨hi, hx⟩, rfl⟩
     · exact (not_selected_private hf v hv hx).elim
-  · intro hx
-    obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hx
-    exact (mem_positionsOfLabeling f i).mp hi |>.2
+  · obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hx
+    exact ((mem_positionsOfLabeling f i).mp hi).2
 
 /-- Every feasible generated labeling has precisely one true incidence per declared vertex. -/
 theorem card_true_matchingInstance {f : OccurrenceLabeling G.matchingInstance Bool}
@@ -181,25 +169,25 @@ theorem card_true_matchingInstance {f : OccurrenceLabeling G.matchingInstance Bo
       G.distinctVertices.length := by
   have hc (i : Fin G.matchingInstance.length) :
       (localTuple f i).count true = if i.val < G.distinctVertices.length then 1 else 0 := by
-    have hh := hf i
-    change G.matchingInstance[i.val].rel.sem (localTuple f i) = true at hh
+    have hh : G.matchingInstance[i.val].rel.sem (localTuple f i) = true := hf i
     by_cases hi : i.val < G.distinctVertices.length
-    · have ht : G.matchingInstance[i.val].rel =
+    · have hrel : G.matchingInstance[i.val].rel =
           Table.exactlyOne (G.matchingScope G.distinctVertices[i.val]) := by
         simp [matchingInstance, hi]
-      rw [ht] at hh
-      exact (Table.sem_exactlyOne_eq_true _ _).mp hh |>.2 |>.trans (ite_eq_left hi).symm
-    · have ht : G.matchingInstance[i.val].rel = Table.pinTable false := by
+      rw [hrel] at hh
+      exact ((Table.sem_exactlyOne_eq_true _ _).mp hh).2.trans (ite_eq_left hi).symm
+    · have hrel : G.matchingInstance[i.val].rel = Table.pinTable false := by
         simp [matchingInstance, Nat.le_of_not_gt hi]
-      rw [ht, Table.sem_eq_true] at hh
-      have he : localTuple f i = [false] := by
+      rw [hrel, Table.sem_eq_true] at hh
+      have hloc : localTuple f i = [false] := by
         simpa only [Table.pinTable, List.mem_singleton] using hh.2
-      simp [he, hi]
+      simp [hloc, hi]
   rw [card_true_eq_sum_count]
   simp only [hc]
-  have hn : G.matchingInstance.length = G.distinctVertices.length + G.distinctVertices.length := by
+  have hlen : G.matchingInstance.length =
+      G.distinctVertices.length + G.distinctVertices.length := by
     simp [matchingInstance]
-  rw [hn, Fin.sum_univ_add]
+  rw [hlen, Fin.sum_univ_add]
   simp
 
 /-- The exact objective identity, including isolates and empty graphs. -/

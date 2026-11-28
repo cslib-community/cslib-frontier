@@ -24,6 +24,10 @@ Mathlib's `div_pow` needs a `DivisionCommMonoid`, which `ℝ≥0∞` is not (`0 
 
 * `ENNReal.natCast_div_le_natCast_div_iff`: for `b, d ≠ 0`, `a / b ≤ c / d ↔ a * d ≤ c * b`.
 * `ENNReal.div_pow`: `(a / b) ^ n = a ^ n / b ^ n` for all `a b : ℝ≥0∞`.
+* `ENNReal.one_sub_pow_succ_le`: for `δ ≤ 1`, the recursion
+  `1 - (1 - δ) ^ (n + 1) ≤ (1 - δ) (1 - (1 - δ) ^ n) + δ` behind the probability `1 - (1 - δ) ^ n`
+  that one of `n` independent trials with probability `δ` succeeds.
+* `ENNReal.ofReal_div_natCast`: `ENNReal.ofReal (k / N) = k / N` for natural numbers with `N > 0`.
 -/
 
 public section
@@ -44,5 +48,20 @@ theorem natCast_div_le_natCast_div_iff {a b c d : ℕ} (hb : b ≠ 0) (hd : d �
 /-- A power of a quotient in `ℝ≥0∞` is the quotient of the powers, with no side conditions. -/
 protected theorem div_pow (a b : ℝ≥0∞) (n : ℕ) : (a / b) ^ n = a ^ n / b ^ n := by
   simp only [div_eq_mul_inv, mul_pow, ENNReal.inv_pow]
+
+/-- One more round at flip probability `δ`: the recursion behind `1 - (1 - δ) ^ n`. -/
+theorem one_sub_pow_succ_le {δ : ℝ≥0∞} (hδ : δ ≤ 1) (n : ℕ) :
+    1 - (1 - δ) ^ (n + 1) ≤ (1 - δ) * (1 - (1 - δ) ^ n) + δ := by
+  have hq : 1 - δ + δ = 1 := tsub_add_cancel_of_le hδ
+  have hqtop : 1 - δ ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top tsub_le_self
+  rw [ENNReal.mul_sub (fun _ _ => hqtop), mul_one, ← pow_succ']
+  calc 1 - (1 - δ) ^ (n + 1) = 1 - δ + δ - (1 - δ) ^ (n + 1) := by rw [hq]
+    _ ≤ 1 - δ - (1 - δ) ^ (n + 1) + δ := add_tsub_le_tsub_add
+
+/-- A quotient of natural numbers as an extended nonnegative real is the real quotient. -/
+theorem ofReal_div_natCast (k N : ℕ) (hN : 0 < N) :
+    ENNReal.ofReal ((k : ℝ) / N) = (k : ℝ≥0∞) / N := by
+  rw [ENNReal.ofReal_div_of_pos (by exact_mod_cast hN), ENNReal.ofReal_natCast,
+    ENNReal.ofReal_natCast]
 
 end ENNReal

@@ -70,6 +70,6 @@ example [Fintype (F.Carrier d)] (adversary : F.DHKEMAdversary d (Fin 4 → Bool)
         (F.dhKEMCCAGame d (ProbComp.uniform (Fin 4 → Bool)) adversary false) ≤
       Game.succProbability
         (F.gapCDHGame d (F.dhKEMToGapCDH d (ProbComp.uniform (Fin 4 → Bool)) adversary)) :=
-  F.advantage_dhKEMCCAGame_le d _ adversary
+  F.advantage_dhKEMCCAGame_le_ideal d _ adversary
 
 end CslibFrontierTests.Crypto.GapCDH

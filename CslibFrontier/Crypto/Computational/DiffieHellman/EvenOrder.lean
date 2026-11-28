@@ -142,16 +142,12 @@ theorem eval_ddhRandomExperiment_ddhParityDistinguisher (hq : Even q)
     ProbComp.eval (ddhRandomExperiment q g (ddhParityDistinguisher q)) =
       PMF.uniformOfFintype Bool := by
   refine Probability.PMF.ext_bool ?_
-  have heval :
-      ((ProbComp.eval (ddhRandomExperiment q g (ddhParityDistinguisher q)) true).toReal) =
-        (1 / 2 : ℝ) := by
-    change Pr[ddhRandomExperiment q g (ddhSmallFactorDistinguisher q 2)] = 1 / 2
-    rw [probability_ddhRandomExperiment_ddhSmallFactorDistinguisher q 2 g hq.two_dvd hg]
-    norm_num
   rw [PMF.uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat,
-    ← ENNReal.ofReal_toReal (PMF.apply_ne_top _ _), heval, one_div,
-    ENNReal.ofReal_inv_of_pos (by norm_num)]
+    ← ENNReal.ofReal_toReal (PMF.apply_ne_top _ _)]
+  change ENNReal.ofReal Pr[ddhRandomExperiment q g (ddhSmallFactorDistinguisher q 2)] = 2⁻¹
+  rw [probability_ddhRandomExperiment_ddhSmallFactorDistinguisher q 2 g hq.two_dvd hg]
   norm_num
+  rw [one_div, ENNReal.ofReal_inv_of_pos two_pos, ENNReal.ofReal_ofNat]
 
 /-- The distinguisher of Section 16.1.3 accepts every real DDH triple: its acceptance
 probability in `ddhRealExperiment` is `1`. -/

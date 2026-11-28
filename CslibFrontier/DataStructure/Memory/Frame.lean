@@ -114,9 +114,8 @@ theorem mem_run_of_lt_frontier (s : State) (os : List Op) {a : ℕ} (ha : a < s.
   induction os generalizing s with
   | nil => rfl
   | cons o os ih =>
-    have hw' : ∀ v, Op.write a v ∉ os := fun v hv => hw v (List.mem_cons_of_mem o hv)
     change ((spec w).run (step s o).1 os).1.mem a = s.mem a
-    rw [ih _ (ha.trans_le (frontier_le_step s o)) hw']
+    rw [ih _ (ha.trans_le (frontier_le_step s o)) fun v hv => hw v (List.mem_cons_of_mem o hv)]
     exact mem_step_of_lt_frontier s o ha fun v h => hw v (h ▸ List.mem_cons_self)
 
 /-- A memory program changes an allocated cell only by writing it. -/
@@ -141,10 +140,8 @@ theorem mem_run_of_frontier_le {s : State} {os : List Op} (hv : (spec w).ValidHi
     cases o with
     | read => rfl
     | write b v =>
-      have hb : b < s.frontier := hvo.1
       simp only [step_write] at hf
-      have hab : a ≠ b := by omega
-      exact Function.update_of_ne hab v s.mem
+      exact Function.update_of_ne (hvo.1.trans_le hf).ne' v s.mem
     | alloc k =>
       simp only [step_alloc] at hf
       exact clear_of_not_owns (by wram_omega)
@@ -221,14 +218,10 @@ def Local {β : Type*} (f : State → β) : Prop :=
     s.frontier ≤ s'.frontier → Fits w (s'.frontier + M.room s) → f s' = f s
 
 /-- The abstraction reads only the footprint. -/
-theorem Local.abs : M.Local M.abs := fun hs h hf hr => by
-  obtain ⟨-, habs, -⟩ := M.congr hs h hf hr
-  exact habs
+theorem Local.abs : M.Local M.abs := fun hs h hf hr => (M.congr hs h hf hr).2.1
 
 /-- The room reads only the footprint. -/
-theorem Local.room : M.Local M.room := fun hs h hf hr => by
-  obtain ⟨-, -, -, hroom⟩ := M.congr hs h hf hr
-  exact hroom
+theorem Local.room : M.Local M.room := fun hs h hf hr => (M.congr hs h hf hr).2.2.2
 
 /-- A constant reads no cell. -/
 theorem Local.const {β : Type*} (b : β) : M.Local fun _ => b := fun _ _ _ _ => rfl
@@ -274,9 +267,7 @@ theorem modifies_demonic {α : Type} (p : D.Client α) {s s' : State} {a : α}
     · have hb₁ : b ∉ M.footprint s₁ := fun h =>
         (hgrow₁ b h).elim hb' fun h' => absurd hb (Nat.not_lt.mpr h')
       rw [hmod₂ b (hb.trans_le hf₁) hb₁, hmod₁ b hb hb']
-    · rcases hgrow₂ b hb with h | h
-      · exact hgrow₁ b h
-      · exact .inr (hf₁.trans h)
+    · exact (hgrow₂ b hb).elim (hgrow₁ b) fun h => .inr (hf₁.trans h)
 
 /-! ## Composition -/
 

@@ -95,7 +95,7 @@ theorem primeCofactor_cast {p : ℕ} [Fact p.Prime] (Y L : ℕ) :
   simp only [cofactorFactor_eq, Nat.cast_ite, Nat.cast_one]
   apply BitString.prod_binaryValue_mem (k := Y + 1) (by have := Nat.lt_size_self Y; omega)
   intro q hq
-  have hY := (Nat.mem_primesLE_sdiff_primesLE_iff.mp (mem_erase.mp hq).2).2.2
+  have := (Nat.mem_primesLE_sdiff_primesLE_iff.mp (mem_erase.mp hq).2).2.2
   exact mem_range.mpr (by omega)
 
 /-- Cofactor residues are canonical at every positive modulus. -/
@@ -111,11 +111,9 @@ theorem primeCofactor_eq_zero_of_not_prime {p : ℕ} (hp : ¬p.Prime) (Y L : ℕ
 theorem primeCofactor_ne_zero {p : ℕ} [Fact p.Prime] (Y L : ℕ) :
     (primeCofactor Y L p : ZMod p) ≠ 0 := by
   rw [primeCofactor_cast]
-  apply prod_ne_zero_iff.mpr
-  intro q hq hzero
-  have hqprime := (Nat.mem_primesLE_sdiff_primesLE_iff.mp (mem_erase.mp hq).2).1
-  have hdiv := (ZMod.natCast_eq_zero_iff q p).mp hzero
-  exact (mem_erase.mp hq).1 ((hqprime.dvd_iff_eq (Fact.out : p.Prime).ne_one).mp hdiv)
+  refine prod_ne_zero_iff.mpr fun q hq hzero => (mem_erase.mp hq).1 ?_
+  exact ((Nat.mem_primesLE_sdiff_primesLE_iff.mp (mem_erase.mp hq).2).1.dvd_iff_eq
+    (Fact.out : p.Prime).ne_one).mp ((ZMod.natCast_eq_zero_iff q p).mp hzero)
 
 /-- The natural cofactor output is the canonical representative of the mathematical product. -/
 theorem primeCofactor_eq_val {p : ℕ} [Fact p.Prime] (Y L : ℕ) :
@@ -171,13 +169,11 @@ theorem primeWindowCoefficient_modEq {Y L p k r : ℕ} {X : ℤ} (hp : p.Prime)
         (∏ q ∈ (Nat.primesLE Y \ Nat.primesLE L).erase p, (q : ℤ)) ≡
       (2 : ℤ) ^ k * X [ZMOD (p : ℤ)] := by
   let : Fact p.Prime := ⟨hp⟩
-  have hC := primeCofactor_ne_zero (p := p) Y L
-  have hr' : (r : ZMod p) = (X : ZMod p) := by
-    simpa only [Int.cast_natCast] using (ZMod.intCast_eq_intCast_iff _ _ p).mpr hr
   apply (ZMod.intCast_eq_intCast_iff _ _ p).mp
   simp only [Int.cast_mul, Int.cast_natCast, Int.cast_prod, Int.cast_pow, Int.cast_ofNat]
   rw [primeWindowCoefficient_cast, ← primeCofactor_cast, mul_assoc,
-    inv_mul_cancel₀ hC, mul_one, hr']
+    inv_mul_cancel₀ (primeCofactor_ne_zero Y L), mul_one,
+    show (r : ZMod p) = X by simpa using (ZMod.intCast_eq_intCast_iff _ _ p).mpr hr]
 
 
 /-- Subtype-indexed local congruence, ready for `crt_circle_identity` and its sign callers.
@@ -202,12 +198,9 @@ theorem primeWindowTest_mem {Y L p : α → ℕ}
     (hY : ComputableInPolyTime Y enc encNat)
     (hL : ComputableInPolyTime L enc encNat)
     (hp : ComputableInPolyTime p enc encNat) :
-    (fun x => primeWindowTest (Y x) (L x) (p x)) ∈ CountingFunction 1 enc encBool := by
-  have hprime := preprocess primeTest_mem_CountingFunction hp
-  have hguard : ComputableInPolyTime (fun x => decide (L x < p x ∧ p x ≤ Y x)) enc encBool :=
-    ComputableInPolyTime.decide_and (ComputableInPolyTime.binary_lt' hL hp)
-      (ComputableInPolyTime.binary_le' hp hY)
-  exact map (prod hprime (of_polyTime hguard))
+    (fun x => primeWindowTest (Y x) (L x) (p x)) ∈ CountingFunction 1 enc encBool :=
+  map (prod (preprocess primeTest_mem_CountingFunction hp)
+    (of_polyTime <| .decide_and (.binary_lt' hL hp) (.binary_le' hp hY)))
     (g := fun pair : Bool × Bool => pair.1 && pair.2) (by fun_prop)
 
 private theorem cofactorFactor_mem {Y L p : α → ℕ}
@@ -216,17 +209,14 @@ private theorem cofactorFactor_mem {Y L p : α → ℕ}
     (hp : ComputableInPolyTime p enc encNat) :
     (fun x : α × List Bool => cofactorFactor (Y x.1) (L x.1) (p x.1) x.2) ∈
       CountingFunction 1 (encPair enc encBits) encNat := by
-  have hY' := hY.comp (ComputableInPolyTime.fst enc encBits)
-  have hL' := hL.comp (ComputableInPolyTime.fst enc encBits)
-  have hp' := hp.comp (ComputableInPolyTime.fst enc encBits)
+  have hfst := ComputableInPolyTime.fst enc encBits
   have hq : ComputableInPolyTime (fun x : α × List Bool => BitString.binaryValue x.2)
       (encPair enc encBits) encNat := by fun_prop
-  have hwindow := primeWindowTest_mem hY' hL' hq
-  have hguard := ComputableInPolyTime.decide_ne hq hp'
-  have hselect := ite (of_polyTime (a := 1) hguard) (of_polyTime hq)
-    (of_polyTime (ComputableInPolyTime.const 1))
   simpa only [cofactorFactor, decide_eq_true_eq, Function.comp_apply] using
-    ite hwindow hselect (of_polyTime (ComputableInPolyTime.const 1))
+    ite (primeWindowTest_mem (hY.comp hfst) (hL.comp hfst) hq)
+      (ite (of_polyTime (a := 1) (.decide_ne hq (hp.comp hfst))) (of_polyTime hq)
+        (of_polyTime (.const 1)))
+      (of_polyTime (.const 1))
 
 /-- The uniform cofactor algorithm lies in F_5. The primality factor test is F_1 and the
 conservative product rule adds four levels. All three parameters have binary PT certificates. -/
@@ -250,15 +240,12 @@ theorem primeWindowCoefficient_mem {a : ℕ} (D : Decoder enc) {Y L p k r : α �
     (fun x => primeWindowCoefficient (Y x) (L x) (p x) (k x) (r x)) ∈
       CountingFunction (max a 5) enc encNat := by
   have hcofactor := mono (Nat.le_max_right a 5) (primeCofactor_mem D hY hL hp)
-  have hinverse := powMod (of_polyTime hp) hcofactor
-    (of_polyTime (ComputableInPolyTime.binary_sub' hp (.const 2)))
-  have hpower := powMod (of_polyTime (a := max a 5) hp)
-    (of_polyTime (ComputableInPolyTime.const 2)) (of_polyTime hk)
-  have hscaled := nat_mod (nat_mul hpower (mono (Nat.le_max_left a 5) hr)) (of_polyTime hp)
-  have hvalue := nat_mod (nat_mul hscaled hinverse) (of_polyTime hp)
-  have hprime := preprocess primeTest_mem_CountingFunction hp
-  exact ite (mono (by omega : 1 ≤ max a 5) hprime) hvalue
-    (of_polyTime (ComputableInPolyTime.const 0))
+  have hinverse := powMod (of_polyTime hp) hcofactor (of_polyTime (.binary_sub' hp (.const 2)))
+  have hpower := powMod (of_polyTime (a := max a 5) hp) (of_polyTime (.const 2)) (of_polyTime hk)
+  exact ite (mono (by omega : 1 ≤ max a 5) (preprocess primeTest_mem_CountingFunction hp))
+    (nat_mod (nat_mul (nat_mod (nat_mul hpower (mono (Nat.le_max_left a 5) hr)) (of_polyTime hp))
+      hinverse) (of_polyTime hp))
+    (of_polyTime (.const 0))
 
 end CountingFunction
 end Cslib.Complexity

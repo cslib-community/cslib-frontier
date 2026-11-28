@@ -316,17 +316,14 @@ theorem eval_kemCCARealGame_hybridToKEMCCA (E : SymmetricCipher)
         (hybridDecrypt (fun m sk ct => if ct == kc.2 then some (F n kc.1)
           else (decaps m sk ct).map (F m)) E.decrypt) n keys.2 =
         cca2Phase1Oracle encBits
-          (hybridDecrypt (fun n sk ct => (decaps n sk ct).map (F n)) E.decrypt) n keys.2 := by
-      funext request s
-      simp only [cca2Phase1Oracle, hdec]
-    have hphase2 : ∀ ct, cca2Phase2Oracle encBits
+          (hybridDecrypt (fun n sk ct => (decaps n sk ct).map (F n)) E.decrypt) n keys.2 :=
+      funext₂ fun request s => by simp only [cca2Phase1Oracle, hdec]
+    have hphase2 (ct : List Bool) : cca2Phase2Oracle encBits
         (hybridDecrypt (fun m sk ct => if ct == kc.2 then some (F n kc.1)
           else (decaps m sk ct).map (F m)) E.decrypt) n keys.2 ct =
         cca2Phase2Oracle encBits
-          (hybridDecrypt (fun n sk ct => (decaps n sk ct).map (F n)) E.decrypt) n keys.2 ct := by
-      intro ct
-      funext request s
-      simp only [cca2Phase2Oracle, hdec]
+          (hybridDecrypt (fun n sk ct => (decaps n sk ct).map (F n)) E.decrypt) n keys.2 ct :=
+      funext₂ fun request s => by simp only [cca2Phase2Oracle, hdec]
     simp only [hphase1, hphase2]
     rfl
   rw [PMF.bind_congr_on_support _ _ _ hfixed]
@@ -815,12 +812,10 @@ theorem exists_hybridCCA_reductions (E : SymmetricCipher)
       (isPPTOn_postprocessed_encaps hF hencaps)
       (computableInPolyTime_postprocessed_decaps hF hdecaps) hctPoly hsymPoly hA, fun n => ?_⟩⟩
   dsimp only
-  have h := advantage_hybridCCA_le_two_mul E keyLen F keyGen encaps decaps decBound
-    adversary n (hlaw n) (hcorrect n) (hdec n)
-  dsimp only at h
-  rw [eval_hybridDEMGame E _ _ _ ctBound symBound adversary false n (hct n) (hsym n),
-    eval_hybridDEMGame E _ _ _ ctBound symBound adversary true n (hct n) (hsym n)] at h
-  exact h
+  simpa only [eval_hybridDEMGame E _ _ _ ctBound symBound adversary false n (hct n) (hsym n),
+    eval_hybridDEMGame E _ _ _ ctBound symBound adversary true n (hct n) (hsym n)] using
+    advantage_hybridCCA_le_two_mul E keyLen F keyGen encaps decaps decBound adversary n
+      (hlaw n) (hcorrect n) (hdec n)
 
 /-- Native runtime of the actual postprocessed hybrid game, including both decryption phases.
 No security or key-distribution assumption is required for runtime. -/
@@ -863,15 +858,11 @@ theorem hybridDecrypt_postprocessed_hybridEncrypt (E : SymmetricCipher)
   apply hybridDecrypt_hybridEncrypt (hct := hct)
   · intro k ctK hk
     rw [ProbComp.eval_map, PMF.mem_support_map_iff] at hk
-    obtain ⟨kc, hkc, hpair⟩ := hk
-    cases hpair
-    rw [hcorrect kc hkc]
-    rfl
-  · intro k ctD hk hctD
-    obtain ⟨ctK, hk⟩ := hk
+    obtain ⟨kc, hkc, rfl, rfl⟩ := hk
+    simp [hcorrect kc hkc]
+  · rintro k ctD ⟨ctK, hk⟩ hctD
     rw [ProbComp.eval_map, PMF.mem_support_map_iff] at hk
-    obtain ⟨kc, hkc, hpair⟩ := hk
-    cases hpair
+    obtain ⟨kc, hkc, rfl, rfl⟩ := hk
     exact E.decrypt_encrypt n _ (hsupport kc hkc) msg hmsg ctD hctD
 
 end Cslib.Crypto.Encryption

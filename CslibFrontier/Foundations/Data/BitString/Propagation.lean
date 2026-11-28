@@ -65,19 +65,16 @@ theorem propagate_eq_true_iff (source link : ℕ → Bool) (count : ℕ) :
   | zero => simp [propagate]
   | succ count ih =>
     simp only [propagate, Bool.or_eq_true, Bool.and_eq_true, ih]
-    constructor
-    · rintro (last | ⟨linked, start, startBefore, starts, links⟩)
-      · exact ⟨count, by lia, last, by intro index lower upper; lia⟩
-      · refine ⟨start, by lia, starts, ?_⟩
-        intro index lower upper
-        by_cases atLast : index = count
-        · exact atLast ▸ linked
-        · exact links index lower (by lia)
-    · rintro ⟨start, startBefore, starts, links⟩
-      by_cases atLast : start = count
-      · exact Or.inl (atLast ▸ starts)
-      · exact Or.inr ⟨links count (by lia) (by lia), start, by lia, starts,
-          fun index lower upper => links index lower (by lia)⟩
+    refine ⟨?_, fun ⟨s, hs, hst, hl⟩ => ?_⟩
+    · rintro (last | ⟨linked, s, hs, hst, hl⟩)
+      · refine ⟨count, by omega, last, fun _ lo hi => ?_⟩
+        omega
+      · refine ⟨s, by omega, hst, fun idx lo hi => ?_⟩
+        exact if h : idx = count then h ▸ linked else hl idx lo (by omega)
+    · by_cases h : s = count
+      · exact Or.inl (h ▸ hst)
+      · refine Or.inr ⟨hl count (by omega) (by omega), s, by omega, hst, fun i lo hi => ?_⟩
+        exact hl i lo (by omega)
 
 /-- Adjacent records are linked precisely when their keys agree; the first link is false. -/
 def keyLinks {κ : Type*} [DecidableEq κ] (key : ℕ → κ) (index : ℕ) : Bool :=
@@ -93,29 +90,24 @@ theorem propagate_sorted_eq_true_iff {κ : Type*} [LinearOrder κ] [DecidableEq 
     propagate source (keyLinks key) count = true ↔
       ∃ start, start < count ∧ source start = true ∧ key start = key (count - 1) := by
   rw [propagate_eq_true_iff]
-  constructor
-  · rintro ⟨start, startBefore, starts, links⟩
-    have connected : ∀ index, start ≤ index → index < count → key start = key index := by
-      intro index after
-      induction index, after using Nat.le_induction with
-      | base => intro _; rfl
-      | succ index after ih =>
-        intro before
-        have adjacent : key index = key (index + 1) := by
-          simpa [keyLinks] using links (index + 1) (by lia) before
-        exact (ih (by lia)).trans adjacent
-    exact ⟨start, startBefore, starts, connected (count - 1) (by lia) (by lia)⟩
-  · rintro ⟨start, startBefore, starts, sameKey⟩
-    refine ⟨start, startBefore, starts, ?_⟩
-    intro index after before
-    have hprev : index - 1 < count := by lia
-    have hlast : count - 1 < count := by lia
-    have previousLe : key (index - 1) ≤ key index := sorted hprev before (by lia)
-    have firstLe : key start ≤ key (index - 1) := sorted startBefore hprev (by lia)
-    have lastLe : key index ≤ key (count - 1) := sorted before hlast (by lia)
-    have equal : key (index - 1) = key index :=
-      le_antisymm previousLe (lastLe.trans (sameKey.symm.le.trans firstLe))
-    simp only [keyLinks, ite_eq_right (by lia : index ≠ 0), decide_eq_true_eq]
-    exact equal
+  refine ⟨?_, fun ⟨s, hs, hst, hkey⟩ => ⟨s, hs, hst, fun idx lo hi => ?_⟩⟩
+  · rintro ⟨s, hs, hst, hl⟩
+    have conn : ∀ idx, s ≤ idx → idx < count → key s = key idx := fun idx hle => by
+      induction idx, hle using Nat.le_induction with
+      | base => exact fun _ => rfl
+      | succ idx _ ih =>
+        intro hb
+        have hadj : key idx = key (idx + 1) := by
+          simpa [keyLinks] using hl (idx + 1) (by omega) hb
+        exact (ih (by omega)).trans hadj
+    exact ⟨s, hs, hst, conn (count - 1) (by omega) (by omega)⟩
+  · have hnz : idx ≠ 0 := by omega
+    simp only [keyLinks, ite_eq_right hnz, decide_eq_true_eq]
+    have hprev : idx - 1 < count := by omega
+    have hlast : count - 1 < count := by omega
+    have hle1 : key (idx - 1) ≤ key idx := sorted hprev hi (by omega)
+    have hle2 : key idx ≤ key (count - 1) := sorted hi hlast (by omega)
+    have hle3 : key s ≤ key (idx - 1) := sorted hs hprev (by omega)
+    exact le_antisymm hle1 (hle2.trans (hkey.symm.le.trans hle3))
 
 end Cslib.BitString

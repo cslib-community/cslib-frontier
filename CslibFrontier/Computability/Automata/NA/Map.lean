@@ -77,24 +77,19 @@ theorem map_mTr (f : Symbol → Symbol') (na : FinAcc State Symbol) {s t : State
     · rintro ⟨u, ⟨a, rfl, ha⟩, hu⟩
       obtain ⟨xs, rfl, hxs⟩ := ih.1 hu
       exact ⟨a :: xs, rfl, LTS.MTr.stepL ha hxs⟩
-    · rintro ⟨_ | ⟨a, xs⟩, hxs, h⟩
-      · exact absurd hxs (List.cons_ne_nil b ys).symm
-      · rw [List.map_cons, List.cons.injEq] at hxs
-        obtain ⟨rfl, rfl⟩ := hxs
-        obtain ⟨u, hu, hrest⟩ := LTS.MTr.cons_iff.1 h
-        exact ⟨u, ⟨a, rfl, hu⟩, ih.2 ⟨xs, rfl, hrest⟩⟩
+    · rintro ⟨_ | ⟨a, xs⟩, ⟨⟩, h⟩
+      obtain ⟨u, hu, hrest⟩ := LTS.MTr.cons_iff.1 h
+      exact ⟨u, ⟨a, rfl, hu⟩, ih.2 ⟨xs, rfl, hrest⟩⟩
 
 /-- `na.map f` accepts the image under `f` of the language of `na`. -/
 theorem map_language_eq (f : Symbol → Symbol') (na : FinAcc State Symbol) :
     language (na.map f) = Language.map f (language na) := by
   ext ys
-  simp only [mem_language, Accepts]
-  change _ ↔ ys ∈ List.map f '' _
+  simp only [mem_language, Accepts, Language.map, map_mTr]
   constructor
-  · rintro ⟨s, hs, t, ht, h⟩
-    obtain ⟨xs, rfl, hxs⟩ := (map_mTr f na).1 h
+  · rintro ⟨s, hs, t, ht, xs, rfl, hxs⟩
     exact ⟨xs, ⟨s, hs, t, ht, hxs⟩, rfl⟩
   · rintro ⟨xs, ⟨s, hs, t, ht, hxs⟩, rfl⟩
-    exact ⟨s, hs, t, ht, (map_mTr f na).2 ⟨xs, rfl, hxs⟩⟩
+    exact ⟨s, hs, t, ht, xs, rfl, hxs⟩
 
 end Cslib.Automata.NA.FinAcc

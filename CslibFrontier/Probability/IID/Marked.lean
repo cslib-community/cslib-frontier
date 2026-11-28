@@ -58,41 +58,21 @@ theorem toOuterMeasure_iid_marked (μ : PMF Bool) {k : ℕ} (R : Finset (Fin k))
   let E : Fin k → Set Bool := fun i => if i = ν then {true} else if i ∈ R then {false} else Set.univ
   have hset : {v : Fin k → Bool | v ν = true ∧ ∀ i ∈ R, v i = false} = {v | ∀ i, v i ∈ E i} := by
     ext v
-    simp only [Set.mem_ofPred_eq]
-    constructor
-    · rintro ⟨hvν, hvR⟩ i
-      by_cases hiν : i = ν
-      · simp only [E, hiν, ↓reduceIte, Set.mem_singleton_iff, hvν]
-      · by_cases hiR : i ∈ R
-        · simp only [E, hiν, ↓reduceIte, hiR, Set.mem_singleton_iff, hvR i hiR]
-        · simp only [E, hiν, ↓reduceIte, hiR, Set.mem_univ]
-    · intro hv
-      refine ⟨?_, fun i hi => ?_⟩
-      · simpa only [E, ↓reduceIte, Set.mem_singleton_iff] using hv ν
-      · have hne : i ≠ ν := fun h => hν (h ▸ hi)
-        simpa only [E, hne, ↓reduceIte, hi, Set.mem_singleton_iff] using hv i
-  rw [hset, ← piFin_const, toOuterMeasure_piFin_forall]
+    simp only [Set.mem_ofPred_eq, E]
+    grind
   have hEval (i : Fin k) : μ.toOuterMeasure (E i) =
       if i = ν then μ true else if i ∈ R then μ false else 1 := by
-    by_cases hiν : i = ν
-    · simp [E, hiν]
-    · by_cases hiR : i ∈ R
-      · simp [E, hiν, hiR]
-      · simp [E, hiν, hiR, apply_true_add_apply_false]
+    split_ifs <;> simp [E, *, apply_true_add_apply_false]
+  rw [hset, ← piFin_const, toOuterMeasure_piFin_forall]
   simp only [hEval]
-  rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ ν)]
-  simp only [↓reduceIte]
+  rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ ν), ite_eq_left rfl]
   congr 1
   have hsub : R ⊆ Finset.univ.erase ν := fun i hi =>
     Finset.mem_erase.mpr ⟨fun h => hν (h ▸ hi), Finset.mem_univ i⟩
-  rw [← Finset.prod_subset hsub (fun i hi hiR => by
-    have hne : i ≠ ν := (Finset.mem_erase.mp hi).1
-    simp only [hne, ↓reduceIte, hiR])]
-  have hconst : ∀ i ∈ R, (if i = ν then μ true else if i ∈ R then μ false else 1) = μ false := by
-    intro i hi
-    have hne : i ≠ ν := fun h => hν (h ▸ hi)
-    simp only [hne, ↓reduceIte, hi]
-  rw [Finset.prod_congr rfl hconst, Finset.prod_const]
+  rw [← Finset.prod_subset hsub fun i hi hiR => by
+    simp only [(Finset.mem_erase.mp hi).1, ↓reduceIte, hiR]]
+  exact (Finset.prod_congr rfl fun i hi => by
+    simp only [show i ≠ ν from fun h => hν (h ▸ hi), ↓reduceIte, hi]).trans (Finset.prod_const _)
 
 /-- Sharper bound passed through in the proof of the Claim in Lemma 13.6 ([BonehShoup2023],
 §13.4.1, p. 543): with marking probability `a⁻¹` and at most `a - 1` indices to avoid, the

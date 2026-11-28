@@ -126,8 +126,7 @@ theorem realizes_insert : Realizes .exact
         wr (.inHeap (d 2)) 1
         addRoot (d 2)) >>= fun _ => incrementSize (d 0, d 1)) := by
     simp only [incrementSize, DataStructure.link, insert, PFunctor.FreeM.liftM_bind, bind_assoc]
-  conv => arg 2; ext d; rw [hins]
-  realize [realizes_addRoot, realizes_incrementSize]
+  realize [realizes_addRoot, realizes_incrementSize] rewriting [hins]
   all_goals first
     | exact h.1
     | exact h.2

@@ -68,22 +68,15 @@ theorem exec_scanInsert {w capacity : ℕ} (child : Bool) (x : Data registers) (
   · intro a hout hstamp
     rw [hm]
     split_ifs with hnew
-    · have hmem : shortened child q ∉ S := fun h => hnew.2 (hseen.mpr h)
-      have hcapa := htable.card_lt_of_notMem hcode hmem
-      have hao : a ≠ x.regs childList + x.regs childCount := by
-        intro ha
-        apply hout
-        rw [ha, hcount]
-        change x.regs childList ≤ x.regs childList + S.card ∧
-          x.regs childList + S.card < x.regs childList + capacity
-        exact ⟨by omega, by omega⟩
-      have has : a ≠ x.regs stamps + shortened child q := by
-        intro ha
-        apply hstamp
-        rw [ha]
-        change x.regs stamps ≤ x.regs stamps + shortened child q ∧
-          x.regs stamps + shortened child q < x.regs stamps + capacity
-        exact ⟨by omega, by omega⟩
+    · have hcapa := htable.card_lt_of_notMem hcode fun h => hnew.2 (hseen.mpr h)
+      have hao : a ≠ x.regs childList + x.regs childCount := fun ha =>
+        hout (by
+          rw [ha, hcount]
+          exact ⟨Nat.le_add_right _ _, Nat.add_lt_add_left hcapa _⟩)
+      have has : a ≠ x.regs stamps + shortened child q := fun ha =>
+        hstamp (by
+          rw [ha]
+          exact ⟨Nat.le_add_right _ _, Nat.add_lt_add_left hcode _⟩)
       simp only [Function.update_of_ne has, Function.update_of_ne hao]
     · rfl
 

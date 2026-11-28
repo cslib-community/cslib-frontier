@@ -153,14 +153,9 @@ theorem hasDepthLE_of_layer {C : RectifierCircuit α β V} {d : ℕ} (layer : V 
     (htop : ∀ v : V, layer v ≤ d) : C.HasDepthLE d := by
   have hwalk {u v : V} (p : C.Walk u v) : layer v = layer u + p.length := by
     induction p with
-    | nil _ => simp only [Walk.length_nil, add_zero]
-    | cons h p ih =>
-      rw [Walk.length_cons, ih, hstep h]
-      omega
-  intro u v p
-  have hv := htop v
-  have heq := hwalk p
-  omega
+    | nil _ => simp
+    | cons h _ ih => rw [ih, hstep h, Walk.length_cons, Nat.add_right_comm, Nat.add_assoc]
+  exact fun _ v p => (Nat.le_add_left _ _).trans ((hwalk p).symm ▸ htop v)
 
 /-- `C` *computes* (implements) `A : Matrix α β Bool` if `A i j = true` iff there is a directed walk
 from `inp j` to `out i` ([Sergeev2014ORComplement], p. 1). -/
@@ -210,17 +205,13 @@ theorem Computes.reindexVertices {C : RectifierCircuit α β V} {A : Matrix α �
     (hC : C.Computes A) (e : V ≃ V') : (C.reindexVertices e).Computes A := by
   intro i j
   rw [hC i j]
-  refine ⟨fun ⟨p⟩ => ⟨p.mapEquiv e⟩, fun ⟨q⟩ => ?_⟩
-  have hq := q.unmapEquiv e
-  simp only [RectifierCircuit.reindexVertices, Embedding.trans_apply, Equiv.coe_toEmbedding,
-    Equiv.symm_apply_apply] at hq
-  exact ⟨hq⟩
+  refine ⟨fun ⟨p⟩ => ⟨p.mapEquiv e⟩, fun ⟨q⟩ => ⟨?_⟩⟩
+  simpa only [RectifierCircuit.reindexVertices, Embedding.trans_apply, Equiv.coe_toEmbedding,
+    Equiv.symm_apply_apply] using q.unmapEquiv e
 
 theorem HasDepthLE.reindexVertices {C : RectifierCircuit α β V} {d : ℕ}
-    (hC : C.HasDepthLE d) (e : V ≃ V') : (C.reindexVertices e).HasDepthLE d := by
-  intro u' v' p
-  rw [← p.length_unmapEquiv e]
-  exact hC (p.unmapEquiv e)
+    (hC : C.HasDepthLE d) (e : V ≃ V') : (C.reindexVertices e).HasDepthLE d :=
+  fun _ _ p => p.length_unmapEquiv e ▸ hC (p.unmapEquiv e)
 
 /-- Reindex the input and output pole types of a rectifier circuit along equivalences. -/
 def reindexPoles (C : RectifierCircuit α β V) (eα : α ≃ α') (eβ : β ≃ β') :
@@ -254,10 +245,8 @@ private theorem Walk.length_ofReindexPoles {C : RectifierCircuit α β V} (eα :
   | .cons _ p => congrArg (· + 1) (p.length_ofReindexPoles eα eβ)
 
 theorem HasDepthLE.reindexPoles {C : RectifierCircuit α β V} {d : ℕ}
-    (hC : C.HasDepthLE d) (eα : α ≃ α') (eβ : β ≃ β') : (C.reindexPoles eα eβ).HasDepthLE d := by
-  intro u v p
-  rw [← p.length_ofReindexPoles eα eβ]
-  exact hC (p.ofReindexPoles eα eβ)
+    (hC : C.HasDepthLE d) (eα : α ≃ α') (eβ : β ≃ β') : (C.reindexPoles eα eβ).HasDepthLE d :=
+  fun _ _ p => p.length_ofReindexPoles eα eβ ▸ hC (p.ofReindexPoles eα eβ)
 
 theorem Computes.reindexPoles {C : RectifierCircuit α β V} {A : Matrix α β Bool}
     (hC : C.Computes A) (eα : α ≃ α') (eβ : β ≃ β') :
@@ -283,18 +272,14 @@ def direct [Fintype α] [Fintype β] (A : Matrix α β Bool) : RectifierCircuit 
     nomatch h
 
 @[simp] theorem size_direct [Fintype α] [Fintype β] (A : Matrix α β Bool) :
-    (direct A).size = boolMatrixWeight A := by
-  simp only [size, direct, card_map, boolMatrixWeight]
+    (direct A).size = boolMatrixWeight A := card_map _
 
 theorem hasDepthLE_one_direct [Fintype α] [Fintype β] (A : Matrix α β Bool) :
     (direct A).HasDepthLE 1 := by
-  refine hasDepthLE_of_layer (Sum.elim (fun _ => 0) (fun _ => 1)) ?_ ?_
-  · rintro u v huv
-    obtain ⟨⟨i, j⟩, -, heq⟩ := mem_map.mp huv
-    change (Sum.inl j, Sum.inr i) = (u, v) at heq
-    rw [← (Prod.mk.inj heq).1, ← (Prod.mk.inj heq).2]
-    rfl
-  · rintro (j | i) <;> simp only [Sum.elim_inl, Sum.elim_inr, zero_le, le_refl]
+  refine hasDepthLE_of_layer (Sum.elim (fun _ => 0) (fun _ => 1)) (fun _ _ huv => ?_)
+    fun x => by cases x <;> simp
+  rcases mem_map.mp huv with ⟨⟨_, _⟩, -, ⟨⟩⟩
+  rfl
 
 /-- Any walk between distinct vertices `u ≠ w` begins with at least one directed edge `(u, v)`
 followed by a walk from `v` to `w`. -/
@@ -307,20 +292,14 @@ theorem computes_direct [Fintype α] [Fintype β] (A : Matrix α β Bool) :
     (direct A).Computes A := by
   intro i j
   refine ⟨fun hij => ?_, fun ⟨p⟩ => ?_⟩
-  · refine ⟨.cons (mem_map.mpr ⟨(i, j), mem_filter.mpr ⟨mem_univ _, hij⟩, rfl⟩) (.nil _)⟩
-  · obtain ⟨v, h, ⟨q⟩⟩ := p.uncons ((direct A).inp_ne_out j i)
+  · exact ⟨.cons (mem_map.mpr ⟨(i, j), mem_filter.mpr ⟨mem_univ _, hij⟩, rfl⟩) (.nil _)⟩
+  · rcases p with _ | ⟨h, q⟩
     obtain ⟨⟨i', j'⟩, hmem, heq⟩ := mem_map.mp h
-    change (Sum.inl j', Sum.inr i') = (Sum.inl j, v) at heq
-    simp only [Prod.mk.injEq, Sum.inl.injEq] at heq
-    obtain ⟨rfl, rfl⟩ := heq
-    by_cases hi : i' = i
-    · subst hi
-      exact (mem_filter.mp hmem).2
-    · obtain ⟨_, h₂, -⟩ := q.uncons fun hsum => hi (Sum.inr.inj hsum)
-      obtain ⟨⟨_, _⟩, -, heq₂⟩ := mem_map.mp h₂
-      change (Sum.inl _, Sum.inr _) = (Sum.inr i', _) at heq₂
-      have hbad := (Prod.mk.inj heq₂).1
-      nomatch hbad
+    cases heq
+    rcases q with _ | ⟨h₂, _⟩
+    · exact (mem_filter.mp hmem).2
+    · obtain ⟨_, -, heq₂⟩ := mem_map.mp h₂
+      nomatch heq₂
 
 private theorem card_ite_filter_embedding_le {γ : Type*} [Fintype γ] [DecidableEq V]
     (S : Finset γ) (f : γ ↪ V) (v : V) {K : ℕ} (hK : 1 < K) :
@@ -341,28 +320,24 @@ theorem Computes.boolMatrixWeight_le_sq_pred_mul_size [Fintype α] [Fintype β]
     (hA : IsRectangleFreeMatrix A K) :
     boolMatrixWeight A ≤ (K - 1) ^ 2 * C.size := by
   classical
-  have hKpos : 0 < K := hA.pos
-  rcases eq_or_lt_of_le (show 1 ≤ K by omega) with rfl | hK2
-  · rw [hA.boolMatrixWeight_eq_zero]
-    exact Nat.zero_le _
+  rcases eq_or_lt_of_le (Nat.succ_le_of_lt hA.pos) with rfl | hK2
+  · exact hA.boolMatrixWeight_eq_zero.trans_le (Nat.zero_le _)
   set inSet : V → Finset β := fun v => univ.filter fun j => Nonempty (C.Walk (C.inp j) v)
   set outSet : V → Finset α := fun v => univ.filter fun i => Nonempty (C.Walk v (C.out i))
   set smallIn : V → Finset β :=
     fun u => if #(inSet u) < K then inSet u else univ.filter fun j => C.inp j = u
   set smallOut : V → Finset α :=
     fun w => if #(outSet w) < K then outSet w else univ.filter fun i => C.out i = w
-  have hin_mono {u w : V} (he : (u, w) ∈ C.edges) : inSet u ⊆ inSet w := by
-    intro j hj
-    obtain ⟨p⟩ := (mem_filter.mp hj).2
-    exact mem_filter.mpr ⟨mem_univ _, ⟨p.append (.cons he (.nil w))⟩⟩
+  have hin_mono {u w : V} (he : (u, w) ∈ C.edges) : inSet u ⊆ inSet w := fun j hj =>
+    let ⟨p⟩ := (mem_filter.mp hj).2
+    mem_filter.mpr ⟨mem_univ _, ⟨p.append (.cons he (.nil w))⟩⟩
   have hrect_vertex (v : V) (hin : K ≤ #(inSet v)) : #(outSet v) < K := by
     by_contra hout
-    obtain ⟨I, hIsub, hIcard⟩ := exists_subset_card_eq (s := outSet v) (by omega : K ≤ #(outSet v))
+    obtain ⟨I, hIsub, hIcard⟩ := exists_subset_card_eq (s := outSet v) (Nat.not_lt.mp hout)
     obtain ⟨J, hJsub, hJcard⟩ := exists_subset_card_eq (s := inSet v) hin
-    refine hA I J hIcard hJcard fun i hi j hj => (hC i j).mpr ?_
-    obtain ⟨p₁⟩ := (mem_filter.mp (hJsub hj)).2
-    obtain ⟨p₂⟩ := (mem_filter.mp (hIsub hi)).2
-    exact ⟨p₁.append p₂⟩
+    exact hA I J hIcard hJcard fun i hi j hj => (hC i j).mpr <|
+      (mem_filter.mp (hJsub hj)).2.elim fun p₁ =>
+        (mem_filter.mp (hIsub hi)).2.elim fun p₂ => ⟨p₁.append p₂⟩
   have hcard_smallIn (u : V) : #(smallIn u) ≤ K - 1 :=
     card_ite_filter_embedding_le (inSet u) C.inp u hK2
   have hcard_smallOut (w : V) : #(smallOut w) ≤ K - 1 :=
@@ -373,17 +348,12 @@ theorem Computes.boolMatrixWeight_le_sq_pred_mul_size [Fintype α] [Fintype β]
         ∃ e ∈ C.edges, (i, j) ∈ smallOut e.2 ×ˢ smallIn e.1 := by
     intro u z q
     induction q with
-    | nil _ =>
-      intro _ hne
-      exact False.elim (hne rfl)
+    | nil _ => exact fun _ hne => False.elim (hne rfl)
     | @cons u v z he q' ih =>
       intro hz _ hju huK
-      have hjin : j ∈ smallIn u := by
-        simp only [smallIn, huK, ↓reduceIte]
-        exact hju
+      have hjin : j ∈ smallIn u := by simpa only [smallIn, huK, ↓reduceIte] using hju
       by_cases hv_out : v = z
-      · subst hv_out
-        subst hz
+      · subst hv_out hz
         refine ⟨(u, C.out i), he, mem_product.mpr ⟨?_, hjin⟩⟩
         dsimp only [smallOut]
         split_ifs with houtK
@@ -394,8 +364,8 @@ theorem Computes.boolMatrixWeight_le_sq_pred_mul_size [Fintype α] [Fintype β]
         · subst hz
           have hout_v : #(outSet v) < K := hrect_vertex v (by omega)
           refine ⟨(u, v), he, mem_product.mpr ⟨?_, hjin⟩⟩
-          simp only [smallOut, hout_v, ↓reduceIte]
-          exact mem_filter.mpr ⟨mem_univ _, ⟨q'⟩⟩
+          simpa only [smallOut, outSet, hout_v, ↓reduceIte, mem_filter, mem_univ, true_and] using
+            ⟨q'⟩
   have hcover : (univ.filter fun p : α × β => A p.1 p.2 = true) ⊆
       C.edges.biUnion fun e => smallOut e.2 ×ˢ smallIn e.1 := by
     rintro ⟨i, j⟩ hp
@@ -405,14 +375,10 @@ theorem Computes.boolMatrixWeight_le_sq_pred_mul_size [Fintype α] [Fintype β]
     · exact hwalk_charge p rfl (C.inp_ne_out j i)
         (mem_filter.mpr ⟨mem_univ _, ⟨.nil _⟩⟩) hjK
     · obtain ⟨v, he, ⟨q'⟩⟩ := p.uncons (C.inp_ne_out j i)
-      have hv_in : K ≤ #(inSet v) :=
-        (by omega : K ≤ #(inSet (C.inp j))).trans (card_le_card (hin_mono he))
-      have hout_v : #(outSet v) < K := hrect_vertex v hv_in
+      have hout_v := hrect_vertex v ((Nat.not_lt.mp hjK).trans (card_le_card (hin_mono he)))
       refine ⟨(C.inp j, v), he, mem_product.mpr ⟨?_, ?_⟩⟩
-      · simp only [smallOut, hout_v, ↓reduceIte]
-        exact mem_filter.mpr ⟨mem_univ _, ⟨q'⟩⟩
-      · simp only [smallIn, hjK, ↓reduceIte]
-        exact mem_filter.mpr ⟨mem_univ _, rfl⟩
+      · simpa only [smallOut, outSet, hout_v, ↓reduceIte, mem_filter, mem_univ, true_and] using ⟨q'⟩
+      · simp only [smallIn, hjK, ↓reduceIte, mem_filter, mem_univ, and_self]
   calc boolMatrixWeight A
       ≤ #(C.edges.biUnion fun e => smallOut e.2 ×ˢ smallIn e.1) := card_le_card hcover
     _ ≤ ∑ e ∈ C.edges, #(smallOut e.2 ×ˢ smallIn e.1) := card_biUnion_le
@@ -484,9 +450,8 @@ rectifier circuit of depth at most `d` computing `A`. -/
 theorem le_orDepthComplexity {d : ℕ} {A : Matrix α β Bool} {m : ℕ∞}
     (h : ∀ (k : ℕ) (C : RectifierCircuit α β (Fin k)),
       C.Computes A → C.HasDepthLE d → m ≤ C.size) :
-    m ≤ orDepthComplexity d A := by
-  rw [orDepthComplexity]
-  exact le_iInf fun k => le_iInf fun C => le_iInf fun hC => le_iInf fun hd => h k C hC hd
+    m ≤ orDepthComplexity d A :=
+  le_iInf fun k => le_iInf fun C => le_iInf fun hC => le_iInf fun hd => h k C hC hd
 
 /-- At depth `0`, any Boolean matrix with a `true` entry has `orDepthComplexity 0 A = ⊤`, since
 distinct input and output poles admit no zero-edge walk. -/
@@ -564,20 +529,18 @@ theorem boolMatrixWeight_le_sq_pred_mul_orComplexity [Fintype α] [Fintype β]
 [Nechiporuk1970]). -/
 theorem orComplexity_eq_boolMatrixWeight_of_isRectangleFree_two [Fintype α] [Fintype β]
     {A : Matrix α β Bool} (hA : IsRectangleFreeMatrix A 2) :
-    orComplexity A = boolMatrixWeight A := by
-  refine le_antisymm (orComplexity_le_boolMatrixWeight A) ?_
-  have h := boolMatrixWeight_le_sq_pred_mul_orComplexity hA
-  linarith
+    orComplexity A = boolMatrixWeight A :=
+  le_antisymm (orComplexity_le_boolMatrixWeight A)
+    (by simpa using boolMatrixWeight_le_sq_pred_mul_orComplexity hA)
 
 /-- For every `2`-rectangle-free finite Boolean matrix `A` and every `1 ≤ d`,
 `orDepthComplexity d A = boolMatrixWeight A` ([JuknaSergeev2013], §3.3, Theorem 3.9, p. 33;
 [Sergeev2014ORComplement], p. 1; [Nechiporuk1970]). -/
 theorem orDepthComplexity_eq_boolMatrixWeight_of_isRectangleFree_two [Fintype α] [Fintype β]
     {A : Matrix α β Bool} (hA : IsRectangleFreeMatrix A 2) {d : ℕ} (hd : 1 ≤ d) :
-    orDepthComplexity d A = boolMatrixWeight A := by
-  refine le_antisymm ?_ ?_
-  · exact (orDepthComplexity_anti hd A).trans (orDepthComplexity_one_le_boolMatrixWeight A)
-  · rw [← orComplexity_eq_boolMatrixWeight_of_isRectangleFree_two hA]
-    exact orComplexity_le_orDepthComplexity d A
+    orDepthComplexity d A = boolMatrixWeight A :=
+  le_antisymm ((orDepthComplexity_anti hd A).trans (orDepthComplexity_one_le_boolMatrixWeight A))
+    (orComplexity_eq_boolMatrixWeight_of_isRectangleFree_two hA ▸
+      orComplexity_le_orDepthComplexity d A)
 
 end Cslib.Circuits

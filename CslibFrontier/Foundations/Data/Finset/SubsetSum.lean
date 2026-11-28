@@ -41,27 +41,21 @@ theorem exists_subset_sum_ge {ι : Type*} [DecidableEq ι] (𝓑 : Finset ι) (�
     ∃ 𝒢 ⊆ 𝓑, k ≤ ∑ b ∈ 𝒢, φ b ∧ k ≤ ∑ b ∈ 𝓑 \ 𝒢, φ b := by
   have key : ∀ 𝓑 : Finset ι, (∀ b ∈ 𝓑, φ b ≤ M) → k ≤ ∑ b ∈ 𝓑, φ b →
       ∃ 𝒢 ⊆ 𝓑, k ≤ ∑ b ∈ 𝒢, φ b ∧ ∑ b ∈ 𝒢, φ b ≤ k + M - 1 := by
-    intro 𝓑
+    intro 𝓑 hφ hk
     induction 𝓑 using Finset.induction_on with
     | empty =>
-      intro _ hk
       rw [sum_empty] at hk
       exact ⟨∅, Subset.refl _, by simpa using hk, by simp⟩
     | insert a t ha ih =>
-      intro hφ hk
-      rw [sum_insert ha] at hk
       by_cases hkt : k ≤ ∑ b ∈ t, φ b
       · obtain ⟨𝒢, h𝒢, h1, h2⟩ := ih (fun b hb => hφ b (mem_insert_of_mem hb)) hkt
         exact ⟨𝒢, h𝒢.trans (subset_insert _ _), h1, h2⟩
-      · refine ⟨insert a t, Subset.refl _, ?_, ?_⟩
-        · rw [sum_insert ha]
-          exact hk
-        · rw [sum_insert ha]
-          have := hφ a (mem_insert_self _ _)
-          omega
+      · refine ⟨insert a t, Subset.refl _, hk, ?_⟩
+        have := hφ a (mem_insert_self _ _)
+        rw [sum_insert ha] at hk ⊢
+        omega
   obtain ⟨𝒢, h𝒢, h1, h2⟩ := key 𝓑 hφ (by omega)
-  refine ⟨𝒢, h𝒢, h1, ?_⟩
   have := sum_sdiff (f := φ) h𝒢
-  omega
+  exact ⟨𝒢, h𝒢, h1, by omega⟩
 
 end Finset

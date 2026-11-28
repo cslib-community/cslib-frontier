@@ -222,9 +222,7 @@ theorem readPackedMemProg_realizesBounded :
       (fun w d _ => ∃ N, w = d.2.1 ∧ 0 < w ∧ d.1.2 ≤ w ∧ d.2.2 < N ∧
         Fits w (d.1.1 + packedWords N d.1.2 w))
       (fun _ _ => 0) := by
-  have _ := minProg_realizesBounded
-  have _ := maskProg_realizesBounded
-  realize
+  realize [minProg_realizesBounded, maskProg_realizesBounded]
   all_goals
     rcases h with ⟨N, rfl, hw, hbw, hidx, hfit⟩
     unfold Fits at *
@@ -348,9 +346,7 @@ theorem writePackedMemProg_realizesBounded :
       (fun w d _ => ∃ N, w = d.1.2.1 ∧ 0 < w ∧ d.1.1.2 ≤ w ∧ d.1.2.2 < N ∧
         Fits w (d.1.1.1 + packedWords N d.1.1.2 w))
       (fun _ _ => 0) := by
-  have _ := minProg_realizesBounded
-  have _ := maskProg_realizesBounded
-  realize
+  realize [minProg_realizesBounded, maskProg_realizesBounded]
   all_goals
     rcases h with ⟨N, rfl, hw, hbw, hidx, hfit⟩
     unfold Fits at *
@@ -456,8 +452,7 @@ theorem pushDeltaProg_realizesBounded :
         w = s.mem (base + 2) ∧ 0 < w ∧ s.mem (base + 1) ≤ w ∧ Fits w (s.mem base + 1) ∧
           Fits w (base + 3 + packedWords (s.mem base + 1) (s.mem (base + 1)) w))
       (fun _ _ => 0) := by
-  have _ := packedWordsProg_realizesBounded
-  realize
+  realize [packedWordsProg_realizesBounded]
   all_goals
     rcases h with ⟨rfl, hw, hbw, hfit_n, hfit⟩
     unfold Fits at *
@@ -484,8 +479,7 @@ theorem pushCommitProg_realizesBounded :
         w = s.mem (d.1 + 2) ∧ 0 < w ∧ s.mem (d.1 + 1) ≤ w ∧ Fits w (s.mem d.1 + 1) ∧
           Fits w (d.1 + 3 + packedWords (s.mem d.1 + 1) (s.mem (d.1 + 1)) w))
       (fun _ _ => 0) := by
-  have _ := writePackedMemProg_realizesBounded
-  realize
+  realize [writePackedMemProg_realizesBounded]
   all_goals
     rcases h with ⟨hw_eq, hw, hbw, hfit_n, hfit⟩
     unfold Fits at *
@@ -518,9 +512,7 @@ theorem popPrepProg_realizesBounded :
         w = s.mem (base + 2) ∧ 0 < w ∧ s.mem (base + 1) ≤ w ∧
           Fits w (base + 3 + packedWords (s.mem base) (s.mem (base + 1)) w))
       (fun _ _ => 0) := by
-  have _ := readPackedMemProg_realizesBounded
-  have _ := packedWordsProg_realizesBounded
-  realize
+  realize [readPackedMemProg_realizesBounded, packedWordsProg_realizesBounded]
   all_goals
     rcases h with ⟨rfl, hw, hbw, hfit⟩
     unfold Fits at *
@@ -562,9 +554,7 @@ theorem getSetLenProg_realizesBounded :
           Fits w (d.1.1 + 3 + packedWords (s.mem d.1.1) (s.mem (d.1.1 + 1)) w) ∧
           ((d.1.2 = 2 ∨ d.1.2 = 3) → d.2.1 < s.mem d.1.1))
       (fun _ _ => 0) := by
-  have _ := readPackedMemProg_realizesBounded
-  have _ := writePackedMemProg_realizesBounded
-  realize
+  realize [readPackedMemProg_realizesBounded, writePackedMemProg_realizesBounded]
   all_goals
     rcases h with ⟨hw_eq, hw, hbw, hfit, hidx_cond⟩
     unfold Fits at *

@@ -258,8 +258,7 @@ structure Rep (b n w : ℕ) (s : List ℕ) (x : Data 12) : Prop where
 
 theorem Rep.length_eq {b n w : ℕ} {s : List ℕ} {x : Data 12} (hr : Rep b n w s x) :
     s.length = n := by
-  have h := hr.valid_tree.size_eq
-  simpa only [size_treeOfMem] using h.symm
+  simpa only [size_treeOfMem] using hr.valid_tree.size_eq.symm
 
 /-! ### Downward prefix-query loop (`queryLoop`) -/
 
@@ -320,8 +319,7 @@ theorem queryLoop_spec {w b n m a : ℕ} {s : List ℕ} {x : Data 12}
     · have hm_sz : m ≤ (treeOfMem b n x.mem).tree.size := by
         simpa only [size_tree_treeOfMem] using hm_le
       have hcell : x.mem (b + (m - 1)) = ((s.take m).drop (m - lowbit m)).sum := by
-        have h := hvt.2 m hm_pos hm_sz
-        simpa only [getElem_treeOfMem] using h
+        simpa only [getElem_treeOfMem] using hvt.2 m hm_pos hm_sz
       have hlt : m - lowbit m < m := Nat.sub_lt hm_pos (lowbit_pos hm_pos)
       have hsplit : (s.take m).sum =
           (s.take (m - lowbit m)).sum + ((s.take m).drop (m - lowbit m)).sum := by
@@ -338,9 +336,7 @@ theorem queryLoop_spec {w b n m a : ℕ} {s : List ℕ} {x : Data 12}
       have hb₁ : x₁.regs rBase = b := by simp +decide [x₁, queryNext, hb]
       have hsz₁ : x₁.regs rLen = x.regs rLen := by simp +decide [x₁, queryNext]
       have hfr₁ : x₁.regs rFrontier = x.regs rFrontier := by simp +decide [x₁, queryNext]
-      have hm₁ : x₁.regs rIdx = m - lowbit m := by
-        change m &&& (m - 1) = m - lowbit m
-        exact and_pred_eq_sub_lowbit m
+      have hm₁ : x₁.regs rIdx = m - lowbit m := and_pred_eq_sub_lowbit m
       have ha₁ : x₁.regs rAns = a + x.mem (b + (m - 1)) := by simp +decide [x₁, queryNext]
       have hfit_next : Fits w ((a + x.mem (b + (m - 1))) + (s.take (m - lowbit m)).sum) :=
         hfit_sum.of_le (by rw [hcell, hsplit]; omega)
@@ -433,16 +429,11 @@ theorem updateLoop_spec {w b n m δ S : ℕ} {x : Data 12}
       hfit_sum.of_le (Nat.add_le_add_right (hcells m (Nat.le_refl m) hm_le) δ)
     have hbody := updateBody_exec ho hb hsz hm_reg hd_reg hm_pos hm_le hfit_addr hfit_val
     let x₁ := updateNext x b n m δ
-    have hx₁_mem : x₁.mem = Function.update x.mem (b + (m - 1)) (x.mem (b + (m - 1)) + δ) := by
-      funext a
-      exact updateNext_mem x b n m δ a
-    have hmod₁ : Modifies (Block.mk b n).footprint x.mem x₁.mem := by
-      intro a ha
+    have hx₁_mem : x₁.mem = Function.update x.mem (b + (m - 1)) (x.mem (b + (m - 1)) + δ) :=
+      funext (updateNext_mem x b n m δ)
+    have hmod₁ : Modifies (Block.mk b n).footprint x.mem x₁.mem := fun a ha => by
       rw [hx₁_mem, Function.update_of_ne]
-      intro heq
-      apply ha
-      simp only [Block.mem_footprint, Block.Owns]
-      omega
+      exact fun heq => ha (by simp only [Block.mem_footprint, Block.Owns]; omega)
     have htree₁ : (treeOfMem b n x₁.mem).tree =
         (treeOfMem b n x.mem).tree.modify (m - 1) (· + δ) := by
       rw [hx₁_mem]
@@ -698,14 +689,12 @@ theorem opCode_spec {w b n : ℕ} (hw : 0 < w) (hfit_addr : Fits w (b + n))
     have hclamp : ExecWithin w
         (ram_exact[if rLen < rPos then [rIdx ← rLen] else [rIdx ← rPos]] : Code .exact 12)
         x₀ x₁ 3 := by
+      have hsz₀ : x₀.regs rLen = n := hr.size_eq
+      have harg₀ : x₀.regs rPos = len := hlen_reg
       by_cases hgt : n < len
       · have hm_eq : m = n := Nat.min_eq_right (Nat.le_of_lt hgt)
-        have hsz₀ : x₀.regs rLen = n := hr.size_eq
-        have harg₀ : x₀.regs rPos = len := hlen_reg
         ram_exact_eval [x₁, hm_eq, hsz₀, harg₀, hgt]
       · have hm_eq : m = len := Nat.min_eq_left (Nat.le_of_not_gt hgt)
-        have hsz₀ : x₀.regs rLen = n := hr.size_eq
-        have harg₀ : x₀.regs rPos = len := hlen_reg
         ram_exact_eval [x₁, hm_eq, hsz₀, harg₀, hgt]
     have hfit_take : Fits w (0 + (s.take m).sum) := by
       refine hr.sum_fits.of_le ?_
@@ -1007,18 +996,11 @@ theorem buildCode_spec {w b : ℕ} {s : List ℕ} {x : Data 12}
       set j := z.regs rIdx
       have he_b := buildBody_exec ho_z hb_z hsz_z rfl hj_lt hfit_addr hfit_sum hinv_z
       let z' := buildNext z b n j
-      have ho' : z'.regs rOne = 1 := by
-        dsimp only [z', buildNext]
-        split <;> exact ho_z
-      have hb' : z'.regs rBase = b := by
-        dsimp only [z', buildNext]
-        split <;> exact hb_z
-      have hsz' : z'.regs rLen = n := by
-        dsimp only [z', buildNext]
-        split <;> exact hsz_z
+      have ho' : z'.regs rOne = 1 := by dsimp only [z', buildNext]; split <;> exact ho_z
+      have hb' : z'.regs rBase = b := by dsimp only [z', buildNext]; split <;> exact hb_z
+      have hsz' : z'.regs rLen = n := by dsimp only [z', buildNext]; split <;> exact hsz_z
       have hfr' : z'.regs rFrontier = x.regs rFrontier := by
-        dsimp only [z', buildNext]
-        split <;> exact hfr_z
+        dsimp only [z', buildNext]; split <;> exact hfr_z
       have hidx' : z'.regs rIdx = j + 1 := rfl
       have hlb_eq : (j + 1) - ((j + 1) &&& j) = lowbit (j + 1) := by
         simpa only [Nat.add_sub_cancel] using sub_and_pred_eq_lowbit (j + 1)
@@ -1043,13 +1025,9 @@ theorem buildCode_spec {w b : ℕ} {s : List ℕ} {x : Data 12}
           rw [ite_eq_right_iff.mpr fun h => (hlt h).elim]
           dsimp only [Data.set, Data.write, p]
           rw [hlb_eq]
-        have hmod_step : Modifies (Block.mk b n).footprint z.mem z'.mem := by
-          intro a ha
+        have hmod_step : Modifies (Block.mk b n).footprint z.mem z'.mem := fun a ha => by
           rw [hmem_eq, Function.update_of_ne]
-          intro heq
-          apply ha
-          simp only [Block.mem_footprint, Block.Owns]
-          omega
+          exact fun heq => ha (by simp only [Block.mem_footprint, Block.Owns]; omega)
         have htree_eq : (treeOfMem b n z'.mem).tree =
             (treeOfMem b n z.mem).tree.modify (p - 1)
               (· + (treeOfMem b n z.mem).tree[j]'(by rw [size_tree_treeOfMem]; omega)) := by

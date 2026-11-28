@@ -253,8 +253,7 @@ theorem exists_cover_sqDim (D : PMF X) (C : PACLearning.ConceptClass X Bool) :
   obtain ⟨hGC, hGpair⟩ := (mem_filter.1 hGS).2
   -- A good family has at most `d` members.
   have hcard : G.card ≤ d := by
-    by_contra hlt
-    push Not at hlt
+    by_contra! hlt
     obtain ⟨F, hFG, hF⟩ := Finset.exists_subset_card_eq (show d + 1 ≤ G.card by omega)
     have hle := le_sqDim (D := D) (C := C) (F := F) ((coe_subset.2 hFG).trans hGC) (by
       rw [hF, Nat.cast_add, Nat.cast_one]
@@ -267,16 +266,12 @@ theorem exists_cover_sqDim (D : PMF X) (C : PACLearning.ConceptClass X Bool) :
     rw [corr_self, abs_one, hγ, div_lt_one (by positivity)]
     linarith
   -- Otherwise adding `c` gives a larger family, which is not good.
-  by_contra hnot
-  push Not at hnot
+  by_contra! hnot
   have hins : insert c G ∈ S := by
-    refine mem_filter.2 ⟨mem_univ _, ?_, ?_⟩
-    · rw [coe_insert]
-      exact Set.insert_subset hc hGC
-    · rw [coe_insert]
-      refine hGpair.insert fun g hg _ => ⟨hnot g hg, ?_⟩
-      rw [corr_comm]
-      exact hnot g hg
+    refine mem_filter.2 ⟨mem_univ _, ?_⟩
+    rw [coe_insert]
+    exact ⟨Set.insert_subset hc hGC,
+      hGpair.insert fun g hg _ => ⟨hnot g hg, corr_comm D g c ▸ hnot g hg⟩⟩
   have := hGmax _ hins
   rw [card_insert_of_notMem hcG] at this
   omega
@@ -321,8 +316,7 @@ theorem isQueryBounded_corrLearner (gs : List (X → Bool)) :
   have h := (OracleComp.IsCostBounded.mapM (cost := fun _ => 1) (n := 1) (inputs := gs)
     (program := askCorr) fun g _ => (OracleComp.isCostBounded_map_iff _ _ _).2 (.query _)).bind
     fun answers => .pure (corrHypothesis answers) 0
-  rw [mul_one, add_zero] at h
-  exact h
+  rwa [mul_one, add_zero] at h
 
 omit [Fintype X] in
 /-- Every query of the correlational learner is the correlational query of a concept of the
@@ -345,14 +339,8 @@ private theorem forall₂_askCorr {possible : Query X → Set ℝ} {gs : List (X
   | @cons g p gs answers hp _ ih =>
     rw [askCorr, OracleComp.mem_supportWith_map_iff, OracleComp.supportWith_query] at hp
     obtain ⟨a, ha, rfl⟩ := hp
-    refine ⟨fun p' hp' => ?_, fun g' hg' => ?_⟩
-    · rcases List.mem_cons.1 hp' with rfl | hp'
-      · exact ha
-      · exact ih.1 p' hp'
-    · rcases List.mem_cons.1 hg' with rfl | hg'
-      · exact ⟨a, List.mem_cons_self⟩
-      · obtain ⟨a', ha'⟩ := ih.2 g' hg'
-        exact ⟨a', List.mem_cons_of_mem _ ha'⟩
+    exact ⟨List.forall_mem_cons.2 ⟨ha, ih.1⟩, List.forall_mem_cons.2
+      ⟨⟨a, List.mem_cons_self⟩, fun g' hg' => (ih.2 g' hg').imp fun _ => List.mem_cons_of_mem _⟩⟩
 
 /-- **The correlational learner learns a covered class.** If every concept `c ∈ C` has
 correlation of absolute value more than `γ` with some concept of `gs`, then `corrLearner gs` learns
@@ -372,10 +360,7 @@ theorem learns_corrLearner {D : PMF X} {C : PACLearning.ConceptClass X Bool}
   obtain ⟨a₀, ha₀⟩ := hcovered g₀ hg₀
   rw [corrHypothesis]
   cases hm : answers.argmax fun p => |p.2| with
-  | none =>
-    rw [List.argmax_eq_none] at hm
-    rw [hm] at ha₀
-    exact absurd ha₀ List.not_mem_nil
+  | none => simp [List.argmax_eq_none.1 hm] at ha₀
   | some m =>
     -- The chosen answer has the largest absolute value, so it exceeds `γ - τ` in absolute value.
     have hle : |a₀| ≤ |m.2| :=
@@ -383,10 +368,8 @@ theorem learns_corrLearner {D : PMF X} {C : PACLearning.ConceptClass X Bool}
     have hm_valid : |m.2 - expect D c (corrQuery m.1)| ≤ τ := hvalid m (List.argmax_mem hm)
     have h₀_valid : |a₀ - expect D c (corrQuery g₀)| ≤ τ := hvalid _ ha₀
     rw [expect_corrQuery] at hm_valid h₀_valid
-    have h₀ : |corr D c g₀| - |a₀| ≤ τ := by
-      have := abs_sub_abs_le_abs_sub (corr D c g₀) a₀
-      rw [abs_sub_comm] at this
-      linarith
+    have h₀ : |corr D c g₀| - |a₀| ≤ τ :=
+      (abs_sub_abs_le_abs_sub _ _).trans ((abs_sub_comm _ _).trans_le h₀_valid)
     dsimp only
     split_ifs with hsign
     · -- A nonnegative answer: the concept itself has correlation more than `γ - 2 τ`.
@@ -470,24 +453,15 @@ theorem sqDimOneSided_le (D : PMF X) (C : PACLearning.ConceptClass X Bool) :
   have hd1 : 0 < d + 1 := by linarith
   have h := (hA (1 / (3 * (d + 1)))).learnsStateless.sqDimOneSided_mul_sq_le hq (by positivity)
     (by
-      have : 1 / (2 * (d + 1)) ≤ 1 / 2 := by
-        rw [div_le_div_iff₀ (by positivity) (by norm_num)]
-        linarith
+      have : 1 / (2 * (d + 1)) ≤ 1 / 2 := by gcongr; linarith
       have : 0 ≤ 1 / (3 * (d + 1)) := by positivity
       linarith)
     (by
       field_simp
       ring_nf
       nlinarith)
-  rw [← hd] at h
-  have e : (sqDimOneSided D C : ℝ) =
-      sqDimOneSided D C * (1 / (3 * (d + 1))) ^ 2 * (9 * (d + 1) ^ 2) := by
-    field_simp
-    ring
-  rw [e]
-  calc (sqDimOneSided D C : ℝ) * (1 / (3 * (d + 1))) ^ 2 * (9 * (d + 1) ^ 2)
-      ≤ (2 * d + 2) * (9 * (d + 1) ^ 2) := mul_le_mul_of_nonneg_right h (by positivity)
-    _ = 18 * (d + 1) ^ 3 := by ring
+  rw [← hd, one_div_pow, mul_one_div, div_le_iff₀ (by positivity)] at h
+  linarith
 
 /-! ### The characterization of weak learning -/
 
@@ -543,32 +517,17 @@ theorem tfae_polynomiallyBounded_sqDim {X : ℕ → Type} [∀ n, Fintype (X n)]
       ((hp.add (PolynomiallyBounded.const 1)).pow 2)).mono_of_le fun n => ?_
     obtain ⟨A, hAq, hA⟩ := h n
     set P : ℝ := (p n : ℝ) + 1 with hP
-    have hP1 : 1 ≤ P := by
-      rw [hP]
-      linarith [(Nat.cast_nonneg (p n) : (0 : ℝ) ≤ p n)]
+    have hP1 : 1 ≤ P := le_add_of_nonneg_left (Nat.cast_nonneg _)
     -- Raise a negative error bound to `0`, which only weakens the guarantee.
     have hA' : LearnsStateless A (D n) (C n) (1 / P) (max (1 / 2 - 1 / P) 0) :=
       fun c hc answer hanswer => (hA c hc answer hanswer).trans (le_max_left _ _)
     have hτ : (0 : ℝ) ≤ 1 / P := by positivity
     have hετ : 1 / P ≤ 1 - 2 * max (1 / 2 - 1 / P) 0 := by
-      have h1P : 1 / P ≤ 1 := by
-        rw [div_le_one (by linarith)]
-        exact hP1
-      rcases le_total (1 / 2 - 1 / P) 0 with hle | hle
-      · rw [max_eq_right hle]
-        linarith
-      · rw [max_eq_left hle]
-        linarith
+      have : 1 / P ≤ 1 := div_le_one_of_le₀ hP1 (by linarith)
+      rcases max_cases (1 / 2 - 1 / P) 0 with ⟨h, -⟩ | ⟨h, -⟩ <;> rw [h] <;> linarith
     have hbound := hA'.sqDimOneSided_mul_sq_le hAq hτ (le_max_right _ _) hετ
-    have hPpos : 0 < P := by linarith
-    have hreal : (sqDimOneSided (D n) (C n) : ℝ) ≤ (2 * q n + 2) * P ^ 2 := by
-      have e : (sqDimOneSided (D n) (C n) : ℝ) =
-          sqDimOneSided (D n) (C n) * (1 / P) ^ 2 * P ^ 2 := by
-        field_simp
-      rw [e]
-      exact mul_le_mul_of_nonneg_right hbound (by positivity)
-    rw [hP] at hreal
-    exact_mod_cast hreal
+    rw [one_div_pow, mul_one_div, div_le_iff₀ (by positivity), hP] at hbound
+    exact_mod_cast hbound
   tfae_have 2 → 1 := fun h => h.mono_of_le fun n => sqDim_le_sqDimOneSided (D n) (C n)
   tfae_finish
 

@@ -29,7 +29,6 @@ variable {k : ℕ} {State : Type} [Fintype State] [DecidableEq State]
 -- and `gateCode_inSpace`.
 example (tm : MultiTapeTM k Bool State) (C d : ℕ)
     (hn : ComputableInSpace n encIn encNat Bs)
-    (hin : (fun x => (encIn x).length) ≼ Bs)
     (hg : ComputableInSpace g encIn encNat Bs) :
     ComputableInSpace (fun x => Tableau.gfStart k State (CircuitValue.timeBound C d (n x)))
       encIn encNat Bs ∧
@@ -39,11 +38,11 @@ example (tm : MultiTapeTM k Bool State) (C d : ℕ)
       encIn encNat Bs ∧
     ComputableInSpace (fun x => Tableau.gateCode tm (n x) (CircuitValue.timeBound C d (n x)) (g x))
       encIn encGate Bs :=
-  let hT := CircuitValue.timeBound_inSpace C d hin hn
-  ⟨Tableau.gfStart_inSpace hT hin,
-    Tableau.blockSize_inSpace hT hin,
-    CircuitValue.numGates_inSpace hin hT,
-    Tableau.gateCode_inSpace tm hn hT hin hg⟩
+  let hT := CircuitValue.timeBound_inSpace C d hn
+  ⟨Tableau.gfStart_inSpace hT,
+    Tableau.blockSize_inSpace hT,
+    CircuitValue.numGates_inSpace hT,
+    Tableau.gateCode_inSpace tm hn hT hg⟩
 end PlainTableauBudgets
 
 /-- The tableau's output wire lies within its wires, and the time bound of the reduction leaves

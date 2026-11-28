@@ -46,12 +46,10 @@ namespace Internal
 theorem geometric_error_le {d n : ℕ} (hn : n ≤ d) {ε L : ℝ}
     (hε : 0 ≤ ε) (hL : 0 ≤ L) (hbudget : ε * 3 ^ (d + 1) ≤ 2) :
     (3 / 2 : ℝ) * ε * L * (3 ^ n - 1) ≤ L := by
-  have hp : (3 : ℝ) ^ (n + 1) ≤ 3 ^ (d + 1) :=
-    pow_le_pow_right₀ (by norm_num) (Nat.succ_le_succ hn)
-  have hb := (mul_le_mul_of_nonneg_left hp hε).trans hbudget
-  have hm := mul_le_mul_of_nonneg_right hb hL
-  rw [pow_succ] at hm
-  nlinarith [mul_nonneg hε hL]
+  have hm := mul_le_mul_of_nonneg_right ((mul_le_mul_of_nonneg_left
+    (pow_le_pow_right₀ (by norm_num) (Nat.succ_le_succ hn) : (3 : ℝ) ^ (n + 1) ≤ 3 ^ (d + 1))
+    hε).trans hbudget) hL
+  rw [pow_succ] at hm; nlinarith [mul_nonneg hε hL]
 
 /-- If `0 ≤ ε`, `0 ≤ L`, `ε * 3 ^ (d + 1) ≤ 2`, `u 0 ≤ L`, `v 0 ≤ 0`, and for all `n < d` both
 `u (n + 1) ≤ (1 + ε) * u n + 3 * v n` and `v (n + 1) ≤ ε * u n + 3 * v n`, then `u n ≤ 2 * L` and
@@ -68,26 +66,22 @@ theorem coupled_profiles_bound (d : ℕ) (u v : ℕ → ℝ) (ε L : ℝ)
     intro n
     induction n with
     | zero =>
-        intro _
-        simpa using And.intro hu0 hv0
+      intro _
+      simpa using ⟨hu0, hv0⟩
     | succ n ih =>
-        intro hn
-        have hnd : n ≤ d := by omega
-        obtain ⟨hun, hvn⟩ := ih hnd
-        have he := geometric_error_le hnd hε hL hbudget
-        have hun' : u n ≤ 2 * L := by linarith
-        have heu := mul_le_mul_of_nonneg_left hun' hε
-        have hnu := hu n (by omega)
-        have hnv := hv n (by omega)
-        constructor
-        · rw [pow_succ]
-          nlinarith [mul_nonneg hε hL]
-        · rw [pow_succ]
-          nlinarith
+      intro hn
+      obtain ⟨hun, hvn⟩ := ih (by omega)
+      have he := geometric_error_le (by omega : n ≤ d) hε hL hbudget
+      have heu : ε * u n ≤ ε * (2 * L) := mul_le_mul_of_nonneg_left (by linarith) hε
+      have hnu := hu n (by omega)
+      have hnv := hv n (by omega)
+      rw [pow_succ]
+      constructor
+      · nlinarith [mul_nonneg hε hL]
+      · nlinarith
   intro n hn
   obtain ⟨hun, hvn⟩ := strong n hn
-  have he := geometric_error_le hn hε hL hbudget
-  exact ⟨by linarith, hvn⟩
+  exact ⟨by linarith [geometric_error_le hn hε hL hbudget], hvn⟩
 
 end Internal
 

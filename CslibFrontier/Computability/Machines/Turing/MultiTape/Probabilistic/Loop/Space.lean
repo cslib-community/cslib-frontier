@@ -50,9 +50,7 @@ private theorem natAbs_workTapePos_step_le (M : MultiTapePTM k Bool State) (bit 
     (((M.withCoin bit).step c).tapes.workTapePos j).natAbs ≤
       (c.tapes.workTapePos j).natAbs + 1 := by
   cases hs : c.tapes.state with
-  | none =>
-    simp only [MultiTapeMachine.step, hs]
-    omega
+  | none => simp only [MultiTapeMachine.step, hs]; omega
   | some q =>
     simp only [MultiTapeMachine.step, withCoin, hs]
     cases htr : M.tr q c.tapes.inputSymbol c.tapes.workTapeSymbols c.answerSymbols bit with
@@ -70,19 +68,13 @@ private theorem natAbs_workTapePos_replay_le (M : MultiTapePTM k Bool State)
       ((M.runClosedConfigFromCoins cs cfg).tapes.workTapePos j).natAbs ≤
         (cfg.tapes.workTapePos j).natAbs + cs.length by
     simpa only [hzero j, Int.natAbs_zero, Nat.zero_add] using this coins c
-  intro cs
-  induction cs with
-  | nil =>
-    intro cfg
-    simp only [runClosedConfigFromCoins, List.foldl_nil, List.length_nil, Nat.add_zero, le_refl]
+  intro cs cfg
+  induction cs generalizing cfg with
+  | nil => simp [runClosedConfigFromCoins]
   | cons bit rest ih =>
-    intro cfg
-    simp only [runClosedConfigFromCoins, List.foldl_cons, List.length_cons]
     have h1 := natAbs_workTapePos_step_le M bit cfg j
     have h2 := ih ((M.withCoin bit).step cfg)
-    change ((M.runClosedConfigFromCoins rest ((M.withCoin bit).step cfg)).tapes.workTapePos
-      j).natAbs ≤ _
-    omega
+    simp only [runClosedConfigFromCoins, List.foldl_cons, List.length_cons] at h2 ⊢; omega
 
 private theorem replay_cons (M : MultiTapePTM k Bool State) (bit : Bool) (rest : List Bool)
     (c : Config k Bool State Empty x) :
@@ -129,12 +121,11 @@ private theorem runsWords_closed_completed {ws₀ : Fin k → List Bool} {out₀
     ∃ a, (a, ()) ∈ (ProbOracleComp.runWith emptyOracle prog ()).support ∧
       (M.runClosedConfigFromCoins coins cfg).tapes =
         wordsCfg x none (ws₁ a) (out₀ ++ emit a) := by
-  have hhalt := runsWords_closed_halted M h cfg htapes
-  have hsupp := completed_replay_mem_support M cfg t hhalt coins hstate
   have hmem : (M.runClosedConfigFromCoins coins cfg, ()) ∈
       (ProbOracleComp.runWith emptyOracle (M.runOracleConfigFrom t cfg) ()).support := by
     rw [runOracleConfigFrom_empty, ProbOracleComp.runWith_sample, PMF.mem_support_map_iff]
-    exact ⟨_, hsupp, rfl⟩
+    exact ⟨_, completed_replay_mem_support M cfg t (runsWords_closed_halted M h cfg htapes)
+      coins hstate, rfl⟩
   exact (h.mem_support emptyOracle () cfg htapes (fun op => op.elim) hmem).1
 
 /-- Along any fixed-coin replay of a closed `RunsWords` phase of step bound `t`, every work-tape
@@ -152,15 +143,13 @@ theorem workTapePos_runsWords_mem_window {ws₀ : Fin k → List Bool} {out₀ :
   · obtain ⟨_, _, hfin⟩ := runsWords_closed_completed M h cfg htapes coins hdone
     rw [hfin]
     simp only [wordsCfg, mem_window, Int.natAbs_zero, Nat.zero_le]
-  · have hlt : coins.length < t := by
-      by_contra hge
-      have hle : t ≤ coins.length := Nat.le_of_not_lt hge
+  · have hlt : coins.length < t := by_contra fun hge => by
       have hhalt := runsWords_closed_halted M h cfg htapes
       have hm := M.runClosedConfigFromCoins_mem_support coins cfg
-      rw [eval_runClosedConfigFrom_eq_of_halted M cfg hle hhalt] at hm
+      rw [eval_runClosedConfigFrom_eq_of_halted M cfg (Nat.le_of_not_lt hge) hhalt] at hm
       exact hdone (hhalt _ hm)
-    have hzero : ∀ i, cfg.tapes.workTapePos i = 0 := fun i => by rw [htapes]; rfl
-    exact mem_window.mpr ((natAbs_workTapePos_replay_le M coins cfg hzero j).trans hlt.le)
+    exact mem_window.mpr
+      ((natAbs_workTapePos_replay_le M coins cfg (fun i => by rw [htapes]; rfl) j).trans hlt.le)
 
 /-- Split `coins` at the first point where `M` reaches `state = none`. -/
 private def splitUntilHalted (M : MultiTapePTM k Bool State)
@@ -185,9 +174,8 @@ theorem step_withCoin_repeatUntilBlank_live (i : Fin k) (body : MultiTapePTM k B
   have hinp : (RepeatUntilBlank.runConfig c).tapes.inputSymbol = c.tapes.inputSymbol := rfl
   have hwork : (RepeatUntilBlank.runConfig c).tapes.workTapeSymbols =
       c.tapes.workTapeSymbols := rfl
-  have hans : (RepeatUntilBlank.runConfig c).answerSymbols = c.answerSymbols :=
-    Subsingleton.elim _ _
-  simp only [MultiTapeMachine.step, withCoin, repeatUntilBlank, hstate, hq, hinp, hwork, hans]
+  simp only [MultiTapeMachine.step, withCoin, repeatUntilBlank, hstate, hq, hinp, hwork,
+    Subsingleton.elim (RepeatUntilBlank.runConfig c).answerSymbols c.answerSymbols]
   cases body.tr q c.tapes.inputSymbol c.tapes.workTapeSymbols c.answerSymbols bit with
   | step action symbol move =>
     simp only [RepeatUntilBlank.runAction, RepeatUntilBlank.runConfig, Config.step,
@@ -209,9 +197,8 @@ private theorem splitUntilHalted_spec (i : Fin k) (body : MultiTapePTM k Bool St
   | case3 c bit rest hhalt pair ih => -- running: step, then recurse
     obtain ⟨happ, hrep, hpost⟩ := ih
     refine ⟨congrArg (bit :: ·) happ, ?_, hpost⟩
-    simp only [runClosedConfigFromCoins, List.foldl_cons]
-    rw [step_withCoin_repeatUntilBlank_live i body bit c hhalt]
-    exact hrep
+    simpa only [runClosedConfigFromCoins, List.foldl_cons,
+      step_withCoin_repeatUntilBlank_live i body bit c hhalt] using hrep
 
 /-- With a fixed coin, the blank test on an empty word halts. -/
 theorem step_withCoin_repeatUntilBlank_check_nil (i : Fin k)
@@ -221,11 +208,10 @@ theorem step_withCoin_repeatUntilBlank_check_nil (i : Fin k)
     ((repeatUntilBlank i body).withCoin bit).step c =
       { tapes := wordsCfg x none ws out₀, channels := Empty.elim } := by
   rw [Config.eq_iff_tapes_eq]
-  have hstate : c.tapes.state = some (.inr ()) := by rw [hc]; rfl
   have hsym : c.tapes.workTapeSymbols i = none := by
-    rw [hc]
-    simp only [Cfg.workTapeSymbols, wordsCfg, tapeOfList_zero, hi, List.head?_nil]
-  simp only [MultiTapeMachine.step, withCoin, repeatUntilBlank, hstate,
+    simp only [hc, Cfg.workTapeSymbols, wordsCfg, tapeOfList_zero, hi, List.head?_nil]
+  simp only [MultiTapeMachine.step, withCoin, repeatUntilBlank,
+    (hc ▸ rfl : c.tapes.state = some (.inr ())),
     RepeatUntilBlank.checkAction, hsym, Option.map_none, Config.step]
   rw [hc, RepeatUntilBlank.apply_idle_wordsCfg]
 
@@ -239,14 +225,42 @@ theorem step_withCoin_repeatUntilBlank_check_ne_nil (i : Fin k)
         { tapes := wordsCfg x (some body.initial) ws out₀, channels := Empty.elim } := by
   obtain ⟨b, _, hb⟩ := List.exists_cons_of_ne_nil hi
   rw [Config.eq_iff_tapes_eq]
-  have hstate : c.tapes.state = some (.inr ()) := by rw [hc]; rfl
   have hsym : c.tapes.workTapeSymbols i = some b := by
-    rw [hc]
-    simp only [Cfg.workTapeSymbols, wordsCfg, tapeOfList_zero, hb, List.head?_cons]
-  simp only [MultiTapeMachine.step, withCoin, repeatUntilBlank, hstate,
+    simp only [hc, Cfg.workTapeSymbols, wordsCfg, tapeOfList_zero, hb, List.head?_cons]
+  simp only [MultiTapeMachine.step, withCoin, repeatUntilBlank,
+    (hc ▸ rfl : c.tapes.state = some (.inr ())),
     RepeatUntilBlank.checkAction, hsym, Option.map_some, Config.step, RepeatUntilBlank.runConfig]
   rw [hc, RepeatUntilBlank.apply_idle_wordsCfg]
   simp only [mapState_wordsCfg, handOver, Option.elim_some]
+
+private theorem repeatUntilBlank_round_mem_window (i : Fin k) {body : MultiTapePTM k Bool State}
+    {σ : Type} {ws : σ → Fin k → List Bool}
+    {prog : ProbOracleComp (fun _ : Empty × List Bool => List Bool) σ}
+    {ws₀ : Fin k → List Bool} {out₀ : List Bool} {t : ℕ}
+    (hbody : body.RunsWords x ws₀ out₀ t prog ws (fun _ => []))
+    (cfg : Config k Bool State Empty x)
+    (hcfg : cfg.tapes = wordsCfg x (some body.initial) ws₀ out₀) (cs : List Bool) (j : Fin k)
+    (hnext : ∀ s' bit rest (c : Config k Bool (State ⊕ Unit) Empty x),
+      (s', ()) ∈ (ProbOracleComp.runWith emptyOracle prog ()).support →
+      c.tapes = wordsCfg x (some (.inr ())) (ws s') out₀ →
+      ((repeatUntilBlank i body).runClosedConfigFromCoins rest
+        (((repeatUntilBlank i body).withCoin bit).step c)).tapes.workTapePos j ∈ window t) :
+    ((repeatUntilBlank i body).runClosedConfigFromCoins cs
+      (RepeatUntilBlank.runConfig cfg)).tapes.workTapePos j ∈ window t := by
+  obtain ⟨happ, hrep, hpost⟩ := splitUntilHalted_spec i body cfg cs
+  set before := (splitUntilHalted body cfg cs).1
+  set after := (splitUntilHalted body cfg cs).2
+  rw [happ, replay_append, hrep]
+  rcases after with _ | ⟨bit, rest⟩
+  · simp only [runClosedConfigFromCoins, List.foldl_nil, RepeatUntilBlank.runConfig,
+      Cfg.mapState]
+    exact workTapePos_runsWords_mem_window body hbody cfg hcfg before j
+  · obtain ⟨s', hs', htapes'⟩ := runsWords_closed_completed body hbody cfg hcfg before
+      (hpost.resolve_left (List.cons_ne_nil bit rest))
+    rw [List.append_nil] at htapes'
+    rw [replay_cons]
+    refine hnext s' bit rest _ hs' ?_
+    simp only [RepeatUntilBlank.runConfig, htapes', mapState_wordsCfg, handOver_none]
 
 /-- **Round-independent head window for `repeatUntilBlank`.** Under the closed `RunsWords`
 invariants of `RunsWords.repeatUntilBlank` with per-round step bound `t`, every fixed-coin replay of
@@ -285,52 +299,21 @@ theorem workTapePos_repeatUntilBlank_mem_window (i : Fin k)
   | zero =>
     intro n s cfg cs hnm hs hcfg
     subst hnm
-    have hbody := hlast s hs
-    obtain ⟨happ, hrep, hpost⟩ := splitUntilHalted_spec i body cfg cs
-    set before := (splitUntilHalted body cfg cs).1
-    set after := (splitUntilHalted body cfg cs).2
-    rw [happ, replay_append, hrep]
-    rcases after with _ | ⟨bit, rest⟩
-    · simp only [runClosedConfigFromCoins, List.foldl_nil, RepeatUntilBlank.runConfig,
-        Cfg.mapState]
-      exact workTapePos_runsWords_mem_window body hbody cfg hcfg before j
-    · have hdone : (body.runClosedConfigFromCoins before cfg).tapes.state = none :=
-        hpost.resolve_left (List.cons_ne_nil bit rest)
-      obtain ⟨s', hs', htapes'⟩ := runsWords_closed_completed body hbody cfg hcfg before hdone
-      rw [List.append_nil] at htapes'
-      have hcheck_tapes :
-          (RepeatUntilBlank.runConfig (body.runClosedConfigFromCoins before cfg)).tapes =
-            wordsCfg x (some (.inr ())) (ws s') out₀ := by
-        simp only [RepeatUntilBlank.runConfig, htapes', mapState_wordsCfg, handOver_none]
-      rw [replay_cons, step_withCoin_repeatUntilBlank_check_nil i body bit (ws s') out₀
-        (hstop s hs Unit emptyOracle () () s' hs') _ hcheck_tapes, replay_halted _ rest _ rfl]
-      simp only [wordsCfg, mem_window, Int.natAbs_zero, Nat.zero_le]
+    refine repeatUntilBlank_round_mem_window i (hlast s hs) cfg hcfg cs j
+      fun s' bit rest c hs' hc => ?_
+    rw [step_withCoin_repeatUntilBlank_check_nil i body bit (ws s') out₀
+      (hstop s hs Unit emptyOracle () () s' hs') c hc, replay_halted _ rest _ rfl]
+    simp only [wordsCfg, mem_window, Int.natAbs_zero, Nat.zero_le]
   | succ m ih =>
     intro n s cfg cs hnm hs hcfg
     have hn : n < rounds := by omega
-    have hbody := hstep n hn s hs
-    obtain ⟨happ, hrep, hpost⟩ := splitUntilHalted_spec i body cfg cs
-    set before := (splitUntilHalted body cfg cs).1
-    set after := (splitUntilHalted body cfg cs).2
-    rw [happ, replay_append, hrep]
-    rcases after with _ | ⟨bit, rest⟩
-    · simp only [runClosedConfigFromCoins, List.foldl_nil, RepeatUntilBlank.runConfig,
-        Cfg.mapState]
-      exact workTapePos_runsWords_mem_window body hbody cfg hcfg before j
-    · have hdone : (body.runClosedConfigFromCoins before cfg).tapes.state = none :=
-        hpost.resolve_left (List.cons_ne_nil bit rest)
-      obtain ⟨s', hs', htapes'⟩ := runsWords_closed_completed body hbody cfg hcfg before hdone
-      rw [List.append_nil] at htapes'
-      obtain ⟨hinv', hne'⟩ := hpreserve n hn s hs Unit emptyOracle () () s' hs'
-      have hcheck_tapes :
-          (RepeatUntilBlank.runConfig (body.runClosedConfigFromCoins before cfg)).tapes =
-            wordsCfg x (some (.inr ())) (ws s') out₀ := by
-        simp only [RepeatUntilBlank.runConfig, htapes', mapState_wordsCfg, handOver_none]
-      rw [replay_cons, step_withCoin_repeatUntilBlank_check_ne_nil i body bit (ws s') out₀ hne' _
-        hcheck_tapes]
-      exact ih (n + 1) s'
-        { tapes := wordsCfg x (some body.initial) (ws s') out₀, channels := Empty.elim }
-        rest (by omega) hinv' rfl
+    refine repeatUntilBlank_round_mem_window i (hstep n hn s hs) cfg hcfg cs j
+      fun s' bit rest c hs' hc => ?_
+    obtain ⟨hinv', hne'⟩ := hpreserve n hn s hs Unit emptyOracle () () s' hs'
+    rw [step_withCoin_repeatUntilBlank_check_ne_nil i body bit (ws s') out₀ hne' c hc]
+    exact ih (n + 1) s'
+      { tapes := wordsCfg x (some body.initial) (ws s') out₀, channels := Empty.elim }
+      rest (by omega) hinv' rfl
 
 /-- **Workspace bound for `first.seq ((repeatUntilBlank i body).seq last)`.** When `first` (`t₁`),
 each round of `body` (`t`), and `last` (`t₂`) satisfy closed `RunsWords` specifications, the
@@ -380,17 +363,15 @@ theorem runsInSpace_toNTM_seq_repeatUntilBlank {S₀ S₁ S₂ : Type} (i : Fin 
   have hreach (coins : List Bool) (j : Fin k) :
       (M_all.runClosedConfigFromCoins coins (M_all.initialConfig x)).tapes.workTapePos j ∈
         window B := by
-    have hinit : M_all.initialConfig x = Sequential.left M_tail (first.initialConfig x) := rfl
     have hinit_tapes : (first.initialConfig x).tapes =
         wordsCfg x (some first.initial) (fun _ => []) [] :=
       Cfg.init_eq_wordsCfg first.initial x
-    rw [hinit]
     rcases replay_seq_cases first M_tail (first.initialConfig x) coins with
       ⟨b₁, hb₁⟩ | ⟨b₁, a₁, hh₁, hs₁⟩
-    · rw [hb₁]
+    · erw [hb₁]
       simpa only [Sequential.left, Cfg.mapState] using
         hmono (workTapePos_runsWords_mem_window first hfirst _ hinit_tapes b₁ j) hB₁
-    · rw [hs₁]
+    · erw [hs₁]
       simp only [Sequential.right, Cfg.mapState]
       obtain ⟨_, _, ht₁⟩ := runsWords_closed_completed first hfirst _ hinit_tapes b₁ hh₁
       rw [List.append_nil] at ht₁
@@ -399,9 +380,9 @@ theorem runsInSpace_toNTM_seq_repeatUntilBlank {S₀ S₁ S₂ : Type} (i : Fin 
       have hstart₁ :
           Sequential.start M_tail (first.runClosedConfigFromCoins b₁ (first.initialConfig x)) =
             Sequential.left lastM (RepeatUntilBlank.runConfig cfgBody) := by
-        rw [Config.eq_iff_tapes_eq]
-        simp only [Sequential.start, ht₁, Cfg.withState, M_tail, M_loop, Sequential.left,
-          RepeatUntilBlank.runConfig, cfgBody, mapState_wordsCfg, handOver, Option.elim_some]
+        simp only [Config.eq_iff_tapes_eq, Sequential.start, ht₁, Cfg.withState, M_tail, M_loop,
+          Sequential.left, RepeatUntilBlank.runConfig, cfgBody, mapState_wordsCfg, handOver,
+          Option.elim_some]
         rfl
       rw [hstart₁]
       rcases replay_seq_cases M_loop lastM (RepeatUntilBlank.runConfig cfgBody) a₁ with
@@ -412,20 +393,11 @@ theorem runsInSpace_toNTM_seq_repeatUntilBlank {S₀ S₁ S₂ : Type} (i : Fin 
           hpreserve hstop cfgBody rfl b₂ j) hBt
       · rw [hs₂]
         simp only [Sequential.right, Cfg.mapState]
-        have hcfgLoop_tapes : (RepeatUntilBlank.runConfig cfgBody).tapes =
-            wordsCfg x (some M_loop.initial) (ws s₀) [] := by
-          simp only [RepeatUntilBlank.runConfig, cfgBody, mapState_wordsCfg, handOver,
-            Option.elim_some, M_loop, repeatUntilBlank]
-        obtain ⟨sf, hsf, ht₂⟩ :=
-          runsWords_closed_completed M_loop hloop_rw _ hcfgLoop_tapes b₂ hh₂
+        obtain ⟨sf, hsf, ht₂⟩ := runsWords_closed_completed M_loop hloop_rw _ rfl b₂ hh₂
         rw [List.append_nil] at ht₂
-        have hstart₂_tapes :
-            (Sequential.start lastM
-              (M_loop.runClosedConfigFromCoins b₂ (RepeatUntilBlank.runConfig cfgBody))).tapes =
-              wordsCfg x (some lastM.initial) (ws sf) [] := by
-          simp only [Sequential.start, ht₂, Cfg.withState, wordsCfg]
         exact hmono (workTapePos_runsWords_mem_window lastM
-          (hlastM Unit emptyOracle () () sf hsf) _ hstart₂_tapes a₂ j) hB₂
+          (hlastM Unit emptyOracle () () sf hsf) _
+          (by simp only [Sequential.start, ht₂, Cfg.withState, wordsCfg]) a₂ j) hB₂
   intro path
   apply MultiTapeNTM.RunPath.InWindow.space_le
   rintro _ ⟨idx, rfl⟩ j

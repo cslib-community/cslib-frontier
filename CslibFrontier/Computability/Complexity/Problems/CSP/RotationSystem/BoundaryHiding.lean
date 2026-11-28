@@ -60,11 +60,9 @@ theorem accepted_hideHead (I : State Rel) (hI : I.Accepted) : (hideHead I).Accep
   cases ports with
   | nil => exact hI
   | cons p ps =>
-    let w : Witness F (p :: ps) := ⟨c, hI.2⟩
-    refine ⟨hI.1.of_cons, ?_⟩
-    have h := (w.forgetHead hI.1.of_cons).accepted
-    rw [Witness.forgetHead_certificate] at h
-    exact h
+    dsimp only [hideHead]
+    exact ⟨hI.1.of_cons, Witness.forgetHead_certificate (w := ⟨c, hI.2⟩) hI.1.of_cons ▸
+      (Witness.forgetHead ⟨c, hI.2⟩ hI.1.of_cons).accepted⟩
 
 /-- The surviving ordered boundary values extend by exactly one existential first value.
 The same global assignment satisfies the whole body on both sides, including unused names.
@@ -77,11 +75,7 @@ theorem boundary_hideHead_iff (sem : Rel → List Bool → Bool) (F : CSP Rel �
       ∃ b : Bool, ∃ σ : ℕ → Bool,
         F.eval sem σ = true ∧ (p :: ps).map σ = b :: values := by
   simp only [hideHead_body]
-  change (∃ σ : ℕ → Bool, F.eval sem σ = true ∧ ps.map σ = values) ↔ _
-  constructor
-  · rintro ⟨σ, hσ, hvalues⟩
-    exact ⟨σ p, σ, hσ, by rw [List.map_cons, hvalues]⟩
-  · rintro ⟨b, σ, hσ, hvalues⟩
-    exact ⟨σ, hσ, (List.cons.inj hvalues).2⟩
+  exact ⟨fun ⟨σ, hσ, hv⟩ => ⟨σ p, σ, hσ, congrArg (σ p :: ·) hv⟩,
+    fun ⟨_, σ, hσ, hv⟩ => ⟨σ, hσ, (List.cons.inj hv).2⟩⟩
 
 end Cslib.Complexity.CSP.CrossInsertion

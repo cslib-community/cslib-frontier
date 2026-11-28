@@ -36,9 +36,8 @@ theorem varCNF_relabel (F : CSP Rel V) (f : V → W) :
 theorem distinctVars_relabel_of_injOn (F : CSP Rel V) (f : V → W)
     (hf : Set.InjOn f {v | v ∈ F.vars}) :
     (F.relabel f).distinctVars = F.distinctVars.map f := by
-  have h := CNF.distinctVars_relabel_of_injOn F.varCNF f
-    (by simpa only [vars_varCNF] using hf)
-  simpa only [← varCNF_relabel, distinctVars_varCNF] using h
+  simpa only [← varCNF_relabel, distinctVars_varCNF] using
+    CNF.distinctVars_relabel_of_injOn F.varCNF f (by simpa only [vars_varCNF] using hf)
 
 /-- Renaming injectively on the occurring names preserves the distinct-variable count. -/
 theorem numVars_relabel_of_injOn (F : CSP Rel V) (f : V → W)
@@ -71,15 +70,11 @@ theorem incidenceGraph_relabel_of_injOn (F : CSP Rel V) (f : V → W)
     simp only [CSP.relabel, List.length_map]
   · rw [incidenceGraph_edges, incidenceGraph_edges, CSP.occurrences_relabel,
       distinctVars_relabel_of_injOn F f hf, numVars_relabel_of_injOn F f hf, List.map_map]
-    apply List.map_congr_left
-    intro o ho
-    have hv : o.2.2 ∈ F.vars := by
-      rw [← map_occurrences F]
-      exact List.mem_map_of_mem ho
-    have hi := List.idxOf_map_injOn F.distinctVars f
+    refine List.map_congr_left fun o ho => ?_
+    have hv : o.2.2 ∈ F.vars := map_occurrences F ▸ List.mem_map_of_mem ho
+    simp only [Function.comp_apply, List.idxOf_map_injOn F.distinctVars f
       (fun _ hx _ hy => hf (mem_distinctVars.mp hx) (mem_distinctVars.mp hy))
-      (mem_distinctVars.mpr hv)
-    simp only [Function.comp_apply, hi]
+      (mem_distinctVars.mpr hv)]
 
 omit [DecidableEq V] [DecidableEq W] in
 /-- Renaming variables does not alter positional constraint and argument indices. -/

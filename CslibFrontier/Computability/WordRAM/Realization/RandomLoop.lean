@@ -96,10 +96,7 @@ theorem iterate (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l → ℕ
     induction j with
     | zero =>
       rintro a s y ⟨-, hym, -, hys, hyc, hyz, -, -, hyQ⟩
-      have hexit : ¬(Cond.lt zero ctr).Holds y := by
-        change ¬y.regs zero < y.regs ctr
-        rw [hyc, hyz]
-        exact Nat.lt_irrefl 0
+      have hexit : ¬(Cond.lt zero ctr).Holds y := by change ¬y.regs zero < y.regs ctr; omega
       refine ((ExecRandLaw.loop_exit (body := loopBody emit frontier src tmp) (P := Q) (f := obs)
         hexit hyQ).mono (fun _ h => h) (by simp) (Nat.zero_le _)).congr_law ?_
       rw [hzero, RandomizedSpec.run_pure, PMF.pure_map]
@@ -107,12 +104,11 @@ theorem iterate (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l → ℕ
     | succ j ih =>
       rintro a s y ⟨hyb, hym, hye, hys, hyc, hyz, hgood, hyv, hyQ⟩
       have hself : (a, s) ∈ (D.run (loop d₀ 0 a) s).support := by
-        rw [hzero, RandomizedSpec.run_pure, PMF.support_pure]
-        rfl
+        simp [hzero]
       obtain ⟨hsafe₀, htime₀, hcalls₀⟩ := hgood 0 (Nat.succ_pos j) a s hself
       rw [hsucc] at hyv
-      have hyv' : D.toSpec.DemonicValid s ((body (d₀, a)).bind (loop d₀ j)) := hyv
-      obtain ⟨hvB, hvL⟩ := StateTransitionSpec.DemonicValid.of_bind hyv'
+      obtain ⟨hvB, hvL⟩ := StateTransitionSpec.DemonicValid.of_bind
+        (show D.toSpec.DemonicValid s ((body (d₀, a)).bind (loop d₀ j)) from hyv)
       let ν := (D.run (body (d₀, a)) s).map F
       have hB := ((hrun w (d₀, a) y hyb (regs_comp_append_eq_appendWords input output hye hys)
         (hym ▸ hsafe₀) (hym ▸ hvB)).withBounded hyb).withSupport
@@ -139,10 +135,7 @@ theorem iterate (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l → ℕ
         (D.run (loop d₀ j (Function.invFun output v)) s').map F
       have hdecode : ∀ b, Function.invFun output (output b) = b :=
         Function.leftInverse_invFun output.injective
-      have hcond : (Cond.lt zero ctr).Holds y := by
-        change y.regs zero < y.regs ctr
-        rw [hyc, hyz]
-        exact Nat.succ_pos j
+      have hcond : (Cond.lt zero ctr).Holds y := by change y.regs zero < y.regs ctr; omega
       refine ((ExecRandLaw.loop_iter (κ := κ) (Q := Q) (f := obs) (T₂ := j * K + 2)
         (R₂ := j * R₀) hcond hbody
         fun y' ⟨hy'b, hy'e, hy'c, hy'z, hy'Q, hy'sup⟩ => ?_).mono (fun _ h => h) ?_ ?_).congr_law
@@ -164,8 +157,7 @@ theorem iterate (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l → ℕ
           (j * (C * (T₀ + 1) + l + 5) + 2) + 2 ≤ (j + 1) * (C * (T₀ + 1) + l + 5) + 2
         rw [Nat.succ_mul]
         omega
-      · rw [Nat.add_zero, Nat.succ_mul]
-        omega
+      · rw [Nat.add_zero, Nat.succ_mul]; omega
       · change ((D.run (body (d₀, a)) s).map F).bind κ = (D.run (loop d₀ (j + 1) a) s).map F
         rw [PMF.bind_map, hsucc, RandomizedSpec.run_bind, PMF.map_bind]
         congr 1
@@ -178,14 +170,7 @@ theorem iterate (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ (Fin l → ℕ
   refine hloop.mono (fun _ h => h) ?_ le_rfl
   change l + 1 + (1 + (1 + (fuel * (C * (T₀ + 1) + l + 5) + 2))) ≤
     (C + l + 5) * (fuel * (T₀ + 1) + 1)
-  have h₁ : fuel * (l + 5) ≤ (l + 5) * (fuel * (T₀ + 1)) := by
-    rw [Nat.mul_comm fuel]
-    exact Nat.mul_le_mul_left _ (Nat.le_mul_of_pos_right _ (Nat.succ_pos _))
-  have h₂ : fuel * (C * (T₀ + 1) + l + 5) = C * (fuel * (T₀ + 1)) + fuel * (l + 5) := by ring
-  have h₃ : (C + l + 5) * (fuel * (T₀ + 1) + 1) =
-      C * (fuel * (T₀ + 1)) + (l + 5) * (fuel * (T₀ + 1)) + (C + l + 5) := by ring
-  rw [h₂, h₃]
-  omega
+  nlinarith [Nat.zero_le (fuel * T₀ * (l + 5))]
 
 end RealizesRand
 

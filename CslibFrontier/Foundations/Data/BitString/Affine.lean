@@ -97,21 +97,15 @@ theorem IsAffine.ext_single {d n : ℕ} {g g' : BitString d → BitString n} (hg
     intro s
     induction s using Finset.induction_on with
     | empty =>
-      have : (fun i : Fin d => decide (i ∈ (∅ : Finset (Fin d)))) = 0 := by
-        funext i; simp [Bool.zero_eq_false]
-      rw [this, h0]
+      have h0' : (fun i : Fin d => decide (i ∈ (∅ : Finset (Fin d)))) = 0 :=
+        funext fun _ => Bool.zero_eq_false.symm
+      rw [h0', h0]
     | insert j s hj ih =>
       have hsplit : (fun i => decide (i ∈ insert j s)) =
           (fun i => decide (i ∈ s)) + Pi.single j true + 0 := by
+        rw [add_zero]
         funext i
-        by_cases hij : i = j
-        · subst hij
-          simp only [Finset.mem_insert, true_or, decide_true, hj, decide_false, Pi.single_eq_same,
-            Pi.add_apply, Pi.zero_apply, Bool.zero_eq_false]
-          rfl
-        · simp only [Finset.mem_insert, hij, false_or, Pi.add_apply, Pi.single_eq_of_ne hij,
-            Pi.zero_apply, Bool.zero_eq_false]
-          cases decide (i ∈ s) <;> rfl
+        by_cases hij : i = j <;> simp [hj, hij, Bool.zero_eq_false]
       rw [hsplit, hg, hg', ih, hi, h0]
   funext x
   have hx : x = fun i => decide (i ∈ Finset.univ.filter fun i => x i = true) := by

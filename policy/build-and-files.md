@@ -56,13 +56,17 @@ result-entry Lean modules (excluding `CslibFrontierResults/Registry.lean`), `ref
 variable `FORCE_FULL_CI=1` to schedule full selection on every event. On `pull_request` runs,
 `lean-checks` runs declaration linting scoped to affected library modules (`scripts/quick_check.py
 --lint-only`, falling back to whole-library `lake lint` when changes are unsupported or exceed
-thresholds; `#5163`), `source-checks` posts an advisory notice (`scripts/check_hub_impact.py`)
+thresholds; `#5163`) and uploads `lean-advisory-notices` right after linting, `pr-notices` posts
+early source and PR-description advisory notices (`scripts/proof_copies.py`,
+`scripts/check_hub_impact.py`, `scripts/check_pr_names.py`), including
 when a PR modifies an existing module with `>= 500` transitive importers, and the `Guide` workflow
 (`scripts/ci/select_guide.py`) skips `.lake` restoration and compilation when a PR touches nothing
 in `CslibFrontierGuide`'s transitive import closure. Merge groups, pushes to `main`, and manual
 runs continue to run whole-library `lake lint` so non-local linters check the combined library
 environment, while the whole-library advisory security-premise and reduction-witness reports run on
-`main` pushes (PRs check changed modules).
+`main` pushes (PRs check changed modules). Merge groups build the same targets with Lake's
+`--fail-fast`, so the first failed module ends the build and a breaking entry is ejected sooner;
+pull requests, pushes and manual runs build every target and report every error.
 
 During development, check affected modules and representative clients before requesting review;
 a PR may use CI for the full run. For documentation-only changes, check consistency, links and

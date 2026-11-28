@@ -97,9 +97,9 @@ largest share "Other".</p>
 _BODIES["prs"] = ("Pull requests", "Every pull request of cslib-frontier: when, where, how big and how long it waited.", """
 <h1>Pull requests</h1>
 <p class="sub">Every pull request, from GitHub, joined to its squash commit on <code>main</code> for
-the areas it changed. Merged ones sit where they merged, in the lane of the library area they
-changed most; open and closed ones where they were opened. Hover for details; click to open it on
-GitHub.</p>
+the areas it changed. Merged ones sit where they merged, in the lane of the library area with the
+largest net code-line change; open and closed ones where they were opened. Hover for details; click
+to open it on GitHub.</p>
 <div class="tiles" id="tiles"></div>
 <div class="controls" style="margin-top:16px"><input type="search" id="q" placeholder="Search titles, e.g. Cook-Levin, WordRAM, perf" aria-label="Search pull requests">
 <span class="chips" id="kinds"></span><select id="author" aria-label="Author"></select><span class="small" id="stats"></span></div>
@@ -110,8 +110,8 @@ GitHub.</p>
 
 
 def _json(obj) -> str:
-    # Safe inside <script>: no "</" can close the element early.
-    return json.dumps(obj, separators=(",", ":")).replace("</", "<\\/")
+    # Safe inside <script>: escaping "<" prevents both "</script>" and HTML5 "<!-- <script>" breakouts.
+    return json.dumps(obj, separators=(",", ":")).replace("<", "\\u003c")
 
 
 def build(out: Path, H: h.History, census, charts: list[dict], sections: list[str],

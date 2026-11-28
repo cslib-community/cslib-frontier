@@ -50,8 +50,6 @@ open Cslib.Query (LEQuery UpperBound)
 
 namespace Cslib.DataStructure.BTree
 
-open Cslib.SortedAssoc (leI)
-
 variable {α β : Type} {t : ℕ} {k : α} {v : β} {tr : BTree α β}
 
 /-- Counted B-tree insert operation. -/
@@ -61,7 +59,7 @@ def insertQ (t : ℕ) (k : α) (v : β) (tr : BTree α β) :
 
 /-- `insertQ` is `insertM` with `LEQuery.ask` and `pure ()`. -/
 theorem insertQ_def :
-    insertQ t k v tr = insertM t LEQuery.ask (pure ()) k v tr := by unfold insertQ; rfl
+    insertQ t k v tr = insertM t LEQuery.ask (pure ()) k v tr := (rfl)
 
 /-- Counted B-tree node insert or split operation. -/
 private def insertOrSplitQ (t : ℕ) (k : α) (v : β) (tr : BTree α β) :
@@ -80,88 +78,46 @@ private def insertRestQ (t : ℕ) (k : α) (v : β) (rest : List (Triple α β))
     Id.ext_iff.1
       ((FreeM.isMonadHom_pure_eval orderOracle).map_insertM t LEQuery.ask (pure ()) k v tr)
 
-@[simp] private theorem eval_insertOrSplitQ [LinearOrder α] :
-    (insertOrSplitQ t k v tr).eval orderOracle = (insertOrSplitM t leI (pure ()) k v tr).run := by
-  simpa [insertOrSplitQ, leI] using
-    Id.ext_iff.1
-      ((FreeM.isMonadHom_pure_eval orderOracle).map_insertOrSplitM t LEQuery.ask (pure ()) k v tr)
-
-@[simp] private theorem eval_insertRestQ [LinearOrder α] {rest : List (Triple α β)} :
-    (insertRestQ t k v rest).eval orderOracle = (insertRestM t leI (pure ()) k v rest).run := by
-  simpa [insertRestQ, leI] using
-    Id.ext_iff.1
-      ((FreeM.isMonadHom_pure_eval orderOracle).map_insertRestM t LEQuery.ask (pure ()) k v rest)
-
-private theorem countQueries_insertRestQ_le_of_ret_none (oracle :
-    {ι :
-    Type} → LEQuery α ι → ι) (rest :
-    List (Triple α β))
+private theorem countQueries_insertRestQ_le_of_ret_none
+    (oracle : {ι : Type} → LEQuery α ι → ι) (rest : List (Triple α β))
     (h_ret : (insertRestQ t k v rest).eval oracle = none) :
     (insertRestQ t k v rest).countQueries oracle ≤ rest.length + 1 := by
   induction rest with
-  | nil =>
-    simp [insertRestQ, insertRestM]
-  | cons head tail ih =>
+  | nil => simp [insertRestQ, insertRestM]
+  | cons head tail _ =>
     obtain ⟨k', v', c⟩ := head
     by_cases hk : oracle (LEQuery.le k k') = true
     · by_cases hk' : oracle (LEQuery.le k' k) = true
       · simp [insertRestQ, insertRestM, hk, hk'] at h_ret
       · simp [insertRestQ, insertRestM, hk, hk']
-    · simp only [
-      insertRestQ,
-      insertRestM,
-      bind_pure_comp,
-      FreeM.eval_bind,
-      FreeM.eval_lift,
-      hk,
-      Bool.false_eq_true,
-      ↓reduceIte] at h_ret
-      cases h_eval : FreeM.eval (fun {ι} => oracle) (insertRestM t LEQuery.ask (pure ()) k v tail)
-      <;> simp [h_eval, FreeM.eval_map] at h_ret
+    · simp only [insertRestQ, insertRestM, bind_pure_comp, FreeM.eval_bind, FreeM.eval_lift,
+        hk, Bool.false_eq_true, ↓reduceIte] at h_ret
+      cases h_eval : (insertRestM t LEQuery.ask (pure ()) k v tail).eval oracle <;>
+        simp [h_eval, FreeM.eval_map] at h_ret
 
-private theorem countQueries_insertRestQ_le (oracle :
-    {ι :
-    Type} → LEQuery α ι → ι) (rest :
-    List (Triple α β)) (B :
-    ℕ)
+private theorem countQueries_insertRestQ_le
+    (oracle : {ι : Type} → LEQuery α ι → ι) (rest : List (Triple α β)) (B : ℕ)
     (h_cost : ∀ c ∈ rest.map Triple.child, (insertOrSplitQ t k v c).countQueries oracle ≤ B) :
     (insertRestQ t k v rest).countQueries oracle ≤ rest.length + 1 + B := by
   induction rest with
-  | nil =>
-    simp [insertRestQ, insertRestM]
+  | nil => simp [insertRestQ, insertRestM]
   | cons head tail ih =>
     obtain ⟨k', v', c⟩ := head
     by_cases hk : oracle (LEQuery.le k k') = true
-    · by_cases hk' : oracle (LEQuery.le k' k) = true
-      · simp [insertRestQ, insertRestM, hk, hk']; omega
-      · simp [insertRestQ, insertRestM, hk, hk']; omega
-    · simp only [
-      insertRestQ,
-      insertRestM,
-      bind_pure_comp,
-      FreeM.countQueries_bind,
-      FreeM.countQueries_lift,
-      ↓FreeM.countQueries_ite,
-      FreeM.eval_lift,
-      hk,
-      Bool.false_eq_true,
-      ↓reduceIte,
-      List.length_cons]
-      cases h_eval : (insertRestM t LEQuery.ask (pure ()) k v tail).eval oracle <;> simp only [
-        FreeM.countQueries_map,
-        FreeM.countQueries_pure]
-      · have hc : (insertOrSplitQ t k v c).countQueries oracle ≤ B := by apply h_cost; simp
-        have h_none := countQueries_insertRestQ_le_of_ret_none 
-          oracle tail (by simpa [insertRestQ] using h_eval)
+    · by_cases hk' : oracle (LEQuery.le k' k) = true <;>
+        simp [insertRestQ, insertRestM, hk, hk'] <;> omega
+    · simp only [insertRestQ, insertRestM, bind_pure_comp, FreeM.countQueries_bind,
+        FreeM.countQueries_lift, ↓FreeM.countQueries_ite, FreeM.eval_lift, hk,
+        Bool.false_eq_true, ↓reduceIte, List.length_cons]
+      cases h_eval : (insertRestM t LEQuery.ask (pure ()) k v tail).eval oracle <;>
+        simp only [FreeM.countQueries_map, FreeM.countQueries_pure]
+      · have hc := h_cost c (by simp)
+        have h_none := countQueries_insertRestQ_le_of_ret_none oracle tail h_eval
         simp only [insertRestQ, insertOrSplitQ] at hc h_none ⊢
         omega
-      · have h_tail := ih (fun c hc => h_cost c (by simp [hc]))
+      · have h_tail := ih fun c hc => h_cost c (by simp [hc])
         simp only [insertRestQ] at h_tail ⊢
         omega
-
-
-
-
 
 @[simp] private theorem countQueries_insertOrSplitQ_leaf (oracle : {ι : Type} → LEQuery α ι → ι) :
     (insertOrSplitQ t k v (.leaf : BTree α β)).countQueries oracle = 0 := by
@@ -173,20 +129,13 @@ private theorem countQueries_insertOrSplitQ_node_le (oracle : {ι : Type} → LE
         (insertOrSplitQ t k v c).countQueries oracle ≤ B) :
     (insertOrSplitQ t k v (.node first rest)).countQueries oracle ≤ rest.length + 1 + B := by
   simp only [insertOrSplitQ, insertOrSplitM, bind_pure_comp, pure_bind, FreeM.countQueries_bind]
-  cases h_eval : (insertRestM t LEQuery.ask (pure ()) k v rest).eval oracle <;> simp only [
-    FreeM.countQueries_map,
-    FreeM.countQueries_pure]
-  · have h_first : (insertOrSplitQ t k v first).countQueries oracle ≤ B := by apply h_cost; simp
-    have h_none := countQueries_insertRestQ_le_of_ret_none 
-      oracle rest (by simpa [insertRestQ] using h_eval)
+  cases h_eval : (insertRestM t LEQuery.ask (pure ()) k v rest).eval oracle <;>
+    simp only [FreeM.countQueries_map, FreeM.countQueries_pure]
+  · have h_first := h_cost first (by simp)
+    have h_none := countQueries_insertRestQ_le_of_ret_none oracle rest h_eval
     simp only [insertRestQ, insertOrSplitQ] at h_first h_none ⊢
     omega
-  · have h_rest : ∀ c ∈ rest.map Triple.child,
-        (insertOrSplitQ t k v c).countQueries oracle ≤ B := by
-      intro c hc
-      apply h_cost
-      simp [hc]
-    have h_some := countQueries_insertRestQ_le oracle rest B h_rest
+  · have h_some := countQueries_insertRestQ_le oracle rest B fun c hc => h_cost c (by simp [hc])
     simp only [insertRestQ] at h_some ⊢
     omega
 

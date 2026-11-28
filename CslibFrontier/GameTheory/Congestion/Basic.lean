@@ -108,8 +108,7 @@ theorem sum_sum_resources_eq_sum_load_mul [Fintype E] (s : ∀ i, S i) (f : E �
   simp only [load, Finset.card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero,
     Finset.sum_mul, ite_mul, one_mul, zero_mul]
   rw [Finset.sum_comm]
-  refine Finset.sum_congr rfl fun i _ => ?_
-  rw [Finset.sum_ite_mem, Finset.univ_inter]
+  exact Finset.sum_congr rfl fun i _ => by rw [Finset.sum_ite_mem, Finset.univ_inter]
 
 /-- The social cost of a congestion game is `∑ e, load s e * latency e (load s e)`. -/
 theorem socialCost_toCostGame [Fintype E] (s : ∀ i, S i) :
@@ -125,9 +124,8 @@ private def loadExcept (s : ∀ i, S i) (i : ι) (e : E) : ℕ :=
 private theorem loadExcept_update (s : ∀ i, S i) (i : ι) (a : S i) (e : E) :
     C.loadExcept (Function.update s i a) i e = C.loadExcept s i e := by
   unfold loadExcept
-  congr 1
-  refine Finset.filter_congr fun j hj => ?_
-  rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)]
+  exact congrArg Finset.card (Finset.filter_congr fun j hj => by
+    rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)])
 
 private theorem load_eq (s : ∀ i, S i) (i : ι) (e : E) :
     C.load s e = C.loadExcept s i e + if e ∈ C.resources i (s i) then 1 else 0 := by
@@ -143,15 +141,12 @@ theorem load_update_le (s : ∀ i, S i) (i : ι) (a : S i) (e : E) :
 private theorem rosenthalPotential_sub_cost [Fintype E] (s : ∀ i, S i) (i : ι) :
     C.rosenthalPotential s - C.toCostGame.cost i s
       = ∑ e, ∑ k ∈ Finset.range (C.loadExcept s i e), C.latency e (k + 1) := by
-  have hcost : C.toCostGame.cost i s
-      = ∑ e, if e ∈ C.resources i (s i) then C.latency e (C.load s e) else 0 := by
-    rw [toCostGame_cost, Finset.sum_ite_mem, Finset.univ_inter]
-  rw [hcost, rosenthalPotential, ← Finset.sum_sub_distrib]
+  rw [toCostGame_cost, ← Finset.univ_inter (C.resources i (s i)), ← Finset.sum_ite_mem,
+    rosenthalPotential, ← Finset.sum_sub_distrib]
   refine Finset.sum_congr rfl fun e _ => ?_
   rw [C.load_eq s i e]
   split_ifs
-  · rw [Finset.sum_range_succ]
-    ring
+  · rw [Finset.sum_range_succ]; ring
   · rw [add_zero, sub_zero]
 
 /-- **Rosenthal's theorem** ([Rosenthal1973]; [MondererShapley1996], Theorem 3.1): Rosenthal's

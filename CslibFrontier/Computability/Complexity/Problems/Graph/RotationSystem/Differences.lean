@@ -41,8 +41,7 @@ namespace Cslib.Complexity.Graph
 /-- Reading a difference from either dart gives the same endpoint exclusive or. -/
 theorem edgeGradient_dart (G : Graph) (spin : ℕ → Bool) (d : Dart G) :
     G.edgeGradient spin d.1 = (spin d.vertex ^^ spin d.reverse.vertex) := by
-  rcases d with ⟨i, b⟩
-  cases b
+  rcases d with ⟨i, _ | _⟩
   · rfl
   · exact Bool.xor_comm _ _
 
@@ -81,11 +80,8 @@ theorem faceParity_mk (x : Fin G.edges.length → Bool) (d : Dart G) :
 
 /-- Quantifying over dart representatives covers every actual face, including fixed points. -/
 theorem faceEven_iff_dart (x : Fin G.edges.length → Bool) :
-    r.FaceEven x ↔ ∀ d : Dart G, r.faceParity x (Quotient.mk _ d) = false := by
-  constructor
-  · exact fun h d => h _
-  · intro h f
-    induction f using Quotient.inductionOn with | _ d => exact h d
+    r.FaceEven x ↔ ∀ d : Dart G, r.faceParity x (Quotient.mk _ d) = false :=
+  ⟨fun h _ => h _, fun h f => Quotient.inductionOn f h⟩
 
 /-- Canonical face IDs compute parity on the same actual orbit, with dart multiplicity. -/
 theorem faceParity_eq_sum_faceId (x : Fin G.edges.length → Bool) (d : Dart G) :
@@ -93,8 +89,7 @@ theorem faceParity_eq_sum_faceId (x : Fin G.edges.length → Bool) (d : Dart G) 
       ∑ e : Dart G, if r.faceId e = r.faceId d then x e.1 else 0 := by
   classical
   rw [faceParity_mk, parityOn_eq_sum, Finset.sum_filter]
-  apply Finset.sum_congr rfl
-  intro e _
+  refine Finset.sum_congr rfl fun e _ => ?_
   simp only [r.faceId_eq_iff, Equiv.Perm.sameCycle_comm]
 
 /-- Face parity is additive in edge labels. -/
@@ -110,23 +105,18 @@ theorem faceEven_edgeGradient (spin : ℕ → Bool) : r.FaceEven (G.edgeGradient
   intro f
   have hv (d : Dart G) : (r.faceNext d).vertex = d.reverse.vertex := by
     change (r.rotate.symm d.reverse).vertex = d.reverse.vertex
-    have h := r.vertex_rotate (r.rotate.symm d.reverse)
-    simpa only [Equiv.apply_symm_apply] using h.symm
-  have hs := Equiv.sum_comp r.faceNext (fun d : Dart G =>
-    if (Quotient.mk _ d : r.Face) = f then spin d.vertex else (0 : Bool))
+    simpa only [Equiv.apply_symm_apply] using (r.vertex_rotate (r.rotate.symm d.reverse)).symm
+  have hs := Equiv.sum_comp r.faceNext fun d : Dart G =>
+    if (Quotient.mk _ d : r.Face) = f then spin d.vertex else (0 : Bool)
   simp only [r.face_eq_next, hv] at hs
-  simp only [faceParity, parityOn_eq_sum, edgeGradient_dart,
-    ← Bool.add_eq_xor, Finset.sum_add_distrib]
-  simp only [Finset.sum_filter]
-  rw [← hs]
+  simp only [faceParity, parityOn_eq_sum, edgeGradient_dart, ← Bool.add_eq_xor,
+    Finset.sum_add_distrib, Finset.sum_filter, ← hs]
   exact BooleanRing.add_self _
 
 /-- Face-even assignments are closed under exclusive-or addition. -/
 theorem FaceEven.add {x y : Fin G.edges.length → Bool}
-    (hx : r.FaceEven x) (hy : r.FaceEven y) : r.FaceEven (x + y) := by
-  intro f
-  rw [faceParity_add, hx f, hy f]
-  rfl
+    (hx : r.FaceEven x) (hy : r.FaceEven y) : r.FaceEven (x + y) :=
+  fun f => by rw [faceParity_add, hx f, hy f]; rfl
 
 end RotationSystem
 end Cslib.Complexity.Graph
