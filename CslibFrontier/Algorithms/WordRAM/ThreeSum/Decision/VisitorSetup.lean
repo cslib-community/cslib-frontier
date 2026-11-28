@@ -53,10 +53,9 @@ theorem exec_prepareEnvelope {r κ n w : ℕ} (x : Data (registerCount r))
   have hp (i : Fin 128) (j : Fin 16) : preprocessingRegisters r i ≠ controllerRegisters r j :=
     (controller_ne_preprocessing j i).symm
   refine WP.exists_execWithin ?_
-  unfold prepareEnvelope
   wram_exec (disch := (
     (try simp +decide only [Data.set_regs, Function.update_apply, hne, hn, ↓reduceIte])
-    fits))
+    fits)) [prepareEnvelope]
   simp +decide [Data.set_regs, Data.set_mem, hne, hp, hn]
 
 /-- Compute the actual envelope at the same uniform width used by every native node call. -/

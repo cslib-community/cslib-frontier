@@ -483,8 +483,8 @@ private theorem dotLoop_spec {w q cols mBase vBase : ℕ} [NeZero q]
         have hpmod_lt : ((u ⟨j, hj⟩).val * (x.mem (vBase + j) % q)) % q < q :=
           Nat.mod_lt _ hqpos
         refine WP.exists_execWithin (w := w) (c := dotBody) ?_
-        wram_exec (disch := first | fits | omega | wram_omega) [dotBody]
-          [hj_eq, h1, hq', hmCur', hvec', hmcell, hvcell, hyacc]
+        wram_exec (disch := first | fits | omega | wram_omega)
+          [dotBody, hj_eq, h1, hq', hmCur', hvec', hmcell, hvcell, hyacc]
         refine ⟨⟨hym, ?_, fun i hi => by
           simp only [Data.set_regs, Function.update_apply]
           split_ifs <;> first | (subst_vars; exact absurd hi (by decide)) | exact hyregs i hi⟩,
@@ -617,8 +617,8 @@ private theorem vecEqCode_spec {w q l zAddr wAddr : ℕ} [NeZero q]
     by_cases heq : (zvec ⟨j, hj⟩).val = (wvec ⟨j, hj⟩).val
     · have hzweq : zvec ⟨j, hj⟩ = wvec ⟨j, hj⟩ := ZMod.val_injective q heq
       refine WP.exists_execWithin (c := vecEqBody) ?_
-      wram_exec (disch := first | fits | omega | wram_omega) [vecEqBody]
-        [hj_eq, hzPtr', hwPtr', hzj, hwj, heq, ho', hyacc_y]
+      wram_exec (disch := first | fits | omega | wram_omega)
+        [vecEqBody, hj_eq, hzPtr', hwPtr', hzj, hwj, heq, ho', hyacc_y]
       refine ⟨⟨hym_y, ?_, fun i hi => by
         simp only [Data.set_regs, Function.update_apply]
         split_ifs <;> first | (subst_vars; exact absurd hi (by decide)) | exact hyregs_y i hi⟩,
@@ -633,8 +633,8 @@ private theorem vecEqCode_spec {w q l zAddr wAddr : ℕ} [NeZero q]
       · exact hprev i (by omega)
     · have hzwne : zvec ⟨j, hj⟩ ≠ wvec ⟨j, hj⟩ := fun h => heq (congrArg ZMod.val h)
       refine WP.exists_execWithin (c := vecEqBody) ?_
-      wram_exec (disch := first | fits | omega | wram_omega) [vecEqBody]
-        [hj_eq, hzPtr', hwPtr', hzj, hwj, heq, hz', ho']
+      wram_exec (disch := first | fits | omega | wram_omega)
+        [vecEqBody, hj_eq, hzPtr', hwPtr', hzj, hwj, heq, hz', ho']
       refine ⟨⟨hym_y, ?_, fun i hi => by
         simp only [Data.set_regs, Function.update_apply]
         split_ifs <;> first | (subst_vars; exact absurd hi (by decide)) | exact hyregs_y i hi⟩,

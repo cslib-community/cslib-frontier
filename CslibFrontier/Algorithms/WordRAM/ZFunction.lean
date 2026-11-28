@@ -1070,8 +1070,8 @@ private theorem filterBody_spec {w : ℕ} (I : MatchInput)
         z.regs outCnt = s.regs outCnt ∧
         z.mem = s.mem := by
       refine WP.exists_execWithin ?_
-      unfold filterBody
-      wram_exec [hrs.one_eq, hrs.pl_eq, hrs.zb_eq, hread_z, hlt_p, hf_mj, hf_zbmj, hf_j1]
+      wram_exec [filterBody,
+        hrs.one_eq, hrs.pl_eq, hrs.zb_eq, hread_z, hlt_p, hf_mj, hf_zbmj, hf_j1]
       exact ⟨⟨by wram_simp [hrs.zero_eq], by wram_simp [hrs.one_eq], by wram_simp [hrs.pl_eq],
         by wram_simp [hrs.tl_eq], by wram_simp [hrs.sb_eq], by wram_simp [hrs.sl_eq],
         by wram_simp [hrs.zb_eq], by wram_simp [hrs.out_eq]⟩,

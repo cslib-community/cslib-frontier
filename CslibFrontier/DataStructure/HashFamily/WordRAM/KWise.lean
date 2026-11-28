@@ -426,8 +426,8 @@ theorem clmulTabLoop_exec {w tabBase b : ℕ}
       · have := hprev_lt hv0
         wram_simp [hinv prevIdx this, hprev_u, hprev_v]
     refine WP.Exact.exists_exec (WP.Exact.loop_iter (by simp [Cond.Holds, h1, h2]; omega) ?_)
-    unfold clmulTabBody
-    wram_exec [h0, h1, h3, h4, h5, ← hu, ← hv, ← hprev, hprev_mem, clmul_eq_bit_mul_xor]
+    wram_exec [clmulTabBody,
+      h0, h1, h3, h4, h5, ← hu, ← hv, ← hprev, hprev_mem, clmul_eq_bit_mul_xor]
     wram_call (ih (idx + 1) _ (by omega) (by regs_frame) (by wram_simp) (by regs_frame)
       (by regs_frame) (by regs_frame) (by regs_frame) fun i hi => by
         rcases eq_or_ne i idx with rfl | hne
@@ -1402,8 +1402,8 @@ theorem evalCode_execWithin_fromB {w base b U M k : ℕ}
     with d2 ⟨hd2_0, hd2_1, hd2_2, hd2_mem⟩
   have hd2_eval : d2.regs 2 = (trinomialPolyEval t k U c u).val := by
     simpa [trinomialPolyEval, polynomialHash] using hd2_2
-  unfold evalMaskCode
-  wram_exec (disch := first | fits | layout_omega) [hd2_0, hd2_mem, hd1_mem, hm4, hd2_eval]
+  wram_exec (disch := first | fits | layout_omega) [evalMaskCode,
+    hd2_0, hd2_mem, hd1_mem, hm4, hd2_eval]
   exact ⟨by dsimp only [evalStepsFromB]; omega, by wram_simp [hd2_0], by wram_simp [hd2_1],
     by wram_simp [t]; exact (val_trinomialPolyHash t k U M c u).symm,
     by wram_simp [hd2_mem, hd1_mem]⟩

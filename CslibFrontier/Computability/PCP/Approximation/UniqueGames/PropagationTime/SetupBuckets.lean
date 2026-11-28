@@ -376,8 +376,8 @@ theorem bucketsLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) {x : Data 34}
               ConstRegs g y1 ∧ y1.regs rEdgeIdx = j ∧ y1.regs rSrc = g.edges[j].src ∧
               y1.regs rDst = g.edges[j].dst ∧ y1.regs rNodeFree = y.regs rNodeFree ∧
               y1.regs rOuterIdx = k ∧ y1.mem = y.mem := by
-          unfold bucketsHead
-          wram_exec [hyC.one, hyC.stride, hyC.regE, hyC.edgeB, hk_reg.symm, hj_def.symm,
+          wram_exec [bucketsHead,
+            hyC.one, hyC.stride, hyC.regE, hyC.edgeB, hk_reg.symm, hj_def.symm,
             hyInp.edge_src j hj, hyInp.edge_dst j hj]
           exact ⟨by wram_simp [hyC], by wram_simp, by wram_simp, by wram_simp, by wram_simp,
             by wram_simp [hk_reg.symm],

@@ -57,8 +57,7 @@ theorem exec_step_scan {w U n first length out queries count i scans a b : ℕ}
       (queries + 2 * i + scans + 6 * (n * n) + n + first + length + 32) :=
     hfit.of_le (by omega)
   refine WP.exists_execWithin ?_
-  unfold step
-  wram_exec [hf, hx.zero, hx.output, hi, hanswer]
+  wram_exec [step, hf, hx.zero, hx.output, hi, hanswer]
   wram_call (exec_scanPair AB BC AC _
     (hx.of_frame fun j hj => by
       have haddr : j ≠ Reg.address := fun he => by

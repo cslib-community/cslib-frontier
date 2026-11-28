@@ -70,8 +70,7 @@ private theorem snapshot_exec {κ n w : ℕ} (x : Data 128)
     ⟨hp.fuel, hp.magnitude, hp.primeBound, hp.digits, hp.packedLen⟩
   simp only [Data.comap_regs] at hf hU hm hΛ hN
   refine WP.Exact.exists_exec ?_
-  unfold snapshot
-  wram_exec [hb, hc, he, hf, hU, hm, hΛ, hN]
+  wram_exec [snapshot, hb, hc, he, hf, hU, hm, hΛ, hN]
   exact ⟨by constructor <;> wram_simp [Frontend.layout], by wram_simp⟩
 
 /-- Compute the actual shared bitmap from the already computed frontend and numeric parameters. -/

@@ -134,8 +134,8 @@ private theorem dfsBody_enter_succ_spec {w base d ptr k : ℕ} {s : Data 32}
   have hf_lw : Fits w (base + span d + 2 * (d + 1) + (k + 1)) := ha.of_le (by omega)
   have hne : k + 1 ≠ 0 := by omega
   apply WP.exists_execWithin
-  unfold dfsBody dfsEnterBody
-  wram_exec [h0, h1, h2, h3, h5, htbl, hlow, hp, hx, hkind, htbl0, htbl1, hne]
+  wram_exec [dfsBody, dfsEnterBody,
+    h0, h1, h2, h3, h5, htbl, hlow, hp, hx, hkind, htbl0, htbl1, hne]
   refine ⟨⟨by struct_frame hc, by wram_simp, by wram_simp, by wram_simp [hkind],
     by wram_simp [hrun]⟩, ?_, by wram_simp, by mem_frame⟩
   simp only [Header, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, splitSize, childSpan]

@@ -214,8 +214,8 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
               z1.regs rChosen = chosen.val ∧ z1.regs rRem = k ∧
               z1.regs rCompLen = S.comp.length ∧ z1.regs rOuterIdx = x.regs rOuterIdx ∧
               z1.mem = z.mem := by
-          unfold freezeLoadV
-          wram_exec [hzT.consts.one, hzT.consts.compB, hzT.consts.visB, hzCL, hk_reg, hrev_get]
+          wram_exec [freezeLoadV,
+            hzT.consts.one, hzT.consts.compB, hzT.consts.visB, hzCL, hk_reg, hrev_get]
           and_intros <;> wram_simp [hzT.consts, hzCh, hk_reg, hzCL, hzIdx]
         cases hgv : ({ S with table := tabAt k } : State (Fin L)).get v with
         | none =>

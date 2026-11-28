@@ -1185,8 +1185,8 @@ theorem probeCheckCode_execWithin {U w base n_max : ℕ} (u : Fin U)
   have hts_pos : 0 < tableSize n_max := tableSize_pos n_max
   have hused : x.mem (usedBase base n_max + pos.val) = usedAt base n_max x.mem pos := rfl
   have hkey : x.mem (keyBase base n_max + pos.val) = keyAt base n_max x.mem pos := rfl
-  unfold probeCheckCode
-  wram_exec (disch := first | fits | layout_omega) [h1, h2, h4, h5, h10, hused, hkey]
+  wram_exec (disch := first | fits | layout_omega) [probeCheckCode,
+    h1, h2, h4, h5, h10, hused, hkey]
   all_goals wram_simp [h0, h1, h2, h3, h4, h5, h6, h10]
   all_goals split_ifs <;> omega
 /-- `probeSetupCode n_max` executes in at most `16` deterministic steps, initializing registers

@@ -93,8 +93,8 @@ theorem evalCascGuard_exec {n base w : ℕ} {x : Data rFib}
   intro st gval
   have hfit := hbr.fits_of_le hb
   have := cur.isLt
-  unfold evalCascGuard
-  wram_exec [hfit, hbr.regs_parBase, hbr.regs_markBase, hbr.regs_zeroP, hbr.regs_oneP, hz_reg]
+  wram_exec [evalCascGuard,
+    hfit, hbr.regs_parBase, hbr.regs_markBase, hbr.regs_zeroP, hbr.regs_oneP, hz_reg]
   all_goals refine ⟨by wram_simp [BaseRegs.set_iff, hbr], by wram_simp [ofData_set_scratch]; rfl,
     rfl, ?_, fun r h0 h1 h2 h3 => by wram_simp⟩
   all_goals wram_simp [gval, st, RawState.ofData]; split_ifs <;> omega
@@ -610,8 +610,8 @@ theorem decreaseKeyCode_exec {n K_max w base : ℕ} {s : IndexedMinPQ.State n} {
     (CutInv n K_max s' (RawState.ofData n base y) v m none ∨
       (RawState.ofData n base y = { st₀ with key := Function.update st₀.key v k } ∧
         ∃ p₀ : Fin n, st₀.par v = p₀.val + 1 ∧ ¬IndexedMinPQ.PrioLT (v, k) (p₀, st₀.key p₀)))
-  unfold decreaseKeyCode
-  wram_exec -split [hfit, hbr.regs_baseReg, hbr.regs_parBase, hv_reg, hk_reg, hpar_v]
+  wram_exec -split [decreaseKeyCode,
+    hfit, hbr.regs_baseReg, hbr.regs_parBase, hv_reg, hk_reg, hpar_v]
   refine WP.cut preTail ?_ ?_
   · by_cases hpv0 : st₀.par v = 0
     · refine WP.bounded (by wram_bounded <;> exact hfit _ (by omega)) ?_

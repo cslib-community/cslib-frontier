@@ -307,8 +307,8 @@ private theorem while_fallback_spec {w : ℕ} (pat : List ℕ) (pi : Array ℕ)
         let x₁ := ((((x.set t0 (x.regs patBase + k)).set t0 pat[k]).set t0 (k - 1)).set
           t0 (x.regs piBase + (k - 1))).set regk k'
         have hb : ExecWithin w fallbackBody x x₁ 8 := by
-          unfold fallbackBody
-          wram_exec [hz, ho, hk, hk_pos, hread_pat, hmatch, hread_pi, hf_pk, hf_km1, hf_pik]
+          wram_exec [fallbackBody,
+            hz, ho, hk, hk_pos, hread_pat, hmatch, hread_pi, hf_pk, hf_km1, hf_pik]
         have hx₁_pb : x₁.regs patBase = x.regs patBase := by simp +decide [x₁]
         have hx₁_pib : x₁.regs piBase = x.regs piBase := by simp +decide [x₁]
         have hx₁_ch : x₁.regs regch = x.regs regch := by simp +decide [x₁]
@@ -393,8 +393,7 @@ private theorem advanceCode_spec {w : ℕ} (pat : List ℕ) (pi : Array ℕ)
   · let y := ((y₁.set t0 (y₁.regs patBase + y₁.regs regk)).set t0 pat[y₁.regs regk]).set
         regk (y₁.regs regk + 1)
     have htail : ExecWithin w tail y₁ y 4 := by
-      unfold tail
-      wram_exec [hy₁_one, hy₁_ch, hread₁, hm, hf_pk₁, hf_k1]
+      wram_exec [tail, hy₁_one, hy₁_ch, hread₁, hm, hf_pk₁, hf_k1]
       rw [← hm]
     have hy_k : y.regs regk = y₁.regs regk + 1 := by simp +decide [y]
     refine ⟨y, 1 + (T₁ + 4), hx₀_go.seq (hloop.seq htail), ?_, by rw [hy_k]; omega, hmem₁,
@@ -403,8 +402,7 @@ private theorem advanceCode_spec {w : ℕ} (pat : List ℕ) (pi : Array ℕ)
     simp only [hm, ↓reduceIte]
   · let y := ((y₁.set t0 (y₁.regs patBase + y₁.regs regk)).set t0 pat[y₁.regs regk]).set regk 0
     have htail : ExecWithin w tail y₁ y 5 := by
-      unfold tail
-      wram_exec [hy₁_ch, hread₁, hm, hf_pk₁]
+      wram_exec [tail, hy₁_ch, hread₁, hm, hf_pk₁]
     have hy_k : y.regs regk = 0 := by simp +decide [y]
     refine ⟨y, 1 + (T₁ + 5), hx₀_go.seq (hloop.seq htail), ?_, by rw [hy_k]; omega, hmem₁,
       by regs_frame⟩

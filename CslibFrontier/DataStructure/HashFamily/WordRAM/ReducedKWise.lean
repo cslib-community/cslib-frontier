@@ -1024,8 +1024,8 @@ private theorem initLimbsCode_exec {w t r_val : ℕ} (hc_lt : 2 * reducedChunkBi
       have hi54 : i < 54 := hi.trans_le hL_le
       have hfit_limb : Fits w (getLimb c r_val i) := by stride_omega [getLimb_lt c r_val i]
       have hfit_shr : Fits w (r_val >>> ((i + 1) * c)) := (Nat.shiftRight_le _ _).trans_lt hr
-      unfold initLimbStep
-      wram_exec [hz3, show (r_val >>> (i * c)) &&& (2 ^ c - 1) = getLimb c r_val i from rfl,
+      wram_exec [initLimbStep,
+        hz3, show (r_val >>> (i * c)) &&& (2 ^ c - 1) = getLimb c r_val i from rfl,
         show (r_val >>> (i * c)) >>> c = r_val >>> ((i + 1) * c) by
           rw [← Nat.shiftRight_add, ← Nat.succ_mul]]
       refine ⟨by wram_simp [hz0], by wram_simp, fun m hm => ?_, fun m hm => ?_, hzmem⟩

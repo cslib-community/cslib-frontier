@@ -126,8 +126,7 @@ private theorem exec_digits {w : ℕ} (hw : 2 ≤ w)
     | cons => simp_all
     | nil =>
       refine WP.Exact.exists_exec ?_
-      unfold digits
-      wram_exec [List.length_nil]
+      wram_exec [digits, List.length_nil]
       refine ⟨by simp [Bounded], by wram_simp; exact Nat.two_pow_pos _, by simp [value],
         by wram_simp, frame_set_carry x 0 []⟩
   | cons d ds ih =>
@@ -138,8 +137,7 @@ private theorem exec_digits {w : ℕ} (hw : 2 ≤ w)
     cases as with
     | nil =>
       refine WP.Exact.exists_exec ?_
-      unfold digits
-      wram_exec
+      wram_exec [digits]
       wram_call (ih [] (by simp) (by simp) hds hnd' (by simp) x hb hz hs
         (by simp [Bounded])) with z ⟨hzb, hzc, hzv, hzt, hzf⟩
       wram_exec [List.length_cons, List.length_nil]
@@ -155,8 +153,7 @@ private theorem exec_digits {w : ℕ} (hw : 2 ≤ w)
       have hdis' : List.Disjoint ds as := List.disjoint_left.mpr fun i hi hj =>
         List.disjoint_left.mp hdis (List.mem_cons_of_mem d hi) (List.mem_cons_of_mem a hj)
       refine WP.Exact.exists_exec ?_
-      unfold digits
-      wram_exec
+      wram_exec [digits]
       wram_call (ih as (by simpa using hlen) (fun i hi => hin i (by simp [hi])) hds hnd' hdis'
         x hb hz hs (fun i hi => ha i (by simp [hi]))) with z ⟨hzb, hzc, hzv, hzt, hzf⟩
       have hza : z.regs a = x.regs a := hzf.digit_regs (hin a (by simp))
@@ -246,8 +243,7 @@ private theorem exec_dispatch {w : ℕ} (hw : 2 ≤ w)
   induction as generalizing x with
   | nil =>
     refine WP.exists_execWithin (WP.Exact.toWP ?_)
-    unfold dispatch
-    wram_exec
+    wram_exec [dispatch]
     wram_call (exec_finish hw [] ds (by simp) (by simp) hout hnd (by simp) _
       (by wram_simp [hb]) (by wram_simp; omega) (by simp [Bounded])) with y ⟨hyb, hyv, hyf⟩
     refine ⟨by simp only [List.length_nil]; omega, hyb, ?_,
@@ -260,8 +256,7 @@ private theorem exec_dispatch {w : ℕ} (hw : 2 ≤ w)
       List.disjoint_left.mp hdis hi (List.mem_cons_of_mem a hj)
     have hf : Fits w (x.regs total - w / 2) := hs.of_le (Nat.sub_le _ _)
     refine WP.exists_execWithin ?_
-    unfold dispatch
-    wram_exec [hz, hf]
+    wram_exec [dispatch, hz, hf]
     case pos =>
       obtain ⟨y, he, hyb, hyv, hyf⟩ :=
         exec_finish hw (a :: as) ds hlen hin hout hnd hdis x hb hc ha

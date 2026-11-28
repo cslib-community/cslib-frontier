@@ -445,8 +445,8 @@ theorem initE_spec (t : List ℕ) (y : Data 32) (hf : ImpFrame w φ τ x b C Tb 
       rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega), Option.getD_some]
       exact hget
     refine ⟨by rw [hf.s_eq]; omega, ?_⟩
-    unfold initEBody
-    wram_exec [hf.fits_le, hf.dBase_eq, hla, hlen_a, hf.zero_eq, hf.one_eq, hf.eBase_eq, hg]
+    wram_exec [initEBody,
+      hf.fits_le, hf.dBase_eq, hla, hlen_a, hf.zero_eq, hf.one_eq, hf.eBase_eq, hg]
     all_goals
       refine ⟨by wram_simp; omega, fun a' h => hAu a' (List.mem_cons_of_mem _ h),
         by wram_simp; simpa [Nat.add_assoc] using (by ram_keep hlu' : HoldsList _ u _),

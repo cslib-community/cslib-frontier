@@ -185,8 +185,8 @@ private theorem dfsStepBody_pop {N w : ℕ} (adj : Fin N → List (Fin N))
   have hu_lt := u.isLt
   have hstk2' : x.mem (stkAddr + 3 * d + 1 + 1) = csrOffset adj (u.val + 1) := by
     simpa [Nat.add_assoc] using hstk2
-  unfold dfsStepBody
-  wram_exec [hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
+  wram_exec [dfsStepBody,
+    hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
     hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1', hstk2']
   refine ⟨dfsRegs_of_frame hregs fun r hr => by wram_simp, ?_, fun v => ?_, by wram_simp,
     by wram_simp, by wram_simp, fun a ha => by wram_simp,
@@ -247,8 +247,8 @@ private theorem dfsStepBody_skip {N w : ℕ} (adj : Fin N → List (Fin N))
   have hv_lt := v.isLt
   have hstk2' : x.mem (stkAddr + 3 * d + 1 + 1) = csrOffset adj (u.val + 1) := by
     simpa [Nat.add_assoc] using hstk2
-  unfold dfsStepBody
-  wram_exec [hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
+  wram_exec [dfsStepBody,
+    hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
     hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1, hstk2', hedge_j, hvis_v1, hj_lt_end]
   refine ⟨dfsRegs_of_frame hregs fun r hr => by wram_simp, ?_, fun v => ?_, by wram_simp,
     by wram_simp [hfc], by wram_simp [hstk0], by wram_simp; omega, by wram_simp [hstk2],
@@ -307,8 +307,8 @@ private theorem dfsStepBody_push {N w : ℕ} (adj : Fin N → List (Fin N))
     simpa [Nat.add_assoc] using hcsr.1 (v.val + 1) (by omega)
   have hstk2' : x.mem (stkAddr + 3 * d + 1 + 1) = csrOffset adj (u.val + 1) := by
     simpa [Nat.add_assoc] using hstk2
-  unfold dfsStepBody
-  wram_exec [hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
+  wram_exec [dfsStepBody,
+    hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
     hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1, hstk2', hedge_j, hvis_v0, hj_lt_end,
     hoff_v0, hoff_v1]
   refine ⟨dfsRegs_of_frame hregs fun r hr => by wram_simp, ?_, fun w_v => ?_, by wram_simp,

@@ -273,8 +273,8 @@ theorem litLoop_spec (σ : Fin n → Bool) (ls : Clause (Fin n)) (x : Data 24)
     have := Bool.toNat_le (σ l.1 == l.2)
     have := Bool.toNat_le (s || (σ l.1 == l.2))
     refine ⟨by omega, ?_⟩
-    unfold litBody
-    wram_exec [hone, hlit, litCode_shiftRight, litCode_and_one, hσ l.1, hs', one_sub_toNat_xor,
+    wram_exec [litBody,
+      hone, hlit, litCode_shiftRight, litCode_and_one, hσ l.1, hs', one_sub_toNat_xor,
       toNat_or]
     wram_simp
     exact ⟨s || (σ l.1 == l.2), by omega, hrest, rfl,

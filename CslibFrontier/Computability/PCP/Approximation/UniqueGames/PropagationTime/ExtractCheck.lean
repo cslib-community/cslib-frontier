@@ -150,8 +150,8 @@ theorem extractCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x
           have hfn : (fn default).val = labVal v := by
             simp only [labVal, labelling, hgv, Option.elim_some]
           have hpws := prefix_write_step hzOut hzFr (congrArg _ hfn)
-          unfold extractBody
-          wram_exec [hzC.one, hzC.two, hzC.regL, hzC.visB, hzC.tabB, hzC.outB, hv_reg, hvis1',
+          wram_exec [extractBody,
+            hzC.one, hzC.two, hzC.regL, hzC.visB, hzC.tabB, hzC.outB, hv_reg, hvis1',
             hf0_mem]
           refine ⟨⟨by wram_simp [hzC], hpws⟩, ?_⟩
           wram_simp)
@@ -221,12 +221,12 @@ theorem checkCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x :
           rw [List.take_succ_eq_append_getElem hj, List.all_append, List.all_cons, List.all_nil,
             Bool.and_true]
         by_cases heq_v : (e.constraint (σ e.src)).val = (σ e.dst).val
-          wram_exec [checkBody, hzC.one, hzC.two, hzC.stride, hzC.edgeB, hzC.outB, hj_reg,
+        · wram_exec [checkBody, hzC.one, hzC.two, hzC.stride, hzC.edgeB, hzC.outB, hj_reg,
             hsrc_mem, hdst_mem, hlv e.src hs_lt, hlv e.dst hd_lt, hc_mem, heq_v]
           refine ⟨⟨by wram_simp [hzC], ?_, by wram_simp [hzMem]⟩, by wram_simp⟩
           wram_simp [hzOk]
           rw [hall_next, decide_eq_true (Fin.ext heq_v), Bool.and_true]
-          wram_exec [checkBody, hzC.zero, hzC.one, hzC.two, hzC.stride, hzC.edgeB, hzC.outB, hj_reg,
+        · wram_exec [checkBody, hzC.zero, hzC.one, hzC.two, hzC.stride, hzC.edgeB, hzC.outB, hj_reg,
             hsrc_mem, hdst_mem, hlv e.src hs_lt, hlv e.dst hd_lt, hc_mem, heq_v]
           refine ⟨⟨by wram_simp [hzC], ?_, by wram_simp [hzMem]⟩, by wram_simp⟩
           wram_simp

@@ -306,16 +306,16 @@ theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
                 fits_top hw (by wram_omega)
               by_cases heq_val : (e.constraint (f ⟨k, hk⟩)).val = (h ⟨k, hk⟩).val
               · have hk' := hkeep (by simp [hck_mem, cVal, hk, hck, Fin.ext heq_val])
-                unfold pruneBody
-                wram_exec [hzC.one, hzC.two, hzC.candB, hzT2, hzT3, hzE, hk_reg, hck_mem, hck1,
+                wram_exec [pruneBody,
+                  hzC.one, hzC.two, hzC.candB, hzT2, hzT3, hzE, hk_reg, hck_mem, hck1,
                   hfa, hha, hcfa, heq_val]
                 refine ⟨⟨?_, ?_, ?_, ?_, hk'.1, hk'.2⟩, ?_⟩
                 all_goals wram_simp [hzC, hzT2, hzT3, hzR]
               · have hpws := prefix_write_step hzCand hzFr
                   (congrArg (Function.update z.mem (candBase g + k))
                     (show 0 = cVal k by simp [cVal, hk, hck, Fin.ext_iff, heq_val]))
-                unfold pruneBody
-                wram_exec [hzC.zero, hzC.one, hzC.two, hzC.candB, hzT2, hzT3, hzE, hk_reg,
+                wram_exec [pruneBody,
+                  hzC.zero, hzC.one, hzC.two, hzC.candB, hzT2, hzT3, hzE, hk_reg,
                   hck_mem, hck1, hfa, hha, hcfa, heq_val]
                 refine ⟨⟨?_, ?_, ?_, ?_, hpws.1, hpws.2⟩, ?_⟩
                 all_goals wram_simp [hzC, hzT2, hzT3, hzR])

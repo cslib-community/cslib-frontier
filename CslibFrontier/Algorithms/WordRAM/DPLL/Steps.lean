@@ -383,8 +383,7 @@ theorem backtrack_spec (φ : CNF ℕ) (N T : ℕ) (t : Trail) (x : Data 32) (hs 
       ∀ a, T + 4 * N + 2 ≤ a → y.mem a = x.mem a := by
   obtain ⟨hz, h1, h2, htb, hce, hsb, hob, hnv, hgo, htp, hmem⟩ := id hs
   refine WP.exists_execWithin ?_
-  unfold backtrack
-  wram_exec [h1]
+  wram_exec [backtrack, h1]
   wram_call (popLoop_spec (w := w) φ N T t _ ..) framed [*] with v m ⟨⟨htp', hm'⟩, ha', hfr⟩
   have hdl := length_dropSecond_le t
   rw [backtrack_eq]

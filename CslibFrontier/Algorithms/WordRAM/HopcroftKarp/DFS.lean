@@ -632,8 +632,7 @@ private theorem exec_applyAugCode {w bOff : ℕ} {inst : SparseInstance}
         y.regs idx) = (augPairs[y.regs idx]'hlt).2.val :=
       (hf_y _ (by omega)).trans (haugM (y.regs idx) hlt).2
     refine WP.exists_execWithin ?_
-    unfold applyAugBody
-    wram_exec [hby.hbAugU, hby.hbAugV, hby.hbColMate, hby.hone, hau, hav]
+    wram_exec [applyAugBody, hby.hbAugU, hby.hbAugV, hby.hbColMate, hby.hone, hau, hav]
     have htake_eq : hkApplyEdges mate (augPairs.take (y.regs idx + 1)) =
         vset (hkApplyEdges mate (augPairs.take (y.regs idx)))
           (augPairs[y.regs idx]'hlt).2 (some (augPairs[y.regs idx]'hlt).1) := by

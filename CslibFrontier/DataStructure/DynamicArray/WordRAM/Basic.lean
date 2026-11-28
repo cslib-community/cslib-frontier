@@ -191,8 +191,7 @@ theorem grow_exec {w : ℕ} (x : Data 12) (h1 : Fits w 1)
       y.regs frontier = x.regs frontier + 2 * x.regs cap ∧
       (∀ i < x.regs len, y.mem (y.regs ptr + i) = x.mem (x.regs ptr + i)) ∧
       (∀ a, a < x.regs frontier ∨ x.regs frontier + 2 * x.regs cap ≤ a → y.mem a = x.mem a) := by
-  unfold grow
-  wram_exec
+  wram_exec [grow]
   refine WP.of_execWithin (alloc_exec (by decide) h1 (by wram_simp; fits)).within ?_
   wram_exec
   wram_call (copy_exec _ h1 ..) framed [Function.update_of_ne, Function.update_self] with v m hzm
@@ -269,8 +268,7 @@ theorem init_exec {w : ℕ} (x : Data 12) (h1 : Fits w 1) :
     ∃ y, Exec w initProgram x y 15 ∧
       Rep [] y ∧ y.regs frontier = 1 ∧ potential [] y = 0 ∧
       y.mem 0 = 0 ∧ (∀ a, 1 ≤ a → y.mem a = x.mem a) := by
-  unfold initProgram
-  wram_exec
+  wram_exec [initProgram]
   refine WP.Exact.of_exec (alloc_exec (by decide) h1 (by wram_simp; exact h1)) ?_
   wram_exec [Function.update_of_ne, Function.update_self]
   refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, fun i => Fin.elim0 i⟩, ?_, ?_, ?_, fun a ha => ?_⟩

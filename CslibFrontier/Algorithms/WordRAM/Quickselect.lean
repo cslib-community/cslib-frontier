@@ -771,8 +771,8 @@ theorem loadHeader_spec {w k : ℕ} {input : List ℕ} (hfit : InputFits w (k ::
       x_hdr.regs len = input.length := by
   have hfit_len1 : Fits w (input.length + 1) := by
     simpa only [List.length_cons] using hfit.1
-  unfold loadHeader
-  wram_exec [Data.init_regs, Data.init_mem_zero, Data.init_mem_succ, List.getD_cons_zero,
+  wram_exec [loadHeader,
+    Data.init_regs, Data.init_mem_zero, Data.init_mem_succ, List.getD_cons_zero,
     List.length_cons]
   wram_simp
 

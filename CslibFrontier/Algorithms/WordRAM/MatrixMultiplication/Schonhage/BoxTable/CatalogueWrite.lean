@@ -55,8 +55,7 @@ theorem exec_writeSlot {w L H D R s : ℕ} (x : Data registers)
       y.regs Reg.count = Nat.count (Eligible L H) (s + 1) by
     obtain ⟨y, hy, hm, hs', hc'⟩ := this
     exact ⟨y, hy, hm, hs', hc', fun i hi => hy.regs_eq (by unfold WriteLocal at hi; decide +revert)⟩
-  unfold writeSlot emit
-  wram_exec [*]
+  wram_exec [writeSlot, emit, *]
   · have hv : ¬Eligible L H s := fun h => (Nat.not_lt_of_ge h.2) hc
     wram_simp [catalogueWrite, hv, directoryWord, hcnt, Nat.count_succ_eq_count hv]
   · rename_i hlarge

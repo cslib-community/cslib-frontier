@@ -153,8 +153,7 @@ theorem exec_pop {w base capacity : ℕ} (h2 : Fits w 2) (hcap : Fits w (base + 
   have hv : Fits w v := hread ▸ hr.bounded.2 (base + vs.length)
   have hp : (prepare 1 0 x).Bounded w := (hr.bounded.set h1).set (fits_zero w)
   refine WP.Exact.exists_exec ?_
-  unfold program readAt
-  wram_exec [prepare, hr.pointer, hl, hread]
+  wram_exec [program, readAt, prepare, hr.pointer, hl, hread]
   refine ⟨by wram_simp, ⟨by wram_bounded <;> fits, by wram_simp [prepare, hr.pointer],
     by wram_simp, by omega, ?_⟩, Modifies.refl _ _⟩
   intro i

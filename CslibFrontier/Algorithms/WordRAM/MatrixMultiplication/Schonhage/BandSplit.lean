@@ -93,8 +93,7 @@ theorem exec_splitBody {w : ℕ} (L a : ℕ) (x : Data 96) (hx : SplitProgress L
   have haccI := hx.inner_acc
   have haccM : x.regs maskAcc < 2 ^ x.regs level := hx.mask_power ▸ hx.mask_acc
   have hrest : L - x.regs level = L - (x.regs level + 1) + 1 := by omega
-  unfold splitBody
-  wram_exec *
+  wram_exec * [splitBody]
   · have hmval := hx.mask_value
     have hoval := hx.outer_value
     have hival := hx.inner_value

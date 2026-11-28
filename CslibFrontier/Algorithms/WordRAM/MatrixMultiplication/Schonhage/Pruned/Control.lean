@@ -43,8 +43,7 @@ theorem exec_pop {w : ℕ} (x : Data registers) (h0 : x.regs nil = 0)
   have h2 : Fits w 2 := hw.of_le (by omega)
   have hd : Fits w (x.regs level - 1) := hw.of_le (by omega)
   refine WP.exists_execWithin ?_
-  unfold pop
-  wram_exec [h0, h1, h2, hd]
+  wram_exec [pop, h0, h1, h2, hd]
   all_goals
     refine ⟨rfl, by wram_simp; simp [hc], by wram_simp; simp [hc], by wram_simp; simp [hc],
       fun i hi => ?_⟩
@@ -81,8 +80,7 @@ theorem exec_advance {w : ℕ} (x : Data registers) (h1 : x.regs one = 1)
       y.mem = Function.update x.mem (x.regs frame + 3) (x.regs term + 1) ∧
       (∀ i, ¬AdvanceLocal i → y.regs i = x.regs i) := by
   refine WP.exists_execWithin ?_
-  unfold advance
-  wram_exec [h1, ht]
+  wram_exec [advance, h1, ht]
   wram_call (exec_storeTerm _ (by wram_simp [h1]) (by wram_simp [h4]) (by wram_simp; exact hf))
     with y ⟨hmode, hmem, hregs⟩
   wram_simp at hmem

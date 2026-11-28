@@ -867,8 +867,8 @@ theorem exec_dfsStep_push {w bOff k d : ℕ} {inst : SparseInstance}
         inst.offset w₀.val ∧
       (∀ a, DfsSubtreeOutside inst bOff d a → x_push.mem a = x.mem a) := by
     refine WP.exists_execWithin ?_
-    unfold dfsStepBody
-    wram_exec [hfr.hb.hbStackU, hfr.hb.hbOff, hfr.hb.hbStackPos, hfr.hb.hbEdges, hfr.hb.hbVis,
+    wram_exec [dfsStepBody,
+      hfr.hb.hbStackU, hfr.hb.hbOff, hfr.hb.hbStackPos, hfr.hb.hbEdges, hfr.hb.hbVis,
       hfr.hb.hbColMate, hfr.hb.hbDist, hfr.hb.hbStackV, hfr.hb.hrm, hfr.hb.hone, hfr.hb.hzero,
       hfr.hb.htwo, hfr.hrd, hfr.hrk, hd_lt_k, hfr.hsu, hoff_u1, hfr.hsp, hlt_lim, hedge_v,
       hvis_v, hmate_v, henc_m, hw_ne, hdist_w, henc_dw, hoff_w]

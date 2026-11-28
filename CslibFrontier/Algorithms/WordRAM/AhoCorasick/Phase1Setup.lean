@@ -120,8 +120,8 @@ private theorem exec_setupCode (inp : Input) (w : ℕ) (hw : Fits w inp.wordBoun
   obtain ⟨x₀, he₂, hL₀, hr1₀, hmem0⟩ : ∃ x₀, ExecWithin w setupBaseCode x₁ x₀ 13 ∧
       LayoutInv inp x₀ ∧ x₀.regs r1 = inp.trieBase ∧ x₀.mem = x₁.mem := by
     refine WP.exists_execWithin ?_
-    unfold setupBaseCode
-    wram_exec [hpb1, hnp1, htp1, htl1, hms1, hsig1, hf_tb1, hf_tb2, htb_eq.symm, hf_tr,
+    wram_exec [setupBaseCode,
+      hpb1, hnp1, htp1, htl1, hms1, hsig1, hf_tb1, hf_tb2, htb_eq.symm, hf_tr,
       htr_eq.symm, hf_db.of_le (hdb_eq ▸ Nat.le_add_left _ _), hf_db, hdb_eq.symm, hf_fb,
       hfb_eq.symm, hf_dp, hdp_eq.symm, hf_tm, htm_eq.symm, hf_oh, hoh_eq.symm, hf_on,
       hon_eq.symm, hf_qb, hqb_eq.symm, hf_ob, hob_eq.symm]

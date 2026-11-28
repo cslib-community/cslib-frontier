@@ -58,8 +58,7 @@ theorem exec_constants {w : ℕ} (x : Data registers) (hfit : Fits w 10) :
     refine ⟨y, he, h0, h1, h10, h9, h3, hm, fun i hi0 hi1 hi10 hi9 hi3 =>
       he.regs_eq (by simp [constants, Code.Preserves, Op.dest,
         Ne.symm hi0, Ne.symm hi1, Ne.symm hi10, Ne.symm hi9, Ne.symm hi3])⟩
-  unfold constants
-  wram_exec
+  wram_exec [constants]
   wram_simp
 
 /-- Actual extent setup and its complete persistent parameter readback. -/

@@ -682,8 +682,8 @@ private theorem gatherSlotBody_occ_wp {n sz base w maxDeg curD idx : ℕ} {a : D
   have hu_lt := slotTrees[idx].root.isLt
   have hm_c : a.mem (base + 8 * n + curD) = st.cons curD := by
     simp only [st, RawState.ofData, hd_le_n, ↓reduceIte]
-  unfold gatherSlotBody
-  wram_exec [hfit, hbr.regs_consBase, hbr.regs_zeroP, hbr.regs_oneP, hcurD, hm_c, hcons_eq]
+  wram_exec [gatherSlotBody,
+    hfit, hbr.regs_consBase, hbr.regs_zeroP, hbr.regs_oneP, hcurD, hm_c, hcons_eq]
   have hb3 : ((((a.set s0 (base + 8 * n + curD)).set s3 (slotTrees[idx].root.val + 1)).write
       (base + 8 * n + curD) 0).set iterCur slotTrees[idx].root.val).Bounded w := by
     wram_bounded <;> exact hfit _ (by omega)

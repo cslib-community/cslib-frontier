@@ -435,8 +435,8 @@ private theorem manacherBody_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (3 * xs
   by_cases hlt : radius xs (2 * x.regs regC - x.regs regc) < x.regs regR - (x.regs regc + 1) / 2
   · have hrad_c : radius xs (x.regs regc) = radius xs (2 * x.regs regC - x.regs regc) := by omega
     refine exists_comm.mp ⟨11, WP.exists_execWithin ?_⟩
-    unfold manacherBody readAt writeAt
-    wram_exec [hx.one_eq, hx.two_eq, hx.radBase_eq, hmirror_idx, hrad_m, hlt,
+    wram_exec [manacherBody, readAt, writeAt,
+      hx.one_eq, hx.two_eq, hx.radBase_eq, hmirror_idx, hrad_m, hlt,
       hf_sub1, hf_sub2, hf_radm, hf_c1, hf_c1_div, hf_b, hf_radc]
     refine ⟨⟨by wram_simp [hx.zero_eq], by wram_simp [hx.one_eq], by wram_simp [hx.two_eq],
       by wram_simp [hx.len_eq], by wram_simp [hx.limit_eq], by wram_simp [hx.out_eq],
@@ -604,15 +604,15 @@ private theorem extractLongestCode_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (
     have hf_j1 : Fits w (s.regs regc + 1) := hw.of_le (by omega)
     by_cases hlt_f : s.regs ext < 2 * radius xs (s.regs regc) + s.regs regc % 2
     · refine WP.exists_execWithin ?_
-      unfold argmaxBody readAt
-      wram_exec [ho, ht2, hrb, hrad_j, hlt_f, hf_addr, hf_2rad, hf_mod, hf_fj, hf_j1]
+      wram_exec [argmaxBody, readAt,
+        ho, ht2, hrb, hrad_j, hlt_f, hf_addr, hf_2rad, hf_mod, hf_fj, hf_j1]
       refine ⟨⟨by wram_simp [ho], by wram_simp [ht2], by wram_simp [hlim],
         by wram_simp [hrb], by wram_simp [hmem], ?_, by wram_simp; rfl⟩, by wram_simp⟩
       wram_simp
       simp [List.range_succ, List.argmax_concat, harg, ← hext_eq, hlt_f, f]
     · refine WP.exists_execWithin ?_
-      unfold argmaxBody readAt
-      wram_exec [ho, ht2, hrb, hrad_j, hlt_f, hf_addr, hf_2rad, hf_mod, hf_fj, hf_j1]
+      wram_exec [argmaxBody, readAt,
+        ho, ht2, hrb, hrad_j, hlt_f, hf_addr, hf_2rad, hf_mod, hf_fj, hf_j1]
       refine ⟨⟨by wram_simp [ho], by wram_simp [ht2], by wram_simp [hlim],
         by wram_simp [hrb], by wram_simp [hmem], ?_, by wram_simp [hext_eq]⟩, by wram_simp⟩
       wram_simp
@@ -673,8 +673,7 @@ private theorem extractLongestCode_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (
     y₄.regs t0 = sp - st ∧ y₄.regs t1 = 1 + st ∧ y₄.regs regC = 3 * xs.length + 4 ∧
     y₄.mem = Function.update y₁.mem (3 * xs.length + 3) (sp - st) := by
     refine WP.exists_execWithin ?_
-    unfold readAt
-    wram_exec [hy₃_1, hy₃_2, hy₃_lim, hy₃_rb, hbest_eq, hrad_bc,
+    wram_exec [readAt, hy₃_1, hy₃_2, hy₃_lim, hy₃_rb, hbest_eq, hrad_bc,
       hf_rb_bc, hf_bc_div, hf_st, hf_bc1, hf_bc1_div, hf_sp,
       hf_3n3, hf_diff, hf_1st, hf_3n4]
     refine ⟨by wram_simp [hrad_bc]; rfl, by wram_simp [hrad_bc]; rfl, by wram_simp; omega,

@@ -129,8 +129,7 @@ private theorem exec_row {w : ℕ} (I : Set (Fin (r + 4)))
     cases ds with
     | nil =>
       refine WP.Exact.exists_exec ?_
-      unfold row
-      wram_exec [List.length_nil]
+      wram_exec [row, List.length_nil]
       exact ⟨by simp [Bounded], by wram_simp [hc], by simp [value], frame_set_carry _ _ []⟩
     | cons => simp_all
   | cons b bs ih =>
@@ -244,8 +243,7 @@ private theorem exec_rows {w : ℕ} (hw : 2 ≤ w) (I : Set (Fin (r + 4)))
     have hf := frame_set_carry x 0 []
     have hds_d : ∀ i ∈ ds, IsDigit i := fun i hi => (hds i (by simp [hi])).1
     refine WP.Exact.exists_exec ?_
-    unfold rows
-    wram_exec [List.length_nil, rowCost]
+    wram_exec [rows, List.length_nil, rowCost]
     exact ⟨by simpa only [List.append_nil] using hf.bounded_of_digits hds_d (by simp) hd,
       by rw [List.append_nil, hf.value_eq_of_digits hds_d (by simp)]; simp [value],
       by simpa only [List.append_nil] using frame_mono hf (by simp)⟩
@@ -262,8 +260,7 @@ private theorem exec_rows {w : ℕ} (hw : 2 ≤ w) (I : Set (Fin (r + 4)))
       have hx₀I {i : Fin (r + 4)} (hi : i ∈ I) : (x.set carry 0).regs i = x.regs i :=
         frame_input hx₀ hI (by simp) hi
       refine WP.Exact.exists_exec ?_
-      unfold rows
-      wram_exec
+      wram_exec [rows]
       wram_call (exec_row I hI a (has a List.mem_cons_self) bs ds hlen hbs hds'
         (List.nodup_append.mp hnd).1 _ (by wram_simp [hbase])
         (hx₀I (has a List.mem_cons_self) ▸ ha a List.mem_cons_self)
@@ -334,13 +331,11 @@ theorem exec_clear {w : ℕ} (ds : List (Fin (r + 4)))
   induction ds generalizing x with
   | nil =>
     refine WP.Exact.exists_exec ?_
-    unfold clear
-    wram_exec [List.length_nil]
+    wram_exec [clear, List.length_nil]
     exact ⟨by simp, frame_set_carry _ _ []⟩
   | cons d ds ih =>
     refine WP.Exact.exists_exec ?_
-    unfold clear
-    wram_exec
+    wram_exec [clear]
     wram_call (ih (fun i hi => hds i (List.mem_cons_of_mem d hi))
       (List.nodup_cons.mp hnd).2 _) with y ⟨hy, hyf⟩
     refine ⟨by simp only [List.length_cons], fun i hi => ?_,

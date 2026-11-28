@@ -63,8 +63,8 @@ private theorem exec_bfsInnerStore (inp : Input) (w : ℕ) (hw : Fits w inp.word
   have hf_qt : Fits w (inp.queueBase + qt) := fits_of_le_outBase hw (by omega)
   have hf_qt1 : Fits w (qt + 1) := fits_of_le_outBase hw (by omega)
   refine exists_layoutInv hL₀ (WP.exists_execWithin ?_)
-  unfold bfsInnerStoreCode
-  wram_exec [hL₀.h_sigma, hL₀.h_deltaBase, hL₀.h_failBase, hL₀.h_queueBase, hL₀.h_one,
+  wram_exec [bfsInnerStoreCode,
+    hL₀.h_sigma, hL₀.h_deltaBase, hL₀.h_failBase, hL₀.h_queueBase, hL₀.h_one,
     hx₀_r3, hx₀_r5, hx₀_r6, hx₀_r7, hx₀_r2, hf_mr, hf_ra, hf_dra, hf_fs, hf_qt, hf_qt1]
   exact ⟨by wram_simp [hx₀_r6], by wram_simp [hx₀_r7], by wram_simp,
     by wram_simp, by wram_simp [hx₀_r3], by wram_simp, by wram_simp [hx₀_r5],

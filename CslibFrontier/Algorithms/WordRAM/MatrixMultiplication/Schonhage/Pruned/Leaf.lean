@@ -89,8 +89,7 @@ theorem exec_leaf {w : ℕ} {a b : ℤ} (ha : GenericRAM.Signed.Fits w a)
       y.regs active = (if x.regs level = 0 then 0 else x.regs active) ∧
       (∀ i, ¬LeafReturnLocal i → y.regs i = x.regs i) := by
   refine WP.exists_execWithin ?_
-  unfold leaf
-  wram_exec [h0]
+  wram_exec [leaf, h0]
   · have hne : x.regs count ≠ 0 := Nat.ne_of_gt hc
     wram_call (exec_leafProduct ha hb hab x hleft hright hp hq) with v ⟨hmem, hreg⟩
     have hvd : v.regs level = x.regs level := hreg level (by decide)

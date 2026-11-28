@@ -86,8 +86,8 @@ private theorem successorUnwindBody_cluster_spec {w stackBase₀ sp₀ pay child
       UnwindState stackBase₀ sp₀ (pay + childAns) mem s' := by
   have ⟨hz, ho, hfive, _, hsp_eq, _, hout_eq, hmem⟩ := hs
   apply WP.exists_execWithin
-  unfold successorUnwindBody popFrame
-  wram_exec [hz, ho, hfive, hsp_eq, hout_eq, hmem, hk, hpay, Nat.add_sub_assoc, Nat.add_zero]
+  wram_exec [successorUnwindBody, popFrame,
+    hz, ho, hfive, hsp_eq, hout_eq, hmem, hk, hpay, Nat.add_sub_assoc, Nat.add_zero]
   struct_frame hs
 
 /-- One summary-return unwind step (`kind = 1`) executes in at most 19 instructions and reconstructs
@@ -116,8 +116,8 @@ private theorem successorUnwindBody_summary_spec {d w stackBase₀ sp₀ base j 
   have hans : Fits w (j * universeSize d + cm) :=
     ha.of_le ((hmul_lt.le.trans (universeSize_le_span (d + 1))).trans (Nat.le_add_left _ base))
   apply WP.exists_execWithin
-  unfold successorUnwindBody popFrame readAt
-  wram_exec [hz, ho, hfive, hsp_eq, hout_eq, hmem, hk, hpay, hqv, htv, hcm,
+  wram_exec [successorUnwindBody, popFrame, readAt,
+    hz, ho, hfive, hsp_eq, hout_eq, hmem, hk, hpay, hqv, htv, hcm,
     Nat.add_sub_assoc, Nat.add_zero]
   struct_frame hs
 
@@ -213,8 +213,7 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
       cases tree <;> simp_all [Tree.bounds, Tree.successor]
     apply successor_some_finish hs
     apply WP.exists_execWithin
-    unfold successorDescentBody readAt finishMin
-    wram_exec* [hpres, hm, hlt_m]
+    wram_exec* [successorDescentBody, readAt, finishMin, hpres, hm, hlt_m]
     exact ⟨by wram_simp, by constructor <;> wram_simp * [hans_eq]⟩
   cases tree with
   | leaf b =>
@@ -225,8 +224,7 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
       simpa [Tree.successor, hlt_m, hlt_M] using hans.symm
     apply successor_some_finish hs
     apply WP.exists_execWithin
-    unfold successorDescentBody readAt finishMax
-    wram_exec* [hpres, hm, hM, hq, splitSize, hlt_m, hlt_M]
+    wram_exec* [successorDescentBody, readAt, finishMax, hpres, hm, hM, hq, splitSize, hlt_m, hlt_M]
     exact ⟨by wram_simp, by constructor <;> wram_simp * [hans_eq]⟩
   | @node d b summary cluster =>
     obtain rfl : b = some (m, M) := hb
@@ -298,8 +296,8 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
       have hc_max : (cluster i).maximum.any (lo < ·) = false := by simp [Tree.maximum, hcb]
       apply summary_branch hc_max
       apply WP.exists_execWithin
-      unfold successorDescentBody readAt coordinates descendSummary pushFrame
-      wram_exec* [hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne, hch0]
+      wram_exec* [successorDescentBody, readAt, coordinates, descendSummary, pushFrame,
+        hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne, hch0]
       exact ⟨by struct_frame hs, ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩,
         by mem_frame⟩
     · have hch1 : s.mem ch = 1 := by
@@ -332,8 +330,8 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
               next.mem (sp₀ + 2) = universeSize d ∧ next.mem (sp₀ + 3) = span d) ∧
             (∀ a, a < sp₀ ∨ sp₀ + 4 ≤ a → next.mem a = s.mem a) := by
           apply WP.exists_execWithin
-          unfold successorDescentBody readAt coordinates descendCluster pushFrame
-          wram_exec* [hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne,
+          wram_exec* [successorDescentBody, readAt, coordinates, descendCluster, pushFrame,
+            hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne,
             hch_ne0, hcM, hlo_mx]
           exact ⟨by struct_frame hs,
             ⟨by wram_simp, by wram_simp [i], by wram_simp, by wram_simp⟩, by mem_frame⟩
@@ -355,8 +353,8 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
           simp [Tree.maximum, hcb, hlo_cM]
         apply summary_branch hc_max
         apply WP.exists_execWithin
-        unfold successorDescentBody readAt coordinates descendSummary pushFrame
-        wram_exec* [hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne,
+        wram_exec* [successorDescentBody, readAt, coordinates, descendSummary, pushFrame,
+          hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne,
           hch_ne0, hcM, hlo_mx]
         exact ⟨by struct_frame hs, ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩,
           by mem_frame⟩

@@ -117,8 +117,8 @@ theorem insertIntoNonEmptyList_exec {n base w : ℕ} {x : Data rFib}
   have hu_lt := u.isLt
   have hr_lt := r.isLt
   have hr_mem : x.mem (base + 4 * n + h.val) = r.val := hr
-  unfold insertIntoNonEmptyList
-  wram_exec [hfit, hbr.regs_leftBase, hbr.regs_rightBase, hh_val, hu_val, hr_mem]
+  wram_exec [insertIntoNonEmptyList,
+    hfit, hbr.regs_leftBase, hbr.regs_rightBase, hh_val, hu_val, hr_mem]
   refine ⟨by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr],
     Modifies.block_iff.2 fun a ha => by have := out_of_footprint n base ha; wram_simp, ?_⟩
   wram_simp [ofData_write_right, ofData_write_left, ofData_set_scratch]
@@ -163,8 +163,8 @@ theorem addRootAndUpdateMin_exec {n base w : ℕ} {x : Data rFib}
   · -- Empty root list (`minRoot = 0`)
     have hmin_x : x.regs minRootReg = 0 := hmin0
     have hnr_x : x.regs numRootsReg = st.numRoots := rfl
-    unfold addRootAndUpdateMin
-    wram_exec [hfit, hbr.regs_leftBase, hbr.regs_rightBase, hbr.regs_zeroP, hbr.regs_oneP,
+    wram_exec [addRootAndUpdateMin,
+      hfit, hbr.regs_leftBase, hbr.regs_rightBase, hbr.regs_zeroP, hbr.regs_oneP,
       hu_val, hmin_x, hnr_x]
     refine ⟨by wram_simp [BaseRegs.set_iff, BaseRegs.write_iff, hbr],
       Modifies.block_iff.2 fun a ha => by have := out_of_footprint n base ha; wram_simp,

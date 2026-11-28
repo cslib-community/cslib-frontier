@@ -141,8 +141,7 @@ theorem exec_digits {w : ℕ} (hw : 2 ≤ w) (bs ds : List (Fin (r + 4)))
     cases ds with
     | nil =>
       refine WP.Exact.exists_exec ?_
-      unfold digits
-      wram_exec [List.length_nil]
+      wram_exec [digits, List.length_nil]
       exact ⟨by simp [Bounded], by wram_simp [hc], by simp [value], frame_set_carry _ _ []⟩
     | cons => simp_all
   | cons b bs ih =>

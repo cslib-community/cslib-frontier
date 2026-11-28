@@ -105,8 +105,7 @@ public theorem exec_reconstruct {w L m N : ℕ}
       wram_simp [hne]
       exact hza a ha
   refine WP.exists_execWithin ?_
-  unfold reconstruct
-  wram_exec
+  wram_exec [reconstruct]
   wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.queryCount) hbody
     (by wram_simp; exact Nat.zero_le _)
     ⟨by regs_frame, by wram_simp; simp, fun _ _ => rfl⟩) with y ⟨⟨hyp, hyj, hya⟩, _⟩

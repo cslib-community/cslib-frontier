@@ -297,8 +297,7 @@ theorem exec_genLowSubsets {w d coordsPtr domPtr k : ℕ} (coords : List (Fin d)
       have hbit_fit : Fits w (1 <<< c.val) := by
         rw [Nat.shiftLeft_eq, one_mul]
         exact hfit_mask.of_le (Nat.pow_le_pow_right Nat.two_pos c.isLt.le)
-      unfold genOuterStep
-      wram_exec * [hc_read]
+      wram_exec * [genOuterStep, hc_read]
       refine WP.name fun u₀ hu₀ => ?_
       have hu₀pos : u₀.regs rGenPos = 0 := by subst hu₀; wram_simp
       have hu₀P : P_in 0 u₀ := by
@@ -317,8 +316,7 @@ theorem exec_genLowSubsets {w d coordsPtr domPtr k : ℕ} (coords : List (Fin d)
       wram_exec *
       exact ⟨⟨by regs_frame, by wram_simp [hu₁dl], by wram_simp; exact hu₁dom,
         by wram_simp; exact hu₁frame⟩, by wram_simp⟩
-    unfold genLowSubsets
-    wram_exec *
+    wram_exec * [genLowSubsets]
     refine WP.name fun s₀ hs₀ => ?_
     have hs₀idx : s₀.regs rGenIdx = 0 := by subst hs₀; wram_simp
     have hs₀P : P_out 0 s₀ := by

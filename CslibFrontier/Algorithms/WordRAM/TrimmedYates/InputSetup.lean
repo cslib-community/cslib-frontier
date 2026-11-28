@@ -157,8 +157,7 @@ theorem exec_inputSetupCode (inst : Instance) {w : ℕ} (hw : inst.FitsWidth w) 
   -- Header decode
   dsimp only [x] at hx0 hm1 hm2 hm3 hm4 hm5
   simp only [exists_and_left]
-  unfold inputSetupCode
-  wram_exec [hx0, hm1, hm2, hm3, hm5]
+  wram_exec [inputSetupCode, hx0, hm1, hm2, hm3, hm5]
   refine WP.name fun u₀ hu₀ => ?_
   obtain ⟨hu₀d, hu₀s, hu₀fr, hu₀cdp, hu₀cdl, hu₀qc, hu₀mem⟩ :
       u₀.regs Reg.dim = inst.d ∧ u₀.regs Reg.thresh = inst.s ∧ u₀.regs Reg.free = initFree ∧

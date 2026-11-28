@@ -243,8 +243,8 @@ private theorem invLoops_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x : Dat
             (fun a => decide (g.edges[j].constraint a = ⟨bk, hbk⟩)) with
         | none =>
           have hcur_eq : invAt k bk hbk = L := by simp [invAt, hfind]
-          unfold invFillBody
-          wram_exec [hzC.one, hzC.two, hzC.regL, hzC.invB, hzE, hk_reg, hc_mem, hcur_mem, hcur_eq]
+          wram_exec [invFillBody,
+            hzC.one, hzC.two, hzC.regL, hzC.invB, hzE, hk_reg, hc_mem, hcur_mem, hcur_eq]
           refine ⟨⟨by wram_simp [hzC], by wram_simp [hzR], ?_, ?_⟩, by wram_simp⟩
           · simp only [Data.write_mem, Data.set_mem]
             intro b hb
@@ -257,8 +257,8 @@ private theorem invLoops_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x : Dat
             exact fun addr haddr => (Function.update_of_ne (by omega) _ _).trans (hzFr addr haddr)
         | some a0 =>
           have hcur_ne : invAt k bk hbk ≠ L := by simp [invAt, hfind, a0.isLt.ne]
-          unfold invFillBody
-          wram_exec [hzC.one, hzC.two, hzC.regL, hzC.invB, hzE, hk_reg, hc_mem, hcur_mem, hcur_ne]
+          wram_exec [invFillBody,
+            hzC.one, hzC.two, hzC.regL, hzC.invB, hzE, hk_reg, hc_mem, hcur_mem, hcur_ne]
           refine ⟨⟨by wram_simp [hzC], by wram_simp [hzR], ?_, ?_⟩, by wram_simp⟩
           · intro b hb
             simp only [Data.set_mem, hzInv b hb]
@@ -330,8 +330,8 @@ private theorem extendBwdLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x 
             else x.mem (invBase g + (h ⟨k, hk⟩).val)) = eVal k := by
           simpa only [eVal, hk, ↓reduceDIte, Fin.eta] using hinv_mem _ (h ⟨k, hk⟩).isLt
         by_cases hivL : x.mem (invBase g + (h ⟨k, hk⟩).val) = L <;>
-        · unfold extendBwdBody
-          wram_exec [hzC.one, hzC.regL, hzC.invB, hzT2, hzT3, hk_reg, hha, hiv_fr, hivL]
+        · wram_exec [extendBwdBody,
+          hzC.one, hzC.regL, hzC.invB, hzT2, hzT3, hk_reg, hha, hiv_fr, hivL]
           refine ⟨⟨by wram_simp [hzC], by wram_simp [hzT2], by wram_simp [hzT3],
             by wram_simp [hzR], ?_, ?_⟩, by wram_simp⟩ <;>
           · simp only [Data.write_mem, Data.set_mem]

@@ -1081,8 +1081,8 @@ theorem phaseADegrees_exec {w wb db str m : ℕ}
     (matAddr_ne_degAddr hstr hdisj u v v).symm
   have hdu_mem : x.mem (db + u.val) = rowDeg W u := hws.2 u
   have hdv_mem : x.mem (db + v.val) = rowDeg W v := hws.2 v
-  unfold phaseADegrees
-  wram_exec [h0, htotS, hv1, ha2, hdBase, huReg, hvReg, hdu_ne, hdv_ne, hdu_mem, hdv_mem,
+  wram_exec [phaseADegrees,
+    h0, htotS, hv1, ha2, hdBase, huReg, hvReg, hdu_ne, hdv_ne, hdu_mem, hdv_mem,
     hS1_fit, hS2_eq, hS2_fit, hdu_addr_fit, hdv_addr_fit, hdu_sub_fit, hdv_sub_fit,
     hdu_new_eq, hdu_new_fit]
   refine ⟨?_, ?_, ?_,
@@ -1130,8 +1130,8 @@ private theorem phaseAPtrs_exec {w wb db str m t : ℕ}
       y.regs idx = 0 := by
   obtain ⟨hmul_u_fit, hrow_u_fit⟩ := rowBase_fits hwEnd (Nat.le_of_lt u.isLt)
   obtain ⟨hmul_v_fit, hrow_v_fit⟩ := rowBase_fits hwEnd (Nat.le_of_lt v.isLt)
-  unfold phaseAPtrs
-  wram_exec [hf.zero_eq, hf.wBase_eq, hf.stride_eq, huReg, hvReg, hmul_u_fit, hrow_u_fit,
+  wram_exec [phaseAPtrs,
+    hf.zero_eq, hf.wBase_eq, hf.stride_eq, huReg, hvReg, hmul_u_fit, hrow_u_fit,
     hmul_v_fit, hrow_v_fit, hwEnd.of_le (Nat.le_of_lt (matAddr_lt_end hstr v u))]
   refine ⟨?_, fun i => ?_, fun i j => ?_, by struct_frame hf, by wram_simp,
     by wram_simp [huReg], by wram_simp [hvReg], by wram_simp, by wram_simp, by wram_simp⟩
@@ -1293,8 +1293,8 @@ private theorem compactLoop_exec {w wb db str m t : ℕ}
       have hcv_fit : Fits w (wb + c_val * str + v.val) :=
         hwEnd.of_le (Nat.le_of_lt (matAddr_lt_end hstr c.castSucc v))
       have hread_mc : y.mem (wb + m * str + c_val) = W₁ (Fin.last m) c.castSucc := hyrowm c
-      unfold compactUpdate
-      wram_exec [hyf.one_eq, hyf.wBase_eq, hyf.stride_eq, hyv, hya1, hya2, hidx_eq, hcv,
+      wram_exec [compactUpdate,
+        hyf.one_eq, hyf.wBase_eq, hyf.stride_eq, hyv, hya1, hya2, hidx_eq, hcv,
         hread_mc, hmc_fit, hvc_fit, hcmul_fit, hcrow_fit, hcv_fit, hc1_fit]
       refine ⟨⟨by struct_frame hyf, by wram_simp [hytot], by wram_simp [hyv],
         by wram_simp [hya1], by wram_simp [hya2], by wram_simp; omega,

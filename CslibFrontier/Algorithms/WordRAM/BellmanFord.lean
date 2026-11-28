@@ -790,8 +790,8 @@ private theorem testImproveCode_spec (G : Instance) {w B : ℕ} (hfit : Fits w G
   | top =>
     have hlt_false : decide ((⊤ : WithTop ℤ) + c₀ < d v₀) = false :=
       decide_eq_false (by rw [WithTop.top_add]; exact not_top_lt)
-    unfold testImproveCode
-    wram_exec [hx.hdbase, hu, hdu_mem, hdu, encodeDist_top, hx.ctwo, hj, hx.hebase, hx.cone,
+    wram_exec [testImproveCode,
+      hx.hdbase, hu, hdu_mem, hdu, encodeDist_top, hx.ctwo, hj, hx.hebase, hx.cone,
       hx.czero, htarget_mem, hweight_mem, hf_du, hf_2j, hf_et, hf_ew]
     rw [hlt_false]
     exact ⟨((((((((hx.set (by decide)).set (by decide)).set (by decide)).set (by decide)).set
@@ -811,8 +811,8 @@ private theorem testImproveCode_spec (G : Instance) {w B : ℕ} (hfit : Fits w G
         _ ≤ (G.n * G.m + 1) * G.maxAbsWeight := Nat.mul_le_mul_right _ (by omega)
     have ha_sfit : GenericRAM.Signed.Fits (w - 2) a := hSfit.of_natAbs_le ha_abs
     have hc_sfit : GenericRAM.Signed.Fits (w - 2) c₀ := hSfit.of_natAbs_le hc_abs
-    unfold testImproveCode
-    wram_exec [hx.hdbase, hu, hdu_mem, hdu, encodeDist_coe, hx.ctwo, hj, hx.hebase, hx.cone,
+    wram_exec [testImproveCode,
+      hx.hdbase, hu, hdu_mem, hdu, encodeDist_coe, hx.ctwo, hj, hx.hebase, hx.cone,
       htarget_mem, hweight_mem, hf_du, hf_2j, hf_et, hf_ew, hne1]
     refine WP.name fun x₁ hx₁ => ?_
     have hx₁_l : x₁.regs Signed.left = Signed.encode a := by

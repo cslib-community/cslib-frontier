@@ -157,8 +157,7 @@ theorem exec_tables {w : ℕ} (L m inv tab : ℕ) (x : Data 96)
     refine ⟨by omega, ⟨by regs_frame, hzr, ?_⟩, hzt⟩
     rw [hzmem, humem]
     exact hmem.step htlt hsep
-  unfold tablesCode
-  wram_exec *
+  wram_exec * [tablesCode]
   wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.masks) hb
     (by wram_simp; exact Nat.zero_le _)
     (by refine ⟨by regs_frame, by wram_simp [prefixCount_zero],

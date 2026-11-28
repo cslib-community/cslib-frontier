@@ -1042,8 +1042,7 @@ private theorem popAndSample_spec {w n k_sp : ℕ} {x : Data 16}
       ∃ p, Exec w popPrefix x p 7 ∧ p.mem = x.mem ∧ p.regs sp = k_sp ∧
         p.regs lo = vlo ∧ p.regs hi = vhi ∧ p.regs tmp = vhi - vlo - 1 := by
     refine WP.Exact.exists_exec ?_
-    unfold popPrefix readAt
-    wram_exec [hsp, hone, hsLo, hsHi, hfit]
+    wram_exec [popPrefix, readAt, hsp, hone, hsLo, hsHi, hfit]
     wram_simp [Nat.add_sub_cancel, vlo, vhi]
   have hr := ExecRand.rand (B := .standard) (w := w) (dst := tmp) (src := tmp) (x := p)
     (by rw [htmp_p]; exact hfit_all.of_le (by dsimp only [vlo, vhi]; omega))
