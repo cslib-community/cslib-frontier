@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.IP.TQBF.Verifier
+import CslibFrontier.Foundations.Analysis.ENNRealNatDiv
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF
 import Mathlib.Algebra.Field.ZMod
@@ -93,7 +94,7 @@ private theorem verdict_of_passed_eq_false (I : LoopInput) {st : VState} (h : st
   rw [verdict, OracleComp.iterate_eq_pure _ _ _ (by simp [Machine.step, h]), map_pure, h]
 
 /-- Without tokens the machine stays put and accepts when every check passed. -/
-private theorem verdict_nil (I : LoopInput) (St : List Claim) (n : ℕ) :
+theorem verdict_nil (I : LoopInput) (St : List Claim) (n : ℕ) :
     verdict I ⟨[], St, true⟩ n = pure true := by
   rw [verdict, OracleComp.iterate_eq_pure _ _ _ (by simp [Machine.step]), map_pure]
 
@@ -165,10 +166,6 @@ private theorem getD_decodeTyped (word : List Bool) (i : ℕ) :
 private theorem take_decodeTyped (word : List Bool) :
     (decodeTyped I word).take (I.degree + 1) = decodeTyped I word :=
   List.take_of_length_le (by rw [decodeTyped, List.length_map, length_decodeReply])
-
-private theorem val_one_sub (c : ZMod I.modulus) : (1 - c).val = subMod I.modulus 1 c.val := by
-  have h : 1 - c = (subMod I.modulus 1 c.val : ZMod I.modulus) := by simp [natCast_subMod]
-  rw [h, val_natCast_of_lt I (subMod_lt _ _)]
 
 private theorem reject_case (rest : List (ArithQBF.Kind × ℕ)) (St : List Claim) (m : ℕ)
     (s : S) (cont : Bool × S → PMF (Bool × S))
@@ -397,7 +394,8 @@ private theorem mem_linVars {ψ : QBF ℕ} {v : ℕ} (hv : v ∈ ψ.vars) : v �
 /-- The arithmetic formula checked by the machine on `ψ`. -/
 def arithOf : ArithQBF ℕ := ψ.arithmetize (linVars ψ)
 
-private theorem modulus_loopInput : (loopInput ψ).modulus = modulus ψ :=
+/-- The modulus of the machine's input is the modulus of the formula. -/
+theorem modulus_loopInput : (loopInput ψ).modulus = modulus ψ :=
   Nat.sub_add_cancel (prime_modulus ψ).1.one_lt.le
 
 local instance : Fact ((loopInput ψ).modulus).Prime := ⟨modulus_loopInput ψ ▸ (prime_modulus ψ).1⟩
@@ -405,14 +403,17 @@ local instance : Fact ((loopInput ψ).modulus).Prime := ⟨modulus_loopInput ψ 
 private theorem one_lt_modulus_loopInput : 1 < (loopInput ψ).modulus :=
   (Fact.out (p := ((loopInput ψ).modulus).Prime)).one_lt
 
-private theorem vars_arithOf {w : ℕ} (hw : w ∈ (arithOf ψ).vars) : w ∈ (loopInput ψ).xs :=
+/-- The variables of the arithmetization are among the variables of the machine's input. -/
+theorem vars_arithOf {w : ℕ} (hw : w ∈ (arithOf ψ).vars) : w ∈ (loopInput ψ).xs :=
   (QBF.mem_vars_arithmetize hw).elim mem_linVars id
 
-private theorem maxRoundDegree_arithOf : (arithOf ψ).maxRoundDegree ≤ (loopInput ψ).degree := by
+/-- The rounds of the arithmetization have degree at most the degree bound of the machine. -/
+theorem maxRoundDegree_arithOf : (arithOf ψ).maxRoundDegree ≤ (loopInput ψ).degree := by
   refine (QBF.maxRoundDegree_arithmetize_le fun v hv => mem_linVars hv).trans (le_of_eq ?_)
   rw [loopInput, degreeBound, QBF.length_tokens]
 
-private theorem tokens_arithOf : (arithOf ψ).tokens = (loopInput ψ).tokens := by
+/-- The tokens of the machine's input are those of the arithmetization. -/
+theorem tokens_arithOf : (arithOf ψ).tokens = (loopInput ψ).tokens := by
   rw [arithOf, QBF.tokens_arithmetize]
   rfl
 
@@ -437,7 +438,7 @@ theorem acceptProb_verifier_eq (hψ : ψ.Closed) (P : Prover Unit) :
   exact congrArg (fun μ => (μ.map Prod.fst) true) hrun
 
 /-- The samples of the protocol give every residue probability at most `2 / p`. -/
-private theorem eval_samplerOf_le (I : LoopInput) (z : ZMod I.modulus) :
+theorem eval_samplerOf_le (I : LoopInput) (z : ZMod I.modulus) :
     ProbComp.eval (samplerOf I) z ≤ 2 / I.modulus := by
   rw [samplerOf, ProbComp.eval_map, PMF.map_apply, tsum_eq_single z.val]
   · split_ifs
@@ -446,14 +447,6 @@ private theorem eval_samplerOf_le (I : LoopInput) (z : ZMod I.modulus) :
     split_ifs with hz
     exacts [(PMF.apply_eq_zero_iff _ _).mpr fun hsupp =>
       hn (by rw [hz, ZMod.val_natCast, Nat.mod_eq_of_lt (lt_of_mem_support_sampleMod hsupp)]), rfl]
-
-/-- A soundness error `N * (2 / p)` is at most `1 / 3` when `6 * N ≤ p`. -/
-private theorem mul_two_div_le_one_third {N p : ℕ} (hp : p ≠ 0) (h : 6 * N ≤ p) :
-    (N : ℝ≥0∞) * (2 / p) ≤ 1 / 3 := by
-  rw [← mul_div_assoc, ENNReal.div_le_iff (by exact_mod_cast hp) (ENNReal.natCast_ne_top p),
-    one_div, ← ENNReal.div_eq_inv_mul, ENNReal.le_div_iff_mul_le (Or.inl (by norm_num))
-      (Or.inl (by norm_num))]
-  exact_mod_cast (show N * 2 * 3 ≤ p by omega)
 
 /-- **Soundness of the verifier**: on a formula outside `TQBF`, every prover is accepted with
 probability at most `1 / 3`. -/
@@ -466,7 +459,7 @@ theorem acceptProb_verifier_le (hψ : ψ ∉ TQBF) (P : Prover Unit) :
         Bool.eq_false_iff.2 fun h => hψ ⟨hclosed, h⟩]
     refine (acceptProb_verifyAt_le (samplerOf (loopInput ψ)) (loopInput ψ).degree
       (eval_samplerOf_le (loopInput ψ)) _ _ (maxRoundDegree_arithOf ψ) hc P.init).trans ?_
-    refine mul_two_div_le_one_third (Nat.succ_ne_zero _) ?_
+    refine ENNReal.mul_two_div_le_one_third (Nat.succ_ne_zero _) ?_
     have hops : (arithOf ψ).ops ≤ (ψ.size + 1) * ψ.size := by
       simpa only [arithOf, linVars, List.length_map, QBF.length_tokens] using
         QBF.ops_arithmetize_le (linVars ψ) ψ
@@ -519,7 +512,7 @@ private theorem eq_of_queryMessage_eq {I : LoopInput} {q q' : QueryAt (ZMod I.mo
     ZMod.val_injective _ (Prod.ext_iff.1 (List.map_inj_left.1 h'.2 x hx)).2⟩
 
 /-- The entries of a decoded honest reply. -/
-private theorem getD_decoded {p : ℕ} [NeZero p] (D : ℕ) (L : List (ZMod p)) (hL : L.length ≤ D + 1)
+theorem getD_decoded {p : ℕ} [NeZero p] (D : ℕ) (L : List (ZMod p)) (hL : L.length ≤ D + 1)
     (i : ℕ) : (((List.range (D + 1)).map fun i => (L.map ZMod.val).getD i 0).map
       (Nat.cast : ℕ → ZMod p)).getD i 0 = L.getD i 0 := by
   by_cases hi : i < D + 1
@@ -531,7 +524,8 @@ private theorem getD_decoded {p : ℕ} [NeZero p] (D : ℕ) (L : List (ZMod p)) 
 
 variable (ψ : QBF ℕ)
 
-private theorem one_le_degree : 1 ≤ (loopInput ψ).degree :=
+/-- The degree bound of the machine is at least `1`. -/
+theorem one_le_degree : 1 ≤ (loopInput ψ).degree :=
   Nat.succ_le_of_lt (Nat.mul_pos zero_lt_two (List.length_pos_of_ne_nil (QBF.tokens_ne_nil ψ)))
 
 /-- The decoded honest reply to a query about a subformula whose variables lie in `xs`. -/
