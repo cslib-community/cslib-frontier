@@ -365,7 +365,7 @@ agent `e` values outcome `S` at `-c e` if `e ∈ S` and `0` otherwise ([Hartline
 p. 351). -/
 @[expose] def negCostValuation [DecidableEq E] (F : Finset (Finset E)) (c : E → ℝ) (e : E)
     (S : {S // S ∈ F}) : ℝ :=
-  if e ∈ S.1 then -c e else 0
+  if e ∈ S.val then -c e else 0
 
 /-- The outside-option Groves pivot for procurement: `max_{T ∈ F, e ∉ T} ∑_{j ≠ e} v_j(T)`,
 which restricts the economy to feasible sets not requiring agent `e`. -/
@@ -374,7 +374,7 @@ which restricts the economy to feasible sets not requiring agent `e`. -/
     (v : E → {S // S ∈ F} → ℝ) : ℝ :=
   (F.filter fun T => e ∉ T).attach.sup'
     ((hmono.filter_notMem_nonempty e).attach)
-    fun T => ∑ j ∈ Finset.univ.erase e, v j ⟨T.1, (Finset.mem_filter.1 T.2).1⟩
+    fun T => ∑ j ∈ Finset.univ.erase e, v j ⟨T.val, (Finset.mem_filter.1 T.property).1⟩
 
 /-- Bridge to `Cslib.GameTheory.Mechanism.groves` (`VCG.lean`): on negative-cost valuations,
 `vcgMechanism` pays each agent the negation of the Groves payment with the outside-option pivot
@@ -382,7 +382,7 @@ which restricts the economy to feasible sets not requiring agent `e`. -/
 theorem vcgMechanism_pay_eq_neg_groves [Fintype E] [DecidableEq E] (F : Finset (Finset E))
     (hF : F.Nonempty) (hmono : IsMonopolyFree F)
     (f : (E → {S // S ∈ F} → ℝ) → {S // S ∈ F})
-    (c : E → ℝ) (hf : (f (negCostValuation F c)).1 = vcgAlloc F hF c) (e : E) :
+    (c : E → ℝ) (hf : (f (negCostValuation F c)).val = vcgAlloc F hF c) (e : E) :
     (vcgMechanism F hF hmono).pay c e =
       -(Cslib.GameTheory.Mechanism.groves f (procurementGrovesPivot F hmono)).payment
         (negCostValuation F c) e := by
@@ -410,20 +410,21 @@ theorem vcgMechanism_pay_eq_neg_groves [Fintype E] [DecidableEq E] (F : Finset (
   have hsup :
       (F.filter fun T => e ∉ T).attach.sup' ((hmono.filter_notMem_nonempty e).attach)
         (fun T => ∑ j ∈ Finset.univ.erase e, negCostValuation F c j
-          ⟨T.1, (Finset.mem_filter.1 T.2).1⟩) =
+          ⟨T.val, (Finset.mem_filter.1 T.property).1⟩) =
       -((F.filter fun T => e ∉ T).inf' (hmono.filter_notMem_nonempty e)
         (fun T => ∑ x ∈ T, c x)) := by
     refine le_antisymm ?_ ?_
     · refine Finset.sup'_le _ _ fun T _ => ?_
-      rw [hsum T.1 (Finset.mem_filter.1 T.2).1,
-        Finset.erase_eq_of_notMem (Finset.mem_filter.1 T.2).2, neg_le_neg_iff]
-      exact Finset.inf'_le (fun R => ∑ x ∈ R, c x) T.2
+      rw [hsum T.val (Finset.mem_filter.1 T.property).1,
+        Finset.erase_eq_of_notMem (Finset.mem_filter.1 T.property).2, neg_le_neg_iff]
+      exact Finset.inf'_le (fun R => ∑ x ∈ R, c x) T.property
     · rw [neg_le]
       refine Finset.le_inf' _ _ fun T hT => ?_
       rw [neg_le]
       have hle := Finset.le_sup'
         (f := fun T : {T // T ∈ F.filter fun T => e ∉ T} =>
-          ∑ j ∈ Finset.univ.erase e, negCostValuation F c j ⟨T.1, (Finset.mem_filter.1 T.2).1⟩)
+          ∑ j ∈ Finset.univ.erase e,
+            negCostValuation F c j ⟨T.val, (Finset.mem_filter.1 T.property).1⟩)
         (Finset.mem_attach _ ⟨T, hT⟩)
       rwa [hsum T (Finset.mem_filter.1 hT).1,
         Finset.erase_eq_of_notMem (Finset.mem_filter.1 hT).2] at hle
@@ -932,20 +933,20 @@ theorem IsMatroidBaseFamily.exists_exchange_bijection [Finite E] [DecidableEq E]
     {F : Finset (Finset E)} (h : IsMatroidBaseFamily F) {S T : Finset E}
     (hS : S ∈ F) (hT : T ∈ F) :
     ∃ φ : {x // x ∈ S \ T} → {y // y ∈ T \ S},
-      Function.Bijective φ ∧ ∀ x : {x // x ∈ S \ T}, insert (φ x).1 (S.erase x.1) ∈ F := by
+      Function.Bijective φ ∧ ∀ x : {x // x ∈ S \ T}, insert (φ x).val (S.erase x.val) ∈ F := by
   have := Fintype.ofFinite E
   obtain ⟨M, hME, hM⟩ := (isMatroidBaseFamily_iff_exists_matroid F).1 h
   have hSB : M.IsBase (S : Set E) := (hM S).1 hS
   have hTB : M.IsBase (T : Set E) := (hM T).1 hT
   let N : {x // x ∈ S \ T} → Finset E := fun x =>
-    (T \ S).filter fun y => insert y (S.erase x.1) ∈ F
+    (T \ S).filter fun y => insert y (S.erase x.val) ∈ F
   have hhall : ∀ A : Finset {x // x ∈ S \ T}, A.card ≤ (A.biUnion N).card := by
     intro A
     let A' : Finset E := A.map ⟨Subtype.val, Subtype.val_injective⟩
     have hA'_sub_sdiff : A' ⊆ S \ T := by
       intro x hx
       obtain ⟨a, _, rfl⟩ := Finset.mem_map.1 hx
-      exact a.2
+      exact a.property
     have hA'_sub_S : A' ⊆ S := hA'_sub_sdiff.trans Finset.sdiff_subset
     have hI_ind : M.Indep ((S \ A' : Finset E) : Set E) :=
       hSB.indep.subset (Finset.coe_subset.2 Finset.sdiff_subset)
@@ -988,16 +989,16 @@ theorem IsMatroidBaseFamily.exists_exchange_bijection [Finite E] [DecidableEq E]
         by_contra hxA'
         exact hx_not (Set.mem_insert_of_mem y (Finset.mem_coe.2 (Finset.mem_sdiff.2 ⟨hxS, hxA'⟩)))
       obtain ⟨a, haA, rfl⟩ := Finset.mem_map.1 hxA'
-      have hind_swap : M.Indep (insert y (S : Set E) \ {a.1}) :=
+      have hind_swap : M.Indep (insert y (S : Set E) \ {a.val}) :=
         (hSB.indep.mem_fundCircuit_iff (by rw [hSB.closure_eq, hME]; trivial)
           (by simpa using hy_not_S)).1 hxC
-      have hbase_swap' : M.IsBase (insert y (S : Set E) \ {a.1}) :=
+      have hbase_swap' : M.IsBase (insert y (S : Set E) \ {a.val}) :=
         hSB.exchange_isBase_of_indep' (Finset.mem_coe.2 hxS)
           (by simpa using hy_not_S) hind_swap
-      have hay : a.1 ≠ y := hxy
-      have hbase_swap : M.IsBase (insert y ((S : Set E) \ {a.1})) := by
+      have hay : a.val ≠ y := hxy
+      have hbase_swap : M.IsBase (insert y ((S : Set E) \ {a.val})) := by
         rwa [← Set.insert_sdiff_singleton_comm hay.symm] at hbase_swap'
-      have hmem_swap : insert y (S.erase a.1) ∈ F := (hM _).2 (by
+      have hmem_swap : insert y (S.erase a.val) ∈ F := (hM _).2 (by
         simpa only [Finset.coe_insert, Finset.coe_erase] using hbase_swap)
       exact Finset.mem_biUnion.2 ⟨a, haA, Finset.mem_filter.2 ⟨Finset.mem_sdiff.2 ⟨hyT, hy_not_S⟩,
         hmem_swap⟩⟩
@@ -1027,7 +1028,7 @@ theorem IsMatroidBaseFamily.exists_exchange_bijection [Finite E] [DecidableEq E]
 
 private theorem sum_sdiff_eq_sum_bijective {α : Type*} [DecidableEq α] {S T : Finset α}
     {φ : {x // x ∈ S \ T} → {y // y ∈ T \ S}} (hφ : Function.Bijective φ) (f : α → ℝ) :
-    ∑ y ∈ T \ S, f y = ∑ x : {x // x ∈ S \ T}, f (φ x).1 := by
+    ∑ y ∈ T \ S, f y = ∑ x : {x // x ∈ S \ T}, f (φ x).val := by
   rw [← Finset.sum_coe_sort (T \ S) f]
   exact (Fintype.sum_bijective φ hφ _ _ fun _ => rfl).symm
 
@@ -1057,25 +1058,25 @@ private theorem vcgPayOfSet_eq_inf_exchange [Finite E] [DecidableEq E] {F : Fins
   have hge : c f₀ ≤ vcgPayOfSet F hmono c S e := by
     refine le_vcgPayOfSet hmono c S fun T hTF heT => ?_
     obtain ⟨φ, hφbij, hφmem⟩ := hmat.exists_exchange_bijection hS.1 hTF
-    have hterm : ∀ x : {x // x ∈ S \ T}, c x.1 ≤ c (φ x).1 := by
+    have hterm : ∀ x : {x // x ∈ S \ T}, c x.val ≤ c (φ x).val := by
       intro x
-      have hxS : x.1 ∈ S := (Finset.mem_sdiff.1 x.2).1
-      have hφ_notS : (φ x).1 ∉ S := (Finset.mem_sdiff.1 (φ x).2).2
+      have hxS : x.val ∈ S := (Finset.mem_sdiff.1 x.property).1
+      have hφ_notS : (φ x).val ∉ S := (Finset.mem_sdiff.1 (φ x).property).2
       have hle' := hS.2 _ (hφmem x)
-      have hφ_not_er : (φ x).1 ∉ S.erase x.1 := fun h => hφ_notS (Finset.mem_of_mem_erase h)
+      have hφ_not_er : (φ x).val ∉ S.erase x.val := fun h => hφ_notS (Finset.mem_of_mem_erase h)
       rw [Finset.sum_insert hφ_not_er, Finset.sum_erase_eq_sub hxS] at hle'
       linarith
     have heST : e ∈ S \ T := Finset.mem_sdiff.2 ⟨he, heT⟩
     let e' : {x // x ∈ S \ T} := ⟨e, heST⟩
-    have hcf₀ : c f₀ ≤ c (φ e').1 := hf₀_min (φ e').1
-      (Finset.mem_filter.2 ⟨Finset.mem_univ _, (Finset.mem_sdiff.1 (φ e').2).2, hφmem e'⟩)
+    have hcf₀ : c f₀ ≤ c (φ e').val := hf₀_min (φ e').val
+      (Finset.mem_filter.2 ⟨Finset.mem_univ _, (Finset.mem_sdiff.1 (φ e').property).2, hφmem e'⟩)
     have hsum_diff :
         (∑ y ∈ T \ S, c y) - (∑ x ∈ S \ T, c x) =
-          ∑ x : {x // x ∈ S \ T}, (c (φ x).1 - c x.1) := by
+          ∑ x : {x // x ∈ S \ T}, (c (φ x).val - c x.val) := by
       rw [sum_sdiff_eq_sum_bijective hφbij c, ← Finset.sum_coe_sort (S \ T) c,
         Finset.sum_sub_distrib]
-    have hsum_ge : c (φ e').1 - c e ≤ ∑ x : {x // x ∈ S \ T}, (c (φ x).1 - c x.1) :=
-      Finset.single_le_sum (f := fun x : {x // x ∈ S \ T} => c (φ x).1 - c x.1)
+    have hsum_ge : c (φ e').val - c e ≤ ∑ x : {x // x ∈ S \ T}, (c (φ x).val - c x.val) :=
+      Finset.single_le_sum (f := fun x : {x // x ∈ S \ T} => c (φ x).val - c x.val)
         (fun x _ => sub_nonneg.2 (hterm x)) (Finset.mem_univ e')
     have hSc : ∑ x ∈ S, c x = (∑ x ∈ S ∩ T, c x) + ∑ x ∈ S \ T, c x :=
       (sum_inter_add_sum_sdiff S T c).symm
@@ -1103,11 +1104,11 @@ theorem isPayYourBidNash_vcg [Finite E] [DecidableEq E] {F : Finset (Finset E)}
     have hle_sum : ∑ x ∈ S \ T, b x ≤ ∑ y ∈ T \ S, b y := by
       rw [← Finset.sum_coe_sort (S \ T) b, sum_sdiff_eq_sum_bijective hφbij b]
       refine Finset.sum_le_sum fun x _ => ?_
-      have hxS : x.1 ∈ S := (Finset.mem_sdiff.1 x.2).1
-      have hφS : (φ x).1 ∉ S := (Finset.mem_sdiff.1 (φ x).2).2
+      have hxS : x.val ∈ S := (Finset.mem_sdiff.1 x.property).1
+      have hφS : (φ x).val ∉ S := (Finset.mem_sdiff.1 (φ x).property).2
       simp only [b, hxS, hφS, ↓reduceIte]
       obtain ⟨_, _, _, _, hmin⟩ := vcgPayOfSet_eq_inf_exchange hmat hmono hS hxS
-      exact hmin (φ x).1 hφS (hφmem x)
+      exact hmin (φ x).val hφS (hφmem x)
     have hSb : ∑ x ∈ S, b x = (∑ x ∈ S ∩ T, b x) + ∑ x ∈ S \ T, b x :=
       (sum_inter_add_sum_sdiff S T b).symm
     have hTb : ∑ x ∈ T, b x = (∑ x ∈ S ∩ T, b x) + ∑ x ∈ T \ S, b x := by
@@ -1137,30 +1138,30 @@ theorem sum_eq_vcgTotalPay_of_isPayYourBidNash [Fintype E] [DecidableEq E]
     refine le_antisymm (h.bid_le_vcgPayOfSet hmono he) ?_
     obtain ⟨T, hTF, heT, hTeq⟩ := h.winner_tight e he
     obtain ⟨φ, hφbij, hφmem⟩ := hmat.exists_exchange_bijection hS'_min.1 hTF
-    have hterm_le : ∀ x : {x // x ∈ S' \ T}, b x.1 ≤ b (φ x).1 := by
+    have hterm_le : ∀ x : {x // x ∈ S' \ T}, b x.val ≤ b (φ x).val := by
       intro x
-      have hxS' : x.1 ∈ S' := (Finset.mem_sdiff.1 x.2).1
-      have hφS' : (φ x).1 ∉ S' := (Finset.mem_sdiff.1 (φ x).2).2
+      have hxS' : x.val ∈ S' := (Finset.mem_sdiff.1 x.property).1
+      have hφS' : (φ x).val ∉ S' := (Finset.mem_sdiff.1 (φ x).property).2
       rw [h.loser_truthful _ hφS']
       obtain ⟨_, _, _, _, hmin⟩ := vcgPayOfSet_eq_inf_exchange hmat hmono hS'_min hxS'
-      exact (h.bid_le_vcgPayOfSet hmono hxS').trans (hmin (φ x).1 hφS' (hφmem x))
-    have hsum_eq : ∑ x : {x // x ∈ S' \ T}, b x.1 = ∑ x : {x // x ∈ S' \ T}, b (φ x).1 := by
+      exact (h.bid_le_vcgPayOfSet hmono hxS').trans (hmin (φ x).val hφS' (hφmem x))
+    have hsum_eq : ∑ x : {x // x ∈ S' \ T}, b x.val = ∑ x : {x // x ∈ S' \ T}, b (φ x).val := by
       have hS'b : ∑ x ∈ S', b x = (∑ x ∈ S' ∩ T, b x) + ∑ x ∈ S' \ T, b x :=
         (sum_inter_add_sum_sdiff S' T b).symm
       have hTb : ∑ x ∈ T, b x = (∑ x ∈ S' ∩ T, b x) + ∑ x ∈ T \ S', b x := by
         rw [Finset.inter_comm, sum_inter_add_sum_sdiff T S' b]
       have hdiff : ∑ x ∈ S' \ T, b x = ∑ x ∈ T \ S', b x := by linarith
       rw [Finset.sum_coe_sort (S' \ T) b, hdiff, sum_sdiff_eq_sum_bijective hφbij b]
-    have hall_eq : ∀ x : {x // x ∈ S' \ T}, b x.1 = b (φ x).1 := fun x =>
+    have hall_eq : ∀ x : {x // x ∈ S' \ T}, b x.val = b (φ x).val := fun x =>
       (Finset.sum_eq_sum_iff_of_le (fun y _ => hterm_le y)).1 hsum_eq x (Finset.mem_univ x)
     let e' : {x // x ∈ S' \ T} := ⟨e, Finset.mem_sdiff.2 ⟨he, heT⟩⟩
-    have hφeS' : (φ e').1 ∉ S' := (Finset.mem_sdiff.1 (φ e').2).2
-    have hbe_eq : b e = c (φ e').1 := by
+    have hφeS' : (φ e').val ∉ S' := (Finset.mem_sdiff.1 (φ e').property).2
+    have hbe_eq : b e = c (φ e').val := by
       rw [← h.loser_truthful _ hφeS']
       exact hall_eq e'
     obtain ⟨_, _, _, _, hmin⟩ := vcgPayOfSet_eq_inf_exchange hmat hmono hS'_min he
     rw [hbe_eq]
-    exact hmin (φ e').1 hφeS' (hφmem e')
+    exact hmin (φ e').val hφeS' (hφmem e')
   set S := vcgAlloc F hmat.nonempty c
   have hS_min : IsMinCostSet F c S := vcgAlloc_isMinCostSet F hmat.nonempty c
   have hc_eq : ∑ x ∈ S', c x = ∑ x ∈ S, c x :=
@@ -1488,7 +1489,7 @@ theorem mem_spanningTreeFamily_iff {G : SimpleGraph V} [Fintype G.edgeSet]
 private noncomputable def edgeFinsetOfSubgraph {G H : SimpleGraph V} [Fintype G.edgeSet] :
     Finset G.edgeSet := by
   classical
-  exact Finset.univ.filter fun e : G.edgeSet => e.1 ∈ H.edgeSet
+  exact Finset.univ.filter fun e : G.edgeSet => e.val ∈ H.edgeSet
 
 private theorem spanningTreeSubgraph_edgeFinsetOfSubgraph {G H : SimpleGraph V} (hHG : H ≤ G)
     [Fintype G.edgeSet] :
@@ -1538,8 +1539,8 @@ theorem isMonopolyFree_spanningTreeFamily_iff {G : SimpleGraph V} [Fintype G.edg
         exact this ▸ he'S
       exact (SimpleGraph.isBridge_iff.1 hbr) ((hST.2.connected u v).mono hsub)
   · intro hnobridge e
-    have hconn' : (G.deleteEdges {e.1}).Connected :=
-      hconn.preconnected.connected_deleteEdges_of_not_isBridge (hnobridge e.1)
+    have hconn' : (G.deleteEdges {e.val}).Connected :=
+      hconn.preconnected.connected_deleteEdges_of_not_isBridge (hnobridge e.val)
     obtain ⟨T, hTle, hTree⟩ := hconn'.exists_isTree_le
     have hTG : T ≤ G := hTle.trans (SimpleGraph.deleteEdges_le _)
     refine ⟨edgeFinsetOfSubgraph (G := G) (H := T), (mem_spanningTreeFamily_iff _).2 ?_, ?_⟩
@@ -1564,9 +1565,9 @@ theorem spanningTreeFamily_isMatroidBaseFamily [Finite V] {G : SimpleGraph V} [F
   set T₂ := spanningTreeSubgraph S₂
   have hT₁ : SimpleGraph.IsSpanningTree G T₁ := (mem_spanningTreeFamily_iff S₁).1 hS₁
   have hT₂ : SimpleGraph.IsSpanningTree G T₂ := (mem_spanningTreeFamily_iff S₂).1 hS₂
-  have heT₁ : e.1 ∈ T₁.edgeSet := by
+  have heT₁ : e.val ∈ T₁.edgeSet := by
     rw [spanningTreeSubgraph_edgeSet]; exact ⟨e, he₁, rfl⟩
-  have heT₂ : e.1 ∉ T₂.edgeSet := by
+  have heT₂ : e.val ∉ T₂.edgeSet := by
     rw [spanningTreeSubgraph_edgeSet]
     rintro ⟨e', he'S₂, he'eq⟩
     have : e' = e := Subtype.ext he'eq

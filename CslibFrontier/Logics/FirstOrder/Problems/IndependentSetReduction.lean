@@ -109,8 +109,8 @@ theorem independentSet_copies_iff [Finite J] [Finite M] [Nonempty J] :
       simp only [← Nat.card_coe_set_eq]
       rw [← Nat.card_sigma]
       exact Nat.card_congr
-        { toFun := fun x => ⟨x.1.idx, x.1.val, x.2⟩
-          invFun := fun p => ⟨⟨p.1, p.2.1⟩, p.2.2⟩
+        { toFun := fun x => ⟨x.val.idx, x.val.val, x.property⟩
+          invFun := fun p => ⟨⟨p.1, p.2.val⟩, p.2.property⟩
           left_inv := fun _ => rfl
           right_inv := fun _ => rfl }
     obtain ⟨j, hj⟩ : ∃ j, {x : M | RelMap sizedGraph.size ![x]}.ncard ≤
@@ -216,7 +216,7 @@ variable {M : Type w} [cnf.Structure M]
 
 /-- An edge from `a` to `c` given by a template of the kind of `a`. -/
 private def OccEdge (a c : independentSetInterpretation.Model M) : Prop :=
-  ∃ τ ∈ occurrenceEdges a.1, τ.Holds a.2.1 c.toSigma
+  ∃ τ ∈ occurrenceEdges a.1, τ.Holds a.2.val c.toSigma
 
 private theorem relMap_adj_iff (a c : independentSetInterpretation.Model M) :
     RelMap sizedGraph.adj ![a, c] ↔ OccEdge a c := by
@@ -292,7 +292,7 @@ private theorem ncard_size :
       Nat.card M := by
   rw [← Nat.card_coe_set_eq]
   refine Nat.card_congr
-    { toFun := fun x => vertexClause x.1
+    { toFun := fun x => vertexClause x.val
       invFun := fun c => ⟨sizeVertex c, (relMap_size_iff _).2 rfl⟩
       left_inv := fun ⟨⟨t, d, hd⟩, hx⟩ => ?_
       right_inv := fun _ => rfl }
@@ -325,7 +325,7 @@ theorem mem_independentSet_iff_satisfiable [Finite M] [Nontrivial M] :
           obtain rfl : i = 0 := Subsingleton.elim _ _; rfl)))
       exact hind ha ha' hne.symm (hsv ▸ occEdge_sizeVertex (d 0) a')
     -- each clause has exactly one vertex in `s`
-    have hinj : Function.Injective fun a : s => vertexClause a.1 := by
+    have hinj : Function.Injective fun a : s => vertexClause a.val := by
       rintro ⟨⟨t, d, hd⟩, ha⟩ ⟨⟨t', d', hd'⟩, ha'⟩ h
       by_contra hne
       have hne' : (⟨t, d, hd⟩ : independentSetInterpretation.Model M) ≠ ⟨t', d', hd'⟩ :=

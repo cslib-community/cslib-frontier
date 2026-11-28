@@ -103,17 +103,9 @@ open scoped Classical in
 private theorem sum_perm_eq [DecidableEq γ] (w : γ → γ → R) :
     ∑ σ : Equiv.Perm γ, ∏ i, w i (σ i) =
       ∑ f : γ → γ, if Function.Bijective f then ∏ i, w i (f i) else 0 := by
-  rw [← Finset.sum_filter]
-  symm
-  refine Finset.sum_bij' (i := fun f hf => Equiv.ofBijective f (Finset.mem_filter.1 hf).2)
-    (j := fun σ _ => (σ : γ → γ)) ?_ ?_ ?_ ?_ ?_
-  · simp
-  · intro σ _
-    simp only [mem_filter, mem_univ, true_and]
-    exact σ.bijective
-  · intros; rfl
-  · intros; ext; rfl
-  · intros; rfl
+  rw [← Finset.sum_filter, Finset.sum_subtype (p := Function.Bijective) _
+    (fun _ => by simp only [mem_filter, mem_univ, true_and]) (fun f : γ → γ => ∏ i, w i (f i))]
+  exact Fintype.sum_equiv (Equiv.bijectiveEquiv (α := γ) (β := γ)).symm _ _ (fun _ => rfl)
 
 /-- The permanent is a coefficient. -/
 private theorem permanent_eq_coeff [DecidableEq γ] (M : Matrix γ γ R) :
@@ -159,7 +151,7 @@ private theorem coeff_ones_congr {p q : MvPolynomial γ R}
     (h : Ideal.Quotient.mk (sqIdeal R γ) p = Ideal.Quotient.mk (sqIdeal R γ) q) :
     p.coeff (ones γ) = q.coeff (ones γ) := by
   have := coeff_ones_of_mem (Ideal.Quotient.eq.1 h)
-  rwa [MvPolynomial.coeff_sub, sub_eq_zero] at this
+  rwa [AddMonoidAlgebra.coeff_sub_apply, sub_eq_zero] at this
 
 omit [Fintype γ] in
 private theorem mk_X_sq (c : γ) : Ideal.Quotient.mk (sqIdeal R γ) (X c) ^ 2 = 0 := by
@@ -396,16 +388,16 @@ private theorem exists_perm_fibres [Finite N] (v : N → V) :
   choose f hf using h
   let e := Equiv.sigmaFiberEquiv v
   let σ : Equiv.Perm N := (e.symm.trans (Equiv.sigmaCongrRight f)).trans e
-  have hσ : ∀ n, σ n = (f (v n) ⟨n, rfl⟩).1 := fun n => rfl
+  have hσ : ∀ n, σ n = (f (v n) ⟨n, rfl⟩).val := fun n => rfl
   refine ⟨σ, fun n => ?_, fun s hs n m e => ?_⟩
   · rw [hσ]
-    exact (f (v n) ⟨n, rfl⟩).2
-  · have h1 : ∀ y, ∀ x : {n // v n = y}, s (f y x).1 = s x.1 := by
+    exact (f (v n) ⟨n, rfl⟩).property
+  · have h1 : ∀ y, ∀ x : {n // v n = y}, s (f y x).val = s x.val := by
       rintro y ⟨x, rfl⟩
       rw [← hσ]
       exact hs x
     obtain ⟨i, -, hi⟩ := (hf (v m)).exists_pow_eq (mem_univ ⟨n, e⟩) (mem_univ ⟨m, rfl⟩)
-    have h2 : ∀ i : ℕ, s ((f (v m) ^ i) ⟨n, e⟩).1 = s n := by
+    have h2 : ∀ i : ℕ, s ((f (v m) ^ i) ⟨n, e⟩).val = s n := by
       intro i
       induction i with
       | zero => rfl

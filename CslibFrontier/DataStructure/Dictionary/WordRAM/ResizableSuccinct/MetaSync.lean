@@ -597,7 +597,7 @@ theorem realizesBounded_readCompBucketCountGen :
     simp only [cpBucketBits_mk, cpSlabSize_mk] at *
     have h0_lt : 0 < globalMetaLen N := by wram_omega
     have hfit_meta : Fits w (metaBase + offCompItems U w N) :=
-      lt_of_le_of_lt hfr hmem.1)
+      lt_of_le_of_lt hfr hmem.frontier_fits)
   all_goals try exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, h0_lt⟩
   all_goals (
     have hb_pos : 0 < bucketBits N := by omega

@@ -347,9 +347,9 @@ theorem listGuessAdvantage_le_mul_guessAdvantage [DecidableEq S] [Nonempty S] (s
   · obtain ⟨m, rfl⟩ : ∃ m, Q = m + 1 := ⟨Q - 1, (Nat.sub_add_cancel hQ).symm⟩
     rw [Nat.add_sub_cancel,
       show ((uniformOfFintype (Fin (m + 1))).bind fun i =>
-        PMF.pure (decide (l.getD i.1 (Classical.arbitrary S) = s))) =
+        PMF.pure (decide (l.getD i.val (Classical.arbitrary S) = s))) =
         ((uniformOfFintype (Fin (m + 1))).map
-          (fun i : Fin (m + 1) => l.getD i.1 (Classical.arbitrary S))).bind
+          (fun i : Fin (m + 1) => l.getD i.val (Classical.arbitrary S))).bind
           fun s' => PMF.pure (decide (s' = s)) by rw [PMF.bind_map]; rfl,
       Probability.PMF.bind_pure_decide_eq_apply_true']
     by_cases hs : s ∈ l

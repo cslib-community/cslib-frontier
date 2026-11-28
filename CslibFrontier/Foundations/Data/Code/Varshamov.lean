@@ -154,7 +154,7 @@ theorem exists_linearMap_injective_and_le_hammingDist {δ : ℝ} (hδ₀ : 0 ≤
   have hz : z ≠ 0 := fun h0 => hxy.symm (sub_eq_zero.1 (Subtype.val_injective.comp hf (by
     simpa [z] using h0)))
   rw [_root_.hammingDist_eq_hammingNorm, neg_add_eq_sub, ← map_sub] at hlt
-  exact hH z (mem_filter.2 ⟨mem_univ _, hz, hlt⟩) (mem_parityCheckCode.1 (f (y - x)).2)
+  exact hH z (mem_filter.2 ⟨mem_univ _, hz, hlt⟩) (mem_parityCheckCode.1 (f (y - x)).property)
 
 /-- `1 - H(δ)` is positive for `0 ≤ δ < 1 / 2`. -/
 private theorem sub_binEntropy_div_log_two_pos {δ : ℝ} (hδ : δ < 1 / 2) :

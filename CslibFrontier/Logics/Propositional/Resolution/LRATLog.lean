@@ -481,7 +481,7 @@ def delete (log : LRATLog φ) (ids : List ℕ) : LRATLog φ :=
         · simp [he]
       · rename_i hi
         congr 1
-        refine (List.find?_congr fun e _ => ?_).symm
+        refine (List.find?_congr rfl fun e _ => ?_).symm
         by_cases he : e.1 = i
         · subst he; simp [hi]
         · simp [he]

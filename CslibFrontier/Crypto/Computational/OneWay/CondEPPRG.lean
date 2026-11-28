@@ -201,7 +201,7 @@ private theorem uniformOfFintype_fiber_map_val_apply {n : ℕ} {Image : Type*} [
     congr 2
     exact Fintype.card_congr (Equiv.subtypeEquivRight fun x => by rw [hfz])
   · rw [PMF.map_apply, tsum_fintype]
-    exact Finset.sum_eq_zero fun b _ => ite_eq_right fun h : z = b.1 => hfz (h ▸ b.2)
+    exact Finset.sum_eq_zero fun b _ => ite_eq_right fun h : z = b.val => hfz (h ▸ b.property)
 
 /-- Resampling a preimage uniformly from the fiber of an element drawn uniformly from a
 nonempty regularity bucket recovers `uniformOfFinset (regularityBucket f r) hS`. -/
@@ -237,7 +237,7 @@ theorem sum_regularityBucket_fiber_eq {n : ℕ} {Image : Type*} [DecidableEq Ima
     haveI (x₀ : BitString n) : Nonempty {x : BitString n // f x = f x₀} := ⟨⟨x₀, rfl⟩⟩
     ∑ x₀ : BitString n, (PMF.uniformOfFinset (regularityBucket f r) hS x₀).toReal *
       ∑ x : {x : BitString n // f x = f x₀},
-        (PMF.uniformOfFintype {x : BitString n // f x = f x₀} x).toReal * Φ x.1 =
+        (PMF.uniformOfFintype {x : BitString n // f x = f x₀} x).toReal * Φ x.val =
       ∑ x : BitString n, (PMF.uniformOfFinset (regularityBucket f r) hS x).toReal * Φ x := by
   have (x₀ : BitString n) : Nonempty {x : BitString n // f x = f x₀} := ⟨⟨x₀, rfl⟩⟩
   conv_lhs =>

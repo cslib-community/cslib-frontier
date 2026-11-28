@@ -258,16 +258,12 @@ private theorem pow_recurrence_sub {k D : ℕ} (hk : 2 ≤ k) (hD : k ≤ D) (x 
   have hsum : ∑ j ∈ Finset.Ico 2 k, x ^ (D - j) =
       x ^ (D - k) * ∑ i ∈ Finset.Ico 1 (k - 1), x ^ i := by
     rw [Finset.mul_sum]
-    refine Finset.sum_bij (fun j _ => k - j) ?_ ?_ ?_ ?_
-    · intro j hj; simp only [Finset.mem_Ico] at hj ⊢; omega
-    · intro j₁ hj₁ j₂ hj₂ heq; simp only [Finset.mem_Ico] at hj₁ hj₂; omega
-    · intro i hi
-      simp only [Finset.mem_Ico] at hi
-      exact ⟨k - i, by simp only [Finset.mem_Ico]; omega, by omega⟩
-    · intro j hj
-      simp only [Finset.mem_Ico] at hj
-      have hsub : D - k + (k - j) = D - j := by omega
-      rw [← pow_add, hsub]
+    have href := Finset.sum_Ico_reflect (fun i => x ^ (D - k) * x ^ i) 2
+      (m := k) (n := k) (by omega)
+    rw [show k + 1 - k = 1 by omega, show k + 1 - 2 = k - 1 by omega] at href
+    rw [← href]
+    refine Finset.sum_congr rfl fun j hj => ?_
+    rw [← pow_add, show D - k + (k - j) = D - j by have := (Finset.mem_Ico.mp hj).2; omega]
   have hpow : x ^ D = x ^ (D - k) * x ^ k := by
     rw [← pow_add, Nat.sub_add_cancel hD]
   rw [hsum, hpow]

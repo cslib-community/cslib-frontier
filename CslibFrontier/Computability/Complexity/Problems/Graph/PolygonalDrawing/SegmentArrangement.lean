@@ -89,7 +89,7 @@ private theorem segment_ends_at_bend_of_contacts {G : Graph} {D : PolygonalDrawi
     (hcontact : ∀ (a b : D.SegmentIndex), a.1 ≠ b.1 → ∀ {t u : ℝ},
       t ∈ ({0, 1} : Set ℝ) → u ∈ ({0, 1} : Set ℝ) →
       (D.route a.1).eval a.2 t = (D.route b.1).eval b.2 u →
-      ∃ side, (D.route a.1).AtEnd a.2 t side) (e : Fin G.2.length) (i : Fin (D.route e).bends)
+      ∃ side, (D.route a.1).AtEnd a.2 t side) (e : Fin G.edges.length) (i : Fin (D.route e).bends)
     (k : D.SegmentIndex × Bool)
     (hp : rayEndpoint D.segmentStart D.segmentFinish k =
       (D.route e).point i.castSucc.succ) :

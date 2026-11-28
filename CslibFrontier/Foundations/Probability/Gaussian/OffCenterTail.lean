@@ -97,7 +97,7 @@ theorem banaszczykConstant_lt_one {c : ℝ} (hc : 1 / Real.sqrt (2 * Real.pi) < 
     push_cast
     ring
   refine lt_of_pow_lt_pow_left₀ 2 zero_le_one ?_
-  rw [one_pow, mul_pow, mul_pow, Real.sq_sqrt (by positivity), ← Real.exp_nat_mul]
+  rw [one_pow, mul_pow, mul_pow, Real.sq_sqrt (by positivity), ← Real.exp_natCast_mul]
   linarith [mul_lt_mul_of_pos_left hexp
     (mul_pos (Real.exp_pos 1) (Real.exp_pos ((2 : ℕ) * (-Real.pi * c ^ 2))))]
 
@@ -112,7 +112,7 @@ private theorem banaszczykConstant_one_lt_quarter :
   have he_gt : (2.7 : ℝ) < Real.exp 1 := lt_trans (by norm_num) Real.exp_one_gt_d9
   have he5 : (2.7 : ℝ) ^ 5 < Real.exp 5 := by
     have hp := pow_lt_pow_left₀ he_gt (by norm_num : (0 : ℝ) ≤ 2.7) (by decide : 5 ≠ 0)
-    rwa [← Real.exp_nat_mul, show ((5 : ℕ) : ℝ) * 1 = 5 by norm_num] at hp
+    rwa [← Real.exp_natCast_mul, show ((5 : ℕ) : ℝ) * 1 = 5 by norm_num] at hp
   have he_exp : 32 * Real.pi < Real.exp (2 * Real.pi - 1) := by
     have h5 : Real.exp 5 < Real.exp (2 * Real.pi - 1) := Real.exp_lt_exp.mpr (by linarith)
     have hnum : (32 : ℝ) * 3.15 < (2.7 : ℝ) ^ 5 := by norm_num
@@ -120,7 +120,7 @@ private theorem banaszczykConstant_one_lt_quarter :
   have hsq :
       (1 * Real.sqrt (2 * Real.pi * Real.exp 1) * Real.exp (-Real.pi * 1 ^ 2)) ^ 2 <
         (1 / 4 : ℝ) ^ 2 := by
-    rw [one_mul, mul_pow, Real.sq_sqrt (by positivity), ← Real.exp_nat_mul]
+    rw [one_mul, mul_pow, Real.sq_sqrt (by positivity), ← Real.exp_natCast_mul]
     have hcomb :
         2 * Real.pi * Real.exp 1 * Real.exp ((2 : ℕ) * (-Real.pi * 1 ^ 2)) =
           2 * Real.pi / Real.exp (2 * Real.pi - 1) := by
@@ -199,7 +199,7 @@ theorem tsum_gaussianWeight_norm_sub_gt_lt
   have hpoint (z : S) :
       gaussianWeight s ((z : E) - v) < Real.exp (-κ * R ^ 2) * gaussianWeight t ((z : E) - v) := by
     have hsq := mul_lt_mul_of_pos_left
-      (pow_lt_pow_left₀ (show R < ‖(z : E) - v‖ from z.2) (by positivity) two_ne_zero) hκ
+      (pow_lt_pow_left₀ (show R < ‖(z : E) - v‖ from z.property) (by positivity) two_ne_zero) hκ
     rw [← gaussianWeight_mul_exp s t, mul_left_comm, ← Real.exp_add]
     refine lt_mul_of_one_lt_right (gaussianWeight_pos _ _) (Real.one_lt_exp_iff.mpr ?_)
     dsimp only [κ] at hsq ⊢
@@ -225,7 +225,7 @@ theorem tsum_gaussianWeight_norm_sub_gt_lt
       field_simp
       ring
     have hts : t / s = c * Real.sqrt (2 * Real.pi) := by dsimp only [t]; field_simp
-    rw [hexp_arg, Real.exp_nat_mul, ← mul_pow, hts, sub_eq_add_neg, Real.exp_add, Real.exp_half,
+    rw [hexp_arg, Real.exp_natCast_mul, ← mul_pow, hts, sub_eq_add_neg, Real.exp_add, Real.exp_half,
       Real.sqrt_mul h2pi.le, neg_mul]
     ring
   calc
@@ -451,7 +451,7 @@ theorem hasSubgaussianMGF_inner_discreteGaussian_zero
         (discreteGaussian L s hs 0).toMeasure := by
     have hcont : Continuous (fun z : L ↦ Real.exp (t * ⟪(z : E), u⟫)) :=
       Real.continuous_exp.comp
-        (continuous_const.mul (continuous_subtype_val.inner continuous_const))
+        (continuous_const.mul (continuous_subtypeVal.inner continuous_const))
     refine ⟨hcont.measurable.aestronglyMeasurable, ?_⟩
     rw [hasFiniteIntegral_iff_ofReal (Filter.Eventually.of_forall (fun z ↦ (Real.exp_pos _).le)),
       lintegral_countable']
@@ -496,7 +496,7 @@ private theorem tsum_gaussianWeight_inner_sub_ge_le
       gaussianWeight s ((z : E) - c) ≤
         Real.exp (-2 * Real.pi * t ^ 2) *
           (gaussianWeight s ((z : E) - c) * Real.exp (lam * ⟪(z : E) - c, u⟫)) := by
-    have h1 := mul_le_mul_of_nonneg_left (show t * s * ‖u‖ ≤ ⟪(z : E) - c, u⟫ from z.2)
+    have h1 := mul_le_mul_of_nonneg_left (show t * s * ‖u‖ ≤ ⟪(z : E) - c, u⟫ from z.property)
       (by positivity : 0 ≤ lam)
     have h2 : lam * (t * s * ‖u‖) = 2 * Real.pi * t ^ 2 := by dsimp only [lam]; field_simp
     rw [mul_left_comm, ← Real.exp_add]

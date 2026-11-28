@@ -65,9 +65,9 @@ theorem isKWiseIndependentHash_polynomialHash (k : ℕ) :
   let P := Lagrange.interpolate T id r
   refine ⟨fun j => P.coeff j, funext fun x => ?_⟩
   have hnode : P.eval (x : F) = y x := by
-    rw [show P.eval (x : F) = P.eval (id x.1) from rfl,
-      Lagrange.eval_interpolate_at_node r (Set.injOn_id _) x.2]
-    simp only [r, x.2, ↓reduceDIte]
+    rw [show P.eval (x : F) = P.eval (id x.val) from rfl,
+      Lagrange.eval_interpolate_at_node r (Set.injOn_id _) x.property]
+    simp only [r, x.property, ↓reduceDIte]
   change polynomialHash (fun j : Fin k => P.coeff j) x = y x
   by_cases hP : P = 0
   · rw [← hnode, hP]

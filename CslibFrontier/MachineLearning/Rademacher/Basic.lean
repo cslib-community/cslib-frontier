@@ -272,13 +272,14 @@ theorem empiricalRademacherComplexity_nonneg {F : Set (Z → ℝ)} (hne : F.None
     (hF : ∀ f ∈ F, ∀ z, |f z| ≤ B) {m : ℕ} (S : Fin m → Z) :
     0 ≤ empiricalRademacherComplexity F S :=
   have : Nonempty F := hne.to_subtype
-  rademacherAverage_nonneg fun f _ => hF f f.2 _
+  rademacherAverage_nonneg fun f _ => hF f f.property _
 
 /-- The empirical Rademacher complexity is monotone in a bounded class. -/
 theorem empiricalRademacherComplexity_mono {F G : Set (Z → ℝ)} (hFG : F ⊆ G) {B : ℝ}
     (hG : ∀ g ∈ G, ∀ z, |g z| ≤ B) {m : ℕ} (S : Fin m → Z) :
     empiricalRademacherComplexity F S ≤ empiricalRademacherComplexity G S :=
-  rademacherAverage_le_of_forall_exists (fun g _ => hG g g.2 _) fun f => ⟨⟨f, hFG f.2⟩, rfl⟩
+  rademacherAverage_le_of_forall_exists (fun g _ => hG g g.property _)
+    fun f => ⟨⟨f, hFG f.property⟩, rfl⟩
 
 /-- **Massart's lemma through restriction patterns** [MohriRostamizadehTalwalkar2018, Corollary
 3.8]: if the restrictions `(f (S 0), …, f (S (m - 1)))` of the functions `f ∈ F` to the sample
@@ -300,7 +301,7 @@ theorem empiricalRademacherComplexity_le_of_finite {F : Set (Z → ℝ)} {B : �
     exact hF f hf _
   rw [empiricalRademacherComplexity_def, Set.ncard_eq_toFinset_card _ hP, ← Fintype.card_coe]
   exact (rademacherAverage_le_of_forall_exists hPa
-    fun (f : F) => ⟨⟨_, hP.mem_toFinset.2 ⟨f, f.2, rfl⟩⟩, rfl⟩).trans
+    fun (f : F) => ⟨⟨_, hP.mem_toFinset.2 ⟨f, f.property, rfl⟩⟩, rfl⟩).trans
     (rademacherAverage_le_mul_sqrt _ ((abs_nonneg (f₀ (S ⟨0, hm⟩))).trans (hF f₀ hf₀ _)) hPa)
 
 /-- **Massart's lemma for a finite class** bounded by `B`: the empirical Rademacher complexity is
@@ -311,7 +312,7 @@ theorem empiricalRademacherComplexity_le_of_finset {F : Finset (Z → ℝ)} {B :
   rw [empiricalRademacherComplexity_def]
   simpa only [Finset.coe_sort_coe, Fintype.card_coe] using
     rademacherAverage_le_mul_sqrt (fun (f : (F : Set (Z → ℝ))) i => (f : Z → ℝ) (S i)) hB
-      fun f _ => hF f f.2 _
+      fun f _ => hF f f.property _
 
 variable [Fintype Z]
 

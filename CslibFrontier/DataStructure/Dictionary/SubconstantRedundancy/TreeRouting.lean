@@ -127,7 +127,8 @@ theorem paddedDom_eq_disjUnion {d : P.PaddedDict} {sentCount : ℕ}
     P.paddedDom d =
       (Dictionary.dom dict).map ⟨P.embedReal, P.embedReal_injective⟩ ∪
         ((Finset.range sentCount).attach.map
-          ⟨fun i => P.sentinelKey ⟨i.1, (Finset.mem_range.mp i.2).trans_le hm.sentCount_le⟩,
+          ⟨fun i => P.sentinelKey
+              ⟨i.val, (Finset.mem_range.mp i.property).trans_le hm.sentCount_le⟩,
             fun _ _ h => Subtype.ext (congrArg Fin.val (P.sentinelKey_injective h))⟩) := by
   ext x
   simp only [mem_paddedDom_iff, mem_union, mem_map, mem_attach, true_and,

@@ -44,7 +44,7 @@ variable {ι κ : Type*} [Fintype ι] [DecidableEq ι] [Fintype κ] [DecidableEq
 /-- The unitary `U ⊗ I` acting as `U` on the first register of `ι × κ` and trivially on the
 second. -/
 noncomputable def onFirst (U : unitaryGroup ι ℂ) : unitaryGroup (ι × κ) ℂ :=
-  ⟨(U : Matrix ι ι ℂ) ⊗ₖ (1 : Matrix κ κ ℂ), kronecker_mem_unitary U.2 (one_mem _)⟩
+  ⟨(U : Matrix ι ι ℂ) ⊗ₖ (1 : Matrix κ κ ℂ), kronecker_mem_unitary U.property (one_mem _)⟩
 
 theorem onFirst_apply (U : unitaryGroup ι ℂ) (p q : ι × κ) :
     (onFirst (κ := κ) U : Matrix (ι × κ) (ι × κ) ℂ) p q =
@@ -58,7 +58,7 @@ theorem coe_onFirst (U : unitaryGroup ι ℂ) :
 /-- The unitary `I ⊗ U` acting trivially on the first register of `ι × κ` and as `U` on the
 second. -/
 noncomputable def onSecond (U : unitaryGroup κ ℂ) : unitaryGroup (ι × κ) ℂ :=
-  ⟨(1 : Matrix ι ι ℂ) ⊗ₖ (U : Matrix κ κ ℂ), kronecker_mem_unitary (one_mem _) U.2⟩
+  ⟨(1 : Matrix ι ι ℂ) ⊗ₖ (U : Matrix κ κ ℂ), kronecker_mem_unitary (one_mem _) U.property⟩
 
 theorem onSecond_apply (U : unitaryGroup κ ℂ) (p q : ι × κ) :
     (onSecond (ι := ι) U : Matrix (ι × κ) (ι × κ) ℂ) p q =

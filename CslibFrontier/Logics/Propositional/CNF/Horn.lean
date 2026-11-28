@@ -181,7 +181,7 @@ theorem isPolymorphism_and_iff_exists_hornCNF [Finite V] (R : Set (V → Bool)) 
     have sep : ∀ a ∈ bad, ∃ c : Clause V, c.IsHorn ∧
         (∀ b ∈ R, c.eval b = true) ∧ c.eval a = false := fun a ha =>
       exists_separating_clause_of_and hR (of_decide_eq_true (List.mem_filter.mp ha).2)
-    choose cs hcs using fun a : {a // a ∈ bad} => sep a.1 a.2
+    choose cs hcs using fun a : {a // a ∈ bad} => sep a.val a.property
     let φ : CNF V := bad.attach.map cs
     refine ⟨φ, ?_, fun a => ⟨?_, ?_⟩⟩
     · intro c hc

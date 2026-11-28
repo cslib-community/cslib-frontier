@@ -108,8 +108,8 @@ theorem one_sub_expect_decodingError_le [Fintype M] [Nonempty M] (p : I) (hp : (
           ((Fintype.card ι).choose k : ℝ) * p ^ k * (1 - p) ^ (Fintype.card ι - k) +
         2 ^ Fintype.card ι * ((p : ℝ) ^ a * (1 - p) ^ (Fintype.card ι - a)) / Fintype.card M := by
   classical
-  have hp0 : (0 : ℝ) ≤ p := p.2.1
-  have hp1 : (p : ℝ) ≤ 1 := p.2.2
+  have hp0 : (0 : ℝ) ≤ p := p.property.1
+  have hp1 : (p : ℝ) ≤ 1 := p.property.2
   have hq0 : (0 : ℝ) ≤ 1 - p := sub_nonneg.mpr hp1
   set n := Fintype.card ι with hn
   set T := ∑ k ∈ range (n + 1) with k < a, (n.choose k : ℝ) * p ^ k * (1 - p) ^ (n - k) with hT
@@ -235,8 +235,8 @@ private theorem exists_pos_bound (p : I) (hp : (p : ℝ) ≤ 1 / 2) {R : ℝ}
       ∑ k ∈ range (n + 1) with k < a, (n.choose k : ℝ) * p ^ k * (1 - p) ^ (n - k) +
         2 ^ n * ((p : ℝ) ^ a * (1 - p) ^ (n - a)) / K ≤ 2 * Real.exp (-(δ * n)) := by
   have hL2 : 0 < Real.log 2 := Real.log_pos one_lt_two
-  have hp0 : (0 : ℝ) ≤ p := p.2.1
-  have hp1 : (p : ℝ) ≤ 1 := p.2.2
+  have hp0 : (0 : ℝ) ≤ p := p.property.1
+  have hp1 : (p : ℝ) ≤ 1 := p.property.2
   obtain ⟨L, hL, hL0⟩ : ∃ L, L = Real.log (1 - p) - Real.log p ∧ 0 ≤ L := by
     refine ⟨_, rfl, ?_⟩
     rcases eq_or_lt_of_le hp0 with h | h

@@ -48,7 +48,7 @@ theorem coin_stochasticallyDominates_iff {p q : I} :
     StochasticallyDominates (coin q) (coin p) ↔ (p : ℝ) ≤ q := by
   rw [stochasticallyDominates_bool_iff, coin_apply, coin_apply]
   simp only [↓reduceIte]
-  exact ENNReal.ofReal_le_ofReal_iff q.2.1
+  exact ENNReal.ofReal_le_ofReal_iff q.property.1
 
 /-- `coin q` stochastically dominates `coin p` whenever `(p : ℝ) ≤ q`. -/
 theorem coin_stochasticallyDominates {p q : I} (hpq : (p : ℝ) ≤ q) :

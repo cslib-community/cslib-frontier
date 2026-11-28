@@ -393,7 +393,7 @@ theorem walkLength_eq_vertexDist_of_isPath [Finite V] (hT : W.graph.IsTree) {a b
   obtain ⟨q, hqp, hq⟩ := exists_isPath_walkLength_eq_vertexDist W.weight_nonneg (W.connected a b)
   have heq : (⟨p, hp⟩ : W.graph.Path a b) = ⟨q, hqp⟩ :=
     (hT.isAcyclic.subsingleton_path a b).elim _ _
-  exact (congrArg (fun x => walkLength W.weight x.1) heq).trans hq
+  exact (congrArg (fun x => walkLength W.weight x.val) heq).trans hq
 
 /-- In a tree, the vertices of a path from `a` to `b` lie on the interval between `a` and `b`. -/
 theorem vertex_mem_interval_of_mem_support [Finite V] (hT : W.graph.IsTree) {a b w : V}
@@ -454,7 +454,7 @@ theorem dist_edgePoint_of_edgeProj_zero [Finite V] (hT : W.graph.IsTree) (d : W.
     fun hu => by simpa only [vertexDist_self W.weight_nonneg, add_zero] using
       vertexDist_eq_of_deleteEdges_cut hT d hu hns
   have ht1 : (t : ℝ) * W.weight d.edge ≤ W.weight d.edge + (1 - t) * W.weight d.edge := by
-    nlinarith only [W.dart_weight_nonneg d, t.2.2]
+    nlinarith only [W.dart_weight_nonneg d, t.property.2]
   induction x using ind with
   | vertex u =>
     rw [dist_vertex_edgePoint, dist_vertex, hcut ((edgeProj_vertex_eq_zero_iff hT d u).mp hx)]
@@ -540,7 +540,7 @@ theorem vertex_fst_mem_interval_of_edgeProj [Finite V] (hT : W.graph.IsTree) (d 
   · have h1 := dist_edgePoint_of_edgeProj_zero hT d hy sz
     have h2 := dist_edgePoint_edgePoint_same_eq hT d 0 sz
     simp only [edgePoint_zero, Set.Icc.coe_zero, zero_sub, abs_neg,
-      abs_of_nonneg sz.2.1] at h2
+      abs_of_nonneg sz.property.1] at h2
     rw [h1, h2]
 
 theorem edgePoint_mem_interval_of_edgeProj_le [Finite V] (hT : W.graph.IsTree) (d : W.graph.Dart)
@@ -594,7 +594,7 @@ theorem edgePoint_mem_interval_vertex [Finite V] (hT : W.graph.IsTree) (d : W.gr
     (t : unitInterval) : edgePoint d t ∈ interval (vertex d.fst) (vertex d.snd) := by
   rw [← edgePoint_zero d, ← edgePoint_one d]
   exact edgePoint_mem_interval_edgePoint_of_direct
-    (dist_edgePoint_edgePoint_same_eq hT d 0 1) (Or.inl ⟨t.2.1, t.2.2⟩)
+    (dist_edgePoint_edgePoint_same_eq hT d 0 1) (Or.inl ⟨t.property.1, t.property.2⟩)
 
 end TreeProjection
 
@@ -784,10 +784,10 @@ theorem exists_isometry_interval [Finite V] (hT : W.graph.IsTree) (a b : MetricG
       φ ⟨Dist.dist a b, _root_.dist_nonneg, le_rfl⟩ = b ∧
       Set.range φ = interval a b := by
   obtain ⟨γ, hγ⟩ := exists_isGeodesic a b
-  refine ⟨fun t => γ t.1, hγ.isometry, hγ.map_zero, hγ.map_dist, Set.ext fun z => ?_⟩
+  refine ⟨fun t => γ t.val, hγ.isometry, hγ.map_zero, hγ.map_dist, Set.ext fun z => ?_⟩
   constructor
   · rintro ⟨t, rfl⟩
-    exact hγ.mem_interval t.2
+    exact hγ.mem_interval t.property
   · intro hz
     obtain ⟨γ', hγ', hgz⟩ := exists_isGeodesic_through_of_mem_interval hz
     have hmem : Dist.dist a z ∈ Set.Icc 0 (Dist.dist a b) :=
@@ -1204,10 +1204,10 @@ private lemma edgeProj_gt_of_mem_branch_snd [Finite V] (hT : W.graph.IsTree) {d 
   by_contra hle
   push Not at hle
   have hv₀_proj := edgeProj_vertex_snd hT d
-  rcases lt_or_eq_of_le t₀.2.1 with ht0 | ht0
+  rcases lt_or_eq_of_le t₀.property.1 with ht0 | ht0
   · exact hw (interval_comm w (vertex d.snd) ▸
       edgePoint_mem_interval_of_edgeProj_le hT d ht0 ht₀1 hle
-        (hv₀_proj.symm ▸ mul_le_of_le_one_left (W.dart_weight_nonneg d) t₀.2.2))
+        (hv₀_proj.symm ▸ mul_le_of_le_one_left (W.dart_weight_nonneg d) t₀.property.2))
   · obtain rfl : t₀ = 0 := Subtype.ext ht0.symm
     have hw0 : edgeProj hT d w = 0 := le_antisymm
       (by simpa only [Set.Icc.coe_zero, zero_mul] using hle) (edgeProj_nonneg hT d w)
@@ -1254,13 +1254,13 @@ private lemma exists_stem_segment_of_dart [Finite V] (hT : W.graph.IsTree)
         (interval_comm w _ ▸ Dart.fst_symm d ▸ vertex_fst_mem_interval_of_edgeProj hT d.symm
           hsym_w hsym_y) hp
     · obtain ⟨sw, _, _, rfl⟩ := ((edgeProj_cases hT d w).resolve_left
-        ((mul_nonneg t₀.2.1 hwpos.le).trans_lt hw_gt).ne').resolve_left hww.ne
+        ((mul_nonneg t₀.property.1 hwpos.le).trans_lt hw_gt).ne').resolve_left hww.ne
       have htw : (t₀ : ℝ) ≤ sw :=
         ((mul_lt_mul_iff_left₀ hwpos).mp (by rwa [edgeProj_edgePoint_self] at hw_gt)).le
       refine mem_interval_of_mem_interval_dist_le hT hp ?_ hp_le
       rw [← edgePoint_one d]
       exact edgePoint_mem_interval_edgePoint_of_direct
-        (dist_edgePoint_edgePoint_same_eq hT d t₀ 1) (Or.inl ⟨htw, sw.2.2⟩)
+        (dist_edgePoint_edgePoint_same_eq hT d t₀ 1) (Or.inl ⟨htw, sw.property.2⟩)
   · refine ⟨(1 - (t₀ : ℝ)) * W.weight d.edge / 3, by linarith, by linarith,
       fun p hp hdp_pos hdp_le z hz => ?_⟩
     have hdz_le : Dist.dist (edgePoint d t₀) z ≤ 2 * Dist.dist (edgePoint d t₀) p :=
@@ -1271,7 +1271,7 @@ private lemma exists_stem_segment_of_dart [Finite V] (hT : W.graph.IsTree)
     have hpy_sub := (le_abs_self _).trans (abs_sub_edgeProj_le_dist hT d p (edgePoint d t₀))
     rw [hy_proj, _root_.dist_comm] at hpy_sub
     rcases edgeProj_cases hT d p with h0 | hpw | ⟨sp, hs0, _, rfl⟩
-    · linarith [mul_nonneg t₀.2.1 hwpos.le]
+    · linarith [mul_nonneg t₀.property.1 hwpos.le]
     · linarith
     have hp_sp := edgeProj_edgePoint_self hT d sp
     have hsp_ge : (t₀ : ℝ) ≤ sp := ((mul_lt_mul_iff_left₀ hwpos).mp (hp_sp ▸ hp_gt)).le
@@ -1286,7 +1286,7 @@ private lemma exists_stem_segment_of_dart [Finite V] (hT : W.graph.IsTree)
     · obtain rfl : t₀ = 0 := Subtype.ext (le_antisymm
         ((mul_le_mul_iff_left₀ hwpos).mp (by
           rw [hz0] at hzp; change _ ≤ (0 : ℝ) * _; linarith))
-        t₀.2.1)
+        t₀.property.1)
       have hm := mem_interval_iff.mp (vertex_fst_mem_interval_of_edgeProj hT d hz0
         (by rw [hp_sp]; exact mul_pos hs0 hwpos))
       have hz_fst : z = vertex d.fst := _root_.dist_eq_zero.mp (le_antisymm (by

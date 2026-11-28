@@ -337,11 +337,11 @@ theorem optCoverWeight_toWeighted (S : SetSystem) :
   · refine le_antisymm ?_ ?_
     · obtain ⟨C, hC, hcard⟩ := SetSystem.exists_isCover_optCoverSize hS
       let emb : Fin S.sets.length ↪ Fin S.toWeighted.sets.length :=
-        ⟨fun i => ⟨i.1, by simp [SetSystem.toWeighted, i.isLt]⟩,
+        ⟨fun i => ⟨i.val, by simp [SetSystem.toWeighted, i.isLt]⟩,
           fun _ _ h => Fin.ext (Fin.mk.inj h)⟩
       have hC' : S.toWeighted.IsCover (C.map emb) := fun u hu => by
         obtain ⟨i, hi, hui⟩ := hC u hu
-        exact ⟨⟨i.1, by simp [SetSystem.toWeighted, i.isLt]⟩, Finset.mem_map.2 ⟨i, hi, rfl⟩,
+        exact ⟨⟨i.val, by simp [SetSystem.toWeighted, i.isLt]⟩, Finset.mem_map.2 ⟨i, hi, rfl⟩,
           by simpa [SetSystem.toWeighted] using hui⟩
       refine (WeightedSetSystem.optCoverWeight_le hC').trans_eq ?_
       rw [WeightedSetSystem.coverWeight, Finset.sum_map]
@@ -352,14 +352,14 @@ theorem optCoverWeight_toWeighted (S : SetSystem) :
     · obtain ⟨C, hC, hwt⟩ := WeightedSetSystem.exists_isCover_optCoverWeight
         ((coverable_toWeighted_iff S).2 hS)
       let emb : Fin S.toWeighted.sets.length ↪ Fin S.sets.length :=
-        ⟨fun i => ⟨i.1, by simpa [SetSystem.toWeighted] using i.isLt⟩,
+        ⟨fun i => ⟨i.val, by simpa [SetSystem.toWeighted] using i.isLt⟩,
           fun _ _ h => Fin.ext (Fin.mk.inj h)⟩
       have hmap (i : Fin S.toWeighted.sets.length) : S.toWeighted.sets[i] =
-          ⟨S.sets[i.1]'(by simpa [SetSystem.toWeighted] using i.isLt), 1⟩ :=
+          ⟨S.sets[i.val]'(by simpa [SetSystem.toWeighted] using i.isLt), 1⟩ :=
         List.getElem_map _
       have hC' : S.IsCover (C.map emb) := fun u hu => by
         obtain ⟨i, hi, hui⟩ := hC u hu
-        exact ⟨⟨i.1, by simpa [SetSystem.toWeighted] using i.isLt⟩, Finset.mem_map.2 ⟨i, hi, rfl⟩,
+        exact ⟨⟨i.val, by simpa [SetSystem.toWeighted] using i.isLt⟩, Finset.mem_map.2 ⟨i, hi, rfl⟩,
           by simpa only [hmap i, Fin.getElem_fin] using hui⟩
       have hwt' : S.toWeighted.coverWeight C = C.card := by
         rw [WeightedSetSystem.coverWeight]

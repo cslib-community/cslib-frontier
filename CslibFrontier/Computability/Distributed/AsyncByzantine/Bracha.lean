@@ -914,7 +914,7 @@ private lemma eventual_filter_card
     (R : Finset P) (p : P) (v : V)
     (hev : ∀ r ∈ R, ∃ k, tbl ((ss k).proc p).state r = some v) :
     ∃ K, R.card ≤ (Finset.univ.filter fun r => tbl ((ss K).proc p).state r = some v).card := by
-  let pick : R → ℕ := fun r => Classical.choose (hev r.1 r.2)
+  let pick : R → ℕ := fun r => Classical.choose (hev r.val r.property)
   refine ⟨R.attach.sup pick, Finset.card_le_card fun r hr => ?_⟩
   simp only [Finset.mem_filter, Finset.mem_univ, true_and]
   exact bracha_omega_proc_mono hexec (fun st => tbl st r = some v) (fun _ _ _ => hmono _ _ _ _ _)

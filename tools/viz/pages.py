@@ -109,13 +109,50 @@ to open it on GitHub.</p>
 """)
 
 
+_BODIES["agents"] = ("Worker activity", "Recent worker IDs and their public GitHub accounts.", """
+<h1>Worker activity</h1>
+<p class="sub">Distinct worker IDs named in public GitHub work records. The total counts a worker
+ID once even if it appears under more than one account.</p>
+<div class="controls">
+  <div class="seg" id="window" role="group" aria-label="Activity window">
+    <button type="button" data-days="7" aria-pressed="true">Last 7 days</button>
+    <button type="button" data-days="30" aria-pressed="false">Last 30 days</button>
+  </div>
+  <span class="small" id="as-of"></span>
+</div>
+<div class="tiles agent-tiles" id="tiles" aria-live="polite"></div>
+<h2>GitHub accounts</h2>
+<p class="sub">Each worker ID links to its latest matching record under that account in the
+selected window.</p>
+<div class="card agent-table" tabindex="0" role="region" aria-label="Worker IDs by GitHub account">
+<table>
+  <thead><tr><th scope="col">Account</th><th scope="col" class="r">Distinct IDs</th>
+    <th scope="col" class="r">Records</th><th scope="col">Worker IDs</th></tr></thead>
+  <tbody id="accounts"></tbody>
+</table>
+<p class="empty" id="empty" hidden>No worker IDs were found in this window.</p>
+</div>
+<details class="card agent-method">
+  <summary>How activity is counted</summary>
+  <p>A worker ID is active when it appears in a public issue, pull request, conversation comment,
+  or submitted review during the window. The collector recognizes explicit worker ID fields,
+  named worker claims, signatures, and author credits. The charts group records by creation or
+  submission date in UTC. Edits to public records can change historical counts.</p>
+  <p>Session-only disclosures, GitHub logins, and review aliases supply no worker ID. The count
+  represents the IDs visible in the supported formats.</p>
+  <a href="agent-activity.json">Download worker activity (JSON)</a>
+</details>
+""")
+
+
 def _json(obj) -> str:
     # Safe inside <script>: escaping "<" prevents both "</script>" and HTML5 "<!-- <script>" breakouts.
     return json.dumps(obj, separators=(",", ":")).replace("<", "\\u003c")
 
 
 def build(out: Path, H: h.History, census, charts: list[dict], sections: list[str],
-          repo_url: str, pr_recs: list[dict] | None = None) -> list[Path]:
+          repo_url: str, pr_recs: list[dict] | None = None,
+          agents: dict | None = None) -> list[Path]:
     """Write every page and its assets into `out`."""
     out.mkdir(parents=True, exist_ok=True)
     for f in ASSETS.iterdir():
@@ -125,7 +162,7 @@ def build(out: Path, H: h.History, census, charts: list[dict], sections: list[st
     report = census[0] if census else None
     meta = {"sha": head.sha, "time": head.time, "repoUrl": repo_url, "apiRoot": "../",
             "libRoot": "CslibFrontier", "areas": style.ALL_AREAS, "lean": bool(report),
-            "prs": pr_recs is not None}
+            "prs": pr_recs is not None, "agents": agents is not None}
     daily = sd.daily(H)
     audit_rows = __import__("audits").load(H.repo)
     audit_daily = sd.audit_daily(H, daily["dates"])
@@ -161,12 +198,13 @@ def build(out: Path, H: h.History, census, charts: list[dict], sections: list[st
                                               for r in results["results"]]},
                       "daily": {"dates": daily["dates"]}},
         "areas": {"modules": modules, "daily": daily, "results": results, "changes": changes},
+        "agents": {"activity": agents},
         "prs": {"prs": _pr_payload(pr_recs), "kinds": __import__("prs").KINDS,
                 "charts": [c for c in charts if c["section"] == "Pull requests"]},
     }
     written = []
     for page, (title, description, body) in _BODIES.items():
-        if page == "prs" and pr_recs is None:
+        if (page == "prs" and pr_recs is None) or (page == "agents" and agents is None):
             continue
         payload = {"meta": meta, **payloads[page]}
         p = out / f"{page}.html"

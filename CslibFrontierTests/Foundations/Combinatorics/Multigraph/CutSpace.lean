@@ -78,7 +78,7 @@ example : ¬ (Multigraph.toSimpleGraph loopAndPoint).Connected ∧
 /-! ### The expansion dichotomy on `K₄` -/
 
 /-- The complete graph on four vertices, with one edge for each pair `i < j`. -/
-private def k4 : {p : Fin 4 × Fin 4 // p.1 < p.2} → Sym2 (Fin 4) := fun p => s(p.1.1, p.1.2)
+private def k4 : {p : Fin 4 × Fin 4 // p.1 < p.2} → Sym2 (Fin 4) := fun p => s(p.val.1, p.val.2)
 
 /-- The balanced sets of `K₄` are its pairs, and four edges leave each pair, so `e(K₄) ≥ 4`. -/
 private theorem four_le_minBalancedCut_k4 : 4 ≤ Multigraph.minBalancedCut k4 :=

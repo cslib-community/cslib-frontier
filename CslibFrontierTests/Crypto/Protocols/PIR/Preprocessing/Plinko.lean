@@ -179,7 +179,7 @@ example (x : Fin 2 × Fin 2) :
       let o ← ProbComp.uniform (OffsetsContaining 2 2 x)
       let b ← ProbComp.uniform Bool
       let r ← ProbComp.uniform (Fin 2)
-      pure (buildQuery x P.1 o.1 b r)) =
+      pure (buildQuery x P.val o.val b r)) =
       ProbComp.eval (plinkoSim 2 2) :=
   eval_buildQuery_conditioned_eq_plinkoSim x
 
@@ -350,7 +350,7 @@ example (x : Fin 4 × Fin 3) :
       let o ← ProbComp.uniform (OffsetsContaining 4 3 x)
       let b ← ProbComp.uniform Bool
       let r ← ProbComp.uniform (Fin 3)
-      pure (buildQuery x P.1 o.1 b r)) =
+      pure (buildQuery x P.val o.val b r)) =
       ProbComp.eval (plinkoSim 4 3) :=
   eval_buildQuery_conditioned_eq_plinkoSim x
 

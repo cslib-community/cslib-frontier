@@ -1306,6 +1306,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Ker
 public import CslibFrontier.Computability.Circuit.Approximation
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Differences
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBox.Exec
+public import CslibFrontier.Algorithms.WordRAM.Refuter4n.InputLayout
 public import CslibFrontier.Crypto.Computational.CompositeResiduosity.Finite
 public import CslibFrontier.Computability.WordRAM.SymbolicExec.Init
 public import CslibFrontier.Computability.PCP.Approximation.LabelCover.MinRep
@@ -5394,6 +5395,7 @@ public import CslibFrontier.Computability.Automata.MPDA.HoleDerivation
 public import CslibFrontier.Foundations.Data.List.IdxOfInjective
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ConcreteSupplier
 public import CslibFrontier.MachineLearning.OnlineLearning.Blackwell
+public import CslibFrontier.Foundations.Data.Array.CommonPrefix
 public import CslibFrontier.Computability.Circuit.Boolean.NonlinearCost
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Lists
 public import CslibFrontier.Computability.Machines.Turing.TM2.SingleTapeSpace
@@ -9305,6 +9307,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Algorithms.MatrixMultiplication.Schonhage.Sparse
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Copy
 public import CslibFrontier.DataStructure.WordRAM.Resizable.Randomized.ObliviousSequence
+public import CslibFrontier.Computability.Complexity.ProofSystem.Optimal
 public import CslibFrontier.Computability.PCP.TwoProverGame.Seeded
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PreparationLocality
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Probe
@@ -10474,6 +10477,7 @@ public import CslibFrontier.Algorithms.WordRAM.AhoCorasick.Phase3Mem
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ExplicitTablesPolyTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.RotationMap
 public import CslibFrontier.Algorithms.Lean.EdgeCSP.Blossom.Lifting
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.RupRefutation
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Migration.ParamsCompute.HashParams
 public import CslibFrontier.GameTheory.Strategic.ApproxNash
 public import CslibFrontier.Logics.Propositional.Resolution.CliqueColoring

@@ -95,7 +95,7 @@ abbrev Qubits (n : ℕ) := EuclideanSpace ℂ (Fin n → Bool)
 noncomputable def unitaryEquiv {ι : Type*} [Fintype ι] [DecidableEq ι]
     (U : unitaryGroup ι ℂ) : EuclideanSpace ℂ ι ≃ₗᵢ[ℂ] EuclideanSpace ℂ ι :=
   Unitary.linearIsometryEquiv
-    ⟨toEuclideanCLM (n := ι) (𝕜 := ℂ) (U : Matrix ι ι ℂ), Unitary.map_mem _ U.2⟩
+    ⟨toEuclideanCLM (n := ι) (𝕜 := ℂ) (U : Matrix ι ι ℂ), Unitary.map_mem _ U.property⟩
 
 @[simp] theorem unitaryEquiv_apply {ι : Type*} [Fintype ι] [DecidableEq ι]
     (U : unitaryGroup ι ℂ) (ψ : EuclideanSpace ℂ ι) :
@@ -140,7 +140,7 @@ noncomputable def splitEquiv (A : Fin k ↪ Fin n) :
   rfl
 
 @[simp] theorem splitEquiv_apply_snd (A : Fin k ↪ Fin n) (x : Fin n → Bool) :
-    (splitEquiv A x).2 = fun j => x j.1 :=
+    (splitEquiv A x).2 = fun j => x j.val :=
   rfl
 
 /-- The first component of `splitEquiv A` determines the values on the qubits `A`. -/
@@ -161,7 +161,7 @@ noncomputable def place (A : Fin k ↪ Fin n) :
   toFun U :=
     ⟨((U : Matrix _ _ ℂ) ⊗ₖ (1 : Matrix ({j // ¬∃ i, A i = j} → Bool) _ ℂ)).submatrix
         (splitEquiv A) (splitEquiv A),
-      submatrix_equiv_mem_unitary.mpr (kronecker_mem_unitary U.2 (one_mem _))⟩
+      submatrix_equiv_mem_unitary.mpr (kronecker_mem_unitary U.property (one_mem _))⟩
   map_one' := Subtype.ext <| by simp [submatrix_one_equiv]
   map_mul' U V := Subtype.ext <| by
     simp only [Submonoid.coe_mul, submatrix_mul_equiv, ← mul_kronecker_mul, mul_one]

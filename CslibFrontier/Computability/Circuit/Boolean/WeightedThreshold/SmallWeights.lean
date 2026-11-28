@@ -167,7 +167,7 @@ private theorem exists_tight_basis (r : ι → Fin m → ℝ) (hspan : Submodule
     rw [← Module.finrank_eq_card_basis B, Module.finrank_fin_fun]
   let e : Fin m ≃ b := (Fintype.equivFinOfCardEq hcard).symm
   have hmem (k : Fin m) : ∃ j, r j ⬝ᵥ v = 1 ∧ r j = (e k : Fin m → ℝ) := by
-    obtain ⟨j, hj, hjr⟩ := hbsub (e k).2
+    obtain ⟨j, hj, hjr⟩ := hbsub (e k).property
     exact ⟨j, hj, hjr⟩
   choose σ hσ hσr using hmem
   refine ⟨σ, v, hv, hσ, ?_⟩

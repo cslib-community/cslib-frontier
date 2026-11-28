@@ -169,7 +169,7 @@ theorem exists_hasDeterminantalRepresentation_eq_determinantalComplexity
   have : Nonempty {m : ℕ // HasDeterminantalRepresentation f m} :=
     nonempty_subtype.2 (exists_hasDeterminantalRepresentation f)
   obtain ⟨⟨m, hm⟩, hmin⟩ := ENat.exists_eq_iInf
-    fun m : {m : ℕ // HasDeterminantalRepresentation f m} => (m.1 : ℕ∞)
+    fun m : {m : ℕ // HasDeterminantalRepresentation f m} => (m.val : ℕ∞)
   refine ⟨m, hm, hmin.trans ?_⟩
   simp only [determinantalComplexity, iInf_subtype]
 

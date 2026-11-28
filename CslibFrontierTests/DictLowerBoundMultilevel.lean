@@ -133,7 +133,7 @@ private noncomputable def decodeBoundedMem {U V n w : ℕ}
     Dictionary.State U :=
   open Classical in
   if h : ∃ x : BoundedDict U V n, boundedDictEmb hfit x = m then
-    (Classical.choose h).2.1
+    (Classical.choose h).2.val
   else
     Dictionary.empty U
 
@@ -148,7 +148,7 @@ private theorem decodeBoundedMem_apply {U V n w : ℕ}
     ⟨mkBoundedDict s hcard hbnd, rfl⟩
   dsimp only [decodeBoundedMem]
   rw [dite_eq_left hex]
-  exact congrArg (fun x : BoundedDict U V n => x.2.1)
+  exact congrArg (fun x : BoundedDict U V n => x.2.val)
     ((boundedDictEmb hfit).injective (Classical.choose_spec hex))
 
 private def readMem2 {w : ℕ} : ProbeTree 2 w (Mem 2 w) := do

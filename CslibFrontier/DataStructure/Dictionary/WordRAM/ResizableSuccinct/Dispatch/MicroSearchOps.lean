@@ -368,7 +368,7 @@ private theorem realizesBounded_compReadLMMod4Gen {c_base : ℕ} (hc : c_base + 
   all_goals (
     rcases d with ⟨⟨cp, metaBase⟩, ⟨b, j⟩⟩
     obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hb, hj⟩ := h
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     simp only [cpNumMicro_mk, cpN_mk] at *)
   all_goals try decide
   all_goals try exact fits_const_of_offCompItems hfit_meta (by decide)
@@ -443,7 +443,7 @@ private theorem realizesBounded_compWriteLMMod4Gen {c_base : ℕ} (hc : c_base +
   all_goals (
     rcases d with ⟨⟨⟨cp, metaBase⟩, ⟨b, j⟩⟩, val⟩
     obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hb, hj⟩ := h
-    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.1
+    have hfit_meta : Fits w (metaBase + offCompItems U w N) := lt_of_le_of_lt hfr hmem.frontier_fits
     simp only [cpNumMicro_mk, cpN_mk] at *)
   all_goals try decide
   all_goals try exact fits_const_of_offCompItems hfit_meta (by decide)
@@ -1682,7 +1682,7 @@ private theorem realizesBounded_compMicroStepGen :
     obtain ⟨U, V, N, m_items, s_fix, rfl, henv, hcpl, hslot, hm_items,
       hb, hptr_pos, hj_cap, hj_bc⟩ := h
     have hfit_meta : Fits w (metaBase + offCompItems U w N) :=
-      lt_of_le_of_lt henv.meta_le_frontier hmem.1
+      lt_of_le_of_lt henv.meta_le_frontier hmem.frontier_fits
     try simp only [StateTransitionSpec.clientState, runClient_state_compMicroFetchProg] at *)
   · omega
   · exact ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V,
@@ -2130,7 +2130,7 @@ private theorem realizesBounded_compOvfStepGen :
     obtain ⟨U, V, N, m_items, s_fix, rfl, henv, hcpl, hslot, hm_items,
       hb_pos, hb, hj_bc, hp⟩ := h
     have hfit_meta : Fits w (metaBase + offCompItems U w N) :=
-      lt_of_le_of_lt henv.meta_le_frontier hmem.1
+      lt_of_le_of_lt henv.meta_le_frontier hmem.frontier_fits
     have hslot_fix : SlotStoreInv N
         (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) := by
       rw [← hcpl.gm_eq]; exact hslot
@@ -2659,7 +2659,7 @@ theorem realizesBounded_compSearchBucketGen :
     obtain ⟨U, V, N, m_items, s_fix, L, rfl, henv, hcpl, hslot, hm_items,
       hb, hm_lt, hchain, hc_lt⟩ := h
     have hfit_meta : Fits w (metaBase + offCompItems U w N) :=
-      lt_of_le_of_lt henv.meta_le_frontier hmem.1
+      lt_of_le_of_lt henv.meta_le_frontier hmem.frontier_fits
     have hst1 := (compSearchMicroChainGenProg_spec (q_target := q_target)
       henv hcpl hslot hm_items hb hm_lt hchain hc_lt).1)
   · exact ⟨U, V, N, m_items, s_fix, L, rfl, henv, hcpl, hslot, hm_items, hb, hm_lt, hchain, hc_lt⟩
@@ -2721,7 +2721,7 @@ private theorem realizesBounded_compQueryFoundVal :
     obtain ⟨U, V, N, m_items, s_fix, b, j, rfl, henv, hcpl, hslot, hm_items,
       hb, hj, rfl⟩ := h
     have hfit_meta : Fits w (metaBase + offCompItems U w N) :=
-      lt_of_le_of_lt henv.meta_le_frontier hmem.1)
+      lt_of_le_of_lt henv.meta_le_frontier hmem.frontier_fits)
   · exact ⟨U, V, N, m_items, s_fix, b, j, rfl, henv, hcpl, hslot, hm_items, hb, hj, rfl⟩
   · exact fits_const_of_offCompItems hfit_meta (by decide)
 
@@ -2885,7 +2885,7 @@ theorem realizesBounded_compQueryBodyGen :
     obtain ⟨U, V, N, m_items, s_fix, L, rfl, henv, hcpl, hslot, hm_items,
       hb, hm_lt, hchain, hc_lt⟩ := h
     have hfit_meta : Fits w (metaBase + offCompItems U w N) :=
-      lt_of_le_of_lt henv.meta_le_frontier hmem.1)
+      lt_of_le_of_lt henv.meta_le_frontier hmem.frontier_fits)
   · exact ⟨U, V, N, m_items, s_fix, L, rfl, henv, hcpl, hslot, hm_items, hb, hm_lt, hchain, hc_lt⟩
   · exact fits_const_of_offCompItems hfit_meta (by decide)
   · have hst_b := (compSearchBucketGenProg_spec (q_target := q_target)

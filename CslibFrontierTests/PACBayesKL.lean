@@ -75,7 +75,7 @@ example : (binaryKL 1 0 + binaryKL 1 1) / 2 < binaryKL 1 (1 / 2) := by
     rw [Real.lt_log_iff_exp_lt (by norm_num)]
     have := Real.exp_one_lt_d9
     have hsq : Real.exp (1 / 2) ^ 2 = Real.exp 1 := by
-      rw [← Real.exp_nat_mul]; norm_num
+      rw [← Real.exp_natCast_mul]; norm_num
     nlinarith [Real.exp_pos (1 / 2)]
   linarith
 

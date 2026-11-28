@@ -76,15 +76,14 @@ private theorem shiftTest_perm {t : G} (w : G → G) (hw : ∑ i, w i = t)
     (e : Equiv.Perm G) : ShiftTest t w (fun i => e i - w i) := by
   constructor
   · rw [sum_sub_distrib, hw]
-    congr 1
-    exact Fintype.sum_bijective _ e.bijective _ _ (fun _ => rfl)
+    exact congrArg (· - t) (Equiv.sum_comp e id)
   · simpa only [add_sub_cancel] using e.injective
 
 /-- Accepting shifts are precisely permutations translated by the weight vector. -/
 private noncomputable def acceptingShiftsEquiv {t : G} (w : G → G) (hw : ∑ i, w i = t) :
     {s : G → G // ShiftTest t w s} ≃ Equiv.Perm G where
-  toFun s := Equiv.ofBijective (fun i => w i + s.1 i)
-    (Finite.injective_iff_bijective.mp s.2.2)
+  toFun s := Equiv.ofBijective (fun i => w i + s.val i)
+    (Finite.injective_iff_bijective.mp s.property.2)
   invFun e := ⟨fun i => e i - w i, shiftTest_perm w hw e⟩
   left_inv s := by
     apply Subtype.ext

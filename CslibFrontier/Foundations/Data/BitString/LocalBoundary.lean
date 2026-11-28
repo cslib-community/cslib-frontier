@@ -122,8 +122,8 @@ theorem two_pow_le_two_pow_mul_card_of_boundary_bound {n : ℕ}
     · exact hsingle true (by simpa only [Bool.not_true] using hfalse)
     by_cases htrue : cubeSlice A true = ∅
     · exact hsingle false (by simpa only [Bool.not_false] using htrue)
-    have hrecTrue := ih (cubeSlice A true) b (nonempty_iff_ne_empty.mpr htrue) (hslice true)
-    have hrecFalse := ih (cubeSlice A false) b (nonempty_iff_ne_empty.mpr hfalse) (hslice false)
+    have hrecTrue := ih (cubeSlice A true) b (ne_empty_iff_nonempty.mp htrue) (hslice true)
+    have hrecFalse := ih (cubeSlice A false) b (ne_empty_iff_nonempty.mp hfalse) (hslice false)
     rw [card_cubeSlices, Nat.mul_add, pow_succ]; omega
 
 end Cslib.BitString

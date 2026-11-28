@@ -274,7 +274,7 @@ instance [Finite G] (C : LayeredSemiUnboundedCircuit G) (g : G) : Finite (ProofT
     -- A proof tree at `g` is determined by its constructor and its subtrees, which are proof
     -- trees at gates on lower layers.
     let T := Σ c : {c : G // C.layer c < n}, ProofTree C c
-    have (c : {c : G // C.layer c < n}) : Finite (ProofTree C c) := ih _ c.2 c rfl
+    have (c : {c : G // C.layer c < n}) : Finite (ProofTree C c) := ih _ c.property c rfl
     have : Finite T := Finite.instSigma
     let f : ProofTree C g → Unit ⊕ T ⊕ (T × T) ⊕ T
       | .leaf _ => .inl ()

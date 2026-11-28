@@ -120,7 +120,7 @@ example :
     (bot ⊔ top) = top ∧ (bot ⊓ top) = bot ∧ bot ≠ top := by
   intro bot top
   refine ⟨bot_sup_eq _, inf_top_eq _, fun h => ?_⟩
-  have h0 : bot.1 0 = top.1 0 := congrArg (fun x => x.1 0) h
+  have h0 : bot.val 0 = top.val 0 := congrArg (fun x => x.val 0) h
   revert h0
   decide
 

@@ -76,7 +76,7 @@ theorem aeval_mem_of_mem_supported (hp : p ∈ supported R s) (S : Subalgebra R 
   induction p' using MvPolynomial.induction_on with
   | C r => rw [aeval_C]; exact S.algebraMap_mem r
   | add p q hp hq => rw [map_add]; exact S.add_mem hp hq
-  | mul_X p i hp => rw [map_mul, aeval_X]; exact S.mul_mem hp (hg _ i.2)
+  | mul_X p i hp => rw [map_mul, aeval_X]; exact S.mul_mem hp (hg _ i.property)
 
 /-- A partial derivative of a polynomial in the variables of `s` is a polynomial in the variables
 of `s`. -/

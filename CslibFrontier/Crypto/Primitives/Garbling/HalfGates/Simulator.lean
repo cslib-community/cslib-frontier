@@ -181,7 +181,7 @@ private noncomputable def simTable (k : ℕ) (f : XorAndCircuit) (coins : List B
 
 private theorem slotIndex_lt (f : XorAndCircuit) (p : Slot (toCircuit f)) :
     slotIndex f p < f.circuit.n + 2 * andRank f.circuit f.circuit.q := by
-  have hg := (op_toCircuit_eq_and_iff f p.gate).mp p.1.2
+  have hg := (op_toCircuit_eq_and_iff f p.gate).mp p.1.property
   have hlt := andRank_lt f.circuit (p.gate.cast (size_toCircuit f)) hg
     (show (p.gate.cast (size_toCircuit f) : ℕ) < f.circuit.q from Fin.isLt _)
   have hs := Bool.toNat_le p.2

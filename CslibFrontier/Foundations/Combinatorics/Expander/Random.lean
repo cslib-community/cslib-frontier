@@ -76,7 +76,7 @@ private theorem card_filter_forall_eq_le (K : Finset V) (g : K → V)
   refine le_of_eq ((congrArg card (filter_congr fun σ _ ↦ ⟨fun h u hu ↦ ?_, fun h v ↦ ?_⟩)).trans
     (Perm.card_filter_forall_eq_of_injOn K f hf))
   · simpa only [f, hu, ↓reduceDIte] using h ⟨u, hu⟩
-  · simpa only [f, v.2, ↓reduceDIte] using h v v.2
+  · simpa only [f, v.property, ↓reduceDIte] using h v v.property
 
 /-- At most `s (s - 1) ⋯ (s - k + 1) (n - k)!` permutations of an `n`-element type map a
 `k`-element set `K` into an `s`-element set `S`: on `K` such a permutation is one of the
@@ -85,7 +85,7 @@ private theorem card_filter_forall_mem_le (K S : Finset V) :
     #{σ : Perm V | ∀ v ∈ K, σ v ∈ S} ≤ (#S).descFactorial #K * (Fintype.card V - #K)! := by
   have h : ({σ : Perm V | ∀ v ∈ K, σ v ∈ S} : Finset (Perm V)) ⊆
       (univ : Finset (K ↪ S)).biUnion fun g ↦ {σ : Perm V | ∀ v : K, σ v = g v} :=
-    fun σ hσ ↦ mem_biUnion.2 ⟨⟨fun v ↦ ⟨σ v, (mem_filter.1 hσ).2 v v.2⟩,
+    fun σ hσ ↦ mem_biUnion.2 ⟨⟨fun v ↦ ⟨σ v, (mem_filter.1 hσ).2 v v.property⟩,
       fun _ _ h ↦ Subtype.ext (σ.injective (congrArg Subtype.val h))⟩, mem_univ _,
       mem_filter.2 ⟨mem_univ _, fun _ ↦ rfl⟩⟩
   calc #{σ : Perm V | ∀ v ∈ K, σ v ∈ S}
@@ -147,7 +147,7 @@ end Count
 /-- For any natural number `s`, `s ^ s / s! ≤ 3 ^ s`. -/
 private theorem pow_div_factorial_le_three_pow (s : ℕ) : (s : ℝ) ^ s / s ! ≤ 3 ^ s :=
   (Real.pow_div_factorial_le_exp _ (Nat.cast_nonneg s) s).trans <| by
-    rw [← mul_one (s : ℝ), Real.exp_nat_mul]
+    rw [← mul_one (s : ℝ), Real.exp_natCast_mul]
     exact pow_le_pow_left₀ (Real.exp_pos 1).le (Real.exp_one_lt_d9.le.trans (by norm_num)) s
 
 /-- The arithmetic of the union bound: for `1 ≤ s`, `2 s ≤ n` and `9 s ≤ 10 k`, the `C(n, s)`

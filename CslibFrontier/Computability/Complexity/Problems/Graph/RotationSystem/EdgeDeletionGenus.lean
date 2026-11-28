@@ -30,8 +30,8 @@ open Equiv RotationCertificate Perm.CycleSurgery
 
 /-- Every endpoint of a retained edge was already declared before deletion. -/
 theorem endpoints_declared_deleteLastEdge {G : Graph} {u v : ℕ}
-    (hH : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ (lastEdgeGraph G u v).1) :
-    ∀ w ∈ G.incidenceVertices, w ∈ G.1 := by
+    (hH : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ (lastEdgeGraph G u v).vertices) :
+    ∀ w ∈ G.incidenceVertices, w ∈ G.vertices := by
   intro w hw
   apply hH w
   simp only [lastEdgeGraph, Graph.incidenceVertices, List.flatMap_append, List.mem_append]
@@ -46,8 +46,8 @@ theorem retainedLastEdgeDart_reverse (G : Graph) (u v : ℕ) (d : Dart G) :
 /-- If no declared vertex loses its last incidence, deletion preserves the actual incident
 vertex set. The premise is on endpoint occurrences, rather than an unchecked cardinality. -/
 def incidentVertexEquivDeleteLastEdge {G : Graph} {u v : ℕ}
-    (hH : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ (lastEdgeGraph G u v).1)
-    (hi : ∀ w ∈ G.1, ∃ d : Dart G, d.vertex = w) :
+    (hH : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ (lastEdgeGraph G u v).vertices)
+    (hi : ∀ w ∈ G.vertices, ∃ d : Dart G, d.vertex = w) :
     IncidentVertex G ≃ IncidentVertex (lastEdgeGraph G u v) where
   toFun w := ⟨w.val, by
     obtain ⟨d, hd⟩ := w.property
@@ -62,8 +62,8 @@ def incidentVertexEquivDeleteLastEdge {G : Graph} {u v : ℕ}
 dart. The face permutation and both vertex orbit counts are those of the actual rotations. -/
 theorem card_faces_deleteLastEdge_le {G : Graph} {u v : ℕ}
     (r : RotationSystem (lastEdgeGraph G u v))
-    (hH : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ (lastEdgeGraph G u v).1)
-    (hi : ∀ w ∈ G.1, ∃ d : Dart G, d.vertex = w) :
+    (hH : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ (lastEdgeGraph G u v).vertices)
+    (hi : ∀ w ∈ G.vertices, ∃ d : Dart G, d.vertex = w) :
     Nat.card r.Face ≤ Nat.card r.deleteLastEdge.Face + 1 := by
   let e := lastEdgeDartEquiv G u v
   have hc : Nat.card (Quotient (Perm.SameCycle.setoid r.rotate)) =
@@ -87,7 +87,7 @@ The internally constructed face-even extension applies also when the edge splits
 creates isolated points, or is a loop. No connectedness or face-location premise is required. -/
 theorem numericalGenusZero_deleteLastEdge {G : Graph} {u v : ℕ}
     (r : RotationSystem (lastEdgeGraph G u v))
-    (hH : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ (lastEdgeGraph G u v).1)
+    (hH : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ (lastEdgeGraph G u v).vertices)
     (hr : r.NumericalGenusZero) : r.deleteLastEdge.NumericalGenusZero := by
   have hG := endpoints_declared_deleteLastEdge hH
   apply r.deleteLastEdge.numericalGenusZero_of_faceEven_lifts hG
@@ -106,7 +106,7 @@ theorem numericalGenusZero_deleteLastEdge {G : Graph} {u v : ℕ}
 conventional face. No dart or connectedness premise is required, including an empty declared
 list and duplicate vertex declarations. -/
 theorem numericalGenusZero_deleteLastEdge_of_no_edges {G : Graph} {u v : ℕ}
-    (r : RotationSystem (lastEdgeGraph G u v)) (h : G.2 = []) :
+    (r : RotationSystem (lastEdgeGraph G u v)) (h : G.edges = []) :
     r.deleteLastEdge.NumericalGenusZero := by
   apply (r.deleteLastEdge.numericalGenusZero_iff_component_cards
     (by simp [Graph.incidenceVertices, h])).mpr

@@ -499,7 +499,8 @@ theorem minRep_mem_no [Nonempty β] [DecidableEq γ] {G : Graph (β → γ)} {Δ
       (G.toGraph projectionEval).Satisfies σ i := by
     rw [satisfies_toGraph_projectionEval_iff]
     simp only [σ]
-    rw [dite_eq_left_of_eq_true (eq_true (s i).2), dite_eq_left_of_eq_true (eq_true (t i).2)]
+    rw [dite_eq_left_of_eq_true (eq_true (s i).property),
+        dite_eq_left_of_eq_true (eq_true (t i).property)]
     exact (Equiv.eq_symm_apply eγ).2 hi
   have hdisj : Disjoint (Finset.univ.filter fun i : Fin G.edges.length =>
       eγ ((G.edges.get i).constraint (eβ.symm (f (s i)))) = h (t i))

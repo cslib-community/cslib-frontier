@@ -351,7 +351,7 @@ returns `false`. -/
       if h : c.coalition = ({1} : Finset (Fin 2)) then
         let σ : Bool := c.query 1
         maskedOTPadTest (F.kdfMask H d) c.query
-          (fun r => c.guess (fun s => r.1 ⟨s.1, h ▸ s.2⟩, r.2)) u
+          (fun r => c.guess (fun s => r.1 ⟨s.val, h ▸ s.property⟩, r.2)) u
           (Cslib.BitString.listXor key.length [key, if σ then (c.query 0).1 else (c.query 0).2])
       else pure false
 

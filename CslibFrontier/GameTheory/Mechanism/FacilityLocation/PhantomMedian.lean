@@ -81,10 +81,10 @@ private lemma exists_perm_image_eq_of_card_eq {α : Type*} [Finite α] {S T : Fi
   by_cases hi : i ∈ T
   · simp only [Equiv.trans_apply, Equiv.sumCompl_symm_apply_of_pos hi, Equiv.sumCongr_apply,
       Sum.map_inl, Equiv.sumCompl_apply_inl]
-    exact iff_of_true (e1 ⟨i, hi⟩).2 hi
+    exact iff_of_true (e1 ⟨i, hi⟩).property hi
   · simp only [Equiv.trans_apply, Equiv.sumCompl_symm_apply_of_neg hi, Equiv.sumCongr_apply,
       Sum.map_inr, Equiv.sumCompl_apply_inr]
-    exact iff_of_false (e2 ⟨i, hi⟩).2 hi
+    exact iff_of_false (e2 ⟨i, hi⟩).property hi
 
 /-- An anonymous rule assigns the same outcome to any two two-valued profiles whose first-value
 coalitions `S` and `T` have equal cardinality. -/
@@ -164,13 +164,13 @@ theorem MoulinScheme.eval_extremeProfile [DecidableEq ι] {a b : ℝ} (E : Mouli
   refine le_antisymm (not_lt.mp fun hlt => ?_) (not_lt.mp fun hlt => ?_)
   · refine ((E.lt_eval_iff x y).mp hlt).not_ge (E.antitone fun i hi => ?_)
     rw [Finset.mem_compl] at hi
-    exact Finset.mem_filter.mpr ⟨Finset.mem_univ i, by simp [x, hi, y.2.1]⟩
+    exact Finset.mem_filter.mpr ⟨Finset.mem_univ i, by simp [x, hi, y.property.1]⟩
   · refine ((E.eval_lt_iff x y).mp hlt).not_ge (E.antitone fun i hi => ?_)
     rw [Finset.mem_compl]
     intro hiS
     have hxi := (Finset.mem_filter.mp hi).2
     simp only [x, hiS, ↓reduceIte] at hxi
-    exact hxi.not_ge y.2.2
+    exact hxi.not_ge y.property.2
 
 /-- Explicit `MoulinScheme` realizing the anonymous `(n - 1)`-phantom-voter median rule for sorted
 phantoms `y : Fin (Fintype.card ι - 1) → Set.Icc a b` ([SchummerVohra2007], Exercise 10.2, p. 264):
@@ -189,7 +189,7 @@ noncomputable def MoulinScheme.ofPhantoms (hab : a ≤ b)
     split_ifs
     · exact ⟨hab, le_rfl⟩
     · exact ⟨le_rfl, hab⟩
-    · exact (y _).2
+    · exact (y _).property
   antitone S T hST := by
     have hcard : S.card ≤ T.card := Finset.card_le_card hST
     have hTle : T.card ≤ Fintype.card ι := Finset.card_le_univ T
@@ -202,10 +202,10 @@ noncomputable def MoulinScheme.ofPhantoms (hab : a ≤ b)
         · simp only [hS0, ↓reduceDIte, hab]
         · by_cases hSn : S.card = Fintype.card ι
           · simp only [hSn, Fintype.card_ne_zero, ↓reduceDIte, le_rfl]
-          · simp only [hS0, hSn, ↓reduceDIte, (y _).2.1]
+          · simp only [hS0, hSn, ↓reduceDIte, (y _).property.1]
       · simp only [hT0, hTn, ↓reduceDIte]
         by_cases hS0 : S.card = 0
-        · simp only [hS0, ↓reduceDIte, (y _).2.2]
+        · simp only [hS0, ↓reduceDIte, (y _).property.2]
         · have hSn : S.card ≠ Fintype.card ι := by omega
           simp only [hS0, hSn, ↓reduceDIte]
           exact hy (show (⟨Fintype.card ι - 1 - T.card, _⟩ : Fin (Fintype.card ι - 1)) ≤
@@ -260,14 +260,14 @@ theorem MoulinScheme.ofPhantoms_eval_eq_phantomMedian (hab : a ≤ b)
     have hSy_le : Sy.card ≤ Fintype.card ι - 1 := by
       simpa only [Finset.card_univ, Fintype.card_fin] using Finset.card_le_univ Sy
     split_ifs with h0 hn
-    · have hzb : (z : ℝ) < b := lt_of_le_of_ne z.2.2 fun hzb_eq => by
+    · have hzb : (z : ℝ) < b := lt_of_le_of_ne z.property.2 fun hzb_eq => by
         obtain ⟨i₀⟩ := ‹Nonempty ι›
         exact absurd h0 (Finset.card_pos.mpr ⟨i₀, Finset.mem_filter.mpr
-          ⟨Finset.mem_univ i₀, (x i₀).2.2.trans_eq hzb_eq.symm⟩⟩).ne'
+          ⟨Finset.mem_univ i₀, (x i₀).property.2.trans_eq hzb_eq.symm⟩⟩).ne'
       rw [h0, zero_add]
       exact iff_of_true hzb hSy_le
     · rw [hn]
-      exact iff_of_false (not_lt_of_ge z.2.1) (by omega)
+      exact iff_of_false (not_lt_of_ge z.property.1) (by omega)
     · have hSx_le : Sx.card ≤ Fintype.card ι := by
         simpa only [Finset.card_univ] using Finset.card_le_univ Sx
       set m : ℕ := Fintype.card ι - 1 - Sx.card
@@ -283,7 +283,7 @@ theorem MoulinScheme.ofPhantoms_eval_eq_phantomMedian (hab : a ≤ b)
       · have hsub : Finset.univ.map (Fin.castLEEmb hm_lt) ⊆ Sy := fun _ hj => by
           rcases Finset.mem_map.mp hj with ⟨k, _, rfl⟩
           exact Finset.mem_filter.mpr ⟨Finset.mem_univ _,
-            (hy (Fin.mk_le_mk.mpr (Nat.lt_succ_iff.mp k.2))).trans hy_le⟩
+            (hy (Fin.mk_le_mk.mpr (Nat.lt_succ_iff.mp k.isLt))).trans hy_le⟩
         have hge : m + 1 ≤ Sy.card := by
           simpa only [Finset.card_map, Finset.card_univ, Fintype.card_fin] using
             Finset.card_le_card hsub

@@ -145,7 +145,7 @@ theorem repeatDec_eq_true_iff (t : ℕ) (g : List (IPMove × ℕ)) (dec : ℕ �
     repeatDec t g dec w = true ↔
       ∀ i : Fin t, dec i (AMGame.copyTranscript t i (toAM g) w) = true := by
   simp only [repeatDec, List.all_eq_true, List.mem_range]
-  exact ⟨fun h i => h i i.2, fun h i hi => h ⟨i, hi⟩⟩
+  exact ⟨fun h i => h i i.isLt, fun h i hi => h ⟨i, hi⟩⟩
 
 theorem repeatShape_cons' (t : ℕ) (v : IPMove) (n : ℕ) (g : List (IPMove × ℕ)) :
     repeatShape t ((v, n) :: g) = (v, t * n) :: repeatShape t g := rfl

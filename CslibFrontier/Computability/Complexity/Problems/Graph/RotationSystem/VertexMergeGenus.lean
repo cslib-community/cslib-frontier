@@ -27,12 +27,12 @@ open Equiv RotationCertificate Perm.SelectedOrbits
 
 /-- Original declared endpoints remain declared under the actual name update. -/
 theorem mergeGraph_endpoints_declared {G : Graph} (h k : Dart G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) :
-    ∀ v ∈ (mergeGraph h k).incidenceVertices, v ∈ (mergeGraph h k).1 :=
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) :
+    ∀ v ∈ (mergeGraph h k).incidenceVertices, v ∈ (mergeGraph h k).vertices :=
   G.endpoints_declared_relabel (Function.update id k.vertex h.vertex) hG
 
 private theorem sameComponent_of_merge_vertex_eq {G : Graph} (h k a b : Dart G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (hc : SameComponent G h.vertex k.vertex)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hc : SameComponent G h.vertex k.vertex)
     (he : (mergeDartEquiv h k a).vertex = (mergeDartEquiv h k b).vertex) :
     SameComponent G a.vertex b.vertex := by
   rw [vertex_mergeDartEquiv, vertex_mergeDartEquiv] at he
@@ -52,7 +52,7 @@ private theorem sameComponent_of_merge_vertex_eq {G : Graph} (h k a b : Dart G)
 /-- Identifying two vertices already in one old component preserves exactly its edge
 components. This statement uses actual old and new dart endpoints, not an injective name map. -/
 theorem sameComponent_mergeGraph_iff {G : Graph} (h k : Dart G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (hc : SameComponent G h.vertex k.vertex)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hc : SameComponent G h.vertex k.vertex)
     (a b : Dart G) :
     SameComponent (mergeGraph h k) (mergeDartEquiv h k a).vertex
       (mergeDartEquiv h k b).vertex ↔ SameComponent G a.vertex b.vertex := by
@@ -92,7 +92,7 @@ open Classical in
 /-- A cofacial identification adds one actual face in its component, retaining every other
 component's face quotient. The selected corners are distinct vertices but may revisit a face. -/
 theorem card_componentFace_mergeVertices {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (h k : Dart G) (hk : h.vertex ≠ k.vertex)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (h k : Dart G) (hk : h.vertex ≠ k.vertex)
     (hf : r.faceNext.SameCycle h k) (a : Dart G) :
     Nat.card (ComponentFace (r.mergeVertices h k hk) (mergeDartEquiv h k a).vertex) =
       Nat.card (ComponentFace r a.vertex) + if SameComponent G a.vertex h.vertex then 1 else 0 := by
@@ -108,7 +108,7 @@ theorem card_componentFace_mergeVertices {G : Graph} (r : RotationSystem G)
 
 /-- The actual component vertex set is the image of its old set under the one-name update. -/
 theorem componentVertexSet_mergeGraph {G : Graph} (h k : Dart G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (hc : SameComponent G h.vertex k.vertex)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hc : SameComponent G h.vertex k.vertex)
     (a : Dart G) :
     (mergeGraph h k).componentVertexSet (mergeDartEquiv h k a).vertex =
       (G.componentVertexSet a.vertex).image (Function.update id k.vertex h.vertex) := by
@@ -144,7 +144,7 @@ open Classical in
 /-- The selected component loses exactly the second old vertex name. Other components retain
 all their distinct declared names, including declared points. -/
 theorem card_componentVertexSet_mergeGraph {G : Graph} (h k : Dart G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (hc : SameComponent G h.vertex k.vertex)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hc : SameComponent G h.vertex k.vertex)
     (hk : h.vertex ≠ k.vertex) (a : Dart G) :
     ((mergeGraph h k).componentVertexSet (mergeDartEquiv h k a).vertex).card +
       (if SameComponent G a.vertex h.vertex then 1 else 0) =
@@ -163,7 +163,7 @@ theorem card_componentVertexSet_mergeGraph {G : Graph} (h k : Dart G)
 
 /-- No indexed edge occurrence is removed or identified by the vertex-name update. -/
 theorem card_componentEdgeSet_mergeGraph {G : Graph} (h k : Dart G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (hc : SameComponent G h.vertex k.vertex)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hc : SameComponent G h.vertex k.vertex)
     (a : Dart G) :
     ((mergeGraph h k).componentEdgeSet (mergeDartEquiv h k a).vertex).card =
       (G.componentEdgeSet a.vertex).card := by
@@ -180,7 +180,7 @@ theorem card_componentEdgeSet_mergeGraph {G : Graph} (h k : Dart G)
 componentwise numerical genus-zero predicate. Closed and point components outside the selected
 component retain their old counts. No injective map on boundary variable labels is assumed. -/
 theorem numericalGenusZero_mergeVertices {G : Graph} (r : RotationSystem G)
-    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1) (hr : r.NumericalGenusZero)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (hr : r.NumericalGenusZero)
     (h k : Dart G) (hk : h.vertex ≠ k.vertex) (hf : r.faceNext.SameCycle h k) :
     (r.mergeVertices h k hk).NumericalGenusZero := by
   classical

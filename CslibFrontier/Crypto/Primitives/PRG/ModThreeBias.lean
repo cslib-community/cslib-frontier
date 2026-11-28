@@ -307,7 +307,7 @@ theorem two_div_three_sub_le_advantage_modThreeTest (n : ℕ) :
   have hreal : ((modThreeGenerator n).realExperiment (modThreeTest n) true).toReal = 1 := by
     have huniv : ({z | decide (weight (modThreeGenerator n z) % 3 = 0) = true} :
         Finset (modThreeWords n)) = univ :=
-      eq_univ_of_forall fun z => by simp [mem_modThreeWords.1 z.2]
+      eq_univ_of_forall fun z => by simp [mem_modThreeWords.1 z.property]
     rw [htest, Generator.toReal_realExperiment_pure, huniv, dens_univ, NNRat.cast_one]
   have hideal : (Generator.idealExperiment (modThreeTest n) true).toReal =
       #(modThreeWords n) / 2 ^ n := by

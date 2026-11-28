@@ -242,7 +242,7 @@ theorem val_modeEquiv_symm_snd_snd {P T p : ℕ} (j : Fin (P * (T * p))) :
   have hj : (j : ℕ) = Z.1 * (T * p) + (Z.2.1 * p + Z.2.2) := by
     rw [← modeEquiv_apply_val, ← hZ, Equiv.apply_symm_apply]
   rw [hZ, hj, show (Z.1 : ℕ) * (T * p) + (Z.2.1 * p + Z.2.2) = Z.2.2 + p * (Z.1 * T + Z.2.1) by
-    ring, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt Z.2.2.2]
+    ring, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt Z.2.2.isLt]
 
 /-- The weights listed along the modes are `modeWeights`. -/
 theorem map_modeList_weight (P T p : ℕ) :
@@ -257,7 +257,7 @@ the exponent of the mode `(q, y, b)`. -/
 theorem getD_betaSlice {P i pt : ℕ} (β : List ℕ) (q : Fin P) (Z : Fin (2 ^ (i + 1)) × Fin pt) :
     (betaSlice i pt β q).getD (finProdFinEquiv Z) 0 =
       BudgetTuples.ofList (modeList P (2 ^ (i + 1)) pt) β (q, Z) := by
-  have hZ : (finProdFinEquiv Z : ℕ) < 2 ^ (i + 1) * pt := (finProdFinEquiv Z).2
+  have hZ : (finProdFinEquiv Z : ℕ) < 2 ^ (i + 1) * pt := (finProdFinEquiv Z).isLt
   rw [BudgetTuples.ofList, idxOf_modeList, modeEquiv_apply_val, betaSlice,
     List.getD_eq_getElem?_getD, List.getElem?_take_of_lt hZ, List.getElem?_drop,
     ← List.getD_eq_getElem?_getD, finProdFinEquiv_apply_val]
@@ -294,7 +294,7 @@ theorem portRank_eq (sel : ℕ × ℕ → ℕ) (endF : Fin m → Fin k)
     portRank (List.ofFn fun v => (group v : ℕ)) g (List.ofFn fun e => ((src e : ℕ), (tgt e : ℕ)))
         sel e = rank (fun e => group (endF e) = g) e := by
   have hr : List.range e = ((List.finRange m).take e).map Fin.val := by
-    rw [List.map_take, List.map_coe_finRange_eq_range, List.take_range, min_eq_left e.2.le]
+    rw [List.map_take, List.map_coe_finRange_eq_range, List.take_range, min_eq_left e.isLt.le]
   rw [portRank, rank, hr, List.countP_map]
   refine List.countP_congr fun u _ => ?_
   simp only [Function.comp_apply, getD_ofFn_group src tgt group sel endF hsel, Fin.val_inj,
@@ -344,21 +344,21 @@ omit hsrc in
 theorem parentEdge_childEdgeEquiv (c : ChildEdge src tgt group g) :
     parentEdge (List.ofFn fun v => (group v : ℕ)) g
         (List.ofFn fun e => ((src e : ℕ), (tgt e : ℕ))) (childEdgeEquiv src tgt group g c) =
-      (Sum.elim (fun e => (e.1 : ℕ)) (fun e => (e.1 : ℕ)) c) := by
+      (Sum.elim (fun e => (e.val : ℕ)) (fun e => (e.val : ℕ)) c) := by
   rw [parentEdge, portEdges_eq src tgt group g Prod.fst src (fun _ => rfl),
     portEdges_eq src tgt group g Prod.snd tgt (fun _ => rfl), List.length_map]
   rcases c with c | c
-  · have hlt := rank_lt (fun e => group (src e) = g) c.1 c.2
+  · have hlt := rank_lt (fun e => group (src e) = g) c.val c.property
     simp only [childEdgeEquiv, Equiv.trans_apply, Equiv.sumCongr_apply, Sum.map_inl,
       finSumFinEquiv_apply_left, Fin.val_castAdd, rankEquiv_apply_val, Sum.elim_inl]
     rw [ite_eq_left hlt, List.getD_eq_getElem _ _ (by simpa using hlt), List.getElem_map,
-      getElem_rank (fun e => group (src e) = g) c.1 c.2]
-  · have hlt := rank_lt (fun e => group (tgt e) = g) c.1 c.2
+      getElem_rank (fun e => group (src e) = g) c.val c.property]
+  · have hlt := rank_lt (fun e => group (tgt e) = g) c.val c.property
     simp only [childEdgeEquiv, Equiv.trans_apply, Equiv.sumCongr_apply, Sum.map_inr,
       finSumFinEquiv_apply_right, Fin.val_natAdd, rankEquiv_apply_val, Sum.elim_inr]
     rw [ite_eq_right (by omega), Nat.add_sub_cancel_left,
       List.getD_eq_getElem _ _ (by simpa using hlt), List.getElem_map,
-      getElem_rank (fun e => group (tgt e) = g) c.1 c.2]
+      getElem_rank (fun e => group (tgt e) = g) c.val c.property]
 
 omit hsrc in
 /-- A numbered child edge is a row port exactly when its number is below the number of row
@@ -371,7 +371,7 @@ theorem lt_length_portEdges_iff (c : ChildEdge src tgt group g) :
   rcases c with c | c
   · simp only [childEdgeEquiv, Equiv.trans_apply, Equiv.sumCongr_apply, Sum.map_inl,
       finSumFinEquiv_apply_left, Fin.val_castAdd, rankEquiv_apply_val, Sum.isLeft_inl, iff_true]
-    exact rank_lt (fun e => group (src e) = g) c.1 c.2
+    exact rank_lt (fun e => group (src e) = g) c.val c.property
   · simp only [childEdgeEquiv, Equiv.trans_apply, Equiv.sumCongr_apply, Sum.map_inr,
       finSumFinEquiv_apply_right, Fin.val_natAdd, Sum.isLeft_inr, Bool.false_eq_true, iff_false]
     omega
@@ -424,7 +424,7 @@ theorem parentSide_tgt (j : Fin D.numEdges) : parentSide r (D.tgtFin hD j) = fal
 @[expose] def colOfP (j : Fin D.numEdges) : Fin (D.vertices.length - r) :=
   ⟨D.tgtFin hD j - r, by
     have := DescribedNetwork.le_tgtFin hD j
-    have := (D.tgtFin hD j).2
+    have := (D.tgtFin hD j).isLt
     omega⟩
 
 /-- **The native packing of the parent**: `nativePacking` of its `(row, column)` edges, with `r`
@@ -533,42 +533,42 @@ variable {P : ℕ} (group : Fin D.vertices.length → Fin 64) (packet : Fin D.nu
 @[expose] def retainedPort (v : {v // group v = g}) (j : ℕ) :
     Option (ChildEdge (D.srcFin hD) (D.tgtFin hD) group g) :=
   if hj : j < D.numEdges then
-    if (v.1 : ℕ) < r then
+    if (v.val : ℕ) < r then
       if hg : group (D.srcFin hD ⟨j, hj⟩) = g then some (.inl ⟨⟨j, hj⟩, hg⟩) else none
     else if hg : group (D.tgtFin hD ⟨j, hj⟩) = g then some (.inr ⟨⟨j, hj⟩, hg⟩) else none
   else none
 
 /-- **A parent port of a retained vertex is a child edge**, numbered by `childEdgeOf`. -/
 theorem retainedPort_spec (v : {v // group v = g}) {j : ℕ}
-    (hj : j ∈ (D.vertices[(v.1 : ℕ)]'v.1.2).1) :
+    (hj : j ∈ (D.vertices[(v.val : ℕ)]'v.val.isLt).1) :
     ∃ c, retainedPort hD group g v j = some c ∧
       (childEdgeEquiv (D.srcFin hD) (D.tgtFin hD) group g c : ℕ) =
         childEdgeOf r (List.ofFn fun v => (group v : ℕ)) g
           (List.ofFn fun e => ((D.srcFin hD e : ℕ), (D.tgtFin hD e : ℕ))) v j := by
   have hjm : j < D.numEdges := hD.1 _ (List.getElem_mem _) j hj
-  have hends := (DescribedNetwork.mem_ports_iff hD v.1 ⟨j, hjm⟩).mp hj
+  have hends := (DescribedNetwork.mem_ports_iff hD v.val ⟨j, hjm⟩).mp hj
   have hsrcr := DescribedNetwork.srcFin_lt hD
   have htgtr := DescribedNetwork.le_tgtFin hD
-  by_cases hvr : (v.1 : ℕ) < r
-  · have hs : D.srcFin hD ⟨j, hjm⟩ = v.1 := hends.resolve_right fun h => by
+  by_cases hvr : (v.val : ℕ) < r
+  · have hs : D.srcFin hD ⟨j, hjm⟩ = v.val := hends.resolve_right fun h => by
       have := htgtr ⟨j, hjm⟩
       rw [h] at this
       omega
-    have hg : group (D.srcFin hD ⟨j, hjm⟩) = g := hs ▸ v.2
+    have hg : group (D.srcFin hD ⟨j, hjm⟩) = g := hs ▸ v.property
     refine ⟨.inl ⟨⟨j, hjm⟩, hg⟩, ?_, ?_⟩
     · simp only [retainedPort, dite_eq_left hjm, ite_eq_left hvr, dite_eq_left hg]
     · have := childEdgeOf_src (D.srcFin hD) (D.tgtFin hD) group g hsrcr ⟨j, hjm⟩ hg
-      rw [show ((v.1 : Fin _) : ℕ) = (D.srcFin hD ⟨j, hjm⟩ : ℕ) by rw [hs]]
+      rw [show ((v.val : Fin _) : ℕ) = (D.srcFin hD ⟨j, hjm⟩ : ℕ) by rw [hs]]
       exact this.symm
-  · have ht : D.tgtFin hD ⟨j, hjm⟩ = v.1 := hends.resolve_left fun h => by
+  · have ht : D.tgtFin hD ⟨j, hjm⟩ = v.val := hends.resolve_left fun h => by
       have := hsrcr ⟨j, hjm⟩
       rw [h] at this
       exact hvr this
-    have hg : group (D.tgtFin hD ⟨j, hjm⟩) = g := ht ▸ v.2
+    have hg : group (D.tgtFin hD ⟨j, hjm⟩) = g := ht ▸ v.property
     refine ⟨.inr ⟨⟨j, hjm⟩, hg⟩, ?_, ?_⟩
     · simp only [retainedPort, dite_eq_left hjm, ite_eq_right hvr, dite_eq_left hg]
     · have := childEdgeOf_tgt (D.srcFin hD) (D.tgtFin hD) group g htgtr ⟨j, hjm⟩ hg
-      rw [show ((v.1 : Fin _) : ℕ) = (D.tgtFin hD ⟨j, hjm⟩ : ℕ) by rw [ht]]
+      rw [show ((v.val : Fin _) : ℕ) = (D.tgtFin hD ⟨j, hjm⟩ : ℕ) by rw [ht]]
       exact this.symm
 
 /-- **The ports of the packet vertex `q`**: the child edges of packet `q`, in increasing order of
@@ -583,14 +583,14 @@ their numbers. -/
 vertex, and the child edges of a packet. -/
 @[expose] def numberedPorts :
     ChildVertex group g P → List (ChildEdge (D.srcFin hD) (D.tgtFin hD) group g) :=
-  Sum.elim (fun v => (D.vertices[(v.1 : ℕ)]'v.1.2).1.filterMap (retainedPort hD group g v))
+  Sum.elim (fun v => (D.vertices[(v.val : ℕ)]'v.val.isLt).1.filterMap (retainedPort hD group g v))
     (packetPorts hD group packet g)
 
 /-- **The descriptors of the numbered child vertices**: the parent descriptor of a retained
 vertex, and the packet descriptor of a packet. -/
 @[expose] def numberedDesc (fl : List ℕ) (a i pt : ℕ) (t : ℤ) (ζ β : List ℕ) :
     ChildVertex group g P → VertexDesc T :=
-  Sum.elim (fun v => (D.vertices[(v.1 : ℕ)]'v.1.2).2) fun q =>
+  Sum.elim (fun v => (D.vertices[(v.val : ℕ)]'v.val.isLt).2) fun q =>
     .inr (packetCtx fl a i pt t ζ g q,
       (packetPorts hD group packet g q).map fun c =>
         (c.isLeft, slot (Sum.elim Subtype.val Subtype.val c)),
@@ -599,25 +599,25 @@ vertex, and the packet descriptor of a packet. -/
 /-- Mapping over the retained ports of `v` reads each parent port through `retainedPort`. -/
 theorem map_filterMap_retainedPort {γ : Type*} (v : {v // group v = g})
     (y : ChildEdge (D.srcFin hD) (D.tgtFin hD) group g → γ) (d : γ) :
-    ((D.vertices[(v.1 : ℕ)]'v.1.2).1.filterMap (retainedPort hD group g v)).map y =
-      (D.vertices[(v.1 : ℕ)]'v.1.2).1.map fun j =>
+    ((D.vertices[(v.val : ℕ)]'v.val.isLt).1.filterMap (retainedPort hD group g v)).map y =
+      (D.vertices[(v.val : ℕ)]'v.val.isLt).1.map fun j =>
         ((retainedPort hD group g v j).map y).getD d :=
   map_filterMap_of_isSome _ _ d _ fun _ hj => by
     obtain ⟨_, hc, -⟩ := retainedPort_spec hD group g v hj; simp [hc]
 
 /-- The bit that a retained vertex reads at a parent port. -/
 theorem getD_map_retainedPort (v : {v // group v = g}) {j : ℕ}
-    (hj : j ∈ (D.vertices[(v.1 : ℕ)]'v.1.2).1)
+    (hj : j ∈ (D.vertices[(v.val : ℕ)]'v.val.isLt).1)
     (y : ChildEdge (D.srcFin hD) (D.tgtFin hD) group g → Bool) :
     ((retainedPort hD group g v j).map y).getD false =
-      if parentSide r v.1 then
+      if parentSide r v.val then
         (if hg : group (D.srcFin hD ⟨j, hD.1 _ (List.getElem_mem _) j hj⟩) = g then
           y (.inl ⟨_, hg⟩) else false)
       else
         (if hg : group (D.tgtFin hD ⟨j, hD.1 _ (List.getElem_mem _) j hj⟩) = g then
           y (.inr ⟨_, hg⟩) else false) := by
   have hjm : j < D.numEdges := hD.1 _ (List.getElem_mem _) j hj
-  by_cases hvr : (v.1 : ℕ) < r
+  by_cases hvr : (v.val : ℕ) < r
   · simp only [retainedPort, dite_eq_left hjm, ite_eq_left hvr, parentSide, decide_eq_true hvr,
       ite_true]
     split_ifs <;> rfl
@@ -629,9 +629,9 @@ theorem getD_map_retainedPort (v : {v // group v = g}) {j : ℕ}
 theorem map_numberedPorts_inl (v : {v // group v = g})
     (y : ChildEdge (D.srcFin hD) (D.tgtFin hD) group g → Bool) :
     (numberedPorts hD group packet g (.inl v)).map y =
-      (D.vertices[(v.1 : ℕ)]'v.1.2).1.map fun j =>
+      (D.vertices[(v.val : ℕ)]'v.val.isLt).1.map fun j =>
         (List.ofFn fun j : Fin D.numEdges =>
-          if parentSide r v.1 then
+          if parentSide r v.val then
             if hg : group (D.srcFin hD j) = g then y (.inl ⟨j, hg⟩) else false
           else
             if hg : group (D.tgtFin hD j) = g then y (.inr ⟨j, hg⟩) else false).getD j false := by
@@ -728,14 +728,14 @@ theorem nativeChild_eq (fl : List ℕ) (a i pt : ℕ) (t : ℤ) (ζ β : List �
     rw [hevl]
     refine Prod.ext ?_ ?_
     · simp only [numberedPorts, Sum.elim_inl]
-      rw [List.getD_eq_getElem _ _ ((members fun v => group v = g)[n]).2,
+      rw [List.getD_eq_getElem _ _ ((members fun v => group v = g)[n]).isLt,
         map_filterMap_retainedPort hD group g ⟨_, hmem⟩ _ 0]
       refine List.map_congr_left fun j hj => ?_
       obtain ⟨c, hc, hce⟩ := retainedPort_spec hD group g ⟨_, hmem⟩ hj
       rw [hc]
       exact hce.symm
     · simp only [numberedDesc, Sum.elim_inl]
-      rw [List.getD_eq_getElem _ _ ((members fun v => group v = g)[n]).2]
+      rw [List.getD_eq_getElem _ _ ((members fun v => group v = g)[n]).isLt]
   · apply List.ext_getElem (by simp)
     intro n h₁ h₂
     have hn : n < P := by simpa using h₁
@@ -764,7 +764,7 @@ theorem nativeChild_eq (fl : List ℕ) (a i pt : ℕ) (t : ℤ) (ζ β : List �
 /-- **The ports of a retained vertex are its child edges.** -/
 theorem mem_filterMap_retainedPort (x : {v // group v = g})
     (c : ChildEdge (D.srcFin hD) (D.tgtFin hD) group g) :
-    c ∈ (D.vertices[(x.1 : ℕ)]'x.1.2).1.filterMap (retainedPort hD group g x) ↔
+    c ∈ (D.vertices[(x.val : ℕ)]'x.val.isLt).1.filterMap (retainedPort hD group g x) ↔
       childSrc (P := P) (D.srcFin hD) (D.tgtFin hD) group g c = .inl x := by
   have hsrcr := DescribedNetwork.srcFin_lt hD
   have htgtr := DescribedNetwork.le_tgtFin hD
@@ -778,13 +778,13 @@ theorem mem_filterMap_retainedPort (x : {v // group v = g})
         simp only [Option.some.injEq, Sum.inl.injEq, reduceCtorEq,
           Subtype.mk.injEq] at hc
       subst hc
-      rcases (DescribedNetwork.mem_ports_iff hD x.1 ⟨j, hjm⟩).mp hj with h | h
+      rcases (DescribedNetwork.mem_ports_iff hD x.val ⟨j, hjm⟩).mp hj with h | h
       · exact h
       · exact absurd (h ▸ htgtr ⟨j, hjm⟩) (not_le_of_gt hxr)
     · intro hs
-      refine ⟨e.val, (DescribedNetwork.mem_ports_iff hD x.1 e).mpr (Or.inl hs), ?_⟩
-      have hxr : (x.1 : ℕ) < r := hs ▸ hsrcr e
-      simp only [retainedPort, dite_eq_left e.2, ite_eq_left hxr, Fin.eta]
+      refine ⟨e.val, (DescribedNetwork.mem_ports_iff hD x.val e).mpr (Or.inl hs), ?_⟩
+      have hxr : (x.val : ℕ) < r := hs ▸ hsrcr e
+      simp only [retainedPort, dite_eq_left e.isLt, ite_eq_left hxr, Fin.eta]
       rw [dite_eq_left he]
   · simp only [childSrc, Sum.elim_inr, Sum.inl.injEq, Subtype.ext_iff]
     constructor
@@ -794,19 +794,19 @@ theorem mem_filterMap_retainedPort (x : {v // group v = g})
         simp only [Option.some.injEq, Sum.inr.injEq, reduceCtorEq,
           Subtype.mk.injEq] at hc
       subst hc
-      rcases (DescribedNetwork.mem_ports_iff hD x.1 ⟨j, hjm⟩).mp hj with h | h
+      rcases (DescribedNetwork.mem_ports_iff hD x.val ⟨j, hjm⟩).mp hj with h | h
       · exact absurd (h ▸ hsrcr ⟨j, hjm⟩) hxr
       · exact h
     · intro ht
-      refine ⟨e.val, (DescribedNetwork.mem_ports_iff hD x.1 e).mpr (Or.inr ht), ?_⟩
-      have hxr : ¬ (x.1 : ℕ) < r := by have := htgtr e; rw [ht] at this; omega
-      simp only [retainedPort, dite_eq_left e.2, ite_eq_right hxr, Fin.eta]
+      refine ⟨e.val, (DescribedNetwork.mem_ports_iff hD x.val e).mpr (Or.inr ht), ?_⟩
+      have hxr : ¬ (x.val : ℕ) < r := by have := htgtr e; rw [ht] at this; omega
+      simp only [retainedPort, dite_eq_left e.isLt, ite_eq_right hxr, Fin.eta]
       rw [dite_eq_left he]
 
 /-- A retained port names its parent edge. -/
 theorem val_of_retainedPort_eq_some {x : {v // group v = g}} {j : ℕ}
     {c : ChildEdge (D.srcFin hD) (D.tgtFin hD) group g} (h : retainedPort hD group g x j = some c) :
-    (Sum.elim (fun e => (e.1 : ℕ)) (fun e => (e.1 : ℕ)) c) = j := by
+    (Sum.elim (fun e => (e.val : ℕ)) (fun e => (e.val : ℕ)) c) = j := by
   simp only [retainedPort] at h
   split_ifs at h <;> simp only [Option.some.injEq] at h <;> subst h <;> rfl
 
@@ -843,7 +843,7 @@ theorem mem_numberedPorts (v : ChildVertex group g P)
 theorem nodup_numberedPorts (v : ChildVertex group g P) :
     (numberedPorts hD group packet g v).Nodup := by
   rcases v with x | q
-  · exact (nodup_ports hD x.1).filterMap fun j j' c hc hc' => by
+  · exact (nodup_ports hD x.val).filterMap fun j j' c hc hc' => by
       rw [← val_of_retainedPort_eq_some hD group g hc, ← val_of_retainedPort_eq_some hD group g hc']
   · exact nodup_packetPorts hD group packet g q
 
@@ -902,7 +902,7 @@ theorem isRowsFirstBipartite_nativeChild (pt : ℕ) (t : ℤ) (ζ β : List ℕ)
       Sum.elim_inr, Equiv.trans_apply, Equiv.sumCongr_apply, Sum.map_inl, Equiv.refl_apply,
       finSumFinEquiv_apply_left, finSumFinEquiv_apply_right, Fin.val_castAdd, Fin.val_natAdd,
       rankEquiv_apply_val, Sum.map_inr] <;>
-      exact ⟨fun _ => by omega, fun _ => rank_lt _ _ e.2⟩
+      exact ⟨fun _ => by omega, fun _ => rank_lt _ _ e.property⟩
   have hexp := TensorNetwork.isRowsFirstBipartite_toExplicit N
     (childVertexEquiv (P := (parentPacking hD a).numPackets) _ g)
     (childEdgeEquiv (D.srcFin hD) (D.tgtFin hD) _ g) _ hside
@@ -1047,7 +1047,7 @@ theorem desc_of_mem_nativeChild (hD : D.IsRowsFirstBipartite r) {fl : List ℕ} 
   rcases hc : (childVertexEquiv (P := (parentPacking hD a).numPackets)
       (packingGroup (parentSide r) (parentPacking hD a) ⟨i, hia⟩) g).symm c with w | q
   · left
-    refine ⟨D.vertices[(w.1 : ℕ)], List.getElem_mem _, ?_⟩
+    refine ⟨D.vertices[(w.val : ℕ)], List.getElem_mem _, ?_⟩
     simp only [numberedDesc, Sum.elim_inl]
   · right
     simp only [numberedDesc, Sum.elim_inr]
@@ -1066,7 +1066,7 @@ theorem desc_of_mem_nativeChild (hD : D.IsRowsFirstBipartite r) {fl : List ℕ} 
       rcases c₁ with e₁ | e₁
       · rcases c₂ with e₂ | e₂
         · simp only [Function.comp_apply, Sum.elim_inl] at heq hm₁ hm₂
-          have hinj := (parentPacking hD a).injective (a₁ := e₁.1) (a₂ := e₂.1)
+          have hinj := (parentPacking hD a).injective (a₁ := e₁.val) (a₂ := e₂.val)
             (Prod.ext (hm₁.trans hm₂.symm) (Fin.ext heq))
           rw [Subtype.ext hinj]
         · simp at hl₂

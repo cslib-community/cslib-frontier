@@ -211,10 +211,10 @@ private theorem exists_orthogonalWalk_eigenfunction (i : Fin n) :
     ∃ f : V → ℝ, 𝔼 v, f v = 0 ∧ 0 < 𝔼 v, f v ^ 2 ∧
       𝔼 v, f v * G.walk f v = G.isSymmetric_orthogonalWalk.eigenvalues hn i * 𝔼 v, f v ^ 2 := by
   set u := G.isSymmetric_orthogonalWalk.eigenvectorBasis hn i
-  set f : V → ℝ := u.1.ofLp
+  set f : V → ℝ := u.val.ofLp
   have hu_ne : u ≠ 0 := (G.isSymmetric_orthogonalWalk.eigenvectorBasis hn).toBasis.ne_zero i
   have hwalk : G.walk f = G.isSymmetric_orthogonalWalk.eigenvalues hn i • f :=
-    congrArg (fun w : orthogonalSubmodule V ↦ w.1.ofLp)
+    congrArg (fun w : orthogonalSubmodule V ↦ w.val.ofLp)
       (G.isSymmetric_orthogonalWalk.apply_eigenvectorBasis hn i)
   exact ⟨f, (mem_orthogonalSubmodule_iff f).1 (by simp [f]),
     G.expect_sq_pos_and_expect_mul_walk_eq
@@ -292,7 +292,7 @@ theorem secondEigenvalue_eq_orthogonalWalk_eigenvalues_zero (h0 : 0 < n) :
       norm_sq_eq_sum_eigenvectorBasis_repr G.isSymmetric_orthogonalWalk hn u, mul_sum]
     refine sum_le_sum fun i _ ↦ mul_le_mul_of_nonneg_right
       (G.isSymmetric_orthogonalWalk.eigenvalues_antitone hn
-        (show (⟨0, h0⟩ : Fin n) ≤ i from Nat.zero_le i.1))
+        (show (⟨0, h0⟩ : Fin n) ≤ i from Nat.zero_le i.val))
       (sq_nonneg _)
   change ⟪WithLp.toLp 2 f, WithLp.toLp 2 (G.walk f)⟫ ≤ _ * ‖WithLp.toLp 2 f‖ ^ 2 at hle
   rw [← card_mul_expect_mul (WithLp.toLp 2 f) (WithLp.toLp 2 (G.walk f)),
@@ -319,7 +319,7 @@ theorem secondEigenvalue_eq_ciSup_eigenvalues [Nontrivial V] :
     (le_ciSup (f := G.isSymmetric_orthogonalWalk.eigenvalues hn) (Finite.bddAbove_range _) ⟨0, h0⟩)
     (ciSup_le fun i ↦ ?_)
   exact G.isSymmetric_orthogonalWalk.eigenvalues_antitone hn
-    (show (⟨0, h0⟩ : Fin n) ≤ i from Nat.zero_le i.1)
+    (show (⟨0, h0⟩ : Fin n) ≤ i from Nat.zero_le i.val)
 
 end OrthogonalSpectrum
 
@@ -362,7 +362,7 @@ theorem walkEuclidean_eigenvalues_zero [Nonempty D] (hm0 : 0 < m) :
   calc (1 : ℝ) = G.isSymmetric_walkEuclidean.eigenvalues hm i := hi.symm
     _ ≤ G.isSymmetric_walkEuclidean.eigenvalues hm ⟨0, hm0⟩ :=
       G.isSymmetric_walkEuclidean.eigenvalues_antitone hm
-        (show (⟨0, hm0⟩ : Fin m) ≤ i from Nat.zero_le i.1)
+        (show (⟨0, hm0⟩ : Fin m) ≤ i from Nat.zero_le i.val)
 
 /-- Any nonzero `u : EuclideanSpace ℝ V` with `𝔼 v, u.ofLp v = 0` and
 `μ * ‖u‖ ^ 2 ≤ ⟪u, G.walkEuclidean u⟫` satisfies `μ ≤ G.secondEigenvalue`. -/

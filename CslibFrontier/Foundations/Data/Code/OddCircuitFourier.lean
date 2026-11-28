@@ -128,12 +128,12 @@ theorem card_filter_sum_eq_zero_mul_factorial_le {V : Type*} [AddCommMonoid V] [
       _ ≤ _ := by
         refine card_le_card_of_injOn (fun e i => (e i : V)) (fun e _ => ?_)
           fun _ _ _ _ h => Equiv.ext fun i => Subtype.ext (congr_fun h i)
-        refine mem_filter.2 ⟨mem_filter.2 ⟨Fintype.mem_piFinset.2 fun i => hSB (e i).2, ?_⟩,
+        refine mem_filter.2 ⟨mem_filter.2 ⟨Fintype.mem_piFinset.2 fun i => hSB (e i).property, ?_⟩,
           Finset.ext fun x => ?_⟩
         · exact (Equiv.sum_comp e fun x : S => (x : V)).trans
             ((sum_coe_sort S fun x : V => x).trans hsum)
         · simp only [img, mem_image, mem_univ, true_and]
-          exact ⟨fun ⟨i, hi⟩ => hi ▸ (e i).2, fun hx => ⟨e.symm ⟨x, hx⟩, by simp⟩⟩
+          exact ⟨fun ⟨i, hi⟩ => hi ▸ (e i).property, fun hx => ⟨e.symm ⟨x, hx⟩, by simp⟩⟩
   calc #𝒮 * ℓ.factorial = ∑ _S ∈ 𝒮, ℓ.factorial := by rw [sum_const, smul_eq_mul]
     _ ≤ ∑ S ∈ 𝒮, #{t ∈ T | img t = S} := sum_le_sum hfiber
     _ = #{t ∈ T | img t ∈ 𝒮} := sum_card_fiberwise_eq_card_filter _ _ _

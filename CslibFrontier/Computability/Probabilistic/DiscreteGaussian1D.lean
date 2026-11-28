@@ -842,7 +842,7 @@ theorem closeTo_eval_sampleZ_discreteGaussian
       have hlog : 4 * Real.log 2 < 3 := by linarith only [Real.log_two_lt_d9]
       have hval : Real.exp (-4 * Real.log 2) = 1 / 16 := by
         rw [show (-4 : ℝ) * Real.log 2 = -((4 : ℕ) * Real.log 2) by ring, Real.exp_neg,
-          Real.exp_nat_mul, Real.exp_log two_pos]
+          Real.exp_natCast_mul, Real.exp_log two_pos]
         norm_num
       exact (Real.exp_le_exp.mpr h1).trans
         ((Real.exp_lt_exp.mpr (by linarith only [hlog])).le.trans hval.le)
@@ -984,7 +984,7 @@ theorem closeTo_eval_sampleZ_discreteGaussian
     have hR1 : 1 < 2 * R + 1 := by have := sampleZRadius_ge_two inp; omega
     have hclog_lt : 2 ^ k < 2 * (2 * R + 1) := by
       have hk_pos : 0 < k := Nat.clog_pos Nat.one_lt_two hR1
-      have h2 : 2 ^ k.pred < 2 * R + 1 := Nat.pow_pred_clog_lt_self Nat.one_lt_two hR1
+      have h2 : 2 ^ k.pred < 2 * R + 1 := Nat.pow_pred_clog_lt_self 2 hR1
       rw [← Nat.succ_pred_eq_of_pos hk_pos, pow_succ]
       omega
     have hclog_r : (2 : ℝ) ^ k < 2 * ((2 * R + 1 : ℕ) : ℝ) := by exact_mod_cast hclog_lt

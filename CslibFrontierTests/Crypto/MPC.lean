@@ -758,7 +758,7 @@ theorem not_perfectSemiHonestPrivate_coinEchoRandomizedWrapper_univ :
   let badRes :
       ((i : (Finset.univ : Finset (Fin 1))) →
         PartyView (fun _ => Unit) (fun _ => BitString 1 × Unit)
-          ([] : Schedule 1 noOracleSpec) i.1) × (Fin 1 → Bool) :=
+          ([] : Schedule 1 noOracleSpec) i.val) × (Fin 1 → Bool) :=
     (fun _ => ⟨(), (![true], ()), ()⟩, fun _ => false)
   have hBadIdeal :
       badRes ∈ (ProbComp.eval

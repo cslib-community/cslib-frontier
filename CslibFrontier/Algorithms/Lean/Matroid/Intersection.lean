@@ -606,8 +606,8 @@ private theorem IsShortestExchAugWalk.indep_left_symmDiff {M₁ M₂ : Matroid �
   obtain ⟨k, hlen, hpar⟩ := hshort.length_eq
   obtain ⟨hne, hX1, -, hmemE, hchain⟩ := hshort.1
   let y₀ : α := p[0]'(by omega)
-  let x : Fin k → α := fun i => p[2 * i.1 + 1]'(by omega)
-  let y : Fin k → α := fun i => p[2 * i.1 + 2]'(by omega)
+  let x : Fin k → α := fun i => p[2 * i.val + 1]'(by omega)
+  let y : Fin k → α := fun i => p[2 * i.val + 2]'(by omega)
   have hy₀ : IsExchSource M₁ E I y₀ := by
     rw [show y₀ = p.head hne from (List.head_eq_getElem hne).symm]
     exact hX1
@@ -626,14 +626,14 @@ private theorem IsShortestExchAugWalk.indep_left_symmDiff {M₁ M₂ : Matroid �
     have := hshort.eq_zero_of_isExchSource _ ⟨hy_E i, hind⟩
     omega
   have hdiag : ∀ i, M₁.Indep ((insert (y i) (I.erase (x i)) : Finset α) : Set α) := fun i => by
-    rcases (List.IsChain.getElem hchain (2 * i.1 + 1) (by omega) :
+    rcases (List.IsChain.getElem hchain (2 * i.val + 1) (by omega) :
         IsExchArc M₁ M₂ E I (x i) (y i)) with ⟨_, _, hind⟩ | ⟨hx_not_I, _, _⟩
     exacts [hind, absurd (hx_mem i) (Finset.mem_sdiff.mp hx_not_I).2]
   have hno_chord : ∀ i j : Fin k, i < j →
       ¬ M₁.Indep ((insert (y j) (I.erase (x i)) : Finset α) : Set α) := fun i j hij hind => by
-    have := hshort.le_succ_of_isExchArc (i := 2 * i.1 + 1) (j := 2 * j.1 + 2) (by omega)
+    have := hshort.le_succ_of_isExchArc (i := 2 * i.val + 1) (j := 2 * j.val + 2) (by omega)
       (by omega) (.inl ⟨hx_mem i, hy_E j, hind⟩)
-    have hij' : i.1 < j.1 := hij
+    have hij' : i.val < j.val := hij
     omega
   -- The vertices of `p` are `y₀`, the `x i` and the `y i`, so `I ∆ p` is
   -- `(insert y₀ I \ {x i}) ∪ {y i}`.

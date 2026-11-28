@@ -85,7 +85,7 @@ theorem card_const_on_range_le {d n : ℕ} {g : BitString d → BitString n}
       2 * 2 ^ (2 ^ n - 2 ^ d) := by
   classical
   calc _ ≤ (univ : Finset (Bool × ({p // p ∉ Set.range g} → Bool))).card :=
-        card_le_card_of_injOn (fun f => (f (g 0), fun p => f p.1)) (fun _ _ => mem_univ _)
+        card_le_card_of_injOn (fun f => (f (g 0), fun p => f p.val)) (fun _ _ => mem_univ _)
           fun f hf f' hf' h => by
             simp only [Prod.mk.injEq] at h
             funext p

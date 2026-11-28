@@ -293,24 +293,24 @@ private theorem card_filter_orderPredecessors_eq (i : A) {S : Finset A}
             right_inv := fun ⟨x, _⟩ => Subtype.ext (σ.apply_symm_apply x) } )
       invFun := fun ⟨eL, eG⟩ =>
         let fwd : Fin n → A := fun k =>
-          if hlt : k < iPos then (eL ⟨k, hlt⟩).1
-          else if hgt : iPos < k then (eG ⟨k, hgt⟩).1
+          if hlt : k < iPos then (eL ⟨k, hlt⟩).val
+          else if hgt : iPos < k then (eG ⟨k, hgt⟩).val
           else i
         have hmemR : ∀ x : A, x ∉ S → x ≠ i → x ∈ R := fun x hxS hxi =>
           Finset.mem_sdiff.2 ⟨Finset.mem_erase.2 ⟨hxi, Finset.mem_univ x⟩, hxS⟩
         let bwd : A → Fin n := fun x =>
-          if hxS : x ∈ S then (eL.symm ⟨x, hxS⟩).1
+          if hxS : x ∈ S then (eL.symm ⟨x, hxS⟩).val
           else if hxi : x = i then iPos
-          else (eG.symm ⟨x, hmemR x hxS hxi⟩).1
+          else (eG.symm ⟨x, hmemR x hxS hxi⟩).val
         have hleft : Function.LeftInverse bwd fwd := fun k => by
           dsimp only [fwd, bwd]
           by_cases hlt : k < iPos
-          · have hmemS : (eL ⟨k, hlt⟩).1 ∈ S := (eL ⟨k, hlt⟩).2
+          · have hmemS : (eL ⟨k, hlt⟩).val ∈ S := (eL ⟨k, hlt⟩).property
             simp only [hlt, hmemS, ↓reduceDIte, Subtype.eta, Equiv.symm_apply_apply]
           · by_cases hgt : iPos < k
-            · have hmemG : (eG ⟨k, hgt⟩).1 ∈ R := (eG ⟨k, hgt⟩).2
-              have hnotS : (eG ⟨k, hgt⟩).1 ∉ S := (Finset.mem_sdiff.1 hmemG).2
-              have hnei : (eG ⟨k, hgt⟩).1 ≠ i :=
+            · have hmemG : (eG ⟨k, hgt⟩).val ∈ R := (eG ⟨k, hgt⟩).property
+              have hnotS : (eG ⟨k, hgt⟩).val ∉ S := (Finset.mem_sdiff.1 hmemG).2
+              have hnei : (eG ⟨k, hgt⟩).val ≠ i :=
                 (Finset.mem_erase.1 (Finset.mem_sdiff.1 hmemG).1).1
               simp only [hlt, hgt, hnotS, hnei, ↓reduceDIte, Subtype.eta,
                 Equiv.symm_apply_apply]
@@ -320,14 +320,14 @@ private theorem card_filter_orderPredecessors_eq (i : A) {S : Finset A}
         have hright : Function.RightInverse bwd fwd := fun x => by
           dsimp only [fwd, bwd]
           by_cases hxS : x ∈ S
-          · have hklt : (eL.symm ⟨x, hxS⟩).1 < iPos := (eL.symm ⟨x, hxS⟩).2
+          · have hklt : (eL.symm ⟨x, hxS⟩).val < iPos := (eL.symm ⟨x, hxS⟩).property
             simp only [hxS, hklt, ↓reduceDIte, Subtype.eta, Equiv.apply_symm_apply]
           · by_cases hxi : x = i
             · subst hxi
               simp only [hxS, ↓reduceDIte, lt_irrefl]
-            · have hkgt : iPos < (eG.symm ⟨x, hmemR x hxS hxi⟩).1 :=
-                (eG.symm ⟨x, hmemR x hxS hxi⟩).2
-              have hnotlt : ¬ (eG.symm ⟨x, hmemR x hxS hxi⟩).1 < iPos := not_lt_of_gt hkgt
+            · have hkgt : iPos < (eG.symm ⟨x, hmemR x hxS hxi⟩).val :=
+                (eG.symm ⟨x, hmemR x hxS hxi⟩).property
+              have hnotlt : ¬ (eG.symm ⟨x, hmemR x hxS hxi⟩).val < iPos := not_lt_of_gt hkgt
               simp only [hxS, hxi, hnotlt, hkgt, ↓reduceDIte, Subtype.eta,
                 Equiv.apply_symm_apply]
         ⟨⟨fwd, bwd, hleft, hright⟩, by
@@ -338,12 +338,12 @@ private theorem card_filter_orderPredecessors_eq (i : A) {S : Finset A}
           rw [hbwdi]
           dsimp only [bwd]
           by_cases hxS : x ∈ S
-          · simp only [hxS, ↓reduceDIte, (eL.symm ⟨x, hxS⟩).2]
+          · simp only [hxS, ↓reduceDIte, (eL.symm ⟨x, hxS⟩).property]
           · simp only [hxS, ↓reduceDIte, iff_false]
             by_cases hxi : x = i
             · simp only [hxi, ↓reduceDIte, lt_irrefl, not_false_eq_true]
             · simp only [hxi, ↓reduceDIte]
-              exact not_lt_of_gt (eG.symm ⟨x, hmemR x hxS hxi⟩).2⟩
+              exact not_lt_of_gt (eG.symm ⟨x, hmemR x hxS hxi⟩).property⟩
       left_inv := fun ⟨σ, hσ⟩ => by
         ext k
         have hpos_eq : σ.symm i = iPos := by
@@ -357,12 +357,12 @@ private theorem card_filter_orderPredecessors_eq (i : A) {S : Finset A}
           rw [heq, ← hpos_eq, σ.apply_symm_apply]
       right_inv := fun ⟨eL, eG⟩ => by
         ext ⟨k, hk⟩
-        · change (if hlt : k < iPos then (eL ⟨k, hlt⟩).1
-            else if hgt : iPos < k then (eG ⟨k, hgt⟩).1 else i) = (eL ⟨k, hk⟩).1
+        · change (if hlt : k < iPos then (eL ⟨k, hlt⟩).val
+            else if hgt : iPos < k then (eG ⟨k, hgt⟩).val else i) = (eL ⟨k, hk⟩).val
           split_ifs
           rfl
-        · change (if hlt : k < iPos then (eL ⟨k, hlt⟩).1
-            else if hgt : iPos < k then (eG ⟨k, hgt⟩).1 else i) = (eG ⟨k, hk⟩).1
+        · change (if hlt : k < iPos then (eL ⟨k, hlt⟩).val
+            else if hgt : iPos < k then (eG ⟨k, hgt⟩).val else i) = (eG ⟨k, hk⟩).val
           have hnotlt : ¬ k < iPos := not_lt_of_gt hk
           split_ifs
           rfl }
@@ -698,18 +698,19 @@ games over all nonempty coalitions `T`, weighted by the subset Möbius transform
 `Cslib.BitString.subsetMobius G.cost T`. -/
 theorem eq_sum_unanimityGame (G : CostSharingGame A) :
     G = ∑ x ∈ ((Finset.univ : Finset A).powerset.filter Finset.Nonempty).attach,
-      unanimityGame x.1 (Finset.mem_filter.1 x.2).2 (Cslib.BitString.subsetMobius G.cost x.1) := by
+      unanimityGame x.val (Finset.mem_filter.1 x.property).2
+        (Cslib.BitString.subsetMobius G.cost x.val) := by
   ext S
   rw [CostSharingGame.sum_cost]
   have hsum_pow :
       (∑ x ∈ ((Finset.univ : Finset A).powerset.filter Finset.Nonempty).attach,
-          (unanimityGame x.1 (Finset.mem_filter.1 x.2).2
-            (Cslib.BitString.subsetMobius G.cost x.1)).cost S) =
+          (unanimityGame x.val (Finset.mem_filter.1 x.property).2
+            (Cslib.BitString.subsetMobius G.cost x.val)).cost S) =
         ∑ T ∈ S.powerset, Cslib.BitString.subsetMobius G.cost T := by
     have hattach :
         (∑ x ∈ ((Finset.univ : Finset A).powerset.filter Finset.Nonempty).attach,
-            (unanimityGame x.1 (Finset.mem_filter.1 x.2).2
-              (Cslib.BitString.subsetMobius G.cost x.1)).cost S) =
+            (unanimityGame x.val (Finset.mem_filter.1 x.property).2
+              (Cslib.BitString.subsetMobius G.cost x.val)).cost S) =
           ∑ T ∈ (Finset.univ : Finset A).powerset.filter Finset.Nonempty,
             if T ⊆ S then Cslib.BitString.subsetMobius G.cost T else 0 :=
       Finset.sum_attach _ (fun T => if T ⊆ S then Cslib.BitString.subsetMobius G.cost T else 0)
@@ -881,9 +882,9 @@ theorem shapleyScheme_isBudgetBalanced (G : CostSharingGame A) :
   intro T
   calc
     ∑ i ∈ T, G.shapleyScheme.share T i
-      = ∑ x : {x // x ∈ T}, G.shapleyScheme.share T x.1 := (Finset.sum_coe_sort T _).symm
+      = ∑ x : {x // x ∈ T}, G.shapleyScheme.share T x.val := (Finset.sum_coe_sort T _).symm
     _ = ∑ x : {x // x ∈ T}, shapleyValue (G.restrict T) x :=
-        Finset.sum_congr rfl fun x _ => G.shapleyScheme_eq_restrict x.2
+        Finset.sum_congr rfl fun x _ => G.shapleyScheme_eq_restrict x.property
     _ = (G.restrict T).cost Finset.univ := shapleyValue_isEfficient (G.restrict T)
     _ = G.cost T := by
         rw [restrict_cost]

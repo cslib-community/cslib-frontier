@@ -179,7 +179,7 @@ theorem demonicValid_fill (hb : b ≤ w) {i n : ℕ} (hn : i + n ≤ table.lengt
   | succ n ih =>
     refine RandomizedSpec.demonicValid_sample_bind fun x => ?_
     have hfit : Fits w x.val :=
-      fits_iff.mpr (lt_of_lt_of_le x.2 (Nat.pow_le_pow_right (by omega) hb))
+      fits_iff.mpr (lt_of_lt_of_le x.isLt (Nat.pow_le_pow_right (by omega) hb))
     refine StateTransitionSpec.DemonicValid.liftBind
       (D := (Memory.spec w).toRandomized.withCoins.toSpec)
       (Sum.inr (Memory.Op.write (table.base + i) x.val)) (fun _ => fill table b (i + 1) n)

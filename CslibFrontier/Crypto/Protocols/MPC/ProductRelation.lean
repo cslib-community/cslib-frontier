@@ -99,7 +99,7 @@ instance {q m : ℕ} (t₁ t₂ : Fin m → TripleShare (ZMod q)) :
 
 /-- The `m` target triple shares `(a_{ki}, b_{ki}, c_{ki})_{k=1}^m` carried by `PartyDeal`. -/
 @[expose] def PartyDeal.triples {q m : ℕ} (d : PartyDeal q m) : Fin m → TripleShare (ZMod q) :=
-  fun k => ⟨d.a k.succ, d.b k.succ, d.c ⟨k.1 + 1, by omega⟩⟩
+  fun k => ⟨d.a k.succ, d.b k.succ, d.c ⟨k.val + 1, by omega⟩⟩
 
 /-- Auxiliary random values chosen by an honest dealer for party `P_i` in Protocol 23.5
 Steps 1(a) and 1(d): blinding share `(a_{0i}, b_{0i}, c_{0i})` and tail shares
@@ -133,9 +133,9 @@ def DealerExtra.toDeal {q m : ℕ} (t : Fin m → TripleShare (ZMod q)) (e : Dea
   a := Fin.cons e.a0 (fun k => (t k).a)
   b := Fin.cons e.b0 (fun k => (t k).b)
   c k :=
-    if hk0 : k.1 = 0 then e.c0
-    else if hk1 : k.1 ≤ m then (t ⟨k.1 - 1, by omega⟩).c
-    else e.cTail ⟨k.1 - (m + 1), by omega⟩
+    if hk0 : k.val = 0 then e.c0
+    else if hk1 : k.val ≤ m then (t ⟨k.val - 1, by omega⟩).c
+    else e.cTail ⟨k.val - (m + 1), by omega⟩
 
 @[simp] theorem DealerExtra.toDeal_a {q m : ℕ}
     (t : Fin m → TripleShare (ZMod q)) (e : DealerExtra q m) :
@@ -154,15 +154,15 @@ def DealerExtra.toDeal {q m : ℕ} (t : Fin m → TripleShare (ZMod q)) (e : Dea
 
 theorem DealerExtra.toDeal_c_of_le {q m : ℕ}
     (t : Fin m → TripleShare (ZMod q)) (e : DealerExtra q m)
-    {k : Fin (2 * m + 1)} (hk0 : k.1 ≠ 0) (hk1 : k.1 ≤ m) :
-    (e.toDeal t).c k = (t ⟨k.1 - 1, by omega⟩).c := by
+    {k : Fin (2 * m + 1)} (hk0 : k.val ≠ 0) (hk1 : k.val ≤ m) :
+    (e.toDeal t).c k = (t ⟨k.val - 1, by omega⟩).c := by
   simp only [DealerExtra.toDeal, hk0, ↓reduceDIte, hk1]
 
 theorem DealerExtra.toDeal_c_of_lt {q m : ℕ}
     (t : Fin m → TripleShare (ZMod q)) (e : DealerExtra q m)
-    {k : Fin (2 * m + 1)} (hk1 : m < k.1) :
-    (e.toDeal t).c k = e.cTail ⟨k.1 - (m + 1), by omega⟩ := by
-  simp only [DealerExtra.toDeal, show k.1 ≠ 0 by omega, show ¬ k.1 ≤ m by omega, ↓reduceDIte]
+    {k : Fin (2 * m + 1)} (hk1 : m < k.val) :
+    (e.toDeal t).c k = e.cTail ⟨k.val - (m + 1), by omega⟩ := by
+  simp only [DealerExtra.toDeal, show k.val ≠ 0 by omega, show ¬ k.val ≤ m by omega, ↓reduceDIte]
 
 @[simp] theorem DealerExtra.toDeal_triples {q m : ℕ}
     (t : Fin m → TripleShare (ZMod q)) (e : DealerExtra q m) :
@@ -172,11 +172,11 @@ theorem DealerExtra.toDeal_c_of_lt {q m : ℕ}
   simp only [Nat.add_sub_cancel, Fin.eta]
 
 /-- Evaluation nodes `k ↦ (k : ZMod q)` for `Fin n`. -/
-@[expose] def natNodes (q n : ℕ) (k : Fin n) : ZMod q := (k.1 : ZMod q)
+@[expose] def natNodes (q n : ℕ) (k : Fin n) : ZMod q := (k.val : ZMod q)
 
 theorem injOn_natNodes (q n : ℕ) (hn : n ≤ q) :
     Set.InjOn (natNodes q n) (Finset.univ : Finset (Fin n)) := fun i _ j _ hij =>
-  Fin.ext (CharP.natCast_injOn_Iio (ZMod q) q (i.2.trans_le hn) (j.2.trans_le hn) hij)
+  Fin.ext (CharP.natCast_injOn_Iio (ZMod q) q (i.isLt.trans_le hn) (j.isLt.trans_le hn) hij)
 
 theorem succ_lt_of_two_mul_lt {q m : ℕ} [Fact (Nat.Prime q)] (hm : 2 * m < q) : m + 1 < q := by
   cases m <;> [exact (Fact.out : Nat.Prime q).one_lt; omega]
@@ -195,7 +195,7 @@ theorem interpPoly_natDegree_le {n : ℕ} (v : Fin (n + 1) → ZMod q) (hn : n +
     simpa [interpPoly] using Lagrange.degree_interpolate_le v (injOn_natNodes q (n + 1) hn)
 
 theorem eval_interpPoly {n : ℕ} (v : Fin (n + 1) → ZMod q) (hn : n + 1 ≤ q)
-    (k : Fin (n + 1)) : (interpPoly v).eval (k.1 : ZMod q) = v k :=
+    (k : Fin (n + 1)) : (interpPoly v).eval (k.val : ZMod q) = v k :=
   Lagrange.eval_interpolate_at_node v (injOn_natNodes q (n + 1) hn) (Finset.mem_univ k)
 
 /-- Interpolated polynomial `A_i(X)` of degree `≤ m` from `d.a` on `{0, ..., m}`. -/
@@ -238,11 +238,12 @@ theorem discrepancyPoly_ne_zero_of_not_productRelations {d₁ d₂ : PartyDeal q
     discrepancyPoly d₁ d₂ ≠ 0 := by
   intro hzero
   refine hnot fun k => ?_
-  have hev := congrArg (Polynomial.eval (k.succ.1 : ZMod q)) hzero
+  have hev := congrArg (Polynomial.eval (k.succ.val : ZMod q)) hzero
   simp only [discrepancyPoly, Polynomial.eval_sub, Polynomial.eval_mul, Polynomial.eval_add,
     Polynomial.eval_zero, sub_eq_zero, PartyDeal.polyA, PartyDeal.polyB, PartyDeal.polyC,
     eval_interpPoly _ (by omega : m + 1 ≤ q) k.succ] at hev
-  rwa [show (k.succ.1 : ZMod q) = ((⟨k.1 + 1, by omega⟩ : Fin (2 * m + 1)).1 : ZMod q) from rfl,
+  rwa [show (k.succ.val : ZMod q) =
+      ((⟨k.val + 1, by omega⟩ : Fin (2 * m + 1)).val : ZMod q) from rfl,
     eval_interpPoly d₁.c (by omega), eval_interpPoly d₂.c (by omega)] at hev
 
 end FieldProps
@@ -250,7 +251,7 @@ end FieldProps
 /-- Challenge set `ℤ_q \ {0, ..., m}` in Protocol 23.5 Steps 3–4
 ([BonehShoup2023], printed p. 1015). -/
 abbrev Challenge (q m : ℕ) : Type :=
-  { r : ZMod q // ∀ k : Fin (m + 1), r ≠ (k.1 : ZMod q) }
+  { r : ZMod q // ∀ k : Fin (m + 1), r ≠ (k.val : ZMod q) }
 
 theorem card_challenge (q m : ℕ) [NeZero q] (hm : m + 1 ≤ q) :
     Fintype.card (Challenge q m) = q - m - 1 := by
@@ -277,7 +278,7 @@ returning `(P₁ accepts, P₂ accepts)` as in Protocol 23.5 Steps 4 and 6. -/
   let β₂ := d₂.polyB.eval r
   let γ₂ := d₂.polyC.eval r
   let eqCheck := decide ((α₁ + α₂) * (β₁ + β₂) = γ₁ + γ₂)
-  let rOk := decide (∀ k : Fin (m + 1), r ≠ (k.1 : ZMod q))
+  let rOk := decide (∀ k : Fin (m + 1), r ≠ (k.val : ZMod q))
   (eqCheck, rOk && eqCheck)
 
 /-- Honest execution of Protocol 23.5 Steps 3–6 against dealer messages `(d₁, d₂)` when both
@@ -287,7 +288,7 @@ returning `(P₁ accepts, P₂ accepts)` as in Protocol 23.5 Steps 4 and 6. -/
   haveI : Nonempty (Challenge q m) := nonempty_challenge q m (succ_lt_of_two_mul_lt hm)
   do
     let r ← ProbComp.uniform (Challenge q m)
-    return verifyPair d₁ d₂ r.1
+    return verifyPair d₁ d₂ r.val
 
 /-- **Lemma 23.1** ([BonehShoup2023], §23.2.4.6, printed p. 1016):
 if `D` is corrupt (`d₁, d₂` arbitrary) and both `P₁` and `P₂` are honest, and relation `(23.7)`
@@ -303,20 +304,20 @@ theorem eval_honestPartiesRun_accept_le {q m : ℕ} [Fact (Nat.Prime q)] (hm : 2
   have : Nonempty (Challenge q m) := nonempty_challenge q m hm'
   have hne : discrepancyPoly d₁ d₂ ≠ 0 := discrepancyPoly_ne_zero_of_not_productRelations hm hnot
   have hroots : (Finset.univ.filter (fun r : Challenge q m =>
-      (discrepancyPoly d₁ d₂).eval r.1 = 0)).card ≤ 2 * m :=
+      (discrepancyPoly d₁ d₂).eval r.val = 0)).card ≤ 2 * m :=
     le_trans (Cslib.Code.card_filter_eval_eq_zero_le Subtype.coe_injective hne)
       (discrepancyPoly_natDegree_le d₁ d₂ hm)
   have hcard :
       (q - m - 1) * (Finset.univ.filter (fun r : Challenge q m =>
-          (verifyPair d₁ d₂ r.1).1 = true ∨ (verifyPair d₁ d₂ r.1).2 = true)).card ≤
+          (verifyPair d₁ d₂ r.val).1 = true ∨ (verifyPair d₁ d₂ r.val).2 = true)).card ≤
         (2 * m) * Fintype.card (Challenge q m) := by
     rw [card_challenge q m (by omega), Nat.mul_comm (2 * m) (q - m - 1)]
     refine Nat.mul_le_mul_left _ (le_trans (Finset.card_le_card fun r hr => ?_) hroots)
     rw [Finset.mem_filter] at hr ⊢
     refine ⟨Finset.mem_univ r, ?_⟩
-    have heq : (d₁.polyA.eval r.1 + d₂.polyA.eval r.1) *
-        (d₁.polyB.eval r.1 + d₂.polyB.eval r.1) =
-        d₁.polyC.eval r.1 + d₂.polyC.eval r.1 := by
+    have heq : (d₁.polyA.eval r.val + d₂.polyA.eval r.val) *
+        (d₁.polyB.eval r.val + d₂.polyB.eval r.val) =
+        d₁.polyC.eval r.val + d₂.polyC.eval r.val := by
       rcases hr.2 with h1 | h2
       · simpa [verifyPair] using h1
       · simp only [verifyPair, Bool.and_eq_true, decide_eq_true_eq] at h2
@@ -325,7 +326,7 @@ theorem eval_honestPartiesRun_accept_le {q m : ℕ} [Fact (Nat.Prime q)] (hm : 2
   have hbound := Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_le_div
     (α := Challenge q m) (by omega : 0 < q - m - 1) hcard
   have hmap : ProbComp.eval (honestPartiesRun q m hm d₁ d₂) =
-      (PMF.uniformOfFintype (Challenge q m)).map (fun r => verifyPair d₁ d₂ r.1) := by
+      (PMF.uniformOfFintype (Challenge q m)).map (fun r => verifyPair d₁ d₂ r.val) := by
     simp [honestPartiesRun, bind_pure_comp, ProbComp.eval_map, ProbComp.eval_uniform]
   rw [hmap, PMF.toOuterMeasure_map_apply]
   simpa [Nat.cast_mul] using hbound
@@ -344,7 +345,7 @@ noncomputable def honestC2 {q m : ℕ} [Fact (Nat.Prime q)]
   { a0 := a02
     b0 := b02
     c0 := (e₁.a0 + a02) * (e₁.b0 + b02) - e₁.c0
-    cTail := fun k => C.eval ((m + 1 + k.1 : ℕ) : ZMod q) - e₁.cTail k }
+    cTail := fun k => C.eval ((m + 1 + k.val : ℕ) : ZMod q) - e₁.cTail k }
 
 @[simp] theorem honestC2_a0 {q m : ℕ} [Fact (Nat.Prime q)]
     (t₁ t₂ : Fin m → TripleShare (ZMod q)) (e₁ : DealerExtra q m) (a02 b02 : ZMod q) :
@@ -367,7 +368,7 @@ noncomputable def honestC2 {q m : ℕ} [Fact (Nat.Prime q)]
     (honestC2 t₁ t₂ e₁ a02 b02).cTail k =
       (((e₁.toDeal t₁).polyA + interpPoly (Fin.cons a02 fun j => (t₂ j).a)) *
         ((e₁.toDeal t₁).polyB + interpPoly (Fin.cons b02 fun j => (t₂ j).b))).eval
-          ((m + 1 + k.1 : ℕ) : ZMod q) - e₁.cTail k := by
+          ((m + 1 + k.val : ℕ) : ZMod q) - e₁.cTail k := by
   dsimp only [honestC2]
 
 /-- Protocol 23.5 Step 1 (honest dealer `D`) on target triple shares `(t₁, t₂)`. -/
@@ -395,26 +396,26 @@ theorem discrepancyPoly_eq_zero_of_productRelations {q m : ℕ} [Fact (Nat.Prime
     intro k
     simp only [discrepancyPoly, natNodes, Polynomial.eval_sub, Polynomial.eval_mul,
       Polynomial.eval_add, sub_eq_zero]
-    rw [show d₁.polyC.eval (k.1 : ZMod q) = d₁.c k from eval_interpPoly d₁.c (by omega) k,
-      show d₂.polyC.eval (k.1 : ZMod q) = d₂.c k from eval_interpPoly d₂.c (by omega) k]
-    by_cases hk0 : k.1 = 0
+    rw [show d₁.polyC.eval (k.val : ZMod q) = d₁.c k from eval_interpPoly d₁.c (by omega) k,
+      show d₂.polyC.eval (k.val : ZMod q) = d₂.c k from eval_interpPoly d₂.c (by omega) k]
+    by_cases hk0 : k.val = 0
     · obtain rfl : k = 0 := Fin.ext hk0
-      rw [show ((0 : Fin (2 * m + 1)).1 : ZMod q) = ((0 : Fin (m + 1)).1 : ZMod q) from rfl]
+      rw [show ((0 : Fin (2 * m + 1)).val : ZMod q) = ((0 : Fin (m + 1)).val : ZMod q) from rfl]
       simp only [PartyDeal.polyA, PartyDeal.polyB, eval_interpPoly _ (by omega : m + 1 ≤ q) 0,
         d₁, d₂, DealerExtra.toDeal_a, DealerExtra.toDeal_b, Fin.cons_zero,
         DealerExtra.toDeal_c_zero, honestC2_a0, honestC2_b0, honestC2_c0]
       ring
-    · by_cases hk1 : k.1 ≤ m
-      · let j : Fin m := ⟨k.1 - 1, by omega⟩
-        rw [congrArg Nat.cast (by simp [j]; omega : k.1 = j.succ.1)]
+    · by_cases hk1 : k.val ≤ m
+      · let j : Fin m := ⟨k.val - 1, by omega⟩
+        rw [congrArg Nat.cast (by simp [j]; omega : k.val = j.succ.val)]
         simp only [PartyDeal.polyA, PartyDeal.polyB,
           eval_interpPoly _ (by omega : m + 1 ≤ q) j.succ, d₁, d₂, DealerExtra.toDeal_a,
           DealerExtra.toDeal_b, Fin.cons_succ, DealerExtra.toDeal_c_of_le _ _ hk0 hk1]
         exact hrel j
-      · have hlt : m < k.1 := by omega
+      · have hlt : m < k.val := by omega
         rw [DealerExtra.toDeal_c_of_lt t₁ e₁ hlt,
           DealerExtra.toDeal_c_of_lt t₂ (honestC2 t₁ t₂ e₁ a02 b02) hlt]
-        simp only [d₁, d₂, honestC2_cTail, show m + 1 + (k.1 - (m + 1)) = k.1 by omega,
+        simp only [d₁, d₂, honestC2_cTail, show m + 1 + (k.val - (m + 1)) = k.val by omega,
           PartyDeal.polyA, PartyDeal.polyB, DealerExtra.toDeal_a, DealerExtra.toDeal_b,
           honestC2_a0, honestC2_b0, Polynomial.eval_mul, Polynomial.eval_add]
         ring
@@ -424,12 +425,12 @@ theorem discrepancyPoly_eq_zero_of_productRelations {q m : ℕ} [Fact (Nat.Prime
 private theorem verifyPair_of_honest {q m : ℕ} [Fact (Nat.Prime q)] (hm : 2 * m < q)
     {t₁ t₂ : Fin m → TripleShare (ZMod q)} (hrel : ProductRelations t₁ t₂)
     (e₁ : DealerExtra q m) (a02 b02 : ZMod q) (r : Challenge q m) :
-    verifyPair (e₁.toDeal t₁) ((honestC2 t₁ t₂ e₁ a02 b02).toDeal t₂) r.1 = (true, true) := by
-  have hpoly := congrArg (Polynomial.eval r.1)
+    verifyPair (e₁.toDeal t₁) ((honestC2 t₁ t₂ e₁ a02 b02).toDeal t₂) r.val = (true, true) := by
+  have hpoly := congrArg (Polynomial.eval r.val)
     (discrepancyPoly_eq_zero_of_productRelations hm hrel e₁ a02 b02)
   simp only [discrepancyPoly, Polynomial.eval_sub, Polynomial.eval_mul, Polynomial.eval_add,
     Polynomial.eval_zero, sub_eq_zero] at hpoly
-  simp [verifyPair, hpoly, r.2]
+  simp [verifyPair, hpoly, r.property]
 
 /-- The consequence of **(23.8)** ([BonehShoup2023], printed p. 1015) that when `D, P₁, P₂` are
 honest and `(t₁, t₂)` satisfies `(23.7)` with `2 * m < q`, both `P₁` and `P₂` accept with

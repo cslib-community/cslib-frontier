@@ -66,7 +66,7 @@ chosen on the channel. -/
 example (B : ℕ) (X : Bool → Fin B → Unit → Bool) :
     (if ∀ e k, X false k e = X true k e then (1 : F) else 0) =
       ∑ i : Fin B → Unit, ∑ g : Unit → (k : Fin B) → BitString 1,
-        ∏ p, ∏ k, (equalityLaw F).table p (i k) (fun e => X p k e.1) fun ν => g ν.1 k :=
+        ∏ p, ∏ k, (equalityLaw F).table p (i k) (fun e => X p k e.val) fun ν => g ν.val k :=
   (equalityLaw F).pow B X
 
 /-- The strings of the equality law have length at most one. -/

@@ -54,11 +54,10 @@ private theorem forall_le_mul_swap {σ : Perm α} {a b : α} (ha : a ∈ S) (hb 
 /-- As many orders put `j ∈ S` last among `S` as put `i ∈ S` last. -/
 theorem card_filter_forall_le_eq {i j : α} (hi : i ∈ S) (hj : j ∈ S) :
     #{σ : Perm α | ∀ u ∈ S, σ u ≤ σ j} = #{σ : Perm α | ∀ u ∈ S, σ u ≤ σ i} := by
-  refine card_nbij' (· * swap i j) (· * swap i j) (fun σ hσ => ?_) (fun σ hσ => ?_)
-    (fun σ _ => by simp [mul_assoc]) (fun σ _ => by simp [mul_assoc])
-  · exact mem_filter.2 ⟨mem_univ _, forall_le_mul_swap hi hj (mem_filter.1 hσ).2⟩
-  · rw [swap_comm]
-    exact mem_filter.2 ⟨mem_univ _, forall_le_mul_swap hj hi (mem_filter.1 hσ).2⟩
+  refine card_equiv (Equiv.mulRight (swap i j)) fun σ => ?_
+  simp only [mem_filter, mem_univ, true_and, Equiv.coe_mulRight]
+  refine ⟨forall_le_mul_swap hi hj, fun h => ?_⟩
+  simpa only [swap_comm j i, mul_assoc, swap_mul_self, mul_one] using forall_le_mul_swap hj hi h
 
 /-- **Each element of `S` is last among `S` for a `1 / #S` fraction of the orders.** -/
 theorem card_mul_card_filter_forall_le_eq_factorial {i : α} (hi : i ∈ S) :

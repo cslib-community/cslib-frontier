@@ -118,15 +118,15 @@ any row-weight family `w` satisfying `∑ i : s, Matrix.vecMul (w i) (P.matrix i
 recombines the shares `{linearShare P k secret i.1}_{i ∈ s}` to `secret`. -/
 theorem sum_dotProduct_linearShare_eq_secret (P : MonotoneSpanProgram F Party)
     (k : LinearKey P) (secret : F) {s : Finset Party}
-    (w : (i : s) → Fin (P.rowDim i.1) → F)
-    (hw : ∑ i : s, Matrix.vecMul (w i) (P.matrix i.1) = P.target) :
-    ∑ i : s, dotProduct (w i) (linearShare P k secret i.1) = secret := by
+    (w : (i : s) → Fin (P.rowDim i.val) → F)
+    (hw : ∑ i : s, Matrix.vecMul (w i) (P.matrix i.val) = P.target) :
+    ∑ i : s, dotProduct (w i) (linearShare P k secret i.val) = secret := by
   calc
-    ∑ i : s, dotProduct (w i) (linearShare P k secret i.1)
-      = ∑ i : s, dotProduct (Matrix.vecMul (w i) (P.matrix i.1)) (Fin.cons secret k) := by
+    ∑ i : s, dotProduct (w i) (linearShare P k secret i.val)
+      = ∑ i : s, dotProduct (Matrix.vecMul (w i) (P.matrix i.val)) (Fin.cons secret k) := by
           refine Finset.sum_congr rfl fun i _ => ?_
-          exact Matrix.dotProduct_mulVec (w i) (P.matrix i.1) (Fin.cons secret k)
-    _ = dotProduct (∑ i : s, Matrix.vecMul (w i) (P.matrix i.1)) (Fin.cons secret k) := by
+          exact Matrix.dotProduct_mulVec (w i) (P.matrix i.val) (Fin.cons secret k)
+    _ = dotProduct (∑ i : s, Matrix.vecMul (w i) (P.matrix i.val)) (Fin.cons secret k) := by
           rw [sum_dotProduct]
     _ = dotProduct P.target (Fin.cons secret k) := by rw [hw]
     _ = secret := by
@@ -137,7 +137,7 @@ theorem sum_dotProduct_linearShare_eq_secret (P : MonotoneSpanProgram F Party)
 `Classical.choose` and outputs its dot product with the shares; otherwise it outputs `0`. This
 choice-based wrapper carries no efficiency claim. -/
 @[expose] noncomputable def linearReconstruct (P : MonotoneSpanProgram F Party) (s : Finset Party)
-    (v : (i : s) → LinearShare P i.1) : F :=
+    (v : (i : s) → LinearShare P i.val) : F :=
   open Classical in
   if hs : P.Accepts s then
     let w := Classical.choose ((P.accepts_iff_exists_vecMul s).mp hs)
@@ -149,7 +149,7 @@ choice-based wrapper carries no efficiency claim. -/
 coalition `s` reconstructs `secret` for every key `k`. -/
 theorem linearReconstruct_linearShare (P : MonotoneSpanProgram F Party)
     (k : LinearKey P) (secret : F) {s : Finset Party} (hs : P.Accepts s) :
-    linearReconstruct P s (fun i => linearShare P k secret i.1) = secret := by
+    linearReconstruct P s (fun i => linearShare P k secret i.val) = secret := by
   classical
   simp only [linearReconstruct, hs, ↓reduceDIte]
   exact sum_dotProduct_linearShare_eq_secret P k secret
@@ -176,7 +176,8 @@ theorem linearShare_smul (P : MonotoneSpanProgram F Party) (c : F) (k : LinearKe
 coalition `s` recovers `secret₁ + secret₂` (Remark 22.15, [BonehShoup2023], p. 982). -/
 theorem linearReconstruct_linearShare_add (P : MonotoneSpanProgram F Party)
     (k₁ k₂ : LinearKey P) (secret₁ secret₂ : F) {s : Finset Party} (hs : P.Accepts s) :
-    linearReconstruct P s (fun i => linearShare P k₁ secret₁ i.1 + linearShare P k₂ secret₂ i.1) =
+    linearReconstruct P s
+      (fun i => linearShare P k₁ secret₁ i.val + linearShare P k₂ secret₂ i.val) =
       secret₁ + secret₂ := by
   simp only [← linearShare_add]
   exact linearReconstruct_linearShare P (k₁ + k₂) (secret₁ + secret₂) hs
@@ -204,7 +205,7 @@ theorem linearView_eq_of_not_accepts (P : MonotoneSpanProgram F Party)
     | zero => simp [hv0]
     | succ k => simp [δ, smul_eq_mul]
   simp only [linearShare]
-  rw [← hcons, Matrix.mulVec_add, Matrix.mulVec_smul, hv_null i.1 i.2, smul_zero, add_zero]
+  rw [← hcons, Matrix.mulVec_add, Matrix.mulVec_smul, hv_null i.val i.property, smul_zero, add_zero]
 
 /-- The linear secret-sharing scheme derived from a monotone span program `P` ([BonehShoup2023],
 Construction 22.2 and Definition 22.22, pp. 979–980), over

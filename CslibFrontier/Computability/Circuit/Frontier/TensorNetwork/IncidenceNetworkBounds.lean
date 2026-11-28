@@ -176,7 +176,7 @@ theorem two_pow_clog_choose_le (N d : ℕ) :
           = 2 * 2 ^ (Nat.clog 2 (N.choose d)).pred := by
             conv_lhs => rw [← Nat.succ_pred_eq_of_pos (Nat.clog_pos one_lt_two h1), pow_succ']
         _ ≤ 2 * N.choose d :=
-            Nat.mul_le_mul_left 2 (Nat.pow_pred_clog_lt_self one_lt_two h1).le
+            Nat.mul_le_mul_left 2 (Nat.pow_pred_clog_lt_self 2 h1).le
     · rw [Nat.le_antisymm h1 (Nat.choose_pos hd)]
       simp
   · rw [Nat.choose_eq_zero_of_lt (by omega)]

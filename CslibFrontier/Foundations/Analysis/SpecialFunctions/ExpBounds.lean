@@ -82,7 +82,7 @@ theorem exp_neg_two_le_one_third : exp (-2) ≤ 1 / 3 := by
 /-- `2 ^ n ≤ exp n`, since `2 ≤ exp 1`. -/
 theorem two_pow_le_exp (n : ℕ) : (2 : ℝ) ^ n ≤ exp n :=
   (pow_le_pow_left₀ (by norm_num) (by linarith [add_one_le_exp 1]) n).trans_eq
-    (by rw [← exp_nat_mul, mul_one])
+    (by rw [← exp_natCast_mul, mul_one])
 
 /-- `exp x ≤ (1 / 2) ^ n` whenever `x ≤ -n`, since `2 ^ n ≤ exp n`. -/
 theorem exp_le_half_pow (n : ℕ) {x : ℝ} (hx : x ≤ -(n : ℝ)) : exp x ≤ (1 / 2 : ℝ) ^ n :=
@@ -96,7 +96,7 @@ theorem one_sub_pow_le_exp {p c : ℝ} {R : ℕ} (hp1 : p ≤ 1) (hc : c ≤ R *
     (1 - p) ^ R ≤ exp (-c) := by
   calc (1 - p) ^ R ≤ exp (-p) ^ R :=
         pow_le_pow_left₀ (by linarith) (by linarith [add_one_le_exp (-p)]) R
-    _ = exp (-(R * p)) := by rw [← exp_nat_mul]; ring_nf
+    _ = exp (-(R * p)) := by rw [← exp_natCast_mul]; ring_nf
     _ ≤ exp (-c) := exp_le_exp.mpr (by linarith)
 
 /-- Amplification bound: if `0 ≤ p ≤ 1 - δ` and `2 ≤ δ k`, then `p ^ k ≤ 1 / 3`. -/

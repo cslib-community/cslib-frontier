@@ -52,7 +52,7 @@ open Cslib.Algorithms.Lean.MaxFlow
 (`cost 2`), joined before bottleneck arc `(4, 5)` of capacity `3`. -/
 def diamondNet : Network (Fin 6) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 3
     | 1, 4 => 3
     | 0, 2 => 2
@@ -65,7 +65,7 @@ def diamondNet : Network (Fin 6) where
 
 /-- Per-unit arc costs on `diamondNet`. -/
 def diamondCost (u v : Fin 6) : ℤ :=
-  match u.1, v.1 with
+  match u.val, v.val with
   | 0, 1 => 3
   | 1, 4 => 4
   | 0, 2 => 1
@@ -94,7 +94,7 @@ theorem diamond_correct :
 /-- Suboptimal max flow routing all `3` units along the expensive upper path `0 → 1 → 4 → 5`. -/
 def diamondSubFlow : diamondNet.Flow where
   toFun u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 3
     | 1, 4 => 3
     | 4, 5 => 3
@@ -135,12 +135,12 @@ theorem diamondSubFlow_no_potential :
 /-- Two-vertex circulation with asymmetric antiparallel costs (`cost 0 1 + cost 1 0 = 7 ≠ 0`). -/
 def antiNet : CostNetwork (Fin 2) ℤ where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 3
     | 1, 0 => 3
     | _, _ => 0
   cost u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 2
     | 1, 0 => 5
     | _, _ => 0
@@ -149,7 +149,7 @@ def antiNet : CostNetwork (Fin 2) ℤ where
 /-- Initial antiparallel circulation placing `2` units on both `(0, 1)` and `(1, 0)`. -/
 def antiInitFlow : antiNet.Flow where
   toFun u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 2
     | 1, 0 => 2
     | _, _ => 0
@@ -177,7 +177,7 @@ theorem anti_correct :
 def antiNegNet : CostNetwork (Fin 2) ℤ where
   cap := antiNet.cap
   cost u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => -4
     | 1, 0 => 1
     | _, _ => 0
@@ -194,12 +194,12 @@ example :
 -/
 def loopNet : CostNetwork (Fin 2) ℤ where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 0 => 4
     | 1, 1 => 3
     | _, _ => 0
   cost u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 0 => -2
     | 1, 1 => 3
     | _, _ => 0
@@ -208,7 +208,7 @@ def loopNet : CostNetwork (Fin 2) ℤ where
 /-- Initial self-loop circulation carrying `1` unit on `(0, 0)` and `2` units on `(1, 1)`. -/
 def loopInitFlow : loopNet.Flow where
   toFun u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 0 => 1
     | 1, 1 => 2
     | _, _ => 0
@@ -240,7 +240,7 @@ theorem loop_correct :
 of net cost `-3` and bottleneck capacity `2`. -/
 def sameTerminalNet : Network (Fin 3) where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 2
     | 1, 2 => 3
     | 2, 0 => 2
@@ -251,7 +251,7 @@ def sameTerminalNet : Network (Fin 3) where
 
 /-- Costs on `sameTerminalNet`: `0 → 1 → 2 → 0` sums to `1 + (-5) + 1 = -3`. -/
 def sameTerminalCost (u v : Fin 3) : ℤ :=
-  match u.1, v.1 with
+  match u.val, v.val with
   | 0, 1 => 1
   | 1, 2 => -5
   | 2, 0 => 1
@@ -279,12 +279,12 @@ theorem sameTerminal_correct :
 /-- Two-vertex unit-supply network with rational arc costs (`1/2` on `0 → 1`, `0` back). -/
 def ratNet : CostNetwork (Fin 2) ℚ where
   cap u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 2
     | 1, 0 => 1
     | _, _ => 0
   cost u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 1 / 2
     | 1, 0 => 1 / 4
     | _, _ => 0
@@ -293,7 +293,7 @@ def ratNet : CostNetwork (Fin 2) ℚ where
 /-- Optimal flow in `ratNet` (`f 0 1 = 1, f 1 0 = 0`), cost `1/2`. -/
 def ratOptFlow : ratNet.Flow where
   toFun u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 1
     | _, _ => 0
   le_cap := by decide
@@ -302,7 +302,7 @@ def ratOptFlow : ratNet.Flow where
 /-- Suboptimal flow in `ratNet` (`f 0 1 = 2, f 1 0 = 1`), cost `5/4`. -/
 def ratSubFlow : ratNet.Flow where
   toFun u v :=
-    match u.1, v.1 with
+    match u.val, v.val with
     | 0, 1 => 2
     | 1, 0 => 1
     | _, _ => 0

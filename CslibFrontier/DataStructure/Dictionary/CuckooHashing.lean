@@ -219,8 +219,8 @@ private theorem equationChain_congr_of_eqOn {U m : ℕ} {f₁ f₂ : Fin U → F
 /-- Extending `y : T → Fin m` to `insert w T` by assigning `w` the value `y ⟨v, hv⟩`. -/
 private def extendRestrict {U m : ℕ} {T : Finset (Fin U)} (w : Fin U) {v : Fin U} (hv : v ∈ T)
     (y : T → Fin m) (x : ↥(insert w T)) : Fin m :=
-  if hxw : x.1 = w then y ⟨v, hv⟩
-  else y ⟨x.1, Finset.mem_of_mem_insert_of_ne x.2 hxw⟩
+  if hxw : x.val = w then y ⟨v, hv⟩
+  else y ⟨x.val, Finset.mem_of_mem_insert_of_ne x.property hxw⟩
 
 private theorem restrict_insert_eq_extendRestrict_iff {U m : ℕ} {T : Finset (Fin U)} {w v : Fin U}
     (hw : w ∉ T) (hv : v ∈ T) (f : Fin U → Fin m) (y : T → Fin m) :

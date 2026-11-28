@@ -56,7 +56,7 @@ open Cslib.Circuits ConventionalCircuit
 
 /-- Whether each gate of `toCircuit f` is free (computes XOR). -/
 @[expose] noncomputable def freeCircuit (f : ValidCircuit) : Fin (toCircuit f).size → Bool :=
-  fun g => isXorGate f.1 (g.cast (size_toCircuit f))
+  fun g => isXorGate f.val (g.cast (size_toCircuit f))
 
 /-- The wire label words of the first `n + s` wires read/propagated from `coins` over topology `t`
 and XOR flags `free`: inputs and non-XOR gates read `PointPermute.simLabel k coins`, and XOR gates
@@ -113,12 +113,12 @@ theorem length_le_of_mem_simPropWords (k : ℕ) (t : Topo) (free : List Bool)
 /-- On a valid circuit `f` and any flag list `free` agreeing with `isXorGate f.1` on `Fin f.1.q`,
 the first `n + s` words of `simPropWords` are the typed propagated `simBaseLabels`. -/
 theorem simPropWords_eq_propagate (k : ℕ) (f : ValidCircuit) (free : List Bool)
-    (coins : List Bool) (hfree : ∀ g : Fin f.1.q, free.getD g false = isXorGate f.1 g)
-    {s : ℕ} (hs : s ≤ f.1.q) :
-    simPropWords k f.1.topo free coins s =
-      (List.ofFn fun v : Fin (f.1.n + (toCircuit f).size) =>
+    (coins : List Bool) (hfree : ∀ g : Fin f.val.q, free.getD g false = isXorGate f.val g)
+    {s : ℕ} (hs : s ≤ f.val.q) :
+    simPropWords k f.val.topo free coins s =
+      (List.ofFn fun v : Fin (f.val.n + (toCircuit f).size) =>
         labelBits (propagate (toCircuit f).topology (freeCircuit f)
-          (simBaseLabels k coins) (Wire.ofNat v v.isLt))).take (f.1.n + s) := by
+          (simBaseLabels k coins) (Wire.ofNat v v.isLt))).take (f.val.n + s) := by
   have hτ := (toCircuit f).isOrdered_topology
   induction s with
   | zero =>
@@ -126,26 +126,26 @@ theorem simPropWords_eq_propagate (k : ℕ) (f : ValidCircuit) (free : List Bool
     apply List.ext_getElem (by simp [simPropWords])
     intro i h₁ h₂
     simp only [simPropWords, List.length_ofFn] at h₁
-    have hin : (Wire.ofNat i (by omega) : Wire f.1.n (toCircuit f).size) = .input ⟨i, h₁⟩ :=
+    have hin : (Wire.ofNat i (by omega) : Wire f.val.n (toCircuit f).size) = .input ⟨i, h₁⟩ :=
       Wire.toNat_injective (by simp)
     simp only [simPropWords, List.getElem_ofFn, List.getElem_take, hin,
       propagate_input hτ, simBaseLabels, Wire.toNat_input,
       labelBits_labelOfWord (PointPermute.length_simLabel k coins _)]
   | succ s ih =>
-    have hsq : s < f.1.q := hs
+    have hsq : s < f.val.q := hs
     have hsize := size_toCircuit f
     set g : Fin (toCircuit f).size := ⟨s, by omega⟩ with hg
     have hgcast : g.cast (size_toCircuit f) = ⟨s, hsq⟩ := Fin.ext rfl
-    have hA₁ := f.2.one_le_A ⟨s, hsq⟩
-    have hAB := f.2.A_lt_B ⟨s, hsq⟩
-    have hBg := f.2.B_lt_gate ⟨s, hsq⟩
+    have hA₁ := f.property.one_le_A ⟨s, hsq⟩
+    have hAB := f.property.A_lt_B ⟨s, hsq⟩
+    have hBg := f.property.B_lt_gate ⟨s, hsq⟩
     simp only [ConventionalCircuit.topo] at hA₁ hAB hBg ih ⊢
     rw [simPropWords, dite_eq_left hsq]
     dsimp only
     rw [ih hsq.le, ← Nat.add_assoc, List.take_add_one, List.getElem?_ofFn]
-    have hgate : (Wire.ofNat (f.1.n + s) (by omega) : Wire f.1.n (toCircuit f).size) =
+    have hgate : (Wire.ofNat (f.val.n + s) (by omega) : Wire f.val.n (toCircuit f).size) =
         .gate g := Wire.toNat_injective (by simp [hg])
-    simp only [show f.1.n + s < f.1.n + (toCircuit f).size by omega, dite_true,
+    simp only [show f.val.n + s < f.val.n + (toCircuit f).size by omega, dite_true,
       Option.toList_some, hgate]
     congr 1
     have hfree_eq : free.getD s false = freeCircuit f g := by

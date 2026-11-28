@@ -1183,7 +1183,7 @@ theorem slabScale_le_tMinWhp_cubed {c n_max : ℕ} (hth : whpThreshold c ≤ n_m
     have hell_eq : ell = Nat.clog 2 (Nat.clog 2 n_max) := by
       unfold ell Dynamic.logLogFactor; rw [max_eq_left (four_le_of_whpThreshold_le hth)]
     have hL_lt : 2 ^ (ell - 1) < Nat.clog 2 n_max := by
-      rw [hell_eq]; exact Nat.pow_pred_clog_lt_self Nat.one_lt_two hgt_clog
+      rw [hell_eq]; exact Nat.pow_pred_clog_lt_self 2 hgt_clog
     have hclog_le : Nat.clog 2 n_max ≤ m + 1 :=
       (Nat.clog_le_iff_le_pow Nat.one_lt_two).mpr (Nat.lt_pow_succ_log_self Nat.one_lt_two n_max).le
     set d := ell - 27

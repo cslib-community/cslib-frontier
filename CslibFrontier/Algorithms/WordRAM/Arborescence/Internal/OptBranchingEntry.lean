@@ -39,23 +39,23 @@ attribute [local client_simps] StateTransitionSpec.clientState
   clientState_signedNegProg s u
 
 private theorem init_mem_encode_branching_adj (I : BranchingInput) (u v : Fin I.n) :
-    (Memory.State.init I.encode).mem (2 + (u.1 * I.n + v.1)) = if I.adj u v then 1 else 0 := by
-  rw [show 2 + (u.1 * I.n + v.1) = ((u.1 * I.n + v.1) + 1) + 1 by omega]
-  change (Data.init (r := 0) I.encode).mem (((u.1 * I.n + v.1) + 1) + 1) = _
+    (Memory.State.init I.encode).mem (2 + (u.val * I.n + v.val)) = if I.adj u v then 1 else 0 := by
+  rw [show 2 + (u.val * I.n + v.val) = ((u.val * I.n + v.val) + 1) + 1 by omega]
+  change (Data.init (r := 0) I.encode).mem (((u.val * I.n + v.val) + 1) + 1) = _
   rw [Data.init_mem_succ]
   dsimp only [BranchingInput.encode]
   rw [List.getD_cons_succ]
-  have hlt : u.1 * I.n + v.1 < (flattenBoolMatrix I.n I.adj).length := by
+  have hlt : u.val * I.n + v.val < (flattenBoolMatrix I.n I.adj).length := by
     rw [length_flattenBoolMatrix]; exact List.mul_add_lt_sq u.isLt v.isLt
   rw [List.getD_eq_getElem?_getD, List.getElem?_append_left hlt, ← List.getD_eq_getElem?_getD]
   exact getD_flattenBoolMatrix I.n I.adj u v
 
 private theorem init_mem_encode_branching_wt (I : BranchingInput) (u v : Fin I.n) :
-    (Memory.State.init I.encode).mem (2 + I.n * I.n + (u.1 * I.n + v.1)) =
+    (Memory.State.init I.encode).mem (2 + I.n * I.n + (u.val * I.n + v.val)) =
       Signed.encode (I.weight u v) := by
-  rw [show 2 + I.n * I.n + (u.1 * I.n + v.1) =
-    ((I.n * I.n + (u.1 * I.n + v.1)) + 1) + 1 by omega]
-  change (Data.init (r := 0) I.encode).mem (((I.n * I.n + (u.1 * I.n + v.1)) + 1) + 1) = _
+  rw [show 2 + I.n * I.n + (u.val * I.n + v.val) =
+    ((I.n * I.n + (u.val * I.n + v.val)) + 1) + 1 by omega]
+  change (Data.init (r := 0) I.encode).mem (((I.n * I.n + (u.val * I.n + v.val)) + 1) + 1) = _
   rw [Data.init_mem_succ]
   dsimp only [BranchingInput.encode]
   rw [List.getD_cons_succ]
@@ -185,59 +185,60 @@ private theorem fillSuperRootRowProg_spec {w n ws : ℕ} (xFin : Fin (n + 1))
     (G : Digraph (Fin n)) [DecidableRel G.Adj] (wt : Fin n → Fin n → ℤ) (s : Memory.State)
     (hws : WsFits w ws (n + 1)) (hin_fit : Fits w (2 + 2 * (n * n)))
     (hws_lo : 2 + 2 * (n * n) ≤ ws) (hf : ws + wsSize (n + 1) ≤ s.frontier)
-    (hadj_in : ∀ u v : Fin n, s.mem (2 + (u.1 * n + v.1)) = if decide (G.Adj u v) then 1 else 0)
-    (hwt_in : ∀ u v : Fin n, s.mem (2 + n * n + (u.1 * n + v.1)) = Signed.encode (wt u v))
+    (hadj_in : ∀ u v : Fin n, s.mem (2 + (u.val * n + v.val)) = if decide (G.Adj u v) then 1 else 0)
+    (hwt_in : ∀ u v : Fin n, s.mem (2 + n * n + (u.val * n + v.val)) = Signed.encode (wt u v))
     (hfit_wt1 : ∀ u v : Fin n, Fits w (Signed.encode (wt u v) + 1)) :
     let m := n + 1
-    let ra : SuperRootRowArgs := ⟨n, xFin.1, ws⟩
+    let ra : SuperRootRowArgs := ⟨n, xFin.val, ws⟩
     let sr' := (Memory.spec 0).clientState s (fillSuperRootRowProg ra)
     iterationSafe superRootRowStep SuperRootRowStepSafe w ra m 0 s ∧
       (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (fillSuperRootRowProg ra)) ∧
       memoryCost (fillSuperRootRowProg ra) s ≤ 5 * m ∧
       sr'.frontier = s.frontier ∧
-      (∀ addr, ¬(curAdjBase ws m + xFin.1 * m ≤ addr ∧ addr < curAdjBase ws m + xFin.1 * m + m ∨
-        curCostBase ws m + xFin.1 * m ≤ addr ∧ addr < curCostBase ws m + xFin.1 * m + m) →
+      (∀ addr, ¬(curAdjBase ws m + xFin.val * m ≤ addr ∧ addr < curAdjBase ws m + xFin.val * m + m ∨
+        curCostBase ws m + xFin.val * m ≤ addr ∧ addr < curCostBase ws m + xFin.val * m + m) →
         sr'.mem addr = s.mem addr) ∧
       (∀ y : Fin m,
-        sr'.mem (curAdjBase ws m + xFin.1 * m + y.1) =
-          (if (superRootAdjFin G)[xFin.1][y.1] then 1 else 0) ∧
-        sr'.mem (curCostBase ws m + xFin.1 * m + y.1) =
-          Signed.encode (superRootCostFin wt)[xFin.1][y.1]) := by
+        sr'.mem (curAdjBase ws m + xFin.val * m + y.val) =
+          (if (superRootAdjFin G)[xFin.val][y.val] then 1 else 0) ∧
+        sr'.mem (curCostBase ws m + xFin.val * m + y.val) =
+          Signed.encode (superRootCostFin wt)[xFin.val][y.val]) := by
   let m := n + 1
-  let ra : SuperRootRowArgs := ⟨n, xFin.1, ws⟩
+  let ra : SuperRootRowArgs := ⟨n, xFin.val, ws⟩
   have h1 : Fits w 1 := hws.of_le (by dsimp only [wsSize]; omega)
   have hx_lt := xFin.isLt
   have hrow := iterate_spec superRootRowStep SuperRootRowStepSafe w ra 5 m
     (fun y idxR sr =>
       idxR = y ∧ sr.frontier = s.frontier ∧
-        (∀ u v : Fin n, sr.mem (2 + (u.1 * n + v.1)) = if decide (G.Adj u v) then 1 else 0) ∧
-        (∀ u v : Fin n, sr.mem (2 + n * n + (u.1 * n + v.1)) = Signed.encode (wt u v)) ∧
-        (∀ y0 : Fin m, y0.1 < y →
-          sr.mem (curAdjBase ws m + xFin.1 * m + y0.1) =
-            (if (superRootAdjFin G)[xFin.1][y0.1] then 1 else 0) ∧
-          sr.mem (curCostBase ws m + xFin.1 * m + y0.1) =
-            Signed.encode (superRootCostFin wt)[xFin.1][y0.1]))
-    (fun addr => curAdjBase ws m + xFin.1 * m ≤ addr ∧ addr < curAdjBase ws m + xFin.1 * m + m ∨
-      curCostBase ws m + xFin.1 * m ≤ addr ∧ addr < curCostBase ws m + xFin.1 * m + m)
+        (∀ u v : Fin n, sr.mem (2 + (u.val * n + v.val)) = if decide (G.Adj u v) then 1 else 0) ∧
+        (∀ u v : Fin n, sr.mem (2 + n * n + (u.val * n + v.val)) = Signed.encode (wt u v)) ∧
+        (∀ y0 : Fin m, y0.val < y →
+          sr.mem (curAdjBase ws m + xFin.val * m + y0.val) =
+            (if (superRootAdjFin G)[xFin.val][y0.val] then 1 else 0) ∧
+          sr.mem (curCostBase ws m + xFin.val * m + y0.val) =
+            Signed.encode (superRootCostFin wt)[xFin.val][y0.val]))
+    (fun addr => curAdjBase ws m + xFin.val * m ≤ addr ∧ addr < curAdjBase ws m + xFin.val * m + m ∨
+      curCostBase ws m + xFin.val * m ≤ addr ∧ addr < curCostBase ws m + xFin.val * m + m)
     (fun y hy idxR sr ⟨hidxR, hfr_r, ha_r, hwt_r, hdone_r⟩ => by
       subst idxR
       have hcell_xy := List.mul_add_lt_sq hx_lt hy
-      have ha_yx (hy_n : y < n) (hx_n : xFin.1 < n) : sr.mem (2 + y * n + xFin.1) =
-          if decide (G.Adj ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩) then 1 else 0 := by
-        simpa [Nat.add_assoc] using ha_r ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩
-      have hw_yx (hy_n : y < n) (hx_n : xFin.1 < n) : sr.mem (2 + n * n + y * n + xFin.1) =
-          Signed.encode (wt ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩) := by
-        simpa [Nat.add_assoc] using hwt_r ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩
+      have ha_yx (hy_n : y < n) (hx_n : xFin.val < n) : sr.mem (2 + y * n + xFin.val) =
+          if decide (G.Adj ⟨y, hy_n⟩ ⟨xFin.val, hx_n⟩) then 1 else 0 := by
+        simpa [Nat.add_assoc] using ha_r ⟨y, hy_n⟩ ⟨xFin.val, hx_n⟩
+      have hw_yx (hy_n : y < n) (hx_n : xFin.val < n) : sr.mem (2 + n * n + y * n + xFin.val) =
+          Signed.encode (wt ⟨y, hy_n⟩ ⟨xFin.val, hx_n⟩) := by
+        simpa [Nat.add_assoc] using hwt_r ⟨y, hy_n⟩ ⟨xFin.val, hx_n⟩
       -- The step writes the two cells `(x, y)` of the super-root tables and nothing else.
       have hstep : (Memory.spec 0).clientResult sr (superRootRowStep (ra, y)) = y + 1 ∧
           (Memory.spec 0).clientState sr (superRootRowStep (ra, y)) =
-            ⟨Function.update (Function.update sr.mem (curAdjBase ws m + xFin.1 * m + y)
-                (if (superRootAdjFin G)[xFin.1][y] then 1 else 0))
-              (curCostBase ws m + xFin.1 * m + y) (Signed.encode (superRootCostFin wt)[xFin.1][y]),
+            ⟨Function.update (Function.update sr.mem (curAdjBase ws m + xFin.val * m + y)
+                (if (superRootAdjFin G)[xFin.val][y] then 1 else 0))
+              (curCostBase ws m + xFin.val * m + y)
+              (Signed.encode (superRootCostFin wt)[xFin.val][y]),
               sr.frontier⟩ := by
         unfold superRootRowStep
         dsimp only [ra, m]
-        by_cases hx_n : xFin.1 < n
+        by_cases hx_n : xFin.val < n
         · by_cases hy_n : y < n
           · simp only [hx_n, hy_n, ↓reduceIte, client_simps, hw_yx hy_n hx_n, ha_yx hy_n hx_n,
               clientResult_signedNegProg]
@@ -248,9 +249,9 @@ private theorem fillSuperRootRowProg_spec {w n ws : ℕ} (xFin : Fin (n + 1))
             initCostTable, Signed.encode]
       have hfr_step : ((Memory.spec 0).clientState sr (superRootRowStep (ra, y))).frontier =
           sr.frontier := by rw [hstep.2]
-      have hout : ∀ addr, ¬(curAdjBase ws m + xFin.1 * m ≤ addr ∧
-          addr < curAdjBase ws m + xFin.1 * m + m ∨ curCostBase ws m + xFin.1 * m ≤ addr ∧
-          addr < curCostBase ws m + xFin.1 * m + m) →
+      have hout : ∀ addr, ¬(curAdjBase ws m + xFin.val * m ≤ addr ∧
+          addr < curAdjBase ws m + xFin.val * m + m ∨ curCostBase ws m + xFin.val * m ≤ addr ∧
+          addr < curCostBase ws m + xFin.val * m + m) →
           ((Memory.spec 0).clientState sr (superRootRowStep (ra, y))).mem addr = sr.mem addr :=
         fun addr h => by
           rw [hstep.2]
@@ -258,8 +259,8 @@ private theorem fillSuperRootRowProg_spec {w n ws : ℕ} (xFin : Fin (n + 1))
           rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
       have hwr (a c : ℕ) (ha : Fits w a) (hc : Fits w c) :
           (Memory.spec w).ValidHistory sr ((Memory.spec w).clientHistory sr
-            (do Memory.write (curAdjBase ws m + xFin.1 * m + y) a
-                Memory.write (curCostBase ws m + xFin.1 * m + y) c
+            (do Memory.write (curAdjBase ws m + xFin.val * m + y) a
+                Memory.write (curCostBase ws m + xFin.val * m + y) c
                 pure (y + 1))) :=
         validHistory_write_bind
           (by dsimp only [wsSize, curAdjBase, m] at hf hfr_r hcell_xy ⊢; omega) ha
@@ -270,13 +271,13 @@ private theorem fillSuperRootRowProg_spec {w n ws : ℕ} (xFin : Fin (n + 1))
           dsimp only [SuperRootRowStepSafe, ra]
           refine ⟨hx_lt, hy, hws, hin_fit, fun hx_n hy_n => ?_⟩
           rw [hw_yx hy_n hx_n]
-          exact hfit_wt1 ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩,
+          exact hfit_wt1 ⟨y, hy_n⟩ ⟨xFin.val, hx_n⟩,
         ?_, ?_, hfr_step, hout, hstep.1, hfr_step.trans hfr_r,
         fun u v => ?_, fun u v => ?_, fun y0 hy0 => ?_⟩
       · unfold superRootRowStep
         dsimp only [ra]
         refine validHistory_read_bind (by dsimp only [wsSize, m] at hf hfr_r ⊢; omega) ?_
-        by_cases hx_n : xFin.1 < n
+        by_cases hx_n : xFin.val < n
         · simp only [hx_n, ↓reduceIte]
           by_cases hy_n : y < n
           · simp only [hy_n, ↓reduceIte]
@@ -289,7 +290,7 @@ private theorem fillSuperRootRowProg_spec {w n ws : ℕ} (xFin : Fin (n + 1))
             rw [clientState_signedNegProg, hw_yx hy_n hx_n, clientResult_signedNegProg]
             refine hwr _ _
               (by rw [ha_yx hy_n hx_n]; split_ifs <;> first | exact h1 | exact fits_zero w) ?_
-            have hfit1 := hfit_wt1 ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩
+            have hfit1 := hfit_wt1 ⟨y, hy_n⟩ ⟨xFin.val, hx_n⟩
             unfold Signed.encode at hfit1 ⊢
             rw [Int.natAbs_neg]
             exact hfit1.of_le (by split_ifs <;> omega)
@@ -299,7 +300,7 @@ private theorem fillSuperRootRowProg_spec {w n ws : ℕ} (xFin : Fin (n + 1))
           exact hwr _ _ (fits_zero w) (fits_zero w)
       · unfold superRootRowStep
         dsimp only [ra]
-        by_cases hx_n : xFin.1 < n <;> by_cases hy_n : y < n <;>
+        by_cases hx_n : xFin.val < n <;> by_cases hy_n : y < n <;>
           simp only [hx_n, hy_n, ↓reduceIte, client_simps] <;> omega
       · have := List.mul_add_lt_sq u.isLt v.isLt
         exact (hout _ (by dsimp only [curAdjBase, curCostBase, m]; omega)).trans (ha_r u v)
@@ -327,8 +328,9 @@ private theorem superRootProg_spec {w n ws : ℕ}
     (G : Digraph (Fin n)) [DecidableRel G.Adj] (wt : Fin n → Fin n → ℤ) (s₀ : Memory.State)
     (hws : WsFits w ws (n + 1)) (hin_fit : Fits w (2 + 2 * (n * n)))
     (hws_lo : 2 + 2 * (n * n) ≤ ws) (hf : ws + wsSize (n + 1) ≤ s₀.frontier)
-    (hadj_in : ∀ u v : Fin n, s₀.mem (2 + (u.1 * n + v.1)) = if decide (G.Adj u v) then 1 else 0)
-    (hwt_in : ∀ u v : Fin n, s₀.mem (2 + n * n + (u.1 * n + v.1)) = Signed.encode (wt u v))
+    (hadj_in : ∀ u v : Fin n,
+      s₀.mem (2 + (u.val * n + v.val)) = if decide (G.Adj u v) then 1 else 0)
+    (hwt_in : ∀ u v : Fin n, s₀.mem (2 + n * n + (u.val * n + v.val)) = Signed.encode (wt u v))
     (hfit_wt1 : ∀ u v : Fin n, Fits w (Signed.encode (wt u v) + 1)) :
     let m := n + 1
     let s' := (Memory.spec 0).clientState s₀ (superRootProg (n, ws))
@@ -337,24 +339,24 @@ private theorem superRootProg_spec {w n ws : ℕ}
       memoryCost (superRootProg (n, ws)) s₀ ≤ (5 * m + 1) * m ∧
       s'.frontier = s₀.frontier ∧
       (∀ x y : Fin m,
-        s'.mem (curAdjBase ws m + x.1 * m + y.1) =
-          if (superRootAdjFin G)[x.1][y.1] then 1 else 0) ∧
+        s'.mem (curAdjBase ws m + x.val * m + y.val) =
+          if (superRootAdjFin G)[x.val][y.val] then 1 else 0) ∧
       (∀ x y : Fin m,
-        s'.mem (curCostBase ws m + x.1 * m + y.1) =
-          Signed.encode (superRootCostFin wt)[x.1][y.1]) := by
+        s'.mem (curCostBase ws m + x.val * m + y.val) =
+          Signed.encode (superRootCostFin wt)[x.val][y.val]) := by
   let m := n + 1
   have hfit_m : Fits w m := hws.of_le (by dsimp only [wsSize, m]; nlinarith)
   have hf_pos : 0 < s₀.frontier := by dsimp only [wsSize] at hf; nlinarith
   have h := iterate_spec superRootOuterStep SuperRootOuterStepSafe w (n, ws) (5 * m + 1) m
     (fun k idx s =>
       idx = k ∧ s.frontier = s₀.frontier ∧
-        (∀ u v : Fin n, s.mem (2 + (u.1 * n + v.1)) = if decide (G.Adj u v) then 1 else 0) ∧
-        (∀ u v : Fin n, s.mem (2 + n * n + (u.1 * n + v.1)) = Signed.encode (wt u v)) ∧
-        (∀ x y : Fin m, x.1 < k →
-          s.mem (curAdjBase ws m + x.1 * m + y.1) =
-            (if (superRootAdjFin G)[x.1][y.1] then 1 else 0) ∧
-          s.mem (curCostBase ws m + x.1 * m + y.1) =
-            Signed.encode (superRootCostFin wt)[x.1][y.1]))
+        (∀ u v : Fin n, s.mem (2 + (u.val * n + v.val)) = if decide (G.Adj u v) then 1 else 0) ∧
+        (∀ u v : Fin n, s.mem (2 + n * n + (u.val * n + v.val)) = Signed.encode (wt u v)) ∧
+        (∀ x y : Fin m, x.val < k →
+          s.mem (curAdjBase ws m + x.val * m + y.val) =
+            (if (superRootAdjFin G)[x.val][y.val] then 1 else 0) ∧
+          s.mem (curCostBase ws m + x.val * m + y.val) =
+            Signed.encode (superRootCostFin wt)[x.val][y.val]))
     (fun addr => curAdjBase ws m ≤ addr ∧ addr < curCostBase ws m + m * m)
     (fun k hk idx s ⟨hidx, hfr, ha_s, hwt_s, hdone_o⟩ => by
       subst idx
@@ -411,10 +413,10 @@ private theorem superRootProg_spec {w n ws : ℕ}
           exact hwt_s u v
         · intro x0 y0 hx0
           rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hx0) with hlt | heq
-          · have hlt_mul : x0.1 * m + y0.1 < k * m := by
+          · have hlt_mul : x0.val * m + y0.val < k * m := by
               have := y0.isLt
               have := Nat.mul_le_mul_right m hlt
-              linarith [Nat.succ_mul x0.1 m]
+              linarith [Nat.succ_mul x0.val m]
             have hk_mul : k * m + m ≤ m * m := by
               simpa [Nat.succ_mul] using Nat.mul_le_mul_right m hk
             rw [hdisj _ (Or.inl (by dsimp only [curAdjBase]; omega)),
@@ -613,7 +615,7 @@ public theorem optimumBranchingProg_spec {w M₀ : ℕ} (I : BranchingInput)
     (by rw [hws_eq])
     (by dsimp only [s1, outAddr, ws, m]; omega)
     (fun u v => by
-      change (Memory.State.init I.encode).mem (2 + (u.1 * I.n + v.1)) = _
+      change (Memory.State.init I.encode).mem (2 + (u.val * I.n + v.val)) = _
       rw [init_mem_encode_branching_adj I u v]
       simp [I, G, BranchingInput.digraph])
     (fun u v => init_mem_encode_branching_wt I u v)
@@ -622,12 +624,12 @@ public theorem optimumBranchingProg_spec {w M₀ : ℕ} (I : BranchingInput)
   have hs3_fr : s3.frontier = outAddr + (n + 1) := hsr.2.2.2.1
   let a₀ := superRootAdjFin G
   let c₀ := superRootCostFin weight
-  have hB₀ : ∀ x y : Fin m, (c₀[x.1][y.1]).natAbs ≤ M₀ := by
+  have hB₀ : ∀ x y : Fin m, (c₀[x.val][y.val]).natAbs ≤ M₀ := by
     intro x y
     simp only [c₀, superRootCostFin, initCostTable, Vector.getElem_ofFn]
     split_ifs with hx hy
     · rw [Int.natAbs_neg]
-      exact hM ⟨y.1, hy⟩ ⟨x.1, hx⟩
+      exact hM ⟨y.val, hy⟩ ⟨x.val, hx⟩
     · simp
     · simp
   have hcore := edmondsCoreProg_spec (Fin.last n) a₀ c₀ s3 hws_fit
@@ -638,7 +640,7 @@ public theorem optimumBranchingProg_spec {w M₀ : ℕ} (I : BranchingInput)
   have hs4_fr : s4.frontier = outAddr + (n + 1) := hcore.2.2.2.1.trans hs3_fr
   obtain ⟨pTab, haux, hp_val⟩ := optimumBranchingParent_fin_eq G weight
   have hcore_res : (Memory.spec 0).clientResult s3 (edmondsCoreProg ca) = 1 ∧
-       ∀ v : Fin m, s4.mem (curParentBase ws m + v.1) = (pTab[v.1]).1 := by
+       ∀ v : Fin m, s4.mem (curParentBase ws m + v.val) = (pTab[v.val]).val := by
     have h := hcore.2.2.2.2.2
     rwa [show edmondsTableAux (Fin.last n) m a₀ c₀ = some pTab from haux] at h
   let s4w : Memory.State := ⟨Function.update s4.mem outAddr n, s4.frontier⟩
@@ -685,12 +687,12 @@ public theorem optimumBranchingProg_spec {w M₀ : ℕ} (I : BranchingInput)
     · simp only [List.length_map, List.length_finRange]
       rw [hext_m (s₀.frontier + wsSize (n + 1)) (by omega)]
       exact Function.update_self _ _ _
-    · have hi : i.1 < n := by simpa using i.isLt
-      change ((Memory.spec 0).clientState _ _).mem (s₀.frontier + wsSize (n + 1) + 1 + i.1) =
+    · have hi : i.val < n := by simpa using i.isLt
+      change ((Memory.spec 0).clientState _ _).mem (s₀.frontier + wsSize (n + 1) + 1 + i.val) =
         ((List.finRange n).map fun v =>
-          (optimumBranchingParent (BranchingInput.digraph ⟨n, adj, weight⟩) weight v).1)[i.1]
+          (optimumBranchingParent (BranchingInput.digraph ⟨n, adj, weight⟩) weight v).val)[i.val]
       simp only [List.getElem_map, List.getElem_finRange]
-      rw [hext_v i.1 hi, hp_val]
+      rw [hext_v i.val hi, hp_val]
       have hval_i :
           (Function.update
             ((Memory.spec 0).clientState
@@ -699,10 +701,10 @@ public theorem optimumBranchingProg_spec {w M₀ : ℕ} (I : BranchingInput)
                 (superRootProg (n, s₀.frontier)))
               (edmondsCoreProg { n := n + 1, r := n, ws := s₀.frontier })).mem
             (s₀.frontier + wsSize (n + 1)) n)
-            (curParentBase s₀.frontier (n + 1) + i.1) =
-          (pTab[i.1]).1 := by
+            (curParentBase s₀.frontier (n + 1) + i.val) =
+          (pTab[i.val]).val := by
         rw [Function.update_of_ne (by dsimp only [wsSize, curParentBase]; omega)]
-        exact hcore_m ⟨i.1, by omega⟩
+        exact hcore_m ⟨i.val, by omega⟩
       simp [hval_i]
   · simp only [client_simps, BranchingInput.expectedParentList, List.length_map,
       List.length_finRange]

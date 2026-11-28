@@ -45,7 +45,7 @@ open scoped BigOperators
 private theorem expect_eq_expect_fiber {Seed X Y : Type*} [Fintype Seed] [Fintype Y]
     [DecidableEq Y] [Nonempty Y] {h : Seed → X → Y} {k : ℕ}
     (hh : IsKWiseIndependentHash (k + 1) h) (x : X) (f : Seed → ℝ) :
-    (𝔼 s, f s) = 𝔼 a : Y, 𝔼 s : {s // h s x = a}, f s.1 := by
+    (𝔼 s, f s) = 𝔼 a : Y, 𝔼 s : {s // h s x = a}, f s.val := by
   classical
   have := hh.nonempty
   simp only [Fintype.expect_eq_sum_div_card]
@@ -118,15 +118,15 @@ theorem dens_le_all {Seed X : Type*} [Fintype Seed] {q : ℕ} {h : Seed → X �
   have hδ₁ : δ ≤ 1 := (div_le_one (by exact_mod_cast hS.trans_le hSq)).mpr (by exact_mod_cast hSq)
   let φ (k : ℕ) : ℝ := (1 + δ * k)⁻¹
   have hfib (a : Fin q) :
-      (dens {s : {s // h s x = a} | ∀ y ∈ S, h s.1 x ≤ h s.1 y} : ℝ) ≤
+      (dens {s : {s // h s x = a} | ∀ y ∈ S, h s.val x ≤ h s.val y} : ℝ) ≤
         256 / δ * (φ a.val - φ (a.val + 1)) := by
     obtain ⟨_, hf⟩ := hh.fiber x a
-    let e (y : S) : {z : X // z ≠ x} := ⟨y, fun he => hx (he ▸ y.2)⟩
+    let e (y : S) : {z : X // z ≠ x} := ⟨y, fun he => hx (he ▸ y.property)⟩
     have he : Function.Injective e := fun _ _ eq =>
-      Subtype.ext (congrArg (fun z : {z : X // z ≠ x} => z.1) eq)
-    let B : Finset {s // h s x = a} := {s : {s // h s x = a} | ∀ y : S, a ≤ h s.1 y}
-    have hB : ({s : {s // h s x = a} | ∀ y ∈ S, h s.1 x ≤ h s.1 y} : Finset _) = B := by
-      ext s; simp [B, s.2]
+      Subtype.ext (congrArg (fun z : {z : X // z ≠ x} => z.val) eq)
+    let B : Finset {s // h s x = a} := {s : {s // h s x = a} | ∀ y : S, a ≤ h s.val y}
+    have hB : ({s : {s // h s x = a} | ∀ y ∈ S, h s.val x ≤ h s.val y} : Finset _) = B := by
+      ext s; simp [B, s.property]
     rw [hB]
     have hm : (Fintype.card S : ℝ) * ((a.val : ℝ) / q) = δ * a.val := by
       simp [δ]; ring

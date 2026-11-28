@@ -36,7 +36,8 @@ assignments. No injectivity is required outside those variables. -/
 theorem modelCount_relabel_of_injOn [DecidableEq W] {f : V → W} (φ : CNF V)
     (hf : Set.InjOn f {v | v ∈ φ.vars}) : (φ.relabel f).modelCount = φ.modelCount := by
   have hf' : Function.Injective (fun v : φ.vars.toFinset => f v) :=
-    fun a b h => Subtype.ext (hf (List.mem_toFinset.1 a.2) (List.mem_toFinset.1 b.2) h)
+    fun a b h => Subtype.ext
+      (hf (List.mem_toFinset.1 a.property) (List.mem_toFinset.1 b.property) h)
   refine modelCount_eq_card_filter (fun σ (v : φ.vars.toFinset) => σ (f v))
     (fun τ => φ.eval (φ.extendAssignment τ) = true) (fun σ τ _ _ => ?_) fun τ => ?_
   · rw [vars_relabel, List.forall_mem_map, funext_iff, Subtype.forall]

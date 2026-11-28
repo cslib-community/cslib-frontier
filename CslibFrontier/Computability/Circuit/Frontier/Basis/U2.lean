@@ -112,11 +112,12 @@ private theorem exists_u2PairData_of_u2CubicPairBound {p B_pair : ℝ} (_hp : 0 
     have h2 := cycleRank_add_ncard_read_le I (fun _ => Acc) hfan (connected c)
     omega
   have hblk_le_V : Nat.card Q.blocks ≤ Nat.card (Vertex c) := by
-    refine Nat.card_le_card_of_injective (fun B : Q.blocks => B.1.head (Q.ne_nil B.1 B.2))
+    refine Nat.card_le_card_of_injective
+      (fun B : Q.blocks => B.val.head (Q.ne_nil B.val B.property))
       fun B₁ B₂ h => Subtype.ext ?_
     dsimp only at h
-    have hm : B₁.1.head (Q.ne_nil B₁.1 B₁.2) ∈ B₂.1 := h ▸ List.head_mem _
-    exact Q.eq_of_mem B₁.1 B₁.2 B₂.1 B₂.2 _ (List.head_mem _) hm
+    have hm : B₁.val.head (Q.ne_nil B₁.val B₁.property) ∈ B₂.val := h ▸ List.head_mem _
+    exact Q.eq_of_mem B₁.val B₁.property B₂.val B₂.property _ (List.head_mem _) hm
   rcases le_or_gt (Nat.card Q.blocks) (max 1 N₀) with hsmall | hlarge
   · let score : Q.external → ℝ := fun _ => 0
     obtain ⟨pairLay, -⟩ :=
@@ -129,7 +130,7 @@ private theorem exists_u2PairData_of_u2CubicPairBound {p B_pair : ℝ} (_hp : 0 
       ext e; simp [Multigraph.activeCleanPairs]
     have hdegQ : Q.quotient.MaxDegreeLE 3 := fun B => by
       rw [Q.ncard_incidenceSet_quotient B]
-      exact Q.ncard_edgeCut_le B.1 B.2
+      exact Q.ncard_edgeCut_le B.val B.property
     have hcut_le : (Q.quotient.edgeCut P).ncard ≤ 3 * max 1 N₀ :=
       calc (Q.quotient.edgeCut P).ncard
           ≤ (Q.quotient.touching P).ncard := ncard_le_ncard (Q.quotient.edgeCut_subset_touching P)
@@ -155,36 +156,37 @@ private theorem exists_u2PairData_of_u2CubicPairBound {p B_pair : ℝ} (_hp : 0 
     obtain ⟨M_full, hM_full, -, hcov_nat⟩ := Q.quotient.exists_isMatching_seven_eighths
       Q.quotient_loopless hsat.injective_ends_quotient h3_all
     let M_clean : Set Q.external :=
-      {e ∈ M_full | (Q.quotient.src e).1 ∉ dirty ∧ (Q.quotient.tgt e).1 ∉ dirty}
+      {e ∈ M_full | (Q.quotient.src e).val ∉ dirty ∧ (Q.quotient.tgt e).val ∉ dirty}
     have hM_clean : Q.quotient.IsMatching M_clean := fun _ h₁ _ h₂ => hM_full h₁.1 h₂.1
-    have hclean_pair : ∀ e ∈ M_clean, CleanBlock3 I {v | v ∈ (Q.quotient.src e).1} ∧
-        CleanBlock3 I {v | v ∈ (Q.quotient.tgt e).1} :=
-      fun e he => ⟨hclean3 _ (Q.quotient.src e).2 he.2.1, hclean3 _ (Q.quotient.tgt e).2 he.2.2⟩
+    have hclean_pair : ∀ e ∈ M_clean, CleanBlock3 I {v | v ∈ (Q.quotient.src e).val} ∧
+        CleanBlock3 I {v | v ∈ (Q.quotient.tgt e).val} :=
+      fun e he => ⟨hclean3 _ (Q.quotient.src e).property he.2.1,
+          hclean3 _ (Q.quotient.tgt e).property he.2.2⟩
     have hdrop_le : M_full.ncard ≤ M_clean.ncard + dirty.card := by
       have := Fintype.ofFinite (Edge c)
       let M_drop : Set Q.external := M_full \ M_clean
       have hwit : ∀ e ∈ M_drop, ∃ b : dirty,
-          (⟨b.1, hdirty_sub b.2⟩ : Q.blocks) = Q.quotient.src e ∨
-            (⟨b.1, hdirty_sub b.2⟩ : Q.blocks) = Q.quotient.tgt e := by
+          (⟨b.val, hdirty_sub b.property⟩ : Q.blocks) = Q.quotient.src e ∨
+            (⟨b.val, hdirty_sub b.property⟩ : Q.blocks) = Q.quotient.tgt e := by
         rintro e ⟨heM, hnot⟩
-        by_cases hs : (Q.quotient.src e).1 ∈ dirty
-        · exact ⟨⟨(Q.quotient.src e).1, hs⟩, Or.inl rfl⟩
-        · have ht : (Q.quotient.tgt e).1 ∈ dirty :=
+        by_cases hs : (Q.quotient.src e).val ∈ dirty
+        · exact ⟨⟨(Q.quotient.src e).val, hs⟩, Or.inl rfl⟩
+        · have ht : (Q.quotient.tgt e).val ∈ dirty :=
             by_contra fun ht => hnot ⟨heM, hs, ht⟩
-          exact ⟨⟨(Q.quotient.tgt e).1, ht⟩, Or.inr rfl⟩
-      choose b_of hb_end using fun e : M_drop => hwit e.1 e.2
+          exact ⟨⟨(Q.quotient.tgt e).val, ht⟩, Or.inr rfl⟩
+      choose b_of hb_end using fun e : M_drop => hwit e.val e.property
       have hinj : Function.Injective b_of := by
         intro e₁ e₂ heq
-        have hBeq : (⟨(b_of e₁).1, hdirty_sub (b_of e₁).2⟩ : Q.blocks) =
-            ⟨(b_of e₂).1, hdirty_sub (b_of e₂).2⟩ := by rw [heq]
+        have hBeq : (⟨(b_of e₁).val, hdirty_sub (b_of e₁).property⟩ : Q.blocks) =
+            ⟨(b_of e₂).val, hdirty_sub (b_of e₂).property⟩ := by rw [heq]
         by_contra hne
-        have hmem₁ : (⟨(b_of e₁).1, hdirty_sub (b_of e₁).2⟩ : Q.blocks) ∈
-            ({Q.quotient.src e₁.1, Q.quotient.tgt e₁.1} : Set Q.blocks) := by
+        have hmem₁ : (⟨(b_of e₁).val, hdirty_sub (b_of e₁).property⟩ : Q.blocks) ∈
+            ({Q.quotient.src e₁.val, Q.quotient.tgt e₁.val} : Set Q.blocks) := by
           rcases hb_end e₁ with h | h <;> simp [h]
-        have hmem₂ : (⟨(b_of e₁).1, hdirty_sub (b_of e₁).2⟩ : Q.blocks) ∈
-            ({Q.quotient.src e₂.1, Q.quotient.tgt e₂.1} : Set Q.blocks) := by
+        have hmem₂ : (⟨(b_of e₁).val, hdirty_sub (b_of e₁).property⟩ : Q.blocks) ∈
+            ({Q.quotient.src e₂.val, Q.quotient.tgt e₂.val} : Set Q.blocks) := by
           rw [hBeq]; rcases hb_end e₂ with h | h <;> simp [h]
-        exact disjoint_left.mp (hM_full e₁.2.1 e₂.2.1 fun h => hne (Subtype.ext h))
+        exact disjoint_left.mp (hM_full e₁.property.1 e₂.property.1 fun h => hne (Subtype.ext h))
           hmem₁ hmem₂
       have hcard_drop : (M_full \ M_clean).ncard ≤ dirty.card := by
         have h1 := Nat.card_le_card_of_injective b_of hinj

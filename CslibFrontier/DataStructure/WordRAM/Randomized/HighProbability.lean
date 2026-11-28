@@ -159,9 +159,7 @@ private theorem tsum_eval_bind_step {r : ℕ} (m₁ : ProbComp (Data r × ℕ))
   refine tsum_congr fun z₁ => congrArg (m₁.eval z₁ * ·) ?_
   rw [ProbComp.eval_bind, Cslib.Probability.PMF.tsum_bind_mul]
   refine tsum_congr fun z₂ => congrArg ((m₂ z₁.1).eval z₂ * ·) ?_
-  rw [ProbComp.eval_pure, tsum_eq_single (z₂.1, step z₁.2 z₂.2)
-    (fun z hz => by simp [PMF.pure_apply, hz])]
-  simp
+  rw [ProbComp.eval_pure, Probability.PMF.tsum_pure_mul]
 
 private theorem tsum_mul_ite_le_eq_zero {r T : ℕ} (m : ProbComp (Data r × ℕ))
     (g : Data r × ℕ → ℝ≥0∞) (hnot : ∀ z ∈ m.support, ¬z.2 ≤ T) :
@@ -188,10 +186,10 @@ theorem ExecRand.tsum_le_eval_runRand_assemble {w : ℕ} {c : Code B r} {x : Dat
   classical
   induction h generalizing pc T with
   | @op o x y ho =>
-    rw [ProbComp.eval_pure, tsum_eq_single (y, 1) (fun z hz => by simp [PMF.pure_apply, hz])]
+    rw [ProbComp.eval_pure, Probability.PMF.tsum_pure_mul]
     rcases T with _ | k
     · simp
-    simp only [PMF.pure_apply_self, one_mul, Code.size, Nat.le_add_left, ↓reduceIte,
+    simp only [Code.size, Nat.le_add_left, ↓reduceIte,
       Nat.add_sub_cancel, runRand_succ, stepRand_op (s := ⟨pc, x⟩) hp.head ho, pure_bind, le_rfl]
   | @rand dst src x hfit =>
     rcases T with _ | k
@@ -207,8 +205,7 @@ theorem ExecRand.tsum_le_eval_runRand_assemble {w : ℕ} {c : Code B r} {x : Dat
       simp only [pure_bind, ProbComp.eval_bind, PMF.bind_apply]
     rw [hrhs, ProbComp.eval_bind, Cslib.Probability.PMF.tsum_bind_mul]
     refine tsum_le_tsum fun s => ?_
-    rw [ProbComp.eval_pure, tsum_eq_single (x.set dst s.val, 1)
-      (fun z hz => by simp [PMF.pure_apply, hz])]
+    rw [ProbComp.eval_pure, Probability.PMF.tsum_pure_mul]
     simp [Code.size]
   | @seq c₁ c₂ x m₁ m₂ _ _ ih₁ ih₂ =>
     have hc₂ : p.Contains (pc + c₁.size) (c₂.assemble (pc + c₁.size)) := by
@@ -255,8 +252,7 @@ theorem ExecRand.tsum_le_eval_runRand_assemble {w : ℕ} {c : Code B r} {x : Dat
       exact le_of_eq (by simp [Nat.add_assoc])
     · simp [show ¬z.2 + 2 ≤ k + 1 + 1 by omega]
   | @loop_exit cond body x hc =>
-    rw [ProbComp.eval_pure, tsum_eq_single (x, 2) (fun z hz => by simp [PMF.pure_apply, hz])]
-    simp only [PMF.pure_apply_self, one_mul, Code.size]
+    rw [ProbComp.eval_pure, Probability.PMF.tsum_pure_mul, Code.size]
     rcases T with _ | _ | k
     · simp
     · simp
@@ -1118,7 +1114,7 @@ theorem initClear_exec (C : HighProbStateTransitionImpl P D w base params s₀) 
   · have := hT₁ z hz
     wram_omega
   · obtain ⟨hfr₃, hrep, hmod₃⟩ := hsupp₀ p hp
-    exact ⟨hfr₃, hrep, by simpa only [hm₁, Finset.union_idempotent] using hmod₂.trans hmod₃⟩
+    exact ⟨hfr₃, hrep, by simpa only [hm₁, Finset.union_self] using hmod₂.trans hmod₃⟩
 
 /-! ### Per-operation with-high-probability worst-case bounds (`step_whp`, `step_whp_ofFn`) -/
 

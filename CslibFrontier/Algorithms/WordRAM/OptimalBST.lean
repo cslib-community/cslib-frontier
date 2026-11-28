@@ -222,8 +222,8 @@ theorem isKnuthValid_knuthWeight (n : ℕ) (p q : ℕ → ℕ) :
     (monotoneOnIntervals_knuthWeight (fun _ => Nat.zero_le _) (fun _ => Nat.zero_le _)) n
 
 theorem inputAdmissible_knuthValid :
-    InputAdmissible (fun _ (I : {I : OptimalBSTInstance // I.IsKnuthValid}) => I.1.encode)
-      (fun I w => I.1.FitsWidth w) :=
+    InputAdmissible (fun _ (I : {I : OptimalBSTInstance // I.IsKnuthValid}) => I.val.encode)
+      (fun I w => I.val.FitsWidth w) :=
   fun ⟨I, _⟩ => inputAdmissible I
 
 end OptimalBSTInstance
@@ -1230,13 +1230,13 @@ private theorem exec_knuthBSTCode {w : ℕ} (I : OptimalBSTInstance)
 `OptimalBSTInstance.IsKnuthValid`. -/
 theorem computesInTime_knuthBST :
     knuthBSTProgram.ComputesInTime
-      (fun _ (I : {I : OptimalBSTInstance // I.IsKnuthValid}) => I.1.encode)
-      (fun I _ => 58 * (I.1.numKeys + 1) ^ 2)
-      (fun I w => I.1.FitsWidth w)
-      (fun I => (knuthBST I.1.weightFn I.1.numKeys).cost) :=
+      (fun _ (I : {I : OptimalBSTInstance // I.IsKnuthValid}) => I.val.encode)
+      (fun I _ => 58 * (I.val.numKeys + 1) ^ 2)
+      (fun I w => I.val.FitsWidth w)
+      (fun I => (knuthBST I.val.weightFn I.val.numKeys).cost) :=
   ((bstCode knuthWindowCode).computesInTime_program regOut
     (time := fun (I : {I : OptimalBSTInstance // I.IsKnuthValid}) _ =>
-      58 * I.1.numKeys ^ 2 + 8 * I.1.numKeys + 15)
+      58 * I.val.numKeys ^ 2 + 8 * I.val.numKeys + 15)
     (fun ⟨I, hqi, hmono⟩ _ hw _ => exec_knuthBSTCode I hqi hmono hw)).mono
     (fun ⟨_, _⟩ _ => by nlinarith) (fun _ _ h => h)
 
@@ -1256,10 +1256,10 @@ satisfying `OptimalBSTInstance.IsKnuthValid`. -/
 theorem uniformComputableInTime_knuthBST :
     UniformComputableInTime .standard
       (fun I : {I : OptimalBSTInstance // I.IsKnuthValid} =>
-        (knuthBST I.1.weightFn I.1.numKeys).cost)
-      (fun _ I => I.1.encode)
-      (fun I _ => 58 * (I.1.numKeys + 1) ^ 2)
-      (fun I w => I.1.FitsWidth w) :=
+        (knuthBST I.val.weightFn I.val.numKeys).cost)
+      (fun _ I => I.val.encode)
+      (fun I _ => 58 * (I.val.numKeys + 1) ^ 2)
+      (fun I w => I.val.FitsWidth w) :=
   ⟨22, knuthBSTProgram, computesInTime_knuthBST, OptimalBSTInstance.inputAdmissible_knuthValid⟩
 
 end Cslib.Algorithms.WordRAM.OptimalBST

@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Cslib.Probability.PMF
 public import CslibFrontier.Probability.HockeyStick
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Analysis.MeanInequalities
 import Mathlib.Tactic.FieldSimp
@@ -347,12 +348,9 @@ theorem renyiDiv_bind_pair_le {α : ℝ} (hα : 1 < α) (p q : PMF X) {K L : X �
     q.apply_ne_top fun x => (L x).apply_ne_top]
   calc ∑' x, p x * (p x / q x) ^ (α - 1) * renyiMoment α (K x) (L x)
       ≤ ∑' x, p x * (p x / q x) ^ (α - 1) * ENNReal.ofReal (Real.exp ((α - 1) * ε₂)) := by
-        refine tsum_le_tsum fun x => ?_
-        classical
-        by_cases hx : x ∈ p.support
-        · exact mul_le_mul_right
-            ((renyiDiv_le_ofReal_iff hα (K x) (L x) hε₂_nn).mp (hB_eq ▸ hKL x hx)) _
-        · rw [(p.apply_eq_zero_iff x).mpr hx, zero_mul, zero_mul, zero_mul]
+        simp_rw [mul_assoc]
+        exact tsum_mul_mono_support p fun x hx => mul_le_mul_right
+          ((renyiDiv_le_ofReal_iff hα (K x) (L x) hε₂_nn).mp (hB_eq ▸ hKL x hx)) _
     _ = renyiMoment α p q * ENNReal.ofReal (Real.exp ((α - 1) * ε₂)) := by
         rw [ENNReal.tsum_mul_right, renyiMoment]
     _ ≤ ENNReal.ofReal (Real.exp ((α - 1) * ε₁)) *

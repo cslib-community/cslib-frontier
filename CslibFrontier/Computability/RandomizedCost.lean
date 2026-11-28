@@ -125,7 +125,7 @@ variable {M : Type u} {X : Type v} {Z : Type w}
 /-- Least cost in `ℕ∞` of a deterministic strategy solving `R` on `A`, or `⊤` if none exists. -/
 @[expose] noncomputable def detComplexity (C : RandomizedCost M X Z) (R : X → Z → Prop)
     (A : Set X) : ℕ∞ :=
-  ⨅ m : {m : M // C.DetSolves m R A}, (C.cost m.1 : ℕ∞)
+  ⨅ m : {m : M // C.DetSolves m R A}, (C.cost m.val : ℕ∞)
 
 /-- Probability that deterministic strategy `m` errs against `R` on an input drawn from `ν`. -/
 @[expose] noncomputable def distributionalError (C : RandomizedCost M X Z) (m : M) (ν : PMF X)
@@ -135,7 +135,7 @@ variable {M : Type u} {X : Type v} {Z : Type w}
 /-- Least cost in `ℕ∞` of a deterministic strategy erring with probability at most `ε` under `ν`. -/
 @[expose] noncomputable def distributionalComplexity (C : RandomizedCost M X Z) (ε : ℝ)
     (R : X → Z → Prop) (ν : PMF X) : ℕ∞ :=
-  ⨅ m : {m : M // C.distributionalError m ν R ≤ ε}, (C.cost m.1 : ℕ∞)
+  ⨅ m : {m : M // C.distributionalError m ν R ≤ ε}, (C.cost m.val : ℕ∞)
 
 /-- Probability that a strategy drawn from `μ` errs against `R` on input `x`. -/
 @[expose] noncomputable def errorProb (C : RandomizedCost M X Z) (μ : PMF M) (R : X → Z → Prop)
@@ -151,7 +151,7 @@ variable {M : Type u} {X : Type v} {Z : Type w}
 `ε`, or `⊤` if none exists. -/
 @[expose] noncomputable def ecomplexity (C : RandomizedCost M X Z) (ε : ℝ) (R : X → Z → Prop)
     (A : Set X) : ℕ∞ :=
-  ⨅ μ : {μ : PMF M // C.Solves μ ε R A}, PMF.maxCost C.cost μ.1
+  ⨅ μ : {μ : PMF M // C.Solves μ ε R A}, PMF.maxCost C.cost μ.val
 
 /-- Public-coin complexity of computing a total function `f : X → Z` with error `ε`. -/
 @[expose] noncomputable def ecomplexityFun (C : RandomizedCost M X Z) (ε : ℝ) (f : X → Z) : ℕ∞ :=
@@ -505,19 +505,12 @@ section CoinFixing
 
 variable {M : Type u} {X : Type v} {Y : Type w}
 
-/-- Expected second component of a point-mass `(output, cost)` law `PMF.pure p`. -/
-theorem tsum_pure_snd_natCast (p : Y × ℕ) :
-    (∑' z : Y × ℕ, (PMF.pure p) z * (z.2 : ℝ≥0∞)) = (p.2 : ℝ≥0∞) := by
-  rw [tsum_eq_single p fun z hz => by simp [PMF.pure_apply, hz]]
-  simp
-
 /-- When a joint `(output, cost)` law `run` is a mixture `μ.bind fun m => PMF.pure (out m, c m)`
 of deterministic outcomes, its expected cost is the `μ`-average of `c`. -/
 theorem tsum_snd_eq_of_bind_pure (μ : PMF M) (out : M → Y) (c : M → ℕ) {run : PMF (Y × ℕ)}
     (hrun : run = μ.bind fun m => PMF.pure (out m, c m)) :
     (∑' z : Y × ℕ, run z * (z.2 : ℝ≥0∞)) = ∑' m, μ m * (c m : ℝ≥0∞) := by
-  rw [hrun, PMF.tsum_bind_mul]
-  exact tsum_congr fun _ => congrArg (_ * ·) (tsum_pure_snd_natCast _)
+  simp only [hrun, PMF.tsum_bind_mul, PMF.tsum_pure_mul]
 
 /-- Every strategy in the support of a coin-fixing law `μ` inherits any zero-error output property
 `Good` satisfied across the supported outputs of `run x`. -/

@@ -1959,15 +1959,16 @@ theorem not_uniform_enabledMove_selfStabilizing_composite_ring {State : Type*} [
     ⟨(hcoset_sweep u hu).choose b, (hcoset_sweep u hu).choose_spec.choose_spec.2.1⟩
   let seqPer : ℕ → PerState := fun m => nextPer^[m] ⟨u₀, hu₀_per⟩
   let stOf : ℕ → ℕ → Fin (a * b) → State := fun m =>
-    (hcoset_sweep (seqPer m).1 (seqPer m).2).choose
+    (hcoset_sweep (seqPer m).val (seqPer m).property).choose
   let lblOf : ℕ → ℕ → Fin (a * b) := fun m =>
-    (hcoset_sweep (seqPer m).1 (seqPer m).2).choose_spec.choose
+    (hcoset_sweep (seqPer m).val (seqPer m).property).choose_spec.choose
   have hb_pos : 0 < b := by omega
   let ss : ωSequence (Fin (a * b) → State) := ⟨fun t => stOf (t / b) (t % b)⟩
   let μs : ωSequence (Fin (a * b)) := ⟨fun t => lblOf (t / b) (t % b)⟩
   have hexec : (π.centralLTS (a * b)).OmegaExecution ss μs := by
     intro t
-    have hspec := (hcoset_sweep (seqPer (t / b)).1 (seqPer (t / b)).2).choose_spec.choose_spec
+    have hspec :=
+      (hcoset_sweep (seqPer (t / b)).val (seqPer (t / b)).property).choose_spec.choose_spec
     have hstep : (π.centralLTS (a * b)).Tr (stOf (t / b) (t % b)) (lblOf (t / b) (t % b))
         (stOf (t / b) (t % b + 1)) := hspec.2.2.1 (t % b) (Nat.mod_lt t hb_pos)
     have hdm := div_mod_succ hb_pos t
@@ -1979,16 +1980,17 @@ theorem not_uniform_enabledMove_selfStabilizing_composite_ring {State : Type*} [
     · have heq : t % b + 1 = b := by have := Nat.mod_lt t hb_pos; omega
       rw [heq] at hstep
       have hstart_next : stOf (t / b + 1) 0 = stOf (t / b) b := by
-        have h0 : stOf (t / b + 1) 0 = (seqPer (t / b + 1)).1 :=
-          (hcoset_sweep (seqPer (t / b + 1)).1 (seqPer (t / b + 1)).2).choose_spec.choose_spec.1
-        have hiter : (seqPer (t / b + 1)).1 = stOf (t / b) b := by
-          change (nextPer^[t / b + 1] ⟨u₀, hu₀_per⟩).1 = stOf (t / b) b
+        have h0 : stOf (t / b + 1) 0 = (seqPer (t / b + 1)).val :=
+          (hcoset_sweep (seqPer (t / b + 1)).val
+            (seqPer (t / b + 1)).property).choose_spec.choose_spec.1
+        have hiter : (seqPer (t / b + 1)).val = stOf (t / b) b := by
+          change (nextPer^[t / b + 1] ⟨u₀, hu₀_per⟩).val = stOf (t / b) b
           rw [Function.iterate_succ_apply']
         exact h0.trans hiter
       rw [hdm.1, hdm.2, hstart_next]
       exact hstep
   have hbad : ∀ t, ss t ∉ Legitimate := fun t =>
-    (hcoset_sweep (seqPer (t / b)).1 (seqPer (t / b)).2).choose_spec.choose_spec.2.2.2
+    (hcoset_sweep (seqPer (t / b)).val (seqPer (t / b)).property).choose_spec.choose_spec.2.2.2
       (t % b) (Nat.mod_lt t hb_pos)
   exact not_selfStabilizing_of_omegaExecution hexec hbad hss
 

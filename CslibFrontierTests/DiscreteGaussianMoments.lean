@@ -41,7 +41,7 @@ private theorem exp_neg_three_pi_lt_one_sixteenth : Real.exp (-3 * Real.pi) < 1 
     Real.exp_lt_exp.mpr (by linarith)
   have hval : Real.exp (-4 * Real.log 2) = 1 / 16 := by
     rw [show (-4 : ℝ) * Real.log 2 = -((4 : ℕ) * Real.log 2) by norm_num, Real.exp_neg,
-      Real.exp_nat_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
+      Real.exp_natCast_mul, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
     norm_num
   rwa [hval] at hlt
 
@@ -400,7 +400,7 @@ example :
       ((1 / (2 * Real.pi) + 1) * 128 + 128 * 2) * 5 := by
   intro μ0 ν X z
   have hY_meas : Measurable (fun x : L2 ↦ (x : E2) - c2) :=
-    continuous_subtype_val.sub continuous_const |>.measurable
+    continuous_subtypeVal.sub continuous_const |>.measurable
   have hind : iIndepFun X ν := iIndepFun_pi (fun _ ↦ hY_meas.aemeasurable)
   have hL2 (i : Fin 2) : MemLp (X i) 2 ν :=
     (ZLattice.memLp_sub_discreteGaussian L2 8 (by norm_num) c2).comp_measurePreserving

@@ -443,9 +443,8 @@ theorem unforcedCountWith_eq_card (O : (Fin n → Option Bool) → Fin n → Opt
     unforcedCountWith O σ π n =
       (univ.filter fun x => O (restrict σ (prefixSet π (π.symm x))) x = none).card := by
   unfold unforcedCountWith
-  refine card_bij' (fun j _ => π j) (fun x _ => π.symm x)
-    (fun j hj => by simpa using (mem_filter.1 hj).2.2)
-    (fun x hx => by simpa using (mem_filter.1 hx).2) (fun j _ => by simp) (fun x _ => by simp)
+  refine card_equiv π fun j => ?_
+  simp only [mem_filter, mem_univ, true_and, Equiv.symm_apply_apply, j.isLt]
 
 /-- **The success probability in terms of forcing probabilities**, after
 [Paturi, Pudlák, Saks, Zane, Lemma 3][PaturiPudlakSaksZane2005]: for an oracle that is sound

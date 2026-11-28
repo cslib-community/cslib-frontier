@@ -380,10 +380,10 @@ noncomputable def beaverMulSim (p m : ℕ) [NeZero p] (I : Finset (Fin m)) :
         msgsCompl ⟨j, Finset.mem_compl.mpr hj⟩
     let op : ZMod p × ZMod p := ∑ j : Fin m, msgs j
     return fun i =>
-      beaverViewOf i.1 (xyI i)
+      beaverViewOf i.val (xyI i)
         { a := aI i
           b := bI i
-          c := zI i - ((if i.1.val = 0 then op.1 * op.2 else 0) +
+          c := zI i - ((if i.val.val = 0 then op.1 * op.2 else 0) +
             op.1 * bI i + op.2 * aI i) }
         msgs
 
@@ -410,7 +410,7 @@ theorem perfectSemiHonestPrivateProper_beaverMul (p m : ℕ) [NeZero p] :
       let (a, b, cE) := q
       let msgs : Fin m → ZMod p × ZMod p := fun j => ((xy j).1 - a j, (xy j).2 - b j)
       let op : ZMod p × ZMod p := ∑ j : Fin m, msgs j
-      (fun k : E => baseTerm k.1 op (a k.1) (b k.1) + cE k,
+      (fun k : E => baseTerm k.val op (a k.val) (b k.val) + cE k,
        I.restrict a, I.restrict b, Iᶜ.restrict msgs)) with q
   · rintro ⟨a₁, b₁, cE₁⟩ ⟨a₂, b₂, cE₂⟩ h
     simp only [Prod.mk.injEq] at h
@@ -438,14 +438,14 @@ theorem perfectSemiHonestPrivateProper_beaverMul (p m : ℕ) [NeZero p] :
       ProbComp.sum_completeSharesErase j₀ _ cE
     have hz_sum : ∑ i : Fin m, z i = target :=
       sum_beaverMulShare_eq_mul xy t hc_sum
-    have hzE : (fun k : E => baseTerm k.1 op (a k.1) (b k.1) + cE k) = E.restrict z := by
+    have hzE : (fun k : E => baseTerm k.val op (a k.val) (b k.val) + cE k) = E.restrict z := by
       ext ⟨k, hk⟩
       have hne : k ≠ j₀ := (Finset.mem_erase.mp hk).1
       have hck : c k = cE ⟨k, hk⟩ := by simp [c, ProbComp.completeSharesErase, hne]
       simp [Finset.restrict, z, beaverMulShare, baseTerm, t, hck, add_assoc]
     have hz_eq :
         ProbComp.completeSharesErase j₀ target
-          (fun k : E => baseTerm k.1 op (a k.1) (b k.1) + cE k) = z := by
+          (fun k : E => baseTerm k.val op (a k.val) (b k.val) + cE k) = z := by
       rw [hzE]
       exact ProbComp.completeSharesErase_restrict_erase j₀ hz_sum
     refine Prod.ext (funext fun ⟨i, _⟩ => ?_) hz_eq.symm
@@ -456,7 +456,7 @@ theorem perfectSemiHonestPrivateProper_beaverMul (p m : ℕ) [NeZero p] :
         { a := a i
           b := b i
           c := ProbComp.completeSharesErase j₀ target
-              (fun k : E => baseTerm k.1 op (a k.1) (b k.1) + cE k) i -
+              (fun k : E => baseTerm k.val op (a k.val) (b k.val) + cE k) i -
             baseTerm i op (a i) (b i) }
         msgs
     rw [hz_eq, hzi]

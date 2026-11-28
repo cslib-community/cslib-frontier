@@ -137,6 +137,23 @@ register_result "rsh-fixed-width-size" where
     all seeds. The native binary CNF encoding allows polynomial overhead in actual input \
     length. The fixed-width language rejects wider formulas."
 
+register_result "rsh-weak-rketh-equivalence" where
+  title := "Randomized SH is equivalent to Weak randomized ETH"
+  topic := "fine-grained complexity"
+  sources := [
+    { paper := MITHardnessGroup2026SH,
+      theorem := "Theorem 7.1(a) (decision equivalences)",
+      locator := "arXiv:2611.02650v2, §7, pp. 10–11" }
+  ]
+  theorems := [Cslib.Complexity.rSH_iff_WeakRKETH, Cslib.Complexity.rSH_iff_WeakRETH]
+  scope := "For each fixed k ≥ 3, randomized SH is equivalent to the absence of a fixed \
+    power saving for bounded-error k-SAT in the number of occurring variables. Width three \
+    gives Weak randomized ETH. The seeded multitape solvers have two-sided error at most \
+    one third and worst-case time bounds. The native binary encoding uses occurring \
+    variables and charges polynomial overhead in the actual encoded length, including \
+    repeated clauses and large labels. The fixed-width language rejects wider formulas. \
+    The entry covers the decision equivalences."
+
 register_result "rsh-exponent-transfer" where
   title := "Exponent transfer under the randomized Satisfiability Hypothesis"
   topic := "fine-grained complexity"

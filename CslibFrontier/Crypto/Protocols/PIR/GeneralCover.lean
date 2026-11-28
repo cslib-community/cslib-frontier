@@ -143,9 +143,9 @@ omit [Fintype D] [Fintype ι] in
 theorem query_cube_eq_emulateCubeQuery [DecidableEq D] {i : D → ι} {r : Unit}
     {q : (D → Bool) → D → ι → Bool}
     (hrq : (r, q) ∈ (ProbComp.eval ((cube D ι).query i)).support) (σ w : D → Bool) :
-    q w = emulateCubeQuery (q σ) (diffCoords σ w) (fun l => i l.1) := by
+    q w = emulateCubeQuery (q σ) (diffCoords σ w) (fun l => i l.val) := by
   suffices ∀ (T : Finset D) (σ : D → Bool), diffCoords σ w = T →
-      q w = emulateCubeQuery (q σ) T (fun l => i l.1) from this _ σ rfl
+      q w = emulateCubeQuery (q σ) T (fun l => i l.val) from this _ σ rfl
   intro T
   induction T using Finset.induction with
   | empty =>
@@ -240,7 +240,7 @@ abbrev AssignedNeighbour (s : S) : Type :=
 noncomputable def partitionEquiv : S ⊕ (Σ s, K.AssignedNeighbour s) ≃ (D → Bool) where
   toFun
     | Sum.inl s => K.code s
-    | Sum.inr ⟨_, w⟩ => w.1
+    | Sum.inr ⟨_, w⟩ => w.val
   invFun w :=
     if h : w = K.code (K.assign w) then Sum.inl (K.assign w)
     else Sum.inr ⟨K.assign w, ⟨w, rfl, h⟩⟩
@@ -300,7 +300,7 @@ noncomputable def indexedScheme :
   query i := (fun rq => (rq.1, fun s => rq.2 (K.code s))) <$> (cube D ι).query i
   answer s x a :=
     ((cube D ι).answer (K.code s) x a, fun w k =>
-      (cube D ι).answer (K.code s) x (emulateCubeQuery a (diffCoords (K.code s) w.1) fun _ => k))
+      (cube D ι).answer (K.code s) x (emulateCubeQuery a (diffCoords (K.code s) w.val) fun _ => k))
   reconstruct i _ a :=
     ∑ w : D → Bool,
       let s := K.assign w
@@ -339,9 +339,9 @@ theorem isCorrect_indexedScheme : (K.indexedScheme ι).IsCorrect := by
   · have hl₀ : K.code (K.assign w) (Classical.choose (Function.ne_iff.mp (Ne.symm hw))) ≠ w _ :=
       Classical.choose_spec (Function.ne_iff.mp (Ne.symm hw))
     have hfun : (fun _ : diffCoords (K.code (K.assign w)) w =>
-        i (Classical.choose (Function.ne_iff.mp (Ne.symm hw)))) = fun l => i l.1 :=
+        i (Classical.choose (Function.ne_iff.mp (Ne.symm hw)))) = fun l => i l.val :=
       funext fun l => congrArg i (Finset.card_le_one.mp (K.hammingDist_assign_le_one w) _
-        (mem_diffCoords.mpr hl₀) l.1 l.2)
+        (mem_diffCoords.mpr hl₀) l.val l.property)
     rw [hfun, ← query_cube_eq_emulateCubeQuery h₀ (K.code (K.assign w)) w, answer_cube, answer_cube]
 
 /-- Raw exact communication count of `K.indexedScheme ι` (valid even when `D` is empty): `|S|`
@@ -468,7 +468,7 @@ structure RadiusBallQuery (D : Type) (r : ℕ) (ι : Type) where
 
 /-- Equivalence between `RadiusBallQuery D r ι` and the corresponding dependent pair. -/
 @[expose] def RadiusBallQuery.sigmaEquiv (D : Type) (r : ℕ) (ι : Type) :
-    RadiusBallQuery D r ι ≃ Σ T : {T : Finset D // T.card ≤ r}, (T.1 → ι) where
+    RadiusBallQuery D r ι ≃ Σ T : {T : Finset D // T.card ≤ r}, (T.val → ι) where
   toFun u := ⟨⟨u.coords, u.card_coords_le⟩, u.offsets⟩
   invFun := fun ⟨⟨T, hT⟩, δ⟩ => ⟨T, hT, δ⟩
   left_inv := fun ⟨_, _, _⟩ => rfl
@@ -513,7 +513,7 @@ noncomputable def radiusCoverScheme (r : ℕ) (c : S → D → Bool)
   reconstruct i _ a :=
     ∑ w : D → Bool,
       let s := Classical.choose (hc w)
-      a s ⟨diffCoords (c s) w, Classical.choose_spec (hc w), fun l => i l.1⟩
+      a s ⟨diffCoords (c s) w, Classical.choose_spec (hc w), fun l => i l.val⟩
 
 theorem eval_serverQuery_radiusCoverScheme (r : ℕ) (c : S → D → Bool)
     (hc : ∀ w, ∃ s, hammingDist (c s) w ≤ r) (ι : Type) [Fintype ι] [DecidableEq ι]

@@ -116,7 +116,7 @@ theorem mem_range_blockMonomial_iff {blk : σ → Fin d} {S : Finset (Fin d)} {m
   constructor
   · rintro ⟨x, rfl⟩
     rw [blockMonomial, Finsupp.mapDomain_finsetSum]
-    simp only [Finsupp.mapDomain_single, (x _).2]
+    simp only [Finsupp.mapDomain_single, (x _).property]
     exact sum_coe_sort S fun i => Finsupp.single i 1
   · intro h
     have hm (i : Fin d) : ∑ v ∈ m.support with blk v = i, m v = if i ∈ S then 1 else 0 := by
@@ -141,7 +141,7 @@ theorem mem_range_blockMonomial_iff {blk : σ → Fin d} {S : Finset (Fin d)} {m
     have hex (i : S) : ∃ v ∈ m.support, blk v = i := by
       by_contra hne
       have h₀ := hm i
-      rw [filter_false_of_mem fun v hv h => hne ⟨v, hv, h⟩, sum_empty, ite_eq_left i.2] at h₀
+      rw [filter_false_of_mem fun v hv h => hne ⟨v, hv, h⟩, sum_empty, ite_eq_left i.property] at h₀
       exact zero_ne_one h₀
     choose x hx using hex
     refine ⟨fun i => ⟨x i, (hx i).2⟩, ?_⟩
@@ -427,7 +427,7 @@ theorem smProj_empty (blk : σ → Fin d) (f : MvPolynomial σ K) :
     smProj blk ∅ f = C (constantCoeff f) := by
   classical
   have h0 : Set.range (blockMonomial blk ∅) = {0} := by
-    refine Set.eq_singleton_iff_unique_mem.2 ⟨⟨fun i => absurd i.2 (notMem_empty _), ?_⟩, ?_⟩
+    refine Set.eq_singleton_iff_unique_mem.2 ⟨⟨fun i => absurd i.property (notMem_empty _), ?_⟩, ?_⟩
     · exact sum_of_isEmpty _
     · rintro m ⟨x, rfl⟩
       exact sum_of_isEmpty _

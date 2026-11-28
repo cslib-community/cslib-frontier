@@ -32,35 +32,36 @@ open Graph Graph.RotationSystem Equiv
 two actual edge ends. A retained dart needs at most three list-funded successor steps. -/
 theorem getD_restrictPrefix_deleteLastEdge {G : Graph} {u v : ℕ}
     (r : RotationSystem (lastEdgeGraph G u v)) (d : Dart G) :
-    (restrictPrefix (2 * G.2.length) (RotationCertificate.ofRotation r)).successor.getD d.index 0 =
+    (restrictPrefix (2 * G.edges.length)
+      (RotationCertificate.ofRotation r)).successor.getD d.index 0 =
       (r.deleteLastEdge.rotate d).index := by
   let c := RotationCertificate.ofRotation r
   let e := lastEdgeDartEquiv G u v
   let f := e.permCongr r.rotate
   let b := r.deleteLastEdge.rotate d
-  have hi : d.index < 2 * G.2.length := (Dart.indexEquiv G d).isLt
-  have hb : b.index < 2 * G.2.length := (Dart.indexEquiv G b).isLt
+  have hi : d.index < 2 * G.edges.length := (Dart.indexEquiv G d).isLt
+  have hb : b.index < 2 * G.edges.length := (Dart.indexEquiv G b).isLt
   have hc : 3 ≤ c.successor.length := by
     have := d.1.isLt
     rw [RotationCertificate.length_ofRotation]
-    change 3 ≤ 2 * (G.2 ++ [(u, v)]).length
+    change 3 ≤ 2 * (G.edges ++ [(u, v)]).length
     simp only [List.length_append, List.length_singleton]
     omega
   have hold (a : Dart G) : (e.symm (some (some a))).index = a.index := rfl
-  have hnone : 2 * G.2.length ≤ (e.symm none).index := Nat.le_succ _
-  have hsome : 2 * G.2.length ≤ (e.symm (some none)).index := Nat.le_add_right _ 0
+  have hnone : 2 * G.edges.length ≤ (e.symm none).index := Nat.le_succ _
+  have hsome : 2 * G.edges.length ≤ (e.symm (some none)).index := Nat.le_add_right _ 0
   have hstep (z : Option (Option (Dart G))) :
       c.successor.getD (e.symm z).index 0 = (e.symm (f z)).index := by
     rw [RotationCertificate.getD_ofRotation]
     simp only [f, Equiv.permCongr_apply, Equiv.symm_apply_apply]
   have one (h : f (some (some d)) = some (some b)) :
-      (restrictPrefix (2 * G.2.length) c).successor.getD d.index 0 = b.index := by
+      (restrictPrefix (2 * G.edges.length) c).successor.getD d.index 0 = b.index := by
     have hs : c.successor.getD d.index 0 = b.index := by
       simpa only [hold, h] using hstep (some (some d))
     rw [getD_restrictPrefix_one c _ _ hi (by omega) (by rw [hs]; exact hb), hs]
-  have two (z : Option (Option (Dart G))) (hz : 2 * G.2.length ≤ (e.symm z).index)
+  have two (z : Option (Option (Dart G))) (hz : 2 * G.edges.length ≤ (e.symm z).index)
       (h₁ : f (some (some d)) = z) (h₂ : f z = some (some b)) :
-      (restrictPrefix (2 * G.2.length) c).successor.getD d.index 0 = b.index := by
+      (restrictPrefix (2 * G.edges.length) c).successor.getD d.index 0 = b.index := by
     have hs : c.successor.getD d.index 0 = (e.symm z).index := by
       simpa only [hold, h₁] using hstep (some (some d))
     have ht : c.successor.getD (c.successor.getD d.index 0) 0 = b.index := by
@@ -69,10 +70,10 @@ theorem getD_restrictPrefix_deleteLastEdge {G : Graph} {u v : ℕ}
     rw [getD_restrictPrefix_two c _ _ hi (by omega) (by rw [hs]; exact hz)
       (by rw [ht]; exact hb), ht]
   have three (z w : Option (Option (Dart G)))
-      (hz : 2 * G.2.length ≤ (e.symm z).index)
-      (hw : 2 * G.2.length ≤ (e.symm w).index)
+      (hz : 2 * G.edges.length ≤ (e.symm z).index)
+      (hw : 2 * G.edges.length ≤ (e.symm w).index)
       (h₁ : f (some (some d)) = z) (h₂ : f z = w) (h₃ : f w = some (some b)) :
-      (restrictPrefix (2 * G.2.length) c).successor.getD d.index 0 = b.index := by
+      (restrictPrefix (2 * G.edges.length) c).successor.getD d.index 0 = b.index := by
     have hs : c.successor.getD d.index 0 = (e.symm z).index := by
       simpa only [hold, h₁] using hstep (some (some d))
     have ht : c.successor.getD (c.successor.getD d.index 0) 0 = (e.symm w).index := by
@@ -96,23 +97,24 @@ theorem getD_restrictPrefix_deleteLastEdge {G : Graph} {u v : ℕ}
 clock is the original certificate length, independent of binary labels and table values. -/
 theorem restrictPrefix_ofRotation_deleteLastEdge {G : Graph} {u v : ℕ}
     (r : RotationSystem (lastEdgeGraph G u v)) :
-    restrictPrefix (2 * G.2.length) (RotationCertificate.ofRotation r) =
+    restrictPrefix (2 * G.edges.length) (RotationCertificate.ofRotation r) =
       RotationCertificate.ofRotation r.deleteLastEdge := by
   apply congrArg RotationCertificate.mk
   refine List.ext_getElem (by
-    change (restrictPrefix (2 * G.2.length) (RotationCertificate.ofRotation r)).successor.length =
+    change (restrictPrefix (2 * G.edges.length)
+      (RotationCertificate.ofRotation r)).successor.length =
       (RotationCertificate.ofRotation r.deleteLastEdge).successor.length
     rw [length_restrictPrefix, RotationCertificate.length_ofRotation]) ?_
   intro i hi hj
   change i <
-    (restrictPrefix (2 * G.2.length) (RotationCertificate.ofRotation r)).successor.length at hi
+    (restrictPrefix (2 * G.edges.length) (RotationCertificate.ofRotation r)).successor.length at hi
   change i < (RotationCertificate.ofRotation r.deleteLastEdge).successor.length at hj
-  change (restrictPrefix (2 * G.2.length) (RotationCertificate.ofRotation r)).successor[i] =
+  change (restrictPrefix (2 * G.edges.length) (RotationCertificate.ofRotation r)).successor[i] =
     (RotationCertificate.ofRotation r.deleteLastEdge).successor[i]
   rw [← List.getD_eq_getElem
-    (restrictPrefix (2 * G.2.length) (RotationCertificate.ofRotation r)).successor 0 hi,
+    (restrictPrefix (2 * G.edges.length) (RotationCertificate.ofRotation r)).successor 0 hi,
     ← List.getD_eq_getElem (RotationCertificate.ofRotation r.deleteLastEdge).successor 0 hj]
-  have hbound : i < 2 * G.2.length := by rwa [length_restrictPrefix] at hi
+  have hbound : i < 2 * G.edges.length := by rwa [length_restrictPrefix] at hi
   let d := (Dart.indexEquiv G).symm ⟨i, hbound⟩
   have hd : d.index = i := congrArg Fin.val ((Dart.indexEquiv G).apply_symm_apply ⟨i, hbound⟩)
   rw [← hd, getD_restrictPrefix_deleteLastEdge, RotationCertificate.getD_ofRotation]
@@ -121,10 +123,10 @@ theorem restrictPrefix_ofRotation_deleteLastEdge {G : Graph} {u v : ℕ}
 endpoint declaration and numerical genus suffice, including bridge splits and points. -/
 theorem verifyGenusZero_restrictPrefix_deleteLastEdge {G : Graph} {u v : ℕ}
     (r : RotationSystem (lastEdgeGraph G u v))
-    (hH : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ (lastEdgeGraph G u v).1)
+    (hH : ∀ w ∈ (lastEdgeGraph G u v).incidenceVertices, w ∈ (lastEdgeGraph G u v).vertices)
     (hr : r.NumericalGenusZero) :
     RotationCertificate.verifyGenusZero G
-      (restrictPrefix (2 * G.2.length) (RotationCertificate.ofRotation r)) = true := by
+      (restrictPrefix (2 * G.edges.length) (RotationCertificate.ofRotation r)) = true := by
   rw [restrictPrefix_ofRotation_deleteLastEdge]
   apply (RotationCertificate.verifyGenusZero_eq_true_iff _ _).mpr
   refine ⟨RotationCertificate.verifyRotation_ofRotation r.deleteLastEdge

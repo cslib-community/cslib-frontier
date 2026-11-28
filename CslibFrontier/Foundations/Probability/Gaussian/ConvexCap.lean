@@ -119,7 +119,8 @@ theorem measurableSet_convex_zero_three {Z : Type*} [TopologicalSpace Z] [Measur
       exact ⟨z, ![⟨w₀, hw₀, by linarith⟩, ⟨w₁, hw₁, by linarith⟩, ⟨w₂, hw₂, by linarith⟩],
         ⟨hsum, hx, hy⟩, rfl⟩
     · rintro ⟨_, w, ⟨hsum, hx, hy⟩, rfl⟩
-      exact ⟨(w 0 : ℝ), (w 1 : ℝ), (w 2 : ℝ), (w 0).2.1, (w 1).2.1, (w 2).2.1, hsum, hx, hy⟩
+      exact ⟨(w 0 : ℝ), (w 1 : ℝ), (w 2 : ℝ), (w 0).property.1, (w 1).property.1, (w 2).property.1,
+          hsum, hx, hy⟩
   change MeasurableSet (convexZeroSet f₀ f₁ f₂)
   rw [himg]
   exact (isClosedMap_fst_of_compactSpace _ hclosedRel).measurableSet

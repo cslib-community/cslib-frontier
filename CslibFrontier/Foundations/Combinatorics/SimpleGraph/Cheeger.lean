@@ -463,12 +463,12 @@ edgeless graphs `G = ⊥`). Equivalent to `inf_{0 < min(vol S, vol Sᶜ)} h_G(S)
 `conductance_eq_iInf_setConductance`. -/
 noncomputable def conductance : ℝ :=
   ⨅ S : {S : Finset V // 0 < G.vol S ∧ 2 * G.vol S ≤ G.totalVol},
-    (#(G.interedges S.1 S.1ᶜ) : ℝ) / G.vol S.1
+    (#(G.interedges S.val S.valᶜ) : ℝ) / G.vol S.val
 
 theorem conductance_def :
     G.conductance =
       ⨅ S : {S : Finset V // 0 < G.vol S ∧ 2 * G.vol S ≤ G.totalVol},
-        (#(G.interedges S.1 S.1ᶜ) : ℝ) / G.vol S.1 := by
+        (#(G.interedges S.val S.valᶜ) : ℝ) / G.vol S.val := by
   rfl
 
 theorem conductance_nonneg : 0 ≤ G.conductance := by
@@ -491,7 +491,7 @@ theorem conductance_mul_vol_le {S : Finset V} (hS : 2 * G.vol S ≤ G.totalVol) 
     exact Nat.cast_nonneg _
   · have hb : BddBelow (Set.range
         fun S : {S : Finset V // 0 < G.vol S ∧ 2 * G.vol S ≤ G.totalVol} =>
-          (#(G.interedges S.1 S.1ᶜ) : ℝ) / G.vol S.1) :=
+          (#(G.interedges S.val S.valᶜ) : ℝ) / G.vol S.val) :=
       ⟨0, Set.forall_mem_range.2 fun _ => by positivity⟩
     rw [← le_div_iff₀ (Nat.cast_pos.2 hpos)]
     exact ciInf_le hb ⟨S, hpos, hS⟩
@@ -523,7 +523,7 @@ private theorem nonempty_validCut_of_ne_bot (hG : G ≠ ⊥) :
 /-- Equivalence with [Chung1997], Eq. (2.2): `h_G = ⨅_{0 < min(vol S, vol Sᶜ)} h_G(S)`. -/
 theorem conductance_eq_iInf_setConductance :
     G.conductance =
-      ⨅ S : {S : Finset V // 0 < min (G.vol S) (G.vol Sᶜ)}, G.setConductance S.1 := by
+      ⨅ S : {S : Finset V // 0 < min (G.vol S) (G.vol Sᶜ)}, G.setConductance S.val := by
   by_cases hbot : G = ⊥
   · rw [G.conductance_eq_zero_of_eq_bot hbot]
     have hempty : IsEmpty {S : Finset V // 0 < min (G.vol S) (G.vol Sᶜ)} :=
@@ -538,13 +538,13 @@ theorem conductance_eq_iInf_setConductance :
       have hcompl := G.vol_add_vol_compl S₀
       exact ⟨⟨S₀, by omega⟩⟩
     have hb2 : BddBelow (Set.range fun S : {S : Finset V // 0 < min (G.vol S) (G.vol Sᶜ)} =>
-        G.setConductance S.1) :=
+        G.setConductance S.val) :=
       ⟨0, Set.forall_mem_range.2 fun _ => by unfold setConductance; positivity⟩
-    refine le_antisymm (le_ciInf fun S => G.conductance_le_setConductance S.2) ?_
+    refine le_antisymm (le_ciInf fun S => G.conductance_le_setConductance S.property) ?_
     refine le_ciInf fun ⟨S, hpos, h2⟩ => ?_
     have hcompl := G.vol_add_vol_compl S
     have hmin_pos : 0 < min (G.vol S) (G.vol Sᶜ) := by omega
-    calc (⨅ T : {T : Finset V // 0 < min (G.vol T) (G.vol Tᶜ)}, G.setConductance T.1)
+    calc (⨅ T : {T : Finset V // 0 < min (G.vol T) (G.vol Tᶜ)}, G.setConductance T.val)
         ≤ G.setConductance S := ciInf_le hb2 ⟨S, hmin_pos⟩
       _ = (#(G.interedges S Sᶜ) : ℝ) / G.vol S := G.setConductance_eq_of_two_mul_vol_le h2
 
@@ -809,16 +809,16 @@ contribute additional `0` eigenvalues to `G.normLapMatrix` while `G.normRayleigh
 `d_v = 0` coordinates. -/
 noncomputable def normSpectralGap : ℝ :=
   ⨅ f : {f : V → ℝ // ∑ v, f v * G.degree v = 0 ∧ 0 < ∑ v, f v ^ 2 * G.degree v},
-    G.normRayleigh f.1
+    G.normRayleigh f.val
 
 theorem normSpectralGap_def :
     G.normSpectralGap =
       ⨅ f : {f : V → ℝ // ∑ v, f v * G.degree v = 0 ∧ 0 < ∑ v, f v ^ 2 * G.degree v},
-        G.normRayleigh f.1 := by
+        G.normRayleigh f.val := by
   rfl
 
 theorem normSpectralGap_nonneg : 0 ≤ G.normSpectralGap := by
-  exact Real.iInf_nonneg fun f => G.normRayleigh_nonneg f.1
+  exact Real.iInf_nonneg fun f => G.normRayleigh_nonneg f.val
 
 theorem normSpectralGap_eq_zero_of_eq_bot (hbot : G = ⊥) : G.normSpectralGap = 0 := by
   have hempty : IsEmpty
@@ -868,8 +868,8 @@ theorem normSpectralGap_le_normRayleigh {f : V → ℝ}
     (horth : ∑ v, f v * G.degree v = 0) (hpos : 0 < ∑ v, f v ^ 2 * G.degree v) :
     G.normSpectralGap ≤ G.normRayleigh f := by
   have hb : BddBelow (Set.range fun g : {f : V → ℝ //
-      ∑ v, f v * G.degree v = 0 ∧ 0 < ∑ v, f v ^ 2 * G.degree v} => G.normRayleigh g.1) :=
-    ⟨0, Set.forall_mem_range.2 fun g => G.normRayleigh_nonneg g.1⟩
+      ∑ v, f v * G.degree v = 0 ∧ 0 < ∑ v, f v ^ 2 * G.degree v} => G.normRayleigh g.val) :=
+    ⟨0, Set.forall_mem_range.2 fun g => G.normRayleigh_nonneg g.val⟩
   exact ciInf_le hb ⟨f, horth, hpos⟩
 
 theorem le_normSpectralGap_iff (hG : G ≠ ⊥) {c : ℝ} :
@@ -1318,24 +1318,24 @@ variable [DecidableEq V]
 Equals `0` when `|V| ≤ 1`. -/
 noncomputable def isoperimetricNum : ℝ :=
   ⨅ S : {S : Finset V // S.Nonempty ∧ 2 * #S ≤ Fintype.card V},
-    (#(G.interedges S.1 S.1ᶜ) : ℝ) / #S.1
+    (#(G.interedges S.val S.valᶜ) : ℝ) / #S.val
 
 theorem isoperimetricNum_def :
     G.isoperimetricNum =
       ⨅ S : {S : Finset V // S.Nonempty ∧ 2 * #S ≤ Fintype.card V},
-        (#(G.interedges S.1 S.1ᶜ) : ℝ) / #S.1 := by
+        (#(G.interedges S.val S.valᶜ) : ℝ) / #S.val := by
   rfl
 
 /-- **Algebraic connectivity (Fiedler value)** `λ'_1 = inf_{∑ f = 0, f ≠ 0} (f ⬝ᵥ L f) / (f ⬝ᵥ f)`
 ([Chung1997], §2.5, p. 34; [AlonMilman1985]). Equals `0` when `|V| ≤ 1`. -/
 noncomputable def algConnectivity : ℝ :=
   ⨅ f : {f : V → ℝ // ∑ v, f v = 0 ∧ ∃ v, f v ≠ 0},
-    (f.1 ⬝ᵥ (G.lapMatrix ℝ *ᵥ f.1)) / (f.1 ⬝ᵥ f.1)
+    (f.val ⬝ᵥ (G.lapMatrix ℝ *ᵥ f.val)) / (f.val ⬝ᵥ f.val)
 
 theorem algConnectivity_def :
     G.algConnectivity =
       ⨅ f : {f : V → ℝ // ∑ v, f v = 0 ∧ ∃ v, f v ≠ 0},
-        (f.1 ⬝ᵥ (G.lapMatrix ℝ *ᵥ f.1)) / (f.1 ⬝ᵥ f.1) := by
+        (f.val ⬝ᵥ (G.lapMatrix ℝ *ᵥ f.val)) / (f.val ⬝ᵥ f.val) := by
   rfl
 
 theorem isoperimetricNum_nonneg : 0 ≤ G.isoperimetricNum := by
@@ -1369,7 +1369,7 @@ theorem isoperimetricNum_mul_card_le {S : Finset V} (h2 : 2 * #S ≤ Fintype.car
   · rw [card_empty, Nat.cast_zero, mul_zero]; exact Nat.cast_nonneg _
   · have hb : BddBelow (Set.range
         fun S : {S : Finset V // S.Nonempty ∧ 2 * #S ≤ Fintype.card V} =>
-          (#(G.interedges S.1 S.1ᶜ) : ℝ) / #S.1) :=
+          (#(G.interedges S.val S.valᶜ) : ℝ) / #S.val) :=
       ⟨0, Set.forall_mem_range.2 fun _ => by positivity⟩
     rw [← le_div_iff₀ (Nat.cast_pos.2 hne.card_pos)]
     exact ciInf_le hb ⟨S, hne, h2⟩
@@ -1390,7 +1390,7 @@ theorem le_isoperimetricNum_iff [Nontrivial V] {c : ℝ} :
 theorem algConnectivity_le_rayleigh {f : V → ℝ} (horth : ∑ v, f v = 0) (hne : ∃ v, f v ≠ 0) :
     G.algConnectivity ≤ (f ⬝ᵥ (G.lapMatrix ℝ *ᵥ f)) / (f ⬝ᵥ f) := by
   have hb : BddBelow (Set.range fun g : {f : V → ℝ // ∑ v, f v = 0 ∧ ∃ v, f v ≠ 0} =>
-      (g.1 ⬝ᵥ (G.lapMatrix ℝ *ᵥ g.1)) / (g.1 ⬝ᵥ g.1)) :=
+      (g.val ⬝ᵥ (G.lapMatrix ℝ *ᵥ g.val)) / (g.val ⬝ᵥ g.val)) :=
     ⟨0, Set.forall_mem_range.2 fun ⟨g, _, _⟩ => by
       rw [G.dotProduct_mulVec_lapMatrix]
       exact div_nonneg (div_nonneg (sum_nonneg fun _ _ => sq_nonneg _) zero_le_two)

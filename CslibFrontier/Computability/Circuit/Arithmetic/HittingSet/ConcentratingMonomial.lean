@@ -166,12 +166,12 @@ theorem eq_zero_of_scale_X_pow_vanishing {σ F : Type*} [DecidableEq σ] [Field 
     mem_support_iff.2 fun h0 => h (by rw [h0, Polynomial.coeff_zero])
   have hli : LinearIndependent F v :=
     linearIndependent_of_initial_monomial s Subtype.val_injective
-      (fun b => by rw [hvc]; exact (hb b b.2).2) fun b m hm hne => by
+      (fun b => by rw [hvc]; exact (hb b b.property).2) fun b m hm hne => by
         rw [mem_support_iff, hvc] at hm
         have h1 := hmin m _ (by rwa [hcoeff'])
-        have h2 := (hb b b.2).1
+        have h2 := (hb b b.property).1
         refine lt_of_le_of_ne (by omega) fun h => hne ?_
-        exact (hE (hmem _ (hsupp _ _ (hb b b.2).2)) (hmem m (hsupp _ _ hm)) h).symm
+        exact (hE (hmem _ (hsupp _ _ (hb b b.property).2)) (hmem m (hsupp _ _ hm)) h).symm
   have := Module.Finite.span_of_finite F (Set.finite_range p)
   have hup : H0.support.card ≤ w :=
     calc H0.support.card = Module.finrank F (Submodule.span F (Set.range v)) := by

@@ -421,9 +421,9 @@ theorem LearnsStateless.sqDimOneSided_mul_sq_le {D : PMF X}
     sqDimOneSided D C * τ ^ 2 ≤ 2 * q + 2 := by
   obtain ⟨F, hFC, hF, hpair⟩ := exists_finset_card_eq_sqDimOneSided D C
   have h := hA.card_mul_sq_sub_one_le_two_mul_add_one (κ := F) hq (f := Subtype.val)
-    (fun f => hFC f.2) (fun f g hfg => by
+    (fun f => hFC f.property) (fun f g hfg => by
       rw [Fintype.card_coe, hF]
-      exact hpair f.2 g.2 (Subtype.coe_ne_coe.2 hfg)) hτ hε hετ
+      exact hpair f.property g.property (Subtype.coe_ne_coe.2 hfg)) hτ hε hετ
   rw [Fintype.card_coe, hF] at h
   linarith
 

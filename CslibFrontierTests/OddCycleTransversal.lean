@@ -40,16 +40,17 @@ open SimpleGraph Cslib.Algorithms.Lean.IterativeCompression Cslib.Algorithms.Lea
 open Cslib.Algorithms.WordRAM.OddCycleTransversal Cslib.WordRAM
 
 /-- The cycle on `Fin n`: `v` is adjacent to `v + 1 mod n`. -/
-private def cyc (n : ℕ) : SimpleGraph (Fin n) := SimpleGraph.fromRel fun u v => (u.1 + 1) % n = v.1
+private def cyc (n : ℕ) : SimpleGraph (Fin n) :=
+  SimpleGraph.fromRel fun u v => (u.val + 1) % n = v.val
 
 private instance (n : ℕ) : DecidableRel (cyc n).Adj := fun u v =>
-  inferInstanceAs (Decidable (u ≠ v ∧ ((u.1 + 1) % n = v.1 ∨ (v.1 + 1) % n = u.1)))
+  inferInstanceAs (Decidable (u ≠ v ∧ ((u.val + 1) % n = v.val ∨ (v.val + 1) % n = u.val)))
 
 /-- The path `0 - 1 - 2`. -/
-private def path3 : SimpleGraph (Fin 3) := SimpleGraph.fromRel fun u v => u.1 + 1 = v.1
+private def path3 : SimpleGraph (Fin 3) := SimpleGraph.fromRel fun u v => u.val + 1 = v.val
 
 private instance : DecidableRel path3.Adj := fun u v =>
-  inferInstanceAs (Decidable (u ≠ v ∧ (u.1 + 1 = v.1 ∨ v.1 + 1 = u.1)))
+  inferInstanceAs (Decidable (u ≠ v ∧ (u.val + 1 = v.val ∨ v.val + 1 = u.val)))
 
 /-- Boolean form of "`c` is proper off `S`", for compiled checks. -/
 private def properOff {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (c : Vector Bool n)
@@ -113,7 +114,7 @@ private theorem cyc5_not_bipartite :
 /-- The five-cycle with vertex `0` deleted is a path. -/
 private theorem cyc5_oct : (cyc 5).IsOddCycleTransversal ({0} : Finset (Fin 5)) := by
   rw [isOddCycleTransversal_iff_exists_bool]
-  refine ⟨fun v => decide (v.1 % 2 = 1), fun u v huv hu hv => ?_⟩
+  refine ⟨fun v => decide (v.val % 2 = 1), fun u v huv hu hv => ?_⟩
   simp only [Finset.coe_singleton, Set.mem_singleton_iff] at hu hv
   revert u v
   decide
@@ -121,7 +122,7 @@ private theorem cyc5_oct : (cyc 5).IsOddCycleTransversal ({0} : Finset (Fin 5)) 
 /-- The four-cycle is bipartite. -/
 private theorem cyc4_oct : (cyc 4).IsOddCycleTransversal ((∅ : Finset (Fin 4)) : Set (Fin 4)) := by
   rw [isOddCycleTransversal_iff_exists_bool]
-  refine ⟨fun v => decide (v.1 % 2 = 1), fun u v huv _ _ => ?_⟩
+  refine ⟨fun v => decide (v.val % 2 = 1), fun u v huv _ _ => ?_⟩
   revert u v
   decide
 
@@ -202,10 +203,10 @@ example : (oct (cyc 4) 0).isSome :=
 
 -- Two disjoint triangles in `Fin 6` need two vertices.
 private def twoTriangles : SimpleGraph (Fin 6) :=
-  SimpleGraph.fromRel fun u v => u.1 / 3 = v.1 / 3
+  SimpleGraph.fromRel fun u v => u.val / 3 = v.val / 3
 
 private instance : DecidableRel twoTriangles.Adj := fun u v =>
-  inferInstanceAs (Decidable (u ≠ v ∧ (u.1 / 3 = v.1 / 3 ∨ v.1 / 3 = u.1 / 3)))
+  inferInstanceAs (Decidable (u ≠ v ∧ (u.val / 3 = v.val / 3 ∨ v.val / 3 = u.val / 3)))
 
 #guard (oct twoTriangles 1).isNone
 #guard checkOct twoTriangles 2
@@ -251,7 +252,7 @@ example :
         Runs 8 prog (State.init (encodeInput (cyc 5) 1)) ⟨pc, y₁⟩ s₁ ∧
         step 8 prog ⟨pc, y₁⟩ = .halt 1 ∧
         s₁ + 1 ≤ C * 3 * 6 ^ 5 ∧
-        let S : Finset (Fin 5) := Finset.univ.filter fun v => y₁.mem (sepAddr 5 v.1) = 1
+        let S : Finset (Fin 5) := Finset.univ.filter fun v => y₁.mem (sepAddr 5 v.val) = 1
         (cyc 5).IsOddCycleTransversal (S : Set (Fin 5)) ∧ S.card ≤ 1) := by
   obtain ⟨r, C, pc, hC, prog, hprog⟩ := exists_oct_program
   obtain ⟨y₀, s₀, r₀, hrun₀, hhalt₀, htime₀, hle₀, his₀, _, _⟩ :=

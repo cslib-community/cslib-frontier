@@ -69,7 +69,7 @@ theorem positiveExterior_foreign_box {φ : CNF ℕ} {d : Graph.OrthogonalDrawing
   obtain ⟨x, hx, rfl⟩ := hz
   rw [inPointBox_translate_iff]
   have hindex := sourceEdgeIndex_lt φ hj hk
-  have hedge : (SAT.incidenceGraph φ).2[sourceEdgeIndex φ j k] =
+  have hedge : (SAT.incidenceGraph φ).edges[sourceEdgeIndex φ j k] =
       (φ.distinctVars.idxOf φ[j][k].1, φ.distinctVars.length + j) := by
     rw [← List.getD_eq_getElem _ _ hindex]
     exact sourceEdgeIndex_edge φ hj hk

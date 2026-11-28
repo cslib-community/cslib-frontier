@@ -117,26 +117,26 @@ its entry in `S`. -/
 private noncomputable def coverPerm {S : Finset ℕ}
     (hrow : ∀ i < n, ∃! j, j < n ∧ r i j = true ∧ i * n + j ∈ S)
     (hcol : ∀ j < n, ∃! i, i < n ∧ r i j = true ∧ i * n + j ∈ S) : Equiv.Perm (Fin n) :=
-  Equiv.ofBijective (fun j => ⟨(hcol j j.2).exists.choose, (hcol j j.2).exists.choose_spec.1⟩)
+  Equiv.ofBijective (fun j => ⟨(hcol j j.isLt).exists.choose, (hcol j j.isLt).exists.choose_spec.1⟩)
     (Finite.injective_iff_bijective.mp fun j j' h => by
       have h' := congrArg Fin.val h
-      have hj := (hcol j j.2).exists.choose_spec
-      have hj' := (hcol j' j'.2).exists.choose_spec
+      have hj := (hcol j j.isLt).exists.choose_spec
+      have hj' := (hcol j' j'.isLt).exists.choose_spec
       simp only at h'
       rw [← h'] at hj'
-      exact Fin.ext ((hrow _ hj.1).unique ⟨j.2, hj.2⟩ ⟨j'.2, hj'.2⟩))
+      exact Fin.ext ((hrow _ hj.1).unique ⟨j.isLt, hj.2⟩ ⟨j'.isLt, hj'.2⟩))
 
 private theorem coverPerm_spec {S : Finset ℕ}
     (hrow : ∀ i < n, ∃! j, j < n ∧ r i j = true ∧ i * n + j ∈ S)
     (hcol : ∀ j < n, ∃! i, i < n ∧ r i j = true ∧ i * n + j ∈ S) (j : Fin n) :
     r (coverPerm hrow hcol j) j = true ∧ (coverPerm hrow hcol j : ℕ) * n + j ∈ S :=
-  (hcol j j.2).exists.choose_spec.2
+  (hcol j j.isLt).exists.choose_spec.2
 
 private theorem coverPerm_unique {S : Finset ℕ}
     (hrow : ∀ i < n, ∃! j, j < n ∧ r i j = true ∧ i * n + j ∈ S)
     (hcol : ∀ j < n, ∃! i, i < n ∧ r i j = true ∧ i * n + j ∈ S) {i : ℕ} (j : Fin n)
     (hi : i < n) (h : r i j = true ∧ i * n + j ∈ S) : (coverPerm hrow hcol j : ℕ) = i :=
-  (hcol j j.2).unique ⟨(coverPerm hrow hcol j).2, coverPerm_spec hrow hcol j⟩ ⟨hi, h⟩
+  (hcol j j.isLt).unique ⟨(coverPerm hrow hcol j).isLt, coverPerm_spec hrow hcol j⟩ ⟨hi, h⟩
 
 /-- **The exactly-one partition function of the permanent instance is the permanent** of the
 `n × n` matrix with entries `r i j` in `{0, 1}`. -/
@@ -160,10 +160,10 @@ theorem partitionFunction_permanentInstance (n : ℕ) (r : ℕ → ℕ → Bool)
     simp only [supp, Finset.mem_image, Finset.mem_univ, true_and]
     constructor
     · rintro ⟨k, hk⟩
-      have hkj : k = ⟨j, hj⟩ := Fin.ext ((Nat.mul_add_mod_of_lt (a := σ k) k.2).symm.trans
+      have hkj : k = ⟨j, hj⟩ := Fin.ext ((Nat.mul_add_mod_of_lt (a := σ k) k.isLt).symm.trans
         (hk ▸ Nat.mul_add_mod_of_lt hj))
       rw [← hkj]
-      exact (Nat.mul_add_div_of_lt _ k.2).symm.trans (hk ▸ Nat.mul_add_div_of_lt i hj)
+      exact (Nat.mul_add_div_of_lt _ k.isLt).symm.trans (hk ▸ Nat.mul_add_div_of_lt i hj)
     · exact fun h => ⟨⟨j, hj⟩, by rw [h]⟩
   symm
   refine Finset.card_bij' (fun σ _ => supp σ)
@@ -174,20 +174,20 @@ theorem partitionFunction_permanentInstance (n : ℕ) (r : ℕ → ℕ → Bool)
     refine Finset.mem_filter.mpr ⟨Finset.mem_powerset.mpr fun x hx => ?_, fun i hi => ?_,
       fun j hj => ?_⟩
     · obtain ⟨k, -, rfl⟩ := Finset.mem_image.mp hx
-      exact hX.mpr ⟨σ k, (σ k).2, k, k.2, hσ k, rfl⟩
-    · refine ⟨σ.symm ⟨i, hi⟩, ⟨(σ.symm ⟨i, hi⟩).2, ?_, (hsupp σ hi (σ.symm ⟨i, hi⟩).2).mpr
+      exact hX.mpr ⟨σ k, (σ k).isLt, k, k.isLt, hσ k, rfl⟩
+    · refine ⟨σ.symm ⟨i, hi⟩, ⟨(σ.symm ⟨i, hi⟩).isLt, ?_, (hsupp σ hi (σ.symm ⟨i, hi⟩).isLt).mpr
         (by simp)⟩, fun j ⟨hj, _, hjS⟩ => ?_⟩
       · simpa using hσ (σ.symm ⟨i, hi⟩)
       · rw [← show σ ⟨j, hj⟩ = ⟨i, hi⟩ from Fin.ext ((hsupp σ hi hj).mp hjS),
           Equiv.symm_apply_apply]
-    · refine ⟨σ ⟨j, hj⟩, ⟨(σ ⟨j, hj⟩).2, hσ ⟨j, hj⟩, (hsupp σ (σ ⟨j, hj⟩).2 hj).mpr rfl⟩,
+    · refine ⟨σ ⟨j, hj⟩, ⟨(σ ⟨j, hj⟩).isLt, hσ ⟨j, hj⟩, (hsupp σ (σ ⟨j, hj⟩).isLt hj).mpr rfl⟩,
         fun i ⟨hi, _, hiS⟩ => ((hsupp σ hi hj).mp hiS).symm⟩
   · -- the permutation of an exact cover is supported
     simpa using fun k => (coverPerm_spec _ _ k).1
   · -- the permutation of the support of `σ` is `σ`
     have hσ : ∀ k, r (σ k) k = true := by simpa using hσ
-    exact Equiv.ext fun k => Fin.ext (coverPerm_unique _ _ k (σ k).2
-      ⟨hσ k, (hsupp σ (σ k).2 k.2).mpr rfl⟩)
+    exact Equiv.ext fun k => Fin.ext (coverPerm_unique _ _ k (σ k).isLt
+      ⟨hσ k, (hsupp σ (σ k).isLt k.isLt).mpr rfl⟩)
   · -- the support of the permutation of an exact cover is the cover
     obtain ⟨hSX, hrow, hcol⟩ := Finset.mem_filter.mp hS
     ext x

@@ -50,7 +50,7 @@ private theorem integrable_exp_mul_norm_smulRight {E : Type*} [NormedAddCommGrou
     Integrable (fun a => rexp (c * ‖φ a‖) * ‖(φ a).smulRight (g a)‖) μ := by
   refine (hint (c + 1)).mono' ?_ (ae_of_all _ fun a => ?_)
   · exact (continuous_exp.comp_aestronglyMeasurable (hφ.norm.const_mul c)).mul
-      ((ContinuousLinearMap.smulRightL ℝ V E).continuous₂.comp_aestronglyMeasurable₂ hφ hg).norm
+      ((StrongDual.smulRightL ℝ V E).continuous₂.comp_aestronglyMeasurable₂ hφ hg).norm
   · rw [ContinuousLinearMap.norm_smulRight_apply, norm_mul, norm_of_nonneg (exp_nonneg _),
       norm_mul, norm_norm, norm_norm, add_mul, one_mul, exp_add, mul_assoc]
     gcongr
@@ -76,7 +76,7 @@ theorem hasFDerivAt_integral_exp_smul {E : Type*} [NormedAddCommGroup E] [Normed
     rw [norm_smul, norm_of_nonneg (exp_nonneg _)]
     exact mul_le_mul_of_nonneg_right (exp_apply_le _ _) (norm_nonneg _)
   · exact (continuous_exp.comp_aestronglyMeasurable (hφ.apply_continuousLinearMap w)).smul
-      ((ContinuousLinearMap.smulRightL ℝ V E).continuous₂.comp_aestronglyMeasurable₂ hφ hg)
+      ((StrongDual.smulRightL ℝ V E).continuous₂.comp_aestronglyMeasurable₂ hφ hg)
   · filter_upwards with a x hx
     rw [norm_smul, norm_of_nonneg (exp_nonneg _)]
     refine mul_le_mul_of_nonneg_right (exp_le_exp.2 ?_) (norm_nonneg _)
@@ -106,7 +106,7 @@ private theorem contDiff_integral_exp_smul_aux (φ : α → V →L[ℝ] ℝ) (h�
     intro E _ _ _ g hg hint
     refine contDiff_succ_iff_hasFDerivAt.2 ⟨_, ih ?_ (integrable_exp_mul_norm_smulRight hφ hg hint),
       hasFDerivAt_integral_exp_smul hφ hg hint⟩
-    exact (ContinuousLinearMap.smulRightL ℝ V E).continuous₂.comp_aestronglyMeasurable₂ hφ hg
+    exact (StrongDual.smulRightL ℝ V E).continuous₂.comp_aestronglyMeasurable₂ hφ hg
 
 /-- **Laplace transforms are smooth**: if `exp (c ‖φ a‖) ‖g a‖` is integrable for every `c`, then
 `w ↦ ∫ a, exp (φ a w) • g a ∂μ` is `C^∞`. -/

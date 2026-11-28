@@ -82,7 +82,7 @@ variable {F : Type} [CommSemiring F] {h b D J r m Uu A A' U0 U1 lhat cap : ℕ}
 /-- The role `via` of a relay accepts equal bits on its two channels, and only those. -/
 example : relayTable ℕ .via (fun _ => true) (fun _ _ => false) = 1 := by simp [relayTable]
 
-example : relayTable ℕ .via (fun _ => true) (fun ν _ => ν.1) = 0 := by simp [relayTable]
+example : relayTable ℕ .via (fun _ => true) (fun ν _ => ν.val) = 0 := by simp [relayTable]
 
 example : relayChannelEnd true false = .via ∧ relaySlotEnd () true = .sink := by decide
 
@@ -90,14 +90,14 @@ example : relayChannelEnd true false = .via ∧ relaySlotEnd () true = .sink := 
 bits on the channels passes all three tables. -/
 example (X : RelayRole → Unit → Bool) (hX : X .source () = X .sink ()) :
     ∑ _i : Unit, ∑ g : Bool → BitString 1,
-      ∏ p, relayTable F p (fun e => X p e.1) (fun ν => g ν.1) = 1 :=
+      ∏ p, relayTable F p (fun e => X p e.val) (fun ν => g ν.val) = 1 :=
   ((relayLaw F).identity X).symm.trans (ite_eq_left fun _ => hX)
 
 /-- The power of the relay law: `B` bits shared by `source` and `sink` are led through `via`. -/
 example (B : ℕ) (X : RelayRole → Fin B → Unit → Bool) :
     (if ∀ e k, X .source k e = X .sink k e then (1 : F) else 0) =
       ∑ _i : Fin B → Unit, ∑ g : Bool → (k : Fin B) → BitString 1,
-        ∏ p, ∏ k, relayTable F p (fun e => X p k e.1) fun ν => g ν.1 k :=
+        ∏ p, ∏ k, relayTable F p (fun e => X p k e.val) fun ν => g ν.val k :=
   (relayLaw F).pow B X
 
 example : (relayLaw F).LengthLE 1 := fun _ _ => le_rfl
@@ -232,7 +232,7 @@ private def pointPlacement (r : ℕ) : Placement (pointTower r) (pointBase r) 1 
       left_inv := by
         rintro (_ | ⟨j, c⟩)
         · rfl
-        · obtain rfl : j = 0 := Fin.ext (Nat.lt_one_iff.1 j.2)
+        · obtain rfl : j = 0 := Fin.ext (Nat.lt_one_iff.1 j.isLt)
           rfl
       right_inv := by rintro ⟨_ | _ | i, hi⟩ <;> first | rfl | omega }
   party_base a := by
@@ -278,10 +278,10 @@ makes the rate `1` admissible (`2 ≤ 1 · D`). -/
   dN ν := ν.elim
   n_ne ν := ν.elim
   nr _ _ :=
-    @Equiv.equivOfIsEmpty _ _ ⟨fun e => e.2 (Subsingleton.elim _ _)⟩ ⟨fun p => p.2.elim⟩
-  nr_vx0 _ _ e := absurd (Subsingleton.elim _ _) e.2
-  nr_vx1 _ _ e := absurd (Subsingleton.elim _ _) e.2
-  nr_co _ _ e := absurd (Subsingleton.elim _ _) e.2
+    @Equiv.equivOfIsEmpty _ _ ⟨fun e => e.property (Subsingleton.elim _ _)⟩ ⟨fun p => p.2.elim⟩
+  nr_vx0 _ _ e := absurd (Subsingleton.elim _ _) e.property
+  nr_vx1 _ _ e := absurd (Subsingleton.elim _ _) e.property
+  nr_co _ _ e := absurd (Subsingleton.elim _ _) e.property
   π c := c
   πE e := e
   πV v := v
@@ -314,7 +314,7 @@ private def edgePlacement : Placement edgeTower edgeBase 1 where
       left_inv := by
         rintro (_ | ⟨j, c⟩)
         · rfl
-        · obtain rfl : j = 0 := Fin.ext (Nat.lt_one_iff.1 j.2)
+        · obtain rfl : j = 0 := Fin.ext (Nat.lt_one_iff.1 j.isLt)
           cases c <;> rfl
       right_inv := by decide }
   party_base := by decide

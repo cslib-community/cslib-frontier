@@ -91,10 +91,10 @@ theorem mem_restrictDomain {C : ConceptClass α β} {s : Set α} {c : s → β} 
 theorem SetShatters.restrictDomain {C : ConceptClass α Bool} {s : Set α}
     (hs : SetShatters C s) : SetShatters (PACLearning.restrictDomain C s) univ := by
   intro T _
-  obtain ⟨c, hc, hcs⟩ := hs (Subtype.val '' T) (image_subset_iff.2 fun x _ => x.2)
+  obtain ⟨c, hc, hcs⟩ := hs (Subtype.val '' T) (image_subset_iff.2 fun x _ => x.property)
   refine ⟨fun x => c x, ⟨c, hc, rfl⟩, ?_⟩
   ext x
-  have hx := congrArg (x.1 ∈ ·) hcs
+  have hx := congrArg (x.val ∈ ·) hcs
   simp only [mem_inter_iff, mem_preimage, Subtype.coe_prop, and_true, eq_iff_iff,
     Subtype.val_injective.mem_set_image] at hx
   simpa only [mem_inter_iff, mem_preimage, mem_univ, and_true] using hx
@@ -194,7 +194,7 @@ theorem card_le_of_isRPACLearnerFor.{u} {C : ConceptClass α Bool} {W : Finset �
     (hδ : (δ : ℝ) < 1 / 14) {𝒟 : Set (Measure (α × Bool))}
     (h𝒟 : realizableDistributions C ⊆ 𝒟) (hlearn : IsRPACLearnerFor.{_, _, u} m ε δ C 𝒟) :
     (W.card : ℝ) ≤ 32 * ε * m + 1 := by
-  have hε0 : (0 : ℝ) < ε := NNReal.coe_pos.2 ε.2.1
+  have hε0 : (0 : ℝ) < ε := NNReal.coe_pos.2 ε.property.1
   by_cases hW2 : W.card < 2
   · have : (W.card : ℝ) ≤ 1 := by exact_mod_cast Nat.lt_succ_iff.1 hW2
     nlinarith [show (0 : ℝ) ≤ m from m.cast_nonneg]

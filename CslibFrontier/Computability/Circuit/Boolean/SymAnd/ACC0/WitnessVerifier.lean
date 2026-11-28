@@ -452,7 +452,7 @@ private theorem code_badClauseExt {q r : ℕ}
     (badClauseExt D W).code = badClauseExtCode q r D.code W.code := by
   have haddr (j : Fin 3) :
       (Circuit.wiring Unbounded.extSignature (SuccinctVerifier.addressWire r j)).code =
-        ([], (List.range r).map fun i => j.1 * (r + 1) + i) :=
+        ([], (List.range r).map fun i => j.val * (r + 1) + i) :=
     Circuit.code_wiring_eq_map fun _ => rfl
   have hsign : (Circuit.wiring Unbounded.extSignature (SuccinctVerifier.signWire r)).code =
       ([], [0 * (r + 1) + r, 1 * (r + 1) + r, 2 * (r + 1) + r]) := by
@@ -672,9 +672,9 @@ private theorem padInputs_mem_SignatureCircuitSAT_iff {q : ℕ} (m : ℕ)
   · rintro ⟨x, hx⟩
     exact ⟨fun i => x (Fin.castLE (le_max_left q n) i), hx⟩
   · rintro ⟨y, hy⟩
-    refine ⟨fun i => if hi : i.1 < q then y ⟨i.1, hi⟩ else false, ?_⟩
+    refine ⟨fun i => if hi : i.val < q then y ⟨i.val, hi⟩ else false, ?_⟩
     have hfun : (fun i : Fin q =>
-        if hi : (Fin.castLE (le_max_left q n) i).1 < q then y ⟨(Fin.castLE _ i).1, hi⟩
+        if hi : (Fin.castLE (le_max_left q n) i).val < q then y ⟨(Fin.castLE _ i).val, hi⟩
         else false) = y := by
       funext i
       simp [i.isLt]

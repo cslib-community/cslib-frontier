@@ -134,7 +134,7 @@ private theorem exists_weights [Fintype α] [DecidableEq α] (K n : ℕ) (f : α
     (hn : (fractional f).card = n)
     (hf : ∀ a, 0 ≤ f a ∧ f a ≤ 1) (hsum : ∑ a, f a = K) :
     ∃ w : {S : Finset α // S.card = K} → ℝ, (∀ S, 0 ≤ w S) ∧ ∑ S, w S = 1 ∧
-      ∀ a, ∑ S ∈ univ.filter (fun S => a ∈ S.1), w S = f a := by
+      ∀ a, ∑ S ∈ univ.filter (fun S => a ∈ S.val), w S = f a := by
   induction n using Nat.strong_induction_on generalizing f with
   | _ n ih =>
   by_cases hempty : fractional f = ∅
@@ -149,7 +149,7 @@ private theorem exists_weights [Fintype α] [DecidableEq α] (K n : ℕ) (f : α
     rw [sum_ite_eq']
     rcases hint a with h | h <;> simp [h]
   · -- Split `f` along two distinct fractional coordinates.
-    obtain ⟨x, hx⟩ := nonempty_iff_ne_empty.mpr hempty
+    obtain ⟨x, hx⟩ := ne_empty_iff_nonempty.mp hempty
     obtain ⟨y, hy, hyx⟩ : ∃ y ∈ fractional f, y ≠ x := by
       by_contra! hsingle
       have htotal := add_sum_erase univ f (mem_univ x)
@@ -188,7 +188,7 @@ at most `1 / K` is a mixture of uniform distributions on sets of exactly `K` out
 theorem exists_eq_bind_uniformOfFinset [Finite α] (p : PMF α) {K : ℕ} (hK : K ≠ 0)
     (hp : ∀ a, (p a).toReal ≤ (K : ℝ)⁻¹) :
     ∃ mix : PMF {S : Finset α // S.card = K},
-      p = mix.bind fun S => uniformOfFinset S.1 (card_ne_zero.mp (S.2.trans_ne hK)) := by
+      p = mix.bind fun S => uniformOfFinset S.val (card_ne_zero.mp (S.property.trans_ne hK)) := by
   classical
   let := Fintype.ofFinite α
   have hKpos : (0 : ℝ) < K := by exact_mod_cast Nat.pos_of_ne_zero hK
@@ -202,10 +202,10 @@ theorem exists_eq_bind_uniformOfFinset [Finite α] (p : PMF α) {K : ℕ} (hK : 
   rw [← ENNReal.toReal_eq_toReal_iff' (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _),
     bind_apply_toReal]
   have hterm (S : {S : Finset α // S.card = K}) :
-      (mix S).toReal * (uniformOfFinset S.1 (card_ne_zero.mp (S.2.trans_ne hK)) a).toReal =
-        if a ∈ S.1 then w S * (K : ℝ)⁻¹ else 0 := by
+      (mix S).toReal * (uniformOfFinset S.val (card_ne_zero.mp (S.property.trans_ne hK)) a).toReal =
+        if a ∈ S.val then w S * (K : ℝ)⁻¹ else 0 := by
     rw [PMF.ofFintype_apply, ENNReal.toReal_ofReal (hw S), uniformOfFinset_apply]
-    split_ifs <;> simp [S.2]
+    split_ifs <;> simp [S.property]
   simp only [hterm]
   rw [← sum_filter, ← sum_mul, hmass a, mul_comm, ← mul_assoc, inv_mul_cancel₀ hKpos.ne',
     one_mul]
@@ -216,7 +216,7 @@ theorem exists_eq_bind_uniformOfFinset_of_le_minEntropy [Finite α] (p : PMF α)
     (hk : (k : ℝ) ≤ minEntropy p) :
     ∃ mix : PMF {S : Finset α // S.card = 2 ^ k},
       p = mix.bind fun S =>
-        uniformOfFinset S.1 (card_ne_zero.mp (S.2.trans_ne (pow_ne_zero k two_ne_zero))) :=
+        uniformOfFinset S.val (card_ne_zero.mp (S.property.trans_ne (pow_ne_zero k two_ne_zero))) :=
   exists_eq_bind_uniformOfFinset p (pow_ne_zero k two_ne_zero) fun a => by
     have h := (le_minEntropy_iff p).mp hk a
     rwa [Real.rpow_neg (by norm_num), Real.rpow_natCast, ← Nat.cast_ofNat, ← Nat.cast_pow] at h
@@ -227,10 +227,11 @@ outcomes. -/
 theorem le_minEntropy_iff_exists_eq_bind_uniformOfFinset [Finite α] (p : PMF α) (k : ℕ) :
     (k : ℝ) ≤ minEntropy p ↔ ∃ mix : PMF {S : Finset α // S.card = 2 ^ k},
       p = mix.bind fun S =>
-        uniformOfFinset S.1 (card_ne_zero.mp (S.2.trans_ne (pow_ne_zero k two_ne_zero))) := by
+        uniformOfFinset S.val
+          (card_ne_zero.mp (S.property.trans_ne (pow_ne_zero k two_ne_zero))) := by
   refine ⟨exists_eq_bind_uniformOfFinset_of_le_minEntropy p, ?_⟩
   rintro ⟨mix, rfl⟩
   refine le_minEntropy_bind _ _ fun S _ => ?_
-  rw [minEntropy_uniformOfFinset, S.2, Nat.cast_pow, Nat.cast_ofNat, Real.logb_two_pow]
+  rw [minEntropy_uniformOfFinset, S.property, Nat.cast_pow, Nat.cast_ofNat, Real.logb_two_pow]
 
 end Cslib.Probability.PMF

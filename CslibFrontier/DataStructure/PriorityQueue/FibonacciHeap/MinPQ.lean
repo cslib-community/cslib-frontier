@@ -337,7 +337,7 @@ private theorem freeList_filterMap_congr {g' : Slot → ℕ} {t : ℕ}
     (h : ∀ i < t, g' (.free i) = g (.free i)) :
     ((List.range t).reverse.filterMap fun i => Fin.ofNat? n (g' (.free i))) =
       (List.range t).reverse.filterMap fun i => Fin.ofNat? n (g (.free i)) :=
-  List.filterMap_congr fun i hi => by
+  List.filterMap_congr rfl fun i hi => by
     rw [h i (List.mem_range.mp (List.mem_reverse.mp hi))]
 
 /-- The representation: `Inv` of the heap's state and the slots. -/

@@ -615,9 +615,9 @@ theorem dist_caseB_shardTuple_le {Top ι_sh ι₀ ι₁ ι₂ ι_aux : Type*}
         (PMF.uniformOfFintype ι_sh).bind fun s_sh =>
           (nrComposedSeedDist (suffixBits a m) t (h_nr₀ τ) (h_nr₁ τ) (h_nr₂ τ)).bind fun π =>
             (PMF.uniformOfFintype ι_aux).map fun s_aux =>
-              ((fun u : T => (bitDomainEquiv (shardBits_le_of_le hma) u.1).1 ^^^
+              ((fun u : T => (bitDomainEquiv (shardBits_le_of_le hma) u.val).1 ^^^
                   h_sh τ s_sh (yEmb u)),
-                ((Equiv.refl T).embeddingCongr π yEmb, fun u : T => h_aux τ s_aux u.1))))
+                ((Equiv.refl T).embeddingCongr π yEmb, fun u : T => h_aux τ s_aux u.val))))
       (PMF.uniformOfFintype
         ((T → Fin (2 ^ shardBits m)) ×
           ((T ↪ Fin (2 ^ suffixBits a m)) × (T → Fin (2 ^ b_aux))))) ≤
@@ -635,24 +635,24 @@ theorem dist_caseB_shardTuple_le {Top ι_sh ι₀ ι₁ ι₂ ι_aux : Type*}
       dist ((PMF.uniformOfFintype ι_sh).bind fun s_sh =>
           (nrComposedSeedDist (suffixBits a m) t (h_nr₀ τ) (h_nr₁ τ) (h_nr₂ τ)).bind fun π =>
             (PMF.uniformOfFintype ι_aux).map fun s_aux =>
-              ((fun u : T => (bitDomainEquiv (shardBits_le_of_le hma) u.1).1 ^^^
+              ((fun u : T => (bitDomainEquiv (shardBits_le_of_le hma) u.val).1 ^^^
                   h_sh τ s_sh (yEmb u)),
-                ((Equiv.refl T).embeddingCongr π yEmb, fun u : T => h_aux τ s_aux u.1))) U_all ≤
+                ((Equiv.refl T).embeddingCongr π yEmb, fun u : T => h_aux τ s_aux u.val))) U_all ≤
         (1 / 2 : ℝ) * (3 * (κ : ℝ) ^ 2 / (2 ^ nrHalfLow (suffixBits a m) : ℝ)) ^ t := by
     have hsh_unif : ((PMF.uniformOfFintype ι_sh).map fun s_sh (u : T) =>
-        (bitDomainEquiv (shardBits_le_of_le hma) u.1).1 ^^^ h_sh τ s_sh (yEmb u)) = U_sh :=
+        (bitDomainEquiv (shardBits_le_of_le hma) u.val).1 ^^^ h_sh τ s_sh (yEmb u)) = U_sh :=
       map_xor_restrict_eq_uniform (hgood_sh τ hτ) hT_card _ yEmb.injective
     have haux_unif : ((PMF.uniformOfFintype ι_aux).map fun s_aux (u : T) =>
-        h_aux τ s_aux u.1) = U_aux :=
+        h_aux τ s_aux u.val) = U_aux :=
       uniformOfFintype_map_of_isKWise ((hgood_aux τ hτ).comp Subtype.val_injective) hT_card
     let μ_nr := permTupleKernel (nrComposedSeedDist (suffixBits a m) t
       (h_nr₀ τ) (h_nr₁ τ) (h_nr₂ τ)) yEmb
     have hrewrite : ((PMF.uniformOfFintype ι_sh).bind fun s_sh =>
           (nrComposedSeedDist (suffixBits a m) t (h_nr₀ τ) (h_nr₁ τ) (h_nr₂ τ)).bind fun π =>
             (PMF.uniformOfFintype ι_aux).map fun s_aux =>
-              ((fun u : T => (bitDomainEquiv (shardBits_le_of_le hma) u.1).1 ^^^
+              ((fun u : T => (bitDomainEquiv (shardBits_le_of_le hma) u.val).1 ^^^
                   h_sh τ s_sh (yEmb u)),
-                ((Equiv.refl T).embeddingCongr π yEmb, fun u : T => h_aux τ s_aux u.1))) =
+                ((Equiv.refl T).embeddingCongr π yEmb, fun u : T => h_aux τ s_aux u.val))) =
         U_sh.bind fun f_sh => (μ_nr.bind fun e => U_aux.map (e, ·)).map (f_sh, ·) := by
       rw [← hsh_unif, PMF.bind_map]
       refine congrArg ((PMF.uniformOfFintype ι_sh).bind ·) (funext fun s_sh => ?_)

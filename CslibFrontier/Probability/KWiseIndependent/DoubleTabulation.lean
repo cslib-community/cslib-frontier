@@ -185,7 +185,7 @@ private theorem surjective_restrict_sum_of_peeling {α κ γ : Type*}
       hpeel T Finset.Subset.rfl (Finset.card_pos.mp (by omega))
     have hcard : #(T.erase x₀) = n := by rw [Finset.card_erase_of_mem hx₀, hn, Nat.add_sub_cancel]
     obtain ⟨w', hw'⟩ := ih (fun S hS => hpeel S (hS.trans (Finset.erase_subset x₀ T))) hcard
-      (fun x => y ⟨x.1, Finset.mem_of_mem_erase x.2⟩)
+      (fun x => y ⟨x.val, Finset.mem_of_mem_erase x.property⟩)
     let δ : γ := y ⟨x₀, hx₀⟩ - ∑ u ∈ supp x₀, w' u
     refine ⟨fun u => w' u + if u = u₀ then δ else 0, funext fun ⟨x, hx⟩ => ?_⟩
     change ∑ u ∈ supp x, (w' u + if u = u₀ then δ else 0) = y ⟨x, hx⟩
@@ -745,16 +745,16 @@ private theorem exists_eq_tuple_of_mem_phiSet {c d b ℓ : ℕ} [NeZero (2 * c)]
   have hB_card : #B ≤ 2 * c :=
     Finset.card_image_of_injective B hL_inj ▸ hB_img.symm ▸ card_posSymmDiff_le x y
   let g : Fin (2 * c) → Fin ℓ := fun t =>
-    if ht : t.val < #B then (B.equivFin.symm ⟨t.val, ht⟩).1 else r
+    if ht : t.val < #B then (B.equivFin.symm ⟨t.val, ht⟩).val else r
   have hg_img : Finset.univ.image g = B := by
     ext idx
     simp only [Finset.mem_image, Finset.mem_univ, true_and, g]
     refine ⟨fun ⟨t, h⟩ => ?_, fun hidx => ?_⟩
     · subst h; split_ifs with ht
-      exacts [(B.equivFin.symm ⟨t.val, ht⟩).2, hr_B]
+      exacts [(B.equivFin.symm ⟨t.val, ht⟩).property, hr_B]
     · let t' := B.equivFin ⟨idx, hidx⟩
-      refine ⟨⟨t'.1, t'.2.trans_le hB_card⟩, ?_⟩
-      simp only [t'.2, ↓reduceDIte, Fin.eta]
+      refine ⟨⟨t'.val, t'.isLt.trans_le hB_card⟩, ?_⟩
+      simp only [t'.isLt, ↓reduceDIte, Fin.eta]
       exact congrArg Subtype.val (B.equivFin.symm_apply_apply ⟨idx, hidx⟩)
   refine ⟨g, le_antisymm (Finset.max'_le _ _ _ fun idx hidx => hB_le_r idx (hg_img ▸ hidx))
     (Finset.le_max' _ r (hg_img.symm ▸ hr_B)), ?_⟩
@@ -788,9 +788,9 @@ private theorem exists_satisfiesCode_of_not_isKUnique {c d b q k : ℕ} [NeZero 
   have hpair_inj : Function.Injective pair :=
     Pairs.equivFin.symm.injective.comp (Fin.castLE_injective hcard)
   choose g hg_last hg_sum using fun s =>
-    exists_eq_tuple_of_mem_phiSet T₁ X hℓ_hi (pair s).1.1
-      (Finset.mem_sigma.mp (pair s).2).2
-  refine ⟨ℓ, Finset.mem_Icc.mpr ⟨hℓ_lo, hℓ_ck⟩, L, fun s => (g s, (pair s).1.2),
+    exists_eq_tuple_of_mem_phiSet T₁ X hℓ_hi (pair s).val.1
+      (Finset.mem_sigma.mp (pair s).property).2
+  refine ⟨ℓ, Finset.mem_Icc.mpr ⟨hℓ_lo, hℓ_ck⟩, L, fun s => (g s, (pair s).val.2),
     fun _ _ h => Fin.ext ((nodup_sortedChars X).getElem_inj_iff.mp h), fun s₁ s₂ heq => ?_, hg_sum⟩
   obtain ⟨hlast, hj⟩ := Prod.ext_iff.mp heq
   exact hpair_inj (Subtype.ext (Sigma.ext ((hg_last s₁).symm.trans (hlast.trans (hg_last s₂)))
@@ -834,7 +834,7 @@ private theorem card_filter_satisfiesCode_le {c d b q ℓ : ℕ} [NeZero (2 * c)
       ∑ u ∈ supp r, e T₁ u
     have hshift (y : Fin (q * ℓ) → BitString b) :
         ∃ σ : Equiv.Perm (DoubleTabTopSeed c d b), ∀ T₁, eval (σ T₁) = eval T₁ + y := by
-      obtain ⟨w₀, hw₀⟩ := hsurj (fun r => y r.1)
+      obtain ⟨w₀, hw₀⟩ := hsurj (fun r => y r.val)
       refine ⟨e.trans (Equiv.addRight w₀) |>.trans e.symm, fun T₁ => funext fun r => ?_⟩
       simpa [eval, Finset.sum_add_distrib] using congrFun hw₀ ⟨r, Finset.mem_univ r⟩
     have hsum (T₁ : DoubleTabTopSeed c d b) (r : Fin (q * ℓ)) :

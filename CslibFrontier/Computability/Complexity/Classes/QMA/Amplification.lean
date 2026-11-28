@@ -245,7 +245,7 @@ theorem classicalRun_moveCodes (hnp : n + p ≤ m) (hm : m ≤ W) (hW : n + 2 * 
       Bool.and_true] at this
     have hle := le_add_mul (W := W) (i := i + n) (j := j)
     rw [this, hGwit hj hi, hGoff fun q h => ?_, hX _ (by omega), Bool.false_xor]
-    have := q.2
+    have := q.isLt
     omega
   have hIn' {c : ℕ} (hc : ∀ j < 2 * R, ∀ i < p, i + n + (j + 1) * W ≠ c)
       (Y : Fin (Amplify.width W (2 * R) R) → Bool) :
@@ -291,9 +291,9 @@ theorem classicalRun_moveCodes (hnp : n + p ≤ m) (hm : m ≤ W) (hW : n + 2 * 
     have := le_add_mul (W := W) (i := (q.2 : ℕ) + n) (j := q.1)
     omega
   push Not at hA hB
-  rw [hOut' hB, hIn' hA, hGoff fun q h => ?_, hSoff fun q h => hA q.1 q.1.2 q.2 q.2.2 h]
+  rw [hOut' hB, hIn' hA, hGoff fun q h => ?_, hSoff fun q h => hA q.1 q.1.isLt q.2 q.2.isLt h]
   obtain ⟨⟨j, i⟩, rfl⟩ := finProdFinEquiv.surjective q
-  exact hB j j.2 i i.2 h
+  exact hB j j.isLt i i.isLt h
 
 /-- Moving the witness blocks is classical. -/
 theorem isClassical_moveCodes (hW : n + 2 * R * p ≤ W) :
@@ -371,7 +371,7 @@ theorem glue_slotsEmb_comp_block (hnp : n + p ≤ m) (hm : m ≤ W) (Z : Fin (2 
     rw [slotsEmb_finProdFinEquiv] at h
     have h' : (i' : ℕ) + n + (j' + 1) * W = i + (j + 1) * W := congrArg Fin.val h
     have := Nat.eq_of_add_mul_eq (lt_of_lt_of_le (show (i' : ℕ) + n < m by omega) hm)
-      (lt_of_lt_of_le i.2 hm) h'
+      (lt_of_lt_of_le i.isLt hm) h'
     exact hi i' (Fin.ext (by simp; omega))
 
 /-- The amplitudes of one run of the original verifier circuit `gs` on the input `x`: outcome `u` on

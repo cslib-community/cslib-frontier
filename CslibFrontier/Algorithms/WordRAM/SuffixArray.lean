@@ -1059,10 +1059,10 @@ theorem kasaiProgram_computesListInTime :
 word width `w` with `Fits w (4 * |I.text| + 4)`. -/
 theorem kasaiProgram_computesLcpArrayInTime :
     kasaiProgram.ComputesListInTime
-      (fun _ (I : {I : KasaiInput // IsSuffixArray I.text I.sa}) => I.1.encode)
-      (fun I _ => 63 * I.1.text.length + 26)
-      (fun I w => Fits w (4 * I.1.text.length + 4))
-      (fun I => lcpArray I.1.text I.1.sa) := by
+      (fun _ (I : {I : KasaiInput // IsSuffixArray I.text I.sa}) => I.val.encode)
+      (fun I _ => 63 * I.val.text.length + 26)
+      (fun I w => Fits w (4 * I.val.text.length + 4))
+      (fun I => lcpArray I.val.text I.val.sa) := by
   rintro ⟨I, hsa⟩ w hw hfits
   dsimp only at hw hfits ⊢
   have hlen := hsa.length_eq

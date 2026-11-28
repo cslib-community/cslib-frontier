@@ -57,9 +57,9 @@ example : Graph.RotationCertificate.ofRotation (r.mergeVertices h k (by decide))
 example : Graph.RotationCertificate.verifyGenusZero (mergeGraph h k)
     ⟨[6, 3, 0, 1, 2, 7, 4, 5, 9, 8]⟩ = true := by decide
 
-example : (mergeGraph h k).2 = [(0, 1), (0, 1), (0, 3), (0, 3), (4, 4)] := rfl
+example : (mergeGraph h k).edges = [(0, 1), (0, 1), (0, 3), (0, 3), (4, 4)] := rfl
 
-example : (mergeGraph h k).1 = [0, 1, 0, 3, 4, 5, 6, 6] := rfl
+example : (mergeGraph h k).vertices = [0, 1, 0, 3, 4, 5, 6, 6] := rfl
 
 -- Both parallel-edge components are joined, while the loop remains separate.
 example : Graph.RotationCertificate.SameComponent (mergeGraph h k)

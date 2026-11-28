@@ -203,7 +203,7 @@ variable (S : A → Prop) (hk : S P.k) (hs : S P.s)
 
 /-- Application restricted to the elements satisfying `S`, for `S` closed under application. -/
 private def subApp (a b : Subtype S) : Part (Subtype S) :=
-  ⟨(P.app a b).Dom, fun h => ⟨(P.app a b).get h, happ _ _ _ a.2 b.2 (Part.get_mem h)⟩⟩
+  ⟨(P.app a b).Dom, fun h => ⟨(P.app a b).get h, happ _ _ _ a.property b.property (Part.get_mem h)⟩⟩
 
 private theorem map_val_subApp (a b : Subtype S) :
     (subApp P S happ a b).map Subtype.val = P.app a b :=
@@ -212,7 +212,7 @@ private theorem map_val_subApp (a b : Subtype S) :
 private theorem map_val_injective {x y : Part (Subtype S)}
     (h : x.map Subtype.val = y.map Subtype.val) : x = y :=
   Part.ext fun c => by
-    have := congrArg (c.1 ∈ ·) h
+    have := congrArg (c.val ∈ ·) h
     simpa [Part.mem_map_iff, Subtype.val_inj] using this
 
 private theorem map_val_ap (x y : Part (Subtype S)) :

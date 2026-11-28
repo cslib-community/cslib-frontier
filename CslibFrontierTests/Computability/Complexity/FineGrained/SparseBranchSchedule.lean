@@ -48,7 +48,7 @@ def sampleEquiv :
     ↥((univ : Finset (Fin 2)) \
       heavyVars (univ : Finset (Fin 2)) (univ : Finset (Fin 1))
         (fun i => equationScope (sampleP i)) 1) ≃ Fin 2 where
-  toFun v := v.1
+  toFun v := v.val
   invFun v := ⟨v, by decide +revert⟩
   left_inv v := by ext; rfl
   right_inv v := rfl
@@ -88,7 +88,7 @@ def sampleEquiv2 :
     ↥((univ : Finset (Fin 2)) \
       heavyVars (univ : Finset (Fin 2)) (univ : Finset (Fin 1))
         (fun i => equationScope (sampleP i)) 2) ≃ Fin 2 where
-  toFun v := v.1
+  toFun v := v.val
   invFun v := ⟨v, by decide +revert⟩
   left_inv v := by ext; rfl
   right_inv v := rfl
@@ -122,7 +122,7 @@ def emptyEquiv (n b₀ : ℕ) :
     ↥((univ : Finset (Fin n)) \
       heavyVars (univ : Finset (Fin n)) (∅ : Finset (Fin 0))
         (fun i => equationScope (emptyP n i)) b₀) ≃ Fin n where
-  toFun v := v.1
+  toFun v := v.val
   invFun v := ⟨v, by rw [heavyVars_emptyP_eq_empty]; simp⟩
   left_inv v := by ext; rfl
   right_inv v := rfl

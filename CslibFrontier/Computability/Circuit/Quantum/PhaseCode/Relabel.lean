@@ -129,7 +129,7 @@ theorem Circuit.ofPhaseCodes_map_relabel (e : Fin m ↪ Fin N) (ρ : ℕ → ℕ
     Circuit.ofPhaseCodes N (codes.map (PhaseGateCode.relabel ρ)) =
       (Circuit.ofPhaseCodes m codes).mapWires e := by
   simp only [Circuit.ofPhaseCodes, Circuit.mapWires, List.filterMap_map, List.map_filterMap]
-  exact List.filterMap_congr fun c hc =>
+  exact List.filterMap_congr rfl fun c hc =>
     PhaseGateCode.toPlacedGate?_relabel e ρ hρ (hcodes c hc)
 
 end Cslib.Quantum

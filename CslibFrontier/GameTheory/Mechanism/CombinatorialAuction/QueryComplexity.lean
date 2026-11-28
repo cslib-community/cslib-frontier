@@ -557,7 +557,7 @@ private theorem thresholdBaseVal_util_lt_zero {S : Finset M} (hS : S ≠ ∅) :
       linarith
     linarith
   · have hpos : (0 : ℝ) < (S.card : ℝ) := by
-      exact_mod_cast Finset.card_pos.mpr (nonempty_iff_ne_empty.mpr hS)
+      exact_mod_cast Finset.card_pos.mpr (ne_empty_iff_nonempty.mp hS)
     have hp : (0 : ℝ) < 4 / (2 * (k : ℝ) + 1) := by positivity
     nlinarith
 

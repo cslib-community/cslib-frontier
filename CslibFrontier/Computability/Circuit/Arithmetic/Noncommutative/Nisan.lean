@@ -120,7 +120,7 @@ theorem apply_eq_zero_of_mem_nisanRowSpace {f : FreeAlgebra K X} {d k : ℕ}
 
 /-- For `f` homogeneous of degree `k + m`, `rank M_k(f)` is the dimension of the span of the rows
 of the words of length `k`. -/
-theorem rank_nisanMatrix_eq_finrank_nisanRowSpace [Fintype X] {f : FreeAlgebra K X}
+theorem rank_nisanMatrix_eq_finrank_nisanRowSpace [Finite X] {f : FreeAlgebra K X}
     {k m : ℕ} (hf : f.IsHomogeneous (k + m)) :
     (nisanMatrix k m f).rank = Module.finrank K (nisanRowSpace f k) := by
   let restr : (FreeMonoid X → K) →ₗ[K] ((Fin m → X) → K) :=
@@ -134,8 +134,8 @@ theorem rank_nisanMatrix_eq_finrank_nisanRowSpace [Fintype X] {f : FreeAlgebra K
     (injective_iff_map_eq_zero _).mpr fun g hg => Subtype.ext <| funext fun v =>
       if hv : v.toList.length = m then
         (FreeMonoid.exists_ofFn_eq v hv).elim fun u hu => hu ▸ congrFun hg u
-      else apply_eq_zero_of_mem_nisanRowSpace hf g.2 (by omega)
-  rw [Matrix.rank_eq_finrank_span_row, hrow, Submodule.span_image,
+      else apply_eq_zero_of_mem_nisanRowSpace hf g.property (by omega)
+  rw [← Matrix.finrank_span_range_row, hrow, Submodule.span_image,
     ← LinearMap.finrank_range_of_inj hinj, LinearMap.range_comp, Submodule.range_subtype]
   rfl
 
@@ -172,7 +172,7 @@ theorem finrank_nisanRowSpace_deg [Finite X] {f : FreeAlgebra K X} {d : ℕ}
 
 /-- For nonzero `f` homogeneous of degree `k + m`, `rank M_k(f) ≥ 1`: the row of the first `k`
 letters of a word with nonzero coefficient is nonzero. -/
-theorem one_le_rank_nisanMatrix [Fintype X] {f : FreeAlgebra K X} {k m : ℕ}
+theorem one_le_rank_nisanMatrix [Finite X] {f : FreeAlgebra K X} {k m : ℕ}
     (hf : f.IsHomogeneous (k + m)) (hf0 : f ≠ 0) : 1 ≤ (nisanMatrix k m f).rank := by
   rw [rank_nisanMatrix_eq_finrank_nisanRowSpace hf]
   refine Nat.one_le_iff_ne_zero.mpr (Module.finrank_pos_iff_exists_ne_zero.mpr ?_).ne'
@@ -185,15 +185,17 @@ theorem one_le_rank_nisanMatrix [Fintype X] {f : FreeAlgebra K X} {k m : ℕ}
 
 /-- For nonzero `f` homogeneous of degree `d`, the first Nisan matrix has rank `1`:
 `rank M_0(f) = 1`. -/
-theorem rank_nisanMatrix_zero_left [Fintype X] {f : FreeAlgebra K X} {d : ℕ}
+theorem rank_nisanMatrix_zero_left [Finite X] {f : FreeAlgebra K X} {d : ℕ}
     (hd : f.IsHomogeneous d) (hf : f ≠ 0) : (nisanMatrix 0 d f).rank = 1 :=
+  have := Fintype.ofFinite X
   le_antisymm ((Matrix.rank_le_card_height _).trans (by simp))
     (one_le_rank_nisanMatrix (by rwa [zero_add]) hf)
 
 /-- For nonzero `f` homogeneous of degree `d`, the last Nisan matrix has rank `1`:
 `rank M_d(f) = 1`. -/
-theorem rank_nisanMatrix_zero_right [Fintype X] {f : FreeAlgebra K X} {d : ℕ}
+theorem rank_nisanMatrix_zero_right [Finite X] {f : FreeAlgebra K X} {d : ℕ}
     (hd : f.IsHomogeneous d) (hf : f ≠ 0) : (nisanMatrix d 0 f).rank = 1 :=
+  have := Fintype.ofFinite X
   le_antisymm ((Matrix.rank_le_card_width _).trans (by simp)) (one_le_rank_nisanMatrix hd hf)
 
 /-- The row space of layer `0` is spanned by the row of the empty word. -/
@@ -240,7 +242,7 @@ private theorem rowBasis_apply_one_ne_zero {f : FreeAlgebra K X} {d : ℕ}
     (rowBasis f d i : FreeMonoid X → K) 1 ≠ 0 := fun h =>
   (rowBasis f d).ne_zero i <| Subtype.ext <| funext fun v =>
     if hv : v.toList.length = 0 then FreeMonoid.ext (List.length_eq_zero_iff.mp hv) ▸ h
-    else apply_eq_zero_of_mem_nisanRowSpace hd (rowBasis f d i).2 (by omega)
+    else apply_eq_zero_of_mem_nisanRowSpace hd (rowBasis f d i).property (by omega)
 
 private theorem rowScale_ne_zero {f : FreeAlgebra K X} {d : ℕ} (hd : f.IsHomogeneous d)
     (hf : f ≠ 0) (k : ℕ) (i : Fin (Module.finrank K (nisanRowSpace f k))) :
@@ -249,7 +251,7 @@ private theorem rowScale_ne_zero {f : FreeAlgebra K X} {d : ℕ} (hd : f.IsHomog
   split_ifs with hk hkd
   · subst hk
     exact div_ne_zero (by simpa [nisanRow] using coeff_witness hf)
-      (smul_eq_nisanRow_one hf (rowBasis f 0 i).2
+      (smul_eq_nisanRow_one hf (rowBasis f 0 i).property
         fun h => (rowBasis f 0).ne_zero i (Subtype.ext h)).1
   · subst hkd
     exact inv_ne_zero (rowBasis_apply_one_ne_zero hd i)
@@ -295,7 +297,7 @@ private theorem shiftBy_srow {f : FreeAlgebra K X} {d : ℕ} (hd : f.IsHomogeneo
 private theorem srow_zero {f : FreeAlgebra K X} {d : ℕ} (hf : f ≠ 0)
     (i : Fin (Module.finrank K (nisanRowSpace f 0))) : srow f d 0 i = nisanRow f 1 := by
   rw [srow, rowScale, ite_eq_left rfl]
-  exact (smul_eq_nisanRow_one hf (rowBasis f 0 i).2 fun h =>
+  exact (smul_eq_nisanRow_one hf (rowBasis f 0 i).property fun h =>
     (rowBasis f 0).ne_zero i (Subtype.ext h)).2
 
 private theorem srow_deg_apply_one {f : FreeAlgebra K X} {d : ℕ} (hd : f.IsHomogeneous d)

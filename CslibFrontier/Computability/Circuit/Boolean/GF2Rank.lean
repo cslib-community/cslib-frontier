@@ -90,7 +90,7 @@ variable (A : BitString n → Matrix (Fin r) (Fin c) (ZMod 2)) (k : Fin c)
 
 /-- Row `i` is a pivot candidate for column `k`: zero before `k`, one at `k`. -/
 private def candFn (i : Fin r) : BooleanFunction n := fun x =>
-  (!decide (∃ l ∈ univ.filter fun l : Fin c => l.1 < k.1, bitEquiv (A x i l) = true)) &&
+  (!decide (∃ l ∈ univ.filter fun l : Fin c => l.val < k.val, bitEquiv (A x i l) = true)) &&
     bitEquiv (A x i k)
 
 /-- Row `i` is the pivot row for column `k`: the first candidate. -/
@@ -161,10 +161,11 @@ theorem synthesis_entryBits_stage {s : Set (BooleanFunction n)} (hA : entryBits 
   have h₁ : Synthesis interpretation s (Set.range (candFn A k)) (r * (c + 3)) := by
     refine (Synthesis.family (candFn A k) (fun _ => c + 3) fun i => ?_).mono Set.Subset.rfl
       Set.Subset.rfl (by simp)
-    refine (Synthesis.congr_iff ((Synthesis.exists_mem (univ.filter fun l : Fin c => l.1 < k.1) _
+    refine (Synthesis.congr_iff ((Synthesis.exists_mem
+      (univ.filter fun l : Fin c => l.val < k.val) _
       (fun _ => 0) fun l _ => hentry i l).not.and (hentry i k)) fun x => by
         simp [candFn]).mono Set.Subset.rfl Set.Subset.rfl ?_
-    have : (univ.filter fun l : Fin c => l.1 < k.1).card ≤ c :=
+    have : (univ.filter fun l : Fin c => l.val < k.val).card ≤ c :=
       (card_filter_le _ _).trans (by simp)
     simp only [sum_const, smul_eq_mul, zero_add, mul_one]
     omega
@@ -274,7 +275,7 @@ theorem synthesis_le_rank (A : BitString n → Matrix (Fin r) (Fin c) (ZMod 2))
         (univ.filter fun i : Fin r => (reduce (A x)).row i ≠ 0).card := by
       rw [card_filter, card_filter, ← Fin.sum_univ_eq_sum_range]
       exact sum_congr rfl fun i _ => by
-        simp only [rowFn, i.2, dite_true, decide_eq_true_eq, mem_univ, true_and,
+        simp only [rowFn, i.isLt, dite_true, decide_eq_true_eq, mem_univ, true_and,
           bitEquiv_eq_true_iff, Ne, funext_iff, not_forall, Fin.eta, row_apply', Pi.zero_apply]
     rw [hcard]
   refine (Synthesis.congr_iff h key).mono Set.Subset.rfl Set.Subset.rfl ?_

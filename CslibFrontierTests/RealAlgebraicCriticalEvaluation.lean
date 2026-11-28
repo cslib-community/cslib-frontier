@@ -81,7 +81,7 @@ example :
   let Z := {x : Fin 1 → ℝ // eval x F = 0}
   let coord (z : Z) := z.val 0
   let C : Set Z := coord ⁻¹' Set.Ioi 0
-  have hcoord : Continuous coord := (continuous_apply 0).comp continuous_subtype_val
+  have hcoord : Continuous coord := (continuous_apply 0).comp continuous_subtypeVal
   have hne (z : Z) : coord z ≠ 0 := by
     intro hz
     have h := z.property
@@ -776,7 +776,7 @@ example : IsClopen {x : {x : ℝ // x ≠ 0} | 0 < x.val} := by
   let P : {x : ℝ // x ≠ 0} → Polynomial ℝ := fun _ => Polynomial.X
   refine Polynomial.eventualSign_isClopen_of_fixed_degree P 1
     (fun _ => continuous_const) (fun _ => by simp [P]) (fun _ => by simp [P])
-    (fun x v => x.val * v) ((continuous_subtype_val.comp continuous_fst).mul continuous_snd)
+    (fun x v => x.val * v) ((continuous_subtypeVal.comp continuous_fst).mul continuous_snd)
     (fun x => 0 < x.val) ?_ ?_ ?_
   · intro x v hz
     have hv : v = 0 := (mul_eq_zero.mp hz).resolve_left x.property
@@ -845,7 +845,7 @@ example :
         (specializedRelativeValueSection_ne_zero (n := 1) (m := 1) (by decide) P hP (fun _ => r))⟩
   refine ⟨fun k => ?_, ⟨atDegree 0, rfl, ?_⟩, ⟨atDegree 1, rfl, ?_⟩⟩
   · exact isClopen_relative_emptyFibers_of_fixed_degree (by decide) (by decide) P hP
-      (fun (r : Piece k) (_ : Fin 1) => r.val) (continuous_pi fun _ => continuous_subtype_val)
+      (fun (r : Piece k) (_ : Fin 1) => r.val) (continuous_pi fun _ => continuous_subtypeVal)
       (fun r z => by rw [heval]; exact sq_nonneg _) k
       (fun r => r.property.1) (fun r => r.property.2)
   · intro h

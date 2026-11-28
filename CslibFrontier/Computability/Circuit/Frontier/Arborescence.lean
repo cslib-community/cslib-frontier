@@ -102,12 +102,12 @@ private theorem wireRank_lt_of_clauseEdge {p : Program σ n s} {I : Interpretati
 /-- Directed `ClauseEdge` graph on a wire subset `R : Set (Wire n s)`. -/
 @[expose] def clauseDigraph (p : Program σ n s) (I : Interpretation σ Bool)
     (R : Set (Wire n s)) : Digraph R where
-  Adj u w := ClauseEdge p I u.1 w.1
+  Adj u w := ClauseEdge p I u.val w.val
 
 @[simp]
 theorem clauseDigraph_adj (p : Program σ n s) (I : Interpretation σ Bool)
     (R : Set (Wire n s)) (u w : R) :
-    (clauseDigraph p I R).Adj u w ↔ ClauseEdge p I u.1 w.1 := Iff.rfl
+    (clauseDigraph p I R).Adj u w ↔ ClauseEdge p I u.val w.val := Iff.rfl
 
 /-- `u2ClauseGraph p I R` is `SimpleGraph.fromRel` of `(clauseDigraph p I R).Adj`. -/
 theorem u2ClauseGraph_eq_fromRel (p : Program σ n s) (I : Interpretation σ Bool)
@@ -128,17 +128,17 @@ most one incoming `ClauseEdge` from `R`. -/
 theorem clauseEdge_subsingleton_of_sdiff_depthOneDetermined {p : Program σ n s}
     (hfan : p.FanInAtMost 2) (I : Interpretation σ Bool) {W R : Set (Wire n s)}
     (hR : R ⊆ W \ p.depthOneDetermined W) (w : R) :
-    {u : R | ClauseEdge p I u.1 w.1}.Subsingleton := by
+    {u : R | ClauseEdge p I u.val w.val}.Subsingleton := by
   intro u₁ hu₁ u₂ hu₂
   by_contra hne
-  have hne_val : u₁.1 ≠ u₂.1 := fun h => hne (Subtype.ext h)
+  have hne_val : u₁.val ≠ u₂.val := fun h => hne (Subtype.ext h)
   obtain ⟨g₁, a₁, hw₁, hwire₁, -⟩ := hu₁
   obtain ⟨g₂, a₂, hw₂, hwire₂, -⟩ := hu₂
   have hg : g₁ = g₂ := Wire.gate.inj (hw₁.symm.trans hw₂)
   subst hg
   have ha_ne : a₁ ≠ a₂ := fun ha => hne_val (hwire₁.symm.trans (ha ▸ hwire₂))
   have harity : σ.Arity (p.lines g₁).op ≤ 2 := Program.fanInAtMost_iff.mp hfan g₁
-  have hw_mem := hR w.2
+  have hw_mem := hR w.property
   refine hw_mem.2 ⟨hw_mem.1, g₁, hw₁, fun a => ?_⟩
   have ha_lt := a.isLt
   have ha1_lt := a₁.isLt
@@ -150,9 +150,9 @@ theorem clauseEdge_subsingleton_of_sdiff_depthOneDetermined {p : Program σ n s}
     · exact Or.inr (Fin.ext h2)
   rcases ha_cases with rfl | rfl
   · rw [hwire₁]
-    exact (hR u₁.2).1
+    exact (hR u₁.property).1
   · rw [hwire₂]
-    exact (hR u₂.2).1
+    exact (hR u₂.property).1
 
 /-- **Branching property of `clauseDigraph`.** For any fan-in-at-most-2 program `p` and any
 `R ⊆ W \ p.depthOneDetermined W`, `clauseDigraph p I R` is a branching. -/
@@ -160,7 +160,7 @@ theorem isBranching_clauseDigraph_of_sdiff_depthOneDetermined {p : Program σ n 
     (hfan : p.FanInAtMost 2) (I : Interpretation σ Bool) {W R : Set (Wire n s)}
     (hR : R ⊆ W \ p.depthOneDetermined W) :
     (clauseDigraph p I R).IsBranching :=
-  Digraph.IsBranching.of_rank (rk := fun u : R => wireRank u.1)
+  Digraph.IsBranching.of_rank (rk := fun u : R => wireRank u.val)
     (fun _ _ h => wireRank_lt_of_clauseEdge h)
     (fun _ _ w h1 h2 => clauseEdge_subsingleton_of_sdiff_depthOneDetermined hfan I hR w h1 h2)
 
@@ -213,10 +213,10 @@ wires in `R` have at most `2` outgoing clauses in `R` and roots in `R` have at m
 theorem logb_indepSetCount_u2ClauseGraph_le {p : Program σ n s} (hfan : p.FanInAtMost 2)
     (I : Interpretation σ Bool) {W R : Set (Wire n s)}
     (hR : R ⊆ W \ p.depthOneDetermined W)
-    (hout_int : ∀ w : R, (∃ u : R, ClauseEdge p I u.1 w.1) →
-      {v : R | ClauseEdge p I w.1 v.1}.ncard ≤ 2)
-    (hout_root : ∀ r : R, (¬∃ u : R, ClauseEdge p I u.1 r.1) →
-      {v : R | ClauseEdge p I r.1 v.1}.ncard ≤ 3) :
+    (hout_int : ∀ w : R, (∃ u : R, ClauseEdge p I u.val w.val) →
+      {v : R | ClauseEdge p I w.val v.val}.ncard ≤ 2)
+    (hout_root : ∀ r : R, (¬∃ u : R, ClauseEdge p I u.val r.val) →
+      {v : R | ClauseEdge p I r.val v.val}.ncard ≤ 3) :
     Real.logb 2 ((u2ClauseGraph p I R).indepSetCount : ℝ) ≤
       (R.ncard : ℝ) - (53 / 200 : ℝ) * ((u2ClauseGraph p I R).edgeSet.ncard : ℝ) -
         (33 / 1000 : ℝ) * ((clauseActiveRoots p I R).ncard : ℝ) := by
@@ -245,7 +245,7 @@ theorem logb_ncard_frontierValues_le_arborescence {c : Circuit σ n m} (hfan : c
     (hD : D ⊆ c.program.forwardDetermined (cutWires c (π.initial t)))
     (X : Set (Fin n → Bool)) :
     Real.logb 2 (((fun x => (Compiler.network c I Acc).frontierValues π t
-        (fun e => c.program.trace I x e.signal.1)) '' X).ncard : ℝ) ≤
+        (fun e => c.program.trace I x e.signal.val)) '' X).ncard : ℝ) ≤
       ((cutWires c (π.initial t)).ncard : ℝ) - (D.ncard : ℝ) -
         (53 / 200 : ℝ) * (clauseCappedEdges c.program I (cutWires c (π.initial t) \ D) : ℝ) -
         (33 / 1000 : ℝ) *
@@ -272,13 +272,13 @@ theorem ncard_frontierValues_le_rpow_arborescence {c : Circuit σ n m} (hfan : c
     (hD : D ⊆ c.program.forwardDetermined (cutWires c (π.initial t)))
     (X : Set (Fin n → Bool)) :
     (((fun x => (Compiler.network c I Acc).frontierValues π t
-        (fun e => c.program.trace I x e.signal.1)) '' X).ncard : ℝ) ≤
+        (fun e => c.program.trace I x e.signal.val)) '' X).ncard : ℝ) ≤
       (2 : ℝ) ^ (((cutWires c (π.initial t)).ncard : ℝ) - (D.ncard : ℝ) -
         (53 / 200 : ℝ) * (clauseCappedEdges c.program I (cutWires c (π.initial t) \ D) : ℝ) -
         (33 / 1000 : ℝ) *
           ((clauseActiveRoots c.program I (cutWires c (π.initial t) \ D)).ncard : ℝ)) := by
   set S := (fun x => (Compiler.network c I Acc).frontierValues π t
-    (fun e => c.program.trace I x e.signal.1)) '' X
+    (fun e => c.program.trace I x e.signal.val)) '' X
   rcases Nat.eq_zero_or_pos S.ncard with h0 | hpos
   · rw [h0, Nat.cast_zero]
     exact (Real.rpow_pos_of_pos (by norm_num) _).le
@@ -293,7 +293,7 @@ theorem logb_ncard_frontierValues_le_arborescence_depthOne {c : Circuit σ n m}
     (hfan : c.FanInAtMost 2) (I : Interpretation σ Bool) (Acc : Fin m → Set Bool)
     (π : Layout (Compiler.Vertex c)) (t : ℕ) (X : Set (Fin n → Bool)) :
     Real.logb 2 (((fun x => (Compiler.network c I Acc).frontierValues π t
-        (fun e => c.program.trace I x e.signal.1)) '' X).ncard : ℝ) ≤
+        (fun e => c.program.trace I x e.signal.val)) '' X).ncard : ℝ) ≤
       ((cutWires c (π.initial t)).ncard : ℝ) -
         ((c.program.depthOneDetermined (cutWires c (π.initial t))).ncard : ℝ) -
         (53 / 200 : ℝ) * (clauseCappedEdges c.program I
@@ -311,30 +311,30 @@ open Classical in
 /-- Total outgoing `ClauseEdge`s on `W` capped at `2` per source wire. -/
 @[expose] noncomputable def twoCappedClauseEdges (p : Program σ n s) (I : Interpretation σ Bool)
     (W : Set (Wire n s)) : ℕ :=
-  ∑ᶠ u : W, min {w : W | ClauseEdge p I u.1 w.1}.ncard 2
+  ∑ᶠ u : W, min {w : W | ClauseEdge p I u.val w.val}.ncard 2
 
 /-- Every wire `w : W` in a fan-in-at-most-2 program has at most `2` incoming `ClauseEdge`s in `W`.
 -/
 private theorem inDeg_clauseEdge_le_two {p : Program σ n s} (hfan : p.FanInAtMost 2)
     (I : Interpretation σ Bool) (W : Set (Wire n s)) (w : W) :
-    {u : W | ClauseEdge p I u.1 w.1}.ncard ≤ 2 := by
+    {u : W | ClauseEdge p I u.val w.val}.ncard ≤ 2 := by
   rcases w with ⟨w_val, hw_mem⟩
   cases w_val with
   | input i =>
-    have hemp : {u : W | ClauseEdge p I u.1 (.input i)} = ∅ := by
+    have hemp : {u : W | ClauseEdge p I u.val (.input i)} = ∅ := by
       ext u
       simp only [mem_ofPred_eq, mem_empty_iff_false, iff_false]
       rintro ⟨g, a, h, -⟩
       cases h
-    change {u : W | ClauseEdge p I u.1 (.input i)}.ncard ≤ 2
+    change {u : W | ClauseEdge p I u.val (.input i)}.ncard ≤ 2
     rw [hemp, ncard_empty]
     omega
   | gate g =>
     have har : σ.Arity (p.lines g).op ≤ 2 := Program.fanInAtMost_iff.mp hfan g
-    change {u : W | ClauseEdge p I u.1 (.gate g)}.ncard ≤ 2
-    calc {u : W | ClauseEdge p I u.1 (.gate g)}.ncard
+    change {u : W | ClauseEdge p I u.val (.gate g)}.ncard ≤ 2
+    calc {u : W | ClauseEdge p I u.val (.gate g)}.ncard
         ≤ ((fun a => (p.lines g).wires a) '' univ).ncard := by
-          refine ncard_le_ncard_of_injOn (fun u => u.1) (fun u hu => ?_)
+          refine ncard_le_ncard_of_injOn (fun u => u.val) (fun u hu => ?_)
             (fun _ _ _ _ h => Subtype.ext h) (toFinite _)
           obtain ⟨g', a, hg', hwire, -⟩ := hu
           cases Wire.gate.inj hg'
@@ -357,95 +357,95 @@ theorem twoCappedClauseEdges_le_add_four_mul {p : Program σ n s} (hfan : p.FanI
   cases nonempty_fintype R
   have hD₀_sub : D₀ ⊆ W := p.depthOneDetermined_subset_forwardDetermined W |>.trans
     (p.forwardDetermined_subset W)
-  let Dfin : Finset W := Finset.univ.filter fun u : W => u.1 ∈ D₀
-  let Rfin : Finset W := Finset.univ.filter fun u : W => u.1 ∉ D₀
+  let Dfin : Finset W := Finset.univ.filter fun u : W => u.val ∈ D₀
+  let Rfin : Finset W := Finset.univ.filter fun u : W => u.val ∉ D₀
   have hDfin_card : Dfin.card = D₀.ncard := by
     rw [← ncard_coe_finset]
-    refine ncard_congr (fun (u : W) _ => u.1)
+    refine ncard_congr (fun (u : W) _ => u.val)
       (fun u hu => (Finset.mem_filter.mp hu).2)
       (fun _ _ _ _ h => Subtype.ext h)
       (fun w hw => ⟨⟨w, hD₀_sub hw⟩, Finset.mem_coe.mpr
         (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hw⟩), rfl⟩)
   -- Split `∑ u : W` into `Dfin` (`≤ 2 * Dfin.card`) and `Rfin`:
   have hsplit : twoCappedClauseEdges p I W =
-      (∑ u ∈ Dfin, min {w : W | ClauseEdge p I u.1 w.1}.ncard 2) +
-      (∑ u ∈ Rfin, min {w : W | ClauseEdge p I u.1 w.1}.ncard 2) := by
+      (∑ u ∈ Dfin, min {w : W | ClauseEdge p I u.val w.val}.ncard 2) +
+      (∑ u ∈ Rfin, min {w : W | ClauseEdge p I u.val w.val}.ncard 2) := by
     rw [twoCappedClauseEdges, finsum_eq_sum_of_fintype]
-    exact (Finset.sum_filter_add_sum_filter_not Finset.univ (fun u : W => u.1 ∈ D₀)
-      (fun u : W => min {w : W | ClauseEdge p I u.1 w.1}.ncard 2)).symm
-  have hD_sum : (∑ u ∈ Dfin, min {w : W | ClauseEdge p I u.1 w.1}.ncard 2) ≤ 2 * D₀.ncard := by
-    calc ∑ u ∈ Dfin, min {w : W | ClauseEdge p I u.1 w.1}.ncard 2
+    exact (Finset.sum_filter_add_sum_filter_not Finset.univ (fun u : W => u.val ∈ D₀)
+      (fun u : W => min {w : W | ClauseEdge p I u.val w.val}.ncard 2)).symm
+  have hD_sum : (∑ u ∈ Dfin, min {w : W | ClauseEdge p I u.val w.val}.ncard 2) ≤ 2 * D₀.ncard := by
+    calc ∑ u ∈ Dfin, min {w : W | ClauseEdge p I u.val w.val}.ncard 2
         ≤ ∑ _u ∈ Dfin, 2 := Finset.sum_le_sum fun _ _ => Nat.min_le_right _ _
       _ = 2 * D₀.ncard := by rw [Finset.sum_const, smul_eq_mul, mul_comm, hDfin_card]
   -- For each `u : R`, `{w : W | ClauseEdge u w}` splits into `w.1 ∉ D₀` (`R`) and `w.1 ∈ D₀`:
-  have hR_term : ∀ u : R, min {w : W | ClauseEdge p I u.1 w.1}.ncard 2 ≤
-      min {w : R | ClauseEdge p I u.1 w.1}.ncard
-        (if ∃ v : R, ClauseEdge p I v.1 u.1 then 2 else 3) +
-      {w ∈ Dfin | ClauseEdge p I u.1 w.1}.card := by
+  have hR_term : ∀ u : R, min {w : W | ClauseEdge p I u.val w.val}.ncard 2 ≤
+      min {w : R | ClauseEdge p I u.val w.val}.ncard
+        (if ∃ v : R, ClauseEdge p I v.val u.val then 2 else 3) +
+      {w ∈ Dfin | ClauseEdge p I u.val w.val}.card := by
     intro u
-    have hle_split : {w : W | ClauseEdge p I u.1 w.1}.ncard ≤
-        {w : R | ClauseEdge p I u.1 w.1}.ncard +
-          (Dfin.filter fun w : W => ClauseEdge p I u.1 w.1).card := by
-      set SR : Set W := {w : W | w.1 ∉ D₀ ∧ ClauseEdge p I u.1 w.1}
-      set SD : Set W := {w : W | w.1 ∈ D₀ ∧ ClauseEdge p I u.1 w.1}
-      have hun : {w : W | ClauseEdge p I u.1 w.1} ⊆ SR ∪ SD := fun w hw =>
-        (em (w.1 ∈ D₀)).elim (fun h => Or.inr ⟨h, hw⟩) fun h => Or.inl ⟨h, hw⟩
-      have hSR : SR.ncard = {w : R | ClauseEdge p I u.1 w.1}.ncard := by
-        refine ncard_congr (fun (w : W) (hw : w ∈ SR) => (⟨w.1, w.2, hw.1⟩ : R))
+    have hle_split : {w : W | ClauseEdge p I u.val w.val}.ncard ≤
+        {w : R | ClauseEdge p I u.val w.val}.ncard +
+          (Dfin.filter fun w : W => ClauseEdge p I u.val w.val).card := by
+      set SR : Set W := {w : W | w.val ∉ D₀ ∧ ClauseEdge p I u.val w.val}
+      set SD : Set W := {w : W | w.val ∈ D₀ ∧ ClauseEdge p I u.val w.val}
+      have hun : {w : W | ClauseEdge p I u.val w.val} ⊆ SR ∪ SD := fun w hw =>
+        (em (w.val ∈ D₀)).elim (fun h => Or.inr ⟨h, hw⟩) fun h => Or.inl ⟨h, hw⟩
+      have hSR : SR.ncard = {w : R | ClauseEdge p I u.val w.val}.ncard := by
+        refine ncard_congr (fun (w : W) (hw : w ∈ SR) => (⟨w.val, w.property, hw.1⟩ : R))
           (fun _ hw => hw.2)
           (fun _ _ _ _ h => Subtype.ext (Subtype.mk.inj h))
-          (fun w hw => ⟨⟨w.1, w.2.1⟩, ⟨w.2.2, hw⟩, Subtype.ext rfl⟩)
-      have hSD : SD.ncard = (Dfin.filter fun w : W => ClauseEdge p I u.1 w.1).card := by
+          (fun w hw => ⟨⟨w.val, w.property.1⟩, ⟨w.property.2, hw⟩, Subtype.ext rfl⟩)
+      have hSD : SD.ncard = (Dfin.filter fun w : W => ClauseEdge p I u.val w.val).card := by
         rw [← ncard_coe_finset]; congr 1; ext w; simp [SD, Dfin]
-      calc {w : W | ClauseEdge p I u.1 w.1}.ncard
+      calc {w : W | ClauseEdge p I u.val w.val}.ncard
           ≤ (SR ∪ SD).ncard := ncard_le_ncard hun (toFinite _)
         _ ≤ SR.ncard + SD.ncard := ncard_union_le SR SD
         _ = _ := by rw [hSR, hSD]
-    have h23 : 2 ≤ (if ∃ v : R, ClauseEdge p I v.1 u.1 then 2 else 3) := by split_ifs <;> omega
+    have h23 : 2 ≤ (if ∃ v : R, ClauseEdge p I v.val u.val then 2 else 3) := by split_ifs <;> omega
     omega
   -- Sum over `Rfin ≃ R`:
-  have hRfin (f : Wire n s → ℕ) : ∑ u ∈ Rfin, f u.1 = ∑ u : R, f u.1 :=
-    Finset.sum_bij (fun u hu => (⟨u.1, u.2, (Finset.mem_filter.mp hu).2⟩ : R))
+  have hRfin (f : Wire n s → ℕ) : ∑ u ∈ Rfin, f u.val = ∑ u : R, f u.val :=
+    Finset.sum_bij (fun u hu => (⟨u.val, u.property, (Finset.mem_filter.mp hu).2⟩ : R))
       (fun _ _ => Finset.mem_univ _)
       (fun _ _ _ _ h => Subtype.ext (Subtype.mk.inj h))
-      (fun u _ => ⟨⟨u.1, u.2.1⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, u.2.2⟩,
+      (fun u _ => ⟨⟨u.val, u.property.1⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, u.property.2⟩,
         Subtype.ext rfl⟩)
       (fun _ _ => rfl)
   -- And `∑ u : R, (Dfin.filter (ClauseEdge u ·)).card ≤ ∑ w ∈ Dfin, inDeg w ≤ 2 * D₀.ncard`:
-  have htarget_D : (∑ u : R, (Dfin.filter fun w : W => ClauseEdge p I u.1 w.1).card) ≤
+  have htarget_D : (∑ u : R, (Dfin.filter fun w : W => ClauseEdge p I u.val w.val).card) ≤
       2 * D₀.ncard := by
-    calc (∑ u : R, (Dfin.filter fun w : W => ClauseEdge p I u.1 w.1).card)
-        ≤ ∑ u : W, (Dfin.filter fun w : W => ClauseEdge p I u.1 w.1).card := by
-          rw [← hRfin fun u => (Dfin.filter fun w : W => ClauseEdge p I u w.1).card]
+    calc (∑ u : R, (Dfin.filter fun w : W => ClauseEdge p I u.val w.val).card)
+        ≤ ∑ u : W, (Dfin.filter fun w : W => ClauseEdge p I u.val w.val).card := by
+          rw [← hRfin fun u => (Dfin.filter fun w : W => ClauseEdge p I u w.val).card]
           exact Finset.sum_le_sum_of_subset (Finset.subset_univ Rfin)
-      _ = ∑ w ∈ Dfin, (Finset.univ.filter fun u : W => ClauseEdge p I u.1 w.1).card := by
+      _ = ∑ w ∈ Dfin, (Finset.univ.filter fun u : W => ClauseEdge p I u.val w.val).card := by
           simp_rw [Finset.card_filter]
           exact Finset.sum_comm
       _ ≤ ∑ _w ∈ Dfin, 2 := by
           refine Finset.sum_le_sum fun w _ => ?_
-          have hnc : (Finset.univ.filter fun u : W => ClauseEdge p I u.1 w.1).card =
-              {u : W | ClauseEdge p I u.1 w.1}.ncard := by
+          have hnc : (Finset.univ.filter fun u : W => ClauseEdge p I u.val w.val).card =
+              {u : W | ClauseEdge p I u.val w.val}.ncard := by
             rw [← ncard_coe_finset]; congr 1; ext u; simp
           rw [hnc]
           exact inDeg_clauseEdge_le_two hfan I W w
       _ = 2 * D₀.ncard := by rw [Finset.sum_const, smul_eq_mul, mul_comm, hDfin_card]
-  have hcap_eq : (∑ u : R, min {w : R | ClauseEdge p I u.1 w.1}.ncard
-      (if ∃ v : R, ClauseEdge p I v.1 u.1 then 2 else 3)) = clauseCappedEdges p I R := by
+  have hcap_eq : (∑ u : R, min {w : R | ClauseEdge p I u.val w.val}.ncard
+      (if ∃ v : R, ClauseEdge p I v.val u.val then 2 else 3)) = clauseCappedEdges p I R := by
     rw [clauseCappedEdges, SimpleGraph.arborescenceCappedEdges, finsum_eq_sum_of_fintype]
     refine Finset.sum_congr rfl fun u _ => ?_
-    by_cases h : ∃ v : R, ClauseEdge p I v.1 u.1 <;> simp [clauseDigraph, h]
-  have hsum_R : (∑ u : R, min {w : W | ClauseEdge p I u.1 w.1}.ncard 2) ≤
+    by_cases h : ∃ v : R, ClauseEdge p I v.val u.val <;> simp [clauseDigraph, h]
+  have hsum_R : (∑ u : R, min {w : W | ClauseEdge p I u.val w.val}.ncard 2) ≤
       clauseCappedEdges p I R + 2 * D₀.ncard := by
-    calc (∑ u : R, min {w : W | ClauseEdge p I u.1 w.1}.ncard 2)
-        ≤ ∑ u : R, (min {w : R | ClauseEdge p I u.1 w.1}.ncard
-            (if ∃ v : R, ClauseEdge p I v.1 u.1 then 2 else 3) +
-            (Dfin.filter fun w : W => ClauseEdge p I u.1 w.1).card) :=
+    calc (∑ u : R, min {w : W | ClauseEdge p I u.val w.val}.ncard 2)
+        ≤ ∑ u : R, (min {w : R | ClauseEdge p I u.val w.val}.ncard
+            (if ∃ v : R, ClauseEdge p I v.val u.val then 2 else 3) +
+            (Dfin.filter fun w : W => ClauseEdge p I u.val w.val).card) :=
           Finset.sum_le_sum fun u _ => hR_term u
       _ = clauseCappedEdges p I R +
-            ∑ u : R, (Dfin.filter fun w : W => ClauseEdge p I u.1 w.1).card := by
+            ∑ u : R, (Dfin.filter fun w : W => ClauseEdge p I u.val w.val).card := by
           rw [Finset.sum_add_distrib, hcap_eq]
       _ ≤ clauseCappedEdges p I R + 2 * D₀.ncard := Nat.add_le_add_left htarget_D _
-  rw [hsplit, hRfin fun u => min {w : W | ClauseEdge p I u w.1}.ncard 2]
+  rw [hsplit, hRfin fun u => min {w : W | ClauseEdge p I u w.val}.ncard 2]
   omega
 
 /-- **`D₀`-free amortized `1 / 4`-per-clause frontier state bound.** Along any layout `π` of a
@@ -456,7 +456,7 @@ theorem logb_ncard_frontierValues_le_quarter_sub {c : Circuit σ n m} (hfan : c.
     (I : Interpretation σ Bool) (Acc : Fin m → Set Bool) (π : Layout (Compiler.Vertex c)) (t : ℕ)
     (X : Set (Fin n → Bool)) :
     Real.logb 2 (((fun x => (Compiler.network c I Acc).frontierValues π t
-        (fun e => c.program.trace I x e.signal.1)) '' X).ncard : ℝ) ≤
+        (fun e => c.program.trace I x e.signal.val)) '' X).ncard : ℝ) ≤
       ((cutWires c (π.initial t)).ncard : ℝ) -
         (1 / 4 : ℝ) * (twoCappedClauseEdges c.program I (cutWires c (π.initial t)) : ℝ) := by
   set W := cutWires c (π.initial t)

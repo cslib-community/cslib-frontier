@@ -236,10 +236,10 @@ private theorem tsum_eq_tsum_mul_tsub (hf : Antitone f) (h0 : Tendsto f atTop (�
   let d := fun k => f k - f (k + 1)
   calc ∑' n, f n = ∑' n, ∑' k, d (n + k) := tsum_congr fun n => (tsum_tsub_succ hf h0 n).symm
     _ = ∑' p : ℕ × ℕ, d (p.1 + p.2) := tsum_prod.symm
-    _ = ∑' x : Σ j : ℕ, Finset.antidiagonal j, d (x.2.1.1 + x.2.1.2) :=
+    _ = ∑' x : Σ j : ℕ, Finset.antidiagonal j, d (x.2.val.1 + x.2.val.2) :=
         (Finset.HasAntidiagonal.sigmaAntidiagonalEquivProd.tsum_eq
           (fun p : ℕ × ℕ => d (p.1 + p.2))).symm
-    _ = ∑' j, ∑' y : Finset.antidiagonal j, d (y.1.1 + y.1.2) := tsum_sigma' _
+    _ = ∑' j, ∑' y : Finset.antidiagonal j, d (y.val.1 + y.val.2) := tsum_sigma' _
     _ = ∑' j : ℕ, ((j : ℝ≥0∞) + 1) * d j := tsum_congr fun j => by
         rw [Finset.tsum_subtype (Finset.antidiagonal j) (fun y : ℕ × ℕ => d (y.1 + y.2)),
           Finset.sum_congr rfl fun y hy => by rw [Finset.mem_antidiagonal.mp hy],

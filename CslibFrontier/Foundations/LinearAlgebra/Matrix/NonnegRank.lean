@@ -81,7 +81,7 @@ nonnegative matrices `T : Matrix m ρ R` and `U : Matrix ρ n R`
 entrywise nonnegative of inner dimension `r`, or `⊤` if `M` has no nonnegative factorization
 [FioriniMassarPokuttaTiwaryDeWolf2015, Section 3.1]. -/
 noncomputable def nonnegRank [Semiring R] [PartialOrder R] (M : Matrix m n R) : ℕ∞ :=
-  ⨅ r : {r : ℕ // M.HasNonnegFactorization (Fin r)}, (r.1 : ℕ∞)
+  ⨅ r : {r : ℕ // M.HasNonnegFactorization (Fin r)}, (r.val : ℕ∞)
 
 section Semiring
 
@@ -119,7 +119,7 @@ theorem HasNonnegFactorization.of_embedding (e : ρ ↪ ρ') (h : M.HasNonnegFac
 /-- A nonnegative factorization through `ρ` bounds the nonnegative rank by `|ρ|`. -/
 theorem HasNonnegFactorization.nonnegRank_le (h : M.HasNonnegFactorization ρ) :
     M.nonnegRank ≤ Fintype.card ρ :=
-  iInf_le (fun r : {r : ℕ // M.HasNonnegFactorization (Fin r)} => (r.1 : ℕ∞))
+  iInf_le (fun r : {r : ℕ // M.HasNonnegFactorization (Fin r)} => (r.val : ℕ∞))
     ⟨_, h.of_equiv (Fintype.equivFin ρ)⟩
 
 /-- Lower bounds on the nonnegative rank are lower bounds on the inner dimension of every
@@ -173,7 +173,7 @@ theorem HasNonnegFactorization.transpose {ρ : Type*} [Fintype ρ]
 
 /-- **Rank is at most nonnegative rank**: a nonnegative factorization with inner dimension `r` is
 in particular a factorization through `R ^ r`. -/
-theorem rank_le_nonnegRank [StrongRankCondition R] [Fintype n] :
+theorem rank_le_nonnegRank [StrongRankCondition R] [Finite n] :
     (M.rank : ℕ∞) ≤ M.nonnegRank :=
   le_nonnegRank_iff.2 fun r ⟨T, U, _, _, hTU⟩ => by
     rw [← hTU]

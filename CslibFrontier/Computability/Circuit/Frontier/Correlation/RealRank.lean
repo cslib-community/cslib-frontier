@@ -105,6 +105,7 @@ private def boolEquivZMod2 : Bool ≃ ZMod 2 where
   right_inv z := by revert z; decide
 
 open Classical in
+omit [DecidableEq ι] in
 /-- **Correlation through real sign-matrix rank.** For any quadratic form `Q` over `𝔽₂`, target set
 `T ⊆ (ι → Bool)`, and coordinate cut `X ⊆ ι`,
 `correlation {x | BitString.quadForm Q x} T ^ 2 * 2 ^ (Q + Qᵀ).cutRank X ≤
@@ -193,6 +194,7 @@ theorem sq_correlation_quadForm_mul_le_rank_signMatrix
   exact le_of_mul_le_mul_right hbound hNN
 
 open Classical in
+omit [DecidableEq ι] in
 /-- **Correlation through `{0, 1}` real communication-matrix rank.** Across any coordinate cut
 `X ⊆ ι`, `correlation {x | BitString.quadForm Q x} T ^ 2 * 2 ^ (Q + Qᵀ).cutRank X ≤
   (Communication.communicationMatrix ℝ (cutFun T X)).rank + 1`. -/
@@ -221,7 +223,7 @@ def andXorCut : Set (Fin 4) :=
 
 private def andXorLeftEquiv : (andXorCut → Bool) ≃ Bool × Bool where
   toFun p := (p ⟨0, by simp [andXorCut]⟩, p ⟨1, by simp [andXorCut]⟩)
-  invFun bd i := if i.1.val = 0 then bd.1 else bd.2
+  invFun bd i := if i.val.val = 0 then bd.1 else bd.2
   left_inv p := by
     ext ⟨i, hi⟩
     fin_cases i
@@ -233,7 +235,7 @@ private def andXorLeftEquiv : (andXorCut → Bool) ≃ Bool × Bool where
 
 private def andXorRightEquiv : (↥andXorCutᶜ → Bool) ≃ Bool × Bool where
   toFun q := (q ⟨2, by simp [andXorCut]⟩, q ⟨3, by simp [andXorCut]⟩)
-  invFun ac i := if i.1.val = 2 then ac.1 else ac.2
+  invFun ac i := if i.val.val = 2 then ac.1 else ac.2
   left_inv q := by
     ext ⟨i, hi⟩
     fin_cases i

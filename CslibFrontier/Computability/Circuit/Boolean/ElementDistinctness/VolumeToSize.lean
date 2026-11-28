@@ -137,7 +137,7 @@ public theorem exists_dyadic_network_of_computes {σ : Signature} {m : ℕ} (hm 
     have := Nat.clog_pos (b := 2) (by decide) hm
     dsimp [w]
     lia
-  have hlow : 2 ^ w < m := Nat.pow_pred_clog_lt_self (by decide) hm
+  have hlow : 2 ^ w < m := Nat.pow_pred_clog_lt_self 2 hm
   have hhigh := Nat.le_pow_clog (b := 2) (by decide) m
   rw [ht, pow_succ] at hhigh
   have hfill : m - 2 ^ w ≤ 2 ^ (2 * w) := by

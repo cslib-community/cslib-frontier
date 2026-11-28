@@ -410,7 +410,7 @@ namespace WeightedSetSystem
 
 theorem isCover_toSetSystem_iff (W : WeightedSetSystem) (C : Finset (Fin W.sets.length)) :
     W.toSetSystem.IsCover (C.map ⟨fun i : Fin W.sets.length =>
-        (⟨i.1, by simp [toSetSystem]⟩ : Fin W.toSetSystem.sets.length),
+        (⟨i.val, by simp [toSetSystem]⟩ : Fin W.toSetSystem.sets.length),
       fun _ _ h => Fin.ext (congrArg (Fin.val : Fin W.toSetSystem.sets.length → ℕ) h)⟩) ↔
       W.IsCover C := by
   constructor
@@ -424,7 +424,7 @@ theorem isCover_toSetSystem_iff (W : WeightedSetSystem) (C : Finset (Fin W.sets.
     simpa [hij'] using huv
   · intro h u hu
     obtain ⟨i, hi, hui⟩ := h u hu
-    refine ⟨⟨i.1, by simp [toSetSystem]⟩, Finset.mem_map.2 ⟨i, hi, rfl⟩, ?_⟩
+    refine ⟨⟨i.val, by simp [toSetSystem]⟩, Finset.mem_map.2 ⟨i, hi, rfl⟩, ?_⟩
     simpa [toSetSystem] using hui
 
 theorem coverable_iff_toSetSystem (W : WeightedSetSystem) :
@@ -434,13 +434,13 @@ theorem coverable_iff_toSetSystem (W : WeightedSetSystem) :
     exact ⟨_, (isCover_toSetSystem_iff W C).2 hC⟩
   · rintro ⟨C, hC⟩
     refine ⟨Finset.univ.filter (fun i : Fin W.sets.length =>
-      (⟨i.1, by simp [toSetSystem]⟩ : Fin W.toSetSystem.sets.length) ∈ C), fun u hu => ?_⟩
+      (⟨i.val, by simp [toSetSystem]⟩ : Fin W.toSetSystem.sets.length) ∈ C), fun u hu => ?_⟩
     obtain ⟨j, hjC, huj⟩ := hC u hu
-    have hj : j.1 < W.sets.length := by simpa [toSetSystem] using j.isLt
-    have h0 : u ∈ (W.sets.map WeightedSet.elements)[j.1]'(by simpa [toSetSystem] using j.isLt) :=
+    have hj : j.val < W.sets.length := by simpa [toSetSystem] using j.isLt
+    have h0 : u ∈ (W.sets.map WeightedSet.elements)[j.val]'(by simpa [toSetSystem] using j.isLt) :=
       huj
     rw [List.getElem_map] at h0
-    exact ⟨⟨j.1, hj⟩, Finset.mem_filter.2 ⟨Finset.mem_univ _, hjC⟩, h0⟩
+    exact ⟨⟨j.val, hj⟩, Finset.mem_filter.2 ⟨Finset.mem_univ _, hjC⟩, h0⟩
 
 /-- Boolean test for whether `W` is coverable. -/
 @[expose] def coverableBool (W : WeightedSetSystem) : Bool :=
@@ -586,15 +586,15 @@ private theorem toSetSystem_isCover_filter_iff (W : WeightedSetSystem) (I : Fins
   · intro h u hu
     obtain ⟨i, hi, hui⟩ := h u hu
     have hiI : (i : ℕ) ∈ I := (Finset.mem_filter.1 hi).2
-    have hi' : i.1 < W.sets.length := by simpa [WeightedSetSystem.toSetSystem] using i.isLt
-    have h0 : u ∈ (W.sets.map WeightedSet.elements)[i.1]'(by
+    have hi' : i.val < W.sets.length := by simpa [WeightedSetSystem.toSetSystem] using i.isLt
+    have h0 : u ∈ (W.sets.map WeightedSet.elements)[i.val]'(by
         simpa [WeightedSetSystem.toSetSystem] using i.isLt) := hui
     rw [List.getElem_map] at h0
-    exact ⟨⟨i.1, hi'⟩, Finset.mem_filter.2 ⟨Finset.mem_univ _, hiI⟩, h0⟩
+    exact ⟨⟨i.val, hi'⟩, Finset.mem_filter.2 ⟨Finset.mem_univ _, hiI⟩, h0⟩
   · intro h u hu
     obtain ⟨i, hi, hui⟩ := h u hu
     have hiI : (i : ℕ) ∈ I := (Finset.mem_filter.1 hi).2
-    refine ⟨⟨i.1, by simp [WeightedSetSystem.toSetSystem, i.isLt]⟩,
+    refine ⟨⟨i.val, by simp [WeightedSetSystem.toSetSystem, i.isLt]⟩,
       Finset.mem_filter.2 ⟨Finset.mem_univ _, hiI⟩, ?_⟩
     simpa [WeightedSetSystem.toSetSystem] using hui
 

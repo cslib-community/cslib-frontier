@@ -13,6 +13,7 @@ public import Mathlib.Data.ENat.Lattice
 public import Mathlib.Geometry.Convex.ConvexSpace.Defs
 import CslibFrontier.Probability.Minimax.Value
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Probability.PMF.ToReal
 import Mathlib.Data.Fintype.Powerset
 
@@ -252,13 +253,13 @@ theorem exists_forall_errorProb_le [Finite β] [Nonempty α] (Acc : α → β �
   let r : α → Set β := fun a => {b | ¬Acc a b}
   have := Fintype.ofFinite (Set.range r)
   have : Nonempty (Set.range r) := ⟨⟨r (Classical.arbitrary α), _, rfl⟩⟩
-  let rep : Set.range r → α := fun s => s.2.choose
+  let rep : Set.range r → α := fun s => s.property.choose
   have hrep (s : Set.range r) (b : β) :
-      (if Acc (rep s) b then 0 else 1 : ℝ) = if b ∈ s.1 then 1 else 0 := by
-    have hmem : b ∈ s.1 ↔ ¬Acc (rep s) b := by rw [← s.2.choose_spec]; rfl
+      (if Acc (rep s) b then 0 else 1 : ℝ) = if b ∈ s.val then 1 else 0 := by
+    have hmem : b ∈ s.val ↔ ¬Acc (rep s) b := by rw [← s.property.choose_spec]; rfl
     by_cases hb : Acc (rep s) b <;> simp [hb, hmem]
   obtain ⟨p, hp⟩ := exists_forall_sum_le_of_forall_exists_sum_le
-    (fun (s : Set.range r) b => if b ∈ s.1 then 1 else 0) (c := ε) fun q => by
+    (fun (s : Set.range r) b => if b ∈ s.val then 1 else 0) (c := ε) fun q => by
       obtain ⟨a, hq⟩ := h q
       rw [errorProb_eq_sum, Finsupp.sum_fintype _ _ fun _ => zero_mul _] at hq
       exact ⟨⟨r a, a, rfl⟩, le_of_eq_of_le
@@ -281,14 +282,15 @@ theorem exists_maxCost_le_and_forall_errorProb_le [Finite β] [Nonempty β]
   obtain ⟨a₀, ha₀, -⟩ := h (.single (Classical.arbitrary β))
   have : Nonempty {a : α // cost a ≤ d} := ⟨⟨a₀, ha₀⟩⟩
   obtain ⟨μ, hμ⟩ := exists_forall_errorProb_le (α := {a : α // cost a ≤ d})
-    (fun a b => Acc a.1 b) (ε := ε) fun ν =>
+    (fun a b => Acc a.val b) (ε := ε) fun ν =>
       let ⟨a, ha, hν⟩ := h ν
       ⟨⟨a, ha⟩, hν⟩
-  refine ⟨μ.map Subtype.val, fun b => (errorProb_map_le (fun a : {a : α // cost a ≤ d} => Acc a.1 b)
+  refine ⟨μ.map Subtype.val, fun b => (errorProb_map_le
+      (fun a : {a : α // cost a ≤ d} => Acc a.val b)
       (fun a => Acc a b) Subtype.val μ fun _ => id).trans (hμ b),
     maxCost_le_iff.mpr fun a ha => ?_⟩
   obtain ⟨a', -, rfl⟩ := exists_of_mem_support_map ha
-  exact a'.2
+  exact a'.property
 
 end Strategies
 
@@ -344,11 +346,7 @@ theorem exists_mem_support_tsum_mul_le (μ : PMF α) (ν : PMF β) (loss : α �
     {ε : ℝ≥0∞} (h : ∀ b ∈ ν.support, ∑' a, μ a * loss a b ≤ ε) :
     ∃ a ∈ μ.support, ∑' b, ν b * loss a b ≤ ε := by
   obtain ⟨a, ha, hle⟩ := exists_mem_support_tsum_mul_le_tsum_mul μ ν loss
-  refine ⟨a, ha, hle.trans ((tsum_le_tsum (g := fun b => ν b * ε) fun b => ?_).trans_eq ?_)⟩
-  · by_cases hb : b ∈ ν.support
-    · exact mul_le_mul_of_nonneg_left (h b hb) zero_le
-    · simp [(PMF.apply_eq_zero_iff ν b).mpr hb]
-  · rw [ENNReal.tsum_mul_right, ν.tsum_coe, one_mul]
+  exact ⟨a, ha, hle.trans (tsum_mul_le_of_support ν h)⟩
 
 /-- The probability of an event as the mean of its indicator. -/
 private theorem toOuterMeasure_eq_tsum_mul_ite {γ : Type*} (π : PMF γ) (s : Set γ)
@@ -567,12 +565,13 @@ theorem exists_maxCost_le_and_forall_errorProb_le {cost : α → ℕ} {Acc : α 
       ∃ a : α, cost a ≤ c ∧ errorProb (fun b a => Acc a b) ν a ≤ ε) :
     ∃ μ : PMF α, (∀ b ∈ D, errorProb Acc μ b ≤ ε) ∧ maxCost cost μ ≤ c := by
   obtain ⟨μ, -, hμ⟩ := exists_forall_toOuterMeasure_le
-    (I := {a : α // cost a ≤ c}) (J := D) (fun a b => ¬Acc a.1 b.1) (ε := ε) fun ν => by
+    (I := {a : α // cost a ≤ c}) (J := D) (fun a b => ¬Acc a.val b.val) (ε := ε) fun ν => by
       obtain ⟨a, hc, hp⟩ := h (ν.map Subtype.val) fun b hb =>
         let ⟨b', _, hb'⟩ := (PMF.mem_support_map_iff _ _ _).mp hb
-        hb' ▸ b'.2
+        hb' ▸ b'.property
       exact ⟨⟨a, hc⟩, by rwa [errorProb, PMF.toOuterMeasure_map_apply] at hp⟩
-  refine ⟨μ.map Subtype.val, fun b hb => ?_, maxCost_map_le_of_le cost Subtype.val μ fun a _ => a.2⟩
+  refine ⟨μ.map Subtype.val, fun b hb => ?_,
+    maxCost_map_le_of_le cost Subtype.val μ fun a _ => a.property⟩
   rw [errorProb, PMF.toOuterMeasure_map_apply]
   exact hμ ⟨b, hb⟩
 

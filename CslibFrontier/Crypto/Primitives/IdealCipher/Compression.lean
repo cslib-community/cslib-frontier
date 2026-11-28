@@ -205,7 +205,7 @@ section Helpers
 private def HasDMCollision {Key Block : Type} [Add Block]
     (st : Key → Cslib.RandomPermutation.Cache Block) : Prop :=
   ∃ (k1 : Key) (i1 : Fin (st k1).length) (k2 : Key) (i2 : Fin (st k2).length),
-    (k1, i1.1) ≠ (k2, i2.1) ∧
+    (k1, i1.val) ≠ (k2, i2.val) ∧
       (st k1)[i1].2 + (st k1)[i1].1 = (st k2)[i2].2 + (st k2)[i2].1
 
 private theorem not_hasDMCollision_nil {Key Block : Type} [Add Block] :
@@ -301,15 +301,15 @@ private theorem mem_dmTargets_of_getElem {Key Block : Type} [Fintype Key] [Decid
     (k : Key) (i : Fin (st k).length) :
     (st k)[i].2 + (st k)[i].1 ∈ dmTargets st := by
   refine Finset.mem_biUnion.mpr ⟨k, Finset.mem_univ k, Finset.mem_image.mpr ?_⟩
-  exact ⟨(st k)[i], List.mem_toFinset.mpr (List.getElem_mem i.2), rfl⟩
+  exact ⟨(st k)[i], List.mem_toFinset.mpr (List.getElem_mem i.isLt), rfl⟩
 
 private theorem classify_update_idx {Key Block : Type} [DecidableEq Key]
     {st : Key → Cslib.RandomPermutation.Cache Block} (qk : Key) (e : Block × Block)
     (k : Key) (i : Fin (Function.update st qk (e :: st qk) k).length) :
-    (k = qk ∧ i.1 = 0 ∧ (Function.update st qk (e :: st qk) k)[i] = e) ∨
+    (k = qk ∧ i.val = 0 ∧ (Function.update st qk (e :: st qk) k)[i] = e) ∨
       ∃ j : Fin (st k).length,
         (Function.update st qk (e :: st qk) k)[i] = (st k)[j] ∧
-        (k = qk → j.1 + 1 = i.1) ∧ (k ≠ qk → j.1 = i.1) := by
+        (k = qk → j.val + 1 = i.val) ∧ (k ≠ qk → j.val = i.val) := by
   by_cases hk : k = qk
   · subst hk
     rcases i with ⟨n, hn⟩
@@ -321,8 +321,8 @@ private theorem classify_update_idx {Key Block : Type} [DecidableEq Key]
       refine ⟨⟨m, hm⟩, ?_, fun _ => rfl, fun hne => (hne rfl).elim⟩
       simp
   · right
-    have hi : i.1 < (st k).length := by simpa [Function.update_of_ne hk] using i.2
-    refine ⟨⟨i.1, hi⟩, ?_, fun h => (hk h).elim, fun _ => rfl⟩
+    have hi : i.val < (st k).length := by simpa [Function.update_of_ne hk] using i.isLt
+    refine ⟨⟨i.val, hi⟩, ?_, fun h => (hk h).elim, fun _ => rfl⟩
     simp [Function.update_of_ne hk]
 
 private theorem dmTargets_of_hasDMCollision_update {Key Block : Type}

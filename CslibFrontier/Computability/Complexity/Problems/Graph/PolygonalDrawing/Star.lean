@@ -46,7 +46,7 @@ open RotationSystem Polygonal
       simp [Route.endpoint, starPoint, hi, i]
     · simp [Route.endpoint, starPoint]
 
-private theorem star_eval (n : ℕ) (e : Fin (starGraph n).2.length)
+private theorem star_eval (n : ℕ) (e : Fin (starGraph n).edges.length)
     (i : Fin ((star n).route e).segments) (t : ℝ) :
     ((star n).route e).eval i t = (1 - t) • (⟨(e.val : ℝ) + 1, 1⟩ : ℂ) := by
   have hi : i = (0 : Fin 1) := Fin.eq_zero i
@@ -55,7 +55,7 @@ private theorem star_eval (n : ℕ) (e : Fin (starGraph n).2.length)
   rw [AffineMap.lineMap_apply_module, smul_zero, add_zero]
   rfl
 
-private theorem star_endpoint (n : ℕ) (e : Fin (starGraph n).2.length) (b : Bool) :
+private theorem star_endpoint (n : ℕ) (e : Fin (starGraph n).edges.length) (b : Bool) :
     Dart.vertex (G := starGraph n) (e, b) = if b then n else e.val := by
   let i : Fin n := ⟨e.val, by simpa [starGraph] using e.isLt⟩
   exact vertex_starDartEquiv i b

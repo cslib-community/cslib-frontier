@@ -270,9 +270,9 @@ theorem run_cost_isBigO (s : Memory.State) (hfit : Fits w (s.frontier + 2 * (C +
     CostIsBigO Filter.atTop (fun m : ℕ => (m : ℝ))
       (fun p : {p : (Queue.WordRAM.spec w C).Client Unit //
           (Queue.WordRAM.spec w C).ValidHistory [] ((Queue.WordRAM.spec w C).clientHistory [] p)} =>
-        ((Queue.WordRAM.spec w C).clientHistory [] p.1).length)
+        ((Queue.WordRAM.spec w C).clientHistory [] p.val).length)
       (fun p => (Memory.spec w).totalCost charge s
-        ((Memory.spec w).clientHistory s (run w C p.1))) :=
+        ((Memory.spec w).clientHistory s (run w C p.val))) :=
   Allocator.run_cost_isBigO amortized_allocator (pre_allocator s) (room_allocator ▸ hfit)
 
 end Cslib.DataStructure.Queue.Memory

@@ -156,7 +156,7 @@ example : ∃ H u v,
   refine ⟨H, u, v, e, (PolygonalDrawing.star 9).edgeTransport e hv, ?_, hedges,
     hindex ⟨4, by decide⟩ (by decide)⟩
   exact (PolygonalDrawing.star_isEmbedding 9).edgeTransport e hv (fun w => by
-    change w ∈ (RotationSystem.starGraph 9).1 ↔ w ∈ H.1
+    change w ∈ (RotationSystem.starGraph 9).vertices ↔ w ∈ H.vertices
     rw [hV])
 
 end CslibFrontierTests.PolygonalSplitFans

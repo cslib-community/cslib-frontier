@@ -174,12 +174,12 @@ private theorem cost_roleTm (tg : M.Role → ℕ) (r : M.Role) :
       X * (X * (270 * Lc + 700) + 120) + X * (30 * Lc + 150) + 30 * Lc + 500 := by
   have h1 := cost_listTm_le (σ := extend C.name st fun _ => .nil) (X := X)
     (ts := (univ : Finset ((M.law r.1).SlotAt r.2)).toList.map fun e =>
-      C.slotTm tab hD ⟨r.1, e.1⟩ (M.roleParty r)) (by simpa using hSl r) fun t ht => by
+      C.slotTm tab hD ⟨r.1, e.val⟩ (M.roleParty r)) (by simpa using hSl r) fun t ht => by
         obtain ⟨e, -, rfl⟩ := List.mem_map.1 ht
         exact cost_slotTm hst hnm hdc hId _ _
   have h2 := cost_listTm_le (σ := extend C.name st fun _ => .nil) (X := X)
     (ts := (univ : Finset ((M.law r.1).ChannelAt r.2)).toList.map fun ν =>
-      C.valueTm (.newKeys ⟨r.1, ν.1⟩ (decide ((M.law r.1).channelEnd ν.1 false ≠ r.2))))
+      C.valueTm (.newKeys ⟨r.1, ν.val⟩ (decide ((M.law r.1).channelEnd ν.val false ≠ r.2))))
     (by simpa using hCn r) fun t ht => by
       obtain ⟨ν, -, rfl⟩ := List.mem_map.1 ht
       exact cost_valueTm hnm _ _

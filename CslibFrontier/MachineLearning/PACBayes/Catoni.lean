@@ -249,7 +249,7 @@ private theorem lintegral_ofReal_le_one_of_le_prod {g : Z → ℝ} (hgm : Measur
     _ ≤ ENNReal.ofReal (exp (m * b) * exp (-b) ^ m) :=
         ENNReal.ofReal_le_ofReal (mul_le_mul_of_nonneg_left
           (pow_le_pow_left₀ (integral_nonneg fun z => (hg z).1) hgb m) (exp_pos _).le)
-    _ = ENNReal.ofReal 1 := by rw [← exp_nat_mul, ← exp_add, mul_neg, add_neg_cancel, exp_zero]
+    _ = ENNReal.ofReal 1 := by rw [← exp_natCast_mul, ← exp_add, mul_neg, add_neg_cancel, exp_zero]
 
 omit [MeasurableSpace Θ] in
 /-- Single-hypothesis Catoni exponential moment:

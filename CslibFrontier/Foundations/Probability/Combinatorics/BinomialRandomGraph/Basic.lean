@@ -130,7 +130,7 @@ theorem binomialRandom_real_setOf_le [Countable V] (p : I) (H : SimpleGraph V) [
 private def copyEquiv (H : SimpleGraph W) (G : SimpleGraph V) :
     Copy H G ≃ {f : W ↪ V // H.map f ≤ G} where
   toFun c := ⟨c.toEmbedding, map_le_iff_le_comap.2 fun _ _ h => c.toHom.map_adj h⟩
-  invFun f := ⟨⟨f.1, fun h => (map_le_iff_le_comap.1 f.2) h⟩, f.1.injective⟩
+  invFun f := ⟨⟨f.val, fun h => (map_le_iff_le_comap.1 f.property) h⟩, f.val.injective⟩
   left_inv _ := rfl
   right_inv _ := rfl
 
@@ -193,7 +193,7 @@ theorem tendsto_binomialRandom_real_isContained [Fintype W] (H : SimpleGraph W)
   refine (binomialRandom_real_isContained_le (p n) H).trans ?_
   rw [Fintype.card_fin]
   gcongr
-  · exact pow_nonneg (p n).2.1 _
+  · exact pow_nonneg (p n).property.1 _
   · exact_mod_cast Nat.descFactorial_le_pow n _
 
 end SimpleGraph

@@ -11,6 +11,7 @@ on:
 permissions:
   contents: read
   pull-requests: read # the codebase views read pull request metadata
+  issues: read # the agent activity view reads public issue disclosures
 
 env:
   CACHE_RECOVERY_GENERATION: ${{ vars.CACHE_RECOVERY_GENERATION || '0' }}
@@ -137,6 +138,7 @@ jobs:
             --lean-lib .lake/build/lib/lean \
             --require-registry \
             --fetch-prs \
+            --fetch-agent-activity \
             --prs-previous https://www.cslib.io/cslib-frontier/viz/prs.json \
             --lean-history https://www.cslib.io/cslib-frontier/viz/lean-history.json
       - name: Restore Guide dependencies

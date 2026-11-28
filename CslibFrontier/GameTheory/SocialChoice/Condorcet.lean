@@ -162,7 +162,7 @@ private theorem card_filter_fin_lt (e : V ≃ Fin (Fintype.card V)) {m : ℕ}
   refine (Finset.card_bij (fun i hi => (⟨e i, (Finset.mem_filter.1 hi).2⟩ : Fin m))
     (fun _ _ => Finset.mem_univ _)
     (fun _ _ _ _ h => e.injective (Fin.ext (Fin.mk.inj h)))
-    fun b _ => ⟨e.symm ⟨b.1, b.2.trans_le hm⟩, by simp [b.2],
+    fun b _ => ⟨e.symm ⟨b.val, b.isLt.trans_le hm⟩, by simp [b.isLt],
       Fin.ext (by simp)⟩).trans (Finset.card_fin m)
 
 private def threeBlockProfile (e : V ≃ Fin (Fintype.card V)) (c₀ c₁ : ℕ)
@@ -241,7 +241,7 @@ private theorem exists_cyclicThreeBlock (hV : 3 ≤ Fintype.card V)
   · rw [support, card_filter_threeBlock e hc r₀ r₁ r₂ (fun s => s.Prefers a c)]
     simp only [r₀, r₁, r₂, tripleTop_isTop r a b c c hac.symm,
       (tripleTop r b c a).asymm (tripleTop_prefers_second_third r hbc hab.symm hac.symm),
-      (tripleTop r c a b).asymm (tripleTop_isTop r c a b a hac), ↓reduceIte, n, c₀, c₁]
+      (tripleTop r c a b).asymm (tripleTop_isTop r c a b a hac), ↓reduceIte, n, c₀]
     omega
   · unfold threeBlockProfile
     split_ifs

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.SuffixArray.Basic
+public import CslibFrontier.Foundations.Data.Array.CommonPrefix
 
 /-!
 # Kasai et al.'s linear-time LCP array construction
@@ -135,38 +136,6 @@ section Algorithm
 
 variable [DecidableEq α]
 
-/-- Starting from a known common prefix length `h`, extend the common prefix of the suffixes
-of `w` at positions `j` and `i` one character at a time. -/
-private def extend (w : Array α) (j i h : ℕ) : ℕ :=
-  if hlt : j + h < w.size ∧ i + h < w.size then
-    if w[j + h]'hlt.1 = w[i + h]'hlt.2 then
-      extend w j i (h + 1)
-    else
-      h
-  else
-    h
-termination_by w.size - (i + h)
-
-/-- Extending the common prefix of the suffixes at `j` and `i` from `h` yields
-`h + List.lcpLen (w.drop (j + h)) (w.drop (i + h))`. -/
-private theorem extend_eq_add_lcpLen (w : Array α) (j i h : ℕ) :
-    extend w j i h = h + List.lcpLen (w.toList.drop (j + h)) (w.toList.drop (i + h)) := by
-  fun_induction extend w j i h with
-  | case1 h hlt heq ih =>
-    rw [ih, List.drop_eq_getElem_cons hlt.1, List.drop_eq_getElem_cons hlt.2,
-      Array.getElem_toList, Array.getElem_toList, heq, List.lcpLen_cons_cons_self,
-      ← Nat.add_assoc, ← Nat.add_assoc]
-    omega
-  | case2 h hlt hne =>
-    rw [List.drop_eq_getElem_cons hlt.1, List.drop_eq_getElem_cons hlt.2,
-      Array.getElem_toList, Array.getElem_toList, List.lcpLen_cons_cons, ite_eq_right hne,
-      Nat.add_zero]
-  | case3 h hlt =>
-    have h1 := List.lcpLen_le_length_left (w.toList.drop (j + h)) (w.toList.drop (i + h))
-    have h2 := List.lcpLen_le_length_right (w.toList.drop (j + h)) (w.toList.drop (i + h))
-    simp only [List.length_drop, Array.length_toList] at h1 h2
-    omega
-
 /-- The main loop of Kasai et al.'s construction at text position `i`, with current common-prefix
 length `h`. -/
 def kasaiLoop (w : Array α) (sa rk : Array ℕ) (i h : ℕ) (lcp : Array ℕ) : Array ℕ :=
@@ -174,7 +143,7 @@ def kasaiLoop (w : Array α) (sa rk : Array ℕ) (i h : ℕ) (lcp : Array ℕ) :
     if rk[i]! = 0 then
       kasaiLoop w sa rk (i + 1) h lcp
     else
-      let h' := extend w sa[rk[i]! - 1]! i h
+      let h' := w.extendLcp sa[rk[i]! - 1]! i h
       kasaiLoop w sa rk (i + 1) (h' - 1) (lcp.set! rk[i]! h')
   else
     lcp
@@ -198,7 +167,7 @@ theorem kasaiLoop_of_rk_ne_zero (w : Array α) (sa rk : Array ℕ) {i : ℕ} (hi
     kasaiLoop w sa rk i h lcp =
       let h' := h + List.lcpLen (w.toList.drop (sa[rk[i]! - 1]! + h)) (w.toList.drop (i + h))
       kasaiLoop w sa rk (i + 1) (h' - 1) (lcp.set! rk[i]! h') := by
-  rw [kasaiLoop, ite_eq_left hi, ite_eq_right hr, extend_eq_add_lcpLen]
+  rw [kasaiLoop, ite_eq_left hi, ite_eq_right hr, Array.extendLcp_eq_add_lcpLen]
 
 @[simp] theorem size_kasaiLoop (w : Array α) (sa rk : Array ℕ) (i h : ℕ) (lcp : Array ℕ) :
     (kasaiLoop w sa rk i h lcp).size = lcp.size := by
@@ -281,10 +250,9 @@ private theorem kasaiLoop_spec {w : Array α} {sa rk : Array ℕ}
       rw [getElem_lcpArray_of_pos _ _ _ (Nat.pos_of_ne_zero hr0)]
       simp only [Array.getElem_toList, hri]
     have hext : h' = (lcpArray w.toList sa.toList)[r]'(by simpa using hr) := by
-      change extend w sa[rk[i]! - 1]! i h = _
-      rw [hrki, getElem!_pos sa (r - 1) hr1, extend_eq_add_lcpLen, hlcpr]
-      symm
-      rw [List.lcpLen_eq_add_lcpLen_drop (hlcpr ▸ hh r hr hri), List.drop_drop, List.drop_drop]
+      change w.extendLcp sa[rk[i]! - 1]! i h = _
+      rw [hrki, getElem!_pos sa (r - 1) hr1, hlcpr]
+      exact w.extendLcp_eq_lcpLen _ _ _ (hlcpr ▸ hh r hr hri)
     have hsize' : (lcp.set! rk[i]! h').size = w.size := by
       rwa [Array.set!_eq_setIfInBounds, Array.size_setIfInBounds]
     refine ih (by omega) hsize' (fun r' hr' hr'i => ?_) (fun r' hr' hr'd => ?_)

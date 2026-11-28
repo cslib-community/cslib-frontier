@@ -266,7 +266,7 @@ private theorem exists_strictMonoOn_enum (T : Finset ℕ) :
   · constructor
     · intro hs
       obtain ⟨i, hi⟩ := (Finset.range_orderEmbOfFin T rfl ▸ hs : s ∈ Set.range e)
-      exact ⟨i.1, i.2, by simp only [i.2, dite_true, Fin.eta]; exact hi⟩
+      exact ⟨i.val, i.isLt, by simp only [i.isLt, dite_true, Fin.eta]; exact hi⟩
     · rintro ⟨i, hi, rfl⟩
       simp only [hi, dite_true]
       exact Finset.orderEmbOfFin_mem T rfl _
@@ -275,7 +275,7 @@ private theorem exists_strictMonoOn_enum (T : Finset ℕ) :
 
 /-- The input of length `n` whose ones are the positions `u 0, …, u (kk - 1)`. -/
 private def selected (n kk : ℕ) (u : ℕ → ℕ) : BitString n :=
-  fun i => decide (∃ j < kk, u j = i.1)
+  fun i => decide (∃ j < kk, u j = i.val)
 
 /-- Selecting `kk` increasing positions below `n` gives an input with `kk` ones. -/
 private theorem weight_selected {n kk : ℕ} {u : ℕ → ℕ} (hu : StrictMonoOn u (Set.Iio kk))
@@ -307,7 +307,7 @@ private theorem exists_eq_selected {n k : ℕ} (x : BitString n) (hk : BitString
       Fin.valEmbedding_apply]
     constructor
     · rintro ⟨i, hi, rfl⟩
-      exact ⟨i.2, hi⟩
+      exact ⟨i.isLt, hi⟩
     · rintro ⟨h, hs⟩
       exact ⟨⟨s, h⟩, hs, rfl⟩
   have hTcard : T.card = k := by
@@ -317,7 +317,7 @@ private theorem exists_eq_selected {n k : ℕ} (x : BitString n) (hk : BitString
   rw [hTcard] at hu hTu
   refine ⟨u, hu, fun j hj => ((hmemT (u j)).1 ((hTu (u j)).2 ⟨j, hj, rfl⟩)).1, ?_⟩
   funext i
-  simp only [selected, ← hTu, hmemT, Fin.eta, exists_prop_of_true i.2]
+  simp only [selected, ← hTu, hmemT, Fin.eta, exists_prop_of_true i.isLt]
   cases x i <;> rfl
 
 /-- Reading position `s < n` of the selected input. -/

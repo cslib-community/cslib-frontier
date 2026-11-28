@@ -231,10 +231,10 @@ theorem binomialRandom_real_not_connected_le {n : ℕ} (hn : 0 < n) (p : I)
     have hNK : 2 * (k : ℝ) ≤ n := by exact_mod_cast (by omega : 2 * k ≤ n)
     have key := mul_exp_two_mul_exp_le hK hNK hL
     have hk0 : (0 : ℝ) < k := by linarith
-    have e1 : Real.exp 1 ^ 2 = Real.exp 2 := by rw [← Real.exp_nat_mul]; norm_num
+    have e1 : Real.exp 1 ^ 2 = Real.exp 2 := by rw [← Real.exp_natCast_mul]; norm_num
     have e2 : Real.exp (-(p * ((n : ℝ) - k))) ^ 2 =
         Real.exp (-(n * p)) * Real.exp (-(p * (n - 2 * k))) := by
-      rw [← Real.exp_nat_mul, ← Real.exp_add]; congr 1; push_cast; ring
+      rw [← Real.exp_natCast_mul, ← Real.exp_add]; congr 1; push_cast; ring
     change ((n : ℝ) * Real.exp 1 * Real.exp (-(p * ((n : ℝ) - k))) / k) ^ 2 ≤ 16 * y
     rw [div_pow, div_le_iff₀ (by positivity)]
     calc _ = y * (n * Real.exp 2 * Real.exp (-(p * (n - 2 * k)))) := by

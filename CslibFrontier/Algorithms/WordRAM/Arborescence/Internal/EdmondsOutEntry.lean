@@ -114,40 +114,40 @@ private theorem fillTransposeRowProg_spec {w n ws : ℕ} (uFin : Fin n)
     (adj : Fin n → Fin n → Bool) (cost : Fin n → Fin n → ℤ) (s : Memory.State)
     (hws : WsFits w ws n) (hin_fit : Fits w (3 + 2 * (n * n)))
     (hws_lo : 3 + 2 * (n * n) ≤ ws) (hf : ws + wsSize n ≤ s.frontier)
-    (hadj_in : ∀ x y : Fin n, s.mem (3 + (x.1 * n + y.1)) = if adj x y then 1 else 0)
-    (hcost_in : ∀ x y : Fin n, s.mem (3 + n * n + (x.1 * n + y.1)) = Signed.encode (cost x y))
+    (hadj_in : ∀ x y : Fin n, s.mem (3 + (x.val * n + y.val)) = if adj x y then 1 else 0)
+    (hcost_in : ∀ x y : Fin n, s.mem (3 + n * n + (x.val * n + y.val)) = Signed.encode (cost x y))
     (hfit_c : ∀ x y : Fin n, Fits w (Signed.encode (cost x y))) :
-    let ra : TransposeRowArgs := ⟨n, uFin.1, ws⟩
+    let ra : TransposeRowArgs := ⟨n, uFin.val, ws⟩
     let sr' := (Memory.spec 0).clientState s (fillTransposeRowProg ra)
     iterationSafe transposeRowStep TransposeRowStepSafe w ra n 0 s ∧
       (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (fillTransposeRowProg ra)) ∧
       memoryCost (fillTransposeRowProg ra) s ≤ 4 * n ∧
       sr'.frontier = s.frontier ∧
-      (∀ addr, ¬(curAdjBase ws n + uFin.1 * n ≤ addr ∧ addr < curAdjBase ws n + uFin.1 * n + n ∨
-        curCostBase ws n + uFin.1 * n ≤ addr ∧ addr < curCostBase ws n + uFin.1 * n + n) →
+      (∀ addr, ¬(curAdjBase ws n + uFin.val * n ≤ addr ∧ addr < curAdjBase ws n + uFin.val * n + n ∨
+        curCostBase ws n + uFin.val * n ≤ addr ∧ addr < curCostBase ws n + uFin.val * n + n) →
         sr'.mem addr = s.mem addr) ∧
       (∀ col : Fin n,
-        sr'.mem (curAdjBase ws n + uFin.1 * n + col.1) = (if adj col uFin then 1 else 0) ∧
-        sr'.mem (curCostBase ws n + uFin.1 * n + col.1) = Signed.encode (cost col uFin)) := by
-  let ra : TransposeRowArgs := ⟨n, uFin.1, ws⟩
+        sr'.mem (curAdjBase ws n + uFin.val * n + col.val) = (if adj col uFin then 1 else 0) ∧
+        sr'.mem (curCostBase ws n + uFin.val * n + col.val) = Signed.encode (cost col uFin)) := by
+  let ra : TransposeRowArgs := ⟨n, uFin.val, ws⟩
   have h1 : Fits w 1 := hws.of_le (by dsimp only [wsSize]; omega)
   have hu_lt := uFin.isLt
   have hrow := iterate_spec transposeRowStep TransposeRowStepSafe w ra 4 n
     (fun col idxR sr =>
       idxR = col ∧ sr.frontier = s.frontier ∧
-        (∀ x y : Fin n, sr.mem (3 + (x.1 * n + y.1)) = if adj x y then 1 else 0) ∧
-        (∀ x y : Fin n, sr.mem (3 + n * n + (x.1 * n + y.1)) = Signed.encode (cost x y)) ∧
-        (∀ c0 : Fin n, c0.1 < col →
-          sr.mem (curAdjBase ws n + uFin.1 * n + c0.1) = (if adj c0 uFin then 1 else 0) ∧
-          sr.mem (curCostBase ws n + uFin.1 * n + c0.1) = Signed.encode (cost c0 uFin)))
-    (fun addr => curAdjBase ws n + uFin.1 * n ≤ addr ∧ addr < curAdjBase ws n + uFin.1 * n + n ∨
-      curCostBase ws n + uFin.1 * n ≤ addr ∧ addr < curCostBase ws n + uFin.1 * n + n)
+        (∀ x y : Fin n, sr.mem (3 + (x.val * n + y.val)) = if adj x y then 1 else 0) ∧
+        (∀ x y : Fin n, sr.mem (3 + n * n + (x.val * n + y.val)) = Signed.encode (cost x y)) ∧
+        (∀ c0 : Fin n, c0.val < col →
+          sr.mem (curAdjBase ws n + uFin.val * n + c0.val) = (if adj c0 uFin then 1 else 0) ∧
+          sr.mem (curCostBase ws n + uFin.val * n + c0.val) = Signed.encode (cost c0 uFin)))
+    (fun addr => curAdjBase ws n + uFin.val * n ≤ addr ∧ addr < curAdjBase ws n + uFin.val * n + n ∨
+      curCostBase ws n + uFin.val * n ≤ addr ∧ addr < curCostBase ws n + uFin.val * n + n)
     (fun col hcol idxR sr ⟨hidxR, hfr_r, ha_r, hc_r, hdone_r⟩ => by
       subst idxR
       set colFin : Fin n := ⟨col, hcol⟩
-      have ha_cu : sr.mem (3 + col * n + uFin.1) = if adj colFin uFin then 1 else 0 := by
+      have ha_cu : sr.mem (3 + col * n + uFin.val) = if adj colFin uFin then 1 else 0 := by
         simpa [Nat.add_assoc] using ha_r colFin uFin
-      have hc_cu : sr.mem (3 + n * n + col * n + uFin.1) = Signed.encode (cost colFin uFin) := by
+      have hc_cu : sr.mem (3 + n * n + col * n + uFin.val) = Signed.encode (cost colFin uFin) := by
         simpa [Nat.add_assoc] using hc_r colFin uFin
       refine ⟨by dsimp only [TransposeRowStepSafe, ra]; exact ⟨hu_lt, hcol, hws, hin_fit⟩,
         ?_, ?_, ?_, ?_, ?_⟩
@@ -189,7 +189,7 @@ private theorem fillTransposeRowProg_spec {w n ws : ℕ} (uFin : Fin n)
             Function.update_of_ne (by dsimp only [curAdjBase]; nlinarith)]
           exact hc_r x y
         · intro c0 hc0
-          by_cases heq : c0.1 = col
+          by_cases heq : c0.val = col
           · have hc0_eq : c0 = colFin := Fin.ext heq
             subst hc0_eq
             simp only [Function.update_self, colFin]
@@ -211,8 +211,8 @@ private theorem transposeProg_spec {w n ws : ℕ} (hpos : 0 < n)
     (adj : Fin n → Fin n → Bool) (cost : Fin n → Fin n → ℤ) (s₀ : Memory.State)
     (hws : WsFits w ws n) (hin_fit : Fits w (3 + 2 * (n * n)))
     (hws_lo : 3 + 2 * (n * n) ≤ ws) (hf : ws + wsSize n ≤ s₀.frontier)
-    (hadj_in : ∀ x y : Fin n, s₀.mem (3 + (x.1 * n + y.1)) = if adj x y then 1 else 0)
-    (hcost_in : ∀ x y : Fin n, s₀.mem (3 + n * n + (x.1 * n + y.1)) = Signed.encode (cost x y))
+    (hadj_in : ∀ x y : Fin n, s₀.mem (3 + (x.val * n + y.val)) = if adj x y then 1 else 0)
+    (hcost_in : ∀ x y : Fin n, s₀.mem (3 + n * n + (x.val * n + y.val)) = Signed.encode (cost x y))
     (hfit_c : ∀ x y : Fin n, Fits w (Signed.encode (cost x y))) :
     let s' := (Memory.spec 0).clientState s₀ (transposeProg (n, ws))
     iterationSafe transposeOuterStep TransposeOuterStepSafe w (n, ws) n 0 s₀ ∧
@@ -220,18 +220,18 @@ private theorem transposeProg_spec {w n ws : ℕ} (hpos : 0 < n)
       memoryCost (transposeProg (n, ws)) s₀ ≤ (4 * n + 1) * n ∧
       s'.frontier = s₀.frontier ∧
       (∀ u col : Fin n,
-        s'.mem (curAdjBase ws n + u.1 * n + col.1) = if adj col u then 1 else 0) ∧
+        s'.mem (curAdjBase ws n + u.val * n + col.val) = if adj col u then 1 else 0) ∧
       (∀ u col : Fin n,
-        s'.mem (curCostBase ws n + u.1 * n + col.1) = Signed.encode (cost col u)) := by
+        s'.mem (curCostBase ws n + u.val * n + col.val) = Signed.encode (cost col u)) := by
   have hf_pos : 0 < s₀.frontier := by dsimp only [wsSize] at hf; nlinarith
   have h := iterate_spec transposeOuterStep TransposeOuterStepSafe w (n, ws) (4 * n + 1) n
     (fun m idx s =>
       idx = m ∧ s.frontier = s₀.frontier ∧
-        (∀ x y : Fin n, s.mem (3 + (x.1 * n + y.1)) = if adj x y then 1 else 0) ∧
-        (∀ x y : Fin n, s.mem (3 + n * n + (x.1 * n + y.1)) = Signed.encode (cost x y)) ∧
-        (∀ u col : Fin n, u.1 < m →
-          s.mem (curAdjBase ws n + u.1 * n + col.1) = (if adj col u then 1 else 0) ∧
-          s.mem (curCostBase ws n + u.1 * n + col.1) = Signed.encode (cost col u)))
+        (∀ x y : Fin n, s.mem (3 + (x.val * n + y.val)) = if adj x y then 1 else 0) ∧
+        (∀ x y : Fin n, s.mem (3 + n * n + (x.val * n + y.val)) = Signed.encode (cost x y)) ∧
+        (∀ u col : Fin n, u.val < m →
+          s.mem (curAdjBase ws n + u.val * n + col.val) = (if adj col u then 1 else 0) ∧
+          s.mem (curCostBase ws n + u.val * n + col.val) = Signed.encode (cost col u)))
     (fun addr => curAdjBase ws n ≤ addr ∧ addr < curCostBase ws n + n * n)
     (fun m hm idx s ⟨hidx, hfr, ha_s, hc_s, hdone_o⟩ => by
       subst idx
@@ -288,10 +288,10 @@ private theorem transposeProg_spec {w n ws : ℕ} (hpos : 0 < n)
           exact hc_s x y
         · intro u0 c0 hu0
           rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hu0) with hlt | heq
-          · have hlt_mul : u0.1 * n + c0.1 < m * n := by
+          · have hlt_mul : u0.val * n + c0.val < m * n := by
               have := c0.isLt
               have := Nat.mul_le_mul_right n hlt
-              linarith [Nat.succ_mul u0.1 n]
+              linarith [Nat.succ_mul u0.val n]
             have hm_mul : m * n + n ≤ n * n := by
               simpa [Nat.succ_mul] using Nat.mul_le_mul_right n hm
             rw [hdisj _ (Or.inl (by dsimp only [curAdjBase]; omega)),
@@ -343,7 +343,7 @@ public theorem edmondsOutProg_realizes :
 public theorem edmondsOutProg_spec {w M₀ : ℕ} (I : ArborescenceInput)
     (hM : ∀ u v, (I.cost u v).natAbs ≤ M₀) (hwb : Fits w (wordBound I.n M₀)) :
     let s₀ := Memory.State.init I.encode
-    let d := (I.n, I.root.1)
+    let d := (I.n, I.root.val)
     let outAddr := (Memory.spec 0).clientResult s₀ (edmondsOutProg d)
     let s' := (Memory.spec 0).clientState s₀ (edmondsOutProg d)
     EdmondsOutProgSafe w d s₀ ∧
@@ -385,21 +385,21 @@ public theorem edmondsOutProg_spec {w M₀ : ℕ} (I : ArborescenceInput)
   let a₀ := initAdjTable n fun u col => decide (I.digraph.Adj col u)
   let c₀ := initCostTable n fun u col => cost col u
   have ha3 : ∀ u col : Fin n,
-      s3.mem (curAdjBase ws n + u.1 * n + col.1) = if a₀[u.1][col.1] then 1 else 0 := by
+      s3.mem (curAdjBase ws n + u.val * n + col.val) = if a₀[u.val][col.val] then 1 else 0 := by
     intro u col
     dsimp only [a₀, initAdjTable, ArborescenceInput.digraph, I]
     simp only [Vector.getElem_ofFn]
     exact htr.2.2.2.2.1 u col
   have hc3 : ∀ u col : Fin n,
-      s3.mem (curCostBase ws n + u.1 * n + col.1) = Signed.encode c₀[u.1][col.1] := by
+      s3.mem (curCostBase ws n + u.val * n + col.val) = Signed.encode c₀[u.val][col.val] := by
     intro u col
     dsimp only [c₀, initCostTable]
     simp only [Vector.getElem_ofFn]
     exact htr.2.2.2.2.2 u col
-  have hB₀ : ∀ u col : Fin n, (c₀[u.1][col.1]).natAbs ≤ M₀ := by
+  have hB₀ : ∀ u col : Fin n, (c₀[u.val][col.val]).natAbs ≤ M₀ := by
     intro u col; simp [c₀, initCostTable, hM col u]
   have hexp : match edmondsTableAux root n a₀ c₀ with
-      | some pTab => I.expectedOutParentList = (List.finRange n).map fun v => (pTab[v.1]).1
+      | some pTab => I.expectedOutParentList = (List.finRange n).map fun v => (pTab[v.val]).val
       | none => I.expectedOutParentList = [] := by
     have hmap_eq := edmondsOut_fin_map_eq I.digraph cost root
     rw [show initAdjTable n _ = a₀ from rfl, show initCostTable n _ = c₀ from rfl] at hmap_eq

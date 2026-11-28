@@ -18,6 +18,7 @@ import CslibFrontier.Probability.Conditioning
 import CslibFrontier.Probability.MinEntropy
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.SupportTsum
 import Mathlib.GroupTheory.Perm.Support
 import CslibFrontier.Tactic.LRATTauto
 
@@ -471,9 +472,9 @@ private theorem exists_perm_innerKeyConfig {U n m g : ℕ}
 private def segSlotEquiv (off m N : ℕ) (h : off + m ≤ N) :
     Fin m ≃ {i : Fin N // off ≤ i.val ∧ i.val < off + m} where
   toFun r := ⟨⟨off + r.val, by have := r.isLt; omega⟩, by have := r.isLt; dsimp; omega⟩
-  invFun i := ⟨i.1.val - off, by have := i.2; omega⟩
+  invFun i := ⟨i.val.val - off, by have := i.property; omega⟩
   left_inv r := Fin.ext (by dsimp; omega)
-  right_inv i := Subtype.ext (Fin.ext (by have := i.2; dsimp; omega))
+  right_inv i := Subtype.ext (Fin.ext (by have := i.property; dsimp; omega))
 
 private def slotPerm {n : ℕ} (t₀ m : ℕ) (ht : t₀ + m ≤ n)
     (α β : Equiv.Perm (Fin m)) : Equiv.Perm (Fin (2 * n)) :=
@@ -553,13 +554,6 @@ private theorem toReal_le_inv_card_of_const {β : Type*} [Fintype β] (q : PMF �
   have hsum := PMF.sum_toReal q
   simp_rw [fun y => hconst y y₀, Finset.sum_const, Finset.card_univ, nsmul_eq_mul] at hsum
   rw [inv_eq_one_div, le_div_iff₀ hpos, mul_comm, hsum]
-
-private theorem sum_toReal_mul_le_of_support {α : Type*} [Fintype α] (p : PMF α) {f g : α → ℝ}
-    (h : ∀ a ∈ p.support, f a ≤ g a) : ∑ a, (p a).toReal * f a ≤ ∑ a, (p a).toReal * g a :=
-  Finset.sum_le_sum fun a _ => by
-    by_cases ha : a ∈ p.support
-    · exact mul_le_mul_of_nonneg_left (h a ha) ENNReal.toReal_nonneg
-    · simp [(PMF.apply_eq_zero_iff p a).mpr ha]
 
 /-- Single-segment probe-capped consistency on `HardKeyValSeed` ([LiLiangYuZhou2023], Definition 4.3
 and Section 5.1, adapted with the deterministic `c = 1` probe cap `|S_A|, |S_B| ≤ m * t`). -/
@@ -1129,7 +1123,7 @@ private theorem prob_innerPool_eq_le {U V n t₀ m g cells w : ℕ} {γ R t : �
   let S_B (ω : Ω) := D_det.probedCellsInterval step₀ (C_bef ω) (ops_B ω)
   let C_B (ω : Ω) := (D_det.runInterval step₀ (C_bef ω) (ops_B ω)).2
   let s_after (ω : Ω) :=
-    (windowDict ω.1.permKeyEmb (fun idx => ω.1.kv (ω.1.permKeyEmb idx)) (t₀ + m) ht₀).1
+    (windowDict ω.1.permKeyEmb (fun idx => ω.1.kv (ω.1.permKeyEmb idx)) (t₀ + m) ht₀).val
   have hstate (ω : Ω) :
       let s₀ := ((Dynamic.spec U V n).run (Dictionary.empty U) (pref_bef ω)).1
       (Dynamic.spec U V n).ValidHistory (Dictionary.empty U) (pref_bef ω) ∧
@@ -1145,8 +1139,8 @@ private theorem prob_innerPool_eq_le {U V n t₀ m g cells w : ℕ} {γ R t : �
       (fun idx => s.kv (s.keys idx)) s.delPerm ht₀).1
     have hwval (t_k : ℕ) (ht_k : t_k ≤ n) (u : Fin U)
         (hu : u ∈ Dictionary.dom (windowDict s.permKeyEmb (fun idx => s.kv (s.permKeyEmb idx))
-          t_k ht_k).1) :
-        (windowDict s.permKeyEmb (fun idx => s.kv (s.permKeyEmb idx)) t_k ht_k).1 u =
+          t_k ht_k).val) :
+        (windowDict s.permKeyEmb (fun idx => s.kv (s.permKeyEmb idx)) t_k ht_k).val u =
           some (s.kv u).val := by
       rw [windowDict_coe, dom_dictOfEmb, Finset.mem_map] at hu
       obtain ⟨i, _, rfl⟩ := hu; rw [windowDict_coe, dictOfEmb_apply_self]; simp
@@ -1393,7 +1387,7 @@ private theorem prob_innerPool_eq_le {U V n t₀ m g cells w : ℕ} {γ R t : �
   have hsep_exp : ∑ ω : Ω, (p ω).toReal * ((m₄ ω).length : ℝ) ≤ 4 * (m : ℝ) * t + 7 := by
     have hcard : ∑ ω : Ω, (p ω).toReal * (((S_B ω).card + (S_A ω \ S_B ω).card : ℕ) : ℝ) ≤
         ∑ ω : Ω, (p ω).toReal * (2 * (m : ℝ) * t) :=
-      sum_toReal_mul_le_of_support p fun ω hω => by
+      PMF.sum_toReal_mul_mono_support p fun ω hω => by
         obtain ⟨_, hSA_c, hSB_c⟩ := hp_supp ω hω
         have hsd : ((S_A ω \ S_B ω).card : ℝ) ≤ ((S_A ω).card : ℝ) :=
           Nat.cast_le.mpr (Finset.card_le_card Finset.sdiff_subset)
@@ -1409,7 +1403,7 @@ private theorem prob_innerPool_eq_le {U V n t₀ m g cells w : ℕ} {γ R t : �
     set C_const := Real.logb 2 (U.choose m) + (m : ℝ) * Real.logb 2 V + ((cells * w : ℕ) : ℝ) +
       Real.logb 2 ((n + m).choose m) + Real.logb 2 (n.choose m) +
       2 * (m : ℝ) * t + γ * (m : ℝ) * (w : ℝ) + 4
-    have hpt := sum_toReal_mul_le_of_support p (f := fun ω => ((msg ω).length : ℝ))
+    have hpt := PMF.sum_toReal_mul_mono_support p (f := fun ω => ((msg ω).length : ℝ))
       (g := fun ω => C_const + ((m₄ ω).length : ℝ))
       fun ω hω => by have := hlen_rest ω hω; dsimp only [C_const]; linarith
     simp only [mul_add, Finset.sum_add_distrib] at hpt

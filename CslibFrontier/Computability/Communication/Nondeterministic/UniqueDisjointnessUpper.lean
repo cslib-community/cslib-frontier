@@ -126,7 +126,7 @@ private def cardFin (α : Type*) [Fintype α] (s : Finset α) : Fin (Fintype.car
 
 private theorem weightSlice_eq_univ_inter_preimage {α : Type*} [Fintype α]
     (p : Fin (Fintype.card α + 1)) :
-    (Set.univ : Set (Finset α)) ∩ cardFin α ⁻¹' {p} = weightSlice α p.1 := by
+    (Set.univ : Set (Finset α)) ∩ cardFin α ⁻¹' {p} = weightSlice α p.val := by
   ext s
   simp only [Set.mem_inter_iff, Set.mem_univ, true_and, Set.mem_preimage, Set.mem_singleton_iff,
     cardFin, Fin.ext_iff, weightSlice, Set.mem_ofPred_eq]
@@ -185,7 +185,7 @@ private theorem partitionCoverNumber_weightSlice_le_choose_left {α : Type*} [Fi
       ((Fintype.card α).choose p : ℕ) := by
   let κ := (univ : Finset α).powersetCard p
   let C : κ → Set (Finset α) × Set (Finset α) :=
-    fun a₀ => ({a₀.1}, {b | Disjoint a₀.1 b})
+    fun a₀ => ({a₀.val}, {b | Disjoint a₀.val b})
   have hcov : IsPartitionCover true (uniqueDisjointnessRel α)
       (weightSlice α p) (weightSlice α q) C := by
     refine ⟨fun a₀ a _ ha b _ hb => ?_, fun a ha b _ hnd => ?_⟩
@@ -220,12 +220,12 @@ private theorem partitionCoverNumber_weightSlice_le_code {α : Type*} [Fintype �
   let Y (S : Finset α) (syn : BitString k) : Set (Finset α) :=
     {a | a ⊆ S ∧ a.card = p ∧ synPad k S a = syn}
   let C : κ → Set (Finset α) × Set (Finset α) :=
-    fun ⟨S, syn⟩ => (Y S.1 syn, {b | ∃ a' ∈ Y S.1 syn, b = S.1 \ a'})
+    fun ⟨S, syn⟩ => (Y S.val syn, {b | ∃ a' ∈ Y S.val syn, b = S.val \ a'})
   have hcov : IsPartitionCover true (uniqueDisjointnessRel α)
       (weightSlice α p) (weightSlice α q) C := by
     refine ⟨fun ⟨S, syn⟩ a _ ha b _ hb => ?_, fun a ha b hb hnd => ?_⟩
     · obtain ⟨a', ha', rfl⟩ := hb
-      have hScard : S.1.card = p + q := (mem_powersetCard.1 S.2).2
+      have hScard : S.val.card = p + q := (mem_powersetCard.1 S.property).2
       simp only [uniqueDisjointnessRel, ↓reduceIte]
       exact card_inter_sdiff_ne_one_of_synPad_eq (by rw [hScard]) ha.1 ha'.1
         (ha.2.1.trans ha'.2.1.symm) (ha.2.2.trans ha'.2.2.symm)
@@ -235,14 +235,14 @@ private theorem partitionCoverNumber_weightSlice_le_code {α : Type*} [Fintype �
         rw [card_union_of_disjoint hnd, ha, hb]
       let S₀ : (univ : Finset α).powersetCard (p + q) :=
         ⟨a ∪ b, mem_powersetCard.2 ⟨subset_univ _, hunion_card⟩⟩
-      let syn₀ : BitString k := synPad k S₀.1 a
-      have haY : a ∈ Y S₀.1 syn₀ := ⟨subset_union_left, ha, rfl⟩
+      let syn₀ : BitString k := synPad k S₀.val a
+      have haY : a ∈ Y S₀.val syn₀ := ⟨subset_union_left, ha, rfl⟩
       have hbC : b ∈ (C ⟨S₀, syn₀⟩).2 := ⟨a, haY, (union_sdiff_cancel_left hnd).symm⟩
       refine ⟨⟨S₀, syn₀⟩, ⟨haY, hbC⟩, ?_⟩
       rintro ⟨S', syn'⟩ ⟨haY', a', _, hb_eq⟩
-      have hS'_sub : a ∪ b ⊆ S'.1 := union_subset haY'.1 (hb_eq ▸ sdiff_subset)
-      have hS'_card : S'.1.card = p + q := (mem_powersetCard.1 S'.2).2
-      have hS'_eq : S'.1 = S₀.1 :=
+      have hS'_sub : a ∪ b ⊆ S'.val := union_subset haY'.1 (hb_eq ▸ sdiff_subset)
+      have hS'_card : S'.val.card = p + q := (mem_powersetCard.1 S'.property).2
+      have hS'_eq : S'.val = S₀.val :=
         (eq_of_subset_of_card_le hS'_sub (by rw [hS'_card, hunion_card])).symm
       have hS_sub_eq : S' = S₀ := Subtype.ext hS'_eq
       subst hS_sub_eq
@@ -289,15 +289,15 @@ private theorem two_mul_sum_range_succ (m : ℕ) :
 
 private theorem sum_pairs_le_mul_max_le_cube (n : ℕ) :
     (∑ p : Fin (n + 1), ∑ q : Fin (n + 1),
-      if p.1 + q.1 ≤ n then max 1 (2 * n) else 0) ≤ (n + 1) ^ 3 := by
+      if p.val + q.val ≤ n then max 1 (2 * n) else 0) ≤ (n + 1) ^ 3 := by
   have hrow : ∀ p : Fin (n + 1),
-      (∑ q : Fin (n + 1), if p.1 + q.1 ≤ n then max 1 (2 * n) else 0) =
-        (n + 1 - p.1) * max 1 (2 * n) := by
+      (∑ q : Fin (n + 1), if p.val + q.val ≤ n then max 1 (2 * n) else 0) =
+        (n + 1 - p.val) * max 1 (2 * n) := by
     intro p
     rw [← sum_filter]
-    have hfilt : (univ.filter fun q : Fin (n + 1) => p.1 + q.1 ≤ n).card = n + 1 - p.1 := by
-      rw [← card_range (n + 1 - p.1)]
-      refine card_bij (fun (q : Fin (n + 1)) _ => q.1) (fun q hq => ?_)
+    have hfilt : (univ.filter fun q : Fin (n + 1) => p.val + q.val ≤ n).card = n + 1 - p.val := by
+      rw [← card_range (n + 1 - p.val)]
+      refine card_bij (fun (q : Fin (n + 1)) _ => q.val) (fun q hq => ?_)
         (fun q₁ _ q₂ _ h => Fin.ext h) (fun j hj => ?_)
       · rw [mem_filter] at hq
         exact mem_range.2 (by omega)
@@ -335,7 +335,7 @@ theorem partitionCoverNumber_uniqueDisjointnessRel_le {α : Type*} [Fintype α] 
             (Set.univ ∩ cardFin α ⁻¹' {p}) (Set.univ ∩ cardFin α ⁻¹' {q}) :=
         partitionCoverNumber_le_sum_fibers (cardFin α) (cardFin α)
     _ ≤ ∑ p : Fin (n + 1), ∑ q : Fin (n + 1),
-          (((if p.1 + q.1 ≤ n then max 1 (2 * n) else 0) * n.choose (n / 3) : ℕ) : ℕ∞) := by
+          (((if p.val + q.val ≤ n then max 1 (2 * n) else 0) * n.choose (n / 3) : ℕ) : ℕ∞) := by
         refine sum_le_sum fun p _ => sum_le_sum fun q _ => ?_
         rw [weightSlice_eq_univ_inter_preimage, weightSlice_eq_univ_inter_preimage]
         split_ifs with hpq
@@ -343,7 +343,7 @@ theorem partitionCoverNumber_uniqueDisjointnessRel_le {α : Type*} [Fintype α] 
         · rw [partitionCoverNumber_weightSlice_eq_zero_of_lt (by omega)]
           simp
     _ = (((∑ p : Fin (n + 1), ∑ q : Fin (n + 1),
-          if p.1 + q.1 ≤ n then max 1 (2 * n) else 0) * n.choose (n / 3) : ℕ) : ℕ∞) := by
+          if p.val + q.val ≤ n then max 1 (2 * n) else 0) * n.choose (n / 3) : ℕ) : ℕ∞) := by
         push_cast
         simp_rw [← sum_mul]
     _ ≤ (((n + 1) ^ 3 * n.choose (n / 3) : ℕ) : ℕ∞) := by
@@ -525,10 +525,10 @@ holds. -/
 private theorem card_filter_prod_unique_syn {ι : Type*} {U : Finset ι} {k : ℕ}
     (P : U × BitString k → Prop) [DecidablePred P] (good : ι → Prop) [DecidablePred good]
     (synOf : ι → BitString k)
-    (hiff : ∀ (u : U) (syn : BitString k), P (u, syn) ↔ good u.1 ∧ syn = synOf u.1) :
+    (hiff : ∀ (u : U) (syn : BitString k), P (u, syn) ↔ good u.val ∧ syn = synOf u.val) :
     (univ.filter P).card = (U.filter good).card := by
-  refine card_bij (fun x _ => x.1.1) (fun x hx => ?_) (fun x hx y hy h => ?_) (fun u hu => ?_)
-  · exact mem_filter.2 ⟨x.1.2, ((hiff x.1 x.2).1 (mem_filter.1 hx).2).1⟩
+  refine card_bij (fun x _ => x.1.val) (fun x hx => ?_) (fun x hx y hy h => ?_) (fun u hu => ?_)
+  · exact mem_filter.2 ⟨x.1.property, ((hiff x.1 x.2).1 (mem_filter.1 hx).2).1⟩
   · refine Prod.ext (Subtype.ext h) ?_
     rw [((hiff x.1 x.2).1 (mem_filter.1 hx).2).2, ((hiff y.1 y.2).1 (mem_filter.1 hy).2).2, h]
   · obtain ⟨huU, hg⟩ := mem_filter.1 hu
@@ -562,12 +562,11 @@ private theorem card_filter_eq_of_perm_invariant {α β : Type*} [Fintype α] [D
   obtain ⟨σ, rfl, rfl⟩ :=
     exists_perm_disjoint_pair (ha₁.trans ha₂.symm) (hb₁.trans hb₂.symm) hd₁ hd₂
   have hinv : ∀ t, act σ (act σ.symm t) = t := fun t => by simpa using hact σ.symm t
-  refine card_bij' (fun t _ => act σ t) (fun t _ => act σ.symm t) (fun t ht => ?_)
-    (fun t ht => ?_) (fun t _ => hact σ t) (fun t _ => hinv t)
-  · exact mem_filter.2 ⟨hD σ t (mem_filter.1 ht).1, (hgood σ t a₁ b₁).2 (mem_filter.1 ht).2⟩
-  · refine mem_filter.2 ⟨hD _ t (mem_filter.1 ht).1, (hgood σ _ a₁ b₁).1 ?_⟩
-    rw [hinv]
-    exact (mem_filter.1 ht).2
+  let e : Equiv.Perm β := ⟨act σ, act σ.symm, hact σ, hinv⟩
+  refine card_equiv e fun t => ?_
+  simp only [mem_filter]
+  refine and_congr ⟨hD σ t, fun h => ?_⟩ (hgood σ t a₁ b₁).symm
+  simpa only [hact] using hD σ.symm (act σ t) h
 
 private theorem card_disjointWeightPairs {α : Type*} [Fintype α] [DecidableEq α] (p q : ℕ) :
     (disjointWeightPairs α p q).card =
@@ -687,10 +686,10 @@ private theorem exists_coverNumber_weightSlice_le_of_const_hit {α S : Type*} [F
   obtain ⟨G, hGcov, hGcard⟩ := Cslib.exists_cover_card_le_of_const_hit hWne hit hconst
     (by exact_mod_cast hM0) hMreal
   have hisCov : IsCover true (uniqueDisjointnessRel α) (weightSlice α p) (weightSlice α q)
-      (fun s : G => ((row s.1 : Set (Finset α)), (col s.1 : Set (Finset α)))) := by
+      (fun s : G => ((row s.val : Set (Finset α)), (col s.val : Set (Finset α)))) := by
     refine ⟨fun s a _ ha b _ hb => ?_, fun a ha b hb hnd => ?_⟩
     · simp only [uniqueDisjointnessRel, ↓reduceIte]
-      exact hmono s.1 a ha b hb
+      exact hmono s.val a ha b hb
     · simp only [Bool.not_true, uniqueDisjointnessRel, Bool.false_eq_true, ↓reduceIte,
         not_not] at hnd
       obtain ⟨s, hsG, hhit⟩ := hGcov (a, b) (mem_disjointWeightPairs.2 ⟨ha, hb, hnd⟩)
@@ -733,8 +732,8 @@ private theorem exists_coverNumber_weightSlice_case3 {α : Type*} [Fintype α] [
   let S := (univ : Finset α).powersetCard m₁
   let _ : Nonempty S :=
     (powersetCard_nonempty.2 (by rw [card_univ]; exact hm₁n)).coe_sort
-  let row (X₁ : S) : Finset (Finset α) := X₁.1.powersetCard p
-  let col (X₁ : S) : Finset (Finset α) := (univ \ X₁.1).powersetCard q
+  let row (X₁ : S) : Finset (Finset α) := X₁.val.powersetCard p
+  let col (X₁ : S) : Finset (Finset α) := (univ \ X₁.val).powersetCard q
   have hmono : ∀ X₁ : S, ∀ a ∈ row X₁, ∀ b ∈ col X₁, (a ∩ b).card ≠ 1 := by
     intro X₁ a ha b hb
     have hd : Disjoint a b :=
@@ -745,8 +744,9 @@ private theorem exists_coverNumber_weightSlice_case3 {α : Type*} [Fintype α] [
       (univ.filter fun X₁ : S => w₁.1 ∈ row X₁ ∧ w₁.2 ∈ col X₁).card =
         (univ.filter fun X₁ : S => w₂.1 ∈ row X₁ ∧ w₂.2 ∈ col X₁).card := by
     intro ⟨a₁, b₁⟩ hw₁ ⟨a₂, b₂⟩ hw₂
-    refine card_filter_eq_of_perm_invariant (univ : Finset S) (fun σ X₁ => ⟨X₁.1.map σ.toEmbedding,
-        mem_powersetCard.2 ⟨subset_univ _, by rw [card_map, (mem_powersetCard.1 X₁.2).2]⟩⟩)
+    refine card_filter_eq_of_perm_invariant (univ : Finset S)
+      (fun σ X₁ => ⟨X₁.val.map σ.toEmbedding,
+        mem_powersetCard.2 ⟨subset_univ _, by rw [card_map, (mem_powersetCard.1 X₁.property).2]⟩⟩)
       (fun _ _ _ => mem_univ _) (fun σ X₁ => Subtype.ext (by simp [map_map]))
       (fun X₁ a b => a ∈ row X₁ ∧ b ∈ col X₁) (fun σ X₁ a b => ?_) hw₁ hw₂
     simp only [row, col, mem_powersetCard, map_subset_map, card_map, subset_sdiff, subset_univ,
@@ -759,8 +759,8 @@ private theorem exists_coverNumber_weightSlice_case3 {α : Type*} [Fintype α] [
     have hper : ∀ X₁ : S, m₁.choose p * m₂.choose q ≤
         ((disjointWeightPairs α p q).filter fun w => w.1 ∈ row X₁ ∧ w.2 ∈ col X₁).card := by
       intro X₁
-      have hX₁c : X₁.1.card = m₁ := (mem_powersetCard.1 X₁.2).2
-      have hX₂c : (univ \ X₁.1).card = m₂ := by
+      have hX₁c : X₁.val.card = m₁ := (mem_powersetCard.1 X₁.property).2
+      have hX₂c : (univ \ X₁.val).card = m₂ := by
         rw [card_sdiff_of_subset (subset_univ _), card_univ, hX₁c]
       have hprod : (row X₁ ×ˢ col X₁).card = m₁.choose p * m₂.choose q := by
         rw [card_product, card_powersetCard, card_powersetCard, hX₁c, hX₂c]
@@ -855,10 +855,10 @@ private theorem exists_coverNumber_weightSlice_case2 {α : Type*} [Fintype α] [
   let codeFib (X₀ : Finset α) (syn : BitString k) : Finset (Finset α) :=
     (X₀.powersetCard x₀).filter fun a₀ => synPad k X₀ a₀ = syn
   let row (s : S) : Finset (Finset α) :=
-    (codeFib s.1.1.1 s.2).biUnion fun a₀ => (s.1.1.2.1.powersetCard m₁).image (a₀ ∪ ·)
+    (codeFib s.1.val.1 s.2).biUnion fun a₀ => (s.1.val.2.1.powersetCard m₁).image (a₀ ∪ ·)
   let col (s : S) : Finset (Finset α) :=
-    (codeFib s.1.1.1 s.2).biUnion fun b₀' =>
-      (s.1.1.2.2.powersetCard m₂).image ((s.1.1.1 \ b₀') ∪ ·)
+    (codeFib s.1.val.1 s.2).biUnion fun b₀' =>
+      (s.1.val.2.2.powersetCard m₂).image ((s.1.val.1 \ b₀') ∪ ·)
   have hmono : ∀ s : S, ∀ a ∈ row s, ∀ b ∈ col s, (a ∩ b).card ≠ 1 := by
     rintro ⟨⟨⟨X₀, X₁, X₂⟩, ht⟩, syn⟩ a ha b hb
     obtain ⟨hmem_prod, hd01, hd02, hd12⟩ := mem_filter.1 ht
@@ -893,7 +893,7 @@ private theorem exists_coverNumber_weightSlice_case2 {α : Type*} [Fintype α] [
   have hhit_iff : ∀ (t : T) (syn : BitString k) (a b : Finset α),
       (a, b) ∈ disjointWeightPairs α p q →
       ((a ∈ row (t, syn) ∧ b ∈ col (t, syn)) ↔
-        goodB t.1.1 t.1.2.1 t.1.2.2 a b ∧ syn = synPad k t.1.1 (a ∩ t.1.1)) := by
+        goodB t.val.1 t.val.2.1 t.val.2.2 a b ∧ syn = synPad k t.val.1 (a ∩ t.val.1)) := by
     rintro ⟨⟨X₀, X₁, X₂⟩, ht⟩ syn a b hab
     dsimp only [row, col, goodB]
     obtain ⟨hmem_prod, hd01, hd02, hd12⟩ := mem_filter.1 ht
@@ -1194,20 +1194,20 @@ private theorem exists_coverNumber_weightSlice_case4 {α : Type*} [Fintype α] [
     (powersetCard_nonempty.2 (by rw [card_univ]; exact hm₁n)).coe_sort
   let S := Xdom × BitString k
   let col (s : S) : Finset (Finset α) :=
-    (s.1.1.powersetCard q).filter fun b => synPad k s.1.1 b = s.2
+    (s.1.val.powersetCard q).filter fun b => synPad k s.1.val b = s.2
   let row (s : S) : Finset (Finset α) :=
-    (col s).biUnion fun b' => ((univ \ s.1.1).powersetCard (p - z₀)).image ((s.1.1 \ b') ∪ ·)
+    (col s).biUnion fun b' => ((univ \ s.1.val).powersetCard (p - z₀)).image ((s.1.val \ b') ∪ ·)
   have hmono : ∀ s : S, ∀ a ∈ row s, ∀ b ∈ col s, (a ∩ b).card ≠ 1 := by
     rintro ⟨X, syn⟩ a ha b hb
-    have hXc : X.1.card = m₁ := (mem_powersetCard.1 X.2).2
+    have hXc : X.val.card = m₁ := (mem_powersetCard.1 X.property).2
     obtain ⟨b', hb', ha₁_im⟩ := mem_biUnion.1 ha
     obtain ⟨a₁, ha₁, rfl⟩ := mem_image.1 ha₁_im
     have hb_f := mem_filter.1 hb
     have hb'_f := mem_filter.1 hb'
-    have hb_sub : b ⊆ X.1 := (mem_powersetCard.1 hb_f.1).1
-    have hb'_sub : b' ⊆ X.1 := (mem_powersetCard.1 hb'_f.1).1
-    have ha₁_sub : a₁ ⊆ univ \ X.1 := (mem_powersetCard.1 ha₁).1
-    have hinter : ((X.1 \ b') ∪ a₁) ∩ b = b ∩ (X.1 \ b') := by
+    have hb_sub : b ⊆ X.val := (mem_powersetCard.1 hb_f.1).1
+    have hb'_sub : b' ⊆ X.val := (mem_powersetCard.1 hb'_f.1).1
+    have ha₁_sub : a₁ ⊆ univ \ X.val := (mem_powersetCard.1 ha₁).1
+    have hinter : ((X.val \ b') ∪ a₁) ∩ b = b ∩ (X.val \ b') := by
       ext x
       simp only [mem_inter, mem_union, mem_sdiff]
       refine ⟨fun ⟨hx1, hxb⟩ => ⟨hxb, ?_⟩, fun ⟨hxb, hxXb'⟩ => ⟨Or.inl hxXb', hxb⟩⟩
@@ -1219,17 +1219,17 @@ private theorem exists_coverNumber_weightSlice_case4 {α : Type*} [Fintype α] [
   let goodC (X a b : Finset α) : Prop := b ⊆ X ∧ X \ b ⊆ a
   have hhit_iff : ∀ (X : Xdom) (syn : BitString k) (a b : Finset α),
       (a, b) ∈ disjointWeightPairs α p q →
-      ((a ∈ row (X, syn) ∧ b ∈ col (X, syn)) ↔ goodC X.1 a b ∧ syn = synPad k X.1 b) := by
+      ((a ∈ row (X, syn) ∧ b ∈ col (X, syn)) ↔ goodC X.val a b ∧ syn = synPad k X.val b) := by
     intro X syn a b hab
-    have hXc : X.1.card = m₁ := (mem_powersetCard.1 X.2).2
+    have hXc : X.val.card = m₁ := (mem_powersetCard.1 X.property).2
     obtain ⟨ha_card, hb_card, hdab⟩ := mem_disjointWeightPairs.1 hab
     refine ⟨fun ⟨har, hbc⟩ => ?_, fun ⟨⟨hbX, hXba⟩, hsyn⟩ => ?_⟩
     · obtain ⟨b', hb', ha₁_im⟩ := mem_biUnion.1 har
       obtain ⟨a₁, _, rfl⟩ := mem_image.1 ha₁_im
       have hb_f := mem_filter.1 hbc
       have hb'_f := mem_filter.1 hb'
-      have hb_sub : b ⊆ X.1 := (mem_powersetCard.1 hb_f.1).1
-      have hdisj_b : Disjoint (X.1 \ b') b := hdab.mono_left subset_union_left
+      have hb_sub : b ⊆ X.val := (mem_powersetCard.1 hb_f.1).1
+      have hdisj_b : Disjoint (X.val \ b') b := hdab.mono_left subset_union_left
       have hbb' : b ⊆ b' := fun x hxb => by
         by_contra hxnb'
         exact Finset.disjoint_left.1 hdisj_b (mem_sdiff.2 ⟨hb_sub hxb, hxnb'⟩) hxb
@@ -1239,28 +1239,28 @@ private theorem exists_coverNumber_weightSlice_case4 {α : Type*} [Fintype α] [
       subst hb_eq
       exact ⟨⟨hb_sub, subset_union_left⟩, hb_f.2.symm⟩
     · subst hsyn
-      have hb_col : b ∈ col (X, synPad k X.1 b) :=
+      have hb_col : b ∈ col (X, synPad k X.val b) :=
         mem_filter.2 ⟨mem_powersetCard.2 ⟨hbX, hb_card⟩, rfl⟩
-      let a₁ := a \ X.1
-      have ha_inter : a ∩ X.1 = X.1 \ b := by
+      let a₁ := a \ X.val
+      have ha_inter : a ∩ X.val = X.val \ b := by
         refine (eq_of_subset_of_card_le (subset_inter hXba sdiff_subset) ?_).symm
         refine card_le_card fun x hx => ?_
         rw [mem_inter] at hx
         exact mem_sdiff.2 ⟨hx.2, Finset.disjoint_left.1 hdab hx.1⟩
       have ha₁_card : a₁.card = p - z₀ := by
-        have h1 := card_sdiff_add_card_inter a X.1
-        have h2 : (X.1 \ b).card = z₀ := by
+        have h1 := card_sdiff_add_card_inter a X.val
+        have h2 : (X.val \ b).card = z₀ := by
           rw [card_sdiff_of_subset hbX, hXc, hb_card]
           omega
-        change a₁.card + (a ∩ X.1).card = a.card at h1
+        change a₁.card + (a ∩ X.val).card = a.card at h1
         rw [ha_inter, h2] at h1
         omega
-      have ha₁_mem : a₁ ∈ (univ \ X.1).powersetCard (p - z₀) :=
+      have ha₁_mem : a₁ ∈ (univ \ X.val).powersetCard (p - z₀) :=
         mem_powersetCard.2 ⟨subset_sdiff.2 ⟨subset_univ _, disjoint_sdiff_self_left⟩, ha₁_card⟩
-      have ha_row : a ∈ row (X, synPad k X.1 b) := by
+      have ha_row : a ∈ row (X, synPad k X.val b) := by
         refine mem_biUnion.2 ⟨b, hb_col, mem_image.2 ⟨a₁, ha₁_mem, ?_⟩⟩
         rw [← ha_inter, union_comm]
-        exact sdiff_union_inter a X.1
+        exact sdiff_union_inter a X.val
       exact ⟨ha_row, hb_col⟩
   have hhit_card : ∀ w ∈ disjointWeightPairs α p q,
       (univ.filter fun s : S => w.1 ∈ row s ∧ w.2 ∈ col s).card =
@@ -1422,7 +1422,7 @@ theorem exists_coverNumber_uniqueDisjointnessRel_le {α : Type*} [Fintype α] [D
         (r : ℝ) ≤ 8 * (Fintype.card α + 1 : ℝ) ^ 7 * (3 / 2 : ℝ) ^ Fintype.card α := by
   set n := Fintype.card α
   choose r_pq hr_pq using fun (p q : Fin (n + 1)) =>
-    exists_coverNumber_weightSlice_le (α := α) p.1 q.1
+    exists_coverNumber_weightSlice_le (α := α) p.val q.val
   have hsum_cov : coverNumber true (uniqueDisjointnessRel α) Set.univ Set.univ ≤
       ((∑ p : Fin (n + 1), ∑ q : Fin (n + 1), r_pq p q : ℕ) : ℕ∞) := by
     calc coverNumber true (uniqueDisjointnessRel α) Set.univ Set.univ

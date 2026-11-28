@@ -127,7 +127,7 @@ theorem mem_LongPath_succ_iff {G : Graph} {k : ℕ} :
     refine ⟨w.support.map Subtype.val, ⟨hw.support_nodup.map Subtype.val_injective,
       fun x hx => ?_, ?_⟩, ?_⟩
     · obtain ⟨y, -, rfl⟩ := List.mem_map.1 hx
-      exact y.2
+      exact y.property
     · exact List.isChain_map_of_isChain (S := G.toSimpleGraph.Adj) Subtype.val
         (fun _ _ hab => hab) w.isChain_adj_support
     · rw [List.length_map, SimpleGraph.Walk.length_support, hlen]

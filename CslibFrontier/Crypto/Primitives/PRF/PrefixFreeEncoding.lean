@@ -136,10 +136,10 @@ private theorem eq_of_stopBitEncode_prefix {n : ℕ} :
 /-- **Method 2 (stop bits)** ([BonehShoup2023], Section 6.6.1, p. 236): `stopBitEncode` is a
 prefix-free encoding on nonempty lists of `n`-bit blocks. -/
 theorem isPrefixFreeEncoding_stopBitEncode (n : ℕ) :
-    IsPrefixFreeEncoding (fun m : {m : List (BitString n) // m ≠ []} => stopBitEncode m.1) :=
+    IsPrefixFreeEncoding (fun m : {m : List (BitString n) // m ≠ []} => stopBitEncode m.val) :=
   IsPrefixFreeEncoding.iff_forall_prefix.mpr
-    ⟨fun m => stopBitEncode_ne_nil m.2,
-      fun m₁ _ hp => Subtype.ext (eq_of_stopBitEncode_prefix m₁.2 hp)⟩
+    ⟨fun m => stopBitEncode_ne_nil m.property,
+      fun m₁ _ hp => Subtype.ext (eq_of_stopBitEncode_prefix m₁.property hp)⟩
 
 /-- Choose a common block to append to two queries. At the end of the shorter query, the
 chosen block differs from the block at that position in the longer query. The two candidate
@@ -163,6 +163,7 @@ private theorem not_prefix_append_separatingBlock_of_length_le {X : Type*} [BEq 
         Nat.sub_self, List.getElem_cons_zero, List.getElem?_eq_getElem hlt] using hmem
     rw [separatingBlock, ite_eq_left hlen, List.getD_eq_getElem?_getD,
       List.getElem?_eq_getElem hlt, Option.getD_some] at hnext
+    dsimp only at hnext
     split_ifs at hnext with h
     · exact hab ((beq_iff_eq.mp h).symm.trans hnext)
     · exact h (beq_iff_eq.mpr hnext)

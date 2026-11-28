@@ -1048,7 +1048,7 @@ private theorem bijPebbleWins_of_forall_same_univ (L : Language.{u, v}) {k : ℕ
     let Bad := {y : M' ⊕ N' // ¬bijSumRel L n S a b i x y}
     have hsep : ∀ y : Bad, ∃ ψ : InfinitaryCountingFormula.{w, u, v} L k,
         ψ.QuantifierRankLE n ∧ ψ.freeVars ⊆ insert i S ∧
-          evalSum x ψ ∧ ¬evalSum y.1 ψ := by
+          evalSum x ψ ∧ ¬evalSum y.val ψ := by
       rintro ⟨z, hz⟩
       have hnot := mt (hbij_iff x z).2 hz
       simp only [not_forall] at hnot

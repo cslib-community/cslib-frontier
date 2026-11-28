@@ -57,7 +57,7 @@ example : 4 * (2 * (10 : ℝ) + 1) * 10 * Real.exp (-10) < 1 := by
   rw [Real.exp_neg, mul_inv_lt_iff₀ (Real.exp_pos 10)]
   have h : (2 : ℝ) ^ 10 ≤ Real.exp 1 ^ 10 :=
     pow_le_pow_left₀ (by norm_num) (by linarith [Real.add_one_le_exp (1 : ℝ)]) _
-  rw [← Real.exp_nat_mul] at h
+  rw [← Real.exp_natCast_mul] at h
   norm_num at h ⊢
   linarith
 

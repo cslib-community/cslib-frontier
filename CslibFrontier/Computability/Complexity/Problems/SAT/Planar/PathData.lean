@@ -42,7 +42,7 @@ open Cslib.Logic.PL Cslib.Logic.PL.CNF Orthogonal
 
 /-- The explicit linear per-route expansion budget. -/
 def budget (φ : CNF ℕ) : ℕ :=
-  80 * (SAT.incidenceGraph φ).1.length + 10 * (SAT.incidenceGraph φ).2.length
+  80 * (SAT.incidenceGraph φ).vertices.length + 10 * (SAT.incidenceGraph φ).edges.length
 
 /-- Unit paths in the order of the original literal occurrences. -/
 def paths (φ : CNF ℕ) : List Route :=

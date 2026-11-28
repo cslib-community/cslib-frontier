@@ -616,28 +616,28 @@ theorem dens_sum_totalProbeComplexity_gt_le_of_snapshotBound {ι α β Y : Type*
   let M_cap : ℝ := (M : ℝ) * B_max
   have hM_pos : 0 < M_cap := by positivity
   let preOf (b : β) (hb : b ∈ R) (x : activeSet (ops b)) : List (Op α) :=
-    (exists_split_last_insert_of_mem_activeSet (hval b hb) x.2).choose
+    (exists_split_last_insert_of_mem_activeSet (hval b hb) x.property).choose
   let B (b : β) : Finset α := if hb : b ∈ R then
-    (activeSet (ops b)).attach.biUnion fun x => insert x.1 (activeSet (preOf b hb x)) else ∅
+    (activeSet (ops b)).attach.biUnion fun x => insert x.val (activeSet (preOf b hb x)) else ∅
   have hB_sub (b : β) (hb : b ∈ R) : B b ⊆ opsBalls (ops b) := by
     simp only [B, hb, ↓reduceDIte]; refine Finset.biUnion_subset.mpr fun x _ a ha => ?_
     obtain ⟨_, heq, _, _, _, _⟩ :=
-      (exists_split_last_insert_of_mem_activeSet (hval b hb) x.2).choose_spec
+      (exists_split_last_insert_of_mem_activeSet (hval b hb) x.property).choose_spec
     rcases Finset.mem_insert.mp ha with rfl | ha_pre
-    · exact activeSet_subset_opsBalls (ops b) x.2
+    · exact activeSet_subset_opsBalls (ops b) x.property
     · rw [heq, opsBalls_append]; exact Finset.mem_union_left _ (activeSet_subset_opsBalls _ ha_pre)
   have hB_card (b : β) (hb : b ∈ R) : #(B b) ≤ M * M := by
     simp only [B, hb, ↓reduceDIte]
     refine Finset.card_biUnion_le.trans
       ((Finset.sum_le_sum (g := fun _ => M) fun x _ => ?_).trans ?_)
     · obtain ⟨_, _, _, _, hlt_pre, _⟩ :=
-        (exists_split_last_insert_of_mem_activeSet (hval b hb) x.2).choose_spec
+        (exists_split_last_insert_of_mem_activeSet (hval b hb) x.property).choose_spec
       exact (Finset.card_insert_le _ _).trans hlt_pre
     · rw [Finset.sum_const, Finset.card_attach, smul_eq_mul]
       exact Nat.mul_le_mul_right M (card_activeSet_le (hval b hb))
   let extHash {U : Finset α} (u : U → Y) (a : α) : Y := if ha : a ∈ U then u ⟨a, ha⟩ else y₀
   let score (b : β) (u : B b → Y) : ℝ := if hb : b ∈ R then
-    (∑ x ∈ (activeSet (ops b)).attach, (bound (extHash u) (activeSet (preOf b hb x)) x.1 : ℝ)) /
+    (∑ x ∈ (activeSet (ops b)).attach, (bound (extHash u) (activeSet (preOf b hb x)) x.val : ℝ)) /
       M_cap else 0
   have hscore_Icc (b : β) (hb : b ∈ R) (u) : score b u ∈ Set.Icc 0 1 := by
     simp only [score, hb, ↓reduceDIte]; refine ⟨by positivity, (div_le_one hM_pos).mpr ?_⟩
@@ -648,11 +648,11 @@ theorem dens_sum_totalProbeComplexity_gt_le_of_snapshotBound {ι α β Y : Type*
       (by exact_mod_cast card_activeSet_le (hval b hb)) (by positivity)
   have hscore_restrict (b : β) (hb : b ∈ R) (θ : ι) : score b ((B b).restrict (h θ)) =
       (∑ x ∈ (activeSet (ops b)).attach,
-        (bound (h θ) (activeSet (preOf b hb x)) x.1 : ℝ)) / M_cap := by
+        (bound (h θ) (activeSet (preOf b hb x)) x.val : ℝ)) / M_cap := by
     simp only [score, hb, ↓reduceDIte]; congr 1; refine Finset.sum_congr rfl fun x hx => ?_
-    have hsub : insert x.1 (activeSet (preOf b hb x)) ⊆ B b := by
+    have hsub : insert x.val (activeSet (preOf b hb x)) ⊆ B b := by
       simp only [B, hb, ↓reduceDIte]; exact Finset.subset_biUnion_of_mem
-        (fun x : activeSet (ops b) => insert x.1 (activeSet (preOf b hb x))) hx
+        (fun x : activeSet (ops b) => insert x.val (activeSet (preOf b hb x))) hx
     exact_mod_cast hbound_congr fun a ha => by simp [extHash, hsub ha, Finset.restrict]
   have hdom_tree (b : β) (hb : b ∈ R) (θ : ι) :
       (totalProbeComplexity (probe (h θ)) (assign (h θ) (ops b)) : ℝ) ≤
@@ -660,17 +660,17 @@ theorem dens_sum_totalProbeComplexity_gt_le_of_snapshotBound {ι α β Y : Type*
     rw [hscore_restrict b hb θ, mul_div_cancel₀ _ hM_pos.ne', totalProbeComplexity_eq_sum_present,
       hpres (h θ) (hval b hb)]
     push_cast; rw [← Finset.sum_attach (activeSet (ops b))]
-    exact Finset.sum_le_sum fun x _ => by exact_mod_cast hdom (h θ) (hval b hb) x.2
+    exact Finset.sum_le_sum fun x _ => by exact_mod_cast hdom (h θ) (hval b hb) x.property
   have hmean_score : ∑ b ∈ R, (𝔼 θ, score b ((B b).restrict (h θ))) ≤ μ / M_cap := by
     rw [le_div_iff₀ hM_pos, Finset.sum_mul]
     calc ∑ b ∈ R, (𝔼 θ, score b ((B b).restrict (h θ))) * M_cap
         ≤ ∑ b ∈ R, c * (#(activeSet (ops b)) : ℝ) := Finset.sum_le_sum fun b hb => by
           rw [Finset.expect_mul, Finset.expect_congr rfl fun θ _ => by
             rw [hscore_restrict b hb θ, div_mul_cancel₀ _ hM_pos.ne'], Finset.expect_sum_comm]
-          calc ∑ x ∈ (activeSet (ops b)).attach, 𝔼 θ, (bound (h θ) _ x.1 : ℝ)
+          calc ∑ x ∈ (activeSet (ops b)).attach, 𝔼 θ, (bound (h θ) _ x.val : ℝ)
               ≤ ∑ _ ∈ (activeSet (ops b)).attach, c := Finset.sum_le_sum fun x _ => by
                 obtain ⟨_, _, _, hx_pre, hlt_pre, _⟩ :=
-                  (exists_split_last_insert_of_mem_activeSet (hval b hb) x.2).choose_spec
+                  (exists_split_last_insert_of_mem_activeSet (hval b hb) x.property).choose_spec
                 exact hexp hlt_pre.le hx_pre
             _ = c * (#(activeSet (ops b)) : ℝ) := by
                 rw [Finset.sum_const, Finset.card_attach, nsmul_eq_mul]; ring

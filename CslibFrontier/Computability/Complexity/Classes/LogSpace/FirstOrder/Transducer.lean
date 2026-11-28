@@ -279,10 +279,10 @@ private theorem reaches_scanCode_dom (hC : Correct n C w) {b k : ℕ}
     hkeep₁ x fun _ _ => by unfold tupleReg; omega
   obtain ⟨res, regs₂, hres, hreach₂, hlen₂, hkeep₂, hB₂⟩ :=
     reaches_formulaCodeWith hnB (fun i => tupleReg d 0 (e i)) (base v' d) (by omega)
-      (fun i => tupleReg_lt_base v' (Nat.zero_le _) (e i).2) ((tupleEquiv e).symm ⟨k, hk⟩) _
+      (fun i => tupleReg_lt_base v' (Nat.zero_le _) (e i).isLt) ((tupleEquiv e).symm ⟨k, hk⟩) _
       (hC _ _ _) I.domain (b + 4 + d) (b + 4 + d + codeLength I.domain) (b + 3) regs₁ default hdom
       (by rw [hlen₁, hl]; exact hlen) (by rw [hreg 0 (by omega), h0']) hB₁
-      (fun i => by rw [hset₁ _ (e i).2, tupleEquiv_symm_apply_val]) (fun i => i.elim0)
+      (fun i => by rw [hset₁ _ (e i).isLt, tupleEquiv_symm_apply_val]) (fun i => i.elim0)
   exact ⟨res, regs₂, by rw [hres, inDomain_iff hk]; rfl,
     by simpa using hreach₁.reachesOut.trans hreach₂.reachesOut, by rw [hlen₂, hlen₁, hl],
     fun x hx => (hkeep₂ x (by omega)).trans (hreg x hx), hB₂⟩
@@ -469,11 +469,11 @@ private theorem reaches_unrankCode_dom (hC : Correct n C w) {m A r u : ℕ} (hm 
     reaches_coordinatesCode (w := w) hcoords huN hnB rs h0s h4 (by omega) hB'
   obtain ⟨res, regs₂, hres, hreach₂, hlen₂, hkeep₂, hB₂⟩ :=
     reaches_formulaCodeWith hnB (fun i => tupleReg d m (e i)) (base v' d) (by omega)
-      (fun i => tupleReg_lt_base v' hm (e i).2) ((tupleEquiv e).symm ⟨u, huN⟩) _
+      (fun i => tupleReg_lt_base v' hm (e i).isLt) ((tupleEquiv e).symm ⟨u, huN⟩) _
       (hC _ _ _) I.domain (A + 3 + d) (A + 3 + d + codeLength I.domain)
       (A + 3 + d + codeLength I.domain + 2) regs₁ default hdom (by rw [hlen₁, hl]; exact hlen)
       (by rw [hkeep₁ 0 (fun i _ => by unfold tupleReg; omega), h0s]) hB₁
-      (fun i => by rw [hset₁ _ (e i).2, tupleEquiv_symm_apply_val]) (fun i => i.elim0)
+      (fun i => by rw [hset₁ _ (e i).isLt, tupleEquiv_symm_apply_val]) (fun i => i.elim0)
   have hk₂ (x : ℕ) (hx : x < base v' d) (hxm : ∀ i < d, x ≠ tupleReg d m i) :
       regs₂.getD x 0 = rs.getD x 0 := by rw [hkeep₂ x (by omega), hkeep₁ x hxm]
   refine ⟨res, regs₂, by rw [hres, inDomain_iff huN]; rfl, hreach₁.trans hreach₂,
@@ -481,7 +481,7 @@ private theorem reaches_unrankCode_dom (hC : Correct n C w) {m A r u : ℕ} (hm 
     by rw [hk₂ 4 (by omega) (fun _ _ => by unfold tupleReg; omega), h4],
     by rw [hk₂ 5 (by omega) (fun _ _ => by unfold tupleReg; omega), h5],
     by rw [hk₂ 7 (by omega) (fun _ _ => by unfold tupleReg; omega), h7],
-    fun i => by rw [hkeep₂ _ (tupleReg_lt_base v' hm (e i).2), hset₁ _ (e i).2,
+    fun i => by rw [hkeep₂ _ (tupleReg_lt_base v' hm (e i).isLt), hset₁ _ (e i).isLt,
       tupleEquiv_symm_apply_val],
     fun x hx h4' h5' h7' hxm => by rw [hk₂ x hx hxm, hkeep x hx h4' h5' h7' hxm], hB₂⟩
 
@@ -600,7 +600,7 @@ private theorem reaches_unrankCode (hC : Correct n C w) {m A t : ℕ} (hm : m �
       (A + d + codeLength I.domain + 6, regs') ∧ regs'.length = regs.length ∧
       (∀ i : ι, regs'.getD (tupleReg d m (e i)) 0 =
         (((rankEquiv I e n).symm
-          ⟨t / modelCard I e n ^ m % modelCard I e n, Nat.mod_lt _ hpos⟩).1 i : ℕ)) ∧
+          ⟨t / modelCard I e n ^ m % modelCard I e n, Nat.mod_lt _ hpos⟩).val i : ℕ)) ∧
       (∀ x < base v' d, x ≠ 4 → x ≠ 5 → x ≠ 7 → (∀ i < d, x ≠ tupleReg d m i) →
         regs'.getD x 0 = regs.getD x 0) ∧ ∀ r ∈ regs', r ≤ B := by
   classical
@@ -730,7 +730,7 @@ private theorem reaches_unranks (hC : Correct n C w) (j : Fin v'.count) {b t : �
       rs'.getD 0 0 = n ∧ rs'.getD 3 0 = modelCard I e n ∧ rs'.getD 6 0 = t ∧ (∀ x ∈ rs', x ≤ B) ∧
       ∀ m' (hm' : m' < m) (i : ι), rs'.getD (tupleReg d m' (e i)) 0 =
         (((rankEquiv I e n).symm
-          (finFunctionFinEquiv.symm ⟨t, ht⟩ ⟨m', lt_of_lt_of_le hm' hmk⟩)).1 i : ℕ) := by
+          (finFunctionFinEquiv.symm ⟨t, ht⟩ ⟨m', lt_of_lt_of_le hm' hmk⟩)).val i : ℕ) := by
   have hkm := arity_le_maxArity (v' := v') j
   have hbase := le_base v' (d := d)
   intro m
@@ -756,9 +756,9 @@ private theorem reaches_unranks (hC : Correct n C w) (j : Fin v'.count) {b t : �
     · rwa [show b + 3 + (d + codeLength I.domain + 6) * m + d + codeLength I.domain + 6 =
         b + 3 + (d + codeLength I.domain + 6) * (m + 1) by rw [Nat.mul_succ]; omega] at hreach₂
     · rcases lt_or_eq_of_le (Nat.lt_succ_iff.mp hm') with hlt | rfl
-      · rw [hkeep₂ _ (tupleReg_lt_base v' (by omega) (e i).2) (by unfold tupleReg; omega)
+      · rw [hkeep₂ _ (tupleReg_lt_base v' (by omega) (e i).isLt) (by unfold tupleReg; omega)
           (by unfold tupleReg; omega) (by unfold tupleReg; omega)
-          (fun i' hi' => tupleReg_ne (by omega) (e i).2 hi'), htupleReg₁ m' hlt i]
+          (fun i' hi' => tupleReg_ne (by omega) (e i).isLt hi'), htupleReg₁ m' hlt i]
       · rw [htupleReg₂ i]; congr 3
 
 variable [L'.IsRelational]
@@ -805,10 +805,10 @@ private theorem reachesOut_relTableCode_step (hC : Correct n C w) (j : Fin v'.co
   obtain ⟨res, rs₂, hres, hreach₂, hl₂, hkeep₂, hB₂⟩ :=
     reaches_formulaCodeWith hnB
       (fun p : Fin (v'.symbol j).1 × ι => tupleReg d p.1 (e p.2)) (base v' d) (by omega)
-      (fun p => tupleReg_lt_base v' (show (p.1 : ℕ) ≤ maxArity v' by omega) (e p.2).2)
-      (fun p => ((rankEquiv I e n).symm (finFunctionFinEquiv.symm ⟨t, ht⟩ p.1)).1 p.2)
+      (fun p => tupleReg_lt_base v' (show (p.1 : ℕ) ≤ maxArity v' by omega) (e p.2).isLt)
+      (fun p => ((rankEquiv I e n).symm (finFunctionFinEquiv.symm ⟨t, ht⟩ p.1)).val p.2)
       _ (hC _ _ _) (I.rel (v'.symbol j).2) _ _ _ rs₁ default hrel
-      (by rw [hl₁]; exact hlenR) h0₁ hB₁ (fun p => htupleReg₁ p.1 p.1.2 p.2) (fun i => i.elim0)
+      (by rw [hl₁]; exact hlenR) h0₁ hB₁ (fun p => htupleReg₁ p.1 p.1.isLt p.2) (fun i => i.elim0)
   have hbit : (if h : t < modelCard I e n ^ (v'.symbol j).1 then
       decide (RelMap (v'.symbol j).2 ((rankEquiv I e n).symm ∘ finFunctionFinEquiv.symm ⟨t, h⟩))
       else false) = res := by

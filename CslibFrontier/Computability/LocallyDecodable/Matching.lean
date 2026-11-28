@@ -219,7 +219,7 @@ theorem exists_decodingMatching_of_nonadaptivePlan [Fintype ι] [DecidableEq ι]
     if h : e ∈ H then
       let plan := (mem_image.mp h).choose
       let heq : plan.querySet = e := (mem_image.mp h).choose_spec.2
-      fun w => plan.restrictEval fun j => w ⟨j.1, heq ▸ j.2⟩
+      fun w => plan.restrictEval fun j => w ⟨j.val, heq ▸ j.property⟩
     else fun _ => false
   have hpredict_correct : ∀ e ∈ M,
       1 / 2 + η ≤ ((PMF.uniformOfFintype (ι → Bool)).toOuterMeasure

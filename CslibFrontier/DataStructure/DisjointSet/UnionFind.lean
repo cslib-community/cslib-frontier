@@ -94,7 +94,7 @@ private theorem unionFind_ext {u v : Batteries.UnionFind} (h : u.arr = v.arr) : 
   rfl
 
 private theorem coe_cast_fin {m n : ℕ} (h : m = n) (y : Fin n) :
-    ((h ▸ y : Fin m) : ℕ) = y.1 := by
+    ((h ▸ y : Fin m) : ℕ) = y.val := by
   subst h
   rfl
 
@@ -139,7 +139,7 @@ theorem equiv_checkEquiv (uf : Batteries.UnionFind) (x y : Fin uf.size) {a b : �
 
 /-- `Batteries.UnionFind.checkEquiv` returns `true` iff `x` and `y` are equivalent. -/
 theorem checkEquiv_snd_eq_true (uf : Batteries.UnionFind) (x y : Fin uf.size) :
-    (uf.checkEquiv x y).2 = true ↔ uf.Equiv x.1 y.1 := by
+    (uf.checkEquiv x y).2 = true ↔ uf.Equiv x.val y.val := by
   unfold Batteries.UnionFind.checkEquiv
   have h1 := Batteries.UnionFind.find_root_2 uf x
   have hroot : ∀ i, (uf.find x).1.rootD i = uf.rootD i := Batteries.UnionFind.find_root_1 uf x
@@ -152,14 +152,14 @@ theorem checkEquiv_snd_eq_true (uf : Batteries.UnionFind) (x y : Fin uf.size) :
 
 /-- Ranks after `Batteries.UnionFind.link` increase by `1` only at equal-rank distinct roots. -/
 theorem rank_link (uf : Batteries.UnionFind) (x y : Fin uf.size)
-    (hy : uf.parent y.1 = y.1) (i : ℕ) :
+    (hy : uf.parent y.val = y.val) (i : ℕ) :
     (uf.link x y hy).rank i =
-      if x.1 ≠ y.1 ∧ uf.rank x.1 = uf.rank y.1 ∧ y.1 = i then
-        uf.rank y.1 + 1
+      if x.val ≠ y.val ∧ uf.rank x.val = uf.rank y.val ∧ y.val = i then
+        uf.rank y.val + 1
       else
         uf.rank i := by
   simp only [Batteries.UnionFind.rank, Batteries.UnionFind.arr_link, Batteries.UnionFind.linkAux,
-    ← Batteries.UnionFind.rankD_eq x.2, ← Batteries.UnionFind.rankD_eq y.2]
+    ← Batteries.UnionFind.rankD_eq x.isLt, ← Batteries.UnionFind.rankD_eq y.isLt]
   split
   · simp [*]
   · split
@@ -170,7 +170,7 @@ theorem rank_link (uf : Batteries.UnionFind) (x y : Fin uf.size)
 
 /-- Linking a root with itself leaves the union-find forest unchanged. -/
 theorem link_self (uf : Batteries.UnionFind) {x y : Fin uf.size}
-    (hy : uf.parent y.1 = y.1) (hxy : x.1 = y.1) : uf.link x y hy = uf :=
+    (hy : uf.parent y.val = y.val) (hxy : x.val = y.val) : uf.link x y hy = uf :=
   unionFind_ext (by simp [Batteries.UnionFind.arr_link, Batteries.UnionFind.linkAux, hxy])
 
 /-- Initialize a `Batteries.UnionFind` forest of `n` singleton classes `{0}, …, {n - 1}`. -/
@@ -275,29 +275,32 @@ theorem find {uf : Batteries.UnionFind} (h : ValidRank uf) (x : Fin uf.size) :
 
 private theorem link_aux {uf uf' : Batteries.UnionFind} (h : ValidRank uf)
     {winner child : Fin uf.size}
-    (hwinner : uf.parent winner.1 = winner.1) (hchild : uf.parent child.1 = child.1)
-    (hne : winner.1 ≠ child.1) (hsize : uf'.size = uf.size)
-    (hparent : ∀ i, uf'.parent i = if child.1 = i then winner.1 else uf.parent i)
+    (hwinner : uf.parent winner.val = winner.val) (hchild : uf.parent child.val = child.val)
+    (hne : winner.val ≠ child.val) (hsize : uf'.size = uf.size)
+    (hparent : ∀ i, uf'.parent i = if child.val = i then winner.val else uf.parent i)
     (hrank : ∀ i, uf'.rank i =
-      if uf.rank child.1 = uf.rank winner.1 ∧ winner.1 = i then uf.rank winner.1 + 1 else uf.rank i)
+      if uf.rank child.val = uf.rank winner.val ∧ winner.val = i then
+        uf.rank winner.val + 1
+      else uf.rank i)
     (hroot_ex : ∃ r₀, (r₀ = winner ∨ r₀ = child) ∧ ∀ i,
-      uf'.rootD i = if uf.rootD i = winner.1 ∨ uf.rootD i = child.1 then r₀.1 else uf.rootD i) :
+      uf'.rootD i =
+        if uf.rootD i = winner.val ∨ uf.rootD i = child.val then r₀.val else uf.rootD i) :
     ValidRank uf' := by
   obtain ⟨r₀, hr₀, hroot⟩ := hroot_ex
-  have hchild_not_root : uf'.parent child.1 ≠ child.1 := by
-    rwa [hparent child.1, ite_eq_left rfl]
+  have hchild_not_root : uf'.parent child.val ≠ child.val := by
+    rwa [hparent child.val, ite_eq_left rfl]
   have hr₀_eq : r₀ = winner := hr₀.resolve_right fun hry => hchild_not_root <| by
-    have hcr : uf'.rootD child.1 = r₀.1 := by
-      simpa [Batteries.UnionFind.rootD_eq_self.mpr hchild] using hroot child.1
+    have hcr : uf'.rootD child.val = r₀.val := by
+      simpa [Batteries.UnionFind.rootD_eq_self.mpr hchild] using hroot child.val
     rw [← hry, ← hcr]
-    exact Batteries.UnionFind.parent_rootD uf' child.1
+    exact Batteries.UnionFind.parent_rootD uf' child.val
   rw [hr₀_eq] at hroot
   intro r hr hp'
   rw [hsize] at hr
-  have hchild_ne_r : child.1 ≠ r := fun heq => hchild_not_root (heq ▸ hp')
+  have hchild_ne_r : child.val ≠ r := fun heq => hchild_not_root (heq ▸ hp')
   have hp : uf.parent r = r := by
     simpa [hparent r, hchild_ne_r] using hp'
-  have hsub : ∀ {a : ℕ}, a = r ∨ (r = winner.1 ∧ a = child.1) →
+  have hsub : ∀ {a : ℕ}, a = r ∨ (r = winner.val ∧ a = child.val) →
       equivClass uf a ⊆ equivClass uf' r := by
     rintro a ha i hi
     obtain ⟨hi_lt, hi_root⟩ := mem_equivClass.mp hi
@@ -311,25 +314,25 @@ private theorem link_aux {uf uf' : Batteries.UnionFind} (h : ValidRank uf)
   rw [hrank r]
   split_ifs with hcond
   · obtain ⟨heq_rk, rfl⟩ := hcond
-    have hcard : (equivClass uf child.1).card + (equivClass uf winner.1).card ≤
-        (equivClass uf' winner.1).card := by
+    have hcard : (equivClass uf child.val).card + (equivClass uf winner.val).card ≤
+        (equivClass uf' winner.val).card := by
       rw [← Finset.card_union_of_disjoint (disjoint_equivClass_of_ne uf hne.symm)]
       exact Finset.card_le_card (Finset.union_subset (hsub (.inr ⟨rfl, rfl⟩)) (hsub (.inl rfl)))
-    have hchild_card := heq_rk ▸ h child.2 hchild
-    have hwinner_card := h winner.2 hwinner
+    have hchild_card := heq_rk ▸ h child.isLt hchild
+    have hwinner_card := h winner.isLt hwinner
     rw [pow_succ]
     omega
   · exact (h hr hp).trans (Finset.card_le_card (hsub (.inl rfl)))
 
 theorem link {uf : Batteries.UnionFind} (h : ValidRank uf) {x y : Fin uf.size}
-    (hx : uf.parent x.1 = x.1) (hy : uf.parent y.1 = y.1) :
+    (hx : uf.parent x.val = x.val) (hy : uf.parent y.val = y.val) :
     ValidRank (uf.link x y hy) := by
-  by_cases hxy : x.1 = y.1
+  by_cases hxy : x.val = y.val
   · have heq : uf.link x y hy = uf := unionFind_ext (by simp [Batteries.UnionFind.linkAux, hxy])
     rwa [heq]
   · obtain ⟨r₀, hr₀, hroot⟩ := Batteries.UnionFind.root_link hx hy
     have hsize : (uf.link x y hy).size = uf.size := Batteries.UnionFind.linkAux_size
-    by_cases hlt : uf.rank y.1 < uf.rank x.1
+    by_cases hlt : uf.rank y.val < uf.rank x.val
     · exact h.link_aux hx hy hxy hsize
         (fun i => by rw [Batteries.UnionFind.parent_link hy]; simp [hxy, hlt])
         (fun i => by rw [rank_link]; simp [Nat.ne_of_lt hlt, Nat.ne_of_gt hlt])
@@ -349,18 +352,18 @@ theorem union {uf : Batteries.UnionFind} (h : ValidRank uf) (x y : Fin uf.size) 
   unfold Batteries.UnionFind.union
   dsimp only
   have h₁ : ValidRank (uf.find x).1 := h.find x
-  have hrx_eq : ((uf.find x).2.1 : ℕ) = uf.rootD x.1 := Batteries.UnionFind.find_root_2 uf x
+  have hrx_eq : ((uf.find x).2.val : ℕ) = uf.rootD x.val := Batteries.UnionFind.find_root_2 uf x
   generalize hfx : uf.find x = fx at h₁ hrx_eq ⊢
   rcases fx with ⟨uf₁, rx, ex⟩
   dsimp only at h₁ hrx_eq ⊢
-  have hy : y.1 < uf₁.size := by rw [ex]; exact y.2
-  have h₂ : ValidRank (uf₁.find ⟨y.1, hy⟩).1 := h₁.find ⟨y.1, hy⟩
-  have hrx_root₁ : uf₁.rootD rx.1 = rx.1 := by
-    have hfind1 := Batteries.UnionFind.find_root_1 uf x rx.1
+  have hy : y.val < uf₁.size := by rw [ex]; exact y.isLt
+  have h₂ : ValidRank (uf₁.find ⟨y.val, hy⟩).1 := h₁.find ⟨y.val, hy⟩
+  have hrx_root₁ : uf₁.rootD rx.val = rx.val := by
+    have hfind1 := Batteries.UnionFind.find_root_1 uf x rx.val
     rw [hfx] at hfind1
     dsimp only at hfind1
     rw [hfind1, hrx_eq, Batteries.UnionFind.rootD_rootD]
-  have hfind2 := Batteries.UnionFind.find_root_1 uf₁ ⟨y.1, hy⟩ rx.1
+  have hfind2 := Batteries.UnionFind.find_root_1 uf₁ ⟨y.val, hy⟩ rx.val
   refine h₂.link ?_ _
   exact Batteries.UnionFind.rootD_eq_self.mp (hfind2.trans hrx_root₁)
 
@@ -403,30 +406,31 @@ theorem rankBound_eq_rankMax (uf : Batteries.UnionFind) :
     ℕ → Fin uf.size → Batteries.UnionFind.FindAux uf.size × ℕ
   | 0, x => (⟨uf.arr, x, rfl⟩, 1)
   | fuel + 1, x =>
-    let y := uf.arr[x.1].parent
-    if y = x.1 then
+    let y := uf.arr[x.val].parent
+    if y = x.val then
       (⟨uf.arr, x, rfl⟩, 1)
     else
-      let res := findGo uf fuel ⟨y, uf.parent'_lt x.1 x.2⟩
-      (⟨res.1.s.modify x.1 fun s => { s with parent := res.1.root.1 },
+      let res := findGo uf fuel ⟨y, uf.parent'_lt x.val x.isLt⟩
+      (⟨res.1.s.modify x.val fun s => { s with parent := res.1.root.val },
         res.1.root, Array.size_modify.trans res.1.size_eq⟩,
        res.2 + 1)
 
 private theorem findGo_fst_eq_findAux (uf : Batteries.UnionFind) :
     ∀ (fuel : ℕ) (x : Fin uf.size),
-      uf.rankMax - uf.rank x.1 ≤ fuel →
+      uf.rankMax - uf.rank x.val ≤ fuel →
       (findGo uf fuel x).1 = uf.findAux x
-  | 0, x, hle => by have := uf.lt_rankMax x.1; omega
+  | 0, x, hle => by have := uf.lt_rankMax x.val; omega
   | fuel + 1, x, hle => by
     rw [findGo, Batteries.UnionFind.findAux]
     dsimp only [dite_eq_ite]
     split
     · rfl
     · next h =>
-      have hrank := uf.rank'_lt x.1 x.2 h
-      have hmax := uf.lt_rankMax x.1
-      have hfuel : uf.rankMax - uf.rank uf.arr[x.1].parent ≤ fuel := by omega
-      have ih := findGo_fst_eq_findAux uf fuel ⟨uf.arr[x.1].parent, uf.parent'_lt x.1 x.2⟩ hfuel
+      have hrank := uf.rank'_lt x.val x.isLt h
+      have hmax := uf.lt_rankMax x.val
+      have hfuel : uf.rankMax - uf.rank uf.arr[x.val].parent ≤ fuel := by omega
+      have ih :=
+        findGo_fst_eq_findAux uf fuel ⟨uf.arr[x.val].parent, uf.parent'_lt x.val x.isLt⟩ hfuel
       dsimp only
       simp only [ih]
 
@@ -436,46 +440,46 @@ private theorem findGo_rankBound_fst (uf : Batteries.UnionFind) (x : Fin uf.size
 
 private theorem findGo_snd_indep (uf : Batteries.UnionFind) :
     ∀ (fuel₁ fuel₂ : ℕ) (x : Fin uf.size),
-      uf.rankMax - uf.rank x.1 ≤ fuel₁ →
-      uf.rankMax - uf.rank x.1 ≤ fuel₂ →
+      uf.rankMax - uf.rank x.val ≤ fuel₁ →
+      uf.rankMax - uf.rank x.val ≤ fuel₂ →
       (findGo uf fuel₁ x).2 = (findGo uf fuel₂ x).2
-  | 0, _, x, h₁, _ => by have := uf.lt_rankMax x.1; omega
-  | _ + 1, 0, x, _, h₂ => by have := uf.lt_rankMax x.1; omega
+  | 0, _, x, h₁, _ => by have := uf.lt_rankMax x.val; omega
+  | _ + 1, 0, x, _, h₂ => by have := uf.lt_rankMax x.val; omega
   | fuel₁ + 1, fuel₂ + 1, x, h₁, h₂ => by
     rw [findGo, findGo]
     dsimp only
     split
     · rfl
     · next h =>
-      have hrank := uf.rank'_lt x.1 x.2 h
-      have hmax := uf.lt_rankMax x.1
-      have hf₁ : uf.rankMax - uf.rank uf.arr[x.1].parent ≤ fuel₁ := by omega
-      have hf₂ : uf.rankMax - uf.rank uf.arr[x.1].parent ≤ fuel₂ := by omega
+      have hrank := uf.rank'_lt x.val x.isLt h
+      have hmax := uf.lt_rankMax x.val
+      have hf₁ : uf.rankMax - uf.rank uf.arr[x.val].parent ≤ fuel₁ := by omega
+      have hf₂ : uf.rankMax - uf.rank uf.arr[x.val].parent ≤ fuel₂ := by omega
       exact congrArg (· + 1)
-        (findGo_snd_indep uf fuel₁ fuel₂ ⟨uf.arr[x.1].parent, uf.parent'_lt x.1 x.2⟩ hf₁ hf₂)
+        (findGo_snd_indep uf fuel₁ fuel₂ ⟨uf.arr[x.val].parent, uf.parent'_lt x.val x.isLt⟩ hf₁ hf₂)
 
 private theorem findGo_snd_le (uf : Batteries.UnionFind) :
     ∀ (fuel : ℕ) (x : Fin uf.size),
-      uf.rankMax - uf.rank x.1 ≤ fuel →
-      (findGo uf fuel x).2 ≤ (uf.rank (uf.rootD x.1) - uf.rank x.1) + 1
-  | 0, x, hle => by have := uf.lt_rankMax x.1; omega
+      uf.rankMax - uf.rank x.val ≤ fuel →
+      (findGo uf fuel x).2 ≤ (uf.rank (uf.rootD x.val) - uf.rank x.val) + 1
+  | 0, x, hle => by have := uf.lt_rankMax x.val; omega
   | fuel + 1, x, hle => by
     rw [findGo]
     dsimp only
     split
     · omega
     · next h =>
-      let y : Fin uf.size := ⟨uf.arr[x.1].parent, uf.parent'_lt x.1 x.2⟩
-      have hrank : uf.rank x.1 < uf.rank y.1 := uf.rank'_lt x.1 x.2 h
-      have hmax := uf.lt_rankMax x.1
-      have hfuel : uf.rankMax - uf.rank y.1 ≤ fuel := by omega
+      let y : Fin uf.size := ⟨uf.arr[x.val].parent, uf.parent'_lt x.val x.isLt⟩
+      have hrank : uf.rank x.val < uf.rank y.val := uf.rank'_lt x.val x.isLt h
+      have hmax := uf.lt_rankMax x.val
+      have hfuel : uf.rankMax - uf.rank y.val ≤ fuel := by omega
       have ih := findGo_snd_le uf fuel y hfuel
-      have hroot : uf.rootD y.1 = uf.rootD x.1 := by
-        rw [show y.1 = uf.parent x.1 from (Batteries.UnionFind.parentD_eq x.2).symm,
+      have hroot : uf.rootD y.val = uf.rootD x.val := by
+        rw [show y.val = uf.parent x.val from (Batteries.UnionFind.parentD_eq x.isLt).symm,
           Batteries.UnionFind.rootD_parent]
-      have hle_root : uf.rank y.1 ≤ uf.rank (uf.rootD y.1) := Batteries.UnionFind.le_rank_root
+      have hle_root : uf.rank y.val ≤ uf.rank (uf.rootD y.val) := Batteries.UnionFind.le_rank_root
       rw [hroot] at ih hle_root
-      change (findGo uf fuel y).2 + 1 ≤ (uf.rank (uf.rootD x.1) - uf.rank x.1) + 1
+      change (findGo uf fuel y).2 + 1 ≤ (uf.rank (uf.rootD x.val) - uf.rank x.val) + 1
       omega
 
 /-- Number of nodes inspected by `Batteries.UnionFind.find` starting at `x` (`1` at the root plus
@@ -486,21 +490,21 @@ private theorem findGo_snd_le (uf : Batteries.UnionFind) :
 /-- Recursive unfolding equation for `findSteps`. -/
 theorem findSteps_eq (uf : Batteries.UnionFind) (x : Fin uf.size) :
     findSteps uf x =
-      if uf.arr[x.1].parent = x.1 then
+      if uf.arr[x.val].parent = x.val then
         1
       else
-        findSteps uf ⟨uf.arr[x.1].parent, uf.parent'_lt x.1 x.2⟩ + 1 := by
+        findSteps uf ⟨uf.arr[x.val].parent, uf.parent'_lt x.val x.isLt⟩ + 1 := by
   unfold findSteps rankBound
   rw [findGo]
   dsimp only
   split
   · rfl
   · next h =>
-    let y : Fin uf.size := ⟨uf.arr[x.1].parent, uf.parent'_lt x.1 x.2⟩
-    have hrank : 0 < uf.rank y.1 :=
-      Nat.lt_of_le_of_lt (Nat.zero_le (uf.rank x.1)) (uf.rank'_lt x.1 x.2 h)
-    have hk₁ : uf.rankMax - uf.rank y.1 ≤ uf.arr.foldr (max ·.rank) 0 := by
-      change (uf.arr.foldr (max ·.rank) 0 + 1) - uf.rank y.1 ≤ uf.arr.foldr (max ·.rank) 0
+    let y : Fin uf.size := ⟨uf.arr[x.val].parent, uf.parent'_lt x.val x.isLt⟩
+    have hrank : 0 < uf.rank y.val :=
+      Nat.lt_of_le_of_lt (Nat.zero_le (uf.rank x.val)) (uf.rank'_lt x.val x.isLt h)
+    have hk₁ : uf.rankMax - uf.rank y.val ≤ uf.arr.foldr (max ·.rank) 0 := by
+      change (uf.arr.foldr (max ·.rank) 0 + 1) - uf.rank y.val ≤ uf.arr.foldr (max ·.rank) 0
       omega
     exact congrArg (· + 1) (findGo_snd_indep uf _ _ y hk₁ (Nat.le_succ_of_le hk₁))
 
@@ -513,14 +517,14 @@ theorem findSteps_pos (uf : Batteries.UnionFind) (x : Fin uf.size) :
 /-- Because `uf.rank` increases strictly at every non-root parent hop, `findSteps uf x` is bounded
 by `(uf.rank (uf.rootD x) - uf.rank x) + 1`. -/
 theorem findSteps_le_rank_sub_add_one (uf : Batteries.UnionFind) (x : Fin uf.size) :
-    findSteps uf x ≤ (uf.rank (uf.rootD x.1) - uf.rank x.1) + 1 :=
+    findSteps uf x ≤ (uf.rank (uf.rootD x.val) - uf.rank x.val) + 1 :=
   findGo_snd_le uf (rankBound uf) x (by rw [rankBound_eq_rankMax]; exact Nat.sub_le _ _)
 
 /-- Under `ValidRank uf`, every `find` inspects at most `Nat.log 2 uf.size + 1` nodes. -/
 theorem ValidRank.findSteps_le_log_add_one {uf : Batteries.UnionFind} (h : ValidRank uf)
     (x : Fin uf.size) : findSteps uf x ≤ Nat.log 2 uf.size + 1 := by
   have hsteps := findSteps_le_rank_sub_add_one uf x
-  have hlog := h.rank_le_log (uf.rootD x.1)
+  have hlog := h.rank_le_log (uf.rootD x.val)
   omega
 
 /-- Kernel-reducible path-compression `find` returning the updated `Batteries.UnionFind`, the root
@@ -556,11 +560,11 @@ theorem compressWithSteps_size (uf : Batteries.UnionFind) (x : Fin uf.size) :
 
 @[simp]
 private theorem compressWithSteps_root (uf : Batteries.UnionFind) (x : Fin uf.size) :
-    ((compressWithSteps uf x).2.1 : ℕ) = uf.rootD x.1 := by
+    ((compressWithSteps uf x).2.1 : ℕ) = uf.rootD x.val := by
   unfold compressWithSteps
   dsimp only
   rw [findGo_rankBound_fst, Batteries.UnionFind.findAux_root,
-    Batteries.UnionFind.rootD, dite_eq_left x.2]
+    Batteries.UnionFind.rootD, dite_eq_left x.isLt]
 
 @[simp]
 private theorem compressWithSteps_steps (uf : Batteries.UnionFind) (x : Fin uf.size) :
@@ -570,7 +574,7 @@ private theorem compressWithSteps_steps (uf : Batteries.UnionFind) (x : Fin uf.s
 traversal step count `findSteps uf x`. -/
 theorem compressWithSteps_eq (uf : Batteries.UnionFind) (x : Fin uf.size) :
     compressWithSteps uf x =
-      ((uf.find x).1, ⟨uf.rootD x.1, Batteries.UnionFind.rootD_lt.mpr x.2⟩,
+      ((uf.find x).1, ⟨uf.rootD x.val, Batteries.UnionFind.rootD_lt.mpr x.isLt⟩,
         findSteps uf x) :=
   Prod.ext (compressWithSteps_fst uf x)
     (Prod.ext (Fin.ext (compressWithSteps_root uf x)) (compressWithSteps_steps uf x))
@@ -578,14 +582,14 @@ theorem compressWithSteps_eq (uf : Batteries.UnionFind) (x : Fin uf.size) :
 private theorem compressWithSteps_eq_find_of_eq {u v : Batteries.UnionFind} (h : u = v)
     {i : ℕ} (hu : i < u.size) (hv : i < v.size) :
     (compressWithSteps u ⟨i, hu⟩).1 = (v.find ⟨i, hv⟩).1 ∧
-      ((compressWithSteps u ⟨i, hu⟩).2.1 : ℕ) = ((v.find ⟨i, hv⟩).2.1 : ℕ) := by
+      ((compressWithSteps u ⟨i, hu⟩).2.1 : ℕ) = ((v.find ⟨i, hv⟩).2.val : ℕ) := by
   subst h
   exact ⟨compressWithSteps_fst _ _,
     by rw [compressWithSteps_root, Batteries.UnionFind.find_root_2]⟩
 
 private theorem link_eq_of_eq {u v : Batteries.UnionFind} (h : u = v)
-    {x₁ y₁ : Fin u.size} {x₂ y₂ : Fin v.size} (hx : x₁.1 = x₂.1) (hy : y₁.1 = y₂.1)
-    (hy₁ : u.parent y₁.1 = y₁.1) (hy₂ : v.parent y₂.1 = y₂.1) :
+    {x₁ y₁ : Fin u.size} {x₂ y₂ : Fin v.size} (hx : x₁.val = x₂.val) (hy : y₁.val = y₂.val)
+    (hy₁ : u.parent y₁.val = y₁.val) (hy₂ : v.parent y₂.val = y₂.val) :
     u.link x₁ y₁ hy₁ = v.link x₂ y₂ hy₂ := by
   subst h
   obtain rfl : x₁ = x₂ := Fin.ext hx
@@ -612,8 +616,8 @@ private theorem equiv_compressWithSteps (uf : Batteries.UnionFind) (x : Fin uf.s
 original forest. -/
 private theorem compressWithSteps_root_beq_iff (uf : Batteries.UnionFind) (x : Fin uf.size)
     (y : Fin (compressWithSteps uf x).1.size) :
-    ((compressWithSteps uf x).2.1.1 == (compressWithSteps (compressWithSteps uf x).1 y).2.1.1) =
-      true ↔ uf.Equiv x.1 y.1 := by
+    ((compressWithSteps uf x).2.1.val == (compressWithSteps (compressWithSteps uf x).1 y).2.1.val) =
+      true ↔ uf.Equiv x.val y.val := by
   rw [beq_iff_eq, compressWithSteps_root, compressWithSteps_root, rootD_compressWithSteps]
   rfl
 
@@ -654,32 +658,32 @@ count. -/
     StepResult (State n) ℕ ((spec n).Result o) :=
   match o with
   | .same x y =>
-    let x' : Fin s.uf.size := ⟨x.1, by rw [s.size_eq]; exact x.2⟩
+    let x' : Fin s.uf.size := ⟨x.val, by rw [s.size_eq]; exact x.isLt⟩
     let c₁ := compressWithSteps s.uf x'
     have hsz₁ : c₁.1.size = n := by exact (compressWithSteps_size s.uf x').trans s.size_eq
-    let y' : Fin c₁.1.size := ⟨y.1, by rw [hsz₁]; exact y.2⟩
+    let y' : Fin c₁.1.size := ⟨y.val, by rw [hsz₁]; exact y.isLt⟩
     let c₂ := compressWithSteps c₁.1 y'
     have hsz₂ : c₂.1.size = n := by exact (compressWithSteps_size c₁.1 y').trans hsz₁
-    let r₁ := c₁.2.1.1
-    let r₂ := c₂.2.1.1
+    let r₁ := c₁.2.1.val
+    let r₂ := c₂.2.1.val
     ⟨⟨c₂.1, hsz₂, s.numComp⟩, r₁ == r₂, c₁.2.2 + c₂.2.2⟩
   | .union x y =>
-    let x' : Fin s.uf.size := ⟨x.1, by rw [s.size_eq]; exact x.2⟩
+    let x' : Fin s.uf.size := ⟨x.val, by rw [s.size_eq]; exact x.isLt⟩
     let c₁ := compressWithSteps s.uf x'
     have hsz₁ : c₁.1.size = n := by exact (compressWithSteps_size s.uf x').trans s.size_eq
-    let y' : Fin c₁.1.size := ⟨y.1, by rw [hsz₁]; exact y.2⟩
+    let y' : Fin c₁.1.size := ⟨y.val, by rw [hsz₁]; exact y.isLt⟩
     let c₂ := compressWithSteps c₁.1 y'
     have hsz₂ : c₂.1.size = n := by exact (compressWithSteps_size c₁.1 y').trans hsz₁
-    let r₁ := c₁.2.1.1
-    let r₂ := c₂.2.1.1
+    let r₁ := c₁.2.1.val
+    let r₂ := c₂.2.1.val
     let rx : Fin c₂.1.size := ⟨r₁, by
       rw [compressWithSteps_size c₁.1 y', compressWithSteps_size s.uf x']
-      exact c₁.2.1.2⟩
+      exact c₁.2.1.isLt⟩
     let ry : Fin c₂.1.size := ⟨r₂, by
       rw [compressWithSteps_size c₁.1 y']
-      exact c₂.2.1.2⟩
-    have hyroot : c₂.1.parent ry.1 = ry.1 := by
-      have hr : r₂ = c₁.1.rootD y.1 := compressWithSteps_root c₁.1 y'
+      exact c₂.2.1.isLt⟩
+    have hyroot : c₂.1.parent ry.val = ry.val := by
+      have hr : r₂ = c₁.1.rootD y.val := compressWithSteps_root c₁.1 y'
       have hf : c₂.1.rootD r₂ = c₁.1.rootD r₂ := by
         change (compressWithSteps c₁.1 y').1.rootD r₂ = c₁.1.rootD r₂
         rw [compressWithSteps_fst]
@@ -698,14 +702,14 @@ count. -/
 
 private theorem step_union_uf_eq {n : ℕ} (s : State n) (x y : Fin n) :
     (step s (.union x y)).state.uf =
-      s.uf.union ⟨x.1, s.size_eq.symm ▸ x.2⟩ ⟨y.1, s.size_eq.symm ▸ y.2⟩ := by
+      s.uf.union ⟨x.val, s.size_eq.symm ▸ x.isLt⟩ ⟨y.val, s.size_eq.symm ▸ y.isLt⟩ := by
   unfold step Batteries.UnionFind.union
   dsimp only
-  let x' : Fin s.uf.size := ⟨x.1, by rw [s.size_eq]; exact x.2⟩
-  have ⟨huf₁, hrx₁⟩ := compressWithSteps_eq_find_of_eq (rfl : s.uf = s.uf) x'.2 x'.2
+  let x' : Fin s.uf.size := ⟨x.val, by rw [s.size_eq]; exact x.isLt⟩
+  have ⟨huf₁, hrx₁⟩ := compressWithSteps_eq_find_of_eq (rfl : s.uf = s.uf) x'.isLt x'.isLt
   have ⟨huf₂, hry₂⟩ := compressWithSteps_eq_find_of_eq huf₁
-    (by rw [(compressWithSteps_size s.uf x').trans s.size_eq]; exact y.2)
-    (by rw [(s.uf.find ⟨x.1, s.size_eq.symm ▸ x.2⟩).2.2, s.size_eq]; exact y.2)
+    (by rw [(compressWithSteps_size s.uf x').trans s.size_eq]; exact y.isLt)
+    (by rw [(s.uf.find ⟨x.val, s.size_eq.symm ▸ x.isLt⟩).2.property, s.size_eq]; exact y.isLt)
   exact link_eq_of_eq huf₂ hrx₁ hry₂ _ _
 
 /-- Native execution relation for `DisjointSet.spec n` over `State n`. -/
@@ -714,7 +718,7 @@ abbrev Exec (n : ℕ) : Execution (spec n) (State n) ℕ := Execution.ofStep ste
 /-- Representation relation coupling an abstract `Partition n` with a concrete `State n`. -/
 @[expose] def Rep {n : ℕ} (p : Partition n) (s : State n) : Prop :=
   ValidRank s.uf ∧
-    (∀ x y : Fin n, p.rel x y = true ↔ s.uf.Equiv x.1 y.1) ∧
+    (∀ x y : Fin n, p.rel x y = true ↔ s.uf.Equiv x.val y.val) ∧
     s.numComp = p.numComponents
 
 /-- Extract the root rank-size invariant from `Rep`. -/
@@ -723,7 +727,7 @@ theorem Rep.validRank {n : ℕ} {p : Partition n} {s : State n} (h : Rep p s) :
 
 /-- Extract the element-equivalence coupling from `Rep`. -/
 theorem Rep.rel_iff_equiv {n : ℕ} {p : Partition n} {s : State n} (h : Rep p s) (x y : Fin n) :
-    p.rel x y = true ↔ s.uf.Equiv x.1 y.1 := h.2.1 x y
+    p.rel x y = true ↔ s.uf.Equiv x.val y.val := h.2.1 x y
 
 /-- Extract the maintained component-count equality from `Rep`. -/
 theorem Rep.numComp_eq {n : ℕ} {p : Partition n} {s : State n} (h : Rep p s) :
@@ -739,21 +743,22 @@ private theorem step_correct {n : ℕ} {p : Partition n} {s : State n} (o : Op n
       Rep ((spec n).stepFn p o).1 (step s o).state := by
   obtain ⟨hrank, hrel, hcomp⟩ := hr
   have hbeq (x y : Fin n) :
-      let x' : Fin s.uf.size := ⟨x.1, s.size_eq.symm ▸ x.2⟩
+      let x' : Fin s.uf.size := ⟨x.val, s.size_eq.symm ▸ x.isLt⟩
       let c₁ := compressWithSteps s.uf x'
-      let y' : Fin c₁.1.size := ⟨y.1, ((compressWithSteps_size s.uf x').trans s.size_eq).symm ▸ y.2⟩
-      (c₁.2.1.1 == (compressWithSteps c₁.1 y').2.1.1) = p.rel x y :=
+      let y' : Fin c₁.1.size :=
+        ⟨y.val, ((compressWithSteps_size s.uf x').trans s.size_eq).symm ▸ y.isLt⟩
+      (c₁.2.1.val == (compressWithSteps c₁.1 y').2.1.val) = p.rel x y :=
     Bool.eq_iff_iff.mpr ((compressWithSteps_root_beq_iff s.uf _ _).trans (hrel x y).symm)
   cases o with
   | numComponents =>
     exact ⟨hcomp, hrank, hrel, hcomp⟩
   | same x y =>
     refine ⟨hbeq x y, (hrank.compressWithSteps _).compressWithSteps _, fun u v => ?_, hcomp⟩
-    exact (hrel u v).trans ((equiv_compressWithSteps _ _ u.1 v.1).trans
-      (equiv_compressWithSteps _ _ u.1 v.1)).symm
+    exact (hrel u v).trans ((equiv_compressWithSteps _ _ u.val v.val).trans
+      (equiv_compressWithSteps _ _ u.val v.val)).symm
   | union x y =>
-    let x' : Fin s.uf.size := ⟨x.1, s.size_eq.symm ▸ x.2⟩
-    let y₀ : Fin s.uf.size := ⟨y.1, s.size_eq.symm ▸ y.2⟩
+    let x' : Fin s.uf.size := ⟨x.val, s.size_eq.symm ▸ x.isLt⟩
+    let y₀ : Fin s.uf.size := ⟨y.val, s.size_eq.symm ▸ y.isLt⟩
     have hmerged : (step s (.union x y)).answer = !p.rel x y := congrArg (!·) (hbeq x y)
     have huf_eq : (step s (.union x y)).state.uf = s.uf.union x' y₀ := step_union_uf_eq s x y
     refine ⟨hmerged, huf_eq ▸ hrank.union x' y₀, fun u v => ?_, ?_⟩
@@ -798,10 +803,10 @@ private theorem step_steps_le {n : ℕ} {p : Partition n} {s : State n} (o : Op 
   | numComponents =>
     exact Nat.le_refl 1
   | same x y =>
-    exact compressWithSteps_steps_add_le hrank s.size_eq ⟨x.1, s.size_eq.symm ▸ x.2⟩ _
+    exact compressWithSteps_steps_add_le hrank s.size_eq ⟨x.val, s.size_eq.symm ▸ x.isLt⟩ _
   | union x y =>
     exact Nat.add_le_add_right
-      (compressWithSteps_steps_add_le hrank s.size_eq ⟨x.1, s.size_eq.symm ▸ x.2⟩ _) 1
+      (compressWithSteps_steps_add_le hrank s.size_eq ⟨x.val, s.size_eq.symm ▸ x.isLt⟩ _) 1
 
 /-- Per-operation logarithmic step certificate for `impl n`. -/
 theorem stepBound (n : ℕ) : Bound (impl n) id (charge n) := by

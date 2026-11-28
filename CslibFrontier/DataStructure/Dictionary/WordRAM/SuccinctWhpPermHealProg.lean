@@ -444,10 +444,10 @@ theorem realizes_writeLocStateGen :
     | (change 1 <<< _ < 2 ^ w; rw [Nat.one_shiftLeft]
        exact Nat.pow_lt_pow_right (by decide) (by omega))
     | (refine writeLoc_diff0_fits ?_; omega)
-    | (refine Nat.xor_lt_two_pow (hmem.2 _) (writeLoc_diff0_fits ?_); omega)
+    | (refine Nat.xor_lt_two_pow (hmem.mem_fits _) (writeLoc_diff0_fits ?_); omega)
     | (refine writeLoc_diff1_fits ?_; omega)
     | (rw [Function.update_of_ne (by omega)]
-       refine Nat.xor_lt_two_pow (hmem.2 _) (writeLoc_diff1_fits ?_); omega)
+       refine Nat.xor_lt_two_pow (hmem.mem_fits _) (writeLoc_diff1_fits ?_); omega)
   )
 
 theorem writeLocStateGenProg_spec {c U V w n_max base b loc val : ℕ} {s : Memory.State}

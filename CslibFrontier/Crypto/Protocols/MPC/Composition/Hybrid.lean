@@ -123,15 +123,15 @@ on the distributions of `κ` (`eval_kernelProg`). -/
         ((s : Fin (spec₁.arity op)) → spec₁.Answer op s)))
     (I : Finset (Fin m)) {State Out : Fin m → Type} {sc₁ : Schedule m spec₁}
     (steps : Steps State Out sc₁) (st : (i : Fin m) → State i) :
-    ProbComp (((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-      Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i)) :=
+    ProbComp (((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+      Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i)) :=
   match steps with
   | .done output => pure (fun _ => ((), ()), fun i => output i (st i))
   | .message (sender := s₀) (receiver := r₀) send next => do
     let res ← kernelProg κ I next (fun i => (st i, Round.deliverMessage (send (st s₀)) i))
     return (fun i : I => ((res.1 i).1,
       (Round.deliverMessage (spec := spec₂) (sender := s₀) (receiver := r₀)
-        (send (st s₀)) i.1, (res.1 i).2)), res.2)
+        (send (st s₀)) i.val, (res.1 i).2)), res.2)
   | .oracle (op := op) (parties := parties) query next => do
     let r ← κ op (subCoalition parties I) fun s => query s (st (parties s))
     let res ← kernelProg κ I next (fun i => (st i, Round.deliverOracle parties r.2 i))
@@ -177,8 +177,8 @@ front of the result and runs `D`. -/
     {parties : Fin (spec₁.arity op) ↪ Fin m} {sc₁ : Schedule m spec₁}
     (next : Steps (fun i => State i × (Round.oracle op parties).Received i) Out sc₁)
     (st : (i : Fin m) → State i)
-    (D : ((i : I) → Schedule.SubCoins Coins₂ (.oracle op parties :: sc₁) i.1 ×
-      Schedule.Received (Schedule.compose sc₂ (.oracle op parties :: sc₁)) i.1) ×
+    (D : ((i : I) → Schedule.SubCoins Coins₂ (.oracle op parties :: sc₁) i.val ×
+      Schedule.Received (Schedule.compose sc₂ (.oracle op parties :: sc₁)) i.val) ×
         ((i : Fin m) → Out i) → ProbComp Bool)
     (r : ((s : subCoalition parties I) → PartyView (spec₁.Query op) (Coins₂ op) (sc₂ op) s) ×
       ((s : Fin (spec₁.arity op)) → spec₁.Answer op s)) : ProbComp Bool := do
@@ -207,8 +207,8 @@ tuple and the states of the round. Message rounds contribute nothing. -/
       CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J)
     (I : Finset (Fin m)) {State Out : Fin m → Type} {sc₁ : Schedule m spec₁}
     (steps : Steps State Out sc₁) (st : (i : Fin m) → State i)
-    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-      Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) →
+    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+      Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i) →
         ProbComp Bool) : ℝ≥0∞ :=
   match steps with
   | .done _ => 0
@@ -217,7 +217,7 @@ tuple and the states of the round. Message rounds contribute nothing. -/
       (fun i => (st i, Round.deliverMessage (send (st s₀)) i))
       fun res => D (fun i : I => ((res.1 i).1,
         (Round.deliverMessage (spec := spec₂) (sender := s₀) (receiver := r₀)
-          (send (st s₀)) i.1, (res.1 i).2)), res.2)
+          (send (st s₀)) i.val, (res.1 i).2)), res.2)
   | .oracle (op := op) (parties := parties) query next =>
     (semiHonestAdvantage (Sub op) W₂ (W₁ op) (subCoalition parties I)
         (S₂ op (subCoalition parties I)) (fun s => query s (st (parties s)))
@@ -248,8 +248,8 @@ theorem advantage_kernelRun_le_replacementBound (W₁ : MultiOracleWorld spec₁
       CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J)
     (I : Finset (Fin m)) {State Out : Fin m → Type} {sc₁ : Schedule m spec₁}
     (steps : Steps State Out sc₁) (st : (i : Fin m) → State i)
-    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-      Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) →
+    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+      Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i) →
         ProbComp Bool) :
     (Game.advantage
         ((kernelRun (fun op J q => ProbComp.eval (idealJoint (W₁ op) J (S₂ op J) q)) I steps
@@ -281,8 +281,8 @@ theorem replacementBound_eq_zero {W₁ : MultiOracleWorld spec₁} {W₂ : Multi
     (hSub : ∀ op, PerfectSemiHonestPrivate (Sub op) W₂ (W₁ op) (S₂ op))
     (I : Finset (Fin m)) {State Out : Fin m → Type} {sc₁ : Schedule m spec₁}
     (steps : Steps State Out sc₁) (st : (i : Fin m) → State i)
-    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.1 ×
-      Schedule.Received (Schedule.compose sc₂ sc₁) i.1) × ((i : Fin m) → Out i) →
+    (D : ((i : I) → Schedule.SubCoins Coins₂ sc₁ i.val ×
+      Schedule.Received (Schedule.compose sc₂ sc₁) i.val) × ((i : Fin m) → Out i) →
         ProbComp Bool) :
     replacementBound W₁ W₂ Sub S₂ I steps st D = 0 := by
   induction steps with
@@ -321,7 +321,7 @@ theorem advantage_replacement_le_replacementBound (P : Protocol m spec₁ sc₁ 
         (((P.compose Sub).realJoint W₂ I x).bind fun r => ProbComp.eval (D r)) : ℝ≥0∞) ≤
       ∑' c₁, ProbComp.eval (OracleComp.pi P.sampleCoins) c₁ *
         replacementBound W₁ W₂ Sub S₂ I P.steps (fun i => (x i, c₁ i))
-          (fun res => D (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2)) := by
+          (fun res => D (fun i : I => ⟨x i.val, (c₁ i.val, (res.1 i).1), (res.1 i).2⟩, res.2)) := by
   rw [advantage_replacement_eq_kernelRun]
   exact (Game.coe_advantage_bind_le_tsum _ _ _).trans (tsum_le_tsum fun c₁ =>
     mul_le_mul' le_rfl (advantage_kernelRun_le_replacementBound W₁ W₂ Sub S₂ I P.steps _ _))
@@ -352,7 +352,8 @@ theorem semiHonestAdvantage_compose_le_replacementBound (P : Protocol m spec₁ 
       semiHonestAdvantage P W₁ f I S₁ x (composeDistinguisher P S₂ I x D) +
         ∑' c₁, ProbComp.eval (OracleComp.pi P.sampleCoins) c₁ *
           replacementBound W₁ W₂ Sub S₂ I P.steps (fun i => (x i, c₁ i))
-            (fun res => D (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2)) := by
+            (fun res => D
+                (fun i : I => ⟨x i.val, (c₁ i.val, (res.1 i).1), (res.1 i).2⟩, res.2)) := by
   refine (ENNReal.coe_le_coe.mpr
     (semiHonestAdvantage_compose_le P W₁ W₂ f I S₁ Sub S₂ x D)).trans ?_
   rw [ENNReal.coe_add]

@@ -1106,7 +1106,7 @@ theorem kickLoopProg_spec {w base pathBase fuel : ℕ} (p : KickTreeParams)
             dsimp only [env]
             have hidx := hidx_s ha_pos
             obtain ⟨hp_lt, hsl⟩ := hp_info ha_pos
-            exact ⟨hwf_s.fits_of_lt_frontier hp_lt, hwf_s.1.of_le (by omega), hsl⟩⟩,
+            exact ⟨hwf_s.fits_of_lt_frontier hp_lt, hwf_s.frontier_fits.of_le (by omega), hsl⟩⟩,
           hv_step, memoryCost_kickStepProg_le p base pathBase st s, hfr_step, hout_step,
           by rw [← clientState_width w, ← StateTransitionSpec.run_runClient]
              exact hwf_s.run hv_step,

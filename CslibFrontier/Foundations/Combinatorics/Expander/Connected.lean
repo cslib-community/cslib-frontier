@@ -532,11 +532,11 @@ theorem card_pow_lt_two_mul_card_mul_card_filter_neighbor_pow_eq [DecidableEq V]
           pow_le_pow_left₀ (sq_nonneg _) hgap T
       _ ≤ Real.exp (-a) ^ T :=
           pow_le_pow_left₀ ((sq_nonneg lam).trans hgap) (by linarith [Real.add_one_le_exp (-a)]) T
-      _ = Real.exp (-(a * T)) := by rw [← Real.exp_nat_mul]; ring_nf
+      _ = Real.exp (-(a * T)) := by rw [← Real.exp_natCast_mul]; ring_nf
       _ ≤ Real.exp (-(10 * Real.log n)) := Real.exp_le_exp.2 (neg_le_neg haT)
       _ = (1 / n ^ 5) ^ 2 := by
           rw [Real.exp_neg, show (10 : ℝ) * Real.log n = ((10 : ℕ) : ℝ) * Real.log n by norm_num,
-            Real.exp_nat_mul, Real.exp_log (by linarith)]
+            Real.exp_natCast_mul, Real.exp_log (by linarith)]
           ring
   have hlamT : lam ^ T ≤ 1 / n ^ 5 := by
     rw [← pow_mul, mul_comm, pow_mul] at hexp

@@ -102,10 +102,12 @@ private theorem isLowerSet_range_castLE {k : ℕ} (hk : k ≤ n) :
 theorem gramPrefixDet_eq_det (b : Fin n → E) {k : ℕ} (hk : k ≤ n) :
     gramPrefixDet b k = (Matrix.gram ℝ (b ∘ Fin.castLE hk)).det := by
   rw [det_gram_eq_prod_norm_gramSchmidt_sq, gramPrefixDet]
-  exact (Finset.prod_bij (fun j _ => Fin.castLE hk j) (fun _ _ => by simp)
-    (fun _ _ _ _ h => Fin.castLE_injective hk h)
-    (fun j hj => ⟨⟨j, (Finset.mem_filter.1 hj).2⟩, Finset.mem_univ _, Fin.ext rfl⟩) fun j _ => by
-      rw [gramSchmidt_comp b (Fin.strictMono_castLE hk) (isLowerSet_range_castLE hk)]; rfl).symm
+  rw [Finset.prod_subtype (p := fun j : Fin n => j.val < k) _
+    (fun _ => by simp only [Finset.mem_filter, Finset.mem_univ, true_and])]
+  refine Fintype.prod_equiv (Fin.castLEquiv hk).symm _ _ fun j => ?_
+  obtain ⟨j, hj⟩ := j
+  rw [gramSchmidt_comp b (Fin.strictMono_castLE hk) (isLowerSet_range_castLE hk)]
+  rfl
 
 /-- All inner products `⟪bᵢ, bⱼ⟫` are integers, as for a basis of a sublattice of `ℤᵐ`. -/
 @[expose] def HasIntegralGram (b : Fin n → E) : Prop :=

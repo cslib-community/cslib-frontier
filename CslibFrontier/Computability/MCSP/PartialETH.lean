@@ -168,15 +168,15 @@ variable {n : ℕ}
 
 /-- Coordinate `i : Fin (2 * n)` of the first block `x` in `Fin (6 * n)`. -/
 @[expose] def xVar (i : Fin (2 * n)) : Fin (6 * n) :=
-  ⟨i.1, by omega⟩
+  ⟨i.val, by omega⟩
 
 /-- Coordinate `i : Fin (2 * n)` of the second block `y` in `Fin (6 * n)`. -/
 @[expose] def yVar (i : Fin (2 * n)) : Fin (6 * n) :=
-  ⟨2 * n + i.1, by omega⟩
+  ⟨2 * n + i.val, by omega⟩
 
 /-- Coordinate `i : Fin (2 * n)` of the third block `z` in `Fin (6 * n)`. -/
 @[expose] def zVar (i : Fin (2 * n)) : Fin (6 * n) :=
-  ⟨4 * n + i.1, by omega⟩
+  ⟨4 * n + i.val, by omega⟩
 
 private theorem xVar_injective : Function.Injective (xVar (n := n)) := by
   fin_index [xVar]
@@ -208,11 +208,11 @@ private theorem yVar_ne_zVar (i j : Fin (2 * n)) : yVar i ≠ zVar j := by
 /-- Every coordinate in `Fin (6 * n)` belongs to the `x`, `y`, or `z` block. -/
 private theorem eq_xVar_or_yVar_or_zVar (v : Fin (6 * n)) :
     (∃ i, v = xVar i) ∨ (∃ i, v = yVar i) ∨ (∃ i, v = zVar i) := by
-  by_cases h₁ : v.1 < 2 * n
-  · exact .inl ⟨⟨v.1, h₁⟩, rfl⟩
-  · by_cases h₂ : v.1 < 4 * n
-    · exact .inr (.inl ⟨⟨v.1 - 2 * n, by omega⟩, Fin.ext (by dsimp [yVar]; omega)⟩)
-    · exact .inr (.inr ⟨⟨v.1 - 4 * n, by omega⟩, Fin.ext (by dsimp [zVar]; omega)⟩)
+  by_cases h₁ : v.val < 2 * n
+  · exact .inl ⟨⟨v.val, h₁⟩, rfl⟩
+  · by_cases h₂ : v.val < 4 * n
+    · exact .inr (.inl ⟨⟨v.val - 2 * n, by omega⟩, Fin.ext (by dsimp [yVar]; omega)⟩)
+    · exact .inr (.inr ⟨⟨v.val - 4 * n, by omega⟩, Fin.ext (by dsimp [zVar]; omega)⟩)
 
 /-- The finset of `z`-coordinates in `Fin (6 * n)`. -/
 private def zSet (n : ℕ) : Finset (Fin (6 * n)) :=
@@ -247,22 +247,22 @@ private theorem mem_zSet {v : Fin (6 * n)} : v ∈ zSet n ↔ ∃ i, v = zVar i 
 
 /-- Pack three $2n$-bit strings `(x, y, z)` into a single $6n$-bit string. -/
 @[expose] def packXYZ (x y z : BitString (2 * n)) (v : Fin (6 * n)) : Bool :=
-  if h₁ : v.1 < 2 * n then x ⟨v.1, h₁⟩
-  else if h₂ : v.1 < 4 * n then y ⟨v.1 - 2 * n, by omega⟩
-  else z ⟨v.1 - 4 * n, by omega⟩
+  if h₁ : v.val < 2 * n then x ⟨v.val, h₁⟩
+  else if h₂ : v.val < 4 * n then y ⟨v.val - 2 * n, by omega⟩
+  else z ⟨v.val - 4 * n, by omega⟩
 
 @[simp] private theorem packXYZ_xVar (x y z : BitString (2 * n)) (i : Fin (2 * n)) :
     packXYZ x y z (xVar i) = x i := by
-  simp [packXYZ, xVar, i.2]
+  simp [packXYZ, xVar, i.isLt]
 
 @[simp] private theorem packXYZ_yVar (x y z : BitString (2 * n)) (i : Fin (2 * n)) :
     packXYZ x y z (yVar i) = y i := by
-  simp [packXYZ, yVar, show ¬(2 * n + i.1 < 2 * n) by omega, show 2 * n + i.1 < 4 * n by omega]
+  simp [packXYZ, yVar, show ¬(2 * n + i.val < 2 * n) by omega, show 2 * n + i.val < 4 * n by omega]
 
 @[simp] private theorem packXYZ_zVar (x y z : BitString (2 * n)) (i : Fin (2 * n)) :
     packXYZ x y z (zVar i) = z i := by
-  simp [packXYZ, zVar, show ¬(4 * n + i.1 < 2 * n) by omega,
-    show ¬(4 * n + i.1 < 4 * n) by omega]
+  simp [packXYZ, zVar, show ¬(4 * n + i.val < 2 * n) by omega,
+    show ¬(4 * n + i.val < 4 * n) by omega]
 
 @[simp] private theorem unpackX_packXYZ (x y z : BitString (2 * n)) :
     unpackX (packXYZ x y z) = x := by
@@ -315,26 +315,27 @@ private theorem update_packXYZ_zVar (x y z : BitString (2 * n)) (i : Fin (2 * n)
 @[expose] def ones2n : BitString (2 * n) := fun _ => true
 
 /-- Left-half indicator $1^n 0^n$. -/
-@[expose] def leftHalfOnes : BitString (2 * n) := fun i => decide (i.1 < n)
+@[expose] def leftHalfOnes : BitString (2 * n) := fun i => decide (i.val < n)
 
 /-- Right-half indicator $0^n 1^n$. -/
-@[expose] def rightHalfOnes : BitString (2 * n) := fun i => decide (n ≤ i.1)
+@[expose] def rightHalfOnes : BitString (2 * n) := fun i => decide (n ≤ i.val)
 
 /-- Pair-of-units vector $e_j e_{j'} \in \{0, 1\}^{2n}$ with ones at $j$ and $n + j'$. -/
 @[expose] def unitPair (j j' : Fin n) : BitString (2 * n) :=
-  fun i => decide (i.1 = j.1 ∨ i.1 = n + j'.1)
+  fun i => decide (i.val = j.val ∨ i.val = n + j'.val)
 
 /-- Complemented pair-of-units vector $\overline{e_k}\,\overline{e_{k'}} \in \{0, 1\}^{2n}$ with
 zeros at $k$ and $n + k'$ and ones elsewhere. -/
 @[expose] def antiUnitPair (k k' : Fin n) : BitString (2 * n) :=
-  fun i => !decide (i.1 = k.1 ∨ i.1 = n + k'.1)
+  fun i => !decide (i.val = k.val ∨ i.val = n + k'.val)
 
 @[simp] private theorem zeros2n_apply (i : Fin (2 * n)) : zeros2n i = false := rfl
 @[simp] private theorem ones2n_apply (i : Fin (2 * n)) : ones2n i = true := rfl
-@[simp] private theorem leftHalfOnes_apply (i : Fin (2 * n)) : leftHalfOnes i = decide (i.1 < n) :=
+@[simp] private theorem leftHalfOnes_apply (i : Fin (2 * n)) :
+    leftHalfOnes i = decide (i.val < n) :=
   rfl
 @[simp] private theorem rightHalfOnes_apply (i : Fin (2 * n)) :
-    rightHalfOnes i = decide (n ≤ i.1) := rfl
+    rightHalfOnes i = decide (n ≤ i.val) := rfl
 
 /-- **Ilango's partial Boolean function $\gamma_G$** [Ilango2020FOCS, Section III.B, p. 428; ECCC
 TR20-183, Section 3, p. 21] on $6n$ variables for a `BipartitePermutationGraph` $G = (n, E)$. -/
@@ -352,11 +353,11 @@ TR20-183, Section 3, p. 21] on $6n$ variables for a `BipartitePermutationGraph` 
   else if z = zeros2n then
     some false
   else if z = leftHalfOnes ∧ y = zeros2n then
-    some (decide (∃ i : Fin (2 * n), i.1 < n ∧ x i = true))
+    some (decide (∃ i : Fin (2 * n), i.val < n ∧ x i = true))
   else if z = rightHalfOnes ∧ y = zeros2n then
-    some (decide (∃ i : Fin (2 * n), n ≤ i.1 ∧ x i = true))
+    some (decide (∃ i : Fin (2 * n), n ≤ i.val ∧ x i = true))
   else if decide (∃ j j' k k' : Fin n,
-      ((j.1, k.1), (j'.1, k'.1)) ∈ G.2 ∧
+      ((j.val, k.val), (j'.val, k'.val)) ∈ G.2 ∧
       x = antiUnitPair k k' ∧ y = zeros2n ∧ z = unitPair j j') then
     some true
   else
@@ -431,14 +432,14 @@ threshold $s = 6n - 1$. -/
 
 private theorem ilangoGamma_half_aux (G : BipartitePermutationGraph) (x : BitString (2 * G.1))
     (z : BitString (2 * G.1)) (P : ℕ → Prop) [DecidablePred P]
-    (hz : ∀ i : Fin (2 * G.1), z i = decide (P i.1)) :
+    (hz : ∀ i : Fin (2 * G.1), z i = decide (P i.val)) :
     (if x = zeros2n then some (decide (∃ i : Fin (2 * G.1), zeros2n i = true ∧ z i = true))
      else if x = ones2n then some (decide (∃ i : Fin (2 * G.1), z i = true))
      else if z = ones2n then some (decide (∃ i : Fin (2 * G.1), x i = true ∨ zeros2n i = true))
      else if z = zeros2n then some false
-     else some (decide (∃ i : Fin (2 * G.1), P i.1 ∧ x i = true))) =
-    some (decide (∃ i : Fin (2 * G.1), P i.1 ∧ x i = true)) := by
-  have hz_eq : z = fun i => decide (P i.1) := funext hz
+     else some (decide (∃ i : Fin (2 * G.1), P i.val ∧ x i = true))) =
+    some (decide (∃ i : Fin (2 * G.1), P i.val ∧ x i = true)) := by
+  have hz_eq : z = fun i => decide (P i.val) := funext hz
   subst hz_eq
   split_ifs with hx0 hx1 hz1 hz0
   · simp [hx0]
@@ -455,7 +456,7 @@ private theorem ilangoGamma_half_aux (G : BipartitePermutationGraph) (x : BitStr
 @[simp] private theorem ilangoGamma_leftHalfOnes (G : BipartitePermutationGraph)
     (x : BitString (2 * G.1)) :
     ilangoGamma G (packXYZ x zeros2n leftHalfOnes) =
-      some (decide (∃ i : Fin (2 * G.1), i.1 < G.1 ∧ x i = true)) := by
+      some (decide (∃ i : Fin (2 * G.1), i.val < G.1 ∧ x i = true)) := by
   unfold ilangoGamma
   simp only [unpackX_packXYZ, unpackY_packXYZ, unpackZ_packXYZ, and_true, ↓reduceIte]
   exact ilangoGamma_half_aux G x leftHalfOnes (· < G.1) fun _ => rfl
@@ -465,7 +466,7 @@ private theorem ilangoGamma_half_aux (G : BipartitePermutationGraph) (x : BitStr
 @[simp] private theorem ilangoGamma_rightHalfOnes (G : BipartitePermutationGraph)
     (x : BitString (2 * G.1)) :
     ilangoGamma G (packXYZ x zeros2n rightHalfOnes) =
-      some (decide (∃ i : Fin (2 * G.1), G.1 ≤ i.1 ∧ x i = true)) := by
+      some (decide (∃ i : Fin (2 * G.1), G.1 ≤ i.val ∧ x i = true)) := by
   unfold ilangoGamma
   simp only [unpackX_packXYZ, unpackY_packXYZ, unpackZ_packXYZ, and_true]
   by_cases hleft : rightHalfOnes = leftHalfOnes (n := G.1)
@@ -480,19 +481,19 @@ private theorem ilangoGamma_half_aux (G : BipartitePermutationGraph) (x : BitStr
 /-- Clause (7): for $2 \le G.1$ and any edge $((j, k), (j', k')) \in G.2$,
 $\gamma_G(\overline{e_k}\,\overline{e_{k'}}, 0^{2n}, e_j\,e_{j'}) = 1$. -/
 private theorem ilangoGamma_edge {G : BipartitePermutationGraph} (hn : 2 ≤ G.1)
-    (j j' k k' : Fin G.1) (he : ((j.1, k.1), (j'.1, k'.1)) ∈ G.2) :
+    (j j' k k' : Fin G.1) (he : ((j.val, k.val), (j'.val, k'.val)) ∈ G.2) :
     ilangoGamma G (packXYZ (antiUnitPair k k') zeros2n (unitPair j j')) = some true := by
   unfold ilangoGamma
   simp only [unpackX_packXYZ, unpackY_packXYZ, unpackZ_packXYZ, and_true, true_and]
   split_ifs with hx0 hx1 hz1 hz0 hzl hzr hedge
-  · have := congrFun hx0 ⟨1 - k.1, by omega⟩
+  · have := congrFun hx0 ⟨1 - k.val, by omega⟩
     simp only [antiUnitPair, zeros2n, Bool.not_eq_false', decide_eq_true_eq] at this; omega
-  · simpa [antiUnitPair, ones2n] using congrFun hx1 ⟨k.1, by omega⟩
-  · have := congrFun hz1 ⟨1 - j.1, by omega⟩
+  · simpa [antiUnitPair, ones2n] using congrFun hx1 ⟨k.val, by omega⟩
+  · have := congrFun hz1 ⟨1 - j.val, by omega⟩
     simp only [unitPair, ones2n, decide_eq_true_eq] at this; omega
-  · simpa [unitPair, zeros2n] using congrFun hz0 ⟨j.1, by omega⟩
-  · simpa [unitPair, leftHalfOnes] using congrFun hzl ⟨G.1 + j'.1, by omega⟩
-  · have := congrFun hzr ⟨j.1, by omega⟩
+  · simpa [unitPair, zeros2n] using congrFun hz0 ⟨j.val, by omega⟩
+  · simpa [unitPair, leftHalfOnes] using congrFun hzl ⟨G.1 + j'.val, by omega⟩
+  · have := congrFun hzr ⟨j.val, by omega⟩
     simp only [unitPair, rightHalfOnes, true_or, decide_true, eq_comm (a := true),
       decide_eq_true_eq] at this; omega
   · rfl
@@ -1078,21 +1079,21 @@ private theorem eval_antiUnitPair_unitPair_of_isBlockPreserving
     (j j' k k' : Fin n) :
     (∃ i : Fin (2 * n),
       ((antiUnitPair k k' (π i) || zeros2n i) && unitPair j j' i) = true) ↔
-    ((π ⟨j.1, by omega⟩).1 = k.1 → (π ⟨n + j'.1, by omega⟩).1 ≠ n + k'.1) := by
-  have hj_lt : (π ⟨j.1, by omega⟩).1 < n := (hblock ⟨j.1, by omega⟩).mp j.2
-  have hj'_ge : ¬(π ⟨n + j'.1, by omega⟩).1 < n :=
-    mt (hblock ⟨n + j'.1, by omega⟩).mpr (by simp)
-  have h1 : antiUnitPair k k' (π ⟨j.1, by omega⟩) = true ↔ (π ⟨j.1, by omega⟩).1 ≠ k.1 := by
-    simp [antiUnitPair, show (π ⟨j.1, by omega⟩).1 ≠ n + k'.1 by omega]
-  have h2 : antiUnitPair k k' (π ⟨n + j'.1, by omega⟩) = true ↔
-      (π ⟨n + j'.1, by omega⟩).1 ≠ n + k'.1 := by
-    simp [antiUnitPair, show (π ⟨n + j'.1, by omega⟩).1 ≠ k.1 by omega]
+    ((π ⟨j.val, by omega⟩).val = k.val → (π ⟨n + j'.val, by omega⟩).val ≠ n + k'.val) := by
+  have hj_lt : (π ⟨j.val, by omega⟩).val < n := (hblock ⟨j.val, by omega⟩).mp j.isLt
+  have hj'_ge : ¬(π ⟨n + j'.val, by omega⟩).val < n :=
+    mt (hblock ⟨n + j'.val, by omega⟩).mpr (by simp)
+  have h1 : antiUnitPair k k' (π ⟨j.val, by omega⟩) = true ↔ (π ⟨j.val, by omega⟩).val ≠ k.val := by
+    simp [antiUnitPair, show (π ⟨j.val, by omega⟩).val ≠ n + k'.val by omega]
+  have h2 : antiUnitPair k k' (π ⟨n + j'.val, by omega⟩) = true ↔
+      (π ⟨n + j'.val, by omega⟩).val ≠ n + k'.val := by
+    simp [antiUnitPair, show (π ⟨n + j'.val, by omega⟩).val ≠ k.val by omega]
   rw [imp_iff_not_or, ← ne_eq, ← h1, ← h2]
   simp only [zeros2n, Bool.or_false, Bool.and_eq_true, unitPair, decide_eq_true_eq]
-  exact ⟨fun ⟨i, hi, h⟩ => h.elim (fun h => .inl ((Fin.ext h : i = ⟨j.1, by omega⟩) ▸ hi))
-      (fun h => .inr ((Fin.ext h : i = ⟨n + j'.1, by omega⟩) ▸ hi)),
-    fun h => h.elim (fun h => ⟨⟨j.1, by omega⟩, h, .inl rfl⟩)
-      fun h => ⟨⟨n + j'.1, by omega⟩, h, .inr rfl⟩⟩
+  exact ⟨fun ⟨i, hi, h⟩ => h.elim (fun h => .inl ((Fin.ext h : i = ⟨j.val, by omega⟩) ▸ hi))
+      (fun h => .inr ((Fin.ext h : i = ⟨n + j'.val, by omega⟩) ▸ hi)),
+    fun h => h.elim (fun h => ⟨⟨j.val, by omega⟩, h, .inl rfl⟩)
+      fun h => ⟨⟨n + j'.val, by omega⟩, h, .inr rfl⟩⟩
 
 /-- If $\pi \in S_{2n}$ satisfies `G.SatisfiesUndirected π`, then the read-once positive formula
 `ilangoPosFormula hn π` agrees with `ilangoInstance G` on every defined entry
@@ -1127,7 +1128,7 @@ theorem agreesWith_ilangoPosFormula_of_satisfiesUndirected {G : BipartitePermuta
     obtain ⟨j, j', k, k', he, rfl, rfl, rfl⟩ := hedge
     rw [← Option.some.inj hwb, decide_eq_true_iff,
       eval_antiUnitPair_unitPair_of_isBlockPreserving hπ.1]
-    exact hπ.2 ((j.1, k.1), (j'.1, k'.1)) he j.2 k.2 j'.2 k'.2
+    exact hπ.2 ((j.val, k.val), (j'.val, k'.val)) he j.isLt k.isLt j'.isLt k'.isLt
 
 /-- **Backward direction of Ilango's Theorem 11**: if $1 \le G.1$ and
 `G ∈ BipartitePermutationIndependentSet`, then `ilangoInstance G ∈ PartialMCSP.MonotoneReadOnce`. -/
@@ -1146,7 +1147,7 @@ private theorem isBlockPreserving_of_agreesWith_leftHalfOnes {n : ℕ}
     {π : Equiv.Perm (Fin (2 * n))}
     (h : ∀ x : BitString (2 * n),
       decide (∃ i : Fin (2 * n), ((x (π i) || zeros2n i) && leftHalfOnes i) = true) =
-        decide (∃ i : Fin (2 * n), i.1 < n ∧ x i = true)) :
+        decide (∃ i : Fin (2 * n), i.val < n ∧ x i = true)) :
     BipartitePermutationGraph.IsBlockPreserving π := by
   intro i
   have h1 := h (Function.update zeros2n (π i) true)
@@ -1237,7 +1238,7 @@ private def trivialYesInstance : Instance where
 $x_0 \wedge x_1$. -/
 private def trivialNoInstance : Instance where
   arity := 2
-  table i := some (i.1 == 3)
+  table i := some (i.val == 3)
   threshold := 0
 
 private theorem trivialYesInstance_mem_monotoneReadOnce :
@@ -1255,7 +1256,7 @@ private theorem trivialYesInstance_mem :
 private theorem trivialNoInstance_essentialAt :
     ∀ j : Fin trivialNoInstance.arity, trivialNoInstance.EssentialAt j := by
   intro j
-  refine ⟨fun i => decide (i.1 = 1 - j.1), fun _ => true, false, true, ?_, ?_, ?_, by decide⟩
+  refine ⟨fun i => decide (i.val = 1 - j.val), fun _ => true, false, true, ?_, ?_, ?_, by decide⟩
   · intro k hk; fin_cases j <;> fin_cases k <;> first | contradiction | rfl
   · fin_cases j <;> decide
   · fin_cases j <;> decide
@@ -1366,7 +1367,7 @@ private def ilangoEntry (G : BipartitePermutationGraph) (m : ℕ) : Option Bool 
     none
 
 private theorem range_all_eq_decide {m : ℕ} (f : ℕ → Bool) (b g : Fin m → Bool)
-    (hf : ∀ i : Fin m, f i.1 = (b i == g i)) :
+    (hf : ∀ i : Fin m, f i.val = (b i == g i)) :
     (List.range m).all f = decide (b = g) := by
   rw [← Bool.decide_coe ((List.range m).all f), decide_eq_decide, List.all_eq_true]
   simp only [List.mem_range, funext_iff, Fin.forall_iff]
@@ -1374,7 +1375,7 @@ private theorem range_all_eq_decide {m : ℕ} (f : ℕ → Bool) (b g : Fin m �
   rw [hf ⟨i, hi⟩, beq_iff_eq]
 
 private theorem range_any_eq_decide {m : ℕ} (f : ℕ → Bool) (p : Fin m → Prop) [DecidablePred p]
-    (hf : ∀ i : Fin m, f i.1 = decide (p i)) :
+    (hf : ∀ i : Fin m, f i.val = decide (p i)) :
     (List.range m).any f = decide (∃ i : Fin m, p i) := by
   rw [← Bool.decide_coe ((List.range m).any f), decide_eq_decide, List.any_eq_true]
   simp only [List.mem_range]
@@ -1383,9 +1384,9 @@ private theorem range_any_eq_decide {m : ℕ} (f : ℕ → Bool) (p : Fin m → 
 
 private theorem ilangoEntry_edge_eq_decide (G : BipartitePermutationGraph) (m : ℕ)
     (x y z : BitString (2 * G.1))
-    (hx : ∀ i : Fin (2 * G.1), m.testBit i.1 = x i)
-    (hy : ∀ i : Fin (2 * G.1), m.testBit (2 * G.1 + i.1) = y i)
-    (hz : ∀ i : Fin (2 * G.1), m.testBit (4 * G.1 + i.1) = z i) :
+    (hx : ∀ i : Fin (2 * G.1), m.testBit i.val = x i)
+    (hy : ∀ i : Fin (2 * G.1), m.testBit (2 * G.1 + i.val) = y i)
+    (hz : ∀ i : Fin (2 * G.1), m.testBit (4 * G.1 + i.val) = z i) :
     (G.2.any fun e =>
       decide (e.1.1 < G.1) && decide (e.1.2 < G.1) &&
       decide (e.2.1 < G.1) && decide (e.2.2 < G.1) &&
@@ -1395,19 +1396,20 @@ private theorem ilangoEntry_edge_eq_decide (G : BipartitePermutationGraph) (m : 
       ((List.range (2 * G.1)).all fun i =>
         m.testBit (4 * G.1 + i) == (i == e.1.1 || i == G.1 + e.2.1))) =
       decide (∃ j j' k₀ k₀' : Fin G.1,
-        ((j.1, k₀.1), (j'.1, k₀'.1)) ∈ G.2 ∧
+        ((j.val, k₀.val), (j'.val, k₀'.val)) ∈ G.2 ∧
         x = antiUnitPair k₀ k₀' ∧ y = zeros2n ∧ z = unitPair j j') := by
   have hy0 : ((List.range (2 * G.1)).all fun i => !m.testBit (2 * G.1 + i)) =
       decide (y = zeros2n) :=
     range_all_eq_decide _ y zeros2n fun i => by simp [hy i, zeros2n]
   have hxEq (k₀ k₀' : Fin G.1) :
-      ((List.range (2 * G.1)).all fun i => m.testBit i == !(i == k₀.1 || i == G.1 + k₀'.1)) =
+      ((List.range (2 * G.1)).all fun i => m.testBit i == !(i == k₀.val || i == G.1 + k₀'.val)) =
         decide (x = antiUnitPair k₀ k₀') :=
     range_all_eq_decide _ x (antiUnitPair k₀ k₀') fun i => by
       simp [hx i, antiUnitPair, Bool.decide_or, beq_eq_decide]
   have hzEq (j j' : Fin G.1) :
       ((List.range (2 * G.1)).all fun i =>
-        m.testBit (4 * G.1 + i) == (i == j.1 || i == G.1 + j'.1)) = decide (z = unitPair j j') :=
+        m.testBit (4 * G.1 + i) == (i == j.val || i == G.1 + j'.val)) =
+      decide (z = unitPair j j') :=
     range_all_eq_decide _ z (unitPair j j') fun i => by
       simp [hz i, unitPair, Bool.decide_or, beq_eq_decide]
   rw [← Bool.decide_coe (G.2.any _), decide_eq_decide, List.any_eq_true]
@@ -1420,43 +1422,45 @@ private theorem ilangoEntry_edge_eq_decide (G : BipartitePermutationGraph) (m : 
       of_decide_eq_true (hy0.symm.trans hy_eq),
       of_decide_eq_true ((hzEq ⟨e.1.1, hj⟩ ⟨e.2.1, hj'⟩).symm.trans hz_eq)⟩
   · rintro ⟨j, j', k₀, k₀', he, hx_eq, hy_eq, hz_eq⟩
-    refine ⟨((j.1, k₀.1), (j'.1, k₀'.1)), he, ?_⟩
-    simp only [Bool.and_eq_true, j.2, k₀.2, j'.2, k₀'.2, true_and,
+    refine ⟨((j.val, k₀.val), (j'.val, k₀'.val)), he, ?_⟩
+    simp only [Bool.and_eq_true, j.isLt, k₀.isLt, j'.isLt, k₀'.isLt, true_and,
       hxEq k₀ k₀', hy0, hzEq j j', hx_eq, hy_eq, hz_eq, decide_true]
 
 private theorem ilangoEntry_eq_table (G : BipartitePermutationGraph) (k : Fin (2 ^ (6 * G.1))) :
-    ilangoEntry G k.1 = (ilangoInstance G).table k := by
+    ilangoEntry G k.val = (ilangoInstance G).table k := by
   set w := (BitString.equivFin (6 * G.1)).symm k
   set x := unpackX w; set y := unpackY w; set z := unpackZ w
-  have hx (i : Fin (2 * G.1)) : k.1.testBit i.1 = x i := by simp [x, w, unpackX, xVar]
-  have hy (i : Fin (2 * G.1)) : k.1.testBit (2 * G.1 + i.1) = y i := by simp [y, w, unpackY, yVar]
-  have hz (i : Fin (2 * G.1)) : k.1.testBit (4 * G.1 + i.1) = z i := by simp [z, w, unpackZ, zVar]
+  have hx (i : Fin (2 * G.1)) : k.val.testBit i.val = x i := by simp [x, w, unpackX, xVar]
+  have hy (i : Fin (2 * G.1)) : k.val.testBit (2 * G.1 + i.val) = y i := by
+    simp [y, w, unpackY, yVar]
+  have hz (i : Fin (2 * G.1)) : k.val.testBit (4 * G.1 + i.val) = z i := by
+    simp [z, w, unpackZ, zVar]
   dsimp [ilangoEntry, ilangoInstance, ilangoGamma]
-  change (if ((List.range (2 * G.1)).all fun i => !k.1.testBit i) = true then _ else _) =
+  change (if ((List.range (2 * G.1)).all fun i => !k.val.testBit i) = true then _ else _) =
     if x = zeros2n then _ else _
-  rw [ilangoEntry_edge_eq_decide G k.1 x y z hx hy hz,
-    range_all_eq_decide (fun i => !k.1.testBit i) x zeros2n (fun i => by simp [hx i, zeros2n]),
-    range_all_eq_decide (fun i => k.1.testBit i) x ones2n (fun i => by simp [hx i, ones2n]),
-    range_all_eq_decide (fun i => k.1.testBit (4 * G.1 + i)) z ones2n
+  rw [ilangoEntry_edge_eq_decide G k.val x y z hx hy hz,
+    range_all_eq_decide (fun i => !k.val.testBit i) x zeros2n (fun i => by simp [hx i, zeros2n]),
+    range_all_eq_decide (fun i => k.val.testBit i) x ones2n (fun i => by simp [hx i, ones2n]),
+    range_all_eq_decide (fun i => k.val.testBit (4 * G.1 + i)) z ones2n
       (fun i => by simp [hz i, ones2n]),
-    range_all_eq_decide (fun i => !k.1.testBit (4 * G.1 + i)) z zeros2n
+    range_all_eq_decide (fun i => !k.val.testBit (4 * G.1 + i)) z zeros2n
       (fun i => by simp [hz i, zeros2n]),
-    range_all_eq_decide (fun i => k.1.testBit (4 * G.1 + i) == decide (i < G.1)) z leftHalfOnes
+    range_all_eq_decide (fun i => k.val.testBit (4 * G.1 + i) == decide (i < G.1)) z leftHalfOnes
       (fun i => by simp [hz i, leftHalfOnes]),
-    range_all_eq_decide (fun i => k.1.testBit (4 * G.1 + i) == decide (G.1 ≤ i)) z rightHalfOnes
+    range_all_eq_decide (fun i => k.val.testBit (4 * G.1 + i) == decide (G.1 ≤ i)) z rightHalfOnes
       (fun i => by simp [hz i, rightHalfOnes]),
-    range_all_eq_decide (fun i => !k.1.testBit (2 * G.1 + i)) y zeros2n
+    range_all_eq_decide (fun i => !k.val.testBit (2 * G.1 + i)) y zeros2n
       (fun i => by simp [hy i, zeros2n]),
-    range_any_eq_decide (fun i => k.1.testBit (2 * G.1 + i) && k.1.testBit (4 * G.1 + i))
+    range_any_eq_decide (fun i => k.val.testBit (2 * G.1 + i) && k.val.testBit (4 * G.1 + i))
       (fun i => y i = true ∧ z i = true) (fun i => by simp [hy i, hz i, Bool.decide_and]),
-    range_any_eq_decide (fun i => k.1.testBit (4 * G.1 + i))
+    range_any_eq_decide (fun i => k.val.testBit (4 * G.1 + i))
       (fun i => z i = true) (fun i => by simp [hz i]),
-    range_any_eq_decide (fun i => k.1.testBit i || k.1.testBit (2 * G.1 + i))
+    range_any_eq_decide (fun i => k.val.testBit i || k.val.testBit (2 * G.1 + i))
       (fun i => x i = true ∨ y i = true) (fun i => by simp [hx i, hy i, Bool.decide_or]),
-    range_any_eq_decide (fun i => decide (i < G.1) && k.1.testBit i)
-      (fun i => i.1 < G.1 ∧ x i = true) (fun i => by simp [hx i, Bool.decide_and]),
-    range_any_eq_decide (fun i => decide (G.1 ≤ i) && k.1.testBit i)
-      (fun i => G.1 ≤ i.1 ∧ x i = true) (fun i => by simp [hx i, Bool.decide_and])]
+    range_any_eq_decide (fun i => decide (i < G.1) && k.val.testBit i)
+      (fun i => i.val < G.1 ∧ x i = true) (fun i => by simp [hx i, Bool.decide_and]),
+    range_any_eq_decide (fun i => decide (G.1 ≤ i) && k.val.testBit i)
+      (fun i => G.1 ≤ i.val ∧ x i = true) (fun i => by simp [hx i, Bool.decide_and])]
   simp only [Bool.and_eq_true, decide_eq_true_eq]
   rfl
 

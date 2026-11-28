@@ -263,7 +263,7 @@ private theorem cost_parentUnits (hL : ∀ x τ, L x τ ≤ numUnits R ch FL U0 
     (hB.card_edge_le j)
   refine (hY.sum _ hcard (fun e _ => Cost.of_mem (hm (.edge j e))) fun x =>
     hY.lt_of_le_two_mul_pow_three ?_).congr fun x =>
-      sum_congr rfl fun e _ => (edgeLoads_of_lt _ j.2 e).symm
+      sum_congr rfl fun e _ => (edgeLoads_of_lt _ j.isLt e).symm
   refine (sum_le_card_nsmul _ _ Y fun e _ => (hL x _).trans hB.numUnits_le).trans ?_
   rw [smul_eq_mul]
   nlinarith [Nat.mul_le_mul_right Y hcard, Nat.pow_le_pow_right hY.pos (show 2 ≤ 3 by norm_num)]

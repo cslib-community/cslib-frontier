@@ -371,7 +371,7 @@ example :
 
 /-- Embedding the two outer paths `0, 1` into the three-path augmented Wheatstone network. -/
 def braessEmbed : Fin 2 ↪ Fin 3 where
-  toFun i := ⟨i.1, by omega⟩
+  toFun i := ⟨i.val, by omega⟩
   inj' a b h := Fin.ext (by simpa using congrArg Fin.val h)
 
 /-- Restricting `braessAugmented` along `braessEmbed` has the exact same feasible flows and cost

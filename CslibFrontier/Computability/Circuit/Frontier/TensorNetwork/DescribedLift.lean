@@ -167,9 +167,9 @@ theorem pairwise_isUnit_liftO_sub_digits {n : ℕ} (hn : n ≤ 2 ^ fl.length) :
         liftO hirr (((List.range n).map fun k =>
           (List.range fl.length).map fun j => if k.testBit j then 1 else 0).getD j [])) := by
   intro i j hij
-  have hi : (i : ℕ) < n := by simpa using i.2
-  have hj : (j : ℕ) < n := by simpa using j.2
-  rw [List.getD_eq_getElem _ _ i.2, List.getD_eq_getElem _ _ j.2, List.getElem_map,
+  have hi : (i : ℕ) < n := by simpa using i.isLt
+  have hj : (j : ℕ) < n := by simpa using j.isLt
+  rw [List.getD_eq_getElem _ _ i.isLt, List.getD_eq_getElem _ _ j.isLt, List.getElem_map,
     List.getElem_map, List.getElem_range, List.getElem_range]
   have hbin (k b : ℕ) (hb : b < fl.length) :
       ((List.range fl.length).map fun j => if k.testBit j then 1 else 0).getD b 0 < 2 := by
@@ -315,12 +315,12 @@ theorem getD_incident_one_lt {r : ℕ} (hD : D.IsRowsFirstBipartite r) {j : ℕ}
 /-- The row of an edge of a rows-first network. -/
 @[expose] def srcFin {r : ℕ} (hD : D.IsRowsFirstBipartite r) (j : Fin D.numEdges) :
     Fin D.vertices.length :=
-  ⟨(D.incident j).getD 0 0, getD_incident_zero_lt hD j.2⟩
+  ⟨(D.incident j).getD 0 0, getD_incident_zero_lt hD j.isLt⟩
 
 /-- The column of an edge of a rows-first network. -/
 @[expose] def tgtFin {r : ℕ} (hD : D.IsRowsFirstBipartite r) (j : Fin D.numEdges) :
     Fin D.vertices.length :=
-  ⟨(D.incident j).getD 1 0, getD_incident_one_lt hD j.2⟩
+  ⟨(D.incident j).getD 1 0, getD_incident_one_lt hD j.isLt⟩
 
 /-- **The network of a rows-first described network**, on `Fin k` vertices and `Fin m` edges: the
 edge `j` runs from its row to its column, and the tensor of a vertex is the evaluator at its
@@ -338,7 +338,7 @@ descriptor and the bits on its ports. -/
     obtain ⟨s, t, hs, ht, -, -, -, -, hinc⟩ := incident_eq hD hi'
     have hv : (v : ℕ) ∈ D.incident i := by
       simp only [incident, List.mem_filter, List.mem_range, decide_eq_true_eq]
-      exact ⟨v.2, by rw [getD_map_fst _ v.2]; exact hi⟩
+      exact ⟨v.isLt, by rw [getD_map_fst _ v.isLt]; exact hi⟩
     rw [List.getD_eq_getElem _ _ (by simpa using hi'),
       List.getD_eq_getElem _ _ (by simpa using hi'),
       List.getElem_ofFn, List.getElem_ofFn]
@@ -361,22 +361,22 @@ variable {r : ℕ} (hD : D.IsRowsFirstBipartite r)
 
 /-- The edges run from the rows. -/
 theorem srcFin_lt (j : Fin D.numEdges) : (D.srcFin hD j : ℕ) < r := by
-  obtain ⟨s, t, -, -, hsr, -, -, -, h⟩ := incident_eq hD j.2
+  obtain ⟨s, t, -, -, hsr, -, -, -, h⟩ := incident_eq hD j.isLt
   simp [srcFin, h, hsr]
 
 /-- The edges end at the columns. -/
 theorem le_tgtFin (j : Fin D.numEdges) : r ≤ (D.tgtFin hD j : ℕ) := by
-  obtain ⟨s, t, -, -, -, hrt, -, -, h⟩ := incident_eq hD j.2
+  obtain ⟨s, t, -, -, -, hrt, -, -, h⟩ := incident_eq hD j.isLt
   simp [tgtFin, h, hrt]
 
 /-- A vertex has an edge among its ports exactly when it is an end of the edge. -/
 theorem mem_ports_iff (v : Fin D.vertices.length) (j : Fin D.numEdges) :
     (j : ℕ) ∈ D.vertices[v].1 ↔ D.srcFin hD j = v ∨ D.tgtFin hD j = v := by
-  obtain ⟨s, t, hs, ht, -, -, hsc, htc, hinc⟩ := incident_eq hD j.2
+  obtain ⟨s, t, hs, ht, -, -, hsc, htc, hinc⟩ := incident_eq hD j.isLt
   have hmem : (v : ℕ) ∈ D.incident j ↔ (j : ℕ) ∈ D.vertices[v].1 := by
     simp only [incident, List.mem_filter, List.mem_range, decide_eq_true_eq]
-    rw [getD_map_fst _ v.2]
-    exact ⟨fun h => h.2, fun h => ⟨v.2, h⟩⟩
+    rw [getD_map_fst _ v.isLt]
+    exact ⟨fun h => h.2, fun h => ⟨v.isLt, h⟩⟩
   rw [← hmem, hinc]
   simp only [List.mem_cons, List.not_mem_nil, or_false, Fin.ext_iff, srcFin, tgtFin, hinc,
     List.getD_cons_zero, List.getD_cons_succ]

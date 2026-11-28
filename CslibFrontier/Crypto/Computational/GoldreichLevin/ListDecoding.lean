@@ -526,7 +526,7 @@ private theorem exp_neg_nat_le_inv_two_pow (K : ℕ) :
     Real.exp (-(K : ℝ)) ≤ 1 / (2 : ℝ) ^ K := by
   have h2 : (2 : ℝ) ≤ Real.exp 1 := by linarith [Real.add_one_le_exp (1 : ℝ)]
   have hpow : (2 : ℝ) ^ K ≤ Real.exp (K : ℝ) := by
-    simpa [← Real.exp_nat_mul] using pow_le_pow_left₀ (by positivity) h2 K
+    simpa [← Real.exp_natCast_mul] using pow_le_pow_left₀ (by positivity) h2 K
   rw [Real.exp_neg, one_div]
   exact inv_anti₀ (by positivity) hpow
 

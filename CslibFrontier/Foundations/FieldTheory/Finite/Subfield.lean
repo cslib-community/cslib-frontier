@@ -82,7 +82,7 @@ theorem card_sq_le_of_ne_top {K : Subfield F} (hK : K ≠ ⊤) : Nat.card K ^ 2 
       (by rw [Module.natCard_eq_pow_finrank (K := K) (V := F), h1, pow_one])
   exact eq_top_iff.2 fun x _ => by
     obtain ⟨y, rfl⟩ := hbij.2 x
-    exact y.2
+    exact y.property
 
 variable [Algebra (ZMod 2) F]
 

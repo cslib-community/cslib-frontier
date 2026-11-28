@@ -89,7 +89,7 @@ private theorem log_le_four_of_le_35 {x : ℝ} (hx0 : 0 < x) (hx : x ≤ 35) :
     linarith [Real.add_one_lt_exp (by norm_num : (1 / 4 : ℝ) ≠ 0)]
   have h16 : (5 / 4 : ℝ) ^ 16 < Real.exp (1 / 4) ^ 16 :=
     pow_lt_pow_left₀ h1 (by norm_num) (by positivity)
-  rw [← Real.exp_nat_mul, show ((16 : ℕ) : ℝ) * (1 / 4 : ℝ) = 4 by norm_num] at h16
+  rw [← Real.exp_natCast_mul, show ((16 : ℕ) : ℝ) * (1 / 4 : ℝ) = 4 by norm_num] at h16
   have hexp4 : x < Real.exp 4 :=
     (hx.trans_lt (by norm_num : (35 : ℝ) < (5 / 4 : ℝ) ^ 16)).trans h16
   exact ((Real.log_lt_iff_lt_exp hx0).mpr hexp4).le
@@ -210,7 +210,7 @@ private theorem mle_fails_on_single_outlier :
   · exfalso
     have heq0 : twoCoinsDetHalf 0 = coinDet := rfl
     have heq1 : twoCoinsDetHalf 1 = coinHalf := rfl
-    rw [hmle, heq0, heq1, h0, le_zero_iff] at hle
+    rw [hmle, heq0, heq1, h0, nonpos_iff_eq_zero] at hle
     exact h1 hle
   · refine Fin.ext ?_
     have hlt := (mleFin twoCoinsDetHalf sampleNineTrueOneFalse).isLt

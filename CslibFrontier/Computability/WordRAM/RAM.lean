@@ -177,8 +177,8 @@ be inserted in the target program; jump targets are absolute. Instructions outsi
 correctness specification. The compiler is independent of word size and input. -/
 def compile (base : ℕ) (p : Program .standard r) : RAM.Program :=
   List.ofFn fun k : Fin (8 * p.length) =>
-    match p[k.1 / 8]? with
-    | some i => compileInstr base p.length (k.1 / 8) i (k.1 % 8)
+    match p[k.val / 8]? with
+    | some i => compileInstr base p.length (k.val / 8) i (k.val % 8)
     | none => .jpos (one r) (entry base p.length)
 
 /-- Each compiled source instruction occupies eight target instructions. -/

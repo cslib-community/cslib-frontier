@@ -219,8 +219,8 @@ example :
 /-- The client has an input-fit certificate at its actual logarithmic threshold, so its
 correctness contract gives an unconditional answer there for every promised instance. -/
 example (a : Input) :
-    (decider.program ans).Answers (logWidth 2 a.1.length) a.1 a.1.Nodup
-      (16 * (a.1.length + 1)) :=
+    (decider.program ans).Answers (logWidth 2 a.val.length) a.val a.val.Nodup
+      (16 * (a.val.length + 1)) :=
   decidesInTime_nodup a _ le_rfl (inputFits a le_rfl)
 
 /-- The one-digit convention includes the empty input at its advertised threshold. -/
@@ -230,10 +230,10 @@ example : logWidth 2 0 = 2 ∧ InputFits (logWidth 2 0) [] ∧
 
 /-- The decider also decides at a prescribed width above its threshold, and element distinctness
 for small entries is uniformly in polynomial time. -/
-example : (decider.program ans).DecidesInTime (fun _ (l : Input) => l.1) {l | l.1.Nodup}
-      (fun l _ => 16 * (l.1.length + 1)) (fun l w => w = logWidth 2 l.1.length + 7) ∧
-    UniformPolynomialTime .standard {l : Input | l.1.Nodup} (fun _ l => l.1)
-      (fun l => l.1.length) := by
+example : (decider.program ans).DecidesInTime (fun _ (l : Input) => l.val) {l | l.val.Nodup}
+      (fun l _ => 16 * (l.val.length + 1)) (fun l w => w = logWidth 2 l.val.length + 7) ∧
+    UniformPolynomialTime .standard {l : Input | l.val.Nodup} (fun _ l => l.val)
+      (fun l => l.val.length) := by
   refine ⟨decidesInTime_nodup.mono (fun _ _ => le_rfl) ?_,
     uniformLinearTime_nodup.polynomialTime⟩
   intro a w hw
@@ -244,30 +244,17 @@ end ElementDistinctness
 /-! ## Axioms -/
 
 /--
-info: 'Cslib.WordRAM.UniformDecidableInTime.decidableInTime' depends on axioms: [propext]
+info: 'Cslib.WordRAM.UniformDecidableInTime.decidableInTime' depends on axioms:
+[propext, Classical.choice]
 -/
 #guard_msgs (whitespace := lax) in
 #print axioms Cslib.WordRAM.UniformDecidableInTime.decidableInTime
 
 /--
 info: 'Cslib.WordRAM.Executes.mono_width' depends on axioms:
-[propext]
+[propext, Classical.choice]
 -/
 #guard_msgs (whitespace := lax) in
 #print axioms Cslib.WordRAM.Executes.mono_width
-
-/--
-info: 'Cslib.WordRAM.executes_iff_exists_run_eq' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.WordRAM.executes_iff_exists_run_eq
-
-/--
-info: 'Cslib.WordRAM.ExecWithin.loop_invariant' depends on axioms:
-[propext, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.WordRAM.ExecWithin.loop_invariant
 
 end CslibFrontierTests.WordRAM

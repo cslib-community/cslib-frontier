@@ -46,14 +46,14 @@ is a root of the supplied monic binary polynomial. -/
 theorem isMulTable_powerMulTable {F : Type*} [Field F] [Algebra (ZMod 2) F]
     {l : List Bool} {q : ℕ} (hlen : l.length = q) (α : F)
     (hα : (polyOfBits (l ++ [true])).aeval α = 0)
-    (b : Module.Basis (Fin q) (ZMod 2) F) (hb : ∀ i : Fin q, b i = α ^ i.1) :
+    (b : Module.Basis (Fin q) (ZMod 2) F) (hb : ∀ i : Fin q, b i = α ^ i.val) :
     IsMulTable b (powerMulTable (l ++ [true])) := by
   have hglen : (l ++ [true]).length - 1 = q := by simp [hlen]
   refine ⟨by simp [powerMulTable, hlen], fun u v => ?_⟩
   have hentry : tableEntry (powerMulTable (l ++ [true])) u v =
       (powerTable (l ++ [true])).getD (u + v) [] := by
     simp only [tableEntry, powerMulTable, hglen]
-    rw [List.getD_map_range _ [] u.2, List.getD_map_range _ [] v.2]
+    rw [List.getD_map_range _ [] u.isLt, List.getD_map_range _ [] v.isLt]
   have huv : (u : ℕ) + v < 2 * l.length := by omega
   rw [hb u, hb v, ← pow_add, pow_eq_sum_powerTable l hα huv,
     fieldOfBits, ofBits, hentry, hlen, Finset.sum_range]

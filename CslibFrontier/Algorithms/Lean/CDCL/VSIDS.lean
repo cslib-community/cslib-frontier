@@ -462,6 +462,7 @@ theorem VarOrder.siftUp_size (A : Activity) : ∀ (fuel : ℕ) {n : ℕ} (a : Ve
   | _ + 1, _, _, _, ⟨0, _⟩ => rfl
   | fuel + 1, _, a, p, ⟨i + 1, hi⟩ => by
     rw [VarOrder.siftUp]
+    dsimp only
     split
     · exact (VarOrder.siftUp_size A fuel _ _ _).trans (size_swapPos ..)
     · rfl
@@ -473,6 +474,7 @@ theorem VarOrder.siftUp_pos (A : Activity) : ∀ (fuel : ℕ) {n : ℕ} (a : Vec
   | _ + 1, _, _, _, ⟨0, _⟩, h => h
   | fuel + 1, _, a, p, ⟨i + 1, hi⟩, h => by
     rw [VarOrder.siftUp]
+    dsimp only
     split
     · have h' := h.swap (i := i + 1) (j := i / 2) (by simpa using hi) (by simp; omega)
       exact VarOrder.siftUp_pos A fuel _ _ _ (by rw [Vector.toArray_swap]; exact h')
@@ -480,7 +482,7 @@ theorem VarOrder.siftUp_pos (A : Activity) : ∀ (fuel : ℕ) {n : ℕ} (a : Vec
 
 /-- The larger child, `maxChildF` in the order of the activities `A`. -/
 def VarOrder.maxChild (A : Activity) {n : ℕ} (a : Vector ℕ n) (i : Fin n) : Option (Fin n) :=
-  let left := 2 * i.1 + 1
+  let left := 2 * i.val + 1
   let right := left + 1
   if hleft : left < n then
     if hright : right < n then
@@ -631,7 +633,8 @@ theorem Activity.isGE_raise {A A' : Activity} {x y : ℕ} (hx : A.get x ≤ A'.g
 theorem VarOrder.WF.congr {A A' : Activity} {H : VarOrder} (hwf : H.WF A)
     (h : ∀ w ∈ H.heap, A'.get w = A.get w) : H.WF A' :=
   Batteries.BinaryHeap.topDown_of_isGE (fun k j hkj =>
-    Activity.isGE_raise (h _ (Array.getElem_mem k.2)).ge (h _ (Array.getElem_mem j.2)) hkj) hwf
+    Activity.isGE_raise (h _ (Array.getElem_mem k.isLt)).ge (h _ (Array.getElem_mem j.isLt))
+      hkj) hwf
 
 theorem VarOrder.PosOK.nodup {a p : Array ℕ} (h : VarOrder.PosOK a p) : a.toList.Nodup := by
   rw [List.nodup_iff_injective_getElem]
@@ -700,7 +703,7 @@ theorem VarOrder.increase_spec {A A' : Activity} {H : VarOrder} {v : ℕ}
       refine @Batteries.BinaryHeap.topDown_heapifyUp_of_isGE ℕ A.keyOrd A'.keyOrd A.transOrd
         A'.transOrd _ _ _ (fun k j hj hkj => ?_) hwf
       refine Activity.isGE_raise (hle _) (heq _ fun e => hj (Fin.ext ?_)) hkj
-      exact hp.inj j.2 hk (e.trans hget.symm)
+      exact hp.inj j.isLt hk (e.trans hget.symm)
     · rw [hfst₀, Vector.mem_toArray_iff,
         (@Batteries.BinaryHeap.heapifyUpF_perm ℕ A'.keyOrd _ _ _ _).mem_iff]
       simp

@@ -143,8 +143,8 @@ def serverQuery (s : S) (i : ι) : ProbComp (Q s) :=
   (fun ⟨_, q⟩ => q s) <$> P.query i
 
 /-- The joint query marginal seen by a coalition `T : Finset S` when the user requests `i`. -/
-def coalitionQuery (T : Finset S) (i : ι) : ProbComp ((s : T) → Q s.1) :=
-  (fun ⟨_, q⟩ (s : T) => q s.1) <$> P.query i
+def coalitionQuery (T : Finset S) (i : ι) : ProbComp ((s : T) → Q s.val) :=
+  (fun ⟨_, q⟩ (s : T) => q s.val) <$> P.query i
 
 /-- The joint query marginal seen by an indexed tuple `servers : τ → S` of servers. -/
 def tupleQuery {τ : Type} (servers : τ → S) (i : ι) : ProbComp ((j : τ) → Q (servers j)) :=
@@ -169,7 +169,7 @@ theorem serverQuery_eq (s : S) (i : ι) :
     P.serverQuery s i = (fun ⟨_, q⟩ => q s) <$> P.query i := by rfl
 
 theorem coalitionQuery_eq (T : Finset S) (i : ι) :
-    P.coalitionQuery T i = (fun ⟨_, q⟩ (s : T) => q s.1) <$> P.query i := by rfl
+    P.coalitionQuery T i = (fun ⟨_, q⟩ (s : T) => q s.val) <$> P.query i := by rfl
 
 theorem eval_run (x : ι → β) (i : ι) :
     ProbComp.eval (P.run x i) = (ProbComp.eval (P.query i)).map
@@ -182,7 +182,7 @@ theorem eval_serverQuery (s : S) (i : ι) :
 
 theorem eval_coalitionQuery (T : Finset S) (i : ι) :
     ProbComp.eval (P.coalitionQuery T i) =
-      (ProbComp.eval (P.query i)).map (fun rq (s : T) => rq.2 s.1) := by
+      (ProbComp.eval (P.query i)).map (fun rq (s : T) => rq.2 s.val) := by
   rw [coalitionQuery, ProbComp.eval_map]
 
 theorem eval_tupleQuery {τ : Type} (servers : τ → S) (i : ι) :
@@ -250,7 +250,7 @@ private theorem querySigmaScheme_isTPrivate_iff (P : IndexedScheme ι S R Q A β
   rw [Scheme.isTPrivate_iff, P.isTPrivate_iff]
   refine forall_congr' fun T => imp_congr_right fun _ =>
     forall_congr' fun i => forall_congr' fun i' => ?_
-  let embed : ((s : T) → Q s.1) → (T → Σ u, Q u) := fun f s => ⟨s.1, f s⟩
+  let embed : ((s : T) → Q s.val) → (T → Σ u, Q u) := fun f s => ⟨s.val, f s⟩
   have hinj : Function.Injective embed := fun f g hfg =>
     funext fun s => sigma_mk_injective (congrFun hfg s)
   have hmap (idx : ι) : ProbComp.eval (P.querySigmaScheme.coalitionQuery T idx) =

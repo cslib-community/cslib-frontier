@@ -260,7 +260,7 @@ private theorem disjoint_padWith_iff {α : Type*} {r s : ℕ} {S T : Finset α} 
 private noncomputable def enumFinset {β : Type*} (S : Finset β) {k : ℕ} (hS : #S = k) :
     Fin k → β := fun i =>
   open Classical in
-  (S.equivFin.symm (i.cast hS.symm)).1
+  (S.equivFin.symm (i.cast hS.symm)).val
 
 private theorem enumFinset_injective {β : Type*} {S : Finset β} {k : ℕ} (hS : #S = k) :
     Function.Injective (enumFinset S hS) := fun i j h => by
@@ -270,7 +270,7 @@ private theorem enumFinset_injective {β : Type*} {S : Finset β} {k : ℕ} (hS 
 private theorem enumFinset_mem {β : Type*} {S : Finset β} {k : ℕ} (hS : #S = k) (i : Fin k) :
     enumFinset S hS i ∈ S := by
   classical
-  exact (S.equivFin.symm (i.cast hS.symm)).2
+  exact (S.equivFin.symm (i.cast hS.symm)).property
 
 private theorem range_enumFinset {β : Type*} {S : Finset β} {k : ℕ} (hS : #S = k) :
     Set.range (enumFinset S hS) = (S : Set β) := by

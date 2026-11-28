@@ -148,27 +148,27 @@ theorem le_fairFlipStep_toReal {w k : ℕ} {c : Clause V} (hclen : c.length ≤ 
         PMF.uniformOfFintype_apply, Fintype.card_fin, ENNReal.toReal_inv, ENNReal.toReal_natCast, g]
     have hfair_le :
         (∑ i : Fin c.length, if τ = g i then
-          (ProbComp.eval (ProbComp.sampleModNat w c.length) i.1).toReal else 0) ≤
+          (ProbComp.eval (ProbComp.sampleModNat w c.length) i.val).toReal else 0) ≤
         (fairFlipStep w c σ τ).toReal := by
       calc (∑ i : Fin c.length, if τ = g i then
-              (ProbComp.eval (ProbComp.sampleModNat w c.length) i.1).toReal else 0)
+              (ProbComp.eval (ProbComp.sampleModNat w c.length) i.val).toReal else 0)
           = (∑ i : Fin c.length, (if τ = g i then
-              ProbComp.eval (ProbComp.sampleModNat w c.length) i.1 else 0).toReal) := by
+              ProbComp.eval (ProbComp.sampleModNat w c.length) i.val else 0).toReal) := by
               refine Finset.sum_congr rfl fun i _ => ?_
               split_ifs <;> simp
         _ = (∑ i : Fin c.length, if τ = g i then
-              ProbComp.eval (ProbComp.sampleModNat w c.length) i.1 else 0).toReal :=
+              ProbComp.eval (ProbComp.sampleModNat w c.length) i.val else 0).toReal :=
               (ENNReal.toReal_sum fun _ _ => by split_ifs <;> simp [PMF.apply_ne_top]).symm
         _ ≤ (fairFlipStep w c σ τ).toReal := by
               refine ENNReal.toReal_mono (PMF.apply_ne_top _ _) ?_
               simp only [fairFlipStep, hc0, ↓reduceDIte, PMF.map_apply]
               calc (∑ i : Fin c.length, if τ = g i then
-                      ProbComp.eval (ProbComp.sampleModNat w c.length) i.1 else 0)
+                      ProbComp.eval (ProbComp.sampleModNat w c.length) i.val else 0)
                   = ∑ r ∈ Finset.range c.length, if τ = g ⟨r % c.length, Nat.mod_lt r hm⟩ then
                       ProbComp.eval (ProbComp.sampleModNat w c.length) r else 0 := by
                       rw [← Fin.sum_univ_eq_sum_range]
                       refine Finset.sum_congr rfl fun i _ => ?_
-                      have hmod : (⟨i.1 % c.length, Nat.mod_lt i.1 hm⟩ : Fin c.length) = i :=
+                      have hmod : (⟨i.val % c.length, Nat.mod_lt i.val hm⟩ : Fin c.length) = i :=
                         Fin.ext (Nat.mod_eq_of_lt i.isLt)
                       rw [hmod]
                 _ ≤ _ := sum_le_tsum (Finset.range c.length)
@@ -550,7 +550,7 @@ private theorem headD_filter_eq_of_find?_eq_some {α : Type*} {l : List (List α
       exact ⟨rfl, hne a List.mem_cons_self⟩
 
 private theorem find?_attach {α : Type*} (l : List α) (p : α → Bool) :
-    (l.attach.find? fun x => p x.1).map Subtype.val = l.find? p := by
+    (l.attach.find? fun x => p x.val).map Subtype.val = l.find? p := by
   have hid : l = l.attach.map Subtype.val := (List.attach_map_subtype_val l).symm
   conv_rhs => rw [hid, List.find?_map]
   rfl
@@ -563,14 +563,14 @@ private theorem eval_walkStepBits_ofFn {n : ℕ} (ψ : CNF ℕ) (hvars : ∀ v �
         | some c => fairFlipStep w c σ).map List.ofFn := by
   let p (c : Clause ℕ) : Bool := !Clause.eval (bitsAssign (List.ofFn σ)) c
   have hfind_eq : firstUnsat (toFinCNF ψ hvars) σ =
-      (ψ.attach.find? (fun x => p x.1)).map
-        (fun x => toFinClause x.1 fun l hl =>
-          hvars l.1 (CNF.mem_vars.mpr ⟨x.1, x.2, l.2, hl⟩)) := by
+      (ψ.attach.find? (fun x => p x.val)).map
+        (fun x => toFinClause x.val fun l hl =>
+          hvars l.1 (CNF.mem_vars.mpr ⟨x.val, x.property, l.2, hl⟩)) := by
     simp only [firstUnsat, toFinCNF, List.find?_map]
     congr 2 with ⟨c, hc⟩
     simp only [Function.comp_apply, eval_toFinClause, p]
   rw [hfind_eq]
-  cases hfa : ψ.attach.find? (fun x => p x.1) with
+  cases hfa : ψ.attach.find? (fun x => p x.val) with
   | none =>
     have hf : ψ.find? p = none := by rw [← find?_attach, hfa]; rfl
     have hfc : firstUnsatClauseBits ψ (List.ofFn σ) = [] :=

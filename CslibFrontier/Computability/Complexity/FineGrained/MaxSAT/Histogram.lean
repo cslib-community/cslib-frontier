@@ -213,10 +213,10 @@ def encSparseInstance (k c : ℕ) : SparseInstance k c ↪ List Bool :=
 
 /-- Width and density give an explicit linear bound on the parameter in the exponent. -/
 theorem sparse_workSize_le {k c : ℕ} (F : SparseInstance k c) :
-    workSize F.1 ≤ (k + 1) * c * F.numVars + (k + 1) * c := by
-  calc workSize F.1 ≤ (k + 1) * F.1.2.length := workSize_le_of_width k F.1 F.2.1
-    _ ≤ (k + 1) * (c * (F.1.1 + 1)) := Nat.mul_le_mul_left _ F.2.2
-    _ = (k + 1) * c * F.1.1 + (k + 1) * c := by ring
+    workSize F.val ≤ (k + 1) * c * F.numVars + (k + 1) * c := by
+  calc workSize F.val ≤ (k + 1) * F.val.2.length := workSize_le_of_width k F.val F.property.1
+    _ ≤ (k + 1) * (c * (F.val.1 + 1)) := Nat.mul_le_mul_left _ F.property.2
+    _ = (k + 1) * c * F.val.1 + (k + 1) * c := by ring
 
 private theorem sparse_algorithm {β : Type} {enc : β ↪ List Bool} {f : Instance → β}
     {A d : ℕ} (k c : ℕ)
@@ -224,7 +224,7 @@ private theorem sparse_algorithm {β : Type} {enc : β ↪ List Bool} {f : Insta
       (fun F => 2 ^ (A * (workSize F + 1) / Nat.sqrt (Nat.log 2 (workSize F + 2))) *
         ((encInstance F).length + 1) ^ d)
       (fun F => ((encInstance F).length + 1) ^ d)) :
-    ComputableInO (fun F : SparseInstance k c => f F.1) (encSparseInstance k c) enc
+    ComputableInO (fun F : SparseInstance k c => f F.val) (encSparseInstance k c) enc
       (fun F => 2 ^ (A * (8 * ((k + 1) * c) + 14) * (F.numVars + 1) /
         Nat.sqrt (Nat.log 2 (F.numVars + 2))) * ((encSparseInstance k c F).length + 1) ^ d)
       (fun F => ((encSparseInstance k c F).length + 1) ^ d) :=
@@ -237,7 +237,7 @@ private theorem sparse_algorithm {β : Type} {enc : β ↪ List Bool} {f : Insta
 polynomial space, for fixed width `k` and density `c`. Every one of the `2^n` canonical declared
 assignments is counted, including assignments to unused variables. -/
 theorem exists_sparse_histogram_algorithm (k c : ℕ) :
-    ∃ A d : ℕ, ComputableInO (fun F : SparseInstance k c => histogram F.1)
+    ∃ A d : ℕ, ComputableInO (fun F : SparseInstance k c => histogram F.val)
       (encSparseInstance k c) (encList encNat)
       (fun F => 2 ^ (A * (F.numVars + 1) / Nat.sqrt (Nat.log 2 (F.numVars + 2))) *
         ((encSparseInstance k c F).length + 1) ^ d)
@@ -248,7 +248,7 @@ theorem exists_sparse_histogram_algorithm (k c : ℕ) :
 /-- The exact ordinary clause-count optimum for sparse MAX-`k`-SAT has the same native rate and
 polynomial workspace. The input may contain duplicate and empty clauses. -/
 theorem exists_sparse_optimum_algorithm (k c : ℕ) :
-    ∃ A d : ℕ, ComputableInO (fun F : SparseInstance k c => optimum F.1)
+    ∃ A d : ℕ, ComputableInO (fun F : SparseInstance k c => optimum F.val)
       (encSparseInstance k c) encNat
       (fun F => 2 ^ (A * (F.numVars + 1) / Nat.sqrt (Nat.log 2 (F.numVars + 2))) *
         ((encSparseInstance k c F).length + 1) ^ d)

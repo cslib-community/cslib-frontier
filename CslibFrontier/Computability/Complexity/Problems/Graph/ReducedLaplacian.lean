@@ -53,7 +53,7 @@ vertex list `vs` equals the determinant of the `(r, r)` minor of `M`. -/
 theorem detRows_filter_ne_eq {vs : List ℕ} (hnd : vs.Nodup) {r : ℕ} (hr : r ∈ vs)
     [Fintype {v // v ∈ vs}]
     (M : Matrix {v // v ∈ vs} {v // v ∈ vs} ℤ) (entry : ℕ → ℕ → ℤ)
-    (hM : ∀ u v : {v // v ∈ vs}, u ≠ ⟨r, hr⟩ → v ≠ ⟨r, hr⟩ → entry u.1 v.1 = M u v) :
+    (hM : ∀ u v : {v // v ∈ vs}, u ≠ ⟨r, hr⟩ → v ≠ ⟨r, hr⟩ → entry u.val v.val = M u v) :
     Cslib.Circuits.Rational.detRows
         ((vs.filter fun v => decide (v ≠ r)).map fun u =>
           (vs.filter fun v => decide (v ≠ r)).map fun v => entry u v) =
@@ -67,19 +67,20 @@ theorem detRows_filter_ne_eq {vs : List ℕ} (hnd : vs.Nodup) {r : ℕ} (hr : r 
   let e : Fin rest.length ≃ {x : {v // v ∈ vs} // x ≠ ⟨r, hr⟩} :=
     (hrest_nd.getEquiv rest).trans
       { toFun := fun v =>
-          ⟨⟨v.1, ((hmem v.1).1 v.2).1⟩, fun h => ((hmem v.1).1 v.2).2 (congrArg Subtype.val h)⟩
+          ⟨⟨v.val, ((hmem v.val).1 v.property).1⟩,
+            fun h => ((hmem v.val).1 v.property).2 (congrArg Subtype.val h)⟩
         invFun := fun ⟨⟨v, hv⟩, hne⟩ => ⟨v, (hmem v).2 ⟨hv, fun h => hne (Subtype.ext h)⟩⟩
         left_inv := fun _ => Subtype.ext rfl
         right_inv := fun _ => Subtype.ext (Subtype.ext rfl) }
   exact detRows_map_eq e (M.submatrix Subtype.val Subtype.val) entry fun i j =>
-    hM (e i).1 (e j).1 (e i).2 (e j).2
+    hM (e i).val (e j).val (e i).property (e j).property
 
 /-- Variant of `detRows_filter_ne_eq` transported along a bijection `e : {v // v ∈ vs} ≃ V` to
 match matrices already indexed by `V` (such as `{v // v ∈ G.1}`). -/
 theorem detRows_filter_ne_equiv_eq {vs : List ℕ} (hnd : vs.Nodup)
     {V : Type*} [Fintype V] [DecidableEq V] (e : {v // v ∈ vs} ≃ V)
     {r : ℕ} (hr : r ∈ vs) (M : Matrix V V ℤ) (entry : ℕ → ℕ → ℤ)
-    (hM : ∀ u v : {x // x ∈ vs}, u ≠ ⟨r, hr⟩ → v ≠ ⟨r, hr⟩ → entry u.1 v.1 = M (e u) (e v)) :
+    (hM : ∀ u v : {x // x ∈ vs}, u ≠ ⟨r, hr⟩ → v ≠ ⟨r, hr⟩ → entry u.val v.val = M (e u) (e v)) :
     Cslib.Circuits.Rational.detRows
         ((vs.filter fun v => decide (v ≠ r)).map fun u =>
           (vs.filter fun v => decide (v ≠ r)).map fun v => entry u v) =

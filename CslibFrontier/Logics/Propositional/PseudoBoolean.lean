@@ -326,15 +326,20 @@ theorem holds_iff_linVal (σ : ℕ → Bool) (c : PBConstr) :
 /-- The variables of the terms of a constraint. -/
 def vars (c : PBConstr) : List ℕ := c.terms.map termVar
 
+/-- The constraint of a linear form has only variables of the form. -/
+theorem mem_vars_fromLinear {L : List (ℕ × ℤ)} {D : ℤ} {x : ℕ} (h : x ∈ (fromLinear L D).vars) :
+    x ∈ L.map Prod.fst := by
+  simp only [vars, fromLinear, List.mem_map, List.mem_filterMap] at h
+  obtain ⟨t, ⟨e, he, ht⟩, rfl⟩ := h
+  refine List.mem_map.2 ⟨e, he, ?_⟩
+  unfold entryTerm at ht
+  split_ifs at ht <;> cases ht <;> rfl
+
 /-- **Normalization introduces no variable.** -/
 theorem mem_vars_of_mem_vars_normalize {c : PBConstr} {x : ℕ} (h : x ∈ c.normalize.vars) :
     x ∈ c.vars := by
-  obtain ⟨t, ht, rfl⟩ := List.mem_map.1 h
-  obtain ⟨e, he, het⟩ := List.mem_filterMap.1 ht
-  have hv : termVar t = e.1 := by
-    unfold entryTerm at het
-    split_ifs at het <;> cases het <;> rfl
-  exact hv ▸ fst_mem_of_mem_toLinear he
+  obtain ⟨e, he, rfl⟩ := List.mem_map.1 (mem_vars_fromLinear h)
+  exact fst_mem_of_mem_toLinear he
 
 /-! ### The rules -/
 

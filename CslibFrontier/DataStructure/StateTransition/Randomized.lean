@@ -221,8 +221,7 @@ theorem expectedCost_bind (charge : D.State → D.Op → ℕ) (p : OracleComp D.
   induction p generalizing s with
   | pure a =>
     change D.expectedCost charge (k a) s = 0 + ∑' x, PMF.pure (a, s) x * _
-    rw [zero_add, tsum_eq_single (a, s) fun x hx => by simp [PMF.pure_apply, hx]]
-    simp
+    rw [zero_add, Probability.PMF.tsum_pure_mul]
   | liftBind o cont ih =>
     change D.expectedCost charge (.liftBind o fun r => cont r >>= k) s = _
     rw [expectedCost_liftBind, expectedCost_liftBind, run_liftBind,
@@ -467,8 +466,7 @@ theorem expectedCost_toRandomized (charge : D.State → D.Op → ℕ) (p : D.Cli
     change _ + ∑' x, PMF.pure ((D.stepFn s o).2, (D.stepFn s o).1) x * _ =
       ((charge s o + D.totalCost charge (D.stepFn s o).1
         (D.clientHistory (D.stepFn s o).1 (k (D.stepFn s o).2)) : ℕ) : ℝ≥0∞)
-    rw [tsum_eq_single ((D.stepFn s o).2, (D.stepFn s o).1) fun x hx => by
-      simp [PMF.pure_apply, hx], PMF.pure_apply_self, one_mul, ih, Nat.cast_add]
+    rw [Probability.PMF.tsum_pure_mul, ih, Nat.cast_add]
 
 end StateTransitionSpec
 
@@ -871,9 +869,8 @@ theorem Amortized.toRandomized {M : Refinement D E} {lower : E.State → E.Op �
       ((E.demonicValid_iff_validHistory_runClient e _).mp (M.valid o hi hv)))
     rw [E.totalCostTranscript_canonicalTranscript] at h
     rw [toRandomized_methods, StateTransitionSpec.expectedCost_toRandomized,
-      StateTransitionSpec.run_toRandomized,
-      tsum_eq_single (DataStructure.eval E (M.methods o) e) fun x hx => by
-        simp [PMF.pure_apply, hx], PMF.pure_apply_self, one_mul]
+      StateTransitionSpec.run_toRandomized]
+    simp only [Probability.PMF.tsum_pure_mul]
     exact_mod_cast h
 
 end Refinement

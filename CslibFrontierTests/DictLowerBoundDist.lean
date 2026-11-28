@@ -139,7 +139,7 @@ theorem non_fifo_deletion_order_and_support :
 
 /-- Decode `Fin (2 ^ 2)` back to `Option ℕ`: `0 ↦ none`, `c + 1 ↦ some c`. -/
 @[expose] def decodeSlot (w : Fin (2 ^ 2)) : Option ℕ :=
-  if w.1 = 0 then none else some (w.1 - 1)
+  if w.val = 0 then none else some (w.val - 1)
 
 /-- Direct-mapped 4-cell, 2-bit deterministic cell-probe dictionary for `U = 4, V = 2`. -/
 @[expose] def directDictScheme : Scheme (Dynamic.Op 4) Dynamic.Op.Result 4 2 where
@@ -243,7 +243,7 @@ theorem decodeDict_sequential_trace :
   rw [htake.2, activeWindowDict_refl, windowDict_coe, dom_dictOfEmb]
   simp only [Finset.mem_map, Finset.mem_univ, true_and, not_exists, windowEmb_apply]
   intro k hk
-  have hk_val : 1 + k.1 = 0 := congrArg Fin.val hk
+  have hk_val : 1 + k.val = 0 := congrArg Fin.val hk
   omega
 
 /-- Certified `StateTransitionImpl` bundling `directDictScheme` with worst-case charge `1`. -/
@@ -341,12 +341,12 @@ theorem yao_transfer_positive_lower_bound :
     (mem_support_insertDeleteDist_iff (by omega) (by omega)).mpr ⟨keysA, valsZ, idPerm, rfl⟩
   have huB_mem : uB ∈ distU.support :=
     (mem_support_insertDeleteDist_iff (by omega) (by omega)).mpr ⟨keysB, valsZ, idPerm, rfl⟩
-  have hstateA_zero : (windowDict (n := 2) keysA valsZ 2 (by omega)).1 0 = none := by
+  have hstateA_zero : (windowDict (n := 2) keysA valsZ 2 (by omega)).val 0 = none := by
     rw [windowDict_coe]
     refine dictOfEmb_apply_eq_none _ _ fun i => ?_
     rw [windowEmb_apply]
     fin_cases i <;> decide
-  have hstateB_zero : (windowDict (n := 2) keysB valsZ 2 (by omega)).1 0 = some 0 := by
+  have hstateB_zero : (windowDict (n := 2) keysB valsZ 2 (by omega)).val 0 = some 0 := by
     rw [windowDict_coe]
     have h0 : windowEmb (n := 2) keysB 2 (by omega) (⟨0, by decide⟩ : Fin 2) = 0 := by
       rw [windowEmb_apply]; decide
@@ -360,13 +360,13 @@ theorem yao_transfer_positive_lower_bound :
   · refine le_expected_totalCost_insertQueryDeleteDist_of_det_indexedScheme (U := 4) (V := 2)
       (n := 2) (by omega) (by omega) directDictImpl.toRandomized fun D_det hcorr => ?_
     have hqA_run : ((Dynamic.spec 4 2 2).run (Dictionary.empty 4) qA).1 =
-        (windowDict (n := 2) keysA valsZ 2 (by omega)).1 := by
+        (windowDict (n := 2) keysA valsZ 2 (by omega)).val := by
       have htake := (validHistory_and_run_take_insertQueryDeleteSeq (n := 2) keysA valsZ idPerm
         (t := 2) le_rfl).2
       rw [activeWindowDict_refl] at htake
       rwa [List.take_of_length_le (by rw [length_insertQueryDeleteSeq])] at htake
     have hqB_run : ((Dynamic.spec 4 2 2).run (Dictionary.empty 4) qB).1 =
-        (windowDict (n := 2) keysB valsZ 2 (by omega)).1 := by
+        (windowDict (n := 2) keysB valsZ 2 (by omega)).val := by
       have htake := (validHistory_and_run_take_insertQueryDeleteSeq (n := 2) keysB valsZ idPerm
         (t := 2) le_rfl).2
       rw [activeWindowDict_refl] at htake
@@ -392,13 +392,13 @@ theorem yao_transfer_positive_lower_bound :
       (directDictImpl.toObliviousSequenceImpl (fun _ => 1) (fun _ _ _ => by simp))
       fun D_det hcorr => ?_
     have huA_run : ((Dynamic.spec 4 2 2).run (Dictionary.empty 4) uA).1 =
-        (windowDict (n := 2) keysA valsZ 2 (by omega)).1 := by
+        (windowDict (n := 2) keysA valsZ 2 (by omega)).val := by
       have htake := (validHistory_and_run_take_insertDeleteSeq (n := 2) keysA valsZ idPerm
         (t := 2) le_rfl).2
       rw [activeWindowDict_refl] at htake
       rwa [List.take_of_length_le (by rw [length_insertDeleteSeq])] at htake
     have huB_run : ((Dynamic.spec 4 2 2).run (Dictionary.empty 4) uB).1 =
-        (windowDict (n := 2) keysB valsZ 2 (by omega)).1 := by
+        (windowDict (n := 2) keysB valsZ 2 (by omega)).val := by
       have htake := (validHistory_and_run_take_insertDeleteSeq (n := 2) keysB valsZ idPerm
         (t := 2) le_rfl).2
       rw [activeWindowDict_refl] at htake
@@ -618,16 +618,16 @@ theorem cross_module_slicing_equiv_and_preMem_checks :
     let lifo : Equiv.Perm (Fin 2) := Equiv.swap 0 1
     (∀ {U V n : ℕ} (k : Fin (2 * n) ↪ Fin U) (v : Fin (2 * n) → Fin V)
         (σ : Equiv.Perm (Fin n)) (j : Fin n),
-      elemSlice n 3 (insertQueryDeleteSeq k v σ) j.1 (j.1 + 1) =
+      elemSlice n 3 (insertQueryDeleteSeq k v σ) j.val (j.val + 1) =
         queryDeleteInsertMetaOp k v σ j ∧
-      elemSlice n 2 (insertDeleteSeq k v σ) j.1 (j.1 + 1) =
+      elemSlice n 2 (insertDeleteSeq k v σ) j.val (j.val + 1) =
         deleteInsertMetaOp k v σ j) ∧
     elemSlice 2 3 (insertQueryDeleteSeq (n := 2) keys vals lifo) 0 1 =
       [.query 1, .delete 1, .insert 2 0] ∧
     elemSlice 2 2 (insertDeleteSeq (n := 2) keys vals lifo) 0 1 =
       [.delete 1, .insert 2 0] ∧
     ((sizedDictEquiv 4 2 2 (windowDict (n := 2) keys vals 0 (by omega))).1 : Finset (Fin 4)) =
-      Dictionary.dom (windowDict (n := 2) keys vals 0 (by omega)).1 ∧
+      Dictionary.dom (windowDict (n := 2) keys vals 0 (by omega)).val ∧
     (geomMetaTree 8 1).horizon = 8 ∧
     (iterLogMetaTree 8 2 1).horizon = 8 ∧
     ((1 ≤ (geomMetaTree 8 1).height) ↔ (geomMetaTree 8 1).blockSize 1 ≤ 4) ∧

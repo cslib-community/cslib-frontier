@@ -56,8 +56,8 @@ theorem pi_map_piEquivPiSubtypeProd (P : ι → Prop) [DecidablePred P] (p : ∀
   rw [map_equiv_apply, bind_map_prodMk_apply, pi_apply, pi_apply, pi_apply,
     ← Fintype.prod_subtype_mul_prod_subtype P]
   congr 1 <;> refine Finset.prod_congr rfl fun i _ => ?_
-  · simp [Equiv.piEquivPiSubtypeProd_symm_apply, i.2]
-  · simp [Equiv.piEquivPiSubtypeProd_symm_apply, i.2]
+  · simp [Equiv.piEquivPiSubtypeProd_symm_apply, i.property]
+  · simp [Equiv.piEquivPiSubtypeProd_symm_apply, i.property]
 
 /-- Restricting an independent product to the coordinates satisfying `P` gives the independent
 product of those coordinates. -/

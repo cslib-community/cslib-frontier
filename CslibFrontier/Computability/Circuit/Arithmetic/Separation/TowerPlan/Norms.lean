@@ -203,7 +203,7 @@ private theorem load_edge_succ_le (hr : 0 < r) (hb : 0 < b) {j : Fin J} {i : Fin
       obtain ⟨j', i', ω, d⟩ := l
       obtain ⟨h1, h2⟩ := Target.edge.inj hc
       obtain rfl : j = j' := (Fin.succ_injective _ h1).symm
-      have hne := ((T.nr j.2 i').symm (ω, FL.nearPair d c)).2
+      have hne := ((T.nr j.isLt i').symm (ω, FL.nearPair d c)).property
       rw [eq_of_heq h2] at hne
       have h0 : moveCount lhat n o (.vertex ⟨j, i', ω, d⟩) = 0 :=
         moveCount_vertex_eq_zero (.inl fun h => hne (he'.trans (hi.unique h)))
@@ -249,21 +249,21 @@ its channel of the law move that is used at the vertex. -/
 private theorem load_edge_vertex_le (hr : 0 < r) (hb : 0 < b) {j : Fin J} {i : Fin h}
     (hi : T.IsChosenType (edgeLoads (load lhat n o) j) i) {ω : T.V (j + 1) i} {d : FL.Kind}
     (hd : (⟨j, i, ω, d⟩ : VertexMove FL).IsPicked (load lhat n o)) (c : (FL.law d).Channel) :
-    load lhat n o (.edge j.succ ((T.nr j.2 i).symm (ω, FL.nearPair d c)).1) ≤
+    load lhat n o (.edge j.succ ((T.nr j.isLt i).symm (ω, FL.nearPair d c)).val) ≤
       alive lhat n o ⟨.vertex ⟨j, i, ω, d⟩, c⟩ := by
-  have hrel : (∑ x, ∑ d', if x.target R ch d' = .edge j.succ ((T.nr j.2 i).symm
-      (ω, FL.nearPair d c)).1 then relayAlive lhat n o x d' else 0) = 0 :=
+  have hrel : (∑ x, ∑ d', if x.target R ch d' = .edge j.succ ((T.nr j.isLt i).symm
+      (ω, FL.nearPair d c)).val then relayAlive lhat n o x d' else 0) = 0 :=
     sum_eq_zero fun x _ => sum_eq_zero fun d' _ => ite_eq_right_iff.2 fun hx => by
       obtain ⟨e, rfl, rfl, he⟩ := Relay.of_target_eq_edge_succ hx
-      have hne := ((T.nr j.2 i).symm (ω, FL.nearPair d c)).2
-      rw [← he, T.π_ty j.2] at hne
+      have hne := ((T.nr j.isLt i).symm (ω, FL.nearPair d c)).property
+      rw [← he, T.π_ty j.isLt] at hne
       exact Nat.eq_zero_of_le_zero ((relayAlive_middle_le j e 2 false).trans_eq
         (ite_eq_right fun h => hne (hi.unique h).symm))
   rw [load_eq_sum, initialLoad_eq_zero (by simp) (by simp only [Target.time, Fin.val_succ]; omega),
     zero_add, hrel, zero_add]
   refine (Fintype.sum_sigma (α := fun l : VertexMove FL => (FL.law l.kind).Channel)
     fun lc => if (Move.vertex lc.fst : Move R ch FL).target lc.snd = .edge j.succ
-      ((T.nr j.2 i).symm (ω, FL.nearPair d c)).1 then alive lhat n o ⟨.vertex lc.fst, lc.snd⟩
+      ((T.nr j.isLt i).symm (ω, FL.nearPair d c)).val then alive lhat n o ⟨.vertex lc.fst, lc.snd⟩
       else 0).symm.trans_le
     ((sum_le_sum_of_ne_zero (t := {⟨⟨j, i, ω, d⟩, c⟩}) ?_).trans ?_)
   · rintro ⟨⟨j', i', ω', d'⟩, c'⟩ _ hne
@@ -275,7 +275,7 @@ private theorem load_edge_vertex_le (hr : 0 < r) (hb : 0 < b) {j : Fin J} {i : F
     obtain rfl : i = i' := hi.unique (by_contra fun h => hm (moveCount_vertex_eq_zero (.inl h)))
     have hpk : (⟨j, i, ω', d'⟩ : VertexMove FL).IsPicked (load lhat n o) :=
       by_contra fun h => hm (moveCount_vertex_eq_zero (.inr h))
-    obtain ⟨rfl, h4⟩ := Prod.mk.inj ((T.nr j.2 i).symm.injective (Subtype.ext (eq_of_heq h2)))
+    obtain ⟨rfl, h4⟩ := Prod.mk.inj ((T.nr j.isLt i).symm.injective (Subtype.ext (eq_of_heq h2)))
     obtain rfl : d' = d := VertexMove.kind_eq_of_isPicked hpk hd
     obtain rfl := (FL.nearPair d').injective h4
     exact mem_singleton_self _
@@ -303,12 +303,12 @@ theorem norm_load_le (hr : 0 < r) (hb : 0 < b) (hh : 0 < h) (hbD : b ≤ 2 * D) 
   rw [hn, hn']
   choose _ d₀ _ using fun ω =>
     VertexMove.exists_fits (FL := FL) L j (T.chosenType hh (edgeLoads L) j) ω
-  refine Tower.kap_le_of_stage j.2 hr hb hbD FL.contraction_nonneg (Nat.cast_nonneg _) hρ hρ1
+  refine Tower.kap_le_of_stage j.isLt hr hb hbD FL.contraction_nonneg (Nat.cast_nonneg _) hρ hρ1
     hsel (fun e' he' => load_edge_succ_le hr hb hi he')
     (fun ω => (⟨j, _, ω, d₀ ω⟩ : VertexMove FL).minUnits L) (fun ω => ?_)
     fun ω => VertexMove.scale_mul_minUnits_le L _ fun q => load_segment_le j _ ω q
   obtain ⟨d, hd⟩ := VertexMove.exists_isPicked L (⟨j, _, ω, d₀ ω⟩ : VertexMove FL)
-  have h1 : r * b * ∑ c, L (.edge j.succ ((T.nr j.2 _).symm (ω, FL.nearPair d c)).1) ^ 2 ≤
+  have h1 : r * b * ∑ c, L (.edge j.succ ((T.nr j.isLt _).symm (ω, FL.nearPair d c)).val) ^ 2 ≤
       FL.lengthBound * (⟨j, _, ω, d₀ ω⟩ : VertexMove FL).minUnits L ^ 2 := calc
     _ ≤ r * b * ∑ c, alive lhat n o ⟨.vertex ⟨j, _, ω, d⟩, c⟩ ^ 2 :=
         Nat.mul_le_mul_left _ (sum_le_sum fun c _ =>
@@ -317,10 +317,11 @@ theorem norm_load_le (hr : 0 < r) (hb : 0 < b) (hh : 0 < h) (hbD : b ≤ 2 * D) 
     _ ≤ _ := by
         gcongr
         exact moveCount_vertex_le _
-  rw [(FL.nearPair d).sum_comp (fun ν => L (.edge j.succ ((T.nr j.2 _).symm (ω, ν)).1) ^ 2)] at h1
+  rw [(FL.nearPair d).sum_comp
+    (fun ν => L (.edge j.succ ((T.nr j.isLt _).symm (ω, ν)).val) ^ 2)] at h1
   have h2 := mul_le_mul_of_nonneg_right FL.lengthBound_le
     (sq_nonneg ((⟨j, _, ω, d₀ ω⟩ : VertexMove FL).minUnits L : ℝ))
-  have h3 : (r * b * ∑ ν, (L (.edge j.succ ((T.nr j.2 _).symm (ω, ν)).1) : ℝ) ^ 2) ≤
+  have h3 : (r * b * ∑ ν, (L (.edge j.succ ((T.nr j.isLt _).symm (ω, ν)).val) : ℝ) ^ 2) ≤
       FL.lengthBound * ((⟨j, _, ω, d₀ ω⟩ : VertexMove FL).minUnits L : ℝ) ^ 2 := by
     exact_mod_cast h1
   linarith

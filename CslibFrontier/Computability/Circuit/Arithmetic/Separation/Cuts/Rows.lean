@@ -88,12 +88,12 @@ instance (d : RowData A) (X : Fin A → List Γ) : Decidable (d.Ok X) :=
 
 /-- The last party of the row before row `p`, and `0` for the first row. -/
 @[expose] def prevLast (ρ : Fin A → RowData A) (p : Fin A) : ℕ :=
-  if h : p.1 = 0 then 0 else (ρ ⟨p.1 - 1, by omega⟩).last
+  if h : p.val = 0 then 0 else (ρ ⟨p.val - 1, by omega⟩).last
 
 /-- The row data of row `p` are those of a row of a staircase: an empty row repeats the last
 party of the row before, and another row begins at that party or later. -/
 @[expose] def ValidRow (ρ : Fin A → RowData A) (p : Fin A) : Prop :=
-  if (ρ p).empty then (ρ p).first.1 = prevLast ρ p ∧ (ρ p).last.1 = prevLast ρ p
+  if (ρ p).empty then (ρ p).first.val = prevLast ρ p ∧ (ρ p).last.val = prevLast ρ p
   else prevLast ρ p ≤ (ρ p).first ∧ (ρ p).first ≤ (ρ p).last
 
 instance (ρ : Fin A → RowData A) (p : Fin A) : Decidable (ValidRow ρ p) :=
@@ -111,16 +111,16 @@ private def lastBefore (X : Fin A → Fin A → List Γ) (q : ℕ) : ℕ :=
   (univ.filter fun z : Fin A × Fin A => z.1 < q ∧ X z.1 z.2 ≠ []).sup fun z => z.2
 
 private theorem lastBefore_le_iff {X : Fin A → Fin A → List Γ} {q c : ℕ} :
-    lastBefore X q ≤ c ↔ ∀ p b, p.1 < q → X p b ≠ [] → b.1 ≤ c := by
+    lastBefore X q ≤ c ↔ ∀ p b, p.val < q → X p b ≠ [] → b.val ≤ c := by
   simp [lastBefore, Finset.sup_le_iff]
 
-private theorem le_lastBefore {X : Fin A → Fin A → List Γ} {q : ℕ} {p b : Fin A} (hp : p.1 < q)
-    (hb : X p b ≠ []) : b.1 ≤ lastBefore X q :=
+private theorem le_lastBefore {X : Fin A → Fin A → List Γ} {q : ℕ} {p b : Fin A} (hp : p.val < q)
+    (hb : X p b ≠ []) : b.val ≤ lastBefore X q :=
   lastBefore_le_iff.1 le_rfl p b hp hb
 
 private theorem lastBefore_lt (X : Fin A → Fin A → List Γ) (p : Fin A) (q : ℕ) :
     lastBefore X q < A :=
-  (Finset.sup_lt_iff p.pos).2 fun z _ => z.2.2
+  (Finset.sup_lt_iff p.pos).2 fun z _ => z.2.isLt
 
 /-- The row data of a matrix of words: a row that is not empty has its first and its last column
 that are not empty, and an empty row has twice the last column that a row before it uses (`0` if
@@ -158,7 +158,7 @@ private theorem prevLast_eq {ρ : Fin A → RowData A} {X : Fin A → Fin A → 
     · split_ifs at hv hok
       · exact hv.2.trans_le (lastBefore_le_iff.2 fun p' b hp' hb => le_lastBefore (by omega) hb)
       · exact le_lastBefore q.lt_succ_self hok.2.1
-    · obtain hp' | rfl : p'.1 < q ∨ p'.1 = q := by omega
+    · obtain hp' | rfl : p'.val < q ∨ p'.val = q := by omega
       · have := le_lastBefore hp' hb
         split_ifs at hv <;> omega
       · split_ifs at hok

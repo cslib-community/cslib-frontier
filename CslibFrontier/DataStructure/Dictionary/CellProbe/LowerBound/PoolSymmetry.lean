@@ -122,7 +122,7 @@ private theorem sizedDictOfFinset_apply {U V n : ℕ} (S : Finset (Fin U)) (hS :
 open Classical in
 private noncomputable def dictKV {U V n : ℕ} [NeZero V] (p : SizedDict U V n) (u : Fin U) :
     Fin V :=
-  if h : (p.val u).isSome then ⟨(p.val u).get h, p.2.2 u _ (Option.some_get h).symm⟩
+  if h : (p.val u).isSome then ⟨(p.val u).get h, p.property.2 u _ (Option.some_get h).symm⟩
   else ⟨0, NeZero.pos V⟩
 
 open Classical in
@@ -160,9 +160,9 @@ open Classical in
 private noncomputable def actSizedDictEquiv {U V n : ℕ} [NeZero V]
     (τ : Equiv.Perm (Fin U)) (δ : Fin U → Fin V) : SizedDict U V n ≃ SizedDict U V n where
   toFun p := sizedDictOfFinset ((Dictionary.dom p.val).map τ.toEmbedding)
-    (by rw [Finset.card_map]; exact p.2.1) (fun u => dictKV p (τ.symm u) + δ u)
+    (by rw [Finset.card_map]; exact p.property.1) (fun u => dictKV p (τ.symm u) + δ u)
   invFun p := sizedDictOfFinset ((Dictionary.dom p.val).map τ.symm.toEmbedding)
-    (by rw [Finset.card_map]; exact p.2.1) (fun u => dictKV p (τ u) - δ (τ u))
+    (by rw [Finset.card_map]; exact p.property.1) (fun u => dictKV p (τ u) - δ (τ u))
   left_inv p := by
     refine Subtype.ext (funext fun u => ?_)
     rw [sizedDict_val_eq_ite p u]
@@ -208,7 +208,7 @@ open Classical in
 private theorem exists_actSizedDictEquiv {U V n : ℕ} [NeZero V] (p₁ p₂ : SizedDict U V n) :
     ∃ (τ : Equiv.Perm (Fin U)) (δ : Fin U → Fin V), actSizedDictEquiv τ δ p₁ = p₂ := by
   obtain ⟨τ, hτ_map⟩ := Equiv.Perm.exists_map_finset_eq
-    (Dictionary.dom p₁.val) (Dictionary.dom p₂.val) (p₁.2.1.trans p₂.2.1.symm)
+    (Dictionary.dom p₁.val) (Dictionary.dom p₂.val) (p₁.property.1.trans p₂.property.1.symm)
   let δ (u : Fin U) : Fin V := dictKV p₂ u - dictKV p₁ (τ.symm u)
   refine ⟨τ, δ, Subtype.ext (funext fun u => ?_)⟩
   rw [sizedDict_val_eq_ite p₂ u]

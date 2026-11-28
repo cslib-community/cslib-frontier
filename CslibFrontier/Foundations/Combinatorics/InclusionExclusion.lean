@@ -74,9 +74,8 @@ theorem card_filter_injective_eq_sum_powerset (P : (V → V) → Prop) [Decidabl
   rw [hLHS] at hIE
   rw [hIE, Finset.powerset_univ]
   simp only [zsmul_eq_mul, Int.cast_pow, Int.cast_neg, Int.cast_one, hRHS_term]
-  refine Finset.sum_bij (fun T _ => Tᶜ) (fun _ _ => Finset.mem_univ _)
-    (fun _ _ _ _ h => compl_involutive.injective h)
-    (fun S _ => ⟨Sᶜ, Finset.mem_univ _, compl_compl S⟩) fun T _ => ?_
-  rw [Finset.card_compl, Nat.sub_sub_self (Finset.card_le_univ T)]
+  refine Fintype.sum_equiv (Function.Involutive.toPerm (compl : Finset V → Finset V)
+    compl_involutive) _ _ fun T => ?_
+  rw [Function.Involutive.coe_toPerm, Finset.card_compl, Nat.sub_sub_self (Finset.card_le_univ T)]
 
 end Finset

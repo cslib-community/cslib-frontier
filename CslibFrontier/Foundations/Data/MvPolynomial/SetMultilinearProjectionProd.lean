@@ -92,18 +92,19 @@ private theorem eq_of_partSplit_eq {j : ι} {r : P.parts} (h : partSplit P e j =
     rw [partSplit_apply] at h
     rw [Subtype.ext h]
   · exact absurd ((partSplit_of_notMem hj).symm.trans h).symm
-      (P.nonempty_of_mem_parts r.2).ne_empty
+      (P.nonempty_of_mem_parts r.property).ne_empty
 
 /-- The split is an ordered split of `S`. -/
 private theorem partSplit_mem_blockSplits [Fintype ι] : partSplit P e ∈ blockSplits ι S := by
   refine mem_blockSplits.2 ⟨fun j k hjk => ?_, Eq.trans (Finset.ext fun x => ?_) P.biUnion_parts⟩
   · refine (disjoint_biUnion_left _ _ _).2 fun r hr =>
       (disjoint_biUnion_right _ _ _).2 fun r' hr' =>
-        P.disjoint r.2 r'.2 <| Subtype.coe_ne_coe.2 ?_
+        P.disjoint r.property r'.property <| Subtype.coe_ne_coe.2 ?_
     rintro rfl
     exact hjk ((mem_filter.1 hr).2.symm.trans (mem_filter.1 hr').2)
   · simp only [mem_biUnion, partSplit, mem_filter, mem_univ, true_and, id]
-    exact ⟨fun ⟨_, r, _, hx⟩ => ⟨r, r.2, hx⟩, fun ⟨t, ht, hx⟩ => ⟨e ⟨t, ht⟩, ⟨t, ht⟩, rfl, hx⟩⟩
+    exact ⟨fun ⟨_, r, _, hx⟩ => ⟨r, r.property, hx⟩,
+      fun ⟨t, ht, hx⟩ => ⟨e ⟨t, ht⟩, ⟨t, ht⟩, rfl, hx⟩⟩
 
 /-- The parts of `P` are the nonempty parts of the split. -/
 private theorem mem_parts_iff_exists_partSplit_eq {t : Finset (Fin d)} :
@@ -113,7 +114,7 @@ private theorem mem_parts_iff_exists_partSplit_eq {t : Finset (Fin d)} :
   by_cases hj : j ∈ univ.map e
   · obtain ⟨r, -, rfl⟩ := mem_map.1 hj
     rw [partSplit_apply]
-    exact r.2
+    exact r.property
   · rw [partSplit_of_notMem hj] at ht
     exact absurd ht Finset.not_nonempty_empty
 
@@ -144,7 +145,7 @@ private theorem exists_partSplit_eq [Fintype ι] {T : ι → Finset (Fin d)}
     rw [sup_image, Function.id_comp, sup_eq_biUnion, hU]
   let P := Finpartition.ofErase (univ.image T) hind hsup
   have hP (r : P.parts) : ∃ j, T j = r := by
-    obtain ⟨j, -, hj⟩ := mem_image.1 (mem_of_mem_erase r.2)
+    obtain ⟨j, -, hj⟩ := mem_image.1 (mem_of_mem_erase r.property)
     exact ⟨j, hj⟩
   choose g hg using hP
   refine ⟨⟨P, ⟨g, fun r r' h => Subtype.ext ((hg r).symm.trans (h ▸ hg r'))⟩⟩,
