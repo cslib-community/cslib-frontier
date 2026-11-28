@@ -23,7 +23,7 @@ Under the parameter schedule of `Cslib.Circuits.Frontier.ContractionSchedule`, a
 `245760 C + 37`): the count of Appendix D.4.7 (p. 64), in the
 natural-number scale of the contraction interface. It bounds the nodes of the depth-first
 evaluation (`Nat.recursionBound`), hence the fuel of
-`Cslib.GenericRAM.StackRecursion.Scheme.certificate`.
+`Cslib.Algorithms.StackRecursion.Scheme.certificate`.
 
 ## Main results
 

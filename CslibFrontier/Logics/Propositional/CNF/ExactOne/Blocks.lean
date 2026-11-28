@@ -66,16 +66,11 @@ theorem clauseClauses_shift (offset i : ℕ) (c : Clause V) :
     (clauseClauses i c).relabel (shift offset) = clauseClauses (offset + i) c := by
   simp only [clauseClauses, CNF.relabel, List.map_append, List.map_cons, List.map_nil,
     Clause.relabel, List.map_map, List.map_flatMap]
-  apply congrArg₂ (· ++ ·)
-  · apply congrArg (fun d => [d])
-    apply List.map_congr_left
-    intro l _
-    exact positiveLiteral_shift _ _ _ _
-  · simp only [List.flatMap_def]
-    apply congrArg List.flatten
-    apply List.map_congr_left
-    intro l _
-    exact complementBlock_shift _ _ _ _
+  refine congrArg₂ (· ++ ·)
+    (congrArg (· :: []) (List.map_congr_left fun _ _ => positiveLiteral_shift ..)) ?_
+  simp only [List.flatMap_def]
+  apply congrArg List.flatten
+  exact List.map_congr_left fun _ _ => complementBlock_shift ..
 
 /-- Starting a compiler at a nonzero index renames just its fresh auxiliaries. -/
 theorem formulaFrom_eq_relabel (start : ℕ) (φ : CNF V) :

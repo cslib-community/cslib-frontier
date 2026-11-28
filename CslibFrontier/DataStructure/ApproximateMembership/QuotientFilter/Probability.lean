@@ -12,6 +12,7 @@ public import CslibFrontier.DataStructure.ApproximateMembership.QuotientFilter.B
 public import CslibFrontier.Probability.KWiseIndependent.Reduced
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.KWise
 public import Mathlib.Algebra.Order.Floor.Defs
+import Mathlib.Algebra.Field.GeomSum
 import Mathlib.Algebra.Order.Floor.Semiring
 
 /-!
@@ -87,11 +88,8 @@ theorem effCap_lt_two_pow_quotBits (w₀ n : ℕ) :
   n_max_lt_tableSize (effCap w₀ n)
 
 theorem card_le_effCap {U w₀ n : ℕ} (hU : U ≤ 2 ^ w₀) {S : Finset (Fin U)} (hS : #S ≤ n) :
-    #S ≤ effCap w₀ n := by
-  have hcardU : #S ≤ U := by
-    calc #S ≤ Fintype.card (Fin U) := Finset.card_le_univ S
-      _ = U := Fintype.card_fin U
-  exact le_min hS (hcardU.trans hU)
+    #S ≤ effCap w₀ n :=
+  le_min hS ((Finset.card_le_univ S).trans ((Fintype.card_fin U).le.trans hU))
 
 theorem card_lt_two_pow_quotBits {U w₀ n : ℕ} (hU : U ≤ 2 ^ w₀) {S : Finset (Fin U)}
     (hS : #S ≤ n) :
@@ -126,30 +124,25 @@ abbrev FilterSeed (w₀ n : ℕ) : Type :=
 
 /-! ## Section 2: Pairwise collision and false-positive probability bounds -/
 
+private theorem card_multiplyShiftReduced_mul_le {U w₀ R m : ℕ} (hw₀ : 0 < w₀) (hU : U ≤ 2 ^ w₀)
+    (hm : m + 1 ≤ R) {x y : Fin U} (hxy : x ≠ y) :
+    #{α : Fin (2 ^ (w₀ - 1)) |
+      multiplyShiftReduced U w₀ R α x = multiplyShiftReduced U w₀ R α y} * 2 ^ m ≤
+      Fintype.card (Fin (2 ^ (w₀ - 1))) := by
+  have h1 := (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right two_pos hm)).trans
+    (card_multiplyShiftReduced_eq_le (R := R) hw₀ hU hxy)
+  conv at h1 => rhs; rw [← Nat.sub_add_cancel hw₀, pow_succ']
+  rw [pow_succ'] at h1
+  rw [Fintype.card_fin]; linarith
+
 /-- For any distinct `x, y : Fin U` (`0 < w₀`, `U ≤ 2 ^ w₀`), the number of remainder seeds
 `γ : RemSeed w₀` on which `remHash U w₀ k γ x = remHash U w₀ k γ y` satisfies
 `#{γ | remHash U w₀ k γ x = remHash U w₀ k γ y} * 2 ^ k ≤ Fintype.card (RemSeed w₀)`. -/
 theorem card_remHash_eq_le {U w₀ k : ℕ} (hw₀ : 0 < w₀) (hU : U ≤ 2 ^ w₀)
     {x y : Fin U} (hxy : x ≠ y) :
     #{γ : RemSeed w₀ | remHash U w₀ k γ x = remHash U w₀ k γ y} * 2 ^ k ≤
-      Fintype.card (RemSeed w₀) := by
-  have h1 := card_multiplyShiftReduced_eq_le (R := k + 1) hw₀ hU hxy
-  have hpow_k : 2 ^ (k + 1) = 2 * 2 ^ k := by rw [pow_succ']
-  have hpow_w : 2 ^ w₀ = 2 * 2 ^ (w₀ - 1) := by
-    conv_lhs => rw [← Nat.sub_add_cancel hw₀, pow_succ']
-  simp only [remHash, Fintype.card_fin]
-  have h2 :
-      2 * (#{γ : RemSeed w₀ |
-        multiplyShiftReduced U w₀ (k + 1) γ x = multiplyShiftReduced U w₀ (k + 1) γ y} * 2 ^ k) ≤
-        2 * 2 ^ (w₀ - 1) := by
-    calc 2 * (#{γ : RemSeed w₀ |
-          multiplyShiftReduced U w₀ (k + 1) γ x = multiplyShiftReduced U w₀ (k + 1) γ y} * 2 ^ k)
-        = #{γ : RemSeed w₀ |
-            multiplyShiftReduced U w₀ (k + 1) γ x = multiplyShiftReduced U w₀ (k + 1) γ y} *
-            2 ^ (k + 1) := by rw [hpow_k]; ring
-      _ ≤ 2 ^ w₀ := h1
-      _ = 2 * 2 ^ (w₀ - 1) := hpow_w
-  exact Nat.le_of_mul_le_mul_left h2 (by decide)
+      Fintype.card (RemSeed w₀) :=
+  card_multiplyShiftReduced_mul_le hw₀ hU le_rfl hxy
 
 /-- For any distinct `x, y : Fin U` (`0 < w₀`, `U ≤ 2 ^ w₀`), the number of quotient seeds
 `θ : QuotSeed w₀ n` on which `quotHash U w₀ n θ x = quotHash U w₀ n θ y` satisfies
@@ -160,132 +153,54 @@ theorem card_quotHash_eq_le {U w₀ n : ℕ} (hw₀ : 0 < w₀) (hU : U ≤ 2 ^ 
     #{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ y} * 2 ^ quotBits w₀ n ≤
       2 * Fintype.card (QuotSeed w₀ n) := by
   classical
-  set b := quotBits w₀ n
-  set t := reducedTrinomialStep w₀ b b
-  set Top := ReducedTopSeed w₀
-  set Bot := ReducedBotSeed w₀ b b 5
-  have hbi :
-      #{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ y} =
-        ∑ α : Top, #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} := by
-    rw [← Finset.card_sigma]
-    refine Finset.card_bij (fun θ _ => ⟨θ.1, θ.2⟩) ?_ ?_ ?_
-    · intro θ hθ
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_sigma] at hθ ⊢
-      exact hθ
-    · rintro ⟨α₁, β₁⟩ _ ⟨α₂, β₂⟩ _ h
-      cases h
-      rfl
-    · rintro ⟨α, β⟩ h
-      simp only [Finset.mem_sigma, Finset.mem_univ, Finset.mem_filter, true_and] at h
-      exact ⟨(α, β), by simp [h], rfl⟩
-  rw [hbi, Finset.sum_mul]
-  set Bad : Finset Top :=
-    Finset.univ.filter fun α : Top =>
-      multiplyShiftReduced U w₀ (3 * b) α x = multiplyShiftReduced U w₀ (3 * b) α y
-  set Good : Finset Top := Finset.univ \ Bad
-  have hsplit :
-      (∑ α : Top, #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} * 2 ^ b) =
-        (∑ α ∈ Good, #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} * 2 ^ b) +
-        (∑ α ∈ Bad, #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} * 2 ^ b) := by
-    rw [← Finset.sum_union Finset.sdiff_disjoint,
-      Finset.sdiff_union_of_subset (Finset.subset_univ _)]
-  rw [hsplit]
-  have hgood_bound :
-      ∀ α ∈ Good,
-        #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} * 2 ^ b ≤
-          Fintype.card Bot := by
-    intro α hα
-    have hne_red :
-        multiplyShiftReduced U w₀ (3 * b) α x ≠ multiplyShiftReduced U w₀ (3 * b) α y := by
-      simp only [Good, Bad, Finset.mem_sdiff, Finset.mem_univ, Finset.mem_filter, true_and] at hα
-      exact hα
-    set x' := multiplyShiftReduced U w₀ (3 * b) α x
-    set y' := multiplyShiftReduced U w₀ (3 * b) α y
-    set H := trinomialPolyHash t 5 (2 ^ min w₀ (3 * b)) b
+  let b := quotBits w₀ n
+  let Top := ReducedTopSeed w₀
+  let Bot := ReducedBotSeed w₀ b b 5
+  have hgood (α : Top)
+      (hne : multiplyShiftReduced U w₀ (3 * b) α x ≠ multiplyShiftReduced U w₀ (3 * b) α y) :
+      #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} * 2 ^ b ≤
+        Fintype.card Bot := by
+    let x' := multiplyShiftReduced U w₀ (3 * b) α x
+    let y' := multiplyShiftReduced U w₀ (3 * b) α y
+    let H := trinomialPolyHash (reducedTrinomialStep w₀ b b) 5 (2 ^ min w₀ (3 * b)) b
     have hk : IsKWiseIndependentHash 5 H :=
       isKWiseIndependentHash_trinomialPolyHash
-        (two_pow_min_le_two_pow_reducedTrinomialDeg w₀ b b)
-        (le_reducedTrinomialDeg w₀ b b)
-    set P : Finset (Fin (2 ^ min w₀ (3 * b))) := {x', y'}
-    have hP_card : #P = 2 := Finset.card_pair hne_red
-    have hP_le : #P ≤ 5 := by omega
-    have hsub :
-        (Finset.univ.filter fun β : Bot =>
-          quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y) ⊆
-        Finset.univ.biUnion fun v : Fin (2 ^ b) =>
-          Finset.univ.filter fun β : Bot => P.restrict (H β) = fun _ => v := by
-      intro β hβ
-      have hβ' : quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y :=
-        (Finset.mem_filter.mp hβ).2
-      change H β x' = H β y' at hβ'
-      rw [Finset.mem_biUnion]
-      refine ⟨H β x', Finset.mem_univ _, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩⟩
-      funext ⟨z, hz⟩
-      simp only [P, Finset.mem_insert, Finset.mem_singleton] at hz
-      rcases hz with rfl | rfl
-      · rfl
-      · exact hβ'.symm
-    have hmul_sq :
-        (2 ^ b) ^ 2 * #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} ≤
-          2 ^ b * Fintype.card Bot := by
-      calc (2 ^ b) ^ 2 * #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y}
-          ≤ (2 ^ b) ^ 2 * ∑ v : Fin (2 ^ b),
-              #{β : Bot | P.restrict (H β) = fun _ => v} := by
-            refine Nat.mul_le_mul_left _ ((Finset.card_le_card hsub).trans Finset.card_biUnion_le)
-        _ = ∑ v : Fin (2 ^ b),
-              Fintype.card (Fin (2 ^ b)) ^ #P * #{β : Bot | P.restrict (H β) = fun _ => v} := by
-            rw [Finset.mul_sum, hP_card, Fintype.card_fin]
-        _ = ∑ _v : Fin (2 ^ b), Fintype.card Bot := by
-            refine Finset.sum_congr rfl fun v _ => hk.card_filter_restrict_eq hP_le (fun _ => v)
-        _ = 2 ^ b * Fintype.card Bot := by
-            rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
-    have hmul_re :
-        2 ^ b * (#{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} * 2 ^ b) ≤
-          2 ^ b * Fintype.card Bot := by
-      calc 2 ^ b * (#{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} * 2 ^ b)
-          = (2 ^ b) ^ 2 * #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} := by
-            ring
-        _ ≤ 2 ^ b * Fintype.card Bot := hmul_sq
-    exact Nat.le_of_mul_le_mul_left hmul_re (by positivity)
-  have hsum_good :
-      (∑ α ∈ Good, #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} * 2 ^ b) ≤
-        Fintype.card Top * Fintype.card Bot := by
-    calc (∑ α ∈ Good, #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} * 2 ^ b)
-        ≤ ∑ _α ∈ Good, Fintype.card Bot := Finset.sum_le_sum hgood_bound
-      _ = #Good * Fintype.card Bot := by rw [Finset.sum_const, smul_eq_mul]
-      _ ≤ Fintype.card Top * Fintype.card Bot :=
-          Nat.mul_le_mul_right _ (Finset.card_le_univ Good)
-  have hbad_card : #Bad * 2 ^ b ≤ Fintype.card Top := by
-    have h1 := card_multiplyShiftReduced_eq_le (R := 3 * b) hw₀ hU hxy
-    have hb3 : 3 ≤ b := three_le_quotBits w₀ n
-    have hpow_3b : 2 * 2 ^ b ≤ 2 ^ (3 * b) := by
-      have : b + 1 ≤ 3 * b := by omega
-      calc 2 * 2 ^ b = 2 ^ (b + 1) := (pow_succ' 2 b).symm
-        _ ≤ 2 ^ (3 * b) := Nat.pow_le_pow_right (by decide) this
-    have hpow_w : 2 ^ w₀ = 2 * Fintype.card Top := by
-      dsimp only [Top, ReducedTopSeed]
-      rw [Fintype.card_fin]
-      conv_lhs => rw [← Nat.sub_add_cancel hw₀, pow_succ']
-    have h2 : 2 * (#Bad * 2 ^ b) ≤ 2 * Fintype.card Top := by
-      calc 2 * (#Bad * 2 ^ b) = #Bad * (2 * 2 ^ b) := by ring
-        _ ≤ #Bad * 2 ^ (3 * b) := Nat.mul_le_mul_left _ hpow_3b
-        _ ≤ 2 ^ w₀ := h1
-        _ = 2 * Fintype.card Top := hpow_w
-    exact Nat.le_of_mul_le_mul_left h2 (by decide)
-  have hsum_bad :
-      (∑ α ∈ Bad, #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} * 2 ^ b) ≤
-        Fintype.card Top * Fintype.card Bot := by
-    calc (∑ α ∈ Bad, #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} * 2 ^ b)
-        ≤ ∑ _α ∈ Bad, Fintype.card Bot * 2 ^ b := by
-          refine Finset.sum_le_sum fun α _ =>
-            Nat.mul_le_mul_right _ (Finset.card_le_univ _)
-      _ = (#Bad * 2 ^ b) * Fintype.card Bot := by
-          rw [Finset.sum_const, smul_eq_mul]
-          ring
-      _ ≤ Fintype.card Top * Fintype.card Bot := by gcongr
-  have hcard_prod : Fintype.card (QuotSeed w₀ n) = Fintype.card Top * Fintype.card Bot :=
-    Fintype.card_prod Top Bot
-  omega
+        (two_pow_min_le_two_pow_reducedTrinomialDeg w₀ b b) (le_reducedTrinomialDeg w₀ b b)
+    have hsq : (2 ^ b) ^ 2 * #{β : Bot | H β x' = H β y'} = 2 ^ b * Fintype.card Bot := by
+      rw [Finset.card_eq_sum_card_fiberwise (f := fun β => H β x') (t := Finset.univ)
+          (fun _ _ => Finset.mem_univ _), Finset.mul_sum]
+      refine (Finset.sum_congr (g := fun _ => Fintype.card Bot) rfl fun v _ => ?_).trans (by simp)
+      have hset : (Finset.univ.filter fun β : Bot => H β x' = H β y').filter
+            (fun β => H β x' = v) = Finset.univ.filter fun β : Bot =>
+              ({x', y'} : Finset _).restrict (H β) = fun _ => v := by
+        ext β
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and, funext_iff, Subtype.forall,
+          Finset.mem_insert, Finset.mem_singleton, Finset.restrict, forall_eq_or_imp, forall_eq]
+        exact ⟨fun ⟨h1, h2⟩ => ⟨h2, h1.symm.trans h2⟩, fun ⟨h1, h2⟩ => ⟨h1.trans h2.symm, h1⟩⟩
+      have hc := hk.card_filter_restrict_eq (T := {x', y'})
+        (by rw [Finset.card_pair hne]; decide) (fun _ => v)
+      rwa [← hset, Finset.card_pair hne, Fintype.card_fin (2 ^ b)] at hc
+    exact (Nat.eq_of_mul_eq_mul_left (Nat.two_pow_pos b) (by linear_combination hsq :
+      2 ^ b * (#{β : Bot | H β x' = H β y'} * 2 ^ b) = 2 ^ b * Fintype.card Bot)).le
+  have hprod : #{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ y} =
+      ∑ α : Top, #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} := by
+    simpa only [Finset.card_filter] using Fintype.sum_prod_type _
+  let eqTop (α : Top) : Prop :=
+    multiplyShiftReduced U w₀ (3 * b) α x = multiplyShiftReduced U w₀ (3 * b) α y
+  rw [hprod, Finset.sum_mul, ← Finset.sum_filter_add_sum_filter_not Finset.univ eqTop]
+  have hbad : #{α : Top | eqTop α} * 2 ^ b ≤ Fintype.card Top :=
+    card_multiplyShiftReduced_mul_le hw₀ hU (by have := three_le_quotBits w₀ n; omega) hxy
+  have hsum_bad : (∑ α ∈ Finset.univ.filter eqTop,
+      #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} * 2 ^ b) ≤
+      Fintype.card Top * Fintype.card Bot :=
+    (Finset.sum_le_sum fun _ _ => Nat.mul_le_mul_right _ (Finset.card_le_univ _)).trans <| by
+      rw [Finset.sum_const, smul_eq_mul]; exact (Nat.mul_le_mul_right _ hbad).trans_eq' (by ring)
+  have hsum_good : (∑ α ∈ Finset.univ.filter (fun α => ¬eqTop α),
+      #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} * 2 ^ b) ≤
+      Fintype.card Top * Fintype.card Bot :=
+    (Finset.sum_le_sum fun α hα => hgood α (Finset.mem_filter.mp hα).2).trans <| by
+      rw [Finset.sum_const, smul_eq_mul]; exact Nat.mul_le_mul_right _ (Finset.card_le_univ _)
+  linarith [Fintype.card_prod Top Bot]
 
 /-- Counting false-positive bound over `FilterSeed w₀ n`: for any `S : Finset (Fin U)` with
 `#S ≤ n` and any `u ∉ S` (`0 < w₀`, `U ≤ 2 ^ w₀`), the number of seeds `p : FilterSeed w₀ n` for
@@ -299,85 +214,40 @@ theorem card_falsePositive_mul_le {U w₀ n k : ℕ} (hw₀ : 0 < w₀) (hU : U 
         remHash U w₀ k p.2 x = remHash U w₀ k p.2 u} * 2 ^ k ≤
       Fintype.card (FilterSeed w₀ n) := by
   classical
-  have hS_eff : #S ≤ effCap w₀ n := card_le_effCap hU hS
-  by_cases hS0 : #S = 0
-  · have hSe : S = ∅ := Finset.card_eq_zero.mp hS0
-    subst hSe
-    simp
-  · have hne_pos : 1 ≤ effCap w₀ n := by omega
-    set FP : Finset (FilterSeed w₀ n) :=
-      Finset.univ.filter fun p : FilterSeed w₀ n =>
-        ∃ x ∈ S, quotHash U w₀ n p.1 x = quotHash U w₀ n p.1 u ∧
-          remHash U w₀ k p.2 x = remHash U w₀ k p.2 u
-    have hsub :
-        FP ⊆ S.biUnion fun x =>
-          (Finset.univ.filter fun θ : QuotSeed w₀ n =>
-            quotHash U w₀ n θ x = quotHash U w₀ n θ u) ×ˢ
-          (Finset.univ.filter fun γ : RemSeed w₀ =>
-            remHash U w₀ k γ x = remHash U w₀ k γ u) := by
-      intro p hp
-      simp only [FP, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_biUnion,
-        Finset.mem_product] at hp ⊢
-      exact hp
-    have hpair_bound :
-        ∀ x ∈ S,
-          (#{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ u} *
+  let b := quotBits w₀ n
+  set FP : Finset (FilterSeed w₀ n) := {p : FilterSeed w₀ n |
+    ∃ x ∈ S, quotHash U w₀ n p.1 x = quotHash U w₀ n p.1 u ∧
+      remHash U w₀ k p.2 x = remHash U w₀ k p.2 u}
+  have hFP : #FP ≤ ∑ x ∈ S,
+      #{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ u} *
+        #{γ : RemSeed w₀ | remHash U w₀ k γ x = remHash U w₀ k γ u} := by
+    refine (Finset.card_le_card (t := S.biUnion fun x =>
+      (Finset.univ.filter fun θ : QuotSeed w₀ n => quotHash U w₀ n θ x = quotHash U w₀ n θ u) ×ˢ
+        (Finset.univ.filter fun γ : RemSeed w₀ => remHash U w₀ k γ x = remHash U w₀ k γ u))
+      fun p hp => ?_).trans
+      (Finset.card_biUnion_le.trans_eq (by simp only [Finset.card_product]))
+    simpa only [FP, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_biUnion,
+      Finset.mem_product] using hp
+  have h2S : 2 * #S ≤ 2 ^ b :=
+    (Nat.mul_le_mul_left 2 (card_le_effCap hU hS)).trans
+      (le_trans (by omega) (eight_mul_effCap_le_two_pow_quotBits w₀ n))
+  have hmul : (#FP * 2 ^ k) * 2 ^ b ≤ Fintype.card (FilterSeed w₀ n) * 2 ^ b :=
+    calc (#FP * 2 ^ k) * 2 ^ b
+        = #FP * (2 ^ b * 2 ^ k) := by ring
+      _ ≤ (∑ x ∈ S, #{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ u} *
             #{γ : RemSeed w₀ | remHash U w₀ k γ x = remHash U w₀ k γ u}) *
-            (effCap w₀ n * 2 ^ k) ≤
-            Fintype.card (FilterSeed w₀ n) := by
-      intro x hx
-      have hxu : x ≠ u := fun h => hu (h ▸ hx)
-      have hq := card_quotHash_eq_le (n := n) hw₀ hU hxu
-      have hr := card_remHash_eq_le (k := k) hw₀ hU hxu
-      have h8 : 8 * effCap w₀ n ≤ 2 ^ quotBits w₀ n := eight_mul_effCap_le_two_pow_quotBits w₀ n
-      have hq' :
-          #{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ u} * effCap w₀ n ≤
-            Fintype.card (QuotSeed w₀ n) := by
-        have hmul :
-            2 * (#{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ u} * effCap w₀ n) ≤
-              #{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ u} *
-                2 ^ quotBits w₀ n := by
-          have : 2 * effCap w₀ n ≤ 2 ^ quotBits w₀ n := by omega
-          calc 2 * (#{θ : QuotSeed w₀ n |
-                quotHash U w₀ n θ x = quotHash U w₀ n θ u} * effCap w₀ n)
-              = #{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ u} *
-                  (2 * effCap w₀ n) := by ring
-            _ ≤ #{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ u} *
-                  2 ^ quotBits w₀ n := Nat.mul_le_mul_left _ this
-        omega
-      calc (#{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ u} *
-            #{γ : RemSeed w₀ | remHash U w₀ k γ x = remHash U w₀ k γ u}) *
-            (effCap w₀ n * 2 ^ k)
-          = (#{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ u} * effCap w₀ n) *
-              (#{γ : RemSeed w₀ | remHash U w₀ k γ x = remHash U w₀ k γ u} * 2 ^ k) := by ring
-        _ ≤ Fintype.card (QuotSeed w₀ n) * Fintype.card (RemSeed w₀) := by gcongr
-        _ = Fintype.card (FilterSeed w₀ n) := (Fintype.card_prod _ _).symm
-    have hsum :
-        #FP * (effCap w₀ n * 2 ^ k) ≤ effCap w₀ n * Fintype.card (FilterSeed w₀ n) := by
-      calc #FP * (effCap w₀ n * 2 ^ k)
-          ≤ (#(S.biUnion fun x =>
-              (Finset.univ.filter fun θ : QuotSeed w₀ n =>
-                quotHash U w₀ n θ x = quotHash U w₀ n θ u) ×ˢ
-              (Finset.univ.filter fun γ : RemSeed w₀ =>
-                remHash U w₀ k γ x = remHash U w₀ k γ u))) *
-              (effCap w₀ n * 2 ^ k) := Nat.mul_le_mul_right _ (Finset.card_le_card hsub)
-        _ ≤ (∑ x ∈ S,
-              #{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ u} *
-              #{γ : RemSeed w₀ | remHash U w₀ k γ x = remHash U w₀ k γ u}) *
-              (effCap w₀ n * 2 ^ k) := by
-            refine Nat.mul_le_mul_right _ (Finset.card_biUnion_le.trans ?_)
-            refine Finset.sum_le_sum fun x _ => ?_
-            rw [Finset.card_product]
-        _ = ∑ x ∈ S,
-              (#{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ u} *
-                #{γ : RemSeed w₀ | remHash U w₀ k γ x = remHash U w₀ k γ u}) *
-                (effCap w₀ n * 2 ^ k) := Finset.sum_mul _ _ _
-        _ ≤ ∑ _x ∈ S, Fintype.card (FilterSeed w₀ n) := Finset.sum_le_sum hpair_bound
-        _ = #S * Fintype.card (FilterSeed w₀ n) := by rw [Finset.sum_const, smul_eq_mul]
-        _ ≤ effCap w₀ n * Fintype.card (FilterSeed w₀ n) := Nat.mul_le_mul_right _ hS_eff
-    have hmul_comm : #FP * (effCap w₀ n * 2 ^ k) = effCap w₀ n * (#FP * 2 ^ k) := by ring
-    rw [hmul_comm] at hsum
-    exact Nat.le_of_mul_le_mul_left hsum hne_pos
+            (2 ^ b * 2 ^ k) := Nat.mul_le_mul_right _ hFP
+      _ = ∑ x ∈ S, (#{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ u} * 2 ^ b) *
+            (#{γ : RemSeed w₀ | remHash U w₀ k γ x = remHash U w₀ k γ u} * 2 ^ k) := by
+          rw [Finset.sum_mul]; exact Finset.sum_congr rfl fun _ _ => by ring
+      _ ≤ ∑ _x ∈ S, (2 * Fintype.card (QuotSeed w₀ n)) * Fintype.card (RemSeed w₀) :=
+          Finset.sum_le_sum fun x hx => Nat.mul_le_mul
+            (card_quotHash_eq_le hw₀ hU (ne_of_mem_of_not_mem hx hu))
+            (card_remHash_eq_le hw₀ hU (ne_of_mem_of_not_mem hx hu))
+      _ = Fintype.card (FilterSeed w₀ n) * (2 * #S) := by
+          rw [Finset.sum_const, smul_eq_mul, Fintype.card_prod (QuotSeed w₀ n) (RemSeed w₀)]; ring
+      _ ≤ Fintype.card (FilterSeed w₀ n) * 2 ^ b := Nat.mul_le_mul_left _ h2S
+  exact Nat.le_of_mul_le_mul_right hmul (Nat.two_pow_pos b)
 
 /-- **Per-query false-positive probability bound**: for any `S : Finset (Fin U)` with `#S ≤ n` and
 any absent key `u ∉ S` (`0 < w₀`, `U ≤ 2 ^ w₀`), the probability under `filterSeedLaw w₀ n` that
@@ -390,37 +260,15 @@ theorem toOuterMeasure_falsePositive_le {U w₀ n k : ℕ} (hw₀ : 0 < w₀) (h
           remHash U w₀ k p.2 x = remHash U w₀ k p.2 u} ≤
       (1 / 2 : ℝ≥0∞) ^ k := by
   classical
-  set FP : Finset (FilterSeed w₀ n) :=
-    Finset.univ.filter fun p : FilterSeed w₀ n =>
-      ∃ x ∈ S, quotHash U w₀ n p.1 x = quotHash U w₀ n p.1 u ∧
-        remHash U w₀ k p.2 x = remHash U w₀ k p.2 u
-  have hset :
-      {p : FilterSeed w₀ n |
-        ∃ x ∈ S, quotHash U w₀ n p.1 x = quotHash U w₀ n p.1 u ∧
-          remHash U w₀ k p.2 x = remHash U w₀ k p.2 u} =
-        (FP : Set (FilterSeed w₀ n)) := by
-    ext p
-    simp [FP]
-  rw [hset, filterSeedLaw, PMF.toOuterMeasure_apply_finset]
-  simp only [PMF.uniformOfFintype_apply, Finset.sum_const, nsmul_eq_mul, ← div_eq_mul_inv]
-  have hcard := card_falsePositive_mul_le (k := k) hw₀ hU hS hu
-  have hcast : (#FP : ℝ≥0∞) * (2 ^ k : ℝ≥0∞) ≤ (Fintype.card (FilterSeed w₀ n) : ℝ≥0∞) := by
-    exact_mod_cast hcard
-  have hcard_ne_zero : (Fintype.card (FilterSeed w₀ n) : ℝ≥0∞) ≠ 0 :=
-    Nat.cast_ne_zero.mpr Fintype.card_ne_zero
-  have hcard_ne_top : (Fintype.card (FilterSeed w₀ n) : ℝ≥0∞) ≠ ⊤ :=
-    ENNReal.natCast_ne_top _
-  have hpow_ne_zero : (2 ^ k : ℝ≥0∞) ≠ 0 := by positivity
-  have hpow_ne_top : (2 ^ k : ℝ≥0∞) ≠ ⊤ := ENNReal.coe_ne_top
-  rw [ENNReal.div_le_iff_le_mul (Or.inl hcard_ne_zero) (Or.inl hcard_ne_top)]
-  have hhalf : (1 / 2 : ℝ≥0∞) ^ k = (2 ^ k : ℝ≥0∞)⁻¹ := by
-    rw [one_div, ENNReal.inv_pow]
-  rw [hhalf]
-  calc (#FP : ℝ≥0∞)
-      = (#FP : ℝ≥0∞) * (2 ^ k : ℝ≥0∞) * (2 ^ k : ℝ≥0∞)⁻¹ :=
-        (ENNReal.mul_inv_cancel_right hpow_ne_zero hpow_ne_top).symm
-    _ ≤ (Fintype.card (FilterSeed w₀ n) : ℝ≥0∞) * (2 ^ k : ℝ≥0∞)⁻¹ := by gcongr
-    _ = (2 ^ k : ℝ≥0∞)⁻¹ * (Fintype.card (FilterSeed w₀ n) : ℝ≥0∞) := mul_comm _ _
+  set E : Set (FilterSeed w₀ n) := {p |
+    ∃ x ∈ S, quotHash U w₀ n p.1 x = quotHash U w₀ n p.1 u ∧
+      remHash U w₀ k p.2 x = remHash U w₀ k p.2 u}
+  rw [← E.coe_toFinset, filterSeedLaw, PMF.toOuterMeasure_apply_finset]
+  simp only [E, Set.toFinset_ofPred, PMF.uniformOfFintype_apply, Finset.sum_const, nsmul_eq_mul,
+    one_div]
+  rw [← ENNReal.inv_pow, ENNReal.le_inv_iff_mul_le, mul_right_comm, ← div_eq_mul_inv]
+  exact ENNReal.div_le_of_le_mul (le_trans
+    (by exact_mod_cast card_falsePositive_mul_le (k := k) hw₀ hU hS hu) (one_mul _).symm.le)
 
 /-- Minimum exponent `k = max 1 ⌈log₂(1 / ε)⌉` such that `(1 / 2 : ℝ≥0∞) ^ k ≤ ε` for any
 `ε : ℝ≥0∞` with `ε ≠ 0`. -/
@@ -432,47 +280,17 @@ theorem one_le_epsLog (ε : ℝ≥0∞) : 1 ≤ epsLog ε :=
 
 theorem two_pow_neg_epsLog_le {ε : ℝ≥0∞} (hε0 : ε ≠ 0) :
     (1 / 2 : ℝ≥0∞) ^ epsLog ε ≤ ε := by
-  have hinv_top : ε⁻¹ ≠ ⊤ := ENNReal.inv_ne_top.mpr hε0
-  have hcoe : ((ε⁻¹.toNNReal : ℝ≥0) : ℝ≥0∞) = ε⁻¹ := ENNReal.coe_toNNReal hinv_top
-  have h1 : ε⁻¹.toNNReal ≤ (⌈ε⁻¹.toNNReal⌉₊ : ℝ≥0) := Nat.le_ceil _
-  have h2 : ⌈ε⁻¹.toNNReal⌉₊ ≤ 2 ^ Nat.clog 2 ⌈ε⁻¹.toNNReal⌉₊ :=
-    Nat.le_pow_clog (by decide) _
-  have h3 : 2 ^ Nat.clog 2 ⌈ε⁻¹.toNNReal⌉₊ ≤ 2 ^ epsLog ε :=
-    Nat.pow_le_pow_right (by decide) (le_max_right 1 _)
-  have hle_inv : ε⁻¹ ≤ (2 ^ epsLog ε : ℝ≥0∞) := by
-    calc ε⁻¹ = ((ε⁻¹.toNNReal : ℝ≥0) : ℝ≥0∞) := hcoe.symm
-      _ ≤ ((⌈ε⁻¹.toNNReal⌉₊ : ℝ≥0) : ℝ≥0∞) := ENNReal.coe_le_coe.mpr h1
-      _ = (⌈ε⁻¹.toNNReal⌉₊ : ℝ≥0∞) := rfl
-      _ ≤ ((2 ^ epsLog ε : ℕ) : ℝ≥0∞) := Nat.cast_le.mpr (h2.trans h3)
-      _ = (2 ^ epsLog ε : ℝ≥0∞) := by push_cast; rfl
-  calc (1 / 2 : ℝ≥0∞) ^ epsLog ε
-      = (2 ^ epsLog ε : ℝ≥0∞)⁻¹ := by rw [one_div, ENNReal.inv_pow]
-    _ ≤ (ε⁻¹)⁻¹ := ENNReal.inv_le_inv.mpr hle_inv
-    _ = ε := inv_inv ε
+  rw [one_div, ← ENNReal.inv_pow]
+  conv_rhs => rw [← inv_inv ε]
+  rw [ENNReal.inv_le_inv]
+  calc ε⁻¹ = ((ε⁻¹.toNNReal : ℝ≥0) : ℝ≥0∞) :=
+        (ENNReal.coe_toNNReal (ENNReal.inv_ne_top.mpr hε0)).symm
+    _ ≤ ((⌈ε⁻¹.toNNReal⌉₊ : ℝ≥0) : ℝ≥0∞) := ENNReal.coe_le_coe.mpr (Nat.le_ceil _)
+    _ ≤ ((2 ^ epsLog ε : ℕ) : ℝ≥0∞) := Nat.cast_le.mpr <|
+        (Nat.le_pow_clog one_lt_two _).trans (Nat.pow_le_pow_right two_pos (le_max_right 1 _))
+    _ = (2 : ℝ≥0∞) ^ epsLog ε := by push_cast; rfl
 
 /-! ## Section 3: Expected cluster length bound across the two-stage seed distribution -/
-
-private theorem sum_Icc_two_pow_mul_div_sq_le (M : ℕ) :
-    (∑ j ∈ Finset.Icc 1 M, (2 ^ j : ℝ) * (288 / (2 ^ j : ℝ) ^ 2)) ≤ 288 := by
-  induction M with
-  | zero => simp
-  | succ M ih =>
-    have hsum_eq :
-        (∑ j ∈ Finset.Icc 1 (M + 1), (2 ^ j : ℝ) * (288 / (2 ^ j : ℝ) ^ 2)) =
-          288 - 288 / (2 ^ (M + 1) : ℝ) := by
-      clear ih
-      induction M with
-      | zero =>
-        simp
-        ring
-      | succ K ihK =>
-        rw [Finset.sum_Icc_succ_top (Nat.le_add_left 1 (K + 1)), ihK, pow_succ']
-        have hpow : (2 ^ (K + 1) : ℝ) ≠ 0 := by positivity
-        field_simp [hpow]
-        ring
-    rw [hsum_eq]
-    have : (0 : ℝ) ≤ 288 / (2 ^ (M + 1) : ℝ) := by positivity
-    linarith
 
 /-- Seed-only upper bound on the cluster length around `quotHash U w₀ n θ u` for any state
 representing `S` (`#S ≤ n`). -/
@@ -497,27 +315,9 @@ theorem FilterInv.clusterLen_le_seedClusterBound {U w₀ n f : ℕ}
     hinv.clusterLen hS_lt (quotHash U w₀ n θ u) ≤ seedClusterBound U w₀ n S u θ := by
   dsimp only [seedClusterBound]
   split_ifs with hgood
-  · have h1 := hinv.clusterLen_sub_one_le_sum_scaleOverload
+  · rw [← Nat.sub_le_iff_le_add', ← Nat.cast_le (α := ℝ)]
+    simpa [Nat.cast_ite, mul_ite] using hinv.clusterLen_sub_one_le_sum_scaleOverload
       (fun β' x => quotHash U w₀ n (θ.1, β') x) θ.2 hS_lt u
-    have hsum_eq :
-        (∑ j ∈ Finset.Icc 1 (quotBits w₀ n),
-          (2 ^ j : ℝ) *
-            (if scaleOverload (quotBits w₀ n) (fun β' x => quotHash U w₀ n (θ.1, β') x)
-              (S.erase u) u j θ.2 then (1 : ℝ) else 0)) =
-        ((∑ j ∈ Finset.Icc 1 (quotBits w₀ n),
-          if scaleOverload (quotBits w₀ n) (fun β' x => quotHash U w₀ n (θ.1, β') x)
-            (S.erase u) u j θ.2 then 2 ^ j else 0 : ℕ) : ℝ) := by
-      rw [Nat.cast_sum]
-      refine Finset.sum_congr rfl fun j _ => ?_
-      split_ifs <;> simp
-    rw [hsum_eq] at h1
-    have h1_nat :
-        hinv.clusterLen hS_lt (quotHash U w₀ n θ u) - 1 ≤
-          ∑ j ∈ Finset.Icc 1 (quotBits w₀ n),
-            if scaleOverload (quotBits w₀ n) (fun β' x => quotHash U w₀ n (θ.1, β') x)
-              (S.erase u) u j θ.2 then 2 ^ j else 0 := by
-      exact_mod_cast h1
-    omega
   · exact (hinv.clusterLen_le_card hS_lt _).trans hS_lt.le
 
 /-- For any top-level seed `α ∈ reducedGoodTop U w₀ (3 * quotBits w₀ n) (insert u (S.erase u))`
@@ -532,80 +332,60 @@ theorem sum_seedClusterBound_sub_one_goodTop_le {U w₀ n : ℕ} (hU : U ≤ 2 ^
       (seedClusterBound U w₀ n S u (α, β) - 1)) ≤
       288 * Fintype.card (ReducedBotSeed w₀ (quotBits w₀ n) (quotBits w₀ n) 5) := by
   classical
-  set b := quotBits w₀ n
-  set Bot := ReducedBotSeed w₀ b b 5
-  set T : Finset (Fin U) := insert u (S.erase u)
-  have huT : u ∈ T := Finset.mem_insert_self u (S.erase u)
-  set u' : T := ⟨u, huT⟩
-  set S' : Finset T := T.attach.erase u'
-  have hu'_notMem : u' ∉ S' := Finset.notMem_erase u' T.attach
-  have hS'_card : #S' ≤ effCap w₀ n := by
-    have h1 : #S' = #T.attach - 1 := Finset.card_erase_of_mem (Finset.mem_attach T u')
-    have h2 : #T.attach = #T := Finset.card_attach
-    have h3 : #T = #(S.erase u) + 1 := Finset.card_insert_of_notMem (Finset.notMem_erase u S)
-    have h4 : #(S.erase u) ≤ effCap w₀ n := (Finset.card_erase_le).trans (card_le_effCap hU hS)
-    omega
-  have h8 : 8 * effCap w₀ n ≤ 2 ^ b := eight_mul_effCap_le_two_pow_quotBits w₀ n
-  set hT : Bot → T → Fin (2 ^ b) := fun β x => quotHash U w₀ n (α, β) x.val
+  let b := quotBits w₀ n
+  let Bot := ReducedBotSeed w₀ b b 5
+  let T : Finset (Fin U) := insert u (S.erase u)
+  let u' : T := ⟨u, Finset.mem_insert_self u (S.erase u)⟩
+  let S' : Finset T := (S.erase u).subtype (· ∈ T)
+  have hu'_notMem : u' ∉ S' := by simp [S', u']
+  have hS'_card : #S' ≤ effCap w₀ n :=
+    ((Finset.card_subtype (· ∈ T) (S.erase u)).trans_le (Finset.card_filter_le _ _)).trans
+      (Finset.card_erase_le.trans (card_le_effCap hU hS))
+  let hT : Bot → T → Fin (2 ^ b) := fun β x => quotHash U w₀ n (α, β) x.val
   have hkT : IsKWiseIndependentHash 5 hT :=
     isKWiseIndependentHash_reducedPolyHash_of_injOn (mem_reducedGoodTop.mp hα)
-  have hov_iff :
-      ∀ (j : ℕ) (β : Bot),
-        scaleOverload b (fun β' x => quotHash U w₀ n (α, β') x) (S.erase u) u j β ↔
-          scaleOverload b hT S' u' j β := by
-    intro j β
-    dsimp only [scaleOverload, hT, u']
-    have hcard_filter :
-        #((S.erase u).filter fun x =>
-          quotHash U w₀ n (α, β) x ∈ scaleWindow b (quotHash U w₀ n (α, β) u) j) =
-        #(S'.filter fun x : T =>
-          quotHash U w₀ n (α, β) x.val ∈ scaleWindow b (quotHash U w₀ n (α, β) u) j) := by
-      refine Finset.card_bij (fun x hx => ⟨x, Finset.mem_insert_of_mem (Finset.mem_filter.mp hx).1⟩)
-        ?_ ?_ ?_
-      · intro x hx
-        have hx' := Finset.mem_filter.mp hx
-        refine Finset.mem_filter.mpr ⟨Finset.mem_erase.mpr ?_, hx'.2⟩
-        exact ⟨fun h => (Finset.mem_erase.mp hx'.1).1 (congrArg Subtype.val h),
-          Finset.mem_attach _ _⟩
-      · intro x₁ _ x₂ _ h
-        exact congrArg Subtype.val h
-      · intro y hy
-        have hy' := Finset.mem_filter.mp hy
-        have hy_er := Finset.mem_erase.mp hy'.1
-        have hy_erase : y.val ∈ S.erase u := by
-          rcases Finset.mem_insert.mp y.property with h | h
-          · exact False.elim (hy_er.1 (Subtype.ext h))
-          · exact h
-        exact ⟨y.val, Finset.mem_filter.mpr ⟨hy_erase, hy'.2⟩, rfl⟩
-    rw [hcard_filter]
+  have hov_eq (j : ℕ) (β : Bot) :
+      scaleOverload b (fun β' x => quotHash U w₀ n (α, β') x) (S.erase u) u j β ↔
+        scaleOverload b hT S' u' j β := by
+    dsimp only [scaleOverload, hT, u', S']
+    have hf : (((S.erase u).subtype (· ∈ T)).filter fun x : T =>
+          quotHash U w₀ n (α, β) x.val ∈ scaleWindow b (quotHash U w₀ n (α, β) u) j) =
+        ((S.erase u).filter fun x =>
+          quotHash U w₀ n (α, β) x ∈ scaleWindow b (quotHash U w₀ n (α, β) u) j).subtype
+          (· ∈ T) := by ext ⟨x, hx⟩; simp
+    rw [hf, Finset.card_subtype,
+      Finset.filter_true_of_mem fun _ hx => Finset.mem_insert_of_mem (Finset.mem_filter.mp hx).1]
   have hpt (β : Bot) :
-      ((seedClusterBound U w₀ n S u (α, β) - 1 : ℕ) : ℝ) ≤
+      ((seedClusterBound U w₀ n S u (α, β) - 1 : ℕ) : ℝ) =
         ∑ j ∈ Finset.Icc 1 b,
           (2 ^ j : ℝ) * (if scaleOverload b hT S' u' j β then (1 : ℝ) else 0) := by
-    dsimp only [seedClusterBound]
-    rw [ite_eq_left hα, Nat.add_sub_cancel_left, Nat.cast_sum]
-    refine le_of_eq (Finset.sum_congr rfl fun j _ => ?_)
-    rw [if_congr (hov_iff j β) rfl rfl]
+    simp only [seedClusterBound, ite_eq_left hα, Nat.add_sub_cancel_left, Nat.cast_sum]
+    refine Finset.sum_congr rfl fun j _ => ?_
+    rw [if_congr (hov_eq j β) rfl rfl]
     split_ifs <;> simp
   have hexp :
-      (𝔼 β : Bot, ((seedClusterBound U w₀ n S u (α, β) - 1 : ℕ) : ℝ)) ≤ 288 := by
+      (𝔼 β : Bot, ((seedClusterBound U w₀ n S u (α, β) - 1 : ℕ) : ℝ)) ≤ 288 :=
     calc (𝔼 β : Bot, ((seedClusterBound U w₀ n S u (α, β) - 1 : ℕ) : ℝ))
-        ≤ 𝔼 β : Bot, ∑ j ∈ Finset.Icc 1 b,
-            (2 ^ j : ℝ) * (if scaleOverload b hT S' u' j β then (1 : ℝ) else 0) :=
-          Finset.expect_le_expect fun β _ => hpt β
-      _ = ∑ j ∈ Finset.Icc 1 b,
-            𝔼 β : Bot, (2 ^ j : ℝ) * (if scaleOverload b hT S' u' j β then (1 : ℝ) else 0) :=
-          Finset.expect_sum_comm _ _ _
+        = ∑ j ∈ Finset.Icc 1 b,
+            𝔼 β : Bot, (2 ^ j : ℝ) * (if scaleOverload b hT S' u' j β then (1 : ℝ) else 0) := by
+          simp_rw [hpt]; exact Finset.expect_sum_comm _ _ _
       _ ≤ ∑ j ∈ Finset.Icc 1 b, (2 ^ j : ℝ) * (288 / (2 ^ j : ℝ) ^ 2) := by
           refine Finset.sum_le_sum fun j _ => ?_
-          rw [Fintype.expect_eq_sum_div_card, ← Finset.mul_sum, mul_div_assoc,
-            ← Fintype.expect_eq_sum_div_card]
+          rw [← Finset.mul_expect]
           exact mul_le_mul_of_nonneg_left
-            (expect_scaleOverload_le hkT S' hu'_notMem hS'_card h8) (by positivity)
-      _ ≤ 288 := sum_Icc_two_pow_mul_div_sq_le b
-  rw [Fintype.expect_eq_sum_div_card] at hexp
-  have hcard_pos : (0 : ℝ) < (Fintype.card Bot : ℝ) := Nat.cast_pos.mpr Fintype.card_pos
-  rw [div_le_iff₀ hcard_pos] at hexp
+            (expect_scaleOverload_le hkT S' hu'_notMem hS'_card
+              (eight_mul_effCap_le_two_pow_quotBits w₀ n)) (by positivity)
+      _ = 288 * ∑ j ∈ Finset.Ico 1 (b + 1), (2⁻¹ : ℝ) ^ j := by
+          have hI : Finset.Icc 1 b = Finset.Ico 1 (b + 1) :=
+            Finset.ext fun _ => by simp only [Finset.mem_Icc, Finset.mem_Ico, Nat.lt_succ_iff]
+          rw [hI, Finset.mul_sum]
+          exact Finset.sum_congr rfl fun j _ => by rw [inv_pow]; field_simp
+      _ ≤ 288 := by
+          rw [geom_sum_Ico' (by norm_num) (Nat.le_add_left 1 b), pow_one]
+          refine mul_le_of_le_one_right (by norm_num) ((div_le_one (by norm_num)).mpr ?_)
+          linarith [pow_nonneg (inv_nonneg.mpr (zero_le_two (α := ℝ))) (b + 1)]
+  rw [Fintype.expect_eq_sum_div_card,
+    div_le_iff₀ (Nat.cast_pos.mpr Fintype.card_pos)] at hexp
   exact_mod_cast hexp
 
 /-- **Unconditional sum bound on `seedClusterBound` over `QuotSeed w₀ n`**:
@@ -617,91 +397,49 @@ theorem sum_seedClusterBound_le {U w₀ n : ℕ} (hw₀ : 0 < w₀) (hU : U ≤ 
     (∑ θ : QuotSeed w₀ n, seedClusterBound U w₀ n S u θ) ≤
       290 * Fintype.card (QuotSeed w₀ n) := by
   classical
-  set b := quotBits w₀ n
-  set Top := ReducedTopSeed w₀
-  set Bot := ReducedBotSeed w₀ b b 5
-  set T : Finset (Fin U) := insert u (S.erase u)
-  set Good : Finset Top := reducedGoodTop U w₀ (3 * b) T
-  set Bad : Finset Top := Finset.univ \ Good
-  have hprod_sum :
-      (∑ θ : QuotSeed w₀ n, seedClusterBound U w₀ n S u θ) =
-        ∑ α : Top, ∑ β : Bot, seedClusterBound U w₀ n S u (α, β) :=
-    Fintype.sum_prod_type _
-  have hsplit :
-      (∑ α : Top, ∑ β : Bot, seedClusterBound U w₀ n S u (α, β)) =
-        (∑ α ∈ Good, ∑ β : Bot, seedClusterBound U w₀ n S u (α, β)) +
-        (∑ α ∈ Bad, ∑ β : Bot, seedClusterBound U w₀ n S u (α, β)) := by
-    rw [← Finset.sum_union Finset.sdiff_disjoint.symm,
-      Finset.union_sdiff_of_subset (Finset.subset_univ _)]
-  have hgood_each :
-      ∀ α ∈ Good,
-        (∑ β : Bot, seedClusterBound U w₀ n S u (α, β)) ≤
-          289 * Fintype.card Bot := by
-    intro α hα
-    have hsub :
-        (∑ β : Bot, (seedClusterBound U w₀ n S u (α, β) - 1)) ≤
-          288 * Fintype.card Bot :=
-      sum_seedClusterBound_sub_one_goodTop_le hU hS u hα
-    have hle_add :
-        (∑ β : Bot, seedClusterBound U w₀ n S u (α, β)) ≤
-          (∑ β : Bot, (seedClusterBound U w₀ n S u (α, β) - 1)) +
-            Fintype.card Bot := by
-      have h1 : (Fintype.card Bot : ℕ) = ∑ _β : Bot, 1 := by simp
-      rw [h1, ← Finset.sum_add_distrib]
-      refine Finset.sum_le_sum fun β _ => ?_
-      omega
+  let b := quotBits w₀ n
+  let Top := ReducedTopSeed w₀
+  let Bot := ReducedBotSeed w₀ b b 5
+  let T : Finset (Fin U) := insert u (S.erase u)
+  let Good : Finset Top := reducedGoodTop U w₀ (3 * b) T
+  let Bad : Finset Top := Finset.univ \ Good
+  have hgood_each (α : Top) (hα : α ∈ Good) :
+      (∑ β : Bot, seedClusterBound U w₀ n S u (α, β)) ≤ 289 * Fintype.card Bot := by
+    have hle := Finset.sum_le_sum fun (β : Bot) (_ : β ∈ Finset.univ) =>
+      Nat.sub_le_iff_le_add.mp (le_rfl : seedClusterBound U w₀ n S u (α, β) - 1 ≤ _)
+    rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, smul_eq_mul, mul_one] at hle
+    linarith [sum_seedClusterBound_sub_one_goodTop_le hU hS u hα]
+  have hsum_good : (∑ α ∈ Good, ∑ β : Bot, seedClusterBound U w₀ n S u (α, β)) ≤
+      289 * Fintype.card (QuotSeed w₀ n) :=
+    (Finset.sum_le_sum hgood_each).trans <| by
+      rw [Finset.sum_const, smul_eq_mul, Fintype.card_prod]
+      exact (Nat.mul_le_mul_left 289 (Nat.mul_le_mul_right _ (Finset.card_le_univ Good))).trans_eq'
+        (by ring)
+  have hT_le : #T ≤ 2 ^ b := by
+    have := (Finset.card_insert_le u (S.erase u)).trans
+      (Nat.add_le_add_right (Finset.card_erase_le.trans (card_le_effCap hU hS)) 1)
+    have := eight_mul_effCap_le_two_pow_quotBits w₀ n
+    have := eight_le_two_pow_quotBits w₀ n
+    dsimp only [T, b]
     omega
-  have hsum_good :
-      (∑ α ∈ Good, ∑ β : Bot, seedClusterBound U w₀ n S u (α, β)) ≤
-        289 * Fintype.card (QuotSeed w₀ n) := by
-    calc (∑ α ∈ Good, ∑ β : Bot, seedClusterBound U w₀ n S u (α, β))
-        ≤ ∑ _α ∈ Good, 289 * Fintype.card Bot := Finset.sum_le_sum hgood_each
-      _ = #Good * (289 * Fintype.card Bot) := by rw [Finset.sum_const, smul_eq_mul]
-      _ ≤ Fintype.card Top * (289 * Fintype.card Bot) :=
-          Nat.mul_le_mul_right _ (Finset.card_le_univ Good)
-      _ = 289 * (Fintype.card Top * Fintype.card Bot) := by ring
-      _ = 289 * Fintype.card (QuotSeed w₀ n) := by rw [Fintype.card_prod]
   have hbad_card : #Bad * 2 ^ b ≤ Fintype.card Top := by
-    have h1 := card_not_injOn_multiplyShiftReduced_le (R := 3 * b) hw₀ hU T
-    have hT_le : #T ≤ 2 ^ b := by
-      have hS_le : #(S.erase u) ≤ effCap w₀ n :=
-        (Finset.card_erase_le).trans (card_le_effCap hU hS)
-      have h8 : 8 * effCap w₀ n ≤ 2 ^ b := eight_mul_effCap_le_two_pow_quotBits w₀ n
-      have h8' : 8 ≤ 2 ^ b := eight_le_two_pow_quotBits w₀ n
-      have hT_card : #T ≤ #(S.erase u) + 1 := Finset.card_insert_le u (S.erase u)
-      omega
-    have hT_prod : #T * (#T - 1) ≤ 2 ^ (2 * b) := by
-      calc #T * (#T - 1) ≤ #T * #T := Nat.mul_le_mul_left _ (Nat.sub_le _ _)
-        _ ≤ 2 ^ b * 2 ^ b := Nat.mul_le_mul hT_le hT_le
-        _ = 2 ^ (2 * b) := by rw [← pow_add, two_mul]
-    have hpow_3b : 2 ^ (3 * b) = 2 ^ b * 2 ^ (2 * b) := by
-      rw [← pow_add]
-      congr 1
-      omega
-    have htop_card : Fintype.card Top = 2 ^ (w₀ - 1) := Fintype.card_fin _
-    have h2 : (#Bad * 2 ^ b) * 2 ^ (2 * b) ≤ Fintype.card Top * 2 ^ (2 * b) := by
-      calc (#Bad * 2 ^ b) * 2 ^ (2 * b)
-          = #Bad * 2 ^ (3 * b) := by rw [hpow_3b]; ring
-        _ ≤ (#T * (#T - 1)) * 2 ^ (w₀ - 1) := h1
-        _ ≤ 2 ^ (2 * b) * 2 ^ (w₀ - 1) := Nat.mul_le_mul_right _ hT_prod
-        _ = Fintype.card Top * 2 ^ (2 * b) := by rw [htop_card, mul_comm]
-    exact Nat.le_of_mul_le_mul_right h2 (by positivity)
-  have hsum_bad :
-      (∑ α ∈ Bad, ∑ β : Bot, seedClusterBound U w₀ n S u (α, β)) ≤
-        Fintype.card (QuotSeed w₀ n) := by
-    calc (∑ α ∈ Bad, ∑ β : Bot, seedClusterBound U w₀ n S u (α, β))
-        ≤ ∑ _α ∈ Bad, ∑ _β : Bot, 2 ^ b := by
-          refine Finset.sum_le_sum fun α hα => Finset.sum_le_sum fun β _ => ?_
-          have hnot : α ∉ Good := (Finset.mem_sdiff.mp hα).2
-          dsimp only [seedClusterBound]
-          rw [ite_eq_right hnot]
-      _ = (#Bad * 2 ^ b) * Fintype.card Bot := by
-          simp only [Finset.sum_const, Finset.card_univ, smul_eq_mul]
-          ring
-      _ ≤ Fintype.card Top * Fintype.card Bot := by gcongr
-      _ = Fintype.card (QuotSeed w₀ n) := (Fintype.card_prod Top Bot).symm
-  rw [hprod_sum, hsplit]
-  omega
+    refine Nat.le_of_mul_le_mul_right (c := 2 ^ (2 * b)) ?_ (Nat.two_pow_pos _)
+    calc (#Bad * 2 ^ b) * 2 ^ (2 * b)
+        = #Bad * 2 ^ (3 * b) := by rw [mul_assoc, ← pow_add, add_comm, ← Nat.succ_mul]
+      _ ≤ (#T * (#T - 1)) * 2 ^ (w₀ - 1) := card_not_injOn_multiplyShiftReduced_le hw₀ hU T
+      _ ≤ (2 ^ b * 2 ^ b) * Fintype.card Top :=
+          Nat.mul_le_mul (Nat.mul_le_mul hT_le ((Nat.sub_le _ _).trans hT_le))
+            (Fintype.card_fin _).symm.le
+      _ = Fintype.card Top * 2 ^ (2 * b) := by rw [← pow_add, ← two_mul, mul_comm]
+  have hsum_bad : (∑ α ∈ Bad, ∑ β : Bot, seedClusterBound U w₀ n S u (α, β)) ≤
+      Fintype.card (QuotSeed w₀ n) := by
+    have hval (α : Top) (hα : α ∈ Bad) (β : Bot) :
+        seedClusterBound U w₀ n S u (α, β) = 2 ^ b := ite_eq_right (Finset.mem_sdiff.mp hα).2
+    rw [Finset.sum_congr rfl fun α hα => Finset.sum_congr rfl fun β _ => hval α hα β]
+    simp only [Finset.sum_const, Finset.card_univ, smul_eq_mul, Fintype.card_prod]
+    exact (Nat.mul_le_mul_right _ hbad_card).trans_eq' (by ring)
+  rw [Fintype.sum_prod_type, ← Finset.sum_sdiff (Finset.subset_univ Good)]
+  linarith
 
 /-- **`ℝ≥0∞` expectation bound on `seedClusterBound` under `filterSeedLaw w₀ n`**:
 `∑' p : FilterSeed w₀ n, filterSeedLaw w₀ n p * (seedClusterBound U w₀ n S u p.1 : ℝ≥0∞) ≤ 290`. -/
@@ -710,36 +448,13 @@ theorem tsum_seedClusterBound_le {U w₀ n : ℕ} (hw₀ : 0 < w₀) (hU : U ≤
     (∑' p : FilterSeed w₀ n,
       (filterSeedLaw w₀ n) p * (seedClusterBound U w₀ n S u p.1 : ℝ≥0∞)) ≤ 290 := by
   classical
-  have hsum_all :
-      (∑ p : FilterSeed w₀ n, seedClusterBound U w₀ n S u p.1) ≤
-        290 * Fintype.card (FilterSeed w₀ n) := by
-    rw [Fintype.sum_prod_type_right]
-    calc (∑ _γ : RemSeed w₀, ∑ θ : QuotSeed w₀ n, seedClusterBound U w₀ n S u θ)
-        ≤ ∑ _γ : RemSeed w₀, 290 * Fintype.card (QuotSeed w₀ n) := by
-          refine Finset.sum_le_sum fun _ _ => sum_seedClusterBound_le hw₀ hU hS u
-      _ = Fintype.card (RemSeed w₀) * (290 * Fintype.card (QuotSeed w₀ n)) := by
-          rw [Finset.sum_const, Finset.card_univ, smul_eq_mul]
-      _ = 290 * (Fintype.card (QuotSeed w₀ n) * Fintype.card (RemSeed w₀)) := by ring
-      _ = 290 * Fintype.card (FilterSeed w₀ n) := by
-          rw [← Fintype.card_prod (QuotSeed w₀ n) (RemSeed w₀)]
-  calc (∑' p : FilterSeed w₀ n,
-        (filterSeedLaw w₀ n) p * (seedClusterBound U w₀ n S u p.1 : ℝ≥0∞))
-      = ∑ p : FilterSeed w₀ n,
-          (Fintype.card (FilterSeed w₀ n) : ℝ≥0∞)⁻¹ *
-            (seedClusterBound U w₀ n S u p.1 : ℝ≥0∞) := by
-        rw [tsum_fintype]
-        simp [filterSeedLaw, PMF.uniformOfFintype_apply]
-    _ = (Fintype.card (FilterSeed w₀ n) : ℝ≥0∞)⁻¹ *
-          ((∑ p : FilterSeed w₀ n, seedClusterBound U w₀ n S u p.1 : ℕ) : ℝ≥0∞) := by
-        rw [← Finset.mul_sum, Nat.cast_sum]
-    _ ≤ (Fintype.card (FilterSeed w₀ n) : ℝ≥0∞)⁻¹ *
-          ((290 * Fintype.card (FilterSeed w₀ n) : ℕ) : ℝ≥0∞) := by
-        gcongr
-    _ = 290 := by
-        push_cast
-        rw [mul_comm (290 : ℝ≥0∞), ← mul_assoc, ENNReal.inv_mul_cancel, one_mul]
-        · exact Nat.cast_ne_zero.mpr Fintype.card_ne_zero
-        · exact ENNReal.natCast_ne_top _
+  simp only [tsum_fintype, filterSeedLaw, PMF.uniformOfFintype_apply]
+  rw [← Finset.mul_sum, ← Nat.cast_sum, mul_comm, ← div_eq_mul_inv]
+  refine ENNReal.div_le_of_le_mul ?_
+  norm_cast
+  refine (Fintype.sum_prod_type_right _).trans_le
+    ((Finset.sum_le_sum fun _ _ => sum_seedClusterBound_le hw₀ hU hS u).trans_eq ?_)
+  rw [Finset.sum_const, Finset.card_univ, smul_eq_mul, Fintype.card_prod (QuotSeed w₀ n)]; ring
 
 /-- **Unconditional sum bound on `clusterLen` over `QuotSeed w₀ n`**:
 for any `S : Finset (Fin U)` with `#S ≤ n` and any `u : Fin U` (`0 < w₀`, `U ≤ 2 ^ w₀`),

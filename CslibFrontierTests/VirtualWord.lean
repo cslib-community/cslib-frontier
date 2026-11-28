@@ -23,6 +23,14 @@ namespace Cslib.Complexity.VirtualWordTest
 
 open Turing Turing.MultiTapeTM
 
+-- Structure encodings reproduce the exact former tuple encodings (`rfl`).
+example (cut i : ℕ) (suffix : List Bool) (halt : Bool) :
+    VirtualWord.encData ⟨cut, suffix, i⟩ =
+      encPair encNat (encPair encBits encNat) (cut, suffix, i) ∧
+    VirtualWord.encState ⟨⟨cut, suffix, i⟩, halt⟩ =
+      encPair VirtualWord.encData encBool (⟨cut, suffix, i⟩, halt) :=
+  ⟨rfl, rfl⟩
+
 -- Empty input: no suffix and a default read at zero.
 example : (VirtualWord.machine (localQueryAccessData 0 [] 0)).output [] 1 = [false] := by decide
 
@@ -46,7 +54,7 @@ example : (List.range 6).map (fun i =>
       [true, true, true, false, true] 1) =
     [[true], [true], [false], [true], [false], [false]] := by decide
 
-example : (VirtualWord.machine (1, [false, true], 100)).output
+example : (VirtualWord.machine ⟨1, [false, true], 100⟩).output
     [true, false, false] 1 = [false] := by decide
 
 /-- An actual local query, accessed through the original prefix rather than a copied query. -/
@@ -80,7 +88,7 @@ example : ComputableInLogSpace
   localQueryAccess_inLogSpace 1 0 [] (by decide) (by decide)
 
 -- Past-end addresses remain correct, but their binary storage must still be charged.
-example : (VirtualWord.encState ((1, [false, true], 100), false)).length =
+example : (VirtualWord.encState ⟨⟨1, [false, true], 100⟩, false⟩).length =
     4 * (encNat 1).length + 8 + 2 * (encNat 100).length + 6 :=
   VirtualWord.length_encState 1 100 [false, true] false
 

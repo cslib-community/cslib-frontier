@@ -57,17 +57,6 @@ def power (ℓ : S) (k : ℕ) : OracleComp (GroupOracleSpec n S) S :=
     let sq ← product half half
     if k % 2 = 0 then pure sq else product sq ℓ
 
-private theorem power_of_le_one (ℓ : S) {k : ℕ} (hk : k ≤ 1) :
-    power (n := n) ℓ k = pure ℓ := by
-  rw [power]; split_ifs; rfl
-
-private theorem power_of_one_lt (ℓ : S) {k : ℕ} (hk : 1 < k) :
-    power (n := n) ℓ k = (do
-      let half ← power ℓ (k / 2)
-      let sq ← product half half
-      if k % 2 = 0 then pure sq else product sq ℓ) := by
-  rw [power]; simp only [show ¬k ≤ 1 by omega, ↓reduceDIte]
-
 /-- Every query made by `product` is a product (`GroupQuery.IsProduct`). -/
 theorem queriesSatisfy_product (a b : S) :
     OracleComp.QueriesSatisfy GroupQuery.IsProduct (product (n := n) a b) :=
@@ -82,33 +71,27 @@ theorem isQueryBounded_product (a b : S) :
 /-- Every query made by `power` is a product (`GroupQuery.IsProduct`). -/
 theorem queriesSatisfy_power (ℓ : S) (k : ℕ) :
     OracleComp.QueriesSatisfy GroupQuery.IsProduct (power (n := n) ℓ k) := by
-  induction k using Nat.strong_induction_on with
-  | ind k ih =>
-    by_cases hk : k ≤ 1
-    · rw [power_of_le_one _ hk]; exact .pure _
-    · rw [power_of_one_lt _ (by omega)]
-      refine .bind (ih (k / 2) (by omega)) fun h =>
-        .bind (queriesSatisfy_product h h) fun sq => ?_
-      split_ifs <;> [exact .pure _; exact queriesSatisfy_product sq ℓ]
+  fun_induction power (n := n) ℓ k with
+  | case1 => exact .pure _ -- k ≤ 1
+  | case2 k hk ih => -- 1 < k: square `power ℓ (k / 2)`
+    refine .bind ih fun h => .bind (queriesSatisfy_product h h) fun sq => ?_
+    split_ifs <;> [exact .pure _; exact queriesSatisfy_product sq ℓ]
 
 /-- `power` makes at most `2 * Nat.log 2 k` product queries on every path, whatever the oracle
 returns; the factor `2` is this library's and exponent arithmetic is not costed. -/
 theorem isQueryBounded_power (ℓ : S) (k : ℕ) :
     OracleComp.IsQueryBounded (power (n := n) ℓ k) (2 * Nat.log 2 k) := by
-  induction k using Nat.strong_induction_on with
-  | ind k ih =>
-    by_cases hk : k ≤ 1
-    · rw [power_of_le_one _ hk]; exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
-    · have hk1 : 1 < k := by omega
-      have hlog : Nat.log 2 k = Nat.log 2 (k / 2) + 1 := Nat.log_of_one_lt_of_le (by omega) hk1
-      rw [power_of_one_lt _ hk1]
-      refine .mono (n := 2 * Nat.log 2 (k / 2) + (1 + 1))
-        (.bind (ih (k / 2) (by omega)) fun half =>
-          .bind (isQueryBounded_product half half) fun sq => ?_)
-        (by rw [hlog]; omega)
-      split_ifs
-      · exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le 1)
-      · exact isQueryBounded_product sq ℓ
+  fun_induction power (n := n) ℓ k with
+  | case1 => exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _) -- k ≤ 1
+  | case2 k hk ih => -- 1 < k: square `power ℓ (k / 2)`
+    have hk1 : 1 < k := by omega
+    have hlog : Nat.log 2 k = Nat.log 2 (k / 2) + 1 := Nat.log_of_one_lt_of_le (by omega) hk1
+    refine .mono (n := 2 * Nat.log 2 (k / 2) + (1 + 1))
+      (.bind ih fun half => .bind (isQueryBounded_product half half) fun sq => ?_)
+      (by rw [hlog]; omega)
+    split_ifs
+    · exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le 1)
+    · exact isQueryBounded_product sq ℓ
 
 /-- Against any oracle that multiplies labels of `L`, `product` outputs `L (β₁ + β₂)`. -/
 theorem evalPure_product {L : ZMod n → S} {O : (q : GroupQuery n S) → GroupOracleSpec n S q}
@@ -122,20 +105,18 @@ theorem evalPure_power {L : ZMod n → S} {O : (q : GroupQuery n S) → GroupOra
     (hO : ∀ β₁ β₂, O (.op (L β₁) (L β₂) 1 1) = some (L (β₁ + β₂)))
     (β : ZMod n) {k : ℕ} (hk : 1 ≤ k) :
     (power (n := n) (L β) k).evalPure O = L ((k : ZMod n) * β) := by
-  induction k using Nat.strong_induction_on with
-  | ind k ih =>
-    by_cases hk1 : k ≤ 1
-    · have hk_eq : k = 1 := by omega
-      rw [power_of_le_one _ hk1, OracleComp.evalPure_pure, hk_eq, Nat.cast_one, one_mul]
-    · have hhalf := ih (k / 2) (by omega) (by omega)
-      rw [power_of_one_lt _ (by omega), OracleComp.evalPure_bind, hhalf,
-        OracleComp.evalPure_bind, evalPure_product hO]
-      split_ifs with hmod
-      · rw [OracleComp.evalPure_pure, ← add_mul, ← two_mul]
-        norm_cast; rw [show 2 * (k / 2) = k by omega]
-      · rw [evalPure_product hO]; congr 1
-        nth_rw 3 [← one_mul β]
-        rw [← add_mul, ← add_mul]
-        norm_cast; rw [show k / 2 + k / 2 + 1 = k by omega]
+  fun_induction power (n := n) (L β) k with
+  | case1 k hk1 => -- k ≤ 1
+    obtain rfl : k = 1 := by omega
+    rw [OracleComp.evalPure_pure, Nat.cast_one, one_mul]
+  | case2 k hk1 ih => -- 1 < k: square `power (L β) (k / 2)`
+    rw [OracleComp.evalPure_bind, ih (by omega), OracleComp.evalPure_bind, evalPure_product hO]
+    split_ifs with hmod
+    · rw [OracleComp.evalPure_pure, ← add_mul, ← two_mul]
+      norm_cast; rw [show 2 * (k / 2) = k by omega]
+    · rw [evalPure_product hO]; congr 1
+      nth_rw 3 [← one_mul β]
+      rw [← add_mul, ← add_mul]
+      norm_cast; rw [show k / 2 + k / 2 + 1 = k by omega]
 
 end Cslib.Crypto.GenericGroup

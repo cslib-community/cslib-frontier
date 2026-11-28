@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.CNF
+public import CslibFrontier.Logics.Propositional.LineProof
 public import Mathlib.LinearAlgebra.Finsupp.LinearCombination
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Tactic.Linarith
@@ -53,7 +54,8 @@ unsatisfiable.
 * `Cslib.Logic.PL.Ineq.relabel`: renaming the variables.
 * `Cslib.Logic.PL.Literal.toIneq`, `Cslib.Logic.PL.Clause.toIneq`, `Cslib.Logic.PL.CNF.toIneqs`:
   literals, clauses and CNFs as inequalities.
-* `Cslib.Logic.PL.CuttingPlanes.IsProof`: cutting planes proofs.
+* `Cslib.Logic.PL.CuttingPlanes.IsProof`, `Cslib.Logic.PL.CuttingPlanes.rules`: cutting planes
+  proofs and inference rules.
 * `Cslib.Logic.PL.CuttingPlanes.DerivableInSize`, `Cslib.Logic.PL.CuttingPlanes.RefutableInSize`:
   derivability and refutability with a bounded number of lines.
 
@@ -61,6 +63,8 @@ unsatisfiable.
 
 * `Cslib.Logic.PL.Ineq.Holds.div`: soundness of rounded division.
 * `Cslib.Logic.PL.Clause.holds_toIneq_iff`: the translation of clauses is faithful.
+* `Cslib.Logic.PL.CuttingPlanes.isProof_iff_lineProof`: cutting planes proofs as
+  `Cslib.Logic.PL.LineProof` derivations.
 * `Cslib.Logic.PL.CuttingPlanes.IsProof.holds`,
   `Cslib.Logic.PL.CuttingPlanes.RefutableInSize.not_exists_holds`,
   `Cslib.Logic.PL.CuttingPlanes.RefutableInSize.not_satisfiable`: soundness.
@@ -68,6 +72,12 @@ unsatisfiable.
   `Cslib.Logic.PL.CuttingPlanes.DerivableInSize.extend`: composing proofs.
 * `Cslib.Logic.PL.CuttingPlanes.IsProof.mono`, `Cslib.Logic.PL.CuttingPlanes.IsProof.restrict`:
   a proof uses only the hypotheses among its lines.
+* `Cslib.Logic.PL.CuttingPlanes.IsProof.relabel`,
+  `Cslib.Logic.PL.CuttingPlanes.DerivableInSize.relabel`,
+  `Cslib.Logic.PL.CuttingPlanes.RefutableInSize.relabel`: renaming the variables along any map
+  renames proofs, derivations and refutations, keeping their size.
+* `Cslib.Logic.PL.CNF.toIneqs_relabel`: along an injective map, the inequalities of a renamed CNF
+  are the renamed inequalities.
 
 ## References
 
@@ -180,19 +190,20 @@ theorem lhs_of_coeff_eq_smul (σ : V → Bool) {I J : Ineq V} {c : ℤ} (h : I.c
 /-- The left-hand side over finitely many variables, as a sum. -/
 theorem lhs_eq_sum [Fintype V] (σ : V → Bool) (I : Ineq V) :
     I.lhs σ = ∑ v, I.coeff v * (σ v).toInt := by
-  rw [lhs, Finsupp.linearCombination_apply, Finsupp.sum_fintype _ _ fun _ => by simp]
-  rfl
+  simp [lhs, Finsupp.linearCombination_apply, Finsupp.sum_fintype]
+
+/-- The left-hand side as a sum over the nonzero coefficients. -/
+theorem lhs_eq_finsuppSum (σ : V → Bool) (I : Ineq V) :
+    I.lhs σ = I.coeff.sum fun v a => a * (σ v).toInt := by
+  simp [lhs, Finsupp.linearCombination_apply]
 
 theorem Holds.add {σ : V → Bool} {I J : Ineq V} (hI : I.Holds σ) (hJ : J.Holds σ) :
     (I + J).Holds σ := by
-  unfold Holds at *
-  rw [bound_add, lhs_add]
-  exact add_le_add hI hJ
+  simpa only [Holds, bound_add, lhs_add] using add_le_add hI hJ
 
 theorem Holds.nsmul {σ : V → Bool} {I : Ineq V} (c : ℕ) (h : I.Holds σ) : (c • I).Holds σ := by
-  unfold Holds at *
-  rw [bound_nsmul, lhs_nsmul, nsmul_eq_mul]
-  exact mul_le_mul_of_nonneg_left h (Int.natCast_nonneg c)
+  simpa only [Holds, bound_nsmul, lhs_nsmul, nsmul_eq_mul] using
+    mul_le_mul_of_nonneg_left h (Int.natCast_nonneg c)
 
 /-! ### The axioms and the contradiction -/
 
@@ -240,17 +251,14 @@ is integer division. It is sound when `c` divides every coefficient
 /-- `⌈b / c⌉ ≤ y` iff `b ≤ c y`. -/
 theorem bound_div_le_iff {I : Ineq V} {c : ℕ} (hc : 0 < c) {y : ℤ} :
     (I.div c).bound ≤ y ↔ I.bound ≤ c * y := by
-  have hc' : (0 : ℤ) < c := by exact_mod_cast hc
-  rw [bound_div, neg_le, Int.le_ediv_iff_mul_le hc']
-  constructor <;> intro h <;> linarith
+  rw [bound_div, neg_le, Int.le_ediv_iff_mul_le (Int.natCast_pos.2 hc), neg_mul, neg_le_neg_iff,
+    mul_comm]
 
 /-- If `c` divides every coefficient of `I`, multiplying the coefficients of `I.div c` by `c` gives
 back those of `I`. -/
 theorem smul_coeff_div {I : Ineq V} {c : ℕ} (hdvd : ∀ v, (c : ℤ) ∣ I.coeff v) :
     (c : ℤ) • (I.div c).coeff = I.coeff := by
-  ext v
-  simp only [Finsupp.smul_apply, coeff_div, smul_eq_mul]
-  exact Int.mul_ediv_cancel' (hdvd v)
+  exact Finsupp.ext fun v => Int.mul_ediv_cancel' (hdvd v)
 
 /-- **Soundness of rounded division**: if `c` divides every coefficient of `I`, every 0/1
 assignment satisfying `I` satisfies `I.div c`. At `c = 0`, `I.div 0` is `0 ≥ 0`. -/
@@ -258,11 +266,8 @@ theorem Holds.div {σ : V → Bool} {I : Ineq V} {c : ℕ}
     (hdvd : ∀ v, (c : ℤ) ∣ I.coeff v) (h : I.Holds σ) : (I.div c).Holds σ := by
   obtain rfl | hc := Nat.eq_zero_or_pos c
   · have h0 : I.div 0 = 0 := by ext <;> simp
-    rw [h0]
-    exact le_of_eq (lhs_zero σ).symm
-  unfold Holds at h ⊢
-  rw [bound_div_le_iff hc, ← lhs_of_coeff_eq_smul σ (smul_coeff_div hdvd).symm]
-  exact h
+    simp [Holds, h0]
+  rwa [Holds, bound_div_le_iff hc, ← lhs_of_coeff_eq_smul σ (smul_coeff_div hdvd).symm]
 
 /-- Recognizing a rounded division: `I.div c = J` when the coefficients of `I` are `c` times those
 of `J` and `⌈b_I / c⌉ = b_J`. -/
@@ -294,13 +299,58 @@ theorem coeff_relabel (f : V → W) (I : Ineq V) : (I.relabel f).coeff = I.coeff
 
 @[simp] theorem lhs_relabel (f : V → W) (σ : W → Bool) (I : Ineq V) :
     (I.relabel f).lhs σ = I.lhs (σ ∘ f) := by
-  simp only [lhs, coeff_relabel, Finsupp.linearCombination_mapDomain]
-  rfl
+  simp [lhs, coeff_relabel, Finsupp.linearCombination_mapDomain, Function.comp_def]
 
 /-- `σ` satisfies a renamed inequality iff `σ ∘ f` satisfies the original. -/
 @[simp] theorem holds_relabel (f : V → W) (σ : W → Bool) (I : Ineq V) :
     (I.relabel f).Holds σ ↔ I.Holds (σ ∘ f) := by
   simp only [Holds, bound_relabel, lhs_relabel]
+
+theorem relabel_add (f : V → W) (I J : Ineq V) : (I + J).relabel f = I.relabel f + J.relabel f :=
+  Ineq.ext Finsupp.mapDomain_add rfl
+
+theorem relabel_nsmul (f : V → W) (c : ℕ) (I : Ineq V) : (c • I).relabel f = c • I.relabel f :=
+  Ineq.ext (Finsupp.mapDomain_smul c I.coeff) rfl
+
+@[simp] theorem relabel_contra (f : V → W) : (contra : Ineq V).relabel f = contra :=
+  Ineq.ext (Finsupp.mapDomain_zero (f := f)) rfl
+
+@[simp] theorem relabel_nonneg (f : V → W) (v : V) : (nonneg v).relabel f = nonneg (f v) :=
+  Ineq.ext Finsupp.mapDomain_single rfl
+
+@[simp] theorem relabel_leOne (f : V → W) (v : V) : (leOne v).relabel f = leOne (f v) :=
+  Ineq.ext Finsupp.mapDomain_single rfl
+
+theorem relabel_sum {ι : Type*} (f : V → W) (s : Finset ι) (g : ι → Ineq V) :
+    (∑ i ∈ s, g i).relabel f = ∑ i ∈ s, (g i).relabel f :=
+  map_sum (⟨⟨relabel f, Ineq.ext (Finsupp.mapDomain_zero (f := f)) rfl⟩, relabel_add f⟩ :
+    Ineq V →+ Ineq W)
+    g s
+
+/-- When `c` divides every coefficient of `I`, the coefficients of the renamed inequality are `c`
+times those of the renamed division. -/
+theorem coeff_relabel_eq_smul_div (f : V → W) {I : Ineq V} {c : ℕ}
+    (hdvd : ∀ v, (c : ℤ) ∣ I.coeff v) :
+    (I.relabel f).coeff = (c : ℤ) • ((I.div c).relabel f).coeff := by
+  rw [coeff_relabel, coeff_relabel, ← Finsupp.mapDomain_smul, smul_coeff_div hdvd]
+
+/-- When `c` divides every coefficient of `I`, it divides every coefficient of the renamed
+inequality. -/
+theorem dvd_coeff_relabel (f : V → W) {I : Ineq V} {c : ℕ} (hdvd : ∀ v, (c : ℤ) ∣ I.coeff v)
+    (w : W) : (c : ℤ) ∣ (I.relabel f).coeff w := by
+  rw [coeff_relabel_eq_smul_div f hdvd, Finsupp.smul_apply, smul_eq_mul]
+  exact dvd_mul_right _ _
+
+/-- When `c` divides every coefficient of `I`, division by `c` commutes with renaming. -/
+theorem relabel_div_of_dvd (f : V → W) {I : Ineq V} {c : ℕ} (hdvd : ∀ v, (c : ℤ) ∣ I.coeff v) :
+    (I.div c).relabel f = (I.relabel f).div c := by
+  ext w
+  · rw [coeff_div, coeff_relabel_eq_smul_div f hdvd, Finsupp.smul_apply, smul_eq_mul]
+    rcases Nat.eq_zero_or_pos c with rfl | hc
+    · have h0 : (I.div 0).coeff = 0 := by ext v; simp
+      simp [coeff_relabel, h0]
+    · exact (Int.mul_ediv_cancel_left _ (Int.natCast_pos.2 hc).ne').symm
+  · rfl
 
 end Ineq
 
@@ -353,13 +403,10 @@ theorem Clause.holds_toIneq_iff [DecidableEq V] (σ : V → Bool) (c : Clause V)
   constructor
   · intro h
     obtain ⟨l, hl, hl'⟩ := hpos.1 (by linarith)
-    refine ⟨l, List.mem_toFinset.1 hl, ?_⟩
-    rw [← Literal.eval_eq_true_iff]
-    cases h' : Literal.eval σ l <;> simp_all
+    exact ⟨l, List.mem_toFinset.1 hl, (Literal.eval_eq_true_iff σ l).1
+      (by cases h' : Literal.eval σ l <;> simp_all)⟩
   · rintro ⟨l, hl, hl'⟩
-    have : 0 < ∑ l ∈ c.toFinset, (Literal.eval σ l).toInt :=
-      hpos.2 ⟨l, List.mem_toFinset.2 hl, by simp [(Literal.eval_eq_true_iff σ l).2 hl']⟩
-    linarith
+    linarith [hpos.2 ⟨l, List.mem_toFinset.2 hl, by simp [(Literal.eval_eq_true_iff σ l).2 hl']⟩]
 
 /-- The empty clause translates to `0 ≥ 1`. -/
 @[simp] theorem Clause.toIneq_nil [DecidableEq V] : Clause.toIneq ([] : Clause V) = contra := by
@@ -382,11 +429,34 @@ theorem CNF.toIneq_mem_toIneqs [DecidableEq V] {φ : CNF V} {c : Clause V} (hc :
 theorem CNF.holds_toIneqs_iff [DecidableEq V] (σ : V → Bool) (φ : CNF V) :
     (∀ I ∈ φ.toIneqs, I.Holds σ) ↔ φ.eval σ = true := by
   rw [CNF.eval_eq_true_iff]
-  constructor
-  · intro h c hc
-    exact (Clause.holds_toIneq_iff σ c).1 (h _ (toIneq_mem_toIneqs hc))
-  · rintro h _ ⟨c, hc, rfl⟩
-    exact (Clause.holds_toIneq_iff σ c).2 (h c hc)
+  exact ⟨fun h c hc => (Clause.holds_toIneq_iff σ c).1 (h _ (toIneq_mem_toIneqs hc)),
+    fun h _ ⟨c, hc, hI⟩ => hI ▸ (Clause.holds_toIneq_iff σ c).2 (h c hc)⟩
+
+/-- Renaming the variable of a literal renames its inequality. -/
+theorem Literal.relabel_toIneq {W : Type*} (f : V → W) (l : Literal V) :
+    l.toIneq.relabel f = Literal.toIneq (Prod.map f id l : Literal W) := by
+  obtain ⟨v, b⟩ := l
+  cases b <;> simp [Literal.toIneq]
+
+/-- Along an injective renaming, the inequality of a renamed clause is the renamed inequality. -/
+theorem Clause.toIneq_relabel [DecidableEq V] {W : Type*} [DecidableEq W] {f : V → W}
+    (hf : f.Injective) (c : Clause V) : (c.relabel f).toIneq = c.toIneq.relabel f := by
+  have himage : (c.map (Prod.map f id)).toFinset = c.toFinset.image (Prod.map f id) := by
+    ext; simp
+  rw [Clause.toIneq, Clause.toIneq, relabel_add, relabel_contra, relabel_sum, Clause.relabel,
+    himage, Finset.sum_image fun _ _ _ _ h => (hf.prodMap Function.injective_id) h]
+  simp only [Literal.relabel_toIneq]
+
+/-- Along an injective renaming, the inequalities of a renamed CNF are the renamed
+inequalities. -/
+theorem CNF.toIneqs_relabel [DecidableEq V] {W : Type*} [DecidableEq W] {f : V → W}
+    (hf : f.Injective) (φ : CNF V) : (φ.relabel f).toIneqs = Ineq.relabel f '' φ.toIneqs := by
+  ext I
+  simp only [CNF.toIneqs, CNF.relabel, List.mem_map, Set.mem_image, Set.mem_ofPred_eq]
+  exact ⟨fun ⟨_, ⟨c, hc, hc'⟩, hI⟩ =>
+      ⟨c.toIneq, ⟨c, hc, rfl⟩, hI ▸ hc' ▸ (Clause.toIneq_relabel hf c).symm⟩,
+    fun ⟨_, ⟨c, hc, hc'⟩, hI⟩ =>
+      ⟨c.relabel f, ⟨c, hc, rfl⟩, hI ▸ hc' ▸ Clause.toIneq_relabel hf c⟩⟩
 
 /-! ### Proofs -/
 
@@ -425,96 +495,105 @@ inductive IsProof (Γ : Set (Ineq V)) : List (Ineq V) → Prop
 
 variable {Γ Δ : Set (Ineq V)} {ls ls' : List (Ineq V)} {I J : Ineq V} {s t : ℕ}
 
+/-- The axioms and inference rules of cutting planes as `Cslib.Logic.PL.LineRule`s: the box axioms
+`xᵥ ≥ 0` and `-xᵥ ≥ -1`, addition, multiplication by a positive integer, and rounded division by a
+positive integer dividing every coefficient. -/
+@[expose] def rules (V : Type*) : Set (LineRule (Ineq V)) :=
+  {r | (∃ v, r = ⟨[], Ineq.nonneg v⟩) ∨ (∃ v, r = ⟨[], Ineq.leOne v⟩) ∨
+    (∃ I J, r = ⟨[I, J], I + J⟩) ∨ (∃ (I : Ineq V) (c : ℕ), 0 < c ∧ r = ⟨[I], c • I⟩) ∨
+    ∃ (I : Ineq V) (c : ℕ), 0 < c ∧ (∀ v, (c : ℤ) ∣ I.coeff v) ∧ r = ⟨[I], I.div c⟩}
+
+/-- Every cutting planes rule has at most two premises. -/
+theorem rules_premises_length_le {r : LineRule (Ineq V)} (hr : r ∈ rules V) :
+    r.premises.length ≤ 2 := by
+  rcases hr with ⟨_, rfl⟩ | ⟨_, rfl⟩ | ⟨_, _, rfl⟩ | ⟨_, _, -, rfl⟩ | ⟨_, _, -, -, rfl⟩ <;> simp
+
+/-- Every cutting planes rule preserves satisfaction by a 0/1 assignment. -/
+theorem rules_sound {r : LineRule (Ineq V)} (hr : r ∈ rules V) {σ : V → Bool}
+    (hp : ∀ I ∈ r.premises, I.Holds σ) : r.concl.Holds σ := by
+  rcases hr with ⟨v, rfl⟩ | ⟨v, rfl⟩ | ⟨I, J, rfl⟩ | ⟨I, c, -, rfl⟩ | ⟨I, c, -, hdvd, rfl⟩
+  · exact holds_nonneg σ v
+  · exact holds_leOne σ v
+  · exact (hp I (by simp)).add (hp J (by simp))
+  · exact (hp I (by simp)).nsmul c
+  · exact (hp I (by simp)).div hdvd
+
+/-- **Cutting planes proofs as `LineProof` derivations.** -/
+theorem isProof_iff_lineProof : IsProof Γ ls ↔ LineProof (rules V) Γ ls := by
+  constructor
+  · intro h
+    induction h with
+    | nil => exact .nil
+    | hyp _ hI ih => exact ih.hyp hI
+    | nonneg _ v ih => exact ih.step (r := ⟨[], Ineq.nonneg v⟩) (Or.inl ⟨v, rfl⟩) (by simp)
+    | leOne _ v ih =>
+      exact ih.step (r := ⟨[], Ineq.leOne v⟩) (Or.inr (Or.inl ⟨v, rfl⟩)) (by simp)
+    | @add _ I J _ hI hJ ih =>
+      exact ih.step (r := ⟨[I, J], I + J⟩) (Or.inr (Or.inr (Or.inl ⟨I, J, rfl⟩)))
+        (by simp [hI, hJ])
+    | @smul _ I _ c hc hI ih =>
+      exact ih.step (r := ⟨[I], c • I⟩) (Or.inr (Or.inr (Or.inr (Or.inl ⟨I, c, hc, rfl⟩))))
+        (by simp [hI])
+    | @div _ I _ c hc hdvd hI ih =>
+      exact ih.step (r := ⟨[I], I.div c⟩)
+        (Or.inr (Or.inr (Or.inr (Or.inr ⟨I, c, hc, hdvd, rfl⟩)))) (by simp [hI])
+  · intro h
+    induction h with
+    | nil => exact .nil
+    | hyp _ hI ih => exact ih.hyp hI
+    | step _ hr hp ih =>
+      rcases hr with ⟨v, rfl⟩ | ⟨v, rfl⟩ | ⟨I, J, rfl⟩ | ⟨I, c, hc, rfl⟩ | ⟨I, c, hc, hdvd, rfl⟩
+      · exact ih.nonneg v
+      · exact ih.leOne v
+      · exact ih.add (hp I (by simp)) (hp J (by simp))
+      · exact ih.smul c hc (hp I (by simp))
+      · exact ih.div c hc hdvd (hp I (by simp))
+
 namespace IsProof
 
 /-- Two proofs from `Γ` concatenate to a proof from `Γ`. -/
-theorem append (h : IsProof Γ ls) (h' : IsProof Γ ls') : IsProof Γ (ls ++ ls') := by
-  induction h with
-  | nil => exact h'
-  | hyp _ hI ih => exact ih.hyp hI
-  | nonneg _ v ih => exact ih.nonneg v
-  | leOne _ v ih => exact ih.leOne v
-  | add _ hI hJ ih => exact ih.add (List.mem_append_left _ hI) (List.mem_append_left _ hJ)
-  | smul _ c hc hI ih => exact ih.smul c hc (List.mem_append_left _ hI)
-  | div _ c hc hdvd hI ih => exact ih.div c hc hdvd (List.mem_append_left _ hI)
+theorem append (h : IsProof Γ ls) (h' : IsProof Γ ls') : IsProof Γ (ls ++ ls') :=
+  isProof_iff_lineProof.2 ((isProof_iff_lineProof.1 h).append (isProof_iff_lineProof.1 h'))
 
 /-- **Soundness**: every line of a proof from `Γ` holds under every 0/1 assignment satisfying
 `Γ`. -/
 theorem holds (h : IsProof Γ ls) {σ : V → Bool} (hσ : ∀ I ∈ Γ, I.Holds σ) (hI : I ∈ ls) :
-    I.Holds σ := by
-  -- the new line holds by the rule that adds it, and the earlier ones by induction
-  induction h generalizing I with
-  | nil => simp at hI
-  | hyp _ hJ ih => exact List.forall_mem_cons.2 ⟨hσ _ hJ, fun _ => ih⟩ _ hI
-  | nonneg _ v ih => exact List.forall_mem_cons.2 ⟨holds_nonneg σ v, fun _ => ih⟩ _ hI
-  | leOne _ v ih => exact List.forall_mem_cons.2 ⟨holds_leOne σ v, fun _ => ih⟩ _ hI
-  | add _ h₁ h₂ ih => exact List.forall_mem_cons.2 ⟨(ih h₁).add (ih h₂), fun _ => ih⟩ _ hI
-  | smul _ c _ h₁ ih => exact List.forall_mem_cons.2 ⟨(ih h₁).nsmul c, fun _ => ih⟩ _ hI
-  | div _ c _ hdvd h₁ ih => exact List.forall_mem_cons.2 ⟨(ih h₁).div hdvd, fun _ => ih⟩ _ hI
-
-/-- One step of `Cslib.Logic.PL.CuttingPlanes.IsProof.comp`: replaying a line `J` on top of
-`ls'' ++ ls` covers the lines of `J :: ls'` with one more line. -/
-private theorem comp_cons {ls'' : List (Ineq V)} (h : IsProof Γ (J :: (ls'' ++ ls)))
-    (hup : ∀ K ∈ ls', K ∈ ls'' ++ ls) (hlen : ls''.length ≤ ls'.length) :
-    ∃ ls₀, IsProof Γ (ls₀ ++ ls) ∧ (∀ K ∈ J :: ls', K ∈ ls₀ ++ ls) ∧
-      ls₀.length ≤ (J :: ls').length := by
-  refine ⟨J :: ls'', h, fun K hK => ?_, by simpa using hlen⟩
-  rcases List.mem_cons.1 hK with rfl | hK
-  exacts [List.mem_cons_self, List.mem_cons_of_mem _ (hup K hK)]
+    I.Holds σ :=
+  (isProof_iff_lineProof.1 h).holds hσ (fun _ hr => rules_sound hr) I hI
 
 /-- **Composing proofs**: a proof `ls'` from `Δ` replays on top of a proof `ls` from `Γ` when every
 inequality of `Δ` is in `Γ` or a line of `ls`, adding at most as many lines as `ls'` has. -/
 theorem comp (hΔ : IsProof Δ ls') (h : IsProof Γ ls) (hΔΓ : ∀ I ∈ Δ, I ∈ Γ ∨ I ∈ ls) :
     ∃ ls'', IsProof Γ (ls'' ++ ls) ∧ (∀ I ∈ ls', I ∈ ls'' ++ ls) ∧ ls''.length ≤ ls'.length := by
-  induction hΔ with
-  | nil => exact ⟨[], h, by simp, le_rfl⟩
-  | @hyp ls' I _ hI ih =>
-    obtain ⟨ls'', h'', hup, hlen⟩ := ih
-    rcases hΔΓ I hI with hI | hI
-    · exact comp_cons (h''.hyp hI) hup hlen
-    · refine ⟨ls'', h'', fun J hJ => ?_, hlen.trans (Nat.le_succ _)⟩
-      rcases List.mem_cons.1 hJ with rfl | hJ
-      exacts [List.mem_append_right _ hI, hup J hJ]
-  | nonneg _ v ih =>
-    obtain ⟨ls'', h'', hup, hlen⟩ := ih
-    exact comp_cons (h''.nonneg v) hup hlen
-  | leOne _ v ih =>
-    obtain ⟨ls'', h'', hup, hlen⟩ := ih
-    exact comp_cons (h''.leOne v) hup hlen
-  | add _ h₁ h₂ ih =>
-    obtain ⟨ls'', h'', hup, hlen⟩ := ih
-    exact comp_cons (h''.add (hup _ h₁) (hup _ h₂)) hup hlen
-  | smul _ c hc h₁ ih =>
-    obtain ⟨ls'', h'', hup, hlen⟩ := ih
-    exact comp_cons (h''.smul c hc (hup _ h₁)) hup hlen
-  | div _ c hc hdvd h₁ ih =>
-    obtain ⟨ls'', h'', hup, hlen⟩ := ih
-    exact comp_cons (h''.div c hc hdvd (hup _ h₁)) hup hlen
+  obtain ⟨ls'', h'', hup, hsub, -, -⟩ :=
+    (isProof_iff_lineProof.1 hΔ).comp (isProof_iff_lineProof.1 h) hΔΓ
+  exact ⟨ls'', isProof_iff_lineProof.2 h'', hup, hsub.length_le⟩
 
 /-- Enlarging the hypotheses keeps a proof a proof. -/
-theorem mono (h : IsProof Γ ls) (hΓΔ : Γ ⊆ Δ) : IsProof Δ ls := by
-  induction h with
-  | nil => exact .nil
-  | hyp _ hI ih => exact ih.hyp (hΓΔ hI)
-  | nonneg _ v ih => exact ih.nonneg v
-  | leOne _ v ih => exact ih.leOne v
-  | add _ hI hJ ih => exact ih.add hI hJ
-  | smul _ c hc hI ih => exact ih.smul c hc hI
-  | div _ c hc hdvd hI ih => exact ih.div c hc hdvd hI
+theorem mono (h : IsProof Γ ls) (hΓΔ : Γ ⊆ Δ) : IsProof Δ ls :=
+  isProof_iff_lineProof.2 ((isProof_iff_lineProof.1 h).mono_hyp hΓΔ)
 
 /-- A proof uses only the hypotheses among its lines. -/
-theorem restrict (h : IsProof Γ ls) : IsProof (Γ ∩ {I | I ∈ ls}) ls := by
-  suffices ∀ ls', ls ⊆ ls' → IsProof (Γ ∩ {I | I ∈ ls'}) ls from this ls (List.Subset.refl _)
-  intro ls' hsub
+theorem restrict (h : IsProof Γ ls) : IsProof (Γ ∩ {I | I ∈ ls}) ls :=
+  isProof_iff_lineProof.2 (isProof_iff_lineProof.1 h).restrict
+
+/-- **Renaming the variables** of a proof along any map gives a proof from the renamed
+hypotheses, line by line. -/
+theorem relabel {W : Type*} (f : V → W) (h : IsProof Γ ls) :
+    IsProof (Ineq.relabel f '' Γ) (ls.map (Ineq.relabel f)) := by
   induction h with
   | nil => exact .nil
-  | hyp _ hI ih =>
-    exact (ih (List.cons_subset.1 hsub).2).hyp ⟨hI, (List.cons_subset.1 hsub).1⟩
-  | nonneg _ v ih => exact (ih (List.cons_subset.1 hsub).2).nonneg v
-  | leOne _ v ih => exact (ih (List.cons_subset.1 hsub).2).leOne v
-  | add _ hI hJ ih => exact (ih (List.cons_subset.1 hsub).2).add hI hJ
-  | smul _ c hc hI ih => exact (ih (List.cons_subset.1 hsub).2).smul c hc hI
-  | div _ c hc hdvd hI ih => exact (ih (List.cons_subset.1 hsub).2).div c hc hdvd hI
+  | hyp _ hI ih => exact ih.hyp ⟨_, hI, rfl⟩
+  | nonneg _ v ih => simpa only [List.map_cons, relabel_nonneg] using ih.nonneg (f v)
+  | leOne _ v ih => simpa only [List.map_cons, relabel_leOne] using ih.leOne (f v)
+  | add _ hI hJ ih =>
+    simpa only [List.map_cons, relabel_add] using
+      ih.add (List.mem_map_of_mem hI) (List.mem_map_of_mem hJ)
+  | smul _ c hc hI ih =>
+    simpa only [List.map_cons, relabel_nsmul] using ih.smul c hc (List.mem_map_of_mem hI)
+  | @div _ I _ c hc hdvd hI ih =>
+    simpa only [List.map_cons, relabel_div_of_dvd f hdvd] using
+      ih.div c hc (dvd_coeff_relabel f hdvd) (List.mem_map_of_mem hI)
 
 end IsProof
 
@@ -541,14 +620,18 @@ theorem mono (h : DerivableInSize Γ I s) (hst : s ≤ t) : DerivableInSize Γ I
   let ⟨ls, h, hI, hlen⟩ := h
   ⟨ls, h, hI, hlen.trans hst⟩
 
+/-- Renaming the variables along any map keeps a derivation a derivation of the same size. -/
+theorem relabel {W : Type*} (f : V → W) (h : DerivableInSize Γ I s) :
+    DerivableInSize (Ineq.relabel f '' Γ) (I.relabel f) s :=
+  let ⟨_, h, hI, hlen⟩ := h
+  ⟨_, h.relabel f, List.mem_map_of_mem hI, by simpa using hlen⟩
+
 theorem add (hI : DerivableInSize Γ I s) (hJ : DerivableInSize Γ J t) :
-    DerivableInSize Γ (I + J) (s + t + 1) := by
-  obtain ⟨ls, h, hI, hlen⟩ := hI
-  obtain ⟨ls', h', hJ, hlen'⟩ := hJ
-  refine ⟨_, (h.append h').add (List.mem_append_left _ hI) (List.mem_append_right _ hJ),
-    List.mem_cons_self, ?_⟩
-  simp only [List.length_cons, List.length_append]
-  omega
+    DerivableInSize Γ (I + J) (s + t + 1) :=
+  let ⟨_, h, hI, hlen⟩ := hI
+  let ⟨_, h', hJ, hlen'⟩ := hJ
+  ⟨_, (h.append h').add (List.mem_append_left _ hI) (List.mem_append_right _ hJ),
+    List.mem_cons_self, by simp only [List.length_cons, List.length_append]; omega⟩
 
 theorem smul (hI : DerivableInSize Γ I s) (c : ℕ) (hc : 0 < c) :
     DerivableInSize Γ (c • I) (s + 1) :=
@@ -606,6 +689,11 @@ theorem RefutableInSize.not_exists_holds (h : RefutableInSize Γ s) :
 
 theorem RefutableInSize.mono (h : RefutableInSize Γ s) (hst : s ≤ t) : RefutableInSize Γ t :=
   DerivableInSize.mono h hst
+
+/-- Renaming the variables along any map keeps a refutation a refutation of the same size. -/
+theorem RefutableInSize.relabel {W : Type*} (f : V → W) (h : RefutableInSize Γ s) :
+    RefutableInSize (Ineq.relabel f '' Γ) s := by
+  simpa only [RefutableInSize, relabel_contra] using DerivableInSize.relabel f h
 
 /-- **Soundness of cutting planes for CNFs**: a CNF whose inequalities are refutable is
 unsatisfiable. -/

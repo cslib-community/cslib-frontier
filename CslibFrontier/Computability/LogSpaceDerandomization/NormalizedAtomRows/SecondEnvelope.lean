@@ -65,13 +65,12 @@ theorem preparationError_le_fullRank (R : RoleProfile J) (D : ZMod P)
     rw [side_eq_ceil, side_eq_ceil]
     exact Nat.ceil_mono (mul_le_mul_of_nonneg_left
       (inv_anti₀ (by positivity) (pow_le_pow_right₀ (by norm_num) husage)) (by positivity))
-  have hyr : retainedMask R.terminal (side P k) D st σ y :=
-    mem_retentionBox.mpr (fun a => (mem_retentionBox.mp hy a).trans_le hside)
   have hm (w : ZMod P) (hw : retainedMask R.terminal (side P k) D st σ w) :=
     abs_le_kthLargest_one {w | retainedMask R.terminal (side P k) D st σ w}
       (fun w => A σ x w - G x w) w (mem_filter.mpr ⟨mem_univ _, hw⟩)
   exact (preparationError_le R D st k hLh hLρ A G σ x y kthLargest_nonneg
-    (hm y hyr) hm).trans_eq (by ring)
+    (hm y (mem_retentionBox.mpr fun a => (mem_retentionBox.mp hy a).trans_le hside)) hm).trans_eq
+    (by ring)
 
 /-- Conditional Jensen and max⁴ ≤ full-rank sum give the explicit width-P payment. -/
 theorem secondMeanEnvelope_moment (R : RoleProfile J) (D : ZMod P)
@@ -179,94 +178,31 @@ theorem actualSelectedSecondSignal_mean_le_envelope {E : Type*} [Fintype E] [Non
   exact actualSelectedSecondSignal_mean_bias_le HP hK D R ks k kt _husage ss st A graphs
     times F hLρ hh hρ ζ G i x y
 
-set_option backward.isDefEq.respectTransparency false in
 /-- Actual finite child-error costs pay the second deterministic envelope after the RAW
 walk. Positive-bin costs sum and the special negative cost is charged once. The canonical
-residual is built at km; normalization and full rank stay at kt. No desired B is assumed. -/
+residual is built at `s.midpointExponent`; normalization and full rank stay at
+`s.terminalExponent`. No desired `B` is assumed. -/
 theorem actualEstimatedResidual_second_envelope_moment
-    (HP : FourthRootHierarchyParams 16 1 16 32 8) (D : ZMod P)
-    (hD : D ≠ 0) (H : Horizon P) (R : RoleProfile J)
-    (l ks km kt n : ℕ) (ksH : ks ≤ H.maxExponent) (hms : km ≤ ks)
-    (ss sm st : List (ZMod P)) (kb : ℕ → ℕ)
-    (hbH : ∀ i ∈ range (n + 1), kb i ≤ H.maxExponent)
-    (C : Matrix (ZMod P) (ZMod P) ℝ) (hC : ∀ x y, 0 ≤ C x y) (hC1 : C *ᵥ 1 ≤ 1)
-    (hCf : ∀ x y, C x y ≤ rate km)
-    (χ : ℝ → ℝ) (hχ : ∀ v, 1 ≤ v → χ v = 1)
-    (h : ℕ → ℝ → ℝ) (ρ : ℝ → ℝ) (K : ℕ)
-    (hkh : ∀ i ∈ range (n + 1), ∀ v,
-      routedBinCutoff χ (fun i => rate (kb i)) i (fun _ => 1) v ≠ 0 → h i v = 1)
-    (hρ0 : ∀ v, 0 ≤ ρ v) (hρ1 : ∀ v, ρ v ≤ 1) {η : ℝ}
-    (hη : 0 < η) (hρη : ∀ v, v ≤ η → ρ v = 1)
-    (hK : 2 * (1 + 32 / η) ≤ K)
-    (hχmono : Monotone χ) (hχ0 : ∀ v, v ≤ 1 / 2 → χ v = 0)
-    (hχrange : ∀ v, χ v ∈ Set.Icc 0 1)
-    (hanti : Antitone (fun i => rate (kb i)))
-    (hratio : ∀ i, rate (kb i) / rate (kb (i + 1)) ≤ 16)
-    {cap : ℝ} (hcap : 0 ≤ cap) (hCcap : ∀ z w, C z w ≤ cap * rate (kb 0))
-    (Kc : ℕ)
-    (raw prep : ℕ → ℕ → HierarchyTask.Request HP.k (Fin J) (ZMod P) →
-      Environment P J → Matrix (ZMod P) (ZMod P) ℝ)
-    (maximum : ℕ → ℕ → HierarchyTask.Request HP.k (Fin J) (ZMod P) →
-      Environment P J → ZMod P → ℝ)
-    (hcover : ∀ z y, C z y = 0 ∨ rate (kb n) ≤ C z y)
-    (steps : ℕ → ℕ) (ku : ℕ) (husage : kt ≤ ku)
+    {HP : FourthRootHierarchyParams 16 1 16 32 8}
+    (s : ResidualStage HP P J) (children : ReserveOutputChildren HP P J)
+    (steps : ℕ → ℕ) (ku : ℕ) (husage : s.terminalExponent ≤ ku)
     {Lh Lρ : ℝ} (hLh : 0 ≤ Lh) (hLρ : 0 ≤ Lρ) (ζ : ℝ) (j : ℕ) :
-    let cutoff := fun i => routedBinCutoff χ (fun i => rate (kb i)) i (fun _ => 1)
-    let bounded := fun i => boundedRoutedBinCutoff χ (fun i => rate (kb i)) cap i (fun _ => 1)
-    let source := gridChannel R.source ks ss
-    let mid := gridChannel R.midpoint km sm
-    let terminal := gridChannel R.terminal kt st
-    let estimated := fun precision i σ r => incomingChildren HP D id Kc (bounded i)
-      (raw precision i) (prep precision i) (maximum precision i) r σ
-    let canonical := fun i σ r => canonicalRequestChild HP D id C
-      (cutoff i) (h i) ρ K r σ
-    let channelsV := fun role b suffix σ v => channels D role b suffix σ (id v)
-    let input := estimatedResidualInput HP D id R l ks km kt n ss sm st kb Kc bounded
-      raw prep maximum
-    let G := HP.toHierarchyParams.residual (canonicalChannel id (rate km))
-      (canonicalChannel id (rate km)) (rate km) C
-    let F := fun j => conditionalWalk (retainedMask R.source (side P ks) D ss)
-      (retainedMask R.terminal (side P kt) D st)
-      (graph R.source R.terminal R.source_terminal (side P ks) (side P kt)
-        (side_le P ks) (side_le P kt) (fun x => CopyPadding.identifier D ss x)
-        (fun y => CopyPadding.identifier D st y)) (fun _ _ => steps j) (input j)
-    let cost := fun x y => HierarchyTask.conditionalChildCost channelsV (range (n + 1)) l
-      source mid terminal (fun i => rate (kb i))
-      (2 * HP.Q HP.toHierarchyParams.atomCap) (2 * max cap 16)
-      (estimated (j + 1)) canonical x y
-    rowNormPow 4 P (rate ks) (retainedMask R.source (side P ks) D ss)
-      (retainedMask R.terminal (side P ku) D st)
-      (fun _ => secondMeanEnvelope R D ss st ks kt ku Lh Lρ ζ (F (j + 1)) G) ≤
-      P * (|ζ| * (Lh + Lρ) / rate kt) ^ 4 * (8 *
-        (32 * (1 - 1 / (155648 * (J + 1) * (4 : ℝ) ^ 4)) ^ (2 * steps (j + 1)) *
-          (16 * P * (estimatedResidualBound HP P km kt n kb (estimatedBinCap cap)) ^ 4) +
-          rowNormPow 4 P (rate ks) (retainedMask R.source (side P ks) D ss)
-            (retainedMask R.terminal (side P kt) D st) (fun _ => cost))) := by
-  have hHPK : 0 < HP.K := FourthRootHierarchyParams.NormalizedRow.rank_pos HP
-  extract_lets cutoff bounded source mid terminal estimated canonical channelsV input G F cost
-  refine le_trans (secondMeanEnvelope_walk_moment R D ss st ks kt ku (steps (j + 1))
-    husage hLh hLρ ζ (input (j + 1)) G cost ?_ (by positivity)) ?_
-  · intro x y
-    have he := estimated_residual_bins_mean_error HP D id hD Function.injective_id
-      H R l ks km kt n ksH hms ss sm st kb hbH C hC hC1 hCf χ hχ h ρ K hkh
-      hρ0 hρ1 hη hρη hK hχmono hχ0 hχrange hanti hratio hcap hCcap Kc
-      (raw (j + 1)) (prep (j + 1)) (maximum (j + 1)) x y (fun z => hcover z y)
-    dsimp only at he
-    convert he using 1 <;>
-      simp only [input, G, cost, HierarchyTask.conditionalChildCost, channelsV, estimated,
-        canonical, cutoff, bounded, source, mid,
-        terminal, estimatedResidualInput, rowSliceMean, CorrectionRowTask.Channel.retains,
-        channels, gridChannel, semanticSide_grid, retainedMask, id_eq]
-    congr!
-  · have hp := estimatedResidualInput_moment_le HP hHPK D R H l ks km kt n ksH
-      ss sm st kb Kc
-      (fun i => boundedRoutedBinCutoff χ (fun i => rate (kb i)) cap i (fun _ => 1))
-      (estimatedBinCap cap) (fun i => by unfold estimatedBinCap; split_ifs <;> positivity)
-      (boundedRoutedBinCutoff_grid_range χ kb hcap hχmono hχ0 hχ hχrange hanti hratio)
-      raw prep maximum (j + 1)
-    gcongr
-    rw [pow_mul]
-    positivity
+    rowNormPow 4 P (rate s.sourceExponent) s.sourceMask (s.terminalMaskAt ku)
+      (fun _ => secondMeanEnvelope s.roles s.direction s.sourceSuffix s.terminalSuffix
+        s.sourceExponent s.terminalExponent ku Lh Lρ ζ
+        (s.walkSteps children steps (j + 1)) s.residual) ≤
+      P * (|ζ| * (Lh + Lρ) / rate s.terminalExponent) ^ 4 * (8 *
+        (32 * reserveOutputContraction J ^ (2 * steps (j + 1)) * s.payment +
+          rowNormPow 4 P (rate s.sourceExponent) s.sourceMask s.terminalMask
+            (fun _ => s.cost children j))) := by
+  refine (secondMeanEnvelope_walk_moment s.roles s.direction s.sourceSuffix
+    s.terminalSuffix s.sourceExponent s.terminalExponent ku (steps (j + 1))
+    husage hLh hLρ ζ (s.input children (j + 1)) s.residual (s.cost children j)
+    (s.mean_sub_le children j) (by positivity)).trans ?_
+  have hp := s.input_moment_le children (j + 1)
+  gcongr
+  rw [pow_mul]
+  positivity
 
 /-- Actual range-based FirstPayment pays the centered RAW child in matrix units. Combined
 with an absolute input mean-error bound this yields B1; no relative noise is substituted. -/
@@ -300,20 +236,17 @@ theorem actualCompletedRaw_absolute_moment_le_payment {q : ℕ}
   dsimp only
   have hP : (0 : ℝ) < P := by exact_mod_cast (Fact.out : P.Prime).pos
   have hNu := (mul_pos hP (rate_pos ks)).le
-  apply (rowNormPow_sub_le_centered hNu _
+  refine (rowNormPow_sub_le_centered hNu _
     (rowSliceMean (retainedMask R.source (side P ks) D ss)
       (retainedMask R.terminal (side P k) D st)
       (rawIncomingNormalized HP D id R l bin ks km k kb ss sm st
         (polynomialAuxCutoff4 HP.θ) HP.incomingCutoff Kc binCutoff raw prep maximum)) G).trans
-  apply mul_le_mul_of_nonneg_left _ (by norm_num : (0 : ℝ) ≤ 8)
-  apply add_le_add
-  · have hn := rawIncomingNormalized_noise_le_lower HP hK D (id : ZMod P → ZMod P) R
-      l bin ks km k kb ss sm st Kc hKc binCutoff raw prep maximum hP (rate_pos ks) steps
-    have hp := incomingMomentBudget_le_payment HP D R H l bin ks km k kb hks hkm
-      ss sm st Kc binCutoff hCB hbin raw prep maximum
-    exact hn.trans (mul_le_mul_of_nonneg_left hp (by rw [pow_mul]; positivity))
-  · apply (rowNormPow_le_mul hNu (c := 1) ?_).trans_eq (one_mul _)
-    intro σ x y _ _
+    (mul_le_mul_of_nonneg_left (add_le_add ?_ ?_) (by norm_num : (0 : ℝ) ≤ 8))
+  · exact (rawIncomingNormalized_noise_le_lower HP hK D (id : ZMod P → ZMod P) R
+      l bin ks km k kb ss sm st Kc hKc binCutoff raw prep maximum hP (rate_pos ks) steps).trans
+      (mul_le_mul_of_nonneg_left (incomingMomentBudget_le_payment HP D R H l bin ks km k kb
+        hks hkm ss sm st Kc binCutoff hCB hbin raw prep maximum) (by rw [pow_mul]; positivity))
+  · refine (rowNormPow_le_mul hNu (c := 1) fun _ x y _ _ => ?_).trans_eq (one_mul _)
     rw [one_mul, abs_of_nonneg ((abs_nonneg _).trans (he x y))]
     exact pow_le_pow_left₀ (abs_nonneg _) (he x y) 4
 

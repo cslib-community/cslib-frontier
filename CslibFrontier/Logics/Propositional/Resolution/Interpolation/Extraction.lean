@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation
 public import CslibFrontier.Computability.Circuit.Boolean.Encoding
 import CslibFrontier.Computability.Circuit.Encoding.Evaluation
+import CslibFrontier.Logics.Propositional.CNF.Eval
 import Mathlib.Data.List.GetD
 
 /-!
@@ -103,8 +104,8 @@ structure Step (V : Type*) where
 /-- Candidate resolution steps among `lines`: two lines, each with its position, and the variable
 of a literal of the first. -/
 def candidates (lines : List (Clause V)) : List (Step V) :=
-  lines.zipIdx.flatMap fun e₁ => lines.zipIdx.flatMap fun e₂ =>
-    e₁.1.map fun l => ⟨e₁.1, e₁.2, e₂.1, e₂.2, l.1⟩
+  lines.zipIdx.flatMap fun (c₁, i₁) => lines.zipIdx.flatMap fun (c₂, i₂) =>
+    c₁.map fun (v, _) => ⟨c₁, i₁, c₂, i₂, v⟩
 
 /-- The first candidate resolution step among `lines` deriving `c`, if any. -/
 def findStep [DecidableEq V] (lines : List (Clause V)) (c : Clause V) : Option (Step V) :=
@@ -130,15 +131,12 @@ def gatesOf {Op : Type*} [DecidableEq Y] [DecidableEq Z] (s : ℕ) (constOp : Bo
     (step : ℕ → ℕ → ℕ → ℕ ⊕ (Y ⊕ Z) → List (Op × List ℕ))
     (n : ℕ) (A : CNF (ℕ ⊕ Y)) (B : CNF (ℕ ⊕ Z))
     (lines : List (Clause (ℕ ⊕ (Y ⊕ Z)))) : List (Op × List ℕ) :=
-  lines.zipIdx.flatMap fun e => lineGatesOf s constOp step n A B (lines.take e.2) e.1
+  lines.zipIdx.flatMap fun (c, k) => lineGatesOf s constOp step n A B (lines.take k) c
 
 /-- The last wire `n + s * k + (s - 1)` of the first empty line `k` among `lines`, listed from
 first to last; past the last gate if there is none. -/
 def outputWireOf (s n : ℕ) (lines : List (Clause V)) : ℕ :=
   n + s * (lines.map List.isEmpty).idxOf true + (s - 1)
-
-/-- Four gates with the constant value `b`. -/
-def constGates (b : Bool) : List (Op × List ℕ) := List.replicate 4 (.const b, [])
 
 /-- The gate `g` after three constant gates. -/
 def padGate (g : Op × List ℕ) : List (Op × List ℕ) :=
@@ -209,13 +207,12 @@ theorem shared_lt {n : ℕ} {A : CNF (ℕ ⊕ Y)} {B : CNF (ℕ ⊕ Z)}
     (hA : ∀ d ∈ A, ∀ i b, (.inl i, b) ∈ d → i < n) (hB : ∀ d ∈ B, ∀ i b, (.inl i, b) ∈ d → i < n) :
     ∀ d ∈ ls, ∀ i b, (.inl i, b) ∈ d → i < n := by
   intro d hd i b hl
-  obtain ⟨l, hl', hli⟩ := List.mem_map.1 (h.fst_mem_vars hd hl)
-  obtain ⟨e, he, hle⟩ := List.mem_flatten.1 hl'
+  obtain ⟨e, he, sign, hle⟩ := CNF.mem_vars.1 (h.fst_mem_vars hd hl)
   rcases List.mem_append.1 he with he | he <;> obtain ⟨d', hd', rfl⟩ := List.mem_map.1 he <;>
-    obtain ⟨l', hl'', rfl⟩ := List.mem_map.1 hle <;> rcases l' with ⟨_ | _, b'⟩ <;>
-    simp only [Prod.map, Sum.map_inl, Sum.map_inr, id, reduceCtorEq, Sum.inl.injEq] at hli
-  · exact hA d' hd' _ b' (hli ▸ hl'')
-  · exact hB d' hd' _ b' (hli ▸ hl'')
+    obtain ⟨_ | _, hl', hi⟩ := Clause.mem_relabel_iff.1 hle <;>
+    simp only [Sum.map_inl, Sum.map_inr, id_eq, reduceCtorEq, Sum.inl.injEq] at hi
+  · exact hA d' hd' _ sign (hi ▸ hl')
+  · exact hB d' hd' _ sign (hi ▸ hl')
 
 end CNF.IsProof
 
@@ -227,26 +224,36 @@ section Polymorphic
 
 variable {V Y Z : Type*}
 
-/-- A candidate step names two of the lines, by their positions, and the variable of a literal of
-the first. -/
-theorem mem_candidates {lines : List (Clause V)} {t : Step V} (ht : t ∈ candidates lines) :
+/-- A found step resolves its indexed premises to the requested clause. -/
+private theorem findStep_spec [DecidableEq V] {lines : List (Clause V)} {c : Clause V}
+    {t : Step V} (ht : findStep lines c = some t) :
     ∃ (h₁ : t.leftIndex < lines.length) (h₂ : t.rightIndex < lines.length),
-      lines[t.leftIndex] = t.left ∧ lines[t.rightIndex] = t.right := by
-  obtain ⟨e₁, he₁, ht⟩ := List.mem_flatMap.1 ht
-  obtain ⟨e₂, he₂, ht⟩ := List.mem_flatMap.1 ht
-  obtain ⟨l, -, rfl⟩ := List.mem_map.1 ht
-  obtain ⟨-, h₁, hc₁⟩ := List.mem_zipIdx (x := e₁.1) (i := e₁.2) he₁
-  obtain ⟨-, h₂, hc₂⟩ := List.mem_zipIdx (x := e₂.1) (i := e₂.2) he₂
+      lines[t.leftIndex] = t.left ∧ lines[t.rightIndex] = t.right ∧
+        (t.pivot, true) ∈ t.left ∧ (t.pivot, false) ∈ t.right ∧
+        t.left.resolvent t.right t.pivot = c := by
+  have htest := List.find?_some ht
+  simp only [decide_eq_true_eq] at htest
+  obtain ⟨⟨c₁, i₁⟩, he₁, hm⟩ := List.mem_flatMap.1 (List.mem_of_find?_eq_some ht)
+  obtain ⟨⟨c₂, i₂⟩, he₂, hm⟩ := List.mem_flatMap.1 hm
+  obtain ⟨⟨v, _⟩, -, rfl⟩ := List.mem_map.1 hm
+  obtain ⟨-, h₁, hc₁⟩ := List.mem_zipIdx he₁
+  obtain ⟨-, h₂, hc₂⟩ := List.mem_zipIdx he₂
   simp only [Nat.zero_add, Nat.sub_zero] at h₁ h₂ hc₁ hc₂
-  exact ⟨h₁, h₂, hc₁.symm, hc₂.symm⟩
+  exact ⟨h₁, h₂, hc₁.symm, hc₂.symm, htest⟩
 
 /-- A resolution step among the lines is a candidate. -/
-theorem mem_candidates_of_getElem {lines : List (Clause V)} {k₁ k₂ : ℕ}
+private theorem mem_candidates_of_getElem {lines : List (Clause V)} {k₁ k₂ : ℕ}
     (h₁ : k₁ < lines.length) (h₂ : k₂ < lines.length) {v : V} (hv : (v, true) ∈ lines[k₁]) :
     (⟨lines[k₁], k₁, lines[k₂], k₂, v⟩ : Step V) ∈ candidates lines := by
   refine List.mem_flatMap.2 ⟨(lines[k₁], k₁), List.mem_zipIdx_iff_getElem?.2 (by simp),
     List.mem_flatMap.2 ⟨(lines[k₂], k₂), List.mem_zipIdx_iff_getElem?.2 (by simp),
       List.mem_map.2 ⟨(v, true), hv, rfl⟩⟩⟩
+
+private theorem wire_lt_of_lt {s n m k : ℕ} (hs : 0 < s) (hk : k < m) :
+    n + s * k + (s - 1) < n + s * m := by
+  have hmk := Nat.mul_le_mul_left s (Nat.succ_le_of_lt hk)
+  rw [Nat.mul_succ] at hmk
+  omega
 
 variable {σ : Signature.{v}} [DecidableEq Y] [DecidableEq Z]
 
@@ -258,10 +265,7 @@ theorem length_lineGatesOf {Op : Type*} {s : ℕ} (constOp : Bool → Op)
     (lines : List (Clause (ℕ ⊕ (Y ⊕ Z)))) (c : Clause (ℕ ⊕ (Y ⊕ Z))) :
     (lineGatesOf s constOp step n A B lines c).length = s := by
   unfold lineGatesOf
-  split_ifs
-  · simp
-  · simp
-  · cases findStep lines c <;> simp [hstep]
+  split_ifs <;> cases findStep lines c <;> simp [hstep]
 
 /-- Reading one more line appends its gates. -/
 theorem gatesOf_append_singleton {Op : Type*} (s : ℕ) (constOp : Bool → Op)
@@ -272,8 +276,9 @@ theorem gatesOf_append_singleton {Op : Type*} (s : ℕ) (constOp : Bool → Op)
       gatesOf s constOp step n A B lines ++ lineGatesOf s constOp step n A B lines c := by
   rw [gatesOf, List.zipIdx_append, List.flatMap_append, gatesOf]
   congr 1
-  · refine List.flatMap_congr fun e he => ?_
-    have := (List.mem_zipIdx (x := e.1) (i := e.2) he).2.1
+  · refine List.flatMap_congr fun ⟨d, k⟩ he => ?_
+    dsimp only
+    have := (List.mem_zipIdx he).2.1
     rw [List.take_append_of_le_length (by omega)]
   · simp
 
@@ -291,7 +296,7 @@ theorem length_gatesOf {Op : Type*} {s : ℕ} (constOp : Bool → Op)
       List.length_append, List.length_singleton, Nat.mul_succ]
 
 /-- Replicated nullary gates read no wires and are well formed from any index. -/
-theorem isCodeFrom_replicate_const {op : σ.Op} (hop : σ.Arity op = 0) (n m k : ℕ) :
+private theorem isCodeFrom_replicate_const {op : σ.Op} (hop : σ.Arity op = 0) (n m k : ℕ) :
     Program.IsCodeFrom σ n k (List.replicate m (op, [])) := by
   induction m generalizing k with
   | zero => trivial
@@ -303,11 +308,10 @@ theorem isCodeFrom_lineGatesOf {s n : ℕ} {constOp : Bool → σ.Op}
     {step : ℕ → ℕ → ℕ → ℕ ⊕ (Y ⊕ Z) → List (σ.Op × List ℕ)}
     {A : CNF (ℕ ⊕ Y)} {B : CNF (ℕ ⊕ Z)}
     {lines : List (Clause (ℕ ⊕ (Y ⊕ Z)))} {c : Clause (ℕ ⊕ (Y ⊕ Z))}
-    (hconst : ∀ b, σ.Arity (constOp b) = 0)
-    (hstep_code : ∀ {k₁ k₂ : ℕ} {v : ℕ ⊕ (Y ⊕ Z)},
-      k₁ < lines.length → k₂ < lines.length → (∀ i, v = .inl i → i < n) →
-        Program.IsCodeFrom σ n (s * lines.length)
-          (step (n + s * lines.length) (n + s * k₁ + (s - 1)) (n + s * k₂ + (s - 1)) v))
+    (hs : 0 < s) (hconst : ∀ b, σ.Arity (constOp b) = 0)
+    (hstep_code : ∀ {m w₁ w₂ : ℕ} {v : ℕ ⊕ (Y ⊕ Z)},
+      w₁ < n + m → w₂ < n + m → (∀ i, v = .inl i → i < n) →
+        Program.IsCodeFrom σ n m (step (n + m) w₁ w₂ v))
     (hvars : ∀ d ∈ lines, ∀ i b, (.inl i, b) ∈ d → i < n) :
     Program.IsCodeFrom σ n (s * lines.length) (lineGatesOf s constOp step n A B lines c) := by
   unfold lineGatesOf
@@ -316,21 +320,19 @@ theorem isCodeFrom_lineGatesOf {s n : ℕ} {constOp : Bool → σ.Op}
   · exact isCodeFrom_replicate_const (hconst true) _ _ _
   rcases hfind : findStep lines c with _ | t
   · exact isCodeFrom_replicate_const (hconst false) _ _ _
-  obtain ⟨h₁, h₂, hc₁, -⟩ := mem_candidates (List.mem_of_find?_eq_some hfind)
-  have htest := List.find?_some hfind
-  simp only [decide_eq_true_eq] at htest
-  exact hstep_code h₁ h₂ fun i hi => hvars t.left (hc₁ ▸ List.getElem_mem _) i true (hi ▸ htest.1)
+  obtain ⟨h₁, h₂, hc₁, -, hpivot, -, -⟩ := findStep_spec hfind
+  exact hstep_code (wire_lt_of_lt hs h₁) (wire_lt_of_lt hs h₂)
+    fun i hi => hvars t.left (hc₁ ▸ List.getElem_mem _) i true (hi ▸ hpivot)
 
 /-- All extracted gates are well formed when the shared variables of `lines` are below `n`. -/
 theorem isCodeFrom_gatesOf {s n : ℕ} {constOp : Bool → σ.Op}
     {step : ℕ → ℕ → ℕ → ℕ ⊕ (Y ⊕ Z) → List (σ.Op × List ℕ)}
     {A : CNF (ℕ ⊕ Y)} {B : CNF (ℕ ⊕ Z)} {lines : List (Clause (ℕ ⊕ (Y ⊕ Z)))}
-    (hconst : ∀ b, σ.Arity (constOp b) = 0)
+    (hs : 0 < s) (hconst : ∀ b, σ.Arity (constOp b) = 0)
     (hstep_len : ∀ base w₁ w₂ v, (step base w₁ w₂ v).length = s)
-    (hstep_code : ∀ {m k₁ k₂ : ℕ} {v : ℕ ⊕ (Y ⊕ Z)},
-      k₁ < m → k₂ < m → (∀ i, v = .inl i → i < n) →
-        Program.IsCodeFrom σ n (s * m)
-          (step (n + s * m) (n + s * k₁ + (s - 1)) (n + s * k₂ + (s - 1)) v))
+    (hstep_code : ∀ {m w₁ w₂ : ℕ} {v : ℕ ⊕ (Y ⊕ Z)},
+      w₁ < n + m → w₂ < n + m → (∀ i, v = .inl i → i < n) →
+        Program.IsCodeFrom σ n m (step (n + m) w₁ w₂ v))
     (hvars : ∀ d ∈ lines, ∀ i b, (.inl i, b) ∈ d → i < n) :
     Program.IsCodeFrom σ n 0 (gatesOf s constOp step n A B lines) := by
   induction lines using List.reverseRecOn with
@@ -339,7 +341,7 @@ theorem isCodeFrom_gatesOf {s n : ℕ} {constOp : Bool → σ.Op}
     rw [gatesOf_append_singleton, Program.isCodeFrom_append, length_gatesOf constOp hstep_len,
       Nat.zero_add]
     exact ⟨ih fun d hd => hvars d (List.mem_append_left _ hd),
-      isCodeFrom_lineGatesOf hconst hstep_code fun d hd => hvars d (List.mem_append_left _ hd)⟩
+      isCodeFrom_lineGatesOf hs hconst hstep_code fun d hd => hvars d (List.mem_append_left _ hd)⟩
 
 /-- The value of wire `w` after evaluating the gates `G` under `I` with the `n` inputs set by
 `a`. -/
@@ -366,23 +368,38 @@ theorem wireValue_input {I : Interpretation σ Bool} {n : ℕ} {G : List (σ.Op 
 
 /-- The value of a gate of a well-formed code is its operation applied to the values of its
 arguments. -/
-theorem wireValue_gate (I : Interpretation σ Bool) {n : ℕ} {G : List (σ.Op × List ℕ)}
-    (hG : Program.IsCodeFrom σ n 0 G) {j : ℕ} {g : σ.Op × List ℕ} (hg : G[j]? = some g)
-    (a : ℕ → Bool) :
+private theorem wireValue_gate (I : Interpretation σ Bool) {n : ℕ} {G : List (σ.Op × List ℕ)}
+    (hG : Program.IsCodeFrom σ n 0 G) {j : ℕ} {op : σ.Op} {args : List ℕ}
+    (hg : G[j]? = some (op, args)) (a : ℕ → Bool) :
     wireValue I n G (n + j) a =
-      I g.1 fun k => g.2[k.val]?.elim false fun v => wireValue I n G v a := by
+      I op fun k => args[k.val]?.elim false fun v => wireValue I n G v a := by
   have h := getD_evalCode I false (List.ofFn fun i : Fin n => a i) (by simpa using hG) hg
   unfold wireValue
   simpa only [List.length_ofFn] using h
 
 /-- The value of gate `j` of a block appended to well-formed gates. -/
 theorem wireValue_block (I : Interpretation σ Bool) {n : ℕ} {G blk : List (σ.Op × List ℕ)}
-    (hcode : Program.IsCodeFrom σ n 0 (G ++ blk)) {j : ℕ} {g : σ.Op × List ℕ}
-    (hg : blk[j]? = some g) (a : ℕ → Bool) :
+    (hcode : Program.IsCodeFrom σ n 0 (G ++ blk)) {j : ℕ} {op : σ.Op} {args : List ℕ}
+    (hg : blk[j]? = some (op, args)) (a : ℕ → Bool) :
     wireValue I n (G ++ blk) (n + G.length + j) a =
-      I g.1 fun k => g.2[k.val]?.elim false fun v => wireValue I n (G ++ blk) v a := by
+      I op fun k => args[k.val]?.elim false fun v => wireValue I n (G ++ blk) v a := by
   rw [Nat.add_assoc]
   exact wireValue_gate I hcode (by rw [List.getElem?_append_right (by omega)]; simpa using hg) a
+
+/-- Evaluating a binary gate `(op, [w₁, w₂])` at offset `j` in an appended block when both wires
+come from earlier gates or inputs (`w₁, w₂ < n + G.length`). -/
+theorem wireValue_block_two (I : Interpretation σ Bool) (j : ℕ) (op : σ.Op) {n : ℕ}
+    {G blk : List (σ.Op × List ℕ)} {w₁ w₂ : ℕ} (hcode : Program.IsCodeFrom σ n 0 (G ++ blk))
+    (hg : blk[j]? = some (op, [w₁, w₂])) (hw₁ : w₁ < n + G.length) (hw₂ : w₂ < n + G.length)
+    (a : ℕ → Bool) :
+    wireValue I n (G ++ blk) (n + G.length + j) a =
+      I op fun k => [wireValue I n G w₁ a, wireValue I n G w₂ a][k.val]?.getD false := by
+  rw [wireValue_block I hcode hg a]
+  congr 1; funext k
+  match k.val with
+  | 0 => exact wireValue_append_of_lt hw₁ a
+  | 1 => exact wireValue_append_of_lt hw₂ a
+  | _ + 2 => rfl
 
 private theorem wireValue_replicate_const {I : Interpretation σ Bool} {s n : ℕ}
     {constOp : Bool → σ.Op} {G : List (σ.Op × List ℕ)} (hs : 0 < s)
@@ -406,30 +423,20 @@ theorem ofCode_gatesOf {I : Interpretation σ Bool} {s n : ℕ} {constOp : Bool 
     (hs : 0 < s) (hconst : ∀ b, σ.Arity (constOp b) = 0)
     (hconst_eval : ∀ b f, I (constOp b) f = b)
     (hstep_len : ∀ base w₁ w₂ v, (step base w₁ w₂ v).length = s)
-    (hstep_code : ∀ {m k₁ k₂ : ℕ} {v : ℕ ⊕ (Y ⊕ Z)},
-      k₁ < m → k₂ < m → (∀ i, v = .inl i → i < n) →
-        Program.IsCodeFrom σ n (s * m)
-          (step (n + s * m) (n + s * k₁ + (s - 1)) (n + s * k₂ + (s - 1)) v))
+    (hstep_code : ∀ {m w₁ w₂ : ℕ} {v : ℕ ⊕ (Y ⊕ Z)},
+      w₁ < n + m → w₂ < n + m → (∀ i, v = .inl i → i < n) →
+        Program.IsCodeFrom σ n m (step (n + m) w₁ w₂ v))
     (hInv_inl : ∀ {d}, d ∈ A → Inv (d.map (Prod.map (Sum.map id Sum.inl) id)) (fun _ => false))
     (hInv_inr : ∀ {d}, d ∈ B → Inv (d.map (Prod.map (Sum.map id Sum.inr) id)) (fun _ => true))
     (hInv_empty : ∀ {f}, Inv [] f → A.IsInterpolant B f)
-    (hInv_step : ∀ {G : List (σ.Op × List ℕ)} {m k₁ k₂ : ℕ} {c₁ c₂ : Clause (ℕ ⊕ (Y ⊕ Z))}
+    (hInv_step : ∀ {G : List (σ.Op × List ℕ)} {w₁ w₂ : ℕ} {c₁ c₂ : Clause (ℕ ⊕ (Y ⊕ Z))}
       {v : ℕ ⊕ (Y ⊕ Z)},
-      G.length = s * m → k₁ < m → k₂ < m → (∀ i, v = .inl i → i < n) →
-      Program.IsCodeFrom σ n 0
-        (G ++ step (n + s * m) (n + s * k₁ + (s - 1)) (n + s * k₂ + (s - 1)) v) →
-      Inv c₁ (wireValue I n G (n + s * k₁ + (s - 1))) →
-      Inv c₂ (wireValue I n G (n + s * k₂ + (s - 1))) →
-      (∀ a, wireValue I n
-        (G ++ step (n + s * m) (n + s * k₁ + (s - 1)) (n + s * k₂ + (s - 1)) v)
-        (n + s * k₁ + (s - 1)) a = wireValue I n G (n + s * k₁ + (s - 1)) a) →
-      (∀ a, wireValue I n
-        (G ++ step (n + s * m) (n + s * k₁ + (s - 1)) (n + s * k₂ + (s - 1)) v)
-        (n + s * k₂ + (s - 1)) a = wireValue I n G (n + s * k₂ + (s - 1)) a) →
+      w₁ < n + G.length → w₂ < n + G.length → (∀ i, v = .inl i → i < n) →
+      Program.IsCodeFrom σ n 0 (G ++ step (n + G.length) w₁ w₂ v) →
+      Inv c₁ (wireValue I n G w₁) →
+      Inv c₂ (wireValue I n G w₂) →
       Inv (c₁.resolvent c₂ v)
-        (wireValue I n
-          (G ++ step (n + s * m) (n + s * k₁ + (s - 1)) (n + s * k₂ + (s - 1)) v)
-          (n + s * m + (s - 1))))
+        (wireValue I n (G ++ step (n + G.length) w₁ w₂ v) (n + G.length + (s - 1))))
     (h : (A.appendShared B).IsProof ls) (hnil : [] ∈ ls)
     (hA : ∀ d ∈ A, ∀ i b, (.inl i, b) ∈ d → i < n)
     (hB : ∀ d ∈ B, ∀ i b, (.inl i, b) ∈ d → i < n) :
@@ -453,21 +460,16 @@ theorem ofCode_gatesOf {I : Interpretation σ Bool} {s n : ℕ} {constOp : Bool 
     have hG : G.length = s * lines.length := length_gatesOf constOp hstep_len n A B lines
     have hcode : Program.IsCodeFrom σ n 0 (G ++ lineGatesOf s constOp step n A B lines c) := by
       rw [← gatesOf_append_singleton]
-      exact isCodeFrom_gatesOf hconst hstep_len hstep_code hv
+      exact isCodeFrom_gatesOf hs hconst hstep_len hstep_code hv
     intro k hk
     rw [List.length_append, List.length_singleton] at hk
     rcases Nat.lt_succ_iff_lt_or_eq.1 hk with hk | rfl
-    · have hmk := Nat.mul_le_mul_left s (Nat.succ_le_of_lt hk)
-      rw [Nat.mul_succ] at hmk
-      have hval : wireValue I n (gatesOf s constOp step n A B (lines ++ [c]))
+    · have hval : wireValue I n (gatesOf s constOp step n A B (lines ++ [c]))
           (n + s * k + (s - 1)) = wireValue I n G (n + s * k + (s - 1)) := funext fun a => by
         rw [gatesOf_append_singleton]
-        exact wireValue_append_of_lt (by rw [hG]; omega) a
+        exact wireValue_append_of_lt (hG ▸ wire_lt_of_lt hs hk) a
       simpa only [List.getElem_append_left hk, hval] using hinv k hk
     · simp only [List.getElem_concat_length, gatesOf_append_singleton]
-      have hold {w : ℕ} (hw : w < n + s * lines.length) (a : ℕ → Bool) :
-          wireValue I n (G ++ lineGatesOf s constOp step n A B lines c) w a =
-            wireValue I n G w a := wireValue_append_of_lt (by omega) a
       have hbase : n + s * lines.length = n + G.length := by rw [hG]
       by_cases hcA : c ∈ A.relabel (Sum.map id Sum.inl)
       · have hline : lineGatesOf s constOp step n A B lines c =
@@ -492,25 +494,21 @@ theorem ofCode_gatesOf {I : Interpretation σ Bool} {s n : ℕ} {constOp : Bool 
           obtain ⟨k₂, hk₂, rfl⟩ := List.getElem_of_mem hc₂
           exact List.find?_eq_none.1 hfind _ (mem_candidates_of_getElem hk₁ hk₂ hv₁)
             (by simp [hv₁, hv₂])
-      obtain ⟨h₁, h₂, hc₁, hc₂⟩ := mem_candidates (List.mem_of_find?_eq_some hfind)
-      have htest := List.find?_some hfind
-      simp only [decide_eq_true_eq] at htest
+      obtain ⟨h₁, h₂, hc₁, hc₂, hpivot, -, hres⟩ := findStep_spec hfind
       have hline : lineGatesOf s constOp step n A B lines c =
-          step (n + s * lines.length) (n + s * t.leftIndex + (s - 1))
+          step (n + G.length) (n + s * t.leftIndex + (s - 1))
             (n + s * t.rightIndex + (s - 1)) t.pivot := by
-        simp only [lineGatesOf, hcA, hcB, ↓reduceIte, hfind, Option.elim_some]
-      have hm₁ := Nat.mul_le_mul_left s (Nat.succ_le_of_lt h₁)
-      have hm₂ := Nat.mul_le_mul_left s (Nat.succ_le_of_lt h₂)
-      rw [Nat.mul_succ] at hm₁ hm₂
-      have hw₁ := hold (w := n + s * t.leftIndex + (s - 1)) (by omega)
-      have hw₂ := hold (w := n + s * t.rightIndex + (s - 1)) (by omega)
-      rw [hline] at hcode hw₁ hw₂ ⊢
+        simp only [lineGatesOf, hcA, hcB, ↓reduceIte, hfind, Option.elim_some, hbase]
+      have hw₁ : n + s * t.leftIndex + (s - 1) < n + G.length := hG ▸ wire_lt_of_lt hs h₁
+      have hw₂ : n + s * t.rightIndex + (s - 1) < n + G.length := hG ▸ wire_lt_of_lt hs h₂
+      rw [hline] at hcode ⊢
+      rw [hbase]
       obtain ⟨c₁, k₁, c₂, k₂, v⟩ := t
-      dsimp only at h₁ h₂ hc₁ hc₂ htest hw₁ hw₂ ⊢
-      obtain ⟨hv₁, -, rfl⟩ := htest
-      exact hInv_step hG h₁ h₂
-        (fun i hi => hv c₁ (List.mem_append_left _ (hc₁ ▸ List.getElem_mem _)) i true (hi ▸ hv₁))
-        hcode (hc₁ ▸ hinv k₁ h₁) (hc₂ ▸ hinv k₂ h₂) hw₁ hw₂
+      dsimp only at h₁ h₂ hc₁ hc₂ hpivot hres hw₁ hw₂ hcode ⊢
+      subst c
+      exact hInv_step hw₁ hw₂
+        (fun i hi => hv c₁ (List.mem_append_left _ (hc₁ ▸ List.getElem_mem _)) i true (hi ▸ hpivot))
+        hcode (hc₁ ▸ hinv k₁ h₁) (hc₂ ▸ hinv k₂ h₂)
   have hrev : ∀ {ls' : List (Clause (ℕ ⊕ (Y ⊕ Z)))}, (A.appendShared B).IsProof ls' →
       (∀ d ∈ ls', ∀ i b, (.inl i, b) ∈ d → i < n) →
       ∀ k (hk : k < ls'.reverse.length), Inv ls'.reverse[k]
@@ -529,25 +527,20 @@ theorem ofCode_gatesOf {I : Interpretation σ Bool} {s n : ℕ} {constOp : Bool 
         (Or.inr ⟨c₁, List.mem_reverse.2 h₁, c₂, List.mem_reverse.2 h₂, v, hv₁, hv₂, rfl⟩)
   set k := (ls.reverse.map List.isEmpty).idxOf true with hk_def
   have hk : k < ls.reverse.length := by
-    have := List.idxOf_lt_length_of_mem (a := true) (l := ls.reverse.map List.isEmpty)
-      (List.mem_map.2 ⟨[], List.mem_reverse.2 hnil, rfl⟩)
-    rwa [List.length_map] at this
-  have hempty : ls.reverse[k] = [] := by
-    have h' := List.getElem_idxOf (x := true) (xs := ls.reverse.map List.isEmpty)
-      (by rw [List.length_map]; exact hk)
-    rw [List.getElem_map] at h'
-    exact List.isEmpty_iff.1 h'
-  have hcode := isCodeFrom_gatesOf (A := A) (B := B) hconst hstep_len hstep_code hvars'
+    simpa only [List.length_map] using List.idxOf_lt_length_of_mem (a := true)
+      (l := ls.reverse.map List.isEmpty) (List.mem_map.2 ⟨[], List.mem_reverse.2 hnil, rfl⟩)
+  have hempty : ls.reverse[k] = [] := List.isEmpty_iff.1 <| by
+    rw [← List.getElem_map List.isEmpty]
+    exact List.getElem_idxOf (by rw [List.length_map]; exact hk)
+  have hcode := isCodeFrom_gatesOf (A := A) (B := B) hs hconst hstep_len hstep_code hvars'
   have hlen := length_gatesOf constOp hstep_len n A B ls.reverse
-  have hmk := Nat.mul_le_mul_left s (Nat.succ_le_of_lt hk)
-  rw [Nat.mul_succ] at hmk
   set code := (gatesOf s constOp step n A B ls.reverse, [outputWireOf s n ls.reverse])
   have hsome : (Circuit.ofCode n 1 code : Option (Circuit σ n 1)).isSome := by
     rw [Circuit.isSome_ofCode_iff]
     refine ⟨hcode, rfl, ?_⟩
     simp only [code, outputWireOf, List.mem_singleton, forall_eq, hlen]
     rw [← hk_def]
-    omega
+    exact wire_lt_of_lt hs hk
   obtain ⟨C, hC⟩ := Option.isSome_iff_exists.1 hsome
   have hCcode := Circuit.code_of_ofCode_eq_some hC
   refine ⟨C, hC, ?_, ?_⟩
@@ -575,10 +568,9 @@ variable {Y Z : Type*} {n : ℕ} {A : CNF (ℕ ⊕ Y)} {B : CNF (ℕ ⊕ Z)}
     (resolventGates base w₁ w₂ v).length = 4 := by
   rcases v with _ | _ | _ <;> rfl
 
-private theorem isCodeFrom_resolventGates {m k₁ k₂ : ℕ} {v : ℕ ⊕ (Y ⊕ Z)}
-    (h₁ : k₁ < m) (h₂ : k₂ < m) (hv : ∀ i, v = .inl i → i < n) :
-    Program.IsCodeFrom signature n (4 * m)
-      (resolventGates (n + 4 * m) (n + 4 * k₁ + 3) (n + 4 * k₂ + 3) v) := by
+private theorem isCodeFrom_resolventGates {m w₁ w₂ : ℕ} {v : ℕ ⊕ (Y ⊕ Z)}
+    (h₁ : w₁ < n + m) (h₂ : w₂ < n + m) (hv : ∀ i, v = .inl i → i < n) :
+    Program.IsCodeFrom signature n m (resolventGates (n + m) w₁ w₂ v) := by
   rcases v with i | _ | _
   · have hi := hv i rfl
     refine ⟨⟨rfl, ?_⟩, ⟨rfl, ?_⟩, ⟨rfl, ?_⟩, ⟨rfl, ?_⟩, trivial⟩ <;> (simp; omega)
@@ -603,13 +595,14 @@ theorem gates_append_singleton :
 below `n`. -/
 theorem isCodeFrom_lineGates (hvars : ∀ d ∈ lines, ∀ i b, (.inl i, b) ∈ d → i < n) :
     Program.IsCodeFrom signature n (4 * lines.length) (lineGates n A B lines c) :=
-  isCodeFrom_lineGatesOf (fun _ => rfl) isCodeFrom_resolventGates hvars
+  isCodeFrom_lineGatesOf (by decide) (fun _ => rfl) isCodeFrom_resolventGates hvars
 
 /-- **The code is well formed** when the shared variables of the lines are below `n`: each gate
 has the arity of its operation and reads only the shared-variable inputs and earlier gates. -/
 theorem isCodeFrom_gates (hvars : ∀ d ∈ lines, ∀ i b, (.inl i, b) ∈ d → i < n) :
     Program.IsCodeFrom signature n 0 (gates n A B lines) :=
-  isCodeFrom_gatesOf (fun _ => rfl) length_resolventGates isCodeFrom_resolventGates hvars
+  isCodeFrom_gatesOf (by decide) (fun _ => rfl) length_resolventGates isCodeFrom_resolventGates
+    hvars
 
 end Interpolant
 
@@ -630,42 +623,28 @@ theorem CNF.IsProof.ofCode_interpolantCode {n : ℕ} {A : CNF (ℕ ⊕ Y)} {B : 
     (fun _ _ => rfl) Interpolant.length_resolventGates Interpolant.isCodeFrom_resolventGates
     (fun hd => CNF.isInterpolantAt_relabel_inl hd) (fun hd => CNF.isInterpolantAt_relabel_inr hd)
     (fun h0 => h0.isInterpolant) ?_ h hnil hA hB
-  intro G m k₁ k₂ c₁ c₂ v hG _ _ hv hcode hg₁ hg₂ hw₁ hw₂
-  have hbase : n + 4 * m = n + G.length := by rw [hG]
+  intro G w₁ w₂ c₁ c₂ v hw₁ hw₂ hv hcode hg₁ hg₂
   rcases v with i | j | k
   · have hi := hv i rfl
     convert hg₁.resolvent_inl i hg₂ using 1
     funext a
-    have e₀ := Interpolant.wireValue_block interpretation hcode (j := 0) (g := (.not, [i])) rfl a
-    have e₁ := Interpolant.wireValue_block interpretation hcode (j := 1)
-      (g := (.and, [n + 4 * m, n + 4 * k₁ + 3])) rfl a
-    have e₂ := Interpolant.wireValue_block interpretation hcode (j := 2)
-      (g := (.and, [i, n + 4 * k₂ + 3])) rfl a
-    have e₃ := Interpolant.wireValue_block interpretation hcode (j := 3)
-      (g := (.or, [n + 4 * m + 1, n + 4 * m + 2])) rfl a
-    rw [← hbase] at e₀ e₁ e₂ e₃
+    have e₀ := Interpolant.wireValue_block interpretation hcode (j := 0) (op := .not)
+      (args := [i]) rfl a
+    have e₁ := Interpolant.wireValue_block interpretation hcode (j := 1) (op := .and)
+      (args := [n + G.length, w₁]) rfl a
+    have e₂ := Interpolant.wireValue_block interpretation hcode (j := 2) (op := .and)
+      (args := [i, w₂]) rfl a
+    have e₃ := Interpolant.wireValue_block interpretation hcode (j := 3) (op := .or)
+      (args := [n + G.length + 1, n + G.length + 2]) rfl a
     simp only [Nat.add_zero] at e₀
     rw [e₃]
     simp only [interpretation, List.getElem?_cons_zero, List.getElem?_cons_succ, Option.elim,
       Fin.isValue, Fin.val_zero, Fin.val_one] at e₀ e₁ e₂ e₃ ⊢
-    rw [e₁, e₂, e₀, Interpolant.wireValue_input hi, hw₁, hw₂]
+    rw [e₁, e₂, e₀, Interpolant.wireValue_input hi, Interpolant.wireValue_append_of_lt hw₁,
+      Interpolant.wireValue_append_of_lt hw₂]
   · convert hg₁.resolvent_inr_inl j hg₂ using 1
-    funext a
-    have e₃ := Interpolant.wireValue_block interpretation hcode (j := 3)
-      (g := (.or, [n + 4 * k₁ + 3, n + 4 * k₂ + 3])) rfl a
-    rw [← hbase] at e₃
-    rw [e₃]
-    simp only [interpretation, List.getElem?_cons_zero, List.getElem?_cons_succ, Option.elim,
-      Fin.isValue, Fin.val_zero, Fin.val_one]
-    rw [hw₁, hw₂]
+    exact funext (Interpolant.wireValue_block_two interpretation 3 .or hcode rfl hw₁ hw₂)
   · convert hg₁.resolvent_inr_inr k hg₂ using 1
-    funext a
-    have e₃ := Interpolant.wireValue_block interpretation hcode (j := 3)
-      (g := (.and, [n + 4 * k₁ + 3, n + 4 * k₂ + 3])) rfl a
-    rw [← hbase] at e₃
-    rw [e₃]
-    simp only [interpretation, List.getElem?_cons_zero, List.getElem?_cons_succ, Option.elim,
-      Fin.isValue, Fin.val_zero, Fin.val_one]
-    rw [hw₁, hw₂]
+    exact funext (Interpolant.wireValue_block_two interpretation 3 .and hcode rfl hw₁ hw₂)
 
 end Cslib.Logic.PL

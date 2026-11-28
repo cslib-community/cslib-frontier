@@ -177,10 +177,10 @@ private theorem mem_support_sampleExp_of_lt (n : ℕ) (d : F.Desc) {r : ℕ} (hr
     r ∈ (ProbComp.eval (F.sampleExp n d)).support := by
   have hord : F.order d < 2 ^ (encNat (F.order d)).length := by
     simpa only [encNat_apply, ← Nat.size_eq_bits_len] using Nat.lt_size_self (F.order d)
-  have hlt : r < 2 ^ (n + (encNat (F.order d)).length) :=
-    (hr.trans hord).trans_le (Nat.pow_le_pow_right (by omega) (Nat.le_add_left _ _))
   simp only [sampleExp, ProbComp.sampleModNat, ProbComp.eval_map, PMF.mem_support_map_iff]
-  exact ⟨r, (ProbComp.mem_support_sampleBinaryNat_iff _ r).mpr hlt, Nat.mod_eq_of_lt hr⟩
+  exact ⟨r, (ProbComp.mem_support_sampleBinaryNat_iff _ r).mpr
+    ((hr.trans hord).trans_le (Nat.pow_le_pow_right (by omega) (Nat.le_add_left _ _))),
+    Nat.mod_eq_of_lt hr⟩
 
 /-- **Homomorphic support closure on `elGamalEncryptProb`** ([BonehShoup2023], Exercise 11.5(c),
 p. 459): for any honest key pair `(pk, sk)` in the support of `elGamalKeyGenProb d n` and any
@@ -248,34 +248,26 @@ theorem isPPT_ddhWordToElGamalAdversary {d : ℕ → F.Desc}
     (hW : IsPPTOn (encPair encUnary (encPair F.encDesc (encPair encBits (encPair encBits encBits))))
       encBool (fun x => W x.1 x.2)) :
     (F.ddhWordToElGamalAdversary d W).IsPPT := by
-  let E0 := encPair encUnary encBits
-  have hn0 : ComputableInPolyTime (fun p : ℕ × List Bool => p.1) E0 encUnary :=
-    ComputableInPolyTime.fst encUnary encBits
+  have hn0 := ComputableInPolyTime.fst encUnary encBits
   have hd0 := hd.comp hn0
-  have hp := ComputableInPolyTime.fst E0 encNat
-  have hc := ComputableInPolyTime.snd E0 encNat
+  have hp := ComputableInPolyTime.fst (encPair encUnary encBits) encNat
+  have hc := ComputableInPolyTime.snd (encPair encUnary encBits) encNat
   have hd' := hd0.comp hp
   have hm₀ := computableInPolyTime_encode_zero hd'
   have hm₁ := F.computableInPolyTime_smul.comp
     (hd'.prod (hc.prod (F.computableInPolyTime_generator.comp hd')))
   have hpk0 := (ComputableInPolyTime.snd encUnary encBits).comp hp
-  have hchoose : Probability.IsPPT (encChoiceOut encBits)
-      (F.ddhWordToElGamalAdversary d W).choose :=
-    ((F.isPPTOn_sampleExp hn0 hd0).bind_with
-      (((hm₀.prod hm₁).prod hpk0).isPPTOn)).isPPT
+  have hret : ComputableInPolyTime _ _ (encChoiceOut encBits) := (hm₀.prod hm₁).prod hpk0
+  have h0 := (F.isPPTOn_sampleExp hn0 hd0).keep_input.bind hret.isPPTOn
   have hn := ComputableInPolyTime.fst encUnary (encPair encBits encBits)
   have hrest := ComputableInPolyTime.snd encUnary (encPair encBits encBits)
   have hpk := (ComputableInPolyTime.fst encBits encBits).comp hrest
   have hct := (ComputableInPolyTime.snd encBits encBits).comp hrest
-  have hguess : IsPPTOn encGuessInput encBool
-      (fun ⟨n, state, ciphertext⟩ =>
-        (F.ddhWordToElGamalAdversary d W).guess n state ciphertext) :=
-    hW.preprocess
-      (hn.prod ((hd.comp hn).prod
-        ((ComputableInPolyTime.dropFrame.comp hpk).prod
-          ((ComputableInPolyTime.unframe.comp hct).prod
-            (ComputableInPolyTime.dropFrame.comp hct)))))
-  exact ⟨hchoose, hguess⟩
+  have hprep : ComputableInPolyTime _ encGuessInput _ := hn.prod ((hd.comp hn).prod
+    ((ComputableInPolyTime.dropFrame.comp hpk).prod ((ComputableInPolyTime.unframe.comp hct).prod
+      (ComputableInPolyTime.dropFrame.comp hct))))
+  exact ⟨IsPPTOn.isPPT (h0.congr fun _ => congrArg ProbComp.eval (bind_map_left _ _ _)),
+    (hW.preprocess hprep).congr fun _ => congrArg ProbComp.eval rfl⟩
 
 /-- In world `false` (`m₀ = 0`), `ddhWordToElGamalAdversary` ignores its sampled exponent `c` and
 passes `(α • g, β • g, (α * β) • g)` to `W`, matching `ddhRealGame` with zero sampling loss. -/
@@ -320,40 +312,15 @@ private theorem advantage_elGamalGroupCPAGameOn_true_ddhRandomGame_le
     dropFrame_encPair_encBits, unframe_encPair_encBits]
   rw [PMF.bind_comm]
   refine Game.advantage_bind_le_nnreal _ _ _ fun β => ?_
-  have hmask := F.uniform_smul_generator_add (d n) ((α * β) • F.generator (d n))
-    (fun z => ProbComp.eval
-      (W n (d n, F.encode (d n) (α • F.generator (d n)),
-        F.encode (d n) (β • F.generator (d n)), F.encode (d n) z)))
+  have hmask := F.uniform_smul_generator_add (d n) ((α * β) • F.generator (d n)) fun z =>
+    ProbComp.eval (W n (d n, F.encode (d n) (α • F.generator (d n)),
+      F.encode (d n) (β • F.generator (d n)), F.encode (d n) z))
   rw [← hmask]
   simp only [add_comm ((α * β) • F.generator (d n))]
   exact F.advantage_bind_sampleExp_le n (d n) fun γ => ProbComp.eval
     (W n (d n, F.encode (d n) (α • F.generator (d n)),
       F.encode (d n) (β • F.generator (d n)),
       F.encode (d n) (γ • F.generator (d n) + (α * β) • F.generator (d n))))
-
-private theorem advantage_ddhGame_le_elGamalGroupCPAGameOn
-    (valid : ℕ → List Bool → List Bool → List Bool → Bool) (d : ℕ → F.Desc)
-    (W : ℕ → F.Desc × List Bool × List Bool × List Bool → ProbComp Bool) (n : ℕ)
-    (hvalid : ∀ u m₀ m₁ : F.Carrier (d n),
-      valid n (encPair F.encDesc encBits (d n, F.encode (d n) u))
-        (F.encode (d n) m₀) (F.encode (d n) m₁) = true) :
-    Game.advantage
-      (F.ddhRealGame (fun m => PMF.pure (d m))
-        (fun m d' u v w => W m (d', F.encode d' u, F.encode d' v, F.encode d' w)) n)
-      (F.ddhRandomGame (fun m => PMF.pure (d m))
-        (fun m d' u v w => W m (d', F.encode d' u, F.encode d' v, F.encode d' w)) n) ≤
-      Game.advantage
-        (F.elGamalGroupCPAGameOn valid (fun m => PMF.pure (d m))
-          (F.ddhWordToElGamalAdversary d W) false n)
-        (F.elGamalGroupCPAGameOn valid (fun m => PMF.pure (d m))
-          (F.ddhWordToElGamalAdversary d W) true n) +
-      1 / 2 ^ n := by
-  rw [F.ddhRealGame_eq_elGamalGroupCPAGameOn_false valid d W n hvalid]
-  exact (Game.advantage_triangle _
-    (F.elGamalGroupCPAGameOn valid (fun m => PMF.pure (d m))
-      (F.ddhWordToElGamalAdversary d W) true n) _).trans
-    (add_le_add le_rfl
-      (F.advantage_elGamalGroupCPAGameOn_true_ddhRandomGame_le valid d W n hvalid))
 
 /-- **Quantitative reduction from word-level DDH to native `Encryption.gameOn`** (after
 [BonehShoup2023], Exercise 11.5(b), p. 459; this step bounds DDH advantage with `5 / 2 ^ n`
@@ -380,13 +347,15 @@ theorem advantage_ddhGame_le_gameOn
           (F.ddhWordToElGamalAdversary d W) true n)) +
       5 / 2 ^ n := by
   let adv := F.ddhWordToElGamalAdversary d W
-  have hddh := F.advantage_ddhGame_le_elGamalGroupCPAGameOn valid d W n hvalid
-  have hhop₀ := (Game.advantage_comm _ _).trans_le
-    (F.advantage_gameOn_elGamalMsgCPAGameOn_le valid (fun _ m => m) d adv false n)
-  have hhop₁ := (Game.advantage_comm _ _).trans_le
-    (F.advantage_gameOn_elGamalMsgCPAGameOn_le valid (fun _ m => m) d adv true n)
-  have hcpa := Game.advantage_four_hop_le hhop₀ hhop₁
-  exact hddh.trans ((add_le_add hcpa le_rfl).trans_eq (by ring))
+  have hhop (b : Bool) := (Game.advantage_comm _ _).trans_le
+    (F.advantage_gameOn_elGamalMsgCPAGameOn_le valid (fun _ m => m) d adv b n)
+  have hcpa := Game.advantage_four_hop_le (hhop false) (hhop true)
+  rw [F.ddhRealGame_eq_elGamalGroupCPAGameOn_false valid d W n hvalid]
+  exact ((Game.advantage_triangle _
+    (F.elGamalGroupCPAGameOn valid (fun m => PMF.pure (d m)) adv true n) _).trans
+    (add_le_add le_rfl
+      (F.advantage_elGamalGroupCPAGameOn_true_ddhRandomGame_le valid d W n hvalid))).trans
+    ((add_le_add hcpa le_rfl).trans_eq (by ring))
 
 /-- **Native `INDCPAOn` security of group-element multiplicative ElGamal implies DDH**
 ([BonehShoup2023], Exercise 11.5(b), p. 459): for a polynomial-time group description family
@@ -410,10 +379,9 @@ theorem ddh_of_indcpaOn_elGamalGroupEncryptProb {d : ℕ → F.Desc}
     F.DDH (fun n => PMF.pure (d n)) := by
   rw [F.ddh_iff_encoded]
   intro W hW
-  have hneg := hcpa _ (F.isPPT_ddhWordToElGamalAdversary hd hW)
   have h5 : Negligible fun n => (5 : ℝ≥0) / 2 ^ n := by
     simpa only [Nat.cast_ofNat] using negligible_const_div_two_pow 5
-  refine negligible_of_le (hneg.add h5) fun n => ?_
+  refine negligible_of_le ((hcpa _ (F.isPPT_ddhWordToElGamalAdversary hd hW)).add h5) fun n => ?_
   dsimp only [Pi.add_apply]
   exact F.advantage_ddhGame_le_gameOn valid d W n (hvalid n)
 

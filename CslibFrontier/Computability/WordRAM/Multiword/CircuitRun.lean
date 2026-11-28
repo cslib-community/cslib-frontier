@@ -46,14 +46,11 @@ def «prefix» (v : Fin n → ℕ) (k : ℕ) : Fin n → ℕ :=
 private theorem update_prefix (v : Fin n → ℕ) (d : Fin n) :
     Function.update («prefix» v d.val) d (v d) = «prefix» v (d.val + 1) := by
   funext j
-  by_cases hj : j = d
-  · subst j
-    simp [«prefix»]
-  · have hne : j.val ≠ d.val := fun h => hj (Fin.ext h)
-    rw [Function.update_of_ne hj]
-    unfold «prefix»
-    have hlt : j.val < d.val ↔ j.val < d.val + 1 := by omega
-    simp only [hlt]
+  rcases eq_or_ne j d with rfl | hj
+  · simp [«prefix»]
+  · have : j.val ≠ d.val := Fin.val_ne_of_ne hj
+    simp only [Function.update_of_ne hj, «prefix»,
+      show (j.val < d.val) = (j.val < d.val + 1) from propext (by omega)]
 
 namespace Operation
 
@@ -62,20 +59,16 @@ theorem eval_congr {d : Fin n} {op : Operation n} {v u : Fin n → ℕ}
     (he : op.Earlier d) (h : ∀ j, j.val < d.val → v j = u j) :
     op.eval v = op.eval u := by
   cases op with
-  | constant z => rfl
-  | binary f a b =>
-    change a.val < d.val ∧ b.val < d.val at he
-    simp only [eval, h a he.1, h b he.2]
+  | constant => rfl
+  | binary _ a b => simp only [eval, h a he.1, h b he.2]
 
 /-- The admissibility bounds depend only on the earlier source values of a node. -/
 theorem admissible_congr {w : ℕ} {d : Fin n} {op : Operation n} {v u : Fin n → ℕ}
     (he : op.Earlier d) (h : ∀ j, j.val < d.val → v j = u j) :
     op.Admissible w v ↔ op.Admissible w u := by
   cases op with
-  | constant z => rfl
-  | binary f a b =>
-    change a.val < d.val ∧ b.val < d.val at he
-    simp only [Admissible, eval, h a he.1, h b he.2]
+  | constant => rfl
+  | binary _ a b => simp only [Admissible, eval, h a he.1, h b he.2]
 
 end Operation
 
@@ -99,10 +92,9 @@ theorem size_run (emit : Fin n → Operation n → Code .standard (Bank.capacity
   | zero => simp [run, nop, Code.size]
   | succ fuel ih =>
     by_cases hk : k < n
-    · simp only [run, dite_eq_left hk, Code.size]
-      have := hsize ⟨k, hk⟩ (ops ⟨k, hk⟩)
+    · have := hsize ⟨k, hk⟩ (ops ⟨k, hk⟩)
       have := ih (k + 1)
-      omega
+      simp only [run, dite_eq_left hk, Code.size]; omega
     · simp [run, hk, nop, Code.size]
 
 /-- Sequential composition of checked node executions reconstructs the prescribed graph
@@ -123,29 +115,23 @@ theorem exec_run
       Bank.Encodes w y («prefix» v (k + fuel)) ∧ y.mem = x.mem := by
   induction fuel generalizing k x with
   | zero =>
-    refine ⟨x, ?_, ?_, rfl⟩
-    · simpa [run, nop, Data.set] using
-        (ExecWithin.copy (B := .standard) (w := w) (x := x)
-          (d := Workspace.carry) (s := Workspace.carry))
-    · simpa only [Nat.add_zero] using hx
+    exact ⟨x, by simpa [run, nop, Data.set] using
+      (ExecWithin.copy (B := .standard) (w := w) (x := x)
+        (d := Workspace.carry) (s := Workspace.carry)),
+      by simpa only [Nat.add_zero] using hx, rfl⟩
   | succ fuel ih =>
     have hk : k < n := by omega
     let d : Fin n := ⟨k, hk⟩
-    obtain ⟨he, hv, ha⟩ := hgraph d (by rfl) (by dsimp [d]; omega)
-    have hprefix (j : Fin n) (hj : j.val < d.val) : «prefix» v k j = v j := by
-      exact ite_eq_left hj
-    have heval : (ops d).eval («prefix» v k) = v d :=
-      (Operation.eval_congr he hprefix).trans hv
-    have hadm : (ops d).Admissible w («prefix» v k) :=
-      (Operation.admissible_congr he hprefix).mpr ha
-    obtain ⟨z, hz, hze, hzm⟩ := hnode d (ops d) x («prefix» v k) he hadm hx
-    rw [heval, update_prefix v d] at hze
+    obtain ⟨he, hv, ha⟩ := hgraph d le_rfl (by dsimp [d]; omega)
+    obtain ⟨z, hz, hze, hzm⟩ := hnode d (ops d) x («prefix» v k) he
+      ((Operation.admissible_congr he fun _ hj => ite_eq_left hj).mpr ha) hx
+    rw [(Operation.eval_congr (v := «prefix» v k) he fun _ hj => ite_eq_left hj).trans hv,
+      update_prefix v d] at hze
     obtain ⟨y, hy, hye, hym⟩ := ih (k + 1) (by omega)
       (fun i hi hi' => hgraph i (by omega) (by omega)) z hze
-    refine ⟨y, ?_, ?_, hym.trans hzm⟩
-    · simpa only [run, dite_eq_left hk, Nat.succ_mul, Nat.add_assoc, Nat.add_comm,
-        Nat.add_left_comm] using hz.seq hy
-    · simpa only [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hye
+    exact ⟨y, by simpa only [run, dite_eq_left hk, Nat.succ_mul, Nat.add_assoc, Nat.add_comm,
+        Nat.add_left_comm] using hz.seq hy,
+      by simpa only [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hye, hym.trans hzm⟩
 
 end Cslib.WordRAM.Multiword.Circuit
 

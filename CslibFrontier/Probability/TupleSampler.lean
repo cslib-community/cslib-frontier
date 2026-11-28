@@ -12,7 +12,7 @@ public import Mathlib.Analysis.SpecialFunctions.Exp
 public import Mathlib.Data.Fintype.BigOperators
 import CslibFrontier.Foundations.Data.Fintype.AgreeOn
 import CslibFrontier.Probability.Chernoff
-import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Probability.PMF.UniformBridge
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -76,6 +76,7 @@ public section
 namespace Cslib.Probability
 
 open Finset
+open scoped BigOperators
 
 variable {U ι : Type*} [Fintype U] [Fintype ι]
 
@@ -90,35 +91,24 @@ theorem card_filter_sum_le_half_le_exp [DecidableEq ι] [Nonempty U] (F : U → 
   have hU : (0 : ℝ) < Fintype.card U := by exact_mod_cast Fintype.card_pos
   have hmean : μ * Fintype.card ι ≤
       ∑ _i : ι, ∑ a, ((PMF.uniformOfFintype U) a).toReal * F a := by
-    have hrow : ∑ a, ((PMF.uniformOfFintype U) a).toReal * F a =
-        (Fintype.card U : ℝ)⁻¹ * ∑ a, F a := by
-      simp [mul_sum]
-    have hμ' : μ ≤ (Fintype.card U : ℝ)⁻¹ * ∑ a, F a := by
-      rw [le_inv_mul_iff₀ hU, mul_comm]
+    have hμ' : μ ≤ 𝔼 a, F a := by
+      rw [Fintype.expect_eq_sum_div_card, le_div_iff₀ hU]
       exact hμ
-    rw [sum_const, card_univ, nsmul_eq_mul, hrow, mul_comm μ]
+    simp only [PMF.sum_uniformOfFintype_toReal_mul, sum_const, card_univ, nsmul_eq_mul]
+    rw [mul_comm μ]
     exact mul_le_mul_of_nonneg_left hμ' (Nat.cast_nonneg _)
   have hch := PMF.pi_sum_le_one_sub_mul (fun _ : ι => PMF.uniformOfFintype U) (fun _ => F)
     (fun _ a _ => hF a) hmean (by norm_num : (0 : ℝ) ≤ 1 / 2)
-  rw [PMF.pi_uniformOfFintype, PMF.toOuterMeasure_uniformOfFintype_toReal,
-    Fintype.card_fun] at hch
-  have hpos : (0 : ℝ) < (Fintype.card U : ℝ) ^ Fintype.card ι := by positivity
-  rw [div_le_iff₀ (by exact_mod_cast hpos)] at hch
-  have hset : #{x : ι → U | x ∈ {outcome : ι → U |
-      ∑ i, F (outcome i) ≤ (1 - 1 / 2) * (μ * Fintype.card ι)}} =
-      #{b : ι → U | ∑ i, F (b i) ≤ μ * Fintype.card ι / 2} := by
-    congr 1
+  have hev : {outcome : ι → U | ∑ i, F (outcome i) ≤ (1 - 1 / 2) * (μ * Fintype.card ι)} =
+      {b : ι → U | ∑ i, F (b i) ≤ μ * Fintype.card ι / 2} := by
     ext b
-    simp only [mem_filter, mem_univ, true_and, Set.mem_ofPred_eq]
+    simp only [Set.mem_ofPred_eq]
     constructor <;> intro h <;> linarith
-  rw [hset] at hch
-  calc (#{b : ι → U | ∑ i, F (b i) ≤ μ * Fintype.card ι / 2} : ℝ)
-      ≤ Real.exp (-((1 / 2) ^ 2 * (μ * Fintype.card ι) / 2)) *
-          ((Fintype.card U : ℝ) ^ Fintype.card ι) := by exact_mod_cast hch
-    _ = Fintype.card U ^ Fintype.card ι * Real.exp (-(μ * Fintype.card ι / 8)) := by
-        rw [mul_comm]
-        congr 2
-        ring
+  rw [hev] at hch
+  refine (PMF.card_filter_pi_le_of_toOuterMeasure_le
+    (fun b : ι → U => ∑ i, F (b i) ≤ μ * Fintype.card ι / 2) hch).trans_eq ?_
+  congr 2
+  ring
 
 /-- **Planting a point**: summing over a point `x` and a tuple `r` with `x` written at coordinate
 `j` counts every tuple `b` once for each value `r j` it overwrote, with `x = b j`. -/
@@ -166,29 +156,23 @@ theorem sub_mul_le_two_mul_sum_sum [Nonempty U] (F : U → ℝ)
     ((#W : ℝ) - Fintype.card U ^ Fintype.card ι * Real.exp (-(μ * Fintype.card ι / 8))) *
         (μ * Fintype.card ι) ≤ 2 * ∑ b ∈ W, ∑ i, F (b i) := by
   classical
-  set t : ℝ := μ * Fintype.card ι with ht
+  set t : ℝ := μ * Fintype.card ι
   have ht0 : 0 ≤ t := by positivity
   set bad := W.filter fun b => ∑ i, F (b i) ≤ t / 2
-  have hbad : (#bad : ℝ) ≤ Fintype.card U ^ Fintype.card ι * Real.exp (-(t / 8)) := by
-    refine le_trans ?_ (card_filter_sum_le_half_le_exp F hF hμ)
-    exact_mod_cast card_le_card fun b hb => by
-      simp only [bad, mem_filter] at hb
-      simpa using hb.2
+  have hbad : (#bad : ℝ) ≤ Fintype.card U ^ Fintype.card ι * Real.exp (-(t / 8)) :=
+    le_trans (by exact_mod_cast card_le_card fun b hb => by simpa using (mem_filter.1 hb).2)
+      (card_filter_sum_le_half_le_exp F hF hμ)
+  have hcard : (#W : ℝ) - #bad = #(W.filter fun b => ¬∑ i, F (b i) ≤ t / 2) := by
+    rw [← card_filter_add_card_filter_not (s := W) (p := fun b => ∑ i, F (b i) ≤ t / 2)]
+    push_cast; ring
+  have hlow : (#(W.filter fun b => ¬∑ i, F (b i) ≤ t / 2) : ℝ) * (t / 2) ≤
+      ∑ b ∈ W.filter (fun b => ¬∑ i, F (b i) ≤ t / 2), ∑ i, F (b i) := by
+    simpa only [nsmul_eq_mul] using card_nsmul_le_sum
+      (W.filter fun b => ¬∑ i, F (b i) ≤ t / 2) (fun b => ∑ i, F (b i)) (t / 2)
+      fun b hb => (not_le.1 (mem_filter.1 hb).2).le
   have hgood : ((#W : ℝ) - #bad) * (t / 2) ≤ ∑ b ∈ W, ∑ i, F (b i) := by
-    rw [← sum_filter_add_sum_filter_not W fun b => ∑ i, F (b i) ≤ t / 2]
-    have hnn : 0 ≤ ∑ b ∈ W.filter (fun b => ∑ i, F (b i) ≤ t / 2), ∑ i, F (b i) :=
-      sum_nonneg fun b _ => sum_nonneg fun i _ => (hF _).1
-    have hcard : (#W : ℝ) - #bad = #(W.filter fun b => ¬∑ i, F (b i) ≤ t / 2) := by
-      rw [← card_filter_add_card_filter_not (s := W) (p := fun b => ∑ i, F (b i) ≤ t / 2)]
-      push_cast
-      ring
-    have hlow : (#(W.filter fun b => ¬∑ i, F (b i) ≤ t / 2) : ℝ) * (t / 2) ≤
-        ∑ b ∈ W.filter (fun b => ¬∑ i, F (b i) ≤ t / 2), ∑ i, F (b i) := by
-      have h := card_nsmul_le_sum (W.filter fun b => ¬∑ i, F (b i) ≤ t / 2)
-        (fun b => ∑ i, F (b i)) (t / 2) fun b hb => (not_le.1 (mem_filter.1 hb).2).le
-      simpa only [nsmul_eq_mul] using h
-    rw [hcard]
-    linarith
+    rw [hcard, ← sum_filter_add_sum_filter_not W fun b => ∑ i, F (b i) ≤ t / 2]
+    linarith [sum_nonneg (s := bad) fun b _ => sum_nonneg (s := univ) fun i _ => (hF (b i)).1]
   nlinarith
 
 /-- **Edges into a dense slice**: for a family `S` of tuples that agree on `P`, the entries

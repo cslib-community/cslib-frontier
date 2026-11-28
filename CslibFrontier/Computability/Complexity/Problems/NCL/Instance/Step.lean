@@ -50,12 +50,10 @@ def checkLegal (g : AndOrGraph) (s : List Bool) : Bool := g.vertices.all (fun v 
 /-- On bounded data, the Boolean check is exactly finite configuration legality. -/
 theorem checkLegal_eq_true_iff (g : AndOrGraph) (hb : g.Bounded)
     (s : List Bool) : g.checkLegal s = true ↔ g.graph.Legal (g.config s) := by
-  rw [checkLegal, List.all_eq_true, List.forall_mem_iff_get]
-  apply forall_congr'
-  intro i
+  rw [checkLegal, List.all_eq_true, List.forall_mem_iff_get, ConstraintGraph.Legal]
+  refine forall_congr' fun i => ?_
   rw [← congrFun (graph_map_val g hb) i]
-  change ((g.graph i).map Fin.val).checkSat s = true ↔ _
-  rw [Vertex.checkSat_eq_true_iff, Vertex.sat_map]
+  simp only [ConstraintGraph.map, Vertex.checkSat_eq_true_iff, Vertex.sat_map]
   rfl
 
 private theorem getD_modify_not (s : List Bool) (i j : ℕ) (hj : j < s.length) :
@@ -67,14 +65,11 @@ private theorem getD_modify_not (s : List Bool) (i j : ℕ) (hj : j < s.length) 
 theorem config_modify_not (g : AndOrGraph) (s : List Bool) (hs : s.length = g.edgeCount)
     (e : Fin g.edgeCount) : g.config (s.modify e Bool.not) = reverse (g.config s) e := by
   funext i
-  change (s.modify e Bool.not).getD i false = _
-  rw [getD_modify_not s e i (by rw [hs]; exact i.isLt)]
+  have h := getD_modify_not s e i (i.isLt.trans_eq hs.symm)
   by_cases hi : i = e
   · subst i
-    rw [ite_eq_left rfl, reverse_self]
-    rfl
-  · rw [ite_eq_right (Fin.val_injective.ne hi), reverse_of_ne _ hi]
-    rfl
+    simpa only [config, ↓reduceIte, reverse_self] using h
+  · simpa only [config, ite_eq_right (Fin.val_injective.ne hi), reverse_of_ne _ hi] using h
 
 /-- Check the declared widths, both local legality constraints, and a single bit reversal. -/
 @[expose] def checkStep (g : AndOrGraph) (s t : List Bool) : Bool :=
@@ -90,8 +85,7 @@ theorem checkStep_eq_true_iff (g : AndOrGraph) (hb : g.Bounded)
     checkLegal_eq_true_iff g hb, List.any_eq_true, List.mem_range]
   constructor
   · rintro ⟨⟨hs, ht⟩, ⟨⟨hls, hlt⟩, i, hi, rfl⟩⟩
-    let e : Fin g.edgeCount := ⟨i, by omega⟩
-    exact ⟨hs, ht, hls, hlt, ⟨e, config_modify_not g s hs e⟩⟩
+    exact ⟨hs, ht, hls, hlt, ⟨⟨i, hs ▸ hi⟩, config_modify_not g s hs ⟨i, hs ▸ hi⟩⟩⟩
   · rintro ⟨hs, ht, hls, hlt, e, he⟩
     have hflip : t = s.modify e Bool.not := by
       calc

@@ -377,8 +377,8 @@ private theorem enterRuntimeWalk_inSpace :
   have hsource := encContext_source_budget hquery
   have hcursor := encRegisters_cursor_budget hregisters
   have hfuel := encContext_radius_budget hquery
-  have hzero := budget_const (encIn := encIn) (encB := encNat) 0 (.refl _)
-  have hone := budget_const (encIn := encIn) (encB := encNat) 1 (.refl _)
+  have hzero := budget_const (Bs := fun a => (encIn a).length) (encIn := encIn) (encB := encNat) 0
+  have hone := budget_const (Bs := fun a => (encIn a).length) (encIn := encIn) (encB := encNat) 1
   have hdimension : ComputableInSpace dimension encIn encNat (fun p => (encIn p).length) :=
     budget_iteProp (budget_natLt hzero hsize) hsize hone
   have hentry := Runtime.entryRanks_budget edge start verdict clock encK encCallee
@@ -386,7 +386,7 @@ private theorem enterRuntimeWalk_inSpace :
   have hreject := Runtime.state_budget encK encCallee
     (walk := fun _ => .done none) (positive := fun _ => Nat.zero_lt_one) hcontext hone
     (budget_const (encB := encBits)
-      (BoundedWalk.encState (N := 1) encCallee (.done none)) (.refl _))
+      (BoundedWalk.encState (N := 1) encCallee (.done none)))
   have hvalid := budget_boolAnd (budget_natLt hsource hsize) (budget_natLt hcursor hsize)
   refine (budget_ite hvalid hentry hreject).of_enc_eq ?_
   rintro ⟨context, r⟩

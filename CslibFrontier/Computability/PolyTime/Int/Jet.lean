@@ -37,6 +37,8 @@ has exact length `J`.
 
 ## Main definitions and results
 
+* `Cslib.IntJet.encJet`: encoding of a truncated integer jet (`List ℤ`) as framed signed binary
+  integers (`encList encIntBin`).
 * `Cslib.IntJet.add`, `Cslib.IntJet.sub`, `Cslib.IntJet.subConst`: truncated length-`J` addition
   (via `Cslib.truncZJet` and `Cslib.polyAdd`) and subtraction on `List ℤ`.
 * `Cslib.IntJet.X_pow_dvd_truncZJet`, `Cslib.IntJet.X_pow_dvd_add`, `Cslib.IntJet.X_pow_dvd_sub`,
@@ -103,9 +105,8 @@ theorem X_pow_dvd_truncZJet_singleton (J : ℕ) (c : ℤ) :
 theorem X_pow_dvd_add (J : ℕ) (a b : List ℤ) :
     Polynomial.X ^ J ∣
       Polynomial.ofCoeffList (add J a b) -
-        (Polynomial.ofCoeffList a + Polynomial.ofCoeffList b) := by
-  rw [add, ← Cslib.ofCoeffList_polyAdd]
-  exact X_pow_dvd_truncZJet J _
+        (Polynomial.ofCoeffList a + Polynomial.ofCoeffList b) :=
+  Cslib.ofCoeffList_polyAdd a b ▸ X_pow_dvd_truncZJet J _
 
 theorem X_pow_dvd_sub (J : ℕ) (a b : List ℤ) :
     Polynomial.X ^ J ∣
@@ -122,24 +123,23 @@ theorem X_pow_dvd_subConst (J : ℕ) (c : ℤ) (a : List ℤ) :
   simpa only [subConst, Polynomial.ofCoeffList_cons, Polynomial.ofCoeffList_nil, mul_zero,
     add_zero] using X_pow_dvd_sub J [c] a
 
+private theorem X_pow_dvd_sub_mul {J : ℕ} {r p q p' q' : Polynomial ℤ}
+    (hr : Polynomial.X ^ J ∣ r - p * q) (hp : Polynomial.X ^ J ∣ p - p')
+    (hq : Polynomial.X ^ J ∣ q - q') : Polynomial.X ^ J ∣ r - p' * q' := by
+  convert dvd_add (dvd_add hr (dvd_mul_of_dvd_left hp q)) (dvd_mul_of_dvd_right hq p') using 1
+  ring
+
 /-- `Cslib.mulZJet J a b` is congruent to `ofCoeffList a * ofCoeffList b` modulo `X ^ J`. -/
 theorem X_pow_dvd_mulZJet (J : ℕ) (a b : List ℤ) :
     Polynomial.X ^ J ∣
       Polynomial.ofCoeffList (Cslib.mulZJet J a b) -
-        Polynomial.ofCoeffList a * Polynomial.ofCoeffList b := by
-  have htake (u : List ℤ) :
-      Polynomial.X ^ J ∣ Polynomial.ofCoeffList (u.take J) - Polynomial.ofCoeffList u :=
-    Cslib.ofCoeffList_truncZJet J u ▸ X_pow_dvd_truncZJet J u
-  have hmul : Polynomial.X ^ J ∣
-      Polynomial.ofCoeffList (Cslib.mulZJet J a b) -
-        Polynomial.ofCoeffList (a.take J) * Polynomial.ofCoeffList (b.take J) :=
-    Polynomial.X_pow_dvd_iff.mpr fun k hk => by
-      rw [Polynomial.coeff_sub, Polynomial.coeff_ofCoeffList, Cslib.getD_mulZJet_of_lt hk a b,
-        sub_self]
-  convert dvd_add
-    (dvd_add hmul (dvd_mul_of_dvd_left (htake a) (Polynomial.ofCoeffList (b.take J))))
-    (dvd_mul_of_dvd_right (htake b) (Polynomial.ofCoeffList a)) using 1
-  ring
+        Polynomial.ofCoeffList a * Polynomial.ofCoeffList b :=
+  X_pow_dvd_sub_mul
+    (Polynomial.X_pow_dvd_iff.mpr fun k hk => by
+      rw [Polynomial.coeff_sub, Polynomial.coeff_ofCoeffList, Cslib.getD_mulZJet_of_lt hk,
+        sub_self])
+    (Cslib.ofCoeffList_truncZJet J a ▸ X_pow_dvd_truncZJet J a)
+    (Cslib.ofCoeffList_truncZJet J b ▸ X_pow_dvd_truncZJet J b)
 
 /-- Folding `Cslib.mulZJet J` over `l` preserves congruence modulo `X ^ J`. -/
 theorem X_pow_dvd_foldl_mulZJet {α : Type*} (J : ℕ) (l : List α)
@@ -154,13 +154,8 @@ theorem X_pow_dvd_foldl_mulZJet {α : Type*} (J : ℕ) (l : List α)
   | nil => simpa only [List.foldl_nil, List.map_nil, List.prod_nil, mul_one] using hacc
   | cons x l ih =>
     rw [List.foldl_cons, List.map_cons, List.prod_cons, ← mul_assoc]
-    refine ih (fun y hy => hstep y (List.mem_cons_of_mem _ hy))
-      (Cslib.mulZJet J acc (stepJet x)) (accPoly * stepPoly x) ?_
-    convert dvd_add
-      (dvd_add (X_pow_dvd_mulZJet J acc (stepJet x))
-        (dvd_mul_of_dvd_left hacc (Polynomial.ofCoeffList (stepJet x))))
-      (dvd_mul_of_dvd_right (hstep x List.mem_cons_self) accPoly) using 1
-    ring
+    exact ih (fun y hy => hstep y (List.mem_cons_of_mem _ hy)) _ _
+      (X_pow_dvd_sub_mul (X_pow_dvd_mulZJet J acc (stepJet x)) hacc (hstep x List.mem_cons_self))
 
 theorem natAbs_getD_le_coeffNorm1 (a : List ℤ) (k : ℕ) :
     (a.getD k 0).natAbs ≤ (Polynomial.ofCoeffList a).coeffNorm1 := by
@@ -169,9 +164,8 @@ theorem natAbs_getD_le_coeffNorm1 (a : List ℤ) (k : ℕ) :
 
 /-- Every entry `a.getD k 0` has `encIntBin` bit-length at most `coeffNorm1.size + 1`. -/
 theorem length_encIntBin_getD_le_coeffNorm1 (a : List ℤ) (k : ℕ) :
-    (encIntBin (a.getD k 0)).length ≤ (Polynomial.ofCoeffList a).coeffNorm1.size + 1 := by
-  rw [length_encIntBin]
-  exact Nat.add_le_add_right (Nat.size_le_size (natAbs_getD_le_coeffNorm1 a k)) 1
+    (encIntBin (a.getD k 0)).length ≤ (Polynomial.ofCoeffList a).coeffNorm1.size + 1 :=
+  length_encIntBin _ ▸ Nat.add_le_add_right (Nat.size_le_size (natAbs_getD_le_coeffNorm1 a k)) 1
 
 theorem coeffNorm1_truncZJet_le (J : ℕ) (a : List ℤ) :
     (Polynomial.ofCoeffList (Cslib.truncZJet J a)).coeffNorm1 ≤
@@ -181,9 +175,7 @@ theorem coeffNorm1_truncZJet_le (J : ℕ) (a : List ℤ) :
 
 theorem coeffNorm1_truncZJet_singleton_le (J : ℕ) (c : ℤ) :
     (Polynomial.ofCoeffList (Cslib.truncZJet J [c])).coeffNorm1 ≤ c.natAbs :=
-  (coeffNorm1_truncZJet_le J [c]).trans
-    (by simp only [Polynomial.coeffNorm1_ofCoeffList, List.map_cons, List.map_nil,
-      List.sum_cons, List.sum_nil, Nat.add_zero, le_refl])
+  (coeffNorm1_truncZJet_le J [c]).trans (by simp [Polynomial.coeffNorm1_ofCoeffList])
 
 theorem coeffNorm1_add_le (J : ℕ) (a b : List ℤ) :
     (Polynomial.ofCoeffList (add J a b)).coeffNorm1 ≤
@@ -197,20 +189,14 @@ theorem coeffNorm1_sub_le (J : ℕ) (a b : List ℤ) :
       (Polynomial.ofCoeffList a).coeffNorm1 + (Polynomial.ofCoeffList b).coeffNorm1 := by
   rw [Polynomial.coeffNorm1_ofCoeffList, sub, List.map_map, Function.comp_def,
     List.sum_map_range, Fin.sum_univ_eq_sum_range (fun k => (a.getD k 0 - b.getD k 0).natAbs)]
-  have hcongr : (∑ k ∈ Finset.range J, (a.getD k 0 - b.getD k 0).natAbs) =
-      ∑ k ∈ Finset.range J,
-        ((Polynomial.ofCoeffList a - Polynomial.ofCoeffList b).coeff k).natAbs :=
-    Finset.sum_congr rfl fun k _ => by
-      rw [Polynomial.coeff_sub, Polynomial.coeff_ofCoeffList, Polynomial.coeff_ofCoeffList]
-  exact (hcongr ▸ Polynomial.sum_natAbs_coeff_le_coeffNorm1 _ (Finset.range J)).trans
-    (Polynomial.coeffNorm1_sub_le _ _)
+  simpa only [Polynomial.coeff_sub, Polynomial.coeff_ofCoeffList] using
+    (Polynomial.sum_natAbs_coeff_le_coeffNorm1 (Polynomial.ofCoeffList a - Polynomial.ofCoeffList b)
+      (Finset.range J)).trans (Polynomial.coeffNorm1_sub_le _ _)
 
 theorem coeffNorm1_subConst_le (J : ℕ) (c : ℤ) (a : List ℤ) :
     (Polynomial.ofCoeffList (subConst J c a)).coeffNorm1 ≤
-      c.natAbs + (Polynomial.ofCoeffList a).coeffNorm1 := by
-  refine (coeffNorm1_sub_le J [c] a).trans (Nat.add_le_add_right ?_ _)
-  simp only [Polynomial.coeffNorm1_ofCoeffList, List.map_cons, List.map_nil,
-    List.sum_cons, List.sum_nil, Nat.add_zero, le_refl]
+      c.natAbs + (Polynomial.ofCoeffList a).coeffNorm1 :=
+  (coeffNorm1_sub_le J [c] a).trans (by simp [Polynomial.coeffNorm1_ofCoeffList])
 
 /-- Submultiplicativity of `Polynomial.coeffNorm1` under `Cslib.mulZJet J`. -/
 theorem coeffNorm1_mulZJet_le (J : ℕ) (a b : List ℤ) :
@@ -231,9 +217,8 @@ theorem coeffNorm1_foldl_mulZJet_le {α : Type*} (J : ℕ) (l : List α)
   | nil => simp
   | cons x l ih =>
     rw [List.foldl_cons, List.map_cons, List.prod_cons, ← Nat.mul_assoc]
-    exact (ih (fun y hy => hstep y (List.mem_cons_of_mem _ hy))
-      (Cslib.mulZJet J acc (stepJet x))).trans (Nat.mul_le_mul_right _
-      ((coeffNorm1_mulZJet_le J acc (stepJet x)).trans
+    exact (ih (fun y hy => hstep y (List.mem_cons_of_mem _ hy)) _).trans
+      (Nat.mul_le_mul_right _ ((coeffNorm1_mulZJet_le J acc _).trans
         (Nat.mul_le_mul_left _ (hstep x List.mem_cons_self))))
 
 /-- Bit-size of `(ofCoeffList a).coeffNorm1` is bounded linearly in `(encList encIntBin a).length`.
@@ -241,14 +226,14 @@ theorem coeffNorm1_foldl_mulZJet_le {α : Type*} (J : ℕ) (l : List α)
 theorem size_coeffNorm1_le_length_encList (a : List ℤ) :
     (Polynomial.ofCoeffList a).coeffNorm1.size ≤ 2 * (encList encIntBin a).length := by
   rw [Polynomial.coeffNorm1_ofCoeffList]
-  have hz : ∀ n ∈ a.map Int.natAbs, n.size ≤ (encList encIntBin a).length := fun n hn => by
-    rcases List.mem_map.mp hn with ⟨z, hz, rfl⟩
-    have hmem := length_le_encList_of_mem encIntBin hz
-    rw [length_encIntBin] at hmem; omega
-  have hsum := Nat.size_sum_le hz
-  have hlen : a.length.size ≤ (encList encIntBin a).length :=
-    (Nat.size_le.mpr Nat.lt_two_pow_self).trans (length_le_length_encList encIntBin a)
-  rw [List.length_map] at hsum; exact hsum.trans (by omega)
+  have hsum := Nat.size_sum_le (l := a.map Int.natAbs) (b := (encList encIntBin a).length)
+    fun n hn => by
+      rcases List.mem_map.mp hn with ⟨z, hz, rfl⟩
+      have := length_le_encList_of_mem encIntBin hz
+      rw [length_encIntBin] at this
+      omega
+  have := (Nat.size_le.mpr Nat.lt_two_pow_self).trans (length_le_length_encList encIntBin a)
+  rw [List.length_map] at hsum; omega
 
 /-- Encoded length of `a : List ℤ` is bounded by `a.length * (2 * coeffNorm1.size + 3)`. -/
 theorem length_encList_encIntBin_le_of_coeffNorm1 (a : List ℤ) :
@@ -258,14 +243,18 @@ theorem length_encList_encIntBin_le_of_coeffNorm1 (a : List ℤ) :
   refine (List.sum_le_length_nsmul _ (2 * (Polynomial.ofCoeffList a).coeffNorm1.size + 3)
     fun n hn => ?_).trans (by simp)
   rcases List.mem_map.mp hn with ⟨z, hz, rfl⟩
-  have hsz : z.natAbs.size ≤ (Polynomial.ofCoeffList a).coeffNorm1.size := by
-    rw [Polynomial.coeffNorm1_ofCoeffList]
-    exact Nat.size_le_size (List.le_sum_of_mem (List.mem_map_of_mem hz))
-  rw [length_encIntBin]; omega
+  have hsz := Nat.size_le_size (List.le_sum_of_mem (List.mem_map_of_mem (f := Int.natAbs) hz))
+  rw [← Polynomial.coeffNorm1_ofCoeffList] at hsz
+  rw [length_encIntBin]
+  omega
 
 section PolyTime
 
-local notation "encJet" => encList encIntBin
+/-- Encoding of a truncated univariate integer jet (`List ℤ`): the concatenation (`encList`) of
+its framed coefficients encoded by `encIntBin` (sign bit `decide (z < 0)` followed by the
+little-endian binary digits `encNat z.natAbs`). -/
+abbrev encJet : List ℤ ↪ List Bool :=
+  encList encIntBin
 
 @[fun_prop] theorem computableInPolyTime_add' {γ : Type} {encIn : γ ↪ List Bool}
     {J : γ → ℕ} {a b : γ → List ℤ} (hJ : ComputableInPolyTime J encIn encUnary)
@@ -332,47 +321,34 @@ theorem computableInPolyTime_foldl_mulZJet {γ α : Type} {encIn : γ ↪ List B
       (fun x => (xs x).foldl (fun acc a => Cslib.mulZJet (J x) acc (factor (J x) (δ x) a))
         (Cslib.truncZJet (J x) [1]))
       encIn encJet := by
-  have hinit := Cslib.computableInPolyTime_truncZJet hJ (.const [1])
-  have hqJ : ComputableInPolyTime (fun q : ((ℕ × ℤ) × List ℤ) × α => q.1.1.1)
-      (encPair (encPair (encPair encUnary encIntBin) encJet) encA) encUnary := by fun_prop
-  have hqAcc : ComputableInPolyTime (fun q : ((ℕ × ℤ) × List ℤ) × α => q.1.2)
-      (encPair (encPair (encPair encUnary encIntBin) encJet) encA) encJet := by fun_prop
-  have hstep := Cslib.computableInPolyTime_mulZJet hqJ hqAcc
+  have hstep := Cslib.computableInPolyTime_mulZJet
+    (J := fun q : ((ℕ × ℤ) × List ℤ) × α => q.1.1.1) (u := fun q => q.1.2)
+    (by fun_prop) (by fun_prop)
     (hfac.of_enc_eq (g := fun q => factor q.1.1.1 q.1.1.2 q.2) fun ⟨⟨⟨_, _⟩, _⟩, _⟩ => rfl)
   refine ComputableInPolyTime.foldlWith (encA := encA)
     (par := fun x => (J x, δ x)) (list := xs) (init := fun x => Cslib.truncZJet (J x) [1])
     (step := fun par acc a => Cslib.mulZJet par.1 acc (factor par.1 par.2 a))
-    (hJ.prod hδ) hxs hinit hstep
+    (hJ.prod hδ) hxs (Cslib.computableInPolyTime_truncZJet hJ (.const [1])) hstep
     (B := fun x => J x * (2 * (1 + (encList encA (xs x)).length * K x) + 3))
     (hJ.polyBounded.mul (((PolyBounded.const 2).mul
       ((PolyBounded.const 1).add (hxs.polyBounded_length.mul hK))).add (.const 3)))
     fun x i _ => ?_
   dsimp only
-  have htake_len : ((xs x).take i).length ≤ (encList encA (xs x)).length :=
-    (List.length_take_le' i (xs x)).trans (length_le_length_encList encA (xs x))
-  have htrace : ∀ (ys : List α) (acc : List ℤ), acc.length = J x →
-      (∀ a ∈ ys, (Polynomial.ofCoeffList (factor (J x) (δ x) a)).coeffNorm1.size ≤ K x) →
-      let out := ys.foldl (fun s a => Cslib.mulZJet (J x) s (factor (J x) (δ x) a)) acc
-      out.length = J x ∧ (Polynomial.ofCoeffList out).coeffNorm1.size ≤
-        (Polynomial.ofCoeffList acc).coeffNorm1.size + ys.length * K x := by
-    intro ys; induction ys with
-    | nil => exact fun _ hlen _ => ⟨hlen, by simp⟩
-    | cons a ys ih =>
-      intro acc _ hys
-      obtain ⟨hl, hs⟩ := ih (Cslib.mulZJet (J x) acc (factor (J x) (δ x) a))
-        (Cslib.length_mulZJet _ _ _) (fun y hy => hys y (List.mem_cons_of_mem _ hy))
-      have hm := (Nat.size_le_size (coeffNorm1_mulZJet_le (J x) acc (factor (J x) (δ x) a))).trans
-        (Nat.size_mul_le _ _)
-      have h0 := hys a List.mem_cons_self
-      exact ⟨hl, hs.trans (by rw [List.length_cons, Nat.add_one_mul ys.length]; omega)⟩
-  obtain ⟨hout_len, hout_sz⟩ := htrace ((xs x).take i) (Cslib.truncZJet (J x) [1])
-    (Cslib.length_truncZJet (J x) [1]) fun a ha => hsz x a (List.mem_of_mem_take ha)
-  have hinit_sz : (Polynomial.ofCoeffList (Cslib.truncZJet (J x) [1])).coeffNorm1.size ≤ 1 :=
-    (Nat.size_le_size (coeffNorm1_truncZJet_singleton_le (J x) 1)).trans (by decide)
-  have hbound := hout_sz.trans (Nat.add_le_add hinit_sz (Nat.mul_le_mul_right (K x) htake_len))
+  have hnorm := (coeffNorm1_foldl_mulZJet_le (J x) ((xs x).take i) (factor (J x) (δ x))
+    (fun _ => 2 ^ K x)
+    (fun a ha => (Nat.size_le.mp (hsz x a (List.mem_of_mem_take ha))).le) _).trans
+    (Nat.mul_le_mul_right _ (coeffNorm1_truncZJet_singleton_le (J x) 1))
+  rw [List.map_const', List.prod_replicate, Int.natAbs_one, one_mul, ← pow_mul,
+    mul_comm (K x)] at hnorm
+  have hsz' : (Polynomial.ofCoeffList _).coeffNorm1.size ≤
+      1 + (encList encA (xs x)).length * K x :=
+    Nat.size_le.mpr <| hnorm.trans_lt <|
+      (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right (K x)
+        ((List.length_take_le' i (xs x)).trans (length_le_length_encList encA (xs x))))).trans_lt
+        (Nat.pow_lt_pow_right (by decide) (Nat.lt_add_of_pos_left Nat.one_pos))
   refine (length_encList_encIntBin_le_of_coeffNorm1 _).trans ?_
-  rw [hout_len]
-  exact Nat.mul_le_mul_left (J x) (Nat.add_le_add_right (Nat.mul_le_mul_left 2 hbound) 3)
+  rw [length_foldl_mulZJet (J x) _ _ (Cslib.length_truncZJet (J x) [1])]
+  exact Nat.mul_le_mul_left (J x) (Nat.add_le_add_right (Nat.mul_le_mul_left 2 hsz') 3)
 
 end PolyTime
 

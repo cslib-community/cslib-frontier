@@ -141,20 +141,13 @@ theorem computableInPolyTime_decide_accepts {γ : Type} {encIn : γ ↪ List Boo
     (hinst : ComputableInPolyTime inst encIn encTMSATInstance)
     (hw : ComputableInPolyTime w encIn encBits) :
     ComputableInPolyTime (fun x => decide ((inst x).Accepts (w x))) encIn encBool := by
-  have hpair : ComputableInPolyTime (fun p : List Bool × List Bool => encPair encBits encBits p)
-      (encPair encBits encBits) encBits :=
+  have hpair : ComputableInPolyTime (encPair encBits encBits) (encPair encBits encBits) encBits :=
     .of_eq fun _ => rfl
-  have hin : ComputableInPolyTime
-      (fun x : γ =>
-        ((inst x).machine, (encPair encBits encBits ((inst x).input, w x)).map eBit,
-          (inst x).steps))
-      encIn eInUnary := by
-    have hx : ComputableInPolyTime
-        (fun x : γ => encPair encBits encBits ((inst x).input, w x)) encIn encBits :=
-      hpair.comp ((encTMSATInstance_input_polyTime hinst).prod hw)
-    have := computableInPolyTime_map_eBit.comp hx
-    fun_prop
-  exact (computableInPolyTime_universal.comp hin).decide_eq' (.const _)
+  have hmap := computableInPolyTime_map_eBit.comp
+    (hpair.comp ((encTMSATInstance_input_polyTime hinst).prod hw))
+  exact (computableInPolyTime_universal.comp
+    ((encTMSATInstance_machine_polyTime hinst).prod
+      (hmap.prod (encTMSATInstance_steps_polyTime hinst)))).decide_eq' (.const _)
 
 end TMSATInstance
 

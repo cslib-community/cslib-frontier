@@ -29,7 +29,9 @@ example :
       | some (.bad radius) => some (p.1 + radius)
       | some (.decided answer) => some (if answer then p.1 else p.1 + 1))
       E (encOption encNat) (fun p => (E p).length) := by
-  have hmissing := budget_const (encIn := encNat) (encB := encOption encNat) none (.refl _)
+  have hmissing :=
+    budget_const (Bs := fun a => (encNat a).length) (encIn := encNat) (encB := encOption encNat)
+      none
   have hadd := budget_natAdd (fst encNat encNat) (snd encNat encNat)
   have hcounter := fst encNat encBool
   have hdecided := budget_ite (snd encNat encBool) hcounter (budget_natSucc hcounter)
@@ -60,7 +62,7 @@ example : ComputableInSpace
     (encRegisters encUnit) (Turing.DoubleCounting.SourceRound.encMachineState Unit encUnit)
     (fun r => (encRegisters encUnit r).length) :=
   roundEntry_inSpace oneVertex source encUnit encUnit
-    (budget_const 1 (.refl _)) (budget_const 0 (.refl _))
+    (budget_const 1) (budget_const 0)
 
 -- The first call counts no new vertex, and the final membership call returns a valid negative.
 example : (scan.run [] [false, false, false, false]) = .inr (some (.decided false)) := rfl
@@ -132,12 +134,12 @@ private theorem nativeRoutines :
   refine withSourceRound_exists_routines oneVertex source callback entry (fun _ => some true)
     () 1 encBits nativeBudget encUnit encUnit encUnit callback memberEntry (fun _ => some false)
     (fun _ => ()) (fun _ => 1)
-    ((ComputableInSpace.constZero (start () 1)).mono_le fun _ => Nat.zero_le _) ?_
-    (budget_const 1 (.refl _)) (budget_const 0 (.refl _))
-    (budget_const () (.refl _)) (budget_const (some true) (.refl _)) (budget_const 0 (.refl _))
-    (budget_const true (.refl _)) (budget_const () (.refl _)) (budget_const () (.refl _))
-    (budget_const (some false) (.refl _)) (budget_const 0 (.refl _))
-    (budget_const true (.refl _)) (budget_const () (.refl _)) ⟨1, ?_⟩
+    (ComputableInSpace.budget_const (start () 1)) ?_
+    (budget_const 1) (budget_const 0)
+    (budget_const ()) (budget_const (some true)) (budget_const 0)
+    (budget_const true) (budget_const ()) (budget_const ())
+    (budget_const (some false)) (budget_const 0)
+    (budget_const true) (budget_const ()) ⟨1, ?_⟩
   · intro input
     simp only [nativeBudget, encBits_apply]
     omega
@@ -212,7 +214,7 @@ example :
       (encPair encBool (SourceRound.encMachineState (Option Bool) (encOption encBool)))
       (fun r => (encRegisters encBool r).length) :=
   retainedRoundEntry_inSpace retainedSize retainedSource encBool (encOption encBool)
-    (budget_const 1 (.refl _)) (budget_const 0 (.refl _))
+    (budget_const 1) (budget_const 0)
 
 /-- Certify the transition of the context-dependent round plugged into the source loop. -/
 example :
@@ -226,9 +228,9 @@ example :
   refine retainedRound_next_inSpace retainedSize retainedSource optionalCallback retainedStart id
     (start false 1) encBool (encOption encBool) ?_ ?_ ?_ ?_
   · exact budget_ite (fst encBool SourceRound.encState)
-      (budget_const (some true) (.refl _)) (budget_const none (.refl _))
+      (budget_const (some true)) (budget_const none)
   · exact of_inO (ComputableInDegree.id' (enc := encOption encBool)).inO_one
-  · exact budget_const true (.refl _)
+  · exact budget_const true
   · exact fst (encOption encBool) encReadChoice
 
 /-- Both retained entries have one round clock and admit a bound on every selector prefix. -/

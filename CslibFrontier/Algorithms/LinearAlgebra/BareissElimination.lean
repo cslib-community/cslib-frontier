@@ -8,15 +8,17 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.PolyTime.Int.Table
+public import CslibFrontier.Foundations.Data.Matrix.RowTable
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Bareiss
 public import CslibFrontier.Foundations.Data.Nat.BinarySize
 public import CslibFrontier.Foundations.Data.Rat.Basic
 import CslibFrontier.Foundations.Data.List.Lookup
+import Mathlib.Algebra.Order.BigOperators.GroupWithZero.List
 import Mathlib.Data.List.GetD
 import Mathlib.Data.List.NodupEquivFin
 import Mathlib.LinearAlgebra.Matrix.Diagonal
 import Mathlib.Logic.Equiv.Fintype
+import Mathlib.Tactic.LinearCombination
 
 /-!
 # Executable Bareiss–Jordan elimination over `ℚ` and coefficient bit-length bounds
@@ -73,24 +75,10 @@ open scoped Matrix BigOperators
 /-! ### Explicit table and elimination record types -/
 
 /-- Explicit row-major integer matrix. -/
-structure IntTable where
-  /-- Number of rows. -/
-  numRows : ℕ
-  /-- Number of columns. -/
-  numCols : ℕ
-  /-- Row-major integer entries. -/
-  rows : List (List ℤ)
-  deriving Repr
+abbrev IntTable := Cslib.RowTable ℤ
 
 /-- Explicit row-major rational matrix. -/
-structure RatTable where
-  /-- Number of rows. -/
-  numRows : ℕ
-  /-- Number of columns. -/
-  numCols : ℕ
-  /-- Row-major rational entries. -/
-  rows : List (List ℚ)
-  deriving Repr
+abbrev RatTable := Cslib.RowTable ℚ
 
 /-- Intermediate state of column-by-column Bareiss–Jordan integer elimination. -/
 structure BareissState where
@@ -138,42 +126,8 @@ structure LinearSolveResult where
   pivotCols : List ℕ
   deriving Repr
 
-deriving instance DecidableEq for IntTable, RatTable, BareissState, RationalElimResult,
-  LinearSystemInput, LinearSolveResult
-
-/-! ### Table indexing, well-formedness, and `Matrix` bridges -/
-
-/-- Entry `(i, j)` of an `IntTable`, defaulting to `0` out of bounds. -/
-@[expose] def IntTable.entry (T : IntTable) (i j : ℕ) : ℤ :=
-  Cslib.rowEntry T.rows i j
-
-/-- Entry `(i, j)` of a `RatTable`, defaulting to `0` out of bounds. -/
-@[expose] def RatTable.entry (M : RatTable) (i j : ℕ) : ℚ :=
-  (M.rows.getD i []).getD j 0
-
-/-- Rectangular shape invariant for `IntTable`. -/
-@[expose] def IntTable.WellFormed (T : IntTable) : Prop :=
-  Cslib.IsTableShape T.numRows T.numCols T.rows
-
-/-- Rectangular shape invariant for `RatTable`. -/
-@[expose] def RatTable.WellFormed (M : RatTable) : Prop :=
-  M.rows.length = M.numRows ∧ ∀ r ∈ M.rows, r.length = M.numCols
-
-/-- Interpret an `IntTable` as a `Matrix (Fin T.numRows) (Fin T.numCols) ℤ`. -/
-@[expose] def IntTable.toMatrix (T : IntTable) : Matrix (Fin T.numRows) (Fin T.numCols) ℤ :=
-  Matrix.of fun i j => T.entry i.val j.val
-
-/-- Interpret a `RatTable` as a `Matrix (Fin M.numRows) (Fin M.numCols) ℚ`. -/
-@[expose] def RatTable.toMatrix (M : RatTable) : Matrix (Fin M.numRows) (Fin M.numCols) ℚ :=
-  Matrix.of fun i j => M.entry i.val j.val
-
-@[simp]
-theorem IntTable.toMatrix_apply (T : IntTable) (i : Fin T.numRows) (j : Fin T.numCols) :
-    T.toMatrix i j = T.entry i.val j.val := rfl
-
-@[simp]
-theorem RatTable.toMatrix_apply (M : RatTable) (i : Fin M.numRows) (j : Fin M.numCols) :
-    M.toMatrix i j = M.entry i.val j.val := rfl
+deriving instance DecidableEq for BareissState, RationalElimResult, LinearSystemInput,
+  LinearSolveResult
 
 /-! ### Row denominator clearing -/
 
@@ -231,8 +185,7 @@ theorem rowMultiplier_pos (M : RatTable) (i : Fin M.numRows) : 0 < rowMultiplier
 private theorem clearDenoms_entry_eq (M : RatTable) (i : Fin M.numRows) (j : Fin M.numCols) :
     (clearDenoms M).toMatrix i j =
       (M.toMatrix i j).num * Int.ofNat (rowMultiplier M i / (M.toMatrix i j).den) := by
-  simp only [IntTable.toMatrix_apply, RatTable.toMatrix_apply, IntTable.entry, Cslib.rowEntry,
-    clearDenoms]
+  simp only [Cslib.RowTable.toMatrix_apply, Cslib.RowTable.entry, clearDenoms]
   rw [List.getD_map_range _ [] i.isLt]
   simp only [clearRow, normalizedRatRow, List.map_map, Function.comp_def]
   exact List.getD_map_range _ 0 j.isLt
@@ -280,12 +233,12 @@ theorem clearDenoms_abs_le (M : RatTable) {b : ℕ}
     let prevDet := st.pivotDet
     let m := st.table.numRows
     let n := st.table.numCols
-    let nextRows : List (List ℤ) :=
-      Cslib.tabulateTable m n fun i j =>
+    let nextTable : IntTable :=
+      Cslib.RowTable.tabulate m n fun i j =>
         if i = p then st.table.entry p j
         else
           (pivVal * st.table.entry i j - st.table.entry i c * st.table.entry p j) / prevDet
-    { table := ⟨m, n, nextRows⟩
+    { table := nextTable
       pivotDet := pivVal
       pivotRows := st.pivotRows ++ [p]
       pivotCols := st.pivotCols ++ [c] }
@@ -320,10 +273,8 @@ private theorem finSel_snoc {m k : ℕ} (idxs : List ℕ) (hk : k = idxs.length)
 
 private theorem pairwise_lt_strictMono {n k : ℕ} {cols : List ℕ} (hk : k = cols.length)
     (hpw : cols.Pairwise (· < ·)) (hcols : ∀ c ∈ cols, c < n) :
-    StrictMono (finSel cols hk hcols) := by
-  intro a b hab
-  change cols[a.val] < cols[b.val]
-  exact (List.pairwise_iff_getElem.mp hpw) a.val b.val (hk ▸ a.isLt) (hk ▸ b.isLt) hab
+    StrictMono (finSel cols hk hcols) := fun a b hab =>
+  (List.pairwise_iff_getElem.mp hpw) a.val b.val (hk ▸ a.isLt) (hk ▸ b.isLt) hab
 
 /-- A value is missed by `finSel idxs` exactly when it does not occur in the list `idxs`. -/
 private theorem forall_finSel_ne_iff {m k : ℕ} {idxs : List ℕ} {hk : k = idxs.length}
@@ -365,8 +316,7 @@ structure BareissInv (T : IntTable) (stepCols : ℕ) (st : BareissState) : Prop 
 
 private theorem findPivotRow_none {st : BareissState} {c : ℕ}
     (hnone : findPivotRow st c = none) :
-    ∀ r < st.table.numRows, r ∉ st.pivotRows → st.table.entry r c = 0 := by
-  intro r hr hnr
+    ∀ r < st.table.numRows, r ∉ st.pivotRows → st.table.entry r c = 0 := fun r hr hnr => by
   simpa [hnr] using List.find?_eq_none.mp hnone r (List.mem_range.mpr hr)
 
 private theorem findPivotRow_some {st : BareissState} {c p : ℕ}
@@ -461,13 +411,11 @@ private theorem bareissInv_step_some {T : IntTable} {c p : ℕ} (hc : c < T.numC
       ((∀ a, S a ≠ r) ∨ ∃ a, S a = r ∧ j < C a) →
       Matrix.bareissMatrix T.toMatrix (Fin.snoc S ⟨p, hp_m⟩) (Fin.snoc C ⟨c, hc⟩) r j = 0 :=
     fun j hjlt => bareissMatrix_snoc_zero_of_forall_int T.toMatrix hΔ hp_fin ⟨c, hc⟩ hΔ' j _
-      (Or.inl hp_fin) fun r hr => by
-        rcases hr with hnr | ⟨a, rfl, hja⟩
-        · exact hinv.term_cols r hnr j hjlt
-        · exact hinv.echelon_zero a j hja
+      (Or.inl hp_fin) fun r hr => hr.elim (hinv.term_cols r · j hjlt)
+        fun ⟨a, ha, hja⟩ => ha ▸ hinv.echelon_zero a j hja
   simp only [bareissStep, hfind]
   refine BareissInv.of_sel (k := st.pivotRows.length + 1) (hk := by simp)
-    (wellFormed := Cslib.isTableShape_tabulateTable _ _ _) (dims := hinv.dims)
+    (wellFormed := Cslib.RowTable.wellFormed_tabulate _ _ _) (dims := hinv.dims)
     (len_eq := by simp [hinv.len_eq])
     (row_lt := List.forall_mem_append.2 ⟨hinv.row_lt, by simpa using hp_m⟩)
     (col_lt := List.forall_mem_append.2
@@ -483,7 +431,7 @@ private theorem bareissInv_step_some {T : IntTable} {c p : ℕ} (hc : c < T.numC
     (table_eq := fun i j => ?_) (term_cols := fun i hi j hj => ?_)
     (echelon_zero := fun a j => ?_)
   · -- the new table: row `p` is kept, the other rows are the exact Bareiss quotients
-    rw [IntTable.entry, Cslib.rowEntry_tabulateTable_of_lt _ (hinv.dims.1.symm ▸ i.isLt)
+    rw [Cslib.RowTable.entry_tabulate_of_lt _ (hinv.dims.1.symm ▸ i.isLt)
       (hinv.dims.2.symm ▸ j.isLt)]
     by_cases hip : i.val = p
     · obtain rfl : i = ⟨p, hp_m⟩ := Fin.ext hip
@@ -767,7 +715,7 @@ private theorem rationalElim_rref_entry (M : RatTable) {i j : ℕ} (hi : i < M.n
       else 0 := by
   have hn : (bareissElim (clearDenoms M)).table.numCols = M.numCols :=
     (bareissElim_inv (clearDenoms_wellFormed M)).dims.2
-  simp only [RatTable.entry, rationalElim]
+  simp only [Cslib.RowTable.entry, rationalElim]
   split_ifs with h
   · rw [List.getD_append _ _ _ _ (by simpa using h), List.getD_eq_getElem _ [] (by simpa using h),
       List.getElem_map]
@@ -924,7 +872,7 @@ theorem augmentRatTable_toMatrix_apply (A : RatTable) (b : List ℚ)
     (augmentRatTable A b).toMatrix i j =
       if hj : j.val < A.numCols then A.toMatrix ⟨i.val, i.isLt⟩ ⟨j.val, hj⟩
       else b.getD i.val 0 := by
-  rw [RatTable.toMatrix_apply, RatTable.entry]
+  rw [Cslib.RowTable.toMatrix_apply, Cslib.RowTable.entry]
   dsimp only [augmentRatTable]
   rw [List.getD_map_range (n := A.numRows) _ [] i.isLt]
   have hlen : (normalizedRatRow A i.val).length = A.numCols := by simp [normalizedRatRow]
@@ -1126,17 +1074,15 @@ theorem rationalElim_entry_bounds (M : RatTable) {b : ℕ}
   · intro r hr q hq
     simp only [rationalElim, List.mem_append, List.mem_map, List.mem_replicate] at hr
     rcases hr with ⟨p, hp, rfl⟩ | ⟨_, rfl⟩
-    · simp only [scaledIntRow, List.mem_map, List.mem_range] at hq
-      obtain ⟨j, hj, rfl⟩ := hq
+    · obtain ⟨j, hj, rfl⟩ := List.mem_map.mp hq
       exact divInt_bounds_of_le hinv.pivotDet_ne_zero
-        (hbd.1 ⟨p, hinv.row_lt p hp⟩ ⟨j, hinv.dims.2 ▸ hj⟩) hbd.2
+        (hbd.1 ⟨p, hinv.row_lt p hp⟩ ⟨j, hinv.dims.2 ▸ List.mem_range.mp hj⟩) hbd.2
     · obtain ⟨_, rfl⟩ := List.mem_replicate.mp hq
       simpa using h1B
   · intro v hv q hq
     simp only [rationalElim, List.mem_map] at hv
     obtain ⟨j, hj, rfl⟩ := hv
-    simp only [buildKernelVec, List.mem_map, List.mem_range] at hq
-    obtain ⟨c, _, rfl⟩ := hq
+    obtain ⟨c, _, rfl⟩ := List.mem_map.mp hq
     simpa only [neg_one_mul] using find?_zip_divInt_bounds hinv (M := B) hbd (c := c)
       (j := ⟨j, (mem_computeNonPivotCols.1 hj).1⟩) (-1) (by decide)
       (d := if c = j then 1 else 0) (by split_ifs <;> simpa using h1B)
@@ -1157,19 +1103,16 @@ theorem ratSolve_entry_bounds (sys : LinearSystemInput) {b : ℕ}
   have hinv := bareissElimCols_inv (clearDenoms_wellFormed augRat)
     (colLimit := sys.matrix.numCols) (Nat.le_succ _)
   have hB_aug : ∀ i : Fin augRat.numRows, ∀ j : Fin augRat.numCols,
-      (augRat.toMatrix i j).num.natAbs ≤ 2 ^ b ∧ (augRat.toMatrix i j).den ≤ 2 ^ b := by
-    intro i j
+      (augRat.toMatrix i j).num.natAbs ≤ 2 ^ b ∧ (augRat.toMatrix i j).den ≤ 2 ^ b := fun i j => by
     rw [augmentRatTable_toMatrix_apply]
     split_ifs with hj
-    · exact hbA ⟨i.val, i.isLt⟩ ⟨j.val, hj⟩
-    · exact hb_rhs ⟨i.val, i.isLt⟩
+    exacts [hbA ⟨i.val, i.isLt⟩ ⟨j.val, hj⟩, hb_rhs ⟨i.val, i.isLt⟩]
   have hbd := bareissInv_entry_bound hinv (clearDenoms_abs_le augRat hB_aug)
   have h1B : 1 ≤ B := one_le_stageEntryBound _ _ _
   simp only [ratSolve] at hx
   split_ifs at hx with hcons
-  obtain rfl := Option.some.inj hx
-  simp only [List.mem_map, List.mem_range] at hq
-  obtain ⟨c, _, rfl⟩ := hq
+  cases hx
+  obtain ⟨c, _, rfl⟩ := List.mem_map.mp hq
   simpa only [one_mul] using find?_zip_divInt_bounds hinv (M := B) hbd (c := c)
     (j := ⟨sys.matrix.numCols, Nat.lt_succ_self _⟩) 1 (by decide) (d := 0) (by simpa using h1B)
 

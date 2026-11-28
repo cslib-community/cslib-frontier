@@ -66,11 +66,9 @@ private theorem liftResidue_invariant (lower period r t : ℕ) (hp : 0 < period)
   | succ t ih =>
     dsimp only at ih ⊢
     rw [Function.iterate_succ_apply', liftResidue]
-    split <;> rename_i h
-    · refine ⟨?_, by omega, by simpa using ih.2.2⟩
-      rcases ih.1 with hlow | ht
-      · exact (not_lt_of_ge hlow h).elim
-      · exact Or.inr (by omega)
+    split_ifs with h
+    · exact ⟨Or.inr (ih.1.elim (fun hlo => (not_lt_of_ge hlo h).elim) (by omega)),
+        by omega, by simpa using ih.2.2⟩
     · exact ⟨Or.inl (by omega), ih.2⟩
 
 /-- Enough corrections place the residue in the interval. -/
@@ -98,9 +96,9 @@ private theorem liftWord_toNat {w : ℕ} (lower period r : BitVec w)
     (liftWord lower period r).toNat = liftResidue lower.toNat period.toNat r.toNat := by
   unfold liftWord liftResidue
   by_cases hr : r.toNat < lower.toNat
-  · simp only [BitVec.ult, hr, decide_true, ↓reduceIte, BitVec.toNat_add]
-    exact Nat.mod_eq_of_lt (by omega)
-  · simp only [BitVec.ult, hr, decide_false, Bool.false_eq_true, ↓reduceIte]
+  · simp [BitVec.ult, hr, BitVec.toNat_add,
+      Nat.mod_eq_of_lt (by omega : r.toNat + period.toNat < 2 ^ w)]
+  · simp [BitVec.ult, hr]
 
 private theorem liftWord_iterate_toNat {w : ℕ} (lower period r : BitVec w)
     (hfit : lower.toNat + period.toNat ≤ 2 ^ w) (K : ℕ) :
@@ -113,13 +111,13 @@ private theorem liftWord_iterate_toNat {w : ℕ} (lower period r : BitVec w)
 
 /-- The residues of `T` modulo every period up to `K`, selected by the period. -/
 def residueWord {w : ℕ} (T K : ℕ) (period : BitVec w) : BitVec w :=
-  word (selectBits period fun j : Fin (K + 1) =>
+  BitString.equivBitVec (selectBits period fun j : Fin (K + 1) =>
     fun i : Fin w => (BitVec.ofNat w (T % j.val)).getLsbD i.val)
 
 private theorem residueWord_toNat {w T K : ℕ} (period : BitVec w)
     (hK : K < 2 ^ w) (hp : 0 < period.toNat) (hpK : period.toNat ≤ K) :
     (residueWord T K period).toNat = T % period.toNat := by
-  rw [residueWord, selectBits_of_toNat_lt _ _ (by omega), word_getLsbD,
+  rw [residueWord, selectBits_of_toNat_lt _ _ (by omega), BitString.equivBitVec_getLsbD,
     BitVec.toNat_ofNat]
   exact Nat.mod_eq_of_lt ((Nat.mod_lt _ hp).trans_le (hpK.trans hK.le))
 
@@ -165,14 +163,13 @@ private theorem synthesis_liftWord_iterate {n w : ℕ} (s : Set (BooleanFunction
       (wordWires fun x => (liftWord (lower x) (period x))^[K] (init x))
       (K * (21 * w + 3)) := by
   let q := fun t => wordWires fun x => (liftWord (lower x) (period x))^[t] (init x)
-  have hs := Synthesis.steps (I := interpretation) (s := s) q
-    (21 * w + 3) K (by rintro _ ⟨i, rfl⟩; exact hinit i) fun t _ => ?_
-  · exact hs.mono Set.Subset.rfl (Synthesis.subset_stages q le_rfl) le_rfl
-  · simpa only [q, Function.iterate_succ_apply'] using
-      synthesis_liftWord (s ∪ Synthesis.stages q t) lower period
-        (fun x => (liftWord (lower x) (period x))^[t] (init x))
-        (fun i => Or.inl (hl i)) (fun i => Or.inl (hp i))
-        (fun i => Or.inr (Synthesis.subset_stages q le_rfl ⟨i, rfl⟩))
+  refine (Synthesis.steps (I := interpretation) (s := s) q (21 * w + 3) K
+    (fun _ ⟨i, hi⟩ => hi ▸ hinit i) fun t _ => ?_).mono
+    Set.Subset.rfl (Synthesis.subset_stages q le_rfl) le_rfl
+  simpa only [q, Function.iterate_succ_apply'] using
+    synthesis_liftWord (s ∪ Synthesis.stages q t) lower period _
+      (fun i => Or.inl (hl i)) (fun i => Or.inl (hp i))
+      (fun i => Or.inr (Synthesis.subset_stages q le_rfl ⟨i, rfl⟩))
 
 /-- A residue table costs only its word width and entry count, whatever `T` is. -/
 private theorem synthesis_residueWord {n w : ℕ} (s : Set (BooleanFunction n))
@@ -181,10 +178,10 @@ private theorem synthesis_residueWord {n w : ℕ} (s : Set (BooleanFunction n))
     (hconst : ∀ b : Bool, (fun _ : BitString n => b) ∈ s) :
     Synthesis interpretation s (wordWires fun x => residueWord T K (period x))
       (w * ((K + 1) * (2 * w + 3) + 1)) := by
-  have h := Synthesis.selectBits (s := s) period
-    (fun j : Fin (K + 1) => fun _ => fun i : Fin w =>
-      (BitVec.ofNat w (T % j.val)).getLsbD i.val) hp fun _ _ => hconst _
-  simpa only [wordWires, residueWord, getLsbD_word] using h
+  simpa only [wordWires, residueWord, BitString.getLsbD_equivBitVec] using
+    Synthesis.selectBits (s := s) period
+      (fun (j : Fin (K + 1)) _ (i : Fin w) => (BitVec.ofNat w (T % j.val)).getLsbD i.val)
+      hp fun _ _ => hconst _
 
 /-- The repeated-interval index circuit has no dependence on the bit length of `T`. -/
 theorem synthesis_repeatWordIndex {n w : ℕ} (s : Set (BooleanFunction n))

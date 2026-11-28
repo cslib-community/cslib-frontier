@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Computability.QueryComplexity.Quantum.Progress
 public import CslibFrontier.Computability.QueryComplexity.Quantum.Search
 public import Cslib.Foundations.Data.BitString
-import CslibFrontier.Computability.QueryComplexity.Quantum.WeightedAdversary
+import CslibFrontier.Computability.QueryComplexity.Quantum.ValueAdversary
 import CslibFrontier.Foundations.Data.BitString.Flip
 import CslibFrontier.Foundations.Data.Hamming
 import CslibFrontier.Foundations.Quantum.Measurement.Overlap
@@ -42,18 +42,17 @@ threshold functions and majority are in the module
 Tribes and to the `AND` of `OR`s in
 `CslibFrontier.Computability.QueryComplexity.Quantum.AmbainisAdversary.Tribes`.
 
-**The argument.** Let `ψ_x^t` be the state after `t` queries on input `x`. The weighted
-progress measure (`Cslib.Quantum.weightedProgress` in
-`CslibFrontier.Computability.QueryComplexity.Quantum.Progress`) with unit weights sums
-`S_t = ∑_{(x, y) ∈ R} |⟨ψ_x^t, ψ_y^t⟩|`.
-* Before any query all states are equal, so `S_0 = |R|`. At the end `S_T ≤ δ |R|`.
-* The oracles of `x` and `y` differ only on the query indices `i` with `x_i ≠ y_i`, so one query
-  lowers `|⟨ψ_x, ψ_y⟩|` by at most `2 ∑_{i : x_i ≠ y_i} ‖Π_i ψ_x‖ ‖Π_i ψ_y‖`
-  (`Cslib.Quantum.norm_inner_phaseOracle_phaseOracle_ge`), where `Π_i` is `Cslib.Quantum.ctrlProj`.
-* For every `c > 0`, taking step weights `c √L / l_{x,i}` and `√L / (c l_{y,i})` in
-  `Cslib.Quantum.one_sub_mul_sum_le_of_sq_le` bounds each step's loss by
-  `√L (c |X| + |Y| / c)`, where `X` and `Y` are the sets of first and second inputs. Taking
-  `c = √(|Y| / |X|)` gives `2 √L √(|X| |Y|)`.
+**The argument.** Viewing `Cslib.Quantum.phaseOracle` as the value-query oracle
+`Cslib.Quantum.valueOracle Cslib.Quantum.phaseStep` on `State N W = ValueState (Fin N) Bool W`
+(`Cslib.Quantum.runValue_phaseStep`) specializes the general value-query Theorem 6 bound
+`Cslib.Quantum.one_sub_mul_sqrt_le_two_mul_mul_sqrt_value` in
+`CslibFrontier.Computability.QueryComplexity.Quantum.ValueAdversary` directly to Boolean bit
+queries:
+* Before any query all states are equal, so the unweighted progress sum starts at `|R|` and ends at
+  most `δ |R|`.
+* One query lowers `|⟨ψ_x, ψ_y⟩|` only at indices `i` with `x_i ≠ y_i`, where Cauchy–Schwarz and
+  Parseval across query slices bound each step's drop by `2 √L √(|X| |Y|)` for first- and
+  second-input sets `X` and `Y`.
 * Finally `|R| ≥ m |X|` and `|R| ≥ m' |Y|`, so `|R| ≥ √(m m') √(|X| |Y|)`.
 
 **Source mapping** (numbering of arXiv:quant-ph/0002066v1).
@@ -108,60 +107,9 @@ theorem one_sub_mul_sqrt_le_two_mul_mul_sqrt {ψ₀ : State N W} (hψ₀ : ‖ψ
     (hm : ∀ p ∈ R, m ≤ #{q ∈ R | q.1 = p.1}) (hm' : ∀ p ∈ R, m' ≤ #{q ∈ R | q.2 = p.2})
     (hL : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i →
       #{q ∈ R | q.1 i ≠ q.2 i ∧ q.1 = p.1} * #{q ∈ R | q.1 i ≠ q.2 i ∧ q.2 = p.2} ≤ L) :
-    (1 - δ) * √(m * m') ≤ 2 * T * √L := by
-  classical
-  rcases Nat.eq_zero_or_pos L with rfl | hL_pos
-  · simp only [Nat.cast_zero, Real.sqrt_zero, mul_zero]
-    obtain ⟨p, hp⟩ := hR
-    have hsame : p.1 = p.2 := by
-      ext i
-      by_contra hne
-      have h1 : 1 ≤ #{q ∈ R | q.1 i ≠ q.2 i ∧ q.1 = p.1} :=
-        card_pos.2 ⟨p, mem_filter.2 ⟨hp, hne, rfl⟩⟩
-      have h2 : 1 ≤ #{q ∈ R | q.1 i ≠ q.2 i ∧ q.2 = p.2} :=
-        card_pos.2 ⟨p, mem_filter.2 ⟨hp, hne, rfl⟩⟩
-      have := hL p hp i hne
-      nlinarith
-    have h1δ : 1 ≤ δ := by
-      have hle := hδ p hp
-      rw [hsame, inner_self_eq_norm_sq_to_K, norm_run, hψ₀] at hle
-      simpa using hle
-    exact mul_nonpos_of_nonpos_of_nonneg (by linarith) (Real.sqrt_nonneg _)
-  · let S := WeightScheme.ofUnweighted R L hL
-    have hW : 0 < S.weightSum := by
-      have hcard : (0 : ℝ) < #R := by exact_mod_cast hR.card_pos
-      simpa [S, WeightScheme.weightSum, WeightScheme.ofUnweighted] using hcard
-    have hsqrtL : 0 < √(L : ℝ) := Real.sqrt_pos.2 (Nat.cast_pos.2 hL_pos)
-    have hA : ∀ x ∈ S.R.image Prod.fst, ∀ i,
-        ((m : ℝ) / √L) * S.loadFst x i ≤ S.wtFst x := by
-      intro x hx i
-      obtain ⟨p, hp, rfl⟩ := mem_image.1 hx
-      calc ((m : ℝ) / √L) * S.loadFst p.1 i
-          ≤ ((m : ℝ) / √L) * √L :=
-            mul_le_mul_of_nonneg_left
-              (WeightScheme.ofUnweighted_loadFst_le hL p.1 i) (by positivity)
-        _ = m := div_mul_cancel₀ _ hsqrtL.ne'
-        _ ≤ S.wtFst p.1 := by
-            rw [WeightScheme.ofUnweighted_wtFst]
-            exact_mod_cast hm p hp
-    have hB : ∀ y ∈ S.R.image Prod.snd, ∀ i,
-        ((m' : ℝ) / √L) * S.loadSnd y i ≤ S.wtSnd y := by
-      intro y hy i
-      obtain ⟨p, hp, rfl⟩ := mem_image.1 hy
-      calc ((m' : ℝ) / √L) * S.loadSnd p.2 i
-          ≤ ((m' : ℝ) / √L) * √L :=
-            mul_le_mul_of_nonneg_left
-              (WeightScheme.ofUnweighted_loadSnd_le hL p.2 i) (by positivity)
-        _ = m' := div_mul_cancel₀ _ hsqrtL.ne'
-        _ ≤ S.wtSnd p.2 := by
-            rw [WeightScheme.ofUnweighted_wtSnd]
-            exact_mod_cast hm' p hp
-    have hbd := S.one_sub_mul_sqrt_le_of_load_le U hψ₀ T hW hδ
-      (mA := (m : ℝ) / √L) (mB := (m' : ℝ) / √L) (by positivity) (by positivity) hA hB
-    have hmul : √(((m : ℝ) / √L) * ((m' : ℝ) / √L)) = √(m * m') / √L := by
-      rw [div_mul_div_comm, ← sq, Real.sqrt_div (by positivity), Real.sqrt_sq hsqrtL.le]
-    rw [hmul, mul_div_assoc', div_le_iff₀ hsqrtL] at hbd
-    exact hbd
+    (1 - δ) * √(m * m') ≤ 2 * T * √L :=
+  one_sub_mul_sqrt_le_two_mul_mul_sqrt_value phaseStep U hψ₀ T hR
+    (by simpa only [runValue_phaseStep] using hδ) hm hm' hL
 
 /-- **Ambainis's adversary bound** [Ambainis2002], Theorem 2, for Boolean outputs: let a
 `T`-query algorithm with a unit initial state accept, by an outcome in `S`, the first input of
@@ -181,9 +129,8 @@ theorem one_sub_two_mul_sqrt_mul_sqrt_le_two_mul_mul_sqrt {ψ₀ : State N W} (h
   have hδ : ∀ p ∈ R, ‖inner ℂ (run U ψ₀ p.1 T) (run U ψ₀ p.2 T)‖ ≤ 2 * √(ε * (1 - ε)) :=
     fun p hp => norm_inner_le_two_mul_sqrt_of_measureProb (by rw [norm_run, hψ₀])
       (by rw [norm_run, hψ₀]) (h₁ p hp) (h₂ p hp) hε
-  have := one_sub_mul_sqrt_le_two_mul_mul_sqrt U hψ₀ T hR hδ hm hm' (L := l * l')
-    fun p hp i _ => Nat.mul_le_mul (hl p hp i) (hl' p hp i)
-  simpa only [Nat.cast_mul] using this
+  simpa only [Nat.cast_mul] using one_sub_mul_sqrt_le_two_mul_mul_sqrt U hψ₀ T hR hδ hm hm'
+    (L := l * l') fun p hp i _ => Nat.mul_le_mul (hl p hp i) (hl' p hp i)
 
 /-- **The adversary bound across single bit flips**, the case `l = l' = 1` of [Ambainis2002],
 Theorem 2, in which the related pairs are the neighbors `(x, x ⊕ eᵢ)` with `x ∈ A` and
@@ -208,55 +155,41 @@ theorem one_sub_mul_sqrt_le_two_mul_of_neighbors {ψ₀ : State N W} (hψ₀ : �
     obtain ⟨x, hx⟩ := hA
     obtain ⟨i, hi⟩ := card_pos.1 (lt_of_lt_of_le hpos (hm x hx))
     exact ⟨(x, update x i (!x i)), mem_hammingEdges.2 ⟨hx, (mem_filter.1 hi).2, hflip x i⟩⟩
+  have hedge {q : BitString N × BitString N} (hq : q ∈ R) {i : Fin N} (hi : q.1 i ≠ q.2 i) :
+      q.2 = update q.1 i (!q.1 i) ∧ q.1 = update q.2 i (!q.2 i) :=
+    ⟨(update_not_eq_of_hammingDist_le_one (mem_hammingEdges.1 hq).2.2.le hi).symm,
+      (update_not_eq_of_hammingDist_le_one
+        ((hammingDist_comm _ _).trans (mem_hammingEdges.1 hq).2.2).le hi.symm).symm⟩
   -- the overlap on every related pair is at most `δ`
-  have hδR : ∀ p ∈ R, ‖inner ℂ (run U ψ₀ p.1 T) (run U ψ₀ p.2 T)‖ ≤ δ := by
-    intro p hp
+  have hδR : ∀ p ∈ R, ‖inner ℂ (run U ψ₀ p.1 T) (run U ψ₀ p.2 T)‖ ≤ δ := fun p hp => by
     obtain ⟨hpA, hpB, hd⟩ := mem_hammingEdges.1 hp
     obtain ⟨i, hi, -⟩ := hammingDist_eq_one_iff.1 hd
-    have hp2 := (update_not_eq_of_hammingDist_le_one hd.le hi).symm
-    rw [hp2] at hpB ⊢
-    exact hδ p.1 hpA i hpB
+    exact (hedge hp hi).1 ▸ hδ p.1 hpA i ((hedge hp hi).1 ▸ hpB)
   -- at most one pair from each end differs at a given coordinate
-  have hl : ∀ p ∈ R, ∀ i, #{q ∈ R | q.1 i ≠ q.2 i ∧ q.1 = p.1} ≤ 1 := by
-    intro p _ i
-    refine card_le_one.2 fun q hq r hr => ?_
-    obtain ⟨hqR, hqi, hq1⟩ := mem_filter.1 hq
-    obtain ⟨hrR, hri, hr1⟩ := mem_filter.1 hr
-    have hq2 := (update_not_eq_of_hammingDist_le_one (mem_hammingEdges.1 hqR).2.2.le hqi).symm
-    have hr2 := (update_not_eq_of_hammingDist_le_one (mem_hammingEdges.1 hrR).2.2.le hri).symm
-    exact Prod.ext (hq1.trans hr1.symm) (by rw [hq2, hr2, hq1, hr1])
-  have hl' : ∀ p ∈ R, ∀ i, #{q ∈ R | q.1 i ≠ q.2 i ∧ q.2 = p.2} ≤ 1 := by
-    intro p _ i
-    refine card_le_one.2 fun q hq r hr => ?_
-    obtain ⟨hqR, hqi, hq2⟩ := mem_filter.1 hq
-    obtain ⟨hrR, hri, hr2⟩ := mem_filter.1 hr
-    have hq1 := (update_not_eq_of_hammingDist_le_one
-      ((hammingDist_comm _ _).trans (mem_hammingEdges.1 hqR).2.2).le (Ne.symm hqi)).symm
-    have hr1 := (update_not_eq_of_hammingDist_le_one
-      ((hammingDist_comm _ _).trans (mem_hammingEdges.1 hrR).2.2).le (Ne.symm hri)).symm
-    exact Prod.ext (by rw [hq1, hr1, hq2, hr2]) (hq2.trans hr2.symm)
+  have hl : ∀ p ∈ R, ∀ i, #{q ∈ R | q.1 i ≠ q.2 i ∧ q.1 = p.1} ≤ 1 := fun p _ i =>
+    card_le_one_iff_subset_singleton.2 ⟨(p.1, update p.1 i (!p.1 i)), fun q hq => by
+      obtain ⟨hqR, hqi, hq1⟩ := mem_filter.1 hq
+      exact mem_singleton.2 (Prod.ext hq1 ((hedge hqR hqi).1.trans (hq1 ▸ rfl)))⟩
+  have hl' : ∀ p ∈ R, ∀ i, #{q ∈ R | q.1 i ≠ q.2 i ∧ q.2 = p.2} ≤ 1 := fun p _ i =>
+    card_le_one_iff_subset_singleton.2 ⟨(update p.2 i (!p.2 i), p.2), fun q hq => by
+      obtain ⟨hqR, hqi, hq2⟩ := mem_filter.1 hq
+      exact mem_singleton.2 (Prod.ext ((hedge hqR hqi).2.trans (hq2 ▸ rfl)) hq2)⟩
   -- every input has its neighbors as partners
-  have hdeg : ∀ p ∈ R, m ≤ #{q ∈ R | q.1 = p.1} := by
-    intro p hp
-    refine (hm p.1 (mem_hammingEdges.1 hp).1).trans (card_le_card_of_injOn
-      (fun i => (p.1, update p.1 i (!p.1 i))) (fun i hi => ?_) ?_)
-    · exact mem_filter.2
-        ⟨mem_hammingEdges.2 ⟨(mem_hammingEdges.1 hp).1, (mem_filter.1 hi).2, hflip _ i⟩, rfl⟩
-    · intro i _ j _ hij
-      exact BitString.update_not_injective p.1 (congrArg Prod.snd hij)
-  have hdeg' : ∀ p ∈ R, m' ≤ #{q ∈ R | q.2 = p.2} := by
-    intro p hp
-    refine (hm' p.2 (mem_hammingEdges.1 hp).2.1).trans (card_le_card_of_injOn
-      (fun i => (update p.2 i (!p.2 i), p.2)) (fun i hi => ?_) ?_)
-    · refine mem_filter.2
-        ⟨mem_hammingEdges.2 ⟨(mem_filter.1 hi).2, (mem_hammingEdges.1 hp).2.1, ?_⟩, rfl⟩
-      rw [hammingDist_comm]
-      exact hflip _ i
-    · intro i _ j _ hij
-      exact BitString.update_not_injective p.2 (congrArg Prod.fst hij)
-  have := one_sub_mul_sqrt_le_two_mul_mul_sqrt U hψ₀ T hR hδR hdeg hdeg' (L := 1)
+  have hdeg : ∀ p ∈ R, m ≤ #{q ∈ R | q.1 = p.1} := fun p hp =>
+    (hm p.1 (mem_hammingEdges.1 hp).1).trans (card_le_card_of_injOn
+      (fun i => (p.1, update p.1 i (!p.1 i)))
+      (fun i hi => mem_filter.2
+        ⟨mem_hammingEdges.2 ⟨(mem_hammingEdges.1 hp).1, (mem_filter.1 hi).2, hflip _ i⟩, rfl⟩)
+      fun _ _ _ _ hij => BitString.update_not_injective p.1 (congrArg Prod.snd hij))
+  have hdeg' : ∀ p ∈ R, m' ≤ #{q ∈ R | q.2 = p.2} := fun p hp =>
+    (hm' p.2 (mem_hammingEdges.1 hp).2.1).trans (card_le_card_of_injOn
+      (fun i => (update p.2 i (!p.2 i), p.2))
+      (fun i hi => mem_filter.2 ⟨mem_hammingEdges.2
+        ⟨(mem_filter.1 hi).2, (mem_hammingEdges.1 hp).2.1,
+          (hammingDist_comm _ _).trans (hflip _ i)⟩, rfl⟩)
+      fun _ _ _ _ hij => BitString.update_not_injective p.2 (congrArg Prod.fst hij))
+  simpa using one_sub_mul_sqrt_le_two_mul_mul_sqrt U hψ₀ T hR hδR hdeg hdeg' (L := 1)
     fun p hp i _ => (Nat.mul_le_mul (hl p hp i) (hl' p hp i)).trans_eq (mul_one 1)
-  simpa using this
 
 /-- **The adversary bound across single bit flips**, for Boolean outputs: let a `T`-query
 algorithm with a unit initial state accept every input in a nonempty set `A`, by an outcome in

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.Completeness
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Foundations.Combinatorics.Sperner
 public import CslibFrontier.Foundations.Data.BitString.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
@@ -22,13 +23,14 @@ import Mathlib.Data.FinEnum
 /-!
 # Circuit `2D-SPERNER` is in `PPAD`
 
-An instance `(m, C)` of `Sperner2D` is a unary size parameter `m` and a Boolean circuit code `C`.
-It colours the points of the `2 ^ m × 2 ^ m` grid (`Sperner2D.color`): boundary points receive the
-Sperner boundary colour `Cslib.Sperner.boundaryColor`, and an interior point `(x, y)` receives the
-colour read off the outputs of `C` on the `m`-bit codes of `x` and `y` (`Sperner2D.outputColor`). A
-solution is the `2m + 1`-bit code of a trichromatic triangle (`Sperner2D.encodeTriangle`). Every
-instance colours the grid by a Sperner colouring, so every instance has a solution by Sperner's
-lemma (`Cslib.Sperner.IsSpernerColoring.exists_trichromatic`).
+An instance `inst : Sperner2DInstance` of `Sperner2D` consists of a unary size parameter
+`inst.gridExp` (`m`) and a Boolean circuit code `inst.circuit` (`C`). It colours the points of the
+`2 ^ m × 2 ^ m` grid (`Sperner2D.color`): boundary points receive the Sperner boundary colour
+`Cslib.Sperner.boundaryColor`, and an interior point `(x, y)` receives the colour read off the
+outputs of `C` on the `m`-bit codes of `x` and `y` (`Sperner2D.outputColor`). A solution is the
+`2m + 1`-bit code of a trichromatic triangle (`Sperner2D.encodeTriangle`). Every instance colours
+the grid by a Sperner colouring, so every instance has a solution by Sperner's lemma
+(`Cslib.Sperner.IsSpernerColoring.exists_trichromatic`).
 
 The proof of Sperner's lemma by following doors is the `PPAD` argument. Transported to triangle
 codes, the door graph `Cslib.Sperner.next`, `Cslib.Sperner.prev` is computed in polynomial time
@@ -61,8 +63,9 @@ door-following reduction to `EndOfLine` for this presentation.
 
 ## Main definitions
 
-* `Cslib.Complexity.Sperner2D`: circuit `2D-SPERNER`, with instance encoding
-  `Cslib.Complexity.encSperner2D`.
+* `Cslib.Complexity.Sperner2DInstance`, `Cslib.Complexity.encSperner2D`: instances of circuit
+  `2D-SPERNER` and their encoding.
+* `Cslib.Complexity.Sperner2D`: circuit `2D-SPERNER`.
 * `Cslib.Complexity.Sperner2D.color`: the Sperner colouring presented by an instance.
 * `Cslib.Complexity.Sperner2D.succ`, `Cslib.Complexity.Sperner2D.pred`: the door graph on triangle
   codes.
@@ -90,6 +93,22 @@ namespace Cslib.Complexity
 open Cslib.BitString Cslib.Circuits Cslib.Circuits.Boolean Cslib.Sperner Cslib.Sperner.GridTriangle
 open Turing.MultiTapeTM ComputableInPolyTime
 
+/-- An instance of circuit `2D-SPERNER`: the unary grid exponent `gridExp` (`m`, for the
+`2 ^ m × 2 ^ m` grid) and the Boolean colouring circuit `circuit`. -/
+@[ext]
+structure Sperner2DInstance where
+  /-- Binary logarithm `m` of the `2 ^ m × 2 ^ m` grid side length, encoded in unary. -/
+  gridExp : ℕ
+  /-- Boolean circuit code computing interior grid colours from `m`-bit coordinates. -/
+  circuit : CircuitCode
+  deriving DecidableEq, Inhabited
+
+/-- Encoding of a `Sperner2DInstance`: the grid exponent `gridExp` in unary (framed), followed by
+the Boolean circuit code `circuit`. -/
+enc_structure encSperner2D : Sperner2DInstance where
+  gridExp : encUnary,
+  circuit : encCode
+
 namespace Sperner2D
 
 /-- The colour read off the output bits of a colouring circuit: colour `1` if output bit `0` is set,
@@ -98,12 +117,13 @@ otherwise colour `2` if output bit `2` is set, otherwise colour `0`. On outputs 
 @[expose] def outputColor (out : List Bool) : Fin 3 :=
   if out.getD 0 false then 1 else if out.getD 2 false then 2 else 0
 
-/-- The colouring of the `2 ^ m × 2 ^ m` grid presented by the instance `(m, code)`: the boundary
-colour on the boundary, and the colour computed by `code` from the `m`-bit codes of the coordinates
-(least significant bit first) elsewhere. -/
-@[expose] def color (inst : ℕ × CircuitCode) (p : ℕ × ℕ) : Fin 3 :=
-  if p.1 = 0 ∨ p.2 = 0 ∨ p.1 = 2 ^ inst.1 ∨ p.2 = 2 ^ inst.1 then boundaryColor p
-  else outputColor (evalCircuitOutputs inst.2 (lowBits inst.1 p.1 ++ lowBits inst.1 p.2))
+/-- The colouring of the `2 ^ inst.gridExp × 2 ^ inst.gridExp` grid presented by `inst`: the
+boundary colour on the boundary, and the colour computed by `inst.circuit` from the
+`inst.gridExp`-bit codes of the coordinates (least significant bit first) elsewhere. -/
+@[expose] def color (inst : Sperner2DInstance) (p : ℕ × ℕ) : Fin 3 :=
+  if p.1 = 0 ∨ p.2 = 0 ∨ p.1 = 2 ^ inst.gridExp ∨ p.2 = 2 ^ inst.gridExp then boundaryColor p
+  else outputColor (evalCircuitOutputs inst.circuit
+    (lowBits inst.gridExp p.1 ++ lowBits inst.gridExp p.2))
 
 /-- The `2m + 1`-bit code of a triangle: its orientation bit, then the `m`-bit codes of `x` and `y`
 (least significant bit first). -/
@@ -115,27 +135,26 @@ colour on the boundary, and the colour computed by `code` from the `m`-bit codes
   ⟨w.headD false, lsbValue (w.tail.take m), lsbValue (w.tail.drop m)⟩
 
 /-- The successor function of the door graph on triangle codes. -/
-@[expose] def succ (p : (ℕ × CircuitCode) × List Bool) : List Bool :=
-  encodeTriangle p.1.1 (next (color p.1) (2 ^ p.1.1) (2 ^ p.1.1) (decodeTriangle p.1.1 p.2))
+@[expose] def succ (p : Sperner2DInstance × List Bool) : List Bool :=
+  encodeTriangle p.1.gridExp
+    (next (color p.1) (2 ^ p.1.gridExp) (2 ^ p.1.gridExp) (decodeTriangle p.1.gridExp p.2))
 
 /-- The predecessor function of the door graph on triangle codes. -/
-@[expose] def pred (p : (ℕ × CircuitCode) × List Bool) : List Bool :=
-  encodeTriangle p.1.1 (prev (color p.1) (2 ^ p.1.1) (2 ^ p.1.1) (decodeTriangle p.1.1 p.2))
+@[expose] def pred (p : Sperner2DInstance × List Bool) : List Bool :=
+  encodeTriangle p.1.gridExp
+    (prev (color p.1) (2 ^ p.1.gridExp) (2 ^ p.1.gridExp) (decodeTriangle p.1.gridExp p.2))
 
 end Sperner2D
 
 open Sperner2D
 
-/-- Instances `(m, code)` of `Sperner2D`: the size parameter `m` in unary (framed), then the circuit
-code. -/
-abbrev encSperner2D : (ℕ × CircuitCode) ↪ List Bool := encPair encUnary encCode
+/-- **Circuit `2D-SPERNER`.** A solution of `inst : Sperner2DInstance` is the
+`2 * inst.gridExp + 1`-bit code of a trichromatic triangle of `Sperner2D.color inst` on the
+`2 ^ inst.gridExp × 2 ^ inst.gridExp` grid. -/
+@[expose] def Sperner2D (inst : Sperner2DInstance) (w : List Bool) : Prop :=
+  w.length = 2 * inst.gridExp + 1 ∧ Trichromatic (color inst) (decodeTriangle inst.gridExp w)
 
-/-- **Circuit `2D-SPERNER`.** A solution of the instance `(m, code)` is the `2m + 1`-bit code of a
-trichromatic triangle of the colouring `Sperner2D.color (m, code)` of the `2 ^ m × 2 ^ m` grid. -/
-@[expose] def Sperner2D (inst : ℕ × CircuitCode) (w : List Bool) : Prop :=
-  w.length = 2 * inst.1 + 1 ∧ Trichromatic (color inst) (decodeTriangle inst.1 w)
-
-instance (inst : ℕ × CircuitCode) (w : List Bool) : Decidable (Sperner2D inst w) :=
+instance (inst : Sperner2DInstance) (w : List Bool) : Decidable (Sperner2D inst w) :=
   inferInstanceAs (Decidable (_ ∧ _))
 
 namespace Sperner2D
@@ -171,11 +190,8 @@ theorem inGrid_decodeTriangle {m : ℕ} {w : List Bool} (hw : w.length = 2 * m +
     InGrid (2 ^ m) (2 ^ m) (decodeTriangle m w) := by
   have h1 : (w.tail.take m).length = m := by simp; omega
   have h2 : (w.tail.drop m).length = m := by simp; omega
-  have e1 := lsbValue_lt (w.tail.take m)
-  have e2 := lsbValue_lt (w.tail.drop m)
-  rw [h1] at e1
-  rw [h2] at e2
-  exact ⟨e1, e2⟩
+  exact ⟨(lsbValue_lt (w.tail.take m)).trans_eq (congrArg (2 ^ ·) h1),
+    (lsbValue_lt (w.tail.drop m)).trans_eq (congrArg (2 ^ ·) h2)⟩
 
 /-- The distinguished source `start` has the all-zero code. -/
 theorem encodeTriangle_start (m : ℕ) : encodeTriangle m start = zeroVertex (2 * m + 1) := by
@@ -191,18 +207,20 @@ theorem encodeTriangle_inj {m : ℕ} {t t' : GridTriangle} (ht : InGrid (2 ^ m) 
     congrArg _⟩
 
 /-- Every instance presents a Sperner colouring. -/
-theorem isSpernerColoring_color (inst : ℕ × CircuitCode) :
-    IsSpernerColoring (2 ^ inst.1) (color inst) := by
+theorem isSpernerColoring_color (inst : Sperner2DInstance) :
+    IsSpernerColoring (2 ^ inst.gridExp) (color inst) := by
   intro x y _ _ h
   exact ite_eq_left h
 
 /-- A triangle code has an outgoing edge exactly when the triangle has an exit door. -/
-theorem hasOut_encodeTriangle {inst : ℕ × CircuitCode} {t : GridTriangle}
-    (ht : InGrid (2 ^ inst.1) (2 ^ inst.1) t) :
-    hasOut (fun inst => 2 * inst.1 + 1) pred succ inst (encodeTriangle inst.1 t) = true ↔
+theorem hasOut_encodeTriangle {inst : Sperner2DInstance} {t : GridTriangle}
+    (ht : InGrid (2 ^ inst.gridExp) (2 ^ inst.gridExp) t) :
+    hasOut (fun inst => 2 * inst.gridExp + 1) pred succ inst
+      (encodeTriangle inst.gridExp t) = true ↔
       HasExit (color inst) t := by
   have hnext := inGrid_next (c := color inst) ht
-  have hs : InGrid (2 ^ inst.1) (2 ^ inst.1) start := inGrid_start_iff.mpr (Nat.two_pow_pos _)
+  have hs : InGrid (2 ^ inst.gridExp) (2 ^ inst.gridExp) start :=
+    inGrid_start_iff.mpr (Nat.two_pow_pos _)
   simp only [hasOut, succ, pred, decodeTriangle_encodeTriangle ht,
     decodeTriangle_encodeTriangle hnext, ← encodeTriangle_start, ne_eq,
     encodeTriangle_inj (inGrid_prev hnext) ht, encodeTriangle_inj hnext ht,
@@ -211,12 +229,14 @@ theorem hasOut_encodeTriangle {inst : ℕ × CircuitCode} {t : GridTriangle}
 
 /-- A triangle code has an incoming edge exactly when the triangle has an entry door and is not
 `start`. -/
-theorem hasIn_encodeTriangle {inst : ℕ × CircuitCode} {t : GridTriangle}
-    (ht : InGrid (2 ^ inst.1) (2 ^ inst.1) t) :
-    hasIn (fun inst => 2 * inst.1 + 1) pred succ inst (encodeTriangle inst.1 t) = true ↔
+theorem hasIn_encodeTriangle {inst : Sperner2DInstance} {t : GridTriangle}
+    (ht : InGrid (2 ^ inst.gridExp) (2 ^ inst.gridExp) t) :
+    hasIn (fun inst => 2 * inst.gridExp + 1) pred succ inst
+      (encodeTriangle inst.gridExp t) = true ↔
       HasEntry (color inst) t ∧ t ≠ start := by
   have hprev := inGrid_prev (c := color inst) ht
-  have hs : InGrid (2 ^ inst.1) (2 ^ inst.1) start := inGrid_start_iff.mpr (Nat.two_pow_pos _)
+  have hs : InGrid (2 ^ inst.gridExp) (2 ^ inst.gridExp) start :=
+    inGrid_start_iff.mpr (Nat.two_pow_pos _)
   simp only [hasIn, succ, pred, decodeTriangle_encodeTriangle ht,
     decodeTriangle_encodeTriangle hprev, ← encodeTriangle_start, ne_eq,
     encodeTriangle_inj (inGrid_next hprev) ht, encodeTriangle_inj hprev ht,
@@ -225,26 +245,27 @@ theorem hasIn_encodeTriangle {inst : ℕ × CircuitCode} {t : GridTriangle}
 
 /-- `Sperner2D` is the end-of-line problem of the door graph on triangle codes. -/
 theorem eq_endOfLineRel :
-    Sperner2D = endOfLineRel (fun inst => 2 * inst.1 + 1) pred succ := by
+    Sperner2D = endOfLineRel (fun inst => 2 * inst.gridExp + 1) pred succ := by
   funext inst u
   apply propext
   refine and_congr_right fun hu => ?_
-  obtain ⟨t, ht, rfl⟩ : ∃ t, InGrid (2 ^ inst.1) (2 ^ inst.1) t ∧ encodeTriangle inst.1 t = u :=
+  obtain ⟨t, ht, rfl⟩ :
+      ∃ t, InGrid (2 ^ inst.gridExp) (2 ^ inst.gridExp) t ∧ encodeTriangle inst.gridExp t = u :=
     ⟨_, inGrid_decodeTriangle hu, encodeTriangle_decodeTriangle hu⟩
-  have hs : InGrid (2 ^ inst.1) (2 ^ inst.1) start := inGrid_start_iff.mpr (Nat.two_pow_pos _)
-  have hin := hasIn_encodeTriangle ht
-  have hout := hasOut_encodeTriangle ht
-  have hz : encodeTriangle inst.1 t = zeroVertex (2 * inst.1 + 1) ↔ t = start := by
-    rw [← encodeTriangle_start, encodeTriangle_inj ht hs]
   rw [decodeTriangle_encodeTriangle ht, (isSpernerColoring_color inst).trichromatic_iff ht,
-    ← hin, ← hout, ← hz]
-  generalize hasIn (fun inst => 2 * inst.1 + 1) pred succ inst (encodeTriangle inst.1 t) = a
-  generalize hasOut (fun inst => 2 * inst.1 + 1) pred succ inst (encodeTriangle inst.1 t) = b
-  by_cases h : encodeTriangle inst.1 t = zeroVertex (2 * inst.1 + 1) <;>
+    ← hasIn_encodeTriangle ht, ← hasOut_encodeTriangle ht,
+    ← encodeTriangle_inj ht (inGrid_start_iff.mpr (Nat.two_pow_pos _)), encodeTriangle_start]
+  generalize hasIn (fun inst => 2 * inst.gridExp + 1) pred succ inst
+    (encodeTriangle inst.gridExp t) = a
+  generalize hasOut (fun inst => 2 * inst.gridExp + 1) pred succ inst
+    (encodeTriangle inst.gridExp t) = b
+  by_cases h : encodeTriangle inst.gridExp t = zeroVertex (2 * inst.gridExp + 1) <;>
     cases a <;> cases b <;> simp [h]
 
 
 /-! ### Polynomial-time door graph -/
+
+attribute [local irreducible] ComputableInPolyTime
 
 /-- Grid triangles encoded as triples, for the polynomial-time proofs below. (`enc_structure` would
 add public `ComputableInO` rules that these proofs do not use.) -/
@@ -294,13 +315,14 @@ private theorem corner_tri {α : Type} {enc : α ↪ List Bool} {t : α → Grid
 
 attribute [local fun_prop] corner_tri
 
-private theorem color_poly {α : Type} {enc : α ↪ List Bool} {a : α → ℕ × CircuitCode}
+private theorem color_poly {α : Type} {enc : α ↪ List Bool} {a : α → Sperner2DInstance}
     {p : α → ℕ × ℕ} (ha : ComputableInPolyTime a enc encSperner2D)
     (hp : ComputableInPolyTime p enc (encPair encNat encNat)) :
     ComputableInPolyTime (fun b => color (a b) (p b)) enc (encFinEnum (Fin 3)) := by
   have hx := hp.fst'
   have hy := hp.snd'
-  have hm := ha.fst'
+  have hm := encSperner2D_gridExp_polyTime ha
+  have hcode := encSperner2D_circuit_polyTime ha
   have hside := ComputableInPolyTime.binary_two_pow.comp hm
   have hboundary : ComputableInPolyTime (fun b => boundaryColor (p b))
       enc (encFinEnum (Fin 3)) := by
@@ -309,7 +331,7 @@ private theorem color_poly {α : Type} {enc : α ↪ List Bool} {a : α → ℕ 
       (ite_decide (hx.decide_eq' (const 0)) (const 1) (const 0))
   have hwordx := bitsLow hm hx
   have hwordy := bitsLow hm hy
-  have hout := computableInPolyTime_evalCircuitOutputs ha.snd' (bitsAppend hwordx hwordy)
+  have hout := computableInPolyTime_evalCircuitOutputs hcode (bitsAppend hwordx hwordy)
   have hzero := bitsGetDWithInput hout (const 0) false
   have htwo := bitsGetDWithInput hout (const 2) false
   unfold color outputColor
@@ -352,14 +374,14 @@ private theorem across_tri {α : Type} {enc : α ↪ List Bool} {t : α → Grid
 
 attribute [local fun_prop] interior_tri across_tri
 
-private theorem isExit_tri {α : Type} {enc : α ↪ List Bool} {a : α → ℕ × CircuitCode}
+private theorem isExit_tri {α : Type} {enc : α ↪ List Bool} {a : α → Sperner2DInstance}
     {t : α → GridTriangle} (k : Fin 3) (ha : ComputableInPolyTime a enc encSperner2D)
     (ht : ComputableInPolyTime t enc encTri) :
     ComputableInPolyTime (fun b => decide (IsExit (color (a b)) (t b) k)) enc encBool := by
   unfold IsExit
   fun_prop
 
-private theorem isEntry_tri {α : Type} {enc : α ↪ List Bool} {a : α → ℕ × CircuitCode}
+private theorem isEntry_tri {α : Type} {enc : α ↪ List Bool} {a : α → Sperner2DInstance}
     {t : α → GridTriangle} (k : Fin 3) (ha : ComputableInPolyTime a enc encSperner2D)
     (ht : ComputableInPolyTime t enc encTri) :
     ComputableInPolyTime (fun b => decide (IsEntry (color (a b)) (t b) k)) enc encBool := by
@@ -368,18 +390,20 @@ private theorem isEntry_tri {α : Type} {enc : α ↪ List Bool} {a : α → ℕ
 
 attribute [local fun_prop] isExit_tri isEntry_tri
 
-private theorem next_tri {α : Type} {enc : α ↪ List Bool} {a : α → ℕ × CircuitCode}
+private theorem next_tri {α : Type} {enc : α ↪ List Bool} {a : α → Sperner2DInstance}
     {t : α → GridTriangle} (ha : ComputableInPolyTime a enc encSperner2D)
     (ht : ComputableInPolyTime t enc encTri) :
-    ComputableInPolyTime (fun b => next (color (a b)) (2 ^ (a b).1) (2 ^ (a b).1) (t b)) enc
+    ComputableInPolyTime
+      (fun b => next (color (a b)) (2 ^ (a b).gridExp) (2 ^ (a b).gridExp) (t b)) enc
       encTri := by
   unfold next
   fun_prop
 
-private theorem prev_tri {α : Type} {enc : α ↪ List Bool} {a : α → ℕ × CircuitCode}
+private theorem prev_tri {α : Type} {enc : α ↪ List Bool} {a : α → Sperner2DInstance}
     {t : α → GridTriangle} (ha : ComputableInPolyTime a enc encSperner2D)
     (ht : ComputableInPolyTime t enc encTri) :
-    ComputableInPolyTime (fun b => prev (color (a b)) (2 ^ (a b).1) (2 ^ (a b).1) (t b)) enc
+    ComputableInPolyTime
+      (fun b => prev (color (a b)) (2 ^ (a b).gridExp) (2 ^ (a b).gridExp) (t b)) enc
       encTri := by
   unfold prev
   fun_prop
@@ -416,13 +440,16 @@ theorem computableInPolyTime_pred :
 
 /-- The length `2m + 1` of triangle codes is computable in polynomial time, in unary. -/
 theorem computableInPolyTime_length :
-    ComputableInPolyTime (fun inst : ℕ × CircuitCode => 2 * inst.1 + 1) encSperner2D encUnary := by
+    ComputableInPolyTime (fun inst : Sperner2DInstance => 2 * inst.gridExp + 1)
+      encSperner2D encUnary := by
   fun_prop
 
-theorem length_succ (p : (ℕ × CircuitCode) × List Bool) : (succ p).length = 2 * p.1.1 + 1 :=
+theorem length_succ (p : Sperner2DInstance × List Bool) :
+    (succ p).length = 2 * p.1.gridExp + 1 :=
   length_encodeTriangle _ _
 
-theorem length_pred (p : (ℕ × CircuitCode) × List Bool) : (pred p).length = 2 * p.1.1 + 1 :=
+theorem length_pred (p : Sperner2DInstance × List Bool) :
+    (pred p).length = 2 * p.1.gridExp + 1 :=
   length_encodeTriangle _ _
 
 end Sperner2D

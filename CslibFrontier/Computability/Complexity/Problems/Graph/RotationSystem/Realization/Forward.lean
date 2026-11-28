@@ -53,15 +53,12 @@ theorem exists_polygonalDrawing {G : Graph} (r : RotationSystem G)
       · exact r.exists_polygonalDrawing_of_loops hG hr hloop
       · push Not at hloop
         obtain ⟨i, hnonloop⟩ := hloop
-        obtain ⟨H, u, v, e, hdecl, hlenH, hcoord, _, hu, hv⟩ := G.exists_lastEdge_reindex i
+        obtain ⟨H, u, v, e, hdecl, _, hlenH, hcoord, _, _, hu, hv⟩ := G.exists_lastEdge_reindex i
         have huv : u ≠ v := by rw [hu, hv]; exact hnonloop
-        have hm : ∀ w, w ∈ G.1 ↔ w ∈ (lastEdgeGraph H u v).1 := by
-          intro w
-          simp only [lastEdgeGraph, hdecl]
+        have hm (w) : w ∈ G.1 ↔ w ∈ (lastEdgeGraph H u v).1 := by simp [lastEdgeGraph, hdecl]
         have hH := endpoints_declared_edge_reindex e hcoord hm hG
         let E : Dart G ≃ Dart (lastEdgeGraph H u v) := e.prodCongr (Equiv.refl Bool)
-        have hvE : ∀ a b, (E a).vertex = (E b).vertex ↔ a.vertex = b.vertex := by
-          intro a b
+        have hvE (a b) : (E a).vertex = (E b).vertex ↔ a.vertex = b.vertex := by
           change Dart.vertex (e a.1, a.2) = Dart.vertex (e b.1, b.2) ↔ _
           rw [hcoord, hcoord]
         let s := r.transport E hvE
@@ -74,20 +71,16 @@ theorem exists_polygonalDrawing {G : Graph} (r : RotationSystem G)
           (s.contractLastEdge huv) (endpoints_declared_contractLastEdge hH)
           (s.numericalGenusZero_contractLastEdge huv hH hs)
         obtain ⟨ρ, _, a, b, hnew, hnewR⟩ := hR.exists_restoration s huv hH hD
-        have hback : ∀ i side, Dart.vertex (G := G) (e.symm i, side) =
+        have hback (i side) : Dart.vertex (G := G) (e.symm i, side) =
             Dart.vertex (G := lastEdgeGraph H u v) (i, side) := by
-          intro i side
           simpa only [e.apply_symm_apply] using (hcoord (e.symm i) side).symm
         let Q := D.restoration huv ρ a b
         refine ⟨Q.edgeTransport e.symm hback,
           hnew.edgeTransport e.symm hback (fun w => (hm w).symm), ?_⟩
-        have hreal := hnewR.edgeTransport e.symm hback
-        have hvBack : ∀ a b, (E.symm a).vertex = (E.symm b).vertex ↔ a.vertex = b.vertex := by
-          intro a b
+        have hvBack (a b) : (E.symm a).vertex = (E.symm b).vertex ↔ a.vertex = b.vertex := by
           change Dart.vertex (e.symm a.1, a.2) = Dart.vertex (e.symm b.1, b.2) ↔ _
           rw [hback, hback]
-        have hrot := r.transport_symm E hvE hvBack
-        exact hrot ▸ hreal
+        exact r.transport_symm E hvE hvBack ▸ hnewR.edgeTransport e.symm hback
   exact forward G.2.length G rfl r hG hr
 
 end Cslib.Complexity.Graph.RotationSystem

@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.MLDSA.RejNTTProgramming
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204NTT
 import CslibFrontier.Foundations.Data.Option
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+import Batteries.Data.Vector.Lemmas
 import CslibFrontier.Probability.PMF.Uniform
 
 /-!
@@ -45,22 +45,17 @@ private def cellAt (s : Level) (rho : List Byte) (x : List Bool) : Option (Cell 
 
 private theorem cellAt_address (s : Level) (rho : List Byte) (p : Cell s) :
     cellAt s rho (address rho p) = some p := by
-  have hk : s.params.k ≤ 256 := by cases s <;> decide
-  have hl : s.params.ℓ ≤ 256 := by cases s <;> decide
   let i := Fin.ofNat 256 p.1.val
   let j := Fin.ofNat 256 p.2.val
-  have hi : i.val = p.1.val := Nat.mod_eq_of_lt (p.1.isLt.trans_le hk)
-  have hj : j.val = p.2.val := Nat.mod_eq_of_lt (p.2.isLt.trans_le hl)
+  have hi : i.val = p.1.val := Nat.mod_eq_of_lt (p.1.isLt.trans_le (by cases s <;> decide))
+  have hj : j.val = p.2.val := Nat.mod_eq_of_lt (p.2.isLt.trans_le (by cases s <;> decide))
   have haddr : address rho p =
       Keccak.bytesToBitsLE rho ++ (Keccak.byteBitsLE j ++ Keccak.byteBitsLE i) := by
     simp [address, Keccak.bytesToBitsLE, i, j]
   have h8 : (Keccak.byteBitsLE j).length = 8 := by simp [Keccak.byteBitsLE]
-  have take8 : (Keccak.byteBitsLE j ++ Keccak.byteBitsLE i).take 8 = Keccak.byteBitsLE j := by
-    rw [← h8, List.take_append_length]
-  have drop8 : (Keccak.byteBitsLE j ++ Keccak.byteBitsLE i).drop 8 = Keccak.byteBitsLE i := by
-    rw [← h8, List.drop_left]
-  simp only [cellAt, List.drop_left, take8, drop8, Keccak.bitsToByteLE_byteBitsLE,
-    hi, hj, p.1.isLt, p.2.isLt, dite_true, Fin.eta, Prod.eta, haddr, ite_true]
+  simp only [cellAt, haddr, List.drop_left, ← h8, List.take_append_length,
+    Keccak.bitsToByteLE_byteBitsLE, hi, hj, p.1.isLt, p.2.isLt, dite_true, Fin.eta, Prod.eta,
+    ite_true]
 
 private theorem address_of_cellAt {s : Level} {rho : List Byte} {x : List Bool} {p : Cell s}
     (h : cellAt s rho x = some p) : address rho p = x := by
@@ -76,6 +71,10 @@ def Xofs.withMatrixPrefixes (H : Xofs) (s : Level) (rho : List Byte) (t : Matrix
     Xofs :=
   { H with h128 := H.h128.withPrefixes fun x =>
       (cellAt s rho x).map fun (i, j) => List.ofFn (t i j) }
+
+/-- Programming SHAKE128 matrix prefixes leaves the SHAKE256 oracle unchanged. -/
+@[simp] theorem Xofs.withMatrixPrefixes_h256 (H : Xofs) (s : Level) (rho : List Byte)
+    (t : MatrixPrefixes s) : (H.withMatrixPrefixes s rho t).h256 = H.h256 := by rfl
 
 /-- Reading a programmed matrix address through the production SHAKE128 interface returns its
 full replacement followed by the original suffix, truncated at the requested byte count. -/
@@ -98,11 +97,9 @@ theorem read_withMatrixPrefixes_of_ne (H : Xofs) (s : Level) (rho : List Byte)
     (h : ∀ (i : Fin s.params.k) (j : Fin s.params.ℓ),
       Keccak.bytesToBitsLE (rho ++ [Fin.ofNat 256 j.val, Fin.ofNat 256 i.val]) ≠ x) (n : ℕ) :
     (H.withMatrixPrefixes s rho t).h128.read x n = H.h128.read x n := by
-  have hnone : cellAt s rho x = none := by
-    cases ha : cellAt s rho x with
-    | none => rfl
-    | some p => exact False.elim (h p.1 p.2 (address_of_cellAt ha))
-  simp only [Xofs.withMatrixPrefixes, ExtendableOutput.withPrefixes, hnone, Option.map_none]
+  cases ha : cellAt s rho x with
+  | none => simp only [Xofs.withMatrixPrefixes, ExtendableOutput.withPrefixes, ha, Option.map_none]
+  | some p => exact absurd (address_of_cellAt ha) (h p.1 p.2)
 
 /-- Algorithm 32 receives the installed 894 bytes at this public row and column. -/
 theorem read_matrixEntry (H : Xofs) (s : Level) (rho : List Byte) (t : MatrixPrefixes s)
@@ -127,14 +124,11 @@ private theorem sample_programMatrixPrefixes (s : Level) (t : MatrixPrefixes s)
   | none =>
     rw [programMatrixPrefixes, exchangeRejNTT_of_none h]
     rfl
-  | some y =>
+  | some _ =>
     rw [programMatrixPrefixes, (exchangeRejNTT_of_some h _).1]
-    apply congrArg some
-    apply Vector.ext
-    intro k hk
-    have hv := congrFun (fromNTTEquiv.apply_symm_apply (A i j)) ⟨k, hk⟩
-    rw [fromNTTEquiv_apply] at hv
-    simpa only [Vector.get_eq_getElem, Vector.getElem_ofFn] using hv
+    refine congrArg some (Vector.ext fun k hk => ?_)
+    simpa only [fromNTTEquiv_apply, Vector.get_eq_getElem, Vector.getElem_ofFn] using
+      congrFun (fromNTTEquiv.apply_symm_apply (A i j)) ⟨k, hk⟩
 
 /-- The programmed XOF makes Algorithm 32 return the supplied coefficient matrix on each successful
 execution. It exhausts exactly when Algorithm 32 exhausts on the original prefixes. -/
@@ -148,13 +142,8 @@ theorem expandA_programMatrixPrefixes (H : Xofs) (s : Level) (rho : List Byte)
   let target (i : Fin s.params.k) := Vector.ofFn fun j : Fin s.params.ℓ => Vector.ofFn (A i j)
   have hr (i : Fin s.params.k) :
       rows (programMatrixPrefixes s t A) i = (rows t i).map fun _ => target i := by
-    have he := funext (sample_programMatrixPrefixes s t A i)
-    change Vector.ofFnM (entries (programMatrixPrefixes s t A) i) = _
-    rw [show entries (programMatrixPrefixes s t A) i = _ from he]
-    exact Vector.ofFnM_option_replace (entries t i) (fun j => Vector.ofFn (A i j))
-  have hm : Vector.ofFnM (rows (programMatrixPrefixes s t A)) =
-      (Vector.ofFnM (rows t)).map fun _ => Vector.ofFn target := by
-    rw [funext hr, Vector.ofFnM_option_replace]
+    simpa only [rows, entries, funext (sample_programMatrixPrefixes s t A i)] using
+      Vector.ofFnM_option_replace (entries t i) fun j => Vector.ofFn (A i j)
   let unpack (v : Vector (Vector (Vector (ZMod 8380417) 256) s.params.ℓ) s.params.k) :
       PublicMatrix s := fun i j => ((v.get i).get j).get
   have eval (u : MatrixPrefixes s) : (H.withMatrixPrefixes s rho u).expandA s rho =
@@ -162,12 +151,14 @@ theorem expandA_programMatrixPrefixes (H : Xofs) (s : Level) (rho : List Byte)
     unfold Xofs.expandA
     simp only [read_matrixEntry, bind_pure_comp]
     rfl
+  have hm : Vector.ofFnM (rows (programMatrixPrefixes s t A)) =
+      (Vector.ofFnM (rows t)).map fun _ => Vector.ofFn target := by
+    rw [funext hr, Vector.ofFnM_option_replace]
   rw [eval, eval, hm]
   cases Vector.ofFnM (rows t) with
   | none => rfl
   | some _ =>
-    apply congrArg some
-    funext i j k
+    refine congrArg some (funext fun i => funext fun j => funext fun k => ?_)
     simp only [unpack, target, Vector.get_ofFn]
 
 /-- Joint law of the full shared XOF and the optional matrix output of FIPS 204 Algorithm 32,

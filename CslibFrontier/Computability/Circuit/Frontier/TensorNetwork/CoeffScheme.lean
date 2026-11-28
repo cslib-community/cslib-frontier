@@ -33,7 +33,7 @@ import CslibFrontier.Tactic.EncLen
 An entry of a packet tensor of the contraction algorithm of [OpenAI2026ETH] expands a product of
 at most `L` affine row factors and keeps the coefficient of a mode monomial. The source evaluates
 it in time `exp(O(L log s))` and polynomial space (§D.4.6, p. 63). This file gives that
-evaluation as an instance of `Cslib.GenericRAM.StackRecursion.Scheme`, on the coefficient lists
+evaluation as an instance of `Cslib.Algorithms.StackRecursion.Scheme`, on the coefficient lists
 of `A_p = (ℤ / 2 ^ p)[U] / (f)`.
 
 The data (`CoeffScheme.Terms`) are, at a context `x : C`, the precision `(p, fl)`, the list of
@@ -87,7 +87,7 @@ namespace Cslib.Circuits.Frontier
 
 namespace CoeffScheme
 
-open Finset GaloisRingArith NativePacket Cslib.GenericRAM Cslib.GenericRAM.StackRecursion
+open Finset GaloisRingArith NativePacket Cslib.GenericRAM Cslib.Algorithms.StackRecursion
 
 /-- **The data of coefficient extraction**: at a context `x : C`, the precision `(p, fl)` of the
 coefficient lists, the list of the modes, and the terms of the row factors (`term x r none` the
@@ -419,10 +419,7 @@ theorem contrib_polyTime {r : α → Rw} {γ : α → List ℕ} {c : α → ℕ}
       (zero_polyTime hS hx)
       (computableInPolyTime_mul hp hfl
         (hterm _ ((ComputableInPolyTime.optionSome encNat).comp hk)) hy))).of_enc_eq
-    fun a => by
-      by_cases h0 : c a = 0
-      · simp [contrib, h0]
-      · simp [contrib, h0]
+    fun a => by by_cases h0 : c a = 0 <;> simp [contrib, h0]
 
 end Lift
 
@@ -467,9 +464,8 @@ theorem scheme_polyTime : S.scheme.PolyTime (encNode encC encRw) encAcc (encList
       (ComputableInPolyTime.const none)
       (ComputableInPolyTime.ite (ComputableInPolyTime.binary_le' hc hm) hsome
         (ComputableInPolyTime.const none))).of_enc_eq fun z => ?_
-    by_cases he : z.1.2.1 = []
-    · simp [scheme, he]
-    · by_cases hle : z.2.1 ≤ (S.modes z.1.1).length <;> simp [scheme, he, hle]
+    by_cases he : z.1.2.1 = [] <;> by_cases hle : z.2.1 ≤ (S.modes z.1.1).length <;>
+      simp [scheme, he, hle]
   absorb := by
     have hq := ComputableInPolyTime.fst (encPair (encNode encC encRw) encAcc) (encList encNat)
     have hn := (ComputableInPolyTime.fst (encNode encC encRw) encAcc).comp hq
@@ -645,8 +641,8 @@ theorem valueCertificate_le :
       obtain ⟨hx, ha1, ha2⟩ := ha
       have h1 := hnode x hx
       have h2 : (encNat a.1).length ≤ m + 2 :=
-        Turing.MultiTapeTM.length_encNat_le_of_lt_two_pow (lt_of_le_of_lt (hm ▸ ha1) (by
-          have := Nat.lt_two_pow_self (n := m + 2); omega))
+        Turing.MultiTapeTM.length_encNat_le_of_lt_two_pow
+          ((hm ▸ ha1).trans_lt (by have := Nat.lt_two_pow_self (n := m + 2); omega))
       have h3 := hRv a.2 ha2
       have h4 : (encPair (encNode encC encRw) encAcc (x, a)).length =
           2 * (encNode encC encRw x).length + 1 + (encAcc a).length := length_encPair (x, a)
@@ -707,25 +703,22 @@ theorem valueCertificate_le :
     rw [← hY] at htime
     have hfP : (S.fuel (x₀, (rows₀, γ₀)) + 1) * Y = (2 * P + 1) * Y := by rw [hfuel, hPdef]
     have hstep : Y ≤ (K₀ * 8 ^ K₀ + cl + 9) * W := by
-      have e : (K₀ * 8 ^ K₀ + cl + 9) * W = K₀ * 8 ^ K₀ * W + cl * W + 9 * W := by ring
+      have : (K₀ * 8 ^ K₀ + cl + 9) * W = K₀ * 8 ^ K₀ * W + cl * W + 9 * W := by ring
       omega
-    have h1 := Nat.mul_le_mul_left (2 * P + 1) hstep
-    have h2 : (2 * P + 1) * ((K₀ * 8 ^ K₀ + cl + 9) * W) ≤
-        P * (3 * (K₀ * 8 ^ K₀ + cl + 9) * W) := by
-      have : 2 * P + 1 ≤ 3 * P := by omega
-      calc (2 * P + 1) * ((K₀ * 8 ^ K₀ + cl + 9) * W)
-          ≤ (3 * P) * ((K₀ * 8 ^ K₀ + cl + 9) * W) := Nat.mul_le_mul_right _ this
+    have h2 : (2 * P + 1) * Y ≤ P * (3 * (K₀ * 8 ^ K₀ + cl + 9) * W) := by
+      calc (2 * P + 1) * Y
+          ≤ (3 * P) * ((K₀ * 8 ^ K₀ + cl + 9) * W) := Nat.mul_le_mul (by omega) hstep
         _ = P * (3 * (K₀ * 8 ^ K₀ + cl + 9) * W) := by ring
     have h3 : cf * W + cr * W + 2 * W ≤ P * ((cf + cr + 2) * W) := by
       have e : cf * W + cr * W + 2 * W = (cf + cr + 2) * W := by ring
-      rw [e]; exact Nat.le_mul_of_pos_left _ hP
+      exact e ▸ Nat.le_mul_of_pos_left _ hP
     have h4 : P * ((cf + cr + 2) * W) + P * (3 * (K₀ * 8 ^ K₀ + cl + 9) * W) = P * (G * W) := by
       rw [hG]; ring
+    have hcomm : (G + G' + D) * P * Z ^ (G + G' + D) = P * ((G + G' + D) * Z ^ (G + G' + D)) := by
+      ring
     calc _ ≤ P * (G * W) := by omega
-      _ ≤ (G + G' + D) * P * Z ^ (G + G' + D) := by
-          rw [show (G + G' + D) * P * Z ^ (G + G' + D) = P * ((G + G' + D) * Z ^ (G + G' + D)) by
-            ring]
-          exact Nat.mul_le_mul_left _ (Nat.mul_le_mul (by omega) hWK)
+      _ ≤ (G + G' + D) * P * Z ^ (G + G' + D) :=
+          hcomm ▸ Nat.mul_le_mul_left _ (Nat.mul_le_mul (by omega) hWK)
   · rw [valueCertificate_space]
     unfold runCertificate
     have h1 : (encNat (S.fuel (x₀, (rows₀, γ₀)))).length ≤ 2 * W := by

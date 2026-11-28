@@ -127,16 +127,13 @@ theorem not_foDefinable_even [Nonempty α] : ¬ FODefinable {w : List α | Even 
     intro w hw
     let := orderStructure (Fin w.length)
     have : Language.order.OrderedStructure (Fin w.length) := ⟨fun _ => Iff.rfl⟩
-    have h1 : w ∈ φ.language ↔ Even w.length := by rw [hφ]; exact Iff.rfl
-    rw [← h1]
-    have hdef : (default : Empty → Fin w.length) = Empty.elim := funext fun e => e.elim
-    have hdef' : (default : Fin 0 → Fin w.length) = Fin.elim0 := funext fun x => x.elim0
+    rw [← (hφ ▸ Iff.rfl : w ∈ φ.language ↔ Even w.length)]
     change (φ.toOrder c).Realize (default : Empty → Fin w.length)
       (default : Fin 0 → Fin w.length) ↔
         φ.Realize (fun i : Fin w.length => w[i]) Fin.elim0 Fin.elim0
-    rw [hdef, hdef']
-    exact Formula.realize_toOrder c _ (fun i => hw _ (List.getElem_mem _)) φ hFO Fin.elim0
-      Fin.elim0
+    rw [Subsingleton.elim (default : Empty → Fin w.length) Empty.elim,
+      Subsingleton.elim (default : Fin 0 → Fin w.length) Fin.elim0]
+    exact Formula.realize_toOrder c _ (fun i => hw _ (List.getElem_mem _)) φ hFO Fin.elim0 Fin.elim0
   -- The orders of sizes `2 ^ k` and `2 ^ k + 1` agree on `ψ` (Ehrenfeucht–Fraïssé).
   let k := FO.quantifierRank ψ
   let w₁ := List.replicate (2 ^ k) c
@@ -147,9 +144,7 @@ theorem not_foDefinable_even [Nonempty α] : ¬ FODefinable {w : List α | Even 
   have : Language.order.OrderedStructure (Fin w₂.length) := ⟨fun _ => Iff.rfl⟩
   have h := FO.FiniteLinearOrder.realize_iff_of_two_pow_le_card (M := Fin w₁.length)
     (N := Fin w₂.length) (by simp [w₁]) (by simp [w₂]; omega) (le_refl k)
-  have k₁ := key w₁ fun a ha => List.eq_of_mem_replicate ha
-  have k₂ := key w₂ fun a ha => List.eq_of_mem_replicate ha
-  rw [k₁, k₂] at h
+  rw [key w₁ fun _ => List.eq_of_mem_replicate, key w₂ fun _ => List.eq_of_mem_replicate] at h
   simp only [w₁, w₂, List.length_replicate, Nat.even_add_one] at h
   exact iff_not_self h
 

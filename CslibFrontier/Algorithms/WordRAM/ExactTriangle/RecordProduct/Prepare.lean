@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.InputSpec
+import CslibFrontier.Computability.WordRAM.PreservesMask
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
@@ -26,10 +27,9 @@ open Cslib.WordRAM
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
 open Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage
 
--- The finite preservation test traverses the relocated 320-register code.
-set_option maxRecDepth 4096 in
 /-- `readRecord` preserves the 64-register producer bank and the ordinal register `64`. -/
-theorem read_preserves : ∀ i : Fin 320, i.val < 65 → readRecord.Preserves i := by decide
+theorem read_preserves : ∀ i : Fin 320, i.val < 65 → readRecord.Preserves i :=
+  Code.preserves_of_preservesAllPred rfl
 
 /-- Execute the shared `readRecord → logarithm → writeHeader` prefix before a continuation
 `tail`, returning the five-word header state, preserved pointers, memory frame outside

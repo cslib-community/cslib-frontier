@@ -175,9 +175,7 @@ within the bound is kept unchanged, and an out-of-range shift is replaced by `0`
 theorem hammingNorm_clampShift_le {m q : ℕ} (t : ℕ) (δ : Fin m → ZMod q) :
     hammingNorm (clampShift t δ) ≤ t := by
   unfold clampShift
-  split_ifs with h
-  · exact h
-  · simp
+  split_ifs with h <;> simp [*]
 
 /-- A shift whose Hamming weight is already at most `t` is unchanged by `clampShift`. -/
 theorem clampShift_of_le {m q : ℕ} {t : ℕ} {δ : Fin m → ZMod q} (h : hammingNorm δ ≤ t) :
@@ -341,17 +339,11 @@ weak-reusability advantage of `WeakReuseAdversary.ofDistinguisher D` equals
     (W : PMF (Fin m → ZMod q)) (t : ℕ) (D : Key → Helper → Experiment) :
     weakReuseAdvantage setup (fun _ => fe₀) W t (WeakReuseAdversary.ofDistinguisher D) =
       fe₀.securityAdvantage W D := by
-  have hreal : weakReuseRealGame setup (fun _ => fe₀) W t
-      (WeakReuseAdversary.ofDistinguisher D) = fe₀.realGame W D := by
-    simp [weakReuseRealGame, FuzzyExtractor.realGame, Game.withSetup, weakReuseRealExperiment,
-      FuzzyExtractor.realExperiment, WeakReuseAdversary.ofDistinguisher,
-      ProbComp.eval_bind, PMF.bind_const]
-  have hideal : weakReuseIdealGame setup (fun _ => fe₀) W t
-      (WeakReuseAdversary.ofDistinguisher D) = fe₀.idealGame W D := by
-    simp [weakReuseIdealGame, FuzzyExtractor.idealGame, Game.withSetup, weakReuseIdealExperiment,
-      FuzzyExtractor.idealExperiment, WeakReuseAdversary.ofDistinguisher,
-      ProbComp.eval_bind, PMF.bind_const]
-  simp [weakReuseAdvantage, FuzzyExtractor.securityAdvantage, hreal, hideal]
+  simp [weakReuseAdvantage, FuzzyExtractor.securityAdvantage,
+    weakReuseRealGame, FuzzyExtractor.realGame, weakReuseIdealGame, FuzzyExtractor.idealGame,
+    Game.withSetup, weakReuseRealExperiment, FuzzyExtractor.realExperiment,
+    weakReuseIdealExperiment, FuzzyExtractor.idealExperiment,
+    WeakReuseAdversary.ofDistinguisher, ProbComp.eval_bind, PMF.bind_const]
 
 end Relations
 
@@ -577,7 +569,7 @@ theorem commonMatrix_recover_key_of_zero_shift
         fun i => sStar (Fin.castAdd l i) := by
   constructor
   · rw [add_sub_add_right_eq_sub, ← Matrix.mulVec_sub]
-  · ext i
+  · ext
     simp
 
 /-- The 1-query strong-reusability attacker against `commonMatrixFuzzyExtractor`
@@ -623,13 +615,13 @@ theorem failProbability_strongReuseRealGame_commonMatrixStrongAttack_le
   pmf_hoist (PMF.uniformOfFintype (Fin (k + l) → ZMod q))
   refine PMF.bind_apply_le_on_support _ fun sStar _ =>
     PMF.bind_apply_le_on_support _ fun s₁ _ => ?_
-  have hsub : ∀ A : Matrix (Fin m) (Fin (k + l)) (ZMod q),
-      (A.mulVec sStar + w) - (A.mulVec s₁ + w) = A.mulVec (sStar - s₁) + 0 := fun A => by
+  have hsub (A : Matrix (Fin m) (Fin (k + l)) (ZMod q)) :
+      (A.mulVec sStar + w) - (A.mulVec s₁ + w) = A.mulVec (sStar - s₁) + 0 := by
     rw [add_zero, (commonMatrix_recover_key_of_zero_shift A sStar s₁ w).1]
   simp only [hsub]
-  refine uniform_bind_decode_bind_apply_false_le_of_failProbability_le decode (sStar - s₁) 0 _
-    (fun A => ?_) (hdec (sStar - s₁) 0 (by simp))
-  simp only [(commonMatrix_recover_key_of_zero_shift A sStar s₁ w).2, decide_true]
+  exact uniform_bind_decode_bind_apply_false_le_of_failProbability_le decode (sStar - s₁) 0 _
+    (fun _ => by simp [funext_iff])
+    (hdec (sStar - s₁) 0 (by simp))
 
 /-- In the ideal strong-reusability game against `commonMatrixFuzzyExtractor`, the attack
 `commonMatrixStrongAttack decode` outputs `true` with probability exactly `1 / q ^ k`: the uniform
@@ -667,10 +659,12 @@ theorem strongReuseAdvantage_commonMatrixStrongAttack_ge
     1 - (δ : ℝ) - 1 / (q : ℝ) ^ k ≤
       strongReuseAdvantage (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
         (commonMatrixFuzzyExtractor m k l q decode) W t (commonMatrixStrongAttack decode) := by
-  have hfail := failProbability_strongReuseRealGame_commonMatrixStrongAttack_le hdec W t
-  have hsum := Game.succProbability_add_failProbability (strongReuseRealGame
-    (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
-    (commonMatrixFuzzyExtractor m k l q decode) W t (commonMatrixStrongAttack decode))
+  set real := strongReuseRealGame (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
+    (commonMatrixFuzzyExtractor m k l q decode) W t (commonMatrixStrongAttack decode)
+  have hsum : (Game.succProbability real : ℝ) + (Game.failProbability real : ℝ) = 1 := by
+    exact_mod_cast Game.succProbability_add_failProbability real
+  have hfail : (Game.failProbability real : ℝ) ≤ δ := by
+    exact_mod_cast failProbability_strongReuseRealGame_commonMatrixStrongAttack_le hdec W t
   have hideal : (Game.succProbability (strongReuseIdealGame
       (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
       (commonMatrixFuzzyExtractor m k l q decode) W t (commonMatrixStrongAttack decode)) : ℝ) =
@@ -678,17 +672,6 @@ theorem strongReuseAdvantage_commonMatrixStrongAttack_ge
     rw [Game.coe_succProbability, strongReuseIdealGame_commonMatrixStrongAttack_apply_true]
     simp [ENNReal.toReal_inv]
   rw [strongReuseAdvantage, Game.coe_advantage, hideal]
-  have hsumR : (Game.succProbability (strongReuseRealGame
-      (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
-      (commonMatrixFuzzyExtractor m k l q decode) W t (commonMatrixStrongAttack decode)) : ℝ) +
-      (Game.failProbability (strongReuseRealGame
-      (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
-      (commonMatrixFuzzyExtractor m k l q decode) W t (commonMatrixStrongAttack decode)) : ℝ) =
-      1 := by exact_mod_cast hsum
-  have hfailR : (Game.failProbability (strongReuseRealGame
-      (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
-      (commonMatrixFuzzyExtractor m k l q decode) W t (commonMatrixStrongAttack decode)) : ℝ) ≤
-      δ := by exact_mod_cast hfail
   exact le_trans (by linarith) (le_abs_self _)
 
 end CommonMatrix

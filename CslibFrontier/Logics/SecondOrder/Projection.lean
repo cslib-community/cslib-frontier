@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.SecondOrder.Existential
 public import Mathlib.SetTheory.Cardinal.NatCard
+import CslibFrontier.Tactic.FirstOrder.Simp
 import Mathlib.Data.Finset.Sort
 
 /-!
@@ -119,14 +120,8 @@ theorem sumAssoc_isExpansionOn (R₁ : ∀ i, Set (Fin (ar₁ i) → M))
       (varLanguage.structure R₂))
     (@sumStructure _ _ M _
       (varLanguage.structure (arity := Sum.elim ar₁ ar₂) (Sum.rec R₁ R₂)))
-    (fun f _ => match f with
-      | .inl (.inl _) => rfl
-      | .inl (.inr f) => isEmptyElim f
-      | .inr f => isEmptyElim f)
-    (fun r _ => match r with
-      | .inl (.inl _) => rfl
-      | .inl (.inr _) => rfl
-      | .inr _ => rfl)
+    (fun | .inl (.inl _), _ => rfl | .inl (.inr f), _ => isEmptyElim f | .inr f, _ => isEmptyElim f)
+    (fun | .inl (.inl _), _ | .inl (.inr _), _ | .inr _, _ => rfl)
 
 end varLanguage
 
@@ -150,24 +145,20 @@ theorem realize_project {ι₀ : Type} [Finite ι₀] {ar₀ : ι₀ → ℕ}
         letI := varLanguage.structure R₀
         Φ.Realize M := by
   unfold project Realize
-  constructor
-  · rintro ⟨R, hR⟩
-    let R₀ : ∀ i, Set (Fin (ar₀ i) → M) := fun i => R (.inl i)
+  refine ⟨fun ⟨R, hR⟩ => ?_, fun ⟨R₀, R₁, hR⟩ => ?_⟩
+  · let R₀ : ∀ i, Set (Fin (ar₀ i) → M) := fun i => R (.inl i)
     let R₁ : ∀ j, Set (Fin (Φ.arity j) → M) := fun j => R (.inr j)
-    have hR_eq : R = Sum.rec R₀ R₁ := by
-      funext k; rcases k with i | j <;> rfl
-    rw [hR_eq] at hR
+    rw [show R = Sum.rec R₀ R₁ from funext fun | .inl _ | .inr _ => rfl] at hR
     let _ := varLanguage.structure R₀
     let _ := varLanguage.structure R₁
     let _ := varLanguage.structure (arity := Sum.elim ar₀ Φ.arity) (Sum.rec R₀ R₁)
-    have hexp := varLanguage.sumAssoc_isExpansionOn (L := L) R₀ R₁
-    exact ⟨R₀, R₁, (@LHom.realize_onSentence _ _ M _ _ _ hexp Φ.matrix).1 hR⟩
-  · rintro ⟨R₀, R₁, hR⟩
-    let _ := varLanguage.structure R₀
+    exact ⟨R₀, R₁, (@LHom.realize_onSentence _ _ M _ _ _
+      (varLanguage.sumAssoc_isExpansionOn (L := L) R₀ R₁) Φ.matrix).1 hR⟩
+  · let _ := varLanguage.structure R₀
     let _ := varLanguage.structure R₁
     let _ := varLanguage.structure (arity := Sum.elim ar₀ Φ.arity) (Sum.rec R₀ R₁)
-    have hexp := varLanguage.sumAssoc_isExpansionOn (L := L) R₀ R₁
-    exact ⟨Sum.rec R₀ R₁, (@LHom.realize_onSentence _ _ M _ _ _ hexp Φ.matrix).2 hR⟩
+    exact ⟨Sum.rec R₀ R₁, (@LHom.realize_onSentence _ _ M _ _ _
+      (varLanguage.sumAssoc_isExpansionOn (L := L) R₀ R₁) Φ.matrix).2 hR⟩
 
 end Sentence
 
@@ -208,10 +199,8 @@ theorem realize_isStrictLinearOrderSentence_iff_irrefl_trans_trichotomous {N : T
         ∀ a b c : N, ![a, b] ∈ R () ∧ ![b, c] ∈ R () → ![a, c] ∈ R ()) ∧
       ∀ a b : N, ![a, b] ∈ R () ∨ a = b ∨ ![b, a] ∈ R () := by
   let _ := varLanguage.structure (arity := fun _ : Unit => 2) R
-  rw [isStrictLinearOrderSentence, FirstOrder.Language.Sentence.realize_inf,
-    FirstOrder.Language.Sentence.realize_inf, Relations.realize_irreflexive,
-    Relations.realize_transitive, irrefl_def, isTrans_def]
-  simp [and_imp, FirstOrder.Language.Sentence.Realize, Formula.Realize, relMap_ltSym, Fin.snoc]
+  fo_simp [isStrictLinearOrderSentence, Relations.realize_irreflexive, Relations.realize_transitive,
+    irrefl_def, isTrans_def, and_imp, relMap_ltSym]
 
 /-- Every numbering `e : N ≃ Fin n` induces a strict linear order satisfying
 `isStrictLinearOrderSentence`. -/
@@ -219,14 +208,11 @@ theorem realize_isStrictLinearOrderSentence_orderRelOfEquiv {N : Type w} {n : �
     (letI := varLanguage.structure (arity := fun _ : Unit => 2) (orderRelOfEquiv e);
       N ⊨ isStrictLinearOrderSentence) := by
   rw [realize_isStrictLinearOrderSentence_iff_irrefl_trans_trichotomous]
-  refine ⟨⟨fun a => ?_, fun a b c ⟨h₁, h₂⟩ => ?_⟩, fun a b => ?_⟩
-  · change ¬ (e a < e a)
-    exact lt_irrefl _
-  · change e a < e c
-    exact lt_trans h₁ h₂
-  · change e a < e b ∨ a = b ∨ e b < e a
-    rw [← e.injective.eq_iff]
-    exact lt_trichotomy (e a) (e b)
+  refine ⟨⟨fun a => lt_irrefl (e a), fun _ _ _ ⟨h₁, h₂⟩ => lt_trans (α := Fin n) h₁ h₂⟩,
+    fun a b => ?_⟩
+  change e a < e b ∨ a = b ∨ e b < e a
+  rw [← e.injective.eq_iff]
+  exact lt_trichotomy (e a) (e b)
 
 /-- On a finite type `N`, a binary relation satisfies `isStrictLinearOrderSentence` iff it is
 `orderRelOfEquiv e` for some bijection `e : N ≃ Fin (Nat.card N)`. -/
@@ -297,8 +283,8 @@ theorem Definable.of_withLinearOrder {K : Set (Bundled.{w} L.Structure)}
         Φ.Realize M) :
     Definable K := by
   refine ⟨Φ.withLinearOrder, fun M _ => ?_⟩
-  rw [Sentence.realize_withLinearOrder]
-  exact ⟨fun hM => ⟨Finite.equivFin M, (hΦ M (Finite.equivFin M)).1 hM⟩,
-    fun ⟨e, h⟩ => (hΦ M e).2 h⟩
+  exact ((Sentence.realize_withLinearOrder Φ).trans
+    ⟨fun ⟨e, h⟩ => (hΦ M e).2 h,
+      fun hM => ⟨Finite.equivFin M, (hΦ M (Finite.equivFin M)).1 hM⟩⟩).symm
 
 end Cslib.Logic.ESO

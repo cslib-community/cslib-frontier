@@ -151,8 +151,8 @@ theorem map_snd_leftLaw (μ : PMF (X × Y)) (α : I) :
         congrArg (PMF.bind r) (funext fun k => ?_))
       cases i <;> cases k <;> rfl
     _ = _ := by
-      rw [show (p.bind fun i => r.map fun k => i || k) = coin α from
-        coin_messageRate_or_noise α]
+      dsimp only [p, r]
+      rw [coin_messageRate_or_noise α]
       rfl
 
 private theorem map_swap_anchorPair (μ : PMF (X × Y)) (α β : I) :
@@ -193,14 +193,10 @@ private theorem law_inl_apply (μ : PMF (X × Y)) (α : I) (m : Option X)
     law μ α (Sum.inl m, q) = (uniformOfFintype Bool) true * leftLaw μ α (m, q) := by
   have hzero : ((rightLaw μ α).map (Prod.map Sum.inr id)) (Sum.inl m, q) = 0 := by
     rw [PMF.apply_eq_zero_iff, PMF.mem_support_map_iff]
-    rintro ⟨z, -, hz⟩
-    have h := congrArg (fun z : (Option X ⊕ Option Y) × (Option X × Option Y) => z.1) hz
-    cases h
+    rintro ⟨⟨_, _⟩, -, ⟨⟩⟩
   rw [law, PMF.bind_apply, tsum_fintype, Fintype.sum_bool]
-  have hinj : Function.Injective (Prod.map (Sum.inl : Option X → Option X ⊕ Option Y)
-      (id : Option X × Option Y → Option X × Option Y)) :=
-    Sum.inl_injective.prodMap Function.injective_id
-  have hmap := map_apply_of_injective (leftLaw μ α) hinj (m, q)
+  have hmap := map_apply_of_injective (leftLaw μ α)
+    ((Sum.inl_injective (β := Option Y)).prodMap Function.injective_id) (m, q)
   simpa only [Bool.false_eq_true, ite_false, ite_true, hzero, mul_zero, add_zero,
     Prod.map_apply, id_eq] using congrArg ((uniformOfFintype Bool) true * ·) hmap
 
@@ -209,14 +205,10 @@ private theorem law_inr_apply (μ : PMF (X × Y)) (α : I) (m : Option Y)
     law μ α (Sum.inr m, q) = (uniformOfFintype Bool) false * rightLaw μ α (m, q) := by
   have hzero : ((leftLaw μ α).map (Prod.map Sum.inl id)) (Sum.inr m, q) = 0 := by
     rw [PMF.apply_eq_zero_iff, PMF.mem_support_map_iff]
-    rintro ⟨z, -, hz⟩
-    have h := congrArg (fun z : (Option X ⊕ Option Y) × (Option X × Option Y) => z.1) hz
-    cases h
+    rintro ⟨⟨_, _⟩, -, ⟨⟩⟩
   rw [law, PMF.bind_apply, tsum_fintype, Fintype.sum_bool]
-  have hinj : Function.Injective (Prod.map (Sum.inr : Option Y → Option X ⊕ Option Y)
-      (id : Option X × Option Y → Option X × Option Y)) :=
-    Sum.inr_injective.prodMap Function.injective_id
-  have hmap := map_apply_of_injective (rightLaw μ α) hinj (m, q)
+  have hmap := map_apply_of_injective (rightLaw μ α)
+    ((Sum.inr_injective (α := Option X)).prodMap Function.injective_id) (m, q)
   simpa only [Bool.false_eq_true, ite_false, ite_true, hzero, mul_zero, zero_add,
     Prod.map_apply, id_eq] using congrArg ((uniformOfFintype Bool) false * ·) hmap
 
@@ -352,16 +344,10 @@ theorem map_questions_pi_law {A B : Type*} [Finite X] [Finite Y]
     (pi fun _ : Fin n => law G.questions α).map
       (fun samples => (Prod.fst ∘ Prod.snd ∘ samples, Prod.snd ∘ Prod.snd ∘ samples)) =
         ((G.anchored α).pow n).questions := by
-  rw [show (fun samples : Fin n → Sum (Option X) (Option Y) × (Option X × Option Y) =>
-      (Prod.fst ∘ Prod.snd ∘ samples, Prod.snd ∘ Prod.snd ∘ samples)) =
-      (fun qs : Fin n → Option X × Option Y => (Prod.fst ∘ qs, Prod.snd ∘ qs)) ∘
-        (fun samples => Prod.snd ∘ samples) from rfl]
-  rw [← PMF.map_comp]
-  have hproject : (pi fun _ : Fin n => law G.questions α).map
-      (fun samples => Prod.snd ∘ samples) =
-        pi (fun _ : Fin n => (law G.questions α).map Prod.snd) :=
-    (pi_map (fun _ : Fin n => law G.questions α) (fun _ => Prod.snd)).symm
-  rw [hproject]
+  change (pi fun _ : Fin n => law G.questions α).map
+      ((fun qs : Fin n → Option X × Option Y => (Prod.fst ∘ qs, Prod.snd ∘ qs)) ∘
+        fun outcome i => (outcome i).2) = _
+  rw [← PMF.map_comp, ← pi_map (fun _ : Fin n => law G.questions α) (fun _ => Prod.snd)]
   simp only [map_snd_law, TwoProverGame.pow, TwoProverGame.anchored_questions, Function.comp_def]
 
 end Cslib.PCP.AnchoredDependency

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordWitness.Program
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.BoxRecordWitness.Width
+import CslibFrontier.Computability.WordRAM.Record
 
 /-!
 # Fixed-prime callee bank and early-stop return
@@ -70,20 +71,10 @@ theorem exec_receive {w i limit S performed flag : ℕ} (x : Data 416)
       y.regs Reg.scans = S + performed ∧ y.regs Reg.found = flag ∧
       ∀ j : Fin 416, j.val < 400 ∨ j = Reg.one →
         y.regs j = x.regs j := by
-  dsimp only [Reg.index, Reg.limit, Reg.scans, Reg.one, recordBank,
-    RecordWitness.Reg.found, RecordWitness.Reg.scans, Fin.castLE] at hi hl hs hp hf h1
-  let y := x.set Reg.scans (S + performed) |>.set Reg.found flag |>.set Reg.index (i + 1)
-    |>.set Reg.limit (if flag = 1 then i + 1 else limit)
-  have he : ExecWithin w receive x y 6 := by
-    by_cases hflag : flag = 1
-    · ram_eval [receive, y, hi, hl, hs, hp, hf, h1, hS, hI, hflag,
-        Reg.index, Reg.limit, Reg.found, Reg.scans, Reg.one, recordBank,
-        RecordWitness.Reg.found, RecordWitness.Reg.scans, Fin.castLE]
-    · ram_eval [receive, y, hi, hl, hs, hp, hf, h1, hS, hI, hflag,
-        Reg.index, Reg.limit, Reg.found, Reg.scans, Reg.one, recordBank,
-        RecordWitness.Reg.found, RecordWitness.Reg.scans, Fin.castLE]
-  refine ⟨y, he, rfl, ?_, ?_, ?_, ?_, fun j hj =>
-    he.regs_eq (receive_preserves j hj)⟩
-  all_goals simp +decide [y, Reg.index, Reg.limit, Reg.found, Reg.scans]
+  refine WP.exists_execWithin_preserves (fun j hj => receive_preserves j hj) ?_
+  unfold receive
+  wram_exec [hi, hl, hs, hp, hf, h1] <;>
+  · intro hpres
+    exact ⟨rfl, by wram_simp, by wram_simp [hc], by wram_simp, by wram_simp, hpres⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.FixedPrime

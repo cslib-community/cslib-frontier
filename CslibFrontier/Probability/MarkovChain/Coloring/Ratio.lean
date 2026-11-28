@@ -9,7 +9,9 @@ module
 
 public import CslibFrontier.Probability.MarkovChain.Coloring
 import CslibFrontier.Probability.PMF
-import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.EventBind
+import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpOneSubInvPow
 import Mathlib.Analysis.SpecialFunctions.Exp
 
@@ -58,23 +60,12 @@ open Cslib.Probability.PMF SimpleGraph
 
 variable {V : Type*} {q : ℕ} [Fintype V] [DecidableEq V] {G : SimpleGraph V} [DecidableRel G.Adj]
 
-/-- If every state of `E` in the support of `μ` moves into `E'` with probability at least `p`,
-the probability of `E'` after one step is at least `p` times the probability of `E`. -/
-private theorem le_sum_bind_ite {α : Type*} [Fintype α] (μ : PMF α) (K : α → PMF α)
-    (E E' : α → Prop) [DecidablePred E] [DecidablePred E'] {p : ℝ}
-    (hK : ∀ x, μ x ≠ 0 → E x → p ≤ ∑ y, (K x y).toReal * if E' y then 1 else 0) :
-    p * ∑ x, (μ x).toReal * (if E x then 1 else 0) ≤
-      ∑ y, ((μ.bind K) y).toReal * if E' y then 1 else 0 := by
-  rw [sum_bind_mul, Finset.mul_sum]
-  refine Finset.sum_le_sum fun x _ => ?_
-  by_cases hμ : μ x = 0
-  · rw [hμ, ENNReal.toReal_zero, zero_mul, zero_mul, mul_zero]
-  by_cases hx : E x
-  · rw [ite_eq_left hx, mul_one, mul_comm]
-    exact mul_le_mul_of_nonneg_left (hK x hμ hx) ENNReal.toReal_nonneg
-  · rw [ite_eq_right hx, mul_zero, mul_zero]
-    exact mul_nonneg ENNReal.toReal_nonneg
-      (Finset.sum_nonneg fun y _ => mul_nonneg ENNReal.toReal_nonneg (by split_ifs <;> norm_num))
+private theorem toOuterMeasure_uniform_frozenColorings {U : Finset V} {b : V → Fin q}
+    (hne : (frozenColorings G q U b).Nonempty) (v : V) :
+    ((uniformOfFinset (frozenColorings G q U b) hne).toOuterMeasure {x | x v = b v}).toReal =
+      ((frozenColorings G q (U.erase v) b).card : ℝ) / (frozenColorings G q U b).card := by
+  rw [toOuterMeasure_uniformOfFinset_toReal, frozenColorings_erase]
+  rfl
 
 /-- Under the uniform distribution on `X_U`, the probability that `x v = b v` is
 `|X_{U \ {v}}| / |X_U|`. -/
@@ -83,15 +74,8 @@ theorem sum_uniformOfFinset_frozenColorings_ite {U : Finset V} {b : V → Fin q}
     ∑ x, ((uniformOfFinset (frozenColorings G q U b) hne) x).toReal *
         (if x v = b v then 1 else 0) =
       ((frozenColorings G q (U.erase v) b).card : ℝ) / (frozenColorings G q U b).card := by
-  have hπ (x : V → Fin q) : ((uniformOfFinset (frozenColorings G q U b) hne) x).toReal *
-      (if x v = b v then 1 else 0) =
-        if x ∈ frozenColorings G q (U.erase v) b then
-          ((frozenColorings G q U b).card : ℝ)⁻¹ else 0 := by
-    rw [uniformOfFinset_apply, frozenColorings_erase]
-    by_cases hx : x ∈ frozenColorings G q U b <;> by_cases hxv : x v = b v <;>
-      simp [hx, hxv, Finset.mem_filter]
-  simp only [hπ]
-  rw [Finset.sum_ite_mem, Finset.univ_inter, Finset.sum_const, nsmul_eq_mul, div_eq_mul_inv]
+  simpa only [toOuterMeasure_toReal_eq_sum_ite, Set.mem_ofPred_eq] using
+    toOuterMeasure_uniform_frozenColorings hne v
 
 /-- **Freezing a vertex** ([LevinPeres2017], proof of Lemma 14.16): if `b` is a proper coloring,
 `Δ < q` and `v ∈ U`, then freezing `v` at `b v` keeps a fraction at least
@@ -104,59 +88,42 @@ theorem mul_card_frozenColorings_le_card_erase (hq : G.maxDegree < q) {b : V →
   set π := uniformOfFinset (frozenColorings G q U b) hne with hπ_def
   set r : ℝ := 1 - 1 / ((q - G.maxDegree : ℕ) : ℝ) with hr_def
   have hD : (1 : ℝ) ≤ ((q - G.maxDegree : ℕ) : ℝ) := by
-    exact_mod_cast (by omega : 1 ≤ q - G.maxDegree)
-  have hr0 : 0 ≤ r := by
-    rw [hr_def, sub_nonneg]
-    exact div_le_one_of_le₀ hD (by linarith)
-  have hr1 : r ≤ 1 := by
-    rw [hr_def, sub_le_self_iff]
-    positivity
+    exact_mod_cast (by lia : 1 ≤ q - G.maxDegree)
+  have hr0 : 0 ≤ r := sub_nonneg.mpr (div_le_one_of_le₀ hD (by linarith))
+  have hr1 : r ≤ 1 := sub_le_self _ (by positivity)
   have hstat (w : V) (hw : w ∈ U) : π.bind (recolor G · w) = π :=
     isStationary_recolor_frozen G hne hw
   -- recoloring the vertices of `F ⊆ U` one at a time: no vertex of `F` has color `b v`
   have hF : ∀ F : Finset V, F ⊆ U →
-      r ^ F.card ≤ ∑ x, (π x).toReal * if ∀ u ∈ F, x u ≠ b v then 1 else 0 := by
+      r ^ F.card ≤ (π.toOuterMeasure {x | ∀ u ∈ F, x u ≠ b v}).toReal := by
     intro F
     induction F using Finset.induction_on with
     | empty =>
       intro _
-      simp only [Finset.notMem_empty, IsEmpty.forall_iff, implies_true, ite_true, mul_one,
-        Finset.card_empty, pow_zero]
-      exact (sum_toReal π).ge
+      rw [show {x : V → Fin q | ∀ u ∈ (∅ : Finset V), x u ≠ b v} = Set.univ by ext; simp,
+        (PMF.toOuterMeasure_apply_eq_one_iff _ _).2 (Set.subset_univ _)]
+      simp
     | @insert w F hwF ih =>
       intro hsub
       have hwU : w ∈ U := hsub (Finset.mem_insert_self w F)
       have ih' := ih ((Finset.subset_insert w F).trans hsub)
-      have key := le_sum_bind_ite π (recolor G · w) (fun x => ∀ u ∈ F, x u ≠ b v)
-        (fun x => ∀ u ∈ insert w F, x u ≠ b v) (p := r) ?_
-      · rw [hstat w hwU] at key
-        calc r ^ (insert w F).card = r ^ F.card * r := by
-              rw [Finset.card_insert_of_notMem hwF, pow_succ]
-          _ ≤ (∑ x, (π x).toReal * if ∀ u ∈ F, x u ≠ b v then 1 else 0) * r := by gcongr
-          _ = r * ∑ x, (π x).toReal * if ∀ u ∈ F, x u ≠ b v then 1 else 0 := mul_comm _ _
-          _ ≤ _ := key
+      have key := toOuterMeasure_bind_ge_mul π (recolor G · w)
+        {x | ∀ u ∈ F, x u ≠ b v} {x | ∀ u ∈ insert w F, x u ≠ b v} hr0 ih' ?_
+      · rwa [hstat w hwU, ← pow_succ, ← Finset.card_insert_of_notMem hwF] at key
       intro x _ hx
       have hA := G.allowedColors_nonempty hq x w
-      rw [recolor_of_nonempty G hA, sum_map_mul]
-      have hupd (c' : Fin q) : (if ∀ u ∈ insert w F, Function.update x w c' u ≠ b v then
-          (1 : ℝ) else 0) = 1 - if c' = b v then 1 else 0 := by
-        by_cases hc' : c' = b v
-        · rw [ite_eq_right fun h => h w (Finset.mem_insert_self w F)
-            (by rw [Function.update_self, hc']), ite_eq_left hc', sub_self]
-        · rw [ite_eq_right hc', sub_zero, ite_eq_left]
-          intro u hu
-          rcases Finset.mem_insert.1 hu with rfl | hu
-          · rw [Function.update_self]
-            exact hc'
-          · rw [Function.update_of_ne (show u ≠ w from fun h => hwF (h ▸ hu))]
-            exact hx u hu
-      simp only [hupd, mul_sub, mul_one, Finset.sum_sub_distrib, sum_toReal]
-      have hsum : ∑ c', ((uniformOfFinset (G.allowedColors x w) hA) c').toReal *
-          (if c' = b v then (1 : ℝ) else 0) =
-            ((uniformOfFinset (G.allowedColors x w) hA) (b v)).toReal := by
-        rw [Finset.sum_eq_single (b v) (fun c' _ hc' => by rw [ite_eq_right hc', mul_zero])
-          (fun h => absurd (Finset.mem_univ (b v)) h), ite_eq_left rfl, mul_one]
-      rw [hsum, hr_def]
+      rw [recolor_of_nonempty G hA, PMF.toOuterMeasure_map_apply]
+      have hpre : (Function.update x w) ⁻¹' {x' | ∀ u ∈ insert w F, x' u ≠ b v} =
+          ({b v} : Set (Fin q))ᶜ := by
+        ext c
+        simp only [Set.mem_preimage, Set.mem_ofPred_eq, Set.mem_compl_iff, Set.mem_singleton_iff,
+          Finset.forall_mem_insert, Function.update_self]
+        exact ⟨And.left, fun hc => ⟨hc, fun u hu => by
+          rw [Function.update_of_ne (ne_of_mem_of_not_mem hu hwF)]
+          exact hx u hu⟩⟩
+      rw [hpre]
+      have hmass := toOuterMeasure_toReal_add_compl (uniformOfFinset _ hA) {b v}
+      rw [PMF.toOuterMeasure_apply_singleton] at hmass
       have hcard : (((q - G.maxDegree : ℕ) : ℝ)) ≤ (G.allowedColors x w).card := by
         exact_mod_cast G.sub_maxDegree_le_card_allowedColors x w
       have hle : ((uniformOfFinset (G.allowedColors x w) hA) (b v)).toReal ≤
@@ -167,23 +134,20 @@ theorem mul_card_frozenColorings_le_card_erase (hq : G.maxDegree < q) {b : V →
           exact one_div_le_one_div_of_le (by linarith) hcard
         · rw [ENNReal.toReal_zero]
           positivity
-      linarith
+      linarith only [hmass, hle]
   -- the neighbors of `v` in `U`
   set F := U.filter fun u => G.Adj v u with hF_def
   have hFcard : F.card ≤ G.maxDegree := by
-    refine (Finset.card_le_card fun u hu => ?_).trans
+    refine (Finset.card_le_card fun u hu =>
+      (G.mem_neighborFinset v u).2 (Finset.mem_filter.1 hu).2).trans
       ((G.card_neighborFinset_eq_degree v).trans_le (G.degree_le_maxDegree v))
-    rw [hF_def, Finset.mem_filter] at hu
-    exact (G.mem_neighborFinset v u).2 hu.2
   -- the final update at `v` picks `b v` with probability at least `1 / q`
-  have hfinal : 1 / (q : ℝ) * ∑ x, (π x).toReal * (if ∀ u ∈ F, x u ≠ b v then 1 else 0) ≤
-      ∑ x, (π x).toReal * if x v = b v then 1 else 0 := by
-    have key := le_sum_bind_ite π (recolor G · v) (fun x => ∀ u ∈ F, x u ≠ b v)
-      (fun x => x v = b v) (p := 1 / (q : ℝ)) ?_
+  have hfinal : r ^ F.card * (q : ℝ)⁻¹ ≤ (π.toOuterMeasure {x | x v = b v}).toReal := by
+    have key := toOuterMeasure_bind_ge_mul π (recolor G · v) {x | ∀ u ∈ F, x u ≠ b v}
+      {x | x v = b v} (by positivity : 0 ≤ (q : ℝ)⁻¹) (hF F (Finset.filter_subset _ _)) ?_
     · rwa [hstat v hv] at key
     intro x hxπ hx
-    obtain ⟨hxp, hxb⟩ := mem_frozenColorings.1
-      ((mem_support_uniformOfFinset_iff hne x).1 ((PMF.mem_support_iff _ _).2 hxπ))
+    obtain ⟨hxp, hxb⟩ := mem_frozenColorings.1 ((mem_support_uniformOfFinset_iff hne x).1 hxπ)
     have hbv : b v ∈ G.allowedColors x v := by
       refine (mem_allowedColors G).2 fun u hu => ?_
       by_cases huU : u ∈ U
@@ -191,29 +155,16 @@ theorem mul_card_frozenColorings_le_card_erase (hq : G.maxDegree < q) {b : V →
       · rw [hxb u huU]
         exact (((isProperColoring_iff G).1 hb) v u hu).symm
     have hA : (G.allowedColors x v).Nonempty := ⟨b v, hbv⟩
-    rw [recolor_of_nonempty G hA, sum_map_mul]
-    simp only [Function.update_self]
-    rw [Finset.sum_eq_single (b v) (fun c' _ hc' => by rw [ite_eq_right hc', mul_zero])
-      (fun h => absurd (Finset.mem_univ (b v)) h), ite_eq_left rfl, mul_one,
-      uniformOfFinset_apply, ite_eq_left hbv, ENNReal.toReal_inv, ENNReal.toReal_natCast,
-      ← one_div]
-    refine one_div_le_one_div_of_le (Nat.cast_pos.2 hA.card_pos) ?_
-    have := Finset.card_le_univ (G.allowedColors x v)
-    rw [Fintype.card_fin] at this
-    exact_mod_cast this
-  have hX : (0 : ℝ) < (frozenColorings G q U b).card := Nat.cast_pos.2 hne.card_pos
-  have hratio := sum_uniformOfFinset_frozenColorings_ite hne v
-  rw [← hπ_def] at hratio
-  have hmain : r ^ G.maxDegree / q ≤
-      ((frozenColorings G q (U.erase v) b).card : ℝ) / (frozenColorings G q U b).card := by
-    rw [← hratio]
-    calc r ^ G.maxDegree / q = 1 / (q : ℝ) * r ^ G.maxDegree := by ring
-      _ ≤ 1 / (q : ℝ) * ∑ x, (π x).toReal * (if ∀ u ∈ F, x u ≠ b v then 1 else 0) :=
-          mul_le_mul_of_nonneg_left
-            ((pow_le_pow_of_le_one hr0 hr1 hFcard).trans (hF F (Finset.filter_subset _ _)))
-            (by positivity)
-      _ ≤ _ := hfinal
-  rwa [le_div_iff₀ hX] at hmain
+    rw [recolor_of_nonempty G hA, PMF.toOuterMeasure_map_apply,
+      show (Function.update x v) ⁻¹' {y | y v = b v} = {b v} by ext c; simp,
+      PMF.toOuterMeasure_apply_singleton, uniformOfFinset_apply, ite_eq_left hbv,
+      ENNReal.toReal_inv, ENNReal.toReal_natCast]
+    exact inv_anti₀ (Nat.cast_pos.2 hA.card_pos)
+      (by exact_mod_cast (Finset.card_le_univ _).trans_eq (Fintype.card_fin q))
+  rw [← le_div_iff₀ (Nat.cast_pos.2 hne.card_pos),
+    ← toOuterMeasure_uniform_frozenColorings hne v, ← hπ_def, div_eq_mul_inv]
+  exact (mul_le_mul_of_nonneg_right (pow_le_pow_of_le_one hr0 hr1 hFcard)
+    (by positivity)).trans hfinal
 
 /-- **The ratios are not too small** ([LevinPeres2017], Lemma 14.16): if `b` is a proper
 coloring, `2Δ < q` and `v ∈ U`, then freezing `v` at `b v` keeps a fraction at least `1 / (e q)`
@@ -224,12 +175,12 @@ theorem inv_exp_mul_le_card_frozenColorings_erase_div (hq : 2 * G.maxDegree < q)
       ((frozenColorings G q (U.erase v) b).card : ℝ) / (frozenColorings G q U b).card := by
   have hne : (frozenColorings G q U b).Nonempty := ⟨b, mem_frozenColorings_self hb⟩
   have hX : (0 : ℝ) < (frozenColorings G q U b).card := Nat.cast_pos.2 hne.card_pos
-  have hq0 : (0 : ℝ) < q := Nat.cast_pos.2 (by omega)
-  have h := mul_card_frozenColorings_le_card_erase (by omega) hb hv
+  have hq0 : (0 : ℝ) < q := Nat.cast_pos.2 (by lia)
+  have h := mul_card_frozenColorings_le_card_erase (by lia) hb hv
   have hexp : Real.exp (-1) ≤ (1 - 1 / ((q - G.maxDegree : ℕ) : ℝ)) ^ G.maxDegree := by
     rw [one_div]
     refine Real.exp_neg_one_le_one_sub_inv_pow ?_
-    exact_mod_cast (by omega : G.maxDegree + 1 ≤ q - G.maxDegree)
+    exact_mod_cast (by lia : G.maxDegree + 1 ≤ q - G.maxDegree)
   rw [le_div_iff₀ hX]
   calc (Real.exp 1 * q)⁻¹ * (frozenColorings G q U b).card
       = Real.exp (-1) / q * (frozenColorings G q U b).card := by

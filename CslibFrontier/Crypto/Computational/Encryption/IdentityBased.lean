@@ -314,12 +314,11 @@ theorem privateIBEGameOn_toPrivate {Msg : Type}
           return false) := by
   simp only [privateIBEGameOn, IBEAdversaryOf.toPrivate, OracleComp.run_interpret_map,
     bind_map_left]
-  refine congrArg _ (funext fun keys => congrArg _ (funext fun out₁ => ?_))
-  obtain ⟨⟨⟨ident, m₀, m₁⟩, state⟩, log⟩ := out₁
+  refine congrArg _ (funext fun keys =>
+    congrArg _ (funext fun ⟨⟨⟨ident, m₀, m₁⟩, state⟩, _⟩ => ?_))
   simp only [Prod.map, id, ite_self]
   split
-  · refine congrArg _ (funext fun ct => congrArg _ (funext fun out₂ => ?_))
-    simp
+  · exact congrArg _ (funext fun _ => congrArg _ (funext fun _ => by simp))
   · rfl
 
 /-- The experiment on `adversary.toAdaptive.toPrivate` has the law of Attack Game 15.7
@@ -358,14 +357,9 @@ theorem IBEAdversaryOf.IsPPT.toPrivate {Msg : Type} {encMsg : Msg ↪ List Bool}
     adversary.toPrivate.IsPPT encMsg where
   choose := by
     have hpost : ComputableInPolyTime
-        (fun c : (List Bool × Msg × Msg) × List Bool => match c with
-          | ((id, m₀, m₁), state) => (((id, m₀), (id, m₁)), state))
-        (encIBEChoice encMsg) (encIBEPairChoice encMsg) := by
-      have h : (fun c : (List Bool × Msg × Msg) × List Bool => match c with
-          | ((id, m₀, m₁), state) => (((id, m₀), (id, m₁)), state)) =
-          fun c => (((c.1.1, c.1.2.1), (c.1.1, c.1.2.2)), c.2) := rfl
-      rw [h]
-      fun_prop
+        (fun c : (List Bool × Msg × Msg) × List Bool =>
+          (((c.1.1, c.1.2.1), (c.1.1, c.1.2.2)), c.2))
+        (encIBEChoice encMsg) (encIBEPairChoice encMsg) := by fun_prop
     exact (hA.choose.on.map hpost).isOraclePPT
   guess := hA.guess
 
@@ -375,17 +369,13 @@ theorem SelectiveIBEAdversaryOf.IsPPT.toAdaptive {Msg : Type} {encMsg : Msg ↪ 
     {adversary : SelectiveIBEAdversaryOf Msg} (hA : adversary.IsPPT encMsg) :
     adversary.toAdaptive.IsPPT encMsg where
   choose := by
-    have htarget : IsOraclePPTOn (Operation := Unit) (encPair encUnary encBits)
-        (encPair encBits encBits)
-        (fun x : ℕ × List Bool => ProbOracleComp.sample (adversary.target x.1)) :=
-      (hA.target.preprocess (ComputableInPolyTime.fst _ _)).isOraclePPTOn
-    have hchoose : IsOraclePPTOn (Operation := Unit)
-        (encPair (encPair encUnary encBits) (encPair encBits encBits)) (encChoiceOut encMsg)
-        (fun p : (ℕ × List Bool) × (List Bool × List Bool) =>
-          adversary.choose p.1.1 p.2.2 p.1.2) :=
-      hA.choose.preprocess
-        (prepare := fun p : (ℕ × List Bool) × (List Bool × List Bool) => (p.1.1, p.2.2, p.1.2))
-        (by fun_prop)
+    have htarget :=
+      (hA.target.preprocess (ComputableInPolyTime.fst encUnary encBits)).isOraclePPTOn
+        (Operation := Unit)
+    have hchoose := hA.choose.preprocess
+      (prepare := fun p : (ℕ × List Bool) × (List Bool × List Bool) => (p.1.1, p.2.2, p.1.2))
+      (by fun_prop : ComputableInPolyTime _
+        (encPair (encPair encUnary encBits) (encPair encBits encBits)) _)
     have hpost : ComputableInPolyTime
         (fun q : ((ℕ × List Bool) × (List Bool × List Bool)) × ((Msg × Msg) × List Bool) =>
           ((q.1.2.1, q.2.1), q.2.2))

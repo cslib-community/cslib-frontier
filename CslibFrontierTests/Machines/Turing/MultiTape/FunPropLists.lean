@@ -50,4 +50,38 @@ example : ComputableInO (fun o : Option Bool => o.isNone || o.getD true)
     fun o => (encOption encBool o).length :=
   .mono (by fun_prop) 4 (fun _ => by omega) fun _ => by omega
 
+/-- `optionToList'` and `listAppend'` compose without `Inhabited` on the payload type and preserve
+the producer bounds up to a constant factor. -/
+example : ComputableInO (fun p : List Empty × Option Empty => p.1 ++ p.2.toList)
+    (encPair (encList ⟨Empty.elim, fun e => nomatch e⟩)
+      (encOption ⟨Empty.elim, fun e => nomatch e⟩))
+    (encList ⟨Empty.elim, fun e => nomatch e⟩)
+    (fun p => (encPair (encList ⟨Empty.elim, fun e => nomatch e⟩)
+      (encOption ⟨Empty.elim, fun e => nomatch e⟩) p).length)
+    fun p => (encPair (encList ⟨Empty.elim, fun e => nomatch e⟩)
+      (encOption ⟨Empty.elim, fun e => nomatch e⟩) p).length :=
+  .mono (by fun_prop) 2 (fun _ => by omega) fun _ => by omega
+
+/-- `frame'`, `unframe'`, `dropFrame'`, `bitsAppend'` and `bitsLengthUnary'` assemble bit-string
+and unary-length pipelines within linear bounds. -/
+example : ComputableInO
+    (fun p : List Bool × List Bool => (frame (unframe p.1) ++ dropFrame p.2, (unframe p.1).length))
+    (encPair encBits encBits) (encPair encBits encUnary)
+    (fun p => (encPair encBits encBits p).length)
+    fun p => (encPair encBits encBits p).length :=
+  .mono (by fun_prop) 3 (fun _ => by omega) fun _ => by omega
+
+/-- Boundary check: `bitsLengthUnary'` produces `encUnary`, not `encNat`, and `bitsAppend'`
+requires `encBits`, not `encNat`. -/
+example : True := by
+  fail_if_success
+    exact (by fun_prop : ComputableInO (fun w : List Bool => w.length)
+      encBits encNat (fun w => w.length) fun w => w.length)
+  fail_if_success
+    exact (by fun_prop : ComputableInO (fun p : List Bool × List Bool => (p.1 ++ p.2).length)
+      (encPair encBits encBits) encNat
+      (fun p => (encPair encBits encBits p).length)
+      fun p => (encPair encBits encBits p).length)
+  trivial
+
 end CslibFrontierTests.FunPropLists

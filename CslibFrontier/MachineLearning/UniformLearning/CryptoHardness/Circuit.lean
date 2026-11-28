@@ -122,13 +122,10 @@ private theorem complexity_not_xor_substitute_le {d m p : ℕ} (H : BooleanFunct
         (single fun y : Fin m → Bool => !(H (Fin.append (fun i => y (σ i)) z) ^^ y j)) ≤
       complexity interpretation (single H) + 7 := by
   let ρ : Fin (d + p) → Fin m ⊕ Bool := Fin.append (fun i => .inl (σ i)) fun i => .inr (z i)
-  have hρ (y : Fin m → Bool) : substitute ρ y = Fin.append (fun i => y (σ i)) z := by
-    funext k
-    refine Fin.addCases (fun i => ?_) (fun i => ?_) k <;> simp [ρ, substitute]
-  have hfun : (fun y : Fin m → Bool => !(H (Fin.append (fun i => y (σ i)) z) ^^ y j)) =
-      fun y => !(H (substitute ρ y) ^^ y j) :=
-    funext fun y => by rw [hρ]
-  rw [hfun]
+  have hρ (y : Fin m → Bool) : substitute ρ y = Fin.append (fun i => y (σ i)) z :=
+    funext fun k => by refine Fin.addCases (fun _ => ?_) (fun _ => ?_) k <;> simp [ρ, substitute]
+  rw [show (fun y : Fin m → Bool => !(H (Fin.append (fun i => y (σ i)) z) ^^ y j)) =
+    fun y => !(H (substitute ρ y) ^^ y j) from funext fun y => by rw [hρ]]
   calc complexity interpretation (single fun y : Fin m → Bool => !(H (substitute ρ y) ^^ y j))
       ≤ complexity interpretation (single fun y : Fin m → Bool => H (substitute ρ y) ^^ y j) + 1 :=
         complexity_not_le _
@@ -156,12 +153,11 @@ theorem HasCircuit.isCircuitTest_agrees (hA : A.HasCircuit q S) (ω : Ω) (z : B
     IsCircuitTest (S + 7) fun T : BitString (2 ^ n) =>
       PMF.pure (A.agrees ω z ((truthTable n).symm T)) := by
   obtain ⟨pts, F, hF, hev⟩ := hA ω
-  refine ⟨fun T => !(F (Fin.append (fun i => T (BitString.equivFin n (pts i))) z) ^^
-      T (BitString.equivFin n z)), ?_, ?_⟩
-  · exact (complexity_not_xor_substitute_le F (fun i => BitString.equivFin n (pts i)) z _).trans
-      (Nat.add_le_add_right hF 7)
-  · funext T
-    simp only [agrees_eq_not_xor, hev, truthTable_symm_apply]
+  exact ⟨fun T => !(F (Fin.append (fun i => T (BitString.equivFin n (pts i))) z) ^^
+      T (BitString.equivFin n z)),
+    (complexity_not_xor_substitute_le F (fun i => BitString.equivFin n (pts i)) z _).trans
+      (Nat.add_le_add_right hF 7),
+    funext fun _ => by simp only [agrees_eq_not_xor, hev, truthTable_symm_apply]⟩
 
 /-- A learner with `q` non-adaptive queries and a circuit of `S` gates has circuit tests of size
 `S + 7`. -/
@@ -226,11 +222,10 @@ theorem Learns.le_of_secure {μ : PMF Ω} {C : ConceptClass (BitString n) Bool} 
   have hLB : B.Learns μ C ε δ := by
     rw [learns_iff] at hL ⊢
     simpa only [hB'] using hL
-  have hagree (ω : Ω) (z : BitString n) (g : BooleanFunction n) :
-      B.agrees ω z g = A.agrees ω z g := by
-    rw [Bool.eq_iff_iff, agrees_eq_true_iff, agrees_eq_true_iff, hB']
   obtain ⟨ω, -, z, hz⟩ := exists_dens_agrees_sub_dens_agrees hLB hBq hF hε hδ
-  simp only [hagree, Fintype.card_fin] at hz
+  have hagrees (g : BooleanFunction n) : B.agrees ω z g = A.agrees ω z g := by
+    rw [Bool.eq_iff_iff, agrees_eq_true_iff, agrees_eq_true_iff, hB']
+  simp only [hagrees, Fintype.card_fin] at hz
   have hadv := hG _ (htest ω z)
   rw [Generator.advantage, Generator.toReal_realExperiment_pure,
     Generator.toReal_idealExperiment_pure,
@@ -253,8 +248,7 @@ theorem eventually_le_of_isExponentiallySecure {Key : ℕ → Type*} [∀ n, Fin
       (C : ConceptClass (BitString n) Bool) (ε δ : ℝ) (q t : ℕ), A.HasCircuitTests q t →
       t ≤ 2 ^ (c * n) → A.Learns μ C ε δ → (∀ key, F n key ∈ C) → ε ≤ 1 → 0 ≤ δ →
       (1 - δ) * (1 - ε) ≤ 1 / 2 + q / 2 ^ (n + 1) + ((2 : ℝ) ^ (c * n))⁻¹ := by
-  filter_upwards [hF c] with n hn
-  intro Ω A μ C ε δ q t hA ht hL hFC hε hδ
+  filter_upwards [hF c] with n hn _ _ _ _ _ _ _ _ hA ht hL hFC hε hδ
   have h := hL.le_of_secure hA hFC
     (Generator.Secure.of_admissible hn fun _ ⟨test, htest, h⟩ => ⟨test, htest.trans ht, h⟩) hε hδ
   push_cast at h

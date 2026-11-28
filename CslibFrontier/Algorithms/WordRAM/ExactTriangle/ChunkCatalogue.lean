@@ -11,6 +11,7 @@ import CslibFrontier.Computability.WordRAM.Call
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.Chunks
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
@@ -75,9 +76,7 @@ abbrev temp : Fin 32 := 27
 
 private abbrev bank : Fin 14 → Fin 32 := Fin.castLE (by decide)
 
-private theorem bank_injective : Function.Injective bank := by
-  intro i j h
-  exact Fin.ext (congrArg (fun k : Fin 32 => k.val) h)
+private theorem bank_injective : Function.Injective bank := Fin.castLE_injective _
 
 /-- Query pointer passed to the chunk writer. -/
 abbrev chunkQueries : Fin 32 := 0
@@ -131,17 +130,18 @@ private theorem before_zero (C : ℕ → ℕ) (cap : ℕ) : before C cap 0 = 0 :
   simp [before]
 
 private theorem before_succ (C : ℕ → ℕ) (cap rho : ℕ) :
-    before C cap (rho + 1) = before C cap rho + C rho ⌈/⌉ cap := by
-  exact Finset.sum_range_succ _ _
+    before C cap (rho + 1) = before C cap rho + C rho ⌈/⌉ cap :=
+  Finset.sum_range_succ _ _
+
+private theorem before_mono (C : ℕ → ℕ) (cap : ℕ) {rho p : ℕ} (h : rho ≤ p) :
+    before C cap rho ≤ before C cap p :=
+  Finset.sum_le_sum_of_subset (Finset.range_mono h)
 
 /-- Every actual chunk lies strictly within the concatenated descriptor array. -/
 theorem before_add_lt (C : ℕ → ℕ) (cap : ℕ) {rho p k : ℕ}
     (hrho : rho < p) (hk : k < C rho ⌈/⌉ cap) :
     before C cap rho + k < before C cap p := by
-  have hsum : before C cap (rho + 1) ≤ before C cap p := by
-    unfold before
-    exact Finset.sum_le_sum_of_subset_of_nonneg
-      (Finset.range_mono (by omega)) (by intro _ _ _; exact Nat.zero_le _)
+  have hsum := before_mono C cap hrho
   rw [before_succ] at hsum
   omega
 
@@ -150,38 +150,25 @@ theorem before_add_lt (C : ℕ → ℕ) (cap : ℕ) {rho p k : ℕ}
 theorem before_index (C : ℕ → ℕ) (cap p i : ℕ) (hi : i < before C cap p) :
     ∃! idx : (rho : Fin p) × Fin (C rho.val ⌈/⌉ cap),
       i = before C cap idx.1.val + idx.2.val := by
-  have hsum : (∑ rho : Fin p, C rho.val ⌈/⌉ cap) = before C cap p := by
-    rw [Fin.sum_univ_eq_sum_range (fun rho => C rho ⌈/⌉ cap)]
-    rfl
-  let j : Fin (∑ rho : Fin p, C rho.val ⌈/⌉ cap) := ⟨i, by rw [hsum]; exact hi⟩
   have hval (idx : (rho : Fin p) × Fin (C rho.val ⌈/⌉ cap)) :
       (finSigmaFinEquiv idx).val = before C cap idx.1.val + idx.2.val := by
-    rw [finSigmaFinEquiv_apply]
-    change (∑ r : Fin idx.1.val, C r.val ⌈/⌉ cap) + idx.2.val = _
-    rw [Fin.sum_univ_eq_sum_range (fun rho => C rho ⌈/⌉ cap)]
-    rfl
-  let idx := finSigmaFinEquiv.symm j
-  have heq : finSigmaFinEquiv idx = j := finSigmaFinEquiv.apply_symm_apply j
-  refine ⟨idx, ?_, ?_⟩
-  · exact (congrArg Fin.val heq).symm.trans (hval idx)
-  · intro k hk
-    apply finSigmaFinEquiv.injective
-    apply Fin.ext
-    rw [heq, hval]
-    exact hk.symm
+    simpa only [finSigmaFinEquiv_apply, Fin.val_castLE, before, add_left_inj] using
+      Fin.sum_univ_eq_sum_range (fun rho => C rho ⌈/⌉ cap) idx.1.val
+  let j : Fin (∑ rho : Fin p, C rho.val ⌈/⌉ cap) :=
+    ⟨i, (Fin.sum_univ_eq_sum_range (fun rho => C rho ⌈/⌉ cap) p).symm ▸ hi⟩
+  refine ⟨finSigmaFinEquiv.symm j,
+    (congrArg Fin.val (finSigmaFinEquiv.apply_symm_apply j)).symm.trans (hval _), fun k hk => ?_⟩
+  refine finSigmaFinEquiv.injective (Fin.ext ?_)
+  simpa only [finSigmaFinEquiv.apply_symm_apply, hval] using hk.symm
 
 /-- At most `N` queries per class give at most `rho * N` occupied descriptors, since every
 nonempty chunk contains at least one query. This bounds the actual allocation before matrix
 preparation as well as the descriptor controller's own arithmetic. -/
 theorem before_le {C : ℕ → ℕ} {cap p N : ℕ} (hcap : 0 < cap)
     (hC : ∀ r < p, C r ≤ N) {rho : ℕ} (hrho : rho ≤ p) : before C cap rho ≤ rho * N := by
-  apply (Finset.sum_le_sum fun r hr => ?_).trans_eq
-    (show (∑ _r ∈ Finset.range rho, N) = rho * N by simp)
-  exact (Nat.ceilDiv_le_iff hcap).mpr
-    ((hC r ((Finset.mem_range.mp hr).trans_le hrho)).trans
-      (Nat.le_mul_of_pos_right N hcap))
-
-private theorem chunks_preserves : ∀ i : Fin 32, 14 ≤ i.val → chunks.Preserves i := by decide
+  refine (Finset.sum_le_sum (g := fun _ => N) fun r hr =>
+    (Nat.ceilDiv_le_iff hcap).mpr ?_).trans_eq (by simp)
+  exact (hC r ((Finset.mem_range.mp hr).trans_le hrho)).trans (Nat.le_mul_of_pos_right N hcap)
 
 private theorem body_preserves : ∀ i : Fin 32,
     (14 ≤ i.val ∧ i ≠ cursor ∧ i ≠ written ∧ i ≠ heap ∧ i ≠ addr ∧ i ≠ temp) →
@@ -206,60 +193,25 @@ private theorem exec_body {w : ℕ} (x : Data 32) (C : ℕ) (hread : x.mem
         y.mem (x.regs heap + 3 * k + 2) = min (x.regs capacity) (C - k * x.regs capacity)) ∧
       (∀ a, ¬(x.regs heap ≤ a ∧
         a < x.regs heap + (C ⌈/⌉ x.regs capacity) * 3) → y.mem a = x.mem a) := by
-  let a := x.set addr (x.regs counts + x.regs cursor) |>.set 2 C
-    |>.set 0 (x.regs cursor * x.regs stride)
-    |>.set 0 (x.regs cursor * x.regs stride + x.regs queries)
-    |>.set 1 (x.regs heap) |>.set 3 (x.regs capacity) |>.set 4 (x.regs cursor)
-  have hq0 : Fits w (x.regs cursor * x.regs stride) := hquery.of_le (by omega)
-  have hq1 : Fits w (x.regs cursor * x.regs stride + x.regs queries) :=
-    hquery.of_le (by omega)
-  have hd : ExecWithin w deliver x a 7 := by
-    ram_eval [deliver, a, hcount, hread, hq0, hq1, counts, cursor, addr, stride,
-      queries, heap, capacity, chunkTotal, chunkQueries, chunkDst, chunkCapacity,
-      chunkResidue, Fin.mk.injEq]
-  have ha (i : Fin 32) (hi : 14 ≤ i.val) (hne : i ≠ addr) : a.regs i = x.regs i := by
-    have hlow : i ≠ 0 ∧ i ≠ 1 ∧ i ≠ 2 ∧ i ≠ 3 ∧ i ≠ 4 := by
-      refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> intro h <;> subst i <;> simp at hi
-    simp only [a, Data.set_regs, Function.update_of_ne hlow.1,
-      Function.update_of_ne hlow.2.1, Function.update_of_ne hlow.2.2.1,
-      Function.update_of_ne hlow.2.2.2.1, Function.update_of_ne hlow.2.2.2.2,
-      Function.update_of_ne hne]
   have hCcap : C ⌈/⌉ x.regs capacity ≤ C :=
     (Nat.ceilDiv_le_iff hcap).mpr (Nat.le_mul_of_pos_right C hcap)
-  obtain ⟨b, hv, ⟨hvc, -, hcells, hframe⟩, -⟩ :=
-    ExecWithin.rename_post bank_injective (Chunks.exec (a.comap bank)
-      (by simpa +decide [a, bank, Chunks.capacity] using hcap)
-      (by simpa +decide [a, bank, Chunks.dst, Chunks.total] using hheap)
-      (by simpa +decide [a, bank, Chunks.queries, Chunks.total, Nat.add_comm] using hquery))
-  have he : ExecWithin w chunks a b (17 * C + 7) := by
-    simpa +decide [chunks, a, bank, Chunks.total] using hv
-  have hb (i : Fin 32) (hi : 14 ≤ i.val) (hne : i ≠ addr) : b.regs i = x.regs i :=
-    (he.regs_eq (chunks_preserves i hi)).trans (ha i hi hne)
-  have hc : b.regs 6 = C ⌈/⌉ x.regs capacity := by
-    simpa +decide [a, bank, Chunks.total, Chunks.capacity, Chunks.count] using hvc
-  let z := b.set temp ((C ⌈/⌉ x.regs capacity) * 3)
-    |>.set heap (x.regs heap + (C ⌈/⌉ x.regs capacity) * 3)
-    |>.set written (x.regs written + C ⌈/⌉ x.regs capacity)
-    |>.set cursor (x.regs cursor + 1)
-  have hm : Fits w (C ⌈/⌉ x.regs capacity * 3) := hheap.of_le (by omega)
-  have hh : Fits w (x.regs heap + C ⌈/⌉ x.regs capacity * 3) := hheap.of_le (by omega)
-  have hw : Fits w (x.regs written + C ⌈/⌉ x.regs capacity) := hwritten.of_le (by omega)
-  have hf : ExecWithin w advance b z 4 := by
-    have bho := hb one (by decide) (by decide)
-    have bht := hb three (by decide) (by decide)
-    have bhh := hb heap (by decide) (by decide)
-    have bhw := hb written (by decide) (by decide)
-    have bhc := hb cursor (by decide) (by decide)
-    ram_eval [advance, z, hc, bho, bht, bhh, bhw, bhc, ho, ht, hm, hh, hw, hcursor,
-      temp, three, heap, written, cursor, one, chunkCount, Fin.mk.injEq]
-  refine ⟨z, (hd.seq (he.seq hf)).mono (by omega), ?_, ?_, ?_, ?_, ?_⟩
-  · simp +decide [z, cursor]
-  · simp +decide [z, written, cursor]
-  · simp +decide [z, heap, written, cursor]
-  · simpa +decide [z, a, bank, Chunks.dst, Chunks.queries, Chunks.residue,
-      Chunks.capacity, Chunks.count, Chunks.total, Data.comap_mem, hc, Nat.add_comm] using hcells
-  · simpa +decide [z, a, bank, Chunks.dst, Chunks.count, Chunks.total,
-      Chunks.capacity, hc, Data.comap_mem, Nat.mul_comm] using hframe
+  refine WP.exists_execWithin ?_
+  unfold body deliver chunks advance
+  wram_exec [hread]
+  wram_call (Chunks.exec _
+    (by wram_simp; exact hcap)
+    (by wram_simp; exact hheap)
+    (by wram_simp; exact hquery.of_le (by omega)))
+    canonical bank_injective with b ⟨hbc, -, hcells, hframe⟩
+  wram_simp at hbc hcells hframe
+  wram_exec [hbc, ho, ht]
+  refine ⟨by wram_simp, by wram_simp, by wram_simp, ?_, ?_⟩
+  · wram_simp
+    rw [hbc] at hcells
+    simpa only [Nat.add_comm (x.regs cursor * x.regs stride) (x.regs queries), Nat.add_assoc]
+      using hcells
+  · wram_simp
+    simpa only [hbc, Nat.mul_comm 3 _] using hframe
 
 /-- Read the actual count table and concatenate every class's nonempty chunks. The controller
 receives no prefix sums. Both source blocks lie before `dst`; all other memory is preserved.
@@ -294,9 +246,6 @@ theorem exec {w : ℕ} (x : Data 32) (C : ℕ → ℕ)
   let b := x.regs queries
   let c := x.regs counts
   let P := before C Q
-  change ∀ r < p, x.mem (c + r) = C r at hread
-  change ∀ r < p, C r ≤ N at hC
-  change 0 < Q at hcap
   change c + p ≤ d at hcounts
   change b + 2 * p * N ≤ d at hqueries
   change Fits w (d + 5 * p * N + c + p + b + 2 * N + 5) at hfit
@@ -315,31 +264,25 @@ theorem exec {w : ℕ} (x : Data 32) (C : ℕ → ℕ)
       ∃ z, ExecWithin w body y z (17 * N + 18) ∧ I z ∧
         p - z.regs cursor < p - y.regs cursor := by
     obtain ⟨hyr, hyo, hyt, hys, hyi, hyw, hyh, hycells, hyframe⟩ := hy
-    have hyr' (i : Fin 32) (hi : 14 ≤ i.val ∧ i.val < 20) := hyr i hi.1 hi.2
-    have hyc : y.regs counts = c := hyr' counts (by decide)
-    have hyb : y.regs queries = b := hyr' queries (by decide)
-    have hyQ : y.regs capacity = Q := hyr' capacity (by decide)
-    have hyp : y.regs modulus = p := hyr' modulus (by decide)
+    have hyc : y.regs counts = c := hyr counts (by decide) (by decide)
+    have hyb : y.regs queries = b := hyr queries (by decide) (by decide)
+    have hyQ : y.regs capacity = Q := hyr capacity (by decide) (by decide)
+    have hyp : y.regs modulus = p := hyr modulus (by decide) (by decide)
     have hlt : y.regs cursor < p := by simpa only [Cond.holds_lt, hyp] using hc
     have hnext : P (y.regs cursor + 1) = P (y.regs cursor) + C (y.regs cursor) ⌈/⌉ Q :=
       before_succ C Q (y.regs cursor)
     have hbefore := hP (y.regs cursor) hyi
-    have hnew := hC (y.regs cursor) hlt
+    have hnew : C (y.regs cursor) ≤ N := hC (y.regs cursor) hlt
     have hstep : P (y.regs cursor) + C (y.regs cursor) ≤ p * N := by
-      have := Nat.mul_le_mul_right N (Nat.succ_le_of_lt hlt)
-      rw [Nat.succ_mul] at this
-      omega
+      nlinarith only [hbefore, hnew, Nat.mul_le_mul_right N hlt]
     have hreadY : y.mem (y.regs counts + y.regs cursor) = C (y.regs cursor) := by
-      rw [hyc, hyframe _ (by omega)]
-      exact hread _ hlt
+      rw [hyc, hyframe _ (by omega), hread _ hlt]
     obtain ⟨z, he, hzi, hzw, hzh, hzcells, hzframe⟩ := exec_body y (C (y.regs cursor))
       hreadY hyo hyt (by simpa only [hyQ] using hcap)
       (hfit.of_le (by rw [hyh]; nlinarith only [hstep]))
       (hfit.of_le (by
         rw [hyb, hys]
-        have := Nat.mul_le_mul_right (2 * N) (Nat.succ_le_of_lt hlt)
-        rw [Nat.succ_mul] at this
-        nlinarith only [this, hnew]))
+        nlinarith only [hqueries, hnew, Nat.mul_le_mul_right N hlt]))
       (hfit.of_le (by rw [hyc]; omega))
       (hfit.of_le (by omega))
       (hfit.of_le (by rw [hyw]; nlinarith only [hstep]))
@@ -354,78 +297,36 @@ theorem exec {w : ℕ} (x : Data 32) (C : ℕ → ℕ)
     refine ⟨z, he.mono (by omega), ⟨hpr,
       by regs_frame, by regs_frame, by regs_frame, by omega, ?_, ?_, ?_, ?_⟩, by omega⟩
     · rw [hzw, hyw, hzi, hnext]
-    · rw [hzh, hyh, hzi, hnext]
-      omega
+    · rw [hzh, hyh, hzi, hnext]; omega
     · intro r hr k hk
       rw [hzi] at hr
-      by_cases hr' : r = y.regs cursor
-      · subst r
-        have h := hzcells k hk
-        rw [hyh, hyb, hys] at h
-        simpa only [Nat.mul_add, Nat.add_assoc, Nat.mul_left_comm, Nat.mul_assoc] using h
-      · have hrlt : r < y.regs cursor := by omega
-        have hbnd : P r + C r ⌈/⌉ Q ≤ P (y.regs cursor) := by
-          rw [← before_succ]
-          exact Finset.sum_le_sum_of_subset_of_nonneg
-            (Finset.range_mono (by omega)) (by intros; exact Nat.zero_le _)
-        have h0 : z.mem (d + 3 * (P r + k)) = y.mem (d + 3 * (P r + k)) :=
-          hzframe _ (by rw [hyh]; omega)
-        have h1 : z.mem (d + 3 * (P r + k) + 1) = y.mem (d + 3 * (P r + k) + 1) :=
-          hzframe _ (by rw [hyh]; omega)
-        have h2 : z.mem (d + 3 * (P r + k) + 2) = y.mem (d + 3 * (P r + k) + 2) :=
-          hzframe _ (by rw [hyh]; omega)
-        rw [h0, h1, h2]
+      rcases eq_or_lt_of_le (Nat.lt_succ_iff.mp hr) with rfl | hrlt
+      · simpa only [hyh, hyb, hys, Nat.mul_add, Nat.add_assoc, Nat.mul_left_comm,
+          Nat.mul_assoc] using hzcells k hk
+      · have hbnd : P r + C r ⌈/⌉ Q ≤ P (y.regs cursor) :=
+          (before_succ C Q r).symm.trans_le (before_mono C Q hrlt)
+        rw [hzframe _ (by rw [hyh]; omega), hzframe _ (by rw [hyh]; omega),
+          hzframe _ (by rw [hyh]; omega)]
         exact hycells r hrlt k hk
     · intro a ha
       rw [hzi, hnext] at ha
       rw [hzframe _ (by rw [hyh]; omega), hyframe _ (by omega)]
-  let a := x.set one 1 |>.set three 3 |>.set cursor 0 |>.set written 0 |>.set heap d
-    |>.set stride N |>.set stride (2 * N)
-  have ha : I a := by
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · intro i hi hi'
-      have hne : i ≠ one ∧ i ≠ three ∧ i ≠ cursor ∧ i ≠ written ∧ i ≠ heap ∧
-          i ≠ stride := by
-        refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> intro h <;> subst i <;>
-          simp only [one, three, cursor, written, heap, stride] at hi' <;> omega
-      simp only [a, Data.set_regs, Function.update_of_ne hne.1,
-        Function.update_of_ne hne.2.1, Function.update_of_ne hne.2.2.1,
-        Function.update_of_ne hne.2.2.2.1, Function.update_of_ne hne.2.2.2.2.1,
-        Function.update_of_ne hne.2.2.2.2.2]
-    · simp +decide [a, one, three, cursor, written, heap, stride]
-    · simp +decide [a, three, cursor, written, heap, stride]
-    · simp +decide [a, stride]
-    · simp +decide [a, cursor, written, heap, stride]
-    · simp +decide [a, cursor, written, heap, stride, P, before_zero]
-    · simp +decide [a, cursor, written, heap, stride, P, before_zero]
-    · simp +decide [a, cursor, written, heap, stride]
-    · intro k _
-      rfl
-  have hinit : ExecWithin (B := .standard) w
-      (ram[ one ← #1; three ← #3; cursor ← #0; written ← #0; heap ← dst;
-        stride ← size * size; stride ← stride + stride ]) x a 7 := by
-    have h1 : Fits w 1 := hfit.of_le (by omega)
-    have h3 : Fits w 3 := hfit.of_le (by omega)
-    have hN : Fits w (x.regs size * x.regs size) := hfit.of_le (by dsimp [N]; omega)
-    have h2N : Fits w (x.regs size * x.regs size + x.regs size * x.regs size) :=
-      hfit.of_le (by dsimp [N]; omega)
-    ram_eval [a, d, N, h1, h3, hN, h2N, one, three, cursor, written, heap, stride, size, dst,
-      Fin.mk.injEq, two_mul]
-  obtain ⟨y, he, hy, hend⟩ := ExecWithin.loop_invariant I
-    (fun y => p - y.regs cursor) hbody ha
-  obtain ⟨hyr, -, -, -, hyi, hyw, hyh, hycells, hyframe⟩ := hy
+  refine WP.exists_execWithin ?_
+  unfold program
+  wram_exec
+  wram_call (ExecWithin.loop_invariant I (fun y => p - y.regs cursor) hbody
+    ⟨fun i hi hi' => by
+      have hne : i ≠ one ∧ i ≠ three ∧ i ≠ cursor ∧ i ≠ written ∧ i ≠ heap ∧ i ≠ stride := by
+        revert i hi hi'; decide
+      wram_simp [hne.1, hne.2.1, hne.2.2.1, hne.2.2.2.1, hne.2.2.2.2.1, hne.2.2.2.2.2],
+     by wram_simp, by wram_simp, by wram_simp [N]; omega, by wram_simp; exact Nat.zero_le _,
+     by wram_simp [P, before_zero], by wram_simp [P, before_zero, d],
+     fun _ hr => by wram_simp at hr, fun _ _ => rfl⟩)
+    with y ⟨⟨hyr, -, -, -, hyi, hyw, hyh, hycells, hyframe⟩, hend⟩
   have hyp : y.regs modulus = p := hyr modulus (by decide) (by decide)
-  have hdone : y.regs cursor = p := by
-    simp only [Cond.holds_lt, hyp] at hend
-    omega
+  have hdone : y.regs cursor = p := by simp only [Cond.holds_lt, hyp] at hend; omega
   rw [hdone] at hyw hyh hyframe
-  refine ⟨y, ?_, hyw, by omega, hyr, ?_, ?_⟩
-  · exact (hinit.seq he).mono (by
-      simp +decide only [a, Data.set_regs, Function.update_apply, cursor, written,
-        heap, stride, ↓reduceIte, Nat.sub_zero]
-      dsimp [p, N]
-      nlinarith only [])
-  · simpa only [hdone] using hycells
-  · simpa only [hyw] using hyframe
+  refine ⟨by wram_simp; dsimp [p, N]; nlinarith only [],
+    hyw, by omega, hyr, by simpa only [hdone] using hycells, by simpa only [hyw] using hyframe⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.ChunkCatalogue

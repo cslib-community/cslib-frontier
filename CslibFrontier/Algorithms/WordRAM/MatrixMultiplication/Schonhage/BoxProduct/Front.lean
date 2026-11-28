@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.FrontProgram
 import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product.MatrixInput
 import CslibFrontier.Computability.WordRAM.Sequence
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 
 /-!
@@ -28,46 +28,6 @@ namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct
 
 open Cslib.WordRAM Cslib.Algorithms.MatrixMultiplication.Schonhage
 
-private theorem exec_thresholdLoad {W L m t N Q : ℕ} (x : Data 160)
-    (hrows : x.regs (QueriedProduct.bank BandPreparation.rows) = N)
-    (hcols : x.regs (QueriedProduct.bank BandPreparation.columns) = D m)
-    (hQ : x.mem 4 = Q) (ht : x.mem (QueriedProduct.inputEnd m N Q) = t)
-    (hfit : Fits W (wordBudget L m t N Q)) :
-    ∃ y, ExecWithin W thresholdLoad x y 9 ∧ y.regs Reg.threshold = t ∧ y.mem = x.mem := by
-  have hI : Fits W (QueriedProduct.inputEnd m N Q) :=
-    hfit.of_le (by unfold wordBudget QueriedProduct.wordBudget; omega)
-  have h4 : Fits W 4 := hI.of_le (by unfold QueriedProduct.inputEnd; omega)
-  have h5 : Fits W 5 := hI.of_le (by unfold QueriedProduct.inputEnd; omega)
-  have hprod : Fits W (N * D m) := hI.of_le (by unfold QueriedProduct.inputEnd; omega)
-  have hdouble : Fits W (N * D m + N * D m) :=
-    hI.of_le (by unfold QueriedProduct.inputEnd; omega)
-  have hq : Fits W (Q + Q) := hI.of_le (by unfold QueriedProduct.inputEnd; omega)
-  have hsum : Fits W ((N * D m + N * D m) + (Q + Q)) :=
-    hI.of_le (by unfold QueriedProduct.inputEnd; omega)
-  have hsum5 : Fits W ((N * D m + N * D m) + (Q + Q) + 5) :=
-    hI.of_le (by unfold QueriedProduct.inputEnd; omega)
-  let z0 := (x.set QueriedProduct.Reg.address 4).set QueriedProduct.Reg.queryCount Q
-  let z1 := (z0.set QueriedProduct.Reg.address (N * D m)).set QueriedProduct.Reg.address
-    (N * D m + N * D m)
-  let z2 := (z1.set QueriedProduct.Reg.value (Q + Q)).set QueriedProduct.Reg.address
-    ((N * D m + N * D m) + (Q + Q))
-  let z3 := (z2.set QueriedProduct.Reg.value 5).set QueriedProduct.Reg.address
-    (QueriedProduct.inputEnd m N Q)
-  let y := z3.set Reg.threshold t
-  have haddr : (N * D m + N * D m) + (Q + Q) + 5 =
-      QueriedProduct.inputEnd m N Q := by unfold QueriedProduct.inputEnd; omega
-  change x.regs (34 : Fin 160) = N at hrows
-  change x.regs (35 : Fin 160) = D m at hcols
-  have er : QueriedProduct.bank BandPreparation.rows = (34 : Fin 160) := rfl
-  have ec : QueriedProduct.bank BandPreparation.columns = (35 : Fin 160) := rfl
-  have he : ExecWithin W thresholdLoad x y 9 := by
-    simp only [thresholdLoad, er, ec]
-    ram_eval [y, z3, z2, z1, z0, hrows, hcols, hQ, ht, hI,
-      h4, h5, hprod, hdouble, hq, hsum, hsum5, haddr,
-      QueriedProduct.Reg.queryCount, QueriedProduct.Reg.address, QueriedProduct.Reg.value,
-      Reg.threshold, Fin.mk.injEq]
-  exact ⟨y, he, by simp [y], rfl⟩
-
 /-- The actual readonly pass locates and retains the original threshold without changing memory. -/
 theorem exec_loadThreshold {W L m t N Q : ℕ} (hm : m ≤ L) (x : Data 160)
     (hL : x.mem 1 = L) (hmemory : x.mem 2 = m) (hN : x.mem 3 = N)
@@ -75,11 +35,25 @@ theorem exec_loadThreshold {W L m t N Q : ℕ} (hm : m ≤ L) (x : Data 160)
     (hfit : Fits W (wordBudget L m t N Q)) :
     ∃ y, ExecWithin W loadThreshold x y (thresholdTime L) ∧
       y.regs Reg.threshold = t ∧ y.mem = x.mem := by
-  obtain ⟨u, hu, up, um, _⟩ := QueriedProduct.exec_parameters hm x hL hmemory hN
-    (old_fits hfit)
-  obtain ⟨y, hy, yt, ym⟩ := exec_thresholdLoad u up.fixed.rows up.columns
-    (by rw [um]; exact hQ) (by rw [um]; exact ht) hfit
-  exact ⟨y, hu.seq hy, yt, ym.trans um⟩
+  have hI : Fits W (5 + 2 * (N * D m) + 2 * Q) :=
+    hfit.of_le (by unfold wordBudget QueriedProduct.wordBudget QueriedProduct.inputEnd; omega)
+  have haddr : (N * D m + N * D m) + (Q + Q) + 5 = QueriedProduct.inputEnd m N Q := by
+    unfold QueriedProduct.inputEnd; omega
+  refine WP.exists_execWithin ?_
+  unfold loadThreshold thresholdLoad thresholdTime
+  dsimp only
+  wram_call (QueriedProduct.exec_parameters hm x hL hmemory hN (old_fits hfit))
+    with u ⟨up, um, _⟩
+  wram_exec * [hQ, haddr, ht]
+  exact ⟨by wram_simp, um⟩
+
+private theorem header_words {L m N : ℕ} {bits : Bool} {X : Matrix (Fin N) (Fin (D m)) ℤ}
+    {Y : Matrix (Fin (D m)) (Fin N) ℤ} {qs : List (Fin N × Fin N)} {mem : ℕ → ℕ}
+    (h : ∀ a, 0 < a → a < 5 →
+      mem a = (State.init (QueriedProduct.input bits L X Y qs) : State 160).data.mem a) :
+    mem 1 = L ∧ mem 2 = m ∧ mem 3 = N ∧ mem 4 = qs.length := by
+  refine ⟨(h 1 ?_ ?_).trans ?_, (h 2 ?_ ?_).trans ?_, (h 3 ?_ ?_).trans ?_,
+    (h 4 ?_ ?_).trans ?_⟩ <;> simp [State.init, Data.init, QueriedProduct.input]
 
 /-- Execute the original threshold and snapshot prefix from ordinary input words. -/
 theorem exec_snapshot {w L m t N : ℕ} (hm : m ≤ L) (bits : Bool)
@@ -97,16 +71,8 @@ theorem exec_snapshot {w L m t N : ℕ} (hm : m ≤ L) (bits : Bool)
       (∀ a, a < QueriedProduct.snapshotBase L m N qs.length ∨
         QueriedProduct.snapshotBase L m N qs.length + QueriedProduct.inputEnd m N qs.length ≤ a →
         y.mem a = x.mem a) := by
-  have hh (a : ℕ) (ha : 0 < a) (hb : a < 5) :=
+  obtain ⟨hL, hm', hN, hQ⟩ := header_words fun a ha hb =>
     hinput a ha (by unfold QueriedProduct.inputEnd; omega)
-  have hL : x.mem 1 = L := by
-    simpa [State.init, Data.init, QueriedProduct.input] using hh 1 (by decide) (by decide)
-  have hm' : x.mem 2 = m := by
-    simpa [State.init, Data.init, QueriedProduct.input] using hh 2 (by decide) (by decide)
-  have hN : x.mem 3 = N := by
-    simpa [State.init, Data.init, QueriedProduct.input] using hh 3 (by decide) (by decide)
-  have hQ : x.mem 4 = qs.length := by
-    simpa [State.init, Data.init, QueriedProduct.input] using hh 4 (by decide) (by decide)
   obtain ⟨u, hu, ut, um⟩ := exec_loadThreshold hm x hL hm' hN hQ hthreshold hfit
   obtain ⟨y, hy, yp, ys, yf⟩ := QueriedProduct.exec_prepareSnapshot hm u
     (by rw [um]; exact hL) (by rw [um]; exact hm') (by rw [um]; exact hN)
@@ -150,18 +116,7 @@ theorem exec_frontFromSnapshot {w L m t N A : ℕ} (hw : 0 < w)
       (∀ j < QueriedProduct.inputEnd m N qs.length,
         y.mem (QueriedProduct.snapshotBase L m N qs.length + j) = original j) ∧
       (∀ p, p < 4 ∨ QueriedProduct.groupedBase L m N qs.length ≤ p → y.mem p = x.mem p) := by
-  have hL : x.mem 1 = L := by
-    rw [hheader 1 (by decide) (by decide)]
-    simp [State.init, Data.init, QueriedProduct.input]
-  have hm' : x.mem 2 = m := by
-    rw [hheader 2 (by decide) (by decide)]
-    simp [State.init, Data.init, QueriedProduct.input]
-  have hN : x.mem 3 = N := by
-    rw [hheader 3 (by decide) (by decide)]
-    simp [State.init, Data.init, QueriedProduct.input]
-  have hQ : x.mem 4 = qs.length := by
-    rw [hheader 4 (by decide) (by decide)]
-    simp [State.init, Data.init, QueriedProduct.input]
+  obtain ⟨hL, hm', hN, hQ⟩ := header_words hheader
   have hqueries (i : ℕ) (hi : i < qs.length) :
       original (QueriedProduct.queryInputBase m N + 2 * i) = (Wanted.inputPairs qs i).1 ∧
       original (QueriedProduct.queryInputBase m N + 2 * i + 1) = (Wanted.inputPairs qs i).2 := by
@@ -198,10 +153,8 @@ theorem exec_frontFromSnapshot {w L m t N A : ℕ} (hw : 0 < w)
       c.mem (QueriedProduct.snapshotBase L m N qs.length + j) = original j := by
     rw [cf _ (Or.inr (by unfold QueriedProduct.inputEnd at hs; omega)), rs j hj]
   have cg : QueriedProduct.SavedGroups L m N qs.length old c.mem :=
-    rg.reframe (fun a ha _ => cf a (Or.inr (by
-      unfold QueriedProduct.offsetBase at ha
-      unfold QueriedProduct.inputEnd at hs
-      omega)))
+    rg.reframe fun a ha _ => cf a (Or.inr (by
+      unfold QueriedProduct.offsetBase at ha; unfold QueriedProduct.inputEnd at hs; omega))
   obtain ⟨y, hy, yp, yl, yr, yf⟩ := QueriedProduct.exec_bands hw hm X Y c cp
     (by rw [cf 1 (Or.inl (by decide)), rf 1 (Or.inl (by decide))]; exact hL)
     (by rw [cf 2 (Or.inl (by decide)), rf 2 (Or.inl (by decide))]; exact hm')
@@ -212,22 +165,11 @@ theorem exec_frontFromSnapshot {w L m t N A : ℕ} (hw : 0 < w)
     cg.reframe (fun a ha _ => yf a (Or.inr (by unfold QueriedProduct.offsetBase at ha; omega)))
   refine ⟨y, old, ?_, yp, yt, yg, ⟨yl, yr⟩, rv, ro, ?_, ?_⟩
   · exact (hr.seq (hc.seq hy)).mono (by unfold snapshotFrontTime; omega)
-  · intro j hj
-    rw [yf _ (Or.inr (by omega))]
-    exact cs j hj
+  · exact fun j hj => (yf _ (Or.inr (by omega))).trans (cs j hj)
   · intro p hp
-    calc
-      y.mem p = c.mem p := by
-        apply yf
-        rcases hp with hp | hp
-        · exact Or.inl (by unfold BandPreparation.inputEnd; omega)
-        · exact Or.inr (by omega)
-      _ = r.mem p := by
-        apply cf
-        rcases hp with hp | hp
-        · exact Or.inl hp
-        · exact Or.inr (by unfold QueriedProduct.inputEnd at hs; omega)
-      _ = x.mem p := rf p (by rcases hp with hp | hp <;> omega)
+    rw [yf p (hp.imp (fun _ => by unfold BandPreparation.inputEnd; omega) fun _ => by omega),
+      cf p (hp.imp_right fun _ => by unfold QueriedProduct.inputEnd at hs; omega)]
+    exact rf p (by rcases hp with hp | hp <;> omega)
 
 /-- Actual routing and shared encoding production from ordinary original matrix words.
 The returned router memory is an executed proof witness, not an input certificate. -/
@@ -264,9 +206,8 @@ theorem exec_front {w L m t N A : ℕ} (hw : 0 < w) (hm : m ≤ L) (bits : Bool)
   have horder := QueriedProduct.producers_le_snapshot L m N qs.length
   obtain ⟨y, old, hy, yp, yt, yg, ye, yv, yo, ys, yf⟩ :=
     exec_frontFromSnapshot hw hm bits X Y qs x.mem s hinput sp st
-      (fun a ha hb => (sf a (Or.inl (by
-        unfold QueriedProduct.inputEnd at horder
-        omega))).trans (hinput a ha (by unfold QueriedProduct.inputEnd; omega)))
+      (fun a ha hb => (sf a (Or.inl (by unfold QueriedProduct.inputEnd at horder; omega))).trans
+        (hinput a ha (by unfold QueriedProduct.inputEnd; omega)))
       ss hX hY hbits hmag hfit
   refine ⟨y, old, ?_, yp, yt, yg, ye, yv, yo, ys, ?_⟩
   · obtain ⟨u, A, B, hu, hs, hAB⟩ := ExecWithin.seq_iff.mp hs
@@ -279,12 +220,9 @@ theorem exec_front {w L m t N A : ℕ} (hw : 0 < w) (hm : m ≤ L) (bits : Bool)
       omega)
   · intro a ha
     rw [yf a ha]
-    exact sf a (by
-      rcases ha with ha | ha
-      · exact Or.inl (by unfold QueriedProduct.inputEnd at horder; omega)
-      · exact Or.inr (by
-          unfold QueriedProduct.groupedBase QueriedProduct.originalBase
-            QueriedProduct.codeBase QueriedProduct.offsetBase at ha
-          omega))
+    exact sf a (ha.imp (fun _ => by unfold QueriedProduct.inputEnd at horder; omega) fun ha => by
+      unfold QueriedProduct.groupedBase QueriedProduct.originalBase QueriedProduct.codeBase
+        QueriedProduct.offsetBase at ha
+      omega)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct

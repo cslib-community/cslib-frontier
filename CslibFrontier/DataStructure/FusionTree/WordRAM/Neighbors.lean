@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Notation
 public import CslibFrontier.DataStructure.FusionTree.XorCorrection
 public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -111,22 +112,14 @@ private theorem selectIndex_spec (score : ℕ → ℕ) {n t : ℕ} (hn : 0 < n) 
       ∀ i < n, (i + 1 = t ∨ i = t) → score (selectIndex score n t) ≤ score i := by
   have hi := indices_lt hn ht
   have hneighbor := indices_neighbors hn ht
-  have hcover (i : ℕ) (hi : i < n) (hc : i + 1 = t ∨ i = t) :
+  have hcover (i : ℕ) (_ : i < n) (_ : i + 1 = t ∨ i = t) :
       i = left t ∨ i = right n t := by wram_omega
   unfold selectIndex
-  split
-  · rename_i hs
-    refine ⟨hi.2, hneighbor.2, ?_⟩
-    intro i hi hc
-    rcases hcover i hi hc with rfl | rfl
-    · exact hs.le
-    · exact le_rfl
-  · rename_i hs
-    refine ⟨hi.1, hneighbor.1, ?_⟩
-    intro i hi hc
-    rcases hcover i hi hc with rfl | rfl
-    · exact le_rfl
-    · omega
+  split_ifs with hs
+  · exact ⟨hi.2, hneighbor.2, fun i h1 h2 =>
+      (hcover i h1 h2).elim (fun e => e ▸ hs.le) fun e => e ▸ le_rfl⟩
+  · exact ⟨hi.1, hneighbor.1, fun i h1 h2 =>
+      (hcover i h1 h2).elim (fun e => e ▸ le_rfl) fun e => by rw [e]; omega⟩
 
 /-- Thirteen instructions load the candidates. Selection adds four or five instructions,
 including control flow, and prefers the left candidate when exclusive-or values tie. -/
@@ -194,19 +187,15 @@ theorem result_sketchNeighbor {w n q a d : ℕ} (x : Data 17) (keys : Fin n → 
       IsSketchNeighbor w keys q j ∧
       ∀ i, IsSketchNeighbor w keys q i → keys j ^^^ q ≤ keys i ^^^ q := by
   let t := sketchRank w keys q
-  let score := fun i => x.mem (a + i * d) ^^^ q
-  have ht : t ≤ n := upperRank_le _ _
-  have hs := selectIndex_spec score hn ht
+  let score (i : ℕ) := x.mem (a + i * d) ^^^ q
+  have hs := selectIndex_spec score hn (upperRank_le _ _ : t ≤ n)
   let j : Fin n := ⟨selectIndex score n t, hs.1⟩
   have hout := result_spec x q n t a d
-  refine ⟨j, hout.1, ?_, ?_, ?_, ?_⟩
-  · exact hout.2.1.trans (hkeys j)
-  · exact hout.2.2.trans (congrArg (fun k => k ^^^ q) (hkeys j))
-  · exact hs.2.1
-  · intro i hi
-    have hscore := hs.2.2 i i.isLt hi
-    change score j.val ≤ score i.val at hscore
-    simpa only [score, hkeys] using hscore
+  exact ⟨j, hout.1, hout.2.1.trans (hkeys j), hout.2.2.trans (congrArg (· ^^^ q) (hkeys j)),
+    hs.2.1, fun i hi => by
+      have h := hs.2.2 i i.isLt hi
+      change score j.val ≤ score i.val at h
+      simpa only [score, hkeys] using h⟩
 
 /-- Loading two clamped neighbors and selecting one takes at most eighteen actual checked
 instructions. The address premise covers the last array key; every accessed address and
@@ -220,36 +209,17 @@ theorem exec {w q n t a d : ℕ} (x : Data 17) (hn : 0 < n) (ht : t ≤ n)
     ExecWithin w code x (result x q n t a d) 18 ∧
       (result x q n t a d).mem = x.mem := by
   have hi := indices_lt hn ht
-  have h1 : Fits w 1 := hnfit.of_le hn
-  have hl : Fits w (left t) := hnfit.of_le hi.1.le
-  have hnm : Fits w (n - 1) := hnfit.of_le (Nat.sub_le _ _)
-  have he : Fits w (t - (n - 1)) := hnfit.of_le (by omega)
-  have hr : Fits w (right n t) := hnfit.of_le hi.2.le
   have hla : Fits w (a + left t * d) := ha.of_le (by
-    have hm := Nat.mul_le_mul_right d (show left t ≤ n - 1 by omega)
-    omega)
+    have := Nat.mul_le_mul_right d (show left t ≤ n - 1 by omega); omega)
   have hra : Fits w (a + right n t * d) := ha.of_le (by
-    have hm := Nat.mul_le_mul_right d (show right n t ≤ n - 1 by omega)
-    omega)
-  have hlm : Fits w (left t * d) := hla.of_le (Nat.le_add_left _ _)
-  have hrm : Fits w (right n t * d) := hra.of_le (Nat.le_add_left _ _)
-  have hlx : Fits w (x.mem (a + left t * d) ^^^ q) :=
-    Nat.xor_lt_two_pow (hkeys _ hi.1) hq
-  have hrx : Fits w (x.mem (a + right n t * d) ^^^ q) :=
-    Nat.xor_lt_two_pow (hkeys _ hi.2) hq
-  have hleft : Fits w (t - 1) := hl
-  have hright : Fits w (t - (t - (n - 1))) := hr
-  simp only [left, right] at hla hra hlm hrm hlx hrx
-  by_cases hc : x.mem (a + right n t * d) ^^^ q < x.mem (a + left t * d) ^^^ q
-  · simp only [left, right] at hc
-    refine ⟨⟨17, by omega, ?_⟩, ?_⟩
-    · ram_eval [code, result, loaded, hxq, hxt, hxn, hxa, hxd,
-        h1, hleft, hnm, he, hright, hlm, hrm, hla, hra, hlx, hrx, hc, left, right]
-    · simp [result, left, right, hc, loaded]
-  · simp only [left, right] at hc
-    refine ⟨⟨18, le_rfl, ?_⟩, ?_⟩
-    · ram_eval [code, result, loaded, hxq, hxt, hxn, hxa, hxd,
-        h1, hleft, hnm, he, hright, hlm, hrm, hla, hra, hlx, hrx, hc, left, right]
-    · simp [result, left, right, hc, loaded]
+    have := Nat.mul_le_mul_right d (show right n t ≤ n - 1 by omega); omega)
+  have hlx : Fits w (x.mem (a + left t * d) ^^^ q) := Nat.xor_lt_two_pow (hkeys _ hi.1) hq
+  have hrx : Fits w (x.mem (a + right n t * d) ^^^ q) := Nat.xor_lt_two_pow (hkeys _ hi.2) hq
+  simp only [left, right] at hla hra hlx hrx
+  refine ⟨?_, by unfold result; split <;> rfl⟩
+  unfold code result loaded
+  simp only [left, right]
+  wram_exec *
+  all_goals simp only [hc, ↓reduceIte]
 
 end Cslib.DataStructure.FusionTree.WordRAM.NeighborProgram

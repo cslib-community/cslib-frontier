@@ -135,35 +135,30 @@ noncomputable def rowStep (tm : MultiTapeTM m Bool State) (input : List Bool)
           situation input R y a ∧ R (.head i sign) a ∧ R (.cell i sign s') a
 
 private theorem read_mono {R S : Row m State B} (h : ∀ q a, R q a → S q a)
-    {i : Fin m} {s : Option Bool} (hr : read R i s) : read S i s := by
-  rcases hr with ⟨a, h' | h'⟩
-  · exact ⟨a, Or.inl ⟨h _ _ h'.1, h _ _ h'.2⟩⟩
-  · exact ⟨a, Or.inr ⟨h _ _ h'.1, h _ _ h'.2⟩⟩
+    {i : Fin m} {s : Option Bool} (hr : read R i s) : read S i s :=
+  let ⟨a, h'⟩ := hr
+  ⟨a, h'.imp (fun h' => ⟨h _ _ h'.1, h _ _ h'.2⟩) fun h' => ⟨h _ _ h'.1, h _ _ h'.2⟩⟩
 
 private theorem situation_mono {input : List Bool} {R S : Row m State B}
     (h : ∀ q a, R q a → S q a) {y : Situation m State} {a : Fin B}
-    (hr : situation input R y a) : situation input S y a := by
-  rcases hr with ⟨hq, ⟨j, hj, hs⟩, hw⟩
-  exact ⟨h _ _ hq, ⟨j, h _ _ hj, hs⟩, fun i => read_mono h (hw i)⟩
+    (hr : situation input R y a) : situation input S y a :=
+  let ⟨hq, ⟨j, hj, hs⟩, hw⟩ := hr
+  ⟨h _ _ hq, ⟨j, h _ _ hj, hs⟩, fun i => read_mono h (hw i)⟩
 
 private theorem elsewhere_mono {R S : Row m State B} (h : ∀ q a, R q a → S q a)
     {i : Fin m} {sign : Bool} {a : Fin B} (hr : elsewhere R i sign a) :
-    elsewhere S i sign a := by
-  rcases hr with ⟨b, h' | h'⟩
-  · exact ⟨b, Or.inl ⟨h _ _ h'.1, h'.2⟩⟩
-  · exact ⟨b, Or.inr ⟨h _ _ h'.1, h'.2⟩⟩
+    elsewhere S i sign a :=
+  let ⟨b, h'⟩ := hr
+  ⟨b, h'.imp (fun h' => ⟨h _ _ h'.1, h'.2⟩) fun h' => ⟨h _ _ h'.1, h'.2⟩⟩
 
 private theorem inputPrev_mono {input : List Bool} {R S : Row m State B}
     (h : ∀ q a, R q a → S q a) {d : SignType} {a : Fin B}
     (hr : inputPrev input R d a) : inputPrev input S d a := by
   cases d <;> simp only [inputPrev] at hr ⊢
   · exact h _ _ hr
-  · rcases hr with ⟨ha, hr⟩ | ⟨b, hb, hr⟩
-    · exact Or.inl ⟨ha, h _ _ hr⟩
-    · exact Or.inr ⟨b, hb, h _ _ hr⟩
-  · rcases hr with ⟨ha, hb, hr⟩ | ⟨b, hb, hr, hx⟩
-    · exact Or.inl ⟨ha, hb, h _ _ hr⟩
-    · exact Or.inr ⟨b, hb, h _ _ hr, hx⟩
+  · exact hr.imp (fun ⟨ha, hr⟩ => ⟨ha, h _ _ hr⟩) fun ⟨b, hb, hr⟩ => ⟨b, hb, h _ _ hr⟩
+  · exact hr.imp (fun ⟨ha, hb, hr⟩ => ⟨ha, hb, h _ _ hr⟩)
+      fun ⟨b, hb, hr, hx⟩ => ⟨b, hb, h _ _ hr, hx⟩
 
 private theorem headPrev_mono {R S : Row m State B} (h : ∀ q a, R q a → S q a)
     {i : Fin m} {sign : Bool} {d : SignType} {a : Fin B}
@@ -174,9 +169,8 @@ private theorem headPrev_mono {R S : Row m State B} (h : ∀ q a, R q a → S q 
   · exact h _ _ hr
   · rcases hr with ⟨b, hb, hr⟩
     exact ⟨b, hb, h _ _ hr⟩
-  · rcases hr with ⟨ha, b, hb, hr⟩ | ⟨b, hb, hr⟩
-    · exact Or.inl ⟨ha, b, hb, h _ _ hr⟩
-    · exact Or.inr ⟨b, hb, h _ _ hr⟩
+  · exact hr.imp (fun ⟨ha, b, hb, hr⟩ => ⟨ha, b, hb, h _ _ hr⟩)
+      fun ⟨b, hb, hr⟩ => ⟨b, hb, h _ _ hr⟩
 
 /-- Every recursive occurrence in the local transition rules is monotone. -/
 theorem rowStep_mono (tm : MultiTapeTM m Bool State) (input : List Bool)
@@ -185,25 +179,18 @@ theorem rowStep_mono (tm : MultiTapeTM m Bool State) (input : List Bool)
   intro q a hr
   cases q with
   | state q =>
-    rcases hr with ⟨hq, he⟩ | ⟨y, he, hy⟩
-    · exact Or.inl ⟨h _ _ hq, he⟩
-    · exact Or.inr ⟨y, he, situation_mono h hy⟩
+    exact hr.imp (fun ⟨hq, he⟩ => ⟨h _ _ hq, he⟩) fun ⟨y, he, hy⟩ => ⟨y, he, situation_mono h hy⟩
   | out o =>
-    rcases hr with ⟨hq, ho⟩ | ⟨y, o', he, hy, ho⟩
-    · exact Or.inl ⟨h _ _ hq, h _ _ ho⟩
-    · exact Or.inr ⟨y, o', he, situation_mono h hy, h _ _ ho⟩
+    exact hr.imp (fun ⟨hq, ho⟩ => ⟨h _ _ hq, h _ _ ho⟩)
+      fun ⟨y, o', he, hy, ho⟩ => ⟨y, o', he, situation_mono h hy, h _ _ ho⟩
   | inPos =>
-    rcases hr with ⟨hq, hp⟩ | ⟨y, hy, hp⟩
-    · exact Or.inl ⟨h _ _ hq, h _ _ hp⟩
-    · exact Or.inr ⟨y, situation_mono h hy, inputPrev_mono h hp⟩
+    exact hr.imp (fun ⟨hq, hp⟩ => ⟨h _ _ hq, h _ _ hp⟩)
+      fun ⟨y, hy, hp⟩ => ⟨y, situation_mono h hy, inputPrev_mono h hp⟩
   | head i sign =>
-    rcases hr with ⟨hq, hp⟩ | ⟨y, hy, hp⟩
-    · exact Or.inl ⟨h _ _ hq, h _ _ hp⟩
-    · exact Or.inr ⟨y, situation_mono h hy, headPrev_mono h hp⟩
+    exact hr.imp (fun ⟨hq, hp⟩ => ⟨h _ _ hq, h _ _ hp⟩)
+      fun ⟨y, hy, hp⟩ => ⟨y, situation_mono h hy, headPrev_mono h hp⟩
   | cell i sign s =>
-    rcases hr with ⟨hc, hq | he⟩ | ⟨y, s', he, hy, hh, hc⟩
-    · exact Or.inl ⟨h _ _ hc, Or.inl (h _ _ hq)⟩
-    · exact Or.inl ⟨h _ _ hc, Or.inr (elsewhere_mono h he)⟩
-    · exact Or.inr ⟨y, s', he, situation_mono h hy, h _ _ hh, h _ _ hc⟩
+    exact hr.imp (fun ⟨hc, h'⟩ => ⟨h _ _ hc, h'.imp (h _ _) (elsewhere_mono h)⟩)
+      fun ⟨y, s', he, hy, hh, hc⟩ => ⟨y, s', he, situation_mono h hy, h _ _ hh, h _ _ hc⟩
 
 end Cslib.Complexity.ImmermanVardi.Tableau

@@ -9,7 +9,9 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.GenericRAM.Native.Combinators
+public import CslibFrontier.Computability.GenericRAM.Native.ExpTimePolySpace.Iteration
 import Mathlib.Data.List.Range
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import Mathlib.Data.Nat.Size
 
 /-!
@@ -24,7 +26,9 @@ This is an enumeration building block for the local-assignment and measurement l
 Boolean vectors or mixed-radix tuples. A callback may retain captured inputs in its accumulator;
 its certificate must cover the full index/accumulator encoding. Arbitrary callbacks need not
 have small outputs: the reachable-prefix size bound is an explicit hypothesis of the resource
-bound below. No polynomial-time claim is made for an exponentially long whole loop.
+bounds below (`computableInO`, `certificate_factorTimePolySpace`, and
+`certificate_factorTimePolySpace_of_polyBounded`). No polynomial-time claim is made for an
+exponentially long whole loop.
 -/
 
 @[expose] public section
@@ -111,18 +115,8 @@ def roundCertificate {body : ℕ × β → β}
 in its length. -/
 theorem roundCertificate_isPolynomial {body : ℕ × β → β}
     (cb : NativeCertificate body (encPair encNat encB) encB) (hcb : cb.IsPolynomial) :
-    (roundCertificate cb).IsPolynomial := by
-  have hsq : PolyBounded (fun p : ℕ × β => (encPair encNat encB p).length)
-      (fun p => ((encNat p.1).length + 1) ^ 2) :=
-    PolyBounded.of_forall_le 1 2 fun p => by
-      have hp1 : (encNat p.1).length ≤ (encPair encNat encB p).length := by
-        simp only [length_encPair]; omega
-      simpa only [one_mul] using Nat.pow_le_pow_left (Nat.add_le_add_right hp1 1) 2
-  have hlin : PolyBounded (fun p : ℕ × β => (encPair encNat encB p).length)
-      (fun p => (encNat p.1).length + 1) :=
-    PolyBounded.of_forall_le 1 1 fun p => by
-      simp only [length_encPair, pow_one, one_mul]; omega
-  exact ⟨(PolyBounded.self.add hsq).add hcb.1, (PolyBounded.self.add hlin).add hcb.2⟩
+    (roundCertificate cb).IsPolynomial :=
+  ⟨by growth_poly, by growth_poly⟩
 
 /-- One fixed native machine streams a runtime binary number of indices. Its bound is the
 existing iterator's trajectory-max bound; neither a finite state type nor a machine is selected
@@ -195,3 +189,73 @@ theorem computableInO {encIn : α ↪ List Bool} {count : α → ℕ} {initial :
     exact length_run_le body (initial a) hj (hB a j hj)
 
 end Cslib.GenericRAM.IndexFold
+end
+
+public section
+
+namespace Cslib.GenericRAM.IndexFold
+
+open Turing.MultiTapeTM
+
+variable {α β : Type} {encB : β ↪ List Bool}
+
+private theorem roundCertificate_factorTimePolySpace {body : ℕ × β → β}
+    {cb : NativeCertificate body (encPair encNat encB) encB} {Kbody : ℕ × β → ℕ}
+    (hcb : cb.FactorTimePolySpace Kbody) :
+    (roundCertificate cb).FactorTimePolySpace (fun p => Kbody p + 1) := by
+  obtain ⟨T, hT, ht⟩ := hcb.exists_time_polyBounded
+  refine .of_polyBounded
+    (T := fun p => (encPair encNat encB p).length + ((encNat p.1).length + 1) ^ 2 + T p)
+    (by growth_poly) (by growth_poly [hcb.space_polyBounded]) fun p => ?_
+  change (encPair encNat encB p).length + ((encNat p.1).length + 1) ^ 2 + cb.time p ≤ _
+  have := ht p; nlinarith
+
+/-- **Streaming `IndexFold` in factored time and polynomial space** for an arbitrary binary-computed
+round count `count a`, yielding time factor `(count a + 1) * K a`. -/
+theorem certificate_factorTimePolySpace {encIn : α ↪ List Bool}
+    {count : α → ℕ} {initial : α → β} {body : ℕ × β → β}
+    {cn : NativeCertificate count encIn encNat}
+    {ci : NativeCertificate initial encIn encB}
+    {cb : NativeCertificate body (encPair encNat encB) encB}
+    {Kbody : ℕ × β → ℕ} {K B : α → ℕ}
+    (hcn : cn.IsPolynomial) (hci : ci.IsPolynomial)
+    (hcb : cb.FactorTimePolySpace Kbody)
+    (hK : ∀ a, 1 ≤ K a)
+    (hB : PolyBounded (fun a => (encIn a).length) B)
+    (hKbody : ∀ a j, j ≤ count a → Kbody (run body j (initial a)) ≤ K a)
+    (hb : ∀ a j, j ≤ count a → (encB (run body j (initial a)).2).length ≤ B a) :
+    (certificate cn ci cb).FactorTimePolySpace (fun a => (count a + 1) * K a) := by
+  let Bfull a := 2 * (encNat (count a)).length + 1 + B a
+  have hBfull : PolyBounded (fun a => (encIn a).length) Bfull := by growth_poly
+  have hci' := NativeCertificate.prod_isPolynomial
+    (NativeCertificate.const (em := encNat) 0) ci (NativeCertificate.const_isPolynomial 0) hci
+  refine (NativeCertificate.FactorTimePolySpace.iterate cn _ (roundCertificate cb) hcn hci'
+    (roundCertificate_factorTimePolySpace hcb) (K := fun a => 2 * K a)
+    (fun a => by have := hK a; omega) hBfull
+    (fun a j hj => by
+      change Kbody (run body j (initial a)) + 1 ≤ 2 * K a
+      have := hKbody a j hj; have := hK a; omega)
+    (fun a j hj => length_run_le body (initial a) hj (hb a j hj))).mono_const 2 fun a => ?_
+  ring_nf; exact le_rfl
+
+/-- **Streaming `IndexFold` with polynomially bounded `count`**: absorbs `count a + 1` into the
+polynomial overhead, retaining the per-step factor `K`. -/
+theorem certificate_factorTimePolySpace_of_polyBounded {encIn : α ↪ List Bool}
+    {count : α → ℕ} {initial : α → β} {body : ℕ × β → β}
+    {cn : NativeCertificate count encIn encNat}
+    {ci : NativeCertificate initial encIn encB}
+    {cb : NativeCertificate body (encPair encNat encB) encB}
+    {Kbody : ℕ × β → ℕ} {K B : α → ℕ}
+    (hcn : cn.IsPolynomial) (hci : ci.IsPolynomial)
+    (hcb : cb.FactorTimePolySpace Kbody)
+    (hcount : PolyBounded (fun a => (encIn a).length) count)
+    (hK : ∀ a, 1 ≤ K a)
+    (hB : PolyBounded (fun a => (encIn a).length) B)
+    (hKbody : ∀ a j, j ≤ count a → Kbody (run body j (initial a)) ≤ K a)
+    (hb : ∀ a j, j ≤ count a → (encB (run body j (initial a)).2).length ≤ B a) :
+    (certificate cn ci cb).FactorTimePolySpace K :=
+  (certificate_factorTimePolySpace hcn hci hcb hK hB hKbody hb).absorb_polyBounded
+    (hcount.add (.const 1))
+
+end Cslib.GenericRAM.IndexFold
+end

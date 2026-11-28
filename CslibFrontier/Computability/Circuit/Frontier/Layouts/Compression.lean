@@ -13,6 +13,7 @@ import Mathlib.Order.Prod.Lex.Basic
 import Mathlib.SetTheory.Cardinal.NatCard
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Compressions of multigraphs
@@ -99,7 +100,7 @@ variable {G : Multigraph V E} {d : ℕ}
 /-! ### Merging -/
 
 /-- The compression into single vertices. -/
-private def singletons [Fintype V] [DecidableEq V] [Finite E] (hG : G.MaxDegreeLE d) :
+def singletons [Fintype V] [DecidableEq V] [Finite E] (hG : G.MaxDegreeLE d) :
     Compression G d where
   blocks := Finset.univ.image fun v => [v]
   exists_mem v := ⟨[v], Finset.mem_image_of_mem _ (Finset.mem_univ v),
@@ -121,19 +122,77 @@ private def singletons [Fintype V] [DecidableEq V] [Finite E] (hG : G.MaxDegreeL
       Nat.card_eq_fintype_card]
     exact Nat.le_add_right _ _
 
+@[simp]
+theorem blocks_singletons [Fintype V] [DecidableEq V] [Finite E] (hG : G.MaxDegreeLE d) :
+    (singletons hG).blocks = Finset.univ.image fun v => [v] := rfl
+
 variable (c : Compression G d)
 
-/-- **Merging.** Two distinct blocks joined by an edge, with at most `d` edges leaving their
-union, may be replaced by their union, listing the longer block first. -/
-private theorem exists_merge [Finite E] {B B' : List V} (hB : B ∈ c.blocks) (hB' : B' ∈ c.blocks)
-    (hne : B ≠ B') (hjoin : (G.edgeCut {v | v ∈ B} ∩ G.edgeCut {v | v ∈ B'}).Nonempty)
-    (hcut : (G.edgeCut ({v | v ∈ B} ∪ {v | v ∈ B'})).ncard ≤ d) :
-    ∃ c' : Compression G d, c'.blocks.card < c.blocks.card := by
-  classical
-  wlog hlen : B'.length ≤ B.length generalizing B B'
-  · rw [inter_comm] at hjoin
-    rw [union_comm] at hcut
-    exact this hB' hB hne.symm hjoin hcut (by omega)
+/-- Concatenating two blocks in `c.blocks` never yields an existing block of `c`. -/
+theorem notMem_blocks_append {B B' : List V} (hB : B ∈ c.blocks) (hB' : B' ∈ c.blocks) :
+    B ++ B' ∉ c.blocks := by
+  intro hm
+  obtain ⟨v, hv⟩ := List.exists_mem_of_ne_nil B (c.ne_nil B hB)
+  have heq := c.eq_of_mem (B ++ B') hm B hB v (List.mem_append_left _ hv) hv
+  have hlen_eq := congrArg List.length heq
+  rw [List.length_append] at hlen_eq
+  have := List.length_pos_of_ne_nil (c.ne_nil B' hB')
+  omega
+
+theorem card_insert_append_erase_add_one [DecidableEq V] {B B' : List V}
+    (hB : B ∈ c.blocks) (hB' : B' ∈ c.blocks) (hne : B ≠ B') :
+    (insert (B ++ B') ((c.blocks.erase B).erase B')).card + 1 = c.blocks.card := by
+  have hnot : B ++ B' ∉ (c.blocks.erase B).erase B' := fun h =>
+    c.notMem_blocks_append hB hB' (Finset.mem_erase.mp (Finset.mem_erase.mp h).2).2
+  rw [Finset.card_insert_of_notMem hnot,
+    Finset.card_erase_of_mem (Finset.mem_erase.2 ⟨hne.symm, hB'⟩),
+    Finset.card_erase_of_mem hB]
+  have := Finset.one_lt_card.2 ⟨B, hB, B', hB', hne⟩
+  omega
+
+theorem ncard_internal_add_join_le [DecidableEq V] [Finite E] {B B' : List V}
+    (hB : B ∈ c.blocks) (hB' : B' ∈ c.blocks) (hne : B ≠ B') :
+    {e | ∃ D ∈ c.blocks, G.src e ∈ D ∧ G.tgt e ∈ D}.ncard +
+        (G.edgeCut {v | v ∈ B} ∩ G.edgeCut {v | v ∈ B'}).ncard ≤
+      {e | ∃ D ∈ insert (B ++ B') ((c.blocks.erase B).erase B'),
+        G.src e ∈ D ∧ G.tgt e ∈ D}.ncard := by
+  have hd (v : V) (hv : v ∈ B) : v ∉ B' := fun hv' => hne (c.eq_of_mem B hB B' hB' v hv hv')
+  have hsup (C : List V) (hC : C ∈ c.blocks) :
+      ∃ D ∈ insert (B ++ B') ((c.blocks.erase B).erase B'), ∀ v ∈ C, v ∈ D := by
+    by_cases h : C = B ∨ C = B'
+    · refine ⟨B ++ B', Finset.mem_insert_self _ _, ?_⟩
+      rcases h with rfl | rfl <;> intro v hv <;> simp [hv]
+    · rw [not_or] at h
+      exact ⟨C, Finset.mem_insert.2 (Or.inr (Finset.mem_erase.2
+        ⟨h.2, Finset.mem_erase.2 ⟨h.1, hC⟩⟩)), fun v hv => hv⟩
+  have hsub : {e | ∃ D ∈ c.blocks, G.src e ∈ D ∧ G.tgt e ∈ D} ∪
+      (G.edgeCut {v | v ∈ B} ∩ G.edgeCut {v | v ∈ B'}) ⊆
+      {e | ∃ D ∈ insert (B ++ B') ((c.blocks.erase B).erase B'), G.src e ∈ D ∧ G.tgt e ∈ D} := by
+    rintro e (⟨C, hC, hs, ht⟩ | ⟨h₁, h₂⟩)
+    · obtain ⟨D, hD, hCD⟩ := hsup C hC
+      exact ⟨D, hD, hCD _ hs, hCD _ ht⟩
+    · refine ⟨B ++ B', Finset.mem_insert_self _ _, ?_⟩
+      simp only [mem_edgeCut, mem_ofPred_eq] at h₁ h₂
+      simp only [List.mem_append]
+      lrat_tauto [hd (G.src e), hd (G.tgt e)]
+  have hdisj : Disjoint {e | ∃ D ∈ c.blocks, G.src e ∈ D ∧ G.tgt e ∈ D}
+      (G.edgeCut {v | v ∈ B} ∩ G.edgeCut {v | v ∈ B'}) := by
+    refine disjoint_left.2 ?_
+    rintro e ⟨D, hD, hs, ht⟩ ⟨h₁, h₂⟩
+    have key (C : List V) (hC : C ∈ c.blocks) (h : e ∈ G.edgeCut {v | v ∈ C}) : D = C := by
+      simp only [mem_edgeCut, mem_ofPred_eq] at h
+      by_cases hs' : G.src e ∈ C
+      · exact c.eq_of_mem D hD C hC _ hs hs'
+      · exact c.eq_of_mem D hD C hC _ ht (by tauto)
+    exact hne ((key B hB h₁).symm.trans (key B' hB' h₂))
+  exact (ncard_union_eq hdisj).symm.trans_le (ncard_le_ncard hsub)
+
+/-- **Ordered merge.** Replace two distinct blocks `B` and `B'` joined by an edge (with
+`B'.length ≤ B.length` and at most `d` edges leaving their union) by `B ++ B'`. -/
+def merge [DecidableEq V] [Finite E] {B B' : List V} (hB : B ∈ c.blocks) (hB' : B' ∈ c.blocks)
+    (hne : B ≠ B') (hlen : B'.length ≤ B.length)
+    (hjoin : (G.edgeCut {v | v ∈ B} ∩ G.edgeCut {v | v ∈ B'}).Nonempty)
+    (hcut : (G.edgeCut ({v | v ∈ B} ∪ {v | v ∈ B'})).ncard ≤ d) : Compression G d := by
   have hd (v : V) (hv : v ∈ B) : v ∉ B' := fun hv' => hne (c.eq_of_mem B hB B' hB' v hv hv')
   have hrest (C : List V) (hC : C ∈ c.blocks) (hCB : C ≠ B) (hCB' : C ≠ B') (v : V)
       (hv : v ∈ C) : v ∉ B ∧ v ∉ B' :=
@@ -142,34 +201,18 @@ private theorem exists_merge [Finite E] {B B' : List V} (hB : B ∈ c.blocks) (h
   have hmem {C : List V} : C ∈ insert (B ++ B') ((c.blocks.erase B).erase B') ↔
       C = B ++ B' ∨ (C ≠ B' ∧ C ≠ B ∧ C ∈ c.blocks) := by
     simp only [Finset.mem_insert, Finset.mem_erase]
-  -- Every old block lies inside a new one.
-  have hsup (C : List V) (hC : C ∈ c.blocks) :
-      ∃ D ∈ insert (B ++ B') ((c.blocks.erase B).erase B'), ∀ v ∈ C, v ∈ D := by
-    by_cases h : C = B ∨ C = B'
-    · refine ⟨B ++ B', Finset.mem_insert_self _ _, ?_⟩
-      rcases h with rfl | rfl <;> intro v hv <;> simp [hv]
-    · rw [not_or] at h
-      exact ⟨C, hmem.2 (Or.inr ⟨h.2, h.1, hC⟩), fun v hv => hv⟩
-  have hcard : (insert (B ++ B') ((c.blocks.erase B).erase B')).card + 1 = c.blocks.card := by
-    have hnot : B ++ B' ∉ (c.blocks.erase B).erase B' := by
-      intro h
-      simp only [Finset.mem_erase] at h
-      obtain ⟨v, hv⟩ := List.exists_mem_of_ne_nil B (c.ne_nil B hB)
-      exact h.2.1 (c.eq_of_mem _ h.2.2 B hB v (List.mem_append_left _ hv) hv)
-    rw [Finset.card_insert_of_notMem hnot, Finset.card_erase_of_mem
-      (Finset.mem_erase.2 ⟨hne.symm, hB'⟩), Finset.card_erase_of_mem hB]
-    have := Finset.one_lt_card.2 ⟨B, hB, B', hB', hne⟩
-    omega
   have happ (L L' : List V) : {v | v ∈ L ++ L'} = {v | v ∈ L} ∪ {v | v ∈ L'} :=
     Set.ext fun _ => List.mem_append
-  refine ⟨{ blocks := insert (B ++ B') ((c.blocks.erase B).erase B')
-            exists_mem := ?_, eq_of_mem := ?_, nodup := ?_, ne_nil := ?_
-            ncard_edgeCut_le := ?_, ncard_edgeCut_take_le := ?_, card_le := ?_ },
-    Nat.lt_of_succ_le hcard.le⟩
+  refine { blocks := insert (B ++ B') ((c.blocks.erase B).erase B')
+           exists_mem := ?_, eq_of_mem := ?_, nodup := ?_, ne_nil := ?_
+           ncard_edgeCut_le := ?_, ncard_edgeCut_take_le := ?_, card_le := ?_ }
   · intro v
     obtain ⟨C, hC, hv⟩ := c.exists_mem v
-    obtain ⟨D, hD, hCD⟩ := hsup C hC
-    exact ⟨D, hD, hCD v hv⟩
+    by_cases h : C = B ∨ C = B'
+    · refine ⟨B ++ B', Finset.mem_insert_self _ _, ?_⟩
+      rcases h with rfl | rfl <;> simp [hv]
+    · rw [not_or] at h
+      exact ⟨C, hmem.2 (Or.inr ⟨h.2, h.1, hC⟩), hv⟩
   · simp only [hmem]
     rintro C (rfl | ⟨hC₁, hC₂, hC⟩) C' (rfl | ⟨hC₁', hC₂', hC'⟩) v hv hv'
     · rfl
@@ -198,12 +241,10 @@ private theorem exists_merge [Finite E] {B B' : List V} (hB : B ∈ c.blocks) (h
     · rw [List.length_append] at hk ⊢
       rw [List.take_append]
       rcases lt_or_ge k B.length with hk' | hk'
-      · -- A proper prefix of the first part.
-        rw [Nat.sub_eq_zero_of_le hk'.le, List.take_zero, List.append_nil]
+      · rw [Nat.sub_eq_zero_of_le hk'.le, List.take_zero, List.append_nil]
         exact (c.ncard_edgeCut_take_le B hB k hk').trans
           (Nat.mul_le_mul_left d (Nat.log_mono_right (by omega)))
-      · -- The first part followed by a proper prefix of the second, at most half as long.
-        rw [List.take_of_length_le hk']
+      · rw [List.take_of_length_le hk']
         have hb : B'.length ≠ 0 := by omega
         have h₁ := G.ncard_edgeCut_union_le {v | v ∈ B} {v | v ∈ B'.take (k - B.length)}
         have h₃ := c.ncard_edgeCut_le B hB
@@ -216,34 +257,34 @@ private theorem exists_merge [Finite E] {B B' : List V} (hB : B ∈ c.blocks) (h
         rw [happ]
         omega
     · exact c.ncard_edgeCut_take_le C hC k hk
-  · -- The old inside edges and the edges joining `B` to `B'` are now inside.
-    have hsub : {e | ∃ D ∈ c.blocks, G.src e ∈ D ∧ G.tgt e ∈ D} ∪
-        (G.edgeCut {v | v ∈ B} ∩ G.edgeCut {v | v ∈ B'}) ⊆ {e | ∃ D ∈ insert (B ++ B')
-          ((c.blocks.erase B).erase B'), G.src e ∈ D ∧ G.tgt e ∈ D} := by
-      rintro e (⟨C, hC, hs, ht⟩ | ⟨h₁, h₂⟩)
-      · obtain ⟨D, hD, hCD⟩ := hsup C hC
-        exact ⟨D, hD, hCD _ hs, hCD _ ht⟩
-      · refine ⟨B ++ B', Finset.mem_insert_self _ _, ?_⟩
-        have := hd (G.src e)
-        have := hd (G.tgt e)
-        simp only [mem_edgeCut, mem_ofPred_eq] at h₁ h₂
-        simp only [List.mem_append]
-        tauto
-    have hdisj : Disjoint {e | ∃ D ∈ c.blocks, G.src e ∈ D ∧ G.tgt e ∈ D}
-        (G.edgeCut {v | v ∈ B} ∩ G.edgeCut {v | v ∈ B'}) := by
-      refine disjoint_left.2 ?_
-      rintro e ⟨D, hD, hs, ht⟩ ⟨h₁, h₂⟩
-      have key (C : List V) (hC : C ∈ c.blocks) (h : e ∈ G.edgeCut {v | v ∈ C}) : D = C := by
-        simp only [mem_edgeCut, mem_ofPred_eq] at h
-        by_cases hs' : G.src e ∈ C
-        · exact c.eq_of_mem D hD C hC _ hs hs'
-        · exact c.eq_of_mem D hD C hC _ ht (by tauto)
-      exact hne ((key B hB h₁).symm.trans (key B' hB' h₂))
-    have := ncard_le_ncard hsub
-    rw [ncard_union_eq hdisj] at this
+  · have hcard := c.card_insert_append_erase_add_one hB hB' hne
+    have hinc := c.ncard_internal_add_join_le hB hB' hne
     have := hjoin.ncard_pos
     have := c.card_le
     omega
+
+@[simp]
+theorem blocks_merge [DecidableEq V] [Finite E] {B B' : List V} (hB : B ∈ c.blocks)
+    (hB' : B' ∈ c.blocks) (hne : B ≠ B') (hlen : B'.length ≤ B.length)
+    (hjoin : (G.edgeCut {v | v ∈ B} ∩ G.edgeCut {v | v ∈ B'}).Nonempty)
+    (hcut : (G.edgeCut ({v | v ∈ B} ∪ {v | v ∈ B'})).ncard ≤ d) :
+    (c.merge hB hB' hne hlen hjoin hcut).blocks =
+      insert (B ++ B') ((c.blocks.erase B).erase B') := rfl
+
+/-- **Merging.** Two distinct blocks joined by an edge, with at most `d` edges leaving their
+union, may be replaced by their union, listing the longer block first. -/
+private theorem exists_merge [Finite E] {B B' : List V} (hB : B ∈ c.blocks) (hB' : B' ∈ c.blocks)
+    (hne : B ≠ B') (hjoin : (G.edgeCut {v | v ∈ B} ∩ G.edgeCut {v | v ∈ B'}).Nonempty)
+    (hcut : (G.edgeCut ({v | v ∈ B} ∪ {v | v ∈ B'})).ncard ≤ d) :
+    ∃ c' : Compression G d, c'.blocks.card < c.blocks.card := by
+  classical
+  rcases le_total B'.length B.length with hlen | hlen
+  · exact ⟨c.merge hB hB' hne hlen hjoin hcut,
+      Nat.lt_of_succ_le (c.card_insert_append_erase_add_one hB hB' hne).le⟩
+  · rw [inter_comm] at hjoin
+    rw [union_comm] at hcut
+    exact ⟨c.merge hB' hB hne.symm hlen hjoin hcut,
+      Nat.lt_of_succ_le (c.card_insert_append_erase_add_one hB' hB hne.symm).le⟩
 
 /-- A compression is *saturated* when no merge applies: more than `d` edges leave the union of
 any two distinct blocks joined by an edge. -/
@@ -325,7 +366,7 @@ def external : Set E :=
   {e | c.blockOf (G.src e) ≠ c.blockOf (G.tgt e)}
 
 /-- The edges outside the external edges are those inside a block. -/
-private theorem compl_external : c.externalᶜ = {e | ∃ B ∈ c.blocks, G.src e ∈ B ∧ G.tgt e ∈ B} := by
+theorem compl_external : c.externalᶜ = {e | ∃ B ∈ c.blocks, G.src e ∈ B ∧ G.tgt e ∈ B} := by
   ext e
   simp only [external, mem_compl_iff, mem_ofPred_eq, not_not]
   constructor

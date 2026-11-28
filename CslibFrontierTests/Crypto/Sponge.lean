@@ -10,7 +10,7 @@ import CslibFrontier.Crypto.Primitives.Hash.BlockCipherCompression
 /-!
 # Tests for the sponge construction and block-cipher compression functions
 
-Concrete evaluations of `pad`, `toBlocks` and `hash` on small parameters, explicit sponge
+Concrete evaluations of `pad10star`, `toBlocks` and `hash` on small parameters, explicit sponge
 collisions for a permutation acting separately on the rate and capacity parts, and explicit
 collisions for the compression functions of [KatzLindell2020], Exercises 7.23 and 7.24. The
 examples check that the hypotheses of the main results are satisfiable.
@@ -18,15 +18,15 @@ examples check that the hypotheses of the main results are satisfiable.
 
 namespace CslibFrontierTests.Crypto.Sponge
 
-open Cslib Cslib.Crypto Cslib.Crypto.Sponge Cslib.Crypto.BlockCipherCompression
+open Cslib Cslib.BitString Cslib.Crypto Cslib.Crypto.Sponge Cslib.Crypto.BlockCipherCompression
 
 /-! ### Padding and parsing -/
 
-example : pad 2 [] = [true, false] := rfl
+example : pad10star 2 [] = [true, false] := rfl
 
-example : pad 2 [true] = [true, true] := rfl
+example : pad10star 2 [true] = [true, true] := rfl
 
-example : pad 3 [false, true, true] = [false, true, true, true, false, false] := rfl
+example : pad10star 3 [false, true, true] = [false, true, true, true, false, false] := rfl
 
 example : toBlocks 2 [true, false, false, true, true] = [![true, false], ![false, true]] := by
   decide
@@ -50,12 +50,13 @@ example : hash swapState rateBit 2 [] = hash swapState rateBit 2 [false, false] 
 
 -- That collision triggers one of the bad events of Claim 7.8.
 example :
-    ImageCollision swapState rateBit (fun x => IsInput swapState (toBlocks 1 (pad 1 [])) x ∨
-        IsInput swapState (toBlocks 1 (pad 1 [false, false])) x) ∨
-      ZeroCapacity swapState (fun x => IsInput swapState (toBlocks 1 (pad 1 [])) x ∨
-        IsInput swapState (toBlocks 1 (pad 1 [false, false])) x) ∨
-      ImageCollision swapState Prod.snd (fun x => IsInput swapState (toBlocks 1 (pad 1 [])) x ∨
-        IsInput swapState (toBlocks 1 (pad 1 [false, false])) x) :=
+    ImageCollision swapState rateBit (fun x => IsInput swapState (toBlocks 1 (pad10star 1 [])) x ∨
+        IsInput swapState (toBlocks 1 (pad10star 1 [false, false])) x) ∨
+      ZeroCapacity swapState (fun x => IsInput swapState (toBlocks 1 (pad10star 1 [])) x ∨
+        IsInput swapState (toBlocks 1 (pad10star 1 [false, false])) x) ∨
+      ImageCollision swapState Prod.snd (fun x =>
+        IsInput swapState (toBlocks 1 (pad10star 1 [])) x ∨
+        IsInput swapState (toBlocks 1 (pad10star 1 [false, false])) x) :=
   badEvent_of_hash_eq one_pos swapState rateBit 1 (by decide) (by decide)
 
 /-! ### Exercise 7.26: a permutation acting separately on rate and capacity -/

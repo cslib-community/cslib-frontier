@@ -51,8 +51,7 @@ theorem isChain_freeBoundaryBlock_colors (g : PPGadget arity sem R) (w : GadgetW
       (RotationCertificate.cycleWord w.certificate marker.index).tail.map
         (fun j => (Dart.colorAtIndex P j, Dart.colorAtIndex (fun d => P d.reverse) j)) := by
     rw [getD_freeBoundaryBlocks, List.map_map]
-    apply List.map_congr_left
-    intro j hj
+    refine List.map_congr_left fun j hj => ?_
     obtain ⟨p, hp, _⟩ := (mem_variable_cycleWord_iff hc (gadgetProbeOccurrence g i) j).mp
       (List.mem_of_mem_tail hj)
     rw [hp]
@@ -66,8 +65,7 @@ theorem isChain_freeBoundaryBlock_colors (g : PPGadget arity sem R) (w : GadgetW
     simp only [Dart.colorAtIndex_index]
     rfl
   change List.IsChain _ ((P marker.reverse, P marker.reverse) :: _ ++ [(P marker, P marker)])
-  rw [hm]
-  exact h
+  rwa [hm]
 
 /-- An unused free port has equal colors on its two marker ends. This follows from the
 actual first-return word, rather than assuming that every boundary block is nonempty. -/
@@ -104,10 +102,8 @@ theorem marker_bit_eq_false_of_freeBoundaryBlock_nil
     (hx : ∀ d, (P d ^^ P d.reverse) = x d.1)
     (he : (freeBoundaryBlocks g w).getD i.val [] = []) :
     x (incidenceDart (gadgetProbeOccurrence g i) false).1 = false := by
-  have hc := marker_colors_eq_of_freeBoundaryBlock_nil g w i P hP he
   have hb := hx (incidenceDart (gadgetProbeOccurrence g i) false)
-  rw [hc, Bool.xor_self] at hb
-  exact hb.symm
+  rwa [marker_colors_eq_of_freeBoundaryBlock_nil g w i P hP he, Bool.xor_self, eq_comm] at hb
 
 /-- The actual auxiliary body cycle is a closed path of the probe's corner colors.
 The prefix restriction leaves every successor unchanged outside the canonical free ports;
@@ -165,8 +161,7 @@ theorem isChain_auxiliaryBoundaryBlock_colors (g : PPGadget arity sem R)
         word.map (fun j => (Dart.colorAtIndex P j,
           Dart.colorAtIndex (fun d => P d.reverse) j)) := by
       rw [List.map_map]
-      apply List.map_congr_left
-      intro j hj
+      refine List.map_congr_left fun j hj => ?_
       obtain ⟨p, rfl, _⟩ := (mem_variable_cycleWord_iff hc o j).mp hj
       have hd : 2 * incidenceEdgeIndex p / 2 = incidenceEdgeIndex p := by omega
       dsimp only [Function.comp_def]

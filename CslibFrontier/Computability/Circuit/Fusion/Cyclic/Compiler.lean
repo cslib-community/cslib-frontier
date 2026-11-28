@@ -105,14 +105,13 @@ theorem readState_pairValues :
     readState target input pairs (pairValues target input pairs) =
       pairClosure target input pairs := by
   have hread : readState target input pairs (pairValues target input pairs) ≤
-      pairClosure target input pairs := by
-    intro s point
+      pairClosure target input pairs := fun _ _ => by
     rintro (rfl | ⟨i, hi, hx⟩ | ⟨j, hj, hx, hy⟩)
     · exact .univ
     · exact (PairDerivation.input i hx).mono hi
     · exact (PairDerivation.inter (pairs.get j) (List.get_mem pairs j) hx hy).mono hj
   exact le_antisymm hread (pairClosure_le_readState target input pairs _
-    (fun j => Set.inter_subset_inter (hread _) (hread _)))
+    fun _ => Set.inter_subset_inter (hread _) (hread _))
 
 /-- A binary union tree with a constant seed; it contains no charged conjunctions of its own. -/
 def joinFormula {r : ℕ} (seed : Bool) : List (Formula Monotone.signature r) →
@@ -172,9 +171,8 @@ theorem eval_readFormula (s : Set ↥(targetᶜ)) (state : Fin (pairs.length + 1
         (Monotone.setInterpretation U) (Fin.append input state) ↔
           p ∧ point ∈ Fin.append input state i := by
     by_cases hp : p <;> simp [hp, Monotone.const]
-  simp only [readFormula, mem_eval_joinFormula, List.mem_append, or_and_right, exists_or,
-    List.mem_ofFn]
-  simp [readState, hite]
+  simp [readFormula, mem_eval_joinFormula, List.mem_append, or_and_right, exists_or,
+    List.mem_ofFn, readState, hite]
 
 /-- One conjunction for each pair, followed by the reconstructed empty-index output. -/
 noncomputable def updateFormula : Fin (pairs.length + 1) →
@@ -211,18 +209,14 @@ private theorem outputGate_pi {r m : ℕ} (cs : Fin m → Circuit Monotone.signa
 /-- Every compiled update output is an internal gate, so closing feedback adds no operations. -/
 theorem updateCircuit_outputs (i : Fin (pairs.length + 1)) :
     ∃ j, (updateCircuit target input pairs).outputs i = .gate j := by
-  apply outputGate_pi
-  intro j
-  have h : ∃ op args, updateFormula target input pairs j = .gate op args := by
-    induction j using Fin.lastCases with
-    | last =>
-      simpa only [updateFormula, Fin.lastCases_last, readFormula] using joinFormula_isGate _ _
-    | cast j =>
-      rw [updateFormula, Fin.lastCases_castSucc]
-      exact ⟨_, _, rfl⟩
-  obtain ⟨op, args, h⟩ := h
-  rw [h]
-  exact ⟨Fin.natAdd _ (0 : Fin 1), rfl⟩
+  refine outputGate_pi _ (fun j => ?_) i
+  obtain ⟨op, args, h⟩ : ∃ op args, updateFormula target input pairs j = .gate op args :=
+    Fin.lastCases
+      (by simpa only [updateFormula, Fin.lastCases_last, readFormula] using joinFormula_isGate _ _)
+      (fun j => by
+        rw [updateFormula, Fin.lastCases_castSucc]
+        exact ⟨_, _, rfl⟩) j
+  exact h ▸ ⟨Fin.natAdd _ (0 : Fin 1), rfl⟩
 
 /-- The update uses exactly one charged conjunction per listed pair occurrence. -/
 theorem cost_updateCircuit :
@@ -239,12 +233,10 @@ theorem eval_updateCircuit (state : Fin (pairs.length + 1) → Set U) :
             readState target input pairs (state ∘ Fin.castSucc) (pairs.get j).2) := by
   funext j
   simp only [updateCircuit, Circuit.eval_pi, Formula.eval_toCircuit]
-  induction j using Fin.lastCases with
-  | last =>
-    simpa only [updateFormula, Fin.lastCases_last] using
-      eval_readFormula target input pairs ∅ state
-  | cast j =>
-    simp [updateFormula, Monotone.and, eval_readFormula]
+  exact Fin.lastCases
+    (by simpa only [updateFormula, Fin.lastCases_last] using
+      eval_readFormula target input pairs ∅ state)
+    (fun j => by simp [updateFormula, Monotone.and, eval_readFormula]) j
 
 /-- Close the finite update program by feeding its outputs back into its state inputs. -/
 noncomputable def circuit : CyclicCircuit Monotone.signature n (pairs.length + 1) :=
@@ -262,39 +254,33 @@ theorem eval_circuit :
         Fin.lastCases (pairClosure target input pairs ∅) (pairValues target input pairs) := by
   let values : Fin (pairs.length + 1) → Set U :=
     Fin.lastCases (pairClosure target input pairs ∅) (pairValues target input pairs)
-  have hvalues : values ∘ Fin.castSucc = pairValues target input pairs := by
-    funext j
-    simp only [Function.comp_apply, values, Fin.lastCases_castSucc]
+  have hvalues : values ∘ Fin.castSucc = pairValues target input pairs :=
+    funext fun _ => by simp [values]
   have hfixed : (updateCircuit target input pairs).eval (Monotone.setInterpretation U)
       (Fin.append input values) = values := by
     rw [eval_updateCircuit, hvalues, readState_pairValues]
     rfl
-  apply le_antisymm
-  · exact (updateCircuit target input pairs).eval_feedback_le _ _
-      Monotone.setInterpretation_mono input hfixed.le
-  · let state := (circuit target input pairs).eval (Monotone.setInterpretation U)
-      Monotone.setInterpretation_mono input
-    have hstate : (updateCircuit target input pairs).eval (Monotone.setInterpretation U)
-        (Fin.append input state) = state :=
-      (updateCircuit target input pairs).eval_feedback_fixed _ _
-        Monotone.setInterpretation_mono input
-    rw [eval_updateCircuit] at hstate
-    have hpair (j : Fin pairs.length) :
-        readState target input pairs (state ∘ Fin.castSucc) (pairs.get j).1 ∩
-          readState target input pairs (state ∘ Fin.castSucc) (pairs.get j).2 =
-            state j.castSucc := by
-      simpa only [Fin.lastCases_castSucc] using congrFun hstate j.castSucc
-    have hlast : readState target input pairs (state ∘ Fin.castSucc) ∅ =
-        state (Fin.last pairs.length) := by
-      simpa only [Fin.lastCases_last] using congrFun hstate (Fin.last pairs.length)
-    have hclosure := pairClosure_le_readState target input pairs (state ∘ Fin.castSucc)
-      (fun j => (hpair j).le)
-    intro j
-    induction j using Fin.lastCases with
-    | last => simpa only [Fin.lastCases_last] using (hclosure ∅).trans_eq hlast
-    | cast j =>
-      simpa only [Fin.lastCases_castSucc, pairValues] using
-        (Set.inter_subset_inter (hclosure _) (hclosure _)).trans_eq (hpair j)
+  refine le_antisymm ((updateCircuit target input pairs).eval_feedback_le _ _
+    Monotone.setInterpretation_mono input hfixed.le) ?_
+  let state := (circuit target input pairs).eval (Monotone.setInterpretation U)
+    Monotone.setInterpretation_mono input
+  have hstate : Fin.lastCases (readState target input pairs (state ∘ Fin.castSucc) ∅)
+      (fun j => readState target input pairs (state ∘ Fin.castSucc) (pairs.get j).1 ∩
+        readState target input pairs (state ∘ Fin.castSucc) (pairs.get j).2) = state :=
+    (eval_updateCircuit target input pairs state).symm.trans
+      ((updateCircuit target input pairs).eval_feedback_fixed _ _
+        Monotone.setInterpretation_mono input)
+  have hpair (j : Fin pairs.length) :
+      readState target input pairs (state ∘ Fin.castSucc) (pairs.get j).1 ∩
+        readState target input pairs (state ∘ Fin.castSucc) (pairs.get j).2 = state j.castSucc := by
+    simpa only [Fin.lastCases_castSucc] using congrFun hstate j.castSucc
+  have hclosure := pairClosure_le_readState target input pairs (state ∘ Fin.castSucc)
+    fun j => (hpair j).le
+  refine Fin.lastCases ?_ fun j => ?_
+  · simpa only [Fin.lastCases_last] using (hclosure ∅).trans_eq
+      (by simpa only [Fin.lastCases_last] using congrFun hstate (Fin.last pairs.length))
+  · simpa only [Fin.lastCases_castSucc, pairValues] using
+      (Set.inter_subset_inter (hclosure _) (hclosure _)).trans_eq (hpair j)
 
 end Cslib.Circuits.Fusion.PairClosureCompiler
 
@@ -319,12 +305,11 @@ noncomputable def PairCover.toCyclic (c : PairCover target input) :
 /-- The least solution of the compiled unrestricted cover is exactly its target. -/
 @[simp] theorem PairCover.eval_toCyclic (c : PairCover target input) :
     c.toCyclic.eval (Monotone.setInterpretation U) Monotone.setInterpretation_mono input =
-      fun _ => target := by
-  funext i
-  change (PairClosureCompiler.circuit target input c.pairs).eval (Monotone.setInterpretation U)
-    Monotone.setInterpretation_mono input (Fin.last c.pairs.length) = target
-  rw [PairClosureCompiler.eval_circuit]
-  simp only [Fin.lastCases_last, c.pairClosure_empty]
+      fun _ => target :=
+  funext fun _ => by
+    change (PairClosureCompiler.circuit target input c.pairs).eval (Monotone.setInterpretation U)
+      Monotone.setInterpretation_mono input (Fin.last c.pairs.length) = target
+    simp only [PairClosureCompiler.eval_circuit, Fin.lastCases_last, c.pairClosure_empty]
 
 /-- Unrestricted semifilter cover complexity is exactly binary cyclic AND complexity,
 with free unions and constants, on arbitrary carriers and supplied input sets. -/
@@ -332,14 +317,11 @@ theorem pairCoverComplexity_eq_cyclic_ecomplexityFrom (target : Set U) (input : 
     pairCoverComplexity target input =
       CyclicCircuit.ecomplexityFrom (Monotone.setInterpretation U)
         Monotone.setInterpretation_mono Monotone.andCost
-        (fun _ : Unit => fun _ : Fin 1 => target) (fun _ => input) := by
-  apply le_antisymm
-  · exact pairCoverComplexity_le_cyclic_ecomplexityFrom (fun _ => input)
-      (fun _ : Unit => fun _ : Fin 1 => target) () 0
-  · apply le_pairCoverComplexity_iff.mpr
-    intro c
-    simpa only [PairCover.cost_toCyclic] using
-      CyclicCircuit.ecomplexityFrom_le_of_computesFrom (weight := Monotone.andCost)
-        c.toCyclic (fun _ => c.eval_toCyclic)
+        (fun _ : Unit => fun _ : Fin 1 => target) (fun _ => input) :=
+  le_antisymm (pairCoverComplexity_le_cyclic_ecomplexityFrom (fun _ => input)
+    (fun _ : Unit => fun _ : Fin 1 => target) () 0) <| le_pairCoverComplexity_iff.mpr fun c => by
+      simpa only [PairCover.cost_toCyclic] using
+        CyclicCircuit.ecomplexityFrom_le_of_computesFrom (weight := Monotone.andCost)
+          c.toCyclic (fun _ => c.eval_toCyclic)
 
 end Cslib.Circuits.Fusion

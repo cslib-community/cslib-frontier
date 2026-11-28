@@ -76,9 +76,7 @@ namespace Log
 theorem birth_le (es : Log F) (v : V) : es.birth v ≤ 2 * es.length := by
   induction es with
   | nil => exact Nat.le_refl _
-  | cons e es ih =>
-    simp only [birth]
-    split <;> simp only [List.length_cons] <;> omega
+  | cons e es ih => by_cases h : v ∈ e.outputs.map Occurrence.var <;> simp [birth, h] <;> omega
 
 end Log
 
@@ -91,50 +89,34 @@ variable {sem : Rel → List Bool → Bool} {f : OccurrenceLabeling F Bool}
 theorem used_nodup (hg : Grown sem f rs es) : es.used.Nodup := by
   induction hg with
   | nil => simp [Log.used]
-  | @cons es e hp hv hu hf hn hfe hs ih =>
-    have hout : e.outputs.Nodup := hn.of_map Occurrence.var
-    have hd : List.Pairwise (fun a b : Occurrence F => a ≠ b) (e.outputs ++ es.used) := by
-      rw [List.pairwise_append]
-      refine ⟨hout, ih, ?_⟩
-      intro a ha b hb he
-      exact hf a ha (he.symm ▸ Log.Grown.used_visited hp hb)
-    rw [Log.used, List.nodup_cons]
-    refine ⟨?_, hd⟩
-    intro h
-    rcases List.mem_append.mp h with ho | ho
-    · exact hf e.input ho hv
-    · exact hu ho
+  | @cons es e hp hv hu hf hn _ _ ih =>
+    rw [Log.used, List.nodup_cons, List.nodup_append]
+    refine ⟨fun h => ?_, hn.of_map Occurrence.var, ih, fun a ha b hb he =>
+      hf a ha (he.symm ▸ Log.Grown.used_visited hp hb)⟩
+    exact (List.mem_append.mp h).elim (fun ho => hf e.input ho hv) hu
 
 /-- A variable is discovered at most once, even across different copies of a constraint. -/
 theorem children_nodup (hg : Grown sem f rs es) : es.children.Nodup := by
   induction hg with
   | nil => simp [Log.children]
-  | @cons es e hp hv hu hf hn hfe hs ih =>
+  | @cons es e hp hv hu hf hn _ _ ih =>
     rw [Log.children, List.nodup_append]
-    refine ⟨hn, ih, ?_⟩
-    intro v hv w hw he
+    refine ⟨hn, ih, fun v hv _ hw he => ?_⟩
     obtain ⟨o, ho, rfl⟩ := List.mem_map.mp hv
     exact hf o ho (Or.inr (he.symm ▸ hw))
 
 /-- Incidence uniqueness, including orientation and timestamp, follows from the executable
 port-accounting invariant rather than an assumed graph property. -/
 theorem unique (hg : Grown sem f rs es) {a b : Arc F}
-    (ha : a ∈ es.arcs) (hb : b ∈ es.arcs) (he : a.occurrence = b.occurrence) : a = b := by
-  have hn : (es.arcs.map Arc.occurrence).Nodup := by
-    rw [Log.map_arcs_occurrence]
-    exact hg.used_nodup
-  exact List.inj_on_of_nodup_map hn ha hb he
+    (ha : a ∈ es.arcs) (hb : b ∈ es.arcs) (he : a.occurrence = b.occurrence) : a = b :=
+  List.inj_on_of_nodup_map (Log.map_arcs_occurrence es ▸ hg.used_nodup) ha hb he
 
 /-- Every variable has at most one incoming incidence arc (copy-to-variable orientation). -/
 theorem indegree (hg : Grown sem f rs es) {a b : Arc F}
     (ha : a ∈ es.arcs) (hb : b ∈ es.arcs)
     (hai : a.incoming = false) (hbi : b.incoming = false)
-    (he : a.occurrence.var = b.occurrence.var) : a = b := by
-  have hn : ((es.arcs.filter fun a => !a.incoming).map
-      fun a => a.occurrence.var).Nodup := by
-    rw [Log.map_outgoing_arcs]
-    exact hg.children_nodup
-  exact List.inj_on_of_nodup_map hn
+    (he : a.occurrence.var = b.occurrence.var) : a = b :=
+  List.inj_on_of_nodup_map (Log.map_outgoing_arcs es ▸ hg.children_nodup)
     (List.mem_filter.mpr ⟨ha, by simp [hai]⟩)
     (List.mem_filter.mpr ⟨hb, by simp [hbi]⟩) he
 
@@ -164,25 +146,19 @@ including later incoming ports. This is condition 6 of Definition 32. -/
 theorem noShortcut (hg : Grown sem f rs es) (hF : EdgeInstance F)
     {a b : Arc F} (ha : a ∈ es.arcs) (hb : b ∈ es.arcs) (hai : a.incoming = true)
     (hc : a.occurrence.1 = b.occurrence.1) (ht : a.time < b.time) :
-    ¬ ValidLabeling sem (pairFlip f a.occurrence b.occurrence) := by
-  intro hvalid
+    ¬ ValidLabeling sem (pairFlip f a.occurrence b.occurrence) := fun hvalid => by
   by_cases hv : a.occurrence.var = b.occurrence.var
-  · have he := hg.unique ha hb (hF.eq_of_constraint_eq hv hc)
-    exact Nat.ne_of_lt ht (congrArg Arc.time he)
-  · have hpartner := (mem_partners sem f a.occurrence b.occurrence).mpr ⟨hc, hv, hvalid⟩
-    obtain ⟨c, hcm, hco, hci, hct⟩ := hg.saturated ha hai hpartner
-    have he := hg.unique hcm hb hco
-    have het : c.time = b.time := congrArg Arc.time he
-    omega
+  · exact ht.ne (congrArg Arc.time (hg.unique ha hb (hF.eq_of_constraint_eq hv hc)))
+  · obtain ⟨c, hcm, hco, -, hct⟩ :=
+      hg.saturated ha hai ((mem_partners sem f a.occurrence b.occurrence).mpr ⟨hc, hv, hvalid⟩)
+    exact (ht.trans_le (congrArg Arc.time (hg.unique hcm hb hco) ▸ hct)).false
 
 private theorem birth_old {e : Expansion F}
     (hf : ∀ o ∈ e.outputs, ¬ es.Visited rs o.var) {v : V}
-    (hv : es.Visited rs v) : Log.birth (e :: es) v = es.birth v := by
-  have hn : v ∉ e.outputs.map Occurrence.var := by
-    intro hm
-    obtain ⟨o, ho, he⟩ := List.mem_map.mp hm
-    exact hf o ho (he.symm ▸ hv)
-  simp [Log.birth, hn]
+    (hv : es.Visited rs v) : Log.birth (e :: es) v = es.birth v :=
+  ite_eq_right fun hm => by
+    obtain ⟨o, ho, rfl⟩ := List.mem_map.mp hm
+    exact hf o ho hv
 
 /-- Every recorded directed arc increases its chronological node rank. -/
 theorem rank_arc (hg : Grown sem f rs es) {a : Arc F} (ha : a ∈ es.arcs) :
@@ -190,18 +166,13 @@ theorem rank_arc (hg : Grown sem f rs es) {a : Arc F} (ha : a ∈ es.arcs) :
     else 2 * a.time + 1 < es.birth a.occurrence.var := by
   induction hg with
   | nil => simp [Log.arcs] at ha
-  | @cons es e hp hv hu hf hn hfe hs ih =>
+  | @cons es e hp hv hu hf _ _ _ ih =>
     simp only [Log.arcs, List.mem_cons, List.mem_append, List.mem_map] at ha
     rcases ha with rfl | ⟨o, ho, rfl⟩ | ha
-    · simp only [↓reduceIte, birth_old hf hv]
-      have hb := es.birth_le e.input.var
-      omega
-    · have hm : o.var ∈ e.outputs.map Occurrence.var := List.mem_map.mpr ⟨o, ho, rfl⟩
-      simp only [Bool.false_eq_true, ↓reduceIte, Log.birth, hm]
-      omega
-    · have hv := Log.Grown.used_visited hp (es.mem_arcs ha).1
-      rw [birth_old hf hv]
-      exact ih ha
+    · have := es.birth_le e.input.var
+      simp only [↓reduceIte, birth_old hf hv]; omega
+    · simp only [Bool.false_eq_true, ↓reduceIte, Log.birth, List.mem_map.mpr ⟨o, ho, rfl⟩]; omega
+    · exact birth_old hf (Log.Grown.used_visited hp (es.mem_arcs ha).1) ▸ ih ha
 
 /-- Different original constraint positions cannot share a timestamp. -/
 theorem copy_unique (hg : Grown sem f rs es) {a b : Arc F}
@@ -220,10 +191,8 @@ theorem copy_unique (hg : Grown sem f rs es) {a b : Arc F}
     rcases hcase a ha with ha | ⟨hat, hac⟩ <;>
       rcases hcase b hb with hb | ⟨hbt, hbc⟩
     · exact ih ha hb
-    · have hlt := (es.mem_arcs ha).2
-      omega
-    · have hlt := (es.mem_arcs hb).2
-      omega
+    · exact absurd (es.mem_arcs ha).2 (by omega)
+    · exact absurd (es.mem_arcs hb).2 (by omega)
     · exact hac.trans hbc.symm
 
 /-- The source's timestamp-compatible topological order, witnessed by an explicit finite
@@ -238,8 +207,7 @@ theorem ordered (hg : Grown sem f rs es) : (es.toDAG rs).Ordered := by
     rcases hxy with ⟨a, ha, rfl, rfl⟩ | ⟨c, hc, d, hd, ht, rfl, rfl⟩
     · have hr := hg.rank_arc (List.mem_toFinset.mp ha)
       cases hi : a.incoming <;> simpa [Arc.source, Arc.target, hi, Arc.copy] using hr
-    · dsimp only [Sum.elim]
-      omega
+    · simp only [Sum.elim]; omega
 
 /-- Feasibility at every copied constraint, with cancellation of equal input ports. -/
 theorem feasible (hg : Grown sem f rs es) (hf : ValidLabeling sem f)
@@ -248,24 +216,18 @@ theorem feasible (hg : Grown sem f rs es) (hf : ValidLabeling sem f)
     ValidLabeling sem (pairFlip f a.occurrence b.occurrence) := by
   induction hg with
   | nil => simp [Log.arcs] at ha
-  | @cons es e hp hv hu hfresh hn hfe hs ih =>
+  | @cons es e _ _ _ _ _ hfe _ ih =>
     have ht : a.time = b.time := congrArg Prod.snd hc
     simp only [Log.arcs, List.mem_cons, List.mem_append, List.mem_map] at ha hb
     rcases ha with rfl | ⟨o, ho, rfl⟩ | ha
     · rcases hb with rfl | ⟨o, ho, rfl⟩ | hb
       · simpa only [pairFlip_self] using hf
       · exact ((mem_partners sem f _ _).mp (hfe o ho)).2.2
-      · have hlt := (es.mem_arcs hb).2
-        simp only at ht
-        omega
+      · exact absurd ht.symm (es.mem_arcs hb).2.ne
     · cases hai
-    · rcases hb with rfl | ⟨o, ho, rfl⟩ | hb
-      · have hlt := (es.mem_arcs ha).2
-        simp only at ht
-        omega
-      · have hlt := (es.mem_arcs ha).2
-        simp only at ht
-        omega
+    · rcases hb with rfl | ⟨_, _, rfl⟩ | hb
+      · exact absurd ht (es.mem_arcs ha).2.ne
+      · exact absurd ht (es.mem_arcs ha).2.ne
       · exact ih ha hb
 
 /-- Lemma 34 for completed expansions, derived from chronological growth, including full
@@ -288,9 +250,6 @@ theorem search_completed_isFDAG (sem : Rel → List Bool → Bool)
     (f : OccurrenceLabeling F Bool) (hF : EdgeInstance F) (hf : ValidLabeling sem f) :
     (search sem f).Logs (fun es => (es.toDAG (roots f)).IsFDAG sem f) := by
   have hg := search_grown sem f hF
-  cases hr : search sem f with
-  | exhausted es => rw [hr] at hg; exact Grown.isFDAG hg hF hf
-  | augment m => rw [hr] at hg; exact Grown.isFDAG hg hF hf
-  | blossom m => rw [hr] at hg; exact Grown.isFDAG hg hF hf
+  cases hr : search sem f <;> exact Grown.isFDAG (by rwa [hr] at hg) hF hf
 
 end Cslib.Logic.PL.CSP.Forest

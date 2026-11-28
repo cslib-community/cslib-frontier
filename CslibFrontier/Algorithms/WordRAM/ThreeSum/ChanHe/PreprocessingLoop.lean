@@ -113,11 +113,8 @@ private theorem ForestCursor.Invariant.root_budgets {a : Traversal.Arena} {w U :
     (Traversal.Math.work a.fuel * Traversal.allocationSize a.n a.m a.N) hm
   have ht := Nat.mul_le_mul_left (Traversal.Math.work a.fuel) hm
   rw [Nat.mul_one, Nat.mul_comm _ (l.count - s.index)] at hh ht
-  constructor <;> dsimp only [rootArena]
-  · have := h.heapBudget
-    omega
-  · have := h.tableBudget
-    omega
+  dsimp only [rootArena]
+  exact ⟨by have := h.heapBudget; omega, by have := h.tableBudget; omega⟩
 
 /-- Execute the next actual descriptor and its full recursion within that root's own budget. -/
 private theorem execute_next_root {a : Traversal.Arena} {w U : ℕ} {l : Frontend.Layout}
@@ -143,14 +140,9 @@ private theorem execute_next_root {a : Traversal.Arena} {w U : ℕ} {l : Fronten
   have hi : s.index < l.count := by
     simpa only [Cond.holds_lt, h.current, h.roots] using hc
   obtain ⟨hceil, htable⟩ := h.root_budgets hc
-  have hheap : x.regs Traversal.heap ≤ a.ceiling := by
-    have := h.heapBudget
-    omega
+  have hheap : x.regs Traversal.heap ≤ a.ceiling := by have := h.heapBudget; omega
   have hstack : a.stack ≤ x.regs Traversal.heap := by
-    have ht := ha.2.1
-    have hg := ha.2.2.1
-    have := h.floor
-    omega
+    have := ha.2.1; have := ha.2.2.1; have := h.floor; omega
   have haddr : l.descriptors + 6 * s.index + 5 ≤ a.ceiling := by
     have hd := l.descriptor_before (entry_slot hi (2 : Fin 3)) l.arrays
     change l.descriptors + 2 * (3 * s.index + 2) + 2 ≤ l.endpoint at hd
@@ -179,12 +171,8 @@ private theorem execute_next_root {a : Traversal.Arena} {w U : ℕ} {l : Fronten
       rw [hn, hU]
       exact entry_valid l U a.fuel s.index hkeys hnd hcard hvalues
     · simpa only [b, rootArena, Traversal.Arena.Bitmap, hmem] using h.bitmap
-    · intro j
-      apply Or.inl
-      exact (entry_ends l U a.fuel rs hcard hi j).trans hfront
-    · intro j
-      rw [pheap]
-      exact (entry_ends l U a.fuel rs hcard hi j).trans (hfront.trans hstack)
+    · exact fun j => Or.inl ((entry_ends l U a.fuel rs hcard hi j).trans hfront)
+    · exact fun j => pheap ▸ (entry_ends l U a.fuel rs hcard hi j).trans (hfront.trans hstack)
     · simpa only [b, rootArena, pheap] using h.floor
     · dsimp only [b, rootArena, e, entry]
       rw [pheap]
@@ -193,11 +181,8 @@ private theorem execute_next_root {a : Traversal.Arena} {w U : ℕ} {l : Fronten
     · simpa only [b, rootArena, hmem] using h.protectedMemory
   obtain ⟨out, y, he, hfinal, hout, hprefix, hregs⟩ :=
     Traversal.root_exec e s.nodes p hb hready hinput
-  refine ⟨out, y, hp.within.seq he, hfinal, hout, ?_, ?_⟩
-  · intro q hq
-    exact (hprefix q hq).trans (congrFun hmem q)
-  · intro i hi hj
-    exact (hregs i hi).trans (hpr i (Or.inr (by omega)) hj)
+  exact ⟨out, y, hp.within.seq he, hfinal, hout, fun q hq => (hprefix q hq).trans (congrFun hmem q),
+    fun i hi hj => (hregs i hi).trans (hpr i (Or.inr (by omega)) hj)⟩
 
 private theorem entries_drop_cons {l : Frontend.Layout} {U : ℕ} {rs : List (ℕ × ℕ)}
     {i : ℕ} (hi : i < l.count) :
@@ -229,12 +214,12 @@ private theorem forest_body_exec {a : Traversal.Arena} {w U : ℕ} {l : Frontend
     execute_next_root ha hw h hc hn hU hfront hkeys hnd hcard hvalues
   have yi : y.regs current = s.index := by regs_frame
   have yo : y.regs one = 1 := by regs_frame
-  have hfit : Fits (w + 2) (s.index + 1) := (h.bounded.1 roots).of_le (by
-    rw [h.roots]
-    omega)
+  have hfit : Fits (w + 2) (s.index + 1) :=
+    (h.bounded.1 roots).of_le (by rw [h.roots]; omega)
   let z := y.set current (s.index + 1)
   have hz : Exec (B := .standard) (w + 2) (.op (.bin .add current current one)) y z 1 := by
-    ram_eval [z, yi, yo, hfit]
+    dsimp only [z]
+    wram_exec [yi, yo]
   have zreg (i : Fin 128) (hi : i ≠ current) : z.regs i = y.regs i := by
     simp only [z, Data.set_regs, Function.update_of_ne hi]
   have hheap := h.heapBudget
@@ -266,8 +251,7 @@ private theorem forest_body_exec {a : Traversal.Arena} {w U : ℕ} {l : Frontend
         simpa only [rootArena, Traversal.Cursor.work, List.map_nil,
           Traversal.Math.potential, List.sum_nil, Nat.zero_mul, Nat.add_zero] using hy.heapBudget
       change z.regs Traversal.heap + (l.count - (s.index + 1)) * _ ≤ _
-      rw [zreg _ (by decide)]
-      omega
+      rw [zreg _ (by decide)]; omega
     · regs_frame
     · have ht : out.length ≤ s.nodes.length + Traversal.Math.work a.fuel := by
         simpa only [rootArena, Traversal.Cursor.work, List.map_nil,
@@ -277,14 +261,10 @@ private theorem forest_body_exec {a : Traversal.Arena} {w U : ℕ} {l : Frontend
     · exact hy.output
     · simpa only [s', rootArena, zreg Traversal.heap (by decide)] using hy.outputBounds
     · change out.map Prod.snd ++ _ = _
-      rw [hout, List.append_assoc]
       have hm := h.exactOutput
-      rw [entries_drop_cons hi, List.map_cons, Traversal.Math.output,
-        List.flatMap_cons] at hm
-      rw [hf]
-      exact hm
-    · intro p hp
-      exact (hprefix p hp).trans (h.protectedMemory p hp)
+      rw [entries_drop_cons hi, List.map_cons, Traversal.Math.output, List.flatMap_cons] at hm
+      rwa [hout, List.append_assoc, hf]
+    · exact fun p hp => (hprefix p hp).trans (h.protectedMemory p hp)
 
 /-- Execute every native frontend root with exact finite output and all loop control charged. -/
 private theorem forest_exec {a : Traversal.Arena} {w U : ℕ} {l : Frontend.Layout}
@@ -306,10 +286,8 @@ private theorem forest_exec {a : Traversal.Arena} {w U : ℕ} {l : Frontend.Layo
     (fun (s : ForestCursor) y => s.Invariant a w l U rs y)
     (fun s => l.count - s.index)
     (fun s x hi hc => forest_body_exec ha hw hi hc hn hU hf hfront hkeys hnd hcard hvalues) h
-  have hend : s'.index = l.count := by
-    have hge : l.count ≤ s'.index := by
-      simpa only [Cond.holds_lt, hy.current, hy.roots, not_lt] using hc
-    exact hy.index_le.antisymm hge
+  have hend : s'.index = l.count := hy.index_le.antisymm (by
+    simpa only [Cond.holds_lt, hy.current, hy.roots, not_lt] using hc)
   refine ⟨s', y, he, hy, hend, ?_⟩
   have hlen : (entries l U rs).length = l.count := by
     simp only [entries, List.length_map, List.length_range]

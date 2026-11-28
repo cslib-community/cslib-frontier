@@ -58,11 +58,9 @@ theorem primitiveRoots_nonempty : (primitiveRoots (p - 1) (ZMod p)).Nonempty := 
   classical
   have hp : 1 < p := (Fact.out : p.Prime).one_lt
   obtain ⟨u, hu⟩ := IsCyclic.exists_ofOrder_eq_natCard (α := (ZMod p)ˣ)
-  have hu' : orderOf u = p - 1 := by
-    simpa only [Nat.card_eq_fintype_card, ZMod.card_units] using hu
-  have hγ : IsPrimitiveRoot (u : ZMod p) (p - 1) :=
-    IsPrimitiveRoot.coe_units_iff.mpr (IsPrimitiveRoot.iff_orderOf.mpr hu')
-  exact ⟨u, (mem_primitiveRoots (by omega)).mpr hγ⟩
+  refine ⟨u, (mem_primitiveRoots (by omega)).mpr (IsPrimitiveRoot.coe_units_iff.mpr ?_)⟩
+  exact IsPrimitiveRoot.iff_orderOf.mpr
+    (by simpa only [Nat.card_eq_fintype_card, ZMod.card_units] using hu)
 
 /-- The number of multiplicative generators is positive and strictly below the prime modulus.
 This includes `p = 2`, whose sole generator is one. -/
@@ -70,8 +68,7 @@ theorem primitiveRoots_card_bounds :
     0 < (primitiveRoots (p - 1) (ZMod p)).card ∧
       (primitiveRoots (p - 1) (ZMod p)).card < p := by
   obtain ⟨γ, hγ⟩ := primitiveRoots_nonempty (p := p)
-  have hroot := isPrimitiveRoot_of_mem_primitiveRoots hγ
-  simp only [hroot.card_primitiveRoots]
+  rw [(isPrimitiveRoot_of_mem_primitiveRoots hγ).card_primitiveRoots]
   have hp : 1 < p := (Fact.out : p.Prime).one_lt
   exact ⟨Nat.totient_pos.mpr (by omega), (Nat.totient_le (p - 1)).trans_lt (by omega)⟩
 
@@ -80,9 +77,7 @@ multiplicative inverse. -/
 theorem primitiveRoots_card_ne_zero :
     ((primitiveRoots (p - 1) (ZMod p)).card : ZMod p) ≠ 0 := by
   obtain ⟨hpos, hlt⟩ := primitiveRoots_card_bounds (p := p)
-  intro hzero
-  have hdiv := (ZMod.natCast_eq_zero_iff _ _).mp hzero
-  exact (not_le_of_gt hlt) (Nat.le_of_dvd hpos hdiv)
+  exact fun hzero => hlt.not_ge (Nat.le_of_dvd hpos ((ZMod.natCast_eq_zero_iff _ _).mp hzero))
 
 /-- At a primitive root, a nonzero element has one matching exponent, so the sum of all matching
 exponents is that exponent. No efficient algorithm is asserted here. -/
@@ -91,17 +86,11 @@ theorem generatorLogSum_spec {γ x : ZMod p} (hγ : IsPrimitiveRoot γ (p - 1))
   have hp : 1 < p := (Fact.out : p.Prime).one_lt
   let : NeZero (p - 1) := ⟨by omega⟩
   obtain ⟨e, he, hpow⟩ := hγ.eq_pow_of_pow_eq_one (ZMod.pow_card_sub_one_eq_one hx)
-  have hsum : generatorLogSum p γ x = e := by
-    unfold generatorLogSum
-    rw [Finset.sum_eq_single e]
-    · exact ite_eq_left hpow
-    · intro j hj hje
-      exact ite_eq_right fun h => hje
-        (hγ.pow_inj (Finset.mem_range.mp hj) he (h.trans hpow.symm))
-    · intro hnot
-      exact False.elim (hnot (Finset.mem_range.mpr he))
-  rw [hsum]
-  exact ⟨he, hpow⟩
+  suffices h : generatorLogSum p γ x = e from h ▸ ⟨he, hpow⟩
+  unfold generatorLogSum
+  refine (Finset.sum_eq_single e (fun j hj hje => ite_eq_right fun h => hje
+      (hγ.pow_inj (Finset.mem_range.mp hj) he (h.trans hpow.symm)))
+    (fun hnot => (hnot (Finset.mem_range.mpr he)).elim)).trans (ite_eq_left hpow)
 
 open Classical in
 /-- A finite product in a prime field is the average, over every multiplicative generator, of
@@ -117,8 +106,7 @@ theorem prod_eq_generator_average {ι : Type*} (s : Finset ι) (f : ι → ZMod 
       (if ∃ i ∈ s, f i = 0 then 0
         else γ ^ ((∑ i ∈ s, generatorLogSum p γ (f i)) % (p - 1))) = ∏ i ∈ s, f i := by
     by_cases hz : ∃ i ∈ s, f i = 0
-    · rw [ite_eq_left hz]
-      exact (Finset.prod_eq_zero_iff.mpr hz).symm
+    · rw [ite_eq_left hz, Finset.prod_eq_zero_iff.mpr hz]
     · rw [ite_eq_right hz]
       have hγ := isPrimitiveRoot_of_mem_primitiveRoots hmem
       calc
@@ -129,15 +117,7 @@ theorem prod_eq_generator_average {ι : Type*} (s : Finset ι) (f : ι → ZMod 
           (Finset.prod_pow_eq_pow_sum s (fun i => generatorLogSum p γ (f i)) γ).symm
         _ = ∏ i ∈ s, f i := Finset.prod_congr rfl fun i hi =>
           (generatorLogSum_spec hγ fun h => hz ⟨i, hi, h⟩).2
-  have hsum :
-      (∑ γ ∈ primitiveRoots (p - 1) (ZMod p),
-        if ∃ i ∈ s, f i = 0 then 0
-        else γ ^ ((∑ i ∈ s, generatorLogSum p γ (f i)) % (p - 1))) =
-          ((primitiveRoots (p - 1) (ZMod p)).card : ZMod p) * (∏ i ∈ s, f i) := by
-    calc
-      _ = ∑ _γ ∈ primitiveRoots (p - 1) (ZMod p), (∏ i ∈ s, f i) :=
-        Finset.sum_congr rfl hterm
-      _ = _ := by simp
-  rw [hsum, mul_div_cancel_left₀ _ (primitiveRoots_card_ne_zero (p := p))]
+  rw [Finset.sum_congr rfl hterm, Finset.sum_const, nsmul_eq_mul,
+    mul_div_cancel_left₀ _ (primitiveRoots_card_ne_zero (p := p))]
 
 end ZMod

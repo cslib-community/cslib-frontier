@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PrimeSelection.Program
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Charged strict-minimum updates
@@ -45,36 +46,16 @@ theorem exec_keep {w : ℕ} (x : Data 160) (hz : x.regs Reg.zero = 0)
           x.regs Reg.countResult else x.regs Reg.bestCount) ∧
       y.regs Reg.found = 1 ∧ y.mem = x.mem ∧
       ∀ i, i ≠ Reg.best → i ≠ Reg.bestCount → i ≠ Reg.found → y.regs i = x.regs i := by
-  by_cases h0 : x.regs Reg.found = 0
-  · let y := ((x.set Reg.best (x.regs Reg.cursor)).set Reg.bestCount
-      (x.regs Reg.countResult)).set Reg.found 1
-    have he : ExecWithin w keep x y 5 := by
-      ram_eval [keep, y, hz, ho, h0, Reg.best, Reg.bestCount, Reg.found,
-        Reg.zero, Reg.one, Reg.countResult, Reg.cursor, Fin.mk.injEq]
-    refine ⟨y, he, ?_, ?_, ?_, rfl, ?_⟩
-    · simp +decide [y, h0, Reg.best, Reg.bestCount, Reg.found]
-    · simp +decide [y, h0, Reg.best, Reg.bestCount, Reg.found]
-    · simp +decide [y, Reg.best, Reg.bestCount, Reg.found]
-    · intro i hb hc hf
-      simp only [y, Data.set_regs, Function.update_of_ne hf, Function.update_of_ne hc,
-        Function.update_of_ne hb]
-  · have h1 : x.regs Reg.found = 1 := hf.resolve_left h0
-    by_cases hlt : x.regs Reg.countResult < x.regs Reg.bestCount
-    · let y := (x.set Reg.best (x.regs Reg.cursor)).set Reg.bestCount
-        (x.regs Reg.countResult)
-      have he : ExecWithin w keep x y 5 := by
-        ram_eval [keep, y, hz, ho, h0, hlt, Reg.best, Reg.bestCount, Reg.found,
-          Reg.zero, Reg.one, Reg.countResult, Reg.cursor, Fin.mk.injEq]
-      refine ⟨y, he, ?_, ?_, ?_, rfl, ?_⟩
-      · simp +decide [y, h0, hlt, Reg.best, Reg.bestCount]
-      · simp +decide [y, h0, hlt, Reg.best, Reg.bestCount]
-      · simpa +decide [y, Function.update_apply, Reg.best, Reg.bestCount, Reg.found] using h1
-      · intro i hb hc _
-        simp only [y, Data.set_regs, Function.update_of_ne hc, Function.update_of_ne hb]
-    · have he : ExecWithin w keep x x 5 := by
-        exact ExecWithin.branch_neg (by simpa only [Cond.holds_eq, hz] using h0)
-          (ExecWithin.branch_neg hlt (exec_nop x))
-      exact ⟨x, he, by simp [h0, hlt], by simp [h0, hlt], h1, rfl,
-        fun _ _ _ _ => rfl⟩
+  unfold keep
+  wram_exec [hz, ho]
+  · exact ⟨by wram_simp [hc, true_or], by wram_simp [hc, true_or], by wram_simp, rfl,
+      fun i hb hc' hf' => by wram_simp [hb, hc', hf']⟩
+  · rename_i h0
+    exact ⟨by wram_simp [h0, hc, false_or], by wram_simp [h0, hc, false_or],
+      by wram_simp [hf.resolve_left h0], rfl,
+      fun i hb hc' _ => by wram_simp [hb, hc']⟩
+  · rename_i h0
+    exact ⟨by wram_simp [h0, hc, false_or], by wram_simp [h0, hc, false_or],
+      by wram_simp [hf.resolve_left h0], rfl, fun i _ _ _ => by wram_simp⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.PrimeSelection

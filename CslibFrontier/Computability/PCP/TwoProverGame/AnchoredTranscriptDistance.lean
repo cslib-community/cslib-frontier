@@ -141,20 +141,16 @@ private theorem dist_prior_completions_given_wins (S : RepeatedStrategy) (j : Fr
           ((Q.map Prod.fst).bind fun (t, v) => (pairGiven G α C j t).map ((t, v), ·)) := by
   intro Q P L K
   let J := Q.map fun r => (freeTrials C r j, restTranscript C j r)
-  have htrial : J.map Prod.fst = Q.map (fun r => freeTrials C r j) := PMF.map_comp _ _ _
-  have hmessage : J.map (Prod.map Prod.fst id) = messageAndRest C Q j := by
-    rw [PMF.map_comp]
-    rfl
-  have hk (z) (hz : z ∈ (J.map Prod.fst).support) : conditionalSnd J z = K z.2 :=
-    conditionalSnd_restTranscript_given_wins G α C S j hW z hz
-  have h := dist_prior_completions_le P J K hk
+  have htrial : J.map Prod.fst = Q.map fun r => freeTrials C r j := PMF.map_comp _ _ _
+  have hmessage : J.map (Prod.map Prod.fst id) = messageAndRest C Q j := PMF.map_comp _ _ _
+  have h := dist_prior_completions_le P J K
+    (conditionalSnd_restTranscript_given_wins G α C S j hW)
   dsimp only at h
   rw [hmessage, htrial] at h
   refine h.trans (add_le_add_right ?_ _)
   let read : (Revealed (Option X) (Option Y) C × (C → A × B)) × PairQ → _ :=
     fun ((t, v), q) => ((t.halves j, q), Shared.ofRevealed j t v)
   have hobs : J = (Q.map fun r => (r.1, r.2 j)).map read := by
-    dsimp only [J]
     rw [PMF.map_comp]
     rfl
   have hredraw : redraw (messageAndRest C Q j) (conditionalSnd P) =
@@ -217,10 +213,8 @@ private theorem both_anchor_comparisons (S : RepeatedStrategy) (j : Free)
   constructor
   · let M₁ := (messageAndRest C Q j).map Prod.fst
     have hm : dist M₁ M₀ ≤ d := by
-      change dist ((messageAndRest C Q j).map Prod.fst) M₀ ≤ d
-      rw [messageAndRest, PMF.map_comp]
-      have h := dist_map_le (Q.map fun r => freeTrials C r j) P Prod.fst
-      rwa [PMF.map_comp] at h
+      simpa only [M₁, M₀, messageAndRest, PMF.map_comp, Function.comp_def] using
+        dist_map_le (Q.map fun r => freeTrials C r j) P Prod.fst
     have ha : dist (M₁.bind a) (M₀.bind a) ≤ d := (dist_bind_le _ _ _).trans hm
     have hb : dist (M₀.bind b) (M₁.bind b) ≤ d := by
       rw [dist_comm]
@@ -246,10 +240,8 @@ private theorem both_anchor_comparisons (S : RepeatedStrategy) (j : Free)
           (P.map Prod.snd).bind fun q => (H q).map (q, ·) := by
       simp only [paired, forget, PMF.map_bind, PMF.map_comp, PMF.bind_map, Function.comp_def,
         Prod.map_apply, id_eq]
-    have hanchor : (M₀.bind a).bind k = questionsAndAnchoredRest G α C Q j := by
-      rw [show M₀.bind a = M₀.bind (fun m => (Function.const Message K₀ m).map (m, ·)) from rfl,
-        hmap]
-      exact hr (fun _ => K₀)
+    have hanchor : (M₀.bind a).bind k = questionsAndAnchoredRest G α C Q j :=
+      (hmap fun _ => K₀).trans (hr fun _ => K₀)
     have hother : (paired (K ∘ Prod.snd)).map forget = questionsAndRest G α C Q j := hr K
     have hleft : w * dist (questionsAndAnchoredRest G α C Q j) ((M₀.bind b).bind k) ≤ e := by
       rw [← hanchor]
@@ -287,14 +279,11 @@ theorem sum_dist_anchoredRest_given_wins (S : RepeatedStrategy)
   let e (j : Free) := dist (Q.map fun r => (r.1, r.2 j))
     ((Q.map Prod.fst).bind fun (t, v) => (pairGiven G α C j t).map ((t, v), ·))
   have hd : (∑ j, d j) ≤ ε₁ := by
-    have hcs := sq_sum_le_card_mul_sum_sq (s := Finset.univ) (f := d)
-    refine Real.le_sqrt_of_sq_le (hcs.trans ?_)
-    rw [Finset.card_univ]
-    have h := mul_le_mul_of_nonneg_left (sum_sq_dist_freeTrials_given_wins_le G α C S hW)
-      (Nat.cast_nonneg (α := ℝ) (Fintype.card Free))
-    have hrearrange : (Fintype.card Free : ℝ) * (Real.log (1 / p) / 2) =
-        Fintype.card Free * Real.log (1 / p) / 2 := by ring
-    exact h.trans_eq hrearrange
+    refine Real.le_sqrt_of_sq_le
+      ((sq_sum_le_card_mul_sum_sq (s := Finset.univ) (f := d)).trans ?_)
+    rw [Finset.card_univ, mul_div_assoc]
+    exact mul_le_mul_of_nonneg_left (sum_sq_dist_freeTrials_given_wins_le G α C S hW)
+      (Nat.cast_nonneg _)
   have he : (∑ j, e j) ≤ ε₂ := sum_dist_questions_given_wins_le G α C S hW
   have hw : 0 ≤ w := by dsimp only [w]; positivity
   constructor
@@ -315,7 +304,6 @@ theorem sum_dist_anchoredRest_given_wins (S : RepeatedStrategy)
         exact Finset.sum_le_sum fun j _ => (both_anchor_comparisons G α C S j hW).2
       _ ≤ _ := by
         rw [← Finset.mul_sum, Finset.sum_add_distrib, ← Finset.mul_sum]
-        exact mul_le_mul_of_nonneg_left (add_le_add (mul_le_mul_of_nonneg_left hd (by norm_num)) he)
-          (by positivity)
+        gcongr
 
 end Cslib.PCP.AnchoredDependency

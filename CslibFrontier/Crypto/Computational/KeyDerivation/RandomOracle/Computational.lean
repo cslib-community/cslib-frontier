@@ -7,24 +7,28 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Probabilistic.Oracle
-public import CslibFrontier.Computability.Probabilistic.Sampling
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.BitString
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Sigma
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
+public import CslibFrontier.Computability.Probabilistic.Oracle.CachedSampler
 public import CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle
-public import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
-public import CslibFrontier.Foundations.Data.BitString.List
+public import CslibFrontier.Crypto.Game.StatisticalIndistinguishability
+public import CslibFrontier.Languages.Probabilistic.Oracle.Codec
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 public import CslibFrontier.Languages.Probabilistic.UniformNat.ModIndex
+import CslibFrontier.Computability.Interactive.Security.Oracle
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.BitString
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
-import CslibFrontier.Computability.Probabilistic.Memoize
-import CslibFrontier.Computability.Probabilistic.Oracle.RunState
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sigma
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.QueryBounds
+import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Probabilistic.UniformNat.ModIndex
+import CslibFrontier.Foundations.Data.BitString.List
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
+import CslibFrontier.Languages.Probabilistic.RandomOracle.QueryHit
 import CslibFrontier.Languages.Probabilistic.UniformNat.LowerBound
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.DensityBounds
@@ -38,62 +42,72 @@ import CslibFrontier.Tactic.Negligible
 
 Formalizes the computational form of [BonehShoup2023], Section 8.10.1 (Attack Game 8.3 and its
 fourth motivating example, computational unpredictability of a secret source, pp. 325–326) and
-Section 8.10.2 (Theorem 8.10, pp. 331–332) over `secLen n`-bit secrets and `outLen n`-bit keys.
+Section 8.10.2 (Theorem 8.10, pp. 331–332) over general encoded finite secret families
+`S : ℕ → Type`, side-information families `X : ℕ → Type`, and digest/key families `T : ℕ → Type`,
+together with the specialization to `BitString (secLen n)` secrets and `BitString (outLen n)` keys.
 
 Whereas `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle` states eager-table
 (`uniformOfFintype (S → T)`) concrete bounds and an information-theoretic (unbounded-guesser)
 asymptotic transfer for arbitrary finite nonempty `S` and `T`, as steps toward Theorem 8.10,
 this module constructs the elementary lazy-simulation wrappers `lazyROToListGuess` and
-`lazyROToGuess` over associative-list caches (`cachedRandomFunctionOracle`), proves their uniform
-strict PPT certificates from a word-oracle distinguisher's `IsOraclePPTOn` certificate, and derives
-the asymptotic random-oracle KDF security transfer under the standard computational
-unpredictability assumption `SecretGuessHard`.
+`lazyROToGuess` over associative-list caches (`Cslib.Probability.cachedSamplerOracle`), proves
+their uniform strict PPT certificates from a word-oracle distinguisher's `IsOraclePPTOn`
+certificate, and derives the asymptotic random-oracle KDF security transfer under the standard
+computational unpredictability assumption `SecretGuessHard`.
 
 ## Differences from the printed book
 
-1. **Bit-string secrets and keys, arbitrary source and side-information maps.** Secrets have type
-   `BitString (secLen n)`, random-oracle replies and keys have type `BitString (outLen n)`, and
-   public side information lies in `X` encoded by `encX : X ↪ List Bool`. Neither `sample n` nor
-   `info n` is required to be efficiently computable; `SecretGuessHard.negligible_roAdvantage`
-   requires only that `encX (info n s)` has polynomial length in `n` on `(sample n).support`.
-   General non-bit-string finite oracle domains remain open (#6039).
+1. **General encoded finite families, arbitrary source and side-information maps.** At security
+   parameter `n`, secrets lie in a nonempty finite type `S n` encoded by `encS n : S n ↪ List Bool`
+   with canonical partial decoder `decS n : List Bool → Option (S n)` (`decS n w = some s ↔
+   encS n s = w`, polynomial-time `isSome` domain recognition, and a polynomial-time fallback
+   element `defaultS n`); digests and keys lie in a nonempty finite type `T n` encoded by
+   `encT n : T n ↪ List Bool`; and public side information lies in `X n` encoded by
+   `encX n : X n ↪ List Bool`. Neither `sample n` nor `info n` is required to be efficiently
+   computable; `SecretGuessHard.negligible_roAdvantage` requires only that `encX n (info n s)` has
+   polynomial length in `n` on `(sample n).support`.
 2. **Word-oracle distinguishers adapted to typed random-oracle games.** Distinguishers operate on
    words (`WordRODistinguisher X`) and are adapted to `RODistinguisher` by `toRODistinguisher`,
-   answering queries of length `secLen n` from the random oracle and returning `[]` on malformed
-   queries.
-3. **Fair-coin modular index sampling.** Following `Cslib.Crypto.PrimeOrderGroupFamily` in
-   `CslibFrontier/Crypto/Computational/DiffieHellman/ListCDHFamily.lean`, `lazyROToGuess` selects
-   a candidate query index via `ProbComp.sampleModIndex (width n) (Q n)`, adding the sampling-bias
-   term `Q n / 2 ^ width n` to the concrete singleton-guessing bound (`width = id` makes this term
-   negligible when `Q` is polynomially bounded).
+   answering canonical queries `encS n q` from the typed random oracle `S n → T n` via `encT n` and
+   returning `[]` on malformed queries outside `Set.range (encS n)`.
+3. **Fair-coin sampling of digests and query indices.** Because strict-PPT Turing machines flip fair
+   coins, non-power-of-two digest spaces `T n` (such as `ZMod q` for an odd modulus `q`) admit no
+   exact dyadic uniform sampler. The lazy simulator draws keys and cache-miss digests from a
+   caller-supplied strict-PPT sampler `sampleT n` within statistical distance `εT n` of
+   `uniformOfFintype (T n)`, adding `(Q n + 1) * εT n` to the concrete bounds (`0` when `sampleT n`
+   is exact uniform, as for `BitString (outLen n)`), and `lazyROToGuess` selects a candidate query
+   index via `ProbComp.sampleModIndex (width n) (Q n)`, adding `Q n / 2 ^ width n`. Both error terms
+   are absorbed in `SecretGuessHard.negligible_roAdvantage` when `sampleT` is
+   `StatisticallyIndistinguishable` from uniform and `width = id`.
 
 ## Main definitions
 
 * `Cslib.Crypto.KeyDerivation.GuessFamilyAdversary`, `GuessFamilyAdversary.IsPPT`: families of
-  singleton-guessing adversaries and uniform strict PPT admissibility.
+  singleton-guessing adversaries over `(X n, S n)` and uniform strict PPT admissibility.
 * `Cslib.Crypto.KeyDerivation.ListGuessFamilyAdversary`, `ListGuessFamilyAdversary.IsPPT`:
-  families of list-guessing adversaries and uniform strict PPT admissibility.
-* `Cslib.Crypto.KeyDerivation.SecretGuessHard`: computational unpredictability of a secret source
-  given side information ([BonehShoup2023], Attack Game 8.3 and §8.10.1, p. 326).
-* `Cslib.Crypto.KeyDerivation.WordRODistinguisher`, `WordRODistinguisher.IsPPT`,
-  `toRODistinguisher`: word-oracle KDF distinguishers and their typed random-oracle adapter.
+  families of list-guessing adversaries over `(X n, S n)` and uniform strict PPT admissibility.
+* `Cslib.Crypto.KeyDerivation.SecretGuessHard`: computational unpredictability of an encoded secret
+  source given side information ([BonehShoup2023], Attack Game 8.3 and §8.10.1, p. 326).
+* `Cslib.Crypto.KeyDerivation.WordROInput`, `encWordROInput`, `WordRODistinguisher`,
+  `WordRODistinguisher.IsPPT`, `toRODistinguisher`, `toBitStringRODistinguisher`: word-oracle KDF
+  distinguishers and their typed random-oracle adapters.
 * `Cslib.Crypto.KeyDerivation.lazyROToListGuess`, `lazyROToGuess`: the elementary lazy-simulation
-  list-guessing and singleton-guessing wrappers of Theorem 8.10 (built on
-  `Cslib.Crypto.cachedRandomFunctionOracle`).
+  list-guessing and singleton-guessing wrappers of Theorem 8.10.
 
 ## Main results
 
 * `Cslib.Crypto.KeyDerivation.length_le_of_mem_support_lazyROToListGuess`: every supported list
   output by `lazyROToListGuess` has length bounded by the distinguisher's query budget.
-* `Cslib.Crypto.KeyDerivation.roAdvantage_toRODistinguisher_le_listGuessAdvantage`: lazy
-  list-guessing bound of Theorem 8.10.
+* `Cslib.Crypto.KeyDerivation.roAdvantage_toRODistinguisher_le_listGuessAdvantage`,
+  `roAdvantage_toRODistinguisher_le_listGuessAdvantage_add`: exact and approximate-sampler lazy
+  list-guessing bounds of Theorem 8.10.
 * `Cslib.Crypto.KeyDerivation.isPPT_lazyROToListGuess`, `isPPT_lazyROToGuess`: uniform strict PPT
   certificates for the lazy list-guessing and singleton-guessing wrappers.
 * `Cslib.Crypto.KeyDerivation.roAdvantage_toRODistinguisher_le_mul_guessAdvantage_add`: concrete
-  singleton-guessing bound of Theorem 8.10 with fair-coin modular index sampling.
-* `Cslib.Crypto.KeyDerivation.SecretGuessHard.negligible_roAdvantage`: computational Theorem 8.10,
-  transferring `SecretGuessHard` to negligible random-oracle KDF advantage for every uniform strict
-  PPT word-oracle distinguisher.
+  singleton-guessing bound of Theorem 8.10 with fair-coin index and digest sampling.
+* `Cslib.Crypto.KeyDerivation.SecretGuessHard.negligible_roAdvantage`,
+  `SecretGuessHard.negligible_roAdvantage_bitString`: computational Theorem 8.10 over general
+  encoded finite families and its fixed-width bit-string specialization.
 
 ## References
 
@@ -113,542 +127,584 @@ namespace Cslib.Crypto.KeyDerivation
 /-! ### 1. Families of guessing adversaries and computational unpredictability -/
 
 /-- A family of singleton-guessing adversaries in Attack Game 8.3 ([BonehShoup2023], §8.10.1,
-p. 326) over `secLen n`-bit secrets and public side information `X`. -/
-abbrev GuessFamilyAdversary (X : Type) (secLen : ℕ → ℕ) : Type :=
-  (n : ℕ) → GuessAdversary X (BitString (secLen n))
+p. 326) over secret family `S` and side-information family `X`. -/
+abbrev GuessFamilyAdversary (X S : ℕ → Type) : Type :=
+  (n : ℕ) → GuessAdversary (X n) (S n)
 
 /-- A singleton-guessing family adversary is uniform strict PPT when one machine reads
-`(1ⁿ, encX x)` and writes the `secLen n` bits of its candidate secret. -/
-@[expose] def GuessFamilyAdversary.IsPPT {X : Type} (encX : X ↪ List Bool) {secLen : ℕ → ℕ}
-    (A : GuessFamilyAdversary X secLen) : Prop :=
-  IsPPTOn (encPair encUnary encX) encBits fun p => List.ofFn <$> A p.1 p.2
+`(1ⁿ, encX n x)` (`encSigma encUnary encX`) and writes the encoded candidate secret `encS n s`. -/
+@[expose] def GuessFamilyAdversary.IsPPT {X S : ℕ → Type}
+    (encX : ∀ n, X n ↪ List Bool) (encS : ∀ n, S n ↪ List Bool)
+    (A : GuessFamilyAdversary X S) : Prop :=
+  IsPPTOn (encSigma encUnary encX) encBits fun p => encS p.1 <$> A p.1 p.2
 
-/-- A family of list-guessing adversaries ([BonehShoup2023], §8.10.2, p. 331) over `secLen n`-bit
-secrets and public side information `X`. -/
-abbrev ListGuessFamilyAdversary (X : Type) (secLen : ℕ → ℕ) : Type :=
-  (n : ℕ) → ListGuessAdversary X (BitString (secLen n))
+/-- A family of list-guessing adversaries ([BonehShoup2023], §8.10.2, p. 331) over secret family
+`S` and side-information family `X`. -/
+abbrev ListGuessFamilyAdversary (X S : ℕ → Type) : Type :=
+  (n : ℕ) → ListGuessAdversary (X n) (S n)
 
-/-- A list-guessing family adversary is uniform strict PPT when one machine reads `(1ⁿ, encX x)`
-and writes the framed list of `secLen n`-bit words of its candidate secrets. -/
-@[expose] def ListGuessFamilyAdversary.IsPPT {X : Type} (encX : X ↪ List Bool) {secLen : ℕ → ℕ}
-    (B : ListGuessFamilyAdversary X secLen) : Prop :=
-  IsPPTOn (encPair encUnary encX) (encList encBits) fun p => List.map List.ofFn <$> B p.1 p.2
+/-- A list-guessing family adversary is uniform strict PPT when one machine reads
+`(1ⁿ, encX n x)` (`encSigma encUnary encX`) and writes the framed list of encoded candidate
+secrets. -/
+@[expose] def ListGuessFamilyAdversary.IsPPT {X S : ℕ → Type}
+    (encX : ∀ n, X n ↪ List Bool) (encS : ∀ n, S n ↪ List Bool)
+    (B : ListGuessFamilyAdversary X S) : Prop :=
+  IsPPTOn (encSigma encUnary encX) (encList encBits) fun p => List.map (encS p.1) <$> B p.1 p.2
 
 /-- Computational unpredictability of a secret source given public side information
 ([BonehShoup2023], Section 8.10.1, Attack Game 8.3 and its fourth example, p. 326): every uniform
-strict PPT guessing adversary (`GuessFamilyAdversary.IsPPT encX`) wins Attack Game 8.3 with
+strict PPT guessing adversary (`GuessFamilyAdversary.IsPPT encX encS`) wins Attack Game 8.3 with
 negligible probability.
 
-Relative to the printed source: `sample n` and `info n` need not be efficiently computable; secrets
-at security parameter `n` are `secLen n`-bit strings `BitString (secLen n)` rather than elements of
-an arbitrary finite set `S`; and guessers are uniform strict PPT machines reading `(1ⁿ, encX x)`
-and writing the candidate secret's `secLen n` bits. -/
-@[expose] def SecretGuessHard {X : Type} (encX : X ↪ List Bool) (secLen : ℕ → ℕ)
-    (sample : ∀ n, PMF (BitString (secLen n))) (info : ∀ n, BitString (secLen n) → X) : Prop :=
-  ∀ A : GuessFamilyAdversary X secLen, A.IsPPT encX →
+Relative to the printed source: `sample n` and `info n` need not be efficiently computable, and
+guessers are uniform strict PPT machines reading `(1ⁿ, encX n x)` and writing `encS n s`. -/
+@[expose] def SecretGuessHard {X S : ℕ → Type} [∀ n, DecidableEq (S n)]
+    (encX : ∀ n, X n ↪ List Bool) (encS : ∀ n, S n ↪ List Bool)
+    (sample : ∀ n, PMF (S n)) (info : ∀ n, S n → X n) : Prop :=
+  ∀ A : GuessFamilyAdversary X S, A.IsPPT encX encS →
     Negligible fun n => guessAdvantage (sample n) (info n) (A n)
 
 /-! ### 2. Word-oracle KDF distinguishers and typed random-oracle adapter -/
 
+/-- Input `(1ⁿ, x, z)` of a `WordRODistinguisher`: the security parameter `n`, the public side
+information `x : X n`, and the candidate key word `z : List Bool`. -/
+structure WordROInput (X : ℕ → Type) where
+  /-- The security parameter. -/
+  secParam : ℕ
+  /-- The leaked public side information. -/
+  sideInfo : X secParam
+  /-- The candidate key word. -/
+  key : List Bool
+
+section WordROInputEncoding
+
+variable {X : ℕ → Type}
+
+/-- Field-tuple encoding of `WordROInput X`: the unary security parameter `1ⁿ` (framed), followed
+by `encX n x` (framed), followed by the raw candidate key word `z` (unframed). -/
+enc_structure encWordROInput (encX : ∀ n, X n ↪ List Bool) : WordROInput X where
+  secParam : encUnary,
+  sideInfo : (encX secParam) using (encX secParam).injective,
+  key : encBits
+
+end WordROInputEncoding
+
 /-- A family of word-oracle KDF distinguishers in the random-oracle model: given the security
-parameter `n`, public side information `x : X`, and candidate key word `z : List Bool`, it queries
+parameter `n`, public side information `x : X n`, and candidate key word `z : List Bool`, it queries
 a single word oracle and outputs a bit. -/
-abbrev WordRODistinguisher (X : Type) : Type :=
-  (n : ℕ) → X → List Bool → ProbOracleComp (fun _ : Unit × List Bool => List Bool) Bool
+abbrev WordRODistinguisher (X : ℕ → Type) : Type :=
+  (n : ℕ) → X n → List Bool → ProbOracleComp (fun _ : Unit × List Bool => List Bool) Bool
 
-/-- One uniform strict oracle-PPT machine reads `(1ⁿ, x, z)` and interacts with the word oracle. -/
-@[expose] def WordRODistinguisher.IsPPT {X : Type} (encX : X ↪ List Bool)
+/-- One uniform strict oracle-PPT machine reads `(1ⁿ, x, z)` (`encWordROInput encX`) and interacts
+with the word oracle. -/
+@[expose] def WordRODistinguisher.IsPPT {X : ℕ → Type} (encX : ∀ n, X n ↪ List Bool)
     (D : WordRODistinguisher X) : Prop :=
-  IsOraclePPTOn (encPair encUnary (encPair encX encBits)) encBool fun p => D p.1 p.2.1 p.2.2
+  IsOraclePPTOn (encWordROInput encX) encBool fun y => D y.secParam y.sideInfo y.key
 
-/-- Adapt a word-oracle distinguisher to the typed random-oracle KDF game on
-`BitString (secLen n)` and `BitString (outLen n)`: pass `List.ofFn t` as the candidate key, answer
-queries of length `secLen n` by querying `BitString.ofList (secLen n) q` and converting the reply
-with `List.ofFn`, and answer queries of any other length with `[]`. -/
-@[expose] def toRODistinguisher {X : Type} (secLen outLen : ℕ → ℕ) (D : WordRODistinguisher X)
-    (n : ℕ) : RODistinguisher X (BitString (secLen n)) (BitString (outLen n)) :=
+/-- Adapt a word-oracle distinguisher to the typed random-oracle KDF game on `S n` and `T n`: pass
+`encT n t` as the candidate key, answer canonical queries (`decS n q = some s`) by querying `s` and
+encoding the reply with `encT n`, and answer malformed queries (`decS n q = none`) with `[]`. -/
+@[expose] def toRODistinguisher {X S T : ℕ → Type}
+    (decS : ∀ n, List Bool → Option (S n)) (encT : ∀ n, T n ↪ List Bool)
+    (D : WordRODistinguisher X) (n : ℕ) : RODistinguisher (X n) (S n) (T n) :=
   fun x t => ProbOracleComp.simulate
-    (fun ⟨_, q⟩ =>
-      if q.length = secLen n then
-        List.ofFn <$> ProbOracleComp.query (BitString.ofList (secLen n) q)
-      else pure [])
-    (D n x (List.ofFn t))
+    (fun req =>
+      match decS n req.2 with
+      | some s => encT n <$> ProbOracleComp.query s
+      | none => pure [])
+    (D n x (encT n t))
 
-/-! ### 3. Lazy list-guessing wrapper and certified reduction -/
+/-- Specialization of `toRODistinguisher` to `BitString (secLen n)` secrets and
+`BitString (outLen n)` digests via `OracleCodec.bitString`. -/
+abbrev toBitStringRODistinguisher {X : ℕ → Type} (secLen outLen : ℕ → ℕ)
+    (D : WordRODistinguisher X) :
+    ∀ n, RODistinguisher (X n) (BitString (secLen n)) (BitString (outLen n)) :=
+  toRODistinguisher (fun n q => (OracleCodec.bitString (secLen n)).decodeQuery ((), q))
+    (fun n => encBitString (outLen n)) D
+
+/-! ### 3. Lazy list-guessing wrapper -/
 
 /-- The elementary lazy-simulation list-guessing wrapper `B` of Theorem 8.10 ([BonehShoup2023],
-§8.10.2, pp. 331–332): draw an independent `outLen n`-bit key `z`, run `D n x z` against
-`cachedRandomFunctionOracle (secLen n) (outLen n)` starting from `[]`, and output the cached
-`secLen n`-bit queries. -/
-@[expose] noncomputable def lazyROToListGuess {X : Type} (secLen outLen : ℕ → ℕ)
-    (D : WordRODistinguisher X) : ListGuessFamilyAdversary X secLen :=
+§8.10.2, pp. 331–332): draw an independent candidate key `t ← sampleT n`, run
+`D n x (encT n t)` against `cachedSamplerOracle (fun w => (decS n w).isSome) (encT n <$> sampleT n)`
+starting from `[]`, and decode the cached valid queries via `decS n`. -/
+@[expose] noncomputable def lazyROToListGuess {X S T : ℕ → Type}
+    (decS : ∀ n, List Bool → Option (S n)) (encT : ∀ n, T n ↪ List Bool)
+    (sampleT : ∀ n, ProbComp (T n)) (D : WordRODistinguisher X) :
+    ListGuessFamilyAdversary X S :=
   fun n x => do
-    let z ← BitString.sampleList (outLen n)
+    let t ← sampleT n
     let (_, cache) ←
-      ((D n x z).runState fun ⟨_, q⟩ =>
-        cachedRandomFunctionOracle (secLen n) (outLen n) q).run []
-    return cache.map fun ⟨q, _⟩ => BitString.ofList (secLen n) q
+      ((D n x (encT n t)).runState fun req =>
+        cachedSamplerOracle (fun w => (decS n w).isSome) (encT n <$> sampleT n) req.2).run []
+    return cache.filterMap fun entry => decS n entry.1
 
-private theorem cachedRandomFunctionOracle_support {inLen outLen : ℕ} {q : List Bool}
-    {cache : List (List Bool × List Bool)} {res : List Bool × List (List Bool × List Bool)}
-    (hres : res ∈ (ProbComp.eval (cachedRandomFunctionOracle inLen outLen q cache)).support) :
-    res.2.length ≤ cache.length + 1 ∧
-      ((∀ entry ∈ cache, entry.1.length = inLen) → ∀ entry ∈ res.2, entry.1.length = inLen) := by
-  by_cases hq : q.length = inLen
-  · simp only [cachedRandomFunctionOracle, hq, ↓reduceIte, ProbComp.eval_memoize] at hres
-    rcases (RandomOracle.mem_support_memoize_iff _ _ _ _).mp hres with
-      ⟨_, hnext⟩ | ⟨_, _, hnext⟩
-    · rw [hnext]
-      exact ⟨Nat.le_succ _, id⟩
-    · rw [hnext]
-      refine ⟨by simp, fun hcache entry hentry => ?_⟩
-      rcases List.mem_cons.mp hentry with rfl | hmem
-      · exact hq
-      · exact hcache entry hmem
-  · simp only [cachedRandomFunctionOracle, hq, ↓reduceIte, ProbComp.eval_pure,
-      PMF.mem_support_pure_iff] at hres
-    subst hres
-    exact ⟨Nat.le_succ _, id⟩
-
-private theorem key_length_of_mem_runState_cachedRandomFunctionOracle {α : Type}
-    (inLen outLen : ℕ) (P : WordOracleComp Unit α) {res : α × List (List Bool × List Bool)}
-    (hres : res ∈ (ProbComp.eval
-      ((P.runState fun ⟨_, q⟩ => cachedRandomFunctionOracle inLen outLen q).run [])).support) :
-    ∀ entry ∈ res.2, entry.1.length = inLen := by
-  rw [ProbOracleComp.eval_runState] at hres
-  exact ProbOracleComp.runWith_invariant
-    (fun ⟨_, q⟩ cache => ProbComp.eval (cachedRandomFunctionOracle inLen outLen q cache))
-    (fun cache => ∀ entry ∈ cache, entry.1.length = inLen)
-    (fun ⟨_, q⟩ cache hcache a cache' hstep =>
-      (cachedRandomFunctionOracle_support hstep).2 hcache)
-    P [] (by simp) res.1 res.2 hres
-
-/-- **Lazy output-size bound** ([BonehShoup2023], Theorem 8.10, §8.10.2, p. 331): if `D n x z`
-makes at most `Q` oracle queries for every `outLen n`-bit key `z`, then every list output by
-`lazyROToListGuess secLen outLen D n x` has length at most `Q`. -/
-theorem length_le_of_mem_support_lazyROToListGuess {X : Type} {secLen outLen : ℕ → ℕ}
-    {D : WordRODistinguisher X} {n Q : ℕ} {x : X}
-    (hQ : ∀ z : List Bool, z.length = outLen n → (D n x z).IsQueryBounded Q)
-    {l : List (BitString (secLen n))}
-    (hl : l ∈ (ProbComp.eval (lazyROToListGuess secLen outLen D n x)).support) :
+/-- **Lazy output-size bound** ([BonehShoup2023], Theorem 8.10, §8.10.2, p. 331): if
+`D n x (encT n t)` makes at most `Q` oracle queries for every supported `t` of `sampleT n`, then
+every list output by `lazyROToListGuess decS encT sampleT D n x` has length at most `Q`. -/
+theorem length_le_of_mem_support_lazyROToListGuess {X S T : ℕ → Type}
+    {decS : ∀ n, List Bool → Option (S n)} {encT : ∀ n, T n ↪ List Bool}
+    {sampleT : ∀ n, ProbComp (T n)} {D : WordRODistinguisher X} {n Q : ℕ} {x : X n}
+    (hQ : ∀ t ∈ (ProbComp.eval (sampleT n)).support, (D n x (encT n t)).IsQueryBounded Q)
+    {l : List (S n)}
+    (hl : l ∈ (ProbComp.eval (lazyROToListGuess decS encT sampleT D n x)).support) :
     l.length ≤ Q := by
   simp only [lazyROToListGuess, ProbComp.eval_bind, ProbComp.eval_pure,
     PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hl
-  obtain ⟨z, hz, ⟨b, cache⟩, hrun, rfl⟩ := hl
-  rw [BitString.eval_sampleList] at hz
-  have hzlen := BitString.length_of_mem_support_uniformList hz
-  have hbound := ProbOracleComp.measure_runState_le (cost := fun _ => 1) (hQ z hzlen)
-    (fun ⟨_, q⟩ => cachedRandomFunctionOracle (secLen n) (outLen n) q) List.length
-    (fun ⟨_, q⟩ s res hres => (cachedRandomFunctionOracle_support hres).1) [] (b, cache) hrun
-  simpa using hbound
+  obtain ⟨t, ht, ⟨b, cache⟩, hrun, rfl⟩ := hl
+  exact (List.length_filterMap_le _ cache).trans (by simpa using
+    (ProbOracleComp.measure_runState_le (cost := fun _ => 1) (hQ t ht)
+      (fun req => cachedSamplerOracle (fun w => (decS n w).isSome) (encT n <$> sampleT n) req.2)
+      List.length (fun _ _ _ hres => (cachedSamplerOracle_support hres).1) [] (b, cache) hrun))
 
 section LazyEquivalence
 
-private theorem lookup_isSome_eq_decide_mem_map_fst {Q V : Type} [DecidableEq Q]
-    (c : List (Q × V)) (s : Q) :
-    (c.lookup s).isSome = decide (s ∈ c.map Prod.fst) := by
-  apply Bool.eq_iff_iff.mpr
-  simp only [List.lookup_isSome_iff, beq_iff_eq, decide_eq_true_eq, List.mem_map]
-  exact ⟨fun ⟨p, hp, h⟩ => ⟨p, hp, h.symm⟩, fun ⟨p, hp, h⟩ => ⟨p, hp, h.symm⟩⟩
+private noncomputable def idealLazyListLaw {X S T : ℕ → Type} [∀ n, Fintype (T n)]
+    [∀ n, Nonempty (T n)] (decS : ∀ n, List Bool → Option (S n)) (encT : ∀ n, T n ↪ List Bool)
+    (D : WordRODistinguisher X) (n : ℕ) (x : X n) : PMF (List (S n)) :=
+  (uniformOfFintype (T n)).bind fun t =>
+    (ProbOracleComp.runWith
+      (fun req => cachedDistOracle (fun w => (decS n w).isSome)
+        ((uniformOfFintype (T n)).map (encT n)) req.2)
+      (D n x (encT n t)) []).map fun (_, cache) => cache.filterMap fun entry => decS n entry.1
 
-private theorem isSome_of_mem_support_answer {Q V : Type} [DecidableEq Q]
-    (d : Q → PMF V) (q s : Q) (c : RandomOracle.Cache (fun _ : Q => V))
-    {ac : V × RandomOracle.Cache (fun _ : Q => V)}
-    (hac : ac ∈ (RandomOracle.answer d q c).support) :
-    (ac.2 s).isSome = ((c s).isSome || decide (q = s)) := by
-  cases h : c q with
-  | none =>
-    simp only [RandomOracle.answer_of_none d c q h, PMF.mem_support_map_iff] at hac
-    obtain ⟨v, -, rfl⟩ := hac
-    by_cases hqs : s = q
-    · subst hqs
-      simp
-    · simp [Function.update_of_ne hqs, Ne.symm hqs]
-  | some v =>
-    simp only [RandomOracle.answer_of_some d c q v h, PMF.mem_support_pure_iff] at hac
-    subst hac
-    by_cases hqs : q = s
-    · subst hqs
-      simp [h]
-    · simp [hqs]
-
-private theorem runWith_memoize_mem_eq_eager_runLog {Q V α : Type} [Fintype Q] [DecidableEq Q]
-    [Fintype V] [Nonempty V] (M : ProbOracleComp (fun _ : Q => V) α) (s : Q) :
-    ((ProbOracleComp.runWith (memoize fun _ : Q => uniformOfFintype V) M []).map
-        fun (_, c) => decide (s ∈ c.map Prod.fst)) =
-      (uniformOfFintype (Q → V)).bind fun table =>
-        (ProbComp.eval (M.runLog fun q => pure (table q))).map
-          fun (_, log) => decide (s ∈ log.map Prod.fst) := by
-  let d : Q → PMF V := fun _ => uniformOfFintype V
-  have hmem : ((ProbOracleComp.runWith (memoize d) M []).map
-      fun (_, c) => decide (s ∈ c.map Prod.fst)) =
-      (ProbOracleComp.runWith (RandomOracle.answer d) M (fun _ => none)).map
-        fun (_, c) => (c s).isSome := by
-    have h := congrArg (PMF.map fun (p : α × RandomOracle.Cache (fun _ : Q => V)) => (p.2 s).isSome)
-      (RandomOracle.run_interpret_memoize_prob d M [])
-    simpa only [PMF.map_comp, Function.comp_def, RandomOracle.ofList_nil, RandomOracle.ofList,
-      lookup_isSome_eq_decide_mem_map_fst] using h
-  rw [hmem]
-  let hitOracle : Q → StateT ((Q → V) × Bool) PMF V :=
-    fun q ⟨table, hit⟩ => PMF.pure (table q, (table, hit || decide (q = s)))
-  let relate : RandomOracle.Cache (fun _ : Q => V) → PMF ((Q → V) × Bool) :=
-    fun c => (RandomOracle.complete d c).map fun table => (table, (c s).isSome)
-  have hsim := ProbOracleComp.runWith_simulation (RandomOracle.answer d) hitOracle relate
-    (fun q c => by
-      have hcongr : ((RandomOracle.answer d q c).bind fun ⟨a, c'⟩ =>
-          (relate c').map (a, ·)) =
-          ((RandomOracle.answer d q c).bind fun ⟨a, c'⟩ =>
-            (RandomOracle.complete d c').map (a, ·)).map
-              fun ⟨a, table⟩ => (a, (table, (c s).isSome || decide (q = s))) := by
-        rw [PMF.map_bind]
-        refine PMF.bind_congr_on_support _ _ _ fun ac hac => ?_
-        simp only [relate, PMF.map_comp, Function.comp_def,
-          isSome_of_mem_support_answer d q s c hac]
-      rw [hcongr]
-      have hcomp := congrArg
-        (PMF.map fun ⟨a, table⟩ => (a, (table, (c s).isSome || decide (q = s))))
-        (RandomOracle.answer_complete d c q)
-      simpa only [relate, hitOracle, PMF.monad_bind_eq_bind, PMF.map_comp, PMF.bind_map,
-        Function.comp_def, PMF.pure_bind, PMF.map, PMF.bind_bind] using hcomp)
-    M (fun _ => none)
-  have hproj := congrArg (PMF.map fun (_, _, hit) => hit) hsim
-  have hlhs : (((ProbOracleComp.runWith (RandomOracle.answer d) M (fun _ => none)).bind
-      fun ⟨a, c'⟩ => (relate c').map (a, ·)).map fun (_, _, hit) => hit) =
-      (ProbOracleComp.runWith (RandomOracle.answer d) M (fun _ => none)).map
-        fun (_, c') => (c' s).isSome := by
-    rw [PMF.map_bind]
-    have hconst (ac : α × RandomOracle.Cache (fun _ : Q => V)) :
-        ((relate ac.2).map (ac.1, ·)).map (fun (_, _, hit) => hit) =
-          PMF.pure (ac.2 s).isSome := by
-      simp only [relate, PMF.map_comp, Function.comp_def]
-      exact (RandomOracle.complete d ac.2).map_const (ac.2 s).isSome
-    simp only [hconst]
-    rfl
-  rw [← hlhs, hproj]
-  simp only [relate, RandomOracle.complete_empty, d, PMF.pi_uniformOfFintype, PMF.bind_map,
-    PMF.map_bind, Function.comp_def, Option.isSome_none]
-  refine congrArg ((uniformOfFintype (Q → V)).bind ·) (funext fun table => ?_)
-  have hlog : ProbComp.eval (M.runLog fun q => pure (table q)) =
-      ProbOracleComp.runWith (fun q log => PMF.pure (table q, log ++ [(q, table q)])) M [] := by
-    rw [ProbOracleComp.runLog, ProbOracleComp.eval_runState]
-    simp only [ProbComp.eval_map, ProbComp.eval_pure, PMF.pure_map]
-  rw [hlog]
-  have hstate := ProbOracleComp.runWith_map_state
-    (fun q (log : List (Q × V)) => PMF.pure (table q, log ++ [(q, table q)]))
-    hitOracle (fun log => (table, decide (s ∈ log.map Prod.fst)))
-    (fun q log => by
-      simp only [hitOracle, PMF.pure_map, List.map_append, List.map_cons, List.map_nil,
-        List.mem_append, List.mem_singleton]
-      congr 2
-      cases hs : decide (s ∈ List.map Prod.fst log) <;>
-        cases hq : decide (q = s) <;> simp_all [eq_comm])
-    M []
-  have hstate' := congrArg (PMF.map fun (_, _, hit) => hit) hstate
-  simpa only [PMF.map_comp, Function.comp_def, List.map_nil, List.not_mem_nil, decide_false] using
-    hstate'.symm
-
-private theorem eval_lazyROToListGuess_eq_memoize {X : Type} (secLen outLen : ℕ → ℕ)
-    (D : WordRODistinguisher X) (n : ℕ) (x : X) :
-    ProbComp.eval (lazyROToListGuess secLen outLen D n x) =
-      (uniformOfFintype (BitString (outLen n))).bind fun t =>
+private theorem idealLazyListLaw_eq_memoize {X S T : ℕ → Type} [∀ n, DecidableEq (S n)]
+    [∀ n, Fintype (T n)] [∀ n, Nonempty (T n)]
+    {encS : ∀ n, S n ↪ List Bool} {decS : ∀ n, List Bool → Option (S n)}
+    (hdecS : ∀ n w s, decS n w = some s ↔ encS n s = w) (encT : ∀ n, T n ↪ List Bool)
+    (D : WordRODistinguisher X) (n : ℕ) (x : X n) :
+    idealLazyListLaw decS encT D n x =
+      (uniformOfFintype (T n)).bind fun t =>
         (ProbOracleComp.runWith
-          (memoize fun _ : BitString (secLen n) => uniformOfFintype (BitString (outLen n)))
-          (toRODistinguisher secLen outLen D n x t) []).map fun (_, c) => c.map Prod.fst := by
-  let k := secLen n
-  let m := outLen n
-  let d : BitString k → PMF (BitString m) := fun _ => uniformOfFintype (BitString m)
-  have hkey : BitString.uniformList (outLen n) =
-      (uniformOfFintype (BitString (outLen n))).map List.ofFn := rfl
-  simp only [lazyROToListGuess, ProbComp.eval_bind, BitString.eval_sampleList,
-    ProbOracleComp.eval_runState, ProbComp.eval_pure]
-  rw [hkey, PMF.bind_map]
-  refine congrArg ((uniformOfFintype (BitString m)).bind ·) (funext fun t => ?_)
-  let P := D n x (List.ofFn t)
-  let O_typed : Unit × List Bool → StateT (List (BitString k × BitString m)) PMF (List Bool) :=
-    fun ⟨_, q⟩ cache =>
-      if q.length = k then
-        (memoize d (BitString.ofList k q) cache).map fun (v, c') => (List.ofFn v, c')
-      else PMF.pure ([], cache)
-  have hsim : ProbOracleComp.runWith (memoize d) (toRODistinguisher secLen outLen D n x t) [] =
-      ProbOracleComp.runWith O_typed P [] := by
-    rw [ProbOracleComp.runWith_eq_run_interpret, ProbOracleComp.runWith_eq_run_interpret]
-    unfold toRODistinguisher
-    rw [ProbOracleComp.interpret_simulate]
+          (memoize fun _ : S n => uniformOfFintype (T n))
+          (toRODistinguisher decS encT D n x t) []).map fun (_, c) => c.map Prod.fst := by
+  let d : S n → PMF (T n) := fun _ => uniformOfFintype (T n)
+  unfold idealLazyListLaw
+  refine congrArg ((uniformOfFintype (T n)).bind ·) (funext fun t => ?_)
+  let O_typed : Unit × List Bool → StateT (List (S n × T n)) PMF (List Bool) := fun req cache =>
+    match decS n req.2 with
+    | some s => (memoize d s cache).map fun (v, c') => (encT n v, c')
+    | none => PMF.pure ([], cache)
+  have hsim : ProbOracleComp.runWith (memoize d) (toRODistinguisher decS encT D n x t) [] =
+      ProbOracleComp.runWith O_typed (D n x (encT n t)) [] := by
+    rw [ProbOracleComp.runWith_eq_run_interpret, ProbOracleComp.runWith_eq_run_interpret,
+      toRODistinguisher, ProbOracleComp.interpret_simulate]
     congr 3
-    funext ⟨_, q⟩ cache
-    by_cases hq : q.length = k
-    · simp only [k, hq, ↓reduceIte, OracleComp.interpret_map, ProbOracleComp.interpret_query,
-        O_typed]
-      rfl
-    · simp only [k, hq, ↓reduceIte, OracleComp.interpret_pure, O_typed]
-      rfl
-  let represent : List (BitString k × BitString m) → List (List Bool × List Bool) :=
-    List.map fun (q, v) => (List.ofFn q, List.ofFn v)
+    funext req cache
+    cases hq : decS n req.2 <;>
+      simp only [O_typed, hq, OracleComp.interpret_map, ProbOracleComp.interpret_query,
+        OracleComp.interpret_pure] <;> rfl
   have hmap := ProbOracleComp.runWith_map_state O_typed
-    (fun ⟨_, q⟩ cache => ProbComp.eval (cachedRandomFunctionOracle k m q cache)) represent
-    (fun ⟨_, q⟩ cache => by
-      by_cases hq : q.length = k
-      · simp only [O_typed, cachedRandomFunctionOracle, hq, ↓reduceIte, PMF.map_comp,
-          Function.comp_def, ProbComp.eval_memoize, BitString.eval_sampleList]
-        have hm := Cslib.memoize_map (encBitString k) List.ofFn d
-          (fun _ => BitString.uniformList m) (fun _ => rfl) (BitString.ofList k q) cache
-        simpa only [encBitString_apply, BitString.ofFn_ofList hq, PMF.monad_map_eq_map,
-          represent] using hm
-      · simp only [O_typed, cachedRandomFunctionOracle, hq, ↓reduceIte, PMF.pure_map,
-          ProbComp.eval_pure])
-    P []
-  simp only [represent, List.map_nil] at hmap
-  rw [Function.comp_apply, ← hmap, ← hsim, PMF.bind_map]
-  simp only [PMF.map, Function.comp_def, List.map_map, BitString.ofList_ofFn]
-  rfl
+    (fun req => cachedDistOracle (fun w => (decS n w).isSome)
+      ((uniformOfFintype (T n)).map (encT n)) req.2)
+    (List.map fun (s, v) => (encS n s, encT n v))
+    (fun req cache => by
+      cases hq : decS n req.2 with
+      | some s =>
+        simp only [O_typed, cachedDistOracle, hq, Option.isSome_some, ↓reduceIte, PMF.map_comp,
+          Function.comp_def]
+        simpa only [(hdecS n req.2 s).mp hq, PMF.monad_map_eq_map] using
+          Cslib.memoize_map (encS n) (encT n) d
+            (fun _ => (uniformOfFintype (T n)).map (encT n)) (fun _ => rfl) s cache
+      | none =>
+        simp only [O_typed, cachedDistOracle, hq, Option.isSome_none, Bool.false_eq_true,
+          ↓reduceIte, PMF.pure_map])
+    (D n x (encT n t)) []
+  rw [List.map_nil] at hmap
+  rw [← hmap, ← hsim, PMF.map_comp]
+  refine congrArg _ (funext fun ⟨_, c⟩ => ?_)
+  have hdec_enc (s : S n) : decS n (encS n s) = some s := (hdecS n _ s).mpr rfl
+  simpa only [Function.comp_def, List.filterMap_map, hdec_enc] using
+    congrArg PMF.pure (congrFun List.filterMap_eq_map c)
 
-private theorem listGuessOutput_lazyROToListGuess {X : Type} (secLen outLen : ℕ → ℕ)
-    (sample : ∀ n, PMF (BitString (secLen n))) (info : ∀ n, BitString (secLen n) → X)
-    (D : WordRODistinguisher X) (n : ℕ) :
-    listGuessOutput (sample n) (info n) (lazyROToListGuess secLen outLen D n) =
+private theorem idealLazy_listGuessOutput_eq_eager {X S T : ℕ → Type}
+    [∀ n, Fintype (S n)] [∀ n, DecidableEq (S n)] [∀ n, Fintype (T n)] [∀ n, Nonempty (T n)]
+    {encS : ∀ n, S n ↪ List Bool} {decS : ∀ n, List Bool → Option (S n)}
+    (hdecS : ∀ n w s, decS n w = some s ↔ encS n s = w) (encT : ∀ n, T n ↪ List Bool)
+    (sample : ∀ n, PMF (S n)) (info : ∀ n, S n → X n) (D : WordRODistinguisher X) (n : ℕ) :
+    ((sample n).bind fun s => (idealLazyListLaw decS encT D n (info n s)).bind fun l =>
+        PMF.pure (decide (s ∈ l))) =
       listGuessOutput (sample n) (info n)
-        (roToListGuess (toRODistinguisher secLen outLen D n)) := by
-  unfold listGuessOutput
+        (roToListGuess (toRODistinguisher decS encT D n)) := by
+  unfold listGuessOutput roToListGuess
   refine congrArg ((sample n).bind ·) (funext fun s => ?_)
-  rw [eval_lazyROToListGuess_eq_memoize]
-  unfold roToListGuess
-  simp only [ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure, PMF.bind_bind,
-    PMF.bind_map, PMF.pure_bind, Function.comp_def]
+  rw [idealLazyListLaw_eq_memoize hdecS]
+  simp only [ProbComp.eval_uniform, pmf_norm]
   rw [PMF.bind_comm]
-  refine congrArg ((uniformOfFintype (BitString (outLen n))).bind ·) (funext fun t => ?_)
-  have h := runWith_memoize_mem_eq_eager_runLog
-    (toRODistinguisher secLen outLen D n (info n s) t) s
-  simpa only [PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def] using h
+  refine congrArg ((uniformOfFintype (T n)).bind ·) (funext fun t => ?_)
+  simpa only [PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def] using
+    RandomOracle.runWith_memoize_mem_eq_eager_runLog
+      (toRODistinguisher decS encT D n (info n s) t) s
+
+private theorem closeTo_idealLazyListLaw_eval_lazyROToListGuess {X S T : ℕ → Type}
+    [∀ n, Fintype (T n)] [∀ n, Nonempty (T n)]
+    (decS : ∀ n, List Bool → Option (S n)) (encT : ∀ n, T n ↪ List Bool)
+    (sampleT : ∀ n, ProbComp (T n)) (D : WordRODistinguisher X) (n Q : ℕ) (x : X n)
+    {εT : ℝ≥0} (hcloseT : CloseTo (uniformOfFintype (T n)) (ProbComp.eval (sampleT n)) εT)
+    (hQ : ∀ t ∈ (ProbComp.eval (sampleT n)).support, (D n x (encT n t)).IsQueryBounded Q) :
+    CloseTo (idealLazyListLaw decS encT D n x)
+      (ProbComp.eval (lazyROToListGuess decS encT sampleT D n x))
+      (((Q + 1 : ℕ) : ℝ≥0∞) * εT) := by
+  simp only [idealLazyListLaw, lazyROToListGuess, ProbComp.eval_bind,
+    ProbOracleComp.eval_runState, ProbComp.eval_pure, ProbComp.eval_map,
+    eval_cachedSamplerOracle]
+  have hring : (εT : ℝ≥0∞) + Q * (εT : ℝ≥0∞) = ((Q + 1 : ℕ) : ℝ≥0∞) * εT := by push_cast; ring
+  refine (CloseTo.bind hcloseT fun t ht => ?_).mono hring.le
+  unfold ProbOracleComp.runWith
+  refine CloseTo.map ((hQ t ht).closeTo_runWith ?_ []) _
+  rintro (k | req) cache
+  · simp [OracleComp.sumHandler]
+  · simpa [OracleComp.sumHandler] using
+      closeTo_cachedDistOracle _ (hcloseT.map (encT n)) req.2 cache
 
 end LazyEquivalence
 
-/-- **Lazy list-guessing inequality of Theorem 8.10** ([BonehShoup2023], §8.10.2, pp. 331–332):
-the random-oracle KDF distinguishing advantage of `toRODistinguisher secLen outLen D n` is at most
-the list-guessing advantage of the lazy-simulation wrapper `lazyROToListGuess secLen outLen D n`. -/
-theorem roAdvantage_toRODistinguisher_le_listGuessAdvantage {X : Type} (secLen outLen : ℕ → ℕ)
-    (sample : ∀ n, PMF (BitString (secLen n))) (info : ∀ n, BitString (secLen n) → X)
-    (D : WordRODistinguisher X) (n : ℕ) :
-    roAdvantage (sample n) (info n) (toRODistinguisher secLen outLen D n) ≤
-      listGuessAdvantage (sample n) (info n) (lazyROToListGuess secLen outLen D n) := by
-  rw [listGuessAdvantage, listGuessOutput_lazyROToListGuess, ← listGuessAdvantage]
-  exact roAdvantage_le_listGuessAdvantage (sample n) (info n) (toRODistinguisher secLen outLen D n)
+/-- **Lazy list-guessing inequality of Theorem 8.10 with approximate digest sampling**
+([BonehShoup2023], §8.10.2, pp. 331–332): when `sampleT n` is within statistical distance `εT` of
+`uniformOfFintype (T n)` and `D n (info n s) (encT n t)` makes at most `Q` oracle queries on
+supported secrets `s` and candidate keys `t`, the random-oracle KDF advantage is at most
+`listGuessAdvantage (sample n) (info n) (lazyROToListGuess decS encT sampleT D n) + (Q + 1) * εT`.
+-/
+theorem roAdvantage_toRODistinguisher_le_listGuessAdvantage_add {X S T : ℕ → Type}
+    [∀ n, Fintype (S n)] [∀ n, DecidableEq (S n)] [∀ n, Fintype (T n)] [∀ n, Nonempty (T n)]
+    {encS : ∀ n, S n ↪ List Bool} {decS : ∀ n, List Bool → Option (S n)}
+    (hdecS : ∀ n w s, decS n w = some s ↔ encS n s = w) (encT : ∀ n, T n ↪ List Bool)
+    (sampleT : ∀ n, ProbComp (T n)) (sample : ∀ n, PMF (S n)) (info : ∀ n, S n → X n)
+    (D : WordRODistinguisher X) (n Q : ℕ) {εT : ℝ≥0}
+    (hcloseT : CloseTo (uniformOfFintype (T n)) (ProbComp.eval (sampleT n)) εT)
+    (hQ : ∀ s ∈ (sample n).support, ∀ t ∈ (ProbComp.eval (sampleT n)).support,
+      (D n (info n s) (encT n t)).IsQueryBounded Q) :
+    roAdvantage (sample n) (info n) (toRODistinguisher decS encT D n) ≤
+      listGuessAdvantage (sample n) (info n) (lazyROToListGuess decS encT sampleT D n) +
+        (Q + 1 : ℕ) * εT := by
+  refine (roAdvantage_le_listGuessAdvantage (sample n) (info n)
+    (toRODistinguisher decS encT D n)).trans ?_
+  have hclose : CloseTo
+      ((sample n).bind fun s => (idealLazyListLaw decS encT D n (info n s)).bind fun l =>
+        PMF.pure (decide (s ∈ l)))
+      (listGuessOutput (sample n) (info n) (lazyROToListGuess decS encT sampleT D n))
+      (((Q + 1 : ℕ) : ℝ≥0∞) * εT) :=
+    CloseTo.bind_right (sample n) fun s hs =>
+      (closeTo_idealLazyListLaw_eval_lazyROToListGuess decS encT sampleT D n Q (info n s)
+        hcloseT (hQ s hs)).bind_left fun l => PMF.pure (decide (s ∈ l))
+  have hpt := hclose {true}
+  rw [idealLazy_listGuessOutput_eq_eager hdecS encT sample info D n,
+    PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at hpt
+  simp only [listGuessAdvantage, Game.succProbability, ← ENNReal.coe_le_coe]
+  push_cast [ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)] at hpt ⊢
+  exact hpt
 
-/-- **The lazy list-guessing wrapper is efficient**: `lazyROToListGuess secLen outLen D` is uniform
-strict PPT whenever `secLen` and `outLen` are computable in polynomial time in unary and `D` is
-uniform strict oracle-PPT. -/
-theorem isPPT_lazyROToListGuess {X : Type} {encX : X ↪ List Bool} {secLen outLen : ℕ → ℕ}
-    (hsec : ComputableInPolyTime secLen encUnary encUnary)
-    (hout : ComputableInPolyTime outLen encUnary encUnary)
+/-- **Exact lazy list-guessing inequality of Theorem 8.10** ([BonehShoup2023], §8.10.2,
+pp. 331–332): when `sampleT n` samples `uniformOfFintype (T n)` exactly, the random-oracle KDF
+distinguishing advantage of `toRODistinguisher decS encT D n` is at most the list-guessing
+advantage of `lazyROToListGuess decS encT sampleT D n`, with no query-bound hypothesis. -/
+theorem roAdvantage_toRODistinguisher_le_listGuessAdvantage {X S T : ℕ → Type}
+    [∀ n, Fintype (S n)] [∀ n, DecidableEq (S n)] [∀ n, Fintype (T n)] [∀ n, Nonempty (T n)]
+    {encS : ∀ n, S n ↪ List Bool} {decS : ∀ n, List Bool → Option (S n)}
+    (hdecS : ∀ n w s, decS n w = some s ↔ encS n s = w) (encT : ∀ n, T n ↪ List Bool)
+    (sampleT : ∀ n, ProbComp (T n)) (sample : ∀ n, PMF (S n)) (info : ∀ n, S n → X n)
+    (D : WordRODistinguisher X) (n : ℕ)
+    (hunif : ProbComp.eval (sampleT n) = uniformOfFintype (T n)) :
+    roAdvantage (sample n) (info n) (toRODistinguisher decS encT D n) ≤
+      listGuessAdvantage (sample n) (info n) (lazyROToListGuess decS encT sampleT D n) := by
+  have heq : listGuessOutput (sample n) (info n) (lazyROToListGuess decS encT sampleT D n) =
+      listGuessOutput (sample n) (info n) (roToListGuess (toRODistinguisher decS encT D n)) := by
+    rw [← idealLazy_listGuessOutput_eq_eager hdecS encT sample info D n]
+    unfold listGuessOutput idealLazyListLaw
+    refine congrArg ((sample n).bind ·) (funext fun s => ?_)
+    simp only [lazyROToListGuess, ProbOracleComp.eval_runState, eval_cachedSamplerOracle, hunif,
+      PMF.map, pmf_norm]
+  rw [listGuessAdvantage, heq, ← listGuessAdvantage]
+  exact roAdvantage_le_listGuessAdvantage (sample n) (info n) (toRODistinguisher decS encT D n)
+
+/-- **The lazy list-guessing wrapper is efficient**: `lazyROToListGuess decS encT sampleT D` is
+uniform strict PPT whenever `(n, w) ↦ (decS n w).isSome` is computable in polynomial time,
+`n ↦ encT n <$> sampleT n` is uniform strict PPT, and `D` is uniform strict oracle-PPT. -/
+theorem isPPT_lazyROToListGuess {X S T : ℕ → Type}
+    {encX : ∀ n, X n ↪ List Bool} {encS : ∀ n, S n ↪ List Bool}
+    {decS : ∀ n, List Bool → Option (S n)} {encT : ∀ n, T n ↪ List Bool}
+    {sampleT : ∀ n, ProbComp (T n)}
+    (hdecS : ∀ n w s, decS n w = some s ↔ encS n s = w)
+    (hisSome : ComputableInPolyTime (fun p : ℕ × List Bool => (decS p.1 p.2).isSome)
+      (encPair encUnary encBits) encBool)
+    (hsampleT : IsPPTOn encUnary encBits fun n => encT n <$> sampleT n)
     {D : WordRODistinguisher X} (hD : D.IsPPT encX) :
-    (lazyROToListGuess secLen outLen D).IsPPT encX := by
-  let E₀ := encPair encUnary encX
+    (lazyROToListGuess decS encT sampleT D).IsPPT encX encS := by
+  let E₀ := encSigma encUnary encX
   let E₁ := encPair E₀ encBits
-  have hz : IsPPTOn E₀ encBits (fun p : ℕ × X => BitString.sampleList (outLen p.1)) :=
-    (hout.comp (ComputableInPolyTime.fst encUnary encX)).sampleList
-  have hrun : IsPPTOn E₁ (encPair encBool (encMemoCache encBits encBits))
-      (fun c : (ℕ × X) × List Bool =>
-        (((D c.1.1 c.1.2 c.2).runState
-          fun ⟨_, q⟩ => cachedRandomFunctionOracle (secLen c.1.1) (outLen c.1.1) q).run [])) := by
-    apply hD.isPPTOn_runState (operationEncoding := encFinEnum Unit)
-      (prepare := fun c : (ℕ × X) × List Bool => (c.1.1, c.1.2, c.2))
-      (resources := fun c q => 4 * q.length + 2 * outLen c.1.1 + 3)
-      (by fun_prop) (by fun_prop) (by fun_prop)
-      (fun c cache => ∀ entry ∈ cache, entry.2.length ≤ outLen c.1.1) (by simp) (by fun_prop)
-    intro c request cache hcache result hresult
-    by_cases hquery : request.2.length = secLen c.1.1
-    · simp only [cachedRandomFunctionOracle, hquery, ↓reduceIte] at hresult
-      rw [ProbComp.eval_memoize] at hresult
-      obtain ⟨hreply, hcache', hgrowth⟩ := memoize_call_size_le encBits encBits
-        (fun _ => ProbComp.eval (BitString.sampleList (outLen c.1.1))) request.2 cache
-        (outLen c.1.1) hcache (fun value hvalue => by
-          rw [BitString.eval_sampleList] at hvalue
-          exact (BitString.length_of_mem_support_uniformList hvalue).le) result hresult
-      exact ⟨hcache', by simpa only [encBits_apply] using hreply.trans (by lia),
-        by simpa only [encBits_apply, Nat.add_assoc] using hgrowth⟩
-    · simp only [cachedRandomFunctionOracle, hquery, ↓reduceIte, ProbComp.eval_pure,
-        PMF.mem_support_pure_iff] at hresult
-      subst hresult
-      exact ⟨hcache, by simp, by lia⟩
+  have hn₀ : ComputableInPolyTime (fun p : Σ n, X n => p.1) E₀ encUnary := by fun_prop
+  have hz : IsPPTOn E₀ encBits (fun p : Σ n, X n => encT p.1 <$> sampleT p.1) :=
+    hsampleT.preprocess hn₀
+  have hview : ComputableInPolyTime (fun c : (Σ n, X n) × List Bool =>
+      ((c.1.1, encX c.1.1 c.1.2), c.2)) E₁ (encPair (encPair encUnary encBits) encBits) :=
+    ((ComputableInPolyTime.sigmaView encUnary encBits (fun n x => encX n x)
+      (fun _ _ => rfl)).comp (ComputableInPolyTime.fst E₀ encBits)).prod
+      (ComputableInPolyTime.snd E₀ encBits)
+  have hprep : ComputableInPolyTime
+      (fun c : (Σ n, X n) × List Bool => (⟨c.1.1, c.1.2, c.2⟩ : WordROInput X))
+      E₁ (encWordROInput encX) :=
+    ((show ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => (q.1.1, q.1.2, q.2))
+      _ (encPair encUnary (encPair encBits encBits)) by fun_prop).comp hview).of_enc_eq
+        fun c => by simp [encWordROInput_apply]
+  have hvalid : ComputableInPolyTime
+      (fun p : ((Σ n, X n) × List Bool) × List Bool => (decS p.1.1.1 p.2).isSome)
+      (encPair E₁ encBits) encBool :=
+    hisSome.comp (show ComputableInPolyTime (fun p : ((Σ n, X n) × List Bool) × List Bool =>
+      (p.1.1.1, p.2)) (encPair E₁ encBits) (encPair encUnary encBits) by fun_prop)
+  have hsample₁ : IsPPTOn E₁ encBits
+      (fun c : (Σ n, X n) × List Bool => encT c.1.1 <$> sampleT c.1.1) :=
+    hsampleT.preprocess (by fun_prop)
+  have hrun := isPPTOn_runState_cachedSamplerOracle
+    (prepare := fun c : (Σ n, X n) × List Bool => (⟨c.1.1, c.1.2, c.2⟩ : WordROInput X))
+    (valid := fun c q => (decS c.1.1 q).isSome)
+    (sampleReply := fun c => encT c.1.1 <$> sampleT c.1.1)
+    hD hprep hvalid hsample₁
   have hpost : ComputableInPolyTime
       (fun r : Bool × List (List Bool × List Bool) => r.2.map Prod.fst)
-      (encPair encBool (encMemoCache encBits encBits)) (encList encBits) := by
-    fun_prop
-  have hprog : IsPPTOn E₀ (encList encBits) (fun p : ℕ × X => do
-      let z ← BitString.sampleList (outLen p.1)
+      (encPair encBool (encMemoCache encBits encBits)) (encList encBits) := by fun_prop
+  have hprog : IsPPTOn E₀ (encList encBits) (fun p : Σ n, X n => do
+      let z ← encT p.1 <$> sampleT p.1
       (fun r : Bool × List (List Bool × List Bool) => r.2.map Prod.fst) <$>
-        (((D p.1 p.2 z).runState
-          fun ⟨_, q⟩ => cachedRandomFunctionOracle (secLen p.1) (outLen p.1) q).run [])) :=
+        (((D p.1 p.2 z).runState fun req =>
+          cachedSamplerOracle (fun w => (decS p.1 w).isSome) (encT p.1 <$> sampleT p.1) req.2).run
+            [])) :=
     hz.bind_with (hrun.map hpost)
+  have hfilter (n : ℕ) (l : List (List Bool × List Bool))
+      (hl : ∀ e ∈ l, (decS n e.1).isSome = true) :
+      List.map (encS n) (l.filterMap fun entry => decS n entry.1) = l.map Prod.fst := by
+    induction l with
+    | nil => rfl
+    | cons entry tail ih =>
+      have hv := hl entry List.mem_cons_self
+      cases hdec : decS n entry.1 with
+      | none => simp [hdec] at hv
+      | some s =>
+        simp [hdec, (hdecS n entry.1 s).mp hdec,
+          ih fun e he => hl e (List.mem_cons_of_mem _ he)]
   refine hprog.congr fun p => ?_
-  simp only [lazyROToListGuess, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.map_bind, PMF.pure_map]
-  refine congrArg ((ProbComp.eval (BitString.sampleList (outLen p.1))).bind ·) (funext fun z => ?_)
+  simp only [lazyROToListGuess, pmf_norm]
+  refine congrArg ((ProbComp.eval (sampleT p.1)).bind ·) (funext fun t => ?_)
   rw [PMF.map]
   refine PMF.bind_congr_on_support _ _ _ fun rc hrc => ?_
-  have hkeys := key_length_of_mem_runState_cachedRandomFunctionOracle (secLen p.1) (outLen p.1)
-    (D p.1 p.2 z) hrc
-  rw [Function.comp_apply]
-  congr 1
-  rw [List.map_map]
-  exact (List.map_congr_left fun entry hentry => BitString.ofFn_ofList (hkeys entry hentry)).symm
+  exact congrArg PMF.pure (hfilter p.1 rc.2 (valid_of_mem_runState_cachedSamplerOracle
+    (fun w => (decS p.1 w).isSome) (encT p.1 <$> sampleT p.1) (D p.1 p.2 (encT p.1 t)) hrc)).symm
 
 /-! ### 4. Lazy singleton-guessing wrapper and computational Theorem 8.10 -/
 
 /-- The elementary lazy-simulation singleton-guessing wrapper `B'` of Theorem 8.10
 ([BonehShoup2023], §8.10.2, pp. 331–332) with fair-coin modular index sampling: run
-`lazyROToListGuess secLen outLen D n x`, draw an index from
-`ProbComp.sampleModIndex (width n) (Q n)`, and return the entry at that position (or the all-`false`
-`secLen n`-bit string past the end of the list). -/
-@[expose] noncomputable def lazyROToGuess {X : Type} (width Q secLen outLen : ℕ → ℕ)
-    (D : WordRODistinguisher X) : GuessFamilyAdversary X secLen :=
+`lazyROToListGuess decS encT sampleT D n x`, draw an index from
+`ProbComp.sampleModIndex (width n) (Q n)`, and return the entry at that position (or `defaultS n`
+past the end of the list). -/
+@[expose] noncomputable def lazyROToGuess {X S T : ℕ → Type}
+    (width Q : ℕ → ℕ) (defaultS : ∀ n, S n)
+    (decS : ∀ n, List Bool → Option (S n)) (encT : ∀ n, T n ↪ List Bool)
+    (sampleT : ∀ n, ProbComp (T n)) (D : WordRODistinguisher X) :
+    GuessFamilyAdversary X S :=
   fun n x => do
-    let l ← lazyROToListGuess secLen outLen D n x
+    let l ← lazyROToListGuess decS encT sampleT D n x
     let i ← ProbComp.sampleModIndex (width n) (Q n)
-    return l.getD i (BitString.ofList (secLen n) (List.replicate (secLen n) false))
+    return l.getD i (defaultS n)
 
-private theorem ofFn_getD {k : ℕ} (l : List (BitString k)) (i : ℕ) (fallback : BitString k) :
-    List.ofFn (l.getD i fallback) = ((l.map List.ofFn)[i]?).getD (List.ofFn fallback) := by
-  rw [List.getD_eq_getElem?_getD, List.getElem?_map, Option.getD_map]
-
-/-- **The lazy singleton-guessing wrapper is efficient**: `lazyROToGuess width Q secLen outLen D` is
-uniform strict PPT whenever `width`, `Q`, `secLen`, and `outLen` are computable in polynomial time
-in unary and `D` is uniform strict oracle-PPT. -/
-theorem isPPT_lazyROToGuess {X : Type} {encX : X ↪ List Bool} {width Q secLen outLen : ℕ → ℕ}
+/-- **The lazy singleton-guessing wrapper is efficient**:
+`lazyROToGuess width Q defaultS decS encT sampleT D` is uniform strict PPT whenever `width` and `Q`
+are computable in polynomial time in unary, `(n, w) ↦ (decS n w).isSome` and
+`n ↦ encS n (defaultS n)` are computable in polynomial time, `n ↦ encT n <$> sampleT n` is uniform
+strict PPT, and `D` is uniform strict oracle-PPT. -/
+theorem isPPT_lazyROToGuess {X S T : ℕ → Type}
+    {encX : ∀ n, X n ↪ List Bool} {encS : ∀ n, S n ↪ List Bool}
+    {width Q : ℕ → ℕ} {defaultS : ∀ n, S n}
+    {decS : ∀ n, List Bool → Option (S n)} {encT : ∀ n, T n ↪ List Bool}
+    {sampleT : ∀ n, ProbComp (T n)}
     (hwidth : ComputableInPolyTime width encUnary encUnary)
     (hQ : ComputableInPolyTime Q encUnary encUnary)
-    (hsec : ComputableInPolyTime secLen encUnary encUnary)
-    (hout : ComputableInPolyTime outLen encUnary encUnary)
+    (hdefault : ComputableInPolyTime (fun n => encS n (defaultS n)) encUnary encBits)
+    (hdecS : ∀ n w s, decS n w = some s ↔ encS n s = w)
+    (hisSome : ComputableInPolyTime (fun p : ℕ × List Bool => (decS p.1 p.2).isSome)
+      (encPair encUnary encBits) encBool)
+    (hsampleT : IsPPTOn encUnary encBits fun n => encT n <$> sampleT n)
     {D : WordRODistinguisher X} (hD : D.IsPPT encX) :
-    (lazyROToGuess width Q secLen outLen D).IsPPT encX := by
-  have hlist := isPPT_lazyROToListGuess hsec hout hD
-  let E₀ := encPair encUnary encX
+    (lazyROToGuess width Q defaultS decS encT sampleT D).IsPPT encX encS := by
+  let E₀ := encSigma encUnary encX
   let E₁ := encPair E₀ (encList encBits)
-  have hn : ComputableInPolyTime (fun p : (ℕ × X) × List (List Bool) => p.1.1) E₁ encUnary := by
-    fun_prop
-  have hsample : IsPPTOn E₁ encUnary (fun p : (ℕ × X) × List (List Bool) =>
+  have hsample : IsPPTOn E₁ encUnary (fun p : (Σ n, X n) × List (List Bool) =>
       ProbComp.sampleModIndex (width p.1.1) (Q p.1.1)) :=
-    isPPTOn_sampleModIndex (hwidth.comp hn) (hQ.comp hn)
+    isPPTOn_sampleModIndex (hwidth.comp (by fun_prop)) (hQ.comp (by fun_prop))
   let E₂ := encPair E₁ encUnary
-  have hn' : ComputableInPolyTime
-      (fun p : ((ℕ × X) × List (List Bool)) × ℕ => p.1.1.1) E₂ encUnary := by fun_prop
-  have hwords : ComputableInPolyTime
-      (fun p : ((ℕ × X) × List (List Bool)) × ℕ => p.1.2) E₂ (encList encBits) := by fun_prop
-  have hi : ComputableInPolyTime
-      (fun p : ((ℕ × X) × List (List Bool)) × ℕ => p.2) E₂ encUnary := by fun_prop
-  have hfallback : ComputableInPolyTime
-      (fun p : ((ℕ × X) × List (List Bool)) × ℕ => List.replicate (secLen p.1.1.1) false)
-      E₂ encBits :=
-    (bits_encList_polyTime encBool).2.comp
-      (ComputableInPolyTime.replicate (hsec.comp hn') (ComputableInPolyTime.const false))
   have hpick : ComputableInPolyTime
-      (fun p : ((ℕ × X) × List (List Bool)) × ℕ =>
-        (p.1.2[p.2]?).getD (List.replicate (secLen p.1.1.1) false)) E₂ encBits :=
-    ComputableInPolyTime.optionGetDWithInput (ComputableInPolyTime.getElem? hwords hi) hfallback
-  have hprog : IsPPTOn E₀ encBits (fun p : ℕ × X => do
-      let words ← List.map List.ofFn <$> lazyROToListGuess secLen outLen D p.1 p.2
-      (fun i => (words[i]?).getD (List.replicate (secLen p.1) false)) <$>
+      (fun p : ((Σ n, X n) × List (List Bool)) × ℕ =>
+        (p.1.2[p.2]?).getD (encS p.1.1.1 (defaultS p.1.1.1))) E₂ encBits :=
+    ComputableInPolyTime.optionGetDWithInput
+      (ComputableInPolyTime.getElem? (by fun_prop) (by fun_prop))
+      (hdefault.comp (g := fun p : ((Σ n, X n) × List (List Bool)) × ℕ => p.1.1.1) (by fun_prop))
+  have hprog : IsPPTOn E₀ encBits (fun p : Σ n, X n => do
+      let words ← List.map (encS p.1) <$> lazyROToListGuess decS encT sampleT D p.1 p.2
+      (fun i => (words[i]?).getD (encS p.1 (defaultS p.1))) <$>
         ProbComp.sampleModIndex (width p.1) (Q p.1)) :=
-    hlist.bind_with (hsample.map_with hpick)
+    (isPPT_lazyROToListGuess hdecS hisSome hsampleT hD).bind_with (hsample.map_with hpick)
   refine hprog.congr fun p => ?_
-  have hrep : List.ofFn (BitString.ofList (secLen p.1) (List.replicate (secLen p.1) false)) =
-      List.replicate (secLen p.1) false := BitString.ofFn_ofList (by simp)
-  simp only [lazyROToGuess, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
-    PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def, ofFn_getD, hrep]
+  simp only [lazyROToGuess, PMF.map, List.getD_eq_getElem?_getD, List.getElem?_map, Option.getD_map,
+    pmf_norm]
 
-/-- **Concrete variant of the singleton-guessing inequality of Theorem 8.10** ([BonehShoup2023],
-§8.10.2, pp. 331–332), with an additive index-sampling bias: when `D n (info n s) z` makes at most
-`Q n` oracle queries on every supported secret `s` and `outLen n`-bit key `z`, the random-oracle
-KDF distinguishing advantage is at most
-`Q n * guessAdvantage (sample n) (info n) (lazyROToGuess width Q secLen outLen D n) +
-Q n / 2 ^ width n`. The extra term `Q n / 2 ^ width n` is the bias of the finite fair-coin
-modular index sampling, where the book picks the index exactly uniformly;
-`SecretGuessHard.negligible_roAdvantage` absorbs it. -/
-theorem roAdvantage_toRODistinguisher_le_mul_guessAdvantage_add {X : Type}
-    (width Q secLen outLen : ℕ → ℕ) (sample : ∀ n, PMF (BitString (secLen n)))
-    (info : ∀ n, BitString (secLen n) → X) (D : WordRODistinguisher X) (n : ℕ)
-    (hQ : ∀ s ∈ (sample n).support, ∀ z : List Bool, z.length = outLen n →
-      (D n (info n s) z).IsQueryBounded (Q n)) :
-    roAdvantage (sample n) (info n) (toRODistinguisher secLen outLen D n) ≤
-      Q n * guessAdvantage (sample n) (info n) (lazyROToGuess width Q secLen outLen D n) +
-        Q n / 2 ^ width n := by
-  refine (roAdvantage_toRODistinguisher_le_listGuessAdvantage secLen outLen sample info D n).trans
-    ?_
-  let fallback := BitString.ofList (secLen n) (List.replicate (secLen n) false)
-  have hle : listGuessOutput (sample n) (info n) (lazyROToListGuess secLen outLen D n) true ≤
+/-- **Concrete singleton-guessing inequality of Theorem 8.10** ([BonehShoup2023], §8.10.2,
+pp. 331–332), accounting for fair-coin index and digest sampling: when `sampleT n` is within
+statistical distance `εT` of `uniformOfFintype (T n)` and `D n (info n s) (encT n t)` makes at most
+`Q n` oracle queries on supported secrets `s` and candidate keys `t`, the random-oracle KDF
+distinguishing advantage is at most
+`Q n * guessAdvantage (sample n) (info n) (lazyROToGuess width Q defaultS decS encT sampleT D n) +
+Q n / 2 ^ width n + (Q n + 1) * εT`. -/
+theorem roAdvantage_toRODistinguisher_le_mul_guessAdvantage_add {X S T : ℕ → Type}
+    [∀ n, Fintype (S n)] [∀ n, DecidableEq (S n)] [∀ n, Fintype (T n)] [∀ n, Nonempty (T n)]
+    {encS : ∀ n, S n ↪ List Bool} {decS : ∀ n, List Bool → Option (S n)}
+    (hdecS : ∀ n w s, decS n w = some s ↔ encS n s = w)
+    (width Q : ℕ → ℕ) (defaultS : ∀ n, S n) (encT : ∀ n, T n ↪ List Bool)
+    (sampleT : ∀ n, ProbComp (T n)) (sample : ∀ n, PMF (S n)) (info : ∀ n, S n → X n)
+    (D : WordRODistinguisher X) (n : ℕ) {εT : ℝ≥0}
+    (hcloseT : CloseTo (uniformOfFintype (T n)) (ProbComp.eval (sampleT n)) εT)
+    (hQ : ∀ s ∈ (sample n).support, ∀ t ∈ (ProbComp.eval (sampleT n)).support,
+      (D n (info n s) (encT n t)).IsQueryBounded (Q n)) :
+    roAdvantage (sample n) (info n) (toRODistinguisher decS encT D n) ≤
+      Q n * guessAdvantage (sample n) (info n)
+          (lazyROToGuess width Q defaultS decS encT sampleT D n) +
+        Q n / 2 ^ width n + (Q n + 1 : ℕ) * εT := by
+  refine (roAdvantage_toRODistinguisher_le_listGuessAdvantage_add hdecS encT sampleT sample info
+    D n (Q n) hcloseT hQ).trans ?_
+  rw [add_le_add_iff_right]
+  have hle : listGuessOutput (sample n) (info n) (lazyROToListGuess decS encT sampleT D n) true ≤
       (Q n : ℝ≥0∞) *
-        guessOutput (sample n) (info n) (lazyROToGuess width Q secLen outLen D n) true +
+        guessOutput (sample n) (info n)
+          (lazyROToGuess width Q defaultS decS encT sampleT D n) true +
           (Q n : ℝ≥0∞) / 2 ^ width n := by
     unfold listGuessOutput guessOutput lazyROToGuess
-    simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+    simp only [pmf_norm]
     refine PMF.bind_apply_le_mul_bind_apply_add_on_support (sample n) fun s hs => ?_
     refine PMF.bind_apply_le_mul_bind_apply_add_on_support _ fun l hl => ?_
     have hlen : l.length ≤ Q n := length_le_of_mem_support_lazyROToListGuess (hQ s hs) hl
-    have hmap : ((ProbComp.eval (ProbComp.sampleModIndex (width n) (Q n))).bind fun i =>
-        PMF.pure (decide (l.getD i fallback = s))) =
-        ((ProbComp.eval (ProbComp.sampleModIndex (width n) (Q n))).map
-          fun i => l.getD i fallback).bind fun s' => PMF.pure (decide (s' = s)) := by
-      rw [PMF.bind_map]
-      rfl
-    rw [hmap, Cslib.Probability.PMF.bind_pure_decide_eq_apply_true']
+    have hmap := PMF.bind_map (ProbComp.eval (ProbComp.sampleModIndex (width n) (Q n)))
+      (fun i => l.getD i (defaultS n)) (fun s' => PMF.pure (decide (s' = s)))
+    simp only [Function.comp_def] at hmap
+    rw [← hmap, Cslib.Probability.PMF.bind_pure_decide_eq_apply_true']
     by_cases hmem : s ∈ l
     · have htake : s ∈ l.take (Q n) := by rwa [List.take_of_length_le hlen]
       obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem htake
       rw [List.length_take] at hi
       have hiQ : i < Q n := hi.trans_le (min_le_left _ _)
       have hil : i < l.length := hi.trans_le (min_le_right _ _)
-      rw [ProbComp.sampleModIndex_eq_sampleModNat (width n) ((Nat.zero_le i).trans_lt hiQ)]
-      have h1 : (PMF.pure (decide ((l.take (Q n))[i] ∈ l))) true = 1 := by simp
-      rw [h1]
+      rw [decide_eq_true hmem, PMF.pure_apply_self,
+        ProbComp.sampleModIndex_eq_sampleModNat (width n) ((Nat.zero_le i).trans_lt hiQ)]
       calc (1 : ℝ≥0∞) ≤
             (Q n : ℝ≥0∞) * ProbComp.eval (ProbComp.sampleModNat (width n) (Q n)) i +
               (Q n : ℝ≥0∞) / 2 ^ width n :=
             ProbComp.one_le_mul_eval_sampleModNat_add hiQ
         _ ≤ _ := by
             gcongr
-            have hget : (l.take (Q n))[i] = l.getD i fallback := by
-              simp [List.getElem_take, List.getD_eq_getElem?_getD, hil]
-            rw [hget]
-            exact PMF.le_map_apply _ (fun j => l.getD j fallback) i
+            simpa [List.getElem_take, List.getD_eq_getElem?_getD, hil] using
+              PMF.le_map_apply _ (fun j => l.getD j (defaultS n)) i
     · simp [hmem]
-  simp only [listGuessAdvantage, guessAdvantage, Game.succProbability]
-  rw [← ENNReal.coe_le_coe]
+  simp only [listGuessAdvantage, guessAdvantage, Game.succProbability, ← ENNReal.coe_le_coe]
   push_cast [ENNReal.coe_toNNReal (PMF.apply_ne_top _ _),
     ENNReal.coe_div (pow_ne_zero _ two_ne_zero)]
   exact hle
 
 /-- **Computational Theorem 8.10** ([BonehShoup2023], §8.10.2, pp. 331–332, with §8.10.1, Attack
-Game 8.3, p. 326): if a secret source is computationally unpredictable (`SecretGuessHard`),
-`secLen` and `outLen` are computable in polynomial time in unary, and `encX (info n s)` has
-polynomial length in `n` on `(sample n).support`, then every uniform strict oracle-PPT word
-distinguisher has negligible random-oracle KDF distinguishing advantage. -/
-theorem SecretGuessHard.negligible_roAdvantage {X : Type} {encX : X ↪ List Bool}
-    {secLen outLen : ℕ → ℕ} {sample : ∀ n, PMF (BitString (secLen n))}
-    {info : ∀ n, BitString (secLen n) → X}
-    (hguess : SecretGuessHard encX secLen sample info)
-    (hsec : ComputableInPolyTime secLen encUnary encUnary)
-    (hout : ComputableInPolyTime outLen encUnary encUnary)
-    (hinfo : ∃ c d, ∀ n s, s ∈ (sample n).support →
-      (encX (info n s)).length ≤ c * (n + 1) ^ d)
+Game 8.3, p. 326): over encoded finite secret families `S` and digest/key families `T`, if the
+secret source is computationally unpredictable (`SecretGuessHard`), `decS` is the canonical partial
+decoder of `encS` with polynomial-time domain recognition and a polynomial-time fallback element
+`defaultS`, `sampleT` is a uniform strict-PPT sampler statistically indistinguishable from
+`uniformOfFintype (T n)`, and `encX n (info n s)` has polynomial length in `n` on
+`(sample n).support`, then every uniform strict oracle-PPT word distinguisher has negligible
+random-oracle KDF distinguishing advantage. -/
+theorem SecretGuessHard.negligible_roAdvantage {X S T : ℕ → Type}
+    [∀ n, Fintype (S n)] [∀ n, DecidableEq (S n)] [∀ n, Fintype (T n)] [∀ n, Nonempty (T n)]
+    {encX : ∀ n, X n ↪ List Bool} {encS : ∀ n, S n ↪ List Bool}
+    {decS : ∀ n, List Bool → Option (S n)} {defaultS : ∀ n, S n}
+    {encT : ∀ n, T n ↪ List Bool} {sampleT : ∀ n, ProbComp (T n)}
+    {sample : ∀ n, PMF (S n)} {info : ∀ n, S n → X n}
+    (hguess : SecretGuessHard encX encS sample info)
+    (hdecS : ∀ n w s, decS n w = some s ↔ encS n s = w)
+    (hisSome : ComputableInPolyTime (fun p : ℕ × List Bool => (decS p.1 p.2).isSome)
+      (encPair encUnary encBits) encBool)
+    (hdefault : ComputableInPolyTime (fun n => encS n (defaultS n)) encUnary encBits)
+    (hsampleT : IsPPTOn encUnary encBits fun n => encT n <$> sampleT n)
+    (hcloseT : StatisticallyIndistinguishable (fun n => uniformOfFintype (T n))
+      (fun n => ProbComp.eval (sampleT n)))
+    (hinfo : ∃ c d, ∀ n, ∀ s ∈ (sample n).support,
+      (encX n (info n s)).length ≤ c * (n + 1) ^ d)
     {D : WordRODistinguisher X} (hD : D.IsPPT encX) :
-    Negligible fun n => roAdvantage (sample n) (info n) (toRODistinguisher secLen outLen D n) := by
+    Negligible fun n => roAdvantage (sample n) (info n) (toRODistinguisher decS encT D n) := by
+  obtain ⟨εT, hεT, hcloseT⟩ := hcloseT
   obtain ⟨ci, di, hinfo⟩ := hinfo
+  obtain ⟨cT, dT, hlenT⟩ := hsampleT.length_le
   obtain ⟨cD, dD, hbounds⟩ := hD.query_bounds
-  let M : ℕ → ℕ := fun n => 2 * n + 2 * (ci * (n + 1) ^ di) + outLen n + 2
+  let maxT : ℕ → ℕ := fun n => cT * (n + 1) ^ dT
+  let M : ℕ → ℕ := fun n => 2 * n + 2 * (ci * (n + 1) ^ di) + maxT n + 2
   let Q : ℕ → ℕ := fun n => cD * (M n + 1) ^ dD
   have hQ : ComputableInPolyTime Q encUnary encUnary := by
-    fun_prop
-  have hDz : ∀ n, ∀ s ∈ (sample n).support, ∀ z : List Bool, z.length = outLen n →
-      (D n (info n s) z).IsQueryBounded (Q n) := by
-    intro n s hs z hz
-    refine (hbounds (n, info n s, z)).1.mono ?_
+    dsimp only [Q, M, maxT]; fun_prop
+  have hDt : ∀ n, ∀ s ∈ (sample n).support, ∀ t ∈ (ProbComp.eval (sampleT n)).support,
+      (D n (info n s) (encT n t)).IsQueryBounded (Q n) := by
+    intro n s hs t ht
+    refine (hbounds ⟨n, info n s, encT n t⟩).1.mono ?_
     have his := hinfo n s hs
-    have hlen : (encPair encUnary (encPair encX encBits) (n, info n s, z)).length ≤ M n := by
-      dsimp only [M]
-      enc_len [hz]
+    have hlt : (encT n t).length ≤ maxT n := by
+      simpa only [encBits_apply, encUnary_apply, List.length_replicate, maxT] using
+        hlenT n (encT n t) ((ProbComp.eval_map (encT n) (sampleT n)).symm ▸
+          (PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩)
+    have hlen : (encWordROInput encX ⟨n, info n s, encT n t⟩).length ≤ M n := by
+      simp only [encWordROInput_apply, M]
+      enc_len
     exact Nat.mul_le_mul_left cD (Nat.pow_le_pow_left (Nat.add_le_add_right hlen 1) dD)
-  have hguess_red := hguess _ (isPPT_lazyROToGuess (width := fun n => n) .id' hQ hsec hout hD)
+  have hguess_red := hguess _
+    (isPPT_lazyROToGuess (width := fun n => n) .id' hQ hdefault hdecS hisSome hsampleT hD)
   negligible using fun n =>
-    roAdvantage_toRODistinguisher_le_mul_guessAdvantage_add (fun n => n) Q secLen outLen
-      sample info D n (hDz n)
+    roAdvantage_toRODistinguisher_le_mul_guessAdvantage_add hdecS (fun n => n) Q defaultS encT
+      sampleT sample info D n (hcloseT n) (hDt n)
+
+/-! ### 5. Specialization to fixed-width bit strings -/
+
+/-- **Computational Theorem 8.10 over fixed-width bit strings** ([BonehShoup2023], §8.10.2,
+pp. 331–332): specialization of `SecretGuessHard.negligible_roAdvantage` to `BitString (secLen n)`
+secrets and `BitString (outLen n)` keys when `secLen` and `outLen` are computable in polynomial time
+in unary. -/
+theorem SecretGuessHard.negligible_roAdvantage_bitString {X : ℕ → Type}
+    {encX : ∀ n, X n ↪ List Bool} {secLen outLen : ℕ → ℕ}
+    {sample : ∀ n, PMF (BitString (secLen n))} {info : ∀ n, BitString (secLen n) → X n}
+    (hguess : SecretGuessHard encX (fun n => encBitString (secLen n)) sample info)
+    (hsec : ComputableInPolyTime secLen encUnary encUnary)
+    (hout : ComputableInPolyTime outLen encUnary encUnary)
+    (hinfo : ∃ c d, ∀ n, ∀ s ∈ (sample n).support,
+      (encX n (info n s)).length ≤ c * (n + 1) ^ d)
+    {D : WordRODistinguisher X} (hD : D.IsPPT encX) :
+    Negligible fun n =>
+      roAdvantage (sample n) (info n) (toBitStringRODistinguisher secLen outLen D n) := by
+  let sampleT : ∀ n, ProbComp (BitString (outLen n)) :=
+    fun n => BitString.ofList (outLen n) <$> BitString.sampleList (outLen n)
+  have hdecS : ∀ n w s,
+      (OracleCodec.bitString (secLen n)).decodeQuery ((), w) = some s ↔
+        encBitString (secLen n) s = w := fun n w s => by
+    simpa [OracleCodec.bitString, encBitString_apply] using
+      (OracleCodec.bitString (secLen n)).decodeQuery_eq_some_iff ((), w) s
+  have hisSome : ComputableInPolyTime
+      (fun p : ℕ × List Bool =>
+        ((OracleCodec.bitString (secLen p.1)).decodeQuery ((), p.2)).isSome)
+      (encPair encUnary encBits) encBool :=
+    (show ComputableInPolyTime (fun p : ℕ × List Bool => p.2.length == secLen p.1)
+      (encPair encUnary encBits) encBool by fun_prop).of_enc_eq
+        fun p => congrArg encBool <| by
+          by_cases h : p.2.length = secLen p.1 <;> simp [OracleCodec.bitString, h]
+  have hdefault : ComputableInPolyTime
+      (fun n : ℕ => encBitString (secLen n) (fun _ => false)) encUnary encBits :=
+    ((bits_encList_polyTime encBool).2.comp (.replicate hsec (.const false))).of_enc_eq fun n => by
+      simp [encBitString_apply, List.ofFn_const]
+  have hsampleT_eval (n : ℕ) :
+      ProbComp.eval (sampleT n) = uniformOfFintype (BitString (outLen n)) := by
+    simp only [sampleT, ProbComp.eval_map, BitString.eval_sampleList, BitString.uniformList,
+      PMF.map_comp, Function.comp_def, BitString.ofList_ofFn]
+    exact PMF.map_id _
+  have hsampleT_ppt : IsPPTOn encUnary encBits fun n => encBitString (outLen n) <$> sampleT n :=
+    hout.sampleList.congr fun n => by
+      rw [ProbComp.eval_map, hsampleT_eval, BitString.eval_sampleList]; rfl
+  exact hguess.negligible_roAdvantage hdecS hisSome hdefault hsampleT_ppt
+    ⟨fun _ => 0, negligible_zero, fun n => by simp [hsampleT_eval]⟩ hinfo hD
 
 end Cslib.Crypto.KeyDerivation

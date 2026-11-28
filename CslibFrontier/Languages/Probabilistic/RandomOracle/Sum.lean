@@ -165,20 +165,21 @@ theorem memoizeSum_inr (dist₁ : ι₁ → PMF R₁) (dist₂ : ι₂ → PMF R
       (memoize dist₂ q tr₂).map fun (ans, tr₂') => (ans, (tr₁, tr₂')) := by
   rfl
 
+private theorem mem_support_map_prod {α β γ : Type} (p : PMF (α × β)) (f : β → γ)
+    {a : α} {c : γ} :
+    (a, c) ∈ (p.map fun (x, y) => (x, f y)).support ↔ ∃ b, (a, b) ∈ p.support ∧ c = f b := by
+  rw [PMF.mem_support_map_iff]
+  exact ⟨fun ⟨⟨_, b⟩, h, he⟩ => by cases he; exact ⟨b, h, rfl⟩,
+    fun ⟨b, h, hc⟩ => ⟨(a, b), h, by rw [hc]⟩⟩
+
 /-- The supported outcomes of a left call are those of `memoize dist₁` on the first list, with the
 second list unchanged. -/
 theorem mem_support_memoizeSum_inl {dist₁ : ι₁ → PMF R₁} {dist₂ : ι₂ → PMF R₂} {q : ι₁}
     {tr₁ : List (ι₁ × R₁)} {tr₂ : List (ι₂ × R₂)} {ans : R₁}
     {st' : List (ι₁ × R₁) × List (ι₂ × R₂)} :
     (ans, st') ∈ (memoizeSum dist₁ dist₂ (.inl q) (tr₁, tr₂)).support ↔
-      ∃ tr₁', (ans, tr₁') ∈ (memoize dist₁ q tr₁).support ∧ st' = (tr₁', tr₂) := by
-  rw [memoizeSum_inl, PMF.mem_support_map_iff]
-  constructor
-  · rintro ⟨⟨ans', tr₁'⟩, hmem, heq⟩
-    cases heq
-    exact ⟨tr₁', hmem, rfl⟩
-  · rintro ⟨tr₁', hmem, rfl⟩
-    exact ⟨(ans, tr₁'), hmem, rfl⟩
+      ∃ tr₁', (ans, tr₁') ∈ (memoize dist₁ q tr₁).support ∧ st' = (tr₁', tr₂) :=
+  mem_support_map_prod (memoize dist₁ q tr₁) (·, tr₂)
 
 /-- The supported outcomes of a right call are those of `memoize dist₂` on the second list, with
 the first list unchanged. -/
@@ -186,14 +187,8 @@ theorem mem_support_memoizeSum_inr {dist₁ : ι₁ → PMF R₁} {dist₂ : ι�
     {tr₁ : List (ι₁ × R₁)} {tr₂ : List (ι₂ × R₂)} {ans : R₂}
     {st' : List (ι₁ × R₁) × List (ι₂ × R₂)} :
     (ans, st') ∈ (memoizeSum dist₁ dist₂ (.inr q) (tr₁, tr₂)).support ↔
-      ∃ tr₂', (ans, tr₂') ∈ (memoize dist₂ q tr₂).support ∧ st' = (tr₁, tr₂') := by
-  rw [memoizeSum_inr, PMF.mem_support_map_iff]
-  constructor
-  · rintro ⟨⟨ans', tr₂'⟩, hmem, heq⟩
-    cases heq
-    exact ⟨tr₂', hmem, rfl⟩
-  · rintro ⟨tr₂', hmem, rfl⟩
-    exact ⟨(ans, tr₂'), hmem, rfl⟩
+      ∃ tr₂', (ans, tr₂') ∈ (memoize dist₂ q tr₂).support ∧ st' = (tr₁, tr₂') :=
+  mem_support_map_prod (memoize dist₂ q tr₂) (tr₁, ·)
 
 /-- Running a left program under `memoizeSum` runs it under `memoize dist₁` on the first list and
 leaves the second list unchanged. -/

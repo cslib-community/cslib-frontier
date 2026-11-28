@@ -266,14 +266,9 @@ theorem pkeDecryptInput_encrypt (P : PKEParams) (encode : PKEMessage P → Codew
     pkeDecryptInput P y (pkeEncrypt P encode (expandedPublicKey P h x y) m coins) =
       encode m + truncate P (pkeDecryptionNoise P x y coins) := by
   rw [pkeDecryptInput, pkeEncrypt, expandedPublicKey, syndrome]
-  simp only [circulant_add, add_mulVec, truncate_add, pkeDecryptionNoise]
-  have hmix : circulant (circulant h *ᵥ y) *ᵥ coins.r2 =
-      circulant (circulant h *ᵥ coins.r2) *ᵥ y :=
-    mixed_circulant_mulVec P h y coins.r2
-  rw [hmix]
+  simp only [circulant_add, add_mulVec, truncate_add, pkeDecryptionNoise, mixed_circulant_mulVec]
   abel_nf
-  rw [two_smul, BitString.add_self]
-  simp only [zero_add]
+  rw [two_smul, BitString.add_self, zero_add]
 
 /-- A decoder corrects up to `Δ` errors when it recovers every message from its encoding plus any
 error word of Hamming weight at most `Δ`. This follows the plain encoder/decoder convention used

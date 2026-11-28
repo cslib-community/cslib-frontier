@@ -58,8 +58,7 @@ variable {X Y Z A B : Type*}
     p.labelLeaves.run x y = p.leaf x y := by
   induction p with
   | output z => simp [labelLeaves]
-  | alice send p q ihp ihq => simp [labelLeaves, ihp, ihq]
-  | bob send p q ihp ihq => simp [labelLeaves, ihp, ihq]
+  | alice send p q ihp ihq | bob send p q ihp ihq => simp [labelLeaves, ihp, ihq]
 
 /-- Relabeling occurrences with their original output recovers the original execution. -/
 theorem leafOutput_run_labelLeaves (p : Protocol X Y Z) (x : X) (y : Y) :
@@ -172,9 +171,7 @@ theorem steer_solves (p : Protocol X Y Z) (leftGoal : A → Z → Prop)
     (rightGoal : B → Z → Prop) (R : A → B → Z → Prop)
     (h : ∀ a b z, leftGoal a z → rightGoal b z → R a b z) :
     (p.steer leftGoal rightGoal).Solves R
-      {a | p.CanForce true (leftGoal a)} {b | p.CanForce false (rightGoal b)} := by
-  intro a ha b hb
-  obtain ⟨hl, hr⟩ := run_steer p leftGoal rightGoal a b ha hb
-  exact h a b _ hl hr
+      {a | p.CanForce true (leftGoal a)} {b | p.CanForce false (rightGoal b)} :=
+  fun a ha b hb => And.elim (h a b _) (run_steer p leftGoal rightGoal a b ha hb)
 
 end Cslib.Communication.Protocol

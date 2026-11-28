@@ -100,27 +100,23 @@ namespace InfixAt
 variable {w u v : List Bool} {p : ℕ}
 
 theorem append : InfixAt w p (u ++ v) ↔ InfixAt w p u ∧ InfixAt w (p + u.length) v := by
-  constructor
-  · intro h
-    refine ⟨fun q hq => ?_, fun q hq => ?_⟩
-    · rw [h q (by simp; omega), List.getElem?_append_left hq]
-    · rw [Nat.add_assoc, h _ (by simp; omega), List.getElem?_append_right (by omega)]
-      simp
-  · rintro ⟨h₁, h₂⟩ q hq
-    rcases lt_or_ge q u.length with hlt | hge
+  refine ⟨fun h => ⟨fun q hq => by rw [h q (by simp; omega), List.getElem?_append_left hq],
+    fun q hq => ?_⟩, fun ⟨h₁, h₂⟩ q hq => ?_⟩
+  · have hlt : u.length + q < (u ++ v).length := by simpa using Nat.add_lt_add_left hq u.length
+    rw [Nat.add_assoc, h _ hlt, List.getElem?_append_right (Nat.le_add_right _ _)]
+    simp
+  · rcases lt_or_ge q u.length with hlt | hge
     · rw [h₁ q hlt, List.getElem?_append_left hlt]
-    · have := h₂ (q - u.length) (by simp at hq; omega)
-      rw [show p + u.length + (q - u.length) = p + q by omega] at this
-      rw [this, List.getElem?_append_right hge]
+    · rw [show p + q = p + u.length + (q - u.length) by omega,
+        h₂ (q - u.length) (by simp at hq; omega), List.getElem?_append_right hge]
 
 /-- The word of an element of a list, in the concatenation of the words of the elements. -/
 theorem flatMap {α : Type*} {L : List α} {f : α → List Bool} (h : InfixAt w p (L.flatMap f))
     {i : ℕ} (hi : i < L.length) :
     InfixAt w (p + ((L.take i).map fun a => (f a).length).sum) (f L[i]) := by
-  have hL : L = L.take i ++ L[i] :: L.drop (i + 1) := by simp
-  rw [hL, List.flatMap_append, List.flatMap_cons, append, append] at h
-  have := h.2.1
-  rwa [List.length_flatMap] at this
+  rw [show L = L.take i ++ L[i] :: L.drop (i + 1) by simp, List.flatMap_append,
+    List.flatMap_cons, append, append, List.length_flatMap] at h
+  exact h.2.1
 
 /-- The bit at an offset. -/
 theorem getElem? (h : InfixAt w p u) {q : ℕ} (hq : q < u.length) : w[p + q]? = u[q]? := h q hq
@@ -131,19 +127,12 @@ theorem literal_digit {v : ℕ} {b : Bool} (h : InfixAt w p (literalBits v b)) {
     (hk : k < v.bits.length) :
     w[p + 8 * k]? = some true ∧ w[p + 8 * k + 3]? = some true ∧
       w[p + 8 * k + 7]? = some v.bits[k] := by
-  have h₁ := (append.mp h).1
-  have h₂ := h₁.flatMap (f := fun y => List.replicate 7 true ++ [y]) hk
+  have h₂ := (append.mp h).1.flatMap (f := fun y => List.replicate 7 true ++ [y]) hk
   have hsum : ((v.bits.take k).map fun y => (List.replicate 7 true ++ [y]).length).sum = 8 * k := by
-    have : (fun y : Bool => (List.replicate 7 true ++ [y]).length) = fun _ => 8 := by
-      funext y
-      simp
-    rw [this, List.map_const', List.sum_replicate, List.length_take, Nat.min_eq_left hk.le,
-      smul_eq_mul, Nat.mul_comm]
+    simp [Nat.min_eq_left hk.le, Nat.mul_comm]
   rw [hsum] at h₂
-  refine ⟨?_, ?_, ?_⟩
-  · simpa using h₂ 0 (by simp)
-  · simpa [Nat.add_assoc] using h₂ 3 (by simp)
-  · simpa [Nat.add_assoc] using h₂ 7 (by simp)
+  exact ⟨by simpa using h₂ 0 (by simp), by simpa [Nat.add_assoc] using h₂ 3 (by simp),
+    by simpa [Nat.add_assoc] using h₂ 7 (by simp)⟩
 
 /-- **The end of a literal**: after the groups of the digits, the fourth bit is `false` and the
 eighth bit is the polarity; the literal ends ten bits after the digits. -/
@@ -153,36 +142,22 @@ theorem literal_end {v : ℕ} {b : Bool} (h : InfixAt w p (literalBits v b)) :
   have h₂ := (append.mp h).2
   have hlen : (v.bits.flatMap fun y => List.replicate 7 true ++ [y]).length =
       8 * v.bits.length := by
-    rw [List.length_flatMap]
-    have : (fun y : Bool => (List.replicate 7 true ++ [y]).length) = fun _ => 8 := by
-      funext y
-      simp
-    rw [this, List.map_const', List.sum_replicate, smul_eq_mul, Nat.mul_comm]
+    simp [List.length_flatMap, Nat.mul_comm]
   rw [hlen] at h₂
-  refine ⟨?_, ?_, ?_⟩
-  · exact h₂ 0 (by simp)
-  · rw [Nat.add_assoc]
-    exact h₂ 3 (by simp)
-  · rw [Nat.add_assoc]
-    exact h₂ 7 (by simp)
+  exact ⟨h₂ 0 (by simp), by simpa [Nat.add_assoc] using h₂ 3 (by simp),
+    by simpa [Nat.add_assoc] using h₂ 7 (by simp)⟩
 
 /-- **A literal of a clause**, at the offset of the literals before it. -/
 theorem clause_literal {c : Clause ℕ} (h : InfixAt w p (clauseBits c)) {j : ℕ}
     (hj : j < c.length) :
     InfixAt w (p + ((c.take j).map fun l => (literalBits l.1 l.2).length).sum)
-      (literalBits c[j].1 c[j].2) := by
-  have h' : InfixAt w p (c.flatMap (fun l => literalBits l.1 l.2) ++ [false]) := h
-  have h₃ := InfixAt.flatMap (L := c) (f := fun l => literalBits l.1 l.2) (append.mp h').1 hj
-  beta_reduce at h₃
-  exact h₃
+      (literalBits c[j].1 c[j].2) :=
+  InfixAt.flatMap (L := c) (f := fun l => literalBits l.1 l.2) (append.mp h).1 hj
 
 /-- **The end of a clause**: `false` after all its literals. -/
 theorem clause_end {c : Clause ℕ} (h : InfixAt w p (clauseBits c)) :
     w[p + (c.map fun l => (literalBits l.1 l.2).length).sum]? = some false := by
-  have h' : InfixAt w p (c.flatMap (fun l => literalBits l.1 l.2) ++ [false]) := h
-  have := (append.mp h').2 0 (by simp)
-  rw [List.length_flatMap, Nat.add_zero] at this
-  exact this
+  simpa [List.length_flatMap] using (append.mp h).2 0 (by simp)
 
 end InfixAt
 
@@ -224,9 +199,7 @@ theorem le_length (h : InfixAt w p u) (hu : u ≠ []) : p + u.length ≤ w.lengt
 /-- A literal starts with a marker. -/
 theorem literal_start {v : ℕ} {b : Bool} (h : InfixAt w p (literalBits v b)) :
     w[p]? = some true := by
-  have := h 0 (by simp)
-  rw [Nat.add_zero] at this
-  rw [this]
+  rw [← Nat.add_zero p, h 0 (by simp)]
   rcases hv : v.bits with _ | ⟨y, ys⟩ <;> simp [literalBits, hv]
 
 end InfixAt
@@ -245,17 +218,13 @@ theorem getElem?_nil (h : LitsAt w p []) : w[p]? = some false := by
 
 /-- A literal, then the rest of the clause. -/
 theorem cons {l : Literal ℕ} {ls : Clause ℕ} (h : LitsAt w p (l :: ls)) :
-    InfixAt w p (literalBits l.1 l.2) ∧ LitsAt w (p + (literalBits l.1 l.2).length) ls := by
-  have h' : InfixAt w p (literalBits l.1 l.2 ++
-      (ls.flatMap (fun l => literalBits l.1 l.2) ++ [false])) := by
-    simpa [LitsAt, List.append_assoc] using h
-  exact InfixAt.append.mp h'
+    InfixAt w p (literalBits l.1 l.2) ∧ LitsAt w (p + (literalBits l.1 l.2).length) ls :=
+  InfixAt.append.mp (by simpa [LitsAt, List.append_assoc] using h)
 
 /-- A clause ends within the word. -/
 theorem le_length {ls : Clause ℕ} (h : LitsAt w p ls) :
     p + (ls.flatMap fun l => literalBits l.1 l.2).length + 1 ≤ w.length := by
-  have := InfixAt.le_length h (by simp)
-  simpa [Nat.add_assoc] using this
+  simpa [Nat.add_assoc] using InfixAt.le_length h (by simp)
 
 end LitsAt
 

@@ -53,8 +53,8 @@ security parameter; running time is not tracked, and neither the simulators nor 
 certified efficient. Both the one-sided output protocol (`yaoProtocol`, where only the evaluator
 receives the circuit output) and the symmetric two-output protocol (`yaoBothProtocol`, where the
 evaluator sends the decoded output back to the garbler via `Steps.append`) are covered. The
-asymptotic two-output protocol over word-level garbling schemes, with PPT simulators and a
-certified reduction, is the protocol family `Yao.family` of
+asymptotic one-sided and two-output protocols over word-level garbling schemes, with PPT simulators
+and certified reductions, are the protocol families `Yao.oneSidedFamily` and `Yao.family` of
 `CslibFrontier.Crypto.Protocols.MPC.Yao.Family` and
 `CslibFrontier.Crypto.Protocols.MPC.Yao.Security`.
 
@@ -290,24 +290,23 @@ private theorem evalWith_yaoSteps [Fintype K] [Nonempty K] (C : Circuit σ (n₀
     (st : (i : Fin 2) → YaoIn n₀ n₁ i × YaoCoins C K i) :
     (yaoProtocol C I F tw).steps.evalWith (batchOTWorld n₁ (K × Bool)) st =
       PMF.pure (yaoReceived C I F tw st) := by
-  refine (Steps.evalWith_message _ _ _ _).trans ?_
-  refine (congrArg (PMF.map _) (Steps.evalWith_oracle _ _ _ _)).trans ?_
-  simp only [pmf_norm, Steps.evalWith_done, batchOTWorld]
-  rfl
+  refine (Steps.evalWith_message _ _ _ _).trans
+    ((congrArg (PMF.map _) (Steps.evalWith_oracle _ _ _ _)).trans ?_)
+  simp only [pmf_norm, Steps.evalWith_done, batchOTWorld]; rfl
 
 /-- Independent coin sampling draws the garbler's coins. -/
 private theorem eval_pi_yaoSampleCoins [Fintype K] [Nonempty K] (C : Circuit σ (n₀ + n₁) m)
     (I : Interpretation σ Bool) (F : K → T → K × Bool) (tw : Slot C.topology → T) :
     ProbComp.eval (OracleComp.pi (yaoProtocol C I F tw).sampleCoins) =
       (ProbComp.eval (sampleGarblerCoins C K)).map (yaoCoins C) := by
-  have h1 : ProbComp.eval ((yaoProtocol C I F tw).sampleCoins (Fin.succ 0)) =
-      PMF.pure (show YaoCoins C K (Fin.succ 0) from ()) := rfl
+  have hs1 : ProbComp.eval ((yaoProtocol C I F tw).sampleCoins (Fin.succ 0)) =
+      PMF.pure (() : YaoCoins C K (Fin.succ 0)) := rfl
   simp only [OracleComp.pi_succ, OracleComp.pi_zero, ProbComp.eval_bind, ProbComp.eval_map,
-    ProbComp.eval_pure, h1]
+    ProbComp.eval_pure, hs1]
   erw [PMF.pure_bind]
   simp only [PMF.pure_map]
   rw [← PMF.bind_pure_comp]
-  refine congrArg (PMF.bind _) (funext fun c => congrArg PMF.pure (funext fun i => ?_))
+  refine congrArg (PMF.bind _) (funext fun _ => congrArg PMF.pure (funext fun i => ?_))
   fin_cases i <;> rfl
 
 /-- Decoding the message of a garbled circuit with the labels of the evaluator's bits runs the
@@ -342,10 +341,8 @@ private theorem evalWith_yao [Fintype K] [Nonempty K] (C : Circuit σ (n₀ + n�
   rw [Protocol.evalWith_eq, eval_pi_yaoSampleCoins]
   simp only [evalWith_yaoSteps, PMF.pure_map, PMF.bind_map]
   rw [← PMF.bind_pure_comp]
-  refine congrArg _ (funext fun c => ?_)
-  simp only [Function.comp_apply]
-  refine congrArg PMF.pure (Prod.ext rfl ?_)
-  funext i
+  refine congrArg (PMF.bind _) (funext fun c =>
+    congrArg PMF.pure (Prod.ext rfl (funext fun i => ?_)))
   fin_cases i
   · rfl
   · exact outputOfView_yao_one C I F tw x c
@@ -364,19 +361,15 @@ private theorem yaoReceived_one (C : Circuit σ (n₀ + n₁) m)
     (⟨x 1, yaoCoins C c 1, yaoReceived C I F tw (fun i => (x i, yaoCoins C c i)) 1⟩ :
         PartyView (YaoIn n₀ n₁) (YaoCoins C K) (yaoSchedule C K) 1) =
       evaluatorView C (x 1) ((garbleWith C I F tw c.key c.perm).view (yaoInput x)) := by
-  refine PartyView.ext rfl rfl (Prod.ext ?_ (Prod.ext ?_ rfl))
-  · refine Round.received_message_ext fun _ => YaoMessage.ext rfl ?_ rfl
-    funext i
-    change (garbleWith C I F tw c.key c.perm).encoding (Fin.castAdd n₁ i) (x 0 i) =
-      (garbleWith C I F tw c.key c.perm).encoding (Fin.castAdd n₁ i) (yaoInput x (Fin.castAdd n₁ i))
-    exact congrArg _ (Fin.append_left (x 0 : Fin n₀ → Bool) (x 1 : Fin n₁ → Bool) i).symm
-  · refine Round.received_oracle_ext fun s hs => ?_
-    fin_cases s
-    · simp at hs
-    · funext j
-      change (garbleWith C I F tw c.key c.perm).encoding (Fin.natAdd n₀ j) (x 1 j) =
-        (garbleWith C I F tw c.key c.perm).encoding (Fin.natAdd n₀ j) (yaoInput x (Fin.natAdd n₀ j))
-      exact congrArg _ (Fin.append_right (x 0 : Fin n₀ → Bool) (x 1 : Fin n₁ → Bool) j).symm
+  refine PartyView.ext rfl rfl (Prod.ext
+    (Round.received_message_ext fun _ => YaoMessage.ext rfl (funext fun i =>
+      congrArg ((garbleWith C I F tw c.key c.perm).encoding _)
+        (Fin.append_left (x 0 : Fin n₀ → Bool) (x 1 : Fin n₁ → Bool) i).symm) rfl)
+    (Prod.ext (Round.received_oracle_ext fun s hs => ?_) rfl))
+  fin_cases s
+  · simp at hs
+  · exact funext fun j => congrArg ((garbleWith C I F tw c.key c.perm).encoding _)
+      (Fin.append_right (x 0 : Fin n₀ → Bool) (x 1 : Fin n₁ → Bool) j).symm
 
 /-- The garbler's view in a run with its coins `c`. -/
 private theorem yaoReceived_zero (C : Circuit σ (n₀ + n₁) m)
@@ -384,12 +377,11 @@ private theorem yaoReceived_zero (C : Circuit σ (n₀ + n₁) m)
     (x : (i : Fin 2) → YaoIn n₀ n₁ i) (c : GarblerCoins C K) :
     (⟨x 0, yaoCoins C c 0, yaoReceived C I F tw (fun i => (x i, yaoCoins C c i)) 0⟩ :
         PartyView (YaoIn n₀ n₁) (YaoCoins C K) (yaoSchedule C K) 0) = garblerView C (x 0) c := by
-  refine PartyView.ext rfl rfl (Prod.ext ?_ (Prod.ext ?_ rfl))
-  · exact Round.received_message_eq_of_ne (by decide) _ _
-  · refine Round.received_oracle_ext fun s hs => ?_
-    fin_cases s
-    · rfl
-    · simp at hs
+  refine PartyView.ext rfl rfl (Prod.ext (Round.received_message_eq_of_ne (by decide) _ _)
+    (Prod.ext (Round.received_oracle_ext fun s hs => ?_) rfl))
+  fin_cases s
+  · rfl
+  · simp at hs
 
 /-- **Correctness**: in every run of Yao's protocol the evaluator outputs
 `C.eval I (Fin.append x₀ x₁)` and the garbler outputs nothing. -/
@@ -401,7 +393,7 @@ theorem yao_output_of_mem_support [Fintype K] [Nonempty K] (C : Circuit σ (n₀
     (hr : r ∈ ((yaoProtocol C I F tw).evalWith (batchOTWorld n₁ (K × Bool)) x).support) :
     r.2 = yaoOutputs (C.eval I (yaoInput x)) := by
   rw [evalWith_yao, PMF.mem_support_map_iff] at hr
-  obtain ⟨c, -, rfl⟩ := hr
+  obtain ⟨_, -, rfl⟩ := hr
   rfl
 
 /-- The real joint distribution for a corrupted evaluator: its view is determined by the view of
@@ -414,9 +406,8 @@ theorem realJoint_yao_evaluator [Fintype K] [Nonempty K] (C : Circuit σ (n₀ +
         (singletonView (evaluatorView C (x 1) (G.view (yaoInput x))),
           yaoOutputs (C.eval I (yaoInput x))) := by
   rw [Protocol.realJoint, evalWith_yao, eval_garble, PMF.map_comp, PMF.map_comp]
-  refine congrArg (PMF.map · _) (funext fun c => ?_)
-  simp only [Function.comp_apply, Prod.map, id, restrict_singleton]
-  rw [yaoReceived_one]
+  refine congrArg (PMF.map · _) (funext fun _ => ?_)
+  simp only [Function.comp_apply, Prod.map, id, restrict_singleton, yaoReceived_one]
 
 /-- The real joint distribution for a corrupted garbler: fresh coins and nothing received. -/
 theorem realJoint_yao_garbler [Fintype K] [Nonempty K] (C : Circuit σ (n₀ + n₁) m)
@@ -426,9 +417,8 @@ theorem realJoint_yao_garbler [Fintype K] [Nonempty K] (C : Circuit σ (n₀ + n
       (ProbComp.eval (sampleGarblerCoins C K)).map fun c =>
         (singletonView (garblerView C (x 0) c), yaoOutputs (C.eval I (yaoInput x))) := by
   rw [Protocol.realJoint, evalWith_yao, PMF.map_comp]
-  refine congrArg (PMF.map · _) (funext fun c => ?_)
-  simp only [Function.comp_apply, Prod.map, id, restrict_singleton]
-  rw [yaoReceived_zero]
+  refine congrArg (PMF.map · _) (funext fun _ => ?_)
+  simp only [Function.comp_apply, Prod.map, id, restrict_singleton, yaoReceived_zero]
 
 /-- **Perfect privacy against the garbler**: the ideal joint distribution with the simulator
 `yaoGarblerSim` equals the real one. -/
@@ -438,8 +428,8 @@ theorem idealJoint_yao_garbler [Fintype K] [Nonempty K] (C : Circuit σ (n₀ + 
     ProbComp.eval (idealJoint (yaoFunctionality C I) {0} (yaoGarblerSim C K) x) =
       (yaoProtocol C I F tw).realJoint (batchOTWorld n₁ (K × Bool)) {0} x := by
   rw [realJoint_yao_garbler]
-  simp only [pmf_norm, idealJoint, yaoFunctionality, Functionality.ofDeterministic, yaoGarblerSim]
-  rw [← PMF.bind_pure_comp]
+  simp only [pmf_norm, idealJoint, yaoFunctionality, Functionality.ofDeterministic, yaoGarblerSim,
+    ← PMF.bind_pure_comp]
   rfl
 
 /-- A corrupted garbler has advantage zero against every distinguisher. -/
@@ -646,17 +636,11 @@ private theorem evalWith_yaoBoth [Fintype K] [Nonempty K]
         (fun i => ⟨x i, yaoCoins C c i,
             yaoBothReceived C I F tw (fun i => (x i, yaoCoins C c i)) (C.eval I (yaoInput x)) i⟩,
           fun _ => C.eval I (yaoInput x)) := by
-  rw [Protocol.evalWith_eq, eval_pi_yaoBothSampleCoins, PMF.bind_map]
-  rw [← PMF.bind_pure_comp]
+  rw [Protocol.evalWith_eq, eval_pi_yaoBothSampleCoins, PMF.bind_map, ← PMF.bind_pure_comp]
   refine congrArg (PMF.bind _) (funext fun c => ?_)
   simp only [Function.comp_apply, evalWith_yaoBothSteps, PMF.pure_map]
   refine congrArg PMF.pure (Prod.ext rfl (funext fun i => ?_))
-  change ((yaoProtocol C I F tw).steps.append (yaoReturnSteps n₁ K m)).outputAt i
-      (x i, yaoCoins C c i)
-      (Schedule.Received.append (sc₁ := yaoSchedule C K)
-        (yaoReceived C I F tw (fun i => (x i, yaoCoins C c i)) i)
-        (Round.deliverMessage (C.eval I (yaoInput x)) i, ())) =
-    C.eval I (yaoInput x)
+  dsimp only [Protocol.outputOfView, yaoBothProtocol, yaoBothReceived]
   rw [Steps.outputAt_append, congrFun (outputAt_yaoSteps C I F tw x c) i,
     outputAt_yaoReturnSteps]
 
@@ -667,14 +651,12 @@ private theorem yaoBothReceived_one (C : Circuit σ (n₀ + n₁) m)
         yaoBothReceived C I F tw (fun i => (x i, yaoCoins C c i)) y 1⟩ :
         PartyView (YaoIn n₀ n₁) (YaoCoins C K) (yaoBothSchedule C K) 1) =
       evaluatorBothView C (x 1) ((garbleWith C I F tw c.key c.perm).view (yaoInput x)) := by
-  have h1 : yaoReceived C I F tw (fun i => (x i, yaoCoins C c i)) 1 =
-      (evaluatorView C (x 1) ((garbleWith C I F tw c.key c.perm).view (yaoInput x))).received :=
+  have h1 : yaoReceived C I F tw (fun i => (x i, yaoCoins C c i)) 1 = _ :=
     congrArg PartyView.received (yaoReceived_one C I F tw x c)
   have h2 : Round.deliverMessage (spec := batchOTSpec n₁ (K × Bool))
       (sender := (1 : Fin 2)) (receiver := (0 : Fin 2)) y 1 = fun h => absurd h (by decide) :=
     Round.received_message_eq_of_ne (by decide) _ _
-  refine PartyView.ext rfl rfl ?_
-  simp only [yaoBothReceived, evaluatorBothView, h1, h2]
+  exact PartyView.ext rfl rfl (by simp only [yaoBothReceived, evaluatorBothView, h1, h2])
 
 private theorem yaoBothReceived_zero (C : Circuit σ (n₀ + n₁) m)
     (I : Interpretation σ Bool) (F : K → T → K × Bool) (tw : Slot C.topology → T)
@@ -683,11 +665,9 @@ private theorem yaoBothReceived_zero (C : Circuit σ (n₀ + n₁) m)
         yaoBothReceived C I F tw (fun i => (x i, yaoCoins C c i)) y 0⟩ :
         PartyView (YaoIn n₀ n₁) (YaoCoins C K) (yaoBothSchedule C K) 0) =
       garblerBothView C (x 0) c y := by
-  have h0 : yaoReceived C I F tw (fun i => (x i, yaoCoins C c i)) 0 =
-      (garblerView C (x 0) c).received :=
+  have h0 : yaoReceived C I F tw (fun i => (x i, yaoCoins C c i)) 0 = _ :=
     congrArg PartyView.received (yaoReceived_zero C I F tw x c)
-  refine PartyView.ext rfl rfl ?_
-  simp only [yaoBothReceived, garblerBothView, h0]
+  exact PartyView.ext rfl rfl (by simp only [yaoBothReceived, garblerBothView, h0])
 
 /-- **Correctness of two-output Yao's protocol**: in every run both the garbler and the evaluator
 output `C.eval I (Fin.append x₀ x₁)`. -/
@@ -699,7 +679,7 @@ theorem yaoBoth_output_of_mem_support [Fintype K] [Nonempty K]
     (hr : r ∈ ((yaoBothProtocol C I F tw).evalWith (batchOTWorld n₁ (K × Bool)) x).support) :
     r.2 = fun _ => C.eval I (yaoInput x) := by
   rw [evalWith_yaoBoth, PMF.mem_support_map_iff] at hr
-  obtain ⟨c, -, rfl⟩ := hr
+  obtain ⟨_, -, rfl⟩ := hr
   rfl
 
 /-- The real joint distribution for a corrupted evaluator in `yaoBothProtocol`. -/
@@ -711,9 +691,8 @@ theorem realJoint_yaoBoth_evaluator [Fintype K] [Nonempty K]
         (singletonView (evaluatorBothView C (x 1) (G.view (yaoInput x))),
           fun _ => C.eval I (yaoInput x)) := by
   rw [Protocol.realJoint, evalWith_yaoBoth, eval_garble, PMF.map_comp, PMF.map_comp]
-  refine congrArg (PMF.map · _) (funext fun c => ?_)
-  simp only [Function.comp_apply, Prod.map, id, restrict_singleton]
-  rw [yaoBothReceived_one]
+  refine congrArg (PMF.map · _) (funext fun _ => ?_)
+  simp only [Function.comp_apply, Prod.map, id, restrict_singleton, yaoBothReceived_one]
 
 /-- The real joint distribution for a corrupted garbler in `yaoBothProtocol`: fresh coins and the
 circuit output received in the return round. -/
@@ -725,9 +704,8 @@ theorem realJoint_yaoBoth_garbler [Fintype K] [Nonempty K]
         (singletonView (garblerBothView C (x 0) c (C.eval I (yaoInput x))),
           fun _ => C.eval I (yaoInput x)) := by
   rw [Protocol.realJoint, evalWith_yaoBoth, PMF.map_comp]
-  refine congrArg (PMF.map · _) (funext fun c => ?_)
-  simp only [Function.comp_apply, Prod.map, id, restrict_singleton]
-  rw [yaoBothReceived_zero]
+  refine congrArg (PMF.map · _) (funext fun _ => ?_)
+  simp only [Function.comp_apply, Prod.map, id, restrict_singleton, yaoBothReceived_zero]
 
 /-- **Perfect privacy against the garbler in `yaoBothProtocol`**: the ideal joint distribution with
 `yaoBothGarblerSim` equals the real one. -/
@@ -738,8 +716,7 @@ theorem idealJoint_yaoBoth_garbler [Fintype K] [Nonempty K]
       (yaoBothProtocol C I F tw).realJoint (batchOTWorld n₁ (K × Bool)) {0} x := by
   rw [realJoint_yaoBoth_garbler]
   simp only [pmf_norm, idealJoint, yaoBothFunctionality, Functionality.ofDeterministic,
-    yaoBothGarblerSim]
-  rw [← PMF.bind_pure_comp]
+    yaoBothGarblerSim, ← PMF.bind_pure_comp]
   rfl
 
 /-- A corrupted garbler in `yaoBothProtocol` has advantage zero against every distinguisher. -/

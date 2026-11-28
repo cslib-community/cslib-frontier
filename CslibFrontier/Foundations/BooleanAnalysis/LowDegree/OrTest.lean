@@ -9,8 +9,8 @@ module
 
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree
 public import Mathlib.LinearAlgebra.Basis.Defs
+public import Mathlib.Data.ZMod.Basic
 public import Mathlib.Data.ZMod.Defs
-import Mathlib.Data.ZMod.Basic
 
 /-!
 # A seeded low-degree test for OR modulo two
@@ -64,7 +64,7 @@ variable {F κ ι : Type*} [AddCommGroup F] [Module (ZMod 2) F] [Fintype κ]
 
 /-- **The seeded OR test** `1 - ∏_{j ∈ κ} (1 - ∑_{w ∈ A} [e w]_j y_w)`, where `[·]_j` is the
 `j`-th coordinate in the basis `b` of `F` over `𝔽₂`, read as `0` or `1`. -/
-noncomputable def orTest (b : Module.Basis κ (ZMod 2) F) (e : ι → F) (A : Finset ι)
+@[expose] noncomputable def orTest (b : Module.Basis κ (ZMod 2) F) (e : ι → F) (A : Finset ι)
     (y : ι → Bool) : ℤ :=
   1 - ∏ j, (1 - ∑ w ∈ A, ((b.repr (e w) j).val : ℤ) * bitVal ℤ (y w))
 
@@ -94,19 +94,13 @@ theorem orTest_emod_two_ne_zero_iff (b : Module.Basis κ (ZMod 2) F) (e : ι →
   have hcast : ((orTest b e A y : ℤ) : ZMod 2) = 1 - ∏ j, (1 - b.repr P j) := by
     simp only [orTest, Int.cast_sub, Int.cast_one, Int.cast_prod, hcoord]
   have hmod : orTest b e A y % 2 ≠ 0 ↔ ((orTest b e A y : ℤ) : ZMod 2) ≠ 0 := by
-    rw [Ne, Ne, ZMod.intCast_zmod_eq_zero_iff_dvd, Int.dvd_iff_emod_eq_zero]
-    rfl
+    simp [ZMod.intCast_zmod_eq_zero_iff_dvd, Int.dvd_iff_emod_eq_zero]
   rw [hmod, hcast, Ne, sub_eq_zero, eq_comm]
-  have hprod : ∏ j, (1 - b.repr P j) = 1 ↔ b.repr P = 0 := by
-    constructor
-    · intro h
-      ext j
-      rcases zmod_two_eq_zero_or_eq_one (b.repr P j) with hj | hj
-      · exact hj
-      · rw [Finset.prod_eq_zero (Finset.mem_univ j) (by rw [hj]; rfl)] at h
-        exact absurd h (by decide)
-    · intro h
-      simp [h]
+  have hprod : ∏ j, (1 - b.repr P j) = 1 ↔ b.repr P = 0 := ⟨fun h => by
+    ext j
+    refine (zmod_two_eq_zero_or_eq_one (b.repr P j)).resolve_right fun hj => ?_
+    rw [Finset.prod_eq_zero (Finset.mem_univ j) (sub_eq_zero.mpr hj.symm)] at h
+    exact absurd h (by decide), fun h => by simp [h]⟩
   rw [hprod, LinearEquiv.map_eq_zero_iff]
 
 /-- **The OR test has degree at most the dimension.** If each bit `g w v` is a function of degree
@@ -122,10 +116,9 @@ theorem orTest_mem_lowDegree {T : Type*} (b : Module.Basis κ (ZMod 2) F) (e : �
       Pi.smul_apply, smul_eq_mul]
   rw [h]
   refine one_sub_mem_lowDegree ?_
-  have := prod_mem_lowDegree (Finset.univ : Finset κ) (a := 1)
+  simpa using prod_mem_lowDegree (Finset.univ : Finset κ) (a := 1)
     (f := fun j => 1 - ∑ w ∈ A, ((b.repr (e w) j).val : ℤ) • fun v => bitVal ℤ (g w v))
     fun j _ => one_sub_mem_lowDegree
       (sum_mem_lowDegree _ fun w hw => Submodule.smul_mem _ _ (hg w hw))
-  simpa using this
 
 end Cslib.BitString

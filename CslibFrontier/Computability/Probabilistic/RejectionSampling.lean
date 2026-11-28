@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeLoops
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Probability.PMF.Map
 
@@ -66,22 +67,18 @@ theorem decodeTrials_eq_foldl_listRows {α : Type} (spec : BlockRejectionSpec α
           (fun acc row => acc.elim (spec.attempt row) some) none
   | 0, w, _ => by simp [BitString.listRows]
   | t + 1, w, hw => by
-    have hw1 : spec.width ≤ w.length := by
-      rw [Nat.succ_mul] at hw
-      omega
-    have hsplit : w = w.take spec.width ++ w.drop spec.width := (List.take_append_drop _ _).symm
-    have hlen : (w.take spec.width).length = spec.width := List.length_take_of_le hw1
+    rw [Nat.succ_mul] at hw
+    have hw1 : spec.width ≤ w.length := by omega
     have hrows : BitString.listRows (t + 1) spec.width w =
         w.take spec.width :: BitString.listRows t spec.width (w.drop spec.width) := by
-      conv_lhs => rw [hsplit]
-      exact BitString.listRows_succ_append t spec.width hlen (w.drop spec.width)
+      conv_lhs => rw [← List.take_append_drop spec.width w]
+      exact BitString.listRows_succ_append t spec.width (List.length_take_of_le hw1) _
     rw [decodeTrials_succ, hrows, List.foldl_cons, Option.elim_none]
-    cases hatt : spec.attempt (w.take spec.width) with
+    cases spec.attempt (w.take spec.width) with
     | some a => exact (foldl_elim_some spec.attempt a _).symm
     | none =>
       refine decodeTrials_eq_foldl_listRows spec t ?_
       rw [List.length_drop]
-      rw [Nat.succ_mul] at hw
       omega
 
 end BlockRejectionSpec
@@ -131,16 +128,7 @@ private theorem computableInPolyTime_decodeRows {α β : Type} {input : α ↪ L
   let growth : α × List Bool → ℕ := fun p =>
     ca * (2 * (input p.1).length + cw * ((input p.1).length + 1) ^ dw + 3) ^ da
   have hpoly : PolyBounded (fun p : α × List Bool => (encIn p).length) growth := by
-    have hp1 : PolyBounded (fun p : α × List Bool => (encIn p).length)
-        (fun p => (input p.1).length) :=
-      hfst.polyBounded_length
-    have hw_pb : PolyBounded (fun p : α × List Bool => (encIn p).length)
-        (fun p => cw * ((input p.1).length + 1) ^ dw) :=
-      (PolyBounded.const cw).mul ((hp1.add (.const 1)).pow dw)
-    have hinner : PolyBounded (fun p : α × List Bool => (encIn p).length)
-        (fun p => 2 * (input p.1).length + cw * ((input p.1).length + 1) ^ dw + 3) :=
-      (((PolyBounded.const 2).mul hp1).add hw_pb).add (.const 3)
-    exact (PolyBounded.const ca).mul (hinner.pow da)
+    growth_poly
   refine foldlWithInput_of_bounded_growth hinit ⟨hlist, hstep, inferInstance, inferInstance⟩
     ⟨hpoly, fun p state row hrow => ?_⟩
   cases state with
@@ -169,17 +157,12 @@ theorem isPPTOn_sampleSeededTrials {α β : Type} {input : α ↪ List Bool}
     (hattempt : ComputableInPolyTime (fun p : α × List Bool => (spec p.1).attempt p.2)
       (encPair input encBits) (encOption output)) :
     IsPPTOn input (encOption output) (fun a => sampleSeededTrials (spec a) (trials a)) := by
-  have hcount : ComputableInPolyTime (fun a => trials a * (spec a).width) input encUnary :=
-    (ComputableInPolyTime.unary_mul.comp (htrials.prod hwidth))
-  have hdecode := computableInPolyTime_decodeRows htrials hwidth hattempt
-  have hseeded := IsPPTOn.of_seeded hcount hdecode
-  refine hseeded.congr fun a => ?_
+  refine (IsPPTOn.of_seeded (ComputableInPolyTime.unary_mul.comp (htrials.prod hwidth))
+    (computableInPolyTime_decodeRows htrials hwidth hattempt)).congr fun a => ?_
   simp only [sampleSeededTrials, ProbComp.eval_map, BitString.eval_sampleList]
-  apply PMF.map_congr_on_support
-  intro w hw
-  have hlen : w.length = trials a * (spec a).width :=
-    BitString.length_of_mem_support_uniformList hw
-  exact (BlockRejectionSpec.decodeTrials_eq_foldl_listRows (spec a) (trials a) hlen.ge).symm
+  exact PMF.map_congr_on_support _ _ _ fun w hw =>
+    (BlockRejectionSpec.decodeTrials_eq_foldl_listRows (spec a) (trials a)
+      (BitString.length_of_mem_support_uniformList hw).ge).symm
 
 /-- Sequential capped block rejection `sampleBlockTrials` is uniformly strict PPT under the same
 hypotheses. -/
@@ -203,12 +186,10 @@ theorem isPPTOn_sampleBlockCapped {α β : Type} {input : α ↪ List Bool}
       (encPair input encBits) (encOption output))
     (hfallback : ComputableInPolyTime fallback input output) :
     IsPPTOn input output (fun a => sampleBlockCapped (spec a) (fallback a) (trials a)) := by
-  have hget : ComputableInPolyTime (fun p : α × Option β => p.2.getD (fallback p.1))
-      (encPair input (encOption output)) output :=
-    optionGetDWithInput (snd input (encOption output))
-      (hfallback.comp (fst input (encOption output)))
-  have h := IsPPTOn.map_with (f := fun a (o : Option β) => o.getD (fallback a))
-    (isPPTOn_sampleSeededTrials htrials hwidth hattempt) hget
-  simpa only [sampleBlockCapped, bind_pure_comp] using h
+  simpa only [sampleBlockCapped, bind_pure_comp] using
+    (isPPTOn_sampleSeededTrials htrials hwidth hattempt).map_with
+      (f := fun a (o : Option β) => o.getD (fallback a))
+      (optionGetDWithInput (snd input (encOption output))
+        (hfallback.comp (fst input (encOption output))))
 
 end Cslib.Probability

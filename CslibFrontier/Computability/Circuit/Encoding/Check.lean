@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Circuit.Boolean.Encoding
+public import CslibFrontier.Computability.Circuit.Encoding.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -69,7 +69,7 @@ open ComputableInPolyTime
 /-- Gate validation is polynomial-time in the full encoded input, for unary input count and
 binary wire indices, when computing an operation's binary arity is polynomial-time. No bound
 on the numeric arity is required: comparison uses the actual argument-list length. -/
-theorem computableInPolyTime_codeCheck {σ : Signature} {eOp : σ.Op ↪ List Bool}
+protected theorem computableInPolyTime_codeCheck {σ : Signature} {eOp : σ.Op ↪ List Bool}
     (harity : ComputableInPolyTime σ.Arity eOp encNat)
     {γ : Type} {encIn : γ ↪ List Bool} {n : γ → ℕ} {gates : γ → List (σ.Op × List ℕ)}
     (hn : ComputableInPolyTime n encIn encUnary)

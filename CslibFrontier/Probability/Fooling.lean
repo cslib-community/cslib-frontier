@@ -11,7 +11,9 @@ public import CslibFrontier.Foundations.BooleanAnalysis.Degree
 public import CslibFrontier.Probability.KWiseIndependent
 public import CslibFrontier.Probability.SmallBias
 public import Mathlib.Probability.ProbabilityMassFunction.Constructions
+import CslibFrontier.Foundations.BooleanAnalysis.SpectralNorm
 import CslibFrontier.Probability.PMF
+import CslibFrontier.Probability.PMF.Expect
 
 /-!
 # Fooling functions on the cube, and `k`-wise independence
@@ -30,7 +32,10 @@ The expectation of `F` under `X` is the sum of the Fourier coefficients of `F` w
 biases of `X` (`Cslib.BitString.sum_mul_eq_sum_fourierCoeff_mul_bias`). A function of degree at
 most `k` has no Fourier weight above level `k`, so a `k`-wise independent distribution fools it
 exactly [Braverman, Proposition 6][Braverman2010]
-(`Cslib.BitString.IsKWiseIndependent.fools_of_mem_lowDegree`).
+(`Cslib.BitString.IsKWiseIndependent.fools_of_mem_lowDegree`). An `ε`-biased distribution fools
+every function `f` up to `‖f̂‖₁ ε` (`Cslib.BitString.IsSmallBias.fools`)
+[O'Donnell, Lemma 6.38][ODonnell2014]. Since `‖(f²)^‖₁ ≤ ‖f̂‖₁²`, it also fools `f²` up to
+`‖f̂‖₁² ε` (`Cslib.BitString.IsSmallBias.fools_sq`) [O'Donnell, Corollary 6.39][ODonnell2014].
 
 A Boolean function is fooled once both it and its negation have one-sided lower bounds
 (`Cslib.BitString.fools_bitVal_of_le`), which is how [Braverman][Braverman2010] obtains the
@@ -45,6 +50,10 @@ two-sided bound of his Main Theorem from the one-sided Lemma 12.
 
 * `Cslib.BitString.sum_mul_eq_sum_fourierCoeff_mul_bias`: expectations through Fourier
   coefficients and biases.
+* `Cslib.BitString.IsSmallBias.fools`: small-bias distributions fool functions of small spectral
+  norm.
+* `Cslib.BitString.IsSmallBias.fools_sq`: small-bias distributions fool squares of functions of
+  small spectral norm.
 * `Cslib.BitString.IsKWiseIndependent.fools_of_mem_lowDegree`: `k`-wise independence fools
   degree-`k` functions exactly.
 * `Cslib.Probability.IsKWiseIndependentHash.isKWiseIndependent_map`: seeded `k`-wise independent
@@ -53,9 +62,31 @@ two-sided bound of his Main Theorem from the one-sided Lemma 12.
   independent for every `k`.
 * `Cslib.BitString.fools_bitVal_of_le`: two one-sided bounds fool a Boolean function.
 
+## Usage
+
+For small-bias fooling, open `Cslib.BitString` and `Cslib.Probability`. A distribution is
+`X : PMF (ι → Bool)`; `IsSmallBias ε X` bounds `|bias X S| ≤ ε` for every nonempty `S`
+(`CslibFrontier.Probability.SmallBias`), and `Fools X ε F` says
+`|∑ x, (X x).toReal * F x - 𝔼 x, F x| ≤ ε`. For `hε : 0 ≤ ε` and `hX : IsSmallBias ε X`,
+`hX.fools hε f` fools `f` up to `(∑ S, |fourierCoeff f S|) * ε` and `hX.fools_sq hε f` fools
+`fun x => f x ^ 2` up to `(∑ S, |fourierCoeff f S|) ^ 2 * ε`; the spectral-norm bounds behind the
+second, and the norms of characters, products and restrictions, are in
+`CslibFrontier.Foundations.BooleanAnalysis.SpectralNorm`. Every `0 ≤ ε` hypothesis is needed: with
+no coordinates the bias condition is vacuous. The uniform distribution is `0`-biased
+(`isSmallBias_uniformOfFintype`), every distribution is `1`-biased (`isSmallBias_one`), and short
+seeds give small bias by the powering construction (`exists_isSmallBias_uniformOfFintype_map` in
+`CslibFrontier.Probability.SmallBias.Powering`). For a sample space `g : σ → ι → Bool` with
+uniform seeds, `Cslib.Probability.PMF.sum_uniformOfFintype_map_mul` turns the expectation under
+`(PMF.uniformOfFintype σ).map g` into the average `𝔼 s, F (g s)`. The checked clients in
+[CslibFrontierTests/BooleanAnalysisSpectralNorm.lean](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisSpectralNorm.lean)
+show that an `ε`-biased distribution `ε`-fools the square of a character, and that a point mass,
+only `1`-biased, `4`-fools the square of `χ_{0} + χ_{1}`. The sharper bounds of
+[O'Donnell, Exercise 6.32][ODonnell2014] are not formalized.
+
 ## References
 
 * [M. Braverman, *Polylogarithmic independence fools `AC⁰` circuits*][Braverman2010]
+* [R. O'Donnell, *Analysis of Boolean Functions*][ODonnell2014]
 -/
 
 public section
@@ -75,8 +106,8 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 /-- The expectation under the uniform distribution is the average. -/
 theorem sum_uniformOfFintype_mul (F : (ι → Bool) → ℝ) :
     ∑ x, ((PMF.uniformOfFintype (ι → Bool)) x).toReal * F x = 𝔼 x, F x := by
-  simp only [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
-    Fintype.expect_eq_sum_div_card, inv_mul_eq_div, sum_div]
+  rw [← PMF.map_id (PMF.uniformOfFintype (ι → Bool))]
+  exact Probability.PMF.sum_uniformOfFintype_map_mul id F
 
 /-- The uniform distribution fools every function exactly. -/
 theorem fools_uniformOfFintype (F : (ι → Bool) → ℝ) :
@@ -118,6 +149,31 @@ theorem sum_mul_eq_sum_fourierCoeff_mul_bias (X : PMF (ι → Bool)) (f : (ι �
         simp only [bias, mul_sum]
         rw [sum_comm]
         exact sum_congr rfl fun S _ => sum_congr rfl fun x _ => by ring
+
+/-- **Small-bias distributions fool functions of small spectral norm**
+[O'Donnell, Lemma 6.38][ODonnell2014]: for `ε ≥ 0`, an `ε`-biased distribution `X` fools `f` up to
+`‖f̂‖₁ ε`. The expectation of `f` under `X` is `∑_S f̂(S)` times the bias at `S`, and the bias at
+`∅` is `1`. -/
+theorem IsSmallBias.fools {ε : ℝ} (hε : 0 ≤ ε) {X : PMF (ι → Bool)} (hX : IsSmallBias ε X)
+    (f : (ι → Bool) → ℝ) : Fools X ((∑ S, |fourierCoeff f S|) * ε) f := by
+  rw [Fools, sum_mul_eq_sum_fourierCoeff_mul_bias, ← add_sum_erase _ _ (mem_univ ∅), bias_empty,
+    mul_one, fourierCoeff_empty, add_sub_cancel_left]
+  calc |∑ S ∈ univ.erase ∅, fourierCoeff f S * bias X S|
+      ≤ ∑ S ∈ univ.erase ∅, |fourierCoeff f S| * ε :=
+        (abs_sum_le_sum_abs _ _).trans (sum_le_sum fun S hS => by
+          rw [abs_mul]
+          exact mul_le_mul_of_nonneg_left
+            (hX S (nonempty_iff_ne_empty.2 (ne_of_mem_erase hS))) (abs_nonneg _))
+    _ ≤ ∑ S, |fourierCoeff f S| * ε :=
+        sum_le_sum_of_subset_of_nonneg (erase_subset _ _) fun _ _ _ => by positivity
+    _ = (∑ S, |fourierCoeff f S|) * ε := (sum_mul _ _ _).symm
+
+/-- **Small-bias distributions fool squares** [O'Donnell, Corollary 6.39][ODonnell2014]: for
+`ε ≥ 0`, an `ε`-biased distribution `X` fools `f²` up to `‖f̂‖₁² ε`, by Lemma 6.38 for `f²` and
+`‖(f²)^‖₁ ≤ ‖f̂‖₁²` (`sum_abs_fourierCoeff_sq_le_sq`). -/
+theorem IsSmallBias.fools_sq {ε : ℝ} (hε : 0 ≤ ε) {X : PMF (ι → Bool)} (hX : IsSmallBias ε X)
+    (f : (ι → Bool) → ℝ) : Fools X ((∑ S, |fourierCoeff f S|) ^ 2 * ε) fun x => f x ^ 2 :=
+  (hX.fools hε _).mono (mul_le_mul_of_nonneg_right (sum_abs_fourierCoeff_sq_le_sq f) hε)
 
 /-- The uniform distribution is `k`-wise independent for every `k`. -/
 theorem isKWiseIndependent_uniformOfFintype (k : ℕ) :

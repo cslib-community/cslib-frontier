@@ -7,8 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Algorithms.Recursion.StackRecursionTree
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Explicit
-public import CslibFrontier.Computability.GenericRAM.Native.StackRecursionTree
+public import CslibFrontier.Computability.GenericRAM.Native.StackRecursion
 public import CslibFrontier.Computability.PolyTime.GaloisRingArithmetic
 public import CslibFrontier.Foundations.Data.BitString.List.Binary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Words
@@ -64,7 +65,7 @@ multiplied with the operations; an entry is a leaf, evaluated by the evaluator. 
 operations (`DescribedNetwork.sumValue`, `DescribedNetwork.eval_sumRoot`). So a native certificate
 of the evaluator, with any bounds, gives one native machine for the sum on every input
 (`DescribedNetwork.contractionCertificate`), through
-`Cslib.GenericRAM.StackRecursion.Scheme.certificate`. If the evaluator takes time `E`, space `ES`
+`Cslib.Algorithms.StackRecursion.Scheme.certificate`. If the evaluator takes time `E`, space `ES`
 and outputs at most `Ev` bits on every vertex, and reduced values are at most `Rv` bits, the
 machine takes time `2 ^ m (k + 1) + 1` times `K (n + Ev + Rv + 1) ^ K + 2 E` and space
 `K (n + Ev + Rv + 1) ^ K + ES` on inputs of length `n`
@@ -103,7 +104,7 @@ contraction algorithm, with implicit packet tensors as descriptors.
 
 namespace Cslib.Circuits.Frontier
 
-open Finset Cslib.BitString Cslib.GenericRAM Cslib.GenericRAM.StackRecursion Turing.MultiTapeTM
+open Finset Cslib.BitString Cslib.GenericRAM Cslib.Algorithms.StackRecursion Turing.MultiTapeTM
 
 /-! ### Values and their operations -/
 

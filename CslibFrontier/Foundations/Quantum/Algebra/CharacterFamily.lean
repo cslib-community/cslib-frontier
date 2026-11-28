@@ -91,8 +91,7 @@ theorem walshSum_sub (D D' : (ι → Bool) → A) (a : ι → Bool) :
   simp only [walshSum, ← sum_sub_distrib, ← smul_sub, Pi.sub_apply]
 
 theorem walshSum_zero (D : (ι → Bool) → A) : walshSum D 0 = ∑ x, D x := by
-  have h0 : signVal (0 : Bool) = 1 := signVal_false
-  simp [walshSum, zero_dotProduct, h0]
+  simp [walshSum, zero_dotProduct, show (0 : Bool) = false from rfl]
 
 end Ring
 
@@ -158,13 +157,11 @@ theorem charObs_zero : M.charObs 0 = 1 := by
 /-- The character observable `χ_M(a)` is the `±1` observable of the parity `a · x` of the
 outcome. -/
 theorem charObs_eq_observable_map (a : ι → Bool) :
-    M.charObs a = (M.map (a ⬝ᵥ ·)).observable := by
-  rw [observable_map]
-  rfl
+    M.charObs a = (M.map (a ⬝ᵥ ·)).observable :=
+  (observable_map M (a ⬝ᵥ ·)).symm
 
-theorem isSelfAdjoint_charObs (a : ι → Bool) : IsSelfAdjoint (M.charObs a) := by
-  rw [charObs_eq_observable_map]
-  exact isSelfAdjoint_observable _
+theorem isSelfAdjoint_charObs (a : ι → Bool) : IsSelfAdjoint (M.charObs a) :=
+  charObs_eq_observable_map M a ▸ isSelfAdjoint_observable _
 
 variable {M}
 
@@ -173,16 +170,12 @@ theorem IsProjective.charObs_mul (hM : M.IsProjective) (a a' : ι → Bool) :
     M.charObs a * M.charObs a' = M.charObs (a + a') := by
   rw [charObs_eq_observable_map, charObs_eq_observable_map, charObs_eq_observable_map,
     hM.observable_map_mul_observable_map]
-  congr 2
-  funext x
-  rw [add_dotProduct]
-  rfl
+  exact congrArg Measurement.observable (congrArg M.map (funext fun _ => (add_dotProduct ..).symm))
 
 /-- The character observables of a projective measurement are unitary. -/
 theorem IsProjective.charObs_mem_unitary (hM : M.IsProjective) (a : ι → Bool) :
-    M.charObs a ∈ unitary A := by
-  rw [charObs_eq_observable_map]
-  exact (hM.map _).observable_mem_unitary
+    M.charObs a ∈ unitary A :=
+  charObs_eq_observable_map M a ▸ (hM.map _).observable_mem_unitary
 
 end Measurement
 

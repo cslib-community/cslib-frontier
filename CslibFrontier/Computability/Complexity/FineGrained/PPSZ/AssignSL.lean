@@ -124,28 +124,20 @@ theorem card_free_update {τ : Fin n → Option Bool} {y : Fin n} (hy : τ y = n
 theorem isSatExtension_update_iff {φ : CNF (Fin n)} {τ : Fin n → Option Bool} {y : Fin n}
     (hy : τ y = none) {b : Bool} {σ : Fin n → Bool} :
     IsSatExtension φ (update τ y (some b)) σ ↔ IsSatExtension φ τ σ ∧ σ y = b := by
-  constructor
-  · rintro ⟨hext, hsat⟩
-    refine ⟨⟨fun z c hz => hext z c ?_, hsat⟩, hext y b (update_self y _ τ)⟩
-    rwa [update_of_ne (by rintro rfl; rw [hy] at hz; cases hz)]
-  · rintro ⟨⟨hext, hsat⟩, hσy⟩
-    refine ⟨fun z c hz => ?_, hsat⟩
-    by_cases hzy : z = y
-    · subst hzy
-      rw [update_self, Option.some.injEq] at hz
-      rw [hσy, hz]
-    · rw [update_of_ne hzy] at hz
-      exact hext z c hz
+  refine ⟨fun ⟨hext, hsat⟩ => ⟨⟨fun z c hz => hext z c ?_, hsat⟩,
+    hext y b (update_self y _ τ)⟩, fun ⟨⟨hext, hsat⟩, hσy⟩ => ⟨fun z c hz => ?_, hsat⟩⟩
+  · have hne : z ≠ y := ne_of_apply_ne τ (by simp [hz, hy])
+    rwa [update_of_ne hne]
+  · rcases eq_or_ne z y with rfl | hzy
+    · simpa [hσy] using hz
+    · exact hext z c (by rwa [update_of_ne hzy] at hz)
 
 /-- `y = b` is a satisfying literal exactly when `y` is unassigned and `τ` updated by `y = b` has
 a satisfying extension, the form of [Hertli, Definition 8 (p. 5)][Hertli2011]. -/
 theorem satLit_iff_update {φ : CNF (Fin n)} {τ : Fin n → Option Bool} {y : Fin n} {b : Bool} :
-    SatLit φ τ y b ↔ τ y = none ∧ ∃ σ, IsSatExtension φ (update τ y (some b)) σ := by
-  constructor
-  · rintro ⟨hy, σ, hσ, hσy⟩
-    exact ⟨hy, σ, (isSatExtension_update_iff hy).mpr ⟨hσ, hσy⟩⟩
-  · rintro ⟨hy, σ, hσ⟩
-    exact ⟨hy, σ, (isSatExtension_update_iff hy).mp hσ⟩
+    SatLit φ τ y b ↔ τ y = none ∧ ∃ σ, IsSatExtension φ (update τ y (some b)) σ :=
+  ⟨fun ⟨hy, σ, hσ, hσy⟩ => ⟨hy, σ, (isSatExtension_update_iff hy).mpr ⟨hσ, hσy⟩⟩,
+    fun ⟨hy, σ, hσ⟩ => ⟨hy, σ, (isSatExtension_update_iff hy).mp hσ⟩⟩
 
 /-- After setting a satisfying literal, a satisfying extension remains. -/
 theorem SatLit.update_isSatExtension {φ : CNF (Fin n)} {τ : Fin n → Option Bool} {y : Fin n}
@@ -166,9 +158,8 @@ a satisfying literal. -/
 theorem card_free_le_card_satLits {φ : CNF (Fin n)} {τ : Fin n → Option Bool}
     (h : ∃ σ, IsSatExtension φ τ σ) : (free τ).card ≤ (satLits φ τ).card := by
   obtain ⟨σ, hσ⟩ := h
-  refine card_le_card_of_injOn (fun y => (y, σ y)) (fun y hy => ?_)
-    fun _ _ _ _ h => congrArg Prod.fst h
-  exact mem_satLits.mpr ⟨mem_free.mp hy, σ, hσ, rfl⟩
+  exact card_le_card_of_injOn (fun y => (y, σ y))
+    (fun y hy => mem_satLits.mpr ⟨mem_free.mp hy, σ, hσ, rfl⟩) fun _ _ _ _ h => congrArg Prod.fst h
 
 /-- With a satisfying extension and an unassigned variable, there is a satisfying literal. -/
 theorem card_satLits_pos {φ : CNF (Fin n)} {τ : Fin n → Option Bool}
@@ -201,13 +192,12 @@ theorem free_induction {P : (Fin n → Option Bool) → Prop}
     (base : ∀ τ, free τ = ∅ → P τ)
     (step : ∀ τ, (free τ).Nonempty → (∀ y b, τ y = none → P (update τ y (some b))) → P τ)
     (τ : Fin n → Option Bool) : P τ := by
-  obtain ⟨k, hk⟩ : ∃ k, (free τ).card = k := ⟨_, rfl⟩
+  generalize hk : (free τ).card = k
   induction k generalizing τ with
   | zero => exact base τ (card_eq_zero.mp hk)
   | succ k ih =>
-    refine step τ (card_pos.mp (by omega)) fun y b hy => ih _ ?_
-    have := card_free_update hy b
-    omega
+    exact step τ (card_pos.mp (by omega)) fun y b hy =>
+      ih _ (by have := card_free_update hy b; omega)
 
 /-! ### The output distribution of AssignSL -/
 
@@ -244,8 +234,7 @@ theorem assignProb_eq_sum {φ : CNF (Fin n)} {τ : Fin n → Option Bool}
   obtain ⟨k, hk⟩ := Nat.exists_eq_succ_of_ne_zero (card_ne_zero.mpr h)
   rw [assignProb, hk, assignProbAux]
   refine congrArg _ (sum_congr rfl fun l hl => ?_)
-  have := card_free_update (mem_satLits.mp hl).1 l.2
-  rw [assignProb, show (free (update τ l.1 (some l.2))).card = k by omega]
+  rw [assignProb, Nat.succ.inj ((card_free_update (mem_satLits.mp hl).1 l.2).trans hk)]
 
 /-- Output probabilities are nonnegative. -/
 theorem assignProb_nonneg (φ : CNF (Fin n)) (τ : Fin n → Option Bool) (α : Fin n → Bool) :
@@ -265,13 +254,12 @@ theorem isSatExtension_of_assignProb_ne_zero {φ : CNF (Fin n)} {τ : Fin n → 
   induction τ using free_induction with
   | base τ hτ =>
     rw [assignProb_of_free_eq_empty hτ] at h
-    by_contra hc
-    exact h (ite_eq_right hc)
+    exact of_not_not fun hc => h (ite_eq_right hc)
   | step τ hne ih =>
-    rw [assignProb_eq_sum hne] at h
-    obtain ⟨l, hl, hl0⟩ := exists_ne_zero_of_sum_ne_zero (right_ne_zero_of_mul h)
-    have hy := (mem_satLits.mp hl).1
-    exact ((isSatExtension_update_iff hy).mp (ih _ _ hy hl0)).1
+    obtain ⟨l, hl, hl0⟩ := exists_ne_zero_of_sum_ne_zero
+      (right_ne_zero_of_mul (assignProb_eq_sum hne α ▸ h))
+    exact ((isSatExtension_update_iff (mem_satLits.mp hl).1).mp
+      (ih _ _ (mem_satLits.mp hl).1 hl0)).1
 
 /-- AssignSL never outputs an assignment that is not a satisfying extension. -/
 theorem assignProb_eq_zero {φ : CNF (Fin n)} {τ : Fin n → Option Bool} {α : Fin n → Bool}
@@ -284,17 +272,15 @@ theorem assignProb_pos_iff {φ : CNF (Fin n)} {τ : Fin n → Option Bool} {α :
     0 < assignProb φ τ α ↔ IsSatExtension φ τ α := by
   refine ⟨fun h => isSatExtension_of_assignProb_ne_zero h.ne', fun h => ?_⟩
   induction τ using free_induction with
-  | base τ hτ =>
-    rw [assignProb_of_free_eq_empty hτ, ite_eq_left h]
-    exact one_pos
+  | base τ hτ => simp [assignProb_of_free_eq_empty hτ, h]
   | step τ hne ih =>
-    rw [assignProb_eq_sum hne]
     obtain ⟨y, hy⟩ := hne
     have hy' := mem_free.mp hy
-    refine mul_pos (inv_pos.mpr (Nat.cast_pos.mpr (card_satLits_pos ⟨α, h⟩ ⟨y, hy⟩)))
-      (sum_pos' (fun l hl => assignProb_nonneg _ _ _) ⟨(y, α y), ?_, ?_⟩)
-    · exact mem_satLits.mpr ⟨hy', α, h, rfl⟩
-    · exact ih y (α y) hy' ((isSatExtension_update_iff hy').mpr ⟨h, rfl⟩)
+    rw [assignProb_eq_sum ⟨y, hy⟩]
+    exact mul_pos (inv_pos.mpr (Nat.cast_pos.mpr (card_satLits_pos ⟨α, h⟩ ⟨y, hy⟩)))
+      (sum_pos' (fun _ _ => assignProb_nonneg _ _ _) ⟨(y, α y),
+        mem_satLits.mpr ⟨hy', α, h, rfl⟩,
+        ih y (α y) hy' ((isSatExtension_update_iff hy').mpr ⟨h, rfl⟩)⟩)
 
 /-- **AssignSL is a probability distribution** [Hertli, Observation 13 (p. 7)][Hertli2011]: if
 `τ` has a satisfying extension, the output probabilities sum to `1`. -/
@@ -330,22 +316,17 @@ theorem card_satLits_mul_assignProb (φ : CNF (Fin n)) (τ : Fin n → Option Bo
     exact (sum_eq_zero fun y hy => assignProb_eq_zero fun h =>
       hα ((isSatExtension_update_iff (mem_free.mp hy)).mp h).1).symm
   rcases (free τ).eq_empty_or_nonempty with hτ | hne
-  · have : (satLits φ τ).card = 0 := by
-      have := card_satLits_le φ τ
-      rw [hτ, card_empty] at this
-      omega
-    rw [hτ, sum_empty, this, Nat.cast_zero, zero_mul]
+  · simp [hτ, nonpos_iff_eq_zero.mp (hτ ▸ card_satLits_le φ τ)]
   have hs : ((satLits φ τ).card : ℝ) ≠ 0 :=
     Nat.cast_ne_zero.mpr (card_satLits_pos ⟨α, hα⟩ hne).ne'
   let e : Fin n ↪ Fin n × Bool := ⟨fun y => (y, α y), fun _ _ h => congrArg Prod.fst h⟩
   rw [assignProb_eq_sum hne, mul_inv_cancel_left₀ hs]
   refine Eq.trans ?_ (sum_map (free τ) e fun l => assignProb φ (update τ l.1 (some l.2)) α)
-  refine (sum_subset (fun l hl => ?_) fun l hl hl' => ?_).symm
-  · obtain ⟨y, hy, rfl⟩ := mem_map.mp hl
-    exact mem_satLits.mpr ⟨mem_free.mp hy, α, hα, rfl⟩
-  · refine assignProb_eq_zero fun h => hl' (mem_map.mpr ⟨l.1, ?_, ?_⟩)
-    · exact mem_free.mpr (mem_satLits.mp hl).1
-    · exact Prod.ext rfl ((isSatExtension_update_iff (mem_satLits.mp hl).1).mp h).2
+  refine (sum_subset (fun l hl => ?_) fun l hl hl' => assignProb_eq_zero fun h =>
+    hl' (mem_map.mpr ⟨l.1, mem_free.mpr (mem_satLits.mp hl).1,
+      Prod.ext rfl ((isSatExtension_update_iff (mem_satLits.mp hl).1).mp h).2⟩)).symm
+  obtain ⟨y, hy, rfl⟩ := mem_map.mp hl
+  exact mem_satLits.mpr ⟨mem_free.mp hy, α, hα, rfl⟩
 
 /-- **Observation 13 of [Hertli, p. 7][Hertli2011]**: while some variable is unassigned,
 `R(τ)(α) = (1/s) ∑_y R(τ[y ↦ α y])(α)` over the unassigned variables `y`, where `R` is the output
@@ -364,33 +345,26 @@ private theorem assignProb_le_assignProb_update_of_eq_none (φ : CNF (Fin n))
     (τ : Fin n → Option Bool) (α : Fin n → Bool) :
     ∀ y, τ y = none → assignProb φ τ α ≤ assignProb φ (update τ y (some (α y))) α := by
   induction τ using free_induction with
-  | base τ hτ =>
-    intro y hy
-    exact absurd (hτ ▸ mem_free.mpr hy) (notMem_empty y)
+  | base τ hτ => exact fun y hy => absurd (hτ ▸ mem_free.mpr hy) (notMem_empty y)
   | step τ hne ih =>
     intro y hy
     set τ' := update τ y (some (α y))
     by_cases hα : IsSatExtension φ τ α
     swap
-    · rw [assignProb_eq_zero hα]
-      exact assignProb_nonneg _ _ _
+    · simp [assignProb_eq_zero hα, assignProb_nonneg]
     have hs : (0 : ℝ) < (satLits φ τ).card := Nat.cast_pos.mpr (card_satLits_pos ⟨α, hα⟩ hne)
     have hlt : ((satLits φ τ').card : ℝ) + 1 ≤ (satLits φ τ).card := by
       exact_mod_cast card_satLits_update_lt (b := α y) ⟨hy, α, hα, rfl⟩
     have h13 := card_satLits_mul_assignProb φ τ α
     rw [← insert_erase (mem_free.mpr hy), sum_insert (notMem_erase y _)] at h13
-    have h13' := card_satLits_mul_assignProb φ τ' α
-    rw [free_update] at h13'
+    have h13' := free_update τ y (α y) ▸ card_satLits_mul_assignProb φ τ' α
     have hle : ∑ z ∈ (free τ).erase y, assignProb φ (update τ z (some (α z))) α ≤
-        ∑ z ∈ (free τ).erase y, assignProb φ (update τ' z (some (α z))) α := by
-      refine sum_le_sum fun z hz => ?_
-      have hzy := ne_of_mem_erase hz
-      have := ih z (α z) (mem_free.mp (mem_of_mem_erase hz)) y
-        (by rw [update_of_ne (Ne.symm hzy)]; exact hy)
-      rwa [update_comm hzy] at this
-    have hR' := assignProb_nonneg φ τ' α
+        ∑ z ∈ (free τ).erase y, assignProb φ (update τ' z (some (α z))) α :=
+      sum_le_sum fun z hz => update_comm (ne_of_mem_erase hz) .. ▸
+        ih z (α z) (mem_free.mp (mem_of_mem_erase hz)) y
+          (by rwa [update_of_ne (ne_of_mem_erase hz).symm])
     refine le_of_mul_le_mul_left ?_ hs
-    nlinarith [mul_nonneg (sub_nonneg.mpr hlt) hR']
+    nlinarith [mul_nonneg (sub_nonneg.mpr hlt) (assignProb_nonneg φ τ' α)]
 
 /-- **Lemma 16 of [Hertli, p. 7][Hertli2011]**, its first statement: setting a variable to its
 value in `α` does not lower the probability that AssignSL outputs `α`. Its second statement, the
@@ -411,7 +385,6 @@ theorem assignProb_le_assignProb_update (φ : CNF (Fin n)) (τ : Fin n → Optio
   · exact assignProb_le_assignProb_update_of_eq_none φ τ α y hy
   · by_cases hc : α y = c
     · rw [hc, ← hy, update_eq_self]
-    · rw [assignProb_eq_zero fun h => hc (h.1 y c hy)]
-      exact assignProb_nonneg _ _ _
+    · simp [assignProb_eq_zero fun h => hc (h.1 y c hy), assignProb_nonneg]
 
 end Cslib.Complexity.PPSZ

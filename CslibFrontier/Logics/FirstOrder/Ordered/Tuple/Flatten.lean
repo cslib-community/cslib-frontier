@@ -58,22 +58,18 @@ theorem flattenTuple_finProdFinEquiv_apply {α : Type*} {k l : ℕ} (x : Fin l �
 /-- Successive arbitrary-base ranks agree with the rank after outer-then-inner flattening. -/
 theorem lexRank_flattenTuple {n k l : ℕ} (x : Fin l → Fin k → Fin n) :
     lexRank (flattenTuple x) = lexRank (fun j => lexEquiv (x j)) := by
+  have hrev {m : ℕ} (u : Fin m) : u.val + u.rev.val + 1 = m := by
+    simp only [Fin.val_rev]; omega
   rw [lexRank_apply, ← Equiv.sum_comp finProdFinEquiv, Fintype.sum_prod_type, lexRank_apply]
-  apply Finset.sum_congr rfl
-  intro j _
+  refine Finset.sum_congr rfl fun j _ => ?_
   change _ = lexRank (x j) * (n ^ k) ^ j.rev.val
   rw [lexRank_apply, Finset.sum_mul]
-  apply Finset.sum_congr rfl
-  intro i _
-  have hi : i.val + i.rev.val + 1 = k := by simp only [Fin.val_rev]; lia
-  have hj : j.val + j.rev.val + 1 = l := by simp only [Fin.val_rev]; lia
-  have hp : (finProdFinEquiv (j, i)).val + (finProdFinEquiv (j, i)).rev.val + 1 =
-      l * k := by simp only [Fin.val_rev]; lia
-  have hm := congrArg (k * ·) hj
-  simp only [Nat.mul_add, Nat.mul_one] at hm
+  refine Finset.sum_congr rfl fun i _ => ?_
   have he : (finProdFinEquiv (j, i)).rev.val = i.rev.val + k * j.rev.val := by
-    simp only [finProdFinEquiv_apply_val] at hp
-    have := Nat.mul_comm l k
+    have hp := hrev (finProdFinEquiv (j, i))
+    have hm := congrArg (k * ·) (hrev j)
+    simp only [finProdFinEquiv_apply_val, Nat.mul_add, Nat.mul_one, Nat.mul_comm l k] at hp hm
+    have := hrev i
     lia
   simp only [flattenTuple_apply, he, pow_add, pow_mul]
   ac_rfl

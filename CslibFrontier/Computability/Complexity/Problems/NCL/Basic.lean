@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Data.Fintype.Defs
+public import Mathlib.Logic.Equiv.Defs
 public import Mathlib.Logic.Function.Basic
 public import Mathlib.Logic.Relation
 import Mathlib.Algebra.Order.BigOperators.Group.List
@@ -30,6 +31,7 @@ vertex's minimum inflow. AND vertices have incident weights 1, 1, 2 and OR verti
 
 ## Main results
 
+* `Cslib.Complexity.NCL.ConstraintGraph.Reachable.symm`: reachability is symmetric.
 * `Cslib.Complexity.NCL.Vertex.sat_and` and `Cslib.Complexity.NCL.Vertex.sat_or` express the
   weighted constraints as Boolean conditions on the three ports.
 
@@ -42,7 +44,7 @@ public section
 
 namespace Cslib.Complexity.NCL
 
-variable {V E E' : Type*}
+variable {V V' E E' : Type*}
 
 /-- An edge seen from one of its endpoints: the edge points into this endpoint when its
 orientation bit equals `dir`. -/
@@ -63,6 +65,14 @@ instance (p : Port E) (s : E → Bool) : Decidable (p.In s) :=
 
 /-- Rename the edge of a port. -/
 @[expose] def map (f : E → E') (p : Port E) : Port E' := ⟨f p.edge, p.dir⟩
+
+@[simp] theorem in_map (f : E → E') (p : Port E) (s : E' → Bool) :
+    (p.map f).In s ↔ p.In (s ∘ f) :=
+  Iff.rfl
+
+@[simp] theorem map_map {E'' : Type*} (f : E → E') (g : E' → E'') (p : Port E) :
+    (p.map f).map g = p.map (g ∘ f) :=
+  rfl
 
 end Port
 
@@ -93,6 +103,7 @@ structure Vertex (E : Type*) where
   ports : List (WeightedPort E)
   /-- The minimum in-flow. -/
   minInflow : ℕ
+  deriving @[expose] DecidableEq
 
 namespace Vertex
 
@@ -106,9 +117,36 @@ namespace Vertex
 instance (v : Vertex E) (s : E → Bool) : Decidable (v.Sat s) :=
   inferInstanceAs (Decidable (_ ≤ _))
 
+/-- **Monotonicity**: pointing more edges in keeps the in-flow constraint. -/
+theorem Sat.mono {v : Vertex E} {s t : E → Bool} (h : ∀ p ∈ v.ports, p.port.In s → p.port.In t)
+    (hs : v.Sat s) : v.Sat t := by
+  refine hs.trans (List.sum_le_sum fun p hp => ?_)
+  by_cases hin : p.port.In s
+  · simp [hin, h p hp hin]
+  · simp [hin]
+
 /-- Rename the edges of a vertex. -/
 @[expose] def map (f : E → E') (v : Vertex E) : Vertex E' :=
   ⟨v.ports.map (WeightedPort.map f), v.minInflow⟩
+
+/-- Injective edge renamings induce injective vertex renamings. -/
+theorem map_injective {f : E → E'} (hf : Function.Injective f) :
+    Function.Injective (Vertex.map f) := by
+  rintro ⟨ps, n⟩ ⟨ps', n'⟩ h
+  obtain ⟨hps, hn⟩ := Vertex.mk.inj h
+  exact congrArg₂ Vertex.mk (List.map_injective_iff.mpr (WeightedPort.map_injective hf) hps) hn
+
+@[simp] theorem map_map {E'' : Type*} (f : E → E') (g : E' → E'') (v : Vertex E) :
+    (v.map f).map g = v.map (g ∘ f) := by
+  simp only [map, List.map_map]
+  rfl
+
+/-- Two renamings whose composite is `h` compose to the renaming by `h`. -/
+theorem map_comp_map {E'' : Type*} {f : E → E'} {g : E' → E''} {h : E → E''}
+    (hgf : ∀ x, g (f x) = h x) : Vertex.map g ∘ Vertex.map f = Vertex.map h := by
+  funext v
+  rw [Function.comp_apply, map_map]
+  exact congrArg (map · v) (funext hgf)
 
 @[simp] theorem sat_map (f : E → E') (v : Vertex E) (s : E' → Bool) :
     (v.map f).Sat s ↔ v.Sat (s ∘ f) := by
@@ -122,6 +160,23 @@ edge `c` of weight two, and minimum in-flow two. -/
 /-- An OR vertex [HearnDemaine2005, Section 2.2]: three blue edges of weight two, and minimum
 in-flow two. -/
 @[expose] def or (a b c : Port E) : Vertex E := ⟨[⟨a, 2⟩, ⟨b, 2⟩, ⟨c, 2⟩], 2⟩
+
+/-- An unconstrained endpoint. Listing its port keeps the incidence of a boundary wire explicit
+even though the endpoint requires no in-flow. -/
+@[expose] def loose (p : Port E) (weight : ℕ) : Vertex E := ⟨[⟨p, weight⟩], 0⟩
+
+@[simp] theorem sat_loose (p : Port E) (weight : ℕ) (s : E → Bool) : (loose p weight).Sat s :=
+  Nat.zero_le _
+
+/-- A clause as a vertex: at least one of the ports points in. Assumptions such as "if `e` points
+one way, then `f` points the other" are clauses, so refutations can use them like vertices. -/
+@[expose] def clause (ps : List (Port E)) : Vertex E := ⟨ps.map (fun p => ⟨p, 1⟩), 1⟩
+
+theorem sat_clause {ps : List (Port E)} {s : E → Bool} {p : Port E} (hp : p ∈ ps)
+    (h : p.In s) : (clause ps).Sat s := by
+  refine le_trans ?_ (List.le_sum_of_mem (List.mem_map.2
+    ⟨⟨p, 1⟩, List.mem_map.2 ⟨p, hp, rfl⟩, rfl⟩))
+  simp [clause, h]
 
 /-- The blue edge of an AND vertex may point out exactly when both red edges point in. -/
 @[simp] theorem sat_and (a b c : Port E) (s : E → Bool) :
@@ -170,7 +225,34 @@ variable [DecidableEq E]
 theorem reverse_of_ne (s : E → Bool) {e f : E} (h : f ≠ e) : reverse s e f = s f := by
   simp [reverse, h]
 
+@[simp] theorem reverse_reverse (s : E → Bool) (e : E) : reverse (reverse s e) e = s := by
+  funext f
+  by_cases h : f = e
+  · subst h
+    simp
+  · simp [reverse_of_ne _ h]
+
+/-- Reversing the image of an edge under an injection, seen through the injection. -/
+theorem reverse_apply_of_injective [DecidableEq E'] {f : E → E'} (hf : Function.Injective f)
+    (t : E' → Bool) (y x : E) : reverse t (f y) (f x) = reverse (t ∘ f) y x :=
+  Function.update_apply_of_injective t hf y (!t (f y)) x
+
+/-- Reversing an edge in the image of an injection commutes with restriction. -/
+theorem reverse_comp_of_injective [DecidableEq E'] {f : E → E'} (hf : Function.Injective f)
+    (t : E' → Bool) (y : E) : reverse t (f y) ∘ f = reverse (t ∘ f) y :=
+  Function.update_comp_eq_of_injective t hf y (!t (f y))
+
+/-- Reversing an edge commutes with renaming the edges. -/
+theorem reverse_comp_equiv [DecidableEq E'] (σ : E ≃ E') (s : E' → Bool) (e : E') :
+    reverse s e ∘ σ = reverse (s ∘ σ) (σ.symm e) := by
+  simpa only [Equiv.apply_symm_apply] using reverse_comp_of_injective σ.injective s (σ.symm e)
+
 end Reverse
+
+/-- Reversing an edge outside the image of a map leaves the restriction unchanged. -/
+theorem reverse_comp_of_not_mem_range [DecidableEq E'] {f : E → E'} (t : E' → Bool) {y : E'}
+    (hy : ∀ x, f x ≠ y) : reverse t y ∘ f = t ∘ f :=
+  Function.update_comp_eq_of_forall_ne t (!t y) hy
 
 /-- A constraint graph [HearnDemaine2005, Section 2.1]: every vertex in `V` with its incident
 edges among `E`. -/
@@ -205,11 +287,44 @@ def CanReverse [DecidableEq E] (s : E → Bool) (e : E) : Prop := ∃ t, G.Reach
 /-- Rename the edges of a constraint graph. -/
 @[expose] def map (f : E → E') : ConstraintGraph V E' := fun v => (G v).map f
 
+@[simp] theorem legal_map (f : E → E') (s : E' → Bool) : (G.map f).Legal s ↔ G.Legal (s ∘ f) :=
+  forall_congr' fun v => Vertex.sat_map f (G v) s
+
+/-- The configurations of two graphs placed side by side, with their edges renamed into a common
+type, are those of each graph. -/
+theorem legal_sumElim_map {V₁ V₂ E₁ E₂ : Type*} (G₁ : ConstraintGraph V₁ E₁)
+    (G₂ : ConstraintGraph V₂ E₂) (f₁ : E₁ → E) (f₂ : E₂ → E) (s : E → Bool) :
+    ConstraintGraph.Legal (Sum.elim (fun v => (G₁ v).map f₁) (fun v => (G₂ v).map f₂)) s ↔
+      G₁.Legal (s ∘ f₁) ∧ G₂.Legal (s ∘ f₂) := by
+  simp only [Legal, Sum.forall, Sum.elim_inl, Sum.elim_inr, Vertex.sat_map]
+
+/-- Reindexing the vertices along a surjection keeps the configurations. -/
+theorem legal_comp {τ : V' → V} (hτ : Function.Surjective τ) (s : E → Bool) :
+    ConstraintGraph.Legal (G ∘ τ) s ↔ G.Legal s :=
+  (hτ.forall (p := fun v => (G v).Sat s)).symm
+
 variable {G} [DecidableEq E]
 
 theorem Step.legal_left {s t : E → Bool} (h : G.Step s t) : G.Legal s := h.1
 
 theorem Step.legal_right {s t : E → Bool} (h : G.Step s t) : G.Legal t := h.2.1
+
+/-- A path from a legal configuration ends at a legal configuration, including an empty path. -/
+theorem Reachable.legal {s t : E → Bool} (h : G.Reachable s t) (hs : G.Legal s) :
+    G.Legal t := by
+  cases h with
+  | refl => exact hs
+  | tail _ hst => exact hst.legal_right
+
+/-- Every move can be undone. -/
+theorem Step.symm {s t : E → Bool} (h : G.Step s t) : G.Step t s := by
+  obtain ⟨hs, ht, e, rfl⟩ := h
+  exact ⟨ht, hs, e, (reverse_reverse s e).symm⟩
+
+/-- **Reversibility**: reachability is symmetric. -/
+theorem Reachable.symm {s t : E → Bool} (h : G.Reachable s t) : G.Reachable t s := by
+  let : Std.Symm G.Step := ⟨fun _ _ h => h.symm⟩
+  exact Std.Symm.symm _ _ h
 
 end ConstraintGraph
 

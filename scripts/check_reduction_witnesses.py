@@ -114,7 +114,7 @@ the paragraphs above say that the pass or this checker fails, it reports a diffe
 fails only under the enforcement below. A difference is a prompt for the reviewer to look, not a
 failure. The scan still fails when it cannot run or the baseline is malformed, because that is a
 broken tool and not a finding. `--report` prints every difference in every module and always
-succeeds; merge groups and pushes to `main` run it.
+succeeds; pushes to `main` run it.
 
 Without `--advisory`, `--base` and `--all` enforce, which CI no longer does and which remains for
 local use: a difference in a touched module (`--all`: in any module) fails, and differences in

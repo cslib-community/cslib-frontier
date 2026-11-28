@@ -260,6 +260,22 @@ def andList (l : List (Formula signature n)) : Formula signature n :=
 @[simp] theorem andList_singleton : andList [F] = F :=
   balanced_singleton _ F
 
+/-- Disjunction adds the leaf sizes of its arguments, including the empty list. -/
+@[simp] theorem leafSize_orList (l : List (Formula signature n)) :
+    (orList l).leafSize = (l.map leafSize).sum := by
+  by_cases h : l = []
+  · subst l
+    simp
+  · exact leafSize_balanced _ h
+
+/-- Conjunction adds the leaf sizes of its arguments, including the empty list. -/
+@[simp] theorem leafSize_andList (l : List (Formula signature n)) :
+    (andList l).leafSize = (l.map leafSize).sum := by
+  by_cases h : l = []
+  · subst l
+    simp
+  · exact leafSize_balanced _ h
+
 /-- A balanced disjunction of `k ≥ 1` formulas has `k - 1` operation nodes besides theirs. -/
 theorem size_orList_add_one {l : List (Formula signature n)} (hl : l ≠ []) :
     (orList l).size + 1 = (l.map size).sum + l.length :=
@@ -314,8 +330,14 @@ def literal (z : BitString n) (i : Fin n) : Formula signature n :=
   unfold literal
   split <;> simp
 
-/-- The minterm of `z`: the balanced conjunction of the literals of all bits that are true at
-`z`, true exactly at `z`. -/
+/-- A literal contains one input leaf, irrespective of its sign. -/
+@[simp] theorem leafSize_literal (z : BitString n) (i : Fin n) :
+    (literal z i).leafSize = 1 := by
+  unfold literal
+  split <;> simp
+
+/-- The minterm of `z`: the balanced conjunction of one literal per input position,
+with each sign chosen to make that literal true at `z`. -/
 def minterm (z : BitString n) : Formula signature n :=
   andList ((List.finRange n).map (literal z))
 

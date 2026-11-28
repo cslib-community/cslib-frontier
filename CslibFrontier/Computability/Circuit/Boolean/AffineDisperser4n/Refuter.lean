@@ -13,27 +13,31 @@ public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n
 public import CslibFrontier.Computability.Complexity.Problems.XORSAT.Dense
 
 /-!
-# Deterministic refuter for `4n - 10d` circuits
+# Deterministic refuter for `4n - 9d` circuits
 
 The refuter `refute` takes a full-basis circuit `C` and a Boolean function `f` and returns an
-input. `RefuterProofs.lean` proves (`refute_correct`) that `C` and `f` disagree on that input
-whenever `C.size + 10 * d < 4 * n` and `f` is a `d`-affine disperser. The `poly(n, 2^d)` running
-time of the source is not formalized here.
+input. `RefuterProofs.lean` proves (`refute_correct_of_cost_lt`, `refute_correct`) that `C` and `f`
+disagree on that input whenever `C.program.cost binaryB2Cost + 9 * d < 4 * n` (and hence whenever
+`C.size + 9 * d < 4 * n`) and `f` is a `d`-affine disperser. The `poly(n, 2^d)` running time is not
+formalized here.
 
-`refute` runs gate elimination from `initialState C`. At each state `chooseStep?` selects one of
-the cases of `State.Valid.exists_step`, and `applyStep` performs the concrete successor that the
+`refute` runs gate elimination from `initialState C` (`ofCircuitBinary C`, folding constants and
+unary gates into literals at zero gate cost). At each state `chooseStep?` selects one of the cases
+of `State.Valid.exists_step`, and `applyStep` performs the concrete successor that the
 corresponding lemma proves to be a step (`State.deleteConstraint`, `State.partnersShareChildStep`,
 `State.andOnPairStep`, …). None of these needs the disperser property. Where the existence proof
 uses it, `chooseStep?` stops instead: when the output is a constant, a parameter, an auxiliary
-variable over no gates, or the minimal gate. `findCounterexample` then searches `2^d` inputs of an
-affine subspace of dimension `d` on which the output is constant (affine representations of
-auxiliary variables are computed by dense `XORSAT` elimination, `evaluateAux`).
+variable over no gates, the Case 5a gate (`findAndOnPair`), or the minimal gate.
+`findCounterexample` then searches `2^d` inputs of an affine subspace of dimension `d` on which the
+output is constant (affine representations of auxiliary variables are computed by dense `XORSAT`
+elimination, `evaluateAux`).
 
 ## Main definitions
 
 * `Cslib.Circuits.Boolean.AffineDisperser4n.chooseStep?`,
   `Cslib.Circuits.Boolean.AffineDisperser4n.applyStep`: choosing and performing a step.
-* `Cslib.Circuits.Boolean.AffineDisperser4n.refuterLoop`,
+* `Cslib.Circuits.Boolean.AffineDisperser4n.refuterRun`,
+  `Cslib.Circuits.Boolean.AffineDisperser4n.refuterLoop`,
   `Cslib.Circuits.Boolean.AffineDisperser4n.findCounterexample`,
   `Cslib.Circuits.Boolean.AffineDisperser4n.refute`: the refuter.
 -/
@@ -159,7 +163,8 @@ def chooseStep? {n} (S : State n) : Option StepChoice :=
     else if let some p := findDegeneratePair S then some (.degeneratePair p)
     else if let some p := findPartnersShareChild S then some (.partnersShareChild p)
     else if let some p := findPairInSystem S then some (.pairInSystem p)
-    else if let some (G, p) := findAndOnPair S then some (.andOnPair G p)
+    else if let some (G, p) := findAndOnPair S then
+      if u = G then none else some (.andOnPair G p)
     else if hne : S.gates.Nonempty then
       let G := S.gates.min' hne
       if 0 < S.auxIn G then some (.swapAuxIn G)
@@ -281,8 +286,13 @@ def applyStep {n} (S : State n) (choice : StepChoice) : State n :=
       match getChildren S (pr.partner p) with
       | Hr :: _ =>
         let w := otherArg (S.gate G) p
+        let K := ((S.gates.sort (· ≤ ·)).find?
+          (fun K => decide (K ≠ G ∧ (S.gate K).Reads G))).getD 0
+        let Hw' := match findPair S w with
+          | some q => (getChildren S (q.partner w)).headD Hr
+          | none => Hr
         S.andOnPairStep G pr p w (findPair S w) (fixArg (S.gate G) w).1 (fixArg (S.gate G) w).2
-          Hr
+          Hr K Hw'
       | [] => S
     | none => S
   | .swapAuxIn G =>
@@ -381,6 +391,22 @@ def findCounterexample {n} (C : Circuit (fullSignature 2 Bool) n 1) (f : BitStri
             if decide (y ∈ S.params) then val_param y else evaluateAux S y val_param
           let x_vec : BitString n := S.phi val_all
           if C.eval fullInterpretation x_vec 0 != f x_vec then some x_vec else none
+    else if let some (G, p) := findAndOnPair S then
+      match findPair S p with
+      | some pr =>
+        let bp := (fixArg (S.gate G) p).1
+        let r := pr.partner p
+        let br := pr.partnerBias p
+        let d_params := (F.filter (· ≠ pr.snd)).take d
+        (allAssignments d).findSome? fun A =>
+          let val_param_part := terminalVal S d_params A
+          let val_param := fun y =>
+            if y = p then bp else if y = r then br else val_param_part y
+          let val_all := fun y =>
+            if decide (y ∈ S.params) then val_param y else evaluateAux S y val_param
+          let x_vec : BitString n := S.phi val_all
+          if C.eval fullInterpretation x_vec 0 != f x_vec then some x_vec else none
+      | none => none
     else if hne : S.gates.Nonempty then
       let G := S.gates.min' hne
       let α := decide ((S.gate G).op true false == (S.gate G).op true true)
@@ -395,14 +421,19 @@ def findCounterexample {n} (C : Circuit (fullSignature 2 Bool) n 1) (f : BitStri
         if C.eval fullInterpretation x_vec 0 != f x_vec then some x_vec else none
     else none
 
-/-- Apply refuter steps until a terminal state is reached or `fuel` runs out. -/
-def refuterLoop {n} (S : State n) (fuel : ℕ) : State n :=
+/-- Apply refuter steps until a terminal state is reached or `fuel` runs out, and add the number of
+steps applied to `steps`. -/
+def refuterRun {n} (S : State n) (fuel steps : ℕ) : State n × ℕ :=
   match fuel with
-  | 0 => S
+  | 0 => (S, steps)
   | fuel' + 1 =>
     match chooseStep? S with
-    | some choice => refuterLoop (applyStep S choice) fuel'
-    | none => S
+    | some choice => refuterRun (applyStep S choice) fuel' (steps + 1)
+    | none => (S, steps)
+
+/-- Apply refuter steps until a terminal state is reached or `fuel` runs out. -/
+def refuterLoop {n} (S : State n) (fuel : ℕ) : State n :=
+  (refuterRun S fuel 0).1
 
 /-- The refuter: run gate elimination from the initial state of `C`, then search the terminal state
 for an input on which `C` and `f` disagree. -/

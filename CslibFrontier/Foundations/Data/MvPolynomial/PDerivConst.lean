@@ -40,16 +40,12 @@ theorem eq_C_of_pderiv_eq_zero [CommRing R] [IsDomain R] [CharZero R] {p : MvPol
   rw [coeff_C]
   split_ifs with hm
   · rw [← hm, constantCoeff_eq]
-  · obtain ⟨i, hi⟩ : ∃ i, m i ≠ 0 := by
-      by_contra hne
-      exact hm (Finsupp.ext fun i => (not_not.1 fun hi => hne ⟨i, hi⟩).symm)
+  · obtain ⟨i, hi⟩ := Finsupp.support_nonempty_iff.mpr (Ne.symm hm)
+    replace hi : m i ≠ 0 := Finsupp.mem_support_iff.mp hi
     have hsplit : m - Finsupp.single i 1 + Finsupp.single i 1 = m := by
       ext j
-      by_cases hj : j = i
-      · subst hj
-        simp only [Finsupp.add_apply, Finsupp.tsub_apply, Finsupp.single_eq_same]
-        omega
-      · simp [Finsupp.single_eq_of_ne hj]
+      obtain rfl | hj := eq_or_ne j i <;>
+        simp [*, Nat.sub_add_cancel (Nat.pos_of_ne_zero hi)]
     have hc : (pderiv i p).coeff (m - Finsupp.single i 1) = 0 := by rw [h i]; simp
     rw [coeff_pderiv, hsplit] at hc
     exact (mul_eq_zero.1 hc).resolve_right (Nat.cast_add_one_ne_zero _)

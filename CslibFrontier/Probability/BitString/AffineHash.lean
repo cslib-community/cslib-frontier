@@ -69,13 +69,8 @@ theorem isPairwiseIndependentHash_affineHash (k n : ℕ) :
     IsPairwiseIndependentHash (affineHash (k := k) (n := n)) := by
   let g : (Fin k → BitString n) →+ (BitString n → BitString k) :=
     { toFun := hash
-      map_zero' := by
-        funext x i
-        simp [hash]
-      map_add' := by
-        intro A B
-        funext x i
-        simp [hash, add_dotProduct] }
+      map_zero' := funext fun x => funext fun i => by simp [hash]
+      map_add' := fun A B => funext fun x => funext fun i => by simp [hash, add_dotProduct] }
   refine isPairwiseIndependentHash_add_of_surjective g fun x₁ x₂ hx c => ?_
   obtain ⟨j, hj⟩ : ∃ j, (x₁ - x₂) j = true := by
     by_contra! h

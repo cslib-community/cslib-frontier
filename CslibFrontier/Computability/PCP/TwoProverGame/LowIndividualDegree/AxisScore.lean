@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Quantum.Algebra.Consistency
 public import CslibFrontier.Computability.PCP.TwoProverGame.Commuting
 public import Mathlib.Algebra.BigOperators.Expect
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.UniformBridge
 import Mathlib.Algebra.Order.BigOperators.Expect
 
 /-!
@@ -56,12 +57,6 @@ theorem acceptScore_eq_sum
   classical
   rw [accepts_eq_withDiagonalCap]
   rfl
-
-/-- A real-valued sum weighted by the uniform PMF is a finite expectation. -/
-theorem uniform_sum_eq_expect {ι : Type*} [Fintype ι] [Nonempty ι] (f : ι → ℝ) :
-    (∑ x, (uniformOfFintype ι x).toReal * f x) = 𝔼 x, f x := by
-  simp only [uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
-    inv_mul_eq_div, Fintype.expect_eq_sum_div_card, sum_div]
 
 variable [StarRing A] [StarOrderedRing A] [TopologicalSpace A]
   [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint] [NonnegSpectrumClass ℝ A]
@@ -123,7 +118,7 @@ omit [Field F] [DecidableEq F] in
 private theorem sum_assignLineRoles_eq (line point : Question F m)
     (w : Question F m × Question F m → ℝ) :
     ∑ q, (assignLineRoles line point q).toReal * w q = (w (point, line) + w (line, point)) / 2 := by
-  rw [assignLineRoles, sum_map_mul, uniform_sum_eq_expect, Fintype.expect_eq_sum_div_card,
+  rw [assignLineRoles, sum_map_mul, sum_uniformOfFintype_toReal_mul, Fintype.expect_eq_sum_div_card,
     Fintype.sum_bool, Fintype.card_bool]
   simp only [Bool.false_eq_true, ite_false, ite_true, Nat.cast_ofNat]
   rw [add_comm]
@@ -150,7 +145,8 @@ theorem axisScoreAtDegrees_eq_expect (n d D : ℕ)
       𝔼 u : Point F (n + 1), 𝔼 i : Fin (n + 1),
         lineScoreAtDegrees S d D u (.axis (linePoints u (Pi.single i (1 : F)))) := by
   rw [branchWinProbAtDegrees_eq_weighted, branchQuestions_axis, axisQuestions, sum_bind_mul]
-  simp only [sum_bind_mul, uniform_sum_eq_expect, sum_assignLineRoles_eq, lineScoreAtDegrees]
+  simp only [sum_bind_mul, sum_uniformOfFintype_toReal_mul, sum_assignLineRoles_eq,
+    lineScoreAtDegrees]
 
 /-- The consistency score averages the acceptance at a shared point. -/
 theorem consistencyScoreAtDegrees_eq_expect (n d D : ℕ)
@@ -159,7 +155,7 @@ theorem consistencyScoreAtDegrees_eq_expect (n d D : ℕ)
     (branchGameWithDiagonalCap (F := F) n d D .consistency).commutingWinProb S =
       𝔼 u : Point F (n + 1), acceptScoreAtDegrees S d D (.point u) (.point u) := by
   rw [branchWinProbAtDegrees_eq_weighted, branchQuestions_consistency, consistencyQuestions,
-    sum_map_mul, uniform_sum_eq_expect]
+    sum_map_mul, sum_uniformOfFintype_toReal_mul]
 
 /-- The diagonal score averages over the base point, prefix, direction and roles. -/
 theorem diagonalScoreAtDegrees_eq_expect (n d D : ℕ)
@@ -169,7 +165,8 @@ theorem diagonalScoreAtDegrees_eq_expect (n d D : ℕ)
       𝔼 u : Point F (n + 1), 𝔼 i : Fin (n + 1), 𝔼 v,
         lineScoreAtDegrees S d D u (.diagonal (linePoints u (prefixDirection i v))) := by
   rw [branchWinProbAtDegrees_eq_weighted, branchQuestions_diagonal, diagonalQuestions, sum_bind_mul]
-  simp only [sum_bind_mul, uniform_sum_eq_expect, sum_assignLineRoles_eq, lineScoreAtDegrees]
+  simp only [sum_bind_mul, sum_uniformOfFintype_toReal_mul, sum_assignLineRoles_eq,
+    lineScoreAtDegrees]
 
 omit [StarRing A] [StarOrderedRing A] [TopologicalSpace A]
   [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint] [NonnegSpectrumClass ℝ A] in
@@ -188,13 +185,9 @@ theorem axisWinProbAtDegrees_eq (n d D : ℕ)
     (branchGameWithDiagonalCap (F := F) n d D .axis).commutingWinProb S =
       (branchGame (F := F) n d .axis).commutingWinProb S := by
   rw [branchGame_eq_withDiagonalCap, axisScoreAtDegrees_eq_expect, axisScoreAtDegrees_eq_expect]
-  refine expect_congr rfl fun u _ => expect_congr rfl fun i _ => ?_
-  unfold lineScoreAtDegrees
-  refine congrArg (· / 2) (congrArg₂ (· + ·) ?_ ?_)
-  all_goals
-    apply acceptScoreAtDegrees_congr_cutoff
-    intro a b
-    cases a <;> cases b <;> rfl
+  refine expect_congr rfl fun u _ => expect_congr rfl fun i _ =>
+    congrArg (· / 2) (congrArg₂ (· + ·) ?_ ?_) <;>
+    exact acceptScoreAtDegrees_congr_cutoff _ _ _ _ _ _ fun a b => by cases a <;> cases b <;> rfl
 
 /-- The diagonal cutoff has no effect on the consistency branch's winning probability. -/
 theorem consistencyWinProbAtDegrees_eq (n d D : ℕ)
@@ -204,10 +197,8 @@ theorem consistencyWinProbAtDegrees_eq (n d D : ℕ)
       (branchGame (F := F) n d .consistency).commutingWinProb S := by
   rw [branchGame_eq_withDiagonalCap, consistencyScoreAtDegrees_eq_expect,
     consistencyScoreAtDegrees_eq_expect]
-  refine expect_congr rfl fun u _ => ?_
-  apply acceptScoreAtDegrees_congr_cutoff
-  intro a b
-  cases a <;> cases b <;> rfl
+  exact expect_congr rfl fun u _ =>
+    acceptScoreAtDegrees_congr_cutoff _ _ _ _ _ _ fun a b => by cases a <;> cases b <;> rfl
 
 /-- Average acceptance with the point and axis fixed and the roles chosen uniformly. -/
 @[expose] noncomputable def axisScoreAt
@@ -234,8 +225,7 @@ theorem axisLossAt_le (n d : ℕ)
       (n + 1 : ℝ) * (1 - (branchGame (F := F) n d .axis).commutingWinProb S) := by
   rw [axisScore_eq_expect, expect_comm univ univ]
   let f (j : Fin (n + 1)) := 𝔼 u : Point F (n + 1), (1 - axisScoreAt S d u j)
-  have h0 (j : Fin (n + 1)) : 0 ≤ f j := by
-    refine expect_nonneg fun u _ => sub_nonneg.mpr ?_
+  have h0 (j : Fin (n + 1)) : 0 ≤ f j := expect_nonneg fun u _ => sub_nonneg.mpr <| by
     unfold axisScoreAt
     linarith [acceptScore_le_one S d (.point u) (.axis (linePoints u (Pi.single j (1 : F)))),
       acceptScore_le_one S d (.axis (linePoints u (Pi.single j (1 : F)))) (.point u)]
@@ -285,9 +275,8 @@ theorem diagonalPointLossAtDegrees_le (n d D : ℕ)
   let score (u : Point F (n + 1)) (i : Fin (n + 1)) (v : Fin (i.val + 1) → F) :=
     lineScoreAtDegrees S d D u (.diagonal (linePoints u (prefixDirection i v)))
   let loss (i : Fin (n + 1)) := 𝔼 u : Point F (n + 1), 𝔼 v, (1 - score u i v)
-  have h0 (i : Fin (n + 1)) : 0 ≤ loss i := by
-    refine expect_nonneg fun u _ => expect_nonneg fun v _ => ?_
-    exact sub_nonneg.mpr (lineScoreAtDegrees_le_one S d D u _)
+  have h0 (i : Fin (n + 1)) : 0 ≤ loss i := expect_nonneg fun u _ => expect_nonneg fun _ _ =>
+    sub_nonneg.mpr (lineScoreAtDegrees_le_one S d D u _)
   have hselected : loss j ≤ (n + 1 : ℝ) * (1 - 𝔼 i : Fin (n + 1),
       𝔼 u : Point F (n + 1), 𝔼 v, score u i v) := by
     calc

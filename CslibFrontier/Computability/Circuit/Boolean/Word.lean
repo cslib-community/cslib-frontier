@@ -10,20 +10,19 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.Synthesis
 public import CslibFrontier.Computability.Circuit.Iteration
-public import CslibFrontier.Foundations.Data.BitString.Basic
+public import CslibFrontier.Foundations.Data.BitString.BitVec
 public import Init.Data.BitVec.Bitblast
-public import Mathlib.Data.List.OfFn
 
 /-!
 # Word arithmetic over the De Morgan basis
 
-Words are Lean's `BitVec`s, stored least significant bit first. A word-valued function of the
-inputs is available when each of its coordinate functions is (`Boolean.wordWires`). This module
-bounds the gates needed to make words available from available words: addition, subtraction,
-unsigned comparison, comparison with a constant, complementation, constants, multiplexing, and
-selection of one of several words by a binary index. Equality of available bit strings is
-`Formula.equalBits` inserted by `Synthesis.circuit`. Their semantics are the
-`BitVec` operations, through the bit-blasting identities of the core library; no decision
+Words are Lean's `BitVec`s, stored least significant bit first (`Cslib.BitString.equivBitVec`). A
+word-valued function of the inputs is available when each of its coordinate functions is
+(`Boolean.wordWires`). This module bounds the gates needed to make words available from available
+words: addition, subtraction, unsigned comparison, comparison with a constant, complementation,
+constants, multiplexing, and selection of one of several words by a binary index. Equality of
+available bit strings is `Formula.equalBits` inserted by `Synthesis.circuit`. Their semantics are
+the `BitVec` operations, through the bit-blasting identities of the core library; no decision
 procedure or native evaluation is used.
 
 Addition is a ripple-carry adder: every carry is computed once and shared by the sum bits, for
@@ -32,7 +31,6 @@ gate, including constants and negations.
 
 ## Main definitions
 
-* `Cslib.Circuits.Boolean.word`: the word with given bits.
 * `Cslib.Circuits.Boolean.wordWires`: the coordinate functions of a word-valued function.
 * `Cslib.Circuits.Boolean.selectBits`: select one of several bit strings by a binary index.
 
@@ -52,7 +50,7 @@ gate, including constants and negations.
   where each sum bit recomputes its carry chain.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits
 
@@ -60,55 +58,8 @@ namespace Boolean
 
 variable {n k w R : ℕ}
 
-/-- The word with the given bits, least significant first. -/
-def word (bits : BitString w) : BitVec w :=
-  (BitVec.ofBoolListLE (List.ofFn bits)).cast (by simp)
-
-/-- Bit `i` (least significant first) of `word bits` is `bits i`. -/
-theorem getLsbD_word (bits : BitString w) (i : Fin w) :
-    (word bits).getLsbD i.val = bits i := by
-  rw [word, BitVec.getLsbD_cast, BitVec.getLsbD_ofBoolListLE, List.getD_eq_getElem?_getD]
-  simp
-
-/-- Indexing `word bits` at `i < w` returns `bits ⟨i, hi⟩`. -/
-@[simp] theorem getElem_word (bits : BitString w) (i : ℕ) (hi : i < w) :
-    (word bits)[i] = bits ⟨i, hi⟩ := getLsbD_word bits ⟨i, hi⟩
-
-/-- Rebuilding a `word` from the bits `a.getLsbD i` recovers `a`. -/
-theorem word_getLsbD (a : BitVec w) : word (fun i : Fin w => a.getLsbD i.val) = a :=
-  BitVec.eq_of_getLsbD_eq fun i hi => getLsbD_word _ ⟨i, hi⟩
-
-/-- The word representation and the bit-string numbering use the same unsigned value. -/
-theorem toNat_word_eq_equivFin {w : ℕ} (x : BitString w) :
-    (word x).toNat = (BitString.equivFin w x : ℕ) := by
-  induction w with
-  | zero =>
-    have h := (BitString.equivFin 0 x).isLt
-    simp only [pow_zero, Nat.lt_one_iff] at h
-    have hx := (word x).isLt
-    simp only [pow_zero, Nat.lt_one_iff] at hx
-    exact hx.trans h.symm
-  | succ w ih =>
-    have heq : x = Fin.cons (x 0) (fun i => x i.succ) := by
-      funext i
-      induction i using Fin.cases <;> rfl
-    rw [heq, BitString.val_equivFin_cons]
-    have hw : word (Fin.cons (x 0) (fun i => x i.succ)) =
-        (word (fun i => x i.succ)).concat (x 0) := by
-      apply BitVec.eq_of_getLsbD_eq
-      intro i hi
-      rw [getLsbD_word _ ⟨i, hi⟩, BitVec.getLsbD_concat]
-      cases i with
-      | zero => simp
-      | succ i =>
-        simp only [Nat.add_eq_zero_iff, Nat.one_ne_zero, and_false, ite_false,
-          Nat.add_sub_cancel]
-        exact (getLsbD_word (fun i => x i.succ) ⟨i, by omega⟩).symm
-    rw [hw, BitVec.toNat_concat, ih]
-    omega
-
 /-- The coordinate functions of a word-valued function. -/
-def wordWires (a : BitString n → BitVec w) : Set (BooleanFunction n) :=
+@[expose] def wordWires (a : BitString n → BitVec w) : Set (BooleanFunction n) :=
   Set.range fun i : Fin w => fun x => (a x).getLsbD i.val
 
 /-- Zero extension and truncation only rewire available bits and the false constant. -/
@@ -123,7 +74,7 @@ theorem wordWires_setWidth_subset {v : ℕ} {s : Set (BooleanFunction n)}
 
 /-- The bit string at the position given by the value of a binary index, or all-false if the
 value is not a position. Positions beyond `2 ^ k` are never selected. -/
-def selectBits (index : BitVec k) (values : Fin R → BitString w) : BitString w :=
+@[expose] def selectBits (index : BitVec k) (values : Fin R → BitString w) : BitString w :=
   fun bit => decide (∃ j : Fin R, index.toNat = j.val ∧ values j bit = true)
 
 /-- An index whose value is a position selects exactly that bit string. -/
@@ -150,8 +101,7 @@ theorem selectBits_ofNat (hR : R ≤ 2 ^ k) (values : Fin R → BitString w) (j 
     selectBits (BitVec.ofNat k j.val) values = values j := by
   have hj : (BitVec.ofNat k j.val).toNat = j.val := by
     simp [Nat.mod_eq_of_lt (j.isLt.trans_le hR)]
-  rw [selectBits_of_toNat_lt _ _ (by have := j.isLt; omega)]
-  exact congrArg values (Fin.ext hj)
+  exact (selectBits_of_toNat_lt _ _ (hj.symm ▸ j.isLt)).trans (congrArg values (Fin.ext hj))
 
 end Boolean
 
@@ -164,14 +114,24 @@ variable {n k w R : ℕ} {s : Set (BooleanFunction n)}
 /-- One available control bit selects between two available functions in four gates. -/
 theorem mux {f a b : BooleanFunction n} (hf : f ∈ s) (ha : a ∈ s) (hb : b ∈ s) :
     Synthesis interpretation s {fun x => if f x then a x else b x} 4 := by
-  have h := ((of_mem hf).and (of_mem ha)).or ((of_mem hf).not.and (of_mem hb))
-  convert h using 2
+  convert ((of_mem hf).and (of_mem ha)).or ((of_mem hf).not.and (of_mem hb)) using 2
   funext x
   cases f x <;> simp
 
 section Arithmetic
 
 variable (a b : BitString n → BitVec w)
+
+private lemma carry_step {s' : Set (BooleanFunction n)} (c : Bool) (t : ℕ) {m : ℕ}
+    (hat : Synthesis interpretation s' {fun x => (a x).getLsbD t} 0)
+    (hbt : Synthesis interpretation s' {fun x => (b x).getLsbD t} 0)
+    (hct : Synthesis interpretation s' {fun x => BitVec.carry t (a x) (b x) c} m) :
+    Synthesis interpretation s' {fun x => BitVec.carry (t + 1) (a x) (b x) c} (m + 4) := by
+  convert ((hat.and hbt).or ((hat.or hbt).and hct)).mono Set.Subset.rfl Set.Subset.rfl
+    (by omega : _ ≤ m + 4) using 2
+  funext x
+  rw [BitVec.carry_succ]
+  cases (a x).getLsbD t <;> cases (b x).getLsbD t <;> cases BitVec.carry t (a x) (b x) c <;> rfl
 
 /-- One carry chain uses four gates per bit and its initial constant. -/
 private theorem word_carry (ha : ∀ i : Fin w, (fun x => (a x).getLsbD i.val) ∈ s)
@@ -180,15 +140,8 @@ private theorem word_carry (ha : ∀ i : Fin w, (fun x => (a x).getLsbD i.val) �
   induction t with
   | zero => simpa using Synthesis.const c
   | succ t ih =>
-    have hat := of_mem (I := interpretation) (ha ⟨t, by omega⟩)
-    have hbt := of_mem (I := interpretation) (hb ⟨t, by omega⟩)
-    have h := (hat.and hbt).or ((hat.or hbt).and (ih (by omega)))
-    convert h using 2
-    · funext x
-      rw [BitVec.carry_succ]
-      cases (a x).getLsbD t <;> cases (b x).getLsbD t <;>
-        cases BitVec.carry t (a x) (b x) c <;> rfl
-    · omega
+    exact (carry_step a b c t (of_mem (ha ⟨t, by omega⟩)) (of_mem (hb ⟨t, by omega⟩))
+      (ih (by omega))).mono Set.Subset.rfl Set.Subset.rfl (by omega)
 
 /-- All carries of a sum, each computed once from the previous one. -/
 private theorem word_carries (ha : ∀ i : Fin w, (fun x => (a x).getLsbD i.val) ∈ s)
@@ -197,21 +150,10 @@ private theorem word_carries (ha : ∀ i : Fin w, (fun x => (a x).getLsbD i.val)
       (stages (fun t => {fun x => BitVec.carry t (a x) (b x) c}) w) (4 * w + 1) := by
   let q := fun t => ({fun x => BitVec.carry t (a x) (b x) c} : Set (BooleanFunction n))
   have h0 : Synthesis interpretation s (q 0) 1 := by simpa [q] using Synthesis.const c
-  have hs := steps (I := interpretation) (s := s ∪ q 0) q 4 w Set.subset_union_right
-    fun t ht => ?_
-  · simpa [Nat.add_comm, Nat.mul_comm] using h0.trans hs
-  · have hat := of_mem (I := interpretation) (s := s ∪ q 0 ∪ stages q t)
-      (Or.inl (Or.inl (ha ⟨t, ht⟩)))
-    have hbt := of_mem (I := interpretation) (s := s ∪ q 0 ∪ stages q t)
-      (Or.inl (Or.inl (hb ⟨t, ht⟩)))
-    have hct := of_mem (I := interpretation) (s := s ∪ q 0 ∪ stages q t)
-      (Or.inr (subset_stages q le_rfl rfl))
-    have h := (hat.and hbt).or ((hat.or hbt).and hct)
-    convert h using 2
-    funext x
-    rw [BitVec.carry_succ]
-    cases (a x).getLsbD t <;> cases (b x).getLsbD t <;>
-      cases BitVec.carry t (a x) (b x) c <;> rfl
+  have hs := steps (I := interpretation) (s := s ∪ q 0) q 4 w Set.subset_union_right fun t ht =>
+    carry_step a b c t (of_mem (Or.inl (Or.inl (ha ⟨t, ht⟩))))
+      (of_mem (Or.inl (Or.inl (hb ⟨t, ht⟩)))) (of_mem (Or.inr (subset_stages q le_rfl rfl)))
+  simpa [Nat.add_comm, Nat.mul_comm] using h0.trans hs
 
 /-- Ripple-carry addition with an initial carry: four gates per carry, eight per sum bit and
 the initial constant. -/
@@ -220,19 +162,12 @@ theorem word_addCarry (ha : ∀ i : Fin w, (fun x => (a x).getLsbD i.val) ∈ s)
     Synthesis interpretation s
       (wordWires fun x => a x + b x + BitVec.setWidth w (BitVec.ofBool c)) (12 * w + 1) := by
   let C := stages (fun t => {fun x => BitVec.carry t (a x) (b x) c}) w
-  have hsum := family (I := interpretation) (s := s ∪ C)
-    (fun i : Fin w => fun x =>
-      (a x).getLsbD i.val ^^ ((b x).getLsbD i.val ^^ BitVec.carry i.val (a x) (b x) c))
-    (fun _ => 8) fun i =>
-      (of_mem (Or.inl (ha i))).xor ((of_mem (Or.inl (hb i))).xor
-        (of_mem (Or.inr (subset_stages _ i.isLt.le rfl))))
-  have h := (word_carries a b ha hb c).trans hsum
-  have heq : (fun i : Fin w => fun x =>
-      (a x + b x + BitVec.setWidth w (BitVec.ofBool c)).getLsbD i.val) =
-      fun i : Fin w => fun x =>
-        (a x).getLsbD i.val ^^ ((b x).getLsbD i.val ^^ BitVec.carry i.val (a x) (b x) c) :=
-    funext fun i => funext fun x => BitVec.getLsbD_add_add_bool i.isLt (a x) (b x) c
-  rw [wordWires, heq]
+  have h := (word_carries a b ha hb c).trans <| family (I := interpretation) (s := s ∪ C)
+    (fun i : Fin w => fun x => (a x + b x + BitVec.setWidth w (BitVec.ofBool c)).getLsbD i.val)
+    (fun _ => 8) fun i => by
+      simpa only [BitVec.getLsbD_add_add_bool i.isLt] using
+        (of_mem (Or.inl (ha i))).xor ((of_mem (Or.inl (hb i))).xor
+          (of_mem (Or.inr (subset_stages _ i.isLt.le rfl))))
   exact h.mono Set.Subset.rfl Set.Subset.rfl
     (by simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]; omega)
 
@@ -270,32 +205,22 @@ theorem word_ult (ha : ∀ i : Fin w, (fun x => (a x).getLsbD i.val) ∈ s)
 theorem word_sub (ha : ∀ i : Fin w, (fun x => (a x).getLsbD i.val) ∈ s)
     (hb : ∀ i : Fin w, (fun x => (b x).getLsbD i.val) ∈ s) :
     Synthesis interpretation s (wordWires fun x => a x - b x) (13 * w + 1) := by
-  have hc := word_addCarry (s := s ∪ wordWires fun x => ~~~b x) a (fun x => ~~~b x)
-    (fun i => Or.inl (ha i)) (fun i => Or.inr ⟨i, rfl⟩) true
-  have h := (word_not b hb).trans hc
+  have h := (word_not b hb).trans <| word_addCarry (s := s ∪ wordWires fun x => ~~~b x)
+    a (fun x => ~~~b x) (fun i => Or.inl (ha i)) (fun i => Or.inr ⟨i, rfl⟩) true
   have heq (x : BitString n) :
       a x - b x = a x + ~~~b x + BitVec.setWidth w (BitVec.ofBool true) := by
     simp only [BitVec.sub_eq_add_neg, BitVec.neg_eq_not_add, BitVec.add_assoc]
-    congr 2
-    apply BitVec.eq_of_toNat_eq
-    simp [BitVec.toNat_setWidth]
-  simp only [← heq] at h
-  exact h.mono Set.Subset.rfl Set.Subset.rfl (by omega)
+    exact congrArg _ (BitVec.eq_of_toNat_eq (by simp [BitVec.toNat_setWidth]))
+  simpa only [← heq] using h.mono Set.Subset.rfl Set.Subset.rfl (by omega)
 
 /-- A word multiplexer shares one available control bit, four gates per bit. -/
 theorem word_mux (flag : BooleanFunction n) (hf : flag ∈ s)
     (ha : ∀ i : Fin w, (fun x => (a x).getLsbD i.val) ∈ s)
     (hb : ∀ i : Fin w, (fun x => (b x).getLsbD i.val) ∈ s) :
     Synthesis interpretation s (wordWires fun x => if flag x then a x else b x) (4 * w) := by
-  have h := family (I := interpretation) (s := s)
-    (fun i : Fin w => fun x => if flag x then (a x).getLsbD i.val else (b x).getLsbD i.val)
-    (fun _ => 4) fun i => mux hf (ha i) (hb i)
-  have heq : (fun i : Fin w => fun x => (if flag x then a x else b x).getLsbD i.val) =
-      fun i : Fin w => fun x => if flag x then (a x).getLsbD i.val else (b x).getLsbD i.val := by
-    funext i x
-    split <;> rfl
-  rw [wordWires, heq]
-  simpa [Nat.mul_comm] using h
+  simpa [wordWires, Nat.mul_comm] using family (I := interpretation) (s := s)
+    (fun i : Fin w => fun x => (if flag x then a x else b x).getLsbD i.val) (fun _ => 4) fun i => by
+      simpa only [apply_ite (BitVec.getLsbD · i.val)] using mux hf (ha i) (hb i)
 
 end Arithmetic
 
@@ -303,19 +228,16 @@ end Arithmetic
 theorem word_eq_const (a : BitString n → BitVec k)
     (ha : ∀ i : Fin k, (fun x => (a x).getLsbD i.val) ∈ s) (v : BitVec k) :
     Synthesis interpretation s {fun x => decide (a x = v)} (2 * k + 1) := by
-  have hlit (i : Fin k) : Synthesis interpretation s
-      {fun x => decide ((a x).getLsbD i.val = v.getLsbD i.val)} 1 := by
-    have h := of_mem (I := interpretation) (ha i)
-    cases hv : v.getLsbD i.val
-    · simpa only [hv, Bool.decide_eq_false] using h.not
-    · simpa only [hv, Bool.decide_eq_true] using
-        h.mono Set.Subset.rfl Set.Subset.rfl (Nat.zero_le 1)
   have h := forall_mem (s := s) Finset.univ
     (fun i : Fin k => fun x => decide ((a x).getLsbD i.val = v.getLsbD i.val))
-    (fun _ => 1) fun i _ => hlit i
+    (fun _ => 1) fun i _ => by
+      cases hv : v.getLsbD i.val
+      · simpa only [hv, Bool.decide_eq_false] using (of_mem (ha i)).not
+      · simpa only [hv, Bool.decide_eq_true] using
+          (of_mem (ha i)).mono Set.Subset.rfl Set.Subset.rfl (Nat.zero_le 1)
   have heq (x : BitString n) : (∀ i : Fin k, (a x).getLsbD i.val = v.getLsbD i.val) ↔ a x = v :=
     ⟨fun h => BitVec.eq_of_getLsbD_eq fun i hi => h ⟨i, hi⟩,
-      fun h i => congrArg (fun a => a.getLsbD i.val) h⟩
+      fun h i => congrArg (·.getLsbD i.val) h⟩
   simpa only [Finset.mem_univ, forall_true_left, decide_eq_true_eq, heq,
     Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul, Nat.mul_comm] using h
 
@@ -327,31 +249,21 @@ theorem selectBits (index : BitString n → BitVec k) (values : Fin R → BitStr
     Synthesis interpretation s
       (Set.range fun bit x => Boolean.selectBits (index x) (fun j => values j x) bit)
       (w * (R * (2 * k + 3) + 1)) := by
-  have hs := family (I := interpretation) (s := s)
+  simpa using family (I := interpretation) (s := s)
     (fun bit x => Boolean.selectBits (index x) (fun j => values j x) bit)
-    (fun _ => R * (2 * k + 3) + 1) fun bit => ?_
-  · simpa using hs
-  · have h := exists_mem (s := s) Finset.univ
-      (fun j : Fin R => fun x => decide ((index x).toNat = j.val) && values j x bit)
-      (fun _ => 2 * k + 2) fun j _ => ?_
-    · simpa [Boolean.selectBits, Nat.add_assoc] using h
-    by_cases hj : j.val < 2 ^ k
-    · have heq : (fun x => decide ((index x).toNat = j.val)) =
-          fun x => decide (index x = BitVec.ofNat k j.val) := by
-        funext x
-        simp only [BitVec.toNat_eq, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hj]
-      rw [show (fun x => decide ((index x).toNat = j.val) && values j x bit) =
-          fun x => decide (index x = BitVec.ofNat k j.val) && values j x bit from
-        funext fun x => by rw [congrFun heq x]]
-      exact (word_eq_const index hi _).and (of_mem (hv j bit))
-    · have hfalse : (fun x => decide ((index x).toNat = j.val) && values j x bit) =
-          fun _ => false := by
-        funext x
-        have := (index x).isLt
-        simp only [Bool.and_eq_false_imp, decide_eq_true_eq]
-        omega
-      rw [hfalse]
-      exact (Synthesis.const false).mono Set.Subset.rfl Set.Subset.rfl (by omega)
+    (fun _ => R * (2 * k + 3) + 1) fun bit => by
+      simpa [Boolean.selectBits, Nat.add_assoc] using exists_mem (s := s) Finset.univ
+        (fun j : Fin R => fun x => decide ((index x).toNat = j.val) && values j x bit)
+        (fun _ => 2 * k + 2) fun j _ => by
+          by_cases hj : j.val < 2 ^ k
+          · simpa only [BitVec.toNat_eq, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hj] using
+              (word_eq_const index hi (BitVec.ofNat k j.val)).and (of_mem (hv j bit))
+          · convert (Synthesis.const false).mono Set.Subset.rfl Set.Subset.rfl
+              (Nat.le_add_left 1 _) using 2
+            funext x
+            have := (index x).isLt
+            simp only [Bool.and_eq_false_imp, decide_eq_true_eq]
+            omega
 
 end Synthesis
 

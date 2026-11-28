@@ -156,6 +156,16 @@ theorem weight_update_false [DecidableEq ι] {x : ι → Bool} {i : ι} (hi : x 
   rw [weight, he, weight]
   exact card_erase_add_one (by simp [hi])
 
+/-- The number of true bits outside `i` is the weight of the string with bit `i` cleared. -/
+theorem card_filter_erase_eq_weight_update_false [DecidableEq ι] (i : ι) (x : ι → Bool) :
+    #{j ∈ univ.erase i | x j = true} = weight (Function.update x i false) := by
+  rw [weight]
+  congr 1
+  ext j
+  by_cases hj : j = i
+  · subst hj; simp
+  · simp [hj]
+
 /-- The words `ι → Bool` of weight `r` number `|ι|.choose r`: they are the indicators of the
 `r`-element sets of coordinates. -/
 theorem card_filter_weight_eq [DecidableEq ι] (r : ℕ) :

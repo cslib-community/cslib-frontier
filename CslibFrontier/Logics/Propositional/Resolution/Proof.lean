@@ -7,7 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Logics.Propositional.LineProof
 public import CslibFrontier.Logics.Propositional.Resolution
+import CslibFrontier.Logics.Propositional.CNF.Eval
 
 /-!
 # Resolution proofs
@@ -44,13 +46,16 @@ clauses of `ψ` (`Cslib.Logic.PL.CNF.IsProof.comp`).
 ## Main definitions
 
 * `Cslib.Logic.PL.Clause.width`: the number of distinct literals of a clause.
-* `Cslib.Logic.PL.CNF.IsProof`: resolution proofs.
+* `Cslib.Logic.PL.CNF.IsProof`, `Cslib.Logic.PL.CNF.resolutionRules`: resolution proofs and
+  inference rules.
 * `Cslib.Logic.PL.CNF.RefutableInSize`, `Cslib.Logic.PL.CNF.RefutableInWidth`: refutability by a
   refutation with a bounded number of lines, or with lines of bounded width.
 * `Cslib.Logic.PL.CNF.restrictBy`: restricting a formula by a partial assignment.
 
 ## Main results
 
+* `Cslib.Logic.PL.CNF.isProof_iff_lineProof`: resolution proofs as `Cslib.Logic.PL.LineProof`
+  derivations.
 * `Cslib.Logic.PL.CNF.derives_iff_exists_isProof`: derivable clauses are the lines of proofs.
 * `Cslib.Logic.PL.CNF.exists_refutableInSize_iff_not_satisfiable`: resolution refutes exactly the
   unsatisfiable formulas.
@@ -100,8 +105,7 @@ theorem Clause.width_le_width_add_one {c d : Clause V} {x : Literal V}
 
 /-- A clause of width zero is empty. -/
 theorem Clause.eq_nil_of_width_eq_zero {c : Clause V} (h : c.width = 0) : c = [] := by
-  rw [Clause.width, Finset.card_eq_zero, List.toFinset_eq_empty_iff] at h
-  exact h
+  rwa [Clause.width, Finset.card_eq_zero, List.toFinset_eq_empty_iff] at h
 
 /-! ### Proofs -/
 
@@ -132,6 +136,42 @@ namespace CNF
 
 variable {φ ψ : CNF V} {ls ls' : List (Clause V)} {c : Clause V}
 
+/-- The inference rules of propositional resolution: from `c₁` containing `(v, true)` and `c₂`
+containing `(v, false)`, infer `c₁.resolvent c₂ v`. -/
+def resolutionRules (V : Type*) [DecidableEq V] : Set (LineRule (Clause V)) :=
+  {r | ∃ c₁ c₂ v, (v, true) ∈ c₁ ∧ (v, false) ∈ c₂ ∧ r = ⟨[c₁, c₂], c₁.resolvent c₂ v⟩}
+
+/-- Every resolution rule has two premises. -/
+theorem resolutionRules_premises_length_le {r : LineRule (Clause V)}
+    (hr : r ∈ resolutionRules V) : r.premises.length ≤ 2 := by
+  obtain ⟨_, _, _, -, -, rfl⟩ := hr
+  simp
+
+/-- Every resolution rule preserves clause satisfaction. -/
+theorem resolutionRules_sound {r : LineRule (Clause V)} (hr : r ∈ resolutionRules V)
+    {σ : V → Bool} (hp : ∀ c ∈ r.premises, c.eval σ = true) : r.concl.eval σ = true := by
+  obtain ⟨c₁, c₂, v, -, -, rfl⟩ := hr
+  exact Clause.eval_resolvent v (hp c₁ (by simp)) (hp c₂ (by simp))
+
+/-- **Resolution proofs as `LineProof` derivations.** -/
+theorem isProof_iff_lineProof : φ.IsProof ls ↔ LineProof (resolutionRules V) {c | c ∈ φ} ls := by
+  constructor
+  · intro h
+    induction h with
+    | nil => exact .nil
+    | mem _ hc ih => exact ih.hyp hc
+    | @resolvent _ c₁ c₂ v _ h₁ h₂ hv₁ hv₂ ih =>
+      exact ih.step ⟨c₁, c₂, v, hv₁, hv₂, rfl⟩
+        fun | _, .head _ => h₁ | _, .tail _ (.head _) => h₂
+  · intro h
+    induction h with
+    | nil => exact .nil
+    | hyp _ hc ih => exact ih.mem hc
+    | step _ hr hp ih =>
+      obtain ⟨c₁, c₂, v, hv₁, hv₂, rfl⟩ := hr
+      exact ih.resolvent v (hp c₁ List.mem_cons_self)
+        (hp c₂ (List.mem_cons_of_mem _ List.mem_cons_self)) hv₁ hv₂
+
 namespace IsProof
 
 /-- Every line of a proof is derivable. -/
@@ -146,19 +186,12 @@ theorem derives (h : φ.IsProof ls) (hc : c ∈ ls) : φ.Derives c := by
     exacts [.resolvent v (ih h₁) (ih h₂) hv₁ hv₂, ih hc]
 
 /-- A proof placed above another proof from the same formula gives a proof. -/
-theorem append (h : φ.IsProof ls) (h' : φ.IsProof ls') : φ.IsProof (ls ++ ls') := by
-  induction h with
-  | nil => exact h'
-  | mem _ hc ih => exact ih.mem hc
-  | resolvent v _ h₁ h₂ hv₁ hv₂ ih =>
-    exact ih.resolvent v (List.mem_append_left _ h₁) (List.mem_append_left _ h₂) hv₁ hv₂
+theorem append (h : φ.IsProof ls) (h' : φ.IsProof ls') : φ.IsProof (ls ++ ls') :=
+  isProof_iff_lineProof.2 ((isProof_iff_lineProof.1 h).append (isProof_iff_lineProof.1 h'))
 
 /-- Proofs survive adding clauses to the formula. -/
-theorem mono (h : φ.IsProof ls) (hφψ : φ ⊆ ψ) : ψ.IsProof ls := by
-  induction h with
-  | nil => exact .nil
-  | mem _ hc ih => exact ih.mem (hφψ hc)
-  | resolvent v _ h₁ h₂ hv₁ hv₂ ih => exact ih.resolvent v h₁ h₂ hv₁ hv₂
+theorem mono (h : φ.IsProof ls) (hφψ : φ ⊆ ψ) : ψ.IsProof ls :=
+  isProof_iff_lineProof.2 ((isProof_iff_lineProof.1 h).mono_hyp fun _ hc => hφψ hc)
 
 /-- The lines of a proof only mention variables of the formula. -/
 theorem fst_mem_vars (h : φ.IsProof ls) (hc : c ∈ ls) {l : Literal V} (hl : l ∈ c) :
@@ -180,14 +213,11 @@ theorem width_le (h : φ.IsProof ls) (hc : c ∈ ls) : c.width ≤ 2 * φ.vars.t
   have hsub : c.toFinset ⊆ φ.vars.toFinset.image (·, true) ∪ φ.vars.toFinset.image (·, false) := by
     rintro ⟨v, b⟩ hl
     have hv := List.mem_toFinset.2 (h.fst_mem_vars hc (List.mem_toFinset.1 hl))
-    cases b
-    · exact Finset.mem_union_right _ (Finset.mem_image_of_mem _ hv)
-    · exact Finset.mem_union_left _ (Finset.mem_image_of_mem _ hv)
+    cases b <;> simpa using hv
   calc c.width ≤ _ := Finset.card_le_card hsub
     _ ≤ _ := Finset.card_union_le _ _
-    _ ≤ φ.vars.toFinset.card + φ.vars.toFinset.card :=
-        Nat.add_le_add Finset.card_image_le Finset.card_image_le
-    _ = 2 * φ.vars.toFinset.card := (Nat.two_mul _).symm
+    _ ≤ 2 * φ.vars.toFinset.card := by
+      rw [Nat.two_mul]; exact Nat.add_le_add Finset.card_image_le Finset.card_image_le
 
 end IsProof
 
@@ -243,12 +273,9 @@ private theorem IsProof.exists_of_relabel {W : Type*} [DecidableEq W] {f : V →
     obtain ⟨ls', h', rfl⟩ := ih
     obtain ⟨c₁, hc₁, rfl⟩ := List.mem_map.1 h₁
     obtain ⟨c₂, hc₂, rfl⟩ := List.mem_map.1 h₂
-    obtain ⟨⟨u, b⟩, hu₁, hub⟩ := List.mem_map.1 hv₁
-    obtain ⟨⟨u', b'⟩, hu₂, hub'⟩ := List.mem_map.1 hv₂
-    simp only [Prod.map, id, Prod.mk.injEq] at hub hub'
-    obtain ⟨rfl, rfl⟩ := hub
-    obtain ⟨hu', rfl⟩ := hub'
-    obtain rfl : u = u' := (hf hu').symm
+    obtain ⟨u, hu₁, rfl⟩ := Clause.mem_relabel_iff.1 hv₁
+    obtain ⟨u', hu₂, hfu⟩ := Clause.mem_relabel_iff.1 hv₂
+    obtain rfl : u = u' := (hf hfu).symm
     exact ⟨_ :: ls', h'.resolvent u hc₁ hc₂ hu₁ hu₂,
       by rw [List.map_cons, Clause.relabel_resolvent hf]⟩
 
@@ -265,99 +292,24 @@ theorem RefutableInSize.of_relabel {W : Type*} [DecidableEq W] {f : V → W}
 
 /-! ### Restricting and lifting proofs -/
 
-private theorem countP_cons_le_cons {α β : Type*} {p : α → Bool} {q : β → Bool} {a : α} {b : β}
-    {l : List α} {l' : List β} (h : l.countP p ≤ l'.countP q) (hab : p a = true → q b = true) :
-    (a :: l).countP p ≤ (b :: l').countP q := by
-  rw [List.countP_cons, List.countP_cons]
-  by_cases ha : p a = true
-  · simp only [ha, hab ha, ↓reduceIte]
-    omega
-  · simp only [ha, Bool.false_eq_true, ↓reduceIte]
-    split <;> omega
-
-private theorem countP_le_cons {α β : Type*} {p : α → Bool} {q : β → Bool} {b : β} {l : List α}
-    {l' : List β} (h : l.countP p ≤ l'.countP q) : l.countP p ≤ (b :: l').countP q := by
-  rw [List.countP_cons]
-  omega
+/-- Helper: lines of `ls'` with literals in `c₁` and in `c₂` give a line of `ls'`, or a resolvent
+of two lines of `ls'` on `u`, with literals in `c₁.resolvent c₂ u`. -/
+private theorem exists_subset_resolvent {ls' : List (Clause V)} {c₁ c₂ c₁' c₂' : Clause V}
+    {u : V} (hc₁' : c₁' ∈ ls') (hc₂' : c₂' ∈ ls') (hsub₁ : ∀ l ∈ c₁', l ∈ c₁)
+    (hsub₂ : ∀ l ∈ c₂', l ∈ c₂) :
+    ∃ c', (c' ∈ ls' ∨ ∃ c₁' c₂', c₁' ∈ ls' ∧ c₂' ∈ ls' ∧ (u, true) ∈ c₁' ∧
+      (u, false) ∈ c₂' ∧ c' = c₁'.resolvent c₂' u) ∧ ∀ l ∈ c', l ∈ c₁.resolvent c₂ u := by
+  by_cases hu₁' : (u, true) ∈ c₁'
+  · by_cases hu₂' : (u, false) ∈ c₂'
+    · exact ⟨_, Or.inr ⟨c₁', c₂', hc₁', hc₂', hu₁', hu₂', rfl⟩,
+        Clause.resolvent_subset_resolvent hsub₁ hsub₂⟩
+    · exact ⟨c₂', Or.inl hc₂', Clause.subset_resolvent_right hsub₂ hu₂'⟩
+  · exact ⟨c₁', Or.inl hc₁', Clause.subset_resolvent_left hsub₁ hu₁'⟩
 
 /-- The lines of a proof from a formula with `v` fixed do not mention `v`. -/
 theorem IsProof.fst_ne_of_restrict {v : V} {b : Bool} (h : (φ.restrict v b).IsProof ls)
     (hc : c ∈ ls) {l : Literal V} (hl : l ∈ c) : l.1 ≠ v :=
   (Finset.mem_erase.1 (vars_restrict_subset (List.mem_toFinset.2 (h.fst_mem_vars hc hl)))).1
-
-/-- **Restricting a proof.** A proof from `φ` becomes a proof from `φ` with `v` fixed to `b`, with
-at most as many lines. Every line of the original proof that does not contain the literal `(v, b)`
-is replaced by a line of the new proof with a subset of its literals, and for every `w` the new
-proof has at most as many lines wider than `w` as the original proof has lines without `(v, b)`
-wider than `w`. -/
-theorem IsProof.restrict (h : φ.IsProof ls) (v : V) (b : Bool) :
-    ∃ ls', (φ.restrict v b).IsProof ls' ∧ ls'.length ≤ ls.length ∧
-      (∀ c ∈ ls, (v, b) ∉ c → ∃ c' ∈ ls', ∀ l ∈ c', l ∈ c) ∧
-      ∀ w, ls'.countP (fun c => w < c.width) ≤ ls.countP (fun c => (v, b) ∉ c ∧ w < c.width) := by
-  induction h with
-  | nil => exact ⟨[], .nil, le_rfl, by simp, by simp⟩
-  | @mem ls c _ hc ih =>
-    obtain ⟨ls', h', hlen, hsub, hcount⟩ := ih
-    by_cases hvc : (v, b) ∈ c
-    · refine ⟨ls', h', hlen.trans (Nat.le_succ _), fun e he hve => ?_,
-        fun w => countP_le_cons (hcount w)⟩
-      rcases List.mem_cons.1 he with rfl | he
-      exacts [absurd hvc hve, hsub e he hve]
-    · refine ⟨c.filter (· ≠ (v, !b)) :: ls', h'.mem (mem_restrict.2 ⟨c, hc, hvc, rfl⟩),
-        Nat.succ_le_succ hlen, fun e he hve => ?_, fun w => countP_cons_le_cons (hcount w) ?_⟩
-      · rcases List.mem_cons.1 he with rfl | he
-        · exact ⟨_, List.mem_cons_self, fun l hl => (List.mem_filter.1 hl).1⟩
-        · obtain ⟨c', hc', hsub'⟩ := hsub e he hve
-          exact ⟨c', List.mem_cons_of_mem _ hc', hsub'⟩
-      · intro hw
-        simp only [decide_eq_true_eq] at hw ⊢
-        exact ⟨hvc, hw.trans_le (Clause.width_le_width fun l hl => (List.mem_filter.1 hl).1)⟩
-  | @resolvent ls c₁ c₂ u _ h₁ h₂ hu₁ hu₂ ih =>
-    obtain ⟨ls', h', hlen, hsub, hcount⟩ := ih
-    by_cases hvc : (v, b) ∈ c₁.resolvent c₂ u
-    · refine ⟨ls', h', hlen.trans (Nat.le_succ _), fun e he hve => ?_,
-        fun w => countP_le_cons (hcount w)⟩
-      rcases List.mem_cons.1 he with rfl | he
-      exacts [absurd hvc hve, hsub e he hve]
-    -- the new line to add, if any: a subclause of the resolvent derivable from `ls'`
-    have key : ∃ c', (c' ∈ ls' ∨ ∃ c₁' c₂', c₁' ∈ ls' ∧ c₂' ∈ ls' ∧ (u, true) ∈ c₁' ∧
-        (u, false) ∈ c₂' ∧ c' = c₁'.resolvent c₂' u) ∧ ∀ l ∈ c', l ∈ c₁.resolvent c₂ u := by
-      have hne (c' : Clause V) (hc' : c' ∈ ls') (l : Literal V) (hl : l ∈ c') :
-          l.1 ≠ v := h'.fst_ne_of_restrict hc' hl
-      by_cases hv₁ : (v, b) ∈ c₁
-      · -- `v = u` and `b = true`: the second premise is not satisfied, and its subclause will do
-        obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Clause.eq_of_mem_of_notMem_resolvent_left hv₁ hvc)
-        obtain ⟨c₂', hc₂', hsub₂⟩ := hsub c₂ h₂ fun hv₂ =>
-          hvc (Clause.mem_resolvent.2 (Or.inr ⟨hv₂, by simp⟩))
-        exact ⟨c₂', Or.inl hc₂',
-          Clause.subset_resolvent_right hsub₂ fun hv => hne _ hc₂' _ hv rfl⟩
-      by_cases hv₂ : (v, b) ∈ c₂
-      · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Clause.eq_of_mem_of_notMem_resolvent_right hv₂ hvc)
-        obtain ⟨c₁', hc₁', hsub₁⟩ := hsub c₁ h₁ hv₁
-        exact ⟨c₁', Or.inl hc₁',
-          Clause.subset_resolvent_left hsub₁ fun hv => hne _ hc₁' _ hv rfl⟩
-      obtain ⟨c₁', hc₁', hsub₁⟩ := hsub c₁ h₁ hv₁
-      obtain ⟨c₂', hc₂', hsub₂⟩ := hsub c₂ h₂ hv₂
-      by_cases hu₁' : (u, true) ∈ c₁'
-      · by_cases hu₂' : (u, false) ∈ c₂'
-        · exact ⟨_, Or.inr ⟨c₁', c₂', hc₁', hc₂', hu₁', hu₂', rfl⟩,
-            Clause.resolvent_subset_resolvent hsub₁ hsub₂⟩
-        · exact ⟨c₂', Or.inl hc₂', Clause.subset_resolvent_right hsub₂ hu₂'⟩
-      · exact ⟨c₁', Or.inl hc₁', Clause.subset_resolvent_left hsub₁ hu₁'⟩
-    obtain ⟨c', hc' | ⟨c₁', c₂', hc₁', hc₂', hu₁', hu₂', rfl⟩, hsub'⟩ := key
-    · refine ⟨ls', h', hlen.trans (Nat.le_succ _), fun e he hve => ?_,
-        fun w => countP_le_cons (hcount w)⟩
-      rcases List.mem_cons.1 he with rfl | he
-      exacts [⟨c', hc', hsub'⟩, hsub e he hve]
-    · refine ⟨_ :: ls', h'.resolvent u hc₁' hc₂' hu₁' hu₂', Nat.succ_le_succ hlen,
-        fun e he hve => ?_, fun w => countP_cons_le_cons (hcount w) ?_⟩
-      · rcases List.mem_cons.1 he with rfl | he
-        · exact ⟨_, List.mem_cons_self, hsub'⟩
-        · obtain ⟨e', he', hsub''⟩ := hsub e he hve
-          exact ⟨e', List.mem_cons_of_mem _ he', hsub''⟩
-      · intro hw
-        simp only [decide_eq_true_eq] at hw ⊢
-        exact ⟨hvc, hw.trans_le (Clause.width_le_width hsub')⟩
 
 /-- **Lifting a proof.** A proof from `φ` with `v` fixed to `b` lifts to a proof from `φ`. Every
 line of the original proof is contained in a line of the lifted proof that has, besides its
@@ -372,52 +324,30 @@ theorem IsProof.lift {v : V} {b : Bool} (h : (φ.restrict v b).IsProof ls') :
   | @mem ls' c' _ hc' ih =>
     obtain ⟨ls, h, hup, hdown⟩ := ih
     obtain ⟨d, hd, hsub, hd'⟩ := exists_of_mem_restrict hc'
-    refine ⟨d :: ls, h.mem hd, fun e he => ?_, fun e he => ?_⟩
-    · rcases List.mem_cons.1 he with rfl | he
-      · exact ⟨d, List.mem_cons_self, hsub, hd'⟩
-      · obtain ⟨e', he', h₁, h₂⟩ := hup e he
-        exact ⟨e', List.mem_cons_of_mem _ he', h₁, h₂⟩
-    · rcases List.mem_cons.1 he with rfl | he
-      · exact ⟨_, List.mem_cons_self, hd'⟩
-      · obtain ⟨e', he', h₁⟩ := hdown e he
-        exact ⟨e', List.mem_cons_of_mem _ he', h₁⟩
+    exact ⟨d :: ls, h.mem hd, List.forall_mem_cons.2 ⟨⟨d, List.mem_cons_self, hsub, hd'⟩,
+        fun e he => List.exists_mem_cons_of_exists (hup e he)⟩,
+      List.forall_mem_cons.2 ⟨⟨_, List.mem_cons_self, hd'⟩,
+        fun e he => List.exists_mem_cons_of_exists (hdown e he)⟩⟩
   | @resolvent ls' c₁' c₂' u _ h₁ h₂ hu₁ hu₂ ih =>
     obtain ⟨ls, h, hup, hdown⟩ := ih
     obtain ⟨d₁, hd₁, hsub₁, hsup₁⟩ := hup c₁' h₁
     obtain ⟨d₂, hd₂, hsub₂, hsup₂⟩ := hup c₂' h₂
     have hd : ∀ l ∈ d₁.resolvent d₂ u, l ∈ c₁'.resolvent c₂' u ∨ l = (v, !b) :=
       Clause.resolvent_subset_resolvent_or_eq hsup₁ hsup₂
-    refine ⟨_ :: ls, h.resolvent u hd₁ hd₂ (hsub₁ _ hu₁) (hsub₂ _ hu₂), fun e he => ?_,
-      fun e he => ?_⟩
-    · rcases List.mem_cons.1 he with rfl | he
-      · exact ⟨_, List.mem_cons_self, Clause.resolvent_subset_resolvent hsub₁ hsub₂, hd⟩
-      · obtain ⟨e', he', h₁, h₂⟩ := hup e he
-        exact ⟨e', List.mem_cons_of_mem _ he', h₁, h₂⟩
-    · rcases List.mem_cons.1 he with rfl | he
-      · exact ⟨_, List.mem_cons_self, hd⟩
-      · obtain ⟨e', he', h₁⟩ := hdown e he
-        exact ⟨e', List.mem_cons_of_mem _ he', h₁⟩
+    exact ⟨_ :: ls, h.resolvent u hd₁ hd₂ (hsub₁ _ hu₁) (hsub₂ _ hu₂),
+      List.forall_mem_cons.2 ⟨⟨_, List.mem_cons_self, Clause.resolvent_subset_resolvent hsub₁ hsub₂,
+        hd⟩, fun e he => List.exists_mem_cons_of_exists (hup e he)⟩,
+      List.forall_mem_cons.2 ⟨⟨_, List.mem_cons_self, hd⟩,
+        fun e he => List.exists_mem_cons_of_exists (hdown e he)⟩⟩
 
 /-- **Composing proofs.** A proof from `ψ` replays on top of a proof from `φ` among whose lines are
 all clauses of `ψ`. The lines added are lines of the proof from `ψ`, and every line of the proof
 from `ψ` is a line of the result. -/
 theorem IsProof.comp (hψ : ψ.IsProof ls') (h : φ.IsProof ls) (hψφ : ∀ c ∈ ψ, c ∈ ls) :
     ∃ ls'', φ.IsProof (ls'' ++ ls) ∧ (∀ c ∈ ls', c ∈ ls'' ++ ls) ∧ ∀ c ∈ ls'', c ∈ ls' := by
-  induction hψ with
-  | nil => exact ⟨[], h, by simp, by simp⟩
-  | @mem ls' c _ hc ih =>
-    obtain ⟨ls'', h'', hup, hdown⟩ := ih
-    refine ⟨ls'', h'', fun e he => ?_, fun e he => List.mem_cons_of_mem _ (hdown e he)⟩
-    rcases List.mem_cons.1 he with rfl | he
-    exacts [List.mem_append_right _ (hψφ _ hc), hup e he]
-  | @resolvent ls' c₁ c₂ v _ h₁ h₂ hv₁ hv₂ ih =>
-    obtain ⟨ls'', h'', hup, hdown⟩ := ih
-    refine ⟨_ :: ls'', h''.resolvent v (hup _ h₁) (hup _ h₂) hv₁ hv₂, fun e he => ?_,
-      fun e he => ?_⟩
-    · rcases List.mem_cons.1 he with rfl | he
-      exacts [List.mem_cons_self, List.mem_cons_of_mem _ (hup e he)]
-    · rcases List.mem_cons.1 he with rfl | he
-      exacts [List.mem_cons_self, List.mem_cons_of_mem _ (hdown e he)]
+  obtain ⟨ls'', h'', hup, hsub, -, -⟩ := (isProof_iff_lineProof.1 hψ).comp
+    (isProof_iff_lineProof.1 h) fun c hc => Or.inr (hψφ c hc)
+  exact ⟨ls'', isProof_iff_lineProof.2 h'', hup, fun _ hc => hsub.subset hc⟩
 
 /-! ### Restricting proofs by partial assignments -/
 
@@ -440,9 +370,8 @@ omit [DecidableEq V] in
 /-- A formula restricted by `ρ` mentions only variables that `ρ` does not fix. -/
 theorem eq_none_of_mem_restrictBy {ρ : V → Option Bool} (hc : c ∈ φ.restrictBy ρ)
     {l : Literal V} (hl : l ∈ c) : ρ l.1 = none := by
-  simp only [restrictBy, List.mem_map, List.mem_filter] at hc
-  obtain ⟨d, -, rfl⟩ := hc
-  simpa using (List.mem_filter.1 hl).2
+  obtain ⟨d, -, -, rfl⟩ := mem_restrictBy.1 hc
+  exact of_decide_eq_true (List.mem_filter.1 hl).2
 
 /-- The lines of a proof from a formula restricted by `ρ` mention only variables that `ρ` does not
 fix. -/
@@ -467,25 +396,20 @@ theorem IsProof.restrictBy (h : φ.IsProof ls) (ρ : V → Option Bool) :
   | @mem ls c _ hc ih =>
     obtain ⟨ls', h', hsub, ks, hks, hfree, hF⟩ := ih
     by_cases hsat : ∀ l ∈ c, ρ l.1 ≠ some l.2
-    · refine ⟨c.filter (fun l => decide (ρ l.1 = none)) :: ls',
-        h'.mem (mem_restrictBy.2 ⟨c, hc, hsat, rfl⟩), fun e he hfe => ?_, c :: ks, hks.cons_cons c,
-        fun e he => ?_, .cons (fun l hl => (List.mem_filter.1 hl).1) hF⟩
-      · rcases List.mem_cons.1 he with rfl | he
-        · exact ⟨_, List.mem_cons_self, fun l hl => (List.mem_filter.1 hl).1⟩
-        · obtain ⟨c', hc', hsub'⟩ := hsub e he hfe
-          exact ⟨c', List.mem_cons_of_mem _ hc', hsub'⟩
-      · rcases List.mem_cons.1 he with rfl | he
-        exacts [hsat, hfree e he]
-    · refine ⟨ls', h', fun e he hfe => ?_, ks, hks.cons c, hfree, hF⟩
-      rcases List.mem_cons.1 he with rfl | he
-      exacts [absurd hfe hsat, hsub e he hfe]
+    · exact ⟨c.filter (fun l => decide (ρ l.1 = none)) :: ls',
+        h'.mem (mem_restrictBy.2 ⟨c, hc, hsat, rfl⟩), List.forall_mem_cons.2
+          ⟨fun _ => ⟨_, List.mem_cons_self, fun l hl => (List.mem_filter.1 hl).1⟩,
+            fun e he hfe => List.exists_mem_cons_of_exists (hsub e he hfe)⟩,
+        c :: ks, hks.cons_cons c, List.forall_mem_cons.2 ⟨hsat, hfree⟩,
+        .cons (fun l hl => (List.mem_filter.1 hl).1) hF⟩
+    · exact ⟨ls', h', List.forall_mem_cons.2 ⟨fun hfe => absurd hfe hsat, hsub⟩, ks, hks.cons c,
+        hfree, hF⟩
   | @resolvent ls c₁ c₂ u _ h₁ h₂ hu₁ hu₂ ih =>
     obtain ⟨ls', h', hsub, ks, hks, hfree, hF⟩ := ih
     by_cases hsat : ∀ l ∈ c₁.resolvent c₂ u, ρ l.1 ≠ some l.2
     swap
-    · refine ⟨ls', h', fun e he hfe => ?_, ks, hks.cons _, hfree, hF⟩
-      rcases List.mem_cons.1 he with rfl | he
-      exacts [absurd hfe hsat, hsub e he hfe]
+    · exact ⟨ls', h', List.forall_mem_cons.2 ⟨fun hfe => absurd hfe hsat, hsub⟩, ks, hks.cons _,
+        hfree, hF⟩
     have hne (c' : Clause V) (hc' : c' ∈ ls') (l : Literal V) (hl : l ∈ c') : ρ l.1 = none :=
       h'.eq_none_of_restrictBy hc' hl
     -- the new line to add, if any: a subclause of the resolvent derivable from `ls'`
@@ -515,24 +439,69 @@ theorem IsProof.restrictBy (h : φ.IsProof ls) (ρ : V → Option Bool) :
         exact absurd (hρl.symm.trans (hne _ hc₁' (u, true) hu)) (by simp)
       obtain ⟨c₁', hc₁', hsub₁⟩ := hsub c₁ h₁ hv₁
       obtain ⟨c₂', hc₂', hsub₂⟩ := hsub c₂ h₂ hv₂
-      by_cases hu₁' : (u, true) ∈ c₁'
-      · by_cases hu₂' : (u, false) ∈ c₂'
-        · exact ⟨_, Or.inr ⟨c₁', c₂', hc₁', hc₂', hu₁', hu₂', rfl⟩,
-            Clause.resolvent_subset_resolvent hsub₁ hsub₂⟩
-        · exact ⟨c₂', Or.inl hc₂', Clause.subset_resolvent_right hsub₂ hu₂'⟩
-      · exact ⟨c₁', Or.inl hc₁', Clause.subset_resolvent_left hsub₁ hu₁'⟩
+      exact exists_subset_resolvent hc₁' hc₂' hsub₁ hsub₂
     obtain ⟨c', hc' | ⟨c₁', c₂', hc₁', hc₂', hu₁', hu₂', rfl⟩, hsub'⟩ := key
-    · refine ⟨ls', h', fun e he hfe => ?_, ks, hks.cons _, hfree, hF⟩
-      rcases List.mem_cons.1 he with rfl | he
-      exacts [⟨c', hc', hsub'⟩, hsub e he hfe]
-    · refine ⟨_ :: ls', h'.resolvent u hc₁' hc₂' hu₁' hu₂', fun e he hfe => ?_, _ :: ks,
-        hks.cons_cons _, fun e he => ?_, .cons hsub' hF⟩
-      · rcases List.mem_cons.1 he with rfl | he
-        · exact ⟨_, List.mem_cons_self, hsub'⟩
-        · obtain ⟨e', he', hsub''⟩ := hsub e he hfe
-          exact ⟨e', List.mem_cons_of_mem _ he', hsub''⟩
-      · rcases List.mem_cons.1 he with rfl | he
-        exacts [hsat, hfree e he]
+    · exact ⟨ls', h', List.forall_mem_cons.2 ⟨fun _ => ⟨c', hc', hsub'⟩, hsub⟩, ks, hks.cons _,
+        hfree, hF⟩
+    · exact ⟨_ :: ls', h'.resolvent u hc₁' hc₂' hu₁' hu₂', List.forall_mem_cons.2
+          ⟨fun _ => ⟨_, List.mem_cons_self, hsub'⟩,
+            fun e he hfe => List.exists_mem_cons_of_exists (hsub e he hfe)⟩,
+        _ :: ks, hks.cons_cons _, List.forall_mem_cons.2 ⟨hsat, hfree⟩, .cons hsub' hF⟩
+
+private theorem countP_le_of_forall₂ {α β : Type*} {R : α → β → Prop}
+    {xs : List α} {ys : List β} {p : α → Bool} {q : β → Bool} (h : List.Forall₂ R xs ys)
+    (hpq : ∀ {x y}, R x y → p x → q y) : xs.countP p ≤ ys.countP q := by
+  induction h with
+  | nil => exact le_rfl
+  | @cons x y xs ys hxy _ ih =>
+    by_cases hx : p x
+    · simpa only [List.countP_cons_of_pos hx, List.countP_cons_of_pos (hpq hxy hx)] using
+        Nat.add_le_add_right ih 1
+    · rw [List.countP_cons_of_neg hx]
+      exact ih.trans ((List.sublist_cons_self y ys).countP_le)
+
+/-- **Restricting a proof.** A proof from `φ` becomes a proof from `φ` with `v` fixed to `b`, with
+at most as many lines. Every line of the original proof that does not contain the literal `(v, b)`
+is replaced by a line of the new proof with a subset of its literals, and for every `w` the new
+proof has at most as many lines wider than `w` as the original proof has lines without `(v, b)`
+wider than `w`. -/
+theorem IsProof.restrict (h : φ.IsProof ls) (v : V) (b : Bool) :
+    ∃ ls', (φ.restrict v b).IsProof ls' ∧ ls'.length ≤ ls.length ∧
+      (∀ c ∈ ls, (v, b) ∉ c → ∃ c' ∈ ls', ∀ l ∈ c', l ∈ c) ∧
+      ∀ w, ls'.countP (fun c => w < c.width) ≤ ls.countP (fun c => (v, b) ∉ c ∧ w < c.width) := by
+  let ρ : V → Option Bool := fun u => if u = v then some b else none
+  have hfree {c : Clause V} : (∀ l ∈ c, ρ l.1 ≠ some l.2) ↔ (v, b) ∉ c := by
+    constructor
+    · exact fun h hc => h (v, b) hc (ite_eq_left rfl)
+    · intro hc
+      rintro ⟨u, a⟩ hl
+      by_cases hu : u = v
+      · subst u
+        exact fun he => hc (Option.some.inj (by simpa only [ρ, ite_eq_left rfl] using he) ▸ hl)
+      · simp [ρ, hu]
+  -- On a clause that survives the restriction, any literal on `v` has sign `!b`.
+  have hformula : φ.restrictBy ρ ⊆ φ.restrict v b := by
+    intro c hc
+    obtain ⟨d, hd, hdc, rfl⟩ := mem_restrictBy.1 hc
+    have hvd := hfree.mp hdc
+    refine mem_restrict.2 ⟨d, hd, hvd, List.filter_congr ?_⟩
+    rintro ⟨u, a⟩ hl
+    by_cases hu : u = v
+    · subst u
+      have ha : a = !b := Bool.eq_not_of_ne fun he => hvd (he ▸ hl)
+      simp [ρ, ha]
+    · simp [ρ, hu]
+  obtain ⟨ls', h', hsub, ks, hks, hfreeks, hF⟩ := h.restrictBy ρ
+  refine ⟨ls', h'.mono hformula, hF.length_eq.le.trans hks.length_le,
+    fun c hc hvc => hsub c hc (hfree.mpr hvc), fun w => ?_⟩
+  calc
+    ls'.countP (fun c => w < c.width) ≤ ks.countP (fun c => w < c.width) := by
+      refine countP_le_of_forall₂ hF fun hsub hw => ?_
+      exact decide_eq_true ((of_decide_eq_true hw).trans_le (Clause.width_le_width hsub))
+    _ ≤ ks.countP (fun c => (v, b) ∉ c ∧ w < c.width) :=
+      List.countP_mono_left fun c hc hw =>
+        decide_eq_true ⟨hfree.mp (hfreeks c hc), of_decide_eq_true hw⟩
+    _ ≤ _ := hks.countP_le
 
 end CNF
 
