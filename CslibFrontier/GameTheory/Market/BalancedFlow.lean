@@ -346,23 +346,18 @@ private theorem cutWeight_bipCap_of_no_cross [DecidableEq I] [DecidableEq G]
     Finset.sum_eq_zero fun g hg => Finset.sum_eq_zero fun i hi => by simp [hnc g hg i hi]
   rw [hmid, add_zero]
 
-/-- Any `s`–`t` cut crossing an active bipartite arc `(g, i)` has weight strictly exceeding both
-`∑ g ∈ A, a g` and `∑ i ∈ B, b i`, hence cannot be a minimum `s`–`t` cut. -/
-private theorem no_cross_of_minCut [DecidableEq I] [DecidableEq G] {A : Finset G} {B : Finset I}
-    {a : G → ℝ} {b : I → ℝ} {E : G → I → Prop}
+/-- Any `s`–`t` cut `X` crossing an active bipartite arc `(g₀, i₀)` has weight strictly greater
+than `∑ g ∈ A, a g` (since it pays the non-binding arc capacity `bigM A B a b`). -/
+private theorem sum_lt_cutWeight_bipCap_of_cross [DecidableEq I] [DecidableEq G]
+    {A : Finset G} {B : Finset I} {a : G → ℝ} {b : I → ℝ} {E : G → I → Prop}
     (ha : ∀ g ∈ A, 0 ≤ a g) (hb : ∀ i ∈ B, 0 ≤ b i)
     {X : Finset (FlowVertex I G)} (hs : FlowVertex.source ∈ X) (ht : FlowVertex.sink ∉ X)
-    (hmin : cutWeight (bipCap A B a b E) X =
-      minRealCutBetween (bipCap A B a b E) .source .sink) :
-    ∀ g ∈ cutGoods A X, ∀ i ∈ B \ cutBuyers B X, ¬ E g i := by
+    {g₀ : G} (hg₀ : g₀ ∈ cutGoods A X) {i₀ : I} (hi₀ : i₀ ∈ B \ cutBuyers B X) (hE : E g₀ i₀) :
+    ∑ g ∈ A, a g < cutWeight (bipCap A B a b E) X := by
   classical
-  intro g₀ hg₀ i₀ hi₀ hE
   have hM_nn : 0 ≤ bigM A B a b := by
     unfold bigM
     linarith [Finset.sum_nonneg ha, Finset.sum_nonneg hb]
-  have hle_src : cutWeight (bipCap A B a b E) X ≤ ∑ g ∈ A, a g := by
-    rw [hmin, ← cutWeight_bipCap_source A B a b E]
-    exact minRealCutBetween_le_cutWeight _ (Finset.mem_singleton_self _) (by simp)
   have hterm_nn (g : G) (i : I) : 0 ≤ if E g i then bigM A B a b else 0 := by
     split_ifs <;> linarith
   have hmid : bigM A B a b ≤ ∑ g ∈ cutGoods A X, ∑ i ∈ B \ cutBuyers B X,
@@ -376,15 +371,29 @@ private theorem no_cross_of_minCut [DecidableEq I] [DecidableEq G] {A : Finset G
           Finset.single_le_sum
             (f := fun g => ∑ i ∈ B \ cutBuyers B X, if E g i then bigM A B a b else 0)
             (fun g _ => Finset.sum_nonneg fun i _ => hterm_nn g i) hg₀
-  have hge : bigM A B a b ≤ cutWeight (bipCap A B a b E) X := by
-    rw [cutWeight_bipCap hs ht]
-    have h1 : 0 ≤ ∑ g ∈ A \ cutGoods A X, a g :=
-      Finset.sum_nonneg fun g hg => ha g (Finset.mem_sdiff.1 hg).1
-    have h2 : 0 ≤ ∑ i ∈ cutBuyers B X, b i :=
-      Finset.sum_nonneg fun i hi => hb i (Finset.mem_filter.1 hi).1
-    linarith
+  rw [cutWeight_bipCap hs ht]
+  have h1 : 0 ≤ ∑ g ∈ A \ cutGoods A X, a g :=
+    Finset.sum_nonneg fun g hg => ha g (Finset.mem_sdiff.1 hg).1
+  have h2 : 0 ≤ ∑ i ∈ cutBuyers B X, b i :=
+    Finset.sum_nonneg fun i hi => hb i (Finset.mem_filter.1 hi).1
   have hb_nn : 0 ≤ ∑ i ∈ B, b i := Finset.sum_nonneg hb
-  unfold bigM at hge
+  have hbig : ∑ g ∈ A, a g < bigM A B a b := by unfold bigM; linarith
+  linarith
+
+/-- Any `s`–`t` cut crossing an active bipartite arc `(g, i)` has weight strictly exceeding both
+`∑ g ∈ A, a g` and `∑ i ∈ B, b i`, hence cannot be a minimum `s`–`t` cut. -/
+private theorem no_cross_of_minCut [DecidableEq I] [DecidableEq G] {A : Finset G} {B : Finset I}
+    {a : G → ℝ} {b : I → ℝ} {E : G → I → Prop}
+    (ha : ∀ g ∈ A, 0 ≤ a g) (hb : ∀ i ∈ B, 0 ≤ b i)
+    {X : Finset (FlowVertex I G)} (hs : FlowVertex.source ∈ X) (ht : FlowVertex.sink ∉ X)
+    (hmin : cutWeight (bipCap A B a b E) X =
+      minRealCutBetween (bipCap A B a b E) .source .sink) :
+    ∀ g ∈ cutGoods A X, ∀ i ∈ B \ cutBuyers B X, ¬ E g i := by
+  intro g₀ hg₀ i₀ hi₀ hE
+  have hlt := sum_lt_cutWeight_bipCap_of_cross ha hb hs ht hg₀ hi₀ hE
+  have hle_src : cutWeight (bipCap A B a b E) X ≤ ∑ g ∈ A, a g := by
+    rw [hmin, ← cutWeight_bipCap_source A B a b E]
+    exact minRealCutBetween_le_cutWeight _ (Finset.mem_singleton_self _) (by simp)
   linarith
 
 /-- **Generic Lemma 5.3 on any bipartite subnetwork**: `{.source}` is a min-cut in
@@ -426,31 +435,9 @@ private theorem source_minCut_bipCap_iff [DecidableEq I] [DecidableEq G]
     rw [le_minRealCutBetween_iff _ (by simp)]
     intro X hs ht
     by_cases hcross : ∃ g ∈ cutGoods A X, ∃ i ∈ B \ cutBuyers B X, E g i
-    · classical
-      obtain ⟨g₀, hg₀, i₀, hi₀, hE⟩ := hcross
-      have hM_nn : 0 ≤ bigM A B a b := by
-        unfold bigM; linarith [Finset.sum_nonneg ha, Finset.sum_nonneg hb]
-      have hterm_nn (g : G) (i : I) : 0 ≤ if E g i then bigM A B a b else 0 := by
-        split_ifs <;> linarith
-      have hmid : bigM A B a b ≤ ∑ g ∈ cutGoods A X, ∑ i ∈ B \ cutBuyers B X,
-          if E g i then bigM A B a b else 0 := by
-        calc
-          bigM A B a b = if E g₀ i₀ then bigM A B a b else 0 := by simp [hE]
-          _ ≤ ∑ i ∈ B \ cutBuyers B X, if E g₀ i then bigM A B a b else 0 :=
-              Finset.single_le_sum (f := fun i => if E g₀ i then bigM A B a b else 0)
-                (fun i _ => hterm_nn g₀ i) hi₀
-          _ ≤ ∑ g ∈ cutGoods A X, ∑ i ∈ B \ cutBuyers B X, if E g i then bigM A B a b else 0 :=
-              Finset.single_le_sum
-                (f := fun g => ∑ i ∈ B \ cutBuyers B X, if E g i then bigM A B a b else 0)
-                (fun g _ => Finset.sum_nonneg fun i _ => hterm_nn g i) hg₀
-      rw [cutWeight_bipCap_source, cutWeight_bipCap hs ht]
-      have h1 : 0 ≤ ∑ g ∈ A \ cutGoods A X, a g :=
-        Finset.sum_nonneg fun g hg => ha g (Finset.mem_sdiff.1 hg).1
-      have h2 : 0 ≤ ∑ i ∈ cutBuyers B X, b i :=
-        Finset.sum_nonneg fun i hi => hb i (Finset.mem_filter.1 hi).1
-      have h3 : 0 ≤ ∑ i ∈ B, b i := Finset.sum_nonneg hb
-      have hbig : ∑ g ∈ A, a g < bigM A B a b := by unfold bigM; linarith
-      linarith
+    · obtain ⟨g₀, hg₀, i₀, hi₀, hE⟩ := hcross
+      rw [cutWeight_bipCap_source]
+      exact (sum_lt_cutWeight_bipCap_of_cross ha hb hs ht hg₀ hi₀ hE).le
     · push Not at hcross
       rw [cutWeight_bipCap_source, cutWeight_bipCap_of_no_cross hs ht hcross]
       have hsub : bipNbr B E (cutGoods A X) ⊆ cutBuyers B X := by
@@ -873,6 +860,28 @@ theorem satisfiesInvariant_iff [DecidableEq I] [DecidableEq G] {M : LinearFisher
       (a := fun g => p g * M.supply g) (b := M.budget) (E := fun g i => M.IsEqualityEdge p i g)
       (fun g _ => mul_nonneg (hp g) (M.supply_nonneg g)) (fun i _ => M.budget_nonneg i)
 
+omit [Fintype G] in
+/-- Submodularity of `S ↦ M.budgetSum (M.buyerNeighborhood p S)`. -/
+private theorem budgetSum_buyerNeighborhood_union_add_inter_le [DecidableEq G]
+    (M : LinearFisherMarket I G) (p : G → ℝ) (S₁ S₂ : Finset G) :
+    M.budgetSum (M.buyerNeighborhood p (S₁ ∪ S₂)) +
+        M.budgetSum (M.buyerNeighborhood p (S₁ ∩ S₂)) ≤
+      M.budgetSum (M.buyerNeighborhood p S₁) + M.budgetSum (M.buyerNeighborhood p S₂) := by
+  classical
+  have hunion : M.buyerNeighborhood p (S₁ ∪ S₂) =
+      M.buyerNeighborhood p S₁ ∪ M.buyerNeighborhood p S₂ :=
+    bipNbr_union _ _ S₁ S₂
+  have hinter : M.budgetSum (M.buyerNeighborhood p (S₁ ∩ S₂)) ≤
+      M.budgetSum (M.buyerNeighborhood p S₁ ∩ M.buyerNeighborhood p S₂) :=
+    Finset.sum_le_sum_of_subset_of_nonneg (bipNbr_inter_subset _ _ S₁ S₂)
+      fun i _ _ => M.budget_nonneg i
+  have hmod : M.budgetSum (M.buyerNeighborhood p S₁ ∪ M.buyerNeighborhood p S₂) +
+      M.budgetSum (M.buyerNeighborhood p S₁ ∩ M.buyerNeighborhood p S₂) =
+      M.budgetSum (M.buyerNeighborhood p S₁) + M.budgetSum (M.buyerNeighborhood p S₂) :=
+    Finset.sum_union_inter
+  rw [hunion]
+  linarith
+
 /-- Under the Invariant, tight sets are closed under union and intersection
 ([Vazirani2007], Section 5.8, p. 115). -/
 theorem isTightSet_union_and_inter [DecidableEq I] [DecidableEq G] {M : LinearFisherMarket I G}
@@ -883,22 +892,7 @@ theorem isTightSet_union_and_inter [DecidableEq I] [DecidableEq G] {M : LinearFi
   have hval : M.goodValue p (S₁ ∪ S₂) + M.goodValue p (S₁ ∩ S₂) =
       M.goodValue p S₁ + M.goodValue p S₂ :=
     Finset.sum_union_inter
-  have hnbr_sub : M.budgetSum (M.buyerNeighborhood p (S₁ ∪ S₂)) +
-      M.budgetSum (M.buyerNeighborhood p (S₁ ∩ S₂)) ≤
-      M.budgetSum (M.buyerNeighborhood p S₁) + M.budgetSum (M.buyerNeighborhood p S₂) := by
-    have hunion : M.buyerNeighborhood p (S₁ ∪ S₂) =
-        M.buyerNeighborhood p S₁ ∪ M.buyerNeighborhood p S₂ :=
-      bipNbr_union _ _ S₁ S₂
-    have hinter : M.budgetSum (M.buyerNeighborhood p (S₁ ∩ S₂)) ≤
-        M.budgetSum (M.buyerNeighborhood p S₁ ∩ M.buyerNeighborhood p S₂) :=
-      Finset.sum_le_sum_of_subset_of_nonneg (bipNbr_inter_subset _ _ S₁ S₂)
-        fun i _ _ => M.budget_nonneg i
-    have hmod : M.budgetSum (M.buyerNeighborhood p S₁ ∪ M.buyerNeighborhood p S₂) +
-        M.budgetSum (M.buyerNeighborhood p S₁ ∩ M.buyerNeighborhood p S₂) =
-        M.budgetSum (M.buyerNeighborhood p S₁) + M.budgetSum (M.buyerNeighborhood p S₂) :=
-      Finset.sum_union_inter
-    rw [hunion]
-    linarith
+  have hnbr_sub := budgetSum_buyerNeighborhood_union_add_inter_le M p S₁ S₂
   have hle_u := hall (S₁ ∪ S₂)
   have hle_i := hall (S₁ ∩ S₂)
   unfold IsTightSet at h₁ h₂ ⊢
@@ -1359,18 +1353,18 @@ theorem IsBalancedFlow.isMaxEqualityFlow {M : LinearFisherMarket I G} {p : G →
   let F := toRealFlow f
   have hF : IsFeasibleRealFlow W .source .sink F :=
     isFeasibleRealFlow_toRealFlow hha hhb ((isEqualityFlow_iff_isBipFlow M p f).1 hbal.1)
-  let Res : FlowVertex I G → FlowVertex I G → Prop := fun u v => F (u, v) < W u v ∨ 0 < F (v, u)
-  have hreach_sink : Relation.ReflTransGen Res .source .sink := by
+  have hreach_sink : Relation.ReflTransGen (Residual W F) .source .sink := by
     by_contra hno
-    let X : Finset (FlowVertex I G) := Finset.univ.filter (Relation.ReflTransGen Res .source)
+    let X : Finset (FlowVertex I G) :=
+      Finset.univ.filter (Relation.ReflTransGen (Residual W F) .source)
     have hsX : FlowVertex.source ∈ X := Finset.mem_filter.2 ⟨Finset.mem_univ _, .refl⟩
     have htX : FlowVertex.sink ∉ X := fun h => hno (Finset.mem_filter.1 h).2
     have hsat : ∀ u ∈ X, ∀ v ∈ Finset.univ \ X, F (u, v) = W u v ∧ F (v, u) = 0 := by
       intro u hu v hv
-      have hnr : ¬ Res u v := fun h =>
+      have hnr : ¬ Residual W F u v := fun h =>
         (Finset.mem_sdiff.1 hv).2 (Finset.mem_filter.2 ⟨Finset.mem_univ _,
           (Finset.mem_filter.1 hu).2.tail h⟩)
-      simp only [Res, not_or, not_lt] at hnr
+      simp only [Residual, not_or, not_lt] at hnr
       exact ⟨le_antisymm (hF.2.1 u v) hnr.1, le_antisymm hnr.2 (hF.1 v u)⟩
     have hvalX : realNetOut F .source = cutWeight W X := by
       rw [hF.realNetOut_eq_sub hsX htX,
@@ -1383,7 +1377,8 @@ theorem IsBalancedFlow.isMaxEqualityFlow {M : LinearFisherMarket I G} {p : G →
     rw [realNetOut_toRealFlow, ← hvalX, realNetOut_toRealFlow] at hle
     exact (not_le_of_gt hlt) hle
   obtain ⟨path, hnodup, hhead, hlast, harcs⟩ := exists_nodup_list_of_reflTransGen hreach_sink
-  have hsink_in : ∀ u, Res u .sink → ∃ i, u = .buyer i ∧ F (.buyer i, .sink) < M.budget i := by
+  have hsink_in : ∀ u, Residual W F u .sink →
+      ∃ i, u = .buyer i ∧ F (.buyer i, .sink) < M.budget i := by
     intro u hu
     cases u with
     | buyer i =>
@@ -1836,105 +1831,87 @@ section ResidualCuts
 
 variable {I G : Type*} [Fintype I] [Fintype G]
 
-/-- Residual arc `(u, v)` of a flow `F` in capacity matrix `W`: unused forward capacity on `(u, v)`
-or positive cancellable flow on `(v, u)`. -/
-private def resEdge (W : FlowVertex I G → FlowVertex I G → ℝ)
-    (F : FlowVertex I G × FlowVertex I G → ℝ) (u v : FlowVertex I G) : Prop :=
-  F (u, v) < W u v ∨ 0 < F (v, u)
-
-/-- A maximum `source`–`sink` flow admits no residual path from `.source` to `.sink`. -/
-private theorem not_resReachable_of_isMaxRealFlow {W : FlowVertex I G → FlowVertex I G → ℝ}
+/-- Outgoing residual arcs of a feasible flow `F` on `bipCap A B a b E` from `.good g` go only to
+`.source` or to `.buyer i` along an active bipartite edge `g ∈ A ∧ i ∈ B ∧ E g i`. -/
+private theorem residual_bipCap_good_cases {A : Finset G} {B : Finset I}
+    {a : G → ℝ} {b : I → ℝ} {E : G → I → Prop}
     {F : FlowVertex I G × FlowVertex I G → ℝ}
-    (hF : IsFeasibleRealFlow W .source .sink F)
-    (hFmax : IsMaxRealFlow W .source .sink (realNetOut F .source)) :
-    ¬ Relation.ReflTransGen (resEdge W F) .source .sink := by
-  classical
-  intro hreach
-  obtain ⟨path, hnodup, hhead, hlast, harcs⟩ := exists_nodup_list_of_reflTransGen hreach
-  let d : FlowVertex I G × FlowVertex I G → ℝ := fun e =>
-    if e ∈ pathArcs path ∧ F e < W e.1 e.2 then 1
-    else if (e.2, e.1) ∈ pathArcs path ∧ ¬ (F (e.2, e.1) < W e.2 e.1) then -1
-    else 0
-  have hd_antisym (u v : FlowVertex I G) : d (u, v) - d (v, u) =
-      (if (u, v) ∈ pathArcs path then (1 : ℝ) else 0) -
-        (if (v, u) ∈ pathArcs path then 1 else 0) := by
-    by_cases huv : (u, v) ∈ pathArcs path
-    · have hvu : (v, u) ∉ pathArcs path := not_swap_mem_pathArcs hnodup huv
-      by_cases hfwd : F (u, v) < W u v
-      · simp [d, huv, hvu, hfwd]
-      · simp [d, huv, hvu, hfwd, not_lt.1 hfwd]
-    · by_cases hvu : (v, u) ∈ pathArcs path
-      · by_cases hfwd : F (v, u) < W v u
-        · simp [d, huv, hvu, hfwd]
-        · simp [d, huv, hvu, hfwd]
-      · simp [d, huv, hvu]
-  have hd_net (v : FlowVertex I G) : realNetOut d v =
-      (if v = .source then (1 : ℝ) else 0) - (if v = .sink then 1 else 0) := by
-    rw [realNetOut, ← Finset.sum_sub_distrib]
-    simp_rw [hd_antisym]
-    have hZ := sum_pathArcs_sign hnodup hhead hlast v
-    have hR : (∑ w : FlowVertex I G,
-        ((if (v, w) ∈ pathArcs path then (1 : ℝ) else 0) -
-          (if (w, v) ∈ pathArcs path then 1 else 0))) =
-        ((∑ w : FlowVertex I G,
-          ((if (v, w) ∈ pathArcs path then (1 : ℤ) else 0) -
-            (if (w, v) ∈ pathArcs path then 1 else 0)) : ℤ) : ℝ) := by
-      push_cast
-      refine Finset.sum_congr rfl fun w _ => ?_
-      split_ifs <;> simp
-    rw [hR, hZ]
-    by_cases hs : v = .source
-    · subst hs; simp
-    · by_cases ht : v = .sink
-      · subst ht; simp
-      · have hs' : FlowVertex.source ≠ v := Ne.symm hs
-        have ht' : FlowVertex.sink ≠ v := Ne.symm ht
-        simp [hs, ht, hs', ht']
-  let margin : FlowVertex I G × FlowVertex I G → ℝ := fun e =>
-    if F e < W e.1 e.2 then W e.1 e.2 - F e else F (e.2, e.1)
-  have hmargin_pos : ∀ e ∈ pathArcs path, 0 < margin e := by
-    intro e he
-    dsimp only [margin]
-    split_ifs with hfwd
-    · exact sub_pos.2 hfwd
-    · exact (harcs e he).resolve_left hfwd
-  have harcs_ne : (pathArcs path).toFinset.Nonempty := by
-    have hne := pathArcs_ne_nil_of_head?_ne_getLast? (by simp : FlowVertex.source ≠ .sink)
-      hhead hlast
-    rcases hpa : pathArcs path with _ | ⟨e₀, _⟩
-    · exact absurd hpa hne
-    · exact ⟨e₀, List.mem_toFinset.2 List.mem_cons_self⟩
-  set ε : ℝ := (pathArcs path).toFinset.inf' harcs_ne margin
-  have hε_pos : 0 < ε := by
-    rw [Finset.lt_inf'_iff]
-    intro e he
-    exact hmargin_pos e (List.mem_toFinset.1 he)
-  have hε_le : ∀ e ∈ pathArcs path, ε ≤ margin e := fun e he =>
-    Finset.inf'_le margin (List.mem_toFinset.2 he)
-  let F' : FlowVertex I G × FlowVertex I G → ℝ := F + ε • d
-  have hF'_feas : IsFeasibleRealFlow W .source .sink F' := by
-    refine ⟨fun u v => ?_, fun u v => ?_, fun v hvs hvt => ?_⟩
-    · simp only [F', Pi.add_apply, Pi.smul_apply, smul_eq_mul, d]
-      split_ifs with h1 h2
-      · linarith [hF.1 u v, hε_pos]
-      · have hm : ε ≤ F (u, v) := by
-          have := hε_le (v, u) h2.1
-          simpa [margin, h2.2] using this
-        linarith
-      · linarith [hF.1 u v]
-    · simp only [F', Pi.add_apply, Pi.smul_apply, smul_eq_mul, d]
-      split_ifs with h1 h2
-      · have hm : ε ≤ W u v - F (u, v) := by
-          have := hε_le (u, v) h1.1
-          simpa [margin, h1.2] using this
-        linarith
-      · linarith [hF.2.1 u v, hε_pos]
-      · linarith [hF.2.1 u v]
-    · rw [eq_comm, ← sub_eq_zero, ← realNetOut]
-      simp [F', realNetOut_add, realNetOut_smul, hd_net, hF.realNetOut_eq_zero hvs hvt, hvs, hvt]
-  have hle := hFmax.2 ⟨F', hF'_feas, rfl⟩
-  simp only [F', realNetOut_add, realNetOut_smul, hd_net, ↓reduceIte,
-    show FlowVertex.source ≠ .sink by simp, sub_zero, mul_one] at hle
+    (hF : IsFeasibleRealFlow (bipCap A B a b E) .source .sink F)
+    {g : G} {w : FlowVertex I G} (hres : Residual (bipCap A B a b E) F (.good g) w) :
+    w = .source ∨ ∃ i, w = .buyer i ∧ g ∈ A ∧ i ∈ B ∧ E g i := by
+  have hzero {u v : FlowVertex I G} (hW : bipCap A B a b E u v = 0) : F (u, v) = 0 :=
+    le_antisymm (hW ▸ hF.2.1 u v) (hF.1 u v)
+  cases w with
+  | source => exact Or.inl rfl
+  | sink =>
+    rcases hres with h1 | h2
+    · simp [bipCap] at h1; linarith [hF.1 (.good g) .sink]
+    · linarith [hzero (by simp [bipCap] : bipCap A B a b E .sink (.good g) = 0)]
+  | good g' =>
+    rcases hres with h1 | h2
+    · simp [bipCap] at h1; linarith [hF.1 (.good g) (.good g')]
+    · linarith [hzero (by simp [bipCap] : bipCap A B a b E (.good g') (.good g) = 0)]
+  | buyer i =>
+    refine Or.inr ⟨i, rfl, ?_⟩
+    rcases hres with h1 | h2
+    · by_contra hnot
+      have h0 : bipCap A B a b E (.good g) (.buyer i) = 0 := by simp [bipCap, hnot]
+      linarith [hF.1 (.good g) (.buyer i)]
+    · linarith [hzero (by simp [bipCap] : bipCap A B a b E (.buyer i) (.good g) = 0)]
+
+/-- Outgoing residual arcs of a feasible flow `F` on `bipCap A B a b E` from `.buyer i` go only
+forward to `.sink` (with `i ∈ B` and `F (.buyer i, .sink) < b i`) or backward to `.good g`
+(with `0 < ofRealFlow F g i`). -/
+private theorem residual_bipCap_buyer_cases {A : Finset G} {B : Finset I}
+    {a : G → ℝ} {b : I → ℝ} {E : G → I → Prop}
+    {F : FlowVertex I G × FlowVertex I G → ℝ}
+    (hF : IsFeasibleRealFlow (bipCap A B a b E) .source .sink F)
+    {i : I} {w : FlowVertex I G} (hres : Residual (bipCap A B a b E) F (.buyer i) w) :
+    (w = .sink ∧ i ∈ B ∧ F (.buyer i, .sink) < b i) ∨
+      ∃ g, w = .good g ∧ 0 < ofRealFlow F g i := by
+  have hzero {u v : FlowVertex I G} (hW : bipCap A B a b E u v = 0) : F (u, v) = 0 :=
+    le_antisymm (hW ▸ hF.2.1 u v) (hF.1 u v)
+  cases w with
+  | source =>
+    rcases hres with h1 | h2
+    · simp [bipCap] at h1; linarith [hF.1 (.buyer i) .source]
+    · linarith [hzero (by simp [bipCap] : bipCap A B a b E .source (.buyer i) = 0)]
+  | buyer i' =>
+    rcases hres with h1 | h2
+    · simp [bipCap] at h1; linarith [hF.1 (.buyer i) (.buyer i')]
+    · linarith [hzero (by simp [bipCap] : bipCap A B a b E (.buyer i') (.buyer i) = 0)]
+  | sink =>
+    refine Or.inl ⟨rfl, ?_⟩
+    rcases hres with h1 | h2
+    · by_cases hiB : i ∈ B
+      · exact ⟨hiB, by simpa [bipCap, hiB] using h1⟩
+      · simp [bipCap, hiB] at h1; linarith [hF.1 (.buyer i) .sink]
+    · linarith [hzero (by simp [bipCap] : bipCap A B a b E .sink (.buyer i) = 0)]
+  | good g =>
+    refine Or.inr ⟨g, rfl, ?_⟩
+    rcases hres with h1 | h2
+    · simp [bipCap] at h1; linarith [hF.1 (.buyer i) (.good g)]
+    · exact h2
+
+omit [Fintype I] [Fintype G] in
+/-- Every active bipartite edge `(g, i)` has positive forward residual capacity in
+`bipCap A B a b E` for any feasible flow `F` (because `bigM A B a b` strictly exceeds `a g`). -/
+private theorem residual_bipCap_good_buyer_of_edge {A : Finset G} {B : Finset I}
+    {a : G → ℝ} {b : I → ℝ} {E : G → I → Prop}
+    (ha : ∀ g ∈ A, 0 ≤ a g) (hb : ∀ i ∈ B, 0 ≤ b i)
+    {F : FlowVertex I G × FlowVertex I G → ℝ}
+    (hf : IsBipFlow A B a b E (ofRealFlow F))
+    {g : G} (hg : g ∈ A) {i : I} (hi : i ∈ B) (hE : E g i) :
+    Residual (bipCap A B a b E) F (.good g) (.buyer i) := by
+  left
+  simp only [bipCap, hg, hi, hE, and_self, ↓reduceIte]
+  have hle1 : ofRealFlow F g i ≤ ∑ i' ∈ B, ofRealFlow F g i' :=
+    Finset.single_le_sum (fun i' _ => hf.1 g i') hi
+  have hle2 : ∑ i' ∈ B, ofRealFlow F g i' ≤ a g := hf.2.2.1 g hg
+  have hle3 : a g ≤ ∑ g' ∈ A, a g' := Finset.single_le_sum ha hg
+  have hbn : 0 ≤ ∑ i' ∈ B, b i' := Finset.sum_nonneg hb
+  change F (.good g, .buyer i) ≤ _ at hle1
+  unfold bigM
   linarith
 
 /-- The **unique maximal `s`–`t` minimum cut** induced by a maximum flow `F` on `W`: all vertices
@@ -1942,11 +1919,11 @@ that cannot reach `.sink` in the residual graph of `F` ([Vazirani2007], Section 
 private noncomputable def maxMinCut (W : FlowVertex I G → FlowVertex I G → ℝ)
     (F : FlowVertex I G × FlowVertex I G → ℝ) : Finset (FlowVertex I G) :=
   open scoped Classical in
-  Finset.univ.filter fun v => ¬ Relation.ReflTransGen (resEdge W F) v .sink
+  Finset.univ.filter fun v => ¬ Relation.ReflTransGen (Residual W F) v .sink
 
 private theorem mem_maxMinCut {W : FlowVertex I G → FlowVertex I G → ℝ}
     {F : FlowVertex I G × FlowVertex I G → ℝ} {v : FlowVertex I G} :
-    v ∈ maxMinCut W F ↔ ¬ Relation.ReflTransGen (resEdge W F) v .sink := by
+    v ∈ maxMinCut W F ↔ ¬ Relation.ReflTransGen (Residual W F) v .sink := by
   classical
   simp [maxMinCut]
 
@@ -1955,7 +1932,7 @@ private theorem source_mem_maxMinCut {W : FlowVertex I G → FlowVertex I G → 
     (hF : IsFeasibleRealFlow W .source .sink F)
     (hFmax : IsMaxRealFlow W .source .sink (realNetOut F .source)) :
     FlowVertex.source ∈ maxMinCut W F :=
-  mem_maxMinCut.2 (not_resReachable_of_isMaxRealFlow hF hFmax)
+  mem_maxMinCut.2 (not_resReachable_of_isMaxRealFlow hF hFmax (by simp))
 
 private theorem sink_notMem_maxMinCut (W : FlowVertex I G → FlowVertex I G → ℝ)
     (F : FlowVertex I G × FlowVertex I G → ℝ) :
@@ -1970,8 +1947,8 @@ private theorem sat_of_maxMinCut {W : FlowVertex I G → FlowVertex I G → ℝ}
     F (u, v) = W u v ∧ F (v, u) = 0 := by
   rw [mem_maxMinCut] at hu hv
   push Not at hv
-  have hnr : ¬ resEdge W F u v := fun h => hu (Relation.ReflTransGen.head h hv)
-  simp only [resEdge, not_or, not_lt] at hnr
+  have hnr : ¬ Residual W F u v := fun h => hu (Relation.ReflTransGen.head h hv)
+  simp only [Residual, not_or, not_lt] at hnr
   exact ⟨le_antisymm (hF.2.1 u v) hnr.1, le_antisymm hnr.2 (hF.1 v u)⟩
 
 private theorem cutWeight_maxMinCut [DecidableEq I] [DecidableEq G]
@@ -2003,7 +1980,7 @@ private theorem subset_maxMinCut_of_minCut [DecidableEq I] [DecidableEq G]
   have hval_eq : realNetOut F .source = cutWeight W X := by
     rw [hX]
     exact IsGreatest.unique hFmax (isMaxRealFlow_minRealCutBetween hW (by simp))
-  have hno_cross : ∀ u ∈ X, ∀ v ∉ X, ¬ resEdge W F u v := by
+  have hno_cross : ∀ u ∈ X, ∀ v ∉ X, ¬ Residual W F u v := by
     intro u hu v hv hres
     have hv_sd : v ∈ Finset.univ \ X := Finset.mem_sdiff.2 ⟨Finset.mem_univ _, hv⟩
     have hdiff_zero :
@@ -2029,7 +2006,7 @@ private theorem subset_maxMinCut_of_minCut [DecidableEq I] [DecidableEq G]
   intro u hu
   rw [mem_maxMinCut]
   intro hreach
-  have hnot : ∀ w, Relation.ReflTransGen (resEdge W F) w .sink → w ∉ X := by
+  have hnot : ∀ w, Relation.ReflTransGen (Residual W F) w .sink → w ∉ X := by
     intro w hw
     induction hw using Relation.ReflTransGen.head_induction_on with
     | refl => exact ht
@@ -2149,6 +2126,20 @@ private theorem batchReducedCap_nonneg [DecidableEq I] (a : G → ℝ) (b : I �
 private def PairwiseDisjointPieces (ps : List (BipPiece I G)) : Prop :=
   ps.Pairwise fun P Q => Disjoint P.goods Q.goods ∧ Disjoint P.buyers Q.buyers
 
+private theorem PairwiseDisjointPieces.disjoint_of_ne {ps : List (BipPiece I G)}
+    (hdisj : PairwiseDisjointPieces ps) {P Q : BipPiece I G}
+    (hP : P ∈ ps) (hQ : Q ∈ ps) (hne : P ≠ Q) :
+    Disjoint P.goods Q.goods ∧ Disjoint P.buyers Q.buyers := by
+  induction ps with
+  | nil => simp at hP
+  | cons R tl ih =>
+    rw [PairwiseDisjointPieces, List.pairwise_cons] at hdisj
+    rcases List.mem_cons.1 hP with rfl | hPtl <;> rcases List.mem_cons.1 hQ with rfl | hQtl
+    · exact absurd rfl hne
+    · exact hdisj.1 Q hQtl
+    · exact ⟨(hdisj.1 P hPtl).1.symm, (hdisj.1 P hPtl).2.symm⟩
+    · exact ih hdisj.2 hPtl hQtl
+
 private theorem batchReducedCap_eq_of_mem [DecidableEq I] {a : G → ℝ} {b : I → ℝ}
     {ps : List (BipPiece I G)} (hdisj : PairwiseDisjointPieces ps) {P : BipPiece I G}
     (hP : P ∈ ps) {i : I} (hi : i ∈ P.buyers) :
@@ -2189,18 +2180,7 @@ private theorem batchEdge_iff_of_mem_goods {E : G → I → Prop} {ps : List (Bi
   · rintro ⟨Q, hQ, hgQ, hiQ, hE⟩
     have hPQ : Q = P := by
       by_contra hne
-      have hdis : Disjoint Q.goods P.goods := by
-        induction ps with
-        | nil => simp at hP
-        | cons R tl ih =>
-          rw [PairwiseDisjointPieces, List.pairwise_cons] at hdisj
-          rcases List.mem_cons.1 hQ with rfl | hQtl <;>
-            rcases List.mem_cons.1 hP with rfl | hPtl
-          · exact absurd rfl hne
-          · exact (hdisj.1 P hPtl).1
-          · exact (hdisj.1 Q hQtl).1.symm
-          · exact ih hdisj.2 hPtl hQtl
-      exact Finset.disjoint_left.1 hdis hgQ hg
+      exact Finset.disjoint_left.1 (hdisj.disjoint_of_ne hQ hP hne).1 hgQ hg
     subst hPQ
     exact ⟨hiQ, hE⟩
   · rintro ⟨hiP, hE⟩
@@ -2214,18 +2194,7 @@ private theorem batchEdge_iff_of_mem_buyers {E : G → I → Prop} {ps : List (B
   · rintro ⟨Q, hQ, hgQ, hiQ, hE⟩
     have hPQ : Q = P := by
       by_contra hne
-      have hdis : Disjoint Q.buyers P.buyers := by
-        induction ps with
-        | nil => simp at hP
-        | cons R tl ih =>
-          rw [PairwiseDisjointPieces, List.pairwise_cons] at hdisj
-          rcases List.mem_cons.1 hQ with rfl | hQtl <;>
-            rcases List.mem_cons.1 hP with rfl | hPtl
-          · exact absurd rfl hne
-          · exact (hdisj.1 P hPtl).2
-          · exact (hdisj.1 Q hQtl).2.symm
-          · exact ih hdisj.2 hPtl hQtl
-      exact Finset.disjoint_left.1 hdis hiQ hi
+      exact Finset.disjoint_left.1 (hdisj.disjoint_of_ne hQ hP hne).2 hiQ hi
     subst hPQ
     exact ⟨hgQ, hE⟩
   · rintro ⟨hgP, hE⟩
@@ -2330,7 +2299,6 @@ private theorem batch_restrict {a : G → ℝ} {b : I → ℝ} {E : G → I → 
             Finset.sum_congr rfl fun g _ => by simp [falt, hiP']
           rw [hsum]
           exact hfAll.2.2.2 i hiB
-    -- Wait: let's fix the `hsum` in `hgP'` case above right away (use `h1` + `sum_congr`!)
     have hFalt_le : realNetOut (toRealFlow falt) .source ≤ realNetOut F .source :=
       hFmax.2 ⟨toRealFlow falt,
         isFeasibleRealFlow_toRealFlow (fun g _ => ha g) (fun i _ => batchReducedCap_nonneg a b ps i)
@@ -2398,164 +2366,69 @@ private theorem batch_restrict {a : G → ℝ} {b : I → ℝ} {E : G → I → 
       refine le_antisymm (not_lt.1 fun hpos => hg ?_) (hfAll.1 g i)
       exact ((batchEdge_iff_of_mem_buyers hdisj hP g hi).1 (hfAll.2.1 g i hpos).2.2).1
   have hreach_iff : ∀ v : FlowVertex I G, inP v →
-      (Relation.ReflTransGen (resEdge (batchCap a b E ps) F) v .sink ↔
-        Relation.ReflTransGen (resEdge WP (toRealFlow fP)) v .sink) := by
-    have hdir1 : ∀ v, Relation.ReflTransGen (resEdge (batchCap a b E ps) F) v .sink →
-        inP v → Relation.ReflTransGen (resEdge WP (toRealFlow fP)) v .sink := by
+      (Relation.ReflTransGen (Residual (batchCap a b E ps) F) v .sink ↔
+        Relation.ReflTransGen (Residual WP (toRealFlow fP)) v .sink) := by
+    have hdir1 : ∀ v, Relation.ReflTransGen (Residual (batchCap a b E ps) F) v .sink →
+        inP v → Relation.ReflTransGen (Residual WP (toRealFlow fP)) v .sink := by
       intro v hv
       induction hv using Relation.ReflTransGen.head_induction_on with
       | refl => intro h; exact False.elim h
       | @head u w huw hws ih =>
         intro huP
         cases u with
-        | source => exact False.elim huP
-        | sink => exact False.elim huP
+        | source | sink => exact False.elim huP
         | good g =>
           have hgP : g ∈ P.goods := huP
-          cases w with
-          | source => exact absurd hws (not_resReachable_of_isMaxRealFlow hF hFmax)
-          | sink =>
-            rcases huw with h1 | h2
-            · simp [batchCap, bipCap] at h1; linarith [hF.1 (.good g) .sink]
-            · have hz : F (.sink, .good g) = 0 :=
-                le_antisymm (by simpa [batchCap, bipCap] using hF.2.1 .sink (.good g)) (hF.1 _ _)
-              linarith
-          | good g' =>
-            rcases huw with h1 | h2
-            · simp [batchCap, bipCap] at h1; linarith [hF.1 (.good g) (.good g')]
-            · have hz : F (.good g', .good g) = 0 :=
-                le_antisymm (by simpa [batchCap, bipCap] using hF.2.1 (.good g') (.good g))
-                  (hF.1 _ _)
-              linarith
-          | buyer i =>
-            have hE : i ∈ P.buyers ∧ E g i := by
-              rcases huw with h1 | h2
-              · by_contra hnot
-                have hnotE : ¬ batchEdge E ps g i := fun h =>
-                  hnot ((batchEdge_iff_of_mem_goods hdisj hP hgP i).1 h)
-                simp [batchCap, bipCap, hnotE] at h1
-                linarith [hF.1 (.good g) (.buyer i)]
-              · have hz : F (.buyer i, .good g) = 0 :=
-                  le_antisymm (by simpa [batchCap, bipCap] using hF.2.1 (.buyer i) (.good g))
-                    (hF.1 _ _)
-                linarith
-            have hresP : resEdge WP (toRealFlow fP) (.good g) (.buyer i) := by
-              left
-              simp only [WP, bipCap, hgP, hE.1, hE.2, and_self, ↓reduceIte, toRealFlow]
-              have hle1 : fP g i ≤ ∑ i' ∈ P.buyers, fP g i' :=
-                Finset.single_le_sum (fun i' _ => hfP_bip.1 g i') hE.1
-              have hle2 : ∑ i' ∈ P.buyers, fP g i' ≤ a g := hfP_bip.2.2.1 g hgP
-              have hle3 : a g ≤ ∑ g' ∈ P.goods, a g' := Finset.single_le_sum (fun g' _ => ha g') hgP
-              have hbn : 0 ≤ ∑ i' ∈ P.buyers, reducedCap a b P i' :=
-                Finset.sum_nonneg fun i' _ => le_max_left _ _
-              unfold bigM
-              linarith
-            exact Relation.ReflTransGen.head hresP (ih hE.1)
+          rcases residual_bipCap_good_cases hF huw with rfl | ⟨i, rfl, -, -, hEall⟩
+          · exact absurd hws (not_resReachable_of_isMaxRealFlow hF hFmax (by simp))
+          · have hE := (batchEdge_iff_of_mem_goods hdisj hP hgP i).1 hEall
+            exact Relation.ReflTransGen.head
+              (residual_bipCap_good_buyer_of_edge (fun g' _ => ha g') (fun _ _ => le_max_left _ _)
+                hfP_bip hgP hE.1 hE.2)
+              (ih hE.1)
         | buyer i =>
           have hiP : i ∈ P.buyers := huP
-          cases w with
-          | source => exact absurd hws (not_resReachable_of_isMaxRealFlow hF hFmax)
-          | buyer i' =>
-            rcases huw with h1 | h2
-            · simp [batchCap, bipCap] at h1; linarith [hF.1 (.buyer i) (.buyer i')]
-            · have hz : F (.buyer i', .buyer i) = 0 :=
-                le_antisymm (by simpa [batchCap, bipCap] using hF.2.1 (.buyer i') (.buyer i))
-                  (hF.1 _ _)
-              linarith
-          | sink =>
-            have hlt : F (.buyer i, .sink) < reducedCap a b P i := by
-              rcases huw with h1 | h2
-              · have hcap : batchCap a b E ps (.buyer i) .sink = reducedCap a b P i := by
-                  simp [batchCap, bipCap, mem_batchBuyers.2 ⟨P, hP, hiP⟩,
-                    batchReducedCap_eq_of_mem hdisj hP hiP]
-                linarith
-              · have hz : F (.sink, .buyer i) = 0 :=
-                  le_antisymm (by simpa [batchCap, bipCap] using hF.2.1 .sink (.buyer i)) (hF.1 _ _)
-                linarith
-            refine Relation.ReflTransGen.single (Or.inl ?_)
-            rw [hFP_sink i hiP]
-            simpa [WP, bipCap, hiP] using hlt
-          | good g =>
-            have hpos : 0 < F (.good g, .buyer i) := by
-              rcases huw with h1 | h2
-              · simp [batchCap, bipCap] at h1; linarith [hF.1 (.buyer i) (.good g)]
-              · exact h2
-            have hgP : g ∈ P.goods :=
+          rcases residual_bipCap_buyer_cases hF huw with ⟨rfl, -, hlt⟩ | ⟨g, rfl, hpos⟩
+          · rw [batchReducedCap_eq_of_mem hdisj hP hiP, ← hFP_sink i hiP] at hlt
+            exact Relation.ReflTransGen.single (Or.inl (by simpa [WP, bipCap, hiP] using hlt))
+          · have hgP : g ∈ P.goods :=
               ((batchEdge_iff_of_mem_buyers hdisj hP g hiP).1 (hfAll.2.1 g i hpos).2.2).1
-            have hresP : resEdge WP (toRealFlow fP) (.buyer i) (.good g) := by
-              right
-              simpa [toRealFlow, fP, hgP, hiP, ofRealFlow] using hpos
-            exact Relation.ReflTransGen.head hresP (ih hgP)
-    have hdir2 : ∀ v, Relation.ReflTransGen (resEdge WP (toRealFlow fP)) v .sink →
-        inP v → Relation.ReflTransGen (resEdge (batchCap a b E ps) F) v .sink := by
+            exact Relation.ReflTransGen.head
+              (Or.inr (by simpa [toRealFlow, fP, hgP, hiP, ofRealFlow] using hpos))
+              (ih hgP)
+    have hdir2 : ∀ v, Relation.ReflTransGen (Residual WP (toRealFlow fP)) v .sink →
+        inP v → Relation.ReflTransGen (Residual (batchCap a b E ps) F) v .sink := by
       intro v hv
       induction hv using Relation.ReflTransGen.head_induction_on with
       | refl => intro h; exact False.elim h
       | @head u w huw hws ih =>
         intro huP
         cases u with
-        | source => exact False.elim huP
-        | sink => exact False.elim huP
+        | source | sink => exact False.elim huP
         | good g =>
           have hgP : g ∈ P.goods := huP
-          cases w with
-          | source => exact absurd hws (not_resReachable_of_isMaxRealFlow hFP_feas hFP_max)
-          | sink =>
-            rcases huw with h | h <;> simp [WP, bipCap, toRealFlow] at h
-          | good g' =>
-            rcases huw with h | h <;> simp [WP, bipCap, toRealFlow] at h
-          | buyer i =>
-            have hE : i ∈ P.buyers ∧ E g i := by
-              rcases huw with h1 | h2
-              · by_contra hnot
-                have h0 : WP (.good g) (.buyer i) = 0 := by
-                  simp only [WP, bipCap, hgP, true_and]
-                  exact ite_eq_right_iff.2 fun h => absurd h hnot
-                linarith [hFP_feas.1 (.good g) (.buyer i)]
-              · simp [toRealFlow] at h2
-            have hresAll : resEdge (batchCap a b E ps) F (.good g) (.buyer i) := by
-              left
-              have hgA : g ∈ batchGoods ps := mem_batchGoods.2 ⟨P, hP, hgP⟩
-              have hiB : i ∈ batchBuyers ps := mem_batchBuyers.2 ⟨P, hP, hE.1⟩
-              have hEall : batchEdge E ps g i := ⟨P, hP, hgP, hE.1, hE.2⟩
-              simp only [batchCap, bipCap, hgA, hiB, hEall, and_self, ↓reduceIte]
-              have hle1 : F (.good g, .buyer i) ≤ ∑ i' ∈ batchBuyers ps, ofRealFlow F g i' :=
-                Finset.single_le_sum (fun i' _ => hfAll.1 g i') hiB
-              have hle2 : ∑ i' ∈ batchBuyers ps, ofRealFlow F g i' ≤ a g := hfAll.2.2.1 g hgA
-              have hle3 : a g ≤ ∑ g' ∈ batchGoods ps, a g' :=
-                Finset.single_le_sum (fun g' _ => ha g') hgA
-              have hbn : 0 ≤ ∑ i' ∈ batchBuyers ps, batchReducedCap a b ps i' :=
-                Finset.sum_nonneg fun i' _ => batchReducedCap_nonneg a b ps i'
-              unfold bigM
-              linarith
-            exact Relation.ReflTransGen.head hresAll (ih hE.1)
+          rcases residual_bipCap_good_cases hFP_feas huw with rfl | ⟨i, rfl, -, hiP, hE⟩
+          · exact absurd hws (not_resReachable_of_isMaxRealFlow hFP_feas hFP_max (by simp))
+          · exact Relation.ReflTransGen.head
+              (residual_bipCap_good_buyer_of_edge (fun g' _ => ha g')
+                (fun i' _ => batchReducedCap_nonneg a b ps i') hfAll
+                (mem_batchGoods.2 ⟨P, hP, hgP⟩) (mem_batchBuyers.2 ⟨P, hP, hiP⟩)
+                ⟨P, hP, hgP, hiP, hE⟩)
+              (ih hiP)
         | buyer i =>
           have hiP : i ∈ P.buyers := huP
-          cases w with
-          | source => exact absurd hws (not_resReachable_of_isMaxRealFlow hFP_feas hFP_max)
-          | buyer i' =>
-            rcases huw with h | h <;> simp [WP, bipCap, toRealFlow] at h
-          | sink =>
-            have hlt : toRealFlow fP (.buyer i, .sink) < reducedCap a b P i := by
-              rcases huw with h1 | h2
-              · simpa [WP, bipCap, hiP] using h1
-              · simp [toRealFlow] at h2
+          rcases residual_bipCap_buyer_cases hFP_feas huw with ⟨rfl, -, hlt⟩ | ⟨g, rfl, hpos⟩
+          · rw [hFP_sink i hiP] at hlt
             refine Relation.ReflTransGen.single (Or.inl ?_)
-            rw [← hFP_sink i hiP]
             have hcap : batchCap a b E ps (.buyer i) .sink = reducedCap a b P i := by
               simp [batchCap, bipCap, mem_batchBuyers.2 ⟨P, hP, hiP⟩,
                 batchReducedCap_eq_of_mem hdisj hP hiP]
             linarith
-          | good g =>
-            have hpos : 0 < fP g i := by
-              rcases huw with h1 | h2
-              · simp [WP, bipCap, toRealFlow] at h1
-              · simpa [toRealFlow] using h2
-            have hgP : g ∈ P.goods := (hfP_bip.2.1 g i hpos).1
-            have hresAll : resEdge (batchCap a b E ps) F (.buyer i) (.good g) := by
-              right
-              simpa [fP, hgP, hiP, ofRealFlow] using hpos
-            exact Relation.ReflTransGen.head hresAll (ih hgP)
+          · have hpos' : 0 < fP g i := by simpa [ofRealFlow, toRealFlow] using hpos
+            have hgP : g ∈ P.goods := (hfP_bip.2.1 g i hpos').1
+            exact Relation.ReflTransGen.head
+              (Or.inr (by simpa [fP, hgP, hiP, ofRealFlow] using hpos'))
+              (ih hgP)
     exact fun v hv => ⟨fun h => hdir1 v h hv, fun h => hdir2 v h hv⟩
   refine ⟨hFP_feas, hFP_max, ?_, ?_⟩
   · ext g
@@ -2736,39 +2609,13 @@ private theorem case2_split_and_combine {a : G → ℝ} {b : I → ℝ} {E : G �
     have hred0 : reducedCap a b P i = 0 := h0.symm
     cases hiNotS using Relation.ReflTransGen.head_induction_on with
     | @head u w huw _ _ =>
-      -- Outgoing residual edge from `.buyer i` needs `F'(i, t) < b'(i) = 0` or `F'(g, i) > 0`.
-      rcases huw with hfwd | hbwd
-      · cases w with
-        | sink =>
-          have hcap : W' (.buyer i) .sink = 0 := by simp [W', bipCap, hiP, hred0]
-          linarith [hF'.1 (.buyer i) .sink]
-        | source =>
-          have hcap : W' (.buyer i) .source = 0 := by simp [W', bipCap]
-          linarith [hF'.1 (.buyer i) .source]
-        | good g =>
-          have hcap : W' (.buyer i) (.good g) = 0 := by simp [W', bipCap]
-          linarith [hF'.1 (.buyer i) (.good g)]
-        | buyer i' =>
-          have hcap : W' (.buyer i) (.buyer i') = 0 := by simp [W', bipCap]
-          linarith [hF'.1 (.buyer i) (.buyer i')]
-      · cases w with
-        | good g =>
-          have hle1 : ofRealFlow F' g i ≤ ∑ g' ∈ P.goods, ofRealFlow F' g' i := by
-            have hgP : g ∈ P.goods := (hf'_bip.2.1 g i hbwd).1
-            exact Finset.single_le_sum (fun g' _ => hf'_bip.1 g' i) hgP
-          have hle2 : ∑ g' ∈ P.goods, ofRealFlow F' g' i ≤ reducedCap a b P i :=
-            hf'_bip.2.2.2 i hiP
-          change F' (.good g, .buyer i) ≤ _ at hle1
-          linarith [hle1, hle2, hred0, hbwd]
-        | source =>
-          have hcap : W' .source (.buyer i) = 0 := by simp [W', bipCap]
-          linarith [hF'.2.1 .source (.buyer i)]
-        | buyer i' =>
-          have hcap : W' (.buyer i') (.buyer i) = 0 := by simp [W', bipCap]
-          linarith [hF'.2.1 (.buyer i') (.buyer i)]
-        | sink =>
-          have hcap : W' .sink (.buyer i) = 0 := by simp [W', bipCap]
-          linarith [hF'.2.1 .sink (.buyer i)]
+      rcases residual_bipCap_buyer_cases hF' huw with ⟨rfl, -, hlt⟩ | ⟨g, rfl, hpos⟩
+      · linarith [hF'.1 (.buyer i) .sink, hred0]
+      · have hle1 : ofRealFlow F' g i ≤ ∑ g' ∈ P.goods, ofRealFlow F' g' i :=
+          Finset.single_le_sum (fun g' _ => hf'_bip.1 g' i) (hf'_bip.2.1 g i hpos).1
+        have hle2 : ∑ g' ∈ P.goods, ofRealFlow F' g' i ≤ reducedCap a b P i :=
+          hf'_bip.2.2.2 i hiP
+        linarith
   -- 5. `A₂.Nonempty` and `A₁.Nonempty`!
   have hA₂_ne : A₂.Nonempty := by
     by_contra hA₂_empty
@@ -3105,19 +2952,19 @@ private theorem case2_split_and_combine {a : G → ℝ} {b : I → ℝ} {E : G �
         _ = ∑ g ∈ K, a g := Finset.sum_congr rfl fun g hgK => hf₂.2.1 g (Finset.mem_filter.1 hgK).1
     -- In `F'`, every `g ∈ K ⊆ A₂` is saturated and sends all its flow into `L` (since no flow to
     -- `B₁` and no edge to `B₂ \ L`). Moreover `∑ g ∈ K, a g < ∑ j ∈ L, reducedCap a b P j` strictly
-    -- (else no vertex in `K ∪ L` could reach `.sink` in `resEdge W' F'`, contradicting `L ⊆ B₂`).
+    -- (else no vertex in `K ∪ L` could reach `.sink` in `Residual W' F'`, contradicting `L ⊆ B₂`).
+    have hK_F' : ∑ g ∈ K, a g = ∑ g ∈ K, ∑ j ∈ L, ofRealFlow F' g j := by
+      refine Finset.sum_congr rfl fun g hgK => ?_
+      have hgA₂ : g ∈ A₂ := (Finset.mem_filter.1 hgK).1
+      rw [← hF'_sat_A₂ g hgA₂, hF'src g]
+      symm
+      refine Finset.sum_subset (Finset.subset_univ _) fun j _ hjL => ?_
+      refine le_antisymm (not_lt.1 fun hpos => ?_) (hf'_bip.1 g j)
+      have hsupp := hf'_bip.2.1 g j hpos
+      by_cases hjB₁ : j ∈ B₁
+      · exact hpos.ne' (hF'_zero_A₂_B₁ g hgA₂ j hjB₁)
+      · exact hK_no_edge g hgK j (Finset.mem_sdiff.2 ⟨hsupp.2.1, hjB₁⟩) hjL hsupp.2.2
     have hK_le_L : ∑ g ∈ K, a g ≤ ∑ j ∈ L, reducedCap a b P j := by
-      have hK_F' : ∑ g ∈ K, a g = ∑ g ∈ K, ∑ j ∈ L, ofRealFlow F' g j := by
-        refine Finset.sum_congr rfl fun g hgK => ?_
-        have hgA₂ : g ∈ A₂ := (Finset.mem_filter.1 hgK).1
-        rw [← hF'_sat_A₂ g hgA₂, hF'src g]
-        symm
-        refine Finset.sum_subset (Finset.subset_univ _) fun j _ hjL => ?_
-        refine le_antisymm (not_lt.1 fun hpos => ?_) (hf'_bip.1 g j)
-        have hsupp := hf'_bip.2.1 g j hpos
-        by_cases hjB₁ : j ∈ B₁
-        · exact hpos.ne' (hF'_zero_A₂_B₁ g hgA₂ j hjB₁)
-        · exact hK_no_edge g hgK j (Finset.mem_sdiff.2 ⟨hsupp.2.1, hjB₁⟩) hjL hsupp.2.2
       rw [hK_F', Finset.sum_comm]
       calc
         ∑ j ∈ L, ∑ g ∈ K, ofRealFlow F' g j
@@ -3132,17 +2979,6 @@ private theorem case2_split_and_combine {a : G → ℝ} {b : I → ℝ} {E : G �
       refine lt_of_le_of_ne hK_le_L fun heq => ?_
       -- If equality holds, then (a) every `j ∈ L` is saturated in `F'`, and (b) every `g ∉ K` sends
       -- `0` flow to `L` in `F'`. Then `K ∪ L` has NO residual edge to `(univ \ S) \ (K ∪ L)`.
-      have hK_F' : ∑ g ∈ K, a g = ∑ g ∈ K, ∑ j ∈ L, ofRealFlow F' g j := by
-        refine Finset.sum_congr rfl fun g hgK => ?_
-        have hgA₂ : g ∈ A₂ := (Finset.mem_filter.1 hgK).1
-        rw [← hF'_sat_A₂ g hgA₂, hF'src g]
-        symm
-        refine Finset.sum_subset (Finset.subset_univ _) fun j _ hjL => ?_
-        refine le_antisymm (not_lt.1 fun hpos => ?_) (hf'_bip.1 g j)
-        have hsupp := hf'_bip.2.1 g j hpos
-        by_cases hjB₁ : j ∈ B₁
-        · exact hpos.ne' (hF'_zero_A₂_B₁ g hgA₂ j hjB₁)
-        · exact hK_no_edge g hgK j (Finset.mem_sdiff.2 ⟨hsupp.2.1, hjB₁⟩) hjL hsupp.2.2
       have hKL_eq : ∑ j ∈ L, ∑ g ∈ K, ofRealFlow F' g j = ∑ j ∈ L, reducedCap a b P j := by
         rw [Finset.sum_comm, ← hK_F', heq]
       have hL_sat_F' : ∀ j ∈ L, F' (.buyer j, .sink) = reducedCap a b P j := by
@@ -3189,81 +3025,33 @@ private theorem case2_split_and_combine {a : G → ℝ} {b : I → ℝ} {E : G �
           exact (Finset.sum_eq_zero_iff_of_nonneg fun g' _ => hf'_bip.1 g' j).1 h0 g
             (Finset.mem_sdiff.2 ⟨hgP, hgK⟩)
         · exact le_antisymm (not_lt.1 fun hpos => hgP (hf'_bip.2.1 g j hpos).1) (hf'_bip.1 g j)
-      -- Prove no vertex in `K` or `L` can reach `.sink` in `resEdge W' F'`.
+      -- Prove no vertex in `K` or `L` can reach `.sink` in `Residual W' F'`.
       let inKL : FlowVertex I G → Prop
         | .good g => g ∈ K
         | .buyer j => j ∈ L
         | _ => False
-      have hno_sink : ∀ v, Relation.ReflTransGen (resEdge W' F') v .sink → ¬ inKL v := by
+      have hno_sink : ∀ v, Relation.ReflTransGen (Residual W' F') v .sink → ¬ inKL v := by
         intro v hv
         induction hv using Relation.ReflTransGen.head_induction_on with
         | refl => exact id
         | @head u w huw hws ih =>
           intro huKL
           cases u with
-          | source => exact huKL
-          | sink => exact huKL
+          | source | sink => exact huKL
           | good g =>
             have hgK : g ∈ K := huKL
-            cases w with
-            | source => exact absurd hws (not_resReachable_of_isMaxRealFlow hF' hF'max)
-            | sink =>
-              rcases huw with h1 | h2
-              · simp [W', bipCap] at h1; linarith [hF'.1 (.good g) .sink]
-              · have hz : F' (.sink, .good g) = 0 :=
-                  le_antisymm (by simpa [W', bipCap] using hF'.2.1 .sink (.good g)) (hF'.1 _ _)
-                linarith
-            | good g' =>
-              rcases huw with h1 | h2
-              · simp [W', bipCap] at h1; linarith [hF'.1 (.good g) (.good g')]
-              · have hz : F' (.good g', .good g) = 0 :=
-                  le_antisymm (by simpa [W', bipCap] using hF'.2.1 (.good g') (.good g))
-                    (hF'.1 _ _)
-                linarith
-            | buyer j =>
-              have hE : j ∈ P.buyers ∧ E g j := by
-                rcases huw with h1 | h2
-                · by_contra hnot
-                  have hnot' : ¬ (g ∈ P.goods ∧ j ∈ P.buyers ∧ E g j) :=
-                    fun h => hnot ⟨h.2.1, h.2.2⟩
-                  have h0 : W' (.good g) (.buyer j) = 0 := by
-                    simp [W', bipCap, hnot']
-                  linarith [hF'.1 (.good g) (.buyer j)]
-                · have hz : F' (.buyer j, .good g) = 0 :=
-                    le_antisymm (by simpa [W', bipCap] using hF'.2.1 (.buyer j) (.good g))
-                      (hF'.1 _ _)
-                  linarith
-              by_cases hjL : j ∈ L
+            rcases residual_bipCap_good_cases hF' huw with rfl | ⟨j, rfl, -, hjP, hEj⟩
+            · exact absurd hws (not_resReachable_of_isMaxRealFlow hF' hF'max (by simp))
+            · by_cases hjL : j ∈ L
               · exact ih hjL
               · by_cases hjB₁ : j ∈ B₁
                 · exact (mem_maxMinCut.1 (Finset.mem_filter.1 hjB₁).2) hws
-                · exact hK_no_edge g hgK j (Finset.mem_sdiff.2 ⟨hE.1, hjB₁⟩) hjL hE.2
+                · exact hK_no_edge g hgK j (Finset.mem_sdiff.2 ⟨hjP, hjB₁⟩) hjL hEj
           | buyer j =>
             have hjL : j ∈ L := huKL
-            cases w with
-            | source => exact absurd hws (not_resReachable_of_isMaxRealFlow hF' hF'max)
-            | buyer j' =>
-              rcases huw with h1 | h2
-              · simp [W', bipCap] at h1; linarith [hF'.1 (.buyer j) (.buyer j')]
-              · have hz : F' (.buyer j', .buyer j) = 0 :=
-                  le_antisymm (by simpa [W', bipCap] using hF'.2.1 (.buyer j') (.buyer j))
-                    (hF'.1 _ _)
-                linarith
-            | sink =>
-              have hjP : j ∈ P.buyers := (Finset.mem_sdiff.1 (Finset.mem_filter.1 hjL).1).1
-              rcases huw with h1 | h2
-              · have hsat := hL_sat_F' j hjL
-                have hcap : W' (.buyer j) .sink = reducedCap a b P j := by simp [W', bipCap, hjP]
-                linarith
-              · have hz : F' (.sink, .buyer j) = 0 :=
-                  le_antisymm (by simpa [W', bipCap] using hF'.2.1 .sink (.buyer j)) (hF'.1 _ _)
-                linarith
-            | good g =>
-              have hpos : 0 < ofRealFlow F' g j := by
-                rcases huw with h1 | h2
-                · simp [W', bipCap] at h1; linarith [hF'.1 (.buyer j) (.good g)]
-                · exact h2
-              by_cases hgK : g ∈ K
+            rcases residual_bipCap_buyer_cases hF' huw with ⟨rfl, -, hlt⟩ | ⟨g, rfl, hpos⟩
+            · linarith [hL_sat_F' j hjL]
+            · by_cases hgK : g ∈ K
               · exact ih hgK
               · linarith [hnotK_to_L g hgK j hjL]
       obtain ⟨j₁, hj₁L⟩ := hL_ne
@@ -3598,23 +3386,7 @@ private theorem balancedFlowLoop_spec {a : G → ℝ} {b : I → ℝ} {E : G →
                 have hsub := hnext_sub R hR Q hQR
                 by_cases hRP : R = P
                 · subst hRP; simp [nextStep, hc] at hQR
-                · have hdis : Disjoint R.goods P.goods := by
-                    have haux : ∀ L : List (BipPiece I G), PairwiseDisjointPieces L →
-                        ∀ X Y, X ∈ L → Y ∈ L → X ≠ Y → Disjoint X.goods Y.goods := by
-                      intro L
-                      induction L with
-                      | nil => intro _ _ _ h; simp at h
-                      | cons A rest ihA =>
-                        intro hLd X Y hX hY hXY
-                        rw [PairwiseDisjointPieces, List.pairwise_cons] at hLd
-                        rcases List.mem_cons.1 hX with rfl | hXr <;>
-                          rcases List.mem_cons.1 hY with rfl | hYr
-                        · exact absurd rfl hXY
-                        · exact (hLd.1 Y hYr).1
-                        · exact (hLd.1 X hXr).1.symm
-                        · exact ihA hLd.2 X Y hXr hYr hXY
-                    exact haux ps' hdisj R P hR hP hRP
-                  exact Finset.disjoint_left.1 hdis (hsub.1 hgQ) hgi.1
+                · exact Finset.disjoint_left.1 (hdisj.disjoint_of_ne hR hP hRP).1 (hsub.1 hgQ) hgi.1
               have hfDone_eq : fDone g i = ofRealFlow F g i := by
                 dsimp only [fDone]
                 exact ite_eq_left_iff.2 fun h => absurd ⟨P, hP, hc.1, hc.2, hgi.1, hgi.2⟩ h
@@ -3655,23 +3427,8 @@ private theorem balancedFlowLoop_spec {a : G → ℝ} {b : I → ℝ} {E : G →
                 obtain ⟨R, hR, hRc1, hRc2, hgR, _⟩ := hex
                 by_cases hRP : R = P
                 · subst hRP; exact absurd ⟨hRc1, hRc2⟩ hc
-                · have hdis : Disjoint R.goods P.goods := by
-                    have haux : ∀ L : List (BipPiece I G), PairwiseDisjointPieces L →
-                        ∀ X Y, X ∈ L → Y ∈ L → X ≠ Y → Disjoint X.goods Y.goods := by
-                      intro L
-                      induction L with
-                      | nil => intro _ _ _ h; simp at h
-                      | cons A rest ihA =>
-                        intro hLd X Y hX hY hXY
-                        rw [PairwiseDisjointPieces, List.pairwise_cons] at hLd
-                        rcases List.mem_cons.1 hX with rfl | hXr <;>
-                          rcases List.mem_cons.1 hY with rfl | hYr
-                        · exact absurd rfl hXY
-                        · exact (hLd.1 Y hYr).1
-                        · exact (hLd.1 X hXr).1.symm
-                        · exact ihA hLd.2 X Y hXr hYr hXY
-                    exact haux ps' hdisj R P hR hP hRP
-                  exact absurd hgR (Finset.disjoint_right.1 hdis hgi.1)
+                · exact absurd hgR
+                    (Finset.disjoint_right.1 (hdisj.disjoint_of_ne hR hP hRP).1 hgi.1)
               rw [ite_eq_left_iff.2 fun h => absurd hgi h, hfDone0, add_zero]
               by_cases h1 : g ∈ P₁.goods ∧ i ∈ P₁.buyers
               · have h2 : ¬ (g ∈ P₂.goods ∧ i ∈ P₂.buyers) := fun h =>
@@ -3687,23 +3444,8 @@ private theorem balancedFlowLoop_spec {a : G → ℝ} {b : I → ℝ} {E : G →
                   have hsub := hnext_sub R hR Q hQR
                   have hRP : R = P := by
                     by_contra hne
-                    have hdis : Disjoint R.goods P.goods := by
-                      have haux : ∀ L : List (BipPiece I G), PairwiseDisjointPieces L →
-                          ∀ X Y, X ∈ L → Y ∈ L → X ≠ Y → Disjoint X.goods Y.goods := by
-                        intro L
-                        induction L with
-                        | nil => intro _ _ _ h; simp at h
-                        | cons A rest ihA =>
-                          intro hLd X Y hX hY hXY
-                          rw [PairwiseDisjointPieces, List.pairwise_cons] at hLd
-                          rcases List.mem_cons.1 hX with rfl | hXr <;>
-                            rcases List.mem_cons.1 hY with rfl | hYr
-                          · exact absurd rfl hXY
-                          · exact (hLd.1 Y hYr).1
-                          · exact (hLd.1 X hXr).1.symm
-                          · exact ihA hLd.2 X Y hXr hYr hXY
-                      exact haux ps' hdisj R P hR hP hne
-                    exact Finset.disjoint_left.1 hdis (hsub.1 hgQ) hgi.1
+                    exact Finset.disjoint_left.1 (hdisj.disjoint_of_ne hR hP hne).1
+                      (hsub.1 hgQ) hgi.1
                   subst hRP
                   dsimp only [nextStep] at hQR
                   rw [ite_eq_right_iff.2 fun h => absurd h hc] at hQR
@@ -3958,20 +3700,7 @@ theorem tightSetAtMinRatio_spec [Fintype I] [DecidableEq G] {M : LinearFisherMar
     intro S₁ S₂ h₁A h₂A h₁ h₂
     have hval : M.goodValue p (S₁ ∪ S₂) + M.goodValue p (S₁ ∩ S₂) =
         M.goodValue p S₁ + M.goodValue p S₂ := Finset.sum_union_inter
-    have hnbr_sub : M.budgetSum (M.buyerNeighborhood p (S₁ ∪ S₂)) +
-        M.budgetSum (M.buyerNeighborhood p (S₁ ∩ S₂)) ≤
-        M.budgetSum (M.buyerNeighborhood p S₁) + M.budgetSum (M.buyerNeighborhood p S₂) := by
-      have hu : M.buyerNeighborhood p (S₁ ∪ S₂) =
-          M.buyerNeighborhood p S₁ ∪ M.buyerNeighborhood p S₂ := bipNbr_union _ _ S₁ S₂
-      have hi : M.budgetSum (M.buyerNeighborhood p (S₁ ∩ S₂)) ≤
-          M.budgetSum (M.buyerNeighborhood p S₁ ∩ M.buyerNeighborhood p S₂) :=
-        Finset.sum_le_sum_of_subset_of_nonneg (bipNbr_inter_subset _ _ S₁ S₂)
-          fun i _ _ => M.budget_nonneg i
-      have hmod : M.budgetSum (M.buyerNeighborhood p S₁ ∪ M.buyerNeighborhood p S₂) +
-          M.budgetSum (M.buyerNeighborhood p S₁ ∩ M.buyerNeighborhood p S₂) =
-          M.budgetSum (M.buyerNeighborhood p S₁) + M.budgetSum (M.buyerNeighborhood p S₂) :=
-        Finset.sum_union_inter
-      rw [hu]; linarith
+    have hnbr_sub := budgetSum_buyerNeighborhood_union_add_inter_le M p S₁ S₂
     have hle_u := minTightRatio_mul_goodValue_le hA hp (Finset.union_subset h₁A h₂A)
     have hle_i := minTightRatio_mul_goodValue_le hA hp
       ((Finset.inter_subset_left (s₁ := S₁) (s₂ := S₂)).trans h₁A)

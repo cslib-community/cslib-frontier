@@ -8,9 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Combinatorics.WeightedCut.RealCut
+public import Mathlib.Logic.Relation
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.LinearProgramming
 import Mathlib.Data.Matrix.ColumnRowPartitioned
-import Mathlib.Logic.Relation
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -47,6 +47,7 @@ reachability relation would increase the value.
 * `Cslib.Algorithms.Lean.MaxFlow.IsFeasibleRealFlow`: capacity and conservation constraints.
 * `Cslib.Algorithms.Lean.MaxFlow.realNetOut`: net outflow at a vertex; the value at the source.
 * `Cslib.Algorithms.Lean.MaxFlow.IsMaxRealFlow`: the greatest value of a feasible flow.
+* `Cslib.Algorithms.Lean.MaxFlow.Residual`: positive-residual-capacity arcs of a flow.
 
 ## Main results
 
@@ -54,6 +55,8 @@ reachability relation would increase the value.
   flow equals its net flow across any `s`–`t` cut.
 * `Cslib.Algorithms.Lean.MaxFlow.IsFeasibleRealFlow.realNetOut_le_cutWeight`: weak duality.
 * `Cslib.Algorithms.Lean.MaxFlow.exists_isMaxRealFlow`: a maximum flow exists.
+* `Cslib.Algorithms.Lean.MaxFlow.not_resReachable_of_isMaxRealFlow`: a maximum `s`–`t` flow admits
+  no residual path from `s` to `t`.
 * `Cslib.Algorithms.Lean.MaxFlow.isMaxRealFlow_minRealCutBetween`: the **max-flow min-cut
   theorem**, the maximum flow value is `minRealCutBetween W s t`.
 
@@ -225,7 +228,7 @@ theorem exists_isMaxRealFlow (hW : ∀ u v, 0 ≤ W u v) (s t : V) :
 
 /-- The arc `(u, v)` has positive residual capacity for `f`: unused capacity on `(u, v)` or
 cancellable flow on `(v, u)`. -/
-private def Residual (W : V → V → K) (f : V × V → K) (u v : V) : Prop :=
+@[expose] def Residual (W : V → V → K) (f : V × V → K) (u v : V) : Prop :=
   f (u, v) < W u v ∨ 0 < f (v, u)
 
 /-- A value between `a` and `a + μ * d` stays above a common lower bound. -/
@@ -295,6 +298,23 @@ private theorem exists_augmentation (hnn : ∀ e, 0 ≤ f e) (hcap : ∀ e, f e 
       · simp only [Pi.add_apply, Pi.single_eq_of_ne he, add_zero]
         exact ⟨le_add_mul_of_le h₀ h₁ (hnn e) (hb e).1, add_mul_le_of_le h₀ h₁ (hcap e) (hb e).2⟩
 
+omit [DecidableEq V] in
+/-- A maximum `s`–`t` flow admits no residual path from `s` to `t` when `s ≠ t`. -/
+theorem not_resReachable_of_isMaxRealFlow (hf : IsFeasibleRealFlow W s t f)
+    (hmax : IsMaxRealFlow W s t (realNetOut f s)) (hst : s ≠ t) :
+    ¬ Relation.ReflTransGen (Residual W f) s t := by
+  classical
+  intro hreach
+  obtain ⟨d, μ, hμ, hnet, hb⟩ :=
+    exists_augmentation (fun e => hf.1 e.1 e.2) (fun e => hf.2.1 e.1 e.2) hreach
+  have hfeas : IsFeasibleRealFlow W s t (f + μ • d) := by
+    refine ⟨fun u v => (hb (u, v)).1, fun u v => (hb (u, v)).2, fun v hvs hvt => ?_⟩
+    rw [eq_comm, ← sub_eq_zero, ← realNetOut]
+    simp [realNetOut_add, realNetOut_smul, hnet, hf.realNetOut_eq_zero hvs hvt, hvs, hvt]
+  have := hmax.2 ⟨_, hfeas, rfl⟩
+  simp only [realNetOut_add, realNetOut_smul, hnet, ↓reduceIte, hst] at this
+  linarith
+
 /-- **Max-flow min-cut theorem** over a linearly ordered field ([Schrijver2003], Theorem 10.3,
 p. 150, extended from `ℝ` to `K`; [FordFulkerson1962], Chapter I, Sections 4–8): for non-negative
 capacities `W` and distinct `s` and `t`, the greatest value of a feasible `s`–`t` flow is the
@@ -310,17 +330,8 @@ theorem isMaxRealFlow_minRealCutBetween (hW : ∀ u v, 0 ≤ W u v) (hst : s ≠
   -- The vertices reachable from `s` in the residual graph form a cut of weight `realNetOut f s`.
   let X : Finset V := univ.filter (Relation.ReflTransGen (Residual W f) s)
   have hsX : s ∈ X := mem_filter.mpr ⟨mem_univ s, Relation.ReflTransGen.refl⟩
-  have htX : t ∉ X := by
-    intro htX
-    obtain ⟨d, μ, hμ, hnet, hb⟩ := exists_augmentation (fun e => hf.1 e.1 e.2)
-      (fun e => hf.2.1 e.1 e.2) (mem_filter.mp htX).2
-    have hfeas : IsFeasibleRealFlow W s t (f + μ • d) := by
-      refine ⟨fun u v => (hb (u, v)).1, fun u v => (hb (u, v)).2, fun v hvs hvt => ?_⟩
-      rw [eq_comm, ← sub_eq_zero, ← realNetOut]
-      simp [realNetOut_add, realNetOut_smul, hnet, hf.realNetOut_eq_zero hvs hvt, hvs, hvt]
-    have := hmax.2 ⟨_, hfeas, rfl⟩
-    simp only [realNetOut_add, realNetOut_smul, hnet, ↓reduceIte, hst] at this
-    linarith
+  have htX : t ∉ X := fun htX =>
+    not_resReachable_of_isMaxRealFlow hf hmax hst (mem_filter.mp htX).2
   have hsat : ∀ u ∈ X, ∀ v ∈ univ \ X, f (u, v) = W u v ∧ f (v, u) = 0 := by
     intro u hu v hv
     have hres : ¬ Residual W f u v := fun h =>
