@@ -190,28 +190,14 @@ theorem seqProcess_ville_le (step : ∀ t : ℕ, (Fin t → α) → PMF α)
     (seqProcess step n).toOuterMeasure
         {h : Fin n → α | ∃ (k : ℕ) (hk : k ≤ n), c ≤ Z k (Fin.take k hk h)} * c ≤
       Z 0 Fin.elim0 := by
-  have htsum_le (m : ℕ) (hmn : m ≤ n) :
-      ∑' h : Fin m → α, seqProcess step m h * stoppedProcess Z c m h ≤ Z 0 Fin.elim0 := by
-    induction m with
-    | zero =>
-      rw [seqProcess, tsum_eq_single Fin.elim0 fun h hh => absurd (Subsingleton.elim h _) hh]
-      simp [stoppedProcess]
-    | succ m ih =>
-      have hm_lt : m < n := Nat.lt_of_succ_le hmn
-      rw [seqProcess, tsum_bind_mul]
-      refine (tsum_le_tsum fun h => ?_).trans (ih hm_lt.le)
-      classical
-      by_cases hh : h ∈ (seqProcess step m).support
-      · rw [tsum_map_mul]
-        refine mul_le_mul_right ?_ _
-        simp only [stoppedProcess, Fin.init_snoc]
-        split_ifs with hex
-        · rw [ENNReal.tsum_mul_right, (step m h).tsum_coe, one_mul]
-        · exact stoppedProcess_eq_of_not_exists Z c h hex ▸ hsuper m hm_lt h hh
-      · rw [((seqProcess step m).apply_eq_zero_iff h).mpr hh, zero_mul, zero_mul]
+  have htsum_le := tsum_seqProcess_le_initial step (stoppedProcess Z c) n (fun k hk h hh => by
+    simp only [stoppedProcess, Fin.init_snoc]
+    split_ifs with hex
+    · rw [ENNReal.tsum_mul_right, (step k h).tsum_coe, one_mul]
+    · exact stoppedProcess_eq_of_not_exists Z c h hex ▸ hsuper k hk h hh)
   set E : Set (Fin n → α) := {h | ∃ (k : ℕ) (hk : k ≤ n), c ≤ Z k (Fin.take k hk h)}
   rw [toOuterMeasure_eq_tsum_mul_indicator, ← ENNReal.tsum_mul_right]
-  refine (tsum_le_tsum fun h => ?_).trans (htsum_le n le_rfl)
+  refine (tsum_le_tsum fun h => ?_).trans (htsum_le.trans_eq (by simp [stoppedProcess]))
   rw [mul_assoc]
   by_cases hh : h ∈ E
   · simpa [hh] using mul_le_mul_right (le_stoppedProcess_of_exists Z c h hh) _
@@ -285,21 +271,11 @@ theorem tsum_seqProcess_freedman_exp_le_one (step : ∀ t : ℕ, (Fin t → α) 
     ∑' h : Fin n → α, seqProcess step n h *
       ENNReal.ofReal (Real.exp (s * (X n h - X 0 Fin.elim0) -
         ((Real.exp (s * b) - 1 - s * b) / b ^ 2) * seqPredVar V n h)) ≤ 1 := by
-  set ψ := (Real.exp (s * b) - 1 - s * b) / b ^ 2
-  have hstep := freedman_step_le step X V hb n hd1 hd2 hmean hupper hvar hs
-  clear hd1 hd2 hmean hupper hvar
-  induction n with
-  | zero =>
-    rw [seqProcess, tsum_eq_single Fin.elim0 fun h hh => absurd (Subsingleton.elim h _) hh]
-    simp
-  | succ m ih =>
-    rw [seqProcess, tsum_bind_mul]
-    refine (tsum_le_tsum fun h => ?_).trans (ih fun k hk => hstep k (Nat.lt_succ_of_lt hk))
-    classical
-    by_cases hh : h ∈ (seqProcess step m).support
-    · rw [tsum_map_mul]
-      exact mul_le_mul_right (hstep m (Nat.lt_succ_self m) h hh) _
-    · rw [((seqProcess step m).apply_eq_zero_iff h).mpr hh, zero_mul, zero_mul]
+  refine (tsum_seqProcess_le_initial step
+    (fun k h => ENNReal.ofReal (Real.exp (s * (X k h - X 0 Fin.elim0) -
+      ((Real.exp (s * b) - 1 - s * b) / b ^ 2) * seqPredVar V k h))) n
+    (freedman_step_le step X V hb n hd1 hd2 hmean hupper hvar hs)).trans_eq ?_
+  simp
 
 /-- **Freedman's maximal martingale inequality, sharp Poisson/Bennett form**
 [Freedman1975, Theorem (1.6)]: for any discrete supermartingale `X` along `seqProcess step` with

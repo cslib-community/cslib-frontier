@@ -97,6 +97,26 @@ private theorem seqProcess_snoc (step : ∀ t : ℕ, (Fin t → α) → PMF α)
   · rw [PMF.map_apply, tsum_eq_zero_iff.mpr fun b => ite_eq_right fun heq =>
       hh (Fin.snoc_injective2 (α := fun _ => α) heq).1.symm, mul_zero]
 
+/-- A one-step expectation bound along every supported history gives the corresponding
+finite-horizon bound by the initial value. -/
+theorem tsum_seqProcess_le_initial (step : ∀ t : ℕ, (Fin t → α) → PMF α)
+    (Z : ∀ k : ℕ, (Fin k → α) → ℝ≥0∞) (n : ℕ)
+    (hstep : ∀ k, k < n → ∀ h ∈ (seqProcess step k).support,
+      ∑' x : α, step k h x * Z (k + 1) (Fin.snoc h x) ≤ Z k h) :
+    ∑' h : Fin n → α, seqProcess step n h * Z n h ≤ Z 0 Fin.elim0 := by
+  induction n with
+  | zero =>
+    rw [seqProcess, tsum_eq_single Fin.elim0 fun h hh => absurd (Subsingleton.elim h _) hh]
+    simp
+  | succ n ih =>
+    rw [seqProcess, tsum_bind_mul]
+    refine (tsum_le_tsum fun h => ?_).trans (ih fun k hk => hstep k (Nat.lt_succ_of_lt hk))
+    classical
+    by_cases hh : h ∈ (seqProcess step n).support
+    · rw [tsum_map_mul]
+      exact mul_le_mul_right (hstep n (Nat.lt_succ_self n) h hh) _
+    · rw [((seqProcess step n).apply_eq_zero_iff h).mpr hh, zero_mul, zero_mul]
+
 /-- The mass of a trajectory `h : Fin n → α` under `seqProcess step n` is the product of the
 one-step transition probabilities along its prefixes. -/
 theorem seqProcess_apply (step : ∀ t : ℕ, (Fin t → α) → PMF α) :
