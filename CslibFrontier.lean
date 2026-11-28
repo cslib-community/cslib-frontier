@@ -324,6 +324,7 @@ public import CslibFrontier.Foundations.GroupTheory.Perm.SelectedOrbits
 public import CslibFrontier.MachineLearning.OnlineLearning.Bandits.UCB1
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Choose
 public import CslibFrontier.Probability.MarkovChain.RandomWalk
+public import CslibFrontier.Languages.Electrical.NetlistCertificate
 public import CslibFrontier.Crypto.Protocols.PIR.Interactive
 public import CslibFrontier.Foundations.Data.List.ListsUpTo
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Frontend.Layout
@@ -4590,6 +4591,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Bo
 public import CslibFrontier.DataStructure.AVLTree.WordRAM
 public import CslibFrontier.Algorithms.WordRAM.Auction.ScanFill
 public import CslibFrontier.Foundations.Combinatorics.Expander.Loops
+public import CslibFrontier.Languages.Electrical.NetlistText
 public import CslibFrontier.Algorithms.Lean.KCenter.Basic
 public import CslibFrontier.Computability.Complexity.FineGrained.Bounds
 public import CslibFrontier.Foundations.Combinatorics.WeightedCut.MAOrdering
@@ -9749,6 +9751,7 @@ public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.
 public import CslibFrontier.Crypto.Computational.Encryption.NonceBased
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Initialized
 public import CslibFrontier.DataStructure.AVLTree.Side
+public import CslibFrontier.Languages.Electrical.NetlistPrint
 public import CslibFrontier.Crypto.Primitives.IdealCipher.CompressionVariants
 public import CslibFrontier.Computability.PolyTime.CSP.BoundaryRotation
 public import CslibFrontier.Computability.Circuit.Arithmetic.HittingSet.ConcentratingMonomial
