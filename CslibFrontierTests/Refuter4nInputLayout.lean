@@ -47,9 +47,15 @@ def mixCircuit : Circuit (fullSignature 2 Bool) 2 1 :=
   let p3 := p2.gate ⟨FullOp.con true, fun i => i.elim0⟩
   ⟨p3, fun _ => Wire.gate ⟨1, by decide⟩⟩
 
+/-- No inputs and one constant line `g₀ = true` (the `phi` loop runs no iteration). -/
+def constCircuit : Circuit (fullSignature 2 Bool) 0 1 :=
+  ⟨(Program.empty : Program (fullSignature 2 Bool) 0 0).gate ⟨FullOp.con true, fun i => i.elim0⟩,
+    fun _ => Wire.gate ⟨0, by decide⟩⟩
+
 /-! The input layout: `[n, s]`, three words per line, the output wire word. -/
 
 #guard encode projCircuit == [2, 0, 0]
+#guard encode constCircuit == [0, 1, 17, 0, 0, 0]
 #guard encode xor3Circuit == [3, 1, 6, 0, 1, 3]
 #guard encode mixCircuit == [2, 3, 3, 0, 0, 8, 2, 1, 17, 0, 0, 3]
 
@@ -87,19 +93,24 @@ def runCheck {n : ℕ} (C : Circuit (fullSignature 2 Bool) n 1) (w : ℕ) : Bool
   | some (y, t) => storedB (layout C) (initialPacked C) y.mem && decide (t ≤ initTime C)
   | none => false
 
-/-! Executions of the program: zero lines (the line loop runs no iteration), one binary line, and
-unary, binary and constant lines. -/
+/-! Executions of the program at the smallest admitted width `max (n + s + 2) 7 = 7`: zero lines
+(the line loop runs no iteration), zero inputs (the `phi` loop runs no iteration), one binary
+line, and unary, binary and constant lines; and at a larger width. -/
 
 #guard runCheck projCircuit 7
-#guard runCheck xor3Circuit 9
-#guard runCheck mixCircuit 10
+#guard runCheck constCircuit 7
+#guard runCheck xor3Circuit 7
+#guard runCheck mixCircuit 7
+#guard runCheck mixCircuit 12
 
-/-- The width `n + C.size + 5 = 9` is admitted for `xor3Circuit` (module client of
-`fitsWidth_of_le`). -/
-example : FitsWidth xor3Circuit 9 := fitsWidth_of_le _ (by decide)
+/-- The width `7` is admitted for `xor3Circuit` (`n + C.size + 2 = 6`). -/
+example : FitsWidth xor3Circuit 7 := ⟨by decide, by decide⟩
 
 /-- At that width every input word fits (module client of `inputFits_encode`). -/
-example : InputFits 9 (encode xor3Circuit) := inputFits_encode _ (fitsWidth_of_le _ (by decide))
+example : InputFits 7 (encode xor3Circuit) := inputFits_encode _ ⟨by decide, by decide⟩
+
+/-- At that width the workspace fits (module client of `fits_workEnd`). -/
+example : Fits 7 (workEnd xor3Circuit) := fits_workEnd _ ⟨by decide, by decide⟩
 
 /-- The charged decoding stores the packed initial state (module client of `exec_initCode`), for
 the `0`-line circuit. -/
@@ -107,13 +118,13 @@ example : ∃ y, ExecWithin 7 initCode (.init (encode projCircuit)) y (initTime 
     Stored (layout projCircuit) (initialPacked projCircuit) y.mem ∧
     ∀ a, (a < (layout projCircuit).base ∨ workEnd projCircuit ≤ a) →
       y.mem a = (Data.init (encode projCircuit) : Data 24).mem a :=
-  exec_initCode _ (fitsWidth_of_le _ (by decide))
+  exec_initCode _ ⟨by decide, by decide⟩
 
-/-- The same for `mixCircuit`, at width `10`, in at most `6 · 2 + 73 · 3 + 50 = 281`
+/-- The same for `mixCircuit`, at width `7`, in at most `6 · 2 + 73 · 3 + 50 = 281`
 instructions. -/
-example : ∃ y, ExecWithin 10 initCode (.init (encode mixCircuit)) y 281 ∧
+example : ∃ y, ExecWithin 7 initCode (.init (encode mixCircuit)) y 281 ∧
     Stored (layout mixCircuit) (initialPacked mixCircuit) y.mem := by
-  obtain ⟨y, he, hs, -⟩ := exec_initCode mixCircuit (w := 10) (fitsWidth_of_le _ (by decide))
+  obtain ⟨y, he, hs, -⟩ := exec_initCode mixCircuit (w := 7) ⟨by decide, by decide⟩
   exact ⟨y, he, hs⟩
 
 /-- The decoded gate rows are the rows of the gates of the initial state (module client of
