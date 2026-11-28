@@ -66,9 +66,7 @@ def negIf : Bool → Circuit signature 1 1
 /-- Evaluating `negIf b` XORs the input bit with `b`. -/
 @[simp] theorem eval_negIf (b : Bool) (y : Fin 1 → Bool) (o : Fin 1) :
     (negIf b).eval interpretation y o = (b ^^ y 0) := by
-  cases b
-  · simp [negIf, Subsingleton.elim o 0]
-  · simp [negIf]
+  cases b <;> simp [negIf, Subsingleton.elim o 0]
 
 private theorem cost_program_negIf (b : Bool) : (negIf b).program.cost thresholdCost = 0 := by
   cases b <;> rfl
@@ -122,11 +120,10 @@ private theorem sum_signed_toNat (n w : ℕ) :
 theorem weight_signedLayer (x : BitString n) :
     weight (fun j : Fin n => decide (j.val % 2 = 1) ^^ threshold n (j + 1) x) =
       n / 2 + weight x % 2 := by
-  have h := weight_le_length x
   rw [weight_eq_sum_toNat]
   simp only [threshold_apply]
   rw [Fin.sum_univ_eq_sum_range (fun j => (decide (j % 2 = 1) ^^ decide (j + 1 ≤ weight x)).toNat),
-    sum_signed_toNat, ite_eq_left h]
+    sum_signed_toNat, ite_eq_left (weight_le_length x)]
 
 /-- The circuit computes parity. -/
 theorem computes_parityCircuit : (parityCircuit n).Computes interpretation (single (parity n)) := by
@@ -139,11 +136,8 @@ theorem computes_parityCircuit : (parityCircuit n).Computes interpretation (sing
 
 /-- The circuit has `n + 1` threshold gates. -/
 theorem cost_parityCircuit : (parityCircuit n).program.cost thresholdCost = n + 1 := by
-  have (j : Fin n) : (signedLayerGate n j).program.cost thresholdCost = 1 := by
-    rw [signedLayerGate, Circuit.cost_program_comp, Circuit.cost_program_oneGate,
-      cost_program_negIf, thresholdCost_threshold]
-  simp only [circuit_simps, parityCircuit]
-  simp [this]
+  simp only [circuit_simps, parityCircuit, signedLayerGate, cost_program_negIf]
+  simp
 
 /-- The odd numbers below `n` are `n / 2`. -/
 private theorem sum_range_toNat_mod_two (n : ℕ) :

@@ -450,6 +450,34 @@ theorem readPacked_congr {base N k w : ℕ} (hw : 0 < w) {mem₁ mem₂ : ℕ �
   dsimp only [readPacked, readBitSlice]
   rw [h _ ⟨by omega, by omega⟩, h _ ⟨by omega, by omega⟩]
 
+/-- `readPacked` on `[off_r, off_r + packedWords N_r k_r w)` is invariant under `writePacked` on a
+disjoint segment `[off_w, off_w + packedWords N_w k_w w)`. -/
+theorem readPacked_writePacked_disjoint {off_r N_r k_r off_w N_w k_w w idx_r idx_w val : ℕ}
+    {mem : ℕ → ℕ} (hw : 0 < w) (hr : idx_r < N_r) (hw_idx : idx_w < N_w)
+    (hdisj : off_r + packedWords N_r k_r w ≤ off_w ∨ off_w + packedWords N_w k_w w ≤ off_r) :
+    readPacked off_r k_r w (writePacked off_w k_w w mem idx_w val) idx_r =
+      readPacked off_r k_r w mem idx_r :=
+  readPacked_congr hw
+    (fun _ ⟨ha1, ha2⟩ => writePacked_outside hw mem hw_idx val (by omega)) hr
+
+/-- Updating a single plain word at `addr < off_r` or `off_r + packedWords N_r k_r w ≤ addr`
+leaves `readPacked off_r k_r w` unchanged on `0 .. N_r - 1`. -/
+theorem readPacked_update_outside {off_r N_r k_r w addr val idx : ℕ} {mem : ℕ → ℕ}
+    (hw : 0 < w) (hidx : idx < N_r)
+    (ha : addr < off_r ∨ off_r + packedWords N_r k_r w ≤ addr) :
+    readPacked off_r k_r w (Function.update mem addr val) idx =
+      readPacked off_r k_r w mem idx :=
+  readPacked_congr hw
+    (fun _ ⟨ha1, ha2⟩ => Function.update_of_ne (by omega) val mem) hidx
+
+/-- Reading `idx < N` from a packed segment whose backing words are all `0` returns `0`. -/
+theorem readPacked_eq_zero_of_zero_range {arrBase N k w idx : ℕ} {mem : ℕ → ℕ}
+    (hw : 0 < w) (hidx : idx < N)
+    (hz : ∀ a, arrBase ≤ a → a < arrBase + packedWords N k w → mem a = 0) :
+    readPacked arrBase k w mem idx = 0 := by
+  have hlt := wordOffset_add_one_lt_packedWords (k := k) hw hidx
+  exact readPacked_zero (hz _ (by omega) (by omega)) (hz _ (by omega) (by omega))
+
 /-- Whenever `k ≤ w` and `0 < highWidth k w idx`, `lowWidth k w idx < w`. -/
 theorem lowWidth_lt_of_highWidth_pos {k w idx : ℕ} (hkw : k ≤ w)
     (hh : 0 < highWidth k w idx) :

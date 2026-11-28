@@ -43,7 +43,7 @@ abbrev budget (p : Pow × List Bool) : ℕ := (encPow p.1).length + Nat.log2 (en
 /-- The registers, in context form. -/
 theorem reg_inSpace :
     ComputableInSpace (fun p : Pow × List Bool => p.1) (encPair encPow encBits) encPow budget :=
-  (ComputableInLogSpace.fst encPow encBits).inSpace_context ⟨1, fun p => by omega⟩
+  (ComputableInLogSpace.fst encPow encBits).inSpace_context ⟨1, fun p => by dsimp only; omega⟩
 
 /-- The counting routine on the input, in context form. -/
 theorem count_inSpace : ComputableInSpace (fun p : Pow × List Bool => p.2.count true)
@@ -51,6 +51,7 @@ theorem count_inSpace : ComputableInSpace (fun p : Pow × List Bool => p.2.count
   (SpaceQueryLoopTest.count_inSpace.computableInLogSpace.comp'
     (ComputableInLogSpace.snd encPow encBits)).inSpace_context ⟨1, fun p => by
       have := length_encNat_le_log2 (List.count_le_length (a := true) (l := p.2))
+      dsimp only
       rw [encBits_apply]
       omega⟩
 
@@ -64,10 +65,10 @@ theorem step_inSpace :
   have hreg := reg_inSpace
   have hcount := count_inSpace
   have htwo : ComputableInSpace (fun _ : Pow × List Bool => 2) (encPair encPow encBits) encNat
-      budget := (ComputableInSpace.constZero 2).mono_le fun _ => Nat.zero_le _
+      budget := ComputableInSpace.budget_const 2
   have hnone : ComputableInSpace (fun _ : Pow × List Bool => (none : Option Pow))
       (encPair encPow encBits) (encOption encPow) budget :=
-    (ComputableInSpace.constZero none).mono_le fun _ => Nat.zero_le _
+    ComputableInSpace.budget_const none
   have hpow := encPow_pow_budget hreg
   have hsome := ComputableInSpace.budget_optionSome (encPow_mk_budget
     (ComputableInSpace.budget_natSucc (encPow_exp_budget hreg))
@@ -93,17 +94,20 @@ theorem size_count_inSpace :
       fun w => Nat.log2 w.length := by
   have hloop := ComputableInSpace.loopWith (encA := encBits) (encR := encPow) (step := step)
     (init := fun _ => ⟨0, 1⟩) (S := fun w => Nat.log2 (encBits w).length)
-    (B := fun w => 3 * Nat.log2 w.length + 7)
+    (B := fun w => 4 * Nat.log2 w.length + 7)
     (fun _ j => ⟨j, 2 ^ j⟩) (fun w => Nat.size (w.count true))
-    ((ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _) step_inSpace
+    (ComputableInSpace.budget_const _) step_inSpace
     (fun _ => rfl)
     (fun w j hj => by
       have h : ¬w.count true < 2 ^ j := Nat.not_lt.mpr (Nat.lt_size.mp hj)
       simp only [step, h, ↓reduceIte, pow_succ, Nat.mul_comm])
     (fun w => by simp only [step, Nat.lt_size_self, ↓reduceIte])
-    (fun w j hj => length_encPow_le (hj.trans (by
-      have := length_encNat_le_log2 (List.count_le_length (a := true) (l := w))
-      rwa [encNat_apply, Nat.size_eq_bits_len] at this)))
+    (fun w j hj => by
+      have := length_encPow_le (hj.trans (by
+        have := length_encNat_le_log2 (List.count_le_length (a := true) (l := w))
+        rwa [encNat_apply, Nat.size_eq_bits_len] at this))
+      simp only [budget, encBits_apply]
+      omega)
   exact (encPow_exp_budget hloop).weaken ⟨7, fun w => by simp only [encBits_apply]; omega⟩
 
 example : ComputableInLogSpace (fun w : List Bool => Nat.size (w.count true)) encBits encNat :=

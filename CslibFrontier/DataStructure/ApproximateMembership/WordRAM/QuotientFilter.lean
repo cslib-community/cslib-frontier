@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.ApproximateMembership.QuotientFilter.Probability
-public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.Cluster
+public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.Code
 public import CslibFrontier.DataStructure.WordRAM.Randomized.ObliviousSequence
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Probability.PMF.Bind

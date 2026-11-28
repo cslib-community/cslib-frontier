@@ -123,15 +123,13 @@ theorem SigmaP_two_subset_NPPoly_of_coNP_subset_NPPoly
       (encPair encBits enc) encUnary :=
     (unary_eval p).comp ((encoding_length enc).comp (snd encBits enc))
   have hNP : {y : List Bool × α | ∃ u : List Bool,
-      u.length = p.eval (enc y.2).length ∧ (y, u) ∈ B'} ∈ NP (encPair encBits enc) := by
-    rw [← SigmaP_one]
-    exact mem_SigmaP_of_exists_length le_rfl hN (SigmaP_one ▸ hred.mem_NP hB)
+      u.length = p.eval (enc y.2).length ∧ (y, u) ∈ B'} ∈ NP (encPair encBits enc) :=
+    SigmaP_one ▸ mem_SigmaP_of_exists_length le_rfl hN (SigmaP_one ▸ hred.mem_NP hB)
   refine ⟨fun n => adv (M.eval n), hadv.comp (PolynomiallyBounded.polynomial_eval M),
     _, hNP, fun a => ?_⟩
   rw [hAC a]
-  refine exists_congr fun u => and_congr_right fun hu => ?_
-  rw [hCB (a, u), hlen a u hu]
-  rfl
+  exact exists_congr fun u => and_congr_right fun hu => by
+    simp only [Set.mem_ofPred_eq, B', ← hlen a u hu, ← hCB (a, u)]
 
 /-- **`coNP ⊆ NP/poly` gives `Π₂ ⊆ coNP/poly`** [Yap][Yap1983], by complementation from
 `Cslib.Complexity.SigmaP_two_subset_NPPoly_of_coNP_subset_NPPoly`. -/
@@ -204,45 +202,33 @@ theorem PiP_three_subset_SigmaP_three_of_coNP_subset_NPPoly
   have hMainSet : MainSet ∈ PiP 2 (encPair enc encBits) :=
     mem_PiP_of_forall_length (by decide) hNp₁ hInner
   -- Combine soundness and main check, then quantify existentially over `w`
-  have hTarget : {a | ∃ w : List Bool, w.length = W.eval (enc a).length ∧
-      (a, w) ∈ SoundSet ∩ MainSet} ∈ SigmaP 3 enc :=
-    mem_SigmaP_of_exists (by decide)
-      (PiP_subset_SigmaP_succ 2 (inter_mem_PiP hSoundSet hMainSet)) W
-  convert hTarget using 1
+  convert mem_SigmaP_of_exists (by decide)
+    (PiP_subset_SigmaP_succ 2 (inter_mem_PiP hSoundSet hMainSet)) W using 1
   ext a
   have hA_iff : a ∈ A ↔ ∀ u₁ : List Bool, u₁.length = p₁.eval (enc a).length →
       ∃ u₂ : List Bool, u₂.length = p₂.eval (enc a).length ∧ (a, u₁ ++ u₂) ∉ E := by
-    rw [hAV a]
-    simp only [List.map_cons, List.map_nil,
-      alternation_false_cons, alternation_true_cons, alternation_nil]
-    refine forall_congr' fun u₁ => imp_congr_right fun _ => ?_
-    refine exists_congr fun u₂ => and_congr_right fun _ => ?_
-    simp [E, List.append_assoc]
+    simp [hAV a, alternation_false_cons, alternation_true_cons, alternation_nil, E,
+      List.append_assoc]
   rw [hA_iff]
   simp only [Set.mem_ofPred_eq, Set.mem_inter_iff]
   constructor
   · intro ha
-    have hK' : (adv (M.eval (enc a).length)).length ≤ K.eval (enc a).length := hK (enc a).length
     have hframe_le : (frame (adv (M.eval (enc a).length))).length ≤ W.eval (enc a).length := by
-      simp only [length_frame, W, Polynomial.eval_add, Polynomial.eval_mul,
-        Polynomial.eval_ofNat, Polynomial.eval_one]
+      have := hK (enc a).length
+      simp only [id_eq, length_frame, W, Polynomial.eval_add,
+        Polynomial.eval_mul, Polynomial.eval_ofNat, Polynomial.eval_one] at this ⊢
       omega
     let w := frame (adv (M.eval (enc a).length)) ++
       List.replicate (W.eval (enc a).length - (frame (adv (M.eval (enc a).length))).length) false
     have hw : w.length = W.eval (enc a).length := by
-      rw [List.length_append, List.length_replicate, Nat.add_sub_cancel' hframe_le]
+      simp only [w, List.length_append, List.length_replicate]; omega
     have hunf : unframe w = adv (M.eval (enc a).length) := unframe_frame_append _ _
     refine ⟨w, hw, fun s hs ⟨hBs, hEs⟩ => ?_, fun u₁ hu₁ => ?_⟩
-    · dsimp only at hs hBs hEs
-      rw [hunf, ← hlen a s hs] at hBs
-      exact (hEB (a, s)).2 hBs hEs
-    · dsimp only at hu₁
-      obtain ⟨u₂, hu₂, hnotE⟩ := ha u₁ hu₁
+    · exact (hEB (a, s)).2 (by rwa [hlen a s hs, ← hunf]) hEs
+    · obtain ⟨u₂, hu₂, hnotE⟩ := ha u₁ hu₁
       have hs : (u₁ ++ u₂).length = m.eval (enc a).length := by simp [m, hu₁, hu₂]
-      refine ⟨u₂, hu₂, ?_⟩
-      dsimp only [Set.mem_ofPred_eq]
-      rw [hunf, ← hlen a (u₁ ++ u₂) hs]
-      exact (hEB (a, u₁ ++ u₂)).1 hnotE
+      exact ⟨u₂, hu₂,
+        by simpa only [Set.mem_ofPred_eq, ← hlen a _ hs, hunf] using (hEB (a, u₁ ++ u₂)).1 hnotE⟩
   · rintro ⟨w, -, hSound, hMain⟩ u₁ hu₁
     obtain ⟨u₂, hu₂, hBu⟩ := hMain u₁ hu₁
     have hs : (u₁ ++ u₂).length = m.eval (enc a).length := by simp [m, hu₁, hu₂]
@@ -278,10 +264,9 @@ theorem coNP_encBits_subset_NPPoly_iff_UNSAT :
   let U : Set (List Bool) := {w | cnfDecoder.decode w ∈ UNSAT}
   have hred₁ : PolyTimeReducible encBits encCNF U UNSAT :=
     ⟨cnfDecoder.decode, cnfDecoder.computableInPolyTime, fun _ => Iff.rfl⟩
-  have hU : U ∈ NPPoly encBits := h (hred₁.mem_coNP CookLevin.UNSAT_coNPComplete.1)
   have hred₂ : PolyTimeReducible encCNF encBits UNSAT U :=
     ⟨encCNF, (id' (encIn := encCNF)).encoding_comp, fun φ => by simp [U, cnfDecoder.decode_enc]⟩
-  exact hred₂.mem_NPPoly hU
+  exact hred₂.mem_NPPoly (h (hred₁.mem_coNP CookLevin.UNSAT_coNPComplete.1))
 
 /-- **`coNP ⊆ NP/poly` on bit strings transfers to every instance encoding.** -/
 theorem coNP_encBits_subset_NPPoly_iff :
@@ -293,9 +278,7 @@ theorem coNP_encBits_subset_NPPoly_iff :
 theorem NP_encBits_subset_coNPPoly_iff :
     NP encBits ⊆ coNPPoly encBits ↔
       ∀ {β : Type} (encB : β ↪ List Bool), NP encB ⊆ coNPPoly encB := by
-  rw [← coNP_subset_NPPoly_iff, coNP_encBits_subset_NPPoly_iff]
-  exact ⟨fun h _ encB => coNP_subset_NPPoly_iff.1 (h encB),
-    fun h _ encB => coNP_subset_NPPoly_iff.2 (h encB)⟩
+  simp only [← coNP_subset_NPPoly_iff, coNP_encBits_subset_NPPoly_iff]
 
 /-! ### Collapse of the polynomial hierarchy -/
 

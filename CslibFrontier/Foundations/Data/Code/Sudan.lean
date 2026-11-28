@@ -119,8 +119,7 @@ theorem mem_sudan_iff (hα : Function.Injective α) (hk : 2 ≤ k)
   have hPdeg : P.natDegree ≤ k - 1 := by
     rcases eq_or_ne P 0 with rfl | hP0
     · simp
-    · have := (natDegree_lt_iff_degree_lt hP0).2 hP.1
-      omega
+    · exact Nat.le_sub_one_of_lt ((natDegree_lt_iff_degree_lt hP0).2 hP.1)
   exact mem_filter.2 ⟨Multiset.mem_toFinset.2 (hQ.mem_roots hα hPdeg hP.2), hP⟩
 
 /-- **Sudan's list decoding of Reed–Solomon codes** [Sudan1997]. With distinct points, `k ≥ 2` and
@@ -200,15 +199,11 @@ theorem finite_sep_natDegree_le (hα : Function.Injective α) (w : ι → F) {d 
     {P : F[X] | P.natDegree ≤ d ∧ a ≤ #{i | P.eval (α i) = w i}}.Finite := by
   classical
   refine Set.Finite.of_injOn (f := fun P : F[X] => ({i | P.eval (α i) = w i} : Finset ι))
-    (fun _ _ => Set.mem_univ _) (fun P hP Q hQ hPQ => ?_) Set.finite_univ
+    (fun _ _ => Set.mem_univ _) (fun P hP Q hQ hPQ => by_contra fun hne => ?_) Set.finite_univ
+  have hinter := card_inter_filter_eval_eq_le hα w hP.1 hQ.1 hne
   change ({i | P.eval (α i) = w i} : Finset ι) = ({i | Q.eval (α i) = w i} : Finset ι) at hPQ
-  by_contra hne
-  have hsub : ({i | P.eval (α i) = w i} : Finset ι) ⊆
-      ({i | P.eval (α i) = Q.eval (α i)} : Finset ι) := by
-    intro i hi
-    have hiQ : i ∈ ({i | Q.eval (α i) = w i} : Finset ι) := hPQ ▸ hi
-    exact mem_filter.2 ⟨mem_univ i, (mem_filter.1 hi).2.trans (mem_filter.1 hiQ).2.symm⟩
-  have := hP.2.trans ((card_le_card hsub).trans (card_filter_eval_eq_eval_le hα hP.1 hQ.1 hne))
+  rw [← hPQ, inter_self] at hinter
+  have := hP.2
   omega
 
 /-- **The Johnson bound for the set of degree-bounded polynomials**, `2 * |ι| / a` form: if
@@ -241,26 +236,19 @@ theorem ncard_sep_natDegree_le_le_two_div [Nonempty ι] (hα : Function.Injectiv
   · rw [hS, Set.ncard_empty, Nat.cast_zero]
     positivity
   set a := ⌈ε * n⌉₊
-  have han : a ≤ n := by
-    refine (Nat.ceil_le.2 hP₀.2).trans ?_
-    exact card_le_univ _
+  have han : a ≤ n := (Nat.ceil_le.2 hP₀.2).trans (card_le_univ _)
   have haR : ε * n ≤ a := Nat.le_ceil _
   have hsq : 4 * (n : ℝ) * d < (a : ℝ) ^ 2 := by
-    have h1 : (2 * Real.sqrt ((d : ℝ) / n)) ^ 2 < ε ^ 2 :=
-      sq_lt_sq.2 (by rwa [abs_of_nonneg (by positivity), abs_of_pos hε0])
+    have h1 : (2 * Real.sqrt ((d : ℝ) / n)) ^ 2 < ε ^ 2 := by gcongr
     rw [mul_pow, Real.sq_sqrt (by positivity)] at h1
-    have h2 : 4 * (n : ℝ) * d < (ε * n) ^ 2 := by
-      have := mul_lt_mul_of_pos_right h1 (sq_pos_of_pos hnR)
-      calc 4 * (n : ℝ) * d = 2 ^ 2 * ((d : ℝ) / n) * (n : ℝ) ^ 2 := by field_simp; ring
-        _ < ε ^ 2 * (n : ℝ) ^ 2 := this
-        _ = (ε * n) ^ 2 := by ring
-    exact h2.trans_le (pow_le_pow_left₀ (by positivity) haR 2)
+    calc 4 * (n : ℝ) * d = 2 ^ 2 * ((d : ℝ) / n) * (n : ℝ) ^ 2 := by field_simp; ring
+      _ < ε ^ 2 * (n : ℝ) ^ 2 := by gcongr
+      _ = (ε * n) ^ 2 := by ring
+      _ ≤ (a : ℝ) ^ 2 := by gcongr
   have hsqN : 4 * n * d < a ^ 2 := by exact_mod_cast hsq
   have hda : d < a := by
-    have hna : n * (4 * d) < n * a := by
-      have : 4 * n * d < n * a := hsqN.trans_le (by rw [sq]; exact Nat.mul_le_mul_right a han)
-      linarith
-    have : 4 * d < a := Nat.lt_of_mul_lt_mul_left hna
+    have := Nat.lt_of_mul_lt_mul_left (a := n)
+      (by linarith [hsqN.trans_le (sq a ▸ Nat.mul_le_mul_right a han)] : n * (4 * d) < n * a)
     omega
   have hsub : S ⊆ {P : F[X] | P.natDegree ≤ d ∧ a ≤ #{i | P.eval (α i) = w i}} :=
     fun P hP => ⟨hP.1, Nat.ceil_le.2 hP.2⟩
@@ -272,7 +260,7 @@ theorem ncard_sep_natDegree_le_le_two_div [Nonempty ι] (hα : Function.Injectiv
   have hcardR : (S.ncard : ℝ) * (ε * n) ≤ 2 * n :=
     (mul_le_mul_of_nonneg_left haR (Nat.cast_nonneg _)).trans (by exact_mod_cast hcard)
   rw [le_div_iff₀ hε0]
-  nlinarith
+  exact le_of_mul_le_mul_right (by simpa only [mul_assoc] using hcardR) hnR
 
 /-- **Reed–Solomon list-size bound over a finite field** ([Arora and Barak][AroraBarak07],
 Chapter 17, Exercise 9): for any `f : F → F` over a finite field `F`, degree bound `d`, and

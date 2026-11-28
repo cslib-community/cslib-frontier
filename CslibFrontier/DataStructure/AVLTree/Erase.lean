@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.AVLTree.Basic
 public import CslibFrontier.DataStructure.SearchTree.Erase
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Rebalancing deletion for AVL binary search trees
@@ -90,7 +91,7 @@ private theorem elements_splitMin (a : α) (ah : ℕ) (l r : AVLTree α) :
     have h := Finset.ext_iff.mp (ihl b bh lr) y
     simp only [splitMin, elements_balance, mem_elements_node, Finset.mem_insert,
       Finset.mem_union] at h ⊢
-    tauto
+    lrat_tauto
 
 private theorem elements_glue (l r : AVLTree α) :
     elements (glue l r) = elements l ∪ elements r := by
@@ -101,7 +102,7 @@ private theorem elements_glue (l r : AVLTree α) :
     have h := Finset.ext_iff.mp (elements_splitMin b bh rl rr) y
     simp only [glue, elements_balance, mem_elements_node, Finset.mem_insert,
       Finset.mem_union] at h ⊢
-    tauto
+    lrat_tauto
 
 private theorem valid_and_height_splitMin {a : α} {h : ℕ} {l r : AVLTree α}
     (ht : Valid (.node a h l r)) :
@@ -112,8 +113,7 @@ private theorem valid_and_height_splitMin {a : α} {h : ℕ} {l r : AVLTree α}
   induction l generalizing a h r with
   | nil =>
     obtain ⟨⟨_, hor, _, ha_r⟩, ⟨hh, _, hcr⟩, ⟨_, hrl, _, hbr⟩⟩ := ht
-    simp only [splitMin]
-    simp only [cachedHeight_nil] at hh hrl
+    simp only [splitMin, cachedHeight_nil] at hh hrl ⊢
     exact ⟨⟨hor, hcr, hbr⟩, ha_r, by omega, by omega⟩
   | node b bh ll lr ihl _ =>
     obtain ⟨⟨hol, hor, hl_a, ha_r⟩, ⟨hh, hcl, hcr⟩, ⟨hlr, hrl, hbl, hbr⟩⟩ := ht
@@ -127,12 +127,11 @@ private theorem valid_and_height_splitMin {a : α} {h : ℕ} {l r : AVLTree α}
     simp only [splitMin]
     refine ⟨hv', ?_, by omega, by omega⟩
     intro y hy
-    rw [elements_balance] at hy
-    rcases Finset.mem_insert.mp hy with rfl | hy
+    simp only [elements_balance, Finset.mem_insert, Finset.mem_union] at hy
+    rcases hy with rfl | hy | hy
     · exact hsep.1
-    · rcases Finset.mem_union.mp hy with hy | hy
-      · exact hlt y hy
-      · exact lt_trans hsep.1 (ha_r y hy)
+    · exact hlt y hy
+    · exact lt_trans hsep.1 (ha_r y hy)
 
 private theorem valid_and_height_glue {a : α} {h : ℕ} {l r : AVLTree α}
     (ht : Valid (.node a h l r)) :
@@ -142,8 +141,7 @@ private theorem valid_and_height_glue {a : α} {h : ℕ} {l r : AVLTree α}
   cases r with
   | nil =>
     obtain ⟨⟨hol, _, _, _⟩, ⟨hh, hcl, _⟩, ⟨hlr, _, hbl, _⟩⟩ := ht
-    simp only [glue]
-    simp only [cachedHeight_nil] at hh hlr
+    simp only [glue, cachedHeight_nil] at hh hlr ⊢
     exact ⟨⟨hol, hcl, hbl⟩, by omega, by omega⟩
   | node b bh rl rr =>
     obtain ⟨⟨hol, hor, hl_a, ha_r⟩, ⟨hh, hcl, hcr⟩, ⟨hlr, hrl, hbl, hbr⟩⟩ := ht
@@ -189,21 +187,20 @@ private theorem valid_and_height_erase {t : AVLTree α} (ht : Valid t) (x : α) 
     have hnode := ht
     obtain ⟨⟨hol, hor, hl_a, ha_r⟩, ⟨hh, hcl, hcr⟩, ⟨hlr, hrl, hbl, hbr⟩⟩ := ht
     simp only [erase, cachedHeight_node]
-    split <;> rename_i hxa
+    split_ifs with hxa hax
     · obtain ⟨hv, hhi, hlo⟩ := ihl ⟨hol, hcl, hbl⟩
       have hsep : ∀ y ∈ elements (erase x l), y < a := fun y hy =>
         hl_a y (Finset.mem_of_mem_erase ((elements_erase hol x).symm ▸ hy))
       obtain ⟨hv', hb⟩ := valid_and_height_balance a hv ⟨hor, hcr, hbr⟩ hsep ha_r
         (by omega) (by omega)
       exact ⟨hv', by omega, by omega⟩
-    · split <;> rename_i hax
-      · obtain ⟨hv, hhi, hlo⟩ := ihr ⟨hor, hcr, hbr⟩
-        have hsep : ∀ y ∈ elements (erase x r), a < y := fun y hy =>
-          ha_r y (Finset.mem_of_mem_erase ((elements_erase hor x).symm ▸ hy))
-        obtain ⟨hv', hb⟩ := valid_and_height_balance a ⟨hol, hcl, hbl⟩ hv hl_a hsep
-          (by omega) (by omega)
-        exact ⟨hv', by omega, by omega⟩
-      · exact valid_and_height_glue hnode
+    · obtain ⟨hv, hhi, hlo⟩ := ihr ⟨hor, hcr, hbr⟩
+      have hsep : ∀ y ∈ elements (erase x r), a < y := fun y hy =>
+        ha_r y (Finset.mem_of_mem_erase ((elements_erase hor x).symm ▸ hy))
+      obtain ⟨hv', hb⟩ := valid_and_height_balance a ⟨hol, hcl, hbl⟩ hv hl_a hsep
+        (by omega) (by omega)
+      exact ⟨hv', by omega, by omega⟩
+    · exact valid_and_height_glue hnode
 
 /-- `erase` preserves full AVL validity (`Ordered`, `HeightConsistent`, and `Balanced`). -/
 theorem valid_erase {t : AVLTree α} (ht : Valid t) (x : α) : Valid (erase x t) :=
@@ -222,16 +219,15 @@ theorem erase_eq_of_notMem {t : AVLTree α} (ht : Valid t) {x : α} (hx : x ∉ 
   | nil => rfl
   | node a h l r ihl ihr =>
     obtain ⟨⟨hol, hor, _, _⟩, ⟨hh, hcl, hcr⟩, ⟨hlr, hrl, hbl, hbr⟩⟩ := ht
-    simp only [mem_elements_node, not_or] at hx
-    obtain ⟨hxa, hxl, hxr⟩ := hx
+    obtain ⟨hxa, hxl, hxr⟩ : x ≠ a ∧ x ∉ elements l ∧ x ∉ elements r := by
+      simpa only [mem_elements_node, not_or] using hx
     simp only [erase]
-    split <;> rename_i hlt
+    split_ifs with hlt hgt
     · rw [ihl ⟨hol, hcl, hbl⟩ hxl]
       exact balance_eq_node hh hlr hrl
-    · split <;> rename_i hgt
-      · rw [ihr ⟨hor, hcr, hbr⟩ hxr]
-        exact balance_eq_node hh hlr hrl
-      · exact absurd (le_antisymm (le_of_not_gt hgt) (le_of_not_gt hlt)) hxa
+    · rw [ihr ⟨hor, hcr, hbr⟩ hxr]
+      exact balance_eq_node hh hlr hrl
+    · exact absurd (le_antisymm (le_of_not_gt hgt) (le_of_not_gt hlt)) hxa
 
 /-- Internal-node visits of `erase`: the downward search path plus leftmost `splitMin` descent in
 the matched node's right subtree. Rebalancing reads of `O(1)` off-path sibling/nephew cached

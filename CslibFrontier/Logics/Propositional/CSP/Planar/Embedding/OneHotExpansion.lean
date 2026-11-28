@@ -81,39 +81,32 @@ private theorem triangleExpanded_body {R : Set (Fin 3 → Bool)} [DecidablePred 
       (Sum.map id (finCongr (triangleExpanded_numAux r d hz hu))) := by
   let F : CSP TriangleSymbol (Fin (3 + 0)) :=
     [⟨.relation, [0, 1, 2]⟩, ⟨.nand, [0, 1]⟩, ⟨.nand, [1, 2]⟩, ⟨.nand, [2, 0]⟩]
-  let hF : WellFormed triangleArity F := (triangle R hz hu).wellFormed.relabel finSumFinEquiv
-  let G := PPGadget.expandList (triangleReplacements r d) F hF
+  let G := PPGadget.expandList (triangleReplacements r d) F
+    ((triangle R hz hu).wellFormed.relabel finSumFinEquiv)
   let e : Fin (0 + (r.numAux + (d.numAux + (d.numAux + (d.numAux + 0))))) ≃
       Fin (r.numAux + d.numAux + d.numAux + d.numAux) :=
-    finCongr (n := 0 + (r.numAux + (d.numAux + (d.numAux + (d.numAux + 0)))))
-      (m := r.numAux + d.numAux + d.numAux + d.numAux)
-      (triangleExpanded_numAux r d hz hu)
+    finCongr (triangleExpanded_numAux r d hz hu)
   change (triangleGadget r d hz hu).body =
     (G.substitute (finSumFinEquiv.symm : Fin (3 + 0) → Fin 3 ⊕ Fin 0)).body.relabel
       (Sum.map id e)
   simp only [G, F, PPGadget.substitute, CSP.relabel]
   simp only [PPGadget.expandList, triangleReplacements, triangleGadget, PPGadget.retarget,
-    PPGadget.conj, PPGadget.relabelFree, CSP.relabel,
-    List.map_append, List.map_map, List.map_nil, List.append_nil, List.append_assoc]
+    PPGadget.conj, PPGadget.relabelFree, CSP.relabel, List.map_append, List.map_map, List.map_nil,
+    List.append_nil, List.append_assoc]
   dsimp only [triangleArity]
   simp only [List.map_map]
   repeat' apply congrArg₂ (· ++ ·)
   all_goals
-    apply List.map_congr_left
-    intro c _
-    apply Constraint.ext
-    · rfl
+    refine List.map_congr_left fun c _ => Constraint.ext rfl ?_
     dsimp only [Constraint.relabel, Function.comp_def]
     simp only [List.map_map]
-    apply List.map_congr_left
-    intro v _
+    refine List.map_congr_left fun v _ => ?_
     cases v with
     | inl i => fin_cases i <;> simp [e, PPGadget.substitutePort, finSumFinEquiv, Fin.addCases]
     | inr i =>
-      apply congrArg Sum.inr
-      apply Fin.ext
-      dsimp only [e, finCongr, Equiv.coe_fn_mk, Fin.cast,
-        Fin.castAdd, Fin.castLE, Fin.natAdd, Fin.addNat, id]
+      refine congrArg Sum.inr (Fin.ext ?_)
+      dsimp only [e, finCongr, Equiv.coe_fn_mk, Fin.cast, Fin.castAdd, Fin.castLE, Fin.natAdd,
+        Fin.addNat, id]
       omega
 
 /-- The exact pre-existing original-language triangle receives its checked ordered witness.

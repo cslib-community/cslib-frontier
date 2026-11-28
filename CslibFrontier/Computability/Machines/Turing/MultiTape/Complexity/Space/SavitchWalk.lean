@@ -547,7 +547,7 @@ theorem computableInSpace_run {γ : Type} {encIn : γ ↪ List Bool}
     budget_prod (budget_prod (fst' hidA) (fst' (snd' hidA)))
       (budget_prod (fst' (snd' (snd' (snd' hidA))))
         (budget_cons (budget_prod (snd' (snd' (snd' (snd' hidA)))) (fst' (snd' (snd' hidA))))
-          (budget_const [] (.refl _))))
+          (budget_const [])))
   have hinit : ComputableInSpace (fun x => ((par x, width x), (src x, [(dst x, depth x)])))
       encIn (encRound encP) Sin := budget_comp_linear hinit₀ hin
   -- every state of the run has width `w` and at most `d + 1` targets

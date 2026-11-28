@@ -65,9 +65,8 @@ private lemma card_leaves_P0 {L m f : ℕ} (hmL : m ≤ L) (hf : f ≤ m) :
   rw [← card_filter_order_eq hmL (m - f) (Nat.sub_le _ _)]
   congr 1
   ext τ
-  rw [mem_filter, mem_filter, order]
-  simp only [mem_univ, true_and]
-  omega
+  simp only [mem_filter, mem_univ, true_and]
+  rw [order]; omega
 
 /-- Boxes with a fixed combined star/P0 count correspond to completed leaves and star counts. -/
 theorem card_boxes_with_P0_count (L m t f : ℕ) (hmL : m ≤ L) (hf : f ≤ m - t) :
@@ -102,23 +101,24 @@ theorem card_boxes_with_P0_count (L m t f : ℕ) (hmL : m ≤ L) (hf : f ≤ m -
 /-- The total count is bounded by completed-leaf counts and at most `m + 1` star counts. -/
 theorem card_boxes_le (L m t : ℕ) (hmL : m ≤ L) (ht : t ≤ m) :
     (boxes L m t).card ≤ (m + 1) * ∑ d ∈ Finset.Icc t m, beta L m d := by
-  have hsort : (boxes L m t).card = ∑ f ∈ range (m - t + 1),
-      ((boxes L m t).filter
-        fun π => (Cube.starLevels π).card + (Cube.P0Levels π).card = f).card := by
-    refine card_eq_sum_card_fiberwise fun π hπ => ?_
-    have hi := (mem_boxes.1 (mem_coe.1 hπ)).1
+  have hsort : (boxes L m t).card =
+      ∑ f ∈ range (m - t + 1),
+        {π ∈ boxes L m t | (Cube.starLevels π).card + (Cube.P0Levels π).card = f}.card := by
+    refine card_eq_sum_card_fiberwise
+      (f := fun π => (Cube.starLevels π).card + (Cube.P0Levels π).card)
+      (t := range (m - t + 1)) fun π hπ => ?_
+    have := (mem_boxes.1 (mem_coe.1 hπ)).1
     simp only [coe_range, Set.mem_Iio]
     omega
-  have hreflect : ∑ f ∈ range (m - t + 1), beta L m (m - f) = ∑ d ∈ Finset.Icc t m, beta L m d := by
+  have hreflect : ∑ d ∈ Finset.Icc t m, beta L m d =
+      ∑ f ∈ range (m - t + 1), beta L m (m - f) := by
     rw [range_eq_Ico, sum_Ico_reflect _ _ (by omega)]
-    congr 1
-    ext d
-    simp only [mem_Ico, mem_Icc]
-    omega
-  rw [hsort, ← hreflect, mul_sum]
+    refine sum_congr (Finset.ext fun _ => ?_) fun _ _ => rfl
+    simp only [mem_Ico, mem_Icc]; omega
+  rw [hsort, hreflect, mul_sum]
   refine sum_le_sum fun f hf => ?_
-  have hfm : f < m - t + 1 := mem_range.1 hf
-  rw [card_boxes_with_P0_count L m t f (by omega) (by omega)]
+  have := mem_range.1 hf
+  rw [card_boxes_with_P0_count L m t f hmL (by omega)]
   exact Nat.mul_le_mul_right _ (by omega)
 
 
@@ -129,10 +129,8 @@ theorem boxesWithStars_zero_iff {L : ℕ} (m t : ℕ) (π : Cube L) :
   rw [mem_boxesWithStars]
   constructor
   · rintro ⟨hbox, hstar⟩
-    refine ⟨Cube.starsToP0 π, ?_,
+    exact ⟨Cube.starsToP0 π, (card_P0Levels_starsToP0 π).symm ▸ hbox.1,
       Cube.eq_ofLeaf_of_starLevels_eq_empty π (card_eq_zero.1 hstar)⟩
-    rw [card_P0Levels_starsToP0]
-    exact hbox.1
   · rintro ⟨τ, hτ, rfl⟩
     rw [IsBox, Cube.starLevels_ofLeaf, Cube.P0Levels_ofLeaf]
     simpa using hτ
@@ -165,8 +163,7 @@ theorem boxValue_eq_val (L m t e : ℕ) (a : LeftStr L → ℤ) (b : RightStr L 
   induction e generalizing π with
   | zero =>
     obtain ⟨τ, -, rfl⟩ := (boxesWithStars_zero_iff m t π).1 hπ
-    rw [Cube.val_ofLeaf]
-    rfl
+    exact (Cube.val_ofLeaf a b τ).symm
   | succ e ih =>
     have hne : (Cube.starLevels π).Nonempty :=
       card_pos.1 ((mem_boxesWithStars.1 hπ).2 ▸ Nat.succ_pos e)

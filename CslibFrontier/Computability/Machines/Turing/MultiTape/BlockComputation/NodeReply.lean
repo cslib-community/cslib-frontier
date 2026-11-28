@@ -50,22 +50,19 @@ theorem reply_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
   have ha := fst ImplicitPath.encWalkArgs InitialVector.encArgs
   have hv := snd ImplicitPath.encWalkArgs InitialVector.encArgs
   have htag := budget_comp_linear (ImplicitNode.classify_inSpace k) ha
-  have hleaf := budget_natEq htag (budget_const (encB := encNat) 1 (.refl _))
+  have hleaf := budget_natEq htag (budget_const (encB := encNat) 1)
   have hlimit := hv.fst'
   have hr := hv.snd'.snd'
   have hsize := budget_comp_linear natSize hlimit
   have hcapacity := budget_finite (encC := encBool) Bool.not (budget_natLt hsize hr)
   have hvalues := budget_comp_linear (InitialVector.values_inSpace M e) hv
-  have hempty := budget_const (encIn := encArgs) (encB := encList encNat) [] (.refl _)
-  have hsuccess := budget_prod (budget_const (encB := encNat) 1 (.refl _)) hvalues
-  have hfailure := budget_prod (budget_const (encB := encNat) 0 (.refl _)) hempty
+  have hempty :=
+    budget_const (Bs := fun a => (encArgs a).length) (encIn := encArgs) (encB := encList encNat) []
+  have hsuccess := budget_prod (budget_const (encB := encNat) 1) hvalues
+  have hfailure := budget_prod (budget_const (encB := encNat) 0) hempty
   have hother := budget_prod htag hempty
   refine (budget_ite hleaf (budget_ite hcapacity hsuccess hfailure) hother).of_enc_eq ?_
   rintro ⟨address, limit, m, r⟩
-  by_cases hc : r ≤ limit.size
-  · have hn : ¬limit.size < r := by omega
-    simp [reply, hc, hn]
-  · have hn : limit.size < r := by omega
-    simp [reply, hc, hn]
+  simp [reply]
 
 end Turing.MultiTapePTM.BlockComputation.NodeReply

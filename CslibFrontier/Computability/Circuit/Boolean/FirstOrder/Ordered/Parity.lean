@@ -85,17 +85,13 @@ private theorem exists_formula_computes_parity [Fact (2 ≤ n)] (P : L.Relations
       simp only [sub, Function.comp_apply, atomsOf]
       obtain ⟨⟨l, R⟩, t⟩ := e.symm j
       by_cases hR : (⟨l, R⟩ : Σ l, L.Relations l) = ⟨1, P⟩
-      · rw [ite_eq_left hR]
-        refine Bool.eq_iff_iff.2 ?_
+      · rw [ite_eq_left hR, Bool.eq_iff_iff]
         simp only [Circuits.Formula.eval_gate, Circuits.Formula.eval_input,
           Unbounded.interpretation_and, decide_eq_true_iff]
         change _ ↔ (if _ then _ else _)
         rw [ite_eq_left hR]
-        refine forall_congr' fun i => ?_
-        change _ ↔ t i ∈ S
-        simp [S]
-      · rw [ite_eq_right hR]
-        refine Bool.eq_iff_iff.2 ?_
+        exact forall_congr' fun i => show _ ↔ t i ∈ S by simp [S]
+      · rw [ite_eq_right hR, Bool.eq_iff_iff]
         simp only [eval_constUnbounded, decide_eq_true_iff]
         exact (Expansion.relMap_of_ne hR _).symm
     have hreal : (G.bind sub).eval Unbounded.interpretation y = true ↔ Even #S := by
@@ -106,25 +102,15 @@ private theorem exists_formula_computes_parity [Fact (2 ≤ n)] (P : L.Relations
       exact h S
     simp only [Circuits.Formula.eval_gate, Unbounded.interpretation_not, Matrix.cons_val_zero]
     change _ = decide (#S % 2 = 1)
-    rw [Nat.even_iff] at hreal
-    cases hv : (G.bind sub).eval Unbounded.interpretation y
-    · rw [hv] at hreal
-      have : #S % 2 = 1 := by
-        rcases Nat.mod_two_eq_zero_or_one #S with h0 | h1
-        · exact absurd (hreal.2 h0) (by simp)
-        · exact h1
-      simp [this]
-    · have := hreal.1 hv
-      simp [this]
+    refine Bool.eq_iff_iff.2 ?_
+    simp only [Bool.not_eq_true', ← Bool.not_eq_true, hreal, Nat.even_iff, decide_eq_true_iff]
+    omega
   · have := depth_toUnbounded_le e φ Fin.elim0
     circuit_bound
-  · have h : (Circuits.Formula.gate (σ := Unbounded.signature) .not ![G.bind sub]).size ≤
-        G.size + G.leafSize * 1 + 1 := by
-      circuit_bound
-    have hs : G.size ≤ foSize φ * (n + 2) ^ foSize φ := size_toUnbounded_le e φ Fin.elim0
-    have hl : G.leafSize ≤ (n + 2) ^ foSize φ := leafSize_toUnbounded_le e φ Fin.elim0
-    have hpos : 1 ≤ (n + 2) ^ foSize φ := Nat.one_le_pow _ _ (by omega)
-    nlinarith
+  · have := size_toUnbounded_le e φ Fin.elim0
+    have := leafSize_toUnbounded_le e φ Fin.elim0
+    have : 1 ≤ (n + 2) ^ foSize φ := Nat.one_le_pow _ _ (by omega)
+    circuit_bound
 
 /-- **Parity is not definable in canonical ordered first-order logic.** In any finite relational
 input vocabulary with a unary relation `P`, no sentence using canonical `≤`, `BIT`, `0`, `1`, and
@@ -148,26 +134,15 @@ theorem not_definable_even_card (P : L.Relations 1) :
     let N : L.Structure (Fin n) := ⟨fun f => isEmptyElim f, fun _ _ => False⟩
     refine exists_formula_computes_parity P N φ fun S => ?_
     let : L.Structure (Fin n) := inferInstanceAs (L.Structure (Expansion P N S))
-    let M : Cslib.Logic.FO.Ordered.Structure L :=
-      ⟨n, hn, inferInstanceAs (L.Structure (Expansion P N S))⟩
-    have hcard : Nat.card {x : M // Structure.RelMap P ![x]} = #S := by
-      rw [← Nat.card_eq_finsetCard S]
-      refine Nat.card_congr (Equiv.subtypeEquivRight fun x => ?_)
-      exact Expansion.relMap_self (P := P) (N := N) (S := S) ![x]
-    have hM := (hφ M).symm
-    change (Fin n ⊨ φ) ↔ Even (Nat.card {x : M // Structure.RelMap P ![x]}) at hM
-    rwa [hcard] at hM
-  · have hn' : n = 0 ∨ n = 1 := by omega
-    rcases hn' with rfl | rfl
-    · refine ⟨constUnbounded false, ?_, ?_, ?_⟩
-      · intro x
-        simp [parity]
-      · simp [constUnbounded]
-      · have hpow : 1 ≤ (0 + 2) ^ foSize φ := Nat.one_le_pow _ _ (by omega)
-        simp only [constUnbounded, Bool.false_eq_true, ↓reduceIte, Circuits.Formula.size_gate]
-        simpa using (show 1 ≤ (foSize φ + 2) * (0 + 2) ^ foSize φ by nlinarith)
-    · refine ⟨.input 0, ?_, by simp, by simp⟩
-      intro x
-      simp [parity, Finset.univ_unique, Fin.default_eq_zero]
+    let M : Cslib.Logic.FO.Ordered.Structure L := ⟨n, hn, ‹_›⟩
+    have hcard : Nat.card {x : M // Structure.RelMap P ![x]} = #S :=
+      (Nat.card_congr (Equiv.subtypeEquivRight fun x =>
+        Expansion.relMap_self (P := P) (N := N) (S := S) ![x])).trans (Nat.card_eq_finsetCard S)
+    exact hcard ▸ (hφ M).symm
+  · rcases (by omega : n = 0 ∨ n = 1) with rfl | rfl
+    · refine ⟨constUnbounded false, fun _ => by simp [parity], by simp [constUnbounded], ?_⟩
+      simpa [constUnbounded] using Nat.one_le_iff_ne_zero.mpr (by positivity)
+    · exact ⟨.input 0, fun _ => by simp [parity, Finset.univ_unique, Fin.default_eq_zero],
+        by simp, by simp⟩
 
 end Cslib.Circuits.Boolean.ModelChecking.Ordered

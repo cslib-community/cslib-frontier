@@ -16,6 +16,11 @@ namespace CslibFrontierTests.BQPAmplification
 open Cslib Cslib.Quantum Cslib.Complexity Finset Turing.MultiTapeTM
 open CslibFrontierTests.BQP
 
+-- Copying a single set bit into an occupied two-bit block clears its target and preserves
+-- the other bit. The four-wire register ends immediately after the destination block.
+example : GateCode.classicalRun (Amplify.copyCodes 1 2 1) ![true, false, true, true] =
+    ![true, false, false, true] := by decide
+
 /-! ### The counter -/
 
 -- Two input bits at qubits `0, 1`, one of them set; two levels from `base = 2` on, on `9` qubits.

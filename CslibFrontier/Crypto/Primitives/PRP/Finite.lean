@@ -128,19 +128,13 @@ theorem abs_advantage_sub_prfAdvantage_le [Fintype Key] [Nonempty Key]
     (E : Key → Equiv.Perm D) {A : PRF.Adversary D D} {Q : ℕ} (hQ : A.IsQueryBounded Q) :
     |(advantage E A : ℝ) - PRF.advantage (fun key => ⇑(E key)) A| ≤
       Q.choose 2 / Fintype.card D := by
-  have h :
-      |(advantage E A : ℝ) - PRF.advantage (fun key => ⇑(E key)) A| ≤
-        Game.advantage (ProbComp.eval (idealExperiment A))
-          (ProbComp.eval (PRF.idealExperiment A)) := by
-    simp only [advantage, realExperiment, PRF.advantage, Game.advantage, coe_nndist]
-    rw [dist_comm
-        (Game.succProbability (ProbComp.eval (PRF.realExperiment (fun key => ⇑(E key)) A)))
-        (Game.succProbability (ProbComp.eval (idealExperiment A))),
-      dist_comm
-        (Game.succProbability (ProbComp.eval (PRF.realExperiment (fun key => ⇑(E key)) A)))
-        (Game.succProbability (ProbComp.eval (PRF.idealExperiment A)))]
-    exact abs_dist_sub_le _ _ _
-  exact h.trans (advantage_idealExperiment_prfIdealExperiment_le hQ)
+  refine (?_ : _ ≤ (Game.advantage (ProbComp.eval (idealExperiment A))
+      (ProbComp.eval (PRF.idealExperiment A)) : ℝ)).trans
+    (advantage_idealExperiment_prfIdealExperiment_le hQ)
+  simp only [advantage, realExperiment, PRF.advantage, Game.advantage, coe_nndist]
+  rw [dist_comm _ (Game.succProbability (ProbComp.eval (idealExperiment A))),
+    dist_comm _ (Game.succProbability (ProbComp.eval (PRF.idealExperiment A)))]
+  exact abs_dist_sub_le _ _ _
 
 /-- **A PRP is a PRF** ([BonehShoup2023], half of Theorem 4.4): against an adversary making at
 most `Q` queries, the PRF advantage of a block cipher is at most its PRP advantage plus
@@ -189,8 +183,7 @@ noncomputable def strongRealExperiment [Fintype Key] [Nonempty Key] (E : Key →
 @[simp] theorem strongRealExperiment_ofForward [Fintype Key] [Nonempty Key]
     (E : Key → Equiv.Perm D) (A : PRF.Adversary D D) :
     strongRealExperiment E (StrongAdversary.ofForward A) = realExperiment E A := by
-  simp only [strongRealExperiment, StrongAdversary.run_ofForward, evalPerm_forward]
-  rfl
+  simp only [strongRealExperiment, StrongAdversary.run_ofForward, evalPerm_forward]; rfl
 
 section Ideal
 
@@ -212,8 +205,7 @@ noncomputable abbrev strongAdvantage [Fintype Key] [Nonempty Key] (E : Key → E
 -/
 @[simp] theorem strongIdealExperiment_ofForward (A : PRF.Adversary D D) :
     strongIdealExperiment (StrongAdversary.ofForward A) = idealExperiment A := by
-  simp only [strongIdealExperiment, StrongAdversary.run_ofForward, evalPerm_forward]
-  rfl
+  simp only [strongIdealExperiment, StrongAdversary.run_ofForward, evalPerm_forward]; rfl
 
 /-- **Strong PRP security implies PRP security** ([BonehShoup2023], Section 4.1.3): the forward
 adversary `ofForward A` has the PRP advantage of `A`. -/

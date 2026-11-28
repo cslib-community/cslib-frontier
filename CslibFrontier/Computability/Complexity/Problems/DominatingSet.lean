@@ -70,9 +70,9 @@ between copies.
 * `Cslib.Complexity.DominatingSetInstance`, `Cslib.Complexity.encDominatingSet`.
 * `Cslib.Complexity.DominatingSet`.
 * `Cslib.Complexity.DominatingSet.isDominating`: the executable domination test.
-* `Cslib.Complexity.VertexCover.properEdges`, `Cslib.Complexity.VertexCover.vertexCodec`,
-  `Cslib.Complexity.VertexCover.edgeVertex`, `Cslib.Complexity.VertexCover.dominationGraph`,
-  `Cslib.Complexity.VertexCover.toDominatingSet`: the reduction from `VertexCover`.
+* `Cslib.Complexity.VertexCover.vertexCodec`, `Cslib.Complexity.VertexCover.edgeVertex`,
+  `Cslib.Complexity.VertexCover.dominationGraph`, `Cslib.Complexity.VertexCover.toDominatingSet`:
+  the reduction from `VertexCover`.
 
 ## Main results
 
@@ -134,18 +134,14 @@ theorem mem_DominatingSet_iff {G : Graph} {k : ℕ} :
   · rintro ⟨S, hS, hcard⟩
     refine ⟨S.map (.subtype _),
       fun v hv => by obtain ⟨u, _, rfl⟩ := Finset.mem_map.1 hv; exact u.2,
-      fun v hv => ?_, (Finset.card_map _).trans hcard⟩
-    rcases SimpleGraph.isDominatingSet_iff.1 hS ⟨v, hv⟩ with h | ⟨s, hs, hadj⟩
-    · exact Or.inl (Finset.mem_map_of_mem _ h)
-    · exact Or.inr ⟨s.1, Finset.mem_map_of_mem (.subtype _) hs, hadj⟩
+      fun v hv => (SimpleGraph.isDominatingSet_iff.1 hS ⟨v, hv⟩).imp (Finset.mem_map_of_mem _)
+        fun ⟨s, hs, hadj⟩ => ⟨s.1, Finset.mem_map_of_mem (.subtype _) hs, hadj⟩,
+      (Finset.card_map _).trans hcard⟩
   · rintro ⟨S, hSV, hS, rfl⟩
-    have hmap : (S.subtype (· ∈ G.vertices)).map (.subtype _) = S :=
-      (Finset.subtype_map _).trans (Finset.filter_eq_self.mpr hSV)
-    refine ⟨S.subtype (· ∈ G.vertices), SimpleGraph.isDominatingSet_iff.2 fun v => ?_,
-      by rw [← Finset.card_map (.subtype _), hmap]⟩
-    rcases hS v.1 v.2 with h | ⟨s, hs, hadj⟩
-    · exact Or.inl (Finset.mem_coe.2 (Finset.mem_subtype.2 h))
-    · exact Or.inr ⟨⟨s, hSV s hs⟩, Finset.mem_coe.2 (Finset.mem_subtype.2 hs), hadj⟩
+    refine ⟨S.subtype (· ∈ G.vertices), SimpleGraph.isDominatingSet_iff.2 fun v =>
+        (hS v.1 v.2).imp (fun h => Finset.mem_coe.2 (Finset.mem_subtype.2 h))
+          fun ⟨s, hs, hadj⟩ => ⟨⟨s, hSV s hs⟩, Finset.mem_coe.2 (Finset.mem_subtype.2 hs), hadj⟩,
+      by rw [← Finset.card_map (.subtype _), Finset.subtype_map, Finset.filter_eq_self.mpr hSV]⟩
 
 /-- `DominatingSet` through dominating sets of at most `k` vertices: `(G, k) ∈ DominatingSet`
 exactly when `k` is at most the number of distinct declared vertices and some dominating set has
@@ -209,16 +205,6 @@ end DominatingSet
 
 namespace VertexCover
 
-/-- The listed edges of `G` between two distinct declared vertices. -/
-@[expose]
-def properEdges (G : Graph) : List (ℕ × ℕ) :=
-  (declaredEdges G).filter fun e => decide (e.1 ≠ e.2)
-
-/-- An edge is proper when it is listed and joins two distinct declared vertices. -/
-theorem mem_properEdges {G : Graph} {e : ℕ × ℕ} :
-    e ∈ properEdges G ↔ e ∈ G.edges ∧ e.1 ∈ G.vertices ∧ e.2 ∈ G.vertices ∧ e.1 ≠ e.2 := by
-  simp only [properEdges, List.mem_filter, mem_declaredEdges, decide_eq_true_eq, and_assoc]
-
 /-- Codec partitioning the vertices of `dominationGraph G` into copies of declared vertices
 (`.inl v = 2 * v`), the hub and pendant (`.inr (.inl 0) = 1` and `.inr (.inl 1) = 3`), and proper
 edges (`.inr (.inr e) = 2 * (Nat.pair e.1 e.2 + 2) + 1`). -/
@@ -259,15 +245,11 @@ theorem mem_dominationGraph_snd {G : Graph} {a b : ℕ} :
     Prod.mk.injEq, List.not_mem_nil, or_false]
   constructor
   · rintro ((⟨rfl, rfl⟩ | ⟨v, hv, rfl, rfl⟩) | ⟨e, he, ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩⟩)
-    · exact Or.inl ⟨rfl, rfl⟩
-    · exact Or.inr (Or.inl ⟨rfl, v, hv, rfl⟩)
-    · exact Or.inr (Or.inr ⟨e, he, rfl, Or.inl rfl⟩)
-    · exact Or.inr (Or.inr ⟨e, he, rfl, Or.inr rfl⟩)
+    exacts [Or.inl ⟨rfl, rfl⟩, Or.inr (Or.inl ⟨rfl, v, hv, rfl⟩),
+      Or.inr (Or.inr ⟨e, he, rfl, Or.inl rfl⟩), Or.inr (Or.inr ⟨e, he, rfl, Or.inr rfl⟩)]
   · rintro (⟨rfl, rfl⟩ | ⟨rfl, v, hv, rfl⟩ | ⟨e, he, rfl, rfl | rfl⟩)
-    · exact Or.inl (Or.inl ⟨rfl, rfl⟩)
-    · exact Or.inl (Or.inr ⟨v, hv, rfl, rfl⟩)
-    · exact Or.inr ⟨e, he, Or.inl ⟨rfl, rfl⟩⟩
-    · exact Or.inr ⟨e, he, Or.inr ⟨rfl, rfl⟩⟩
+    exacts [Or.inl (Or.inl ⟨rfl, rfl⟩), Or.inl (Or.inr ⟨v, hv, rfl, rfl⟩),
+      Or.inr ⟨e, he, Or.inl ⟨rfl, rfl⟩⟩, Or.inr ⟨e, he, Or.inr ⟨rfl, rfl⟩⟩]
 
 private theorem edgeVertex_ne_one (e : ℕ × ℕ) : edgeVertex e ≠ 1 :=
   show vertexCodec (.inr (.inr e)) ≠ vertexCodec (.inr (.inl 0)) from
@@ -312,28 +294,21 @@ private theorem eq_one_of_adj_three {G : Graph} {s : ℕ}
     (h : (dominationGraph G).toSimpleGraph.Adj 3 s) : s = 1 := by
   obtain ⟨-, h | h⟩ := Graph.toSimpleGraph_adj.1 h <;> rw [mem_dominationGraph_snd] at h
   · rcases h with ⟨h, -⟩ | ⟨h, -⟩ | ⟨e, -, h, -⟩
-    · exact absurd h (by decide)
-    · exact absurd h (by decide)
-    · exact absurd h.symm (edgeVertex_ne_three e)
+    exacts [absurd h (by decide), absurd h (by decide), absurd h.symm (edgeVertex_ne_three e)]
   · rcases h with ⟨h, -⟩ | ⟨-, v, -, h⟩ | ⟨e, -, -, h | h⟩
-    · exact h
-    · exact absurd h.symm (double_ne_three v)
-    · exact absurd h.symm (double_ne_three e.1)
-    · exact absurd h.symm (double_ne_three e.2)
+    exacts [h, absurd h.symm (double_ne_three v), absurd h.symm (double_ne_three e.1),
+      absurd h.symm (double_ne_three e.2)]
 
 /-- The only neighbours of the vertex of an edge are the copies of its endpoints. -/
 private theorem of_adj_edgeVertex {G : Graph} {e : ℕ × ℕ} {s : ℕ}
     (h : (dominationGraph G).toSimpleGraph.Adj (edgeVertex e) s) : s = 2 * e.1 ∨ s = 2 * e.2 := by
   obtain ⟨-, h | h⟩ := Graph.toSimpleGraph_adj.1 h <;> rw [mem_dominationGraph_snd] at h
   · rcases h with ⟨h, -⟩ | ⟨h, -⟩ | ⟨e', -, h, hs⟩
-    · exact absurd h (edgeVertex_ne_one e)
-    · exact absurd h (edgeVertex_ne_one e)
-    · rwa [edgeVertex_injective h]
+    exacts [absurd h (edgeVertex_ne_one e), absurd h (edgeVertex_ne_one e),
+      edgeVertex_injective h ▸ hs]
   · rcases h with ⟨-, h⟩ | ⟨-, v, -, h⟩ | ⟨e', -, -, h | h⟩
-    · exact absurd h (edgeVertex_ne_three e)
-    · exact absurd h (edgeVertex_ne_double e v)
-    · exact absurd h (edgeVertex_ne_double e e'.1)
-    · exact absurd h (edgeVertex_ne_double e e'.2)
+    exacts [absurd h (edgeVertex_ne_three e), absurd h (edgeVertex_ne_double e v),
+      absurd h (edgeVertex_ne_double e e'.1), absurd h (edgeVertex_ne_double e e'.2)]
 
 /-- Read a vertex of `dominationGraph G` back in `G`: the copy `2v` gives `v`, and the vertex of an
 edge `e` gives `e.1`. -/
@@ -363,18 +338,16 @@ private theorem mem_DominatingSet_of_mem_VertexCover {G : Graph} {k : ℕ}
   classical
   obtain ⟨C, hCV, hC, rfl⟩ := mem_VertexCover_iff_mk.1 h
   refine mem_DominatingSet_iff.2 ⟨insert 1 (C.image (2 * ·)), fun w hw => ?_, fun w hw => ?_, ?_⟩
-  · rw [mem_dominationGraph_fst]
-    rcases Finset.mem_insert.1 hw with rfl | hw
-    · exact Or.inl rfl
+  · rcases Finset.mem_insert.1 hw with rfl | hw
+    · exact mem_dominationGraph_fst.2 (Or.inl rfl)
     · obtain ⟨v, hv, rfl⟩ := Finset.mem_image.1 hw
-      exact Or.inr (Or.inr (Or.inl ⟨v, hCV v hv, rfl⟩))
+      exact mem_dominationGraph_fst.2 (Or.inr (Or.inr (Or.inl ⟨v, hCV v hv, rfl⟩)))
   · rcases mem_dominationGraph_fst.1 hw with rfl | rfl | ⟨v, hv, rfl⟩ | ⟨e, he, rfl⟩
     · exact Or.inl (Finset.mem_insert_self _ _)
     · exact Or.inr ⟨1, Finset.mem_insert_self _ _, adj_three_one G⟩
     · exact Or.inr ⟨1, Finset.mem_insert_self _ _, adj_double_one hv⟩
     · obtain ⟨he2, he1V, he2V, hne⟩ := mem_properEdges.1 he
-      have hadj : G.toSimpleGraph.Adj e.1 e.2 := Graph.toSimpleGraph_adj.2 ⟨hne, Or.inl he2⟩
-      rcases hC e.1 he1V e.2 he2V hadj with h1 | h2
+      rcases hC e.1 he1V e.2 he2V (Graph.toSimpleGraph_adj.2 ⟨hne, Or.inl he2⟩) with h1 | h2
       · exact Or.inr ⟨2 * e.1, Finset.mem_insert_of_mem (Finset.mem_image_of_mem _ h1),
           adj_edgeVertex_fst he⟩
       · exact Or.inr ⟨2 * e.2, Finset.mem_insert_of_mem (Finset.mem_image_of_mem _ h2),
@@ -391,51 +364,39 @@ private theorem exists_cover_of_mem_DominatingSet {G : Graph} {k : ℕ}
       (∀ u ∈ G.1, ∀ v ∈ G.1, G.toSimpleGraph.Adj u v → u ∈ S ∨ v ∈ S) ∧ S.card ≤ k := by
   classical
   obtain ⟨D, hDV, hD, hcard⟩ := mem_DominatingSet_iff.1 h
-  have hmem : ∀ w ∈ D, w ≠ 1 → w ≠ 3 → decodeVertex w ∈ G.1 →
-      decodeVertex w ∈ (((D.erase 1).erase 3).image decodeVertex).filter (· ∈ G.1) :=
-    fun w hw h1 h3 hG => Finset.mem_filter.2 ⟨Finset.mem_image_of_mem _
-      (Finset.mem_erase.2 ⟨h3, Finset.mem_erase.2 ⟨h1, hw⟩⟩), hG⟩
+  set S := (((D.erase 1).erase 3).image decodeVertex).filter (· ∈ G.vertices)
+  have hmem (w) (hw : w ∈ D) (h1 : w ≠ 1) (h3 : w ≠ 3) (hG : decodeVertex w ∈ G.vertices) :
+      decodeVertex w ∈ S := Finset.mem_filter.2 ⟨Finset.mem_image_of_mem _
+    (Finset.mem_erase.2 ⟨h3, Finset.mem_erase.2 ⟨h1, hw⟩⟩), hG⟩
   -- A chosen copy `2v` of a declared vertex `v` puts `v` in the cover.
-  have hdouble : ∀ v ∈ G.1, 2 * v ∈ D →
-      v ∈ (((D.erase 1).erase 3).image decodeVertex).filter (· ∈ G.1) := fun v hv hvD => by
-    have := hmem _ hvD (by omega) (by omega) (by rw [decodeVertex_double]; exact hv)
-    rwa [decodeVertex_double] at this
+  have hdouble (v) (hv : v ∈ G.vertices) (hvD : 2 * v ∈ D) : v ∈ S := by
+    simpa only [decodeVertex_double] using
+      hmem _ hvD (by omega) (by omega) (by rwa [decodeVertex_double])
   -- The vertex of a proper edge is dominated by itself or by the copy of an endpoint.
-  have hedge : ∀ e ∈ properEdges G,
-      e.1 ∈ (((D.erase 1).erase 3).image decodeVertex).filter (· ∈ G.1) ∨
-        e.2 ∈ (((D.erase 1).erase 3).image decodeVertex).filter (· ∈ G.1) := fun e he => by
+  have hedge (e) (he : e ∈ properEdges G) : e.1 ∈ S ∨ e.2 ∈ S := by
     obtain ⟨-, he1, he2, -⟩ := mem_properEdges.1 he
     rcases hD _ (mem_dominationGraph_fst.2 (Or.inr (Or.inr (Or.inr ⟨e, he, rfl⟩)))) with
       hw | ⟨s, hs, hadj⟩
     · refine Or.inl ?_
-      have := hmem _ hw (edgeVertex_ne_one e) (edgeVertex_ne_three e)
-        (by rw [decodeVertex_edgeVertex]; exact he1)
-      rwa [decodeVertex_edgeVertex] at this
+      simpa only [decodeVertex_edgeVertex] using
+        hmem _ hw (edgeVertex_ne_one e) (edgeVertex_ne_three e) (by rwa [decodeVertex_edgeVertex])
     · rcases of_adj_edgeVertex hadj with rfl | rfl
-      · exact Or.inl (hdouble _ he1 hs)
-      · exact Or.inr (hdouble _ he2 hs)
-  refine ⟨(((D.erase 1).erase 3).image decodeVertex).filter (· ∈ G.vertices),
-    fun v hv => (Finset.mem_filter.1 hv).2, fun u hu v hv huv => ?_, ?_⟩
+      exacts [Or.inl (hdouble e.1 he1 hs), Or.inr (hdouble e.2 he2 hs)]
+  refine ⟨S, fun v hv => (Finset.mem_filter.1 hv).2, fun u hu v hv huv => ?_, ?_⟩
   · obtain ⟨hne, he | he⟩ := Graph.toSimpleGraph_adj.1 huv
-    · exact hedge _ (mem_properEdges.2 ⟨he, hu, hv, hne⟩)
-    · exact (hedge _ (mem_properEdges.2 ⟨he, hv, hu, hne.symm⟩)).symm
+    exacts [hedge _ (mem_properEdges.2 ⟨he, hu, hv, hne⟩),
+      (hedge _ (mem_properEdges.2 ⟨he, hv, hu, hne.symm⟩)).symm]
   · -- The pendant `3` is dominated by itself or by the hub, so `D` loses a vertex.
-    have h3 : (3 : ℕ) ∈ (dominationGraph G).vertices :=
-      mem_dominationGraph_fst.2 (Or.inr (Or.inl rfl))
     have hD' : ((D.erase 1).erase 3).card + 1 ≤ D.card := by
-      rcases hD 3 h3 with h3D | ⟨s, hs, hadj⟩
-      · have h3D' : 3 ∈ D.erase 1 := Finset.mem_erase.2 ⟨by decide, h3D⟩
-        have := Finset.card_erase_add_one h3D'
+      rcases hD 3 (mem_dominationGraph_fst.2 (Or.inr (Or.inl rfl))) with h3D | ⟨s, hs, hadj⟩
+      · have := Finset.card_erase_add_one (Finset.mem_erase.2 ⟨(by decide : (3 : ℕ) ≠ 1), h3D⟩)
         have := Finset.card_erase_le (s := D) (a := 1)
         omega
       · obtain rfl := eq_one_of_adj_three hadj
         have := Finset.card_erase_add_one hs
         have := Finset.card_erase_le (s := D.erase 1) (a := 3)
         omega
-    have := (Finset.card_filter_le
-        (((D.erase 1).erase 3).image decodeVertex) (· ∈ G.vertices)).trans
-      (Finset.card_image_le (s := (D.erase 1).erase 3) (f := decodeVertex))
-    omega
+    exact (Finset.card_filter_le _ _).trans (Finset.card_image_le.trans (by omega))
 
 /-- **Vertex covers of `G` are dominating sets of `dominationGraph G` with the hub.** -/
 theorem toDominatingSet_mem_iff (x : VertexCoverInstance) :
@@ -449,18 +410,9 @@ theorem toDominatingSet_mem_iff (x : VertexCoverInstance) :
   · refine ⟨fun h => ?_, fun h => absurd (mem_VertexCover_iff_exists_card_le_mk.1 h).1 hk⟩
     -- No dominating set of `0` vertices dominates the hub.
     obtain ⟨D, -, hD, hcard⟩ := mem_DominatingSet_iff.1 h
-    rw [Finset.card_eq_zero] at hcard
-    subst hcard
-    rcases hD 1 (mem_dominationGraph_fst.2 (Or.inl rfl)) with h1 | ⟨s, hs, -⟩
-    · exact absurd h1 (Finset.notMem_empty _)
-    · exact absurd hs (Finset.notMem_empty _)
-
-/-- Listing the proper edges is polynomial-time. -/
-@[fun_prop]
-theorem computableInPolyTime_properEdges :
-    ComputableInPolyTime properEdges encGraph (encList (encPair encNat encNat)) := by
-  unfold properEdges
-  fun_prop
+    obtain rfl := Finset.card_eq_zero.1 hcard
+    have := hD 1 (mem_dominationGraph_fst.2 (Or.inl rfl))
+    simp at this
 
 /-- The vertex of an edge is computable in polynomial time from the binary endpoints. -/
 @[fun_prop]
@@ -513,9 +465,8 @@ theorem computableInPolyTime_toDominatingSet :
     simp_rw [← Graph.length_distinctVertices]
     fun_prop
   have heq : toDominatingSet = fun x : VertexCoverInstance =>
-      (⟨dominationGraph x.graph,
-        if decide (x.k ≤ x.graph.vertices.toFinset.card) then x.k + 1 else 0⟩ :
-        DominatingSetInstance) := by
+      ⟨dominationGraph x.graph,
+        if decide (x.k ≤ x.graph.vertices.toFinset.card) then x.k + 1 else 0⟩ := by
     funext ⟨G, k⟩
     simp only [toDominatingSet, decide_eq_true_eq]
   rw [heq]

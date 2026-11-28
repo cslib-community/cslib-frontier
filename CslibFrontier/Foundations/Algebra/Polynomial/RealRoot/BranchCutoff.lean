@@ -26,6 +26,7 @@ gives explicit thresholds for both facts.
 
 Adapted from `PolynomialBranchLimit`, `AlgebraicMinimumThreshold`, and
 `IntegerAlgebraicThreshold` in lean-canny at `970f28a5ecefc1327402ade16c068aa4b1b2c183`.
+The filter formulation adapts `PolynomialFilteredLimit` at the same revision.
 -/
 
 public section
@@ -44,19 +45,22 @@ private theorem continuous_eval₂_eval₂RingHom (P : Polynomial (Polynomial �
   exact ((P.coeff i).continuous_eval₂ (Int.castRingHom ℝ)).comp continuous_fst |>.mul
     (continuous_snd.pow i)
 
-private theorem eval₂_leadingCoeff_eq_zero_of_branch_limit (P : Polynomial (Polynomial ℤ))
-    {m : ℝ → ℝ} {L : ℝ} (hm : Tendsto m atTop (𝓝 L))
-    (hroot : ∀ᶠ u : ℝ in atTop, P.eval₂ (eval₂RingHom (Int.castRingHom ℝ) (m u)) u = 0) :
+/-- Along a nontrivial filter, a convergent family of roots limits to a root of the
+leading parameter coefficient when the parameter tends to positive infinity. -/
+theorem eval₂_leadingCoeff_eq_zero_of_tendsto_atTop {ι : Type*} {l : Filter ι} [NeBot l]
+    (P : Polynomial (Polynomial ℤ)) {u m : ι → ℝ} {L : ℝ}
+    (hu : Tendsto u l atTop) (hm : Tendsto m l (𝓝 L))
+    (hroot : ∀ᶠ k in l, P.eval₂ (eval₂RingHom (Int.castRingHom ℝ) (m k)) (u k) = 0) :
     P.leadingCoeff.eval₂ (Int.castRingHom ℝ) L = 0 := by
-  have ht : Tendsto (fun u : ℝ => (m u, u⁻¹)) atTop (𝓝 (L, 0)) :=
-    hm.prodMk_nhds tendsto_inv_atTop_zero
+  have ht : Tendsto (fun k => (m k, (u k)⁻¹)) l (𝓝 (L, 0)) :=
+    hm.prodMk_nhds (tendsto_inv_atTop_zero.comp hu)
   have hc := (continuous_eval₂_eval₂RingHom P.reverse).continuousAt.tendsto.comp ht
-  have hz : ∀ᶠ u : ℝ in atTop,
-      P.reverse.eval₂ (eval₂RingHom (Int.castRingHom ℝ) (m u)) u⁻¹ = 0 := by
-    filter_upwards [eventually_gt_atTop (0 : ℝ), hroot] with u hu hzero
-    let := invertibleOfNonzero hu.ne'
+  have hz : ∀ᶠ k in l,
+      P.reverse.eval₂ (eval₂RingHom (Int.castRingHom ℝ) (m k)) (u k)⁻¹ = 0 := by
+    filter_upwards [hu.eventually_gt_atTop (0 : ℝ), hroot] with k hpos hzero
+    let := invertibleOfNonzero hpos.ne'
     simpa only [invOf_eq_inv] using
-      (eval₂_reverse_eq_zero_iff (eval₂RingHom (Int.castRingHom ℝ) (m u)) u P).mpr hzero
+      (eval₂_reverse_eq_zero_iff (eval₂RingHom (Int.castRingHom ℝ) (m k)) (u k) P).mpr hzero
   have he := tendsto_nhds_unique hc (tendsto_const_nhds.congr' (hz.mono fun _ h => h.symm))
   simpa only [eval₂_at_zero, coeff_zero_reverse, coe_eval₂RingHom] using he
 
@@ -83,7 +87,7 @@ theorem bounded_root_branch_iff_lt {P : Polynomial (Polynomial ℤ)} (hP : P ≠
     have hlim : Tendsto m atTop (𝓝 L) := by
       apply (tendsto_atTop_ciSup hf hb).congr'
       exact (eventually_ge_atTop (0 : ℝ)).mono fun u hu => congrArg m (max_eq_left hu)
-    have hz := eval₂_leadingCoeff_eq_zero_of_branch_limit P hlim
+    have hz := eval₂_leadingCoeff_eq_zero_of_tendsto_atTop P tendsto_id hlim
       ((eventually_gt_atTop (0 : ℝ)).mono hroot)
     have hL := abs_lt_coeffNorm1_add_one_of_eval₂_eq_zero (leadingCoeff_ne_zero.mpr hP) hz
     have hle : m U ≤ L := by

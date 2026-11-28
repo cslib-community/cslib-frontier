@@ -38,10 +38,8 @@ private theorem exists_two_pow_interval {R : Type*} [CommRing R] [LinearOrder R]
     ∃ j ∈ range (M + 1), (2 : R) ^ j ≤ x ∧ x ≤ 2 * (2 : R) ^ j := by
   induction M with
   | zero =>
-    refine ⟨0, mem_range.mpr Nat.zero_lt_one, ?_, ?_⟩
-    · simpa only [pow_zero] using hx
-    · rw [pow_zero, mul_one] at *
-      exact hM.trans (by norm_num)
+    refine ⟨0, mem_range.mpr Nat.zero_lt_one, by simpa only [pow_zero] using hx, ?_⟩
+    simpa only [pow_zero, mul_one] using hM.trans (by norm_num)
   | succ M ih =>
     by_cases hle : x ≤ (2 : R) ^ M
     · obtain ⟨j, hj, hj₁, hj₂⟩ := ih hle
@@ -59,8 +57,7 @@ theorem three_mul_abs_prod_two_pow_sub_le {R : Type*} [CommRing R] [LinearOrder 
   rw [← mul_prod_erase _ (fun k => (2 : R) ^ k - x) hj,
     ← mul_prod_erase _ (fun k => (2 : R) ^ k + x) hj, abs_mul, ← mul_assoc]
   have hnear : 3 * |(2 : R) ^ j - x| ≤ (2 : R) ^ j + x := by
-    rw [abs_of_nonpos (sub_nonpos.mpr hlo)]
-    linarith
+    rw [abs_of_nonpos (sub_nonpos.mpr hlo)]; linarith
   have hrest : |∏ k ∈ (range (M + 1)).erase j, ((2 : R) ^ k - x)| ≤
       ∏ k ∈ (range (M + 1)).erase j, ((2 : R) ^ k + x) := by
     rw [abs_prod]
@@ -92,10 +89,8 @@ theorem eval₂_dyadicSignProduct_neg_le (B s : ℕ) {x : ℝ}
     have h := mul_le_mul_of_nonneg_left hx₀ (show (0 : ℝ) ≤ 2 ^ B by positivity)
     rwa [mul_inv_cancel₀ (by positivity)] at h
   have hhi : (2 : ℝ) ^ B * x ≤ (2 : ℝ) ^ (2 * B) := by
-    rw [two_mul, pow_add]
-    exact mul_le_mul_of_nonneg_left hx₁ (by positivity)
-  rw [eval₂_dyadicSignProduct, eval₂_dyadicSignProduct]
-  simp only [mul_neg, ← sub_eq_add_neg]
+    simpa only [two_mul, pow_add] using mul_le_mul_of_nonneg_left hx₁ (by positivity)
+  simp only [eval₂_dyadicSignProduct, mul_neg, ← sub_eq_add_neg]
   rw [← (even_two_mul s).pow_abs (∏ j ∈ range (2 * B + 1),
     ((2 : ℝ) ^ j - (2 : ℝ) ^ B * x)), ← mul_pow]
   exact pow_le_pow_left₀ (by positivity) (three_mul_abs_prod_two_pow_sub_le hlo hhi) _
@@ -109,13 +104,11 @@ theorem one_le_eval₂_dyadicSignProduct_add_neg (B s : ℕ) (x : ℝ) :
   let f (y : ℝ) := (∏ j ∈ range (2 * B + 1), ((2 : ℝ) ^ j + (2 : ℝ) ^ B * y)) ^ (2 * s)
   change 1 ≤ f x + f (-x)
   have hnonneg (y : ℝ) : 0 ≤ f y := (even_two_mul s).pow_nonneg _
-  have hone (y : ℝ) (hy : 0 ≤ y) : 1 ≤ f y := by
-    apply one_le_pow₀ (Finset.one_le_prod₀ fun k _ => ?_)
-    exact (one_le_pow₀ (by norm_num)).trans
+  have hone (y : ℝ) (hy : 0 ≤ y) : 1 ≤ f y :=
+    one_le_pow₀ <| Finset.one_le_prod₀ fun k _ => (one_le_pow₀ (by norm_num)).trans
       (le_add_of_nonneg_right (mul_nonneg (by positivity) hy))
-  by_cases hx : 0 ≤ x
+  obtain hx | hx := le_total 0 x
   · exact (hone x hx).trans (le_add_of_nonneg_right (hnonneg (-x)))
-  · exact (hone (-x) (neg_nonneg.mpr (le_of_not_ge hx))).trans
-      (le_add_of_nonneg_left (hnonneg x))
+  · exact (hone (-x) (neg_nonneg.mpr hx)).trans (le_add_of_nonneg_left (hnonneg x))
 
 end Polynomial

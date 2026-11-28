@@ -50,10 +50,9 @@ theorem norm_valueOracle_update_sub_le (ψ : ValueState ι V W) (i : ι) (v : α
   have he : ‖u - w‖ ^ 2 = ‖querySlice i u - querySlice i w‖ ^ 2 := by
     rw [← sum_sq_norm_querySlice, sum_eq_single i, hslice]
     · intro j _ hji
-      have hz : querySlice j u = querySlice j w := by
-        ext ⟨a, b⟩
-        simp only [u, w, querySlice_apply, valueOracle_apply, Function.update_of_ne hji]
-      simp [hslice, hz]
+      rw [sq_eq_zero_iff, norm_eq_zero]
+      ext ⟨a, b⟩
+      simp [u, w, querySlice_apply, valueOracle_apply, Function.update_of_ne hji]
     · simp
   calc
     ‖u - w‖ = ‖querySlice i u - querySlice i w‖ :=
@@ -91,11 +90,11 @@ private theorem sum_sq_runValue_update_sub_le (hψ : ‖ψ‖ = 1) (T : ℕ) (v 
   calc
     _ ≤ ∑ i, (2 * ∑ t ∈ range T, s i t) ^ 2 :=
       sum_le_sum fun i _ => pow_le_pow_left₀ (norm_nonneg _) (norm_runValue_update_sub_le ..) 2
-    _ ≤ ∑ i, 4 * (T * ∑ t ∈ range T, s i t ^ 2) := by
-      refine sum_le_sum fun i _ => ?_
-      rw [mul_pow]
-      norm_num
-      simpa using sq_sum_le_card_mul_sum_sq (s := range T) (f := s i)
+    _ ≤ ∑ i, 4 * (T * ∑ t ∈ range T, s i t ^ 2) :=
+      sum_le_sum fun i _ => by
+        have h := sq_sum_le_card_mul_sum_sq (s := range T) (f := s i)
+        rw [card_range] at h
+        rw [mul_pow]; linarith
     _ = _ := by
       rw [← mul_sum, ← mul_sum, sum_comm]
       simp only [s, sum_sq_norm_querySlice, norm_runValue, hψ, one_pow, sum_const, card_range,
@@ -106,9 +105,7 @@ private theorem sum_sq_runValue_update_sub_le (hψ : ‖ψ‖ = 1) (T : ℕ) (v 
 theorem sum_sq_norm_projOutcomes_fibers {B M : Type*} [Fintype B] [Fintype M] [DecidableEq M]
     (readout : B → M) (ϕ : EuclideanSpace ℂ B) :
     ∑ m, ‖projOutcomes (fun x => readout x = m) ϕ‖ ^ 2 = ‖ϕ‖ ^ 2 := by
-  simp_rw [norm_projOutcomes_sq]
-  rw [EuclideanSpace.norm_sq_eq]
-  simp only [measureProb, sum_filter]
+  simp_rw [norm_projOutcomes_sq, EuclideanSpace.norm_sq_eq, measureProb, sum_filter]
   rw [sum_comm]
   simp
 
@@ -127,16 +124,13 @@ private theorem abs_weighted_measureProb_sub_le {J κ : Type*} [Fintype J] [Fint
     simp only [pack, event, measureProb, sum_filter, Fintype.sum_prod_type,
       norm_mul, Complex.norm_real, Real.norm_eq_abs, abs_of_nonneg (Real.sqrt_nonneg _), mul_pow,
       Real.sq_sqrt (w _).coe_nonneg, mul_sum]
-    refine sum_congr rfl fun j _ => ?_
-    rw [← sum_filter]
-    simp
+    exact sum_congr rfl fun j _ => by simp
   have normsq (u : J → EuclideanSpace ℂ κ) : ‖pack u‖ ^ 2 = ∑ j, (w j : ℝ) * ‖u j‖ ^ 2 := by
     simpa [event, measureProb_univ] using mass u (fun _ => univ)
   have normalized (u : J → EuclideanSpace ℂ κ) (hu : ∑ j, (w j : ℝ) * ‖u j‖ ^ 2 = 1) :
       ‖pack u‖ = 1 := by nlinarith [normsq u, norm_nonneg (pack u)]
-  have sub : pack a - pack b = pack (fun j => a j - b j) := by
-    ext ⟨j, k⟩
-    simp [pack, PiLp.sub_apply, mul_sub]
+  have sub : pack a - pack b = pack (fun j => a j - b j) :=
+    PiLp.ext fun ⟨_, _⟩ => by simp [pack, mul_sub]
   have h := abs_measureProb_sub_le_norm_sub (normalized a ha) (normalized b hb) (event accept)
   rw [mass, mass, sub] at h
   simpa only [← normsq, Real.sqrt_sq (norm_nonneg _)] using h
@@ -169,9 +163,8 @@ theorem abs_branch_refresh_le {M Y B κ : Type*} [Fintype M] [Fintype Y] [Fintyp
         𝔼 hv : D, (p m i).toReal * f (change hv (address m i)) hv.1 m i := by
       let g (hv : D) : D := (change hv (address m i), hv.1 (address m i))
       have hg : Function.Involutive g := by rintro ⟨a, v⟩; simp [g, change]
-      apply Fintype.expect_equiv hg.toPerm
-      intro hv
-      simp [g, change, Function.Involutive.toPerm]
+      exact Fintype.expect_equiv hg.toPerm _ _ fun hv => by
+        simp [g, change, Function.Involutive.toPerm]
     unfold avg
     simp_rw [expect_sum_comm, hswap]
   let J := D × M × Y
@@ -205,8 +198,7 @@ theorem abs_branch_refresh_le {M Y B κ : Type*} [Fintype M] [Fintype Y] [Fintyp
   rw [weights, weights] at probabil
   refine probabil.trans ?_
   simp only [a, b, ← map_sub, LinearIsometry.norm_map, weights]
-  apply Real.sqrt_le_iff.mpr
-  refine ⟨by positivity, ?_⟩
+  refine Real.sqrt_le_iff.mpr ⟨by positivity, ?_⟩
   rw [mul_pow, Real.sq_sqrt δ.coe_nonneg]
   refine expect_le univ_nonempty fun x _ => ?_
   change (∑ m, ∑ y, (p m y).toReal * ‖branch (change x (address m y)) m - branch x.1 m‖ ^ 2) ≤ _
@@ -266,15 +258,12 @@ theorem abs_reprogrammed_measureProb_sub_le {κ : Type*} [Fintype κ] [Fintype �
       (𝔼 hv : (ι → α) × α, ∑ i, (p i).toReal *
         measureProb (post hv.1 i (runValue step U ψ hv.1 T)) (accept hv.1 i))| ≤
       2 * T * Real.sqrt δ := by
-  have proj (u : ValueState ι V W) : projOutcomes (fun _ => True) u = u := by
-    ext x
-    simp
-  have hδ := ENNReal.toReal_nonneg.trans (hp p.support_nonempty.choose)
-  have bound :=
-    abs_readout_reprogrammed_measureProb_sub_le step U ψ hψ T (fun _ => ())
-      (fun _ => p) (δ := ⟨δ, hδ⟩) (fun _ => hp) (fun H _ => post H) (fun H _ => accept H)
+  have proj (u : ValueState ι V W) : projOutcomes (fun _ => True) u = u :=
+    PiLp.ext fun _ => by simp
+  have bound := abs_readout_reprogrammed_measureProb_sub_le step U ψ hψ T (fun _ => ())
+    (fun _ => p) (δ := ⟨δ, ENNReal.toReal_nonneg.trans (hp p.support_nonempty.choose)⟩)
+    (fun _ => hp) (fun H _ => post H) (fun H _ => accept H)
   simp only [Fintype.sum_unique, proj] at bound
-  convert bound using 1
-  rfl
+  exact bound
 
 end Cslib.Quantum

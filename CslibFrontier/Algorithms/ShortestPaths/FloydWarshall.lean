@@ -59,17 +59,13 @@ variable {W : Matrix V V (MinTropical R)}
 
 private theorem fwInv_withOneDiag [DecidableEq V] : FWInv W ∅ (withOneDiag W) where
   sound i j := by
-    right
-    by_cases h : i = j
-    · subst h
-      exact ⟨[], rfl, by simp [withOneDiag]⟩
-    · exact ⟨[j], rfl, by simp [withOneDiag, h]⟩
+    rcases eq_or_ne i j with rfl | h
+    · exact .inr ⟨[], rfl, by simp [withOneDiag]⟩
+    · exact .inr ⟨[j], rfl, by simp [withOneDiag, h]⟩
   complete i l hnd hS := by
     match l, hnd, hS with
     | [], _, _ => simp [withOneDiag]
-    | [v], hnd, _ =>
-      have : i ≠ v := by simpa using hnd
-      simp [withOneDiag, this]
+    | [v], hnd, _ => simp [withOneDiag, mt List.mem_singleton.mpr (List.nodup_cons.mp hnd).1]
     | v :: _ :: _, _, hS => exact absurd (hS v (by simp)) (Set.notMem_empty _)
 
 private theorem FWInv.step {S : Set V} {D : Matrix V V (MinTropical R)} (h : FWInv W S D)
@@ -90,44 +86,26 @@ private theorem FWInv.step {S : Set V} {D : Matrix V V (MinTropical R)} (h : FWI
   complete i l hnd hS := by
     by_cases hk : k ∈ l
     · obtain ⟨s, u, rfl⟩ := List.append_of_mem hk
-      have hsplit : s ++ k :: u = (s ++ [k]) ++ u := by simp
-      have hlast₁ : (s ++ [k]).getLastD i = k := by
-        rw [List.getLastD_append]
-        rfl
-      have hnd₁ : (i :: (s ++ [k])).Nodup := hnd.sublist (by simp)
+      have hlast₁ : (s ++ [k]).getLastD i = k := by simp
       have hnd₂ : (k :: u).Nodup := hnd.sublist (by simp)
-      have hS₁ : ∀ v ∈ (s ++ [k]).dropLast, v ∈ S := by
-        intro v hv
+      have hS₁ : ∀ v ∈ (s ++ [k]).dropLast, v ∈ S := fun v hv => by
         rw [List.dropLast_concat] at hv
-        have hvk : v ≠ k := by
-          intro he
-          rw [he] at hv
-          have : (s ++ k :: u).Nodup := (List.nodup_cons.1 hnd).2
-          exact (List.nodup_append.1 this).2.2 k hv k (by simp) rfl
-        have := hS v (by
-          rw [List.dropLast_append_of_ne_nil (by simp)]
-          exact List.mem_append_left _ hv)
-        simpa [hvk] using this
-      have hS₂ : ∀ v ∈ u.dropLast, v ∈ S := by
-        intro v hv
-        have hvk : v ≠ k := by
-          intro he
-          rw [he] at hv
-          exact (List.nodup_cons.1 hnd₂).1 (List.dropLast_subset _ hv)
+        have hvk : v ≠ k := fun he =>
+          (List.nodup_append.1 (List.nodup_cons.1 hnd).2).2.2 k (he ▸ hv) k List.mem_cons_self rfl
         have hmem : v ∈ (s ++ k :: u).dropLast := by
           rw [List.dropLast_append_of_ne_nil (List.cons_ne_nil _ _)]
-          apply List.mem_append_right
-          cases u with
-          | nil => simp at hv
-          | cons a u' =>
-            rw [List.dropLast_cons_of_ne_nil (List.cons_ne_nil _ _)]
-            exact List.mem_cons_of_mem _ hv
-        simpa [hvk] using hS v hmem
-      have h1 := h.complete i (s ++ [k]) hnd₁ hS₁
-      have h2 := h.complete k u hnd₂ hS₂
-      rw [hlast₁] at h1
-      rw [hsplit, List.getLastD_append, hlast₁, walkWeight_append, hlast₁]
-      exact (add_le_right _ _).trans (mul_le_mul' h1 h2)
+          exact List.mem_append_left _ hv
+        exact (Set.mem_insert_iff.1 (hS v hmem)).resolve_left hvk
+      have hS₂ : ∀ v ∈ u.dropLast, v ∈ S := fun v hv => by
+        have hvk : v ≠ k := fun he => (List.nodup_cons.1 hnd₂).1 (he ▸ List.dropLast_subset _ hv)
+        have hmem : v ∈ (s ++ k :: u).dropLast := by
+          rw [List.dropLast_append_of_ne_nil (List.cons_ne_nil _ _),
+            List.dropLast_cons_of_ne_nil (by rintro rfl; simp at hv)]
+          exact List.mem_append_right _ (List.mem_cons_of_mem _ hv)
+        exact (Set.mem_insert_iff.1 (hS v hmem)).resolve_left hvk
+      have h1 := hlast₁ ▸ h.complete i (s ++ [k]) (hnd.sublist (by simp)) hS₁
+      rw [List.append_cons, List.getLastD_append, hlast₁, walkWeight_append, hlast₁]
+      exact (add_le_right _ _).trans (mul_le_mul' h1 (h.complete k u hnd₂ hS₂))
     · have hS' : ∀ v ∈ l.dropLast, v ∈ S := by
         intro v hv
         have hvk : v ≠ k := fun h' => hk (h' ▸ List.dropLast_subset _ hv)
@@ -139,10 +117,8 @@ private theorem FWInv.foldl {S : Set V} {D : Matrix V V (MinTropical R)} (h : FW
   induction ks generalizing S D with
   | nil => simpa using h
   | cons k ks ih =>
-    have e : S ∪ {v | v ∈ k :: ks} = insert k S ∪ {v | v ∈ ks} := by
-      ext v
-      simp only [Set.mem_union, Set.mem_insert_iff, Set.mem_ofPred_eq, List.mem_cons]
-      tauto
+    have e : S ∪ {v | v ∈ k :: ks} = insert k S ∪ {v | v ∈ ks} :=
+      Set.ext fun _ => by simp [or_left_comm, or_assoc]
     rw [List.foldl_cons, e]
     exact ih (h.step k)
 

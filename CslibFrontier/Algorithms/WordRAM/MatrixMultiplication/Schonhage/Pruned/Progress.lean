@@ -73,13 +73,8 @@ theorem NodeProgress.scan_eq {L f a0 b0 n d p E k : ℕ} {S : Finset (OutStr (n 
     (hy : NodeProgress L f a0 b0 n d p E S a b x k y) (t : Fin 10) :
     scanSet true t.val (fun i => y.mem (f + 4 * (L + 1) + d * 10 ^ L + i)) S.card =
       (childSet S (Encoding.termDigits t)).image (fun q => (queryIndex q).val) := by
-  rw [scanSet_child]
-  have he : (Finset.range S.card).image
-      (fun i => y.mem (f + 4 * (L + 1) + d * 10 ^ L + i)) =
-        (Finset.range S.card).image
-          (fun i => x.mem (f + 4 * (L + 1) + d * 10 ^ L + i)) :=
-    Finset.image_congr (fun i hi => hy.requests i (Finset.mem_range.mp hi))
-  rw [he, hx.image_read, childCodes_eq_image]
+  rw [scanSet_child, Finset.image_congr fun i hi => hy.requests i (Finset.mem_range.mp hi),
+    hx.image_read, childCodes_eq_image]
 
 /-- Before a dispatch, the original scalar budget covers the fresh scan and every possible
 descendant generation for that term. -/
@@ -109,41 +104,31 @@ theorem exec_ready_enter {w L f a0 b0 n d p E : ℕ} (S : Finset (OutStr (n + 1)
       input (fun _ _ => rfl) hcodes (hfit.of_le (by unfold nodeBudget; omega))
   have hrow (j : ℕ) (hj : j < 4) :
       ¬(Block.mk (f + 4 * (L + 1) + (L + 1) * 10 ^ L + d * 10 ^ L)
-        (10 ^ L)).Owns (f + 4 * d + j) := by
-    dsimp only [Block.Owns]
-    omega
+        (10 ^ L)).Owns (f + 4 * d + j) := by dsimp only [Block.Owns]; omega
   have hstamp (q : ℕ) :
       ¬(Block.mk (f + 4 * (L + 1) + (L + 1) * 10 ^ L + d * 10 ^ L)
         (10 ^ L)).Owns (f + 4 * (L + 1) + 2 * (L + 1) * 10 ^ L + q) := by
     dsimp only [Block.Owns]
     have hm := Nat.mul_le_mul_right (10 ^ L) (by omega : d + 1 ≤ L + 1)
-    rintro ⟨_, hlt⟩
-    nlinarith only [hm, hlt]
+    rintro ⟨_, hlt⟩; nlinarith only [hm, hlt]
   refine ⟨y, hy, ⟨hregs, hlevel, hmode, hactive.trans hx.active_eq, ?_, hread, ?_,
-    ?_, ?_, ?_, hframe⟩⟩
-  · intro j
+    by rw [hE, hx.epoch_eq], by simp only [Nat.zero_mul, Nat.add_zero, hE, hx.epoch_eq, le_refl],
+    ?_, hframe⟩⟩
+  · intro (j : Fin 4)
     change y.mem (f + 4 * d + j.val) = ![S.card, p, 10 ^ d, 0] j
     rw [hmem]
-    fin_cases j
-    · change Function.update (_ : ℕ → ℕ) (f + 4 * d + 3) 0 (f + 4 * d + 0) = S.card
-      rw [Function.update_of_ne (by omega), zeroQueryPrefix_outside hcodes (hrow 0 (by decide))]
-      exact hx.frame 0
-    · change Function.update (_ : ℕ → ℕ) (f + 4 * d + 3) 0 (f + 4 * d + 1) = p
-      rw [Function.update_of_ne (by omega), zeroQueryPrefix_outside hcodes (hrow 1 (by decide))]
-      exact hx.frame 1
-    · change Function.update (_ : ℕ → ℕ) (f + 4 * d + 3) 0 (f + 4 * d + 2) = 10 ^ d
-      rw [Function.update_of_ne (by omega), zeroQueryPrefix_outside hcodes (hrow 2 (by decide))]
-      exact hx.frame 2
-    · exact Function.update_self _ _ _
+    by_cases hj3 : j.val = 3
+    · obtain rfl : j = 3 := Fin.ext hj3
+      exact Function.update_self _ _ _
+    · rw [Function.update_of_ne (by omega), zeroQueryPrefix_outside hcodes (hrow j.val j.isLt)]
+      fin_cases j <;> first
+        | exact hx.frame 0 | exact hx.frame 1 | exact hx.frame 2 | exact absurd rfl hj3
   · intro q hq
     obtain ⟨i, hi, hqi⟩ := hx.exists_read hq
     have hval : f + 4 * (L + 1) + (L + 1) * 10 ^ L + d * 10 ^ L +
         (queryIndex q).val ≠ f + 4 * d + 3 := by omega
-    rw [hmem, Function.update_of_ne hval, partialValue_zero, show encode 0 = 0 from rfl]
-    rw [← hqi]
+    rw [hmem, Function.update_of_ne hval, partialValue_zero, show encode 0 = 0 from rfl, ← hqi]
     exact zeroQueryPrefix_at hi
-  · rw [hE, hx.epoch_eq]
-  · simp only [Nat.zero_mul, Nat.add_zero, hE, hx.epoch_eq, le_refl]
   · intro q hq
     rw [hmem, Function.update_of_ne (by omega), zeroQueryPrefix_outside hcodes (hstamp q),
       hE, hx.epoch_eq]

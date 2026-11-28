@@ -153,13 +153,8 @@ and fall back on the greatest entry of the child before it; otherwise descend in
 @[simp] theorem pred?_node_cons (k s : α) (first c : BPlusTree α β) (rest : List (Branch α β)) :
     pred? k (.node first ((s, c) :: rest)) =
       if s ≤ k then (pred? k (.node c rest)).or (max? first) else pred? k first := by
-  by_cases h : s ≤ k
-  · have hd : pred? k (.node first ((s, c) :: rest)) =
-        if (pred? k (.node c rest)).isSome then pred? k (.node c rest) else max? first := by
-      simp [pred?, predM, leI, h, max?_def, apply_ite Id.run]
-    rw [hd]
-    cases pred? k (.node c rest) <;> simp [h]
-  · simp [pred?, predM, leI, h]
+  by_cases h : s ≤ k <;>
+    simp [pred?, predM, leI, h, max?_def, apply_ite Id.run, Option.or_eq_ite]
 
 /-- The successor in a leaf is the scan of its entries. -/
 theorem succ?_leaf (k : α) (entries : List (α × β)) :
@@ -177,94 +172,50 @@ separator introduces. -/
 @[simp] theorem succ?_node_cons (k s : α) (first c : BPlusTree α β) (rest : List (Branch α β)) :
     succ? k (.node first ((s, c) :: rest)) =
       if s ≤ k then succ? k (.node c rest) else (succ? k first).or (min? c) := by
-  by_cases h : s ≤ k
-  · simp [succ?, succM, leI, h]
-  · have hd : succ? k (.node first ((s, c) :: rest)) =
-        if (succ? k first).isSome then succ? k first else min? c := by
-      simp [succ?, succM, leI, h, min?_def, apply_ite Id.run]
-    rw [hd]
-    cases succ? k first <;> simp [h]
+  by_cases h : s ≤ k <;>
+    simp [succ?, succM, leI, h, min?_def, apply_ite Id.run, Option.or_eq_ite]
 
-/-- The predecessor against the model, under what the search uses: the separator convention,
-sorted entries, and occupied children at `2 ≤ t`. -/
-private theorem pred?_eq_of (ht : 2 ≤ t) (k : α) :
-    ∀ tr : BPlusTree α β, Separated tr → tr.toList.IsSortedAssoc →
-      (∀ c ∈ tr.children, Occupied t c) → pred? k tr = SortedAssoc.pred? k tr.toList
-  | .leaf entries, _, hs, _ => by
-    rw [pred?_leaf, toList_leaf]
-    exact SortedAssoc.idRun_predM (by simpa using hs) k
-  | .node first [], hp, hs, ho => by
-    have hf : Occupied t first := ho first (by simp)
-    rw [pred?_node_nil,
-      pred?_eq_of ht k first hp.first (by simpa using hs) fun c hc => hf.of_mem_children hc]
-    simp
-  | .node first ((s, c) :: rest), hp, hs, ho => by
-    have hf : Occupied t first := ho first (by simp)
-    have hc : Occupied t c := ho c (by simp)
-    have hs' := hs
-    rw [toList_node_cons, List.isSortedAssoc_append_iff] at hs'
-    rw [pred?_node_cons, toList_node_cons, SortedAssoc.pred?_append]
+private theorem neighbors_eq_of (k : α) :
+    ∀ tr : BPlusTree α β, SearchInvariant t tr →
+      pred? k tr = SortedAssoc.pred? k tr.toList ∧
+        succ? k tr = SortedAssoc.succ? k tr.toList
+  | .leaf entries, h => by
+    rw [pred?_leaf, succ?_leaf, toList_leaf]
+    exact ⟨SortedAssoc.idRun_predM (by simpa using h.sorted) k, SortedAssoc.idRun_succM k entries⟩
+  | .node first [], h => by
+    simpa using neighbors_eq_of k first (h.child List.mem_cons_self)
+  | .node first ((s, c) :: rest), h => by
+    rw [pred?_node_cons, succ?_node_cons, toList_node_cons, SortedAssoc.pred?_append,
+      SortedAssoc.succ?_append]
     by_cases hk : s ≤ k
-    · simp only [hk, ↓reduceIte]
-      have hlt : ∀ p ∈ first.toList, p.1 < k := fun p hp' =>
-        lt_of_lt_of_le (hp.lt_of_mem_first (e := (s, c)) List.mem_cons_self hp') hk
-      rw [hf.max?_eq ht, SortedAssoc.pred?_def (l := first.toList),
-        List.filter_eq_self.2 fun p hp' => by simpa using hlt p hp']
-      congr 1
-      exact pred?_eq_of ht k (.node c rest) hp.tail hs'.2.1 fun d hd => ho d (by
-        simp only [children_node, List.map_cons, List.mem_cons] at hd ⊢
-        exact Or.inr hd)
-    · simp only [hk, ↓reduceIte]
-      rw [SortedAssoc.pred?_eq_none_iff.2 fun q hq =>
-        (lt_of_lt_of_le (lt_of_not_ge hk) (hp.le_of_mem_tail hs (hc.size_pos ht) hq)).le,
-        Option.none_or]
-      exact pred?_eq_of ht k first hp.first hs'.1 fun d hd => hf.of_mem_children hd
-termination_by tr => sizeOf tr
-
-/-- The successor against the model, under what the search uses: the separator convention, sorted
-entries, and occupied children at `2 ≤ t`. -/
-private theorem succ?_eq_of (ht : 2 ≤ t) (k : α) :
-    ∀ tr : BPlusTree α β, Separated tr → tr.toList.IsSortedAssoc →
-      (∀ c ∈ tr.children, Occupied t c) → succ? k tr = SortedAssoc.succ? k tr.toList
-  | .leaf entries, _, _, _ => by
-    rw [succ?_leaf, toList_leaf]
-    exact SortedAssoc.idRun_succM k entries
-  | .node first [], hp, hs, ho => by
-    have hf : Occupied t first := ho first (by simp)
-    rw [succ?_node_nil,
-      succ?_eq_of ht k first hp.first (by simpa using hs) fun c hc => hf.of_mem_children hc]
-    simp
-  | .node first ((s, c) :: rest), hp, hs, ho => by
-    have hf : Occupied t first := ho first (by simp)
-    have hc : Occupied t c := ho c (by simp)
-    have hs' := hs
-    rw [toList_node_cons, List.isSortedAssoc_append_iff] at hs'
-    rw [succ?_node_cons, toList_node_cons, SortedAssoc.succ?_append]
-    by_cases hk : s ≤ k
-    · simp only [hk, ↓reduceIte]
-      rw [SortedAssoc.succ?_eq_none_iff.2 fun p hp' =>
-        (lt_of_lt_of_le (hp.lt_of_mem_first (e := (s, c)) List.mem_cons_self hp') hk).le,
-        Option.none_or]
-      exact succ?_eq_of ht k (.node c rest) hp.tail hs'.2.1 fun d hd => ho d (by
-        simp only [children_node, List.map_cons, List.mem_cons] at hd ⊢
-        exact Or.inr hd)
-    · simp only [hk, ↓reduceIte]
+    · obtain ⟨hpred, hsucc⟩ := neighbors_eq_of k (.node c rest) h.tail
+      have hf := h.occupied first List.mem_cons_self
+      have hlt : ∀ p ∈ first.toList, p.1 < k := fun p hp =>
+        (h.separated.lt_of_mem_first (e := (s, c)) List.mem_cons_self hp).trans_le hk
+      simp only [hk, ↓reduceIte, hpred, hsucc]
+      constructor
+      · rw [hf.max?_eq h.two_le, SortedAssoc.pred?_def (l := first.toList),
+          List.filter_eq_self.2 fun p hp' => by simpa using hlt p hp']
+      · rw [SortedAssoc.succ?_eq_none_iff.2 (fun p hp' => (hlt p hp').le), Option.none_or]
+    · obtain ⟨hpred, hsucc⟩ := neighbors_eq_of k first (h.child List.mem_cons_self)
+      have hc := h.occupied c (by simp)
       have hgt : ∀ q ∈ (BPlusTree.node c rest).toList, k < q.1 := fun q hq =>
-        lt_of_lt_of_le (lt_of_not_ge hk) (hp.le_of_mem_tail hs (hc.size_pos ht) hq)
-      rw [hc.min?_eq ht, SortedAssoc.succ?_def (l := (BPlusTree.node c rest).toList),
-        List.filter_eq_self.2 fun q hq => by simpa using hgt q hq, toList_node,
-        List.head?_append_of_ne_nil _ (hc.toList_ne_nil ht)]
-      congr 1
-      exact succ?_eq_of ht k first hp.first hs'.1 fun d hd => hf.of_mem_children hd
+        (lt_of_not_ge hk).trans_le (h.separated.le_of_mem_tail h.sorted (hc.size_pos h.two_le) hq)
+      simp only [hk, ↓reduceIte, hpred, hsucc]
+      constructor
+      · rw [SortedAssoc.pred?_eq_none_iff.2 (fun q hq => (hgt q hq).le), Option.none_or]
+      · rw [hc.min?_eq h.two_le, SortedAssoc.succ?_def (l := (BPlusTree.node c rest).toList),
+          List.filter_eq_self.2 fun q hq => by simpa using hgt q hq, toList_node,
+          List.head?_append_of_ne_nil _ (hc.toList_ne_nil h.two_le)]
 termination_by tr => sizeOf tr
 
 /-- Model equation of the predecessor on well-formed trees. -/
 theorem pred?_eq (h : IsWF t tr) (k : α) : pred? k tr = SortedAssoc.pred? k tr.toList :=
-  pred?_eq_of h.two_le k tr h.separated h.sorted h.occupied_of_mem_children
+  (neighbors_eq_of k tr h.searchInvariant).1
 
 /-- Model equation of the successor on well-formed trees. -/
 theorem succ?_eq (h : IsWF t tr) (k : α) : succ? k tr = SortedAssoc.succ? k tr.toList :=
-  succ?_eq_of h.two_le k tr h.separated h.sorted h.occupied_of_mem_children
+  (neighbors_eq_of k tr h.searchInvariant).2
 
 end Pure
 

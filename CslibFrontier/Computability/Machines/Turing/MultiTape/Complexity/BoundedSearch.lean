@@ -71,14 +71,15 @@ theorem ComputableInO.exists_bits {C : Type} {encC : C ↪ List Bool}
   obtain ⟨c, d, hs⟩ := hSc.exists_le
   let PT := fun p => a * (B p + 1) ^ b
   let PS := fun p => c * (B p + 1) ^ d
+  have hmono {f g : C × List Bool → ℕ} {G : C × ℕ → ℕ} {c e : ℕ}
+      (hle : ∀ q, f q ≤ c * ((encPair encC (encList encBool) q).length + 1) ^ e)
+      (hg : ∀ p w, w.length = p.2 → g (p.1, w) ≤ G p) (p : C × ℕ) (w : List Bool)
+      (hw : w.length = p.2) :
+      f (p.1, w) + g (p.1, w) ≤ c * (B p + 1) ^ e + G p :=
+    Nat.add_le_add ((hle _).trans (Nat.mul_le_mul_left c
+      (Nat.pow_le_pow_left (Nat.add_le_add_right (hlen p w hw) 1) e))) (hg p w hw)
   obtain ⟨overhead, ho, h⟩ := BooleanSearch.exists_computableInO_of_bounds ct
-    (T := fun p => PT p + T p) (S := fun p => PS p + S p)
-    (fun p w hw => Nat.add_le_add
-      ((ht _).trans (Nat.mul_le_mul_left a
-        (Nat.pow_le_pow_left (Nat.add_le_add_right (hlen p w hw) 1) b))) (hT p w hw))
-    (fun p w hw => Nat.add_le_add
-      ((hs _).trans (Nat.mul_le_mul_left c
-        (Nat.pow_le_pow_left (Nat.add_le_add_right (hlen p w hw) 1) d))) (hS p w hw))
+    (T := fun p => PT p + T p) (S := fun p => PS p + S p) (hmono ht hT) (hmono hs hS)
   have hB : PolyBounded size B := (PolyBounded.self.mul (.const 3)).mono fun p => by
     simp only [size, B, length_encPair, encUnary_apply, List.length_replicate]
     omega
@@ -86,18 +87,8 @@ theorem ComputableInO.exists_bits {C : Type} {encC : C ↪ List Bool}
   have heq (p : C × ℕ) : (BooleanSearch.run test p).isSome =
       (Cslib.BitString.enumList p.2).any (fun w => test (p.1, w)) := by
     apply Bool.eq_iff_iff.mpr
-    rw [List.any_eq_true]
-    constructor
-    · intro hp
-      have hn : BooleanSearch.run test p ≠ none := by intro hn; simp [hn] at hp
-      obtain ⟨w, hw, ht⟩ := (BooleanSearch.run_ne_none_iff test p).mp hn
-      exact ⟨w, Cslib.BitString.mem_enumList.mpr hw, ht⟩
-    · rintro ⟨w, hw, ht⟩
-      have hn := (BooleanSearch.run_ne_none_iff test p).mpr
-        ⟨w, Cslib.BitString.mem_enumList.mp hw, ht⟩
-      cases hh : BooleanSearch.run test p with
-      | none => exact (hn hh).elim
-      | some _ => rfl
+    simp only [Option.isSome_iff_ne_none, BooleanSearch.run_ne_none_iff,
+      List.any_eq_true, Cslib.BitString.mem_enumList]
   refine ⟨fun p => overhead p + PT p + PS p,
     (ho.add (NativeCertificate.polyBounded_pow_of_polyBounded hB a b)).add
       (NativeCertificate.polyBounded_pow_of_polyBounded hB c d),

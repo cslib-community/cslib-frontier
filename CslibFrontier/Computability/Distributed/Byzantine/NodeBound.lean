@@ -86,12 +86,10 @@ theorem not_solvesByzantineAgreement_of_partition {t R : ℕ} (g : P → Fin 3)
       (∀ i j, g i ≠ k → g j ≠ k → (σ i ^^ cross i j) = σ j) →
       ∀ i, g i ≠ k → π.decision {i | g i = k} (adv σ) σ R i = π.output i (cover R (i, σ i)) := by
     intro k σ hσ i hi
-    unfold decision
-    rw [state_eq_coverState π Prod.fst Prod.snd nbr _ (adv σ) σ (fun i => (i, σ i))
-      (fun _ _ => rfl) (fun _ _ => rfl) ?_ (fun _ _ _ _ _ => rfl) R i ((hmem k i).2 hi)]
-    intro i hi j hj
-    simp only [nbr, Prod.mk.injEq, true_and]
-    exact hσ i j ((hmem k i).1 hi) ((hmem k j).1 hj)
+    rw [decision, state_eq_coverState π Prod.fst Prod.snd nbr _ (adv σ) σ (fun i => (i, σ i))
+      (fun _ _ => rfl) (fun _ _ => rfl)
+      (fun i hi j hj => Prod.ext rfl (hσ i j ((hmem k i).1 hi) ((hmem k j).1 hj)))
+      (fun _ _ _ _ _ => rfl) R i ((hmem k i).2 hi)]
   have hc₀ : g c ≠ 0 := by rw [hc]; decide
   have ha₂ : g a ≠ 2 := by rw [ha]; decide
   -- `A` faulty, `B` and `C` correct with input `0`: by validity `C₀` decides `0`.
@@ -113,10 +111,8 @@ theorem not_solvesByzantineAgreement_of_partition {t R : ℕ} (g : P → Fin 3)
     a ((hmem 1 a).2 (by rw [ha]; decide)) c ((hmem 1 c).2 (by rw [hc]; decide))
   rw [key 1 _ (fun i j hi hj => hfin _ _ hi hj) a (by rw [ha]; decide),
     key 1 _ (fun i j hi hj => hfin _ _ hi hj) c (by rw [hc]; decide)] at h₁
-  have h20 : decide ((2 : Fin 3) = 0) = false := by decide
-  simp only [ha, hc, decide_true, h20] at h₁
-  rw [h₂, h₀] at h₁
-  exact Bool.true_eq_false_eq_False h₁
+  simp only [ha, hc, decide_true, show decide ((2 : Fin 3) = 0) = false by decide, h₂, h₀] at h₁
+  exact Bool.noConfusion h₁
 
 /-- **No Byzantine agreement with `n ≤ 3t` processes**
 [Fischer, Lynch and Merritt, Theorem 1][FischerLynchMerritt1985]: a protocol on `n` processes with
@@ -134,21 +130,18 @@ theorem not_solvesByzantineAgreement {t R : ℕ} (h2 : 2 ≤ Fintype.card P)
         ≤ (Finset.range t).card := Finset.card_le_card_of_injOn (fun i => (e i : ℕ) / 3) ?_ ?_
       _ = t := Finset.card_range t
     · intro i _
-      have := (e i).isLt
       simp only [Finset.coe_range, Set.mem_Iio]
+      have := (e i).isLt
       omega
     · intro i hi j hj hij
-      simp only [Finset.coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq] at hi hj
       apply e.injective
-      have hi' := congrArg Fin.val hi
-      have hj' := congrArg Fin.val hj
-      simp only [g] at hi' hj' hij
       ext
+      have hi' := congrArg Fin.val (Finset.mem_filter.mp hi).2
+      have hj' := congrArg Fin.val (Finset.mem_filter.mp hj).2
+      dsimp only [g] at hi' hj' hij
       omega
-  · simp only [g, Equiv.apply_symm_apply]
-    rfl
-  · simp only [g, Equiv.apply_symm_apply]
-    rfl
+  · simp [g]
+  · simp [g]
 
 /-- **The hexagon argument** [Fischer, Lynch and Merritt, §3.1][FischerLynchMerritt1985]: three
 processes do not solve Byzantine agreement against one fault, for any fixed decision round

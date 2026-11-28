@@ -603,51 +603,51 @@ tensorization and comparison inequalities ([Tsybakov](../sources.md#tsybakov09),
 
 - **Bhattacharyya coefficient and Hellinger distance.** Import
   [Hellinger.lean](../../CslibFrontier/Probability/Hellinger.lean). The definitions
-  [`bhattacharyya`](../../CslibFrontier/Probability/Hellinger.lean#L136)
+  [`bhattacharyya`](../../CslibFrontier/Probability/Hellinger.lean#L134)
   (`∑' a, √((p a).toReal * (q a).toReal) ∈ [0, 1]`),
-  [`hellingerSq`](../../CslibFrontier/Probability/Hellinger.lean#L140) (`1 - bhattacharyya p q`),
-  and [`hellingerDist`](../../CslibFrontier/Probability/Hellinger.lean#L144)
+  [`hellingerSq`](../../CslibFrontier/Probability/Hellinger.lean#L138) (`1 - bhattacharyya p q`),
+  and [`hellingerDist`](../../CslibFrontier/Probability/Hellinger.lean#L142)
   (`√(hellingerSq p q) ∈ [0, 1]`)—along with their symmetry, `[0, 1]` bounds, and definiteness
   (`= 0 ↔ p = q`)—apply to any `PMF α`, while the theorem API below assumes finite types
   `[Finite α]` / `[Fintype α]`. No competing `MetricSpace (PMF α)` instance is registered because
   `Cslib.Probability.PMF` already uses that slot for half-`L¹` `dist`;
-  [`hellingerDist_triangle`](../../CslibFrontier/Probability/Hellinger.lean#L307) supplies the
+  [`hellingerDist_triangle`](../../CslibFrontier/Probability/Hellinger.lean#L296) supplies the
   metric triangle inequality directly.
 - **Total-variation comparison and `n`-fold i.i.d. tensorization (finite types).**
-  [`hellingerSq_le_dist`](../../CslibFrontier/Probability/Hellinger.lean#L348) and
-  [`dist_le_sqrt_two_mul_hellingerDist`](../../CslibFrontier/Probability/Hellinger.lean#L401) give
+  [`hellingerSq_le_dist`](../../CslibFrontier/Probability/Hellinger.lean#L321) and
+  [`dist_le_sqrt_two_mul_hellingerDist`](../../CslibFrontier/Probability/Hellinger.lean#L366) give
   `h²(p, q) ≤ dist p q ≤ √2 * h(p, q)` (with `tvDist` corollaries on `toMeasure`).
-  [`bhattacharyya_pi`](../../CslibFrontier/Probability/Hellinger.lean#L429) and
-  [`bhattacharyya_iid`](../../CslibFrontier/Probability/Hellinger.lean#L447) prove multiplicative
+  [`bhattacharyya_pi`](../../CslibFrontier/Probability/Hellinger.lean#L394) and
+  [`bhattacharyya_iid`](../../CslibFrontier/Probability/Hellinger.lean#L412) prove multiplicative
   tensorization, yielding the sample-complexity acceptance bound
-  [`dist_iid_le_sqrt_two_mul_nat_mul_hellingerDist`](../../CslibFrontier/Probability/Hellinger.lean#L500):
+  [`dist_iid_le_sqrt_two_mul_nat_mul_hellingerDist`](../../CslibFrontier/Probability/Hellinger.lean#L465):
   `dist (iid p n) (iid q n) ≤ √(2 * n) * hellingerDist p q`. Markov kernel and map data
-  processing are [`hellingerDist_bind_le`](../../CslibFrontier/Probability/Hellinger.lean#L611) and
-  [`hellingerDist_map_le`](../../CslibFrontier/Probability/Hellinger.lean#L630).
+  processing are [`hellingerDist_bind_le`](../../CslibFrontier/Probability/Hellinger.lean#L569) and
+  [`hellingerDist_map_le`](../../CslibFrontier/Probability/Hellinger.lean#L587).
 - **Pearson `χ²` divergence and Ingster / Le Cam mixture bounds (finite types).** Import
   [ChiSquare.lean](../../CslibFrontier/Probability/ChiSquare.lean).
-  [`echiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L147) (`ℝ≥0∞`-valued
+  [`echiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L118) (`ℝ≥0∞`-valued
   `∑' a, ENNReal.ofReal (((p a).toReal - (q a).toReal) ^ 2) / q a`, with reference distribution `q`
   as the **second** argument matching `klDiv p.toMeasure q.toMeasure`) and real-valued
-  [`chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L153) (`(echiSquare p q).toReal`)
+  [`chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L124) (`(echiSquare p q).toReal`)
   are defined on any `PMF α`, together with nonnegativity and self-vanishing. All remaining
   theorems require `[Finite α]` / `[Fintype α]` (on countably infinite types, `p.support ⊆ q.support`
   alone does not imply finite divergence):
-  [`echiSquare_ne_top_iff`](../../CslibFrontier/Probability/ChiSquare.lean#L172) equates finiteness
+  [`echiSquare_ne_top_iff`](../../CslibFrontier/Probability/ChiSquare.lean#L145) equates finiteness
   to `p.support ⊆ q.support`, and real-valued theorems state `p.support ⊆ q.support` explicitly so
   `x / 0 = 0` never hides off-support mass. These cover tensorization
-  ([`one_add_chiSquare_pi`](../../CslibFrontier/Probability/ChiSquare.lean#L304),
-  [`one_add_chiSquare_iid`](../../CslibFrontier/Probability/ChiSquare.lean#L334)), TV upper bounds
-  ([`dist_le_sqrt_chiSquare_div_two`](../../CslibFrontier/Probability/ChiSquare.lean#L371),
-  [`tvDist_le_sqrt_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L389)), data
-  processing ([`chiSquare_bind_le`](../../CslibFrontier/Probability/ChiSquare.lean#L412)), the
+  ([`one_add_chiSquare_pi`](../../CslibFrontier/Probability/ChiSquare.lean#L246),
+  [`one_add_chiSquare_iid`](../../CslibFrontier/Probability/ChiSquare.lean#L274)), TV upper bounds
+  ([`dist_le_sqrt_chiSquare_div_two`](../../CslibFrontier/Probability/ChiSquare.lean#L299),
+  [`tvDist_le_sqrt_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L315)), data
+  processing ([`chiSquare_bind_le`](../../CslibFrontier/Probability/ChiSquare.lean#L336)), the
   mixture second-moment identity
-  ([`one_add_chiSquare_bind_eq`](../../CslibFrontier/Probability/ChiSquare.lean#L445),
-  [`one_add_chiSquare_bind_iid_eq`](../../CslibFrontier/Probability/ChiSquare.lean#L495)), and the
+  ([`one_add_chiSquare_bind_eq`](../../CslibFrontier/Probability/ChiSquare.lean#L361),
+  [`one_add_chiSquare_bind_iid_eq`](../../CslibFrontier/Probability/ChiSquare.lean#L395)), and the
   comparison hierarchy `2 h² ≤ KL ≤ log (1 + χ²) ≤ χ²`
-  ([`two_mul_hellingerSq_le_toReal_klDiv`](../../CslibFrontier/Probability/ChiSquare.lean#L543),
-  [`toReal_klDiv_le_log_one_add_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L553),
-  [`two_mul_hellingerSq_le_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L595)).
+  ([`two_mul_hellingerSq_le_toReal_klDiv`](../../CslibFrontier/Probability/ChiSquare.lean#L443),
+  [`toReal_klDiv_le_log_one_add_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L453),
+  [`two_mul_hellingerSq_le_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L487)).
 - **Rényi moments and Rényi divergence (arbitrary discrete types).** Import
   [Renyi.lean](../../CslibFrontier/Probability/Renyi.lean). `renyiMoment α p q` defines
   `∑' x, p x * (p x / q x) ^ (α - 1)` on nonnegative weight functions `X → ℝ≥0∞` (so off-support
@@ -1629,17 +1629,26 @@ A proof that starts from `h : x ∈ m.support` usually needs the intermediate re
 `OracleComp.support` (so `ProbComp`), into existentials in program order, then applies the
 `rcases` pattern. A uniform draw contributes only its witness, a returned pair is split into its
 components, and a conditional becomes a disjunction, so a pattern such as `⟨-, h⟩ | ⟨-, h⟩` splits
-it. Without `with`, `supp_cases h` destructures completely, substitutes every equation that has a
-local variable on one side and closes the goal when two different constructors are equated, such
-as `false = true`; the names it introduces are inaccessible, so use this form when the rest of the
-proof refers to hypotheses only by type, through `‹_›`, `assumption` or `omega`.
+it. A dependent conditional `if hc : c then p hc else q hc` of `PMF`s also splits: the first
+witness of each branch is the proof of its condition, so `⟨hc, h⟩ | ⟨hc, h⟩` keeps the proof used
+by the selected distribution. A dependent conditional of oracle programs is not covered; use
+`split_ifs at h` first. Without `with`, `supp_cases h` destructures completely, substitutes every
+equation that has a local variable on one side and closes the goal when two different
+constructors are equated, such as `false = true`; the names it introduces are inaccessible, so
+use this form when the rest of the proof refers to hypotheses only by type, through `‹_›`,
+`assumption` or `omega`.
 
 When `m` is a definition or a local `let`, pass it as in `supp_cases h [realRoundHandler]` or
 `supp_cases h [ν_det]`; the same list takes a hypothesis that decides a condition. The tactic fails
 when `h` is not a support membership, and when `supp_norm` cannot rewrite it, usually because
 something needs unfolding first. `simp only [supp_norm] at h` gives the rewritten form without
-destructuring it. Membership in a `dite` and an `ExecRand` derivation are not covered; induct on
-the derivation and call `supp_cases` in each case, as the proofs in
+destructuring it. For stateful executions, import
+[Oracle/Norm.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Norm.lean) and use
+`supp_cases h [runWith_norm, program_def]`. This shares the priority-ordered run normalizer with
+game proofs and keeps joint result/state support hypotheses for opaque subprograms; see the
+transcript proofs in
+[Oracle/Vector.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Vector.lean).
+An `ExecRand` derivation still needs induction; call `supp_cases` in each case, as the proofs in
 [Structured.lean](../../CslibFrontier/Computability/WordRAM/Randomized/Structured.lean) do. The
 checked examples, including the failure messages, are in
 [SuppCases.lean](../../CslibFrontierTests/SuppCases.lean).
@@ -1863,15 +1872,16 @@ loop as a chain of distributions: `ProbComp.eval_iterate` for a closed loop and
 only the step laws agree, `ProbComp.eval_iterate_congr` gives equal loop laws directly.
 
 Then import [PMF/Coupling.lean](../../CslibFrontier/Probability/PMF/Coupling.lean).
-`PMF.map_iterate_bind_of_invariant` lifts a state representation that commutes with every step.
-`PMF.iterate_bind_comm_of_invariant` handles the case where the ideal chain first draws a hidden
-sample `k` and then runs on a smaller state. The link between the two chains is the law
-`(exp a).map (·, rep a)`, where `exp a` samples what the real state `a` has not yet fixed, as in
-lazy and eager sampling. The local step equation is needed only on states satisfying an invariant
-indexed by the round. Each lemma returns the lifted equation together with that invariant on the
-reachable states, so you can chain hops. `bind_bind_comm_of_invariant` and `map_bind_of_invariant`
-are the one-step forms for straight-line code, and `iterate_bind_invariant` gives only the
-invariant.
+`PMF.RepInv` bundles a state representation `d₁.map rep = d₂` with an invariant on `d₁.support`, and
+`PMF.RepInv.iterate` lifts a step-wise representation across a loop. `PMF.HiddenCoupling` handles
+the case where the ideal run first draws a hidden sample `k` from `exp₀` and then runs `d₂ k` on a
+smaller state. The link between the two runs is `(exp a).map (·, rep a)`, where `exp a` samples what
+the real state `a` has not yet fixed, as in lazy and eager sampling, and
+`PMF.HiddenCoupling.iterate` lifts it across a loop under an invariant indexed by the round. Both
+predicates infer intermediate distributions and continuations through dot-notation combinators
+(`.pure`, `.bind`, `.map`, `.iterate`, plus `RepInv.of_eq`, `HiddenCoupling.bind_pure`, and
+`HiddenCoupling.congr`), returning both the distribution equation and `support_inv` so you can chain
+hops. `PMF.iterate_bind_invariant` gives only the invariant.
 
 For an adaptive program with a query budget, import
 [Oracle/QueryBoundedSimulation.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/QueryBoundedSimulation.lean).
@@ -1882,7 +1892,8 @@ bounded cache. Without a budget, use `run_interpret_simulation_of_invariant` or
 [Simulation.lean](../../CslibFrontier/Languages/Probabilistic/Simulation.lean). The open-round loops
 of [CCA/Interleaved.lean](../../CslibFrontier/Crypto/Computational/Encryption/CCA/Interleaved.lean)
 and the certification and key-expansion hops of
-[TreeSignature/Security.lean](../../CslibFrontier/Crypto/Computational/TreeSignature/Security.lean)
+[TreeSignature/IdealToLazy.lean](../../CslibFrontier/Crypto/Computational/TreeSignature/IdealToLazy.lean)
+and [TreeSignature/LazyToIndexed.lean](../../CslibFrontier/Crypto/Computational/TreeSignature/LazyToIndexed.lean)
 are worked clients.
 
 ## Pass a query adapter through an eager/lazy game hop

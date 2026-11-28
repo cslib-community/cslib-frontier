@@ -148,8 +148,8 @@ theorem computableInPolyTime_blockIndexNum {σ i : α → ℕ}
   refine pi fun head => ?_
   have hcount := fun δ => computableInPolyTime_digitCount (k := k) hσ
     (const ((finSuccEquiv k).symm head : ℕ)) (const δ) hi
-  exact intBin_sub.comp ((intBin_natCast.comp (unary_to_binary.comp (hcount 2))).prod
-    (intBin_natCast.comp (unary_to_binary.comp (hcount 0))))
+  exact intBin_sub' (intBin_natCast_unary.comp (hcount 2))
+    (intBin_natCast_unary.comp (hcount 0))
 
 /-- Block movements of a schedule number are polynomial-time. -/
 theorem computableInPolyTime_blockMoveNum {σ i : α → ℕ}

@@ -70,11 +70,9 @@ theorem forest_cycle_entry_mem {x : α} (hx : x ∈ checkpointHull f H) :
 
 /-- For a hull state `x` and `i < transientDepth f x`, the state `f^[i] x` is a forest source. -/
 theorem forest_iterate_mem_sources {x : α} (hx : x ∈ checkpointHull f H)
-    {i : ℕ} (hi : i < transientDepth f x) : f^[i] x ∈ forestSources f H := by
-  apply (mem_forestSources f H _).mpr
-  refine ⟨checkpointHull_iterate f H hx hi.le, ?_⟩
-  rw [transientDepth_iterate]
-  lia
+    {i : ℕ} (hi : i < transientDepth f x) : f^[i] x ∈ forestSources f H :=
+  (mem_forestSources f H _).mpr ⟨checkpointHull_iterate f H hx hi.le,
+    by rw [transientDepth_iterate]; omega⟩
 
 /-- A compressed edge ends at the next mark, no later than cycle entry. -/
 structure IsForestEdge (x : α) (d : ℕ) : Prop where
@@ -94,14 +92,21 @@ theorem IsForestEdge.source {x : α} {d : ℕ} (h : IsForestEdge f H x d)
     {i : ℕ} (hi : i < d) : f^[i] x ∈ forestSources f H :=
   forest_iterate_mem_sources f H (forestMarks_subset_hull f H h.start_mem) (hi.trans_le h.le_depth)
 
+/-- Two forest sources landing at the same interior vertex of a compressed edge must be equal. -/
+private theorem forest_edge_pred_eq {a b : α} {d i j : ℕ}
+    (ha : IsForestEdge f H a d) (hi : i + 1 < d)
+    (hb : f^[j] b ∈ forestSources f H) (he : f^[i + 1] a = f^[j + 1] b) :
+    f^[i] a = f^[j] b :=
+  forestPredecessor_unique f H (ha.source f H (by omega)) hb (z := f^[i + 1] a)
+    (Function.iterate_succ_apply' f i a).symm
+    ((Function.iterate_succ_apply' f j b).symm.trans he.symm)
+    (ha.interior (i + 1) (by omega) hi)
+
 /-- The length of a compressed edge from `x` is unique. -/
 theorem IsForestEdge.unique {x : α} {d₁ d₂ : ℕ}
-    (h₁ : IsForestEdge f H x d₁) (h₂ : IsForestEdge f H x d₂) : d₁ = d₂ := by
-  apply le_antisymm
-  · by_contra h
-    exact h₁.interior d₂ h₂.pos (by lia) h₂.end_mem
-  · by_contra h
-    exact h₂.interior d₁ h₁.pos (by lia) h₁.end_mem
+    (h₁ : IsForestEdge f H x d₁) (h₂ : IsForestEdge f H x d₂) : d₁ = d₂ :=
+  le_antisymm (not_lt.mp fun h => h₁.interior d₂ h₂.pos h h₂.end_mem)
+    (not_lt.mp fun h => h₂.interior d₁ h₁.pos h h₁.end_mem)
 
 /-- Applying checkpoint coverage after one step bounds each compressed edge by `2 * L`. -/
 theorem exists_short_forest_edge {L : ℕ} (_hL : 0 < L)
@@ -112,23 +117,18 @@ theorem exists_short_forest_edge {L : ℕ} (_hL : 0 < L)
   have hxS := forestMarks_subset_hull f H hx
   have hroot := forest_cycle_entry_mem f H hxS
   have hex : ∃ d, 0 < d ∧ f^[d] x ∈ forestMarks f H := ⟨_, hd, hroot⟩
-  have hshort : ∃ t, 0 < t ∧ t ≤ 2 * L ∧ f^[t] x ∈ forestMarks f H := by
+  obtain ⟨t, ht, htL, htm⟩ : ∃ t, 0 < t ∧ t ≤ 2 * L ∧ f^[t] x ∈ forestMarks f H := by
     rcases hcover (f x) with ⟨i, j, hij, hj, he⟩ | ⟨t, ht, hmem⟩
     · have hperiod := transientDepth_add_cycleLength_le_of_iterate_eq f (f x) hij he
       have hdepth : transientDepth f (f x) = transientDepth f x - 1 := by
         simpa only [Function.iterate_one] using transientDepth_iterate f x 1
-      exact ⟨_, hd, by lia, hroot⟩
-    · refine ⟨t + 1, by lia, by lia, ?_⟩
-      rw [Function.iterate_succ_apply]
-      exact subset_forestMarks f H hmem
+      exact ⟨_, hd, by omega, hroot⟩
+    · exact ⟨t + 1, by omega, by omega,
+        (Function.iterate_succ_apply f t x).symm ▸ subset_forestMarks f H hmem⟩
   let d := Nat.find hex
   have hspec := Nat.find_spec hex
-  have hdepth : d ≤ transientDepth f x := Nat.find_min' hex ⟨hd, hroot⟩
-  obtain ⟨t, ht, htL, htm⟩ := hshort
-  have hdt : d ≤ t := Nat.find_min' hex ⟨ht, htm⟩
-  refine ⟨d, hdt.trans htL, hx, hspec.1, hdepth, hspec.2, ?_⟩
-  intro i hi hid him
-  exact Nat.find_min hex hid ⟨hi, him⟩
+  exact ⟨d, (Nat.find_min' hex ⟨ht, htm⟩).trans htL, hx, hspec.1,
+    Nat.find_min' hex ⟨hd, hroot⟩, hspec.2, fun i hi hid him => Nat.find_min hex hid ⟨hi, him⟩⟩
 
 /-- Interiors of compressed edges are disjoint, including their starting marks. -/
 theorem forest_edge_interior_inj {x y : α} {d e : ℕ}
@@ -139,30 +139,22 @@ theorem forest_edge_interior_inj {x y : α} {d e : ℕ}
   | zero =>
     cases j with
     | zero => exact ⟨he, rfl⟩
-    | succ j =>
-      have hnot := hy.interior (j + 1) (by lia) hj
-      exact (hnot (he ▸ hx.start_mem)).elim
+    | succ j => exact (hy.interior (j + 1) (by omega) hj (he ▸ hx.start_mem)).elim
   | succ i ih =>
     cases j with
-    | zero =>
-      have hnot := hx.interior (i + 1) (by lia) hi
-      exact (hnot (he.symm ▸ hy.start_mem)).elim
+    | zero => exact (hx.interior (i + 1) (by omega) hi (he.symm ▸ hy.start_mem)).elim
     | succ j =>
-      have hpred : f^[i] x = f^[j] y := by
-        apply forestPredecessor_unique f H (hx.source f H (by lia)) (hy.source f H (by lia))
-          (z := f^[i + 1] x)
-        · exact (Function.iterate_succ_apply' f i x).symm
-        · exact (Function.iterate_succ_apply' f j y).symm.trans he.symm
-        · exact hx.interior (i + 1) (by lia) hi
-      obtain ⟨hxy, hij⟩ := ih (by lia) (by lia) hpred
-      exact ⟨hxy, by lia⟩
+      have hpred := forest_edge_pred_eq f H hx hi (hy.source f H (by omega)) he
+      obtain ⟨hxy, hij⟩ := ih (by omega) (by omega) hpred
+      exact ⟨hxy, by omega⟩
 
 /-- Last-predecessor keys identify compressed edges uniquely. -/
 theorem forest_edge_last_injective {x y : α} {d e : ℕ}
     (hx : IsForestEdge f H x d) (hy : IsForestEdge f H y e)
     (he : f^[d - 1] x = f^[e - 1] y) : x = y ∧ d = e := by
-  have h := forest_edge_interior_inj f H hx hy (by have := hx.pos; lia) (by have := hy.pos; lia) he
-  exact ⟨h.1, by have := hx.pos; have := hy.pos; lia⟩
+  have h := forest_edge_interior_inj f H hx hy
+    (by have := hx.pos; omega) (by have := hy.pos; omega) he
+  exact ⟨h.1, by have := hx.pos; have := hy.pos; omega⟩
 
 /-- Every hull point is marked or belongs to a short compressed edge. -/
 theorem forest_hull_partition {L : ℕ} (hL : 0 < L)
@@ -176,19 +168,16 @@ theorem forest_hull_partition {L : ℕ} (hL : 0 < L)
     induction t using Nat.strong_induction_on with
     | ind t ih =>
       intro a ha ht
-      by_cases hz : t = 0
-      · subst t
-        exact Or.inl ha
-      obtain ⟨d, hd, hedge⟩ := exists_short_forest_edge f H hL hcover ha (by lia)
+      rcases eq_or_ne t 0 with rfl | hz
+      · exact Or.inl ha
+      obtain ⟨d, hd, hedge⟩ := exists_short_forest_edge f H hL hcover ha (by omega)
       by_cases htd : t < d
       · exact Or.inr ⟨a, d, t, hedge, hd, htd, rfl⟩
       have hdpos := hedge.pos
       have he : f^[t - d] (f^[d] a) = f^[t] a := by
-        rw [← Function.iterate_add_apply, Nat.sub_add_cancel (by lia : d ≤ t)]
-      have hh := ih (t - d) (by lia) (f^[d] a) hedge.end_mem (by
-        rw [transientDepth_iterate]
-        lia)
-      simpa only [he] using hh
+        rw [← Function.iterate_add_apply, Nat.sub_add_cancel (by omega)]
+      simpa only [he] using ih (t - d) (by omega) (f^[d] a) hedge.end_mem
+        ((Nat.sub_le_sub_right ht d).trans_eq (transientDepth_iterate f a d).symm)
   obtain ⟨a, ha, t, ht, rfl⟩ := (mem_checkpointHull f H y).mp hy
   exact visit t a (subset_forestMarks f H ha) ht
 
@@ -201,31 +190,24 @@ private theorem forest_backtrack_interior {a y : α} {d i j : ℕ}
   | zero => simpa only [Nat.sub_zero, Function.iterate_zero_apply] using he
   | succ j ih =>
     cases i with
-    | zero => lia
+    | zero => omega
     | succ i =>
-      have hpred : f^[i] a = f^[j] y := by
-        apply forestPredecessor_unique f H (ha.source f H (by lia))
-          (forest_iterate_mem_sources f H hy (by lia)) (z := f^[i + 1] a)
-        · exact (Function.iterate_succ_apply' f i a).symm
-        · exact (Function.iterate_succ_apply' f j y).symm.trans he.symm
-        · exact ha.interior (i + 1) (by lia) hi
-      simpa only [Nat.succ_sub_succ_eq_sub] using ih (by lia) (by lia) (by lia) hpred
+      have hpred := forest_edge_pred_eq f H ha hi (forest_iterate_mem_sources f H hy (by omega)) he
+      simpa only [Nat.succ_sub_succ_eq_sub] using ih (by omega) (by omega) (by omega) hpred
 
 /-- Depth filtering makes any eligible last-predecessor match identify the containing edge. -/
 theorem forest_segment_contains_of_depth {a y : α} {d k : ℕ}
     (ha : IsForestEdge f H a d) (hy : y ∈ checkpointHull f H)
     (hdepth : transientDepth f y ≤ transientDepth f a)
     (he : f^[k] y = f^[d - 1] a) : ∃ i < d, f^[i] a = y := by
-  have hd : d - 1 < d := by have := ha.pos; lia
+  have hd : d - 1 < d := Nat.sub_one_lt ha.pos.ne'
   have hlast := (mem_forestSources f H _).mp (ha.source f H hd)
   have hdy := transientDepth_iterate f y k
   have hda := transientDepth_iterate f a (d - 1)
   rw [he] at hdy
   have hbound := ha.le_depth
-  have hk : k < transientDepth f y := by lia
-  have hkd : k ≤ d - 1 := by lia
-  exact ⟨d - 1 - k, by lia,
-    forest_backtrack_interior f H ha hy hd hkd hk he.symm⟩
+  exact ⟨d - 1 - k, by omega,
+    forest_backtrack_interior f H ha hy hd (by omega) (by omega) he.symm⟩
 
 /-- A marked vertex reaches an edge interior only by passing its lower marked endpoint. -/
 theorem forest_reaches_through_edge {a h : α} {d i t : ℕ}
@@ -235,29 +217,21 @@ theorem forest_reaches_through_edge {a h : α} {d i t : ℕ}
   | zero => exact ⟨t, he⟩
   | succ i ih =>
     cases t with
-    | zero => exact (ha.interior (i + 1) (by lia) hi (he ▸ hh)).elim
+    | zero => exact (ha.interior (i + 1) (by omega) hi (he ▸ hh)).elim
     | succ t =>
       have htarget := (mem_forestSources f H _).mp (ha.source f H hi)
       have hdepth := transientDepth_iterate f h (t + 1)
       rw [he] at hdepth
-      have ht : t < transientDepth f h := by lia
-      have hpred : f^[t] h = f^[i] a := by
-        apply forestPredecessor_unique f H
-          (forest_iterate_mem_sources f H (forestMarks_subset_hull f H hh) ht)
-          (ha.source f H (by lia)) (z := f^[i + 1] a)
-        · exact (Function.iterate_succ_apply' f t h).symm.trans he
-        · exact (Function.iterate_succ_apply' f i a).symm
-        · exact ha.interior (i + 1) (by lia) hi
-      exact ih (by lia) hpred
+      exact ih (by omega) (forest_edge_pred_eq f H ha hi
+        (forest_iterate_mem_sources f H (forestMarks_subset_hull f H hh) (by omega))
+        he.symm).symm
 
 /-- A state of positive transient depth that is reachable from a hull state lies in the hull. -/
 theorem forest_transient_reachable_mem {x y : α} (hx : x ∈ checkpointHull f H)
     (hy : 0 < transientDepth f y) (hr : ∃ t, f^[t] x = y) : y ∈ checkpointHull f H := by
-  obtain ⟨t, ht⟩ := hr
+  obtain ⟨t, rfl⟩ := hr
   have hd := transientDepth_iterate f x t
-  rw [ht] at hd
-  have hmem := checkpointHull_iterate f H hx (t := t) (by lia)
-  exact ht ▸ hmem
+  exact checkpointHull_iterate f H hx (by omega)
 
 /-- A transient target beyond the inspected prefix lies above a prefix checkpoint. -/
 theorem checkpoint_before_distant_target {L : ℕ}
@@ -266,14 +240,14 @@ theorem checkpoint_before_distant_target {L : ℕ}
     (hfar : ∀ i ≤ 2 * L, f^[i] x ≠ y) :
     ∃ d < 2 * L, f^[d] x ∈ H ∧ ∃ u, f^[u] (f^[d] x) = y := by
   obtain ⟨t, ht⟩ := hr
-  have hgt : 2 * L < t := by by_contra h; exact hfar t (by lia) ht
+  have hgt : 2 * L < t := by by_contra h; exact hfar t (by omega) ht
   have hdepth := transientDepth_iterate f x t
   rw [ht] at hdepth
   rcases hcover x with ⟨i, j, hij, hj, he⟩ | ⟨d, hd, hmem⟩
   · have hrepeat := transientDepth_add_cycleLength_le_of_iterate_eq f x hij he
-    lia
+    omega
   · refine ⟨d, hd, hmem, t - d, ?_⟩
-    rw [← Function.iterate_add_apply, Nat.sub_add_cancel (by lia : d ≤ t)]
+    rw [← Function.iterate_add_apply, Nat.sub_add_cancel (by omega : d ≤ t)]
     exact ht
 
 end Cslib.FunctionalGraph

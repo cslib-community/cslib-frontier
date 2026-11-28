@@ -60,22 +60,17 @@ theorem exec_collectBand {w L m N : ℕ} (side : Bool) (β : ℕ) (x : Data 96)
     have h7 := Nat.pow_le_pow_left (by decide : 7 ≤ 10) L
     unfold Encoding.addressBound
     nlinarith only [h7, Nat.zero_le L, Nat.zero_le (10 ^ L)])
+  have hws : 7 ^ L + 2 + 10 ^ L ≤ snapshotBase L m N := by
+    have h := workspace_le_snapshot L m N
+    unfold Encoding.scratchBase Encoding.outputBase at h
+    omega
   have hsrc : Fits w (7 ^ L + 2 + 10 ^ L) :=
-    ((memory_fits hfit).of_le (snapshot_le_memoryEnd L m N)).of_le (by
-      have h := workspace_le_snapshot L m N
-      unfold Encoding.scratchBase Encoding.outputBase at h
-      have := Nat.zero_le (10 ^ L)
-      omega)
+    ((memory_fits hfit).of_le (snapshot_le_memoryEnd L m N)).of_le hws
   have hsep : 7 ^ L + 2 + 10 ^ L ≤ dest := by
-    have hlow := workspace_le_snapshot L m N
-    have hcat : snapshotBase L m N ≤ catalogueBase L m N := by
-      unfold catalogueBase tableBase inverseBase
-      have := Nat.zero_le (2 ^ L)
-      omega
-    unfold Encoding.scratchBase Encoding.outputBase at hlow
-    have := Nat.zero_le (10 ^ L)
-    exact (by omega : 7 ^ L + 2 + 10 ^ L ≤ snapshotBase L m N).trans
-      (hcat.trans (catalogue_le_address L m N β side))
+    have hcat := catalogue_le_address L m N β side
+    have : 0 ≤ 2 ^ L := Nat.zero_le _
+    unfold catalogueBase tableBase inverseBase at hcat
+    omega
   dsimp only [dest, catalogueAddress, b] at hdest hbmul hsep ⊢
   unfold collectBand collectHead
   cases side <;> (

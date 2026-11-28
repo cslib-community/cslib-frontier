@@ -65,19 +65,14 @@ open scoped Classical in
 /-- Every vertex of `cyclicTournament a` has exactly `a` outgoing neighbors. -/
 theorem cyclicTournament_outdegree (a : ℕ) (i : Fin (2 * a + 1)) :
     (Finset.univ.filter ((cyclicTournament a).Adj i)).card = a := by
-  let z : Fin (2 * a + 1) := 0
-  let b : Fin (2 * a + 1) := ⟨a, by omega⟩
-  have he : (Finset.Ioc z b).card =
+  have he : (Finset.Ioc (0 : Fin (2 * a + 1)) ⟨a, by omega⟩).card =
       (Finset.univ.filter ((cyclicTournament a).Adj i)).card :=
     Finset.card_equiv (Equiv.addLeft i) (by
       intro x
       simp only [Finset.mem_Ioc, Finset.mem_filter, Finset.mem_univ, true_and]
-      change (0 < x.val ∧ x.val ≤ a) ↔
-        (0 < ((i + x)-i).val ∧ ((i + x)-i).val ≤ a)
-      rw [add_sub_cancel_left])
-  rw [← he, Fin.card_Ioc]
-  change a - 0 = a
-  exact Nat.sub_zero a
+      simp only [cyclicTournament, Equiv.coe_addLeft, add_sub_cancel_left, Fin.lt_def, Fin.le_def,
+        Fin.val_zero])
+  simpa only [Fin.card_Ioc, Fin.val_zero, Nat.sub_zero] using he.symm
 
 /-- The cyclic tournament on `2 * M ^ 2 + 1` vertices has outdegree `M ^ 2`. -/
 def regularCyclicTournament (M : ℕ) : RegularTournament M where

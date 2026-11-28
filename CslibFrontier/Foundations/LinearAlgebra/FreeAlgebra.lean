@@ -63,15 +63,13 @@ variable {X : Type*}
 /-- Appending a letter to a tuple appends it to the word. -/
 theorem ofFn_snoc {k : ℕ} (u : Fin k → X) (x : X) :
     ofFn (Fin.snoc u x : Fin (k + 1) → X) = ofFn u * of x := by
-  rw [ofFn, List.ofFn_succ', List.concat_eq_append, ofList_append, ofList_singleton]
+  rw [ofFn, List.ofFn_succ', List.concat_eq_append]
   simp [ofFn]
 
 /-- Every word of length `k` is the word of a tuple. -/
 theorem exists_ofFn_eq {k : ℕ} (w : FreeMonoid X) (h : w.toList.length = k) :
-    ∃ u : Fin k → X, ofFn u = w := by
-  subst h
-  exact ⟨w.toList.get,
-    (congrArg ofList (List.ofFn_get w.toList)).trans (ofList_toList w)⟩
+    ∃ u : Fin k → X, ofFn u = w :=
+  h ▸ ⟨w.toList.get, (congrArg ofList (List.ofFn_get w.toList)).trans (ofList_toList w)⟩
 
 /-- Prepending a letter to a tuple prepends it to the word. -/
 theorem ofFn_cons {k : ℕ} (x : X) (u : Fin k → X) :
@@ -107,9 +105,7 @@ noncomputable def coeff (w : FreeMonoid X) : FreeAlgebra R X →ₗ[R] R :=
 
 /-- `coeff` reads the coefficient through `equivMonoidAlgebraFreeMonoid`. -/
 theorem coeff_def (w : FreeMonoid X) (a : FreeAlgebra R X) :
-    coeff w a = (equivMonoidAlgebraFreeMonoid a).coeff w := by
-  unfold coeff
-  rfl
+    coeff w a = (equivMonoidAlgebraFreeMonoid a).coeff w := by rfl
 
 /-- Polynomials with the same coefficients are equal. -/
 theorem ext_coeff {a b : FreeAlgebra R X} (h : ∀ w, coeff w a = coeff w b) : a = b :=
@@ -223,25 +219,22 @@ theorem IsHomogeneous.sum {d : ℕ} {ι : Type*} (s : Finset ι) (f : ι → Fre
       (ih fun j hj => hf j (Finset.mem_insert_of_mem hj))
 
 /-- `1` is homogeneous of degree `0`. -/
-theorem isHomogeneous_one : (1 : FreeAlgebra R X).IsHomogeneous 0 := by
-  intro w hw
-  rw [coeff_one] at hw
+theorem isHomogeneous_one : (1 : FreeAlgebra R X).IsHomogeneous 0 := fun w hw => by
   by_contra hne
-  exact hw (Finsupp.single_eq_of_ne (fun h => hne (by rw [h]; rfl)))
+  rw [coeff_one] at hw
+  exact hw (Finsupp.single_eq_of_ne fun h => hne (by rw [h]; rfl))
 
 /-- A variable is homogeneous of degree `1`. -/
-theorem isHomogeneous_ι (x : X) : (ι R x).IsHomogeneous 1 := by
-  intro w hw
-  rw [coeff_ι] at hw
+theorem isHomogeneous_ι (x : X) : (ι R x).IsHomogeneous 1 := fun w hw => by
   by_contra hne
-  exact hw (Finsupp.single_eq_of_ne (fun h => hne (by rw [h]; rfl)))
+  rw [coeff_ι] at hw
+  exact hw (Finsupp.single_eq_of_ne fun h => hne (by rw [h]; rfl))
 
 /-- The monomial of a word `w` is homogeneous of degree `|w|`. -/
 theorem isHomogeneous_lift_ι (w : FreeMonoid X) :
-    (FreeMonoid.lift (ι R) w : FreeAlgebra R X).IsHomogeneous w.toList.length := by
-  intro w' hw'
-  rw [coeff_lift_ι] at hw'
+    (FreeMonoid.lift (ι R) w : FreeAlgebra R X).IsHomogeneous w.toList.length := fun w' hw' => by
   by_contra hne
+  rw [coeff_lift_ι] at hw'
   exact hw' (Finsupp.single_eq_of_ne fun h => hne (by rw [h]))
 
 /-- Multiplicativity of coefficients against a homogeneous left factor. -/

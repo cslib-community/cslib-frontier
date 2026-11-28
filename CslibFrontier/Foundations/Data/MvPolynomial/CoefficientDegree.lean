@@ -70,18 +70,11 @@ public theorem totalDegree_coeff_eval₂_le (p : MvPolynomial κ R)
     (Q : κ → Polynomial (MvPolynomial ι R))
     (hQ : ∀ v j, ((Q v).coeff j).totalDegree ≤ j) (j : ℕ) :
     ((eval₂ (Polynomial.C.comp C) Q p).coeff j).totalDegree ≤ j := by
-  suffices h : ∀ j, ((eval₂ (Polynomial.C.comp C) Q p).coeff j).totalDegree ≤ j from h j
-  induction p using MvPolynomial.induction_on with
-  | C a =>
-      intro j
-      simpa only [eval₂_C, RingHom.coe_comp, Function.comp_apply] using
-        (coeff_degree_constant (ι := ι) a j)
-  | add p q hp hq =>
-      intro j
-      simpa only [eval₂_add] using coeff_degree_add _ _ hp hq j
-  | mul_X p v hp =>
-      intro j
-      simpa only [eval₂_mul, eval₂_X] using coeff_degree_mul _ _ hp (hQ v) j
+  induction p using MvPolynomial.induction_on generalizing j with
+  | C a => simpa only [eval₂_C, RingHom.coe_comp, Function.comp_apply] using
+      coeff_degree_constant a j
+  | add p q hp hq => simpa only [eval₂_add] using coeff_degree_add _ _ hp hq j
+  | mul_X p v hp => simpa only [eval₂_mul, eval₂_X] using coeff_degree_mul _ _ hp (hQ v) j
 
 /-- Every formal-variable occurrence in this correction carries a positive power of the outer
 variable: the scalar polynomial's constant coefficient must be zero. Higher outer powers are

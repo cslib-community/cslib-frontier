@@ -31,17 +31,15 @@ private theorem runs_data_le {code : List (Instr model L)} {x y : State model L}
     (run : Runs code x y n) (initial : x.DataValid (· ≤ b)) : y.DataValid (· ≤ b + n) := by
   induction run with
   | refl => simpa only [Nat.add_zero] using initial
-  | tail s t n steps next ih =>
+  | tail s _ n _ next ih =>
     obtain ⟨i, _, _, rfl⟩ := step_eq_some_iff.mp next
-    have h : (i.effect s).DataValid (· ≤ (b + n) + 1) :=
+    simpa only [State.DataValid, Nat.add_assoc] using
       Instr.effect_dataValid_of (M := model) (i := i) (x := s)
         (P := fun a : ℕ => a ≤ b + n) (Q := fun a : ℕ => a ≤ b + n + 1)
-        (fun _ h => Nat.le_succ_of_le h) (Nat.zero_le _) (by
-        intro op a c ha hc
-        cases op with
-        | zero => exact Nat.zero_le _
-        | maxSucc => exact Nat.add_le_add_right (max_le ha hc) 1) ih
-    simpa only [State.DataValid, Nat.add_assoc] using h
+        (fun _ => Nat.le_succ_of_le) (Nat.zero_le _)
+        (fun op _ _ ha hc => by
+          cases op
+          exacts [Nat.zero_le _, Nat.add_le_add_right (max_le ha hc) 1]) ih
 
 /-- The natural basis has a uniform compiler overhead depending only on the record layout,
 not on the source program's length or control flow. -/
@@ -53,8 +51,8 @@ theorem overhead_le (code : List (Instr model L)) :
     change max ((scalars L).effectTime i + 2) ((scalars L).overhead code) ≤ _
     refine max_le ?_ ih
     cases i <;> simp only [Scalars.effectTime, scalars]
-    case op op d a c => cases op <;> simp
-    case ifTest test a c label => cases test <;> simp
+    case op op _ _ _ => cases op <;> simp
+    case ifTest test _ _ _ => cases test <;> simp
     all_goals omega
 
 /-- Compile a natural-scalar execution with explicit sufficient width. All initial data is
@@ -72,26 +70,20 @@ theorem executes_compile {w time limit b : ℕ} {code : List (Instr model L)}
         ⟨(scalars L).blockSize code * x'.pc, z⟩ k ∧ Repr (scalars L).encode x' z ∧
       Cslib.WordRAM.step w ((scalars L).compile code)
         ⟨(scalars L).blockSize code * x'.pc, z⟩ = .halt 0 := by
-  apply (scalars L).executes_compile valid run
-  · intro z m trace hm
-    have data := runs_data_le trace initial
-    have length := trace.length_le
-    refine ⟨memory.of_le ?_, ?_, ?_⟩
-    · exact Nat.add_le_add_left
-        (Nat.mul_le_mul_left (stride L) (length.trans (Nat.add_le_add_left (by omega) _))) 1
-    · intro i
-      exact values.of_le ((data.1 i).trans (Nat.add_le_add_left (by omega) _))
-    · intro node hn f
-      exact values.of_le ((data.2 node hn f).trans (Nat.add_le_add_left (by omega) _))
-  · intro z m trace hm i _
-    cases i <;> simp only [Scalars.Safe, scalars]
-    case ifTest test a c label _ =>
-      cases test with
-      | lt => trivial
-      | le => trivial
-      | heavy =>
-        have data := runs_data_le trace initial
-        exact values.of_le ((Nat.sub_le _ _).trans
-          ((data.1 a).trans (Nat.add_le_add_left (by omega) _)))
+  refine (scalars L).executes_compile valid run (fun _ m trace hm => ?_)
+    fun _ m trace hm i _ => ?_
+  · have data := runs_data_le trace initial
+    exact ⟨memory.of_le (Nat.add_le_add_left
+        (Nat.mul_le_mul_left (stride L) (trace.length_le.trans (Nat.add_le_add_left (by omega) _)))
+        1),
+      fun i => values.of_le ((data.1 i).trans (Nat.add_le_add_left (by omega) _)),
+      fun node hn f => values.of_le ((data.2 node hn f).trans (Nat.add_le_add_left (by omega) _))⟩
+  · cases i <;> simp only [Scalars.Safe, scalars]
+    case ifTest test a _ _ _ =>
+      cases test
+      · trivial
+      · trivial
+      · exact values.of_le ((Nat.sub_le _ _).trans
+          (((runs_data_le trace initial).1 a).trans (Nat.add_le_add_left (by omega) _)))
 
 end Cslib.PointerMachine.WordRAM.Natural

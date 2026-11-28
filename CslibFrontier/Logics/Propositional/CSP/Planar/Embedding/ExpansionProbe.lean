@@ -50,9 +50,7 @@ private theorem wellFormed_probeBody {V : Type} (F : CSP Src V)
   rcases List.mem_append.mp hc with hc | hc
   · obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hc
     exact hF d hd
-  · simp only [List.mem_singleton] at hc
-    subst c
-    exact List.length_reverse
+  · exact (List.mem_singleton.mp hc) ▸ List.length_reverse
 
 private theorem replaceGadgets_probeBody
     (gadgets : ∀ r, PPGadget arity sem (booleanRelation srcArity srcSem r))
@@ -66,8 +64,7 @@ private theorem replaceGadgets_probeBody
     List.flatMap_map, List.flatMap_cons, List.flatMap_nil, List.append_nil]
   congr 1
   · simp only [List.map_flatMap]
-    apply List.flatMap_congr
-    rintro ⟨c, i⟩ _
+    refine List.flatMap_congr fun ⟨c, i⟩ _ => ?_
     simp only [Prod.map, id_eq]
     dsimp only [PPGadget.withProbe, PPGadget.mapRelation, instantiate, PPGadget.template,
       CSP.relabel]
@@ -78,17 +75,10 @@ private theorem replaceGadgets_probeBody
         (fun i : Fin (gadgets c.rel).numAux => (true, i.val))))
         ((gadgets c.rel).body.map (fun d => ⟨some d.rel, d.scope⟩))) = _
     simp only [List.map_map]
-    apply List.map_congr_left
-    intro d _
-    apply Constraint.ext
-    · rfl
-    rfl
+    exact List.map_congr_left fun _ _ => Constraint.ext rfl rfl
   · have hp : List.ofFn (fun i : Fin ports.length => 2 * ports.reverse.getD i.val 0) =
-        ports.reverse.map (2 * ·) := by
-      apply List.ext_getElem
-      · simp
-      · intro i hi hj
-        simp
+        ports.reverse.map (2 * ·) :=
+      List.ext_getElem (by simp) fun _ _ _ => by simp
     simp only [Nat.zero_add]
     change instantiate B F.length ports.reverse (PPGadget.atom
       (arity := Option.elim' ports.length arity)
@@ -97,8 +87,8 @@ private theorem replaceGadgets_probeBody
     dsimp only [PPGadget.atom, instantiate, PPGadget.template, CSP.relabel, Option.elim']
     simp only [List.map_cons, List.map_nil, Constraint.relabel, List.map_ofFn,
       Function.comp_def, Sum.elim_inl, Bool.false_eq_true, reduceIte]
-    apply congrArg (fun scope => [Constraint.mk (none : Option Rel) scope])
-    simpa only [List.map_reverse] using hp
+    exact congrArg (fun scope => [Constraint.mk (none : Option Rel) scope])
+      (by simpa only [List.map_reverse] using hp)
 
 /-- Extend actual replacement witnesses by the ordered tautological probe atom. The
 original symbol cases keep exactly the same scopes and certificate tables. -/
@@ -126,16 +116,12 @@ theorem verifyRotationCertificate_replaceGadgets_probe
         (fun r => auxiliaryBoundaryBlocks (PPGadget.withProbe gadgets ports.length r)
           (GadgetWitness.withProbe gadgets witnesses ports.length r)) (probeBody F ports) c) =
       true := by
-  have hb : ∀ r, (PPGadget.withProbe gadgets ports.length r).numAux ≤ B := by
-    intro r
-    cases r with
-    | none => exact Nat.zero_le _
-    | some r => exact hB r
-  have h := verifyRotationCertificate_replacementCertificate
+  rw [← replaceGadgets_probeBody]
+  exact verifyRotationCertificate_replacementCertificate
     (PPGadget.withProbe gadgets ports.length)
     (GadgetWitness.withProbe gadgets witnesses ports.length)
-    B hb (probeBody F ports) (wellFormed_probeBody F hF ports) c hc
-  rwa [replaceGadgets_probeBody] at h
+    B (fun | none => Nat.zero_le _ | some r => hB r)
+    (probeBody F ports) (wellFormed_probeBody F hF ports) c hc
 
 /-- Expand the literal numeric body of an actual checked ordered macro, retaining its
 listed free ports in their original positive order. The actual probe atom and target

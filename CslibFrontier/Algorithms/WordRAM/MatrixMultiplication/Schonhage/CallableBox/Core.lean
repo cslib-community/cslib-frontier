@@ -64,22 +64,18 @@ theorem exec_core {W b m t N : ℕ}
       (∀ a, a < b ∨ b + windowSize N qs.length ≤ a → y.mem a = x.mem a) := by
   have hXabs (i k) : |X i k| ≤ (1 : ℤ) := by rw [abs_of_nonneg (hX i k).1]; exact (hX i k).2
   have hYabs (k j) : |Y k j| ≤ (1 : ℤ) := by rw [abs_of_nonneg (hY k j).1]; exact (hY k j).2
-  have hbits : true = true → (∀ i k, 0 ≤ X i k) ∧ (∀ k j, 0 ≤ Y k j) :=
-    fun _ => ⟨fun i k => (hX i k).1, fun k j => (hY k j).1⟩
   obtain ⟨hw, hmag, hbudget⟩ := source_admission (Q := qs.length) ht hN
   have htwo : sourceWidth N qs.length - 2 + 2 = sourceWidth N qs.length := by omega
   have hbudget' : Fits (sourceWidth N qs.length - 2 + 2)
-      (BoxProduct.wordBudget (21 * m) m t N qs.length) := by simpa only [htwo] using hbudget
+      (BoxProduct.wordBudget (21 * m) m t N qs.length) := htwo.symm ▸ hbudget
   have hi := BoxProduct.input_fits hw (show m ≤ 21 * m by omega)
     true X Y qs hXabs hYabs hmag hbudget'
   have hi' : (State.init (BoxProduct.input true (21 * m) t X Y qs) : State 160).data.Bounded
       (sourceWidth N qs.length) := by
     simpa only [htwo, State.init] using (Data.Bounded.init (r := 160) hi)
-  have hrow : x.mem (b + 3) = N := by
-    rw [hinput 3 (by unfold QueriedProduct.inputEnd; omega)]
-    simp [State.init, Data.init, BoxProduct.input, QueriedProduct.input]
-  have hcount : x.mem (b + 4) = qs.length := by
-    rw [hinput 4 (by unfold QueriedProduct.inputEnd; omega)]
+  obtain ⟨hrow, hcount⟩ : x.mem (b + 3) = N ∧ x.mem (b + 4) = qs.length := by
+    rw [hinput 3 (by unfold QueriedProduct.inputEnd; omega),
+      hinput 4 (by unfold QueriedProduct.inputEnd; omega)]
     simp [State.init, Data.init, BoxProduct.input, QueriedProduct.input]
   obtain ⟨s, hs, smem, smatch, sbound⟩ := exec_setup x hb hrow hcount hfit
   let v := MemoryWindow.view (sourceWidth N qs.length) b s
@@ -92,15 +88,13 @@ theorem exec_core {W b m t N : ℕ}
     true X Y qs v
     (fun a ha hb => (vinput a (by omega)).trans (BoxProduct.input_prefix true X Y qs a ha hb))
     ((vinput _ (by omega)).trans (BoxProduct.input_threshold true X Y qs))
-    hXabs hYabs hbits hmag hbudget'
-  have hp' : ExecWithin (sourceWidth N qs.length) (BoxProduct.program true) v p
-      (BoxProduct.timeBound (21 * m) m t qs) := by
-    simpa only [htwo] using hp
-  have hwindow : Fits W (b + 2 ^ sourceWidth N qs.length) := hfit.of_le (by
-    change b + windowSize N qs.length ≤ _
-    omega)
-  obtain ⟨y, hy, ymatch, yframe⟩ := MemoryWindow.execWithin hp'
-    (BoxProduct.not_readsWidth true) sbound smatch (setup_fits hfit).1 hwindow
+    hXabs hYabs (fun _ => ⟨fun i k => (hX i k).1, fun k j => (hY k j).1⟩) hmag hbudget'
+  rw [htwo] at hp
+  obtain ⟨y, hy, ymatch, yframe⟩ := MemoryWindow.execWithin hp
+    (BoxProduct.not_readsWidth true) sbound smatch (setup_fits hfit).1
+    (hfit.of_le (by
+      change b + windowSize N qs.length ≤ _
+      omega))
   have hI : Fits W (QueriedProduct.inputEnd m N qs.length + 1) := by
     have hlen := hi'.2 0
     change (Data.init (BoxProduct.input true (21 * m) t X Y qs) : Data 160).mem 0 < _ at hlen
@@ -108,23 +102,17 @@ theorem exec_core {W b m t N : ℕ}
     exact hfit.of_le (by change _ ≤ b + 4 * (2 ^ sourceWidth N qs.length) + 1024; omega)
   have yI : y.regs Reg.inputSize = QueriedProduct.inputEnd m N qs.length :=
     (ymatch.regs _).trans pp.inputSize
-  have yQ : y.regs Reg.queryCount = qs.length :=
-    (ymatch.regs QueriedProduct.Reg.queryCount).trans pp.queryCount
-  have yO : y.regs Reg.output = QueriedProduct.outputBase (21 * m) m N qs.length :=
-    (ymatch.regs QueriedProduct.Reg.output).trans pp.output
   refine WP.exists_execWithin ?_
   unfold core includeThreshold
   wram_call hs
   wram_call hy
   wram_exec [yI, hI]
-  wram_simp [yQ, yO]
+  wram_simp [(ymatch.regs QueriedProduct.Reg.queryCount).trans pp.queryCount,
+    (ymatch.regs QueriedProduct.Reg.output).trans pp.output]
   refine ⟨by unfold coreTime; omega, ymatch.base_eq, ymatch.modulus_eq,
-    fun i => (ymatch.mem _).trans (pv i), ?_,
+    fun i => (ymatch.mem _).trans (pv i), fun a ha => ?_,
     fun a ha => (yframe a ha).trans (congrFun smem a)⟩
-  intro a ha
   change y.mem (b + a) % 2 ^ sourceWidth N qs.length = _
-  rw [ymatch.mem, pf a (by omega)]
-  change s.mem (b + a) % 2 ^ sourceWidth N qs.length = _
-  rw [smem, hinput a ha, Nat.mod_eq_of_lt (hi'.2 a)]
+  rw [ymatch.mem, pf a (by omega), vinput a ha, hinput a ha]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBoxProduct

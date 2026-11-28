@@ -68,55 +68,34 @@ theorem exists_checkpoints_on (S : Finset α) (hL : 0 < L) :
         Function.Injective (fun i : Fin L => f^[i.val] a)
     · obtain ⟨a, ha, hinj⟩ := hex
       let P := Finset.univ.image (fun i : Fin L => f^[i.val] a)
-      have hPS : P ⊆ S := by
-        intro z hz
-        obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp hz
-        exact ha i
+      have hPS : P ⊆ S := Finset.image_subset_iff.mpr fun i _ => ha i
       have hcard : P.card = L := by
         simp only [P, Finset.card_image_of_injective _ hinj, Finset.card_univ,
           Fintype.card_fin]
-      have hproper : S \ P ⊂ S := by
-        apply Finset.ssubset_iff_subset_ne.mpr
-        refine ⟨Finset.sdiff_subset, ?_⟩
-        intro heq
-        have hc := Finset.card_sdiff_add_card_eq_card hPS
-        rw [heq, hcard] at hc
-        lia
-      obtain ⟨H, hHS, hsize, hcover⟩ := ih (S \ P) hproper
+      have hc := Finset.card_sdiff_add_card_eq_card hPS
       let e := f^[L - 1] a
       have heP : e ∈ P := Finset.mem_image.mpr
         ⟨⟨L - 1, by lia⟩, Finset.mem_univ _, rfl⟩
+      obtain ⟨H, hHS, hsize, hcover⟩ := ih (S \ P) (Finset.sdiff_ssubset hPS ⟨e, heP⟩)
       have heH : e ∉ H := fun h => (Finset.mem_sdiff.mp (hHS h)).2 heP
       refine ⟨insert e H, Finset.insert_subset (hPS heP) (hHS.trans Finset.sdiff_subset),
-        ?_, ?_⟩
-      · have hc := Finset.card_sdiff_add_card_eq_card hPS
-        rw [hcard] at hc
-        rw [Finset.card_insert_of_notMem heH, Nat.add_mul]
+        ?_, fun x hx => ?_⟩
+      · rw [Finset.card_insert_of_notMem heH, Nat.add_mul]
         lia
-      · intro x hx
-        by_cases havoid : ∀ i : Fin L, f^[i.val] x ∉ P
-        · rcases hcover x (fun i => Finset.mem_sdiff.mpr ⟨hx i, havoid i⟩) with hr | ⟨d, hd, hh⟩
-          · exact Or.inl hr
-          · exact Or.inr ⟨d, hd, Finset.mem_insert_of_mem hh⟩
-        · push Not at havoid
-          obtain ⟨i, hi⟩ := havoid
-          obtain ⟨j, _, hji⟩ := Finset.mem_image.mp hi
-          refine Or.inr ⟨i.val + (L - 1 - j.val), by have := i.isLt; lia, ?_⟩
-          have hsum : L - 1 - j.val + j.val = L - 1 := by have := j.isLt; lia
-          have heq : f^[i.val + (L - 1 - j.val)] x = e := by
-            rw [Nat.add_comm i.val, Function.iterate_add_apply, ← hji,
-              ← Function.iterate_add_apply, hsum]
-          exact Finset.mem_insert.mpr (Or.inl heq)
-    · refine ⟨∅, Finset.empty_subset _, by simp, ?_⟩
-      intro x hx
-      have hnot : ¬Function.Injective (fun i : Fin L => f^[i.val] x) :=
-        fun hi => hex ⟨x, hx, hi⟩
-      rw [Function.Injective] at hnot
-      push Not at hnot
-      obtain ⟨i, j, heq, hne⟩ := hnot
+      by_cases havoid : ∀ i : Fin L, f^[i.val] x ∉ P
+      · exact (hcover x fun i => Finset.mem_sdiff.mpr ⟨hx i, havoid i⟩).imp_right
+          fun ⟨d, hd, hh⟩ => ⟨d, hd, Finset.mem_insert_of_mem hh⟩
+      push Not at havoid
+      obtain ⟨i, hi⟩ := havoid
+      obtain ⟨j, _, hji⟩ := Finset.mem_image.mp hi
+      refine Or.inr ⟨i.val + (L - 1 - j.val), by lia, Finset.mem_insert.mpr (Or.inl ?_)⟩
+      rw [Nat.add_comm i.val, Function.iterate_add_apply, ← hji, ← Function.iterate_add_apply,
+        Nat.sub_add_cancel (by lia)]
+    · refine ⟨∅, Finset.empty_subset _, by simp, fun x hx => Or.inl ?_⟩
+      obtain ⟨i, j, heq, hne⟩ := Function.not_injective_iff.mp fun hi => hex ⟨x, hx, hi⟩
       rcases lt_or_gt_of_ne hne with hij | hji
-      · exact Or.inl ⟨i.val, j.val, hij, j.isLt, heq⟩
-      · exact Or.inl ⟨j.val, i.val, hji, i.isLt, heq.symm⟩
+      · exact ⟨i.val, j.val, hij, j.isLt, heq⟩
+      · exact ⟨j.val, i.val, hji, i.isLt, heq.symm⟩
 
 /-- **Checkpoints on an invariant set.** If `S` is finite and `f` maps `S` into itself, every
 orbit starting in `S` repeats a state among its first `L` or reaches one of at most `|S| / L`

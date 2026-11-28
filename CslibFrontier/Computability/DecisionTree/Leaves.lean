@@ -33,7 +33,6 @@ of native weighted-threshold circuits.
 * `Cslib.DecisionTree.leafCount`: the number of structural leaves.
 * `Cslib.DecisionTree.nodeCount`: the number of internal query nodes.
 * `Cslib.DecisionTree.allQueries`: the variables at the internal nodes.
-* `Cslib.DecisionTree.path`: the answers along the path taken by an input.
 * `Cslib.DecisionTree.rank`: the Ehrenfeucht–Haussler rank of a binary decision tree.
 * `Cslib.DecisionTree.IsDecisionList`: trees in which every internal node has a leaf child.
 * `Cslib.DecisionTree.energy`: the maximum number of `true` branches on a root-to-leaf path.
@@ -79,11 +78,6 @@ variable {ι β : Type*}
 def leafCount : DecisionTree ι β → ℕ
   | .leaf _ => 1
   | .node _ left right => left.leafCount + right.leafCount
-
-/-- The answers along the path to the reached leaf. -/
-def path : DecisionTree ι β → (ι → Bool) → List Bool
-  | .leaf _, _ => []
-  | .node i left right, x => x i :: cond (x i) (right.path x) (left.path x)
 
 /-- Every decision tree has at least one structural leaf. -/
 theorem leafCount_pos (t : DecisionTree ι β) : 0 < t.leafCount := by

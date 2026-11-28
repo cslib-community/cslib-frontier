@@ -131,47 +131,21 @@ def fiberRank {A β : Type*} [Fintype A] [LinearOrder A] [DecidableEq β]
 theorem fiberRank_lt_card_fiber {A β : Type*} [Fintype A] [LinearOrder A] [DecidableEq β]
     (u : A → β) (e : A) :
     fiberRank u e < #{e' : A | u e' = u e} := by
-  unfold fiberRank
-  refine card_lt_card ⟨fun e' he' => ?_, ?_⟩
-  · simp only [mem_filter, mem_univ, true_and] at he' ⊢
-    exact he'.1
-  · intro hsub
-    have he : e ∈ univ.filter (fun e' : A => u e' = u e) := by simp
-    have he' := hsub he
-    simp at he'
+  exact card_lt_card ((ssubset_iff_of_subset fun _ _ => by simp_all).2 ⟨e, by simp, by simp⟩)
 
 theorem injective_fiberRank_prod {A β : Type*} [Fintype A] [LinearOrder A] [DecidableEq β]
     (u : A → β) :
     Function.Injective (fun e : A => (fiberRank u e, u e)) := by
+  have key {a b : A} (hu : u a = u b) (hlt : a < b) : fiberRank u a < fiberRank u b := by
+    refine card_lt_card ((ssubset_iff_of_subset fun e' he' => ?_).2 ⟨a, by simp [hu, hlt], by simp⟩)
+    simp only [mem_filter, mem_univ, true_and] at he' ⊢
+    exact ⟨he'.1.trans hu, he'.2.trans hlt⟩
   intro e₁ e₂ h
-  have hu : u e₁ = u e₂ := (Prod.mk.inj h).2
-  have hrank : fiberRank u e₁ = fiberRank u e₂ := (Prod.mk.inj h).1
+  obtain ⟨hrank, hu⟩ := Prod.mk.inj h
   rcases lt_trichotomy e₁ e₂ with hlt | rfl | hgt
-  · exfalso
-    have hlt_card : fiberRank u e₁ < fiberRank u e₂ := by
-      unfold fiberRank
-      refine card_lt_card ⟨fun e' he' => ?_, ?_⟩
-      · simp only [mem_filter, mem_univ, true_and] at he' ⊢
-        exact ⟨he'.1.trans hu, he'.2.trans hlt⟩
-      · intro hsub
-        have he1 : e₁ ∈ univ.filter (fun e' : A => u e' = u e₂ ∧ e' < e₂) := by
-          simp [hu, hlt]
-        have he1' := hsub he1
-        simp at he1'
-    exact hlt_card.ne hrank
+  · exact absurd hrank (key hu hlt).ne
   · rfl
-  · exfalso
-    have hlt_card : fiberRank u e₂ < fiberRank u e₁ := by
-      unfold fiberRank
-      refine card_lt_card ⟨fun e' he' => ?_, ?_⟩
-      · simp only [mem_filter, mem_univ, true_and] at he' ⊢
-        exact ⟨he'.1.trans hu.symm, he'.2.trans hgt⟩
-      · intro hsub
-        have he2 : e₂ ∈ univ.filter (fun e' : A => u e' = u e₁ ∧ e' < e₁) := by
-          simp [hu.symm, hgt]
-        have he2' := hsub he2
-        simp at he2'
-    exact hlt_card.ne hrank.symm
+  · exact absurd hrank (key hu.symm hgt).ne'
 
 /-- Explicit copy index `c(e) ∈ Fin h` assigned to `e : A` when every label fiber of `u : A → β`
 has size at most `h` (Section 4.5, p. 32). -/
@@ -245,10 +219,25 @@ theorem copyEmbed_apply_place {A : Type*} [Fintype A] {n h Q r : ℕ}
     copyEmbed place varOf x (place e) = x (varOf e) := by
   classical
   unfold copyEmbed
-  have hfilter : univ.filter (fun e' : A => place e' = place e) = {e} := by
-    ext e'
-    simp [hinj.eq_iff]
-  rw [hfilter, sum_singleton]
+  rw [show univ.filter (fun e' : A => place e' = place e) = {e} by ext; simp [hinj.eq_iff],
+    sum_singleton]
+
+/-- Summing over the fibres of `g` inside a filter recovers the filtered sum. -/
+private theorem sum_filter_and_fiber {A κ M : Type*} [Fintype A] [Fintype κ] [DecidableEq κ]
+    [AddCommMonoid M] (P : A → Prop) [DecidablePred P] (g : A → κ) (f : A → M) :
+    ∑ k, ∑ e' ∈ univ.filter (fun e' : A => P e' ∧ g e' = k), f e' =
+      ∑ e' ∈ univ.filter P, f e' := by
+  simp only [← sum_fiberwise (univ.filter P) g f, filter_filter]
+
+/-- For injective `place`, a nonnegative sum over one copy is bounded by the full label sum. -/
+private theorem sum_filter_place_fst_le {A : Type*} [Fintype A] {h Q r : ℕ}
+    {place : A → Fin h × AuxLabel Q r} (hinj : Function.Injective place) (c : Fin h)
+    {f : AuxLabel Q r → ℤ} (hf : ∀ y, 0 ≤ f y) :
+    ∑ e' ∈ univ.filter (fun e' : A => (place e').1 = c), f (place e').2 ≤ ∑ y, f y := by
+  classical
+  rw [← sum_image (f := f) fun e₁ he₁ e₂ he₂ h2 =>
+    hinj (Prod.ext ((mem_filter.1 he₁).2.trans (mem_filter.1 he₂).2.symm) h2)]
+  exact sum_le_univ_sum_of_nonneg hf
 
 /-- Double-sum interchange for `copyProj c (copyEmbed place varOf x)`: summing `f y * (π_c (ι x)) y`
 over `y : AuxLabel Q r` equals summing over `v : Fin n` the accumulated coefficients at copy `c`. -/
@@ -261,44 +250,14 @@ private theorem sum_mul_copyProj_copyEmbed {A : Type*} [Fintype A] {n h Q r : �
           f (place e').2) * x v := by
   classical
   simp only [copyProj, copyEmbed, mul_sum, sum_mul]
-  have hL :
-      (∑ y : AuxLabel Q r,
-          ∑ e' ∈ univ.filter (fun e' : A => place e' = (c, y)), f y * x (varOf e')) =
-        ∑ y : AuxLabel Q r,
+  calc _ = ∑ y : AuxLabel Q r,
           ∑ e' ∈ univ.filter (fun e' : A => (place e').1 = c ∧ (place e').2 = y),
-            f (place e').2 * x (varOf e') := by
-    refine sum_congr rfl fun y _ => sum_congr ?_ fun e' he' => ?_
-    · ext e'
-      simp [Prod.ext_iff]
-    · simp only [mem_filter, mem_univ, true_and] at he'
-      rw [he'.2]
-  rw [hL, ← sum_biUnion]
-  · have hU₁ :
-        (univ.biUnion fun y : AuxLabel Q r =>
-            univ.filter (fun e' : A => (place e').1 = c ∧ (place e').2 = y)) =
-          univ.filter (fun e' : A => (place e').1 = c) := by
-      ext e'
-      simp
-    have hU₂ :
-        (univ.biUnion fun v : Fin n =>
-            univ.filter (fun e' : A => (place e').1 = c ∧ varOf e' = v)) =
-          univ.filter (fun e' : A => (place e').1 = c) := by
-      ext e'
-      simp
-    rw [hU₁, ← hU₂, sum_biUnion]
-    · refine sum_congr rfl fun v _ => sum_congr rfl fun e' he' => ?_
-      simp only [mem_filter, mem_univ, true_and] at he'
-      rw [he'.2]
-    · intro v₁ _ v₂ _ hne
-      simp only [Function.onFun, Finset.disjoint_left]
-      intro e' h1 h2
-      simp only [mem_filter, mem_univ, true_and] at h1 h2
-      exact hne (h1.2.symm.trans h2.2)
-  · intro y₁ _ y₂ _ hne
-    simp only [Function.onFun, Finset.disjoint_left]
-    intro e' h1 h2
-    simp only [mem_filter, mem_univ, true_and] at h1 h2
-    exact hne (h1.2.symm.trans h2.2)
+            f (place e').2 * x (varOf e') :=
+        sum_congr rfl fun y _ => sum_congr (by ext; simp [Prod.ext_iff]) fun e' he' => by
+          rw [(mem_filter.1 he').2.2]
+    _ = ∑ v : Fin n, ∑ e' ∈ univ.filter (fun e' : A => (place e').1 = c ∧ varOf e' = v),
+            f (place e').2 * x (varOf e') := by rw [sum_filter_and_fiber, sum_filter_and_fiber]
+    _ = _ := sum_congr rfl fun v _ => sum_congr rfl fun e' he' => by rw [(mem_filter.1 he').2.2]
 
 /-- The replacement polynomial row `P⃗_e(T) = P⃗_{u_e}(T) π_{c(e)} ι ∈ (Fin n → ℚ[X])` on the
 original variables `Fin n` (eq. 4.14, p. 32). -/
@@ -357,23 +316,9 @@ theorem eval_varReplacementRow_zero {A : Type*} [Fintype A]
   unfold varReplacementRow
   rw [Polynomial.eval_finsetSum]
   simp only [eval_auxReplacementRow_zero]
-  have h1 :
-      ∀ e' ∈ univ.filter (fun e' : A => (place e').1 = (place e).1 ∧ varOf e' = v),
-        ((place e).2 = (place e').2 ↔ e' = e) := by
-    intro e' he'
-    simp only [mem_filter, mem_univ, true_and] at he'
-    constructor
-    · intro h2
-      exact hinj (Prod.ext he'.1 h2.symm)
-    · rintro rfl
-      rfl
-  have hsum :
-      (∑ e' ∈ univ.filter (fun e' : A => (place e').1 = (place e).1 ∧ varOf e' = v),
-          if (place e).2 = (place e').2 then (1 : ℚ) else 0) =
-        ∑ e' ∈ univ.filter (fun e' : A => (place e').1 = (place e).1 ∧ varOf e' = v),
-          if e' = e then (1 : ℚ) else 0 :=
-    sum_congr rfl fun e' he' => if_congr (h1 e' he') rfl rfl
-  rw [hsum, sum_ite_eq']
+  rw [sum_congr rfl fun e' he' => if_congr (show (place e).2 = (place e').2 ↔ e' = e from
+    ⟨fun h2 => hinj (Prod.ext (mem_filter.1 he').2.1 h2.symm), fun h => h ▸ rfl⟩) rfl rfl,
+    sum_ite_eq']
   simp
 
 /-- When `place` is injective, `⟨P⃗_e(0), x⟩ = x (varOf e)` (Section 4.5, p. 32). -/
@@ -409,10 +354,8 @@ theorem mem_varGroup {n Q r : ℕ} {a : Fin n → Fin Q → Fin r} {t : Fin Q} {
 theorem disjoint_varGroup {n Q r : ℕ} (a : Fin n → Fin Q → Fin r) (t : Fin Q) {g₁ g₂ : Fin r}
     (hne : g₁ ≠ g₂) :
     Disjoint (varGroup a t g₁) (varGroup a t g₂) := by
-  rw [Finset.disjoint_left]
-  intro v hv1 hv2
-  rw [mem_varGroup] at hv1 hv2
-  exact hne (hv1.symm.trans hv2)
+  exact Finset.disjoint_left.2 fun v hv1 hv2 =>
+    hne ((mem_varGroup.1 hv1).symm.trans (mem_varGroup.1 hv2))
 
 theorem biUnion_varGroup {n Q r : ℕ} (a : Fin n → Fin Q → Fin r) (t : Fin Q) :
     univ.biUnion (varGroup a t) = univ := by
@@ -484,13 +427,10 @@ theorem varMeasurementMatrix_mulVec_eq_zero_iff {A : Type*} [Fintype A] (Q r A�
     (varMeasurementMatrix Q r A₀ R K place varOf).mulVec x = 0 ↔
       ∀ c : Fin h,
         (measurementMatrix Q r A₀ R K).mulVec (copyProj c (copyEmbed place varOf x)) = 0 := by
-  constructor
-  · intro h0 c
-    ext β
-    rw [← varMeasurementMatrix_mulVec]
+  refine ⟨fun h0 c => funext fun β => ?_, fun h0 => ?_⟩
+  · rw [← varMeasurementMatrix_mulVec]
     exact congrFun h0 (c, β)
-  · intro h0
-    ext ⟨c, β⟩
+  · ext ⟨c, β⟩
     rw [varMeasurementMatrix_mulVec]
     exact congrFun (h0 c) β
 
@@ -522,15 +462,8 @@ theorem copyProj_copyEmbed_eq_zero_of_not_mem_auxGroup {A : Type*} [Fintype A]
     (c : Fin h) {y : AuxLabel Q r} (hy : y ∉ auxGroup t g) :
     copyProj c (copyEmbed place varOf ξ) y = 0 := by
   unfold copyProj copyEmbed
-  refine sum_eq_zero fun e' he' => ?_
-  simp only [mem_filter, mem_univ, true_and] at he'
-  refine hsupp (varOf e') ?_
-  rw [mem_varGroup]
-  intro hvg
-  apply hy
-  rw [mem_auxGroup]
-  have hy_eq : (place e').2 = y := (Prod.mk.inj he').2
-  rw [← hy_eq, hcompat e', hvg]
+  refine sum_eq_zero fun e' he' => hsupp (varOf e') fun hvg => hy ?_
+  rw [mem_auxGroup, ← (Prod.mk.inj (mem_filter.1 he').2).2, hcompat e', mem_varGroup.1 hvg]
 
 /-- **Definition 3.1 kernel separation on `Fin n` (Section 4.5, p. 32)**: when
 `(place e').2.1 = a (varOf e')` for all `e' : A`, if `g ≠ (place e).2.2 t`, `ξ : Fin n → ℚ` is
@@ -569,14 +502,9 @@ theorem evalVarReplacementRow_nodePoint_eq_of_eq_on_varGroup {A : Type*} [Fintyp
     evalVarReplacementRow_eq_evalAuxReplacementRow]
   refine evalAuxReplacementRow_nodePoint_eq_of_eq_on_auxGroup Q r A₀ R (place e).2 t _ _ ?_ ?_
   · intro y hy
-    rw [mem_auxGroup] at hy
     unfold copyProj copyEmbed
-    refine sum_congr rfl fun e' he' => ?_
-    simp only [mem_filter, mem_univ, true_and] at he'
-    refine hgroup (varOf e') ?_
-    rw [mem_varGroup]
-    have hy_eq : (place e').2 = y := (Prod.mk.inj he').2
-    rw [← hcompat e', hy_eq, hy]
+    refine sum_congr rfl fun e' he' => hgroup (varOf e') ?_
+    rw [mem_varGroup, ← hcompat e', (Prod.mk.inj (mem_filter.1 he').2).2, mem_auxGroup.1 hy]
   · ext β
     rw [← varMeasurementMatrix_mulVec, ← varMeasurementMatrix_mulVec, hmeas]
 
@@ -587,52 +515,12 @@ theorem sum_abs_varMeasurementMatrix_le {A : Type*} [Fintype A] (Q r A₀ R : �
     (p : Fin h × measurementIndices Q r A₀ R) :
     (∑ v : Fin n, |varMeasurementMatrix Q r A₀ R ℤ place varOf p v|) ≤ (r ^ (2 * Q) : ℤ) := by
   classical
-  have htri :
-      (∑ v : Fin n, |varMeasurementMatrix Q r A₀ R ℤ place varOf p v|) ≤
-        ∑ v : Fin n,
-          ∑ e' ∈ univ.filter (fun e' : A => (place e').1 = p.1 ∧ varOf e' = v),
-            |measurementMatrix Q r A₀ R ℤ p.2 (place e').2| :=
-    sum_le_sum fun v _ => abs_sum_le_sum_abs _ _
-  have hU :
-      (∑ v : Fin n,
-          ∑ e' ∈ univ.filter (fun e' : A => (place e').1 = p.1 ∧ varOf e' = v),
-            |measurementMatrix Q r A₀ R ℤ p.2 (place e').2|) =
-        ∑ e' ∈ univ.filter (fun e' : A => (place e').1 = p.1),
-          |measurementMatrix Q r A₀ R ℤ p.2 (place e').2| := by
-    rw [← sum_biUnion]
-    · congr 1
-      ext e'
-      simp
-    · intro v₁ _ v₂ _ hne
-      simp only [Function.onFun, Finset.disjoint_left]
-      intro e' h1 h2
-      simp only [mem_filter, mem_univ, true_and] at h1 h2
-      exact hne (h1.2.symm.trans h2.2)
-  have h1 :
-      (∑ e' ∈ univ.filter (fun e' : A => (place e').1 = p.1),
-          |measurementMatrix Q r A₀ R ℤ p.2 (place e').2|) ≤
-        #(univ.filter (fun e' : A => (place e').1 = p.1)) := by
-    calc
-      (∑ e' ∈ univ.filter (fun e' : A => (place e').1 = p.1),
-          |measurementMatrix Q r A₀ R ℤ p.2 (place e').2|) ≤
-        ∑ _e' ∈ univ.filter (fun e' : A => (place e').1 = p.1), (1 : ℤ) :=
-          sum_le_sum fun e' _ => abs_eigenvecInt_le_one p.2.1 (place e').2
-      _ = #(univ.filter (fun e' : A => (place e').1 = p.1)) := by simp
-  have hcard :
-      #(univ.filter (fun e' : A => (place e').1 = p.1)) ≤ r ^ (2 * Q) := by
-    have hinj_on :
-        Set.InjOn (fun e' : A => (place e').2)
-          (univ.filter (fun e' : A => (place e').1 = p.1)) := by
-      intro e₁ he₁ e₂ he₂ h2
-      simp only [mem_coe, mem_filter, mem_univ, true_and] at he₁ he₂
-      exact hinj (Prod.ext (he₁.trans he₂.symm) h2)
-    calc
-      #(univ.filter (fun e' : A => (place e').1 = p.1)) =
-          #((univ.filter (fun e' : A => (place e').1 = p.1)).image (fun e' : A => (place e').2)) :=
-        (card_image_of_injOn hinj_on).symm
-      _ ≤ #(univ : Finset (AuxLabel Q r)) := card_le_univ _
-      _ = r ^ (2 * Q) := by rw [card_univ, card_auxLabel]
-  exact htri.trans (by rw [hU]; exact h1.trans (by exact_mod_cast hcard))
+  refine (sum_le_sum fun v _ => abs_sum_le_sum_abs _ _).trans ?_
+  rw [sum_filter_and_fiber]
+  refine (sum_filter_place_fst_le hinj p.1 fun _ => abs_nonneg _).trans ?_
+  refine (sum_le_sum fun y _ => abs_eigenvecInt_le_one p.2.1 y).trans_eq ?_
+  rw [sum_const, card_univ, card_auxLabel]
+  simp
 
 /-- On any `{0, 1}`-valued vector `x : Fin n → ℤ`, every coordinate of
 `(varMeasurementMatrix Q r A₀ R ℤ place varOf).mulVec x` has absolute value at most
@@ -660,15 +548,9 @@ private theorem coeffNorm1_prod_C_sub_X_le {Q : ℕ} (E : Finset (Fin Q)) :
   | empty => simp
   | insert s E hs ih =>
     rw [prod_insert hs, prod_insert hs]
-    have hnat : ((s.1 : ℤ) + 1).natAbs = s.1 + 1 := by omega
-    calc
-      ((C ((s.1 : ℤ) + 1) - X) * ∏ t ∈ E, (C ((t.1 : ℤ) + 1) - X)).coeffNorm1 ≤
-          (((s.1 : ℤ) + 1).natAbs + 1) *
-            (∏ t ∈ E, (C ((t.1 : ℤ) + 1) - X)).coeffNorm1 :=
-        coeffNorm1_C_sub_X_mul_le _ _
-      _ = ((s.1 + 1) + 1) * (∏ t ∈ E, (C ((t.1 : ℤ) + 1) - X)).coeffNorm1 := by
-        rw [hnat]
-      _ ≤ ((s.1 + 1) + 1) * ∏ t ∈ E, ((t.1 + 1) + 1) := by gcongr
+    refine (coeffNorm1_C_sub_X_mul_le _ _).trans ?_
+    rw [show ((s.1 : ℤ) + 1).natAbs = s.1 + 1 by omega]
+    gcongr
 
 private theorem prod_add_one_add_one_le {Q : ℕ} (E : Finset (Fin Q)) :
     (∏ s ∈ E, ((s.1 + 1) + 1)) ≤ ∏ s ∈ E, (2 * (s.1 + 1)) := by
@@ -684,15 +566,10 @@ private theorem prod_add_one_add_one_le {Q : ℕ} (E : Finset (Fin Q)) :
 theorem coeffNorm1_mismatchAnnihilatorScaledInt_le {Q r : ℕ} (u y : AuxLabel Q r) :
     (mismatchAnnihilatorScaledInt u y).coeffNorm1 ≤ Q.factorial * 2 ^ Q := by
   unfold mismatchAnnihilatorScaledInt
-  have hcast :
-      (∏ s ∈ (mismatchSet u y)ᶜ, ((s.1 : ℤ) + 1)) =
-        ((∏ s ∈ (mismatchSet u y)ᶜ, (s.1 + 1) : ℕ) : ℤ) := by
-    push_cast
-    rfl
   have hnat :
       (∏ s ∈ (mismatchSet u y)ᶜ, ((s.1 : ℤ) + 1)).natAbs =
         ∏ s ∈ (mismatchSet u y)ᶜ, (s.1 + 1) := by
-    rw [hcast, Int.natAbs_natCast]
+    rw [Int.natAbs_prod]; exact prod_congr rfl fun _ _ => by omega
   calc
     (C (∏ s ∈ (mismatchSet u y)ᶜ, ((s.1 : ℤ) + 1)) *
         ∏ s ∈ mismatchSet u y, (C ((s.1 : ℤ) + 1) - X)).coeffNorm1 ≤
@@ -768,30 +645,12 @@ theorem rowNorm1_smul {Q r : ℕ} (c : ℤ) (A : Matrix (AuxLabel Q r) (AuxLabel
 @[simp]
 theorem rowNorm1_one {Q r : ℕ} (u : AuxLabel Q r) :
     rowNorm1 (1 : Matrix (AuxLabel Q r) (AuxLabel Q r) ℤ) u = 1 := by
-  unfold rowNorm1
-  have h :
-      ∀ y : AuxLabel Q r,
-        |(1 : Matrix (AuxLabel Q r) (AuxLabel Q r) ℤ) u y| = if y = u then 1 else 0 := by
-    intro y
-    by_cases hy : y = u
-    · subst hy
-      simp
-    · have hy' : u ≠ y := Ne.symm hy
-      simp [hy, hy']
-  simp_rw [h]
-  simp
+  simp [rowNorm1, Matrix.one_apply, apply_ite (abs : ℤ → ℤ)]
 
 @[simp]
 theorem rowNorm1_subsetSwapMatrix {Q r : ℕ} (J : Finset (Fin Q)) (u : AuxLabel Q r) :
     rowNorm1 (subsetSwapMatrix Q r ℤ J) u = 1 := by
-  unfold rowNorm1 subsetSwapMatrix
-  have h :
-      ∀ y : AuxLabel Q r,
-        |(if y = subsetSwap J u then (1 : ℤ) else 0)| = if y = subsetSwap J u then 1 else 0 := by
-    intro y
-    split_ifs <;> rfl
-  simp_rw [h]
-  simp
+  simp [rowNorm1, subsetSwapMatrix, apply_ite (abs : ℤ → ℤ)]
 
 theorem rowNorm1_mul_le {Q r : ℕ} (A B : Matrix (AuxLabel Q r) (AuxLabel Q r) ℤ)
     (M : ℤ) (hB : ∀ z : AuxLabel Q r, rowNorm1 B z ≤ M) (u : AuxLabel Q r) :
@@ -883,15 +742,9 @@ theorem rowNorm1_M0ScaledInt_le {Q r A₀ R : ℕ} (hQ : 0 < Q) (hI : ∀ a < R 
     have hpow : (4 * (Q : ℤ)) ^ j ≤ (4 * (Q : ℤ)) ^ (R - 1) :=
       pow_le_pow_right₀ (by omega) hjle
     exact mul_le_mul hdiv (hfall.trans hpow) (rowNorm1_nonneg _ _) (by positivity)
-  calc
-    (∑ j ∈ range R,
-        rowNorm1 ((((R - 1).factorial / j.factorial : ℕ) : ℤ) • fallingTermMatrixInt Q r A₀ j)
-          (fullSwap u)) ≤
-      ∑ _j ∈ range R, ((R - 1).factorial : ℤ) * (4 * (Q : ℤ)) ^ (R - 1) :=
-        sum_le_sum hterm
-    _ = ((R - 1).factorial : ℤ) * (R : ℤ) * (4 * (Q : ℤ)) ^ (R - 1) := by
-      rw [sum_const, card_range, nsmul_eq_mul]
-      ring
+  refine (sum_le_sum hterm).trans_eq ?_
+  rw [sum_const, card_range, nsmul_eq_mul]
+  ring
 
 /-- **Lemma 4.6 auxiliary row coefficient bound (p. 33)**: when `0 < Q` and every interpolation
 node `A₀ + a` (`a < R - 1`) is at most `Q` (`hI : ∀ a < R - 1, A₀ + a ≤ Q`), for every
@@ -915,11 +768,7 @@ theorem sum_coeffNorm1_auxReplacementRowScaledInt_le {Q r A₀ R : ℕ}
         |(if u = y then ((R - 1).factorial : ℤ) else 0) - M0ScaledInt Q r A₀ R u y| ≤
           (if u = y then ((R - 1).factorial : ℤ) else 0) + |M0ScaledInt Q r A₀ R u y| := by
       refine (abs_sub _ _).trans ?_
-      have hite :
-          |if u = y then ((R - 1).factorial : ℤ) else 0| =
-            if u = y then ((R - 1).factorial : ℤ) else 0 := by
-        split_ifs <;> simp [abs_of_nonneg (by positivity : 0 ≤ ((R - 1).factorial : ℤ))]
-      rw [hite]
+      split_ifs <;> simp
     have h2 :
         ((C (M0ScaledInt Q r A₀ R u y) * mismatchAnnihilatorScaledInt u y).coeffNorm1 : ℤ) ≤
           |M0ScaledInt Q r A₀ R u y| * ((Q.factorial : ℤ) * 2 ^ Q) :=
@@ -976,50 +825,9 @@ theorem sum_coeffNorm1_varReplacementRowScaledInt_le {A : Type*} [Fintype A]
     (∑ v : Fin n, ((varReplacementRowScaledInt Q r A₀ R place varOf e v).coeffNorm1 : ℤ)) ≤
       (commonDenom Q R : ℤ) * (1 + (1 + 2 ^ Q) * (R : ℤ) * (4 * (Q : ℤ)) ^ (R - 1)) := by
   classical
-  have htri :
-      (∑ v : Fin n, ((varReplacementRowScaledInt Q r A₀ R place varOf e v).coeffNorm1 : ℤ)) ≤
-        ∑ v : Fin n,
-          ∑ e' ∈ univ.filter (fun e' : A => (place e').1 = (place e).1 ∧ varOf e' = v),
-            ((auxReplacementRowScaledInt Q r A₀ R (place e).2 (place e').2).coeffNorm1 : ℤ) :=
-    sum_le_sum fun v _ => natCast_coeffNorm1_sum_le _ _
-  have hU :
-      (∑ v : Fin n,
-          ∑ e' ∈ univ.filter (fun e' : A => (place e').1 = (place e).1 ∧ varOf e' = v),
-            ((auxReplacementRowScaledInt Q r A₀ R (place e).2 (place e').2).coeffNorm1 : ℤ)) =
-        ∑ e' ∈ univ.filter (fun e' : A => (place e').1 = (place e).1),
-          ((auxReplacementRowScaledInt Q r A₀ R (place e).2 (place e').2).coeffNorm1 : ℤ) := by
-    rw [← sum_biUnion]
-    · congr 1
-      ext e'
-      simp
-    · intro v₁ _ v₂ _ hne
-      simp only [Function.onFun, Finset.disjoint_left]
-      intro e' h1 h2
-      simp only [mem_filter, mem_univ, true_and] at h1 h2
-      exact hne (h1.2.symm.trans h2.2)
-  have hinj_on :
-      Set.InjOn (fun e' : A => (place e').2)
-        (univ.filter (fun e' : A => (place e').1 = (place e).1)) := by
-    intro e₁ he₁ e₂ he₂ h2
-    simp only [mem_coe, mem_filter, mem_univ, true_and] at he₁ he₂
-    exact hinj (Prod.ext (he₁.trans he₂.symm) h2)
-  have himg :
-      (∑ e' ∈ univ.filter (fun e' : A => (place e').1 = (place e).1),
-          ((auxReplacementRowScaledInt Q r A₀ R (place e).2 (place e').2).coeffNorm1 : ℤ)) =
-        ∑ y ∈ (univ.filter (fun e' : A => (place e').1 = (place e).1)).image
-            (fun e' : A => (place e').2),
-          ((auxReplacementRowScaledInt Q r A₀ R (place e).2 y).coeffNorm1 : ℤ) :=
-    (Finset.sum_image
-      (f := fun y => ((auxReplacementRowScaledInt Q r A₀ R (place e).2 y).coeffNorm1 : ℤ))
-      hinj_on).symm
-  have hsub :
-      (∑ y ∈ (univ.filter (fun e' : A => (place e').1 = (place e).1)).image
-            (fun e' : A => (place e').2),
-          ((auxReplacementRowScaledInt Q r A₀ R (place e).2 y).coeffNorm1 : ℤ)) ≤
-        ∑ y : AuxLabel Q r, ((auxReplacementRowScaledInt Q r A₀ R (place e).2 y).coeffNorm1 : ℤ) :=
-    sum_le_univ_sum_of_nonneg fun y => Nat.cast_nonneg _
-  exact htri.trans (by
-    rw [hU, himg]
-    exact hsub.trans (sum_coeffNorm1_auxReplacementRowScaledInt_le hQ hI (place e).2))
+  refine (sum_le_sum fun v _ => natCast_coeffNorm1_sum_le _ _).trans ?_
+  rw [sum_filter_and_fiber]
+  exact (sum_filter_place_fst_le hinj _ fun _ => Nat.cast_nonneg _).trans
+    (sum_coeffNorm1_auxReplacementRowScaledInt_le hQ hI (place e).2)
 
 end Cslib.LinearAlgebra

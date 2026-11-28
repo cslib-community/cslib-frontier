@@ -74,9 +74,8 @@ theorem eval_cachedSamplerOracle (valid : List Bool → Bool)
     (sampleReply : ProbComp (List Bool)) (q : List Bool) (cache : List (List Bool × List Bool)) :
     ProbComp.eval (cachedSamplerOracle valid sampleReply q cache) =
       cachedDistOracle valid (ProbComp.eval sampleReply) q cache := by
-  by_cases hv : valid q = true
-  · simp [cachedSamplerOracle, cachedDistOracle, hv, ProbComp.eval_memoize]
-  · simp [cachedSamplerOracle, cachedDistOracle, hv, ProbComp.eval_pure]
+  by_cases hv : valid q = true <;>
+    simp [cachedSamplerOracle, cachedDistOracle, hv, ProbComp.eval_memoize, ProbComp.eval_pure]
 
 /-- A call to `cachedSamplerOracle` either leaves the cache untouched or prepends the reply to a
 fresh valid query. -/
@@ -89,10 +88,8 @@ theorem cachedSamplerOracle_cache_of_mem_support {valid : List Bool → Bool}
       valid query = true ∧ cache.lookup query = none ∧ result.2 = (query, result.1) :: cache := by
   by_cases hvalid : valid query = true
   · simp only [cachedSamplerOracle, ite_eq_left hvalid, ProbComp.eval_memoize] at hresult
-    rcases (RandomOracle.mem_support_memoize_iff _ _ _ _).mp hresult with
-      ⟨_, hsame⟩ | ⟨hfresh, _, hnew⟩
-    · exact Or.inl hsame
-    · exact Or.inr ⟨hvalid, hfresh, hnew⟩
+    exact ((RandomOracle.mem_support_memoize_iff _ _ _ _).mp hresult).imp And.right
+      fun ⟨hfresh, _, hnew⟩ => ⟨hvalid, hfresh, hnew⟩
   · simp only [cachedSamplerOracle, ite_eq_right hvalid, ProbComp.eval_pure,
       PMF.mem_support_pure_iff] at hresult
     exact Or.inl (congrArg Prod.snd hresult)
@@ -105,13 +102,8 @@ theorem cachedSamplerOracle_support {valid : List Bool → Bool}
     res.2.length ≤ cache.length + 1 ∧
       ((∀ entry ∈ cache, valid entry.1 = true) → ∀ entry ∈ res.2, valid entry.1 = true) := by
   rcases cachedSamplerOracle_cache_of_mem_support hres with hsame | ⟨hvalid, _, hnext⟩
-  · rw [hsame]
-    exact ⟨Nat.le_succ _, id⟩
-  · rw [hnext]
-    refine ⟨by simp, fun hcache entry hentry => ?_⟩
-    rcases List.mem_cons.mp hentry with rfl | hmem
-    · exact hvalid
-    · exact hcache entry hmem
+  · exact hsame ▸ ⟨Nat.le_succ _, id⟩
+  · exact hnext ▸ ⟨by simp, fun hcache _ h => (List.mem_cons.mp h).elim (· ▸ hvalid) (hcache _)⟩
 
 /-- Every key recorded in the final cache of a `runState` execution against `cachedSamplerOracle`
 from `[]` satisfies `valid`. -/
@@ -173,10 +165,9 @@ theorem isPPTOn_runState_cachedSamplerOracle {Caller α β : Type}
     (resources := fun a query => 4 * query.length + 2 * maxVal a + 3)
     hprepare ?_ (.const [])
     (fun a cache => ∀ entry ∈ cache, entry.2.length ≤ maxVal a) (by simp) (by fun_prop) ?_
-  · let cacheEncoding := encMemoCache encBits encBits
-    let requestEncoding := encPair (encFinEnum Unit) encBits
-    let hcaller := ComputableInPolyTime.fst input (encPair requestEncoding cacheEncoding)
-    let hrest := ComputableInPolyTime.snd input (encPair requestEncoding cacheEncoding)
+  · let encRC := encPair (encPair (encFinEnum Unit) encBits) (encMemoCache encBits encBits)
+    let hcaller := ComputableInPolyTime.fst input encRC
+    let hrest := ComputableInPolyTime.snd input encRC
     exact isPPTOn_cachedSamplerOracle
       (valid := fun p : Caller × (Unit × List Bool) × List (List Bool × List Bool) => valid p.1)
       (sampleReply := fun p => sampleReply p.1)
@@ -193,19 +184,17 @@ theorem isPPTOn_runState_cachedSamplerOracle {Caller α β : Type}
         by simpa only [encBits_apply, Nat.add_assoc] using hgrowth⟩
     · simp only [cachedSamplerOracle, ite_eq_right hquery, ProbComp.eval_pure,
         PMF.mem_support_pure_iff] at hresult
-      subst result
-      exact ⟨hcache, Nat.zero_le _, Nat.le_add_right _ _⟩
+      exact hresult ▸ ⟨hcache, Nat.zero_le _, Nat.le_add_right _ _⟩
 
 /-- If `CloseTo μ ν ε`, one call to `cachedDistOracle` preserves `CloseTo` with error `ε`. -/
 theorem closeTo_cachedDistOracle (valid : List Bool → Bool) {μ ν : PMF (List Bool)}
     {ε : ℝ≥0∞} (hclose : CloseTo μ ν ε) (q : List Bool) (cache : List (List Bool × List Bool)) :
     CloseTo (cachedDistOracle valid μ q cache) (cachedDistOracle valid ν q cache) ε := by
-  unfold cachedDistOracle
+  unfold cachedDistOracle Cslib.memoize
   split_ifs with hv
-  · unfold Cslib.memoize
-    cases cache.lookup q with
-    | some v => exact (CloseTo.refl _).mono (zero_le : 0 ≤ ε)
-    | none => exact hclose.map fun v => (v, (q, v) :: cache)
-  · exact (CloseTo.refl _).mono (zero_le : 0 ≤ ε)
+  · cases cache.lookup q
+    · exact hclose.map fun v => (v, (q, v) :: cache)
+    · exact (CloseTo.refl _).mono zero_le
+  · exact (CloseTo.refl _).mono zero_le
 
 end Cslib.Probability

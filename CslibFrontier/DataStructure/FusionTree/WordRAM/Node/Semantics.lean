@@ -37,14 +37,11 @@ open Cslib.WordRAM Cslib.BitString Cslib.DataStructure.FusionTree
 
 private theorem card_filter_range {n : ℕ} (P : ℕ → Prop) [DecidablePred P] :
     ((Finset.range n).filter P).card = (Finset.univ.filter fun i : Fin n => P i.val).card := by
-  apply Finset.card_bij (fun i hi => (⟨i, Finset.mem_range.mp (Finset.mem_filter.mp hi).1⟩ : Fin n))
-  · intro i hi
-    exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, (Finset.mem_filter.mp hi).2⟩
-  · intro i _ j _ he
-    exact congrArg Fin.val he
-  · intro i hi
-    exact ⟨i.val, Finset.mem_filter.mpr
-      ⟨Finset.mem_range.mpr i.isLt, (Finset.mem_filter.mp hi).2⟩, rfl⟩
+  rw [← Finset.card_map Fin.valEmbedding]
+  refine congrArg Finset.card (Finset.ext fun x => ?_)
+  simp only [Finset.mem_filter, Finset.mem_range, Finset.mem_map, Finset.mem_univ,
+    Fin.valEmbedding_apply, true_and]
+  exact ⟨fun ⟨hx, hp⟩ => ⟨⟨x, hx⟩, hp, rfl⟩, fun ⟨a, hp, ha⟩ => ⟨ha ▸ a.isLt, ha ▸ hp⟩⟩
 
 /-- The arithmetic inclusive count agrees with the perfect-sketch rank on every input. -/
 theorem upperRank_eq {w n : ℕ} {keys : Fin n → ℕ} (p : NodeParameters w keys)
@@ -80,9 +77,7 @@ theorem correct {w n q : ℕ} {keys : Fin n → ℕ} (hs : StrictMono keys)
     (if keys j = q then sketchRank w keys q else boundaryRank w keys q j) =
       upperRank keys q := by
   by_cases hj : keys j = q
-  · simp only [hj, ↓reduceIte, sketchRank]
-    rw [← hj]
-    exact upperRank_sketch_apply hs hk j
+  · simpa only [hj, ↓reduceIte, sketchRank] using upperRank_sketch_apply hs hk j
   · rw [ite_eq_right hj]
     have hm := miss hs hk j hbest hj
     apply boundaryRank_eq_upperRank hs hk hq hm j

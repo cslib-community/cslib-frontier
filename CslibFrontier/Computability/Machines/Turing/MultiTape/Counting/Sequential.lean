@@ -60,22 +60,14 @@ theorem runList_seq (first : MultiTapeCTM k Symbol State₀) (second : MultiTape
     chooseOccurrence chooseOccurrence_map Empty.elim
     (fun n => List.ofFn (id : Fin n → Fin n)) cfg firstTime secondTime
     (by
-      rw [interpret_runConfigFrom_eq_map_runList]
-      intro result hresult
-      obtain ⟨native, hnative, rfl⟩ := List.mem_map.mp hresult
-      exact hfirst.halted_of_mem_runList hnative)
+      simp only [interpret_runConfigFrom_eq_map_runList, List.forall_mem_map]
+      exact fun _ h => hfirst.halted_of_mem_runList h)
     (by
-      rw [interpret_runConfigFrom_eq_map_runList]
-      intro result hresult
-      obtain ⟨native, hnative, rfl⟩ := List.mem_map.mp hresult
-      rw [interpret_runConfigFrom_eq_map_runList]
-      intro final hfinal
-      obtain ⟨nativeFinal, hnativeFinal, rfl⟩ := List.mem_map.mp hfinal
-      exact (hsecond native hnative).halted_of_mem_runList hnativeFinal)
-  have hm := congrArg (List.map Config.tapes) h
+      simp only [interpret_runConfigFrom_eq_map_runList, List.forall_mem_map]
+      exact fun _ h₁ _ h₂ => (hsecond _ h₁).halted_of_mem_runList h₂)
   simpa [interpret_runConfigFrom_eq_map_runList, List.map_flatMap, List.flatMap_map,
     List.map_map, Function.comp_def, Config.emptyOracleEquiv, Sequential.start,
-    Sequential.right] using hm
+    Sequential.right] using congrArg (List.map Config.tapes) h
 
 /-- Under the explicit no-stuck table hypotheses, every sequential branch halts within the sum.
 The conclusion is the native occurrence-labelled bound, not just a support condition. -/

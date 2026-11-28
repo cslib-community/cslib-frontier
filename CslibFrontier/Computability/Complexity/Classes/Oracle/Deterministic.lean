@@ -139,24 +139,18 @@ theorem exists_run_pure_false_stateM {program : α → WordQueryComp Operation �
   obtain ⟨-, k, Control, hfinite, machine, c, d, h⟩ := h
   refine ⟨k, Control, hfinite, machine, c, d, fun a σ step s => ?_⟩
   have hcert := h a σ (fun q s => PMF.pure (step q s)) s
-  rw [ProbOracleComp.runWith_eq_run_interpret, ProbOracleComp.runWith_eq_run_interpret] at hcert
-  rw [OracleComp.interpret_map, StateT.run_map, run_interpret_interpret_query_stateM,
+  rw [ProbOracleComp.runWith_eq_run_interpret, ProbOracleComp.runWith_eq_run_interpret,
+    OracleComp.interpret_map, StateT.run_map, run_interpret_interpret_query_stateM,
     PMF.monad_map_eq_map, PMF.pure_map] at hcert
   have hmem := MultiTapePTM.mem_support_runConfigFrom_pure_stateM machine false step s
     (c * ((input a).length + 1) ^ d) (machine.initialConfig (input a))
   rw [ProbOracleComp.runWith_eq_run_interpret] at hmem
-  have hmem' : (OracleComp.interpret (m := StateM σ) (fun q => (step q : StateM σ _))
-      (machine.run (pure false)
-      (fun op word => OracleComp.query (op, word)) (c * ((input a).length + 1) ^ d) (input a))).run
-        s ∈ ((OracleComp.interpret (OracleComp.sumHandler
-        (fun n => StateT.lift (ProbComp.unifOracle n)) (fun q s => PMF.pure (step q s)))
-        (machine.runOracle (c * ((input a).length + 1) ^ d) (input a))).run s).support := by
-    simp only [MultiTapePTM.runOracle, MultiTapePTM.run, MultiTapePTM.runFrom,
-      OracleComp.interpret_map, StateT.run_map, PMF.monad_map_eq_map,
-      PMF.mem_support_map_iff]
-    exact ⟨_, hmem, rfl⟩
-  rw [← hcert, PMF.mem_support_pure_iff] at hmem'
-  exact hmem'
+  rw [← PMF.mem_support_pure_iff, Prod.map_def]
+  dsimp only [id]
+  rw [hcert]
+  simp only [MultiTapePTM.runOracle, MultiTapePTM.run, MultiTapePTM.runFrom,
+    OracleComp.interpret_map, StateT.run_map, PMF.monad_map_eq_map, PMF.mem_support_map_iff]
+  exact ⟨_, hmem, rfl⟩
 
 
 /-- **Certificates are deterministic runs.** A certificate for a deterministic program yields a
@@ -175,10 +169,9 @@ theorem exists_run_pure_false {program : α → WordQueryComp Operation β}
   obtain ⟨k, Control, hfinite, machine, c, d, h⟩ := exists_run_pure_false_stateM h
   refine ⟨k, Control, hfinite, machine, c, d, fun a answer => ?_⟩
   have h := congrArg Prod.fst (h a Unit (fun q s => (answer q, s)) ())
-  have e (γ : Type) (p : WordQueryComp Operation γ) :
-      (OracleComp.interpret (m := StateM Unit)
-        (fun q => ((fun s => (answer q, s)) : StateM Unit (List Bool))) p).run () =
-        (OracleComp.interpret (m := Id) answer p, ()) :=
+  have e {γ} (p : WordQueryComp Operation γ) : (OracleComp.interpret (m := StateM Unit)
+      (fun q => ((fun s => (answer q, s)) : StateM Unit _)) p).run () =
+      (OracleComp.interpret (m := Id) answer p, ()) :=
     OracleComp.run_interpret_stateless (m := Id) answer p ()
   rwa [e, e] at h
 

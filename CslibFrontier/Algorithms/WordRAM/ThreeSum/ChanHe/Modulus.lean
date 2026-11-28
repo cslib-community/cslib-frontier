@@ -115,19 +115,13 @@ theorem exec_secondSetup {w : ℕ} (x : Data 64) (h3 : Fits w 3)
 
 private theorem selector_bounds {m : ℕ} (hm : 1 ≤ m) (A : ℕ → Prop) [DecidablePred A] :
     1 ≤ minOrOne {q ∈ Nat.primesLE m | A q} ∧
-      minOrOne {q ∈ Nat.primesLE m | A q} ≤ m := by
-  exact minOrOne_filter_bounds hm
+      minOrOne {q ∈ Nat.primesLE m | A q} ≤ m :=
+  minOrOne_filter_bounds hm
     (fun q hq => (Nat.prime_of_mem_primesLE hq).two_le.trans' (by decide))
     (fun _ hq => Nat.le_of_mem_primesLE hq) A
 
-private theorem forall_three {P : Fin 3 → Prop} : (∀ j, P j) ↔ P 0 ∧ P 1 ∧ P 2 := by
-  constructor
-  · intro h; exact ⟨h 0, h 1, h 2⟩
-  · intro h j
-    fin_cases j
-    · exact h.1
-    · exact h.2.1
-    · exact h.2.2
+private theorem forall_three {P : Fin 3 → Prop} : (∀ j, P j) ↔ P 0 ∧ P 1 ∧ P 2 :=
+  ⟨fun h => ⟨h 0, h 1, h 2⟩, fun ⟨h0, h1, h2⟩ j => by fin_cases j; exacts [h0, h1, h2]⟩
 
 private theorem first_selector (x : Data 64) (values : Fin 3 → ℕ → ℤ)
     (hinj : ∀ j, Set.InjOn (values j)
@@ -186,30 +180,17 @@ private theorem budget_bounds (x : Data 64) (j : Fin 3) :
   let poly := (n + 1) ^ 2 * (3 * x.regs digits + x.regs CollisionTest.card + 1)
   have hn : x.regs (CountCall.length j) ≤ n := length_le_sum x j
   have hs := source_le_sum x j
-  have hpoly : (n + 1) ^ 2 ≤ poly := by
-    simpa only [Nat.mul_one] using Nat.mul_le_mul_left ((n + 1) ^ 2)
-      (show 1 ≤ 3 * x.regs digits + x.regs CollisionTest.card + 1 by omega)
-  have hsquare : x.regs (CountCall.length j) ^ 2 ≤ (n + 1) ^ 2 := by nlinarith
-  have hcard : x.regs (CountCall.length j) ^ 2 * x.regs CollisionTest.card ≤ poly := by
-    exact (Nat.mul_le_mul_right _ hsquare).trans
-      (Nat.mul_le_mul_left _ (by omega))
-  have hcut : 3 * x.regs digits * x.regs (CountCall.length j) ^ 2 ≤ poly := by
-    rw [Nat.mul_comm (3 * x.regs digits)]
-    exact (Nat.mul_le_mul_right _ hsquare).trans
-      (Nat.mul_le_mul_left _ (by omega))
-  have htriple : 3 * x.regs digits ≤ poly := by
-    have hbase : 1 ≤ (n + 1) ^ 2 := by nlinarith
-    exact (show 3 * x.regs digits ≤ 3 * x.regs digits * (n + 1) ^ 2 by
-      nlinarith).trans (by
-        rw [Nat.mul_comm]
-        exact Nat.mul_le_mul_left _ (by omega))
-  have hb : budget x = x.regs CountCall.histogram + x.regs CountCall.scratch +
-      x.regs Search.primes + x.regs (CountCall.source 0) + x.regs (CountCall.source 1) +
-      x.regs (CountCall.source 2) + poly + x.regs Search.limit ^ 2 +
-        x.regs Search.limit + 100 := rfl
-  rw [hb]
-  have hsize : x.regs (CountCall.length j) ^ 2 + x.regs (CountCall.length j) + 1 ≤ poly := by
-    nlinarith
+  have hsq := Nat.pow_le_pow_left hn 2
+  have hexp : (n + 1) ^ 2 = n ^ 2 + 2 * n + 1 := by ring
+  have hpoly : (n + 1) ^ 2 ≤ poly := Nat.le_mul_of_pos_right _ (by omega)
+  have hrhs : 3 * x.regs digits + x.regs CollisionTest.card + 1 ≤ poly :=
+    Nat.le_mul_of_pos_left _ (by positivity)
+  have hsquare : x.regs (CountCall.length j) ^ 2 ≤ (n + 1) ^ 2 := by omega
+  have hcard : x.regs (CountCall.length j) ^ 2 * x.regs CollisionTest.card ≤ poly :=
+    Nat.mul_le_mul hsquare (by omega)
+  have hcut : 3 * x.regs digits * x.regs (CountCall.length j) ^ 2 ≤ poly :=
+    Nat.mul_comm _ (x.regs (CountCall.length j) ^ 2) ▸ Nat.mul_le_mul hsquare (by omega)
+  dsimp only [budget, poly, n] at *
   omega
 
 private theorem same_length {x y : Data 64} (h : Same x y) (j : Fin 3) :
@@ -219,6 +200,18 @@ private theorem same_length {x y : Data 64} (h : Same x y) (j : Fin 3) :
 private theorem same_source {x y : Data 64} (h : Same x y) (j : Fin 3) :
     y.regs (CountCall.source j) = x.regs (CountCall.source j) :=
   h.1 _ (by dsimp [Parameter, CountCall.source]; omega)
+
+private theorem same_input {x y : Data 64} {values : Fin 3 → ℕ → ℤ} (hy : Same x y)
+    (hsk : ∀ j, x.regs (CountCall.source j) + x.regs (CountCall.length j) ≤
+      x.regs CountCall.scratch)
+    (hinput : ∀ j i, i < x.regs (CountCall.length j) →
+      x.mem (x.regs (CountCall.source j) + i) = encode (values j i)) :
+    ∀ j i, i < y.regs (CountCall.length j) →
+      y.mem (y.regs (CountCall.source j) + i) = encode (values j i) := by
+  intro j i hi
+  rw [same_length hy] at hi
+  rw [same_source hy, hy.2 _ (by have := hsk j; omega)]
+  exact hinput j i hi
 
 private structure LocalFits (w : ℕ) (x : Data 64) : Prop where
   source : ∀ j, Fits (w + 2) (x.regs (CountCall.source j) + x.regs (CountCall.length j))
@@ -236,13 +229,12 @@ private structure LocalFits (w : ℕ) (x : Data 64) : Prop where
 private theorem localFits_of_budget {w : ℕ} (x : Data 64) (h : Fits (w + 2) (budget x)) :
     LocalFits w x := by
   have hb := budget_bounds x 0
-  refine ⟨fun j => h.of_le (budget_bounds x j).1,
-    fun j => h.of_le (budget_bounds x j).2.1, h.of_le hb.2.2.1,
-    h.of_le hb.2.2.2.1, h.of_le hb.2.2.2.2.1, ?_, ?_, ?_,
+  exact ⟨fun j => h.of_le (budget_bounds x j).1, fun j => h.of_le (budget_bounds x j).2.1,
+    h.of_le hb.2.2.1, h.of_le hb.2.2.2.1, h.of_le hb.2.2.2.2.1,
+    fun j => h.of_le (budget_bounds x j).2.2.2.2.2.1,
+    fun j => h.of_le (budget_bounds x j).2.2.2.2.2.2.1,
+    fun j => h.of_le (budget_bounds x j).2.2.2.2.2.2.2.1,
     h.of_le hb.2.2.2.2.2.2.2.2.1, h.of_le hb.2.2.2.2.2.2.2.2.2⟩
-  · exact fun j => h.of_le (budget_bounds x j).2.2.2.2.2.1
-  · exact fun j => h.of_le (budget_bounds x j).2.2.2.2.2.2.1
-  · exact fun j => h.of_le (budget_bounds x j).2.2.2.2.2.2.2.1
 
 /-- One search with its factor bounded by the largest candidate. -/
 def searchTime (x : Data 64) : ℕ :=
@@ -280,18 +272,9 @@ private theorem exec_search {w : ℕ} (x y : Data 64) (values : Fin 3 → ℕ �
   have hc : y.regs CollisionTest.card = x.regs CollisionTest.card := hy.1 _ (by decide)
   have hM : y.regs Search.factor * x.regs Search.limit ≤ x.regs Search.limit ^ 2 := by
     simpa only [pow_two] using Nat.mul_le_mul_right (x.regs Search.limit) hfactorle
-  have hyinput : ∀ j i, i < y.regs (CountCall.length j) →
-      y.mem (y.regs (CountCall.source j) + i) = encode (values j i) := by
-    intro j i hi
-    rw [hl] at hi
-    rw [hs, hy.2 _ (by have := hsk j; omega)]
-    exact hinput j i hi
-  have hybitmap : ∀ q ≤ y.regs Search.limit,
+  have hybitmap (q : ℕ) (hq : q ≤ y.regs Search.limit) :
       y.mem (y.regs Search.primes + q) = if q.Prime then 1 else 0 := by
-    intro q hq
-    have hq' : q ≤ x.regs Search.limit := by simpa only [hm] using hq
-    rw [hp, hy.2 _ (by omega)]
-    exact hbitmap q hq'
+    rw [hp, hy.2 _ (by omega), hbitmap q (hm ▸ hq)]
   obtain ⟨z, he, hr, hmem, ha⟩ := Search.exec y values hfactor
     (by rw [hm]; exact hmod.of_natAbs_le hM)
     (by simpa only [hm] using hfits.limit) (by simpa only [hp, hm] using hfits.bitmap)
@@ -303,17 +286,14 @@ private theorem exec_search {w : ℕ} (x y : Data 64) (values : Fin 3 → ℕ �
     (by simpa only [hl, pow_two] using hfits.total)
     (by simpa only [hl, hc, pow_two] using hfits.product)
     (by simpa only [hs, hl, hk] using hsk) (by simpa only [hk, hl, hd] using hkd)
-    hyinput (by simpa only [hl] using hinj)
-  refine ⟨z, he.mono ?_, ?_, ?_⟩
+    (same_input hy hsk hinput) (by simpa only [hl] using hinj)
+  refine ⟨z, he.mono ?_, ?_, by simpa only [hm, hl, hc] using ha⟩
   · simp only [hm, hl, searchTime]
     gcongr
-  · refine ⟨?_, fun a ha => (hmem a (by simpa only [hk] using ha)).trans (hy.2 a ha)⟩
-    intro i hi
-    by_cases hid : i = digits
-    · subst i
-      exact (he.regs_eq (Search.preserves_caller _ (by decide))).trans (hy.1 _ hi)
+  · refine ⟨fun i hi => ?_, fun a ha => (hmem a (hk ▸ ha)).trans (hy.2 a ha)⟩
+    rcases eq_or_ne i digits with rfl | hid
+    · exact (he.regs_eq (Search.preserves_caller _ (by decide))).trans (hy.1 _ hi)
     · exact (hr i (by dsimp only [Parameter] at hi; omega)).trans (hy.1 i hi)
-  · simpa only [hm, hl, hc] using ha
 
 private theorem same_set {x y : Data 64} (h : Same x y) (i : Fin 64)
     (hi : ¬Parameter i) (v : ℕ) : Same x (y.set i v) := by
@@ -353,12 +333,6 @@ private theorem exec_counts {w M : ℕ} (x y : Data 64) (values : Fin 3 → ℕ 
   have hs := same_source hy
   have hk : y.regs CountCall.scratch = x.regs CountCall.scratch := hy.1 _ (by decide)
   have hd : y.regs CountCall.histogram = x.regs CountCall.histogram := hy.1 _ (by decide)
-  have hyinput : ∀ j i, i < y.regs (CountCall.length j) →
-      y.mem (y.regs (CountCall.source j) + i) = encode (values j i) := by
-    intro j i hi
-    rw [hl] at hi
-    rw [hs, hy.2 _ (by have := hsk j; omega)]
-    exact hinput j i hi
   obtain ⟨z, he, hv, hr, hmem⟩ := CountTriple.exec y values hM
     (hmod.of_natAbs_le hMle) hmodreg (by simpa only [hl] using hvalues)
     (by simpa only [hs, hl] using hfits.source)
@@ -366,18 +340,10 @@ private theorem exec_counts {w M : ℕ} (x y : Data 64) (values : Fin 3 → ℕ 
     (by rw [hd]; exact hfits.histogram.of_le (Nat.add_le_add_left hMle _))
     (by simpa only [hl, pow_two] using hfits.total)
     (by simpa only [hs, hl, hk] using hsk) (by simpa only [hk, hl, hd] using hkd)
-    hyinput (by simpa only [hl] using hinj)
-  refine ⟨z, ?_, ?_, ?_, hr⟩
-  · simpa only [hl] using he
-  · refine ⟨fun i hi => (hr i ?_).trans (hy.1 i hi), ?_⟩
-    · dsimp only [Parameter] at hi
-      rcases hi with hi | hi | rfl
-      · omega
-      · omega
-      · decide
-    · intro a ha
-      exact (hmem a (by simpa only [hk] using ha)).trans (hy.2 a ha)
-  · simpa only [hl] using hv
+    (same_input hy hsk hinput) (by simpa only [hl] using hinj)
+  refine ⟨z, by simpa only [hl] using he, ⟨fun i hi => (hr i ?_).trans (hy.1 i hi),
+    fun a ha => (hmem a (hk ▸ ha)).trans (hy.2 a ha)⟩, by simpa only [hl] using hv, hr⟩
+  rcases hi with hi | hi | rfl <;> first | omega | decide
 
 /-- Both searches, a baseline collision count, scalar setup and the final product. -/
 def cost (x : Data 64) : ℕ :=
@@ -426,12 +392,8 @@ theorem exec {w : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ)
   let Q := Nat.primesLE (x.regs Search.limit)
   let p := firstP Q (x.regs digits) (S 0) (S 1) (S 2)
   let q := secondP Q (x.regs digits) (S 0) (S 1) (S 2) p
-  have hp : 1 ≤ p ∧ p ≤ x.regs Search.limit := by
-    dsimp only [p, firstP, Q]
-    exact selector_bounds (by omega) _
-  have hq : 1 ≤ q ∧ q ≤ x.regs Search.limit := by
-    dsimp only [q, secondP, Q]
-    exact selector_bounds (by omega) _
+  have hp : 1 ≤ p ∧ p ≤ x.regs Search.limit := selector_bounds (by omega) _
+  have hq : 1 ≤ q ∧ q ≤ x.regs Search.limit := selector_bounds (by omega) _
   have hfits := localFits_of_budget x hbudget
   let a := firstState x
   have ha : ExecWithin (w + 2) firstSetup x a 9 := exec_firstSetup x hfits.three hfits.triple
@@ -443,16 +405,13 @@ theorem exec {w : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ)
   obtain ⟨b, hb, hbs, hbp⟩ := exec_search x a values hmod hfits has
     (by rw [haf]; omega) (by rw [haf]; omega) hbefore hbitmap hvalues hsk hkd hinput hinj
   have hbanswer : b.regs Search.answer = p := by
-    rw [haf] at hbp
-    simp only [Nat.one_mul, hacut, hcard] at hbp
+    simp only [haf, Nat.one_mul, hacut, hcard] at hbp
     exact hbp.trans (first_selector x values hinj)
   let c := ((b.set first p).set Search.two 2).set CountCall.modulus (2 * p)
   have hpf : GenericRAM.Signed.Fits w (p : ℤ) :=
     hmod.of_natAbs_le (hp.2.trans (Nat.le_self_pow two_ne_zero _))
   have henc : encode (p : ℤ) = 2 * p := by simp [encode]
-  have hencoded : Fits (w + 2) (2 * p) := by
-    rw [← henc]
-    exact (encode_fits hpf).mono (by omega)
+  have hencoded : Fits (w + 2) (2 * p) := henc ▸ (encode_fits hpf).mono (by omega)
   have htwo : Fits (w + 2) 2 := hfits.three.of_le (by omega)
   have hc : ExecWithin (w + 2)
       (ram[ first ← Search.answer; Search.two ← #2; CountCall.modulus ← first * Search.two ])
@@ -461,57 +420,42 @@ theorem exec {w : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ)
     wram_exec [hbanswer, Nat.mul_comm _ 2]
   have hcs : Same x c := same_set (same_set (same_set hbs first (by decide) _)
     Search.two (by decide) _) CountCall.modulus (by decide) _
-  have hcm : c.regs CountCall.modulus = encode (p : ℤ) := by simpa only [henc] using
-    (show c.regs CountCall.modulus = 2 * p from rfl)
   obtain ⟨d, hd, hds, hdcounts, hdr⟩ := exec_counts x c values (by omega)
-    (hp.2.trans (Nat.le_self_pow two_ne_zero _)) hmod hfits hcs hcm hvalues hsk hkd hinput hinj
+    (hp.2.trans (Nat.le_self_pow two_ne_zero _)) hmod hfits hcs henc.symm
+    hvalues hsk hkd hinput hinj
   have hdvalue : d.regs first = p := by regs_frame
   have hddigits : d.regs digits = x.regs digits := hds.1 _ (by decide)
-  have hcoll (j : Fin 3) : coll (S j) p ≤ x.regs (CountCall.length j) ^ 2 := by
-    have hsize : (S j).card ≤ x.regs (CountCall.length j) :=
-      Finset.card_image_le.trans_eq (Finset.card_range _)
-    exact (coll_le_sq _ _).trans (Nat.pow_le_pow_left hsize 2)
+  have hcoll (j : Fin 3) : coll (S j) p ≤ x.regs (CountCall.length j) ^ 2 :=
+    (coll_le_sq _ _).trans
+      (Nat.pow_le_pow_left (Finset.card_image_le.trans_eq (Finset.card_range _)) 2)
   let e := secondState d
   have he : ExecWithin (w + 2) secondSetup d e 6 := exec_secondSetup d hfits.three
-    (by simpa only [hddigits] using hfits.triple)
-    (fun j => by
-      rw [hddigits, hdcounts]
-      exact (hfits.cutoff j).of_le (Nat.mul_le_mul_left _ (hcoll j)))
+    (hddigits.symm ▸ hfits.triple) fun j => by
+      simpa only [hddigits, hdcounts] using (hfits.cutoff j).of_le (Nat.mul_le_mul_left _ (hcoll j))
   have hes : Same x e := ⟨fun i hi => (he.regs_eq (secondSetup_preserves i hi)).trans
     (hds.1 i hi), hds.2⟩
-  have hef : e.regs Search.factor = p := by
-    change d.regs first = p
-    exact hdvalue
   have hecut (j : Fin 3) : e.regs (CollisionTest.threshold j) =
       3 * x.regs digits * coll (S j) p := by
-    have hr : e.regs (CollisionTest.threshold j) =
-        3 * d.regs digits * d.regs (CountCall.result j) := by fin_cases j <;> rfl
-    rw [hr, hddigits, hdcounts]
-  obtain ⟨f, hf, hfs, hfq⟩ := exec_search x e values hmod hfits hes
-    (by rw [hef]; omega) (by rw [hef]; exact hp.2)
-    hbefore hbitmap hvalues hsk hkd hinput hinj
+    rw [← hddigits, ← hdcounts]
+    fin_cases j <;> rfl
+  have hefactor : e.regs Search.factor = p := hdvalue
+  obtain ⟨f, hf, hfs, hfq⟩ := exec_search x e values hmod hfits hes (hefactor.symm ▸ hp.1)
+    (hefactor.symm ▸ hp.2) hbefore hbitmap hvalues hsk hkd hinput hinj
   have hfanswer : f.regs Search.answer = q := by
-    simpa only [hef, hecut, hcard, forall_three, q, secondP] using hfq
-  have hfvalue : f.regs first = p := by
-    rw [hf.regs_eq (Search.preserves_caller first (by decide))]
-    change d.regs first = p
-    exact hdvalue
-  have hprod : Fits (w + 2) (f.regs first * f.regs Search.answer) := by
-    rw [hfvalue, hfanswer]
-    apply hfits.histogram.of_le
-    have hle := Nat.mul_le_mul hp.2 hq.2
-    simpa only [pow_two] using hle.trans (Nat.le_add_left _ _)
+    simpa only [hefactor, hecut, hcard, forall_three, q, secondP] using hfq
+  have hfvalue : f.regs first = p :=
+    (hf.regs_eq (Search.preserves_caller first (by decide))).trans hdvalue
+  have hprod : Fits (w + 2) (f.regs first * f.regs Search.answer) :=
+    hfvalue.symm ▸ hfanswer.symm ▸ hfits.histogram.of_le
+      (by simpa only [pow_two] using (Nat.mul_le_mul hp.2 hq.2).trans (Nat.le_add_left _ _))
   have hfinish : ExecWithin (w + 2) (ram[ output ← first * Search.answer ]) f
       (f.set output (p * q)) 1 := by
     simpa only [BinOp.eval, hfvalue, hfanswer] using
       (ExecWithin.bin (f := .mul) (d := output) (i := first) (j := Search.answer) hprod)
   have hsame : Same x (f.set output (p * q)) := same_set hfs output (by decide) _
-  refine ⟨f.set output (p * q), ?_, hsame.1, hsame.2, ?_, ?_⟩
-  · exact (ha.seq (hb.seq (hc.seq (hd.seq (he.seq (hf.seq hfinish)))))).mono
-      (by dsimp only [cost]; omega)
-  · simpa +decide [output, first] using hfvalue
-  · change p * q = modulus Q (x.regs digits) (S 0) (S 1) (S 2)
-    rfl
+  exact ⟨f.set output (p * q),
+    (ha.seq (hb.seq (hc.seq (hd.seq (he.seq (hf.seq hfinish)))))).mono (by dsimp [cost]; omega),
+    hsame.1, hsame.2, by simpa +decide [output, first] using hfvalue, rfl⟩
 
 /-- The finite selector program never reads the word width. -/
 theorem not_readsWidth : ¬program.ReadsWidth := by decide

@@ -247,12 +247,8 @@ theorem two_le_ncard_support_gate (g : InnerGate c) :
     2 ≤ (support c (.gate g)).ncard := by
   obtain ⟨u, t, ht, rfl⟩ := consumerNodes_nonempty ((.gate g : ActiveSignal c).toSignal)
   have hne : (.gate g : Node c) ≠ ownerNode t := (ownerNode_ne_gate ht).symm
-  have hsub : ({Node.gate g, ownerNode t} : Set (Node c)) ⊆ support c (.gate g) := by
-    intro v hv
-    rcases mem_insert_iff.mp hv with rfl | hv'
-    · exact mem_insert _ _
-    · rw [mem_singleton_iff.mp hv']
-      exact mem_insert_of_mem _ ⟨t, ht, rfl⟩
+  have hsub : ({Node.gate g, ownerNode t} : Set (Node c)) ⊆ support c (.gate g) :=
+    pair_subset_iff.mpr ⟨mem_insert _ _, mem_insert_of_mem _ ⟨t, ht, rfl⟩⟩
   calc 2 = ({Node.gate g, ownerNode t} : Set (Node c)).ncard := (ncard_pair hne).symm
     _ ≤ (support c (.gate g)).ncard := ncard_le_ncard hsub (toFinite _)
 
@@ -499,159 +495,129 @@ private theorem card_filter_eq_of_iff {α : Type*} [Fintype α] {p q : α → Pr
   exact ⟨fun ha => Finset.mem_filter.mpr ⟨Finset.mem_univ a, (h a).mp (Finset.mem_filter.mp ha).2⟩,
     fun ha => Finset.mem_filter.mpr ⟨Finset.mem_univ a, (h a).mpr (Finset.mem_filter.mp ha).2⟩⟩
 
-private theorem gateFanout_append_le_one {m₁ m₂ : ℕ} {c₁ : Circuit σ n m₁}
-    {c₂ : Circuit σ n m₂} (hc₁ : ∀ g, c₁.gateFanout g ≤ 1) (hc₂ : ∀ g, c₂.gateFanout g ≤ 1)
-    (g : Fin (c₁.append c₂).size) : (c₁.append c₂).gateFanout g ≤ 1 := by
+private theorem card_filter_wire_emb_eq {s' : ℕ} (c : Circuit σ n m)
+    (f : Wire n c.size → Wire n s') {g' : Fin s'} (g : Fin c.size)
+    (hf : ∀ w, f w = .gate g' ↔ w = .gate g) :
+    (∑ h : Fin c.size,
+        (Finset.univ.filter fun a => f ((c.program.lines h).wires a) = .gate g').card) +
+      (Finset.univ.filter fun o : Fin m => f (c.outputs o) = .gate g').card =
+    c.gateFanout g := by
+  simp only [Circuit.gateFanout,
+    fun h => card_filter_eq_of_iff fun a => hf ((c.program.lines h).wires a),
+    card_filter_eq_of_iff fun o => hf (c.outputs o)]
+
+private theorem card_filter_wire_emb_eq_zero {s' : ℕ} (c : Circuit σ n m)
+    (f : Wire n c.size → Wire n s') {g' : Fin s'} (hf : ∀ w, f w ≠ .gate g') :
+    (∑ h : Fin c.size,
+        (Finset.univ.filter fun a => f ((c.program.lines h).wires a) = .gate g').card) +
+      (Finset.univ.filter fun o : Fin m => f (c.outputs o) = .gate g').card = 0 := by
+  have hl (h : Fin c.size) :
+      (Finset.univ.filter fun a => f ((c.program.lines h).wires a) = .gate g').card = 0 :=
+    Finset.card_eq_zero.mpr (Finset.filter_eq_empty_iff.mpr fun a _ => hf _)
+  have ho : (Finset.univ.filter fun o : Fin m => f (c.outputs o) = .gate g').card = 0 :=
+    Finset.card_eq_zero.mpr (Finset.filter_eq_empty_iff.mpr fun o _ => hf _)
+  simp only [hl, ho, Finset.sum_const_zero, add_zero]
+
+private theorem gateFanout_append_split {m₁ m₂ : ℕ} (c₁ : Circuit σ n m₁)
+    (c₂ : Circuit σ n m₂) (g' : Fin (c₁.size + c₂.size)) :
+    (c₁.append c₂).gateFanout g' =
+      ((∑ h : Fin c₁.size,
+          (Finset.univ.filter fun a =>
+            ((c₁.program.lines h).wires a).castAdd c₂.size = .gate g').card) +
+        (Finset.univ.filter fun o : Fin m₁ =>
+          (c₁.outputs o).castAdd c₂.size = .gate g').card) +
+      ((∑ h : Fin c₂.size,
+          (Finset.univ.filter fun a =>
+            Program.appendedWire (Wire.input : Fin n → Wire n c₁.size)
+              ((c₂.program.lines h).wires a) = .gate g').card) +
+        (Finset.univ.filter fun o : Fin m₂ =>
+          Program.appendedWire (Wire.input : Fin n → Wire n c₁.size)
+            (c₂.outputs o) = .gate g').card) := by
   let d : Circuit σ n (m₁ + m₂) :=
     ⟨c₁.program.append Wire.input c₂.program,
       Fin.append (Wire.castAdd c₂.size ∘ c₁.outputs)
         (Program.appendedWire Wire.input ∘ c₂.outputs)⟩
-  have hd : c₁.append c₂ = d := rfl
-  revert g
-  rw [hd]
-  intro (g : Fin (c₁.size + c₂.size))
-  induction g using Fin.addCases with
-  | left g =>
-    have hcast (w : Wire n c₁.size) :
-        w.castAdd c₂.size = .gate (Fin.castAdd c₂.size g) ↔ w = .gate g := by
-      cases w <;> simp [Fin.ext_iff]
-    have happ (w : Wire n c₂.size) :
-        Program.appendedWire (Wire.input : Fin n → Wire n c₁.size) w ≠
-          .gate (Fin.castAdd c₂.size g) := by
+  change d.gateFanout g' = _
+  have hlines :
+      (∑ h : Fin (c₁.size + c₂.size),
+          (Finset.univ.filter fun a => (d.program.lines h).wires a = .gate g').card) =
+        (∑ h : Fin c₁.size,
+          (Finset.univ.filter fun a =>
+            ((c₁.program.lines h).wires a).castAdd c₂.size = .gate g').card) +
+        (∑ h : Fin c₂.size,
+          (Finset.univ.filter fun a =>
+            Program.appendedWire (Wire.input : Fin n → Wire n c₁.size)
+              ((c₂.program.lines h).wires a) = .gate g').card) := by
+    rw [← Equiv.sum_comp finSumFinEquiv, Fintype.sum_sum_type]
+    congr 1
+    · refine Fintype.sum_congr _ _ fun h => ?_
+      change (Finset.univ.filter fun a =>
+        ((c₁.program.append Wire.input c₂.program).lines (Fin.castAdd c₂.size h)).wires a =
+          .gate g').card = _
+      rw [Program.lines_append_castAdd]
+      rfl
+    · refine Fintype.sum_congr _ _ fun h => ?_
+      change (Finset.univ.filter fun a =>
+        ((c₁.program.append Wire.input c₂.program).lines (Fin.natAdd c₁.size h)).wires a =
+          .gate g').card = _
+      rw [Program.lines_append_natAdd]
+      rfl
+  have houts :
+      (Finset.univ.filter fun o : Fin (m₁ + m₂) => d.outputs o = .gate g').card =
+        (Finset.univ.filter fun o : Fin m₁ =>
+          (c₁.outputs o).castAdd c₂.size = .gate g').card +
+        (Finset.univ.filter fun o : Fin m₂ =>
+          Program.appendedWire (Wire.input : Fin n → Wire n c₁.size)
+            (c₂.outputs o) = .gate g').card := by
+    simp only [Finset.card_filter]
+    rw [← Equiv.sum_comp finSumFinEquiv, Fintype.sum_sum_type]
+    congr 1
+    · refine Fintype.sum_congr _ _ fun o => ?_
+      rw [show d.outputs (finSumFinEquiv (.inl o)) = (c₁.outputs o).castAdd c₂.size from
+        Fin.append_left _ _ o]
+    · refine Fintype.sum_congr _ _ fun o => ?_
+      rw [show d.outputs (finSumFinEquiv (.inr o)) =
+        Program.appendedWire Wire.input (c₂.outputs o) from Fin.append_right _ _ o]
+  dsimp only [Circuit.gateFanout]
+  rw [hlines, houts]
+  omega
+
+private theorem gateFanout_append_castAdd {m₁ m₂ : ℕ} (c₁ : Circuit σ n m₁)
+    (c₂ : Circuit σ n m₂) (g : Fin c₁.size) :
+    (c₁.append c₂).gateFanout (Fin.castAdd c₂.size g) = c₁.gateFanout g := by
+  rw [gateFanout_append_split,
+    card_filter_wire_emb_eq c₁ (Wire.castAdd c₂.size) g
+      (fun w => by cases w <;> simp [Fin.ext_iff]),
+    card_filter_wire_emb_eq_zero c₂ (Program.appendedWire Wire.input) (fun w h => by
       cases w with
-      | input i => intro h; cases h
-      | gate j =>
-        intro h
+      | input _ => cases h
+      | gate _ =>
         have := congrArg Fin.val (Wire.gate.inj h)
         dsimp at this
-        omega
-    have hlines :
-        (∑ h : Fin (c₁.size + c₂.size),
-            (Finset.univ.filter fun a =>
-              (d.program.lines h).wires a = .gate (Fin.castAdd c₂.size g)).card) =
-          ∑ h : Fin c₁.size,
-            (Finset.univ.filter fun a => (c₁.program.lines h).wires a = .gate g).card := by
-      rw [← Equiv.sum_comp finSumFinEquiv, Fintype.sum_sum_type]
-      have hL : ∀ h : Fin c₁.size,
-          (Finset.univ.filter fun a =>
-              (d.program.lines (finSumFinEquiv (.inl h))).wires a =
-                .gate (Fin.castAdd c₂.size g)).card =
-            (Finset.univ.filter fun a => (c₁.program.lines h).wires a = .gate g).card := by
-        intro h
-        change (Finset.univ.filter fun a =>
-          ((c₁.program.append Wire.input c₂.program).lines (Fin.castAdd c₂.size h)).wires a =
-            .gate (Fin.castAdd c₂.size g)).card = _
-        rw [Program.lines_append_castAdd]
-        have hm : (c₁.program.lines h).mapWires (Wire.castAdd c₂.size) =
-            ⟨(c₁.program.lines h).op, Wire.castAdd c₂.size ∘ (c₁.program.lines h).wires⟩ := rfl
-        rw [hm]
-        exact card_filter_eq_of_iff fun a => hcast ((c₁.program.lines h).wires a)
-      have hR : ∀ h : Fin c₂.size,
-          (Finset.univ.filter fun a =>
-              (d.program.lines (finSumFinEquiv (.inr h))).wires a =
-                .gate (Fin.castAdd c₂.size g)).card = 0 := by
-        intro h
-        change (Finset.univ.filter fun a =>
-          ((c₁.program.append Wire.input c₂.program).lines (Fin.natAdd c₁.size h)).wires a =
-            .gate (Fin.castAdd c₂.size g)).card = 0
-        rw [Program.lines_append_natAdd, Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-        exact fun a _ => happ _
-      simp only [hL, hR, Finset.sum_const_zero, add_zero]
-    have houts :
-        (Finset.univ.filter fun o : Fin (m₁ + m₂) =>
-            d.outputs o = .gate (Fin.castAdd c₂.size g)).card =
-          (Finset.univ.filter fun o : Fin m₁ => c₁.outputs o = .gate g).card := by
-      rw [Finset.card_filter, Finset.card_filter, ← Equiv.sum_comp finSumFinEquiv,
-        Fintype.sum_sum_type]
-      have hL : ∀ o : Fin m₁,
-          (if d.outputs (finSumFinEquiv (.inl o)) = .gate (Fin.castAdd c₂.size g)
-            then 1 else 0) = if c₁.outputs o = .gate g then 1 else 0 := fun o => by
-        have ho : d.outputs (finSumFinEquiv (.inl o)) = (c₁.outputs o).castAdd c₂.size :=
-          Fin.append_left _ _ o
-        rw [ho]
-        exact if_congr (hcast _) rfl rfl
-      have hR : ∀ o : Fin m₂,
-          (if d.outputs (finSumFinEquiv (.inr o)) = .gate (Fin.castAdd c₂.size g)
-            then 1 else 0) = 0 := fun o => by
-        have ho : d.outputs (finSumFinEquiv (.inr o)) =
-            Program.appendedWire Wire.input (c₂.outputs o) := Fin.append_right _ _ o
-        rw [ho]
-        exact ite_eq_right_iff.mpr fun h => absurd h (happ _)
-      simp only [hL, hR, Finset.sum_const_zero, add_zero]
-    dsimp only [Circuit.gateFanout]
-    rw [hlines, houts]
-    exact hc₁ g
-  | right g =>
-    have hcast (w : Wire n c₁.size) : w.castAdd c₂.size ≠ .gate (Fin.natAdd c₁.size g) := by
+        omega),
+    add_zero]
+
+private theorem gateFanout_append_natAdd {m₁ m₂ : ℕ} (c₁ : Circuit σ n m₁)
+    (c₂ : Circuit σ n m₂) (g : Fin c₂.size) :
+    (c₁.append c₂).gateFanout (Fin.natAdd c₁.size g) = c₂.gateFanout g := by
+  rw [gateFanout_append_split,
+    card_filter_wire_emb_eq_zero c₁ (Wire.castAdd c₂.size) (fun w h => by
       cases w with
-      | input i => intro h; cases h
-      | gate j =>
-        intro h
+      | input _ => cases h
+      | gate _ =>
         have := congrArg Fin.val (Wire.gate.inj h)
         dsimp at this
-        omega
-    have happ (w : Wire n c₂.size) :
-        Program.appendedWire (Wire.input : Fin n → Wire n c₁.size) w =
-          .gate (Fin.natAdd c₁.size g) ↔ w = .gate g := by
-      cases w <;> simp [Fin.ext_iff]
-    have hlines :
-        (∑ h : Fin (c₁.size + c₂.size),
-            (Finset.univ.filter fun a =>
-              (d.program.lines h).wires a = .gate (Fin.natAdd c₁.size g)).card) =
-          ∑ h : Fin c₂.size,
-            (Finset.univ.filter fun a => (c₂.program.lines h).wires a = .gate g).card := by
-      rw [← Equiv.sum_comp finSumFinEquiv, Fintype.sum_sum_type]
-      have hL : ∀ h : Fin c₁.size,
-          (Finset.univ.filter fun a =>
-              (d.program.lines (finSumFinEquiv (.inl h))).wires a =
-                .gate (Fin.natAdd c₁.size g)).card = 0 := by
-        intro h
-        change (Finset.univ.filter fun a =>
-          ((c₁.program.append Wire.input c₂.program).lines (Fin.castAdd c₂.size h)).wires a =
-            .gate (Fin.natAdd c₁.size g)).card = 0
-        rw [Program.lines_append_castAdd, Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-        exact fun a _ => hcast _
-      have hR : ∀ h : Fin c₂.size,
-          (Finset.univ.filter fun a =>
-              (d.program.lines (finSumFinEquiv (.inr h))).wires a =
-                .gate (Fin.natAdd c₁.size g)).card =
-            (Finset.univ.filter fun a => (c₂.program.lines h).wires a = .gate g).card := by
-        intro h
-        change (Finset.univ.filter fun a =>
-          ((c₁.program.append Wire.input c₂.program).lines (Fin.natAdd c₁.size h)).wires a =
-            .gate (Fin.natAdd c₁.size g)).card = _
-        rw [Program.lines_append_natAdd]
-        let feed₀ : Fin n → Wire n c₁.size := Wire.input
-        have hm : (c₂.program.lines h).mapWires (Program.appendedWire feed₀) =
-            ⟨(c₂.program.lines h).op,
-              Program.appendedWire feed₀ ∘ (c₂.program.lines h).wires⟩ := rfl
-        rw [hm]
-        exact card_filter_eq_of_iff fun a => happ ((c₂.program.lines h).wires a)
-      simp only [hL, hR, Finset.sum_const_zero, zero_add]
-    have houts :
-        (Finset.univ.filter fun o : Fin (m₁ + m₂) =>
-            d.outputs o = .gate (Fin.natAdd c₁.size g)).card =
-          (Finset.univ.filter fun o : Fin m₂ => c₂.outputs o = .gate g).card := by
-      rw [Finset.card_filter, Finset.card_filter, ← Equiv.sum_comp finSumFinEquiv,
-        Fintype.sum_sum_type]
-      have hL : ∀ o : Fin m₁,
-          (if d.outputs (finSumFinEquiv (.inl o)) = .gate (Fin.natAdd c₁.size g)
-            then 1 else 0) = 0 := fun o => by
-        have ho : d.outputs (finSumFinEquiv (.inl o)) = (c₁.outputs o).castAdd c₂.size :=
-          Fin.append_left _ _ o
-        rw [ho]
-        exact ite_eq_right_iff.mpr fun h => absurd h (hcast _)
-      have hR : ∀ o : Fin m₂,
-          (if d.outputs (finSumFinEquiv (.inr o)) = .gate (Fin.natAdd c₁.size g)
-            then 1 else 0) = if c₂.outputs o = .gate g then 1 else 0 := fun o => by
-        have ho : d.outputs (finSumFinEquiv (.inr o)) =
-            Program.appendedWire Wire.input (c₂.outputs o) := Fin.append_right _ _ o
-        rw [ho]
-        exact if_congr (happ _) rfl rfl
-      simp only [hL, hR, Finset.sum_const_zero, zero_add]
-    dsimp only [Circuit.gateFanout]
-    rw [hlines, houts]
-    exact hc₂ g
+        omega),
+    card_filter_wire_emb_eq c₂ (Program.appendedWire Wire.input) g
+      (fun w => by cases w <;> simp [Fin.ext_iff]),
+    zero_add]
+
+private theorem gateFanout_append_le_one {m₁ m₂ : ℕ} {c₁ : Circuit σ n m₁}
+    {c₂ : Circuit σ n m₂} (hc₁ : ∀ g, c₁.gateFanout g ≤ 1) (hc₂ : ∀ g, c₂.gateFanout g ≤ 1) :
+    ∀ g : Fin (c₁.append c₂).size, (c₁.append c₂).gateFanout g ≤ 1 :=
+  Fin.addCases (m := c₁.size) (n := c₂.size)
+    (fun g => (gateFanout_append_castAdd c₁ c₂ g).trans_le (hc₁ g))
+    (fun g => (gateFanout_append_natAdd c₁ c₂ g).trans_le (hc₂ g))
 
 private theorem gateFanout_pi_le_one {m : ℕ} (cs : Fin m → Circuit σ n 1)
     (hcs : ∀ j g, (cs j).gateFanout g ≤ 1) (g : Fin (Circuit.pi cs).size) :
@@ -684,20 +650,11 @@ private theorem gateFanout_oneGate_comp_le_one (op : σ.Op) (c : Circuit σ n (�
         (∑ h : Fin (c.size + 1),
             (Finset.univ.filter fun a =>
               (d.program.lines h).wires a = .gate (Fin.last c.size)).card) = 0 := by
-      refine Finset.sum_eq_zero fun h _ => ?_
-      rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-      intro a _ heq
-      have hlt := d.program.lt_of_lines_wires_eq_gate h a (Fin.last c.size) heq
-      have := h.isLt
-      change c.size < (h : ℕ) at hlt
-      change (h : ℕ) < c.size + 1 at this
-      omega
-    have hout :
-        (Finset.univ.filter fun o : Fin 1 => d.outputs o = .gate (Fin.last c.size)).card ≤ 1 :=
-      (Finset.card_filter_le _ _).trans_eq (by simp)
+      exact Finset.sum_eq_zero fun h _ => Finset.card_eq_zero.2 <| Finset.filter_eq_empty_iff.2
+        fun a _ heq => (Fin.le_last h).not_gt (d.program.lt_of_lines_wires_eq_gate h a _ heq)
     dsimp only [Circuit.gateFanout]
     rw [hlines, zero_add]
-    exact hout
+    exact (Finset.card_filter_le _ _).trans_eq (by simp)
   | cast g =>
     have hcast_iff (w : Wire n c.size) :
         Wire.Renaming.castSucc w = .gate g.castSucc ↔ w = .gate g := by
@@ -712,37 +669,28 @@ private theorem gateFanout_oneGate_comp_le_one (op : σ.Op) (c : Circuit σ n (�
           (Finset.univ.filter fun a =>
             ((c.program.gate line).lines h).wires a = .gate g.castSucc).card) = _
       rw [Fin.sum_univ_castSucc]
-      have hprev : ∀ h : Fin c.size,
+      have hprev (h : Fin c.size) :
           (Finset.univ.filter fun a =>
               ((c.program.gate line).lines h.castSucc).wires a = .gate g.castSucc).card =
-            (Finset.univ.filter fun a => (c.program.lines h).wires a = .gate g).card := by
-        intro h
+            (Finset.univ.filter fun a =>
+              Wire.Renaming.castSucc ((c.program.lines h).wires a) = .gate g.castSucc).card := by
         rw [Program.lines_gate_castSucc]
-        have hm : (c.program.lines h).mapWires Wire.Renaming.castSucc =
-            ⟨(c.program.lines h).op, Wire.Renaming.castSucc ∘ (c.program.lines h).wires⟩ := rfl
-        rw [hm]
-        exact card_filter_eq_of_iff fun a => hcast_iff ((c.program.lines h).wires a)
+        rfl
       have hlast :
           (Finset.univ.filter fun a =>
               ((c.program.gate line).lines (Fin.last c.size)).wires a = .gate g.castSucc).card =
-            (Finset.univ.filter fun a : Fin (σ.Arity op) => c.outputs a = .gate g).card := by
+            (Finset.univ.filter fun a =>
+              Wire.Renaming.castSucc (c.outputs a) = .gate g.castSucc).card := by
         rw [Program.lines_gate_last]
-        have hm : line.mapWires Wire.Renaming.castSucc =
-            ⟨op, fun a => Wire.Renaming.castSucc ((c.outputs a).castAdd 0)⟩ := rfl
-        rw [hm]
         refine card_filter_eq_of_iff fun a => ?_
-        dsimp only
-        have hc0 : (c.outputs a).castAdd 0 = c.outputs a := by cases c.outputs a <;> rfl
-        rw [hc0]
-        exact hcast_iff (c.outputs a)
-      simp only [hprev, hlast, Circuit.gateFanout]
+        change Wire.Renaming.castSucc ((c.outputs a).castAdd 0) = _ ↔ _
+        cases c.outputs a <;> rfl
+      simp only [hprev, hlast]
+      exact card_filter_wire_emb_eq c Wire.Renaming.castSucc g hcast_iff
     have hout :
-        (Finset.univ.filter fun o : Fin 1 => d.outputs o = .gate g.castSucc).card = 0 := by
-      rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-      intro o _
-      rw [hout_eq o]
-      intro heq
-      exact Fin.castSucc_ne_last g (Wire.gate.inj heq).symm
+        (Finset.univ.filter fun o : Fin 1 => d.outputs o = .gate g.castSucc).card = 0 :=
+      Finset.card_eq_zero.2 <| Finset.filter_eq_empty_iff.2 fun o _ heq =>
+        Fin.castSucc_ne_last g (Wire.gate.inj ((hout_eq o).symm.trans heq)).symm
     dsimp only [Circuit.gateFanout]
     rw [hlines, hout, add_zero]
     exact hc g
@@ -775,12 +723,8 @@ theorem exists_support_eq_pair_of_isUnitGateSignal {g : InnerGate c}
   have hlt := rank_gate_lt_ownerNode ht
   have hne : (Node.gate g : Node c) ≠ ownerNode t := fun h => lt_irrefl _ (h ▸ hlt)
   refine ⟨ownerNode t, hlt, ?_⟩
-  have hsub : ({Node.gate g, ownerNode t} : Set (Node c)) ⊆ support c (.gate g) := by
-    intro v hv
-    rcases mem_insert_iff.mp hv with rfl | hv'
-    · exact mem_insert _ _
-    · rw [mem_singleton_iff.mp hv']
-      exact mem_insert_of_mem _ ⟨t, ht, rfl⟩
+  have hsub : ({Node.gate g, ownerNode t} : Set (Node c)) ⊆ support c (.gate g) :=
+    pair_subset_iff.mpr ⟨mem_insert _ _, mem_insert_of_mem _ ⟨t, ht, rfl⟩⟩
   exact (eq_of_subset_of_ncard_le hsub
     ((ncard_support_gate_eq_two hg).trans_le (ncard_pair hne).symm.le) (toFinite _)).symm
 
@@ -869,6 +813,22 @@ theorem nodeReadIn_univ : nodeReadIn c univ = {i : Fin n | Reach c (.input i)} :
   simp only [nodeReadIn, inter_univ, mem_ofPred_eq]
   exact ⟨fun ⟨hi, _⟩ => hi, fun hi => ⟨hi, support_nonempty (.input i hi)⟩⟩
 
+private theorem trace_splice_of_mem_support {U : Type*} {I : Interpretation σ U}
+    {P : Set (Node c)} {x y z : Fin n → U}
+    (hcut : ∀ w ∈ signalFrontier c P, c.program.trace I x w.wire = c.program.trace I y w.wire)
+    {w : ActiveSignal c} {u v : Node c} (hu : u ∈ support c w) (hv : v ∈ support c w)
+    (hstep : (u ∈ P → c.program.trace I z w.wire = c.program.trace I x w.wire) ∧
+      (u ∉ P → c.program.trace I z w.wire = c.program.trace I y w.wire)) :
+    (v ∈ P → c.program.trace I z w.wire = c.program.trace I x w.wire) ∧
+    (v ∉ P → c.program.trace I z w.wire = c.program.trace I y w.wire) := by
+  refine ⟨fun hvP => ?_, fun hvPc => ?_⟩
+  · by_cases huP : u ∈ P
+    · exact hstep.1 huP
+    · exact (hstep.2 huP).trans (hcut w ⟨⟨v, hv, hvP⟩, ⟨u, hu, huP⟩⟩).symm
+  · by_cases huP : u ∈ P
+    · exact (hstep.1 huP).trans (hcut w ⟨⟨u, hu, huP⟩, ⟨v, hv, hvPc⟩⟩)
+    · exact hstep.2 huP
+
 private theorem trace_consumer_splice_signalFrontier {U : Type*} (I : Interpretation σ U)
     {P : Set (Node c)} {x y z : Fin n → U}
     (hcut : ∀ w ∈ signalFrontier c P, c.program.trace I x w.wire = c.program.trace I y w.wire)
@@ -893,33 +853,18 @@ private theorem trace_consumer_splice_signalFrontier {U : Type*} (I : Interpreta
         exact congrArg _ (funext fun a => absurd a.isLt (by omega))
       exact ⟨fun _ => hconst z x, fun _ => hconst z y⟩
     · let ig : InnerGate c := ⟨g, hg, ha0⟩
-      have hg_eq : ∀ v : Fin n → U,
-          (Node.gate ig ∈ P → v = x) → (Node.gate ig ∉ P → v = y) →
-          c.program.trace I z (.gate g) = c.program.trace I v (.gate g) := by
-        intro v hvP hvPc
-        rw [Program.trace_gate, Program.trace_gate]
-        refine congrArg _ (funext fun a => ?_)
-        let sl : Consumer c := .inl ⟨⟨g, a⟩, hg⟩
-        have hsl : ownerNode sl = .gate ig := rfl
-        have hstep := ih a (.arg a hg) sl rfl
-        by_cases hin : Node.gate ig ∈ P
-        · rw [hvP hin]
-          exact hstep.1 (hsl ▸ hin)
-        · rw [hvPc hin]
-          exact hstep.2 (hsl ▸ hin)
-      have hmem_g : Node.gate ig ∈ support c (.gate ig) := mem_insert _ _
-      have hmem_t : ownerNode t ∈ support c (.gate ig) := mem_insert_of_mem _ ⟨t, ht, rfl⟩
-      refine ⟨fun hin => ?_, fun hout => ?_⟩
-      · by_cases hgP : Node.gate ig ∈ P
-        · exact hg_eq x (fun _ => rfl) (fun h => absurd hgP h)
-        · have hfront : ActiveSignal.gate ig ∈ signalFrontier c P :=
-            ⟨⟨ownerNode t, hmem_t, hin⟩, ⟨.gate ig, hmem_g, hgP⟩⟩
-          exact (hg_eq y (fun h => absurd h hgP) (fun _ => rfl)).trans (hcut _ hfront).symm
-      · by_cases hgP : Node.gate ig ∈ P
-        · have hfront : ActiveSignal.gate ig ∈ signalFrontier c P :=
-            ⟨⟨.gate ig, hmem_g, hgP⟩, ⟨ownerNode t, hmem_t, hout⟩⟩
-          exact (hg_eq x (fun _ => rfl) (fun h => absurd hgP h)).trans (hcut _ hfront)
-        · exact hg_eq y (fun h => absurd h hgP) (fun _ => rfl)
+      have hig : (Node.gate ig ∈ P →
+            c.program.trace I z (.gate g) = c.program.trace I x (.gate g)) ∧
+          (Node.gate ig ∉ P →
+            c.program.trace I z (.gate g) = c.program.trace I y (.gate g)) :=
+        ⟨fun hin => by
+          rw [Program.trace_gate, Program.trace_gate]
+          exact congrArg _ (funext fun a => (ih a (.arg a hg) (.inl ⟨⟨g, a⟩, hg⟩) rfl).1 hin),
+         fun hout => by
+          rw [Program.trace_gate, Program.trace_gate]
+          exact congrArg _ (funext fun a => (ih a (.arg a hg) (.inl ⟨⟨g, a⟩, hg⟩) rfl).2 hout)⟩
+      exact trace_splice_of_mem_support (w := .gate ig) hcut (mem_insert _ _)
+        (mem_insert_of_mem _ ⟨t, ht, rfl⟩) hig
 
 /-- **Splicing outputs across a node cut.** If the runs of `c` on `x` and `y` agree on every wire
 in `signalFrontier c P`, and `z` agrees with `x` on `nodeReadIn c P` and with `y` elsewhere, then
@@ -945,22 +890,9 @@ theorem trace_gate_splice_signalFrontier {U : Type*} (I : Interpretation σ U) {
     (Node.gate g ∉ P → c.program.trace I z (ActiveSignal.gate g).wire =
       c.program.trace I y (ActiveSignal.gate g).wire) := by
   obtain ⟨_, t, ht, rfl⟩ := consumerNodes_nonempty ((.gate g : ActiveSignal c).toSignal)
-  have hstep :=
-    trace_consumer_splice_signalFrontier I hcut hzx hzy (ActiveSignal.gate g).wire
-      (ActiveSignal.gate g).reach t ht
-  have hmem_g : Node.gate g ∈ support c (.gate g) := mem_insert _ _
-  have hmem_t : ownerNode t ∈ support c (.gate g) := mem_insert_of_mem _ ⟨t, ht, rfl⟩
-  refine ⟨fun hgP => ?_, fun hgPc => ?_⟩
-  · by_cases htP : ownerNode t ∈ P
-    · exact hstep.1 htP
-    · have hfront : ActiveSignal.gate g ∈ signalFrontier c P :=
-        ⟨⟨.gate g, hmem_g, hgP⟩, ⟨ownerNode t, hmem_t, htP⟩⟩
-      exact (hstep.2 htP).trans (hcut _ hfront).symm
-  · by_cases htP : ownerNode t ∈ P
-    · have hfront : ActiveSignal.gate g ∈ signalFrontier c P :=
-        ⟨⟨ownerNode t, hmem_t, htP⟩, ⟨.gate g, hmem_g, hgPc⟩⟩
-      exact (hstep.1 htP).trans (hcut _ hfront)
-    · exact hstep.2 htP
+  exact trace_splice_of_mem_support (w := .gate g) hcut (mem_insert_of_mem _ ⟨t, ht, rfl⟩)
+    (mem_insert _ _)
+    (trace_consumer_splice_signalFrontier I hcut hzx hzy _ (ActiveSignal.gate g).reach t ht)
 
 end Supports
 
@@ -1161,11 +1093,8 @@ theorem ncard_frontier_steinerGraph_eq (t : ℕ) :
         omega
       have hj1_ge : t ≤ (π (supportNode c π w ⟨j.1 + 1, hj1⟩) : ℕ) := by
         by_contra! hlt'
-        have hmem : (⟨j.1 + 1, hj1⟩ : Fin (support c w).ncard) ∈ S :=
-          Finset.mem_filter.mpr ⟨Finset.mem_univ _, hlt'⟩
-        have hmax := Fin.le_iff_val_le_val.mp (S.le_max' _ hmem)
-        change j.1 + 1 ≤ j.1 at hmax
-        omega
+        exact (Fin.le_iff_val_le_val.mp (S.le_max' ⟨j.1 + 1, hj1⟩
+          (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hlt'⟩))).not_gt (Nat.lt_succ_self j.1)
       exact ⟨⟨w, ⟨j.1, by omega⟩⟩, mem_frontier_steinerGraph_iff.mpr ⟨hj_lt, hj1_ge⟩, rfl⟩
   rw [← himg]
   exact (InjOn.ncard_image fun e₁ h₁ e₂ h₂ hw => steinerEdge_eq_of_mem_frontier h₁ h₂ hw).symm
@@ -1198,26 +1127,20 @@ theorem maxDegreeLE_steinerGraph {r : ℕ} (hfan : c.FanInAtMost r) :
     rintro ⟨⟨w₁, j₁⟩, he₁⟩ ⟨⟨w₂, j₂⟩, he₂⟩ h
     dsimp only [φ] at h
     split_ifs at h with hs₁ hs₂ hs₂
-    · obtain ⟨hw, -⟩ := Prod.mk.inj h
-      cases Subtype.mk.inj hw
+    · cases Subtype.mk.inj (Prod.mk.inj h).1
       have hpi : π (supportNode c π w₁ ⟨j₁.1, _⟩) = π (supportNode c π w₁ ⟨j₂.1, _⟩) :=
         congrArg π (hs₁.trans hs₂.symm)
       rw [pi_supportNode, pi_supportNode] at hpi
-      have hidx := (supportEmb c π w₁).injective hpi
-      have hj : j₁.1 = j₂.1 := Fin.mk.inj hidx
-      exact Subtype.ext (Sigma.ext rfl (heq_of_eq (Fin.ext hj)))
+      exact Subtype.ext (Sigma.ext rfl (heq_of_eq (Fin.ext
+        (Fin.mk.inj ((supportEmb c π w₁).injective hpi)))))
     · cases (Prod.mk.inj h).2
     · cases (Prod.mk.inj h).2
-    · obtain ⟨hw, -⟩ := Prod.mk.inj h
-      cases Subtype.mk.inj hw
-      have ht₁ : steinerTgt c π ⟨w₁, j₁⟩ = u := he₁.resolve_left hs₁
-      have ht₂ : steinerTgt c π ⟨w₁, j₂⟩ = u := he₂.resolve_left hs₂
+    · cases Subtype.mk.inj (Prod.mk.inj h).1
       have hpi : π (supportNode c π w₁ ⟨j₁.1 + 1, _⟩) = π (supportNode c π w₁ ⟨j₂.1 + 1, _⟩) :=
-        congrArg π (ht₁.trans ht₂.symm)
+        congrArg π ((he₁.resolve_left hs₁).trans (he₂.resolve_left hs₂).symm)
       rw [pi_supportNode, pi_supportNode] at hpi
-      have hidx := (supportEmb c π w₁).injective hpi
-      have hj : j₁.1 = j₂.1 := Nat.succ.inj (Fin.mk.inj hidx)
-      exact Subtype.ext (Sigma.ext rfl (heq_of_eq (Fin.ext hj)))
+      exact Subtype.ext (Sigma.ext rfl (heq_of_eq (Fin.ext
+        (Nat.succ.inj (Fin.mk.inj ((supportEmb c π w₁).injective hpi))))))
   rw [← Nat.card_coe_set_eq]
   calc Nat.card {e : SteinerEdge c // e ∈ (steinerGraph c π).incidenceSet u}
       ≤ Nat.card ({w : ActiveSignal c // u ∈ support c w} × Bool) :=
@@ -1535,12 +1458,7 @@ private theorem steiner_eq_trace {x : Fin n → U} {α : SteinerEdge c → U}
       refine ⟨fun u hu => ?_, hed⟩
       dsimp only [wireValAt]
       split_ifs with h2
-      · rcases he : canonicalEdge π (hu (.input i hi) rfl) h2 with ⟨aw_e, j_e⟩
-        have haw : aw_e.wire = .input i := by
-          have hf := canonicalEdge_fst π (hu (.input i hi) rfl) h2
-          rw [he] at hf
-          exact congrArg ActiveSignal.wire hf
-        exact hed aw_e haw j_e
+      · exact hed _ (congrArg ActiveSignal.wire (canonicalEdge_fst π (hu (.input i hi) rfl) h2)) _
       · rfl
     · by_cases ha0 : σ.Arity (c.program.lines g).op = 0
       · refine ⟨fun u _ => ?_, fun aw haw _ => ?_⟩
@@ -1573,22 +1491,15 @@ private theorem steiner_eq_trace {x : Fin n → U} {α : SteinerEdge c → U}
               omega
             change α ⟨.gate ig, ⟨j.1, by omega⟩⟩ = c.program.trace I x (.gate g)
             rcases he_can : canonicalEdge π (gate_mem_support ig) h2 with ⟨w_c, j_c⟩
-            have he1 : w_c = .gate ig := by
-              have hf := canonicalEdge_fst π (gate_mem_support ig) h2
-              rwa [he_can] at hf
-            subst he1
+            obtain rfl : w_c = .gate ig :=
+              (congrArg Sigma.fst he_can).symm.trans (canonicalEdge_fst π _ h2)
             rw [he_can] at htrace_g
             rw [steiner_edge_eq_zero hα (.gate ig) h2 j.1 hjlt,
               ← steiner_edge_eq_zero hα (.gate ig) h2 j_c.1 (by have := j_c.isLt; omega)]
             exact htrace_g
         refine ⟨fun u hu => ?_, hed⟩
         simp only [wireValAt, ha0, ↓reduceDIte]
-        rcases he : canonicalEdge π (hu (.gate ig) rfl) h2 with ⟨aw_e, j_e⟩
-        have haw : aw_e.wire = .gate g := by
-          have hf := canonicalEdge_fst π (hu (.gate ig) rfl) h2
-          rw [he] at hf
-          exact congrArg ActiveSignal.wire hf
-        exact hed aw_e haw j_e
+        exact hed _ (congrArg ActiveSignal.wire (canonicalEdge_fst π (hu (.gate ig) rfl) h2)) _
   intro e
   exact (hval e.1.wire e.1.reach).2 e.1 rfl e.2
 

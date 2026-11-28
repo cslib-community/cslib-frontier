@@ -5,9 +5,12 @@ brief and says when to read this file; the full text here governs the details.
 
 ## Review cycle
 
-Maintainers arrange independent review of correctness and API quality (naming, reuse, placement,
-documentation and source credit). One non-authoring reviewer may cover both. Add a reviewer for a
-specific uncovered question or needed expertise, not to reach an approval count.
+Coordinators arrange independent review of correctness and API quality (naming, reuse, placement,
+documentation and source credit). Agent review is the gate for merging: no change waits for human
+review. Humans intend to read and spot-check merged code, including when it is upstreamed to
+CSLib, and agent review is never presented as human review. One non-authoring reviewer may cover
+both questions. Add a reviewer for a specific uncovered question or needed expertise, not to reach
+an approval count.
 
 Read the actual definitions, statements and proof arguments, and inspect representative clients.
 For substantive mathematics, explain briefly what is proved, its limiting hypotheses/model/resource
@@ -19,8 +22,9 @@ and any representation bridge. Compilation alone does not check placement or dup
 Check new and changed statements against
 [Structures for domain objects and records](statements.md#structures-for-domain-objects-and-records),
 [Encodings in statements](statements.md#encodings-in-statements) and
-[Running-time claims](statements.md#running-time-claims); a PR that adds a `TimeM` import,
-declaration or `time_simps`/`time_spec` extension is blocked.
+[Running-time claims](statements.md#running-time-claims); a PR with any `TimeM` import or use,
+`Cslib.Algorithms.Lean.MergeSort.MergeSort` import, tick/tactic extension (`✓`, `time_simps`,
+`time_spec`), or replacement hand-charged cost monad is blocked.
 Read new and changed proofs against the rest of their file and nearby modules, not only the diff:
 a new copy of an argument the library already makes is a finding when the
 [library quality standard](../CONTRIBUTING.md#library-quality-standard) says a shared lemma pays.
@@ -109,19 +113,20 @@ still a finding: it is tracked by an issue or a baseline entry and shows in the 
 hypothesis or a deliberate model boundary is not a gap.
 
 Before a published theorem enters the [results inventory](../results/README.md), its statement is
-checked against the source by a reviewer, human or agent, from outside the authoring fleet. The
+checked against the source by a non-author: someone who took no part in its implementation or
+design, working in a separate context, who may be an agent of the authoring fleet or account. The
 checker reads the cited passages in the source itself, not locators copied from the PR, reads the
 definitions the statement names, as the step "Read the statement before the prose, and open what
-it names" asks of every headline, and records the check in a comment that says who made it, what
-was read, which deviations were accepted and what was not checked. The comment answers each point
+it names" asks of every headline, and records the check in a comment that says who made it (the
+agent or session, or the person), which version of the source and which passages were read, which
+deviations were accepted and what was not checked. The comment answers each point
 listed under
 [The cited result is the unit of quality](statements.md#the-cited-result-is-the-unit-of-quality),
 and the affected points are checked again, as a delta, when the statement or a definition it names
 changes in meaning. A headline for a cited result is registered after this check, or is presented
 as a step under [Faithful headlines](statements.md#faithful-headlines) rule 2. An agent's check says that it is an agent's and is never presented as a
 human one. The check is a step of its own, separate from the ordinary independent review, which
-is still required. A maintainer may require a human check for entries from their own fleet by
-saying so on the entry's PR or tracking issue; that requirement then holds for those entries.
+is still required.
 
 Before approving library changes, read the **Parallel-definition**, **Duplicate-statement** and
 **Repeated-proof-block** notices in the CI job summary or step logs for the reviewed revision. Inspect both
@@ -174,10 +179,54 @@ who participated in the implementation or its design cannot supply that review. 
 may integrate after this review and required validation, but must not present it as self-approval
 or human review. Add expertise for uncovered questions, not an approval count or agent affiliation.
 
-Finish with a short approval or a clear request for changes. A substantive concern may need a
-long explanation; a clean review does not need a checklist of everything inspected. Record the
-reviewed revision, meaningful findings and resolutions once in the PR, following
-[CONTRIBUTING.md](../CONTRIBUTING.md#ai-assistance-and-review).
+Every review ends in a verdict for the head it read: a short approval or a clear request for
+changes, written as below. A request to split the PR is a request for changes. A substantive
+concern may need a long explanation; a clean review does not need a checklist of everything
+inspected. Record the reviewed revision, meaningful findings and resolutions once in the PR,
+following [CONTRIBUTING.md](../CONTRIBUTING.md#ai-assistance-and-review).
+
+### Verdicts, claims and holds
+
+Agents sharing one GitHub account cannot rely on GitHub's review states, so verdicts, review claims
+and holds are lines in a PR comment or review body that agents and tools can read. Each line stands
+alone; matching is case-sensitive, and leading whitespace and a leading `**` are tolerated. Times
+are UTC, written `YYYY-MM-DDTHH:MMZ`.
+
+- **Verdict.** The first non-empty line of the review or comment begins
+  `**APPROVE** at <sha> by <reviewer-id>` or `**REQUEST_CHANGES** at <sha> by <reviewer-id>`,
+  naming the head reviewed (its full SHA, or at least the first 7 hex digits) and the reviewer.
+  Since a shared account does not identify the agent, ` by <reviewer-id>` may be omitted, from a
+  comment or a formal review, only when the posting account is used by that reviewer alone; tools
+  match only the part up to the SHA. A request to split the PR is `**REQUEST_CHANGES**`. A reviewer
+  who comments without a verdict, for example to ask a question, still owes one.
+- **Review claim.** Before starting, a reviewer checks the PR for another reviewer's unexpired
+  claim and posts `CLAIM review head=<40-hex sha> by=<reviewer-id> until=<time>`, at most 45
+  minutes ahead. A claim is an exclusive lease: while it is unexpired, nobody else reviews that
+  head, except a second reviewer arranged for a named uncovered question
+  ([Review cycle](#review-cycle)). The same reviewer may renew it once with a fresh line, and its
+  verdict ends it.
+- **Hold.** `HOLD owner=<id> until=<time> reason=<text>`, where `owner` is the agent or GitHub login
+  that can release it and `maintainer` means the repository's human maintainer. Its owner releases
+  it with a later line `HOLD-RELEASED by=<id> reason=<text>`, and it lapses when `until` passes.
+  Every hold, including one an approval names, is written this way, with a realistic `until` that
+  its owner may extend with a fresh line. Holds written as free text before this format took effect
+  bind until a coordinator converts them. Expiry ends a hold, not the review it waits for: a review
+  this policy requires, such as pending source or advisory-notice review, is still done and
+  recorded before queueing.
+
+Do not queue a PR while a hold on it is in force or another reviewer's claim on its head is
+unexpired, or when a `**REQUEST_CHANGES**` at the approved head was posted after the approval and
+its reviewer has not since approved. Check the thread for these before queueing;
+`scripts/queue_pr.py` may refuse in some of these cases, but its refusal is a backstop, not the
+check.
+
+Coordinators sweep these records as part of tending
+([Backpressure and tending](workflow.md#backpressure-and-tending)):
+
+- an expired hold: post `HOLD-RELEASED by=<id> reason=expired` after checking that its condition
+  no longer applies or notifying its owner;
+- an expired claim without a verdict: the head is free for another reviewer;
+- a non-draft PR whose current head has gone 12 hours without a verdict: arrange a reviewer.
 
 ### Approve and queue
 
@@ -188,13 +237,10 @@ helper or an old copy. Invoke the trusted script by its path; from private scrat
 explicitly ([queue command](../manual/workflows/agent-operations.md#queue-approved-work-and-keep-its-approval)).
 Keep the approved PR head; do not refresh its branch just to obtain the tool. The helper queues
 exactly that head once its required check passes; `--wait 30` waits up to 30 minutes for a running
-check. Write access is sufficient authority to queue a head approved under this cycle. Approve
-without queueing, and say why in the approval, when:
-
-- human review has been requested in the PR, its comments or a linked issue; queueing is then left
-  to that human or to whomever they name;
-- the approval names a hold, such as an unlanded lower PR, a migration or an upstream dependency;
-  queue once the hold clears.
+check. Write access is sufficient authority to queue a head approved under this cycle. A request
+for human review is not a hold, but a hold a maintainer posts on the PR is. Approve without
+queueing, and say why in the approval, when the approval names a hold, such as an unlanded lower
+PR, a migration or an upstream dependency; queue once the hold clears.
 
 Pending source or advisory-notice review is also a hold. Inspect that material,
 record the hold's resolution and link the existing proof/API/caller assessment before queueing;
@@ -238,10 +284,10 @@ gh api graphql -f id="$(gh pr view <PR> --json id --jq .id)" -f query='
 Dequeueing merges nothing, so the author may do it; the new head is queued again only by a
 non-author, once the `check_restack.py` check below passes or the delta is reviewed.
 
-When the only conflicts with `main` are in the aggregates or `references.bib`,
+When the only conflicts with `main` are in the aggregates, `references.bib` or `manual/sources.md`,
 `python3 scripts/restack_mechanical.py <PR> --approved-head <approved head>` does the whole restack
 without running the PR's code. It requires the `check_restack.py` check below to pass for the
-current head, merges `origin/main` with both drivers, writes the aggregates as `lake exe mk_all`
+current head, merges `origin/main` with their drivers, writes the aggregates as `lake exe mk_all`
 would for the merged tree, and runs the check on the result, both times from a checkout of
 `origin/main`. It refuses any other conflict and is a dry run unless given `--push`, which pushes
 the merge only when the check passes and the PR's branch still points at the head it merged. It
@@ -254,8 +300,9 @@ the new head is based on, which is what the merge queue would have built from th
 and passes only when the new head's tree is exactly that replay. The one exception is the
 `mk_all` import aggregates, which must instead be exactly what `lake exe mk_all` writes for the new
 head's tree. A conflict in the replay elsewhere, and any other difference, fails it. The replay
-merges `references.bib` entry by entry, as `scripts/resolve_bib_conflict.py` does, so a
-bibliography merge written by that script, with nothing else changed, passes. After
+merges `references.bib` and `manual/sources.md` entry by entry, as
+`scripts/resolve_bib_conflict.py` and `scripts/resolve_sources_conflict.py` do, so a merge
+written by those scripts, with nothing else changed, passes. After
 `git fetch origin`, run the script from a checkout of current `origin/main`, not of the PR's
 branch, which could change it.
 An approval given while a PR is based on another branch also names that branch's head, and the
@@ -265,5 +312,29 @@ when the approved head had also merged a newer `main`: the script then replays f
 the lower head and that `main`, and names it in the result. Anyone, including
 the author, may post the script's result line, which names both heads and the exact command. The
 non-author who queues the new head runs that command again rather than relying on the posted line.
+A restack whose only differences from the approved head are entry-wise merges of `references.bib`
+or `manual/sources.md` keeps its approval whenever the script reports it identical (its docstring
+names the files it merges by entry): nobody reviews it again.
 When the script reports differences, review the paths and diffs it prints as a delta, under the
 carry-forward rule above.
+
+### Stacked chains
+
+A stacked chain has at most three open, unlanded layers. Do not open a fourth layer until the
+lowest lands; land or roll up what is approved first. A chain that already has more layers is not
+closed for it, but gets no new layer until it is within the cap.
+
+A layer cannot land while the root of its chain cannot: the root is a draft, or its author has not
+answered a request for changes for 48 hours. Reviewers do not review layers above such a root; they
+review the root's fix, or leave the chain until it moves, and no sweep assigns reviewers to those
+layers.
+
+Approved contiguous layers may land together as a rollup instead of one by one. When the root and
+the layers directly above it are each approved at their current heads, and each of those heads
+contains the head of the layer below, the topmost of them carries the whole change: retarget it to
+`main`, or open a new PR at its head, and list in its description every included PR with its
+approved head. Each layer's approval covers its own delta, so the rollup needs no new review; the
+non-author who queues it checks the list against the approvals, and checks that no included PR is
+held or has a request for changes at its listed head posted after its approval. A restack of the
+rollup is checked with `check_restack.py` without `--approved-base`, since the lower layers' changes
+belong to the rollup. Once it lands, close the included PRs with a link to it.

@@ -246,9 +246,7 @@ def Schedule.Received.split {m : ℕ} {spec : MultiOracleSpec}
       (Schedule.Received.split (sc₁ := sc₁) r).2 = r := by
   induction sc₁ with
   | nil => rfl
-  | cons _ sc₁ ih =>
-    rcases r with ⟨r_head, r_tail⟩
-    simp [Schedule.Received.append, Schedule.Received.split, ih]
+  | cons _ sc₁ ih => simp [Schedule.Received.append, Schedule.Received.split, ih]
 
 /-- Party `i`'s complete view of an execution along schedule `sc` (Goldreich Def. 7.2.1, p. 620). -/
 @[ext] structure PartyView {m : ℕ} {spec : MultiOracleSpec}
@@ -404,24 +402,17 @@ def Steps.mapState {m : ℕ} {spec : MultiOracleSpec} {A B Out : Fin m → Type}
     (i : Fin m) (st_i : A i) (recv_i : sc.Received i) :
     (steps.mapState f).outputAt i st_i recv_i = steps.outputAt i (f i st_i) recv_i := by
   induction steps generalizing A with
-  | done output => cases recv_i; rfl
-  | message send next ih =>
-    rcases recv_i with ⟨r_head, r_tail⟩
-    exact ih (fun j (p : A j × _) => (f j p.1, p.2)) (st_i, r_head) r_tail
-  | oracle query next ih =>
-    rcases recv_i with ⟨r_head, r_tail⟩
-    exact ih (fun j (p : A j × _) => (f j p.1, p.2)) (st_i, r_head) r_tail
+  | done => rfl
+  | message _ _ ih | oracle _ _ ih =>
+    exact ih (fun j (p : A j × _) => (f j p.1, p.2)) (st_i, recv_i.1) recv_i.2
 
 @[simp] theorem Steps.run_mapState {m : ℕ} {spec : MultiOracleSpec}
     {A B Out : Fin m → Type} {sc : Schedule m spec}
     (f : (i : Fin m) → A i → B i) (steps : Steps B Out sc) (st : (i : Fin m) → A i) :
     (steps.mapState f).run st = steps.run (fun i => f i (st i)) := by
   induction steps generalizing A with
-  | done output => rfl
-  | message send next ih =>
-    simp [Steps.mapState, Steps.run, ih]
-  | oracle query next ih =>
-    simp [Steps.mapState, Steps.run, ih]
+  | done => rfl
+  | message _ _ ih | oracle _ _ ih => simp [Steps.mapState, Steps.run, ih]
 
 @[simp] theorem Steps.evalWith_mapState {m : ℕ} {spec : MultiOracleSpec}
     {A B Out : Fin m → Type} {sc : Schedule m spec}
@@ -447,15 +438,8 @@ def Steps.append {m : ℕ} {spec : MultiOracleSpec} {State Mid Out : Fin m → T
     (steps₁.append steps₂).outputAt i st_i (Schedule.Received.append r₁ r₂) =
       steps₂.outputAt i (steps₁.outputAt i st_i r₁) r₂ := by
   induction steps₁ with
-  | done mid =>
-    cases r₁
-    simp [Steps.append, Steps.outputAt, Schedule.Received.append]
-  | message send next ih =>
-    rcases r₁ with ⟨r_head, r_tail⟩
-    exact ih steps₂ (st_i, r_head) r_tail
-  | oracle query next ih =>
-    rcases r₁ with ⟨r_head, r_tail⟩
-    exact ih steps₂ (st_i, r_head) r_tail
+  | done => simp [Steps.append, Steps.outputAt, Schedule.Received.append]
+  | message _ _ ih | oracle _ _ ih => exact ih steps₂ (st_i, r₁.1) r₁.2
 
 theorem Steps.run_append {m : ℕ} {spec : MultiOracleSpec}
     {State Mid Out : Fin m → Type} {sc₁ sc₂ : Schedule m spec}
@@ -465,13 +449,8 @@ theorem Steps.run_append {m : ℕ} {spec : MultiOracleSpec}
       let r₁ ← steps₁.run st
       let r₂ ← steps₂.run (fun i => steps₁.outputAt i (st i) (r₁ i))
       return fun i => Schedule.Received.append (r₁ i) (r₂ i) := by
-  induction steps₁ with
-  | done mid =>
-    simp [Steps.append, Steps.run, Steps.outputAt, Schedule.Received.append]
-  | message send next ih =>
-    simp [Steps.append, Steps.run, ih, Steps.outputAt, Schedule.Received.append]
-  | oracle query next ih =>
-    simp [Steps.append, Steps.run, ih, bind_assoc, Steps.outputAt, Schedule.Received.append]
+  induction steps₁ <;>
+    simp [Steps.append, Steps.run, *, bind_assoc, Steps.outputAt, Schedule.Received.append]
 
 theorem Steps.evalWith_append {m : ℕ} {spec : MultiOracleSpec}
     {State Mid Out : Fin m → Type} {sc₁ sc₂ : Schedule m spec}
@@ -505,10 +484,8 @@ theorem Protocol.snd_eq_outputOfView_of_mem_support_evalWith {m : ℕ} {spec : M
     {res : ((i : Fin m) → PartyView In Coins sc i) × ((i : Fin m) → Out i)}
     (h : res ∈ (proto.evalWith W x).support) :
     res.2 = fun i => proto.outputOfView i (res.1 i) := by
-  rw [Protocol.evalWith_eq, PMF.mem_support_bind_iff] at h
-  obtain ⟨r, _, hrecv⟩ := h
-  rw [PMF.mem_support_map_iff] at hrecv
-  obtain ⟨recv, _, rfl⟩ := hrecv
+  simp only [Protocol.evalWith_eq, PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at h
+  rcases h with ⟨_, _, _, _, rfl⟩
   rfl
 
 /-- Real joint distribution of the coalition `I`'s views and all `m` parties' outputs when running
@@ -649,12 +626,11 @@ theorem perfectSemiHonestPrivate_of_deterministic
       ProbComp.eval (S I (I.restrict x) (I.restrict (f x))) =
         (proto.evalWith W x).map (fun r => I.restrict r.1))
     (hOut : ∀ x r, r ∈ (proto.evalWith W x).support → r.2 = f x) :
-    PerfectSemiHonestPrivate proto W (Functionality.ofDeterministic f) S := by
-  intro I x
+    PerfectSemiHonestPrivate proto W (Functionality.ofDeterministic f) S := fun I x => by
   simp only [idealJoint, Functionality.ofDeterministic, pure_bind, bind_pure_comp,
     ProbComp.eval_map, hView I x, PMF.map_comp, Protocol.realJoint]
-  refine PMF.map_congr_on_support (proto.evalWith W x) _ _ fun r hr => ?_
-  simp [Prod.map, hOut x r hr]
+  exact PMF.map_congr_on_support (proto.evalWith W x) _ _ fun r hr => by
+    simp [Prod.map, hOut x r hr]
 
 /-- Deterministic bridge lemma for threshold semi-honest privacy (cf.
 `perfectSemiHonestPrivate_of_deterministic`): for a deterministic functionality `f`, matching the
@@ -669,12 +645,11 @@ theorem perfectSemiHonestPrivateLe_of_deterministic
       ProbComp.eval (S I (I.restrict x) (I.restrict (f x))) =
         (proto.evalWith W x).map (fun r => I.restrict r.1))
     (hOut : ∀ x r, r ∈ (proto.evalWith W x).support → r.2 = f x) :
-    PerfectSemiHonestPrivateLe t proto W (Functionality.ofDeterministic f) S := by
-  intro I hI x
+    PerfectSemiHonestPrivateLe t proto W (Functionality.ofDeterministic f) S := fun I hI x => by
   simp only [idealJoint, Functionality.ofDeterministic, pure_bind, bind_pure_comp,
     ProbComp.eval_map, hView I hI x, PMF.map_comp, Protocol.realJoint]
-  refine PMF.map_congr_on_support (proto.evalWith W x) _ _ fun r hr => ?_
-  simp [Prod.map, hOut x r hr]
+  exact PMF.map_congr_on_support (proto.evalWith W x) _ _ fun r hr => by
+    simp [Prod.map, hOut x r hr]
 
 /-! ### Privacy with a trusted setup -/
 
