@@ -68,7 +68,10 @@ def storedB (L : Layout) (P : PackedState) (mem : ℕ → ℕ) : Bool :=
       mem (L.rowAddr J 1) == (P.gateRows.getD J ⟨0, 0, 0⟩).left &&
       mem (L.rowAddr J 2) == (P.gateRows.getD J ⟨0, 0, 0⟩).right) &&
     ((List.range P.eqnRows.length).all fun e => mem (L.eqnAddr e) == P.eqnRows.getD e 0) &&
-    ((List.range P.phiRows.length).all fun i => mem (L.phiAddr i) == P.phiRows.getD i 0)
+    ((List.range P.phiRows.length).all fun i => mem (L.phiAddr i) == P.phiRows.getD i 0) &&
+    ((List.range P.pairs.length).all fun k =>
+      mem (L.pairAddr k 0) == (P.pairs.getD k (0, 0)).1 &&
+      mem (L.pairAddr k 1) == (P.pairs.getD k (0, 0)).2)
 
 /-- Run `initCode` on the input of `C` at width `w` and check the stored state and the step
 count against `initTime C`. -/

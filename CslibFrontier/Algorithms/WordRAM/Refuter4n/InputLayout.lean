@@ -32,17 +32,19 @@ No running time is claimed here for the refuter as a whole.
 **Input layout** (`encode`). A circuit `C : Circuit (fullSignature 2 Bool) n 1` with `s = C.size`
 program lines is the word list `[n, s]`, then the three words `LineWords` (tag, left, right) of
 each line in program order, then the number of the output wire. The line words are read off the
-existing line code `Program.code` (`codeWords`, `progWords`), so wires are their numbers
+existing circuit code `Circuit.code` (`codeWords`), so wires are their numbers
 `Wire.toNat` (`input i ↦ i`, `gate k ↦ n + k`). A line `.fn op` has the 4-bit truth table `ttOf` of
 `op` as tag (below `16`) and the numbers of its two wires; a constant line `.con c` has tag
 `16 + c` and operand words `0`. This is a word list for `Cslib.WordRAM.Data.init`, one field per
 word, so the program reads each field with one load. It is separate from the bit-string code
-`Cslib.Circuits.Circuit.encCircuit`, whose decoding on the Word-RAM would need bit parsing. At an
+`Cslib.Circuits.Circuit.encCircuit`, whose decoding on the Word-RAM would need bit parsing.
+`LineWords` has the shape of the gate row `GateRow` of the packed state but other contents (wire
+numbers and the constant tags `16 + c`, not argument codes), so it is a separate record. At an
 admitted width every input word fits (`inputFits_encode`).
 
 **Decoding.** `initCode` decodes the lines in one pass in program order, as the one-pass
-gate-table builder of `SemiCircuit.ofCircuitBinary` (`programGateLitVector`): line `j` reads the
-literal codes (`litCode`) of the earlier lines, absorbs the negations of its operands into its
+gate-table builder of `SemiCircuit.ofCircuitBinary`: line `j` reads the literal codes
+(`litCode`) of the earlier lines, absorbs the negations of its operands into its
 truth table, and is either a function of one operand (`unaryLit`) or the binary gate `n + j` with
 gate row `⟨tt, left, right⟩`. The arithmetic decoder that the program computes is private and is
 proved equal to the builder line by line (literal codes and gate rows) through the builder's own
@@ -54,7 +56,9 @@ words, `n` rows of the parameter map and room for `N` two-word pair records. `la
 just past the input (base `4 + 3 s`) with `N = nameBound C` and `E = eqnBound C`; the program keeps
 one scratch word per line after it, in `[(layout C).top, workEnd C)`, and states nothing about
 their final values. `Stored L P` does not relate the sizes in `L` to the table lengths of `P`; a
-client uses it with `layout C` and the length facts of `Rep`.
+client uses it with `layout C` and the length facts of `Rep`. Its tables are fixed-stride records
+stated field by field in the types of `PackedState` (`GateRow`, pair records `ℕ × ℕ`), not with
+`Cslib.WordRAM.Realization.HoldsRecords`, whose rows are `Fin stride → ℕ`.
 
 **Width condition** (`FitsWidth`). `w ≥ n + C.size + 2` (the basis of `Rep.fits`) and `w ≥ 7`
 (the tags `16, 17`, and the workspace when `n + C.size < 5`). At these widths the input words fit
@@ -71,8 +75,7 @@ statements.
 
 ## Main definitions
 
-* `Cslib.Algorithms.WordRAM.Refuter4n.LineWords`, `codeWords`, `progWords`, `encode`: the input
-  layout.
+* `Cslib.Algorithms.WordRAM.Refuter4n.LineWords`, `codeWords`, `encode`: the input layout.
 * `Cslib.Algorithms.WordRAM.Refuter4n.Layout` (`rowAddr`, `eqnAddr`, `phiAddr`, `pairAddr`,
   `top`), `Stored`, `layout`, `workEnd`: the memory image of a packed state.
 * `Cslib.Algorithms.WordRAM.Refuter4n.FitsWidth`: the admitted widths.
@@ -112,15 +115,18 @@ two wires; `.con c` has tag `16 + c` and operand words `0`. -/
   | (.fn op, ws) => ⟨ttOf fun a b => op ![a, b], ws.getD 0 0, ws.getD 1 0⟩
   | (.con c, _) => ⟨16 + c.toNat, 0, 0⟩
 
-/-- The line words of a program in program order: its code `Program.code`, line by line. -/
-@[expose] def progWords {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : List LineWords :=
+/-- The Word-RAM input of a circuit, read off its code `Circuit.code` (line codes and output wire
+numbers): `[n, s]`, the three words `codeWords` of each line, the number of the output wire. -/
+@[expose] def encode (C : Circuit (fullSignature 2 Bool) n 1) : List ℕ :=
+  n :: C.size :: (C.code.1.map codeWords).flatMap (fun t => [t.tag, t.left, t.right]) ++ C.code.2
+
+/-- The line words of a program in program order. -/
+private def progWords {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : List LineWords :=
   p.code.map codeWords
 
-/-- The Word-RAM input of a circuit: `[n, s]`, three words per line, the number of the output
-wire. -/
-@[expose] def encode (C : Circuit (fullSignature 2 Bool) n 1) : List ℕ :=
-  n :: C.size :: (progWords C.program).flatMap (fun t => [t.tag, t.left, t.right]) ++
-    [(C.outputs 0).toNat]
+private theorem encode_eq (C : Circuit (fullSignature 2 Bool) n 1) :
+    encode C = n :: C.size :: (progWords C.program).flatMap (fun t => [t.tag, t.left, t.right]) ++
+      [(C.outputs 0).toNat] := rfl
 
 /-- The words of one line. -/
 private def lineWords {g : ℕ} (line : Line (fullSignature 2 Bool) n g) : LineWords :=
@@ -252,8 +258,9 @@ private theorem lineOut_lineWords {g : ℕ} (wLit : Wire n g → Lit) (L : List 
   · cases c <;>
       simp [lineWords_con, lineOut, lineBinaryLit, binaryB2Cost, litCode, Lit.const, argCode]
 
-/-- **Program.** Decoding the line triples of a program gives, line by line, the folded literal
-code of `programGateLitVector` and the gate row of the binary gate `n + j`, if any. -/
+/-- **Program.** Decoding the line words of a program gives, line by line, the folded literal
+code of the one-pass builder (`programGateLit`) and the gate row of the binary gate `n + j`, if
+any. -/
 private theorem decodeLines_progWords : ∀ {g : ℕ} (p : Program (fullSignature 2 Bool) n g),
     decodeLines n (progWords p) = List.ofFn fun j : Fin g =>
       ⟨litCode (programGateLit p j),
@@ -292,18 +299,22 @@ private theorem decodeLines_progWords : ∀ {g : ℕ} (p : Program (fullSignatur
 
 /-! ### Validity of the encoding -/
 
-/-- A triple is valid at line `j`: its tag is below `18`, and a `.fn` line reads only inputs and
-earlier lines. -/
+/-- The words of line `j` are valid: the tag is below `18`, a `.fn` line reads only inputs and
+earlier lines, and a constant line has operand words `0`. -/
 private def WordsOK (n j : ℕ) (tr : LineWords) : Prop :=
-  tr.tag < 18 ∧ (tr.tag < 16 → tr.left < n + j ∧ tr.right < n + j)
+  tr.tag < 18 ∧ (tr.tag < 16 → tr.left < n + j ∧ tr.right < n + j) ∧
+    (16 ≤ tr.tag → tr.left = 0 ∧ tr.right = 0)
 
 private theorem wordsOK_lineWords {g : ℕ} (line : Line (fullSignature 2 Bool) n g) :
     WordsOK n g (lineWords line) := by
   rcases line with ⟨op | c, w⟩
   · have := ttOf_lt fun a b => op ![a, b]
-    exact ⟨by simp only [lineWords_fn]; omega, fun _ => ⟨Wire.toNat_lt _, Wire.toNat_lt _⟩⟩
+    refine ⟨by simp only [lineWords_fn]; omega, fun _ => ⟨Wire.toNat_lt _, Wire.toNat_lt _⟩,
+      fun h => ?_⟩
+    simp only [lineWords_fn] at h
+    omega
   · have := Bool.toNat_le c
-    refine ⟨by simp only [lineWords_con]; omega, fun h => ?_⟩
+    refine ⟨by simp only [lineWords_con]; omega, fun h => ?_, fun _ => ⟨rfl, rfl⟩⟩
     simp only [lineWords_con] at h
     omega
 
@@ -358,34 +369,19 @@ private theorem init_encode (C : Circuit (fullSignature 2 Bool) n 1) :
   rw [hl] at hf
   refine ⟨rfl, rfl, fun j hj c hc => ?_, ?_, fun a ha => ?_⟩
   · rw [show 3 + 3 * j + c = (3 * j + c + 1 + 1) + 1 by omega, Cslib.WordRAM.Data.init_mem_succ]
-    simp only [encode]
+    simp only [encode_eq]
     rw [List.getD_append _ _ _ _ (by simp only [List.length_cons, hf]; omega),
       List.getD_cons_succ, List.getD_cons_succ]
     exact getD_flatMap_triple _ j c (by rw [hl]; exact hj) hc
   · rw [show 3 + 3 * C.size = (3 * C.size + 2) + 1 by omega, Cslib.WordRAM.Data.init_mem_succ]
-    simp only [encode]
+    simp only [encode_eq]
     rw [List.getD_append_right _ _ _ _ (by simp [hf])]
     simp [hf]
   · rw [show a = (a - 1) + 1 by omega, Cslib.WordRAM.Data.init_mem_succ, List.getD_eq_default]
-    simp only [encode, List.length_cons, List.length_append, hf, List.length_nil]
+    simp only [encode_eq, List.length_cons, List.length_append, hf, List.length_nil]
     omega
 
 /-! ### Decoding prefixes -/
-
-private theorem decodeLines_take (l : List LineWords) (k : ℕ) :
-    decodeLines n (l.take k) = (decodeLines n l).take k := by
-  induction l using List.reverseRecOn generalizing k with
-  | nil => cases k <;> rfl
-  | append_singleton l tr ih =>
-    rw [decodeLines_append_singleton]
-    by_cases hk : k ≤ l.length
-    · rw [List.take_append_of_le_length hk, List.take_append_of_le_length
-        (by rw [length_decodeLines]; exact hk), ih]
-    · have h1 : (l ++ [tr]).length ≤ k := by
-        rw [List.length_append, List.length_singleton]; omega
-      rw [List.take_of_length_le h1, List.take_of_length_le (by
-        simp only [List.length_append, List.length_singleton, length_decodeLines]; omega),
-        decodeLines_append_singleton]
 
 private theorem getD_decodeLines (l : List LineWords) {k : ℕ} (hk : k < l.length) :
     (decodeLines n l).getD k ⟨0, none⟩ =
@@ -408,13 +404,6 @@ private theorem getD_decodeLines (l : List LineWords) {k : ℕ} (hk : k < l.leng
       simp
 
 /-! ### The decoded circuit -/
-
-private theorem litCode_lt {ℓ : Lit} {N : ℕ} (h : ∀ t, ℓ.Reads t → t < N) :
-    litCode ℓ < 2 * N + 4 := by
-  have ha := argCode_lt (a := ℓ.arg) fun i hi => h i hi
-  have hn := Bool.toNat_le ℓ.neg
-  rw [litCode]
-  omega
 
 /-- The decoded lines of `C`. -/
 private abbrev outs (C : Circuit (fullSignature 2 Bool) n 1) : List DecodedLine :=
@@ -469,24 +458,17 @@ private theorem maskOf_gates (C : Circuit (fullSignature 2 Bool) n 1) :
 private theorem maskOf_range (k : ℕ) : maskOf (Finset.range k) = 2 ^ k - 1 := by
   rw [maskOf, Nat.geomSum_eq le_rfl, Nat.add_one_sub_one, Nat.div_one]
 
-private theorem mem_progWords : ∀ {g : ℕ} (p : Program (fullSignature 2 Bool) n g),
-    ∀ t ∈ progWords p, t.tag < 18 ∧ t.left ≤ n + g ∧ t.right ≤ n + g
-  | _, .empty => fun _ h => absurd h List.not_mem_nil
-  | _, @Program.gate _ _ g p line => fun t ht => by
-    rw [progWords_gate] at ht
-    rcases List.mem_append.1 ht with ht | ht
-    · obtain ⟨h1, h2, h3⟩ := mem_progWords p t ht
-      exact ⟨h1, by omega, by omega⟩
-    · rw [List.mem_singleton.1 ht]
-      rcases line with ⟨op | c, w⟩
-      · have := ttOf_lt fun a b => op ![a, b]
-        have h0 := Wire.toNat_lt (w ⟨0, by simp [fullSignature]⟩)
-        have h1 := Wire.toNat_lt (w ⟨1, by simp [fullSignature]⟩)
-        simp only [lineWords_fn]
-        omega
-      · have := Bool.toNat_le c
-        simp only [lineWords_con]
-        omega
+private theorem mem_progWords {g : ℕ} (p : Program (fullSignature 2 Bool) n g) (t : LineWords)
+    (ht : t ∈ progWords p) : t.tag < 18 ∧ t.left ≤ n + g ∧ t.right ≤ n + g := by
+  obtain ⟨hl, hok⟩ := progWords_ok p
+  obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem ht
+  have hjg : j < g := hl ▸ hj
+  obtain ⟨h1, h2, h3⟩ := List.getD_eq_getElem (progWords p) ⟨0, 0, 0⟩ hj ▸ hok j hjg
+  by_cases h16 : (progWords p)[j].tag < 16
+  · have := h2 h16
+    exact ⟨h1, by omega, by omega⟩
+  · have := h3 (by omega)
+    exact ⟨h1, by omega, by omega⟩
 
 /-! ### The memory image of a packed state -/
 
@@ -557,6 +539,10 @@ program keeps one scratch word per line at `top + j`. -/
 /-- The end of the workspace of the program: the packed state and one scratch word per line. -/
 @[expose] def workEnd (C : Circuit (fullSignature 2 Bool) n 1) : ℕ := (layout C).top + C.size
 
+private theorem workEnd_eq (C : Circuit (fullSignature 2 Bool) n 1) :
+    workEnd C = 9 + 16 * C.size + 11 * n := by
+  simp only [workEnd, layout, Layout.top, nameBound, eqnBound]; omega
+
 /-- Admitted word widths: `w ≥ n + C.size + 2` (the width basis of `Rep.fits`) and `w ≥ 7` (the
 tags `16, 17` of constant lines, and the workspace of small circuits). -/
 @[expose] def FitsWidth (C : Circuit (fullSignature 2 Bool) n 1) (w : ℕ) : Prop :=
@@ -572,8 +558,7 @@ private theorem lt_two_pow_add_two {N : ℕ} (h : 5 ≤ N) : 16 * N + 9 < 4 * 2 
 theorem fits_workEnd (C : Circuit (fullSignature 2 Bool) n 1) {w : ℕ} (hw : FitsWidth C w) :
     Cslib.WordRAM.Fits w (workEnd C) := by
   obtain ⟨hwN, hw7⟩ := hw
-  have hE : workEnd C = 9 + 16 * C.size + 11 * n := by
-    simp only [workEnd, layout, Layout.top, nameBound, eqnBound]; omega
+  have hE := workEnd_eq C
   have h1 := Nat.pow_le_pow_right (n := 2) two_pos hwN
   have h2 := Nat.pow_le_pow_right (n := 2) two_pos hw7
   rw [pow_add] at h1
@@ -593,18 +578,17 @@ theorem inputFits_encode (C : Circuit (fullSignature 2 Bool) n 1) {w : ℕ} (hw 
   have hWE := fits_workEnd C hw
   obtain ⟨hwN, hw7⟩ := hw
   have hw5 : 5 ≤ w := by omega
-  have hE : workEnd C = 9 + 16 * C.size + 11 * n := by
-    simp only [workEnd, layout, Layout.top, nameBound, eqnBound]; omega
+  have hE := workEnd_eq C
   have h32 := Nat.pow_le_pow_right (n := 2) two_pos hw5
   change workEnd C < 2 ^ w at hWE
   have hl := (progWords_ok C.program).1
   refine ⟨?_, fun v hv => ?_⟩
   · change (encode C).length < 2 ^ w
-    simp only [encode, List.length_append, List.length_cons, length_flatMap_triple, hl,
+    simp only [encode_eq, List.length_append, List.length_cons, length_flatMap_triple, hl,
       List.length_nil]
     omega
   · change v < 2 ^ w
-    simp only [encode, List.mem_append, List.mem_cons, List.mem_flatMap,
+    simp only [encode_eq, List.mem_append, List.mem_cons, List.mem_flatMap,
       List.not_mem_nil, or_false] at hv
     rcases hv with (rfl | rfl | ⟨t, ht, hv⟩) | rfl
     · omega
@@ -689,10 +673,8 @@ private theorem exec_litX0 {w W : ℕ} (y : Data 24) (L : List ℕ) (hW : Fits w
   · exact ⟨rfl, fun i hi => by wram_simp, by wram_simp; simp [wireLit, hc]⟩
   · exact ⟨rfl, fun i hi => by wram_simp, by wram_simp; simp [wireLit, hc, hm (by omega)]⟩
 
-/-- The literal code of the wire word in `rX1`. -/
-private def litX1 : Code .standard 24 := ram[
-  if rX1 < rN then [ rX1 ← rX1 + rX1; rX1 ← rX1 + rFour ]
-    else [ rX1 ← rX1 - rN; rX1 ← rX1 + rLit; rX1 ← *rX1 ] ]
+/-- The literal code of the wire word in `rX1`: `litX0` with the registers `rX0, rX1` swapped. -/
+private def litX1 : Code .standard 24 := litX0.rename (Equiv.swap rX0 rX1)
 
 private theorem exec_litX1 {w W : ℕ} (y : Data 24) (L : List ℕ) (hW : Fits w W)
     (hfour : y.regs rFour = 4) (hx : y.regs rX1 + y.regs rX1 + 4 ≤ W)
@@ -702,11 +684,22 @@ private theorem exec_litX1 {w W : ℕ} (y : Data 24) (L : List ℕ) (hW : Fits w
     ∃ z, ExecWithin w litX1 y z 6 ∧ z.mem = y.mem ∧
       (∀ i : Fin 24, i ≠ rX1 → z.regs i = y.regs i) ∧
       z.regs rX1 = wireLit (y.regs rN) L (y.regs rX1) := by
-  refine WP.exists_execWithin ?_
-  unfold litX1
-  wram_exec [hfour]
-  · exact ⟨rfl, fun i hi => by wram_simp, by wram_simp; simp [wireLit, hc]⟩
-  · exact ⟨rfl, fun i hi => by wram_simp, by wram_simp; simp [wireLit, hc, hm (by omega)]⟩
+  have hc : ∀ (x : Data 24) i, (x.comap (Equiv.swap rX0 rX1)).regs i =
+      x.regs (Equiv.swap rX0 rX1 i) := fun _ _ => rfl
+  have hcm : ∀ x : Data 24, (x.comap (Equiv.swap rX0 rX1)).mem = x.mem := fun _ => rfl
+  have h0 : Equiv.swap rX0 rX1 rX0 = rX1 := Equiv.swap_apply_left _ _
+  have hN : Equiv.swap rX0 rX1 rN = rN := by decide
+  have h4 : Equiv.swap rX0 rX1 rFour = rFour := by decide
+  have hL : Equiv.swap rX0 rX1 rLit = rLit := by decide
+  obtain ⟨z, hz, ⟨hzm, hzr, hzv⟩, -⟩ := ExecWithin.rename_post (Equiv.swap rX0 rX1).injective
+    (exec_litX0 (y.comap (Equiv.swap rX0 rX1)) L hW (by simpa only [hc, h4] using hfour)
+      (by simpa only [hc, h0] using hx) (by simpa only [hc, h0, hN, hL] using hl)
+      (by simpa only [hc, hcm, h0, hN, hL] using hm))
+  refine ⟨z, hz, by simpa only [hcm] using hzm, fun i hi => ?_, ?_⟩
+  · have hi' : Equiv.swap rX0 rX1 i ≠ rX0 := by
+      rw [Ne, Equiv.swap_apply_eq_iff, Equiv.swap_apply_left]; exact hi
+    simpa only [hc, Equiv.swap_apply_self] using hzr _ hi'
+  · simpa only [hc, h0, hN, hL] using hzv
 
 private theorem swapLo_lt : ∀ t < 16, swapLo t < 16 := by decide
 private theorem swapHi_lt : ∀ t < 16, swapHi t < 16 := by decide
@@ -859,7 +852,7 @@ private theorem exec_lineBody {w W : ℕ} (y : Data 24) (L : List ℕ) (tr : Lin
       ∀ a, (a < R ∨ R + 3 ≤ a) → y₂.mem a = y.mem a := by
     have hc16 : y₁.regs r16 = 16 := (r₁ r16 (by decide) (by decide)).trans h16
     by_cases ht : tr.tag < 16
-    · obtain ⟨ha₀, ha₁⟩ := hok.2 ht
+    · obtain ⟨ha₀, ha₁⟩ := hok.2.1 ht
       have eN₁ : y₁.regs rN = n := r₁ rN (by decide) (by decide)
       have eLit₁ : y₁.regs rLit = y.regs rLit := r₁ rLit (by decide) (by decide)
       obtain ⟨z₁, e₁, m₁, f₁, v₁⟩ := exec_litX0 y₁ L hW
@@ -1313,8 +1306,7 @@ theorem exec_initCode (C : Circuit (fullSignature 2 Bool) n 1) {w : ℕ} (hw : F
         Function.update_of_ne (by omega), hphi₁ i hin, List.getD_eq_getElem _ _ hi]
       simp [initialPacked]
   · have hb : (layout C).base = base := rfl
-    have he : workEnd C = top + s := by
-      simp only [workEnd, layout, Layout.top, nameBound, eqnBound]; omega
+    have he : workEnd C = top + s := by rw [workEnd_eq]; omega
     rw [hb, he] at ha
     rw [hmemo a (by omega) (by omega), hf₃ a (by omega) (by omega), hm₁def, hm₂,
       Function.update_of_ne (by omega), hf₁ a (by omega)]
