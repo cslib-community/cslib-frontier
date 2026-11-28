@@ -2696,6 +2696,16 @@ FOCS 2022, 968–979. https://doi.org/10.1109/FOCS54457.2022.00095 . Full versio
 Checked against the FOCS proceedings text on 2026-11-11: the partial-string problems `MKTP*` and `MINKT*` (Section I, p. 971), consistency with a partial string (footnote 5, p. 971), the KT-style time measure of Theorem I.2 (footnote 6, p. 971), Theorem I.2 (p. 971; its "In particular" clause, NP-hardness of Partial MCSP and of `MINKT*` under randomized reductions, is `PartialMCSP.rpHard` and `MINKTStar.rpHard`), and the account of Ko's `MINKT` and relativization barrier (abstract, p. 968; Section I, p. 970).
 The ECCC numbering was not checked.
 
+<a id="hirschberg75"></a>
+## hirschberg75
+
+D. S. Hirschberg.
+“A Linear Space Algorithm for Computing Maximal Common Subsequences.”
+*Communications of the ACM* 18(6), 341–343, 1975.
+Page 342 gives Algorithm B for the final row and Algorithm C for reconstructing a common subsequence at a maximizing split.
+Page 343 finishes the correctness proof, gives the minimum-trace-cost variant, and analyzes the recurrence and the shared-array space convention.
+[Author’s copy](https://ics.uci.edu/~dhirschb/pubs/p341-hirschberg.pdf)
+
 <a id="hirvonensuomela2020"></a>
 ## hirvonensuomela2020
 
@@ -3279,9 +3289,10 @@ Cited by [InfluenceModels.lean](../CslibFrontier/GameTheory/Network/InfluenceMod
 Jon Kleinberg and Éva Tardos.
 *Algorithm Design*.
 Addison-Wesley, 2006.
-Cited for Section 6.6 ("Sequence Alignment"), the alignment dynamic program with gap and mismatch costs.
-Section 6.7 ("Sequence Alignment in Linear Space via Divide and Conquer") is the locator for the Hirschberg follow-up.
-The section titles were checked against search summaries of the published table of contents on 2026-11-08, not the printed book.
+Section 6.6, pp. 280–283, defines alignment with a fixed gap penalty and pair costs and proves the dynamic program and shortest-path interpretation in (6.16)–(6.17).
+Section 6.7, pp. 285–290, gives the forward and reverse score rows, the optimal crossing in (6.19)–(6.20), and the reconstruction and work analysis in (6.21).
+The Lean reconstruction also allows the insertion and deletion costs to depend on the letter.
+[Printed edition, §§6.6–6.7](https://theswissbay.ch/pdf/Gentoomen%20Library/Algorithms/Algorithm%20Design%20-%20John%20Kleinberg%20-%20%C3%89va%20Tardos.pdf#page=153)
 
 <a id="kmb81"></a>
 ## kmb81

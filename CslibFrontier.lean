@@ -116,6 +116,7 @@ public import CslibFrontier.Crypto.Computational.Homomorphic.FixedKey.Reduction
 public import CslibFrontier.Algorithms.Lean.CDCL.Luby
 public import CslibFrontier.Tactic.Synthesis
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Contraction
+public import CslibFrontier.Algorithms.Lean.EditDistance.HirschbergBase
 public import CslibFrontier.Foundations.GroupTheory.SLTower.Tower
 public import CslibFrontier.DataStructure.PriorityQueue.BinaryHeap.Native.Read
 public import CslibFrontier.Computability.Probabilistic.Oracle.Time
@@ -910,6 +911,7 @@ public import CslibFrontier.Foundations.Data.Polynomial.TruncatedJetBridge
 public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.BatchTransfer
 public import CslibFrontier.Foundations.Combinatorics.Expander.MatchingPaths
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product.MatrixInput
+public import CslibFrontier.Algorithms.Lean.EditDistance.Hirschberg
 public import CslibFrontier.Computability.Complexity.Problems.BipartitePerfectMatching.Membership
 public import CslibFrontier.Probability.Distributional.Search
 public import CslibFrontier.Computability.Complexity.Problems.FeedbackArcSet
@@ -5227,6 +5229,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Algorithms.Lean.GomoryHu.WeightedCut
 public import CslibFrontier.Algorithms.WordRAM.RadixSort
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WitnessScan.Setup
+public import CslibFrontier.Algorithms.Lean.EditDistance.HirschbergSplit
 public import CslibFrontier.Computability.Circuit.StraightLine
 public import CslibFrontier.Foundations.Data.BitString.Block
 public import CslibFrontier.Computability.Circuit.Monotone.Basic
@@ -5517,6 +5520,7 @@ public import CslibFrontier.Algorithms.Lean.Query.FreeM.CostHom
 public import CslibFrontier.Algorithms.WordRAM.CountingSort
 public import CslibFrontier.Crypto.Primitives.Garbling.CircuitInverters
 public import CslibFrontier.Computability.QueryComplexity.Midrijanis
+public import CslibFrontier.Algorithms.Lean.EditDistance.HirschbergBounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.SavitchWalk
 public import CslibFrontier.DataStructure.BTree.Comparisons.Insert
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Memory

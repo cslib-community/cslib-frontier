@@ -107,6 +107,7 @@ import CslibFrontierResults.Entries.ODonnellHammingBall
 import CslibFrontierResults.Entries.AlmostSynchronous
 import CslibFrontierResults.Entries.ExternalRegret
 import CslibFrontierResults.Entries.UtilityGame
+import CslibFrontierResults.Entries.Hirschberg
 import CslibFrontierResults.Entries.PrefixFreePRF
 import CslibFrontierResults.Entries.SergeevPrefixDepth
 import CslibFrontierResults.Entries.BalancedFlow
