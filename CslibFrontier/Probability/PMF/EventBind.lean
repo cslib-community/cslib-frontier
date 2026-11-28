@@ -11,6 +11,7 @@ public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.SupportTsum
+import CslibFrontier.Probability.PMF.TotalProbability
 
 /-!
 # Event probabilities after a random first stage
@@ -74,16 +75,15 @@ theorem toOuterMeasure_bind_failure_le (p : PMF α) (kernel : α → PMF β)
     (pre : Set α) (failure : Set β) (error : ENNReal)
     (hstep : ∀ a ∈ p.support, a ∈ pre → (kernel a).toOuterMeasure failure ≤ error) :
     (p.bind kernel).toOuterMeasure failure ≤ p.toOuterMeasure preᶜ + error := by
-  classical
-  rw [PMF.toOuterMeasure_bind_apply, toOuterMeasure_eq_tsum_mul_indicator]
+  have herror : p.toOuterMeasure pre * error ≤ error := by
+    simpa only [one_mul] using
+      mul_le_mul_of_nonneg_right (toOuterMeasure_le_one p pre) (zero_le (a := error))
   calc
-    _ ≤ ∑' a, p a * ((preᶜ).indicator 1 a + error) := by
-      refine tsum_mul_mono_support p fun a hs => ?_
-      by_cases ha : a ∈ pre
-      · simpa [Set.indicator_of_notMem (Set.notMem_compl_iff.mpr ha)] using hstep a hs ha
-      · rw [Set.indicator_of_mem (Set.mem_compl ha)]
-        exact (toOuterMeasure_le_one (kernel a) failure).trans le_self_add
-    _ = _ := by simp only [mul_add, tsum_add, ENNReal.tsum_mul_right, p.tsum_coe, one_mul]
+    _ ≤ p.toOuterMeasure pre * error + p.toOuterMeasure preᶜ * 1 :=
+      toOuterMeasure_bind_le_mul_add_mul p kernel pre failure hstep
+        (fun a _ _ => toOuterMeasure_le_one (kernel a) failure)
+    _ ≤ p.toOuterMeasure preᶜ + error := by
+      simpa only [mul_one, add_comm] using add_le_add_right herror (p.toOuterMeasure preᶜ)
 
 /-- The real-valued error rule for a randomized continuation. -/
 theorem toOuterMeasure_bind_failure_toReal_le (p : PMF α) (kernel : α → PMF β)
@@ -128,19 +128,12 @@ theorem toOuterMeasure_bind_le_mul_ennreal {α β : Type*} (p : PMF α) (kernel 
     (hfail : ∀ a ∈ p.support, a ∈ stillFailing → (kernel a).toOuterMeasure failure ≤ q₂)
     (hsucc : ∀ a ∈ p.support, a ∉ stillFailing → (kernel a).toOuterMeasure failure = 0) :
     (p.bind kernel).toOuterMeasure failure ≤ q₁ * q₂ := by
-  classical
   calc
     (p.bind kernel).toOuterMeasure failure
       ≤ p.toOuterMeasure stillFailing * q₂ := by
-        rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_right]
-        refine tsum_le_tsum fun a => ?_
-        by_cases hs : a ∈ p.support
-        · by_cases ha : a ∈ stillFailing
-          · simp only [Set.indicator_of_mem ha]
-            exact mul_le_mul_of_nonneg_left (hfail a hs ha) zero_le
-          · simp [Set.indicator_of_notMem ha, hsucc a hs ha]
-        · have hz : p a = 0 := by simpa only [PMF.mem_support_iff, not_not] using hs
-          simp [hz]
+        simpa only [mul_zero, add_zero] using
+          toOuterMeasure_bind_le_mul_add_mul p kernel stillFailing failure hfail
+            (fun a ha hnot => (hsucc a ha hnot).le)
     _ ≤ q₁ * q₂ := mul_le_mul_of_nonneg_right hp zero_le
 
 /-- If a first stage `p` lands in `pre` with probability at least `s₁` and for every supported
