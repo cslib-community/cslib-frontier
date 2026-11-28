@@ -627,17 +627,11 @@ theorem modelCount_semFin {q : ℕ} (hq : 0 < q) (sem : Rel → List D → Bool)
   classical
   let _ : Inhabited (Fin q) := ⟨⟨0, hq⟩⟩
   unfold CSP.modelCount CSP.modelCountOn
-  refine Finset.card_bij (fun σ _ v => e.symm (σ v)) ?_ (fun _ _ _ _ h => funext fun v =>
-      e.symm.injective (congrFun h v)) ?_
-  · intro σ hσ
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hσ ⊢
-    rw [eval_semFin] at hσ
-    exact (CSP.eval_congr fun v hv => by simp [List.mem_toFinset.2 hv]).trans hσ
-  · intro τ hτ
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hτ
-    refine ⟨fun v => e (τ v), Finset.mem_filter.2 ⟨Finset.mem_univ _, ?_⟩, funext fun v => by simp⟩
-    rw [eval_semFin]
-    exact (CSP.eval_congr fun v hv => by simp [List.mem_toFinset.2 hv]).trans hτ
+  refine Finset.card_equiv (Equiv.arrowCongr (Equiv.refl _) e.symm) fun σ => ?_
+  simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+  rw [eval_semFin]
+  exact Iff.of_eq (congrArg (· = true) (CSP.eval_congr fun v hv => by
+    simp [List.mem_toFinset.2 hv]))
 
 theorem cspCountNice_equiv (sem : Rel → List D → Bool) {F : CSP Rel V}
     (N : F.primalGraph.NiceTreeDecomposition) (e : D ≃ Fin (Fintype.card D)) :

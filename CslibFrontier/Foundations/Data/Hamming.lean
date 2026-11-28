@@ -169,9 +169,9 @@ is in `B`, and they are at Hamming distance one. -/
 /-- There are as many edges from `A` to `B` as from `B` to `A`. -/
 theorem card_hammingEdges_comm (A B : Finset (∀ i, β i)) :
     #(hammingEdges A B) = #(hammingEdges B A) :=
-  card_bij (fun e _ => e.swap) (fun e he => by simp_all [hammingDist_comm])
-    (fun _ _ _ _ h => Prod.swap_injective h)
-    fun e he => ⟨e.swap, by simp_all [hammingDist_comm]⟩
+  card_equiv (Equiv.prodComm _ _) fun e => by
+    simp only [mem_hammingEdges, Equiv.prodComm_apply, Prod.fst_swap, Prod.snd_swap]
+    rw [hammingDist_comm e.2 e.1, and_left_comm]
 
 /-- Splitting `B` splits the edges. -/
 theorem card_hammingEdges_filter_add_card_hammingEdges_filter_not (p : (∀ i, β i) → Prop)

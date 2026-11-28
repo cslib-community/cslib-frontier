@@ -494,12 +494,7 @@ theorem log_le_hammingDist_indexedCodeword {w n : ℕ} {v v' : Fin w} (hne : v �
       hammingDist (indexedCodeword (n := n) v) (indexedCodeword v') := by
   have h : hammingDist (indexedCodeword (n := n) v) (indexedCodeword v') =
       hammingDist (codeword (n := n) v) (codeword v') :=
-    Finset.card_bij (fun j _ => coordinateEquiv w n j)
-      (fun j hj => by simpa [indexedCodeword_eq] using (Finset.mem_filter.mp hj).2)
-      (fun _ _ _ _ h => (coordinateEquiv w n).injective h)
-      (fun j hj => ⟨(coordinateEquiv w n).symm j, by
-        simpa [indexedCodeword_eq] using (Finset.mem_filter.mp hj).2,
-        (coordinateEquiv w n).apply_symm_apply j⟩)
+    Finset.card_equiv (coordinateEquiv w n) fun j => by simp [indexedCodeword_eq]
   exact h.symm ▸ log_le_hammingDist hne
 
 end Cslib.Code.JustesenFamily

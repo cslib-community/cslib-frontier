@@ -139,13 +139,7 @@ theorem dens_eval_mem_retentionBox (hr : r ≤ H) (hL : L ≤ P) (y : ZMod P) :
   have hcard : #{A : FrameChannel P H r | A.eval y ∈ retentionBox P H L} =
       L ^ H * Fintype.card (Frame P H r) := by
     rw [← card_retentionBox (H := H) hL, ← card_univ (α := Frame P H r), ← card_product]
-    refine card_bij (fun A _ ↦ FrameChannel.evalEquiv y A) (fun A hA ↦ ?_)
-      (fun _ _ _ _ h ↦ (FrameChannel.evalEquiv y).injective h) fun p hp ↦ ?_
-    · simpa using hA
-    · refine ⟨(FrameChannel.evalEquiv y).symm p, ?_, by simp⟩
-      have : ((FrameChannel.evalEquiv y).symm p).eval y = p.1 := by
-        simp [FrameChannel.evalEquiv, FrameChannel.eval]
-      simpa [this] using (mem_product.1 hp).1
+    exact card_equiv (FrameChannel.evalEquiv y) fun A => by simp
   have hpos : (0 : ℚ≥0) < Fintype.card (Frame P H r) := by exact_mod_cast Fintype.card_pos
   rw [dens, hcard, Fintype.card_prod, Fintype.card_fun, Fintype.card_fin, ZMod.card, div_pow]
   push_cast

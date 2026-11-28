@@ -562,12 +562,11 @@ private theorem card_filter_eq_of_perm_invariant {α β : Type*} [Fintype α] [D
   obtain ⟨σ, rfl, rfl⟩ :=
     exists_perm_disjoint_pair (ha₁.trans ha₂.symm) (hb₁.trans hb₂.symm) hd₁ hd₂
   have hinv : ∀ t, act σ (act σ.symm t) = t := fun t => by simpa using hact σ.symm t
-  refine card_bij' (fun t _ => act σ t) (fun t _ => act σ.symm t) (fun t ht => ?_)
-    (fun t ht => ?_) (fun t _ => hact σ t) (fun t _ => hinv t)
-  · exact mem_filter.2 ⟨hD σ t (mem_filter.1 ht).1, (hgood σ t a₁ b₁).2 (mem_filter.1 ht).2⟩
-  · refine mem_filter.2 ⟨hD _ t (mem_filter.1 ht).1, (hgood σ _ a₁ b₁).1 ?_⟩
-    rw [hinv]
-    exact (mem_filter.1 ht).2
+  let e : Equiv.Perm β := ⟨act σ, act σ.symm, hact σ, hinv⟩
+  refine card_equiv e fun t => ?_
+  simp only [mem_filter]
+  refine and_congr ⟨hD σ t, fun h => ?_⟩ (hgood σ t a₁ b₁).symm
+  simpa only [hact] using hD σ.symm (act σ t) h
 
 private theorem card_disjointWeightPairs {α : Type*} [Fintype α] [DecidableEq α] (p q : ℕ) :
     (disjointWeightPairs α p q).card =

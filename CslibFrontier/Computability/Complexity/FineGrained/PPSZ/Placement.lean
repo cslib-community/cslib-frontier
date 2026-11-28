@@ -830,11 +830,9 @@ theorem card_filter_placedBefore_eq {x : Fin n} {S : Finset (Fin n)} (hx : x ∉
   set s : Fin n := ⟨#S, hs⟩
   have hsI : s ∉ Iio s := by simp
   rw [show #(univ.filter fun π : Equiv.Perm (Fin n) => placedBefore π x = S) =
-      #(univ.filter fun σ : Equiv.Perm (Fin n) => classify (Iio s) s ∘ σ = classify S x) from
-    card_bij' (fun π _ => π.symm) (fun σ _ => σ.symm)
-      (fun π hπ => by simpa [placedBefore_eq_iff hx hs] using hπ)
-      (fun σ hσ => by simpa [placedBefore_eq_iff hx hs] using hσ)
-      (fun π _ => π.symm_symm) (fun σ _ => σ.symm_symm),
+      #(univ.filter fun σ : Equiv.Perm (Fin n) => classify (Iio s) s ∘ σ = classify S x) by
+    refine card_equiv (Equiv.symmEquiv _ _) fun π => ?_
+    simpa only [mem_filter, mem_univ, true_and] using! placedBefore_eq_iff (π := π) hx hs,
     card_filter_comp_eq _ _ fun i => by
       rw [card_fiber_classify hx, card_fiber_classify hsI, Fin.card_Iio],
     Fin.prod_univ_three]
