@@ -199,7 +199,7 @@ theorem exp_neg_lt_of_ceil_le {ε : ℝ} (hε : 0 < ε)
         linarith [pow_pos (two_pos : (0 : ℝ) < 2) (Fintype.card ι)]
     _ ≤ exp 2 ^ (Fintype.card ι + 1) := by rw [← pow_succ']; gcongr
     _ ≤ exp (ε ^ 2 * d / 2) := by
-        rw [← Real.exp_nat_mul]
+        rw [← Real.exp_natCast_mul]
         exact exp_le_exp.mpr (by push_cast; linarith)
 
 /-- **Short `ε`-biased lists of size `⌈4 (|ι| + 1) / ε²⌉`**: for `ε > 0` and

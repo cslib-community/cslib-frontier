@@ -222,7 +222,8 @@ theorem exists_linearIndependent_norm_le_successiveMinimum
   have hkB : k ≤ Fintype.card B := by
     rwa [← hspB, ← Subtype.range_coe (s := B), finrank_span_eq_card hliB] at hspan
   let f : Fin k ↪ B := (Fin.castLEEmb hkB).trans (Fintype.equivFin B).symm.toEmbedding
-  exact ⟨fun i => f i, hliB.comp f f.injective, fun i => (hBA (f i).2).1, fun i => (hBA (f i).2).2⟩
+  exact ⟨fun i => f i, hliB.comp f f.injective,
+    fun i => (hBA (f i).property).1, fun i => (hBA (f i).property).2⟩
 
 variable [ProperSpace E]
 

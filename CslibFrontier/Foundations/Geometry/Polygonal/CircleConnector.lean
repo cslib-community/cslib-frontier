@@ -174,8 +174,8 @@ theorem exists_split_fans_of_circle_gaps {z p q : ℂ} {ρ : ℝ}
     change (midpoint ℝ p q + ε • n) - (midpoint ℝ p q + (-ε) • n) = (2 * ε) • n
     module
   refine ⟨chordOffset p q ε, ha, chordOffset p q (-ε), hb, hsep, hpa, hpb, ?_, ?_⟩
-  · rwa [hconn, Complex.real_smul, Complex.arg_real_mul _ (mul_pos (by norm_num) hε.1)]
-  · rwa [hconn', Complex.real_smul, Complex.arg_real_mul _ (mul_pos (by norm_num) hε.1)]
+  · rwa [hconn, Complex.real_smul, Complex.arg_ofReal_mul (mul_pos (by norm_num) hε.1) _]
+  · rwa [hconn', Complex.real_smul, Complex.arg_ofReal_mul (mul_pos (by norm_num) hε.1) _]
 
 /-- Two finite consecutive blocks of actual circle ports determine separated interior
 fans and a straight connector in their prescribed insertion slots. Only the actual

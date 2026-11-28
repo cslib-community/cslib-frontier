@@ -37,7 +37,7 @@ namespace Cslib.Circuits.Arithmetic.Separation.Flag
 open Cslib.SLTower (U SL2 lo hi x)
 
 /-- The matrix of an element. -/
-abbrev mat {h : ℕ} (A : U h) : Matrix (Fin h) (Fin h) F2 := A.1.1
+abbrev mat {h : ℕ} (A : U h) : Matrix (Fin h) (Fin h) F2 := A.val.val
 
 theorem mat_inj {h : ℕ} {A B : U h} (hAB : mat A = mat B) : A = B := Subtype.ext (Subtype.ext hAB)
 
@@ -48,9 +48,10 @@ theorem mat_one {h : ℕ} : mat (1 : U h) = 1 := rfl
 theorem mat_x {h : ℕ} (j : Fin (h - 1)) : mat (x h j) = 1 + Matrix.single (lo j) (hi j) 1 := rfl
 
 theorem mat_lt {h : ℕ} (A : U h) {i j : Fin h} (hij : j < i) : mat A i j = 0 :=
-    (Cslib.SLTower.mem_U.mp A.2 i j).1 hij
+    (Cslib.SLTower.mem_U.mp A.property i j).1 hij
 
-theorem mat_diag {h : ℕ} (A : U h) (i : Fin h) : mat A i i = 1 := (Cslib.SLTower.mem_U.mp A.2 i i).2
+theorem mat_diag {h : ℕ} (A : U h) (i : Fin h) : mat A i i = 1 :=
+  (Cslib.SLTower.mem_U.mp A.property i i).2
 
 /-- An element from its matrix. -/
 @[expose] def mk {h : ℕ} (M : Matrix (Fin h) (Fin h) F2) (h0 : ∀ i j, j < i → M i j = 0)
@@ -76,7 +77,7 @@ section Win
 variable {p n h : ℕ} (hp : p + n ≤ h)
 
 /-- The place of an index of a window. -/
-@[expose] def we (i : Fin n) : Fin h := ⟨p + i.1, by omega⟩
+@[expose] def we (i : Fin n) : Fin h := ⟨p + i.val, by omega⟩
 
 theorem we_inj {i j : Fin n} : we hp i = we hp j ↔ i = j := by
   simp only [we, Fin.ext_iff]; omega
@@ -170,7 +171,7 @@ def win : U n →* U h where
 theorem mat_win (A : U n) : mat (win hp A) = wm hp (mat A) := by rfl
 
 /-- The place of a type of a window. -/
-@[expose] def wt (j : Fin (n - 1)) : Fin (h - 1) := ⟨p + j.1, by omega⟩
+@[expose] def wt (j : Fin (n - 1)) : Fin (h - 1) := ⟨p + j.val, by omega⟩
 
 theorem win_x (j : Fin (n - 1)) : win hp (x n j) = x h (wt hp j) := by
   apply mat_inj
@@ -228,15 +229,15 @@ theorem wi_add : wi (hl (a := a) (b := b)) * (wi (hl (a := a) (b := b)))ᵀ +
       simp [h1, (hj k).symm]
   ext i j
   rw [Matrix.add_apply]
-  by_cases hi : i.1 < a
-  · obtain ⟨k, rfl⟩ : ∃ k, i = we (hl (a := a) (b := b)) k := ⟨⟨i.1, hi⟩, by simp [we]⟩
+  by_cases hi : i.val < a
+  · obtain ⟨k, rfl⟩ : ∃ k, i = we (hl (a := a) (b := b)) k := ⟨⟨i.val, hi⟩, by simp [we]⟩
     have hnot (c : Fin b) : we (hl (a := a) (b := b)) k ≠ we (hr (a := a) (b := b)) c := by
       simp only [we, ne_eq, Fin.ext_iff]; omega
     have h0 := wi_mul_not (hr (a := a) (b := b)) 1 hnot j
     rw [Matrix.mul_one] at h0
     rw [hrow, h0, add_zero]
   · obtain ⟨k, rfl⟩ : ∃ k, i = we (hr (a := a) (b := b)) k :=
-      ⟨⟨i.1 - a, by omega⟩, by simp only [we, Fin.ext_iff]; omega⟩
+      ⟨⟨i.val - a, by omega⟩, by simp only [we, Fin.ext_iff]; omega⟩
     have hnot (c : Fin a) : we (hr (a := a) (b := b)) k ≠ we (hl (a := a) (b := b)) c := by
       simp only [we, ne_eq, Fin.ext_iff]; omega
     have h0 := wi_mul_not (hl (a := a) (b := b)) 1 hnot j

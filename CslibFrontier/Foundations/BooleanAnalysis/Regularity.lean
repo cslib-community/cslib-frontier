@@ -120,7 +120,7 @@ theorem sum_fourierCoeff_pow_four_sub_le_of_isFourierRegular {ε : ℝ} {f : (ι
   rw [sum_fourierCoeff_pow_four_sub, expect_sub_expect_sq_eq_sum_fourierCoeff_sq, ← filter_ne',
     mul_sum]
   refine sum_le_sum fun S hS => ?_
-  have hS' : S.Nonempty := nonempty_iff_ne_empty.2 (mem_filter.1 hS).2
+  have hS' : S.Nonempty := ne_empty_iff_nonempty.1 (mem_filter.1 hS).2
   have hsq : fourierCoeff f S ^ 2 ≤ ε ^ 2 := by
     rw [← sq_abs]; exact pow_le_pow_left₀ (abs_nonneg _) (h S hS') 2
   calc fourierCoeff f S ^ 4 = fourierCoeff f S ^ 2 * fourierCoeff f S ^ 2 := by ring

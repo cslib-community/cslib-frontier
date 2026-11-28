@@ -330,7 +330,7 @@ private theorem card_filter_val_lt {n k : ℕ} (hkn : k ≤ n) :
     (univ.filter fun i : Fin n => i.val < k).card = k := by
   have heq : (univ.filter fun i : Fin n => i.val < k) =
       (Finset.range k).attach.image
-        fun x => ⟨x.1, lt_of_lt_of_le (Finset.mem_range.1 x.2) hkn⟩ := by
+        fun x => ⟨x.val, lt_of_lt_of_le (Finset.mem_range.1 x.property) hkn⟩ := by
     ext i
     simp only [mem_filter, mem_univ, true_and, mem_image, mem_attach, Subtype.exists]
     exact ⟨fun hi => ⟨i.val, Finset.mem_range.2 hi, Fin.ext rfl⟩,
@@ -897,7 +897,7 @@ private theorem expected_sum_payment_equalRevGrid_le {ι : Type*} [Fintype ι] [
     · refine Finset.prod_bij (fun j hj => ⟨j, (mem_erase.1 hj).1⟩)
         (fun _ _ => mem_univ _)
         (fun _ _ _ _ h => congrArg Subtype.val h)
-        (fun j _ => ⟨j.1, mem_erase.2 ⟨j.2, mem_univ _⟩, rfl⟩)
+        (fun j _ => ⟨j.val, mem_erase.2 ⟨j.property, mem_univ _⟩, rfl⟩)
         fun j hj => by
           dsimp only [eSplit]
           rw [Equiv.piSplitAt_symm_apply, dite_eq_right (mem_erase.1 hj).1]
@@ -1853,10 +1853,10 @@ private noncomputable def topKOrderIso (k : ℕ) (b : ι → ℝ) :
 
 /-- Restricted bid profile of the top `min k |ι|` bidders in their original index order. -/
 private noncomputable def topKBids (k : ℕ) (b : ι → ℝ) : Fin (min k (Fintype.card ι)) → ℝ :=
-  fun r => b (topKOrderIso k b r).1
+  fun r => b (topKOrderIso k b r).val
 
 private theorem topKBids_nonneg (k : ℕ) {b : ι → ℝ} (hb : 0 ≤ b) : 0 ≤ topKBids k b :=
-  fun r => hb (topKOrderIso k b r).1
+  fun r => hb (topKOrderIso k b r).val
 
 /-- Crucially, when bidder `i` remains in the top `k` under both `b` and `Function.update b i z`,
 the top-`k` bidder set itself is unchanged. -/
@@ -1947,22 +1947,22 @@ private theorem optimalProfitTwo_topKBids (k : ℕ) {b : ι → ℝ} (hb : 0 ≤
           exact ⟨j, by omega, hj⟩
       rw [himg, Nat.card_Ico]
     have hcard_top : ∀ c : ℕ, c ≤ m →
-        (univ.filter fun r : Fin m => c ≤ MultiUnit.rank b (topKOrderIso k b r).1).card =
+        (univ.filter fun r : Fin m => c ≤ MultiUnit.rank b (topKOrderIso k b r).val).card =
           m - c := by
       intro c hc
-      have hinj : Set.InjOn (fun r : Fin m => MultiUnit.rank b (topKOrderIso k b r).1)
-          ↑(univ.filter fun r : Fin m => c ≤ MultiUnit.rank b (topKOrderIso k b r).1) :=
+      have hinj : Set.InjOn (fun r : Fin m => MultiUnit.rank b (topKOrderIso k b r).val)
+          ↑(univ.filter fun r : Fin m => c ≤ MultiUnit.rank b (topKOrderIso k b r).val) :=
         fun _ _ _ _ h => (topKOrderIso k b).injective (Subtype.ext (MultiUnit.rank_injective b h))
       rw [← Finset.card_image_of_injOn hinj]
       have himg :
-          (univ.filter fun r : Fin m => c ≤ MultiUnit.rank b (topKOrderIso k b r).1).image
-            (fun r : Fin m => MultiUnit.rank b (topKOrderIso k b r).1) = Finset.Ico c m := by
+          (univ.filter fun r : Fin m => c ≤ MultiUnit.rank b (topKOrderIso k b r).val).image
+            (fun r : Fin m => MultiUnit.rank b (topKOrderIso k b r).val) = Finset.Ico c m := by
         ext s
         simp only [mem_image, mem_filter, mem_univ, true_and, mem_Ico]
         constructor
         · rintro ⟨r, hr, rfl⟩
-          have hlt_k : MultiUnit.rank b (topKOrderIso k b r).1 < k :=
-            (mem_filter.1 (topKOrderIso k b r).2).2
+          have hlt_k : MultiUnit.rank b (topKOrderIso k b r).val < k :=
+            (mem_filter.1 (topKOrderIso k b r).property).2
           exact ⟨hr, lt_min hlt_k (MultiUnit.rank_lt_card b _)⟩
         · rintro ⟨hsc, hsm⟩
           obtain ⟨j, hj⟩ :=
@@ -1993,14 +1993,14 @@ private theorem optimalProfitTwo_topKBids (k : ℕ) {b : ι → ℝ} (hb : 0 ≤
     have hos_top : Fintype.IsOrderStatistic (topKBids k b) (m - t) (b istar) := by
       refine ⟨⟨rstar, hrstar_bid⟩, ?_, ?_⟩
       · have hsub : (univ.filter fun r : Fin m => topKBids k b r < b istar) ⊆
-            univ.filter fun r : Fin m => t ≤ MultiUnit.rank b (topKOrderIso k b r).1 :=
+            univ.filter fun r : Fin m => t ≤ MultiUnit.rank b (topKOrderIso k b r).val :=
           fun r hr => mem_filter.2 ⟨mem_univ _, by
-            have hlt : b (topKOrderIso k b r).1 < b istar := (mem_filter.1 hr).2
+            have hlt : b (topKOrderIso k b r).val < b istar := (mem_filter.1 hr).2
             have := MultiUnit.rank_lt_of_beats (Or.inl hlt)
             omega⟩
         exact (card_le_card hsub).trans_eq (hcard_top t (by omega))
       · have hsup :
-            (univ.filter fun r : Fin m => t - 1 ≤ MultiUnit.rank b (topKOrderIso k b r).1) ⊆
+            (univ.filter fun r : Fin m => t - 1 ≤ MultiUnit.rank b (topKOrderIso k b r).val) ⊆
               univ.filter fun r : Fin m => topKBids k b r ≤ b istar := fun r hr =>
           mem_filter.2 ⟨mem_univ _, by
             by_contra hlt; push Not at hlt
@@ -2045,7 +2045,7 @@ private theorem topKBids_update_eq {k : ℕ} {b : ι → ℝ} {i : ι} {z : ℝ}
   have hw2 : MultiUnit.Wins k (Function.update b i z) i := (mem_filter.1 h2).2
   have hset : topKSet k (Function.update b i z) = topKSet k b := topKSet_update_eq hw1 hw2
   have hiso : ∀ s : Fin (min k (Fintype.card ι)),
-      (topKOrderIso k (Function.update b i z) s).1 = (topKOrderIso k b s).1 := by
+      (topKOrderIso k (Function.update b i z) s).val = (topKOrderIso k b s).val := by
     intro s
     have h1' : topKSet k (Function.update b i z) = topKSet k b := hset
     dsimp only [topKOrderIso]
@@ -2068,7 +2068,7 @@ private theorem topKBids_update_eq {k : ℕ} {b : ι → ℝ} {i : ι} {z : ℝ}
   · subst hs
     rw [Function.update_self, (topKOrderIso k b).apply_symm_apply, Function.update_self]
   · rw [Function.update_of_ne hs]
-    have hne : (topKOrderIso k b s).1 ≠ i := fun hEq => by
+    have hne : (topKOrderIso k b s).val ≠ i := fun hEq => by
       have : topKOrderIso k b s = ⟨i, h1⟩ := Subtype.ext hEq
       exact hs (by rw [← this, (topKOrderIso k b).symm_apply_apply])
     rw [Function.update_of_ne hne]
@@ -2199,10 +2199,10 @@ theorem limitedSupplyMechanism_isCompetitive (k : ℕ)
   -- Each top-`k` bidder pays at least as much in `limitedSupplyMechanism k A` as in `A(topKBids)`.
   have hterm : ∀ r : Fin (min k (Fintype.card ι)),
       A.payment (topKBids k b) r ≤
-        (limitedSupplyMechanism k A).payment b (topKOrderIso k b r).1 := by
+        (limitedSupplyMechanism k A).payment b (topKOrderIso k b r).val := by
     intro r
-    set i : ι := (topKOrderIso k b r).1
-    have hi : i ∈ topKSet k b := (topKOrderIso k b r).2
+    set i : ι := (topKOrderIso k b r).val
+    have hi : i ∈ topKSet k b := (topKOrderIso k b r).property
     have hr_eq : (topKOrderIso k b).symm ⟨i, hi⟩ = r := (topKOrderIso k b).symm_apply_apply r
     rw [hDSIC.payment_eq_myersonPayment hNorm r (topKBids_nonneg k hb)]
     dsimp only [limitedSupplyMechanism, myerson, myersonPayment]
@@ -2233,11 +2233,11 @@ theorem limitedSupplyMechanism_isCompetitive (k : ℕ)
     linarith
   calc ∑ r : Fin (min k (Fintype.card ι)), A.payment (topKBids k b) r
       ≤ ∑ r : Fin (min k (Fintype.card ι)),
-          (limitedSupplyMechanism k A).payment b (topKOrderIso k b r).1 :=
+          (limitedSupplyMechanism k A).payment b (topKOrderIso k b r).val :=
         Finset.sum_le_sum fun r _ => hterm r
     _ = ∑ i ∈ topKSet k b, (limitedSupplyMechanism k A).payment b i :=
-        Finset.sum_bij (fun r _ => (topKOrderIso k b r).1)
-          (fun r _ => (topKOrderIso k b r).2)
+        Finset.sum_bij (fun r _ => (topKOrderIso k b r).val)
+          (fun r _ => (topKOrderIso k b r).property)
           (fun _ _ _ _ h => (topKOrderIso k b).injective (Subtype.ext h))
           (fun i hi => ⟨(topKOrderIso k b).symm ⟨i, hi⟩, mem_univ _, by
             rw [(topKOrderIso k b).apply_symm_apply]⟩)

@@ -116,30 +116,31 @@ private theorem sum_prod_image_card_eq_le {X : Type*} [DecidableEq X]
   let Cod := (univ : Finset (Fin n_tup → Fin r)) ×ˢ piFinset (fun _ : Fin r => R)
   let eqvOf (t : Fin n_tup → X) (ht : #(univ.image t) = r) : univ.image t ≃ Fin r :=
     (univ.image t).equivFin.trans (finCongr ht)
-  let htOf (item : {pair // pair ∈ Dom}) : #(univ.image item.1.1) = r :=
-    (mem_filter.mp (mem_product.mp item.2).1).2
+  let htOf (item : {pair // pair ∈ Dom}) : #(univ.image item.val.1) = r :=
+    (mem_filter.mp (mem_product.mp item.property).1).2
   let Ψ (item : {pair // pair ∈ Dom}) : (Fin n_tup → Fin r) × (Fin r → X) :=
-    let t := item.1.1
-    let σ := item.1.2
+    let t := item.val.1
+    let σ := item.val.2
     let e := eqvOf t (htOf item)
     (fun j => σ (e ⟨t j, mem_image_of_mem t (mem_univ j)⟩),
-     fun k => (e.symm (σ.symm k)).1)
+     fun k => (e.symm (σ.symm k)).val)
   have hmaps : Dom.attach.image Ψ ⊆ Cod := by
     intro qv hqv
     obtain ⟨item, -, rfl⟩ := mem_image.mp hqv
     refine mem_product.mpr ⟨mem_univ _, mem_piFinset.mpr fun k => ?_⟩
-    have htR := mem_piFinset.mp (mem_filter.mp (mem_product.mp item.2).1).1
-    obtain ⟨j, -, hj⟩ := mem_image.mp ((eqvOf item.1.1 (htOf item)).symm (item.1.2.symm k)).2
+    have htR := mem_piFinset.mp (mem_filter.mp (mem_product.mp item.property).1).1
+    obtain ⟨j, -, hj⟩ :=
+      mem_image.mp ((eqvOf item.val.1 (htOf item)).symm (item.val.2.symm k)).property
     simpa only [Ψ, ← hj] using htR j
   have hinj : Set.InjOn Ψ (Dom.attach : Set {pair // pair ∈ Dom}) := by
     intro item₁ _ item₂ _ heq
     have hq := congrArg Prod.fst heq
     have hv := congrArg Prod.snd heq
-    have ht_eq : item₁.1.1 = item₂.1.1 := by
+    have ht_eq : item₁.val.1 = item₂.val.1 := by
       funext j
-      have hj₁ : (Ψ item₁).2 ((Ψ item₁).1 j) = item₁.1.1 j := by
+      have hj₁ : (Ψ item₁).2 ((Ψ item₁).1 j) = item₁.val.1 j := by
         simp [Ψ]
-      have hj₂ : (Ψ item₂).2 ((Ψ item₂).1 j) = item₂.1.1 j := by
+      have hj₂ : (Ψ item₂).2 ((Ψ item₂).1 j) = item₂.val.1 j := by
         simp [Ψ]
       rw [← hj₁, ← hj₂, hq, hv]
     rcases item₁ with ⟨⟨t₁, σ₁⟩, h₁⟩
@@ -159,10 +160,10 @@ private theorem sum_prod_image_card_eq_le {X : Type*} [DecidableEq X]
       exact (eqvOf t₁ ht₁).symm.injective hsub
     exact Equiv.symm_bijective.injective hsymm
   have hwt (item : {pair // pair ∈ Dom}) :
-      ∏ k : Fin r, p ((Ψ item).2 k) = ∏ z ∈ univ.image item.1.1, p z := by
+      ∏ k : Fin r, p ((Ψ item).2 k) = ∏ z ∈ univ.image item.val.1, p z := by
     dsimp only [Ψ]
-    rw [Equiv.prod_comp item.1.2.symm (fun j => p ((eqvOf item.1.1 (htOf item)).symm j).1),
-      Equiv.prod_comp (eqvOf item.1.1 (htOf item)).symm (fun x => p x.1), prod_coe_sort]
+    rw [Equiv.prod_comp item.val.2.symm (fun j => p ((eqvOf item.val.1 (htOf item)).symm j).val),
+      Equiv.prod_comp (eqvOf item.val.1 (htOf item)).symm (fun x => p x.val), prod_coe_sort]
   have hnonneg : ∀ qv ∈ Cod, qv ∉ Dom.attach.image Ψ → 0 ≤ ∏ k : Fin r, p (qv.2 k) := by
     intro qv hqv _
     have hvR := mem_piFinset.mp (mem_product.mp hqv).2
@@ -409,18 +410,18 @@ theorem dens_abs_sum_restrict_sub_expect_le {ι α β Y : Type*} [Fintype ι] [F
       le_rfl w₂
     dsimp only [id] at hd2; simp only [NNRat.cast_id]
     rw [hd1, hd2, ← mul_inv, ← pow_add, Finset.card_toLeft_add_card_toRight]⟩
-  let e (z : X') : B z.1 ≃ Fin #(B z.1) := (B z.1).equivFin
+  let e (z : X') : B z.val ≃ Fin #(B z.val) := (B z.val).equivFin
   let emb (p : X' × Fin K) : α ⊕ (X' × Fin K) :=
-    if hj : p.2.val < #(B p.1.1) then Sum.inl ((e p.1).symm ⟨p.2.val, hj⟩).1 else Sum.inr p
+    if hj : p.2.val < #(B p.1.val) then Sum.inl ((e p.1).symm ⟨p.2.val, hj⟩).val else Sum.inr p
   have hemb : Function.Injective emb := by
     rintro ⟨z₁, j₁⟩ ⟨z₂, j₂⟩ heq
-    by_cases h₁ : j₁.val < #(B z₁.1) <;> by_cases h₂ : j₂.val < #(B z₂.1) <;>
+    by_cases h₁ : j₁.val < #(B z₁.val) <;> by_cases h₂ : j₂.val < #(B z₂.val) <;>
       simp only [emb, h₁, h₂, ↓reduceDIte] at heq
     · have ha := Sum.inl.inj heq
       have hz : z₁ = z₂ := by
         by_contra hne
-        exact Finset.disjoint_left.mp (hdisj z₁.2 z₂.2 (Subtype.coe_ne_coe.mpr hne))
-          ((e z₁).symm ⟨j₁.val, h₁⟩).2 (ha ▸ ((e z₂).symm ⟨j₂.val, h₂⟩).2)
+        exact Finset.disjoint_left.mp (hdisj z₁.property z₂.property (Subtype.coe_ne_coe.mpr hne))
+          ((e z₁).symm ⟨j₁.val, h₁⟩).property (ha ▸ ((e z₂).symm ⟨j₂.val, h₂⟩).property)
       subst hz; exact Prod.ext rfl (Fin.ext (Fin.mk.inj ((e z₁).symm.injective (Subtype.ext ha))))
     · cases heq
     · cases heq
@@ -439,21 +440,21 @@ theorem dens_abs_sum_restrict_sub_expect_le {ι α β Y : Type*} [Fintype ι] [F
     rw [hset, hFlat_ind.dens_filter_restrict_eq (hc ▸ Nat.mul_le_mul_right K hT) wp, hc,
       mul_comm #T K, pow_mul, Fintype.card_fun, Fintype.card_fin, Nat.cast_pow]⟩
   let g' (z : X') (v : Y') : ℝ :=
-    score z.1 (fun x => v ⟨(e z x).val, (e z x).isLt.trans_le (hB z.1 z.2)⟩)
-  have hg'_H (s : ι') (z : X') : g' z (H s z) = score z.1 ((B z.1).restrict (h s.1)) := by
+    score z.val (fun x => v ⟨(e z x).val, (e z x).isLt.trans_le (hB z.val z.property)⟩)
+  have hg'_H (s : ι') (z : X') : g' z (H s z) = score z.val ((B z.val).restrict (h s.1)) := by
     dsimp only [g', H, emb, hSum]; congr 1; funext x; simp [(e z x).isLt, Finset.restrict]
-  have hexp_g' (z : X') : (𝔼 v : Y', g' z v) = 𝔼 θ : ι, score z.1 ((B z.1).restrict (h θ)) := by
+  have hexp_g' (z : X') : (𝔼 v : Y', g' z v) = 𝔼 θ : ι, score z.val ((B z.val).restrict (h θ)) := by
     have h1 := (hH_ind.mono (by omega : 1 ≤ 2 * m)).expect_prod (T := {z}) (by simp)
       (fun _ v => g' z v)
     simp only [Finset.prod_singleton] at h1; rw [← h1]; simp_rw [hg'_H]
     exact Fintype.expect_comp_fst (α := ι) (β := X' × Fin K → Y)
-      (fun θ => score z.1 ((B z.1).restrict (h θ)))
+      (fun θ => score z.val ((B z.val).restrict (h θ)))
   have hmean' : ∑ z ∈ (Finset.univ : Finset X'), (𝔼 v : Y', g' z v) ≤ μ := by
     simp_rw [hexp_g']
     simpa only [X', Finset.univ_eq_attach,
       Finset.sum_attach R (fun b => 𝔼 θ, score b ((B b).restrict (h θ)))] using hmean
   have hconc := dens_abs_sum_sub_expect_le hm hH_ind Finset.univ g'
-    (fun z _ _ => hscore z.1 z.2 _) hmean' hmμ ha
+    (fun z _ _ => hscore z.val z.property _) hmean' hmμ ha
   have hev : (dens {s : ι' | a ≤ |∑ z : X', (g' z (H s z) - 𝔼 v, g' z v)|} : ℝ) =
       dens {θ : ι | a ≤ |∑ b ∈ R,
         (score b ((B b).restrict (h θ)) - 𝔼 θ', score b ((B b).restrict (h θ')))|} := by

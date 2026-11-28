@@ -136,14 +136,14 @@ theorem exists_small_partitionGadget (γ : Type) [Fintype γ] (t : ℕ) :
   classical
   let W := {p : Finset γ × Finset γ // Disjoint p.1 p.2 ∧ p.1.card + p.2.card ≤ t}
   let hit : (γ → Bool) → W → Prop := fun f w =>
-    (∀ b ∈ w.1.1, f b = true) ∧ (∀ b ∈ w.1.2, f b = false)
+    (∀ b ∈ w.val.1, f b = true) ∧ (∀ b ∈ w.val.2, f b = false)
   let S (w : W) : Finset (γ × Bool) :=
-    w.1.1.image (fun b => (b, true)) ∪ w.1.2.image (fun b => (b, false))
+    w.val.1.image (fun b => (b, true)) ∪ w.val.2.image (fun b => (b, false))
   let enc : W → (Fin t → Option (γ × Bool)) := fun w i => (S w).toList[(i : ℕ)]?
   have hlen (w : W) : (S w).toList.length ≤ t := by
     rw [Finset.length_toList]
     exact (Finset.card_union_le _ _).trans
-      ((Nat.add_le_add Finset.card_image_le Finset.card_image_le).trans w.2.2)
+      ((Nat.add_le_add Finset.card_image_le Finset.card_image_le).trans w.property.2)
   have henc_inj : Function.Injective enc := by
     intro w₁ w₂ h
     have hL : (S w₁).toList = (S w₂).toList := List.ext_getElem? fun i => by
@@ -169,31 +169,31 @@ theorem exists_small_partitionGadget (γ : Type) [Fintype γ] (t : ℕ) :
       Fintype.card (γ → Bool) ≤ 2 ^ t * Fintype.card {f : γ → Bool // hit f w} := by
     intro w
     let fix (f : γ → Bool) : {f : γ → Bool // hit f w} :=
-      ⟨fun b => if b ∈ w.1.1 then true else if b ∈ w.1.2 then false else f b,
-        fun b hb => by simp [hb], fun b hb => by simp [hb, Finset.disjoint_right.1 w.2.1 hb]⟩
+      ⟨fun b => if b ∈ w.val.1 then true else if b ∈ w.val.2 then false else f b,
+        fun b hb => by simp [hb], fun b hb => by simp [hb, Finset.disjoint_right.1 w.property.1 hb]⟩
     have hinj :
-        Function.Injective fun f : γ → Bool => ((fun b : ↥(w.1.1 ∪ w.1.2) => f b), fix f) := by
+        Function.Injective fun f : γ → Bool => ((fun b : ↥(w.val.1 ∪ w.val.2) => f b), fix f) := by
       intro f g hfg
       obtain ⟨h₁, h₂⟩ := Prod.mk.inj hfg
       funext b
-      by_cases hb : b ∈ w.1.1 ∪ w.1.2
+      by_cases hb : b ∈ w.val.1 ∪ w.val.2
       · exact congrFun h₁ ⟨b, hb⟩
       · rw [Finset.mem_union, not_or] at hb
-        simpa [fix, hb.1, hb.2] using congrArg (fun φ => φ.1 b) h₂
+        simpa [fix, hb.1, hb.2] using congrArg (fun φ => φ.val b) h₂
     calc Fintype.card (γ → Bool)
-        ≤ Fintype.card ((↥(w.1.1 ∪ w.1.2) → Bool) × {f : γ → Bool // hit f w}) :=
+        ≤ Fintype.card ((↥(w.val.1 ∪ w.val.2) → Bool) × {f : γ → Bool // hit f w}) :=
           Fintype.card_le_of_injective _ hinj
       _ ≤ 2 ^ t * Fintype.card {f : γ → Bool // hit f w} := by
           rw [Fintype.card_prod, Fintype.card_fun, Fintype.card_bool, Fintype.card_coe]
           exact Nat.mul_le_mul_right _
-            (Nat.pow_le_pow_right Nat.two_pos ((Finset.card_union_le _ _).trans w.2.2))
+            (Nat.pow_le_pow_right Nat.two_pos ((Finset.card_union_le _ _).trans w.property.2))
   obtain ⟨tests, htests⟩ := Cslib.exists_cover_of_density hit (2 ^ t)
     (t * Nat.clog 2 (2 * Fintype.card γ + 1)) (Nat.two_pow_pos t) hW hdens
   let m := 2 ^ t * (t * Nat.clog 2 (2 * Fintype.card γ + 1) + 1)
   refine ⟨⟨m, fun x b => if hx : x < m then tests ⟨x, hx⟩ b else false⟩, ?_, rfl⟩
   intro P Q hDisj hsum
   obtain ⟨i, hi⟩ := htests ⟨(P, Q), hDisj, hsum⟩
-  exact ⟨i.1, i.isLt, fun b hbP => (dite_eq_left i.isLt).trans (hi.1 b hbP),
+  exact ⟨i.val, i.isLt, fun b hbP => (dite_eq_left i.isLt).trans (hi.1 b hbP),
     fun b hbQ => (dite_eq_left i.isLt).trans (hi.2 b hbQ)⟩
 
 end Cslib.PCP

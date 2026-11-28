@@ -195,7 +195,7 @@ theorem isVerifier :
         Subtype.val_injective.comp (φ.injective.comp G.vertexEquiv.injective)
       refine ⟨List.ofFn f, List.nodup_ofFn.2 hf,
         fun v => ⟨fun hv => Exists.elim (List.mem_ofFn.1 hv) fun i hi =>
-            hi ▸ (φ (G.vertexEquiv i)).2,
+            hi ▸ (φ (G.vertexEquiv i)).property,
           fun hv => List.mem_ofFn.2 ⟨G.vertexEquiv.symm (φ.symm ⟨v, hv⟩), by simp [f]⟩⟩,
         List.length_ofFn, fun i hi j hj => ?_⟩
       rw [List.getD_ofFn_of_lt _ hi, List.getD_ofFn_of_lt _ hj, Bool.eq_iff_iff,

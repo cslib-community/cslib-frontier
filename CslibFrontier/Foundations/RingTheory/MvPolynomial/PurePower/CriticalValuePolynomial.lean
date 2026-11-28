@@ -165,8 +165,8 @@ theorem totalDegree_coeff_relativeCriticalLower_le (hell : 1 ≤ ell)
     (F : MvPolynomial (Fin n ⊕ κ) ℤ) (i : Fin n) (s : Fin n →₀ ℕ) :
     ((criticalLower ell (fun _ => 0) (X none) (relativeSource F) i).coeff s).totalDegree ≤
       F.totalDegree + 1 := by
-  rw [criticalLower, zero_pow (by omega : ell ≠ 0), C_0, zero_sub, coeff_neg,
-    totalDegree_neg, coeff_C_mul, coeff_pderiv]
+  rw [criticalLower, zero_pow (by omega : ell ≠ 0), C_0, zero_sub, AddMonoidAlgebra.coeff_neg,
+    Finsupp.neg_apply, totalDegree_neg, coeff_C_mul, coeff_pderiv]
   apply (totalDegree_mul _ _).trans
   rw [totalDegree_X, Nat.add_comm 1]
   apply Nat.add_le_add_right _ 1

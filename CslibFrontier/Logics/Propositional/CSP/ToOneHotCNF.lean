@@ -93,7 +93,7 @@ theorem length_finTuples (q r : ℕ) : (finTuples q r).length = q ^ r := by
 
 /-- Clause forbidding local tuple `ts` on scope `vs` in the one-hot variable numbering. -/
 @[expose] def forbidOneHotClause (q : ℕ) (vs : List ℕ) (ts : List (Fin q)) : Clause ℕ :=
-  (vs.zip ts).map fun (v, a) => (v * q + a.1, false)
+  (vs.zip ts).map fun (v, a) => (v * q + a.val, false)
 
 @[simp]
 theorem length_forbidOneHotClause (q : ℕ) (vs : List ℕ) (ts : List (Fin q)) :
@@ -216,7 +216,7 @@ theorem vars_toOneHotCNF_toFinset {q N : ℕ} (hq : 0 < q) {F : CSP Rel ℕ}
 `v * q + a`, `forbidOneHotClause q vs ts` fails iff `vs.map τ = ts`. -/
 private theorem eval_forbidOneHotClause_eq_false_iff {q : ℕ} (vs : List ℕ) (ts : List (Fin q))
     (hlen : ts.length = vs.length) (σ : ℕ → Bool) (τ : ℕ → Fin q)
-    (hrep : ∀ v ∈ vs, ∀ a : Fin q, σ (v * q + a.1) = decide (τ v = a)) :
+    (hrep : ∀ v ∈ vs, ∀ a : Fin q, σ (v * q + a.val) = decide (τ v = a)) :
     (forbidOneHotClause q vs ts).eval σ = false ↔ vs.map τ = ts := by
   induction vs generalizing ts with
   | nil => cases ts <;> simp [forbidOneHotClause] at hlen ⊢
@@ -238,8 +238,8 @@ theorem eval_toOneHotCNF {q N : ℕ} {F : CSP Rel ℕ} (sem : Rel → List (Fin 
     (toOneHotCNF q N F sem).eval σ = true ↔
       (∀ v < N, (∃ a < q, σ (v * q + a) = true) ∧
         ∀ a₁ < q, ∀ a₂ < q, σ (v * q + a₁) = true → σ (v * q + a₂) = true → a₁ = a₂) ∧
-      (∀ c ∈ F, ∀ ts : List (Fin q), ts.length = c.2.length → sem c.1 ts = false →
-        (forbidOneHotClause q c.2 ts).eval σ = true) := by
+      (∀ c ∈ F, ∀ ts : List (Fin q), ts.length = c.scope.length → sem c.rel ts = false →
+        (forbidOneHotClause q c.scope ts).eval σ = true) := by
   rw [toOneHotCNF, CNF.eval_append, Bool.and_eq_true, CNF.eval_flatMap_eq_true_iff,
     CNF.eval_flatMap_eq_true_iff]
   refine and_congr ?_ (by simp [Constraint.toOneHotCNF, CNF.eval_map_eq_true_iff, and_imp])
@@ -263,26 +263,26 @@ private theorem eval_toOneHotEncode {q N : ℕ} (hq : 0 < q) (F : CSP Rel ℕ)
     let τExt (v : ℕ) : Fin q := if hv : v ∈ Finset.range N then τ ⟨v, hv⟩ else ⟨0, hq⟩
     (toOneHotCNF q N F sem).eval
       (fun x => if _ : x ∈ Finset.range (N * q) then
-        decide (x % q = (τExt (x / q)).1) else false) = true := by
+        decide (x % q = (τExt (x / q)).val) else false) = true := by
   intro τExt
   have hrep (v) (hv : v < N) (a : Fin q) :
-      (if hx : v * q + a.1 ∈ Finset.range (N * q)
-        then decide ((v * q + a.1) % q = (τExt ((v * q + a.1) / q)).1) else false) =
+      (if hx : v * q + a.val ∈ Finset.range (N * q)
+        then decide ((v * q + a.val) % q = (τExt ((v * q + a.val) / q)).val) else false) =
         decide (τExt v = a) := by
     have hdiv := Nat.mul_add_div_fin v a
-    have hlt : v * q + a.1 < N * q :=
+    have hlt : v * q + a.val < N * q :=
       (Nat.div_lt_iff_lt_mul hq).mp (hdiv.trans_lt hv)
-    have hmod : (v * q + a.1) % q = a.1 := by
+    have hmod : (v * q + a.val) % q = a.val := by
       rw [Nat.mul_comm, Nat.mul_add_mod, Nat.mod_eq_of_lt a.isLt]
     simp [Finset.mem_range.mpr hlt, hdiv, hmod, Fin.ext_iff, eq_comm]
   rw [eval_toOneHotCNF]
-  refine ⟨fun v hv => ⟨⟨(τExt v).1, (τExt v).isLt, ?_⟩, fun a₁ ha₁ a₂ ha₂ h1 h2 => ?_⟩,
+  refine ⟨fun v hv => ⟨⟨(τExt v).val, (τExt v).isLt, ?_⟩, fun a₁ ha₁ a₂ ha₂ h1 h2 => ?_⟩,
     fun c hc ts hlen hfalse => by_contra fun hcs => ?_⟩
   · simpa using hrep v hv (τExt v)
   · rw [hrep v hv ⟨a₁, ha₁⟩, decide_eq_true_eq] at h1
     rw [hrep v hv ⟨a₂, ha₂⟩, decide_eq_true_eq] at h2
     exact congrArg Fin.val (h1.symm.trans h2)
-  · have hf := (eval_forbidOneHotClause_eq_false_iff c.2 ts hlen _ τExt
+  · have hf := (eval_forbidOneHotClause_eq_false_iff c.scope ts hlen _ τExt
       fun v hv a => hrep v (hvars v (List.mem_flatMap.mpr ⟨c, hc, hv⟩)) a).mp
       (Bool.eq_false_iff.mpr hcs)
     have hsat : c.eval sem τExt = true := (List.all_eq_true.mp hτ) c hc
@@ -302,39 +302,39 @@ noncomputable def toOneHotCNFEquiv {q N : ℕ} (hq : 0 < q) (F : CSP Rel ℕ)
           (fun x => if hx : x ∈ Finset.range (N * q) then σ ⟨x, hx⟩ else false) = true} where
   toFun τ :=
     letI : Inhabited (Fin q) := ⟨⟨0, hq⟩⟩
-    let τExt (v : ℕ) : Fin q := if hv : v ∈ Finset.range N then τ.1 ⟨v, hv⟩ else default
-    ⟨fun x => decide (x.1 % q = (τExt (x.1 / q)).1),
-      eval_toOneHotEncode hq F sem hvars τ.1 τ.2⟩
+    let τExt (v : ℕ) : Fin q := if hv : v ∈ Finset.range N then τ.val ⟨v, hv⟩ else default
+    ⟨fun x => decide (x.val % q = (τExt (x.val / q)).val),
+      eval_toOneHotEncode hq F sem hvars τ.val τ.property⟩
   invFun σ :=
     letI : Inhabited (Fin q) := ⟨⟨0, hq⟩⟩
-    let ext (x : ℕ) : Bool := if hx : x ∈ Finset.range (N * q) then σ.1 ⟨x, hx⟩ else false
+    let ext (x : ℕ) : Bool := if hx : x ∈ Finset.range (N * q) then σ.val ⟨x, hx⟩ else false
     ⟨fun v =>
-      let hex := ((eval_toOneHotCNF sem ext).mp σ.2).1 v.1 (Finset.mem_range.mp v.2)
+      let hex := ((eval_toOneHotCNF sem ext).mp σ.property).1 v.val (Finset.mem_range.mp v.property)
       ⟨hex.1.choose, hex.1.choose_spec.1⟩, by
       rw [eval, List.all_eq_true]
       intro c hc
       let τExt (v : ℕ) : Fin q :=
         if hv : v ∈ Finset.range N then
-          let hex := ((eval_toOneHotCNF sem ext).mp σ.2).1 v (Finset.mem_range.mp hv)
+          let hex := ((eval_toOneHotCNF sem ext).mp σ.property).1 v (Finset.mem_range.mp hv)
           ⟨hex.1.choose, hex.1.choose_spec.1⟩
         else default
       change Constraint.eval sem τExt c = true
-      have hrep : ∀ v ∈ c.2, ∀ a : Fin q, ext (v * q + a.1) = decide (τExt v = a) := by
+      have hrep : ∀ v ∈ c.scope, ∀ a : Fin q, ext (v * q + a.val) = decide (τExt v = a) := by
         intro v hv a
         have hvN := hvars v (List.mem_flatMap.mpr ⟨c, hc, hv⟩)
         have hmv : v ∈ Finset.range N := Finset.mem_range.mpr hvN
-        have huniq := ((eval_toOneHotCNF sem ext).mp σ.2).1 v hvN
+        have huniq := ((eval_toOneHotCNF sem ext).mp σ.property).1 v hvN
         have hspec := huniq.1.choose_spec
         dsimp only [τExt]
         simp only [hmv, ↓reduceDIte]
         rw [Bool.eq_iff_iff, decide_eq_true_eq, Fin.ext_iff]
-        refine ⟨fun ha => (huniq.2 a.1 a.isLt huniq.1.choose hspec.1 ha hspec.2).symm,
+        refine ⟨fun ha => (huniq.2 a.val a.isLt huniq.1.choose hspec.1 ha hspec.2).symm,
           fun heq => by rw [← heq]; exact hspec.2⟩
       by_contra hcs
-      have hfalse : sem c.1 (c.2.map τExt) = false := Bool.eq_false_iff.mpr hcs
-      have hcl := ((eval_toOneHotCNF sem ext).mp σ.2).2 c hc (c.2.map τExt)
+      have hfalse : sem c.rel (c.scope.map τExt) = false := Bool.eq_false_iff.mpr hcs
+      have hcl := ((eval_toOneHotCNF sem ext).mp σ.property).2 c hc (c.scope.map τExt)
         (List.length_map _) hfalse
-      have hclF := (eval_forbidOneHotClause_eq_false_iff c.2 (c.2.map τExt)
+      have hclF := (eval_forbidOneHotClause_eq_false_iff c.scope (c.scope.map τExt)
         (List.length_map _) ext τExt hrep).mpr rfl
       rw [hcl] at hclF
       exact Bool.noConfusion hclF⟩
@@ -343,48 +343,48 @@ noncomputable def toOneHotCNFEquiv {q N : ℕ} (hq : 0 < q) (F : CSP Rel ℕ)
     obtain ⟨τ, hτ⟩ := τ
     ext v
     dsimp only
-    have hvN := Finset.mem_range.mp v.2
-    have hdiv := Nat.mul_add_div_fin v.1 (τ v)
-    have hlt : v.1 * q + (τ v).1 < N * q :=
+    have hvN := Finset.mem_range.mp v.property
+    have hdiv := Nat.mul_add_div_fin v.val (τ v)
+    have hlt : v.val * q + (τ v).val < N * q :=
       (Nat.div_lt_iff_lt_mul hq).mp (hdiv.trans_lt hvN)
-    have hmod : (v.1 * q + (τ v).1) % q = (τ v).1 := by
+    have hmod : (v.val * q + (τ v).val) % q = (τ v).val := by
       rw [Nat.mul_comm, Nat.mul_add_mod, Nat.mod_eq_of_lt (τ v).isLt]
     let τExt (u : ℕ) : Fin q := if hu : u ∈ Finset.range N then τ ⟨u, hu⟩ else default
     have hσ0 := eval_toOneHotEncode hq F sem hvars τ hτ
-    have huniq := ((eval_toOneHotCNF sem _).mp hσ0).1 v.1 hvN
+    have huniq := ((eval_toOneHotCNF sem _).mp hσ0).1 v.val hvN
     have hspec := huniq.1.choose_spec
-    have heq : (if hx : v.1 * q + (τ v).1 ∈ Finset.range (N * q)
-        then decide ((v.1 * q + (τ v).1) % q = (τExt ((v.1 * q + (τ v).1) / q)).1)
+    have heq : (if hx : v.val * q + (τ v).val ∈ Finset.range (N * q)
+        then decide ((v.val * q + (τ v).val) % q = (τExt ((v.val * q + (τ v).val) / q)).val)
         else false) = true := by
       simp [τExt, Finset.mem_range.mpr hlt, hdiv, hmod, hvN]
-    exact huniq.2 _ hspec.1 (τ v).1 (τ v).isLt hspec.2 heq
+    exact huniq.2 _ hspec.1 (τ v).val (τ v).isLt hspec.2 heq
   right_inv σ := by
     obtain ⟨σ, hσ⟩ := σ
     ext x
     dsimp only
-    have hx := Finset.mem_range.mp x.2
-    have hvN : x.1 / q < N := (Nat.div_lt_iff_lt_mul hq).mpr hx
-    have hmod : x.1 % q < q := Nat.mod_lt x.1 hq
-    have hmv : x.1 / q ∈ Finset.range N := Finset.mem_range.mpr hvN
+    have hx := Finset.mem_range.mp x.property
+    have hvN : x.val / q < N := (Nat.div_lt_iff_lt_mul hq).mpr hx
+    have hmod : x.val % q < q := Nat.mod_lt x.val hq
+    have hmv : x.val / q ∈ Finset.range N := Finset.mem_range.mpr hvN
     let ext (y : ℕ) : Bool := if hy : y ∈ Finset.range (N * q) then σ ⟨y, hy⟩ else false
-    have huniq := ((eval_toOneHotCNF sem ext).mp hσ).1 (x.1 / q) hvN
+    have huniq := ((eval_toOneHotCNF sem ext).mp hσ).1 (x.val / q) hvN
     have hspec := huniq.1.choose_spec
     simp only [hmv, ↓reduceDIte]
-    change decide (x.1 % q = huniq.1.choose) = σ x
-    have hmul : (x.1 / q) * q + x.1 % q = x.1 := by rw [mul_comm, Nat.div_add_mod]
+    change decide (x.val % q = huniq.1.choose) = σ x
+    have hmul : (x.val / q) * q + x.val % q = x.val := by rw [mul_comm, Nat.div_add_mod]
     by_cases hval : σ x = true
-    · have hex : ext ((x.1 / q) * q + x.1 % q) = true := by
+    · have hex : ext ((x.val / q) * q + x.val % q) = true := by
         dsimp only [ext]
         rw [hmul]
-        simp only [x.2, ↓reduceDIte]
+        simp only [x.property, ↓reduceDIte]
         exact hval
-      have heq : x.1 % q = huniq.1.choose := huniq.2 (x.1 % q) hmod _ hspec.1 hex hspec.2
+      have heq : x.val % q = huniq.1.choose := huniq.2 (x.val % q) hmod _ hspec.1 hex hspec.2
       simp [hval, heq]
-    · have hne : x.1 % q ≠ huniq.1.choose := by
+    · have hne : x.val % q ≠ huniq.1.choose := by
         intro heq
         apply hval
-        have heq_x : (x.1 / q) * q + huniq.1.choose = x.1 := by rw [← heq, hmul]
-        simpa only [ext, heq_x, x.2, ↓reduceDIte] using hspec.2
+        have heq_x : (x.val / q) * q + huniq.1.choose = x.val := by rw [← heq, hmul]
+        simpa only [ext, heq_x, x.property, ↓reduceDIte] using hspec.2
       have hfalse : σ x = false := Bool.eq_false_iff.mpr hval
       simp [hfalse, hne]
 

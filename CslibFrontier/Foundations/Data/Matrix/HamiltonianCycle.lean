@@ -111,7 +111,7 @@ private theorem cycleOf_isCycleOn (π : Perm (Fin (k + 1))) : (cycleOf π).IsCyc
   refine ⟨Set.bijOn_univ.2 (Equiv.bijective _), fun u _ v _ => ?_⟩
   have key (v : Fin (k + 1)) : (cycleOf π).SameCycle (π 0) v := by
     obtain ⟨i, rfl⟩ := π.surjective v
-    exact ⟨(i : ℕ), by rw [zpow_natCast, cycleOf_pow π i.2]⟩
+    exact ⟨(i : ℕ), by rw [zpow_natCast, cycleOf_pow π i.isLt]⟩
   exact (key u).symm.trans (key v)
 
 /-- **A Hamiltonian cycle is an order of the indices.** Over `Fin (k + 1)`, every cycle through
@@ -127,8 +127,8 @@ theorem hamiltonianCycleSum_eq_sum_orders (M : Matrix (Fin (k + 1)) (Fin (k + 1)
     (fun π _ => mem_filter.2 ⟨mem_univ _, cycleOf_isCycleOn π⟩) ?_ ?_ ?_
   · intro π hπ π' hπ' e
     refine Equiv.ext fun i => ?_
-    have h := cycleOf_pow π i.2
-    have h' := cycleOf_pow π' i.2
+    have h := cycleOf_pow π i.isLt
+    have h' := cycleOf_pow π' i.isLt
     rwa [(mem_filter.1 hπ').2, ← e, ← (mem_filter.1 hπ).2, h] at h'
   · intro σ hσ
     have hc : σ.IsCycleOn ((univ : Finset (Fin (k + 1))) : Set (Fin (k + 1))) := by

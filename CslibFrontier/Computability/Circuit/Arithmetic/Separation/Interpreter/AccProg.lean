@@ -311,7 +311,7 @@ theorem accF_kv {M m N d s : ℕ} {p : MvPolynomial (Fin N × Option Bool) R}
       rcases Option.eq_none_or_eq_some (((tbits z).map some ++ [none])[(i : ℕ)]?) with hc | ⟨γ, hc⟩
       · simp [codeB, Tape.wordCode, hc, lamK]
       · rw [Finset.sum_eq_single γ]
-        · simp [codeB, Tape.wordCode, hc, lamK, i.2]
+        · simp [codeB, Tape.wordCode, hc, lamK, i.isLt]
         · intro c _ hne
           simp only [codeB, Tape.wordCode, hc, Option.some.injEq, decide_eq_true_eq]
           rw [ite_eq_right hne.symm, mul_zero]

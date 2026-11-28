@@ -148,7 +148,7 @@ theorem sum_filter_card_le_fourierCoeff_indicator_sq_le_log_pow {k : ℕ} (hk : 
     field_simp
   refine ((le_div_iff₀ (pow_pos hρ₀ k)).2 ((mul_comm _ _).trans_le (hW.trans hexp))).trans_eq ?_
   rw [show 2 * exp 1 / k * L = exp 1 / ρ by simp only [ρ]; field_simp, div_pow (exp 1) ρ k,
-    ← exp_nat_mul, mul_one]
+    ← exp_natCast_mul, mul_one]
   ring
 
 /-- **The degree-one weight through noise stability**: a set `A` of volume `α` has

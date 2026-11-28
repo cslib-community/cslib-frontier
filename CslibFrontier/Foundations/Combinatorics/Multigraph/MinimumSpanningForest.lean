@@ -737,7 +737,7 @@ theorem sum_msf_le [AddCommMonoid W] [IsOrderedAddMonoid W] (hw : Function.Injec
       exact isAcyclic_msf w hw m hm a b hab ((hF.joins m (msf_subset w hm) a b hab).mono
         (by intro g hg; exact ⟨hsub hg, fun h => hmF (h ▸ hg)⟩))
     rw [subset_antisymm hsub this]
-  obtain ⟨f, hf⟩ := nonempty_iff_ne_empty.2 hFM
+  obtain ⟨f, hf⟩ := ne_empty_iff_nonempty.1 hFM
   obtain ⟨hfF, hfM⟩ := mem_sdiff.1 hf
   obtain ⟨a, b, hab⟩ := exists_ends_eq (ends := ends) f
   have hfS := hF.subset hfF

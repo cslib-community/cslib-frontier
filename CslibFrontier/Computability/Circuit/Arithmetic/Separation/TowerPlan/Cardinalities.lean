@@ -129,9 +129,9 @@ theorem card_relay_le : Fintype.card (Relay T m A) ≤ 8 * V ^ 5 := by
     Nat.mul_le_mul hV.base_le (Nat.mul_le_mul hV.base_le (Nat.mul_le_mul hV.card_X_zero_le
       (Nat.mul_le_mul_left 2 hV.length_le)))
   have h1 := sum_stages_le hV fun j : Fin J =>
-    Nat.mul_le_mul hV.types_le (card_Ed_le_pow hD hV j.2.le)
+    Nat.mul_le_mul hV.types_le (card_Ed_le_pow hD hV j.isLt.le)
   have h2 := sum_stages_le hV fun j : Fin J =>
-    Nat.mul_le_mul_right 4 (card_Ed_le_pow hD hV j.2.le)
+    Nat.mul_le_mul_right 4 (card_Ed_le_pow hD hV j.isLt.le)
   have h3 := card_Ed_le_pow (T := T) hD hV le_rfl
   refine (add_le_add h0 (add_le_add h1 (add_le_add h2 h3))).trans ?_
   obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hV.one_le
@@ -142,7 +142,7 @@ theorem card_vertexMove_le (hb : 0 < b) : Fintype.card (VertexMove FL) ≤ V ^ 4
   rw [Fintype.card_eq_sum_ones, VertexMove.sum_eq]
   simp only [sum_const, card_univ, smul_eq_mul, mul_one]
   refine (sum_stages_le hV fun j : Fin J => (sum_le_card_nsmul _ _ (V * V) fun i _ =>
-    Nat.mul_le_mul ((Tower.card_V_le hD hb j.2 i).trans hV.card_X_zero_le)
+    Nat.mul_le_mul ((Tower.card_V_le hD hb j.isLt i).trans hV.card_X_zero_le)
       hV.card_kind_le).trans (by simpa using Nat.mul_le_mul_right (V * V) hV.types_le)).trans_eq
     (by ring)
 
@@ -173,8 +173,8 @@ theorem card_moveChannel_le : Fintype.card (MoveChannel R ch FL) ≤ 17 * V ^ 6 
           sum_congr rfl fun ω _ => sum_congr rfl fun d _ => Fintype.card_congr (FL.nearPair d)
       _ = Fintype.card FL.Kind * (Fintype.card (T.V (j + 1) i) * Fintype.card T.Nr) := by
           simp only [sum_const, card_univ, smul_eq_mul]; ring
-      _ ≤ V * V ^ 3 := Nat.mul_le_mul hV.card_kind_le ((Tower.card_V_mul_card_Nr_le j.2 i).trans
-          (card_Ed_le_pow hD hV j.2))
+      _ ≤ V * V ^ 3 := Nat.mul_le_mul hV.card_kind_le ((Tower.card_V_mul_card_Nr_le j.isLt i).trans
+          (card_Ed_le_pow hD hV j.isLt))
       _ = V ^ 4 := by ring
   rw [Fintype.card_sigma]
   refine (sum_move_le _ (a := 2) fun _ _ => le_of_eq rfl).trans ?_
@@ -217,10 +217,10 @@ theorem card_target_le (hb : 0 < b) : Fintype.card (Target T m A) ≤ 12 * V ^ 5
     (Fintype.card_le_of_surjective _ Sym2.mk_surjective).trans
       (by simpa [T.card_fl] using Nat.mul_le_mul hV.places_le hV.places_le)
   have h1 : ∑ j : Fin (J + 1), Fintype.card (T.Ed j) ≤ (V + 1) * V ^ 3 :=
-    (sum_le_card_nsmul _ _ _ fun j _ => card_Ed_le_pow hD hV (Nat.le_of_lt_succ j.2)).trans <| by
+    (sum_le_card_nsmul _ _ _ fun j _ => card_Ed_le_pow hD hV (Nat.le_of_lt_succ j.isLt)).trans <| by
       simpa using Nat.mul_le_mul_right (V ^ 3) (Nat.succ_le_succ hV.stages_le)
   have h2 := sum_stages_le hV fun j : Fin J => (sum_le_card_nsmul univ _ (V * (V * V)) fun i _ =>
-    Nat.mul_le_mul ((Tower.card_V_le hD hb j.2 i).trans hV.card_X_zero_le) hpair).trans
+    Nat.mul_le_mul ((Tower.card_V_le hD hb j.isLt i).trans hV.card_X_zero_le) hpair).trans
       (by simpa using Nat.mul_le_mul_right (V * (V * V)) hV.types_le)
   have h3 := card_relay_le (m := m) hD hV
   refine (Nat.add_le_add_left (add_le_add h1 (add_le_add h3 h2)) 1).trans ?_
@@ -232,7 +232,7 @@ theorem card_node_le : Fintype.card T.Node ≤ 3 * V ^ 2 := by
   rw [← Fintype.card_congr (proxy_equiv% T.Node)]
   simp only [Fintype.card_sum, Fintype.card_sigma, Fintype.card_unique]
   have : ∑ j : Fin (J + 1), Fintype.card (T.X j) ≤ (V + 1) * V :=
-    (sum_le_card_nsmul _ _ V fun j _ => (Tower.card_X_le hD (Nat.le_of_lt_succ j.2)).trans
+    (sum_le_card_nsmul _ _ V fun j _ => (Tower.card_X_le hD (Nat.le_of_lt_succ j.isLt)).trans
       hV.card_X_zero_le).trans <| by
         simpa using Nat.mul_le_mul_right V (Nat.succ_le_succ hV.stages_le)
   nlinarith [hV.one_le]

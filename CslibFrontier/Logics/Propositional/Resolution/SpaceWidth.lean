@@ -125,7 +125,7 @@ private theorem exists_subset_satisfies {σ : V → Bool} {d : Finset V} (N : Fi
     (h : ∀ c ∈ N, Satisfies σ d c) :
     ∃ d' ⊆ d, d'.card ≤ N.card ∧ ∀ c ∈ N, Satisfies σ d' c := by
   classical
-  choose l hl hd he using fun c : {c // c ∈ N} => h c c.2
+  choose l hl hd he using fun c : {c // c ∈ N} => h c c.property
   let vars := N.attach.image fun c => (l c).1
   refine ⟨vars, Finset.image_subset_iff.2 fun c _ => hd c,
     Finset.card_image_le.trans_eq Finset.card_attach, fun c hc => ?_⟩

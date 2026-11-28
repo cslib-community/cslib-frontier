@@ -374,7 +374,7 @@ theorem numTables_failure_bound_le {n : ℕ} (hn : 0 < n) {p₁ p₂ : ℝ} (hp�
   · calc (1 - p₁ ^ k) ^ L
         ≤ Real.exp (-p₁ ^ k) ^ L := pow_le_pow_left₀ (sub_nonneg.2 hpk1)
           (by linarith [Real.add_one_le_exp (-p₁ ^ k)]) L
-      _ = Real.exp (-(L * p₁ ^ k)) := by rw [← Real.exp_nat_mul]; ring_nf
+      _ = Real.exp (-(L * p₁ ^ k)) := by rw [← Real.exp_natCast_mul]; ring_nf
       _ ≤ Real.exp (-1) := Real.exp_le_exp.2 (by linarith)
   · have hL' : (0 : ℝ) < L := Nat.cast_pos.2 hL
     rw [div_le_iff₀ (by positivity)]

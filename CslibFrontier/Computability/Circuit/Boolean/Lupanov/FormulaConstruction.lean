@@ -33,7 +33,7 @@ variable {c d : ℕ}
 
 private def columnPattern (f : BooleanFunction (c + d)) (center : BitString d)
     (T : Finset (BitString c)) (i : Fin d) : T → Bool :=
-  fun z => f (Fin.append z.1 (BitString.flipOn {i} center))
+  fun z => f (Fin.append z.val (BitString.flipOn {i} center))
 
 private noncomputable def rowSet (T : Finset (BitString c)) (pattern : T → Bool) :
     Finset (BitString c) :=

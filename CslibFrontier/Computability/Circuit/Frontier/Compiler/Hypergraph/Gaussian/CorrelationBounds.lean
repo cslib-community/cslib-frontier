@@ -130,7 +130,7 @@ private theorem twoStep_le_inner_hyperUnitRow {r : ℕ} (hr : 2 ≤ r) (hfan : c
     exact (div_le_self (sq_nonneg θ) h1).trans (pow_le_one₀ hθ0.le hθ1)
   set m := 2 * S - 2
   have hm2 : m + 2 = 2 * S := by omega
-  have hstep {x y : HyperNode c} (hx : x ∈ hyperEdge c e.1) (hy : y ∈ hyperEdge c e.1)
+  have hstep {x y : HyperNode c} (hx : x ∈ hyperEdge c e.val) (hy : y ∈ hyperEdge c e.val)
       (z : HyperNode c) :
       q₂' * walkMax c K₀ r θ m (.inl y) z ≤ walkMax c K₀ r θ (2 * S) (.inl x) z := by
     rw [← hm2, show q₂' = stepWeight c K₀ r θ (.inl x) (.inr e) *

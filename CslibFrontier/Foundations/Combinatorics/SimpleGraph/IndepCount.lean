@@ -319,7 +319,7 @@ theorem indepSetCount_star [Finite V] (G : SimpleGraph V) (v₀ : V)
         (fun (y : R → Bool) (w : V) => if h : w = v₀ then false else y ⟨w, h⟩) := by
       ext x
       simp only [S0, mem_ofPred_eq, mem_range]
-      refine ⟨fun hx0 => ⟨fun w => x w.1, funext fun w => ?_⟩, ?_⟩
+      refine ⟨fun hx0 => ⟨fun w => x w.val, funext fun w => ?_⟩, ?_⟩
       · by_cases hw : w = v₀ <;> simp [hw, hx0]
       · rintro ⟨y, rfl⟩
         simp

@@ -67,7 +67,7 @@ example : ¬ ∃ (p : ℕ → ℕ) (c : Code), ∀ (x : ℕ → ℕ) n,
 /-- The identity element is computable, and in `K₂^rec` it returns its argument. -/
 example (x : {a : ℕ → ℕ // Computable a}) :
     (kleeneTwoRec.app ⟨kleeneTwoCode joinRight fun _ => 0,
-      computable_kleeneTwoCode _ (Computable.const 0)⟩ x).map Subtype.val = Part.some x.1 := by
+      computable_kleeneTwoCode _ (Computable.const 0)⟩ x).map Subtype.val = Part.some x.val := by
   rw [map_val_kleeneTwoRec_app, app_kleeneTwoCode_joinRight]
 
 end CslibFrontierTests.KleeneSecondModel

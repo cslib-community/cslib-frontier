@@ -414,10 +414,10 @@ theorem rat_elimBucketTable_bounds {V : Type*} [DecidableEq V] {d A B : ℕ} (hB
   let term : ℕ → ℚ := fun i =>
     (bucket.map fun f => f.evalAt d fun v => if v = x then i else
       assignScope (bucketOutScope x bucket)
-        (lsbDecode d (bucketOutScope x bucket).length idx.1) v).prod
-  have hsum_eq : (∑ a : Fin d, term a.1) = ∑ i ∈ Finset.range d, term i :=
+        (lsbDecode d (bucketOutScope x bucket).length idx.val) v).prod
+  have hsum_eq : (∑ a : Fin d, term a.val) = ∑ i ∈ Finset.range d, term i :=
     Fin.sum_univ_eq_sum_range term d
-  change (∑ a : Fin d, term a.1).num.natAbs ≤ _ ∧ (∑ a : Fin d, term a.1).den ≤ _
+  change (∑ a : Fin d, term a.val).num.natAbs ≤ _ ∧ (∑ a : Fin d, term a.val).den ≤ _
   rw [hsum_eq]
   have hQ : 1 ≤ B ^ bucket.length := Nat.one_le_pow _ _ hB
   have hterm : ∀ i : ℕ, i < d →
@@ -426,7 +426,7 @@ theorem rat_elimBucketTable_bounds {V : Type*} [DecidableEq V] {d A B : ℕ} (hB
     have hprod := rat_list_prod_bounds
       (bucket.map fun f => f.evalAt d fun v => if v = x then i else
         assignScope (bucketOutScope x bucket)
-          (lsbDecode d (bucketOutScope x bucket).length idx.1) v)
+          (lsbDecode d (bucketOutScope x bucket).length idx.val) v)
       fun r hr => by
         rcases List.mem_map.mp hr with ⟨f, hf, rfl⟩
         rw [FactorTable.evalAt, Array.getD]

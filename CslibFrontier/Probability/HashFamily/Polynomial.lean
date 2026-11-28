@@ -528,8 +528,8 @@ theorem isUniversalHash_polyHashMod {p N : ℕ} [Fact p.Prime] [NeZero N]
   intro m m' hne
   have hℓ : 0 < ℓ := Nat.pos_of_ne_zero fun h => hne <| by
     subst h
-    exact Subtype.ext ((List.length_eq_zero_iff.mp (Nat.le_zero.mp m.2)).trans
-      (List.length_eq_zero_iff.mp (Nat.le_zero.mp m'.2)).symm)
+    exact Subtype.ext ((List.length_eq_zero_iff.mp (Nat.le_zero.mp m.property)).trans
+      (List.length_eq_zero_iff.mp (Nat.le_zero.mp m'.property)).symm)
   -- The empty message has no monic prefix. Its polynomial index is zero.
   let encode (w : {w : List (ZMod N) // w.length ≤ ℓ}) :
       {f : (ZMod p)[X] // f.natDegree ≤ ℓ - 1} × ZMod N :=

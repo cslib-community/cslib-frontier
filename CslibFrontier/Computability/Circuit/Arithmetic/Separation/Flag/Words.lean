@@ -71,25 +71,25 @@ theorem f2_add_self (a : F2) : a + a = 0 := CharTwo.add_self_eq_zero a
 
 /-- The sum of the lengths of the generators of types ≥ p. -/
 noncomputable def Len.T (l : Len (U n)) (p : ℕ) : ℝ :=
-  ∑ j ∈ univ.filter (fun j : Fin (n - 1) => p ≤ j.1), l (x n j)
+  ∑ j ∈ univ.filter (fun j : Fin (n - 1) => p ≤ j.val), l (x n j)
 
 theorem Len.T_zero (l : Len (U n)) : l.T 0 = l.S := by
   simp [Len.T, Len.S]
 
-theorem Len.T_succ (l : Len (U n)) (j : Fin (n - 1)) : l.T j.1 = l.T (j.1 + 1) + l (x n j) := by
+theorem Len.T_succ (l : Len (U n)) (j : Fin (n - 1)) : l.T j.val = l.T (j.val + 1) + l (x n j) := by
   unfold Len.T
-  have : univ.filter (fun i : Fin (n - 1) => j.1 ≤ i.1) =
-      insert j (univ.filter fun i : Fin (n - 1) => j.1 + 1 ≤ i.1) := by
+  have : univ.filter (fun i : Fin (n - 1) => j.val ≤ i.val) =
+      insert j (univ.filter fun i : Fin (n - 1) => j.val + 1 ≤ i.val) := by
     ext i
     simp only [mem_filter, mem_univ, true_and, mem_insert, Fin.ext_iff]
     omega
   rw [this, sum_insert (by simp), add_comm]
 
-theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + k = a.1 →
-    ∀ u : Fin n → F2, u a = 1 → (∀ i, a < i → u i = 0) → (∀ i : Fin n, i.1 < p → u i = 0) →
-    ∃ c d : U n, (∀ i j : Fin n, (i.1 < p ∨ a ≤ i) → mat c i j = (1 : Matrix _ _ F2) i j) ∧
-      (∀ i j : Fin n, (i.1 < p ∨ a ≤ i) → mat d i j = (1 : Matrix _ _ F2) i j) ∧
-      (∀ i : Fin n, mat d i a = if p ≤ i.1 ∧ i ≤ a then 1 else 0) ∧
+theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + k = a.val →
+    ∀ u : Fin n → F2, u a = 1 → (∀ i, a < i → u i = 0) → (∀ i : Fin n, i.val < p → u i = 0) →
+    ∃ c d : U n, (∀ i j : Fin n, (i.val < p ∨ a ≤ i) → mat c i j = (1 : Matrix _ _ F2) i j) ∧
+      (∀ i j : Fin n, (i.val < p ∨ a ≤ i) → mat d i j = (1 : Matrix _ _ F2) i j) ∧
+      (∀ i : Fin n, mat d i a = if p ≤ i.val ∧ i ≤ a then 1 else 0) ∧
       (∀ i, mat (c * d) i a = u i) ∧ l c ≤ l.T p ∧ l d ≤ l.T p := by
   induction k with
   | zero =>
@@ -112,11 +112,11 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
       · rw [ite_eq_right h.ne', hu1 i h]
   | succ k ih =>
     intro p hp u hua hu1 hu2
-    have hpa : p < a.1 := by omega
-    have hpn : p < n - 1 := by have := a.2; omega
+    have hpa : p < a.val := by omega
+    have hpn : p < n - 1 := by have := a.isLt; omega
     set j : Fin (n - 1) := ⟨p, hpn⟩ with hj
-    have hlo : (lo j).1 = p := rfl
-    have hhi : (hi j).1 = p + 1 := rfl
+    have hlo : (lo j).val = p := rfl
+    have hhi : (hi j).val = p + 1 := rfl
     have hloa : lo j ≠ a := Fin.ne_of_val_ne (by rw [hlo]; omega)
     obtain ⟨c, d, hc, hd, hda, hcd, hlc, hld⟩ := ih (p + 1) (by omega)
       (Function.update u (lo j) 0) (by rw [Function.update_of_ne hloa.symm, hua])
@@ -130,27 +130,27 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
         · rw [h, Function.update_self]
         · rw [Function.update_of_ne h]
           apply hu2
-          have : i.1 ≠ p := fun h2 => h (Fin.ext h2)
+          have : i.val ≠ p := fun h2 => h (Fin.ext h2)
           omega)
     have hT : l.T p = l.T (p + 1) + l (x n j) := l.T_succ j
     have hx0 := apply_nonneg l (x n j)
     have hclo : ∀ i, mat c i (lo j) = (1 : Matrix _ _ F2) i (lo j) := by
       intro i
-      by_cases hi : i.1 < p + 1
+      by_cases hi : i.val < p + 1
       · exact hc i _ (Or.inl hi)
       · have h1 : lo j < i := by rw [Fin.lt_def, hlo]; omega
         rw [mat_lt c h1, Matrix.one_apply_ne h1.ne']
-    have hrow : ∀ i : Fin n, (i.1 < p ∨ a ≤ i) → i ≠ lo j := by
+    have hrow : ∀ i : Fin n, (i.val < p ∨ a ≤ i) → i ≠ lo j := by
       rintro i hi rfl
       rw [Fin.le_def, hlo] at hi
       omega
-    have hrow' : ∀ i : Fin n, (i.1 < p ∨ a ≤ i) → (i.1 < p + 1 ∨ a ≤ i) :=
+    have hrow' : ∀ i : Fin n, (i.val < p ∨ a ≤ i) → (i.val < p + 1 ∨ a ≤ i) :=
       fun _ => Or.imp_left Nat.lt_succ_of_lt
     have hd' : ∀ i k : Fin n,
-        (i.1 < p ∨ a ≤ i) → mat (x n j * d) i k = (1 : Matrix _ _ F2) i k := by
+        (i.val < p ∨ a ≤ i) → mat (x n j * d) i k = (1 : Matrix _ _ F2) i k := by
       intro i k hi
       rw [x_mul_apply, ite_eq_right (hrow i hi), add_zero, hd i k (hrow' i hi)]
-    have hda' : ∀ i : Fin n, mat (x n j * d) i a = if p ≤ i.1 ∧ i ≤ a then 1 else 0 := by
+    have hda' : ∀ i : Fin n, mat (x n j * d) i a = if p ≤ i.val ∧ i ≤ a then 1 else 0 := by
       intro i
       rw [x_mul_apply, hda, hda]
       by_cases h : i = lo j
@@ -159,7 +159,7 @@ theorem exists_col_aux (l : Len (U n)) (a : Fin n) (k : ℕ) : ∀ p : ℕ, p + 
         · exact ⟨hlo.ge, Fin.le_def.2 (by omega)⟩
         · exact ⟨hhi.ge, Fin.le_def.2 (by omega)⟩
       · rw [ite_eq_right h, add_zero]
-        have : i.1 ≠ p := fun h2 => h (Fin.ext h2)
+        have : i.val ≠ p := fun h2 => h (Fin.ext h2)
         congr 1
         exact propext (and_congr_left fun _ => ⟨fun _ => by omega, fun _ => by omega⟩)
     have hld' : l (x n j * d) ≤ l.T p := by linarith [map_mul_le_add l (x n j) d]
@@ -190,7 +190,7 @@ theorem exists_col (l : Len (U n)) (a : Fin n) (u : Fin n → F2) (hua : u a = 1
     (hu : ∀ i, a < i → u i = 0) :
     ∃ g : U n, (∀ i j : Fin n, a ≤ i → mat g i j = (1 : Matrix _ _ F2) i j) ∧
       (∀ i, mat g i a = u i) ∧ l g ≤ 2 * l.S := by
-  obtain ⟨c, d, hc, hd, -, hcd, hlc, hld⟩ := exists_col_aux l a a.1 0 (by omega) u hua hu
+  obtain ⟨c, d, hc, hd, -, hcd, hlc, hld⟩ := exists_col_aux l a a.val 0 (by omega) u hua hu
     (fun i hi => absurd hi (by omega))
   refine ⟨c * d, fun i j hi => ?_, hcd, ?_⟩
   · rw [mat_mul, Matrix.mul_apply]
@@ -233,11 +233,11 @@ theorem refl_x (j : Fin (n - 1)) : refl (x n j) = x n (Fin.rev j) := by
     Matrix.one_apply, Matrix.single_apply, Matrix.single_apply]
   have h1 : lo j = Fin.rev k ↔ hi (Fin.rev j) = k := by
     simp only [lo, hi, Fin.ext_iff, Fin.val_rev]
-    have := j.2; have := k.2
+    have := j.isLt; have := k.isLt
     omega
   have h2 : hi j = Fin.rev i ↔ lo (Fin.rev j) = i := by
     simp only [lo, hi, Fin.ext_iff, Fin.val_rev]
-    have := j.2; have := i.2
+    have := j.isLt; have := i.isLt
     omega
   simp only [Fin.rev_inj, h1, h2, eq_comm (a := k), and_comm]
 

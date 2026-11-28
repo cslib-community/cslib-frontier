@@ -106,7 +106,7 @@ theorem eval_aeval_letterSubst (he : Function.Injective e) (w : List Δ)
     (P : MvPolynomial (Fin N × Option Γ) K) :
     eval (fun b => if wordCode N w b then 1 else 0) (aeval (letterSubst K e N) P) =
       eval (fun b => if wordCode N (w.map e) b then 1 else 0) P := by
-  rw [aeval_eq_bind₁]
-  exact (eval₂Hom_bind₁ _ _ _ _).trans (congrArg (eval · P) (funext (eval_letterSubst he w)))
+  rw [map_aeval]
+  exact eval₂Hom_congr (by ext; simp) (funext (eval_letterSubst he w)) rfl
 
 end Cslib.Circuits.Arithmetic.Separation.Tape

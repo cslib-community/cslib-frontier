@@ -333,7 +333,7 @@ theorem search_eq_true_iff {k M : ℕ} (hkK : k ≤ K) (hM : LeafBound K α M) {
     change (root k φ).toClauseSet.Sat x ↔ φ.eval x = true
     rw [hroot, sat_toClauseSet_normalize_iff]
   have hleaf {w : List Bool} (hw : R.tree.IsLeafWord s₀ w) :
-      g (R.tree.walk s₀ w).1 = true ↔ ∃ x, (R.toClauseSet (R.tree.walk s₀ w)).Sat x :=
+      g (R.tree.walk s₀ w).val = true ↔ ∃ x, (R.toClauseSet (R.tree.walk s₀ w)).Sat x :=
     (hg _ fun c hc => length_le_of_mem_walk hK hα hkK hφ hw.isNodeWord hc).trans
       (exists_congr fun x => (CNF.sat_toClauseSet_iff _ x).symm)
   rw [search, (iterate_step hK hα hkK hM g φ).1, decide_eq_true_iff]

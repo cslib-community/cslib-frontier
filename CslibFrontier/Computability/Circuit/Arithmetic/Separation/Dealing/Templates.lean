@@ -129,9 +129,9 @@ of roles of laws. -/
 @[expose] noncomputable def roleTm (tg : M.Role → ℕ) (hD : 1 < D) (r : M.Role) : Tm :=
   .cons (.c (num (4 + tg r))) (.cons (C.valueTm (.count r.1)) (.cons
     (listTm ((univ : Finset ((M.law r.1).SlotAt r.2)).toList.map fun e =>
-      C.slotTm tab hD ⟨r.1, e.1⟩ (M.roleParty r)))
+      C.slotTm tab hD ⟨r.1, e.val⟩ (M.roleParty r)))
     (listTm ((univ : Finset ((M.law r.1).ChannelAt r.2)).toList.map fun ν =>
-      C.valueTm (.newKeys ⟨r.1, ν.1⟩ (decide ((M.law r.1).channelEnd ν.1 false ≠ r.2)))))))
+      C.valueTm (.newKeys ⟨r.1, ν.val⟩ (decide ((M.law r.1).channelEnd ν.val false ≠ r.2)))))))
 
 /-- The template of the comparison of the contents at the key `k` with the contents of the
 unit `u`. -/
@@ -208,7 +208,7 @@ private theorem digitTree_eq_one (C : Codes S M U0 U1 D pS) {d : Fin D} {p : Pro
 
 /-- The party of a role is at the end `decide (channelEnd ν false ≠ r.2)` of its channel `ν`. -/
 private theorem channelParty_decide (r : M.Role) (ν : (M.law r.1).ChannelAt r.2) :
-    M.channelParty ⟨r.1, ν.1⟩ (decide ((M.law r.1).channelEnd ν.1 false ≠ r.2)) =
+    M.channelParty ⟨r.1, ν.val⟩ (decide ((M.law r.1).channelEnd ν.val false ≠ r.2)) =
       M.roleParty r := by
   obtain ⟨x, p⟩ := r
   obtain ⟨ν, d, hd⟩ := ν

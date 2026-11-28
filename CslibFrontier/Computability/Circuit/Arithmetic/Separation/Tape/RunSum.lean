@@ -263,23 +263,23 @@ theorem RunRule.card [Fintype Γ] [Fintype S] : Fintype.card (RunRule Γ S n t M
   | .finalState => [(.state (Fin.last t) e, false)]
   | .startPlace z => if h : 0 < M then [(.place z 0 ⟨0, h⟩, false)] else []
   | .move z τ m a => (.place z τ.castSucc m, true) :: (.letter τ a, true) ::
-      if h : m.1 + (emit [a] z).length < M then [(.place z τ.succ ⟨_, h⟩, false)] else []
+      if h : m.val + (emit [a] z).length < M then [(.place z τ.succ ⟨_, h⟩, false)] else []
   | .nextInput j j' m => (.place (.inp j) (Fin.last t) m, true) ::
-      if h : m.1 + 1 < M then [(.place (.inp j') 0 ⟨_, h⟩, false)] else []
+      if h : m.val + 1 < M then [(.place (.inp j') 0 ⟨_, h⟩, false)] else []
   | .readTape s b τ γ m =>
       [(.letter τ (some (.tp s b, γ)), true), (.place (.tp s b) τ.castSucc m, true),
         (.content s m (some γ), false)]
   | .blankTape s b m p => [(.place (.tp s b) (Fin.last t) m, true), (.content s p none, false)]
   | .readInput j τ γ m => (.letter τ (some (.inp j, γ)), true) ::
       (.place (.inp j) τ.castSucc m, true) ::
-        if h : m.1 < N then [(.inl (⟨_, h⟩, some γ), false)] else []
+        if h : m.val < N then [(.inl (⟨_, h⟩, some γ), false)] else []
   | .endInput j m => (.place (.inp j) (Fin.last t) m, true) ::
-      if h : m.1 < N then [(.inl (⟨_, h⟩, none), false)] else []
+      if h : m.val < N then [(.inl (⟨_, h⟩, none), false)] else []
 
 /-- The forbidding clauses that are in force; the others have weight `1`. -/
 @[expose] def RunRule.InForce : RunRule Γ S n t M → Prop
   | .startPlace z => z.start = true
-  | .nextInput j j' _ => j'.1 = j.1 + 1
+  | .nextInput j j' _ => j'.val = j.val + 1
   | .blankTape _ _ m p => m ≤ p
   | _ => True
 
@@ -302,16 +302,16 @@ private theorem good_of_respectsRules (h : RespectsRules i e x g) :
   · simpa [ruleLits, RunRule.InForce] using h .initState trivial
   · simpa [ruleLits, RunRule.InForce] using h .finalState trivial
   · intro z hz
-    have hM : 0 < M := (Nat.zero_le _).trans_lt (g.place z 0).2
+    have hM : 0 < M := (Nat.zero_le _).trans_lt (g.place z 0).isLt
     simpa [ruleLits, hM, Fin.ext_iff] using h (.startPlace z) hz
   · intro z τ
     have := h (.move z τ (g.place z τ.castSucc) (g.letter τ)) trivial
-    by_cases hM : (g.place z τ.castSucc).1 + (emit [g.letter τ] z).length < M
+    by_cases hM : (g.place z τ.castSucc).val + (emit [g.letter τ] z).length < M
     · simpa [ruleLits, hM, Fin.ext_iff] using this
     · simp [ruleLits, hM] at this
   · intro j j' hj
     have := h (.nextInput j j' (g.place (.inp j) (Fin.last t))) hj
-    by_cases hM : (g.place (.inp j) (Fin.last t)).1 + 1 < M
+    by_cases hM : (g.place (.inp j) (Fin.last t)).val + 1 < M
     · simpa [ruleLits, hM, Fin.ext_iff] using this
     · simp [ruleLits, hM] at this
   · intro s b τ γ ho
@@ -320,12 +320,12 @@ private theorem good_of_respectsRules (h : RespectsRules i e x g) :
     simpa [ruleLits] using h (.blankTape s b (g.place (.tp s b) (Fin.last t)) p) hp
   · intro j τ γ ho
     have := h (.readInput j τ γ (g.place (.inp j) τ.castSucc)) trivial
-    by_cases hN : (g.place (.inp j) τ.castSucc).1 < N
+    by_cases hN : (g.place (.inp j) τ.castSucc).val < N
     · exact ⟨hN, by simpa [ruleLits, ho, hN] using this⟩
     · simp [ruleLits, ho, hN] at this
   · intro j
     have := h (.endInput j (g.place (.inp j) (Fin.last t))) trivial
-    by_cases hN : (g.place (.inp j) (Fin.last t)).1 < N
+    by_cases hN : (g.place (.inp j) (Fin.last t)).val < N
     · exact ⟨hN, by simpa [ruleLits, hN] using this⟩
     · simp [ruleLits, hN] at this
 
@@ -335,18 +335,18 @@ private theorem respectsRules_of_good (h : Good i e x g.letter g.state g.place g
     ⟨j, m⟩) hr hl
   · simp [ruleLits, h.first] at hl
   · simp [ruleLits, h.last] at hl
-  · have hM : 0 < M := (Nat.zero_le _).trans_lt (g.place z 0).2
+  · have hM : 0 < M := (Nat.zero_le _).trans_lt (g.place z 0).isLt
     exact (by simpa [ruleLits, hM] using hl : _ ≠ _) (Fin.ext (h.zero z hr))
   · simp only [ruleLits, List.forall_mem_cons, RunBit.elim_place, RunBit.elim_letter,
       decide_eq_true_eq] at hl
     obtain ⟨rfl, rfl, hl⟩ := hl
     have hs := h.step z τ
-    rw [dite_eq_left (hs ▸ (g.place z τ.succ).2)] at hl
+    rw [dite_eq_left (hs ▸ (g.place z τ.succ).isLt)] at hl
     exact (by simpa using hl : _ ≠ _) (Fin.ext hs)
   · simp only [ruleLits, List.forall_mem_cons, RunBit.elim_place, decide_eq_true_eq] at hl
     obtain ⟨rfl, hl⟩ := hl
     have hs := h.link j j' hr
-    rw [dite_eq_left (hs ▸ (g.place (.inp j') 0).2)] at hl
+    rw [dite_eq_left (hs ▸ (g.place (.inp j') 0).isLt)] at hl
     exact (by simpa using hl : _ ≠ _) (Fin.ext hs)
   · simp only [ruleLits, List.forall_mem_cons, RunBit.elim_place, RunBit.elim_letter,
       RunBit.elim_content, decide_eq_true_eq, decide_eq_false_iff_not] at hl

@@ -257,15 +257,15 @@ private noncomputable def degreeReductionCoinsHom {m : ℕ} (params : Params F (
     (I : Finset (Fin m)) :
     (Fin m → Randomness params) →+
       (((i : I) → Randomness params) × ((s : (Iᶜ : Finset (Fin m))) → (I → F))) where
-  toFun r := (I.restrict r, fun s i => share params (r s.1) 0 i.1)
+  toFun r := (I.restrict r, fun s i => share params (r s.val) 0 i.val)
   map_zero' := by
     refine Prod.ext rfl ?_
     ext s i
-    exact share_zero params i.1
+    exact share_zero params i.val
   map_add' r₁ r₂ := by
     refine Prod.ext rfl ?_
     ext s i
-    simpa using share_add params (r₁ s.1) (r₂ s.1) 0 0 i.1
+    simpa using share_add params (r₁ s.val) (r₂ s.val) 0 0 i.val
 
 private theorem degreeReductionCoinsHom_surjective {m : ℕ} (params : Params F (Fin m))
     (I : Finset (Fin m)) (hI : I.card ≤ params.threshold) :
@@ -290,15 +290,15 @@ private noncomputable def bgwSumCoinsHom {m : ℕ} (params : Params F (Fin m))
       (Randomness params × ((i : I) → Randomness params) ×
         ((s : (Iᶜ.erase j₀ : Finset (Fin m))) → (I → F))) where
   toFun r :=
-    (∑ s : Fin m, r s, I.restrict r, fun s i => share params (r s.1) 0 i.1)
+    (∑ s : Fin m, r s, I.restrict r, fun s i => share params (r s.val) 0 i.val)
   map_zero' := by
     refine Prod.ext (by simp) (Prod.ext rfl ?_)
     ext s i
-    exact share_zero params i.1
+    exact share_zero params i.val
   map_add' r₁ r₂ := by
     refine Prod.ext (by simp [Finset.sum_add_distrib]) (Prod.ext rfl ?_)
     ext s i
-    simpa using share_add params (r₁ s.1) (r₂ s.1) 0 0 i.1
+    simpa using share_add params (r₁ s.val) (r₂ s.val) 0 0 i.val
 
 private theorem bgwSumCoinsHom_surjective {m : ℕ} (params : Params F (Fin m))
     (I : Finset (Fin m)) (hI : I.card ≤ params.threshold)
@@ -434,9 +434,9 @@ noncomputable def bgwDegreeReductionViewSim {m : ℕ} (params : Params F (Fin m)
     (((i : I) → Randomness params) × ((s : (Iᶜ : Finset (Fin m))) → (I → F)))
   let (rI, hCompl) := p
   return fun i =>
-    bgwDegreeReductionViewOf params i.1 (uvI i) (rI i) fun s =>
+    bgwDegreeReductionViewOf params i.val (uvI i) (rI i) fun s =>
       if hs : s ∈ I then
-        share params (rI ⟨s, hs⟩) ((uvI ⟨s, hs⟩).1 * (uvI ⟨s, hs⟩).2) i.1
+        share params (rI ⟨s, hs⟩) ((uvI ⟨s, hs⟩).1 * (uvI ⟨s, hs⟩).2) i.val
       else
         hCompl ⟨s, Finset.mem_compl.mpr hs⟩ i
 
@@ -457,7 +457,7 @@ theorem map_restrict_evalWith_bgwDegreeReductionProtocol {m : ℕ} (params : Par
       (((i : I) → Randomness params) × ((s : (Iᶜ : Finset (Fin m))) → (I → F))) ≃
       (((i : I) → Randomness params) × ((s : (Iᶜ : Finset (Fin m))) → (I → F))) :=
     Equiv.prodCongr (Equiv.refl _)
-      (Equiv.addLeft (fun (s : (Iᶜ : Finset (Fin m))) (_ : I) => (uv s.1).1 * (uv s.1).2))
+      (Equiv.addLeft (fun (s : (Iᶜ : Finset (Fin m))) (_ : I) => (uv s.val).1 * (uv s.val).2))
   have hmap :
       (PMF.uniformOfFintype
         (((i : I) → Randomness params) × ((s : (Iᶜ : Finset (Fin m))) → (I → F)))) =
@@ -591,21 +591,21 @@ noncomputable def bgwSumSim {m : ℕ} (params : Params F (Fin m)) (I : Finset (F
           let Y : Fin m → F := fun k => share params R_tot y k
           let nonPivotShare (s : Fin m) (i : I) : F :=
             if hsI : s ∈ I then
-              share params (rI ⟨s, hsI⟩) (xI ⟨s, hsI⟩) i.1
+              share params (rI ⟨s, hsI⟩) (xI ⟨s, hsI⟩) i.val
             else if hsH : s ∈ H' then
               hRest ⟨s, hsH⟩ i
             else
               0
           let inbox (i : I) (s : Fin m) : F :=
             if s = j₀ then
-              Y i.1 - ∑ s' ∈ Finset.univ.erase j₀, nonPivotShare s' i
+              Y i.val - ∑ s' ∈ Finset.univ.erase j₀, nonPivotShare s' i
             else
               nonPivotShare s i
-          return fun i => bgwSumViewOf params i.1 (xI i) (rI i) (inbox i) Y
+          return fun i => bgwSumViewOf params i.val (xI i) (rI i) (inbox i) Y
       else
-        pure (fun i => (hne ⟨i.1, i.2⟩).elim)
+        pure (fun i => (hne ⟨i.val, i.property⟩).elim)
     else
-      pure (fun i => bgwSumViewOf params i.1 (xI i) 0 0 0)
+      pure (fun i => bgwSumViewOf params i.val (xI i) 0 0 0)
 
 /-- **Full Joint View-and-Output $t$-Privacy of `bgwSumProtocol`**
 (cf. [AsharovLindell2017], Section 4.2, Protocol 4.1 and Claim 4.3, for addition gates only):
@@ -634,7 +634,7 @@ theorem perfectSemiHonestPrivateLe_bgwSum {m : ℕ} (params : Params F (Fin m)) 
         (Randomness params × ((i : I) → Randomness params) × ((s : H') → (I → F))) :=
       Equiv.prodCongr (Equiv.refl _)
         (Equiv.prodCongr (Equiv.refl _)
-          (Equiv.addLeft (fun (s : H') (_ : I) => x s.1)))
+          (Equiv.addLeft (fun (s : H') (_ : I) => x s.val)))
     have hmap :
         (PMF.uniformOfFintype
           (Randomness params × ((i : I) → Randomness params) × ((s : H') → (I → F)))) =
@@ -690,8 +690,8 @@ theorem perfectSemiHonestPrivateLe_bgwSum {m : ℕ} (params : Params F (Fin m)) 
     have hconst :
         (fun r : ((i : Fin m) → PartyView (fun _ => F) (fun _ => Randomness params)
             (bgwSumSchedule m F) i) × (Fin m → F) => I.restrict r.1) =
-          Function.const _ (fun i : I => (hne ⟨i.1, i.2⟩).elim) :=
-      funext fun _ => funext fun i => (hne ⟨i.1, i.2⟩).elim
+          Function.const _ (fun i : I => (hne ⟨i.val, i.property⟩).elim) :=
+      funext fun _ => funext fun i => (hne ⟨i.val, i.property⟩).elim
     rw [hconst, PMF.map_const]
 
 end Cslib.Crypto.Protocols.MPC.BGW

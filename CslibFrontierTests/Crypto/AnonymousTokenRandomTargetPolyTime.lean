@@ -268,8 +268,8 @@ private theorem decodeFixedBits_enc (len : ℕ) (x : FixedBits len) :
     decodeFixedBits len (encFixedBits len x) = x := by
   ext1
   dsimp only [decodeFixedBits, encFixedBits, Function.Embedding.coeFn_mk]
-  rw [List.take_append_of_le_length (le_of_eq x.2.symm)]
-  simp [x.2]
+  rw [List.take_append_of_le_length (le_of_eq x.property.symm)]
+  simp [x.property]
 
 private def decFixedBits (len : ℕ) : Decoder (encFixedBits len) where
   decode := decodeFixedBits len
@@ -296,10 +296,11 @@ private theorem ofBits_inj_of_length_eq :
     rw [ofBits_inj_of_length_eq (by simpa using hlen) hrest]
 
 private def slotFixedBits (n : ℕ) : FixedBits (n + 1) ↪ Fin (2 ^ (n + 1)) where
-  toFun x := ⟨ofBits x.1, Nat.lt_of_lt_of_eq (Nat.foldr_bit_lt x.1) (congrArg (2 ^ ·) x.2)⟩
+  toFun x :=
+    ⟨ofBits x.val, Nat.lt_of_lt_of_eq (Nat.foldr_bit_lt x.val) (congrArg (2 ^ ·) x.property)⟩
   inj' x y h := by
     apply Subtype.ext
-    exact ofBits_inj_of_length_eq (x.2.trans y.2.symm) (congrArg Fin.val h)
+    exact ofBits_inj_of_length_eq (x.property.trans y.property.symm) (congrArg Fin.val h)
 
 private def slotWordFixedBits (n : ℕ) (w : List Bool) : ℕ :=
   ofBits ((w ++ List.replicate (n + 1) false).take (n + 1))

@@ -149,8 +149,8 @@ private theorem ppWordWeight_eq_prod_univ (M r : α → ℕ) (g : α × ℕ → 
     (w : Fin (r a) → Bool) :
     ppWordWeight M r g a w =
       ∏ i : Fin (r a),
-        if w i then newmanAmp (M a) (r a + 1) (g (a, i.1))
-        else newmanAmp (M a) (r a + 1) (-g (a, i.1)) := by
+        if w i then newmanAmp (M a) (r a + 1) (g (a, i.val))
+        else newmanAmp (M a) (r a + 1) (-g (a, i.val)) := by
   unfold ppWordWeight
   rw [← Fin.prod_univ_eq_prod_range]
   simp only [List.getD_ofFn]
@@ -167,28 +167,28 @@ private theorem sum_erase_ppWordWeight_lt {A : Set (α × ℕ)} {M r : α → �
     (hneg : ∀ i < r a, (a, i) ∉ A → 1 ≤ -g (a, i))
     (hbnd : ∀ i < r a, |g (a, i)| ≤ (2 : ℤ) ^ M a) :
     letI := Classical.decPred (· ∈ A)
-    let v : Fin (r a) → Bool := fun i => decide ((a, i.1) ∈ A)
+    let v : Fin (r a) → Bool := fun i => decide ((a, i.val) ∈ A)
     ∑ w ∈ univ.erase v, ppWordWeight M r g a w < ppWordWeight M r g a v := by
   classical
   intro v
   let factor (w : Fin (r a) → Bool) (i : Fin (r a)) : ℤ :=
-    if w i then newmanAmp (M a) (r a + 1) (g (a, i.1))
-    else newmanAmp (M a) (r a + 1) (-g (a, i.1))
+    if w i then newmanAmp (M a) (r a + 1) (g (a, i.val))
+    else newmanAmp (M a) (r a + 1) (-g (a, i.val))
   have hfactor_nonneg (w : Fin (r a) → Bool) (i : Fin (r a)) : 0 ≤ factor w i := by
     dsimp [factor]
     split_ifs <;> exact newmanAmp_nonneg _ _ _
   have hfactor_v_pos (i : Fin (r a)) : 1 ≤ factor v i := by
-    by_cases hi : (a, i.1) ∈ A
-    · simpa [factor, v, hi] using one_le_newmanAmp (hpos i.1 i.2 hi)
-    · simpa [factor, v, hi] using one_le_newmanAmp (hneg i.1 i.2 hi)
+    by_cases hi : (a, i.val) ∈ A
+    · simpa [factor, v, hi] using one_le_newmanAmp (hpos i.val i.isLt hi)
+    · simpa [factor, v, hi] using one_le_newmanAmp (hneg i.val i.isLt hi)
   have hfactor_mismatch (w : Fin (r a) → Bool) (i : Fin (r a)) (hne : w i ≠ v i) :
       (2 : ℤ) ^ (2 * (r a + 1)) * factor w i ≤ factor v i := by
-    have habs := abs_le.mp (hbnd i.1 i.2)
-    by_cases hi : (a, i.1) ∈ A
+    have habs := abs_le.mp (hbnd i.val i.isLt)
+    by_cases hi : (a, i.val) ∈ A
     · simpa [factor, v, hi, show w i = false by simpa [v, hi] using hne] using
-        two_pow_mul_newmanAmp_neg_le (hpos i.1 i.2 hi) habs.2
+        two_pow_mul_newmanAmp_neg_le (hpos i.val i.isLt hi) habs.2
     · simpa [factor, v, hi, show w i = true by simpa [v, hi] using hne] using
-        two_pow_mul_newmanAmp_neg_le (hneg i.1 i.2 hi) (by omega)
+        two_pow_mul_newmanAmp_neg_le (hneg i.val i.isLt hi) (by omega)
   have hfactor_le (w : Fin (r a) → Bool) (i : Fin (r a)) : factor w i ≤ factor v i := by
     by_cases h : w i = v i
     · simp only [factor, h, le_refl]
@@ -245,7 +245,7 @@ theorem truthTable_mem_PP (hA : A ∈ PP (encPair enc encUnary))
   have hM : ComputableInPolyTime M enc encUnary := by dsimp [M]; fun_prop
   refine mem_PP_iff_exists_GapP.mpr ⟨ppTruthTableGap M r g d, ppTruthTableGap_mem hg hM hr hd,
     fun a => ?_⟩
-  let v : Fin (r a) → Bool := fun i => decide ((a, i.1) ∈ A)
+  let v : Fin (r a) → Bool := fun i => decide ((a, i.val) ∈ A)
   have hv_ofFn : List.ofFn v = truthTableAnswers A r a := rfl
   have hdom : ∑ w ∈ univ.erase v, ppWordWeight M r g a w < ppWordWeight M r g a v := by
     refine sum_erase_ppWordWeight_lt (A := A)

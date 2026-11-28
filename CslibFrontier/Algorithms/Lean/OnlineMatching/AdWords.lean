@@ -385,15 +385,13 @@ theorem argmaxOver_eq_some_iff {ι : Type*} [LinearOrder ι] {S : Finset ι} {sc
   refine ⟨fun h => ⟨argmaxOver_mem h, fun _ hk => le_of_argmaxOver_eq_some h hk,
     fun k hk hkj => ?_⟩, fun ⟨hj, hmax, htie⟩ => ?_⟩
   · by_contra hnot
-    have hidx := List.index_of_argmax (by simpa [argmaxOver, l] using h)
-      ((Finset.mem_sort (· ≤ ·)).mpr hk) (le_of_not_gt hnot)
+    have hidx := List.index_of_argmax (by simpa [argmaxOver, l] using h) (le_of_not_gt hnot)
     exact hidx.lt_or_eq.elim (fun hlt => (hlt_of_idx (argmaxOver_mem h) hk hlt).not_gt hkj)
       fun heq => hkj.ne' (heq_of_idx (argmaxOver_mem h) hk heq)
   · obtain ⟨m, hm⟩ := Option.ne_none_iff_exists'.mp
       (mt (argmaxOver_eq_none_iff S score).mp (Finset.Nonempty.ne_empty ⟨j, hj⟩))
     have hmS := argmaxOver_mem hm
-    have hidx := List.index_of_argmax (by simpa [argmaxOver, l] using hm)
-      ((Finset.mem_sort (· ≤ ·)).mpr hj) (hmax m hmS)
+    have hidx := List.index_of_argmax (by simpa [argmaxOver, l] using hm) (hmax m hmS)
     exact hidx.lt_or_eq.elim
       (fun hlt => absurd (htie m hmS (hlt_of_idx hmS hj hlt)) (not_lt_of_ge
         (le_of_argmaxOver_eq_some hm hj)))

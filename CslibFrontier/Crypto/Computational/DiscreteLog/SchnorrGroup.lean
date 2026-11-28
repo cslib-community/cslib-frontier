@@ -214,7 +214,7 @@ theorem computableInPolyTime_add :
   have := computableInPolyTime_val
   simpa only [add, Desc.modulus, rawModulus, encNat_apply, Function.comp_def] using
     (ComputableInPolyTime.binary_mod' (input := encPair encDesc (encPair encBits encBits))
-      (left := fun p => ofBits p.2.1 * ofBits p.2.2) (right := fun p => p.1.1.1)
+      (left := fun p => ofBits p.2.1 * ofBits p.2.2) (right := fun p => p.1.val.1)
       (by fun_prop) (by fun_prop)).encoding_comp
 
 /-- Exponentiation modulo `p` is computable in polynomial time, by square-and-multiply. -/

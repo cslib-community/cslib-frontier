@@ -152,7 +152,7 @@ theorem isExponentiallyStable_iff_tendsto_exp_smul :
     rw [hsplit]
     change ‖exp (s • A) ((exp (T • A) ^ q) (x 0))‖ ≤ _
     have h2 : ((1 : ℝ) / 2) ^ q ≤ 2 * Real.exp (-(Real.log 2 / T * t)) := by
-      rw [one_div, inv_pow, ← Real.exp_log (by norm_num : (0 : ℝ) < 2), ← Real.exp_nat_mul,
+      rw [one_div, inv_pow, ← Real.exp_log (by norm_num : (0 : ℝ) < 2), ← Real.exp_natCast_mul,
         ← Real.exp_neg, ← Real.exp_add, Real.exp_log (by norm_num : (0 : ℝ) < 2)]
       refine Real.exp_le_exp.2 ?_
       have : Real.log 2 / T * t = Real.log 2 * (t / T) := by ring
@@ -334,7 +334,7 @@ theorem re_le_of_forall_norm_le {A : Matrix n n ℝ} {M α : ℝ}
     calc _ ≤ (M * Real.exp (-(α * t)) * ‖WithLp.toLp 2 y‖) ^ 2 :=
           pow_le_pow_left₀ (norm_nonneg _) h1 2
       _ = _ := by
-          rw [mul_pow, mul_pow, ← Real.exp_nat_mul]
+          rw [mul_pow, mul_pow, ← Real.exp_natCast_mul]
           ring_nf
   have hsum : a ⬝ᵥ a + b ⬝ᵥ b = ∑ i, Complex.normSq (v i) := by
     simp [a, b, dotProduct, Complex.normSq_apply, Finset.sum_add_distrib]

@@ -714,7 +714,7 @@ theorem IsBasic.mul_profileValue_le_expectedWalkValue {G : UtilityGame ι S} [No
         calc (1 - 2 / (Fintype.card ι : ℝ)) ^ t
             ≤ Real.exp (-(2 / (Fintype.card ι : ℝ))) ^ t :=
               pow_le_pow_left₀ hfactor_nonneg (Real.one_sub_le_exp_neg _) t
-          _ = Real.exp ((t : ℝ) * -(2 / (Fintype.card ι : ℝ))) := (Real.exp_nat_mul _ t).symm
+          _ = Real.exp ((t : ℝ) * -(2 / (Fintype.card ι : ℝ))) := (Real.exp_natCast_mul t _).symm
           _ ≤ Real.exp (Real.log ε) := Real.exp_le_exp.mpr <| by
               have hdiv : Real.log (1 / ε) ≤ 2 * (t : ℝ) / (Fintype.card ι : ℝ) := by
                 rw [le_div_iff₀ hn_pos]; linarith

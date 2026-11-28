@@ -103,17 +103,17 @@ theorem det_shMat (i : Fin h) (A : Matrix (Fin h) (Fin h) (ZMod 2)) :
 
 /-- The embedding of SL_h(F₂) shifted by i. -/
 @[expose] noncomputable def th0 (i : Fin h) : SL2 h →* G h n where
-  toFun A := ⟨shMat i A.1, by rw [det_shMat, A.2, map_one]⟩
+  toFun A := ⟨shMat i A.val, by rw [det_shMat, A.property, map_one]⟩
   map_one' := Subtype.ext (shMat_one i)
-  map_mul' A B := Subtype.ext (shMat_mul i A.1 B.1)
+  map_mul' A B := Subtype.ext (shMat_mul i A.val B.val)
 
-theorem th0_val (i : Fin h) (A : SL2 h) : (th0 i A : G h n).1 = shMat i A.1 := by rfl
+theorem th0_val (i : Fin h) (A : SL2 h) : (th0 i A : G h n).val = shMat i A.val := by rfl
 
 /-- The value at s = 0. -/
 noncomputable def evG : G h n →* SL2 h := Matrix.SpecialLinearGroup.map (ev n)
 
 omit [NeZero h] in
-theorem evG_apply (g : G h n) (a b : Fin h) : (evG g).1 a b = ev n (g.1 a b) := by rfl
+theorem evG_apply (g : G h n) (a b : Fin h) : (evG g).val a b = ev n (g.val a b) := by rfl
 
 omit [NeZero h] in
 theorem ev_wt (i a : Fin h) : ev n ((wt i a : (R (n + 1))ˣ) : R (n + 1)) = 1 := by
@@ -128,8 +128,8 @@ theorem ev_wt_inv (i a : Fin h) : ev n (((wt i a)⁻¹ : (R (n + 1))ˣ) : R (n +
   simpa only [map_mul, ev_wt, one_mul, map_one] using
     congrArg (ev n) (Units.mul_inv (wt i a : (R (n + 1))ˣ))
 
-theorem evG_th0 (i : Fin h) (A : SL2 h) (a b : Fin h) : (evG (th0 i A : G h n)).1 a b = A.1 (a - i)
-    (b - i) := by
+theorem evG_th0 (i : Fin h) (A : SL2 h) (a b : Fin h) :
+    (evG (th0 i A : G h n)).val a b = A.val (a - i) (b - i) := by
   rw [evG_apply, th0_val, shMat_apply, map_mul, map_mul, ev_wt, ev_wt_inv, ev_cst, one_mul, mul_one]
 
 theorem evG_th0_injective (i : Fin h) : Function.Injective fun A : SL2 h =>
@@ -161,7 +161,7 @@ theorem sub_one_ne (h2 : 2 ≤ h) (k : Fin h) : k - 1 ≠ k := by
 @[expose] noncomputable def gen (h2 : 2 ≤ h) (k : Fin h) : G h n :=
   ⟨transvection (k - 1) k (tt n k), det_transvection_of_ne _ _ (sub_one_ne h2 k) _⟩
 
-theorem gen_val (h2 : 2 ≤ h) (k : Fin h) : (gen h2 k : G h n).1 = transvection (k - 1) k (tt n k)
+theorem gen_val (h2 : 2 ≤ h) (k : Fin h) : (gen h2 k : G h n).val = transvection (k - 1) k (tt n k)
     := by rfl
 
 theorem gen_mul_self (h2 : 2 ≤ h) (k : Fin h) : (gen h2 k : G h n) * gen h2 k = 1 :=
@@ -174,7 +174,7 @@ def sh (i : Fin h) (l : Fin (h - 1)) : Fin h := hi l + i
 theorem sh_sub_one (h2 : 2 ≤ h) (i : Fin h) (l : Fin (h - 1)) : sh i l - 1 = lo l + i := by
   have hhi : (hi l : Fin h) = lo l + 1 := Fin.ext <| by
     simp only [Fin.val_add, Fin.val_one', lo, hi, Nat.mod_eq_of_lt (by omega : 1 < h),
-      Nat.mod_eq_of_lt (by omega : l.1 + 1 < h)]
+      Nat.mod_eq_of_lt (by omega : l.val + 1 < h)]
   rw [sh, hhi]; abel
 
 theorem sh_ne (i : Fin h) (l : Fin (h - 1)) : sh i l ≠ i := by
@@ -188,9 +188,9 @@ theorem sh_injective (i : Fin h) : Function.Injective (sh i) := by
   exact Fin.ext (by simp only [hi] at this; omega)
 
 theorem exists_sh {i k : Fin h} (hk : k ≠ i) : ∃ l, sh i l = k := by
-  have h1 : (k - i).1 ≠ 0 := fun e => hk (sub_eq_zero.1 (Fin.ext e))
-  refine ⟨⟨(k - i).1 - 1, by omega⟩, ?_⟩
-  rw [sh, show (hi ⟨(k - i).1 - 1, _⟩ : Fin h) = k - i from Fin.ext (by simp only [hi]; omega),
+  have h1 : (k - i).val ≠ 0 := fun e => hk (sub_eq_zero.1 (Fin.ext e))
+  refine ⟨⟨(k - i).val - 1, by omega⟩, ?_⟩
+  rw [sh, show (hi ⟨(k - i).val - 1, _⟩ : Fin h) = k - i from Fin.ext (by simp only [hi]; omega),
     sub_add_cancel]
 
 theorem wt_sub_one (h2 : 2 ≤ h) {i k : Fin h} (hk : k ≠ i) :
@@ -205,12 +205,12 @@ theorem wt_sub_one (h2 : 2 ≤ h) {i k : Fin h} (hk : k ≠ i) :
       omega
     rw [wt, wt, ite_eq_right hl, ite_eq_left hi0, tt, ite_eq_left rfl, inv_inv, Units.val_one,
       one_mul, tu_val]
-  · have hk0 : 0 < k.1 := Nat.pos_of_ne_zero fun e => h0 (Fin.ext e)
-    have h1 : (k - 1).1 = k.1 - 1 := by
+  · have hk0 : 0 < k.val := Nat.pos_of_ne_zero fun e => h0 (Fin.ext e)
+    have h1 : (k - 1).val = k.val - 1 := by
       have hle : (1 : Fin h) ≤ k := by
         rwa [Fin.le_def, Fin.val_one', Nat.mod_eq_of_lt (by omega)]
       rw [Fin.sub_val_of_le hle, Fin.val_one', Nat.mod_eq_of_lt (by omega)]
-    have hki : k.1 ≠ i.1 := fun e => hk (Fin.ext e)
+    have hki : k.val ≠ i.val := fun e => hk (Fin.ext e)
     have hlt_iff : k - 1 < i ↔ k < i := by rw [Fin.lt_def, Fin.lt_def, h1]; omega
     simp only [wt, tt, h0, ↓reduceIte, hlt_iff]
     split_ifs <;> simp
@@ -219,7 +219,7 @@ theorem wt_sub_one (h2 : 2 ≤ h) {i k : Fin h} (hk : k ≠ i) :
 theorem th_x (h2 : 2 ≤ h) (i : Fin h) (l : Fin (h - 1)) : (th i (x h l) : G h n) =
     gen h2 (sh i l) := by
   refine Subtype.ext ?_
-  have hth : (th i (x h l) : G h n).1 = shMat i (1 + Matrix.single (lo l) (hi l) 1) :=
+  have hth : (th i (x h l) : G h n).val = shMat i (1 + Matrix.single (lo l) (hi l) 1) :=
     congrArg (shMat i) (x_val h l).symm
   rw [hth, gen_val, transvection, sh_sub_one h2]
   ext a b

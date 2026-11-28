@@ -92,7 +92,7 @@ theorem lazyRandomWalk_apply_comm (x y : ι → Bool) :
   change ((PMF.uniformOfFintype (ι × Bool)).map _) y = ((PMF.uniformOfFintype (ι × Bool)).map _) x
   rw [uniformOfFintype_map_apply, uniformOfFintype_map_apply]
   congr 2
-  refine Nat.card_congr ⟨fun p => ⟨(p.1.1, x p.1.1), ?_⟩, fun p => ⟨(p.1.1, y p.1.1), ?_⟩,
+  refine Nat.card_congr ⟨fun p => ⟨(p.val.1, x p.val.1), ?_⟩, fun p => ⟨(p.val.1, y p.val.1), ?_⟩,
     fun p => ?_, fun p => ?_⟩ <;>
   · obtain ⟨⟨i, b⟩, hp⟩ := p
     simp only at hp ⊢
@@ -207,7 +207,7 @@ theorem distToStationary_lazyRandomWalk_le_exp (t : ℕ) :
       Fintype.card ι * Real.exp (-(t / Fintype.card ι)) := by
   have hn : (1 : ℝ) ≤ Fintype.card ι := by exact_mod_cast Fintype.card_pos
   refine (distToStationary_lazyRandomWalk_le t).trans ?_
-  rw [show -(t / (Fintype.card ι : ℝ)) = t * -(Fintype.card ι : ℝ)⁻¹ by ring, Real.exp_nat_mul]
+  rw [show -(t / (Fintype.card ι : ℝ)) = t * -(Fintype.card ι : ℝ)⁻¹ by ring, Real.exp_natCast_mul]
   gcongr
   · linarith [inv_le_one_of_one_le₀ hn]
   · linarith [Real.add_one_le_exp (-(Fintype.card ι : ℝ)⁻¹)]

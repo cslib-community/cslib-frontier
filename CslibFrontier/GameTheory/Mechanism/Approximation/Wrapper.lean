@@ -176,7 +176,7 @@ private theorem value_pos (p : SingleValuePlayer M) : 0 < p.value :=
 
 theorem nonempty_of_mem {p : SingleValuePlayer M} {s : Finset M} (hs : s ∈ p.desired) :
     s.Nonempty :=
-  Finset.nonempty_iff_ne_empty.2 fun h => p.empty_not_mem (h ▸ hs)
+  Finset.ne_empty_iff_nonempty.1 fun h => p.empty_not_mem (h ▸ hs)
 
 theorem univ_mem [Fintype M] (p : SingleValuePlayer M) : Finset.univ ∈ p.desired := by
   obtain ⟨s, hs⟩ := p.desired_nonempty

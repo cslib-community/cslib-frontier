@@ -170,7 +170,7 @@ def encValidCircuit : ValidCircuit ↪ List Bool :=
 
 /-- Specification of `encValidCircuit` in terms of `encCircuitData`. -/
 theorem encValidCircuit_apply (f : ValidCircuit) :
-    encValidCircuit f = encCircuitData (f.1.n, f.1.m, f.1.gateList) := by
+    encValidCircuit f = encCircuitData (f.val.n, f.val.m, f.val.gateList) := by
   rfl
 
 /-- A valid circuit's word has at least `n + q` bits: `n` in unary and at least one bit per
@@ -316,7 +316,7 @@ def encValidTopo : ValidTopo ↪ List Bool :=
 
 /-- Specification of `encValidTopo` in terms of `encTopoData`. -/
 theorem encValidTopo_apply (t : ValidTopo) :
-    encValidTopo t = encTopoData (t.1.n, t.1.m, t.1.gateList) := by
+    encValidTopo t = encTopoData (t.val.n, t.val.m, t.val.gateList) := by
   rfl
 
 /-- The data of a valid topology is read from its word in polynomial time. -/

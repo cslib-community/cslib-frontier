@@ -404,7 +404,7 @@ private lemma card_nonempty_finsets [Fintype M] :
   have hfilter : (Finset.univ : Finset (Finset M)).filter Finset.Nonempty =
       (Finset.univ : Finset (Finset M)).erase ∅ := by
     ext S
-    simp [nonempty_iff_ne_empty]
+    simp only [mem_filter, mem_univ, true_and, mem_erase, ne_empty_iff_nonempty, and_true]
   rw [hfilter, card_erase_of_mem (mem_univ ∅), card_univ, Fintype.card_finset]
 
 /-- **`XOR` universality** ([BlumrosenNisan2007], §11.4.1, p. 280): every normalized (`v ∅ = 0`),

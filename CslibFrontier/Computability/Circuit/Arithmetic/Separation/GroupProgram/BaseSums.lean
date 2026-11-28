@@ -446,7 +446,7 @@ theorem sum_map_packSem (cb : Option Γ → Fin c → Bool)
         ((w ((tapes S).get i.rev, false)).map (letterCode cb)).reverse⟩ :=
     congrArg List.ofFn (funext fun i => by
       simp [baseBody, ho, outputSide,
-        List.getElem?_eq_getElem (Nat.sub_lt ((Nat.zero_le _).trans_lt i.2) (Nat.succ_pos _))])
+        List.getElem?_eq_getElem (Nat.sub_lt ((Nat.zero_le _).trans_lt i.isLt) (Nat.succ_pos _))])
   have hri : readItems (K + K) o = List.ofFn fun i : Fin (tapeCount S) =>
       ⟨(List.ofFn fun _ : Fin (K + K) => 2).reverse,
         ((w ((tapes S).get i.rev, true)).map (letterCode cb)).reverse⟩ := by

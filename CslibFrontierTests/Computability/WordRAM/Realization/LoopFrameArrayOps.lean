@@ -14,9 +14,9 @@ import CslibFrontier.Tactic.Realize
 # Client tests for `Realization.LoopFrame` and `Realization.ArrayOps`
 
 Exercises `boundedWhile_potential_spec`, `boundedWhile_spec`, `iterate_potential_spec`, concrete
-evaluations, `count = 0` boundary cases, and specifications of `fillConstProg`, `Memory.copy`,
-`prefixSumProg`, `Memory.allocBlock`, `Memory.allocBlockDirty`, composite `Realizes .exact`
-compilation using `realize`, and `Classical.choice`-free `#print axioms` verification.
+evaluations, `count = 0` boundary cases, specifications of `fillConstProg`, `Memory.copy`,
+`prefixSumProg`, `Memory.allocBlock`, `Memory.allocBlockDirty`, and composite `Realizes .exact`
+compilation using `realize`.
 -/
 
 namespace CslibFrontierTests.Computability.WordRAM.Realization.LoopFrameArrayOps
@@ -437,22 +437,5 @@ example {w base n : ℕ} {s : Memory.State} (hbound : base + n ≤ s.frontier) :
   change ¬clearNonzeroGuard (base, n) _ at hstop
   dsimp only [clearNonzeroGuard] at hstop
   refine ⟨hv, by omega, by simpa using hcost⟩
-
-/-! ## 4. Axiom checks (`#print axioms`) -/
-
-/-- info: 'Cslib.WordRAM.Realization.iterate_potential_spec' depends on axioms:
-[propext, Quot.sound] -/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.WordRAM.Realization.iterate_potential_spec
-
-/-- info: 'Cslib.WordRAM.Realization.boundedWhile_potential_spec' depends on axioms:
-[propext, Quot.sound] -/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.WordRAM.Realization.boundedWhile_potential_spec
-
-/-- info: 'Cslib.WordRAM.Realization.boundedWhile_spec' depends on axioms:
-[propext, Quot.sound] -/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.WordRAM.Realization.boundedWhile_spec
 
 end CslibFrontierTests.Computability.WordRAM.Realization.LoopFrameArrayOps

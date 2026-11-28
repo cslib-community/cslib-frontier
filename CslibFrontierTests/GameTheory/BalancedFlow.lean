@@ -177,7 +177,7 @@ theorem splitFisher_lowPrices_invariant_and_no_tight :
   refine ⟨hinv, ?_⟩
   by_contra hne
   have hpos : (splitFisher.maximalTightSet lowPrices).Nonempty :=
-    Finset.nonempty_iff_ne_empty.2 hne
+    Finset.ne_empty_iff_nonempty.1 hne
   have htight := isTightSet_maximalTightSet (by simp [lowPrices, Fin.forall_fin_two]) hinv
   have hlt := (hcheck _).2 hpos
   unfold IsTightSet at htight

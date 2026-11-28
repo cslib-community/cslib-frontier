@@ -94,7 +94,7 @@ theorem exists_injOn_comp_of_two_mul_log_card_lt {β : Type*} [DecidableEq β] {
     · simpa [bad] using pow_pos hm k
     have hN : (0 : ℝ) < P.card := Nat.cast_pos.mpr hPne.card_pos
     have hlt : (P.card : ℝ) ^ 2 * Real.exp (-ε) ^ k < 1 := by
-      rw [← Real.exp_log hN, ← Real.exp_nat_mul, ← Real.exp_nat_mul, ← Real.exp_add,
+      rw [← Real.exp_log hN, ← Real.exp_natCast_mul, ← Real.exp_natCast_mul, ← Real.exp_add,
         Real.exp_lt_one_iff]
       push_cast
       linarith
@@ -174,13 +174,13 @@ theorem card_le_div_pow_of_forall_two_mul_log_card_lt {β : Type*} {m d : ℕ}
         gcongr
         exact hsauer.trans (by gcongr)
       _ = Real.exp L * (Real.exp (ε / 2) * (T * K) ^ (2 * d)) := by
-        rw [mul_pow, ← pow_mul, mul_comm d, ← Real.exp_nat_mul, ← mul_assoc, ← Real.exp_add]
+        rw [mul_pow, ← pow_mul, mul_comm d, ← Real.exp_natCast_mul, ← mul_assoc, ← Real.exp_add]
         congr 2
         push_cast
         ring
       _ = P.card * (Real.exp (ε / 2) * (T * K) ^ (2 * d)) := by rw [Real.exp_log hN]
   have hexp2 : Real.exp (ε / 2) < 2 := lt_of_pow_lt_pow_left₀ 2 zero_le_two <| by
-    rw [← Real.exp_nat_mul]
+    rw [← Real.exp_natCast_mul]
     calc Real.exp ((2 : ℕ) * (ε / 2)) = Real.exp ε := by push_cast; ring_nf
       _ ≤ Real.exp 1 := Real.exp_le_exp.2 hε1
       _ < 2 ^ 2 := by linarith [Real.exp_one_lt_d9]

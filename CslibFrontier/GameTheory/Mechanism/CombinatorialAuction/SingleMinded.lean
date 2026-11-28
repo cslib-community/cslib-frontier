@@ -858,7 +858,7 @@ theorem losWinners_isMonotone {N M : Type*} [Fintype N] [LinearOrder N] [Decidab
   intro i b S' v' hb hwin hsub hle
   by_cases hS' : S' = ∅
   · exact mem_losWinners_of_bundle_empty _ (by simp [Function.update_self, hS'])
-  · have hne : S'.Nonempty := Finset.nonempty_iff_ne_empty.2 hS'
+  · have hne : S'.Nonempty := Finset.ne_empty_iff_nonempty.1 hS'
     have hscore : losScore (b i) ≤ losScore ⟨S', v'⟩ :=
       losScore_mono (hb i) hle hsub hne
     rw [mem_losWinners_iff, losWinnersWithout_update]
@@ -1187,7 +1187,7 @@ theorem losWinners_approx {N M : Type*} [Fintype N] [LinearOrder N] [Fintype M] 
       ∑ j ∈ s.filter (fun j => (b j).bundle = ∅), (b j).value +
       ∑ j ∈ s.filter (fun j => (b j).bundle.Nonempty), (b j).value := fun s => by
     rw [← Finset.sum_filter_add_sum_filter_not s (fun j => (b j).bundle = ∅)]
-    simp only [← Finset.nonempty_iff_ne_empty]
+    simp only [Finset.ne_empty_iff_nonempty]
   have hsubEmpty : optEmpty ⊆ wEmpty := fun j hj => by
     rcases Finset.mem_filter.1 hj with ⟨_, he⟩
     exact Finset.mem_filter.2 ⟨mem_losWinners_of_bundle_empty b he, he⟩

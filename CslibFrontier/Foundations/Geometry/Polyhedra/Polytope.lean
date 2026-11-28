@@ -568,7 +568,7 @@ theorem exists_finset_subset_convexHull_of_isExtreme {s : Finset E} {Q R : Set E
   have hw_pos : ∀ v ∈ t, 0 < w v := fun v hv => (Finset.mem_filter.1 hv).2
   have hw_sum : ∑ v ∈ t, w v = 1 :=
     (Finset.sum_subset (Finset.filter_subset _ s) hwt0).trans hw1
-  have htne : t.Nonempty := Finset.nonempty_iff_ne_empty.2 fun hmt => by simp [hmt] at hw_sum
+  have htne : t.Nonempty := Finset.ne_empty_iff_nonempty.1 fun hmt => by simp [hmt] at hw_sum
   have hx_comb : ∑ v ∈ t, w v • v = x := by
     rw [← hwx]
     exact Finset.sum_subset (Finset.filter_subset _ s) fun v hv hn => by

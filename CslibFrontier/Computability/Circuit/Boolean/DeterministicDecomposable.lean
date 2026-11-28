@@ -112,6 +112,6 @@ structure Circuit.IsDeterministicDecomposable (c : Circuit Boolean.signature n m
 
 instance (c : Circuit Boolean.signature n m) : Decidable c.IsDeterministicDecomposable :=
   decidable_of_iff (c.program.IsDecomposableAt (· = .and) ∧ c.program.IsDeterministic)
-    ⟨fun h => ⟨h.1, h.2⟩, fun h => ⟨h.1, h.2⟩⟩
+    ⟨fun h => ⟨h.1, h.2⟩, fun h => ⟨h.decomposable, h.deterministic⟩⟩
 
 end Cslib.Circuits

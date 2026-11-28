@@ -106,7 +106,7 @@ theorem abs_sum_mul_signMatrix_quadForm_le {ι : Type*} [Fintype ι] [DecidableE
     have hb_sub : (Xᶜ.domRestrict fun i => BitString.bitVal (ZMod 2) (glue (a, b) i)) = eY b := by
       ext j
       simp only [glue, Equiv.piEquivPiSubtypeProd_symm_apply, domRestrict_apply,
-        notMem_of_mem_compl j.2, ↓reduceDIte, Subtype.coe_eta]
+        notMem_of_mem_compl j.property, ↓reduceDIte, Subtype.coe_eta]
       exact (BitString.bitEquiv_symm_apply _).symm
     rw [hS, hq, ZMod.neg_one_pow_val_add, ZMod.neg_one_pow_val_add, ha_sub, hb_sub]
   set kerCard := #{z : ↥Xᶜ → ZMod 2 | C *ᵥ z = 0}

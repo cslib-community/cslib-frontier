@@ -123,7 +123,7 @@ private theorem index_lt {d r : ℕ} (t : Fin (d + 1)) (i : Fin r) :
 
 private theorem index_div {d r : ℕ} (t : Fin (d + 1)) (i : Fin r) :
     index r t i / r = t := by
-  simp [index, Nat.add_mul_div_left _ _ ((Nat.zero_le i.1).trans_lt i.isLt),
+  simp [index, Nat.add_mul_div_left _ _ ((Nat.zero_le i.val).trans_lt i.isLt),
     Nat.div_eq_of_lt i.isLt]
 
 private theorem index_mod {d r : ℕ} (t : Fin (d + 1)) (i : Fin r) :

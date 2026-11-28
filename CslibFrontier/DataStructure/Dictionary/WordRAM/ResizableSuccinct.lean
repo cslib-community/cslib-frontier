@@ -338,7 +338,9 @@ theorem epochSpaceBound_le_succinctWords {U V w : ℕ}
   intro n_t
   have hanc := epochAnchorInv_run hU_pos (epochAnchorInv_empty U) hvh
   have hd := EpochState.dict_run V (EpochState.empty U) prefOps
-  rw [epochSpaceBound, hd]
+  rw [epochSpaceBound]
+  dsimp only
+  rw [hd]
   exact compactedEpochWords_le_succinctWords hw hU hU_pos hV_pos (hd ▸ hanc.1)
 
 /-- **`1 · OPT` Resting Bit-Space Bound (`w_mul_epochSpaceBound_le_bits`):**

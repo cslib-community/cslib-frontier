@@ -183,7 +183,7 @@ private theorem thresholdRound_disagree_le_of_le {a b : ℝ} (hab : a < b) {N : 
   let u₂ : ℝ := (N : ℝ) * (x₂ - a) / (b - a)
   have hcard := Finset.card_le_card_of_injOn (s := Finset.univ.filter
       (· ∈ {i : Fin N | thresholdRound a b N i x₁ ≠ thresholdRound a b N i x₂}))
-    (t := Finset.Ioc ⌊u₁⌋ ⌊u₂⌋) (fun i : Fin N => (i.1 : ℤ)) (fun i hi => by
+    (t := Finset.Ioc ⌊u₁⌋ ⌊u₂⌋) (fun i : Fin N => (i.val : ℤ)) (fun i hi => by
       obtain ⟨h1, h2⟩ := lt_and_le_of_decide_ne hx (v := thresholdValue a b N i)
         (by simpa [thresholdRound] using hi)
       simp only [thresholdValue] at h1 h2

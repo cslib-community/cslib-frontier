@@ -147,7 +147,7 @@ end Lists
 /-- The indices below `m`, for `m ≤ U`, in increasing order: the numbers of the first `m` units of
 a string. -/
 @[expose] def indicesBelow {U : ℕ} (m : Fin (U + 1)) : List (Fin U) :=
-  List.ofFn (Fin.castLE (Nat.lt_succ_iff.1 m.2))
+  List.ofFn (Fin.castLE (Nat.lt_succ_iff.1 m.isLt))
 
 section Indices
 
@@ -161,7 +161,7 @@ variable {U : ℕ} (m : Fin (U + 1))
 
 @[simp] theorem mem_indicesBelow {k : Fin U} : k ∈ indicesBelow m ↔ (k : ℕ) < m := by
   simp only [indicesBelow, List.mem_ofFn, Fin.ext_iff, Fin.val_castLE]
-  exact ⟨fun ⟨i, hi⟩ => hi ▸ i.2, fun h => ⟨⟨k, h⟩, rfl⟩⟩
+  exact ⟨fun ⟨i, hi⟩ => hi ▸ i.isLt, fun h => ⟨⟨k, h⟩, rfl⟩⟩
 
 theorem nodup_indicesBelow : (indicesBelow m).Nodup :=
   List.nodup_ofFn.2 (Fin.castLE_injective _)
@@ -214,9 +214,9 @@ the party of the role. -/
     (key : Cell M U0 U1 → List Bool) (tg : M.Role → ℕ) (r : M.Role) : Instruction :=
   .role (tg r) (P.count n o r.1)
     ((slotList (M.law r.1) r.2).map fun e =>
-      ((P.ids n o ⟨r.1, e.1⟩).map fun u => key ⟨M.roleParty r, u⟩).reverse)
+      ((P.ids n o ⟨r.1, e.val⟩).map fun u => key ⟨M.roleParty r, u⟩).reverse)
     ((channelList (M.law r.1) r.2).map fun ν =>
-      (indicesBelow (o ⟨r.1, ν.1⟩).succ).map fun k => key ⟨M.roleParty r, .new ⟨r.1, ν.1⟩ k⟩)
+      (indicesBelow (o ⟨r.1, ν.val⟩).succ).map fun k => key ⟨M.roleParty r, .new ⟨r.1, ν.val⟩ k⟩)
 
 /-- The instructions of the end, for every current unit in the end that the group `g` holds: the
 copies at its two holders agree if both are in the group, and the copy at the holder in the group

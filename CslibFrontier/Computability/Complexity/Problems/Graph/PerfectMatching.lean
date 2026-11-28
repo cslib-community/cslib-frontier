@@ -108,9 +108,9 @@ noncomputable def perfectMatchingPositionsEquiv (G : Graph) :
         refine ⟨i, mem_positions.mpr ⟨hi, ?_⟩, hie⟩
         rcases hie with hie | hie
         · rw [hie]
-          exact ⟨u.2, w.2, h⟩
+          exact ⟨u.property, w.property, h⟩
         · rw [hie]
-          exact ⟨w.2, u.2, h.symm⟩
+          exact ⟨w.property, u.property, h.symm⟩
   right_inv S := by
     obtain ⟨S, hS1, _⟩ := S
     refine Subtype.ext (Finset.ext fun i => ⟨fun hi => ?_, fun hi => ?_⟩)
@@ -136,11 +136,12 @@ theorem partitionFunction_perfectMatchingInstance (G : Graph) :
     Finset.filter_congr fun S _ => forall_mem_perfectMatchingInstance_iff, ← Nat.card_eq_finsetCard]
   symm
   refine Nat.card_congr ((perfectMatchingPositionsEquiv G).trans
-    { toFun := fun S => ⟨S.1, Finset.mem_filter.mpr ⟨Finset.mem_powerset.mpr fun i hi =>
-        List.mem_toFinset.mpr (mem_vars_perfectMatchingInstance.mpr (S.2.1 i hi)), S.2.2⟩⟩
-      invFun := fun S => ⟨S.1, fun i hi => mem_vars_perfectMatchingInstance.mp
-        (List.mem_toFinset.mp (Finset.mem_powerset.mp (Finset.mem_filter.mp S.2).1 hi)),
-        (Finset.mem_filter.mp S.2).2⟩
+    { toFun := fun S => ⟨S.val, Finset.mem_filter.mpr ⟨Finset.mem_powerset.mpr fun i hi =>
+        List.mem_toFinset.mpr (mem_vars_perfectMatchingInstance.mpr (S.property.1 i hi)),
+        S.property.2⟩⟩
+      invFun := fun S => ⟨S.val, fun i hi => mem_vars_perfectMatchingInstance.mp
+        (List.mem_toFinset.mp (Finset.mem_powerset.mp (Finset.mem_filter.mp S.property).1 hi)),
+        (Finset.mem_filter.mp S.property).2⟩
       left_inv := fun _ => rfl
       right_inv := fun _ => rfl })
 
@@ -228,8 +229,8 @@ theorem card_neighborSet_le (v : {v // v ∈ G.vertices}) :
     ((pairwise_edgeList G).imp fun h => h.1.symm).filter _
   -- send a neighbour `w` to the entry of the edge `vw`
   have hedge (w : G.induced.neighborSet v) : ∃ e ∈ G.edgeList.filter fun e => incident e v,
-      e = (v.1, w.1.1) ∨ e = (w.1.1, v.1) := by
-    rcases exists_mem_edgeList w.2 with h | h
+      e = (v.val, w.val.val) ∨ e = (w.val.val, v.val) := by
+    rcases exists_mem_edgeList w.property with h | h
     · exact ⟨_, List.mem_filter.mpr ⟨h, by simp [incident]⟩, Or.inl rfl⟩
     · exact ⟨_, List.mem_filter.mpr ⟨h, by simp [incident]⟩, Or.inr rfl⟩
   let f (w : G.induced.neighborSet v) : (G.edgeList.filter fun e => incident e v).toFinset :=
@@ -238,7 +239,7 @@ theorem card_neighborSet_le (v : {v // v ∈ G.vertices}) :
     have h' : (hedge w).choose = (hedge w').choose := congrArg Subtype.val h
     have hw := h' ▸ (hedge w).choose_spec.2
     have hw' := (hedge w').choose_spec.2
-    have hne : (w.1 : ℕ) ≠ v.1 := fun h => G.induced.ne_of_adj w.2 (Subtype.ext h).symm
+    have hne : (w.val : ℕ) ≠ v.val := fun h => G.induced.ne_of_adj w.property (Subtype.ext h).symm
     rcases hw with hw | hw <;> rcases hw' with hw' | hw' <;>
       simp only [hw, Prod.mk.injEq] at hw' <;> omega
   calc Nat.card (G.induced.neighborSet v)

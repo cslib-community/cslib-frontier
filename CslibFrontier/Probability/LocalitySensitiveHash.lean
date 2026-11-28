@@ -283,7 +283,7 @@ theorem le_sCurve {k L : ℕ} {p p₁ δ : ℝ} (hp₁ : 0 ≤ p₁) (hp₁p : p
   calc (1 - p ^ k) ^ L ≤ Real.exp (-p ^ k) ^ L :=
         pow_le_pow_left₀ (sub_nonneg.2 (pow_le_one₀ (hp₁.trans hp₁p) hp))
           (Real.one_sub_le_exp_neg _) L
-    _ = Real.exp (-(L * p ^ k)) := by rw [← Real.exp_nat_mul]; ring_nf
+    _ = Real.exp (-(L * p ^ k)) := by rw [← Real.exp_natCast_mul]; ring_nf
     _ ≤ Real.exp (-Real.log δ⁻¹) := Real.exp_le_exp.2 (neg_le_neg
         (hL.trans (mul_le_mul_of_nonneg_left (pow_le_pow_left₀ hp₁ hp₁p k) (Nat.cast_nonneg L))))
     _ = δ := by rw [Real.log_inv, neg_neg, Real.exp_log hδ]

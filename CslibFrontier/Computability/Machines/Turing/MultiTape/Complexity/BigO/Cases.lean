@@ -107,9 +107,9 @@ theorem sumElimSnd {f : π × α → ε} {g : π × β → ε} {Tf Sf : π × α
     · enc_len [enc]
   -- the two branches, on their cases
   let L : {p : π × (α ⊕ β) // p.2.isLeft = true} → π × α :=
-    fun p => (p.1.1, p.1.2.getLeft (by simpa using p.2))
+    fun p => (p.val.1, p.val.2.getLeft (by simpa using p.property))
   let R : {p : π × (α ⊕ β) // p.2.isLeft = false} → π × β :=
-    fun p => (p.1.1, p.1.2.getRight (by simpa using p.2))
+    fun p => (p.val.1, p.val.2.getRight (by simpa using p.property))
   have hL := keepFrame_drop (encP := encP) (encA := encA)
     (encS := (Function.Embedding.subtype _).trans enc) (h := L) 1
     fun ⟨⟨x, s⟩, hs⟩ => by
@@ -194,9 +194,9 @@ theorem optionElimSnd {f : π → ε} {g : π × α → ε} {Tf Sf : π → ℕ}
     · obtain ⟨x, _ | a⟩ := p <;> rfl
     all_goals simp only [encBool_apply, List.length_singleton]; omega
   -- the two branches, on their cases
-  let N : {p : π × Option α // p.2.isSome = false} → π := fun p => p.1.1
+  let N : {p : π × Option α // p.2.isSome = false} → π := fun p => p.val.1
   let S : {p : π × Option α // p.2.isSome = true} → π × α :=
-    fun p => (p.1.1, p.1.2.get p.2)
+    fun p => (p.val.1, p.val.2.get p.property)
   have hN : ComputableInO N ((Function.Embedding.subtype _).trans enc) encP
       (fun s => ((Function.Embedding.subtype _).trans enc s).length)
       (fun s => ((Function.Embedding.subtype _).trans enc s).length) :=

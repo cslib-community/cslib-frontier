@@ -133,7 +133,7 @@ noncomputable instance (ub U0 : ℕ) (cb : Option Γ → BitString c) (ρ : Opti
       ∀ j (ν : (M.law r.1).ChannelAt r.2), BitString ((M.law r.1).length (i j) ν)) :
     UnitId (K + K) U0 M.Channel U1 → UnitContent ub
   | .init _ _ _ => none
-  | .new ν k => if h : ∃ ν' : (M.law r.1).ChannelAt r.2, (⟨r.1, ν'.1⟩ : M.Channel) = ν then
+  | .new ν k => if h : ∃ ν' : (M.law r.1).ChannelAt r.2, (⟨r.1, ν'.val⟩ : M.Channel) = ν then
       unitsOf ub (sideString (M.law r.1).label (fun i => (M.law r.1).length i h.choose) ig.1
         fun j => ig.2 j h.choose) k
     else none
@@ -142,10 +142,10 @@ theorem roleContents_new (r : M.Role) {B : ℕ}
     (ig : Σ i : Fin B → (M.law r.1).Index,
       ∀ j (ν : (M.law r.1).ChannelAt r.2), BitString ((M.law r.1).length (i j) ν))
     (ν : (M.law r.1).ChannelAt r.2) (k : Fin U1) :
-    roleContents (ub := ub) (U0 := U0) r ig (.new ⟨r.1, ν.1⟩ k) =
+    roleContents (ub := ub) (U0 := U0) r ig (.new ⟨r.1, ν.val⟩ k) =
       unitsOf ub (sideString (M.law r.1).label (fun i => (M.law r.1).length i ν) ig.1
         fun j => ig.2 j ν) k := by
-  have h : ∃ ν' : (M.law r.1).ChannelAt r.2, (⟨r.1, ν'.1⟩ : M.Channel) = ⟨r.1, ν.1⟩ := ⟨ν, rfl⟩
+  have h : ∃ ν' : (M.law r.1).ChannelAt r.2, (⟨r.1, ν'.val⟩ : M.Channel) = ⟨r.1, ν.val⟩ := ⟨ν, rfl⟩
   rw [roleContents, dite_eq_left_of_eq_true (eq_true h),
     Subtype.ext (eq_of_heq (Sigma.mk.inj h.choose_spec).2)]
 
@@ -183,15 +183,15 @@ the copies at its party of the units given at its slots. -/
     ∀ j (ν : (M.law r.1).ChannelAt r.2), BitString ((M.law r.1).length (i j) ν)
   choices := univ
   written := roleCells n o grp g r
-  weight ig y := if (∀ e : (M.law r.1).SlotAt r.2, ∀ u ∈ P.ids n o ⟨r.1, e.1⟩,
+  weight ig y := if (∀ e : (M.law r.1).SlotAt r.2, ∀ u ∈ P.ids n o ⟨r.1, e.val⟩,
       y ⟨M.roleParty r, u⟩ ≠ none) ∧ ∀ ν : (M.law r.1).ChannelAt r.2,
       unitCount ub (sideString (M.law r.1).label (fun i => (M.law r.1).length i ν) ig.1
-        fun j => ig.2 j ν) = o ⟨r.1, ν.1⟩ + 1 then
+        fun j => ig.2 j ν) = o ⟨r.1, ν.val⟩ + 1 then
     ∏ j, (M.law r.1).table r.2 (ig.1 j) (fun e => (slotBits (P.count n o r.1)
-      (P.ids n o ⟨r.1, e.1⟩) fun u => y ⟨M.roleParty r, u⟩).getD j false) (ig.2 j) else 0
+      (P.ids n o ⟨r.1, e.val⟩) fun u => y ⟨M.roleParty r, u⟩).getD j false) (ig.2 j) else 0
   contents ig _ c := roleContents r ig c.unit
   read := univ.filter fun c => c.party = M.roleParty r ∧
-    ∃ e : (M.law r.1).SlotAt r.2, c.unit ∈ P.given n o ⟨r.1, e.1⟩
+    ∃ e : (M.law r.1).SlotAt r.2, c.unit ∈ P.given n o ⟨r.1, e.val⟩
 
 /-- The steps of the group `g`: its base parties, then its roles in the order of the moves. -/
 @[expose] noncomputable def groupSteps (ub : ℕ) :
@@ -272,11 +272,11 @@ private theorem sequential_groupSteps {cap : ℕ} (hP : P.Ok cap) :
     rcases List.mem_append.1 hs with hs | hs <;> obtain ⟨r, -, rfl⟩ := List.mem_map.1 hs
     · exact ⟨disjoint_empty_left _, fun _ _ _ _ _ => ⟨rfl, fun _ _ => rfl⟩⟩
     refine ⟨hread r r le_rfl, fun ω _ y y' hy => ⟨?_, fun _ _ => rfl⟩⟩
-    have h (e : (M.law r.1).SlotAt r.2) : ∀ u ∈ P.ids n o ⟨r.1, e.1⟩,
+    have h (e : (M.law r.1).SlotAt r.2) : ∀ u ∈ P.ids n o ⟨r.1, e.val⟩,
         y ⟨M.roleParty r, u⟩ = y' ⟨M.roleParty r, u⟩ := fun u hu =>
       hy _ (mem_filter.2 ⟨mem_univ _, rfl, e, Plan.mem_ids.1 hu⟩)
-    have hs (e : (M.law r.1).SlotAt r.2) : slotBits (P.count n o r.1) (P.ids n o ⟨r.1, e.1⟩)
-        (fun u => y ⟨M.roleParty r, u⟩) = slotBits (P.count n o r.1) (P.ids n o ⟨r.1, e.1⟩)
+    have hs (e : (M.law r.1).SlotAt r.2) : slotBits (P.count n o r.1) (P.ids n o ⟨r.1, e.val⟩)
+        (fun u => y ⟨M.roleParty r, u⟩) = slotBits (P.count n o r.1) (P.ids n o ⟨r.1, e.val⟩)
         (fun u => y' ⟨M.roleParty r, u⟩) :=
       congrArg (· ++ _) (List.flatMap_congr fun u hu => congrArg _ (h e u hu))
     simp only [roleWriteStep, hs]
@@ -305,7 +305,7 @@ theorem mem_baseCells {p : Fin (K + K)} (hp : grp (Fin.castAdd A' p) = g)
 its channels. -/
 theorem mem_roleCells {r : M.Role} (hr : grp (M.roleParty r) = g) {c : Cell M U0 U1} :
     c ∈ roleCells n o grp g r ↔ ∃ (ν : (M.law r.1).ChannelAt r.2) (k : Fin U1),
-      k ≤ o ⟨r.1, ν.1⟩ ∧ c = ⟨M.roleParty r, .new ⟨r.1, ν.1⟩ k⟩ := by
+      k ≤ o ⟨r.1, ν.val⟩ ∧ c = ⟨M.roleParty r, .new ⟨r.1, ν.val⟩ k⟩ := by
   simp only [roleCells, mem_filter, mem_groupCells]
   refine ⟨fun ⟨⟨_, _, hh⟩, hpc, hu⟩ => ?_, ?_⟩
   · obtain ⟨ν, k, hu', hk⟩ := mem_newUnits.1 hu
@@ -314,7 +314,7 @@ theorem mem_roleCells {r : M.Role} (hr : grp (M.roleParty r) = g) {c : Cell M U0
     subst hpc hu'
     exact ⟨⟨ν, holds_new_iff.1 hh⟩, k, hk, rfl⟩
   · rintro ⟨ν, k, hk, rfl⟩
-    exact ⟨⟨hr, Plan.new_mem_seenAt.2 ⟨r.1.2, hk⟩, holds_new_iff.2 ν.2⟩, rfl,
+    exact ⟨⟨hr, Plan.new_mem_seenAt.2 ⟨r.1.isLt, hk⟩, holds_new_iff.2 ν.property⟩, rfl,
       new_mem_newUnits.2 ⟨rfl, hk⟩⟩
 
 private theorem ite_ite_zero {P Q R : Prop} {_ : Decidable P} {_ : Decidable Q} {_ : Decidable R}
@@ -360,8 +360,8 @@ private theorem factor_roleWriteStep {r : M.Role} (hr : grp (M.roleParty r) = g)
   simp only [eq_true hpres, true_and]
   refine ite_ite_zero ⟨fun ⟨h, hc⟩ ν => ⟨hc ν, fun k => ?_⟩, fun h => ⟨fun c hc => ?_,
     fun ν => (h ν).1⟩⟩
-  · change y ⟨M.roleParty r, .new ⟨r.1, ν.1⟩ k⟩ = _
-    by_cases hk : k ≤ o ⟨r.1, ν.1⟩
+  · change y ⟨M.roleParty r, .new ⟨r.1, ν.val⟩ k⟩ = _
+    by_cases hk : k ≤ o ⟨r.1, ν.val⟩
     · rw [h _ ((mem_roleCells hr).2 ⟨ν, k, hk, rfl⟩), roleContents_new]
     · rw [hy _ fun hc => hk (Plan.new_mem_seenAt.1 (mem_groupCells.1 hc).2.1).2, eq_comm,
         unitsOf_eq_none, hc ν]

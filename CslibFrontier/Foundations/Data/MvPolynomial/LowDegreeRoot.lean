@@ -87,7 +87,7 @@ theorem truncateTotalDegree_eq_of_sub_mem {d : ℕ} {p q : MvPolynomial σ F}
   ext x
   rw [coeff_truncateTotalDegree, coeff_truncateTotalDegree]
   split_ifs with hx
-  · simpa only [coeff_sub, sub_eq_zero] using h x (Nat.lt_succ_of_le hx)
+  · simpa only [AddMonoidAlgebra.coeff_sub_apply, sub_eq_zero] using h x (Nat.lt_succ_of_le hx)
   · rfl
 
 /-! ### A simple root at the origin -/

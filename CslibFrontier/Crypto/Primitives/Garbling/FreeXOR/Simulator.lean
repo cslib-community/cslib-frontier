@@ -74,7 +74,7 @@ open Cslib.Circuits Probability ConventionalCircuit
 /-- The number of coins of the simulator at parameter `k` for `t`: one label for each of the
 `n + q` wires, then four filler labels for each non-XOR gate. -/
 @[expose] def simCoinLen (k : ℕ) (t : XorTopology) : ℕ :=
-  (t.topo.1.n + t.topo.1.q + 4 * nonXorRank t.free t.topo.1.q) * (k + 2)
+  (t.topo.val.n + t.topo.val.q + 4 * nonXorRank t.free t.topo.val.q) * (k + 2)
 
 variable (hash : List Bool → List Bool → List Bool)
 
@@ -94,22 +94,22 @@ the coins. -/
 
 /-- The block of gate `g` in the simulated garbled function. -/
 @[expose] def simGateWord (k w : ℕ) (t : XorTopology) (labels : List (List Bool))
-    (coins : List Bool) (g : Fin t.topo.1.q) : List Bool :=
-  BitString.lowBits w (t.topo.1.A g) ++ BitString.lowBits w (t.topo.1.B g) ++
+    (coins : List Bool) (g : Fin t.topo.val.q) : List Bool :=
+  BitString.lowBits w (t.topo.val.A g) ++ BitString.lowBits w (t.topo.val.B g) ++
     [t.free.getD g false] ++
     if t.free.getD g false then [] else
-      (List.ofFn fun i : Fin 4 => simRow hash k t.topo.1 t.free labels coins g i).flatten
+      (List.ofFn fun i : Fin 4 => simRow hash k t.topo.val t.free labels coins g i).flatten
 
 /-- The simulated view `(F, X, d)` at parameter `k` for output `y` and `t : XorTopology`, on the
 simulator's coins. -/
 @[expose] def simViewWord (k : ℕ) (y : List Bool) (t : XorTopology) (coins : List Bool) :
     PrvView :=
-  let labels := simPropWords k t.topo.1 t.free coins t.topo.1.q
-  let F := PointPermute.encFn ((k, t.topo.1.n, t.topo.1.m, t.topo.1.q), (List.ofFn fun g =>
-    simGateWord hash k (PointPermute.wireWidth t.topo.1.n t.topo.1.q) t labels coins g).flatten)
-  let X := (List.ofFn fun i : Fin t.topo.1.n => PointPermute.simLabel k coins i).flatten
-  let d := List.ofFn fun o : Fin t.topo.1.m =>
-    HalfGates.colourWord k (labels.getD (t.topo.1.n + t.topo.1.q - t.topo.1.m + o) []) ^^
+  let labels := simPropWords k t.topo.val t.free coins t.topo.val.q
+  let F := PointPermute.encFn ((k, t.topo.val.n, t.topo.val.m, t.topo.val.q), (List.ofFn fun g =>
+    simGateWord hash k (PointPermute.wireWidth t.topo.val.n t.topo.val.q) t labels coins g).flatten)
+  let X := (List.ofFn fun i : Fin t.topo.val.n => PointPermute.simLabel k coins i).flatten
+  let d := List.ofFn fun o : Fin t.topo.val.m =>
+    HalfGates.colourWord k (labels.getD (t.topo.val.n + t.topo.val.q - t.topo.val.m + o) []) ^^
       y.getD o false
   ⟨F, X, d⟩
 
@@ -148,10 +148,10 @@ theorem nonXorRank_lt (free : List Bool) {g g' : ℕ} (hg : g < free.length)
   omega
 
 private theorem nonXorRank_phiXor_q (f : ValidCircuit) :
-    nonXorRank (phiXor.phi f).free f.1.q =
-      Fintype.card {g : Fin f.1.q // isXorGate f.1 g = false} := by
-  have hmap : (List.ofFn fun g : Fin f.1.q => isXorGate f.1 g).count false =
-      (List.ofFn fun g : Fin f.1.q => !(isXorGate f.1 g)).count true := by
+    nonXorRank (phiXor.phi f).free f.val.q =
+      Fintype.card {g : Fin f.val.q // isXorGate f.val g = false} := by
+  have hmap : (List.ofFn fun g : Fin f.val.q => isXorGate f.val g).count false =
+      (List.ofFn fun g : Fin f.val.q => !(isXorGate f.val g)).count true := by
     simp only [List.count_eq_countP, List.ofFn_eq_map, List.countP_map, Function.comp_def]
     congr 1
   rw [nonXorRank, phiXor, List.take_of_length_le (by simp), hmap, BitString.count_true_ofFn,
@@ -160,18 +160,19 @@ private theorem nonXorRank_phiXor_q (f : ValidCircuit) :
   simp
 
 private theorem freeCircuit_eq_false_iff (f : ValidCircuit) (g : Fin (toCircuit f).size) :
-    freeCircuit f g = false ↔ isXorGate f.1 (g.cast (size_toCircuit f)) = false :=
+    freeCircuit f g = false ↔ isXorGate f.val (g.cast (size_toCircuit f)) = false :=
   Iff.rfl
 
 private theorem card_garbledRow_toCircuit (f : ValidCircuit) :
     Fintype.card (GarbledRow (toCircuit f).topology (freeCircuit f)) =
-      4 * nonXorRank (phiXor.phi f).free f.1.q := by
+      4 * nonXorRank (phiXor.phi f).free f.val.q := by
   let e : GarbledRow (toCircuit f).topology (freeCircuit f) ≃
-      {g : Fin f.1.q // isXorGate f.1 g = false} × (Fin 2 → Bool) :=
-    ⟨fun r => ⟨⟨r.1.1.cast (size_toCircuit f), (freeCircuit_eq_false_iff f r.1.1).mp r.1.2⟩,
-        fun a => r.2 (Fin.cast (arity_topology_toCircuit f r.1.1).symm a)⟩,
-      fun p => ⟨⟨p.1.1.cast (size_toCircuit f).symm,
-        (freeCircuit_eq_false_iff f (p.1.1.cast (size_toCircuit f).symm)).mpr p.1.2⟩,
+      {g : Fin f.val.q // isXorGate f.val g = false} × (Fin 2 → Bool) :=
+    ⟨fun r =>
+      ⟨⟨r.1.val.cast (size_toCircuit f), (freeCircuit_eq_false_iff f r.1.val).mp r.1.property⟩,
+        fun a => r.2 (Fin.cast (arity_topology_toCircuit f r.1.val).symm a)⟩,
+      fun p => ⟨⟨p.1.val.cast (size_toCircuit f).symm,
+        (freeCircuit_eq_false_iff f (p.1.val.cast (size_toCircuit f).symm)).mpr p.1.property⟩,
         fun a => p.2 (Fin.cast (arity_topology_toCircuit f _) a)⟩,
       fun ⟨⟨g, hg⟩, c⟩ => by
         refine Sigma.ext (Subtype.ext (Fin.ext rfl)) ?_
@@ -187,20 +188,20 @@ private theorem card_garbledRow_toCircuit (f : ValidCircuit) :
 
 private noncomputable def rowCoinIndex (f : ValidCircuit)
     (r : GarbledRow (toCircuit f).topology (freeCircuit f)) : ℕ :=
-  f.1.n + f.1.q + 4 * nonXorRank (phiXor.phi f).free r.gate + PointPermute.rowIndex r.2
+  f.val.n + f.val.q + 4 * nonXorRank (phiXor.phi f).free r.gate + PointPermute.rowIndex r.2
 
 /-- The non-XOR rank strictly increases past the gate of a garbled row. -/
 private theorem nonXorRank_gate_lt (f : ValidCircuit)
     (r : GarbledRow (toCircuit f).topology (freeCircuit f)) {j : ℕ} (hj : (r.gate : ℕ) < j) :
     nonXorRank (phiXor.phi f).free r.gate < nonXorRank (phiXor.phi f).free j := by
-  have hq : (r.gate : ℕ) < f.1.q := r.gate.isLt.trans_eq (size_toCircuit f)
+  have hq : (r.gate : ℕ) < f.val.q := r.gate.isLt.trans_eq (size_toCircuit f)
   have hfree : (phiXor.phi f).free[(r.gate : ℕ)]'(by simp [phiXor, hq]) = false := by
-    simpa [phiXor] using (show isXorGate f.1 ⟨r.gate, hq⟩ = false from r.1.2)
+    simpa [phiXor] using (show isXorGate f.val ⟨r.gate, hq⟩ = false from r.1.property)
   exact nonXorRank_lt (phiXor.phi f).free (by simp [phiXor, hq]) hfree hj
 
 private theorem rowCoinIndex_lt (f : ValidCircuit)
     (r : GarbledRow (toCircuit f).topology (freeCircuit f)) :
-    rowCoinIndex f r < f.1.n + f.1.q + 4 * nonXorRank (phiXor.phi f).free f.1.q := by
+    rowCoinIndex f r < f.val.n + f.val.q + 4 * nonXorRank (phiXor.phi f).free f.val.q := by
   have hrank := nonXorRank_gate_lt f r (r.gate.isLt.trans_eq (size_toCircuit f))
   have hrow := PointPermute.rowIndex_lt_four (arity_topology_toCircuit f r.gate) r.2
   simp only [rowCoinIndex]
@@ -211,8 +212,8 @@ private noncomputable def simFillerRows (k : ℕ) (f : ValidCircuit) (coins : Li
   labelOfWord k (PointPermute.simLabel k coins (rowCoinIndex f r))
 
 private noncomputable def simIndex (f : ValidCircuit) :
-    Wire f.1.n (toCircuit f).size ⊕ GarbledRow (toCircuit f).topology (freeCircuit f) →
-      Fin (f.1.n + f.1.q + 4 * nonXorRank (phiXor.phi f).free f.1.q)
+    Wire f.val.n (toCircuit f).size ⊕ GarbledRow (toCircuit f).topology (freeCircuit f) →
+      Fin (f.val.n + f.val.q + 4 * nonXorRank (phiXor.phi f).free f.val.q)
   | .inl w => ⟨w.toNat, by have hwt := w.toNat_lt; have hsz := size_toCircuit f; omega⟩
   | .inr r => ⟨rowCoinIndex f r, rowCoinIndex_lt f r⟩
 
@@ -221,10 +222,10 @@ private theorem simIndex_bijective (f : ValidCircuit) : Function.Bijective (simI
   · rintro (w | r) (w' | r') h <;> simp only [simIndex, Fin.mk.injEq] at h
     · exact congrArg Sum.inl (Wire.toNat_injective h)
     · have hwt := w.toNat_lt; have hsz := size_toCircuit f
-      have hrc : f.1.n + f.1.q ≤ rowCoinIndex f r' := by dsimp [rowCoinIndex]; omega
+      have hrc : f.val.n + f.val.q ≤ rowCoinIndex f r' := by dsimp [rowCoinIndex]; omega
       omega
     · have hwt := w'.toNat_lt; have hsz := size_toCircuit f
-      have hrc : f.1.n + f.1.q ≤ rowCoinIndex f r := by dsimp [rowCoinIndex]; omega
+      have hrc : f.val.n + f.val.q ≤ rowCoinIndex f r := by dsimp [rowCoinIndex]; omega
       omega
     · simp only [rowCoinIndex] at h
       have hidx := PointPermute.rowIndex_lt_four (arity_topology_toCircuit f r.gate) r.2
@@ -249,27 +250,27 @@ private theorem simIndex_bijective (f : ValidCircuit) : Function.Bijective (simI
 
 private theorem uniformList_map_simCoins (k : ℕ) (f : ValidCircuit) :
     (BitString.uniformList (simCoinLen k (phiXor.phi f))).map
-        (fun coins => ((simBaseLabels k coins : Wire f.1.n (toCircuit f).size → _),
+        (fun coins => ((simBaseLabels k coins : Wire f.val.n (toCircuit f).size → _),
           simFillerRows k f coins)) =
-      PMF.uniformOfFintype ((Wire f.1.n (toCircuit f).size → BitString (k + 1) × Bool) ×
+      PMF.uniformOfFintype ((Wire f.val.n (toCircuit f).size → BitString (k + 1) × Bool) ×
         (GarbledRow (toCircuit f).topology (freeCircuit f) → BitString (k + 1) × Bool)) := by
   let e := Equiv.ofBijective _ (simIndex_bijective f)
-  let E : (Wire f.1.n (toCircuit f).size ⊕
+  let E : (Wire f.val.n (toCircuit f).size ⊕
         GarbledRow (toCircuit f).topology (freeCircuit f) → BitString (k + 2)) ≃
-      (Wire f.1.n (toCircuit f).size → BitString (k + 1) × Bool) ×
+      (Wire f.val.n (toCircuit f).size → BitString (k + 1) × Bool) ×
         (GarbledRow (toCircuit f).topology (freeCircuit f) → BitString (k + 1) × Bool) :=
     (Equiv.sumArrowEquivProdArrow _ _ _).trans (Equiv.prodCongr
       (Equiv.arrowCongr (Equiv.refl _) (labelEquiv k))
       (Equiv.arrowCongr (Equiv.refl _) (labelEquiv k)))
-  have h : (fun coins => ((simBaseLabels k coins : Wire f.1.n (toCircuit f).size → _),
+  have h : (fun coins => ((simBaseLabels k coins : Wire f.val.n (toCircuit f).size → _),
         simFillerRows k f coins)) =
       (E : _ → _) ∘ fun coins i =>
         BitString.ofList (k + 2) (BitString.listRow (k + 2) (e i) coins) := by
     funext coins
     rfl
   dsimp only [simCoinLen]
-  rw [show (phiXor.phi f).topo.1.n = f.1.n from rfl,
-    show (phiXor.phi f).topo.1.q = f.1.q from rfl,
+  rw [show (phiXor.phi f).topo.val.n = f.val.n from rfl,
+    show (phiXor.phi f).topo.val.q = f.val.q from rfl,
     h, ← PMF.map_comp, BitString.uniformList_map_listRow_equiv e (k + 2)]
   exact PMF.uniformOfFintype_map_equiv E
 
@@ -277,20 +278,20 @@ private theorem uniformList_map_simCoins (k : ℕ) (f : ValidCircuit) :
 
 /-- The simulated propagated words after all `q` gates match the typed propagated base labels. -/
 theorem simPropWords_q (k : ℕ) (f : ValidCircuit) (coins : List Bool) :
-    simPropWords k (phiXor.phi f).topo.1 (phiXor.phi f).free coins f.1.q =
-      List.ofFn fun v : Fin (f.1.n + (toCircuit f).size) =>
+    simPropWords k (phiXor.phi f).topo.val (phiXor.phi f).free coins f.val.q =
+      List.ofFn fun v : Fin (f.val.n + (toCircuit f).size) =>
         labelBits (propagate (toCircuit f).topology (freeCircuit f)
           (simBaseLabels k coins) (Wire.ofNat v v.isLt)) := by
-  rw [show (phiXor.phi f).topo.1 = f.1.topo from rfl,
+  rw [show (phiXor.phi f).topo.val = f.val.topo from rfl,
     simPropWords_eq_propagate k f (phiXor.phi f).free coins
       (fun g => by simp [phiXor, List.getD_eq_getElem?_getD]) le_rfl,
     List.take_of_length_le (by simp [size_toCircuit])]
 
-private theorem simRow_eq_simulateWith (k : ℕ) (f : ValidCircuit) (y : Fin f.1.m → Bool)
+private theorem simRow_eq_simulateWith (k : ℕ) (f : ValidCircuit) (y : Fin f.val.m → Bool)
     (coins : List Bool) (g : Fin (toCircuit f).size) (hg : freeCircuit f g = false)
     {i : ℕ} (hi : i < 4) :
-    simRow hash k (phiXor.phi f).topo.1 (phiXor.phi f).free
-        (simPropWords k (phiXor.phi f).topo.1 (phiXor.phi f).free coins f.1.q) coins
+    simRow hash k (phiXor.phi f).topo.val (phiXor.phi f).free
+        (simPropWords k (phiXor.phi f).topo.val (phiXor.phi f).free coins f.val.q) coins
         (g.cast (size_toCircuit f)) i =
       labelBits ((simulateWith (toCircuit f).topology (freeCircuit f)
         (fun key t => CCR.atLevel hash k (key, false) t)
@@ -334,24 +335,24 @@ private theorem simRow_eq_simulateWith (k : ℕ) (f : ValidCircuit) (y : Fin f.1
       PointPermute.rowIndex_testBit_of_eq_two harity hi]
     rfl
 
-private theorem encodeGate_simulateWith (k : ℕ) (f : ValidCircuit) (y : Fin f.1.m → Bool)
+private theorem encodeGate_simulateWith (k : ℕ) (f : ValidCircuit) (y : Fin f.val.m → Bool)
     (coins : List Bool) (g : Fin (toCircuit f).size) :
-    encodeGate k (PointPermute.wireWidth f.1.n (toCircuit f).size) (toCircuit f).topology
+    encodeGate k (PointPermute.wireWidth f.val.n (toCircuit f).size) (toCircuit f).topology
         (freeCircuit f)
         (simulateWith (toCircuit f).topology (freeCircuit f)
           (fun key t => CCR.atLevel hash k (key, false) t)
           (slotTweak (toCircuit f).topology (freeCircuit f) k) y
           (propagate (toCircuit f).topology (freeCircuit f) (simBaseLabels k coins))
           (simFillerRows k f coins)).table g =
-      simGateWord hash k (PointPermute.wireWidth f.1.n f.1.q) (phiXor.phi f)
-        (simPropWords k (phiXor.phi f).topo.1 (phiXor.phi f).free coins f.1.q) coins
+      simGateWord hash k (PointPermute.wireWidth f.val.n f.val.q) (phiXor.phi f)
+        (simPropWords k (phiXor.phi f).topo.val (phiXor.phi f).free coins f.val.q) coins
         (g.cast (size_toCircuit f)) := by
   rw [encodeGate_toCircuit]
   simp only [simGateWord, phiXor, phiTopo, ConventionalCircuit.topo]
-  have hfree_eq : (List.ofFn fun g' => isXorGate f.1 g').getD
-      (g.cast (size_toCircuit f) : Fin f.1.q).val false = freeCircuit f g := by
+  have hfree_eq : (List.ofFn fun g' => isXorGate f.val g').getD
+      (g.cast (size_toCircuit f) : Fin f.val.q).val false = freeCircuit f g := by
     simp only [freeCircuit, List.getD_eq_getElem?_getD, List.getElem?_ofFn, Fin.val_cast,
-      show (g : ℕ) < f.1.q from by have := g.isLt; have := size_toCircuit f; omega,
+      show (g : ℕ) < f.val.q from by have := g.isLt; have := size_toCircuit f; omega,
       dite_true, Option.getD_some]
     rfl
   simp only [hfree_eq]
@@ -369,19 +370,20 @@ private theorem simViewWord_eq (k : ℕ) (f : ValidCircuit) (y coins : List Bool
     simViewWord hash k y (phiXor.phi f) coins = viewWord k (toCircuit f).topology (freeCircuit f)
       (simulateWith (toCircuit f).topology (freeCircuit f)
         (fun key t => CCR.atLevel hash k (key, false) t)
-        (slotTweak (toCircuit f).topology (freeCircuit f) k) (BitString.ofList f.1.m y)
+        (slotTweak (toCircuit f).topology (freeCircuit f) k) (BitString.ofList f.val.m y)
         (propagate (toCircuit f).topology (freeCircuit f) (simBaseLabels k coins))
         (simFillerRows k f coins)) := by
   have hτ := (toCircuit f).isOrdered_topology
-  have hF : PointPermute.encFn ((k, (phiXor.phi f).topo.1.n, (phiXor.phi f).topo.1.m,
-      (phiXor.phi f).topo.1.q), (List.ofFn fun g =>
-      simGateWord hash k (PointPermute.wireWidth (phiXor.phi f).topo.1.n (phiXor.phi f).topo.1.q)
-        (phiXor.phi f) (simPropWords k (phiXor.phi f).topo.1 (phiXor.phi f).free coins
-          (phiXor.phi f).topo.1.q) coins g).flatten) =
+  have hF : PointPermute.encFn ((k, (phiXor.phi f).topo.val.n, (phiXor.phi f).topo.val.m,
+      (phiXor.phi f).topo.val.q), (List.ofFn fun g =>
+      simGateWord hash k
+        (PointPermute.wireWidth (phiXor.phi f).topo.val.n (phiXor.phi f).topo.val.q)
+        (phiXor.phi f) (simPropWords k (phiXor.phi f).topo.val (phiXor.phi f).free coins
+          (phiXor.phi f).topo.val.q) coins g).flatten) =
       encodeFn k (toCircuit f).topology (freeCircuit f)
         (simulateWith (toCircuit f).topology (freeCircuit f)
           (fun key t => CCR.atLevel hash k (key, false) t)
-          (slotTweak (toCircuit f).topology (freeCircuit f) k) (BitString.ofList f.1.m y)
+          (slotTweak (toCircuit f).topology (freeCircuit f) k) (BitString.ofList f.val.m y)
           (propagate (toCircuit f).topology (freeCircuit f) (simBaseLabels k coins))
           (simFillerRows k f coins)).table := by
     simp only [encodeFn, encodeGate_simulateWith]
@@ -389,12 +391,12 @@ private theorem simViewWord_eq (k : ℕ) (f : ValidCircuit) (y coins : List Bool
     · rw [size_toCircuit]; rfl
     · rw [List.ofFn_congr (size_toCircuit f)]
       rfl
-  have hX : (List.ofFn fun i : Fin (phiXor.phi f).topo.1.n =>
+  have hX : (List.ofFn fun i : Fin (phiXor.phi f).topo.val.n =>
       PointPermute.simLabel k coins i).flatten =
-      (List.ofFn fun i : Fin f.1.n =>
+      (List.ofFn fun i : Fin f.val.n =>
         labelBits ((simulateWith (toCircuit f).topology (freeCircuit f)
           (fun key t => CCR.atLevel hash k (key, false) t)
-          (slotTweak (toCircuit f).topology (freeCircuit f) k) (BitString.ofList f.1.m y)
+          (slotTweak (toCircuit f).topology (freeCircuit f) k) (BitString.ofList f.val.m y)
           (propagate (toCircuit f).topology (freeCircuit f) (simBaseLabels k coins))
           (simFillerRows k f coins)).input i)).flatten := by
     simp only [simulateWith, propagate_input hτ, simBaseLabels,
@@ -402,7 +404,7 @@ private theorem simViewWord_eq (k : ℕ) (f : ValidCircuit) (y coins : List Bool
     rfl
   simp only [simViewWord, viewWord, PrvView.mk.injEq]
   refine ⟨hF, hX, ?_⟩
-  rw [show (phiXor.phi f).topo.1.q = f.1.q from rfl, simPropWords_q]
+  rw [show (phiXor.phi f).topo.val.q = f.val.q from rfl, simPropWords_q]
   simp only [phiXor, phiTopo, ConventionalCircuit.topo]
   refine congrArg List.ofFn (funext fun o => ?_)
   rw [getD_ofFn_wire_output, HalfGates.colourWord_labelBits]
@@ -414,14 +416,14 @@ theorem eval_simWord (k : ℕ) (f : ValidCircuit) (y : List Bool) :
       (ProbComp.eval (simulate (toCircuit f).topology (freeCircuit f)
         (fun key t => CCR.atLevel hash k (key, false) t)
         (slotTweak (toCircuit f).topology (freeCircuit f) k)
-        (BitString.ofList f.1.m y))).map (viewWord k _ _) := by
+        (BitString.ofList f.val.m y))).map (viewWord k _ _) := by
   have hsim := uniformList_map_simCoins k f
   have hview : simViewWord hash k y (phiXor.phi f) =
-      (fun p : (Wire f.1.n (toCircuit f).size → BitString (k + 1) × Bool) ×
+      (fun p : (Wire f.val.n (toCircuit f).size → BitString (k + 1) × Bool) ×
           (GarbledRow (toCircuit f).topology (freeCircuit f) → BitString (k + 1) × Bool) =>
         viewWord k _ _ (simulateWith (toCircuit f).topology (freeCircuit f)
           (fun key t => CCR.atLevel hash k (key, false) t)
-          (slotTweak (toCircuit f).topology (freeCircuit f) k) (BitString.ofList f.1.m y)
+          (slotTweak (toCircuit f).topology (freeCircuit f) k) (BitString.ofList f.val.m y)
           (propagate (toCircuit f).topology (freeCircuit f) p.1) p.2)) ∘
         (fun coins => (simBaseLabels k coins, simFillerRows k f coins)) :=
     funext fun coins => simViewWord_eq hash k f y coins
@@ -435,7 +437,7 @@ theorem eval_simWord (k : ℕ) (f : ValidCircuit) (y : List Bool) :
 
 /-- **Simulated views decode to the output.** -/
 theorem decodeWord_evalWord_simViewWord (k : ℕ) (f : ValidCircuit) {y : List Bool}
-    (hy : y.length = f.1.m) (coins : List Bool) :
+    (hy : y.length = f.val.m) (coins : List Bool) :
     PointPermute.decodeWord (simViewWord hash k y (phiXor.phi f) coins).decInfo
       (evalWord hash (simViewWord hash k y (phiXor.phi f) coins).fn
         (simViewWord hash k y (phiXor.phi f) coins).input) = some y := by
@@ -518,37 +520,39 @@ private def simRowData (k n q : ℕ) (free : List Bool) (labels : List (List Boo
       else PointPermute.simLabel k coins (n + q + 4 * nonXorRank free g + i)
 
 private theorem simFn_eq (k : ℕ) (t : XorTopology) (coins : List Bool) :
-    PointPermute.encFn ((k, t.topo.1.n, t.topo.1.m, t.topo.1.q), (List.ofFn fun g =>
-      simGateWord hash k (PointPermute.wireWidth t.topo.1.n t.topo.1.q) t
-        (simPropWords k t.topo.1 t.free coins t.topo.1.q) coins g).flatten) =
-      PointPermute.encFn ((k, t.topo.1.n, t.topo.1.m, t.topo.1.gateList.length),
-        PointPermute.bodyWith t.topo.1.n t.topo.1.gateList.length
-          ((simPropWords k t.topo.1 t.free coins t.topo.1.q).length + 1)
-          (fun g => (t.topo.1.gateList.getD g (0, 0)).1)
-          (fun g => (t.topo.1.gateList.getD g (0, 0)).2)
-          (fun g a b i => simRowData hash k t.topo.1.n t.topo.1.q t.free
-            (simPropWords k t.topo.1 t.free coins t.topo.1.q) coins g a b i)) := by
-  have hgate (g : Fin t.topo.1.q) :
-      t.topo.1.gateList.getD g (0, 0) = (t.topo.1.A g, t.topo.1.B g) := by
+    PointPermute.encFn ((k, t.topo.val.n, t.topo.val.m, t.topo.val.q), (List.ofFn fun g =>
+      simGateWord hash k (PointPermute.wireWidth t.topo.val.n t.topo.val.q) t
+        (simPropWords k t.topo.val t.free coins t.topo.val.q) coins g).flatten) =
+      PointPermute.encFn ((k, t.topo.val.n, t.topo.val.m, t.topo.val.gateList.length),
+        PointPermute.bodyWith t.topo.val.n t.topo.val.gateList.length
+          ((simPropWords k t.topo.val t.free coins t.topo.val.q).length + 1)
+          (fun g => (t.topo.val.gateList.getD g (0, 0)).1)
+          (fun g => (t.topo.val.gateList.getD g (0, 0)).2)
+          (fun g a b i => simRowData hash k t.topo.val.n t.topo.val.q t.free
+            (simPropWords k t.topo.val t.free coins t.topo.val.q) coins g a b i)) := by
+  have hgate (g : Fin t.topo.val.q) :
+      t.topo.val.gateList.getD g (0, 0) = (t.topo.val.A g, t.topo.val.B g) := by
     simp [Topo.gateList, List.getD_eq_getElem?_getD]
-  have hA₁ (g : Fin t.topo.1.q) : 1 ≤ t.topo.1.A g := t.topo.2.one_le_A g
-  have hAB (g : Fin t.topo.1.q) : t.topo.1.A g < t.topo.1.B g := t.topo.2.A_lt_B g
-  have hBg (g : Fin t.topo.1.q) : t.topo.1.B g < t.topo.1.n + 1 + g := t.topo.2.B_lt_gate g
-  have hlen : (simPropWords k t.topo.1 t.free coins t.topo.1.q).length = t.topo.1.n + t.topo.1.q :=
-    length_simPropWords k t.topo.1 t.free coins le_rfl
-  rw [Topo.length_gateList, PointPermute.bodyWith_eq_ofFn t.topo.1.A t.topo.1.B
-    (fun g i => simRowData hash k t.topo.1.n t.topo.1.q t.free
-      (simPropWords k t.topo.1 t.free coins t.topo.1.q) coins g (t.topo.1.A g - 1)
-      (t.topo.1.B g - 1) i)
+  have hA₁ (g : Fin t.topo.val.q) : 1 ≤ t.topo.val.A g := t.topo.property.one_le_A g
+  have hAB (g : Fin t.topo.val.q) : t.topo.val.A g < t.topo.val.B g := t.topo.property.A_lt_B g
+  have hBg (g : Fin t.topo.val.q) : t.topo.val.B g < t.topo.val.n + 1 + g :=
+    t.topo.property.B_lt_gate g
+  have hlen :
+      (simPropWords k t.topo.val t.free coins t.topo.val.q).length = t.topo.val.n + t.topo.val.q :=
+    length_simPropWords k t.topo.val t.free coins le_rfl
+  rw [Topo.length_gateList, PointPermute.bodyWith_eq_ofFn t.topo.val.A t.topo.val.B
+    (fun g i => simRowData hash k t.topo.val.n t.topo.val.q t.free
+      (simPropWords k t.topo.val t.free coins t.topo.val.q) coins g (t.topo.val.A g - 1)
+      (t.topo.val.B g - 1) i)
     (fun g => by rw [hgate]) (fun g => by rw [hgate])
     (fun g i => by
       have ha := hA₁ g
       have hab := hAB g
       have hb := hBg g
       have hg := g.isLt
-      simp only [hlen, show min (t.topo.1.n + t.topo.1.q + 1) (t.topo.1.A g) = t.topo.1.A g
+      simp only [hlen, show min (t.topo.val.n + t.topo.val.q + 1) (t.topo.val.A g) = t.topo.val.A g
           from Nat.min_eq_right (by omega),
-        show min (t.topo.1.n + t.topo.1.q + 1) (t.topo.1.B g) = t.topo.1.B g
+        show min (t.topo.val.n + t.topo.val.q + 1) (t.topo.val.B g) = t.topo.val.B g
           from Nat.min_eq_right (by omega)])]
   congr 2
   refine congrArg List.flatten (congrArg List.ofFn (funext fun g => ?_))
@@ -559,17 +563,17 @@ private theorem simFn_eq (k : ℕ) (t : XorTopology) (coins : List Bool) :
 private theorem simViewWord_eq_data (k : ℕ) (y : List Bool) (t : XorTopology)
     (coins : List Bool) :
     simViewWord hash k y t coins =
-      ⟨PointPermute.encFn ((k, t.topo.1.n, t.topo.1.m, t.topo.1.gateList.length),
-          PointPermute.bodyWith t.topo.1.n t.topo.1.gateList.length
-            ((simPropWords k t.topo.1 t.free coins t.topo.1.q).length + 1)
-            (fun g => (t.topo.1.gateList.getD g (0, 0)).1)
-            (fun g => (t.topo.1.gateList.getD g (0, 0)).2)
-            (fun g a b i => simRowData hash k t.topo.1.n t.topo.1.q t.free
-              (simPropWords k t.topo.1 t.free coins t.topo.1.q) coins g a b i)),
-        ((List.range t.topo.1.n).map (PointPermute.simLabel k coins)).flatten,
-        (List.range t.topo.1.m).map fun o =>
-          HalfGates.colourWord k ((simPropWords k t.topo.1 t.free coins t.topo.1.q).getD
-            (t.topo.1.n + t.topo.1.gateList.length - t.topo.1.m + o) []) ^^
+      ⟨PointPermute.encFn ((k, t.topo.val.n, t.topo.val.m, t.topo.val.gateList.length),
+          PointPermute.bodyWith t.topo.val.n t.topo.val.gateList.length
+            ((simPropWords k t.topo.val t.free coins t.topo.val.q).length + 1)
+            (fun g => (t.topo.val.gateList.getD g (0, 0)).1)
+            (fun g => (t.topo.val.gateList.getD g (0, 0)).2)
+            (fun g a b i => simRowData hash k t.topo.val.n t.topo.val.q t.free
+              (simPropWords k t.topo.val t.free coins t.topo.val.q) coins g a b i)),
+        ((List.range t.topo.val.n).map (PointPermute.simLabel k coins)).flatten,
+        (List.range t.topo.val.m).map fun o =>
+          HalfGates.colourWord k ((simPropWords k t.topo.val t.free coins t.topo.val.q).getD
+            (t.topo.val.n + t.topo.val.gateList.length - t.topo.val.m + o) []) ^^
             y.getD o false⟩ := by
   simp only [simViewWord, simFn_eq, Topo.length_gateList, List.map_range_eq_ofFn]
 
@@ -578,7 +582,7 @@ private abbrev encSimInput : (ℕ × List Bool × XorTopology) ↪ List Bool :=
 
 private theorem simData_polyTime :
     ComputableInPolyTime (fun x : ℕ × List Bool × XorTopology =>
-      (x.2.2.topo.1.n, x.2.2.topo.1.m, x.2.2.topo.1.gateList)) encSimInput encTopoData :=
+      (x.2.2.topo.val.n, x.2.2.topo.val.m, x.2.2.topo.val.gateList)) encSimInput encTopoData :=
   topoData_polyTime.comp (encXorTopology_topo_polyTime (ComputableInPolyTime.snd _ _).snd')
 
 private theorem simPropStep_polyTime :
@@ -636,14 +640,14 @@ theorem simPropWords_polyTime_of {γ : Type} {encIn : γ ↪ List Bool}
 
 private theorem simPropWords_polyTime :
     ComputableInPolyTime (fun p : (ℕ × List Bool × XorTopology) × List Bool =>
-        simPropWords p.1.1 p.1.2.2.topo.1 p.1.2.2.free p.2 p.1.2.2.topo.1.q)
+        simPropWords p.1.1 p.1.2.2.topo.val p.1.2.2.free p.2 p.1.2.2.topo.val.q)
       (encPair encSimInput encBits) (encList encBits) :=
   have hfst := ComputableInPolyTime.fst encSimInput encBits
   have hcoins := ComputableInPolyTime.snd encSimInput encBits
   simPropWords_polyTime_of ((ComputableInPolyTime.fst _ _).comp hfst) (simData_polyTime.comp hfst)
     (encXorTopology_free_polyTime ((ComputableInPolyTime.snd _ _).snd'.comp hfst)) hcoins
-    (fun p g => p.1.2.2.topo.2.one_le_A g) (fun p g => p.1.2.2.topo.2.A_lt_B g)
-    (fun p g => p.1.2.2.topo.2.B_lt_gate g)
+    (fun p g => p.1.2.2.topo.property.one_le_A g) (fun p g => p.1.2.2.topo.property.A_lt_B g)
+    (fun p g => p.1.2.2.topo.property.B_lt_gate g)
 
 /-- The number of non-XOR gates in the first `g` gates is computed in polynomial time. -/
 theorem nonXorCount_polyTime {γ : Type} {encIn : γ ↪ List Bool}
@@ -666,7 +670,7 @@ private theorem simCoinLen_polyTime :
   have hk := ComputableInPolyTime.fst encUnary (encPair encBits encXorTopology)
   have hd := simData_polyTime
   have hn := hd.fst'
-  have hq : ComputableInPolyTime (fun x : ℕ × List Bool × XorTopology => x.2.2.topo.1.q)
+  have hq : ComputableInPolyTime (fun x : ℕ × List Bool × XorTopology => x.2.2.topo.val.q)
       encSimInput encUnary := by
     simpa only [Function.comp_def, Topo.length_gateList] using
       (ComputableInPolyTime.length_list _).comp hd.snd'.snd'
@@ -675,7 +679,7 @@ private theorem simCoinLen_polyTime :
     encXorTopology_free_polyTime (ComputableInPolyTime.snd _ _).snd'
   have hc := nonXorCount_polyTime hfree hq
   have heq : (fun x : ℕ × List Bool × XorTopology => simCoinLen x.1 x.2.2) = fun x =>
-      (x.2.2.topo.1.n + x.2.2.topo.1.q + 4 * nonXorRank x.2.2.free x.2.2.topo.1.q) *
+      (x.2.2.topo.val.n + x.2.2.topo.val.q + 4 * nonXorRank x.2.2.free x.2.2.topo.val.q) *
         (x.1 + 2) := by
     funext x; rfl
   rw [heq]
@@ -748,7 +752,7 @@ private theorem simViewWord_polyTime :
   have hfree := encXorTopology_free_polyTime hfst.snd'.snd'
   have hP := simPropWords_polyTime
   have hq_val : ComputableInPolyTime (fun p : (ℕ × List Bool × XorTopology) × List Bool =>
-      p.1.2.2.topo.1.q) (encPair encSimInput encBits) encUnary := by
+      p.1.2.2.topo.val.q) (encPair encSimInput encBits) encUnary := by
     simpa only [Function.comp_def, Topo.length_gateList] using hq
   have hcap := ComputableInPolyTime.unary_add' ((ComputableInPolyTime.length_list _).comp hP)
     (ComputableInPolyTime.const 1)
@@ -763,21 +767,21 @@ private theorem simViewWord_polyTime :
     (hgates.comp (ComputableInPolyTime.fst (encPair encSimInput encBits) encUnary))
     (ComputableInPolyTime.snd _ _) (0, 0)
   have hbody := PointPermute.bodyWith_polyTime
-    (n := fun p : (ℕ × List Bool × XorTopology) × List Bool => p.1.2.2.topo.1.n)
-    (q := fun p => p.1.2.2.topo.1.gateList.length)
+    (n := fun p : (ℕ × List Bool × XorTopology) × List Bool => p.1.2.2.topo.val.n)
+    (q := fun p => p.1.2.2.topo.val.gateList.length)
     (cap := fun p =>
-      (simPropWords p.1.1 p.1.2.2.topo.1 p.1.2.2.free p.2 p.1.2.2.topo.1.q).length + 1)
-    (A := fun p g => (p.1.2.2.topo.1.gateList.getD g (0, 0)).1)
-    (B := fun p g => (p.1.2.2.topo.1.gateList.getD g (0, 0)).2)
-    (row := fun p g a b i => simRowData hash p.1.1 p.1.2.2.topo.1.n p.1.2.2.topo.1.q
-      p.1.2.2.free (simPropWords p.1.1 p.1.2.2.topo.1 p.1.2.2.free p.2 p.1.2.2.topo.1.q) p.2
+      (simPropWords p.1.1 p.1.2.2.topo.val p.1.2.2.free p.2 p.1.2.2.topo.val.q).length + 1)
+    (A := fun p g => (p.1.2.2.topo.val.gateList.getD g (0, 0)).1)
+    (B := fun p g => (p.1.2.2.topo.val.gateList.getD g (0, 0)).2)
+    (row := fun p g a b i => simRowData hash p.1.1 p.1.2.2.topo.val.n p.1.2.2.topo.val.q
+      p.1.2.2.free (simPropWords p.1.1 p.1.2.2.topo.val p.1.2.2.free p.2 p.1.2.2.topo.val.q) p.2
       g a b i)
     hn hq hcap hgate.fst' hgate.snd' (by convert hrow using 2; rcases ‹_› with ⟨_, _, _, _, _⟩; rfl)
   have henc : ComputableInPolyTime (fun z : (ℕ × ℕ × ℕ × ℕ) × List Bool => PointPermute.encFn z)
       PointPermute.encFn encBits := .of_eq fun _ => rfl
   have hF := henc.comp ((hk.prod (hn.prod (hm.prod hq))).prod hbody)
   have hX : ComputableInPolyTime (fun p : (ℕ × List Bool × XorTopology) × List Bool =>
-      ((List.range p.1.2.2.topo.1.n).map (PointPermute.simLabel p.1.1 p.2)).flatten)
+      ((List.range p.1.2.2.topo.val.n).map (PointPermute.simLabel p.1.1 p.2)).flatten)
       (encPair encSimInput encBits) encBits := by
     polytime [PointPermute.simLabel, BitString.listRow]
   have hdecRange : ComputableInPolyTime (fun p : ℕ × List Bool × ℕ × ℕ × List (List Bool) =>

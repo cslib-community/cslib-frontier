@@ -187,11 +187,11 @@ theorem Fintype.card_le_choose_of_card_inter_mem (A : ι → Finset κ) {d : ℕ
   -- The functions of the members, and `x ↦ x_I (|X| - d)` for `|I| < s`, which vanish on them.
   let f : ι ⊕ {I : Finset κ // #I < s} → (κ → Bool) → K := Sum.elim
     (fun i => ∏ l ∈ L, cardInterSub (A i) l)
-    (fun I => Cslib.BitString.monomial K I.1 * cardInterSub univ (d : K))
+    (fun I => Cslib.BitString.monomial K I.val * cardInterSub univ (d : K))
   have hmem : ∀ t, f t ∈ Cslib.BitString.lowDegree K κ s := by
     rintro (i | I)
     · exact prod_cardInterSub_mem (A i) L
-    · exact Cslib.BitString.lowDegree_mono (by have := I.2; omega)
+    · exact Cslib.BitString.lowDegree_mono (by have := I.property; omega)
         (Cslib.BitString.mul_mem_lowDegree (Cslib.BitString.monomial_mem_lowDegree le_rfl)
           (cardInterSub_mem univ (d : K)))
   have hli : LinearIndependent K f := Fintype.linearIndependent_iff.2 fun g hg => by
@@ -211,18 +211,18 @@ theorem Fintype.card_le_choose_of_card_inter_mem (A : ι → Finset κ) {d : ℕ
       exact (mul_eq_zero.1 h).resolve_right
         (prod_ne_zero_iff.2 fun l hl => sub_ne_zero.2 fun h => hd (h ▸ hl))
     -- Evaluating at `I` itself, by induction on `|I|`, kills the coefficient of `f (inr I)`.
-    have hI : ∀ m (I : {I : Finset κ // #I < s}), #I.1 = m → g (Sum.inr I) = 0 := by
+    have hI : ∀ m (I : {I : Finset κ // #I < s}), #I.val = m → g (Sum.inr I) = 0 := by
       intro m
       induction m using Nat.strong_induction_on with | _ m ih => ?_
       intro I hIm
-      have h := hev I.1
+      have h := hev I.val
       rw [Fintype.sum_sum_type] at h
       simp only [hF, zero_mul, sum_const_zero, zero_add, f, Sum.elim_inr, Pi.mul_apply,
         cardInterSub_ind, univ_inter] at h
       rw [Finset.sum_eq_single I (fun J _ hJI => ?_) (fun h => absurd (mem_univ I) h),
         monomial_ind_of_subset Subset.rfl, one_mul] at h
-      · exact (mul_eq_zero.1 h).resolve_right (sub_ne_zero.2 (hL _ I.2))
-      · by_cases hsub : J.1 ⊆ I.1
+      · exact (mul_eq_zero.1 h).resolve_right (sub_ne_zero.2 (hL _ I.property))
+      · by_cases hsub : J.val ⊆ I.val
         · rw [ih _ (hIm ▸ card_lt_card (Finset.ssubset_iff_subset_ne.2
             ⟨hsub, mt Subtype.ext hJI⟩)) J rfl, zero_mul]
         · rw [monomial_ind_of_not_subset hsub, zero_mul, mul_zero]

@@ -338,7 +338,7 @@ theorem exists_exp_neg_le_fourierCoeff_singleton_sq_of_monotone {f : (ι → Boo
   obtain ⟨i, hi⟩ := exists_nine_div_sq_mul_one_ninth_rpow_le_influence f hV
   refine ⟨i, ?_⟩
   have h : exp (-(10 * I / V)) = exp (-(5 * (I / V))) ^ 2 := by
-    rw [← exp_nat_mul]
+    rw [← exp_natCast_mul]
     congr 1
     push_cast
     ring

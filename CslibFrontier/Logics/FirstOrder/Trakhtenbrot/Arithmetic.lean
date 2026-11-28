@@ -196,7 +196,7 @@ variable {I : ℕ → List M → Prop}
 
 private theorem forall_fin_val {N : ℕ} (e : M ≃ Fin N) {P : ℕ → Prop} :
     (∀ c, P (e c)) ↔ ∀ i < N, P i :=
-  ⟨fun h i hi => by simpa using h (e.symm ⟨i, hi⟩), fun h c => h _ (e c).2⟩
+  ⟨fun h i hi => by simpa using h (e.symm ⟨i, hi⟩), fun h c => h _ (e c).isLt⟩
 
 private lemma zero_iff_forall_not_lt {N : ℕ} (e : M ≃ Fin N) (a : M) :
     (∀ b, ¬(e b : ℕ) < e a) ↔ (e a : ℕ) = 0 := by
@@ -207,7 +207,7 @@ private lemma succ_iff_lt_forall {N : ℕ} (e : M ≃ Fin N) (a b : M) :
     ((e a : ℕ) < e b ∧ ∀ c, (e a : ℕ) < e c → ¬(e c : ℕ) < e b) ↔ (e b : ℕ) = e a + 1 := by
   rw [forall_fin_val e (P := fun i => (e a : ℕ) < i → ¬i < e b)]
   exact ⟨fun ⟨hab, H⟩ => by_contra fun hne =>
-    H (e a + 1) ((Nat.succ_le_of_lt hab).trans_lt (e b).2) (Nat.lt_succ_self _) (by omega),
+    H (e a + 1) ((Nat.succ_le_of_lt hab).trans_lt (e b).isLt) (Nat.lt_succ_self _) (by omega),
     fun H => ⟨by omega, fun i _ _ => by omega⟩⟩
 
 private theorem nextSem_iff {N : ℕ} (e : M ≃ Fin N) (hlt : ∀ a b, I 0 [a, b] ↔ (e a : ℕ) < e b)
@@ -229,10 +229,11 @@ theorem pair_faithful (h : ArithModel I) {N : ℕ} (e : M ≃ Fin N)
   induction q using Nat.strong_induction_on with
   | _ q ih =>
   intro a b p hp
-  rw [h.pair, pair_eq_iff (hp ▸ (e p).2)]
+  rw [h.pair, pair_eq_iff (hp ▸ (e p).isLt)]
   simp only [hz, hs, nextSem_iff e hlt hz hs, hp]
   exact ⟨Or.imp_right fun ⟨a', b', p', h1, h2, h3⟩ =>
-      ⟨e a', (e a').2, e b', (e b').2, e p', (e p').2, h1, (ih _ (by omega) a' b' p' rfl).1 h2, h3⟩,
+      ⟨e a', (e a').isLt, e b', (e b').isLt, e p', (e p').isLt, h1,
+        (ih _ (by omega) a' b' p' rfl).1 h2, h3⟩,
     Or.imp_right fun ⟨a', ha', b', hb', p', hp', h1, h2, h3⟩ =>
       ⟨e.symm ⟨a', ha'⟩, e.symm ⟨b', hb'⟩, e.symm ⟨p', hp'⟩, by simpa using h1,
         (ih p' (by omega) _ _ _ (by simp)).2 (by simpa using h2), by simpa using h3⟩⟩
@@ -306,12 +307,12 @@ theorem arithModel_of_std {N : ℕ} {I : ℕ → List (Fin N) → Prop}
     fun a b => by simpa only [h2, h0, Equiv.refl_apply] using
       (succ_iff_lt_forall (Equiv.refl _) a b).symm,
     fun a b p => ?_⟩
-  rw [h3, pair_eq_iff p.2]
+  rw [h3, pair_eq_iff p.isLt]
   simp only [h1, h2, nextSem_iff (Equiv.refl _) h0 h1 h2]
   exact ⟨Or.imp_right fun ⟨a', ha', b', hb', p', hp', h4, h5, h6⟩ =>
       ⟨⟨a', ha'⟩, ⟨b', hb'⟩, ⟨p', hp'⟩, h4, (h3 _ _ _).2 h5, h6⟩,
     Or.imp_right fun ⟨a', b', p', h4, h5, h6⟩ =>
-      ⟨a', a'.2, b', b'.2, p', p'.2, h4, (h3 _ _ _).1 h5, h6⟩⟩
+      ⟨a', a'.isLt, b', b'.isLt, p', p'.isLt, h4, (h3 _ _ _).1 h5, h6⟩⟩
 
 /-- The standard arithmetic relations `StdArith N` form an `ArithModel`. -/
 theorem arithModel_stdArith (N : ℕ) : ArithModel (StdArith N) :=

@@ -787,7 +787,7 @@ private theorem pow_round_le (T : ℕ) :
         ≤ Real.exp (-(1 / (4 * ((T : ℝ) + 1)))) ^ (8 * (T + 1)) :=
           pow_le_pow_left₀ (by linarith) (Real.one_sub_le_exp_neg _) _
       _ = Real.exp (-2) := by
-          rw [← Real.exp_nat_mul]
+          rw [← Real.exp_natCast_mul]
           congr 1
           push_cast
           field_simp

@@ -163,7 +163,7 @@ theorem IsSmallBias.fools {ε : ℝ} (hε : 0 ≤ ε) {X : PMF (ι → Bool)} (h
         (abs_sum_le_sum_abs _ _).trans (sum_le_sum fun S hS => by
           rw [abs_mul]
           exact mul_le_mul_of_nonneg_left
-            (hX S (nonempty_iff_ne_empty.2 (ne_of_mem_erase hS))) (abs_nonneg _))
+            (hX S (ne_empty_iff_nonempty.1 (ne_of_mem_erase hS))) (abs_nonneg _))
     _ ≤ ∑ S, |fourierCoeff f S| * ε :=
         sum_le_sum_of_subset_of_nonneg (erase_subset _ _) fun _ _ _ => by positivity
     _ = (∑ S, |fourierCoeff f S|) * ε := (sum_mul _ _ _).symm

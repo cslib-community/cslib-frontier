@@ -259,15 +259,15 @@ theorem exists_refutableInSize_of_not_exists_holds (h : ¬ ∃ σ : V → Bool, 
     ∃ s, RefutableInSize Γ s := by
   classical
   obtain ⟨u, hu⟩ := isCompact_univ.elim_finite_subfamily_closed
-    (fun I : Γ => {σ : V → Bool | I.1.Holds σ}) (fun I => isClosed_setOf_holds I.1)
+    (fun I : Γ => {σ : V → Bool | I.val.Holds σ}) (fun I => isClosed_setOf_holds I.val)
     (Set.disjoint_left.2 fun σ _ hσ => h ⟨σ, fun I hI => Set.mem_iInter.1 hσ ⟨I, hI⟩⟩)
   obtain ⟨s, ls, hls, hc, hlen⟩ := exists_refutableInSize_of_finite
     (u.image Subtype.val).finite_toSet fun ⟨σ, hσ⟩ =>
       Set.disjoint_left.1 hu (Set.mem_univ σ)
-        (Set.mem_iInter₂.2 fun I hI => hσ I.1 (mem_coe.2 (mem_image_of_mem _ hI)))
+        (Set.mem_iInter₂.2 fun I hI => hσ I.val (mem_coe.2 (mem_image_of_mem _ hI)))
   refine ⟨s, ls, hls.mono fun _ hI => ?_, hc, hlen⟩
   obtain ⟨J, -, rfl⟩ := mem_image.1 (mem_coe.1 hI)
-  exact J.2
+  exact J.property
 
 /-- **Cutting planes refute exactly the systems with no 0/1 solution.** -/
 theorem exists_refutableInSize_iff_not_exists_holds :

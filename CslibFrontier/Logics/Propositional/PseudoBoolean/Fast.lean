@@ -226,7 +226,7 @@ theorem normalize_of_nodup {c : PBConstr} (h : (c.terms.map termVar).Nodup)
     (hpos : ∀ t ∈ c.terms, 0 < t.1) : c.normalize = ⟨c.terms.reverse, c.degree⟩ := by
   have hfm : (c.terms.map fun t => (termVar t, termCoeff t)).filterMap entryTerm = c.terms := by
     rw [List.filterMap_map]
-    refine (List.filterMap_congr (g := some) ?_).trans (by simp)
+    refine (List.filterMap_congr (g := some) rfl ?_).trans (by simp)
     rintro ⟨a, v, b⟩ ht
     have ha := hpos _ ht
     cases b <;> simp [entryTerm, termCoeff, ha]

@@ -3806,7 +3806,7 @@ theorem not_minCut_and_subset_of_minTightRatio_lt {M : LinearFisherMarket I G} {
       rw [hS₂_empty] at this
       exact Finset.notMem_empty g this
     by_contra hS₂_ne_empty
-    have hS₂_ne : S₂.Nonempty := Finset.nonempty_iff_ne_empty.2 hS₂_ne_empty
+    have hS₂_ne : S₂.Nonempty := Finset.ne_empty_iff_nonempty.1 hS₂_ne_empty
     have hS₁_sub : S₁ ⊆ A := Finset.inter_subset_left.trans hSStar_sub
     have hS₂_sub : S₂ ⊆ A := Finset.inter_subset_left.trans hSStar_sub
     -- Move `S₂` and `Γ(S₂) ∩ B₂` to the source side of `X`:
@@ -4245,7 +4245,7 @@ private theorem tightSet_component_rat [DecidableEq I] [DecidableEq G] {M : Line
       · have hk1' : 1 ≤ k := by omega
         obtain ⟨T, D, N, hTC, hg₀T, hTcard, hDpos, hDle, hTspec⟩ := ih hk1' (by omega)
         have hCT_ne : (C \ T).Nonempty := by
-          rw [Finset.nonempty_iff_ne_empty]
+          rw [← Finset.ne_empty_iff_nonempty]
           intro h0
           have hCT : C ⊆ T := Finset.sdiff_eq_empty_iff_subset.1 h0
           have : C.card ≤ T.card := Finset.card_le_card hCT

@@ -147,7 +147,7 @@ theorem minHash_eq_of_isMin {σ : Equiv.Perm α} {A : Finset α} {s : α} (hs : 
 /-- A set whose MinHash value is the rank `σ s` contains `s`. -/
 private theorem mem_of_minHash_eq_coe {σ : Equiv.Perm α} {B : Finset α} {s : α}
     (h : minHash σ B = σ s) : s ∈ B := by
-  have hB0 : B.Nonempty := Finset.nonempty_iff_ne_empty.2 fun h0 =>
+  have hB0 : B.Nonempty := Finset.ne_empty_iff_nonempty.1 fun h0 =>
     WithTop.top_ne_coe ((h0 ▸ minHash_empty σ).symm.trans h)
   obtain ⟨t, ht, hbt⟩ := Finset.exists_mem_eq_inf B hB0 fun b => (σ b : WithTop α)
   rwa [← σ.injective (WithTop.coe_injective (hbt.symm.trans h))]

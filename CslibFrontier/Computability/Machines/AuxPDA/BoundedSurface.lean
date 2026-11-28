@@ -116,7 +116,7 @@ instance [DecidableEq StackSym] [DecidableEq State] :
 /-- Every embedded bounded surface configuration fits in the uniform window `fun _ => s`. -/
 theorem toSurface_fitsIn (b : BoundedSurfaceCfg k StackSym State input s) :
     b.toSurface.storage.FitsIn (fun _ => s) :=
-  ⟨fun j => Turing.mem_window.mp (b.workTapePos j).2, fun _ _ hz => by
+  ⟨fun j => Turing.mem_window.mp (b.workTapePos j).property, fun _ _ hz => by
     simp only [toSurface, ne_eq, dite_eq_right_iff, Classical.not_forall] at hz
     exact Turing.mem_window.mp hz.1⟩
 
@@ -127,8 +127,8 @@ theorem toSurface_injective :
   BoundedSurfaceCfg.ext (congrArg SurfaceCfg.inputPos hab)
     (congrArg (fun sc => sc.storage.state) hab)
     (funext fun i => funext fun z => by
-      simpa only [toSurface, z.2, ↓reduceDIte] using
-        congrFun (congrFun (congrArg (fun sc => sc.storage.workTapes) hab) i) z.1)
+      simpa only [toSurface, z.property, ↓reduceDIte] using
+        congrFun (congrFun (congrArg (fun sc => sc.storage.workTapes) hab) i) z.val)
     (funext fun i => Subtype.ext (congrFun (congrArg (fun sc => sc.storage.workTapePos) hab) i))
     (congrArg SurfaceCfg.topSym hab) (congrArg SurfaceCfg.outputSummary hab)
 
@@ -427,7 +427,7 @@ private lemma toSurface_applyBoundedTapes_some (act : Turing.Action k Bool State
     by_cases hz : z ∈ Turing.window s
     · by_cases heq : z = (b.workTapePos i).val <;>
         simp [hz, heq, Function.update, Subtype.ext_iff]
-    · have hne : z ≠ (b.workTapePos i).val := fun h => hz (h ▸ (b.workTapePos i).2)
+    · have hne : z ≠ (b.workTapePos i).val := fun h => hz (h ▸ (b.workTapePos i).property)
       simp [hz, hne, Function.update]
 
 /-- Window-checked bounded application agrees identically with `applySurfaceTapes` on embedded
@@ -444,7 +444,8 @@ theorem applyBoundedTapes?_eq_some_iff (act : Turing.Action k Bool State)
         ((toSurface_applyBoundedTapes_some act b newTop hwin).trans h.symm)⟩
   · refine ⟨by simp, fun h => False.elim (hwin fun i => ?_)⟩
     exact (congrFun (congrArg (fun sc => sc.storage.workTapePos) h) i :
-      (c.workTapePos i).val = (b.workTapePos i).val + (act.workTapes i).2) ▸ (c.workTapePos i).2
+      (c.workTapePos i).val = (b.workTapePos i).val + (act.workTapes i).2) ▸
+      (c.workTapePos i).property
 
 /-- Bounded-space height-preserving surface transition (`StayStep` on embedded surfaces). -/
 @[expose] def BoundedStayStep (M : AuxPDA k Bool StackSym State)

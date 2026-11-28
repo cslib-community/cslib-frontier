@@ -170,7 +170,7 @@ private theorem split_spec {B : Finset V} {q : V} (tail : List (Finset V)) (hqB 
       ∀ p, p ≠ q → blocksSnapshot ({q} :: B.erase q :: tail) p = blocksSnapshot (B :: tail) p := by
   have hu : ({q} : Finset V) ∪ B.erase q = B := by rw [singleton_union, insert_erase hqB]
   have hBq : (B.erase q).Nonempty := by
-    rw [nonempty_iff_ne_empty, Ne, erase_eq_empty_iff, not_or]
+    rw [← ne_empty_iff_nonempty, Ne, erase_eq_empty_iff, not_or]
     exact ⟨(hne B List.mem_cons_self).ne_empty, hBs⟩
   simp only [List.pairwise_cons, List.forall_mem_cons] at hne hdisj ⊢
   refine ⟨⟨singleton_nonempty q, hBq, hne.2⟩,

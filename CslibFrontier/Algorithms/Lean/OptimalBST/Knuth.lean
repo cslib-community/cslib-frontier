@@ -275,7 +275,9 @@ theorem solve_eq {w : ℕ → ℕ → β} {W : Window β} {n : ℕ} (hW : W.Vali
   have hT := agrees_table hW n
   have hR : ∀ a b, 0 ≤ a → a < b → b ≤ n → (table w W n n a b).root = optRoot w a b :=
     fun a b _ _ hb => congrArg Entry.root (hT a b hb ((Nat.sub_le b a).trans hb))
-  rw [solve, hT 0 n le_rfl le_rfl, optTree, Nat.sub_zero,
+  rw [solve]
+  dsimp only
+  rw [hT 0 n le_rfl le_rfl, optTree, Nat.sub_zero,
     buildTree_congr hR fun a b ha hab hb => hR a b ha hab hb ▸ optRoot_mem w hab]
 
 /-- **Correctness of the cubic dynamic program**, for every weight: it returns the optimal cost and

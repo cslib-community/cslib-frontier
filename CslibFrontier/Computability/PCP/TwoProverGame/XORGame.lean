@@ -511,20 +511,20 @@ private theorem exists_unit_vectors_dim_le_right {S T : Type*} [Fintype S] [Fint
   let eT : T ≃ Fin r := Fintype.equivFin T
   obtain ⟨e, horth, hnorm, hexp⟩ := exists_orthonormal_expansion r (fun j => v (eT.symm j))
   let proj (x : EuclideanSpace ℝ (Fin M)) : EuclideanSpace ℝ (Fin m) :=
-    WithLp.toLp 2 fun k : Fin m => if hk : k.1 < r then inner ℝ (e ⟨k.1, hk⟩) x else 0
-  let emb : Fin r ↪ Fin m := ⟨fun j => ⟨j.1, by omega⟩, fun a b h => Fin.ext (Fin.mk.inj h)⟩
+    WithLp.toLp 2 fun k : Fin m => if hk : k.val < r then inner ℝ (e ⟨k.val, hk⟩) x else 0
+  let emb : Fin r ↪ Fin m := ⟨fun j => ⟨j.val, by omega⟩, fun a b h => Fin.ext (Fin.mk.inj h)⟩
   have hproj_inner (x y : EuclideanSpace ℝ (Fin M)) :
       inner ℝ (proj x) (proj y) = ∑ j : Fin r, inner ℝ (e j) x * inner ℝ (e j) y := by
     rw [PiLp.inner_apply]
     have hsub : (∑ k ∈ Finset.univ.map emb, inner ℝ ((proj x).ofLp k) ((proj y).ofLp k)) =
         ∑ k : Fin m, inner ℝ ((proj x).ofLp k) ((proj y).ofLp k) := by
       refine Finset.sum_subset (Finset.subset_univ _) fun k _ hk_not => ?_
-      have hge : ¬ k.1 < r := fun hlt =>
-        hk_not (Finset.mem_map.mpr ⟨⟨k.1, hlt⟩, Finset.mem_univ _, rfl⟩)
+      have hge : ¬ k.val < r := fun hlt =>
+        hk_not (Finset.mem_map.mpr ⟨⟨k.val, hlt⟩, Finset.mem_univ _, rfl⟩)
       simp [proj, hge]
     rw [← hsub, Finset.sum_map]
     refine Finset.sum_congr rfl fun j _ => ?_
-    have hlt : (emb j).1 < r := j.2
+    have hlt : (emb j).val < r := j.isLt
     simp only [proj, hlt, ↓reduceDIte, RCLike.inner_apply, conj_trivial]
     exact mul_comm _ _
   have hproj_norm_le (x : EuclideanSpace ℝ (Fin M)) : ‖proj x‖ ≤ ‖x‖ := by
@@ -828,14 +828,14 @@ theorem exists_max_unit_vectors_xorGame [Nonempty X] [Nonempty Y]
     refine continuous_finset_sum_real Finset.univ fun x _ =>
       continuous_finset_sum_real Finset.univ fun y _ => ?_
     exact continuous_const.mul <| Continuous.inner
-      (continuous_subtype_val.comp ((continuous_apply x).comp continuous_fst))
-      (continuous_subtype_val.comp ((continuous_apply y).comp continuous_snd))
+      (continuous_subtypeVal.comp ((continuous_apply x).comp continuous_fst))
+      (continuous_subtypeVal.comp ((continuous_apply y).comp continuous_snd))
   obtain ⟨⟨u₀, v₀⟩, _, hmax_dom⟩ :=
     isCompact_univ.exists_isMaxOn Set.univ_nonempty hF_cont.continuousOn
-  let u (x : X) : EuclideanSpace ℝ (Fin m) := (u₀ x).1
-  let v (y : Y) : EuclideanSpace ℝ (Fin m) := (v₀ y).1
-  have hu (x : X) : ‖u x‖ = 1 := mem_sphere_zero_iff_norm.mp (u₀ x).2
-  have hv (y : Y) : ‖v y‖ = 1 := mem_sphere_zero_iff_norm.mp (v₀ y).2
+  let u (x : X) : EuclideanSpace ℝ (Fin m) := (u₀ x).val
+  let v (y : Y) : EuclideanSpace ℝ (Fin m) := (v₀ y).val
+  have hu (x : X) : ‖u x‖ = 1 := mem_sphere_zero_iff_norm.mp (u₀ x).property
+  have hv (y : Y) : ‖v y‖ = 1 := mem_sphere_zero_iff_norm.mp (v₀ y).property
   have hmax_all : ∀ {M : ℕ} (u' : X → EuclideanSpace ℝ (Fin M)) (v' : Y → EuclideanSpace ℝ (Fin M)),
       (∀ x, ‖u' x‖ = 1) → (∀ y, ‖v' y‖ = 1) →
       ∑ x : X, ∑ y : Y, W x y * inner ℝ (u' x) (v' y) ≤
@@ -892,9 +892,9 @@ theorem quantumValue_sub_trivialWinProb [Nonempty X] [Nonempty Y]
   let vSph : Y → Sph := fun y => ⟨v₀ y, mem_sphere_zero_iff_norm.mpr (hv₀ y)⟩
   have : Nonempty Sph := ⟨uSph (Classical.arbitrary X)⟩
   have hub (u : X → Sph) (v : Y → Sph) : obj u v ≤ topVal :=
-    hmax (fun x => (u x).1) (fun y => (v y).1)
-      (fun x => mem_sphere_zero_iff_norm.mp (u x).2)
-      (fun y => mem_sphere_zero_iff_norm.mp (v y).2)
+    hmax (fun x => (u x).val) (fun y => (v y).val)
+      (fun x => mem_sphere_zero_iff_norm.mp (u x).property)
+      (fun y => mem_sphere_zero_iff_norm.mp (v y).property)
   have hbdd1 (u : X → Sph) : BddAbove (Set.range (obj u)) :=
     ⟨topVal, by rintro _ ⟨v, rfl⟩; exact hub u v⟩
   have hbdd2 : BddAbove (Set.range fun u : X → Sph => ⨆ v : Y → Sph, obj u v) :=

@@ -228,17 +228,17 @@ private theorem exists_lift_domRestrict {n N : ℕ} {α : Type*}
     (Q_sub : Set ↥A) {T : Set (Fin n)}
     (hQT : ∀ i : Fin n, (⟨e i, heA ⟨i, rfl⟩⟩ : ↥A) ∈ Q_sub → i ∈ T)
     (inp : α → Fin n → Bool) (proj : α → T → Bool)
-    (hinp : ∀ z (i : T), inp z i.1 = proj z i) :
+    (hinp : ∀ z (i : T), inp z i.val = proj z i) :
     ∃ liftQ : (T → Bool) → (Q_sub → Bool),
       ∀ z : α, Q_sub.domRestrict (A.domRestrict (Quantum.glue e (inp z) x₀)) = liftQ (proj z) := by
-  have hmem (q : Q_sub) (hq : ∃ i : Fin n, e i = q.1.1) : Classical.choose hq ∈ T :=
+  have hmem (q : Q_sub) (hq : ∃ i : Fin n, e i = q.val.val) : Classical.choose hq ∈ T :=
     hQT _ ((Subtype.ext (Classical.choose_spec hq) :
-      (⟨e (Classical.choose hq), heA ⟨_, rfl⟩⟩ : ↥A) = q.1).symm ▸ q.2)
+      (⟨e (Classical.choose hq), heA ⟨_, rfl⟩⟩ : ↥A) = q.val).symm ▸ q.property)
   refine ⟨fun a q => open Classical in
-    if hq : ∃ i : Fin n, e i = q.1 then a ⟨Classical.choose hq, hmem q hq⟩
-    else x₀ q.1.1, fun z => funext fun q => ?_⟩
+    if hq : ∃ i : Fin n, e i = q.val then a ⟨Classical.choose hq, hmem q hq⟩
+    else x₀ q.val.val, fun z => funext fun q => ?_⟩
   simp only [Set.domRestrict_apply]
-  by_cases hq : ∃ i : Fin n, e i = q.1.1
+  by_cases hq : ∃ i : Fin n, e i = q.val.val
   · simp only [hq, ↓reduceDIte, ← hinp z ⟨Classical.choose hq, hmem q hq⟩]
     exact (congrArg (Quantum.glue e (inp z) x₀) (Classical.choose_spec hq)).symm.trans
       (Quantum.glue_apply_emb e (inp z) x₀ (Classical.choose hq))
@@ -262,10 +262,10 @@ private theorem exists_lift_domRestrict_glue {n N : ℕ}
   intro S glueS
   obtain ⟨liftP, hP⟩ := exists_lift_domRestrict (T := S) e x₀ heA Q_sub (fun _ h => h)
     glueS Prod.fst fun ⟨a, b⟩ i => by
-      simp only [glueS, Equiv.piEquivPiSubtypeProd_symm_apply, i.2, ↓reduceDIte]
+      simp only [glueS, Equiv.piEquivPiSubtypeProd_symm_apply, i.property, ↓reduceDIte]
   obtain ⟨liftPc, hPc⟩ := exists_lift_domRestrict (T := Sᶜ) e x₀ heA Q_subᶜ (fun _ h => h)
     glueS Prod.snd fun ⟨a, b⟩ i => by
-      have hni : i.1 ∉ S := i.2
+      have hni : i.val ∉ S := i.property
       simp only [glueS, Equiv.piEquivPiSubtypeProd_symm_apply, hni, ↓reduceDIte]; rfl
   exact ⟨liftP, liftPc, fun a b => hP (a, b), fun a b => hPc (a, b)⟩
 
@@ -325,10 +325,10 @@ def boolMulVec {n : ℕ} (M : Matrix (Fin n) (Fin n) (ZMod 2)) (x : Fin n → Bo
   decide ((M *ᵥ fun j => BitString.bitVal (ZMod 2) (x j)) i = 1)
 
 private def inl2n (n : ℕ) (i : Fin n) : Fin (2 * n) :=
-  ⟨i.1, by omega⟩
+  ⟨i.val, by omega⟩
 
 private def inr2n (n : ℕ) (j : Fin n) : Fin (2 * n) :=
-  ⟨n + j.1, by omega⟩
+  ⟨n + j.val, by omega⟩
 
 private theorem inl2n_injective (n : ℕ) : Function.Injective (inl2n n) :=
   fun _ _ h => Fin.ext (Fin.mk.inj h)

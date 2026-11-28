@@ -186,7 +186,7 @@ of pruned expected straddling probabilities plus the cardinality of large signal
 private theorem dualSupply_nonneg_and_sum_le {c : Circuit σ n 1} {r K₀ : ℕ} {a b : ℚ}
     (hcert : HyperDualCert r K₀ a b) (hfan : c.FanInAtMost r) {η₀ : ℝ} (hη₀ : 0 ≤ η₀)
     (P_cross : PrunedEdge c K₀ → ℝ)
-    (hP : ∀ e : PrunedEdge c K₀, P_cross e ≤ (a : ℝ) * (hyperEdge c e.1).card + b + η₀) :
+    (hP : ∀ e : PrunedEdge c K₀, P_cross e ≤ (a : ℝ) * (hyperEdge c e.val).card + b + η₀) :
     let B_main := (((r + 1 : ℕ) : ℝ) * a + b) * Fintype.card (LiveGate c) +
       max (b : ℝ) (-a) * Fintype.card (LiveInput c) + a
     0 ≤ B_main ∧
@@ -240,10 +240,11 @@ private theorem dualSupply_nonneg_and_sum_le {c : Circuit σ n 1} {r K₀ : ℕ}
   have hdisj : Disjoint F_mid S_big := Finset.disjoint_filter.mpr fun w _ h1 h2 => by omega
   have hsum_pruned : ∑ e : PrunedEdge c K₀, P_cross e ≤ ∑ w ∈ F_mid, wt η₀ w := by
     calc ∑ e : PrunedEdge c K₀, P_cross e
-        ≤ ∑ e : PrunedEdge c K₀, wt η₀ e.1 := Finset.sum_le_sum fun e _ => (hP e).trans (hwt_ge e.1)
+        ≤ ∑ e : PrunedEdge c K₀, wt η₀ e.val :=
+          Finset.sum_le_sum fun e _ => (hP e).trans (hwt_ge e.val)
       _ = ∑ w ∈ F_mid, wt η₀ w :=
-          Finset.sum_bij (fun e _ => e.1)
-            (fun e _ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, e.2⟩)
+          Finset.sum_bij (fun e _ => e.val)
+            (fun e _ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, e.property⟩)
             (fun _ _ _ _ h => Subtype.ext h)
             (fun w hw => ⟨⟨w, (Finset.mem_filter.mp hw).2⟩, Finset.mem_univ _, rfl⟩)
             (fun _ _ => rfl)
@@ -263,7 +264,7 @@ private theorem dualSupply_nonneg_and_sum_le {c : Circuit σ n 1} {r K₀ : ℕ}
 
 private def hyperCrossEvent (c : Circuit σ n 1) (K₀ r : ℕ) (θ : ℝ) (S : ℕ) (t : ℝ)
     (e : PrunedEdge c K₀) : Set (HyperNode c → ℝ) :=
-  {ω | HyperedgeStraddles (hyperEdge c e.1) {v | hyperScore c K₀ r θ S ω v < t}}
+  {ω | HyperedgeStraddles (hyperEdge c e.val) {v | hyperScore c K₀ r θ S ω v < t}}
 
 private def hyperVertEvent (c : Circuit σ n 1) (K₀ r : ℕ) (θ : ℝ) (S : ℕ) (f : ℝ → Prop)
     (v : HyperNode c) : Set (HyperNode c → ℝ) :=
@@ -276,7 +277,7 @@ private theorem card_hyperCut_threshold_le {c : Circuit σ n 1} {r K₀ : ℕ} {
     (θ : ℝ) (S : ℕ) (ω : HyperNode c → ℝ) (t : ℝ)
     (hprob : ∀ e : PrunedEdge c K₀,
       (Measure.pi fun _ : HyperNode c => gaussianReal 0 1).real (hyperCrossEvent c K₀ r θ S t e) ≤
-        (a : ℝ) * (hyperEdge c e.1).card + b + η₀)
+        (a : ℝ) * (hyperEdge c e.val).card + b + η₀)
     (hdev : ω ∉ Gaussian.deviation (hyperCrossEvent c K₀ r θ S t) c_dev) :
     ((hyperCut c {v | hyperScore c K₀ r θ S ω v < t}).card : ℝ) ≤
       ((((r + 1 : ℕ) : ℝ) * a + b) * Fintype.card (LiveGate c) +
@@ -302,7 +303,8 @@ private theorem card_hyperCut_threshold_le {c : Circuit σ n 1} {r K₀ : ℕ} {
     refine Finset.card_bij (fun w hw => ⟨w, (Finset.mem_filter.mp hw).2⟩)
       (fun w hw => mem_toFinset.mpr (mem_hyperCut_iff.mp (Finset.mem_filter.mp hw).1))
       (fun _ _ _ _ h => congrArg Subtype.val h)
-      (fun e he => ⟨e.1, Finset.mem_filter.mpr ⟨mem_hyperCut_iff.mpr (mem_toFinset.mp he), e.2⟩,
+      (fun e he =>
+        ⟨e.val, Finset.mem_filter.mpr ⟨mem_hyperCut_iff.mpr (mem_toFinset.mp he), e.property⟩,
         Subtype.ext rfl⟩)
   have hcard_cut : (S_cut.card : ℝ) ≤ (S_mid.card : ℝ) + (S_big.card : ℝ) := by
     exact_mod_cast (Finset.card_le_card hcut_sub).trans (Finset.card_union_le _ _)
@@ -346,15 +348,15 @@ private theorem measurable_hyperScore (c : Circuit σ n 1) (K₀ r : ℕ) (θ : 
 private theorem measurableSet_hyperCrossEvent (c : Circuit σ n 1) (K₀ r : ℕ) (θ : ℝ) (S : ℕ)
     (t : ℝ) (e : PrunedEdge c K₀) : MeasurableSet (hyperCrossEvent c K₀ r θ S t e) := by
   have heq : hyperCrossEvent c K₀ r θ S t e =
-      (⋃ v ∈ hyperEdge c e.1, {ω | hyperScore c K₀ r θ S ω v < t}) ∩
-      (⋃ v ∈ hyperEdge c e.1, {ω | ¬ hyperScore c K₀ r θ S ω v < t}) := by
+      (⋃ v ∈ hyperEdge c e.val, {ω | hyperScore c K₀ r θ S ω v < t}) ∩
+      (⋃ v ∈ hyperEdge c e.val, {ω | ¬ hyperScore c K₀ r θ S ω v < t}) := by
     ext ω
     simp only [hyperCrossEvent, HyperedgeStraddles, mem_ofPred_eq, mem_inter_iff, mem_iUnion,
       exists_prop]
   rw [heq]
-  exact ((hyperEdge c e.1).measurableSet_biUnion fun v _ =>
+  exact ((hyperEdge c e.val).measurableSet_biUnion fun v _ =>
     measurableSet_lt (measurable_hyperScore c K₀ r θ S v) measurable_const).inter
-    ((hyperEdge c e.1).measurableSet_biUnion fun v _ =>
+    ((hyperEdge c e.val).measurableSet_biUnion fun v _ =>
       (measurableSet_lt (measurable_hyperScore c K₀ r θ S v) measurable_const).compl)
 
 private theorem dependsOn_hyperCrossEvent (c : Circuit σ n 1) (K₀ r : ℕ) (θ : ℝ) (S : ℕ) (t : ℝ)
@@ -362,7 +364,7 @@ private theorem dependsOn_hyperCrossEvent (c : Circuit σ n 1) (K₀ r : ℕ) (�
     DependsOn (· ∈ hyperCrossEvent c K₀ r θ S t e)
       (bipSupportBall c K₀ (.inr e) (2 * S + 1)) := by
   intro ω ω' hω
-  have hsc (v : HyperNode c) (hv : v ∈ hyperEdge c e.1) :
+  have hsc (v : HyperNode c) (hv : v ∈ hyperEdge c e.val) :
       hyperScore c K₀ r θ S ω v = hyperScore c K₀ r θ S ω' v := by
     refine hyperScore_congr fun z (hz : (bipSimpleGraph c K₀).edist (.inl v) (.inl z) ≤ 2 * S) =>
       hω z ?_
