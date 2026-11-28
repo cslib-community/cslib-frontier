@@ -568,6 +568,7 @@ public import CslibFrontier.Algorithms.WordRAM.Schoening.TrialCount
 public import CslibFrontier.Algorithms.Lean.GomoryHu.Basic
 public import CslibFrontier.Computability.Complexity.Problems.NCL.HWord.ConstraintGraph
 public import CslibFrontier.Foundations.Data.BitString.DeltaMatroid.ExchangeBound
+public import CslibFrontier.Computability.Complexity.CookLevin.Quasilinear.Sorted
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment.Equivocation
 public import CslibFrontier.Computability.Complexity.Problems.SAT
 public import CslibFrontier.DataStructure.HashFamily.Spec
@@ -8915,6 +8916,7 @@ public import CslibFrontier.Foundations.Combinatorics.LittlewoodOfford
 public import CslibFrontier.Foundations.Combinatorics.Expander.Reingold
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.Gaussian.Layout
 public import CslibFrontier.Computability.Circuit.Arithmetic.HittingSet.DerivativeClosed
+public import CslibFrontier.Computability.Complexity.CookLevin.Quasilinear.RecordRun
 public import CslibFrontier.Computability.WangTile.Robinson.Forcing
 public import CslibFrontier.Computability.Communication.Lifting.DensitySimulation
 public import CslibFrontier.Computability.QueryComplexity.Quantum.DeutschJozsa
