@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Event probabilities after a random first stage
@@ -74,21 +75,15 @@ theorem toOuterMeasure_bind_failure_le (p : PMF α) (kernel : α → PMF β)
     (hstep : ∀ a ∈ p.support, a ∈ pre → (kernel a).toOuterMeasure failure ≤ error) :
     (p.bind kernel).toOuterMeasure failure ≤ p.toOuterMeasure preᶜ + error := by
   classical
-  rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply]
+  rw [PMF.toOuterMeasure_bind_apply, toOuterMeasure_eq_tsum_mul_indicator]
   calc
-    _ ≤ ∑' a, ((preᶜ).indicator p a + p a * error) := by
-      apply tsum_le_tsum
-      intro a
+    _ ≤ ∑' a, p a * ((preᶜ).indicator 1 a + error) := by
+      refine tsum_mul_mono_support p fun a hs => ?_
       by_cases ha : a ∈ pre
-      · simp only [Set.indicator_of_notMem (show a ∉ preᶜ by simpa), zero_add]
-        by_cases hs : a ∈ p.support
-        · exact mul_le_mul_of_nonneg_left (hstep a hs ha) zero_le
-        · have hz : p a = 0 := by simpa only [PMF.mem_support_iff, not_not] using hs
-          simp [hz]
-      · simp only [Set.indicator_of_mem (show a ∈ preᶜ from ha)]
-        exact (mul_le_mul_of_nonneg_left (toOuterMeasure_le_one (kernel a) failure)
-          zero_le).trans (by simp)
-    _ = _ := by rw [tsum_add, ENNReal.tsum_mul_right, p.tsum_coe, one_mul]
+      · simpa [Set.indicator_of_notMem (Set.notMem_compl_iff.mpr ha)] using hstep a hs ha
+      · rw [Set.indicator_of_mem (Set.mem_compl ha)]
+        exact (toOuterMeasure_le_one (kernel a) failure).trans le_self_add
+    _ = _ := by simp only [mul_add, tsum_add, ENNReal.tsum_mul_right, p.tsum_coe, one_mul]
 
 /-- The real-valued error rule for a randomized continuation. -/
 theorem toOuterMeasure_bind_failure_toReal_le (p : PMF α) (kernel : α → PMF β)
@@ -115,14 +110,12 @@ theorem toOuterMeasure_bind_ge_mul_ennreal {α β : Type*} (p : PMF α) (kernel 
   calc
     s₁ * s₂ ≤ p.toOuterMeasure pre * s₂ := mul_le_mul_of_nonneg_right hp zero_le
     _ ≤ (p.bind kernel).toOuterMeasure event := by
-      rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_right]
-      refine tsum_le_tsum fun a => ?_
+      rw [PMF.toOuterMeasure_bind_apply, toOuterMeasure_eq_tsum_mul_indicator,
+        ← ENNReal.tsum_mul_right]
+      simp only [mul_assoc]
+      refine tsum_mul_mono_support p fun a hs => ?_
       by_cases ha : a ∈ pre
-      · simp only [Set.indicator_of_mem ha]
-        by_cases hs : a ∈ p.support
-        · exact mul_le_mul_of_nonneg_left (hstep a hs ha) zero_le
-        · have hz : p a = 0 := by simpa only [PMF.mem_support_iff, not_not] using hs
-          simp [hz]
+      · simpa [Set.indicator_of_mem ha] using hstep a hs ha
       · simp [Set.indicator_of_notMem ha]
 
 /-- `ENNReal` multiplication rule for sequential failure upper bounds: if `p` stays in
@@ -139,15 +132,13 @@ theorem toOuterMeasure_bind_le_mul_ennreal {α β : Type*} (p : PMF α) (kernel 
   calc
     (p.bind kernel).toOuterMeasure failure
       ≤ p.toOuterMeasure stillFailing * q₂ := by
-        rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_right]
-        refine tsum_le_tsum fun a => ?_
-        by_cases hs : a ∈ p.support
-        · by_cases ha : a ∈ stillFailing
-          · simp only [Set.indicator_of_mem ha]
-            exact mul_le_mul_of_nonneg_left (hfail a hs ha) zero_le
-          · simp [Set.indicator_of_notMem ha, hsucc a hs ha]
-        · have hz : p a = 0 := by simpa only [PMF.mem_support_iff, not_not] using hs
-          simp [hz]
+        rw [PMF.toOuterMeasure_bind_apply, toOuterMeasure_eq_tsum_mul_indicator,
+          ← ENNReal.tsum_mul_right]
+        simp only [mul_assoc]
+        refine tsum_mul_mono_support p fun a hs => ?_
+        by_cases ha : a ∈ stillFailing
+        · simpa [Set.indicator_of_mem ha] using hfail a hs ha
+        · simp [Set.indicator_of_notMem ha, hsucc a hs ha]
     _ ≤ q₁ * q₂ := mul_le_mul_of_nonneg_right hp zero_le
 
 /-- If a first stage `p` lands in `pre` with probability at least `s₁` and for every supported

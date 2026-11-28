@@ -14,6 +14,7 @@ public import CslibFrontier.Languages.Probabilistic.RandomOracle
 public import CslibFrontier.Probability.Product
 import CslibFrontier.Languages.Probabilistic.Simulation
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.EventBind
 import CslibFrontier.Languages.Probabilistic.UntilBad
 
 /-!
@@ -583,19 +584,6 @@ end Simulation
 
 section Programming
 
-private theorem toOuterMeasure_le_bind_apply {α β : Type} (μ : PMF α) (event : Set α)
-    (f : α → PMF β) (b : β) (h : ∀ a ∈ μ.support, a ∈ event → f a b = 1) :
-    μ.toOuterMeasure event ≤ (μ.bind f) b := by
-  classical
-  rw [PMF.toOuterMeasure_apply, PMF.bind_apply]
-  refine tsum_le_tsum fun a => ?_
-  by_cases ha : a ∈ event
-  · by_cases hs : a ∈ μ.support
-    · rw [Set.indicator_of_mem ha, h a hs ha, mul_one]
-    · rw [Set.indicator_of_mem ha, (PMF.apply_eq_zero_iff μ a).mpr hs, zero_mul]
-  · rw [Set.indicator_of_notMem ha]
-    exact zero_le
-
 private theorem answer_support {Q : Type} [DecidableEq Q] {law : Q → PMF K} {q : Q}
     {s : RandomOracle.Cache (fun _ : Q => K)} {r : K × RandomOracle.Cache (fun _ : Q => K)}
     (hr : r ∈ (RandomOracle.answer law q s).support) :
@@ -836,7 +824,11 @@ private theorem bad_le_extract (x : ZMod (F.order d)) (hx : x ≠ 0) (sampleKey 
     ← OracleComp.run_interpret_map_state _ _ (F.tableCache d x)
       (F.lowerHandler_step d x hx sampleKey (y • F.generator d)),
     PMF.toOuterMeasure_map_apply, PMF.bind_bind]
-  refine toOuterMeasure_le_bind_apply _ _ _ _ fun ⟨a, table⟩ hmem hbad => ?_
+  rw [← PMF.toOuterMeasure_apply_singleton]
+  refine (le_of_eq (mul_one _).symm).trans ?_
+  refine Probability.PMF.toOuterMeasure_bind_ge_mul_ennreal _ _ _ _ le_rfl
+    fun ⟨a, table⟩ hmem hbad => ?_
+  rw [PMF.toOuterMeasure_apply_singleton]
   have hinv := OracleComp.run_interpret_invariant _ (F.NoChallengeEntry d (y • F.generator d))
     (F.lowerHandler_noChallenge d x hx sampleKey (y • F.generator d)) _ []
     (by simp [NoChallengeEntry]) a table hmem

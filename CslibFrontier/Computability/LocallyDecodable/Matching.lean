@@ -130,8 +130,9 @@ private theorem toReal_uniformOfFintype_eq_const [Fintype ι] [DecidableEq ι] (
     rw [hU, Probability.PMF.pi_map_eval]
   have hev : (PMF.uniformOfFintype (ι → Bool)).toOuterMeasure {x | b = x i} =
       ((PMF.uniformOfFintype (ι → Bool)).map fun x => x i) b := by
-    rw [PMF.toOuterMeasure_apply, PMF.map_apply]
-    exact tsum_congr fun x => by by_cases hx : b = x i <;> simp [hx]
+    rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
+    congr 1
+    exact Set.ext fun _ => eq_comm
   rw [hev, hmap, PMF.uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat,
     ENNReal.toReal_inv, ENNReal.toReal_ofNat, one_div]
 
