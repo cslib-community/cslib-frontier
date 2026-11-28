@@ -74,6 +74,7 @@ import CslibFrontierResults.Entries.PlantedClique
 import CslibFrontierResults.Entries.ODonnellDecisionTreeConcentration
 import CslibFrontierResults.Entries.NetworkContagion
 import CslibFrontierResults.Entries.BanditRegret
+import CslibFrontierResults.Entries.NetworkUtilityMax
 import CslibFrontierResults.Entries.SamplableNotComputable
 import CslibFrontierResults.Entries.DHKEM
 import CslibFrontierResults.Entries.KellyMarketClearing

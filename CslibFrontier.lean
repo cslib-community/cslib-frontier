@@ -4406,6 +4406,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ZeroOne.Integer
 public import CslibFrontier.Crypto.Protocols.MPC.MaskedOT.Mixture
 public import CslibFrontier.Computability.Circuit.Monotone.Clique.Negative
+public import CslibFrontier.GameTheory.ResourceAllocation.NetworkUtilityMax
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CutRank
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.SampledReductionLaw
 public import CslibFrontier.Algorithms.Lean.EdgeCSP.Forest.BlossomData
