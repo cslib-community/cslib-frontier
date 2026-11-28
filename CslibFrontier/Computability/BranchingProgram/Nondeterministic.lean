@@ -456,6 +456,7 @@ the private `pathCountFrom`, in an array that ends at the highest head of those 
   | node P wires =>
     change ((wires.filter (·.on x)).map fun w => P.paths x w.head).sum = _
     rw [pathCountImpl]
+    dsimp only
     split
     · rename_i hall
       rw [List.map_congr_left fun w hw => paths_of_val_eq_zero x P w.head

@@ -86,11 +86,11 @@ variable {V : Type*}
 /-- Classical edge-presence indicator on a finite set `S` of vertex pairs. -/
 private noncomputable def edgeIndicator (S : Finset (Sym2 V)) (G : SimpleGraph V)
     (e : {e : Sym2 V // e ∈ S}) : Bool :=
-  open Classical in decide (e.1 ∈ G.edgeSet)
+  open Classical in decide (e.val ∈ G.edgeSet)
 
 private theorem edgeIndicator_eq_true_iff (S : Finset (Sym2 V)) (G : SimpleGraph V)
     (e : {e : Sym2 V // e ∈ S}) :
-    edgeIndicator S G e = true ↔ e.1 ∈ G.edgeSet := by
+    edgeIndicator S G e = true ↔ e.val ∈ G.edgeSet := by
   classical
   simp [edgeIndicator]
 
@@ -105,11 +105,11 @@ private theorem binomialRandom_real_edgeEvent_eq_pi [Finite V] (p : I) (S : Fins
   let ι := {e : Sym2 V // e ∈ S}
   let μ := Cslib.Probability.PMF.pi (fun _ : ι => Cslib.Probability.PMF.coin p)
   let pat : (ι → Bool) → Set (SimpleGraph V) :=
-    fun b => {G | ∀ e : ι, (e.1 ∈ G.edgeSet ↔ b e = true)}
+    fun b => {G | ∀ e : ι, (e.val ∈ G.edgeSet ↔ b e = true)}
   let A : Finset (ι → Bool) := univ.filter P
   have hpat (b : ι → Bool) : G(V, p).real (pat b) = (μ b).toReal := by
     rw [binomialRandom_real_edgePattern_of_injective p Subtype.val_injective
-      (fun e => hS e.1 e.2) b]
+      (fun e => hS e.val e.property) b]
     simp only [μ, Cslib.Probability.PMF.pi_apply, ENNReal.toReal_prod]
     exact Finset.prod_congr rfl fun e _ => (Cslib.Probability.PMF.coin_apply_toReal p (b e)).symm
   have hset : {G : SimpleGraph V | P (edgeIndicator S G)} = ⋃ b ∈ A, pat b := by
@@ -150,7 +150,7 @@ private theorem ncard_inter_edgeSet_eq_sum (S : Finset (Sym2 V)) (G : SimpleGrap
     simp
   rw [hcoe, Set.ncard_coe_finset, Finset.card_filter, Nat.cast_sum, ← Finset.sum_attach S]
   refine Finset.sum_congr rfl fun e _ => ?_
-  by_cases he : e.1 ∈ G.edgeSet
+  by_cases he : e.val ∈ G.edgeSet
   · simp [he, (edgeIndicator_eq_true_iff S G e).2 he]
   · have hne : edgeIndicator S G e ≠ true := fun h => he ((edgeIndicator_eq_true_iff S G e).1 h)
     simp [he, hne]
@@ -748,7 +748,7 @@ theorem binomialRandom_real_exists_large_nonNeighborhood_le [Fintype V]
     have hpow : (n.choose u : ℝ) ≤ (n : ℝ) ^ u := by exact_mod_cast hpow_nat
     calc (n.choose u : ℝ) ≤ (n : ℝ) ^ u := hpow
       _ = (Real.exp (Real.log n)) ^ u := by rw [Real.exp_log hn_pos]
-      _ = Real.exp ((u : ℝ) * Real.log n) := by rw [← Real.exp_nat_mul]
+      _ = Real.exp ((u : ℝ) * Real.log n) := by rw [← Real.exp_natCast_mul]
   have h2 : (n.choose t : ℝ) ≤ Real.exp ((t : ℝ) * Real.log (Real.exp 1 / δ)) := by
     have hdiv : Real.exp 1 * (n : ℝ) / (t : ℝ) ≤ Real.exp 1 / δ := by
       rw [div_le_div_iff₀ ht_pos hδ]
@@ -759,7 +759,7 @@ theorem binomialRandom_real_exists_large_nonNeighborhood_le [Fintype V]
           Nat.choose_le_exp_mul_div_pow n t
       _ ≤ (Real.exp 1 / δ) ^ t := pow_le_pow_left₀ (by positivity) hdiv t
       _ = (Real.exp (Real.log (Real.exp 1 / δ))) ^ t := by rw [Real.exp_log (by positivity)]
-      _ = Real.exp ((t : ℝ) * Real.log (Real.exp 1 / δ)) := by rw [← Real.exp_nat_mul]
+      _ = Real.exp ((t : ℝ) * Real.log (Real.exp 1 / δ)) := by rw [← Real.exp_natCast_mul]
   have h3 : (1 - (p : ℝ)) ^ (u * t) ≤ Real.exp (-((u : ℝ) * (t : ℝ) * (p : ℝ))) :=
     Real.one_sub_pow_le_exp (unitInterval.le_one p) (by push_cast; linarith)
   calc (n.choose u : ℝ) * (n.choose t : ℝ) * (1 - (p : ℝ)) ^ (u * t)
