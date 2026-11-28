@@ -193,11 +193,11 @@ theorem eval_eq_decide_pendingBias (p : Program signature n g) (x : Fin n → Bo
       (fun j : Fin gate.val => p.eval interpretation x ⟨j.val, by omega⟩) ⟨0, by omega⟩ =
       ∑ j ∈ univ.filter (· < gate), gateWeight p gate j * (p.eval interpretation x j).toNat := by
     rw [pendingBias]
-    refine sum_bij (fun (j : Fin gate.val) _ => (⟨j.val, lt_trans j.isLt gate.isLt⟩ : Fin g))
-      (fun j _ => mem_filter.mpr ⟨mem_univ _, j.isLt⟩)
-      (fun _ _ _ _ h => Fin.ext (by simpa only [Fin.mk.injEq] using h))
-      (fun b hb => ⟨⟨b.val, (mem_filter.mp hb).2⟩, mem_univ _, Fin.ext rfl⟩) fun j _ => ?_
+    rw [sum_subtype (p := fun j : Fin g => j.val < gate.val) _
+      (fun _ => by simp only [mem_filter, mem_univ, true_and]; rfl)]
+    refine Fintype.sum_equiv (Fin.castLEquiv gate.isLt.le) _ _ fun j => ?_
     rw [show (⟨gate.val + 0, by omega⟩ : Fin g) = gate from Fin.ext (Nat.add_zero gate.val)]
+    rfl
   rw [eval_gate_eq, gateThreshold, hfilter, hbij]
 
 /-- The layered pending-bias state evolution along the gates of `p` on input `x`. -/

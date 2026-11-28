@@ -116,14 +116,12 @@ theorem lookupCompletion_rawCubeDigit {L : ℕ} (π : Cube L) :
 private theorem count_rawCubeDigit {L : ℕ} (π : Cube L) (p : ℕ → Prop) [DecidablePred p] :
     Nat.count (fun i => p (rawCubeDigit π i)) L =
       (univ.filter fun k : Fin L => p (cubeDigit π k)).card := by
-  rw [Nat.count_eq_card_filter_range]
-  refine (card_bij (fun k _ => k.val)
-    (fun k hk => mem_filter.mpr ⟨mem_range.mpr k.isLt,
-      by simpa only [rawCubeDigit_fin] using (mem_filter.mp hk).2⟩)
-    (fun _ _ _ _ hh => Fin.ext hh) fun i hi => ?_).symm
-  obtain ⟨hiL, hp⟩ := mem_filter.mp hi
-  exact ⟨⟨i, mem_range.mp hiL⟩, mem_filter.mpr ⟨mem_univ _,
-    by simpa only [rawCubeDigit, dite_eq_left (mem_range.mp hiL)] using hp⟩, rfl⟩
+  rw [Nat.count_eq_card_filter_range, ← Nat.Iio_eq_range, ← Fin.map_valEmbedding_univ,
+    filter_map, card_map]
+  congr 1
+  ext k
+  simp only [mem_filter, mem_univ, true_and, Function.comp_apply, Fin.valEmbedding_apply,
+    rawCubeDigit_fin]
 
 /-- The native star counter reads the actual finite cube's star count. -/
 theorem count_rawCubeDigit_stars {L : ℕ} (π : Cube L) :

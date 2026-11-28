@@ -267,14 +267,7 @@ private theorem HalfspaceCombBias.nonneg {t : ℕ} {ι U : Type*} [Finite ι] [F
         ((Finset.univ.filter fun i : Fin (Nat.card ι) => i.val < Nat.card ι / 2) : Set _) := by
       ext i; simp
     rw [hsub, ncard_coe_finset]
-    have hcard : (Finset.univ.filter fun i : Fin (Nat.card ι) => i.val < Nat.card ι / 2).card =
-        (Finset.range (Nat.card ι / 2)).card := by
-      refine Finset.card_bij (fun i _ => i.val) (fun i hi => ?_)
-        (fun i₁ _ i₂ _ h => Fin.ext h) (fun m hm => ⟨⟨m, ?_⟩, ?_, rfl⟩)
-      · exact Finset.mem_range.mpr (Finset.mem_filter.mp hi).2
-      · exact (Finset.mem_range.mp hm).trans_le (Nat.div_le_self _ _)
-      · exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, Finset.mem_range.mp hm⟩
-    rw [hcard, Finset.card_range]
+    rw [Fin.card_filter_val_lt, min_eq_right (Nat.div_le_self _ _)]
   have hXc : Xᶜ.ncard = Nat.card ι - Nat.card ι / 2 := by
     have := ncard_add_ncard_compl X
     omega

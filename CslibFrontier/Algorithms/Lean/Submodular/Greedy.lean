@@ -12,6 +12,7 @@ public import CslibFrontier.Algorithms.Lean.Submodular.Basic
 public import Cslib.Foundations.Control.Monad.IsMonadHom
 public import Mathlib.Analysis.Complex.Exponential
 import CslibFrontier.Foundations.Data.List.EraseDups
+import Mathlib.Data.Fintype.Fin
 import Mathlib.Data.Nat.Cast.Order.Field
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -690,9 +691,7 @@ private theorem leftCount_leftPrefix {k t : ℕ} (ht : t ≤ k) :
       Finset.univ.filter (fun i : Fin k => i.val < t) := by
     ext i
     simp [mem_leftPrefix]
-  rw [hfilt, ← Finset.card_range t]
-  exact Finset.card_bij (fun i _ => i.val) (by simp) (fun _ _ _ _ => Fin.ext)
-    fun m hm => ⟨⟨m, (Finset.mem_range.mp hm).trans_le ht⟩, by simpa using hm, rfl⟩
+  rw [hfilt, Fin.card_filter_val_lt, min_eq_right ht]
 
 private theorem filter_tightCandidates_leftPrefix {k t : ℕ} (ht : t < k) :
     ∃ cs, (tightCandidates k).filter (· ∉ leftPrefix k t) = Sum.inl ⟨t, ht⟩ :: cs := by
