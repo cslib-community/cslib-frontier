@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Algorithms.Lean.Query.Select.MedianFive
 public import Cslib.Algorithms.Lean.Query.Sort.Merge.Defs
 
 /-!
@@ -33,7 +34,8 @@ requires.
 ## Main definitions
 
 * `Cslib.Query.groupMedian`: the lower median of a nonempty group, by sorting it.
-* `Cslib.Query.medians`: the lower medians of consecutive groups of five.
+* `Cslib.Query.medians`: the stable medians of full groups in six comparisons each, followed by
+  the lower median of a possible final short group.
 * `Cslib.Query.partition3`: split a list into the elements below, equivalent to, and above a
   pivot.
 * `Cslib.Query.selectCutoff`, `Cslib.Query.selectSideBound`: the base-case size and the bound on
@@ -63,12 +65,11 @@ at index `(length - 1) / 2`. -/
 /-- The lower medians of consecutive groups of five elements of `xs`; the last group may be
 shorter. -/
 @[expose] def medians : List α → FreeM (LEQuery α) (List α)
+  | a :: b :: c :: d :: e :: rest => do
+    let m ← medianFive ![a, b, c, d, e]
+    return m :: (← medians rest)
+  | x :: xs => do return [← groupMedian x xs]
   | [] => return []
-  | x :: xs => do
-    let m ← groupMedian x (xs.take 4)
-    let ms ← medians (xs.drop 4)
-    return m :: ms
-termination_by xs => xs.length
 
 /-- Split `xs` into the elements below, equivalent to, and above the pivot `p`, preserving their
 order. An element `x` is above `p` when `x ≤ p` fails, below `p` when `x ≤ p` holds and `p ≤ x`
@@ -85,8 +86,9 @@ fails, and equivalent otherwise; this takes at most two comparisons per element.
     else
       return (L, E, x :: G)
 
-/-- Lists of at most this many elements are sorted directly. It is the smallest cutoff for which
-the inductive accounting of `Cslib.Query.select_countQueries_le` closes with the constant `37`. -/
+/-- Lists of at most this many elements are sorted directly. Above this cutoff,
+grouping, partitioning
+and the two recursive calls together satisfy the linear comparison bound. -/
 abbrev selectCutoff : ℕ := 730
 
 /-- The bound on each side of the partition around the median of medians, for a list of `n`
