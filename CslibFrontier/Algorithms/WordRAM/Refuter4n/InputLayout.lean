@@ -45,13 +45,9 @@ gate-table builder of `SemiCircuit.ofCircuitBinary`: line `j` reads the literal 
 (`litCode`) of the earlier lines, absorbs the negations of its operands into its
 truth table, and is either a function of one operand (`unaryLit`) or the binary gate `n + j` with
 gate row `⟨tt, left, right⟩`. The arithmetic decoder that the program computes is private and is
-proved equal to the builder line by line (literal codes and gate rows) through the public interface
-of `SemiCircuit.OfCircuit`: the per-line literal and gate `lineBinaryLit`, `lineBinaryGate`, the
-wire literals (`programWireLit_input`, `programWireLit_gate`), the prefix and last-line lemmas
-(`programGateLit_gate_castSucc`, `programGateLit_gate_last`, `mem_programBinaryGates_gate_of_ne`,
-`mem_programBinaryGates_gate_last`, `programBinaryGate_gate_of_ne`, `programBinaryGate_gate_last`)
-and `ofCircuitBinary_gates`, `ofCircuitBinary_gate`, `ofCircuitBinary_out`. So the public
-statement is about `initialPacked C` itself.
+proved equal to the builder line by line (literal codes and gate rows) through the public
+prefix and last-line interface of `SemiCircuit.OfCircuit`, so the public statement is about
+`initialPacked C` itself.
 
 **Memory image** (`Layout`, `Stored`). From a base address, the parameter mask, auxiliary mask,
 gate mask, output literal and number of pairs, then `N` gate rows of three words, `E` equation
@@ -281,9 +277,9 @@ private theorem decodeLines_progWords : ∀ {g : ℕ} (p : Program (fullSignatur
       rw [Fin.val_castSucc]
       simp only [programGateLit_gate_castSucc, mem_programBinaryGates_gate_of_ne p line (hne j),
         programBinaryGate_gate_of_ne p line (hne j)]
-    · rw [lineOut_lineWords (programWireLit p) _ (programWireLit_input p) (fun k => by
+    · rw [lineOut_lineWords (programWireLit p) _ (programWireLit_wireInput p) (fun k => by
           rw [List.getD_eq_getElem _ _ (by simp), List.getElem_map, List.getElem_ofFn,
-            programWireLit_gate])]
+            programWireLit_wireGate])]
       simp only [Fin.val_last, programGateLit_gate_last, mem_programBinaryGates_gate_last,
         programBinaryGate_gate_last]
 
@@ -415,7 +411,7 @@ private theorem length_outs (C : Circuit (fullSignature 2 Bool) n 1) :
 
 private theorem code_lt (C : Circuit (fullSignature 2 Bool) n 1) {j : ℕ} (hj : j < C.size) :
     ((outs C).getD j ⟨0, none⟩).lit < 2 * nameBound C + 4 := by
-  rw [getD_outs C hj, ← programWireLit_gate]
+  rw [getD_outs C hj, ← programWireLit_wireGate]
   exact litCode_lt fun t ht => (reads_programWireLit C.program (.gate ⟨j, hj⟩) ht).2
 
 private theorem out_eq (C : Circuit (fullSignature 2 Bool) n 1) :
@@ -423,12 +419,12 @@ private theorem out_eq (C : Circuit (fullSignature 2 Bool) n 1) :
       wireLit n ((outs C).map DecodedLine.lit) ((C.outputs 0).toNat) := by
   change litCode (ofCircuitBinary C).out = _
   rw [ofCircuitBinary_out]
-  refine (wireLit_toNat (programWireLit C.program) _ (programWireLit_input _)
+  refine (wireLit_toNat (programWireLit C.program) _ (programWireLit_wireInput _)
     (fun k => ?_) _).symm
   rw [List.getD_eq_getElem _ _ (by simp [length_outs]), List.getElem_map]
   have := getD_outs C k.isLt
   rw [List.getD_eq_getElem _ _ (by simp [length_outs])] at this
-  rw [this, programWireLit_gate]
+  rw [this, programWireLit_wireGate]
 
 private theorem maskOf_gates (C : Circuit (fullSignature 2 Bool) n 1) :
     maskOf (initialState C).gates = ∑ j ∈ Finset.range C.size,
