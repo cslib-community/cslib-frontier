@@ -615,17 +615,7 @@ theorem card_le_of_graphShatters [Fintype β] {C : ConceptClass α β} {W : Fins
   obtain ⟨V, hVW, hVcard⟩ := exists_subset_card_eq (not_lt.mp hge)
   have hsum : 2 ^ (2 * s) ≤ natarajanSum (2 * s) k d := by
     simpa only [hVcard] using (hW.subset (coe_subset.mpr hVW)).two_pow_card_le_natarajanSum hd
-  have hchoose2 : k.choose 2 ≤ k ^ 2 := by
-    rw [Nat.choose_two_right, sq]
-    exact (Nat.div_le_self _ _).trans (Nat.mul_le_mul_left _ (Nat.sub_le _ _))
-  have hnatar :
-      natarajanSum (2 * s) k d ≤ (∑ i ∈ range (d + 1), (2 * s).choose i) * k ^ (2 * d) := by
-    calc natarajanSum (2 * s) k d
-        ≤ ∑ i ∈ range (d + 1), (2 * s).choose i * (k ^ 2) ^ d :=
-          sum_le_sum fun i hi => Nat.mul_le_mul_left _ <|
-            (Nat.pow_le_pow_left hchoose2 i).trans
-              (Nat.pow_le_pow_right (by positivity) (Nat.lt_succ_iff.mp (mem_range.mp hi)))
-      _ = _ := by rw [← sum_mul, ← pow_mul]
+  have hnatar := natarajanSum_le_sum_choose_mul (2 * s) d hkpos
   have hmul3 : 2 ^ (2 * s) * 3 ^ (2 * s) ≤ 3 ^ d * 4 ^ (2 * s) * k ^ (2 * d) := by
     calc 2 ^ (2 * s) * 3 ^ (2 * s)
         ≤ (∑ i ∈ range (d + 1), (2 * s).choose i) * 3 ^ (2 * s) * k ^ (2 * d) := by

@@ -115,8 +115,8 @@ theorem certificate_bound (k C D d : ℕ) :
   obtain ⟨hT, hS⟩ := hK₁ (r, G)
     (2 ^ (K₀ * G.numEdges / Nat.sqrt (Nat.log 2 G.numEdges))) Nat.one_le_two_pow ht hs'
   have hpoly : K₁ * ((encInput (r, G)).length + 1) ^ K₁ ≤
-      (K₀ + K₁) * ((encInput (r, G)).length + 1) ^ (K₀ + K₁) :=
-    Nat.mul_le_mul (by omega) (Nat.pow_le_pow_right (by omega) (by omega))
+      (K₀ + K₁) * ((encInput (r, G)).length + 1) ^ (K₀ + K₁) := by
+    gcongr <;> omega
   have hpow : 2 ^ (K₀ * G.numEdges / Nat.sqrt (Nat.log 2 G.numEdges)) ≤
       2 ^ ((K₀ + K₁) * G.numEdges / Nat.sqrt (Nat.log 2 G.numEdges)) :=
     Nat.pow_le_pow_right (by norm_num)

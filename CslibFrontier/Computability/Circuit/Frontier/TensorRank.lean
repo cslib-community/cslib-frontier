@@ -320,8 +320,7 @@ private theorem exists_threeTensorHard_eventually (K : Type*) [Field K] {U : Typ
   set M := 3 * r * q ^ (n / 3 + 2)
   have hlhs_le : 3 ^ n * (3 * q ^ n + 1) ^ M ≤ 2 ^ (2 * n + q * (n + 2) * M) := by
     calc 3 ^ n * (3 * q ^ n + 1) ^ M
-        ≤ 2 ^ (2 * n) * (2 ^ (q * (n + 2))) ^ M :=
-          Nat.mul_le_mul h3_pow (Nat.pow_le_pow_left hbase_le M)
+        ≤ 2 ^ (2 * n) * (2 ^ (q * (n + 2))) ^ M := by gcongr
       _ = 2 ^ (2 * n + q * (n + 2) * M) := by rw [← pow_mul, ← pow_add]
   refine hlhs_le.trans_lt (Nat.pow_lt_pow_right (by norm_num : 1 < 2) ?_)
   -- Show `2 * n + q * (n + 2) * M < q ^ n` in `ℝ`.

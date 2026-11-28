@@ -520,7 +520,7 @@ theorem choose_pow_four_le_mul_orComplexity_compl_sergeevComplementMatrix_pow_th
       norm_num [Nat.choose] at hbound
       omega
     calc ((3 ^ 3).choose 2) ^ 4 ≤ 2 ^ 23 * 32 ^ 3 := by decide
-      _ ≤ 2 ^ 23 * B_wt ^ 3 := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hge32 3)
+      _ ≤ 2 ^ 23 * B_wt ^ 3 := by gcongr
   · have hp5 : p ≠ 5 := by omega
     have hp_ge7 : 7 ≤ p := by
       by_contra hlt

@@ -88,8 +88,7 @@ private theorem positive_budget {n k r l t q : ℕ} (hr : 2 ≤ r) (hlk : l ≤ 
         ≤ ∑ _j ∈ Icc (l / 2 + 1) l, n.choose k := sum_le_sum fun j hj => by
           obtain ⟨hj₁, hj₂⟩ := mem_Icc.1 hj
           calc q ^ (l / 2 + 1) * ((r - 1) ^ j * (n - j).choose (k - j))
-              ≤ q ^ j * ((r - 1) ^ j * (n - j).choose (k - j)) :=
-                Nat.mul_le_mul_right _ (Nat.pow_le_pow_right hq hj₁)
+              ≤ q ^ j * ((r - 1) ^ j * (n - j).choose (k - j)) := by gcongr
             _ = (q * (r - 1)) ^ j * (n - j).choose (k - j) := by rw [mul_pow]; ring
             _ ≤ n.choose k := Nat.pow_mul_choose_sub_le_choose hq' (hj₂.trans hlk) hn
       _ ≤ l * n.choose k := by
@@ -115,7 +114,7 @@ private theorem negative_budget {n g r l t : ℕ} (hl : 1 ≤ l) (hg : 2 * l ^ 2
         simp only [Negative.errorCap, Monotone.Negative.pluckErrorCap]; ring
     _ < 2 ^ r * ((l ^ 2) ^ r * g ^ (n - r)) := Nat.mul_lt_mul_of_pos_right ht (by positivity)
     _ = (2 * l ^ 2) ^ r * g ^ (n - r) := by rw [mul_pow]; ring
-    _ ≤ g ^ r * g ^ (n - r) := Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hg r)
+    _ ≤ g ^ r * g ^ (n - r) := by gcongr
     _ = g ^ n := by rw [← pow_add, Nat.add_sub_cancel' hrn]
 
 /-- `2 l 2 ^ l < 8 ^ (l / 2 + 1)`. -/

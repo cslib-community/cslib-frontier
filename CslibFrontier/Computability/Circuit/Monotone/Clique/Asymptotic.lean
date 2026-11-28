@@ -84,6 +84,14 @@ private theorem sunflower_bound_le (w : ℕ) :
     _ = w ^ (3 * w) := by rw [← pow_mul, ← pow_add]; ring_nf
     _ ≤ (w + 1) * w ^ (3 * w) := Nat.le_mul_of_pos_left _ (Nat.succ_pos w)
 
+private theorem sunflowerBound_sq_mul_sixtyFour_pow_le (w : ℕ) :
+    sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w ≤ (w + 1) ^ 2 * (64 * w ^ 6) ^ w := by
+  have := sunflower_bound_le w
+  calc sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w
+      ≤ ((w + 1) * w ^ (3 * w)) ^ 2 * 64 ^ w := by gcongr
+    _ = (w + 1) ^ 2 * (64 * w ^ 6) ^ w := by
+      rw [mul_pow, mul_pow, ← pow_mul, ← pow_mul, Nat.mul_right_comm 3 w 2]; ring
+
 /-- A sixth power is eventually dominated by `4^w`. -/
 private theorem mul_pow_six_le_four_pow
     (w : Nat)
@@ -124,10 +132,7 @@ private theorem sunflowerBound_sq_mul_sixtyFour_pow_lt (w : Nat) (one_le : 1 ≤
         _ ≤ 4 * w ^ 6 := Nat.mul_le_mul_left 4 (Nat.pow_le_pow_right one_le (by decide))
     omega
   calc sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w
-      ≤ ((w + 1) * w ^ (3 * w)) ^ 2 * 64 ^ w :=
-        Nat.mul_le_mul_right _ (Nat.pow_le_pow_left (sunflower_bound_le w) 2)
-    _ = (w + 1) ^ 2 * ratio ^ w := by
-        simp only [ratio, mul_pow, ← pow_mul, Nat.mul_right_comm 3 w 2]; ring
+      ≤ (w + 1) ^ 2 * ratio ^ w := sunflowerBound_sq_mul_sixtyFour_pow_le w
     _ < ratio * ratio ^ w :=
         Nat.mul_lt_mul_of_pos_right successorSmall (pow_pos ratioPositive w)
     _ = ratio ^ (w + 1) := by ring
@@ -160,10 +165,9 @@ private theorem positive_budget
 private theorem six_mul_sunflowerBound_sq_mul_sixtyFour_pow_lt (w : Nat) (sixteen_le : 16 ≤ w) :
     6 * sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w < 4 ^ (w ^ 2) := by
   calc 6 * sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w
-      ≤ 6 * ((w + 1) * w ^ (3 * w)) ^ 2 * 64 ^ w := Nat.mul_le_mul_right _
-          (Nat.mul_le_mul_left 6 (Nat.pow_le_pow_left (sunflower_bound_le w) 2))
-    _ = 6 * (w + 1) ^ 2 * (64 * w ^ 6) ^ w := by
-        rw [mul_pow, mul_pow, ← pow_mul, ← pow_mul, Nat.mul_right_comm 3 w 2]; ring
+      ≤ 6 * (w + 1) ^ 2 * (64 * w ^ 6) ^ w := by
+        simpa only [← mul_assoc] using
+          Nat.mul_le_mul_left 6 (sunflowerBound_sq_mul_sixtyFour_pow_le w)
     _ < 2 ^ w * (64 * w ^ 6) ^ w :=
         Nat.mul_lt_mul_of_pos_right (six_mul_succ_sq_lt_two_pow w sixteen_le)
           (pow_pos (by positivity) w)

@@ -556,7 +556,7 @@ theorem sum_extensions_formulaSize_sub_sq_le (f : BooleanFunction n)
           Option.ne_none_iff_exists'.1 fun h => hi (PartialAssignment.mem_free.2 h)
         rw [hc, hext i c hc]
     rw [hexts, sum_singleton, card_singleton, mul_one, one_pow, mul_one]
-    exact Nat.mul_le_mul_right (s ^ 3) (Nat.pow_le_pow_left (Nat.sub_le L₀ s) 2)
+    gcongr; omega
   | succ d ih =>
     set t := k + 1
     have hih := ih (k := t) (by omega) (by omega) (by omega)
