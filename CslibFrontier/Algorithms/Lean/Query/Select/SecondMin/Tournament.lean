@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.Query.Select.MinMax.Basic
-public import CslibFrontier.Foundations.Data.List.OrderStatistic
+public import CslibFrontier.Algorithms.Lean.Query.Select.SecondMin.Spec
 public import Mathlib.Data.Nat.Log
 
 /-!
@@ -21,7 +21,9 @@ opponents therefore selects rank one, counting repetitions, even when the minimu
 
 The knockout uses exactly `n - 1` comparisons and the champion plays at most `Nat.clog 2 n`
 matches. With the final minimum scan, the algorithm uses at most `n + Nat.clog 2 n - 2`
-comparisons under every oracle, including for unbalanced final levels.
+comparisons under every oracle, including for unbalanced final levels. This is the construction
+of [Schreier][Schreier1932], preliminary remark 2, equation (1), p. 156, with the order reversed
+to select the second smallest. The correctness proof also covers total preorders with ties.
 -/
 
 public section
@@ -200,6 +202,10 @@ theorem findSecondMin_correct (r : α → α → Prop) [DecidableRel r] [Std.Tot
       List.countP_pos_iff.mpr ⟨y, hyr, by simp [hleast y hyr]⟩
     simp only [ha y hyr, decide_true, ↓reduceIte]
     omega
+
+/-- The tournament meets the distinct-key specification assumed by comparison lower bounds. -/
+theorem findSecondMin_isSecondMinAlg : IsSecondMinAlg (findSecondMin (α := α)) where
+  correct r _ _ oracle ho _xs _hnodup hlen := findSecondMin_correct r oracle ho hlen
 
 /-- Lists shorter than two have no second element under any oracle. -/
 theorem eval_findSecondMin_eq_none (oracle : {ι : Type} → LEQuery α ι → ι)
