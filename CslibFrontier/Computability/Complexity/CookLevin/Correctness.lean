@@ -12,10 +12,13 @@ public import CslibFrontier.Computability.Complexity.CookLevin.Tableau
 /-!
 # Correctness of the Cook–Levin tableau
 
-`tableau tm u L T` is satisfiable exactly when some certificate `w` of length `L` makes `tm`,
-started on `u ++ w`, halt within `T` steps with output `[true]`. More precisely, for a fixed
-certificate `z`, it has a satisfying assignment encoding `z` exactly when `tm`, started on
-`u ++ z`, has halted after `T` steps with output `[true]` (`exists_eval_tableau_iff`).
+`runTableau tm u L T` is `tableau tm u L T` without its acceptance clauses: its satisfying
+assignments describe the runs (`agrees_of_eval_runTableau`) and the assignment read off any run
+satisfies it (`eval_runTableau_runAssignment`). `tableau tm u L T` is satisfiable exactly when
+some certificate `w` of length `L` makes `tm`, started on `u ++ w`, halt within `T` steps with
+output `[true]`. More precisely, for a fixed certificate `z`, it has a satisfying assignment
+encoding `z` exactly when `tm`, started on `u ++ z`, has halted after `T` steps with
+output `[true]` (`exists_eval_tableau_iff`).
 
 Each family of clauses is first characterised semantically (`eval_initClauses`,
 `eval_readClauses`, `eval_stepClauses`, …). The uniqueness clauses (`eval_uniqueClauses`) are not
@@ -33,6 +36,10 @@ step equation.
 
 ## Main results
 
+* `Cslib.Complexity.CookLevin.agrees_of_eval_runTableau`: a satisfying assignment of the run
+  tableau describes the run.
+* `Cslib.Complexity.CookLevin.eval_runTableau_runAssignment`: the assignment read off a run
+  satisfies the run tableau.
 * `Cslib.Complexity.CookLevin.exists_eval_tableau_iff`: the tableau with fixed certificate bits.
 * `Cslib.Complexity.CookLevin.tableau_satisfiable_iff`: the tableau is correct.
 
@@ -183,6 +190,15 @@ private theorem eval_oneHotClauses (t : ℕ) :
       ∀ g ∈ groups (u.length + L) T, (CNF.exactlyOne (g.map (.holds t))).eval σ = true :=
   CNF.eval_flatMap_eq_true_iff ..
 
+/-- The run tableau holds when each of its families does, at each time. -/
+theorem eval_runTableau :
+    (runTableau tm u L T).eval σ = true ↔
+      (initClauses tm T).eval σ = true ∧ (∀ t ≤ T, (oneHotClauses u L T t).eval σ = true) ∧
+        ∀ t < T, (readClauses u L T t).eval σ = true ∧ (sitClauses t).eval σ = true ∧
+          (uniqueClauses t).eval σ = true ∧ (stepClauses tm u L T t).eval σ = true := by
+  simp only [runTableau, CNF.eval_append, Bool.and_eq_true, CNF.eval_flatMap_eq_true_iff,
+    List.mem_range, Nat.lt_succ_iff, and_assoc]
+
 /-- The tableau holds when each of its families does, at each time. -/
 theorem eval_tableau :
     (tableau tm u L T).eval σ = true ↔
@@ -190,8 +206,8 @@ theorem eval_tableau :
         (∀ t < T, (readClauses u L T t).eval σ = true ∧ (sitClauses t).eval σ = true ∧
           (uniqueClauses t).eval σ = true ∧ (stepClauses tm u L T t).eval σ = true) ∧
         (acceptClauses T).eval σ = true := by
-  simp only [tableau, CNF.eval_append, Bool.and_eq_true, CNF.eval_flatMap_eq_true_iff,
-    List.mem_range, Nat.lt_succ_iff, and_assoc]
+  rw [tableau, CNF.eval_append, Bool.and_eq_true, eval_runTableau]
+  simp only [and_assoc]
 
 /-! ### Soundness -/
 
@@ -226,10 +242,11 @@ private theorem Agrees.step {cfg : Cfg k Bool State (u ++ certWord σ L)} {t : �
   · exact Bool.eq_iff_iff.2 ((hA _ hlb).trans (hct l hl))
   · exact hA.sit hb hread hsit ((hct _ hl).2 rfl)
 
-/-- A satisfying assignment describes the run on the certificate it encodes, up to time `T`. -/
-theorem agrees_of_eval_tableau (h : (tableau tm u L T).eval σ = true) :
+/-- A satisfying assignment of the run tableau describes the run on the certificate it encodes,
+up to time `T`. -/
+theorem agrees_of_eval_runTableau (h : (runTableau tm u L T).eval σ = true) :
     ∀ t ≤ T, Agrees σ (u.length + L) T t (tm.runFrom (tm.initCfg (u ++ certWord σ L)) t) := by
-  obtain ⟨hinit, hone, hsteps, -⟩ := eval_tableau.1 h
+  obtain ⟨hinit, hone, hsteps⟩ := eval_runTableau.1 h
   have hb (t : ℕ) (ht : t ≤ T) (i : Fin k) :
       |(tm.runFrom (tm.initCfg (u ++ certWord σ L)) t).workTapePos i| ≤ T :=
     (abs_workTapePos_runFrom_le _ t i).trans (by exact_mod_cast ht)
@@ -248,6 +265,12 @@ theorem agrees_of_eval_tableau (h : (tableau tm u L T).eval σ = true) :
     have hb' := hb (t + 1) ht
     rw [runFrom_succ] at hb' ⊢
     exact (ih (by omega)).step (hb t (by omega)) hb' hread hsit hstep (hone (t + 1) ht)
+
+/-- A satisfying assignment describes the run on the certificate it encodes, up to time `T`. -/
+theorem agrees_of_eval_tableau (h : (tableau tm u L T).eval σ = true) :
+    ∀ t ≤ T, Agrees σ (u.length + L) T t (tm.runFrom (tm.initCfg (u ++ certWord σ L)) t) := by
+  rw [tableau, CNF.eval_append, Bool.and_eq_true] at h
+  exact agrees_of_eval_runTableau h.1
 
 end Soundness
 
@@ -276,16 +299,14 @@ private theorem certWord_runAssignment {w : List Bool} (hw : w.length = L) :
 
 variable [Fintype State]
 
-/-- The assignment read off an accepting run satisfies the tableau. -/
-theorem eval_tableau_runAssignment {w : List Bool} (hw : w.length = L)
-    (hhalt : (tm.runFrom (tm.initCfg (u ++ w)) T).state = none)
-    (hout : (tm.runFrom (tm.initCfg (u ++ w)) T).output = [true]) :
-    (tableau tm u L T).eval (runAssignment tm u w) = true := by
+/-- The assignment read off the run on `u ++ w` satisfies the run tableau. -/
+theorem eval_runTableau_runAssignment {w : List Bool} (hw : w.length = L) :
+    (runTableau tm u L T).eval (runAssignment tm u w) = true := by
   have hlen : (u ++ w).length = u.length + L := by simp [hw]
   have hb (t : ℕ) (ht : t ≤ T) (i : Fin k) :
       |(tm.runFrom (tm.initCfg (u ++ w)) t).workTapePos i| ≤ T :=
     (abs_workTapePos_runFrom_le _ t i).trans (by exact_mod_cast ht)
-  refine eval_tableau.2 ⟨?_, fun t ht => ?_, fun t ht => ⟨?_, ?_, ?_, ?_⟩, ?_⟩
+  refine eval_runTableau.2 ⟨?_, fun t ht => ?_, fun t ht => ⟨?_, ?_, ?_, ?_⟩⟩
   · refine eval_initClauses.2 ⟨?_, ?_, ?_, fun i => ⟨?_, fun z _ => ?_⟩⟩ <;>
       simp [runFrom, OutView.ofList]
   · refine (eval_oneHotClauses t).2 fun g hg => ?_
@@ -313,8 +334,15 @@ theorem eval_tableau_runAssignment {w : List Bool} (hw : w.length = L)
     rw [runAssignment_holds, runFrom_succ]
     exact (holds_step_iff_exists_stepTerms tm hlen (hb t ht.le) hφ).2
       ⟨c, hc, fun l hl => by rw [← hall l hl, runAssignment_holds]⟩
-  · exact eval_acceptClauses.2 ⟨runAssignment_holds.2 hhalt,
-      runAssignment_holds.2 (by rw [holds_out, hout]; rfl)⟩
+
+/-- The assignment read off an accepting run satisfies the tableau. -/
+theorem eval_tableau_runAssignment {w : List Bool} (hw : w.length = L)
+    (hhalt : (tm.runFrom (tm.initCfg (u ++ w)) T).state = none)
+    (hout : (tm.runFrom (tm.initCfg (u ++ w)) T).output = [true]) :
+    (tableau tm u L T).eval (runAssignment tm u w) = true := by
+  rw [tableau, CNF.eval_append, Bool.and_eq_true]
+  exact ⟨eval_runTableau_runAssignment hw, eval_acceptClauses.2 ⟨runAssignment_holds.2 hhalt,
+    runAssignment_holds.2 (by rw [holds_out, hout]; rfl)⟩⟩
 
 /-- **The tableau with fixed certificate bits.** `tableau tm u z.length T` has a satisfying
 assignment whose certificate is `z` exactly when `tm`, started on `u ++ z`, has halted after `T`

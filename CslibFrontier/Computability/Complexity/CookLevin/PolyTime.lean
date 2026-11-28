@@ -24,6 +24,8 @@ machine and polynomial work for every encoded instance.
 
 ## Main results
 
+* `Cslib.Complexity.CookLevin.computableInPolyTime_runTableau`: the tableau without acceptance
+  clauses.
 * `Cslib.Complexity.CookLevin.computableInPolyTime_tableau`: the entire original tableau.
 * `Cslib.Complexity.CookLevin.computableInPolyTime_reduce`: the complete SAT reduction.
 
@@ -40,18 +42,26 @@ open Turing Turing.MultiTapeTM
 
 variable {k : ℕ} {State : Type} [Fintype State] [DecidableEq State]
 
+/-- Construct the run tableau (the tableau without acceptance clauses) from its prefix and unary
+certificate/time bounds. -/
+@[fun_prop]
+theorem computableInPolyTime_runTableau (tm : MultiTapeTM k Bool State) :
+    ComputableInPolyTime (fun q : List Bool × ℕ × ℕ => runTableau tm q.1 q.2.1 q.2.2)
+      (encPair encBits (encPair encUnary encUnary)) (Cslib.Logic.PL.encCNFOver encVar) := by
+  unfold runTableau
+  refine ((by fun_prop : ComputableInPolyTime _ _ _).listAppend' ?_).listAppend' ?_
+  · exact .flatMapWithInput (by fun_prop) (by fun_prop)
+  · refine .flatMapWithInput (by fun_prop) ?_
+    exact (((by fun_prop : ComputableInPolyTime _ _ _).listAppend' (by fun_prop)).listAppend'
+      (by fun_prop)).listAppend' (by fun_prop)
+
 /-- Construct the whole tableau from its prefix and unary certificate/time bounds. -/
 @[fun_prop]
 theorem computableInPolyTime_tableau (tm : MultiTapeTM k Bool State) :
     ComputableInPolyTime (fun q : List Bool × ℕ × ℕ => tableau tm q.1 q.2.1 q.2.2)
       (encPair encBits (encPair encUnary encUnary)) (Cslib.Logic.PL.encCNFOver encVar) := by
   unfold tableau
-  refine (((by fun_prop : ComputableInPolyTime _ _ _).listAppend' ?_).listAppend' ?_).listAppend'
-    (by fun_prop)
-  · exact .flatMapWithInput (by fun_prop) (by fun_prop)
-  · refine .flatMapWithInput (by fun_prop) ?_
-    exact (((by fun_prop : ComputableInPolyTime _ _ _).listAppend' (by fun_prop)).listAppend'
-      (by fun_prop)).listAppend' (by fun_prop)
+  exact (computableInPolyTime_runTableau tm).listAppend' (by fun_prop)
 
 /-- The existing Cook–Levin reduction is polynomial-time for every fixed verifier and bounds. -/
 @[fun_prop]
