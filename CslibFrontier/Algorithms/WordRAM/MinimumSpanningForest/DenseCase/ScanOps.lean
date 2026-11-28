@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MinimumSpanningForest.DenseCase.Layout
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Computability.WordRAM.Realization.LoopFrame
 import CslibFrontier.Foundations.Data.List.Subperm
 import CslibFrontier.Tactic.Fits
@@ -88,15 +89,10 @@ private theorem computeThresh_realize_iterSafe {w : ℕ} {d : ℕ × ℕ} {steps
     iterationSafe (fun x : ((ℕ × ℕ) × ℕ) × ℕ => threshStep (x.1.1.1, x.2))
       (fun w x s => threshStepSafe w (x.1.1.1, x.2) s) w (d, steps)
       (if d.1 < steps then d.1 else steps) 1 s := by
-  refine iterationSafe_of_stepInv _ _ w (d, steps)
-    (fun _ k t => k ≤ d.1 ∧ t = s) ?_ ⟨h.2.2, rfl⟩
-  intro _ k t ⟨hk, ht⟩
-  refine ⟨⟨h.2.1, hk, h.2.2⟩, ?_⟩
-  dsimp only [threshStep]
-  rw [prog_clientResult_ite, prog_clientState_ite]
-  split_ifs <;> simp only [StateTransitionSpec.clientResult_pure]
-  · exact ⟨le_rfl, ht⟩
-  · exact ⟨by omega, ht⟩
+  refine (FramedTriple.iterate (s := s) (c := 0) (S := ∅) (Q := fun _ _ => True)
+    (fun _ k _ => k ≤ d.1) h.2.2 (fun _ _ k _ hk _ => ⟨⟨h.2.1, hk, h.2.2⟩, ?_⟩)
+    fun _ _ _ _ => trivial).1
+  unfold threshStep; framed_triple
 
 /-- Uniform exact-basis realization of `computeThreshProg` with `work ≤ (2 * mRef) / n + 2`. -/
 theorem realizes_computeThreshProg : Realizes .exact
@@ -136,49 +132,26 @@ theorem computeThreshProg_spec {w n mRef : ℕ} {s : Memory.State}
     memoryCost prog s = 0 := by
   let sh := (2 * mRef) / n
   let steps := if n < sh then n else sh
-  have hsafe : computeThreshProgSafe w (n, mRef) s := ⟨hmRef, h2n, hn1⟩
-  have hsteps_eq : steps = min n sh := by dsimp only [steps]; split_ifs <;> omega
-  let inv (k a : ℕ) (t : Memory.State) : Prop := t = s ∧ a = min n (2 ^ k)
-  have hiter := iterate_potential_spec threshStep threshStepSafe w n 0 steps inv
-    (fun _ _ _ => 0) ∅ (fun k _ a t ⟨ht, ha⟩ => by
-      have hs : threshStepSafe w (n, a) t := ⟨h2n, by rw [ha]; exact min_le_left _ _, hn1⟩
-      have hv : (Memory.spec w).ValidHistory t
-          ((Memory.spec w).clientHistory t (threshStep (n, a))) := by
-        dsimp only [threshStep]; split_ifs <;> exact validHistory_pure w _ _
-      have hc : memoryCost (threshStep (n, a)) t ≤ 0 := by
-        dsimp only [threshStep]; split_ifs <;> simp only [memoryCost_pure, le_rfl]
-      have hst : (Memory.spec 0).clientState t (threshStep (n, a)) = t := by
-        dsimp only [threshStep]; rw [prog_clientState_ite]; split_ifs <;> rfl
-      have hres : (Memory.spec 0).clientResult t (threshStep (n, a)) = min n (2 ^ (k + 1)) := by
-        dsimp only [threshStep]
-        rw [prog_clientResult_ite, StateTransitionSpec.clientResult_pure,
-          StateTransitionSpec.clientResult_pure, ha, Nat.pow_succ']
-        by_cases hk : 2 ^ k ≤ n
-        · rw [min_eq_right hk]; split_ifs <;> omega
-        · have : n ≤ 2 ^ k := by omega
-          rw [min_eq_left this]; split_ifs <;> omega
-      refine ⟨hs, hv, by omega, by rw [hst]; exact Memory.Modifies.refl _ _,
-        by rw [hst, hres]; exact ⟨ht, rfl⟩⟩)
-    1 s ⟨rfl, by simp [min_eq_right hn1]⟩
-  rcases hiter with ⟨_, hv, hc, _, hst_eq, hres_eq⟩
   have hprog_eq : computeThreshProg n mRef = iterate threshStep n steps 1 := by
     dsimp only [computeThreshProg, steps, sh]; split_ifs <;> rfl
   have hmin_eq : min n (2 ^ steps) = min n (2 ^ sh) := by
-    rw [hsteps_eq]
     by_cases hns : n ≤ sh
-    · rw [min_eq_left hns]
-      have h1 : n ≤ 2 ^ n := Nat.lt_two_pow_self.le
-      rw [min_eq_left h1, min_eq_left (h1.trans (Nat.pow_le_pow_right Nat.two_pos hns))]
-    · rw [min_eq_right (by omega : sh ≤ n)]
-  have hres_final :
-      (Memory.spec 0).clientResult s (computeThreshProg n mRef) = min n (2 ^ sh) := by
-    rw [hprog_eq, hres_eq, hmin_eq]
-  refine ⟨hsafe, ?_, ?_, hres_final, ?_, ?_, ?_⟩
-  · rw [hprog_eq]; exact hv
-  · rw [hprog_eq]; exact hst_eq
-  · rw [hres_final]; exact le_min hn1 Nat.one_le_two_pow
-  · rw [hres_final]; exact min_le_left _ _
-  · rw [hprog_eq]; omega
+    · have h1 : n ≤ 2 ^ n := Nat.lt_two_pow_self.le
+      have h2 := h1.trans (Nat.pow_le_pow_right Nat.two_pos hns)
+      dsimp only [steps]; split_ifs <;> omega
+    · dsimp only [steps]; split_ifs <;> omega
+  obtain ⟨-, hft⟩ := FramedTriple.iterate (w := w) (s := s) (c := 0) (S := ∅) (body := threshStep)
+    (safe := threshStepSafe) (d := n) (n := steps) (a₀ := 1)
+    (Q := fun a t => a = min n (2 ^ sh) ∧ t = s) (fun k a t => a = min n (2 ^ k) ∧ t = s)
+    ⟨by simp [min_eq_right hn1], rfl⟩ (fun k _ a t ⟨ha, ht⟩ _ =>
+      ⟨⟨h2n, by rw [ha]; exact min_le_left _ _, hn1⟩, by
+        subst ha; unfold threshStep
+        framed_triple <;> refine ⟨?_, ht⟩ <;> rw [Nat.pow_succ'] <;> omega⟩)
+    fun _ _ h _ => ⟨h.1.trans hmin_eq, h.2⟩
+  obtain ⟨hv, hc, -, hres, hst⟩ := framedTriple_iff_realization.mp hft
+  rw [hprog_eq]
+  exact ⟨⟨hmRef, h2n, hn1⟩, hv, hst, hres, hres ▸ le_min hn1 Nat.one_le_two_pow,
+    hres ▸ min_le_left _ _, by omega⟩
 
 
 /-! ## Private Inner Sub-Programs and Word-Encoded Arguments -/
@@ -468,6 +441,10 @@ private theorem ftRelaxUpdate_spec {w K : ℕ} {ctx : FTCtx} {y eIdx ew touchedL
   generalize h_cur : (Memory.spec 0).clientResult s (getKeyProg ctx.n ctx.fhBase y) = cur at hgk
   generalize h_s1 : (Memory.spec 0).clientState s (getKeyProg ctx.n ctx.fhBase y) = s₁ at hgk
   rcases hgk with ⟨hv_gk, hinv₁, hs1_eq, hcur_eq, hc_gk⟩
+  have hft_gk := FramedTriple.of_realization (S := Set.univ) hv_gk (by rw [h_s1, hs1_eq])
+    fun _ _ => trivial
+  rw [h_cur, h_s1] at hft_gk
+  have hfr₁ : s₁.frontier = s.frontier := by rw [hs1_eq]
   have hew_fit : Fits w ew := hK.of_le hew
   have heIdx_fit : Fits w eIdx := hm.of_le heIdx.le
   have hy_fit : Fits w y := hn.of_le hy.le
@@ -488,19 +465,6 @@ private theorem ftRelaxUpdate_spec {w K : ℕ} {ctx : FTCtx} {y eIdx ew touchedL
   have hsafe : ftRelaxUpdateSafe w ⟨ctx, y, eIdx, ew, touchedLen⟩ s := by
     refine ⟨h16, hfit_fh, hm, hfit_aux, hew_fit, hy, heIdx, htl, haux_fr, hdisj, ?_⟩
     rw [h_cur, h_s1]; exact hsafe_dec
-  have hprog_eq : ftRelaxUpdate ⟨ctx, y, eIdx, ew, touchedLen⟩ =
-      (getKeyProg ctx.n ctx.fhBase y >>= fun cur => match cur with
-        | none => do
-          Memory.write (ctx.auxBase + ctx.n + y) eIdx
-          Memory.write (ctx.auxBase + 4 * ctx.n + touchedLen) y
-          insertProg ctx.n ctx.fhBase y ew
-          pure (touchedLen + 1)
-        | some oldW =>
-          if ew < oldW then do
-            Memory.write (ctx.auxBase + ctx.n + y) eIdx
-            decreaseKeyProg ctx.n ctx.fhBase y ew
-            pure touchedLen
-          else pure touchedLen) := rfl
   have hbest_other_of : ∀ (m : ℕ → ℕ),
       (∀ a, a ∉ footprint ctx.n ctx.fhBase →
         a ≠ ctx.auxBase + ctx.n + y → a ≠ ctx.auxBase + 4 * ctx.n + touchedLen →
@@ -541,33 +505,20 @@ private theorem ftRelaxUpdate_spec {w K : ℕ} {ctx : FTCtx} {y eIdx ew touchedL
     generalize h_s4 :
         (Memory.spec 0).clientState s₃ (insertProg ctx.n ctx.fhBase y ew) = s₄ at hins
     rcases hins with ⟨hv_ins, hinv₄, hfr₄, hwf₄, hmod₄, habs₄, hc_ins⟩
-    have hv_all : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (ftRelaxUpdate ⟨ctx, y, eIdx, ew, touchedLen⟩)) := by
-      rw [hprog_eq]
-      refine validHistory_bind_step hv_gk ?_
-      rw [h_cur, h_s1, hcur_cases]
-      refine validHistory_write_bind (by rw [hs1_eq]; omega) heIdx_fit ?_
-      refine validHistory_write_bind (by dsimp only [s₂]; rw [hs1_eq]; omega) hy_fit ?_
-      exact validHistory_bind_step hv_ins (validHistory_pure w _ _)
-    have hst_all : (Memory.spec 0).clientState s
-        (ftRelaxUpdate ⟨ctx, y, eIdx, ew, touchedLen⟩) = s₄ := by
-      rw [hprog_eq, StateTransitionSpec.clientState_bind, h_cur, h_s1, hcur_cases,
-        StateTransitionSpec.clientState_bind, clientState_write,
-        StateTransitionSpec.clientState_bind, clientState_write,
-        StateTransitionSpec.clientState_bind, h_s4, StateTransitionSpec.clientState_pure]
-    have hres_all : (Memory.spec 0).clientResult s
-        (ftRelaxUpdate ⟨ctx, y, eIdx, ew, touchedLen⟩) = touchedLen + 1 := by
-      rw [hprog_eq, StateTransitionSpec.clientResult_bind, h_cur, h_s1, hcur_cases]
-      simp only [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
-    have hcost_all : memoryCost (ftRelaxUpdate ⟨ctx, y, eIdx, ew, touchedLen⟩) s ≤
-        2 + 2 + memoryCost (insertProg ctx.n ctx.fhBase y ew) s₃ := by
-      rw [hprog_eq, memoryCost_bind', h_cur, h_s1, hcur_cases]
-      dsimp only
-      rw [memoryCost_bind', memoryCost_write, clientState_write,
-        memoryCost_bind', memoryCost_write, clientState_write,
-        memoryCost_bind', memoryCost_pure]
-      dsimp only [s₃, s₂]; omega
     have hfr_s4 : s₄.frontier = s.frontier := by rw [hfr₄]; dsimp only [s₃]; rw [hs1_eq]
+    have hft_ins := FramedTriple.of_realization (S := Set.univ) hv_ins (by rw [h_s4, hfr₄])
+      fun _ _ => trivial
+    rw [h_s4] at hft_ins
+    obtain ⟨hv_all, hcost_all, -, -, hres_all, hst_all⟩ := FramedTriple.realization_of_frontier_eq
+      (w := w) (s := s) (S := Set.univ) (p := ftRelaxUpdate ⟨ctx, y, eIdx, ew, touchedLen⟩)
+      (c := memoryCost (getKeyProg ctx.n ctx.fhBase y) s +
+        (memoryCost (insertProg ctx.n ctx.fhBase y ew) s₃ + 2))
+      (Q := fun r t => r = touchedLen + 1 ∧ t = s₄) (by
+      rw [hcur_cases] at hft_gk; dsimp only [ftRelaxUpdate]
+      refine FramedTriple.call_eq hft_gk subset_rfl ?_
+      dsimp only; framed_triple_step; framed_triple_step
+      exact FramedTriple.mono (FramedTriple.call_eq hft_ins subset_rfl
+        (FramedTriple.pure (c := 0) ⟨hfr_s4, rfl, rfl⟩)) (by omega) fun _ _ => id)
     have hmem_s4 : ∀ a, a ∉ footprint ctx.n ctx.fhBase →
         a ≠ ctx.auxBase + ctx.n + y → a ≠ ctx.auxBase + 4 * ctx.n + touchedLen →
         s₄.mem a = s.mem a := by
@@ -601,30 +552,20 @@ private theorem ftRelaxUpdate_spec {w K : ℕ} {ctx : FTCtx} {y eIdx ew touchedL
       generalize h_s3 : (Memory.spec 0).clientState s₂
         (decreaseKeyProg ctx.n ctx.fhBase y ew) = s₃ at hdec
       rcases hdec with ⟨hv_dec, hinv₃, hfr₃, hwf₃, hmod₃, habs₃, hc_dec⟩
-      have hv_all : (Memory.spec w).ValidHistory s
-          ((Memory.spec w).clientHistory s (ftRelaxUpdate ⟨ctx, y, eIdx, ew, touchedLen⟩)) := by
-        rw [hprog_eq]
-        refine validHistory_bind_step hv_gk ?_
-        rw [h_cur, h_s1, hcur_cases]; simp only [hlt, ↓reduceIte]
-        refine validHistory_write_bind (by rw [hs1_eq]; omega) heIdx_fit ?_
-        exact validHistory_bind_step hv_dec (validHistory_pure w _ _)
-      have hst_all : (Memory.spec 0).clientState s
-          (ftRelaxUpdate ⟨ctx, y, eIdx, ew, touchedLen⟩) = s₃ := by
-        rw [hprog_eq, StateTransitionSpec.clientState_bind, h_cur, h_s1, hcur_cases]
-        dsimp only; rw [ite_eq_left hlt, StateTransitionSpec.clientState_bind, clientState_write,
-          StateTransitionSpec.clientState_bind, h_s3, StateTransitionSpec.clientState_pure]
-      have hres_all : (Memory.spec 0).clientResult s
-          (ftRelaxUpdate ⟨ctx, y, eIdx, ew, touchedLen⟩) = touchedLen := by
-        rw [hprog_eq, StateTransitionSpec.clientResult_bind, h_cur, h_s1, hcur_cases]
-        dsimp only; rw [ite_eq_left hlt]
-        simp only [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
-      have hcost_all : memoryCost (ftRelaxUpdate ⟨ctx, y, eIdx, ew, touchedLen⟩) s ≤
-          2 + 1 + memoryCost (decreaseKeyProg ctx.n ctx.fhBase y ew) s₂ := by
-        rw [hprog_eq, memoryCost_bind', h_cur, h_s1, hcur_cases]
-        dsimp only; rw [ite_eq_left hlt, memoryCost_bind', memoryCost_write, clientState_write,
-          memoryCost_bind', memoryCost_pure]
-        dsimp only [s₂]; omega
       have hfr_s3 : s₃.frontier = s.frontier := by rw [hfr₃]; dsimp only [s₂]; rw [hs1_eq]
+      have hft_dec := FramedTriple.of_realization (S := Set.univ) hv_dec (by rw [h_s3, hfr₃])
+        fun _ _ => trivial
+      rw [h_s3] at hft_dec
+      obtain ⟨hv_all, hcost_all, -, -, hres_all, hst_all⟩ := FramedTriple.realization_of_frontier_eq
+        (w := w) (s := s) (S := Set.univ) (p := ftRelaxUpdate ⟨ctx, y, eIdx, ew, touchedLen⟩)
+        (c := memoryCost (getKeyProg ctx.n ctx.fhBase y) s +
+          (memoryCost (decreaseKeyProg ctx.n ctx.fhBase y ew) s₂ + 1))
+        (Q := fun r t => r = touchedLen ∧ t = s₃) (by
+        rw [hcur_cases] at hft_gk; dsimp only [ftRelaxUpdate]
+        refine FramedTriple.call_eq hft_gk subset_rfl ?_
+        simp only [hlt, ↓reduceIte]; framed_triple_step
+        exact FramedTriple.mono (FramedTriple.call_eq hft_dec subset_rfl
+          (FramedTriple.pure (c := 0) ⟨hfr_s3, rfl, rfl⟩)) (by omega) fun _ _ => id)
       have hmem_s3 : ∀ a, a ∉ footprint ctx.n ctx.fhBase →
           a ≠ ctx.auxBase + ctx.n + y → a ≠ ctx.auxBase + 4 * ctx.n + touchedLen →
           s₃.mem a = s.mem a := by
@@ -640,21 +581,14 @@ private theorem ftRelaxUpdate_spec {w K : ℕ} {ctx : FTCtx} {y eIdx ew touchedL
         Or.inr ⟨oldW, habs_y, hres_all, fun _ =>
           ⟨hst_all ▸ hbest_eq, by rw [hst_all, habs₃, habs₂], by rw [hst_all]; omega⟩,
           fun hno => absurd hlt hno⟩⟩
-    · have hv_all : (Memory.spec w).ValidHistory s
-          ((Memory.spec w).clientHistory s (ftRelaxUpdate ⟨ctx, y, eIdx, ew, touchedLen⟩)) := by
-        rw [hprog_eq]; refine validHistory_bind_step hv_gk ?_
-        rw [h_cur, h_s1, hcur_cases]; simp only [hlt, ↓reduceIte]; exact validHistory_pure w _ _
-      have hst_all : (Memory.spec 0).clientState s
-          (ftRelaxUpdate ⟨ctx, y, eIdx, ew, touchedLen⟩) = s := by
-        rw [hprog_eq, StateTransitionSpec.clientState_bind, h_cur, h_s1, hcur_cases]
-        dsimp only; rw [ite_eq_right hlt, StateTransitionSpec.clientState_pure]; exact hs1_eq
-      have hres_all : (Memory.spec 0).clientResult s
-          (ftRelaxUpdate ⟨ctx, y, eIdx, ew, touchedLen⟩) = touchedLen := by
-        rw [hprog_eq, StateTransitionSpec.clientResult_bind, h_cur, h_s1, hcur_cases]
-        dsimp only; rw [ite_eq_right hlt, StateTransitionSpec.clientResult_pure]
-      have hcost_all : memoryCost (ftRelaxUpdate ⟨ctx, y, eIdx, ew, touchedLen⟩) s ≤ 2 := by
-        rw [hprog_eq, memoryCost_bind', h_cur, h_s1, hcur_cases]
-        simp only [hlt, ↓reduceIte, memoryCost_pure]; omega
+    · obtain ⟨hv_all, hcost_all, -, -, hres_all, hst_all⟩ :=
+        FramedTriple.realization_of_frontier_eq (w := w) (s := s) (S := Set.univ)
+        (p := ftRelaxUpdate ⟨ctx, y, eIdx, ew, touchedLen⟩)
+        (c := memoryCost (getKeyProg ctx.n ctx.fhBase y) s + 0)
+        (Q := fun r t => r = touchedLen ∧ t = s) (by
+        rw [hcur_cases] at hft_gk; dsimp only [ftRelaxUpdate]
+        refine FramedTriple.call_eq hft_gk subset_rfl ?_
+        simp only [hlt, ↓reduceIte]; exact FramedTriple.pure ⟨hfr₁, rfl, hs1_eq⟩)
       refine ⟨hsafe, hv_all, by rw [hst_all], by rw [hst_all]; exact hwf,
         by rw [hst_all]; exact hinv, fun _ _ _ _ => by rw [hst_all],
         fun _ _ => by rw [hst_all], fun _ _ => by rw [hst_all],
@@ -1045,18 +979,6 @@ private theorem ftScanVertex_step {w n K mRef selLen0 pStart pEnd k tl : ℕ}
     rw [hpEnd]; exact hs.hcsr.offset_le_end (x.val + 1) x.isLt
   have hpstep_lt : pStart + k < 2 * ctx.m := by omega
   have hpstep_fit : Fits w (pStart + k + 1) := hs.fit2m.of_le (by omega)
-  have hprog_eq : ftRelaxOne ⟨⟨ctx, t.val, pStart⟩, k, tl⟩ =
-      (Memory.read (ctx.adjBase + 2 * (pStart + k)) >>= fun yv =>
-       Memory.read (ctx.adjBase + 2 * (pStart + k) + 1) >>= fun eIv =>
-       Memory.read (ctx.auxBase + yv) >>= fun trY =>
-       if trY = t.val then pure (k + 1, tl)
-       else
-         Memory.read (ctx.edgeBase + 4 * eIv + 2) >>= fun ew =>
-         ftRelaxUpdate ⟨ctx, yv, eIv, ew, tl⟩ >>= fun tl' => pure (k + 1, tl')) := rfl
-  have hnot_scan : ∀ a, ¬scanMod ctx n a →
-      (ctx.edgeBase ≤ a ∧ a < ctx.edgeBase + 4 * es.length) ∨
-      (ctx.adjBase ≤ a ∧ a < ctx.adjBase + 4 * es.length) ∨
-      (ctx.offBase ≤ a ∧ a < ctx.offBase + n + 1) → True := fun _ _ _ => trivial
   have haux_ctx : ctx.auxBase + ctx.n ≤ s.frontier := by
     have hfr := hs.auxFr; rw [hcn]
     exact Nat.le_trans (Nat.add_le_add_left (by omega : n ≤ 5 * n) _) hfr
@@ -1068,31 +990,12 @@ private theorem ftScanVertex_step {w n K mRef selLen0 pStart pEnd k tl : ℕ}
         haux_ctx, ?_⟩
       refine ⟨by rw [hy_val, hcn]; exact y.isLt, by rw [← heIdx_eq, hcm]; exact eIdx.isLt,
         fun hbad => absurd (by rw [hy_val]; exact htrY) hbad⟩
-    have hv : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (ftRelaxOne ⟨⟨ctx, t.val, pStart⟩, k, tl⟩)) := by
-      rw [hprog_eq]
-      refine validHistory_read_bind (by have := hs.adjFr; omega) ?_
-      refine validHistory_read_bind (by have := hs.adjFr; omega) ?_
-      refine validHistory_read_bind (by have := hs.auxFr; have := y.isLt; omega) ?_
-      rw [ite_eq_left (by rw [hy_val]; exact htrY)]
-      exact validHistory_pure w _ _
-    have hst : (Memory.spec 0).clientState s
-        (ftRelaxOne ⟨⟨ctx, t.val, pStart⟩, k, tl⟩) = s := by
-      rw [hprog_eq, StateTransitionSpec.clientState_bind, clientState_read, clientResult_read,
-        StateTransitionSpec.clientState_bind, clientState_read, clientResult_read,
-        StateTransitionSpec.clientState_bind, clientState_read, clientResult_read,
-        ite_eq_left (by rw [hy_val]; exact htrY), StateTransitionSpec.clientState_pure]
-    have hres : (Memory.spec 0).clientResult s
-        (ftRelaxOne ⟨⟨ctx, t.val, pStart⟩, k, tl⟩) = (k + 1, tl) := by
-      rw [hprog_eq, StateTransitionSpec.clientResult_bind, clientResult_read, clientState_read,
-        StateTransitionSpec.clientResult_bind, clientResult_read, clientState_read,
-        StateTransitionSpec.clientResult_bind, clientResult_read, clientState_read,
-        ite_eq_left (by rw [hy_val]; exact htrY), StateTransitionSpec.clientResult_pure]
-    have hcost : memoryCost (ftRelaxOne ⟨⟨ctx, t.val, pStart⟩, k, tl⟩) s ≤ 3 := by
-      rw [hprog_eq, memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-        memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-        memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-        ite_eq_left (by rw [hy_val]; exact htrY), memoryCost_pure]
+    obtain ⟨hv, hcost, -, -, hres, hst⟩ := FramedTriple.realization_of_frontier_eq (w := w)
+      (s := s) (c := 3) (S := ∅) (p := ftRelaxOne ⟨⟨ctx, t.val, pStart⟩, k, tl⟩)
+      (Q := fun r t' => r = (k + 1, tl) ∧ t' = s) (by
+      have := hs.adjFr; have := hs.auxFr; have := y.isLt
+      dsimp only [ftRelaxOne]; framed_triple_step; framed_triple_step; framed_triple_step
+      rw [ite_eq_left (by rw [hy_val]; exact htrY)]; exact FramedTriple.pure ⟨rfl, rfl, rfl⟩)
     have hcov_fin : ScanStepCov hn hK ctx es t pStart (k + 1)
         ((Memory.spec 0).clientState s (ftRelaxOne ⟨⟨ctx, t.val, pStart⟩, k, tl⟩)) := by
       rw [hst]
@@ -1144,34 +1047,18 @@ private theorem ftScanVertex_step {w n K mRef selLen0 pStart pEnd k tl : ℕ}
         fun _ => ?_⟩
       rw [hy_val, ← heIdx_eq, hew_eq]
       exact hsafe_u
-    have hv : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (ftRelaxOne ⟨⟨ctx, t.val, pStart⟩, k, tl⟩)) := by
-      rw [hprog_eq]
-      refine validHistory_read_bind (by have := hs.adjFr; omega) ?_
-      refine validHistory_read_bind (by have := hs.adjFr; omega) ?_
-      refine validHistory_read_bind (by have := hs.auxFr; have := y.isLt; omega) ?_
-      rw [ite_eq_right (by rw [hy_val]; exact htrY)]
-      refine validHistory_read_bind (by have := hs.edgeFr; omega) ?_
+    have hft_u := FramedTriple.of_realization (S := Set.univ) hv_u (by rw [h_ru_s]; exact hfr_u)
+      fun _ _ => trivial
+    rw [h_ru_r, h_ru_s] at hft_u
+    obtain ⟨hv, hcost_core, -, -, hres, hst⟩ := FramedTriple.realization_of_frontier_eq (w := w)
+      (s := s) (S := Set.univ) (p := ftRelaxOne ⟨⟨ctx, t.val, pStart⟩, k, tl⟩)
+      (c := memoryCost (ftRelaxUpdate ⟨ctx, y.val, eIdx.val, es[eIdx.val].weight, tl⟩) s + 4)
+      (Q := fun r t' => r = (k + 1, tl') ∧ t' = s') (by
+      have := hs.adjFr; have := hs.auxFr; have := hs.edgeFr; have := y.isLt
+      dsimp only [ftRelaxOne]; framed_triple_step; framed_triple_step; framed_triple_step
+      rw [ite_eq_right (by rw [hy_val]; exact htrY)]; framed_triple_step
       rw [hy_val, ← heIdx_eq, hew_eq]
-      exact validHistory_bind_step hv_u (validHistory_pure w _ _)
-    have hst : (Memory.spec 0).clientState s
-        (ftRelaxOne ⟨⟨ctx, t.val, pStart⟩, k, tl⟩) = s' := by
-      rw [hprog_eq, StateTransitionSpec.clientState_bind, clientState_read, clientResult_read,
-        StateTransitionSpec.clientState_bind, clientState_read, clientResult_read,
-        StateTransitionSpec.clientState_bind, clientState_read, clientResult_read,
-        ite_eq_right (by rw [hy_val]; exact htrY),
-        StateTransitionSpec.clientState_bind, clientState_read, clientResult_read]
-      rw [hy_val, ← heIdx_eq, hew_eq, StateTransitionSpec.clientState_bind, h_ru_s,
-        StateTransitionSpec.clientState_pure]
-    have hres : (Memory.spec 0).clientResult s
-        (ftRelaxOne ⟨⟨ctx, t.val, pStart⟩, k, tl⟩) = (k + 1, tl') := by
-      rw [hprog_eq, StateTransitionSpec.clientResult_bind, clientResult_read, clientState_read,
-        StateTransitionSpec.clientResult_bind, clientResult_read, clientState_read,
-        StateTransitionSpec.clientResult_bind, clientResult_read, clientState_read,
-        ite_eq_right (by rw [hy_val]; exact htrY),
-        StateTransitionSpec.clientResult_bind, clientResult_read, clientState_read]
-      rw [hy_val, ← heIdx_eq, hew_eq, StateTransitionSpec.clientResult_bind, h_ru_r,
-        StateTransitionSpec.clientResult_pure]
+      exact FramedTriple.call_eq (c₂ := 0) hft_u subset_rfl (FramedTriple.pure ⟨hfr_u, rfl, rfl⟩))
     have hmod_s' : ∀ a, ¬scanMod ctx n a → s'.mem a = s.mem a := by
       intro a ha
       simp only [scanMod, not_or] at ha
@@ -1195,15 +1082,6 @@ private theorem ftScanVertex_step {w n K mRef selLen0 pStart pEnd k tl : ℕ}
         simp only [scanMod, footprint, Finset.mem_Ico, not_or, not_and]
         have := hs.adjLtFh; have := hs.fhLtAux; omega
       exact ⟨hmod_s' _ h1, hmod_s' _ h2⟩
-    have hcost_core : memoryCost (ftRelaxOne ⟨⟨ctx, t.val, pStart⟩, k, tl⟩) s ≤
-        4 + memoryCost (ftRelaxUpdate ⟨ctx, y.val, eIdx.val, es[eIdx.val].weight, tl⟩) s := by
-      rw [hprog_eq, memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-        memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-        memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-        ite_eq_right (by rw [hy_val]; exact htrY),
-        memoryCost_bind', memoryCost_read, clientResult_read, clientState_read]
-      rw [hy_val, ← heIdx_eq, hew_eq, memoryCost_bind', h_ru_s, memoryCost_pure]
-      omega
     have hpot : memoryCost (ftRelaxOne ⟨⟨ctx, t.val, pStart⟩, k, tl⟩) s +
         potential n ((layout n ctx.fhBase).abs s') + 2 * tl' ≤
         potential n ((layout n ctx.fhBase).abs s) + 2 * tl + 117 := by
@@ -1354,36 +1232,20 @@ theorem ftScanVertex_spec {w n K mRef selLen0 tl₀ : ℕ}
     (iterate ftRelaxOne ⟨ctx, t.val, pStart⟩ (pEnd - pStart) (0, tl₀)) = s' at hiter
   rcases hiter with
     ⟨hsafe_it, hv_it, hpot_it, hmod_it, ⟨_, hfr', hwf', hmod', ht', hx', hcut', hcov'⟩⟩
-  have hprog_eq : ftScanVertex ⟨ctx, t.val, x.val, tl₀⟩ =
-      (Memory.read (ctx.offBase + x.val) >>= fun ps =>
-       Memory.read (ctx.offBase + x.val + 1) >>= fun pe =>
-       iterate ftRelaxOne ⟨ctx, t.val, ps⟩ (pe - ps) (0, tl₀) >>= fun r => pure r.2) := rfl
   have hsafe : ftScanVertexSafe w ⟨ctx, t.val, x.val, tl₀⟩ s :=
     ⟨hs.fit16, by rw [hcn]; exact hs.fitOff, by rw [hcm]; exact hs.fit2m,
       by rw [hcn]; exact x.isLt, by rw [hcn]; exact hs.offFr,
       hp_le, by rw [hcm]; exact hpEnd_le, hsafe_it⟩
-  have hv : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (ftScanVertex ⟨ctx, t.val, x.val, tl₀⟩)) := by
-    rw [hprog_eq]
-    refine validHistory_read_bind (by have := x.isLt; have := hs.offFr; omega) ?_
-    refine validHistory_read_bind (by have := x.isLt; have := hs.offFr; omega) ?_
-    exact validHistory_bind_step hv_it (validHistory_pure w _ _)
-  have hst : (Memory.spec 0).clientState s (ftScanVertex ⟨ctx, t.val, x.val, tl₀⟩) = s' := by
-    rw [hprog_eq, StateTransitionSpec.clientState_bind, clientState_read, clientResult_read,
-      StateTransitionSpec.clientState_bind, clientState_read, clientResult_read,
-      StateTransitionSpec.clientState_bind, h_s', StateTransitionSpec.clientState_pure]
-  have hres : (Memory.spec 0).clientResult s (ftScanVertex ⟨ctx, t.val, x.val, tl₀⟩) = res.2 := by
-    rw [hprog_eq, StateTransitionSpec.clientResult_bind, clientResult_read, clientState_read,
-      StateTransitionSpec.clientResult_bind, clientResult_read, clientState_read,
-      StateTransitionSpec.clientResult_bind, h_res, StateTransitionSpec.clientResult_pure]
-  have hcost : memoryCost (ftScanVertex ⟨ctx, t.val, x.val, tl₀⟩) s ≤
-      2 + memoryCost (iterate ftRelaxOne ⟨ctx, t.val, pStart⟩ (pEnd - pStart) (0, tl₀)) s := by
-    rw [hprog_eq, memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-      memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-      memoryCost_bind', h_s', memoryCost_pure]
-    change 1 + (1 + (memoryCost (iterate ftRelaxOne ⟨ctx, t.val, pStart⟩
-      (pEnd - pStart) (0, tl₀)) s + 0)) ≤ _
-    omega
+  have hft_it := FramedTriple.of_realization (S := Set.univ) hv_it (by rw [h_s']; exact hfr')
+    fun _ _ => trivial
+  rw [h_res, h_s'] at hft_it
+  obtain ⟨hv, hcost, -, -, hres, hst⟩ := FramedTriple.realization_of_frontier_eq (w := w) (s := s)
+    (c := memoryCost (iterate ftRelaxOne ⟨ctx, t.val, pStart⟩ (pEnd - pStart) (0, tl₀)) s + 2)
+    (S := Set.univ) (p := ftScanVertex ⟨ctx, t.val, x.val, tl₀⟩)
+    (Q := fun r t' => r = res.2 ∧ t' = s') (by
+    have := x.isLt; have := hs.offFr
+    dsimp only [ftScanVertex]; framed_triple_step; framed_triple_step
+    exact FramedTriple.call_eq (c₂ := 0) hft_it subset_rfl (FramedTriple.pure ⟨hfr', rfl, rfl⟩))
   have hhs' := hstatic_ro s' (by rw [hfr']) hmod'
   have hcut_fin : FTCutInv hn hK ctx es t (insert x scanned) res.2 s' := by
     refine ⟨hcut'.hinv, hcut'.htl_le, hcut'.htouched_lt, hcut'.htouched_nd, hcut'.htouched_ne_t,
