@@ -11028,6 +11028,7 @@ public import CslibFrontier.Computability.PolyTime.CNF.GreedyParityContext
 public import CslibFrontier.Algorithms.LinearAlgebra.LyapunovCertificate
 public import CslibFrontier.Computability.Distributed.SetAgreement.AtomicSnapshot.CleanCollect
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Run
+public import CslibFrontier.Algorithms.Lean.EditDistance.Unit
 public import CslibFrontier.Foundations.NumberTheory.ModularWeights
 public import CslibFrontier.Computability.LogSpaceDerandomization.RowCompression.Sentinel
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery.FullLeaf

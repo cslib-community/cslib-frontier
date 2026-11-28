@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 public import CslibFrontier.Algorithms.Lean.EditDistance.LCS
+public import CslibFrontier.Algorithms.Lean.EditDistance.Unit
 public import CslibFrontier.Algorithms.WordRAM.EditDistance
 
 /-!
@@ -58,6 +59,18 @@ example (s : EditScript Char) (hs : s.src = kitten) (ht : s.tgt = sitting) :
     3 ≤ s.cost Costs.unit := by
   have h := (isLeast_editDist Costs.unit kitten sitting).2 ⟨s, hs, ht, rfl⟩
   rwa [show editDist Costs.unit kitten sitting = 3 by decide] at h
+
+-- Edit the newly inserted letter at an interior position and then delete it.
+example : Relation.RelatesInSteps SingleEdit [1, 3] [1, 3] 3 := by
+  have ins : SingleEdit [1, 3] [1, 2, 3] := .cons 1 (.ins 2 [3])
+  have sub : SingleEdit [1, 2, 3] [1, 4, 3] := .cons 1 (.sub (by decide) [3])
+  have del : SingleEdit [1, 4, 3] [1, 3] := .cons 1 (.del 4 [3])
+  exact ((Relation.RelatesInSteps.single ins).tail _ _ _ _ sub).tail _ _ _ _ del
+
+-- Even sequences that revisit positions need at least three edits from kitten to sitting.
+example {n : ℕ} (h : Relation.RelatesInSteps SingleEdit kitten sitting n) : 3 ≤ n := by
+  have bound := (isLeast_editDist_unit kitten sitting).2 h
+  rwa [show editDist Costs.unit kitten sitting = 3 by decide] at bound
 
 /-! ### Empty words -/
 
