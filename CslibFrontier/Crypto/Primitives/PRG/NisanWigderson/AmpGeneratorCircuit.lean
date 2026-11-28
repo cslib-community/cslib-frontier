@@ -92,7 +92,7 @@ noncomputable def glAmpGeneratorCircuit (φ : extSignature.Hom σ) (C : Circuit 
     (z : Fin ((k * n + k) * 2 ^ binaryFieldDegree (k * n + k)) → Bool) : Circuit σ ℓ 1 :=
   (glAmpCircuit φ C k).comp
     (((mxCircuit (k * n + k) ℓ).mapOp φ).comp
-      ((Circuit.wiring σ id).append (constsCircuit (φ.comp toExt) z)))
+      (Unbounded.substituteCircuit (φ.comp toExt) (appendInputs z)))
 
 section Circuit
 
@@ -105,7 +105,7 @@ variable (φ : extSignature.Hom σ)
     (glAmpGeneratorCircuit φ C k ℓ z).size = k * C.size + k + 3 + (k * n + k) *
       (2 * binaryFieldDegree (k * n + k) + 2 ^ binaryFieldDegree (k * n + k) + 1) := by
   simp only [circuit_simps, glAmpGeneratorCircuit, size_glAmpCircuit, size_mxCircuit,
-    size_constsCircuit]
+    Unbounded.size_substituteCircuit]
   omega
 
 /-- `glAmpGeneratorCircuit φ C k ℓ z` has at most `k |C| + 6 n'² + 3` gates, where `n' = k n + k`,
@@ -141,7 +141,8 @@ theorem eval_glAmpGeneratorCircuit (C : Circuit σ n 1) (k ℓ : ℕ)
   have : (φ.comp toExt).Preserves interpretation I :=
     Signature.Hom.Preserves.comp inferInstance (preserves_toExt (modGate 2))
   simp only [circuit_simps, glAmpGeneratorCircuit, eval_glAmpCircuit,
-    Circuit.eval_mapOp (I := extInterpretation (modGate 2)), eval_constsCircuit, Function.comp_id,
+    Circuit.eval_mapOp (I := extInterpretation (modGate 2)),
+    Unbounded.eval_substituteCircuit, substitute_appendInputs,
     eval_mxCircuit, generator_apply]
 
 /-- **`g_z` has small circuits relative to `f`** [CarmosinoImpagliazzoKabanetsKolokolova2016,

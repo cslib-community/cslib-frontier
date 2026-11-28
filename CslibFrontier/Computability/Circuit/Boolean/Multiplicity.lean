@@ -39,6 +39,8 @@ larger depth, and every gate reading at most `n + s` wires (`Unbounded.arity_lin
 
 ## Main results
 
+* `Cslib.Circuits.Boolean.Unbounded.arity_multLine_le`: a line reading its distinct wires reads at
+  most all `n + g` wires.
 * `Cslib.Circuits.Boolean.Unbounded.eval_multCircuit`,
   `Cslib.Circuits.Boolean.Unbounded.depth_multCircuit_le`,
   `Cslib.Circuits.Boolean.Unbounded.arity_lines_multCircuit_le`: aggregating multiplicities keeps
@@ -173,7 +175,7 @@ theorem depth_multLine_le (line : Line extSignature n g) (depths : Wire n g → 
     exact hle a
 
 /-- A line reading its distinct wires reads at most all `n + g` wires. -/
-private theorem arity_multLine_le (line : Line extSignature n g) :
+theorem arity_multLine_le (line : Line extSignature n g) :
     multSignature.Arity (multLine line).op ≤ n + g := by
   obtain ⟨op, w⟩ := line
   cases op with
@@ -181,17 +183,8 @@ private theorem arity_multLine_le (line : Line extSignature n g) :
   | gate k => exact (List.nodup_dedup _).length_le_card.trans_eq Wire.card
 
 private theorem arity_lines_mapLines_multLine_le (p : Program extSignature n g) (k : Fin g) :
-    multSignature.Arity ((p.mapLines multLine).lines k).op ≤ n + g := by
-  induction p with
-  | empty => exact k.elim0
-  | @gate g p line ih =>
-    induction k using Fin.lastCases with
-    | last =>
-      rw [Program.mapLines_gate, Program.lines_gate_last, Line.mapWires_op]
-      exact (arity_multLine_le line).trans (Nat.le_succ _)
-    | cast k =>
-      rw [Program.mapLines_gate, Program.lines_gate_castSucc, Line.mapWires_op]
-      exact (ih k).trans (Nat.le_succ _)
+    multSignature.Arity ((p.mapLines multLine).lines k).op ≤ n + g :=
+  Program.arity_lines_mapLines_le (B := id) monotone_id arity_multLine_le p k
 
 /-- The circuit whose symmetric gates read their distinct wires with multiplicities, and whose
 conjunctions and disjunctions read their distinct wires once. -/
