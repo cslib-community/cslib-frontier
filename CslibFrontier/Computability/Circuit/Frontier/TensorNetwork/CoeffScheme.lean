@@ -428,8 +428,7 @@ theorem leafValue_polyTime :
     ComputableInPolyTime (fun x : Node C Rw => S.leafValue x.1 x.2.2) (encNode encC encRw)
       (encList encNat) := by
   have hx := ComputableInPolyTime.fst encC (encPair (encList encRw) (encList encNat))
-  have hγ := (ComputableInPolyTime.snd (encList encRw) (encList encNat)).comp
-    (ComputableInPolyTime.snd encC (encPair (encList encRw) (encList encNat)))
+  have hγ := (ComputableInPolyTime.snd encC (encPair (encList encRw) (encList encNat))).snd'
   have htest : ComputableInPolyTime (fun z : Node C Rw × ℕ => z.1.2.2.getD z.2 0 == 0)
       (encPair (encNode encC encRw) encNat) encBool :=
     ComputableInPolyTime.beq (ComputableInPolyTime.listGetD_binary (encA := encNat) 0
@@ -440,18 +439,14 @@ theorem leafValue_polyTime :
 
 /-- **The components of coefficient extraction are polynomial-time.** -/
 theorem scheme_polyTime : S.scheme.PolyTime (encNode encC encRw) encAcc (encList encNat) where
-  isLeaf := (ComputableInPolyTime.listIsEmpty (encA := encRw)).comp
-    ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _))
+  isLeaf := (ComputableInPolyTime.listIsEmpty (encA := encRw)).comp (by fun_prop)
   start := (ComputableInPolyTime.const 0).prod (zero_polyTime hS (ComputableInPolyTime.fst _ _))
   next := by
     have hn := ComputableInPolyTime.fst (encNode encC encRw) encAcc
-    have hx := (ComputableInPolyTime.fst _ _).comp hn
-    have hrows := (ComputableInPolyTime.fst (encList encRw) (encList encNat)).comp
-      ((ComputableInPolyTime.snd _ _).comp hn)
-    have hγ := (ComputableInPolyTime.snd (encList encRw) (encList encNat)).comp
-      ((ComputableInPolyTime.snd _ _).comp hn)
-    have hc := (ComputableInPolyTime.fst encNat (encList encNat)).comp
-      (ComputableInPolyTime.snd (encNode encC encRw) encAcc)
+    have hx := hn.fst'
+    have hrows := hn.snd'.fst'
+    have hγ := hn.snd'.snd'
+    have hc := (ComputableInPolyTime.snd (encNode encC encRw) encAcc).fst'
     have hm := ComputableInPolyTime.unary_to_binary.comp
       ((ComputableInPolyTime.length_list encNat).comp (hS.modes.comp hx))
     have hsome : ComputableInPolyTime (fun z : Node C Rw × (ℕ × List ℕ) =>
@@ -468,16 +463,14 @@ theorem scheme_polyTime : S.scheme.PolyTime (encNode encC encRw) encAcc (encList
       simp [scheme, he, hle]
   absorb := by
     have hq := ComputableInPolyTime.fst (encPair (encNode encC encRw) encAcc) (encList encNat)
-    have hn := (ComputableInPolyTime.fst (encNode encC encRw) encAcc).comp hq
-    have ha := (ComputableInPolyTime.snd (encNode encC encRw) encAcc).comp hq
+    have hn := hq.fst'
+    have ha := hq.snd'
     have hy := ComputableInPolyTime.snd (encPair (encNode encC encRw) encAcc) (encList encNat)
-    have hx := (ComputableInPolyTime.fst _ _).comp hn
-    have hrows := (ComputableInPolyTime.fst (encList encRw) (encList encNat)).comp
-      ((ComputableInPolyTime.snd _ _).comp hn)
-    have hγ := (ComputableInPolyTime.snd (encList encRw) (encList encNat)).comp
-      ((ComputableInPolyTime.snd _ _).comp hn)
-    have hc := (ComputableInPolyTime.fst encNat (encList encNat)).comp ha
-    have hs := (ComputableInPolyTime.snd encNat (encList encNat)).comp ha
+    have hx := hn.fst'
+    have hrows := hn.snd'.fst'
+    have hγ := hn.snd'.snd'
+    have hc := ha.fst'
+    have hs := ha.snd'
     let E := encPair (encPair (encNode encC encRw) encAcc) (encList encNat)
     have hbody : ComputableInPolyTime
         (fun w : ((Node C Rw × (ℕ × List ℕ)) × List ℕ) × Rw =>

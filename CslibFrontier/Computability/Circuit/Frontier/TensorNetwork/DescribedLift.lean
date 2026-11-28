@@ -430,20 +430,18 @@ theorem computableInPolyTime_incident :
     vertices_polyTime.comp (ComputableInPolyTime.fst _ _)
   have hP : ComputableInPolyTime (fun q : DescribedNetwork T × ℕ => q.1.vertices.map Prod.fst)
       (encPair (encDescribed encT) encUnary) (encList (encList encNat)) :=
-    ComputableInPolyTime.mapWithInput (f := fun _ v => v.1) hV
-      ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _))
+    ComputableInPolyTime.mapWithInput (f := fun _ v => v.1) hV (by fun_prop)
   have hrange : ComputableInPolyTime (fun q : DescribedNetwork T × ℕ =>
       List.range q.1.vertices.length) (encPair (encDescribed encT) encUnary) (encList encUnary) :=
     ComputableInPolyTime.range.comp ((ComputableInPolyTime.length_list _).comp hV)
   have hports : ComputableInPolyTime (fun z : (DescribedNetwork T × ℕ) × ℕ =>
       (z.1.1.vertices.map Prod.fst).getD z.2 [])
       (encPair (encPair (encDescribed encT) encUnary) encUnary) (encList encNat) :=
-    (ComputableInPolyTime.listGetD (encA := encList encNat) []).comp
-      ((hP.comp (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _))
+    ComputableInPolyTime.listGetDWithInput
+      (hP.comp (ComputableInPolyTime.fst _ _)) (ComputableInPolyTime.snd _ _) []
   have hj : ComputableInPolyTime (fun z : (DescribedNetwork T × ℕ) × ℕ => z.1.2)
       (encPair (encPair (encDescribed encT) encUnary) encUnary) encNat :=
-    ComputableInPolyTime.unary_to_binary.comp
-      ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _))
+    ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
   exact ComputableInPolyTime.filterWithInput
     (test := fun q v => decide (q.2 ∈ (q.1.vertices.map Prod.fst).getD v [])) hrange
     (ComputableInPolyTime.decide_mem hports hj)
@@ -458,8 +456,7 @@ theorem computableInPolyTime_edgeEnds :
   have hget (i : ℕ) : ComputableInPolyTime (fun q : DescribedNetwork T × ℕ =>
       (q.1.incident q.2).getD i 0) (encPair (encDescribed encT) encUnary) encNat :=
     ComputableInPolyTime.unary_to_binary.comp
-      ((ComputableInPolyTime.listGetD (encA := encUnary) 0).comp
-        (hinc.prod (ComputableInPolyTime.const i)))
+      (ComputableInPolyTime.listGetDWithInput hinc (ComputableInPolyTime.const i) 0)
   exact ComputableInPolyTime.mapWithInput
     (f := fun D j => ((D.incident j).getD 0 0, (D.incident j).getD 1 0))
     (ComputableInPolyTime.range.comp numEdges_polyTime) ((hget 0).prod (hget 1))
