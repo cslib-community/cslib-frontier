@@ -1200,9 +1200,8 @@ theorem bss_live_of_packetSentTo {F : Set P} {ss : ωSequence (BSSState P V)}
     (hsent_b : PacketSentTo q ss xs b)
     (hsent_pred : ∀ b', OmegaCausalPrec ss xs b' b → PacketSentTo q ss xs b') :
     ∃ k, b ∈ ((ss k).proc q).delivered := by
-  obtain ⟨w, hw⟩ : ∃ w, vtWeight b.ts = w := ⟨_, rfl⟩
-  induction w using Nat.strongRecOn generalizing b with
-  | ind w ih =>
+  induction b using (_root_.measure fun b : Packet P V => vtWeight b.ts).wf.induction
+  rename_i b ih
   obtain ⟨k₀, hem_b, hdest_b⟩ := hsent_b
   have hb_in := emittedPacket_mem_broadcastIn hinit he hem_b
   obtain ⟨hb_ts, hb_del⟩ := emittedPacket_spec hem_b
@@ -1227,13 +1226,13 @@ theorem bss_live_of_packetSentTo {F : Set P} {ss : ωSequence (BSSState P V)}
       (hb_ts ▸ lt_update_self_iff.mpr (Nat.lt_succ_self _))
     have hprec_r :=
       (bss_causalPrec_iff_ts_lt (omega_mTr_prefix hinit he (k₀ + 1)) hb_r_in hb_in).mpr hb_r_lt
-    obtain ⟨kr, hkr⟩ := ih (vtWeight b_r.ts) (hw ▸ vtWeight_strictMono hb_r_lt)
+    obtain ⟨kr, hkr⟩ := ih b_r (vtWeight_strictMono hb_r_lt)
       (hsent_pred b_r ⟨k₀ + 1, hb_r_in, hb_in, hprec_r⟩)
       (fun b'' ⟨M, hb''_M, hb_r_M, hprec''⟩ => hsent_pred b'' ⟨max M (k₀ + 1),
         broadcastIn_extract_mono xs (le_max_left _ _) hb''_M,
         broadcastIn_extract_mono xs (le_max_right _ _) hb_in,
         (causalPrec_extract_mono hinit he (le_max_left _ _) hb''_M hb_r_M hprec'').trans
-          (causalPrec_extract_mono hinit he (le_max_right _ _) hb_r_in hb_in hprec_r)⟩) rfl
+          (causalPrec_extract_mono hinit he (le_max_right _ _) hb_r_in hb_in hprec_r)⟩)
     exact ⟨kr, hb_r_ts.symm.trans_le
       ((bssInv_of_mTr (omega_mTr_prefix hinit he kr)).ts_le_vt q b_r hkr b_r.sender)⟩
   choose krFn hkrFn using hcoord

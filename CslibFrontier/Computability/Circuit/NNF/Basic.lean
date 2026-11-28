@@ -181,10 +181,8 @@ theorem eval_or {x : ι → Bool} {v l r : N} (h : C.gate v = .or l r) :
 /-- **Induction on nodes**: a property holding at every node whose children satisfy it holds at
 every node. -/
 theorem induction_on {P : N → Prop}
-    (h : ∀ v, (∀ u, C.rank u < C.rank v → P u) → P v) (v : N) : P v := by
-  obtain ⟨n, hn⟩ : ∃ n, C.rank v = n := ⟨_, rfl⟩
-  induction n using Nat.strong_induction_on generalizing v with
-  | _ n ih => exact h v fun u hu => ih (C.rank u) (hn ▸ hu) u rfl
+    (h : ∀ v, (∀ u, C.rank u < C.rank v → P u) → P v) (v : N) : P v :=
+  (_root_.measure C.rank).wf.induction v h
 
 section Vars
 

@@ -258,9 +258,8 @@ private theorem addLoop_getElem {α : Type*} [AddCommMonoid α]
     (addLoop n m δ tree)[idx - 1]'(by rw [addLoop_size]; omega) =
       if idx ∈ upChain n m then tree[idx - 1]'(by omega) + δ
       else tree[idx - 1]'(by omega) := by
-  generalize hrem : n + 1 - m = rem
-  induction rem using Nat.strongRecOn generalizing m tree with
-  | ind rem ih =>
+  induction m using (_root_.measure fun m => n + 1 - m).wf.induction generalizing tree with
+  | h m ih =>
     generalize_proofs pf_ret pf_tree
     revert pf_ret
     rw [addLoop]
@@ -269,8 +268,8 @@ private theorem addLoop_getElem {α : Type*} [AddCommMonoid α]
       have hlb_pos : 0 < lowbit m := lowbit_pos hm.1
       have hidx_sz' : idx ≤ (tree.modify (m - 1) (· + δ)).size := by
         rw [Array.size_modify]; exact hidx_sz
-      rw [@ih (n + 1 - (m + lowbit m)) (by omega) (m + lowbit m)
-        (tree.modify (m - 1) (· + δ)) hidx_sz' rfl]
+      rw [ih (m + lowbit m) (show n + 1 - (m + lowbit m) < n + 1 - m by omega)
+        (tree.modify (m - 1) (· + δ)) hidx_sz']
       simp only [Array.getElem_modify]
       conv_rhs => rw [upChain]
       simp only [hm.1, hm.2, and_self, ↓reduceDIte, List.mem_cons]

@@ -393,18 +393,20 @@ private theorem sentCount_and_seeds_rawOverwriteLoop
     (c : P.LevelCoord ℓ) :
     (st.rawOverwriteLoop scheme v_new ℓ h1 hℓ c).sentCount = st.sentCount ∧
     (st.rawOverwriteLoop scheme v_new ℓ h1 hℓ c).seeds = st.seeds := by
-  generalize hk : P.depth - ℓ = k
-  induction k using Nat.strongRecOn generalizing ℓ with
-  | ind k ih =>
+  induction ℓ using (_root_.measure fun ℓ => P.depth - ℓ).wf.induction with
+  | h ℓ ih =>
+    have next (hlt : ℓ < P.depth) :=
+      ih (ℓ + 1) (show P.depth - (ℓ + 1) < P.depth - ℓ by omega) (by omega) hlt
     unfold rawOverwriteLoop
     split
     · split_ifs with _ hlt
       · exact ⟨st.sentCount_overwriteAtNode scheme h1 hℓ _ _ _,
           st.seeds_overwriteAtNode scheme h1 hℓ _ _ _⟩
-      · exact ih _ (by omega) (ℓ + 1) (by omega) hlt _ rfl
+      · exact next hlt _
       · exact ⟨rfl, rfl⟩
     · split_ifs with hlt
-      exacts [ih _ (by omega) (ℓ + 1) (by omega) hlt _ rfl, ⟨rfl, rfl⟩]
+      · exact next hlt _
+      · exact ⟨rfl, rfl⟩
 
 theorem sentCount_rawOverwrite
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))

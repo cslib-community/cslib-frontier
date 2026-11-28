@@ -736,18 +736,19 @@ theorem crAllInit_terminates {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
       fun k hk => huid (le_antisymm (hmax k (Finset.mem_univ k)) (hk iStar))⟩
   refine ⟨?_, huniq_max, ?_⟩
   · intro sched cfg hmtr
-    obtain ⟨rem, hrem⟩ : ∃ rem, crAllInitTotalMsgs uid - sched.length = rem := ⟨_, rfl⟩
-    induction rem using Nat.strong_induction_on generalizing sched cfg with
-    | _ rem ih =>
+    let remaining (sched : List (Fin n)) := crAllInitTotalMsgs uid - sched.length
+    induction sched using (_root_.measure remaining).wf.induction generalizing cfg with
+    | h sched ih =>
       by_cases hterm : (crLTS uid).IsTerminal cfg
       · exact ⟨[], cfg, LTS.MTr.refl, hterm⟩
       simp only [LTS.IsTerminal, not_forall, Classical.not_not] at hterm
       obtain ⟨target, c', htr⟩ := hterm
       have hmtr' := hmtr.stepR (crLTS uid) htr
       have hlen' := (crExecMsgs_le_totalMsgs huid hmtr').1
-      rw [List.length_append, List.length_singleton] at hlen'
-      obtain ⟨tail, c_end, htail, hterm_end⟩ := ih (crAllInitTotalMsgs uid - (sched.length + 1))
-        (by omega) (sched ++ [target]) c' hmtr' (by rw [List.length_append, List.length_singleton])
+      have hlt : remaining (sched ++ [target]) < remaining sched := by
+        simp only [remaining, List.length_append, List.length_singleton] at hlen' ⊢
+        omega
+      obtain ⟨tail, c_end, htail, hterm_end⟩ := ih (sched ++ [target]) hlt c' hmtr'
       exact ⟨target :: tail, c_end, LTS.MTr.stepL htr htail, hterm_end⟩
   · intro sched cfg hmtr hterm
     obtain ⟨iStar, hiStar, huniq⟩ := huniq_max

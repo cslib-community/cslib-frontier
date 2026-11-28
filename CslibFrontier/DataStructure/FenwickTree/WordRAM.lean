@@ -422,9 +422,8 @@ theorem updateLoop_spec {w b n m δ S : ℕ} {x : Data 12}
       y.regs rBase = b ∧
       y.regs rLen = n ∧
       y.regs rFrontier = x.regs rFrontier := by
-  generalize hrem : n + 1 - m = rem
-  induction rem using Nat.strongRecOn generalizing x m with
-  | ind rem ih =>
+  induction m using (_root_.measure fun m => n + 1 - m).wf.induction generalizing x with
+  | h m ih =>
     have hfit_val : Fits w (x.mem (b + (m - 1)) + δ) :=
       hfit_sum.of_le (Nat.add_le_add_right (hcells m (Nat.le_refl m) hm_le) δ)
     have hbody := updateBody_exec ho hb hsz hm_reg hd_reg hm_pos hm_le hfit_addr hfit_val
@@ -484,8 +483,8 @@ theorem updateLoop_spec {w b n m δ S : ℕ} {x : Data 12}
         rw [hx₁_mem, Function.update_of_ne (by omega : b + (k - 1) ≠ b + (m - 1))]
         exact hcells k (by omega) hk2
       obtain ⟨y, hy, hy_tree, hy_mod, hy_b, hy_sz, hy_fr⟩ :=
-        @ih (n + 1 - (m + lowbit m)) (by omega) (m + lowbit m) x₁ hz₁ ho₁ hb₁ hsz₁ hidx₁ hd₁
-          (by omega) hm_next_le hcells₁ rfl
+        @ih (m + lowbit m) (show n + 1 - (m + lowbit m) < n + 1 - m by omega)
+          x₁ hz₁ ho₁ hb₁ hsz₁ hidx₁ hd₁ (by omega) hm_next_le hcells₁
       have hchain : (upChain n m).length = (upChain n (m + lowbit m)).length + 1 := by
         conv_lhs => rw [upChain]
         simp only [hm_pos, hm_le, and_self, ↓reduceDIte, List.length_cons]
