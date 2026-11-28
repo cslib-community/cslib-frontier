@@ -750,9 +750,8 @@ theorem eval_prfIdealGameOn_prefixFreeBatchReduction_le
       (by simpa only [Nat.mul_one] using
         length_prefixFreeBatchQueries_le (width n) (Q n) (valid n) guesses)
   change (run.map (fun result => !decide result.1.Nodup)) true ≤ _
-  rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
-    ← PMF.toOuterMeasure_apply_inter_support]
-  refine (run.toOuterMeasure.mono (s₂ := {result | ¬(result.2.map Prod.snd).Nodup}) ?_).trans ?_
+  rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
+  refine (run.toOuterMeasure_mono (t := {result | ¬(result.2.map Prod.snd).Nodup}) ?_).trans ?_
   · rintro result ⟨hAccept, hResult⟩ h
     rw [← mem_support_batchReplies
       (nodup_prefixFreeBatchQueries (width n) (Q n) (valid n) guesses) (by simp) hResult,

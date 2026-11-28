@@ -256,9 +256,8 @@ theorem mass_map_regularityBucket_le {n : ℕ} {Image : Type*}
   let S := regularityBucket f r
   have hmap : (((PMF.uniformOfFinset S hS).map f) y).toReal =
       ((S.filter fun x => f x = y).card : ℝ) / S.card := by
-    have h := toOuterMeasure_uniformOfFinset_toReal S hS {x | f x = y}
-    simpa only [PMF.toOuterMeasure_apply, PMF.map_apply, eq_comm, Set.indicator_apply,
-      Set.mem_ofPred_eq, tsum_fintype, ← Finset.sum_filter] using h
+    rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
+    exact toOuterMeasure_uniformOfFinset_toReal S hS {x | f x = y}
   have hcard_le : (S.filter fun x => f x = y).card ≤ 2 * 2 ^ r.val := by
     rcases (S.filter fun x => f x = y).eq_empty_or_nonempty with hemp | ⟨x₀, hx₀⟩
     · simp [hemp]

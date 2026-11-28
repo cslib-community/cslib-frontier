@@ -173,8 +173,8 @@ theorem bcsROMSoundness_bound [DecidableEq Stmt] [DecidableEq Chal] [Fintype Cha
         (Q_MT : ℝ≥0∞) *
           (((3 * Q_MT + r * (t_FS + r) : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)) := by
   rw [bcsSoundnessGame_eq_run_bcsMemoize, ← PMF.toOuterMeasure_apply_singleton,
-    PMF.toOuterMeasure_map_apply, ← PMF.toOuterMeasure_apply_inter_support]
-  exact (PMF.toOuterMeasure _ |>.mono fun ⟨_, st'⟩ ⟨(hres : _ = true), hmem⟩ =>
+    PMF.toOuterMeasure_map_apply]
+  exact (PMF.toOuterMeasure_mono _ fun ⟨_, st'⟩ ⟨(hres : _ = true), hmem⟩ =>
     not_bcsGoodState_of_mem_support_bcsSoundnessProg hrbr hdec defaultSym σ P (hres ▸ hmem)).trans
       (toOuterMeasure_run_bcsMemoize_not_goodState_le (S := langᶜ)
         hrbr.init_doomed (fun x _ => hrbr.step_doomed x) hescape decSym defaultSym σ hMT

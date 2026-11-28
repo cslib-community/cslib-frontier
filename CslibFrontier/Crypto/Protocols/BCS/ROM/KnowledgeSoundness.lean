@@ -178,8 +178,7 @@ theorem bcsROMKnowledgeSoundness_trace_bound [DecidableEq Stmt] [DecidableEq Cha
         (Q_MT : ℝ≥0∞) *
           (((3 * Q_MT + r * (t_FS + r) : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)) := by
   set run := (OracleComp.interpret (bcsMemoize σ) (bcsExecROM iop encSym P)).run ([], [])
-  rw [← PMF.toOuterMeasure_apply_inter_support]
-  refine (run.toOuterMeasure.mono
+  refine (run.toOuterMeasure_mono
     fun ⟨⟨⟨x, prf⟩, ok⟩, st₃⟩ ⟨⟨hok, hnot_rel⟩, hmem⟩ => ?_).trans
     (toOuterMeasure_run_bcsMemoize_not_goodState_le (S := Set.univ)
       (fun x _ => hks.init_doomed x) (fun x _ => hks.step_doomed x)
