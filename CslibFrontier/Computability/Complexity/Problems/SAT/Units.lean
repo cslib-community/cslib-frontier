@@ -33,6 +33,7 @@ of Fortune and Mahaney (`CslibFrontier/Computability/Complexity/Classes/Sparse/`
 * `Cslib.Complexity.SAT.eval_units_append`, `Cslib.Complexity.SAT.eval_append_units`: a formula
   with unit clauses before or after it holds exactly when the formula and the literals do.
 * `Cslib.Complexity.SAT.length_encCNF_append`: encoded length is additive under concatenation.
+* `Cslib.Complexity.SAT.length_encCNF_unit`: the exact bit length of a single unit clause.
 * `Cslib.Complexity.SAT.length_encList_le_of_mem_vars`,
   `Cslib.Complexity.SAT.length_encCNF_units_le`: the literals and the unit clauses fixing
   variables of `φ` are short.
@@ -109,7 +110,7 @@ theorem length_encList_le_of_mem_vars {φ : CNF ℕ} {answers : List (Literal �
 
 /-- The unit clause of a literal on `v` takes `8 b + 11` bits, where `b` is the length of the
 binary digits of `v`. -/
-private theorem length_encCNF_unit (l : Literal ℕ) :
+theorem length_encCNF_unit (l : Literal ℕ) :
     (encCNF [[l]]).length = 8 * (encNat l.1).length + 11 := by
   enc_len [encCNF, List.append_nil]
 

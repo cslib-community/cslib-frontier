@@ -1971,6 +1971,18 @@ theorem runTop_cons (F : List PBConstr) (obj : Option Objective) (s : State) (t 
   simp only [runTop]
   cases stepTop F obj s t <;> rfl
 
+/-- Running a concatenation of steps runs the first part, then the second from its result. -/
+theorem runTop_append (F : List PBConstr) (obj : Option Objective) (s : State)
+    (ts ts' : List TopStep) :
+    runTop F obj s (ts ++ ts') = (runTop F obj s ts).bind fun s' => runTop F obj s' ts' := by
+  induction ts generalizing s with
+  | nil => simp [runTop_nil]
+  | cons t ts ih =>
+    rw [List.cons_append, runTop_cons, runTop_cons]
+    rcases stepTop F obj s t with _ | s₁
+    · rfl
+    · exact ih s₁
+
 /-- An implicational step that deletes nothing changes only the database and the next number. -/
 theorem stepTop_step_of_ne_del (F : List PBConstr) (obj : Option Objective) (s : State)
     {st : Step} (h : ∀ ids, st ≠ .del ids) :
@@ -2011,6 +2023,15 @@ theorem stepTop_delc (F : List PBConstr) (obj : Option Objective) (s : State) (i
         some { s with
           db := s.db.filter (fun e => !ids.contains e.1),
           core := s.core.filter (fun e => !ids.contains e.1), chk := false }
+      else none := by
+  simp only [stepTop]
+
+/-- The move `core id ids` of constraints to the core set (§5.1). -/
+theorem stepTop_core (F : List PBConstr) (obj : Option Objective) (s : State) (ids : List ℕ) :
+    stepTop F obj s (.core ids) =
+      if !ids.isEmpty && ids.all fun i => (lookup s.db i).isSome then
+        some { s with
+          core := s.db.filter (fun e => ids.contains e.1 && !s.core.contains e) ++ s.core }
       else none := by
   simp only [stepTop]
 

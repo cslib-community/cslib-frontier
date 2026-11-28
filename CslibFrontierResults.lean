@@ -27,6 +27,7 @@ import CslibFrontierResults.Entries.ODonnellHastadTest
 import CslibFrontierResults.Entries.LupanovFormula
 import CslibFrontierResults.Entries.SinglePeaked
 import CslibFrontierResults.Entries.ODonnellSpectralConcentration
+import CslibFrontierResults.Entries.EvolutionaryCliqueHardness
 import CslibFrontierResults.Entries.HalfBlockPRPCCA
 import CslibFrontierResults.Entries.SergeevUniqueDisjointness
 import CslibFrontierResults.Entries.DFSWordRAM
@@ -45,6 +46,7 @@ import CslibFrontierResults.Entries.ODonnellPeres
 import CslibFrontierResults.Entries.TwoProverNEXP
 import CslibFrontierResults.Entries.Roberts
 import CslibFrontierResults.Entries.SecurityEconomics
+import CslibFrontierResults.Entries.HittingSet
 import CslibFrontierResults.Entries.ODonnellLowDegreeGranularity
 import CslibFrontierResults.Entries.ODonnellMonotoneCoefficient
 import CslibFrontierResults.Entries.VeriPBClique
@@ -56,6 +58,7 @@ import CslibFrontierResults.Entries.Cooperative
 import CslibFrontierResults.Entries.InternalRegret
 import CslibFrontierResults.Entries.NCLBandwidth
 import CslibFrontierResults.Entries.LocalConnection
+import CslibFrontierResults.Entries.SpreadFamilies
 import CslibFrontierResults.Entries.SturmReduced
 import CslibFrontierResults.Entries.DominanceSymmetric
 import CslibFrontierResults.Entries.SergeevMonotoneShift
@@ -68,9 +71,11 @@ import CslibFrontierResults.Entries.UniformFanIn
 import CslibFrontierResults.Entries.RelabelToFront
 import CslibFrontierResults.Entries.LoadBalancing
 import CslibFrontierResults.Entries.PlantedClique
+import CslibFrontierResults.Entries.ODonnellDecisionTreeConcentration
 import CslibFrontierResults.Entries.NetworkContagion
 import CslibFrontierResults.Entries.BanditRegret
 import CslibFrontierResults.Entries.SamplableNotComputable
+import CslibFrontierResults.Entries.DHKEM
 import CslibFrontierResults.Entries.KellyMarketClearing
 import CslibFrontierResults.Entries.SelfClosingDoor
 import CslibFrontierResults.Entries.AlternatingTimeSpace
@@ -80,7 +85,9 @@ import CslibFrontierResults.Entries.EvolutionaryStability
 import CslibFrontierResults.Entries.ODonnellFriedgutConcentration
 import CslibFrontierResults.Entries.LupanovRectifier
 import CslibFrontierResults.Entries.CBCMAC
+import CslibFrontierResults.Entries.BiddingLanguage
 import CslibFrontierResults.Entries.LogspaceUniformNC
+import CslibFrontierResults.Entries.ODonnellHammingBall
 import CslibFrontierResults.Entries.ExternalRegret
 import CslibFrontierResults.Entries.UtilityGame
 import CslibFrontierResults.Entries.PrefixFreePRF
@@ -91,5 +98,6 @@ import CslibFrontierResults.Entries.DigitalGoods
 import CslibFrontierResults.Entries.DistributedConcurrentObjects
 import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.ODonnellLevelK
+import CslibFrontierResults.Entries.ODonnellBiasedFourier
 import CslibFrontierResults.Entries.MajorityMultiplicativeComplexity
 import CslibFrontierResults.Entries.SatisfiabilityHypothesis

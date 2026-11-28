@@ -40,8 +40,10 @@ A monotone Boolean function has total influence `∑ᵢ F̂(i)`
 (`BitString.totalInfluence_eq_sum_fourierCoeff_singleton_of_monotone`)
 [O'Donnell, Proposition 2.31][ODonnell2014], so among monotone functions the majority has the
 largest total influence (`BitString.totalInfluence_le_majority_of_monotone`)
-[O'Donnell, Theorem 2.33][ODonnell2014]. The asymptotic value `I[Majₙ] = √(2/π) √n + O(n^{-1/2})`
-of the book's statement is not part of this module.
+[O'Donnell, Theorem 2.33][ODonnell2014]. The leading term of the asymptotic value
+`I[Majₙ] = √(2/π) √n + O(n^{-1/2})` of the book's statement is
+`BitString.tendsto_totalInfluence_majority_div_sqrt` in `BooleanAnalysis.MajorityInfluence`; the
+error term is not formalized.
 
 ## Main results
 
@@ -163,8 +165,8 @@ theorem sum_fourierCoeff_singleton_eq_majority_iff {n : ℕ} (hn : Odd n) (f : B
 
 /-- **The majority has the largest total influence among monotone functions**: a monotone Boolean
 function of `n` bits has total influence at most that of the majority, the inequality of
-[O'Donnell, Theorem 2.33][ODonnell2014]; the asymptotic value of `I[Majₙ]` is not part of this
-module.
+[O'Donnell, Theorem 2.33][ODonnell2014]; the leading term of `I[Majₙ]` is in
+`BooleanAnalysis.MajorityInfluence`.
 For even `n` the comparison is with the majority breaking ties towards `true`, the book's `-1`. -/
 theorem totalInfluence_le_majority_of_monotone {n : ℕ} {f : BooleanFunction n}
     (hf : Monotone f) :

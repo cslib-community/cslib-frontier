@@ -576,15 +576,20 @@ theorem interpret_prfMultiReduction_eq_multiKeyReduction
   dsimp only
   by_cases hquery : query.length = n
   · simp only [OracleCodec.wordOracle, OracleCodec.bitString, hquery, ↓reduceIte, eagerOracle,
-      randomFunctionOracle, prfOracle, PRF.atLevel, BitString.ofFn_ofList hquery,
+      randomFunctionOracle,
       Function.Embedding.coeFn_mk, PMF.monad_map_eq_map, PMF.pure_map]
     congr 1
     split_ifs with hlt heq
     · rfl
     · exact List.take_of_length_le List.length_ofFn.le
-    · have hlength : (family (List.ofFn (keys i)) query).length = n := by
-        simpa using hlength (List.ofFn (keys i)) query (by simp [hquery])
-      rw [List.take_of_length_le hlength.le, BitString.ofFn_ofList hlength]
+    · have hwidth (key q : List Bool) (hk : key.length = n) (hq : q.length = n) :
+          (family key q).length = n :=
+        (hlength key q (hq.trans hk.symm)).trans hk
+      have hrow : List.ofFn (PRF.atLevel family n (keys i) (BitString.ofList n query)) =
+          prfOracle family n (List.ofFn (keys i)) query := by
+        simpa only [randomFunctionOracle, ite_eq_left hquery, PRF.atLevel] using
+          randomFunctionOracle_keyed hwidth (keys i) query
+      rw [hrow, List.take_of_length_le (length_prfOracle_le hlength List.length_ofFn query)]
   · simp only [OracleCodec.wordOracle, OracleCodec.bitString, hquery, ↓reduceIte, eagerOracle,
       randomFunctionOracle, prfOracle]
     split_ifs <;> simp

@@ -127,16 +127,13 @@ private theorem exists_concentrated_sample [Fintype E] (hloop : G.Loopless)
   set δ := 2 * T / M
   have hsmall : M * (h * D / c ^ 2 + 3 / 2 * h * D / c ^ 2) + 3 / 2 * h * D / c ^ 2 +
       3 / 2 * h * D / c ^ 2 < 1 := by
-    have key : (M * (h * D / c ^ 2 + 3 / 2 * h * D / c ^ 2) + 3 / 2 * h * D / c ^ 2 +
-        3 / 2 * h * D / c ^ 2) = (5 / 2 * M + 3) * D / ε ^ 2 / h := by
-      rw [hc]
-      field_simp
-      ring
-    rw [key, div_lt_one hhpos]
-    calc (5 / 2 * (M : ℝ) + 3) * D / ε ^ 2 ≤ (3 * M + 3) * D / ε ^ 2 := by
-          gcongr
-          linarith
-      _ < h := large
+    have hbudget : (5 / 2 * (M : ℝ) + 3) * D / ε ^ 2 < h := by
+      refine lt_of_le_of_lt ?_ large
+      gcongr
+      linarith
+    convert mul_div_mul_sq_lt_one hε.ne' hhpos hbudget using 1
+    rw [hc]
+    ring
   exact exists_sample_of_grid_bounds (fun i _ => devSt _)
     (fun i _ => devE ((measurableSet_le measurable_const measurable_id).inter
       (measurableSet_lt measurable_id measurable_const)))
