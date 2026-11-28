@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.Formula
 import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import Mathlib.Data.Fintype.Lattice
 import Mathlib.Tactic.Ring
 import CslibFrontier.Computability.Circuit.Boolean.Simps
 
@@ -77,12 +78,11 @@ theorem exists_split (hσ : ∀ op, σ.Arity op ≤ 2) {L : ℕ} (hL : 2 ≤ L) 
     omega
   | gate op args ih =>
     rw [leafSize_gate] at hH
-    have hne : (univ : Finset (Fin (σ.Arity op))).Nonempty :=
-      nonempty_of_ne_empty fun h => by rw [h, sum_empty] at hH; omega
+    have : Nonempty (Fin (σ.Arity op)) := not_isEmpty_iff.1 fun _ => by simp at hH
     -- the argument with the most leaves has at least half of them
-    obtain ⟨a, -, ha⟩ := exists_max_image univ (fun j => (args j).leafSize) hne
+    obtain ⟨a, ha⟩ := Finite.exists_max (fun j => (args j).leafSize)
     have hhalf : ∑ j, (args j).leafSize ≤ 2 * (args a).leafSize :=
-      (sum_le_card_nsmul univ _ _ fun j _ => ha j (mem_univ j)).trans <| by
+      (sum_le_card_nsmul univ _ _ fun j _ => ha j).trans <| by
         rw [card_univ, Fintype.card_fin, smul_eq_mul]
         exact Nat.mul_le_mul_right _ (hσ op)
     -- stop at it, or keep walking

@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Data.Fintype.Card
 public import Mathlib.Order.Antichain
 public import Mathlib.Order.KrullDimension
+import Mathlib.Data.Fintype.Lattice
 
 /-!
 # Chain–antichain duality and Mirsky's theorem
@@ -116,13 +117,13 @@ theorem exists_isChain_and_antichain_coloring :
     exact_mod_cast this
   rcases isEmpty_or_nonempty α with _ | hne
   · exact ⟨∅, isEmptyElim, by simp only [Finset.coe_empty, IsChain.empty], fun _ => isEmptyElim⟩
-  · obtain ⟨a, -, ha⟩ := Finset.exists_max_image Finset.univ h Finset.univ_nonempty
+  · obtain ⟨a, ha⟩ := Finite.exists_max h
     obtain ⟨p, -, hp⟩ := Order.exists_series_of_height_eq_coe a (hh a).symm
     let C : Finset α := Finset.univ.image p
     have hC : C.card = h a + 1 := by
       rw [Finset.card_image_of_injective _ p.strictMono.injective, Finset.card_univ,
         Fintype.card_fin, hp]
-    refine ⟨C, fun x => ⟨h x, hC ▸ Nat.lt_succ_of_le (ha x (Finset.mem_univ x))⟩, ?_, ?_⟩
+    refine ⟨C, fun x => ⟨h x, hC ▸ Nat.lt_succ_of_le (ha x)⟩, ?_, ?_⟩
     · rintro _ hx _ hy -
       obtain ⟨i, -, rfl⟩ := Finset.mem_image.mp hx
       obtain ⟨j, -, rfl⟩ := Finset.mem_image.mp hy

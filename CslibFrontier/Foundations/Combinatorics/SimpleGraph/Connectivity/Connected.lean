@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Combinatorics.SimpleGraph.Connectivity.Connected
 import Mathlib.Combinatorics.SimpleGraph.Acyclic
+import Mathlib.Data.Fintype.Lattice
 
 /-!
 # Empty cuts of disconnected graphs
@@ -74,8 +75,7 @@ theorem exists_connected_induce_forall_not_adj_of_not_connected {V : Type*} [Fin
   classical
   let K (u : V) : Finset V := Finset.univ.filter fun w => G.Reachable u w
   have hK_mem (u w : V) : w ∈ K u ↔ G.Reachable u w := by simp [K]
-  obtain ⟨u₀, _, hu₀min⟩ :=
-    Finset.exists_min_image Finset.univ (fun u => #(K u)) Finset.univ_nonempty
+  obtain ⟨u₀, hu₀min⟩ := Finite.exists_min (fun u => #(K u))
   have ⟨v₀, hv₀⟩ : ∃ v₀ : V, v₀ ∉ K u₀ := by
     by_contra! hall
     exact hnc ⟨fun a b => ((hK_mem u₀ a).mp (hall a)).symm.trans ((hK_mem u₀ b).mp (hall b))⟩
@@ -84,7 +84,7 @@ theorem exists_connected_induce_forall_not_adj_of_not_connected {V : Type*} [Fin
   have hsum_card : #(K u₀) + #(K v₀) ≤ Fintype.card V :=
     Finset.card_union_of_disjoint hdisj ▸ Finset.card_le_univ _
   have hle_half : 2 * #(K u₀) ≤ Fintype.card V := by
-    have := hu₀min v₀ (Finset.mem_univ v₀)
+    have := hu₀min v₀
     omega
   have hcard_ge_two : 2 ≤ #(K u₀) := by
     by_contra! hlt

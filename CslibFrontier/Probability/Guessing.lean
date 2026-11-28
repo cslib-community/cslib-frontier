@@ -56,14 +56,9 @@ theorem score_le_uniform_guess (real : PMF (Seed × (Prefix × Suffix))) (seed :
         ∑ s, (seed s).toReal * ∑ z,
           (PMF.uniformOfFintype (Prefix × Suffix) z).toReal * score s z := by
   classical
-  let complete (s : Seed) (initial : Prefix) : Suffix :=
-    Classical.choose (Finset.exists_max_image Finset.univ
-      (fun suffix => score s (initial, suffix)) Finset.univ_nonempty)
+  choose complete hbest using fun s initial =>
+    Finite.exists_max (fun suffix => score s (initial, suffix))
   let best (pair : Seed × Prefix) := score pair.1 (pair.2, complete pair.1 pair.2)
-  have hbest (s : Seed) (initial : Prefix) (suffix : Suffix) :
-      score s (initial, suffix) ≤ best (s, initial) :=
-    (Classical.choose_spec (Finset.exists_max_image Finset.univ
-      (fun suffix => score s (initial, suffix)) Finset.univ_nonempty)).2 suffix (Finset.mem_univ _)
   let ideal := seed.bind (fun s => (PMF.uniformOfFintype Prefix).map (s, ·))
   have hmap : (fun pair : Seed × (Prefix × Suffix) => (pair.1, pair.2.1)) =
       fun (s, p, _) => (s, p) :=
