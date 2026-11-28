@@ -137,44 +137,13 @@ each full slab (`off = 0` and `j + 1 < q_b * slabSize n_max`). -/
 full slab (`off = 0` and `j + 1 < q_b * slabSize n_max`). -/
 @[expose] def resolveOvfStepProg (U V w n_max h_space : ℕ)
     (d : (ℕ × ℕ) × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) :=
-  let base := ovfBucketBase d
-  let b := ovfBucketIdx d
-  let j := ovfResolveIdx d
-  let p_cur := ovfResolveSlabPtr d
-  do
-    let q_idx ← pure (4 + 3 * b)
-    let q_b ← readGMProg U V w n_max h_space (base, q_idx)
-    let qK ← pure (q_b * slabSize n_max)
-    if j < qK then do
-      let off ← pure ((slabSize n_max - 1) - j % slabSize n_max)
-      let phys ← pure (p_cur * slabSize n_max + off)
-      let z0 ← pure 0
-      if off = z0 then do
-        let j1 ← pure (j + 1)
-        if j1 < qK then do
-          let abv_idx ← pure (gmSlabMetaBase n_max + 4 * p_cur + 3)
-          let p_next ← readGMProg U V w n_max h_space (base, abv_idx)
-          pure (phys, p_next)
-        else
-          pure (phys, p_cur)
-      else
-        pure (phys, p_cur)
-    else do
-      let r ← pure (j - qK)
-      let t_idx ← pure (gmTailPtrBase n_max + (b * tailCapPerBucket n_max + r))
-      let t ← readGMProg U V w n_max h_space (base, t_idx)
-      let phys ← pure ((n_max - 1) - t)
-      pure (phys, p_cur)
+  resolveOvfStepGenProg ((mkDictParams U V w n_max h_space, d.1), d.2)
 
 @[simp]
 theorem resolveOvfStepGenProg_mk (U V w n_max h_space : ℕ)
     (d1 d2 : ℕ × ℕ) :
     resolveOvfStepGenProg ((mkDictParams U V w n_max h_space, d1), d2) =
-      resolveOvfStepProg U V w n_max h_space (d1, d2) := by
-  simp only [resolveOvfStepGenProg, resolveOvfStepProg, ovfGenParams, ovfGenBase, ovfGenBucket,
-    ovfBucketBase, ovfBucketIdx, ovfResolveIdx, ovfResolveSlabPtr, p_slabSize_mk,
-    p_slabSizeSubOne_mk, p_gmSlabMetaBase_mk, p_gmTailPtrBase_mk, p_tailCap_mk, p_nMaxSubOne_mk,
-    readGMGenProg_mk]
+      resolveOvfStepProg U V w n_max h_space (d1, d2) := rfl
 
 theorem memoryCost_resolveOvfStepGenProg_pos
     (d : (DictParams × (ℕ × ℕ)) × (ℕ × ℕ)) (s : Memory.State) :
@@ -187,8 +156,9 @@ theorem memoryCost_resolveOvfStepGenProg_pos
 theorem clientState_resolveOvfStepProg (U V w n_max h_space : ℕ)
     (d : (ℕ × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
     (Memory.spec 0).clientState s (resolveOvfStepProg U V w n_max h_space d) = s := by
-  unfold resolveOvfStepProg
-  simp only [ovfBucketBase, ovfBucketIdx, ovfResolveIdx, ovfResolveSlabPtr, pure_bind]
+  simp only [resolveOvfStepProg, resolveOvfStepGenProg, ovfGenParams, ovfGenBase, ovfGenBucket,
+    ovfResolveIdx, ovfResolveSlabPtr, p_slabSize_mk, p_slabSizeSubOne_mk, p_gmSlabMetaBase_mk,
+    p_gmTailPtrBase_mk, p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientState_bind, clientState_readGMProg]
   split_ifs <;> first
     | (rw [StateTransitionSpec.clientState_bind, clientState_readGMProg]; rfl)
@@ -197,8 +167,10 @@ theorem clientState_resolveOvfStepProg (U V w n_max h_space : ℕ)
 theorem memoryCost_resolveOvfStepProg_le (U V w n_max h_space : ℕ)
     (d : (ℕ × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
     memoryCost (resolveOvfStepProg U V w n_max h_space d) s ≤ 4 := by
-  unfold resolveOvfStepProg
-  simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
+  simp only [resolveOvfStepProg, resolveOvfStepGenProg, ovfGenParams, ovfGenBase, ovfGenBucket,
+    ovfResolveIdx, ovfResolveSlabPtr, p_slabSize_mk, p_slabSizeSubOne_mk, p_gmSlabMetaBase_mk,
+    p_gmTailPtrBase_mk, p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk, pure_bind,
+    ← PFunctor.FreeM.bind_eq_bind]
   rw [memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg]
   split_ifs <;>
     simp only [memoryCost_bind, memoryCost_readGMProg, memoryCost_pure] <;>
@@ -271,8 +243,9 @@ theorem clientResult_resolveOvfStepProg {U V w n_max h_space : ℕ}
       d.2.2 * slabSize n_max + (slabSize n_max - 1 - d.2.1 % slabSize n_max) =
         slotOf n_max (gmAt d.1.1 U V w n_max h_space s.mem) d.1.2 d.2.1 := fun hj => by
     unfold slotOf; rw [ite_eq_right hb0, ite_eq_left hj, hp hj]
-  unfold resolveOvfStepProg
-  simp only [ovfBucketBase, ovfBucketIdx, ovfResolveIdx, ovfResolveSlabPtr, pure_bind]
+  simp only [resolveOvfStepProg, resolveOvfStepGenProg, ovfGenParams, ovfGenBase, ovfGenBucket,
+    ovfResolveIdx, ovfResolveSlabPtr, p_slabSize_mk, p_slabSizeSubOne_mk, p_gmSlabMetaBase_mk,
+    p_gmTailPtrBase_mk, p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
     clientResult_readGMProg s hq_lt, show 4 + 3 * d.1.2 = gmQIdx d.1.2 from rfl]
   split_ifs with hj_slab hoff hj1_slab
@@ -453,29 +426,13 @@ j_found), phys_found))`). Resolves `(phys, p_next) ← resolveOvfStepProg` and r
 @[expose] def ovfStepProg (U V w n_max h_space : ℕ)
     (x : ((ℕ × ℕ) × ℕ) × ((((ℕ × ℕ) × ℕ) × ℕ) × ℕ)) :
     Memory.Prog ((((ℕ × ℕ) × ℕ) × ℕ) × ℕ) :=
-  let acc := x.2
-  do
-    let pair ← resolveOvfStepProg U V w n_max h_space (ovfQueryLoc x, ovfAccCursor acc)
-    let q_val ← readQuotProg U w n_max h_space (ovfQueryBase x, pair.1)
-    let j1 ← pure (ovfAccSlotIdx acc + 1)
-    let z0 ← pure 0
-    if ovfAccFound acc = z0 then
-      if q_val = ovfQueryQuot x then do
-        let z1 ← pure 1
-        pure ((((j1, pair.2), z1), ovfAccSlotIdx acc), pair.1)
-      else
-        pure ((((j1, pair.2), z0), ovfAccMatchIdx acc), ovfAccPhys acc)
-    else
-      pure ((((j1, pair.2), ovfAccFound acc), ovfAccMatchIdx acc), ovfAccPhys acc)
+  ovfStepGenProg ((mkDictParams U V w n_max h_space, x.1), x.2)
 
 @[simp]
 theorem ovfStepGenProg_mk (U V w n_max h_space : ℕ)
     (x1 : (ℕ × ℕ) × ℕ) (x2 : (((ℕ × ℕ) × ℕ) × ℕ) × ℕ) :
     ovfStepGenProg ((mkDictParams U V w n_max h_space, x1), x2) =
-      ovfStepProg U V w n_max h_space (x1, x2) := by
-  simp only [ovfStepGenProg, ovfStepProg, ovfGenParams, ovfStepGenLoc, ovfStepGenBase,
-    ovfStepGenQuot, ovfQueryLoc, ovfQueryBase, ovfQueryQuot, ovfAccCursor, ovfAccSlotIdx,
-    ovfAccFound, ovfAccMatchIdx, ovfAccPhys, resolveOvfStepGenProg_mk, readQuotGenProg_mk]
+      ovfStepProg U V w n_max h_space (x1, x2) := rfl
 
 theorem memoryCost_ovfStepGenProg_pos
     (x : (DictParams × ((ℕ × ℕ) × ℕ)) × ((((ℕ × ℕ) × ℕ) × ℕ) × ℕ)) (s : Memory.State) :
@@ -490,8 +447,8 @@ theorem memoryCost_ovfStepGenProg_pos
 theorem clientState_ovfStepProg (U V w n_max h_space : ℕ)
     (x : ((ℕ × ℕ) × ℕ) × ((((ℕ × ℕ) × ℕ) × ℕ) × ℕ)) (s : Memory.State) :
     (Memory.spec 0).clientState s (ovfStepProg U V w n_max h_space x) = s := by
-  unfold ovfStepProg
-  simp only [pure_bind]
+  simp only [ovfStepProg, ovfStepGenProg, ovfGenParams, ovfStepGenLoc, ovfStepGenBase,
+    ovfStepGenQuot, resolveOvfStepGenProg_mk, readQuotGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientState_bind, clientState_resolveOvfStepProg,
     StateTransitionSpec.clientState_bind, clientState_readQuotProg]
   split_ifs <;> rfl
@@ -499,10 +456,11 @@ theorem clientState_ovfStepProg (U V w n_max h_space : ℕ)
 theorem memoryCost_ovfStepProg_le (U V w n_max h_space : ℕ)
     (x : ((ℕ × ℕ) × ℕ) × ((((ℕ × ℕ) × ℕ) × ℕ) × ℕ)) (s : Memory.State) :
     memoryCost (ovfStepProg U V w n_max h_space x) s ≤ 6 := by
-  unfold ovfStepProg
-  simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
+  simp only [ovfStepProg, ovfStepGenProg, ovfGenParams, ovfStepGenLoc, ovfStepGenBase,
+    ovfStepGenQuot, resolveOvfStepGenProg_mk, readQuotGenProg_mk, pure_bind,
+    ← PFunctor.FreeM.bind_eq_bind]
   rw [memoryCost_bind, clientState_resolveOvfStepProg, memoryCost_bind]
-  have := memoryCost_resolveOvfStepProg_le U V w n_max h_space (ovfQueryLoc x, ovfAccCursor x.2) s
+  have := memoryCost_resolveOvfStepProg_le U V w n_max h_space (x.1.1, ovfAccCursor x.2) s
   split_ifs <;> · change memoryCost (resolveOvfStepProg _ _ _ _ _ _) s + (2 + 0) ≤ 6; omega
 
 /-- Precondition for `ovfStepProg`. -/
@@ -558,8 +516,8 @@ theorem clientResult_ovfStepProg {U V w n_max h_space : ℕ}
   dsimp only [ovfBucketBase, ovfBucketIdx, ovfResolveIdx] at hres
   have hphys_lt : slotOf n_max (gmAt x.1.1.1 U V w n_max h_space s.mem) x.1.1.2 x.2.1.1.1.1 <
       n_max := (slotOf_lt_and_injective hinv).1 x.1.1.2 hb x.2.1.1.1.1 hj_bc
-  unfold ovfStepProg
-  simp only [pure_bind]
+  simp only [ovfStepProg, ovfStepGenProg, ovfGenParams, ovfStepGenLoc, ovfStepGenBase,
+    ovfStepGenQuot, resolveOvfStepGenProg_mk, readQuotGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientResult_bind, clientState_resolveOvfStepProg,
     StateTransitionSpec.clientResult_bind, clientState_readQuotProg]
   rw [show ((Memory.spec 0).clientResult s

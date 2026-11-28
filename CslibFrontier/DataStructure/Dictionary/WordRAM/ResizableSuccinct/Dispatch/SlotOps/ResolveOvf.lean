@@ -145,7 +145,9 @@ theorem clientResult_compResolveOvfStepGenProg_eq {U V w w₀ N h_space metaBase
   have hq_eq1 : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
   have hq_eq2 : 4 + 3 * b = gmQIdx b := rfl
   simp only [compResolveOvfStepGenProg, compResolveOvfInSlabGenProg, compResolveOvfAdvanceGenProg,
-    resolveOvfStepProg, ovfBucketBase, ovfBucketIdx, ovfResolveIdx, ovfResolveSlabPtr,
+    resolveOvfStepProg, resolveOvfStepGenProg, ovfGenParams, ovfGenBase, ovfGenBucket,
+    ovfResolveIdx, ovfResolveSlabPtr, p_slabSize_mk, p_slabSizeSubOne_mk, p_gmSlabMetaBase_mk,
+    p_gmTailPtrBase_mk, p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk,
     cpSlabSize_mk, cpSlabSizeSubOne_mk, cpGmSlabMetaBase_mk, cpGmTailPtrBase_mk,
     cpTailCap_mk, cpNSubOne_mk, pure_bind, hq_eq1, hq_eq2]
   rw [prog_clientResult_bind, clientResult_readCompGMGenProg hq_lt,

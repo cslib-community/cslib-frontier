@@ -772,14 +772,16 @@ theorem validProg_resolveOvfStep {U V w n_max h_space : ℕ}
   rcases hpre with ⟨henv, hb, hj_bc, hinv, hp, hb_pos⟩
   have hw := (dictEnvGen_mk_bounds henv).1
   have hq_lt : 4 + 3 * d.1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos hb
-  unfold resolveOvfStepProg
-  simp only [pure_bind]
+  simp only [resolveOvfStepProg, resolveOvfStepGenProg, ovfGenParams, ovfGenBase, ovfGenBucket,
+    ovfResolveIdx, ovfResolveSlabPtr, p_slabSize_mk, p_slabSizeSubOne_mk, p_gmSlabMetaBase_mk,
+    p_gmTailPtrBase_mk, p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk, pure_bind]
   valid_prog with [clientState_readGMProg, clientResult_readGMProg]
   · have hs_lt : d.2.1 / slabSize n_max <
         gmAt d.1.1 U V w n_max h_space s.mem (gmQIdx d.1.2) :=
       (Nat.div_lt_iff_lt_mul (slabSize_pos n_max)).2 ‹_›
-    exact gmSlabAboveIdx_lt hb_pos
-      ((hp ‹_›) ▸ (hinv.multi_slab hb_pos).ptr_lt_maxFullSlabs hb hs_lt)
+    apply gmSlabAboveIdx_lt hb_pos
+    rw [show d.2.2 = _ from hp ‹_›]
+    exact (hinv.multi_slab hb_pos).ptr_lt_maxFullSlabs hb hs_lt
   · exact gmTailPtrIdx_lt hb_pos hb (hinv.tailOffset_lt hb_pos hb hj_bc ‹_›).2
 
 theorem validProg_ovfStep {U V w n_max h_space : ℕ}
@@ -789,8 +791,8 @@ theorem validProg_ovfStep {U V w n_max h_space : ℕ}
     ValidProg w (dictFrontier U V w n_max h_space (bucketCallBase x)) s
       (ovfStepProg U V w n_max h_space x) := by
   rcases hpre with ⟨henv, hb, hj_bc, hinv, hp, hb_pos⟩
-  unfold ovfStepProg
-  simp only [pure_bind]
+  simp only [ovfStepProg, ovfStepGenProg, ovfGenParams, ovfStepGenLoc, ovfStepGenBase,
+    ovfStepGenQuot, resolveOvfStepGenProg_mk, readQuotGenProg_mk, pure_bind]
   refine validProg_bind
     (validProg_resolveOvfStep (d := (x.1.1, x.2.1.1.1)) ⟨henv, hb, hj_bc, hinv, hp, hb_pos⟩) ?_
   rw [clientState_resolveOvfStepProg,
