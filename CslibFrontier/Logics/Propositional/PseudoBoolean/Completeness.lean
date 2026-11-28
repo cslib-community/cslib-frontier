@@ -80,7 +80,8 @@ constraint of the database (`Cslib.Logic.PL.VeriPB.solves_solutionOf`).
 tree as refutation, given the solutions to log. The search producers find those solutions by trying
 all `2 ^ k` assignments of the `k` distinct variables involved
 (`Cslib.Logic.PL.VeriPB.solutionsOn`): `Cslib.Logic.PL.VeriPB.refute` (`UNSAT`, a proof of
-`2 ^ (k + 1) - 1` `rup` steps of clauses of at most `k` literals with at most three hints each),
+`2 ^ (k + 1) - 1` `rup` steps of clauses of at most `k` literals of variables of the formula,
+with at most three hints each, all below `|F| + 2 ^ (k + 1)`),
 `Cslib.Logic.PL.VeriPB.solve` (`SAT : ρ`), `Cslib.Logic.PL.VeriPB.optimize` (`BOUNDS v : q v`, or
 `BOUNDS INF : q INF`) and `Cslib.Logic.PL.VeriPB.enumerate` (`ENUMERATION_COMPLETE n : q`). Each is
 accepted by the checker (`Cslib.Logic.PL.VeriPB.checkRed_of_refute_eq_some`,
@@ -759,8 +760,11 @@ theorem isSome_refute {F : List PBConstr} : (refute F).isSome ↔ ¬ ∃ σ, ∀
 
 /-- **The proof of `refute` is accepted**, for every objective and preserved set, with conclusion
 `UNSAT`, and it has `2 ^ (k + 1) - 1` steps for the number `k` of distinct variables of `F`, each a
-`rup` step of a clause of at most `k` literals with at most three hints
-(`Cslib.Logic.PL.VeriPB.exists_eq_rup_of_mem_refuteSteps`). -/
+`rup` step of a clause of at most `k` literals of variables of `F` with at most three hints, all
+below `|F| + 2 ^ (k + 1)` (`Cslib.Logic.PL.VeriPB.exists_eq_rup_of_mem_refuteSteps`, with the
+input database numbered `1` to `|F|` and the proof numbered from `|F| + 1`). These are counts:
+printed in decimal, the proof has `O(2 ^ k · (k · (d + 1) + log (|F| + 2)))` characters, for
+`d` the number of digits of the largest variable of `F`. -/
 theorem checkRed_of_refute_eq_some {F : List PBConstr} {P : RedProof} (h : refute F = some P)
     (obj : Option Objective) (pres : Option (List ℕ)) :
     checkRed F obj P pres = true ∧ (∃ q, P.conclusion = .unsat q) ∧

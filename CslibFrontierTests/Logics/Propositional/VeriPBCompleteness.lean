@@ -6,8 +6,10 @@ Authors: Matthew Doty
 
 module
 
--- `import all`: the `decide +kernel` checks below evaluate `stepTop`, whose body is not exposed.
+-- `import all`: the `decide +kernel` checks below evaluate `stepTop` and `refuteSteps`, whose
+-- bodies are not exposed.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
+import all CslibFrontier.Logics.Propositional.PseudoBoolean.RupRefutation
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Completeness
 
 /-! Checked clients of the completeness of the VeriPB kernel checker, each a proof of the shape

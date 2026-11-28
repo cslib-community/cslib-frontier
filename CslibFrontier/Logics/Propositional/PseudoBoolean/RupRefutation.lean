@@ -23,7 +23,7 @@ clause* `∑_{ℓ ∈ K} ¬ℓ ≥ 1` (`Cslib.Logic.PL.VeriPB.blocking`), which 
 
 * at a leaf, `K` decides every variable of `vs`, and the hints are the negated clause, which puts
   the literals of `K` on the trail, and the first constraint of the database that the assignment
-  of `K` violates (`Cslib.Logic.PL.VeriPB.violatedId`), which then has negative slack;
+  of `K` violates, which then has negative slack;
 * at an inner node, splitting on `x`, the hints are the negated clause and the clauses of the two
   children: the clause of `x :: K` propagates `¬x` under `K`, and the clause of `¬x :: K` is then
   in conflict.
@@ -31,9 +31,12 @@ clause* `∑_{ℓ ∈ K} ¬ℓ ≥ 1` (`Cslib.Logic.PL.VeriPB.blocking`), which 
 The steps are in post-order, the children of a node before it, so the root clause `0 ≥ 1`, a
 contradiction, comes last (`Cslib.Logic.PL.VeriPB.runSteps_refuteSteps`). The refutation has
 `2 ^ (|vs| + 1) - 1` steps (`Cslib.Logic.PL.VeriPB.length_refuteSteps`), each a `rup` step of a
-clause with at most `|vs|` literals and at most three hints
-(`Cslib.Logic.PL.VeriPB.exists_eq_rup_of_mem_refuteSteps`); its size does not depend on the
-constraints of the database. This is the exponential, but total and simple, refutation strategy
+clause with at most `|vs|` literals, all of variables of `vs`, and at most three hints, each the
+number of a constraint of the database or below `n + 2 ^ (|vs| + 1) - 1`
+(`Cslib.Logic.PL.VeriPB.exists_eq_rup_of_mem_refuteSteps`). These counts of steps, literals and
+hints do not depend on the constraints of the database. The length of the proof as text does,
+through the digits of the numbers it prints: a hint at a leaf names a constraint of the database,
+and a literal names its variable. This is the exponential, but total and simple, refutation strategy
 that the producers of `CslibFrontier.Logics.Propositional.PseudoBoolean.Completeness` use: it
 needs no cutting planes reasoning and is accepted for any database, including ones with repeated
 variables in `vs` or unnormalized constraints.
@@ -47,7 +50,8 @@ variables in `vs` or unnormalized constraints.
 
 * `Cslib.Logic.PL.VeriPB.runSteps_refuteSteps`: the refutation runs and names a contradiction.
 * `Cslib.Logic.PL.VeriPB.length_refuteSteps`,
-  `Cslib.Logic.PL.VeriPB.exists_eq_rup_of_mem_refuteSteps`: its size.
+  `Cslib.Logic.PL.VeriPB.exists_eq_rup_of_mem_refuteSteps`: its numbers of steps, literals and
+  hints.
 -/
 
 @[expose] public section
@@ -77,20 +81,21 @@ theorem holds_blocking (σ : ℕ → Bool) (ρ : List (Literal ℕ)) :
     cases b <;> simp_all [Std.Sat.Literal.negate]
 
 /-- The blocking clause of no literal is the contradiction `0 ≥ 1`. -/
-theorem isContradiction_normalize_blocking_nil : (blocking []).normalize.IsContradiction := by
+private theorem isContradiction_normalize_blocking_nil :
+    (blocking []).normalize.IsContradiction := by
   decide
 
 /-! ### The tree -/
 
 /-- The number of the first constraint of `db` that `σ` violates, and `0` if there is none. -/
-def violatedId (db : List (ℕ × PBConstr)) (σ : ℕ → Bool) : ℕ :=
+private def violatedId (db : List (ℕ × PBConstr)) (σ : ℕ → Bool) : ℕ :=
   ((db.find? fun e => !decide (e.2.Holds σ)).map (·.1)).getD 0
 
 /-- **The decision tree** below the decisions `K` over the variables `xs`, its first step numbered
 `n`, with the leaf hints read from the database `db`: the trees of `x :: K` and `¬x :: K` over
 the rest of the variables, then the blocking clause of `K` by `rup`. A tree over `k` variables has
 `2 ^ (k + 1) - 1` steps. -/
-def treeSteps (db : List (ℕ × PBConstr)) : ℕ → List (Literal ℕ) → List ℕ → List Step
+private def treeSteps (db : List (ℕ × PBConstr)) : ℕ → List (Literal ℕ) → List ℕ → List Step
   | _, K, [] => [.rup (blocking K) [.neg, .id (violatedId db (assignOf K))]]
   | n, K, x :: xs =>
     let m := n + (2 ^ (xs.length + 1) - 1)
@@ -98,7 +103,9 @@ def treeSteps (db : List (ℕ × PBConstr)) : ℕ → List (Literal ℕ) → Lis
       [.rup (blocking K) [.neg, .id (m - 1), .id (m + (2 ^ (xs.length + 1) - 1) - 1)]]
 
 /-- **The decision-tree refutation** of the database `db`, whose next number is `n`, over the
-variables `vs`. -/
+variables `vs`. Its body, which calls the private recursive worker, is not exposed: clients that
+evaluate it in the kernel import this module with `import all`. -/
+@[no_expose]
 def refuteSteps (db : List (ℕ × PBConstr)) (n : ℕ) (vs : List ℕ) : List Step :=
   treeSteps db n [] vs
 
@@ -114,7 +121,7 @@ private theorem size_succ (k : ℕ) : 2 ^ (k + 1 + 1) - 1 = 2 * (2 ^ (k + 1) - 1
   omega
 
 /-- A tree over `k` variables has `2 ^ (k + 1) - 1` steps. -/
-theorem length_treeSteps (db : List (ℕ × PBConstr)) :
+private theorem length_treeSteps (db : List (ℕ × PBConstr)) :
     ∀ (n : ℕ) (K : List (Literal ℕ)) (xs : List ℕ),
       (treeSteps db n K xs).length = 2 ^ (xs.length + 1) - 1
   | _, _, [] => rfl
@@ -129,30 +136,75 @@ theorem length_refuteSteps (db : List (ℕ × PBConstr)) (n : ℕ) (vs : List �
     (refuteSteps db n vs).length = 2 ^ (vs.length + 1) - 1 :=
   length_treeSteps db n [] vs
 
-/-- Each step of a tree is a `rup` step of a blocking clause of its decisions and at most the
-variables below, with at most three hints. -/
-theorem exists_eq_rup_of_mem_treeSteps (db : List (ℕ × PBConstr)) :
+/-- The first violated constraint is `0` or the number of a constraint of the database. -/
+private theorem violatedId_mem (db : List (ℕ × PBConstr)) (σ : ℕ → Bool) :
+    violatedId db σ = 0 ∨ violatedId db σ ∈ db.map (·.1) := by
+  unfold violatedId
+  cases h : db.find? fun e => !decide (e.2.Holds σ) with
+  | none => simp
+  | some e => exact .inr (List.mem_map_of_mem (List.mem_of_find?_eq_some h))
+
+/-- Each step of a tree is a `rup` step of a blocking clause of its decisions and of literals of
+the variables below, with at most three hints, each the number of a constraint of the database or
+below the number after the tree. -/
+private theorem exists_eq_rup_of_mem_treeSteps (db : List (ℕ × PBConstr)) :
     ∀ (n : ℕ) (K : List (Literal ℕ)) (xs : List ℕ), ∀ st ∈ treeSteps db n K xs,
-      ∃ K' hs, st = .rup (blocking K') hs ∧ K'.length ≤ K.length + xs.length ∧ hs.length ≤ 3
-  | _, K, [], st, hst => by
+      ∃ K' hs, st = .rup (blocking K') hs ∧ K'.length ≤ K.length + xs.length ∧ hs.length ≤ 3 ∧
+        (∀ l ∈ K', l ∈ K ∨ l.1 ∈ xs) ∧
+        ∀ j, Hint.id j ∈ hs → j < n + (2 ^ (xs.length + 1) - 1) ∨ j ∈ db.map (·.1)
+  | n, K, [], st, hst => by
     simp only [treeSteps, List.mem_singleton] at hst
-    exact ⟨K, _, hst, by simp, by simp⟩
+    refine ⟨K, _, hst, by simp, by simp, fun l hl => .inl hl, fun j hj => ?_⟩
+    simp only [List.mem_cons, reduceCtorEq, Hint.id.injEq, List.not_mem_nil, or_false,
+      false_or] at hj
+    subst hj
+    rcases violatedId_mem db (assignOf K) with h | h
+    · exact .inl (by simp [h])
+    · exact .inr h
   | n, K, x :: xs, st, hst => by
+    have hS := one_le_size xs.length
+    have hsz : 2 ^ ((x :: xs).length + 1) - 1 = 2 * (2 ^ (xs.length + 1) - 1) + 1 := by
+      rw [List.length_cons, size_succ]
+    rw [hsz]
     simp only [treeSteps, List.mem_append, List.mem_singleton] at hst
     rcases hst with (hst | hst) | hst
-    · obtain ⟨K', hs, h, hK, hh⟩ := exists_eq_rup_of_mem_treeSteps db _ _ xs st hst
-      exact ⟨K', hs, h, by simp at hK ⊢; omega, hh⟩
-    · obtain ⟨K', hs, h, hK, hh⟩ := exists_eq_rup_of_mem_treeSteps db _ _ xs st hst
-      exact ⟨K', hs, h, by simp at hK ⊢; omega, hh⟩
-    · exact ⟨K, _, hst, by simp, by simp⟩
+    · obtain ⟨K', hs, h, hK, hh, hl, hj⟩ := exists_eq_rup_of_mem_treeSteps db _ _ xs st hst
+      refine ⟨K', hs, h, by simp at hK ⊢; omega, hh, fun l hl' => ?_, fun j hj' => ?_⟩
+      · rcases hl l hl' with h | h
+        · simp only [List.mem_cons] at h ⊢
+          rcases h with rfl | h
+          · exact .inr (.inl rfl)
+          · exact .inl h
+        · exact .inr (List.mem_cons_of_mem _ h)
+      · rcases hj j hj' with h | h
+        · exact .inl (by omega)
+        · exact .inr h
+    · obtain ⟨K', hs, h, hK, hh, hl, hj⟩ := exists_eq_rup_of_mem_treeSteps db _ _ xs st hst
+      refine ⟨K', hs, h, by simp at hK ⊢; omega, hh, fun l hl' => ?_, fun j hj' => ?_⟩
+      · rcases hl l hl' with h | h
+        · simp only [List.mem_cons] at h ⊢
+          rcases h with rfl | h
+          · exact .inr (.inl rfl)
+          · exact .inl h
+        · exact .inr (List.mem_cons_of_mem _ h)
+      · rcases hj j hj' with h | h
+        · exact .inl (by omega)
+        · exact .inr h
+    · refine ⟨K, _, hst, by simp, by simp, fun l hl => .inl hl, fun j hj => .inl ?_⟩
+      simp only [List.mem_cons, reduceCtorEq, Hint.id.injEq, List.not_mem_nil, or_false,
+        false_or] at hj
+      omega
 
 /-- **Each step of the refutation is a `rup` step** of a blocking clause of at most `|vs|`
-literals, with at most three hints. -/
+literals, each of a variable of `vs`, with at most three hints, each the number of a constraint
+of `db` or below `n + 2 ^ (|vs| + 1) - 1`, the number after the refutation. -/
 theorem exists_eq_rup_of_mem_refuteSteps {db : List (ℕ × PBConstr)} {n : ℕ} {vs : List ℕ}
     {st : Step} (h : st ∈ refuteSteps db n vs) :
-    ∃ K hs, st = .rup (blocking K) hs ∧ K.length ≤ vs.length ∧ hs.length ≤ 3 := by
-  obtain ⟨K, hs, h, hK, hh⟩ := exists_eq_rup_of_mem_treeSteps db n [] vs st h
-  exact ⟨K, hs, h, by simpa using hK, hh⟩
+    ∃ K hs, st = .rup (blocking K) hs ∧ K.length ≤ vs.length ∧ hs.length ≤ 3 ∧
+      (∀ l ∈ K, l.1 ∈ vs) ∧
+      ∀ j, Hint.id j ∈ hs → j < n + (2 ^ (vs.length + 1) - 1) ∨ j ∈ db.map (·.1) := by
+  obtain ⟨K, hs, h, hK, hh, hl, hj⟩ := exists_eq_rup_of_mem_treeSteps db n [] vs st h
+  exact ⟨K, hs, h, by simpa using hK, hh, fun l h => by simpa using hl l h, hj⟩
 
 /-! ### Acceptance -/
 

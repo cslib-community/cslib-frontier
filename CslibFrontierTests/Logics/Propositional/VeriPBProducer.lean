@@ -26,8 +26,9 @@ public meta import CslibFrontierTests.Logics.Propositional.VeriPBProofText
 * the instances printed as OPB by the library's printer `Cslib.Logic.PL.VeriPB.Text.printOPB`
   and the proofs by the test-only printer
   `CslibFrontierTests.Logics.Propositional.VeriPBProofText.pbpText`, whose output the text front
-  end parses and accepts with the same conclusion. `writeCases` writes the texts out for VeriPB
-  and CakePB.
+  end parses and accepts with the same conclusion. `writeCases` writes the 90 instance and proof
+  texts out for VeriPB and CakePB; run it with
+  `lake env lean --run scripts/VeriPBProducerCases.lean DIR` after building this module.
 
 The kernel-checked clients are in `CslibFrontierTests.Logics.Propositional.VeriPBCompleteness`. -/
 
@@ -164,8 +165,8 @@ def Case.textAgrees (c : Case) : Bool :=
 #guard cases.all Case.textAgrees
 
 /-- Write the texts of the cases to `dir`, for the external checkers: `c{k}-{dec,opt,enum}.opb` and
-`.pbp`. -/
-def writeCases (dir : System.FilePath) : IO Unit := do
+`.pbp`. `scripts/VeriPBProducerCases.lean` runs it. -/
+public def writeCases (dir : System.FilePath) : IO Unit := do
   for (c, k) in cases.zipIdx do
     for ((opb, pbp, _), tag) in c.texts.zip ["dec", "opt", "enum"] do
       IO.FS.writeFile (dir / s!"c{k}-{tag}.opb") opb
