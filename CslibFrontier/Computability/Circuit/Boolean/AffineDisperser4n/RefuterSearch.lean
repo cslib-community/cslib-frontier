@@ -24,6 +24,8 @@ enumerated points.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.length_candidates_le`: at most `2^d` candidates.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.exists_mem_candidates_ne`: on a valid terminal state
   with `d < S.a`, some candidate is a counterexample.
+* `Cslib.Circuits.Boolean.AffineDisperser4n.findCounterexample_eq_find?`: the search returns the
+  first candidate that is a counterexample.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.findCounterexample_spec`: every returned point is a
   counterexample.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.findCounterexample_isSome`: on a valid terminal state
@@ -399,17 +401,6 @@ private theorem terminal_gate_shape {f : BooleanFunction n} {S : State n} (hS : 
     simp [hl, hr, hnaff, ht₁p, ht₂p, h12, hp] at this
   exact ⟨t₁, t₂, hl, hr, ht₁p, hpaired, hnaff, huG⟩
 
-/-- The search as a search over the parameter assignments of `candidateFamily`. -/
-private theorem findCounterexample_eq_bind {d : ℕ} (C : Circuit (fullSignature 2 Bool) n 1)
-    (f : BitString n → Bool) (S : State n) :
-    findCounterexample C f d S = (candidateFamily d S).bind fun σ =>
-      (allAssignments d).findSome? fun A =>
-        Option.guard (fun x => C.eval fullInterpretation x 0 != f x) (candidatePoint S (σ A)) := by
-  unfold findCounterexample candidates
-  cases candidateFamily d S with
-  | none => rfl
-  | some σ => rw [List.find?_eq_findSome?_guard, List.findSome?_map]; rfl
-
 /-- On a valid terminal state of the refuter for the function of `C` with `d < S.a`, the final
 search of `findCounterexample` succeeds. -/
 theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) n 1)
@@ -418,8 +409,7 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
     (ha : d < S.a)
     (hrep : ∀ u ∈ S.aux, S.AffineIn u (findAffineRep S u).1 (findAffineRep S u).2) :
     (findCounterexample C f d S).isSome := by
-  rw [findCounterexample_eq_bind]
-  unfold candidateFamily
+  unfold findCounterexample candidateFamily
   split
   · rename_i b hb
     exact findSome_isSome_terminalVal C f hf hS
@@ -563,10 +553,21 @@ theorem length_candidates_le (d : ℕ) (S : State n) : (candidates d S).length �
   · rw [List.length_map, length_allAssignments]
   · exact Nat.zero_le _
 
+/-- The search returns the first candidate on which `C` and `f` disagree. -/
+theorem findCounterexample_eq_find? {d : ℕ} (C : Circuit (fullSignature 2 Bool) n 1)
+    (f : BitString n → Bool) (S : State n) :
+    findCounterexample C f d S =
+      (candidates d S).find? fun x => C.eval fullInterpretation x 0 != f x := by
+  unfold findCounterexample candidates
+  cases candidateFamily d S with
+  | none => rfl
+  | some σ => rw [List.find?_eq_findSome?_guard, List.findSome?_map]; rfl
+
 /-- Every input returned by `findCounterexample` is a counterexample. -/
 theorem findCounterexample_spec {d : ℕ} (C : Circuit (fullSignature 2 Bool) n 1)
     (f : BitString n → Bool) (S : State n) {x : BitString n}
     (h : findCounterexample C f d S = some x) : C.eval fullInterpretation x 0 ≠ f x := by
+  rw [findCounterexample_eq_find?] at h
   simpa using List.find?_some h
 
 /-- On a valid terminal state of the refuter for the function of `C` with `d < S.a`, some candidate
@@ -578,6 +579,7 @@ theorem exists_mem_candidates_ne {d : ℕ} (C : Circuit (fullSignature 2 Bool) n
     (hrep : ∀ u ∈ S.aux, S.AffineIn u (findAffineRep S u).1 (findAffineRep S u).2) :
     ∃ x ∈ candidates d S, C.eval fullInterpretation x 0 ≠ f x := by
   obtain ⟨x, hx⟩ := Option.isSome_iff_exists.1 (findCounterexample_isSome C f hf hS hterm ha hrep)
+  rw [findCounterexample_eq_find?] at hx
   exact ⟨x, List.mem_of_find?_eq_some hx, by simpa using List.find?_some hx⟩
 
 end Cslib.Circuits.Boolean.AffineDisperser4n

@@ -405,16 +405,20 @@ def candidateFamily {n} (d : ℕ) (S : State n) : Option (List Bool → ℕ → 
     else none
 
 /-- The candidate inputs of the final search of a terminal state: `candidatePoint` of each of the
-`2^d` parameter assignments of `candidateFamily`, in the order of `allAssignments d`. -/
+`2^d` parameter assignments of `candidateFamily`, in the order of `allAssignments d`. This list is
+the specification of the search; `findCounterexample` does not build it. -/
 def candidates {n} (d : ℕ) (S : State n) : List (BitString n) :=
   match candidateFamily d S with
   | some σ => (allAssignments d).map fun A => candidatePoint S (σ A)
   | none => []
 
-/-- The first candidate of a terminal state on which `C` and `f` disagree. -/
+/-- The first candidate of a terminal state on which `C` and `f` disagree. Each candidate is built
+only when it is tried, and the search stops at the first disagreement. -/
 def findCounterexample {n} (C : Circuit (fullSignature 2 Bool) n 1) (f : BitString n → Bool)
     (d : ℕ) (S : State n) : Option (BitString n) :=
-  (candidates d S).find? fun x => C.eval fullInterpretation x 0 != f x
+  (candidateFamily d S).bind fun σ =>
+    (allAssignments d).findSome? fun A =>
+      Option.guard (fun x => C.eval fullInterpretation x 0 != f x) (candidatePoint S (σ A))
 
 /-- Apply refuter steps until a terminal state is reached or `fuel` runs out, and add the number of
 steps applied to `steps`. -/
