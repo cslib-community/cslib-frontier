@@ -302,11 +302,9 @@ private theorem two_mul_sum_choose_mul_le {K N : ℕ} (hK : 4 ≤ K) (hN : N ^ 4
       rw [← pow_mul, show (16 : ℕ) = 2 ^ 4 by norm_num, ← pow_mul, mul_comm]
     calc (2 * (V * N)) ^ 4 * (2 ^ K) ^ 16 = 16 * (V * 16 ^ K) ^ 4 * N ^ 4 := by
           rw [h16K]; ring
-      _ ≤ 16 * (17 ^ K * 16 ^ e) ^ 4 * 2 ^ K :=
-          Nat.mul_le_mul (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hV 4)) hN
+      _ ≤ 16 * (17 ^ K * 16 ^ e) ^ 4 * 2 ^ K := by gcongr
       _ = 16 * (17 ^ K) ^ 4 * (16 ^ e) ^ 4 * 2 ^ K := by ring
-      _ ≤ 2 ^ K * (2 ^ K) ^ 17 * 2 ^ K * 2 ^ K :=
-          Nat.mul_le_mul_right _ (Nat.mul_le_mul (Nat.mul_le_mul h16 h17) he4)
+      _ ≤ 2 ^ K * (2 ^ K) ^ 17 * 2 ^ K * 2 ^ K := by gcongr
       _ = (2 ^ K) ^ 4 * (2 ^ K) ^ 16 := by ring
   have h4' := Nat.le_of_mul_le_mul_right h4 (by positivity)
   exact (Nat.pow_le_pow_iff_left (by norm_num)).mp h4'

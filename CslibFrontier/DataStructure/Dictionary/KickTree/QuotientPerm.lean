@@ -772,8 +772,8 @@ theorem prob_concreteQuotientPerm_forall_mem_perKey_le {a m b_aux c n : ℕ}
       have ha'_b : quotientPermCharBits n ≤ suffixBits a m := by wram_omega [hm_lo]
       have hcard2 : 2 * (Fintype.card T) ^ 2 ≤ Fintype.card (Fin (2 ^ suffixBits a m)) := by
         rw [Fintype.card_coe, Fintype.card_fin]
-        exact (Nat.mul_le_mul_left 2 (Nat.pow_le_pow_left hT 2)).trans
-          (h2κ2.trans (Nat.pow_le_pow_right (by decide) ha'_b))
+        exact (show 2 * #T ^ 2 ≤ 2 * (quotientPermInd c n) ^ 2 by gcongr).trans
+          (h2κ2.trans (by gcongr))
       have hemb := prob_uniformOfFintype_embedding_forall_mem_perKey_le hcard2 Q
       simp only [Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat] at hemb
       calc _ ≤ ((1 : ℝ) / (2 ^ shardBits m : ℝ)) ^ Fintype.card T *

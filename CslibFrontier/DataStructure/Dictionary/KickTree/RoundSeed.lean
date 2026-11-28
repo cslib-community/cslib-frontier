@@ -422,7 +422,7 @@ private theorem mul_chars_le_charBits {c n : ℕ} (hn : quotientPermThreshold c 
 
 private theorem mul_sq_le_two_pow {a κ m : ℕ} (ha : a ≤ m) (hκ : κ ≤ m ^ 2)
     (hm : 4 * 5 ^ 2 ≤ m) : a * κ ^ 2 ≤ 2 ^ m :=
-  calc a * κ ^ 2 ≤ m * (m ^ 2) ^ 2 := Nat.mul_le_mul ha (Nat.pow_le_pow_left hκ 2)
+  calc a * κ ^ 2 ≤ m * (m ^ 2) ^ 2 := by gcongr
     _ = m ^ 5 := by ring
     _ ≤ 2 ^ m := Nat.pow_le_two_pow (by decide) hm
 
@@ -458,16 +458,14 @@ theorem prob_not_isKUnique_quotientPerm_le {c n : ℕ} (hn : quotientPermThresho
       _ ≤ b_char ^ 2 := by rw [sq b_char]; exact Nat.mul_le_mul_right _ hb_c2
   have hinner : (c_tab * κ) ^ (2 * c_tab) * (2 * q_tab * c_tab) ≤ b_char ^ (4 * c_tab + 1) := by
     calc (c_tab * κ) ^ (2 * c_tab) * (2 * q_tab * c_tab)
-        ≤ (b_char ^ 2) ^ (2 * c_tab) * b_char :=
-          Nat.mul_le_mul (Nat.pow_le_pow_left hcκ _) hb_d
+        ≤ (b_char ^ 2) ^ (2 * c_tab) * b_char := by gcongr
       _ = b_char ^ (4 * c_tab + 1) := by
           rw [← pow_mul, ← pow_succ]; exact congrArg (b_char ^ ·) (by omega)
   have h4B : 4 * doubleTabCodeBound c_tab (2 * q_tab * c_tab) q_tab κ ≤ 2 ^ b_char := by
     calc 4 * doubleTabCodeBound c_tab (2 * q_tab * c_tab) q_tab κ
         = (4 * c_tab) * ((c_tab * κ) ^ (2 * c_tab) * (2 * q_tab * c_tab)) ^ q_tab := by
           unfold doubleTabCodeBound; rw [← Nat.mul_assoc]
-      _ ≤ b_char * (b_char ^ (4 * c_tab + 1)) ^ q_tab :=
-          Nat.mul_le_mul hb_4c (Nat.pow_le_pow_left hinner _)
+      _ ≤ b_char * (b_char ^ (4 * c_tab + 1)) ^ q_tab := by gcongr
       _ = b_char ^ D := by
           rw [← pow_mul, ← pow_succ']; exact congrArg (b_char ^ ·) (by omega)
       _ ≤ 2 ^ b_char := Nat.pow_le_two_pow (by omega) hb_D
@@ -539,8 +537,9 @@ theorem prob_not_injOn_reduceBits_le {c n s_in : ℕ} (hn : quotientPermThreshol
       (le_max_left n 4).trans (Nat.le_pow_clog (by decide) _)
     have hR_pow : 16 * n ^ (c + 1) * n ^ 2 ≤ 2 ^ quotientPermRedBits c n := by
       calc 16 * n ^ (c + 1) * n ^ 2
-          ≤ n ^ 2 * n ^ (c + 1) * n ^ 2 :=
-            Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ (Nat.pow_le_pow_left h4n 2))
+          ≤ n ^ 2 * n ^ (c + 1) * n ^ 2 := by
+            change (4 : ℕ) ^ 2 * n ^ (c + 1) * n ^ 2 ≤ _
+            gcongr
         _ = n ^ (c + 5) := by ring
         _ ≤ (2 ^ Nat.clog 2 (max n 4)) ^ (c + 5) := Nat.pow_le_pow_left hn_clog _
         _ = 2 ^ quotientPermRedBits c n := by
@@ -597,8 +596,7 @@ theorem nr_contraction_quotientPerm_le {c n a' : ℕ} (hn : quotientPermThreshol
       _ = h_char * (18 * (c + 2)) := by ring
   have hden_nat : 4 * n ^ (c + 2) ≤ 2 ^ (h_char * nrRounds c) := by
     calc 4 * n ^ (c + 2)
-        ≤ 2 ^ 2 * (2 ^ (8 * b_char)) ^ (c + 2) :=
-          Nat.mul_le_mul_left 4 (Nat.pow_le_pow_left hn_pow _)
+        ≤ 2 ^ 2 * (2 ^ (8 * b_char)) ^ (c + 2) := by gcongr; decide
       _ = 2 ^ (8 * (c + 2) * b_char + 2) := by
           rw [← pow_mul, ← pow_add]; exact congrArg (2 ^ ·) (by ring)
       _ ≤ 2 ^ (h_char * nrRounds c) := Nat.pow_le_pow_right (by decide) hexp

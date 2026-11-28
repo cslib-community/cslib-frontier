@@ -738,7 +738,7 @@ theorem ten_mul_delta_le_branchFactor_mul_delta_succ {n U r k ℓ : ℕ}
     have hB_num : 32000 ≤ B := le_trans (by norm_num) hB
     calc (10 * d_cur) ^ 3 = 1000 * d_cur ^ 3 := by ring
       _ ≤ 1000 * y ^ 2 := Nat.mul_le_mul_left 1000 hd_cur3
-      _ ≤ 1000 * (2 * B * x) ^ 2 := Nat.mul_le_mul_left 1000 (Nat.pow_le_pow_left hy_le 2)
+      _ ≤ 1000 * (2 * B * x) ^ 2 := by gcongr
       _ = 4000 * B ^ 2 * x ^ 2 := by ring
       _ ≤ 4000 * B ^ 2 * (8 * d_next ^ 3) := Nat.mul_le_mul_left _ hx2_le
       _ = 32000 * (B ^ 2 * d_next ^ 3) := by ring
@@ -787,7 +787,7 @@ theorem nHigh_sq_mul_nFloor_sq_le_four_mul_two_pow_idBits {n U r k ℓ : ℕ}
     rw [max_eq_left (by omega)]
     exact Nat.le_pow_clog Nat.one_lt_two (2 * y)
   calc (nHigh n U r k ℓ) ^ 2 * y ^ 2
-      ≤ (2 * y) ^ 2 * y ^ 2 := Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hnh 2)
+      ≤ (2 * y) ^ 2 * y ^ 2 := by gcongr
     _ ≤ (2 * y) ^ 4 := by nlinarith [sq_nonneg y]
     _ ≤ (2 ^ Nat.clog 2 (2 * max y 1)) ^ 4 := Nat.pow_le_pow_left h2y_pow 4
     _ = 2 ^ idBits n U r k ℓ := by
@@ -812,7 +812,7 @@ theorem numNodes_mul_delta_mul_levelScale_cubed_le {n U r k ℓ : ℕ}
         = N ^ 3 * d ^ 3 * s ^ 9 := by ring
       _ ≤ N ^ 3 * (nFloor n U r k ℓ) ^ 2 * s ^ 9 := by gcongr
       _ = (N * nFloor n U r k ℓ) ^ 2 * (N * s ^ 9) := by ring
-      _ ≤ n ^ 2 * n := Nat.mul_le_mul (Nat.pow_le_pow_left hNy 2) hNT
+      _ ≤ n ^ 2 * n := by gcongr
       _ = n ^ 3 := (pow_succ n 2).symm
   exact (Nat.pow_le_pow_iff_left (by decide : 3 ≠ 0)).mp hcube
 
@@ -845,7 +845,7 @@ theorem idBits_pred_le_mul_levelScale {n U r ℓ : ℕ}
     rw [max_eq_left (hpos_pred.trans hlo)]
     calc 2 * nFloor n U r k (ℓ - 1)
         ≤ 4 * X ^ 9 := by dsimp only [k]; omega
-      _ ≤ 4 * (2 ^ (4 * s + 1)) ^ 9 := Nat.mul_le_mul_left 4 (Nat.pow_le_pow_left hX_lt.le 9)
+      _ ≤ 4 * (2 ^ (4 * s + 1)) ^ 9 := by gcongr
       _ = 2 ^ (36 * s + 11) := by ring
   have := Nat.clog_le_of_le_pow h2y_le
   wram_omega

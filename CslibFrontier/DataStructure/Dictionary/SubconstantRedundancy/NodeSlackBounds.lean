@@ -442,9 +442,10 @@ private theorem waitingLists_and_hashSeeds_of_schedule (P : TreeSchedule) {n U r
         n := by
       split_ifs with hlt
       · rw [Nat.mul_assoc]
-        exact (Nat.mul_le_mul_left _ (mul_le_of_sq_le (hsq_all ℓ hlt)
-          (((pow_mul r 2 2).symm.le.trans (Nat.pow_le_pow_right hr1 (by decide))).trans
-            ((Nat.pow_le_pow_left hs 9).trans hs9_nf)))).trans hN_nf
+        have hpow : (r ^ 2) ^ 2 ≤ P.nFloor ℓ := by
+          rw [← pow_mul]
+          exact (show r ^ 4 ≤ s ^ 9 by gcongr <;> omega).trans hs9_nf
+        exact (Nat.mul_le_mul_left _ (mul_le_of_sq_le (hsq_all ℓ hlt) hpow)).trans hN_nf
       · simp
     -- the ID-compressor seed takes `O(s ^ 2)` bits at the roots and `O(s)` bits below
     have hic : FeistelPerm.idCompressorSeedBits (P.idBits ℓ) (P.idCompRightUniv ℓ) ≤

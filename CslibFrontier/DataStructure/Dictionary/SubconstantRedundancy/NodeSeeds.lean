@@ -336,8 +336,8 @@ theorem dens_routerRound_outside_bounds_le (hcr : P.ConcentrationReady) {ℓ : �
       have hc := Nat.clog_mono_right 2 (max_le_max_right 2 hhi)
       omega
     have hconc : 2 ^ s * (150 * FeistelPerm.childRouterHalfInd #S) ^ 3 ≤ #S :=
-      (Nat.mul_le_mul_left (2 ^ s) (Nat.pow_le_pow_left (by omega) 3)).trans
-        ((hcr.conc_bound ℓ hℓ).trans hlo)
+      calc _ ≤ 2 ^ s * (150 * FeistelPerm.childRouterHalfInd (P.nHigh ℓ)) ^ 3 := by gcongr
+        _ ≤ #S := (hcr.conc_bound ℓ hℓ).trans hlo
     have h4S : (P.nFloor ℓ : ℝ) ^ 2 ≤ 4 * (#S : ℝ) ^ 2 := by
       have : (P.nFloor ℓ : ℝ) ≤ 2 * #S := by exact_mod_cast h2m
       nlinarith
@@ -396,7 +396,7 @@ theorem dens_routerRound_outside_bounds_le (hcr : P.ConcentrationReady) {ℓ : �
       calc 2 ^ (s + 1) * (P.nFloor ℓ) ^ 2
           ≤ 2 * 2 ^ L_hi * (2 ^ L_hi) ^ 2 := by
             rw [Nat.pow_succ']
-            exact Nat.mul_le_mul (Nat.mul_le_mul_left 2 h2s_le) (Nat.pow_le_pow_left hnF_le 2)
+            gcongr
         _ = 2 ^ (3 * L_hi + 1) := by
             rw [← Nat.pow_mul, ← Nat.pow_succ', ← Nat.pow_add]
             congr 1; omega

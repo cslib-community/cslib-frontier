@@ -162,8 +162,8 @@ theorem infoBits_paddedUniv_le {U V n R p_min q_min p_max q_max : ℕ}
   have hgap_U : 4 * n * L ^ 56 ≤ U := by
     have hq := h.q_min_pos
     have h4D2 : 4 * (57 * q_min) ^ 2 ≤ L := by
-      have hq4 : q_min ^ 2 ≤ (max q_min 1 + p_max + 4) ^ 4 :=
-        (Nat.pow_le_pow_left (by omega) 2).trans (Nat.pow_le_pow_right (by omega) (by decide))
+      have hq4 : q_min ^ 2 ≤ (max q_min 1 + p_max + 4) ^ 4 := by
+        gcongr <;> omega
       linarith [h.poly_le_log]
     refine (Nat.pow_le_pow_iff_left (by omega : q_min ≠ 0)).mp ?_
     calc (4 * n * L ^ 56) ^ q_min = n ^ q_min * (4 * L ^ 56) ^ q_min := by ring
@@ -416,8 +416,9 @@ private theorem routerSeedBits_sq_le_of_lt_threshold {U V n R p_min q_min p_max 
     have h2_sq : 2 * (96 * ly ^ 2) ^ 2 ≤ 2 ^ (ly - 1) :=
       calc 2 * (96 * ly ^ 2) ^ 2 ≤ 2 * (96 * (5 * (ly / 4)) ^ 2) ^ 2 := by gcongr; omega
         _ = 11520000 * ((ly / 4) ^ 2) ^ 2 := by ring
-        _ ≤ 2 ^ 24 * (2 ^ (ly / 4)) ^ 2 :=
-            Nat.mul_le_mul (by norm_num) (Nat.pow_le_pow_left (Nat.sq_le_two_pow (by omega)) 2)
+        _ ≤ 2 ^ 24 * (2 ^ (ly / 4)) ^ 2 := by
+            have := Nat.sq_le_two_pow (by omega : 4 ≤ ly / 4)
+            gcongr; norm_num
         _ = 2 ^ (24 + ly / 4 * 2) := by rw [← pow_mul, ← pow_add]
         _ ≤ 2 ^ (ly - 1) := Nat.pow_le_pow_right Nat.two_pos (by omega)
     have hprod : (2 * FeistelPerm.childRouterHalfInd (P.nHigh ℓ) *

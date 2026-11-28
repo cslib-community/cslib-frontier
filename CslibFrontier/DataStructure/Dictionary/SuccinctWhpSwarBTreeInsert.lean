@@ -605,10 +605,10 @@ theorem ValidWhpSlice.alloc_and_height_lt {c n_max insCount : ℕ} {sl : BTreeSl
         (hT.two_mul_pow_height_sub_one_le_leafCount (by omega) (by omega))
     have hle := hleaf.trans (hT.leafCount_le_card_nodeSet.2.trans hT.card_nodeSet_le_alloc)
     have h5 := Nat.pow_le_pow_left h8 5
+    have hscale := slabScale_le_tMinWhp_cubed hth
     have h41 : 256 * slabScale n_max ^ 12 ≤ 2 * tMinWhp n_max ^ 41 :=
       calc 256 * slabScale n_max ^ 12
-          ≤ (2 * tMinWhp n_max ^ 5) * (tMinWhp n_max ^ 3) ^ 12 :=
-            Nat.mul_le_mul (by omega) (Nat.pow_le_pow_left (slabScale_le_tMinWhp_cubed hth) 12)
+          ≤ (2 * tMinWhp n_max ^ 5) * (tMinWhp n_max ^ 3) ^ 12 := by gcongr; omega
         _ = 2 * tMinWhp n_max ^ 41 := by ring
     rw [two_pow_valLaneBitsWhp] at hns_lt
     omega

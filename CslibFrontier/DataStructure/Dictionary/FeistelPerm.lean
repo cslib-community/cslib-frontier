@@ -752,11 +752,11 @@ theorem dens_childRouter_bucketLoad_outside_le {c q b s T : ℕ}
     have h2m_nat : 8 * #S ^ 2 * 2 ^ (s + 1) ≤ 2 ^ m := by
       set Ln := Nat.clog 2 (max #S 2)
       have hSn : #S ≤ 2 ^ Ln := (le_max_left #S 2).trans (Nat.le_pow_clog (by decide) _)
-      have hsS : 2 ^ s ≤ #S := (Nat.le_mul_of_pos_right _ (by positivity)).trans hconc
+      have hsLn : 2 ^ s ≤ 2 ^ Ln :=
+        (Nat.le_mul_of_pos_right _ (by positivity)).trans (hconc.trans hSn)
       calc 8 * #S ^ 2 * 2 ^ (s + 1)
           = 16 * #S ^ 2 * 2 ^ s := by rw [pow_succ]; ring
-        _ ≤ 16 * (2 ^ Ln) ^ 2 * 2 ^ Ln :=
-            Nat.mul_le_mul (Nat.mul_le_mul_left 16 (Nat.pow_le_pow_left hSn 2)) (hsS.trans hSn)
+        _ ≤ 16 * (2 ^ Ln) ^ 2 * 2 ^ Ln := by gcongr
         _ = 2 ^ (3 * Ln + 4) := by ring
         _ = 2 ^ m := rfl
     calc (2 ^ (s + 1) : ℝ) * (3 * (m : ℝ) * μ / a ^ 2) ^ m
@@ -942,8 +942,7 @@ theorem childRouterSeedBits_pow_le (ε_inv α_inv s : ℕ) {T : ℕ} (hT : 1 ≤
         = ((2 ^ b) ^ E) ^ 2 * ((c * b + s) ^ E) ^ 2 := by rw [Nat.mul_pow, Nat.mul_pow]
       _ ≤ (2 ^ (c + 1) * (2 ^ s * T)) * (2 ^ (4 * c ^ 2 + 2) * (2 ^ s * T)) := by gcongr
       _ = 2 ^ (4 * c ^ 2 + c + 3) * (2 ^ s * T) ^ 2 := by ring
-      _ ≤ 2 ^ (2 * (2 * c ^ 2 + c + 2)) * (2 ^ s * T) ^ 2 :=
-          Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by decide) (by omega))
+      _ ≤ 2 ^ (2 * (2 * c ^ 2 + c + 2)) * (2 ^ s * T) ^ 2 := by gcongr; omega
       _ = (2 ^ (2 * c ^ 2 + c + 2) * (2 ^ s * T)) ^ 2 := by ring
   have hprod_le : (2 ^ b * (c * b + s)) ^ E ≤ 2 ^ (2 * c ^ 2 + c + 2) * (2 ^ s * T) :=
     (Nat.pow_le_pow_iff_left (by decide : 2 ≠ 0)).mp hsq
