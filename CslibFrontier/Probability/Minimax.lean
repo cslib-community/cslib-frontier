@@ -13,6 +13,7 @@ public import Mathlib.Data.ENat.Lattice
 public import Mathlib.Geometry.Convex.ConvexSpace.Defs
 import CslibFrontier.Probability.Minimax.Value
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Probability.PMF.ToReal
 import Mathlib.Data.Fintype.Powerset
 
@@ -345,11 +346,7 @@ theorem exists_mem_support_tsum_mul_le (μ : PMF α) (ν : PMF β) (loss : α �
     {ε : ℝ≥0∞} (h : ∀ b ∈ ν.support, ∑' a, μ a * loss a b ≤ ε) :
     ∃ a ∈ μ.support, ∑' b, ν b * loss a b ≤ ε := by
   obtain ⟨a, ha, hle⟩ := exists_mem_support_tsum_mul_le_tsum_mul μ ν loss
-  refine ⟨a, ha, hle.trans ((tsum_le_tsum (g := fun b => ν b * ε) fun b => ?_).trans_eq ?_)⟩
-  · by_cases hb : b ∈ ν.support
-    · exact mul_le_mul_of_nonneg_left (h b hb) zero_le
-    · simp [(PMF.apply_eq_zero_iff ν b).mpr hb]
-  · rw [ENNReal.tsum_mul_right, ν.tsum_coe, one_mul]
+  exact ⟨a, ha, hle.trans (tsum_mul_le_of_support ν h)⟩
 
 /-- The probability of an event as the mean of its indicator. -/
 private theorem toOuterMeasure_eq_tsum_mul_ite {γ : Type*} (π : PMF γ) (s : Set γ)

@@ -14,6 +14,7 @@ import CslibFrontier.Probability.HoeffdingStep
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Probability.PMF.ToReal
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -96,6 +97,23 @@ private theorem seqProcess_snoc (step : ∀ t : ℕ, (Fin t → α) → PMF α)
   · exact ite_eq_right fun heq => hb (Fin.snoc_right_injective (α := fun _ => α) h₀ heq).symm
   · rw [PMF.map_apply, tsum_eq_zero_iff.mpr fun b => ite_eq_right fun heq =>
       hh (Fin.snoc_injective2 (α := fun _ => α) heq).1.symm, mul_zero]
+
+/-- A one-step expectation bound along every supported history gives the corresponding
+finite-horizon bound by the initial value. -/
+theorem tsum_seqProcess_le_initial (step : ∀ t : ℕ, (Fin t → α) → PMF α)
+    (Z : ∀ k : ℕ, (Fin k → α) → ℝ≥0∞) (n : ℕ)
+    (hstep : ∀ k, k < n → ∀ h ∈ (seqProcess step k).support,
+      ∑' x : α, step k h x * Z (k + 1) (Fin.snoc h x) ≤ Z k h) :
+    ∑' h : Fin n → α, seqProcess step n h * Z n h ≤ Z 0 Fin.elim0 := by
+  induction n with
+  | zero =>
+    rw [seqProcess, tsum_pure_mul]
+  | succ n ih =>
+    rw [seqProcess, tsum_bind_mul]
+    refine (tsum_mul_mono_support _ (g := Z n) fun h hh => ?_).trans
+      (ih fun k hk => hstep k (Nat.lt_succ_of_lt hk))
+    rw [tsum_map_mul]
+    exact hstep n (Nat.lt_succ_self n) h hh
 
 /-- The mass of a trajectory `h : Fin n → α` under `seqProcess step n` is the product of the
 one-step transition probabilities along its prefixes. -/
@@ -182,53 +200,46 @@ theorem seqProcess_mul_exp_le (step : ∀ t : ℕ, (Fin t → α) → PMF α)
       ENNReal.ofReal (Real.exp (s ^ 2 * (∑ k ∈ Finset.range n, c k ^ 2) / 8)) := by
   induction n with
   | zero =>
-    rw [seqProcess, tsum_eq_single Fin.elim0 fun h hh =>
-      absurd (Subsingleton.elim h Fin.elim0) hh]
+    rw [seqProcess, tsum_pure_mul]
     simp
   | succ n ih =>
     have ih' := ih (fun k hk => hmean k (Nat.lt_succ_of_lt hk))
       (fun k hk => hrange k (Nat.lt_succ_of_lt hk))
     rw [seqProcess, tsum_bind_mul]
-    have hstep (h : Fin n → α) :
-        seqProcess step n h *
-          (∑' h' : Fin (n + 1) → α, ((step n h).map fun x => Fin.snoc h x) h' *
-            ENNReal.ofReal (Real.exp (s * (X (n + 1) h' - X 0 Fin.elim0)))) ≤
-        seqProcess step n h *
-          (ENNReal.ofReal (Real.exp (s * (X n h - X 0 Fin.elim0))) *
-            ENNReal.ofReal (Real.exp (s ^ 2 * c n ^ 2 / 8))) := by
-      classical
-      by_cases hh : h ∈ (seqProcess step n).support
-      · rw [tsum_map_mul]
-        refine mul_le_mul_right ?_ _
-        obtain ⟨a, b, hab_c, hg⟩ := hrange n (Nat.lt_succ_self n) h hh
-        obtain ⟨x₀, hx₀⟩ := (step n h).support_nonempty
-        have hab0 : 0 ≤ b - a := sub_nonneg.mpr ((hg x₀ hx₀).1.trans (hg x₀ hx₀).2)
-        have hsplit (x : α) :
-            step n h x *
-                ENNReal.ofReal (Real.exp (s * (X (n + 1) (Fin.snoc h x) - X 0 Fin.elim0))) =
-              ENNReal.ofReal (Real.exp (s * (X n h - X 0 Fin.elim0))) *
-                (step n h x *
-                  ENNReal.ofReal (Real.exp (s * (X (n + 1) (Fin.snoc h x) - X n h)))) := by
-          rw [show s * (X (n + 1) (Fin.snoc h x) - X 0 Fin.elim0) =
-              s * (X n h - X 0 Fin.elim0) + s * (X (n + 1) (Fin.snoc h x) - X n h) by ring,
-            Real.exp_add, ENNReal.ofReal_mul (Real.exp_pos _).le, mul_left_comm]
-        simp_rw [hsplit]
-        rw [ENNReal.tsum_mul_left]
-        refine mul_le_mul_right ?_ _
-        have hmu := hmean n (Nat.lt_succ_self n) h hh
-        refine (tsum_le_tsum fun x => mul_le_mul_right (ENNReal.ofReal_le_ofReal
-          (Real.exp_le_exp.mpr (mul_le_mul_of_nonneg_left (sub_le_sub_left hmu _) hs))) _).trans ?_
-        refine (tsum_mul_exp_sub_mean_le (step n h) (fun x => X (k := n + 1) (Fin.snoc h x)) hg
-          s).trans (ENNReal.ofReal_le_ofReal (Real.exp_le_exp.mpr ?_))
-        have hsq : (b - a) ^ 2 ≤ c n ^ 2 := pow_le_pow_left₀ hab0 hab_c 2
-        gcongr
-      · rw [((seqProcess step n).apply_eq_zero_iff h).mpr hh, zero_mul, zero_mul]
+    have hstep (h : Fin n → α) (hh : h ∈ (seqProcess step n).support) :
+        (∑' h' : Fin (n + 1) → α, ((step n h).map fun x => Fin.snoc h x) h' *
+          ENNReal.ofReal (Real.exp (s * (X (n + 1) h' - X 0 Fin.elim0)))) ≤
+        ENNReal.ofReal (Real.exp (s * (X n h - X 0 Fin.elim0))) *
+          ENNReal.ofReal (Real.exp (s ^ 2 * c n ^ 2 / 8)) := by
+      rw [tsum_map_mul]
+      obtain ⟨a, b, hab_c, hg⟩ := hrange n (Nat.lt_succ_self n) h hh
+      obtain ⟨x₀, hx₀⟩ := (step n h).support_nonempty
+      have hab0 : 0 ≤ b - a := sub_nonneg.mpr ((hg x₀ hx₀).1.trans (hg x₀ hx₀).2)
+      have hsplit (x : α) :
+          step n h x *
+              ENNReal.ofReal (Real.exp (s * (X (n + 1) (Fin.snoc h x) - X 0 Fin.elim0))) =
+            ENNReal.ofReal (Real.exp (s * (X n h - X 0 Fin.elim0))) *
+              (step n h x *
+                ENNReal.ofReal (Real.exp (s * (X (n + 1) (Fin.snoc h x) - X n h)))) := by
+        rw [show s * (X (n + 1) (Fin.snoc h x) - X 0 Fin.elim0) =
+            s * (X n h - X 0 Fin.elim0) + s * (X (n + 1) (Fin.snoc h x) - X n h) by ring,
+          Real.exp_add, ENNReal.ofReal_mul (Real.exp_pos _).le, mul_left_comm]
+      simp_rw [hsplit]
+      rw [ENNReal.tsum_mul_left]
+      refine mul_le_mul_right ?_ _
+      have hmu := hmean n (Nat.lt_succ_self n) h hh
+      refine (tsum_le_tsum fun x => mul_le_mul_right (ENNReal.ofReal_le_ofReal
+        (Real.exp_le_exp.mpr (mul_le_mul_of_nonneg_left (sub_le_sub_left hmu _) hs))) _).trans ?_
+      refine (tsum_mul_exp_sub_mean_le (step n h) (fun x => X (k := n + 1) (Fin.snoc h x)) hg
+        s).trans (ENNReal.ofReal_le_ofReal (Real.exp_le_exp.mpr ?_))
+      have hsq : (b - a) ^ 2 ≤ c n ^ 2 := pow_le_pow_left₀ hab0 hab_c 2
+      gcongr
     calc ∑' h : Fin n → α, seqProcess step n h *
             ∑' h' : Fin (n + 1) → α, ((step n h).map fun x => Fin.snoc h x) h' *
               ENNReal.ofReal (Real.exp (s * (X (n + 1) h' - X 0 Fin.elim0)))
         ≤ ∑' h : Fin n → α, seqProcess step n h *
             (ENNReal.ofReal (Real.exp (s * (X n h - X 0 Fin.elim0))) *
-              ENNReal.ofReal (Real.exp (s ^ 2 * c n ^ 2 / 8))) := tsum_le_tsum hstep
+              ENNReal.ofReal (Real.exp (s ^ 2 * c n ^ 2 / 8))) := tsum_mul_mono_support _ hstep
       _ = (∑' h : Fin n → α, seqProcess step n h *
             ENNReal.ofReal (Real.exp (s * (X n h - X 0 Fin.elim0)))) *
             ENNReal.ofReal (Real.exp (s ^ 2 * c n ^ 2 / 8)) := by

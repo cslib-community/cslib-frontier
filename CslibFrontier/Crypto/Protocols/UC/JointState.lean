@@ -39,18 +39,25 @@ without importing the UC ideal-functionality or execution modules.
 
 1. **Named structures (zero projection chains).** `SubSessionInput`, `SubSessionBackdoor`, and
    `MultiSessionState` replace raw nested products and options.
-2. **Lazy multi-session extension `F.multiSession` ([CanettiRabin2003], §3, "The Multi-session
-   Extension of an Ideal Functionality").** For any `[DecidableEq SSID]`,
-   `IdealFunctionality.multiSession SSID F` stores `(secParam, corrupted, sessions)` and creates a
-   fresh copy of `F` with `F.init secParam corrupted` on the first party input or backdoor query
-   for a given `ssid`, keeping distinct `ssid`s independent.
+2. **Lazy multi-session extensions `F.multiSession` and `F.multiSessionProtocol`
+   ([CanettiRabin2003], §3, "The Multi-session Extension of an Ideal Functionality").** For any
+   `[DecidableEq SSID]`, `IdealFunctionality.multiSession SSID F` stores
+   `(secParam, corrupted, sessions)` and creates a fresh copy of `F` with
+   `F.init secParam corrupted` on the first party input or backdoor query for a given `ssid`,
+   keeping distinct `ssid`s independent. Because `Machine.IsBounded` quantifies over all states
+   (including unreachable ones with arbitrary `secParam`) while `Protocol.PolyBounded` evaluates at
+   the outer `κ`, `(F.multiSession SSID).toProtocol` need not be `PolyBounded` even when
+   `F.toProtocol` is. `IdealFunctionality.multiSessionProtocol SSID F` captures `κ` and `C` at
+   machine construction instead of in state, preserving polynomial call budgets (`2 * pF`) while
+   matching `(F.multiSession SSID).toProtocol` in every UC execution.
 3. **Pull-model interface and scheduling differences.** In [CanettiRabin2003], §3, "The
    Multi-session Extension of an Ideal Functionality", whenever a copy of `F` sends `(ssid, v)` to
    some party `Pi`, `F̂` sends `(sid, ssid, v)` to `Pi` and sends `ssid` to the adversary. Here,
    `IdealFunctionality.multiSession` returns an untagged `Option SubOut` on the selected pull query
    `SubSessionInput SSID SubIn`, and provides an explicitly queried backdoor interface
-   (`SubSessionBackdoor SSID BackQ`) returning `BackR` (exposing no raw copy state) rather than
-   sending adversary notifications on honest-party activations or outputs. Because the interfaces,
+   (`SubSessionBackdoor SSID BackQ`) returning `BackR` (adding no automatic raw-state port) rather
+   than sending adversary notifications on honest-party activations or outputs. Because the
+   interfaces,
    scheduling, and call-bounded vs. PPT ITM resource models differ, no implication between
    `Realizes` for this pull API and the source premise is claimed here.
 4. **Sub-session relabelling `toJoint` and fixed `m`.** `MultiHybridProtocol.toJoint` relabels each
@@ -77,7 +84,10 @@ without importing the UC ideal-functionality or execution modules.
 * `Cslib.Crypto.Protocols.UC.SubSessionInput`, `Cslib.Crypto.Protocols.UC.SubSessionBackdoor`,
   `Cslib.Crypto.Protocols.UC.MultiSessionState`: named data structures for multi-session
   functionalities.
+* `Cslib.Crypto.Protocols.UC.lazySessionStep`: shared single-step lazy session-table activation.
 * `Cslib.Crypto.Protocols.UC.IdealFunctionality.multiSession`: lazy multi-session extension `F̂`.
+* `Cslib.Crypto.Protocols.UC.IdealFunctionality.multiSessionProtocol`: protocol-level budget-
+  preserving lazy multi-session extension capturing `κ` and `C` at machine construction.
 * `Cslib.Crypto.Protocols.UC.MultiHybridProtocol.toJoint`: relabelling `π̃` targeting `F̂`.
 * `Cslib.Crypto.Protocols.UC.demuxNetQuery`, `Cslib.Crypto.Protocols.UC.muxNetQuery`,
   `Cslib.Crypto.Protocols.UC.jointDemux`, `Cslib.Crypto.Protocols.UC.jointMux`: explicit
@@ -85,15 +95,26 @@ without importing the UC ideal-functionality or execution modules.
 
 ## Main results
 
-* `Cslib.Crypto.Protocols.UC.toJoint_polyBounded`,
+* `Cslib.Crypto.Protocols.UC.lazySessionStep_isQueryBounded`,
+  `Cslib.Crypto.Protocols.UC.IdealFunctionality.multiSessionProtocol_isBounded`,
+  `Cslib.Crypto.Protocols.UC.IdealFunctionality.multiSessionProtocol_polyBounded`,
+  `Cslib.Crypto.Protocols.UC.toJoint_polyBounded`,
   `Cslib.Crypto.Protocols.UC.jointDemux_polyBounded`,
   `Cslib.Crypto.Protocols.UC.jointMux_polyBounded`: call-budget preservation.
-* `Cslib.Crypto.Protocols.UC.exec_compose_toJoint_multiSession`,
-  `Cslib.Crypto.Protocols.UC.exec_composeMulti_toJoint`: exact execution identities between
-  `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` and `composeMulti ρ F.toProtocol`.
-* `Cslib.Crypto.Protocols.UC.EmulatesWithin.toJoint_multiSession`,
-  `Cslib.Crypto.Protocols.UC.EmulatesWithin.multiSession_toJoint`: fixed-session concrete
-  emulation steps in both directions with zero error and `Polynomial.X` overhead.
+* `Cslib.Crypto.Protocols.UC.exec_multiSessionProtocol_eq`,
+  `Cslib.Crypto.Protocols.UC.exec_compose_toJoint_multiSession`,
+  `Cslib.Crypto.Protocols.UC.exec_composeMulti_toJoint`,
+  `Cslib.Crypto.Protocols.UC.exec_compose_toJoint_multiSessionProtocol`,
+  `Cslib.Crypto.Protocols.UC.exec_composeMulti_toJoint_multiSessionProtocol`: exact execution
+  identities for `F.multiSession`, `F.multiSessionProtocol`, and `composeMulti ρ F.toProtocol`.
+* `Cslib.Crypto.Protocols.UC.EmulatesWithin.multiSessionProtocol_right_iff`,
+  `Cslib.Crypto.Protocols.UC.EmulatesWithin.multiSessionProtocol_left_iff`,
+  `Cslib.Crypto.Protocols.UC.EmulatesWithin.toJoint_multiSession`,
+  `Cslib.Crypto.Protocols.UC.EmulatesWithin.multiSession_toJoint`,
+  `Cslib.Crypto.Protocols.UC.EmulatesWithin.toJoint_multiSessionProtocol`,
+  `Cslib.Crypto.Protocols.UC.EmulatesWithin.multiSessionProtocol_toJoint`: fixed-session concrete
+  emulation steps and exact transfers between `F.multiSessionProtocol` and
+  `(F.multiSession).toProtocol`.
 * `Cslib.Crypto.Protocols.UC.Realizes.compose_toJoint`,
   `Cslib.Crypto.Protocols.UC.Realizes.compose_toJoint_trans`,
   `Cslib.Crypto.Protocols.UC.RealizesWithin.compose_toJoint`,
@@ -146,14 +167,58 @@ structure MultiSessionState (n : ℕ) (SSID FState : Type) : Type where
   /-- Lazily initialized per-session states (`none` until first message). -/
   sessions : SSID → Option FState
 
+/-- Single lazy session-table activation step: looks up `ssid` in `sessions`, initializes a fresh
+session via `init` on a miss, runs `step` on that session's state, and wraps the updated session
+table via `wrap`. Shared by `IdealFunctionality.multiSession` and
+`IdealFunctionality.multiSessionProtocol`. -/
+@[expose] def lazySessionStep {SSID FState S α : Type} [DecidableEq SSID]
+    (init : ProbComp FState) (step : StateT FState ProbComp α)
+    (ssid : SSID) (sessions : SSID → Option FState) (wrap : (SSID → Option FState) → S) :
+    ProbComp (α × S) := do
+  let fState ← match sessions ssid with
+    | some st => pure st
+    | none => init
+  let (out, fState') ← step.run fState
+  return (out, wrap (Function.update sessions ssid (some fState')))
+
+/-- Query-budget preservation for `lazySessionStep`: at most `t` calls for lazy initialization on
+a miss plus at most `t` calls for `step`. -/
+theorem lazySessionStep_isQueryBounded {SSID FState S α : Type} [DecidableEq SSID]
+    {init : ProbComp FState} {step : StateT FState ProbComp α} {t : ℕ}
+    (hInit : init.IsQueryBounded t) (hStep : ∀ fState, (step.run fState).IsQueryBounded t)
+    (ssid : SSID) (sessions : SSID → Option FState) (wrap : (SSID → Option FState) → S) :
+    (lazySessionStep init step ssid sessions wrap).IsQueryBounded (2 * t) := by
+  refine OracleComp.IsCostBounded.mono (n := t + (t + 0)) ?_ (by omega)
+  have hBody : ∀ fState,
+      (step.run fState >>= fun x =>
+        pure (x.1, wrap (Function.update sessions ssid (some x.2)))).IsQueryBounded (t + 0) :=
+    fun fState => (hStep fState).bind fun _ => OracleComp.IsCostBounded.pure _ 0
+  dsimp only [lazySessionStep]
+  cases sessions ssid with
+  | some st => exact (OracleComp.IsCostBounded.pure st t).bind hBody
+  | none => exact hInit.bind hBody
+
+private theorem lazySessionStep_map_wrap {SSID FState S α : Type} [DecidableEq SSID]
+    (init : ProbComp FState) (step : StateT FState ProbComp α)
+    (ssid : SSID) (sessions : SSID → Option FState) (wrap : (SSID → Option FState) → S) :
+    lazySessionStep init step ssid sessions wrap =
+      Prod.map _root_.id wrap <$> lazySessionStep init step ssid sessions _root_.id := by
+  dsimp only [lazySessionStep]
+  cases sessions ssid <;> simp only [map_bind, map_pure, Prod.map_apply, id_eq]
+
 /-- Multi-session extension `F̂` of an ideal functionality `F` for any `[DecidableEq SSID]`:
 creates a fresh copy of `F` with `F.init secParam corrupted` on the first party input or backdoor
 query for `ssid`, and activates that copy ([CanettiRabin2003], §3, "The Multi-session Extension of
 an Ideal Functionality"). Unlike the source's `F̂` (which sends `(sid, ssid, v)` to `Pi` and sends
 `ssid` to the adversary when a copy sends `(ssid, v)`), this pull API returns an untagged
-`Option SubOut` on the selected pull and
-provides an explicitly queried backdoor interface (`SubSessionBackdoor SSID BackQ`) returning
-`BackR`, exposing no raw copy state. -/
+`Option SubOut` on the selected pull and provides an explicitly queried backdoor interface
+(`SubSessionBackdoor SSID BackQ`) returning `BackR`, adding no automatic raw-state port.
+
+Because `MultiSessionState` stores `secParam` in state while `Machine.IsBounded` quantifies over
+all states (including unreachable ones with arbitrary `secParam`),
+`(F.multiSession SSID).toProtocol` need not satisfy `Protocol.PolyBounded` even when
+`F.toProtocol` does. Callers requiring a `Protocol.PolyBounded` multi-session extension (for
+instance in nested `composeMulti`) should use `IdealFunctionality.multiSessionProtocol`. -/
 @[expose] def IdealFunctionality.multiSession {n : ℕ} {SubIn SubOut BackQ BackR : Type}
     (SSID : Type) [DecidableEq SSID]
     (F : IdealFunctionality n SubIn SubOut BackQ BackR) :
@@ -161,18 +226,64 @@ provides an explicitly queried backdoor interface (`SubSessionBackdoor SSID Back
       (SubSessionBackdoor SSID BackQ) BackR where
   State := MultiSessionState n SSID F.State
   init κ C := pure { secParam := κ, corrupted := C, sessions := fun _ => none }
-  onInput i req s := do
-    let fState ← match s.sessions req.ssid with
-      | some st => pure st
-      | none => F.init s.secParam s.corrupted
-    let (out, fState') ← (F.onInput i req.input).run fState
-    return (out, { s with sessions := Function.update s.sessions req.ssid (some fState') })
-  onBackdoor req s := do
-    let fState ← match s.sessions req.ssid with
-      | some st => pure st
-      | none => F.init s.secParam s.corrupted
-    let (resp, fState') ← (F.onBackdoor req.query).run fState
-    return (resp, { s with sessions := Function.update s.sessions req.ssid (some fState') })
+  onInput i req s :=
+    lazySessionStep (F.init s.secParam s.corrupted) (F.onInput i req.input)
+      req.ssid s.sessions fun sessions' => { s with sessions := sessions' }
+  onBackdoor req s :=
+    lazySessionStep (F.init s.secParam s.corrupted) (F.onBackdoor req.query)
+      req.ssid s.sessions fun sessions' => { s with sessions := sessions' }
+
+/-- Budget-preserving protocol-level lazy multi-session extension of `F` for any
+`[DecidableEq SSID]`: captures the security parameter `κ` and static corruption set `C` at machine
+construction rather than storing them in state, calling `F.init κ C` directly on first touch of
+each `ssid` and storing only the session table `SSID → Option F.State`. Preserves polynomial call
+budgets (`IdealFunctionality.multiSessionProtocol_polyBounded`) and agrees in every UC execution
+with `(F.multiSession SSID).toProtocol` (`exec_multiSessionProtocol_eq`). -/
+@[expose] def IdealFunctionality.multiSessionProtocol {n : ℕ} {SubIn SubOut BackQ BackR : Type}
+    (SSID : Type) [DecidableEq SSID]
+    (F : IdealFunctionality n SubIn SubOut BackQ BackR) :
+    Protocol n (SubSessionInput SSID SubIn) SubOut (SubSessionBackdoor SSID BackQ) BackR :=
+  fun κ C =>
+    { State := SSID → Option F.State
+      init := pure fun _ => none
+      handle
+        | .inl (i, req) => fun s =>
+            ProbOracleComp.sample
+              (lazySessionStep (F.init κ C) (F.onInput i req.input) req.ssid s _root_.id)
+        | .inr req => fun s =>
+            ProbOracleComp.sample
+              (lazySessionStep (F.init κ C) (F.onBackdoor req.query) req.ssid s _root_.id) }
+
+/-- Every activation of `F.multiSessionProtocol SSID κ C` makes at most `2 * t` calls whenever
+`F.toProtocol κ C` has per-activation budget `t` (at most `t` for lazy `F.init κ C` on first
+touch plus at most `t` for the delegated handler). -/
+theorem IdealFunctionality.multiSessionProtocol_isBounded {n : ℕ}
+    {SubIn SubOut BackQ BackR : Type} (SSID : Type) [DecidableEq SSID]
+    {F : IdealFunctionality n SubIn SubOut BackQ BackR} {κ t : ℕ} {C : Finset (Fin n)}
+    (hF : (F.toProtocol κ C).IsBounded t) :
+    (F.multiSessionProtocol SSID κ C).IsBounded (2 * t) := by
+  refine ⟨OracleComp.IsCostBounded.pure _ (2 * t), fun q s => ?_⟩
+  rcases q with ⟨i, req⟩ | req
+  · exact Machine.isQueryBounded_sample (lazySessionStep_isQueryBounded hF.1
+      (fun fState => by
+        simpa only [IdealFunctionality.toProtocol, StateT.run, Machine.closeProgram_sample] using
+          Machine.isQueryBounded_closeProgram (hF.2 (.inl (i, req.input)) fState))
+      req.ssid s _root_.id)
+  · exact Machine.isQueryBounded_sample (lazySessionStep_isQueryBounded hF.1
+      (fun fState => by
+        simpa only [IdealFunctionality.toProtocol, StateT.run, Machine.closeProgram_sample] using
+          Machine.isQueryBounded_closeProgram (hF.2 (.inr req.query) fState))
+      req.ssid s _root_.id)
+
+/-- Protocol-level lazy multi-session extension preserves polynomial call budgets with factor `2`:
+if `F.toProtocol` has budget `pF`, then `F.multiSessionProtocol SSID` has budget `2 * pF`. -/
+theorem IdealFunctionality.multiSessionProtocol_polyBounded {n : ℕ}
+    {SubIn SubOut BackQ BackR : Type} (SSID : Type) [DecidableEq SSID]
+    {F : IdealFunctionality n SubIn SubOut BackQ BackR} {pF : Polynomial ℕ}
+    (hF : F.toProtocol.PolyBounded pF) :
+    (F.multiSessionProtocol SSID).PolyBounded (2 * pF) := fun κ C => by
+  simpa only [Polynomial.eval_mul, Polynomial.eval_ofNat] using
+    IdealFunctionality.multiSessionProtocol_isBounded SSID (hF κ C)
 
 /-! ### Sub-session relabelling and explicit demux/mux adversaries -/
 
@@ -527,7 +638,8 @@ private theorem handle_corruptRouter_multiSession_inl {m n : ℕ}
           (j, .inl (i, x))).run s := by
   dsimp only [SSP.parFinLazy, corruptRouter] at s ⊢
   simp only [hi, ↓reduceIte]
-  dsimp only [IdealFunctionality.multiSession, IdealFunctionality.toProtocol, StateT.run]
+  dsimp only [IdealFunctionality.multiSession, IdealFunctionality.toProtocol, lazySessionStep,
+    StateT.run]
   cases s j <;> simp [ProbOracleComp.sample_bind]
 
 private theorem handle_corruptRouter_multiSession_inr {m n : ℕ}
@@ -547,7 +659,8 @@ private theorem handle_corruptRouter_multiSession_inr {m n : ℕ}
     simp only [corruptRouter, hnq, ↓reduceIte, StateT.run_map]
   all_goals
     erw [StateT.run_map]
-    dsimp only [IdealFunctionality.multiSession, IdealFunctionality.toProtocol, StateT.run]
+    dsimp only [IdealFunctionality.multiSession, IdealFunctionality.toProtocol, lazySessionStep,
+      StateT.run]
     cases s j <;> simp [ProbOracleComp.sample_bind]
 
 private theorem eval_run_multiSession_relabel {m n : ℕ}
@@ -648,6 +761,46 @@ private theorem jointDemux_jointMux {m n : ℕ}
     · dsimp only [sumHandler]
       erw [OracleComp.interpret_query]
       exact congrArg ProbOracleComp.query (demuxNetQuery_muxNetQuery nq)
+
+private theorem handle_multiSession_map_state {n : ℕ} {SubIn SubOut BackQ BackR : Type}
+    (SSID : Type) [DecidableEq SSID]
+    (F : IdealFunctionality n SubIn SubOut BackQ BackR) (κ : ℕ) (C : Finset (Fin n))
+    (q : (Fin n × SubSessionInput SSID SubIn) ⊕ SubSessionBackdoor SSID BackQ)
+    (s : SSID → Option F.State) :
+    (((F.multiSession SSID).toProtocol κ C).handle q).run (MultiSessionState.mk κ C s) =
+      Prod.map _root_.id (MultiSessionState.mk κ C) <$>
+        ((F.multiSessionProtocol SSID κ C).handle q).run s := by
+  rcases q with ⟨i, req⟩ | req <;>
+    simp only [IdealFunctionality.multiSession, IdealFunctionality.multiSessionProtocol,
+      IdealFunctionality.toProtocol, StateT.run] <;>
+    rw [lazySessionStep_map_wrap, ProbOracleComp.sample_map]
+
+private theorem run_corruptRouter_multiSessionProtocol_eq {n : ℕ}
+    {SubIn SubOut BackQ BackR α : Type} (SSID : Type) [DecidableEq SSID]
+    (F : IdealFunctionality n SubIn SubOut BackQ BackR) (κ : ℕ) (C : Finset (Fin n))
+    (prog : ProbOracleComp
+      (protocolSpec n (SubSessionInput SSID SubIn) SubOut
+        (RoutedNetQ n (SubSessionInput SSID SubIn) (SubSessionBackdoor SSID BackQ))
+        (RoutedNetR SubOut BackR)) α) :
+    (corruptRouter C (F.multiSessionProtocol SSID κ C)).run prog =
+      (corruptRouter C ((F.multiSession SSID).toProtocol κ C)).run prog := by
+  let s₀ : (corruptRouter C (F.multiSessionProtocol SSID κ C)).State := fun _ => none
+  let f : (corruptRouter C (F.multiSessionProtocol SSID κ C)).State →
+      (corruptRouter C ((F.multiSession SSID).toProtocol κ C)).State := MultiSessionState.mk κ C
+  have hInit₁ : (corruptRouter C (F.multiSessionProtocol SSID κ C)).init = pure s₀ := rfl
+  have hInit₂ : (corruptRouter C ((F.multiSession SSID).toProtocol κ C)).init = pure (f s₀) := rfl
+  simp only [Machine.run, Machine.link, hInit₁, hInit₂, ProbOracleComp.sample_pure, pure_bind]
+  refine congrArg Machine.closeProgram ?_
+  rw [Machine.runFrom_map_state
+    (corruptRouter C ((F.multiSession SSID).toProtocol κ C))
+    (corruptRouter C (F.multiSessionProtocol SSID κ C))
+    f
+    (handle_corruptRouter_map_state C ((F.multiSession SSID).toProtocol κ C)
+      (F.multiSessionProtocol SSID κ C) f
+      (handle_multiSession_map_state SSID F κ C))
+    prog s₀,
+    Functor.map_map]
+  rfl
 
 end DemuxProof
 
@@ -794,5 +947,122 @@ theorem Realizes.composeMulti_toJoint {m n : ℕ}
     Emulates (UC.composeMulti ρ π) (UC.compose ρ.toJoint (F.multiSession (Fin m)).toProtocol) :=
   (Realizes.composeMulti hρ hπ hF h).trans
     ((EmulatesWithin.multiSession_toJoint ρ F).emulates fun _ _ => negligible_zero)
+
+/-! ### Budget-preserving multi-session protocol execution and emulation -/
+
+/-- Exact UC execution agreement between the budget-preserving protocol
+`F.multiSessionProtocol SSID` and `(F.multiSession SSID).toProtocol` for every adversary,
+corruption set, environment, security parameter, and auxiliary input. -/
+theorem exec_multiSessionProtocol_eq {n : ℕ} {SubIn SubOut BackQ BackR AdvQ AdvR : Type}
+    (SSID : Type) [DecidableEq SSID]
+    (F : IdealFunctionality n SubIn SubOut BackQ BackR)
+    (A : ExecAdversary n (SubSessionInput SSID SubIn) SubOut
+      (SubSessionBackdoor SSID BackQ) BackR AdvQ AdvR)
+    (C : Finset (Fin n))
+    (Z : Environment n (SubSessionInput SSID SubIn) SubOut AdvQ AdvR)
+    (κ : ℕ) (z : List Bool) :
+    exec (F.multiSessionProtocol SSID) A C Z κ z =
+      exec (F.multiSession SSID).toProtocol A C Z κ z := by
+  simp only [exec, execMachine, Machine.run_comp, run_corruptRouter_multiSessionProtocol_eq]
+
+/-- Concrete UC emulation of `F.multiSessionProtocol SSID` is equivalent to concrete UC
+realization of `F.multiSession SSID` with the exact same simulator overhead and error bound. -/
+theorem EmulatesWithin.multiSessionProtocol_right_iff {n : ℕ}
+    {SubIn SubOut BackQ BackR NQ NR : Type} (SSID : Type) [DecidableEq SSID]
+    {π : Protocol n (SubSessionInput SSID SubIn) SubOut NQ NR}
+    {F : IdealFunctionality n SubIn SubOut BackQ BackR}
+    {g : Polynomial ℕ} {ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0} :
+    EmulatesWithin π (F.multiSessionProtocol SSID) g ε ↔
+      RealizesWithin π (F.multiSession SSID) g ε := by
+  constructor <;>
+  · intro h AdvQ AdvR A pA hA
+    obtain ⟨S, pS, hS, hSim, hAdv⟩ := h AdvQ AdvR A pA hA
+    refine ⟨S, pS, hS, hSim, fun C Z pZ hZ κ z => ?_⟩
+    simpa only [advantage, exec_multiSessionProtocol_eq] using hAdv C Z pZ hZ κ z
+
+/-- Concrete UC emulation by `F.multiSessionProtocol SSID` is equivalent to concrete UC
+emulation by `(F.multiSession SSID).toProtocol` with the exact same overhead and error bound. -/
+theorem EmulatesWithin.multiSessionProtocol_left_iff {n : ℕ}
+    {SubIn SubOut BackQ BackR NQ NR : Type} (SSID : Type) [DecidableEq SSID]
+    {F : IdealFunctionality n SubIn SubOut BackQ BackR}
+    {φ : Protocol n (SubSessionInput SSID SubIn) SubOut NQ NR}
+    {g : Polynomial ℕ} {ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0} :
+    EmulatesWithin (F.multiSessionProtocol SSID) φ g ε ↔
+      EmulatesWithin (F.multiSession SSID).toProtocol φ g ε := by
+  constructor <;>
+  · intro h AdvQ AdvR A pA hA
+    obtain ⟨S, pS, hS, hSim, hAdv⟩ := h AdvQ AdvR A pA hA
+    refine ⟨S, pS, hS, hSim, fun C Z pZ hZ κ z => ?_⟩
+    simpa only [advantage, exec_multiSessionProtocol_eq] using hAdv C Z pZ hZ κ z
+
+/-- Fixed-session joint-state execution identity using the budget-preserving multi-session
+protocol: `compose ρ.toJoint (F.multiSessionProtocol (Fin m))` with adversary `A` and
+`composeMulti ρ F.toProtocol` with `jointDemux A` have identical output distributions. -/
+theorem exec_compose_toJoint_multiSessionProtocol {m n : ℕ}
+    {In Out NetQ NetR SubIn SubOut BackQ BackR AdvQ AdvR : Type}
+    (ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut)
+    (F : IdealFunctionality n SubIn SubOut BackQ BackR)
+    (A : ExecAdversary n In Out
+      (NetQ ⊕ RoutedNetQ n (SubSessionInput (Fin m) SubIn) (SubSessionBackdoor (Fin m) BackQ))
+      (NetR ⊕ RoutedNetR SubOut BackR) AdvQ AdvR)
+    (C : Finset (Fin n)) (Z : Environment n In Out AdvQ AdvR) (κ : ℕ) (z : List Bool) :
+    (exec (compose ρ.toJoint (F.multiSessionProtocol (Fin m))) A C Z κ z).eval =
+      (exec (composeMulti ρ F.toProtocol) (jointDemux A) C Z κ z).eval := by
+  rw [← exec_compose_toJoint_multiSession]
+  refine congrArg ProbComp.eval ?_
+  simp only [exec, execMachine, compose, corruptRouter_comp, Machine.run_comp,
+    run_corruptRouter_multiSessionProtocol_eq]
+
+/-- Reverse fixed-session joint-state execution identity using the budget-preserving
+multi-session protocol: `composeMulti ρ F.toProtocol` with adversary `A` and
+`compose ρ.toJoint (F.multiSessionProtocol (Fin m))` with `jointMux A` have identical output
+distributions. -/
+theorem exec_composeMulti_toJoint_multiSessionProtocol {m n : ℕ}
+    {In Out NetQ NetR SubIn SubOut BackQ BackR AdvQ AdvR : Type}
+    (ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut)
+    (F : IdealFunctionality n SubIn SubOut BackQ BackR)
+    (A : ExecAdversary n In Out (MultiNetQ m NetQ (RoutedNetQ n SubIn BackQ))
+      (NetR ⊕ RoutedNetR SubOut BackR) AdvQ AdvR)
+    (C : Finset (Fin n)) (Z : Environment n In Out AdvQ AdvR) (κ : ℕ) (z : List Bool) :
+    (exec (composeMulti ρ F.toProtocol) A C Z κ z).eval =
+      (exec (compose ρ.toJoint (F.multiSessionProtocol (Fin m))) (jointMux A) C Z κ z).eval := by
+  rw [exec_compose_toJoint_multiSessionProtocol, jointDemux_jointMux]
+
+/-- Fixed-session joint-state step for `EmulatesWithin` using `F.multiSessionProtocol (Fin m)`:
+`compose ρ.toJoint (F.multiSessionProtocol (Fin m))` emulates `composeMulti ρ F.toProtocol` with
+overhead `Polynomial.X` and zero distinguishing error via `jointDemux`. -/
+theorem EmulatesWithin.toJoint_multiSessionProtocol {m n : ℕ}
+    {In Out NetQ NetR SubIn SubOut BackQ BackR : Type}
+    (ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut)
+    (F : IdealFunctionality n SubIn SubOut BackQ BackR) :
+    EmulatesWithin
+      (UC.compose ρ.toJoint (F.multiSessionProtocol (Fin m)))
+      (UC.composeMulti ρ F.toProtocol)
+      Polynomial.X
+      (fun _ _ _ => 0) := by
+  intro AdvQ AdvR A pA hA
+  refine ⟨jointDemux A, pA, jointDemux_polyBounded hA, SimPolyBound.refl pA, ?_⟩
+  intro C Z pZ _ κ z
+  simp only [advantage, Game.advantage, exec_compose_toJoint_multiSessionProtocol,
+    nndist_self, le_rfl]
+
+/-- Reverse fixed-session joint-state step for `EmulatesWithin` using
+`F.multiSessionProtocol (Fin m)`: `composeMulti ρ F.toProtocol` emulates
+`compose ρ.toJoint (F.multiSessionProtocol (Fin m))` with overhead `Polynomial.X` and zero
+distinguishing error via `jointMux`. -/
+theorem EmulatesWithin.multiSessionProtocol_toJoint {m n : ℕ}
+    {In Out NetQ NetR SubIn SubOut BackQ BackR : Type}
+    (ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut)
+    (F : IdealFunctionality n SubIn SubOut BackQ BackR) :
+    EmulatesWithin
+      (UC.composeMulti ρ F.toProtocol)
+      (UC.compose ρ.toJoint (F.multiSessionProtocol (Fin m)))
+      Polynomial.X
+      (fun _ _ _ => 0) := by
+  intro AdvQ AdvR A pA hA
+  refine ⟨jointMux A, pA, jointMux_polyBounded hA, SimPolyBound.refl pA, ?_⟩
+  intro C Z pZ _ κ z
+  simp only [advantage, Game.advantage, exec_composeMulti_toJoint_multiSessionProtocol,
+    nndist_self, le_rfl]
 
 end Cslib.Crypto.Protocols.UC

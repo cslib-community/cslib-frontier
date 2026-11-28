@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Probability.Collision
 public import CslibFrontier.Probability.Entropy
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Probability.StatisticalDistance
 
 /-!
@@ -125,11 +126,8 @@ theorem minEntropy_le_entropy [Finite α] (p : PMF α) : minEntropy p ≤ entrop
   calc
     minEntropy p = ∑ a, (p a).toReal * minEntropy p := by
       rw [← Finset.sum_mul, sum_toReal, one_mul]
-    _ ≤ ∑ a, (p a).toReal * surprisal p a := by
-      refine Finset.sum_le_sum fun a _ => ?_
-      by_cases ha : a ∈ p.support
-      · exact mul_le_mul_of_nonneg_left (minEntropy_le_surprisal p ha) ENNReal.toReal_nonneg
-      · rw [(p.apply_eq_zero_iff a).mpr ha, ENNReal.toReal_zero, zero_mul, zero_mul]
+    _ ≤ ∑ a, (p a).toReal * surprisal p a :=
+      sum_toReal_mul_mono_support p fun _ ha => minEntropy_le_surprisal p ha
 
 /-- Min-entropy is at most the logarithm of the size of a finite type. -/
 theorem minEntropy_le_logb_card [Fintype α] (p : PMF α) :
@@ -167,17 +165,11 @@ theorem le_minEntropy_bind (μ : PMF β) (f : β → PMF α) {k : ℝ}
   rw [le_minEntropy_iff]
   intro a
   have hk : (0 : ℝ) ≤ 2 ^ (-k) := by positivity
-  have hcomponent (b : β) : μ b * f b a ≤ μ b * ENNReal.ofReal (2 ^ (-k)) := by
-    by_cases hb : b ∈ μ.support
-    · gcongr
-      exact (ENNReal.le_ofReal_iff_toReal_le (PMF.apply_ne_top _ _) hk).mpr
-        ((le_minEntropy_iff (f b)).mp (h b hb) a)
-    · simp [(μ.apply_eq_zero_iff b).mpr hb]
   apply ENNReal.toReal_le_of_le_ofReal hk
-  calc
-    μ.bind f a = ∑' b, μ b * f b a := PMF.bind_apply μ f a
-    _ ≤ ∑' b, μ b * ENNReal.ofReal (2 ^ (-k)) := tsum_le_tsum hcomponent
-    _ = ENNReal.ofReal (2 ^ (-k)) := by rw [ENNReal.tsum_mul_right, μ.tsum_coe, one_mul]
+  rw [PMF.bind_apply]
+  exact tsum_mul_le_of_support μ fun b hb =>
+    (ENNReal.le_ofReal_iff_toReal_le (PMF.apply_ne_top _ _) hk).mpr
+      ((le_minEntropy_iff (f b)).mp (h b hb) a)
 
 /-! ### Weak random sources -/
 

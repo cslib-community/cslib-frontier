@@ -68,28 +68,25 @@ theorem leafAt_eq_P0_iff {L : ℕ} (c : Fin (10 ^ L)) (ℓ : Fin L) :
   · have h' : finFunctionFinEquiv.symm c ℓ = 9 := Fin.ext (hd.trans h)
     simp [leafAt, h', Encoding.termDigits, Encoding.termAt]
 
-/-- The scan's population is the existing finite P0-coordinate cardinality. -/
-theorem population_eq_card_P0Levels {L : ℕ} (c : Fin (10 ^ L)) :
-    population c.val L = (P0Levels (leafAt c)).card := by
-  rw [population, Nat.count_eq_card_filter_range]
-  exact (card_bij (fun ℓ _ => ℓ.val)
-    (fun ℓ hℓ => mem_filter.mpr ⟨mem_range.mpr ℓ.isLt,
-      (leafAt_eq_P0_iff c ℓ).mp (mem_P0Levels.mp hℓ)⟩)
-    (fun _ _ _ _ => Fin.ext)
-    fun k hk => ⟨⟨k, mem_range.mp (mem_filter.mp hk).1⟩,
-      mem_P0Levels.mpr ((leafAt_eq_P0_iff c _).mpr (mem_filter.mp hk).2), rfl⟩).symm
-
 /-- A prefix scan counts precisely the P0 coordinates below its native level. -/
 theorem population_eq_card_P0Levels_filter {L k : ℕ} (c : Fin (10 ^ L)) (hk : k ≤ L) :
     population c.val k = ((P0Levels (leafAt c)).filter fun ℓ => ℓ.val < k).card := by
   rw [population, Nat.count_eq_card_filter_range]
-  refine (card_bij (fun ℓ _ => ℓ.val) (fun ℓ hℓ => ?_) (fun _ _ _ _ => Fin.ext)
-    fun i hi => ?_).symm
-  · obtain ⟨hp, hlt⟩ := mem_filter.mp hℓ
-    exact mem_filter.mpr ⟨mem_range.mpr hlt, (leafAt_eq_P0_iff c ℓ).mp (mem_P0Levels.mp hp)⟩
-  · obtain ⟨hilt, hid⟩ := mem_filter.mp hi
-    exact ⟨⟨i, (mem_range.mp hilt).trans_le hk⟩, mem_filter.mpr
-      ⟨mem_P0Levels.mpr ((leafAt_eq_P0_iff c _).mpr hid), mem_range.mp hilt⟩, rfl⟩
+  have hmap : (range k) = ((univ : Finset (Fin L)).map Fin.valEmbedding).filter (· < k) := by
+    rw [Fin.map_valEmbedding_univ, Nat.Iio_eq_range]
+    ext i
+    simp only [mem_range, mem_filter, and_iff_right_of_imp (fun h : i < k => h.trans_le hk)]
+  rw [hmap, filter_filter, filter_map, card_map]
+  congr 1
+  ext i
+  simp only [mem_filter, mem_univ, true_and, Function.comp_apply,
+    Fin.valEmbedding_apply, mem_P0Levels, leafAt_eq_P0_iff, and_comm]
+
+/-- The scan's population is the existing finite P0-coordinate cardinality. -/
+theorem population_eq_card_P0Levels {L : ℕ} (c : Fin (10 ^ L)) :
+    population c.val L = (P0Levels (leafAt c)).card := by
+  rw [population_eq_card_P0Levels_filter c le_rfl, filter_true_of_mem]
+  exact fun i _ => i.isLt
 
 /-- No scan prefix contains more P0 digits than scanned levels. -/
 theorem population_le (c k : ℕ) : population c k ≤ k := Nat.count_le _

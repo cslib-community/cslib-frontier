@@ -250,17 +250,19 @@ theorem survival_randomWalk_mul_pow (t : V) :
     have hcount : #{k : Fin (T + 1) → D | ∀ i ≤ T + 1, G.walkAt (s, k) i ≠ t} =
         ∑ a, #{k : Fin T → D | ∀ i ≤ T, G.walkAt (G.neighbor s a, k) i ≠ t} := by
       rw [← card_sigma]
-      refine card_bij' (fun k _ => ⟨k 0, Fin.tail k⟩) (fun p _ => Fin.cons p.1 p.2)
-        (fun k hk => ?_) (fun p hp => ?_) (fun k _ => Fin.cons_self_tail k)
-        (fun p _ => by simp)
-      · simp only [mem_filter, mem_univ, true_and, mem_sigma] at hk ⊢
-        intro i hi
-        have := hk (i + 1) (Nat.succ_le_succ hi)
-        rwa [← Fin.cons_self_tail k, walkAt_cons_succ] at this
-      · simp only [mem_filter, mem_univ, true_and, mem_sigma] at hp ⊢
-        rintro (_ | i) hi
+      let e := (Fin.consEquiv fun _ : Fin (T + 1) => D).symm.trans
+        (Equiv.sigmaEquivProd D (Fin T → D)).symm
+      refine card_equiv e fun k => ?_
+      change k ∈ _ ↔ (⟨k 0, Fin.tail k⟩ : Σ _ : D, Fin T → D) ∈ _
+      simp only [mem_filter, mem_univ, true_and, mem_sigma]
+      constructor
+      · intro hk i hi
+        have h := hk (i + 1) (Nat.succ_le_succ hi)
+        rwa [← Fin.cons_self_tail k, walkAt_cons_succ] at h
+      · rintro hk (_ | i) hi
         · exact hs
-        · simpa only [walkAt_cons_succ] using hp i (Nat.le_of_succ_le_succ hi)
+        · rw [← Fin.cons_self_tail k, walkAt_cons_succ]
+          exact hk i (Nat.le_of_succ_le_succ hi)
     rw [hcount, Nat.cast_sum, G.sum_comp_neighbor s (fun y => (#{k : Fin T → D |
       ∀ i ≤ T, G.walkAt (y, k) i ≠ t} : ℝ≥0∞))]
     refine sum_congr rfl fun y _ => ?_

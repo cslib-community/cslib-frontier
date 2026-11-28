@@ -233,13 +233,7 @@ noncomputable def stepOp : MarkovChain S →* Module.End ℝ (S → ℝ) where
       map_smul' c f := funext fun x => by
         simp only [Pi.smul_apply, smul_eq_mul, RingHom.id_apply, mul_sum]
         exact sum_congr rfl fun y _ => by ring }
-  map_one' := LinearMap.ext fun f => funext fun x => by
-    classical
-    change ∑ y, ((PMF.pure x) y).toReal * f y = f x
-    rw [← add_sum_erase _ _ (mem_univ x), PMF.pure_apply_self, ENNReal.toReal_one, one_mul,
-      sum_eq_zero fun y hy => by
-        rw [PMF.pure_apply_of_ne _ _ (ne_of_mem_erase hy), ENNReal.toReal_zero, zero_mul],
-      add_zero]
+  map_one' := LinearMap.ext fun f => funext fun x => sum_pure_toReal_mul (mem_univ x) f
   map_mul' P Q := LinearMap.ext fun f => funext fun x => sum_bind_mul (P x) Q f
 
 theorem stepOp_apply (P : MarkovChain S) (f : S → ℝ) (x : S) :
@@ -1242,9 +1236,7 @@ theorem IsReversible.abs_toReal_div_sub_one_le {P : MarkovChain S} {π : PMF S}
       ((P ^ t) x y).toReal / (π y).toReal - 1 := by
     simp only [δ, stepOp_pow_relDensity hrev hπ (PMF.pure x) t, PMF.pure_bind,
       toReal_mul_div_sub_one hπ, sub_mul, sum_sub_distrib, sum_toReal, sub_self, sub_zero]
-    rw [Fintype.sum_eq_single y fun z hz => by
-        rw [PMF.pure_apply_of_ne _ _ hz, ENNReal.toReal_zero, zero_mul],
-      PMF.pure_apply_self, ENNReal.toReal_one, one_mul]
+    rw [sum_pure_toReal_mul (mem_univ y)]
   have hx : 0 < (π x).toReal := ENNReal.toReal_pos (hπ x) (π.apply_ne_top x)
   have hy : 0 < (π y).toReal := ENNReal.toReal_pos (hπ y) (π.apply_ne_top y)
   have hrhs_nn : 0 ≤ P.spectralContraction π ^ t / Real.sqrt ((π x).toReal * (π y).toReal) :=

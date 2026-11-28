@@ -63,10 +63,9 @@ Coordinate native graph-algorithm work with [CSLib's graph-algorithm directions]
 
 ### Sorting and selection
 
-- **Comparison selection** ([#3279](https://github.com/cslib-community/cslib-frontier/issues/3279)): sharper constants for median-of-medians selection in CSLib's comparison-query model (a six-comparison median of five, reusing the group comparisons in the partition) and group sizes such as three or seven.
+- **Comparison selection** ([#3279](https://github.com/cslib-community/cslib-frontier/issues/3279)): sharper constants for median-of-medians selection in CSLib's comparison-query model by reusing the group comparisons during partitioning and group sizes such as three or seven.
   Also the `5.4305 n` bound for the refined `PICK` of Blum, Floyd, Pratt, Rivest and Tarjan, Dor and Zwick's `2.95 n` median bound, and a word-RAM implementation with charged instruction counts.
-- **Comparison lower bounds for selection** ([#3279](https://github.com/cslib-community/cslib-frontier/issues/3279)): Kislitsyn's `n + ⌈log₂ n⌉ − 2` comparisons for the second smallest in CSLib's comparison-query model.
-  Also lower bounds for the median and for general ranks, such as Bent and John's `2n − o(n)`.
+- **Comparison lower bounds for selection** ([#3279](https://github.com/cslib-community/cslib-frontier/issues/3279)): lower bounds for the median and for general ranks in CSLib's comparison-query model, such as Bent and John's `2n − o(n)`.
 
 ### Online algorithms and competitive analysis
 
@@ -158,7 +157,7 @@ Social welfare and social choice functions on strict rankings, from Arrow's impo
 - **Burrows–Wheeler transform:** a Word-RAM running time for the forward transform.
   Move-to-front and entropy coding of the last column, compression bounds in the empirical entropy `H_k` (Manzini), FM-index backward search and rank/select structures, and the link to suffix arrays for sentinel-terminated words.
 - **Suffix arrays:** charged linear-time construction for integer alphabets (SA-IS or Kärkkäinen–Sanders DC3), Manber–Myers `O(|p| + log n)` search using precomputed LCP values, suffix trees (Ukkonen or McCreight) and their equivalence to suffix arrays with LCP arrays, and applications such as longest repeated substring and the Burrows–Wheeler transform.
-- **Z-algorithm:** linear conversions between Z-values and the KMP prefix function, applications such as Main–Lorentz repetition finding, and a shared string module for the common-prefix extension used by Kasai's construction and the Z-algorithm.
+- **Z-algorithm:** linear conversions between Z-values and the KMP prefix function and applications such as Main–Lorentz repetition finding.
 - **Multi-pattern matching:** compressed or comparison-based Aho–Corasick transitions for sparse or unbounded alphabets, dynamic dictionary matching and Turing-machine realizations.
 - **Edit distance and longest common subsequence:** for unit costs, the metric axioms and equality with the least number of single-letter edits; Wagner–Fischer's trace equivalence for general costs; Hirschberg's linear-space alignment; a machine-level polynomial-time computation; Ukkonen's and Myers' `O((|x| + |y|) d)` algorithms; the Masek–Paterson speedup; and `OV` hardness ([#3037](https://github.com/cslib-community/cslib-frontier/issues/3037)).
-- **Palindromes:** Manacher's on-line formulation, reporting palindromic prefixes as letters arrive with a per-letter amortized bound; palindromic trees (eertrees) and counting distinct palindromic factors, of which there are at most `|w| + 1`; and the parallel algorithms of Apostolico, Breslauer and Galil.
+- **Palindromes:** Manacher's on-line formulation, reporting palindromic prefixes as letters arrive with a per-letter amortized bound; palindromic trees (eertrees) for efficiently counting distinct palindromic factors; and the parallel algorithms of Apostolico, Breslauer and Galil.

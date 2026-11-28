@@ -14,12 +14,12 @@ public import Cslib.Algorithms.Lean.Query.Bounds
 /-!
 # A linear comparison bound for deterministic selection
 
-`Cslib.Query.select k xs` makes at most `37 * xs.length` comparisons, for every oracle
+`Cslib.Query.select k xs` makes at most `32 * xs.length` comparisons, for every oracle
 (`Cslib.Query.select_upperBound`). The proof solves the median-of-medians recurrence
-`T(n) ≤ 8n/5 + T(⌈n/5⌉) + 2n + T(selectSideBound n)` by strong induction on `n`:
+`T(n) ≤ (6n + 1)/5 + T(⌈n/5⌉) + 2n + T(selectSideBound n)` by strong induction on `n`:
 
-* each group of at most five elements is sorted with at most `8` comparisons, so computing the
-  medians takes at most `8n/5` comparisons (`Cslib.Query.medians_countQueries_le`);
+* each full group uses exactly six comparisons. A final group of four can use five, so computing
+  all group medians costs at most `(6n + 1)/5` comparisons (`Cslib.Query.medians_countQueries_le`);
 * the three-way partition takes at most `2n` comparisons
   (`Cslib.Query.partition3_countQueries_le`);
 * the recursive calls are on the `⌈n/5⌉` medians and on one side of the partition, which has at
@@ -28,17 +28,20 @@ public import Cslib.Algorithms.Lean.Query.Bounds
 * lists of at most `selectCutoff = 730` elements are merge-sorted with at most
   `n * ⌈log₂ n⌉ ≤ 10n` comparisons.
 
-The constant `37` is what this simple accounting gives; Blum, Floyd, Pratt, Rivest and Tarjan
-analyse a refined version of the algorithm (`PICK`) with at most `5.4305n` comparisons
+To absorb rounding in the recursive sizes, the induction bounds `T(n)` by the larger of
+`10n` and `32n - 64`. For a large split, the two subproblem bounds absorb the rounding loss
+of at most 64 comparisons. The refined `PICK` algorithm uses at most `5.4305n` comparisons
 [BlumFloydPrattRivestTarjan1973].
 
 ## Main results
 
 * `Cslib.Query.partition3_countQueries_le`: the partition makes at most `2n` comparisons.
-* `Cslib.Query.groupMedian_countQueries_le`, `Cslib.Query.medians_countQueries_le`: the group
-  medians cost at most `8n/5` comparisons.
+* `Cslib.Query.groupMedian_countQueries_le`: the sorting-based group helper costs at most
+  `mergeSortCountBound` of its input length.
+* `Cslib.Query.medians_countQueries_le`: computing the medians of all blocks costs at most
+  `(6n + 1)/5` comparisons.
 * `Cslib.Query.select_countQueries_le`, `Cslib.Query.select_upperBound`: selection makes at most
-  `37n` comparisons.
+  `32n` comparisons.
 
 ## References
 
@@ -76,25 +79,22 @@ theorem groupMedian_countQueries_le (oracle : {ι : Type} → LEQuery α ι → 
   simp only [groupMedian, FreeM.countQueries_bind, FreeM.countQueries_pure, Nat.add_zero]
   exact mergeSort_countQueries_le_countBound oracle (x :: xs)
 
-/-- Sorting a group of at most five elements costs at most `8/5` comparisons per element. -/
-private theorem five_mul_mergeSortCountBound_le {j : ℕ} (hj : j ≤ 4) :
-    5 * mergeSortCountBound (j + 1) ≤ 8 * (j + 1) := by
-  rcases j with _ | _ | _ | _ | _ | j
-  all_goals first | omega | simp [mergeSortCountBound_add_two]
-
-/-- Computing the group medians costs at most `8/5` comparisons per element:
-`5 * cost ≤ 8 * n`. -/
+/-- Each full group uses six comparisons. Merge sort on a possible final group of four uses
+at most five, giving the uniform bound `5 * cost ≤ 6 * n + 1`. -/
 theorem medians_countQueries_le (oracle : {ι : Type} → LEQuery α ι → ι) (xs : List α) :
-    5 * (medians xs).countQueries oracle ≤ 8 * xs.length := by
+    5 * (medians xs).countQueries oracle ≤ 6 * xs.length + 1 := by
   fun_induction medians xs with
-  | case1 => simp -- []
-  | case2 x xs ih =>
-    simp only [FreeM.countQueries_bind, FreeM.countQueries_pure, Nat.add_zero]
-    have hg := groupMedian_countQueries_le oracle x (xs.take 4)
-    have h5 := five_mul_mergeSortCountBound_le (j := (xs.take 4).length) (by simp)
-    have htake : (xs.take 4).length + (xs.drop 4).length = xs.length := by simp; omega
-    simp only [List.length_cons]
+  | case1 a b c d e rest ih =>
+    simp only [FreeM.countQueries_bind, FreeM.countQueries_pure, Nat.add_zero,
+      medianFive_countQueries, List.length_cons]
     omega
+  | case2 x xs hn =>
+    simp only [FreeM.countQueries_bind, FreeM.countQueries_pure, Nat.add_zero]
+    have hg := groupMedian_countQueries_le oracle x xs
+    rcases xs with _ | ⟨b, _ | ⟨c, _ | ⟨d, _ | ⟨e, rest⟩⟩⟩⟩
+    all_goals first | exact (hn _ _ _ _ _ rfl).elim |
+      (simp [mergeSortCountBound_add_two] at hg ⊢; omega)
+  | case3 => simp
 
 /-- Lists of at most `selectCutoff` elements are sorted with at most `10` comparisons per
 element. -/
@@ -106,10 +106,10 @@ private theorem mergeSort_countQueries_le_of_le_selectCutoff
     _ ≤ xs.length * 10 := Nat.mul_le_mul_left _ (Nat.clog_le_of_le_pow (h.trans (by decide)))
     _ = 10 * xs.length := Nat.mul_comm _ _
 
-/-- **Linear comparison bound for selection.** For every oracle, `select k xs` makes at most
-`37 * xs.length` comparisons. -/
-theorem select_countQueries_le (oracle : {ι : Type} → LEQuery α ι → ι) (k : ℕ) (xs : List α) :
-    (select k xs).countQueries oracle ≤ 37 * xs.length := by
+/-- The constant offset in the recursive branch pays for rounding the two subproblem sizes. -/
+private theorem select_countQueries_bound (oracle : {ι : Type} → LEQuery α ι → ι)
+    (k : ℕ) (xs : List α) :
+    (select k xs).countQueries oracle ≤ max (10 * xs.length) (32 * xs.length - 64) := by
   fun_induction select k xs with
   | case1 k xs hsmall => -- short list: sort it
     simp only [FreeM.countQueries_bind, FreeM.countQueries_pure, Nat.add_zero]
@@ -145,10 +145,16 @@ theorem select_countQueries_le (oracle : {ι : Type} → LEQuery α ι → ι) (
     · rw [dite_eq_right hL]
       simp only [FreeM.countQueries_pure, selectCutoff] at hsmall ⊢; omega
 
+/-- Deterministic selection makes at most `32n` comparisons against every oracle. -/
+theorem select_countQueries_le (oracle : {ι : Type} → LEQuery α ι → ι) (k : ℕ) (xs : List α) :
+    (select k xs).countQueries oracle ≤ 32 * xs.length := by
+  have := select_countQueries_bound oracle k xs
+  omega
+
 /-- **Linear comparison bound for selection**, as a query upper bound: on lists of length at most
-`n`, `select k` makes at most `37 * n` comparisons for every oracle. -/
-theorem select_upperBound (k : ℕ) : UpperBound (select (α := α) k) List.length (37 * ·) :=
-  UpperBound.of_pointwise (fun _ _ h => Nat.mul_le_mul_left 37 h)
+`n`, `select k` makes at most `32 * n` comparisons for every oracle. -/
+theorem select_upperBound (k : ℕ) : UpperBound (select (α := α) k) List.length (32 * ·) :=
+  UpperBound.of_pointwise (fun _ _ h => Nat.mul_le_mul_left 32 h)
     fun oracle xs => select_countQueries_le oracle k xs
 
 end Cslib.Query

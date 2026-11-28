@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.CompileCuttingPlanes
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.RupRefutation
+public import Mathlib.Data.List.MinMax
 -- `import all`: the constructions run `soli` and `solx` steps, unfolding the unexposed `stepTop`
 -- and `State.log` and the private `State.addCore`, `State.improve` and `lowerTo`, and read the
 -- input database back through the private `holds_of_allHold_initDb`.
@@ -24,8 +26,8 @@ The kernel checker is sound for every conclusion (`Cslib.Logic.PL.VeriPB.not_sat
 `Cslib.Logic.PL.VeriPB.exists_satisfies_of_checkRed`, `Cslib.Logic.PL.VeriPB.le_eval_of_checkRed`,
 `Cslib.Logic.PL.VeriPB.exists_eval_le_of_checkRed`,
 `Cslib.Logic.PL.VeriPB.encard_eq_of_checkRed_enumComplete`). This module proves the converse:
-every true conclusion has a proof that the checker accepts. The proofs are existence results and
-may be exponentially long in the number of variables.
+every true conclusion has a proof that the checker accepts, by cutting planes (existence results)
+and by executable producers. The proofs may be exponentially long in the number of variables.
 
 **Refuting a database.** Every database without a 0/1 solution, with distinct numbers below the
 next number, is refuted by `pol` steps without saturation
@@ -34,8 +36,11 @@ constraints (`Cslib.Logic.PL.CuttingPlanes.exists_refutableInSize_of_not_exists_
 refutation compiles into one `pol` step per line
 (`Cslib.Logic.PL.VeriPB.exists_runSteps_of_isProof`). Run from any state of `checkRed`, these steps
 change only the database and the next number
-(`Cslib.Logic.PL.VeriPB.runTop_map_step_of_ne_del`). Every construction below ends with such a
-refutation.
+(`Cslib.Logic.PL.VeriPB.runTop_map_step_of_ne_del`). Every construction below ends with a
+refutation of the database it reaches: such a cutting planes refutation, for the existence
+results, or the decision tree of `rup` steps over the variables
+(`Cslib.Logic.PL.VeriPB.refuteSteps`, `Cslib.Logic.PL.VeriPB.runTop_refuteSteps`), for the
+producers. The two share the solution-logging part of each construction.
 
 **Logged solutions.** The kernel format does not propagate a logged solution: its literals must
 satisfy every constraint of the database on their own (`Cslib.Logic.PL.VeriPB.solves`). The
@@ -70,6 +75,23 @@ constraint of the database (`Cslib.Logic.PL.VeriPB.solves_solutionOf`).
   number is `n` iff the checker accepts some `ENUMERATION_COMPLETE n : q`
   (`Cslib.Logic.PL.VeriPB.encard_eq_iff_exists_checkRed_enumComplete`).
 
+**The producers.** `Cslib.Logic.PL.VeriPB.refutation`, `Cslib.Logic.PL.VeriPB.boundsProof` and
+`Cslib.Logic.PL.VeriPB.enumProof` build the proofs of the constructions above with the decision
+tree as refutation, given the solutions to log. The search producers find those solutions by trying
+all `2 ^ k` assignments of the `k` distinct variables involved
+(`Cslib.Logic.PL.VeriPB.solutionsOn`): `Cslib.Logic.PL.VeriPB.refute` (`UNSAT`, a proof of
+`2 ^ (k + 1) - 1` `rup` steps of clauses of at most `k` literals of variables of the formula,
+with at most three hints each, all below `|F| + 2 ^ (k + 1)`),
+`Cslib.Logic.PL.VeriPB.solve` (`SAT : ρ`), `Cslib.Logic.PL.VeriPB.optimize` (`BOUNDS v : q v`, or
+`BOUNDS INF : q INF`) and `Cslib.Logic.PL.VeriPB.enumerate` (`ENUMERATION_COMPLETE n : q`). Each is
+accepted by the checker (`Cslib.Logic.PL.VeriPB.checkRed_of_refute_eq_some`,
+`Cslib.Logic.PL.VeriPB.checkRed_of_solve_eq_some`, `Cslib.Logic.PL.VeriPB.checkRed_optimize`,
+`Cslib.Logic.PL.VeriPB.checkRed_enumerate`), and the soundness theorems give the meaning of its
+conclusion. The `UNSAT` and `BOUNDS INF` halves of the characterizations
+`Cslib.Logic.PL.VeriPB.not_satisfiable_iff_exists_checkRed_unsat` and
+`Cslib.Logic.PL.VeriPB.not_satisfiable_iff_exists_checkRed_boundsInf` are derived from the
+decision-tree proofs.
+
 For CNFs, `UNSAT` completeness also follows from the embedding of LRAT proofs
 (`Cslib.Logic.PL.CNF.exists_check_iff`); the route here goes through cutting planes and covers
 every pseudo-Boolean formula and every objective and preserved set.
@@ -78,6 +100,13 @@ every pseudo-Boolean formula and every objective and preserved set.
 
 * `Cslib.Logic.PL.VeriPB.solutionOf`: the full assignment of `σ` to a list of variables, as a
   list of literals.
+* `Cslib.Logic.PL.VeriPB.refutation`, `Cslib.Logic.PL.VeriPB.boundsProof`,
+  `Cslib.Logic.PL.VeriPB.enumProof`: the proofs of the constructions, refuted by the decision
+  tree.
+* `Cslib.Logic.PL.VeriPB.assignments`, `Cslib.Logic.PL.VeriPB.solutionsOn`: the assignments of a
+  list of variables, and the solutions among them.
+* `Cslib.Logic.PL.VeriPB.refute`, `Cslib.Logic.PL.VeriPB.solve`, `Cslib.Logic.PL.VeriPB.optimize`,
+  `Cslib.Logic.PL.VeriPB.enumerate`: the producers.
 
 ## Main results
 
@@ -94,6 +123,14 @@ every pseudo-Boolean formula and every objective and preserved set.
 * `Cslib.Logic.PL.VeriPB.exists_checkRed_enumComplete_of_sols`,
   `Cslib.Logic.PL.VeriPB.encard_eq_iff_exists_checkRed_enumComplete`: `ENUMERATION_COMPLETE`
   completeness.
+* `Cslib.Logic.PL.VeriPB.runTop_refuteSteps`, `Cslib.Logic.PL.VeriPB.checkRed_refutation_unsat`,
+  `Cslib.Logic.PL.VeriPB.checkRed_refutation_boundsInf`,
+  `Cslib.Logic.PL.VeriPB.checkRed_boundsProof`, `Cslib.Logic.PL.VeriPB.checkRed_enumProof`: the
+  decision-tree proofs are accepted.
+* `Cslib.Logic.PL.VeriPB.isSome_refute`, `Cslib.Logic.PL.VeriPB.checkRed_of_refute_eq_some`,
+  `Cslib.Logic.PL.VeriPB.isSome_solve`, `Cslib.Logic.PL.VeriPB.checkRed_of_solve_eq_some`,
+  `Cslib.Logic.PL.VeriPB.checkRed_optimize`, `Cslib.Logic.PL.VeriPB.checkRed_enumerate`: the
+  producers answer every instance and are accepted, `refute` with its size.
 -/
 
 public section
@@ -158,6 +195,75 @@ theorem exists_runTop_contra (F : List PBConstr) (obj : Option Objective) (s : S
     rw [hops]
     exact Step.noConfusion
 
+/-- **Every state whose database has no solution is refuted by the decision tree** of `rup`
+steps over a list of variables containing those of the database
+(`Cslib.Logic.PL.VeriPB.refuteSteps`), which changes only its database and next number. -/
+theorem runTop_refuteSteps (F : List PBConstr) (obj : Option Objective) (s : State)
+    {vs : List ℕ} (hid : IdOk s.db s.next) (hvs : ∀ e ∈ s.db, e.2.vars ⊆ vs)
+    (h : ¬ ∃ σ, AllHold σ s.db) :
+    ∃ db', runTop F obj s ((refuteSteps s.db s.next vs).map .step) =
+        some { s with db := db', next := s.next + (2 ^ (vs.length + 1) - 1) } ∧
+      namesContra db' (s.next + (2 ^ (vs.length + 1) - 1) - 1) = true := by
+  obtain ⟨db', hrun, -, hq⟩ := runSteps_refuteSteps hid hvs h
+  refine ⟨db', ?_, hq⟩
+  rw [runTop_map_step_of_ne_del, hrun]
+  · rfl
+  · intro st hst ids
+    obtain ⟨K, hs, rfl, -⟩ := exists_eq_rup_of_mem_refuteSteps hst
+    exact Step.noConfusion
+
+/-- The steps `pre` run from the initial state to the state `s`, whose database has fresh numbers,
+is over the variables `vs` and has no solution, and where the conclusion `c q` is accepted once
+the database names the contradiction `q`. Every construction below refutes such a state, by
+cutting planes (`Refutable.exists_checkRed`) or by the decision tree
+(`Refutable.checkRed_refuteSteps`). -/
+private structure Refutable (F : List PBConstr) (obj : Option Objective)
+    (pres : Option (List ℕ)) (vs : List ℕ) (pre : List TopStep) (c : ℕ → Conclusion)
+    (s : State) : Prop where
+  run : runTop F obj (State.init F obj pres) pre = some s
+  idOk : IdOk s.db s.next
+  vars : ∀ e ∈ s.db, e.2.vars ⊆ vs
+  unsat : ¬ ∃ σ, AllHold σ s.db
+  concl : ∀ db' n' q, namesContra db' q = true →
+    checkConclusion F obj { s with db := db', next := n' } (c q) = true
+
+private theorem Refutable.exists_checkRed {F : List PBConstr} {obj : Option Objective}
+    {pres : Option (List ℕ)} {vs : List ℕ} {pre : List TopStep} {c : ℕ → Conclusion} {s : State}
+    (h : Refutable F obj pres vs pre c s) :
+    ∃ (ss : List Step) (q : ℕ), ss.all Step.IsCP ∧
+      checkRed F obj ⟨pre ++ ss.map .step, c q⟩ pres = true := by
+  obtain ⟨ss, hcp, db', n', hrun, q, hq⟩ := exists_runTop_contra F obj s h.idOk h.unsat
+  refine ⟨ss, q, hcp, ?_⟩
+  rw [checkRed, runTop_append, h.run, Option.bind_some, hrun]
+  exact h.concl _ _ _ hq
+
+private theorem Refutable.checkRed_refuteSteps {F : List PBConstr} {obj : Option Objective}
+    {pres : Option (List ℕ)} {vs : List ℕ} {pre : List TopStep} {c : ℕ → Conclusion} {s : State}
+    (h : Refutable F obj pres vs pre c s) :
+    checkRed F obj ⟨pre ++ (refuteSteps s.db s.next vs).map .step,
+      c (s.next + (2 ^ (vs.length + 1) - 1) - 1)⟩ pres = true := by
+  obtain ⟨db', hrun, hq⟩ := runTop_refuteSteps F obj s h.idOk h.vars h.unsat
+  rw [checkRed, runTop_append, h.run, Option.bind_some, hrun]
+  exact h.concl _ _ _ hq
+
+/-- The constraints of the input database are over the variables of the formula. -/
+private theorem vars_initDb {F : List PBConstr} {vs : List ℕ} (hvs : ∀ c ∈ F, c.vars ⊆ vs) :
+    ∀ e ∈ initDb F, e.2.vars ⊆ vs := fun e he x hx => by
+  simp only [initDb, List.mem_map] at he
+  obtain ⟨⟨c, i⟩, hc, rfl⟩ := he
+  exact hvs c (List.fst_mem_of_mem_zipIdx hc) (mem_vars_of_mem_vars_normalize hx)
+
+/-- The initial state of an unsatisfiable formula is refutable, for a conclusion accepted on
+every database naming the contradiction, with the initial bounds. -/
+private theorem refutable_init {F : List PBConstr} {obj : Option Objective}
+    {pres : Option (List ℕ)} {vs : List ℕ} (hvs : ∀ c ∈ F, c.vars ⊆ vs)
+    (h : ¬ ∃ σ, ∀ c ∈ F, c.Holds σ) {c : ℕ → Conclusion}
+    (hc : ∀ db' n' q, namesContra db' q = true →
+      checkConclusion F obj { State.init F obj pres with db := db', next := n' } (c q) = true) :
+    Refutable F obj pres vs [] c (State.init F obj pres) :=
+  ⟨runTop_nil .., idOk_initDb F, vars_initDb hvs,
+    fun ⟨σ, hσ⟩ => h ⟨σ, holds_of_allHold_initDb hσ⟩, hc⟩
+
 /-! ### `UNSAT` -/
 
 /-- **`UNSAT` completeness of the kernel checker**: every unsatisfiable formula has a proof made of
@@ -178,12 +284,26 @@ theorem exists_checkRed_unsat_of_not_satisfiable {F : List PBConstr} (obj : Opti
     (pres : Option (List ℕ)) (h : ¬ ∃ σ, ∀ c ∈ F, c.Holds σ) :
     ∃ (ss : List Step) (q : ℕ), ss.all Step.IsCP ∧
       checkRed F obj ⟨ss.map .step, .unsat q⟩ pres = true := by
-  obtain ⟨ss, hcp, db', n', hrun, q, hq⟩ := exists_runTop_contra F obj (State.init F obj pres)
-    (idOk_initDb F) fun ⟨σ, hσ⟩ => h ⟨σ, holds_of_allHold_initDb hσ⟩
-  refine ⟨ss, q, hcp, ?_⟩
-  unfold checkRed
-  rw [hrun]
-  simp [checkConclusion, State.init, hq]
+  simpa using (refutable_init (obj := obj) (pres := pres) (vs := F.flatMap PBConstr.vars)
+    (fun c hc _ hx => List.mem_flatMap.2 ⟨c, hc, hx⟩) h (c := .unsat)
+    fun _ _ _ hq => by simp [checkConclusion, State.init, hq]).exists_checkRed
+
+/-- **The decision-tree refutation** of `F` over the variables `vs`, with the conclusion `c q` for
+the number `q` of its contradiction: `2 ^ (|vs| + 1) - 1` `rup` steps
+(`Cslib.Logic.PL.VeriPB.refuteSteps`) from the input database. -/
+@[expose]
+def refutation (F : List PBConstr) (vs : List ℕ) (c : ℕ → Conclusion) : RedProof :=
+  ⟨(refuteSteps (initDb F) (F.length + 1) vs).map .step,
+    c (F.length + 1 + (2 ^ (vs.length + 1) - 1) - 1)⟩
+
+/-- **The decision-tree refutation proves `UNSAT`** of an unsatisfiable formula over the
+variables `vs`, for every objective and preserved set. -/
+theorem checkRed_refutation_unsat {F : List PBConstr} {vs : List ℕ} (obj : Option Objective)
+    (pres : Option (List ℕ)) (hvs : ∀ c ∈ F, c.vars ⊆ vs) (h : ¬ ∃ σ, ∀ c ∈ F, c.Holds σ) :
+    checkRed F obj (refutation F vs .unsat) pres = true := by
+  simpa [State.init, refutation] using (refutable_init (obj := obj) (pres := pres) hvs h
+    (c := .unsat)
+    fun _ _ _ hq => by simp [checkConclusion, State.init, hq]).checkRed_refuteSteps
 
 /-- **A formula is unsatisfiable iff `checkRed` accepts a proof of `UNSAT`**, for every objective
 and preserved set. -/
@@ -191,9 +311,9 @@ theorem not_satisfiable_iff_exists_checkRed_unsat {F : List PBConstr} {obj : Opt
     {pres : Option (List ℕ)} :
     (¬ ∃ σ, ∀ c ∈ F, c.Holds σ) ↔
       ∃ (P : RedProof) (q : ℕ), P.conclusion = .unsat q ∧ checkRed F obj P pres = true := by
-  refine ⟨fun h => ?_, fun ⟨P, q, hc, hP⟩ ⟨σ, hσ⟩ => not_satisfiable_of_checkRed hP hc σ hσ⟩
-  obtain ⟨ss, q, -, hP⟩ := exists_checkRed_unsat_of_not_satisfiable obj pres h
-  exact ⟨_, q, rfl, hP⟩
+  refine ⟨fun h => ⟨_, _, rfl, checkRed_refutation_unsat (vs := F.flatMap PBConstr.vars) obj pres
+      (fun c hc _ hx => List.mem_flatMap.2 ⟨c, hc, hx⟩) h⟩,
+    fun ⟨P, q, hc, hP⟩ ⟨σ, hσ⟩ => not_satisfiable_of_checkRed hP hc σ hσ⟩
 
 /-! ### Full assignments as logged solutions -/
 
@@ -282,6 +402,39 @@ theorem eval_assignOf_solutionOf {vs : List ℕ} {σ : ℕ → Bool} {f : Object
   rw [Objective.eval, Objective.eval,
     linVal_congr fun e he => assignOf_solutionOf (σ := σ) (hf e he)]
 
+/-- After `soli` logs the full assignment of an optimal solution `σ`, adding the improving
+constraint `f ≤ v - 1` for its value `v`, the state is refutable, with the conclusion
+`BOUNDS v : q v`. -/
+private theorem refutable_soli {F : List PBConstr} {f : Objective} {σ : ℕ → Bool}
+    {vs : List ℕ} (pres : Option (List ℕ)) (hvs : ∀ c ∈ F, c.vars ⊆ vs)
+    (hf : ∀ e ∈ f.lin, e.1 ∈ vs) (hσ : ∀ c ∈ F, c.Holds σ)
+    (hopt : ∀ τ, (∀ c ∈ F, c.Holds τ) → f.eval σ ≤ f.eval τ) :
+    Refutable F (some f) pres vs [.soli (solutionOf vs σ)]
+      (fun q => .bounds (some (f.eval σ)) q (some (f.eval σ)) none)
+      (((State.init F (some f) pres).log F (some f) (solutionOf vs σ)).improve f
+        (f.eval (assignOf (solutionOf vs σ)))) := by
+  set ρ := solutionOf vs σ
+  set s₀ := State.init F (some f) pres
+  set s₁ := (s₀.log F (some f) ρ).improve f (f.eval (assignOf ρ))
+  have hval : f.eval (assignOf ρ) = f.eval σ := eval_assignOf_solutionOf hf
+  have hstep : stepTop F (some f) s₀ (.soli ρ) = some s₁ := by
+    have ha : assigns ρ f = true := assignsAll_solutionOf (List.forall_mem_map.2 hf)
+    simpa [stepTop, s₁, s₀, State.init, map_snd_initDb, ha] using solves_initDb hvs hσ
+  refine ⟨by rw [runTop_cons, hstep, Option.bind_some, runTop_nil], (idOk_initDb F).cons le_rfl _,
+    fun e he x hx => ?_, fun ⟨τ, hτ⟩ => ?_, fun _ _ q hq => ?_⟩
+  · rcases List.mem_cons.1 he with rfl | he
+    · have := mem_vars_fromLinear (mem_vars_of_mem_vars_normalize hx)
+      simp only [List.map_map, List.mem_map, Function.comp_apply] at this
+      obtain ⟨e, he, rfl⟩ := this
+      exact hf e he
+    · exact vars_initDb hvs e he hx
+  · have himp := (holds_normalize τ _).1 (hτ _ (List.mem_cons_self ..))
+    rw [Objective.holds_improving, hval] at himp
+    exact absurd (hopt τ (holds_of_allHold_initDb fun e he =>
+      hτ e (List.mem_cons_of_mem _ he))) (not_le.2 himp)
+  · simp [checkConclusion, s₁, s₀, State.improve, State.addCore, State.log, State.init, lowerTo,
+      objValue, boundsOk, hq, hval]
+
 /-- **`BOUNDS` completeness**: let `σ` be an optimal solution of `F` for the objective `f`, of value
 `v`, and `vs` a list of variables containing those of `F` and of `f`. The proof that logs the full
 assignment of `σ` to `vs` by `soli`, adding the improving constraint `f ≤ v - 1`, and then refutes
@@ -292,25 +445,31 @@ theorem exists_checkRed_bounds_of_isOptimal {F : List PBConstr} {f : Objective} 
     (hopt : ∀ τ, (∀ c ∈ F, c.Holds τ) → f.eval σ ≤ f.eval τ) :
     ∃ (ss : List Step) (q : ℕ), ss.all Step.IsCP ∧
       checkRed F (some f) ⟨.soli (solutionOf vs σ) :: ss.map .step,
-        .bounds (some (f.eval σ)) q (some (f.eval σ)) none⟩ pres = true := by
-  set ρ := solutionOf vs σ
-  set s₀ := State.init F (some f) pres
-  set s₁ := (s₀.log F (some f) ρ).improve f (f.eval (assignOf ρ))
-  have hval : f.eval (assignOf ρ) = f.eval σ := eval_assignOf_solutionOf hf
-  have hstep : stepTop F (some f) s₀ (.soli ρ) = some s₁ := by
-    have ha : assigns ρ f = true := assignsAll_solutionOf (List.forall_mem_map.2 hf)
-    simpa [stepTop, s₁, s₀, State.init, map_snd_initDb, ha] using solves_initDb hvs hσ
-  have hid : IdOk s₁.db s₁.next := (idOk_initDb F).cons le_rfl _
-  obtain ⟨ss, hcp, db', n', hrun, q, hq⟩ := exists_runTop_contra F (some f) s₁ hid
-    fun ⟨τ, hτ⟩ => by
-      have himp := (holds_normalize τ _).1 (hτ _ (List.mem_cons_self ..))
-      rw [Objective.holds_improving, hval] at himp
-      exact absurd (hopt τ (holds_of_allHold_initDb fun e he =>
-        hτ e (List.mem_cons_of_mem _ he))) (not_le.2 himp)
-  refine ⟨ss, q, hcp, ?_⟩
-  rw [checkRed, runTop_cons, hstep, Option.bind_some, hrun]
-  simp [checkConclusion, s₁, s₀, State.improve, State.addCore, State.log, State.init, lowerTo,
-    objValue, boundsOk, hq, hval]
+        .bounds (some (f.eval σ)) q (some (f.eval σ)) none⟩ pres = true :=
+  (refutable_soli pres hvs hf hσ hopt).exists_checkRed
+
+/-- **The decision-tree proof of `BOUNDS v : q v`** for the solution `σ` of `F`, of value `v` under
+the objective `f`, over the variables `vs`: `soli` logs the full assignment of `σ` to `vs`, adding
+the improving constraint `f ≤ v - 1` as `|F| + 1`, and the decision tree over `vs` refutes the
+database. -/
+@[expose]
+def boundsProof (F : List PBConstr) (f : Objective) (vs : List ℕ) (σ : ℕ → Bool) : RedProof :=
+  ⟨.soli (solutionOf vs σ) :: (refuteSteps ((F.length + 1, (f.improving (f.eval σ)).normalize) ::
+      initDb F) (F.length + 2) vs).map .step,
+    .bounds (some (f.eval σ)) (F.length + 2 + (2 ^ (vs.length + 1) - 1) - 1) (some (f.eval σ))
+      none⟩
+
+/-- **The decision-tree proof of `BOUNDS v : q v` is accepted** for an optimal solution `σ`, of
+value `v`, and a list `vs` containing the variables of `F` and of `f`, for every preserved set. -/
+theorem checkRed_boundsProof {F : List PBConstr} {f : Objective} {σ : ℕ → Bool}
+    {vs : List ℕ} (pres : Option (List ℕ)) (hvs : ∀ c ∈ F, c.vars ⊆ vs)
+    (hf : ∀ e ∈ f.lin, e.1 ∈ vs) (hσ : ∀ c ∈ F, c.Holds σ)
+    (hopt : ∀ τ, (∀ c ∈ F, c.Holds τ) → f.eval σ ≤ f.eval τ) :
+    checkRed F (some f) (boundsProof F f vs σ) pres = true := by
+  have h := (refutable_soli pres hvs hf hσ hopt).checkRed_refuteSteps
+  simpa [boundsProof, State.improve, State.addCore, State.log, State.init,
+    eval_assignOf_solutionOf hf,
+    Nat.add_assoc] using h
 
 /-- **`v` is the optimum of `f` on the solutions of `F` iff the checker accepts some proof of
 `BOUNDS v : q v`**, for every preserved set. -/
@@ -338,13 +497,18 @@ theorem exists_checkRed_boundsInf_of_not_satisfiable {F : List PBConstr} (f : Ob
     (pres : Option (List ℕ)) (h : ¬ ∃ σ, ∀ c ∈ F, c.Holds σ) :
     ∃ (ss : List Step) (q : ℕ), ss.all Step.IsCP ∧
       checkRed F (some f) ⟨ss.map .step, .bounds none q none none⟩ pres = true := by
-  obtain ⟨ss, hcp, db', n', hrun, q, hq⟩ := exists_runTop_contra F (some f)
-    (State.init F (some f) pres) (idOk_initDb F) fun ⟨σ, hσ⟩ =>
-      h ⟨σ, holds_of_allHold_initDb hσ⟩
-  refine ⟨ss, q, hcp, ?_⟩
-  unfold checkRed
-  rw [hrun]
-  simp [checkConclusion, State.init, boundsOk, hq]
+  simpa using (refutable_init (obj := some f) (pres := pres) (vs := F.flatMap PBConstr.vars)
+    (fun c hc _ hx => List.mem_flatMap.2 ⟨c, hc, hx⟩) h (c := fun q => .bounds none q none none)
+    fun _ _ _ hq => by simp [checkConclusion, State.init, boundsOk, hq]).exists_checkRed
+
+/-- **The decision-tree refutation proves `BOUNDS INF : q INF`** of an unsatisfiable formula over
+the variables `vs`, for every objective and preserved set. -/
+theorem checkRed_refutation_boundsInf {F : List PBConstr} {vs : List ℕ} (f : Objective)
+    (pres : Option (List ℕ)) (hvs : ∀ c ∈ F, c.vars ⊆ vs) (h : ¬ ∃ σ, ∀ c ∈ F, c.Holds σ) :
+    checkRed F (some f) (refutation F vs fun q => .bounds none q none none) pres = true := by
+  simpa [State.init, refutation] using (refutable_init (obj := some f) (pres := pres) hvs h
+    (c := fun q => .bounds none q none none)
+    fun _ _ _ hq => by simp [checkConclusion, State.init, boundsOk, hq]).checkRed_refuteSteps
 
 /-- **A formula is unsatisfiable iff the checker accepts a proof of `BOUNDS INF : q INF`**, for
 every objective and preserved set. -/
@@ -353,10 +517,9 @@ theorem not_satisfiable_iff_exists_checkRed_boundsInf {F : List PBConstr} {f : O
     (¬ ∃ σ, ∀ c ∈ F, c.Holds σ) ↔
       ∃ (P : RedProof) (q : ℕ), P.conclusion = .bounds none q none none ∧
         checkRed F (some f) P pres = true := by
-  refine ⟨fun h => ?_, fun ⟨_, _, hc, hP⟩ ⟨σ, hσ⟩ =>
-    not_satisfiable_of_checkRed_bounds hP hc σ hσ⟩
-  obtain ⟨ss, q, -, hP⟩ := exists_checkRed_boundsInf_of_not_satisfiable f pres h
-  exact ⟨_, q, rfl, hP⟩
+  refine ⟨fun h => ⟨_, _, rfl, checkRed_refutation_boundsInf (vs := F.flatMap PBConstr.vars) f
+      pres (fun c hc _ hx => List.mem_flatMap.2 ⟨c, hc, hx⟩) h⟩,
+    fun ⟨_, _, hc, hP⟩ ⟨σ, hσ⟩ => not_satisfiable_of_checkRed_bounds hP hc σ hσ⟩
 
 /-! ### `ENUMERATION_COMPLETE` -/
 
@@ -436,6 +599,27 @@ theorem finite_projections (F : List PBConstr) (Pres : List ℕ) :
     (projections F Pres).Finite :=
   (List.finite_length_eq Bool Pres.length).subset fun _ ⟨_, _, h⟩ => h ▸ List.length_map _
 
+/-- After `solx` logs the full assignments of solutions with distinct projections, which are all
+the projections of solutions, the state is refutable, with the conclusion
+`ENUMERATION_COMPLETE n : q` for the number `n` of solutions logged. -/
+private theorem exists_refutable_solx {F : List PBConstr} {Pres vs : List ℕ}
+    {σs : List (ℕ → Bool)} (hvs : ∀ c ∈ F, c.vars ⊆ vs)
+    (hP : ∀ x ∈ Pres, x ∈ vs) (hσs : ∀ σ ∈ σs, ∀ c ∈ F, c.Holds σ)
+    (hnd : (σs.map (proj Pres)).Nodup) (hall : ∀ l ∈ projections F Pres, l ∈ σs.map (proj Pres)) :
+    ∃ s, Refutable F none (some Pres) vs (σs.map fun σ => .solx (solutionOf vs σ))
+      (.enumComplete σs.length) s := by
+  set s₀ := State.init F none (some Pres)
+  have hs₀ : SolxReady Pres vs s₀ :=
+    { pres := rfl, obj := rfl, chk := rfl, presChanged := rfl, idOk := idOk_initDb F
+      vars := vars_initDb hvs }
+  obtain ⟨s', hrun, hs', hlen, hexcl⟩ := exists_runTop_solx (F := F) hP σs s₀ hs₀
+    (fun σ hσ => allHold_initDb (hσs σ hσ)) hnd
+  refine ⟨s', hrun, hs'.idOk, hs'.vars, fun ⟨τ, hτ⟩ => ?_, fun _ _ q hq => ?_⟩
+  · obtain ⟨hτ₀, hτσs⟩ := hexcl τ hτ
+    obtain ⟨σ, hσ, he⟩ := List.mem_map.1 (hall _ ⟨τ, holds_of_allHold_initDb hτ₀, rfl⟩)
+    exact hτσs σ hσ he.symm
+  · simp [checkConclusion, hs'.pres, hlen, s₀, State.init, hq]
+
 /-- **`ENUMERATION_COMPLETE` completeness**: let `vs` be a list of variables containing those of
 `F` and of the preserved set `Pres`. For any solutions `σs` of `F` whose projections to `Pres` are
 distinct and are all the projections of solutions, the proof that logs the full assignment of each
@@ -448,24 +632,32 @@ theorem exists_checkRed_enumComplete_of_sols {F : List PBConstr} {Pres vs : List
     (hnd : (σs.map (proj Pres)).Nodup) (hall : ∀ l ∈ projections F Pres, l ∈ σs.map (proj Pres)) :
     ∃ (ss : List Step) (q : ℕ), ss.all Step.IsCP ∧
       checkRed F none ⟨σs.map (fun σ => .solx (solutionOf vs σ)) ++ ss.map .step,
-        .enumComplete σs.length q⟩ (some Pres) = true := by
-  set s₀ := State.init F none (some Pres)
-  have hs₀ : SolxReady Pres vs s₀ :=
-    { pres := rfl, obj := rfl, chk := rfl, presChanged := rfl, idOk := idOk_initDb F
-      vars := fun e he x hx => by
-        have he' : e.2 ∈ F.map normalize := map_snd_initDb F ▸ List.mem_map_of_mem he
-        obtain ⟨c, hc, hce⟩ := List.mem_map.1 he'
-        exact hvs c hc (mem_vars_of_mem_vars_normalize (hce ▸ hx)) }
-  obtain ⟨s', hrun, hs', hlen, hexcl⟩ := exists_runTop_solx (F := F) hP σs s₀ hs₀
-    (fun σ hσ => allHold_initDb (hσs σ hσ)) hnd
-  obtain ⟨ss, hcp, db', n', hrun', q, hq⟩ := exists_runTop_contra F none s' hs'.idOk
-    fun ⟨τ, hτ⟩ => by
-      obtain ⟨hτ₀, hτσs⟩ := hexcl τ hτ
-      obtain ⟨σ, hσ, he⟩ := List.mem_map.1 (hall _ ⟨τ, holds_of_allHold_initDb hτ₀, rfl⟩)
-      exact hτσs σ hσ he.symm
-  refine ⟨ss, q, hcp, ?_⟩
-  rw [checkRed, runTop_append, hrun, Option.bind_some, hrun']
-  simp [checkConclusion, hs'.pres, hlen, s₀, State.init, hq]
+        .enumComplete σs.length q⟩ (some Pres) = true :=
+  (exists_refutable_solx hvs hP hσs hnd hall).choose_spec.exists_checkRed
+
+/-- **The decision-tree proof of `ENUMERATION_COMPLETE n : q`** for the solutions `σs` of `F`, over
+the variables `vs`, with the preserved set `Pres`: `solx` logs the full assignment of each to `vs`,
+and the decision tree over `vs` refutes the database that the `solx` steps reach. -/
+@[expose]
+def enumProof (F : List PBConstr) (Pres vs : List ℕ) (σs : List (ℕ → Bool)) : RedProof :=
+  let pre : List TopStep := σs.map fun σ => .solx (solutionOf vs σ)
+  match runTop F none (State.init F none (some Pres)) pre with
+  | some s => ⟨pre ++ (refuteSteps s.db s.next vs).map .step,
+      .enumComplete σs.length (s.next + (2 ^ (vs.length + 1) - 1) - 1)⟩
+  | none => ⟨pre, .noClaim⟩
+
+/-- **The decision-tree proof of `ENUMERATION_COMPLETE n : q` is accepted** for solutions `σs` of
+`F` whose projections to `Pres` are distinct and are all the projections of solutions, and a list
+`vs` containing the variables of `F` and of `Pres`. -/
+theorem checkRed_enumProof {F : List PBConstr} {Pres vs : List ℕ}
+    {σs : List (ℕ → Bool)} (hvs : ∀ c ∈ F, c.vars ⊆ vs)
+    (hP : ∀ x ∈ Pres, x ∈ vs) (hσs : ∀ σ ∈ σs, ∀ c ∈ F, c.Holds σ)
+    (hnd : (σs.map (proj Pres)).Nodup) (hall : ∀ l ∈ projections F Pres, l ∈ σs.map (proj Pres)) :
+    checkRed F none (enumProof F Pres vs σs) (some Pres) = true ∧
+      ∃ q, (enumProof F Pres vs σs).conclusion = .enumComplete σs.length q := by
+  obtain ⟨s, hs⟩ := exists_refutable_solx hvs hP hσs hnd hall
+  simp only [enumProof, hs.run]
+  exact ⟨hs.checkRed_refuteSteps, _, rfl⟩
 
 /-- **The solutions of `F` have exactly `n` distinct projections to the preserved set `Pres` iff
 the checker accepts some proof of `ENUMERATION_COMPLETE n : q`** without an objective. -/
@@ -489,6 +681,186 @@ theorem encard_eq_iff_exists_checkRed_enumComplete {F : List PBConstr} {Pres : L
     (fun x hx => List.mem_append_right _ hx) hsol (hσs ▸ Finset.nodup_toList _)
     fun l hl => hσs ▸ Finset.mem_toList.2 (hfin.mem_toFinset.2 hl)
   exact ⟨_, q, by rw [hlen], hP⟩
+
+/-! ### The producers -/
+
+/-- **All assignments of the variables `vs`**, false on every other variable: `2 ^ |vs|` of them,
+one per assignment of `vs` if its variables are distinct. -/
+@[expose]
+def assignments : List ℕ → List (ℕ → Bool)
+  | [] => [fun _ => false]
+  | x :: xs =>
+    (assignments xs).flatMap fun σ => [Function.update σ x true, Function.update σ x false]
+
+/-- There are `2 ^ |vs|` assignments of `vs`. -/
+theorem length_assignments : ∀ vs : List ℕ, (assignments vs).length = 2 ^ vs.length
+  | [] => rfl
+  | x :: xs => by
+    rw [assignments, List.length_flatMap]
+    simp [length_assignments xs, pow_succ, Nat.mul_comm]
+
+/-- Every assignment agrees on `vs` with one of the assignments of `vs`. -/
+theorem exists_mem_assignments (σ : ℕ → Bool) :
+    ∀ vs : List ℕ, ∃ τ ∈ assignments vs, ∀ x ∈ vs, τ x = σ x
+  | [] => ⟨_, List.mem_singleton_self _, by simp⟩
+  | x :: xs => by
+    obtain ⟨τ, hτ, hag⟩ := exists_mem_assignments σ xs
+    refine ⟨Function.update τ x (σ x), List.mem_flatMap.2 ⟨τ, hτ, ?_⟩, fun y hy => ?_⟩
+    · cases σ x <;> simp
+    · by_cases hyx : y = x
+      · subst hyx; simp
+      · rw [Function.update_of_ne hyx]
+        exact hag y ((List.mem_cons.1 hy).resolve_left hyx)
+
+/-- **The solutions of `F` among the assignments of `vs`.** -/
+@[expose]
+def solutionsOn (F : List PBConstr) (vs : List ℕ) : List (ℕ → Bool) :=
+  (assignments vs).filter fun σ => F.all fun c => decide (c.Holds σ)
+
+/-- The members of `solutionsOn F vs` are solutions of `F`. -/
+theorem holds_of_mem_solutionsOn {F : List PBConstr} {vs : List ℕ} {σ : ℕ → Bool}
+    (h : σ ∈ solutionsOn F vs) : ∀ c ∈ F, c.Holds σ := by
+  simpa [solutionsOn] using (List.mem_filter.1 h).2
+
+/-- Every solution of `F` agrees on `vs`, which contains the variables of `F`, with one of
+`solutionsOn F vs`. -/
+theorem exists_mem_solutionsOn {F : List PBConstr} {vs : List ℕ} (hvs : ∀ c ∈ F, c.vars ⊆ vs)
+    {σ : ℕ → Bool} (hσ : ∀ c ∈ F, c.Holds σ) :
+    ∃ τ ∈ solutionsOn F vs, ∀ x ∈ vs, τ x = σ x := by
+  obtain ⟨τ, hτ, hag⟩ := exists_mem_assignments σ vs
+  refine ⟨τ, List.mem_filter.2 ⟨hτ, ?_⟩, hag⟩
+  simp only [List.all_eq_true, decide_eq_true_eq]
+  exact fun c hc => (holds_congr fun t ht =>
+    hag _ (hvs c hc (List.mem_map_of_mem ht))).2 (hσ c hc)
+
+private theorem solutionsOn_eq_nil_iff {F : List PBConstr} {vs : List ℕ}
+    (hvs : ∀ c ∈ F, c.vars ⊆ vs) : solutionsOn F vs = [] ↔ ¬ ∃ σ, ∀ c ∈ F, c.Holds σ := by
+  refine ⟨fun h ⟨σ, hσ⟩ => ?_, fun h => List.eq_nil_iff_forall_not_mem.2 fun σ hσ =>
+    h ⟨σ, holds_of_mem_solutionsOn hσ⟩⟩
+  obtain ⟨τ, hτ, -⟩ := exists_mem_solutionsOn hvs hσ
+  simp [h] at hτ
+
+private theorem vars_subset_dedup {F : List PBConstr} {L : List ℕ}
+    (hL : F.flatMap PBConstr.vars ⊆ L) : ∀ c ∈ F, c.vars ⊆ L.dedup :=
+  fun c hc _ hx => List.mem_dedup.2 (hL (List.mem_flatMap.2 ⟨c, hc, hx⟩))
+
+/-- **The `UNSAT` producer**: the decision-tree refutation of `F` over its distinct variables, if
+`F` has no solution, found by trying every assignment of them. -/
+@[expose]
+def refute (F : List PBConstr) : Option RedProof :=
+  if solutionsOn F (F.flatMap PBConstr.vars).dedup = [] then
+    some (refutation F (F.flatMap PBConstr.vars).dedup .unsat)
+  else none
+
+/-- `refute F` returns a proof exactly when `F` has no solution. -/
+theorem isSome_refute {F : List PBConstr} : (refute F).isSome ↔ ¬ ∃ σ, ∀ c ∈ F, c.Holds σ := by
+  rw [← solutionsOn_eq_nil_iff (vars_subset_dedup (List.Subset.refl _))]
+  unfold refute
+  split_ifs with h <;> simp [h]
+
+/-- **The proof of `refute` is accepted**, for every objective and preserved set, with conclusion
+`UNSAT`, and it has `2 ^ (k + 1) - 1` steps for the number `k` of distinct variables of `F`, each a
+`rup` step of a clause of at most `k` literals of variables of `F` with at most three hints, all
+below `|F| + 2 ^ (k + 1)` (`Cslib.Logic.PL.VeriPB.exists_eq_rup_of_mem_refuteSteps`, with the
+input database numbered `1` to `|F|` and the proof numbered from `|F| + 1`). These are counts:
+printed in decimal, the proof has `O(2 ^ k · (k · (d + 1) + log (|F| + 2)))` characters, for
+`d` the number of digits of the largest variable of `F`. -/
+theorem checkRed_of_refute_eq_some {F : List PBConstr} {P : RedProof} (h : refute F = some P)
+    (obj : Option Objective) (pres : Option (List ℕ)) :
+    checkRed F obj P pres = true ∧ (∃ q, P.conclusion = .unsat q) ∧
+      P.steps.length = 2 ^ ((F.flatMap PBConstr.vars).dedup.length + 1) - 1 := by
+  unfold refute at h
+  split_ifs at h with hs
+  cases h
+  refine ⟨checkRed_refutation_unsat obj pres (vars_subset_dedup (List.Subset.refl _))
+    ((solutionsOn_eq_nil_iff (vars_subset_dedup (List.Subset.refl _))).1 hs), ⟨_, rfl⟩, ?_⟩
+  simp [refutation, length_refuteSteps]
+
+/-- **The `SAT` producer**: the empty proof with the full assignment of the first solution of `F`
+among the assignments of its distinct variables, if there is one. -/
+@[expose]
+def solve (F : List PBConstr) : Option RedProof :=
+  (solutionsOn F (F.flatMap PBConstr.vars).dedup).head?.map fun σ =>
+    ⟨[], .sat (some (solutionOf (F.flatMap PBConstr.vars).dedup σ))⟩
+
+/-- `solve F` returns a proof exactly when `F` has a solution. -/
+theorem isSome_solve {F : List PBConstr} : (solve F).isSome ↔ ∃ σ, ∀ c ∈ F, c.Holds σ := by
+  rw [← not_iff_not, ← solutionsOn_eq_nil_iff (vars_subset_dedup (List.Subset.refl _))]
+  simp [solve]
+
+/-- **The proof of `solve` is accepted**, for every objective and preserved set, with conclusion
+`SAT : ρ`. -/
+theorem checkRed_of_solve_eq_some {F : List PBConstr} {P : RedProof} (h : solve F = some P)
+    (obj : Option Objective) (pres : Option (List ℕ)) :
+    checkRed F obj P pres = true ∧ ∃ ρ, P.conclusion = .sat (some ρ) := by
+  obtain ⟨σ, hσ, rfl⟩ := Option.map_eq_some_iff.1 h
+  exact ⟨checkRed_sat_solutionOf obj pres (vars_subset_dedup (List.Subset.refl _))
+    (holds_of_mem_solutionsOn (List.mem_of_mem_head? hσ)), _, rfl⟩
+
+/-- **The `BOUNDS` producer** for the objective `f`: over the distinct variables `vs` of `F` and
+`f`, the decision-tree proof of `BOUNDS v : q v` for a solution of least value `v` among the
+assignments of `vs`, and the decision-tree refutation with `BOUNDS INF : q INF` if there is
+none. -/
+@[expose]
+def optimize (F : List PBConstr) (f : Objective) : RedProof :=
+  match (solutionsOn F (F.flatMap PBConstr.vars ++ f.lin.map (·.1)).dedup).argmin f.eval with
+  | some σ => boundsProof F f (F.flatMap PBConstr.vars ++ f.lin.map (·.1)).dedup σ
+  | none => refutation F (F.flatMap PBConstr.vars ++ f.lin.map (·.1)).dedup
+      fun q => .bounds none q none none
+
+/-- **The proof of `optimize` is accepted**, for every preserved set, with conclusion
+`BOUNDS lb : q lb`: for a finite `lb` the optimum is `lb`
+(`Cslib.Logic.PL.VeriPB.isLeast_iff_exists_checkRed_bounds`), and `INF` means that `F` has no
+solution (`Cslib.Logic.PL.VeriPB.not_satisfiable_iff_exists_checkRed_boundsInf`). -/
+theorem checkRed_optimize (F : List PBConstr) (f : Objective) (pres : Option (List ℕ)) :
+    checkRed F (some f) (optimize F f) pres = true ∧
+      ∃ lb q, (optimize F f).conclusion = .bounds lb q lb none := by
+  set vs := (F.flatMap PBConstr.vars ++ f.lin.map (·.1)).dedup
+  have hf : ∀ e ∈ f.lin, e.1 ∈ vs :=
+    fun e he => List.mem_dedup.2 (List.mem_append_right _ (List.mem_map_of_mem he))
+  have hF : ∀ c ∈ F, c.vars ⊆ vs := vars_subset_dedup (List.subset_append_left _ _)
+  unfold optimize
+  rcases hm : (solutionsOn F vs).argmin f.eval with _ | σ
+  · exact ⟨checkRed_refutation_boundsInf f pres hF
+      ((solutionsOn_eq_nil_iff hF).1 (List.argmin_eq_none.1 hm)), none, _, rfl⟩
+  · refine ⟨checkRed_boundsProof pres hF hf
+      (holds_of_mem_solutionsOn (List.argmin_mem hm)) fun τ hτ => ?_, _, _, rfl⟩
+    obtain ⟨τ', hτ', hag⟩ := exists_mem_solutionsOn hF hτ
+    rw [← show f.eval τ' = f.eval τ by
+      rw [Objective.eval, Objective.eval, linVal_congr fun e he => hag _ (hf e he)]]
+    exact List.le_of_mem_argmin hτ' hm
+
+/-- **The `ENUMERATION_COMPLETE` producer** for the preserved set `Pres`: over the distinct
+variables `vs` of `F` and `Pres`, the decision-tree proof of `ENUMERATION_COMPLETE n : q` for the
+first solution of each projection among the assignments of `vs`. -/
+@[expose]
+def enumerate (F : List PBConstr) (Pres : List ℕ) : RedProof :=
+  enumProof F Pres (F.flatMap PBConstr.vars ++ Pres).dedup
+    ((solutionsOn F (F.flatMap PBConstr.vars ++ Pres).dedup).pwFilter
+      fun σ τ => proj Pres σ ≠ proj Pres τ)
+
+/-- **The proof of `enumerate` is accepted** with the preserved set `Pres` and no objective, with
+conclusion `ENUMERATION_COMPLETE n : q`, where `n` is the number of projections of solutions to
+`Pres` (`Cslib.Logic.PL.VeriPB.encard_eq_of_checkRed_enumComplete`). -/
+theorem checkRed_enumerate (F : List PBConstr) (Pres : List ℕ) :
+    checkRed F none (enumerate F Pres) (some Pres) = true ∧
+      ∃ n q, (enumerate F Pres).conclusion = .enumComplete n q := by
+  set vs := (F.flatMap PBConstr.vars ++ Pres).dedup
+  set σs := (solutionsOn F vs).pwFilter fun σ τ => proj Pres σ ≠ proj Pres τ
+  have hP : ∀ x ∈ Pres, x ∈ vs := fun x hx => List.mem_dedup.2 (List.mem_append_right _ hx)
+  have hsub : ∀ σ ∈ σs, σ ∈ solutionsOn F vs := fun σ hσ => List.pwFilter_subset _ hσ
+  have hF : ∀ c ∈ F, c.vars ⊆ vs := vars_subset_dedup (List.subset_append_left _ _)
+  have hall : ∀ l ∈ projections F Pres, l ∈ σs.map (proj Pres) := fun l ⟨τ, hτ, hl⟩ => by
+    obtain ⟨τ', hτ', hag⟩ := exists_mem_solutionsOn hF hτ
+    have hl' : proj Pres τ' = l := hl ▸ proj_eq_iff.2 fun v hv => hag v (hP v hv)
+    by_contra hne
+    have := (List.forall_mem_pwFilter (R := fun σ τ => proj Pres σ ≠ proj Pres τ)
+      (fun {x y z} h => by by_cases hxy : proj Pres x = proj Pres y <;> simp_all) τ'
+      (solutionsOn F vs)).1 fun b hb hb' => hne (List.mem_map.2 ⟨b, hb, hb'.symm.trans hl'⟩)
+    exact this τ' hτ' rfl
+  obtain ⟨hP', q, hq⟩ := checkRed_enumProof hF hP (fun σ hσ => holds_of_mem_solutionsOn (hsub σ hσ))
+    (List.pairwise_map.2 (List.pairwise_pwFilter _)) hall
+  exact ⟨hP', _, q, hq⟩
 
 end VeriPB
 

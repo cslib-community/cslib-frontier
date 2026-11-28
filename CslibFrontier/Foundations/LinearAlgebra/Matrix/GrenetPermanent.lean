@@ -157,15 +157,15 @@ private theorem pathSum_univ_fin {n : ℕ} (A : Matrix (Fin n) (Fin n) R) :
     pathSum (weight A) n univ = A.permanent := by
   rw [← permanent_transpose]
   unfold pathSum permanent
-  symm
-  refine sum_bij' (s := (univ : Finset (Equiv.Perm (Fin n))))
-    (t := univ.filter fun f : Fin n → Fin n => Function.Injective f ∧ univ.image f = univ)
-    (fun σ _ => (σ : Fin n → Fin n))
-    (fun f hf => Equiv.ofBijective f (Finite.injective_iff_bijective.1 (mem_filter.1 hf).2.1))
-    (fun σ _ => mem_filter.2 ⟨mem_univ _, σ.injective, image_univ_equiv σ⟩)
-    (fun _ _ => mem_univ _) (fun σ _ => Equiv.ext fun _ => rfl) (fun f hf => rfl) ?_
-  intro σ _
-  simp [weight]
+  have hmem (f : Fin n → Fin n) : f ∈ univ.filter
+      (fun f => Function.Injective f ∧ univ.image f = univ) ↔ Function.Bijective f := by
+    simp only [mem_filter, mem_univ, true_and]
+    exact ⟨fun h => Finite.injective_iff_bijective.mp h.1,
+      fun h => ⟨h.1, image_univ_of_surjective h.2⟩⟩
+  rw [sum_subtype _ hmem (fun f => ∏ i : Fin n, weight A i (f i))]
+  refine Fintype.sum_equiv Equiv.bijectiveEquiv _ _ fun f => ?_
+  simp only [weight, Fin.isLt, dite_true, transpose_apply]
+  rfl
 
 /-- The colex order on `Finset (Fin n)` is finite. -/
 private local instance instFintypeColex (n : ℕ) : Fintype (Colex (Finset (Fin n))) :=

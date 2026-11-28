@@ -80,16 +80,12 @@ noncomputable def permOn (M : Matrix V V R) (S T : Finset V) : R :=
 theorem permanent_eq_permOn (M : Matrix V V R) : M.permanent = permOn M univ univ := by
   rw [← permanent_transpose, permanent, permOn]
   simp only [transpose_apply]
-  refine Finset.sum_bij' (fun σ _ => ⇑σ)
-    (fun f hf => Equiv.ofBijective f ?_) (fun σ _ => ?_) (fun f hf => mem_univ _)
-    (fun σ _ => ?_) (fun f hf => ?_) (fun σ _ => rfl)
-  · obtain ⟨-, hinj, hsurj, -⟩ := mem_bijOn.1 hf
-    exact ⟨fun i j h => hinj i (mem_univ _) j (mem_univ _) h,
-      fun t => let ⟨i, _, hi⟩ := hsurj t (mem_univ _); ⟨i, hi⟩⟩
-  · exact mem_bijOn.2 ⟨fun _ _ => mem_univ _, fun i _ j _ h => σ.injective h,
-      fun t _ => ⟨σ.symm t, mem_univ _, σ.apply_symm_apply t⟩, fun i hi => absurd (mem_univ i) hi⟩
-  · ext; rfl
-  · rfl
+  have hmem (f : V → V) : f ∈ bijOn univ univ ↔ Function.Bijective f := by
+    rw [mem_bijOn]
+    simp [Function.Bijective, Function.Injective, Function.Surjective]
+  classical
+  rw [sum_subtype _ hmem (fun f => ∏ i, M i (f i))]
+  exact Fintype.sum_equiv (Equiv.bijectiveEquiv (α := V) (β := V)).symm _ _ (fun _ => rfl)
 
 /-- The permanent sum depends only on the entries in rows `S` and columns `T`. -/
 theorem permOn_congr {M N : Matrix V V R} {S T : Finset V}

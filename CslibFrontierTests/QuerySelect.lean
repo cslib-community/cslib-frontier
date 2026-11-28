@@ -12,7 +12,7 @@ import CslibFrontier.Algorithms.Lean.Query.Select.Cost
 Concrete runs of `Cslib.Query.select` on short lists (sorted directly), on long lists that go
 through the median-of-medians recursion, with duplicates, out-of-range ranks and a dishonest
 oracle; order statistics that hold and fail, including ties under a total preorder that is not
-antisymmetric; and direct applications of the correctness theorems and of the `37 n` comparison
+antisymmetric; and direct applications of the correctness theorems and of the `32 n` comparison
 bound.
 -/
 
@@ -57,16 +57,16 @@ def scrambled : List ℕ := (List.range 2000).map fun i => i * 7919 % 2003
 
 /-! ### The comparison bound on concrete runs -/
 
--- The counts stay below `37 n`, and are far from trivial.
-#guard (select 500 (List.range 1000).reverse).countQueries leOracle ≤ 37 * 1000
+-- The counts stay below `32 n`, and are far from trivial.
+#guard (select 500 (List.range 1000).reverse).countQueries leOracle ≤ 32 * 1000
 #guard 1000 ≤ (select 500 (List.range 1000).reverse).countQueries leOracle
 #guard [0, 777, 1000, 1999].all fun k =>
-  (select k scrambled).countQueries leOracle ≤ 37 * 2000
+  (select k scrambled).countQueries leOracle ≤ 32 * 2000
 
 -- Under the dishonest oracle answering `false`, every element lands above the pivot, the size
 -- check fails, and `select` returns `none`; the comparison bound still holds.
 #guard (select 0 (List.range 1000)).eval (LEQuery.oracleOf fun _ _ => false) == none
-#guard (select 0 (List.range 1000)).countQueries (LEQuery.oracleOf fun _ _ => false) ≤ 37 * 1000
+#guard (select 0 (List.range 1000)).countQueries (LEQuery.oracleOf fun _ _ => false) ≤ 32 * 1000
 
 /-! ### Order statistics -/
 
@@ -91,6 +91,16 @@ example : [(1, 0), (1, 1)].IsOrderStatistic FstLE 0 (1, 1) ∧
 /-- The comparison oracle of `FstLE`. -/
 def fstOracle : {ι : Type} → LEQuery (ℕ × ℕ) ι → ι :=
   LEQuery.oracleOf fun p q => decide (FstLE p q)
+
+-- With all five keys tied the stable median is the third input occurrence.
+#guard (medianFive ![(1, 7), (1, 4), (1, 9), (1, 3), (1, 2)]).eval fstOracle == (1, 9)
+-- The full-block caller makes six comparisons even for a dishonest oracle.
+#guard (medians [5, 4, 3, 2, 1]).countQueries (LEQuery.oracleOf fun _ _ => false) == 6
+-- Two pairs tie at rank two. The second pair in input order must be chosen.
+#guard (medians [(2, 0), (1, 1), (2, 2), (3, 3), (4, 4), (9, 5)]).eval fstOracle ==
+  [(2, 2), (9, 5)]
+-- Four entries can require five comparisons, attaining the additive one in the block bound.
+#guard (medians [1, 3, 2, 4]).countQueries leOracle == 5
 
 /-- `2000` pairs with only seven distinct first coordinates, in scrambled order. -/
 def tiedPairs : List (ℕ × ℕ) := (List.range 2000).map fun i => (i * 7919 % 2003 % 7, i)
@@ -119,7 +129,7 @@ example (k : ℕ) (xs : List ℕ) : (select k xs).eval leOracle = xs.mergeSort[k
 
 /-- The comparison bound at a concrete length, for every oracle. -/
 example (k : ℕ) (oracle : {ι : Type} → LEQuery ℕ ι → ι) (xs : List ℕ) (hxs : xs.length ≤ 1000) :
-    (select k xs).countQueries oracle ≤ 37000 :=
+    (select k xs).countQueries oracle ≤ 32000 :=
   select_upperBound k oracle 1000 xs hxs
 
 /-- The median-of-medians counting bound at `n = 1000`: each side has at most `702` elements. -/

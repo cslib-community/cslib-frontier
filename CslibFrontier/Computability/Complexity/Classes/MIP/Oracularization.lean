@@ -294,9 +294,7 @@ theorem tsum_logged_consistent_le (π : List Bool → Bool) (P : Prover Unit)
       if Consistent π s.history then ((Prover.ofProof π).run W ()).map Prod.fst true else 0 := by
   induction W using PFunctor.FreeM.induction generalizing s with
   | pure a =>
-    rw [Prover.run_pure, Prover.run_pure]
-    rw [tsum_eq_single (a, s) fun x hx => by simp [PMF.pure_apply, hx]]
-    simp only [PMF.pure_apply, ite_true, one_mul, PMF.pure_map]
+    simp only [Prover.run_pure, PMF.tsum_pure_mul, PMF.pure_map]
     split_ifs <;> simp_all
   | lift_bind q cont ih =>
     rw [show (PFunctor.FreeM.lift q).bind cont = OracleComp.query q >>= cont from rfl,
@@ -481,12 +479,8 @@ theorem tsum_composite_before (j : ℕ) (P : Fin 2 → Prover Unit) (ps : (Prove
         ((if y.1 = true then 1 else 0) * weight (P 1) j y.2.history) := by
   induction W using PFunctor.FreeM.induction generalizing s ps with
   | pure a =>
-    rw [Prover.run_pure, Prover.run_pure,
-      tsum_eq_single (a, (CompositeState.mk ⟨s.history.length, false⟩
-        (Function.update ps 0 s.prover)))
-        fun x hx => by simp [PMF.pure_apply, hx],
-      tsum_eq_single (a, s) fun x hx => by simp [PMF.pure_apply, hx]]
-    simp [PMF.pure_apply, weight_of_length_le _ hs]
+    simp only [Prover.run_pure, PMF.tsum_pure_mul]
+    simp [weight_of_length_le _ hs]
   | lift_bind q cont ih =>
     rw [show (PFunctor.FreeM.lift q).bind cont = OracleComp.query q >>= cont from rfl,
       Prover.run_bind, Prover.run_bind, Probability.PMF.tsum_bind_mul,

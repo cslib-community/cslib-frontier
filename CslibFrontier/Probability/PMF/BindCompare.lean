@@ -8,6 +8,7 @@ module
 -- upstream: candidate (addition to `Cslib/Probability/PMF.lean`)
 
 public import CslibFrontier.Probability.PMF
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Comparing two-stage experiments at one outcome
@@ -61,11 +62,8 @@ theorem bind_apply_add_eq_on_support {α β : Type*} {p : PMF α}
     {f₁ f₂ g₁ g₂ : α → PMF β} {b : β}
     (h : ∀ a ∈ p.support, f₁ a b + g₂ a b = f₂ a b + g₁ a b) :
     p.bind f₁ b + p.bind g₂ b = p.bind f₂ b + p.bind g₁ b := by
-  simp only [PMF.bind_apply, ← tsum_add]
-  refine tsum_congr fun a => ?_
-  by_cases ha : a ∈ p.support
-  · rw [← mul_add, ← mul_add, h a ha]
-  · simp [(PMF.apply_eq_zero_iff p a).mpr ha]
+  simp only [PMF.bind_apply, ← tsum_add, ← mul_add]
+  exact tsum_mul_congr_support p h
 
 -- Moved from `CslibFrontier/Crypto/Computational/WeakPRF.lean` (Karn Seth), where it was private.
 /-- Pointwise bounds away from one exceptional first-stage result bound a two-stage experiment,

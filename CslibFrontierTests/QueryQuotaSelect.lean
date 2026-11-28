@@ -77,7 +77,7 @@ instance : DecidablePred adm3 := fun x => inferInstanceAs (Decidable (x % 3 ≠ 
 -- Failed items are distinct and inadmissible, and the counts respect the bounds.
 #guard (failed g10 adm3 5 scrambled).all (· % 3 == 0)
 #guard (failed g10 adm3 5 scrambled).Nodup
-#guard (counts g10 adm3 5 scrambled).1 ≤ 234 * 200
+#guard (counts g10 adm3 5 scrambled).1 ≤ 204 * 200
 #guard (counts g10 adm3 5 scrambled).2.1 ≤ 5 * (Nat.clog 2 200 + 1)
 #guard (counts g10 adm3 5 scrambled).2.2 == (failed g10 adm3 5 scrambled).length
 
@@ -128,11 +128,11 @@ def allTrue : {ι : Type} → CmpTestQuery ℕ ι → ι :=
   SumQuery.combine (LEQuery.oracleOf fun _ _ => true) (TestQuery.oracleOf fun _ => true)
 
 -- The query bounds hold for every oracle, including `allTrue`.
-#guard SumQuery.countInl allTrue (quotaSelect g10 5 scrambled) ≤ 234 * 200
+#guard SumQuery.countInl allTrue (quotaSelect g10 5 scrambled) ≤ 204 * 200
 #guard (quotaSelect g10 5 scrambled).cost allTrue (CmpTestQuery.passWeight allTrue) ≤
   5 * (Nat.clog 2 200 + 1)
 
-example : SumQuery.countInl allTrue (quotaSelect g10 5 scrambled) ≤ 234 * scrambled.length :=
+example : SumQuery.countInl allTrue (quotaSelect g10 5 scrambled) ≤ 204 * scrambled.length :=
   countInl_quotaSelect_le g10 5 scrambled _
 
 end CslibFrontierTests.QueryQuotaSelect

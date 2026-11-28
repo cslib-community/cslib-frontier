@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
@@ -159,12 +160,8 @@ theorem CloseTo.bind_right {α : Type*} {β : Type*} (μ : PMF α) {f g : α →
   rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
   calc
     ∑' a, μ a * (f a).toOuterMeasure event
-      ≤ ∑' a, μ a * ((g a).toOuterMeasure event + ε) := by
-        refine tsum_le_tsum fun a => ?_
-        by_cases ha : a ∈ μ.support
-        · exact mul_le_mul_of_nonneg_left (h a ha event) zero_le
-        · have hz : μ a = 0 := (PMF.apply_eq_zero_iff μ a).mpr ha
-          simp [hz]
+      ≤ ∑' a, μ a * ((g a).toOuterMeasure event + ε) :=
+        PMF.tsum_mul_mono_support μ fun a ha => h a ha event
     _ = ∑' a, μ a * (g a).toOuterMeasure event + ε := by
         simp only [mul_add, tsum_add, ENNReal.tsum_mul_right, μ.tsum_coe, one_mul]
 

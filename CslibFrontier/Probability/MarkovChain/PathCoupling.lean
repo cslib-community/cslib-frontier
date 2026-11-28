@@ -245,8 +245,8 @@ theorem lipschitz_sum_pow_on {C : Set S} (hρ : IsPathMetricOn C N ρ)
   induction t generalizing x y with
   | zero =>
     have hpure (z : S) : ∑ a, ((P ^ 0) z a).toReal * f a = f z := by
-      rw [Finset.sum_eq_single z (fun b _ hb => by simp [PMF.pure_apply_of_ne _ _ hb]) (by simp)]
-      simp
+      rw [pow_zero]
+      exact sum_pure_toReal_mul (Finset.mem_univ z) f
     rw [hpure, hpure, pow_zero, mul_one]
     exact hf x hx y hy
   | succ t ih =>

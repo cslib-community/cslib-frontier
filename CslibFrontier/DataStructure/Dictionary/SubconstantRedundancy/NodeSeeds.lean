@@ -259,12 +259,10 @@ theorem routerRound_trinomial_eq_padded (hcr : P.ConcentrationReady) {ℓ : ℕ}
     rw [dite_eq_right (mem_filter.mp hi).2, TrinomialField.equivFin_symm_eq_mk_polyOfCode]
     simp
   rw [htail, add_zero]
-  refine Finset.sum_bij (fun (j : Fin k) _ => (⟨j.val, j.isLt.trans_le hkM⟩ : Fin M))
-    (fun j _ => mem_filter.mpr ⟨mem_univ _, j.isLt⟩)
-    (fun _ _ _ _ h => Fin.ext (Fin.mk.inj h))
-    (fun i hi => ⟨⟨i.val, (mem_filter.mp hi).2⟩, mem_univ _, rfl⟩)
-    fun j _ => ?_
-  simp only [padSmallRouterSeed, j.isLt, ↓reduceDIte]
+  rw [Finset.sum_subtype (p := fun i : Fin M => i.val < k) _
+    (fun _ => by simp only [mem_filter, mem_univ, true_and])]
+  refine Fintype.sum_equiv (Fin.castLEquiv hkM) _ _ fun j => ?_
+  simp only [Fin.castLEquiv_apply, Fin.val_castLE, padSmallRouterSeed, j.isLt, ↓reduceDIte]
 
 /-- Regime-switched child-router Feistel involution on
 `Fin (2 ^ branchBits ℓ) × Fin (routerRightUniv ℓ)`. -/

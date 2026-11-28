@@ -34,9 +34,10 @@ RECENT = QUERY.replace("CREATED_AT, direction: ASC", "UPDATED_AT, direction: DES
 QUERY = QUERY.replace("FIELDS", _FIELDS)
 RECENT = RECENT.replace("FIELDS", _FIELDS)
 OVERLAP_MINUTES = 30
+DEFAULT_REPO = "cslib-community/cslib-frontier"
 
 
-def _parse_iso(stamp: str) -> dt.datetime:
+def parse_iso(stamp: str) -> dt.datetime:
     parsed = dt.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
 
@@ -54,35 +55,43 @@ def _post(body: dict, tok: str) -> dict:
         return json.load(r)
 
 
+def retry(request):
+    for attempt in range(6):
+        try:
+            return request()
+        except (urllib.error.URLError, http.client.HTTPException, OSError,
+                ValueError, RuntimeError, TimeoutError) as e:
+            if attempt == 5:
+                raise
+            print(f"github: retrying after {e}", file=sys.stderr, flush=True)
+            time.sleep(5 * (attempt + 1))
+
+
+def graphql(query: str, variables: dict, tok: str) -> dict:
+    def request():
+        page = _post({"query": query, "variables": variables}, tok)
+        if "errors" in page:
+            raise RuntimeError(str(page["errors"])[:300])
+        if not (page.get("data") or {}).get("repository"):
+            raise RuntimeError("GitHub GraphQL returned no repository payload")
+        return page["data"]
+
+    return retry(request)
+
+
 def _pages(query: str, repo: str, tok: str):
     owner, name = repo.split("/")
     after = None
     while True:
         variables = {"owner": owner, "name": name, "after": after}
-        prs = None
-        for attempt in range(6):
-            try:
-                page = _post({"query": query, "variables": variables}, tok)
-                if "errors" in page:
-                    raise RuntimeError(str(page["errors"])[:300])
-                prs = ((page.get("data") or {}).get("repository") or {}).get("pullRequests")
-                if not isinstance(prs, dict):
-                    raise RuntimeError("GitHub GraphQL returned no pullRequests payload")
-                break
-            except (urllib.error.URLError, http.client.HTTPException, OSError,
-                    ValueError, RuntimeError, TimeoutError) as e:
-                if attempt == 5:
-                    raise
-                print(f"github: retrying after {e}", file=sys.stderr, flush=True)
-                time.sleep(5 * (attempt + 1))
-        assert isinstance(prs, dict)
+        prs = graphql(query, variables, tok)["repository"]["pullRequests"]
         yield prs["nodes"]
         if not prs["pageInfo"]["hasNextPage"]:
             return
         after = prs["pageInfo"]["endCursor"]
 
 
-def fetch(repo: str = "cslib-community/cslib-frontier", tok: str | None = None) -> list[dict]:
+def fetch(repo: str = DEFAULT_REPO, tok: str | None = None) -> list[dict]:
     """Every pull request, oldest first."""
     tok = tok or token()
     if not tok:
@@ -90,7 +99,7 @@ def fetch(repo: str = "cslib-community/cslib-frontier", tok: str | None = None) 
     return [pr for nodes in _pages(QUERY, repo, tok) for pr in nodes]
 
 
-def update(previous: list[dict], repo: str = "cslib-community/cslib-frontier",
+def update(previous: list[dict], repo: str = DEFAULT_REPO,
            tok: str | None = None) -> list[dict]:
     """`previous` brought up to date: pull requests updated since slightly before its newest
     `updatedAt` (an overlap window avoids missing updates made mid-fetch) are fetched newest first,
@@ -102,10 +111,10 @@ def update(previous: list[dict], repo: str = "cslib-community/cslib-frontier",
     stamps = [p.get("updatedAt") for p in previous]
     if not previous or not all(stamps):
         return fetch(repo, tok)
-    since = max(_parse_iso(s) for s in stamps) - dt.timedelta(minutes=OVERLAP_MINUTES)
+    since = max(parse_iso(s) for s in stamps) - dt.timedelta(minutes=OVERLAP_MINUTES)
     by_number = {p["number"]: p for p in previous}
     for nodes in _pages(RECENT, repo, tok):
-        fresh = [p for p in nodes if _parse_iso(p["updatedAt"]) >= since]
+        fresh = [p for p in nodes if parse_iso(p["updatedAt"]) >= since]
         for p in fresh:
             by_number[p["number"]] = p
         if len(fresh) < len(nodes):
