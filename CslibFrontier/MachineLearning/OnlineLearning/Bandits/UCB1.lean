@@ -517,13 +517,10 @@ private theorem sum_Ico_two_div_cube_le_one {K T : ℕ} (hK : 2 ≤ K) :
         div_le_div_iff₀ (by positivity) (mul_pos (by linarith) (by linarith))]
       nlinarith [sq_nonneg ((t : ℝ) - 1)]
     have htel : ∑ t ∈ Ico 2 T, (1 / ((t : ℝ) - 1) - 1 / (t : ℝ)) = 1 - 1 / ((T : ℝ) - 1) := by
-      obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le (hK.trans hKT.le)
-      clear hK hKT hle
-      induction m with
-      | zero => norm_num
-      | succ m ih =>
-        rw [show 2 + (m + 1) = (2 + m) + 1 by omega, sum_Ico_succ_top (by omega), ih]
-        push_cast; ring
+      have hsum := Finset.sum_Ico_sub (fun t : ℕ => -(1 / ((t : ℝ) - 1))) (hK.trans hKT.le)
+      have htwo : (2 : ℝ) - 1 = 1 := by norm_num
+      simpa only [neg_sub_neg, Nat.cast_add, Nat.cast_one, Nat.cast_ofNat, add_sub_cancel_right,
+        htwo, div_one] using hsum
     have hT2 : (2 : ℝ) ≤ T := by exact_mod_cast (hK.trans hKT.le)
     have : 0 ≤ 1 / ((T : ℝ) - 1) := one_div_nonneg.mpr (by linarith)
     linarith

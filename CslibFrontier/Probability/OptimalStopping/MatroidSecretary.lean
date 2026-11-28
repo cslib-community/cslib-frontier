@@ -1112,14 +1112,6 @@ private theorem card_indep_le_eRank_toNat {α : Type*} [Finite α] (M : Matroid 
 private def layerGap (v : ℕ → ℝ) (q : ℕ) (i : Fin q) : ℝ :=
   v i.val - if i.val + 1 < q then v (i.val + 1) else 0
 
-private theorem sum_Ico_sub_succ (f : ℕ → ℝ) {a b : ℕ} (hab : a ≤ b) :
-    ∑ k ∈ Finset.Ico a b, (f k - f (k + 1)) = f a - f b := by
-  induction b, hab using Nat.le_induction with
-  | base => simp
-  | succ b hab ih =>
-    rw [Finset.sum_Ico_succ_top hab, ih]
-    ring
-
 private theorem sum_layerGap_ge {v : ℕ → ℝ} {q : ℕ} (j : Fin q) :
     ∑ i : Fin q, (if j ≤ i then layerGap v q i else 0) = v j.val := by
   have hfilter : ∑ i : Fin q, (if j ≤ i then layerGap v q i else 0) =
@@ -1143,8 +1135,9 @@ private theorem sum_layerGap_ge {v : ℕ → ℝ} {q : ℕ} (j : Fin q) :
     refine Finset.sum_congr rfl fun k hk => ?_
     have hkq : k < q := (Finset.mem_Ico.mp hk).2
     simp [f, hkq]
-  rw [hcongr, sum_Ico_sub_succ f j.isLt.le]
-  simp [f, j.isLt]
+  rw [hcongr]
+  simpa only [neg_sub_neg, f, j.isLt, ↓reduceIte, lt_irrefl, neg_zero, zero_sub, neg_neg] using
+    (Finset.sum_Ico_sub (fun k => -f k) j.isLt.le)
 
 private theorem sum_layerGap_mul_succ {v : ℕ → ℝ} {q : ℕ} :
     ∑ i : Fin q, layerGap v q i * ((i.val + 1 : ℕ) : ℝ) = ∑ j : Fin q, v j.val := by

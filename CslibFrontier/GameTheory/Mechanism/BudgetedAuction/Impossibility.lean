@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.GameTheory.Mechanism.BudgetedAuction.Basic
-import Mathlib.Algebra.BigOperators.Fin
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Finset.Card
 import Mathlib.Tactic.FieldSimp
@@ -75,16 +75,6 @@ private theorem sum_eq_pair_of_zero {ι : Type*} [Fintype ι] {f : ι → ℝ} {
   rw [← Finset.sum_subset (Finset.subset_univ {i, j}) fun k _ hk => ?_, Finset.sum_pair hij]
   simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hk
   exact hother k hk.1 hk.2
-
-private theorem fin_sum_telescope : ∀ {n : ℕ} (f : Fin (n + 1) → ℝ),
-    ∑ k : Fin n, (f k.succ - f k.castSucc) = f (Fin.last n) - f 0
-  | 0, _ => by simp
-  | n + 1, f => by
-    have ih := fin_sum_telescope fun k : Fin (n + 1) => f k.castSucc
-    have hsucc (k : Fin n) : k.castSucc.succ = k.succ.castSucc := rfl
-    rw [Fin.sum_univ_castSucc]
-    simp only [hsucc, Fin.castSucc_zero, Fin.succ_last] at ih ⊢
-    linarith [ih]
 
 private theorem payment_le_of_ir {ι : Type*} {M : BudgetedMechanism ι} (hir : M.IsIROnPos)
     {θ : ι → BidderType} (hθ : ∀ k, (θ k).IsPos) (k : ι) :
@@ -440,7 +430,9 @@ private theorem payoff_at_overreport_budget {M : BudgetedMechanism ι} {m : ℝ}
     simp only [t, Fin.val_last]
     field_simp [hm.ne']; norm_num
   have hprof9 : prof (Fin.last 9) = Function.update θbase i ⟨5 / (2 * m), 10⟩ := by rw [← ht9]
-  have htel := fin_sum_telescope fun k : Fin 10 => (M.outcome (prof k)).payment i
+  let payment (k : Fin 10) := (M.outcome (prof k)).payment i
+  have htel := Fin.sum_univ_adjacent_differences payment payment
+  simp only [sub_self, Finset.sum_const_zero, zero_add, payment] at htel
   have hbound := Finset.sum_le_sum fun k (_ : k ∈ Finset.univ) => hstep k
   rw [← hprof9]
   refine ⟨?_, by linarith [sum_inv_six_to_fourteen_lt_one]⟩

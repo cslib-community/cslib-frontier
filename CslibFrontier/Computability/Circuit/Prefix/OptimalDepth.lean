@@ -82,12 +82,11 @@ namespace Cslib.Circuits.Prefix
 /-- The segment boundaries telescope: `T D = 1 + ∑_{d < D} (T (d + 1) - T d)`. -/
 private theorem eq_one_add_sum_sub {T : ℕ → ℕ} (hT0 : T 0 = 1) {D : ℕ}
     (hlt : ∀ d < D, T d < T (d + 1)) : T D = 1 + ∑ d ∈ Finset.range D, (T (d + 1) - T d) := by
-  induction D with
-  | zero => simp only [Finset.range_zero, Finset.sum_empty, Nat.add_zero, hT0]
-  | succ r ih =>
-    rw [Finset.sum_range_succ, ← Nat.add_assoc, ← ih fun d hd => hlt d (by omega)]
-    have := hlt r (by omega)
-    omega
+  have hle := Finset.sum_le_sum (s := Finset.range D) fun i hi =>
+    (hlt i (Finset.mem_range.mp hi)).le
+  have hsum := (Finset.sum_range_succ T D).symm.trans (Finset.sum_range_succ' T D)
+  rw [Finset.sum_tsub_distrib _ fun i hi => (hlt i (Finset.mem_range.mp hi)).le]
+  omega
 
 /-- Exact maximum width bound for optimal fanout-2 prefix circuits of positive depth:
 `N ≤ 1 + w_2*(c.depth - 1)` ([Sergeev2025PrefixDepth], p. 3, `w_2(D) = w_2*(D - 1)`). -/
