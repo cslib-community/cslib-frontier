@@ -393,12 +393,7 @@ structure DictEnvGen (w : ℕ) (dp : DictParams) (base : ℕ) : Prop where
 
 /-- `Memory.Prog` operation reading `bCount n_max gm b` (`d = (base, b)`). -/
 @[expose] def readBucketCountProg (U V w n_max h_space : ℕ) (d : ℕ × ℕ) : Memory.Prog ℕ :=
-  if bucketBits n_max = 0 then
-    readGMProg U V w n_max h_space (d.1, 0)
-  else do
-    let q_b ← readGMProg U V w n_max h_space (d.1, 4 + 3 * d.2)
-    let r_b ← readGMProg U V w n_max h_space (d.1, 4 + 3 * d.2 + 1)
-    pure (q_b * slabSize n_max + r_b)
+  readBucketCountGenProg (mkDictParams U V w n_max h_space, d)
 
 @[simp] theorem readBucketCountGenProg_mk (U V w n_max h_space : ℕ) (d : ℕ × ℕ) :
     readBucketCountGenProg (mkDictParams U V w n_max h_space, d) =
@@ -424,19 +419,7 @@ structure DictEnvGen (w : ℕ) (dp : DictParams) (base : ℕ) : Prop where
 /-- `Memory.Prog` operation resolving indexed local slot `j = d.2 < effBucketCap n_max` of bucket
 `b = d.1.2` at `base = d.1.1` to physical slot `slotOf n_max gm b j < n_max`. -/
 @[expose] def resolveIndexedSlotProg (U V w n_max h_space : ℕ) (d : (ℕ × ℕ) × ℕ) : Memory.Prog ℕ :=
-  if bucketBits n_max = 0 then
-    pure d.2
-  else do
-    let q_b ← readGMProg U V w n_max h_space (d.1.1, 4 + 3 * d.1.2)
-    if d.2 < q_b * slabSize n_max then do
-      let p ← readGMProg U V w n_max h_space
-        (d.1.1, gmSlabDirBase n_max + d.1.2 * dirSlabsPerBucket n_max + d.2 / slabSize n_max)
-      pure (p * slabSize n_max + ((slabSize n_max - 1) - d.2 % slabSize n_max))
-    else do
-      let t ← readGMProg U V w n_max h_space
-        (d.1.1, gmTailPtrBase n_max + (d.1.2 * tailCapPerBucket n_max +
-          (d.2 - q_b * slabSize n_max)))
-      pure ((n_max - 1) - t)
+  resolveIndexedSlotGenProg (mkDictParams U V w n_max h_space, d)
 
 @[simp] theorem resolveIndexedSlotGenProg_mk (U V w n_max h_space : ℕ) (d : (ℕ × ℕ) × ℕ) :
     resolveIndexedSlotGenProg (mkDictParams U V w n_max h_space, d) =
@@ -664,7 +647,8 @@ theorem clientResult_readBucketCountProg {U V w n_max h_space : ℕ}
     (d : ℕ × ℕ) (s : Memory.State) (hb : d.2 < numBuckets n_max) :
     (Memory.spec 0).clientResult s (readBucketCountProg U V w n_max h_space d) =
       bCount n_max (gmAt d.1 U V w n_max h_space s.mem) d.2 := by
-  unfold readBucketCountProg bCount
+  dsimp +instances only [readBucketCountProg, readBucketCountGenProg, p_bucketBits_mk,
+    p_slabSize_mk, readGMGenProg_mk, bCount]
   by_cases hb0 : bucketBits n_max = 0
   · have hd2 : d.2 = 0 := by simp [numBuckets, hb0] at hb; omega
     simp only [hb0, ↓reduceIte, hd2]
@@ -680,13 +664,16 @@ theorem clientResult_readBucketCountProg {U V w n_max h_space : ℕ}
 theorem clientState_readBucketCountProg {U V w n_max h_space : ℕ}
     (d : ℕ × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (readBucketCountProg U V w n_max h_space d) = s := by
-  unfold readBucketCountProg
+  dsimp +instances only [readBucketCountProg, readBucketCountGenProg, p_bucketBits_mk,
+    p_slabSize_mk, readGMGenProg_mk]
   split_ifs <;> rfl
 
 theorem memoryCost_readBucketCountProg_le {U V w n_max h_space : ℕ}
     (d : ℕ × ℕ) (s : Memory.State) :
     memoryCost (readBucketCountProg U V w n_max h_space d) s ≤ 4 := by
-  unfold readBucketCountProg readGMProg; prog_cost [memoryCost_readPackedProg]
+  dsimp +instances only [readBucketCountProg, readBucketCountGenProg, p_bucketBits_mk,
+    p_slabSize_mk, readGMGenProg_mk, readGMProg]
+  prog_cost [memoryCost_readPackedProg]
 
 theorem realizes_readBucketCountGen :
     Realizes .exact readBucketCountGenProg
@@ -713,7 +700,9 @@ theorem realizes_readBucketCountGen :
 theorem clientState_resolveIndexedSlotProg {U V w n_max h_space : ℕ}
     (d : (ℕ × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (resolveIndexedSlotProg U V w n_max h_space d) = s := by
-  unfold resolveIndexedSlotProg
+  dsimp +instances only [resolveIndexedSlotProg, resolveIndexedSlotGenProg, p_bucketBits_mk,
+    p_slabSize_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_slabSizeSubOne_mk, p_gmTailPtrBase_mk,
+    p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk]
   split_ifs with hb0
   · rfl
   · rw [StateTransitionSpec.clientState_bind, clientState_readGMProg]
@@ -722,7 +711,10 @@ theorem clientState_resolveIndexedSlotProg {U V w n_max h_space : ℕ}
 theorem memoryCost_resolveIndexedSlotProg_le {U V w n_max h_space : ℕ}
     (d : (ℕ × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (resolveIndexedSlotProg U V w n_max h_space d) s ≤ 4 := by
-  unfold resolveIndexedSlotProg readGMProg; prog_cost [memoryCost_readPackedProg]
+  dsimp +instances only [resolveIndexedSlotProg, resolveIndexedSlotGenProg, p_bucketBits_mk,
+    p_slabSize_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_slabSizeSubOne_mk, p_gmTailPtrBase_mk,
+    p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk, readGMProg]
+  prog_cost [memoryCost_readPackedProg]
 
 private theorem div_slabSize_lt_dirSlabs {n_max j : ℕ} (hb_pos : 0 < bucketBits n_max)
     (hj_cap : j < effBucketCap n_max) : j / slabSize n_max < dirSlabsPerBucket n_max :=
@@ -742,7 +734,9 @@ theorem clientResult_resolveIndexedSlotProg {U V w n_max h_space : ℕ}
     (hj_cap : d.2 < effBucketCap n_max) :
     (Memory.spec 0).clientResult s (resolveIndexedSlotProg U V w n_max h_space d) =
       slotOf n_max (gmAt d.1.1 U V w n_max h_space s.mem) d.1.2 d.2 := by
-  unfold resolveIndexedSlotProg slotOf
+  dsimp +instances only [resolveIndexedSlotProg, resolveIndexedSlotGenProg, p_bucketBits_mk,
+    p_slabSize_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_slabSizeSubOne_mk, p_gmTailPtrBase_mk,
+    p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk, slotOf]
   by_cases hb0 : bucketBits n_max = 0
   · simp only [hb0, ↓reduceIte]; rfl
   · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0

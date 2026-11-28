@@ -242,7 +242,8 @@ theorem validProg_readBucketCount {U V w n_max h_space : ℕ} {d : ℕ × ℕ} {
     (hw : 0 < w) (hb : d.2 < numBuckets n_max) :
     ValidProg w (dictFrontier U V w n_max h_space d.1) s
       (readBucketCountProg U V w n_max h_space d) := by
-  unfold readBucketCountProg
+  dsimp +instances only [readBucketCountProg, readBucketCountGenProg, p_bucketBits_mk,
+    p_slabSize_mk, readGMGenProg_mk]
   split_ifs with hb0
   · exact validProg_readGM hw (by wram_omega)
   · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0
@@ -271,7 +272,9 @@ theorem validProg_resolveIndexedSlot {U V w n_max h_space : ℕ} {d : (ℕ × �
     (hj_cap : d.2 < effBucketCap n_max) :
     ValidProg w (dictFrontier U V w n_max h_space (dictArgBase d)) s
       (resolveIndexedSlotProg U V w n_max h_space d) := by
-  unfold resolveIndexedSlotProg
+  dsimp +instances only [resolveIndexedSlotProg, resolveIndexedSlotGenProg, p_bucketBits_mk,
+    p_slabSize_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_slabSizeSubOne_mk, p_gmTailPtrBase_mk,
+    p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk]
   split_ifs with hb0
   · exact validProg_pure _
   · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0
