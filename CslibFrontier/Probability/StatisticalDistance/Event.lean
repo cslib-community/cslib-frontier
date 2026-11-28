@@ -24,6 +24,8 @@ distributions by the same injective map preserves it (`dist_map_of_injective`).
 
 * `Cslib.Probability.PMF.abs_toOuterMeasure_toReal_sub_le_dist`: event probabilities move by at
   most the statistical distance.
+* `Cslib.Probability.PMF.dist_eq_toOuterMeasure_toReal_sub`: the event where the first mass
+  exceeds the second attains the distance.
 * `Cslib.Probability.PMF.abs_bind_apply_toReal_sub_le_dist`: the advantage of a randomized
   distinguisher is at most the statistical distance.
 * `Cslib.Probability.PMF.dist_map_of_injective`: injective relabeling preserves statistical
@@ -50,6 +52,16 @@ theorem abs_toOuterMeasure_toReal_sub_le_dist [Fintype α] (p q : PMF α) (event
   have h := abs_sum_mul_sub_le p q score hscore
   rwa [hmean, hmean, sub_sub_sub_cancel_right, show (2 : ℝ) * (1 / 2) = 1 by norm_num,
     one_mul] at h
+
+/-- The event where `p` assigns more mass than `q` attains the statistical distance. -/
+theorem dist_eq_toOuterMeasure_toReal_sub [Fintype α] (p q : PMF α) :
+    dist p q =
+      (p.toOuterMeasure {a | (q a).toReal < (p a).toReal}).toReal -
+        (q.toOuterMeasure {a | (q a).toReal < (p a).toReal}).toReal := by
+  rw [dist_eq_sum_filter_lt, toOuterMeasure_apply_toReal, toOuterMeasure_apply_toReal,
+    ← Finset.sum_sub_distrib, Finset.sum_filter]
+  exact Finset.sum_congr rfl fun a _ => by
+    by_cases ha : (q a).toReal < (p a).toReal <;> simp [ha]
 
 /-- A randomized distinguisher `T` outputs any given value `b` with probabilities, under `p` and
 under `q`, that differ by at most the statistical distance of `p` and `q`. -/

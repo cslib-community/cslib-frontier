@@ -491,12 +491,7 @@ theorem scheffeSet_sub_eq_dist (q₀ q₁ : _root_.PMF α) :
     (q₀.toOuterMeasure (scheffeSet q₀ q₁ : Set α)).toReal -
         (q₁.toOuterMeasure (scheffeSet q₀ q₁ : Set α)).toReal =
       dist q₀ q₁ := by
-  classical
-  rw [toOuterMeasure_apply_toReal, toOuterMeasure_apply_toReal, dist_eq_sum_filter_lt]
-  simp only [← Finset.sum_sub_distrib, Finset.mem_coe, scheffeSet, Finset.mem_filter,
-    Finset.mem_univ, true_and, Finset.sum_filter]
-  refine Finset.sum_congr rfl fun a _ => ?_
-  split_ifs <;> simp
+  simpa [scheffeSet] using (dist_eq_toOuterMeasure_toReal_sub q₀ q₁).symm
 
 end ScheffeBasic
 

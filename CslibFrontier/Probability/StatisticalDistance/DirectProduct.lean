@@ -60,15 +60,10 @@ theorem one_sub_two_mul_exp_le_dist_iid (μ ν : PMF α) (k : ℕ) :
     linarith [dist_nonneg (x := iid μ 0) (y := iid ν 0)]
   set d := dist μ ν with hd
   -- The event on which `μ` is more likely than `ν`, and its probabilities.
-  set S : Set α := {a | (ν a).toReal < (μ a).toReal} with hS
+  set S : Set α := {a | (ν a).toReal < (μ a).toReal}
   set p := (μ.toOuterMeasure S).toReal with hp
-  set q := (ν.toOuterMeasure S).toReal with hq
-  have hpq : p - q = d := by
-    rw [hp, hq, toOuterMeasure_apply_toReal, toOuterMeasure_apply_toReal, hd,
-      dist_eq_sum_filter_lt, ← Finset.sum_sub_distrib, Finset.sum_filter]
-    refine Finset.sum_congr rfl fun a _ => ?_
-    simp only [hS, Set.mem_ofPred_eq]
-    split_ifs <;> ring
+  set q := (ν.toOuterMeasure S).toReal
+  have hpq : p - q = d := (dist_eq_toOuterMeasure_toReal_sub μ ν).symm
   -- The count of coordinates in `S`.
   let score : Fin k → α → ℝ := fun _ a => if a ∈ S then 1 else 0
   have hscore (r : PMF α) : ∀ i a, a ∈ r.support → score i a ∈ Set.Icc (0 : ℝ) 1 :=
