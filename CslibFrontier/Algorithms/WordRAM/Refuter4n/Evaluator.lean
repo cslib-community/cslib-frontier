@@ -59,11 +59,12 @@ no reset before it, and any initialisation the code performs is part of `cost`: 
 with its setup, is charged by `cost`. Since memory outside the window is arbitrary and the result
 is fixed, the result cannot depend on it; since it is preserved, so is any refuter state stored
 there. This is a stateless calling convention: unlike `SubroutineBase`, which carries a
-representation invariant and zero-fills its block before setup (`initClear`), an evaluator keeps
-no state between calls and starts from dirty memory without any reset pass. It also differs from
-`Program.ComputesInTime`, which certifies a flat program started from an input list at the
-admitted widths its statement names: an evaluator is a structured `Code` run inside a caller's
-registers and memory, so its certificate carries a frame and starts from arbitrary data.
+representation invariant and whose dirty-memory initializer `initClear` zero-fills its block, an
+evaluator keeps no state between calls and starts from dirty memory without any reset pass. It
+also differs from `Program.ComputesInTime`, which certifies a flat program started from an input
+list at the admitted widths its statement names: an evaluator is a structured `Code` run inside
+a caller's registers and memory, so its certificate carries a frame and starts from arbitrary
+data.
 
 **Calls.** A caller runs `code` in an injective register bank `g` of its own register file
 (`Code.rename`). `FramedEvaluator.exec_rename` gives the call postcondition `CallPost`: the
@@ -80,8 +81,7 @@ instructions.
 
 ## Main definitions
 
-* `Cslib.Algorithms.WordRAM.Refuter4n.pointWord`, `fits_pointWord`: the packed word of a point
-  and its fit.
+* `Cslib.Algorithms.WordRAM.Refuter4n.pointWord`: the packed word of a point.
 * `Cslib.Algorithms.WordRAM.Refuter4n.FramedEvaluator`: a fixed Word-RAM program for `f` with
   its calling convention, cost and execution certificate.
 * `Cslib.Algorithms.WordRAM.Refuter4n.FramedEvaluator.CallPost`: the postcondition of one call
@@ -90,6 +90,8 @@ instructions.
 
 ## Main results
 
+* `Cslib.Algorithms.WordRAM.Refuter4n.fits_pointWord`: the packed word fits at every width
+  `w ≥ n`.
 * `Cslib.Algorithms.WordRAM.Refuter4n.FramedEvaluator.exec_rename`: one call in a caller's
   register bank, within `cost`.
 * `Cslib.Algorithms.WordRAM.Refuter4n.FramedEvaluator.exec_loop`: a counting loop with one call
@@ -122,7 +124,8 @@ on `r` registers with its calling convention and per-call instruction bound. The
 `exec` holds at every width `w ≥ n + 1`, from any data whose register `inp` holds the packed
 point and register `base` the workspace base `b`, with all other registers and all memory
 arbitrary (the window `[b, b + space)` included). It computes `(f x).toNat` into `out` within
-`cost` instructions, keeps `inp` and `base`, and keeps every memory cell outside the window. -/
+`cost` instructions, keeps `inp` and `base`, and keeps every memory cell outside the window.
+"Outside" is written `a < b ∨ b + space ≤ a`, as in the frames of `MemoryWindow`. -/
 structure FramedEvaluator (n : ℕ) (f : BooleanFunction n) (r : ℕ) where
   /-- The fixed program. -/
   code : Code .standard r

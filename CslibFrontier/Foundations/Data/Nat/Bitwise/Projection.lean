@@ -30,7 +30,6 @@ by significance. Prefix boundaries replace the low bits with fixed masks.
 
 ## Main results
 
-* `Nat.shiftRight_and_one`: masking a right shift with `1` reads one bit.
 * `highestDiff_spec`: distinct bounded words differ at their highest differing position.
 * `projectBits_lt`: a selected highest differing position preserves strict order.
 * `projectBits_ofFn_eq_sum`: the positional numeric value of a projection.

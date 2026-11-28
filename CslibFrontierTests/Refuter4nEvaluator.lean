@@ -70,9 +70,6 @@ def evalMany (E : FramedEvaluator n f r) : Code .standard (r + 6) :=
 @[simp] private theorem ne_bank (i : Fin r) (j : Fin 6) : Fin.natAdd r j ≠ bank r i :=
   (bank_ne i j).symm
 
-/-- The window `[b, b + space)` misses the address `a`. -/
-abbrev Outside (b space a : ℕ) : Prop := a < b ∨ b + space ≤ a
-
 /-- **A generic caller charges every call.** Let the caller's data hold `k` in its count
 register, `src` and `dst` in its base registers and `b` in the evaluator's base register, with
 the packed point `xs[j]` at `src + j`. If the source block, the output block and the window
@@ -86,19 +83,19 @@ theorem exec_evalMany (E : FramedEvaluator n f r) {w b src dst : ℕ} (xs : List
     (hpts : ∀ (j : ℕ) (hj : j < xs.length), s.mem (src + j) = pointWord xs[j])
     (hfb : Fits w (b + E.space)) (hfs : Fits w (src + xs.length))
     (hfd : Fits w (dst + xs.length))
-    (hsw : ∀ j < xs.length, Outside b E.space (src + j))
-    (hdw : ∀ j < xs.length, Outside b E.space (dst + j))
+    (hsw : ∀ j < xs.length, (src + j < b ∨ b + E.space ≤ src + j))
+    (hdw : ∀ j < xs.length, (dst + j < b ∨ b + E.space ≤ dst + j))
     (hsd : ∀ i < xs.length, ∀ j < xs.length, dst + i ≠ src + j) :
     ∃ t, ExecWithin w (evalMany E) s t (xs.length * (E.cost + 7) + 4) ∧
       (∀ (j : ℕ) (hj : j < xs.length), t.mem (dst + j) = (f xs[j]).toNat) ∧
-      ∀ a, Outside b E.space a → (a < dst ∨ dst + xs.length ≤ a) → t.mem a = s.mem a := by
+      ∀ a, (a < b ∨ b + E.space ≤ a) → (a < dst ∨ dst + xs.length ≤ a) → t.mem a = s.mem a := by
   have h1 : Fits w 1 := fits_one (by omega)
   have hib := E.inp_ne_base
   let P (k : ℕ) (z : Data (r + 6)) : Prop :=
     z.regs (cCnt r) = xs.length ∧ z.regs (cSrc r) = src ∧ z.regs (cDst r) = dst ∧
       z.regs (cOne r) = 1 ∧ z.regs (bank r E.base) = b ∧
       (∀ (j : ℕ) (hj : j < xs.length), j < k → z.mem (dst + j) = (f xs[j]).toNat) ∧
-      ∀ a, Outside b E.space a → (a < dst ∨ dst + k ≤ a) → z.mem a = s.mem a
+      ∀ a, (a < b ∨ b + E.space ≤ a) → (a < dst ∨ dst + k ≤ a) → z.mem a = s.mem a
   -- setup
   let s₀ : Data (r + 6) := (s.set (cK r) 0).set (cOne r) 1
   have he₀ : ExecWithin (B := .standard) w
@@ -133,7 +130,7 @@ theorem exec_evalMany (E : FramedEvaluator n f r) {w b src dst : ℕ} (xs : List
     have htb : t.regs (bank r E.base) = b := by
       rw [hbase]
       simpa [Function.update_apply, Ne.symm hib] using hyb
-    have htm : ∀ a, Outside b E.space a → t.mem a = y.mem a := fun a ha => by
+    have htm : ∀ a, (a < b ∨ b + E.space ≤ a) → t.mem a = y.mem a := fun a ha => by
       rw [hmem a (by simpa [Function.update_apply, Ne.symm hib, hyb] using ha)]
       rfl
     have htd : t.regs (cDst r) = dst := (hta 3 (by decide)).trans hyd
