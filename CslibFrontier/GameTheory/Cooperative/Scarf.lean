@@ -13,6 +13,7 @@ import CslibFrontier.Foundations.Analysis.Brouwer.KKMS
 import Mathlib.Algebra.Group.Pointwise.Set.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Finset.Lattice.Fold
+import Mathlib.Data.Fintype.Lattice
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Topology.MetricSpace.Pseudo.Pi
@@ -266,10 +267,10 @@ private theorem scarf_payoff_lemma {A : Type*} [Fintype A] [Nonempty A] (G : NTU
       (S : Finset A) (hSne : S.Nonempty) (hS : (fun i => base q i + sSup (TSet q)) ∈ G.feasible S)
       (j : A) (hjS : j ∈ S) : 0 < q j := by
     by_contra hj0
-    obtain ⟨imax, -, himax⟩ := Finset.exists_max_image Finset.univ q Finset.univ_nonempty
+    obtain ⟨imax, himax⟩ := Finite.exists_max q
     have hsum_le : 1 ≤ (Fintype.card A : ℝ) * q imax := by
       simpa [hq1, nsmul_eq_mul] using
-        Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => himax i (Finset.mem_univ i)
+        Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => himax i
     have hdiv_le : max 1 (B - vmin + 1) ≤ sSup (TSet q) :=
       (le_mul_of_one_le_right (zero_le_one.trans (le_max_left _ _)) hsum_le).trans <|
         ((mul_left_comm _ _ _).trans (mul_assoc _ _ _).symm).trans_le

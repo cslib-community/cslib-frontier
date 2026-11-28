@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph
 public import Mathlib.Logic.Function.Iterate
-import Mathlib.Data.Finset.Max
+import Mathlib.Data.Fintype.Lattice
 import Mathlib.Data.Fintype.Basic
 
 /-!
@@ -70,11 +70,10 @@ theorem exists_endpointCheckpoint {L : ℕ} (hL : 0 < L) {x : α}
     (hinj : Function.Injective (fun j : Fin (2 * L) => f^[j.val] x)) :
     ∃ d < L, IsEndpointCheckpoint f rank L (f^[d] x) := by
   classical
-  have hne : (Finset.univ : Finset (Fin (2 * L))).Nonempty := ⟨⟨0, by lia⟩, Finset.mem_univ _⟩
-  obtain ⟨i, _, hi⟩ := Finset.exists_min_image Finset.univ
-    (fun j : Fin (2 * L) => rank (f^[j.val] x)) hne
+  have : Nonempty (Fin (2 * L)) := ⟨⟨0, by lia⟩⟩
+  obtain ⟨i, hi⟩ := Finite.exists_min (fun j : Fin (2 * L) => rank (f^[j.val] x))
   exact ⟨_, by split <;> have := i.isLt <;> lia,
-    isEndpointCheckpoint_of_min f rank hinj i (fun j => hi j (Finset.mem_univ j))⟩
+    isEndpointCheckpoint_of_min f rank hinj i hi⟩
 
 /-- For an orbit still in its transient part after at least `2 * L` steps, some checkpoint
 on that orbit is at most `2 * L` steps before the target. The first inequality on depths

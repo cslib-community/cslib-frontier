@@ -143,12 +143,13 @@ private theorem prop_crossing_some {J : Type} [Fintype J] (Ψ : J → α → β 
     ∃ j, (Fintype.card α : ℝ) ^ F.wireExponent x v * (Fintype.card β : ℝ) ^ F.wireExponent y u ≤
       Fintype.card J * F (push ![x, y, v, u] (four (Ψ j))) := by
   have h1 := prop_crossing_cover F Ψ hΨ x y v u
-  have hne : (Finset.univ : Finset J).Nonempty := Finset.nonempty_of_ne_empty fun h => by
-    simp only [h, Finset.sum_empty] at h1
+  have : Nonempty J := by
+    by_contra h
+    have : IsEmpty J := not_nonempty_iff.mp h
+    simp only [Finset.univ_eq_empty, Finset.sum_empty] at h1
     exact h1.not_gt (by positivity)
-  obtain ⟨j, -, hj⟩ := Finset.exists_max_image Finset.univ
-    (fun j => F (push ![x, y, v, u] (four (Ψ j)))) hne
-  exact ⟨j, h1.trans ((Finset.sum_le_sum hj).trans_eq (by simp [nsmul_eq_mul]))⟩
+  obtain ⟨j, hj⟩ := Finite.exists_max (fun j => F (push ![x, y, v, u] (four (Ψ j))))
+  exact ⟨j, h1.trans ((Finset.sum_le_sum fun i _ => hj i).trans_eq (by simp [nsmul_eq_mul]))⟩
 
 /-- Proof of Proposition B.3: Lemma A.3, with the hubs `o, o'` for (c) and `w, w'` for (b), bounds
 `F(Ψ_N)` in both ways. So for the `N` of the step before, in logarithms,

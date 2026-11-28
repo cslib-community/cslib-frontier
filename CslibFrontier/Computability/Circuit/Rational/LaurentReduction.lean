@@ -120,14 +120,13 @@ private lemma reduction_mul {x y : F K} (hx : Integral x) (hy : Integral y) :
 private lemma normalize_vector {ι : Type*} [Finite ι] (x : ι → F K) (hx : x ≠ 0) :
     ∃ (c : ι) (u : F K), u ≠ 0 ∧ (∀ i, Integral (u * x i)) ∧ u * x c = 1 := by
   classical
-  have := Fintype.ofFinite ι
   obtain ⟨j, hj⟩ := Function.ne_iff.mp hx
-  obtain ⟨c, _, hc⟩ := Finset.exists_max_image Finset.univ (fun i => Valued.v (x i))
-    ⟨j, Finset.mem_univ _⟩
-  have hxc : x c ≠ 0 := fun hz => hj (by simpa [hz] using hc j (Finset.mem_univ _))
+  have : Nonempty ι := ⟨j⟩
+  obtain ⟨c, hc⟩ := Finite.exists_max (fun i => Valued.v (x i))
+  have hxc : x c ≠ 0 := fun hz => hj (by simpa [hz] using hc j)
   refine ⟨c, (x c)⁻¹, inv_ne_zero hxc, fun i => ?_, inv_mul_cancel₀ hxc⟩
   rw [integral_iff, mul_comm, ← div_eq_mul_inv, Valuation.map_div]
-  exact (div_le_one₀ (pos_iff_ne_zero.mpr ((map_ne_zero _).mpr hxc))).mpr (hc i (Finset.mem_univ _))
+  exact (div_le_one₀ (pos_iff_ne_zero.mpr ((map_ne_zero _).mpr hxc))).mpr (hc i)
 
 /-- Coefficientwise integrality, not an arbitrary sublattice. -/
 def IntegralVector {ι : Type*} (x : ι → F K) : Prop := ∀ i, Integral (x i)

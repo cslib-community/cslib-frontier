@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.FusionTree.Sketch
 public import CslibFrontier.Foundations.Data.Fin.Decode
 public import Mathlib.Order.Interval.Finset.Fin
+import Mathlib.Data.Fintype.Lattice
 
 /-!
 # Arbitrary-query sketch correction
@@ -184,13 +185,13 @@ theorem exists_sketchNeighbor_min_highestDiff {n w q : ℕ} {keys : Fin n → �
     (hn : 0 < n) (hmiss : ∀ i, keys i ≠ q) :
     ∃ j, IsSketchNeighbor w keys q j ∧
       ∀ i, highestDiff w (keys j) q ≤ highestDiff w (keys i) q := by
-  obtain ⟨i, _, hi⟩ := Finset.exists_min_image (Finset.univ : Finset (Fin n))
-    (fun i => highestDiff w (keys i) q) ⟨⟨0, hn⟩, Finset.mem_univ _⟩
+  have : Nonempty (Fin n) := Fin.pos_iff_nonempty.1 hn
+  obtain ⟨i, hi⟩ := Finite.exists_min (fun i => highestDiff w (keys i) q)
   obtain ⟨j, hj, hprefix⟩ := exists_sketchNeighbor_prefix hsorted hbound
     ⟨i, shiftRight_highestDiff_add_one_eq (hbound i) hq (hmiss i)⟩
   have hle : highestDiff w (keys j) q ≤ highestDiff w (keys i) q :=
     Nat.le_of_lt_succ ((highestDiff_lt_iff_shiftRight_eq (hbound j) hq (hmiss j)).mpr hprefix)
-  exact ⟨j, hj, fun k => hle.trans (hi k (Finset.mem_univ _))⟩
+  exact ⟨j, hj, fun k => hle.trans (hi k)⟩
 
 /-- Minimizing over the at most two sketch neighbors therefore minimizes over every key. -/
 private theorem min_highestDiff_of_sketchNeighbor {n w q : ℕ} {keys : Fin n → ℕ}

@@ -136,19 +136,12 @@ theorem IsMixedStrategy.forall_dotProduct_le_iff (hx : IsMixedStrategy x) :
   classical
   constructor
   · intro h i hi i'
-    by_contra hlt
-    push Not at hlt
-    obtain ⟨i₀, -, hi₀⟩ := exists_max_image univ w ⟨i, mem_univ _⟩
-    have h₁ := h _ (isMixedStrategy_single i₀)
-    rw [single_dotProduct, one_mul] at h₁
-    have h₂ : x ⬝ᵥ w < w i₀ := by
-      calc x ⬝ᵥ w = ∑ j, x j * w j := rfl
-        _ < ∑ j, x j * w i₀ := by
-          refine sum_lt_sum (fun j _ => mul_le_mul_of_nonneg_left (hi₀ j (mem_univ _)) (hx.1 j))
-            ⟨i, mem_univ _, mul_lt_mul_of_pos_left
-              (hlt.trans_le (hi₀ i' (mem_univ _))) hi⟩
-        _ = w i₀ := by rw [← sum_mul, hx.2, one_mul]
-    linarith
+    have hle (j : ι) : w j ≤ x ⬝ᵥ w := by
+      simpa only [single_dotProduct, one_mul] using h _ (isMixedStrategy_single j)
+    by_contra! hlt
+    have hstrict := sum_lt_sum (fun j _ => mul_le_mul_of_nonneg_left (hle j) (hx.1 j))
+      ⟨i, mem_univ _, mul_lt_mul_of_pos_left (hlt.trans_le (hle i')) hi⟩
+    exact (lt_irrefl (x ⬝ᵥ w)) (by simpa only [dotProduct, ← sum_mul, hx.2, one_mul] using hstrict)
   · intro h x' hx'
     obtain ⟨i₀, hi₀⟩ := hx.exists_pos
     rw [hx.dotProduct_eq_of_forall_pos fun i hi => le_antisymm (h i₀ hi₀ i) (h i hi i₀)]

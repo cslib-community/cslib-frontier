@@ -14,8 +14,8 @@ public import Mathlib.Data.Finset.Lattice.Fold
 public import Mathlib.Order.Interval.Finset.Fin
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.Rearrangement
-import Mathlib.Data.Finset.Max
 import Mathlib.Data.Fintype.CardEmbedding
+import Mathlib.Data.Fintype.Lattice
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -254,8 +254,7 @@ theorem exists_isOptimal [Fintype ι] (μ : Fin k → ℝ) (v : ι → ℝ) (hk 
     ∃ σ : Fin k ↪ ι, IsOptimal μ v σ := by
   classical
   have : Nonempty (Fin k ↪ ι) := ⟨(Fin.castLEEmb hk).trans (Fintype.equivFin ι).symm.toEmbedding⟩
-  obtain ⟨σ, -, hσ⟩ := Finset.exists_max_image Finset.univ (welfare μ v) Finset.univ_nonempty
-  exact ⟨σ, fun τ => hσ τ (Finset.mem_univ τ)⟩
+  exact Finite.exists_max (welfare μ v)
 
 /-- An assortative assignment exists whenever there are at least `k` bidders. -/
 theorem exists_isAssortative [Fintype ι] (v : ι → ℝ) (hk : k ≤ Fintype.card ι) :

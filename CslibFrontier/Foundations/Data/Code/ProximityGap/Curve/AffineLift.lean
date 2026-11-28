@@ -347,14 +347,14 @@ theorem exists_weighted_correlatedAgreement_affine_of_divergence
     let C_fin := Finset.univ.filter fun c : ι → F => c ∈ C
     have hC_ne : C_fin.Nonempty := ⟨0, mem_filter.2 ⟨mem_univ 0, C.zero_mem⟩⟩
     let score (z : Fin (ℓ' + 2) → F) := C_fin.sup' hC_ne fun c => agreeW (u_aff z) c
-    obtain ⟨z_star, _, hz_min⟩ := Finset.exists_min_image Finset.univ score ⟨0, mem_univ 0⟩
+    obtain ⟨z_star, hz_min⟩ := Finite.exists_min score
     set B_star := score z_star; set u_star := u_aff z_star
     have hBW_le_Bstar : B_W ≤ B_star :=
       let ⟨c₀, hc₀, hge⟩ := hall z_star
       hge.trans (Finset.le_sup' (fun c => agreeW u_star c) (mem_filter.2 ⟨mem_univ c₀, hc₀⟩))
     have hall_Bstar (z : Fin (ℓ' + 2) → F) : ∃ c ∈ C, B_star ≤ agreeW (u_aff z) c :=
       let ⟨c, hc, hce⟩ := Finset.exists_mem_eq_sup' hC_ne fun c => agreeW (u_aff z) c
-      ⟨c, (mem_filter.1 hc).2, hce ▸ hz_min z (mem_univ z)⟩
+      ⟨c, (mem_filter.1 hc).2, hce ▸ hz_min z⟩
     obtain ⟨Lraw, hLraw_card, hLraw_mem⟩ := hlist u_star
     let L_star := Lraw.filter fun c => c ∈ C ∧ B_star ≤ agreeW u_star c
     have hLstar_ne : L_star.Nonempty := let ⟨c, hc, hge⟩ := hall_Bstar z_star

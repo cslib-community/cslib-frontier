@@ -179,14 +179,9 @@ private theorem exists_decoder_err_imp_ge [Finite V] [Nonempty V] {loss : T → 
     {Δ : ℝ} (hpack : ∀ t, ∀ v w, v ≠ w → 2 * Δ ≤ loss t (θ v) + loss t (θ w)) (est : X → T) :
     ∃ ψ : X → V, ∀ x v, ψ x ≠ v → Δ ≤ loss (est x) (θ v) := by
   classical
-  let _ := Fintype.ofFinite V
-  let ψ : X → V := fun x =>
-    (Finset.exists_min_image Finset.univ (fun v => loss (est x) (θ v)) Finset.univ_nonempty).choose
+  choose ψ hψ using fun x => Finite.exists_min (fun v => loss (est x) (θ v))
   refine ⟨ψ, fun x v hne => ?_⟩
-  have hspec : loss (est x) (θ (ψ x)) ≤ loss (est x) (θ v) :=
-    (Finset.exists_min_image Finset.univ (fun v => loss (est x) (θ v))
-      Finset.univ_nonempty).choose_spec.2 v (Finset.mem_univ v)
-  linarith [hpack (est x) (ψ x) v hne]
+  linarith [hψ x v, hpack (est x) (ψ x) v hne]
 
 private theorem exists_mem_ge_of_avg_ge [Fintype V] [Nonempty V] {f : V → ℝ} {c : ℝ}
     (h : c ≤ (Fintype.card V : ℝ)⁻¹ * ∑ v : V, f v) :

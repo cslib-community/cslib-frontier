@@ -273,8 +273,8 @@ private theorem expect_sq_le_mul_sub_expect_walk_sq (hloop : ∀ v, ∃ i, G.nei
         _ ≤ c + p.length * c := add_le_add (hadj h) ih
         _ = _ := by ring
   -- so the range of `f` is at most `(n - 1) c`
-  obtain ⟨u, -, hu⟩ := exists_max_image univ f univ_nonempty
-  obtain ⟨w, -, hw⟩ := exists_min_image univ f univ_nonempty
+  obtain ⟨u, hu⟩ := Finite.exists_max f
+  obtain ⟨w, hw⟩ := Finite.exists_min f
   have hrange : f u - f w ≤ (n - 1) * c := by
     classical
     obtain ⟨p⟩ := hconn u w
@@ -284,11 +284,11 @@ private theorem expect_sq_le_mul_sub_expect_walk_sq (hloop : ∀ v, ∃ i, G.nei
   -- a function of expectation zero has second moment at most `-(max f) (min f)`
   have hvar : 𝔼 v, f v ^ 2 ≤ -(f u * f w) := by
     have h (v : V) : f v ^ 2 ≤ (f u + f w) * f v - f u * f w := by
-      nlinarith [hu v (mem_univ v), hw v (mem_univ v)]
+      nlinarith [hu v, hw v]
     calc 𝔼 v, f v ^ 2 ≤ 𝔼 v, ((f u + f w) * f v - f u * f w) := expect_le_expect fun v _ ↦ h v
       _ = -(f u * f w) := by rw [expect_sub_distrib, ← mul_expect, hf, Fintype.expect_const]; ring
   have hc2 : c ^ 2 = 4 * (d * n * Q) := Real.sq_sqrt (by positivity)
-  have hrange0 : 0 ≤ f u - f w := sub_nonneg.2 (hw u (mem_univ u))
+  have hrange0 : 0 ≤ f u - f w := sub_nonneg.2 (hw u)
   have hsq : (f u - f w) ^ 2 ≤ ((n - 1) * c) ^ 2 := pow_le_pow_left₀ hrange0 hrange 2
   have hn3 : (n - 1) ^ 2 * n ≤ n ^ 3 := by nlinarith
   calc 𝔼 v, f v ^ 2 ≤ (f u - f w) ^ 2 / 4 := by nlinarith [sq_nonneg (f u + f w)]

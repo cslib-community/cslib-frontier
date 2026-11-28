@@ -12,8 +12,8 @@ public import CslibFrontier.GameTheory.LoadBalancing.Basic
 public import CslibFrontier.GameTheory.Strategic.Potential
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Data.Finset.Max
 import Mathlib.Data.Fintype.Card
+import Mathlib.Data.Fintype.Lattice
 import Mathlib.Order.WellFounded
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -397,8 +397,8 @@ private theorem exists_snoc_of_not_isPureNash [Finite M] [Nonempty M]
     rwa [G.isPureNash_iff_forall_isSatisfied, not_forall] at hNE
   let U : Finset ι := univ.filter fun j => ¬ G.IsSatisfied (γ (Fin.last k)) j
   obtain ⟨i₀, hi₀U, hi₀max⟩ := exists_max_image U G.weight ⟨i, mem_filter.mpr ⟨mem_univ i, hi⟩⟩
-  obtain ⟨b, -, hbmin⟩ := exists_min_image univ
-    (fun m : M => G.load (γ (Fin.last k)) m + G.weight i₀ / G.speed m) univ_nonempty
+  obtain ⟨b, hbmin⟩ := Finite.exists_min
+    (fun m : M => G.load (γ (Fin.last k)) m + G.weight i₀ / G.speed m)
   refine ⟨Fin.snoc (α := fun _ => ι → M) γ (Function.update (γ (Fin.last k)) i₀ b),
     Fin.snoc (α := fun _ => ι) move i₀,
     Fin.snoc_castSucc (α := fun _ => ι → M) _ γ 0, fun t => ?_⟩
@@ -407,7 +407,7 @@ private theorem exists_snoc_of_not_isPureNash [Finite M] [Nonempty M]
     simp only [Fin.succ_last, Fin.snoc_last, Fin.snoc_castSucc]
     exact ⟨b, rfl, (mem_filter.mp hi₀U).2,
       fun j hj => hi₀max j (mem_filter.mpr ⟨mem_univ j, hj⟩),
-      fun m => hbmin m (mem_univ m)⟩
+      hbmin⟩
   | cast t => simpa only [Fin.succ_castSucc, Fin.snoc_castSucc] using hγ t
 
 /-- Starting from any assignment `A₀` on identical machines, max-weight best-response dynamics
@@ -512,8 +512,8 @@ theorem exists_isRelatedLPT [Finite M] [Nonempty M] (G : LoadBalancingGame (Fin 
         weight_nonneg := fun i => G.weight_nonneg i.castSucc
         speed_pos := G.speed_pos }
     obtain ⟨A', hA'⟩ := ih G'
-    obtain ⟨b, -, hbmin⟩ := exists_min_image univ
-      (fun k : M => G'.load A' k + G.weight (Fin.last n) / G.speed k) univ_nonempty
+    obtain ⟨b, hbmin⟩ := Finite.exists_min
+      (fun k : M => G'.load A' k + G.weight (Fin.last n) / G.speed k)
     let A : Fin (n + 1) → M := Fin.snoc (α := fun _ => M) A' b
     have hpre (k : ℕ) (hk : k ≤ n) (j : M) : G.prefixLoad A k j = G'.prefixLoad A' k j := by
       simp [prefixLoad, sum_filter, Fin.sum_univ_castSucc, A, G', Fin.init, Nat.not_lt.mpr hk]
@@ -523,7 +523,7 @@ theorem exists_isRelatedLPT [Finite M] [Nonempty M] (G : LoadBalancingGame (Fin 
     refine ⟨A, fun i k => ?_⟩
     induction i using Fin.lastCases with
     | last =>
-      simpa only [Fin.val_last, A, Fin.snoc_last, hpre_last] using hbmin k (mem_univ k)
+      simpa only [Fin.val_last, A, Fin.snoc_last, hpre_last] using hbmin k
     | cast i =>
       simpa only [Fin.val_castSucc, A, Fin.snoc_castSucc, hpre i.val i.isLt.le, G', Fin.init]
         using hA' i k

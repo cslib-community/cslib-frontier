@@ -260,11 +260,11 @@ theorem exists_mem_sqrt_card_le_card_update_mem [Fintype ι] [DecidableEq ι]
     ∃ x ∈ V, √(#S : ℝ) ≤ #{i ∈ S | update x i (!x i) ∈ V} := by
   obtain ⟨v, hv, hv0, hvV, hS⟩ := exists_nonneg_ne_zero_sqrt_card_mul_le_sum hV S
   -- a point where `v` is largest
-  obtain ⟨x, -, hx⟩ := exists_max_image univ v univ_nonempty
+  obtain ⟨x, hx⟩ := Finite.exists_max v
   have hpos : 0 < v x := lt_of_not_ge fun h =>
-    hv0 (funext fun y => le_antisymm ((hx y (mem_univ y)).trans h) (hv y))
+    hv0 (funext fun y => le_antisymm ((hx y).trans h) (hv y))
   have hxV : x ∈ V := by_contra fun h => hpos.ne' (hvV x h)
   refine ⟨x, hxV, le_of_mul_le_mul_right ((hS x).trans ?_) hpos⟩
-  simpa only [nsmul_eq_mul] using sum_le_card_nsmul _ _ _ fun i _ => hx _ (mem_univ _)
+  simpa only [nsmul_eq_mul] using sum_le_card_nsmul _ _ _ fun i _ => hx _
 
 end Cslib.BitString

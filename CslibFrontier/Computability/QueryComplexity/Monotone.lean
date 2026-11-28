@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.DecisionTree.Certificate
 public import CslibFrontier.Computability.QueryComplexity.OneSided
 public import CslibFrontier.Foundations.Data.BitString.Weight
+import Mathlib.Data.Fintype.Lattice
 
 /-!
 # Query complexity of monotone functions
@@ -57,17 +58,17 @@ variable {f : BooleanFunction n}
 true bits of an input of value `1` of least weight below it. -/
 private theorem certificateComplexityAt_le_sensitivityFor_true (hf : Monotone f)
     {x : BitString n} (hx : f x = true) : certificateComplexityAt f x ≤ sensitivityFor f true := by
-  obtain ⟨y, hy, hmin⟩ := exists_min_image (univ.filter fun y => y ≤ x ∧ f y = true) weight
-    ⟨x, mem_filter.2 ⟨mem_univ _, le_rfl, hx⟩⟩
-  obtain ⟨hyx, hfy⟩ := (mem_filter.1 hy).2
+  have : Nonempty {y // y ≤ x ∧ f y = true} := ⟨⟨x, le_rfl, hx⟩⟩
+  obtain ⟨⟨y, hyx, hfy⟩, hmin⟩ :=
+    Finite.exists_min (fun y : {y // y ≤ x ∧ f y = true} => weight y.val)
   -- clearing a true bit of `y` gives a lighter input below `x`, of value `0`
   have hsens : ∀ i ∈ univ.filter fun i => y i = true, IsSensitiveCoord f y i := fun i hi => by
     have hyi : y i = true := (mem_filter.1 hi).2
     rw [IsSensitiveCoord, hyi, Bool.not_true, hfy]
     intro h
     have := weight_update_false hyi
-    have := hmin _ (mem_filter.2 ⟨mem_univ _,
-      (update_le_iff.2 ⟨Bool.false_le _, fun _ _ => le_rfl⟩).trans hyx, h⟩)
+    have hw : weight y ≤ weight (Function.update y i false) :=
+      hmin ⟨_, (update_le_iff.2 ⟨Bool.false_le _, fun _ _ => le_rfl⟩).trans hyx, h⟩
     omega
   -- the true bits of `y` certify the value `1`
   refine (certificateComplexityAt_le (S := univ.filter fun i => y i = true) fun z hz => ?_).trans
@@ -84,17 +85,17 @@ false bits of an input of value `0` of largest weight above it. -/
 private theorem certificateComplexityAt_le_sensitivityFor_false (hf : Monotone f)
     {x : BitString n} (hx : f x = false) :
     certificateComplexityAt f x ≤ sensitivityFor f false := by
-  obtain ⟨y, hy, hmax⟩ := exists_max_image (univ.filter fun y => x ≤ y ∧ f y = false) weight
-    ⟨x, mem_filter.2 ⟨mem_univ _, le_rfl, hx⟩⟩
-  obtain ⟨hxy, hfy⟩ := (mem_filter.1 hy).2
+  have : Nonempty {y // x ≤ y ∧ f y = false} := ⟨⟨x, le_rfl, hx⟩⟩
+  obtain ⟨⟨y, hxy, hfy⟩, hmax⟩ :=
+    Finite.exists_max (fun y : {y // x ≤ y ∧ f y = false} => weight y.val)
   -- setting a false bit of `y` gives a heavier input above `x`, of value `1`
   have hsens : ∀ i ∈ univ.filter fun i => y i = false, IsSensitiveCoord f y i := fun i hi => by
     have hyi : y i = false := (mem_filter.1 hi).2
     rw [IsSensitiveCoord, hyi, Bool.not_false, hfy]
     intro h
     have := weight_update_true hyi
-    have := hmax _ (mem_filter.2 ⟨mem_univ _,
-      hxy.trans (le_update_iff.2 ⟨Bool.le_true _, fun _ _ => le_rfl⟩), by simpa using h⟩)
+    have hw : weight (Function.update y i true) ≤ weight y :=
+      hmax ⟨_, hxy.trans (le_update_iff.2 ⟨Bool.le_true _, fun _ _ => le_rfl⟩), by simpa using h⟩
     omega
   -- the false bits of `y` certify the value `0`
   refine (certificateComplexityAt_le (S := univ.filter fun i => y i = false) fun z hz => ?_).trans

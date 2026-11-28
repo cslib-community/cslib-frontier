@@ -430,12 +430,10 @@ theorem isSDEfficient_iff_isAcyclicTrade {n : ℕ} (p : Profile n) (P : Matrix (
     choose agent hpos hpref using hstep
     let next : Fin m → Fin n := fun j => c (finRotate m j)
     have : Nonempty (Fin m) := ⟨⟨0, hmpos⟩⟩
-    obtain ⟨j₀, _, hj₀⟩ :=
-      Finset.exists_min_image (Finset.univ : Finset (Fin m)) (fun j => P (agent j) (c j))
-        Finset.univ_nonempty
+    obtain ⟨j₀, hj₀⟩ := Finite.exists_min (fun j => P (agent j) (c j))
     let ε : ℝ := P (agent j₀) (c j₀)
     have hε_pos : 0 < ε := hpos j₀
-    have hε_le : ∀ j : Fin m, ε ≤ P (agent j) (c j) := fun j => hj₀ j (Finset.mem_univ j)
+    have hε_le : ∀ j : Fin m, ε ≤ P (agent j) (c j) := hj₀
     let Q : Matrix (Fin n) (Fin n) ℝ := Matrix.of fun i o =>
       P i o + ∑ j : Fin m,
         ((if agent j = i ∧ next j = o then ε else 0) -

@@ -238,8 +238,8 @@ theorem eq_of_isInCore_replica {E : ExchangeMarket I G} {r : ℕ} [NeZero r]
   have hr_rpos : 0 < (r : ℝ) := Nat.cast_pos.2 hr_pos
   have : Nonempty (Fin r) := Fin.pos_iff_nonempty.1 hr_pos
   -- For each type `k : I`, pick a worst-off replica `cMin k : Fin r`.
-  choose cMin _ hcMin using fun k : I =>
-    exists_min_image univ (fun c : Fin r => E.utility k (y (k, c))) univ_nonempty
+  choose cMin hcMin using fun k : I =>
+    Finite.exists_min (fun c : Fin r => E.utility k (y (k, c)))
   -- Form the underdog coalition `U = {(k, cMin k) | k : I}` and type-average allocation `avg`.
   let emb : I ↪ I × Fin r := ⟨fun k => (k, cMin k), fun _ _ h => (Prod.mk.inj h).1⟩
   have hemb : ∀ k : I, emb k = (k, cMin k) := fun _ => rfl
@@ -258,7 +258,7 @@ theorem eq_of_isInCore_replica {E : ExchangeMarket I G} {r : ℕ} [NeZero r]
           rw [← sum_mul, hw_sum, one_mul]
       _ ≤ ∑ c : Fin r, (1 / (r : ℝ)) * E.utility k (y (k, c)) :=
           sum_le_sum fun c _ =>
-            mul_le_mul_of_nonneg_left (hcMin k c (mem_univ c)) (one_div_nonneg.2 hr_rpos.le)
+            mul_le_mul_of_nonneg_left (hcMin k c) (one_div_nonneg.2 hr_rpos.le)
   -- Show `U` blocks `y` via `z`.
   refine hcore.2 U z ⟨⟨emb i, mem_map.2 ⟨i, mem_univ i, rfl⟩⟩, ?_, ?_, ?_, ?_⟩
   · intro ic _ g
@@ -398,10 +398,10 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
     rw [mem_negOrthant] at hz_neg
     let D : G → ℝ := fun g => ∑ i ∈ S, α i * (b i g - E.endowment i g)
     have hD_neg : ∀ g : G, 0 < -D g := fun g => neg_pos.2 (lt_of_le_of_lt (hz_le g) (hz_neg g))
-    obtain ⟨g₀, -, hg₀⟩ := exists_min_image univ (fun g : G => -D g) univ_nonempty
+    obtain ⟨g₀, hg₀⟩ := Finite.exists_min (fun g : G => -D g)
     set δ : ℝ := -D g₀
     have hδ_pos : 0 < δ := hD_neg g₀
-    have hD_le : ∀ g : G, D g ≤ -δ := fun g => by linarith [hg₀ g (mem_univ g)]
+    have hD_le : ∀ g : G, D g ≤ -δ := fun g => by linarith [hg₀ g]
     set B : ℝ := ∑ i ∈ S, ∑ g : G, |b i g - E.endowment i g|
     set M : ℕ := Nat.floor ((B + 1) / δ) + 1
     have hMδ_gt : B + 1 < (M : ℝ) * δ :=

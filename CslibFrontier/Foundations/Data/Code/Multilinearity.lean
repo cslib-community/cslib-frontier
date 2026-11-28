@@ -425,7 +425,7 @@ total. -/
 private theorem exists_two_mul_le_sum (D : F → ℕ) :
     ∃ t₁ t₂, t₁ ≠ t₂ ∧ Fintype.card F * (D t₁ + D t₂) ≤ 2 * ∑ t, D t := by
   classical
-  obtain ⟨t₁, -, h₁⟩ := exists_min_image univ D univ_nonempty
+  obtain ⟨t₁, h₁⟩ := Finite.exists_min D
   have hne : (univ.erase t₁).Nonempty := ⟨if t₁ = 0 then 1 else 0, by
     split_ifs with h <;> simp [h, eq_comm]⟩
   obtain ⟨t₂, ht₂, h₂⟩ := exists_min_image _ D hne
@@ -436,7 +436,7 @@ private theorem exists_two_mul_le_sum (D : F → ℕ) :
       (by simpa [card_erase_of_mem (mem_univ t₁)] using card_nsmul_le_sum _ D (D t₂) h₂) _
   obtain ⟨m, hm⟩ := Nat.exists_eq_add_of_le' (Fintype.one_lt_card (α := F))
   rw [hm] at hsum ⊢
-  have h12 : D t₁ ≤ D t₂ := h₁ t₂ (mem_univ _)
+  have h12 : D t₁ ≤ D t₂ := h₁ t₂
   calc (m + 2) * (D t₁ + D t₂)
       = 2 * D t₁ + m * D t₁ + (m + 2) * D t₂ := by ring
     _ ≤ 2 * D t₁ + m * D t₂ + (m + 2) * D t₂ := by gcongr

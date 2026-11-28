@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.BooleanAnalysis.Convolution
 public import CslibFrontier.Foundations.Data.BitString.Hamming
 import CslibFrontier.Foundations.Data.Finset.Expect
+import Mathlib.Data.Fintype.Lattice
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 
@@ -123,12 +124,12 @@ theorem exists_hammingDist_parityOn_le_of_le_blrAcceptance {f : (ι → Bool) �
     ∃ S, (hammingDist f (parityOn S) : ℝ) / 2 ^ Fintype.card ι ≤ ε := by
   rw [blrAcceptance_eq_sum_fourierCoeff_pow_three] at h
   set c := fourierCoeff fun x => signVal (f x)
-  obtain ⟨S, -, hS⟩ := exists_max_image univ c univ_nonempty
+  obtain ⟨S, hS⟩ := Finite.exists_max c
   refine ⟨S, ?_⟩
   have hc : ∑ T, c T ^ 3 ≤ c S := calc
     ∑ T, c T ^ 3 ≤ ∑ T, c S * c T ^ 2 := sum_le_sum fun T _ => by
         rw [pow_succ, mul_comm]
-        exact mul_le_mul_of_nonneg_right (hS T (mem_univ T)) (sq_nonneg _)
+        exact mul_le_mul_of_nonneg_right (hS T) (sq_nonneg _)
     _ = c S := by rw [← mul_sum, sum_fourierCoeff_sq_signVal, mul_one]
   have hcS : c S = 1 - 2 * hammingDist f (parityOn S) / 2 ^ Fintype.card ι :=
     fourierCoeff_signVal f S

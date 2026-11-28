@@ -144,15 +144,14 @@ theorem pow_le_re_trace_pow (hT : T.IsPositive) {x : E} (hx : ‖x‖ = 1) {c : 
   have hne : Nonempty (Fin (finrank 𝕜 E)) :=
     Fin.pos_iff_nonempty.mp (Module.finrank_pos_iff_exists_ne_zero.mpr
       ⟨x, norm_ne_zero_iff.mp (by simp [hx])⟩)
-  obtain ⟨i, -, hi⟩ :=
-    Finset.exists_max_image Finset.univ (hS.eigenvalues rfl) Finset.univ_nonempty
+  obtain ⟨i, hi⟩ := Finite.exists_max (hS.eigenvalues rfl)
   have hci : c ≤ hS.eigenvalues rfl i := by
     refine hcx.trans ?_
     rw [hS.re_inner_apply_eq_sum rfl]
     calc ∑ k, hS.eigenvalues rfl k * ‖⟪hS.eigenvectorBasis rfl k, x⟫_𝕜‖ ^ 2
         ≤ ∑ k, hS.eigenvalues rfl i * ‖⟪hS.eigenvectorBasis rfl k, x⟫_𝕜‖ ^ 2 :=
           Finset.sum_le_sum fun k _ =>
-            mul_le_mul_of_nonneg_right (hi k (mem_univ k)) (sq_nonneg _)
+            mul_le_mul_of_nonneg_right (hi k) (sq_nonneg _)
       _ = hS.eigenvalues rfl i := by
           rw [← Finset.mul_sum, OrthonormalBasis.sum_sq_norm_inner_right, hx, one_pow, mul_one]
   calc c ^ j ≤ hS.eigenvalues rfl i ^ j := pow_le_pow_left₀ hc hci j

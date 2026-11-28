@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.Submodular.Basic
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.EdgeSide
+import Mathlib.Data.Fintype.Lattice
 import Mathlib.Data.Fintype.Powerset
 
 /-!
@@ -110,12 +111,11 @@ end MinCut
 theorem exists_isMinCutBetween [LinearOrder β] [Finite V] (f : Finset V → β)
     {s t : V} (hst : s ≠ t) : ∃ X, IsMinCutBetween f s t X := by
   classical
-  have := Fintype.ofFinite V
-  obtain ⟨X, hX, hmin⟩ := Finset.exists_min_image
-    (Finset.univ.filter fun X : Finset V => s ∈ X ∧ t ∉ X) f
-    ⟨{s}, by simp [hst.symm]⟩
-  simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hX
-  exact ⟨X, hX.1, hX.2, fun Y hs ht => hmin Y (by simp [hs, ht])⟩
+  let _ := Fintype.ofFinite V
+  have : Nonempty {X : Finset V // s ∈ X ∧ t ∉ X} := ⟨⟨{s}, by simp [hst.symm]⟩⟩
+  obtain ⟨⟨X, hs, ht⟩, hmin⟩ :=
+    Finite.exists_min (fun X : {X : Finset V // s ∈ X ∧ t ∉ X} => f X)
+  exact ⟨X, hs, ht, fun Y hs' ht' => hmin ⟨Y, hs', ht'⟩⟩
 
 /-- **Uncrossing.** For a submodular `f`, if `U` is a minimum `s`–`t` cut, `a ∈ U`, and `X` is a
 minimum `a`–`b` cut missing `t`, then `X ∩ U` is a minimum `a`–`b` cut too. -/
