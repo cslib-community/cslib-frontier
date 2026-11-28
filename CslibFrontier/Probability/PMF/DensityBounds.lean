@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Composing multiplicative bounds on discrete distributions
@@ -61,14 +62,10 @@ theorem bind_apply_le_mul_bind_apply_add_on_support (p : PMF α) {f g : α → P
     {b : β} (h : ∀ a ∈ p.support, f a b ≤ c * g a b + ε) :
     p.bind f b ≤ c * p.bind g b + ε := by
   simp only [PMF.bind_apply]
-  calc ∑' a, p a * f a b ≤ ∑' a, (c * (p a * g a b) + p a * ε) := tsum_le_tsum fun a => by
-        by_cases ha : a ∈ p.support
-        · calc p a * f a b ≤ p a * (c * g a b + ε) := mul_le_mul' le_rfl (h a ha)
-            _ = c * (p a * g a b) + p a * ε := by rw [mul_add, mul_left_comm]
-        · rw [PMF.mem_support_iff, not_not] at ha
-          simp [ha]
+  calc ∑' a, p a * f a b ≤ ∑' a, p a * (c * g a b + ε) := tsum_mul_mono_support p h
     _ = c * ∑' a, p a * g a b + ε := by
-        rw [tsum_add, ENNReal.tsum_mul_left, ENNReal.tsum_mul_right, p.tsum_coe, one_mul]
+        simp only [mul_add, mul_left_comm _ c, tsum_add, ENNReal.tsum_mul_left,
+          ENNReal.tsum_mul_right, p.tsum_coe, one_mul]
 
 /-- A bound by `c` times another continuation plus a constant `ε`, at one outcome, survives the
 same initial draw: the constant is averaged against a probability distribution, so it is not

@@ -16,6 +16,7 @@ import CslibFrontier.Foundations.Analysis.ENNRealTsum
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.SupportTsum
+import CslibFrontier.Probability.PMF.EventBind
 import CslibFrontier.Tactic.SuppCases
 
 /-!
@@ -125,13 +126,12 @@ theorem evalRand_haltedSet_mono (w : ℕ) (p : Program B r) (s : State r) :
     Monotone fun T => (evalRand w p T s).toOuterMeasure (RandCfg.haltedSet r) := by
   refine monotone_nat_of_le_succ fun T => ?_
   conv_rhs => rw [evalRand, runRand_add w p T 1, ProbComp.eval_bind]
-  simp only [runRand_succ, runRand_zero, bind_pure, PMF.toOuterMeasure_bind_apply]
-  rw [evalRand, PMF.toOuterMeasure_apply]
-  refine tsum_le_tsum fun cfg => ?_
-  by_cases hcfg : cfg ∈ RandCfg.haltedSet r
-  · obtain ⟨v, d, rfl⟩ := hcfg
-    simp [Set.indicator_of_mem, stepRand_halted, PMF.toOuterMeasure_pure_apply, RandCfg.haltedSet]
-  · simp [Set.indicator_of_notMem hcfg]
+  simp only [runRand_succ, runRand_zero, bind_pure]
+  refine (le_of_eq (mul_one _).symm).trans ?_
+  refine Cslib.Probability.PMF.toOuterMeasure_bind_ge_mul_ennreal _ _ _ _ le_rfl ?_
+  intro cfg _ hhalt
+  obtain ⟨v, d, rfl⟩ := hhalt
+  simp [stepRand_halted, PMF.toOuterMeasure_pure_apply, RandCfg.haltedSet]
 
 /-- Any worst-case bounded execution halts almost surely. -/
 theorem RandHaltsWithin.almostSurelyHalts {w T : ℕ} {p : Program B r} {s : State r}

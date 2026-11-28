@@ -465,8 +465,7 @@ theorem succProbability_kilianSoundnessGame_le (L : Set α) (P : KilianProver α
           ∀ j b, kilianOpens V s r j b = true → b = π j} ≤
           (kilianRun V P n s).toOuterMeasure (Prod.fst ⁻¹'
             {ρs | ∀ ρ ∈ ρs, V.accepts s.2.stmt (kilianProof V s.2.stmt π) ρ = true}) := by
-        rw [← PMF.toOuterMeasure_apply_inter_support]
-        refine MeasureTheory.measure_mono fun r ⟨⟨hwin, hcons⟩, hr⟩ => ?_
+        refine PMF.toOuterMeasure_mono _ fun r ⟨⟨hwin, hcons⟩, hr⟩ => ?_
         simp only [kilianWins, Bool.and_eq_true] at hwin
         intro ρ hρ
         refine accepts_kilianProof hwin.2 (fun o ho => ?_) hρ

@@ -957,13 +957,11 @@ private theorem kilianCollectRuns_cover_failure_le
           {y | acc y = true} =
           (ProbComp.eval (kilianPlantedRun V P n cm ρ₀ i.val)).toOuterMeasure
             {y | (acc y && decide (ρ₀ ∈ y.challenges)) = true} := by
-        rw [← PMF.toOuterMeasure_apply_inter_support (s := {y | acc y = true}),
-          ← PMF.toOuterMeasure_apply_inter_support
-            (s := {y | (acc y && decide (ρ₀ ∈ y.challenges)) = true})]
-        refine congrArg (PMF.toOuterMeasure _) (Set.ext fun y => ⟨fun ⟨hy, hsup⟩ =>
+        refine PMF.toOuterMeasure_apply_eq_of_inter_support_eq _ (Set.ext fun y => ?_)
+        exact ⟨fun ⟨hy, hsup⟩ =>
           ⟨by simpa [Bool.and_eq_true] using
             And.intro hy (mem_of_mem_support_kilianPlantedRun i.isLt hsup).2, hsup⟩,
-          fun ⟨hy, hsup⟩ => ⟨(Bool.and_eq_true _ _ |>.mp hy).1, hsup⟩⟩)
+          fun ⟨hy, hsup⟩ => ⟨(Bool.and_eq_true _ _ |>.mp hy).1, hsup⟩⟩
       have hcompl : {y : KilianChallengeRun | !(acc y && decide (ρ₀ ∈ y.challenges)) = true} =
           {y | (acc y && decide (ρ₀ ∈ y.challenges)) = true}ᶜ := by
         ext y

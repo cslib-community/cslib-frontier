@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Probability.Product
 import CslibFrontier.Probability.PMF.Filter
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.Support
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Product.Reindex
 
@@ -130,13 +131,9 @@ theorem filter_uniformOfFintype_eval_eq [DecidableEq ι] {γ : Type*} [Fintype �
   have hc : ∃ a ∈ ({c} : Set γ), a ∈ (uniformOfFintype γ).support :=
     ⟨c, rfl, mem_support_uniformOfFintype c⟩
   have hpure : (uniformOfFintype γ).filter {c} hc = PMF.pure c := by
-    ext a
-    rw [PMF.filter_apply, PMF.pure_apply, ← PMF.toOuterMeasure_apply,
-      PMF.toOuterMeasure_apply_singleton]
-    by_cases ha : a = c
-    · rw [ha, Set.indicator_of_mem rfl, ite_eq_left rfl, ENNReal.mul_inv_cancel
-        ((PMF.mem_support_iff _ _).mp (mem_support_uniformOfFintype c)) (PMF.apply_ne_top _ _)]
-    · rw [Set.indicator_of_notMem ha, ite_eq_right ha, zero_mul]
+    have hm := map_eq_pure_iff (p := (uniformOfFintype γ).filter {c} hc) (f := id) (b := c)
+    rw [PMF.map_id] at hm
+    exact hm.mpr fun a ha => (PMF.mem_support_filter_iff hc |>.mp ha).1
   obtain ⟨d, hd, hdU⟩ := h
   have hw : ∃ z ∈ Prod.fst ⁻¹' ({c} : Set γ), z ∈ (U.map fun d => (d j, d)).support :=
     ⟨(d j, d), hd, (PMF.mem_support_map_iff _ _ _).mpr ⟨d, hdU, rfl⟩⟩
