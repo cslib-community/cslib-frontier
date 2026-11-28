@@ -535,9 +535,7 @@ private theorem one_le_expected_count_exact {n a B d : ℕ} (hn : n = a * B)
   have hprod_ge :
       (1 / 2 : ℝ) ^ d * ((a : ℝ) ^ d / (d.factorial : ℝ)) * (1 / 3 : ℝ) ^ a ≤
         ((n.descFactorial d : ℝ) / (n : ℝ) ^ d) * ((a : ℝ) ^ d / (d.factorial : ℝ)) *
-          (((B - 1 : ℕ) : ℝ) / (B : ℝ)) ^ (n - d) := by
-    refine mul_le_mul (mul_le_mul_of_nonneg_right hdesc_ge (by positivity)) hpow_ge
-      (by positivity) (by positivity)
+          (((B - 1 : ℕ) : ℝ) / (B : ℝ)) ^ (n - d) := by gcongr
   have hsimp :
       (B : ℝ) * ((1 / 2 : ℝ) ^ d * ((a : ℝ) ^ d / (d.factorial : ℝ)) * (1 / 3 : ℝ) ^ a) =
         ((B : ℝ) * (a : ℝ) ^ d) / ((3 : ℝ) ^ a * (2 : ℝ) ^ d * (d.factorial : ℝ)) := by

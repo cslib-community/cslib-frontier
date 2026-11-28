@@ -427,8 +427,7 @@ theorem rademacherAverage_le_dudley_integral {ι : Type*} {m : ℕ} (hm : 0 < m)
       calc Real.log ((T (n + 1)).card * (T n).card)
           ≤ Real.log ((N : ℝ) ^ 2) := Real.log_le_log hpos_prod <| by
             rw [sq]
-            exact mul_le_mul (Nat.cast_le.2 (hT_card (n + 1))) (Nat.cast_le.2 (hTn_card n))
-              (Nat.cast_nonneg _) (Nat.cast_nonneg _)
+            exact_mod_cast (show _ ≤ N * N from Nat.mul_le_mul (hT_card (n + 1)) (hTn_card n))
         _ = 2 * Real.log N := by rw [Real.log_pow]; norm_num
     have hsqrt : Real.sqrt (2 * Real.log ((T (n + 1)).card * (T n).card)) ≤
         2 * Real.sqrt (Real.log N) := by
