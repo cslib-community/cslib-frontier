@@ -84,11 +84,9 @@ theorem exists_boundedError_ParitySAT_of_mem_PH {L : Set α} (hL : L ∈ PH enc)
         DecidesWithBoundedError enc ρ (fun x => decide (A x ∈ ParitySAT)) L := by
   obtain ⟨ρ, L', hL', hdec⟩ := PH_subset_BPOp_ParityP hL
   obtain ⟨A, hA, hiff⟩ := ParitySAT_parityPComplete.2 (encPair enc encBits) L' hL'
-  refine ⟨ρ, A, hA, ?_⟩
   have hV : (fun x => decide (A x ∈ ParitySAT)) = fun x => decide (x ∈ L') :=
     funext fun x => decide_eq_decide.2 (hiff x).symm
-  rw [hV]
-  exact hdec
+  exact ⟨ρ, A, hA, hV ▸ hdec⟩
 
 open Classical in
 /-- **Two-sided form of Arora–Barak, draft Lemma 9.18; not the cited lemma.** The draft asks for
@@ -108,15 +106,12 @@ theorem exists_boundedError_ParitySAT_alternation (c : ℕ) (q : Bool) :
             (decide ((a.formula q).eval (fun _ => false) = true)) := by
   -- the true formulas of the given shape form a problem in the hierarchy
   have hL : {a : PrenexQBF | a.WellFormed c ∧ (a.formula q).eval (fun _ => false) = true} ∈
-      PH encPrenexQBF := by
-    cases q
-    · exact PiP_subset_PH c (PrenexQBF.mem_PiP c)
-    · exact SigmaP_subset_PH c (PrenexQBF.mem_SigmaP c)
+      PH encPrenexQBF :=
+    q.rec (PiP_subset_PH c (PrenexQBF.mem_PiP c)) (SigmaP_subset_PH c (PrenexQBF.mem_SigmaP c))
   obtain ⟨ρ, A, hA, hdec⟩ := exists_boundedError_ParitySAT_of_mem_PH hL
   refine ⟨ρ, A, hA, fun a ha => ?_⟩
-  obtain ⟨hyes, hno⟩ := hdec a
   by_cases ht : (a.formula q).eval (fun _ => false) = true
-  · simpa [ht] using hyes ⟨ha, ht⟩
-  · simpa [ht] using hno fun h => ht h.2
+  · simpa [ht] using (hdec a).1 ⟨ha, ht⟩
+  · simpa [ht] using (hdec a).2 fun h => ht h.2
 
 end Cslib.Complexity.Toda

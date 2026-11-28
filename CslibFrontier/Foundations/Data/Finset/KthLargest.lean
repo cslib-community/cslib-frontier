@@ -74,16 +74,14 @@ theorem kthLargest_congr {f g : α → R} (hfg : ∀ x ∈ s, f x = g x) :
     kthLargest k s f = kthLargest k s g := by
   unfold kthLargest
   have hflt : (s.filter fun x => k ≤ #{w ∈ s | f x ≤ f w}) =
-      s.filter fun x => k ≤ #{w ∈ s | g x ≤ g w} := by
-    refine filter_congr fun x hx => ?_
-    have hinner : ({w ∈ s | f x ≤ f w} : Finset α) = {w ∈ s | g x ≤ g w} := by
-      refine filter_congr fun w hw => ?_
-      rw [hfg x hx, hfg w hw]
-    rw [hinner]
-  have himg : ((s.filter fun x => k ≤ #{w ∈ s | f x ≤ f w}).image f) =
-      (s.filter fun x => k ≤ #{w ∈ s | g x ≤ g w}).image g := by
-    rw [hflt]
-    exact image_congr fun x hx => hfg x (mem_filter.mp hx).1
+      s.filter fun x => k ≤ #{w ∈ s | g x ≤ g w} :=
+    filter_congr fun x hx => by
+      have hw : ({w ∈ s | f x ≤ f w} : Finset α) = {w ∈ s | g x ≤ g w} :=
+        filter_congr fun w hw => by rw [hfg x hx, hfg w hw]
+      rw [hw]
+  have himg : (s.filter fun x => k ≤ #{w ∈ s | f x ≤ f w}).image f =
+      (s.filter fun x => k ≤ #{w ∈ s | g x ≤ g w}).image g :=
+    hflt ▸ image_congr fun x hx => hfg x (mem_filter.mp hx).1
   simp_rw [himg]
 
 /-- A value of `s` reached or exceeded by at least `k` values is at most the `k`-th largest. -/
@@ -103,39 +101,32 @@ private theorem exists_le_card (hk : 0 < k) (p : R → Prop) [DecidablePred p]
   refine ⟨x, hxs, hpx, hp.trans (card_le_card fun w hw => ?_)⟩
   exact mem_filter.mpr ⟨(mem_filter.mp hw).1, hmin w hw⟩
 
+/-- Threshold characterization of `kthLargest` for any upward-closed predicate false at `0`. -/
+private theorem kthLargest_threshold_iff {p : R → Prop} [DecidablePred p]
+    (hk : 0 < k) (h0 : ¬p 0) (hmono : ∀ {a b}, p a → a ≤ b → p b) :
+    p (kthLargest k s h) ↔ k ≤ #{x ∈ s | p (h x)} := by
+  constructor
+  · intro hp
+    obtain ⟨a, ha, hpa⟩ : ∃ a ∈ _, p a := ⟨_, max'_mem _ _, hp⟩
+    rcases mem_insert.mp ha with rfl | ha
+    · exact absurd hpa h0
+    obtain ⟨x, hx, rfl⟩ := mem_image.mp ha
+    exact (mem_filter.mp hx).2.trans (card_le_card fun w hw => by
+      obtain ⟨hws, hxw⟩ := mem_filter.mp hw
+      exact mem_filter.mpr ⟨hws, hmono hpa hxw⟩)
+  · intro hcard
+    obtain ⟨x, hxs, hpx, hkx⟩ := exists_le_card hk p hcard
+    exact hmono hpx (le_kthLargest_of_le_card hxs hkx)
+
 /-- **The `k`-th largest value exceeds `t ≥ 0`** exactly when at least `k > 0` values do. -/
 theorem lt_kthLargest_iff (hk : 0 < k) (ht : 0 ≤ t) :
-    t < kthLargest k s h ↔ k ≤ #{x ∈ s | t < h x} := by
-  constructor
-  · intro hlt
-    obtain ⟨a, ha, hta⟩ : ∃ a ∈ _, t < a := ⟨_, max'_mem _ _, hlt⟩
-    rcases mem_insert.mp ha with rfl | ha
-    · exact absurd ht (not_le.mpr hta)
-    obtain ⟨x, hx, rfl⟩ := mem_image.mp ha
-    obtain ⟨-, hkx⟩ := mem_filter.mp hx
-    exact hkx.trans (card_le_card fun w hw => by
-      obtain ⟨hws, hxw⟩ := mem_filter.mp hw
-      exact mem_filter.mpr ⟨hws, hta.trans_le hxw⟩)
-  · intro hcard
-    obtain ⟨x, hxs, htx, hkx⟩ := exists_le_card hk (t < ·) hcard
-    exact htx.trans_le (le_kthLargest_of_le_card hxs hkx)
+    t < kthLargest k s h ↔ k ≤ #{x ∈ s | t < h x} :=
+  kthLargest_threshold_iff hk (not_lt.mpr ht) fun h hle => h.trans_le hle
 
 /-- **The `k`-th largest value is at least `t > 0`** exactly when at least `k > 0` values are. -/
 theorem le_kthLargest_iff (hk : 0 < k) (ht : 0 < t) :
-    t ≤ kthLargest k s h ↔ k ≤ #{x ∈ s | t ≤ h x} := by
-  constructor
-  · intro hle
-    obtain ⟨a, ha, hta⟩ : ∃ a ∈ _, t ≤ a := ⟨_, max'_mem _ _, hle⟩
-    rcases mem_insert.mp ha with rfl | ha
-    · exact absurd ht (not_lt.mpr hta)
-    obtain ⟨x, hx, rfl⟩ := mem_image.mp ha
-    obtain ⟨-, hkx⟩ := mem_filter.mp hx
-    exact hkx.trans (card_le_card fun w hw => by
-      obtain ⟨hws, hxw⟩ := mem_filter.mp hw
-      exact mem_filter.mpr ⟨hws, hta.trans hxw⟩)
-  · intro hcard
-    obtain ⟨x, hxs, htx, hkx⟩ := exists_le_card hk (t ≤ ·) hcard
-    exact htx.trans (le_kthLargest_of_le_card hxs hkx)
+    t ≤ kthLargest k s h ↔ k ≤ #{x ∈ s | t ≤ h x} :=
+  kthLargest_threshold_iff hk (not_le.mpr ht) fun h hle => h.trans hle
 
 /-- **Comparing ranks through a threshold.** If every value of `f` above `t ≥ 0` has the value of
 `g` above `t` too, a bound `t` on the `k`-th largest value of `g` bounds the `m`-th largest value
@@ -160,24 +151,16 @@ theorem kthLargest_eq_of_eq_or_gt {f g : α → R}
     exact (hx'.2.trans_le (le_kthLargest_of_le_card hx (Nat.zero_le _))).not_ge hg
   have ht : 0 ≤ t := kthLargest_nonneg.trans hg
   have hfilter (a : R) (ha : a ≤ t) :
-      ({x ∈ s | a < f x} : Finset α) = {x ∈ s | a < g x} := by
-    ext x
-    by_cases hx : x ∈ s
-    · rcases h x hx with heq | ⟨hf, hg⟩
-      · simp [heq]
-      · simp [hx, ha.trans_lt hf, ha.trans_lt hg]
-    · simp [hx]
+      ({x ∈ s | a < f x} : Finset α) = {x ∈ s | a < g x} :=
+    filter_congr fun x hx => (h x hx).elim (fun heq => by rw [heq])
+      fun ⟨hf, hg⟩ => iff_of_true (ha.trans_lt hf) (ha.trans_lt hg)
   have hf : kthLargest k s f ≤ t := kthLargest_le_of_lt_imp hk le_rfl ht
     (fun x hx hfx => (h x hx).elim (fun he => he ▸ hfx) And.right) hg
-  apply le_antisymm
-  · refine not_lt.mp fun hlt => ?_
-    have hc := (lt_kthLargest_iff hk kthLargest_nonneg).mp hlt
-    rw [hfilter _ hg] at hc
-    exact lt_irrefl _ ((lt_kthLargest_iff hk kthLargest_nonneg).mpr hc)
-  · refine not_lt.mp fun hlt => ?_
-    have hc := (lt_kthLargest_iff hk kthLargest_nonneg).mp hlt
-    rw [← hfilter _ hf] at hc
-    exact lt_irrefl _ ((lt_kthLargest_iff hk kthLargest_nonneg).mpr hc)
+  have hle {u v : α → R} (huv : ({x ∈ s | kthLargest k s v < u x} : Finset α) =
+      {x ∈ s | kthLargest k s v < v x}) : kthLargest k s u ≤ kthLargest k s v :=
+    not_lt.mp fun hlt => lt_irrefl _ <| (lt_kthLargest_iff hk kthLargest_nonneg).mpr <|
+      huv ▸ (lt_kthLargest_iff hk kthLargest_nonneg).mp hlt
+  exact le_antisymm (hle (hfilter _ hg)) (hle (hfilter _ hf).symm)
 
 section Stability
 

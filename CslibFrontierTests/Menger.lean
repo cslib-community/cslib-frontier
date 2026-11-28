@@ -392,6 +392,22 @@ theorem cube_isVertexConnected : cube.IsVertexConnected 3 := by
   · simp only [cubePaths, Walk.support_copy, Walk.support_ofSupport] at hxi hxj
     exact cubeBranch_internallyDisjoint u v huv i j hij x hxi hxj
 
+private abbrev cubeSurvivors : Set (Fin 8) := (↑({0} : Finset (Fin 8)) : Set (Fin 8))ᶜ
+
+-- Two vertex-disjoint paths still join the indicated sides after deleting vertex zero.
+example :
+    let a : cubeSurvivors := ⟨1, by decide⟩
+    let b : cubeSurvivors := ⟨2, by decide⟩
+    let c : cubeSurvivors := ⟨5, by decide⟩
+    let d : cubeSurvivors := ⟨6, by decide⟩
+    let H := cube.induce cubeSurvivors
+    ∃ c' d', (c' = c ∧ d' = d ∨ c' = d ∧ d' = c) ∧
+      ∃ (p : H.Walk a c') (q : H.Walk b d'), p.IsPath ∧ q.IsPath ∧
+        p.support.Disjoint q.support := by
+  dsimp only
+  exact exists_two_disjoint_walk_induce_compl_of_isVertexConnected (Z := {0})
+    (by simpa only [Finset.card_singleton] using cube_isVertexConnected) (by decide) (by decide)
+
 example : ¬ cube.IsVertexConnected 4 := by
   rw [isVertexConnected_iff_forall_isVertexSeparator]
   rintro ⟨-, hsep⟩

@@ -38,21 +38,14 @@ theorem admissionWidth_pos (L m t N A B : ℕ) : 0 < admissionWidth L m t N A B 
 theorem admission_bounds {W L m t N A B : ℕ} (hW : admissionWidth L m t N A B ≤ W) :
     0 < W - 2 ∧ Fits W (originalAddressBound L m t N) ∧
       GenericRAM.Signed.Fits (W - 2) (BoxQuery.magnitudeBound L A B : ℕ) := by
-  have hs : Nat.clog 2 (BoxQuery.magnitudeBound L A B + originalAddressBound L m t N + 1) ≤
-      (W - 2) - 1 := by unfold admissionWidth at hW; omega
-  have hmag : BoxQuery.magnitudeBound L A B < 2 ^ ((W - 2) - 1) :=
-    fits_of_lt_clog_le
-      (by omega : BoxQuery.magnitudeBound L A B <
-        BoxQuery.magnitudeBound L A B + originalAddressBound L m t N + 1) hs
-  have hw : 0 < W - 2 := by unfold admissionWidth at hW; omega
-  refine ⟨hw, ?_, hw, ?_, ?_⟩
-  · exact fits_of_lt_clog_le
-      (by omega : originalAddressBound L m t N <
-        BoxQuery.magnitudeBound L A B + originalAddressBound L m t N + 1) (by omega)
-  · have hn : 0 ≤ (BoxQuery.magnitudeBound L A B : ℤ) := Int.natCast_nonneg _
-    have hp : 0 ≤ (2 : ℤ) ^ ((W - 2) - 1) := by positivity
-    omega
-  · exact_mod_cast hmag
+  unfold admissionWidth at hW
+  have hw : 0 < W - 2 := by omega
+  set B0 := BoxQuery.magnitudeBound L A B + originalAddressBound L m t N + 1 with hB0
+  refine ⟨hw, fits_of_lt_clog_le (by omega : _ < B0)
+      (by omega), hw,
+    (neg_nonpos.mpr (by positivity)).trans (Int.natCast_nonneg _), ?_⟩
+  exact_mod_cast fits_of_lt_clog_le (by omega : _ < B0)
+    (by omega)
 
 /-- A fixed original-input word/support envelope, independent of larger physical widths. -/
 @[expose] def wordBound (L m t N A B : ℕ) : ℕ :=

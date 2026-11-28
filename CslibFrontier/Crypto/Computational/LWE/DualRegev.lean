@@ -191,16 +191,8 @@ theorem dist_keyGen_uniform_le (n m w : ℕ) :
           return (A, u)) ≤
       Real.sqrt ((2 : ℝ) ^ (w * n) / (2 : ℝ) ^ m) / 2 := by
   classical
-  let rowBool : (Fin m → Bool) ≃ Matrix (Fin 1) (Fin m) Bool :=
-    { toFun := fun b => Matrix.of fun _ => b
-      invFun := fun M => M 0
-      left_inv := fun _ => rfl
-      right_inv := fun M => by ext i j; fin_cases i; rfl }
-  let rowResidue : (Fin n → ZMod (2 ^ w)) ≃ Matrix (Fin 1) (Fin n) (ZMod (2 ^ w)) :=
-    { toFun := fun u => Matrix.of fun _ => u
-      invFun := fun M => M 0
-      left_inv := fun _ => rfl
-      right_inv := fun M => by ext i j; fin_cases i; rfl }
+  let rowEquiv (k : ℕ) (α : Type) : (Fin k → α) ≃ Matrix (Fin 1) (Fin k) α :=
+    (Equiv.funUnique (Fin 1) (Fin k → α)).symm.trans Matrix.of
   let cont : Matrix (Fin m) (Fin n) (ZMod (2 ^ w)) →
       Matrix (Fin 1) (Fin n) (ZMod (2 ^ w)) → PMF (PublicKey n m w) :=
     fun A r => PMF.pure (A, r 0)
@@ -208,7 +200,7 @@ theorem dist_keyGen_uniform_le (n m w : ℕ) :
       (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod (2 ^ w)))).bind fun A =>
         (PMF.uniformOfFintype (Matrix (Fin 1) (Fin m) Bool)).bind fun r =>
           cont A (r.map (fun bit => (bit.toNat : ZMod (2 ^ w))) * A) := by
-    rw [← PMF.uniformOfFintype_map_equiv rowBool]
+    rw [← PMF.uniformOfFintype_map_equiv (rowEquiv m Bool)]
     simp only [keyGen, ProbComp.eval_bind, ProbComp.eval_pure, LWE.eval_sampleMatrix,
       ProbComp.eval_replicateFin, ProbComp.eval_uniform, PMF.pi_uniformOfFintype, PMF.map_bind,
       PMF.pure_map, PMF.bind_map]
@@ -226,7 +218,7 @@ theorem dist_keyGen_uniform_le (n m w : ℕ) :
         return ((A, u) : PublicKey n m w)) =
       (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod (2 ^ w)))).bind fun A =>
         (PMF.uniformOfFintype (Matrix (Fin 1) (Fin n) (ZMod (2 ^ w)))).bind (cont A) := by
-    rw [← PMF.uniformOfFintype_map_equiv rowResidue]
+    rw [← PMF.uniformOfFintype_map_equiv (rowEquiv n (ZMod (2 ^ w)))]
     simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_map]
     congr 1 with A : 1
   rw [hL, hR]
@@ -275,10 +267,8 @@ theorem decrypt_encryptWithCoins_extract {bound η : ℕ} (T : GPVTrapdoor n m w
     (hmargin : 4 * (m * (bound * η) + η) < 2 ^ w) :
     decrypt e (encryptWithCoins (keys.1, u) μ s x x₀) = μ := by
   obtain ⟨hu, hshort⟩ := hT keys hkeys u e he
-  have hpk : ((keys.1, u) : PublicKey n m w) = publicKeyOf keys.1 e := by
-    rw [publicKeyOf, hu]
-  rw [hpk]
-  exact decrypt_encryptWithCoins _ _ μ s x x₀ hw hshort hx hx₀ hmargin
+  simpa only [publicKeyOf, hu] using decrypt_encryptWithCoins keys.1 e μ s x x₀ hw hshort hx hx₀
+    hmargin
 
 end GPVTrapdoor
 

@@ -51,8 +51,8 @@ private theorem halfWord_le_sqrt {n a : ℕ} (ha : 0 < a) :
 private theorem exists_endpointBudget_le {n a : ℕ} (ha : 0 < a) (haN : a ≤ 2 ^ n) :
     ∃ L : ℕ, 0 < L ∧ L ≤ 2 ^ n ∧
       (L * a + 2 ^ n / L + 2 ^ ((n + 1) / 2) : ℕ) ≤
-        (8 : ℝ) * Real.sqrt ((2 : ℝ) ^ n * a) := by
-  obtain ⟨L, hL, hLN, h⟩ := exists_le_three_mul_add_sqrt a 1 (2 ^ n) (2 ^ n)
+        (5 : ℝ) * Real.sqrt ((2 : ℝ) ^ n * a) := by
+  obtain ⟨L, hL, hLN, h⟩ := exists_le_add_add_two_mul_sqrt a 1 (2 ^ n) (2 ^ n)
     (by decide) ha le_rfl (by positivity)
   have haN' : (a : ℝ) ≤ (2 : ℝ) ^ n := by exact_mod_cast haN
   have haZ : (a : ℝ) ≤ Real.sqrt ((2 : ℝ) ^ n * a) :=
@@ -80,7 +80,7 @@ theorem exists_circuit_of_endpoint_tradeoff {n a C : ℕ} (f : BitString n → B
       ∃ d : Circuit signature n n, d.Computes interpretation f ∧
         d.size ≤ C * (L * a + 2 ^ n / L + 2 ^ ((n + 1) / 2))) :
     ∃ d : Circuit signature n n, d.Computes interpretation f ∧
-      (d.size : ℝ) ≤ max 19 (8 * (C : ℝ)) *
+      (d.size : ℝ) ≤ max 19 (5 * (C : ℝ)) *
         min ((2 : ℝ) ^ n) (Real.sqrt ((2 : ℝ) ^ n * a)) := by
   by_cases haN : a ≤ 2 ^ n
   · obtain ⟨L, hL, hLN, hopt⟩ := exists_endpointBudget_le ha haN
@@ -92,8 +92,8 @@ theorem exists_circuit_of_endpoint_tradeoff {n a C : ℕ} (f : BitString n → B
     rw [min_eq_right hz]
     calc
       _ ≤ (C : ℝ) * (L * a + 2 ^ n / L + 2 ^ ((n + 1) / 2) : ℕ) := by exact_mod_cast hs
-      _ ≤ C * (8 * Real.sqrt ((2 : ℝ) ^ n * a)) := by gcongr
-      _ = (8 * C) * Real.sqrt ((2 : ℝ) ^ n * a) := by ring
+      _ ≤ C * (5 * Real.sqrt ((2 : ℝ) ^ n * a)) := by gcongr
+      _ = (5 * C) * Real.sqrt ((2 : ℝ) ^ n * a) := by ring
       _ ≤ _ := mul_le_mul_of_nonneg_right (le_max_right _ _) (Real.sqrt_nonneg _)
   · obtain ⟨d, hd, hs⟩ := exists_denseLookup f
     refine ⟨d, hd, ?_⟩
@@ -157,7 +157,7 @@ theorem exists_inputTime_of_endpoint_tradeoff {n : ℕ} (c : Circuit signature n
     have hsum : (L * a + 2 ^ n / L + 2 ^ ((n + 1) / 2) + (n + 1) * (m + 1) : ℕ) ≤
         (32 : ℝ) * (z + n * m) := by
       rw [Nat.cast_add]
-      change (L * a + 2 ^ n / L + 2 ^ ((n + 1) / 2) : ℕ) ≤ (8 : ℝ) * z at hbudget
+      change (L * a + 2 ^ n / L + 2 ^ ((n + 1) / 2) : ℕ) ≤ (5 : ℝ) * z at hbudget
       have hz : 0 ≤ z := Real.sqrt_nonneg _
       nlinarith [show 0 ≤ (n : ℝ) * m by positivity]
     calc

@@ -71,11 +71,8 @@ namespace Table
 @[simp] theorem sem_eq_true {table : Table} {row : List Bool} :
     table.sem row = true ↔ table.wellFormed = true ∧ row ∈ table.rows := by
   simp only [sem, Bool.and_eq_true, decide_eq_true_eq, List.contains_iff_mem]
-  constructor
-  · rintro ⟨⟨hw, _⟩, hr⟩
-    exact ⟨hw, hr⟩
-  · rintro ⟨hw, hr⟩
-    exact ⟨⟨hw, wellFormed_eq_true.mp hw row hr⟩, hr⟩
+  exact ⟨fun ⟨⟨hw, _⟩, hr⟩ => ⟨hw, hr⟩,
+    fun ⟨hw, hr⟩ => ⟨⟨hw, wellFormed_eq_true.mp hw row hr⟩, hr⟩⟩
 
 /-- Guard for distinct, in-range coordinate positions. Counting does not deduplicate the input. -/
 @[expose] def validPositions (width : ℕ) (positions : List ℕ) : Bool :=
@@ -86,12 +83,8 @@ theorem validPositions_eq_true {width : ℕ} {positions : List ℕ} :
     validPositions width positions = true ↔
       positions.Nodup ∧ ∀ i ∈ positions, i < width := by
   simp only [validPositions, List.all_eq_true, Bool.and_eq_true, decide_eq_true_eq]
-  constructor
-  · intro h
-    exact ⟨List.nodup_iff_count_eq_one.mpr (fun i hi => (h i hi).2),
-      fun i hi => (h i hi).1⟩
-  · rintro ⟨hd, hr⟩ i hi
-    exact ⟨hr i hi, List.count_eq_one_of_mem hd hi⟩
+  exact ⟨fun h => ⟨List.nodup_iff_count_eq_one.mpr fun i hi => (h i hi).2, fun i hi => (h i hi).1⟩,
+    fun ⟨hd, hr⟩ i hi => ⟨hr i hi, List.count_eq_one_of_mem hd hi⟩⟩
 
 /-- Outside coordinates in increasing original order. -/
 @[expose] def outsidePositions (width : ℕ) (positions : List ℕ) : List ℕ :=
@@ -111,18 +104,14 @@ theorem length_outsidePositions_add {width : ℕ} {positions : List ℕ}
     (h : validPositions width positions = true) :
     (outsidePositions width positions).length + positions.length = width := by
   obtain ⟨hd, hr⟩ := validPositions_eq_true.mp h
-  have hs : positions.toFinset ⊆ Finset.range width := by
-    intro i hi
-    exact Finset.mem_range.mpr (hr i (List.mem_toFinset.mp hi))
   have heq : (outsidePositions width positions).toFinset =
       Finset.range width \ positions.toFinset := by
     ext i
     simp [outsidePositions]
-  have hc := Finset.card_sdiff_add_card_eq_card hs
   have ho : (outsidePositions width positions).Nodup := List.nodup_range.filter _
-  rw [← heq, List.toFinset_card_of_nodup ho, List.toFinset_card_of_nodup hd,
-    Finset.card_range] at hc
-  exact hc
+  simpa only [← heq, List.toFinset_card_of_nodup ho, List.toFinset_card_of_nodup hd,
+    Finset.card_range] using Finset.card_sdiff_add_card_eq_card fun i hi =>
+      Finset.mem_range.mpr (hr i (List.mem_toFinset.mp hi))
 
 /-- Read coordinates, with a total fallback for malformed indices. -/
 @[expose] def project (row : List Bool) (positions : List ℕ) : List Bool :=
@@ -144,11 +133,9 @@ theorem canContract_eq_true {table : Table} {reference : List Bool} {positions :
       table.wellFormed = true ∧ reference ∈ table.rows ∧ positions.Nodup ∧
         ∀ i ∈ positions, i < table.arity := by
   simp only [canContract, Bool.and_eq_true, sem_eq_true, validPositions_eq_true]
-  constructor
-  · rintro ⟨⟨hw, hf⟩, hd, hp⟩
-    exact ⟨hw, hf, hd, by rwa [wellFormed_eq_true.mp hw reference hf] at hp⟩
-  · rintro ⟨hw, hf, hd, hp⟩
-    exact ⟨⟨hw, hf⟩, hd, by rwa [wellFormed_eq_true.mp hw reference hf]⟩
+  refine ⟨fun ⟨⟨hw, hf⟩, hd, hp⟩ =>
+      ⟨hw, hf, hd, by rwa [wellFormed_eq_true.mp hw reference hf] at hp⟩,
+    fun ⟨hw, hf, hd, hp⟩ => ⟨⟨hw, hf⟩, hd, by rwa [wellFormed_eq_true.mp hw reference hf]⟩⟩
 
 /-- Local contraction. Malformed data gives the empty nullary table. The implementation only
 ranges over the explicit reference row, never over an unchecked binary arity. -/
@@ -170,10 +157,7 @@ theorem contract_of_not_canContract {table : Table} {reference : List Bool} {pos
 theorem length_rows_contract_le (table : Table) (reference : List Bool) (positions : List ℕ) :
     (contract table reference positions).rows.length ≤ table.rows.length := by
   unfold contract
-  split
-  · simpa only [List.length_map] using List.length_filter_le
-      (fun row => decide (deviations reference row positions ≤ 1)) table.rows
-  · simp
+  split <;> simp [List.length_filter_le]
 
 /-- A guarded contraction has exactly the outside width plus one connector coordinate. -/
 theorem arity_contract {table : Table} {reference : List Bool} {positions : List ℕ}
@@ -187,19 +171,16 @@ local width. Feasibility alone is insufficient for this conclusion. -/
 theorem arity_contract_lt {table : Table} {reference : List Bool} {positions : List ℕ}
     (h : canContract table reference positions = true) (htwo : 2 ≤ positions.length) :
     (contract table reference positions).arity < table.arity := by
-  have hg : table.sem reference = true ∧ validPositions reference.length positions = true := by
-    simpa only [canContract, Bool.and_eq_true] using h
-  have hf := sem_eq_true.mp hg.1
-  have hw := wellFormed_eq_true.mp hf.1 reference hf.2
-  have hp := length_outsidePositions_add hg.2
+  obtain ⟨hw, hf, -⟩ := canContract_eq_true.mp h
+  have := length_outsidePositions_add ((Bool.and_eq_true _ _).mp h).2
+  have := wellFormed_eq_true.mp hw reference hf
   rw [arity_contract h]
   omega
 
 /-- Every output row has the new declared width, including on malformed inputs. -/
 @[simp] theorem wellFormed_contract (table : Table) (reference : List Bool) (positions : List ℕ) :
     (contract table reference positions).wellFormed = true := by
-  unfold contract
-  grind [wellFormed, project]
+  grind [contract, wellFormed, project]
 
 /-- Exact contraction membership, with the output connector computed from zero or one internal
 changes. The original row is retained as a witness for later lifting. -/
@@ -225,11 +206,10 @@ theorem sem_contract_cases {table : Table} {reference row : List Bool} {position
   rw [sem_contract_eq_true h]
   constructor
   · rintro ⟨old, ho, hd, hr⟩
-    have hc : deviations reference old positions = 0 ∨ deviations reference old positions = 1 := by
-      omega
-    rcases hc with hc | hc
-    · exact ⟨old, ho, Or.inl ⟨hc, by simpa [hc] using hr⟩⟩
-    · exact ⟨old, ho, Or.inr ⟨hc, by simpa only [hc, decide_true] using hr⟩⟩
+    rcases (by omega : deviations reference old positions = 0 ∨
+        deviations reference old positions = 1) with hc | hc
+    · exact ⟨old, ho, .inl ⟨hc, by simpa [hc] using hr⟩⟩
+    · exact ⟨old, ho, .inr ⟨hc, by simpa only [hc, decide_true] using hr⟩⟩
   · rintro ⟨old, ho, ⟨hd, hr⟩ | ⟨hd, hr⟩⟩
     · exact ⟨old, ho, by omega, by simpa [hd] using hr⟩
     · exact ⟨old, ho, by omega, by simpa only [hd, decide_true] using hr⟩
@@ -244,10 +224,8 @@ theorem sem_contract_reference {table : Table} {reference : List Bool} {position
     (h : canContract table reference positions = true) :
     (contract table reference positions).sem
       (project reference (outsidePositions reference.length positions) ++ [false]) = true := by
-  apply (sem_contract_eq_true h).mpr
-  have hg : table.sem reference = true ∧ validPositions reference.length positions = true := by
-    simpa only [canContract, Bool.and_eq_true] using h
-  exact ⟨reference, (sem_eq_true.mp hg.1).2, by simp, by simp⟩
+  exact (sem_contract_eq_true h).mpr
+    ⟨reference, (sem_eq_true.mp ((Bool.and_eq_true _ _).mp h).1).2, by simp, by simp⟩
 
 /-- Explicit exactly-one table. The scope's length supplies the output-size resource;
 its entries need not be distinct, since this constructs only a relation, not a CSP scope guard. -/
@@ -268,15 +246,13 @@ its entries need not be distinct, since this constructs only a relation, not a C
 /-- Exactly-one semantics, independently of row ordering and the names in the supplied scope. -/
 theorem sem_exactlyOne_eq_true {V : Type*} (scope : List V) (row : List Bool) :
     (exactlyOne scope).sem row = true ↔ row.length = scope.length ∧ row.count true = 1 := by
-  rw [sem_eq_true]
-  simp only [wellFormed_exactlyOne, true_and]
-  constructor
-  · intro h
-    obtain ⟨index, hi, rfl⟩ := List.mem_map.mp h
-    exact ⟨by simp [BitString.listSingle], BitString.count_true_listSingle (List.mem_range.mp hi)⟩
-  · rintro ⟨hw, hc⟩
-    obtain ⟨index, hi, hr⟩ := BitString.exists_listSingle_of_count_true hc
-    exact List.mem_map.mpr ⟨index, List.mem_range.mpr (hw ▸ hi), hw ▸ hr⟩
+  rw [sem_eq_true, wellFormed_exactlyOne]
+  simp only [true_and, exactlyOne, List.mem_map, List.mem_range]
+  refine ⟨?_, fun ⟨hw, hc⟩ => ?_⟩
+  · rintro ⟨index, hi, rfl⟩
+    exact ⟨by simp [BitString.listSingle], BitString.count_true_listSingle hi⟩
+  · obtain ⟨index, hi, hr⟩ := BitString.exists_listSingle_of_count_true hc
+    exact ⟨index, hw ▸ hi, hw ▸ hr⟩
 
 /-- The connector relation is nonempty precisely when there is a connector. -/
 theorem rows_exactlyOne_ne_nil {V : Type*} (scope : List V) :
@@ -286,13 +262,10 @@ theorem rows_exactlyOne_ne_nil {V : Type*} (scope : List V) :
 /-- Exactly-one admits a satisfying row precisely when the scope supplies a connector. -/
 theorem exists_sem_exactlyOne {V : Type*} (scope : List V) :
     (∃ row, (exactlyOne scope).sem row = true) ↔ 0 < scope.length := by
-  constructor
-  · rintro ⟨row, hr⟩
-    apply (rows_exactlyOne_ne_nil scope).mp
-    exact List.ne_nil_of_mem (sem_eq_true.mp hr).2
-  · intro h
-    refine ⟨BitString.listSingle scope.length 0, sem_eq_true.mpr ⟨wellFormed_exactlyOne scope, ?_⟩⟩
-    exact List.mem_map.mpr ⟨0, List.mem_range.mpr h, rfl⟩
+  refine ⟨fun ⟨_, hr⟩ => (rows_exactlyOne_ne_nil scope).mp
+      (List.ne_nil_of_mem (sem_eq_true.mp hr).2),
+    fun h => ⟨_, sem_eq_true.mpr ⟨wellFormed_exactlyOne scope,
+      List.mem_map.mpr ⟨0, List.mem_range.mpr h, rfl⟩⟩⟩⟩
 
 end Table
 end Cslib.Logic.PL.CSP

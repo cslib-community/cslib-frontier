@@ -94,57 +94,40 @@ private theorem exists_dotProduct_single {n : ℕ} {u : BitString n} (hu : u ≠
   refine ⟨Pi.single j d, ?_⟩
   rw [single_dotProduct, hj, Bool.mul_eq_and, Bool.and_true]
 
-/-- Over `Bool` (viewed as `GF(2)`), a `2 × 2` linear system with determinant
-`a₁₁ * a₂₂ + a₁₂ * a₂₁ = true` is solved directly by its adjugate. -/
-private theorem solve_two_bool {a₁₁ a₁₂ a₂₁ a₂₂ : Bool}
-    (hdet : a₁₁ * a₂₂ + a₁₂ * a₂₁ = true) (d₂ d₃ : Bool) :
-    (d₂ * a₂₂ + d₃ * a₁₂) * a₁₁ + (d₂ * a₂₁ + d₃ * a₁₁) * a₁₂ = d₂ ∧
-      (d₂ * a₂₂ + d₃ * a₁₂) * a₂₁ + (d₂ * a₂₁ + d₃ * a₁₁) * a₂₂ = d₃ := by
-  have h1 : a₁₁ * a₂₂ + a₁₂ * a₂₁ = 1 := hdet
-  constructor
-  · rw [add_mul, add_mul, mul_assoc, mul_assoc, mul_assoc, mul_assoc]
-    calc d₂ * (a₂₂ * a₁₁) + d₃ * (a₁₂ * a₁₁) + (d₂ * (a₂₁ * a₁₂) + d₃ * (a₁₁ * a₁₂))
-        = d₂ * (a₁₁ * a₂₂ + a₁₂ * a₂₁) + d₃ * (a₁₁ * a₁₂ + a₁₁ * a₁₂) := by
-          rw [mul_comm a₂₂ a₁₁, mul_comm a₂₁ a₁₂, mul_comm a₁₂ a₁₁, mul_add, mul_add]
-          abel
-      _ = d₂ := by rw [h1, BooleanRing.add_self, mul_one, mul_zero, add_zero]
-  · rw [add_mul, add_mul, mul_assoc, mul_assoc, mul_assoc, mul_assoc]
-    calc d₂ * (a₂₂ * a₂₁) + d₃ * (a₁₂ * a₂₁) + (d₂ * (a₂₁ * a₂₂) + d₃ * (a₁₁ * a₂₂))
-        = d₂ * (a₂₁ * a₂₂ + a₂₁ * a₂₂) + d₃ * (a₁₁ * a₂₂ + a₁₂ * a₂₁) := by
-          rw [mul_comm a₂₂ a₂₁, mul_add, mul_add]
-          abel
-      _ = d₃ := by rw [h1, BooleanRing.add_self, mul_zero, mul_one, zero_add]
-
 private theorem exists_dotProduct_pair {n : ℕ} {u v : BitString n}
     (hu : u ≠ 0) (hv : v ≠ 0) (huv : u ≠ v) (d₂ d₃ : Bool) :
     ∃ a : BitString n, a ⬝ᵥ u = d₂ ∧ a ⬝ᵥ v = d₃ := by
-  have hpair : ∃ j₁ j₂ : Fin n, u j₁ * v j₂ + u j₂ * v j₁ = true := by
-    obtain ⟨j₁, hj₁⟩ := exists_true_coord hu
-    cases hv₁ : v j₁
-    · obtain ⟨j₂, hj₂⟩ := exists_true_coord hv
-      exact ⟨j₁, j₂, by rw [hj₁, hv₁, hj₂]; simp [Bool.mul_eq_and, Bool.add_eq_xor]⟩
-    · obtain ⟨j₂, hj₂⟩ := exists_true_coord (add_ne_zero_of_ne huv)
-      refine ⟨j₁, j₂, ?_⟩
-      rw [hj₁, hv₁, Bool.mul_eq_and, Bool.true_and, Bool.mul_eq_and, Bool.and_true, add_comm]
-      exact hj₂
-  obtain ⟨j₁, j₂, hdet⟩ := hpair
-  refine ⟨Pi.single j₁ (d₂ * v j₂ + d₃ * u j₂) + Pi.single j₂ (d₂ * v j₁ + d₃ * u j₁), ?_, ?_⟩
-  · rw [add_dotProduct, single_dotProduct, single_dotProduct]
-    exact (solve_two_bool hdet d₂ d₃).1
-  · rw [add_dotProduct, single_dotProduct, single_dotProduct]
-    exact (solve_two_bool hdet d₂ d₃).2
-
-/-- Evaluate a shifted linear row `x ↦ row ⬝ᵥ x + (row ⬝ᵥ x₁ + c₁)` from the difference identity
-`row ⬝ᵥ (x₁ + x) = c₁ + c₂` in characteristic `2`. -/
-private theorem affineHash_row_eval {n : ℕ} {row x₁ x : BitString n} {c₁ c₂ : Bool}
-    (h : row ⬝ᵥ (x₁ + x) = c₁ + c₂) :
-    row ⬝ᵥ x + (row ⬝ᵥ x₁ + c₁) = c₂ := by
-  rw [dotProduct_add] at h
-  calc row ⬝ᵥ x + (row ⬝ᵥ x₁ + c₁)
-      = (row ⬝ᵥ x₁ + row ⬝ᵥ x) + c₁ := by abel
-    _ = (c₁ + c₂) + c₁ := by rw [h]
-    _ = (c₁ + c₁) + c₂ := by abel
-    _ = c₂ := by rw [BooleanRing.add_self, zero_add]
+  obtain ⟨j₁, hj₁⟩ := exists_true_coord hu
+  let v' : BitString n := if v j₁ then u + v else v
+  have hv'0 : v' ≠ 0 := by
+    dsimp only [v']
+    split_ifs
+    exacts [add_ne_zero_of_ne huv, hv]
+  obtain ⟨j₂, hj₂⟩ := exists_true_coord hv'0
+  have hv'₁ : v' j₁ = false := by
+    simp only [v', apply_ite (fun f : BitString n => f j₁), Pi.add_apply]
+    cases v j₁
+    · rfl
+    · simp only [↓reduceIte, hj₁, BooleanRing.add_self]
+      rfl
+  let c : Bool := if v j₁ then d₂ + d₃ else d₃
+  let a : BitString n := Pi.single j₂ c + Pi.single j₁ (d₂ + c * u j₂)
+  have hau : a ⬝ᵥ u = d₂ := by
+    dsimp only [a]
+    rw [add_dotProduct, single_dotProduct, single_dotProduct, hj₁]
+    change c * u j₂ + (d₂ + c * u j₂) * 1 = d₂
+    rw [mul_one, add_left_comm, BooleanRing.add_self, add_zero]
+  refine ⟨a, hau, ?_⟩
+  have hav' : a ⬝ᵥ v' = c := by
+    dsimp only [a]
+    rw [add_dotProduct, single_dotProduct, single_dotProduct, hj₂, hv'₁]
+    change c * 1 + (d₂ + c * u j₂) * 0 = c
+    simp
+  dsimp only [v', c] at hav'
+  split_ifs at hav'
+  · rw [dotProduct_add, hau] at hav'
+    exact add_left_cancel hav'
+  · exact hav'
 
 /-- **Boolean affine hashing is three-wise independent** for all output and input widths `k, n`. -/
 theorem isThreeWiseIndependentHash_affineHash (k n : ℕ) :
@@ -160,59 +143,53 @@ theorem isThreeWiseIndependentHash_affineHash (k n : ℕ) :
           (s₁.1 i ⬝ᵥ x + s₁.2 i) + (s₂.1 i ⬝ᵥ x + s₂.2 i)
         rw [add_dotProduct]
         abel }
+  have happly {rows : Fin k → BitString n} {x₁ y : BitString n} {c₁ cy : BitString k}
+      (h : ∀ i, rows i ⬝ᵥ (x₁ + y) = c₁ i + cy i) :
+      g (rows, fun i => rows i ⬝ᵥ x₁ + c₁ i) y = cy := by
+    funext i
+    have hi := h i
+    rw [dotProduct_add] at hi
+    change rows i ⬝ᵥ y + (rows i ⬝ᵥ x₁ + c₁ i) = cy i
+    rw [add_comm (rows i ⬝ᵥ y), add_right_comm, hi, add_right_comm,
+      BooleanRing.add_self, zero_add]
+  have hself (rows : Fin k → BitString n) (x₁ : BitString n) (c₁ : BitString k) :
+      g (rows, fun i => rows i ⬝ᵥ x₁ + c₁ i) x₁ = c₁ :=
+    happly fun i => by simp [BooleanRing.add_self]
   refine isKWiseIndependentHash_of_surjective g fun T hT c => ?_
   interval_cases hc : #T
-  · have hT0 := card_eq_zero.mp hc
-    exact ⟨0, funext fun ⟨x, hx⟩ => by rw [hT0] at hx; exact (notMem_empty _ hx).elim⟩
-  · obtain ⟨x₁, hT₁⟩ := card_eq_one.mp hc
-    have hx₁ : x₁ ∈ T := by rw [hT₁]; exact mem_singleton_self x₁
-    refine ⟨(0, c ⟨x₁, hx₁⟩), funext fun ⟨x, hx⟩ => ?_⟩
-    have hxeq : x = x₁ := by rw [hT₁] at hx; exact mem_singleton.mp hx
-    subst hxeq
+  · obtain rfl := card_eq_zero.mp hc
+    exact ⟨0, funext fun ⟨_, hx⟩ => (notMem_empty _ hx).elim⟩
+  · obtain ⟨x₁, rfl⟩ := card_eq_one.mp hc
+    refine ⟨(0, c ⟨x₁, mem_singleton_self x₁⟩), funext fun ⟨x, hx⟩ => ?_⟩
+    obtain rfl := mem_singleton.mp hx
     funext i
-    change (0 : BitString n) ⬝ᵥ x + c ⟨x, hx₁⟩ i = c ⟨x, hx⟩ i
+    change (0 : BitString n) ⬝ᵥ x + c ⟨x, _⟩ i = c ⟨x, hx⟩ i
     simp
-  · obtain ⟨x₁, x₂, hx₁₂, hT₂⟩ := card_eq_two.mp hc
-    have hx₁ : x₁ ∈ T := by rw [hT₂]; simp
-    have hx₂ : x₂ ∈ T := by rw [hT₂]; simp
-    have hu : x₁ + x₂ ≠ 0 := add_ne_zero_of_ne hx₁₂
-    let c₁ := c ⟨x₁, hx₁⟩
-    let c₂ := c ⟨x₂, hx₂⟩
-    choose rows hrows using fun i : Fin k => exists_dotProduct_single hu (c₁ i + c₂ i)
-    refine ⟨(rows, fun i => rows i ⬝ᵥ x₁ + c₁ i), funext fun ⟨x, hx⟩ => ?_⟩
-    have hx' : x = x₁ ∨ x = x₂ := by
-      rw [hT₂] at hx
-      simpa using hx
-    rcases hx' with rfl | rfl
-    · funext i
-      change rows i ⬝ᵥ x + (rows i ⬝ᵥ x + c₁ i) = c₁ i
-      rw [← add_assoc, BooleanRing.add_self, zero_add]
-    · funext i
-      exact affineHash_row_eval (hrows i)
-  · obtain ⟨x₁, x₂, x₃, hx₁₂, hx₁₃, hx₂₃, hT₃⟩ := card_eq_three.mp hc
-    have hx₁ : x₁ ∈ T := by rw [hT₃]; simp
-    have hx₂ : x₂ ∈ T := by rw [hT₃]; simp
-    have hx₃ : x₃ ∈ T := by rw [hT₃]; simp
-    have hu : x₁ + x₂ ≠ 0 := add_ne_zero_of_ne hx₁₂
-    have hv : x₁ + x₃ ≠ 0 := add_ne_zero_of_ne hx₁₃
-    have huv : x₁ + x₂ ≠ x₁ + x₃ := fun h => hx₂₃ (add_left_cancel h)
-    let c₁ := c ⟨x₁, hx₁⟩
-    let c₂ := c ⟨x₂, hx₂⟩
-    let c₃ := c ⟨x₃, hx₃⟩
+  · obtain ⟨x₁, x₂, hx₁₂, rfl⟩ := card_eq_two.mp hc
+    let c₁ := c ⟨x₁, by simp⟩
+    let c₂ := c ⟨x₂, by simp⟩
     choose rows hrows using fun i : Fin k =>
-      exists_dotProduct_pair hu hv huv (c₁ i + c₂ i) (c₁ i + c₃ i)
+      exists_dotProduct_single (add_ne_zero_of_ne hx₁₂) (c₁ i + c₂ i)
     refine ⟨(rows, fun i => rows i ⬝ᵥ x₁ + c₁ i), funext fun ⟨x, hx⟩ => ?_⟩
-    have hx' : x = x₁ ∨ x = x₂ ∨ x = x₃ := by
-      rw [hT₃] at hx
-      simpa using hx
-    rcases hx' with rfl | rfl | rfl
-    · funext i
-      change rows i ⬝ᵥ x + (rows i ⬝ᵥ x + c₁ i) = c₁ i
-      rw [← add_assoc, BooleanRing.add_self, zero_add]
-    · funext i
-      exact affineHash_row_eval (hrows i).1
-    · funext i
-      exact affineHash_row_eval (hrows i).2
+    rcases mem_insert.mp hx with rfl | hx
+    · exact hself rows x c₁
+    · obtain rfl := mem_singleton.mp hx
+      exact happly hrows
+  · obtain ⟨x₁, x₂, x₃, hx₁₂, hx₁₃, hx₂₃, rfl⟩ := card_eq_three.mp hc
+    have huv : x₁ + x₂ ≠ x₁ + x₃ := fun h => hx₂₃ (add_left_cancel h)
+    let c₁ := c ⟨x₁, by simp⟩
+    let c₂ := c ⟨x₂, by simp⟩
+    let c₃ := c ⟨x₃, by simp⟩
+    choose rows hrows using fun i : Fin k =>
+      exists_dotProduct_pair (add_ne_zero_of_ne hx₁₂) (add_ne_zero_of_ne hx₁₃) huv
+        (c₁ i + c₂ i) (c₁ i + c₃ i)
+    refine ⟨(rows, fun i => rows i ⬝ᵥ x₁ + c₁ i), funext fun ⟨x, hx⟩ => ?_⟩
+    rcases mem_insert.mp hx with rfl | hx
+    · exact hself rows x c₁
+    · rcases mem_insert.mp hx with rfl | hx
+      · exact happly fun i => (hrows i).1
+      · obtain rfl := mem_singleton.mp hx
+        exact happly fun i => (hrows i).2
 
 /-- **One-bit affine hashing as a single dot product** is three-wise independent:
 `x ↦ t ⬝ (1, x)` for a uniformly random `t ∈ {0,1}^(d+1)`. It is the one-row family `affineHash`
@@ -343,17 +320,13 @@ when `δ ≠ 0`. -/
   toFun row := row + if row ⬝ᵥ δ then pivotMask δ else 0
   map_zero' := by simp
   map_add' r₁ r₂ := by
-    have hite (b c : Bool) : (if b then c else false) = b * c := by
-      cases b
-      · rfl
-      · exact (Bool.true_and c).symm
     rw [add_dotProduct]
     funext j
     simp only [Pi.add_apply, apply_ite (fun f : BitString n => f j), Pi.zero_apply]
     change (r₁ j + r₂ j) + (if (r₁ ⬝ᵥ δ) + (r₂ ⬝ᵥ δ) then pivotMask δ j else false) =
       (r₁ j + if r₁ ⬝ᵥ δ then pivotMask δ j else false) +
         (r₂ j + if r₂ ⬝ᵥ δ then pivotMask δ j else false)
-    rw [hite, hite, hite, add_mul]
+    simp only [Bool.ite_false_right, Bool.decide_coe, ← Bool.mul_eq_and, add_mul]
     abel
 
 private theorem adjustRow_dotProduct_eq_false {n : ℕ} {δ : BitString n} (hδ : δ ≠ 0)
@@ -414,22 +387,14 @@ private theorem prefixProj_affineHash_eq_iff {k n : ℕ} (r : ℕ)
     (s : (Fin k → BitString n) × BitString k) (y y₀ : BitString n) :
     prefixProj k r (affineHash s y) = prefixProj k r (affineHash s y₀) ↔
       ∀ i : Fin k, i.val < r → s.1 i ⬝ᵥ (y + y₀) = false := by
-  constructor
-  · intro h i hir
-    have hmin : i.val < min r k := Nat.lt_min.mpr ⟨hir, i.isLt⟩
-    have hcoord := congrFun h ⟨i.val, hmin⟩
-    simp only [prefixProj, AddMonoidHom.coe_mk, ZeroHom.coe_mk, Function.comp_apply,
-      Fin.castLE_mk, affineHash, Pi.add_apply, hash] at hcoord
-    rw [dotProduct_add]
-    exact (BooleanRing.add_eq_zero' _ _).2 (add_right_cancel hcoord)
-  · intro h
-    funext ⟨i, hi⟩
-    have hir : i < r := lt_of_lt_of_le hi (Nat.min_le_left r k)
-    have hdot := h ⟨i, lt_of_lt_of_le hi (Nat.min_le_right r k)⟩ hir
-    rw [dotProduct_add] at hdot
-    simp only [prefixProj, AddMonoidHom.coe_mk, ZeroHom.coe_mk, Function.comp_apply,
-      Fin.castLE_mk, affineHash, Pi.add_apply, hash]
-    exact congrArg (· + s.2 ⟨i, _⟩) ((BooleanRing.add_eq_zero' _ _).1 hdot)
+  simp only [funext_iff, prefixProj, AddMonoidHom.coe_mk, ZeroHom.coe_mk, Function.comp_apply,
+    affineHash, Pi.add_apply, add_left_inj, hash, dotProduct_add]
+  refine ⟨fun h i hir => ?_, fun h ⟨i, hi⟩ => ?_⟩
+  · exact (BooleanRing.add_eq_zero' _ _).mpr
+      (by simpa only [Fin.castLE_mk] using h ⟨i.val, Nat.lt_min.mpr ⟨hir, i.isLt⟩⟩)
+  · exact (BooleanRing.add_eq_zero' _ _).mp
+      (h ⟨i, lt_of_lt_of_le hi (Nat.min_le_right r k)⟩
+        (lt_of_lt_of_le hi (Nat.min_le_left r k)))
 
 /-- For distinct `y ≠ y₀`, every seed output by `adjustAffineSeed r (y + y₀)` collides on the first
 `min r k` bits of `y` and `y₀`. -/

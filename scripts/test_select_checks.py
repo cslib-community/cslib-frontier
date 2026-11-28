@@ -31,7 +31,7 @@ class SelectionTests(unittest.TestCase):
                          (True, False, True))
         for path in ("lakefile.toml", "lake-manifest.json", "lean-toolchain",
                      "tools/cache-origin/main.go", "scripts/test_cache_dashboard_frontend.cjs",
-                     "scripts/check_hygiene.py", "scripts/timem_baseline.json",
+                     "scripts/check_hygiene.py", "scripts/check_timem.py",
                      "manual/data/build_latex.py", "manual/data/notes.md",
                      "manual/workflows/data/models-excerpts.json",
                      "guide/Guide/Example.lean", ".github/workflows/lean_action_ci.yml",

@@ -44,12 +44,10 @@ private theorem incident_merge_spec {G : Graph} (h k : Dart G) (hk : h.vertex �
     (∃ d : Dart G, d.vertex = v.val) ∧ v.val ≠ k.vertex := by
   obtain ⟨a, ha⟩ := v.property
   obtain ⟨d, rfl⟩ := (mergeDartEquiv h k).surjective a
-  rw [vertex_mergeDartEquiv] at ha
-  by_cases hd : d.vertex = k.vertex
-  · have he : h.vertex = v.val := by simpa only [hd, Function.update_self] using ha
-    exact ⟨⟨h, he⟩, he ▸ hk⟩
-  · have he : d.vertex = v.val := by simpa only [Function.update_of_ne hd, id_eq] using ha
-    exact ⟨⟨d, he⟩, he ▸ hd⟩
+  rw [← ha, vertex_mergeDartEquiv, Function.update_apply, id_eq]
+  split_ifs with hd
+  · exact ⟨⟨h, rfl⟩, hk⟩
+  · exact ⟨⟨d, rfl⟩, hd⟩
 
 /-- The incident vertices after merging are exactly the old incident names except the
 removed second name. Declared points do not enter this dart-indexed correspondence. -/
@@ -74,10 +72,8 @@ theorem card_incidentVertices_mergeGraph {G : Graph} (r : RotationSystem G) (h k
   let v : IncidentVertex G := ⟨k.vertex, k, rfl⟩
   let e : {x : IncidentVertex G // x ≠ v} ≃ {x : IncidentVertex G // x.val ≠ k.vertex} :=
     Equiv.subtypeEquivRight (fun _ => not_congr Subtype.ext_iff)
-  have hc : Nat.card (IncidentVertex G) = Nat.card {x : IncidentVertex G // x ≠ v} + 1 := by
-    rw [← Nat.card_congr (Equiv.optionSubtypeNe v), Finite.card_option]
-  rw [Nat.card_congr (e.trans (mergeIncidentEquiv h k hk))] at hc
-  exact hc.symm
+  rw [← Nat.card_congr (e.trans (mergeIncidentEquiv h k hk)), ← Finite.card_option,
+    Nat.card_congr (Equiv.optionSubtypeNe v)]
 
 private theorem merge_preserves_vertex {G : Graph} (r : RotationSystem G) (h k : Dart G)
     (hk : h.vertex ≠ k.vertex) (d : Dart (mergeGraph h k)) :
@@ -85,13 +81,11 @@ private theorem merge_preserves_vertex {G : Graph} (r : RotationSystem G) (h k :
   obtain ⟨d, rfl⟩ := (mergeDartEquiv h k).surjective d
   simp only [Equiv.permCongr_apply, Equiv.symm_apply_apply, vertex_mergeDartEquiv,
     Perm.coe_mul, Function.comp_apply, r.vertex_rotate]
-  by_cases hd : d = h
-  · subst d
-    simp [hk]
-  · by_cases he : d = k
-    · subst d
-      simp [hk]
-    · rw [swap_apply_of_ne_of_ne hd he]
+  rcases eq_or_ne d h with rfl | hd
+  · simp [hk]
+  rcases eq_or_ne d k with rfl | he
+  · simp [hk]
+  rw [swap_apply_of_ne_of_ne hd he]
 
 private theorem merge_orbit_count {G : Graph} (r : RotationSystem G) (h k : Dart G)
     (hk : h.vertex ≠ k.vertex) :

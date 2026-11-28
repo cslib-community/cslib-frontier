@@ -94,11 +94,9 @@ theorem EdgeInstance.count_vars (hF : EdgeInstance F) {v : V} (hv : v ∈ F.vars
 omit [DecidableEq V] in
 /-- Every actual scope of an edge instance has distinct variable names. -/
 theorem EdgeInstance.scope_nodup (hF : EdgeInstance F) (i : Fin F.length) :
-    F[i.val].scope.Nodup := by
-  apply List.nodup_iff_injective_get.mpr
-  intro j k he
-  have hp : (⟨i, j⟩ : Occurrence F) = ⟨i, k⟩ := hF.eq_of_constraint_eq he rfl
-  exact eq_of_heq (Sigma.mk.inj_iff.mp hp).2
+    F[i.val].scope.Nodup :=
+  List.nodup_iff_injective_get.mpr fun _ _ he =>
+    eq_of_heq (Sigma.mk.inj_iff.mp (hF.eq_of_constraint_eq he rfl)).2
 
 /-- Distinct scope names and exactly two occurrences characterize an edge instance.
 The count ranges over the actual finite occurrence list, not a declared variable universe. -/

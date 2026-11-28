@@ -28,17 +28,15 @@ open Cslib.Algorithms.MatrixMultiplication.Schonhage
 
 /-- The existing computed chunk capacity supplies the stronger occurrence bound at `4^m`. -/
 theorem queryCap_mul_two_pow_le (n m : ℕ) : queryCap n (D m) * 2 ^ m ≤ n ^ 2 := by
-  have hroot := Nat.sqrt_le ((n ^ 2) ^ 2 / D m)
-  have hmul := (Nat.mul_le_mul_right (D m) hroot).trans
+  have hmul := (Nat.mul_le_mul_right (D m) (Nat.sqrt_le ((n ^ 2) ^ 2 / D m))).trans
     (Nat.div_mul_le_self ((n ^ 2) ^ 2) (D m))
   have hD : D m = (2 ^ m) ^ 2 := by
-    change 4 ^ m = (2 ^ m) ^ 2
-    rw [← Nat.pow_mul, Nat.mul_comm m 2, Nat.pow_mul]
-  have hs : (queryCap n (D m) * 2 ^ m) ^ 2 ≤ (n ^ 2) ^ 2 := by
-    change (Nat.sqrt ((n ^ 2) ^ 2 / D m) * 2 ^ m) ^ 2 ≤ _
-    rw [mul_pow, ← hD]
-    simpa only [pow_two] using hmul
-  nlinarith only [hs, Nat.zero_le (queryCap n (D m) * 2 ^ m), Nat.zero_le (n ^ 2)]
+    change (2 ^ 2) ^ m = (2 ^ m) ^ 2
+    rw [← Nat.pow_mul, Nat.mul_comm, Nat.pow_mul]
+  refine (Nat.pow_le_pow_iff_left (n := 2) (by decide)).mp ?_
+  change (Nat.sqrt ((n ^ 2) ^ 2 / D m) * 2 ^ m) ^ 2 ≤ _
+  rw [mul_pow, ← hD]
+  simpa only [pow_two] using hmul
 
 /-- The producer's actual scanner stores identify every local chunk occurrence with its
 unique existing finite pair. Thus neither coordinate range nor the query count is supplied
@@ -58,35 +56,26 @@ theorem output_query_coordinates {n D g p : ℕ} (values : ℕ → ℤ)
         rankIn (residueClass wAB p rho) pair = k * queryCap n D + i ∧
         y.mem (q + 2 * i) = pair.1.val ∧ y.mem (q + 2 * i + 1) = pair.2.val) := by
   let R := fun q => (values q % (p : ℤ)).toNat
-  have hR (pair : Fin n × Fin n) : R (pairIndex pair) = (resFin hp (wAB pair.1 pair.2)).val := by
-    dsimp only [R]
-    rw [hAB]
-    rfl
-  have hscan := h.2.2.2.2.2.2.2.2.1
+  have hR (pair : Fin n × Fin n) : R (pairIndex pair) = (resFin hp (wAB pair.1 pair.2)).val :=
+    congrArg (fun z : ℤ => (z % p).toNat) (hAB pair.1 pair.2)
   have hread (q : ℕ) (hq : q < n * n) (hrho : R q = rho.val) :
       y.mem (5 + 6 * (n * n) + p + 2 * rho.val * (n * n) +
         2 * Nat.count (fun j => R j = rho.val) q) = q / n ∧
       y.mem (5 + 6 * (n * n) + p + 2 * rho.val * (n * n) +
         2 * Nat.count (fun j => R j = rho.val) q + 1) = q % n := by
     simpa only [R, Nat.mul_right_comm 2 (n * n) rho.val] using
-      hscan rho.val rho.isLt q hq hrho
-  have hcap : 0 < queryCap n D := one_le_queryCap hD hDn
+      h.2.2.2.2.2.2.2.2.1 rho.val rho.isLt q hq hrho
   have hpair (i : ℕ) (hi : i < min (queryCap n D)
       ((residueClass wAB p rho).card - k * queryCap n D)) :=
     QuerySpec.chunk_readback wAB hp R hR D rho y.mem
-      (5 + 6 * (n * n) + p + 2 * rho.val * (n * n)) hread hcap k hk i hi
+      (5 + 6 * (n * n) + p + 2 * rho.val * (n * n)) hread (one_le_queryCap hD hDn) k hk i hi
   have haddr (i : ℕ) :
       5 + 6 * (n * n) + p + 2 * rho.val * (n * n) + 2 * (k * queryCap n D + i) =
         5 + 6 * (n * n) + p + 2 * rho.val * (n * n) + 2 * (k * queryCap n D) + 2 * i := by
     omega
-  dsimp only
-  constructor
-  · intro i hi
-    obtain ⟨pair, hpair, -⟩ := hpair i hi
-    rw [haddr i] at hpair
-    rw [hpair.2.2.1, hpair.2.2.2]
-    exact ⟨pair.1.isLt, pair.2.isLt⟩
-  · intro i hi
-    simpa only [haddr i] using hpair i hi
+  refine ⟨fun i hi => ?_, fun i hi => by simpa only [haddr i] using hpair i hi⟩
+  obtain ⟨pair, hpair, -⟩ := hpair i hi
+  rw [haddr i] at hpair
+  exact ⟨hpair.2.2.1 ▸ pair.1.isLt, hpair.2.2.2 ▸ pair.2.isLt⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordProduct

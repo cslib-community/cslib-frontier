@@ -8,11 +8,14 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
-import aggregate_merge as verifier
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import aggregate_merge as verifier  # noqa: E402
+from aggregate_order import import_key  # noqa: E402
 
 
 class AggregateMergeTests(unittest.TestCase):
@@ -42,8 +45,10 @@ class AggregateMergeTests(unittest.TestCase):
         target.write_text(content)
 
     def aggregate(self):
-        modules = sorted(".".join(p.relative_to(self.repo).with_suffix("").parts)
-                         for p in (self.repo / "CslibFrontier").rglob("*.lean"))
+        # In `mk_all`'s hash order the fixture modules are Amber < Beta < Zed < Medium < Init, so
+        # `Amber` and `Beta` are added in the same gap and `Medium` in another.
+        modules = sorted((".".join(p.relative_to(self.repo).with_suffix("").parts)
+                          for p in (self.repo / "CslibFrontier").rglob("*.lean")), key=import_key)
         self.write("CslibFrontier.lean", verifier.MODULE_HEADER.decode() +
                    "".join(f"public import {name}\n" for name in modules))
 
@@ -52,7 +57,7 @@ class AggregateMergeTests(unittest.TestCase):
         self.git("commit", "--quiet", "-m", message)
         return self.git("rev-parse", "HEAD")
 
-    def additions(self, prefix_name="Able", source_name="Beta"):
+    def additions(self, prefix_name="Amber", source_name="Beta"):
         self.write(f"CslibFrontier/{prefix_name}.lean", "-- accepted prefix payload\n")
         self.write("prefix-doc.md", "accepted prefix documentation\n")
         self.aggregate()
@@ -110,13 +115,13 @@ class AggregateMergeTests(unittest.TestCase):
             self.assertIn("CslibFrontier/Beta.lean", scratch.entries(source))
 
     def test_adjacent_deletions_reconstruct_but_default_union_is_a_limitation(self):
-        for name in ("Able", "Beta"):
+        for name in ("Amber", "Beta"):
             self.write(f"CslibFrontier/{name}.lean", "-- removal fixture\n")
         self.aggregate()
         base = self.commit("deletion base")
-        (self.repo / "CslibFrontier/Able.lean").unlink()
+        (self.repo / "CslibFrontier/Amber.lean").unlink()
         self.aggregate()
-        prefix = self.commit("remove Able")
+        prefix = self.commit("remove Amber")
         self.git("switch", "--quiet", "--detach", base)
         (self.repo / "CslibFrontier/Beta.lean").unlink()
         self.aggregate()
@@ -130,17 +135,17 @@ class AggregateMergeTests(unittest.TestCase):
         self.assertNotEqual(report["candidate_tree"], report["default_merge_tree"])
 
     def test_noncanonical_default_merge_fails_closed(self):
-        prefix, source = self.additions("Beta", "Able")
+        prefix, source = self.additions("Beta", "Amber")
         status, report = self.report(prefix, source)
         self.assertEqual(status, 1)
         self.assertEqual(report["status"], "limitation", report)
         self.assertIn("cannot represent", report["reason"])
 
     def test_reviewed_feature_after_ordinary_main_merge(self):
-        self.write("CslibFrontier/Mid.lean", "-- already landed dependency\n")
+        self.write("CslibFrontier/Medium.lean", "-- already landed dependency\n")
         self.aggregate()
         old_main = self.commit("older main")
-        self.write("CslibFrontier/Able.lean", "-- accepted prefix addition\n")
+        self.write("CslibFrontier/Amber.lean", "-- accepted prefix addition\n")
         self.aggregate()
         prefix = self.commit("prefix")
         self.git("switch", "--quiet", "--detach", self.base)
@@ -152,7 +157,7 @@ class AggregateMergeTests(unittest.TestCase):
         status, report = self.report(prefix, source, reviewed=reviewed)
         self.assertEqual(status, 0, report)
         self.assertEqual(report["reviewed_paths"], ["CslibFrontier/Beta.lean"])
-        self.assertIn("CslibFrontier/Mid.lean", report["candidate_entries"])
+        self.assertIn("CslibFrontier/Medium.lean", report["candidate_entries"])
 
     def test_without_tracked_union_default_conflict_is_a_limitation(self):
         self.write(".gitattributes", "# no aggregate merge driver\n")
@@ -263,7 +268,7 @@ class AggregateMergeTests(unittest.TestCase):
         self.assertIn("nonregular Lean module", report["reason"])
 
     def test_local_info_attributes_and_merge_drivers_do_not_change_result(self):
-        prefix, source = self.additions("Beta", "Able")
+        prefix, source = self.additions("Beta", "Amber")
         self.write(".git/info/attributes", "CslibFrontier.lean merge=ours\n")
         self.git("config", "merge.ours.driver", "touch SHOULD_NOT_RUN")
         before = self.snapshot()

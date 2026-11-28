@@ -47,13 +47,12 @@ theorem subsingleton_successful_firstHalting {σ : Type} (setup : SeedSearchSetu
     let M := machine setup scan start verdict
     {bits : List Bool | M.FirstHalting input bits M.init ∧
       (reply (M.run input bits)).isSome}.Subsingleton := by
-  let M := machine setup scan start verdict
+  intro M
   have terminal (result : Option (Option Answer)) {left right : List Bool}
       (hl : M.FirstHalting input left (.inr result))
       (hr : M.FirstHalting input right (.inr result)) :
       left = right := by
-    have hhalt : M.halted (.inr result) = true :=
-      machine_halted setup scan start verdict (.inr result)
+    have hhalt := machine_halted setup scan start verdict (.inr result)
     exact ((M.firstHalting_iff_nil_of_halted input left _ hhalt).mp hl).trans
       ((M.firstHalting_iff_nil_of_halted input right _ hhalt).mp hr).symm
   have fromFrame (left : List Bool) :
@@ -73,17 +72,12 @@ theorem subsingleton_successful_firstHalting {σ : Type} (setup : SeedSearchSetu
           (hrr : M.FirstHalting input r (resume start frame ret) ∧
             M.replay input r (resume start frame ret) = .inr (some b)) : l = r := by
         unfold resume at hlr hrr
-        cases hstep : seedSchedulerStep frame ret with
-        | none =>
+        rcases hstep : seedSchedulerStep frame ret with _ | (next | answer) <;>
           rw [hstep] at hlr hrr
-          exact terminal none hlr.1 hrr.1
-        | some result =>
-          rw [hstep] at hlr hrr
-          cases result with
-          | inr answer => exact terminal _ hlr.1 hrr.1
-          | inl next =>
-            obtain ⟨hvalid, hsame, _⟩ := seedSchedulerStep_progress hf hstep
-            exact ih l hlt next (hsame.trans hsetup) hvalid r a b hlr hrr
+        · exact terminal none hlr.1 hrr.1
+        · obtain ⟨hvalid, hsame, _⟩ := seedSchedulerStep_progress hf hstep
+          exact ih l hlt next (hsame.trans hsetup) hvalid r a b hlr hrr
+        · exact terminal _ hlr.1 hrr.1
       by_cases hneeds : frame.needsScan = true
       · rw [enter, ite_eq_left hneeds] at hl hr
         obtain ⟨value, l, hread, hlr⟩ :=
@@ -95,38 +89,23 @@ theorem subsingleton_successful_firstHalting {σ : Type} (setup : SeedSearchSetu
         obtain ⟨prefixBits, hleft, hright, hshared⟩ :=
           scan.readReply_commonPrefix verdict input (start frame.request)
             (hscan frame hsetup hf hneeds) hread hread'
-        have heq : value = other := by tauto
-        subst other
-        have hlt : l.length < left.length := by
-          rw [hleft, List.length_append, List.length_cons]
-          omega
-        rw [hleft, hright, fromResume (some value) l r hlt hlr hrr]
+        obtain rfl : value = other := by tauto
+        rw [hleft, hright, fromResume (some value) l r
+          (by rw [hleft, List.length_append, List.length_cons]; omega) hlr hrr]
       · rw [enter, ite_eq_right hneeds] at hl hr
         obtain ⟨l, hleft, hlr⟩ := (firstHalting_skip_iff setup scan start verdict input frame
           left a).mp hl
         obtain ⟨r, hright, hrr⟩ := (firstHalting_skip_iff setup scan start verdict input frame
           right b).mp hr
-        have hlt : l.length < left.length := by simp [hleft]
-        rw [hleft, hright, fromResume none l r hlt hlr hrr]
-  change {bits : List Bool | M.FirstHalting input bits M.init ∧
-    (reply (M.run input bits)).isSome}.Subsingleton
-  intro left hl right hr
-  obtain ⟨a, hleft⟩ := Option.isSome_iff_exists.mp hl.2
-  obtain ⟨b, hright⟩ := Option.isSome_iff_exists.mp hr.2
-  have ha := reply_eq_some_iff.mp hleft
-  have hb := reply_eq_some_iff.mp hright
-  change M.replay input left M.init = .inr (some a) at ha
-  change M.replay input right M.init = .inr (some b) at hb
-  have hlf : M.FirstHalting input left M.init := hl.1
-  have hrf : M.FirstHalting input right M.init := hr.1
-  rw [machine_init] at hlf hrf ha hb
-  cases hentry : seedSchedulerCandidate setup 0 with
-  | none =>
-    rw [hentry] at hlf hrf
-    exact terminal (some none) hlf hrf
-  | some frame =>
-    rw [hentry] at hlf hrf ha hb
-    obtain ⟨hf, hsame, _⟩ := seedSchedulerCandidate_valid hentry
+        rw [hleft, hright, fromResume none l r (by simp [hleft]) hlr hrr]
+  rintro left ⟨hlf, hl⟩ right ⟨hrf, hr⟩
+  obtain ⟨a, ha⟩ := (Option.isSome_iff_exists.mp hl).imp fun _ => reply_eq_some_iff.mp
+  obtain ⟨b, hb⟩ := (Option.isSome_iff_exists.mp hr).imp fun _ => reply_eq_some_iff.mp
+  dsimp only [NondeterministicQueryMachine.run] at ha hb
+  rcases hentry : seedSchedulerCandidate setup 0 with _ | frame <;>
+    rw [machine_init, hentry] at hlf hrf ha hb
+  · exact terminal (some none) hlf hrf
+  · obtain ⟨hf, hsame, _⟩ := seedSchedulerCandidate_valid hentry
     exact fromFrame left frame hsame hf right a b ⟨hlf, ha⟩ ⟨hrf, hb⟩
 
 /-- A successful initialized machine replay agrees with the monadic search if every
@@ -157,9 +136,7 @@ theorem runSeedSchedulerFor_eq_of_firstHalting {m : Type → Type} [AlternativeM
     runSeedSchedulerForFrom setup hs hr oracle f.request.seed (f.answer.map fun b => (f.cursor, b))
   have terminalReply (result : Option (Option Answer)) (rest : List Bool)
       (h : M.replay input rest (.inr result) = .inr (some answer)) : result = some answer := by
-    have hhalt : M.halted (.inr result) = true :=
-      machine_halted setup scan start verdict (.inr result)
-    rw [M.replay_of_halted input hhalt] at h
+    rw [M.replay_of_halted input (machine_halted setup scan start verdict (.inr result))] at h
     exact Sum.inr.inj h
   have fromFrame (selectors : List Bool) :
       ∀ (f : SeedSchedulerFrame), f.request.setup = setup → f.Valid →
@@ -177,23 +154,16 @@ theorem runSeedSchedulerFor_eq_of_firstHalting {m : Type → Type} [AlternativeM
             oracle f.request = pure (some value)) :
           ∃ result, interpret f = pure result ∧ result.map pack = answer := by
         rw [resume] at hrest
-        cases hstep : seedSchedulerStep f ret with
-        | none =>
-          rw [hstep] at hrest
-          cases terminalReply none rest hrest.2
-        | some next =>
-          rw [hstep] at hrest
-          have hcorrect := runSeedSchedulerForFrom_step setup hs hr oracle hlimit hf hsetup
-            hstep horacle
-          cases next with
-          | inl g =>
-            obtain ⟨hvalid, hsame, _⟩ := seedSchedulerStep_progress hf hstep
-            obtain ⟨result, hresult, hpack⟩ := ih rest hlt g (hsame.trans hsetup) hvalid hrest
-            exact ⟨result, hcorrect.trans hresult, hpack⟩
-          | inr result =>
-            have hout := terminalReply _ rest hrest.2
-            refine ⟨_, hcorrect, ?_⟩
-            cases result <;> simpa [pack] using Option.some.inj hout
+        rcases hstep : seedSchedulerStep f ret with _ | (g | result) <;> rw [hstep] at hrest
+        · cases terminalReply none rest hrest.2
+        all_goals
+          have hcorrect := runSeedSchedulerForFrom_step setup hs hr oracle hlimit hf hsetup hstep
+            horacle
+        · obtain ⟨hvalid, hsame, _⟩ := seedSchedulerStep_progress hf hstep
+          obtain ⟨result, hresult, hpack⟩ := ih rest hlt g (hsame.trans hsetup) hvalid hrest
+          exact ⟨result, hcorrect.trans hresult, hpack⟩
+        · refine ⟨_, hcorrect, ?_⟩
+          cases result <;> simpa [pack] using Option.some.inj (terminalReply _ rest hrest.2)
       by_cases hneeds : f.needsScan = true
       · rw [enter, ite_eq_left hneeds] at htrace
         obtain ⟨value, rest, hparse, hrest⟩ :=
@@ -201,23 +171,16 @@ theorem runSeedSchedulerFor_eq_of_firstHalting {m : Type → Type} [AlternativeM
             selectors answer hneeds).mp htrace
         obtain ⟨prefixBits, hselectors, hcall, hvalue⟩ :=
           (scan.readReply_iff verdict input selectors (start f.request) value rest).mp hparse
-        have hlt : rest.length < selectors.length := by
-          rw [hselectors, List.length_append, List.length_cons]
-          omega
-        refine afterStep (some value) rest hlt hrest ?_
-        intro other he _
-        cases he
-        exact hagrees f hsetup hf hneeds prefixBits value hcall hvalue
+        exact afterStep (some value) rest
+          (by rw [hselectors, List.length_append, List.length_cons]; omega) hrest fun _ he _ => by
+            cases he; exact hagrees f hsetup hf hneeds prefixBits value hcall hvalue
       · rw [enter, ite_eq_right hneeds] at htrace
         obtain ⟨rest, hselectors, hrest⟩ :=
           (firstHalting_skip_iff setup scan start verdict input f selectors answer).mp htrace
         exact afterStep none rest (by simp [hselectors]) hrest (by intro value he; cases he)
-  have hzero : 0 < setup.parameters.search.seedLimit := by
-    rw [hlimit]
-    exact Nat.two_pow_pos _
+  have hzero : 0 < setup.parameters.search.seedLimit := hlimit ▸ Nat.two_pow_pos _
   have hentry := seedSchedulerCandidate_eq_some hzero
-  have hstate := reply_eq_some_iff.mp hreply
-  change M.replay input bits M.init = .inr (some answer) at hstate
+  have hstate : M.replay input bits M.init = .inr (some answer) := reply_eq_some_iff.mp hreply
   rw [machine_init, hentry] at hfirst hstate
   obtain ⟨hf, hsetup, _⟩ := seedSchedulerCandidate_valid hentry
   obtain ⟨result, hresult, hpack⟩ := fromFrame bits _ hsetup hf ⟨hfirst, hstate⟩

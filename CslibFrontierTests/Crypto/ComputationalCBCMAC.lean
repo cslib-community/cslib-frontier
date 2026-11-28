@@ -59,6 +59,14 @@ example :
     cbcMacFamily xnorFamily [true, false] [false, false, false, true] = [false, true] := by
   decide
 
+-- A common full block preserves this collision between a one- and a two-block message.
+example :
+    cbcMacWord xnorFamily 2 [true, false] ([false, false] ++ [true, true]) =
+      cbcMacWord xnorFamily 2 [true, false] ([false, false, false, true] ++ [true, true]) := by
+  rw [cbcMacWord_append_block xnorFamily (by decide) _ (by decide) (by decide),
+    cbcMacWord_append_block xnorFamily (by decide) _ (by decide) (by decide)]
+  decide
+
 -- Empty-message (`0`-block) and 1-block evaluations of `prependLengthWord` and
 -- `lengthPrependedCbcMacFamily` at `n = 2`: `[]` prepends `0^2 = [false, false]`, while a 1-block
 -- message prepends `lowBits 2 1 = [true, false]`.
@@ -414,8 +422,8 @@ example {family : List Bool → List Bool → List Bool}
         (ProbComp.eval
           (prfIdealGame id id
             (cbcMacToPrfDistinguisher (fun _ => 2) adaptivePrefixFreeAdv) 16)) +
-      (2 : ℝ≥0) ^ 2 * (2 : ℝ≥0) ^ 2 / 2 ^ 16 ∧
-    (2 : ℝ≥0) ^ 2 * (2 : ℝ≥0) ^ 2 / 2 ^ 16 < 1 :=
+      (2 : ℝ≥0) ^ 2 * (2 : ℝ≥0) ^ 2 / (2 * 2 ^ 16) ∧
+    (2 : ℝ≥0) ^ 2 * (2 : ℝ≥0) ^ 2 / (2 * 2 ^ 16) < 1 :=
   ⟨advantage_cbcMac_le hlen (fun _ => 2) adaptivePrefixFreeAdv
       (isQueryBounded_adaptivePrefixFreeAdv 16)
       (isPrefixFreeOn_adaptivePrefixFreeAdv 16),
@@ -439,8 +447,8 @@ example {family : List Bool → List Bool → List Bool}
         (ProbComp.eval
           (prfIdealGame id id
             (lengthPrependedToPrfDistinguisher (fun _ => 3) adaptivePrefixFreeAdv) 16)) +
-      (2 : ℝ≥0) ^ 2 * ((3 : ℝ≥0) + 1) ^ 2 / 2 ^ 16 ∧
-    (2 : ℝ≥0) ^ 2 * ((3 : ℝ≥0) + 1) ^ 2 / 2 ^ 16 < 1 :=
+      (2 : ℝ≥0) ^ 2 * ((3 : ℝ≥0) + 1) ^ 2 / (2 * 2 ^ 16) ∧
+    (2 : ℝ≥0) ^ 2 * ((3 : ℝ≥0) + 1) ^ 2 / (2 * 2 ^ 16) < 1 :=
   ⟨advantage_lengthPrependedCbcMac_le hlen (fun _ => 3) adaptivePrefixFreeAdv (by decide)
       (isQueryBounded_adaptivePrefixFreeAdv 16),
     by norm_num⟩

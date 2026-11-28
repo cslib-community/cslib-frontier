@@ -92,17 +92,16 @@ author:
 An oracle or comparison count read off a `PFunctor.FreeM` program by its interpreter is
 admissible only when the cited result is itself a query bound.
 
-**`TimeM` is deprecated (#7636, #6301).** Its `time` field holds exactly the charges the author
-wrote with `tick`, and nothing checks them against the program's cost (`pure xs.mergeSort` costs
-zero). A `TimeM` bound is a claim about annotations, so presenting it as a running time is a
+**`TimeM` is permanently forbidden (#7636, #6301).** Its `time` field holds exactly the charges
+the author wrote with `tick`, and nothing checks them against the program's cost (`pure xs.mergeSort`
+costs zero). A `TimeM` bound is a claim about annotations, so presenting it as a running time is a
 stand-in under [Faithful headlines](#faithful-headlines), whatever its docstring says about
-uncharged work. Do not import `Cslib.Algorithms.Lean.TimeM` or
-`CslibFrontier.Algorithms.Lean.TimeM.*` in new modules, and do not add `TimeM` declarations,
-`time_simps` rules or `time_spec` features to existing ones; `scripts/check_timem.py` enforces a
-per-file ratchet against `scripts/timem_baseline.json`. Moving the same hand-placed charges into
-another writer or cost monad is not a migration. Existing `TimeM` modules are ported under #7636
-and #6301: correctness moves to plain functions, running-time bounds are re-proved in Word-RAM or
-on Turing machines with any model-induced difference named, and scaffolding bounds are deleted.
+uncharged work. Frontier `TimeM` support has been deleted, and `scripts/check_timem.py`
+unconditionally rejects any use in masked Lean syntax of `TimeM` (including
+`Cslib.Algorithms.Lean.TimeM` and `CslibFrontier.Algorithms.Lean.TimeM.*`), tick notation `✓`,
+`time_simps`, `time_spec`, and `Cslib.Algorithms.Lean.MergeSort.MergeSort`. Moving the same
+hand-placed charges into another writer or cost monad is also forbidden; `PFunctor.FreeM` query
+counts remain allowed only when the cited result is a query bound.
 
 ### The cited result is the unit of quality
 
@@ -125,8 +124,9 @@ not cited results, and nothing here asks them to invent a cited endpoint.
 - **A step.** It is presented as an intermediate step under
   [Faithful headlines](#faithful-headlines) rule 2, and meets every condition of that rule.
 
-Registration requires the independent check of the statement against the source, by a reviewer
-from outside the authoring fleet ([Review cycle](review.md#review-cycle)). A new theorem that
+Registration requires the independent check of the statement against the source, by a non-author
+working in a separate context, who may be an agent of the authoring fleet
+([Review cycle](review.md#review-cycle)). A new theorem that
 presents a cited result therefore lands with its entry, with the check made on its pull request,
 or lands as a step and is registered by a later change once the check has been made.
 The check opens the definitions that the statement names (its games, schemes, predicates and

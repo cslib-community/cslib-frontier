@@ -116,9 +116,6 @@ theorem majority_inSpace :
       fun w => Nat.log2 w.length :=
     (encScan_pos_budget scan_inSpace).mono_le fun w => by omega
   have hcount := count_inSpace
-  have htwo : ComputableInSpace (fun _ : List Bool => 2) encBits encNat
-      fun w => Nat.log2 w.length :=
-    (ComputableInSpace.constZero 2).mono_le fun _ => Nat.zero_le _
   space
 
 /-- Majority, in logarithmic space and in `DSPACE(log n)`. -/

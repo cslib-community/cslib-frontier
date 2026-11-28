@@ -8,10 +8,12 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Foundations.Data.MvPolynomial.CoeffNorm1
 public import CslibFrontier.Foundations.Data.Polynomial.CoeffNorm1
 public import Mathlib.Algebra.Polynomial.Bivariate
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 import CslibFrontier.Foundations.Data.Polynomial.CoeffSumBounds
+import Mathlib.Algebra.Polynomial.AlgebraMap
 import Mathlib.Data.Finset.Sum
 
 /-!
@@ -37,6 +39,8 @@ of cleared-denominator parity-amplifier products.
   inequalities for `bivariateCoeffNorm1`.
 * `Polynomial.bivariateCoeffNorm1_mul_le`, `Polynomial.bivariateCoeffNorm1_prod_le`:
   submultiplicativity of `bivariateCoeffNorm1` on `Polynomial (Polynomial ℤ)`.
+* `Polynomial.bivariateCoeffNorm1_aeval_le`: the original total degree controls the norm
+  increase when substituting bivariate polynomials.
 -/
 
 @[expose] public noncomputable section
@@ -143,6 +147,30 @@ theorem bivariateCoeffNorm1_prod_le {κ : Type*} (I : Finset κ)
     (∏ i ∈ I, F i).bivariateCoeffNorm1 ≤ ∏ i ∈ I, (F i).bivariateCoeffNorm1 :=
   le_prod_of_submultiplicative bivariateCoeffNorm1 bivariateCoeffNorm1_one.le
     bivariateCoeffNorm1_mul_le I F
+
+/-- Substituting bivariate polynomials of norm at most `M ≥ 1` multiplies the coefficient norm
+by at most `M` raised to the total degree of the original polynomial. -/
+theorem bivariateCoeffNorm1_aeval_le {ι : Type*} (p : MvPolynomial ι ℤ)
+    (v : ι → Polynomial (Polynomial ℤ)) {M : ℕ} (hM : 1 ≤ M)
+    (hv : ∀ i, (v i).bivariateCoeffNorm1 ≤ M) :
+    (MvPolynomial.aeval v p).bivariateCoeffNorm1 ≤ p.coeffNorm1 * M ^ p.totalDegree := by
+  classical
+  conv_lhs => rw [p.as_sum, map_sum]
+  refine (bivariateCoeffNorm1_sum_le _ _).trans ?_
+  rw [MvPolynomial.coeffNorm1, sum_mul]
+  refine sum_le_sum fun m hm => ?_
+  rw [MvPolynomial.aeval_monomial, Finsupp.prod, algebraMap_apply, algebraMap_eq]
+  apply (bivariateCoeffNorm1_C_mul_le _ _).trans
+  rw [coeffNorm1_C]
+  apply Nat.mul_le_mul_left
+  calc
+    _ ≤ ∏ i ∈ m.support, (v i ^ m i).bivariateCoeffNorm1 := bivariateCoeffNorm1_prod_le _ _
+    _ ≤ ∏ i ∈ m.support, M ^ m i :=
+      prod_le_prod fun i _ =>
+        (bivariateCoeffNorm1_pow_le _ _).trans (Nat.pow_le_pow_left (hv i) _)
+    _ ≤ M ^ p.totalDegree := by
+      rw [Finset.prod_pow_eq_pow_sum]
+      exact Nat.pow_le_pow_right hM (MvPolynomial.le_totalDegree hm)
 
 /-- Specializing the outer variable at an integer increases the coefficient norm by at most
 the absolute value of the integer raised to the outer degree. -/

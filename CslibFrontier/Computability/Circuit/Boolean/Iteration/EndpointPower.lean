@@ -92,10 +92,10 @@ theorem fixed_power_endpoint_tradeoff {n : ℕ} (c : Circuit signature n n) (T L
   nlinarith [Nat.mul_le_mul_left L hlocal]
 
 /-- Every fixed power of an arbitrary `n`-bit transition circuit has size at most
-`12800 * min (2^n) (√(2^n * (s + (n+1)^2)))`, independently of the exponent. -/
+`8000 * min (2^n) (√(2^n * (s + (n+1)^2)))`, independently of the exponent. -/
 theorem fixed_power_endpoint {n : ℕ} (c : Circuit signature n n) (T : ℕ) :
     ∃ out : Circuit signature n n, out.Computes interpretation (c.eval interpretation)^[T] ∧
-      (out.size : ℝ) ≤ 12800 * min ((2 : ℝ) ^ n)
+      (out.size : ℝ) ≤ 8000 * min ((2 : ℝ) ^ n)
         (Real.sqrt ((2 : ℝ) ^ n * (c.size + (n + 1) ^ 2 : ℕ))) := by
   convert exists_circuit_of_endpoint_tradeoff ((c.eval interpretation)^[T])
     (show 0 < c.size + (n + 1) ^ 2 by positivity) (fixed_power_endpoint_tradeoff c T) using 4

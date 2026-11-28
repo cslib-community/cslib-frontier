@@ -84,13 +84,8 @@ private theorem complexity_guess_le (f : BooleanFunction (n + p)) (all : Bool) :
       (fun x (i : Fin (2 ^ p)) => f (Fin.append x (guesses p i))) =
       single fun x => if all then forallGuess f x else existsGuess f x := by
     funext x j
-    cases all
-    · simp only [Function.comp_apply, single, existsGuess, Bool.false_eq_true, ite_false]
-      exact decide_eq_decide.2 ((guesses p).exists_congr_left.trans
-        (by simp only [Equiv.apply_symm_apply]))
-    · simp only [Function.comp_apply, single, forallGuess, ite_true]
-      exact decide_eq_decide.2 ((guesses p).forall_congr_left.trans
-        (by simp only [Equiv.apply_symm_apply]))
+    cases all <;> simp [single, existsGuess, forallGuess,
+      (guesses p).exists_congr_left, (guesses p).forall_congr_left]
   rw [heq] at h
   have := complexity_guesses_le f
   have := complexity_bigOp_le (m := 2 ^ p) all

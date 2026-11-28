@@ -14,7 +14,6 @@ public import CslibFrontier.Computability.WordRAM.ListOutput
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
-import Mathlib.Tactic.FinCases
 
 /-!
 # Manacher's Algorithm in Linear Time on the Word RAM
@@ -254,8 +253,7 @@ private theorem while_extBody_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (3 * x
           (11 * extend xs.toArray l₀ (x.regs regr) + 12) ∧
         y.regs ext = x.regs ext + extend xs.toArray l₀ (x.regs regr) ∧
         y.regs regr = x.regs regr + extend xs.toArray l₀ (x.regs regr) ∧
-        y.mem = x.mem ∧
-        (∀ i : Fin 16, (i.val ≤ 8 ∨ i = out) → y.regs i = x.regs i) := by
+        y.mem = x.mem := by
   induction l₀ with
   | zero =>
     intro x hz _ _ hgo hl₀ _ _ _ _
@@ -263,13 +261,10 @@ private theorem while_extBody_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (3 * x
     let x₁ := x.set go 0
     have hb : ExecWithin w extBody x x₁ 3 := by
       unfold extBody
-      ram_eval [x₁, hz, hl₀]
+      wram_exec [hz, hl₀]
     have hstop : ¬(Cond.lt zero go).Holds x₁ := by simp +decide [Cond.holds_lt, x₁, hz]
-    refine ⟨x₁, (ExecWithin.loop_once hc hb hstop).mono (by simp only [extend]; omega),
-      by simp +decide [x₁, extend], by simp +decide [x₁, extend], rfl, fun i hi => ?_⟩
-    rcases hi with hi | rfl
-    · fin_cases i <;> simp_all +decide [x₁]
-    · simp +decide [x₁]
+    exact ⟨x₁, (ExecWithin.loop_once hc hb hstop).mono (by simp only [extend]; omega),
+      by simp +decide [x₁, extend], by simp +decide [x₁, extend], rfl⟩
   | succ l ih =>
     intro x hz ho hlen hgo hl₀ hl_le hr_le hext_le hxs
     have hc : (Cond.lt zero go).Holds x := by simp only [Cond.holds_lt, hz, hgo]; omega
@@ -290,11 +285,12 @@ private theorem while_extBody_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (3 * x
             regl l).set regr (x.regs regr + 1)).set ext (x.regs ext + 1)
         have hb : ExecWithin w extBody x x₁ 9 := by
           unfold extBody
-          ram_eval [x₁, hz, ho, hlen, hl₀, hr, hreadL, hreadR, hEq, hf_r1, hf_l, hf_ext1]
+          wram_exec [hz, ho, hlen, hl₀, hr, hreadL, hreadR, hEq, hf_r1, hf_l, hf_ext1]
+          dsimp only [x₁]; rw [hEq]
         have hext_eq : extend xs.toArray (l + 1) (x.regs regr) =
             extend xs.toArray l (x.regs regr + 1) + 1 := by
           simp only [extend, hsz, hr, hl_lt, and_self, ↓reduceDIte, harrL, harrR, hEq, ↓reduceIte]
-        obtain ⟨y, hy, hy_ext, hy_r, hy_mem, hy_fr⟩ := ih x₁
+        obtain ⟨y, hy, hy_ext, hy_r, hy_mem⟩ := ih x₁
           (by simp +decide [x₁, hz])
           (by simp +decide [x₁, ho])
           (by simp +decide [x₁, hlen])
@@ -308,37 +304,27 @@ private theorem while_extBody_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (3 * x
         have hx₁_e : x₁.regs ext = x.regs ext + 1 := by simp +decide [x₁]
         rw [hx₁_r] at hy hy_ext hy_r
         rw [hx₁_e] at hy_ext
-        refine ⟨y, (ExecWithin.loop_iter hc hb hy).mono (by rw [hext_eq]; omega),
-          by rw [hext_eq]; omega, by rw [hext_eq]; omega, hy_mem, fun i hi => ?_⟩
-        rw [hy_fr i hi]
-        rcases hi with hi | rfl
-        · fin_cases i <;> simp_all +decide [x₁]
-        · simp +decide [x₁]
+        exact ⟨y, (ExecWithin.loop_iter hc hb hy).mono (by rw [hext_eq]; omega),
+          by rw [hext_eq]; omega, by rw [hext_eq]; omega, hy_mem⟩
       · let x₁ := (((x.set t0 (x.regs regr + 1)).set t1 xs[l]).set t0 xs[x.regs regr]).set go 0
         have hb : ExecWithin w extBody x x₁ 8 := by
           unfold extBody
-          ram_eval [x₁, hz, ho, hlen, hl₀, hr, hreadL, hreadR, hEq, hf_r1]
+          wram_exec [hz, ho, hlen, hl₀, hr, hreadL, hreadR, hEq, hf_r1]
         have hstop : ¬(Cond.lt zero go).Holds x₁ := by simp +decide [Cond.holds_lt, x₁, hz]
         have hext_eq : extend xs.toArray (l + 1) (x.regs regr) = 0 := by
           simp only [extend, hsz, hr, hl_lt, and_self, ↓reduceDIte, harrL, harrR, hEq, ↓reduceIte]
-        refine ⟨x₁, (ExecWithin.loop_once hc hb hstop).mono (by rw [hext_eq]),
-          by simp +decide [x₁, hext_eq], by simp +decide [x₁, hext_eq], rfl, fun i hi => ?_⟩
-        rcases hi with hi | rfl
-        · fin_cases i <;> simp_all +decide [x₁]
-        · simp +decide [x₁]
+        exact ⟨x₁, (ExecWithin.loop_once hc hb hstop).mono (by rw [hext_eq]),
+          by simp +decide [x₁, hext_eq], by simp +decide [x₁, hext_eq], rfl⟩
     · let x₁ := x.set go 0
       have hb : ExecWithin w extBody x x₁ 4 := by
         unfold extBody
-        ram_eval [x₁, hz, hlen, hl₀, hr]
+        wram_exec [hz, hlen, hl₀, hr]
       have hstop : ¬(Cond.lt zero go).Holds x₁ := by simp +decide [Cond.holds_lt, x₁, hz]
       have hext_eq : extend xs.toArray (l + 1) (x.regs regr) = 0 := by
         have hnot : ¬(x.regs regr < xs.toArray.size ∧ l < xs.toArray.size) := by rw [hsz]; omega
         simp only [extend, hnot, ↓reduceDIte]
-      refine ⟨x₁, (ExecWithin.loop_once hc hb hstop).mono (by rw [hext_eq]; omega),
-        by simp +decide [x₁, hext_eq], by simp +decide [x₁, hext_eq], rfl, fun i hi => ?_⟩
-      rcases hi with hi | rfl
-      · fin_cases i <;> simp_all +decide [x₁]
-      · simp +decide [x₁]
+      exact ⟨x₁, (ExecWithin.loop_once hc hb hstop).mono (by rw [hext_eq]; omega),
+        by simp +decide [x₁, hext_eq], by simp +decide [x₁, hext_eq], rfl⟩
 
 private theorem extLoop_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (3 * xs.length + 2))
     (x : Data 16)
@@ -349,14 +335,13 @@ private theorem extLoop_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (3 * xs.leng
         (11 * extend xs.toArray (x.regs regl) (x.regs regr) + 14) ∧
       y.regs ext = extend xs.toArray (x.regs regl) (x.regs regr) ∧
       y.regs regr = x.regs regr + extend xs.toArray (x.regs regl) (x.regs regr) ∧
-      y.mem = x.mem ∧
-      (∀ i : Fin 16, (i.val ≤ 8 ∨ i = out) → y.regs i = x.regs i) := by
+      y.mem = x.mem := by
   have h1 : Fits w 1 := hw.of_le (by omega)
   let x₀ := (x.set ext 0).set go 1
   have hx₀_r : x₀.regs regr = x.regs regr := by simp +decide [x₀]
   have hx₀_l : x₀.regs regl = x.regs regl := by simp +decide [x₀]
   have hx₀_e : x₀.regs ext = 0 := by simp +decide [x₀]
-  obtain ⟨y, hy, hy_ext, hy_r, hy_mem, hy_fr⟩ := while_extBody_spec xs hw (x.regs regl) x₀
+  obtain ⟨y, hy, hy_ext, hy_r, hy_mem⟩ := while_extBody_spec xs hw (x.regs regl) x₀
     (by simp +decide [x₀, hz])
     (by simp +decide [x₀, ho])
     (by simp +decide [x₀, hlen])
@@ -369,12 +354,8 @@ private theorem extLoop_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (3 * xs.leng
   rw [hx₀_r] at hy hy_ext hy_r
   rw [hx₀_e, Nat.zero_add] at hy_ext
   unfold extLoop
-  refine ⟨y, ((ExecWithin.const (fits_zero w)).seq ((ExecWithin.const h1).seq hy)).mono (by omega),
-    hy_ext, hy_r, hy_mem, fun i hi => ?_⟩
-  rw [hy_fr i hi]
-  rcases hi with hi | rfl
-  · fin_cases i <;> simp_all +decide [x₀]
-  · simp +decide [x₀]
+  exact ⟨y, ((ExecWithin.const (fits_zero w)).seq ((ExecWithin.const h1).seq hy)).mono (by omega),
+    hy_ext, hy_r, hy_mem⟩
 
 /-! ## Execution of the main Manacher loop -/
 
@@ -413,23 +394,17 @@ private theorem radiiSetup_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (3 * xs.l
     omega
   · intro i
     have hi : i.val < xs.length := i.isLt
-    change (Function.update (Function.update (Data.init xs : Data 16).mem
-      (xs.length + 1) (2 * xs.length + 1)) (xs.length + 1 + 1) 0) (1 + i.val) = xs[i.val]
+    wram_simp [Data.write_mem, Block.read]
     rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
       Nat.add_comm, Data.init_mem_succ]
-    simp only [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi, Option.getD_some]
-  · change (Function.update (Function.update (Data.init xs : Data 16).mem
-      (xs.length + 1) (2 * xs.length + 1)) (xs.length + 1 + 1) 0) (xs.length + 1) =
-        2 * xs.length + 1
+    simp only [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi, Option.getD_some]; rfl
+  · wram_simp [Data.write_mem]
     rw [Function.update_of_ne (by omega), Function.update_self]
   · intro j hj
     wram_simp at hj
-    have hj0 : j = 0 := by omega
-    subst hj0
+    obtain rfl : j = 0 := by omega
     have := radius_le_half xs 0
-    change (Function.update (Function.update (Data.init xs : Data 16).mem
-      (xs.length + 1) (2 * xs.length + 1)) (xs.length + 1 + 1) 0) (xs.length + 2 + 0) =
-        radius xs 0
+    wram_simp [Data.write_mem]
     rw [show xs.length + 2 + 0 = xs.length + 1 + 1 by omega, Function.update_self]
     omega
 
@@ -464,31 +439,26 @@ private theorem manacherBody_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (3 * xs
   have hf_radc : Fits w (xs.length + 2 + x.regs regc) := hw.of_le (by omega)
   by_cases hlt : radius xs (2 * x.regs regC - x.regs regc) < x.regs regR - (x.regs regc + 1) / 2
   · have hrad_c : radius xs (x.regs regc) = radius xs (2 * x.regs regC - x.regs regc) := by omega
-    have hstep : ∃ y, ExecWithin w manacherBody x y 11 ∧
-        RadiiInv xs y ∧ radiiPotential xs.length y + 13 ≤ radiiPotential xs.length x := by
-      refine WP.exists_execWithin ?_
-      unfold manacherBody readAt writeAt
-      wram_exec [hx.one_eq, hx.two_eq, hx.radBase_eq, hmirror_idx, hrad_m, hlt,
-        hf_sub1, hf_sub2, hf_radm, hf_c1, hf_c1_div, hf_b, hf_radc]
-      refine ⟨⟨by wram_simp [hx.zero_eq], by wram_simp [hx.one_eq], by wram_simp [hx.two_eq],
-        by wram_simp [hx.len_eq], by wram_simp [hx.limit_eq], by wram_simp [hx.out_eq],
-        by wram_simp [hx.radBase_eq], by wram_simp, by wram_simp; omega,
-        by wram_simp; omega, by wram_simp [hx.R_eq], ?_, ?_, ?_⟩, ?_⟩
-      · exact hx.input_holds.frame fun a ha1 ha2 => by
-          wram_simp
-      · wram_simp [hx.hdr_eq]
-      · intro j hj
-        wram_simp at hj
-        by_cases hjc : j = x.regs regc
-        · subst hjc
-          wram_simp [hrad_c]
-        · wram_simp
-          exact hx.rad_holds j (by omega)
-      · unfold radiiPotential
-        wram_simp
-        omega
-    obtain ⟨y, hy_exec, hy_inv, hy_pot⟩ := hstep
-    exact ⟨y, 11, hy_exec, hy_inv, by omega⟩
+    refine exists_comm.mp ⟨11, WP.exists_execWithin ?_⟩
+    unfold manacherBody readAt writeAt
+    wram_exec [hx.one_eq, hx.two_eq, hx.radBase_eq, hmirror_idx, hrad_m, hlt,
+      hf_sub1, hf_sub2, hf_radm, hf_c1, hf_c1_div, hf_b, hf_radc]
+    refine ⟨⟨by wram_simp [hx.zero_eq], by wram_simp [hx.one_eq], by wram_simp [hx.two_eq],
+      by wram_simp [hx.len_eq], by wram_simp [hx.limit_eq], by wram_simp [hx.out_eq],
+      by wram_simp [hx.radBase_eq], by wram_simp, by wram_simp; omega,
+      by wram_simp; omega, by wram_simp [hx.R_eq], ?_, ?_, ?_⟩, ?_⟩
+    · exact hx.input_holds.frame fun a ha1 ha2 => by wram_simp
+    · wram_simp [hx.hdr_eq]
+    · intro j hj
+      wram_simp at hj
+      by_cases hjc : j = x.regs regc
+      · subst hjc
+        wram_simp [hrad_c]
+      · wram_simp
+        exact hx.rad_holds j (by omega)
+    · unfold radiiPotential
+      wram_simp
+      omega
   · let b := x.regs regR - (x.regs regc + 1) / 2
     have hb_def : x.regs regR - (x.regs regc + 1) / 2 = b := rfl
     have hb_le_rad : b ≤ radius xs (x.regs regc) := by omega
@@ -509,62 +479,46 @@ private theorem manacherBody_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (3 * xs
     have hsub_rad : (x.regs regc + 1) / 2 + b + e - (x.regs regc + 1) / 2 =
         radius xs (x.regs regc) := by omega
     have hf_radval : Fits w (radius xs (x.regs regc)) := hw.of_le (by omega)
-    have hstep : ∃ y, ExecWithin w manacherBody x y (11 * e + 36) ∧
-        RadiiInv xs y ∧
-        11 * e + 38 + radiiPotential xs.length y ≤ radiiPotential xs.length x := by
-      refine WP.exists_execWithin ?_
-      unfold manacherBody readAt writeAt
-      wram_exec [hx.one_eq, hx.two_eq, hx.radBase_eq, hmirror_idx, hrad_m, hlt,
-        hb_def, hf_sub1, hf_sub2, hf_radm, hf_c1, hf_c1_div, hf_b, hf_c_div, hf_l0, hf_r0]
-      wram_call (extLoop_spec xs hw _
-        (by wram_simp [hx.zero_eq])
-        (by wram_simp [hx.one_eq])
-        (by wram_simp [hx.len_eq])
-        (by wram_simp; exact hl0_le)
-        (by wram_simp; exact hr0_le)
-        hx.input_holds)
-        with x₂ ⟨hx₂_ext, hx₂_r, hx₂_mem, hx₂_fr⟩
-      have hx₂_zero : x₂.regs zero = 0 :=
-        (hx₂_fr zero (Or.inl (by decide))).trans (by wram_simp [hx.zero_eq])
-      have hx₂_one : x₂.regs one = 1 :=
-        (hx₂_fr one (Or.inl (by decide))).trans (by wram_simp [hx.one_eq])
-      have hx₂_two : x₂.regs two = 2 :=
-        (hx₂_fr two (Or.inl (by decide))).trans (by wram_simp [hx.two_eq])
-      have hx₂_len : x₂.regs len = xs.length :=
-        (hx₂_fr len (Or.inl (by decide))).trans (by wram_simp [hx.len_eq])
-      have hx₂_limit : x₂.regs limit = 2 * xs.length + 1 :=
-        (hx₂_fr limit (Or.inl (by decide))).trans (by wram_simp [hx.limit_eq])
-      have hx₂_out : x₂.regs out = xs.length + 1 :=
-        (hx₂_fr out (Or.inr rfl)).trans (by wram_simp [hx.out_eq])
-      have hx₂_radBase : x₂.regs radBase = xs.length + 2 :=
-        (hx₂_fr radBase (Or.inl (by decide))).trans (by wram_simp [hx.radBase_eq])
-      have hx₂_c : x₂.regs regc = x.regs regc :=
-        (hx₂_fr regc (Or.inl (by decide))).trans (by wram_simp)
-      have hx₂_r' : x₂.regs regr = (x.regs regc + 1) / 2 + b + e := by
-        wram_simp at hx₂_r
-        exact hx₂_r
-      wram_exec [hx₂_one, hx₂_two, hx₂_radBase, hx₂_c, hx₂_r', hsub_rad,
-        hf_c1, hf_c1_div, hf_radval, hf_radc]
-      refine ⟨⟨by wram_simp [hx₂_zero], by wram_simp [hx₂_one], by wram_simp [hx₂_two],
-          by wram_simp [hx₂_len], by wram_simp [hx₂_limit], by wram_simp [hx₂_out],
-          by wram_simp [hx₂_radBase], by wram_simp [hx₂_c],
-          by wram_simp [hx₂_c]; omega, by wram_simp [hx₂_c]; omega,
-          by wram_simp [hx₂_c, hx₂_r', hR'], ?_, ?_, ?_⟩, ?_⟩
-      · exact hx.input_holds.frame fun a ha1 ha2 => by
-          wram_simp [hx₂_mem, hx₂_radBase, hx₂_c]
-      · wram_simp [hx₂_mem, hx₂_radBase, hx₂_c, hx.hdr_eq]
-      · intro j hj
-        wram_simp [hx₂_c] at hj
-        by_cases hjc : j = x.regs regc
-        · subst hjc
-          wram_simp [hx₂_mem, hx₂_radBase, hx₂_c]
-        · wram_simp [hx₂_mem, hx₂_radBase, hx₂_c]
-          exact hx.rad_holds j (by omega)
-      · unfold radiiPotential
-        wram_simp [hx₂_c, hx₂_r']
-        omega
-    obtain ⟨y, hy_exec, hy_inv, hy_pot⟩ := hstep
-    exact ⟨y, 11 * e + 36, hy_exec, hy_inv, hy_pot⟩
+    refine exists_comm.mp ⟨11 * e + 36, WP.exists_execWithin ?_⟩
+    unfold manacherBody readAt writeAt
+    wram_exec [hx.one_eq, hx.two_eq, hx.radBase_eq, hmirror_idx, hrad_m, hlt,
+      hb_def, hf_sub1, hf_sub2, hf_radm, hf_c1, hf_c1_div, hf_b, hf_c_div, hf_l0, hf_r0]
+    wram_call (extLoop_spec xs hw _
+      (by wram_simp [hx.zero_eq])
+      (by wram_simp [hx.one_eq])
+      (by wram_simp [hx.len_eq])
+      (by wram_simp; exact hl0_le)
+      (by wram_simp; exact hr0_le)
+      hx.input_holds)
+      with x₂ ⟨hx₂_ext, hx₂_r, hx₂_mem⟩
+    have ⟨hx₂_zero, hx₂_one, hx₂_two, hx₂_len, hx₂_limit, hx₂_out, hx₂_radBase, hx₂_c⟩ :
+        x₂.regs zero = 0 ∧ x₂.regs one = 1 ∧ x₂.regs two = 2 ∧ x₂.regs len = xs.length ∧
+        x₂.regs limit = 2 * xs.length + 1 ∧ x₂.regs out = xs.length + 1 ∧
+        x₂.regs radBase = xs.length + 2 ∧ x₂.regs regc = x.regs regc := by
+      regs_frame
+    have hx₂_r' : x₂.regs regr = (x.regs regc + 1) / 2 + b + e := by
+      wram_simp at hx₂_r
+      exact hx₂_r
+    wram_exec [hx₂_one, hx₂_two, hx₂_radBase, hx₂_c, hx₂_r', hsub_rad,
+      hf_c1, hf_c1_div, hf_radval, hf_radc]
+    refine ⟨⟨by wram_simp [hx₂_zero], by wram_simp [hx₂_one], by wram_simp [hx₂_two],
+        by wram_simp [hx₂_len], by wram_simp [hx₂_limit], by wram_simp [hx₂_out],
+        by wram_simp [hx₂_radBase], by wram_simp [hx₂_c],
+        by wram_simp [hx₂_c]; omega, by wram_simp [hx₂_c]; omega,
+        by wram_simp [hx₂_c, hx₂_r', hR'], ?_, ?_, ?_⟩, ?_⟩
+    · exact hx.input_holds.frame fun a ha1 ha2 => by
+        wram_simp [hx₂_mem, hx₂_radBase, hx₂_c]
+    · wram_simp [hx₂_mem, hx₂_radBase, hx₂_c, hx.hdr_eq]
+    · intro j hj
+      wram_simp [hx₂_c] at hj
+      by_cases hjc : j = x.regs regc
+      · subst hjc
+        wram_simp [hx₂_mem, hx₂_radBase, hx₂_c]
+      · wram_simp [hx₂_mem, hx₂_radBase, hx₂_c]
+        exact hx.rad_holds j (by omega)
+    · unfold radiiPotential
+      wram_simp [hx₂_c, hx₂_r']
+      omega
 
 private theorem radiiCode_inv_exec {w : ℕ} (xs : List ℕ) (hw : Fits w (3 * xs.length + 2)) :
     ∃ y, ExecWithin w radiiCode (Data.init xs) y (87 * xs.length + 15) ∧
@@ -634,13 +588,7 @@ private theorem extractLongestCode_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (
   let y₂ := ((y₁.set go 0).set ext 0).set regc 1
   have hinit : ExecWithin (B := .standard) w
       (ram[ go ← zero; ext ← zero; regc ← one ]) y₁ y₂ 3 := by
-    have h := (ExecWithin.copy (B := .standard) (w := w) (d := go) (s := zero) (x := y₁)).seq
-      ((ExecWithin.copy (d := ext) (s := zero)).seq (ExecWithin.copy (d := regc) (s := one)))
-    simpa only [y₂, hy₁.zero_eq, hy₁.one_eq, Data.set_regs,
-      Function.update_of_ne (show ext ≠ go by decide),
-      Function.update_of_ne (show zero ≠ go by decide),
-      Function.update_of_ne (show one ≠ go by decide),
-      Function.update_of_ne (show one ≠ ext by decide)] using h.mono (by omega)
+    wram_exec [hy₁.zero_eq, hy₁.one_eq]
   let P (j : ℕ) (s : Data 16) : Prop :=
     s.regs one = 1 ∧ s.regs two = 2 ∧ s.regs limit = 2 * xs.length + 1 ∧
       s.regs radBase = xs.length + 2 ∧ s.mem = y₁.mem ∧
@@ -666,18 +614,14 @@ private theorem extractLongestCode_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (
       refine ⟨⟨by wram_simp [ho], by wram_simp [ht2], by wram_simp [hlim],
         by wram_simp [hrb], by wram_simp [hmem], ?_, by wram_simp; rfl⟩, by wram_simp⟩
       wram_simp
-      rw [List.range_succ, List.argmax_concat, harg]
-      have hlt_f' : f (s.regs go) < f (s.regs regc) := by simpa only [hext_eq, f] using hlt_f
-      simp only [hlt_f', ↓reduceIte]
+      simp [List.range_succ, List.argmax_concat, harg, ← hext_eq, hlt_f, f]
     · refine WP.exists_execWithin ?_
       unfold argmaxBody readAt
       wram_exec [ho, ht2, hrb, hrad_j, hlt_f, hf_addr, hf_2rad, hf_mod, hf_fj, hf_j1]
       refine ⟨⟨by wram_simp [ho], by wram_simp [ht2], by wram_simp [hlim],
         by wram_simp [hrb], by wram_simp [hmem], ?_, by wram_simp [hext_eq]⟩, by wram_simp⟩
       wram_simp
-      rw [List.range_succ, List.argmax_concat, harg]
-      have hlt_f' : ¬f (s.regs go) < f (s.regs regc) := by simpa only [hext_eq, f] using hlt_f
-      simp only [hlt_f', ↓reduceIte]
+      simp [List.range_succ, List.argmax_concat, harg, ← hext_eq, hlt_f, f]
   have hy₂_P : P (y₂.regs regc) y₂ := by
     refine ⟨by simp +decide [y₂, hy₁.one_eq], by simp +decide [y₂, hy₁.two_eq],
       by simp +decide [y₂, hy₁.limit_eq], by simp +decide [y₂, hy₁.radBase_eq], rfl, ?_, ?_⟩
@@ -752,16 +696,13 @@ private theorem extractLongestCode_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (
     (by rw [hbank_src, hbank_len]; exact hw.of_le (by omega))
     (by rw [hbank_dst, hbank_len]; exact hw.of_le (by omega))
     (by rw [hbank_src, hbank_len, hbank_dst]; omega)
-  obtain ⟨y, hcopy, ⟨hy_mem, _⟩, hframe⟩ := ExecWithin.rename_post copyBank_injective hcopy_callee
+  obtain ⟨y, hcopy, ⟨hy_mem, _⟩, _⟩ := ExecWithin.rename_post copyBank_injective hcopy_callee
   rw [hbank_len] at hcopy
   change y.mem = ArrayCopy.copyPrefix y₄.mem _ _ _ at hy_mem
   rw [hbank_src, hbank_dst, hbank_len] at hy_mem
-  have hy_regl : y.regs regl = st :=
-    (hframe regl (by intro j; fin_cases j <;> decide)).trans hy₄_l
-  have hy_regr : y.regs regr = sp :=
-    (hframe regr (by intro j; fin_cases j <;> decide)).trans hy₄_r
-  have hy_out : y.regs out = 3 * xs.length + 3 :=
-    (hframe out (by intro j; fin_cases j <;> decide)).trans hy₄_out
+  have hy_regl : y.regs regl = st := by regs_frame
+  have hy_regr : y.regs regr = sp := by regs_frame
+  have hy_out : y.regs out = 3 * xs.length + 3 := by regs_frame
   have hy₂_c : y₂.regs regc = 1 := by simp +decide [y₂]
   rw [hy₂_c] at hloop
   have htotal : ExecWithin w extractLongestCode y₁ y (29 * xs.length + 21) :=
@@ -769,21 +710,17 @@ private theorem extractLongestCode_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (
   have hextract_eq : xs.extract st sp = longestPalindrome xs := by
     simpa only [List.toList_toArray] using
       (hst_eq ▸ hsp_eq ▸ extract_longestPalindromeSpan xs.toArray)
-  have hlen_lp : (longestPalindrome xs).length = sp - st := by
-    rw [← hextract_eq, List.extract_eq_take_drop, List.length_take, List.length_drop]
+  have hlen_ext : (xs.extract st sp).length = sp - st := by
+    rw [List.extract_eq_take_drop, List.length_take, List.length_drop]
     omega
-  have hhold_xs : Block.HoldsList 1 xs y.mem := by
-    intro i
+  have hhold_xs : Block.HoldsList 1 xs y.mem := fun i => by
     have hi : i.val < xs.length := i.isLt
     change y.mem (1 + i.val) = xs[i.val]
     rw [hy_mem, ArrayCopy.copyPrefix_outside (by omega), hy₄_mem, Function.update_of_ne (by omega)]
     exact hy₁.input_holds i
   refine ⟨y, htotal, hy_regl.trans hst_eq, hy_regr.trans hsp_eq, ?_, hy_out,
-    by rw [hy_out, hlen_lp]; exact hw.of_le (by omega), hhold_xs⟩
+    hw.of_le (by rw [hy_out, ← hextract_eq, hlen_ext]; omega), hhold_xs⟩
   rw [hy_out, ← hextract_eq, outputList_eq_iff]
-  have hlen_ext : (xs.extract st sp).length = sp - st := by
-    rw [List.extract_eq_take_drop, List.length_take, List.length_drop]
-    omega
   refine ⟨?_, fun i => ?_⟩
   · rw [hy_mem, ArrayCopy.copyPrefix_outside (by omega), hy₄_mem, hlen_ext, Function.update_self]
   · have hi : i.val < sp - st := by simpa only [hlen_ext] using i.isLt

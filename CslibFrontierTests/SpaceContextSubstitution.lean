@@ -50,18 +50,21 @@ theorem size_count_false_inSpace :
     | cons b w ih => cases b <;> simp [ih]
   have hloop := ComputableInSpace.loopWith (encA := encBits) (encR := encPow)
     (step := fun p => step (flip p)) (init := fun _ => ⟨0, 1⟩)
-    (S := fun w => Nat.log2 (encBits w).length) (B := fun w => 3 * Nat.log2 w.length + 7)
+    (S := fun w => Nat.log2 (encBits w).length) (B := fun w => 4 * Nat.log2 w.length + 7)
     (fun _ j => ⟨j, 2 ^ j⟩) (fun w => Nat.size (w.count false))
-    ((ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _) step_flip_inSpace
+    (ComputableInSpace.budget_const _) step_flip_inSpace
     (fun _ => rfl)
     (fun w j hj => by
       have h : ¬w.count false < 2 ^ j := Nat.not_lt.mpr (Nat.lt_size.mp hj)
       simp only [SpaceStoredLoopTest.step, flip, hcount, h, ↓reduceIte, pow_succ, Nat.mul_comm])
     (fun w => by
       simp only [SpaceStoredLoopTest.step, flip, hcount, Nat.lt_size_self, ↓reduceIte])
-    (fun w j hj => length_encPow_le (hj.trans (by
-      have := length_encNat_le_log2 (List.count_le_length (a := false) (l := w))
-      rwa [encNat_apply, Nat.size_eq_bits_len] at this)))
+    (fun w j hj => by
+      have := length_encPow_le (hj.trans (by
+        have := length_encNat_le_log2 (List.count_le_length (a := false) (l := w))
+        rwa [encNat_apply, Nat.size_eq_bits_len] at this))
+      simp only [budget, encBits_apply]
+      omega)
   exact (encPow_exp_budget hloop).weaken ⟨7, fun w => by simp only [encBits_apply]; omega⟩
 
 end SpaceContextSubstitutionTest

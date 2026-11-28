@@ -21,6 +21,7 @@ import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Probability.Product
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Several independent keys of a pseudorandom function
@@ -251,17 +252,13 @@ theorem isOraclePPT_prfMultiReduction (hfamily : PseudorandomFunction family) (t
         exact (BitString.length_of_mem_support_uniformList hvalue).le) result hresult
     exact ⟨by simpa only [encBits_apply] using hcache',
       by simp only [encBits_apply] at hreply; omega, by omega⟩
-  · simp only [OracleComp.support, OracleComp.supportWith_pure, Set.mem_singleton_iff]
-      at hresult
-    subst hresult
+  · supp_cases hresult
     exact ⟨hcache, by simp, by dsimp only; omega⟩
   · simp only [OracleComp.mem_supportWith_map_iff] at hresult
     obtain ⟨reply, ⟨raw, _, rfl⟩, rfl⟩ := hresult
     have := List.length_take_le caller.1.1 raw
     exact ⟨hcache, by dsimp only; omega, by dsimp only; omega⟩
-  · simp only [OracleComp.support, OracleComp.supportWith_pure, Set.mem_singleton_iff]
-      at hresult
-    subst hresult
+  · supp_cases hresult
     have := List.length_take_le caller.1.1
       (prfOracle family caller.1.1 (keyBlock caller.1.1 i caller.2) query)
     exact ⟨hcache, by dsimp only; omega, by dsimp only; omega⟩
@@ -375,9 +372,7 @@ private theorem run_semanticHandler (family : List Bool → List Bool → List B
         change memoize (fun _ => BitString.uniformList n)
           (i, List.ofFn (BitString.ofList n query)) cache = _
         rw [BitString.ofFn_ofList hlength]
-      · rfl
-      · rfl
-      · rfl
+      all_goals rfl
   -- the eager side reads the curried table
   have heager (table : Fin t × BitString n → BitString n) :
       (fun q => OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
@@ -581,15 +576,20 @@ theorem interpret_prfMultiReduction_eq_multiKeyReduction
   dsimp only
   by_cases hquery : query.length = n
   · simp only [OracleCodec.wordOracle, OracleCodec.bitString, hquery, ↓reduceIte, eagerOracle,
-      randomFunctionOracle, prfOracle, PRF.atLevel, BitString.ofFn_ofList hquery,
+      randomFunctionOracle,
       Function.Embedding.coeFn_mk, PMF.monad_map_eq_map, PMF.pure_map]
     congr 1
     split_ifs with hlt heq
     · rfl
     · exact List.take_of_length_le List.length_ofFn.le
-    · have hlength : (family (List.ofFn (keys i)) query).length = n := by
-        simpa using hlength (List.ofFn (keys i)) query (by simp [hquery])
-      rw [List.take_of_length_le hlength.le, BitString.ofFn_ofList hlength]
+    · have hwidth (key q : List Bool) (hk : key.length = n) (hq : q.length = n) :
+          (family key q).length = n :=
+        (hlength key q (hq.trans hk.symm)).trans hk
+      have hrow : List.ofFn (PRF.atLevel family n (keys i) (BitString.ofList n query)) =
+          prfOracle family n (List.ofFn (keys i)) query := by
+        simpa only [randomFunctionOracle, ite_eq_left hquery, PRF.atLevel] using
+          randomFunctionOracle_keyed hwidth (keys i) query
+      rw [hrow, List.take_of_length_le (length_prfOracle_le hlength List.length_ofFn query)]
   · simp only [OracleCodec.wordOracle, OracleCodec.bitString, hquery, ↓reduceIte, eagerOracle,
       randomFunctionOracle, prfOracle]
     split_ifs <;> simp

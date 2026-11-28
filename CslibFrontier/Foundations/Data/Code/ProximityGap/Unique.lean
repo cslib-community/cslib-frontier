@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Data.Code.ReedSolomon
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Cramer
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 import CslibFrontier.Foundations.Data.Code.BerlekampWelch
 import CslibFrontier.Foundations.Data.Hamming
@@ -150,18 +151,6 @@ private lemma natDegree_curveCoordPoly_le [DecidableEq F] {d : ℕ} (u : Fin (d 
 private lemma coeff_curveCoordPoly [DecidableEq F] {d : ℕ} (u : Fin (d + 1) → (ι → F)) (i : ι)
     (j : Fin (d + 1)) : (curveCoordPoly u i).coeff (j : ℕ) = u j i :=
   ofFn_coeff_eq_val_of_lt _ j.isLt
-
-private lemma natDegree_coeff_le_natDegree_swap (p : F[X][Y]) (t : ℕ) :
-    (p.coeff t).natDegree ≤ (Bivariate.swap p).natDegree :=
-  natDegree_le_iff_coeff_eq_zero.2 fun d hd => by
-    rw [← Bivariate.coeff_coeff_swap, coeff_eq_zero_of_natDegree_lt hd, coeff_zero]
-
-private lemma natDegree_swap_le_iff (p : F[X][Y]) (m : ℕ) :
-    (Bivariate.swap p).natDegree ≤ m ↔ ∀ t, (p.coeff t).natDegree ≤ m :=
-  ⟨fun h t => (natDegree_coeff_le_natDegree_swap p t).trans h, fun h =>
-    natDegree_le_iff_coeff_eq_zero.2 fun d hd => by
-      ext t; rw [Bivariate.coeff_coeff_swap, coeff_zero]
-      exact coeff_eq_zero_of_natDegree_lt ((h t).trans_lt hd)⟩
 
 private lemma natDegree_swap_mul {p q : F[X][Y]} (hp : p ≠ 0) (hq : q ≠ 0) :
     (Bivariate.swap (p * q)).natDegree =
@@ -399,29 +388,6 @@ private lemma exists_max_indep_cols {κ ι' : Type*} [Finite κ]
   obtain ⟨w, hw⟩ := hspan
   exact ⟨C, j₀, w, hC_li, hj₀, hw⟩
 
-private lemma map_cramer_eq_det_mul {C : Type*} [Fintype C] [DecidableEq C]
-    {K : Type*} [Field K] (iK : F[X] →+* K) (N : Matrix C C F[X]) (v : C → F[X])
-    (w : C → K) (hdet : (N.map iK).det ≠ 0) (hw : (N.map iK).mulVec w = fun c => iK (v c))
-    (c : C) : iK (N.cramer v c) = iK N.det * w c := by
-  let NK := N.map iK
-  obtain ⟨U, hU⟩ := (Matrix.isUnit_iff_isUnit_det NK).2 (isUnit_iff_ne_zero.2 hdet)
-  have hmul : NK.mulVec (NK.cramer (fun c => iK (v c))) = NK.mulVec (NK.det • w) := by
-    rw [Matrix.mulVec_cramer, Matrix.mulVec_smul, hw]
-  have hvec : NK.cramer (fun c => iK (v c)) = NK.det • w := by
-    have h1 := congrArg (↑U⁻¹ : Matrix C C K).mulVec hmul
-    rwa [Matrix.mulVec_mulVec, Matrix.mulVec_mulVec, ← hU, Units.inv_mul,
-      Matrix.one_mulVec, Matrix.one_mulVec, hU] at h1
-  have hupd : (N.updateCol c v).map iK = NK.updateCol c (fun c' => iK (v c')) := by
-    ext a b
-    by_cases hbc : b = c
-    · simp only [hbc, Matrix.map_apply, Matrix.updateCol_self]
-    · simp only [Matrix.map_apply, Matrix.updateCol_ne hbc, NK]
-  have h1 : iK (N.cramer v c) = NK.cramer (fun c' => iK (v c')) c := by
-    rw [Matrix.cramer_apply, Matrix.cramer_apply]
-    exact (RingHom.map_det iK (N.updateCol c v)).trans (congrArg Matrix.det hupd)
-  rw [h1, hvec, Pi.smul_apply, smul_eq_mul,
-    show NK.det = iK N.det from (RingHom.map_det iK N).symm]
-
 /-- Extract a nonzero vector in the kernel of a matrix over `F[X]` with linearly dependent columns
 over `FractionRing F[X]`, bounding each entry's degree by the sum of all *other* column degrees. -/
 private lemma exists_cramer_kernel_vec {κ ι' : Type*} [Fintype κ] [DecidableEq κ] [Finite ι']
@@ -445,12 +411,13 @@ private lemma exists_cramer_kernel_vec {κ ι' : Type*} [Fintype κ] [DecidableE
   let v : C → F[X] := fun c => M (ρ c) j₀
   let x : κ → F[X] := fun j =>
     if j = j₀ then N.det else if hj : j ∈ C then -(N.cramer v ⟨j, hj⟩) else 0
-  have hcramer_eq : ∀ c : C, iK (N.cramer v c) = iK N.det * w c :=
-    map_cramer_eq_det_mul iK N v w hNK_det <| funext fun c => by
-      have hrc := congrFun hw (ρ c)
-      simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] at hrc
-      simp only [Matrix.mulVec, dotProduct, Matrix.map_apply, N, Matrix.submatrix_apply, v]
-      exact (Finset.sum_congr rfl fun b _ => mul_comm _ _).trans hrc
+  have hNw : (N.map iK).mulVec w = fun c => iK (v c) := funext fun c => by
+    have hrc := congrFun hw (ρ c)
+    simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] at hrc
+    simp only [Matrix.mulVec, dotProduct, Matrix.map_apply, N, Matrix.submatrix_apply, v]
+    exact (Finset.sum_congr rfl fun b _ => mul_comm _ _).trans hrc
+  have hcramer_eq (c : C) : iK (N.cramer v c) = iK N.det * w c :=
+    congrFun (Matrix.map_cramer_eq_det_smul iK hNw) c
   have hMx : M.mulVec x = 0 := funext fun r => IsFractionRing.injective F[X] K <| by
     rw [Pi.zero_apply, map_zero]
     simp only [Matrix.mulVec, dotProduct, map_sum, map_mul]
@@ -651,7 +618,7 @@ private lemma exists_primitive_bivariate_solution [Fintype ι] [DecidableEq F]
   have hdegZ_ofFn : ∀ {m : ℕ} (f : Fin m → F[X]) {bd : ℕ},
       (∀ t, (f t).natDegree ≤ bd) → (Bivariate.swap (ofFn m f)).natDegree ≤ bd := by
     intro m f bd hf
-    refine (natDegree_swap_le_iff _ _).2 fun t => ?_
+    refine (Bivariate.natDegree_swap_le_iff _ _).2 fun t => ?_
     by_cases ht : t < m
     · rw [ofFn_coeff_eq_val_of_lt _ ht]; exact hf ⟨t, ht⟩
     · rw [ofFn_coeff_eq_zero_of_ge _ (not_lt.1 ht), natDegree_zero]; exact Nat.zero_le _
@@ -748,7 +715,7 @@ private lemma natDegree_le_of_map_eval_eq_mul {f g : F[X][Y]} {m : ℕ} {W : Fin
       by_cases h0 : f.coeff t = 0
       · rw [h0, degree_zero]; exact WithBot.bot_lt_coe _
       · rw [degree_eq_natDegree h0, Nat.cast_lt]
-        exact (natDegree_coeff_le_natDegree_swap f t).trans_lt hW_deg) fun w hw => by
+        exact (Bivariate.natDegree_coeff_le_natDegree_swap f t).trans_lt hW_deg) fun w hw => by
       obtain ⟨p, hp, hfw⟩ := hmap w hw
       have hc : (f.coeff t).eval w = (g.map (evalRingHom w) * p).coeff t := by
         simpa only [coeff_map, coe_evalRingHom] using congrArg (fun q : F[X] => q.coeff t) hfw
@@ -823,19 +790,21 @@ private lemma exists_quotient_of_bivariate_solution [Fintype ι]
     natDegree_le_of_map_eval_eq_mul (by
       rw [Bivariate.swap_swap_apply, card_image_of_injective _ hα]; omega) hI_map
   have hres_X := card_mul_natDegree_le_of_isRelPrime_resultant hrel hB₀_ne haX_le
-    (natDegree_coeff_le_natDegree_swap A₀) (natDegree_coeff_le_natDegree_swap B₀)
+    (Bivariate.natDegree_coeff_le_natDegree_swap A₀)
+    (Bivariate.natDegree_coeff_le_natDegree_swap B₀)
     fun z hz => let ⟨Pz, hP, hm⟩ := hslice₀ z hz; ⟨Pz, Nat.add_le_add_right hP _, hm⟩
   have hres_Z := card_mul_natDegree_le_of_isRelPrime_resultant (W := I.image α)
     (isRelPrime_swap hrel) ((map_ne_zero_iff Bivariate.swap Bivariate.swap.injective).2 hB₀_ne)
-    haZ_le (fun t => Bivariate.swap_swap_apply A₀ ▸ natDegree_coeff_le_natDegree_swap _ t)
-    (fun t => Bivariate.swap_swap_apply B₀ ▸ natDegree_coeff_le_natDegree_swap _ t)
+    haZ_le (fun t => Bivariate.swap_swap_apply A₀ ▸ Bivariate.natDegree_coeff_le_natDegree_swap _ t)
+    (fun t => Bivariate.swap_swap_apply B₀ ▸ Bivariate.natDegree_coeff_le_natDegree_swap _ t)
     fun x hx => let ⟨p, hp, hm⟩ := hI_map x hx; ⟨p, Nat.add_le_add_right hp _, hm⟩
   rw [card_image_of_injective _ hα] at hres_Z
   obtain ⟨hbX_zero, hbZ_zero⟩ :=
     resultant_degree_collapse he he1 hk1 hS hbcX hI_card haX_le haZ_le hres_X hres_Z
   have hB₀_eq_CC : B₀ = C (C ((B₀.coeff 0).coeff 0)) := by
     have h2 : (B₀.coeff 0).natDegree = 0 :=
-      Nat.eq_zero_of_le_zero ((natDegree_coeff_le_natDegree_swap B₀ 0).trans_eq hbZ_zero)
+      Nat.eq_zero_of_le_zero
+        ((Bivariate.natDegree_coeff_le_natDegree_swap B₀ 0).trans_eq hbZ_zero)
     conv_lhs => rw [eq_C_of_natDegree_eq_zero hbX_zero, eq_C_of_natDegree_eq_zero h2]
   set c₀ : F := (B₀.coeff 0).coeff 0
   have hc₀_ne : c₀ ≠ 0 := fun h0 => hB₀_ne (by rw [hB₀_eq_CC, h0, C_0, C_0])

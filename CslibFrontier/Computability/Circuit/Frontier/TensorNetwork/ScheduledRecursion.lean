@@ -70,9 +70,6 @@ namespace Cslib.Circuits.Frontier.ContractionSchedule
 
 open TensorNetwork
 
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
-
 /-! ### The schedule of call parameters -/
 
 /-- The multiplicity step `h = ⌈3 M / u⌉` of Lemma D.5 at depth `d`, with `u = taper s d`. -/

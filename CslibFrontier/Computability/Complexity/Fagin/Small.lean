@@ -102,25 +102,21 @@ private theorem relTable_eq_of_equiv_fin_zero {N : Type} [L.Structure N] (e : N 
       if r.1 = 0 then [decide (N ⊨ nullaryRelSentence r)] else [] := by
   rcases r with ⟨_ | k, r⟩
   · simp only [↓reduceIte, nullaryRelSentence]
-    refine List.ext_getElem (by simp [Vocabulary.relTable]) fun j hj₁ hj₂ => ?_
+    refine List.ext_getElem (by simp [Vocabulary.relTable]) fun j hj₁ _ => ?_
     simp only [Vocabulary.relTable, List.getElem_ofFn, List.getElem_singleton]
-    refine decide_eq_decide.2 ?_
-    change RelMap r (e.symm ∘ finFunctionFinEquiv.symm ⟨j, _⟩) ↔
-      RelMap r fun k : Fin 0 => _
-    exact iff_of_eq (congrArg (RelMap r) (funext fun k => k.elim0))
+    exact decide_eq_decide.2 (iff_of_eq (congrArg (RelMap r) (funext fun k => k.elim0)))
   · simp [Vocabulary.relTable]
 
 open scoped Classical in
 private theorem encode_eq_encodeOfZero {N : Type} [L.Structure N] (e : N ≃ Fin 0) :
-    v.encode N e = v.encodeOfZero (fun i => decide (N ⊨ v.nullarySymbolSentence i)) := by
-  refine Prod.ext rfl (congrArg List.ofFn (funext fun i => ?_))
-  exact relTable_eq_of_equiv_fin_zero e (v.symbol i)
+    v.encode N e = v.encodeOfZero (fun i => decide (N ⊨ v.nullarySymbolSentence i)) :=
+  Prod.ext rfl (congrArg List.ofFn (funext fun i => relTable_eq_of_equiv_fin_zero e (v.symbol i)))
 
 open scoped Classical in
 private theorem relTable_eq_of_equiv_fin_one {N : Type} [L.Structure N] (e : N ≃ Fin 1)
     (r : Σ n, L.Relations n) :
     Vocabulary.relTable N e r = [decide (N ⊨ constTupleRelSentence r)] := by
-  refine List.ext_getElem (by simp [Vocabulary.relTable]) fun j hj₁ hj₂ => ?_
+  refine List.ext_getElem (by simp [Vocabulary.relTable]) fun j hj₁ _ => ?_
   have hj' : j < 1 ^ r.1 := by simpa [Vocabulary.relTable] using hj₁
   simp only [Vocabulary.relTable, List.getElem_ofFn, List.getElem_singleton]
   refine decide_eq_decide.2 ?_
@@ -136,9 +132,8 @@ private theorem relTable_eq_of_equiv_fin_one {N : Type} [L.Structure N] (e : N �
 
 open scoped Classical in
 private theorem encode_eq_encodeOfOne {N : Type} [L.Structure N] (e : N ≃ Fin 1) :
-    v.encode N e = v.encodeOfOne (fun i => decide (N ⊨ v.constTupleSentence i)) := by
-  refine Prod.ext rfl (congrArg List.ofFn (funext fun i => ?_))
-  exact relTable_eq_of_equiv_fin_one e (v.symbol i)
+    v.encode N e = v.encodeOfOne (fun i => decide (N ⊨ v.constTupleSentence i)) :=
+  Prod.ext rfl (congrArg List.ofFn (funext fun i => relTable_eq_of_equiv_fin_one e (v.symbol i)))
 
 end Vocabulary
 
@@ -174,13 +169,7 @@ theorem Definable.inter_card_le_one {K : Set (Bundled.{0} L.Structure)} (hK : Is
       {M : Bundled.{0} L.Structure | M ∈ K ∧ Nat.card M = 0} ∪
         {M : Bundled.{0} L.Structure | M ∈ K ∧ Nat.card M = 1} := by
     ext M
-    simp only [Set.mem_ofPred_eq, Set.mem_union]
-    constructor
-    · rintro ⟨hM, hle⟩
-      rcases Nat.le_one_iff_eq_zero_or_eq_one.1 hle with h | h
-      · exact Or.inl ⟨hM, h⟩
-      · exact Or.inr ⟨hM, h⟩
-    · rintro (⟨hM, h0⟩ | ⟨hM, h1⟩) <;> exact ⟨hM, by omega⟩
+    simp only [Set.mem_ofPred_eq, Set.mem_union, ← and_or_left, Nat.le_one_iff_eq_zero_or_eq_one]
   rw [heq]
   -- Cardinality `0` is read off the nullary tables, cardinality `1` off the constant tuples.
   exact (Definable.inter_card_eq_of_encode v hK 0 v.nullarySymbolSentence v.encodeOfZero
@@ -208,10 +197,8 @@ theorem Definable.of_card_ge_two (v : Vocabulary L) {K : Set (Bundled.{0} L.Stru
     Sentence.realize_ofSentence, FO.realize_cardGe_iff_le_card, ← hsmall M]
   change M ∈ K ↔ (M ∈ K ∧ Nat.card M ≤ 1) ∨ (2 ≤ Nat.card M ∧ Φ.Realize M)
   by_cases h2 : 2 ≤ Nat.card M
-  · rw [hΦ M h2]
-    exact ⟨fun h => Or.inr ⟨h2, h⟩, fun h => h.elim (fun ⟨_, hle⟩ => by omega) And.right⟩
-  · have hle : Nat.card M ≤ 1 := by omega
-    exact ⟨fun h => Or.inl ⟨h, hle⟩, fun h => h.elim And.left fun ⟨hge, _⟩ => by omega⟩
+  · simp [hΦ M h2, h2, show ¬Nat.card M ≤ 1 by omega]
+  · simp [h2, show Nat.card M ≤ 1 by omega]
 
 /-- To prove that an isomorphism-closed class `K` over a finite relational vocabulary is
 existential second-order definable, it suffices to exhibit an existential second-order sentence

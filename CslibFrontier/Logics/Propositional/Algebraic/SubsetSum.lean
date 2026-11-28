@@ -142,18 +142,14 @@ private theorem mulVar_mem_invariant {c : ι → F} (hc : ∀ i, c i ≠ 0) (m :
   · exact ⟨0, Submodule.zero_mem _, by rw [map_mul, ← hp, hr0, mul_zero, mul_zero]⟩
   -- `p` has degree at most `d - 1`, hence so has `L * r`, and `r` has degree at most `d - 2`
   have hdeg : p.totalDegree ≤ d - 1 := by
-    rw [totalDegree_mul_of_isDomain (X_ne_zero i) hp0, totalDegree_X] at hXp
-    omega
+    rw [totalDegree_mul_of_isDomain (X_ne_zero i) hp0, totalDegree_X] at hXp; omega
   have hrk : BitString.totalDegree r ≤ d - 1 := totalDegree_le_of_mem_lowDegree hr
   have h52 := totalDegree_affine_mul hc m (fun j hj hjr => hF j hj (by omega)) hr0 (by omega)
-  have hLr : BitString.totalDegree ((fun x => m - ∑ i, c i * bitVal F (x i)) * r) ≤ d - 1 := by
-    rw [hp]
-    exact totalDegree_le_of_mem_lowDegree (lowDegree_mono hdeg (cube_mem_lowDegree p))
-  refine ⟨(fun x => bitVal F (x i)) * r, ?_, ?_⟩
-  · exact lowDegree_mono (by omega)
-      (mul_mem_lowDegree (bitVal_mem_lowDegree i) (mem_lowDegree_totalDegree r))
-  · rw [map_mul, ← hp, aeval_X]
-    ring
+  have hLr : BitString.totalDegree ((fun x => m - ∑ i, c i * bitVal F (x i)) * r) ≤ d - 1 :=
+    hp ▸ totalDegree_le_of_mem_lowDegree (lowDegree_mono hdeg (cube_mem_lowDegree p))
+  exact ⟨(fun x => bitVal F (x i)) * r, lowDegree_mono (by omega)
+      (mul_mem_lowDegree (bitVal_mem_lowDegree i) (mem_lowDegree_totalDegree r)),
+    by rw [map_mul, ← hp, aeval_X]; ring⟩
 
 end Algebraic
 
@@ -173,11 +169,9 @@ public theorem PC.not_refutableInDegree_subsetSumPoly [Nonempty ι] {c : ι → 
   classical
   rintro ⟨ls, hls, h1, hdeg⟩
   have hn : 0 < Fintype.card ι := Fintype.card_pos
-  have hF' : ∀ j : ℕ, 0 < j → j ≤ (Fintype.card ι + 1) / 2 → (j : F) ≠ 0 := by
-    intro j hj hjn hj0
-    apply hF
+  have hF' : ∀ j : ℕ, 0 < j → j ≤ (Fintype.card ι + 1) / 2 → (j : F) ≠ 0 := fun j hj hjn hj0 => by
     obtain ⟨q, hq⟩ := Nat.dvd_factorial hj hjn
-    rw [hq, Nat.cast_mul, hj0, zero_mul]
+    exact hF (by rw [hq, Nat.cast_mul, hj0, zero_mul])
   have hmem := hls.mem_of_degree_le hdeg (invariant c m (d - 1)) ?_
     (fun i p hp hXp => mulVar_mem_invariant hc m (by omega) hF' i p hp hXp) 1 h1
   · obtain ⟨r, hr, h1⟩ := mem_invariant.1 hmem
@@ -192,10 +186,9 @@ public theorem PC.not_refutableInDegree_subsetSumPoly [Nonempty ι] {c : ι → 
     have h0 : BitString.totalDegree (1 : (ι → Bool) → F) = 0 :=
       Nat.le_zero.1 (totalDegree_le_of_mem_lowDegree (one_mem_lowDegree 0))
     omega
-  · intro f hf _
+  · rintro f hf _
     rcases List.mem_append.1 hf with hf | hf
-    · rw [List.mem_singleton] at hf
-      subst hf
+    · obtain rfl := List.mem_singleton.1 hf
       exact mem_invariant.2 ⟨1, one_mem_lowDegree _, by rw [mul_one, cube_subsetSumPoly]⟩
     · obtain ⟨i, rfl⟩ := mem_boolAxioms.1 hf
       exact mem_invariant.2 ⟨0, Submodule.zero_mem _, by rw [cube_boolAxiom, mul_zero]⟩

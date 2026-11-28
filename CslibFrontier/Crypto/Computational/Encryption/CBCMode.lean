@@ -181,29 +181,21 @@ theorem cbcCpaGame_eq_realExperiment {Key : Type} [Fintype Key] [Nonempty Key]
 theorem isQueryBounded_cbcChainQueries (c : BitString n) (ms : List (BitString n)) :
     ProbOracleComp.IsQueryBounded (cbcChainQueries c ms) ms.length := by
   induction ms generalizing c with
-  | nil =>
-    simp only [cbcChainQueries]
-    exact OracleComp.IsCostBounded.pure _ _
+  | nil => exact .pure _ _
   | cons m ms ih =>
-    simp only [cbcChainQueries]
-    exact OracleComp.IsCostBounded.mono
-      (OracleComp.IsCostBounded.bind (OracleComp.IsCostBounded.query (Sum.inr (c + m)))
-        fun c' => OracleComp.IsCostBounded.bind (ih c') fun cs =>
-          OracleComp.IsCostBounded.pure (c' :: cs) 0)
-      (by simp only [Sum.elim_inr, List.length_cons]; omega)
+    refine OracleComp.IsCostBounded.mono (.bind (.query (Sum.inr (c + m))) fun c' =>
+      .bind (ih c') fun cs => .pure (c' :: cs) 0) ?_
+    simp only [Sum.elim_inr, List.length_cons]; omega
 
 /-- If the queries of `adversary` ask at most `K` blocks in total, the reduction makes at most
 `K` oracle calls. -/
 theorem isQueryBounded_cbcReduction (ℓ : ℕ) (b : Bool) {adversary : BlockModeAdversary n} {K : ℕ}
     (h : OracleComp.IsCostBounded (blockModeCost ℓ) adversary K) :
-    ProbOracleComp.IsQueryBounded (cbcReduction ℓ b adversary) K := by
-  refine ProbOracleComp.isCostBounded_simulate (cost := blockModeBlocks ℓ) (fun q => ?_) h
-  have hq := OracleComp.IsCostBounded.bind
-    (ProbOracleComp.isCostBounded_sample (spec := fun _ : BitString n => BitString n)
-      (fun _ => 1) (ProbComp.uniform (BitString n))) fun iv =>
-    OracleComp.IsCostBounded.bind (isQueryBounded_cbcChainQueries iv (blockModeSelect ℓ b q))
-      fun cs => OracleComp.IsCostBounded.pure (iv, cs) 0
-  exact OracleComp.IsCostBounded.mono hq (by simp)
+    ProbOracleComp.IsQueryBounded (cbcReduction ℓ b adversary) K :=
+  ProbOracleComp.isCostBounded_simulate (cost := blockModeBlocks ℓ) (fun q =>
+    ((ProbOracleComp.isCostBounded_sample (fun _ => 1) _).bind fun iv =>
+      (isQueryBounded_cbcChainQueries iv (blockModeSelect ℓ b q)).bind fun cs =>
+        .pure (iv, cs) 0).mono (by simp)) h
 
 /-! ### Fresh sampling -/
 
@@ -227,26 +219,22 @@ private theorem length_cbcChainCache (t : List (BitString n × BitString n)) (c 
     (cbcChainCache t c ms us).length = t.length + ms.length := by
   induction ms generalizing t c us with
   | nil => simp [cbcChainCache]
-  | cons m ms ih =>
-    cases us with
-    | nil => simp at h
-    | cons u us =>
-      simp only [List.length_cons, Nat.add_right_cancel_iff] at h
-      simp only [cbcChainCache, ih _ _ _ h, List.length_cons]
-      omega
+  | cons _ _ ih =>
+    rcases us with _ | ⟨_, us⟩
+    · simp at h
+    · simp only [cbcChainCache, ih _ _ us (Nat.succ.inj h), List.length_cons]; omega
 
 private theorem not_goodChain_of_cbcChainFlag (t : List (BitString n × BitString n))
     (c : BitString n) (ms us : List (BitString n)) (h : cbcChainFlag t c ms us = true) :
     ¬goodChain (t.map Prod.fst) c ms us := by
   fun_induction cbcChainFlag t c ms us with
   | case1 t c m ms u us ih => -- m :: ms, u :: us
-    simp only [goodChain, not_and]
-    intro hc
+    rintro ⟨hc, hg⟩
     simp only [Bool.or_eq_true] at h
     rcases h with h | h
     · obtain ⟨p, hp, hcp⟩ := List.lookup_isSome_iff.1 h
-      exact absurd (List.mem_map.2 ⟨p, hp, (beq_iff_eq.1 hcp).symm⟩) hc
-    · exact ih h
+      exact hc (List.mem_map.2 ⟨p, hp, (beq_iff_eq.1 hcp).symm⟩)
+    · exact ih h hg
   | case2 => cases h -- either list exhausted
 
 /-- Fresh sampling along the chain of `ms` draws `ms.length` uniform blocks, which are the
@@ -291,11 +279,10 @@ private theorem length_of_mem_support_cbcQueryProgram (ℓ : ℕ) (b : Bool) (q 
     (s : FlagState n) (x : (BitString n × List (BitString n)) × FlagState n)
     (hx : x ∈ (ProbOracleComp.runWith freshStep (cbcQueryProgram ℓ b q) s).support) :
     x.2.1.length = s.1.length + blockModeBlocks ℓ q := by
-  rw [runWith_freshStep_cbcQueryProgram, PMF.support_map] at hx
-  obtain ⟨⟨iv, us⟩, hp, rfl⟩ := hx
-  have hlen : us.length = (blockModeSelect ℓ b q).length :=
-    length_snd_of_mem_support_uniformDraws hp
-  rw [length_cbcChainCache _ _ _ _ hlen, length_blockModeSelect]
+  obtain ⟨⟨iv, us⟩, hp, rfl⟩ := (PMF.mem_support_map_iff ..).1
+    (runWith_freshStep_cbcQueryProgram ℓ b q s ▸ hx)
+  rw [length_cbcChainCache _ _ _ _ (length_snd_of_mem_support_uniformDraws hp),
+    length_blockModeSelect]
 
 private theorem toOuterMeasure_repeated_cbcQueryProgram_le (ℓ : ℕ) (b : Bool)
     (q : BlockModeQuery n) (s : FlagState n) (hs : ¬s.2 = true) :
@@ -303,16 +290,12 @@ private theorem toOuterMeasure_repeated_cbcQueryProgram_le (ℓ : ℕ) (b : Bool
         {x | x.2.2 = true} ≤
       ((blockModeBlocks ℓ q * s.1.length + (blockModeBlocks ℓ q).choose 2 : ℕ) : ℝ≥0∞) *
         ((2 : ℝ≥0∞) ^ n)⁻¹ := by
-  rw [runWith_freshStep_cbcQueryProgram, PMF.toOuterMeasure_map_apply]
-  have hbad := toOuterMeasure_badChain_le (blockModeSelect ℓ b q) (s.1.map Prod.fst)
-  rw [List.length_map] at hbad
-  refine le_trans (PMF.toOuterMeasure_mono _ ?_) (hbad.trans_eq ?_)
-  · rintro ⟨iv, us⟩ ⟨hflag, -⟩
-    have hs' : s.2 = false := by simpa using hs
-    have hflag' : cbcChainFlag s.1 iv (blockModeSelect ℓ b q) us = true := by
-      simpa [hs'] using hflag
-    exact not_goodChain_of_cbcChainFlag s.1 iv _ us hflag'
-  · rw [length_blockModeSelect]
+  rw [runWith_freshStep_cbcQueryProgram, PMF.toOuterMeasure_map_apply,
+    ← length_blockModeSelect ℓ b q]
+  refine (PMF.toOuterMeasure_mono _ ?_).trans (List.length_map Prod.fst ▸
+    toOuterMeasure_badChain_le (blockModeSelect ℓ b q) (s.1.map Prod.fst))
+  rintro ⟨iv, us⟩ ⟨hflag, -⟩
+  exact not_goodChain_of_cbcChainFlag s.1 iv _ us (by simpa [hs] using hflag)
 
 /-! ### Security of CBC mode -/
 
@@ -339,15 +322,16 @@ theorem advantage_cbcCpaGame_randomFunction_le (ℓ : ℕ) {adversary : BlockMod
     (Game.advantage (cbcCpaGame (fun f : BitString n → BitString n => f) ℓ false adversary)
         (cbcCpaGame (fun f : BitString n → BitString n => f) ℓ true adversary) : ℝ) ≤
       2 * ((K.choose 2 : ℝ) / 2 ^ n) := by
-  have e : ∀ b, cbcCpaGame (fun f : BitString n → BitString n => f) ℓ b adversary =
-      ProbComp.eval (PRF.idealExperiment (cbcReduction ℓ b adversary)) := fun b => by
-    rw [cbcCpaGame_eq_realExperiment]
-    rfl
+  have e (b : Bool) : cbcCpaGame (fun f : BitString n → BitString n => f) ℓ b adversary =
+      ProbComp.eval (PRF.idealExperiment (cbcReduction ℓ b adversary)) :=
+    cbcCpaGame_eq_realExperiment _ ℓ b adversary
   rw [e, e]
-  have h₀ := advantage_idealExperiment_cbcReduction_le ℓ false h
-  have h₁ := advantage_idealExperiment_cbcReduction_le ℓ true h
-  refine (advantage_le_two _ (ProbComp.eval (blockModeIdealExperiment ℓ adversary)) _).trans ?_
-  linarith
+  linarith [advantage_le_two
+      (ProbComp.eval (PRF.idealExperiment (cbcReduction ℓ false adversary)))
+      (ProbComp.eval (blockModeIdealExperiment ℓ adversary))
+      (ProbComp.eval (PRF.idealExperiment (cbcReduction ℓ true adversary))),
+    advantage_idealExperiment_cbcReduction_le ℓ false h,
+    advantage_idealExperiment_cbcReduction_le ℓ true h]
 
 /-- **Keyed PRF step of [BonehShoup2023], Theorem 5.4, not the asymptotic theorem** (typed
 reduction without a running-time certificate, tracked in #4894 and #5293 section 2; see
@@ -363,13 +347,14 @@ theorem advantage_cbcCpaGame_prf_le {Key : Type} [Fintype Key] [Nonempty Key]
       PRF.advantage F (cbcReduction ℓ false adversary) +
         PRF.advantage F (cbcReduction ℓ true adversary) + 2 * ((K.choose 2 : ℝ) / 2 ^ n) := by
   rw [cbcCpaGame_eq_realExperiment, cbcCpaGame_eq_realExperiment]
-  have h₀ := advantage_idealExperiment_cbcReduction_le ℓ false h
-  have h₁ := advantage_idealExperiment_cbcReduction_le ℓ true h
-  refine (advantage_le_four _
-    (ProbComp.eval (PRF.idealExperiment (cbcReduction ℓ false adversary)))
-    (ProbComp.eval (blockModeIdealExperiment ℓ adversary))
-    (ProbComp.eval (PRF.idealExperiment (cbcReduction ℓ true adversary))) _).trans ?_
-  linarith
+  linarith [advantage_le_four
+      (ProbComp.eval (PRF.realExperiment F (cbcReduction ℓ false adversary)))
+      (ProbComp.eval (PRF.idealExperiment (cbcReduction ℓ false adversary)))
+      (ProbComp.eval (blockModeIdealExperiment ℓ adversary))
+      (ProbComp.eval (PRF.idealExperiment (cbcReduction ℓ true adversary)))
+      (ProbComp.eval (PRF.realExperiment F (cbcReduction ℓ true adversary))),
+    advantage_idealExperiment_cbcReduction_le ℓ false h,
+    advantage_idealExperiment_cbcReduction_le ℓ true h]
 
 /-- **Keyed block-cipher step (5.22) of [BonehShoup2023], Theorem 5.4, not the asymptotic theorem**
 (typed reduction without a running-time certificate, tracked in #4894 and #5293 section 2; see
@@ -386,14 +371,11 @@ theorem advantage_cbcCpaGame_le {Key : Type} [Fintype Key] [Nonempty Key]
         (cbcCpaGame (fun k => ⇑(E k)) ℓ true adversary) : ℝ) ≤
       PRP.advantage E (cbcReduction ℓ false adversary) +
         PRP.advantage E (cbcReduction ℓ true adversary) + 4 * ((K.choose 2 : ℝ) / 2 ^ n) := by
-  have hprf := advantage_cbcCpaGame_prf_le (fun k => ⇑(E k)) ℓ h
   have hs (b : Bool) : (PRF.advantage (fun k => ⇑(E k)) (cbcReduction ℓ b adversary) : ℝ) ≤
       PRP.advantage E (cbcReduction ℓ b adversary) + (K.choose 2 : ℝ) / 2 ^ n := by
     simpa [BitString.card] using
       PRP.prfAdvantage_le_advantage_add E (isQueryBounded_cbcReduction ℓ b h)
-  have hs₀ := hs false
-  have hs₁ := hs true
-  linarith
+  linarith [advantage_cbcCpaGame_prf_le (fun k => ⇑(E k)) ℓ h, hs false, hs true]
 
 /-- **CBC mode with a uniform random permutation: a step of the proof of [BonehShoup2023],
 Theorem 5.4, not the theorem.** The block cipher is replaced by a uniform random permutation of

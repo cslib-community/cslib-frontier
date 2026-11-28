@@ -90,19 +90,16 @@ theorem mulVec_kernelVecAt (A : Matrix (Fin r) (Fin n) F) (j : Fin n) :
 entry `j`. -/
 theorem kernelVecAt_apply_self_eq_one_iff (A : Matrix (Fin r) (Fin n) F) (j : Fin n) :
     kernelVecAt A j j = 1 ↔ ∃ v, A *ᵥ v = 0 ∧ v j ≠ 0 := by
-  constructor
-  · intro h
-    exact ⟨_, mulVec_kernelVecAt A j, by rw [h]; exact one_ne_zero⟩
-  · rintro ⟨v, hv, hvj⟩
-    obtain ⟨c, rfl⟩ := exists_eq_sum_kernelBasis A hv
-    rcases sum_firstFlags_smul_eq (fun i => kernelBasis A i j) (kernelBasis A) with
-      ⟨hb, -⟩ | ⟨i, hi, -, h⟩
-    · refine absurd ?_ hvj
-      rw [Finset.sum_apply]
-      exact sum_eq_zero fun i _ => by
-        rw [Pi.smul_apply, show kernelBasis A i j = 0 from congrFun hb i, smul_zero]
-    · rw [kernelVecAt, Pi.smul_apply, kernelPivotAt, h, smul_eq_mul]
-      exact inv_mul_cancel₀ hi
+  refine ⟨fun h => ⟨_, mulVec_kernelVecAt A j, h ▸ one_ne_zero⟩, ?_⟩
+  rintro ⟨v, hv, hvj⟩
+  obtain ⟨c, rfl⟩ := exists_eq_sum_kernelBasis A hv
+  rcases sum_firstFlags_smul_eq (fun i => kernelBasis A i j) (kernelBasis A) with
+    ⟨hb, -⟩ | ⟨i, hi, -, h⟩
+  · refine hvj.elim ?_
+    rw [Finset.sum_apply]
+    exact sum_eq_zero fun i _ => by
+      rw [Pi.smul_apply, show kernelBasis A i j = 0 from congrFun hb i, smul_zero]
+  · rw [kernelVecAt, Pi.smul_apply, kernelPivotAt, h, smul_eq_mul, inv_mul_cancel₀ hi]
 
 /-- When every kernel vector of `A` has entry `j` equal to zero, `kernelVecAt A j` is zero. -/
 theorem kernelVecAt_eq_zero (A : Matrix (Fin r) (Fin n) F) (j : Fin n)
@@ -139,10 +136,8 @@ theorem vecMul_vecMulSolve (M : Matrix (Fin r) (Fin n) F) (b : Fin n → F)
   funext l
   have hl := congrFun (mulVec_kernelVecAt B 0) l
   rw [hB, vecMulSolveMatrix_mulVec, ← hB, hone, mul_one, Pi.zero_apply] at hl
-  have : (vecMulSolve M (w ᵥ* M) ᵥ* M) l = -∑ k, M k l * kernelVecAt B 0 k.succ := by
-    simp [Matrix.vecMul, dotProduct, vecMulSolve, ← hB, mul_comm, Finset.sum_neg_distrib]
-  rw [this]
-  exact (eq_neg_of_add_eq_zero_left hl).symm
+  simpa [Matrix.vecMul, dotProduct, vecMulSolve, ← hB, mul_comm, Finset.sum_neg_distrib] using
+    (eq_neg_of_add_eq_zero_left hl).symm
 
 /-- `vecMulSolve M b` solves `w ᵥ* M = b` if and only if a solution exists. -/
 theorem vecMul_vecMulSolve_iff (M : Matrix (Fin r) (Fin n) F) (b : Fin n → F) :
@@ -152,21 +147,21 @@ theorem vecMul_vecMulSolve_iff (M : Matrix (Fin r) (Fin n) F) (b : Fin n → F) 
 /-- When `w ᵥ* M = b` has no solution, `vecMulSolve M b` is zero. -/
 theorem vecMulSolve_eq_zero (M : Matrix (Fin r) (Fin n) F) (b : Fin n → F)
     (h : ¬ ∃ w, w ᵥ* M = b) : vecMulSolve M b = 0 := by
-  have hz : kernelVecAt (vecMulSolveMatrix M b) 0 = 0 := by
-    refine kernelVecAt_eq_zero _ _ fun v hv => ?_
-    by_contra hv0
-    refine h ⟨fun k => -(v 0)⁻¹ * v k.succ, funext fun l => ?_⟩
-    have hl := congrFun hv l
-    rw [vecMulSolveMatrix_mulVec, Pi.zero_apply] at hl
-    have hs : ∑ k, M k l * v k.succ = -(b l * v 0) := eq_neg_of_add_eq_zero_right hl
-    simp only [Matrix.vecMul, dotProduct]
-    calc ∑ k, -(v 0)⁻¹ * v k.succ * M k l
-        = -(v 0)⁻¹ * ∑ k, M k l * v k.succ := by
-          rw [Finset.mul_sum]
-          exact Finset.sum_congr rfl fun k _ => by rw [mul_assoc, mul_comm (v k.succ)]
-      _ = b l := by
-        rw [hs, neg_mul_neg, mul_comm (b l), ← mul_assoc, inv_mul_cancel₀ hv0, one_mul]
+  have hz : kernelVecAt (vecMulSolveMatrix M b) 0 = 0 :=
+    kernelVecAt_eq_zero _ _ fun v hv => by
+      by_contra hv0
+      refine h ⟨fun k => -(v 0)⁻¹ * v k.succ, funext fun l => ?_⟩
+      have hl := congrFun hv l
+      rw [vecMulSolveMatrix_mulVec, Pi.zero_apply] at hl
+      have hs := eq_neg_of_add_eq_zero_right hl
+      simp only [Matrix.vecMul, dotProduct]
+      calc ∑ k, -(v 0)⁻¹ * v k.succ * M k l
+          = -(v 0)⁻¹ * ∑ k, M k l * v k.succ := by
+            rw [Finset.mul_sum]
+            exact Finset.sum_congr rfl fun k _ => by rw [mul_assoc, mul_comm (v k.succ)]
+        _ = b l := by
+          rw [hs, neg_mul_neg, mul_comm (b l), ← mul_assoc, inv_mul_cancel₀ hv0, one_mul]
   funext k
-  simp only [vecMulSolve, hz, Pi.zero_apply, neg_zero]
+  simp [vecMulSolve, hz]
 
 end Cslib.LinearAlgebra

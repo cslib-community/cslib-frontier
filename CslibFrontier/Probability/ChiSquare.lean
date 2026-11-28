@@ -81,24 +81,9 @@ open scoped BigOperators Cslib.Probability.PMF ENNReal
 
 variable {α β θ ι : Type*}
 
-private lemma sum_sub_sq_div_eq_sum_sq_div_sub_one [Fintype α] {p q : PMF α}
-    (h : p.support ⊆ q.support) :
-    ∑ a, ((p a).toReal - (q a).toReal) ^ 2 / (q a).toReal =
-      (∑ a, (p a).toReal ^ 2 / (q a).toReal) - 1 := by
-  have hpt (a : α) :
-      ((p a).toReal - (q a).toReal) ^ 2 / (q a).toReal =
-        (p a).toReal ^ 2 / (q a).toReal - 2 * (p a).toReal + (q a).toReal := by
-    by_cases ha : q a = 0
-    · have hpa : p a = 0 := (PMF.apply_eq_zero_iff p a).mpr
-        (fun hap => (PMF.apply_eq_zero_iff q a).mp ha (h hap))
-      simp [ha, hpa]
-    · have hqpos : (q a).toReal ≠ 0 :=
-        ((ENNReal.toReal_pos ha (q.apply_ne_top a)).ne')
-      field_simp
-      ring
-  simp_rw [hpt, Finset.sum_add_distrib, Finset.sum_sub_distrib, ← Finset.mul_sum,
-    sum_toReal]
-  ring
+private lemma apply_eq_zero_of_support {p q : PMF α} (h : p.support ⊆ q.support) {a : α}
+    (ha : q a = 0) : p a = 0 :=
+  (PMF.apply_eq_zero_iff p a).mpr fun hap => (PMF.apply_eq_zero_iff q a).mp ha (h hap)
 
 private lemma finset_prod_sq_div (s : Finset ι) (f g : ι → ℝ≥0∞)
     (hf : ∀ i ∈ s, f i ≠ ⊤) (hg : ∀ i ∈ s, g i ≠ ⊤) :
@@ -107,39 +92,28 @@ private lemma finset_prod_sq_div (s : Finset ι) (f g : ι → ℝ≥0∞)
   induction s using Finset.induction_on with
   | empty => simp
   | insert i s hi ih =>
-    have hfi : f i ≠ ⊤ := hf i (Finset.mem_insert_self i s)
+    have hfi : f i ^ 2 ≠ ⊤ := ENNReal.pow_ne_top (hf i (Finset.mem_insert_self i s))
     have hgi : g i ≠ ⊤ := hg i (Finset.mem_insert_self i s)
-    have hfs : ∏ j ∈ s, f j ≠ ⊤ :=
-      ENNReal.prod_ne_top fun j hj => hf j (Finset.mem_insert_of_mem hj)
+    have hfs : (∏ j ∈ s, f j) ^ 2 ≠ ⊤ :=
+      ENNReal.pow_ne_top (ENNReal.prod_ne_top fun j hj => hf j (Finset.mem_insert_of_mem hj))
     have hgs : ∏ j ∈ s, g j ≠ ⊤ :=
       ENNReal.prod_ne_top fun j hj => hg j (Finset.mem_insert_of_mem hj)
     rw [Finset.prod_insert hi, Finset.prod_insert hi, Finset.prod_insert hi, mul_pow,
       ← ih (fun j hj => hf j (Finset.mem_insert_of_mem hj))
         (fun j hj => hg j (Finset.mem_insert_of_mem hj))]
-    have htwo {a b c d : ℝ≥0∞} (ha : a ≠ ⊤) (hb : b ≠ ⊤) (hc : c ≠ ⊤) (hd : d ≠ ⊤) :
-        (a * b) / (c * d) = (a / c) * (b / d) := by
-      by_cases ha0 : a = 0
-      · simp [ha0]
-      by_cases hb0 : b = 0
-      · simp [hb0]
-      by_cases hc0 : c = 0
-      · have hbd0 : b / d ≠ 0 := by
-          intro h0
-          rw [ENNReal.div_eq_zero_iff] at h0
-          exact h0.elim hb0 hd
-        rw [hc0, zero_mul, ENNReal.div_zero (mul_ne_zero ha0 hb0), ENNReal.div_zero ha0,
-          ENNReal.top_mul hbd0]
-      by_cases hd0 : d = 0
-      · have hac0 : a / c ≠ 0 := by
-          intro h0
-          rw [ENNReal.div_eq_zero_iff] at h0
-          exact h0.elim ha0 hc
-        rw [hd0, mul_zero, ENNReal.div_zero (mul_ne_zero ha0 hb0), ENNReal.div_zero hb0,
-          ENNReal.mul_top hac0]
-      rw [div_eq_mul_inv, div_eq_mul_inv, div_eq_mul_inv,
-        ENNReal.mul_inv (Or.inl hc0) (Or.inl hc)]
-      ring
-    exact htwo (ENNReal.pow_ne_top hfi) (ENNReal.pow_ne_top hfs) hgi hgs
+    rcases eq_or_ne (f i ^ 2) 0 with ha0 | ha0
+    · simp [ha0]
+    rcases eq_or_ne ((∏ j ∈ s, f j) ^ 2) 0 with hb0 | hb0
+    · simp [hb0]
+    rcases eq_or_ne (g i) 0 with hc0 | hc0
+    · rw [hc0, zero_mul, ENNReal.div_zero (mul_ne_zero ha0 hb0), ENNReal.div_zero ha0,
+        ENNReal.top_mul (mt ENNReal.div_eq_zero_iff.mp (not_or.mpr ⟨hb0, hgs⟩))]
+    rcases eq_or_ne (∏ j ∈ s, g j) 0 with hd0 | hd0
+    · rw [hd0, mul_zero, ENNReal.div_zero (mul_ne_zero ha0 hb0), ENNReal.div_zero hb0,
+        ENNReal.mul_top (mt ENNReal.div_eq_zero_iff.mp (not_or.mpr ⟨ha0, hgi⟩))]
+    rw [div_eq_mul_inv, div_eq_mul_inv, div_eq_mul_inv,
+      ENNReal.mul_inv (.inl hc0) (.inl hgi)]
+    ring
 
 /-- Extended Pearson `χ²` divergence of `p` with respect to `q`, valued in `ℝ≥0∞`.
 It equals `∑' a, (p a - q a)² / q a` when `p.support ⊆ q.support`, and `⊤` otherwise (on finite
@@ -155,7 +129,6 @@ noncomputable def chiSquare (p q : PMF α) : ℝ :=
 
 theorem echiSquare_eq_tsum (p q : PMF α) :
     echiSquare p q = ∑' a, ENNReal.ofReal (((p a).toReal - (q a).toReal) ^ 2) / q a := by
-  unfold echiSquare
   rfl
 
 @[simp]
@@ -173,23 +146,12 @@ theorem echiSquare_ne_top_iff [Finite α] {p q : PMF α} :
     echiSquare p q ≠ ⊤ ↔ p.support ⊆ q.support := by
   let := Fintype.ofFinite α
   rw [echiSquare, tsum_fintype, ne_eq, ENNReal.sum_eq_top]
-  constructor
-  · intro h a hap
-    by_contra haq
-    apply h
-    refine ⟨a, Finset.mem_univ _, ?_⟩
-    have hqa0 : q a = 0 := (PMF.apply_eq_zero_iff q a).mpr haq
-    have hpa0 : p a ≠ 0 := (PMF.mem_support_iff p a).mp hap
-    have hpos : 0 < (p a).toReal := ENNReal.toReal_pos hpa0 (p.apply_ne_top a)
-    have hne0 : ENNReal.ofReal (((p a).toReal - (q a).toReal) ^ 2) ≠ 0 := by
-      simp [hqa0, hpos]
-    rw [hqa0] at hne0 ⊢
-    exact ENNReal.div_zero hne0
-  · intro h ⟨a, _, ha⟩
-    by_cases haq : q a = 0
-    · have hpa0 : p a = 0 := (PMF.apply_eq_zero_iff p a).mpr
-        (fun hap => (PMF.apply_eq_zero_iff q a).mp haq (h hap))
-      simp [haq, hpa0] at ha
+  refine ⟨fun h a hap => by_contra fun haq => h ⟨a, Finset.mem_univ _, ?_⟩, fun h ⟨a, _, ha⟩ => ?_⟩
+  · have hqa0 : q a = 0 := (PMF.apply_eq_zero_iff q a).mpr haq
+    have hpos := ENNReal.toReal_pos ((PMF.mem_support_iff p a).mp hap) (p.apply_ne_top a)
+    rw [hqa0, ENNReal.div_zero (by simp [hpos])]
+  · by_cases haq : q a = 0
+    · simp [haq, apply_eq_zero_of_support h haq] at ha
     · exact ENNReal.div_ne_top ENNReal.ofReal_ne_top haq ha
 
 theorem echiSquare_eq_top_iff [Finite α] {p q : PMF α} :
@@ -205,20 +167,24 @@ theorem chiSquare_eq_sum [Fintype α] {p q : PMF α} (h : p.support ⊆ q.suppor
   rw [chiSquare, echiSquare, tsum_fintype, ENNReal.toReal_sum]
   · refine Finset.sum_congr rfl fun a _ => ?_
     by_cases ha : q a = 0
-    · have hpa : p a = 0 := (PMF.apply_eq_zero_iff p a).mpr
-        (fun hap => (PMF.apply_eq_zero_iff q a).mp ha (h hap))
-      simp [ha, hpa]
+    · simp [ha, apply_eq_zero_of_support h ha]
     · rw [ENNReal.toReal_div, ENNReal.toReal_ofReal (sq_nonneg _)]
   · intro a _
     by_cases ha : q a = 0
-    · have hpa : p a = 0 := (PMF.apply_eq_zero_iff p a).mpr
-        (fun hap => (PMF.apply_eq_zero_iff q a).mp ha (h hap))
-      simp [ha, hpa]
+    · simp [ha, apply_eq_zero_of_support h ha]
     · exact ENNReal.div_ne_top ENNReal.ofReal_ne_top ha
 
 theorem chiSquare_eq_sum_div_sub_one [Fintype α] {p q : PMF α} (h : p.support ⊆ q.support) :
     chiSquare p q = (∑ a, (p a).toReal ^ 2 / (q a).toReal) - 1 := by
-  rw [chiSquare_eq_sum h, sum_sub_sq_div_eq_sum_sq_div_sub_one h]
+  rw [chiSquare_eq_sum h]
+  have hpt (a : α) : ((p a).toReal - (q a).toReal) ^ 2 / (q a).toReal =
+      (p a).toReal ^ 2 / (q a).toReal - 2 * (p a).toReal + (q a).toReal := by
+    by_cases ha : q a = 0
+    · simp [ha, apply_eq_zero_of_support h ha]
+    · have := (ENNReal.toReal_pos ha (q.apply_ne_top a)).ne'
+      field_simp; ring
+  simp_rw [hpt, Finset.sum_add_distrib, Finset.sum_sub_distrib, ← Finset.mul_sum, sum_toReal]
+  ring
 
 theorem one_add_chiSquare_eq_sum [Fintype α] {p q : PMF α} (h : p.support ⊆ q.support) :
     1 + chiSquare p q = ∑ a, (p a).toReal ^ 2 / (q a).toReal := by
@@ -233,53 +199,37 @@ theorem chiSquare_eq_zero_iff [Finite α] {p q : PMF α} (h : p.support ⊆ q.su
   · intro hzero
     ext a
     by_cases ha : q a = 0
-    · have hpa : p a = 0 := (PMF.apply_eq_zero_iff p a).mpr
-        (fun hap => (PMF.apply_eq_zero_iff q a).mp ha (h hap))
-      rw [ha, hpa]
-    · have hqpos : 0 < (q a).toReal := ENNReal.toReal_pos ha (q.apply_ne_top a)
-      have hterm := hzero a (Finset.mem_univ a)
-      rw [div_eq_zero_iff] at hterm
-      have hsub : (p a).toReal = (q a).toReal :=
-        sub_eq_zero.mp (sq_eq_zero_iff.mp (hterm.resolve_right hqpos.ne'))
+    · rw [ha, apply_eq_zero_of_support h ha]
+    · have hqpos := (ENNReal.toReal_pos ha (q.apply_ne_top a)).ne'
+      have hsub := sub_eq_zero.mp
+        (sq_eq_zero_iff.mp ((div_eq_zero_iff.mp (hzero a (Finset.mem_univ a))).resolve_right hqpos))
       exact (ENNReal.toReal_eq_toReal_iff' (p.apply_ne_top a) (q.apply_ne_top a)).mp hsub
-  · rintro rfl a _
+  · rintro rfl _ _
     simp
 
 theorem echiSquare_eq_zero_iff [Finite α] {p q : PMF α} : echiSquare p q = 0 ↔ p = q := by
-  constructor
-  · intro h
-    have hsup : p.support ⊆ q.support := echiSquare_ne_top_iff.mp (by simp [h])
-    refine (chiSquare_eq_zero_iff hsup).mp ?_
-    simp [chiSquare, h]
-  · rintro rfl
-    exact echiSquare_self p
+  exact ⟨fun h => (chiSquare_eq_zero_iff (echiSquare_ne_top_iff.mp (by simp [h]))).mp
+    (by simp [chiSquare, h]), fun h => h ▸ echiSquare_self p⟩
 
 theorem one_add_echiSquare_eq_tsum [Finite α] (p q : PMF α) :
     1 + echiSquare p q = ∑' a, p a ^ 2 / q a := by
   let := Fintype.ofFinite α
   rw [tsum_fintype]
   by_cases h : p.support ⊆ q.support
-  · have hsum_rhs : ∑ a, p a ^ 2 / q a = ENNReal.ofReal (∑ a, (p a).toReal ^ 2 / (q a).toReal) := by
-      rw [ENNReal.ofReal_sum_of_nonneg (fun a _ => div_nonneg (sq_nonneg _) ENNReal.toReal_nonneg)]
-      refine Finset.sum_congr rfl fun a _ => ?_
-      by_cases ha : q a = 0
-      · have hpa : p a = 0 := (PMF.apply_eq_zero_iff p a).mpr
-          (fun hap => (PMF.apply_eq_zero_iff q a).mp ha (h hap))
-        simp [ha, hpa]
-      · rw [ENNReal.ofReal_div_of_pos (ENNReal.toReal_pos ha (q.apply_ne_top a)),
-          ENNReal.ofReal_pow ENNReal.toReal_nonneg,
-          ENNReal.ofReal_toReal (p.apply_ne_top a),
-          ENNReal.ofReal_toReal (q.apply_ne_top a)]
-    rw [echiSquare_eq_ofReal h, ← ENNReal.ofReal_one,
-      ← ENNReal.ofReal_add zero_le_one (chiSquare_nonneg p q),
-      one_add_chiSquare_eq_sum h, hsum_rhs]
-  · have htop : echiSquare p q = ⊤ := echiSquare_eq_top_iff.mpr h
-    rw [htop, add_top, eq_comm, ENNReal.sum_eq_top]
+  · rw [echiSquare_eq_ofReal h, ← ENNReal.ofReal_one,
+      ← ENNReal.ofReal_add zero_le_one (chiSquare_nonneg p q), one_add_chiSquare_eq_sum h,
+      ENNReal.ofReal_sum_of_nonneg (fun _ _ => div_nonneg (sq_nonneg _) ENNReal.toReal_nonneg)]
+    refine Finset.sum_congr rfl fun a _ => ?_
+    by_cases ha : q a = 0
+    · simp [ha, apply_eq_zero_of_support h ha]
+    · rw [ENNReal.ofReal_div_of_pos (ENNReal.toReal_pos ha (q.apply_ne_top a)),
+        ENNReal.ofReal_pow ENNReal.toReal_nonneg, ENNReal.ofReal_toReal (p.apply_ne_top a),
+        ENNReal.ofReal_toReal (q.apply_ne_top a)]
+  · rw [echiSquare_eq_top_iff.mpr h, add_top, eq_comm, ENNReal.sum_eq_top]
     rcases Set.not_subset.mp h with ⟨a, hap, haq⟩
-    refine ⟨a, Finset.mem_univ _, ?_⟩
-    have hpa0 : p a ≠ 0 := (PMF.mem_support_iff p a).mp hap
-    have hqa0 : q a = 0 := (PMF.apply_eq_zero_iff q a).mpr haq
-    rw [hqa0, ENNReal.div_zero (pow_ne_zero 2 hpa0)]
+    exact ⟨a, Finset.mem_univ _, by
+      rw [(PMF.apply_eq_zero_iff q a).mpr haq,
+        ENNReal.div_zero (pow_ne_zero 2 ((PMF.mem_support_iff p a).mp hap))]⟩
 
 /-- Multiplicative tensorization of `1 + echiSquare` over finite independent products, valid
 without any support assumption. -/
@@ -288,16 +238,10 @@ theorem one_add_echiSquare_pi [Fintype ι] {α : ι → Type*} [∀ i, Finite (�
     1 + echiSquare (pi p) (pi q) = ∏ i, (1 + echiSquare (p i) (q i)) := by
   let (i : ι) := Fintype.ofFinite (α i)
   classical
-  have h1 : 1 + echiSquare (pi p) (pi q) = ∑ u : ∀ i, α i, pi p u ^ 2 / pi q u := by
-    rw [one_add_echiSquare_eq_tsum, tsum_fintype]
-  have h2 (i : ι) : 1 + echiSquare (p i) (q i) = ∑ a, p i a ^ 2 / q i a := by
-    rw [one_add_echiSquare_eq_tsum, tsum_fintype]
-  rw [h1]
-  simp_rw [h2, Fintype.prod_sum]
-  refine Finset.sum_congr rfl fun u _ => ?_
-  simp only [pi_apply]
-  exact finset_prod_sq_div Finset.univ (fun i => p i (u i)) (fun i => q i (u i))
-    (fun i _ => (p i).apply_ne_top _) (fun i _ => (q i).apply_ne_top _)
+  simp_rw [one_add_echiSquare_eq_tsum, tsum_fintype, Fintype.prod_sum, pi_apply]
+  exact Finset.sum_congr rfl fun u _ => finset_prod_sq_div Finset.univ
+    (fun i => p i (u i)) (fun i => q i (u i)) (fun i _ => (p i).apply_ne_top _)
+    (fun i _ => (q i).apply_ne_top _)
 
 /-- Tensorization of `1 + chiSquare` over finite independent products:
 `1 + χ²(pi p ‖ pi q) = ∏ i, (1 + χ²(p i ‖ q i))`. -/
@@ -305,20 +249,18 @@ theorem one_add_chiSquare_pi [Fintype ι] {α : ι → Type*} [∀ i, Finite (α
     (p q : ∀ i, PMF (α i)) (h : ∀ i, (p i).support ⊆ (q i).support) :
     1 + chiSquare (pi p) (pi q) = ∏ i, (1 + chiSquare (p i) (q i)) := by
   have hpi : (pi p).support ⊆ (pi q).support := by
-    intro u hu
-    rw [mem_support_pi_iff] at hu ⊢
-    exact fun i => h i (hu i)
+    intro u
+    simp only [mem_support_pi_iff]
+    exact fun hu i => h i (hu i)
   have hE := one_add_echiSquare_pi p q
-  have hL : 1 + echiSquare (pi p) (pi q) = ENNReal.ofReal (1 + chiSquare (pi p) (pi q)) := by
-    rw [echiSquare_eq_ofReal hpi, ← ENNReal.ofReal_one,
-      ← ENNReal.ofReal_add zero_le_one (chiSquare_nonneg _ _)]
   have hR : ∏ i, (1 + echiSquare (p i) (q i)) =
       ENNReal.ofReal (∏ i, (1 + chiSquare (p i) (q i))) := by
-    rw [ENNReal.ofReal_prod_of_nonneg (fun i _ => add_nonneg zero_le_one (chiSquare_nonneg _ _))]
-    refine Finset.prod_congr rfl fun i _ => ?_
-    rw [echiSquare_eq_ofReal (h i), ← ENNReal.ofReal_one,
-      ← ENNReal.ofReal_add zero_le_one (chiSquare_nonneg _ _)]
-  rw [hL, hR] at hE
+    rw [ENNReal.ofReal_prod_of_nonneg fun _ _ => add_nonneg zero_le_one (chiSquare_nonneg _ _)]
+    exact Finset.prod_congr rfl fun i _ => by
+      rw [echiSquare_eq_ofReal (h i), ← ENNReal.ofReal_one,
+        ← ENNReal.ofReal_add zero_le_one (chiSquare_nonneg _ _)]
+  rw [hR, echiSquare_eq_ofReal hpi, ← ENNReal.ofReal_one,
+    ← ENNReal.ofReal_add zero_le_one (chiSquare_nonneg _ _)] at hE
   exact (ENNReal.ofReal_eq_ofReal_iff (add_nonneg zero_le_one (chiSquare_nonneg _ _))
     (Finset.prod_nonneg fun _ _ => add_nonneg zero_le_one (chiSquare_nonneg _ _))).mp hE
 
@@ -343,28 +285,16 @@ theorem four_mul_dist_sq_le_chiSquare [Fintype α] {p q : PMF α} (h : p.support
   have hpt (a : α) : |(p a).toReal - (q a).toReal| =
       (|(p a).toReal - (q a).toReal| / Real.sqrt (q a).toReal) * Real.sqrt (q a).toReal := by
     by_cases ha : q a = 0
-    · have hpa : p a = 0 := (PMF.apply_eq_zero_iff p a).mpr
-        (fun hap => (PMF.apply_eq_zero_iff q a).mp ha (h hap))
-      simp [ha, hpa]
-    · have hqpos : 0 < Real.sqrt (q a).toReal :=
-        Real.sqrt_pos.mpr (ENNReal.toReal_pos ha (q.apply_ne_top a))
-      rw [div_mul_cancel₀ _ hqpos.ne']
+    · simp [ha, apply_eq_zero_of_support h ha]
+    · exact (div_mul_cancel₀ _
+        (Real.sqrt_pos.mpr (ENNReal.toReal_pos ha (q.apply_ne_top a))).ne').symm
   have hcs := Finset.sum_mul_sq_le_sq_mul_sq (Finset.univ : Finset α)
     (fun a => |(p a).toReal - (q a).toReal| / Real.sqrt (q a).toReal)
     (fun a => Real.sqrt (q a).toReal)
-  simp_rw [← hpt] at hcs
-  have hleft : (∑ a, |(p a).toReal - (q a).toReal|) ^ 2 = 4 * dist p q ^ 2 := by
-    rw [dist_eq]
-    ring
-  have hchi : ∑ a, (|(p a).toReal - (q a).toReal| / Real.sqrt (q a).toReal) ^ 2 =
-      chiSquare p q := by
-    rw [chiSquare_eq_sum h]
-    refine Finset.sum_congr rfl fun a _ => ?_
-    rw [div_pow, sq_abs, Real.sq_sqrt ENNReal.toReal_nonneg]
-  have hnorm : ∑ a, Real.sqrt (q a).toReal ^ 2 = 1 := by
-    simp_rw [Real.sq_sqrt ENNReal.toReal_nonneg, sum_toReal]
-  rw [hleft, hchi, hnorm, mul_one] at hcs
-  exact hcs
+  simp_rw [← hpt, div_pow, sq_abs, Real.sq_sqrt ENNReal.toReal_nonneg, sum_toReal, mul_one,
+    ← chiSquare_eq_sum h] at hcs
+  exact (show 4 * dist p q ^ 2 = (∑ a, |(p a).toReal - (q a).toReal|) ^ 2 by
+    rw [dist_eq]; ring).trans_le hcs
 
 /-- Upper bound on half-`L¹` statistical distance via `χ²`:
 `dist p q ≤ √(χ²(p ‖ q)) / 2` when `p.support ⊆ q.support`. -/
@@ -379,10 +309,8 @@ theorem dist_le_sqrt_chiSquare_div_two [Fintype α] {p q : PMF α} (h : p.suppor
 theorem ofReal_four_mul_dist_sq_le_echiSquare [Fintype α] (p q : PMF α) :
     ENNReal.ofReal (4 * dist p q ^ 2) ≤ echiSquare p q := by
   by_cases h : p.support ⊆ q.support
-  · rw [echiSquare_eq_ofReal h]
-    exact ENNReal.ofReal_le_ofReal (four_mul_dist_sq_le_chiSquare h)
-  · rw [echiSquare_eq_top_iff.mpr h]
-    exact le_top
+  · exact echiSquare_eq_ofReal h ▸ ENNReal.ofReal_le_ofReal (four_mul_dist_sq_le_chiSquare h)
+  · simp [echiSquare_eq_top_iff.mpr h]
 
 /-- Upper bound on Mathlib's full-`L¹` total variation distance via `χ²`:
 `tvDist p q ≤ √(χ²(p ‖ q))` when `p.support ⊆ q.support`. -/
@@ -390,15 +318,12 @@ theorem tvDist_le_sqrt_chiSquare [Finite α] [MeasurableSpace α] [MeasurableSin
     {p q : PMF α} (h : p.support ⊆ q.support) :
     MeasureTheory.tvDist p.toMeasure q.toMeasure ≤ Real.sqrt (chiSquare p q) := by
   let := Fintype.ofFinite α
-  have hd := dist_le_sqrt_chiSquare_div_two h
-  rw [dist_eq_tvDist_toMeasure_div_two] at hd
-  linarith
+  linarith [dist_le_sqrt_chiSquare_div_two h, dist_eq_tvDist_toMeasure_div_two p q]
 
 private lemma one_add_echiSquare_eq_renyiMoment {γ : Type*} [Finite γ] (μ ν : PMF γ) :
     1 + echiSquare μ ν = renyiMoment 2 μ ν := by
   rw [one_add_echiSquare_eq_tsum, renyiMoment, show (2 : ℝ) - 1 = 1 by norm_num]
-  refine tsum_congr fun c => ?_
-  simp only [ENNReal.rpow_one, div_eq_mul_inv, sq, mul_assoc]
+  exact tsum_congr fun _ => by simp only [ENNReal.rpow_one, div_eq_mul_inv, sq, mul_assoc]
 
 /-- Unconditional data processing inequality for extended `χ²` divergence under a Markov kernel,
 specialized from `renyiMoment_bind_le` at order `α = 2` (`1 + χ²(p ‖ q) = renyiMoment 2 p q`). -/
@@ -431,10 +356,7 @@ component `(K t).support` is contained in `q.support`. -/
 theorem support_bind_subset_of_forall {μ : PMF θ} {K : θ → PMF α} {q : PMF α}
     (h : ∀ t ∈ μ.support, (K t).support ⊆ q.support) :
     (μ.bind K).support ⊆ q.support := by
-  intro a ha
-  rw [PMF.support_bind, Set.mem_iUnion₂] at ha
-  rcases ha with ⟨t, ht, hat⟩
-  exact h t ht hat
+  simpa only [PMF.support_bind, Set.iUnion_subset_iff] using h
 
 /-- **Mixture second-moment identity** (Ingster / Le Cam):
 for a mixture `μ.bind K` and reference distribution `q` with `(K t).support ⊆ q.support` for all
@@ -448,21 +370,10 @@ theorem one_add_chiSquare_bind_eq [Fintype θ] [Fintype α] (μ : PMF θ) (K : �
       ∑ t, ∑ t', (μ t).toReal * (μ t').toReal *
         ∑ a, (K t a).toReal * (K t' a).toReal / (q a).toReal := by
   rw [one_add_chiSquare_eq_sum (support_bind_subset_of_forall h)]
-  have hsq (a : α) :
-      ((μ.bind K a).toReal) ^ 2 / (q a).toReal =
-        ∑ t, ∑ t', (μ t).toReal * (μ t').toReal *
-          ((K t a).toReal * (K t' a).toReal / (q a).toReal) := by
-    rw [sq, bind_apply_toReal, Finset.sum_mul_sum, Finset.sum_div]
-    refine Finset.sum_congr rfl fun t _ => ?_
-    rw [Finset.sum_div]
-    refine Finset.sum_congr rfl fun t' _ => ?_
-    ring
-  simp_rw [hsq]
+  simp_rw [sq, bind_apply_toReal, Finset.sum_mul_sum, Finset.sum_div, Finset.mul_sum]
   rw [Finset.sum_comm]
-  refine Finset.sum_congr rfl fun t _ => ?_
-  rw [Finset.sum_comm]
-  refine Finset.sum_congr rfl fun t' _ => ?_
-  rw [Finset.mul_sum]
+  refine Finset.sum_congr rfl fun t _ => Finset.sum_comm.trans (Finset.sum_congr rfl fun t' _ => ?_)
+  exact Finset.sum_congr rfl fun _ _ => by ring
 
 /-- Product mixture second-moment identity:
 `1 + χ²(μ.bind (fun t => pi (K t)) ‖ pi q)` expressed via products of coordinate second moments. -/
@@ -473,21 +384,13 @@ theorem one_add_chiSquare_bind_pi_eq [Fintype θ] [Fintype ι] {α : ι → Type
       ∑ t, ∑ t', (μ t).toReal * (μ t').toReal *
         ∏ i, ∑ a, (K t i a).toReal * (K t' i a).toReal / (q i a).toReal := by
   classical
-  have hsup : ∀ t ∈ μ.support, (pi (K t)).support ⊆ (pi q).support := by
-    intro t ht u hu
+  have hsup : ∀ t ∈ μ.support, (pi (K t)).support ⊆ (pi q).support := fun t ht u hu => by
     rw [mem_support_pi_iff] at hu ⊢
     exact fun i => h t ht i (hu i)
   rw [one_add_chiSquare_bind_eq μ (fun t => pi (K t)) (pi q) hsup]
-  refine Finset.sum_congr rfl fun t _ => Finset.sum_congr rfl fun t' _ => ?_
-  congr 1
-  have hterm (u : ∀ i, α i) :
-      (pi (K t) u).toReal * (pi (K t') u).toReal / (pi q u).toReal =
-        ∏ i, (K t i (u i)).toReal * (K t' i (u i)).toReal / (q i (u i)).toReal := by
-    simp only [pi_apply, ENNReal.toReal_prod]
-    rw [← Finset.prod_mul_distrib, ← Finset.prod_div_distrib]
-  simp_rw [hterm]
-  exact (Fintype.prod_sum
-    (fun i a => (K t i a).toReal * (K t' i a).toReal / (q i a).toReal)).symm
+  refine Finset.sum_congr rfl fun t _ => Finset.sum_congr rfl fun t' _ => congrArg _ ?_
+  simp_rw [pi_apply, ENNReal.toReal_prod, ← Finset.prod_mul_distrib, ← Finset.prod_div_distrib]
+  exact (Fintype.prod_sum fun i a => (K t i a).toReal * (K t' i a).toReal / (q i a).toReal).symm
 
 /-- `n`-fold i.i.d. mixture second-moment identity:
 `1 + χ²(μ.bind (fun t => iid (K t) n) ‖ iid q n) =
@@ -521,7 +424,7 @@ theorem exp_neg_half_sum_mul_log_div_le_bhattacharyya [Fintype α] {p q : PMF α
   have hexp : (∑ a, (p a).toReal * (-Real.log ((p a).toReal / (q a).toReal) / 2)) =
       -(∑ a, (p a).toReal * Real.log ((p a).toReal / (q a).toReal)) / 2 := by
     rw [← Finset.sum_neg_distrib, Finset.sum_div]
-    exact Finset.sum_congr rfl fun a _ => by ring
+    exact Finset.sum_congr rfl fun _ _ => by ring
   rw [hexp] at hj
   rw [bhattacharyya_eq_sum]
   refine hj.trans_eq (Finset.sum_congr rfl fun a _ => ?_)
@@ -530,13 +433,12 @@ theorem exp_neg_half_sum_mul_log_div_le_bhattacharyya [Fintype α] {p q : PMF α
   · obtain ⟨hp, hq⟩ := support_toReal_pos h hpa
     rw [Real.exp_half, Real.exp_neg, Real.exp_log (div_pos hp hq), inv_div]
     calc
-      (p a).toReal * Real.sqrt ((q a).toReal / (p a).toReal) =
-          Real.sqrt ((p a).toReal ^ 2) * Real.sqrt ((q a).toReal / (p a).toReal) := by
-        rw [Real.sqrt_sq hp.le]
+      (p a).toReal * Real.sqrt ((q a).toReal / (p a).toReal)
+          = Real.sqrt ((p a).toReal ^ 2) * Real.sqrt ((q a).toReal / (p a).toReal) := by
+            rw [Real.sqrt_sq hp.le]
       _ = Real.sqrt ((p a).toReal * (q a).toReal) := by
-        rw [← Real.sqrt_mul (sq_nonneg _)]
-        congr 1
-        field_simp
+            rw [← Real.sqrt_mul (sq_nonneg _)]
+            exact congrArg Real.sqrt (by field_simp)
 
 /-- Comparison between squared Hellinger distance and KL divergence (natural log):
 `2 * hellingerSq p q ≤ (klDiv p.toMeasure q.toMeasure).toReal` when `p.support ⊆ q.support`. -/
@@ -563,22 +465,15 @@ theorem toReal_klDiv_le_log_one_add_chiSquare [Finite α] [MeasurableSpace α]
     by_cases hpa : p a = 0
     · simp [hpa]
     · obtain ⟨hppos, hqpos⟩ := support_toReal_pos h hpa
-      have hrpos : 0 < (p a).toReal / (q a).toReal / c :=
-        div_pos (div_pos hppos hqpos) hcpos
-      have hlog := Real.log_le_sub_one_of_pos hrpos
+      have hlog := Real.log_le_sub_one_of_pos (div_pos (div_pos hppos hqpos) hcpos)
       rw [Real.log_div (div_pos hppos hqpos).ne' hcpos.ne'] at hlog
-      have hmul := mul_le_mul_of_nonneg_left hlog hppos.le
-      have hlhs : (p a).toReal * (Real.log ((p a).toReal / (q a).toReal) - Real.log c) =
-          (p a).toReal * Real.log ((p a).toReal / (q a).toReal) - (p a).toReal * Real.log c := by
-        ring
-      have hrhs : (p a).toReal * ((p a).toReal / (q a).toReal / c - 1) =
-          (p a).toReal ^ 2 / (q a).toReal / c - (p a).toReal := by ring
-      linarith
+      nlinarith [mul_le_mul_of_nonneg_left hlog hppos.le,
+        show (p a).toReal * ((p a).toReal / (q a).toReal / c) =
+          (p a).toReal ^ 2 / (q a).toReal / c by ring]
   have hsum := Finset.sum_le_sum fun a (_ : a ∈ Finset.univ) => hpt a
-  simp_rw [Finset.sum_sub_distrib, ← Finset.sum_mul, sum_toReal, one_mul,
-    ← Finset.sum_div] at hsum
-  have hchi : ∑ a, (p a).toReal ^ 2 / (q a).toReal = c := (one_add_chiSquare_eq_sum h).symm
-  rw [hchi, div_self hcpos.ne', sub_self] at hsum
+  simp_rw [Finset.sum_sub_distrib, ← Finset.sum_mul, sum_toReal, one_mul, ← Finset.sum_div,
+    ← one_add_chiSquare_eq_sum h] at hsum
+  rw [div_self hcpos.ne', sub_self] at hsum
   linarith
 
 /-- KL divergence (natural log) is at most Pearson `χ²` divergence:
@@ -586,9 +481,8 @@ theorem toReal_klDiv_le_log_one_add_chiSquare [Finite α] [MeasurableSpace α]
 theorem toReal_klDiv_le_chiSquare [Finite α] [MeasurableSpace α] [MeasurableSingletonClass α]
     {p q : PMF α} (h : p.support ⊆ q.support) :
     (klDiv p.toMeasure q.toMeasure).toReal ≤ chiSquare p q := by
-  refine (toReal_klDiv_le_log_one_add_chiSquare h).trans ?_
-  have hpos : 0 < 1 + chiSquare p q := by linarith [chiSquare_nonneg p q]
-  linarith [Real.log_le_sub_one_of_pos hpos]
+  linarith [toReal_klDiv_le_log_one_add_chiSquare h,
+    Real.log_le_sub_one_of_pos (by linarith [chiSquare_nonneg p q] : 0 < 1 + chiSquare p q)]
 
 /-- Comparison between squared Hellinger distance and `χ²` divergence:
 `2 * hellingerSq p q ≤ chiSquare p q` when `p.support ⊆ q.support`. -/

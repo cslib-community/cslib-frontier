@@ -70,58 +70,48 @@ theorem exists_computableInO_any_enumList {β : Type} {encB : β ↪ List Bool}
   let S := fun p : β × ℕ => c * (size p + 1) ^ d
   have hT : PolyBounded size T := PolyBounded.of_forall_le a b fun _ => le_rfl
   have hS : PolyBounded size S := PolyBounded.of_forall_le c d fun _ => le_rfl
+  have hlen_eq (p : β × ℕ) (w : List Bool) (hw : w.length = p.2) :
+      (encPair encB encBits (p.1, w)).length = size p := by
+    simp [size, hw]
   obtain ⟨overhead, ho, h⟩ := hf.exists_bits (T := T) (S := S)
-    (fun p w hw => by
-      apply (ht (p.1, w)).trans_eq
-      simp only [T, size, length_encPair, encBits_apply, encUnary_apply,
-        List.length_replicate, hw])
-    (fun p w hw => by
-      apply (hs (p.1, w)).trans_eq
-      simp only [S, size, length_encPair, encBits_apply, encUnary_apply,
-        List.length_replicate, hw])
+    (fun p w hw => (ht (p.1, w)).trans_eq (congrArg (fun n => a * (n + 1) ^ b) (hlen_eq p w hw)))
+    (fun p w hw => (hs (p.1, w)).trans_eq (congrArg (fun n => c * (n + 1) ^ d) (hlen_eq p w hw)))
   obtain ⟨C, hC⟩ := PolyBounded.exists_le_mul_two_pow ((ho.add hT).add hS)
-  have hin : ComputableInPolyTime (fun x => (x, ℓ x)) encB (encPair encB encUnary) :=
-    ComputableInPolyTime.id'.prod hℓ
-  obtain ⟨Ti, Si, hTi, hSi, hi⟩ := hin.exists_computableInO
+  obtain ⟨Ti, Si, hTi, hSi, hi⟩ :=
+    (ComputableInPolyTime.id'.prod hℓ).exists_computableInO
   obtain ⟨CI, hCI⟩ := PolyBounded.exists_le_mul_two_pow hTi
   obtain ⟨CJ, hCJ⟩ := PolyBounded.exists_le_mul_two_pow hSi
   refine ⟨3, (h.comp hi).mono (8 * (CI + CJ + C + 1)) (fun x => ?_) (fun x => ?_)⟩
   all_goals
     set n := (encB x).length
     set L := ℓ x
-    have hcost := hC (x, L)
-    simp only [length_encPair, encUnary_apply, List.length_replicate] at hcost
-    change overhead (x, L) + T (x, L) + S (x, L) ≤ C * 2 ^ (2 * n + 1 + L) at hcost
-    have hI : 2 ^ n ≤ 2 ^ (3 * (n + L)) :=
-      Nat.pow_le_pow_right (by norm_num) (by omega)
-    have hprod : 2 ^ L * 2 ^ (2 * n + 1 + L) ≤ 2 * 2 ^ (3 * (n + L)) := by
-      calc
-        _ = 2 ^ (2 * (n + L) + 1) := by rw [← pow_add]; congr 1; omega
-        _ ≤ 2 ^ (3 * (n + L) + 1) := Nat.pow_le_pow_right (by norm_num) (by omega)
-        _ = _ := by rw [pow_succ, Nat.mul_comm]
-    have hcount : 1 ≤ 2 ^ L := Nat.one_le_two_pow
-    have hsingle : 2 ^ (2 * n + 1 + L) ≤ 2 * 2 ^ (3 * (n + L)) := by
-      have := Nat.mul_le_mul_right (2 ^ (2 * n + 1 + L)) hcount
-      nlinarith
-    have hdouble : (2 ^ L + 1) * 2 ^ (2 * n + 1 + L) ≤
-        4 * 2 ^ (3 * (n + L)) := by nlinarith
-    have hnonzero : 1 ≤ 2 ^ (3 * (n + L)) := Nat.one_le_two_pow
-  · change Ti x + (2 ^ L + 1) * (overhead (x, L) + T (x, L)) ≤
-      8 * (CI + CJ + C + 1) * (2 ^ (3 * (n + L)) + 1)
-    have hiT := hCI x
-    change Ti x ≤ CI * 2 ^ n at hiT
-    have htest : overhead (x, L) + T (x, L) ≤ C * 2 ^ (2 * n + 1 + L) := by omega
-    have hscaled := Nat.mul_le_mul_left (2 ^ L + 1) htest
-    have hexp := Nat.mul_le_mul_left C hdouble
-    have hi' := Nat.mul_le_mul_left CI hI
-    nlinarith
-  · change Si x + (overhead (x, L) + S (x, L)) ≤
-      8 * (CI + CJ + C + 1) * (2 ^ (3 * (n + L)) + 1)
-    have hiS := hCJ x
-    change Si x ≤ CJ * 2 ^ n at hiS
-    have htest : overhead (x, L) + S (x, L) ≤ C * 2 ^ (2 * n + 1 + L) := by omega
-    have hexp := Nat.mul_le_mul_left C hsingle
-    have hi' := Nat.mul_le_mul_left CJ hI
-    nlinarith
+    set X := 2 ^ (3 * (n + L))
+    have hcost : overhead (x, L) + T (x, L) + S (x, L) ≤ C * 2 ^ (2 * n + 1 + L) := by
+      simpa only [length_encPair, encUnary_apply, List.length_replicate] using hC (x, L)
+    have hI : 2 ^ n ≤ X := Nat.pow_le_pow_right (by decide) (by omega)
+    have hsingle : 2 ^ (2 * n + 1 + L) ≤ 2 * X := by
+      calc 2 ^ (2 * n + 1 + L) ≤ 2 ^ (3 * (n + L) + 1) :=
+            Nat.pow_le_pow_right (by decide) (by omega)
+        _ = 2 * X := by rw [pow_succ, Nat.mul_comm]
+  · have hprod : 2 ^ L * 2 ^ (2 * n + 1 + L) ≤ 2 * X := by
+      calc 2 ^ L * 2 ^ (2 * n + 1 + L) = 2 ^ (2 * (n + L) + 1) := by rw [← pow_add]; congr 1; omega
+        _ ≤ 2 ^ (3 * (n + L) + 1) := Nat.pow_le_pow_right (by decide) (by omega)
+        _ = 2 * X := by rw [pow_succ, Nat.mul_comm]
+    have hdouble : (2 ^ L + 1) * 2 ^ (2 * n + 1 + L) ≤ 4 * X := by
+      rw [Nat.add_mul, Nat.one_mul]; omega
+    calc Ti x + (2 ^ L + 1) * (overhead (x, L) + T (x, L))
+        ≤ CI * 2 ^ n + (2 ^ L + 1) * (C * 2 ^ (2 * n + 1 + L)) :=
+          Nat.add_le_add (hCI x) (Nat.mul_le_mul_left _ (by omega))
+      _ = CI * 2 ^ n + C * ((2 ^ L + 1) * 2 ^ (2 * n + 1 + L)) := by ring
+      _ ≤ CI * X + C * (4 * X) :=
+          Nat.add_le_add (Nat.mul_le_mul_left _ hI) (Nat.mul_le_mul_left _ hdouble)
+      _ = (CI + 4 * C) * X := by ring
+      _ ≤ 8 * (CI + CJ + C + 1) * (X + 1) := Nat.mul_le_mul (by omega) (Nat.le_succ _)
+  · calc Si x + (overhead (x, L) + S (x, L))
+        ≤ CJ * 2 ^ n + C * 2 ^ (2 * n + 1 + L) := Nat.add_le_add (hCJ x) (by omega)
+      _ ≤ CJ * X + C * (2 * X) :=
+          Nat.add_le_add (Nat.mul_le_mul_left _ hI) (Nat.mul_le_mul_left _ hsingle)
+      _ = (CJ + 2 * C) * X := by ring
+      _ ≤ 8 * (CI + CJ + C + 1) * (X + 1) := Nat.mul_le_mul (by omega) (Nat.le_succ _)
 
 end Cslib.Complexity

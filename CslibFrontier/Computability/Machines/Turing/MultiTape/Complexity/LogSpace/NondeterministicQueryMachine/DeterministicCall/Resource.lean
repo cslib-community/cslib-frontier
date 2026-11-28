@@ -46,9 +46,9 @@ theorem withRejectingChoice_parts_inSpace {τ : Type} (M : QueryMachine τ)
   have htail := snd enc encReadChoice
   have hnext := budget_optionSome
     (budget_comp_linear hn (budget_prod (snd encAnswer encS) (fst encAnswer encS)))
-  have hmap := optionElimSnd (budget_const (encIn := encAnswer) (encB := enc) none (.refl _)) hnext
+  have hmap := optionElimSnd (budget_const (encIn := encAnswer) (encB := enc) none) hnext
   have hcontinue := budget_comp_linear hmap (budget_prod (fst' htail) hstate)
-  exact (budget_ite (snd' htail) (budget_const none (.refl _)) hcontinue).of_enc_eq
+  exact (budget_ite (snd' htail) (budget_const none) hcontinue).of_enc_eq
     fun ⟨state, _, choice⟩ => by cases state <;> cases choice <;> rfl
 
 end Turing.QueryMachine

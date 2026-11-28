@@ -468,6 +468,135 @@ example (p q : Prop) (hpq : p → q) (hq : q) : p := by
 example (p q : Prop) (_hpq : p → q) (_hnq : ¬q) : (p → q) → ¬q → ¬p := by
   lrat_tauto using contrapositionCert
 
+/-! ### Terms as premises -/
+
+/-- Terms are premises like the hypotheses: here an instance of the universally quantified `h`,
+which is an atom as a hypothesis, and of the lemma `Nat.le_total`. -/
+private theorem terms_used (f : ℕ → ℕ) (h : ∀ a, f a = 0 ∨ f a = 1) (a x y : ℕ) (hne : f a ≠ 0)
+    (hxy : ¬x ≤ y) : f a = 1 ∧ y ≤ x := by
+  fail_if_success lrat_tauto
+  lrat_tauto [h a, Nat.le_total x y]
+
+/-- Terms that the certificate does not need are dropped with the unused hypotheses. -/
+private theorem terms_dropped (p q : ℕ → Prop) (h : ∀ n, p n → q n) (h₀ : p 0) : q 0 := by
+  lrat_tauto [Nat.le_total 0 1, h 0, Nat.lt_irrefl 2]
+
+-- The proof of `terms_used` cites both terms, that of `terms_dropped` neither of the unused ones.
+open Lean in
+run_meta do
+  -- The bodies of theorems are not exported, so they are read from the private view.
+  let env := (← getEnv).setExporting false
+  let usedIn (n : Name) : MetaM NameSet := do
+    let some (.thmInfo ci) := env.find? n | throwError "no theorem {n}"
+    return ci.value.getUsedConstantsAsSet
+  unless (← usedIn ``terms_used).contains ``Nat.le_total do
+    throwError "`Nat.le_total` is missing from the proof of `terms_used`"
+  let used ← usedIn ``terms_dropped
+  if used.contains ``Nat.le_total || used.contains ``Nat.lt_irrefl then
+    throwError "an unused term reached the proof of `terms_dropped`"
+
+-- Of the two hypotheses and three terms, the hypothesis `h₀` and the term `h 0` are used.
+/-- [lrat_tauto] 2 of the 5 premises are used; the formula is read again from them -/
+#guard_msgs (substring := true) in
+example (p q : ℕ → Prop) (h : ∀ n, p n → q n) (h₀ : p 0) : q 0 := by
+  set_option trace.lrat_tauto true in
+  lrat_tauto [Nat.le_total 0 1, h 0, Nat.lt_irrefl 2]
+
+/-- A type ascription gives the premise its type, as `have h : T := t` would: the type inferred
+for `Or.inl rfl` is `3 = 3 ∨ 3 ∈ {4}`, which is not the atom `3 ∈ {3, 4}` at reducible
+transparency. -/
+example : 3 ∈ ({3, 4} : Set ℕ) ∨ False := by
+  lrat_tauto [(Or.inl rfl : 3 ∈ ({3, 4} : Set ℕ))]
+
+/-- The ascribed type is elaborated as for `have h : T := t`: a hole in it may be filled by
+elaborating the term. -/
+example : 3 ∈ ({3, 4} : Set ℕ) ∨ False := by
+  lrat_tauto [(Or.inl rfl : _ ∈ ({3, 4} : Set ℕ))]
+
+/-- With `-hyps`, the terms are still premises. -/
+example (p q : Prop) (hp : p) (hpq : p → q) : q := by
+  fail_if_success lrat_tauto -hyps
+  lrat_tauto -hyps [hp, hpq]
+
+-- When the goal does not follow, the error names the terms.
+/--
+error: lrat_tauto: the goal does not follow propositionally from the terms hpq. It is false, and
+the terms are true, under this assignment to the atoms of the goal and the terms, read as
+independent propositions: p := False q := False
+-/
+#guard_msgs (whitespace := lax) in
+example (p q : Prop) (hpq : p → q) : p := by
+  lrat_tauto -hyps [hpq]
+
+-- A supplied certificate refutes the goal with the terms as premises, in the order given, and
+-- without the hypotheses. Here that is the formula of `contraposition`.
+/--
+info: The numbered Plaisted–Greenbaum transformation of the negated goal, with the terms as
+premises, in DIMACS form:
+c 1 := p
+c 2 := q
+p cnf 11 12
+11 0
+-11 -9 10 0
+-10 0
+9 3 0
+9 -8 0
+8 5 0
+8 -7 0
+7 1 0
+7 -6 0
+-5 -2 4 0
+-4 0
+-3 -1 2 0
+-/
+#guard_msgs (whitespace := lax) in
+example (p q : Prop) (hpq : p → q) (hnq : ¬q) : ¬p := by
+  lrat_tauto? [hpq, hnq]
+  lrat_tauto [hpq, hnq] using contrapositionCert
+
+-- A term with metavariables left after elaboration is rejected.
+/-- error: lrat_tauto: the term `h _` must elaborate fully, but it has metavariables: -/
+#guard_msgs (substring := true) in
+example (p q : ℕ → Prop) (h : ∀ n, p n → q n) (h₀ : p 0) : q 0 := by
+  lrat_tauto [h _]
+
+-- A term that is not a proof is rejected.
+/--
+error: lrat_tauto: the term `x` is not a proof of a proposition: its type is
+  ℕ
+-/
+#guard_msgs in
+example (x : ℕ) (h : x = x) : x = x := by
+  lrat_tauto [x]
+
+-- So is a type ascription that is not a proposition.
+/--
+error: lrat_tauto: the term `(x : ℕ)` is not a proof of a proposition: its type is
+  ℕ
+-/
+#guard_msgs in
+example (x : ℕ) (h : x = x) : x = x := by
+  lrat_tauto [(x : ℕ)]
+
+-- An ascription that is not a type is an elaboration error.
+/-- error: type expected, got -/
+#guard_msgs (substring := true) in
+example (x : ℕ) (h : x = x) : x = x := by
+  lrat_tauto [(h : x)]
+
+-- An ill-typed term is an error, not a premise elaborated with `sorry`, also for `lrat_tauto?`,
+-- which would otherwise discard the error with the rest of its state.
+/-- error: Application type mismatch -/
+#guard_msgs (substring := true) in
+example (p q : Prop) (h : ℕ → p → q) : p → q := by
+  lrat_tauto? [h "bad"]
+  exact h 0
+
+/-- error: Application type mismatch -/
+#guard_msgs (substring := true) in
+example (p q : Prop) (h : ℕ → p → q) (hp : p) : q := by
+  lrat_tauto [h "bad"]
+
 /-! ### Leaves closed by `rfl` and by a hypothesis -/
 
 /-- `n = n` is one atom, which `rfl` proves. -/
@@ -518,6 +647,56 @@ example (p : Prop) (a : ℕ) : a ≠ a → p := by
 
 /-- The same from a hypothesis. -/
 example (p : Prop) (a : ℕ) (h : a ≠ a) : p := by
+  lrat_tauto
+
+/-! ### Swapped equations -/
+
+/-- `b = a` is read as the atom `a = b`, which occurs first. -/
+example (p : Prop) (a b : ℕ) : (a = b → p) → b = a → p := by
+  lrat_tauto
+
+/-- A hypothesis `h : b = a` fixes the atom `a = b` of the goal, and a term's `f b = f a` the atom
+`f a = f b` of a hypothesis. -/
+example (p : Prop) (a b : ℕ) (f : ℕ → ℕ) (h : b = a) (hp : a = b → f a = f b → p)
+    (hf : ∀ x y, x = y → f x = f y) : p ∧ a = b := by
+  lrat_tauto [hf b a h]
+
+/-- `a ≠ b` and `b ≠ a` are the negations of one atom. -/
+example (a b : ℕ) : a ≠ b → b ≠ a := by
+  lrat_tauto
+
+example (a b : ℕ) (h : a ≠ b) (h' : b = a ∨ a < b) : a < b := by
+  lrat_tauto
+
+/-- The same for `HEq`. -/
+example {α β : Type} (a : α) (b : β) (p : Prop) : (HEq a b → p) → HEq b a → p := by
+  lrat_tauto
+
+/-- The identity on `ℕ`, which unfolds at reducible transparency. -/
+private abbrev swapTestId (n : ℕ) : ℕ := n
+
+/-- `b = a` is read as the atom `a = swapTestId b`, whose swap it equals only after unfolding
+`swapTestId`; the kernel checks the proof up to that unfolding. -/
+example (p : Prop) (a b : ℕ) : (a = swapTestId b → p) → b = a → p := by
+  lrat_tauto
+
+-- A goal false under independent atoms is still refuted: `a = b` is the atom `b = a`, so the
+-- assignment has two atoms.
+/--
+error: lrat_tauto: the goal is not a propositional tautology. It is false under this assignment
+to its atoms, read as independent propositions: b = a := True p := False
+-/
+#guard_msgs (whitespace := lax) in
+example (p : Prop) (a b : ℕ) : b = a → a = b ∧ p := by
+  lrat_tauto
+
+-- Only the swap is identified: `b = a → c = b → a = c` needs transitivity.
+/--
+error: lrat_tauto: the goal is not a propositional tautology. It is false under this assignment
+to its atoms, read as independent propositions: b = a := True c = b := True a = c := False
+-/
+#guard_msgs (whitespace := lax) in
+example (a b c : ℕ) : b = a → c = b → a = c := by
   lrat_tauto
 
 /-- A β-redex is reduced before it is read, so it is a formula over the atoms `a ∈ s` and

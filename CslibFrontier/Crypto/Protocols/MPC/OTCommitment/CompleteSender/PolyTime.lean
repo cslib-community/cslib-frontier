@@ -105,7 +105,7 @@ theorem sessionProgram_isPPT {Input Output : Type}
 private theorem sessionOpening_polyTime :
     ComputableInPolyTime (fun p : ℕ × Session => p.2.opening p.1)
       (encPair encUnary encSession)
-      (encOption (encPair encBool (encList (encPair encBool encBool)))) := by
+      (encOption (encPair encBool encOpeningPairs)) := by
   let encInput := encPair encUnary encSession
   let encSubmission := encPair encBool encBits
   have hinput := ComputableInPolyTime.fst encInput encSubmission
@@ -121,7 +121,7 @@ private theorem sessionOpening_polyTime :
   have hlength := (ComputableInPolyTime.length_bits.comp hword).decide_eq'
     (ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const 2).prod hcount))
   have hbody := hlength.ite_decide
-    ((ComputableInPolyTime.optionSome (encPair encBool (encList (encPair encBool encBool)))).comp
+    ((ComputableInPolyTime.optionSome (encPair encBool encOpeningPairs)).comp
       (hbit.prod hpairs)) (ComputableInPolyTime.const none)
   unfold Session.opening
   convert ComputableInPolyTime.optionElimWithInput

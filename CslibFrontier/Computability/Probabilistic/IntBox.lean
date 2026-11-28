@@ -49,9 +49,7 @@ open Turing.MultiTapeTM
 @[fun_prop]
 theorem computableInPolyTime_boxShift :
     ComputableInPolyTime (fun p : ℕ × ℕ => boxShift p.1 p.2)
-      (encPair encNat encNat) encIntBin := by
-  unfold boxShift
-  fun_prop
+      (encPair encNat encNat) encIntBin := by fun_prop [boxShift]
 
 /-- `sampleModNatCoins` is computable in polynomial time. -/
 @[fun_prop]
@@ -68,14 +66,10 @@ theorem computableInPolyTime_sampleIntBoxCoins :
     ComputableInPolyTime (fun p : ℕ × List Bool => sampleIntBoxCoins p.1 p.2)
       (encPair encNat encBits) encIntBin := by
   unfold sampleIntBoxCoins
-  have hmodulus : ComputableInPolyTime (fun p : ℕ × List Bool => 2 * p.1 + 1)
-      (encPair encNat encBits) encNat :=
-    ComputableInPolyTime.binary_add' (by fun_prop) (by fun_prop)
-  apply computableInPolyTime_boxShift.comp
+  exact computableInPolyTime_boxShift.comp
     (g := fun p : ℕ × List Bool => (p.1, sampleModNatCoins (2 * p.1 + 1) p.2))
-  apply ComputableInPolyTime.prod
-  · fun_prop
-  · exact computableInPolyTime_sampleModNatCoins.comp (hmodulus.prod (by fun_prop))
+    ((ComputableInPolyTime.fst _ _).prod (computableInPolyTime_sampleModNatCoins.comp
+      ((ComputableInPolyTime.binary_add' (by fun_prop) (by fun_prop)).prod (by fun_prop))))
 
 /-- `sampleIntBox` is uniformly strict PPT when the radius `B` is supplied in binary and the bit
 width `width` is supplied in unary. -/
@@ -113,18 +107,14 @@ theorem isPPTOn_sampleIntBoxList {α : Type} {input : α ↪ List Bool} {B m wid
 @[fun_prop]
 theorem computableInPolyTime_sampleDyadicIntBoxCoins :
     ComputableInPolyTime (fun p : ℕ × List Bool => sampleDyadicIntBoxCoins p.1 p.2)
-      (encPair encUnary encBits) encIntBin := by
-  unfold sampleDyadicIntBoxCoins
-  fun_prop
+      (encPair encUnary encBits) encIntBin := by fun_prop [sampleDyadicIntBoxCoins]
 
 /-- `sampleDyadicIntBox` is uniformly strict PPT for a unary bit width. -/
 theorem isPPTOn_sampleDyadicIntBox {α : Type} {input : α ↪ List Bool} {width : α → ℕ}
     (hwidth : ComputableInPolyTime width input encUnary) :
-    IsPPTOn input encIntBin (fun a => sampleDyadicIntBox (width a)) := by
-  have hshift : ComputableInPolyTime
-      (fun p : α × ℕ => (p.2 : ℤ) - (2 : ℤ) ^ (width p.1 - 1))
-      (encPair input encNat) encIntBin := by
-    fun_prop
-  exact (ComputableInPolyTime.sampleBinaryNat hwidth).map_with hshift
+    IsPPTOn input encIntBin (fun a => sampleDyadicIntBox (width a)) :=
+  (ComputableInPolyTime.sampleBinaryNat hwidth).map_with
+    (show ComputableInPolyTime (fun p : α × ℕ => (p.2 : ℤ) - (2 : ℤ) ^ (width p.1 - 1))
+      (encPair input encNat) encIntBin by fun_prop)
 
 end Cslib.Probability

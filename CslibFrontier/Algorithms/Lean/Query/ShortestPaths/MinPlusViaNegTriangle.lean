@@ -194,13 +194,12 @@ private theorem exists_threshold {W : ℕ} :
       ∃ v : ℤ, -(W : ℤ) ≤ v ∧ v ≤ W + 1 ∧ NegTri.bsDecode W v = trop w ∧
         ∀ m : ℤ, m ≤ W + 1 → (w + ((-m : ℤ) : WithTop ℤ) < 0 ↔ v < m)
   | ⊤, _ => by
-    refine ⟨W + 1, by omega, le_rfl, by rw [NegTri.bsDecode, ite_eq_left rfl],
-      fun m hm => ?_⟩
+    refine ⟨W + 1, by omega, le_rfl, by rw [NegTri.bsDecode, ite_eq_left rfl], fun _ hm => ?_⟩
     rw [top_add]
     exact ⟨fun h => absurd h not_top_lt, fun h => absurd hm (not_le.2 h)⟩
   | (x : ℤ), hd => by
     obtain ⟨h1, h2⟩ := abs_le.1 (hd x rfl)
-    refine ⟨x, h1, by omega, ?_, fun m _ => ?_⟩
+    refine ⟨x, h1, by omega, ?_, fun _ _ => ?_⟩
     · rw [NegTri.bsDecode, ite_eq_right (by omega)]
     · rw [← WithTop.coe_add, ← WithTop.coe_zero, WithTop.coe_lt_coe]
       omega
@@ -227,13 +226,11 @@ theorem eval_minPlusViaAPNT (oracle : {ι : Type} → Q ι → ι) {W : ℕ}
       intro s hs i j
       obtain ⟨h1, h2, -, h4⟩ := hs i j
       rw [NegTri.bsRounds, FreeM.eval_pure]
-      rw [pow_zero] at h4
-      omega
+      rw [pow_zero] at h4; omega
     | succ r ih =>
       intro s hs
       rw [NegTri.bsRounds, FreeM.eval_bind]
-      apply ih
-      intro i j
+      refine ih _ fun i j => ?_
       obtain ⟨h1, h2, h3, h4⟩ := hs i j
       have hm : NegTri.bsMid (s i j).1 (s i j).2 ≤ W + 1 := by rw [NegTri.bsMid]; omega
       have hP : (apnt A B (NegTri.bsQuery s)).eval oracle i j = true ↔
@@ -242,26 +239,25 @@ theorem eval_minPlusViaAPNT (oracle : {ι : Type} → Q ι → ι) {W : ℕ}
           untrop_trop, (hv i j).2.2.2 _ hm]
       rw [pow_succ] at h4
       generalize (2 : ℤ) ^ r = p at h4 ⊢
-      by_cases hb : (apnt A B (NegTri.bsQuery s)).eval oracle i j = true
+      cases hb : (apnt A B (NegTri.bsQuery s)).eval oracle i j
+      · have := mt hP.2 (by simp [hb])
+        simp only [Bool.false_eq_true, ↓reduceIte]
+        rw [NegTri.bsMid] at this ⊢
+        refine ⟨?_, ?_, ?_, ?_⟩ <;> omega
       · have := hP.1 hb
-        simp only [hb, ite_true]
+        simp only [↓reduceIte]
         rw [NegTri.bsMid] at this ⊢
         refine ⟨?_, ?_, ?_, ?_⟩ <;> omega
-      · have := mt hP.2 hb
-        simp only [hb, Bool.false_eq_true, ite_false]
-        rw [NegTri.bsMid] at this ⊢
-        refine ⟨?_, ?_, ?_, ?_⟩ <;> omega
-  have hW : ((2 * W + 2 : ℕ) : ℤ) ≤ 2 ^ Nat.clog 2 (2 * W + 2) := by
-    exact_mod_cast Nat.le_pow_clog one_lt_two _
-  push_cast at hW
+  have hW : 2 * (W : ℤ) + 2 ≤ 2 ^ Nat.clog 2 (2 * W + 2) := by
+    exact_mod_cast Nat.le_pow_clog one_lt_two (2 * W + 2)
   have h := key (Nat.clog 2 (2 * W + 2)) (fun _ _ => (-(W : ℤ), (W : ℤ) + 2)) fun i j => by
     have := (hv i j).1
     have := (hv i j).2.1
-    refine ⟨?_, ?_, ?_, ?_⟩ <;> dsimp only <;> omega
+    refine ⟨?_, ?_, le_rfl, ?_⟩ <;> dsimp only <;> omega
   rw [minPlusViaAPNT, FreeM.eval_bind, FreeM.eval_pure]
-  ext i j
-  rw [Matrix.of_apply, h i j]
-  exact (hv i j).2.2.1.trans (trop_untrop _)
+  exact Matrix.ext fun i j => by
+    rw [Matrix.of_apply, h i j]
+    exact (hv i j).2.2.1.trans (trop_untrop _)
 
 end BinarySearch
 

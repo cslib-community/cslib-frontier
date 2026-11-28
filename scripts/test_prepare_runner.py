@@ -105,22 +105,44 @@ class PrepareRunnerTests(unittest.TestCase):
         self.assertLess(workflow.index("scripts/ci/prepare-runner.sh"),
                         workflow.index("- name: Restore .lake from the Actions cache"))
 
-    def test_only_main_pushes_and_merge_groups_can_select_a_billed_runner(self):
-        selected = (
+    def test_only_authorized_jobs_can_select_a_billed_runner(self):
+        lean_selected = (
             "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && "
             "vars.MAIN_BUILD_RUNNER || github.event_name == 'merge_group' && "
             "vars.MERGE_GROUP_RUNNER || 'ubuntu-24.04' }}"
         )
+        docs_selected = (
+            "${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && "
+            "github.ref == 'refs/heads/main' && vars.DOCS_BUILD_RUNNER || 'ubuntu-24.04' }}"
+        )
+        allowed_extra = {
+            "lean_action_ci.yml": lean_selected,
+            "docs.yml": docs_selected,
+        }
         for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
+            allowed = {"ubuntu-latest", "ubuntu-24.04"}
+            if path.name in allowed_extra:
+                allowed.add(allowed_extra[path.name])
+            selected_count = 0
             for line in path.read_text().splitlines():
                 if line.strip().startswith("runs-on:"):
                     runner = line.split("runs-on:", 1)[1].strip()
                     with self.subTest(workflow=path.name, runner=runner):
-                        self.assertIn(runner, ("ubuntu-latest", "ubuntu-24.04", selected))
+                        self.assertIn(runner, allowed)
+                    if runner == allowed_extra.get(path.name):
+                        selected_count += 1
+            if path.name in allowed_extra:
+                self.assertEqual(selected_count, 1, path.name)
         lean = (ROOT / ".github/workflows/lean_action_ci.yml").read_text()
-        job = lean.split("  lean-checks:\n", 1)[1].split("\n  ci-checks:\n", 1)[0]
-        self.assertIn(f"    runs-on: {selected}\n", job)
-        self.assertNotIn("pull_request", selected)
+        lean_job = lean.split("  lean-checks:\n", 1)[1].split("\n  ci-checks:\n", 1)[0]
+        self.assertIn(f"    runs-on: {lean_selected}\n", lean_job)
+        self.assertNotIn("pull_request", lean_selected)
+        docs = (ROOT / ".github/workflows/docs.yml").read_text()
+        docs_job = docs.split("  docs:\n", 1)[1].split("\n  deploy:\n", 1)[0]
+        self.assertIn(f"    runs-on: {docs_selected}\n", docs_job)
+        self.assertNotIn("pull_request", docs_selected)
+        deploy_job = docs.split("\n  deploy:\n", 1)[1]
+        self.assertIn("    runs-on: ubuntu-latest\n", deploy_job)
 
 
 if __name__ == "__main__":

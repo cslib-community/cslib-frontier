@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Optimization
 import CslibFrontier.Computability.Circuit.Boolean.Iteration.Encoded
 import CslibFrontier.Foundations.Combinatorics.FunctionalGraph
 import Cslib.Computability.Circuit.Composition
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
 
@@ -261,16 +262,15 @@ private theorem reach_card_le_of_cover (B : ℕ)
       ∃ y, ∃ j < B, M.step^[t] (M.init x) = M.step^[j] (M.init y)) :
     (reach M n).card ≤ 2 ^ n * B := by
   classical
-  have hsub : reach M n ⊆ (Finset.univ ×ˢ Finset.range B).image
-      (fun (x, j) => M.step^[j] (M.init x)) := by
-    intro z hz
-    obtain ⟨x, t, rfl⟩ := (mem_reach M).mp hz
+  refine (Finset.card_le_card (t := (Finset.univ ×ˢ Finset.range B).image
+      fun (x, j) => M.step^[j] (M.init x)) fun z hz => ?_).trans
+    (Finset.card_image_le.trans ?_)
+  · obtain ⟨x, t, rfl⟩ := (mem_reach M).mp hz
     obtain ⟨y, j, hj, he⟩ := hcover x t
-    exact Finset.mem_image.mpr ⟨(y, j),
-      Finset.mem_product.mpr ⟨Finset.mem_univ _, Finset.mem_range.mpr hj⟩, he.symm⟩
-  refine (Finset.card_le_card hsub).trans (Finset.card_image_le.trans ?_)
-  simp only [Finset.card_product, Finset.card_univ, Fintype.card_fun, Fintype.card_fin,
-    Fintype.card_bool, Finset.card_range, le_refl]
+    exact Finset.mem_image.mpr
+      ⟨(y, j), Finset.mem_product.mpr ⟨Finset.mem_univ _, Finset.mem_range.mpr hj⟩, he.symm⟩
+  · simp only [Finset.card_product, Finset.card_univ, Fintype.card_fun, Fintype.card_fin,
+      Fintype.card_bool, Finset.card_range, le_refl]
 
 /-- Under a halting-time bound `t`, at most `2 ^ n * (t + 1)` configurations are reachable. -/
 theorem reach_card_le_time (hM : M.HaltingAbsorbing) (t : ℕ)
@@ -314,19 +314,13 @@ theorem iterate_card_halting [Fintype Q] [Fintype Γ] (M : Machine Q Γ h)
         M.step^[Fintype.card (Config Q Γ n h)] z = M.step^[t] z := by
   classical
   let H : Config Q Γ n h → Prop := fun z => M.halting z.state
-  have ha : absorb M.step H = M.step := by
-    funext y
+  have ha : absorb M.step H = M.step := funext fun y => by
     simp only [absorb]
     split_ifs with hy
-    · exact (M.step_of_halting hM y hy).symm
-    · rfl
-  refine ⟨?_, fun t ht => ?_⟩
-  · have hiff := absorb_iterate_card_eq_iff M.step H z
-    rwa [ha] at hiff
-  · obtain ⟨t₀, _, hp, hfirst, he⟩ := absorb_iterate_card M.step H z ⟨t, ht⟩
-    have ht₀ : t₀ ≤ t := not_lt.mp fun h => hfirst t h ht
-    rw [ha] at he
-    exact he.trans (M.iterate_of_halting hM hp ht₀).symm
+    exacts [(M.step_of_halting hM y hy).symm, rfl]
+  refine ⟨by simpa only [ha] using absorb_iterate_card_eq_iff M.step H z, fun t ht => ?_⟩
+  obtain ⟨t₀, _, hp, hfirst, he⟩ := absorb_iterate_card M.step H z ⟨t, ht⟩
+  exact (ha ▸ he).trans (M.iterate_of_halting hM hp (not_lt.mp fun h => hfirst t h ht)).symm
 
 /-- The real budget is monotone in the storage count. -/
 theorem optimizedBudget_mono {w s M M' : ℕ} (hM : M ≤ M') :
@@ -375,15 +369,12 @@ theorem inplace_fixed_power_optimized (e : Config Q Γ n h → BitString w)
     (R : ℕ) (hR : (reach M n).card ≤ R) (T : ℕ) :
     ∃ out : Circuit signature n w,
       (∀ x, out.eval interpretation x = e (M.step^[T] (M.init x))) ∧
-      (out.size : ℝ) ≤ ι.size + 120000 * optimizedBudget w c.size R := by
+      (out.size : ℝ) ≤ ι.size + 80000 * optimizedBudget w c.size R := by
   obtain ⟨L, hL, -, hopt⟩ := exists_powerBudget_le_optimizedBudget w c.size (reach M n).card
     (reach_card_le_two_pow M e he)
   obtain ⟨out, hout, hs⟩ := inplace_fixed_power M e c hstep ι hι _ le_rfl T L hL
   refine ⟨out, hout, ?_⟩
-  have hs' : (out.size : ℝ) ≤ ι.size + 40000 * (powerBudget w c.size (reach M n).card L : ℝ) := by
-    exact_mod_cast hs
-  have hm := optimizedBudget_mono (w := w) (s := c.size) hR
-  linarith
+  cast_linarith [optimizedBudget_mono (w := w) (s := c.size) hR, hs]
 
 /-- The alphabet bound: the storage term is the number of configurations. -/
 theorem inplace_configs_optimized (e : Config Q Γ n h → BitString w)
@@ -393,7 +384,7 @@ theorem inplace_configs_optimized (e : Config Q Γ n h → BitString w)
     (hι : ∀ x, ι.eval interpretation x = e (M.init x)) (T : ℕ) :
     ∃ out : Circuit signature n w,
       (∀ x, out.eval interpretation x = e (M.step^[T] (M.init x))) ∧
-      (out.size : ℝ) ≤ ι.size + 120000 *
+      (out.size : ℝ) ≤ ι.size + 80000 *
         optimizedBudget w c.size (Fintype.card Γ ^ n * n ^ h * Fintype.card Q) :=
   inplace_fixed_power_optimized M e he c hstep ι hι _ (reach_card_le_configs M) T
 
@@ -408,7 +399,7 @@ theorem inplace_time_optimized (hM : M.HaltingAbsorbing) (t : ℕ)
     (hι : ∀ x, ι.eval interpretation x = e (M.init x)) (T : ℕ) :
     ∃ out : Circuit signature n w,
       (∀ x, out.eval interpretation x = e (M.step^[T] (M.init x))) ∧
-      (out.size : ℝ) ≤ ι.size + 120000 * optimizedBudget w c.size (2 ^ n * (t + 1)) :=
+      (out.size : ℝ) ≤ ι.size + 80000 * optimizedBudget w c.size (2 ^ n * (t + 1)) :=
   inplace_fixed_power_optimized M e he c hstep ι hι _ (reach_card_le_time M hM t ht) T
 
 /-- Halting, the halting state, and the final configuration of a machine that need not halt:
@@ -423,7 +414,7 @@ theorem inplace_halting (hM : M.HaltingAbsorbing) (e : Config Q Γ n h → BitSt
       (∀ x, out.eval interpretation x = e (final x) ∧
         (M.halting (final x).state ↔ ∃ t, M.halting (M.step^[t] (M.init x)).state) ∧
         ∀ t, M.halting (M.step^[t] (M.init x)).state → final x = M.step^[t] (M.init x)) ∧
-      (out.size : ℝ) ≤ ι.size + 120000 *
+      (out.size : ℝ) ≤ ι.size + 80000 *
         optimizedBudget w c.size (Fintype.card Γ ^ n * n ^ h * Fintype.card Q) := by
   obtain ⟨out, hout, hs⟩ := inplace_configs_optimized M e he c hstep ι hι
     (Fintype.card (Config Q Γ n h))
@@ -470,7 +461,7 @@ theorem round_bounds_of_hard [Fintype Q] [Fintype Γ] (τ T q : ℕ) (hτ : 0 < 
       (∀ x, out.eval interpretation x = e (M.step^[τ * T] (M.init x))) → q < out.size) ∧
     ∀ T', ∃ out : Circuit signature m w,
       (∀ x, out.eval interpretation x = e (M.step^[T'] (M.init x))) ∧
-      (out.size : ℝ) ≤ ι.size + 120000 * optimizedBudget w c.size (2 ^ m * τ) :=
+      (out.size : ℝ) ≤ ι.size + 80000 * optimizedBudget w c.size (2 ^ m * τ) :=
   ⟨round_lower_bound_of_hard M τ T q P hround e tape htape hhard, fun T' =>
     inplace_fixed_power_optimized M e he c hstep ι hι _
       (reach_card_le_round M τ hτ P hround) T'⟩

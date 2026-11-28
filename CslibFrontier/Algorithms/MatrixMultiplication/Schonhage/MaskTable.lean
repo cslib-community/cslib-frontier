@@ -77,21 +77,14 @@ theorem population_succ (L a : ℕ) :
     Fin.val_succ, pow_succ', ← Nat.div_div_eq_div_mul]
 
 /-- There are at most `L` one digits, even for an unbounded natural argument. -/
-theorem population_le (L a : ℕ) : population L a ≤ L := by
-  induction L generalizing a with
-  | zero => rw [population_zero]
-  | succ L ih =>
-    rw [population_succ]
-    have hm := Nat.mod_lt a (by decide : 0 < 2)
-    have ht := ih (a / 2)
-    omega
+theorem population_le (L a : ℕ) : population L a ≤ L :=
+  (sum_le_sum fun _ _ => Nat.lt_succ_iff.mp (Nat.mod_lt _ (by decide))).trans (by simp)
 
 /-- The loop's digit sum is the cardinality of the represented level set. -/
 theorem population_eq_card {L : ℕ} (a : Fin (2 ^ L)) :
     population L a.val = (maskSet a).card := by
   rw [maskSet, card_eq_sum_ones, sum_filter]
-  apply sum_congr rfl
-  intro i _
+  refine sum_congr rfl fun i _ => ?_
   have h : (finFunctionFinEquiv.symm a i).val = a.val / 2 ^ i.val % 2 := rfl
   have hb := (finFunctionFinEquiv.symm a i).isLt
   split <;> simp_all only [Fin.ext_iff, Fin.val_one]
@@ -104,19 +97,8 @@ def validMasks (L m : ℕ) : Finset (Fin (2 ^ L)) :=
 /-- Every size-`m` subset occurs once in the bounded mask scan. -/
 theorem card_validMasks (L m : ℕ) : (validMasks L m).card = K L m := by
   calc
-    (validMasks L m).card = ((univ : Finset (Fin L)).powersetCard m).card := by
-      apply card_bij (fun a _ => maskSet a)
-      · intro a ha
-        rw [mem_powersetCard_univ]
-        rw [← population_eq_card]
-        exact (mem_filter.mp ha).2
-      · intro a _ b _ h
-        exact (maskEquiv L).injective h
-      · intro Q hQ
-        refine ⟨maskCode Q, ?_, maskSet_maskCode Q⟩
-        simp only [validMasks, mem_filter, mem_univ, true_and, population_eq_card,
-          maskSet_maskCode]
-        exact mem_powersetCard_univ.mp hQ
+    (validMasks L m).card = ((univ : Finset (Fin L)).powersetCard m).card :=
+      card_equiv (maskEquiv L) fun a => by simp [validMasks, maskEquiv, population_eq_card]
     _ = K L m := by rw [card_powersetCard, card_univ, Fintype.card_fin]; rfl
 
 /-- Number of valid masks strictly below the scan counter. -/
@@ -142,53 +124,40 @@ theorem prefixCount_mono (L m : ℕ) {a b : ℕ} (h : a ≤ b) :
 /-- Earlier valid masks have strictly smaller accepted-mask ranks. -/
 theorem prefixCount_lt {L m a b : ℕ} (ha : population L a = m) (hab : a < b) :
     prefixCount L m a < prefixCount L m b := by
-  have h := prefixCount_mono L m (show a + 1 ≤ b by omega)
-  rw [prefixCount_succ] at h
-  simp only [ha, ↓reduceIte] at h
-  omega
+  have h := prefixCount_mono L m (Nat.succ_le_of_lt hab)
+  rw [prefixCount_succ, ite_eq_left ha] at h; omega
 
 /-- The finite complete scan has exactly the binomial count. -/
 theorem prefixCount_full (L m : ℕ) : prefixCount L m (2 ^ L) = K L m := by
   rw [← card_validMasks]
-  apply card_bij (fun a ha => (⟨a, mem_range.mp (mem_filter.mp ha).1⟩ : Fin (2 ^ L)))
-  · intro a ha
-    exact mem_filter.mpr ⟨mem_univ _, (mem_filter.mp ha).2⟩
-  · intro a _ b _ h
-    exact congrArg Fin.val h
-  · intro a ha
-    exact ⟨a.val, mem_filter.mpr ⟨mem_range.mpr a.isLt, (mem_filter.mp ha).2⟩, rfl⟩
+  exact card_bij (fun a ha => (⟨a, mem_range.mp (mem_filter.mp ha).1⟩ : Fin (2 ^ L)))
+    (fun _ ha => mem_filter.mpr ⟨mem_univ _, (mem_filter.mp ha).2⟩)
+    (fun _ _ _ _ h => congrArg Fin.val h)
+    fun a ha => ⟨a.val, mem_filter.mpr ⟨mem_range.mpr a.isLt, (mem_filter.mp ha).2⟩, rfl⟩
 
 private theorem card_below_orderEmb {α : Type*} [LinearOrder α] (s : Finset α)
     {n : ℕ} (h : s.card = n) (i : Fin n) :
     (s.filter fun a => a < s.orderEmbOfFin h i).card = i.val := by
   rw [← card_range i.val]
   symm
-  apply card_bij (fun j hj => s.orderEmbOfFin h
-    ⟨j, (mem_range.mp hj).trans i.isLt⟩)
-  · intro j hj
-    exact mem_filter.mpr ⟨s.orderEmbOfFin_mem h _,
-      (s.orderEmbOfFin h).strictMono (mem_range.mp hj)⟩
-  · intro j hj k hk hjk
-    exact congrArg Fin.val ((s.orderEmbOfFin h).injective hjk)
-  · intro a ha
-    let j := (s.orderIsoOfFin h).symm ⟨a, (mem_filter.mp ha).1⟩
-    have hj : s.orderEmbOfFin h j = a :=
-      congrArg Subtype.val ((s.orderIsoOfFin h).apply_symm_apply ⟨a, (mem_filter.mp ha).1⟩)
-    have hji : j < i := (s.orderEmbOfFin h).lt_iff_lt.mp (hj ▸ (mem_filter.mp ha).2)
-    exact ⟨j.val, mem_range.mpr hji, hj⟩
+  exact card_bij (fun j hj => s.orderEmbOfFin h ⟨j, (mem_range.mp hj).trans i.isLt⟩)
+    (fun _ hj => mem_filter.mpr ⟨s.orderEmbOfFin_mem h _,
+      (s.orderEmbOfFin h).strictMono (mem_range.mp hj)⟩)
+    (fun _ _ _ _ hjk => congrArg Fin.val ((s.orderEmbOfFin h).injective hjk)) fun a ha => by
+      let j := (s.orderIsoOfFin h).symm ⟨a, (mem_filter.mp ha).1⟩
+      have hj : s.orderEmbOfFin h j = a :=
+        congrArg Subtype.val ((s.orderIsoOfFin h).apply_symm_apply ⟨a, (mem_filter.mp ha).1⟩)
+      exact ⟨j.val, mem_range.mpr ((s.orderEmbOfFin h).lt_iff_lt.mp (hj ▸ (mem_filter.mp ha).2)),
+        hj⟩
 
 /-- The scalar scan count equals the rank among the bounded valid masks. -/
 theorem prefixCount_eq_bounded (L m t : ℕ) (ht : t ≤ 2 ^ L) :
-    prefixCount L m t = ((validMasks L m).filter fun a => a.val < t).card := by
-  apply card_bij (fun a ha =>
-    (⟨a, (mem_range.mp (mem_filter.mp ha).1).trans_le ht⟩ : Fin (2 ^ L)))
-  · intro a ha
-    exact mem_filter.mpr ⟨mem_filter.mpr ⟨mem_univ _, (mem_filter.mp ha).2⟩,
-      mem_range.mp (mem_filter.mp ha).1⟩
-  · intro a _ b _ h
-    exact congrArg Fin.val h
-  · intro a ha
-    exact ⟨a.val, mem_filter.mpr ⟨mem_range.mpr (mem_filter.mp ha).2,
+    prefixCount L m t = ((validMasks L m).filter fun a => a.val < t).card :=
+  card_bij (fun a ha => (⟨a, (mem_range.mp (mem_filter.mp ha).1).trans_le ht⟩ : Fin (2 ^ L)))
+    (fun _ ha => mem_filter.mpr ⟨mem_filter.mpr ⟨mem_univ _, (mem_filter.mp ha).2⟩,
+      mem_range.mp (mem_filter.mp ha).1⟩)
+    (fun _ _ _ _ h => congrArg Fin.val h)
+    fun a ha => ⟨a.val, mem_filter.mpr ⟨mem_range.mpr (mem_filter.mp ha).2,
       (mem_filter.mp (mem_filter.mp ha).1).2⟩, rfl⟩
 
 /-- Row-major block-pair rank in the full list of size-`m` masks. -/
@@ -225,9 +194,8 @@ theorem lookup_le (L m a : ℕ) : lookup L m a ≤ a + 1 := by
 /-- The inverse-table word at every selected block pair has the promised rank. -/
 theorem lookup_selectedMask {L m : ℕ} (gh : Fin (K0 L m) × Fin (K0 L m)) :
     lookup L m (selectedMask gh).val = (pairRank gh).val + 1 := by
-  have hm := (validMasks L m).orderEmbOfFin_mem (card_validMasks L m) (pairRank gh)
-  have hp := (mem_filter.mp hm).2
-  change population L (selectedMask gh).val = m at hp
+  have hp : population L (selectedMask gh).val = m :=
+    (mem_filter.mp ((validMasks L m).orderEmbOfFin_mem (card_validMasks L m) (pairRank gh))).2
   have hr : (pairRank gh).val < K0 L m * K0 L m := (finProdFinEquiv gh).isLt
   simp only [lookup, (selectedMask gh).isLt, hp, prefixCount_selectedMask,
     hr, and_self, ↓reduceIte]
@@ -235,68 +203,51 @@ theorem lookup_selectedMask {L m : ℕ} (gh : Fin (K0 L m) × Fin (K0 L m)) :
 /-- A nonzero inverse-table word belongs to one of the selected block pairs. -/
 theorem exists_selectedMask_of_lookup {L m a : ℕ} (h : lookup L m a ≠ 0) :
     ∃ gh : Fin (K0 L m) × Fin (K0 L m), (selectedMask gh).val = a := by
-  unfold lookup at h
-  split_ifs at h with hc
-  · obtain ⟨ha, hp, hr⟩ := hc
-    let aa : Fin (2 ^ L) := ⟨a, ha⟩
-    have hmem : aa ∈ validMasks L m := mem_filter.mpr ⟨mem_univ _, hp⟩
-    let j := (validMasks L m).orderIsoOfFin (card_validMasks L m) |>.symm ⟨aa, hmem⟩
-    have hj : (validMasks L m).orderEmbOfFin (card_validMasks L m) j = aa :=
-      congrArg Subtype.val ((validMasks L m).orderIsoOfFin (card_validMasks L m)
-        |>.apply_symm_apply ⟨aa, hmem⟩)
-    have hjrank : j.val = prefixCount L m a := by
-      rw [prefixCount_eq_bounded L m a ha.le]
-      have hbelow := card_below_orderEmb (validMasks L m) (card_validMasks L m) j
-      rw [hj] at hbelow
-      exact hbelow.symm
-    let gh := (@finProdFinEquiv (K0 L m) (K0 L m)).symm ⟨prefixCount L m a, hr⟩
-    have hprval : (pairRank gh).val = prefixCount L m a :=
-      congrArg Fin.val ((@finProdFinEquiv (K0 L m) (K0 L m)).apply_symm_apply
-        ⟨prefixCount L m a, hr⟩)
-    have hpr : pairRank gh = j := Fin.ext (hprval.trans hjrank.symm)
-    refine ⟨gh, ?_⟩
-    change ((validMasks L m).orderEmbOfFin (card_validMasks L m) (pairRank gh)).val = a
-    rw [hpr, hj]
-  · exact (h rfl).elim
+  obtain ⟨ha, hp, hr⟩ := (lookup_ne_zero_iff L m a).mp h
+  have hmem : (⟨a, ha⟩ : Fin (2 ^ L)) ∈ validMasks L m := mem_filter.mpr ⟨mem_univ _, hp⟩
+  let j := ((validMasks L m).orderIsoOfFin (card_validMasks L m)).symm ⟨⟨a, ha⟩, hmem⟩
+  have hj : (validMasks L m).orderEmbOfFin (card_validMasks L m) j = ⟨a, ha⟩ :=
+    congrArg Subtype.val
+      (((validMasks L m).orderIsoOfFin (card_validMasks L m)).apply_symm_apply _)
+  have hjrank : j.val = prefixCount L m a := by
+    rw [prefixCount_eq_bounded L m a ha.le, ← card_below_orderEmb _ (card_validMasks L m) j, hj]
+    rfl
+  let gh := (@finProdFinEquiv (K0 L m) (K0 L m)).symm ⟨prefixCount L m a, hr⟩
+  have hpr : pairRank gh = j := Fin.ext <|
+    (congrArg Fin.val ((@finProdFinEquiv (K0 L m) (K0 L m)).apply_symm_apply _)).trans hjrank.symm
+  exact ⟨gh, by simp only [selectedMask, hpr, hj]⟩
 
 /-- Inverse-table division and remainder recover exactly the two block indices. -/
 theorem lookup_blockPair {L m : ℕ} (gh : Fin (K0 L m) × Fin (K0 L m)) :
     (lookup L m (selectedMask gh).val - 1) / K0 L m = gh.1.val ∧
       (lookup L m (selectedMask gh).val - 1) % K0 L m = gh.2.val := by
   rw [lookup_selectedMask, Nat.add_sub_cancel]
-  have hpos : 0 < K0 L m := by have := gh.2.isLt; omega
-  change (gh.2.val + K0 L m * gh.1.val) / K0 L m = gh.1.val ∧
-    (gh.2.val + K0 L m * gh.1.val) % K0 L m = gh.2.val
-  rw [Nat.add_mul_div_left _ _ hpos, Nat.div_eq_of_lt gh.2.isLt, Nat.zero_add,
-    Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt gh.2.isLt]
-  exact ⟨rfl, rfl⟩
+  have hpos : 0 < K0 L m := lt_of_le_of_lt (Nat.zero_le _) gh.2.isLt
+  change (gh.2.val + K0 L m * gh.1.val) / K0 L m = _ ∧
+    (gh.2.val + K0 L m * gh.1.val) % K0 L m = _
+  simp [Nat.add_mul_div_left _ _ hpos, Nat.div_eq_of_lt gh.2.isLt, Nat.mod_eq_of_lt gh.2.isLt]
 
 /-- Both decoded block indices are in range whenever the inverse-table word is nonzero. -/
 theorem lookup_block_lt {L m a : ℕ} (h : lookup L m a ≠ 0) (rightSide : Bool) :
     (if rightSide then (lookup L m a - 1) % K0 L m
       else (lookup L m a - 1) / K0 L m) < K0 L m := by
-  obtain ⟨gh, hs⟩ := exists_selectedMask_of_lookup h
-  have hp := lookup_blockPair gh
-  rw [hs] at hp
+  obtain ⟨gh, rfl⟩ := exists_selectedMask_of_lookup h
   cases rightSide
-  · simpa only [Bool.false_eq_true, ↓reduceIte, hp.1] using gh.1.isLt
-  · simpa only [↓reduceIte, hp.2] using gh.2.isLt
+  · simp [(lookup_blockPair gh).1]
+  · simp [(lookup_blockPair gh).2]
 
 /-- Selected masks always have exactly the required cardinality. -/
 theorem card_selectedMask {L m : ℕ} (gh : Fin (K0 L m) × Fin (K0 L m)) :
-    (maskSet (selectedMask gh)).card = m := by
-  have h := (validMasks L m).orderEmbOfFin_mem (card_validMasks L m) (pairRank gh)
-  exact (population_eq_card _).symm.trans ((mem_filter.mp h).2)
+    (maskSet (selectedMask gh)).card = m :=
+  (population_eq_card _).symm.trans
+    (mem_filter.mp ((validMasks L m).orderEmbOfFin_mem (card_validMasks L m) (pairRank gh))).2
 
 /-- Distinct block pairs receive distinct level sets. -/
 theorem selectedMask_injective (L m : ℕ) :
-    Function.Injective (fun gh : Fin (K0 L m) × Fin (K0 L m) => maskSet (selectedMask gh)) := by
-  intro gh gh' h
-  have hmask := (maskEquiv L).injective h
-  have hrank := (validMasks L m).orderEmbOfFin (card_validMasks L m) |>.injective hmask
-  apply finProdFinEquiv.injective
-  apply Fin.ext
-  exact congrArg (fun i : Fin (K L m) => i.val) hrank
+    Function.Injective (fun gh : Fin (K0 L m) × Fin (K0 L m) => maskSet (selectedMask gh)) :=
+  fun _ _ h => finProdFinEquiv.injective <| Fin.ext <|
+    congrArg (fun i : Fin (K L m) => i.val) <|
+      ((validMasks L m).orderEmbOfFin (card_validMasks L m)).injective ((maskEquiv L).injective h)
 
 /-- The thin-dimension pair digit uses row-major order, as do the encoder's inner variables. -/
 def innerDigits : Fin 4 ≃ Fin 2 × Fin 2 := (@finProdFinEquiv 2 2).symm

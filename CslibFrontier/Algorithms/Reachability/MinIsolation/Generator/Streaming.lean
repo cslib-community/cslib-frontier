@@ -69,6 +69,16 @@ private theorem accumulate_eq {ℓ : ℕ} (digit : Fin ℓ → Bool) :
     Fin.revPerm_apply, Fin.rev_rev, Fin.val_rev, mul_comm] using
     (Equiv.sum_comp Fin.revPerm (fun j : Fin ℓ => (digit j.rev).toNat * 6 ^ j.val)).symm
 
+/-- Scaling the accumulated masked digits by `6 ^ level` recovers `BaseSix.levelWeight`. -/
+theorem six_pow_mul_accumulateWeightDigits_eq_levelWeight {ℓ : ℕ} (level : ℕ)
+    (word seed : Fin ℓ → Bool) :
+    6 ^ level * accumulateWeightDigits (fun j => word j && seed j) =
+      MinIsolation.BaseSix.levelWeight level word seed := by
+  rw [accumulate_eq, mul_sum]
+  refine sum_congr rfl fun j _ => ?_
+  simp only [MinIsolation.BaseSix.levelBitCoeff]
+  cases word j <;> cases seed j <;> simp
+
 /-- A word of masked Boolean digits has value below the first power beyond its length. -/
 theorem accumulateWeightDigits_lt {ℓ : ℕ} (digit : Fin ℓ → Bool) :
     accumulateWeightDigits digit < 6 ^ ℓ := by
@@ -119,10 +129,10 @@ theorem generatedWeightScan_eq {w n : ℕ} (seed : Fin (codeLength w n) → Bool
   split_ifs
   · rfl
   · dsimp only [coefficient, scaleAccumulatedWeight]
-    rw [accumulate_eq, mul_sum]
-    refine sum_congr rfl fun j _ => ?_
-    rw [indexedCodewordMod_eq]
-    cases indexedCodeword z.2 j <;> cases seed j <;> simp
+    simpa only [indexedCodewordMod_eq, MinIsolation.BaseSix.levelWeight,
+      MinIsolation.BaseSix.levelBitCoeff] using
+      six_pow_mul_accumulateWeightDigits_eq_levelWeight (padicValNat 2 z.1.val)
+        (indexedCodeword z.2) seed
 
 namespace SeedDigits
 

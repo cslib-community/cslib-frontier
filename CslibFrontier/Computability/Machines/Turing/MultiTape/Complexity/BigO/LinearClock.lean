@@ -55,19 +55,17 @@ private theorem clockWord (A : ℕ) :
       (fun x => x.length) fun x => x.length := by
   induction A with
   | zero =>
-    simpa using (ComputableInO.const (encIn := encBits) (encMid := encBits) ([] : List Bool))
+    simpa using ComputableInO.const (encIn := encBits) (encMid := encBits) ([] : List Bool)
   | succ A ih =>
     have hu : ComputableInO (fun x : List Bool => x.length + 1) encBits encUnary
         (fun x => x.length) fun x => x.length :=
       .mono (by fun_prop) 3 (fun x => by simp [encUnary_apply]; omega)
         fun x => by simp [encUnary_apply]; omega
-    have h := ih.append hu
+    refine (ih.append hu
       (g := fun x : List Bool => List.replicate ((A + 1) * (x.length + 1)) true)
-      (encOut := encBits) fun x => by
-        simp only [encBits_apply, encUnary_apply, ← List.replicate_add]
-        congr 1
-        ring
-    exact h.mono 2 (fun x => by omega) (fun x => by omega)
+      (encOut := encBits) fun x => ?_).mono 2 (fun _ => by omega) fun _ => by omega
+    simp only [encBits_apply, encUnary_apply, ← List.replicate_add]
+    exact congrArg (List.replicate · true) (by ring)
 
 /-- **Clocking a Boolean computation down to linear time.** A Boolean function computable within
 time `O(T a)` agrees, on the instances where `T a` is at most `K` times the encoded length plus
@@ -83,27 +81,24 @@ theorem ComputableInO.exists_linear_eq_of_time_le {α : Type} {enc : α ↪ List
   set A := c * (K + 1) + c
   refine ⟨fun a => decide ([true] = (ofDeterministic tm).runClosedCoins
       (List.replicate (A * ((enc a).length + 1)) true) (enc a)), ?_, fun a ha => ?_⟩
-  · have hclock := (clockWord A).comp_enc enc
-    have hid : ComputableInO (fun a : α => enc a) enc encBits (fun a => (enc a).length)
+  · have hid : ComputableInO (fun a : α => enc a) enc encBits (fun a => (enc a).length)
         (fun a => (enc a).length) := ComputableInO.of_eq fun _ => rfl
     have hrun := (ComputableInO.of_linear
-      (computableInDegree_runClosedCoins (ofDeterministic tm))).comp_linear (hclock.prod hid)
+      (computableInDegree_runClosedCoins (ofDeterministic tm))).comp_linear
+      (((clockWord A).comp_enc enc).prod hid)
     obtain ⟨cr, hcr⟩ := hrun.length_le
-    have heq := ComputableInO.eqWords.comp
-      ((ComputableInO.const (encIn := enc) (encMid := encBits) [true]).prod hrun)
-    refine heq.mono (8 + 4 * cr) (fun a => ?_) fun a => ?_
-    · have := hcr a
-      simp only [Function.comp_apply, encBits_apply, List.length_singleton] at this ⊢
-      nlinarith
-    · have := hcr a
+    refine (ComputableInO.eqWords.comp
+      ((ComputableInO.const (encIn := enc) (encMid := encBits) [true]).prod hrun)).mono
+      (8 + 4 * cr) (fun a => ?_) fun a => ?_
+    all_goals
+      have := hcr a
       simp only [Function.comp_apply, encBits_apply, List.length_singleton] at this ⊢
       nlinarith
   · dsimp only
     rw [runClosedCoins_ofDeterministic, List.length_replicate]
     have hle : c * (T a + 1) ≤ A * ((enc a).length + 1) := by
       have := Nat.mul_le_mul_left c (Nat.add_le_add_right ha 1)
-      simp only [A]
-      nlinarith
+      simp only [A]; nlinarith
     rw [((htm a).runFrom_of_le hle).2]
     cases f a <;> rfl
 

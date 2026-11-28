@@ -68,9 +68,9 @@ private theorem totalDegree_one_sub_X [CommRing R] [Nontrivial R] (i : ι) :
   rw [← totalDegree_neg, neg_sub]
   refine le_antisymm ((totalDegree_sub_C_le (X i) 1).trans_eq (totalDegree_X i)) ?_
   have hi : (Finsupp.single i 1 : ι →₀ ℕ) ≠ 0 := Finsupp.single_ne_zero.2 one_ne_zero
-  have h : Finsupp.single i 1 ∈ (X i - 1 : MvPolynomial ι R).support := by
-    simp [mem_support_iff, coeff_X, coeff_one, hi.symm]
-  simpa using le_totalDegree h
+  simpa using le_totalDegree
+    (show Finsupp.single i 1 ∈ (X i - 1 : MvPolynomial ι R).support by
+      simp [mem_support_iff, coeff_X, coeff_one, hi.symm])
 
 private theorem totalDegree_ite [CommRing R] [Nontrivial R] (y : ι → Bool) (i : ι) :
     (if y i then X i else 1 - X i : MvPolynomial ι R).totalDegree = 1 := by
@@ -117,21 +117,14 @@ private theorem parityClauseSum_insert [CommRing R] {j : ι} {B : Finset ι} (hj
     rw [parityOn_insert hj, decide_eq_false hjA, Bool.false_xor, prod_insert hj, ite_eq_right hjA]
     split_ifs <;> ring
   · refine sum_congr rfl fun A hA => ?_
-    have hjA : j ∉ A := fun h => hj (mem_powerset.1 hA h)
     have hmem : ∀ i ∈ B, (i ∈ insert j A ↔ i ∈ A) := fun i hi => by
       rw [mem_insert, or_iff_right fun h : i = j => hj (h ▸ hi)]
-    have hpar : parityOn B (fun i => decide (i ∈ insert j A)) =
-        parityOn B (fun i => decide (i ∈ A)) :=
-      parityOn_congr fun i hi => by simp only [hmem i hi]
-    have hprod : ∏ i ∈ B, (if i ∈ insert j A then X i else 1 - X i : MvPolynomial ι R) =
-        ∏ i ∈ B, (if i ∈ A then X i else 1 - X i) :=
-      prod_congr rfl fun i hi => by simp only [hmem i hi]
-    rw [parityOn_insert hj, decide_eq_true (mem_insert_self j A), Bool.true_xor, hpar,
-      prod_insert hj, ite_eq_left (mem_insert_self j A), hprod]
-    have hneg (a : Bool) : ((!a) ≠ c) ↔ (a ≠ !c) := by cases a <;> cases c <;> decide
-    by_cases h : parityOn B (fun i => decide (i ∈ A)) ≠ !c
-    · rw [ite_eq_left ((hneg _).2 h), ite_eq_left h]
-    · rw [ite_eq_right (fun h' => h ((hneg _).1 h')), ite_eq_right h, mul_zero]
+    rw [parityOn_insert hj, decide_eq_true (mem_insert_self j A), Bool.true_xor,
+      parityOn_congr fun i hi => decide_eq_decide.2 (hmem i hi), prod_insert hj,
+      ite_eq_left (mem_insert_self j A), prod_congr rfl fun i hi => if_congr (hmem i hi) rfl rfl]
+    cases parityOn B (fun i => decide (i ∈ A)) <;> cases c <;>
+      simp only [Bool.not_true, Bool.not_false, ne_eq, not_true_eq_false, not_false_eq_true,
+        Bool.false_eq_true, Bool.true_eq_false, ite_true, ite_false, mul_zero]
 
 /-- In characteristic `2`, the polynomials of the clauses excluding the assignments `A ⊆ B` of
 parity other than `c` add up to `[c = 1] + ∑_{i ∈ B} X i`. -/

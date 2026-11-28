@@ -85,12 +85,9 @@ theorem exec_queries {w U n first length out queries Q : ℕ}
   have hit_iff (i : ℕ) : hit i = true ↔ ∃ c, first ≤ c ∧ c < first + length ∧
       AB (a i) (b i) + BC (b i) c + AC (a i) c = 0 := by
     simp only [hit, decide_eq_true_eq]
-    constructor
-    · rintro ⟨c, hz⟩
-      exact ⟨first + c.val, by omega, by have := c.isLt; omega, hz⟩
-    · rintro ⟨c, hlo, hhi, hz⟩
-      refine ⟨⟨c - first, by omega⟩, ?_⟩
-      simpa only [Nat.add_sub_of_le hlo] using hz
+    exact ⟨fun ⟨c, hz⟩ => ⟨first + c.val, by omega, by omega, hz⟩,
+      fun ⟨c, hlo, hhi, hz⟩ =>
+        ⟨⟨c - first, by omega⟩, by simpa only [Nat.add_sub_of_le hlo] using hz⟩⟩
   let I (y : Data 400) : Prop :=
     Fixed n first length out queries Q y ∧ y.mem = x.mem ∧ y.regs Reg.index ≤ Q ∧
     y.regs Reg.found = (foundBefore accept hit (y.regs Reg.index)).toNat ∧
@@ -128,7 +125,7 @@ theorem exec_queries {w U n first length out queries Q : ℕ}
       refine ⟨z, 42 * length + 34, he, ⟨zFixed, zm.trans ym, by omega,
         by simpa only [zi, foundBefore_succ, hinfo.1, hinfo.2, Bool.true_and, Bool.false_or]
              using zflag,
-        by rw [zi, Nat.count_succ, ite_eq_left hact, ← ys]; exact zs,
+        by rwa [zi, Nat.count_succ, ite_eq_left hact, ← ys],
         fun hz => let ⟨za, zb, zlo, zhi, zeq⟩ := zw hz
           ⟨i, by omega, ym ▸ hanswer, za, zb, zlo, zhi, zeq⟩⟩, ?_⟩
       simpa only [ite_eq_left hact, Φ, zi, i] using
@@ -137,8 +134,8 @@ theorem exec_queries {w U n first length out queries Q : ℕ}
         by_cases hz : y.regs Reg.found = 0
         · refine Or.inr (by_contra fun hn => hact ?_)
           have hb : foundBefore accept hit i = false := Bool.toNat_eq_zero.mp (yf.symm.trans hz)
-          simp only [active, accept, hb, Bool.not_false, Bool.and_true, decide_eq_true_eq]
-          exact ym ▸ hn
+          simpa only [active, accept, hb, Bool.not_false, Bool.and_true, decide_eq_true_eq] using
+            ym ▸ hn
         · exact Or.inl hz
       obtain ⟨z, he, zFixed, zm, zi, frame⟩ := exec_step_skip (i := i) y yFixed rfl hskip
         (hfit.of_le (by dsimp only [i]; omega))
@@ -150,8 +147,8 @@ theorem exec_queries {w U n first length out queries Q : ℕ}
         cases ha : accept i <;> cases hb : foundBefore accept hit i <;>
           simp_all [active]
       refine ⟨z, 6, he, ⟨zFixed, zm.trans ym, by omega,
-        by rw [zi, hnext, zreg Reg.found]; exact yf,
-        by rw [zi, Nat.count_succ, ite_eq_right hact, Nat.add_zero, zreg Reg.scans]; exact ys,
+        by rwa [zi, hnext, zreg Reg.found],
+        by rwa [zi, Nat.count_succ, ite_eq_right hact, Nat.add_zero, zreg Reg.scans],
         fun hz => by
           obtain ⟨j, hj, hm, hwa, hwb, hlo, hhi, hzsum⟩ := yw ((zreg Reg.found).symm.trans hz)
           exact ⟨j, by omega, hm, (zreg Reg.witnessA).trans hwa, (zreg Reg.witnessB).trans hwb,
@@ -159,9 +156,7 @@ theorem exec_queries {w U n first length out queries Q : ℕ}
       simpa only [ite_eq_right hact, Φ, zi, i] using
         potential_step active (T := 42 * length + 28) hilt
   obtain ⟨y, he, ⟨yFixed, ym, yi, yf, ys, yw⟩, hend⟩ := ExecWithin.loop_potential I Φ body hstart
-  have yindex : y.regs Reg.index = Q := by
-    have : ¬ y.regs Reg.index < Q := by simpa only [Cond.holds_lt, yFixed.count] using hend
-    omega
+  have yindex : y.regs Reg.index = Q := by simp only [Cond.holds_lt, yFixed.count] at hend; omega
   have hfail : Nat.count (fun i => (accept i && !hit i) = true) Q =
       Nat.count (fun i => x.mem (out + i) ≠ 0 ∧
         ∀ c : Fin length, AB (a i) (b i) + BC (b i) (first + c.val) +

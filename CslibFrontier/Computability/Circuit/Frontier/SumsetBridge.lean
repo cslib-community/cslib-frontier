@@ -53,10 +53,16 @@ min-entropy at least `k`. Consequently:
   `L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`) and satisfies the `(L₃ - δ) n` average-case
   agreement bound (`exists_eventually_agreement_le_of_isSumsetExtractor`).
 
-These sumset-extractor theorems are **conditional reduction steps**, not unconditional `P` circuit
-lower bounds: constructing an explicit polynomial-time sumset extractor family (such as
-`[Li2023, Thm. 7.13]`) remains open
-(`mem_P_and_eventually_switched_lt_multiarySize_of_isSumsetExtractor`).
+These theorems are **conditional reduction steps in Lean**: the explicit extractor and its
+polynomial-time implementation remain to be formalized, as tracked by
+[#7793](https://github.com/cslib-community/cslib-frontier/issues/7793).
+Mathematically, [Li2023], ECCC TR23-023 revision 1, Theorem 7.13 (p. 36), already supplies a
+polynomial-time one-bit sumset extractor with entropy threshold `c(ε) log n` for each fixed
+`ε > 0`. For `ε < 1 / 2`, it meets the hypotheses of
+`mem_P_and_eventually_switched_lt_multiarySize_of_isSumsetExtractor` and yields the explicit `P`
+worst-case bound. The corresponding average-case bound is
+`agreement ≤ 1 / 2 + ε + exp (-γ n)`; that fixed-error theorem alone does not supply a single
+family with vanishing error as `n` grows.
 
 ## Main results
 
@@ -75,7 +81,7 @@ lower bounds: constructing an explicit polynomial-time sumset extractor family (
 ## References
 
 * [X. Li, *Two Source Extractors for Asymptotically Optimal Entropy, and (Many) More*][Li2023],
-  Theorem 7.13
+  ECCC TR23-023 revision 1, Definition 1.1 (p. 1) and Theorem 7.13 (p. 36)
 -/
 
 public section
@@ -112,21 +118,12 @@ theorem denseRectangleFree_of_eventually_rectangleBias {U : Type u} [Finite U] [
     have hK_pow : ∀ᶠ n in atTop, K n ≤ q ^ (n / 2) := by
       filter_upwards [hKlog.bound (show 0 < Real.log q / 3 by positivity), hKpos,
         eventually_ge_atTop 6] with n hn hKn hn6
-      have hdiv : (n : ℝ) / 3 ≤ ((n / 2 : ℕ) : ℝ) := by
-        have h1 : 3 ≤ n / 2 := by omega
-        have h2 : n ≤ 2 * (n / 2) + 1 := by omega
-        have h1' : (3 : ℝ) ≤ (n / 2 : ℕ) := by exact_mod_cast h1
-        have h2' : (n : ℝ) ≤ 2 * ((n / 2 : ℕ) : ℝ) + 1 := by exact_mod_cast h2
-        linarith
+      have hdiv : (n : ℝ) ≤ 3 * ((n / 2 : ℕ) : ℝ) := by
+        exact_mod_cast (by omega : n ≤ 3 * (n / 2))
       simp only [Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg (α := ℝ) n)] at hn
       have hlog_le : Real.log (K n) ≤ Real.log ((q : ℝ) ^ (n / 2)) := by
-        rw [Real.log_pow]
-        have := (le_abs_self (Real.log (K n))).trans hn
-        nlinarith
-      have hKpos_r : (0 : ℝ) < K n := by exact_mod_cast lt_of_lt_of_le Nat.zero_lt_one hKn
-      have hle_r : (K n : ℝ) ≤ (q : ℝ) ^ (n / 2) :=
-        (Real.log_le_log_iff hKpos_r (by positivity)).mp hlog_le
-      exact_mod_cast hle_r
+        rw [Real.log_pow]; nlinarith [le_abs_self (Real.log (K n))]
+      exact_mod_cast (Real.log_le_log_iff (by exact_mod_cast hKn) (by positivity)).mp hlog_le
     set c' := max c 0
     have hc'half : c' < 1 / 2 := max_lt hc (by norm_num)
     have hgap : 0 < 1 / 2 - c' := by linarith
@@ -136,54 +133,41 @@ theorem denseRectangleFree_of_eventually_rectangleBias {U : Type u} [Finite U] [
       obtain ⟨X, -, hX⟩ := exists_subset_card_eq (s := (univ : Set (Fin n))) (n := n / 2)
         (by rw [ncard_univ, Nat.card_eq_fintype_card, Fintype.card_fin]; exact Nat.div_le_self n 2)
       have hXc : n / 2 ≤ Xᶜ.ncard := by
-        have := ncard_add_ncard_compl X
-        rw [Nat.card_eq_fintype_card, Fintype.card_fin] at this
+        have := (ncard_add_ncard_compl X).trans (Fintype.card_fin n ▸ Nat.card_eq_fintype_card)
         omega
       have hA : K n ≤ (univ : Set (X → U)).ncard := by
         rwa [ncard_univ, Nat.card_fun, Nat.card_coe_set_eq, hX]
       have hB : K n ≤ (univ : Set (↥Xᶜ → U)).ncard := by
         rw [ncard_univ, Nat.card_fun, Nat.card_coe_set_eq]
         exact hKpow.trans (Nat.pow_le_pow_right hq_pos hXc)
-      have hrect_univ : rectangle X (univ : Set (X → U)) univ = univ := by
-        ext x
-        simp [rectangle]
+      have hrect_univ : rectangle X (univ : Set (X → U)) univ = univ :=
+        Set.ext fun _ => by simp [rectangle]
       have hcard_univ : ((univ : Set (Fin n → U)).ncard : ℝ) = (q : ℝ) ^ n := by
-        rw [ncard_univ, Nat.card_fun, Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin]
-        push_cast
-        rfl
+        simp [q, ncard_univ, Nat.card_fun]
       have hbias_n := hbn X univ univ hA hB
       rw [hrect_univ, univ_inter, hcard_univ] at hbias_n
       have hb_le : b n ≤ c' := hbcn.trans (le_max_left c 0)
       have hqn_pos : (0 : ℝ) < (q : ℝ) ^ n := by positivity
       have hS_lower : (1 / 2 - c') * (q : ℝ) ^ n ≤ (S n).ncard := by
-        have h1 : (q : ℝ) ^ n / 2 - (S n).ncard ≤ b n * (q : ℝ) ^ n :=
-          (neg_sub ((S n).ncard : ℝ) _ ▸ le_abs.mpr (Or.inr le_rfl)).trans hbias_n
-        have h2 : b n * (q : ℝ) ^ n ≤ c' * (q : ℝ) ^ n := by gcongr
-        linarith
+        linarith [neg_le_abs ((S n).ncard - (q : ℝ) ^ n / 2),
+          mul_le_mul_of_nonneg_right hb_le hqn_pos.le]
       have hS_pos : (0 : ℝ) < (S n).ncard := lt_of_lt_of_le (by positivity) hS_lower
-      have hS_upper : ((S n).ncard : ℝ) ≤ (q : ℝ) ^ n := by
-        have := ncard_le_ncard (subset_univ (S n)) (toFinite _)
-        have h_r : ((S n).ncard : ℝ) ≤ (univ : Set (Fin n → U)).ncard := by exact_mod_cast this
-        rwa [hcard_univ] at h_r
+      have hS_upper : ((S n).ncard : ℝ) ≤ (q : ℝ) ^ n :=
+        hcard_univ ▸ Nat.cast_le.mpr (ncard_le_ncard (subset_univ (S n)) (toFinite _))
       have hlog_low : Real.log (1 / 2 - c') + n * Real.log q ≤ Real.log (S n).ncard := by
-        have := (Real.log_le_log_iff (by positivity) hS_pos).mpr hS_lower
-        rwa [Real.log_mul hgap.ne' hqn_pos.ne', Real.log_pow] at this
+        simpa only [Real.log_mul hgap.ne' hqn_pos.ne', Real.log_pow] using
+          (Real.log_le_log_iff (by positivity) hS_pos).mpr hS_lower
       have hlog_high : Real.log (S n).ncard ≤ n * Real.log q := by
-        have := (Real.log_le_log_iff hS_pos hqn_pos).mpr hS_upper
-        rwa [Real.log_pow] at this
-      rw [abs_of_nonneg (by linarith)]
-      linarith
+        simpa only [Real.log_pow] using (Real.log_le_log_iff hS_pos hqn_pos).mpr hS_upper
+      rw [abs_of_nonneg (by linarith)]; linarith
     rw [isLittleO_iff]
     intro δ hδ
     set B := max (-Real.log (1 / 2 - c')) 0
     filter_upwards [hdef_bdd,
       tendsto_natCast_atTop_atTop.eventually (eventually_ge_atTop (B / δ))] with n hbn hRn
     simp only [Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg (α := ℝ) n)]
-    have hB : -Real.log (1 / 2 - c') ≤ B := le_max_left _ _
-    have hBδ : B ≤ δ * n := by
-      have : B / δ * δ = B := div_mul_cancel₀ B hδ.ne'
-      nlinarith
-    linarith
+    have hBδ : B ≤ δ * n := by rwa [div_le_iff₀ hδ, mul_comm] at hRn
+    linarith [le_max_left (-Real.log (1 / 2 - c')) 0]
 
 /-! ### Zero-padding combinatorial rectangles into XOR-sums of independent sources -/
 
@@ -206,32 +190,23 @@ private theorem domRestrict_compl_padLeft_add_padRight {n : ℕ} (X : Set (Fin n
     [DecidablePred (· ∈ X)] (a : X → Bool) (b : ↥Xᶜ → Bool) :
     Xᶜ.domRestrict (padLeft X a + padRight X b) = b := by
   funext ⟨i, hi⟩
-  have hi' : i ∉ X := hi
-  simp only [Set.domRestrict, Pi.add_apply, padLeft, padRight, dite_eq_right hi',
+  simp only [Set.domRestrict, Pi.add_apply, padLeft, padRight, dite_eq_right hi,
     ← Bool.zero_eq_false, zero_add]
 
 private theorem padLeft_domRestrict_add_padRight_domRestrict {n : ℕ} (X : Set (Fin n))
     [DecidablePred (· ∈ X)] (x : BitString n) :
     padLeft X (X.domRestrict x) + padRight X (Xᶜ.domRestrict x) = x := by
   funext i
-  by_cases hi : i ∈ X
-  · simp only [Pi.add_apply, padLeft, padRight, dite_eq_left hi, Set.domRestrict,
-      ← Bool.zero_eq_false, add_zero]
-  · simp only [Pi.add_apply, padLeft, padRight, dite_eq_right hi, Set.domRestrict,
-      ← Bool.zero_eq_false, zero_add]
+  by_cases hi : i ∈ X <;>
+    simp [padLeft, padRight, hi, Set.domRestrict, ← Bool.zero_eq_false]
 
 private theorem padLeft_injective {n : ℕ} (X : Set (Fin n)) [DecidablePred (· ∈ X)] :
-    Function.Injective (padLeft X) := by
-  intro a₁ a₂ h
-  funext ⟨i, hi⟩
-  simpa only [padLeft, dite_eq_left hi] using congrFun h i
+    Function.Injective (padLeft X) := fun _ _ h =>
+  funext fun ⟨i, hi⟩ => by simpa only [padLeft, dite_eq_left hi] using congrFun h i
 
 private theorem padRight_injective {n : ℕ} (X : Set (Fin n)) [DecidablePred (· ∈ X)] :
-    Function.Injective (padRight X) := by
-  intro b₁ b₂ h
-  funext ⟨i, hi⟩
-  have hi' : i ∉ X := hi
-  simpa only [padRight, dite_eq_right hi'] using congrFun h i
+    Function.Injective (padRight X) := fun _ _ h =>
+  funext fun ⟨i, hi⟩ => by simpa only [padRight, dite_eq_right hi] using congrFun h i
 
 private def rectProdEquiv {n : ℕ} (X : Set (Fin n)) [DecidablePred (· ∈ X)]
     (A : Set (X → Bool)) (B : Set (↥Xᶜ → Bool)) :
@@ -255,16 +230,11 @@ private theorem le_minEntropy_uniformOfFintype_map {α β : Type*} [Fintype α] 
   by_cases hy : ∃ a, f a = y
   · obtain ⟨a, rfl⟩ := hy
     rw [PMF.map_apply_of_injective _ hf, PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
-      ENNReal.toReal_natCast, Real.rpow_neg (by norm_num)]
-    refine inv_anti₀ (by positivity) ?_
-    rw [Real.rpow_natCast]
-    exact_mod_cast hk
+      ENNReal.toReal_natCast, Real.rpow_neg (by norm_num), Real.rpow_natCast]
+    exact inv_anti₀ (by positivity) (by exact_mod_cast hk)
   · push Not at hy
-    have hzero : ((PMF.uniformOfFintype α).map f) y = 0 := by
-      rw [PMF.map_apply, tsum_eq_zero_iff]
-      intro a
-      simp [Ne.symm (hy a)]
-    rw [hzero, ENNReal.toReal_zero]
+    rw [PMF.map_apply, tsum_eq_zero_iff.2 fun a => ite_eq_right (Ne.symm (hy a)),
+      ENNReal.toReal_zero]
     positivity
 
 private def eqBoolEquiv (val : Bool) : Bool ≃ Bool where
@@ -290,16 +260,12 @@ theorem rectangleBias_of_isSumsetExtractor {n m k : ℕ} {ε : ℝ}
   let R := rectangle X A B
   let S : Set (BitString n) := {x | ext x j = val}
   let _ : Fintype R := Fintype.ofFinite R
-  have hcardA : Fintype.card A = A.ncard := by
-    rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
-  have hcardB : Fintype.card B = B.ncard := by
-    rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
-  have hcardR : Fintype.card R = R.ncard := by
-    rw [← Nat.card_eq_fintype_card, Nat.card_coe_set_eq]
+  have hcard {α : Type} (T : Set α) [Fintype T] : Fintype.card T = T.ncard :=
+    Nat.card_eq_fintype_card.symm.trans (Nat.card_coe_set_eq T)
   have hA_pos : 0 < Fintype.card A :=
-    hcardA ▸ lt_of_lt_of_le (pow_pos Nat.zero_lt_two k) hA
+    hcard A ▸ lt_of_lt_of_le (pow_pos Nat.zero_lt_two k) hA
   have hB_pos : 0 < Fintype.card B :=
-    hcardB ▸ lt_of_lt_of_le (pow_pos Nat.zero_lt_two k) hB
+    hcard B ▸ lt_of_lt_of_le (pow_pos Nat.zero_lt_two k) hB
   let _ : Nonempty A := Fintype.card_pos_iff.mp hA_pos
   let _ : Nonempty B := Fintype.card_pos_iff.mp hB_pos
   let _ : Nonempty R := ⟨rectProdEquiv X A B (Classical.arbitrary _)⟩
@@ -307,66 +273,47 @@ theorem rectangleBias_of_isSumsetExtractor {n m k : ℕ} {ε : ℝ}
   let pB : PMF (BitString n) := (PMF.uniformOfFintype B).map (fun b => padRight X b.val)
   have hkA : (k : ℝ) ≤ PMF.minEntropy pA :=
     le_minEntropy_uniformOfFintype_map ((padLeft_injective X).comp Subtype.val_injective)
-      (hcardA ▸ hA)
+      (hcard A ▸ hA)
   have hkB : (k : ℝ) ≤ PMF.minEntropy pB :=
     le_minEntropy_uniformOfFintype_map ((padRight_injective X).comp Subtype.val_injective)
-      (hcardB ▸ hB)
+      (hcard B ▸ hB)
   have hsum : (pA.bind fun x => pB.map fun y => x + y) =
       (PMF.uniformOfFintype R).map Subtype.val := by
-    have h1 : (pA.bind fun x => pB.map fun y => x + y) =
-        ((PMF.uniformOfFintype A).bind fun a =>
-          (PMF.uniformOfFintype B).map fun b => padLeft X a.val + padRight X b.val) := by
-      simp [pA, pB, PMF.bind_map, PMF.map_comp, Function.comp_def]
-    rw [h1, PMF.uniformOfFintype_bind_map]
-    have h2 : (fun p : ↥A × ↥B => padLeft X p.1.val + padRight X p.2.val) =
+    simp only [pA, pB, PMF.bind_map, PMF.map_comp, Function.comp_def,
+      PMF.uniformOfFintype_bind_map]
+    have hrect : (fun p : ↥A × ↥B => padLeft X p.1.val + padRight X p.2.val) =
         Subtype.val ∘ rectProdEquiv X A B := rfl
-    rw [h2, ← PMF.map_comp, PMF.uniformOfFintype_map_equiv]
+    rw [hrect, ← PMF.map_comp, PMF.uniformOfFintype_map_equiv]
   let proj : BitString m → Bool := fun y => eqBoolEquiv val (y j)
   have hunif : (PMF.uniformOfFintype (BitString m)).map proj = PMF.uniformOfFintype Bool := by
-    have hcomp : proj = ⇑(eqBoolEquiv val) ∘ (fun y : BitString m => y j) := rfl
-    rw [hcomp, ← PMF.map_comp, ← PMF.pi_uniformOfFintype (α := fun _ : Fin m => Bool),
+    have hproj : proj = ⇑(eqBoolEquiv val) ∘ fun y : BitString m => y j := rfl
+    rw [hproj, ← PMF.map_comp, ← PMF.pi_uniformOfFintype (α := fun _ : Fin m => Bool),
       PMF.pi_map_eval, PMF.uniformOfFintype_map_equiv]
   let pOut : PMF Bool := (PMF.uniformOfFintype R).map (fun r : R => decide (ext r.val j = val))
   have hpOut : ((pA.bind fun x => pB.map fun y => x + y).map ext).map proj = pOut := by
-    rw [hsum, PMF.map_comp, PMF.map_comp]
-    rfl
-  have hdist : dist pOut (PMF.uniformOfFintype Bool) ≤ ε := by
-    rw [← hpOut, ← hunif]
-    exact (PMF.dist_map_le _ _ proj).trans (hext pA pB hkA hkB)
+    simp only [hsum, PMF.map_comp]; rfl
+  have hdist : dist pOut (PMF.uniformOfFintype Bool) ≤ ε :=
+    hpOut ▸ hunif ▸ (PMF.dist_map_le _ _ proj).trans (hext pA pB hkA hkB)
   rw [PMF.dist_uniformOfFintype_bool] at hdist
   have hpOut_true : (pOut true).toReal = ((R ∩ S).ncard : ℝ) / R.ncard := by
     have hcard_fib :
         ({r : R | decide (ext r.val j = val) = true} : Finset R).card = (R ∩ S).ncard := by
       rw [← Fintype.card_coe, ← Nat.card_eq_fintype_card, ← Nat.card_coe_set_eq (R ∩ S)]
-      refine Nat.card_congr
-        { toFun := fun ⟨⟨x, hxR⟩, hxS⟩ =>
-            ⟨x, hxR, of_decide_eq_true (Finset.mem_filter.mp hxS).2⟩
-          invFun := fun ⟨x, hxR, hxS⟩ =>
-            ⟨⟨x, hxR⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, decide_eq_true hxS⟩⟩
-          left_inv := fun ⟨⟨_, _⟩, _⟩ => rfl
-          right_inv := fun ⟨_, _, _⟩ => rfl }
+      exact Nat.card_congr ((Equiv.subtypeEquivRight fun r : R => by simp [S]).trans
+        (Equiv.subtypeSubtypeEquivSubtypeInter (· ∈ R) (· ∈ S)))
     change (((PMF.uniformOfFintype R).map _) true).toReal = _
     rw [PMF.toReal_uniformOfFintype_map_apply_true, Finset.dens_eq_card_div_card, hcard_fib,
-      hcardR, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast]
+      hcard R, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast]
   rw [hpOut_true] at hdist
-  have hR_pos : (0 : ℝ) < R.ncard := by
-    rw [← hcardR]
-    exact_mod_cast Fintype.card_pos (α := R)
-  have hmul := mul_le_mul_of_nonneg_right hdist hR_pos.le
-  have h_abs : |((R ∩ S).ncard : ℝ) / R.ncard - 1 / 2| * R.ncard =
-      |((R ∩ S).ncard : ℝ) - R.ncard / 2| := by
-    conv_lhs => rhs; rw [← abs_of_pos hR_pos]
-    rw [← abs_mul]
-    congr 1
-    field_simp
-  rwa [h_abs] at hmul
+  have hR_pos : (0 : ℝ) < R.ncard := by exact_mod_cast hcard R ▸ Fintype.card_pos (α := R)
+  rwa [div_sub' hR_pos.ne', mul_one_div, abs_div, abs_of_pos hR_pos,
+    div_le_iff₀ hR_pos] at hdist
 
 private theorem isLittleO_log_two_pow {k : ℕ → ℕ}
     (hk : (fun n => (k n : ℝ)) =o[atTop] fun n => (n : ℝ)) :
-    (fun n => Real.log ((2 ^ k n : ℕ) : ℝ)) =o[atTop] fun n => (n : ℝ) := by
-  refine (hk.const_mul_left (Real.log 2)).congr_left fun n => ?_
-  rw [Nat.cast_pow, Nat.cast_ofNat, Real.log_pow]
-  ring
+    (fun n => Real.log ((2 ^ k n : ℕ) : ℝ)) =o[atTop] fun n => (n : ℝ) :=
+  (hk.const_mul_left (Real.log 2)).congr_left fun n => by
+    rw [Nat.cast_pow, Nat.cast_ofNat, Real.log_pow, mul_comm]
 
 /-- **Bit fibers of sublinear-entropy sumset extractors are `DenseRectangleFree`.** Conditional
 reduction step: if `ext n` is eventually a `(k n, k n, ε n)` sumset extractor with `k n = o(n)` and
@@ -378,11 +325,10 @@ theorem denseRectangleFree_of_isSumsetExtractor {m k : ℕ → ℕ} {ε : ℕ �
     (hk : (fun n => (k n : ℝ)) =o[atTop] fun n => (n : ℝ))
     (hε : ∃ c < 1 / 2, ∀ᶠ n in atTop, ε n ≤ c) :
     DenseRectangleFree (fun n => {x : BitString n | ext n x (j n) = val n})
-      (fun n => 2 ^ k n) := by
-  refine denseRectangleFree_of_eventually_rectangleBias ?_ ?_ (isLittleO_log_two_pow hk) hε
-  · filter_upwards [hext] with n hn
-    exact rectangleBias_of_isSumsetExtractor hn (j n) (val n)
-  · exact Eventually.of_forall fun n => Nat.one_le_two_pow
+      (fun n => 2 ^ k n) :=
+  denseRectangleFree_of_eventually_rectangleBias
+    (hext.mono fun n hn => rectangleBias_of_isSumsetExtractor hn (j n) (val n))
+    (Eventually.of_forall fun _ => Nat.one_le_two_pow) (isLittleO_log_two_pow hk) hε
 
 /-- **Worst-case `(L₃ - δ) n` multiary frontier step from a sumset extractor.** Conditional
 reduction step (not an unconditional `P` lower bound): if `ext n` is eventually a
@@ -417,20 +363,16 @@ theorem exists_eventually_agreement_le_of_isSumsetExtractor {m k : ℕ → ℕ} 
         (c.multiarySize : ℝ) ≤ (1 + 2 * π / (3 * arccos (5 / 6)) - δ) * n →
           agreement {x : BitString n | ext n x (j n) = val n} {x | c.eval I x 0 ∈ Acc} ≤
             1 / 2 + ε n + Real.exp (-γ * n) := by
-  have hbias : ∀ᶠ n in atTop,
-      RectangleBias {x : BitString n | ext n x (j n) = val n} (2 ^ k n) (ε n) := by
-    filter_upwards [hext] with n hn
-    exact rectangleBias_of_isSumsetExtractor hn (j n) (val n)
   obtain ⟨γ, hγ, H⟩ := multiaryAverageCaseBound_switched.{0, v} δ hδ
-  refine ⟨γ, hγ, ?_⟩
-  filter_upwards [H Bool (fun n => {x | ext n x (j n) = val n}) (fun n => 2 ^ k n) ε hbias
-    (isLittleO_log_two_pow hk)] with n hn σ I Acc c hfan hsize
+  refine ⟨γ, hγ, (H Bool (fun n => {x | ext n x (j n) = val n}) (fun n => 2 ^ k n) ε
+    (hext.mono fun n hn => rectangleBias_of_isSumsetExtractor hn (j n) (val n))
+    (isLittleO_log_two_pow hk)).mono fun n hn σ I Acc c hfan hsize => ?_⟩
   simpa only [neg_mul] using hn σ I Acc c hfan hsize
 
 /-- **Conditional reduction step from a polynomial-time sumset extractor to a language in `P`
-requiring `(L₃ - δ) n` multiary gates.** This is a reduction step, not an unconditional `P` circuit
-lower bound (formalizing an explicit polynomial-time sumset extractor such as
-`[Li2023, Thm. 7.13]` remains open): given any polynomial-time Boolean family `f` whose 1-bit
+requiring `(L₃ - δ) n` multiary gates.** The explicit construction of [Li2023], ECCC TR23-023
+revision 1, Theorem 7.13, is not yet formalized (see #7793). Given any
+polynomial-time Boolean family `f` whose 1-bit
 output is eventually a `(k n, k n, ε n)` sumset extractor with `k n = o(n)` and `ε n ≤ c < 1 / 2`,
 `Language.ofSlices f` lies in `P` and its `n`-bit slice requires more than
 `(1 + 2π / (3 arccos (5 / 6)) - δ) n` multiary gates over every fan-in-two signature `σ`. -/
@@ -447,11 +389,10 @@ theorem mem_P_and_eventually_switched_lt_multiarySize_of_isSumsetExtractor
       ∀ δ > 0, ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool) (Acc : Set Bool)
         (c : Circuit σ n 1), c.FanInAtMost 2 →
           c.Decides I Acc {x : BitString n | (Language.ofSlices f).slice n x = true} →
-            (1 + 2 * π / (3 * arccos (5 / 6)) - δ) * n < c.multiarySize := by
-  refine ⟨Cslib.Complexity.ofSlices_mem_P hf, fun δ hδ => ?_⟩
-  filter_upwards [eventually_switched_sub_mul_lt_multiarySize_of_isSumsetExtractor.{v}
-    (fun _ => 0) (fun _ => true) hext hk hε hδ] with n hn σ I Acc c hfan hdec
-  rw [Language.slice_ofSlices] at hdec
-  exact hn σ I Acc c hfan hdec
+            (1 + 2 * π / (3 * arccos (5 / 6)) - δ) * n < c.multiarySize :=
+  ⟨Cslib.Complexity.ofSlices_mem_P hf, fun δ hδ =>
+    (eventually_switched_sub_mul_lt_multiarySize_of_isSumsetExtractor.{v}
+      (fun _ => 0) (fun _ => true) hext hk hε hδ).mono fun n hn σ I Acc c hfan hdec =>
+      hn σ I Acc c hfan (by simpa only [Language.slice_ofSlices] using hdec)⟩
 
 end Cslib.Circuits.Frontier

@@ -47,21 +47,17 @@ theorem result {p : δ → Memory.Prog α} {input : δ ↪ (Fin k → ℕ)}
     (hf : ∀ d a, output a = output' (f d a)) :
     Realizes B (fun d => (p d).bind fun a => .pure (f d a)) input output' safe work := by
   obtain ⟨n, C, emit, he⟩ := h
-  refine ⟨n, C, emit, ?_⟩
-  intro r frontier src tmp hi hd hfr hs
+  refine ⟨n, C, emit, fun {r} frontier src tmp hi hd hfr hs => ?_⟩
   obtain ⟨hnw, hrun⟩ := he frontier src tmp hi hd hfr hs
-  refine ⟨hnw, ?_⟩
-  intro w d x hx hin hsafe hv
-  have hv' : (Memory.spec w).ValidHistory (memoryState frontier x)
-      ((Memory.spec w).clientHistory (memoryState frontier x) (p d)) := by
-    simpa only [StateTransitionSpec.clientHistory, runClient_result] using hv
-  obtain ⟨y, hy, hm, hout, hframe⟩ := hrun w d x hx hin hsafe hv'
-  refine ⟨y, ?_, ?_, ?_, hframe⟩
-  · simpa only [memoryCost_bind, PFunctor.FreeM.pure_eq_pure, memoryCost_pure,
-      Nat.add_zero] using hy
-  · simpa only [StateTransitionSpec.clientState, runClient_result] using hm
-  · intro i
-    simpa only [StateTransitionSpec.clientResult, runClient_result, ← hf] using hout i
+  refine ⟨hnw, fun w d x hx hin hsafe hv => ?_⟩
+  obtain ⟨y, hy, hm, hout, hframe⟩ := hrun w d x hx hin hsafe
+    (by simpa only [StateTransitionSpec.clientHistory, runClient_result] using hv)
+  exact ⟨y,
+    by simpa only [memoryCost_bind, PFunctor.FreeM.pure_eq_pure, memoryCost_pure,
+      Nat.add_zero] using hy,
+    by simpa only [StateTransitionSpec.clientState, runClient_result] using hm,
+    fun i => by simpa only [StateTransitionSpec.clientResult, runClient_result, ← hf] using hout i,
+    hframe⟩
 
 end Realizes
 

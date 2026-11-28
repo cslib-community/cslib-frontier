@@ -1,0 +1,133 @@
+/-
+Copyright (c) 2026 Renfei Zhou, Samuel Schlesinger. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Renfei Zhou, Samuel Schlesinger
+-/
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Init
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelStep
+import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelTick.Stage01
+import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelTick.Stage2
+import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelTick.Stage34
+import Mathlib.Tactic.Positivity
+
+/-!
+# Global Epoch-Tick and Rollover Specification (`epochTick_spec`)
+
+Combines Stages `0 .. 5` (`Stage01`, `Stage2`, `Stage34`) with epoch rollover (`epochTickRollover`)
+to prove `epochTick_spec` [BenderFarachColtonKuszmaulKuszmaul2024].
+
+## Main results
+
+* `Cslib.DataStructure.Dictionary.SuccinctWhp.epochTick_spec`: restores full `ValidFastState` from
+  `CoreFastInv` + `OvermarsBucketInv` + `ValidEpochStagePreTick` whenever `epochTick` returns
+  `some fs'`.
+
+## References
+
+* [M. A. Bender, M. Farach-Colton, J. Kuszmaul, W. Kuszmaul,
+  *Modern Hashing Made Simple*, Sections 3–5][BenderFarachColtonKuszmaulKuszmaul2024]
+-/
+
+public section
+
+namespace Cslib.DataStructure.Dictionary.SuccinctWhp
+
+open Cslib.DataStructure.Dictionary
+open Cslib.DataStructure.Dictionary.FeistelQuotient
+open Finset
+open scoped BigOperators
+
+/-- `epochTick` restores full `ValidFastState` from `CoreFastInv` + `OvermarsBucketInv` +
+`ValidEpochStagePreTick` whenever `epochTick` returns `some fs'`. -/
+theorem epochTick_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
+    {fs fs' : FastState} {dict : State U}
+    (hc : CoreFastInv c U V n_max θ fs dict)
+    (hom : ∀ b < numBucketsWhp n_max, OvermarsBucketInv c U n_max θ fs b)
+    (hpre : ValidEpochStagePreTick c U n_max θ fs)
+    (htick : epochTick c U n_max θ fs = some fs') :
+    ValidFastState c U V n_max θ fs' dict := by
+  unfold epochTick at htick
+  set fs1 := epochTickStage c U n_max θ fs
+  have hst1 :
+      CoreFastInv c U V n_max θ fs1 dict ∧
+      (∀ b < numBucketsWhp n_max, OvermarsBucketInv c U n_max θ fs1 b) ∧
+      ValidEpochStage c U n_max θ fs1 ∧
+      fs1.epochClock = fs.epochClock := by
+    dsimp only [fs1, epochTickStage]
+    by_cases hs0 : fs.rebStage = 0
+    · rw [ite_eq_left hs0]; exact epochTickStage0_spec hc hom hs0 hpre
+    rw [ite_eq_right hs0]
+    by_cases hs1 : fs.rebStage = 1
+    · rw [ite_eq_left hs1]; exact epochTickStage1_spec hc hom hs1 hpre
+    rw [ite_eq_right hs1]
+    by_cases hs2 : fs.rebStage = 2
+    · rw [ite_eq_left hs2]; exact epochTickStage2_spec hc hom hs2 hpre
+    rw [ite_eq_right hs2]
+    by_cases hs3 : fs.rebStage = 3
+    · rw [ite_eq_left hs3]; exact epochTickStage3_spec hc hom hs3 hpre
+    rw [ite_eq_right hs3]
+    by_cases hs4 : fs.rebStage = 4
+    · rw [ite_eq_left hs4]; exact epochTickStage4_spec hc hom hs4
+    rw [ite_eq_right hs4]
+    have hs5 : fs.rebStage = 5 := by have := hc.rebStage_le; omega
+    exact ⟨hc, hom, by simp [ValidEpochStage, hs5], rfl⟩
+  obtain ⟨hc1, hom1, hstg1, _⟩ := hst1
+  dsimp only [epochTickRollover] at htick
+  split_ifs at htick with hroll hs5 <;> cases htick
+  · have hq_pos : 0 < qEpochWhp n_max := by
+      unfold qEpochWhp; have := slabScale_pos n_max; positivity
+    have hbo1 := hc1.bufOld_valid
+    rw [ite_eq_right (by omega : ¬(fs1.rebStage ≤ 3)),
+      ite_eq_right (by omega : ¬(fs1.rebStage = 4))] at hbo1
+    obtain ⟨hno_old1, hv_old1, hna1, hia0⟩ := hbo1
+    have hold'_eq : ({ fs1 with
+        curEp := 1 - fs1.curEp
+        epochClock := 0
+        rebStage := 0
+        stageCursor := 0 } : FastState).oldEp = fs1.curEp := by
+      dsimp only [FastState.oldEp]
+      rcases hc1.curEp_or with h | h <;> simp [h]
+    have hinL_roll (df : ℕ → ℕ) (b st : ℕ) :
+        inLiveTree 0 fs1.curEp (df b) st = inLiveTree 5 fs1.oldEp (df b) st := by
+      simp [inLiveTree]
+    refine CoreFastInv.toValidFastState ?_ ?_ ?_
+    · exact
+        { hc1 with
+          curEp_or := FastState.oldEp_or hc1.curEp_or
+          epochClock_lt := hq_pos
+          rebStage_le := Nat.zero_le 5
+          live_fp_inj := fun b hb l₁ hl₁ l₂ hl₂ hin₁ hin₂ hfeq => by
+            rw [hold'_eq, hinL_roll, ← hs5] at hin₁ hin₂
+            exact hc1.live_fp_inj b hb l₁ hl₁ l₂ hl₂ hin₁ hin₂ hfeq
+          live_valid := fun b hb => by
+            obtain ⟨lm, hvl, hrl⟩ := hc1.live_valid b hb
+            refine ⟨lm, hvl, hrl.congr (fun _ _ => rfl) fun loc _ => ?_⟩
+            rw [hold'_eq, hinL_roll, hs5]
+          rKey_buf_inj := hc1.rKey_buf_inj
+          bufCur_valid := by
+            dsimp only [FastState.oldEp] at hna1 hia0 hv_old1 hno_old1 ⊢
+            rw [hna1, hia0]
+            exact ⟨Nat.zero_le _, by omega, fun _ => none, hv_old1,
+              BufMapRel.empty_of_not _ _ _ _ _ hno_old1⟩
+          bufOld_valid := by
+            rw [hold'_eq, ite_eq_left (Nat.zero_le 3)]
+            exact hc1.bufCur_valid }
+    · intro b hb
+      rcases hom1 b hb with ⟨ha0, hlt5⟩ | ⟨ha1, h16, hcur, hlin, hins_om, omM, hvO, hrO⟩
+      · exact Or.inl ⟨ha0, hlt5⟩
+      · refine Or.inr ⟨ha1, h16, hcur, hlin, hins_om, omM, hvO,
+          hrO.congr (fun _ _ => rfl) fun loc _ => ?_⟩
+        rw [hold'_eq, hinL_roll, hs5]
+    · simp only [ValidEpochStage, ↓reduceIte]
+      exact ⟨Nat.zero_le _, fun _ h => absurd h (Nat.not_lt_zero _)⟩
+  · exact CoreFastInv.toValidFastState
+      { hc1 with epochClock_lt := Nat.lt_of_not_le hroll } hom1 hstg1
+
+
+end Cslib.DataStructure.Dictionary.SuccinctWhp
+
+end

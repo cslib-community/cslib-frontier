@@ -85,15 +85,12 @@ theorem edgeWithSymbol_withCoin_iff {B : ℕ} {a b : FiniteCfg k Bool State}
         machine.viewCoinStep a bit = b := by
   change Edge (machine.withCoin bit).toTM.toMultiTapeNTM B a.input
     (vertexID B a) (vertexID B b) ↔ _
-  constructor
-  · intro he
-    obtain ⟨next, hstep, _, hid, hfit⟩ := edge_sound hfitA he
-    have hnext : machine.viewCoinStep a bit = next := (viewStep_withCoin_iff machine bit).mp hstep
-    subst next
-    exact vertexID_injective ((viewCoinStep_input machine a bit).trans hinput)
-      (viewCoinStep_canonical machine ha bit) hb hfit hfitB hid.symm
-  · intro he
-    exact edge_complete hfitA hfitB ((viewStep_withCoin_iff machine bit).mpr he)
+  refine ⟨fun he => ?_, fun he =>
+    edge_complete hfitA hfitB ((viewStep_withCoin_iff machine bit).mpr he)⟩
+  obtain ⟨next, hstep, _, hid, hfit⟩ := edge_sound hfitA he
+  cases (viewStep_withCoin_iff machine bit).mp hstep
+  exact vertexID_injective ((viewCoinStep_input machine a bit).trans hinput)
+    (viewCoinStep_canonical machine ha bit) hb hfit hfitB hid.symm
 
 variable {R : Type*} [CommSemiring R]
 
@@ -115,14 +112,9 @@ theorem coinCountWithSymbol_eq_configMatrix {B : ℕ} {V : Finset (FiniteCfg k B
     have he := edgeWithSymbol_withCoin_iff machine hinput hx hy hfitX hfitY bit
     by_cases hb : machine.viewCoinStep x bit = y
     · simp [he.mpr hb, hb]
-    · have hf : edgeWithSymbol (machine.withCoin bit).toTM.toMultiTapeNTM B x.val.input.length
-          (vertexID B x.val) (vertexID B y.val)
-          x.val.input[queryIndex (k := k) B (vertexID B x.val)]? = false :=
-        Bool.eq_false_iff.mpr fun h => hb (he.mp h)
-      simp [hf, hb]
+    · simp [Bool.eq_false_iff.mpr (mt he.mp hb), hb]
   rw [coinCountWithSymbol, Nat.cast_add, hcoin false, hcoin true, configMatrix,
-    Matrix.coinStepMatrix, Fintype.sum_bool]
-  exact add_comm _ _
+    Matrix.coinStepMatrix, Fintype.sum_bool, add_comm]
 
 /-- The certified local count with halted rows removed is the actual live matrix entry. -/
 theorem liveCoinCountWithSymbol_eq_liveConfigMatrix {B : ℕ}
@@ -140,9 +132,8 @@ theorem liveCoinCountWithSymbol_eq_liveConfigMatrix {B : ℕ}
       x.val.input[queryIndex (k := k) B (vertexID B x.val)]? : ℕ) : R) = _
   by_cases hs : x.val.state = none
   · simp [hs, liveConfigMatrix, Matrix.liveCoinStepMatrix]
-  · have hcode : stateCode x.val.state ≠ stateCode (none : Option State) :=
-      fun h => hs (stateCode_injective h)
-    rw [ite_eq_right hcode, liveConfigMatrix, Matrix.liveCoinStepMatrix, ite_eq_left hs]
+  · rw [ite_eq_right fun h => hs (stateCode_injective h), liveConfigMatrix,
+      Matrix.liveCoinStepMatrix, ite_eq_left hs]
     exact coinCountWithSymbol_eq_configMatrix (R := R) machine x y hinput hx hy hfitX hfitY
 
 omit [Fintype State] in
@@ -164,13 +155,11 @@ theorem coinCountWithSymbol_eq_configMatrix_of_reachable (c : ℕ) {input : List
     (coinCountWithSymbol machine B input.length (vertexID B x.val) (vertexID B y.val)
       input[queryIndex (k := k) B (vertexID B x.val)]? : R) = machine.configMatrix R V x y := by
   dsimp only
-  have hx := hV x x.property
-  have hy := hV y y.property
-  have hix : x.val.input = input := input_of_reachable hx
-  have hiy : y.val.input = input := input_of_reachable hy
-  simpa only [hix] using coinCountWithSymbol_eq_configMatrix machine x y (hix.trans hiy.symm)
-    (canonical_of_reachable machine hx) (canonical_of_reachable machine hy)
-    (fits_of_runsInSpace c hs hx) (fits_of_runsInSpace c hs hy)
+  have hix := input_of_reachable (hV x x.2)
+  simpa only [hix] using coinCountWithSymbol_eq_configMatrix machine x y
+    (hix.trans (input_of_reachable (hV y y.2)).symm)
+    (canonical_of_reachable machine (hV x x.2)) (canonical_of_reachable machine (hV y y.2))
+    (fits_of_runsInSpace c hs (hV x x.2)) (fits_of_runsInSpace c hs (hV y y.2))
 
 /-- The same reachable-view corollary for the live configuration matrix. -/
 theorem liveCoinCountWithSymbol_eq_liveConfigMatrix_of_reachable (c : ℕ) {input : List Bool}
@@ -182,14 +171,11 @@ theorem liveCoinCountWithSymbol_eq_liveConfigMatrix_of_reachable (c : ℕ) {inpu
     (liveCoinCountWithSymbol machine B input.length (vertexID B x.val) (vertexID B y.val)
       input[queryIndex (k := k) B (vertexID B x.val)]? : R) = machine.liveConfigMatrix R V x y := by
   dsimp only
-  have hx := hV x x.property
-  have hy := hV y y.property
-  have hix : x.val.input = input := input_of_reachable hx
-  have hiy : y.val.input = input := input_of_reachable hy
-  simpa only [hix] using
-    liveCoinCountWithSymbol_eq_liveConfigMatrix machine x y (hix.trans hiy.symm)
-      (canonical_of_reachable machine hx) (canonical_of_reachable machine hy)
-      (fits_of_runsInSpace c hs hx) (fits_of_runsInSpace c hs hy)
+  have hix := input_of_reachable (hV x x.2)
+  simpa only [hix] using liveCoinCountWithSymbol_eq_liveConfigMatrix machine x y
+    (hix.trans (input_of_reachable (hV y y.2)).symm)
+    (canonical_of_reachable machine (hV x x.2)) (canonical_of_reachable machine (hV y y.2))
+    (fits_of_runsInSpace c hs (hV x x.2)) (fits_of_runsInSpace c hs (hV y y.2))
 
 end ConfigurationGraph
 

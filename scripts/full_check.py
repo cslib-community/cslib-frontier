@@ -65,7 +65,7 @@ STEPS = (
     # runs first.
     Step("Test Python tooling", ("python3 -m unittest discover -s scripts -p 'test_*.py'",)),
     Step("Source hygiene", ("python3 -B scripts/check_hygiene.py --check-simp",)),
-    Step("TimeM ratchet", ("python3 -B scripts/check_timem.py --report",)),
+    Step("Forbid TimeM", ("python3 -B scripts/check_timem.py --report",)),
     Step("Encoding readability ratchet (changed modules)",
          ('python3 -B scripts/check_encoding_readability.py --base "$BASE"',)),
     Step("Projection chain ratchet (changed modules)",
@@ -145,6 +145,8 @@ CI_ONLY = {
         "advisory; never fails the job. Run `scripts/check_hub_impact.py --base REF` to see it",
     "lake lint (affected modules)":
         "pull requests only (#5163); local full_check runs whole-library `lake lint` above",
+    "lake build (merge group, fail fast)":
+        "merge groups only; the `lake build` step with `--fail-fast`, so a failing group ends sooner",
     "Sample runner disk use": "hosted-runner disk telemetry",
     "Report runner disk use": "hosted-runner disk telemetry",
     "Reclaim unused hosted-runner SDK space": "hosted-runner disk cleanup",
@@ -163,8 +165,10 @@ CI_ONLY = {
     "Save .lake to the Actions cache": "main pushes only; CI cache",
     "Parallel-definition and duplicate-statement notices (advisory)":
         "advisory; never fails the job. Run `scripts/parallel_defs.py [--theorems]` to see it",
+    "Upload early Lean advisory notices":
+        "pull requests only; uploads the advisory parallel/duplicate summary before tail checks",
     "PR description names (advisory)":
-        "advisory; reads the pull request event. Run `scripts/check_pr_names.py --pr N`",
+        "advisory; reads the pull request event in `pr-notices`. Run `scripts/check_pr_names.py --pr N`",
     "Stage merge-group build outputs":
         "merge groups only; build handoff to main and to later merge groups",
     "Upload merge-group build outputs":

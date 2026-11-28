@@ -79,26 +79,23 @@ theorem gramSchmidt_sub_mem_span_Iio (f : ι → E) (i : ι) :
 variable (𝕜) in
 /-- `f*ᵢ` is orthogonal to the span of the earlier vectors. -/
 theorem gramSchmidt_mem_orthogonal_span_Iio (f : ι → E) (i : ι) :
-    gramSchmidt 𝕜 f i ∈ (span 𝕜 (f '' Set.Iio i))ᗮ := by
-  rw [mem_orthogonal']
-  intro u hu
-  refine span_induction ?_ (inner_zero_right _) (fun x y _ _ hx hy => ?_)
-    (fun a x _ hx => ?_) hu
-  · rintro _ ⟨j, hj, rfl⟩
-    exact gramSchmidt_inv_triangular 𝕜 f hj
-  · rw [inner_add_right, hx, hy, add_zero]
-  · rw [inner_smul_right, hx, mul_zero]
+    gramSchmidt 𝕜 f i ∈ (span 𝕜 (f '' Set.Iio i))ᗮ :=
+  (mem_orthogonal' _ _).2 fun _ hu => span_induction
+    (fun _ ⟨_, hj, hfx⟩ => hfx ▸ gramSchmidt_inv_triangular 𝕜 f hj)
+    (inner_zero_right _)
+    (fun _ _ _ _ hx hy => by rw [inner_add_right, hx, hy, add_zero])
+    (fun _ _ _ hx => by rw [inner_smul_right, hx, mul_zero]) hu
 
 /-- `gramSchmidt 𝕜 f i` is the unique vector that differs from `f i` by an element of the span
 of the earlier vectors and is orthogonal to that span. -/
 theorem eq_gramSchmidt_of_sub_mem_of_mem_orthogonal {f : ι → E} {i : ι} {v : E}
     (hsub : v - f i ∈ span 𝕜 (f '' Set.Iio i)) (horth : v ∈ (span 𝕜 (f '' Set.Iio i))ᗮ) :
     v = gramSchmidt 𝕜 f i := by
-  have hK : v - gramSchmidt 𝕜 f i ∈ span 𝕜 (f '' Set.Iio i) := by
-    rw [← sub_sub_sub_cancel_right v (gramSchmidt 𝕜 f i) (f i)]
-    exact sub_mem hsub (gramSchmidt_sub_mem_span_Iio 𝕜 f i)
-  have hKo := sub_mem horth (gramSchmidt_mem_orthogonal_span_Iio 𝕜 f i)
-  exact sub_eq_zero.1 (disjoint_def.1 (orthogonal_disjoint _) _ hK hKo)
+  have hK : v - gramSchmidt 𝕜 f i ∈ span 𝕜 (f '' Set.Iio i) :=
+    sub_sub_sub_cancel_right v (gramSchmidt 𝕜 f i) (f i) ▸
+      sub_mem hsub (gramSchmidt_sub_mem_span_Iio 𝕜 f i)
+  exact sub_eq_zero.1 (disjoint_def.1 (orthogonal_disjoint _) _ hK
+    (sub_mem horth (gramSchmidt_mem_orthogonal_span_Iio 𝕜 f i)))
 
 /-- Two families whose prefixes before `j` and `i` span the same subspace, and whose vectors
 `g j` and `f i` differ by an element of it, have the same Gram–Schmidt vector there. -/
@@ -138,9 +135,8 @@ variable (𝕜) in
 /-- `⟪f*ᵢ, fᵢ⟫ = ‖f*ᵢ‖²`. -/
 theorem inner_gramSchmidt_self_right (f : ι → E) (i : ι) :
     ⟪gramSchmidt 𝕜 f i, f i⟫ = (‖gramSchmidt 𝕜 f i‖ : 𝕜) ^ 2 := by
-  have h := gramSchmidt_mem_orthogonal_span_Iio 𝕜 f i
-  rw [mem_orthogonal'] at h
-  have hsub := h _ (neg_mem (gramSchmidt_sub_mem_span_Iio 𝕜 f i))
+  have hsub := (mem_orthogonal' _ _).1 (gramSchmidt_mem_orthogonal_span_Iio 𝕜 f i) _
+    (neg_mem (gramSchmidt_sub_mem_span_Iio 𝕜 f i))
   rw [neg_sub, inner_sub_right, sub_eq_zero] at hsub
   rw [hsub, inner_self_eq_norm_sq_to_K]
 
@@ -148,8 +144,7 @@ variable (𝕜) in
 /-- The diagonal coefficient `μᵢᵢ` is `1` when `f*ᵢ ≠ 0`. -/
 theorem gramSchmidtCoeff_self {f : ι → E} {i : ι} (h : gramSchmidt 𝕜 f i ≠ 0) :
     gramSchmidtCoeff 𝕜 f i i = 1 := by
-  rw [gramSchmidtCoeff, inner_gramSchmidt_self_right, div_self]
-  simpa using h
+  simp [gramSchmidtCoeff, inner_gramSchmidt_self_right, h]
 
 variable (𝕜) in
 /-- The coefficients above the diagonal vanish: `μⱼₗ = 0` for `j < l`. -/
@@ -164,42 +159,35 @@ theorem norm_gramSchmidt_le (f : ι → E) (i : ι) : ‖gramSchmidt 𝕜 f i‖
   have hcs := norm_inner_le_norm (𝕜 := 𝕜) (gramSchmidt 𝕜 f i) (f i)
   rw [inner_gramSchmidt_self_right, norm_pow, RCLike.norm_ofReal, abs_norm, sq] at hcs
   rcases (norm_nonneg (gramSchmidt 𝕜 f i)).eq_or_lt with h0 | hpos
-  · rw [← h0]
-    exact norm_nonneg _
+  · simp [← h0]
   · exact le_of_mul_le_mul_left hcs hpos
 
 /-- `⟪f*ᵢ, ∑ⱼ cⱼ fⱼ⟫ = cᵢ ‖f*ᵢ‖²` for integer coefficients that vanish above `i`. -/
 theorem inner_gramSchmidt_sum_zsmul [Fintype ι] (f : ι → E) (c : ι → ℤ) {i : ι}
     (hc : ∀ j, i < j → c j = 0) :
     ⟪gramSchmidt 𝕜 f i, ∑ j, c j • f j⟫ = (c i : 𝕜) * (‖gramSchmidt 𝕜 f i‖ : 𝕜) ^ 2 := by
-  rw [inner_sum, Finset.sum_eq_single i]
+  rw [inner_sum, Finset.sum_eq_single_of_mem i (Finset.mem_univ i)]
   · rw [← Int.cast_smul_eq_zsmul 𝕜, inner_smul_right, inner_gramSchmidt_self_right]
   · intro j _ hji
     rw [← Int.cast_smul_eq_zsmul 𝕜, inner_smul_right]
     rcases lt_or_gt_of_ne hji with h | h
     · rw [gramSchmidt_inv_triangular 𝕜 f h, mul_zero]
-    · rw [hc j h, Int.cast_zero, zero_mul]
-  · intro h
-    exact absurd (Finset.mem_univ i) h
+    · simp [hc j h]
 
 /-- If `x = ∑ cⱼ fⱼ` with integer coefficients whose last nonzero entry is at `i`, then
 `‖f*ᵢ‖ ≤ ‖x‖`. -/
 theorem norm_gramSchmidt_le_norm_sum_zsmul [Fintype ι] (f : ι → E) (c : ι → ℤ) {i : ι}
     (hci : c i ≠ 0) (hc : ∀ j, i < j → c j = 0) :
     ‖gramSchmidt 𝕜 f i‖ ≤ ‖∑ j, c j • f j‖ := by
-  set x := ∑ j, c j • f j with hx
-  have hinner : ⟪gramSchmidt 𝕜 f i, x⟫ = (c i : 𝕜) * (‖gramSchmidt 𝕜 f i‖ : 𝕜) ^ 2 :=
-    inner_gramSchmidt_sum_zsmul f c hc
-  have hcs := norm_inner_le_norm (𝕜 := 𝕜) (gramSchmidt 𝕜 f i) x
-  rw [hinner, norm_mul, norm_pow, RCLike.norm_ofReal, abs_norm] at hcs
+  have hcs := norm_inner_le_norm (𝕜 := 𝕜) (gramSchmidt 𝕜 f i) (∑ j, c j • f j)
+  rw [inner_gramSchmidt_sum_zsmul f c hc, norm_mul, norm_pow, RCLike.norm_ofReal, abs_norm] at hcs
   have hc1 : (1 : ℝ) ≤ ‖(c i : 𝕜)‖ := by
     rw [← RCLike.ofReal_intCast, RCLike.norm_ofReal]
     exact_mod_cast Int.one_le_abs hci
   rcases eq_or_ne (gramSchmidt 𝕜 f i) 0 with h0 | h0
-  · rw [h0, norm_zero]
-    exact norm_nonneg _
-  · have hpos : 0 < ‖gramSchmidt 𝕜 f i‖ := norm_pos_iff.2 h0
-    nlinarith [norm_nonneg x]
+  · simp [h0]
+  · have := norm_pos_iff.2 h0
+    nlinarith [norm_nonneg (∑ j, c j • f j)]
 
 /-- Every nonzero vector of the integer span of a finite family `f` is at least as long as some
 Gram–Schmidt vector `f*ᵢ`. -/
@@ -208,101 +196,69 @@ theorem exists_norm_gramSchmidt_le_of_mem_span_int [Finite ι] {f : ι → E} {x
   classical
   have := Fintype.ofFinite ι
   obtain ⟨c, rfl⟩ := (mem_span_range_iff_exists_fun ℤ).1 hx
-  have hne : (Finset.univ.filter fun j => c j ≠ 0).Nonempty := by
-    by_contra h
-    rw [Finset.not_nonempty_iff_eq_empty, Finset.filter_eq_empty_iff] at h
-    exact hx0 (Finset.sum_eq_zero fun j _ => by rw [not_not.1 (h (Finset.mem_univ j)), zero_smul])
-  refine ⟨_, norm_gramSchmidt_le_norm_sum_zsmul f c
-    (Finset.mem_filter.1 (Finset.max'_mem _ hne)).2 fun j hij => ?_⟩
-  by_contra hcj
-  exact absurd (Finset.le_max' _ j (Finset.mem_filter.2 ⟨Finset.mem_univ j, hcj⟩))
-    (not_le.2 hij)
+  have hne : (Finset.univ.filter fun j => c j ≠ 0).Nonempty :=
+    Finset.nonempty_iff_ne_empty.2 fun h => hx0 <| Finset.sum_eq_zero fun j _ => by
+      simp [not_not.1 (Finset.filter_eq_empty_iff.1 h (Finset.mem_univ j))]
+  exact ⟨_, norm_gramSchmidt_le_norm_sum_zsmul f c
+    (Finset.mem_filter.1 (Finset.max'_mem _ hne)).2 fun j hij => by_contra fun hcj =>
+      hij.not_ge (Finset.le_max' _ j (Finset.mem_filter.2 ⟨Finset.mem_univ j, hcj⟩))⟩
 
 /-- Gram–Schmidt vectors depend only on the vectors up to their index. -/
 theorem gramSchmidt_congr_Iic {f g : ι → E} {i : ι} (h : ∀ j ≤ i, f j = g j) :
-    gramSchmidt 𝕜 f i = gramSchmidt 𝕜 g i := by
-  have himg : f '' Set.Iio i = g '' Set.Iio i :=
-    Set.image_congr fun j hj => h j (le_of_lt hj)
-  refine gramSchmidt_eq_of_span_eq (congrArg _ himg) ?_
-  rw [h i le_rfl, sub_self]
-  exact zero_mem _
+    gramSchmidt 𝕜 f i = gramSchmidt 𝕜 g i :=
+  gramSchmidt_eq_of_span_eq (congrArg _ (Set.image_congr fun j hj => h j hj.le))
+    (by simp [h i le_rfl])
 
 /-- Gram–Schmidt commutes with restriction along an order embedding onto an initial segment. -/
 theorem gramSchmidt_comp {ι' : Type*} [LinearOrder ι'] [LocallyFiniteOrderBot ι']
     (f : ι → E) {e : ι' → ι} (he : StrictMono e) (hlow : IsLowerSet (Set.range e)) (i : ι') :
     gramSchmidt 𝕜 (f ∘ e) i = gramSchmidt 𝕜 f (e i) := by
-  have himg : (f ∘ e) '' Set.Iio i = f '' Set.Iio (e i) := by
-    rw [Set.image_comp]
-    congr 1
-    ext j
-    constructor
-    · rintro ⟨j', hj', rfl⟩
-      exact he hj'
-    · intro hj
-      obtain ⟨j', rfl⟩ := hlow (le_of_lt hj) ⟨i, rfl⟩
-      exact ⟨j', he.lt_iff_lt.1 hj, rfl⟩
-  refine gramSchmidt_eq_of_span_eq (congrArg _ himg) ?_
-  rw [Function.comp_apply, sub_self]
-  exact zero_mem _
+  refine gramSchmidt_eq_of_span_eq (congrArg _ ?_) (by simp)
+  rw [Set.image_comp]
+  congr 1
+  ext j
+  refine ⟨fun ⟨_, hj', heq⟩ => heq ▸ he hj', fun hj => ?_⟩
+  obtain ⟨j', heq⟩ := hlow hj.le ⟨i, rfl⟩
+  exact ⟨j', he.lt_iff_lt.1 (heq ▸ hj), heq⟩
 
 /-- The Gram determinant is the product of the squared lengths of the Gram–Schmidt vectors. -/
 theorem det_gram_eq_prod_norm_gramSchmidt_sq [Fintype ι] [DecidableEq ι] (f : ι → E) :
     (Matrix.gram 𝕜 f).det = ∏ i, (‖gramSchmidt 𝕜 f i‖ : 𝕜) ^ 2 := by
   let L : Matrix ι ι 𝕜 := Matrix.of fun i j =>
     if j < i then gramSchmidtCoeff 𝕜 f i j else if i = j then 1 else 0
-  have hf : ∀ i, f i = ∑ j, L i j • gramSchmidt 𝕜 f j := by
-    intro i
-    have hsplit : ∀ j, L i j • gramSchmidt 𝕜 f j =
+  have hf (i : ι) : f i = ∑ j, L i j • gramSchmidt 𝕜 f j := by
+    have hsplit (j : ι) : L i j • gramSchmidt 𝕜 f j =
         (if j ∈ Iio i then gramSchmidtCoeff 𝕜 f i j • gramSchmidt 𝕜 f j else 0) +
           (if i = j then gramSchmidt 𝕜 f j else 0) := by
-      intro j
       simp only [L, Matrix.of_apply, Finset.mem_Iio]
-      split_ifs with h1 h2 <;> simp_all
+      split_ifs <;> simp_all
     rw [Finset.sum_congr rfl fun j _ => hsplit j, Finset.sum_add_distrib, Finset.sum_ite_eq,
       ← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.univ_inter]
-    simp only [Finset.mem_univ, ↓reduceIte]
-    rw [add_comm]
-    exact gramSchmidt_add_sum_coeff f i
-  have hentry : ∀ i k, ⟪f i, f k⟫ =
-      ∑ j, star (L i j) * (‖gramSchmidt 𝕜 f j‖ : 𝕜) ^ 2 * L k j := by
-    intro i k
-    rw [hf i, hf k, sum_inner]
-    refine Finset.sum_congr rfl fun j _ => ?_
-    rw [inner_smul_left, inner_sum, Finset.sum_eq_single j]
-    · rw [inner_smul_right, inner_self_eq_norm_sq_to_K, RCLike.star_def]
-      ring
-    · intro l _ hlj
-      rw [inner_smul_right, gramSchmidt_orthogonal 𝕜 f hlj.symm, mul_zero]
-    · intro h
-      exact absurd (Finset.mem_univ j) h
+    simpa only [Finset.mem_univ, ↓reduceIte, add_comm] using gramSchmidt_add_sum_coeff f i
   have hG : Matrix.gram 𝕜 f =
       L.map star * Matrix.diagonal (fun j => (‖gramSchmidt 𝕜 f j‖ : 𝕜) ^ 2) * L.transpose := by
     ext i k
-    rw [Matrix.gram_apply, hentry, Matrix.mul_apply]
+    rw [Matrix.gram_apply, hf i, hf k, sum_inner, Matrix.mul_apply]
     refine Finset.sum_congr rfl fun j _ => ?_
-    rw [Matrix.mul_diagonal, Matrix.map_apply, Matrix.transpose_apply]
-  have hL : L.IsLowerTriangular := by
-    intro i j hij
-    have hij' : i < j := hij
-    simp only [L, Matrix.of_apply, not_lt.2 (le_of_lt hij'), (ne_of_lt hij'), ↓reduceIte]
-  have hLs : (L.map star).IsLowerTriangular := by
-    intro i j hij
+    rw [Matrix.mul_diagonal, Matrix.map_apply, Matrix.transpose_apply, inner_smul_left,
+      inner_sum, Finset.sum_eq_single_of_mem j (Finset.mem_univ j)]
+    · rw [inner_smul_right, inner_self_eq_norm_sq_to_K, RCLike.star_def]; ring
+    · exact fun l _ hlj => by
+        rw [inner_smul_right, gramSchmidt_orthogonal 𝕜 f hlj.symm, mul_zero]
+  have hL : L.IsLowerTriangular := fun i j (hij : i < j) => by
+    simp only [L, Matrix.of_apply, hij.not_gt, hij.ne, ↓reduceIte]
+  have hLs : (L.map star).IsLowerTriangular := fun i j hij => by
     rw [Matrix.map_apply, hL hij, star_zero]
-  have hdiag : ∀ i, L i i = 1 := fun i => by simp [L]
   rw [hG, Matrix.det_mul, Matrix.det_mul, Matrix.det_transpose, Matrix.det_diagonal,
     Matrix.det_of_isLowerTriangular _ hL, Matrix.det_of_isLowerTriangular _ hLs]
-  simp only [Matrix.map_apply, hdiag, star_one, Finset.prod_const_one, one_mul, mul_one]
+  simp only [L, Matrix.map_apply, Matrix.of_apply, lt_irrefl, ↓reduceIte, star_one,
+    Finset.prod_const_one, one_mul, mul_one]
 
 /-- Adding to `f i` a vector in the span of the earlier vectors leaves all Gram–Schmidt vectors
 unchanged. -/
 theorem gramSchmidt_update_add [DecidableEq ι] (f : ι → E) {i : ι} {v : E}
     (hv : v ∈ span 𝕜 (f '' Set.Iio i)) :
-    gramSchmidt 𝕜 (Function.update f i (f i + v)) = gramSchmidt 𝕜 f := by
-  refine gramSchmidt_eq_of_sub_mem_span fun j => ?_
-  rcases eq_or_ne j i with rfl | hj
-  · rw [Function.update_self, add_sub_cancel_left]
-    exact hv
-  · rw [Function.update_of_ne hj, sub_self]
-    exact zero_mem _
+    gramSchmidt 𝕜 (Function.update f i (f i + v)) = gramSchmidt 𝕜 f :=
+  gramSchmidt_eq_of_sub_mem_span fun j => by rcases eq_or_ne j i with rfl | hj <;> simp [*]
 
 end InnerProductSpace

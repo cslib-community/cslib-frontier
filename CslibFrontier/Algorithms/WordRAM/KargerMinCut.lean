@@ -422,29 +422,16 @@ theorem copyMatrixCode_exec {w sb wb n : ℕ} {W : Fin n → Fin n → ℕ} {x :
       y.regs srcBase = sb ∧ y.regs nOrig = x.regs nOrig ∧
       y.regs matLen = n * n ∧ y.regs numTrials = x.regs numTrials ∧
       y.regs trialIdx = x.regs trialIdx ∧ y.regs bestVal = x.regs bestVal := by
-  have hs_fit : Fits w ((x.comap copyRegMap).regs ArrayCopy.src +
-      (x.comap copyRegMap).regs ArrayCopy.len) := by
-    change Fits w (x.regs srcBase + x.regs matLen)
-    fits
-  have hd_fit : Fits w ((x.comap copyRegMap).regs ArrayCopy.dst +
-      (x.comap copyRegMap).regs ArrayCopy.len) := by
-    change Fits w (x.regs wBase + x.regs matLen)
-    fits
-  have hdisj' : (x.comap copyRegMap).regs ArrayCopy.src +
-      (x.comap copyRegMap).regs ArrayCopy.len ≤ (x.comap copyRegMap).regs ArrayCopy.dst := by
-    change x.regs srcBase + x.regs matLen ≤ x.regs wBase
-    simpa [hsb, hlen, hwb] using hdisj
   unfold copyMatrixCode
   refine WP.exists_execWithin ?_
-  wram_call (ArrayCopy.exec (x.comap copyRegMap) h1 hs_fit hd_fit hdisj')
+  wram_call (ArrayCopy.exec (x.comap copyRegMap) h1 ..)
     renamed copyRegMap_injective with y ⟨⟨hy_mem, hy_src, hy_dst, hy_len⟩, hnot_in⟩
   simp only [show copyRegMap ArrayCopy.src = srcBase from rfl,
     show copyRegMap ArrayCopy.dst = wBase from rfl,
     show copyRegMap ArrayCopy.len = matLen from rfl,
     hsb, hwb, hlen] at hy_mem hy_src hy_dst hy_len ⊢
-  refine ⟨le_rfl, fun i j => ?_, fun a ha => ?_, hy_dst, hnot_in dBase (by decide), hy_src,
-    hnot_in nOrig (by decide), hy_len, hnot_in numTrials (by decide),
-    hnot_in trialIdx (by decide), hnot_in bestVal (by decide)⟩
+  refine ⟨le_rfl, fun i j => ?_, fun a ha => ?_, hy_dst, by regs_frame, hy_src,
+    by regs_frame, hy_len, by regs_frame, by regs_frame, by regs_frame⟩
   · have hj_lt : i.val * n + j.val < n * n := by nlinarith [i.isLt, j.isLt]
     rw [hy_mem, show wb + i.val * n + j.val = wb + (i.val * n + j.val) by omega,
       ArrayCopy.copyPrefix_read hj_lt, ← Nat.add_assoc]
@@ -530,14 +517,8 @@ theorem ampTrialPost_exec {w wb i R : ℕ} {x : Data 22}
   wram_exec -split [hwb]
   wram_call (minUpdate_exec (by decide) (by wram_simp)) with s₂ ⟨hm2, hbv2, hfr⟩
   wram_exec [hfr one (by decide), hfr trialIdx (by decide), hti]
-  refine ⟨hm2, ?_, ?_, ?_, ?_, ?_, ?_, by wram_simp, ?_⟩
-  · wram_simp [hfr srcBase (by decide)]
-  · wram_simp [hfr wBase (by decide), hwb]
-  · wram_simp [hfr dBase (by decide)]
-  · wram_simp [hfr nOrig (by decide)]
-  · wram_simp [hfr matLen (by decide)]
-  · wram_simp [hfr numTrials (by decide)]
-  · wram_simp [hbv2, hti]
+  exact ⟨hm2, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+    by regs_frame, by wram_simp, by wram_simp [hbv2, hti]⟩
 
 /-- **One trial runs `karger`.** From `AmpInv` at trial `i < R`, `ampTrialBody` runs within
 `49 n² + 12 n + 27` instructions and `n - 2` `rand` calls and keeps the invariant at trial `i + 1`.
@@ -583,8 +564,7 @@ theorem ampTrialBody_law {w sb n R i : ℕ} {W : Fin n → Fin n → ℕ} {mem�
     (κ := fun G => PMF.pure (if i = 0 then totalDoubledWeight G.weight / 2
       else min (totalDoubledWeight G.weight / 2) (x.regs bestVal)))
     fun y ⟨hmod_c, hy_hi, W', hW', hst'⟩ => by
-      have hz_ti : y.regs trialIdx = i :=
-        (hy_hi trialIdx (by decide)).trans ((e_pre.regs_eq (by decide)).trans hinv.regs_trialIdx)
+      have hz_ti : y.regs trialIdx = i := by regs_frame
       obtain ⟨y_p, e_p, hm_p, hsb_p, hwb_p, hdb_p, hn_p, hml_p, hnt_p, hti_p, hbv_p⟩ :=
         ampTrialPost_exec hst'.regs_wBase hz_ti hiR h1 (by fits) hR_fit
       have hmod : Modifies (Finset.Ico wb (db + n)) x.mem y_p.mem := by
@@ -592,22 +572,15 @@ theorem ampTrialBody_law {w sb n R i : ℕ} {W : Fin n → Fin n → ℕ} {mem�
         exact modifies_trans_subset hmod_deg' hmod_c Finset.Subset.rfl
           (workspaceFootprint_subset_Ico le_rfl (by omega) le_rfl)
       refine (ExecRandLaw.of_execWithin (P := AmpInv w sb n R (i + 1) W mem₀)
-        (f := fun y => y.regs bestVal) e_p ⟨?_, hwb_p, hdb_p.trans hst'.regs_dBase, ?_, ?_, ?_,
-        hti_p, fun a b => ?_, modifies_trans_subset hinv.modifies_ws hmod Finset.Subset.rfl
+        (f := fun y => y.regs bestVal) e_p ⟨by regs_frame, hwb_p, hdb_p.trans hst'.regs_dBase,
+        by regs_frame, by regs_frame, by regs_frame, hti_p, fun a b => ?_,
+        modifies_trans_subset hinv.modifies_ws hmod Finset.Subset.rfl
           Finset.Subset.rfl⟩).congr_law ?_
-      · exact hsb_p.trans ((hy_hi srcBase (by decide)).trans
-          ((e_pre.regs_eq (by decide)).trans hinv.regs_srcBase))
-      · exact hn_p.trans ((hy_hi nOrig (by decide)).trans
-          ((e_pre.regs_eq (by decide)).trans hinv.regs_nOrig))
-      · exact hml_p.trans ((hy_hi matLen (by decide)).trans
-          ((e_pre.regs_eq (by decide)).trans hinv.regs_matLen))
-      · exact hnt_p.trans ((hy_hi numTrials (by decide)).trans
-          ((e_pre.regs_eq (by decide)).trans hinv.regs_numTrials))
       · have hlt := matAddr_lt_end (wb := sb) (le_refl n) a b
         rw [hmod _ (by rw [Finset.mem_Ico]; omega)]
         exact hinv.src_matrix a b
       · have hv : y.mem (wb + 1) = _ := hst'.mem_add_one hW'
-        rw [hbv_p, (hy_hi bestVal (by decide)).trans (e_pre.regs_eq (by decide)), hv]
+        rw [hbv_p, show y.regs bestVal = x.regs bestVal by regs_frame, hv]
   refine ((ExecRandLaw.foldr_seq_det
     [copyMatrixCode, ram[activeK ← nOrig], ram[stride ← nOrig], ram[targetT ← #2]]
     e_pre hrun).congr_law ?_).mono (fun _ h => h) ?_ (by omega)
@@ -831,8 +804,7 @@ theorem logLoop_exec {w n : ℕ} {x : Data 22} (hn : 1 ≤ n)
       y.regs idx = Nat.log 2 n := by
   obtain ⟨y, he, hm, hidx', hframe⟩ := NatLog.shiftLoop_exec (one := one) (rem := rem)
     (idx := idx) (by decide) (by decide) (by decide) hn hone hrem hidx hn_fit hlg_fit
-  exact ⟨y, he, hm, (hframe one (by decide) (by decide)).trans hone,
-    (hframe nOrig (by decide) (by decide)).trans hnOrig, hidx'⟩
+  exact ⟨y, he, hm, by regs_frame, by regs_frame, hidx'⟩
 
 theorem highProbSetup_exec {w n : ℕ} {W : Fin n → Fin n → ℕ}
     (hn : 2 ≤ n) (hw : logWidth 3 n ≤ w) :

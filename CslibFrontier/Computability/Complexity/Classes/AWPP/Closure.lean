@@ -106,64 +106,41 @@ theorem exists_AWPP_gap_eighth (hA : A ∈ AWPP enc) :
   refine ⟨g3, hg3, p * 27, fun a => ?_⟩
   have hpos : 0 < D a := by dsimp [D]; positivity
   have hposQ : (0 : ℚ) < D a := by exact_mod_cast hpos
-  have hpow : (2 : ℤ) ^ (p * 27).eval (enc a).length = ((D a ^ 3) ^ 3) ^ 3 := by
-    simp only [Polynomial.eval_mul, Polynomial.eval_ofNat, D, ← pow_mul]
-    congr 1
-    ring
-  have hratio : (g3 a : ℚ) / (((D a : ℚ) ^ 3) ^ 3) ^ 3 =
+  have hpow : (2 : ℤ) ^ (p * 27).eval (enc a).length = D a ^ 27 := by
+    simp only [Polynomial.eval_mul, Polynomial.eval_ofNat, D, pow_mul]
+  have hratio : (g3 a : ℚ) / (D a : ℚ) ^ 27 =
       majorityRatio (majorityRatio (majorityRatio ((g a : ℚ) / D a))) := by
-    have h1 := majorityGap_ratio g D a (ne_of_gt hpos)
-    have h2 := majorityGap_ratio g1 (D ^ 3) a
-      (by simpa using pow_ne_zero 3 (ne_of_gt hpos))
-    have h3 := majorityGap_ratio g2 ((D ^ 3) ^ 3) a
-      (by simpa using pow_ne_zero 3 (pow_ne_zero 3 (ne_of_gt hpos)))
-    change (g1 a : ℚ) / (D a : ℚ) ^ 3 = _ at h1
+    rw [show (D a : ℚ) ^ 27 = (((D a : ℚ) ^ 3) ^ 3) ^ 3 by ring]
+    have h1 := majorityGap_ratio g D a hpos.ne'
+    have h2 := majorityGap_ratio g1 (D ^ 3) a (by simp [hpos.ne'])
+    have h3 := majorityGap_ratio g2 ((D ^ 3) ^ 3) a (by simp [hpos.ne'])
     simp only [Pi.pow_apply, Int.cast_pow] at h2 h3
-    change (g2 a : ℚ) / ((D a : ℚ) ^ 3) ^ 3 = _ at h2
-    change (g3 a : ℚ) / (((D a : ℚ) ^ 3) ^ 3) ^ 3 = _ at h3
-    rw [h3, h2, h1]
+    exact h3.trans (congrArg majorityRatio (h2.trans (congrArg majorityRatio h1)))
   obtain ⟨⟨h0, h1⟩, hy, hn⟩ := hA a
-  have h0Q : (0 : ℚ) ≤ g a := by exact_mod_cast h0
-  have h1Q : (g a : ℚ) ≤ D a := by exact_mod_cast h1
-  have ht0 : (0 : ℚ) ≤ (g a : ℚ) / D a := div_nonneg h0Q hposQ.le
-  have ht1 : (g a : ℚ) / D a ≤ 1 := (div_le_one hposQ).mpr h1Q
+  have ht0 : (0 : ℚ) ≤ (g a : ℚ) / D a := div_nonneg (by exact_mod_cast h0) hposQ.le
+  have ht1 : (g a : ℚ) / D a ≤ 1 := (div_le_one hposQ).mpr (by exact_mod_cast h1)
   have hb := majorityRatio_bounds ht0 ht1
   have hb' := majorityRatio_bounds hb.1 hb.2
   have hb'' := majorityRatio_bounds hb'.1 hb'.2
-  have hden : (0 : ℚ) < (((D a : ℚ) ^ 3) ^ 3) ^ 3 := by positivity
+  have hden : (0 : ℚ) < (D a : ℚ) ^ 27 := by positivity
   rw [hpow]
-  constructor
-  · constructor
-    · have := (le_div_iff₀ hden).mp (hratio ▸ hb''.1)
-      simp only [zero_mul] at this
-      exact_mod_cast this
-    · have := (div_le_one hden).mp (hratio ▸ hb''.2)
-      exact_mod_cast this
-  · constructor
-    · intro ha
-      have hyQ : 2 * (D a : ℚ) ≤ 3 * (g a : ℚ) := by exact_mod_cast hy ha
-      have ht : 1 - (g a : ℚ) / D a ≤ 1 / 3 := by
-        apply (sub_le_iff_le_add).mpr
-        have : (2 : ℚ) / 3 ≤ (g a : ℚ) / D a := by
-          apply (le_div_iff₀ hposQ).mpr
-          linarith
-        linarith
-      have hh := majorityRatio_three_le (sub_nonneg.mpr ht1) ht
-      rw [majorityRatio_compl, majorityRatio_compl, majorityRatio_compl, ← hratio] at hh
-      have : (7 : ℚ) / 8 ≤ (g3 a : ℚ) / (((D a : ℚ) ^ 3) ^ 3) ^ 3 := by linarith
-      have := (le_div_iff₀ hden).mp this
-      have : 7 * (((D a : ℚ) ^ 3) ^ 3) ^ 3 ≤ 8 * (g3 a : ℚ) := by linarith
-      exact_mod_cast this
-    · intro ha
-      have hnQ : 3 * (g a : ℚ) ≤ D a := by exact_mod_cast hn ha
-      have ht : (g a : ℚ) / D a ≤ 1 / 3 := by
-        apply (div_le_iff₀ hposQ).mpr
-        linarith
-      have hh := majorityRatio_three_le ht0 ht
-      rw [← hratio] at hh
-      have := (div_le_iff₀ hden).mp hh
-      have : 8 * (g3 a : ℚ) ≤ (((D a : ℚ) ^ 3) ^ 3) ^ 3 := by linarith
-      exact_mod_cast this
+  refine ⟨⟨?_, ?_⟩, fun ha => ?_, fun ha => ?_⟩
+  · have := (le_div_iff₀ hden).mp (hratio ▸ hb''.1)
+    exact_mod_cast (by linarith : (0 : ℚ) ≤ g3 a)
+  · exact_mod_cast (div_le_one hden).mp (hratio ▸ hb''.2)
+  · have hyQ : 2 * (D a : ℚ) ≤ 3 * (g a : ℚ) := by exact_mod_cast hy ha
+    have ht : 1 - (g a : ℚ) / D a ≤ 1 / 3 := by
+      have : (2 : ℚ) / 3 ≤ (g a : ℚ) / D a := (le_div_iff₀ hposQ).mpr (by linarith)
+      linarith
+    have hh := majorityRatio_three_le (sub_nonneg.mpr ht1) ht
+    rw [majorityRatio_compl, majorityRatio_compl, majorityRatio_compl, ← hratio] at hh
+    have := (le_div_iff₀ hden).mp (by linarith : (7 : ℚ) / 8 ≤ (g3 a : ℚ) / (D a : ℚ) ^ 27)
+    exact_mod_cast (by linarith : 7 * (D a : ℚ) ^ 27 ≤ 8 * (g3 a : ℚ))
+  · have hnQ : 3 * (g a : ℚ) ≤ D a := by exact_mod_cast hn ha
+    have hh := majorityRatio_three_le ht0
+      ((div_le_iff₀ hposQ).mpr (by linarith : (g a : ℚ) ≤ 1 / 3 * D a))
+    have := (div_le_iff₀ hden).mp (hratio ▸ hh)
+    exact_mod_cast (by linarith : 8 * (g3 a : ℚ) ≤ (D a : ℚ) ^ 27)
 
 /-- Multiplying witnesses with error at most one eighth recognizes intersection. -/
 theorem inter_mem_AWPP (hA : A ∈ AWPP enc) (hB : B ∈ AWPP enc) : A ∩ B ∈ AWPP enc := by
