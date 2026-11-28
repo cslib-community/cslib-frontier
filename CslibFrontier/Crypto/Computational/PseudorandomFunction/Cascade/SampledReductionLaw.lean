@@ -28,7 +28,8 @@ same rejecting output for every external challenge law.
 
 * `Cslib.Crypto.bind_evalWith_cascadeChildChallengeProgram_eq_game`: the sampled wrapper has
   the output distribution of the finite-table challenge game, including its padding indices.
-  The strict oracle-PPT certificate and the cascade security theorem remain open (#5801).
+* `Cslib.Crypto.evalWith_cascadeChildChallengeWithIndex`: the fixed-index wrapper has the
+  corresponding finite-table law.
 
 ## References
 
@@ -50,16 +51,17 @@ noncomputable def cascadeKeyedChildFunctionLaw (family : List Bool → List Bool
   (PMF.uniformOfFintype (BitString n)).map fun key block =>
     BitString.ofList n (family (List.ofFn key) (List.ofFn block))
 
-private theorem bind_evalWith_atProgram {count width n : ℕ}
+/-- The key-sampling wrapper at a specified index has the same law as the finite child table
+with the supplied function in that row. -/
+theorem evalWith_cascadeChildChallengeWithIndex {count width n : ℕ}
     (family : List Bool → List Bool → List Bool)
     (hlength : ∀ key block, key.length = n → block.length = width →
       (family key block).length = n)
     (selected : Fin count) (challenge : BitString width → BitString n)
     (program : WordOracleComp ℕ Bool) :
-    (BitString.uniformList (count * n)).bind (fun keys =>
-      OracleComp.evalWith (OracleComp.sumHandler ProbComp.unifOracle
+    OracleComp.evalWith (OracleComp.sumHandler ProbComp.unifOracle
         (fun req : Unit × List Bool => PMF.pure (randomFunctionOracle width challenge req.2)))
-        (cascadeChildChallengeAtProgram family width n count selected.val keys program)) =
+      (cascadeChildChallengeWithIndex family width n count selected.val program) =
       cascadeChildChallengeAt (cascadeKeyedChildFunctionLaw family width n)
         (PMF.uniformOfFintype (BitString width → BitString n)) selected challenge program := by
   let keyLaw := PMF.uniformOfFintype (BitString n)
@@ -87,7 +89,9 @@ private theorem bind_evalWith_atProgram {count width n : ℕ}
       _ = (PMF.pi fun _ : Fin count => keyLaw).bind (fun keys =>
           PMF.pi (fun i => idealLaw.map (choose i (keys i)))) := PMF.pi_bind _ _
       _ = _ := by simp only [PMF.pi_map, keyLaw, idealLaw, PMF.pi_uniformOfFintype]
-  simp only [evalWith_cascadeChildChallengeAtProgram_eq_eager family hlength]
+  simp only [cascadeChildChallengeWithIndex, OracleComp.evalWith_bind,
+    ProbOracleComp.evalWith_sumHandler_unifOracle_sample, BitString.eval_sampleList,
+    evalWith_cascadeChildChallengeAtProgram_eq_eager family hlength]
   unfold cascadeChildChallengeAt
   change _ = (PMF.pi law).bind _
   rw [htable, PMF.bind_bind, ← BitString.uniformList_map_listRow_equiv (.refl (Fin count)) n,
@@ -121,9 +125,8 @@ theorem bind_evalWith_cascadeChildChallengeProgram_eq_game {width n : ℕ}
   rw [PMF.bind_comm source]
   congr 1 with index : 1
   by_cases hi : index.val < count
-  · simp only [ite_eq_left hi, dite_eq_left hi, OracleComp.evalWith_bind,
-      ProbOracleComp.evalWith_sumHandler_unifOracle_sample, BitString.eval_sampleList,
-      bind_evalWith_atProgram family hlength (⟨index.val, hi⟩ : Fin count)]
+  · simp only [ite_eq_left hi, dite_eq_left hi,
+      evalWith_cascadeChildChallengeWithIndex family hlength (⟨index.val, hi⟩ : Fin count)]
   · simp only [ite_eq_right hi, dite_eq_right hi, OracleComp.evalWith_pure, PMF.bind_const]
 
 end Cslib.Crypto

@@ -13,8 +13,10 @@ public import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFree
 import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRoutingPPT
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildTableLaw
+import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Probability.BitString.List
+import Mathlib.Data.Finset.Max
 import Mathlib.Data.Set.Finite.List
 
 /-!
@@ -28,13 +30,16 @@ adjacent cascade hybrids.
 ## Main definitions
 
 * `Cslib.Crypto.cascadeChildDistinguisher`: a word-oracle distinguisher for one adjacent step.
+* `Cslib.Crypto.cascadeChildDistinguisherAt`: the reduction with a fixed depth and channel.
 
 ## Main results
 
 * `Cslib.Crypto.advantage_cascadePrefixHybridGame_succ_eq`: exact advantage for an adjacent
-  step. The full cascade bound (6.15) remains open (#5801).
+  step.
 * `Cslib.Crypto.isOraclePPT_cascadeChildDistinguisher`: strict oracle PPT for the explicit
   single-key reduction used in the adjacent step.
+* `Cslib.Crypto.advantage_cascade_le_pointwise`: the exact concrete loss in (6.15) at a
+  specified security parameter, with a strict oracle-PPT witness.
 
 ## References
 
@@ -47,6 +52,14 @@ public section
 namespace Cslib.Crypto
 
 open Probability Turing.MultiTapeTM
+
+/-- Route at a fixed depth and put the single-key challenge at a fixed child channel. -/
+@[expose]
+noncomputable def cascadeChildDistinguisherAt (valid : ℕ → List Bool → Bool)
+    (inLen : ℕ → ℕ) (depth count channel : ℕ) (family : List Bool → List Bool → List Bool)
+    (adversary : OracleDistinguisher) : OracleDistinguisher := fun n aux =>
+  cascadeChildChallengeWithIndex family (inLen n) n count channel
+    (cascadeChildRouter (valid n) inLen family n depth (adversary n aux))
 
 /-- Route the client at `depth n` and use one external PRF challenge among `count n` child
 channels. The selection uses `indexBits n` fair bits and rejects unused indices. -/
@@ -81,6 +94,69 @@ theorem isOraclePPT_cascadeChildDistinguisher
   exact isOraclePPTOn_cascadeChildChallengeProgram hEval hrouter
     (hIn.comp hn) hn (hcount.comp hn) (hbits.comp hn)
 
+private theorem isOraclePPT_cascadeChildDistinguisherAt
+    {valid : ℕ → List Bool → Bool} {inLen : ℕ → ℕ} (depth count channel : ℕ)
+    {family : List Bool → List Bool → List Bool} {adversary : OracleDistinguisher}
+    (hvalid : ComputableInPolyTime (fun p : ℕ × List Bool => valid p.1 p.2)
+      (encPair encUnary encBits) encBool)
+    (hIn : ComputableInPolyTime inLen encUnary encUnary)
+    (hLen : ∀ key block, block.length = inLen key.length → (family key block).length = key.length)
+    (hEval : ComputableInPolyTime (fun p : List Bool × List Bool => family p.1 p.2)
+      (encPair encBits encBits) encBits)
+    (hA : IsOraclePPT encBool adversary) :
+    IsOraclePPT encBool (cascadeChildDistinguisherAt valid inLen depth count channel family
+      adversary) := by
+  let hn := ComputableInPolyTime.fst encUnary encBits
+  have hrouter := (isOraclePPTOn_encodedCascadeChildRouter hvalid hIn hLen hEval hA).preprocess
+    (ComputableInPolyTime.id'.prod (.const depth))
+  exact isOraclePPTOn_cascadeChildChallengeWithIndex hEval hrouter
+    (hIn.comp hn) hn (.const count) (.const channel)
+
+private theorem eval_cascadeReduction_games (inLen : ℕ → ℕ)
+    (family : List Bool → List Bool → List Bool) (reduction : OracleDistinguisher) (n : ℕ)
+    (hfixedLen : ∀ key block, key.length = n → block.length = inLen n →
+      (family key block).length = n) :
+    let run (challenge : BitString (inLen n) → BitString n) :=
+      OracleComp.evalWith (OracleComp.sumHandler ProbComp.unifOracle
+        (fun req : Unit × List Bool => PMF.pure (randomFunctionOracle (inLen n) challenge req.2)))
+        (reduction n [])
+    ProbComp.eval (prfRealGame inLen family reduction n) =
+      (cascadeKeyedChildFunctionLaw family (inLen n) n).bind run ∧
+    ProbComp.eval (prfIdealGame inLen id reduction n) =
+      (PMF.uniformOfFintype (BitString (inLen n) → BitString n)).bind run := by
+  constructor
+  · simp only [prfRealGame, ProbComp.eval_bind, BitString.eval_sampleList, BitString.uniformList,
+      ProbOracleComp.eval_run_eq_evalWith, ProbComp.eval_pure, cascadeKeyedChildFunctionLaw,
+      PMF.bind_map, Function.comp_def, randomFunctionOracle_keyed hfixedLen]
+  · simp only [prfIdealGame, ProbComp.eval_bind, ProbComp.eval_uniform, id_eq,
+      ProbOracleComp.eval_run_eq_evalWith, ProbComp.eval_pure]
+
+private theorem eval_cascadePrefixHybridGame_step (valid : ℕ → List Bool → Bool)
+    (inLen : ℕ → ℕ) (family : List Bool → List Bool → List Bool)
+    (adversary : OracleDistinguisher) (n depth : ℕ) (hwidth : 0 < inLen n)
+    (halign : ∀ query, valid n query = true → inLen n ∣ query.length)
+    (hlength : ∀ key block, block.length = inLen key.length →
+      (family key block).length = key.length)
+    (hpf : IsPrefixFreeOn (valid n) n (adversary n [])) :
+    let router := cascadeChildRouter (valid n) inLen family n depth (adversary n [])
+    ProbComp.eval (cascadePrefixHybridGame valid inLen family adversary n depth) =
+      (ProbOracleComp.runWith (cascadeChildChannelOracle
+        (cascadeKeyedChildFunctionLaw family (inLen n) n)) router []).map Prod.fst ∧
+    ProbComp.eval (cascadePrefixHybridGame valid inLen family adversary n (depth + 1)) =
+      (ProbOracleComp.runWith (cascadeChildChannelOracle
+        (PMF.uniformOfFintype (BitString (inLen n) → BitString n))) router []).map Prod.fst := by
+  classical
+  let _ := (List.finite_length_le Bool (depth * inLen n)).fintype
+  constructor
+  · rw [eval_cascadePrefixHybridGame_eq_childTables_real valid inLen family adversary n depth
+      hwidth halign hlength hpf]
+    rw [runWith_cascadeChildRouter_eq_prefixGame, cascadeChildPrefixGame_eq_childTableGame]
+    simp only [cascadeKeyedChildFunctionLaw, PMF.pi_map, PMF.pi_uniformOfFintype]
+  · rw [eval_cascadePrefixHybridGame_succ_eq_childTables_ideal valid inLen family adversary n
+      depth hwidth halign]
+    rw [runWith_cascadeChildRouter_eq_prefixGame, cascadeChildPrefixGame_eq_childTableGame]
+    simp only [PMF.pi_uniformOfFintype]
+
 /-- One adjacent step of the cascade argument. The two prefix hybrids have the advantage
 of the explicit single-key PRF distinguisher multiplied by its sampled channel range.
 Valid inputs are whole blocks, the client is prefix-free and query-bounded, and the sampled
@@ -101,8 +177,6 @@ theorem advantage_cascadePrefixHybridGame_succ_eq
       (2 ^ indexBits n : ℕ) * Game.advantage
         (ProbComp.eval (prfRealGame inLen family reduction n))
         (ProbComp.eval (prfIdealGame inLen id reduction n)) := by
-  classical
-  let _ := (List.finite_length_le Bool (depth n * inLen n)).fintype
   let router := cascadeChildRouter (valid n) inLen family n (depth n) (adversary n [])
   let reduction := cascadeChildDistinguisher valid inLen depth count indexBits family adversary
   let real := cascadeKeyedChildFunctionLaw family (inLen n) n
@@ -113,40 +187,93 @@ theorem advantage_cascadePrefixHybridGame_succ_eq
   have hgame (source : PMF (BitString (inLen n) → BitString n)) :=
     bind_evalWith_cascadeChildChallengeProgram_eq_game family hfixedLen
       (count n) (indexBits n) source router
-  have hideal : ProbComp.eval (prfIdealGame inLen id reduction n) =
-      cascadeChildChallengeGame (count n) (2 ^ indexBits n) real ideal ideal router := by
-    rw [← hgame ideal]
-    simp only [prfIdealGame, ProbComp.eval_bind, ProbComp.eval_uniform, id_eq,
-      ProbOracleComp.eval_run_eq_evalWith, ProbComp.eval_pure,
-      cascadeChildDistinguisher, reduction, router, ideal]
-  have hreal : ProbComp.eval (prfRealGame inLen family reduction n) =
-      cascadeChildChallengeGame (count n) (2 ^ indexBits n) real ideal real router := by
-    rw [← hgame real]
-    simp only [prfRealGame, ProbComp.eval_bind, BitString.eval_sampleList, BitString.uniformList,
-      ProbOracleComp.eval_run_eq_evalWith, ProbComp.eval_pure,
-      real, cascadeKeyedChildFunctionLaw, PMF.bind_map, Function.comp_def,
-      randomFunctionOracle_keyed hfixedLen,
-      cascadeChildDistinguisher, reduction, router]
-  have hbefore : ProbComp.eval (cascadePrefixHybridGame valid inLen family adversary n (depth n)) =
-      (ProbOracleComp.runWith (cascadeChildChannelOracle real) router []).map Prod.fst := by
-    rw [eval_cascadePrefixHybridGame_eq_childTables_real valid inLen family adversary n (depth n)
-      hwidth halign hlength hpf]
-    dsimp only [router]
-    rw [runWith_cascadeChildRouter_eq_prefixGame, cascadeChildPrefixGame_eq_childTableGame]
-    simp only [real, cascadeKeyedChildFunctionLaw, PMF.pi_map, PMF.pi_uniformOfFintype]
-  have hafter :
-      ProbComp.eval (cascadePrefixHybridGame valid inLen family adversary n (depth n + 1)) =
-      (ProbOracleComp.runWith (cascadeChildChannelOracle ideal) router []).map Prod.fst := by
-    rw [eval_cascadePrefixHybridGame_succ_eq_childTables_ideal valid inLen family adversary n
-      (depth n) hwidth halign]
-    dsimp only [router]
-    rw [runWith_cascadeChildRouter_eq_prefixGame, cascadeChildPrefixGame_eq_childTableGame]
-    simp only [ideal, PMF.pi_uniformOfFintype]
+  obtain ⟨hreal, hideal⟩ := eval_cascadeReduction_games inLen family reduction n hfixedLen
+  obtain ⟨hbefore, hafter⟩ := eval_cascadePrefixHybridGame_step valid inLen family adversary n
+    (depth n) hwidth halign hlength hpf
   change _ = (2 ^ indexBits n : ℕ) * Game.advantage
     (ProbComp.eval (prfRealGame inLen family reduction n))
     (ProbComp.eval (prfIdealGame inLen id reduction n))
   rw [hbefore, hafter, hreal, hideal]
+  simp only [reduction, cascadeChildDistinguisher]
+  rw [hgame real, hgame ideal]
   exact advantage_cascadeChildChannelOracle_eq real ideal
     (isQueryBounded_cascadeChildRouter (valid n) inLen family n (depth n) hbudget) hcapacity
+
+/-- Pointwise concrete bound of [BonehShoup2023], v0.6, Theorem 6.4, equation (6.15)
+(printed p. 229). A prefix-free client with at most `count` queries on aligned words
+of at most `hops` blocks has advantage at most `hops * count` times that of an explicit
+strict oracle-PPT reduction. The query predicate specifies the domain on bit words. The
+depth and channel of the witness may be chosen separately at each security parameter. -/
+theorem advantage_cascade_le_pointwise
+    {valid : ℕ → List Bool → Bool} {inLen : ℕ → ℕ}
+    {family : List Bool → List Bool → List Bool} {adversary : OracleDistinguisher}
+    (n hops count : ℕ)
+    (hvalid : ComputableInPolyTime (fun p : ℕ × List Bool => valid p.1 p.2)
+      (encPair encUnary encBits) encBool)
+    (hIn : ComputableInPolyTime inLen encUnary encUnary)
+    (hwidth : 0 < inLen n) (halign : ∀ query, valid n query = true → inLen n ∣ query.length)
+    (hcut : ∀ query, valid n query = true → query.length ≤ hops * inLen n)
+    (hlength : ∀ key block, block.length = inLen key.length →
+      (family key block).length = key.length)
+    (hEval : ComputableInPolyTime (fun p : List Bool × List Bool => family p.1 p.2)
+      (encPair encBits encBits) encBits)
+    (hA : IsOraclePPT encBool adversary)
+    (hpf : IsPrefixFreeOn (valid n) n (adversary n []))
+    (hbudget : (adversary n []).IsQueryBounded count) :
+    ∃ reduction : OracleDistinguisher, IsOraclePPT encBool reduction ∧
+      (reduction n []).IsQueryBounded count ∧
+      Game.advantage
+        (ProbComp.eval (prfRealGameOn valid (cascadeFamily inLen family) adversary n))
+        (ProbComp.eval (prfIdealGameOn valid id adversary n)) ≤
+      (hops * count : ℕ) * Game.advantage
+        (ProbComp.eval (prfRealGame inLen family reduction n))
+        (ProbComp.eval (prfIdealGame inLen id reduction n)) := by
+  let reduction (p : Fin hops × Fin count) :=
+    cascadeChildDistinguisherAt valid inLen p.1.val count p.2.val family adversary
+  let advantage (p : Fin hops × Fin count) :=
+    Game.advantage (ProbComp.eval (prfRealGame inLen family (reduction p) n))
+      (ProbComp.eval (prfIdealGame inLen id (reduction p) n))
+  have hfixedLen (key block : List Bool) (hk : key.length = n) (hb : block.length = inLen n) :
+      (family key block).length = n :=
+    (hlength key block (by rw [hk, hb])).trans hk
+  have hbound (ε : NNReal) (hstep : ∀ p, advantage p ≤ ε) :
+      Game.advantage
+        (ProbComp.eval (prfRealGameOn valid (cascadeFamily inLen family) adversary n))
+        (ProbComp.eval (prfIdealGameOn valid id adversary n)) ≤ (hops * count : ℕ) * ε := by
+    rw [← eval_cascadePrefixHybridGame_zero, ← eval_cascadePrefixHybridGame_eq_ideal family
+      adversary hcut, Nat.cast_mul, mul_assoc]
+    refine Game.advantage_hybrid_le
+      (fun i => ProbComp.eval (cascadePrefixHybridGame valid inLen family adversary n i))
+      hops (count * ε) fun i hi => ?_
+    let router := cascadeChildRouter (valid n) inLen family n i (adversary n [])
+    let real := cascadeKeyedChildFunctionLaw family (inLen n) n
+    let ideal := PMF.uniformOfFintype (BitString (inLen n) → BitString n)
+    obtain ⟨hbefore, hafter⟩ := eval_cascadePrefixHybridGame_step valid inLen family adversary n i
+      hwidth halign hlength hpf
+    rw [hbefore, hafter]
+    refine advantage_cascadeChildChannelOracle_le real ideal
+      (isQueryBounded_cascadeChildRouter (valid n) inLen family n i hbudget) ε fun channel => ?_
+    let p : Fin hops × Fin count := (⟨i, hi⟩, channel)
+    obtain ⟨hreal, hideal⟩ := eval_cascadeReduction_games inLen family (reduction p) n hfixedLen
+    have hgame := funext (fun row =>
+      evalWith_cascadeChildChallengeWithIndex family hfixedLen channel row router)
+    have h := hstep p
+    dsimp only [advantage] at h
+    rw [hreal, hideal] at h
+    simp only [reduction, cascadeChildDistinguisherAt, p] at h
+    rw [hgame] at h
+    exact h
+  by_cases hgrid : Nonempty (Fin hops × Fin count)
+  · let _ := hgrid
+    obtain ⟨p, _, hp⟩ := Finset.exists_max_image Finset.univ advantage Finset.univ_nonempty
+    refine ⟨reduction p, isOraclePPT_cascadeChildDistinguisherAt p.1 count p.2 hvalid hIn
+      hlength hEval hA, ?_, hbound (advantage p) (fun q => hp q (Finset.mem_univ q))⟩
+    exact isQueryBounded_cascadeChildChallengeWithIndex family (inLen n) n count p.2
+      (isQueryBounded_cascadeChildRouter (valid n) inLen family n p.1 hbudget)
+  · refine ⟨fun _ _ => pure false, (ComputableInPolyTime.const false).isPPTOn.isOraclePPTOn,
+      .pure _ _, ?_⟩
+    have hzero := hbound 0 (fun p => (hgrid ⟨p⟩).elim)
+    rw [mul_zero] at hzero
+    exact hzero.trans zero_le
 
 end Cslib.Crypto

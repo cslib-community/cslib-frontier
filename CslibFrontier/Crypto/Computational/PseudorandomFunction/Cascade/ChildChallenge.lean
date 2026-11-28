@@ -30,8 +30,9 @@ allowing a power-of-two sampling range.
 ## Main results
 
 * `Cslib.Crypto.advantage_cascadeChildChannelOracle_eq`: exact loss for a sampled challenge
-  channel. This is the distribution step. The word oracle implementation and its strict
-  oracle-PPT certificate are part of the remaining reduction (#5801).
+  channel.
+* `Cslib.Crypto.advantage_cascadeChildChannelOracle_le`: linear loss in the channel budget
+  from a common bound on fixed-channel advantages.
 
 ## References
 
@@ -96,6 +97,43 @@ private theorem bind_cascadeChildChallengeAt {α : Type} {count width n : ℕ}
   rw [← hlaw, ← PMF.bind_bind, PMF.pi_bind_update]
   rfl
 
+private theorem childHybrid_endpoints {count width n : ℕ}
+    (real ideal : PMF (BitString width → BitString n)) {program : WordOracleComp ℕ Bool}
+    (hbudget : program.IsQueryBounded count) :
+    childHybrid (count := count) real ideal 0 program =
+      (ProbOracleComp.runWith (cascadeChildChannelOracle real) program []).map Prod.fst ∧
+    childHybrid (count := count) real ideal count program =
+      (ProbOracleComp.runWith (cascadeChildChannelOracle ideal) program []).map Prod.fst := by
+  constructor
+  · rw [runWith_cascadeChildChannelOracle_eq_finite real hbudget]
+    simp only [childHybrid, Nat.not_lt_zero, ↓reduceIte]
+  · rw [runWith_cascadeChildChannelOracle_eq_finite ideal hbudget]
+    simp only [childHybrid, Fin.is_lt, ↓reduceIte]
+
+/-- A common bound for every fixed child challenge gives a linear loss in the number
+of channels, including the case in which the client makes no queries. -/
+theorem advantage_cascadeChildChannelOracle_le {count width n : ℕ}
+    (real ideal : PMF (BitString width → BitString n)) {program : WordOracleComp ℕ Bool}
+    (hbudget : program.IsQueryBounded count) (ε : NNReal)
+    (hstep : ∀ channel : Fin count,
+      Game.advantage
+        (real.bind fun row => cascadeChildChallengeAt real ideal channel row program)
+        (ideal.bind fun row => cascadeChildChallengeAt real ideal channel row program) ≤ ε) :
+    Game.advantage
+        ((ProbOracleComp.runWith (cascadeChildChannelOracle real) program []).map Prod.fst)
+        ((ProbOracleComp.runWith (cascadeChildChannelOracle ideal) program []).map Prod.fst) ≤
+      count * ε := by
+  obtain ⟨hreal, hideal⟩ := childHybrid_endpoints real ideal hbudget
+  rw [← hreal, ← hideal]
+  refine Game.advantage_hybrid_le
+    (fun i => childHybrid (count := count) real ideal i program) count ε fun i hi => ?_
+  have hbefore := bind_cascadeChildChallengeAt real ideal (⟨i, hi⟩ : Fin count) program false
+  have hafter := bind_cascadeChildChallengeAt real ideal (⟨i, hi⟩ : Fin count) program true
+  simp only [Bool.false_eq_true, ↓reduceIte, Bool.toNat_false, add_zero, Bool.toNat_true]
+    at hbefore hafter
+  rw [← hbefore, ← hafter]
+  exact hstep ⟨i, hi⟩
+
 /-- For a client with at most `count` child calls, sampling a single challenge channel gives
 the full child-oracle advantage divided by the sampling range. Padding the range to
 `capacity ≥ count` contributes the same rejecting output on both sides. -/
@@ -108,14 +146,7 @@ theorem advantage_cascadeChildChannelOracle_eq {count capacity width n : ℕ} [N
       capacity * Game.advantage
         (cascadeChildChallengeGame count capacity real ideal real program)
         (cascadeChildChallengeGame count capacity real ideal ideal program) := by
-  have hreal : childHybrid (count := count) real ideal 0 program =
-      (ProbOracleComp.runWith (cascadeChildChannelOracle real) program []).map Prod.fst := by
-    rw [runWith_cascadeChildChannelOracle_eq_finite real hbudget]
-    simp only [childHybrid, Nat.not_lt_zero, ↓reduceIte]
-  have hideal : childHybrid (count := count) real ideal count program =
-      (ProbOracleComp.runWith (cascadeChildChannelOracle ideal) program []).map Prod.fst := by
-    rw [runWith_cascadeChildChannelOracle_eq_finite ideal hbudget]
-    simp only [childHybrid, Fin.is_lt, ↓reduceIte]
+  obtain ⟨hreal, hideal⟩ := childHybrid_endpoints real ideal hbudget
   rw [← hreal, ← hideal, cascadeChildChallengeGame, cascadeChildChallengeGame]
   have hrealAt (i : Fin capacity) (h : i.val < count) :=
     bind_cascadeChildChallengeAt real ideal ⟨i.val, h⟩ program false

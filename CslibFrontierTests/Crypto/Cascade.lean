@@ -6,7 +6,10 @@ Authors: Samuel Schlesinger, Erik Demaine
 
 module
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.AdjacentPRF
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildReductionLaw
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRoutingPPT
@@ -388,3 +391,24 @@ example :
     (fun _ => 3) (fun _ => 2) toggle adaptiveSides 2 (by decide) (fun _ _ => Nat.one_dvd _)
     (fun key block _ => length_toggle key block) adaptiveSides_prefixFree
     adaptiveSides_isQueryBounded (by decide)
+
+-- A zero-query client has zero endpoint advantage even with a valid empty message.
+example :
+    let valid := fun (_ : ℕ) (word : List Bool) => decide (word.length = 0)
+    let client : OracleDistinguisher := fun _ _ => pure true
+    Game.advantage
+      (ProbComp.eval (prfRealGameOn valid (cascadeFamily (fun _ => 1) fun key _ => key) client 2))
+      (ProbComp.eval (prfIdealGameOn valid id client 2)) = 0 := by
+  dsimp only
+  let hvalid := (ComputableInPolyTime.snd encUnary encBits).length_bits_comp.unary_eq'
+    (.const 0)
+  have hq : (pure true : WordOracleComp Unit Bool).IsQueryBounded 0 := .pure _ _
+  obtain ⟨_, _, _, h⟩ := advantage_cascade_le_pointwise
+    (valid := fun _ word => decide (word.length = 0)) (family := fun key _ => key)
+    (adversary := fun _ _ => pure true) 2 0 0 hvalid (.const 1) (by decide)
+    (fun _ _ => Nat.one_dvd _)
+    (fun _ he => Nat.le_of_eq (of_decide_eq_true he))
+    (fun _ _ _ => rfl) (ComputableInPolyTime.fst _ _)
+    ((ComputableInPolyTime.const true).isPPTOn.isOraclePPTOn)
+    (isPrefixFreeOn_of_isQueryBounded_one _ _ (hq.mono (by decide))) hq
+  simpa only [Nat.mul_zero, Nat.cast_zero, zero_mul, nonpos_iff_eq_zero] using h

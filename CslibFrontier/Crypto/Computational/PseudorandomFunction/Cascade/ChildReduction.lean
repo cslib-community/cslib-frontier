@@ -37,6 +37,7 @@ are capped at the state width.
 * `Cslib.Crypto.CascadeChildChallengeState`: first-use cursor and lazy answer cache.
 * `Cslib.Crypto.cascadeChildChallengeHandler`: one simulated child query.
 * `Cslib.Crypto.cascadeChildChallengeAtProgram`: simulate the client at a fixed index and key word.
+* `Cslib.Crypto.cascadeChildChallengeWithIndex`: draw keys and simulate at a specified index.
 * `Cslib.Crypto.cascadeChildChallengeProgram`: sample the challenge index and private keys,
   then simulate the client.
 
@@ -284,6 +285,38 @@ private theorem isOraclePPTOn_challengeAt {α : Type} {input : α ↪ List Bool}
   simp only [forwardChildRequest, ProbOracleComp.interpret_query, decodeChildRequest_encode,
     handler]
 
+/-- Draw the private keys and simulate the client at the specified challenge index. -/
+@[expose]
+noncomputable def cascadeChildChallengeWithIndex
+    (family : List Bool → List Bool → List Bool) (width n count selected : ℕ)
+    (program : WordOracleComp ℕ Bool) : WordOracleComp Unit Bool := do
+  let keys ← ProbOracleComp.sample (BitString.sampleList (count * n))
+  cascadeChildChallengeAtProgram family width n count selected keys program
+
+/-- A child challenge at a computed binary index is strict oracle PPT. The caller supplies
+the certificate for the client on the single word port. -/
+theorem isOraclePPTOn_cascadeChildChallengeWithIndex {α : Type} {input : α ↪ List Bool}
+    {program : α → WordOracleComp ℕ Bool} {family : List Bool → List Bool → List Bool}
+    {width n count selected : α → ℕ}
+    (hEval : ComputableInPolyTime (fun p : List Bool × List Bool => family p.1 p.2)
+      (encPair encBits encBits) encBits)
+    (hprogram : IsOraclePPTOn input encBool (fun a => ProbOracleComp.simulate
+      (fun request => ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
+        ((), encCascadeChildRequest request)) (program a)))
+    (hwidth : ComputableInPolyTime width input encUnary)
+    (hn : ComputableInPolyTime n input encUnary)
+    (hcount : ComputableInPolyTime count input encUnary)
+    (hselected : ComputableInPolyTime selected input encNat) :
+    IsOraclePPTOn input encBool
+      (fun a => cascadeChildChallengeWithIndex family (width a) (n a) (count a)
+        (selected a) (program a)) := by
+  let hin := ComputableInPolyTime.fst input encBits
+  let hkeys := ComputableInPolyTime.snd input encBits
+  let hparams := encChallengeParameters_mk_polyTime (hwidth.comp hin) (hn.comp hin)
+    (hcount.comp hin) (hselected.comp hin) hkeys
+  have hrun := (isOraclePPTOn_challengeAt hEval hprogram).preprocess (hin.prod hparams)
+  exact ((hcount.unary_mul' hn).sampleList.isOraclePPTOn (Operation := Unit)).bind_with hrun
+
 /-- Sample a challenge index from `indexBits` fair bits. If it is in range, draw one private
 `n`-bit key per channel and run the client with the simulated child oracle. An out-of-range
 index returns `false` before the client runs. -/
@@ -292,9 +325,7 @@ noncomputable def cascadeChildChallengeProgram
     (family : List Bool → List Bool → List Bool) (width n count indexBits : ℕ)
     (program : WordOracleComp ℕ Bool) : WordOracleComp Unit Bool := do
   let selected ← ProbOracleComp.sample (ProbComp.sampleBinaryNat indexBits)
-  if selected < count then
-    let keys ← ProbOracleComp.sample (BitString.sampleList (count * n))
-    cascadeChildChallengeAtProgram family width n count selected keys program
+  if selected < count then cascadeChildChallengeWithIndex family width n count selected program
   else pure false
 
 /-- The sampled challenge simulation is strict oracle PPT for a client certified on the single
@@ -317,18 +348,11 @@ theorem isOraclePPTOn_cascadeChildChallengeProgram {α : Type} {input : α ↪ L
   let hin := ComputableInPolyTime.fst input encNat
   let hselected := ComputableInPolyTime.snd input encNat
   let hcountBin := ComputableInPolyTime.unary_to_binary.comp (hcount.comp hin)
-  let hsampleKeys := ((hcount.unary_mul' hn).comp hin).sampleList
-  let hcaller := ComputableInPolyTime.fst (encPair input encNat) encBits
-  let hkeys := ComputableInPolyTime.snd (encPair input encNat) encBits
-  let hparams := encChallengeParameters_mk_polyTime (hwidth.comp (hin.comp hcaller))
-    (hn.comp (hin.comp hcaller)) (hcount.comp (hin.comp hcaller))
-    (hselected.comp hcaller) hkeys
-  have hrun := (isOraclePPTOn_challengeAt hEval hprogram).preprocess
-    ((hin.comp hcaller).prod hparams)
+  have hrun := isOraclePPTOn_cascadeChildChallengeWithIndex hEval (hprogram.preprocess hin)
+    (hwidth.comp hin) (hn.comp hin) (hcount.comp hin) hselected
   unfold cascadeChildChallengeProgram
   exact ((hbits.sampleBinaryNat).isOraclePPTOn (Operation := Unit)).bind_with
-    (IsOraclePPTOn.ite (hselected.binary_lt' hcountBin)
-      ((hsampleKeys.isOraclePPTOn (Operation := Unit)).bind_with hrun)
+    (IsOraclePPTOn.ite (hselected.binary_lt' hcountBin) hrun
       ((ComputableInPolyTime.const false).isPPTOn.isOraclePPTOn))
 
 private theorem isQueryBounded_cascadeChildChallengeHandler
@@ -346,6 +370,29 @@ private theorem isQueryBounded_cascadeChildChallengeHandler
       · exact .pure _ 1
   · exact .pure _ 1
 
+/-- The fixed-index simulation forwards at most one external query per client query. -/
+theorem isQueryBounded_cascadeChildChallengeWithIndex
+    (family : List Bool → List Bool → List Bool) (width n count selected : ℕ)
+    {program : WordOracleComp ℕ Bool} {budget : ℕ}
+    (hbudget : program.IsQueryBounded budget) :
+    (cascadeChildChallengeWithIndex family width n count selected program).IsQueryBounded
+      budget := by
+  unfold cascadeChildChallengeWithIndex
+  refine ((ProbOracleComp.IsQueryBounded.sample _).bind (m := budget) fun keys => ?_).mono
+    (by simp)
+  unfold cascadeChildChallengeAtProgram
+  apply (OracleComp.isCostBounded_map_iff _ _ _).mpr
+  refine OracleComp.IsCostBounded.run_interpret (fun query state => ?_) hbudget _
+  cases query with
+  | inl k =>
+    change ((StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k))).run state).IsQueryBounded 0
+    rw [StateT.run_lift, bind_pure_comp]
+    exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
+      (ProbOracleComp.IsQueryBounded.sample _)
+  | inr request =>
+    exact isQueryBounded_cascadeChildChallengeHandler family width n count selected keys
+      request state
+
 /-- Local key and answer sampling consumes no external queries. The challenge channel forwards
 at most one external query per client query. -/
 theorem isQueryBounded_cascadeChildChallengeProgram
@@ -358,20 +405,7 @@ theorem isQueryBounded_cascadeChildChallengeProgram
   refine ((ProbOracleComp.IsQueryBounded.sample _).bind (m := budget) fun selected => ?_).mono
     (by simp)
   split
-  · refine ((ProbOracleComp.IsQueryBounded.sample _).bind (m := budget) fun keys => ?_).mono
-      (by simp)
-    unfold cascadeChildChallengeAtProgram
-    apply (OracleComp.isCostBounded_map_iff _ _ _).mpr
-    refine OracleComp.IsCostBounded.run_interpret (fun query state => ?_) hbudget _
-    cases query with
-    | inl k =>
-      change ((StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k))).run state).IsQueryBounded 0
-      rw [StateT.run_lift, bind_pure_comp]
-      exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
-        (ProbOracleComp.IsQueryBounded.sample _)
-    | inr request =>
-      exact isQueryBounded_cascadeChildChallengeHandler family width n count selected keys
-        request state
+  · exact isQueryBounded_cascadeChildChallengeWithIndex family width n count selected hbudget
   · exact .pure _ budget
 
 end Cslib.Crypto
