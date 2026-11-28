@@ -1899,6 +1899,7 @@ public import CslibFrontier.Computability.WangTile.Robinson.Signals
 public import CslibFrontier.Logics.FirstOrder.Ordered.DeterministicTransitiveClosure
 public import CslibFrontier.Foundations.Data.BitString.List.BinaryOrder
 public import CslibFrontier.Computability.WordRAM.Realization.Module
+public import CslibFrontier.Computability.PolyTime.Plurality
 public import CslibFrontier.Foundations.Geometry.Polygonal.SegmentRays
 public import CslibFrontier.Crypto.Computational.MerkleTree.Prog
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBufferTrieProg.Helpers
