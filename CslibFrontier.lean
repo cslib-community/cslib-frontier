@@ -9946,6 +9946,7 @@ public import CslibFrontier.Computability.Communication.Lifting.BitStringLifting
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.QueryReplaySupplierChunkCorrect
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable.Children
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.BinomialSeries
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Universal.Interpreter
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.DerivativeFingerprint
 public import CslibFrontier.Computability.Complexity.Problems.SAT.ExactOne.GeometryCollarData
 public import CslibFrontier.Computability.PolyTime.BudgetTuples
@@ -10818,6 +10819,7 @@ public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.Contract
 public import CslibFrontier.Foundations.Combinatorics.Multidigraph.Arborescence
 public import CslibFrontier.Computability.Circuit.Boolean.CodeTemplate
 public import CslibFrontier.Computability.Complexity.Classes.BQP.Nondeterministic
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Universal.Interpreter.Native
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
 public import CslibFrontier.Computability.Complexity.Classes.SZK.CoArthurMerlin
 public import CslibFrontier.Computability.Circuit.Monotone.Clique.LowerBound

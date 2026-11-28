@@ -22,40 +22,36 @@ import CslibFrontier.Foundations.Data.BitString.ShortWords
 /-!
 # Retained fixed-channel oracle interpreter
 
-This module retains one actual finite-control `MultiTapePTM` that realizes the fixed-channel
-interpreter `Turing.MultiTapePTM.Universal.run r`. Runtime fuel changes the encoded input and the
-certified clock, not the installed machine. The runtime description remains data; the generated
-interpreter description is a separate one-occurrence installed artifact.
+The interpreter retains a finite-control `MultiTapePTM` for `run r`. It initializes the
+runtime descriptor and input, samples a private bit on active instructions, scans the table
+once per active instruction and dispatches a validated operation to a statically installed
+query branch. The machine copies, decodes and installs the bounded reply prefix before
+advancing. Its controller, codecs and finite dispatcher occur inside one installed description.
+The source description remains part of the runtime input.
 
-The construction executes named parsing, table lookup, tag, finite-dispatch, local-step,
-marshalling, query, reply-copy, codec and controller machines. Its proof-only reachable-state
-enumeration ranges over both private coins and every copied reply prefix of length at most the
-runtime reply budget. That finite enumeration supplies uniform phase and encoded-state bounds; it
-is not installed or executed.
+* `Turing.MultiTapePTM.Universal.NativeInterpreter.runWith_artifact_eq_runOracle` gives the
+  exact joint law of the decoded result and the final state of an adaptive handler whose
+  replies fit the copied prefix.
+* `Turing.MultiTapePTM.Universal.NativeInterpreter.time_artifact` gives the certified clock
+  in terms of initialization, reachable state sizes, per-round bounds and output copying.
+  It takes maxima over both private coins and all copied reply prefixes. These finite
+  enumerations occur in the proof and clock specification.
+* `Turing.MultiTapePTM.Universal.NativeInterpreter.installed_add_input_bits` separates the
+  installed descriptor, the framed source descriptor and the remaining runtime input.
+* `Turing.MultiTapePTM.Universal.NativeInterpreter.staticBits_polynomiallyBounded_of_schedules`
+  gives a polynomial installed-size bound under explicit schedules for the exhaustive table
+  and its coordinates. For fixed `r` the installed description is constant.
 
-## Main definitions
-
-* `Turing.MultiTapePTM.Universal.NativeInterpreter.LoopState`: typed runtime loop storage.
-* `Turing.MultiTapePTM.Universal.NativeInterpreter.artifact`: retained complete interpreter.
-* `Turing.MultiTapePTM.Universal.NativeInterpreter.generatedStaticBits`: exact generated artifact
-  size, separate from runtime input, supplied description and emitted output sizes.
-
-## Main results
-
-* `Turing.MultiTapePTM.Universal.NativeInterpreter.runWith_artifact_eq_runOracle`: after decoding
-  its output and adapting its word interface, the retained machine has exactly the typed
-  `Desc.runOracle` joint output/final-state law for every fitting stateful handler.
-* `Turing.MultiTapePTM.Universal.NativeInterpreter.generatedStaticBits_le_structuralBound`: the
-  exact artifact fits the explicit exhaustive-table structural bound.
-* `Turing.MultiTapePTM.Universal.NativeInterpreter.staticBits_polynomiallyBounded_of_schedules`:
-  family preservation under explicit component, exhaustive-row and maximum-row schedules.
+The native kernel certifies the sum of its phase allocations. Independent open-machine workspace
+and a polynomial online clock derived from source input schedules remain open. A separately
+installed handler must account for its own execution and description.
 
 ## References
 
 The retained interpreter and its resource accounting are original to this module.
 -/
 
-@[expose] public section
+public section
 
 namespace Turing.MultiTapePTM.Universal.NativeInterpreter
 
@@ -101,7 +97,7 @@ def loopStateDecoder : Decoder eLoopState :=
     (fun _ => rfl) fun _ => rfl
 
 /-- Loop storage is absent on a channel-count mismatch. -/
-def initialState (r : ℕ) (input : RunInput) : Option LoopState :=
+@[expose] def initialState (r : ℕ) (input : RunInput) : Option LoopState :=
   if input.desc.operations = r then
     some
       { desc := input.desc
@@ -113,18 +109,19 @@ def initialState (r : ℕ) (input : RunInput) : Option LoopState :=
   else none
 
 /-- Replace the first-order configuration and consume one source round. -/
-def advance (state : LoopState) (cfg : ICfg) : LoopState :=
+@[expose] def advance (state : LoopState) (cfg : ICfg) : LoopState :=
   { state with remaining := state.remaining - 1, cfg := cfg }
 
 /-- Number of semantic source rounds selected by the initial typed state. -/
-def rounds : Option LoopState → ℕ
+@[expose] def rounds : Option LoopState → ℕ
   | none => 0
   | some state => state.remaining
 
 /-- One semantic loop round. The absent and zero-remaining cases are the encoded empty-word
 terminator required by `boundedIterationEncodedOn`. A halted source configuration still consumes
 one outer source round but draws no coin, exactly as `wordStep`. -/
-noncomputable def step (r : ℕ) : Option LoopState → WordOracleComp (Fin r) (Option LoopState)
+@[expose] noncomputable def step (r : ℕ) :
+    Option LoopState → WordOracleComp (Fin r) (Option LoopState)
   | none => pure none
   | some state =>
       if state.remaining = 0 then pure none
@@ -134,12 +131,13 @@ noncomputable def step (r : ℕ) : Option LoopState → WordOracleComp (Fin r) (
 
 /-- Extract the interpreted output without conflating it with the generated static artifact or
 the runtime input and supplied-description coordinates. -/
-def output : Option LoopState → List ℕ
+@[expose] def output : Option LoopState → List ℕ
   | none => []
   | some state => state.cfg.output
 
 /-- Native-friendly staging of the exact fixed-channel semantics. -/
-noncomputable def stagedRun (r : ℕ) (input : RunInput) : WordOracleComp (Fin r) (List ℕ) := do
+@[expose] noncomputable def stagedRun (r : ℕ) (input : RunInput) :
+    WordOracleComp (Fin r) (List ℕ) := do
   let initial := initialState r input
   let final ← OracleComp.iterate (rounds initial) (step r) initial
   pure (output final)
@@ -261,17 +259,10 @@ noncomputable def initialCompiler (r : ℕ) :
   let cfg := ICfg.initCompiler.comp desc
   let fields := desc.pair
     (sourceInput.pair (fuel.pair (replyBits.pair (fuel.pair cfg))))
-  let initializedState (input : RunInput) : LoopState where
-    desc := input.desc
-    input := input.input
-    fuel := input.fuel
-    replyBits := input.replyBits
-    remaining := input.fuel
-    cfg := ICfg.init input.desc
+  let initializedState (input : RunInput) : LoopState :=
+    ⟨input.desc, input.input, input.fuel, input.replyBits, input.fuel, ICfg.init input.desc⟩
   let initialized : NativeCompiler initializedState eRunInput eLoopState :=
-    fields.ofOutputEq fun input => by
-      rw [eLoopState_apply]
-      rfl
+    fields.ofOutputEq fun _ => rfl
   let present := (NativeCompiler.optionSome eLoopState).comp
     initialized
   let absent := NativeCompiler.const eRunInput (encOption eLoopState) none
@@ -283,8 +274,8 @@ private abbrev AdvanceInput := LoopState × ICfg
 private def eAdvanceInput : AdvanceInput ↪ List Bool := encPair eLoopState eICfg
 
 /-- Retained record update for one consumed source round. -/
-noncomputable def advanceCompiler : NativeCompiler (fun input : AdvanceInput =>
-    advance input.1 input.2) eAdvanceInput eLoopState := by
+noncomputable opaque advanceCompiler : NativeCompiler (fun input : LoopState × ICfg =>
+    advance input.1 input.2) (encPair eLoopState eICfg) eLoopState := by
   let state := NativeCompiler.first eLoopState eICfg
   let cfg := NativeCompiler.second eLoopState eICfg
   let remaining := NativeCompiler.unaryPred.comp (remainingCompiler.comp state)
@@ -300,7 +291,7 @@ private noncomputable def advanceSomeCompiler : NativeCompiler (fun input : Adva
   (NativeCompiler.optionSome eLoopState).comp advanceCompiler
 
 private abbrev BodyInput := Option LoopState
-private def eBodyInput : BodyInput ↪ List Bool := encOption eLoopState
+private abbrev eBodyInput : BodyInput ↪ List Bool := encOption eLoopState
 private abbrev CoinInput := BodyInput × Bool
 private def eCoinInput : CoinInput ↪ List Bool := encPair eBodyInput encBool
 private abbrev LookupInput := CoinInput × Option Branches
@@ -588,24 +579,16 @@ private noncomputable def queryPostOnline (r : ℕ) (fallback : Fin r) :
     listMax (fun reply =>
       (queryPostArtifact r fallback).online.time phase (input, reply))
       (replyPrefixes r input)
-  workspace := fun phase input =>
-    listMax (fun reply =>
-      (queryPostArtifact r fallback).online.workspace phase (input, reply))
-      (replyPrefixes r input)
 
 private theorem queryPostOnline_le (r : ℕ) (fallback : Fin r)
     (input : CommandInput r) (reply : List Bool)
     (hreply : reply.length ≤ (commandState input.1).replyBits) (phase : OnlinePhase) :
     (queryPostArtifact r fallback).online.time phase (input, reply) ≤
-        (queryPostOnline r fallback).time phase input ∧
-      (queryPostArtifact r fallback).online.workspace phase (input, reply) ≤
-        (queryPostOnline r fallback).workspace phase input := by
+        (queryPostOnline r fallback).time phase input := by
   have hmem : reply ∈ replyPrefixes r input := by
     exact Finset.mem_toList.mpr (BitString.mem_shortWords.mpr hreply)
-  exact ⟨le_listMax (f := fun reply =>
-      (queryPostArtifact r fallback).online.time phase (input, reply)) hmem,
-    le_listMax (f := fun reply =>
-      (queryPostArtifact r fallback).online.workspace phase (input, reply)) hmem⟩
+  exact le_listMax (f := fun reply =>
+    (queryPostArtifact r fallback).online.time phase (input, reply)) hmem
 
 private theorem queryPost_resource_bound (r : ℕ) (fallback operation : Fin r)
     (input : CommandInput r) (OracleState : Type)
@@ -617,9 +600,7 @@ private theorem queryPost_resource_bound (r : ℕ) (fallback operation : Fin r)
         state).support)
     (phase : OnlinePhase) :
     (queryPostArtifact r fallback).online.time phase (input, reply) ≤
-        (queryPostOnline r fallback).time phase input ∧
-      (queryPostArtifact r fallback).online.workspace phase (input, reply) ≤
-        (queryPostOnline r fallback).workspace phase input := by
+        (queryPostOnline r fallback).time phase input := by
   have hlength : reply.length ≤ (queryInput r fallback input).2 := by
     rw [NativeOracleProgram.queryTakeProgram, ProbOracleComp.runWith_map] at hreply
     obtain ⟨⟨rawReply, replyState⟩, -, heq⟩ :=
@@ -820,13 +801,11 @@ private theorem commandExecutor_resource_bound (r : ℕ) (input : LookupInput)
       (ProbOracleComp.runWith oracle (pure (commandFromLookup r input)) state).support)
     (phase : OnlinePhase) :
     (commandExecutor r).online.time phase (input, command) ≤
-        (commandExecutorOnline r).time phase input ∧
-      (commandExecutor r).online.workspace phase (input, command) ≤
-        (commandExecutorOnline r).workspace phase input := by
+        (commandExecutorOnline r).time phase input := by
   simp only [ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
     Prod.mk.injEq] at hcommand
   rcases hcommand with ⟨rfl, rfl⟩
-  exact ⟨le_rfl, le_rfl⟩
+  exact le_rfl
 
 /-- Execute the captured post-lookup command, including any validated external query. -/
 private noncomputable def fromLookupArtifact (r : ℕ) :=
@@ -845,13 +824,11 @@ private theorem fromLookup_resource_bound (r : ℕ) (input : CoinInput)
       (ProbOracleComp.runWith oracle (pure (lookupResult input)) state).support)
     (phase : OnlinePhase) :
     (fromLookupArtifact r).online.time phase (input, lookup) ≤
-        (fromLookupOnline r).time phase input ∧
-      (fromLookupArtifact r).online.workspace phase (input, lookup) ≤
-        (fromLookupOnline r).workspace phase input := by
+        (fromLookupOnline r).time phase input := by
   simp only [ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
     Prod.mk.injEq] at hlookup
   rcases hlookup with ⟨rfl, rfl⟩
-  exact ⟨le_rfl, le_rfl⟩
+  exact le_rfl
 
 /-- One coin-bearing active round with exactly one captured table scan. -/
 private noncomputable def coinRoundArtifact (r : ℕ) :=
@@ -863,9 +840,6 @@ private noncomputable def coinRoundOnline (r : ℕ) : OnlineAccounting BodyInput
   time := fun phase input =>
     max ((coinRoundArtifact r).online.time phase (input, false))
       ((coinRoundArtifact r).online.time phase (input, true))
-  workspace := fun phase input =>
-    max ((coinRoundArtifact r).online.workspace phase (input, false))
-      ((coinRoundArtifact r).online.workspace phase (input, true))
 
 private theorem coinRound_resource_bound (r : ℕ) (input : BodyInput)
     (OracleState : Type)
@@ -876,12 +850,10 @@ private theorem coinRound_resource_bound (r : ℕ) (input : BodyInput)
         (ProbOracleComp.sample (ProbComp.uniform Bool)) state).support)
     (phase : OnlinePhase) :
     (coinRoundArtifact r).online.time phase (input, coin) ≤
-        (coinRoundOnline r).time phase input ∧
-      (coinRoundArtifact r).online.workspace phase (input, coin) ≤
-        (coinRoundOnline r).workspace phase input := by
+        (coinRoundOnline r).time phase input := by
   cases coin
-  · exact ⟨le_max_left _ _, le_max_left _ _⟩
-  · exact ⟨le_max_right _ _, le_max_right _ _⟩
+  · exact le_max_left _ _
+  · exact le_max_right _ _
 
 /-- Active source round: sample one retained fair bit, scan the runtime table once, then execute
 the selected local or validated query command. -/
@@ -1275,17 +1247,13 @@ private noncomputable def lengthBound (r : ℕ) (initial : BodyInput) : ℕ :=
 private noncomputable def roundOnline (r : ℕ) : OnlineAccounting BodyInput where
   time := fun phase initial =>
     listMax (fun current => (body r).online.time phase current) (reachablePrefix r initial)
-  workspace := fun phase initial =>
-    listMax (fun current => (body r).online.workspace phase current) (reachablePrefix r initial)
 
 private theorem body_resource_bound (r : ℕ) (initial : BodyInput) (count : ℕ)
     (hcount : count ≤ rounds initial) (current : BodyInput)
     (hinvariant : Invariant r initial count current) (phase : OnlinePhase) :
-    (body r).online.time phase current ≤ (roundOnline r).time phase initial ∧
-      (body r).online.workspace phase current ≤
-        (roundOnline r).workspace phase initial := by
+    (body r).online.time phase current ≤ (roundOnline r).time phase initial := by
   have hmem := mem_reachablePrefix hcount hinvariant.2
-  exact ⟨le_listMax hmem, le_listMax hmem⟩
+  exact le_listMax hmem
 
 private theorem state_length_bound (r : ℕ) (initial : BodyInput) (count : ℕ)
     (hcount : count ≤ rounds initial) (current : BodyInput)
@@ -1300,10 +1268,7 @@ private theorem state_length_bound (r : ℕ) (initial : BodyInput) (count : ℕ)
 private noncomputable def loopArtifact (r : ℕ) :=
   NativeOracleProgram.boundedIterationEncodedOn (.option loopStateDecoder) (body r) rounds
     (lengthBound r) (roundOnline r) (Invariant r) (invariant_zero r)
-    (fun initial count hcount current hinvariant phase =>
-      (body_resource_bound r initial count hcount current hinvariant phase).1)
-    (fun initial count hcount current hinvariant phase =>
-      (body_resource_bound r initial count hcount current hinvariant phase).2)
+    (body_resource_bound r)
     (fun _initial _count hcount _current hinvariant OracleState oracle state state' _next hnext =>
       invariant_successor hcount hinvariant OracleState oracle state state' hnext)
     (invariant_last r) (state_length_bound r)
@@ -1327,10 +1292,6 @@ private noncomputable def outputOnline (r : ℕ) : OnlineAccounting RunInput whe
     listMax (fun current =>
       (ClassifiedCompiler.inPhase .outputCopy outputCompiler).online.time phase current)
       (reachable r (initialState r input) (rounds (initialState r input)))
-  workspace := fun phase input =>
-    listMax (fun current =>
-      (ClassifiedCompiler.inPhase .outputCopy outputCompiler).online.workspace phase current)
-      (reachable r (initialState r input) (rounds (initialState r input)))
 
 private theorem output_resource_bound (r : ℕ) (input : RunInput)
     (OracleState : Type)
@@ -1342,12 +1303,10 @@ private theorem output_resource_bound (r : ℕ) (input : RunInput)
           (initialState r input)) state).support)
     (phase : OnlinePhase) :
     (ClassifiedCompiler.inPhase .outputCopy outputCompiler).online.time phase current ≤
-        (outputOnline r).time phase input ∧
-      (ClassifiedCompiler.inPhase .outputCopy outputCompiler).online.workspace phase current ≤
-        (outputOnline r).workspace phase input := by
+        (outputOnline r).time phase input := by
   have hreach := support_mem_reachable r (initialState r input)
     (rounds (initialState r input)) OracleState oracle state current state' hcurrent
-  exact ⟨le_listMax hreach, le_listMax hreach⟩
+  exact le_listMax hreach
 
 /-- Complete fixed-channel retained interpreter before the extensional source-semantics cast. -/
 private noncomputable def stagedArtifact (r : ℕ) :
@@ -1363,19 +1322,60 @@ private noncomputable def stagedArtifact (r : ℕ) :
         rfl)
 
 /-- Complete actual finite-control interpreter for `run r`. -/
-noncomputable opaque artifact (r : ℕ) :
+@[irreducible] noncomputable def artifact (r : ℕ) :
     NativeOracleProgram r (run r) eRunInput (encList encUnary) :=
   castProgram (stagedArtifact r) (stagedRun_eq_run r)
+
+/-- The data-dependent bounds used to choose the interpreter clock. -/
+structure ClockBounds where
+  /-- Sum of the per-phase maxima of the retained body, over reachable prefix states. -/
+  roundTime : ℕ
+  /-- Largest encoded loop state in the finite reachability enumeration. -/
+  stateBits : ℕ
+  /-- Sum of the output compiler's phase maxima over reachable final states. -/
+  outputTime : ℕ
+
+/-- Bounds for the supplied descriptor, fuel, input and maximum copied reply prefix.
+The enumeration covers both coin outcomes and every copied prefix the handler may return. -/
+noncomputable def clockBounds (r : ℕ) (input : RunInput) : ClockBounds :=
+  let initial := initialState r input
+  ⟨(roundOnline r).totalTime initial, lengthBound r initial, (outputOnline r).totalTime input⟩
+
+private theorem time_castProgram {r : ℕ} {Alpha Beta : Type}
+    {encIn : Alpha ↪ List Bool} {encOut : Beta ↪ List Bool}
+    {first second : Alpha → WordOracleComp (Fin r) Beta}
+    (witness : NativeOracleProgram r first encIn encOut) (h : first = second) (input : Alpha) :
+    (castProgram witness h).time input = witness.time input := by
+  subst second
+  rfl
+
+/-- The clock of the retained machine includes initialization, one final stopping round,
+copies of each reachable state word, and the final output. Its total bounds the run against
+every handler. The factors of five and the additive constants are the costs of the actual
+preprocessing, bounded iteration and postprocessing constructors. -/
+theorem time_artifact (r : ℕ) (input : RunInput) :
+    let bounds := clockBounds r input
+    let n := rounds (initialState r input)
+    (artifact r).time input =
+      5 * (5 * (initialCompiler r).time input +
+        ((n + 1) * (bounds.roundTime + 10 * bounds.stateBits + 23) + 8 * bounds.stateBits + 17)
+        + 9) + bounds.outputTime + 9 := by
+  dsimp only
+  rw [artifact, time_castProgram, stagedArtifact, time_castProgram,
+    NativeOracleProgram.time_postprocess,
+    initializedLoop, NativeOracleProgram.time_preprocess, loopArtifact,
+    NativeOracleProgram.time_boundedIterationEncodedOn]
+  rfl
 
 /-- **Typed semantics of the retained interpreter.** Run the actual finite-control artifact at its
 certified upper-bound clock, adapt its Boolean requests and replies through `wordCodec`, and
 decode its output word. Against every adaptive shared-state handler whose encoded replies fit the
 declared copied prefix, the resulting joint output/final-state law is exactly `Desc.runOracle`.
-No minimality claim is made about the artifact's clock or workspace bounds. -/
+The retained machine uses its certified total clock. -/
 theorem runWith_artifact_eq_runOracle {OracleState : Type} (input : RunInput)
     (handler : Fin input.desc.operations × List ℕ →
       StateT OracleState PMF (List ℕ)) (state : OracleState)
-    (hfit : ReplyBoundsFit input handler) :
+    (hfit : ReplyPrefixFits handler input.fuel input.replyBits) :
     ProbOracleComp.runWith handler
         ((wordCodec input.desc.operations).adapt
           (unaryListDecoder.decode <$>
@@ -1399,23 +1399,21 @@ theorem runWith_artifact_eq_runOracle {OracleState : Type} (input : RunInput)
     rcases outputState with ⟨output, finalState⟩
     simp only [Function.comp_apply, Prod.map_apply, unaryListDecoder.decode_enc, id_eq]
   rw [hdecode, PMF.map_id]
-  have hsource := runWith_input_eq_runOracle input handler state hfit
+  have hsource := runWith_eq_runOracle input handler state hfit
   rw [OracleCodec.runWith_adapt] at hsource
   exact hsource
 
 /-! ### Separate concrete resource coordinates -/
 
-/-- Exact generated and installed interpreter-description size. It excludes the runtime input,
-the supplied runtime `Desc`, emitted output and every external handler artifact. -/
-noncomputable def generatedStaticBits (r : ℕ) : ℕ := (artifact r).staticBits
-
-/-- Construction-derived structural bound for the generated interpreter description. -/
-noncomputable def structuralBound (r : ℕ) : ℕ := (artifact r).staticBitsBound
-
-/-- The generated artifact fits the honest exhaustive-table structural bound. -/
-theorem generatedStaticBits_le_structuralBound (r : ℕ) :
-    generatedStaticBits r ≤ structuralBound r :=
-  (artifact r).staticBits_le_staticBitsBound
+/-- Total stored interpreter and supplied input bits. The controller and dispatch tables
+belong to the retained interpreter's description, and the supplied descriptor occurs once as
+the framed first field of the runtime word. -/
+theorem installed_add_input_bits (r : ℕ) (input : RunInput) :
+    (artifact r).staticBits + runInputSize input =
+      descLen (artifact r).description +
+        (2 * suppliedDescSize input + 1 + runParameterSize input) := by
+  rw [runInputSize_eq_framed]
+  rfl
 
 /-! ### Static-size families -/
 
@@ -1432,19 +1430,13 @@ theorem staticBits_polynomiallyBounded_of_schedules (channels : ℕ → ℕ)
       Description.observationRowCount (artifact (channels n)).stateCard
         (artifact (channels n)).tapeCount (channels n))
     (hmaxRow : PolynomiallyBounded fun n => (artifact (channels n)).maxEncodedRowBits) :
-    PolynomiallyBounded fun n => generatedStaticBits (channels n) := by
+    PolynomiallyBounded fun n => (artifact (channels n)).staticBits := by
   apply Description.staticBits_polynomiallyBounded_of_le htapes htags hchannels hinitial hrows
     hmaxRow
   intro n
-  simpa [generatedStaticBits, structuralBound, NativeOracleProgram.staticBitsBound,
+  simpa [NativeOracleProgram.staticBitsBound,
     NativeOracleProgram.observationRowCount,
-    NativeOracleProgram.operationCount, Description.scheduledBitsBound] using
+    Description.scheduledBitsBound] using
     (artifact (channels n)).staticBits_le_staticBitsBound
-
-/-- For every fixed finite channel count, the one installed interpreter is independent of runtime
-input size, so its exact static size is a constant polynomial schedule. -/
-theorem staticBits_polynomiallyBounded_fixed (r : ℕ) :
-    PolynomiallyBounded (fun _ : ℕ => generatedStaticBits r) :=
-  PolynomiallyBounded.const (generatedStaticBits r)
 
 end Turing.MultiTapePTM.Universal.NativeInterpreter

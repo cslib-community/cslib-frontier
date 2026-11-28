@@ -39,7 +39,8 @@ def runInput : RunInput := ⟨CslibFrontierTests.OracleDescription.description, 
 
 /-- Nineteen bits contain either encoded reply `[7]` or `[9]`. -/
 theorem handler_prefix_fits :
-    ReplyBoundsFit runInput CslibFrontierTests.OracleDescription.handler := by
+    ReplyPrefixFits CslibFrontierTests.OracleDescription.handler
+      runInput.fuel runInput.replyBits := by
   intro query log reply nextState hreply
   by_cases hlog : log.isEmpty
   · simp only [CslibFrontierTests.OracleDescription.handler, hlog,
@@ -53,12 +54,20 @@ theorem handler_prefix_fits :
     rcases hreply with ⟨rfl, rfl⟩
     decide
 
+/-- The second supported reply needs nineteen bits. An eighteen-bit budget fails the
+typed correspondence's prefix premise on a reachable, nonempty log. -/
+example : ¬ ReplyPrefixFits CslibFrontierTests.OracleDescription.handler 4 18 := by
+  intro hfit
+  have h := hfit (0, [7]) [[]] [9] [[], [7]] (by
+    simp [CslibFrontierTests.OracleDescription.handler])
+  exact (by decide : ¬ (encList encUnary ([9] : List ℕ)).length ≤ 18) h
+
 /-- The Boolean interpreter preserves the complete adaptive output/log law. -/
 theorem run_interpreter :
     ProbOracleComp.runWith CslibFrontierTests.OracleDescription.handler
         ((wordCodec 1).adapt (run 1 runInput)) [] =
       PMF.pure ([9], [[], [7]]) := by
-  exact (runWith_input_eq_runOracle runInput
+  exact (runWith_eq_runOracle runInput
     CslibFrontierTests.OracleDescription.handler [] handler_prefix_fits).trans
       CslibFrontierTests.OracleDescription.run_description
 
@@ -70,11 +79,11 @@ theorem run_request_bounds : (run 1 runInput).QueriesSatisfy (RequestFits runInp
 theorem run_private_coins :
     OracleComp.IsCostBounded
         (Sum.elim (fun _ => 1) (fun _ : Fin 1 × List Bool => 0))
-        (run 1 runInput) (privateCoinBound runInput) :=
+        (run 1 runInput) runInput.fuel :=
   isCostBounded_run_privateCoins 1 runInput
 
 /-- The adaptive client makes at most its named call coordinate. -/
-theorem run_queries : (run 1 runInput).IsQueryBounded (queryBound runInput) :=
+theorem run_queries : (run 1 runInput).IsQueryBounded runInput.fuel :=
   isQueryBounded_run 1 runInput
 
 /-- A fixed-channel mismatch is rejected before the shared handler is called. -/
@@ -107,8 +116,9 @@ theorem decode_malformedRequest : (wordCodec 1).decodeQuery malformedRequest = n
 theorem malformed_request_no_call (log : List (List ℕ)) :
     (wordCodec 1).wordOracle CslibFrontierTests.OracleDescription.handler malformedRequest log =
       PMF.pure ([], log) := by
-  rw [wordCodec_wordOracle_of_malformed CslibFrontierTests.OracleDescription.handler
-    malformedRequest decode_malformedRequest]
+  rw [OracleCodec.wordOracle_of_decodeQuery_eq_none (wordCodec 1)
+    CslibFrontierTests.OracleDescription.handler
+    decode_malformedRequest]
   rfl
 
 /-- The adaptive fixture has four table rows, so successful execution does not reduce to a
@@ -142,17 +152,14 @@ theorem run_input_size_partition :
       2 * suppliedDescSize runInput + 1 + runParameterSize runInput :=
   runInputSize_eq_framed runInput
 
-/-- The exact generated size has both an honest structural bound and a fixed-channel polynomial
-family theorem. -/
-example : generatedStaticBits 1 ≤ structuralBound 1 ∧
-    PolynomiallyBounded (fun _ : ℕ => generatedStaticBits 1) :=
-  ⟨generatedStaticBits_le_structuralBound 1,
-    staticBits_polynomiallyBounded_fixed 1⟩
-
-/-- The zero-channel specialization is also certified by the actual retained machine. -/
-example :
-    (artifact 0).machine.ComputesTidily (eRunInput runInput) ((artifact 0).time runInput)
-      ((encList encUnary) <$> run 0 runInput) :=
-  (artifact 0).computes runInput
+/-- A machine with no installed channel rejects the one-channel description before calling
+a handler. Its only result is the encoding of the empty source output. -/
+example (log : List (List ℕ)) :
+    ProbOracleComp.runWith (fun q : Fin 0 × List Bool => Fin.elim0 q.1)
+        ((artifact 0).machine.runOracle ((artifact 0).time runInput) (eRunInput runInput)) log =
+      PMF.pure (encList encUnary [], log) := by
+  rw [Turing.MultiTapePTM.Internal.NativeOracleProgram.time,
+    ((artifact 0).computes runInput).runOracle, run_of_operations_ne 0 runInput (by decide)]
+  simp
 
 end CslibFrontierTests.OracleInterpreter
