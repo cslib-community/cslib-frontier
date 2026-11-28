@@ -1043,9 +1043,8 @@ private theorem rectangleBias_of_pivot_blocks {n p s K₀ K : ℕ} {b₀ : ℝ}
     intro a J₁ ha_inj ha_rows B'
     have hA₀_card : (Set.range a).ncard = s := by
       rw [Set.ncard_range_of_injective ha_inj, Nat.card_eq_fintype_card, Fintype.card_fin]
-    induction hm : B'.ncard using Nat.strong_induction_on generalizing B' with
-    | ind m ih =>
-      subst hm
+    induction B' using (_root_.measure Set.ncard).wf.induction with
+    | h B' ih =>
       by_cases hB' : K₀ ≤ B'.ncard
       · obtain ⟨b', J₂, hb_inj, hb_mem, hb_rows⟩ := hpiv_Xc X hB'
         set B₀ := Set.range b'
@@ -1054,7 +1053,7 @@ private theorem rectangleBias_of_pivot_blocks {n p s K₀ K : ℕ} {b₀ : ℝ}
           rw [Set.ncard_range_of_injective hb_inj, Nat.card_eq_fintype_card, Fintype.card_fin]
         have hcard_sdiff : (B' \ B₀).ncard + s = B'.ncard :=
           hB₀_card ▸ Set.ncard_sdiff_add_ncard_of_subset hB₀_sub
-        have hrest := ih (B' \ B₀).ncard (by omega) (B' \ B₀) rfl
+        have hrest := ih (B' \ B₀) ((Nat.lt_add_of_pos_right hs1).trans_eq hcard_sdiff)
         have hblk := hblock X a J₁ b' J₂ ha_inj hb_inj ha_rows hb_rows
         set R₁ := rectangle X (Set.range a) B₀
         set R₂ := rectangle X (Set.range a) (B' \ B₀)
@@ -1084,9 +1083,8 @@ private theorem rectangleBias_of_pivot_blocks {n p s K₀ K : ℕ} {b₀ : ℝ}
         b₀ * (A'.ncard * B'.ncard : ℕ) +
           ((A'.ncard * K₀ : ℕ) : ℝ) / 2 + ((K₀ * B'.ncard : ℕ) : ℝ) / 2 := by
     intro A' B'
-    induction hm : A'.ncard using Nat.strong_induction_on generalizing A' with
-    | ind m ih =>
-      subst hm
+    induction A' using (_root_.measure Set.ncard).wf.induction with
+    | h A' ih =>
       by_cases hA' : K₀ ≤ A'.ncard
       · obtain ⟨a, J₁, ha_inj, ha_mem, ha_rows⟩ := hpiv_X X hA'
         set A₀ := Set.range a
@@ -1096,7 +1094,7 @@ private theorem rectangleBias_of_pivot_blocks {n p s K₀ K : ℕ} {b₀ : ℝ}
         have hcard_sdiff : (A' \ A₀).ncard + s = A'.ncard :=
           hA₀_card ▸ Set.ncard_sdiff_add_ncard_of_subset hA₀_sub
         have hgood := bias_good_left a J₁ ha_inj ha_rows B'
-        have hrest := ih (A' \ A₀).ncard (by omega) (A' \ A₀) rfl
+        have hrest := ih (A' \ A₀) ((Nat.lt_add_of_pos_right hs1).trans_eq hcard_sdiff)
         set R₁ := rectangle X A₀ B'
         set R₂ := rectangle X (A' \ A₀) B'
         have hdisj : Disjoint R₁ R₂ :=

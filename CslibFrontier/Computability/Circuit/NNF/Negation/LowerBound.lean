@@ -544,14 +544,14 @@ private theorem exists_subset_pairwise_not {α : Type*} (r : α → α → Prop)
       ∃ S ⊆ U, (∀ u ∈ S, ∀ u' ∈ S, u ≠ u' → ¬r u u') ∧ #U ≤ K * #S := by
   classical
   intro U
-  induction hU : #U using Nat.strong_induction_on generalizing U with
-  | _ m ih =>
+  induction U using (_root_.measure Finset.card).wf.induction with
+  | h U ih =>
     intro hK
     rcases U.eq_empty_or_nonempty with rfl | ⟨u, hu⟩
-    · exact ⟨∅, empty_subset _, by simp, by simp at hU; omega⟩
+    · exact ⟨∅, empty_subset _, by simp, by simp⟩
     set U' := U.filter fun v => ¬r u v
-    have hlt : #U' < m := hU ▸ card_lt_card (filter_ssubset.mpr ⟨u, hu, not_not.mpr (hrefl u)⟩)
-    obtain ⟨S, hSU, hS, hcard⟩ := ih _ hlt U' rfl fun v hv =>
+    have hlt : #U' < #U := card_lt_card (filter_ssubset.mpr ⟨u, hu, not_not.mpr (hrefl u)⟩)
+    obtain ⟨S, hSU, hS, hcard⟩ := ih U' hlt fun v hv =>
       (card_le_card (filter_subset_filter _ (filter_subset _ U))).trans
         (hK v (filter_subset _ U hv))
     have huS : u ∉ S := fun h => (mem_filter.mp (hSU h)).2 (hrefl u)

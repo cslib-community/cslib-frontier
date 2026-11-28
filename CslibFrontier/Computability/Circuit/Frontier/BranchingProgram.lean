@@ -367,9 +367,9 @@ theorem abs_signedCount_accepted_le [Finite ι] [Finite U] [Finite M] (hP : P.Un
     (hL : 0 < P.length) {S : Set (ι → U)} {K : ℕ} {b : ℝ} (hb : 0 ≤ b)
     (hS : RectangleBias S K b) :
     |signedCount S P.accepted| ≤ 2 * b * P.accepted.ncard + ((K - 1) ^ 2 * P.size : ℕ) := by
-  induction hn : P.accepted.ncard using Nat.strong_induction_on generalizing P with
-  | ind n ih =>
-    subst hn
+  induction P using
+      (_root_.measure fun P : ReadOnceNBP ι U M => P.accepted.ncard).wf.induction with
+  | h P ih =>
     by_cases hthick : ∃ t ≤ P.length, ∃ x ∈ P.accepted,
         K ≤ (P.sweep.pastSide t x).ncard ∧ K ≤ (P.sweep.futureSide t x).ncard
     · obtain ⟨t, ht, x, hx, hA, hB⟩ := hthick
@@ -381,8 +381,9 @@ theorem abs_signedCount_accepted_le [Finite ι] [Finite U] [Finite M] (hP : P.Un
         simp only [mem_peers_sweep, mem_ofPred_eq, mem_sdiff]; tauto
       have hcard := ncard_sdiff_add_ncard_of_subset hR
       have hpos : 0 < (P.sweep.peers t x).ncard := (ncard_pos (toFinite _)).mpr ⟨x, hx, rfl⟩
-      have hrest := hacc ▸ ih _ (by rw [hacc]; omega) (P.eraseNode t (P.path x t))
-        (hP.eraseNode _ _) hL rfl
+      have hlt : (P.eraseNode t (P.path x t)).accepted.ncard < P.accepted.ncard :=
+        hacc ▸ (Nat.lt_add_of_pos_right hpos).trans_eq hcard
+      have hrest := hacc ▸ ih (P.eraseNode t (P.path x t)) hlt (hP.eraseNode _ _) hL
       have hrect : |signedCount S (P.sweep.peers t x)| ≤ 2 * b * (P.sweep.peers t x).ncard :=
         hP.peers_eq_rectangle ht x ▸ hS.abs_signedCount_rectangle_le hA hB
       have hsize : (((K - 1) ^ 2 * (P.eraseNode t (P.path x t)).size : ℕ) : ℝ) ≤

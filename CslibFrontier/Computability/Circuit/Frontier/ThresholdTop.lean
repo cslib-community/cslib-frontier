@@ -823,9 +823,9 @@ private theorem abs_signedCount_le_of_root_peers {ι U M : Type*} [Finite ι] [F
             2 * b * (rectangle (B₀.revealed s) A C).ncard) :
     |signedCount D B.accepted| ≤
       2 * b * B.accepted.ncard + ((K - 1) ^ 2 * realizedSize B : ℕ) := by
-  induction hn : B.accepted.ncard using Nat.strong_induction_on generalizing B with
-  | ind k ih =>
-    subst hn
+  induction B using
+      (_root_.measure fun B : ReadOnceNBP ι U M => B.accepted.ncard).wf.induction with
+  | h B ih =>
     by_cases hthick : ∃ s ≤ B.length, ∃ x ∈ B.accepted,
         K ≤ (B.sweep.pastSide s x).ncard ∧ K ≤ (B.sweep.futureSide s x).ncard
     · obtain ⟨s, hs, x, hx, hA, hC⟩ := hthick
@@ -853,7 +853,9 @@ private theorem abs_signedCount_le_of_root_peers {ι U M : Type*} [Finite ι] [F
         refine ⟨(hsub y hyB).1, fun u hu => ?_⟩
         rw [hB y _ _ hpy (B.isAcceptingPath_path hyB) u (hLen ▸ hu)]
         exact (hsub y hyB).2 u hu
-      have hrest := ih _ (by rw [hacc]; omega) hB' hLen hRev hL hsub' rfl
+      have hlt : (B.eraseNode s (B.path x s)).accepted.ncard < B.accepted.ncard :=
+        hacc ▸ (Nat.lt_add_of_pos_right hpos).trans_eq hcard
+      have hrest := ih _ hlt hB' hLen hRev hL hsub'
       rw [hacc] at hrest
       have hrect : |signedCount D (B.sweep.peers s x)| ≤ 2 * b * (B.sweep.peers s x).ncard := by
         rw [hB.peers_eq_rectangle hs x]

@@ -123,8 +123,9 @@ private theorem eq_zero_of_aeval_logSeries (d : ℕ) (g : MvPolynomial (Fin n) F
   induction d generalizing g with
   | zero => exact MvPolynomial.ext _ _ fun m => hd m (Nat.zero_le _)
   | succ d ihd =>
-  induction hk : #{m ∈ g.support | m.degree = d} using Nat.strong_induction_on generalizing g with
-  | _ k ih =>
+  let topCount (g : MvPolynomial (Fin n) F[X]) := #{m ∈ g.support | m.degree = d}
+  induction g using (_root_.measure topCount).wf.induction
+  rename_i g ih
   by_cases htop : ∀ m, m.degree = d → g.coeff m = 0
   · exact ihd g (fun m hm => hm.eq_or_lt.elim (fun h => htop m h.symm) (hd m)) hg
   exfalso
@@ -143,9 +144,8 @@ private theorem eq_zero_of_aeval_logSeries (d : ℕ) (g : MvPolynomial (Fin n) F
   -- By minimality, `α * D g = Q * α' * g`.
   have hmin : MvPolynomial.C α * logDeriv F n g -
       MvPolynomial.C (logDenom F n * derivative α) * g = 0 := by
-    refine ih _ ?_ _ (fun m hm => ?_) (by simp [aeval_logDeriv, hg]) rfl
-    · rw [← hk]
-      refine (card_le_card fun m hm => ?_).trans_lt
+    refine ih _ ?_ (fun m hm => ?_) (by simp [aeval_logDeriv, hg])
+    · refine (card_le_card fun m hm => ?_).trans_lt
         (card_erase_lt_of_mem (mem_filter.2 ⟨MvPolynomial.mem_support_iff.2 hα, hm₀⟩))
       simp only [mem_filter, mem_erase, MvPolynomial.mem_support_iff, hcoeff] at hm ⊢
       obtain ⟨hm, hmd⟩ := hm

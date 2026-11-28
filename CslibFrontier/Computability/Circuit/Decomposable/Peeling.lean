@@ -275,9 +275,8 @@ and `v₀` does not occur in the accepting sub-certificate of `x` rooted at `w`.
 private theorem accepts_eraseNode_iff (hP : P.DisjointUnions) (v₀ w : N) (x : ι → U) :
     x ∈ (P.eraseNode v₀).accepts w ↔ x ∈ P.accepts w ∧ ¬ P.OccursFrom x w v₀ := by
   classical
-  induction hn : P.rank w using Nat.strong_induction_on generalizing w with
-  | ind n ih =>
-    subst hn
+  induction w using (_root_.measure P.rank).wf.induction with
+  | h w ih =>
     by_cases hw : w = v₀
     · subst hw
       have h0 : x ∉ (P.eraseNode w).accepts w := by
@@ -303,7 +302,7 @@ private theorem accepts_eraseNode_iff (hP : P.DisjointUnions) (v₀ w : N) (x : 
         have hlhs : x ∈ (P.eraseNode v₀).accepts w ↔
             ∃ u ∈ c, x ∈ P.accepts u ∧ ¬ P.OccursFrom x u v₀ :=
           ((P.eraseNode v₀).values_union w c hgate x).trans (exists_congr fun u =>
-            and_congr_right fun hu => ih _ (P.rank_union w c hg u hu) u rfl)
+            and_congr_right fun hu => ih u (P.rank_union w c hg u hu))
         rw [hlhs, show x ∈ P.accepts w ↔ ∃ u ∈ c, x ∈ P.accepts u from P.values_union w c hg x]
         constructor
         · rintro ⟨u, hu, hxu, hnu⟩
@@ -324,7 +323,7 @@ private theorem accepts_eraseNode_iff (hP : P.DisjointUnions) (v₀ w : N) (x : 
             (x ∈ P.accepts l ∧ ¬ P.OccursFrom x l v₀) ∧
               (x ∈ P.accepts r ∧ ¬ P.OccursFrom x r v₀) :=
           ((P.eraseNode v₀).values_product w l r hgate x).trans
-            (and_congr (ih _ hrk.1 l rfl) (ih _ hrk.2 r rfl))
+            (and_congr (ih l hrk.1) (ih r hrk.2))
         rw [hlhs, show x ∈ P.accepts w ↔ x ∈ P.accepts l ∧ x ∈ P.accepts r from
           P.values_product w l r hg x]
         constructor
@@ -385,9 +384,9 @@ theorem abs_signedCount_accepted_le (hP : P.DisjointUnions) {S : Set (ι → U)}
     (hb : 0 ≤ b) (hS : RectangleBias S K b) :
     |signedCount S P.accepted| ≤ 2 * b * P.accepted.ncard +
       (((K - 1) ^ 2 * P.unionEdges + (K - 1) ^ 3 * P.products + (K - 1) : ℕ) : ℝ) := by
-  induction hn : P.accepted.ncard using Nat.strong_induction_on generalizing P with
-  | ind n ih =>
-    subst hn
+  induction P using
+      (_root_.measure fun P : DecomposableDAG ι U N => P.accepted.ncard).wf.induction with
+  | h P ih =>
     by_cases hthick : ∃ v : N, (∃ x, P.Occurs x v) ∧
         K ≤ (P.values v).ncard ∧ K ≤ (P.contexts v).ncard
     · obtain ⟨v, ⟨x₀, hx₀⟩, hA, hB⟩ := hthick
@@ -396,7 +395,9 @@ theorem abs_signedCount_accepted_le (hP : P.DisjointUnions) {S : Set (ι → U)}
       have hpos : 0 < R.ncard := (ncard_pos (toFinite R)).mpr ⟨x₀, hx₀⟩
       have hacc : (P.eraseNode v).accepted = P.accepted \ R := accepted_eraseNode hP v
       have hcard := ncard_sdiff_add_ncard_of_subset hR
-      have hrest := ih _ (by rw [hacc]; omega) (P.eraseNode v) (hP.eraseNode v) rfl
+      have hlt : (P.eraseNode v).accepted.ncard < P.accepted.ncard :=
+        hacc ▸ (Nat.lt_add_of_pos_right hpos).trans_eq hcard
+      have hrest := ih (P.eraseNode v) hlt (hP.eraseNode v)
       rw [hacc] at hrest
       have hrect : |signedCount S R| ≤ 2 * b * R.ncard := by
         rw [show R = rectangle (P.scope v) (P.values v) (P.contexts v) from P.occurs_eq_rectangle v]
