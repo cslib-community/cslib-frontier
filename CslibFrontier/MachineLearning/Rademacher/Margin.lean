@@ -194,11 +194,10 @@ theorem empiricalMarginLoss_le_count_div {ρ : ℝ} (hρ : 0 < ρ) (h : α → �
     empiricalMarginLoss ρ h S ≤
       ((Finset.univ.filter fun i : Fin m => signVal (S i).2 * h (S i).1 ≤ ρ).card : ℝ) / m := by
   classical
-  rw [empiricalMarginLoss_def, Fintype.expect_eq_sum_div_card, Fintype.card_fin,
-    Finset.card_filter, Nat.cast_sum]
-  refine div_le_div_of_nonneg_right (Finset.sum_le_sum fun i _ => ?_) (Nat.cast_nonneg m)
-  simpa only [Nat.cast_ite, Nat.cast_one, Nat.cast_zero] using
-    marginLoss_le_boole hρ (signVal (S i).2 * h (S i).1)
+  rw [empiricalMarginLoss_def, Fintype.expect_eq_sum_div_card, Fintype.card_fin, ← Finset.sum_boole]
+  exact div_le_div_of_nonneg_right
+    (Finset.sum_le_sum fun i _ => marginLoss_le_boole hρ (signVal (S i).2 * h (S i).1))
+    (Nat.cast_nonneg m)
 
 /-- The **population `ρ`-margin loss** `E_{(x, y) ∼ D}[Φ_ρ(signVal y * h x)]` of `h : α → ℝ` under
 `D : PMF (α × Bool)` on a finite domain `α`. -/

@@ -158,8 +158,7 @@ theorem card_filter_swapSamples_exists_le_abs_le {Z : Type*} {G : ConceptClass Z
       ((Finset.univ.filter fun i => g ((swapSamples σ z).1 i) = true).card : ℝ) -
           (Finset.univ.filter fun i => g ((swapSamples σ z).2 i) = true).card =
         ∑ i, a g i * signVal (σ i) := by
-    simp only [Finset.card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero,
-      ← Finset.sum_sub_distrib]
+    simp only [← Finset.sum_boole, ← Finset.sum_sub_distrib]
     refine Finset.sum_congr rfl fun i _ => ?_
     simp only [a, fst_swapSamples_apply, snd_swapSamples_apply]
     cases hσ : σ i <;> cases h1 : g (z.1 i) <;> cases h2 : g (z.2 i) <;>

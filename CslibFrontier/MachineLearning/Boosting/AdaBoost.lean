@@ -288,11 +288,11 @@ multiplicative update, since each such point has weight at least `1`. -/
 theorem empiricalMiscount_le_potential (T : ℕ) :
     (empiricalMiscount (fun x => decide (0 < score S A T x)) S : ℝ) ≤
       potential exp (lossSeq S A) T := by
-  rw [empiricalMiscount, card_filter, Nat.cast_sum, potential]
+  rw [empiricalMiscount, ← sum_boole, potential]
   refine sum_le_sum fun i _ => ?_
   split_ifs with hi
-  · simpa only [Nat.cast_one, weight, ← exp_sum] using one_le_exp (sum_lossSeq_nonneg S A hi)
-  · simpa only [Nat.cast_zero] using (weight_pos (fun _ _ _ => exp_pos _) i).le
+  · simpa only [weight, ← exp_sum] using one_le_exp (sum_lossSeq_nonneg S A hi)
+  · exact (weight_pos (fun _ _ _ => exp_pos _) i).le
 
 /-- The weighted error of every round is nonnegative. -/
 theorem rounds_error_nonneg (t : ℕ) : 0 ≤ (rounds S A t).error S := by
