@@ -118,8 +118,7 @@ private theorem sum_hole_identity {A : Type*} [CommRing A] (x : Fin m → A) :
 
 private theorem X_ne_holePoly [Nontrivial R] (i i' : Fin m) (j : Fin n) :
     (X (i, j) : MvPolynomial (Fin m × Fin n) R) ≠ 1 - X (i, j) - X (i', j) := fun h => by
-  have := congrArg constantCoeff h
-  simp at this
+  simpa using congrArg constantCoeff h
 
 /-- The summands of the refutation: `1 · 1 ² · Pᵢ`, `1 · (1 - ∑ᵢ Xᵢⱼ) ²`,
 `1 · 1 ² · Xᵢⱼ · Hᵢᵢ'ⱼ` for `i ≠ i'`, and `(m - n - 1) · 1 ²`. -/
@@ -200,8 +199,7 @@ theorem refutableInDegree_two_pigeonhole (h : n < m) :
     have hcomm : ∑ i : Fin m, ∑ j : Fin n, (X (i, j) : MvPolynomial (Fin m × Fin n) R) =
         ∑ j, ∑ i, X (i, j) := sum_comm
     have hcast : ((m - n - 1 : ℕ) : MvPolynomial (Fin m × Fin n) R) = m - n - 1 := by
-      rw [Nat.cast_sub (by omega), Nat.cast_sub h.le]
-      simp
+      rw [Nat.cast_sub (Nat.succ_le_of_lt (Nat.sub_pos_of_lt h)), Nat.cast_sub h.le, Nat.cast_one]
     simp only [Fintype.sum_sum_type, Fintype.sum_prod_type, Fintype.sum_unique, hT]
     simp only [phpSummand, Summand.toPoly_def, prod_singleton, prod_empty, map_one, one_pow,
       one_mul, mul_one, map_natCast, map_sub, map_ofNat, hcast]
@@ -224,20 +222,16 @@ variable {R : Type*} [Field R] [LinearOrder R] [IsStrictOrderedRing R] {m n : �
 theorem eval_inv_nonneg_of_mem_cnfIneqs_pigeonhole (hn : 2 ≤ n) :
     ∀ f ∈ (cnfIneqs (pigeonhole m n) : Set (MvPolynomial (Fin m × Fin n) R)),
       0 ≤ eval (fun _ => (n : R)⁻¹) f := by
-  have hn0 : (0 : R) < n := by exact_mod_cast (by omega : 0 < n)
-  have hinv : 0 < (n : R)⁻¹ := inv_pos.2 hn0
+  have hn0 : (0 : R) < n := Nat.cast_pos.2 (by omega)
   have hhalf : 2 * (n : R)⁻¹ ≤ 1 := by
-    have h := mul_le_mul_of_nonneg_left (show (2 : R) ≤ n by exact_mod_cast hn) hinv.le
-    rwa [inv_mul_cancel₀ hn0.ne', mul_comm] at h
-  refine forall_mem_cnfIneqs_iff.2 ⟨fun c hc => ?_, fun v => ?_, fun v => ?_⟩
+    rw [← div_eq_mul_inv, div_le_one hn0]
+    exact_mod_cast hn
+  refine forall_mem_cnfIneqs_iff.2 ⟨fun c hc => ?_, fun _ => by simp, fun _ => ?_⟩
   · rcases mem_pigeonhole.1 hc with ⟨i, rfl⟩ | ⟨i, i', j, hii', rfl⟩
-    · rw [toPoly_toIneq_pigeonClause]
-      simp [mul_inv_cancel₀ hn0.ne']
-    · rw [toPoly_toIneq_holeClause hii'.ne]
-      simp only [map_sub, map_one, eval_X]
+    · simp [toPoly_toIneq_pigeonClause, mul_inv_cancel₀ hn0.ne']
+    · simp only [toPoly_toIneq_holeClause hii'.ne, map_sub, map_one, eval_X]
       linarith
-  · simp
-  · simp only [map_sub, map_one, eval_X, sub_nonneg]
+  · simp only [map_sub, map_one, eval_X]
     linarith
 
 /-- **Degree `2` is optimal**: for `n ≥ 2`, the constraints of `PHP^m_n` have no
@@ -253,15 +247,11 @@ theorem not_refutableInDegree_one_pigeonhole (hn : 2 ≤ n) :
 `2 ≤ d`. -/
 theorem refutableInDegree_pigeonhole_iff (hn : 2 ≤ n) {d : ℕ} :
     RefutableInDegree (cnfIneqs (pigeonhole m n) : Set (MvPolynomial (Fin m × Fin n) R))
-      (booleanAxioms (Fin m × Fin n) R) d ↔ n < m ∧ 2 ≤ d := by
-  constructor
-  · intro h
-    refine ⟨?_, ?_⟩
-    · by_contra hle
-      exact not_satisfiable_of_refutableInDegree h (satisfiable_pigeonhole_iff.2 (by omega))
-    · by_contra hd
-      exact not_refutableInDegree_one_pigeonhole hn (h.mono le_rfl le_rfl (by omega))
-  · rintro ⟨hnm, hd⟩
-    exact (refutableInDegree_two_pigeonhole hnm).mono le_rfl le_rfl hd
+      (booleanAxioms (Fin m × Fin n) R) d ↔ n < m ∧ 2 ≤ d :=
+  ⟨fun h => ⟨by_contra fun hle => not_satisfiable_of_refutableInDegree h
+      (satisfiable_pigeonhole_iff.2 (by omega)),
+    by_contra fun hd => not_refutableInDegree_one_pigeonhole hn
+      (h.mono le_rfl le_rfl (by omega))⟩,
+    fun ⟨hnm, hd⟩ => (refutableInDegree_two_pigeonhole hnm).mono le_rfl le_rfl hd⟩
 
 end Cslib.Logic.PL.SOS.Psatz

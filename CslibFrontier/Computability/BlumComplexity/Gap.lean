@@ -70,23 +70,17 @@ disjoint intervals, and each of the `n + 1` programs has its cost in at most one
 private theorem exists_noCostIn (Φ : BlumMeasure) (g : ℕ → ℕ → ℕ) (n L : ℕ) :
     ∃ k, L ≤ k ∧ NoCostIn Φ g n k := by
   let s : ℕ → ℕ := fun j => (fun k => max k (g n k))^[j] L
-  have hs_succ : ∀ j, s (j + 1) = max (s j) (g n (s j)) := fun j =>
-    Function.iterate_succ_apply' _ _ _
-  have hs_mono : Monotone s :=
-    monotone_nat_of_le_succ fun j => (hs_succ j).symm ▸ le_max_left _ _
+  have hs_succ (j) : s (j + 1) = max (s j) (g n (s j)) := Function.iterate_succ_apply' _ _ _
+  have hs_mono : Monotone s := monotone_nat_of_le_succ fun j => (hs_succ j).symm ▸ le_max_left _ _
   by_contra hne
-  have hw : ∀ j, ∃ i < n + 1, ∃ m < g n (s j) + 1, s j < m ∧ m ∈ Φ.cost (ofNat Code i) n := by
-    intro j
+  have hw (j) : ∃ i < n + 1, ∃ m < g n (s j) + 1, s j < m ∧ m ∈ Φ.cost (ofNat Code i) n := by
     by_contra hj
-    refine hne ⟨s j, hs_mono (Nat.zero_le j), fun i hi m hm hlt hmem => hj ?_⟩
-    exact ⟨i, hi, m, hm, hlt, hmem⟩
+    exact hne ⟨s j, hs_mono (Nat.zero_le j),
+      fun i hi m hm hlt hmem => hj ⟨i, hi, m, hm, hlt, hmem⟩⟩
   choose idx hidx m hm hlt hmem using hw
   -- Two intervals cannot hold the cost of the same program.
-  have key : ∀ j j', j < j' → idx j = idx j' → False := by
-    intro j j' hjj' he
-    have h1 := hmem j
-    rw [he] at h1
-    have heq := Part.mem_unique h1 (hmem j')
+  have key {j j'} (hjj' : j < j') (he : idx j = idx j') : False := by
+    have heq := Part.mem_unique (he ▸ hmem j) (hmem j')
     have h2 : g n (s j) ≤ s j' :=
       (le_max_right _ _).trans ((hs_succ j).symm ▸ hs_mono (Nat.succ_le_of_lt hjj'))
     have := hm j
@@ -95,9 +89,7 @@ private theorem exists_noCostIn (Φ : BlumMeasure) (g : ℕ → ℕ → ℕ) (n 
   obtain ⟨j, -, j', -, hne', heq⟩ := Finset.exists_ne_map_eq_of_card_lt_of_maps_to
     (s := Finset.range (n + 2)) (t := Finset.range (n + 1)) (f := idx) (by simp)
     (fun j _ => Finset.mem_coe.2 (Finset.mem_range.2 (hidx j)))
-  rcases lt_or_gt_of_ne hne' with h | h
-  · exact key j j' h heq
-  · exact key j' j h heq.symm
+  exact (lt_or_gt_of_ne hne').elim (fun h => key h heq) (fun h => key h heq.symm)
 
 private theorem computablePred_noCostIn (Φ : BlumMeasure) {g : ℕ → ℕ → ℕ} (hg : Computable₂ g) :
     ComputablePred fun x : (ℕ × ℕ) × ℕ => x.1.2 ≤ x.2 ∧ NoCostIn Φ g x.1.1 x.2 := by
@@ -126,15 +118,14 @@ theorem exists_gap₂ {g : ℕ → ℕ → ℕ} {a : ℕ → ℕ} (hg : Computab
     ∃ t : ℕ → ℕ, Computable t ∧ StrictMono t ∧ (∀ n, a n ≤ t n) ∧
       ∀ c : Code, ∀ n, encode c ≤ n → ∀ m ∈ Φ.cost c n, m ≤ t n ∨ g n (t n) < m := by
   classical
-  have hex : ∀ x : ℕ × ℕ, ∃ k, x.2 ≤ k ∧ NoCostIn Φ g x.1 k := fun x =>
-    Φ.exists_noCostIn g x.1 x.2
+  have hex (x : ℕ × ℕ) := Φ.exists_noCostIn g x.1 x.2
   -- `F (n, L)` is the least `k ≥ L` such that no program numbered `≤ n` has cost on `n` in
   -- `(k, g n k]`.
   let F : ℕ × ℕ → ℕ := fun x => Nat.find (hex x)
   have hF : Computable F :=
     Computable.find (P := fun (x : ℕ × ℕ) k => x.2 ≤ k ∧ NoCostIn Φ g x.1 k)
       (Φ.computablePred_noCostIn hg) hex
-  have hspec : ∀ x, x.2 ≤ F x ∧ NoCostIn Φ g x.1 (F x) := fun x => Nat.find_spec (hex x)
+  have hspec (x) : x.2 ≤ F x ∧ NoCostIn Φ g x.1 (F x) := Nat.find_spec (hex x)
   -- `t 0 = F (0, a 0)` and `t (n + 1) = F (n + 1, max (a (n + 1)) (t n + 1))`.
   let t : ℕ → ℕ := fun n => Nat.rec (motive := fun _ => ℕ) (F (0, a 0))
     (fun i ti => F (i + 1, max (a (i + 1)) (ti + 1))) n
@@ -146,27 +137,18 @@ theorem exists_gap₂ {g : ℕ → ℕ → ℕ} {a : ℕ → ℕ} (hg : Computab
         (Primrec.nat_max.to_comp.comp
           (ha.comp (Computable.succ.comp (Computable.fst.comp Computable.snd)))
           (Computable.succ.comp (Computable.snd.comp Computable.snd))))).to₂
-  have hstep : ∀ n, max (a (n + 1)) (t n + 1) ≤ t (n + 1) := fun n =>
+  have hstep (n) : max (a (n + 1)) (t n + 1) ≤ t (n + 1) :=
     (hspec (n + 1, max (a (n + 1)) (t n + 1))).1
-  have hgap : ∀ n, NoCostIn Φ g n (t n) := by
-    intro n
+  refine ⟨t, ht, strictMono_nat_of_lt_succ fun n => by have := hstep n; omega,
+    fun | 0 => (hspec (0, a 0)).1 | n + 1 => by have := hstep n; omega,
+    fun c n hc m hm => Classical.not_not.mp fun hcon => ?_⟩
+  push Not at hcon
+  have hgap : NoCostIn Φ g n (t n) := by
     cases n with
     | zero => exact (hspec (0, a 0)).2
     | succ n => exact (hspec (n + 1, max (a (n + 1)) (t n + 1))).2
-  refine ⟨t, ht, strictMono_nat_of_lt_succ fun n => ?_, fun n => ?_, ?_⟩
-  · have := hstep n
-    omega
-  · cases n with
-    | zero => exact (hspec (0, a 0)).1
-    | succ n =>
-      have := hstep n
-      omega
-  · intro c n hc m hm
-    by_contra hcon
-    push Not at hcon
-    have := hgap n (encode c) (Nat.lt_succ_of_le hc) m (Nat.lt_succ_of_le hcon.2) hcon.1
-    rw [ofNat_encode] at this
-    exact this hm
+  exact (ofNat_encode c ▸ hgap (encode c) (Nat.lt_succ_of_le hc) m
+    (Nat.lt_succ_of_le hcon.2) hcon.1) hm
 
 /-- **Pointwise gap** [Borodin1972]. For every computable `g` and every computable lower bound
 `a`, there is a computable, strictly increasing `t ≥ a` such that, for every program `c` and

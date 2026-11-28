@@ -77,19 +77,17 @@ theorem hitValue_spec (f : BitString n → BitString n) (T K d : ℕ) (x : BitSt
     grind [BitVec.toNat_sub_of_le, BitVec.toNat_ofNat]
   rw [hitValue, selectBits_of_toNat_lt _ _ (by rw [he]; omega)]
   simp only [he, ← Function.iterate_add_apply]
-  congr 1
-  omega
+  exact congrArg (fun k => f^[k] x) (by omega)
 
 private theorem repeatedValue_spec (f : BitString n → BitString n) (T K i j : ℕ) (x : BitString n)
     (hij : i < j) (hj : j ≤ K) (hK : K < 2 ^ w) (hT : K ≤ T) (heq : f^[i] x = f^[j] x) :
     repeatedValue f T K x (BitVec.ofNat w i) (BitVec.ofNat w j) = f^[T] x := by
   have hiw : (BitVec.ofNat w i).toNat = i := Nat.mod_eq_of_lt (by omega)
   have hjw : (BitVec.ofNat w j).toNat = j := Nat.mod_eq_of_lt (by omega)
-  have hs := repeatWordIndex_spec (f := f) (x := x)
+  obtain ⟨_, hlt, heq'⟩ := repeatWordIndex_spec (f := f) (x := x)
     (BitVec.ofNat w i) (BitVec.ofNat w j) (by rwa [hiw, hjw]) (by rwa [hjw]) hK hT
     (by rwa [hiw, hjw])
-  rw [repeatedValue, selectBits_of_toNat_lt _ _ (by have := hs.2.1; rw [hjw] at this; omega)]
-  exact hs.2.2
+  rwa [repeatedValue, selectBits_of_toNat_lt _ _ (by omega)]
 
 /-- A witness pair determines the state at time `T`. -/
 theorem reconstruct_spec {M : ℕ} (f : BitString n → BitString n) (T K : ℕ)
@@ -130,13 +128,12 @@ private theorem synthesis_repeatedValue (s : Set (BooleanFunction n))
     (hp : prefixWires f K ⊆ s) (hc : ∀ b : Bool, (fun _ : BitString n => b) ∈ s) :
     Synthesis interpretation s (wires fun x => repeatedValue f T K x (lo x) (hi x))
       (200 * (K + 1) * (n + w + 1) ^ 2) := by
-  have hidx := synthesis_repeatWordIndex s T K lo hi hlo hhi hc
-  have hsel := Synthesis.selectBits
-    (s := s ∪ wordWires fun x => repeatWordIndex T K (lo x) (hi x))
-    (fun x => repeatWordIndex T K (lo x) (hi x)) (fun j : Fin (K + 1) => fun x => f^[j.val] x)
-    (fun i => Or.inr ⟨i, rfl⟩)
-    fun j bit => Or.inl (hp (prefix_mem f (by have := j.isLt; omega) bit))
-  apply (hidx.trans hsel).mono Set.Subset.rfl Set.Subset.rfl
+  refine ((synthesis_repeatWordIndex s T K lo hi hlo hhi hc).trans
+    (Synthesis.selectBits (s := s ∪ wordWires fun x => repeatWordIndex T K (lo x) (hi x))
+      (fun x => repeatWordIndex T K (lo x) (hi x)) (fun j : Fin (K + 1) => fun x => f^[j.val] x)
+      (fun i => Or.inr ⟨i, rfl⟩) fun j bit =>
+        Or.inl (hp (prefix_mem f (Nat.le_of_lt_succ j.isLt) bit)))).mono
+    Set.Subset.rfl Set.Subset.rfl ?_
   nlinarith [Nat.zero_le (K * n ^ 2), Nat.zero_le (K * n * w), Nat.zero_le (K * w ^ 2)]
 
 /-- Synthesizes `hitValue` by unfolding `K` steps of `c` from `payload` and selecting the step at
@@ -152,14 +149,13 @@ theorem synthesis_hitValue {a : ℕ} (s : Set (BooleanFunction a))
   let idx := fun x => BitVec.ofNat w K - index x
   let trace := Synthesis.stages
     (fun j => wires fun x => (c.eval interpretation)^[j] (payload x)) K
-  have horbit : Synthesis interpretation s trace (K * c.size) :=
-    Synthesis.orbit c payload (fun i => hp ⟨i, rfl⟩) K
-  have hidx := Synthesis.word_sub (s := s) (fun _ => BitVec.ofNat w K) index (fun _ => hc _) hi
-  have hsel := Synthesis.selectBits (s := s ∪ (trace ∪ wordWires idx)) idx
-    (fun j : Fin (K + 1) => fun x => (c.eval interpretation)^[j.val] (payload x))
-    (fun i => Or.inr (Or.inr ⟨i, rfl⟩))
-    fun j bit => Or.inr (Or.inl (Synthesis.subset_stages _ (Nat.le_of_lt_succ j.isLt) ⟨bit, rfl⟩))
-  apply ((horbit.union hidx).trans hsel).mono Set.Subset.rfl Set.Subset.rfl
+  refine (((Synthesis.orbit c payload (fun i => hp ⟨i, rfl⟩) K).union
+      (Synthesis.word_sub (s := s) (fun _ => BitVec.ofNat w K) index (fun _ => hc _) hi)).trans
+    (Synthesis.selectBits (s := s ∪ (trace ∪ wordWires idx)) idx
+      (fun j : Fin (K + 1) => fun x => (c.eval interpretation)^[j.val] (payload x))
+      (fun i => Or.inr (Or.inr ⟨i, rfl⟩)) fun j bit =>
+        Or.inr (Or.inl (Synthesis.subset_stages _ (Nat.le_of_lt_succ j.isLt) ⟨bit, rfl⟩)))).mono
+    Set.Subset.rfl Set.Subset.rfl ?_
   nlinarith [Nat.zero_le (K * n ^ 2), Nat.zero_le (K * n * w), Nat.zero_le (K * w ^ 2)]
 
 /-- The reconstruction circuit: two payload orbits, two residue branches and their selection. -/
@@ -179,12 +175,11 @@ theorem synthesis_reconstruct (s : Set (BooleanFunction n)) (c : Circuit signatu
     (fun x => (a x).index) (fun x => (b x).index) (Record.index_mem ha) (Record.index_mem hb) hp hc
   have hbackward := synthesis_repeatedValue s (c.eval interpretation) T K
     (fun x => (b x).index) (fun x => (a x).index) (Record.index_mem hb) (Record.index_mem ha) hp hc
-  have hcmp := Synthesis.word_ult (s := s) (fun x => (a x).index) (fun x => (b x).index)
-    (Record.index_mem ha) (Record.index_mem hb)
-  have h := synthesis_ite hleft (synthesis_ite hright
-    (synthesis_ite hforward hbackward hcmp) (Synthesis.of_mem (Record.checkpoint_mem hb)))
-    (Synthesis.of_mem (Record.checkpoint_mem ha))
-  apply h.mono Set.Subset.rfl Set.Subset.rfl
+  refine (synthesis_ite hleft (synthesis_ite hright
+    (synthesis_ite hforward hbackward (Synthesis.word_ult (s := s) (fun x => (a x).index)
+      (fun x => (b x).index) (Record.index_mem ha) (Record.index_mem hb)))
+    (Synthesis.of_mem (Record.checkpoint_mem hb)))
+    (Synthesis.of_mem (Record.checkpoint_mem ha))).mono Set.Subset.rfl Set.Subset.rfl ?_
   nlinarith [Nat.zero_le (K * c.size)]
 
 end Cslib.Circuits.Boolean.Iteration

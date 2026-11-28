@@ -132,43 +132,34 @@ theorem succProbability_inversionGameOn_le_secondPreimageGameOn_add
       Game.succProbability
         (ProbComp.eval (secondPreimageGameOn f valid (inverterToSecondPreimage f adversary) n)) +
         (2 : ℝ≥0) ^ d / (2 : ℝ≥0) ^ n := by
-  have hinv : ProbComp.eval (inversionGameOn f valid adversary n) =
-      (BitString.uniformList n).bind fun m =>
-        (ProbComp.eval (adversary n (f m))).map fun x' => valid n x' && f x' == f m := by
-    simp only [inversionGameOn, ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList]
-    rfl
-  have hspr : ProbComp.eval
-        (secondPreimageGameOn f valid (inverterToSecondPreimage f adversary) n) =
-      (BitString.uniformList n).bind fun m =>
-        (ProbComp.eval (adversary n (f m))).map
-          fun x' => valid n x' && (x' != m && f x' == f m) := by
-    simp only [secondPreimageGameOn, inverterToSecondPreimage, ProbComp.eval_bind,
-      ProbComp.eval_pure, BitString.eval_sampleList]
-    rfl
   have hsplit :
       ProbComp.eval (inversionGameOn f valid adversary n) true ≤
         ProbComp.eval (secondPreimageGameOn f valid (inverterToSecondPreimage f adversary) n)
             true +
           ∑' m, BitString.uniformList n m * ProbComp.eval (adversary n (f m)) m := by
-    rw [hinv, hspr, PMF.bind_apply, PMF.bind_apply, ← tsum_add]
+    simp only [inversionGameOn, secondPreimageGameOn, inverterToSecondPreimage, ProbComp.eval_bind,
+      ProbComp.eval_pure, BitString.eval_sampleList]
+    change ((BitString.uniformList n).bind fun m =>
+        (ProbComp.eval (adversary n (f m))).map fun x' => valid n x' && f x' == f m) true ≤
+      ((BitString.uniformList n).bind fun m =>
+        (ProbComp.eval (adversary n (f m))).map
+          fun x' => valid n x' && (x' != m && f x' == f m)) true + _
+    rw [PMF.bind_apply, PMF.bind_apply, ← tsum_add]
     refine tsum_le_tsum fun m => ?_
     rw [← mul_add]
     gcongr
     refine (PMF.map_true_le_add _ (A := fun x' => valid n x' && (x' != m && f x' == f m))
       (B := fun x' => x' == m) fun x' _ h => ?_).trans ?_
-    · by_cases hx : x' = m
-      · exact Or.inr (by simp [hx])
-      · exact Or.inl (by simpa [hx] using h)
+    · by_cases hx : x' = m <;> simp_all
     · gcongr
       rw [PMF.map_apply_true, tsum_eq_single m (fun a ha => by simp [ha])]
       simp
   have hguess :
       ∑' m, BitString.uniformList n m * ProbComp.eval (adversary n (f m)) m ≤
-        (((2 : ℝ≥0) ^ d / (2 : ℝ≥0) ^ n : ℝ≥0) : ℝ≥0∞) := by
-    refine (PMF.tsum_uniformList_mul_apply_le f hlen
-      (fun y => ProbComp.eval (adversary n y))).trans_eq ?_
-    rw [ENNReal.coe_div (pow_ne_zero n two_ne_zero), ENNReal.coe_pow, ENNReal.coe_pow,
-      ENNReal.coe_ofNat, one_div, div_eq_mul_inv]
+        (((2 : ℝ≥0) ^ d / (2 : ℝ≥0) ^ n : ℝ≥0) : ℝ≥0∞) :=
+    (PMF.tsum_uniformList_mul_apply_le f hlen (fun y => ProbComp.eval (adversary n y))).trans_eq
+      (by rw [ENNReal.coe_div (pow_ne_zero n two_ne_zero), ENNReal.coe_pow, ENNReal.coe_pow,
+            ENNReal.coe_ofNat, one_div, div_eq_mul_inv])
   unfold Game.succProbability
   refine (ENNReal.toNNReal_mono
     (ENNReal.add_ne_top.mpr ⟨PMF.apply_ne_top _ _, ENNReal.coe_ne_top⟩)
@@ -187,11 +178,10 @@ theorem SecondPreimageResistantOn.oneWayOn_of_outputLength
     (hlen : ∀ n (w : List Bool), w.length = n → (f w).length = outLen n)
     (hcomp : Negligible (fun n => (2 : ℝ≥0) ^ outLen n / (2 : ℝ≥0) ^ n)) :
     OneWayOn f valid := by
-  refine OneWayOn.of_negligible hf.polyTime fun adversary hadversary => ?_
-  have hspr := hf.negligible (inverterToSecondPreimage f adversary)
-    (isPPT_inverterToSecondPreimage hf.polyTime hadversary)
-  exact negligible_of_le (hspr.add_fun hcomp) fun n =>
-    succProbability_inversionGameOn_le_secondPreimageGameOn_add (hlen n) adversary
+  refine OneWayOn.of_negligible hf.polyTime fun adversary hadversary =>
+    negligible_of_le ((hf.negligible (inverterToSecondPreimage f adversary)
+      (isPPT_inverterToSecondPreimage hf.polyTime hadversary)).add_fun hcomp) fun n =>
+      succProbability_inversionGameOn_le_secondPreimageGameOn_add (hlen n) adversary
 
 /-! ## Collision resistance implies second-preimage resistance (Exercise 8.23(d) and (8.17)) -/
 
@@ -210,14 +200,8 @@ is uniformly strict PPT. -/
 theorem isPPT_secondPreimageToCollisionFinder {adversary : SecondPreimageFinder}
     (hadversary : IsPPT encBits adversary) (r : ℕ) :
     IsPPT (encPair encBits encBits) (secondPreimageToCollisionFinder adversary r) := by
-  change IsPPT (encPair encBits encBits)
-    (fun n key => secondPreimageToCollisionFinder adversary r n key)
-  have hfinder : IsPPT (encPair encBits encBits)
-      (fun n key => CollisionResistantToOneWay.finder
-        (fun _ message => message) adversary r n key) :=
-    CollisionResistantToOneWay.isPPT_finder (H := fun _ message => message)
-      (ComputableInPolyTime.snd encBits encBits) hadversary r
-  simpa only [secondPreimageToCollisionFinder, CollisionResistantToOneWay.finder] using hfinder
+  exact CollisionResistantToOneWay.isPPT_finder (H := fun _ message => message)
+    (ComputableInPolyTime.snd encBits encBits) hadversary r
 
 /-- A second preimage `candidate ≠ key ++ message` of `key ++ message` under `keyDigest H` has the
 same key `key` and a colliding message part `candidate.drop (candidate.length / 3) ≠ message`. -/
@@ -231,19 +215,16 @@ theorem isCollision_of_keyDigest_secondPreimage {H : List Bool → List Bool →
     isCollision H (fun _ _ => true) n key message
       (candidate.drop (candidate.length / 3)) = true := by
   rw [CollisionResistantToOneWay.keyDigest_append H hmessage hr] at h
-  rcases CollisionResistantToOneWay.isCollision_or_eq_of_keyDigest_eq hlen n h with hcol | heq
-  · exact hcol
-  · exfalso
-    apply hne
-    simp only [CollisionResistantToOneWay.keyDigest] at h
-    have hlength := congrArg List.length h
-    simp only [List.length_append, hlen] at hlength
-    obtain ⟨hkey, _⟩ := List.append_inj h (by omega)
-    calc
-      candidate =
-          candidate.take (candidate.length / 3) ++ candidate.drop (candidate.length / 3) :=
-        (List.take_append_drop _ _).symm
-      _ = key ++ message := by rw [hkey, heq]
+  refine (CollisionResistantToOneWay.isCollision_or_eq_of_keyDigest_eq hlen n h).resolve_right
+    fun heq => hne ?_
+  simp only [CollisionResistantToOneWay.keyDigest] at h
+  have hlength := congrArg List.length h
+  simp only [List.length_append, hlen] at hlength
+  calc
+    candidate =
+        candidate.take (candidate.length / 3) ++ candidate.drop (candidate.length / 3) :=
+      (List.take_append_drop _ _).symm
+    _ = key ++ message := by rw [(List.append_inj h (by omega)).1, heq]
 
 /-- **Exercise 8.23(d), concrete bound for `keyDigest H`**: finding a second preimage of
 `keyDigest H` at length `3 * n + r` with `r < 3` succeeds at most as often as
@@ -259,25 +240,23 @@ theorem succProbability_secondPreimageGame_keyDigest_le
       Game.succProbability
         (ProbComp.eval
           (collisionGame H (fun _ _ => true) (secondPreimageToCollisionFinder adversary r) n)) := by
-  have hsplit : BitString.uniformList (3 * n + r) = (BitString.uniformList n).bind
-      (fun key => (BitString.uniformList (2 * n + r)).map (key ++ ·)) := by
-    rw [show 3 * n + r = n + (2 * n + r) by ring]
-    exact BitString.uniformList_add n (2 * n + r)
+  have h3 : 3 * n + r = n + (2 * n + r) := by omega
+  have hsplit := h3 ▸ BitString.uniformList_add n (2 * n + r)
   apply Game.succProbability_mono
   simp only [secondPreimageGame, secondPreimageExperiment, collisionGame,
     secondPreimageToCollisionFinder, BitString.eval_sampleList, hsplit, pmf_norm]
-  refine PMF.bind_apply_mono_on_support _ _ fun key hkey => ?_
-  refine PMF.bind_apply_mono_on_support _ _ fun message hmessage => ?_
-  have hklen := BitString.length_of_mem_support_uniformList hkey
-  have hmlen := BitString.length_of_mem_support_uniformList hmessage
-  refine PMF.bind_apply_mono_on_support _ _ fun candidate _ => ?_
+  refine PMF.bind_apply_mono_on_support _ _ fun key hkey =>
+    PMF.bind_apply_mono_on_support _ _ fun message hmessage =>
+      PMF.bind_apply_mono_on_support _ _ fun candidate _ => ?_
   cases hwin :
       ((candidate != key ++ message) &&
         (CollisionResistantToOneWay.keyDigest H candidate ==
           CollisionResistantToOneWay.keyDigest H (key ++ message)))
   · simp
   · rw [Bool.and_eq_true, bne_iff_ne, beq_iff_eq] at hwin
-    rw [isCollision_of_keyDigest_secondPreimage hlen n (by rw [hmlen, hklen]) hr hwin.1 hwin.2]
+    rw [isCollision_of_keyDigest_secondPreimage hlen n
+      (by rw [BitString.length_of_mem_support_uniformList hmessage,
+              BitString.length_of_mem_support_uniformList hkey]) hr hwin.1 hwin.2]
 
 /-- **Equation (8.17), first implication, and Exercise 8.23(d)** ([BonehShoup2023], pp. 337, 353):
 for a keyed collision-resistant hash family `H` with `(H key message).length = key.length`,
@@ -296,12 +275,11 @@ theorem HashFamily.secondPreimageResistant_keyDigest
   refine negligible_of_le hε fun N => ?_
   obtain ⟨n, r, hr, rfl⟩ : ∃ n r, r < 3 ∧ N = 3 * n + r :=
     ⟨N / 3, N % 3, Nat.mod_lt _ (by norm_num), (Nat.div_add_mod N 3).symm⟩
-  rw [show (3 * n + r) / 3 = n by omega, ← secondPreimageGame_eq_secondPreimageGameOn]
+  have hdiv : (3 * n + r) / 3 = n := by omega
+  rw [hdiv, ← secondPreimageGame_eq_secondPreimageGameOn]
   refine (succProbability_secondPreimageGame_keyDigest_le hH.length_eq adversary n r hr).trans ?_
   interval_cases r
-  · exact le_add_right (le_add_right le_rfl)
-  · exact le_add_right (le_add_left le_rfl)
-  · exact le_add_left le_rfl
+  exacts [le_self_add.trans le_self_add, le_add_self.trans le_self_add, le_add_self]
 
 /-! ## Separations: one-way does not imply second-preimage resistant, and Exercise 8.23(c) -/
 
@@ -354,15 +332,12 @@ theorem succProbability_inversionGameOn_ignoreHeadBit_succ_le (f : List Bool →
         (ProbComp.eval (inversionGameOn (ignoreHeadBit f) valid adversary (n + 1))) ≤
       Game.succProbability
         (ProbComp.eval (inversionGameOn f valid (ignoreHeadBitInverter adversary) n)) := by
-  refine Game.succProbability_mono ?_
+  apply Game.succProbability_mono
   simp only [inversionGameOn, ignoreHeadBit, ignoreHeadBitInverter, BitString.eval_sampleList,
     BitString.uniformList_succ, List.tail_cons, PMF.bind_const, pmf_norm]
-  refine PMF.bind_apply_mono_on_support _ _ fun x _ => ?_
-  refine PMF.bind_apply_mono_on_support _ _ fun w _ => ?_
-  cases hwin : (valid (n + 1) w && f w.tail == f x)
-  · simp
-  · simp only [Bool.and_eq_true, beq_iff_eq] at hwin
-    simp [hvalid w hwin.1, hwin.2]
+  refine PMF.bind_apply_mono_on_support _ _ fun x _ =>
+    PMF.bind_apply_mono_on_support _ _ fun w _ => ?_
+  cases hv : valid (n + 1) w <;> simp_all
 
 /-- **Section 8.11.1 separation, positive half** ([BonehShoup2023], p. 337): if `f` is one-way on
 `valid` (Definition 8.6, p. 336), then `ignoreHeadBit f`, the bit-string form of
@@ -375,16 +350,10 @@ theorem OneWayOn.ignoreHeadBit {f : List Bool → List Bool} {valid : ℕ → Li
     OneWayOn (Cslib.Crypto.ignoreHeadBit f) valid := by
   refine OneWayOn.of_negligible (computableInPolyTime_ignoreHeadBit hf.polyTime)
     fun adversary hadversary => ?_
-  have hinv := hf.negligible (ignoreHeadBitInverter adversary)
-    (isPPT_ignoreHeadBitInverter hadversary)
-  have hshift :
-      Negligible (fun N =>
-        Game.succProbability
-          (ProbComp.eval (inversionGameOn f valid (ignoreHeadBitInverter adversary) (N - 1)))) :=
-    hinv.comp_of_polynomial_bound (bound := fun m => m + 1)
-      (Filter.tendsto_sub_atTop_nat 1) (by fun_prop)
-      (Filter.Eventually.of_forall fun N => by omega)
-  refine negligible_of_eventually_le hshift ?_
+  have hinv := (hf.negligible (ignoreHeadBitInverter adversary)
+    (isPPT_ignoreHeadBitInverter hadversary)).comp_of_polynomial_bound (bound := fun m => m + 1)
+    (Filter.tendsto_sub_atTop_nat 1) (by fun_prop) (Filter.Eventually.of_forall fun _ => by omega)
+  refine negligible_of_eventually_le hinv ?_
   filter_upwards [Filter.eventually_ge_atTop 1] with N hN
   obtain ⟨n, rfl⟩ : ∃ n, N = n + 1 := ⟨N - 1, by omega⟩
   simpa only [Nat.add_sub_cancel] using
@@ -424,8 +393,7 @@ theorem eq_of_plantEasyBranch_eq (k : ℕ) (H : List Bool → List Bool)
     H w' = H w := by
   unfold plantEasyBranch at heq
   split_ifs at heq with hw' hw
-  · exfalso
-    apply hne
+  · refine False.elim (hne ?_)
     rw [beq_iff_eq] at hw' hw
     calc
       w' = w'.take k ++ w'.drop k := (List.take_append_drop k w').symm
@@ -464,9 +432,8 @@ def plantEasyBranchInverter (k : ℕ) : Inverter :=
 @[program_certificate]
 theorem isPPT_plantEasyBranchInverter (k : ℕ) :
     IsPPT encBits (plantEasyBranchInverter k) := by
-  have h : ComputableInPolyTime (fun d : List Bool => List.replicate k false ++ d.tail)
-      encBits encBits := by polytime
-  exact h.isPPT
+  exact (by polytime : ComputableInPolyTime (fun d : List Bool => List.replicate k false ++ d.tail)
+    encBits encBits).isPPT
 
 /-- **Exercise 8.23(c) on bit strings, negative half** ([BonehShoup2023], p. 353): for every `k`
 and `H`, `plantEasyBranch k H` is not one-way (Definition 8.6, p. 336) on any domain `valid` that
@@ -477,63 +444,35 @@ theorem not_oneWayOn_plantEasyBranch (k : ℕ) (H : List Bool → List Bool)
     ¬ OneWayOn (plantEasyBranch k H) valid := by
   intro hf
   have hneg := hf.negligible (plantEasyBranchInverter k) (isPPT_plantEasyBranchInverter k)
-  have hmass :
-      (((1 / 2 : ℝ≥0) ^ k : ℝ≥0) : ℝ≥0∞) ≤
-        BitString.uniformList k (List.replicate k false) := by
-    have hcast : (((1 / 2 : ℝ≥0) ^ k : ℝ≥0) : ℝ≥0∞) = (1 : ℝ≥0∞) / 2 ^ k := by
-      rw [ENNReal.coe_pow, one_div, ENNReal.coe_inv_two, ← ENNReal.inv_pow, ← one_div]
-    have h := BitString.uniformList_map_apply id k (List.replicate k false)
-    simp only [PMF.map_id, id_eq] at h
-    rw [hcast, h]
+  have hmass : (((1 / 2 : ℝ≥0) ^ k : ℝ≥0) : ℝ≥0∞) ≤
+      BitString.uniformList k (List.replicate k false) := by
+    rw [ENNReal.coe_pow, one_div, ENNReal.coe_inv_two, ← ENNReal.inv_pow, ← one_div,
+      ← PMF.map_id (BitString.uniformList k), BitString.uniformList_map_apply]
     gcongr
-    have hmem : (fun _ : Fin k => false) ∈
-        Finset.univ.filter
-          (fun r : Fin k → Bool => List.ofFn r = List.replicate k false) := by
-      simp
-    exact_mod_cast Finset.card_pos.mpr ⟨_, hmem⟩
-  have hle :
-      ∀ᶠ n in Filter.atTop,
-        ((1 / 2 : ℝ≥0) ^ k : ℝ≥0) ≤
-          Game.succProbability
-            (ProbComp.eval
-              (inversionGameOn (plantEasyBranch k H) valid (plantEasyBranchInverter k) n)) := by
+    exact_mod_cast Finset.card_pos.mpr ⟨fun _ => false, by simp⟩
+  have hle : ∀ᶠ n in Filter.atTop, ((1 / 2 : ℝ≥0) ^ k : ℝ≥0) ≤
+      Game.succProbability (ProbComp.eval
+        (inversionGameOn (plantEasyBranch k H) valid (plantEasyBranchInverter k) n)) := by
     filter_upwards [Filter.eventually_ge_atTop k] with n hn
-    have hsplit :
-        BitString.uniformList n =
-          (BitString.uniformList k).bind fun pref =>
-            (BitString.uniformList (n - k)).map (pref ++ ·) := by
-      conv_lhs => rw [show n = k + (n - k) by omega]
-      exact BitString.uniformList_add k (n - k)
-    have hwin_suf (suf : List Bool) (hsuf : suf.length = n - k) :
-        let w := List.replicate k false ++ suf
-        (valid n (List.replicate k false ++ (plantEasyBranch k H w).tail) &&
-          plantEasyBranch k H (List.replicate k false ++ (plantEasyBranch k H w).tail) ==
-            plantEasyBranch k H w) = true := by
-      dsimp only
-      have htake : (List.replicate k false ++ suf).take k = List.replicate k false := by
-        simp
-      have hdrop : (List.replicate k false ++ suf).drop k = suf := by
-        simp
-      have hlen : (List.replicate k false ++ suf).length = n := by
-        simp only [List.length_append, List.length_replicate, hsuf]
-        omega
-      simp [plantEasyBranch, htake, hdrop, hvalid n _ hlen]
-    have henn :
-        (((1 / 2 : ℝ≥0) ^ k : ℝ≥0) : ℝ≥0∞) ≤
-          ProbComp.eval
-            (inversionGameOn (plantEasyBranch k H) valid (plantEasyBranchInverter k) n) true := by
+    have hsplit := (congrArg BitString.uniformList (Nat.add_sub_of_le hn).symm).trans
+      (BitString.uniformList_add k (n - k))
+    have henn : (((1 / 2 : ℝ≥0) ^ k : ℝ≥0) : ℝ≥0∞) ≤
+        ProbComp.eval
+          (inversionGameOn (plantEasyBranch k H) valid (plantEasyBranchInverter k) n) true := by
       simp only [inversionGameOn, plantEasyBranchInverter, BitString.eval_sampleList, hsplit,
         pmf_norm]
       rw [PMF.bind_apply]
-      refine (mul_one (((1 / 2 : ℝ≥0) ^ k : ℝ≥0) : ℝ≥0∞)).symm.trans_le ?_
-      refine (mul_le_mul_of_nonneg_right hmass zero_le).trans ?_
-      refine (le_of_eq ?_).trans (le_tsum _ (List.replicate k false))
+      refine (mul_one (((1 / 2 : ℝ≥0) ^ k : ℝ≥0) : ℝ≥0∞)).symm.trans_le <|
+        (mul_le_mul_of_nonneg_right hmass zero_le).trans <|
+          (le_of_eq ?_).trans (le_tsum _ (List.replicate k false))
       congr 1
-      rw [PMF.bind_eq_pure_of_forall_mem_support fun suf hsuf => by
-        rw [hwin_suf suf (BitString.length_of_mem_support_uniformList hsuf)],
+      rw [PMF.bind_eq_pure_of_forall_mem_support (b := true) fun suf hsuf => by
+        have hlen : (List.replicate k false ++ suf).length = n := by
+          rw [List.length_append, List.length_replicate,
+            BitString.length_of_mem_support_uniformList hsuf, Nat.add_sub_of_le hn]
+        simp [plantEasyBranch, hvalid n _ hlen],
         PMF.pure_apply_self]
     exact (ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) henn).trans_eq' (ENNReal.toNNReal_coe _)
-  have hne0 : ((1 / 2 : ℝ≥0) ^ k : ℝ≥0) ≠ 0 := pow_ne_zero k (by norm_num)
-  exact not_negligible_const hne0 (negligible_of_eventually_le hneg hle)
+  exact not_negligible_const (pow_ne_zero k (by norm_num)) (negligible_of_eventually_le hneg hle)
 
 end Cslib.Crypto

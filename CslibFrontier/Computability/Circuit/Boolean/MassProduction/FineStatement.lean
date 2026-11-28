@@ -112,14 +112,12 @@ theorem FineMassProducesThrough.massProducesAt (hnd : num < den)
   have hbound := hc n (le_of_max_le_left hcut) f k
     (hk.trans (rationalCopyBudget_le_two_pow n))
   obtain ⟨c, hcost⟩ := ENat.ne_top_iff_exists.mp (massComplexity_ne_top (f := f) (k := k))
-  rw [← hcost] at hbound ⊢
-  have hfin : 1 * (den - num) * n * c ≤ (1 + 1) * den * 2 ^ n := by
-    rw [← Nat.cast_mul] at hbound
-    exact ENat.natCast_le_natCast.mp hbound
+  rw [← hcost, ← Nat.cast_mul] at hbound
+  rw [← hcost]
+  have hfin : 1 * (den - num) * n * c ≤ (1 + 1) * den * 2 ^ n := ENat.natCast_le_natCast.mp hbound
   have hn1 : 1 ≤ n := le_of_max_le_right hcut
   have hq : 2 ^ n < n * (2 ^ n / n + 1) := by
-    have := Nat.lt_mul_div_succ (2 ^ n) (show 0 < n by omega)
-    simpa [Nat.mul_comm] using this
+    simpa only [Nat.mul_comm] using Nat.lt_mul_div_succ (2 ^ n) (by omega : 0 < n)
   have hgap : 1 ≤ den - num := by omega
   have hc' : n * c ≤ n * (4 * den * (2 ^ n / n)) := by
     have h1 : n * c ≤ 1 * (den - num) * n * c := by
@@ -153,17 +151,13 @@ theorem exists_rat_coefficient {γ ε : ℝ} (hγ : 0 ≤ γ) (hγ1 : γ < 1) (h
   have hκ : 0 < (κ : ℝ) := (one_div_pos.mpr hgap).trans hlow
   set ρ : ℚ := 1 - 1 / κ with hρ
   have hρv : (ρ : ℝ) = 1 - 1 / (κ : ℝ) := by simp [hρ]
-  have hρlow : γ < (ρ : ℝ) := by
-    rw [hρv]; linarith [(one_div_lt hκ hgap).mpr hlow]
-  have hρup : (ρ : ℝ) < 1 := by
-    rw [hρv]; linarith [one_div_pos.mpr hκ]
+  have hρlow : γ < (ρ : ℝ) := by linarith [hρv, (one_div_lt hκ hgap).mpr hlow]
+  have hρup : (ρ : ℝ) < 1 := by linarith [hρv, one_div_pos.mpr hκ]
   have hnum : 0 ≤ ρ.num := Rat.num_nonneg.mpr (by exact_mod_cast hγ.trans hρlow.le)
   have hfrac : (ρ : ℝ) = (ρ.num.toNat : ℝ) / ρ.den := by
     rw [Rat.cast_def]; congr 1; exact_mod_cast (Int.toNat_of_nonneg hnum).symm
   have hden : 0 < (ρ.den : ℝ) := by exact_mod_cast ρ.den_pos
-  have hproper : ρ.num.toNat < ρ.den := by
-    rw [hfrac, div_lt_one hden] at hρup
-    exact_mod_cast hρup
+  have hproper : ρ.num.toNat < ρ.den := by exact_mod_cast (div_lt_one hden).mp (hfrac ▸ hρup)
   have hident : (κ : ℝ) * ((ρ.den - ρ.num.toNat : ℕ) : ℝ) = ρ.den := by
     rw [Nat.cast_sub hproper.le, ← (eq_div_iff hden.ne').mp hfrac, hρv, sub_mul, one_mul,
       sub_sub_cancel, ← mul_assoc, mul_one_div_cancel hκ.ne', one_mul]
@@ -208,14 +202,11 @@ theorem realFineMassProduction_of_fine
   obtain ⟨c, hcost⟩ := ENat.ne_top_iff_exists.mp (massComplexity_ne_top (f := f) (k := k))
   refine ⟨c, hcost.ge, ?_⟩
   rw [← hcost, ← Nat.cast_mul] at hbound
-  have hfin : P * (den - num) * n * c ≤ (P + 1) * den * 2 ^ n :=
-    ENat.natCast_le_natCast.mp hbound
   have hfinR : (P : ℝ) * ((den - num : ℕ) : ℝ) * n * c ≤ ((P : ℝ) + 1) * den * 2 ^ n := by
-    exact_mod_cast hfin
+    exact_mod_cast ENat.natCast_le_natCast.mp hbound
   have hnR : (0 : ℝ) < n := by exact_mod_cast hn1
-  have hscale : 0 < (P : ℝ) * ((den - num : ℕ) : ℝ) := by
-    have : 0 < P * (den - num) := Nat.mul_pos hP (by omega)
-    exact_mod_cast this
+  have hscale : 0 < (P : ℝ) * ((den - num : ℕ) : ℝ) :=
+    mul_pos (Nat.cast_pos.mpr hP) (Nat.cast_pos.mpr (by omega))
   have hpow : (0 : ℝ) ≤ 2 ^ n := by positivity
   have key : (P : ℝ) * ((den - num : ℕ) : ℝ) * (n * c) ≤
       (P : ℝ) * ((den - num : ℕ) : ℝ) * ((1 / (1 - γ) + ε) * 2 ^ n) := by

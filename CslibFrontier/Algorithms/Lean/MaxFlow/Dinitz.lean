@@ -90,11 +90,8 @@ theorem le_augmentByBottleneck_of_slackNet (hanti : ∀ u v, 0 < L.cap u v → L
   unfold augmentFun
   split_ifs with huv hvu
   · omega
-  · have hslack := hp.pos_resCap hvu
-    rw [resCap_zero_slackNet] at hslack
-    have hslack' : 0 < L.cap v u - g v u := hslack
-    have hcap : L.cap u v = 0 := hanti v u (by omega)
-    have hle := g.le_cap u v
+  · have hvu_lt := Nat.lt_of_sub_pos (resCap_zero_slackNet (g := g) v u ▸ hp.pos_resCap hvu)
+    have := hanti v u (Nat.zero_le _ |>.trans_lt hvu_lt) ▸ g.le_cap u v
     omega
   · exact le_rfl
 
@@ -109,13 +106,9 @@ theorem exists_saturated_augmentByBottleneck_of_slackNet (hst : L.s ≠ L.t) {g 
   have hres := g.resCap_augment hp'.nodup hp'.head? hp'.getLast? (g.bottleneck p)
     (fun _ he => g.bottleneck_le_resCap he) e.1 e.2
   simp only [Prod.mk.eta, he, ↓reduceIte] at hres
-  have hslack := hp.pos_resCap he
-  rw [resCap_zero_slackNet] at hslack
-  refine ⟨e, by omega, ?_⟩
-  change L.cap e.1 e.2 ≤ (g.augment p hp'.nodup hp'.head? hp'.getLast? (g.bottleneck p)
-    (fun _ he => g.bottleneck_le_resCap he)) e.1 e.2
-  unfold resCap at hres heq
-  omega
+  have hslack := Nat.lt_of_sub_pos (resCap_zero_slackNet (g := g) e.1 e.2 ▸ hp.pos_resCap he)
+  dsimp only [resCap, augmentByBottleneck] at hres heq ⊢
+  exact ⟨e, hslack, by omega⟩
 
 /-- Each bottleneck push along unsaturated arcs saturates a new arc and keeps saturated arcs
 saturated. -/
@@ -126,15 +119,10 @@ theorem card_unsatArcs_augmentByBottleneck_lt (hanti : ∀ u v, 0 < L.cap u v �
       g.unsatArcs.card := by
   obtain ⟨e, hlt, hsat⟩ := exists_saturated_augmentByBottleneck_of_slackNet hst hp
   have hsub : (g.augmentByBottleneck p (isAugmentingPath_of_slackNet hp)).unsatArcs ⊆
-      g.unsatArcs := by
-    intro x hx
-    rw [mem_unsatArcs] at hx ⊢
-    have := le_augmentByBottleneck_of_slackNet hanti hp x.1 x.2
-    omega
-  refine Finset.card_lt_card ((Finset.ssubset_iff_of_subset hsub).mpr ⟨e, ?_, ?_⟩)
-  · exact (mem_unsatArcs _ _).mpr hlt
-  · rw [mem_unsatArcs, not_lt]
-    exact hsat
+      g.unsatArcs := fun x hx => (mem_unsatArcs _ _).mpr
+    ((le_augmentByBottleneck_of_slackNet hanti hp x.1 x.2).trans_lt ((mem_unsatArcs _ _).mp hx))
+  exact Finset.card_lt_card ((Finset.ssubset_iff_of_subset hsub).mpr
+    ⟨e, (mem_unsatArcs _ _).mpr hlt, mt (mem_unsatArcs _ _).mp (not_lt.mpr hsat)⟩)
 
 /-- A level network has at most `|N.posArcs|` arcs: it has no antiparallel arcs and its arcs lie
 in `N.symArcs`. -/
@@ -146,32 +134,18 @@ theorem card_unsatArcs_zero_levelNet_le (f : N.Flow) (d : V → ℕ) :
   have hsym : ∀ e ∈ A, e.1 ≠ e.2 ∧ 0 < N.cap e.1 e.2 + N.cap e.2 e.1 := fun e he => by
     obtain ⟨hd, hpos⟩ := (hmem e).mp he
     have := f.resCap_le_cap_add_cap e.1 e.2
-    refine ⟨fun h => ?_, by omega⟩
-    rw [h] at hd
-    omega
-  have hA : A ⊆ N.symArcs := fun e he => by
-    simp only [symArcs, Finset.mem_filter, Finset.mem_univ, true_and]
-    exact hsym e he
-  have hB : A.image Prod.swap ⊆ N.symArcs := fun e he => by
-    obtain ⟨x, hx, rfl⟩ := Finset.mem_image.mp he
-    obtain ⟨hne, hpos⟩ := hsym x hx
-    simp only [symArcs, Finset.mem_filter, Finset.mem_univ, true_and, Prod.fst_swap,
-      Prod.snd_swap]
-    exact ⟨hne.symm, by omega⟩
-  have hdisj : Disjoint A (A.image Prod.swap) := by
-    rw [Finset.disjoint_left]
-    intro e he he'
-    obtain ⟨x, hx, rfl⟩ := Finset.mem_image.mp he'
-    have h₁ := ((hmem x).mp hx).1
-    have h₂ := ((hmem x.swap).mp he).1
-    simp only [Prod.fst_swap, Prod.snd_swap] at h₂
-    omega
-  have hcard : A.card + (A.image Prod.swap).card ≤ N.symArcs.card := by
-    rw [← Finset.card_union_of_disjoint hdisj]
-    exact Finset.card_le_card (Finset.union_subset hA hB)
-  have himg : (A.image Prod.swap).card = A.card :=
-    Finset.card_image_of_injective _ Prod.swap_injective
-  have := N.card_symArcs_le_two_mul_posArcs
+    exact ⟨fun h => (Nat.lt_add_one _).ne (h ▸ hd), by omega⟩
+  have hA : A ⊆ N.symArcs := fun e he => Finset.mem_filter.mpr ⟨Finset.mem_univ _, hsym e he⟩
+  have hB : A.image Prod.swap ⊆ N.symArcs := Finset.image_subset_iff.mpr fun x hx =>
+    let ⟨hne, hpos⟩ := hsym x hx
+    Finset.mem_filter.mpr ⟨Finset.mem_univ _, hne.symm, Nat.add_comm _ _ ▸ hpos⟩
+  have hdisj : Disjoint A (A.image Prod.swap) := Finset.disjoint_left.mpr fun _ he he' => by
+    obtain ⟨⟨u, v⟩, hx, rfl⟩ := Finset.mem_image.mp he'
+    exact (Nat.lt_succ_of_lt (Nat.lt_succ_self (d v))).ne
+      (((hmem (u, v)).mp hx).1.trans (congrArg (· + 1) ((hmem (v, u)).mp he).1))
+  have hcard := (Finset.card_union_of_disjoint hdisj).symm.trans_le
+    ((Finset.card_le_card (Finset.union_subset hA hB)).trans N.card_symArcs_le_two_mul_posArcs)
+  rw [Finset.card_image_of_injective _ Prod.swap_injective] at hcard
   omega
 
 end Flow
@@ -244,13 +218,12 @@ theorem greedyBlockingFlow_spec {n : ℕ} {L : Network (Fin n)} {adj : Fin n →
     · rename_i hnone
       exact ⟨Flow.isBlocking_of_not_exists_slackNet (hbfs.2 hnone).1, Nat.le_add_right _ _⟩
     · rename_i p hp
-      have hp' := (bfs _ adj _).augPath_valid p hp
-      have hlt := Flow.card_unsatArcs_augmentByBottleneck_lt hanti hst hp'
-      have hfun := augmentFlowMatrix_toFlow G p (Flow.isAugmentingPath_of_slackNet hp')
-      obtain ⟨hblk, hpush⟩ := greedyBlockingFlow_spec hadj hanti hst fuel
-        (augmentFlowMatrix G p (Flow.isAugmentingPath_of_slackNet hp')) (k + 1)
-        (by rw [hfun]; omega)
-      rw [hfun] at hpush
+      set hp' := Flow.isAugmentingPath_of_slackNet ((bfs _ adj _).augPath_valid p hp)
+      set G' := augmentFlowMatrix G p hp'
+      have hlt : G'.toFlow.unsatArcs.card < G.toFlow.unsatArcs.card :=
+        (augmentFlowMatrix_toFlow G p hp').symm ▸
+          Flow.card_unsatArcs_augmentByBottleneck_lt hanti hst ((bfs _ adj _).augPath_valid p hp)
+      obtain ⟨hblk, hpush⟩ := greedyBlockingFlow_spec hadj hanti hst fuel G' (k + 1) (by omega)
       exact ⟨hblk, by omega⟩
 
 /-- Output of Dinitz's algorithm on `N : Network (Fin n)`. -/
@@ -325,47 +298,37 @@ private theorem dinitzLoop_spec {n : ℕ} {N : Network (Fin n)} {adj : Fin n →
   | fuel + 1, M, ph, k, flows, hfuel, hrun, hph, hk => by
     simp only [dinitzLoop]
     split_ifs with hge
-    · refine ⟨fun hreach => ?_, filter_bfsDistVec_eq_reachableCut _, ⟨flows, hrun, rfl, hph⟩, hk⟩
-      have hlt := (M.toFlow.resDist_lt_card_iff_resReachable N.t).mpr hreach
-      rw [vget_bfsDistVec] at hge
-      rw [Fintype.card_fin] at hlt
-      omega
-    · rw [vget_bfsDistVec] at hge
-      have hreach : M.toFlow.ResReachable N.s N.t := by
-        rw [← M.toFlow.resDist_lt_card_iff_resReachable, Fintype.card_fin]
-        omega
-      have hd : ∀ v, vget (bfsDistVec M.toFlow) v = M.toFlow.resDist v := vget_bfsDistVec _
-      have hadjL : AdjValid (M.toFlow.levelNet (vget (bfsDistVec M.toFlow))) adj :=
-        fun u v huv hpos => hadj u v huv (by
-          have h₁ := M.toFlow.levelNet_cap_le_resCap (vget (bfsDistVec M.toFlow)) u v
-          have h₂ := M.toFlow.levelNet_cap_le_resCap (vget (bfsDistVec M.toFlow)) v u
-          have h₃ := M.toFlow.resCap_le_cap_add_cap u v
-          have h₄ := M.toFlow.resCap_le_cap_add_cap v u
-          omega)
-      have hcardL := Flow.card_unsatArcs_zero_levelNet_le M.toFlow (vget (bfsDistVec M.toFlow))
-      have hfuelL : (FlowMatrix.ofFlow
-          (Flow.zero (M.toFlow.levelNet (vget (bfsDistVec M.toFlow))))).toFlow.unsatArcs.card <
-          n * n + 1 := by
-        rw [FlowMatrix.toFlow_ofFlow]
-        have := Finset.card_le_univ
-          (Flow.zero (M.toFlow.levelNet (vget (bfsDistVec M.toFlow)))).unsatArcs
-        simp only [Fintype.card_prod, Fintype.card_fin] at this
-        omega
+    · exact ⟨mt (M.toFlow.resDist_lt_card_iff_resReachable N.t).mpr
+        (by simpa [Fintype.card_fin] using hge),
+        filter_bfsDistVec_eq_reachableCut _, ⟨flows, hrun, rfl, hph⟩, hk⟩
+    · let lv := vget (bfsDistVec M.toFlow)
+      have hreach : M.toFlow.ResReachable N.s N.t :=
+        (M.toFlow.resDist_lt_card_iff_resReachable N.t).mp (by simpa [Fintype.card_fin] using hge)
+      have hadjL : AdjValid (M.toFlow.levelNet lv) adj := fun u v huv hpos => hadj u v huv (by
+        have h₁ := M.toFlow.levelNet_cap_le_resCap lv u v
+        have h₂ := M.toFlow.levelNet_cap_le_resCap lv v u
+        have h₃ := M.toFlow.resCap_le_cap_add_cap u v
+        have h₄ := M.toFlow.resCap_le_cap_add_cap v u
+        omega)
+      have hcardL := Flow.card_unsatArcs_zero_levelNet_le M.toFlow lv
+      have hfuelL :
+          (FlowMatrix.ofFlow (Flow.zero (M.toFlow.levelNet lv))).toFlow.unsatArcs.card <
+            n * n + 1 := by
+        simpa [Fintype.card_fin] using
+          Nat.lt_succ_of_le (hcardL.trans (Finset.card_le_univ N.posArcs))
       obtain ⟨hblk, hpush⟩ := greedyBlockingFlow_spec hadjL
         (fun u v h => M.toFlow.levelNet_cap_eq_zero_of_pos _ h) hst (n * n + 1)
         (FlowMatrix.ofFlow (Flow.zero _)) 0 hfuelL
       rw [FlowMatrix.toFlow_ofFlow] at hpush
-      set B := greedyBlockingFlow (M.toFlow.levelNet (vget (bfsDistVec M.toFlow))) adj (n * n + 1)
-        (FlowMatrix.ofFlow (Flow.zero _)) 0 with hB
+      set B := greedyBlockingFlow (M.toFlow.levelNet lv) adj (n * n + 1)
+        (FlowMatrix.ofFlow (Flow.zero _)) 0
       have hstep : N.IsDinitzStep M.toFlow (M.toFlow.augmentLevel B.flow.toFlow) :=
-        isDinitzStep_of_isBlocking hd hreach B.flow.toFlow hblk
+        isDinitzStep_of_isBlocking (vget_bfsDistVec _) hreach B.flow.toFlow hblk
       let flows' : ℕ → N.Flow := fun i =>
         if i ≤ ph then flows i else M.toFlow.augmentLevel B.flow.toFlow
-      have hrun' : N.IsDinitzRun (ph + 1) flows' := by
-        intro i hi
+      have hrun' : N.IsDinitzRun (ph + 1) flows' := fun i hi => by
         rcases Nat.lt_or_ge i ph with hlt' | hge'
-        · simp only [flows', hlt'.le, show i + 1 ≤ ph from hlt', ↓reduceIte]
-          exact hrun i hlt'
+        · simpa only [flows', hlt'.le, Nat.add_one_le_of_lt hlt', ↓reduceIte] using hrun i hlt'
         · obtain rfl : i = ph := by omega
           simpa [flows', hph, Nat.not_succ_le_self] using hstep
       obtain ⟨h₁, h₂, ⟨flows'', hrun'', h0, hlast⟩, h₄⟩ := dinitzLoop_spec hadj hst fuel
@@ -383,11 +346,9 @@ theorem dinitz_isDinitzRun {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List
   split
   · exact ⟨fun _ => Flow.zero N, fun i hi => absurd hi (Nat.not_lt_zero i), rfl, rfl⟩
   · rename_i hst
-    have hn : 0 < n := Nat.zero_lt_of_lt N.s.isLt
-    obtain ⟨_, _, ⟨flows, hrun, h0, hlast⟩, _⟩ := dinitzLoop_spec hadj hst (n - 1)
-      (FlowMatrix.ofFlow (Flow.zero N)) 0 0 (fun _ => Flow.zero N) (by omega)
-      (fun i hi => absurd hi (Nat.not_lt_zero i)) (by simp) (by simp)
-    exact ⟨flows, hrun, h0, hlast⟩
+    exact (dinitzLoop_spec hadj hst (n - 1) (FlowMatrix.ofFlow (Flow.zero N)) 0 0
+      (fun _ => Flow.zero N) (Nat.sub_add_cancel (Nat.zero_lt_of_lt N.s.isLt)).ge
+      (fun i hi => absurd hi (Nat.not_lt_zero i)) (by simp) (by simp)).2.2.1
 
 /-- **Correctness of Dinitz's algorithm** ([Dinic1970]; [Schrijver2003], Section 10.6): on
 `N : Network (Fin n)` with `N.s ≠ N.t` and valid neighbor lists, `dinitz N adj` returns a maximum
@@ -403,19 +364,15 @@ theorem dinitz_correct {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fi
   obtain ⟨hno, hcut, ⟨flows, hrun, _, _⟩, hk⟩ := dinitzLoop_spec hadj hst (n - 1)
     (FlowMatrix.ofFlow (Flow.zero N)) 0 0 (fun _ => Flow.zero N) (by omega)
     (fun i hi => absurd hi (Nat.not_lt_zero i)) (by simp) (by simp)
-  have hphases := hrun.length_le
-  rw [Fintype.card_fin] at hphases
+  have hphases := Fintype.card_fin n ▸ hrun.length_le
   simp only [dinitz, hst, ↓reduceIte]
   set out := dinitzLoop N adj (n - 1) (FlowMatrix.ofFlow (Flow.zero N)) 0 0
-  have hno' : ¬ ∃ p, out.flow.IsAugmentingPath p := by
-    rwa [out.flow.exists_augmentingPath_iff_resReachable]
-  have hmax := (out.flow.isMaxFlow_iff_not_exists_augmentingPath hst).mpr hno'
-  have his := out.flow.reachableCut_isCut hno'
+  have hno' : ¬ ∃ p, out.flow.IsAugmentingPath p :=
+    mt out.flow.exists_augmentingPath_iff_resReachable.mp hno
   have hval := out.flow.value_eq_cutCapacity_reachableCut hno'
-  have hmin := out.flow.isMinCut_of_value_eq_cutCapacity his hval
-  rw [← hcut] at hmin hval
-  exact ⟨hmax, hmin, hval, hcut, hphases,
-    le_trans hk (Nat.mul_le_mul_right _ hphases)⟩
+  exact ⟨(out.flow.isMaxFlow_iff_not_exists_augmentingPath hst).mpr hno',
+    hcut ▸ out.flow.isMinCut_of_value_eq_cutCapacity (out.flow.reachableCut_isCut hno') hval,
+    hcut ▸ hval, hcut, hphases, hk.trans (Nat.mul_le_mul_right _ hphases)⟩
 
 /-- Correctness of `dinitzDense` without external adjacency obligations. -/
 theorem dinitzDense_correct {n : ℕ} {N : Network (Fin n)} (hst : N.s ≠ N.t) :

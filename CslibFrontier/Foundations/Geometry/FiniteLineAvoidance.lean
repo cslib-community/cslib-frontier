@@ -53,14 +53,10 @@ theorem exists_mem_ball_avoiding_lines {ι : Type*} [Finite ι]
   have hnorm : 0 < ‖u‖ := norm_pos_iff.mpr hu
   obtain ⟨t, ht, hnot⟩ := (Set.Ioo_infinite (mul_pos hρ hnorm)).exists_notMem_finset bad
   let w := z + (t : ℂ) / u
-  have huw : u * w = u * z + (t : ℂ) := by
-    dsimp only [w]
-    field_simp [hu]
+  have huw : u * w = u * z + (t : ℂ) := by simp [w, mul_add, mul_div_cancel₀ _ hu]
   refine ⟨w, ?_, ?_⟩
-  · rw [Metric.mem_ball, dist_eq_norm,
-      show w - z = (t : ℂ) / u by dsimp only [w]; ring,
-      norm_div, Complex.norm_real, Real.norm_eq_abs, abs_of_pos ht.1]
-    exact (div_lt_iff₀ hnorm).mpr ht.2
+  · simpa only [Metric.mem_ball, dist_eq_norm, w, add_sub_cancel_left, norm_div,
+      Complex.norm_real, Real.norm_eq_abs, abs_of_pos ht.1] using (div_lt_iff₀ hnorm).mpr ht.2
   · intro i s heq
     have hm : (s : ℂ) * (u * b i - u * a i) + u * a i = u * z + t := by
       rw [← huw, ← heq, AffineMap.lineMap_apply_module', Complex.real_smul]
@@ -81,17 +77,14 @@ private theorem exists_mem_ball_avoiding_spans (points : Finset ℂ) (z : ℂ)
   let P := {p : (↑points : Set ℂ) × (↑points : Set ℂ) // p.1.val ≠ p.2.val}
   let a : (↑points : Set ℂ) ⊕ P → ℂ := Sum.elim Subtype.val fun p => p.val.1.val
   let b : (↑points : Set ℂ) ⊕ P → ℂ := Sum.elim (fun p => p.val + 1) fun p => p.val.2.val
-  have hne (i : (↑points : Set ℂ) ⊕ P) : a i ≠ b i := by
-    cases i with
-    | inl p => exact (by simp : p.val ≠ p.val + 1)
-    | inr p => exact p.property
+  have hne : ∀ i : (↑points : Set ℂ) ⊕ P, a i ≠ b i
+    | .inl _ => by simp [a, b]
+    | .inr p => p.property
   obtain ⟨w, hw, havoid⟩ := exists_mem_ball_avoiding_lines a b hne z hρ
-  refine ⟨w, hw, ?_, ?_⟩
-  · intro h
-    exact havoid (.inl ⟨w, h⟩) 0 (AffineMap.lineMap_apply_zero _ _)
-  · intro x hx y hy hxy h
-    obtain ⟨t, ht⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp h
-    exact havoid (.inr ⟨⟨⟨x, hx⟩, ⟨y, hy⟩⟩, hxy⟩) t ht
+  refine ⟨w, hw, fun h => havoid (.inl ⟨w, h⟩) 0 (AffineMap.lineMap_apply_zero _ _),
+    fun x hx y hy hxy h => ?_⟩
+  obtain ⟨t, ht⟩ := mem_affineSpan_pair_iff_exists_lineMap_eq.mp h
+  exact havoid (.inr ⟨⟨⟨x, hx⟩, ⟨y, hy⟩⟩, hxy⟩) t ht
 
 /-- Three distinct supporting lines determined by the specified endpoints can meet
 only at one of their endpoints if at least one line uses a moved point. -/
@@ -116,15 +109,14 @@ private theorem affineSpan_pair_inter_subsingleton {a b c d : ℂ}
     ((↑(affineSpan ℝ ({a, b} : Set ℂ)) : Set ℂ) ∩
       ↑(affineSpan ℝ ({c, d} : Set ℂ))).Subsingleton := by
   intro x hx y hy
-  by_contra hxy
-  exact hne ((affineSpan_pair_eq_of_mem_of_mem_of_ne hx.1 hy.1 hxy).symm.trans
+  exact by_contra fun hxy => hne ((affineSpan_pair_eq_of_mem_of_mem_of_ne hx.1 hy.1 hxy).symm.trans
     (affineSpan_pair_eq_of_mem_of_mem_of_ne hx.2 hy.2 hxy))
 
 /-- Segments on distinct supporting lines share at most one point. -/
 theorem segment_inter_subsingleton_of_affineSpan_ne {a b c d : ℂ}
     (hne : affineSpan ℝ ({a, b} : Set ℂ) ≠ affineSpan ℝ ({c, d} : Set ℂ)) :
-    (segment ℝ a b ∩ segment ℝ c d).Subsingleton := by
-  exact (affineSpan_pair_inter_subsingleton hne).anti
+    (segment ℝ a b ∩ segment ℝ c d).Subsingleton :=
+  (affineSpan_pair_inter_subsingleton hne).anti
     (Set.inter_subset_inter (segment_subset_affineSpan_pair a b)
       (segment_subset_affineSpan_pair c d))
 
@@ -138,9 +130,7 @@ private noncomputable def lineCrossings (S : Set ℂ) : Set ℂ :=
 private theorem lineCrossings_finite {S : Set ℂ} (hS : S.Finite) :
     (lineCrossings S).Finite := by
   let _ := hS.fintype
-  apply Set.finite_iUnion
-  intro p
-  exact (affineSpan_pair_inter_subsingleton p.property).finite
+  exact Set.finite_iUnion fun p => (affineSpan_pair_inter_subsingleton p.property).finite
 
 private theorem NoTripleLineContact.insert_point {points moved : Set ℂ}
     (h : NoTripleLineContact points moved)
@@ -160,25 +150,21 @@ private theorem NoTripleLineContact.insert_point {points moved : Set ℂ}
       hj.elim (· ▸ left_mem_affineSpan_pair ℝ (a j) (b j))
         (· ▸ right_mem_affineSpan_pair ℝ (a j) (b j))
     have hold (j : Fin 3) (hij : i ≠ j) : a j ∈ points ∧ b j ∈ points := by
-      have hnotUse : ¬(a j = w ∨ b j = w) := by
-        intro hj
-        apply hdistinct hij
-        exact (affineSpan_pair_eq_of_mem_of_mem_of_ne (hz i) (hline i hi) hzw).symm.trans
+      have hnotUse : ¬(a j = w ∨ b j = w) := fun hj => hdistinct hij <|
+        (affineSpan_pair_eq_of_mem_of_mem_of_ne (hz i) (hline i hi) hzw).symm.trans
           (affineSpan_pair_eq_of_mem_of_mem_of_ne (hz j) (hline j hj) hzw)
-      exact ⟨(Set.mem_insert_iff.mp (hpoints j).1).resolve_left (fun h => hnotUse (Or.inl h)),
-        (Set.mem_insert_iff.mp (hpoints j).2.1).resolve_left (fun h => hnotUse (Or.inr h))⟩
+      exact ⟨(hpoints j).1.resolve_left (hnotUse ∘ Or.inl),
+        (hpoints j).2.1.resolve_left (hnotUse ∘ Or.inr)⟩
     let j : Fin 3 := i + 1
     let k : Fin 3 := i + 2
     obtain ⟨hij, hik, hjk⟩ : i ≠ j ∧ i ≠ k ∧ j ≠ k := by fin_cases i <;> decide
-    have hzCross : z ∈ lineCrossings points := by
-      exact Set.mem_iUnion.mpr
-        ⟨⟨(⟨⟨a j, (hold j hij).1⟩, ⟨b j, (hold j hij).2⟩⟩,
-            ⟨⟨a k, (hold k hik).1⟩, ⟨b k, (hold k hik).2⟩⟩), hdistinct hjk⟩, hz j, hz k⟩
+    have hzCross : z ∈ lineCrossings points := Set.mem_iUnion.mpr
+      ⟨⟨(⟨⟨a j, (hold j hij).1⟩, ⟨b j, (hold j hij).2⟩⟩,
+          ⟨⟨a k, (hold k hik).1⟩, ⟨b k, (hold k hik).2⟩⟩), hdistinct hjk⟩, hz j, hz k⟩
     have hother (c : ℂ) (hc : c ∈ insert w points) (hcw : c ≠ w)
-        (hcz : c ≠ z) (hcl : c ∈ line i) : False := by
-      apply havoid c ((Set.mem_insert_iff.mp hc).resolve_left hcw) z hzCross hcz
-      rw [affineSpan_pair_eq_of_mem_of_mem_of_ne hcl (hz i) hcz]
-      exact hline i hi
+        (hcz : c ≠ z) (hcl : c ∈ line i) : False :=
+      havoid c (hc.resolve_left hcw) z hzCross hcz
+        ((affineSpan_pair_eq_of_mem_of_mem_of_ne hcl (hz i) hcz).symm ▸ hline i hi)
     rcases hi with ha | hb
     · exact hother (b i) (hpoints i).2.1 (ha ▸ (hpoints i).2.2.symm)
         (he i).2.symm (right_mem_affineSpan_pair ℝ (a i) (b i))
@@ -186,12 +172,11 @@ private theorem NoTripleLineContact.insert_point {points moved : Set ℂ}
         (he i).1.symm (left_mem_affineSpan_pair ℝ (a i) (b i))
   · have hne (i) : a i ≠ w ∧ b i ≠ w :=
       ⟨fun ha => hused ⟨i, Or.inl ha⟩, fun hb => hused ⟨i, Or.inr hb⟩⟩
-    apply h a b z ?_ ?_ hdistinct hz
-    · intro i
-      exact ⟨(Set.mem_insert_iff.mp (hpoints i).1).resolve_left (hne i).1,
-        (Set.mem_insert_iff.mp (hpoints i).2.1).resolve_left (hne i).2, (hpoints i).2.2⟩
-    · exact hmoved.imp fun i => Or.imp (fun ha => (Set.mem_insert_iff.mp ha).resolve_left (hne i).1)
-        fun hb => (Set.mem_insert_iff.mp hb).resolve_left (hne i).2
+    exact h a b z
+      (fun i => ⟨(hpoints i).1.resolve_left (hne i).1,
+        (hpoints i).2.1.resolve_left (hne i).2, (hpoints i).2.2⟩)
+      (hmoved.imp fun i => Or.imp (·.resolve_left (hne i).1) (·.resolve_left (hne i).2))
+      hdistinct hz
 
 /-- Arbitrarily small perturbations separate movable points, keep them off lines
 through other points, and exclude triple contacts away from the defining endpoints
@@ -237,7 +222,6 @@ theorem exists_injective_perturbation_avoiding_spans_and_crossings {ι : Type*} 
         fun j hj => Function.update_of_ne (ne_of_mem_of_not_mem hj hi) _ _
       have hold (j : ι) (hj : j ∈ s) : old j ∈ present :=
         Finset.mem_union_right _ (Finset.mem_image_of_mem _ hj)
-      have hfixed' : ∀ a ∈ fixed, a ∈ present := fun a ha => Finset.mem_union_left _ ha
       have hplaced : q '' (↑(insert i s) : Set ι) = insert w (old '' (↑s : Set ι)) := by
         rw [Finset.coe_insert, Set.image_insert_eq, hqnew, hqold.image_eq]
       have hpool : (↑fixed : Set ℂ) ∪ q '' (↑(insert i s) : Set ι) =
@@ -252,35 +236,23 @@ theorem exists_injective_perturbation_avoiding_spans_and_crossings {ι : Type*} 
         exact ⟨hinj, fun ⟨j, hj, h⟩ => hwne (h ▸ hold j hj)⟩
       · intro j hj h
         rcases Finset.mem_insert.mp hj with rfl | hj
-        · exact hwne (hqnew ▸ hfixed' _ h)
-        · exact hfixed j hj (hqold hj ▸ h)
+        exacts [hwne (hqnew ▸ Finset.mem_union_left _ h), hfixed j hj (hqold hj ▸ h)]
       · intro j hj a b ha hb hab hja hjb h
         rw [hpool] at ha hb
         rcases Finset.mem_insert.mp hj with rfl | hj
         · rw [hqnew] at hja hjb h
-          have ha' := (Set.mem_insert_iff.mp ha).resolve_left (Ne.symm hja)
-          have hb' := (Set.mem_insert_iff.mp hb).resolve_left (Ne.symm hjb)
-          exact hwspans a ha' b hb' hab h
+          exact hwspans a (ha.resolve_left hja.symm) b (hb.resolve_left hjb.symm) hab h
         · rw [hqold hj] at hja hjb h
-          rcases Set.mem_insert_iff.mp ha with haw | ha'
-          · subst a
-            have hb' := (Set.mem_insert_iff.mp hb).resolve_left hab.symm
-            apply hwspans _ (hold j hj) _ hb' hjb
-            rw [affineSpan_pair_eq_of_left_mem_of_ne h hjb]
-            exact left_mem_affineSpan_pair _ _ _
-          · rcases Set.mem_insert_iff.mp hb with hbw | hb'
-            · subst b
-              apply hwspans _ ha' _ (hold j hj) hja.symm
-              rw [affineSpan_pair_eq_of_right_mem_of_ne h hja]
-              exact right_mem_affineSpan_pair _ _ _
+          rcases ha with rfl | ha'
+          · exact hwspans _ (hold j hj) _ (hb.resolve_left hab.symm) hjb
+              ((affineSpan_pair_eq_of_left_mem_of_ne h hjb).symm ▸ left_mem_affineSpan_pair _ _ _)
+          · rcases hb with rfl | hb'
+            · exact hwspans _ ha' _ (hold j hj) hja.symm
+                ((affineSpan_pair_eq_of_right_mem_of_ne h hja).symm ▸
+                  right_mem_affineSpan_pair _ _ _)
             · exact hspans j hj a b (hpresent ▸ ha') (hpresent ▸ hb') hab hja hjb h
-      · rw [hpool, hplaced]
-        exact (hpresent.symm ▸ htriple).insert_point hwcross
-  obtain ⟨q, hnear, hinj, hfixed, hspans, htriple⟩ := extend Finset.univ
-  refine ⟨q, fun i => hnear i (Finset.mem_univ i),
-    fun _ _ => hinj (Finset.mem_univ _) (Finset.mem_univ _),
-    fun i => hfixed i (Finset.mem_univ i), ?_, ?_⟩
-  · simpa only [Finset.coe_univ, Set.image_univ] using fun i => hspans i (Finset.mem_univ i)
-  · simpa only [Finset.coe_univ, Set.image_univ] using htriple
+      · exact hpool.symm ▸ hplaced.symm ▸ (hpresent.symm ▸ htriple).insert_point hwcross
+  simpa only [Finset.mem_univ, true_imp_iff, Finset.coe_univ, Set.image_univ, Set.injOn_univ] using
+    extend Finset.univ
 
 end Cslib

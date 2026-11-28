@@ -58,14 +58,10 @@ The coordinates are paid for by the first row's actual list. -/
 /-- The incidence guard checks precisely the original positional edge model. -/
 theorem checkEdge_eq_true (F : CSP Table ℕ) : checkEdge F = true ↔ EdgeInstance F := by
   simp only [checkEdge, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq]
-  constructor
-  · rintro ⟨hs, hc⟩
-    exact edgeInstance_of_count_vars (fun i => hs _ (List.getElem_mem i.isLt)) hc
-  · intro h
-    refine ⟨?_, fun v hv => h.count_vars hv⟩
-    intro c hc
-    obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hc
-    exact h.scope_nodup ⟨i, hi⟩
+  refine ⟨fun ⟨hs, hc⟩ => edgeInstance_of_count_vars (fun i => hs _ (List.getElem_mem i.isLt)) hc,
+    fun h => ⟨fun c hc => ?_, fun v hv => h.count_vars hv⟩⟩
+  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hc
+  exact h.scope_nodup ⟨i, hi⟩
 
 private theorem flip_ofFn {n : ℕ} (x : Fin n → Bool) (i j : Fin n) :
     EdgeAugmenting.flip (List.ofFn x) [i.val, j.val] =
@@ -108,17 +104,10 @@ theorem checkConstraint_sound (c : Constraint Table ℕ) (h : checkConstraint c 
     simp only [List.getD_ofFn, Bool.or_eq_true, beq_iff_eq, hi,
       false_or, List.any_eq_true, Bool.and_eq_true, bne_iff_ne] at hex
     obtain ⟨⟨b, j⟩, hj, hdiff, hvalid⟩ := hex
-    have hjn : j < c.scope.length := by
-      have := List.mem_zipIdx hj
-      simpa using this.2.1
-    let k : Fin c.scope.length := ⟨j, hjn⟩
-    have hb : b = x k := by
-      simpa [k] using (List.mem_zipIdx hj).2.2
-    refine ⟨k, ?_, ?_⟩
-    · simpa [hb, k, hjn] using hdiff
-    · change c.rel.sem (List.ofFn (BitString.flipOn {i, k} x)) = true
-      rw [← flip_ofFn]
-      exact hvalid
+    obtain ⟨hjn, hb⟩ := (List.mem_zipIdx hj).2
+    simp only [List.length_ofFn, List.getElem_ofFn, Nat.zero_add, Nat.sub_zero] at hjn hb
+    refine ⟨⟨j, hjn⟩, by simpa [hb.symm, hjn] using hdiff, ?_⟩
+    simpa only [Set.mem_ofPred_eq, ← flip_ofFn] using hvalid
   · intro x y hx hy
     have hh := hp _ (hrow x hx) _ (hrow y hy)
     simp only [checkPair, Bool.and_eq_true, decide_eq_true_eq, wordParity_ofFn] at hh
@@ -159,31 +148,19 @@ theorem checkConstraint_complete (c : Constraint Table ℕ)
   · rw [← hx, ← hy, wordParity_ofFn, wordParity_ofFn]
     exact hR.parity_eq hxm hym
   · rintro ⟨a, i⟩ hi
-    have hib : i < c.scope.length := by
-      have hh := (List.mem_zipIdx hi).2.1
-      rw [← hx] at hh
-      simpa only [List.length_ofFn, Nat.zero_add] using hh
+    obtain ⟨hib, hai⟩ := (List.mem_zipIdx hi).2
+    have hib_row : i < row.length := by simpa only [Nat.zero_add] using hib
+    rw [← hx, List.length_ofFn] at hib
+    simp only [Nat.zero_add, Nat.sub_zero] at hib hai
     let k : Fin c.scope.length := ⟨i, hib⟩
-    have hai : a = x k := by
-      have hh := (List.mem_zipIdx hi).2.2
-      change a = row.getD i false
-      rw [List.getD_eq_getElem _ _ (by simpa using (List.mem_zipIdx hi).2.1)]
-      simpa only [Nat.sub_zero] using hh
     by_cases hab : a = other.getD i false
     · simp [hab]
-    · have hdiff : x k ≠ y k := by simpa only [← hai] using hab
+    · have hdiff : x k ≠ y k := by
+        simpa only [x, k, List.getD_eq_getElem _ _ hib_row, hai] using hab
       obtain ⟨j, hj, hv⟩ := hR.isDeltaMatroid.exchange hxm hym hdiff
-      have hm : (x j, j.val) ∈ row.zipIdx := hx ▸ mem_zipIdx_ofFn x j
-      have hvalid : c.rel.sem (EdgeAugmenting.flip row [i, j.val]) = true := by
-        rw [← hx]
-        change c.rel.sem (EdgeAugmenting.flip (List.ofFn x) [k.val, j.val]) = true
-        rw [flip_ofFn]
-        exact hv
-      simp only [Bool.or_eq_true]
-      right
-      apply List.any_eq_true.mpr
-      exact ⟨(x j, j.val), hm, by simpa only [Bool.and_eq_true, bne_iff_ne] using
-        (show x j ≠ other.getD j.val false ∧ _ from ⟨hj, hvalid⟩)⟩
+      simp only [Bool.or_eq_true, List.any_eq_true, Bool.and_eq_true, bne_iff_ne]
+      exact Or.inr ⟨(x j, j.val), hx ▸ mem_zipIdx_ofFn x j, hj,
+        by rwa [← hx, flip_ofFn x k j]⟩
 
 /-- Every semantic solver precondition follows from the guard on the raw framed input. -/
 theorem checkModel_sound (F : CSP Table ℕ) (h : checkModel F = true) :

@@ -55,10 +55,8 @@ private theorem exitMass_zero_of_holds {r : ℕ} {α : Type*} [DecidableEq α]
   unfold exitMass
   refine tsum_eq_zero_iff.mpr fun y => ?_
   rw [loopIterPMF_zero]
-  by_cases hyx : y = x
-  · subst hyx
-    have hnot : y ∉ {w | ¬cond.Holds w} := fun h => h hcx
-    simp [Set.indicator_of_notMem hnot]
+  rcases eq_or_ne y x with rfl | hyx
+  · simp [Set.indicator_of_notMem (show y ∉ {w | ¬cond.Holds w} from fun h => h hcx)]
   · simp [PMF.pure_apply, hyx]
 
 private theorem exitMass_of_not_holds {r : ℕ} {α : Type*} [DecidableEq α]
@@ -66,11 +64,8 @@ private theorem exitMass_of_not_holds {r : ℕ} {α : Type*} [DecidableEq α]
     {x : Data r} (hnc : ¬cond.Holds x) (K : ℕ) (θ : α) :
     exitMass cond μ_body f K x θ = if θ = f x then 1 else 0 := by
   unfold exitMass
-  rw [loopIterPMF_of_not_holds hnc, tsum_eq_single x]
-  · have hin : x ∈ {w | ¬cond.Holds w} := hnc
-    simp [Set.indicator_of_mem hin]
-  · intro y hyx
-    simp [PMF.pure_apply, hyx]
+  rw [loopIterPMF_of_not_holds hnc, tsum_eq_single x (fun _ hyx => by simp [PMF.pure_apply, hyx])]
+  simp [Set.indicator_of_mem (show x ∈ {w | ¬cond.Holds w} from hnc)]
 
 private theorem exitMass_succ_of_holds {r : ℕ} {α : Type*} [DecidableEq α]
     {cond : Cond r} {μ_body : Data r → PMF (Data r)} {f : Data r → α}
@@ -88,15 +83,11 @@ private theorem exitMass_succ_of_holds {r : ℕ} {α : Type*} [DecidableEq α]
     intro y
     rw [loopIterPMF_succ, loopStepPMF_of_holds hcx]
     by_cases hθ : θ = f y
-    · simp only [hθ, ↓reduceIte]
-      by_cases hy : y ∈ {w | ¬cond.Holds w}
-      · simp only [Set.indicator_of_mem hy, PMF.bind_apply]
-      · simp only [Set.indicator_of_notMem hy, mul_zero, tsum_zero]
+    · by_cases hy : y ∈ {w | ¬cond.Holds w} <;>
+        simp [hθ, hy, Set.indicator_of_mem, Set.indicator_of_notMem, PMF.bind_apply]
     · simp [hθ]
-  simp_rw [hstep]
-  rw [tsum_comm]
-  refine tsum_congr fun z => ?_
-  rw [ENNReal.tsum_mul_left]
+  simp_rw [hstep, ← ENNReal.tsum_mul_left]
+  exact tsum_comm
 
 private theorem exitMass_eq_ite_exitWeightSeq {r : ℕ} {α : Type*} [Fintype α] [DecidableEq α]
     [Nonempty α] {cond : Cond r} {I Q : Data r → Prop} {μ_body : Data r → PMF (Data r)}

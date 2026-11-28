@@ -89,21 +89,16 @@ theorem expansionOracle_bounds (generator : List Bool → List Bool) (sample : P
         (cacheEncoding cache).length + 4 * query.length + 4 * n + 3 := by
   by_cases hquery : query.length = n
   · supp_cases hresult [expansionOracle, hquery] with ⟨⟨expansion, next⟩, hsample, rfl⟩
-    have hvalues : ∀ value ∈ ((ProbComp.eval sample).map (List.take (2 * n))).support,
-        value.length ≤ 2 * n := by
-      intro value hvalue
-      obtain ⟨word, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hvalue
-      simp
-    have hsample' : (expansion, next) ∈ (memoize
-        (fun _ : List Bool => (ProbComp.eval sample).map (List.take (2 * n)))
-        (query.take depth) cache).support := by
-      simpa only [ProbComp.eval_memoize, ProbComp.eval_map] using hsample
     obtain ⟨_, hcache', hgrowth⟩ := memoize_call_size_le encBits encBits
       (fun _ : List Bool => (ProbComp.eval sample).map (List.take (2 * n)))
-      (query.take depth) cache (2 * n) hcache hvalues (expansion, next) hsample'
+      (query.take depth) cache (2 * n) hcache
+      (fun _ h => by
+        obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff ..).mp h
+        simp)
+      (expansion, next) (by simpa only [ProbComp.eval_memoize, ProbComp.eval_map] using hsample)
     refine ⟨hcache', (length_eval_le ..).trans (length_selectChild_le ..), ?_⟩
-    change (cacheEncoding next).length ≤ (cacheEncoding cache).length +
-      4 * (query.take depth).length + 2 * (2 * n) + 3 at hgrowth
+    change (cacheEncoding next).length ≤
+      (cacheEncoding cache).length + 4 * (query.take depth).length + 2 * (2 * n) + 3 at hgrowth
     simp only [List.length_take] at hgrowth
     dsimp
     lia
@@ -124,7 +119,7 @@ theorem isPPTOn_expansionOracle {α : Type} {input : α ↪ List Bool}
     (hcache : ComputableInPolyTime cache input cacheEncoding) :
     IsPPTOn input (encPair encBits cacheEncoding) (fun a =>
       expansionOracle generator (sample a) (width a) (depth a) (query a) (cache a)) := by
-  have heval := (computableInPolyTime_eval (hgenerator))
+  have := computableInPolyTime_eval hgenerator
   unfold expansionOracle cacheEncoding
   fun_prop
 
@@ -140,22 +135,16 @@ theorem isPPTOn_expansionGame {Caller : Type} {input : Caller ↪ List Bool}
     {adversary : OracleDistinguisher} (hadversary : IsOraclePPT encBool adversary) :
     IsPPTOn input encBool
       (fun a => expansionGame generator (sample a) adversary (width a) (depth a)) := by
-  have hrun : IsPPTOn input (encPair encBool cacheEncoding) (fun a =>
-      (OracleComp.interpret
-        (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
-          (fun request => expansionOracle generator (sample a) (width a) (depth a) request.2))
-            (adversary (width a) [])).run []) := by
-    apply hadversary.run_interpret_preprocess (operationEncoding := encFinEnum Unit)
-      (prepare := fun a => (width a, []))
-      (resources := fun a query => 4 * query.length + 4 * width a + 3)
-      (by fun_prop) (by fun_prop) (by fun_prop)
-      (fun a cache => ∀ entry ∈ cache, entry.2.length ≤ 2 * width a) (by simp) (by fun_prop)
-    intro a request cache hcache result hresult
-    obtain ⟨hcache', hreply, hgrowth⟩ :=
-      expansionOracle_bounds generator (sample a) (width a) (depth a) request.2 cache hcache
-        result hresult
-    exact ⟨hcache', by lia, by lia⟩
-  exact hrun.map (ComputableInPolyTime.fst _ _)
+  refine (hadversary.run_interpret_preprocess (operationEncoding := encFinEnum Unit)
+    (prepare := fun a => (width a, [])) (resources := fun a q => 4 * q.length + 4 * width a + 3)
+    (by fun_prop) (by fun_prop) (by fun_prop)
+    (fun a cache => ∀ entry ∈ cache, entry.2.length ≤ 2 * width a) (by simp) (by fun_prop) ?_).map
+    (ComputableInPolyTime.fst _ _)
+  intro a request cache hcache result hresult
+  obtain ⟨hcache', _, _⟩ :=
+    expansionOracle_bounds generator (sample a) (width a) (depth a) request.2 cache hcache result
+      hresult
+  exact ⟨hcache', by lia, by lia⟩
 
 private def expandCache (generator : List Bool → List Bool) (n : ℕ) (cache : Cache) : Cache :=
   cache.map (fun entry => (entry.1, (generator entry.2).take (2 * n)))
@@ -169,13 +158,10 @@ private theorem frontierOracle_preserves_labels (generator : List Bool → List 
   by_cases hquery : query.length = n
   · supp_cases hresult [frontierOracle, prefixHybridOracle, beq_iff_eq, hquery]
       with ⟨⟨seed, _⟩, hseed, rfl, rfl⟩
-    have hsample : (seed, cache') ∈
-        (memoize (fun _ : List Bool => BitString.uniformList n)
-          (query.take depth) cache).support := by
-      simpa only [ProbComp.eval_memoize, BitString.eval_sampleList] using hseed
     exact (RandomOracle.memoize_invariant (fun _ : List Bool => BitString.uniformList n)
       (fun _ seed => seed.length = n) (query.take depth) cache hcache
-      (fun _ h => BitString.length_of_mem_support_uniformList h) (seed, cache') hsample).2
+      (fun _ => BitString.length_of_mem_support_uniformList) (seed, cache')
+      (by simpa only [ProbComp.eval_memoize, BitString.eval_sampleList] using hseed)).2
   · supp_cases hresult [frontierOracle, prefixHybridOracle, beq_iff_eq, hquery]
     exact hcache
 
@@ -190,7 +176,7 @@ private theorem expansionOracle_generated_step (generator : List Bool → List B
   · have hmap := memoize_map (m := PMF) (Function.Embedding.refl (List Bool))
       (fun seed => (generator seed).take (2 * n)) (fun _ : List Bool => BitString.uniformList n)
       (fun _ : List Bool =>
-        (BitString.uniformList n).map (fun seed => (generator seed).take (2 * n)))
+        (BitString.uniformList n).map fun seed => (generator seed).take (2 * n))
       (fun _ => rfl) (query.take depth) cache
     simp only [PMF.monad_map_eq_map, Function.Embedding.refl_apply] at hmap
     simp only [pmf_norm, frontierOracle, prefixHybridOracle, expansionOracle, beq_iff_eq, hquery,
@@ -202,9 +188,9 @@ private theorem expansionOracle_generated_step (generator : List Bool → List B
     rintro ⟨seed, next⟩ hseed
     have hlength := (RandomOracle.memoize_invariant (fun _ : List Bool => BitString.uniformList n)
       (fun _ seed => seed.length = n) (query.take depth) cache hcache
-      (fun _ h => BitString.length_of_mem_support_uniformList h) (seed, next) hseed).1
-    simp only [selectChild_take, ← hlength,
-      eval_drop_succ generator seed query depth (by lia), child, expandCache]
+      (fun _ => BitString.length_of_mem_support_uniformList) (seed, next) hseed).1
+    simp only [selectChild_take, ← hlength, eval_drop_succ generator seed query depth (by lia),
+      child, expandCache]
   · simp [frontierOracle, prefixHybridOracle, expansionOracle, hquery, PMF.pure_map]
 
 /-- Sampling generator expansions reproduces the earlier prefix hybrid for every adaptive
@@ -213,18 +199,16 @@ theorem expansionGame_generated (generator : List Bool → List Bool)
     (adversary : OracleDistinguisher) (n depth : ℕ) (hdepth : depth < n) :
     ProbComp.eval (expansionGame generator (generator <$> BitString.sampleList n)
       adversary n depth) = ProbComp.eval (hybridGame generator adversary n depth) := by
-  have h := ProbOracleComp.runWith_map_state_of_invariant
-    (fun request cache => ProbComp.eval (frontierOracle generator n depth request.2 cache))
-    (fun request cache => ProbComp.eval
-      (expansionOracle generator (generator <$> BitString.sampleList n) n depth request.2 cache))
-    (expandCache generator n) (fun cache => ∀ entry ∈ cache, entry.2.length = n)
-    (fun request => frontierOracle_preserves_labels generator n depth request.2)
-    (fun request => expansionOracle_generated_step generator n depth hdepth request.2)
-    (adversary n []) [] (by simp)
-  have houtput := congrArg (PMF.map Prod.fst) h
   simpa [expansionGame, hybridGame, prefixHybridGame, frontierOracle,
     ProbOracleComp.eval_run_interpret_eq_runWith, expandCache, PMF.map_comp, Function.comp_def]
-    using houtput.symm
+    using (congrArg (PMF.map Prod.fst) <| ProbOracleComp.runWith_map_state_of_invariant
+      (fun r c => ProbComp.eval (frontierOracle generator n depth r.2 c))
+      (fun r c => ProbComp.eval
+        (expansionOracle generator (generator <$> BitString.sampleList n) n depth r.2 c))
+      (expandCache generator n) (fun c => ∀ e ∈ c, e.2.length = n)
+      (fun r => frontierOracle_preserves_labels generator n depth r.2)
+      (fun r => expansionOracle_generated_step generator n depth hdepth r.2)
+      (adversary n []) [] (by simp)).symm
 
 /-- The eager proof game samples every prefix label before running the client. -/
 private noncomputable def prefixTableGame (n depth width : ℕ)
@@ -245,15 +229,13 @@ private theorem prefix_eager (n depth width : ℕ) (hdepth : depth ≤ n)
               (request.2.take depth) cache).map
                 (fun (value, next) => (respond request.2 value, next))
           else PMF.pure ([], cache))) program).run []).map Prod.fst := by
-  have hkey (query : List Bool) (hquery : (query.length == n) = true) :
-      encBitString depth (BitString.ofList depth (query.take depth)) = query.take depth := by
-    have hlength := beq_iff_eq.mp hquery
-    rw [encBitString_apply]
-    exact BitString.ofFn_ofList (by simp [List.length_take, hlength, Nat.min_eq_left hdepth])
   simpa only [prefixTableGame, ProbComp.eval_bind, ProbComp.eval_uniform,
     ProbOracleComp.eval_interpret, ProbComp.eval_pure, beq_iff_eq] using
     (prefixLabelGame_eq_eager (encBitString depth) (fun q => BitString.ofList depth (q.take depth))
-      (·.length == n) depth width hkey respond program).symm
+      (·.length == n) depth width (fun q hq => by
+        rw [encBitString_apply]
+        exact BitString.ofFn_ofList (by simp [beq_iff_eq.mp hq, Nat.min_eq_left hdepth]))
+      respond program).symm
 
 private def childrenEquiv (n : ℕ) : BitString (2 * n) ≃ (Bool → BitString n) :=
   (BitString.blocksEquiv (m := 2) (k := n)).trans
@@ -280,23 +262,19 @@ private def childTableEquiv (n depth : ℕ) :
     (Equiv.curry (BitString depth) Bool (BitString n)).symm).trans
       (Equiv.arrowCongr (childIndexEquiv depth).symm (Equiv.refl (BitString n)))
 
-private theorem childTableEquiv_apply (n depth : ℕ) (table : BitString depth → BitString (2 * n))
-    (query : BitString (depth + 1)) :
-    childTableEquiv n depth table query =
-      childrenEquiv n (table (Fin.init query)) (query (Fin.last depth)) := rfl
-
 private theorem ofFn_childTable (n depth : ℕ) (table : BitString depth → BitString (2 * n))
     (query : List Bool) :
     List.ofFn (childTableEquiv n depth table
       (BitString.ofList (depth + 1) (query.take (depth + 1)))) =
         selectChild n (List.ofFn (table (BitString.ofList depth (query.take depth))))
           (query[depth]?.getD false) := by
-  rw [childTableEquiv_apply, selectChild_ofFn]
-  have hprefix : Fin.init (BitString.ofList (depth + 1) (query.take (depth + 1))) =
-      BitString.ofList depth (query.take depth) := by
+  let q := BitString.ofList (depth + 1) (query.take (depth + 1))
+  change List.ofFn (childrenEquiv n (table (Fin.init q)) (q (Fin.last depth))) = _
+  rw [selectChild_ofFn]
+  have hprefix : Fin.init q = BitString.ofList depth (query.take depth) := by
     funext i
-    simp [Fin.init, BitString.ofList, i.isLt, show i.val < depth + 1 by lia]
-  simp [hprefix, BitString.ofList]
+    simp [q, Fin.init, BitString.ofList, i.isLt, show i.val < depth + 1 by lia]
+  simp [q, hprefix, BitString.ofList]
 
 /-- Uniform expansions give the next prefix hybrid: the two independent children of each parent
 are exactly the independent labels at the next level, under randomized adaptive queries. -/

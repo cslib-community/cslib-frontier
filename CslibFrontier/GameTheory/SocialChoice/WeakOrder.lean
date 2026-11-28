@@ -98,10 +98,8 @@ theorem toTopSet_atLeast_iff_of_mem (R : WeakRanking A) {S : Set A} {x y : A}
 
 theorem toTopSet_prefers_of_mem_of_notMem (R : WeakRanking A) {S : Set A} {x y : A}
     (hx : x ∈ S) (hy : y ∉ S) :
-    (R.toTopSet S).Prefers x y := by
-  rintro (⟨hy', -⟩ | ⟨hyx, -⟩)
-  · exact hy hy'
-  · exact hy (hyx.2 hx)
+    (R.toTopSet S).Prefers x y :=
+  fun h => h.elim (fun ⟨hy', _⟩ => hy hy') fun ⟨hyx, _⟩ => hy (hyx.2 hx)
 
 end WeakRanking
 
@@ -174,23 +172,16 @@ theorem isIIA_dictatorship (i : V) : (dictatorship (A := A) i).IsIIA :=
   fun _ _ _ _ h => (h i).1
 
 theorem isDictator_serialDictatorship (i j : V) :
-    (serialDictatorship (A := A) i j).IsDictator i := by
-  intro P a b hi hba
-  rcases show (P i).Prefers b a ∨ ((P i).AtLeast b a ∧ (P j).AtLeast b a) from hba with
-    hba' | ⟨hiba, -⟩
-  · exact (P i).prefers_asymm hi hba'
-  · exact hi hiba
+    (serialDictatorship (A := A) i j).IsDictator i :=
+  fun P _ _ hi hba => hba.elim (fun hba' => (P i).prefers_asymm hi hba') fun ⟨hiba, _⟩ => hi hiba
 
 theorem isPareto_serialDictatorship (i j : V) :
     (serialDictatorship (A := A) i j).IsPareto :=
   (isDictator_serialDictatorship i j).isPareto
 
 theorem isIIA_serialDictatorship (i j : V) :
-    (serialDictatorship (A := A) i j).IsIIA := by
-  intro P Q a b h
-  change ((P i).Prefers a b ∨ ((P i).AtLeast a b ∧ (P j).AtLeast a b)) ↔
-    ((Q i).Prefers a b ∨ ((Q i).AtLeast a b ∧ (Q j).AtLeast a b))
-  simp only [WeakRanking.Prefers, (h i).1, (h i).2, (h j).1]
+    (serialDictatorship (A := A) i j).IsIIA :=
+  fun _ _ _ _ h => by simp only [serialDictatorship, WeakRanking.Prefers, (h i).1, (h i).2, (h j).1]
 
 /-- Unlike strict-profile dictatorships (`SocialWelfareFunction.isDictator_iff_eq_dictatorship`),
 a rule on weak profiles with dictator `i` need not equal `dictatorship i`: when `i ≠ j` and `A`
@@ -201,18 +192,14 @@ theorem serialDictatorship_ne_dictatorship [Nontrivial A] {i j : V} (hij : i ≠
   intro heq
   obtain ⟨a, b, hab⟩ := exists_pair_ne A
   obtain ⟨r₀⟩ := Ranking.nonempty A
-  let indiff : WeakRanking A :=
-    { AtLeast := fun _ _ => True, total := fun _ _ => Or.inl trivial,
-      trans := fun _ _ _ _ _ => trivial }
+  let indiff : WeakRanking A := ⟨fun _ _ => True, fun _ _ => .inl trivial, fun _ _ _ _ _ => trivial⟩
   let P : WeakProfile V A := fun k => if k = i then indiff else (r₀.toTop a).toWeakRanking
-  have h1 : (dictatorship i P).AtLeast b a := by
-    simp only [dictatorship, P, ite_true, indiff]
-  have h2 : ¬ (serialDictatorship i j P).AtLeast b a := by
-    change ¬ ((P i).Prefers b a ∨ ((P i).AtLeast b a ∧ (P j).AtLeast b a))
-    simp only [P, hij.symm, ite_true, ite_false, indiff, WeakRanking.Prefers, not_true_eq_false,
-      true_and, false_or, Ranking.toWeakRanking_atLeast, not_or]
-    exact ⟨hab.symm, (r₀.toTop a).asymm (r₀.isTop_toTop a b hab.symm)⟩
-  exact h2 (heq ▸ h1)
+  have h : (serialDictatorship i j P).AtLeast b a :=
+    heq.symm ▸ (by simp [dictatorship, P, indiff] : (dictatorship i P).AtLeast b a)
+  simp only [serialDictatorship, P, hij.symm, ite_true, ite_false, indiff,
+    WeakRanking.Prefers, not_true_eq_false, true_and, false_or, Ranking.toWeakRanking_atLeast,
+    hab.symm] at h
+  exact (r₀.toTop a).asymm (r₀.isTop_toTop a b hab.symm) h
 
 /-- Restrict a weak-profile social welfare function to strict profiles. -/
 private def toStrict (G : WeakSocialWelfareFunction V A) : SocialWelfareFunction V A :=
@@ -221,20 +208,17 @@ private def toStrict (G : WeakSocialWelfareFunction V A) : SocialWelfareFunction
 private theorem isPareto_toStrict (hP : G.IsPareto) : (toStrict G).IsPareto :=
   fun P a b h => hP _ a b fun i => (P i).toWeakRanking_prefers.2 (h i)
 
-private theorem isIIA_toStrict (hI : G.IsIIA) : (toStrict G).IsIIA := by
-  intro P Q a b h
-  refine hI _ _ a b fun i => ?_
-  simp only [Ranking.toWeakRanking_atLeast]
-  exact ⟨or_congr_right (h i), or_congr_right (Ranking.prefers_iff_swap (h i))⟩
+private theorem isIIA_toStrict (hI : G.IsIIA) : (toStrict G).IsIIA :=
+  fun _ _ a b h => hI _ _ a b fun i => by
+    simp only [Ranking.toWeakRanking_atLeast]
+    exact ⟨or_congr_right (h i), or_congr_right (Ranking.prefers_iff_swap (h i))⟩
 
 /-- With at least two alternatives, a weak-profile rule has at most one dictator. -/
 theorem IsDictator.unique [Nontrivial A] {i j : V} (hi : G.IsDictator i) (hj : G.IsDictator j) :
-    i = j := by
-  have hi' : (toStrict G).IsDictator i :=
-    fun P a b h => hi _ a b ((P i).toWeakRanking_prefers.2 h)
-  have hj' : (toStrict G).IsDictator j :=
-    fun P a b h => hj _ a b ((P j).toWeakRanking_prefers.2 h)
-  exact hi'.unique hj'
+    i = j :=
+  SocialWelfareFunction.IsDictator.unique (F := toStrict G)
+    (fun P a b h => hi _ a b ((P i).toWeakRanking_prefers.2 h))
+    (fun P a b h => hj _ a b ((P j).toWeakRanking_prefers.2 h))
 
 /-- **Arrow's impossibility theorem on weak individual rankings** ([Arrow1951]): with finitely many
 voters and at least three alternatives, every weakly Pareto social welfare function on weak
@@ -249,72 +233,54 @@ theorem isDictatorial_of_isPareto_of_isIIA [Finite V] (hP : G.IsPareto) (hI : G.
   -- Pick a third alternative `c` distinct from both `a` and `b`.
   obtain ⟨c, hca, hcb⟩ : ∃ c : A, c ≠ a ∧ c ≠ b := by
     obtain ⟨x, y, z, hxy, hxz, hyz⟩ := h3
-    by_cases hxa : x = a
-    · subst hxa
-      by_cases hyb : y = b
-      · subst hyb; exact ⟨z, hxz.symm, hyz.symm⟩
-      · exact ⟨y, hxy.symm, hyb⟩
-    · by_cases hxb : x = b
-      · subst hxb
-        by_cases hya : y = a
-        · subst hya; exact ⟨z, hyz.symm, hxz.symm⟩
-        · exact ⟨y, hya, hxy.symm⟩
-      · exact ⟨x, hxa, hxb⟩
+    by_cases hx : x ≠ a ∧ x ≠ b
+    · exact ⟨x, hx⟩
+    by_cases hy : y ≠ a ∧ y ≠ b
+    · exact ⟨y, hy⟩
+    refine ⟨z, ?_⟩
+    rcases not_and_or.1 hx with h1 | h1 <;> rcases not_and_or.1 hy with h2 | h2 <;>
+      simp_all [ne_comm]
   obtain ⟨r₀⟩ := Ranking.nonempty A
   -- Voter `n` adopts strict ranking `a ≻ c ≻ b`; others lift `{a, b}` strictly above `{a, b}ᶜ`.
   let sn : Ranking A := ((r₀.toTop b).toTop c).toTop a
   have hsn_ab : sn.Prefers a b := ((r₀.toTop b).toTop c).isTop_toTop a b hab.symm
   have hsn_ac : sn.Prefers a c := ((r₀.toTop b).toTop c).isTop_toTop a c hca
-  have hsn_cb : sn.Prefers c b := by
-    unfold sn
-    rw [((r₀.toTop b).toTop c).toTop_prefers_of_ne hca hab.symm]
-    exact (r₀.toTop b).isTop_toTop c b hcb.symm
-  let Q : WeakProfile V A := fun j =>
-    if j = n then sn.toWeakRanking else (P j).toTopSet {a, b}
+  have hsn_cb : sn.Prefers c b :=
+    (((r₀.toTop b).toTop c).toTop_prefers_of_ne hca hab.symm).2
+      ((r₀.toTop b).isTop_toTop c b hcb.symm)
+  let Q : WeakProfile V A := fun j => if j = n then sn.toWeakRanking else (P j).toTopSet {a, b}
   have haS : a ∈ ({a, b} : Set A) := Set.mem_insert a {b}
   have hbS : b ∈ ({a, b} : Set A) := Set.mem_insert_of_mem a rfl
-  have hcS : c ∉ ({a, b} : Set A) := by
-    simp only [Set.mem_insert_iff, Set.mem_singleton_iff, not_or]
-    exact ⟨hca, hcb⟩
+  have hcS : c ∉ ({a, b} : Set A) := by simp [hca, hcb]
   -- 1. Every voter strictly prefers `a` to `c` in `Q`, so society ranks `a` strictly above `c`.
   have hGQ_ac : (G Q).Prefers a c := hP Q a c fun j => by
-    by_cases hj : j = n
-    · simp only [Q, hj, ite_true, Ranking.toWeakRanking_prefers]
-      exact hsn_ac
-    · simp only [Q, hj, ite_false]
-      exact (P j).toTopSet_prefers_of_mem_of_notMem haS hcS
+    by_cases hj : j = n <;> simp [Q, hj, hsn_ac, (P j).toTopSet_prefers_of_mem_of_notMem haS hcS]
   -- 2. On `{c, b}`, `Q` matches the strict profile where `n` prefers `c ≻ b` and others `b ≻ c`.
   let Qs : Profile V A := fun j => if j = n then sn else r₀.toTop b
-  have hGs_cb : (toStrict G Qs).Prefers c b := hn Qs c b (by
-    simp only [Qs, ite_true]
-    exact hsn_cb)
   have hGQ_cb : (G Q).Prefers c b := by
-    refine (hI.prefers_iff fun j => ?_).2 hGs_cb
+    refine (hI.prefers_iff fun j => ?_).2 (hn Qs c b (by simp [Qs, hsn_cb]))
     by_cases hj : j = n
-    · simp only [Q, Qs, hj, ite_true]
-      exact ⟨trivial, trivial⟩
+    · simp [Q, Qs, hj]
     · simp only [Q, Qs, hj, ite_false, Ranking.toWeakRanking_atLeast]
-      have hbc_Q : ((P j).toTopSet {a, b}).Prefers b c :=
-        (P j).toTopSet_prefers_of_mem_of_notMem hbS hcS
-      have hbc_Qs : (r₀.toTop b).Prefers b c := r₀.isTop_toTop b c hcb
+      have hbc_Q := (P j).toTopSet_prefers_of_mem_of_notMem hbS hcS
+      have hbc_Qs := r₀.isTop_toTop b c hcb
       exact ⟨iff_of_false hbc_Q fun h => h.elim hcb ((r₀.toTop b).asymm hbc_Qs),
         iff_of_true (((P j).toTopSet {a, b}).atLeast_of_prefers hbc_Q) (Or.inr hbc_Qs)⟩
   -- 3. Transitivity gives `(G Q).Prefers a b`, and `Q` agrees with `P` on `{a, b}` for all voters.
   refine (hI.prefers_iff fun j => ?_).2 ((G Q).prefers_trans hGQ_ac hGQ_cb)
   by_cases hj : j = n
   · subst hj
-    simp only [Q, ite_true, Ranking.toWeakRanking_atLeast]
-    exact ⟨iff_of_true ((P j).atLeast_of_prefers hab_n) (Or.inr hsn_ab),
-      iff_of_false hab_n fun h => h.elim hab.symm (sn.asymm hsn_ab)⟩
-  · simp only [Q, hj, ite_false]
-    exact ⟨((P j).toTopSet_atLeast_iff_of_mem haS hbS).symm,
-      ((P j).toTopSet_atLeast_iff_of_mem hbS haS).symm⟩
+    exact ⟨iff_of_true ((P j).atLeast_of_prefers hab_n) (by simp [Q, hsn_ab]),
+      iff_of_false hab_n fun h => by
+        simp only [Q, ite_true, Ranking.toWeakRanking_atLeast] at h
+        exact h.elim hab.symm (sn.asymm hsn_ab)⟩
+  · simp [Q, hj, (P j).toTopSet_atLeast_iff_of_mem haS hbS,
+      (P j).toTopSet_atLeast_iff_of_mem hbS haS]
 
 /-- Under the hypotheses of weak-order Arrow's theorem, the dictator is unique. -/
 theorem existsUnique_isDictator_of_isPareto_of_isIIA [Finite V] (hP : G.IsPareto)
     (hI : G.IsIIA) (h3 : ∃ a b c : A, a ≠ b ∧ a ≠ c ∧ b ≠ c) : ∃! i, G.IsDictator i := by
-  obtain ⟨a, b, -, hab, -⟩ := id h3
-  have : Nontrivial A := ⟨⟨a, b, hab⟩⟩
+  have : Nontrivial A := h3.elim fun a ⟨b, _, hab, _⟩ => ⟨⟨a, b, hab⟩⟩
   obtain ⟨i, hi⟩ := isDictatorial_of_isPareto_of_isIIA hP hI h3
   exact ⟨i, hi, fun j hj => hj.unique hi⟩
 
@@ -349,74 +315,48 @@ to `b` belongs to `U`. -/
 
 @[simp] theorem ultrafilter_prefers (U : Ultrafilter V) (P : Profile V A) {a b : A} :
     (ultrafilter U P).Prefers a b ↔ {i : V | (P i).Prefers a b} ∈ U := by
-  constructor
-  · intro h
-    have hab : a ≠ b := fun heq => h (Or.inl heq.symm)
-    exact ((ultrafilter U P).atLeast_of_prefers h).resolve_left hab
-  · rintro h (heq | hba)
-    · subst heq
-      have hemp : {i : V | (P i).Prefers b b} = ∅ := by
-        ext i
-        simp only [Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false]
-        exact (P i).irrefl b
-      exact U.empty_notMem (hemp ▸ h)
-    · obtain ⟨i, hi₁, hi₂⟩ := U.nonempty_of_mem (Filter.inter_mem h hba)
-      exact (P i).asymm hi₁ hi₂
+  refine ⟨fun h => ((ultrafilter U P).atLeast_of_prefers h).resolve_left
+    fun heq => h (Or.inl heq.symm), ?_⟩
+  rintro h (rfl | hba)
+  · exact U.empty_notMem
+      ((Set.eq_empty_of_forall_notMem (s := {i | (P i).Prefers b b}) fun i => (P i).irrefl b) ▸ h)
+  · obtain ⟨i, hi₁, hi₂⟩ := U.nonempty_of_mem (Filter.inter_mem h hba)
+    exact (P i).asymm hi₁ hi₂
 
-theorem isPareto_ultrafilter (U : Ultrafilter V) : (ultrafilter (A := A) U).IsPareto := by
-  intro P a b h
-  rw [ultrafilter_prefers]
-  have huniv : {i : V | (P i).Prefers a b} = Set.univ :=
-    Set.ext fun i => iff_of_true (h i) trivial
-  rw [huniv]
-  exact Filter.univ_mem
+theorem isPareto_ultrafilter (U : Ultrafilter V) : (ultrafilter (A := A) U).IsPareto :=
+  fun P _ _ h => (ultrafilter_prefers U P).2
+    ((Set.eq_univ_iff_forall (s := {i | (P i).Prefers _ _})).2 h ▸ Filter.univ_mem)
 
-theorem isIIA_ultrafilter (U : Ultrafilter V) : (ultrafilter (A := A) U).IsIIA := by
-  intro P Q a b h
-  have hset : {i : V | (P i).Prefers a b} = {i : V | (Q i).Prefers a b} := Set.ext h
-  change (a = b ∨ {i : V | (P i).Prefers a b} ∈ U) ↔
-    (a = b ∨ {i : V | (Q i).Prefers a b} ∈ U)
-  rw [hset]
+theorem isIIA_ultrafilter (U : Ultrafilter V) : (ultrafilter (A := A) U).IsIIA :=
+  fun P Q a b h => or_congr_right
+    (by rw [(Set.ext h : {i | (P i).Prefers a b} = {i | (Q i).Prefers a b})])
 
 /-- With at least two alternatives, voter `i` is a dictator for `ultrafilter U` if and only if `U`
 is the principal ultrafilter `pure i`. -/
 theorem isDictator_ultrafilter_iff [Nontrivial A] (U : Ultrafilter V) (i : V) :
     (ultrafilter (A := A) U).IsDictator i ↔ U = pure i := by
   classical
-  constructor
-  · intro hi
-    obtain ⟨a, b, hab⟩ := exists_pair_ne A
+  refine ⟨fun hi => ?_, ?_⟩
+  · obtain ⟨a, b, hab⟩ := exists_pair_ne A
     obtain ⟨r₀⟩ := Ranking.nonempty A
     let r := r₀.toTop a
     have hr : r.Prefers a b := r₀.isTop_toTop a b hab.symm
     let P : Profile V A := fun j => if j = i then r else r.reverse
-    have hmem : {j : V | (P j).Prefers a b} ∈ U :=
-      (ultrafilter_prefers U P).1 (hi P a b (by simp only [P, ite_true]; exact hr))
     have hsing : {j : V | (P j).Prefers a b} = {i} := by
       ext j
-      simp only [Set.mem_ofPred_eq, Set.mem_singleton_iff]
-      by_cases hj : j = i
-      · simp only [P, hj, ite_true, iff_true]
-        exact hr
-      · simp only [P, hj, ite_false, Ranking.reverse_prefers, iff_false]
-        exact r.asymm hr
-    obtain ⟨x, hx, hU⟩ := U.eq_pure_of_finite_mem (Set.finite_singleton i) (hsing ▸ hmem)
-    rw [Set.mem_singleton_iff.1 hx] at hU
-    exact hU
+      by_cases hj : j = i <;> simp [P, hj, hr, r.asymm hr]
+    obtain ⟨x, hx, hU⟩ := U.eq_pure_of_finite_mem (Set.finite_singleton i)
+      (hsing ▸ (ultrafilter_prefers U P).1 (hi P a b (by simp [P, hr])))
+    exact Set.mem_singleton_iff.1 hx ▸ hU
   · rintro rfl P a b h
-    rw [ultrafilter_prefers]
-    exact h
+    rwa [ultrafilter_prefers]
 
 /-- On an infinite electorate, the social welfare function defined by `Filter.hyperfilter V`
 has no dictator. -/
 theorem not_isDictatorial_ultrafilter_hyperfilter [Infinite V] [Nontrivial A] :
-    ¬ (ultrafilter (A := A) (Filter.hyperfilter V)).IsDictatorial := by
-  rintro ⟨i, hi⟩
-  rw [isDictator_ultrafilter_iff] at hi
-  have hmem : ({i} : Set V) ∈ Filter.hyperfilter V := by
-    rw [hi]
-    exact Set.mem_singleton i
-  exact Filter.notMem_hyperfilter_of_finite (Set.finite_singleton i) hmem
+    ¬ (ultrafilter (A := A) (Filter.hyperfilter V)).IsDictatorial :=
+  fun ⟨i, hi⟩ => Filter.notMem_hyperfilter_of_finite (Set.finite_singleton i)
+    (((isDictator_ultrafilter_iff _ i).1 hi).symm ▸ Set.mem_singleton i)
 
 /-- **Fishburn's possibility theorem** ([Fishburn1970]): on any infinite electorate `V` and
 nontrivial alternative set `A`, there exists a social welfare function satisfying weak Pareto and

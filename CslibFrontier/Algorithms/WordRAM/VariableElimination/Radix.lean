@@ -85,15 +85,10 @@ theorem powProg_result (args : PowArgs) (s : Memory.State) :
     simpa using this args.exp 1
   intro n
   induction n with
-  | zero =>
-    intro acc
-    change acc = acc * args.base ^ 0
-    simp
+  | zero => exact fun acc => (Nat.mul_one acc).symm
   | succ n ih =>
     intro acc
-    rw [show iterate powStep args.base (n + 1) acc =
-        powStep (args.base, acc) >>= iterate powStep args.base n from rfl,
-      StateTransitionSpec.clientResult_bind]
+    rw [iterate, StateTransitionSpec.clientResult_bind]
     exact (ih (acc * args.base)).trans (by rw [pow_succ', Nat.mul_assoc])
 
 theorem powProg_realizes :
@@ -105,10 +100,9 @@ theorem powProg_realizes :
   · refine iterationSafe_of_stepInv _ _ w d
       (fun j acc _ => acc * (max 1 d.base) ^ j ≤ (max 1 d.base) ^ d.exp)
       (fun j acc t hinv => ?_) (Nat.one_mul _).le
-    have hm : acc * d.base ≤ acc * max 1 d.base := Nat.mul_le_mul_left acc (le_max_right 1 d.base)
-    have h2 : acc * d.base * (max 1 d.base) ^ j ≤ (max 1 d.base) ^ d.exp :=
-      (Nat.mul_le_mul_right _ hm).trans
-        ((show _ = acc * (max 1 d.base) ^ (j + 1) by rw [pow_succ', Nat.mul_assoc]).trans_le hinv)
+    have h2 : acc * d.base * (max 1 d.base) ^ j ≤ (max 1 d.base) ^ d.exp := by
+      rw [pow_succ', ← Nat.mul_assoc] at hinv
+      exact (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left acc (le_max_right 1 d.base))).trans hinv
     exact ⟨h.2.of_le
       ((Nat.le_mul_of_pos_right _ (Nat.one_le_pow j _ (le_max_left 1 d.base))).trans h2), h2⟩
 
@@ -193,8 +187,7 @@ private theorem lookup_iterate_succ (env : LookupEnv) (n : ℕ) (st : LookupStat
           ⟨st.cur + 1, st.remIdx / env.dom, 1, st.remIdx % env.dom⟩
         else ⟨st.cur + 1, st.remIdx / env.dom, st.found, st.ans⟩)) := by
   obtain ⟨hst, hres⟩ := lookupStep_eval env st s
-  rw [show iterate lookupStep env (n + 1) st = lookupStep (env, st) >>= iterate lookupStep env n
-    from rfl, StateTransitionSpec.clientResult_bind, hst, hres]
+  rw [iterate, StateTransitionSpec.clientResult_bind, hst, hres]
 
 theorem lookupAssign_state (args : LookupArgs) (s : Memory.State) :
     (Memory.spec 0).clientState s (lookupAssign args) = s := by
@@ -211,8 +204,6 @@ theorem lookupAssign_cost (args : LookupArgs) (s : Memory.State) :
     (fun a t => by
       unfold lookupStep
       rw [memoryCost_bind', memoryCost_read]
-      dsimp only
-      rw [memoryCost_ite]
       split_ifs <;> simp)
     args.outLen ⟨args.outPtr, args.idx, 0, 0⟩ s
 
@@ -232,10 +223,7 @@ theorem lookupAssign_valid {w : ℕ} (args : LookupArgs) {s : Memory.State}
   | succ len ih =>
     intro cur hcur remIdx found ans
     obtain ⟨hst, hres⟩ := lookupStep_eval ⟨args.dom, args.target⟩ ⟨cur, remIdx, found, ans⟩ s
-    rw [show iterate lookupStep ⟨args.dom, args.target⟩ (len + 1) ⟨cur, remIdx, found, ans⟩ =
-        lookupStep (⟨args.dom, args.target⟩, ⟨cur, remIdx, found, ans⟩) >>=
-          iterate lookupStep ⟨args.dom, args.target⟩ len from rfl,
-      validHistory_bind', hst, hres]
+    rw [iterate, validHistory_bind', hst, hres]
     refine ⟨validHistory_read_bind (show cur < s.frontier by omega) ?_, ?_⟩ <;> split_ifs
     all_goals first
       | exact validHistory_pure w s _
@@ -284,15 +272,12 @@ theorem lookupAssign_realizes :
   unfold lookupAssign
   realize
   refine iterationSafe_of_stepInv _ _ w d
-    (fun j st _ => st.cur + j = d.outPtr + d.outLen)
-    (fun j st t hinv => ?_)
-    (show (⟨d.outPtr, d.idx, 0, 0⟩ : LookupState).cur + d.outLen = d.outPtr + d.outLen from rfl)
+    (fun j st _ => st.cur + j = d.outPtr + d.outLen) (fun j st t hinv => ?_) rfl
   dsimp only
   refine ⟨?_, ?_⟩
   · split_ifs
-    · exact ⟨Nat.ne_of_gt h.1, h.2.2.of_le (by omega), h.2.1⟩
-    · exact ⟨Nat.ne_of_gt h.1, h.2.2.of_le (by omega)⟩
-    · exact ⟨Nat.ne_of_gt h.1, h.2.2.of_le (by omega)⟩
+    · exact ⟨h.1.ne', h.2.2.of_le (by omega), h.2.1⟩
+    all_goals exact ⟨h.1.ne', h.2.2.of_le (by omega)⟩
   · rw [(lookupStep_eval _ st t).2]
     split_ifs <;> (dsimp only; omega)
 
@@ -312,7 +297,6 @@ theorem lookupAssign_lt {args : LookupArgs} (hd : 0 < args.dom) (s : Memory.Stat
     intro cur remIdx found ans hans
     rw [lookup_iterate_succ]
     split_ifs
-    · exact ih _ _ _ _ (Nat.mod_lt _ hd)
-    · exact ih _ _ _ _ hans
+    exacts [ih _ _ _ _ (Nat.mod_lt _ hd), ih _ _ _ _ hans]
 
 end Cslib.Algorithms.WordRAM.VariableElimination

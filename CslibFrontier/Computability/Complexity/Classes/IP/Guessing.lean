@@ -130,9 +130,8 @@ theorem acceptProb_guessingRound_le {message : Bool → ProbComp (List Bool)} {�
 prover is accepted with probability at most `1 / 2`. -/
 theorem acceptProb_guessingRound_le_half {message : Bool → ProbComp (List Bool)}
     (h : ProbComp.eval (message true) = ProbComp.eval (message false)) (P : Prover Unit) :
-    acceptProb (guessingRound message) P ≤ 1 / 2 :=
-  (acceptProb_guessingRound_le (δ := 0) (fun _ _ => by rw [h, add_zero]) P).trans_eq
-    (by rw [add_zero])
+    acceptProb (guessingRound message) P ≤ 1 / 2 := by
+  simpa using acceptProb_guessingRound_le (δ := 0) (fun _ _ => by simp [h]) P
 
 open scoped Classical in
 /-- The prover of a guessing round answering `true` exactly on the possible messages for the
@@ -149,26 +148,20 @@ theorem acceptProb_guessingProver {message : Bool → ProbComp (List Bool)}
     (hdisjoint : ∀ m ∈ (ProbComp.eval (message false)).support,
       m ∉ (ProbComp.eval (message true)).support) :
     acceptProb (guessingRound message) (guessingProver message) = 1 := by
-  rw [acceptProb_guessingRound]
-  have hprob (m : List Bool) (b : Bool) :
-      (guessingProver message).guessProb (guessingProver message).init m b =
-        if decide (m ∈ (ProbComp.eval (message true)).support) = b then 1 else 0 := by
-    simp [Prover.guessProb, guessingProver, StateT.run, eq_comm]
-  have hfalse : ∑' m, ProbComp.eval (message false) m *
-      (guessingProver message).guessProb (guessingProver message).init m false = 1 := by
-    rw [← (ProbComp.eval (message false)).tsum_coe]
+  have hsum (b : Bool) (hsupp : ∀ m ∈ (ProbComp.eval (message b)).support,
+      decide (m ∈ (ProbComp.eval (message true)).support) = b) :
+      ∑' m, ProbComp.eval (message b) m *
+        (guessingProver message).guessProb (guessingProver message).init m b = 1 := by
+    rw [← (ProbComp.eval (message b)).tsum_coe]
     refine tsum_congr fun m => ?_
-    by_cases hm : m ∈ (ProbComp.eval (message false)).support
-    · simp [hprob, hdisjoint m hm]
+    by_cases hm : m ∈ (ProbComp.eval (message b)).support
+    · simp only [Prover.guessProb, guessingProver, StateT.run, hsupp m hm]
+      simp
     · simp [(PMF.apply_eq_zero_iff _ _).2 hm]
-  have htrue : ∑' m, ProbComp.eval (message true) m *
-      (guessingProver message).guessProb (guessingProver message).init m true = 1 := by
-    rw [← (ProbComp.eval (message true)).tsum_coe]
-    refine tsum_congr fun m => ?_
-    by_cases hm : m ∈ (ProbComp.eval (message true)).support
-    · simp [hprob, hm]
-    · simp [(PMF.apply_eq_zero_iff _ _).2 hm]
-  rw [hfalse, htrue, one_add_one_eq_two, ENNReal.div_self two_ne_zero ENNReal.ofNat_ne_top]
+  rw [acceptProb_guessingRound,
+    hsum false fun m hm => decide_eq_false (hdisjoint m hm),
+    hsum true fun _ hm => decide_eq_true hm,
+    one_add_one_eq_two, ENNReal.div_self two_ne_zero ENNReal.ofNat_ne_top]
 
 /-- A guessing round whose messages are sampled by a strict PPT program is strict oracle PPT. -/
 theorem isOraclePPTOn_guessingRound {α : Type} {input : α ↪ List Bool}

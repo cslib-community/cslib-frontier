@@ -103,14 +103,9 @@ theorem exec {w : ℕ} (x : Data 15)
   let n := x.regs size
   let D := x.regs dimension
   let g := x.regs divisor
-  have hnarea : n * n ≤ (n * n) * (n * n) := by
-    by_cases h : n * n = 0
-    · simp [h]
-    · exact Nat.le_mul_of_pos_right _ (by omega)
+  have hnarea : n * n ≤ (n * n) * (n * n) := Nat.le_mul_self (n * n)
   have hquot : (n * n) * (n * n) / D ≤ (n * n) * (n * n) := Nat.div_le_self ..
   have hdivB : (sOf D + g - 1) / g ≤ sOf D + g := (Nat.div_le_self ..).trans (Nat.sub_le ..)
-  have hdivH : (n + pieceSize D g - 1) / pieceSize D g ≤ n + pieceSize D g :=
-    (Nat.div_le_self ..).trans (Nat.sub_le ..)
   refine WP.exists_execWithin ?_
   unfold program squareRoot between finish
   wram_exec

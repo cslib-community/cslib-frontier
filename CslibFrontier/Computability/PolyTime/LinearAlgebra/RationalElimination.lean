@@ -164,25 +164,17 @@ private theorem ratTable_encoding_bounds (M : RatTable) :
       ∀ i : Fin M.numRows, ∀ j : Fin M.numCols,
         (M.toMatrix i j).num.natAbs ≤ 2 ^ L ∧ (M.toMatrix i j).den ≤ 2 ^ L := by
   intro L
-  have hrows : (encUnary M.numRows).length ≤ L := by
-    dsimp only [L]
-    rw [RatTable.enc_apply]
-    exact length_le_encPair_left encUnary (encPair encUnary (encList (encList encRat)))
-      (M.numRows, M.numCols, M.rows)
-  have hcols : (encUnary M.numCols).length ≤ L := by
-    dsimp only [L]
-    rw [RatTable.enc_apply]
-    have h1 := length_le_encPair_left encUnary (encList (encList encRat)) (M.numCols, M.rows)
-    have h2 := length_le_encPair_right encUnary (encPair encUnary (encList (encList encRat)))
-      (M.numRows, (M.numCols, M.rows))
-    exact h1.trans h2
-  have hmat : (encList (encList encRat) M.rows).length ≤ L := by
-    dsimp only [L]
-    rw [RatTable.enc_apply]
-    have h1 := length_le_encPair_right encUnary (encList (encList encRat)) (M.numCols, M.rows)
-    have h2 := length_le_encPair_right encUnary (encPair encUnary (encList (encList encRat)))
-      (M.numRows, (M.numCols, M.rows))
-    exact h1.trans h2
+  have hL : (encPair encUnary (encPair encUnary (encList (encList encRat)))
+      (M.numRows, M.numCols, M.rows)).length = L := by
+    rw [← RatTable.enc_apply]
+  have hp2 : (encPair encUnary (encList (encList encRat)) (M.numCols, M.rows)).length ≤ L :=
+    (length_le_encPair_right encUnary _ (M.numRows, M.numCols, M.rows)).trans_eq hL
+  have hrows : (encUnary M.numRows).length ≤ L :=
+    (length_le_encPair_left encUnary _ (M.numRows, M.numCols, M.rows)).trans_eq hL
+  have hcols : (encUnary M.numCols).length ≤ L :=
+    (length_le_encPair_left encUnary _ (M.numCols, M.rows)).trans hp2
+  have hmat : (encList (encList encRat) M.rows).length ≤ L :=
+    (length_le_encPair_right encUnary _ (M.numCols, M.rows)).trans hp2
   refine ⟨by simpa only [encUnary_apply, List.length_replicate] using hrows,
     by simpa only [encUnary_apply, List.length_replicate] using hcols, fun i j => ?_⟩
   simp only [Cslib.RowTable.toMatrix_apply, Cslib.RowTable.entry]
@@ -485,29 +477,12 @@ private theorem bareissElimCols_poly_of_bound {γ : Type} {encIn : γ ↪ List B
     hpoly_bound
     (fun x consumed st _ ⟨_, _, _, hinv⟩ =>
       length_encBareissState_le_of_inv hinv (hB x))).1
-  obtain ⟨rest, hrest⟩ := hpre
-  have hlen : (consumed ++ [c]).length ≤ (List.range (colLimit x)).length :=
-    calc (consumed ++ [c]).length
-        ≤ (consumed ++ [c]).length + rest.length := Nat.le_add_right _ _
-      _ = ((consumed ++ [c]) ++ rest).length := (List.length_append).symm
-      _ = (List.range (colLimit x)).length := by rw [hrest]
+  have hlen := hpre.length_le
   simp only [hcon, List.length_append, List.length_range, List.length_singleton] at hlen
   have hk' : k < colLimit x := by omega
   have hc_eq : c = k := by
-    have hk_rest : k < ((consumed ++ [c]) ++ rest).length := by
-      rw [hrest, List.length_range]
-      exact hk'
-    have hget : (List.range (colLimit x))[k]'(by rw [List.length_range]; exact hk') =
-        ((consumed ++ [c]) ++ rest)[k]'hk_rest := by
-      simp only [hrest]
-    have hleft : k < (consumed ++ [c]).length := by
-      simp only [hcon, List.length_append, List.length_range, List.length_singleton]
-      omega
-    have hright : consumed.length ≤ k := by simp only [hcon, List.length_range, le_refl]
-    rw [List.getElem_range, List.getElem_append_left hleft,
-      List.getElem_append_right hright] at hget
-    simp only [hcon, List.length_range, Nat.sub_self, List.getElem_singleton] at hget
-    exact hget.symm
+    have hget := hpre.getElem (by simp [hcon] : k < (consumed ++ [c]).length)
+    simpa [hcon] using hget
   rw [hc_eq]
   exact ⟨k + 1, hk', by simp only [hcon, List.range_succ],
     bareissInv_step (hk'.trans_le (hlim x)) hinv⟩

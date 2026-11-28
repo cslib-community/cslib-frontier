@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListMap
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeNatFrontends
 import CslibFrontier.Foundations.Data.Finset.Expect
+import CslibFrontier.Foundations.Data.List.Filter
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -414,16 +415,6 @@ private theorem countP_eq_sum_map {α : Type*} (l : List α) (p : α → Bool) :
     simp only [List.countP_cons, List.map_cons, List.sum_cons, ih]
     cases p a <;> simp [Nat.add_comm]
 
-/-- Summing `F` over `l.filter p` equals summing `if p x then F x else 0` over `l`. -/
-private theorem sum_map_filter {α : Type*} (l : List α) (p : α → Bool) (F : α → ℕ) :
-    ((l.filter p).map F).sum = (l.map fun x => if p x then F x else 0).sum := by
-  induction l with
-  | nil => rfl
-  | cons a ls ih =>
-    cases hp : p a
-    · simp [hp, ih]
-    · simp [hp, ih]
-
 /-- Summing a mapped list equals summing over its `Fin` indices. -/
 private theorem list_sum_map_eq_fin_sum {α : Type*} (l : List α) (F : α → ℕ) :
     (l.map F).sum = ∑ i : Fin l.length, F (l.get i) := by
@@ -606,7 +597,7 @@ private theorem countSat_edgeEquations_bounds {m : ℕ} {T : Tables β γ m} (hT
           if f ∘ d.constraint ≠ noiseMask r then
             ∑ g' : β → Bool, if P f r g' then (1 : ℕ) else 0
           else 0 := by
-      rw [sum_map_filter, sum_map_eq_univ_sum hT.noiseDigits_nodup hT.mem_noiseDigits]
+      rw [List.sum_map_filter, sum_map_eq_univ_sum hT.noiseDigits_nodup hT.mem_noiseDigits]
       refine Finset.sum_congr rfl fun r _ => ?_
       simp only [decide_eq_true_eq, hinner r]
     simpa only [List.countP_flatMap, Function.comp_def] using hstep

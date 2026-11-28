@@ -112,18 +112,14 @@ theorem indistinguishable_take_forwardIterate {generator : List Bool → List Bo
       (fun n => (uniformList n).map
         (fun seed => (forwardIterate generator (count n) seed).take (count n)))
       (fun n => uniformList (count n)) := by
-  have h := (indistinguishable hgenerator hcount).map
-    (f := fun n word => word.reverse.take (count n)) (by fun_prop)
-  convert h using 1
+  convert (indistinguishable hgenerator hcount).map
+    (f := fun n word => word.reverse.take (count n)) (by fun_prop) using 1
   · funext n
     simp only [generatorEnsemble, PMF.map_comp, Function.comp_def]
     apply PMF.map_congr_on_support
     intro seed hseed
-    have hs := length_of_mem_support_uniformList hseed
-    simp only [stretch, hs]
-    have heq := reverse_forwardIterate_eq_iterate_of_forall hgenerator.length_eq seed (count n)
-    rw [hs] at heq
-    rw [← heq, List.reverse_reverse]
+    rw [stretch, ← reverse_forwardIterate_eq_iterate_of_forall hgenerator.length_eq,
+      List.reverse_reverse, length_of_mem_support_uniformList hseed]
   · funext n
     symm
     change (uniformList (n + count n)).map ((List.take (count n)) ∘ List.reverse) = _
@@ -151,10 +147,9 @@ theorem pseudorandomGenerator_take_forwardIterate {generator : List Bool → Lis
     (hℓ : ComputableInPolyTime ℓ encUnary encUnary) (hstretch : ∀ n, n < ℓ n) :
     PseudorandomGenerator
       (fun seed => (forwardIterate generator (ℓ seed.length) seed).take (ℓ seed.length)) ℓ := by
-  have hpoly := polyTime_take_forwardIterate hgenerator.polyTime hgenerator.length_eq
-  have hinput : ComputableInPolyTime (fun seed : List Bool => (seed, ℓ seed.length))
-      encBits (encPair encBits encUnary) := by fun_prop
-  refine PseudorandomGenerator.of_indistinguishable (hpoly.comp hinput)
+  refine PseudorandomGenerator.of_indistinguishable
+    ((polyTime_take_forwardIterate hgenerator.polyTime hgenerator.length_eq).comp
+      (show ComputableInPolyTime (fun seed => (seed, ℓ seed.length)) encBits _ by fun_prop))
     (fun seed => length_take_forwardIterate hgenerator.length_eq seed _) hstretch ?_
   convert indistinguishable_take_forwardIterate hgenerator hℓ using 1
   funext n

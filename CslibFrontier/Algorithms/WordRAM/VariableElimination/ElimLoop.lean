@@ -155,7 +155,7 @@ private theorem elimOrderStep_spec {w : ℕ} (env : ElimLoopEnv) {R M SW W B x :
       memoryCost p t ≤ 1 + stepFixedCost R M SW env.dom W +
         (stepStats env.dom x es).bucketFactors * stepBucketUnitCost SW env.dom W := by
   obtain ⟨hwf, hord, hes, hM, hR, hSW, hW, hcap, hfit⟩ := hinv
-  obtain ⟨hrd_lt, hm_x, hord_tail⟩ := holdsIn_cons_shift hord
+  obtain ⟨hrd_lt, hm_x, hord_tail⟩ := hord.cons
   simp only [traceOrder, List.forall_mem_cons, List.length_cons] at hW hcap hfit
   obtain ⟨hcap_step, hcap₁⟩ := cap_split hcap
   have hvp := elimVarProg_spec (w := w)
@@ -179,8 +179,7 @@ private theorem elimOrderStep_spec {w : ℕ} (env : ElimLoopEnv) {R M SW W B x :
     scope_elimVar_le_of_le env.dom x es hSW hW.1 hW_SW, hW.2,
     (Nat.mul_le_mul_left _ (stateCap_elimVar_le env.dom x es)).trans hcap₁,
     hfit.of_le (by rw [Nat.add_one_mul]; omega)⟩, by omega⟩
-  rw [show env.orderPtr + (st.idx + 1) = env.orderPtr + st.idx + 1 by omega]
-  exact hord_tail.mono_frontier hvp_pres
+  simpa only [Nat.add_assoc] using hord_tail.mono_frontier hvp_pres
 
 private theorem elimOrderLoop_aux {w : ℕ} (env : ElimLoopEnv) {R M SW W B : ℕ}
     (hW_SW : W ≤ SW) (hB : Fits w B) (h1 : Fits w 1) (hpowSW : Fits w ((max 1 env.dom) ^ SW)) :
@@ -215,7 +214,7 @@ private theorem elimOrderLoop_aux {w : ℕ} (env : ElimLoopEnv) {R M SW W B : �
       rw [hiter, validHistory_bind', StateTransitionSpec.clientResult_bind,
         StateTransitionSpec.clientState_bind, memoryCost_bind']
       simp only [List.length_cons, traceOrder, List.map_cons, List.sum_cons]
-      refine ⟨⟨hval, ih_val⟩, hpres.trans (ih_pres.mono_bound hpres.2.1),
+      refine ⟨⟨hval, ih_val⟩, hpres.trans_frontier ih_pres,
         by rw [Nat.add_one_mul]; omega, ih_es, ?_⟩
       rw [Nat.add_one_mul, Nat.add_mul]
       omega
@@ -290,7 +289,7 @@ theorem elimOrderLoop_realizes :
   subst hlen_j
   obtain ⟨-, -, -, hidx, hinv₁, -⟩ := elimOrderStep_spec _ hW_SW hB h1 hpowSW hinv
   obtain ⟨hwf_t, hord_t, hes_t, hM_t, hR_t, hSW_t, hW_t, hcap_t, hfit_t⟩ := hinv
-  obtain ⟨hrd_lt, hm_x, -⟩ := holdsIn_cons_shift hord_t
+  obtain ⟨hrd_lt, hm_x, -⟩ := hord_t.cons
   have hbd := hord_t.1
   simp only [traceOrder, List.forall_mem_cons, List.length_cons] at hW_t hcap_t hfit_t hbd
   refine ⟨⟨hwf_t.frontier_fits.of_le hrd_lt.le, ?_, hwf_t.frontier_fits.of_le (by omega)⟩,

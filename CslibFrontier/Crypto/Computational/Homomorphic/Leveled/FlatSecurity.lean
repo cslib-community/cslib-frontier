@@ -166,8 +166,7 @@ private theorem sum_link_games (E : Scheme) (depth capacity : ℕ → ℕ)
     (depth n : ℝ) * capacity n * Game.succProbability (ProbComp.eval
       (Encryption.game E.keyGen E.encrypt (E.exactLinkAdversary depth capacity test) bit n)) := by
   by_cases hpos : 0 < depth n ∧ 0 < capacity n
-  · obtain ⟨hdepth, hcapacity⟩ := hpos
-    have hpos : 0 < depth n ∧ 0 < capacity n := ⟨hdepth, hcapacity⟩
+  · have ⟨hdepth, hcapacity⟩ := hpos
     have : NeZero (depth n) := ⟨hdepth.ne'⟩
     have : NeZero (capacity n) := ⟨hcapacity.ne'⟩
     have hlaw : ProbComp.eval
@@ -194,11 +193,8 @@ private theorem sum_link_games (E : Scheme) (depth capacity : ℕ → ℕ)
       rw [Nat.add_mul_div_left _ _ hcapacity, Nat.div_eq_of_lt j.isLt, zero_add]
     simp_rw [hdiv, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (Fin.isLt _)]
     rw [← Finset.sum_div]
-    have hD : (depth n : ℝ) ≠ 0 := by exact_mod_cast hdepth.ne'
-    have hC : (capacity n : ℝ) ≠ 0 := by exact_mod_cast hcapacity.ne'
-    field_simp [hD, hC]
-  · have hz : depth n = 0 ∨ capacity n = 0 := by omega
-    rcases hz with hz | hz <;> simp [hz]
+    field_simp [Nat.cast_ne_zero.mpr hdepth.ne', Nat.cast_ne_zero.mpr hcapacity.ne']
+  · rcases not_and_or.mp hpos with hz | hz <;> simp [Nat.eq_zero_of_not_pos hz]
 
 private theorem sum_flatGame (E : Scheme) (depth capacity : ℕ → ℕ)
     (adversary : Encryption.Adversary) (bit : Bool) (n : ℕ) :
@@ -365,17 +361,9 @@ theorem flatLeveled_loss_le (depth capacity attempts : ℕ) (hattempts : 3 ≤ a
       intervalSuccess (2 * (depth * capacity) + 1) attempts ≤
         (8 / 7 : ℝ≥0) * (2 * (depth * capacity) + 1 : ℕ) := by
   have hs := flat_success_lower depth capacity attempts hattempts
-  have hpos : 0 < intervalSuccess (2 * (depth * capacity) + 1) attempts :=
-    lt_of_lt_of_le (by norm_num) hs
-  rw [div_le_iff₀ hpos]
-  have hs' : (7 / 8 : ℝ) ≤ intervalSuccess (2 * (depth * capacity) + 1) attempts :=
-    by exact_mod_cast hs
-  apply NNReal.coe_le_coe.mp
-  push_cast
-  have hm := mul_le_mul_of_nonneg_right hs'
-    (show (0 : ℝ) ≤ (2 * (depth * capacity) + 1 : ℕ) by positivity)
-  push_cast at hm
-  nlinarith
+  have h17 : (1 : ℝ≥0) ≤ 8 / 7 * (7 / 8) := by norm_num
+  rw [div_le_iff₀ (lt_of_lt_of_le (by norm_num) hs), mul_right_comm]
+  exact le_mul_of_one_le_left zero_le (h17.trans (by gcongr))
 
 /-- For at least two link-bit positions, the finite-attempt flattened loss is strictly less
 than the old ideal three-way selector's `3 * depth * capacity` loss. -/
@@ -404,19 +392,14 @@ theorem advantage_scheme_le_flatLeveledAdversary {E : Scheme}
       Encryption.advantage (Encryption.game E.keyGen E.encrypt
         (flatLeveledAdversary E attempts (fun n => 2 * budget n) capacity adversary)) n := by
   have hs := flat_success_lower (2 * budget n) (capacity n) (attempts n) hattempts
-  rw [advantage_flatLeveledAdversary D attempts budget capacity adversary n width
-    hwidth hcapacity]
-  have hc : (8 / 7 : ℝ≥0) * (2 * (2 * budget n * capacity n) + 1 : ℕ) *
-      (intervalSuccess (2 * (2 * budget n * capacity n) + 1) (attempts n) /
-        (2 * (2 * budget n * capacity n) + 1 : ℕ)) ≥ 1 := by
-    have hs' : (7 / 8 : ℝ) ≤ intervalSuccess (2 * (2 * budget n * capacity n) + 1)
-        (attempts n) := by exact_mod_cast hs
-    apply NNReal.coe_le_coe.mp
-    push_cast
-    field_simp
-    nlinarith
-  simpa only [one_mul, mul_assoc] using mul_le_mul_of_nonneg_right hc
-    (show 0 ≤ Encryption.advantage (Encryption.game (scheme D budget).keyGen
-      (scheme D budget).encrypt adversary) n from zero_le)
+  have h17 : (1 : ℝ≥0) ≤ 8 / 7 * (7 / 8) := by norm_num
+  have h1 : (1 : ℝ≥0) ≤ 8 / 7 *
+      intervalSuccess (2 * (2 * budget n * capacity n) + 1) (attempts n) :=
+    h17.trans (by gcongr)
+  have hN : ((2 * (2 * budget n * capacity n) + 1 : ℕ) : ℝ≥0) ≠ 0 := by positivity
+  rw [advantage_flatLeveledAdversary D attempts budget capacity adversary n width hwidth hcapacity,
+    ← mul_assoc, mul_assoc (8 / 7 : ℝ≥0),
+    mul_comm ((2 * (2 * budget n * capacity n) + 1 : ℕ) : ℝ≥0), div_mul_cancel₀ _ hN]
+  exact le_mul_of_one_le_left zero_le h1
 
 end Cslib.Crypto.Homomorphic.Leveled

@@ -162,13 +162,10 @@ def blocks {m n : ℕ} (P : ReadOnceProgram (m * n) S X) : ReadOnceProgram m S (
 theorem finalState_blocks {m n : ℕ} (P : ReadOnceProgram (m * n) S X) (x : Fin m → Fin n → X) :
     P.blocks.finalState x = P.finalState (blocksEquiv.symm x) := by
   have hrun := List.foldlIdx_flatten P.stepAt (List.ofFn fun i => List.ofFn (x i))
-    (fun l hl => by
-      obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hl
-      exact List.length_ofFn) P.start 0
+    (fun _ hl => Exists.elim (List.mem_ofFn.1 hl) fun _ h => h ▸ List.length_ofFn) P.start 0
   rw [Nat.mul_zero, ← ofFn_blocksEquiv_symm, ← finalState_eq, List.ofFn_comp', List.foldlIdx_map,
     List.foldlIdx_ofFn] at hrun
-  rw [hrun]
-  simp only [finalState, Nat.zero_add, blocks]
+  simpa only [finalState, Nat.zero_add, blocks] using hrun.symm
 
 /-- **Regrouping into blocks** preserves outputs. -/
 theorem eval_blocks {m n : ℕ} (P : ReadOnceProgram (m * n) S X) (x : Fin m → Fin n → X) :
@@ -236,17 +233,12 @@ theorem evalNode_toGraph (x : Fin L → X) :
   | zero =>
     intro t s hk
     have ht : L ≤ t.val := by omega
-    have hnode : P.toGraph.node (t, s) = .sink (P.accept s) :=
-      dite_eq_right (not_lt.mpr ht)
-    rw [BranchingProgram.Graph.evalNode_sink x hnode, P.runFrom_of_le x ht]
+    rw [BranchingProgram.Graph.evalNode_sink x
+      (dite_eq_right (not_lt.mpr ht) : P.toGraph.node (t, s) = _), P.runFrom_of_le x ht]
   | succ k ih =>
     intro t s hk
     have ht : t.val < L := by omega
-    have hnode : P.toGraph.node (t, s) =
-        .branch ⟨t.val, ht⟩
-          (fun a => ((⟨t.val, ht⟩ : Fin L).succ, P.step ⟨t.val, ht⟩ s a)) :=
-      dite_eq_left ht
-    rw [BranchingProgram.Graph.evalNode_branch x hnode,
+    rw [BranchingProgram.Graph.evalNode_branch x (dite_eq_left ht : P.toGraph.node (t, s) = _),
       ih (⟨t.val, ht⟩ : Fin L).succ (P.step ⟨t.val, ht⟩ s (x ⟨t.val, ht⟩))
         (by simp only [Fin.val_succ]; omega),
       Fin.val_succ, ← P.runFrom_step x ht s]

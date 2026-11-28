@@ -143,13 +143,10 @@ theorem card_filter_ringMulCheck_le {x y z : ZMod n} (m_x m_y m_z r m_r : ZMod n
   refine le_trans (Finset.card_le_card fun delta hdelta => ?_)
     (card_filter_quadratic_eq_zero_le (voleMulCrossTerm x m_x y m_y m_z + r - reply.1)
       (voleMulConstTerm m_x m_y + m_r - reply.2) (sub_ne_zero.mpr hfalse))
-  rw [Finset.mem_filter] at hdelta ⊢
-  refine ⟨Finset.mem_univ _, ?_⟩
-  have hc := hdelta.2
-  unfold RingMulCheckAccepts at hc
-  have hid := voleMulCheck_sub_eq (x := x) (y := y) (z := z)
+  rw [Finset.mem_filter, RingMulCheckAccepts] at hdelta
+  refine Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩
+  linear_combination hdelta.2 - voleMulCheck_sub_eq (x := x) (y := y) (z := z)
     (v_x := m_x) (v_y := m_y) (v_z := m_z) (delta := delta) rfl rfl rfl
-  linear_combination hc - hid
 
 /-- **Soundness.** If `x * y ≠ z`, then for any fixed masks and coefficients the check accepts
 under a uniform key with probability at most `2 / n.minFac`. -/
@@ -189,10 +186,8 @@ theorem toOuterMeasure_ringMulCheck_bind_le {S : Type} (prover : PMF S)
   change ((PMF.uniformOfFintype (ZMod n)).map fun delta => (s, delta)).toOuterMeasure _ ≤ _
   rw [PMF.toOuterMeasure_map_apply]
   by_cases hfalse : x s * y s ≠ z s
-  · refine le_trans (MeasureTheory.measure_mono ?_)
+  · exact (MeasureTheory.measure_mono fun _ h => And.right h).trans
       (toOuterMeasure_ringMulCheck_le (m_x s) (m_y s) (m_z s) (r s) (m_r s) (reply s) hfalse)
-    intro delta hdelta
-    exact hdelta.2
   · simp [hfalse]
 
 end ZMod

@@ -85,8 +85,7 @@ private theorem filter_below_succ (S : Finset ℕ) (u : ℕ) :
       else S.filter (· < u) := by
   classical
   ext v
-  split_ifs with hu <;> by_cases hv : v ∈ S <;> by_cases huv : v = u <;>
-    simp_all [Finset.mem_filter, Finset.mem_insert] <;> omega
+  split_ifs with hu <;> grind
 
 private theorem fullPrefix_start (s : State) :
     FullPrefix N edge source { s with candidate := 0, selected := 0 } := by
@@ -103,10 +102,7 @@ private theorem fullPrefix_observe (h : FullPrefix N edge source s)
     FullPrefix N edge source
       { s with candidate := s.candidate + 1, selected := s.selected + 1 } := by
   classical
-  unfold FullPrefix at h ⊢
-  dsimp only
-  rw [filter_below_succ]
-  simp only [hu, ↓reduceIte]
+  simp only [FullPrefix, filter_below_succ, hu, ↓reduceIte] at h ⊢
   rw [Finset.card_insert_of_notMem (by simp), h]
 
 private theorem fullPrefix_end (h : FullPrefix N edge source s) (hc : RoundCorrect N edge source s)
@@ -152,24 +148,22 @@ private theorem exists_honest_instruction (hsource : source < N) (hwidth : N ≤
     refine ⟨false, ?_, by simp [ChoiceFits, hp]⟩
     simp only [instruction, hp]
     split_ifs
-    · trivial
-    · exact fullPrefix_start { s with finalScan := true }
+    exacts [trivial, fullPrefix_start { s with finalScan := true }]
   | target =>
     refine ⟨false, ?_, by simp [ChoiceFits, hp]⟩
     simp only [instruction, hp]
     split_ifs
-    · exact fullPrefix_start s
-    · trivial
+    exacts [fullPrefix_start s, trivial]
   | candidate =>
     simp only [Honest, hp] at hh
     by_cases hu : s.candidate < N
     · by_cases hm : s.candidate ∈ roundSet N edge source s.round
       · refine ⟨true, ?_, by simp [ChoiceFits, hp]⟩
-        simp only [instruction, hp, hu, ↓reduceIte, Honest]
-        exact ⟨hh, (mem_roundSet hsource).mp hm⟩
+        simpa only [instruction, hp, hu, ↓reduceIte, Honest] using
+          ⟨hh, (mem_roundSet hsource).mp hm⟩
       · refine ⟨false, ?_, by simp [ChoiceFits, hp]⟩
-        simp only [instruction, hp, hu, ↓reduceIte, Bool.false_eq_true, Honest]
-        exact fullPrefix_skip hh hm
+        simpa only [instruction, hp, hu, ↓reduceIte, Bool.false_eq_true, Honest] using
+          fullPrefix_skip hh hm
     · refine ⟨false, ?_, by simp [ChoiceFits, hp]⟩
       simpa only [instruction, hp, hu, ↓reduceIte, Honest, FullPrefix] using hh
   | walk =>
@@ -180,15 +174,12 @@ private theorem exists_honest_instruction (hsource : source < N) (hwidth : N ≤
       refine ⟨false, ?_, by simp [ChoiceFits, hp]⟩
       simpa only [instruction, hp, hz, he, ↓reduceIte, Honest, FullPrefix] using hf
     · have hr : s.remaining = 1 + (s.remaining - 1) := by omega
-      rw [hr, Relation.RelatesWithinSteps.add_iff] at hw
-      obtain ⟨v, hv, hw⟩ := hw
+      obtain ⟨v, hv, hw⟩ := Relation.RelatesWithinSteps.add_iff.mp (hr ▸ hw)
       rw [Relation.RelatesWithinSteps.one_iff] at hv
-      have hc : s.current < N := by
-        simp only [Invariant, hp] at hi
-        exact within_lt hsource ((mem_roundSet hsource).mp hi.2.2.2.2)
+      simp only [Invariant, hp] at hi
       have hvN : v < N := by
         cases hv with
-        | refl => exact hc
+        | refl => exact within_lt hsource ((mem_roundSet hsource).mp hi.2.2.2.2)
         | single hv => exact hv.2.1
       refine ⟨false, ?_, by simp [ChoiceFits, hp]⟩
       simp only [instruction, hp, hz, ↓reduceIte, Honest]
@@ -199,14 +190,11 @@ private theorem exists_honest_instruction (hsource : source < N) (hwidth : N ≤
     obtain ⟨hf, v, hx, hv, he, hw⟩ := hh
     cases hb : s.bits with
     | zero =>
-      have hgv : s.guess = v := binaryExtension_zero (hb ▸ hx)
+      obtain rfl := binaryExtension_zero (hb ▸ hx)
       refine ⟨false, ?_, by simp [ChoiceFits, hb]⟩
-      have hg : s.guess < N := hgv ▸ hv
-      simp only [instruction, hp, hb, hg, ↓reduceIte, Honest]
-      exact ⟨hf, hgv ▸ he, hgv ▸ hw⟩
+      simpa only [instruction, hp, hb, hv, ↓reduceIte, Honest] using ⟨hf, he, hw⟩
     | succ bits =>
-      rw [hb] at hx
-      cases hx with
+      cases hb ▸ hx with
       | bit b hx =>
         refine ⟨b, ?_, ?_⟩
         · simp only [instruction, hp, hb, Nat.succ_ne_zero, ↓reduceIte, Honest]
@@ -216,30 +204,23 @@ private theorem exists_honest_instruction (hsource : source < N) (hwidth : N ≤
     simp only [Honest, hp] at hh
     obtain ⟨hf, he, hw⟩ := hh
     have he' : (s.current == s.guess || answer edge bad s) = true := by
-      rw [Relation.reflGen_iff] at he
-      rcases he with he | he <;>
-        simp_all [answer, query, Graph]
+      rcases (Relation.reflGen_iff _ _ _).mp he with he | he <;> simp_all [answer, query, Graph]
     refine ⟨false, ?_, by simp [ChoiceFits, hp]⟩
-    simpa only [instruction, hp, he', ↓reduceIte, Honest, FullPrefix] using And.intro hf hw
+    simpa only [instruction, hp, he', ↓reduceIte, Honest, FullPrefix] using ⟨hf, hw⟩
   | observe =>
-    simp only [Honest, hp] at hh
-    simp only [Invariant, hp] at hi
+    simp only [Honest, Invariant, hp] at hh hi
     refine ⟨false, ?_, by simp [ChoiceFits, hp]⟩
     simpa only [instruction, hp, Honest, FullPrefix] using fullPrefix_observe hh hi.2.2.2
   | done =>
-    simp only [Honest, hp] at hh
-    simp only [Invariant, hp] at hi
+    simp only [Honest, Invariant, hp] at hh hi
     obtain ⟨hc, hs, hu⟩ := hi
     have he := fullPrefix_end hh hc.1 hu
     refine ⟨false, ?_, by simp [ChoiceFits, hp]⟩
     by_cases hf : s.finalScan = true
-    · have hb : s.hit = false := by
-        apply Bool.eq_false_iff.mpr
-        intro hb
+    · have hb : s.hit = false := Bool.eq_false_iff.mpr fun hb => by
         obtain ⟨u, hu, hbad⟩ := (scan_exhaustive hc.1 hs he).mp hb
-        have hbad' : bad u = true := by simpa only [Observed, hf, ↓reduceIte] using hbad
-        have := hsafe hp hf u ((mem_roundSet hsource).mp hu).reflTransGen
-        simp_all
+        simp only [Observed, hf, ↓reduceIte] at hbad
+        exact absurd hbad (by simp [hsafe hp hf u ((mem_roundSet hsource).mp hu).reflTransGen])
       simp [instruction, hp, he, hf, hb, Honest, accept]
     · simp [instruction, hp, he, hf, Honest]
   | accept => exact ⟨false, by simp [instruction, hp, Honest], by simp [ChoiceFits, hp]⟩
@@ -257,12 +238,10 @@ private theorem bounded_instruction (hsource : source < N) (hi : Invariant N edg
     simp only [instruction, hp]
     split_ifs <;> simp_all only [Bounded, and_true, true_and] <;> omega
   | target =>
-    simp only [Invariant, hp, RoundCorrect] at hi
-    simp only [instruction, hp]
+    simp only [Invariant, RoundCorrect, instruction, hp] at hi ⊢
     split_ifs <;> simp_all only [Bounded, and_true, true_and] <;> omega
   | candidate =>
-    simp only [Invariant, hp] at hi
-    simp only [instruction, hp]
+    simp only [Invariant, instruction, hp] at hi ⊢
     split_ifs <;> simp_all only [Bounded, and_true, true_and] <;> omega
   | walk =>
     simp only [instruction, hp]
@@ -278,7 +257,7 @@ private theorem bounded_instruction (hsource : source < N) (hi : Invariant N edg
     · exact bounded_reject
     · have hg := hc hp hz
       simp_all only [Bounded, true_and]
-      constructor <;> omega
+      omega
   | edge =>
     simp only [instruction, hp]
     split_ifs
@@ -287,29 +266,23 @@ private theorem bounded_instruction (hsource : source < N) (hi : Invariant N edg
     · exact bounded_reject
   | observe =>
     simp only [Invariant, hp] at hi
-    obtain ⟨_, hs, hu, _⟩ := hi
-    obtain ⟨S, hsub, _, he, _⟩ := hs
-    have hcard : s.selected ≤ N := by
-      rw [he]
-      exact (Finset.card_le_card hsub).trans roundSet_card_le
+    obtain ⟨_, ⟨S, hsub, _, he, _⟩, _, _⟩ := hi
+    have hcard : s.selected ≤ N := he ▸ (Finset.card_le_card hsub).trans roundSet_card_le
     simp_all only [instruction, Bounded, and_true, true_and]
-    constructor <;> omega
+    omega
   | done =>
     simp only [instruction, hp]
     split_ifs with he hf hh
     · exact bounded_reject
     · exact bounded_accept
     · simp only [Invariant, hp] at hi
-      have hf' : s.finalScan = false := Bool.eq_false_iff.mpr hf
       obtain ⟨⟨_, hm⟩, _, _⟩ := hi
-      simp only [hf', Bool.false_eq_true, ↓reduceIte] at hm
+      simp only [Bool.eq_false_iff.mpr hf, Bool.false_eq_true, ↓reduceIte] at hm
       obtain ⟨_, hv, hn⟩ := hm
-      have hnext : s.nextCount ≤ N := by
-        rw [hn]
-        exact (Finset.card_filter_le _ _).trans roundSet_card_le
-      have hhit : s.hit.toNat ≤ 1 := by cases s.hit <;> decide
+      have hnext : s.nextCount ≤ N := hn ▸ (Finset.card_filter_le _ _).trans roundSet_card_le
+      have hhit : s.hit.toNat ≤ 1 := Bool.toNat_le s.hit
       simp_all only [Bounded, and_true, true_and]
-      constructor <;> omega
+      omega
     · exact bounded_reject
   | accept => simpa only [instruction, hp] using hb
   | reject => simpa only [instruction, hp] using hb
@@ -389,13 +362,10 @@ theorem exists_replay_done_final (hsource : source < N) (hwidth : N ≤ 2 ^ widt
   | ind n ih =>
     intro s hr hi hb hh hna
     by_cases hdone : s.phase = .done ∧ s.finalScan = true
-    · refine ⟨[], hdone.1, hdone.2, ?_⟩
-      simp only [Honest, hdone.1] at hh
-      simp only [Invariant, hdone.1] at hi
-      exact fullPrefix_end hh hi.1.1 hi.2.2
+    · simp only [Honest, Invariant, hdone.1] at hh hi
+      exact ⟨[], hdone.1, hdone.2, fullPrefix_end hh hi.1.1 hi.2.2⟩
     by_cases hs : halted s = true
-    · exfalso
-      cases hp : s.phase <;> simp_all [halted, Honest]
+    · cases hp : s.phase <;> simp_all [halted, Honest]
     · obtain ⟨b, hh'⟩ := exists_honest_step hsource hwidth
         (fun hp hf => absurd ⟨hp, hf⟩ hdone) hi hb hh
       have hr' := rank_advance_lt (N := N) (width := width) (source := source)
@@ -415,12 +385,7 @@ theorem accepts_iff_not_reachable (hsource : source < N) (hwidth : N ≤ 2 ^ wid
     Accepts N width source edge (fun u => u == target) ↔
       ¬ Relation.ReflTransGen (Graph N edge) source target := by
   rw [accepts_iff hsource hwidth]
-  constructor
-  · intro h hr
-    simpa using h target hr
-  · intro h u hu
-    rcases eq_or_ne u target with rfl | he
-    · exact (h hu).elim
-    · simp [he]
+  exact ⟨fun h hr => by simpa using h target hr,
+    fun h u hu => beq_false_of_ne fun hEq => h (hEq ▸ hu)⟩
 
 end Cslib.InductiveCounting

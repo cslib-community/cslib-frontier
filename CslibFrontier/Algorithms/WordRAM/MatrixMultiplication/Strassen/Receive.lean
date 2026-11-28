@@ -52,12 +52,10 @@ The stage composition theorem accounts for the source's right-associated sequenc
 
 private theorem seq_right {w U T : ℕ} {c₁ c₂ c₃ : Code .standard 64} {x y z : Data 64}
     (h₁ : ExecWithin w (.seq c₁ c₂) x y U) (h₂ : ExecWithin w c₃ y z T) :
-    ExecWithin w (.seq c₁ (.seq c₂ c₃)) x z (U + T) := by
-  obtain ⟨m, hm, he⟩ := h₁
-  obtain ⟨n, hn, hf⟩ := h₂
-  cases he with
-  | seq ha hb =>
-    exact ⟨_, by omega, .seq ha (.seq hb hf)⟩
+    ExecWithin w (.seq c₁ (.seq c₂ c₃)) x z (U + T) :=
+  let ⟨_, hm, .seq ha hb⟩ := h₁
+  let ⟨_, hn, hf⟩ := h₂
+  ⟨_, by omega, .seq ha (.seq hb hf)⟩
 
 /-- Reassemble the exact right-associated source stage from its real returned-product
 updates and next push/pop. Sequencing changes no charged instruction count. -/
@@ -65,10 +63,7 @@ theorem exec_stage_return {w U T : ℕ} (phase : Fin 7) {x y z : Data 64}
     (hupdates : ExecWithin w (returnedUpdates phase) x y U)
     (hafter : ExecWithin w (afterReturn phase) y z T) :
     ExecWithin w (stage ⟨phase.val + 1, by omega⟩) x z (U + T) := by
-  fin_cases phase
-  all_goals first
-    | exact seq_right hupdates hafter
-    | exact hupdates.seq hafter
+  fin_cases phase <;> first | exact seq_right hupdates hafter | exact hupdates.seq hafter
 
 /-- A child with one nonzero output contribution needs exactly one native coefficient loop. -/
 theorem exec_receive_one {w p k A B a b out scratch frames frame : ℕ}
@@ -100,22 +95,14 @@ theorem exec_receive_one {w p k A B a b out scratch frames frame : ℕ}
   obtain ⟨y, hy, yh, yc, values, productValues, memory⟩ := exec_accumulate_progress
     phase (fun _ => false) t subtract x u v hx hc hl hu hv rfl hsign
     (by simpa only [progressValue, Bool.false_eq_true, ite_false] using hout) hprod hmag haddr
-  refine ⟨y, hy, yh, yc, ?_, productValues, ?_⟩
-  · intro s j hj
-    rw [values s j hj, progressValue_eq_next]
-    intro hd
-    apply hzero s
-    intro he
-    subst s
-    simp only [Function.update_self] at hd
-    contradiction
+  refine ⟨y, hy, yh, yc, fun s j hj => ?_, productValues, ?_⟩
+  · rw [values s j hj, progressValue_eq_next]
+    exact fun hd => hzero s fun he => absurd (he ▸ hd) (by simp)
   · intro d hd
-    apply memory d
-    have ht := Nat.mul_le_mul_right (4 ^ k * p) (Nat.succ_le_of_lt t.isLt)
-    rw [Nat.succ_mul] at ht
+    have ht := Nat.mul_le_mul_right (4 ^ k * p) t.isLt
     have hsize : 4 ^ (k + 1) * p = 4 * (4 ^ k * p) := by rw [pow_succ]; ring
-    rw [hsize] at hd
-    omega
+    rw [Nat.succ_mul] at ht
+    exact memory d (by omega)
 
 /-- A child with two distinct nonzero output contributions executes both actual loops.
 The second loop uses the first loop's real final state, product and register frame. -/
@@ -156,25 +143,16 @@ theorem exec_receive_two {w p k A B a b out scratch frames frame : ℕ}
   obtain ⟨y, hy, yh, yc, values₂, product₂, memory₂⟩ := exec_accumulate_progress
     phase (Function.update (fun _ => false) t₁ true) t₂ subtract₂ s u v sh sc hl hu hv
     (by simp only [Function.update_of_ne hne]) hsign₂ values₁ product₁ hmag haddr
-  refine ⟨y, (hs.seq hy).mono (by omega), yh, yc, ?_, product₂, ?_⟩
-  · intro t j hj
-    rw [values₂ t j hj, progressValue_eq_next]
-    intro hd
-    apply hzero t
-    · intro he
-      subst t
-      simp only [Function.update_of_ne (Ne.symm hne), Function.update_self] at hd
-      contradiction
-    · intro he
-      subst t
-      simp only [Function.update_self] at hd
-      contradiction
+  refine ⟨y, (hs.seq hy).mono (by omega), yh, yc, fun t j hj => ?_, product₂, ?_⟩
+  · rw [values₂ t j hj, progressValue_eq_next]
+    exact fun hd => hzero t
+      (fun he => absurd (he ▸ hd) (by simp [Function.update_of_ne (Ne.symm hne)]))
+      (fun he => absurd (he ▸ hd) (by simp))
   · intro d hd
-    have ht₁ := Nat.mul_le_mul_right (4 ^ k * p) (Nat.succ_le_of_lt t₁.isLt)
-    have ht₂ := Nat.mul_le_mul_right (4 ^ k * p) (Nat.succ_le_of_lt t₂.isLt)
-    rw [Nat.succ_mul] at ht₁ ht₂
+    have ht₁ := Nat.mul_le_mul_right (4 ^ k * p) t₁.isLt
+    have ht₂ := Nat.mul_le_mul_right (4 ^ k * p) t₂.isLt
     have hsize : 4 ^ (k + 1) * p = 4 * (4 ^ k * p) := by rw [pow_succ]; ring
-    rw [hsize] at hd
+    rw [Nat.succ_mul] at ht₁ ht₂
     exact (memory₂ d (by omega)).trans (memory₁ d (by omega))
 
 /-- All seven literal return prefixes advance the existing finite partial-sum invariant.
@@ -201,8 +179,7 @@ theorem exec_returnedUpdates {w p k A B a b out scratch frames frame : ℕ}
       (∀ j < 4 ^ k * p, y.mem (scratch + 2 * (4 ^ k * p) + j) = encode
         (Cslib.Algorithms.MatrixMultiplication.Strassen.childProduct p k u v phase j)) ∧
       ∀ d, (d < out ∨ out + 4 ^ (k + 1) * p ≤ d) → y.mem d = x.mem d := by
-  fin_cases phase
-  all_goals simp only [returnedUpdates, receiveBudget]
+  fin_cases phase <;> simp only [returnedUpdates, receiveBudget]
   all_goals first
     | exact exec_receive_two 0 0 3 false false x u v hx hc hl hu hv
         (by decide) (by decide) (by decide) (by decide) hout hprod hmag haddr

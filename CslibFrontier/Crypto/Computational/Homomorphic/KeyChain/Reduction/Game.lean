@@ -95,28 +95,23 @@ theorem eval_linkAdversaryAt (beforeCount afterCount bitIndex : ℕ → ℕ)
   by_cases hi : bitIndex n < width
   · rw [ite_eq_left hi]
     simp only [pmf_norm, publicKeyLinkHybrid]
-    apply Probability.PMF.bind_congr_on_support
-    intro next hnext
+    refine Probability.PMF.bind_congr_on_support _ _ _ fun next hnext => ?_
     congr 1 with before : 1
-    apply Probability.PMF.bind_congr_on_support
-    intro predecessor hpredecessor
+    refine Probability.PMF.bind_congr_on_support _ _ _ fun predecessor hpredecessor => ?_
     congr 1 with after : 1
-    simp only [hwidth predecessor hpredecessor, hi, ↓reduceIte,
-      ProbComp.eval_pure, PMF.pure_bind]
-    simpa only [ProbComp.eval_bind] using
+    simpa only [hwidth predecessor hpredecessor, hi, ↓reduceIte, ProbComp.eval_pure,
+      PMF.pure_bind, ProbComp.eval_bind] using
       E.eval_guessLink_active test n before predecessor next after (bitIndex n) bit
         (by rwa [hwidth predecessor hpredecessor])
         ((hwidth next hnext).trans (hwidth predecessor hpredecessor).symm)
-  · rw [ite_eq_right hi]
-    rw [← PMF.bind_const (ProbComp.eval (E.keyGen n)) (PMF.pure false)]
+  · rw [ite_eq_right hi, ← PMF.bind_const (ProbComp.eval (E.keyGen n)) (PMF.pure false)]
     congr 1 with next : 1
     rw [← PMF.bind_const
       (ProbComp.eval (OracleComp.replicate (beforeCount n) (E.keyGen n))) (PMF.pure false)]
     congr 1 with before : 1
     rw [← PMF.bind_const (ProbComp.eval (E.keyGen n)) (PMF.pure false)]
-    apply Probability.PMF.bind_congr_on_support
-    intro predecessor hpredecessor
-    simp [hwidth predecessor hpredecessor, hi, rejectLinkChoice]
+    exact Probability.PMF.bind_congr_on_support _ _ _ fun predecessor hpredecessor => by
+      simp [hwidth predecessor hpredecessor, hi, rejectLinkChoice]
 
 /-- The actual uniformly sampled two-stage reduction realizes the exact two-coordinate game.
 Every random choice and every saved-state computation is part of the concrete adversary. -/

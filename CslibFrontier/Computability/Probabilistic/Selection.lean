@@ -56,12 +56,10 @@ theorem IsPPTOn.selectBest {α : Type} {input : α ↪ List Bool}
       (fun pair => test pair.1 pair.2.1) :=
     htest.preprocess (prepare := fun pair : α × (ℕ × ℕ × ℕ) => (pair.1, pair.2.1))
       (by dsimp only [stateEncoding]; fun_prop)
-  have htrials' : ComputableInPolyTime (fun pair : α × (ℕ × ℕ × ℕ) => trials pair.1)
-      (encPair input stateEncoding) encUnary := by fun_prop
   have hstep : IsPPTOn (encPair input stateEncoding) stateEncoding
       (fun pair => OracleComp.selectStep (trials pair.1) (test pair.1) pair.2) := by
     unfold OracleComp.selectStep
-    apply (htest'.countTrue htrials').map_with
+    apply (htest'.countTrue (by fun_prop)).map_with
     have hupd : ComputableInPolyTime
         (fun pair : (α × (ℕ × ℕ × ℕ)) × ℕ =>
           (pair.1.2.1 + 1,
@@ -107,11 +105,9 @@ theorem IsPPTOn.selectFrom {α β : Type} {input : α ↪ List Bool} {output : �
       (ComputableInPolyTime.listGetD (encA := output) fallback).comp
         ((hvalues.comp (ComputableInPolyTime.fst input encUnary)).prod
           (ComputableInPolyTime.snd input encUnary))
-  have htest' := htest.preprocess
-    ((ComputableInPolyTime.fst input encUnary).prod hget)
-  have hlength := (ComputableInPolyTime.length_list output).comp hvalues
   simpa only [OracleComp.selectFrom, bind_pure_comp, Function.comp_def] using
-    (IsPPTOn.selectBest htest' hlength htrials).map_with hget
+    (IsPPTOn.selectBest (htest.preprocess ((ComputableInPolyTime.fst input encUnary).prod hget))
+      ((ComputableInPolyTime.length_list output).comp hvalues) htrials).map_with hget
 
 /-- Sampling a polynomial candidate pool and selecting empirically is a uniform strict PPT
 program. Both the generator and the validation test may capture the original input. -/
@@ -127,9 +123,9 @@ theorem IsPPTOn.sampleBest {α β : Type} {input : α ↪ List Bool} {output : �
   have htest' : IsPPTOn (encPair (encPair input (encList output)) output) encBool
       (fun p => test p.1.1 p.2) := htest.preprocess
     (prepare := fun p : (α × List β) × β => (p.1.1, p.2)) (by fun_prop)
-  have hselect := IsPPTOn.selectFrom (test := fun p : α × List β => test p.1) fallback
-    (ComputableInPolyTime.snd input (encList output))
-    (htrials.comp (ComputableInPolyTime.fst input (encList output))) htest'
-  exact (hsource.replicate hcount).bind_with hselect
+  exact (hsource.replicate hcount).bind_with <|
+    IsPPTOn.selectFrom (test := fun p : α × List β => test p.1) fallback
+      (ComputableInPolyTime.snd input (encList output))
+      (htrials.comp (ComputableInPolyTime.fst input (encList output))) htest'
 
 end Cslib.Probability

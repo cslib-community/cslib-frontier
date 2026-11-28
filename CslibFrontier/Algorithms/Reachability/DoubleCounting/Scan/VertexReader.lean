@@ -149,19 +149,14 @@ out-of-range branches and clocks after halting. -/
 theorem length_run_le (N : ℕ) (w : List Bool) (t : ℕ) :
     (encState ((machine N).run w t)).length ≤
       4 * (Nat.log2 N.size + 1) + 4 * N.size + 5 := by
-  have hc : ((machine N).run w t).cursor ≤ N.size := by
-    rw [run_eq_prefix]
-    exact Nat.min_le_right _ _
-  have hv : ((machine N).run w t).value < 2 ^ N.size :=
-    (prefix_value_lt N w t).trans_le (Nat.pow_le_pow_right (by decide) (Nat.min_le_right _ _))
-  have hcursor := length_encNat_le_log2 hc
-  have hvalue := length_encNat_le_of_lt_two_pow hv
-  have hlimit : ((machine N).run w t).limit = N := by rw [run_eq_prefix]
-  have hwidth : ((machine N).run w t).width = N.size := by rw [run_eq_prefix]
+  have hvalue := length_encNat_le_of_lt_two_pow ((prefix_value_lt N w t).trans_le
+    (Nat.pow_le_pow_right (by decide) (Nat.min_le_right _ _)))
+  rw [run_eq_prefix] at hvalue ⊢
+  have hcursor := length_encNat_le_log2 (Nat.min_le_right t N.size)
   have hwsize := length_encNat_le_log2 (le_refl N.size)
   have hnsize : (encNat N).length = N.size := by rw [encNat_apply, Nat.size_eq_bits_len]
   simp only [encState_apply, encStateFields, length_encPair, encBool_apply,
-    List.length_singleton, hlimit, hwidth, hnsize]
+    List.length_singleton, hnsize] at hvalue ⊢
   omega
 
 /-- Exact agreement with the existing codec on the consumed prefix. -/
@@ -235,12 +230,11 @@ theorem next_inSpace (N : ℕ) :
 /-- The rank check and optional binary result are native scalar operations. -/
 theorem result_inSpace :
     ComputableInSpace result encState (encOption encNat) (fun s => (encState s).length) := by
-  have hv := encState_value_budget (of_inO (ComputableInO.of_eq fun _ => rfl))
-  have hf := encState_truncated_budget (of_inO (ComputableInO.of_eq fun _ => rfl))
-  have hlt := budget_natLt hv
-    (encState_limit_budget (of_inO (ComputableInO.of_eq fun _ => rfl)))
+  have hid := of_inO (ComputableInO.of_eq (encIn := encState) (encMid := encState) fun _ => rfl)
+  have hv := encState_value_budget hid
   have hok := budget_finite (encC := encBool)
-    (fun ((failed, lt) : Bool × Bool) => !failed && lt) (budget_prod hf hlt)
+    (fun ((failed, lt) : Bool × Bool) => !failed && lt)
+    (budget_prod (encState_truncated_budget hid) (budget_natLt hv (encState_limit_budget hid)))
   exact budget_ite hok (budget_optionSome hv) (budget_const none)
 
 /-- No intermediate output is materialized. -/
@@ -268,21 +262,17 @@ theorem native_decoder (N : ℕ) :
       (fun w => c * (N.size + Nat.log2 w.length + 1)) := by
   apply (machine N).computableInSpace (query_inSpace N) (next_inSpace N)
     (emit_inSpace N) (halted_inSpace N) (finish_inSpace N) (fun _ => N.size)
+  · exact fun w => (halted_iff N w N.size).mpr le_rfl
+  · exact fun w t ht => Bool.eq_false_iff.mpr (mt (halted_iff N w t).mp (by omega))
   · intro w
-    exact (halted_iff N w N.size).mpr le_rfl
-  · intro w t ht
-    have h := (halted_iff N w t).not
-    simpa using h.mpr (by omega : ¬N.size ≤ t)
-  · intro w
-    rw [output_eq, result_eq_decodeVertex]
-    simp only [encBits_apply]
+    simp [output_eq, result_eq_decodeVertex]
   · intro w
     simp only [encBits_apply]
     omega
   · refine ⟨13, fun w t _ => ?_⟩
     simp only [encBits_apply]
     have h := length_run_le N w t
-    have hw : Nat.log2 N.size ≤ N.size := Nat.log2_le_self _
+    have hw := Nat.log2_le_self N.size
     omega
 
 end Turing.DoubleCounting.VertexReader

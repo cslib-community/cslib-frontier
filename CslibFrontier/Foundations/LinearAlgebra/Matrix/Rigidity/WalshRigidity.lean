@@ -40,29 +40,17 @@ private theorem correct_rows_cols {ι K : Type*} [Fintype ι] [DecidableEq ι] [
   classical
   let R : Matrix ι ι K := fun x y => if x ∈ bad then H x y - A x y else 0
   let C : Matrix ι ι K := fun x y => if x ∉ bad ∧ y ∈ bad then H x y - A x y else 0
-  have hR : R.rank ≤ bad.card := by
-    apply Matrix.rank_le_card_of_support_subset
-    rw [Function.support_subset_iff']
-    intro x hx
-    ext y
-    change (if x ∈ bad then H x y - A x y else 0) = 0
-    exact ite_eq_right hx
-  have hC : C.transpose.rank ≤ bad.card := by
-    apply Matrix.rank_le_card_of_support_subset
-    rw [Function.support_subset_iff']
-    intro x hx
-    ext y
-    change (if y ∉ bad ∧ x ∈ bad then H y x - A y x else 0) = 0
-    exact ite_eq_right fun h => hx h.2
-  rw [Matrix.rank_transpose] at hC
-  refine ⟨A + R + C, ?_, ?_⟩
-  · have h₁ := Matrix.rank_add_le A R
-    have h₂ := Matrix.rank_add_le (A + R) C
+  have hR : R.rank ≤ bad.card := Matrix.rank_le_card_of_support_subset R bad <|
+    Function.support_subset_iff'.2 fun x hx => funext fun y => ite_eq_right hx
+  have hC : C.rank ≤ bad.card := Matrix.rank_transpose C ▸
+    Matrix.rank_le_card_of_support_subset C.transpose bad <|
+      Function.support_subset_iff'.2 fun x hx => funext fun y => ite_eq_right (mt And.right hx)
+  refine ⟨A + R + C, ?_, fun x y => ?_⟩
+  · have := Matrix.rank_add_le A R
+    have := Matrix.rank_add_le (A + R) C
     omega
-  · intro x y
-    change A x y + R x y + C x y = _
-    by_cases hx : x ∈ bad <;> by_cases hy : y ∈ bad <;>
-      simp [R, C, hx, hy]
+  · change A x y + R x y + C x y = _
+    by_cases hx : x ∈ bad <;> by_cases hy : y ∈ bad <;> simp [R, C, hx, hy]
 
 /-- Corrected entries agree on exceptional rows, exceptional columns and central on-band pairs. -/
 private theorem walshBandWitness : ∀ (K : Type*) [Field K] (n lo hi k t : ℕ),
@@ -83,26 +71,22 @@ private theorem walshBandWitness : ∀ (K : Type*) [Field K] (n lo hi k t : ℕ)
   have hb : bad.card = ∑ a ∈ range (n + 1), if lo ≤ a ∧ a ≤ hi then 0 else n.choose a := by
     let g (a : ℕ) := if lo ≤ a ∧ a ≤ hi then 0 else 1
     calc
-      _ = ∑ x : Finset (Fin n), g x.card := by
-        have hg (a : ℕ) : g a = if ¬(lo ≤ a ∧ a ≤ hi) then 1 else 0 := by
-          rw [ite_not]
-        simp_rw [hg]
-        simp [bad]
-      _ = ∑ x ∈ (univ : Finset (Fin n)).powerset, g x.card := by simp
+      _ = ∑ x ∈ (univ : Finset (Fin n)).powerset, g x.card := by
+        rw [card_filter, ← powerset_univ]
+        simp only [g, ite_not]
       _ = _ := by
         rw [sum_powerset]
         simp_rw [sum_powersetCard]
         simp [g, mul_ite]
-  refine ⟨B, hB.trans (by rw [hb]; exact Nat.add_le_add_right hr _), ?_⟩
-  intro x y hne
-  have good : ¬(x ∈ bad ∨ y ∈ bad) := fun h => hne ((hentries x y).trans (ite_eq_left h)).symm
-  have hx : lo ≤ x.card ∧ x.card ≤ hi := by simpa [bad] using (fun h => good (Or.inl h) : x ∉ bad)
-  have hy : lo ≤ y.card ∧ y.card ≤ hi := by simpa [bad] using (fun h => good (Or.inr h) : y ∉ bad)
-  refine ⟨hx.1, hx.2, hy.1, hy.2, ?_⟩
-  by_contra! inside
-  apply hne
-  rw [hentries, ite_eq_right good, hon x y inside.1 inside.2]
-  rfl
+  refine ⟨B, ?_, fun x y hne => ?_⟩
+  · rw [← hb]
+    exact hB.trans (Nat.add_le_add_right hr _)
+  · have good : ¬(x ∈ bad ∨ y ∈ bad) := fun h => hne ((hentries x y).trans (ite_eq_left h)).symm
+    have hxy := good
+    simp only [bad, mem_filter, mem_univ, true_and, not_or, not_not] at hxy
+    refine ⟨hxy.1.1, hxy.1.2, hxy.2.1, hxy.2.2, ?_⟩
+    by_contra! inside
+    exact hne (by rw [hentries, ite_eq_right good, hon x y inside.1 inside.2]; rfl)
 
 /-- The corrected band matrix witnesses an explicit upper bound on total rigidity. -/
 private theorem walshRigidityFinite : ∀ (K : Type*) [Field K] (n lo hi k t : ℕ),
@@ -118,11 +102,9 @@ private theorem walshRigidityFinite : ∀ (K : Type*) [Field K] (n lo hi k t : �
   intro K _ n lo hi k t
   classical
   obtain ⟨B, hr, hloc⟩ := walshBandWitness K n lo hi k t
-  apply (Matrix.rigidity_le (B := B) hr).trans
+  refine (Matrix.rigidity_le (B := B) hr).trans ?_
   rw [Matrix.diffCount_eq_card_filter, ← card_off_band_pair]
-  apply card_le_card
-  intro ⟨x, y⟩ hp
-  exact mem_filter.mpr ⟨mem_univ _, hloc x y (mem_filter.mp hp).2⟩
+  exact card_le_card fun ⟨x, y⟩ hp => mem_filter.mpr ⟨mem_univ _, hloc x y (mem_filter.mp hp).2⟩
 
 /-- A uniform upper bound on the central binomial row sums bounds every row of one witness. -/
 private theorem walshBandRowWitness (K : Type*) [Field K] (n lo hi k t edits : ℕ)
@@ -141,16 +123,12 @@ private theorem walshBandRowWitness (K : Type*) [Field K] (n lo hi k t edits : �
   refine ⟨B, hr, fun x => ?_⟩
   by_cases hx : lo ≤ x.card ∧ x.card ≤ hi
   · have h := hrow x.card (by simpa using x.card_le_univ) hx.1 hx.2
-    rw [← card_off_band_row n lo hi k t x] at h
-    apply le_trans _ h
-    rw [← Set.ncard_coe_finset]
-    refine Set.ncard_le_ncard ?_ (Finset.finite_toSet _)
-    intro y hy
-    exact mem_filter.mpr ⟨mem_univ _, (hloc x y hy).2.2⟩
-  · have hempty : {y | _} = (∅ : Set (Finset (Fin n))) :=
+    rw [← card_off_band_row n lo hi k t x, ← Set.ncard_coe_finset] at h
+    exact (Set.ncard_le_ncard (fun y hy => mem_filter.mpr ⟨mem_univ _, (hloc x y hy).2.2⟩)
+      (Finset.finite_toSet _)).trans h
+  · have hempty : {y | (-1 : K) ^ (x ∩ y).card ≠ B x y} = ∅ :=
       Set.eq_empty_iff_forall_notMem.mpr fun y h => hx ⟨(hloc x y h).1, (hloc x y h).2.1⟩
-    rw [hempty, Set.ncard_empty]
-    exact Nat.zero_le _
+    simp [hempty]
 
 
 
@@ -160,47 +138,27 @@ private theorem rigidity_submatrix_le {ι κ K : Type*} [Fintype ι] [Fintype κ
     (A : Matrix ι ι K) (e : κ ≃ ι) (r : ℕ) : (A.submatrix e e).rigidity r ≤ A.rigidity r := by
   classical
   obtain ⟨B, hr, hdiff⟩ := A.exists_rigidity_eq r
-  apply (Matrix.rigidity_le (B := B.submatrix e e) (by simpa using hr)).trans
-  rw [← hdiff]
-  let d : κ × κ ≃ ι × ι := e.prodCongr e
-  simp only [Matrix.diffCount_eq_card_filter]
-  apply le_of_eq
-  apply card_bij (fun p _ => d p)
-  · intro p hp
-    exact mem_filter.mpr ⟨mem_univ _, (mem_filter.mp hp).2⟩
-  · exact fun _ _ _ _ h => d.injective h
-  · intro p hp
-    refine ⟨d.symm p, mem_filter.mpr ⟨mem_univ _, ?_⟩, d.apply_symm_apply _⟩
-    simpa [d, Matrix.submatrix_apply] using (mem_filter.mp hp).2
+  refine (Matrix.rigidity_le (B := B.submatrix e e) (by simpa using hr)).trans ?_
+  rw [← hdiff, Matrix.diffCount_eq_card_filter, Matrix.diffCount_eq_card_filter]
+  exact le_of_eq (card_equiv (e.prodCongr e) fun p => by
+    simp only [mem_filter, mem_univ, true_and]; rfl)
 
 /-- The native Sylvester matrix is the support-indexed Walsh matrix with permuted indices. -/
 private theorem exists_sylvester_reindex (K : Type*) [Field K] (n : ℕ) :
     ∃ e : Fin (2 ^ n) ≃ Finset (Fin n), ∀ i j, Matrix.sylvesterHadamard K n i j =
       (-1 : K) ^ (e i ∩ e j).card := by
   let s (i : Fin (2 ^ n)) := univ.filter (fun b : Fin n => i.val.testBit b.val)
-  have inj : Function.Injective s := by
-    intro i j h
-    apply Fin.ext
-    apply Nat.eq_of_testBit_eq
-    intro b
+  have inj : Function.Injective s := fun i j h => Fin.ext <| Nat.eq_of_testBit_eq fun b => by
     by_cases hb : b < n
-    · have hmem := congrArg (fun z : Finset (Fin n) => decide ((⟨b,hb⟩ : Fin n) ∈ z)) h
-      simpa [s] using hmem
+    · simpa [s] using congrArg (fun z : Finset (Fin n) => decide ((⟨b, hb⟩ : Fin n) ∈ z)) h
     · have hp : 2 ^ n ≤ 2 ^ b := Nat.pow_le_pow_right (by decide) (by omega)
       rw [Nat.testBit_lt_two_pow (i.isLt.trans_le hp), Nat.testBit_lt_two_pow (j.isLt.trans_le hp)]
-  let e := Equiv.ofBijective s ((Fintype.bijective_iff_injective_and_card s).mpr ⟨inj, by simp⟩)
-  refine ⟨e, ?_⟩
-  intro i j
-  rw [Matrix.sylvesterHadamard_apply,
-    ← Fin.prod_univ_eq_prod_range]
-  change (∏ b : Fin n, if i.val.testBit b.val && j.val.testBit b.val then (-1 : K) else 1) =
-    (-1 : K) ^ (s i ∩ s j).card
-  have cond (b : Fin n) : (i.val.testBit b.val && j.val.testBit b.val) = true ↔ b ∈ s i ∩ s j := by
-    simp [s]
-  simp_rw [cond]
-  rw [← prod_filter]
-  have hs : univ.filter (fun b => b ∈ s i ∩ s j) = s i ∩ s j := by ext b; simp
-  rw [hs, prod_const]
+  refine ⟨Equiv.ofBijective s ((Fintype.bijective_iff_injective_and_card s).mpr ⟨inj, by simp⟩),
+    fun i j => ?_⟩
+  rw [Matrix.sylvesterHadamard_apply, ← Fin.prod_univ_eq_prod_range, ← prod_filter, prod_const]
+  congr 2
+  ext b
+  simp [s]
 
 /-- Finite step toward [Alman and Williams, Theorem 1.1][AlmanWilliams2017].
 At the displayed rank cutoff, the number of central off-band pairs bounds the rigidity
@@ -215,12 +173,8 @@ theorem _root_.Matrix.rigidity_sylvesterHadamard_le (K : Type*) [Field K] (n lo 
         then a.choose j * (n - a).choose b else 0)
     else 0 := by
   obtain ⟨e, he⟩ := exists_sylvester_reindex K n
-  let H : Matrix (Finset (Fin n)) (Finset (Fin n)) K := Matrix.of fun x y =>
-    (-1 : K) ^ (x ∩ y).card
-  have hm : Matrix.sylvesterHadamard K n = H.submatrix e e := Matrix.ext he
-  dsimp only
-  rw [hm]
-  exact (rigidity_submatrix_le H e _).trans (walshRigidityFinite K n lo hi k t)
+  exact Matrix.ext he ▸ (rigidity_submatrix_le
+    (Matrix.of fun x y => (-1 : K) ^ (x ∩ y).card) e _).trans (walshRigidityFinite K n lo hi k t)
 
 /-- Summing a uniform edit budget over the rows bounds the total rigidity. -/
 private theorem rigidity_le_of_row_edits {ι K : Type*} [Fintype ι] [Field K]
@@ -228,21 +182,14 @@ private theorem rigidity_le_of_row_edits {ι K : Type*} [Fintype ι] [Field K]
     (hrow : ∀ x, ({y | H x y ≠ B x y} : Set ι).ncard ≤ edits) :
     H.rigidity r ≤ Fintype.card ι * edits := by
   classical
-  apply (Matrix.rigidity_le (B := B) hr).trans
+  refine (Matrix.rigidity_le (B := B) hr).trans ?_
   rw [Matrix.diffCount_eq_card_filter]
   calc
     _ = ∑ x : ι, ∑ y : ι, if H x y ≠ B x y then 1 else 0 := by
-      rw [← sum_product', ← sum_filter]
-      simp
-    _ ≤ ∑ _ : ι, edits := by
-      apply sum_le_sum
-      intro x _
-      have heq : (↑(univ.filter fun y => H x y ≠ B x y) : Set ι) = {y | H x y ≠ B x y} := by
-        ext y; simp
-      have h := hrow x
-      rw [← heq, Set.ncard_coe_finset] at h
-      rw [← sum_filter]
-      simpa using h
+      rw [card_filter, Fintype.sum_prod_type]
+    _ ≤ ∑ _ : ι, edits := sum_le_sum fun x _ => by
+      rw [← card_filter, ← Set.ncard_coe_finset]
+      simpa [coe_filter] using hrow x
     _ = _ := by simp
 
 /-- Conditional finite step toward [Alman and Williams, Theorem 1.1][AlmanWilliams2017].
@@ -261,16 +208,14 @@ theorem _root_.Matrix.exists_rank_le_sylvesterHadamard_row_edits_le_of_row_sum_l
         ∀ x, ({y | H x y ≠ B x y} : Set (Fin (2 ^ n))).ncard ≤ edits := by
   obtain ⟨e, he⟩ := exists_sylvester_reindex K n
   obtain ⟨B, hr, hb⟩ := walshBandRowWitness K n lo hi k t edits hrow
-  let H : Matrix (Finset (Fin n)) (Finset (Fin n)) K := Matrix.of fun x y =>
-    (-1 : K) ^ (x ∩ y).card
-  have hm : Matrix.sylvesterHadamard K n = H.submatrix e e := Matrix.ext he
+  have hm : Matrix.sylvesterHadamard K n =
+      (Matrix.of fun x y => (-1 : K) ^ (x ∩ y).card).submatrix e e := Matrix.ext he
   have rows (i : Fin (2 ^ n)) :
       ({j | Matrix.sylvesterHadamard K n i j ≠ B.submatrix e e i j} : Set _).ncard ≤ edits := by
     rw [hm]
-    change (e ⁻¹' {y | H (e i) y ≠ B (e i) y}).ncard ≤ edits
-    rw [Set.ncard_preimage_of_injective_subset_range e.injective (by simp [e.surjective.range_eq])]
-    exact hb (e i)
-  refine ⟨?_, B.submatrix e e, by simpa using hr, rows⟩
-  simpa using rigidity_le_of_row_edits (by simpa using hr) rows
+    exact (Set.ncard_preimage_of_injective_subset_range e.injective
+      (by simp [e.surjective.range_eq])).trans_le (hb (e i))
+  exact ⟨by simpa using rigidity_le_of_row_edits (by simpa using hr) rows,
+    B.submatrix e e, by simpa using hr, rows⟩
 
 end Cslib

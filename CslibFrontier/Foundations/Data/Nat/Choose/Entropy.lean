@@ -170,10 +170,7 @@ theorem exp_mul_binEntropy_le_succ_mul_choose {n w : ℕ} (hw : w ≤ n) :
       (by positivity), log_pow, log_pow, Nat.cast_sub hw, binEntropy, log_inv, log_inv, ← hnp]
     congr 1
     ring
-  rw [mul_assoc, hent] at hmode
-  have := exp_pos (-(n * binEntropy p))
-  rw [exp_neg] at hmode
-  rw [← mul_assoc] at hmode
+  rw [mul_assoc, hent, exp_neg, ← mul_assoc] at hmode
   calc exp (n * binEntropy p) = 1 * exp (n * binEntropy p) := (one_mul _).symm
     _ ≤ ((n + 1) * n.choose w * (exp (n * binEntropy p))⁻¹) * exp (n * binEntropy p) :=
         mul_le_mul_of_nonneg_right hmode (exp_pos _).le
@@ -243,14 +240,8 @@ theorem qaryEntropy_le_log {q : ℕ} (hq : 2 ≤ q) {p : ℝ} (hp0 : 0 ≤ p) (h
       (1 - p) * log (1 / (q * (1 - p))) ≤ 0 := by
     have hmul1 := mul_le_mul_of_nonneg_left hl1 hp0'.le
     have hmul2 := mul_le_mul_of_nonneg_left hl2 h1p.le
-    have hid1 : p * (((q : ℝ) - 1) / (q * p) - 1) = ((q : ℝ) - 1) / q - p := by
-      field_simp [hp0'.ne', hq0.ne']
-    have hid2 : (1 - p) * (1 / (q * (1 - p)) - 1) = 1 / q - (1 - p) := by
-      field_simp [h1p.ne', hq0.ne']
-    rw [hid1] at hmul1
-    rw [hid2] at hmul2
-    have hzero : (((q : ℝ) - 1) / q - p) + (1 / q - (1 - p)) = 0 := by
-      field_simp [hq0.ne']
+    have hsum : p * (((q : ℝ) - 1) / (q * p) - 1) + (1 - p) * (1 / (q * (1 - p)) - 1) = 0 := by
+      field_simp [hp0'.ne', h1p.ne', hq0.ne']
       ring
     linarith
   have hcast : (((q : ℤ) - 1 : ℤ) : ℝ) = (q : ℝ) - 1 := by push_cast; ring

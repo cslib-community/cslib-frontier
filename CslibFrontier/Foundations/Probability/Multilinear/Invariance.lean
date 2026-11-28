@@ -93,11 +93,8 @@ theorem abs_integral_sub_le (hμ : HasInvarianceMoments μ) (hν : HasInvariance
       (by positivity)).trans_eq ?_)
     rw [show ((3 + 1)! : ℝ) = 24 by norm_num [Nat.factorial]]; ring
   · intro j hj
-    interval_cases j
-    · simp
-    · simpa using hν.integral_id.trans hμ.integral_id.symm
-    · rw [hν.integral_sq, hμ.integral_sq]
-    · rw [hν.integral_pow_three, hμ.integral_pow_three]
+    interval_cases j <;> simp [hν.integral_id, hμ.integral_id, hν.integral_sq, hμ.integral_sq,
+      hν.integral_pow_three, hμ.integral_pow_three]
 
 /-- **The replacement step under Hypothesis 11.65, `C³` form.** If `ψ` is `C³` with `|ψ‴| ≤ C`,
 then `|E_ν ψ(a + s b) - E_μ ψ(a + s b)| ≤ C / 6 · (E_ν |s|³ + E_μ |s|³) · |b|³ ≤ C · |b|³`. -/
@@ -114,10 +111,7 @@ theorem abs_integral_sub_le_of_contDiff_three (hμ : HasInvarianceMoments μ)
       (by positivity)).trans_eq ?_)
     rw [show ((2 + 1)! : ℝ) = 6 by norm_num [Nat.factorial]]; ring
   · intro j hj
-    interval_cases j
-    · simp
-    · simpa using hν.integral_id.trans hμ.integral_id.symm
-    · rw [hν.integral_sq, hμ.integral_sq]
+    interval_cases j <;> simp [hν.integral_id, hμ.integral_id, hν.integral_sq, hμ.integral_sq]
 
 end HasInvarianceMoments
 
@@ -129,9 +123,7 @@ omit [Fintype ι] in
 theorem hasInvarianceMoments_piecewise (s : Finset ι) {μ ν : ι → Measure ℝ}
     (hμ : ∀ i, HasInvarianceMoments (μ i)) (hν : ∀ i, HasInvarianceMoments (ν i)) (i : ι) :
     HasInvarianceMoments (s.piecewise ν μ i) := by
-  by_cases h : i ∈ s
-  · rw [Finset.piecewise_eq_of_mem _ _ _ h]; exact hν i
-  · rw [Finset.piecewise_eq_of_notMem _ _ _ h]; exact hμ i
+  by_cases h : i ∈ s <;> simp [h, hμ i, hν i]
 
 omit [DecidableEq ι] in
 /-- A test function with bounded `(n+1)`st derivative, `n + 1 ≤ 4`, composed with a multilinear

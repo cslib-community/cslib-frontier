@@ -168,12 +168,11 @@ theorem StateTransitionSpec.totalCost_glue_le
   | nil => simp
   | cons o os ih =>
     simp only [StateTransitionSpec.totalCost_cons]
-    have h := ih (D.stepFn s o).1
+    have := ih (D.stepFn s o).1
     have hg := hglue s o
-    have h1 := Nat.mul_le_mul_left K (hone s o)
-    rw [Nat.mul_add] at hg ⊢
-    rw [Nat.add_mul, Nat.mul_assoc, Nat.one_mul] at ⊢
-    omega
+    have := Nat.mul_le_mul_left K (hone s o)
+    rw [Nat.mul_add] at hg
+    rw [Nat.mul_add, Nat.add_mul, Nat.mul_assoc, Nat.one_mul]; omega
 
 namespace Refinement
 
@@ -265,12 +264,9 @@ def comp (M : Refinement D E) (N : Refinement E F) : Refinement D F where
 
 /-- Composing refinements represents the same states as composing their modules. -/
 theorem comp_rep_iff (M : Refinement D E) (N : Refinement E F) (s : D.State) (f : F.State) :
-    (M.comp N).toModule.rep s f ↔ (M.toModule.comp N.toModule).rep s f := by
-  constructor
-  · rintro ⟨⟨hN, hM⟩, rfl⟩
-    exact ⟨_, ⟨hM, rfl⟩, hN, rfl⟩
-  · rintro ⟨_, ⟨hM, rfl⟩, hN, rfl⟩
-    exact ⟨⟨hN, hM⟩, rfl⟩
+    (M.comp N).toModule.rep s f ↔ (M.toModule.comp N.toModule).rep s f :=
+  ⟨fun ⟨⟨hN, hM⟩, hs⟩ => ⟨_, ⟨hM, hs⟩, hN, rfl⟩,
+    fun ⟨_, ⟨hM, hs⟩, hN, he⟩ => ⟨⟨hN, he.symm ▸ hM⟩, (congrArg M.abs he).trans hs⟩⟩
 
 /-- Linking through a composition links through each refinement in turn. -/
 theorem link_comp (M : Refinement D E) (N : Refinement E F) (p : D.Client α) :
@@ -341,12 +337,10 @@ theorem Amortized.mono (A : M.Amortized lower upper potential)
     {lower' : E.State → E.Op → ℕ} {upper' : D.State → D.Op → ℕ}
     (hlower : ∀ e o, lower' e o ≤ lower e o)
     (hupper : ∀ s o, D.valid s o → upper s o ≤ upper' s o) :
-    M.Amortized lower' upper' potential := by
-  refine ⟨fun {e} o {a e' tr} hi hv hrun => ?_⟩
-  have h := A.step o hi hv hrun
-  have hl := E.totalCostTranscript_mono hlower e tr
-  have hu := hupper _ o hv
-  omega
+    M.Amortized lower' upper' potential :=
+  ⟨fun {_} o {_ _ _} hi hv hrun =>
+    (Nat.add_le_add_right (E.totalCostTranscript_mono hlower _ _) _).trans
+      ((A.step o hi hv hrun).trans (Nat.add_le_add_right (hupper _ o hv) _))⟩
 
 /-- **Exchange at a constant rate.** Scaling both currencies and the potential by `K` preserves
 the amortized inequality. -/
@@ -395,19 +389,9 @@ theorem Amortized.glue_of_one_le (A : M.Amortized lower upper potential)
     (hglue : ∀ e o, glue e o ≤ K * (lower e o + 1)) :
     M.Amortized (fun e o => lower e o + glue e o) (fun s o => (2 * K + 1) * upper s o)
       (fun e => (2 * K + 1) * potential e) := by
-  have h := A.glue (A.mono hone fun _ _ _ => le_rfl) hglue
-  have hu : (fun s o => (K + 1) * upper s o + K * upper s o) =
-      fun s o => (2 * K + 1) * upper s o := by
-    funext s o
-    rw [Nat.add_mul, Nat.add_mul, Nat.mul_assoc]
-    omega
-  have hp : (fun e => (K + 1) * potential e + K * potential e) =
-      fun e => (2 * K + 1) * potential e := by
-    funext e
-    rw [Nat.add_mul, Nat.add_mul, Nat.mul_assoc]
-    omega
-  rw [hu, hp] at h
-  exact h
+  have hmul (n : ℕ) : (K + 1) * n + K * n = (2 * K + 1) * n := by
+    rw [Nat.add_mul, Nat.add_mul, Nat.mul_assoc]; omega
+  simpa only [hmul] using A.glue (A.mono hone fun _ _ _ => le_rfl) hglue
 
 /-- Potentials telescope along any run of a linked admissible client. -/
 theorem Amortized.demonic (A : M.Amortized lower upper potential) (p : D.Client α)
@@ -478,21 +462,12 @@ theorem Amortized.prod {M₁ : Refinement D₁ E} {M₂ : Refinement D₂ E} {J 
       E.ClientRun e (M₂.methods o) a e' tr → Φ₁ e' = Φ₁ e) :
     (M₁.prod M₂ J frame₁ frame₂).Amortized lower (productCharge upper₁ upper₂)
       (fun e => Φ₁ e + Φ₂ e) := by
-  refine ⟨fun {e} o {a e' tr} hi hv hrun => ?_⟩
-  obtain ⟨hi₁, hi₂, hJ⟩ := hi
-  cases o with
-  | inl o =>
-    have h := A₁.step o hi₁ hv hrun
-    have hΦ := potential₁ o hi₁ hi₂ hJ hv hrun
-    change E.totalCostTranscript lower e tr + (Φ₁ e' + Φ₂ e') ≤
-      upper₁ (M₁.abs e) o + (Φ₁ e + Φ₂ e)
-    omega
-  | inr o =>
-    have h := A₂.step o hi₂ hv hrun
-    have hΦ := potential₂ o hi₁ hi₂ hJ hv hrun
-    change E.totalCostTranscript lower e tr + (Φ₁ e' + Φ₂ e') ≤
-      upper₂ (M₂.abs e) o + (Φ₁ e + Φ₂ e)
-    omega
+  refine ⟨fun {e} o {a e' tr} ⟨hi₁, hi₂, hJ⟩ hv hrun => ?_⟩
+  cases o <;> dsimp only [productCharge, Refinement.prod]
+  · have := A₁.step _ hi₁ hv hrun
+    rw [potential₁ _ hi₁ hi₂ hJ hv hrun]; omega
+  · have := A₂.step _ hi₂ hv hrun
+    rw [potential₂ _ hi₁ hi₂ hJ hv hrun]; omega
 
 /-- **Potentials stack through a realization.** An amortized refinement over a native
 implementation with an amortized certificate yields an amortized certificate of the realized

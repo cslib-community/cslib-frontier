@@ -63,10 +63,8 @@ abbrev descriptor : Fin 64 := 45
 /-- Fixed embedding of the placement workspace below all caller parameters. -/
 def registers (i : Fin 32) : Fin 64 := ⟨i.val, by omega⟩
 
-private theorem registers_injective : Function.Injective registers := by
-  intro i j he
-  apply Fin.ext
-  exact congrArg (fun k : Fin 64 => k.val) he
+private theorem registers_injective : Function.Injective registers :=
+  fun _ _ he => Fin.ext (congrArg (Fin.val : Fin 64 → ℕ) he)
 
 @[inherit_doc Place.src]
 abbrev psrc : Fin 64 := registers Place.src
@@ -109,9 +107,8 @@ def program : Code .standard 64 :=
 counter can change. All caller registers at least 46 are included in this frame. -/
 theorem preserves (i : Fin 64) (hi : 32 ≤ i.val) (hm : i ≠ CountCall.modulus)
     (hc : i ≠ CountCall.result 2) : program.Preserves i := by
-  have h : ∀ i : Fin 64, 32 ≤ i.val → i ≠ CountCall.modulus → i ≠ CountCall.result 2 →
-      program.Preserves i := by decide +kernel
-  exact h i hi hm hc
+  revert i hi hm hc
+  decide +kernel
 
 /-- Polynomial envelope for addresses, counters, encoded magnitudes and every scan intermediate. -/
 def budget (x : Data 64) (M N U t : ℕ) : ℕ :=
@@ -199,8 +196,7 @@ theorem exec {w M N U t : ℕ} (x : Data 64) (values : ℕ → ℤ) (neg : Bool)
     Fin.ne_of_val_ne (by dsimp only [registers]; omega)
   have yd : y.regs descriptor = x.regs descriptor := by
     rw [hframe descriptor (hb descriptor (by decide))]
-    wram_simp
-    exact ar descriptor
+    wram_simp [ar descriptor]
   wram_exec [yd]
   have hlen : CountCall.length 2 = len := rfl
   wram_simp [hlen, Data.comap_regs, Data.comap_mem] at hbm hbc ⊢
@@ -208,7 +204,6 @@ theorem exec {w M N U t : ℕ} (x : Data 64) (values : ℕ → ℤ) (neg : Bool)
   · rw [hbc, hbm, ham]
     rfl
   · rw [hframe i (hb i hi)]
-    wram_simp [hb i hi]
-    exact ar i hi hm hc
+    wram_simp [hb i hi, ar i hi hm hc]
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.CountPlace

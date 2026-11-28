@@ -191,6 +191,12 @@ theorem binary_two_pow : ComputableInPolyTime (fun k : ℕ => 2 ^ k) encUnary en
       lia)
   simpa only [hfold] using h
 
+/-- Testing a binary number for positivity is polynomial-time. -/
+theorem binary_pos :
+    ComputableInPolyTime (fun n : ℕ => decide (0 < n)) encNat encBool :=
+  ComputableInPolyTime.binary_lt.comp
+    ((ComputableInPolyTime.const 0).prod ComputableInPolyTime.id')
+
 /-- Strictly compare computed binary values, fixing their intermediate encodings. -/
 @[fun_prop]
 theorem binary_lt' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}

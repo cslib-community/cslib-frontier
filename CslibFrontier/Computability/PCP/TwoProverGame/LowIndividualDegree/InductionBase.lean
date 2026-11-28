@@ -52,13 +52,11 @@ theorem PolynomialFunction.exists_boundedPolynomial {d : ℕ} (f : PolynomialFun
   let e := MvPolynomial.uniqueAlgEquiv F (Fin 1)
   refine ⟨⟨e.symm p, fun i => MvPolynomial.degreeOf_le_iff.mpr fun a ha => ?_⟩, fun u => ?_⟩
   · rw [Subsingleton.elim i default]
-    by_contra! h
-    exact (MvPolynomial.mem_support_iff.mp ha)
+    exact not_lt.mp fun h => (MvPolynomial.mem_support_iff.mp ha)
       ((MvPolynomial.coeff_uniqueAlgEquiv_symm F p a).trans
         (Polynomial.coeff_eq_zero_of_natDegree_lt (hp.trans_lt h)))
   · change MvPolynomial.eval₂ (RingHom.id F) u (e.symm p) = _
-    rw [MvPolynomial.eval₂_uniqueAlgEquiv_symm, he]
-    rfl
+    rw [MvPolynomial.eval₂_uniqueAlgEquiv_symm, he]; rfl
 
 private theorem acceptScore_swap_of_symmetric {m : ℕ}
     (S : QuantumStrategy (Question F m) (Question F m) (Answer F m) (Answer F m) ι ι)
@@ -86,18 +84,13 @@ private theorem exists_polynomial_POVM_of_decoding {n d : ℕ}
           (decodedPoint S.toCommuting.alice u).effect (MvPolynomial.eval u g.val))).re := by
   classical
   let C := S.toCommuting
-  let L := (S.bob q).toMeasurement
-  let G := (L.map (some ∘ f)).toPOVM
+  let G := ((S.bob q).toMeasurement.map (some ∘ f)).toPOVM
   refine ⟨G, h.trans (expect_le_expect fun u _ => le_of_eq ?_)⟩
-  have hlift : QuantumStrategy.rightMeasurement (ι := ι) G =
-      (C.bob q).map (some ∘ f) := by
-    apply Measurement.ext
-    intro a
-    simp only [G, QuantumStrategy.rightMeasurement, Measurement.toPOVM_effect,
-      Measurement.map_effect, L, POVM.toMeasurement_effect, C, QuantumStrategy.toCommuting]
-    change (oneKronecker (ι := ι)) (∑ a' with (some ∘ f) a' = a, (S.bob q).effect a') =
-      ∑ a' with (some ∘ f) a' = a, (oneKronecker (ι := ι)) ((S.bob q).effect a')
-    rw [map_sum]
+  have hlift : QuantumStrategy.rightMeasurement (ι := ι) G = (C.bob q).map (some ∘ f) :=
+    Measurement.ext fun a => by
+      simp only [G, QuantumStrategy.rightMeasurement, Measurement.toPOVM_effect,
+        Measurement.map_effect, POVM.toMeasurement_effect, C, QuantumStrategy.toCommuting]
+      exact map_sum (oneKronecker (ι := ι)) _ _
   rw [hlift, Measurement.agreement]
   have hread (b : F) :
       ((C.bob q).map (fun a => MvPolynomial.eval u (f a).val)).effect b =
@@ -109,11 +102,9 @@ private theorem exists_polynomial_POVM_of_decoding {n d : ℕ}
     ((C.bob q).map fun a => MvPolynomial.eval u (f a).val).effect b)).re) = _
   simp only [hread, mul_sum, map_sum, Complex.re_sum]
   rw [← sum_fiberwise univ (fun g : BoundedPolynomial F (n + 1) d => MvPolynomial.eval u g.val)]
-  refine sum_congr rfl fun b _ => sum_congr rfl fun g hg => ?_
-  rw [(mem_filter.mp hg).2]
-  congr 2
-  exact Measurement.commute_map_map _ _ (C.commute (.point u) q)
-    decodePoint (some ∘ f) _ _ |>.eq
+  refine sum_congr rfl fun b _ => sum_congr rfl fun g hg => (mem_filter.mp hg).2 ▸ congrArg
+    (fun x => (C.state x).re)
+    (Measurement.commute_map_map _ _ (C.commute (.point u) q) decodePoint (some ∘ f) _ _).eq
 
 /-- On the one-coordinate test, Bob's line measurement yields a local polynomial POVM
 whose matching mass with Alice's point answers is at least the axis branch score. -/
@@ -137,10 +128,7 @@ theorem exists_one_coordinate_polynomial_POVM
   have hscore := acceptScore_one_le_pointAgreement C d u
   simp only [← two_mul, mul_div_cancel_left₀ _ (by norm_num : (2 : ℝ) ≠ 0)]
   rw [Measurement.map_map] at hscore
-  change acceptScore C d (.point u) (.axis univ) ≤
-    Measurement.agreement C.state (decodedPoint C.alice u)
-      ((C.bob (.axis univ)).map fun a => MvPolynomial.eval u (f a).val)
-  simpa only [f, hp, decodedPoint, Function.comp_def] using hscore
+  simpa only [C, f, hp, decodedPoint, Function.comp_def] using hscore
 
 section DegreeZero
 
@@ -164,27 +152,23 @@ private theorem degreeZero_pointVariance
   let W (i : Fin (n + 1)) (a : F) (u : Pt) : φ.toPositiveLinearMap.GNS := φ.toPreGNS (R i u a)
   have hd (x y : Joint) :
       ‖(φ.toPreGNS x : φ.toPositiveLinearMap.GNS) - φ.toPreGNS y‖ = φ.norm (x - y) := by
-    rw [← UniformSpace.Completion.coe_sub, UniformSpace.Completion.norm_coe, ← map_sub]
-    rfl
+    rw [← UniformSpace.Completion.coe_sub, UniformSpace.Completion.norm_coe, ← map_sub]; rfl
   have hglobal (a : F) :=
     Fintype.expect_expect_norm_sub_sq_le_sum_expect_expect_norm_sub_update_sq (V a)
   simp only [V, hd] at hglobal
   have hlocal (i : Fin (n + 1)) (a : F) :
       (𝔼 u : Pt, 𝔼 t : F, φ.norm (A u a - A (update u i t) a) ^ 2) ≤
         2 * (𝔼 u : Pt, φ.norm (A u a - R i u a) ^ 2) := by
-    have h := Fintype.expect_expect_norm_sub_update_sq_le_two i (V a) (W i a)
-      (fun u t => by simp only [W, R, decodedCoordinate_update])
-    have hs (u : Pt) (t : F) := φ.norm_sub_comm (A (update u i t) a) (A u a)
-    simpa only [V, W, hd, hs] using h
+    simpa only [V, W, hd, fun u t => φ.norm_sub_comm (A (update u i t) a) (A u a)] using
+      Fintype.expect_expect_norm_sub_update_sq_le_two i (V a) (W i a)
+        fun u t => by simp only [W, R, decodedCoordinate_update]
   have haxis :
       (𝔼 u : Pt, 𝔼 i : Fin (n + 1), ∑ a, φ.norm (A u a - R i u a) ^ 2) ≤
-        4 * (1 - (branchGame (F := F) n 0 .axis).commutingWinProb C) := by
-    have he (u : Pt) (i : Fin (n + 1)) :
-        (fun f : PolynomialFunction F 0 => f.value (u i)) = fun f => f.value 0 :=
-      funext fun f => f.value_eq_of_degree_zero _ _
-    refine le_trans ?_ (axisPointStateDist_le C 0)
-    refine expect_le_expect fun u _ => expect_le_expect fun i _ => ?_
-    rw [he u i]
+        4 * (1 - (branchGame (F := F) n 0 .axis).commutingWinProb C) :=
+    (expect_le_expect fun u _ => expect_le_expect fun i _ => by
+      dsimp only [φ, A, R]
+      rw [funext fun f : PolynomialFunction F 0 => f.value_eq_of_degree_zero 0 (u i)]).trans
+      (axisPointStateDist_le C 0)
   change (𝔼 u : Pt, 𝔼 v : Pt, ∑ a, φ.norm (A u a - A v a) ^ 2) ≤ _
   calc
     _ ≤ ∑ a, ∑ i : Fin (n + 1),
@@ -197,14 +181,13 @@ private theorem degreeZero_pointVariance
         (𝔼 u : Pt, 𝔼 i : Fin (n + 1), ∑ a, φ.norm (A u a - R i u a) ^ 2) := by
       simp only [← mul_sum, expect_sum_comm]
       rw [sum_comm]
-      simp only [← expect_sum_comm]
-      rw [mul_assoc]
+      simp only [← expect_sum_comm, mul_assoc]
       congr 1
       rw [mul_expect]
-      refine expect_congr rfl fun u _ => ?_
-      simpa only [Fintype.card_fin, Nat.cast_add, Nat.cast_one] using
-        (Fintype.card_mul_expect (fun i : Fin (n + 1) =>
-          ∑ a, φ.norm (A u a - R i u a) ^ 2)).symm
+      exact expect_congr rfl fun u _ => by
+        simpa only [Fintype.card_fin, Nat.cast_add, Nat.cast_one] using
+          (Fintype.card_mul_expect fun i : Fin (n + 1) =>
+            ∑ a, φ.norm (A u a - R i u a) ^ 2).symm
     _ ≤ (2 * (n + 1 : ℝ)) *
         (4 * (1 - (branchGame (F := F) n 0 .axis).commutingWinProb C)) := by gcongr
     _ = _ := by ring
@@ -225,10 +208,7 @@ theorem exists_degree_zero_polynomial_POVM
           (C.state ((QuantumStrategy.rightMeasurement (ι := ι) G).effect (some g) *
             (decodedPoint C.alice u).effect (MvPolynomial.eval u g.val))).re := by
   classical
-  dsimp only
-  let C := S.toCommuting
-  let ε := 1 - (branchGame (F := F) n 0 .axis).commutingWinProb C
-  let δ := 1 - (branchGame (F := F) n 0 .consistency).commutingWinProb C
+  intro C ε δ
   let P := decodedPoint C.alice
   let R := decodedPoint C.bob
   let dist (M N : Measurement F Joint) : ℝ := ∑ a, C.state.norm (M.effect a - N.effect a) ^ 2
@@ -251,15 +231,14 @@ theorem exists_degree_zero_polynomial_POVM
       ((QuantumStrategy.leftMeasurement_isProjective (S.alice (.point u)) (hA _)).map _)
       ((QuantumStrategy.rightMeasurement_isProjective (S.bob (.point v)) (hB _)).map _)
   simp only [hidentity, expect_sub_distrib, ← mul_expect, Fintype.expect_const] at hcross
-  have hav : 1 - (8 * (n + 1 : ℝ) * ε + 2 * δ) ≤
-      𝔼 v : Pt, 𝔼 u : Pt, Measurement.agreement C.state (P u) (R v) := by
-    rw [expect_comm univ univ (fun v u => Measurement.agreement C.state (P u) (R v))]
-    linarith only [hcross]
-  obtain ⟨v, _, hv⟩ := exists_le_of_le_expect univ_nonempty hav
-  let f (a : Ans) : BoundedPolynomial F (n + 1) 0 :=
-    ⟨MvPolynomial.C (decodePoint a), fun i => (MvPolynomial.degreeOf_C _ i).le⟩
-  apply exists_polynomial_POVM_of_decoding S (.point v) f
-  simpa only [R, P, decodedPoint, f, MvPolynomial.eval_C] using hv
+  obtain ⟨v, _, hv⟩ := exists_le_of_le_expect univ_nonempty
+    (show 1 - (8 * (n + 1 : ℝ) * ε + 2 * δ) ≤
+      𝔼 v : Pt, 𝔼 u : Pt, Measurement.agreement C.state (P u) (R v) by
+      rw [expect_comm univ univ fun v u => Measurement.agreement C.state (P u) (R v)]
+      linarith only [hcross])
+  apply exists_polynomial_POVM_of_decoding S (.point v)
+    (fun a => ⟨MvPolynomial.C (decodePoint a), fun i => (MvPolynomial.degreeOf_C _ i).le⟩)
+  simpa only [R, P, decodedPoint, MvPolynomial.eval_C] using hv
 
 end DegreeZero
 

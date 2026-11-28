@@ -133,15 +133,10 @@ private theorem card_filter_exists_le_sum_mul_signVal_le {ι : Type*} {m : ℕ} 
       field_simp
       ring
   rw [hsum, Fintype.card_fin, hexp] at hmc
-  have hsub : (Finset.univ.filter fun σ : Fin m → Bool =>
-      ∃ j, m * ε / 2 ≤ ∑ i, b j i * signVal (σ i)) ⊆
-      Finset.univ.filter fun σ => (𝔼 y, F y) + m * ε / 4 ≤ F σ := by
-    intro σ hσ
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hσ ⊢
-    obtain ⟨j, hj⟩ := hσ
-    have := le_ciSup (hbdd σ) j
-    linarith
-  exact (Nat.cast_le.2 (Finset.card_le_card hsub)).trans hmc
+  refine (Nat.cast_le.2 (Finset.card_le_card fun σ hσ => ?_)).trans hmc
+  simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hσ ⊢
+  obtain ⟨j, hj⟩ := hσ
+  linarith [le_ciSup (hbdd σ) j]
 
 open Classical in
 /-- **Counting bad swaps by chaining**: if every finite set shattered by `G` has at most `d` points
@@ -177,35 +172,33 @@ theorem card_filter_swapSamples_exists_le_abs_le {Z : Type*} {G : ConceptClass Z
     push_cast
     rw [Fin.sum_univ_add, ← Finset.sum_add_distrib]
     simp only [x, Fin.append_left, Fin.append_right]
-  have hb (s : ℝ) (hs : s ^ 2 = 1) (g : G) (i : Fin m) : |s * a g i| ≤ 1 := by
-    refine (sq_le_one_iff_abs_le_one _).1 ?_
-    rw [mul_pow, hs, one_mul]
-    simp only [a]
-    cases g.1 (z.1 i) <;> cases g.1 (z.2 i) <;> norm_num
+  have hb (s : ℝ) (hs : s ^ 2 = 1) (g : G) (i : Fin m) : |s * a g i| ≤ 1 :=
+    (sq_le_one_iff_abs_le_one _).1 <| by
+      rw [mul_pow, hs, one_mul]
+      simp only [a]
+      cases g.1 (z.1 i) <;> cases g.1 (z.2 i) <;> norm_num
   have hnorm (s : ℝ) (hs : s ^ 2 = 1) (g : G) : ∑ i, (s * a g i) ^ 2 ≤ √m ^ 2 := by
     rw [Real.sq_sqrt (Nat.cast_nonneg m)]
-    calc ∑ i, (s * a g i) ^ 2 ≤ ∑ _i : Fin m, (1 : ℝ) := Finset.sum_le_sum fun i _ => by
-          have := hb s hs g i
-          rw [← sq_abs]
-          nlinarith [abs_nonneg (s * a g i)]
+    calc ∑ i, (s * a g i) ^ 2 ≤ ∑ _i : Fin m, (1 : ℝ) :=
+          Finset.sum_le_sum fun i _ => (sq_le_one_iff_abs_le_one _).2 (hb s hs g i)
       _ = m := by simp
   have hdist (s : ℝ) (hs : s ^ 2 = 1) (g g' : G) :
       ∑ i, (s * a g i - s * a g' i) ^ 2 ≤
         4 * √m ^ 2 / ((m + m : ℕ) : ℝ) *
           hammingDist (fun j => g.1 (x j)) (fun j => g'.1 (x j)) := by
-    have hpt (i : Fin m) : (s * a g i - s * a g' i) ^ 2 ≤
-        2 * ((if g.1 (z.1 i) ≠ g'.1 (z.1 i) then 1 else 0 : ℝ) +
-          if g.1 (z.2 i) ≠ g'.1 (z.2 i) then 1 else 0) := by
-      rw [← mul_sub, mul_pow, hs, one_mul]
-      simp only [a]
-      cases g.1 (z.1 i) <;> cases g'.1 (z.1 i) <;> cases g.1 (z.2 i) <;> cases g'.1 (z.2 i) <;>
-        norm_num
     rcases Nat.eq_zero_or_pos m with rfl | hm
     · simp
     have hmR : (0 : ℝ) < m := Nat.cast_pos.2 hm
-    rw [Real.sq_sqrt hmR.le, show 4 * (m : ℝ) / ((m + m : ℕ) : ℝ) = 2 by
-      push_cast; field_simp; ring, hham, Finset.mul_sum]
-    exact Finset.sum_le_sum fun i _ => hpt i
+    have h4 : 4 * (m : ℝ) / ((m + m : ℕ) : ℝ) = 2 := by
+      push_cast
+      field_simp
+      ring
+    rw [Real.sq_sqrt hmR.le, h4, hham, Finset.mul_sum]
+    refine Finset.sum_le_sum fun i _ => ?_
+    rw [← mul_sub, mul_pow, hs, one_mul]
+    simp only [a]
+    cases g.1 (z.1 i) <;> cases g'.1 (z.1 i) <;> cases g.1 (z.2 i) <;> cases g'.1 (z.2 i) <;>
+      norm_num
   -- Chaining: the expected maximal correlation is at most `32 √(m d) ≤ m ε / 4`.
   have hE (s : ℝ) (hs : s ^ 2 = 1) :
       𝔼 σ : Fin m → Bool, ⨆ g : G, ∑ i, s * a g i * signVal (σ i) ≤ m * ε / 4 := by
@@ -231,21 +224,15 @@ theorem card_filter_swapSamples_exists_le_abs_le {Z : Type*} {G : ConceptClass Z
       (Finset.univ.filter fun σ : Fin m → Bool =>
         ∃ g : G, m * ε / 2 ≤ ∑ i, 1 * a g i * signVal (σ i)) ∪
       Finset.univ.filter fun σ : Fin m → Bool =>
-        ∃ g : G, m * ε / 2 ≤ ∑ i, -1 * a g i * signVal (σ i) := by
-    intro σ hσ
+        ∃ g : G, m * ε / 2 ≤ ∑ i, -1 * a g i * signVal (σ i) := fun σ hσ => by
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union] at hσ ⊢
     obtain ⟨g, hg, hgap⟩ := hσ
     rw [hkey] at hgap
-    rcases le_abs.1 hgap with h | h
-    · refine Or.inl ⟨⟨g, hg⟩, ?_⟩
-      simp only [one_mul]
-      exact h
-    · refine Or.inr ⟨⟨g, hg⟩, ?_⟩
-      simpa only [neg_mul, one_mul, Finset.sum_neg_distrib] using h
+    exact (le_abs.1 hgap).imp (fun h => ⟨⟨g, hg⟩, by simpa only [one_mul] using h⟩)
+      (fun h => ⟨⟨g, hg⟩, by simpa only [neg_mul, one_mul, Finset.sum_neg_distrib] using h⟩)
   have hcard := (Nat.cast_le (α := ℝ)).2 ((Finset.card_le_card hsub).trans
     (Finset.card_union_le _ _))
-  push_cast at hcard
-  linarith
+  push_cast at hcard; linarith
 
 /-! ### Uniform convergence -/
 
@@ -267,15 +254,11 @@ theorem measure_pi_exists_le_abs_card_filter_div_sub_measure_le_exp (μ : Measur
           (μ {z | g z = true}).toReal|} ≤
       ENNReal.ofReal (4 * Real.exp (-(m * ε ^ 2 / 32))) := by
   by_cases hbig : 1 ≤ 4 * Real.exp (-(m * ε ^ 2 / 32))
-  · exact prob_le_one.trans (by rw [← ENNReal.ofReal_one]; exact ENNReal.ofReal_le_ofReal hbig)
-  push Not at hbig
+  · exact prob_le_one.trans (ENNReal.ofReal_one ▸ ENNReal.ofReal_le_ofReal hbig)
   have hexp : 4 * Real.exp (-(m * ε ^ 2 / 2)) ≤ 1 := by
-    have : Real.exp (-(m * ε ^ 2 / 2)) ≤ Real.exp (-(m * ε ^ 2 / 32)) :=
-      Real.exp_le_exp.2 <| by
-        have := mul_nonneg (Nat.cast_nonneg m : (0 : ℝ) ≤ m) (sq_nonneg ε)
-        linarith
-    linarith
-  refine (measure_pi_exists_le_abs_card_filter_div_sub_measure_le_of_card_filter_swapSamples_le μ G
+    have := mul_nonneg (Nat.cast_nonneg m : (0 : ℝ) ≤ m) (sq_nonneg ε)
+    linarith [Real.exp_le_exp.2 (show -(m * ε ^ 2 / 2) ≤ -(m * ε ^ 2 / 32) by linarith)]
+  exact (measure_pi_exists_le_abs_card_filter_div_sub_measure_le_of_card_filter_swapSamples_le μ G
     m hε hexp (β := 2 * Real.exp (-(m * ε ^ 2 / 32)))
     fun z => card_filter_swapSamples_exists_le_abs_le hG hε hm z).trans_eq (by congr 1; ring)
 

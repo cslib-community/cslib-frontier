@@ -56,13 +56,11 @@ theorem CoreFastInv.bktCount_eq_card_filter {c U V n_max : ℕ} {θ : SeedWhp c 
     fun loc => ⟨fs.keyValAt c U n_max θ.1 b loc.val, (hc.active_item b hb loc.val loc.isLt).1⟩
   have hmem (loc : Fin (fs.bktCount b)) : toKey loc ∈ S :=
     mem_filter.mpr (hc.mem_dom_of_loc hb loc.isLt)
-  have hinj : Function.Injective toKey := by
-    intro l₁ l₂ heq
-    have hkv : fs.keyValAt c U n_max θ.1 b l₁.val = fs.keyValAt c U n_max θ.1 b l₂.val :=
-      congrArg Fin.val heq
-    have hq₁ := (hc.active_item b hb l₁.val l₁.isLt).2.2.1
-    have hq₂ := (hc.active_item b hb l₂.val l₂.isLt).2.2.1
-    exact Fin.ext (hc.quot_inj b hb l₁.val l₁.isLt l₂.val l₂.isLt (hq₁.symm.trans (hkv ▸ hq₂)))
+  have hinj : Function.Injective toKey := fun l₁ l₂ heq =>
+    Fin.ext (hc.quot_inj b hb l₁.val l₁.isLt l₂.val l₂.isLt
+      ((hc.active_item b hb l₁.val l₁.isLt).2.2.1.symm.trans
+        ((show fs.keyValAt c U n_max θ.1 b l₁.val = _ from congrArg Fin.val heq) ▸
+          (hc.active_item b hb l₂.val l₂.isLt).2.2.1)))
   have hsurj : ∀ u ∈ S, ∃ loc : Fin (fs.bktCount b), toKey loc = u := by
     intro u hu
     rw [mem_filter, Dictionary.mem_dom_iff] at hu
@@ -73,11 +71,9 @@ theorem CoreFastInv.bktCount_eq_card_filter {c U V n_max : ℕ} {θ : SeedWhp c 
     dsimp only [toKey, FastState.keyValAt]
     rw [hq_loc, ← hfb]
     exact feistelReconstruct_feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val
-  symm
-  refine (Finset.card_bij (fun (loc : Fin (fs.bktCount b)) _ => toKey loc)
-    (fun loc _ => hmem loc) (fun _ _ _ _ h => hinj h)
-    (fun u hu => let ⟨loc, hl⟩ := hsurj u hu; ⟨loc, mem_univ loc, hl⟩)).symm.trans ?_
-  simp
+  exact (by simp : fs.bktCount b = #(univ : Finset (Fin (fs.bktCount b)))).trans
+    (Finset.card_bij (fun loc _ => toKey loc) (fun loc _ => hmem loc)
+      (fun _ _ _ _ h => hinj h) fun u hu => (hsurj u hu).elim fun loc hl => ⟨loc, mem_univ loc, hl⟩)
 
 /-- When `fs.fpAt c U n_max θ fs.rebCandSalt b` is injective on all active Stage-2 coordinates of
 bucket `b`, `rebScanSteps` never sets `rebCollision` to non-zero. -/
@@ -103,7 +99,7 @@ theorem rebScanSteps_rebCollision_eq_zero_of_inj {c U n_max b : ℕ}
   | succ rem ih =>
     obtain ⟨rm0, hvr0, hrr0⟩ := hreb0
     dsimp only [rebScanSteps]
-    rw [ite_eq_right (by omega : ¬(fs.rebCollision ≠ 0))]
+    rw [ite_eq_right (not_not.mpr hcoll0)]
     set cur := fs.rebScanCursor
     set rIdx := fs.rebSliceIdx b
     by_cases hact : cur < fs.bktCount b ∧ (fs.locState b cur = 1 ∨ fs.locState b cur = 2 + fs.oldEp)
@@ -112,9 +108,7 @@ theorem rebScanSteps_rebCollision_eq_zero_of_inj {c U n_max b : ℕ}
       have hfp_lt : fp < 2 ^ fpBitsWhp n_max := by
         dsimp only [fp, FastState.fpAt]
         split_ifs with hs hu
-        · exact fpHash_lt c U n_max θ.2 ⟨_, hs⟩ ⟨_, hu⟩
-        · exact Nat.two_pow_pos _
-        · exact Nat.two_pow_pos _
+        exacts [fpHash_lt c U n_max θ.2 ⟨_, hs⟩ ⟨_, hu⟩, Nat.two_pow_pos _, Nat.two_pow_pos _]
       cases hlk : btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
           (fs.slices rIdx) fp with
       | some prev_loc =>
@@ -139,16 +133,15 @@ theorem rebScanSteps_rebCollision_eq_zero_of_inj {c U n_max b : ℕ}
             slices := Function.update fs.slices rIdx sl'
             rebScanCursor := cur + 1
             rebInsCount := fs.rebInsCount + 1 }
-        have hfp1 : fs1.fpAt c U n_max θ fs1.rebCandSalt b =
-            fs.fpAt c U n_max θ fs.rebCandSalt b := rfl
         refine ih fs1 hcoll0 hcnt_le (by dsimp only [fs1]; omega) hinj_all
           ⟨Function.update rm0 fp (some cur), ?_, ?_⟩
         · change ValidWhpSlice n_max (fs.rebInsCount + 1)
             (Function.update fs.slices rIdx sl' rIdx) _
           rw [Function.update_self]; exact hins.2
         · rw [Nat.min_eq_right hact.1.le] at hrr0
-          change SliceMapRel _ _ (min (fs.bktCount b) (cur + 1)) _
-          rw [hfp1, Nat.min_eq_right (Nat.succ_le_of_lt hact.1)]
+          change SliceMapRel (fs.fpAt c U n_max θ fs.rebCandSalt b) _
+            (min (fs.bktCount b) (cur + 1)) _
+          rw [Nat.min_eq_right (Nat.succ_le_of_lt hact.1)]
           exact SliceMapRel.step_true hrr0 hact.2 fun loc hlt hp =>
             fun heq => Nat.ne_of_lt hlt (hinj_all loc (hlt.trans hact.1) cur hact.1 hp hact.2 heq)
     · rw [ite_eq_right hact]
@@ -161,16 +154,14 @@ theorem rebScanSteps_rebCollision_eq_zero_of_inj {c U n_max b : ℕ}
       · rw [Nat.min_eq_right hlt_cnt.le] at hrr0
         rw [Nat.min_eq_right (Nat.succ_le_of_lt hlt_cnt)]
         exact SliceMapRel.step_false hrr0 fun hp => hact ⟨hlt_cnt, hp⟩
-      · rwa [show min (fs.bktCount b) (cur + 1) = min (fs.bktCount b) cur by omega]
+      · have hmin : min (fs.bktCount b) (cur + 1) = min (fs.bktCount b) cur := by omega
+        rwa [hmin]
 
 /-- `bufClearSteps k` on a `ClearableBufTrie` sets `nodeAlloc = max 1 (tr.nodeAlloc - k)`. -/
 theorem ClearableBufTrie.clearSteps_nodeAlloc_eq :
     ∀ (k : ℕ) {tr : BufTrie}, ClearableBufTrie tr →
       (bufClearSteps k tr).nodeAlloc = max 1 (tr.nodeAlloc - k)
-  | 0, tr, hc => by
-    have := hc.bounds.1
-    dsimp only [bufClearSteps]
-    omega
+  | 0, _, hc => (Nat.max_eq_right hc.bounds.1).symm
   | k + 1, tr, hc => by
     obtain ⟨hc1, hna1⟩ := hc.clearOne_step
     dsimp only [bufClearSteps]
@@ -274,11 +265,7 @@ theorem ValidBufTrie.everPresent_of_map_some {cTab bChar k b loc : ℕ} {tr : Bu
   have hlk : bufLookup cTab bChar tr k = some (b, loc) := (hv.lookup_eq hk).trans hm
   dsimp only [bufLookup, bufEverPresent] at hlk ⊢
   cases hw : bufWalk bChar tr.trieChild k cTab 0 0 with
-  | none => rw [hw] at hlk; cases hlk
-  | some leaf =>
-    rw [hw] at hlk; dsimp only at hlk
-    by_cases hz : tr.nodeLeafItem leaf = 0
-    · simp [hz] at hlk
-    · simp [hz]
+  | none => simp [hw] at hlk
+  | some leaf => by_cases hz : tr.nodeLeafItem leaf = 0 <;> simp [hw, hz] at hlk ⊢
 
 end Cslib.DataStructure.Dictionary.SuccinctWhp

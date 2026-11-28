@@ -20,12 +20,14 @@ and the ends of the near pairs. An equivalence of places and one of near pairs t
 ends carry them to another tower with the same numbers `b` and `r` (`VertexLaws.transfer`), with
 the same laws and the same constants. For the towers `Cslib.SLTower.tower h n h2` of Proposition
 H.1 the places, the near pairs and their ends do not depend on `n`, and the identities transfer
-the laws from one of them to all others.
+the laws from one of them to all others. A ring homomorphism maps the laws at the vertices to laws
+over its target, at the same vertices and with the same constants (`VertexLaws.map`).
 
 ## Main definitions
 
 * `VertexLaws.transfer`: the laws at the vertices of a tower, at the vertices of another tower
   with the same local structure.
+* `VertexLaws.map`: the laws at the vertices over an algebra.
 
 ## References
 
@@ -77,6 +79,13 @@ The laws and their constants are the same. -/
       refine h1.trans (le_of_eq (congrArg (· * t) (congrArg card (filter_congr fun s _ => ?_))))
       rw [Equiv.trans_apply, Equiv.trans_apply, Equiv.eq_symm_apply]
       rfl }
+
+/-- **Laws at the vertices over an algebra** ([AnthropicVPVNP2026], Appendix G, p. 43, after
+Theorem G.2): the images of the laws under a ring homomorphism `f` (`Cut.Law.map`), with the same
+places, near pairs and constants. -/
+@[expose] def map {R : Type*} [CommSemiring R] (FL : VertexLaws F T) (f : F →+* R) :
+    VertexLaws R T :=
+  { FL with law d := (FL.law d).map f }
 
 end VertexLaws
 

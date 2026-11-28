@@ -70,25 +70,8 @@ theorem den_divInt_le (a b : ℤ) (hb : b ≠ 0) :
 theorem decide_num_divInt_lt_zero_of_ne_zero (a b : ℤ) (hb : b ≠ 0) :
     decide ((Rat.divInt a b).num < 0) =
       if a = 0 then false else (decide (a < 0) ^^ decide (b < 0)) := by
-  have hs : (Rat.divInt a b).num < 0 ↔ (a : ℚ) / (b : ℚ) < 0 := by
-    rw [← Rat.num_neg, Rat.divInt_eq_div]
-  simp only [hs]
-  by_cases ha : a = 0
-  · simp [ha]
-  · simp only [ha, ↓reduceIte]
-    rcases lt_or_gt_of_ne ha with hna | hpa <;> rcases lt_or_gt_of_ne hb with hnb | hpb
-    · have hp : (0 : ℚ) < (a : ℚ) / (b : ℚ) :=
-        div_pos_of_neg_of_neg (by exact_mod_cast hna) (by exact_mod_cast hnb)
-      simp [hna, hnb, not_lt_of_ge hp.le]
-    · have hn : (a : ℚ) / (b : ℚ) < 0 :=
-        div_neg_of_neg_of_pos (by exact_mod_cast hna) (by exact_mod_cast hpb)
-      simp [hna, not_lt_of_gt hpb, hn]
-    · have hn : (a : ℚ) / (b : ℚ) < 0 :=
-        div_neg_of_pos_of_neg (by exact_mod_cast hpa) (by exact_mod_cast hnb)
-      simp [not_lt_of_gt hpa, hnb, hn]
-    · have hp : (0 : ℚ) < (a : ℚ) / (b : ℚ) :=
-        div_pos (by exact_mod_cast hpa) (by exact_mod_cast hpb)
-      simp [not_lt_of_gt hpa, not_lt_of_gt hpb, not_lt_of_ge hp.le]
+  simp only [Rat.num_neg, Rat.divInt_eq_div, div_neg_iff, Int.cast_lt_zero, Int.cast_pos]
+  split_ifs <;> grind
 
 /-- Sign bit of `Rat.divInt a b` for arbitrary integers `a, b`. -/
 theorem decide_num_divInt_lt_zero (a b : ℤ) :
@@ -113,34 +96,29 @@ theorem natAbs_num_add_le (a b : ℚ) :
 /-- Reduced denominator of `a + b` is bounded by `a.den * b.den`. -/
 theorem den_add_le (a b : ℚ) : (a + b).den ≤ a.den * b.den := by
   rw [Rat.add_def', Rat.mkRat_eq_divInt]
-  have hd : ((a.den * b.den : ℕ) : ℤ) ≠ 0 :=
-    Int.ofNat_ne_zero.mpr (Nat.mul_ne_zero a.den_nz b.den_nz)
-  simpa only [Int.natAbs_natCast] using Rat.den_divInt_le _ _ hd
+  simpa only [Int.natAbs_natCast] using
+    Rat.den_divInt_le _ _ (Nat.cast_ne_zero.mpr (mul_ne_zero a.den_nz b.den_nz))
 
 /-- Reduced numerator magnitude of `a - b` is bounded by `|a.num| * b.den + |b.num| * a.den`. -/
 theorem natAbs_num_sub_le (a b : ℚ) :
     (a - b).num.natAbs ≤ a.num.natAbs * b.den + b.num.natAbs * a.den := by
-  rw [sub_eq_add_neg]
-  simpa using natAbs_num_add_le a (-b)
+  simpa [sub_eq_add_neg] using natAbs_num_add_le a (-b)
 
 /-- Reduced denominator of `a - b` is bounded by `a.den * b.den`. -/
 theorem den_sub_le (a b : ℚ) : (a - b).den ≤ a.den * b.den := by
-  rw [sub_eq_add_neg]
-  simpa using den_add_le a (-b)
+  simpa [sub_eq_add_neg] using den_add_le a (-b)
 
 /-- Reduced numerator magnitude of `a * b` is bounded by `|a.num| * |b.num|`. -/
 theorem natAbs_num_mul_le (a b : ℚ) : (a * b).num.natAbs ≤ a.num.natAbs * b.num.natAbs := by
   rw [Rat.mul_def', Rat.mkRat_eq_divInt]
-  have hd : ((a.den * b.den : ℕ) : ℤ) ≠ 0 :=
-    Int.ofNat_ne_zero.mpr (Nat.mul_ne_zero a.den_nz b.den_nz)
-  simpa only [Int.natAbs_mul] using Rat.natAbs_num_divInt_le (a.num * b.num) _ hd
+  simpa only [Int.natAbs_mul] using Rat.natAbs_num_divInt_le (a.num * b.num) _
+    (Nat.cast_ne_zero.mpr (mul_ne_zero a.den_nz b.den_nz))
 
 /-- Reduced denominator of `a * b` is bounded by `a.den * b.den`. -/
 theorem den_mul_le (a b : ℚ) : (a * b).den ≤ a.den * b.den := by
   rw [Rat.mul_def', Rat.mkRat_eq_divInt]
-  have hd : ((a.den * b.den : ℕ) : ℤ) ≠ 0 :=
-    Int.ofNat_ne_zero.mpr (Nat.mul_ne_zero a.den_nz b.den_nz)
-  simpa only [Int.natAbs_natCast] using Rat.den_divInt_le (a.num * b.num) _ hd
+  simpa only [Int.natAbs_natCast] using
+    Rat.den_divInt_le (a.num * b.num) _ (Nat.cast_ne_zero.mpr (mul_ne_zero a.den_nz b.den_nz))
 
 /-- Reduced numerator magnitude of `a⁻¹` is bounded by `a.den`. -/
 theorem natAbs_num_inv_le (a : ℚ) : a⁻¹.num.natAbs ≤ a.den := by

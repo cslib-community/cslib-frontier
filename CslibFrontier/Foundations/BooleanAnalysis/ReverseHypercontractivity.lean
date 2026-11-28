@@ -211,8 +211,7 @@ theorem le_expect_mul_noiseOp_iff_lpNorm_le_lpNorm_noiseOp {r s ρ : ℝ} (hr : 
   · intro h f g hf hg
     have hT := noiseOp_pos hρ hρ' hg
     have hH := lpNorm_mul_lpNorm_le_expect_mul (p := 1 + r)
-      (by intro h; apply hr1; linarith)
-      (by linarith) hf hT
+      (fun h => hr1 (by linarith)) (by linarith) hf hT
     rw [hconj'] at hH
     exact (mul_le_mul_of_nonneg_left (h g hg) (lpNorm_nonneg _ _)).trans hH
 
@@ -338,11 +337,10 @@ theorem lpNorm_le_lpNorm_noiseOp_of_neg {p q ρ : ℝ} (hqp : q < p) (hp : p < 0
   have hr' : -1 < (q - 1)⁻¹ := by rw [lt_inv_of_neg (by norm_num) hq1]; linarith
   have hσ1 : (1 - p) / (1 - q) ≤ 1 := div_le_one_of_le₀ (by linarith) (by linarith)
   have hρ1 : ρ ≤ 1 := hρ'.trans (Real.sqrt_le_one.2 hσ1)
-  have hrs : (p - 1) * (q - 1)⁻¹ = (1 - p) / (1 - q) := by field_simp; ring
+  have hsr : (q - 1)⁻¹ * (p - 1) = (1 - p) / (1 - q) := by field_simp; ring
   have h := (le_expect_mul_noiseOp_iff_lpNorm_le_lpNorm_noiseOp (ι := ι) (s := p - 1) hr
     hr'.ne' (by linarith) hρ1).1 (fun f g hf hg => ?_) f hf
   · rwa [add_sub_cancel, inv_inv, add_sub_cancel] at h
-  have hsr : (q - 1)⁻¹ * (p - 1) = (1 - p) / (1 - q) := by rw [mul_comm, hrs]
   exact lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_neg_one_lt_of_lt_neg_one hr' hr.le
     (by linarith) (by rw [hsr]; exact hσ1) hρ (by rwa [hsr]) (fun x => (hf x).le) hg
 
@@ -354,13 +352,11 @@ private theorem expect_indicator_mul_noiseOp_of_expect_eq_one {A : Set (ι → B
     (hA : 𝔼 x, A.indicator (1 : (ι → Bool) → ℝ) x = 1) (ρ : ℝ) (B : Set (ι → Bool)) :
     𝔼 x, A.indicator 1 x * noiseOp ρ (B.indicator 1) x =
       𝔼 x, B.indicator (1 : (ι → Bool) → ℝ) x := by
-  have h0 : 𝔼 x, (1 - A.indicator (1 : (ι → Bool) → ℝ) x) = 0 := by
-    rw [expect_sub_distrib, Fintype.expect_const, hA, sub_self]
-  have h1 : (fun x => 1 - A.indicator (1 : (ι → Bool) → ℝ) x) = 0 :=
-    (Fintype.expect_eq_zero_iff_of_nonneg fun x =>
-      sub_nonneg.2 (Set.indicator_le_self' (fun _ _ => zero_le_one) x)).1 h0
-  have hA1 (x : ι → Bool) : A.indicator (1 : (ι → Bool) → ℝ) x = 1 := by
-    linarith [congrFun h1 x, Pi.zero_apply (M := fun _ : ι → Bool => ℝ) x]
+  have h1 : ∀ x, 1 - A.indicator (1 : (ι → Bool) → ℝ) x = 0 :=
+    congrFun <| (Fintype.expect_eq_zero_iff_of_nonneg fun x =>
+      sub_nonneg.2 (Set.indicator_le_self' (fun _ _ => zero_le_one) x)).1
+      (by rw [expect_sub_distrib, Fintype.expect_const, hA, sub_self])
+  have hA1 (x : ι → Bool) : A.indicator (1 : (ι → Bool) → ℝ) x = 1 := (sub_eq_zero.1 (h1 x)).symm
   simp only [hA1, one_mul]
   simpa only [one_mul, noiseOp_const] using
     expect_mul_noiseOp_comm ρ (fun _ => (1 : ℝ)) (B.indicator 1)

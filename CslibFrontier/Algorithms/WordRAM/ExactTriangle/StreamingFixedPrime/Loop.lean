@@ -88,25 +88,13 @@ private theorem exec_body {w m n g p A : ℕ} (values : List ℤ)
       (z.regs Reg.index) (z.regs Reg.found)
     ∀ z, Inv z → (Cond.lt Reg.index Reg.limit).Holds z →
       ∃ y T, ExecWithin (w + 2) step z y T ∧ Inv y ∧ T + 2 + Φ y ≤ Φ z := by
-  let V := fun q => values.getD q 0
+  intro V charge B F C Inv Φ z hz hc
   let M := a.regs Instances.produced
-  let charge := fun idx : InstanceIndex p => recordBase (m := m) hn V a.mem idx +
-    (40 * (n * D m) + 67)
-  let B := fun i => charge (order i)
-  let F := fun i => recordFailures (m := m) (g := g) hn V a.mem (order i)
-  let C := 42 * pieceSize (D m) g + 28
-  let Inv := Invariant (m := m) (g := g) V a x order hn
-  let Φ := fun z : Data 416 => remainingCharge B F C M (z.regs Reg.index) (z.regs Reg.found)
-  dsimp only
-  intro z hz hc
-  have hguard : z.regs Reg.index < z.regs Reg.limit := hc
   have before : z.regs Reg.found = 0 := hz.flag.resolve_right fun h => by
-    have hlim := hz.limit
-    rw [h, ite_eq_left rfl] at hlim
-    omega
+    simpa [h, ne_of_gt hc] using hz.limit
   have lim : z.regs Reg.limit = M := by
     simpa only [before, zero_ne_one, ite_false] using hz.limit
-  have hi : z.regs Reg.index < M := by omega
+  have hi : z.regs Reg.index < M := lim ▸ hc
   obtain ⟨y, S, T, he, hT, yi, yl, yo, ys, yf, hS, hcoarse, yhit, yw, ym,
       ycursor, yproduced, yheap⟩ :=
     exec_step values hlen hD hg hp hN hv hW a z hout hz.cursor hz.progress hz.heap
@@ -126,10 +114,7 @@ private theorem exec_body {w m n g p A : ℕ} (values : List ℤ)
     · have hs := hz.scans_failed
       rw [before, Nat.add_zero] at hs
       rw [ys, yi, Finset.sum_range_succ]
-      change z.regs Reg.scans + S ≤
-        (∑ j ∈ Finset.range (z.regs Reg.index), F j) + F (z.regs Reg.index) + y.regs Reg.found
-      change S ≤ F (z.regs Reg.index) + y.regs Reg.found at hS
-      change z.regs Reg.scans ≤ ∑ j ∈ Finset.range (z.regs Reg.index), F j at hs
+      dsimp only [V] at *
       omega
     · rw [yi, Nat.count_succ, hz.searched, before, Nat.zero_add]
       rcases yf with h | h
@@ -137,8 +122,8 @@ private theorem exec_body {w m n g p A : ℕ} (values : List ℤ)
       · rw [ite_eq_left (yhit.mp h), h]
   refine ⟨y, T, he, yInv, ?_⟩
   change T + 2 ≤ B (z.regs Reg.index) + C * S at hT
-  have paid := remainingCharge_step (base := B) (failures := F) (C := C) hi hT hS newflag
-  simpa only [Φ, yi, before] using paid
+  simpa only [Φ, yi, before] using
+    remainingCharge_step (base := B) (failures := F) (C := C) hi hT hS newflag
 
 /-- Construct and immediately consume each logical record, stopping at the first original
 witness. The reference readback indexes immutable catalogue data and mathematical charges;
@@ -186,12 +171,8 @@ theorem exec_traverse {w m n g p A : ℕ} (values : List ℤ)
       y.regs (producerBank Instances.produced) = y.regs Reg.index ∧
       y.regs (producerBank Instances.heap) = y.regs (producerBank Instances.output) := by
   classical
-  let V := fun q => values.getD q 0
-  let wAB := fun u v : Fin n => V (pairIndex (u, v))
-  let wBC := fun b c : Fin n => V (n * n + pairIndex (b, c))
-  let wAC := fun u c : Fin n => V (2 * (n * n) + pairIndex (u, c))
+  intro V wAB wBC wAC hn
   have hDn : D m ≤ n := (Nat.le_self_pow (by decide : 18 ≠ 0) (D m)).trans hN
-  have hn : 0 < n := lt_of_lt_of_le (by omega) hDn
   have hp0 := (Nat.mem_sqrtPrimeWindow_iff_sq.mp hp).1.ne_zero
   let M := a.regs Instances.produced
   let I := instanceIndices wAB (D m) g p
@@ -218,9 +199,7 @@ theorem exec_traverse {w m n g p A : ℕ} (values : List ℤ)
       (sum_recordFailures_le hn V hout hD hDn hg hp I (fun _ hi => hi))
   let Inv := Invariant (m := m) (g := g) V a x order hn
   let Φ := fun z : Data 416 => remainingCharge B F C M (z.regs Reg.index) (z.regs Reg.found)
-  have body : ∀ z, Inv z → (Cond.lt Reg.index Reg.limit).Holds z →
-      ∃ y T, ExecWithin (w + 2) step z y T ∧ Inv y ∧ T + 2 + Φ y ≤ Φ z :=
-    exec_body values hlen hD hg hp hN hv hW a x hout hheap hn order order_mem order_ord
+  have body := exec_body values hlen hD hg hp hN hv hW a x hout hheap hn order order_mem order_ord
   have h1 : Fits (w + 2) 1 := (counter_fits hW).of_le (by unfold counterEnvelope; omega)
   obtain ⟨s, hs, sm, si, sl, sf, ss, so, sbank⟩ := exec_setup x h1
   have sInv : Inv s := by
@@ -250,11 +229,10 @@ theorem exec_traverse {w m n g p A : ℕ} (values : List ℤ)
     hIy.witness, hIy.frame, hIy.cursor, hIy.progress, hIy.heap⟩
   intro ⟨u, v, c, hw⟩
   by_contra hnot
-  have hf : y.regs Reg.found = 0 := by rcases hIy.flag with h | h <;> omega
-  have hlim : y.regs Reg.limit = M := by simpa only [hf, zero_ne_one, ite_false] using hIy.limit
+  have hf : y.regs Reg.found = 0 := hIy.flag.resolve_right hnot
   have hi : y.regs Reg.index = M := by
-    change ¬ y.regs Reg.index < y.regs Reg.limit at hcy
-    have := hIy.index_le; omega
+    have hlim : y.regs Reg.limit = M := by simpa [hf] using hIy.limit
+    exact le_antisymm hIy.index_le (not_lt.mp (hlim ▸ hcy))
   obtain ⟨idx, hacc, hc⟩ := exists_mem_acceptedPairs hD hDn hg hp0
     (RecordProduct.product_answers_correct V wAB wBC wAC hD hg hp (fun _ _ => rfl) (fun _ _ => rfl))
     hw
@@ -262,10 +240,8 @@ theorem exec_traverse {w m n g p A : ℕ} (values : List ℤ)
   have hh : recordHit (m := m) (n := n) (g := g) V (order j.val) := by
     rw [order_at j.val j.isLt, hj]
     exact ⟨(u, v), (mem_acceptedPairs.mp hacc).2.1, c, hc, hw⟩
-  have hpositive := Nat.count_strict_mono
-    (p := fun j => recordHit (m := m) (n := n) (g := g) V (order j)) hh j.isLt
-  have searched := hIy.searched
-  rw [hf, hi] at searched
-  exact Nat.not_lt_zero _ (searched ▸ hpositive)
+  have h0 : Nat.count (fun k => recordHit (m := m) (n := n) (g := g) V (order k)) M = 0 :=
+    hi ▸ hIy.searched.trans hf
+  exact Nat.not_lt_zero _ (h0 ▸ Nat.count_strict_mono hh j.isLt)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime

@@ -58,11 +58,7 @@ theorem indistinguishable_iff_realized_tests
     Game.Indistinguishable (game P eval false) (game P eval true) Admissible ↔
       Game.Indistinguishable (game P id false) (game P id true)
         (fun test => ∃ algorithm, Admissible algorithm ∧ eval algorithm = test) := by
-  constructor
-  · rintro h test ⟨algorithm, hadmissible, rfl⟩
-    exact h algorithm hadmissible
-  · intro h algorithm hadmissible
-    exact h (eval algorithm) ⟨algorithm, hadmissible, rfl⟩
+  exact ⟨fun h _ ⟨alg, hadm, halg⟩ => halg ▸ h alg hadm, fun h alg hadm => h _ ⟨alg, hadm, rfl⟩⟩
 
 /-- A common error bound is unchanged by replacing algorithm representations with their
 admissibly realized whole test families. -/
@@ -73,11 +69,7 @@ theorem indistinguishableWithError_iff_realized_tests
     Game.IndistinguishableWithError (game P eval false) (game P eval true) Admissible ε ↔
       Game.IndistinguishableWithError (game P id false) (game P id true)
         (fun test => ∃ algorithm, Admissible algorithm ∧ eval algorithm = test) ε := by
-  constructor
-  · rintro h test ⟨algorithm, hadmissible, rfl⟩
-    exact h algorithm hadmissible
-  · intro h algorithm hadmissible
-    exact h (eval algorithm) ⟨algorithm, hadmissible, rfl⟩
+  exact ⟨fun h _ ⟨alg, hadm, halg⟩ => halg ▸ h alg hadm, fun h alg hadm => h _ ⟨alg, hadm, rfl⟩⟩
 
 /-- Resource bounds on represented algorithms can equivalently be stated on the test families
 they realize, with a witness satisfying the same bound at the parameter under consideration. -/
@@ -88,11 +80,8 @@ theorem indistinguishableWithin_iff_realized_tests
     Game.IndistinguishableWithin (game P eval false) (game P eval true) Within ε ↔
       Game.IndistinguishableWithin (game P id false) (game P id true)
         (fun n r test => ∃ algorithm, Within n r algorithm ∧ eval algorithm = test) ε := by
-  constructor
-  · rintro h n r test ⟨algorithm, hwithin, rfl⟩
-    exact h n r algorithm hwithin
-  · intro h n r algorithm hwithin
-    exact h n r (eval algorithm) ⟨algorithm, hwithin, rfl⟩
+  exact ⟨fun h n r _ ⟨alg, hw, halg⟩ => halg ▸ h n r alg hw,
+    fun h n r alg hw => h n r _ ⟨alg, hw, rfl⟩⟩
 
 end Model
 

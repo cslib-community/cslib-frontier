@@ -82,10 +82,8 @@ private theorem appendDartEquiv_vertex_eq_iff_inl_inr (F H : CSP Rel V)
     vertex_disjointDartEquiv_inl, vertex_disjointDartEquiv_inr,
     vertex_incidenceDart_eq_iff, append_var_inl, append_var_inr]
   have hc : (appendOccurrenceEquiv F H (Sum.inl o)).1 ≠
-      (appendOccurrenceEquiv F H (Sum.inr p)).1 := by
-    intro he
-    have he' : o.1.val = F.length + p.1.val := congrArg Fin.val he
-    omega
+      (appendOccurrenceEquiv F H (Sum.inr p)).1 :=
+    Fin.ne_of_val_ne (Nat.ne_of_lt (o.1.isLt.trans_le (Nat.le_add_right _ _)))
   have hv : o.var ≠ p.var := fun he => List.disjoint_left.mp hd o.var_mem (he ▸ p.var_mem)
   change (side = other ∧ if side then
     (appendOccurrenceEquiv F H (Sum.inl o)).1 = (appendOccurrenceEquiv F H (Sum.inr p)).1
@@ -110,12 +108,10 @@ theorem appendDartEquiv_vertex_eq_iff (F H : CSP Rel V) (hd : List.Disjoint F.va
       vertex_disjointDartEquiv_inl, vertex_disjointDartEquiv_inl,
       vertex_incidenceDart_eq_iff, append_var_inl, append_var_inl]
     have hc : (appendOccurrenceEquiv F H (Sum.inl o)).1 =
-        (appendOccurrenceEquiv F H (Sum.inl p)).1 ↔ o.1 = p.1 := by
-      simp only [Fin.ext_iff]; rfl
+        (appendOccurrenceEquiv F H (Sum.inl p)).1 ↔ o.1 = p.1 :=
+      Fin.ext_iff.trans (Fin.ext_iff (a := o.1)).symm
     rw [hc, ← vertex_incidenceDart_eq_iff]
-    change _ ↔ 2 * _ = 2 * _
-    dsimp only
-    omega
+    exact (Nat.mul_right_inj (by decide : 2 ≠ 0)).symm
   | .inl a, .inr b => exact appendDartEquiv_vertex_eq_iff_inl_inr F H hd a b
   | .inr a, .inl b =>
     exact eq_comm.trans ((appendDartEquiv_vertex_eq_iff_inl_inr F H hd b a).trans eq_comm)
@@ -127,14 +123,10 @@ theorem appendDartEquiv_vertex_eq_iff (F H : CSP Rel V) (hd : List.Disjoint F.va
       vertex_disjointDartEquiv_inr, vertex_disjointDartEquiv_inr,
       vertex_incidenceDart_eq_iff, append_var_inr, append_var_inr]
     have hc : (appendOccurrenceEquiv F H (Sum.inr o)).1 =
-        (appendOccurrenceEquiv F H (Sum.inr p)).1 ↔ o.1 = p.1 := by
-      simp only [Fin.ext_iff]
-      change F.length + o.1.val = F.length + p.1.val ↔ o.1.val = p.1.val
-      omega
+        (appendOccurrenceEquiv F H (Sum.inr p)).1 ↔ o.1 = p.1 :=
+      Fin.ext_iff.trans (Nat.add_left_cancel_iff.trans (Fin.ext_iff (a := o.1)).symm)
     rw [hc, ← vertex_incidenceDart_eq_iff]
-    change _ ↔ 2 * _ + 1 = 2 * _ + 1
-    dsimp only
-    omega
+    exact (Nat.add_right_cancel_iff.trans (Nat.mul_right_inj (by decide : 2 ≠ 0))).symm
 
 /-- Positional concatenation commutes with actual edge reversal. -/
 theorem reverse_appendDartEquiv (F H : CSP Rel V)
@@ -192,14 +184,12 @@ theorem respectsArgumentOrder_appendRotation (F H : CSP Rel V)
   obtain ⟨o, rfl⟩ := (appendOccurrenceEquiv F H).surjective o
   cases o with
   | inl o =>
-    rw [← appendDartEquiv_inl, rotate_appendRotation]
-    simp only [Sum.map_inl]
-    rw [hr o, appendDartEquiv_inl, argumentSuccessor_appendOccurrenceEquiv]
+    rw [← appendDartEquiv_inl, rotate_appendRotation, Sum.map_inl, hr o, appendDartEquiv_inl,
+      argumentSuccessor_appendOccurrenceEquiv]
     rfl
   | inr o =>
-    rw [← appendDartEquiv_inr, rotate_appendRotation]
-    simp only [Sum.map_inr]
-    rw [hs o, appendDartEquiv_inr, argumentSuccessor_appendOccurrenceEquiv]
+    rw [← appendDartEquiv_inr, rotate_appendRotation, Sum.map_inr, hs o, appendDartEquiv_inr,
+      argumentSuccessor_appendOccurrenceEquiv]
     rfl
 
 /-- Full checker acceptance for the actual appended body, derived from its source rotations. -/

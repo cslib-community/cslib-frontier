@@ -112,11 +112,11 @@ theorem initialize_forest {r κ n w d : ℕ} (rs : List (ℕ × ℕ))
   have yah : y.regs (preprocessingRegisters r ChanHe.Traversal.heap) = (arena κ n y.mem).floor := by
     rw [hyp, hbh, hym]
   have ya : y.regs (controllerRegisters r answer) = 0 := hyans.trans ((hc _).trans hans)
-  refine ⟨y, hb.seq hy, ?_⟩
-  refine {
+  refine ⟨y, hb.seq hy, {
     bounded := hy.bounded (hb.bounded hx)
-    controls := ?_
-    frontend := ?_
+    controls := by
+      simpa only [hym] using hbc.congr fun i _ => by simpa only [Data.comap_regs] using hyp i
+    frontend := by simpa only [hym] using hbf
     descriptors := hys.base
     roots := hys.count
     current := hys.index
@@ -124,26 +124,17 @@ theorem initialize_forest {r κ n w d : ℕ} (rs : List (ℕ × ℕ))
     stride := hys.stride
     increment := hys.one
     index_le := Nat.zero_le _
-    bitmap := ?_
+    bitmap := by simpa only [hym] using hbb
     floor := yah.ge
-    heapBudget := ?_
-    packedLength := ?_
+    heapBudget := (congrArg (· + _) yah).le
+    packedLength := hys.length.trans <| by
+      dsimp only [arena]
+      ring
     envelopeValue := hyenv
     unit := hyone
     boolean := by omega
-    verdict := ?_
-    exactOutput := ?_
-    protectedMemory := fun _ _ => rfl }
-  · simpa only [hym] using hbc.congr (fun i _ => by simpa only [Data.comap_regs] using hyp i)
-  · simpa only [hym] using hbf
-  · simpa only [hym] using hbb
-  · rw [yah]; exact le_rfl
-  · have hh : y.regs (preprocessingRegisters r packedLength) =
-        8 * Cslib.Algorithms.ThreeSum.ChanHe.mPar n (2 * (n + 2) ^ κ) ^ 2 := hys.length
-    change y.regs (preprocessingRegisters r packedLength) =
-      4 * (2 * Cslib.Algorithms.ThreeSum.ChanHe.mPar n (2 * (n + 2) ^ κ) ^ 2)
-    omega
-  · simp only [ya, Nat.zero_ne_one, List.not_mem_nil, false_and, exists_false]
-  · simp only [ForestCursor.remaining, List.drop_zero, List.nil_append]
+    verdict := by simp [ya]
+    exactOutput := by simp [ForestCursor.remaining]
+    protectedMemory := fun _ _ => rfl }⟩
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Decision.Visitor

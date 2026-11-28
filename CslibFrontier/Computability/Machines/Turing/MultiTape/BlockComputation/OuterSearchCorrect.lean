@@ -33,34 +33,21 @@ private theorem boundaryDecision_of_halted (M : MultiTapeTM k Bool Q) (w : List 
     (τ clock : ℕ) (hhalt : (M.runFrom (Cfg.init M.q₀ w) τ).Halted) (hle : τ ≤ clock) :
     RootDecision.boundaryDecision M w clock =
       some (decide ((M.runFrom (Cfg.init M.q₀ w) τ).output = [true])) := by
-  classical
-  unfold RootDecision.boundaryDecision
-  rw [MultiTapeTM.runFrom_eq_of_halt M _ hle hhalt]
-  have hstate : (M.runFrom (Cfg.init M.q₀ w) τ).state = none := hhalt
-  simp only [hstate, Option.isNone_none, ↓reduceIte]
+  simp only [RootDecision.boundaryDecision, MultiTapeTM.runFrom_eq_of_halt M _ hle hhalt,
+    show (M.runFrom (Cfg.init M.q₀ w) τ).state = none from hhalt, Option.isNone_none, ↓reduceIte]
 
 private theorem boundaryDecision_safe (M : MultiTapeTM k Bool Q) (w : List Bool)
     (τ clock : ℕ) (hhalt : (M.runFrom (Cfg.init M.q₀ w) τ).Halted) :
     RootDecision.boundaryDecision M w clock = none ∨
       RootDecision.boundaryDecision M w clock =
         some (decide ((M.runFrom (Cfg.init M.q₀ w) τ).output = [true])) := by
-  classical
   by_cases hle : τ ≤ clock
   · exact Or.inr (boundaryDecision_of_halted M w τ clock hhalt hle)
-  · cases hv : RootDecision.boundaryDecision M w clock with
-    | none => exact Or.inl rfl
-    | some result =>
-      have hclock : (M.runFrom (Cfg.init M.q₀ w) clock).Halted := by
-        dsimp only [RootDecision.boundaryDecision] at hv
-        split at hv
-        · rename_i hstate
-          exact Option.isNone_iff_eq_none.mp hstate
-        · cases hv
-      have hs := boundaryDecision_of_halted M w clock τ hclock (by omega)
-      have hc := boundaryDecision_of_halted M w clock clock hclock le_rfl
-      have ht := boundaryDecision_of_halted M w τ τ hhalt le_rfl
-      rw [hv] at hc
-      exact Or.inr (hc.trans (hs.symm.trans ht))
+  · by_cases hclock : (M.runFrom (Cfg.init M.q₀ w) clock).Halted
+    · exact Or.inr (((boundaryDecision_of_halted M w clock clock hclock le_rfl).trans
+        (boundaryDecision_of_halted M w clock τ hclock (by omega)).symm).trans
+        (boundaryDecision_of_halted M w τ τ hhalt le_rfl))
+    · exact Or.inl (ite_eq_right (mt Option.isNone_iff_eq_none.mp hclock))
 
 /-- Every candidate's schedule search reaches a first halt with its exact bounded decision. -/
 theorem exists_first_candidate {E : ScheduleSearch.Evaluator} {M : MultiTapeTM k Bool Q}
@@ -97,11 +84,7 @@ theorem runFrom_one (E : ScheduleSearch.Evaluator) (P : Parameters)
     (machine E k P).runFrom w (.inl (w.length, guess, none)) (T + 2) =
       .inl (resume E (w.length, guess, none) ((ScheduleSearch.machine E k).runFrom w
         (ScheduleSearch.initial E (w.length, P.blockWidth guess, P.horizon guess)) T)) := by
-  apply QueryMachine.withCalls_runFrom_call
-  · rfl
-  · rfl
-  · exact hpre
-  · exact hhalt
+  exact QueryMachine.withCalls_runFrom_call _ _ _ _ _ _ _ _ rfl rfl hpre hhalt
 
 /-- If the source machine halts, increasing native time guesses reaches exactly its Boolean
 output decision at a first halt. The completed guess never exceeds `max (input.length+1) τ`. -/
@@ -139,10 +122,8 @@ theorem exists_first_decision {E : ScheduleSearch.Evaluator} {M : MultiTapeTM k 
         (match value guess with
           | none => (w.length, guess + 1, none)
           | some answer => (w.length, guess, some answer)) := by
-      change (match ScheduleSearch.answer _ with
-        | none => (w.length, guess + 1, none)
-        | some answer => (w.length, guess, some answer)) = _
-      rw [hans]
+      rw [resume, hans]
+      rfl
     refine ⟨T + 2, (runFrom_one E P w guess T hpre hT).trans (congrArg Sum.inl hresume),
       runFrom_one_encoding_le E A P w.length guess bound none w T rfl hguess hpre hT
         (fun t ht => (hsize t ht).trans
@@ -167,13 +148,8 @@ theorem exists_first_decision {E : ScheduleSearch.Evaluator} {M : MultiTapeTM k 
       (fun guess answer _ hguess hv => by simpa only [hv] using hstep guess (by omega))
   · simp only [hnone bound (Nat.le_max_left _ _) (by omega), reduceCtorEq] at hbound
   rw [Option.some.inj (hv.symm.trans ((hsafe guess).resolve_left (by simp [hv])))] at hrun
-  have hU : (machine E k P).halted ((machine E k P).runFrom w (initial E w.length) U) = true := by
-    change (machine E k P).halted ((machine E k P).runFrom w
-      (.inl (w.length, w.length + 1, none)) U) = true
-    rw [hrun]
-    rfl
   obtain ⟨T, hle, hT, hpre, hstate⟩ := QueryMachine.exists_first_halt_le
-    (machine E k P) w (initial E w.length) U hU
+    (machine E k P) w (initial E w.length) U (congrArg (machine E k P).halted hrun)
   exact ⟨T, guess, Nat.le_of_lt_succ hguess, hpre, hstate.trans hrun, hT,
     fun t ht => hspace t (ht.trans hle)⟩
 

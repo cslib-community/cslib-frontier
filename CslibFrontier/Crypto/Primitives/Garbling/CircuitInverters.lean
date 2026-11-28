@@ -38,18 +38,21 @@ table returning the corresponding bit of `y`, and pairs this circuit with `0^n`.
 shape `(n, m, q)` and `y`, `mSize` wires every gate to the first two input wires `A(g) = 1`,
 `B(g) = 2` (which is well-formed because `2 ≤ n` and `m ≤ q` for every valid circuit) and applies
 `mTopo`. These are the inverters of the proof of Proposition 1; the proposition says they run in
-linear time, and no running-time bound for them is proved here (#5293).
+linear time. `CslibFrontier.Crypto.Primitives.Garbling.CircuitInvertersPPT` certifies strict
+polynomial time on multi-tape Turing machines; the linear-time bound remains open (#5293).
 
 Combining these inverters with the reductions of
 `CslibFrontier.Crypto.Primitives.Garbling.Foundations` gives, at a fixed security parameter, the
 advantage relations behind Corollaries 1 and 2 of [BellareHoangRogaway2012], Sections 4.2 and 4.3,
 for `phiTopo`, `phiSize` and `phiCirc`. They are steps, not the corollaries. Each corollary is an
 equality between sets of garbling schemes that are secure against every polynomial-time adversary,
-with a polynomial-time simulator for the simulation notions (Section 3.7). The library has no
-asymptotic `prv.ind`, `obv.ind` or `obv.sim` notion (only `Scheme.PrvSimSecure`), and it proves
-neither that the reductions `prvIndToSim`, `prvSimToInd`, `obvIndToSim` and `obvSimToInd` run in
-polynomial time nor that the simulators built from the inverters do. The corollaries stay open
-(#5293); the reductions' missing certificates are entries of the reduction-witness baseline.
+with a polynomial-time simulator for the simulation notions (Section 3.7).
+`CslibFrontier.Crypto.Primitives.Garbling.FoundationsAsymptotic` defines the asymptotic notions and
+proves Propositions 2 and 3, certifying the reductions `prvIndToSim`, `prvSimToInd`, `obvIndToSim`
+and `obvSimToInd` and the simulators built from any polynomial-time inverter as strict PPT. The
+corollaries stay open (#5293): they also need polynomial-time certificates for the inverters
+`mTopo`, `mSize`, `mTopoInv` and `mSizeInv` and for the side information `phiSize`, which are not
+proved.
 
 ## Main definitions
 
@@ -72,7 +75,9 @@ polynomial time nor that the simulators built from the inverters do. The corolla
 * `Cslib.Crypto.Garbling.phiTopo_isEvInverter`, `Cslib.Crypto.Garbling.phiSize_isEvInverter`,
   `Cslib.Crypto.Garbling.phiTopo_isInverter`, `Cslib.Crypto.Garbling.phiSize_isInverter`,
   `Cslib.Crypto.Garbling.phiCirc_isInverter`: the inverters of the proof of Proposition 1 of
-  [BellareHoangRogaway2012] are correct (their running time is not bounded, #5293).
+  [BellareHoangRogaway2012] are correct. Their strict polynomial running time on multi-tape
+  Turing machines is certified in `CslibFrontier.Crypto.Primitives.Garbling.CircuitInvertersPPT`;
+  Proposition 1's linear-time bound remains open (#5293).
 
 ## Steps toward Corollaries 1 and 2
 
@@ -198,13 +203,10 @@ def wires (f : ConventionalCircuit) (x : List Bool) : ℕ → List Bool
 theorem length_wires (f : ConventionalCircuit) (x : List Bool) {s : ℕ} (hs : s ≤ f.q) :
     (f.wires x s).length = f.n + s := by
   induction s with
-  | zero =>
-    simp [wires]
-    omega
+  | zero => simp [wires]; omega
   | succ s ih =>
     have hsq : s < f.q := Nat.lt_of_succ_le hs
-    rw [wires, dite_eq_left hsq, List.length_append, ih (Nat.le_of_lt hsq)]
-    simp [Nat.add_assoc]
+    simp [wires, hsq, ih hsq.le, Nat.add_assoc]
 
 /-- Plaintext evaluation `ev_circ(f, x)` of a conventional circuit ([BellareHoangRogaway2012],
 Section 2.3): evaluate all `q` gates and return the values on the final `m` output wires. -/
@@ -284,19 +286,19 @@ def phiCirc : SideInfo ValidCircuit ValidCircuit where
   size f := f.1.q
 
 theorem phiTopo_compatible {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
-    phiTopo.Compatible G := fun f => by
-  obtain ⟨h1, h2, h3⟩ := hG.1 f
-  exact ⟨h1.symm, h2.symm, h3.symm⟩
+    phiTopo.Compatible G := fun f =>
+  let ⟨h1, h2, h3⟩ := hG.1 f
+  ⟨h1.symm, h2.symm, h3.symm⟩
 
 theorem phiSize_compatible {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
-    phiSize.Compatible G := fun f => by
-  obtain ⟨h1, h2, h3⟩ := hG.1 f
-  exact ⟨h1.symm, h2.symm, h3.symm⟩
+    phiSize.Compatible G := fun f =>
+  let ⟨h1, h2, h3⟩ := hG.1 f
+  ⟨h1.symm, h2.symm, h3.symm⟩
 
 theorem phiCirc_compatible {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
-    phiCirc.Compatible G := fun f => by
-  obtain ⟨h1, h2, h3⟩ := hG.1 f
-  exact ⟨h1.symm, h2.symm, h3.symm⟩
+    phiCirc.Compatible G := fun f =>
+  let ⟨h1, h2, h3⟩ := hG.1 f
+  ⟨h1.symm, h2.symm, h3.symm⟩
 
 /-! ## Explicit side-information inverters -/
 
@@ -347,11 +349,13 @@ def mSizeInv (s : ValidShape) : ValidCircuit := (mSize s (List.replicate s.m fal
     phiSize.phi (mSize s y).fn = s := rfl
 
 /-- `mTopoInv` is a `Φ_topo`-inverter (proof of [BellareHoangRogaway2012], Section 4.1,
-Proposition 1; its running time is not bounded here, #5293). -/
+Proposition 1). Strict polynomial running time is certified in `CircuitInvertersPPT`;
+Proposition 1's linear-time bound remains open (#5293). -/
 theorem phiTopo_isInverter : phiTopo.IsInverter mTopoInv := fun _ => rfl
 
 /-- `mSizeInv` is a `Φ_size`-inverter (proof of [BellareHoangRogaway2012], Section 4.1,
-Proposition 1; its running time is not bounded here, #5293). -/
+Proposition 1). Strict polynomial running time is certified in `CircuitInvertersPPT`;
+Proposition 1's linear-time bound remains open (#5293). -/
 theorem phiSize_isInverter : phiSize.IsInverter mSizeInv := fun _ => rfl
 
 /-- The identity is a `Φ_circ`-inverter (proof of [BellareHoangRogaway2012], Section 4.1,
@@ -365,13 +369,11 @@ theorem wires_ofTopo_const (t : Topo) (c : Fin t.q → Bool) (x : List Bool) (hx
     (ofTopo t (fun i _ _ => c i)).wires x s =
       x ++ List.ofFn (fun i : Fin s => c ⟨i.val, Nat.lt_of_lt_of_le i.isLt hs⟩) := by
   induction s with
-  | zero =>
-    simp [ConventionalCircuit.wires, ofTopo, hx, List.take_of_length_le (le_of_eq hx)]
+  | zero => simp [ConventionalCircuit.wires, ofTopo, hx, List.take_of_length_le hx.le]
   | succ s ih =>
     have hsq : s < (ofTopo t (fun i _ _ => c i)).q := Nat.lt_of_succ_le hs
-    rw [ConventionalCircuit.wires, dite_eq_left hsq, ih (Nat.le_of_lt hsq)]
-    rw [List.append_assoc, List.ofFn_succ' (f := fun i : Fin (s + 1) =>
-      c ⟨i.val, Nat.lt_of_lt_of_le i.isLt hs⟩)]
+    rw [ConventionalCircuit.wires, dite_eq_left hsq, ih hsq.le, List.append_assoc,
+      List.ofFn_succ' (f := fun i : Fin (s + 1) => c ⟨i.val, i.isLt.trans_le hs⟩)]
     simp [List.concat_eq_append, ofTopo]
 
 /-- Because `mTopoGates t y` ignores gate wire inputs, `(ofTopo t (mTopoGates t y)).evalCirc x = y`
@@ -380,19 +382,15 @@ theorem evalCirc_ofTopo_mTopoGates_any (t : Topo) (hm : t.m ≤ t.q) (y x : List
     (hy : y.length = t.m) (hx : x.length = t.n) :
     (ofTopo t (mTopoGates t y)).evalCirc x = y := by
   unfold ConventionalCircuit.evalCirc
-  have hw := wires_ofTopo_const t (fun i => mTopoGates t y i false false) x hx t.q le_rfl
   change ((ofTopo t (fun i _ _ => mTopoGates t y i false false)).wires x t.q).drop
     (t.n + t.q - t.m) = y
-  rw [hw]
-  apply List.ext_getElem
-  · simp [hy, hx]
-    omega
-  · intro j h1 h2
-    rw [List.getElem_drop, List.getElem_append_right (by simp [hx]; omega)]
-    simp only [hx, List.getElem_ofFn, mTopoGates]
-    have hgt : ¬ (t.n + 1 + (t.n + t.q - t.m + j - t.n) ≤ t.n + t.q - t.m) := by omega
-    have hidx : t.n + 1 + (t.n + t.q - t.m + j - t.n) - (t.n + t.q - t.m) - 1 = j := by omega
-    simp only [hgt, ↓reduceIte, hidx, List.getElem?_eq_getElem h2, Option.getD_some]
+  rw [wires_ofTopo_const t _ x hx t.q le_rfl]
+  refine List.ext_getElem (by simp [hy, hx]; omega) fun j h1 h2 => ?_
+  rw [List.getElem_drop, List.getElem_append_right (by simp [hx]; omega)]
+  simp only [hx, List.getElem_ofFn, mTopoGates,
+    show ¬ (t.n + 1 + (t.n + t.q - t.m + j - t.n) ≤ t.n + t.q - t.m) by omega, ↓reduceIte,
+    show t.n + 1 + (t.n + t.q - t.m + j - t.n) - (t.n + t.q - t.m) - 1 = j by omega,
+    List.getElem?_eq_getElem h2, Option.getD_some]
 
 /-- Evaluating `ofTopo t (mTopoGates t y)` on `0^n` returns `y` whenever `t.m ≤ t.q` and
 `y.length = t.m`. -/
@@ -402,7 +400,8 @@ theorem evalCirc_ofTopo_mTopoGates (t : Topo) (hm : t.m ≤ t.q) (y : List Bool)
   evalCirc_ofTopo_mTopoGates_any t hm y (List.replicate t.n false) hy List.length_replicate
 
 /-- `mTopo` is a `(Φ_topo, ev)`-inverter for every circuit garbling scheme (proof of
-[BellareHoangRogaway2012], Section 4.1, Proposition 1; its running time is not bounded, #5293). -/
+[BellareHoangRogaway2012], Section 4.1, Proposition 1). Strict polynomial running time is certified
+in `CircuitInvertersPPT`; Proposition 1's linear-time bound remains open (#5293). -/
 theorem phiTopo_isEvInverter {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
     phiTopo.IsEvInverter G mTopo := by
   intro f x _
@@ -414,7 +413,8 @@ theorem phiTopo_isEvInverter {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) 
       (f.1.length_evalCirc x f.2.m_le_q)
 
 /-- `mSize` is a `(Φ_size, ev)`-inverter for every circuit garbling scheme (proof of
-[BellareHoangRogaway2012], Section 4.1, Proposition 1; its running time is not bounded, #5293). -/
+[BellareHoangRogaway2012], Section 4.1, Proposition 1). Strict polynomial running time is certified
+in `CircuitInvertersPPT`; Proposition 1's linear-time bound remains open (#5293). -/
 theorem phiSize_isEvInverter {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
     phiSize.IsEvInverter G mSize := by
   intro f x _

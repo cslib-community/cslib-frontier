@@ -194,14 +194,10 @@ theorem haltsWithin_iff_of_phase {f : Cfg k Symbol State input → Cfg k Symbol 
     atm.HaltsWithin n c ↔ τ ≤ n ∧ atm.HaltsWithin (n - τ) d := by
   by_cases hn : τ ≤ n
   · obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le hn
-    rw [haltsWithin_add_iff_of_next_eq hnext, hd]
-    simp
-  · have h := haltsWithin_add_iff_of_next_eq (n := 0) (atm := atm) (m := n) (c := c)
-      (fun j hj => hnext j (by omega))
-    rw [add_zero] at h
-    rw [h, haltsWithin_zero]
-    simp only [hn, false_and, iff_false]
-    exact hrun n (by omega)
+    simpa [hd] using haltsWithin_add_iff_of_next_eq hnext (n := m)
+  · rw [← add_zero n, haltsWithin_add_iff_of_next_eq fun j hj => hnext j (by omega),
+      haltsWithin_zero]
+    exact iff_of_false (hrun n (by omega)) fun h => hn h.1
 
 end HaltsWithin
 
@@ -248,15 +244,10 @@ theorem acceptsWithin_iff_of_phase {f : Cfg k Bool State input → Cfg k Bool St
     atm.AcceptsWithin n c ↔ τ ≤ n ∧ atm.AcceptsWithin (n - τ) d := by
   by_cases hn : τ ≤ n
   · obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le hn
-    rw [acceptsWithin_add_iff_of_next_eq hnext, hd]
-    simp
-  · have h := acceptsWithin_add_iff_of_next_eq (n := 0) (atm := atm) (m := n) (c := c)
-      (fun j hj => hnext j (by omega))
-    rw [add_zero] at h
-    rw [h]
-    simp only [hn, false_and, iff_false]
-    obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp (hrun n (by omega))
-    exact not_acceptsWithin_zero atm hq
+    simpa [hd] using acceptsWithin_add_iff_of_next_eq hnext (n := m)
+  · obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp (hrun n (by omega))
+    rw [← add_zero n, acceptsWithin_add_iff_of_next_eq fun j hj => hnext j (by omega)]
+    exact iff_of_false (not_acceptsWithin_zero atm hq) fun h => hn h.1
 
 /-- **A lifted deterministic phase.** Let `L` lift the configurations of a deterministic machine
 `D` to configurations of `atm`, so that both moves from the lift of a running configuration lead to
@@ -294,12 +285,8 @@ theorem acceptsWithin_iff_of_phase_trans {c d e : Cfg k Bool State input} {τ₁
     (h₁ : ∀ n, atm.AcceptsWithin n c ↔ τ₁ ≤ n ∧ atm.AcceptsWithin (n - τ₁) d)
     (h₂ : ∀ n, atm.AcceptsWithin n d ↔ τ₂ ≤ n ∧ atm.AcceptsWithin (n - τ₂) e) (n : ℕ) :
     atm.AcceptsWithin n c ↔ τ₁ + τ₂ ≤ n ∧ atm.AcceptsWithin (n - (τ₁ + τ₂)) e := by
-  rw [h₁, h₂, Nat.sub_sub]
-  constructor
-  · rintro ⟨h, h', he⟩
-    exact ⟨by omega, he⟩
-  · rintro ⟨h, he⟩
-    exact ⟨by omega, by omega, he⟩
+  rw [h₁, h₂, Nat.sub_sub, ← and_assoc]
+  exact and_congr_left' (by omega)
 
 end Deterministic
 

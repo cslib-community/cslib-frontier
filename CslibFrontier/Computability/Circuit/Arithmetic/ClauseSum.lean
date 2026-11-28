@@ -89,9 +89,8 @@ theorem clauseSum_withInputs [Fintype ι] [DecidableEq ι] (lits : Θ → List (
   rw [Fintype.prod_sum_type, map_prod]
   refine congrArg₂ (· * ·) (prod_congr rfl fun κ _ => ?_) (prod_congr rfl fun b _ => ?_)
   · have e : (Equiv.sumArrowEquivProdArrow ι α Bool).symm (x, a) = Sum.elim x a := rfl
-    simp only [withInputs, inputWeights, Sum.elim_inl, e]
-    rw [apply_ite (C : R → MvPolynomial ι R), map_one]
-    split_ifs <;> rfl
+    simp only [withInputs, inputWeights, Sum.elim_inl, e, apply_ite (C : R → MvPolynomial ι R),
+      map_one]
   · cases hx : x b <;> simp [withInputs, inputWeights, hx]
 
 end With
@@ -133,9 +132,8 @@ theorem domainClauseSum_eq_clauseSumWith (lits : Θ → List ((ι ⊕ Σ d, E d)
   · intro a _ ha
     rw [Fintype.prod_sum_type, Fintype.prod_sum_type]
     -- `a` is no one-hot encoding: some point has no set bit, or two
-    have hna : ¬ ∀ d, ∃! e, a ⟨d, e⟩ = true := fun h =>
+    obtain ⟨d, hd⟩ := not_forall.1 fun h : ∀ d, ∃! e, a ⟨d, e⟩ = true =>
       ha (by simpa using (Pi.exists_oneHot_eq_iff a).2 h)
-    obtain ⟨d, hd⟩ := not_forall.1 hna
     by_cases hex : ∃ e, a ⟨d, e⟩ = true
     · obtain ⟨e, he⟩ := hex
       obtain ⟨e', he', hne⟩ : ∃ e', a ⟨d, e'⟩ = true ∧ e' ≠ e := by
@@ -144,42 +142,39 @@ theorem domainClauseSum_eq_clauseSumWith (lits : Θ → List ((ι ⊕ Σ d, E d)
         exact hd ⟨e, he, h⟩
       have : (∏ q : (Σ d, E d) × (Σ d, E d),
           if ∀ l ∈ oneHotLits lits (.inr (.inr q)), Sum.elim x a l.1 = l.2 then
-            oneHotWeights (E := E) wt (.inr (.inr q)) else 1) = 0 := by
-        refine prod_eq_zero (mem_univ (⟨d, e'⟩, ⟨d, e⟩)) ?_
-        have hpq : (⟨d, e'⟩ : Σ d, E d) ≠ ⟨d, e⟩ := fun h => hne (eq_of_heq (Sigma.mk.inj h).2)
-        simp [oneHotLits, oneHotWeights, he, he', hpq]
+            oneHotWeights (E := E) wt (.inr (.inr q)) else 1) = 0 :=
+        prod_eq_zero (mem_univ (⟨d, e'⟩, ⟨d, e⟩)) <| by
+          have hpq : (⟨d, e'⟩ : Σ d, E d) ≠ ⟨d, e⟩ := fun h => hne (eq_of_heq (Sigma.mk.inj h).2)
+          simp [oneHotLits, oneHotWeights, he, he', hpq]
       rw [this, mul_zero, mul_zero]
     · push Not at hex
       have : (∏ d : D, if ∀ l ∈ oneHotLits lits (.inr (.inl d)), Sum.elim x a l.1 = l.2 then
-            oneHotWeights (E := E) wt (.inr (.inl d)) else 1) = 0 := by
-        refine prod_eq_zero (mem_univ d) ((ite_eq_left fun l hl => ?_).trans rfl)
-        simp only [oneHotLits, List.mem_map, Finset.mem_toList, mem_univ, true_and] at hl
-        obtain ⟨e, rfl⟩ := hl
-        simpa using hex e
+            oneHotWeights (E := E) wt (.inr (.inl d)) else 1) = 0 :=
+        prod_eq_zero (mem_univ d) ((ite_eq_left fun l hl => by
+          simp only [oneHotLits, List.mem_map, Finset.mem_toList, mem_univ, true_and] at hl
+          obtain ⟨e, rfl⟩ := hl
+          simpa using hex e).trans rfl)
       rw [this, zero_mul, mul_zero]
   · intro g _
     rw [Fintype.prod_sum_type, Fintype.prod_sum_type]
     have h1 : (∏ d : D, if ∀ l ∈ oneHotLits lits (.inr (.inl d)),
           Sum.elim x (Pi.oneHot g) l.1 = l.2 then oneHotWeights (E := E) wt (.inr (.inl d)) else 1)
-          = 1 := by
-      refine prod_eq_one fun d _ => ite_eq_right fun h => ?_
-      have := h (.inr ⟨d, g d⟩, false) (by simp [oneHotLits])
-      simp at this
+          = 1 :=
+      prod_eq_one fun d _ => ite_eq_right fun h => by
+        simpa using h (.inr ⟨d, g d⟩, false) (by simp [oneHotLits])
     have h2 : (∏ q : (Σ d, E d) × (Σ d, E d),
           if ∀ l ∈ oneHotLits lits (.inr (.inr q)), Sum.elim x (Pi.oneHot g) l.1 = l.2 then
-            oneHotWeights (E := E) wt (.inr (.inr q)) else 1) = 1 := by
-      refine prod_eq_one ?_
-      rintro ⟨⟨d, e⟩, ⟨d', e'⟩⟩ _
-      split_ifs with h
-      · simp only [oneHotLits, List.forall_mem_cons, Sum.elim_inr, Pi.oneHot_apply,
-          decide_eq_true_eq] at h
-        obtain ⟨rfl, rfl, -⟩ := h
-        simp only [oneHotWeights]
-        refine ite_eq_right ?_
-        rintro ⟨hd, hne⟩
-        subst hd
-        exact hne rfl
-      · rfl
+            oneHotWeights (E := E) wt (.inr (.inr q)) else 1) = 1 :=
+      prod_eq_one <| by
+        rintro ⟨⟨d, e⟩, ⟨d', e'⟩⟩ _
+        split_ifs with h
+        · simp only [oneHotLits, List.forall_mem_cons, Sum.elim_inr, Pi.oneHot_apply,
+            decide_eq_true_eq] at h
+          obtain ⟨rfl, rfl, -⟩ := h
+          refine ite_eq_right fun ⟨hd, hne⟩ => ?_
+          subst hd
+          exact hne rfl
+        · rfl
     rw [h1, h2, mul_one, mul_one]
     rfl
 
@@ -191,9 +186,7 @@ theorem domainClauseSum_sumElim {Θ' : Type*} [Fintype Θ'] (lits : Θ → List 
     domainClauseSum (Sum.elim lits lits') (Sum.elim wt wt') x = domainClauseSum lits wt x * c := by
   unfold domainClauseSum
   rw [sum_mul]
-  refine sum_congr rfl fun g _ => ?_
-  rw [Fintype.prod_sum_type, ← h g]
-  rfl
+  exact sum_congr rfl fun g _ => by rw [Fintype.prod_sum_type, ← h g]; rfl
 
 end Domain
 

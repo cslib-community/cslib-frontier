@@ -53,15 +53,17 @@ theorem accBound_aux (d cD cO : ℕ) : ∃ K, ∀ {N A W Dl Nl Ll X Y E : ℕ},
   refine ⟨10 + 4 * C₁ ^ 4 + (cO * C₂ + 1) ^ 2 + 1 + C₂ * (cO + 1),
     fun {N A W Dl Nl Ll X Y E} hN hA hW hD hNl hLl hX hY hE => ?_⟩
   have hIn : 2 * Dl + 1 + (2 * Nl + 1 + Ll) + 1 ≤ C₁ * X := by
-    have := (Nat.mul_le_mul_left cD (by omega : N + A + 1 ≤ 4 * X)).trans
+    have h1 := (Nat.mul_le_mul_left cD (by omega : N + A + 1 ≤ 4 * X)).trans
       (le_of_eq (show cD * (4 * X) = 4 * (cD * X) by ring))
-    have : C₁ * X = 8 * (cD * X) + (d + 4) * X + 15 * X := by simp only [C₁]; ring
+    have h2 : C₁ * X = 8 * (cD * X) + (d + 4) * X + 15 * X := by simp only [C₁]; ring
     omega
   have hXY : X * Y ≤ X ^ 2 * Y := Nat.mul_le_mul_right _ (Nat.le_self_pow two_ne_zero _)
   have hX2Y : X ^ 2 * Y ≤ X ^ 4 * Y ^ 2 :=
     Nat.mul_le_mul (Nat.pow_le_pow_right hX (by decide)) (Nat.le_self_pow two_ne_zero _)
   have hpre : N + A + (N + W + (N + Y)) ≤ 10 * (X * Y) := by
-    have := Nat.le_mul_of_pos_right X hY; have := Nat.le_mul_of_pos_left Y hX; omega
+    have h1 := Nat.le_mul_of_pos_right X hY
+    have h2 := Nat.le_mul_of_pos_left Y hX
+    omega
   have hY1 : Y + 1 ≤ 2 * Y := by omega
   have hU₂ : (2 * Dl + 1 + (2 * Nl + 1 + Ll) + 1) ^ 2 * (Y + 1) ≤ 2 * C₁ ^ 2 * (X ^ 2 * Y) :=
     (Nat.mul_le_mul (Nat.pow_le_pow_left hIn 2) hY1).trans (le_of_eq (by ring))
@@ -83,8 +85,7 @@ theorem accBound_aux (d cD cO : ℕ) : ∃ K, ∀ {N A W Dl Nl Ll X Y E : ℕ},
       omega
     exact (Nat.pow_le_pow_left h₂ 2).trans (le_of_eq (by ring))
   have h1 : 1 ≤ X ^ 4 * Y ^ 2 := Nat.mul_pos (Nat.pow_pos hX) (Nat.pow_pos hY)
-  have hXYW : X * Y ≤ X ^ 4 * Y ^ 2 := hXY.trans hX2Y
-  have := Nat.mul_le_mul_left 10 hXYW
+  have := Nat.mul_le_mul_left 10 (hXY.trans hX2Y)
   have := hU₂.trans (Nat.mul_le_mul_left (2 * C₁ ^ 2) hX2Y)
   have := Nat.mul_le_mul_left C₂ hX2Y; have := Nat.mul_le_mul_left (cO * C₂) hX2Y
   have : (10 + 4 * C₁ ^ 4 + (cO * C₂ + 1) ^ 2 + 1 + C₂ * (cO + 1)) * (X ^ 4 * Y ^ 2) =
@@ -138,8 +139,7 @@ theorem verifier_branch_bound {n t c a b M A₁ A₂ A₃ B : ℕ}
     omega
   · have := hb h₁
     omega
-  · omega
-  · omega
+  all_goals omega
 
 /-- The numeric facts behind the bound of the exponential brute-force search: the encoded pair of
 length `N`, the certificate length `c`, the unary certificate length and the search. -/
@@ -147,21 +147,18 @@ theorem brute_bound_aux (C K₀ N c : ℕ) (hc : 1 ≤ c) :
     N + (C * 2 ^ N + c * c) + 2 ^ (K₀ * (2 * N + 1 + c + c)) ≤
       (C + 3) * (2 ^ ((3 * K₀ + 4) * (N + c)) + 1) := by
   set B := 2 ^ ((3 * K₀ + 4) * (N + c))
-  have hN : 2 ^ N ≤ B :=
-    Nat.pow_le_pow_right Nat.one_lt_two.le
-      ((Nat.le_add_right N c).trans (Nat.le_mul_of_pos_left _ (by omega)))
+  have hN : 2 ^ N ≤ B := Nat.pow_le_pow_right Nat.one_lt_two.le
+    ((Nat.le_add_right N c).trans (Nat.le_mul_of_pos_left _ (by omega)))
+  have hcc : c * c ≤ B :=
+    ((Nat.mul_le_mul Nat.lt_two_pow_self.le Nat.lt_two_pow_self.le).trans_eq
+      (pow_add 2 c c).symm).trans (Nat.pow_le_pow_right Nat.one_lt_two.le
+        ((by omega : c + c ≤ 4 * (N + c)).trans
+          (Nat.mul_le_mul_right _ (by omega : 4 ≤ 3 * K₀ + 4))))
+  have hs : 2 ^ (K₀ * (2 * N + 1 + c + c)) ≤ B := Nat.pow_le_pow_right Nat.one_lt_two.le
+    ((Nat.mul_le_mul_left K₀ (by omega : 2 * N + 1 + c + c ≤ 3 * (N + c))).trans
+      ((le_of_eq (by ring : K₀ * (3 * (N + c)) = 3 * K₀ * (N + c))).trans
+        (Nat.mul_le_mul_right _ (by omega : 3 * K₀ ≤ 3 * K₀ + 4))))
   have hN' : N < 2 ^ N := Nat.lt_two_pow_self
-  have hcc : c * c ≤ B := by
-    have h₁ : c * c ≤ 2 ^ (c + c) := by
-      rw [pow_add]
-      exact Nat.mul_le_mul Nat.lt_two_pow_self.le Nat.lt_two_pow_self.le
-    exact h₁.trans (Nat.pow_le_pow_right Nat.one_lt_two.le
-      ((by omega : c + c ≤ 4 * (N + c)).trans (Nat.mul_le_mul_right _ (by omega))))
-  have hs : 2 ^ (K₀ * (2 * N + 1 + c + c)) ≤ B :=
-    Nat.pow_le_pow_right Nat.one_lt_two.le
-      ((Nat.mul_le_mul_left K₀ (by omega : 2 * N + 1 + c + c ≤ 3 * (N + c))).trans
-        ((le_of_eq (by ring : K₀ * (3 * (N + c)) = 3 * K₀ * (N + c))).trans
-          (Nat.mul_le_mul_right _ (by omega))))
   have hC : C * 2 ^ N ≤ C * B := Nat.mul_le_mul_left _ hN
   have e : (C + 3) * (B + 1) = C * B + 3 * B + (C + 3) := by ring
   omega

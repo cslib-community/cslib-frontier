@@ -43,16 +43,11 @@ theorem intersectionParity_cutEnds_left {p q : Route}
   classical
   unfold intersectionParity
   change (∑ i : Fin p.segments, ∑ j : Fin q.segments, _) = _
-  apply Finset.sum_congr rfl
-  intro i _
-  apply Finset.sum_congr rfl
-  intro j _
-  apply decide_eq_decide.mpr
+  refine Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => decide_eq_decide.mpr ?_
   obtain ⟨hl, hlu, hh⟩ := p.cut_bounds hs ht hst i
   constructor
   · rintro ⟨z, hz, hzq⟩
-    rw [openSegment_eq_image_lineMap] at hz
-    obtain ⟨u, hu, he⟩ := hz
+    obtain ⟨u, hu, he⟩ := (openSegment_eq_image_lineMap ℝ _ _).subset hz
     change (p.cutEnds s t).eval i u = z at he
     rw [p.eval_cutEnds] at he
     have htime : p.cutTime s t i u ∈ Set.Ioo (p.cutLower s i) (p.cutUpper t i) := by
@@ -61,8 +56,7 @@ theorem intersectionParity_cutEnds_left {p q : Route}
     exact ⟨z, he ▸ lineMap_mem_openSegment ℝ _ _
       ⟨hl.trans_lt htime.1, htime.2.trans_le hh⟩, hzq⟩
   · rintro ⟨z, hz, hzq⟩
-    rw [openSegment_eq_image_lineMap] at hz
-    obtain ⟨v, hv, he⟩ := hz
+    obtain ⟨v, hv, he⟩ := (openSegment_eq_image_lineMap ℝ _ _).subset hz
     change p.eval i v = z at he
     by_cases hdeg : p.point i.castSucc = p.point i.succ
     · have hcut : (p.cutEnds s t).eval i v = z := by
@@ -75,13 +69,11 @@ theorem intersectionParity_cutEnds_left {p q : Route}
     -- In a nonconstant segment, an interior parameter cannot equal the endpoint's parameter.
     have hlow : p.cutLower s i < v := by
       by_cases hi : i.val = 0
-      · have hi' : i = 0 := Fin.ext hi
-        subst i
+      · obtain rfl : i = 0 := Fin.ext hi
         change s < v
         by_contra! hvs
         have hm := eval_mem_segment_eval p 0 hv.1.le hvs
-        have hzero : p.eval 0 0 = p.start := by
-          simp only [eval, AffineMap.lineMap_apply_zero, start, Fin.castSucc_zero]
+        have hzero : p.eval 0 0 = p.start := by simp [eval, start]
         have hcut : (p.cutEnds s t).start = p.eval 0 s := p.endpoint_cutEnds s t false
         rw [hzero, ← hcut, he] at hm
         exact hv.1.ne' (hinj (he.trans ((hstart z hm hqz).trans hzero.symm)))
@@ -89,22 +81,17 @@ theorem intersectionParity_cutEnds_left {p q : Route}
     have hhigh : v < p.cutUpper t i := by
       by_cases hi : i.val + 1 = p.segments
       · rw [cutUpper, ite_eq_left hi]
-        have hi' : i = Fin.last p.bends := Fin.ext (Nat.add_right_cancel hi)
-        subst i
+        obtain rfl : i = Fin.last p.bends := Fin.ext (Nat.add_right_cancel hi)
         by_contra! htv
         have hm := eval_mem_segment_eval p (Fin.last p.bends) htv hv.2.le
-        have hone : p.eval (Fin.last p.bends) 1 = p.finish := by
-          simp only [eval, AffineMap.lineMap_apply_one, finish, Fin.succ_last]
+        have hone : p.eval (Fin.last p.bends) 1 = p.finish := by simp [eval, finish]
         have hcut : (p.cutEnds s t).finish = p.eval (Fin.last p.bends) (1 - t) :=
           p.endpoint_cutEnds s t true
         rw [← hcut, hone, he] at hm
         exact hv.2.ne (hinj (he.trans ((hfinish z hm hqz).trans hone.symm)))
       · simpa only [cutUpper, ite_eq_right hi] using hv.2
-    have hv' : v ∈ openSegment ℝ (p.cutLower s i) (p.cutUpper t i) := by
-      rw [openSegment_eq_Ioo hlu]
-      exact ⟨hlow, hhigh⟩
-    rw [openSegment_eq_image_lineMap] at hv'
-    obtain ⟨u, hu, huv⟩ := hv'
+    obtain ⟨u, hu, huv⟩ := (openSegment_eq_image_lineMap ℝ _ _).subset
+      ((openSegment_eq_Ioo hlu).symm.subset ⟨hlow, hhigh⟩)
     have hcut : (p.cutEnds s t).eval i u = z :=
       (p.eval_cutEnds s t i u).trans ((congrArg (p.eval i) huv).trans he)
     exact ⟨z, hcut ▸ lineMap_mem_openSegment ℝ _ _ hu, hzq⟩
@@ -127,8 +114,7 @@ theorem intersectionParity_line_split_of_disjoint {a b : ℂ} {q : Route} {l u :
       openSegment ℝ (q.point j.castSucc) (q.point j.succ)).Nonempty)) = _
     exact Fin.sum_univ_one _
   rw [hsum, hsum, hsum, ← Finset.sum_add_distrib]
-  apply Finset.sum_congr rfl
-  intro j _
+  refine Finset.sum_congr rfl fun j _ => ?_
   let J := openSegment ℝ (q.point j.castSucc) (q.point j.succ)
   have himage (s t : ℝ) (hst : s < t) : F '' Set.Ioo s t = openSegment ℝ (F s) (F t) := by
     rw [← openSegment_eq_Ioo hst, image_openSegment]

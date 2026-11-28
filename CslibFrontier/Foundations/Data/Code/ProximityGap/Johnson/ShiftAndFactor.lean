@@ -37,17 +37,15 @@ variable {ι : Type*} [Fintype ι]
 private theorem exists_eval_ne_zero_of_natDegree_lt_card {R : Type*} [CommRing R] [IsDomain R]
     {p : R[X]} (hp : p ≠ 0) {T : Finset R} (hlt : p.natDegree < #T) :
     ∃ x ∈ T, p.eval x ≠ 0 := by
-  by_contra hall
-  push Not at hall
+  by_contra! hall
   exact hp (Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' p T hall hlt)
 
 private theorem exists_eval_C_ne_zero {F : Type*} [Field F] {H : F[X][X]} (hH : H ≠ 0)
     {T : Finset F} (hT : H.natDegree < #T) :
     ∃ x₀ ∈ T, H.eval (C x₀) ≠ 0 := by
-  have hex_j : ∃ j, (Bivariate.swap H).coeff j ≠ 0 := by
-    by_contra hall; push Not at hall
-    exact (map_ne_zero_iff _ Bivariate.swap.injective).2 hH (by ext j : 2; simpa using hall j)
-  obtain ⟨j, hj_ne⟩ := hex_j
+  let j := (Bivariate.swap H).natDegree
+  have hj_ne : (Bivariate.swap H).coeff j ≠ 0 := ne_of_eq_of_ne coeff_natDegree
+    (leadingCoeff_ne_zero.2 ((map_ne_zero_iff _ Bivariate.swap.injective).2 hH))
   have hdeg : ((Bivariate.swap H).coeff j).natDegree ≤ H.natDegree := by
     simpa only [Bivariate.swap_swap_apply] using
       Bivariate.natDegree_coeff_le_natDegree_swap (Bivariate.swap H) j
@@ -105,8 +103,7 @@ theorem exists_good_shift_and_factor
             W i) := by
   classical
   set s := S.natDegree
-  have hs_le_dR : s ≤ R.natDegree := by
-    have := Nat.mul_le_mul_right s hμ_pos; omega
+  have hs_le_dR : s ≤ R.natDegree := hdeg_mul ▸ Nat.le_mul_of_pos_left s hμ_pos
   set H : F[X][X] := S.leadingCoeff * Δ
   have hH_ne : H ≠ 0 := mul_ne_zero (leadingCoeff_ne_zero.2 fun h => by simp [s, h] at hS_deg) hΔ_ne
   obtain ⟨x₀, _, hHx₀_ne⟩ := exists_eval_C_ne_zero (T := T_R) hH_ne (hH_degX.trans_lt <|
@@ -119,9 +116,8 @@ theorem exists_good_shift_and_factor
   have hS₀_deg : S₀.natDegree = s := le_antisymm Polynomial.natDegree_map_le
     (le_natDegree_of_ne_zero (by rw [coeff_map]; exact hlc_x₀_ne))
   have hS₀_ne : S₀ ≠ 0 := fun h => by simp [h] at hS₀_deg; omega
-  have hS₀_degZ : degZ₂ S₀ ≤ B_Z := degZ₂_le_iff.2 fun b => by
-    rw [coeff_map]
-    exact (natDegree_eval_C_le_degZ₂ (S.coeff b) x₀).trans ((degZ₂_coeff_le_degZ S b).trans hS_degZ)
+  have hS₀_degZ : degZ₂ S₀ ≤ B_Z := degZ₂_le_iff.2 fun b => coeff_map φx₀ b ▸
+    (natDegree_eval_C_le_degZ₂ _ x₀).trans ((degZ₂_coeff_le_degZ S b).trans hS_degZ)
   have hbez₀ : ∃ A₀ B₀ : F[X][X], S₀ * A₀ + S₀.derivative * B₀ = C (Δ.eval (C x₀)) :=
     ⟨A_bez.map φx₀, B_bez.map φx₀, by
       simpa only [Polynomial.map_add, Polynomial.map_mul, Polynomial.map_C,
@@ -159,25 +155,20 @@ theorem exists_good_shift_and_factor
     obtain ⟨hz_TR, hHz_ne⟩ := mem_filter.1 hz
     obtain ⟨P, hP_deg, hR_eval0, hW_P⟩ := hTR_mem z hz_TR
     have hS_eval0 : (evZ₂ z S).eval (P ^ μ) = 0 := by
-      have hmap : evZ₂ z R = Polynomial.expand F[X] μ (evZ₂ z S) := by
-        rw [← hexp_S, evZ₂, Polynomial.coe_mapRingHom, Polynomial.map_expand]
-      rwa [hmap, Polynomial.expand_eval] at hR_eval0
+      rwa [← hexp_S, evZ₂, Polynomial.coe_mapRingHom, Polynomial.map_expand,
+        Polynomial.expand_eval] at hR_eval0
     set yz : F := (P ^ μ).eval x₀
     have hS₀_eval0 : (S₀.map (evZ z)).eval yz = 0 := by
       rw [hS₀_map_evZ z, Polynomial.eval_map]
-      have hhom := Polynomial.hom_eval₂ (evZ₂ z S) (RingHom.id F[X])
-        (Polynomial.evalRingHom x₀) (P ^ μ)
-      rw [RingHom.comp_id, Polynomial.eval₂_id] at hhom
-      change (evZ₂ z S).eval₂ (Polynomial.evalRingHom x₀) (Polynomial.evalRingHom x₀ (P ^ μ)) = 0
-      rw [← hhom, hS_eval0, map_zero]
-    have hγ_eval_ne : (S₀.derivative.map (evZ z)).eval yz ≠ 0 := fun hγ0 => by
+      simpa only [RingHom.comp_id, Polynomial.eval₂_id, hS_eval0, map_zero, coe_evalRingHom] using
+        (Polynomial.hom_eval₂ (evZ₂ z S) (RingHom.id F[X]) (Polynomial.evalRingHom x₀) (P ^ μ)).symm
+    have hγ_eval_ne : (S₀.derivative.map (evZ z)).eval yz ≠ 0 := fun hγ0 => hHz_ne <| by
       obtain ⟨A₀, B₀, hAB⟩ := hbez₀
       have hm := congrArg (fun p : F[X][X] => (p.map (evZ z)).eval yz) hAB
       simp only [Polynomial.map_add, Polynomial.map_mul, Polynomial.map_C, eval_add, eval_mul,
         eval_C, hS₀_eval0, zero_mul, zero_add, hγ0] at hm
-      exact hHz_ne (by
-        have hΔ0 : (Δ.eval (C x₀)).eval z = 0 := by simpa only [evZ, coe_evalRingHom] using hm.symm
-        simp only [H, eval_mul, hΔ0, mul_zero])
+      simp only [evZ, coe_evalRingHom] at hm
+      simp [H, hm.symm]
     have hc₀_z_ne : c₀.eval z ≠ 0 := fun h0 => hHz_ne <| by
       have hlc : S.leadingCoeff.eval (C x₀) = c₀ * gs.prod.leadingCoeff := by
         calc S.leadingCoeff.eval (C x₀) = S₀.coeff S₀.natDegree := by
@@ -196,7 +187,8 @@ theorem exists_good_shift_and_factor
     have h1 : 2 * s * B_Z ≤ 2 * R.natDegree * (D + B_Z) :=
       Nat.mul_le_mul (Nat.mul_le_mul_left 2 hs_le_dR) (Nat.le_add_left B_Z D)
     have h2 : s * B_step ≤ W_tot * R.natDegree * D_Y * (4 * D * B_Z + r * D_Y) := by
-      rw [show s * B_step = W_tot * s * D_Y * (4 * D * B_Z + r * D_Y) by dsimp [B_step]; ring]
+      have hsB : s * B_step = W_tot * s * D_Y * (4 * D * B_Z + r * D_Y) := by dsimp [B_step]; ring
+      rw [hsB]
       exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hs_le_dR))
     have h3 : ∑ _G ∈ gs.toFinset, B_step ≤ s * B_step := by
       rw [Finset.sum_const, smul_eq_mul]; exact Nat.mul_le_mul_right B_step hgs_card
@@ -209,9 +201,8 @@ theorem exists_good_shift_and_factor
   have hF_dvd : Fstar ∣ S₀ := (Multiset.dvd_prod hF_mem).trans ⟨C c₀, by rw [hS₀_eq, mul_comm]⟩
   have hF_degZ : degZ₂ Fstar ≤ B_Z := by
     obtain ⟨Q', hQ'⟩ := hF_dvd
-    have hQ'0 : Q' ≠ 0 := fun h => hS₀_ne (by rw [hQ', h, mul_zero])
-    have hmul := degZ₂_mul hF_irred.ne_zero hQ'0
-    rw [← hQ'] at hmul; omega
+    have hmul := hQ' ▸ degZ₂_mul hF_irred.ne_zero (fun h => hS₀_ne (by simp [hQ', h]))
+    omega
   exact ⟨x₀, Fstar, T_ofG Fstar, hS₀_deg, hS₀_degZ, hΔ_x₀_ne, hbez₀, hF_irred, hF_prim, hF_deg1,
     (Polynomial.natDegree_le_of_dvd hF_dvd hS₀_ne).trans hS₀_deg.le, hF_degZ, hF_dvd,
     (Finset.filter_subset _ _).trans (Finset.filter_subset _ _), hF_card, fun z hz =>

@@ -115,16 +115,11 @@ private theorem chain_eq_of_le : ∀ (n m : ℕ) (a : α), (encA a).length ≤ n
     simp only [chain_zero, chain_succ, ha, ↓reduceIte]
   | n + 1, m + 1, a, hn, hm => by
     simp only [chain_succ]
-    by_cases ha : g (g' a) = a
-    · by_cases hb : f (f' (g' a)) = g' a
-      · simp only [ha, hb, ↓reduceIte]
-        have h1 := hg (g' a)
-        have h2 := hf (f' (g' a))
-        rw [ha] at h1
-        rw [hb] at h2
-        exact chain_eq_of_le n m _ (by omega) (by omega)
-      · simp only [ha, hb, ↓reduceIte]
-    · simp only [ha, ↓reduceIte]
+    split_ifs with ha hb
+    · have h1 := ha ▸ hg (g' a)
+      have h2 := hb ▸ hf (f' (g' a))
+      exact chain_eq_of_le n m _ (by omega) (by omega)
+    all_goals rfl
 
 end
 
@@ -147,23 +142,17 @@ private theorem stop_eq (a : α) : stop encA f f' g g' a =
   unfold stop
   by_cases ha : g (g' a) = a
   · by_cases hb : f (f' (g' a)) = g' a
-    · have h1 := hg (g' a)
-      have h2 := hf (f' (g' a))
-      rw [ha] at h1
-      rw [hb] at h2
+    · have h1 := ha ▸ hg (g' a)
+      have h2 := hb ▸ hf (f' (g' a))
       obtain ⟨n, hn⟩ : ∃ n, (encA a).length = n + 1 := ⟨(encA a).length - 1, by omega⟩
-      rw [hn, chain_succ, ite_eq_left ha, ite_eq_left hb, ite_eq_left ha, ite_eq_left hb]
+      rw [hn, chain_succ]
+      simp only [ha, hb, ↓reduceIte]
       exact chain_eq_of_le hf hg _ _ _ (by omega) le_rfl
-    · cases h : (encA a).length with
-      | zero =>
-        exfalso
-        have := hg (g' a)
-        rw [ha] at this
-        omega
-      | succ n => simp only [chain_succ, ha, hb, ↓reduceIte]
-  · cases h : (encA a).length with
-    | zero => simp only [chain_zero, ha, ↓reduceIte]
-    | succ n => simp only [chain_succ, ha, ↓reduceIte]
+    · obtain ⟨n, hn⟩ : ∃ n, (encA a).length = n + 1 :=
+        ⟨(encA a).length - 1, by have := ha ▸ hg (g' a); omega⟩
+      rw [hn, chain_succ]
+      simp only [ha, hb, ↓reduceIte]
+  · cases (encA a).length <;> simp only [chain_zero, chain_succ, ha, ↓reduceIte]
 
 include hf hg in
 /-- Swapping the roles of the two sides negates the side on which a chain stops. -/
@@ -183,11 +172,7 @@ private theorem stop_swap (b : β) (hb : f (f' b) = b) :
     rfl
 termination_by (encB b).length
 decreasing_by
-  have h1 := hg (g' (f' b))
-  have h2 := hf (f' b)
-  rw [hc] at h1
-  rw [hb] at h2
-  exact h1.trans h2
+  simpa only [hb] using (lt_of_lt_of_eq (hg (g' (f' b))) (by rw [hc])).trans (hf (f' b))
 
 end
 
@@ -257,12 +242,8 @@ private theorem step_iterate (f : α → β) (f' : β → α) (g : β → α) (g
   | zero => rfl
   | succ n ih =>
     rw [Function.iterate_succ_apply, chain_succ]
-    by_cases ha : g (g' a) = a
-    · by_cases hb : f (f' (g' a)) = g' a
-      · simp only [step, ha, hb, ↓reduceIte, Bool.false_eq_true]
-        exact ih _
-      · simp only [step, ha, hb, ↓reduceIte, Bool.false_eq_true, step_iterate_done]
-    · simp only [step, ha, ↓reduceIte, Bool.false_eq_true, step_iterate_done]
+    by_cases ha : g (g' a) = a <;> by_cases hb : f (f' (g' a)) = g' a <;>
+      simp only [step, ha, hb, ↓reduceIte, Bool.false_eq_true, step_iterate_done, ih]
 
 section Loop
 variable {f : α → β} {f' : β → α} {g : β → α} {g' : α → β}
@@ -275,14 +256,8 @@ private theorem length_step_le (s : α × Bool × Bool) :
   unfold step
   split_ifs with h1 h2 h3
   · exact le_rfl
-  · have := hg (g' s.1)
-    have := hf (f' (g' s.1))
-    rw [h2] at *
-    rw [h3] at *
-    simp only
-    omega
-  · exact le_rfl
-  · exact le_rfl
+  · exact ((h3 ▸ hf (f' (g' s.1))).trans (h2 ▸ hg (g' s.1))).le
+  all_goals exact le_rfl
 
 include hf hg in
 private theorem length_step_iterate_le (n : ℕ) (s : α × Bool × Bool) :

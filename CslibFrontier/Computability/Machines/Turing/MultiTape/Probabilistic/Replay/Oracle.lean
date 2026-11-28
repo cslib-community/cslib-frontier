@@ -102,8 +102,7 @@ theorem replyStep_pendingRequest (g : List Bool → Bool)
     (cfg : FiniteConfig k Bool Control Operation) :
     machine.replyStep cfg (g (machine.pendingRequest cfg)) =
       machine.answerStep (fun q => [g q.2]) cfg := by
-  rw [answerStep_bit]
-  rfl
+  rw [answerStep_bit]; rfl
 
 /-- A local instruction ignores its transcript bit. -/
 theorem replyStep_of_pendingQuery_eq_none {cfg : FiniteConfig k Bool Control Operation}
@@ -136,9 +135,8 @@ theorem replayPrefix_succ (input answers : List Bool) (index : ℕ)
 theorem spaceBound_replyStep {inputSize steps : ℕ}
     {cfg : FiniteConfig k Bool Control Operation}
     (h : FiniteConfig.SpaceBound inputSize steps 1 cfg) (bit : Bool) :
-    FiniteConfig.SpaceBound inputSize (steps + 1) 1 (machine.replyStep cfg bit) := by
-  rw [replyStep_eq_answerStep]
-  exact machine.spaceBound_answerStep (fun _ => bit) h
+    FiniteConfig.SpaceBound inputSize (steps + 1) 1 (machine.replyStep cfg bit) :=
+  machine.replyStep_eq_answerStep cfg bit ▸ machine.spaceBound_answerStep (fun _ => bit) h
 
 /-- A transcript of length `r` executes `r` instructions with replies of length one. -/
 theorem spaceBound_replayFrom {inputSize steps : ℕ}
@@ -177,8 +175,8 @@ variable [Finite Control] [Fintype Operation]
 /-- The next replay instruction is polynomial-time, uniformly in its reply bit. -/
 @[fun_prop] theorem replyStep_pt : ComputableInPolyTime
     (fun p : FiniteConfig k Bool Control Operation × Bool => machine.replyStep p.1 p.2)
-    (encPair encFiniteConfig encBool) encFiniteConfig := by
-  exact ComputableInPolyTime.ite
+    (encPair encFiniteConfig encBool) encFiniteConfig :=
+  ComputableInPolyTime.ite
     ((ComputableInPolyTime.of_finite
       (encIn := encFinite (Option (Operation × Control))) (encOut := encBool) Option.isSome).comp
       (machine.pendingQuery_pt.comp (.fst encFiniteConfig encBool)))
@@ -189,10 +187,7 @@ variable [Finite Control] [Fintype Operation]
     (fun p : List Bool × List Bool => machine.replayConfig p.1 p.2)
     (encPair encBits encBits) encFiniteConfig := by
   obtain ⟨c, hc⟩ := length_encFiniteConfig_le (k := k) (State := Control) (Oracle := Operation)
-  have hinit : ComputableInPolyTime
-      (fun p : List Bool × List Bool => FiniteConfig.init (k := k) (Oracle := Operation)
-        machine.initial p.1) (encPair encBits encBits) encFiniteConfig := by fun_prop
-  exact ComputableInPolyTime.foldl' (.snd encBits encBits) hinit
+  exact ComputableInPolyTime.foldl' (.snd encBits encBits) (by fun_prop)
     machine.replyStep_pt (B := fun p => c * (p.1.length + p.2.length + 1 + 1)) (by growth_poly)
     (fun p i _ => (hc _ _ _ _ (machine.spaceBound_replayConfig p.1 (p.2.take i))).trans
       (Nat.mul_le_mul_left c (by simp only [List.length_take]; omega)))
@@ -215,10 +210,8 @@ variable [Finite Control] [Finite Operation]
     (fun p : List Bool × List Bool => machine.replayOutput p.1 p.2)
     (encPair encBits encBits) encBits := by
   let _ := Fintype.ofFinite Operation
-  have hout : ComputableInPolyTime
-      (fun cfg : FiniteConfig k Bool Control Operation => cfg.tapes.output)
-      encFiniteConfig encBits := by fun_prop
-  exact hout.comp machine.replayConfig_pt
+  exact (show ComputableInPolyTime (fun cfg : FiniteConfig k Bool Control Operation =>
+    cfg.tapes.output) encFiniteConfig encBits by fun_prop).comp machine.replayConfig_pt
 
 /-- The next query in a guessed-reply execution is uniformly polynomial-time. -/
 @[fun_prop] theorem replayPrefix_pendingRequest_pt : ComputableInPolyTime
@@ -283,8 +276,7 @@ private theorem replyStep_oracleBit (g : List Bool → Bool)
     machine.replyStep cfg
       (if (machine.pendingQuery cfg).isSome then g (machine.pendingRequest cfg) else false) =
         machine.answerStep (fun q => [g q.2]) cfg := by
-  rw [answerStep_bit]
-  unfold replyStep
+  rw [answerStep_bit, replyStep]
   split <;> rfl
 
 /-- Canonical replay recovers the entire finite configuration, not only its output. -/
@@ -312,8 +304,7 @@ theorem replayPrefix_oracleReplies (g : List Bool → Bool) (fuel : ℕ) (input 
     machine.replayPrefix input (machine.oracleReplies g fuel input) index =
       (machine.answerStep (fun q => [g q.2]))^[min index fuel]
         (FiniteConfig.init machine.initial input) := by
-  unfold replayPrefix oracleReplies
-  rw [take_oracleRepliesFrom]
+  rw [replayPrefix, oracleReplies, take_oracleRepliesFrom]
   exact machine.replayFrom_oracleRepliesFrom g _ _
 
 /-- The bit of a canonical transcript at a live clock index is the pending oracle answer, with
@@ -328,7 +319,7 @@ theorem getD_oracleRepliesFrom (g : List Bool → Bool)
   | zero =>
     cases fuel with
     | zero => omega
-    | succ fuel => rfl
+    | succ _ => rfl
   | succ index ih =>
     cases fuel with
     | zero => omega
@@ -356,36 +347,29 @@ theorem eq_oracleReplies_iff (g : List Bool → Bool) (input answers : List Bool
       ∀ i < answers.length, answers.getD i false =
         let cfg := machine.replayPrefix input answers i
         if (machine.pendingQuery cfg).isSome then g (machine.pendingRequest cfg) else false := by
-  constructor
-  · intro h i hi
-    have hstep := machine.getD_oracleReplies g answers.length input i hi
-    rwa [← h] at hstep
-  · intro h
-    set oracle := machine.oracleReplies g answers.length input
-    have hlen_or : oracle.length = answers.length :=
-      machine.length_oracleReplies g answers.length input
-    have htake : ∀ m ≤ answers.length, answers.take m = oracle.take m := by
-      intro m hm
-      induction m with
-      | zero => rfl
-      | succ m ih =>
-        have hm_lt : m < answers.length := Nat.lt_of_succ_le hm
-        have hm_or : m < oracle.length := hlen_or ▸ hm_lt
-        have ih_m : answers.take m = oracle.take m := ih hm_lt.le
-        have hcfg : machine.replayPrefix input answers m =
-            machine.replayPrefix input oracle m := by
-          simp only [replayPrefix, ih_m]
-        have hbit : answers[m] = oracle[m] := by
-          rw [← List.getD_eq_getElem answers false hm_lt,
-            ← List.getD_eq_getElem oracle false hm_or,
-            h m hm_lt, machine.getD_oracleReplies g answers.length input m hm_lt, hcfg]
-        calc
-          answers.take (m + 1) = answers.take m ++ [answers[m]] :=
-            List.take_succ_eq_append_getElem hm_lt
-          _ = oracle.take m ++ [oracle[m]] := by rw [ih_m, hbit]
-          _ = oracle.take (m + 1) := (List.take_succ_eq_append_getElem hm_or).symm
-    have := htake answers.length le_rfl
-    rwa [List.take_length, List.take_of_length_le hlen_or.le] at this
+  refine ⟨fun h i hi => h ▸ machine.getD_oracleReplies g answers.length input i hi, fun h => ?_⟩
+  set oracle := machine.oracleReplies g answers.length input
+  have hlen : oracle.length = answers.length := machine.length_oracleReplies g answers.length input
+  suffices htake : ∀ m ≤ answers.length, answers.take m = oracle.take m by
+    simpa only [List.take_length, List.take_of_length_le hlen.le] using htake answers.length le_rfl
+  intro m hm
+  induction m with
+  | zero => rfl
+  | succ m ih =>
+    have hm_lt : m < answers.length := Nat.lt_of_succ_le hm
+    have hm_or : m < oracle.length := hlen ▸ hm_lt
+    have ih_m : answers.take m = oracle.take m := ih hm_lt.le
+    have hcfg : machine.replayPrefix input answers m = machine.replayPrefix input oracle m := by
+      simp only [replayPrefix, ih_m]
+    have hbit : answers[m] = oracle[m] := by
+      rw [← List.getD_eq_getElem answers false hm_lt,
+        ← List.getD_eq_getElem oracle false hm_or, h m hm_lt,
+        machine.getD_oracleReplies g answers.length input m hm_lt, hcfg]
+    calc
+      answers.take (m + 1) = answers.take m ++ [answers[m]] :=
+        List.take_succ_eq_append_getElem hm_lt
+      _ = oracle.take m ++ [oracle[m]] := by rw [ih_m, hbit]
+      _ = oracle.take (m + 1) := (List.take_succ_eq_append_getElem hm_or).symm
 
 /-- Replayed canonical outputs agree exactly with interpretation of the clocked oracle program. -/
 theorem replayOutput_oracleReplies (g : List Bool → Bool) (fuel : ℕ) (input : List Bool) :

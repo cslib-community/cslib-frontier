@@ -96,6 +96,15 @@ theorem encSDInstance_apply (x : SDInstance) :
 
 namespace SDInstance
 
+/-- Extract both unary arities and both circuit codes of a polynomial-time computed instance. -/
+theorem computableInPolyTime_parts {α : Type} {enc : α ↪ List Bool} {x : α → SDInstance}
+    (hx : ComputableInPolyTime x enc encSDInstance) :
+    ComputableInPolyTime (fun a => (((x a).inputs, (x a).outputs),
+      ((x a).left.code, (x a).right.code))) enc
+        (encPair (encPair encUnary encUnary) (encPair encCode encCode)) :=
+  (ComputableInPolyTime.of_eq (fun a => (encSDInstance_apply a).symm)).comp hx
+
+
 /-- **Polarization is polynomial-time**, for an instance and parameters computed in polynomial time
 from any encoded input, with the parameters in unary. -/
 theorem computableInPolyTime_polarize_comp {α : Type} {enc : α ↪ List Bool} {x : α → SDInstance}
@@ -103,11 +112,7 @@ theorem computableInPolyTime_polarize_comp {α : Type} {enc : α ↪ List Bool} 
     (hlam : ComputableInPolyTime lam enc encUnary) (hell : ComputableInPolyTime ell enc encUnary)
     (hk : ComputableInPolyTime k enc encUnary) :
     ComputableInPolyTime (fun a => (x a).polarize (lam a) (ell a) (k a)) enc encSDInstance := by
-  have hproj : ComputableInPolyTime
-      (fun y : SDInstance => ((y.inputs, y.outputs), (y.left.code, y.right.code)))
-      encSDInstance (encPair (encPair encUnary encUnary) (encPair encCode encCode)) :=
-    .of_eq fun _ => rfl
-  have hraw := hproj.comp' hx
+  have hraw := computableInPolyTime_parts hx
   have hn : ComputableInPolyTime (fun a => (x a).inputs) enc encUnary := hraw.fst'.fst'
   have hm : ComputableInPolyTime (fun a => (x a).outputs) enc encUnary := hraw.fst'.snd'
   have hc₀ := hraw.snd'.fst'
@@ -158,12 +163,8 @@ theorem computableInPolyTime_polarize_log {α : Type} {enc : α ↪ List Bool} (
   have hK2 : ComputableInPolyTime (fun a => K a + 2) enc encUnary := by fun_prop
   have hclog : ComputableInPolyTime (fun a => Nat.clog 2 (K a + 2)) enc encUnary :=
     (unary_clog_const 2).comp hK2
-  have hlam : ComputableInPolyTime (fun a => m * Nat.clog 2 (K a + 2) - 1) enc encUnary := by
-    fun_prop
-  have hell : ComputableInPolyTime (fun a => (2 ^ b) ^ Nat.clog 2 (K a + 2)) enc encUnary :=
-    unary_pow_clog_const hK2 (2 ^ b) 2
   simpa only [log_two_add_one_add_one, ← pow_mul] using
-    computableInPolyTime_polarize_comp hx hlam hell hK
+    computableInPolyTime_polarize_comp hx (by fun_prop) (unary_pow_clog_const hK2 (2 ^ b) 2) hK
 
 /-- **The Polarization Lemma with a polynomial-time map** [SahaiVadhan2003, Lemma 3.3 and the
 remark after its proof], for constant thresholds `0 ≤ β < α² ≤ 1`. There are constants `m ≥ 1`
@@ -225,8 +226,7 @@ theorem exists_computableInPolyTime_polarize_length {α β : ℝ} (hβ : 0 ≤ �
         (α ≤ x.distance → 1 - (1 / 2) ^ ((encSDInstance x).length + 1) ≤ (f x).distance) ∧
         (x.distance ≤ β → (f x).distance ≤ (1 / 2) ^ ((encSDInstance x).length + 1)) := by
   obtain ⟨m, b, -, h⟩ := exists_computableInPolyTime_polarize hβ hβα hα hα1
-  obtain ⟨hf, hdist⟩ := h _ (encoding_length encSDInstance)
-  exact ⟨_, hf, hdist⟩
+  exact ⟨_, h _ (encoding_length encSDInstance)⟩
 
 end SDInstance
 

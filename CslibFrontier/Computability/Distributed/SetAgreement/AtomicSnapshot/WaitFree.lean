@@ -144,12 +144,9 @@ theorem proc_eq_of_other_event {P Data : Type*} [Fintype P] [DecidableEq P] (ord
     (h : stepSnapshot ord dInit s ev = some s') :
     s'.proc i = s.proc i := by
   obtain ⟨⟨ps, hproc⟩, -⟩ := stepSnapshot_effect h
-  have hij : i ≠ ev.actor := by
-    rcases ev with j | ⟨j, v⟩ | j <;> intro heq <;> subst heq
-    · exact hne.1 rfl
-    · exact hne.2.1 v rfl
-    · exact hne.2.2 rfl
-  rw [hproc, Function.update_of_ne hij]
+  rw [hproc, Function.update_of_ne]
+  rcases ev with j | ⟨j, v⟩ | j <;> rintro rfl
+  exacts [hne.1 rfl, hne.2.1 v rfl, hne.2.2 rfl]
 
 theorem remainingSteps_eq_of_other {P Data : Type*} [Fintype P] [DecidableEq P] (ord : ScanOrder P)
     (dInit : Data) {s s' : SnapshotState P Data} {ev : SnapshotEvent P Data} {i : P}
@@ -169,15 +166,11 @@ private theorem card_moved_lt_of_restart {P Data : Type*} [Fintype P] [Decidable
       #(st.moved ∪ univ.filter fun k => (st.collectAVal k).seq ≠ (st.collectBVal k).seq) := by
   push Not at hdirty
   obtain ⟨k₀, hk₀_ne⟩ := hdirty
-  have hk₀_not_moved : k₀ ∉ st.moved := by
-    have hnone := List.find?_eq_none.mp hfind k₀ (ord.complete k₀)
-    simp only [decide_eq_true_eq, not_and] at hnone; exact hnone hk₀_ne
+  have hk₀_not_moved : k₀ ∉ st.moved := fun hm =>
+    List.find?_eq_none.mp hfind k₀ (ord.complete k₀) (decide_eq_true ⟨hk₀_ne, hm⟩)
   have hsub : insert k₀ st.moved ⊆
-      st.moved ∪ univ.filter fun k => (st.collectAVal k).seq ≠ (st.collectBVal k).seq := by
-    intro x hx
-    rcases mem_insert.mp hx with rfl | hx
-    · exact mem_union_right _ (mem_filter.mpr ⟨mem_univ x, hk₀_ne⟩)
-    · exact mem_union_left _ hx
+      st.moved ∪ univ.filter fun k => (st.collectAVal k).seq ≠ (st.collectBVal k).seq :=
+    insert_subset (mem_union_right _ (mem_filter.mpr ⟨mem_univ k₀, hk₀_ne⟩)) subset_union_left
   calc #st.moved < #(insert k₀ st.moved) := by rw [card_insert_of_notMem hk₀_not_moved]; omega
     _ ≤ _ := card_le_card hsub
 
@@ -200,27 +193,24 @@ theorem remainingSteps_lt_of_step {P Data : Type*} [Fintype P] [DecidableEq P] (
       remainingRegOps, Nat.zero_lt_one, le_refl, and_self]
   | scanning st =>
     simp only [hpi] at h
-    cases hph : st.phase with
-    | collectA =>
-      cases hrem : st.rem with
-      | cons j rest =>
-        simp only [hph, hrem, Option.some.injEq] at h; subst h
+    cases hrem : st.rem with
+    | cons j rest =>
+      cases hph : st.phase
+      all_goals
+        simp only [hph, hrem, Option.some.injEq] at h
+        subst h
         simp only [isRegAccessStep, hpi, hrem, ↓reduceIte, Function.update_self,
           remainingSteps, remainingRegOps, hph, List.length_cons]
         cases st.mode <;> dsimp only <;> constructor <;> omega
-      | nil =>
-        simp only [hph, hrem, Option.some.injEq] at h; subst h
+    | nil =>
+      cases hph : st.phase with
+      | collectA =>
+        simp only [hph, hrem, Option.some.injEq] at h
+        subst h
         simp only [isRegAccessStep, hpi, hrem, Bool.false_eq_true, ↓reduceIte,
           Function.update_self, remainingSteps, remainingRegOps, hph, List.length_nil]
         cases st.mode <;> dsimp only <;> constructor <;> omega
-    | collectB =>
-      cases hrem : st.rem with
-      | cons j rest =>
-        simp only [hph, hrem, Option.some.injEq] at h; subst h
-        simp only [isRegAccessStep, hpi, hrem, ↓reduceIte, Function.update_self,
-          remainingSteps, remainingRegOps, hph, List.length_cons]
-        cases st.mode <;> dsimp only <;> constructor <;> omega
-      | nil =>
+      | collectB =>
         have hfinish : ∀ snap,
             finishScan s i st.mode st.opId snap = s' →
             remainingSteps ord (s'.proc i) < remainingSteps ord (.scanning st) ∧
@@ -242,8 +232,7 @@ theorem remainingSteps_lt_of_step {P Data : Type*} [Fintype P] [DecidableEq P] (
             set changed := univ.filter fun k => (st.collectAVal k).seq ≠ (st.collectBVal k).seq
             have hcard_lt : #st.moved < #(st.moved ∪ changed) :=
               card_moved_lt_of_restart ord st hclean hfind
-            have hcard_ub : #(st.moved ∪ changed) ≤ ord.elems.length := by
-              rw [ord.length_eq_card]; exact card_le_univ _
+            have hcard_ub := ord.length_eq_card.symm ▸ card_le_univ (st.moved ∪ changed)
             have hrem_lt : ord.elems.length - #(st.moved ∪ changed) + 1 ≤
                 ord.elems.length - #st.moved := by omega
             have hmul₁ := Nat.mul_le_mul_right (2 * ord.elems.length + 2) hrem_lt

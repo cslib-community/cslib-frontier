@@ -60,15 +60,11 @@ private theorem channelCache_append {Row : Type} {count : ℕ} (rows : List Row)
   funext index
   by_cases heq : index.val = rows.length
   · obtain rfl : index = ⟨rows.length, hlen⟩ := Fin.ext heq
-    rw [Function.update_self, List.getElem?_append_right le_rfl, Nat.sub_self]
-    rfl
+    simp
   · rw [Function.update_of_ne (fun h => heq (congrArg Fin.val h))]
     by_cases hlt : index.val < rows.length
     · exact List.getElem?_append_left hlt
-    · have hbefore : rows.length < index.val := lt_of_le_of_ne (Nat.le_of_not_gt hlt) (Ne.symm heq)
-      rw [List.getElem?_eq_none (Nat.le_of_lt hbefore), List.getElem?_eq_none]
-      simp only [List.length_append, List.length_singleton]
-      exact hbefore
+    · rw [List.getElem?_eq_none (Nat.le_of_not_gt hlt), List.getElem?_eq_none (by simp; omega)]
 
 private noncomputable def completeChannels {Row : Type} [Finite Row] (count : ℕ)
     (source : PMF Row) (rows : List Row) : PMF (Fin count → Row) :=
@@ -88,22 +84,19 @@ private theorem finiteStep {count width n : ℕ}
     List.ofFn (row (BitString.ofList width request.2))
   cases hrow : rows[request.1]? with
   | some row =>
-    have hindex : request.1 < rows.length := List.getElem?_eq_some_iff.mp hrow |>.choose
+    have hindex : request.1 < rows.length := (List.getElem?_eq_some_iff.mp hrow).choose
     have hcap : request.1 < count := by omega
-    have hallowed : request.1 < count ∧ request.1 ≤ rows.length := ⟨hcap, hindex.le⟩
-    have hnext : max rows.length (request.1 + 1) = rows.length := max_eq_left hindex
-    constructor
+    refine ⟨?_, fun reply next hmem => ?_⟩
     · simp only [cascadeChildChannelOracle, hrow, cascadeChildFiniteOracle,
-        dite_eq_left hallowed, hnext, PMF.pure_bind, PMF.pure_map]
+        dite_eq_left (And.intro hcap hindex.le), max_eq_left (Nat.succ_le_of_lt hindex),
+        PMF.pure_bind, PMF.pure_map]
       change _ = (completeChannels count source rows).map
-        (fun table => (table, respond (table ⟨request.1, hcap⟩), rows.length))
+        fun table => (table, respond (table ⟨request.1, hcap⟩), rows.length)
       refine PMF.map_congr_on_support _ _ _ fun table htable => ?_
-      have hvalue := RandomOracle.complete_agrees (fun _ : Fin count => source)
-        (fun index => rows[index.val]?) table htable ⟨request.1, hcap⟩ row hrow
-      rw [hvalue]
-    · intro reply next hmem
-      simp only [cascadeChildChannelOracle, hrow, PMF.mem_support_pure_iff] at hmem
-      have hlen := congrArg List.length (Prod.mk.inj hmem).2
+      rw [RandomOracle.complete_agrees (fun _ : Fin count => source)
+        (fun index => rows[index.val]?) table htable ⟨request.1, hcap⟩ row hrow]
+    · simp only [cascadeChildChannelOracle, hrow, PMF.mem_support_pure_iff] at hmem
+      have := congrArg List.length (Prod.mk.inj hmem).2
       omega
   | none =>
     by_cases hnew : request.1 = rows.length
@@ -112,39 +105,30 @@ private theorem finiteStep {count width n : ℕ}
       let cache : RandomOracle.Cache (fun _ : Fin count => BitString width → BitString n) :=
         fun index => rows[index.val]?
       have hmiss : cache index = none := List.getElem?_eq_none le_rfl
-      have hempty : rows[rows.length]? = (none : Option (BitString width → BitString n)) := hmiss
-      have hallowed : rows.length < count ∧ rows.length ≤ rows.length := ⟨hcap, le_rfl⟩
       have hread := RandomOracle.answer_complete (fun _ => source) cache index
       rw [RandomOracle.answer_of_none _ _ _ hmiss] at hread
-      have hread' := congrArg (PMF.map fun
-        (entry : (BitString width → BitString n) × (Fin count → BitString width → BitString n)) =>
-        (entry.2, respond entry.1, rows.length + 1)) hread
-      constructor
-      · simp only [cascadeChildChannelOracle, hnew, hempty, ↓reduceIte, PMF.bind_map,
-          cascadeChildFiniteOracle, dite_eq_left hallowed, max_eq_right (Nat.le_succ _),
-          PMF.pure_map, List.length_append, List.length_singleton, Function.comp_def,
-          completeChannels, channelCache_append rows _ hcap]
-        simpa only [pmf_norm, cache, index, respond, PMF.map] using hread'
-      · intro reply next hmem
-        simp only [cascadeChildChannelOracle, hnew, hempty, ↓reduceIte, PMF.mem_support_map_iff]
-          at hmem
+      refine ⟨?_, fun reply next hmem => ?_⟩
+      · simp only [cascadeChildChannelOracle, hnew, show rows[rows.length]? = none from hmiss,
+          ↓reduceIte, PMF.bind_map, cascadeChildFiniteOracle, dite_eq_left (And.intro hcap le_rfl),
+          max_eq_right (Nat.le_succ _), PMF.pure_map, List.length_append, List.length_singleton,
+          Function.comp_def, completeChannels, channelCache_append rows _ hcap]
+        simpa only [pmf_norm, cache, index, respond, PMF.map] using congrArg (PMF.map fun
+          (e : (BitString width → BitString n) × (Fin count → BitString width → BitString n)) =>
+          (e.2, respond e.1, rows.length + 1)) hread
+      · simp only [cascadeChildChannelOracle, hnew, show rows[rows.length]? = none from hmiss,
+          ↓reduceIte, PMF.mem_support_map_iff] at hmem
         obtain ⟨row, _, heq⟩ := hmem
         have hlen := congrArg List.length (Prod.mk.inj heq).2
-        simp only [List.length_append, List.length_singleton] at hlen
+        simp only [List.length_append, List.length_singleton] at hlen; omega
+    · have hskip : ¬ (request.1 < count ∧ request.1 ≤ rows.length) := by
+        have := List.getElem?_eq_none_iff.mp hrow
         omega
-    · have hindex : rows.length < request.1 := by
-        have hle := List.getElem?_eq_none_iff.mp hrow
-        omega
-      have hskip : ¬ (request.1 < count ∧ request.1 ≤ rows.length) :=
-        fun h => hindex.not_ge h.2
-      constructor
-      · simp [cascadeChildChannelOracle, hrow, hnew, cascadeChildFiniteOracle, hskip, PMF.map,
-          Function.comp_def]
-      · intro reply next hmem
-        simp only [cascadeChildChannelOracle, hrow, hnew, ↓reduceIte, PMF.mem_support_pure_iff]
-          at hmem
-        have hlen := congrArg List.length (Prod.mk.inj hmem).2
-        omega
+      refine ⟨by simp [cascadeChildChannelOracle, hrow, hnew, cascadeChildFiniteOracle, hskip,
+        PMF.map, Function.comp_def], fun reply next hmem => ?_⟩
+      simp only [cascadeChildChannelOracle, hrow, hnew, ↓reduceIte, PMF.mem_support_pure_iff]
+        at hmem
+      have := congrArg List.length (Prod.mk.inj hmem).2
+      omega
 
 /-- At most `count` child queries can consume at most `count` independent functions.
 Drawing all of them up front preserves the output distribution, including adaptive calls,
@@ -155,13 +139,11 @@ theorem runWith_cascadeChildChannelOracle_eq_finite {α : Type} {count width n :
     (ProbOracleComp.runWith (cascadeChildChannelOracle source) program []).map Prod.fst =
       (PMF.pi (fun _ : Fin count => source)).bind fun table =>
         (ProbOracleComp.runWith (cascadeChildFiniteOracle table) program 0).map Prod.fst := by
-  have h := (hbudget.run_interpret_bind_comm_of_invariant
-    (cascadeChildChannelOracle source) (fun table => cascadeChildFiniteOracle table)
-    (completeChannels count source) List.length (fun rem rows => rows.length + rem ≤ count)
-    (fun rem rows h => by omega) (finiteStep source)
-    (s := []) (by simp)).1
-  have hmap := congrArg (PMF.map (fun output : (Fin count → BitString width → BitString n) ×
-    α × ℕ => output.2.1)) h
+  have hmap := congrArg (PMF.map fun output : (Fin count → BitString width → BitString n) ×
+    α × ℕ => output.2.1) (hbudget.run_interpret_bind_comm_of_invariant
+      (cascadeChildChannelOracle source) (fun table => cascadeChildFiniteOracle table)
+      (completeChannels count source) List.length (fun rem rows => rows.length + rem ≤ count)
+      (fun _ _ h => by omega) (finiteStep source) (s := []) (by simp)).1
   simp only [PMF.map_bind, PMF.map_comp, Function.comp_def,
     ← ProbOracleComp.runWith_eq_run_interpret] at hmap
   change (ProbOracleComp.runWith (cascadeChildChannelOracle source) program []).bind

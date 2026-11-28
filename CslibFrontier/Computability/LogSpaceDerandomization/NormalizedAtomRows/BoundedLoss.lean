@@ -30,22 +30,19 @@ variable (HP : FourthRootHierarchyParams 16 1 16 32 8)
 /-- The hierarchy scalar cap is strictly positive. -/
 @[positivity_lemma]
 lemma cap_pos : 0 < HP.toHierarchyParams.atomCap := by
-  have h := HP.toHierarchyParams.atomCap_gt
-  have h0 := Nat.cast_nonneg (α := ℝ) HP.k
-  exact lt_trans (by positivity : (0:ℝ) < (HP.k:ℝ)+1)
-    ((le_max_left _ _).trans_lt h)
+  exact lt_trans (by positivity : (0 : ℝ) < (HP.k : ℝ) + 1)
+    ((le_max_left _ _).trans_lt HP.toHierarchyParams.atomCap_gt)
 
 /-- Scalar caps preserve the exact normalized output, including its closed rank gate. -/
 lemma output_upperCapped (ζ d v r : ℝ) :
     output HP ζ d v r = output HP ζ (min HP.toHierarchyParams.atomCap d) v
       (min HP.toHierarchyParams.atomCap r) := by
   let T := HP.toHierarchyParams.atomCap
-  have hT := cap_pos HP
   have hgate : HP.η₂ ≤ T := by
     have h := HP.toHierarchyParams.atomCap_gt
     have hmargin := threshold_margin HP
     dsimp only [T]
-    linarith [le_max_right ((HP.k:ℝ)+1) HP.θ₂, HP.θ_lt_θ₂]
+    linarith [cap_pos HP, le_max_right ((HP.k : ℝ) + 1) HP.θ₂, HP.θ_lt_θ₂]
   have he : HP.toHierarchyParams.atomCutoff d = HP.toHierarchyParams.atomCutoff (min T d) := by
     grind [HierarchyParams.atomCutoff, min_self]
   by_cases hr : r ≤ T
@@ -71,8 +68,8 @@ theorem boundedLoss_root_bound {ζ : ℝ} (hζ : 0 < ζ) :
   have hT : 0 < T := cap_pos HP
   have hB : 0 ≤ B := by dsimp only [B]; positivity
   have hR : 0 ≤ R := Real.rpow_nonneg (HP.Q_nonneg _) _
-  refine ⟨4*R+L*(2*B+1), by positivity, ?_⟩
-  intro ι s z truth raw loss hfirst hloss ε hε herr y hy
+  refine ⟨4*R+L*(2*B+1), by positivity,
+    fun {ι} s z truth raw loss hfirst hloss ε hε herr y hy => ?_⟩
   by_cases hs : ε ≤ 1/2
   · have he (x : ι) (hx : x ∈ s) := abs_sub_le_of_clippedError_le
       (hfirst x hx) (by linarith : ε < 1) (herr x hx)
@@ -89,19 +86,16 @@ theorem boundedLoss_root_bound {ζ : ℝ} (hζ : 0 < ζ) :
         (abs_kthLargest_sub_kthLargest_le (rank_pos HP) (mul_nonneg hB hε) hc))
     unfold stateRootError
     rw [output_upperCapped HP, output_upperCapped HP ζ ((truth+loss) y 0)]
-    apply (hroot _ _ _ _ _ _).trans
+    refine (hroot _ _ _ _ _ _).trans ?_
     have hv : |(raw+loss) y 1-(truth+loss) y 1| ≤ ε := by
       simpa only [Pi.add_apply, add_sub_add_right_eq_sub] using (he y hy).2
-    have hh := mul_le_mul_of_nonneg_left (add_le_add (add_le_add (hc y hy) hv) hq) hL
-    nlinarith [mul_nonneg hR hε]
-  · have ha := root_range HP ζ ((raw+loss) y 0) ((raw+loss) y 1) (firstRank s HP.K z (raw+loss))
-    have hb := root_range HP ζ ((truth+loss) y 0) ((truth+loss) y 1) (firstRank s HP.K z
-      (truth+loss))
-    change 0 ≤ _ ∧ _ ≤ 2*R at ha hb
-    have hh : |stateRootError (output HP ζ) s HP.K ⟨z,raw+loss⟩ ⟨z,truth+loss⟩ y| ≤ 2*R :=
-      abs_sub_le_iff.mpr ⟨by linarith, by linarith⟩
-    apply hh.trans
-    have he : 1/2 < ε := not_le.mp hs
-    nlinarith [mul_nonneg (by positivity : 0 ≤ L*(2*B+1)) hε]
+    nlinarith [mul_le_mul_of_nonneg_left (add_le_add (add_le_add (hc y hy) hv) hq) hL,
+      mul_nonneg hR hε]
+  · have ha : (0 : ℝ) ≤ _ ∧ _ ≤ 2 * R :=
+      root_range HP ζ ((raw+loss) y 0) ((raw+loss) y 1) (firstRank s HP.K z (raw+loss))
+    have hb : (0 : ℝ) ≤ _ ∧ _ ≤ 2 * R :=
+      root_range HP ζ ((truth+loss) y 0) ((truth+loss) y 1) (firstRank s HP.K z (truth+loss))
+    refine (abs_sub_le_iff.mpr ⟨by linarith, by linarith⟩ : _ ≤ 2 * R).trans ?_
+    nlinarith [not_le.mp hs, mul_nonneg (by positivity : 0 ≤ L * (2 * B + 1)) hε]
 
 end Matrix.FourthRootHierarchyParams.NormalizedRow

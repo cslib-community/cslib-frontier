@@ -24,6 +24,8 @@ map separately compute.
 * `List.getElem?_filterMap_of_forall_isSome`, `List.take_filterMap_of_forall_isSome`: when `f` is
   defined on every element, `filterMap f` preserves positions, so it commutes with indexing and
   with `take`.
+* `List.sum_map_filterMap_le`: a sum over the values of `filterMap f` is at most a sum over the
+  list that bounds every value.
 -/
 
 public section
@@ -63,5 +65,17 @@ theorem take_filterMap_of_forall_isSome {α β : Type*} {f : α → Option β} :
     | succ r =>
       rw [filterMap_cons_some hb, take_succ_cons, take_succ_cons, filterMap_cons_some hb,
         take_filterMap_of_forall_isSome (fun v hv => h v (mem_cons_of_mem _ hv)) r]
+
+/-- A sum over the values of `filterMap f` is at most a sum over the list when every value `b` of
+`f a` has `C b ≤ D a`. -/
+theorem sum_map_filterMap_le {α β : Type*} {f : α → Option β} {C : β → ℕ} {D : α → ℕ}
+    (h : ∀ a b, f a = some b → C b ≤ D a) (l : List α) :
+    ((l.filterMap f).map C).sum ≤ (l.map D).sum := by
+  induction l with
+  | nil => simp
+  | cons a l ih =>
+    cases hf : f a with
+    | none => simpa [filterMap_cons, hf] using ih.trans (Nat.le_add_left _ _)
+    | some b => simpa [filterMap_cons, hf] using Nat.add_le_add (h a b hf) ih
 
 end List

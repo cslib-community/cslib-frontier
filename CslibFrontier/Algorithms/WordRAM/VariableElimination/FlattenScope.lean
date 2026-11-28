@@ -44,10 +44,8 @@ theorem length_le_foldr_dedupStepPure (x : ℕ) :
     ∀ (ys acc : List ℕ), acc.length ≤ (ys.foldr (dedupStepPure x) acc).length
   | [], acc => le_rfl
   | v :: rest, acc => by
-    simp only [List.foldr_cons]
-    refine (length_le_foldr_dedupStepPure x rest acc).trans ?_
-    unfold dedupStepPure
-    split_ifs <;> simp
+    simp only [List.foldr_cons, dedupStepPure]
+    split_ifs <;> exact (length_le_foldr_dedupStepPure x rest acc).trans (by simp)
 
 private theorem filter_dedup_eq_foldr (x : ℕ) :
     ∀ (xs : List ℕ), (xs.dedup.filter fun v => decide (v ≠ x)) = xs.foldr (dedupStepPure x) []
@@ -101,25 +99,20 @@ theorem sumScopeLen_valid {w : ℕ} {args : SumScopeArgs} {bucket : List (Factor
     {s : Memory.State} (hb : HoldsFactorList args.bucketPtr bucket s)
     (hlen : bucket.length = args.bucketLen) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (sumScopeLen args)) := by
-  unfold sumScopeLen
+  rw [sumScopeLen, ← hlen]
   refine validHistory_bind_step ?_ (validHistory_pure w _ _)
-  rw [← hlen]
   suffices ∀ (fs : List (FactorTable ℕ ℕ)) (cur acc : ℕ), HoldsFactorList cur fs s →
       (Memory.spec w).ValidHistory s
         ((Memory.spec w).clientHistory s (iterate sumScopeStep () fs.length (cur, acc))) from
     this bucket args.bucketPtr 0 hb
   intro fs
   induction fs with
-  | nil => intro _ _ _; exact validHistory_pure w s _
+  | nil => exact fun _ _ _ => validHistory_pure w s _
   | cons f rest ih =>
-    intro cur acc ⟨hf, hrest⟩
-    have hlt : cur + 1 < s.frontier := by have := hf.1; omega
-    change (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s
-        (sumScopeStep ((), (cur, acc)) >>= iterate sumScopeStep () rest.length))
-    refine validHistory_bind_step
-      (validHistory_read_bind hlt (validHistory_pure w s _)) ?_
-    exact ih (cur + 4) (acc + s.mem (cur + 1)) hrest
+    exact fun cur acc ⟨hf, hrest⟩ => validHistory_bind_step
+      (validHistory_read_bind (Nat.lt_of_lt_of_le (by omega : cur + 1 < cur + 4) hf.1)
+        (validHistory_pure w s _))
+      (ih (cur + 4) (acc + s.mem (cur + 1)) hrest)
 
 theorem sumScopeLen_result {args : SumScopeArgs} {bucket : List (FactorTable ℕ ℕ)}
     {s : Memory.State} (hb : HoldsFactorList args.bucketPtr bucket s)
@@ -134,18 +127,11 @@ theorem sumScopeLen_result {args : SumScopeArgs} {bucket : List (FactorTable ℕ
     simpa using this bucket args.bucketPtr 0 hb
   intro fs
   induction fs with
-  | nil => intro cur acc _; change acc = acc + 0; simp
+  | nil => exact fun cur acc _ => (Nat.add_zero acc).symm
   | cons f rest ih =>
-    intro cur acc ⟨hf, hrest⟩
-    change ((Memory.spec 0).clientResult s
-      (sumScopeStep ((), (cur, acc)) >>= iterate sumScopeStep () rest.length)).2 = _
-    rw [StateTransitionSpec.clientResult_bind]
-    have hst : (Memory.spec 0).clientState s (sumScopeStep ((), (cur, acc))) = s := rfl
-    have hres : (Memory.spec 0).clientResult s (sumScopeStep ((), (cur, acc))) =
-        (cur + 4, acc + f.scope.length) := by
-      change (cur + 4, acc + s.mem (cur + 1)) = _
-      rw [hf.2.1]
-    rw [hst, hres, ih (cur + 4) _ hrest, List.flatMap_cons, List.length_append, Nat.add_assoc]
+    rintro cur acc ⟨hf, hrest⟩
+    erw [StateTransitionSpec.clientResult_bind, ih (cur + 4) (acc + s.mem (cur + 1)) hrest]
+    rw [hf.2.1, List.flatMap_cons, List.length_append, Nat.add_assoc]
 
 theorem sumScopeLen_realizes :
     Realizes .exact sumScopeLen WordEncoding.encode WordEncoding.encode
@@ -159,22 +145,17 @@ theorem sumScopeLen_realizes :
   refine iterationSafe_of_stepInv _ _ w d
     (fun j st t => t = s ∧ ∃ rem, rem.length = j ∧ HoldsFactorList st.1 rem s ∧
       st.2 + (rem.flatMap FactorTable.scope).length = (bucket.flatMap FactorTable.scope).length)
-    (fun j st t ⟨ht, rem, hrem_l, hrem_h, hsum⟩ => ?_)
+    (fun j st _ ⟨rfl, rem, hrem_l, hrem_h, hsum⟩ => ?_)
     ⟨rfl, bucket, hlen, hb, Nat.zero_add _⟩
-  subst t
   dsimp only
   rcases rem with _ | ⟨f, rest⟩
   · simp at hrem_l
-  simp only [List.length_cons, Nat.add_right_cancel_iff] at hrem_l
+  simp only [List.length_cons, Nat.add_right_cancel_iff, List.flatMap_cons, List.length_append]
+    at hrem_l hsum
   obtain ⟨hf, hrest⟩ := hrem_h
-  simp only [List.flatMap_cons, List.length_append] at hsum
-  refine ⟨?_, rfl, rest, hrem_l, hrest, ?_⟩
-  · exact ⟨hmem.frontier_fits.of_le (by have := hf.1; omega),
-      hmem.frontier_fits.of_le hf.1,
-      hfit_K.of_le (by rw [hf.2.1]; omega)⟩
-  · change (st.2 + s.mem (st.1 + 1)) + (rest.flatMap FactorTable.scope).length = _
-    rw [hf.2.1]
-    omega
+  exact ⟨⟨hmem.frontier_fits.of_le (by have := hf.1; omega), hmem.frontier_fits.of_le hf.1,
+    hfit_K.of_le (by rw [hf.2.1]; omega)⟩, rfl, rest, hrem_l, hrest,
+    Nat.add_assoc .. ▸ hf.2.1 ▸ hsum⟩
 
 /-- Arguments for concatenating all bucket scopes into a scratch buffer. -/
 structure FlattenArgs where
@@ -220,7 +201,6 @@ theorem flattenScopes_spec {w : ℕ} {args : FlattenArgs} {bucket : List (Factor
       res = s.frontier ∧
       HoldsIn res (bucket.flatMap FactorTable.scope) s' ∧
       memoryCost (flattenScopes args) s ≤ 1 + args.bucketLen * (2 + 2 * maxScope) := by
-  dsimp only
   unfold flattenScopes
   have hloop : ∀ (rem : List (FactorTable ℕ ℕ)) (cur : ℕ) (acc : List ℕ) (t : Memory.State),
       Memory.WellFormed w t → t.frontier = s.frontier + args.flatLen →
@@ -234,16 +214,14 @@ theorem flattenScopes_spec {w : ℕ} {args : FlattenArgs} {bucket : List (Factor
         t'.frontier = s.frontier + args.flatLen ∧ PreservesBelow s.frontier s t' ∧
         Block.HoldsList s.frontier (acc ++ rem.flatMap FactorTable.scope) t'.mem ∧
         memoryCost p t ≤ rem.length * (2 + 2 * maxScope) := by
-    intro rem
-    induction rem with
+    intro rem cur acc t hwf_t hfr hpres hfl hmax_r hlen_eq hacc
+    induction rem generalizing cur acc t with
     | nil =>
-      intro cur acc t _ hfr hpres _ _ _ hacc
       simp only [List.length_nil, List.flatMap_nil, List.append_nil, Nat.zero_mul]
       exact ⟨validHistory_pure w t _, hfr, hpres, hacc, by simp [iterate]⟩
     | cons f rest ih =>
-      intro cur acc t hwf_t hfr hpres ⟨hf, hrest⟩ hmax_r hlen_eq hacc
+      obtain ⟨⟨hd, hsl, hel, hsc, _⟩, hrest⟩ := hfl
       simp only [List.flatMap_cons, List.length_append] at hlen_eq
-      obtain ⟨hd, hsl, hel, hsc, _⟩ := hf
       have hm0 : t.mem cur = s.mem cur := hpres.2.2 _ (by omega)
       have hm1 : t.mem (cur + 1) = f.scope.length := (hpres.2.2 _ (by omega)).trans hsl
       obtain ⟨hcw_val, hcw_fr, hcw_pres, hcw_holds⟩ :=
@@ -253,41 +231,29 @@ theorem flattenScopes_spec {w : ℕ} {args : FlattenArgs} {bucket : List (Factor
           (by dsimp only; rw [hm1]; omega)
       have hcc := copyWords_cost ⟨t.mem cur, s.frontier + acc.length, t.mem (cur + 1)⟩ t
       have hfm := hmax_r f (List.mem_cons_self ..)
-      dsimp only at hcc
-      -- One step reads the scope descriptor and copies the scope to the end of the buffer.
-      obtain ⟨hst, hres, hval, hcost⟩ :
-          let step := flattenStep ((), (cur, s.frontier + acc.length))
-          (Memory.spec 0).clientState t step = (Memory.spec 0).clientState t
-            (copyWords ⟨t.mem cur, s.frontier + acc.length, t.mem (cur + 1)⟩) ∧
-          (Memory.spec 0).clientResult t step = (cur + 4, s.frontier + (acc ++ f.scope).length) ∧
-          (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t step) ∧
-          memoryCost step t ≤ 2 + 2 * maxScope := by
-        simp only [flattenStep]
-        rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-          memoryCost_bind', memoryCost_read, clientState_read, clientResult_read,
-          StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-          memoryCost_bind', memoryCost_read, clientState_read, clientResult_read,
-          StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-          memoryCost_bind', StateTransitionSpec.clientState_pure,
-          StateTransitionSpec.clientResult_pure, memoryCost_pure]
-        refine ⟨rfl, by rw [List.length_append, hm1, Nat.add_assoc],
-          validHistory_read_bind (by omega) (validHistory_read_bind (by omega)
-            (validHistory_bind_step hcw_val (validHistory_pure w _ _))), by omega⟩
-      have hiter : iterate flattenStep () (f :: rest).length (cur, s.frontier + acc.length) =
-          flattenStep ((), (cur, s.frontier + acc.length)) >>=
-            iterate flattenStep () rest.length := rfl
       obtain ⟨hv_i, hfr_i, hpres_i, hholds_i, hcost_i⟩ :=
         ih (cur + 4) (acc ++ f.scope) _ (wellFormed_clientState hwf_t hcw_val) (hcw_fr.trans hfr)
           (hpres.trans (hcw_pres.mono_bound (Nat.le_add_right _ _))) hrest
           (fun g hg => hmax_r g (List.mem_cons_of_mem f hg)) (by rw [List.length_append]; omega)
           (Block.holdsList_append_iff.mpr
             ⟨hacc.frame fun a _ hhi => hcw_pres.2.2 a hhi, hcw_holds⟩)
-      dsimp only
-      rw [hiter, validHistory_bind', StateTransitionSpec.clientState_bind, memoryCost_bind', hst,
-        hres]
-      simp only [List.flatMap_cons, ← List.append_assoc, List.length_cons]
-      rw [Nat.add_one_mul]
-      exact ⟨⟨hval, hv_i⟩, hfr_i, hpres_i, hholds_i, by omega⟩
+      -- One step reads the scope descriptor and copies the scope to the end of the buffer.
+      have hnext : s.frontier + acc.length + t.mem (cur + 1) =
+          s.frontier + (acc ++ f.scope).length := by
+        rw [List.length_append, hm1, Nat.add_assoc]
+      dsimp only [List.length_cons, iterate]
+      rw [validHistory_bind', StateTransitionSpec.clientState_bind, memoryCost_bind']
+      dsimp only [flattenStep]
+      rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read,
+        memoryCost_bind', memoryCost_read, clientState_read, clientResult_read,
+        memoryCost_bind', memoryCost_pure, clientState_bind_read, clientState_bind_read,
+        StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure,
+        clientResult_bind_read, clientResult_bind_read, StateTransitionSpec.clientResult_bind,
+        StateTransitionSpec.clientResult_pure, hnext, Nat.add_one_mul]
+      simp only [List.flatMap_cons, ← List.append_assoc]
+      exact ⟨⟨validHistory_read_bind (by omega) (validHistory_read_bind (by omega)
+        (validHistory_bind_step hcw_val (validHistory_pure w _ _))), hv_i⟩,
+        hfr_i, hpres_i, hholds_i, by dsimp only at hcc; omega⟩
   obtain ⟨hv_l, hfr_l, hpres_l, hholds_l, hcost_l⟩ :=
     hloop bucket args.bucketPtr [] ⟨s.mem, s.frontier + args.flatLen⟩
       (hwf.step (o := .allocDirty args.flatLen) hfit) rfl
@@ -320,35 +286,26 @@ theorem flattenScopes_realizes :
       ∃ rem, rem.length = j ∧ HoldsFactorList st.1 rem s ∧
         st.2 + (rem.flatMap FactorTable.scope).length = s.frontier + d.flatLen)
     (fun j st t ⟨hfr, hpres, hdst_lo, rem, hrem_l, hrem_h, hsum⟩ => ?_)
-    ⟨rfl, ⟨le_rfl, Nat.le_add_right _ _, fun _ _ => rfl⟩, le_rfl, bucket, hlen, hb,
-      by rw [hflat]⟩
+    ⟨rfl, ⟨le_rfl, Nat.le_add_right _ _, fun _ _ => rfl⟩, le_rfl, bucket, hlen, hb, hflat ▸ rfl⟩
   dsimp only
   rcases rem with _ | ⟨f, rest⟩
   · simp at hrem_l
   simp only [List.length_cons, Nat.add_right_cancel_iff] at hrem_l
   simp only [List.flatMap_cons, List.length_append] at hsum
-  obtain ⟨hf, hrest⟩ := hrem_h
-  obtain ⟨hd, hsl, hel, hsc, _⟩ := hf
+  obtain ⟨⟨hd, hsl, hel, hsc, _⟩, hrest⟩ := hrem_h
   have hm0 : t.mem st.1 = s.mem st.1 := hpres.2.2 _ (by omega)
-  have hm1 : t.mem (st.1 + 1) = s.mem (st.1 + 1) := hpres.2.2 _ (by omega)
-  refine ⟨?_, ?_⟩
-  · refine ⟨hfit.of_le (by omega),
-      ⟨hfit.of_le (by rw [hm0, hm1, hsl]; have := hsc.1; omega),
-       hfit.of_le (by rw [hm1, hsl]; omega)⟩,
-      hfit.of_le (by omega), hfit.of_le (by rw [hm1, hsl]; omega)⟩
-  · unfold flattenStep
-    dsimp only
-    rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-      clientState_read, clientResult_read, StateTransitionSpec.clientState_bind,
-      StateTransitionSpec.clientResult_bind, clientState_read, clientResult_read,
-      StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-      StateTransitionSpec.clientState_pure, StateTransitionSpec.clientResult_pure]
-    obtain ⟨hcw_fr, hcw_mem⟩ := copyWords_frame ⟨t.mem st.1, st.2, t.mem (st.1 + 1)⟩ t
-    refine ⟨hcw_fr.trans hfr, ?_, by dsimp only; omega, rest, hrem_l, hrest, ?_⟩
-    · exact ⟨le_rfl, by rw [hcw_fr]; exact hpres.2.1, fun a ha =>
-        (hcw_mem a (lt_of_lt_of_le ha hdst_lo)).trans (hpres.2.2 a ha)⟩
-    · dsimp only
-      rw [hm1, hsl]
-      omega
+  have hm1 : t.mem (st.1 + 1) = f.scope.length := (hpres.2.2 _ (by omega)).trans hsl
+  have hfit1 : Fits w (st.2 + t.mem (st.1 + 1)) := hm1 ▸ hfit.of_le (by omega)
+  refine ⟨⟨hfit.of_le (by omega),
+    ⟨hm0 ▸ hm1 ▸ hfit.of_le (hsc.1.trans (Nat.le_add_right _ _)), hfit1⟩,
+    hfit.of_le (by omega), hfit1⟩, ?_⟩
+  dsimp only [flattenStep]
+  rw [clientState_bind_read, clientState_bind_read, StateTransitionSpec.clientState_bind,
+    StateTransitionSpec.clientState_pure, clientResult_bind_read, clientResult_bind_read,
+    StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
+  obtain ⟨hcw_fr, hcw_mem⟩ := copyWords_frame ⟨t.mem st.1, st.2, t.mem (st.1 + 1)⟩ t
+  exact ⟨hcw_fr.trans hfr, ⟨le_rfl, hcw_fr.symm ▸ hpres.2.1, fun a ha =>
+    (hcw_mem a (lt_of_lt_of_le ha hdst_lo)).trans (hpres.2.2 a ha)⟩, by dsimp only; omega, rest,
+    hrem_l, hrest, Nat.add_assoc .. ▸ hm1.symm ▸ hsum⟩
 
 end Cslib.Algorithms.WordRAM.VariableElimination

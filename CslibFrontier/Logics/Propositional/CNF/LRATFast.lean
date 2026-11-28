@@ -7,15 +7,15 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
-public import CslibFrontier.Logics.Propositional.CNF.LRAT
+public import CslibFrontier.Logics.Propositional.CNF.LRATRat
 import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Foundations.Data.Array.SetGrow
 
 /-! # An array-based LRAT checker
 
-`Cslib.Logic.PL.CNF.checkLRAT` is the reference LRAT checker: it is written for the kernel, with
-lists and structural recursion, so looking up a hinted clause and testing whether a literal is
-false each search a list. The hints of an LRAT certificate
+`Cslib.Logic.PL.CNF.checkLRATRat` is the reference LRAT checker with RAT steps: it is written for
+the kernel, with lists and structural recursion, so looking up a hinted clause and testing whether
+a literal is false each search a list. The hints of an LRAT certificate
 [Cruz-Filipe et al.][CruzFilipeHeuleHuntKaufmannSchneiderKamp2017] let a checker visit only the
 clauses they name; `Cslib.Logic.PL.CNF.checkLRATFast` checks the same certificates with arrays:
 
@@ -30,17 +30,26 @@ trail is a list of literals, which holds both polarities of a variable when the 
 contains both: such a variable makes both of its literals false. An array of `Option Bool`
 indexed by variable cannot express that state, an array of marks indexed by literal can.
 
-It accepts the fragment `checkLRAT` accepts: RUP additions, empty-clause steps and deletions.
-RAT additions, which the general LRAT format allows, are rejected unless an accepted empty-clause
-step comes first.
+RAT additions are checked by `Cslib.Logic.PL.CNF.ratWith`, the check of `checkLRATRat`, reading
+clauses from the array and testing every stored clause by a pass over the array. A RAT step thus
+takes time proportional to the size of the database, as in the algorithm of Cruz-Filipe et al.,
+and keeps its trail in a list; solvers emit few RAT steps.
 
-The checker agrees with `checkLRAT` on every formula and certificate
-(`Cslib.Logic.PL.CNF.checkLRATFast_eq_checkLRAT`), so it is sound
-(`Cslib.Logic.PL.CNF.not_satisfiable_of_checkLRATFast`). It is also complete: rewriting
-`Cslib.Algorithms.Lean.DPLL.exists_checkLRAT_iff` with `checkLRATFast_eq_checkLRAT` shows that a
-formula has a certificate this checker accepts exactly when it is unsatisfiable.
+The checker agrees with `checkLRATRat` on every formula and certificate
+(`Cslib.Logic.PL.CNF.checkLRATFast_eq_checkLRATRat`), so it is sound
+(`Cslib.Logic.PL.CNF.not_satisfiable_of_checkLRATFast`) and accepts every certificate that
+`checkLRAT` accepts. It is also complete: rewriting
+`Cslib.Algorithms.Lean.DPLL.exists_checkLRATRat_iff` with `checkLRATFast_eq_checkLRATRat` shows
+that a formula has a certificate this checker accepts exactly when it is unsatisfiable.
 
-It is the checker for compiled and interpreted code. The kernel's `Array` wraps a list, so the
+It is the checker for compiled and interpreted code. No library code calls it since `lrat_tauto`
+stopped checking its trimmed certificates, whose acceptance is now proved
+(`Cslib.Logic.PL.CNF.checkLRAT_renumberCert_trimCert`); it is kept for compiled checking of large
+certificates, such as the LRAT file checker planned in
+[#8790](https://github.com/cslib-community/cslib-frontier/issues/8790). On 2026-11-26,
+compiled, `checkLRATKernel` took 4.4 to 6.0 times as long on the CDCL solver's certificates for
+PHP(7, 6), PHP(8, 7) and unsatisfiable random 3-CNFs of 150 and 200 variables (on 118705 steps,
+2.73 s against 0.49 s). The kernel's `Array` wraps a list, so the
 kernel cannot evaluate it efficiently: for kernel reduction, `decide` uses
 `Cslib.Logic.PL.CNF.checkLRATKernel`, which checks the same certificates with a binary trie and a
 bitmask. Each wins in its own setting. Measured on one machine with the two checkers alternating
@@ -53,8 +62,7 @@ milestone 4):
   against 0.9 s), and 2 to 7 times as long on the trimmed certificates of `lrat_tauto`'s benchmark
   families. Almost half of its time is `Nat.testBit` on the bitmask, which is a multi-word number
   once there are more than about 30 variables;
-* interpreted, as in `lrat_tauto`'s check of its trimmed certificate, `checkLRATKernel` takes 1.8 to
-  4 times as long on those families;
+* interpreted, `checkLRATKernel` takes 1.8 to 4 times as long on those families;
 * in the kernel (`decide +kernel`), `checkLRATFast` took 62.8 s on `lrat_tauto`'s certificate for
   the chain of 80 implications, against 0.67 s for `checkLRATKernel` and 6.8 s for `checkLRAT`, and
   exceeded 14 GB of memory on those for `dist 5`, `iff 5`, `php 4` and `php 5`, which
@@ -73,7 +81,7 @@ or mentions a very large variable, allocates an array of that length.
 
 ## Main results
 
-* `Cslib.Logic.PL.CNF.checkLRATFast_eq_checkLRAT`: it agrees with `checkLRAT`.
+* `Cslib.Logic.PL.CNF.checkLRATFast_eq_checkLRATRat`: it agrees with `checkLRATRat`.
 * `Cslib.Logic.PL.CNF.not_satisfiable_of_checkLRATFast`: it is sound.
 
 ## References
@@ -118,6 +126,21 @@ private theorem getD_deleteAll (db : Array (Option (Clause ℕ))) (ids : List �
     simp only [deleteAll, List.foldl_cons] at ih ⊢
     rw [ih, Array.getD_setIfInBounds_self]
     by_cases h : n = i <;> simp [h]
+
+/-- Whether `f n c` holds for every clause `c` stored under a number `n`. -/
+private def allArray (db : Array (Option (Clause ℕ))) (f : ℕ → Clause ℕ → Bool) : Bool :=
+  (List.range db.size).all fun n => (db.getD n none).all (f n)
+
+private theorem allArray_eq_true (db : Array (Option (Clause ℕ))) (f : ℕ → Clause ℕ → Bool) :
+    allArray db f = true ↔ ∀ n c, db.getD n none = some c → f n c = true := by
+  refine ⟨fun h n c hc => ?_, fun h => List.all_eq_true.2 fun n _ => ?_⟩
+  · have hn : n < db.size := by
+      by_contra hn
+      simp [Array.getD, hn] at hc
+    simpa [hc] using List.all_eq_true.1 h n (List.mem_range.2 hn)
+  · cases hc : db.getD n none with
+    | none => rfl
+    | some c => simpa using h n c hc
 
 /-! ### Assignments -/
 
@@ -166,8 +189,8 @@ private theorem isTrue_unassign (asg : Array Bool) (ls : List (Literal ℕ)) (l'
     simp only [unassign, List.foldl_cons] at ih ⊢
     rw [ih, List.contains_cons]
     simp only [isTrue, Array.getD_setIfInBounds_self, litIdx_inj]
-    by_cases h : l' = l
-    · simp [h]
+    rcases eq_or_ne l' l with rfl | h
+    · simp
     · simp [h, beq_eq_false_iff_ne.mpr h]
 
 /-! ### The checker -/
@@ -198,14 +221,18 @@ private def checkLRATFastAux :
     let neg := cl.map Std.Sat.Literal.negate
     let r := propagateFast db (assignAll asg neg) neg hints.toList
     r.1 && checkLRATFastAux (Array.setGrow db id none (some cl)) r.2 rest
-  | _, _, .addRat .. :: _ => false
+  | db, asg, .addRat id c _ rup rat :: rest =>
+    let cl := Clause.ofDIMACS c.toList
+    ratWith (db.getD · none) (allArray db) cl rup.toList (ratHintList rat) &&
+      checkLRATFastAux (Array.setGrow db id none (some cl)) asg rest
   | db, asg, .del ids :: rest => checkLRATFastAux (deleteAll db ids.toList) asg rest
 
 /-- **The array-based LRAT checker**: it accepts exactly the certificates that
-`CNF.checkLRAT` accepts (`CNF.checkLRATFast_eq_checkLRAT`), with the clauses of `φ` numbered from
-`1`. Clauses are looked up in an array indexed by number, and literals in an array of marks
-indexed by literal, reset after each step. It is for compiled and interpreted code, where it is
-about 2 to 7 times as fast as `CNF.checkLRATKernel`; in the kernel, use `CNF.checkLRATKernel`. -/
+`CNF.checkLRATRat` accepts (`CNF.checkLRATFast_eq_checkLRATRat`), RAT steps included, with the
+clauses of `φ` numbered from `1`. Clauses are looked up in an array indexed by number, and
+literals in an array of marks indexed by literal, reset after each step. It is for compiled and
+interpreted code, where it is about 2 to 7 times as fast as `CNF.checkLRATKernel`; in the kernel,
+use `CNF.checkLRATKernel`. -/
 def checkLRATFast (φ : CNF ℕ) (cert : Array LRAT.IntAction) : Bool :=
   checkLRATFastAux (dbOfList (φ.zipIdx.map fun e => (e.2 + 1, e.1))) #[] cert.toList
 
@@ -216,68 +243,64 @@ private theorem propagateFast_eq {db : Array (Option (Clause ℕ))} {L : List (�
     ∀ (asg : Array Bool) (trail : List (Literal ℕ)), (∀ l, isTrue asg l = trail.contains l) →
       (propagateFast db asg trail hs).1 = propagateHints L trail hs ∧
         ∀ l, isTrue (propagateFast db asg trail hs).2 l = false := by
-  have hreset : ∀ (asg : Array Bool) (trail : List (Literal ℕ)),
-      (∀ l, isTrue asg l = trail.contains l) → ∀ l, isTrue (unassign asg trail) l = false := by
-    intro asg trail hasg l
+  have hreset (asg : Array Bool) (trail : List (Literal ℕ))
+      (hasg : ∀ l, isTrue asg l = trail.contains l) (l : Literal ℕ) :
+      isTrue (unassign asg trail) l = false := by
     rw [isTrue_unassign, hasg]
     cases trail.contains l <;> rfl
   induction hs with
-  | nil => intro asg trail hasg; exact ⟨rfl, hreset asg trail hasg⟩
+  | nil => exact fun asg trail hasg => ⟨rfl, hreset asg trail hasg⟩
   | cons h hs ih =>
     intro asg trail hasg
     have hfind : db.getD h none = (L.find? (·.1 == h)).map (·.2) := by
       rw [hdb, List.lookup_eq_map_find?]
-      congr 2
-      funext e
-      exact Bool.eq_iff_iff.2 (by simp only [beq_iff_eq]; exact eq_comm)
-    have hfilter (c : Clause ℕ) : c.filter (fun l => !isTrue asg (Std.Sat.Literal.negate l)) =
-        c.filter (fun l => !trail.contains (Std.Sat.Literal.negate l)) := by
-      simp only [hasg]
+      congr 2 with e
+      simp [eq_comm]
     rw [propagateHints_cons]
     simp only [propagateFast, hfind]
     cases L.find? (·.1 == h) with
     | none => exact ⟨rfl, hreset asg trail hasg⟩
     | some e =>
-      simp only [Option.map_some, hfilter, Clause.residual]
+      simp only [Option.map_some, hasg, Clause.residual]
       cases e.2.filter (fun l => !trail.contains (Std.Sat.Literal.negate l)) with
       | nil => exact ⟨rfl, hreset asg trail hasg⟩
       | cons l ls =>
-        by_cases hall : ls.all (· == l)
-        · simp only [hall, ite_true]
-          refine ih _ _ fun l' => ?_
-          rw [isTrue_assign, hasg, List.contains_cons]
-        · simp only [hall]
-          exact ⟨rfl, hreset asg trail hasg⟩
+        dsimp only
+        split_ifs with hall
+        · exact ih _ _ fun l' => by rw [isTrue_assign, hasg, List.contains_cons]
+        · exact ⟨rfl, hreset asg trail hasg⟩
 
 private theorem checkLRATFastAux_eq {db : Array (Option (Clause ℕ))} {L : List (ℕ × Clause ℕ)}
     (hdb : ∀ n, db.getD n none = L.lookup n) {asg : Array Bool}
     (hasg : ∀ l, isTrue asg l = false) (cert : List LRAT.IntAction) :
-    checkLRATFastAux db asg cert = checkLRATAux L cert := by
+    checkLRATFastAux db asg cert = checkLRATRatAux L cert := by
   fun_induction checkLRATFastAux db asg cert generalizing L with
-  | case1 | case4 => rfl -- no actions, addRat
+  | case1 => rfl -- no actions
   | case2 db asg => exact (propagateFast_eq hdb _ asg [] (by simp [hasg])).1 -- addEmpty
   | case3 db asg id c hints rest cl neg r ih => -- addRup
     have hp := propagateFast_eq hdb hints.toList (assignAll asg neg) neg
       (fun l => by rw [isTrue_assignAll, hasg, Bool.false_or])
-    simp only [checkLRATAux]
-    congr 1
-    · exact hp.1
-    refine ih (fun n => ?_) hp.2
-    rw [Array.getD_setGrow, hdb, List.lookup_cons_eq_ite]
+    exact congrArg₂ (· && ·) hp.1
+      (ih (fun n => by rw [Array.getD_setGrow, hdb, List.lookup_cons_eq_ite]) hp.2)
+  | case4 db asg id c _ rup rat rest cl ih => -- addRat
+    simp only [checkLRATRatAux]
+    rw [ih (fun n => by rw [Array.getD_setGrow, hdb, List.lookup_cons_eq_ite]) hasg,
+      show (db.getD · none) = (L.lookup ·) from funext hdb,
+      ratWith_congr (fun f => (allArray_eq_true db f).trans (by simp only [hdb]))
+        (fun _ => allLookup_eq_true)]
   | case5 db asg ids rest ih => -- del
-    refine ih (fun n => ?_) hasg
-    rw [getD_deleteAll, hdb, List.lookup_filter_not_contains]
+    exact ih (fun n => by rw [getD_deleteAll, hdb, List.lookup_filter_not_contains]) hasg
 
-/-- **The array-based checker agrees with the reference checker** on every formula and
-certificate. -/
-theorem checkLRATFast_eq_checkLRAT (φ : CNF ℕ) (cert : Array LRAT.IntAction) :
-    checkLRATFast φ cert = checkLRAT φ cert :=
+/-- **The array-based checker agrees with the reference checker with RAT steps** on every formula
+and certificate. -/
+theorem checkLRATFast_eq_checkLRATRat (φ : CNF ℕ) (cert : Array LRAT.IntAction) :
+    checkLRATFast φ cert = checkLRATRat φ cert :=
   checkLRATFastAux_eq (getD_dbOfList _) (fun _ => by simp [isTrue]) cert.toList
 
 /-- **A formula with a certificate accepted by the array-based checker is unsatisfiable.** -/
 theorem not_satisfiable_of_checkLRATFast {φ : CNF ℕ} {cert : Array LRAT.IntAction}
     (h : φ.checkLRATFast cert = true) : ¬ φ.Satisfiable :=
-  not_satisfiable_of_checkLRAT ((checkLRATFast_eq_checkLRAT φ cert) ▸ h)
+  not_satisfiable_of_checkLRATRat ((checkLRATFast_eq_checkLRATRat φ cert) ▸ h)
 
 end CNF
 

@@ -86,8 +86,8 @@ variable [Nonempty D]
 
 private theorem walk_pow_sub_expect (t : ℕ) (f : V → ℝ) :
     (G.walk ^ t) (fun w ↦ f w - 𝔼 u, f u) = fun v ↦ (G.walk ^ t) f v - 𝔼 u, f u := by
-  rw [show (fun w ↦ f w - 𝔼 u, f u) = f - fun _ ↦ 𝔼 u, f u from rfl, map_sub, walk_pow_const]
-  rfl
+  change (G.walk ^ t) (f - fun _ ↦ 𝔼 u, f u) = _
+  rw [map_sub, walk_pow_const]; rfl
 
 /-- The correlation of `f` with `g` along walks of length `t` is the product of the expectations
 plus the correlation of the centered functions. -/
@@ -107,8 +107,8 @@ its second moment about the mean, by at most `λ(G) ^ (2 t)`; the mean is preser
 theorem expect_walk_pow_sub_expect_sq_le (t : ℕ) (f : V → ℝ) :
     𝔼 v, ((G.walk ^ t) f v - 𝔼 w, f w) ^ 2 ≤
       G.spectralExpansion ^ (2 * t) * 𝔼 v, (f v - 𝔼 w, f w) ^ 2 := by
-  have h := G.expect_walk_pow_sq_le_spectralExpansion_pow_mul (expect_sub_expect f) t
-  rwa [walk_pow_sub_expect] at h
+  simpa only [walk_pow_sub_expect] using
+    G.expect_walk_pow_sq_le_spectralExpansion_pow_mul (expect_sub_expect f) t
 
 /-- **The mixing lemma for functions**: the correlation `𝔼 v, f v * (G.walk ^ t) g v` of `f` with
 `g` along walks of length `t` differs from the product of their expectations by at most
@@ -195,8 +195,7 @@ theorem abs_card_interedges_sub_le_mul_sqrt (S T : Finset V) :
       G.spectralExpansion * Fintype.card D * √((#S : ℝ) * #T) := by
   refine (G.abs_card_interedges_sub_le S T).trans ?_
   rcases (Fintype.card V).eq_zero_or_pos with hV | hV
-  · rw [hV, Nat.cast_zero, div_zero]
-    positivity
+  · rw [hV, Nat.cast_zero, div_zero]; positivity
   have hn : (0 : ℝ) < Fintype.card V := Nat.cast_pos.2 hV
   rw [div_le_iff₀ hn, mul_assoc _ (√_), ← Real.sqrt_sq hn.le, ← Real.sqrt_mul (by positivity)]
   gcongr _ * √?_
@@ -218,8 +217,7 @@ theorem le_card_interedges_compl_of_expect_mul_walk_le {μ : ℝ}
   rcases isEmpty_or_nonempty D with hD | hD
   · simp
   rcases (Fintype.card V).eq_zero_or_pos with hV | hV
-  · rw [hV, Nat.cast_zero, div_zero]
-    positivity
+  · rw [hV, Nat.cast_zero, div_zero]; positivity
   have hn : (0 : ℝ) < Fintype.card V := Nat.cast_pos.2 hV
   have hd : (0 : ℝ) < Fintype.card D := Nat.cast_pos.2 Fintype.card_pos
   have h := hμ _ (expect_sub_expect fun v ↦ if v ∈ S then 1 else 0)
@@ -237,12 +235,11 @@ theorem le_card_interedges_compl_of_expect_mul_walk_le {μ : ℝ}
   generalize (#S : ℝ) = s at h he ⊢
   generalize (Fintype.card V : ℝ) = n at h hn ⊢
   generalize (Fintype.card D : ℝ) = d at h hd he ⊢
-  have h' : e₁ * n - s ^ 2 * d ≤ μ * d * (s * n - s ^ 2) := by
-    have := mul_le_mul_of_nonneg_left h (by positivity : 0 ≤ n ^ 2 * d)
-    field_simp at this
-    linarith
-  linarith [h', show (1 - μ) * d * s * (n - s) - e₂ * n =
-      (e₁ * n - s ^ 2 * d) - μ * d * (s * n - s ^ 2) by linear_combination -n * he]
+  have h' := mul_le_mul_of_nonneg_left h (by positivity : 0 ≤ n ^ 2 * d)
+  field_simp at h'
+  have he' : (1 - μ) * d * s * (n - s) - e₂ * n =
+      (e₁ * n - s ^ 2 * d) - μ * d * (s * n - s ^ 2) := by linear_combination -n * he
+  linarith
 
 /-- **Spectral expanders are edge expanders** [Arora and Barak, Section 21.2][AroraBarak09]: in a
 `d`-regular graph on `n` vertices, at least `(1 - λ(G)) d |S| |Sᶜ| / n` edges leave `S`. -/
@@ -266,12 +263,10 @@ theorem le_card_interedges_compl_of_two_mul_card_le {S : Finset V}
   have hA : 0 ≤ (1 - G.spectralExpansion) * Fintype.card D * #S :=
     mul_nonneg (mul_nonneg (sub_nonneg.2 G.spectralExpansion_le_one) (Nat.cast_nonneg _))
       (Nat.cast_nonneg _)
-  have hc : (Fintype.card V : ℝ) ≤ 2 * #Sᶜ := by
-    have hS' : 2 * (#S : ℝ) ≤ Fintype.card V := by exact_mod_cast hS
-    rw [card_compl_eq]
-    linarith
-  rw [div_le_div_iff₀ two_pos hn]
-  exact (mul_le_mul_of_nonneg_left hc hA).trans_eq (by ring)
+  have hS' : 2 * (#S : ℝ) ≤ Fintype.card V := by exact_mod_cast hS
+  rw [div_le_div_iff₀ two_pos hn, card_compl_eq]
+  exact (mul_le_mul_of_nonneg_left (c := 2 * ((Fintype.card V : ℝ) - #S))
+    (by linarith) hA).trans_eq (by ring)
 
 end Sets
 
@@ -318,9 +313,8 @@ theorem mul_card_filter_ne_le_card_filter_ne_neighbor {α : Type*} [DecidableEq 
     rw [← card_compl_eq]; congr 2; ext v; simp
   have hterm (a : α) : (1 - G.spectralExpansion) * Fintype.card D * s a *
       (Fintype.card V - s a) / Fintype.card V ≤
-        #(G.interedges {v | f v = a} ({v | f v = a} : Finset V)ᶜ) := by
-    have h := G.le_card_interedges_compl {v | f v = a}
-    rwa [card_compl_eq] at h
+        #(G.interedges {v | f v = a} ({v | f v = a} : Finset V)ᶜ) :=
+    card_compl_eq ({v | f v = a} : Finset V) ▸ G.le_card_interedges_compl {v | f v = a}
   have hsc (a : α) : s a ≤ s c := by simp only [s]; exact_mod_cast hc a
   rw [hne, G.card_filter_ne_neighbor_eq_sum_card_interedges f]
   calc (1 - G.spectralExpansion) * Fintype.card D * (Fintype.card V - s c)

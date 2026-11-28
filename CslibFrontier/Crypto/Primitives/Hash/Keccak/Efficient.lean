@@ -83,39 +83,32 @@ abbrev encSpongeView (layout : SpongeLayout) : SpongeView layout ↪ List Bool :
     (encBitString (64 * layout.capacityLanes))
 
 private theorem computableInPolyTime_bytesToBitsLE :
-    ComputableInPolyTime bytesToBitsLE encByteStringLE encBits := by
-  apply flatMapToBitsWithInput (id' (encIn := encByteStringLE))
-  exact (snd encByteStringLE encByteLE).of_enc_eq fun _ => rfl
+    ComputableInPolyTime bytesToBitsLE encByteStringLE encBits :=
+  flatMapToBitsWithInput (id' (encIn := encByteStringLE))
+    ((snd encByteStringLE encByteLE).of_enc_eq fun _ => rfl)
 
 private theorem computableInPolyTime_pad10star1 (rate : ℕ) :
     ComputableInPolyTime (pad10star1 rate) encUnary encBits := by
-  unfold pad10star1
-  fun_prop
+  fun_prop [pad10star1]
 
 private theorem computableInPolyTime_toBlocks (rate : ℕ) :
     ComputableInPolyTime (BitString.toBlocks rate) encBits
       (encList (encBitString rate)) := by
-  have hcount : ComputableInPolyTime (fun bits : List Bool => bits.length / rate)
-      encBits encUnary := unary_div_const rate |>.comp length_bits
   have hraw : ComputableInPolyTime
       (fun p : (List Bool × ℕ) =>
         (List.range rate).map fun i => p.1.getD (p.2 * rate + i) false)
-      (encPair encBits encUnary) encBits := by
-    apply mapToBitsWithInput (range.comp (const rate))
-    fun_prop
+      (encPair encBits encUnary) encBits :=
+    mapToBitsWithInput (range.comp (const rate)) (by fun_prop)
   have hblock : ComputableInPolyTime
       (fun p : (List Bool × ℕ) =>
         fun i : Fin rate => p.1.getD (p.2 * rate + i) false)
       (encPair encBits encUnary) (encBitString rate) :=
-    hraw.of_enc_eq fun p => by
-      change List.ofFn (fun i : Fin rate => p.1.getD (p.2 * rate + i) false) =
-        (List.range rate).map fun i => p.1.getD (p.2 * rate + i) false
-      rw [List.map_range_eq_ofFn]
-  have hblocks := mapWithInput
+    hraw.of_enc_eq fun _ => by simp [encBitString, List.map_range_eq_ofFn]
+  exact (mapWithInput
     (f := fun bits b => fun i : Fin rate => bits.getD (b * rate + i) false)
     (list := fun bits : List Bool => List.range (bits.length / rate))
-    (range.comp hcount) hblock
-  exact hblocks.of_enc_eq fun bits => by rw [BitString.toBlocks_eq_map_range]
+    (range.comp ((unary_div_const rate).comp length_bits)) hblock).of_enc_eq fun bits => by
+      rw [BitString.toBlocks_eq_map_range]
 
 private theorem computableInPolyTime_keccakP1600Bits : ComputableInPolyTime
     (fun bits : BitString 1600 => stateBits (keccakP1600Rounds24 (stateOfBits bits)))
@@ -128,18 +121,14 @@ private theorem computableInPolyTime_keccakP1600Bits : ComputableInPolyTime
 split as the exact flat state consumed by the retained circuit and converting the result back. -/
 theorem computableInPolyTime_keccakP1600Rounds24View (layout : SpongeLayout) :
     ComputableInPolyTime (keccakP1600Rounds24View layout)
-      (encSpongeView layout) (encSpongeView layout) := by
-  have hflatten : ComputableInPolyTime
-      (fun state : SpongeView layout => stateBits (ofSpongeView layout state))
-      (encSpongeView layout) (encBitString 1600) :=
-    ComputableInPolyTime.of_finite _
-  have hunflatten : ComputableInPolyTime
-      (fun bits : BitString 1600 => toSpongeView layout (stateOfBits bits))
-      (encBitString 1600) (encSpongeView layout) :=
-    ComputableInPolyTime.of_finite _
-  exact (hunflatten.comp (computableInPolyTime_keccakP1600Bits.comp hflatten)).of_enc_eq
+      (encSpongeView layout) (encSpongeView layout) :=
+  ((of_finite fun bits : BitString 1600 => toSpongeView layout (stateOfBits bits) :
+      ComputableInPolyTime _ (encBitString 1600) (encSpongeView layout)).comp
+    (computableInPolyTime_keccakP1600Bits.comp
+      (of_finite fun state : SpongeView layout => stateBits (ofSpongeView layout state) :
+        ComputableInPolyTime _ (encSpongeView layout) (encBitString 1600)))).of_enc_eq
     fun state => by
-    simp only [Function.comp_apply, keccakP1600Rounds24View, stateOfBits_stateBits]
+      simp only [Function.comp_apply, keccakP1600Rounds24View, stateOfBits_stateBits]
 
 private theorem computableInPolyTime_absorb (layout : SpongeLayout) :
     ComputableInPolyTime
@@ -166,37 +155,19 @@ private theorem computableInPolyTime_absorb (layout : SpongeLayout) :
         encStep (encBitString (64 * layout.rateLanes)) :=
       hsumList.of_enc_eq fun p => Cslib.BitString.ofFn_add p.1.1 p.2
     exact hsum.prod hstate.snd'
-  have hstep : ComputableInPolyTime
-      (fun p : SpongeView layout × BitString (64 * layout.rateLanes) =>
-        Sponge.absorbStep (keccakP1600Rounds24View layout) p.1 p.2)
-      (encPair (encSpongeView layout) (encBitString (64 * layout.rateLanes)))
-      (encSpongeView layout) := by
-    unfold Sponge.absorbStep
-    exact (computableInPolyTime_keccakP1600Rounds24View layout).comp hpreprocess
-  apply Turing.MultiTapeTM.ComputableInPolyTime.foldl_of_bounded_growth
-    (encA := encBitString (64 * layout.rateLanes))
-    (encL := encList (encBitString (64 * layout.rateLanes)))
-    (encB := encSpongeView layout)
-    (step := Sponge.absorbStep (keccakP1600Rounds24View layout))
-    (id' (encIn := encList (encBitString (64 * layout.rateLanes))))
+  exact foldl_of_bounded_growth (id' (encIn := encList (encBitString (64 * layout.rateLanes))))
     (const (0 : SpongeView layout))
-    hstep
-    (growth := 0)
-  intro state block
-  simp [encSpongeView]
+    ((computableInPolyTime_keccakP1600Rounds24View layout).comp hpreprocess) (growth := 0)
+    fun _ _ => by simp [encSpongeView]
 
 private theorem computableInPolyTime_iteratePermutation (layout : SpongeLayout) :
     ComputableInPolyTime
       (fun p : SpongeView layout × ℕ =>
         (keccakP1600Rounds24View layout)^[p.2] p.1)
-      (encPair (encSpongeView layout) encUnary) (encSpongeView layout) := by
-  apply Turing.MultiTapeTM.ComputableInPolyTime.iterate_of_bounded_growth
-    (snd (encSpongeView layout) encUnary)
-    (fst (encSpongeView layout) encUnary)
-    (computableInPolyTime_keccakP1600Rounds24View layout)
-    (growth := 0)
-  intro state
-  simp [encSpongeView]
+      (encPair (encSpongeView layout) encUnary) (encSpongeView layout) :=
+  iterate_of_bounded_growth (snd (encSpongeView layout) encUnary)
+    (fst (encSpongeView layout) encUnary) (computableInPolyTime_keccakP1600Rounds24View layout)
+    (growth := 0) fun _ => by simp [encSpongeView]
 
 private theorem squeeze_eq_map_range {R C O : Type*} (P : R × C → R × C)
     (out : R × C → O) (count : ℕ) (state : R × C) :
@@ -206,14 +177,8 @@ private theorem squeeze_eq_map_range {R C O : Type*} (P : R × C → R × C)
   | zero => rfl
   | succ count ih =>
     rw [Sponge.squeeze, ih]
-    apply List.ext_getElem
-    · simp
-    · intro i hi hright
-      cases i with
-      | zero => simp
-      | succ i =>
-        simp only [List.getElem_cons_succ, List.getElem_map, List.getElem_range]
-        rw [← Function.iterate_succ_apply, Function.iterate_succ_apply']
+    refine List.ext_getElem (by simp) fun i _ _ => ?_
+    cases i <;> simp [← Function.iterate_succ_apply, Function.iterate_succ_apply']
 
 private theorem computableInPolyTime_squeezeRates (layout : SpongeLayout) :
     ComputableInPolyTime
@@ -236,13 +201,12 @@ private theorem computableInPolyTime_squeezeRates (layout : SpongeLayout) :
     (fst (encBitString (64 * layout.rateLanes))
       (encBitString (64 * layout.capacityLanes))).comp
       ((computableInPolyTime_iteratePermutation layout).comp hiterInput)
-  have h := mapWithInput
+  exact (mapWithInput
     (f := fun p : SpongeView layout × ℕ => fun i =>
       ((keccakP1600Rounds24View layout)^[i] p.1).1)
     (list := fun p : SpongeView layout × ℕ => List.range p.2)
-    (range.comp (snd (encSpongeView layout) encUnary)) hbody
-  exact h.of_enc_eq fun p => by
-    rw [squeeze_eq_map_range]
+    (range.comp (snd (encSpongeView layout) encUnary)) hbody).of_enc_eq fun _ => by
+      rw [squeeze_eq_map_range]
 
 private theorem computableInPolyTime_hashBlocks (layout : SpongeLayout) :
     ComputableInPolyTime
@@ -260,18 +224,11 @@ private theorem computableInPolyTime_squeezeBytesFor (layout : SpongeLayout) :
       (fun p : List (BitString (64 * layout.rateLanes)) × ℕ =>
         squeezeBytesFor layout p.1 p.2)
       (encPair (encList (encBitString (64 * layout.rateLanes))) encUnary)
-      encByteStringLE := by
-  unfold squeezeBytesFor
-  have hbody : ComputableInPolyTime
-      (fun p : (List (BitString (64 * layout.rateLanes)) × ℕ) ×
-        BitString (64 * layout.rateLanes) => rateBytesFor layout p.2)
-      (encPair
-        (encPair (encList (encBitString (64 * layout.rateLanes))) encUnary)
-        (encBitString (64 * layout.rateLanes))) encByteStringLE :=
-    (ComputableInPolyTime.of_finite (rateBytesFor layout)).comp
+      encByteStringLE :=
+  flatMapWithInput (computableInPolyTime_hashBlocks layout)
+    ((ComputableInPolyTime.of_finite (rateBytesFor layout)).comp
       (snd (encPair (encList (encBitString (64 * layout.rateLanes))) encUnary)
-        (encBitString (64 * layout.rateLanes)))
-  exact flatMapWithInput (computableInPolyTime_hashBlocks layout) hbody
+        (encBitString (64 * layout.rateLanes))))
 
 /-- For every fixed Keccak-p[1600] lane split and suffix, the executable byte sponge is uniformly
 polynomial-time in the framed input bytes and the unary requested output length. -/
@@ -282,12 +239,11 @@ polynomial-time in the framed input bytes and the unary requested output length.
       encByteXofInput encByteStringLE := by
   let rate := 64 * layout.rateLanes
   let rateBytes := 8 * layout.rateLanes
-  have hinput : ComputableInPolyTime (fun p : List (Fin 256) × ℕ => p.1)
-      encByteXofInput encByteStringLE := fst encByteStringLE encUnary
   have hsuffixed : ComputableInPolyTime
       (fun p : List (Fin 256) × ℕ => bytesToBitsLE p.1 ++ suffix)
       encByteXofInput encBits :=
-    bitsAppend (computableInPolyTime_bytesToBitsLE.comp hinput) (const suffix)
+    bitsAppend (computableInPolyTime_bytesToBitsLE.comp (fst encByteStringLE encUnary))
+      (const suffix)
   have hpadded : ComputableInPolyTime
       (fun p : List (Fin 256) × ℕ =>
         let suffixed := bytesToBitsLE p.1 ++ suffix
@@ -305,10 +261,9 @@ polynomial-time in the framed input bytes and the unary requested output length.
       encByteXofInput encUnary := snd encByteStringLE encUnary
   have hblockCount : ComputableInPolyTime
       (fun p : List (Fin 256) × ℕ => p.2 ⌈/⌉ rateBytes)
-      encByteXofInput encUnary := by
-    have h := (unary_div_const rateBytes).comp
-      (unary_sub' (unary_add' houtput (const rateBytes)) (const 1))
-    exact h.of_enc_eq fun p => by
+      encByteXofInput encUnary :=
+    ((unary_div_const rateBytes).comp
+      (unary_sub' (unary_add' houtput (const rateBytes)) (const 1))).of_enc_eq fun _ => by
       congr 1
   have hsqueezed : ComputableInPolyTime
       (fun p : List (Fin 256) × ℕ =>
@@ -317,9 +272,8 @@ polynomial-time in the framed input bytes and the unary requested output length.
         squeezeBytesFor layout (BitString.toBlocks rate padded) (p.2 ⌈/⌉ rateBytes))
       encByteXofInput encByteStringLE :=
     (computableInPolyTime_squeezeBytesFor layout).comp (hblocks.prod hblockCount)
-  have htaken := Turing.MultiTapeTM.ComputableInPolyTime.listTakeWithInput
-    hsqueezed houtput
-  simpa only [byteSponge, bitSponge, rate, rateBytes] using htaken
+  simpa only [byteSponge, bitSponge, rate, rateBytes] using
+    Turing.MultiTapeTM.ComputableInPolyTime.listTakeWithInput hsqueezed houtput
 
 /-- SHA3-512 is uniformly polynomial-time in its framed little-endian input bytes. -/
 @[fun_prop] theorem computableInPolyTime_sha3512 :

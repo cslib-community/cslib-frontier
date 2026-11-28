@@ -68,11 +68,8 @@ theorem integral_norm_sum_smul_sq_le_of_iIndepFun
     nlinarith [abs_real_inner_le_norm (X i ω) (X j ω), sq_nonneg (‖X i ω‖ - ‖X j ω‖),
       norm_nonneg (X i ω), norm_nonneg (X j ω)]
   -- expand the square and integrate term by term; independence splits the off-diagonal terms
-  have hexpand (ω : Ω) :
-      ‖∑ i : ι, z i • X i ω‖ ^ 2 = ∑ i : ι, ∑ j : ι, (z i * z j) * ⟪X i ω, X j ω⟫ := by
-    simp_rw [← real_inner_self_eq_norm_sq, sum_inner, inner_sum, real_inner_smul_left,
-      real_inner_smul_right, mul_assoc]
-  simp_rw [hexpand]
+  simp_rw [← real_inner_self_eq_norm_sq, sum_inner, inner_sum, real_inner_smul_left,
+    real_inner_smul_right, ← mul_assoc]
   rw [integral_finsetSum _ fun i _ ↦
     integrable_finsetSum _ fun j _ ↦ (hIntInner i j).const_mul (z i * z j)]
   have hsplit (i : ι) :
@@ -94,29 +91,27 @@ theorem integral_norm_sum_smul_sq_le_of_iIndepFun
     exact Finset.sum_le_sum fun i _ ↦ by nlinarith [hsq i, sq_nonneg (z i)]
   have hoff_term (i j : ι) :
       (z i * z j) * ⟪∫ ω, X i ω ∂μ, ∫ ω, X j ω ∂μ⟫ ≤ ε * (|z i| * |z j|) := by
-    have hcs : |⟪∫ ω, X i ω ∂μ, ∫ ω, X j ω ∂μ⟫| ≤ ε := by
-      nlinarith [abs_real_inner_le_norm (∫ ω, X i ω ∂μ) (∫ ω, X j ω ∂μ), hmean i, hmean j,
-        sq_nonneg (‖∫ ω, X i ω ∂μ‖ - ‖∫ ω, X j ω ∂μ‖)]
     refine (le_abs_self _).trans ?_
     rw [abs_mul, abs_mul, mul_comm ε]
     gcongr
+    nlinarith [abs_real_inner_le_norm (∫ ω, X i ω ∂μ) (∫ ω, X j ω ∂μ), hmean i, hmean j,
+      sq_nonneg (‖∫ ω, X i ω ∂μ‖ - ‖∫ ω, X j ω ∂μ‖)]
   have hoff :
       (∑ i : ι, ∑ j ∈ Finset.univ.erase i, (z i * z j) * ⟪∫ ω, X i ω ∂μ, ∫ ω, X j ω ∂μ⟫) ≤
         ε * Fintype.card ι * ∑ i : ι, z i ^ 2 := by
     rcases isEmpty_or_nonempty ι with hι | ⟨⟨i₀⟩⟩
     · simp
     have hε0 : 0 ≤ ε := (sq_nonneg _).trans (hmean i₀)
-    have hcs : (∑ i : ι, |z i|) ^ 2 ≤ (Fintype.card ι : ℝ) * ∑ i : ι, z i ^ 2 := by
-      simpa only [Finset.card_univ, sq_abs] using
-        sq_sum_le_card_mul_sum_sq (s := (Finset.univ : Finset ι)) (f := fun i ↦ |z i|)
     calc _ ≤ ∑ i : ι, ∑ j : ι, ε * (|z i| * |z j|) :=
           Finset.sum_le_sum fun i _ ↦ (Finset.sum_le_sum fun j _ ↦ hoff_term i j).trans <|
             Finset.sum_le_sum_of_subset_of_nonneg (Finset.erase_subset i _)
               fun j _ _ ↦ by positivity
       _ = ε * (∑ i : ι, |z i|) ^ 2 := by
-          rw [sq, Finset.sum_mul_sum, Finset.mul_sum]
-          simp only [Finset.mul_sum]
-      _ ≤ ε * ((Fintype.card ι : ℝ) * ∑ i : ι, z i ^ 2) := mul_le_mul_of_nonneg_left hcs hε0
+          simp_rw [sq, Finset.sum_mul_sum, Finset.mul_sum]
+      _ ≤ ε * ((Fintype.card ι : ℝ) * ∑ i : ι, z i ^ 2) :=
+          mul_le_mul_of_nonneg_left (by
+            simpa only [Finset.card_univ, sq_abs] using
+              sq_sum_le_card_mul_sum_sq (s := (Finset.univ : Finset ι)) (f := fun i ↦ |z i|)) hε0
       _ = ε * Fintype.card ι * ∑ i : ι, z i ^ 2 := by ring
   linarith
 

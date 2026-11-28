@@ -58,8 +58,7 @@ theorem sourceChild_zero_off_usage (C : Matrix V V ℝ) (i : ℕ)
     sourceChild HP D ident r hr C i σ x y = 0 := by
   simp only [sourceChild, correctionRequest, dite_eq_left hr, CorrectionRowRecipe.normalized,
     Equiv.piSplitAt_apply]
-  change (if splitUsage D ident r (σ r.terminal.role) y then _ else 0) = 0
-  simp only [hy, ↓reduceIte]
+  exact ite_eq_right hy
 
 /-- Genuine canonical correction mean under a containing inherited terminal event.
 The statistical expectation uses one full environment with every spectator integrated.
@@ -82,11 +81,6 @@ theorem sourceChild_mean_on_terminal_event
       (canonicalChannel ident r.terminal.rate) r.terminal.rate C (i + 1) x y := by
   have hm := source_request_mean_canonical HP D ident r hr hD hid H hsH hks
     hs ht hu C hC hC1 hCf hi x y
-  change (𝔼 σ ∈ ({σ : Environment P J |
-      r.source.retains (channels D) σ (ident x)} : Finset _),
-      (r.terminal.rate / (dens {σ : Environment P J |
-        r.usage.retains (channels D) σ (ident y)} : ℝ)) *
-      sourceChild HP D ident r hr C i σ x y) = _ at hm
   rw [dens_filter_pi_eval r.terminal.role q]
   have he := expect_pi_supported_terminal r.source.role r.terminal.role hr.1
     (fun A => coordinate D r.source A (ident x)) q
@@ -112,13 +106,11 @@ theorem coordinate_min_grid (role : Fin J) (suffix : List (ZMod P))
       coordinate D (gridChannel role a suffix) A v := by
   simp only [coordinate, gridChannel, rate_min, semanticSide_grid, frameRetains,
     mem_retentionBox]
-  intro h j
-  apply (h j).trans_le
+  refine fun h j => (h j).trans_le ?_
   rw [side_eq_ceil, side_eq_ceil]
-  apply Nat.ceil_mono
-  apply mul_le_mul_of_nonneg_left _ (Nat.cast_nonneg P)
-  exact inv_anti₀ (by positivity)
-    (pow_le_pow_right₀ (by norm_num : (1 : ℝ) ≤ 2) (Nat.le_max_left a b))
+  exact Nat.ceil_mono (mul_le_mul_of_nonneg_left
+    (inv_anti₀ (by positivity) (pow_le_pow_right₀ one_le_two (Nat.le_max_left a b)))
+    (Nat.cast_nonneg P))
 
 /-- Genuine actual request children for a selected raw bin. A normalized correction at
 index j uses sourceChild at j.val, never a statistical precision or a fixed zero iterate.
@@ -165,11 +157,10 @@ theorem canonicalRequestChild_final_mean
     HP.toHierarchyParams.correctionIter (canonicalChannel ident r.terminal.rate)
       (canonicalChannel ident r.terminal.rate) r.terminal.rate C HP.k x y := by
   have hnpos : 0 < n := hn ▸ HP.k_pos
-  simp_rw [canonicalRequestChild_final HP D ident r hr hnpos C cutoff h ρ K l htask]
-  have hi : n - 1 < HP.k := by omega
-  have hm := sourceChild_mean_on_terminal_event HP D ident r hr hD hid H hsH hks
-    hs ht hu C hC hC1 hCf hi q x y hsub
-  rwa [show n - 1 + 1 = HP.k by omega] at hm
+  have hnk : n - 1 + 1 = HP.k := by omega
+  simp_rw [canonicalRequestChild_final HP D ident r hr hnpos C cutoff h ρ K l htask, ← hnk]
+  exact sourceChild_mean_on_terminal_event HP D ident r hr hD hid H hsH hks
+    hs ht hu C hC hC1 hCf (by omega) q x y hsub
 
 /-- Literal one-bin rawSample with the real canonical request family. The negative
 correction occurs once in this call; summing unchanged calls would subtract it repeatedly.
@@ -199,10 +190,7 @@ theorem canonical_rawSample_mean
         l bin .residual source mid terminal (rate kb)
         (fun r => canonicalRequestChild HP D ident C cutoff h ρ K r σ) x y) =
       B x y + (∑ z, E x z * B z y) - E x y := by
-  dsimp only
-  let source := gridChannel R.source ks ss
-  let mid := gridChannel R.midpoint km sm
-  let terminal := gridChannel R.terminal kt st
+  intro source mid terminal B E
   let req := HierarchyTask.rawRequests (k := HP.k) l bin .residual source mid terminal (rate kb)
   let neg : HierarchyTask.Request HP.k (Fin J) (ZMod P) :=
     ⟨HierarchyTask.correctionAtomTask l false (Fin.last HP.k), source,
@@ -210,9 +198,6 @@ theorem canonical_rawSample_mean
   let S := ({σ : Environment P J | source.retains (channels D) σ (ident x) ∧
     terminal.retains (channels D) σ (ident y)} : Finset _)
   let q := fun A => coordinate D terminal A (ident y)
-  let E := HP.toHierarchyParams.correctionIter (canonicalChannel ident (rate km))
-    (canonicalChannel ident (rate km)) (rate km) C HP.k
-  let B := fun x y => rate kb * cutoff (C x y / rate kb)
   have hd : Admissible req.direct := ⟨R.source_terminal, rfl, rfl⟩
   have hl : Admissible req.left := ⟨R.source_midpoint, rfl, rfl⟩
   have hr : Admissible req.right := ⟨R.midpoint_terminal, rfl, rfl⟩
@@ -231,7 +216,7 @@ theorem canonical_rawSample_mean
     hsH hms rfl rfl hbH rfl (rate_min kt kb) C hC hC1 hCf hi
     cutoff h ρ K q x z y (coordinate_min_grid D R.terminal st kt kb · (ident y))
     hkh hρ0 hρ1 hη hρη hK
-  simp only [show HP.k - 1 + 1 = HP.k by have := HP.k_pos; omega] at hproduct
+  simp only [Nat.sub_add_cancel HP.k_pos] at hproduct
   have leftChild (σ : Environment P J) :
       canonicalRequestChild HP D ident C cutoff h ρ K req.left σ =
         sourceChild HP D ident req.left hl C (HP.k - 1) σ :=
@@ -248,22 +233,13 @@ theorem canonical_rawSample_mean
     mid.rate * ratio neg * canonicalRequestChild HP D ident C cutoff h ρ K neg σ x y)) =
       B x y + (∑ z, E x z * B z y) - E x y
   rw [expect_sub_distrib, expect_add_distrib]
-  have hdmean : (𝔼 σ ∈ S, rate kb * ratio req.direct *
-      canonicalRequestChild HP D ident C cutoff h ρ K req.direct σ x y) = B x y := hdirect
-  have hnmean : (𝔼 σ ∈ S, mid.rate * ratio neg *
-      canonicalRequestChild HP D ident C cutoff h ρ K neg σ x y) = E x y := hnegative
-  rw [hdmean, hnmean]
-  congr 2
-  simp_rw [leftChild, mul_sum]
-  rw [expect_sum_comm]
-  refine sum_congr rfl fun z _ => ?_
-  convert hproduct z using 1
-  · refine expect_congr rfl fun σ _ => ?_
-    dsimp only [ratio, HierarchyTask.usageRatio, req, HierarchyTask.rawRequests,
-      source, mid, terminal, q, gridChannel, CorrectionRowTask.Channel.retains,
-      channels, coordinate]
-    ac_rfl
-  · rfl
+  refine congrArg₂ (· - ·) (congrArg₂ (· + ·) hdirect ?_) hnegative
+  simp only [leftChild, mul_sum, expect_sum_comm]
+  refine sum_congr rfl fun z _ => (expect_congr rfl fun σ _ => ?_).trans (hproduct z)
+  dsimp only [ratio, HierarchyTask.usageRatio, req, HierarchyTask.rawRequests,
+    source, mid, terminal, q, gridChannel, CorrectionRowTask.Channel.retains,
+    channels, coordinate]
+  ac_rfl
 
 /-- The actual special-negative request has the final canonical mean. Its rank is km,
 usage is min(parent terminal, km), and no midpoint density is introduced. -/
@@ -368,16 +344,13 @@ theorem canonical_residual_bins_mean
       (routedBinCutoff χ (fun i => rate (kb i)) i (fun _ => 1)) (h i) ρ K
       (hkh i hi) hρ0 hρ1 hη hρη hK x y
   simp_rw [sum_congr rfl hp]
-  have hsum (z : V) :
-      ∑ i ∈ range (n + 1), rate (kb i) *
-        routedBinCutoff χ (fun i => rate (kb i)) i (fun _ => 1)
-          (C z y / rate (kb i)) = C z y := by
-    simpa only [mul_one] using sum_routedBinCutoff (route := fun _ => 1) n
-      (fun i => rate_pos (kb i)) hχ (hcover z)
+  have hsum (z : V) :=
+    sum_routedBinCutoff (route := fun _ => 1) n (fun i => rate_pos (kb i)) hχ (hcover z)
+  simp only [mul_one] at hsum
   rw [sum_add_distrib, hsum, sum_comm]
   simp_rw [← mul_sum, hsum]
-  rw [HierarchyParams.residual_eq, ← HierarchyParams.correctionIter_last]
-  simp only [Matrix.add_apply, Matrix.sub_apply, Matrix.mul_apply]
+  simp only [HierarchyParams.residual_eq, ← HierarchyParams.correctionIter_last,
+    Matrix.add_apply, Matrix.sub_apply, Matrix.mul_apply]
   ring
 
 end Matrix.HierarchyParams.H4RankEnvironment

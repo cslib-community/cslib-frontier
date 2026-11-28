@@ -103,11 +103,9 @@ theorem exec_tileValue {w L H D V AA BB A B s : ℕ} (x : Data registers)
       hsigned.of_natAbs_le ((ha _).trans (by omega))
     have hb0 : GenericRAM.Signed.Fits w (b (completionAt L s)) :=
       hsigned.of_natAbs_le ((hb _).trans (by omega))
-    have hp0 : GenericRAM.Signed.Fits w
-        (a (completionAt L s) * b (completionAt L s)) := by
-      apply hsigned.of_natAbs_le
-      rw [Int.natAbs_mul]
-      exact (Nat.mul_le_mul (ha _) (hb _)).trans (hAB.trans (by omega))
+    have hp0 : GenericRAM.Signed.Fits w (a (completionAt L s) * b (completionAt L s)) :=
+      hsigned.of_natAbs_le ((Int.natAbs_mul ..).trans_le
+        ((Nat.mul_le_mul (ha _) (hb _)).trans (hAB.trans (by omega))))
     obtain ⟨y, hy, hyr, hym, _⟩ := exec_leafProduct ha0 hb0 hp0 x
       (by simpa only [hAA, hc] using hleft) (by simpa only [hBB, hc] using hright)
       (hfit.of_le (by rw [hAA, hc]; omega)) (hfit.of_le (by rw [hBB, hc]; omega))
@@ -132,9 +130,7 @@ theorem exec_tileValue {w L H D V AA BB A B s : ℕ} (x : Data registers)
       exact (Nat.count_le _).trans (by dsimp only [childSlot]; omega)
     obtain ⟨y, hy, _, hya, hym, _⟩ := exec_childLoop (R := (H + 1) * 10 ^ L) (C := C) u val rank
       (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) hTpos
-      (by regs_frame) (by simp only [u, Data.set_regs_self])
-      (by simp only [u, Data.set_regs_of_ne (by decide : Reg.accumulator ≠ Reg.term),
-        Data.set_regs_self])
+      (by regs_frame) rfl rfl
       (by regs_frame) (by regs_frame) (by regs_frame)
       (fun d hd => by
         simpa only [u, Data.set_mem, childSlot, childCode, rank, Nat.mod_eq_of_lt hd]
@@ -156,10 +152,8 @@ theorem exec_tileValue {w L H D V AA BB A B s : ℕ} (x : Data registers)
         omega))
     refine ⟨y, ((hstart.seq hy).branch_neg (by simp [Cond.holds_eq, he, h0, he0])).mono (by decide),
       ?_, hym⟩
-    rw [slotValue_children hv hepos a b, hya]
-    refine congrArg Signed.encode ?_
-    rw [← Fin.sum_univ_eq_sum_range]
-    exact sum_congr rfl fun d _ => by simp only [val, Nat.mod_eq_of_lt d.isLt]
+    rw [slotValue_children hv hepos a b, hya, ← Fin.sum_univ_eq_sum_range]
+    exact congrArg Signed.encode (sum_congr rfl fun d _ => by simp [val, Nat.mod_eq_of_lt d.isLt])
 
 /-- Load, evaluate and store one compact record with all native control and address work. -/
 theorem exec_tileStep {w L H D R V AA BB A B s : ℕ} (x : Data registers)
@@ -239,29 +233,25 @@ theorem exec_tileLoop {w L H D R V AA BB A B : ℕ} {μ : ℕ → ℕ} (x : Data
       (∀ s < S, Eligible L H s → Nat.count (Eligible L H) s < j →
         y.mem (V + Nat.count (Eligible L H) s) = Signed.encode (slotValue a b s)) ∧
       (∀ q, ¬(V ≤ q ∧ q < V + j) → y.mem q = x.mem q)
-  have hi : P (x.regs Reg.current) x := by
-    refine ⟨hx, hV, hAA, hBB, hcount, ?_, fun _ _ => rfl⟩
-    simp only [hcurrent, not_lt_zero, IsEmpty.forall_iff, implies_true]
+  have hi : P (x.regs Reg.current) x :=
+    ⟨hx, hV, hAA, hBB, hcount, by simp [hcurrent], fun _ _ => rfl⟩
   have hbody (y : Data registers) (hy : P (y.regs Reg.current) y) (hjlt : y.regs Reg.current < K) :
       ∃ z, ExecWithin (w + 2) tileStep y z 326 ∧ P (y.regs Reg.current + 1) z ∧
         z.regs Reg.current = y.regs Reg.current + 1 := by
     obtain ⟨yp, yV, yA, yB, yK, yvalues, yframe⟩ := hy
     obtain ⟨s, hs, hvs, hsj⟩ := exists_count_rank (Eligible L H) hjlt
     have hlow (q : ℕ) (hq : q < V) : y.mem q = x.mem q := yframe q (by omega)
-    have hsK : Nat.count (Eligible L H) s < K := Nat.count_strict_mono hvs hs
-    have hrec : R + 3 * Nat.count (Eligible L H) s + 2 < V := by
-      dsimp only [K] at hsK
-      omega
+    have hsK := Nat.count_strict_mono hvs hs
     have hcode : recordCode L s < 10 ^ L := Nat.mod_lt _ (by positivity)
     obtain ⟨z, hz, hzj, hzm⟩ := exec_tileStep y a b hvs hs ha hb yp yV yA yB hsj.symm
       ((hlow _ (by omega)).trans (hcat.code s hs hvs))
       ((hlow _ (by omega)).trans (hcat.stars s hs hvs))
-      ((hlow _ hrec).trans (hcat.stride s hs hvs))
+      ((hlow _ (by omega)).trans (hcat.stride s hs hvs))
       ((hlow _ (by omega)).trans (hleft ⟨recordCode L s, hcode⟩))
       ((hlow _ (by omega)).trans (hright ⟨recordCode L s, hcode⟩))
       (fun he d => by
-        have hchild : childSlot L s d < S := (childSlot_lt hvs he d).trans hs
-        rw [hlow _ (by dsimp only [S] at hchild; omega), hcat.directory _ hchild,
+        have hchild := (childSlot_lt hvs he d).trans hs
+        rw [hlow _ (by omega), hcat.directory _ hchild,
           directoryWord, ite_eq_left (eligible_childSlot hvs he d)])
       (fun he d => yvalues _ ((childSlot_lt hvs he d).trans hs)
         (eligible_childSlot hvs he d) ((child_rank_lt hvs he d).trans_eq hsj))
@@ -271,8 +261,7 @@ theorem exec_tileLoop {w L H D R V AA BB A B : ℕ} {μ : ℕ → ℕ} (x : Data
     · intro i hi hvi hji
       rw [hzm]
       by_cases hij : Nat.count (Eligible L H) i = Nat.count (Eligible L H) s
-      · obtain rfl := Nat.count_injective hvi hvs hij
-        exact Function.update_self ..
+      · exact Nat.count_injective hvi hvs hij ▸ Function.update_self ..
       · rw [Function.update_of_ne (by omega)]
         exact yvalues i hi hvi (by omega)
     · intro q hq

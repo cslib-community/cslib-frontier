@@ -538,18 +538,14 @@ private theorem mem_support_idealLazyHandler_inl {qe : PermQuery G}
     {c_e c_π c_e' c_π' : RandomPermutation.Cache G} {a : G} :
     (a, c_e', c_π') ∈ (idealLazyHandler (.inl qe) (c_e, c_π)).support ↔
       (a, c_e') ∈ (RandomPermutation.answer qe c_e).support ∧ c_π' = c_π := by
-  simp only [idealLazyHandler, PMF.mem_support_map_iff, Prod.mk.injEq, Prod.exists]
-  exact ⟨fun ⟨a', c', hmem, h1, h2, h3⟩ => h1 ▸ h2 ▸ h3 ▸ ⟨hmem, rfl⟩,
-    fun ⟨hmem, hπ⟩ => ⟨a, c_e', hmem, rfl, rfl, hπ.symm⟩⟩
+  simp [idealLazyHandler, eq_comm]
 
 omit [AddGroup G] in
 private theorem mem_support_idealLazyHandler_inr {qπ : PermQuery G}
     {c_e c_π c_e' c_π' : RandomPermutation.Cache G} {a : G} :
     (a, c_e', c_π') ∈ (idealLazyHandler (.inr qπ) (c_e, c_π)).support ↔
       (a, c_π') ∈ (RandomPermutation.answer qπ c_π).support ∧ c_e' = c_e := by
-  simp only [idealLazyHandler, PMF.mem_support_map_iff, Prod.mk.injEq, Prod.exists]
-  exact ⟨fun ⟨a', c', hmem, h1, h2, h3⟩ => h1 ▸ h2 ▸ h3 ▸ ⟨hmem, rfl⟩,
-    fun ⟨hmem, he⟩ => ⟨a, c_π', hmem, rfl, he.symm, rfl⟩⟩
+  simp [idealLazyHandler, eq_comm]
 
 omit [AddGroup G] [Fintype G] [DecidableEq G] [Nonempty G] in
 /-- Lifting deterministic `evalTwoPerms E π program` into `PMF.pure` equals interpreting `program`
@@ -597,11 +593,10 @@ theorem evenMansourIdealGame_eq_lazy (program : OracleComp (EvenMansourSpec G) B
       (do let (a, st') ← idealLazyHandler q st; (a, ·) <$> sim st') =
       (do let p ← sim st; let y ← (·, p) <$> readH q p; pure y) := by
     rintro (qe | qπ) ⟨c_e, c_π⟩ ⟨he, hπ⟩
-    · have h1 := congrArg
-        (fun m : PMF (G × Equiv.Perm G) =>
+    · simpa only [pmf_norm, idealLazyHandler, sim, readH, sumHandler, PMF.map] using
+        congrArg (fun m : PMF (G × Equiv.Perm G) =>
           m.bind fun (y, E) => (RandomPermutation.complete c_π).map fun π => (y, (E, π)))
         (RandomPermutation.answer_complete qe c_e he)
-      simpa only [pmf_norm, idealLazyHandler, sim, readH, sumHandler, PMF.map] using h1
     · have h2 := congrArg
         (fun m : PMF (G × Equiv.Perm G) =>
           (RandomPermutation.complete c_e).bind fun E =>
@@ -610,15 +605,14 @@ theorem evenMansourIdealGame_eq_lazy (program : OracleComp (EvenMansourSpec G) B
       simp only [pmf_norm, idealLazyHandler, sim, readH, sumHandler, PMF.map] at h2 ⊢
       rw [← h2]
       pmf_swap
-  have hsim := OracleComp.run_interpret_simulation_of_invariant idealLazyHandler
-    (fun q p => (·, p) <$> readH q p) sim inv hpres hstep program ([], [])
-    ⟨RandomPermutation.isPartialBijection_nil, RandomPermutation.isPartialBijection_nil⟩
-  have hsim' := congrArg (PMF.map Prod.fst) hsim
+  have hsim' := congrArg (PMF.map Prod.fst)
+    (OracleComp.run_interpret_simulation_of_invariant idealLazyHandler
+      (fun q p => (·, p) <$> readH q p) sim inv hpres hstep program ([], [])
+      ⟨RandomPermutation.isPartialBijection_nil, RandomPermutation.isPartialBijection_nil⟩)
   simp only [pmf_norm, sim, RandomPermutation.complete_nil, PMF.map, PMF.bind_const] at hsim'
   refine Eq.trans ?_ hsim'.symm
   simp only [evenMansourIdealGame, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  refine congrArg ((PMF.uniformOfFintype (Equiv.Perm G)).bind) (funext fun E => ?_)
-  refine congrArg ((PMF.uniformOfFintype (Equiv.Perm G)).bind) (funext fun π => ?_)
+  refine congrArg _ (funext fun E => congrArg _ (funext fun π => ?_))
   rw [pure_evalTwoPerms]
   simpa only [pmf_norm, readH, PMF.map] using
     (congrArg (PMF.map Prod.fst) (OracleComp.run_interpret_readOnly readH program (E, π))).symm
@@ -833,8 +827,8 @@ private theorem toOuterMeasure_uniformOfFintype_singleton_pred {p : G → Prop} 
     (target : G) (htarget : ∀ k, p k ↔ k = target) :
     (PMF.uniformOfFintype G).toOuterMeasure {k : G | decide (p k) = true} =
       (Fintype.card G : ℝ≥0∞)⁻¹ := by
-  rw [show {k : G | decide (p k) = true} = {target} by ext k; simp [htarget k],
-    PMF.toOuterMeasure_apply_singleton, PMF.uniformOfFintype_apply]
+  have hset : {k : G | decide (p k) = true} = {target} := Set.ext fun k => by simp [htarget k]
+  rw [hset, PMF.toOuterMeasure_apply_singleton, PMF.uniformOfFintype_apply]
 
 /-- Under a uniform key `k₀ ← G`, the probability of an input collision `x + k₀ = u` is exactly
 `|G|⁻¹`. -/
@@ -857,20 +851,18 @@ private theorem toOuterMeasure_output_collision (y v : G) :
 private theorem toOuterMeasure_prod_input_collision (e p : G × G) :
     (PMF.uniformOfFintype (G × G)).toOuterMeasure {k : G × G | decide (e.1 + k.1 = p.1) = true} =
       (Fintype.card G : ℝ≥0∞)⁻¹ := by
-  have hpre : {k : G × G | decide (e.1 + k.1 = p.1) = true} =
-      Prod.fst ⁻¹' {k₀ : G | decide (e.1 + k₀ = p.1) = true} := rfl
-  rw [hpre, ← PMF.toOuterMeasure_map_apply, PMF.uniformOfFintype_prod_map_fst,
-    toOuterMeasure_input_collision]
+  rw [← toOuterMeasure_input_collision e.1 p.1,
+    ← PMF.uniformOfFintype_prod_map_fst (α := G) (β := G), PMF.toOuterMeasure_map_apply]
+  rfl
 
 /-- Under uniform independent keys `(k₀, k₁) ← G × G`, the probability of an output collision
 `e.2 - k.2 = p.2` is `|G|⁻¹`. -/
 private theorem toOuterMeasure_prod_output_collision (e p : G × G) :
     (PMF.uniformOfFintype (G × G)).toOuterMeasure {k : G × G | decide (e.2 - k.2 = p.2) = true} =
       (Fintype.card G : ℝ≥0∞)⁻¹ := by
-  have hpre : {k : G × G | decide (e.2 - k.2 = p.2) = true} =
-      Prod.snd ⁻¹' {k₁ : G | decide (e.2 - k₁ = p.2) = true} := rfl
-  rw [hpre, ← PMF.toOuterMeasure_map_apply, PMF.uniformOfFintype_prod_map_snd,
-    toOuterMeasure_output_collision]
+  rw [← toOuterMeasure_output_collision e.2 p.2,
+    ← PMF.uniformOfFintype_prod_map_snd (α := G) (β := G), PMF.toOuterMeasure_map_apply]
+  rfl
 
 private theorem toOuterMeasure_isBadKeyPair_union_le {K : Type*} (μ : PMF K) (f₁ f₂ : K → G)
     (e p : G × G)
@@ -878,10 +870,10 @@ private theorem toOuterMeasure_isBadKeyPair_union_le {K : Type*} (μ : PMF K) (f
     (h₂ : μ.toOuterMeasure {k | decide (e.2 - f₂ k = p.2) = true} = (Fintype.card G : ℝ≥0∞)⁻¹) :
     μ.toOuterMeasure {k | isBadKeyPair e p (f₁ k, f₂ k) = true} ≤
       2 * (Fintype.card G : ℝ≥0∞)⁻¹ := by
-  rw [show {k | isBadKeyPair e p (f₁ k, f₂ k) = true} =
-      {k | decide (e.1 + f₁ k = p.1) = true} ∪ {k | decide (e.2 - f₂ k = p.2) = true} by
-    ext k; simp only [isBadKeyPair, Bool.or_eq_true, Set.mem_ofPred_eq, Set.mem_union]]
-  exact (MeasureTheory.measure_union_le _ _).trans_eq (by rw [h₁, h₂, two_mul])
+  have hunion : {k | isBadKeyPair e p (f₁ k, f₂ k) = true} =
+      {k | decide (e.1 + f₁ k = p.1) = true} ∪ {k | decide (e.2 - f₂ k = p.2) = true} :=
+    Set.ext fun k => by simp only [isBadKeyPair, Bool.or_eq_true, Set.mem_ofPred_eq, Set.mem_union]
+  exact (hunion ▸ MeasureTheory.measure_union_le _ _).trans_eq (by rw [h₁, h₂, two_mul])
 
 /-- For a single pair `(e, p)`, a uniform key pair `k ← G × G` satisfies `isBadKeyPair e p k` with
 probability at most `2 * |G|⁻¹`. -/
@@ -908,13 +900,14 @@ private theorem toOuterMeasure_any_any_le {K : Type*} (μ : PMF K)
     μ.toOuterMeasure {k | (T_e.any fun e => T_π.any fun p => badPair e p k) = true} ≤
       (c : ℝ≥0∞) * T_e.length * T_π.length * (Fintype.card G : ℝ≥0∞)⁻¹ := by
   classical
-  rw [show {k | (T_e.any fun e => T_π.any fun p => badPair e p k) = true} =
-      ⋃ x ∈ T_e.toFinset ×ˢ T_π.toFinset, {k | badPair x.1 x.2 k = true} by
-    ext k
-    simp only [Set.mem_ofPred_eq, List.any_eq_true, Set.mem_iUnion, Finset.mem_product,
-      List.mem_toFinset, Prod.exists, exists_prop]
-    exact ⟨fun ⟨a, b, hab, c', d, hcd, h⟩ => ⟨a, b, c', d, ⟨hab, hcd⟩, h⟩,
-      fun ⟨a, b, c', d, ⟨hab, hcd⟩, h⟩ => ⟨a, b, hab, c', d, hcd, h⟩⟩]
+  have hset : {k | (T_e.any fun e => T_π.any fun p => badPair e p k) = true} =
+      ⋃ x ∈ T_e.toFinset ×ˢ T_π.toFinset, {k | badPair x.1 x.2 k = true} :=
+    Set.ext fun k => by
+      simp only [Set.mem_ofPred_eq, List.any_eq_true, Set.mem_iUnion, Finset.mem_product,
+        List.mem_toFinset, Prod.exists, exists_prop]
+      exact ⟨fun ⟨a, b, hab, c', d, hcd, h⟩ => ⟨a, b, c', d, ⟨hab, hcd⟩, h⟩,
+        fun ⟨a, b, c', d, ⟨hab, hcd⟩, h⟩ => ⟨a, b, hab, c', d, hcd, h⟩⟩
+  rw [hset]
   calc μ.toOuterMeasure
         (⋃ x ∈ T_e.toFinset ×ˢ T_π.toFinset, {k | badPair x.1 x.2 k = true})
       ≤ ∑ x ∈ T_e.toFinset ×ˢ T_π.toFinset, μ.toOuterMeasure {k | badPair x.1 x.2 k = true} :=
@@ -981,9 +974,7 @@ theorem toOuterMeasure_isBadInputKey_toReal_le (T_e T_π : List (G × G)) :
       (T_e.length : ℝ) * (T_π.length : ℝ) / (Fintype.card G : ℝ) := by
   simpa only [isBadInputKey, Nat.cast_one, one_mul] using
     toOuterMeasure_any_any_toReal_le _ (fun e p k₀ => decide (e.1 + k₀ = p.1)) 1
-      (fun e p => by simpa only [Nat.cast_one, one_mul] using
-        (toOuterMeasure_input_collision e.1 p.1).le)
-      T_e T_π
+      (fun e p => by simpa using (toOuterMeasure_input_collision e.1 p.1).le) T_e T_π
 
 end BadKeys
 
@@ -1087,12 +1078,9 @@ private theorem IsCallBounded.badKey_toReal_le {State γ K : Type}
         2 * (T_e.length : ℝ) * (T_π.length : ℝ) / (Fintype.card G : ℝ)) :
     (μ.toOuterMeasure {k | bad (transcriptCipher T) (transcriptPerm T) k = true}).toReal ≤
       2 * (Q_e : ℝ) * (Q_π : ℝ) / (Fintype.card G : ℝ) := by
-  have hlen_e : ((transcriptCipher T).length : ℝ) ≤ Q_e :=
-    Nat.cast_le.mpr (h.length_transcriptCipher_le oracle hmem)
-  have hlen_π : ((transcriptPerm T).length : ℝ) ≤ Q_π :=
-    Nat.cast_le.mpr (h.length_transcriptPerm_le oracle hmem)
-  refine (hbad (transcriptCipher T) (transcriptPerm T)).trans ?_
-  gcongr
+  have hlen_e := h.length_transcriptCipher_le oracle hmem
+  have hlen_π := h.length_transcriptPerm_le oracle hmem
+  exact (hbad (transcriptCipher T) (transcriptPerm T)).trans (by gcongr)
 
 /-- **Boneh–Shoup Theorem 4.14 bad-key union bound on call-bounded transcripts (two-key)**:
 against any stateful bidirectional oracle, on any supported transcript `T` of a distinguisher
@@ -1208,13 +1196,11 @@ def shiftPair (k : G × G) (e : G × G) : G × G :=
 
 omit [DecidableEq G] [Fintype G] [Nonempty G] in
 @[simp] theorem unshiftPair_shiftPair (k e : G × G) : unshiftPair k (shiftPair k e) = e := by
-  rcases e with ⟨x, y⟩
-  simp [unshiftPair, shiftPair]
+  simp only [unshiftPair, shiftPair, add_sub_cancel_right, sub_add_cancel, Prod.mk.eta]
 
 omit [DecidableEq G] [Fintype G] [Nonempty G] in
 @[simp] theorem shiftPair_unshiftPair (k p : G × G) : shiftPair k (unshiftPair k p) = p := by
-  rcases p with ⟨u, v⟩
-  simp [unshiftPair, shiftPair]
+  simp only [unshiftPair, shiftPair, sub_add_cancel, add_sub_cancel_right, Prod.mk.eta]
 
 omit [AddGroup G] [Fintype G] [Nonempty G] in
 private theorem lookup_eq_some_iff_mem {cache : Cache G} (hc : IsPartialBijection cache)
@@ -1224,10 +1210,7 @@ private theorem lookup_eq_some_iff_mem {cache : Cache G} (hc : IsPartialBijectio
   obtain ⟨π, hπ⟩ := hc
   cases h : cache.lookup x with
   | none => exact False.elim (lookup_eq_none_iff.mp h (x, y) hmem rfl)
-  | some y' =>
-    have hy' : π x = y' := hπ.apply_of_lookup_eq_some h
-    have hy : π x = y := hπ (x, y) hmem
-    exact congrArg some (hy'.symm.trans hy)
+  | some y' => exact congrArg some ((hπ.apply_of_lookup_eq_some h).symm.trans (hπ (x, y) hmem))
 
 omit [AddGroup G] [Fintype G] [Nonempty G] in
 private theorem invLookup_eq_some_iff_mem {cache : Cache G} (hc : IsPartialBijection cache)
@@ -1238,9 +1221,8 @@ private theorem invLookup_eq_some_iff_mem {cache : Cache G} (hc : IsPartialBijec
   cases h : invLookup cache y with
   | none => exact False.elim (invLookup_eq_none_iff.mp h (x, y) hmem rfl)
   | some x' =>
-    have hx' : π.symm y = x' := hπ.symm_apply_of_invLookup_eq_some h
-    have hx : π.symm y = x := π.symm_apply_eq.mpr (hπ (x, y) hmem).symm
-    exact congrArg some (hx'.symm.trans hx)
+    exact congrArg some ((hπ.symm_apply_of_invLookup_eq_some h).symm.trans
+      (π.symm_apply_eq.mpr (hπ (x, y) hmem).symm))
 
 omit [AddGroup G] [Fintype G] [Nonempty G] in
 private theorem lookup_eq_none_iff_forall {cache : Cache G} {x : G} :
@@ -1277,27 +1259,19 @@ omit [Nonempty G] in
 private theorem CacheRel.map_unusedRange_subset_e {k : G × G} {c_e c_π c : Cache G}
     (hrel : CacheRel k c_e c_π c) :
     (unusedRange c).map (Equiv.addRight k.2).toEmbedding ⊆ unusedRange c_e := by
-  intro y hy
-  rw [Finset.mem_map] at hy
-  obtain ⟨v, hv, rfl⟩ := hy
+  intro _ hz
+  obtain ⟨v, hv, rfl⟩ := Finset.mem_map.mp hz
   rw [mem_unusedRange_iff, invLookup_eq_none_iff_forall] at hv ⊢
-  intro x hx
-  have hmem : (x + k.1, v) ∈ c := (hrel.mem_iff (x + k.1, v)).mpr
-    (Or.inl (by simpa [unshiftPair] using hx))
-  exact hv (x + k.1) hmem
+  exact fun x hx => hv (x + k.1) ((hrel.mem_iff _).mpr (.inl (by simpa [unshiftPair] using hx)))
 
 omit [Nonempty G] in
 private theorem CacheRel.map_unusedDomain_subset_e {k : G × G} {c_e c_π c : Cache G}
     (hrel : CacheRel k c_e c_π c) :
     (unusedDomain c).map (Equiv.subRight k.1).toEmbedding ⊆ unusedDomain c_e := by
-  intro x hx
-  rw [Finset.mem_map] at hx
-  obtain ⟨u, hu, rfl⟩ := hx
+  intro _ hz
+  obtain ⟨u, hu, rfl⟩ := Finset.mem_map.mp hz
   rw [mem_unusedDomain_iff, lookup_eq_none_iff_forall] at hu ⊢
-  intro y hy
-  have hmem : (u, y - k.2) ∈ c := (hrel.mem_iff (u, y - k.2)).mpr
-    (Or.inl (by simpa [unshiftPair] using hy))
-  exact hu (y - k.2) hmem
+  exact fun y hy => hu (y - k.2) ((hrel.mem_iff _).mpr (.inl (by simpa [unshiftPair] using hy)))
 
 omit [Nonempty G] in
 private theorem CacheRel.unusedRange_subset_π {k : G × G} {c_e c_π c : Cache G}
@@ -1366,11 +1340,9 @@ private theorem CacheRel.cons_cipher {k : G × G} {c_e c_π c : Cache G}
       partial_π := hrel.partial_π
       partial_c := hrel.partial_c.cons_of_lookup_eq_none hxc hyc
       good := hgood'
-      mem_iff := fun p => ?_ }⟩
-  have hhead : p = (x + k.1, y - k.2) ↔ unshiftPair k p = (x, y) := by
-    rcases p with ⟨u, v⟩
-    simp only [unshiftPair, Prod.mk.injEq, eq_sub_iff_add_eq, sub_eq_iff_eq_add]
-  rw [List.mem_cons, List.mem_cons, hrel.mem_iff, hhead, or_assoc]
+      mem_iff := fun ⟨u, v⟩ => by
+        simp only [List.mem_cons, hrel.mem_iff, unshiftPair, Prod.mk.injEq, eq_sub_iff_add_eq,
+          sub_eq_iff_eq_add, or_assoc] }⟩
 
 omit [Fintype G] [Nonempty G] in
 private theorem CacheRel.cons_perm {k : G × G} {c_e c_π c : Cache G}
@@ -1404,13 +1376,11 @@ private theorem eq_or_exists_cons_of_mem_answer_support {q : PermQuery G} {cache
     cache' = cache ∨ ∃ e, cache' = e :: cache := by
   cases hq : cachedAnswer cache q with
   | some b =>
-    rw [RandomPermutation.answer_of_cachedAnswer_eq_some hq] at hmem
-    supp_cases hmem
+    supp_cases hmem [RandomPermutation.answer_of_cachedAnswer_eq_some hq]
     exact .inl rfl
   | none =>
     by_cases hne : (freshAnswers cache q).Nonempty
-    · rw [RandomPermutation.answer_of_cachedAnswer_eq_none hq hne] at hmem
-      supp_cases hmem
+    · supp_cases hmem [RandomPermutation.answer_of_cachedAnswer_eq_none hq hne]
       exact .inr ⟨_, rfl⟩
     · cases q <;>
         (simp only [RandomPermutation.cachedAnswer, RandomPermutation.freshAnswers] at hq hne
@@ -1482,19 +1452,17 @@ private theorem sum_uniform_le_of_good (U V : Finset G) (e : G ≃ G) (bad : G �
     ∑ x ∈ U, (U.card : ℝ≥0∞)⁻¹ * f x ≤ ∑ y ∈ V, (V.card : ℝ≥0∞)⁻¹ * g y := by
   have hcard : (U.card : ℝ≥0∞)⁻¹ ≤ (V.card : ℝ≥0∞)⁻¹ :=
     ENNReal.inv_le_inv.mpr (Nat.cast_le.mpr (by simpa using Finset.card_le_card hsub))
-  have hout : ∀ x ∈ U, x ∉ V.map e.toEmbedding → (U.card : ℝ≥0∞)⁻¹ * f x = 0 := by
-    intro x hx hnot
-    by_cases hb : bad x = true
+  have hout : ∀ x ∈ U, x ∉ V.map e.toEmbedding → (U.card : ℝ≥0∞)⁻¹ * f x = 0 := fun x hx hnot => by
+    cases hb : bad x
+    · exact (hnot (Finset.mem_map.mpr ⟨e.symm x, (hgood x hx hb).1, e.apply_symm_apply x⟩)).elim
     · rw [hzero x hb, mul_zero]
-    · exact False.elim (hnot (Finset.mem_map.mpr
-        ⟨e.symm x, (hgood x hx (Bool.eq_false_iff.mpr hb)).1, e.apply_symm_apply x⟩))
   rw [← Finset.sum_subset hsub hout, Finset.sum_map]
   refine Finset.sum_le_sum fun y hy => ?_
   simp only [Equiv.toEmbedding_apply]
-  by_cases hb : bad (e y) = true
+  cases hb : bad (e y)
+  · simpa only [Equiv.symm_apply_apply] using
+      mul_le_mul' hcard (hgood (e y) (hsub (Finset.mem_map_of_mem _ hy)) hb).2
   · simp only [hzero (e y) hb, mul_zero, zero_le]
-  · simpa only [Equiv.symm_apply_apply] using mul_le_mul' hcard
-      (hgood (e y) (hsub (Finset.mem_map_of_mem _ hy)) (Bool.eq_false_iff.mpr hb)).2
 
 /-- Shared one-query lazy-permutation coupling step across forward/inverse cipher and primitive
 queries. -/
@@ -1561,16 +1529,12 @@ theorem run_idealLazyHandler_good_le_realLazyHandler {α : Type}
         P r ∧ isBadEvenMansourKey c_e' c_π' k = false} ≤
     ((OracleComp.interpret (realLazyHandler k) program).run c).toOuterMeasure
       {res | P res.1} := by
-  rw [show {(r, c_e', c_π') : α × Cache G × Cache G |
-      P r ∧ isBadEvenMansourKey c_e' c_π' k = false} =
-      {res | P res.1 ∧ isBadEvenMansourKey res.2.1 res.2.2 k = false} by ext ⟨_, _, _⟩; rfl]
   induction program generalizing c_e c_π c with
   | pure a =>
-    change (PMF.pure (a, (c_e, c_π))).toOuterMeasure
-        {res | P res.1 ∧ isBadEvenMansourKey res.2.1 res.2.2 k = false} ≤
-      (PMF.pure (a, c)).toOuterMeasure {res | P res.1}
-    by_cases hP : P a <;> simp only [PMF.toOuterMeasure_pure_apply, hP, hrel.good,
-      Set.mem_ofPred_eq, and_self, false_and, ↓reduceIte, le_refl]
+    change (PMF.pure (a, (c_e, c_π))).toOuterMeasure _ ≤ (PMF.pure (a, c)).toOuterMeasure _
+    by_cases hP : P a <;>
+      simp only [PMF.toOuterMeasure_pure_apply, hP, hrel.good, Set.mem_ofPred_eq, and_self,
+        false_and, ↓reduceIte, le_refl]
   | liftBind q cont ih =>
     change ((idealLazyHandler q (c_e, c_π)).bind fun p =>
         (OracleComp.interpret idealLazyHandler (cont p.1)).run p.2).toOuterMeasure _ ≤
@@ -1616,13 +1580,11 @@ private theorem length_proj_idealLazyHandler_le {α : Type}
     (proj res.2).length ≤ (proj st).length + Q := by
   induction h generalizing st with
   | pure a n =>
-    change res ∈ (PMF.pure (a, st)).support at hmem
-    supp_cases hmem
+    supp_cases hmem [OracleComp.interpret_pure, StateT.run_pure]
     exact Nat.le_add_right _ _
   | liftBind q cont n hcost ih =>
-    change res ∈ ((idealLazyHandler q st).bind fun p =>
-      (OracleComp.interpret idealLazyHandler (cont p.1)).run p.2).support at hmem
-    supp_cases hmem with ⟨⟨ans, st₁⟩, hstep, hcont⟩
+    supp_cases hmem [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind] with
+      ⟨⟨ans, st₁⟩, hstep, hcont⟩
     dsimp only at hcont
     have h1 := hstep_le q st ans st₁ hstep
     have h2 := ih ans hcont
@@ -1671,23 +1633,15 @@ private theorem evenMansourIdealGame_le_realLazy_add_bad
       (((OracleComp.interpret (realLazyHandler k) program).run []).map Prod.fst) b +
         (((OracleComp.interpret idealLazyHandler program).run ([], [])).map fun res =>
           isBadEvenMansourKey res.2.1 res.2.2 k == b) b := by
-  let M_ideal := (OracleComp.interpret idealLazyHandler program).run ([], [])
-  rw [evenMansourIdealGame_eq_lazy, ← PMF.toOuterMeasure_apply_singleton,
-    ← PMF.toOuterMeasure_apply_singleton, ← PMF.toOuterMeasure_apply_singleton,
-    PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_map_apply,
-    preimage_beq_bool_singleton]
-  have hsub : Prod.fst ⁻¹' ({b} : Set Bool) ⊆
-      {(r, c_e', c_π') : Bool × Cache G × Cache G |
-        r = b ∧ isBadEvenMansourKey c_e' c_π' k = false} ∪
-      {res : Bool × (Cache G × Cache G) | isBadEvenMansourKey res.2.1 res.2.2 k = true} := by
-    rintro ⟨r, c_e', c_π'⟩ hr
-    simp only [Set.mem_preimage, Set.mem_singleton_iff] at hr
-    cases hbad : isBadEvenMansourKey c_e' c_π' k
-    · exact Or.inl ⟨hr, hbad⟩
-    · exact Or.inr hbad
-  exact ((MeasureTheory.measure_mono hsub).trans (MeasureTheory.measure_union_le _ _)).trans
-    (add_le_add (run_idealLazyHandler_good_le_realLazyHandler program (· = b) k (cacheRel_nil k))
-      le_rfl)
+  simp only [evenMansourIdealGame_eq_lazy, ← PMF.toOuterMeasure_apply_singleton,
+    PMF.toOuterMeasure_map_apply, preimage_beq_bool_singleton]
+  refine ((MeasureTheory.measure_mono fun ⟨r, c_e', c_π'⟩ hr => ?_).trans
+    (MeasureTheory.measure_union_le _ _)).trans
+      (add_le_add (run_idealLazyHandler_good_le_realLazyHandler program (· = b) k (cacheRel_nil k))
+        le_rfl)
+  cases hbad : isBadEvenMansourKey c_e' c_π' k
+  · exact Or.inl ⟨hr, hbad⟩
+  · exact Or.inr hbad
 
 private theorem idealGame_apply_le_realGame_add_of_keyDist (keyDist : PMF (G × G))
     {program : OracleComp (EvenMansourSpec G) Bool} {Q_e Q_π : ℕ}
@@ -1707,14 +1661,10 @@ private theorem idealGame_apply_le_realGame_add_of_keyDist (keyDist : PMF (G × 
     simp_rw [← realGameForKey_eq_lazy]
   have hbad : (keyDist.bind fun k =>
       M_ideal.map fun res => isBadEvenMansourKey res.2.1 res.2.2 k == b) b ≤ ε := by
-    have hcomm : (keyDist.bind fun k =>
-        M_ideal.map fun res => isBadEvenMansourKey res.2.1 res.2.2 k == b) =
-      (M_ideal.bind fun res =>
-        keyDist.map fun k => isBadEvenMansourKey res.2.1 res.2.2 k == b) := by
-      simp only [PMF.map]
-      pmf_swap
-    rw [hcomm]
+    simp only [PMF.map, Function.comp_def]
+    rw [PMF.bind_comm]
     refine Probability.PMF.bind_apply_le_on_support M_ideal fun res hmem => ?_
+    change (keyDist.map fun k => isBadEvenMansourKey res.2.1 res.2.2 k == b) b ≤ ε
     rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
       preimage_beq_bool_singleton]
     exact hbad_le res.2.1 res.2.2
@@ -1730,13 +1680,11 @@ private theorem advantage_le_of_forall_bool_le {g₁ g₂ : Game} {ε : ℝ≥0�
     (Game.advantage g₁ g₂ : ℝ) ≤ ε.toReal := by
   have htoReal (b : Bool) : (g₂ b).toReal ≤ (g₁ b).toReal + ε.toReal := by
     ennreal_to_real using hle b
-  have h1 := PMF.sum_toReal g₁
-  have h2 := PMF.sum_toReal g₂
-  rw [Fintype.sum_bool] at h1 h2
-  have ht := htoReal true
-  have hf := htoReal false
+  have hsum (g : Game) : (g true).toReal + (g false).toReal = 1 := by
+    simpa only [Fintype.sum_bool] using PMF.sum_toReal g
   rw [Game.coe_advantage, Game.coe_succProbability, Game.coe_succProbability]
-  exact abs_sub_le_iff.mpr ⟨by linarith, by linarith⟩
+  exact abs_sub_le_iff.mpr ⟨by linarith [htoReal false, hsum g₁, hsum g₂],
+    by linarith [htoReal true, hsum g₁, hsum g₂]⟩
 
 private theorem advantage_keyDist_evenMansourIdealGame_le (keyDist : PMF (G × G))
     {program : OracleComp (EvenMansourSpec G) Bool} {Q_e Q_π : ℕ}
@@ -1749,17 +1697,12 @@ private theorem advantage_keyDist_evenMansourIdealGame_le (keyDist : PMF (G × G
         keyDist.bind fun k => PMF.pure (evalEvenMansour π k.1 k.2 program))
       (evenMansourIdealGame program) : ℝ) ≤
       2 * (Q_e : ℝ) * (Q_π : ℝ) / (Fintype.card G : ℝ) := by
-  let ε : ℝ≥0∞ := 2 * Q_e * Q_π * (Fintype.card G : ℝ≥0∞)⁻¹
-  have hε : ε ≠ ⊤ := by
-    refine ENNReal.mul_ne_top (ENNReal.mul_ne_top (ENNReal.mul_ne_top ENNReal.ofNat_ne_top
-      (ENNReal.natCast_ne_top _)) (ENNReal.natCast_ne_top _)) ?_
-    simp [Fintype.card_ne_zero]
   have hle (b : Bool) := idealGame_apply_le_realGame_add_of_keyDist keyDist hcall
-    (fun c_e c_π he hπ => (hbad c_e c_π).trans
-      (mul_le_mul' (mul_le_mul' (mul_le_mul' le_rfl (Nat.cast_le.mpr he))
-        (Nat.cast_le.mpr hπ)) le_rfl)) b
-  simpa [ε, ENNReal.toReal_mul, ENNReal.toReal_inv, div_eq_mul_inv] using
-    advantage_le_of_forall_bool_le hε hle
+    (ε := 2 * Q_e * Q_π * (Fintype.card G : ℝ≥0∞)⁻¹)
+    (fun c_e c_π he hπ => (hbad c_e c_π).trans (by gcongr)) b
+  simpa [ENNReal.toReal_mul, ENNReal.toReal_inv, div_eq_mul_inv] using
+    advantage_le_of_forall_bool_le
+      (by simp [ENNReal.mul_eq_top, ENNReal.inv_eq_top, Fintype.card_ne_zero]) hle
 
 /-- **Deterministic Even–Mansour PRP security in the ideal-permutation model** ([BonehShoup2023],
 Section 4.7, Theorem 4.14; [EvenMansour1997]): for any deterministic (coin-free) adaptive
@@ -1788,15 +1731,10 @@ theorem advantage_singleKeyEvenMansourRealGame_evenMansourIdealGame_le
     (hcall : IsCallBounded program Q_e Q_π) :
     (Game.advantage (singleKeyEvenMansourRealGame program) (evenMansourIdealGame program) : ℝ) ≤
       2 * (Q_e : ℝ) * (Q_π : ℝ) / (Fintype.card G : ℝ) := by
-  let keyDist : PMF (G × G) := (PMF.uniformOfFintype G).map fun k => (k, k)
-  have hgame : ((PMF.uniformOfFintype (Equiv.Perm G)).bind fun π =>
-      keyDist.bind fun k => PMF.pure (evalEvenMansour π k.1 k.2 program)) =
-      singleKeyEvenMansourRealGame program := by
-    simp only [pmf_norm, keyDist, singleKeyEvenMansourRealGame]
-  rw [← hgame]
-  exact advantage_keyDist_evenMansourIdealGame_le keyDist hcall fun c_e c_π => by
-    rw [PMF.toOuterMeasure_map_apply]
-    exact toOuterMeasure_isBadSingleKeyEvenMansour_le c_e c_π
+  simpa only [pmf_norm, singleKeyEvenMansourRealGame] using
+    advantage_keyDist_evenMansourIdealGame_le ((PMF.uniformOfFintype G).map fun k => (k, k)) hcall
+      fun c_e c_π => (PMF.toOuterMeasure_map_apply _ _ _).trans_le
+        (toOuterMeasure_isBadSingleKeyEvenMansour_le c_e c_π)
 
 end Coupling
 
@@ -1970,8 +1908,8 @@ theorem advantage_evenMansourProbRealGame_evenMansourProbIdealGame_le
     (Game.advantage (evenMansourProbRealGame program) (evenMansourProbIdealGame program) : ℝ) ≤
       2 * (Q_e : ℝ) * (Q_π : ℝ) / (Fintype.card G : ℝ) := by
   rw [evenMansourProbRealGame_eq_coinLaw_bind, evenMansourProbIdealGame_eq_coinLaw_bind]
-  refine Game.advantage_bind_le _ _ _ fun ω => ?_
-  exact advantage_evenMansourRealGame_evenMansourIdealGame_le (hcall.fixCoins ω)
+  exact Game.advantage_bind_le _ _ _ fun ω =>
+    advantage_evenMansourRealGame_evenMansourIdealGame_le (hcall.fixCoins ω)
 
 /-- **Single-key Even–Mansour PRP security in the ideal-permutation model**
 ([DunkelmanKellerShamir2012]; [BonehShoup2023], Section 4.7): for any randomized adaptive
@@ -1986,8 +1924,8 @@ theorem advantage_singleKeyEvenMansourProbRealGame_evenMansourProbIdealGame_le
       (evenMansourProbIdealGame program) : ℝ) ≤
       2 * (Q_e : ℝ) * (Q_π : ℝ) / (Fintype.card G : ℝ) := by
   rw [singleKeyEvenMansourProbRealGame_eq_coinLaw_bind, evenMansourProbIdealGame_eq_coinLaw_bind]
-  refine Game.advantage_bind_le _ _ _ fun ω => ?_
-  exact advantage_singleKeyEvenMansourRealGame_evenMansourIdealGame_le (hcall.fixCoins ω)
+  exact Game.advantage_bind_le _ _ _ fun ω =>
+    advantage_singleKeyEvenMansourRealGame_evenMansourIdealGame_le (hcall.fixCoins ω)
 
 end ProbOracleSecurity
 

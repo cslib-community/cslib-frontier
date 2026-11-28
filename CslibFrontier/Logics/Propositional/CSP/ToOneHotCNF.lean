@@ -75,19 +75,14 @@ variable {Rel : Type*}
 theorem mem_finTuples {q r : ℕ} {ts : List (Fin q)} :
     ts ∈ finTuples q r ↔ ts.length = r := by
   induction r generalizing ts with
-  | zero =>
-    simp [finTuples, List.length_eq_zero_iff]
+  | zero => simp [finTuples]
   | succ r ih =>
     cases ts with
     | nil => simp [finTuples]
     | cons a ts =>
       simp only [finTuples, List.mem_flatMap, List.mem_map, List.mem_finRange, true_and,
         List.cons.injEq, List.length_cons, Nat.add_right_cancel_iff]
-      constructor
-      · rintro ⟨ts', hts', a', -, rfl, rfl⟩
-        exact ih.mp hts'
-      · intro hlen
-        exact ⟨ts, ih.mpr hlen, a, rfl, rfl⟩
+      exact ⟨fun ⟨_, hts', _, rfl, rfl⟩ => ih.mp hts', fun h => ⟨ts, ih.mpr h, a, rfl, rfl⟩⟩
 
 /-- `finTuples q r` has length `q ^ r`. -/
 theorem length_finTuples (q r : ℕ) : (finTuples q r).length = q ^ r := by
@@ -153,8 +148,7 @@ declared variables `0, …, N - 1`. Uses Boolean variables `v * q + a` (`v < N`,
 private theorem length_clause_of_mem_exactlyOne_le {q k : ℕ} {f : ℕ → ℕ} {cl : Clause ℕ}
     (hc : cl ∈ CNF.exactlyOne ((List.range q).map f)) :
     cl.length ≤ max q (max k 2) := by
-  rw [CNF.exactlyOne, List.mem_append] at hc
-  rcases hc with hc | hc
+  rcases List.mem_append.mp hc with hc | hc
   · rw [CNF.atLeastOne, List.mem_singleton] at hc
     subst hc
     simp
@@ -179,9 +173,8 @@ theorem length_clause_toOneHotCNF_le {q N k : ℕ} {F : CSP Rel ℕ}
 private theorem oneHot_inj {v₁ v₂ q a₁ a₂ : ℕ} (ha₁ : a₁ < q) (ha₂ : a₂ < q)
     (heq : v₁ * q + a₁ = v₂ * q + a₂) : v₁ = v₂ ∧ a₁ = a₂ := by
   refine ⟨by rw [← Nat.mul_add_div_of_lt v₁ ha₁, heq, Nat.mul_add_div_of_lt v₂ ha₂], ?_⟩
-  have hm := congrArg (· % q) heq
   simpa only [Nat.mul_comm _ q, Nat.mul_add_mod, Nat.mod_eq_of_lt ha₁,
-    Nat.mod_eq_of_lt ha₂] using hm
+    Nat.mod_eq_of_lt ha₂] using congrArg (· % q) heq
 
 /-- When all variables of `F` are `< N`, every variable of `toOneHotCNF q N F sem` is `< N * q`. -/
 theorem vars_toOneHotCNF_subset_range {q N : ℕ} {F : CSP Rel ℕ}
@@ -190,20 +183,16 @@ theorem vars_toOneHotCNF_subset_range {q N : ℕ} {F : CSP Rel ℕ}
   simp only [toOneHotCNF, Constraint.toOneHotCNF, CNF.vars, List.flatten_append, List.map_append,
     List.mem_append, List.mem_map, List.mem_flatten, List.mem_flatMap, List.mem_filter,
     List.mem_range] at hx
-  rcases hx with ⟨l, ⟨c, ⟨v, hv, hc⟩, hl⟩, rfl⟩ |
-      ⟨l, ⟨c, ⟨d, hd, ts, -, rfl⟩, hl⟩, rfl⟩
-  · have hmem := CNF.fst_mem_of_mem_exactlyOne hc hl
-    rw [List.mem_map] at hmem
-    obtain ⟨a, ha, heqa⟩ := hmem
+  rcases hx with ⟨⟨x, _⟩, ⟨c, ⟨v, hv, hc⟩, hl⟩, rfl⟩ | ⟨⟨x, _⟩, ⟨c, ⟨d, hd, ts, -, rfl⟩, hl⟩, rfl⟩
+  · obtain ⟨a, ha, rfl⟩ := List.mem_map.mp (CNF.fst_mem_of_mem_exactlyOne hc hl)
     have ha' := List.mem_range.mp ha
-    rw [← heqa]
     exact (Nat.div_lt_iff_lt_mul (Nat.zero_lt_of_lt ha')).mp
       ((Nat.mul_add_div_of_lt v ha').trans_lt hv)
-  · rw [forbidOneHotClause, List.mem_map] at hl
-    obtain ⟨⟨v, a⟩, hva, rfl⟩ := hl
-    have hv : v < N := hvars v (List.mem_flatMap.mpr ⟨d, hd, (List.of_mem_zip hva).1⟩)
+  · obtain ⟨⟨v, a⟩, hva, h⟩ := List.mem_map.mp hl
+    rw [← congrArg Prod.fst h]
     exact (Nat.div_lt_iff_lt_mul (Nat.zero_lt_of_lt a.isLt)).mp
-      ((Nat.mul_add_div_fin v a).trans_lt hv)
+      ((Nat.mul_add_div_fin v a).trans_lt
+        (hvars v (List.mem_flatMap.mpr ⟨d, hd, (List.of_mem_zip hva).1⟩)))
 
 /-- When `0 < q` and all variables of `F` are `< N`, the occurring variables of `toOneHotCNF` are
 precisely `Finset.range (N * q)`. -/
@@ -214,19 +203,14 @@ theorem vars_toOneHotCNF_toFinset {q N : ℕ} (hq : 0 < q) {F : CSP Rel ℕ}
   ext x
   rw [List.mem_toFinset, Finset.mem_range]
   refine ⟨vars_toOneHotCNF_subset_range sem hvars, fun hx => ?_⟩
-  have hdiv : x / q < N := (Nat.div_lt_iff_lt_mul hq).mpr hx
-  have hmod : x % q < q := Nat.mod_lt x hq
-  have hxq : (x / q) * q + x % q = x := by
-    rw [mul_comm, Nat.div_add_mod]
-  rw [← hxq]
+  rw [show x = (x / q) * q + x % q by rw [mul_comm, Nat.div_add_mod]]
   simp only [toOneHotCNF, CNF.vars, List.flatten_append, List.map_append, List.mem_append,
     List.mem_map, List.mem_flatten, List.mem_flatMap, List.mem_range]
-  refine Or.inl ⟨((x / q) * q + x % q, true),
-    ⟨((List.range q).map fun a => (x / q) * q + a).map (·, true), ?_, ?_⟩, rfl⟩
-  · refine ⟨x / q, hdiv, ?_⟩
-    rw [CNF.exactlyOne, List.mem_append]
-    exact Or.inl (by simp [CNF.atLeastOne])
-  · exact List.mem_map.mpr ⟨_, List.mem_map.mpr ⟨x % q, List.mem_range.mpr hmod, rfl⟩, rfl⟩
+  exact Or.inl ⟨((x / q) * q + x % q, true), ⟨((List.range q).map fun a => (x / q) * q + a).map
+    (·, true), ⟨x / q, (Nat.div_lt_iff_lt_mul hq).mpr hx,
+      List.mem_append_left _ (by simp [CNF.atLeastOne])⟩,
+    List.mem_map.mpr ⟨_, List.mem_map.mpr ⟨x % q, List.mem_range.mpr (Nat.mod_lt x hq), rfl⟩, rfl⟩⟩,
+    rfl⟩
 
 /-- Evaluation of `forbidOneHotClause`: when `σ` encodes `τ : ℕ → Fin q` via one-hot bits on
 `v * q + a`, `forbidOneHotClause q vs ts` fails iff `vs.map τ = ts`. -/
@@ -235,21 +219,17 @@ private theorem eval_forbidOneHotClause_eq_false_iff {q : ℕ} (vs : List ℕ) (
     (hrep : ∀ v ∈ vs, ∀ a : Fin q, σ (v * q + a.1) = decide (τ v = a)) :
     (forbidOneHotClause q vs ts).eval σ = false ↔ vs.map τ = ts := by
   induction vs generalizing ts with
-  | nil =>
-    cases ts with
-    | nil => simp [forbidOneHotClause]
-    | cons _ _ => simp at hlen
+  | nil => cases ts <;> simp [forbidOneHotClause] at hlen ⊢
   | cons v vs ih =>
     cases ts with
     | nil => simp at hlen
     | cons a ts =>
       simp only [List.length_cons, Nat.add_right_cancel_iff] at hlen
-      have hv := hrep v (List.mem_cons_self ..) a
-      have ih' := ih ts hlen (fun u hu b => hrep u (List.mem_cons_of_mem _ hu) b)
-      have hdef : forbidOneHotClause q (v :: vs) (a :: ts) =
-          (v * q + a.1, false) :: forbidOneHotClause q vs ts := rfl
-      rw [hdef, Clause.eval_cons, Bool.or_eq_false_iff, ih']
-      simp [Literal.eval, hv]
+      rw [forbidOneHotClause, List.zip_cons_cons, List.map_cons, Clause.eval_cons,
+        Bool.or_eq_false_iff, List.map_cons, List.cons.injEq]
+      simp only [Literal.eval, hrep v List.mem_cons_self a, beq_eq_false_iff_ne, ne_eq,
+        Bool.not_eq_false, decide_eq_true_eq]
+      exact and_congr_right fun _ => ih ts hlen fun u hu => hrep u (List.mem_cons_of_mem _ hu)
 
 /-- **Evaluation correctness of `toOneHotCNF`**: for `0 < q`, `σ` satisfies `toOneHotCNF q N F sem`
 iff every `v < N` has a unique true one-hot bit `a < q` and the induced assignment satisfies `F`. -/
@@ -262,22 +242,19 @@ theorem eval_toOneHotCNF {q N : ℕ} {F : CSP Rel ℕ} (sem : Rel → List (Fin 
         (forbidOneHotClause q c.2 ts).eval σ = true) := by
   rw [toOneHotCNF, CNF.eval_append, Bool.and_eq_true, CNF.eval_flatMap_eq_true_iff,
     CNF.eval_flatMap_eq_true_iff]
-  refine and_congr ?_ ?_
-  · simp only [List.mem_range]
-    refine forall₂_congr fun v _ => ?_
-    rw [CNF.eval_exactlyOne]
-    simp only [List.mem_map, List.mem_range]
-    constructor
-    · rintro ⟨⟨_, ⟨a, ha, rfl⟩, hsa⟩, huniq⟩
-      refine ⟨⟨a, ha, hsa⟩, fun a₁ ha₁ a₂ ha₂ h1 h2 => ?_⟩
-      have heq := huniq (v * q + a₁) ⟨a₁, ha₁, rfl⟩ (v * q + a₂) ⟨a₂, ha₂, rfl⟩ h1 h2
-      exact (oneHot_inj ha₁ ha₂ heq).2
-    · rintro ⟨⟨a, ha, hsa⟩, huniq⟩
-      refine ⟨⟨v * q + a, ⟨a, ha, rfl⟩, hsa⟩, ?_⟩
-      rintro _ ⟨a₁, ha₁, rfl⟩ _ ⟨a₂, ha₂, rfl⟩ h1 h2
-      rw [huniq a₁ ha₁ a₂ ha₂ h1 h2]
-  · simp only [Constraint.toOneHotCNF, CNF.eval_map_eq_true_iff, List.mem_filter, Bool.not_eq_true',
-      mem_finTuples, and_imp]
+  refine and_congr ?_ (by simp [Constraint.toOneHotCNF, CNF.eval_map_eq_true_iff, and_imp])
+  simp only [List.mem_range]
+  refine forall₂_congr fun v _ => ?_
+  rw [CNF.eval_exactlyOne]
+  simp only [List.mem_map, List.mem_range]
+  refine ⟨?_, ?_⟩
+  · rintro ⟨⟨_, ⟨a, ha, rfl⟩, hsa⟩, huniq⟩
+    exact ⟨⟨a, ha, hsa⟩, fun a₁ ha₁ a₂ ha₂ h1 h2 =>
+      (oneHot_inj ha₁ ha₂ (huniq _ ⟨a₁, ha₁, rfl⟩ _ ⟨a₂, ha₂, rfl⟩ h1 h2)).2⟩
+  · rintro ⟨⟨a, ha, hsa⟩, huniq⟩
+    refine ⟨⟨v * q + a, ⟨a, ha, rfl⟩, hsa⟩, ?_⟩
+    rintro _ ⟨a₁, ha₁, rfl⟩ _ ⟨a₂, ha₂, rfl⟩ h1 h2
+    rw [huniq a₁ ha₁ a₂ ha₂ h1 h2]
 
 private theorem eval_toOneHotEncode {q N : ℕ} (hq : 0 < q) (F : CSP Rel ℕ)
     (sem : Rel → List (Fin q) → Bool) (hvars : ∀ v ∈ F.vars, v < N)
@@ -287,42 +264,30 @@ private theorem eval_toOneHotEncode {q N : ℕ} (hq : 0 < q) (F : CSP Rel ℕ)
     (toOneHotCNF q N F sem).eval
       (fun x => if _ : x ∈ Finset.range (N * q) then
         decide (x % q = (τExt (x / q)).1) else false) = true := by
-  let τExt (v : ℕ) : Fin q := if hv : v ∈ Finset.range N then τ ⟨v, hv⟩ else ⟨0, hq⟩
-  have hrep : ∀ v < N, ∀ a : Fin q,
+  intro τExt
+  have hrep (v) (hv : v < N) (a : Fin q) :
       (if hx : v * q + a.1 ∈ Finset.range (N * q)
         then decide ((v * q + a.1) % q = (τExt ((v * q + a.1) / q)).1) else false) =
         decide (τExt v = a) := by
-    intro v hv a
     have hdiv := Nat.mul_add_div_fin v a
     have hlt : v * q + a.1 < N * q :=
       (Nat.div_lt_iff_lt_mul hq).mp (hdiv.trans_lt hv)
     have hmod : (v * q + a.1) % q = a.1 := by
       rw [Nat.mul_comm, Nat.mul_add_mod, Nat.mod_eq_of_lt a.isLt]
-    simp only [Finset.mem_range.mpr hlt, ↓reduceDIte, hdiv, hmod, Fin.ext_iff]
-    rw [Bool.eq_iff_iff, decide_eq_true_eq, decide_eq_true_eq]
-    exact eq_comm
+    simp [Finset.mem_range.mpr hlt, hdiv, hmod, Fin.ext_iff, eq_comm]
   rw [eval_toOneHotCNF]
-  refine ⟨fun v hv => ?_, fun c hc ts hlen hfalse => ?_⟩
-  · refine ⟨⟨(τExt v).1, (τExt v).isLt, ?_⟩, fun a₁ ha₁ a₂ ha₂ h1 h2 => ?_⟩
-    · have h := hrep v hv (τExt v)
-      simp only [decide_true] at h
-      exact h
-    · have ha1 := hrep v hv ⟨a₁, ha₁⟩
-      have ha2 := hrep v hv ⟨a₂, ha₂⟩
-      dsimp only [τExt] at ha1 ha2 h1 h2
-      rw [ha1, decide_eq_true_eq] at h1
-      rw [ha2, decide_eq_true_eq] at h2
-      exact congrArg Fin.val (h1.symm.trans h2)
-  · by_contra hcs
-    have hcl : (forbidOneHotClause q c.2 ts).eval
-        (fun x => if hx : x ∈ Finset.range (N * q)
-          then decide (x % q = (τExt (x / q)).1) else false) = false :=
-      Bool.eq_false_iff.mpr hcs
-    have hf := (eval_forbidOneHotClause_eq_false_iff c.2 ts hlen _ τExt
-      fun v hv a => hrep v (hvars v (List.mem_flatMap.mpr ⟨c, hc, hv⟩)) a).mp hcl
-    have hsat := (List.all_eq_true.mp hτ) c hc
+  refine ⟨fun v hv => ⟨⟨(τExt v).1, (τExt v).isLt, ?_⟩, fun a₁ ha₁ a₂ ha₂ h1 h2 => ?_⟩,
+    fun c hc ts hlen hfalse => by_contra fun hcs => ?_⟩
+  · simpa using hrep v hv (τExt v)
+  · rw [hrep v hv ⟨a₁, ha₁⟩, decide_eq_true_eq] at h1
+    rw [hrep v hv ⟨a₂, ha₂⟩, decide_eq_true_eq] at h2
+    exact congrArg Fin.val (h1.symm.trans h2)
+  · have hf := (eval_forbidOneHotClause_eq_false_iff c.2 ts hlen _ τExt
+      fun v hv a => hrep v (hvars v (List.mem_flatMap.mpr ⟨c, hc, hv⟩)) a).mp
+      (Bool.eq_false_iff.mpr hcs)
+    have hsat : c.eval sem τExt = true := (List.all_eq_true.mp hτ) c hc
     rw [Constraint.eval, hf, hfalse] at hsat
-    exact Bool.false_ne_true hsat
+    cases hsat
 
 /-- **Explicit assignment bijection for `toOneHotCNF`**: when `0 < q` and all variables of `F`
 are `< N`, declared solutions of `F` on `Finset.range N` biject with satisfying assignments of

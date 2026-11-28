@@ -438,9 +438,7 @@ theorem Reachable.trans {Proposer Acceptor Learner V : Type*}
     {s s' : SynodState Proposer Acceptor Learner V}
     (hs : Reachable qs inputs s) (hreach : (synodLts qs).CanReach s s') :
     Reachable qs inputs s' :=
-  let ⟨xl, hxl⟩ := hs
-  let ⟨yl, hyl⟩ := hreach
-  ⟨xl ++ yl, LTS.MTr.comp (synodLts qs) hxl hyl⟩
+  hs.elim fun xl hxl => hreach.elim fun yl hyl => ⟨xl ++ yl, LTS.MTr.comp (synodLts qs) hxl hyl⟩
 
 /-- The cumulative finite set of packets emitted along execution trace `xl` from `s₀` (ignoring
 `.drop` erasures). -/
@@ -483,11 +481,10 @@ private lemma enabled_mono_msgs {s₁ s₂ : SynodState Proposer Acceptor Learne
     (hen : synodEnabled s₁ act) (hsub : s₁.msgs ⊆ s₂.msgs)
     (hp : s₁.proposers = s₂.proposers) (ha : s₁.acceptors = s₂.acceptors)
     (hl : s₁.learners = s₂.learners) : synodEnabled s₂ act := by
-  cases s₁; cases s₂
-  dsimp only at hsub hp ha hl
+  rcases s₁, s₂ with ⟨⟨m₁, _, _, _⟩, ⟨m₂, _, _, _⟩⟩
   subst hp ha hl
-  cases act <;> simp only [synodEnabled] at hen ⊢
-  all_goals first | exact hen | exact ⟨hen.1, hsub hen.2⟩ | exact hsub hen
+  cases act <;> simp only [synodEnabled] at hen ⊢ <;>
+    first | exact hen | exact ⟨hen.1, hsub hen.2⟩ | exact hsub hen
 
 private lemma stepCore_sim {s₁ s₂ : SynodState Proposer Acceptor Learner V}
     (act : SynodAction Proposer Acceptor Learner V)
@@ -498,15 +495,12 @@ private lemma stepCore_sim {s₁ s₂ : SynodState Proposer Acceptor Learner V}
       (synodStep qs s₁ act).proposers = (synodStepCore false qs s₂ act).proposers ∧
       (synodStep qs s₁ act).acceptors = (synodStepCore false qs s₂ act).acceptors ∧
       (synodStep qs s₁ act).learners = (synodStepCore false qs s₂ act).learners := by
-  cases s₁; cases s₂
-  dsimp only at hsub hp ha hl
+  rcases s₁, s₂ with ⟨⟨m₁, _, _, _⟩, ⟨m₂, _, _, _⟩⟩
   subst hp ha hl
   cases act <;> dsimp only [synodStep, synodStepCore]
   case drop m => exact ⟨(Finset.erase_subset m _).trans hsub, rfl, rfl, rfl⟩
-  all_goals (try split) <;> (try split_ifs) <;> refine ⟨?_, rfl, rfl, rfl⟩ <;>
-    first
-      | exact hsub
-      | exact Finset.insert_subset_insert _ hsub
+  all_goals (try split) <;> (try split_ifs) <;>
+    exact ⟨by first | exact hsub | exact Finset.insert_subset_insert _ hsub, rfl, rfl, rfl⟩
 
 private lemma mTr_sim_noDrop {s₀ s : SynodState Proposer Acceptor Learner V}
     {xl : List (SynodAction Proposer Acceptor Learner V)}
@@ -582,13 +576,11 @@ omit [DecidableEq V] in
 private lemma phase2aQuorumWitness_mono {m₁ m₂ : Finset (Msg Proposer Acceptor V)}
     (hsub : m₁ ⊆ m₂) {b : Ballot Proposer} {v : V}
     (hw : Phase2aQuorumWitness qs m₁ b v) : Phase2aQuorumWitness qs m₂ b v := by
-  obtain ⟨Q, hQ, hcases⟩ := hw
-  refine ⟨Q, hQ, ?_⟩
-  rcases hcases with hnone | ⟨vt, hval, hlt, h2a, hall⟩
-  · exact Or.inl fun a ha => hsub (hnone a ha)
-  · exact Or.inr ⟨vt, hval, hlt, hsub h2a, fun a ha =>
+  obtain ⟨Q, hQ, hnone | ⟨vt, hval, hlt, h2a, hall⟩⟩ := hw
+  · exact ⟨Q, hQ, Or.inl fun a ha => hsub (hnone a ha)⟩
+  · exact ⟨Q, hQ, Or.inr ⟨vt, hval, hlt, hsub h2a, fun a ha =>
       let ⟨mv, hm, hb⟩ := hall a ha
-      ⟨mv, hsub hm, hb⟩⟩
+      ⟨mv, hsub hm, hb⟩⟩⟩
 
 /-- Combined single-state inductive invariant over the non-dropping network packet set and
 ghost-free node states. -/
@@ -657,34 +649,28 @@ private lemma mergeVote_promises_inv {inputs : Proposer → V}
     (h1b : Msg.phase1b a ⟨r, p⟩ mv ∈ s.msgs) :
     ProposerPromiseInv s.msgs ⟨r, p⟩
       (insert a (s.proposers p).promised) (mergeVote (s.proposers p).maxVote mv) := by
-  have hcur := hinv.prop_promises p r hround
   have h1b_prop := (hinv.phase1b_inv a ⟨r, p⟩ mv h1b).2
-  dsimp only [ProposerPromiseInv, mergeVote] at hcur ⊢
-  cases hmv_cur : (s.proposers p).maxVote with
-  | none =>
-    rw [hmv_cur] at hcur
+  match (s.proposers p).maxVote, hinv.prop_promises p r hround with
+  | none, hcur =>
     cases mv with
     | none => exact (Finset.forall_mem_insert _ _ _).2 ⟨h1b, hcur⟩
     | some vt₂ =>
       obtain ⟨hvt₂_lt, hvt₂_2a⟩ := h1b_prop vt₂ rfl
       exact ⟨hvt₂_lt, hvt₂_2a, (Finset.forall_mem_insert _ _ _).2
-        ⟨⟨_, h1b, fun _ h => by cases h; exact le_rfl⟩, fun a' ha' => ⟨none, hcur a' ha', nofun⟩⟩⟩
-  | some vt₁ =>
-    rw [hmv_cur] at hcur
-    obtain ⟨hvt₁_lt, hvt₁_2a, hall_cur⟩ := hcur
+        ⟨⟨_, h1b, fun _ h => Option.some.inj h ▸ le_rfl⟩, fun a' ha' => ⟨none, hcur a' ha', nofun⟩⟩⟩
+  | some vt₁, ⟨hvt₁_lt, hvt₁_2a, hall_cur⟩ =>
     cases mv with
     | none =>
       exact ⟨hvt₁_lt, hvt₁_2a, (Finset.forall_mem_insert _ _ _).2 ⟨⟨_, h1b, nofun⟩, hall_cur⟩⟩
     | some vt₂ =>
       obtain ⟨hvt₂_lt, hvt₂_2a⟩ := h1b_prop vt₂ rfl
-      dsimp only []
+      dsimp only [ProposerPromiseInv, mergeVote]
       split_ifs with hlt
       · refine ⟨hvt₂_lt, hvt₂_2a, (Finset.forall_mem_insert _ _ _).2
-          ⟨⟨_, h1b, fun _ h => by cases h; exact le_rfl⟩, fun a' ha' => ?_⟩⟩
-        obtain ⟨mv', hm', hle'⟩ := hall_cur a' ha'
-        exact ⟨mv', hm', fun vt' h => (hle' vt' h).trans hlt.le⟩
+          ⟨⟨_, h1b, fun _ h => Option.some.inj h ▸ le_rfl⟩, fun a' ha' => ?_⟩⟩
+        exact (hall_cur a' ha').imp fun _ ⟨hm', hle'⟩ => ⟨hm', fun v h => (hle' v h).trans hlt.le⟩
       · exact ⟨hvt₁_lt, hvt₁_2a, (Finset.forall_mem_insert _ _ _).2
-          ⟨⟨_, h1b, fun _ h => by cases h; exact not_lt.mp hlt⟩, hall_cur⟩⟩
+          ⟨⟨_, h1b, fun _ h => Option.some.inj h ▸ not_lt.mp hlt⟩, hall_cur⟩⟩
 
 omit [DecidableEq Learner] [DecidableEq V] in
 private lemma SynodCoreInv.of_proposer_update {inputs : Proposer → V}
@@ -712,16 +698,14 @@ private lemma SynodCoreInv.of_proposer_update {inputs : Proposer → V}
         proposers := fun q => if q = p then pst' else s.proposers q } where
   prop_input q := by by_cases hqp : q = p <;> simp [hqp, hinp, hinv.prop_input]
   prop_phase2a_round r' q v hm := by
-    have hr := h2a_round r' q v hm
     dsimp only []
-    split_ifs at hr ⊢ <;> exact hr
+    split_ifs <;> simpa [*] using h2a_round r' q v hm
   phase2a_unique := h2a_unique
   phase2a_valid := h2a_valid
   prop_promises q r' hq := by
     dsimp only [] at hq ⊢
     split_ifs at hq ⊢ with hqp
-    · exact hqp ▸ hprom r' hq
-    · exact proposerPromiseInv_mono hsub (hinv.prop_promises q r' hq)
+    exacts [hqp ▸ hprom r' hq, proposerPromiseInv_mono hsub (hinv.prop_promises q r' hq)]
   phase2a_witness := h2a_wit
   acc_local a vt hvt := (hinv.acc_local a vt hvt).imp_right fun h => hsub h
   phase1b_inv a b mv hm :=
@@ -818,15 +802,14 @@ private lemma SynodCoreInv.of_acceptor_update {inputs : Proposer → V}
     · obtain ⟨hmb, hvt⟩ := hinv.phase1b_inv a' b' mv hold
       exact ⟨acc_field_mono AcceptorState.maxBal id s.acceptors a ast' hmb_mono hmb,
         fun vt hv => (hvt vt hv).imp_right fun h => hsub h⟩
-    · simp only [↓reduceIte]
-      exact ⟨hmb, fun vt hv => (hvt vt hv).imp_right fun h => hsub h⟩
+    · exact ⟨by simpa only [↓reduceIte] using hmb,
+        fun vt hv => (hvt vt hv).imp_right fun h => hsub h⟩
   phase2b_inv a' b' v hm := by
     rcases h2b_new a' b' v hm with hold | ⟨rfl, hvt, h2a⟩
     · obtain ⟨hvt, h2a⟩ := hinv.phase2b_inv a' b' v hold
       exact ⟨acc_field_mono AcceptorState.maxVoted Vote.ballot s.acceptors a ast' hmv_mono hvt,
         hsub h2a⟩
-    · simp only [↓reduceIte]
-      exact ⟨hvt, hsub h2a⟩
+    · exact ⟨by simpa only [↓reduceIte] using hvt, hsub h2a⟩
   promise_vote := hpv
   learner_recv l av hav := hsub (hinv.learner_recv l av hav)
 
@@ -845,10 +828,9 @@ private lemma SynodCoreInv.of_learner_update {inputs : Proposer → V}
 
 private lemma synodCoreInv_tr (inputs : Proposer → V) :
     (synodLtsNoDrop qs (Learner := Learner)).TrInv (SynodCoreInv qs inputs) := by
-  intro s act s' htr hinv
+  rintro s act _ ⟨hen, rfl⟩ hinv
   cases act with
   | prepare p r =>
-    obtain ⟨⟨_, hround_lt⟩, rfl⟩ := htr
     dsimp only [synodStepCore]
     refine hinv.of_proposer_update_no2a qs (Finset.subset_insert _ _)
       (fun _ _ _ hm => Finset.mem_of_mem_insert_of_ne hm nofun)
@@ -856,37 +838,34 @@ private lemma synodCoreInv_tr (inputs : Proposer → V) :
       (fun _ _ hm => Finset.mem_of_mem_insert_of_ne hm nofun) rfl
       (fun r' r_cur hr_cur hrel => ⟨r, rfl, Or.inl ?_⟩)
       (fun _ _ _ ha => absurd ha (Finset.notMem_empty _))
-    rw [hr_cur] at hround_lt
+    have hround_lt := hr_cur ▸ hen.2
     rcases hrel with hlt | ⟨rfl, _⟩ <;> omega
   | recvPhase1a a b =>
-    obtain ⟨_, rfl⟩ := htr
     dsimp only [synodStepCore]
     split_ifs with habove
-    · have hvt_lt : ∀ vt, (s.acceptors a).maxVoted = some vt →
-          vt.ballot < b ∧ Msg.phase2a vt.ballot vt.value ∈ s.msgs := fun vt hvt => by
-        obtain ⟨⟨mb, hmb, hle_mb⟩, h2a⟩ := hinv.acc_local a vt hvt
-        simp only [aboveMaxBal, hmb, decide_eq_true_eq] at habove
-        exact ⟨hle_mb.trans_lt habove, h2a⟩
+    · have hmb_lt : ∀ mb, (s.acceptors a).maxBal = some mb → mb < b := fun mb hmb => by
+        simpa only [aboveMaxBal, hmb, decide_eq_true_eq] using habove
+      have hvt_lt : ∀ vt, (s.acceptors a).maxVoted = some vt →
+          vt.ballot < b ∧ Msg.phase2a vt.ballot vt.value ∈ s.msgs := fun vt hvt =>
+        let ⟨⟨mb, hmb, hle_mb⟩, h2a⟩ := hinv.acc_local a vt hvt
+        ⟨hle_mb.trans_lt (hmb_lt mb hmb), h2a⟩
       refine hinv.of_acceptor_update qs (Finset.subset_insert _ _)
         (fun _ _ hm => Finset.mem_of_mem_insert_of_ne hm nofun)
-        (fun mb hmb => by
-          simp only [aboveMaxBal, hmb, decide_eq_true_eq] at habove
-          exact ⟨b, rfl, habove.le⟩)
+        (fun mb hmb => ⟨b, rfl, (hmb_lt mb hmb).le⟩)
         (fun vt hvt => ⟨vt, hvt, le_rfl⟩)
         (fun vt hvt => ⟨⟨b, rfl, (hvt_lt vt hvt).1.le⟩, (hvt_lt vt hvt).2⟩)
-        (fun a' b' mv hm => by
-          rcases Finset.mem_insert.mp hm with h | hold
-          · cases h; exact Or.inr ⟨rfl, ⟨_, rfl, le_rfl⟩, hvt_lt⟩
-          · exact Or.inl hold)
+        (fun a' b' mv hm => (Finset.mem_insert.mp hm).symm.imp_right fun h => by
+          cases h
+          exact ⟨rfl, ⟨_, rfl, le_rfl⟩, hvt_lt⟩)
         (fun _ _ _ hm => Or.inl (Finset.mem_of_mem_insert_of_ne hm nofun))
-        (fun a' b₀ v₀ b' mv h2b h1b hlt => by
-          have h2b' := Finset.mem_of_mem_insert_of_ne h2b nofun
-          rcases Finset.mem_insert.mp h1b with h | h1b'
-          · cases h; exact (hinv.phase2b_inv _ _ _ h2b').1
-          · exact hinv.promise_vote _ _ _ _ _ h2b' h1b' hlt)
+        (fun a' b₀ v₀ b' mv h2b h1b hlt => ?_)
+      have h2b' := Finset.mem_of_mem_insert_of_ne h2b nofun
+      rcases Finset.mem_insert.mp h1b with h | h1b'
+      · cases h
+        exact (hinv.phase2b_inv _ _ _ h2b').1
+      · exact hinv.promise_vote _ _ _ _ _ h2b' h1b' hlt
     · exact hinv
   | recvPhase1b p a b mv =>
-    obtain ⟨⟨_, h1b_mem⟩, rfl⟩ := htr
     dsimp only [synodStepCore]
     cases hround : (s.proposers p).round with
     | none => exact hinv
@@ -896,9 +875,9 @@ private lemma synodCoreInv_tr (inputs : Proposer → V) :
       · obtain ⟨rfl, _⟩ := hguard
         simp only [Bool.and_eq_true, Bool.not_eq_true', decide_eq_true_eq] at hprop_q
         obtain ⟨hnot_prop, Q, hQ, hQsub⟩ := hprop_q
-        have hprom' := mergeVote_promises_inv qs hinv hround h1b_mem
-        set maxVote' := mergeVote (s.proposers p).maxVote mv
-        set val := match maxVote' with | some vt => vt.value | none => (s.proposers p).input
+        have hprom' := mergeVote_promises_inv qs hinv hround hen.2
+        let val := match mergeVote (s.proposers p).maxVote mv with
+          | some vt => vt.value | none => (s.proposers p).input
         have hno_prior_2a : ∀ v_old, Msg.phase2a ⟨r, p⟩ v_old ∉ s.msgs := fun v_old hm_old => by
           obtain ⟨r_cur, hr_cur, hrel⟩ := hinv.prop_phase2a_round r p v_old hm_old
           obtain rfl := Option.some.inj (hround.symm.trans hr_cur)
@@ -906,14 +885,12 @@ private lemma synodCoreInv_tr (inputs : Proposer → V) :
         have ⟨hval_valid, hwit_s⟩ : (∃ p₀, inputs p₀ = val) ∧
             Phase2aQuorumWitness qs s.msgs ⟨r, p⟩ val := by
           dsimp only [val]
-          cases hmv' : maxVote' with
-          | none =>
-            rw [hmv'] at hprom'
-            exact ⟨⟨p, (hinv.prop_input p).symm⟩, Q, hQ, Or.inl fun a' ha' => hprom' a' (hQsub ha')⟩
-          | some vt =>
-            rw [hmv'] at hprom'
-            exact ⟨hinv.phase2a_valid _ _ hprom'.2.1, Q, hQ,
-              Or.inr ⟨vt, rfl, hprom'.1, hprom'.2.1, fun a' ha' => hprom'.2.2 a' (hQsub ha')⟩⟩
+          exact match mergeVote (s.proposers p).maxVote mv, hprom' with
+            | none, hprom' =>
+              ⟨⟨p, (hinv.prop_input p).symm⟩, Q, hQ, Or.inl fun a' ha' => hprom' a' (hQsub ha')⟩
+            | some vt, ⟨hlt, h2a, hall⟩ =>
+              ⟨hinv.phase2a_valid _ _ h2a, Q, hQ,
+                Or.inr ⟨vt, rfl, hlt, h2a, fun a' ha' => hall a' (hQsub ha')⟩⟩
         refine hinv.of_proposer_update qs (Finset.subset_insert _ _)
           (fun _ _ _ hm => Finset.mem_of_mem_insert_of_ne hm nofun)
           (fun _ _ _ hm => Finset.mem_of_mem_insert_of_ne hm nofun) rfl
@@ -937,66 +914,55 @@ private lemma synodCoreInv_tr (inputs : Proposer → V) :
           · cases h; exact absurd h₂' (hno_prior_2a _)
           · cases h'; exact absurd h₁' (hno_prior_2a _)
           · exact hinv.phase2a_unique b' v₁ v₂ h₁' h₂'
-        · rcases Finset.mem_insert.mp hm with h | hm'
-          · cases h; exact hval_valid
-          · exact hinv.phase2a_valid b' v hm'
-        · rcases Finset.mem_insert.mp hm with h | hm'
-          · cases h; exact hwit_s
-          · exact hinv.phase2a_witness b' v hm'
+        · exact (Finset.mem_insert.mp hm).elim
+            (fun h => (Msg.phase2a.inj h).2.symm ▸ hval_valid) (hinv.phase2a_valid b' v)
+        · exact (Finset.mem_insert.mp hm).elim
+            (fun h => (Msg.phase2a.inj h).1.symm ▸ (Msg.phase2a.inj h).2.symm ▸ hwit_s)
+            (hinv.phase2a_witness b' v)
       · obtain ⟨rfl, _⟩ := hguard
         exact hinv.of_proposer_update_no2a qs Finset.Subset.rfl
           (fun _ _ _ h => h) (fun _ _ _ h => h) (fun _ _ h => h) rfl
           (fun _ r_cur hr_cur hrel => ⟨r, rfl, Option.some.inj (hround.symm.trans hr_cur) ▸ hrel⟩)
-          (fun r' hr' => by cases hr'; exact mergeVote_promises_inv qs hinv hround h1b_mem)
+          (fun _ hr' => Option.some.inj hr' ▸ mergeVote_promises_inv qs hinv hround hen.2)
       · exact hinv
   | recvPhase2a a b v =>
-    obtain ⟨⟨_, h2a_mem⟩, rfl⟩ := htr
     dsimp only [synodStepCore]
     split_ifs with hallows
-    · refine hinv.of_acceptor_update qs (Finset.subset_insert _ _)
+    · have hmb_le : ∀ mb, (s.acceptors a).maxBal = some mb → mb ≤ b := fun mb hmb => by
+        simpa only [allowsVote, hmb, decide_eq_true_eq] using hallows
+      refine hinv.of_acceptor_update qs (Finset.subset_insert _ _)
         (fun _ _ hm => Finset.mem_of_mem_insert_of_ne hm nofun)
-        (fun mb hmb => by
-          simp only [allowsVote, hmb, decide_eq_true_eq] at hallows
-          exact ⟨b, rfl, hallows⟩)
-        (fun vt hvt => by
-          obtain ⟨⟨mb, hmb, hvt_le⟩, _⟩ := hinv.acc_local a vt hvt
-          simp only [allowsVote, hmb, decide_eq_true_eq] at hallows
-          exact ⟨⟨b, v⟩, rfl, hvt_le.trans hallows⟩)
-        (fun vt hvt => by cases hvt; exact ⟨⟨b, rfl, le_rfl⟩, h2a_mem⟩)
+        (fun mb hmb => ⟨b, rfl, hmb_le mb hmb⟩)
+        (fun vt hvt =>
+          let ⟨⟨mb, hmb, hvt_le⟩, _⟩ := hinv.acc_local a vt hvt
+          ⟨⟨b, v⟩, rfl, hvt_le.trans (hmb_le mb hmb)⟩)
+        (fun _ hvt => Option.some.inj hvt ▸ ⟨⟨b, rfl, le_rfl⟩, hen.2⟩)
         (fun _ _ _ hm => Or.inl (Finset.mem_of_mem_insert_of_ne hm nofun))
-        (fun a' b' v' hm => by
-          rcases Finset.mem_insert.mp hm with h | hold
-          · cases h; exact Or.inr ⟨rfl, ⟨⟨_, _⟩, rfl, le_rfl⟩, h2a_mem⟩
-          · exact Or.inl hold)
-        (fun a' b₀ v₀ b' mv h2b h1b hlt => by
-          have h1b' := Finset.mem_of_mem_insert_of_ne h1b nofun
-          rcases Finset.mem_insert.mp h2b with h | h2b'
-          · cases h
-            obtain ⟨⟨mb, hmb, hb'_le_mb⟩, _⟩ := hinv.phase1b_inv _ _ mv h1b'
-            simp only [allowsVote, hmb, decide_eq_true_eq] at hallows
-            exact absurd (hlt.trans_le (hb'_le_mb.trans hallows)) (lt_irrefl _)
-          · exact hinv.promise_vote a' b₀ v₀ b' mv h2b' h1b' hlt)
+        (fun a' b' v' hm => (Finset.mem_insert.mp hm).symm.imp_right fun h => by
+          cases h
+          exact ⟨rfl, ⟨⟨_, _⟩, rfl, le_rfl⟩, hen.2⟩)
+        (fun a' b₀ v₀ b' mv h2b h1b hlt => ?_)
+      have h1b' := Finset.mem_of_mem_insert_of_ne h1b nofun
+      rcases Finset.mem_insert.mp h2b with h | h2b'
+      · cases h
+        obtain ⟨⟨mb, hmb, hb'_le_mb⟩, _⟩ := hinv.phase1b_inv _ _ mv h1b'
+        exact absurd (hlt.trans_le (hb'_le_mb.trans (hmb_le mb hmb))) (lt_irrefl _)
+      · exact hinv.promise_vote a' b₀ v₀ b' mv h2b' h1b' hlt
     · exact hinv
   | recvPhase2b l a b v =>
-    obtain ⟨⟨_, h2b_mem⟩, rfl⟩ := htr
     exact hinv.of_learner_update qs
-      ((Finset.forall_mem_insert _ _ _).2 ⟨h2b_mem, hinv.learner_recv l⟩)
-  | drop _ | stutter =>
-    obtain ⟨_, rfl⟩ := htr
-    exact hinv
+      ((Finset.forall_mem_insert _ _ _).2 ⟨hen.2, hinv.learner_recv l⟩)
+  | drop _ | stutter => exact hinv
   | crashProposer p =>
-    obtain ⟨_, rfl⟩ := htr
     exact hinv.of_proposer_update_no2a qs Finset.Subset.rfl
       (fun _ _ _ h => h) (fun _ _ _ h => h) (fun _ _ h => h) rfl
       (fun _ r_cur hr_cur hrel => ⟨r_cur, hr_cur, hrel⟩)
       (hinv.prop_promises p)
   | crashAcceptor a =>
-    obtain ⟨_, rfl⟩ := htr
     exact hinv.of_acceptor_update qs Finset.Subset.rfl (fun _ _ h => h)
       (fun mb hmb => ⟨mb, hmb, le_rfl⟩) (fun vt hvt => ⟨vt, hvt, le_rfl⟩)
       (hinv.acc_local a) (fun _ _ _ h => Or.inl h) (fun _ _ _ h => Or.inl h) hinv.promise_vote
   | crashLearner l =>
-    obtain ⟨_, rfl⟩ := htr
     exact hinv.of_learner_update qs (hinv.learner_recv l)
 
 private lemma synodCoreInv_of_mTr {inputs : Proposer → V}
@@ -1038,10 +1004,8 @@ private lemma phase2aBelow_card_lt {msgs : Finset (Msg Proposer Acceptor V)}
     ⟨Msg.phase2a b₁ v₁, Finset.mem_filter.2 ⟨hm₁, decide_eq_true hlt⟩,
       fun h => lt_irrefl b₁ (of_decide_eq_true (Finset.mem_filter.1 h).2)⟩)
   rw [phase2aBelow, Finset.mem_filter] at hm ⊢
-  refine ⟨hm.1, ?_⟩
-  cases m with
-  | phase2a b'' _ => exact decide_eq_true ((of_decide_eq_true hm.2).trans hlt)
-  | _ => cases hm.2
+  cases m <;>
+    first | cases hm.2 | exact ⟨hm.1, decide_eq_true ((of_decide_eq_true hm.2).trans hlt)⟩
 
 /-- Crash-stop intermediate step towards the inductive ballot-choice invariant of [Lamport1998]
 §2.1 (Lemma) and [Lamport2001] §2.2 (`P2^b`–`P2^c`), and **not** the crash-recovery cited result:
@@ -1067,16 +1031,15 @@ theorem chosenAt_implies_higher_phase2a_eq_crashStop {inputs : Proposer → V}
   refine fun n => Nat.strong_induction_on n fun n ih b' v' hcard h2a' hle' => ?_
   rcases eq_or_lt_of_le hle' with rfl | hlt
   · obtain ⟨a₀, ha₀⟩ := qs.acceptQuorum_nonempty hQ₀
-    have h2a₀ := (hinv.phase2b_inv a₀ b v (hall₀ a₀ ha₀)).2
-    exact hinv.phase2a_unique b v' v h2a' h2a₀
+    exact hinv.phase2a_unique b v' v h2a' (hinv.phase2b_inv a₀ b v (hall₀ a₀ ha₀)).2
   · obtain ⟨Q, hQ, hcases⟩ := hinv.phase2a_witness b' v' h2a'
-    obtain ⟨a_star, ha_inter⟩ := qs.inter_nonempty Q hQ Q₀ hQ₀
-    obtain ⟨haQ, ha₀⟩ := Finset.mem_inter.mp ha_inter
-    have h2b_star := hall₀ a_star ha₀
+    obtain ⟨a_star, haQ, ha₀⟩ := (qs.inter_nonempty Q hQ Q₀ hQ₀).imp fun _ => Finset.mem_inter.mp
     rcases hcases with hnone | ⟨vt, rfl, hvt_lt, hvt_2a, hall_p⟩
-    · obtain ⟨_, ⟨⟩, _⟩ := hinv.promise_vote a_star b v b' none h2b_star (hnone a_star haQ) hlt
+    · obtain ⟨_, ⟨⟩, _⟩ :=
+        hinv.promise_vote a_star b v b' none (hall₀ a_star ha₀) (hnone a_star haQ) hlt
     · obtain ⟨mv, h1b_star, hmv_le⟩ := hall_p a_star haQ
-      obtain ⟨vt', hmv_eq, hb_le_vt'⟩ := hinv.promise_vote a_star b v b' mv h2b_star h1b_star hlt
+      obtain ⟨vt', hmv_eq, hb_le_vt'⟩ :=
+        hinv.promise_vote a_star b v b' mv (hall₀ a_star ha₀) h1b_star hlt
       exact ih _ (hcard ▸ phase2aBelow_card_lt hvt_2a hvt_lt) vt.ballot vt.value rfl hvt_2a
         (hb_le_vt'.trans (hmv_le vt' hmv_eq))
 
@@ -1121,28 +1084,22 @@ private def LearnerRegInv (s : SynodState Proposer Acceptor Learner V) : Prop :=
 
 omit [LinearOrder Proposer] [DecidableEq Learner] [DecidableEq V] in
 private lemma learnerRegInv_init (inputs : Proposer → V) :
-    LearnerRegInv qs (initState (Learner := Learner) inputs) := by
-  intro l
-  refine ⟨fun v hv => ?_, fun _ b w ⟨Q, hQ, hall⟩ => ?_⟩
-  · simp only [initState] at hv; cases hv
-  · obtain ⟨a, ha⟩ := qs.acceptQuorum_nonempty hQ
-    exact Finset.notMem_empty _ (hall a ha)
+    LearnerRegInv qs (initState (Learner := Learner) inputs) := fun _ =>
+  ⟨nofun, fun _ _ _ ⟨_, hQ, hall⟩ =>
+    let ⟨a, ha⟩ := qs.acceptQuorum_nonempty hQ
+    Finset.notMem_empty _ (hall a ha)⟩
 
 private lemma learnerRegInv_tr :
     (synodLts qs (Proposer := Proposer) (Learner := Learner) (V := V)).TrInv
       (LearnerRegInv qs) := by
   rintro s act _ ⟨_, rfl⟩ hinv l
   cases act with
-  | recvPhase1a _ _ | recvPhase2a _ _ _ =>
-    dsimp only [synodStep, synodStepCore]; split_ifs <;> exact hinv l
   | recvPhase1b p _ _ _ =>
     dsimp only [synodStep, synodStepCore]
-    cases (s.proposers p).round with
-    | none => exact hinv l
-    | some _ => dsimp only []; split_ifs <;> exact hinv l
+    cases (s.proposers p).round <;> dsimp only [] <;> (try split_ifs) <;> exact hinv l
   | crashLearner l₀ =>
-    dsimp only [synodStep, synodStepCore]
-    by_cases hll : l = l₀ <;> simp only [SynodState.LearnedAt, hll, ↓reduceIte] <;> exact hinv _
+    by_cases hll : l = l₀ <;>
+      simpa only [SynodState.LearnedAt, synodStep, synodStepCore, hll, ↓reduceIte] using hinv l
   | recvPhase2b l₀ a b v =>
     dsimp only [synodStep, synodStepCore]
     by_cases hll : l = l₀
@@ -1151,22 +1108,20 @@ private lemma learnerRegInv_tr :
       simp only [SynodState.LearnedAt, ↓reduceIte]
       cases hcur : (s.learners l).learned with
       | some v₀ =>
-        simp only [Option.isNone_some, Bool.false_and, Bool.false_eq_true, ↓reduceIte,
-          Option.some.injEq]
         obtain ⟨b₀, Q₀, hQ₀, hall₀⟩ := hsome v₀ hcur
-        exact ⟨fun w hw => hw ▸ ⟨b₀, Q₀, hQ₀, fun _ h => Finset.mem_insert_of_mem (hall₀ _ h)⟩,
-          nofun⟩
+        exact ⟨fun _ hw => Option.some.inj hw ▸
+          ⟨b₀, Q₀, hQ₀, fun _ h => Finset.mem_insert_of_mem (hall₀ _ h)⟩, nofun⟩
       | none =>
-        simp only [Option.isNone_none, Bool.true_and]
-        split_ifs with hq <;> simp only [decide_eq_true_eq] at hq
-        · exact ⟨fun w hw => Option.some.inj hw ▸ ⟨b, hq⟩, nofun⟩
+        split_ifs with hq <;> simp only [Option.isNone_none, Bool.true_and, decide_eq_true_eq] at hq
+        · exact ⟨fun _ hw => Option.some.inj hw ▸ ⟨b, hq⟩, nofun⟩
         · refine ⟨nofun, fun _ b' w' ⟨Q, hQ, hall⟩ => hnone hcur b' w' ⟨Q, hQ, fun a' ha' => ?_⟩⟩
           rcases Finset.mem_insert.mp (hall a' ha') with h | hold
           · cases h; exact absurd ⟨Q, hQ, hall⟩ hq
           · exact hold
-    · simp only [SynodState.LearnedAt, hll, ↓reduceIte]
-      exact hinv l
-  | _ => exact hinv l
+    · simpa only [SynodState.LearnedAt, hll, ↓reduceIte] using hinv l
+  | _ =>
+    dsimp only [synodStep, synodStepCore]
+    (try split_ifs) <;> exact hinv l
 
 /-- Crash-stop Synod learner-register characterization: in any reachable crash-stop Synod state,
 learner `l`'s operational `learned` register holds `some v` if and only if `l` has learned `v` at

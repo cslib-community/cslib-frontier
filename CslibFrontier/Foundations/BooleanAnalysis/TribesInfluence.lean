@@ -79,23 +79,16 @@ private theorem tribes_update (x : BitString (s * w)) (j₀ : Fin s) (i₀ : Fin
     tribes w s (update x (finProdFinEquiv (j₀, i₀)) b) =
       decide ((∃ j ≠ j₀, ∀ i, x (finProdFinEquiv (j, i)) = true) ∨
         ((∀ i ≠ i₀, x (finProdFinEquiv (j₀, i)) = true) ∧ b = true)) := by
-  rw [tribes]
-  refine decide_eq_decide.2 ?_
+  rw [tribes, decide_eq_decide]
   simp only [update_apply, finProdFinEquiv.injective.eq_iff, Prod.mk.injEq]
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨j, hj⟩
-    by_cases hj0 : j = j₀
-    · subst hj0
-      right
-      exact ⟨fun i hi => by simpa [hi] using hj i, by simpa using hj i₀⟩
-    · left
-      exact ⟨j, hj0, fun i => by simpa [hj0] using hj i⟩
+    rcases eq_or_ne j j₀ with rfl | hj0
+    · exact .inr ⟨fun i hi => by simpa [hi] using hj i, by simpa using hj i₀⟩
+    · exact .inl ⟨j, hj0, fun i => by simpa [hj0] using hj i⟩
   · rintro (⟨j, hj0, hj⟩ | ⟨hB, hb⟩)
     · exact ⟨j, fun i => by simpa [hj0] using hj i⟩
-    · refine ⟨j₀, fun i => ?_⟩
-      by_cases hi : i = i₀
-      · simp [hi, hb]
-      · simp [hi, hB i hi]
+    · exact ⟨j₀, fun i => by by_cases hi : i = i₀ <;> simp [hi, hb, hB]⟩
 
 /-- **Pivotality in Tribes**: flipping bit `i₀` of tribe `j₀` changes the value of Tribes exactly
 when the other bits of tribe `j₀` are `true` and every other tribe has a `false` bit. -/
@@ -105,11 +98,9 @@ theorem tribes_update_ne_iff (x : BitString (s * w)) (j₀ : Fin s) (i₀ : Fin 
       (∀ i ≠ i₀, x (finProdFinEquiv (j₀, i)) = true) ∧
         ∀ j ≠ j₀, ∃ i, x (finProdFinEquiv (j, i)) = false := by
   conv_lhs => rhs; rw [← update_eq_self (finProdFinEquiv (j₀, i₀)) x]
-  rw [tribes_update, tribes_update]
   have hA : (¬∃ j ≠ j₀, ∀ i, x (finProdFinEquiv (j, i)) = true) ↔
-      ∀ j ≠ j₀, ∃ i, x (finProdFinEquiv (j, i)) = false := by
-    simp only [not_exists, not_and, not_forall, Bool.not_eq_true]
-  rw [← hA]
+      ∀ j ≠ j₀, ∃ i, x (finProdFinEquiv (j, i)) = false := by simp
+  rw [tribes_update, tribes_update, ← hA]
   cases x (finProdFinEquiv (j₀, i₀)) <;>
     by_cases h1 : ∃ j ≠ j₀, ∀ i, x (finProdFinEquiv (j, i)) = true <;>
     by_cases h2 : ∀ i ≠ i₀, x (finProdFinEquiv (j₀, i)) = true <;> simp [h1, h2]
@@ -134,19 +125,14 @@ theorem influence_finProdFinEquiv_tribes (j₀ : Fin s) (i₀ : Fin w) :
     rw [prod_congr rfl fun j hj => ite_eq_right (ne_of_mem_erase hj), prod_boole,
       ite_zero_mul_ite_zero, mul_one]
     have key := tribes_update_ne_iff x j₀ i₀
-    simp only [ne_eq] at key
-    simp only [mem_erase, ne_eq, mem_univ, and_true, true_and]
-    split_ifs with h1 h2 h2
-    · exact absurd h1 (key.2 ⟨h2.1, fun j hj => h2.2 j hj⟩)
-    · rfl
-    · rfl
-    · exact absurd ⟨(key.1 h1).1, fun j hj => (key.1 h1).2 j hj⟩ h2
+    simp only [ne_eq, mem_erase, mem_univ, and_true, true_and] at key ⊢
+    split_ifs with h1 h2 h2 <;>
+      first | rfl | exact absurd h1 (key.2 h2) | exact absurd (key.1 h1) h2
   have h0 : 𝔼 z, g j₀ z = 2⁻¹ ^ (w - 1) := by
-    simp only [hg, ite_true]
-    rw [expect_ite_forall_mem_eq, card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fin]
+    simp only [hg, ite_true, expect_ite_forall_mem_eq, card_erase_of_mem (mem_univ _),
+      card_univ, Fintype.card_fin]
   have h1 (j : Fin s) (hj : j ≠ j₀) : 𝔼 z, g j z = 1 - 2⁻¹ ^ w := by
-    simp only [hg, hj, ite_false]
-    rw [expect_ite_exists_mem_eq, card_univ, Fintype.card_fin]
+    simp only [hg, hj, ite_false, expect_ite_exists_mem_eq, card_univ, Fintype.card_fin]
   rw [influence_signVal, expect_congr rfl fun x _ => hpt x, expect_prod_tribe,
     ← mul_prod_erase univ _ (mem_univ j₀), h0,
     prod_congr rfl fun j hj => h1 j (ne_of_mem_erase hj), prod_const,
@@ -163,9 +149,7 @@ theorem influence_tribes (k : Fin (s * w)) :
 theorem totalInfluence_tribes (w s : ℕ) :
     totalInfluence (fun x => signVal (tribes w s x)) =
       (s * w : ℕ) * (2⁻¹ ^ (w - 1) * (1 - 2⁻¹ ^ w) ^ (s - 1)) := by
-  rw [totalInfluence]
-  simp only [influence_tribes]
-  rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
+  simp only [totalInfluence, influence_tribes, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
 
 /-! ### Explicit bounds for the nearly balanced Tribes -/
 
@@ -176,9 +160,7 @@ private theorem one_sub_inv_two_pow_le_one (w : ℕ) : 1 - (2⁻¹ : ℝ) ^ w �
   sub_le_self _ (by positivity)
 
 private theorem two_pow_eq_two_mul (hw : 1 ≤ w) : (2 : ℝ) ^ w = 2 * 2 ^ (w - 1) := by
-  rw [← pow_succ']
-  congr 1
-  omega
+  rw [← pow_succ', Nat.sub_add_cancel hw]
 
 /-- The nearly balanced Tribes on `s w` bits has total influence at most `2 w`. The bound is
 ours. -/
@@ -190,12 +172,10 @@ theorem totalInfluence_tribes_le (w : ℕ) :
   have hA : (1 - (2⁻¹ : ℝ) ^ w) ^ (tribesSize w - 1) ≤ 1 :=
     pow_le_one₀ (one_sub_inv_two_pow_nonneg w) (one_sub_inv_two_pow_le_one w)
   have hpow := two_pow_eq_two_mul hw
-  have hy : (2⁻¹ : ℝ) ^ (w - 1) * 2 ^ (w - 1) = 1 := by
-    rw [← mul_pow]
-    norm_num
-  rw [Nat.cast_mul]
+  have hy : (2⁻¹ : ℝ) ^ (w - 1) * 2 ^ (w - 1) = 1 := by rw [← mul_pow]; norm_num
   have hy0 : (0 : ℝ) ≤ 2⁻¹ ^ (w - 1) := by positivity
   have hsy : (tribesSize w : ℝ) * 2⁻¹ ^ (w - 1) ≤ 2 := by cast_nlinarith [tribesSize_lt_two_pow w]
+  rw [Nat.cast_mul]
   calc (tribesSize w * w : ℝ) * (2⁻¹ ^ (w - 1) * (1 - 2⁻¹ ^ w) ^ (tribesSize w - 1))
       ≤ (tribesSize w * w : ℝ) * (2⁻¹ ^ (w - 1) * 1) := by gcongr
     _ = (tribesSize w * 2⁻¹ ^ (w - 1)) * w := by ring
@@ -209,23 +189,16 @@ private theorem influence_tribes_le_of (hw : 2 ≤ w) (hs₁ : 2 ^ (w - 1) ≤ s
     exact mul_le_of_le_one_right (by positivity)
       (pow_le_one₀ (one_sub_inv_two_pow_nonneg w) (one_sub_inv_two_pow_le_one w))
   have hN₁ : ((2 : ℝ) ^ (w - 1)) ≤ ((s * w : ℕ) : ℝ) := by
-    have : 2 ^ (w - 1) ≤ s * w := hs₁.trans (Nat.le_mul_of_pos_right _ (by omega))
-    exact_mod_cast this
-  have hNpos : (0 : ℝ) < ((s * w : ℕ) : ℝ) := lt_of_lt_of_le (by positivity) hN₁
+    exact_mod_cast hs₁.trans (Nat.le_mul_of_pos_right _ (by omega))
   have hyN : (2⁻¹ : ℝ) ^ (w - 1) * ((s * w : ℕ) : ℝ) ≤ 2 * w := by
-    have hpow := two_pow_eq_two_mul (show 1 ≤ w by omega)
+    have hpow := two_pow_eq_two_mul (w := w) (by omega)
     rw [Nat.cast_mul, inv_pow, ← div_eq_inv_mul, div_le_iff₀ (by positivity)]
     cast_nlinarith [hs₂, hw]
-  have hlog : ((w - 1 : ℕ) : ℝ) * Real.log 2 ≤ Real.log ((s * w : ℕ) : ℝ) := by
-    rw [← Real.log_pow]
+  have hlog : (w - 1 : ℝ) * Real.log 2 ≤ Real.log ((s * w : ℕ) : ℝ) := by
+    rw [← Nat.cast_one, ← Nat.cast_sub (by omega), ← Real.log_pow]
     exact Real.log_le_log (by positivity) hN₁
   have hl2 := Real.log_two_gt_d9
-  have hcast : ((w - 1 : ℕ) : ℝ) = w - 1 := by
-    rw [Nat.cast_sub (by omega)]
-    norm_num
-  rw [hcast] at hlog
-  refine hinf.trans ?_
-  rw [le_div_iff₀ hNpos]
+  refine hinf.trans ((le_div_iff₀ (lt_of_lt_of_le (by positivity) hN₁)).2 ?_)
   cast_nlinarith
 
 /-- **Upper bound on the influences of Tribes** [O'Donnell, Proposition 4.13][ODonnell2014], in
@@ -247,25 +220,18 @@ private theorem log_div_le_influence_tribes_of (hw : 1 ≤ w) (hs₁ : 2 ^ (w - 
   have hs₁' : (2 : ℝ) ^ (w - 1) ≤ s := by exact_mod_cast hs₁
   have hs₂' : (s : ℝ) < 2 ^ w := by exact_mod_cast hs₂
   have hspos : (0 : ℝ) < s := lt_of_lt_of_le (by positivity) hs₁'
-  have hNpos : (0 : ℝ) < ((s * w : ℕ) : ℝ) := by
-    rw [Nat.cast_mul]
-    positivity
+  have hNpos : (0 : ℝ) < ((s * w : ℕ) : ℝ) := by rw [Nat.cast_mul]; positivity
   -- `log n ≤ 2 w - 1`
   have hlog : Real.log ((s * w : ℕ) : ℝ) ≤ 2 * w - 1 := by
     rw [Nat.cast_mul, Real.log_mul hspos.ne' (by positivity)]
-    have h1 : Real.log s ≤ w * Real.log 2 := by
-      rw [← Real.log_pow]
-      exact Real.log_le_log hspos hs₂'.le
-    have h2 : Real.log w ≤ w - 1 := Real.log_le_sub_one_of_pos (by positivity)
-    have h3 : Real.log 2 < 1 := Real.log_two_lt_one
-    nlinarith
+    have h1 : Real.log s ≤ w * Real.log 2 := Real.log_pow 2 w ▸ Real.log_le_log hspos hs₂'.le
+    nlinarith [Real.log_le_sub_one_of_pos (show (0 : ℝ) < w by positivity), Real.log_two_lt_one]
   -- `w ≤ 2 ^ (-(w - 1)) n`
   have hyN : (w : ℝ) ≤ (2⁻¹ : ℝ) ^ (w - 1) * ((s * w : ℕ) : ℝ) := by
     rw [Nat.cast_mul, inv_pow, ← div_eq_inv_mul, le_div_iff₀ (by positivity)]
     nlinarith
   rw [div_le_iff₀ (by positivity)]
-  have hy0 : (0 : ℝ) ≤ 2⁻¹ ^ (w - 1) := by positivity
-  nlinarith
+  nlinarith [show (0 : ℝ) ≤ 2⁻¹ ^ (w - 1) by positivity]
 
 /-- **Lower bound on the influences of Tribes** [O'Donnell, Proposition 4.13][ODonnell2014], in
 explicit form: on `n = s w` bits with `s = tribesSize w` and `w ≥ 1`, every bit has influence at
@@ -284,14 +250,11 @@ theorem three_div_four_le_expect_sub_expect_sq_tribes (hw : 2 ≤ w) :
   rw [expect_sub_expect_sq_signVal]
   have hb := abs_expect_bitVal_tribes_sub_half_le (one_div_two_le_pow_tribesSize w)
     (pow_tribesSize_add_one_lt_one_div_two w)
-  have hw4 : (2⁻¹ : ℝ) ^ w ≤ 1 / 4 := by
+  have hw4 : (2⁻¹ : ℝ) ^ w ≤ 1 / 4 :=
     calc (2⁻¹ : ℝ) ^ w ≤ 2⁻¹ ^ 2 := pow_le_pow_of_le_one (by norm_num) (by norm_num) hw
       _ = 1 / 4 := by norm_num
-  have he : 𝔼 x, signVal (tribes w (tribesSize w) x) =
-      1 - 2 * 𝔼 x, bitVal ℝ (tribes w (tribesSize w) x) := by
-    simp only [signVal_eq_one_sub_two_mul_bitVal]
-    rw [expect_sub_distrib, Fintype.expect_const, ← mul_expect]
-  rw [he]
+  simp only [signVal_eq_one_sub_two_mul_bitVal, expect_sub_distrib, Fintype.expect_const,
+    ← mul_expect]
   have := abs_le.1 (hb.trans hw4)
   nlinarith
 
@@ -308,15 +271,12 @@ theorem influence_tribes_le_mul_log_div (hw : 2 ≤ w) (k : Fin (tribesSize w * 
         𝔼 y, signVal (tribes w (tribesSize w) y)) ^ 2) *
         Real.log (tribesSize w * w : ℕ) / (tribesSize w * w : ℕ) := by
   refine (influence_tribes_le hw k).trans ?_
-  have hV := three_div_four_le_expect_sub_expect_sq_tribes hw
-  have hlog : 0 ≤ Real.log ((tribesSize w * w : ℕ) : ℝ) := Real.log_natCast_nonneg _
   have hN : (0 : ℝ) < (tribesSize w * w : ℕ) := by
-    have : 0 < tribesSize w * w :=
-      Nat.mul_pos (lt_of_lt_of_le Nat.one_le_two_pow (two_pow_sub_one_le_tribesSize (by omega)))
-        (by omega)
-    exact_mod_cast this
+    exact_mod_cast Nat.mul_pos
+      (lt_of_lt_of_le Nat.one_le_two_pow (two_pow_sub_one_le_tribesSize (by omega))) (by omega)
   rw [div_le_div_iff_of_pos_right hN]
-  nlinarith
+  nlinarith [three_div_four_le_expect_sub_expect_sq_tribes hw,
+    Real.log_natCast_nonneg (tribesSize w * w)]
 
 /-- **The constant in KKL is at most `8`**: for every `c > 8` and every `n₀` there are `n ≥ n₀` and
 a Boolean function on `n` bits all of whose influences are less than `c Var log n / n`, so no
@@ -331,18 +291,17 @@ theorem exists_forall_influence_lt_mul_log_div {c : ℝ} (hc : 8 < c) (n₀ : �
   set w := n₀ + 2
   have hw : 2 ≤ w := by omega
   have hs : 1 ≤ tribesSize w :=
-    le_trans Nat.one_le_two_pow (two_pow_sub_one_le_tribesSize (by omega))
-  have hN : 2 ≤ tribesSize w * w := le_trans hw (Nat.le_mul_of_pos_left _ hs)
-  refine ⟨tribesSize w * w, tribes w (tribesSize w), ?_, fun k => ?_⟩
-  · exact le_trans (by omega) (Nat.le_mul_of_pos_left _ hs)
-  · refine lt_of_le_of_lt (influence_tribes_le_mul_log_div hw k) ?_
-    have hV := three_div_four_le_expect_sub_expect_sq_tribes hw
-    have hN' : (2 : ℝ) ≤ (tribesSize w * w : ℕ) := by exact_mod_cast hN
-    have hlog : 0 < Real.log ((tribesSize w * w : ℕ) : ℝ) := Real.log_pos (by linarith)
-    rw [div_lt_div_iff_of_pos_right (by linarith)]
-    have : 0 < (𝔼 x, (signVal (tribes w (tribesSize w) x) -
-        𝔼 y, signVal (tribes w (tribesSize w) y)) ^ 2) * Real.log (tribesSize w * w : ℕ) := by
-      positivity
-    nlinarith
+    Nat.one_le_two_pow.trans (two_pow_sub_one_le_tribesSize (by omega))
+  refine ⟨tribesSize w * w, tribes w (tribesSize w),
+    le_trans (by omega) (Nat.le_mul_of_pos_left _ hs), fun k =>
+    (influence_tribes_le_mul_log_div hw k).trans_lt ?_⟩
+  have hN' : (2 : ℝ) ≤ (tribesSize w * w : ℕ) := by
+    exact_mod_cast hw.trans (Nat.le_mul_of_pos_left _ hs)
+  have hpos : 0 < (𝔼 x, (signVal (tribes w (tribesSize w) x) -
+      𝔼 y, signVal (tribes w (tribesSize w) y)) ^ 2) * Real.log (tribesSize w * w : ℕ) :=
+    mul_pos (lt_of_lt_of_le (by norm_num) (three_div_four_le_expect_sub_expect_sq_tribes hw))
+      (Real.log_pos (by linarith))
+  rw [div_lt_div_iff_of_pos_right (by linarith)]
+  nlinarith
 
 end Cslib.BitString

@@ -173,8 +173,7 @@ private theorem pair_args_eq {α : Type*} (u v : Fin 1 → α) :
   cases i using Fin.cases with
   | zero => rfl
   | succ i' =>
-    have hi : i' = 0 := Subsingleton.elim _ _
-    subst hi
+    rw [Subsingleton.elim i' 0]
     rfl
 
 private theorem single_args_eq {α : Type*} (u : Fin 1 → α) :
@@ -182,8 +181,7 @@ private theorem single_args_eq {α : Type*} (u : Fin 1 → α) :
       (![u] (![((0 : Fin 1), (0 : Fin 1))] i).1)
         (![((0 : Fin 1), (0 : Fin 1))] i).2) = ![u 0] := by
   funext i
-  have hi : i = 0 := Subsingleton.elim _ _
-  subst hi
+  rw [Subsingleton.elim i 0]
   rfl
 
 private theorem relMap_complementEdges_adj (M : Structure FO.sizedGraph) {x y : M}
@@ -213,13 +211,11 @@ private theorem ncard_size_eq_of_iff (M : Structure FO.sizedGraph)
       RelMap (M := M) FO.sizedGraph.size ![u 0]) :
     {u : Fin 1 → Fin M.size | S.RelMap FO.sizedGraph.size ![u]}.ncard =
       {x : M | RelMap FO.sizedGraph.size ![x]}.ncard := by
-  have himg : {u : Fin 1 → Fin M.size | S.RelMap FO.sizedGraph.size ![u]} =
-      singletonTupleEquiv M.size '' {x : M | RelMap FO.sizedGraph.size ![x]} := by
-    ext u
-    simp only [Set.mem_ofPred_eq, hsize u, Set.mem_image]
-    exact ⟨fun h => ⟨u 0, h, (singletonTupleEquiv M.size).apply_symm_apply u⟩,
-      fun ⟨x, hx, hxu⟩ => hxu ▸ hx⟩
-  rw [himg, Set.ncard_image_of_injective _ (singletonTupleEquiv M.size).injective]
+  rw [← Set.ncard_image_of_injective _ (singletonTupleEquiv M.size).injective]
+  congr 1
+  ext u
+  have hu : (singletonTupleEquiv M.size).symm u = u 0 := rfl
+  simp [hsize u, hu]
 
 /-- Sets of `1`-tuples of a given cardinality are the images of sets of elements. -/
 private theorem exists_ncard_image_iff {M : Structure FO.sizedGraph} {n : ℕ}
@@ -236,11 +232,7 @@ theorem mem_Clique_complementEdgesInterpretation
       M ∈ IndependentSet := by
   refine (complementEdgesInterpretation.mem_of_isoClosed FO.sizedGraph.isoClosed_Clique
     (by decide) M).symm.trans ?_
-  change (∃ t : Set (Fin 1 → Fin M.size),
-    t.ncard = {u | (complementEdgesInterpretation.tupleStructure M).RelMap FO.sizedGraph.size
-      ![u]}.ncard ∧
-    t.Pairwise fun u v =>
-      (complementEdgesInterpretation.tupleStructure M).RelMap FO.sizedGraph.adj ![u, v]) ↔ _
+  dsimp [FO.sizedGraph.Clique, Bundled.of]
   rw [ncard_size_eq_of_iff M _ (relMap_complementEdges_size M), exists_ncard_image_iff,
     mem_IndependentSet]
   refine exists_congr fun s => and_congr_right fun _ => ?_
@@ -255,11 +247,7 @@ theorem mem_IndependentSet_complementEdgesInterpretation
       M ∈ Clique := by
   refine (complementEdgesInterpretation.mem_of_isoClosed FO.sizedGraph.isoClosed_IndependentSet
     (by decide) M).symm.trans ?_
-  change (∃ t : Set (Fin 1 → Fin M.size),
-    t.ncard = {u | (complementEdgesInterpretation.tupleStructure M).RelMap FO.sizedGraph.size
-      ![u]}.ncard ∧
-    t.Pairwise fun u v =>
-      ¬ (complementEdgesInterpretation.tupleStructure M).RelMap FO.sizedGraph.adj ![u, v]) ↔ _
+  dsimp [FO.sizedGraph.IndependentSet, Bundled.of]
   rw [ncard_size_eq_of_iff M _ (relMap_complementEdges_size M), exists_ncard_image_iff,
     mem_Clique]
   refine exists_congr fun s => and_congr_right fun _ => ?_
@@ -326,15 +314,11 @@ private theorem ncard_size_complementSize (M : Structure FO.sizedGraph) :
     {u : Fin 1 → Fin M.size |
       (complementSizeInterpretation.tupleStructure M).RelMap FO.sizedGraph.size ![u]}.ncard =
       ({x : M | RelMap FO.sizedGraph.size ![x]}ᶜ).ncard := by
-  let e := singletonTupleEquiv M.size
-  have himg : {u : Fin 1 → Fin M.size |
-      (complementSizeInterpretation.tupleStructure M).RelMap FO.sizedGraph.size ![u]} =
-      e '' ({x : M | RelMap FO.sizedGraph.size ![x]}ᶜ) := by
-    ext u
-    simp only [Set.mem_ofPred_eq, relMap_complementSize_size M u, Set.mem_image,
-      Set.mem_compl_iff]
-    exact ⟨fun h => ⟨u 0, h, e.apply_symm_apply u⟩, fun ⟨x, hx, hxu⟩ => hxu ▸ hx⟩
-  rw [himg, Set.ncard_image_of_injective _ e.injective]
+  rw [← Set.ncard_image_of_injective _ (singletonTupleEquiv M.size).injective]
+  congr 1
+  ext u
+  have hu : (singletonTupleEquiv M.size).symm u = u 0 := rfl
+  simp [relMap_complementSize_size M u, hu]
 
 theorem mem_VertexCover_complementSizeInterpretation
     {hI : complementSizeInterpretation.toDomainInterpretation.Admissible}
@@ -343,12 +327,7 @@ theorem mem_VertexCover_complementSizeInterpretation
       M ∈ IndependentSet := by
   refine (complementSizeInterpretation.mem_of_isoClosed FO.sizedGraph.isoClosed_VertexCover
     (by decide) M).symm.trans ?_
-  change (∃ t : Set (Fin 1 → Fin M.size),
-    t.ncard = {u | (complementSizeInterpretation.tupleStructure M).RelMap FO.sizedGraph.size
-      ![u]}.ncard ∧
-    ∀ u v, u ≠ v →
-      (complementSizeInterpretation.tupleStructure M).RelMap FO.sizedGraph.adj ![u, v] →
-      u ∈ t ∨ v ∈ t) ↔ _
+  dsimp [FO.sizedGraph.VertexCover, Bundled.of]
   rw [ncard_size_complementSize M, exists_ncard_image_iff, compl_surjective.exists,
     mem_IndependentSet]
   refine exists_congr fun s => and_congr FO.sizedGraph.ncard_compl_eq_iff ?_
@@ -363,11 +342,7 @@ theorem mem_IndependentSet_complementSizeInterpretation
       M ∈ VertexCover := by
   refine (complementSizeInterpretation.mem_of_isoClosed FO.sizedGraph.isoClosed_IndependentSet
     (by decide) M).symm.trans ?_
-  change (∃ t : Set (Fin 1 → Fin M.size),
-    t.ncard = {u | (complementSizeInterpretation.tupleStructure M).RelMap FO.sizedGraph.size
-      ![u]}.ncard ∧
-    t.Pairwise fun u v =>
-      ¬ (complementSizeInterpretation.tupleStructure M).RelMap FO.sizedGraph.adj ![u, v]) ↔ _
+  dsimp [FO.sizedGraph.IndependentSet, Bundled.of]
   rw [ncard_size_complementSize M, exists_ncard_image_iff, compl_surjective.exists,
     mem_VertexCover]
   refine exists_congr fun s => and_congr FO.sizedGraph.ncard_compl_eq_iff ?_

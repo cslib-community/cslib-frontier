@@ -212,6 +212,21 @@ theorem ZE_ev {fp g : Fm} {p z : Tree} {k cg : ℕ} {P : List Bool → Prop} {lg
     simp only [Run.seq, Run.tick, Run.det]
     omega
 
+/-- Form the plain instance and apply the program `D` to it: the runs of `ZE fp g` (each for one
+guessed budget), and the runs of `app D (ZE fp g)`. -/
+theorem ZE_app_ev {fp g : Fm} {D p z : Tree} {k cg : ℕ} {P : List Bool → Prop}
+    {lg : List (Run A)} {Q : List (Bt × R)} (hp : Dt θ fp z p k) (hg : Ev θ g z lg)
+    (rg : List.Forall₂ (RelG κ P cg) lg Q) (hD : ∀ q ∈ Q, Hl θ (Fm.ofTree D) (zq p z q.1)) :
+    ∃ lZ : List (Run A), List.Forall₂ (fun r q => wt κ r = q.2 ∧ r.out = zq p z q.1 ∧
+        (∀ n ∈ r.bill, P n) ∧ r.cost ≤ cg + k + 5) lZ Q ∧
+      Ev θ (app D (ZE fp g)) z (lZ.flatMap fun s => (evl θ (Fm.ofTree D) s.out).map fun t =>
+          ((Run.det 1 D).seq s).seq t |>.tick t.out) := by
+  obtain ⟨lZ, eZ, rZ⟩ := ZE_ev (κ := κ) hp hg rg
+  refine ⟨lZ, rZ, Ev.app eZ fun s hs => ?_⟩
+  obtain ⟨q, hq, -, h, -⟩ := rZ.exists_mem_of_mem hs
+  rw [h]
+  exact hD q hq
+
 /-- One round: guess budgets, multiply, form the plain instance, cut it with `G`, apply `D` to the
 pieces. -/
 @[expose] def stepF (D G p : Tree) (g : Fm) : Fm :=
@@ -228,14 +243,8 @@ theorem stepF_ev {D G p z : Tree} {g : Fm} {cg tG tD Ln : ℕ} {P : List Bool �
       (∀ r ∈ l, r.cost ≤ cg + tG + (tD + 30) * Ln + 30 ∧ ∀ n ∈ r.bill, P n) ∧
       val κ l = (Q.map fun q => q.2 * sumF κ (evl θ (Fm.ofTree G) (zq p z q.1)) fun o =>
         (o.toList.map fun y => val κ (evl θ (Fm.ofTree D) y)).prod).sum := by
-  obtain ⟨lZ, eZ, rZ⟩ := ZE_ev (Dt.quote p z) hg rg
-  have hZ : ∀ s ∈ lZ, ∃ q ∈ Q,
-      wt κ s = q.2 ∧ s.out = zq p z q.1 ∧ (∀ n ∈ s.bill, P n) ∧ s.cost ≤ cg + 1 + 5 :=
-    fun s hs => rZ.exists_mem_of_mem hs
-  have eG := Ev.app (p := G) eZ fun s hs => by
-    obtain ⟨q, hq, -, h, -⟩ := hZ s hs
-    rw [h]
-    exact (hG q hq).1
+  obtain ⟨lZ, rZ, eG⟩ := ZE_app_ev (κ := κ) (D := G) (Dt.quote p z) hg rg fun q hq => (hG q hq).1
+  have hZ := fun s (hs : s ∈ lZ) => rZ.exists_mem_of_mem hs
   set lG :=
       lZ.flatMap fun s => (evl θ (Fm.ofTree G) s.out).map fun t =>
           ((Run.det 1 G).seq s).seq t |>.tick t.out

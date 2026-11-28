@@ -35,20 +35,15 @@ theorem HasPolymorphism.eval (h : HasPolymorphism arity sem f) (F : CSP Rel V)
   simp only [CSP.eval, List.all_eq_true] at ha ⊢
   intro c hc
   let scope : Fin (arity c.rel) → V := fun i => c.scope[i.val]'(by have := hw c hc; omega)
-  have hs : List.ofFn scope = c.scope := by
-    apply List.ext_getElem
-    · rw [List.length_ofFn]
-      exact (hw c hc).symm
-    · intro i hi hj
-      simp only [List.getElem_ofFn, scope]
+  have hs : List.ofFn scope = c.scope :=
+    List.ext_getElem (List.length_ofFn.trans (hw c hc).symm) fun _ _ _ => List.getElem_ofFn ..
   have hin (j : J) : (fun i => a j (scope i)) ∈ booleanRelation arity sem c.rel := by
     change sem c.rel (List.ofFn (a j ∘ scope)) = true
     rw [← List.map_ofFn, hs]
     exact ha j c hc
-  have hout := h c.rel (fun j i => a j (scope i)) hin
   change sem c.rel (c.scope.map (fun v => f (fun j => a j v))) = true
   rw [← hs, List.map_ofFn]
-  exact hout
+  exact h c.rel (fun j i => a j (scope i)) hin
 
 /-- Every actual primitive-positive gadget preserves the language's common polymorphisms.
 This forward semantic fact includes nullary operations and makes no boundary assertion. -/
@@ -58,12 +53,10 @@ theorem PPGadget.isPolymorphism {Rel : Type} {arity : Rel → ℕ}
   classical
   intro a ha
   choose b hb using fun j => (g.correct (a j)).mp (ha j)
-  apply (g.correct _).mpr
-  refine ⟨fun i => f (fun j => b j i), ?_⟩
+  refine (g.correct _).mpr ⟨fun i => f (fun j => b j i), ?_⟩
   have he : Sum.elim (fun i => f (fun j => a j i)) (fun i => f (fun j => b j i)) =
-      fun v => f (fun j => Sum.elim (a j) (b j) v) := by
-    funext v
-    cases v <;> rfl
+      fun v => f (fun j => Sum.elim (a j) (b j) v) :=
+    funext fun | .inl _ => rfl | .inr _ => rfl
   rw [he]
   exact h.eval g.body g.wellFormed (fun j => Sum.elim (a j) (b j)) hb
 

@@ -116,23 +116,17 @@ theorem count_true_eq_card_maskBlock : ∀ w : List Bool, w.count true = #(maskB
 
 /-- The ones of a mask of length `ℓ` are the elements of its block in `Fin ℓ`. -/
 theorem count_true_eq_card_maskBlock_of_length {w : List Bool} (h : w.length = ℓ) :
-    w.count true = #(maskBlock ℓ w) := by
-  subst h
-  exact count_true_eq_card_maskBlock w
+    w.count true = #(maskBlock ℓ w) :=
+  h ▸ count_true_eq_card_maskBlock w
 
 /-- Two masks of length `ℓ` have as many common ones as their blocks have common elements. -/
 theorem overlapCount_eq_card_inter {v w : List Bool} (hv : v.length = ℓ) (hw : w.length = ℓ) :
     overlapCount v w = #(maskBlock ℓ v ∩ maskBlock ℓ w) := by
-  have hlen : (v.zipWith (· && ·) w).length = ℓ := by simp [hv, hw]
-  rw [overlapCount, count_true_eq_card_maskBlock_of_length hlen]
-  congr 1
-  ext k
-  have hkv : (k : ℕ) < v.length := hv ▸ k.isLt
-  have hkw : (k : ℕ) < w.length := hw ▸ k.isLt
-  have hkz : (k : ℕ) < (v.zipWith (· && ·) w).length := hlen ▸ k.isLt
-  simp only [mem_maskBlock, mem_inter, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hkv,
-    List.getElem?_eq_getElem hkw, List.getElem?_eq_getElem hkz, Option.getD_some,
-    List.getElem_zipWith, Bool.and_eq_true]
+  rw [overlapCount, count_true_eq_card_maskBlock_of_length (ℓ := ℓ) (by simp [hv, hw])]
+  refine congrArg card (ext fun k => ?_)
+  simp [List.getD_eq_getElem?_getD, List.getElem?_zipWith,
+    List.getElem?_eq_getElem (hv ▸ k.isLt : (k : ℕ) < v.length),
+    List.getElem?_eq_getElem (hw ▸ k.isLt : (k : ℕ) < w.length)]
 
 /-- A mask shares all its ones with itself. -/
 theorem overlapCount_self (w : List Bool) : overlapCount w w = w.count true := by
@@ -140,8 +134,7 @@ theorem overlapCount_self (w : List Bool) : overlapCount w w = w.count true := b
 
 /-- Sharing ones is symmetric. -/
 theorem overlapCount_comm (v w : List Bool) : overlapCount v w = overlapCount w v := by
-  rw [overlapCount, overlapCount, List.zipWith_comm]
-  simp only [Bool.and_comm]
+  simp only [overlapCount, List.zipWith_comm_of_comm Bool.and_comm]
 
 /-! ### Designs given by masks -/
 
@@ -167,11 +160,7 @@ private theorem map_val_sort_maskBlock {w : List Bool} (hw : w.length = ℓ) :
     ext k
     simp only [mem_map, mem_maskBlock, Fin.valEmbedding_apply, List.mem_toFinset, l,
       List.mem_filter, List.mem_range, hw]
-    constructor
-    · rintro ⟨k, hk, rfl⟩
-      exact ⟨k.isLt, hk⟩
-    · rintro ⟨hk, hw⟩
-      exact ⟨⟨k, hk⟩, hw, rfl⟩
+    exact ⟨fun ⟨k, hk, h⟩ => ⟨h ▸ k.isLt, h ▸ hk⟩, fun ⟨hk, hw⟩ => ⟨⟨k, hk⟩, hw, rfl⟩⟩
   have h := StrictMonoOn.map_finsetSort Fin.valEmbedding (maskBlock ℓ w) fun _ _ _ _ h => h
   rw [hset] at h
   exact h.trans ((List.toFinset_sort _ (List.nodup_range.filter _)).2
@@ -188,8 +177,7 @@ theorem ofFn_restrict_ofMasks (masks : Fin m → List Bool)
   set D := Design.ofMasks masks length_masks count_masks overlapCount_masks
   calc List.ofFn (D.restrict i z)
       = ((List.finRange n).map ((D.block i).orderEmbOfFin (D.card_block i))).map z := by
-        rw [List.map_map, ← List.ofFn_eq_map]
-        rfl
+        rw [List.map_map, ← List.ofFn_eq_map]; rfl
     _ = ((maskBlock ℓ (masks i)).sort.map Fin.val).map fun k => (List.ofFn z).getD k false := by
         rw [listMap_orderEmbOfFin_finRange, List.map_map]
         exact List.map_congr_left fun k _ => (List.getD_ofFn z k false).symm
@@ -214,11 +202,8 @@ private theorem prefix_foldl_greedyStep (cands kept : List (List Bool)) :
   induction cands generalizing kept with
   | nil => exact List.prefix_refl _
   | cons w cands ih =>
-    refine List.IsPrefix.trans ?_ (ih _)
-    unfold greedyStep
-    split
-    · exact List.prefix_append _ _
-    · exact List.prefix_refl _
+    rw [List.foldl_cons, greedyStep]
+    split_ifs <;> first | exact (List.prefix_append _ _).trans (ih _) | exact ih _
 
 private theorem mem_foldl_greedyStep {cands kept : List (List Bool)} {v : List Bool}
     (hv : v ∈ cands.foldl (greedyStep n a) kept) : v ∈ kept ∨ v ∈ cands ∧ v.count true = n := by
@@ -226,13 +211,10 @@ private theorem mem_foldl_greedyStep {cands kept : List (List Bool)} {v : List B
   | nil => exact .inl hv
   | cons w cands ih =>
     rcases ih hv with hv | ⟨hv, hn⟩
-    · unfold greedyStep at hv
-      split at hv
-      · rename_i h
-        rcases List.mem_append.1 hv with hv | hv
-        · exact .inl hv
-        · rw [List.mem_singleton.1 hv]
-          exact .inr ⟨List.mem_cons_self .., h.1⟩
+    · rw [greedyStep] at hv
+      split_ifs at hv with h
+      · exact (List.mem_append.1 hv).elim .inl fun hv =>
+          .inr (List.mem_singleton.1 hv ▸ (⟨List.mem_cons_self .., h.1⟩ : w ∈ _ ∧ _))
       · exact .inl hv
     · exact .inr ⟨List.mem_cons_of_mem _ hv, hn⟩
 
@@ -242,13 +224,11 @@ private theorem pairwise_foldl_greedyStep {cands kept : List (List Bool)}
   induction cands generalizing kept with
   | nil => exact h
   | cons w cands ih =>
-    refine ih ?_
-    unfold greedyStep
-    split
-    · rename_i hw
-      exact List.pairwise_append.2 ⟨h, List.pairwise_singleton _ _,
-        fun u hu v hv => List.mem_singleton.1 hv ▸ hw.2 u hu⟩
-    · exact h
+    rw [List.foldl_cons, greedyStep]
+    split_ifs with hw
+    · exact ih (List.pairwise_append.2 ⟨h, List.pairwise_singleton _ _,
+        fun u hu v hv => List.mem_singleton.1 hv ▸ hw.2 u hu⟩)
+    · exact ih h
 
 private theorem maximal_foldl_greedyStep {cands kept : List (List Bool)} {w : List Bool}
     (hw : w ∈ cands) (hn : w.count true = n) :
@@ -260,30 +240,22 @@ private theorem maximal_foldl_greedyStep {cands kept : List (List Bool)} {w : Li
     rcases List.mem_cons.1 hw with rfl | hw
     · rw [List.foldl_cons]
       have hpre := prefix_foldl_greedyStep (n := n) (a := a) cands (greedyStep n a kept w)
-      by_cases h : w.count true = n ∧ ∀ v ∈ kept, overlapCount w v ≤ a
-      · have hstep : greedyStep n a kept w = kept ++ [w] := ite_eq_left h
-        rw [hstep] at hpre ⊢
-        exact .inl (hpre.subset (List.mem_append_right _ (List.mem_singleton_self _)))
-      · have hstep : greedyStep n a kept w = kept := ite_eq_right h
-        rw [hstep] at hpre ⊢
-        push Not at h
-        obtain ⟨v, hv, hlt⟩ := h hn
-        exact .inr ⟨v, hpre.subset hv, hlt⟩
+      rw [greedyStep] at hpre ⊢
+      split_ifs at hpre ⊢ with h
+      · exact .inl (hpre.subset (List.mem_append_right _ (List.mem_singleton_self _)))
+      · push Not at h
+        exact .inr <| (h hn).imp fun v ⟨hv, hlt⟩ => ⟨hpre.subset hv, hlt⟩
     · exact ih hw
 
 variable {w : List Bool}
 
 /-- Every mask of the greedy design has length `ℓ`. -/
-theorem length_of_mem_greedyMasks (hw : w ∈ greedyMasks ℓ n a) : w.length = ℓ := by
-  rcases mem_foldl_greedyStep hw with hw | ⟨hw, -⟩
-  · exact absurd hw List.not_mem_nil
-  · exact BitString.mem_enumList.1 hw
+theorem length_of_mem_greedyMasks (hw : w ∈ greedyMasks ℓ n a) : w.length = ℓ :=
+  (mem_foldl_greedyStep hw).elim (fun h => nomatch h) fun h => BitString.mem_enumList.1 h.1
 
 /-- Every mask of the greedy design has `n` ones. -/
-theorem count_of_mem_greedyMasks (hw : w ∈ greedyMasks ℓ n a) : w.count true = n := by
-  rcases mem_foldl_greedyStep hw with hw | ⟨-, hn⟩
-  · exact absurd hw List.not_mem_nil
-  · exact hn
+theorem count_of_mem_greedyMasks (hw : w ∈ greedyMasks ℓ n a) : w.count true = n :=
+  (mem_foldl_greedyStep hw).elim (fun h => nomatch h) And.right
 
 /-- Each mask of the greedy design shares at most `a` ones with every earlier one. -/
 theorem pairwise_greedyMasks :
@@ -293,10 +265,9 @@ theorem pairwise_greedyMasks :
 /-- **The greedy design is maximal.** If `a < n`, every mask of length `ℓ` with `n` ones shares
 more than `a` ones with some mask of the greedy design. -/
 theorem exists_mem_greedyMasks_lt_overlapCount (han : a < n) (hw : w.length = ℓ)
-    (hn : w.count true = n) : ∃ v ∈ greedyMasks ℓ n a, a < overlapCount w v := by
-  rcases maximal_foldl_greedyStep (BitString.mem_enumList.2 hw) hn with hmem | h
-  · exact ⟨w, hmem, by rwa [overlapCount_self, hn]⟩
-  · exact h
+    (hn : w.count true = n) : ∃ v ∈ greedyMasks ℓ n a, a < overlapCount w v :=
+  (maximal_foldl_greedyStep (BitString.mem_enumList.2 hw) hn).elim
+    (fun hmem => ⟨w, hmem, by rwa [overlapCount_self, hn]⟩) id
 
 /-- At most `C(ℓ - t, n - t)` sets of `n` elements of `Fin ℓ` contain a given set of `t`
 elements. -/
@@ -305,12 +276,11 @@ private theorem card_filter_superset_le {T : Finset (Fin ℓ)} {t : ℕ} (hT : #
   calc #{S ∈ powersetCard n univ | T ⊆ S}
       ≤ #(powersetCard (n - t) (univ \ T)) := by
         refine card_le_card_of_injOn (· \ T) (fun S hS => ?_) (fun S hS S' hS' h => ?_)
-        · rw [mem_coe, mem_filter, mem_powersetCard] at hS
-          rw [mem_coe, mem_powersetCard]
-          refine ⟨sdiff_subset_sdiff (subset_univ _) subset_rfl, ?_⟩
-          rw [card_sdiff, inter_eq_left.2 hS.2, hS.1.2, hT]
-        · rw [mem_coe, mem_filter] at hS hS'
-          rw [← sdiff_union_of_subset hS.2, ← sdiff_union_of_subset hS'.2]
+        · obtain ⟨hSn, hTS⟩ := mem_filter.1 hS
+          exact mem_coe.2 (mem_powersetCard.2 ⟨sdiff_subset_sdiff (subset_univ _) subset_rfl,
+            by rw [card_sdiff, inter_eq_left.2 hTS, (mem_powersetCard.1 hSn).2, hT]⟩)
+        · rw [← sdiff_union_of_subset (mem_filter.1 hS).2,
+            ← sdiff_union_of_subset (mem_filter.1 hS').2]
           exact congrArg (· ∪ T) h
     _ = (ℓ - t).choose (n - t) := by
         rw [card_powersetCard, card_sdiff, inter_univ, card_univ, Fintype.card_fin, hT]
@@ -346,9 +316,7 @@ theorem choose_le_length_greedyMasks_mul (han : a < n) (hnℓ : n ≤ ℓ) :
     intro S hS
     set w := List.ofFn fun k : Fin ℓ => decide (k ∈ S)
     have hlen : w.length = ℓ := List.length_ofFn
-    have hblock : maskBlock ℓ w = S := by
-      ext k
-      simp [w, List.getD_eq_getElem?_getD]
+    have hblock : maskBlock ℓ w = S := Finset.ext fun k => by simp [w, List.getD_eq_getElem?_getD]
     have hcount : w.count true = n := by
       rw [count_true_eq_card_maskBlock_of_length hlen, hblock, (mem_powersetCard.1 hS).2]
     obtain ⟨v, hv, hlt⟩ := exists_mem_greedyMasks_lt_overlapCount han hlen hcount
@@ -378,11 +346,9 @@ private theorem pow_le_choose_succ_mul (b t : ℕ) : b ^ t ≤ ((b + 1) * t).cho
   have h₁ : (b * t) ^ t ≤ ((b + 1) * t).descFactorial t :=
     (Nat.pow_le_pow_left (by rw [Nat.add_mul, one_mul]; omega) t).trans
       (Nat.pow_sub_le_descFactorial _ t)
-  rw [Nat.descFactorial_eq_factorial_mul_choose, mul_pow] at h₁
-  have h₂ : b ^ t * t.factorial ≤ t.factorial * ((b + 1) * t).choose t :=
-    (Nat.mul_le_mul_left _ (Nat.factorial_le_pow t)).trans h₁
-  rw [mul_comm] at h₂
-  exact Nat.le_of_mul_le_mul_left h₂ (Nat.factorial_pos t)
+  rw [Nat.descFactorial_eq_factorial_mul_choose, mul_pow, mul_comm t.factorial] at h₁
+  exact Nat.le_of_mul_le_mul_right ((Nat.mul_le_mul_left _ (Nat.factorial_le_pow t)).trans h₁)
+    (Nat.factorial_pos t)
 
 /-- **The greedy design with seeds of linear length.** If `0 < t ≤ n ≤ (b + 1) t` and
 `4 ^ n m ≤ b ^ t`, the greedy design on seeds of `(b + 1) t` bits, with blocks of `n` positions
@@ -392,12 +358,11 @@ theorem le_length_greedyMasks {b t : ℕ} (ht : 0 < t) (htn : t ≤ n) (hn : n �
   have h := choose_le_length_greedyMasks_mul (ℓ := (b + 1) * t) (a := t - 1) (by omega) hn
   rw [Nat.sub_add_cancel ht] at h
   have hc : n.choose t ^ 2 ≤ 4 ^ n := by
-    rw [show (4 : ℕ) = 2 ^ 2 by rfl, ← pow_mul, mul_comm, pow_mul]
+    rw [show (4 : ℕ) = 2 ^ 2 from rfl, ← pow_mul, mul_comm, pow_mul]
     exact Nat.pow_le_pow_left (Nat.choose_le_two_pow n t) 2
   refine Nat.le_of_mul_le_mul_left (c := 4 ^ n) ?_ (by positivity)
   calc 4 ^ n * m ≤ ((b + 1) * t).choose t := hm.trans (pow_le_choose_succ_mul b t)
-    _ ≤ _ * n.choose t ^ 2 := h
-    _ ≤ _ * 4 ^ n := Nat.mul_le_mul_left _ hc
+    _ ≤ _ * 4 ^ n := h.trans (Nat.mul_le_mul_left _ hc)
     _ = 4 ^ n * _ := mul_comm _ _
 
 /-- The first `m` masks of the greedy design, as a design, when there are at least `m`. -/
@@ -431,14 +396,9 @@ theorem listGenerator_take_greedyMasks (h : m ≤ (greedyMasks ℓ n a).length)
     listGenerator g n ((greedyMasks ℓ n a).take m) (List.ofFn z) =
       List.ofFn (generator (Design.greedy ℓ n a m h) (fun x => g (List.ofFn x)) z) := by
   refine List.ext_getElem (by simp [listGenerator, h]) fun i hi hi' => ?_
-  rw [List.length_ofFn] at hi'
-  simp only [listGenerator, List.getElem_map, List.getElem_take, List.getElem_ofFn,
-    generator_apply]
-  have hrestrict := ofFn_restrict_greedy h ⟨i, hi'⟩ z
-  have hlen : (restrictMask (greedyMasks ℓ n a)[i] (List.ofFn z)).length ≤ n :=
-    (congrArg List.length hrestrict).symm.trans_le (List.length_ofFn).le
-  rw [List.take_of_length_le hlen, hrestrict]
-  rfl
+  simp only [List.length_ofFn, listGenerator, List.getElem_map, List.getElem_take,
+    List.getElem_ofFn, generator_apply] at hi' ⊢
+  erw [← ofFn_restrict_greedy h ⟨i, hi'⟩ z, List.take_of_length_le List.length_ofFn.le]
 
 /-! ### Fooling small circuits, in counting form -/
 
@@ -446,10 +406,9 @@ theorem listGenerator_take_greedyMasks (h : m ≤ (greedyMasks ℓ n a).length)
 private theorem card_not_div {X : Type*} [Fintype X] [Nonempty X] (p : X → Bool) :
     (#{x | (!p x) = true} : ℝ) / Fintype.card X =
       1 - (#{x | p x = true} : ℝ) / Fintype.card X := by
-  have hpos : (0 : ℝ) < Fintype.card X := by exact_mod_cast Fintype.card_pos
+  have hpos : (0 : ℝ) < Fintype.card X := mod_cast Fintype.card_pos
   have hsum : #{x | p x = true} + #{x | (!p x) = true} = Fintype.card X := by
-    rw [← card_univ, ← card_filter_add_card_filter_not (s := univ) (fun x => p x = true)]
-    simp
+    simpa using card_filter_add_card_filter_not (s := univ) (fun x => p x = true)
   rw [eq_sub_iff_add_eq, ← add_div, div_eq_one_iff_eq hpos.ne']
   exact_mod_cast (add_comm _ _).trans hsum
 
@@ -465,30 +424,16 @@ theorem abs_card_div_sub_card_div_lt (D : Design ℓ n a m) {f : BooleanFunction
     (hm : (m : ℝ) < ε * s) (test : BooleanFunction m)
     (htest : complexity interpretation (single test) ≤ S) :
     |(#{z | test (generator D f z) = true} : ℝ) / 2 ^ ℓ - #{r | test r = true} / 2 ^ m| < ε := by
-  have hcardSeed : (Fintype.card (Fin ℓ → Bool) : ℝ) = 2 ^ ℓ := by simp
-  have hcardOut : (Fintype.card (Fin m → Bool) : ℝ) = 2 ^ m := by simp
-  have hεs : 0 < ε * s := lt_of_le_of_lt (Nat.cast_nonneg m) hm
-  have hs0 : (0 : ℝ) < s := by
-    rcases (Nat.cast_nonneg s : (0 : ℝ) ≤ s).lt_or_eq with h | h
-    · exact h
-    · rw [← h, mul_zero] at hεs
-      exact absurd hεs (lt_irrefl 0)
-  have hε : 0 < ε := pos_of_mul_pos_left hεs hs0.le
+  have hs0 : (0 : ℝ) < s := Nat.cast_pos.2
+    (Nat.pos_of_ne_zero fun h => (Nat.cast_nonneg m).not_gt (hm.trans_eq (by simp [h])))
+  have hε : 0 < ε := pos_of_mul_pos_left ((Nat.cast_nonneg m).trans_lt hm) hs0.le
   rcases Nat.eq_zero_or_pos m with rfl | hm0
   · -- with no output bits, the test sees the same empty string on every seed
     have hr (r : Fin 0 → Bool) : test r = test Fin.elim0 := congrArg test (Subsingleton.elim _ _)
-    have hpow : (2 : ℝ) ^ ℓ ≠ 0 := by positivity
-    rcases hb : test Fin.elim0 with _ | _
-    · rw [filter_false_of_mem fun z _ => by rw [hr, hb]; decide,
-        filter_false_of_mem fun r _ => by rw [hr, hb]; decide]
-      simpa using hε
-    · rw [filter_true_of_mem fun z _ => by rw [hr, hb],
-        filter_true_of_mem fun r _ => by rw [hr, hb]]
-      simp [hpow, hε]
+    rcases hb : test Fin.elim0 with _ | _ <;> simp [hr, hb, hε]
   -- the strict agreement bound of the reconstruction, from the slack
   have hslack : 1 / (s : ℝ) < ε / m := by
-    rw [div_lt_div_iff₀ hs0 (by exact_mod_cast hm0)]
-    linarith
+    rw [div_lt_div_iff₀ hs0 (by exact_mod_cast hm0)]; linarith
   have hhard (S' : ℕ) (hS' : S' ≤ S + 1) (g : BooleanFunction n)
       (hg : complexity interpretation (single g) ≤ S' + m * (2 ^ a * (2 * a + 3) + 1) + 1) :
       (#{x | g x = f x} : ℝ) / 2 ^ n < 1 / 2 + ε / m :=
@@ -497,11 +442,10 @@ theorem abs_card_div_sub_card_div_lt (D : Design ℓ n a m) {f : BooleanFunction
     test htest
   have h₂ := toReal_realExperiment_sub_toReal_idealExperiment_lt D f hm0 (hhard (S + 1) le_rfl)
     (fun r => !test r) ((complexity_not_le test).trans (by omega))
-  rw [Generator.toReal_realExperiment_pure, Generator.toReal_idealExperiment_pure,
-    nnratCast_dens, nnratCast_dens] at h₁ h₂
-  rw [card_not_div (fun z => test (generator D f z)), card_not_div test] at h₂
-  rw [hcardSeed, hcardOut] at h₁ h₂
-  rw [abs_sub_lt_iff]
-  constructor <;> linarith
+  simp only [Generator.toReal_realExperiment_pure, Generator.toReal_idealExperiment_pure,
+    nnratCast_dens, card_not_div (fun z => test (generator D f z)), card_not_div test] at h₁ h₂
+  simp only [Fintype.card_fun, Fintype.card_fin, Fintype.card_bool, Nat.cast_pow,
+    Nat.cast_ofNat] at h₁ h₂
+  exact abs_sub_lt_iff.2 ⟨by linarith, by linarith⟩
 
 end Cslib.Crypto.PRG.NisanWigderson

@@ -88,22 +88,16 @@ private theorem partialBody_support {n : ℕ} (a : Fin n → Bool) (k : ℕ)
       simp only [List.getElem_finRange, Fin.val_cast] at he'
       omega
     unfold spoke at hc
-    split_ifs at hc
-    · simp only [List.mem_singleton] at hc
-      subst c
-      simp only [List.mem_cons, List.not_mem_nil, or_false] at hz
-      rcases hz with rfl | rfl
+    split_ifs at hc <;> simp only [List.mem_cons, List.not_mem_nil, or_false] at hc
+    · subst c
+      rcases List.mem_cons.mp hz with rfl | hz
       · exact Or.inl ⟨i, rfl⟩
-      · exact Or.inr ⟨i, hik, Or.inl rfl⟩
-    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hc
-      rcases hc with rfl | rfl <;>
-        simp only [List.mem_cons, List.not_mem_nil, or_false] at hz
-      · rcases hz with rfl | rfl
-        · exact Or.inl ⟨i, rfl⟩
-        · exact Or.inr ⟨i, hik, Or.inr rfl⟩
-      · rcases hz with rfl | rfl
-        · exact Or.inr ⟨i, hik, Or.inr rfl⟩
-        · exact Or.inr ⟨i, hik, Or.inl rfl⟩
+      · exact Or.inr ⟨i, hik, Or.inl (List.mem_singleton.mp hz)⟩
+    · rcases hc with rfl | rfl <;> rcases List.mem_cons.mp hz with rfl | hz
+      · exact Or.inl ⟨i, rfl⟩
+      · exact Or.inr ⟨i, hik, Or.inr (List.mem_singleton.mp hz)⟩
+      · exact Or.inr ⟨i, hik, Or.inr rfl⟩
+      · exact Or.inr ⟨i, hik, Or.inl (List.mem_singleton.mp hz)⟩
 
 private theorem freshLabels {n : ℕ} (a : Fin n → Bool) (i : Fin n) :
     Sum.inl i ∉ (partialBody a i.val).vars ++ List.ofFn (frontier n i.val) ∧
@@ -129,13 +123,10 @@ private theorem partialBody_succ {n : ℕ} (a : Fin n → Bool) (i : Fin n) :
 private theorem frontier_update {n : ℕ} (i : Fin n) :
     Function.update (frontier n i.val) i (Sum.inl i) = frontier n (i.val + 1) := by
   funext j
-  by_cases h : j = i
-  · subst j
-    simp [frontier]
-  · have hv : j.val ≠ i.val := fun he => h (Fin.ext he)
-    simp only [Function.update_of_ne h, frontier]
-    have hiff : j.val < i.val + 1 ↔ j.val < i.val := by omega
-    simp only [hiff]
+  rcases eq_or_ne j i with rfl | h
+  · simp [frontier]
+  · have hiff : j.val < i.val + 1 ↔ j.val < i.val := by have := Fin.val_ne_of_ne h; omega
+    simp [frontier, h, hiff]
 
 private noncomputable def partialWitness {n : ℕ} (a : Fin n → Bool) (k : ℕ) (hk : k ≤ n) :
     Witness (partialBody a k) (List.ofFn (frontier n k)) := by

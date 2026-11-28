@@ -74,12 +74,11 @@ theorem exists_encryptBitsCoins_time_bound
     (BitString.listRows (bits a).length (encCoins a) (tape a))
   let encP := encPair encUnary encBits
   let encR := encPair encBool encBits
-  have hrows : ComputableInPolyTime rows input (encList encR) := by
-    have hblocks : ComputableInPolyTime (fun a =>
-        BitString.listRows (bits a).length (encCoins a) (tape a))
-        input (encList encBits) := by fun_prop
-    exact (ComputableInPolyTime.zip encBool encBits).comp
-      ((ComputableInPolyTime.bitsToList.comp hbits).prod hblocks)
+  have hrows : ComputableInPolyTime rows input (encList encR) :=
+    (ComputableInPolyTime.zip encBool encBits).comp
+      ((ComputableInPolyTime.bitsToList.comp hbits).prod <| show ComputableInPolyTime
+        (fun a => BitString.listRows (bits a).length (encCoins a) (tape a)) input
+          (encList encBits) by fun_prop)
   have hprepare : ComputableInPolyTime (fun a => (par a, rows a)) input
       (encPair encP (encList encR)) := (hn.prod hpk).prod hrows
   obtain ⟨t, s, ht, hs, k, State, hfinite, machine, hmachine⟩ := hprepare
@@ -123,13 +122,8 @@ theorem exists_encryptBitsCoins_time_bound
       (fun p => 4 * (encPair encP encR p).length) := by
     convert (hleft.fst'.prod (hleft.snd'.prod hright.fst')).prod hright.snd' using 1 <;>
       funext p <;> omega
-  have hstep : ComputableInO
-      (fun p : (ℕ × List Bool) × (Bool × List Bool) =>
-        evaluate (p.1.1, p.1.2, p.2.1) p.2.2) (encPair encP encR) encBits
-      (fun p => 4 * (encPair encP encR p).length + T ((p.1.1, p.1.2, p.2.1), p.2.2))
-      (fun p => 4 * (encPair encP encR p).length + S ((p.1.1, p.1.2, p.2.1), p.2.2)) :=
-    hevaluate.comp hcall
-  have hmap := ComputableInO.mapWith (par := par) (list := rows) hstep hp.fst' hp.snd'
+  have hmap := ComputableInO.mapWith (par := par) (list := rows) (hevaluate.comp hcall)
+    hp.fst' hp.snd'
   have hrowSize (a : α) (row : Bool × List Bool) (hrow : row ∈ rows a) :
       (encPair encP encR (par a, row)).length ≤ 3 * B (input a).length + 1 := by
     have h := length_le_encList_of_mem encR hrow
@@ -149,26 +143,17 @@ theorem exists_encryptBitsCoins_time_bound
       ((rows a).map (fun row => evaluate (n a, pk a, row.1) row.2))).length ≤
       (bits a).length * (2 * L a + 1) + 1 := by
     have h := length_encList_le encBits
-      ((rows a).map (fun row => evaluate (n a, pk a, row.1) row.2)) (b := L a) (by
-        intro value hvalue
-        obtain ⟨row, hrow, rfl⟩ := List.mem_map.mp hvalue
-        exact hlength a row hrow)
+      ((rows a).map (fun row => evaluate (n a, pk a, row.1) row.2)) (b := L a)
+      (by simpa only [List.forall_mem_map, encBits_apply] using hlength a)
     rw [List.length_map, hrowsLength] at h
     exact h.trans (Nat.le_succ _)
   have hM (a : α) : (input a).length ≤ B (input a).length := by dsimp only [B]; omega
   refine (hmap.mono 2 (fun a => ?_) (fun a => ?_)).of_enc_eq fun a => ?_
-  · have := hM a
-    obtain ⟨_, _⟩ := hsize a
-    have := hcount a
-    have := htimeMax a
-    have := hout a
-    rw [hrowsLength]
-    nlinarith
-  · have := hM a
-    obtain ⟨_, _⟩ := hsize a
-    have := hspaceMax a
-    have := hout a
-    nlinarith
+  · rw [hrowsLength]
+    dsimp only [Function.comp_def, par] at hsize htimeMax ⊢
+    nlinarith [hM a, (hsize a).1, (hsize a).2, hcount a, htimeMax a, hout a]
+  · dsimp only [Function.comp_def, par] at hsize hspaceMax ⊢
+    nlinarith [hM a, (hsize a).1, (hsize a).2, hspaceMax a, hout a]
   · congr 1
     exact List.map_uncurry_zip_eq_zipWith.symm
 

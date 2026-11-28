@@ -72,12 +72,10 @@ variable {k : ℕ} {State : Type}
 
 /-- Each auxiliary is popped exactly once in a cleanup round. -/
 theorem auxiliaries_nodup (k : ℕ) : (auxiliaries k).Nodup := by
-  have hp : List.Pairwise (Function.onFun List.Disjoint
-      (fun i : Fin k => [Stack.work i false, Stack.work i true])) (List.finRange k) := by
-    apply (List.nodup_finRange k).imp
-    intro i j hij
-    simp [Function.onFun, List.disjoint_left, hij]
-  simpa [auxiliaries, List.nodup_append, List.nodup_flatMap, List.disjoint_left] using hp
+  simpa [auxiliaries, List.nodup_append, List.nodup_flatMap, List.disjoint_left] using
+    (List.nodup_finRange k).imp (S := Function.onFun List.Disjoint
+      (fun i : Fin k => [Stack.work i false, Stack.work i true])) fun hne => by
+        simp [Function.onFun, List.disjoint_left, hne]
 
 /-- Pop each named stack once; the list is assumed duplicate-free when used operationally. -/
 private def poppedStore (ss : List (Stack k)) (store : ∀ s : Stack k, List (Alphabet s)) :
@@ -88,10 +86,7 @@ private theorem poppedStore_cons (s : Stack k) (ss : List (Stack k))
     (store : ∀ s : Stack k, List (Alphabet s)) (h : s ∉ ss) :
     poppedStore ss (Function.update store s (store s).tail) = poppedStore (s :: ss) store := by
   funext t
-  by_cases ht : t = s
-  · subst t
-    simp [poppedStore, h]
-  · simp [poppedStore, ht]
+  rcases eq_or_ne t s with rfl | ht <;> simp [poppedStore, *]
 
 private theorem any_update (s : Stack k) (ss : List (Stack k))
     (store : ∀ s : Stack k, List (Alphabet s)) (h : s ∉ ss) :
@@ -136,10 +131,8 @@ theorem totalStackLength_eq (cfg : TM2.Cfg (Alphabet (k := k)) Label (Control k 
   calc
     _ = ∑ s : Stack k, ((if s ∈ auxiliaries k then (cfg.stk s).length else 0) +
         (if s = .reversed then (cfg.stk s).length else 0) +
-        (if s = .output then (cfg.stk s).length else 0)) := by
-      apply Finset.sum_congr rfl
-      intro s hs
-      cases s <;> simp
+        (if s = .output then (cfg.stk s).length else 0)) :=
+      Finset.sum_congr rfl fun s _ => by cases s <;> simp
     _ = _ := by simp [auxiliaryLength, Finset.sum_add_distrib]
 
 /-- Whether a cleanup round encounters a nonempty auxiliary stack. -/
@@ -151,14 +144,9 @@ private theorem stepAux_clean (v : Control k State) (store : ∀ s : Stack k, Li
     TM2.stepAux clean v store =
       ⟨some (if auxiliaryBusy store then .clean else .reverse),
         { v with busy := auxiliaryBusy store }, poppedStore (auxiliaries k) store⟩ := by
-  simp only [clean, TM2.stepAux]
-  rw [stepAux_discard _ (auxiliaries_nodup k)]
-  simp only [Bool.false_or, TM2.stepAux]
-  simp only [auxiliaryBusy]
-  by_cases hb : (auxiliaries k).any (fun s => (store s).head?.isSome) = true
-  · simp only [hb, Bool.cond_true, ↓reduceIte]
-  · have hf := Bool.eq_false_iff.mpr hb
-    simp only [hf, Bool.cond_false, Bool.false_eq_true, ↓reduceIte]
+  simp only [clean, TM2.stepAux, stepAux_discard _ (auxiliaries_nodup k), Bool.false_or,
+    show (auxiliaries k).any (fun s => (store s).head?.isSome) = auxiliaryBusy store from rfl]
+  cases auxiliaryBusy store <;> rfl
 
 /-- No auxiliary is busy precisely when all of them are empty. -/
 private theorem auxiliaryBusy_eq_false_iff (store : ∀ s : Stack k, List (Alphabet s)) :
@@ -173,40 +161,29 @@ theorem auxiliaryLength_eq_zero_iff (store : ∀ s : Stack k, List (Alphabet s))
 /-- Popping auxiliary stacks cannot increase their total length. -/
 private theorem auxiliaryLength_popped_le (store : ∀ s : Stack k, List (Alphabet s)) :
     auxiliaryLength (poppedStore (auxiliaries k) store) ≤ auxiliaryLength store := by
-  apply Finset.sum_le_sum
-  intro s hs
-  by_cases h : s ∈ auxiliaries k
-  · simp only [poppedStore, h, ↓reduceIte, List.length_tail]
-    exact Nat.sub_le _ _
-  · simp [h]
+  refine Finset.sum_le_sum fun s _ => ?_
+  by_cases h : s ∈ auxiliaries k <;> simp [poppedStore, h]
 
 /-- A busy round strictly decreases auxiliary storage. -/
 private theorem auxiliaryLength_popped_lt (store : ∀ s : Stack k, List (Alphabet s))
     (hb : auxiliaryBusy store = true) :
     auxiliaryLength (poppedStore (auxiliaries k) store) < auxiliaryLength store := by
-  have hex : ∃ s, s ∈ auxiliaries k ∧ store s ≠ [] := by
+  obtain ⟨s, hs, hne⟩ : ∃ s ∈ auxiliaries k, store s ≠ [] := by
     by_contra! h
-    have := (auxiliaryBusy_eq_false_iff store).2 h
-    simp [hb] at this
-  obtain ⟨s, hs, hne⟩ := hex
-  apply Finset.sum_lt_sum
-  · intro t ht
-    by_cases h : t ∈ auxiliaries k
-    · simp only [poppedStore, h, ↓reduceIte, List.length_tail]
-      exact Nat.sub_le _ _
-    · simp [h]
-  · refine ⟨s, Finset.mem_univ s, ?_⟩
-    simp only [poppedStore, hs, ↓reduceIte, List.length_tail]
-    have : 0 < (store s).length := List.length_pos_iff.mpr hne
-    omega
+    simpa [hb] using (auxiliaryBusy_eq_false_iff store).2 h
+  refine Finset.sum_lt_sum
+    (fun t _ => by by_cases h : t ∈ auxiliaries k <;> simp [poppedStore, h])
+    ⟨s, Finset.mem_univ s, ?_⟩
+  simp only [poppedStore, hs, ↓reduceIte, List.length_tail]
+  have := List.length_pos_iff.mpr hne
+  omega
 
 /-- A quiet round leaves every stack unchanged. -/
 private theorem poppedStore_eq_of_not_busy (store : ∀ s : Stack k, List (Alphabet s))
     (hb : auxiliaryBusy store = false) : poppedStore (auxiliaries k) store = store := by
   funext s
-  by_cases h : s ∈ auxiliaries k
-  · simp [poppedStore, h, (auxiliaryBusy_eq_false_iff store).mp hb s h]
-  · simp [poppedStore, h]
+  by_cases h : s ∈ auxiliaries k <;>
+    simp [poppedStore, h, (auxiliaryBusy_eq_false_iff store).mp hb]
 
 variable [Fintype State] (q₀ : State)
     (transition : State → Option Bool → (Fin k → Option Bool) → Turing.Action k Bool State)
@@ -233,12 +210,7 @@ private theorem stepAux_reverse_nil (v : Control k State) (store : ∀ s : Stack
   rw [stepAux_reverse, hr]
   change TM2.Cfg.mk none (initialControl q₀) _ = TM2.Cfg.mk none (initialControl q₀) _
   congr 1 with s : 1
-  cases s with
-  | input => simp [machine, ha .input (by simp)]
-  | before => simp [machine, ha .before (by simp)]
-  | output => rfl
-  | reversed => simp [machine]
-  | work i b => simp [machine, ha (.work i b) (by simp)]
+  cases s <;> simp [machine, ha]
 
 /-- Reversal preserves already populated output, which becomes a suffix of the final word. -/
 private def reverseEvals (v : Control k State) (store : ∀ s : Stack k, List (Alphabet s))
@@ -327,12 +299,8 @@ def cleanupEvals (cfg : (machine q₀ transition).Cfg) (hl : cfg.l = some .clean
 /-- Auxiliary storage depends only on auxiliary stacks. -/
 private theorem auxiliaryLength_congr {store store' : ∀ s : Stack k, List (Alphabet s)}
     (h : ∀ s ∈ auxiliaries k, store' s = store s) :
-    auxiliaryLength store' = auxiliaryLength store := by
-  apply Finset.sum_congr rfl
-  intro s hs
-  by_cases hm : s ∈ auxiliaries k
-  · simp only [hm, ↓reduceIte, h s hm]
-  · simp [hm]
+    auxiliaryLength store' = auxiliaryLength store :=
+  Finset.sum_congr rfl fun s _ => by by_cases hm : s ∈ auxiliaries k <;> simp [hm, h]
 
 omit [Fintype State] in
 /-- Discarding a round cannot increase total storage. -/
@@ -340,14 +308,10 @@ private theorem totalStackLength_clean_le (v : Control k State)
     (store : ∀ s : Stack k, List (Alphabet s)) :
     totalStackLength (TM2.stepAux clean v store) ≤ totalStackLength ⟨some .clean, v, store⟩ := by
   rw [stepAux_clean, totalStackLength_eq, totalStackLength_eq]
-  have hrev : poppedStore (auxiliaries k) store .reversed = store .reversed := by
-    simp [poppedStore]
-  have hout : poppedStore (auxiliaries k) store .output = store .output := by
-    simp [poppedStore]
-  dsimp only
-  rw [hrev, hout]
-  exact Nat.add_le_add_right
-    (Nat.add_le_add_right (auxiliaryLength_popped_le store) _) _
+  simp only [poppedStore, mem_auxiliaries, ne_eq, not_true_eq_false, false_and, and_false,
+    ↓reduceIte]
+  have := auxiliaryLength_popped_le store
+  omega
 
 /-- Reversal transfers symbols between the two output stacks without increasing storage. -/
 private theorem totalStackLength_reverse (v : Control k State)
@@ -361,17 +325,15 @@ private theorem totalStackLength_reverse (v : Control k State)
     simp only [hs, totalStackLength]
   | cons b bs =>
     let store' := Function.update (Function.update store .reversed bs) .output (b :: store .output)
-    have haux : auxiliaryLength store' = auxiliaryLength store := by
-      apply auxiliaryLength_congr
-      intro s hs
-      have hne := (mem_auxiliaries s).mp hs
-      simp only [store', Function.update_of_ne hne.1, Function.update_of_ne hne.2]
+    have haux : auxiliaryLength store' = auxiliaryLength store :=
+      auxiliaryLength_congr fun s hs => by
+        obtain ⟨h1, h2⟩ := (mem_auxiliaries s).mp hs
+        simp only [store', Function.update_of_ne h1, Function.update_of_ne h2]
     have hrev : store' .reversed = bs := by simp [store']
-    have hout : store' .output = b :: store .output := Function.update_self _ _ _
     change totalStackLength ⟨some .reverse, { v with symbol := some b }, store'⟩ = _
     rw [totalStackLength_eq, totalStackLength_eq]
     dsimp only
-    rw [haux, hrev, hout, hr]
+    rw [haux, hrev, show store' .output = b :: store .output from Function.update_self _ _ _, hr]
     change auxiliaryLength store + bs.length + ((store .output).length + 1) =
       auxiliaryLength store + (bs.length + 1) + (store .output).length
     omega
@@ -381,24 +343,20 @@ private theorem cleanup_step (cfg : TM2.Cfg (Alphabet (k := k)) Label (Control k
     (hl : cfg.l ≠ some .run) :
     (TM2.stepTotal (program q₀ transition) cfg).l ≠ some .run ∧
       totalStackLength (TM2.stepTotal (program q₀ transition) cfg) ≤ totalStackLength cfg := by
-  cases cfg with | mk l v store =>
-    cases l with
-    | none => exact ⟨hl, le_rfl⟩
-    | some l =>
-      cases l with
-      | run => exact False.elim (hl rfl)
-      | clean =>
-        constructor
-        · change (TM2.stepAux clean v store).l ≠ some .run
-          rw [stepAux_clean]
-          by_cases hb : auxiliaryBusy store = true <;> simp [hb]
-        · exact totalStackLength_clean_le v store
-      | reverse =>
-        constructor
-        · change (TM2.stepAux (program q₀ transition .reverse) v store).l ≠ some .run
-          rw [stepAux_reverse]
-          cases store .reversed <;> simp
-        · exact (totalStackLength_reverse q₀ transition v store).le
+  rcases cfg with ⟨none | l, v, store⟩
+  · exact ⟨hl, le_rfl⟩
+  · cases l with
+    | run => exact (hl rfl).elim
+    | clean =>
+      refine ⟨?_, totalStackLength_clean_le v store⟩
+      change (TM2.stepAux clean v store).l ≠ some .run
+      rw [stepAux_clean]
+      cases auxiliaryBusy store <;> simp
+    | reverse =>
+      refine ⟨?_, (totalStackLength_reverse q₀ transition v store).le⟩
+      change (TM2.stepAux (program q₀ transition .reverse) v store).l ≠ some .run
+      rw [stepAux_reverse]
+      cases store .reversed <;> simp
 
 /-- Every cleanup and reversal step, even after halting, uses at most the initial total storage. -/
 theorem cleanup_stack_bound (cfg : (machine q₀ transition).Cfg)
@@ -413,16 +371,13 @@ theorem cleanup_stack_bound (cfg : (machine q₀ transition).Cfg)
         totalStackLength cfg := by
     induction n with
     | zero =>
-      constructor
-      · change cfg.l ≠ some .run
-        rw [hl]
-        intro h
-        cases h
-      · exact le_rfl
+      refine ⟨?_, le_rfl⟩
+      change cfg.l ≠ some .run
+      simp [hl]
     | succ n ih =>
       rw [Function.iterate_succ_apply']
-      have hs := cleanup_step q₀ transition _ ih.1
-      exact ⟨hs.1, hs.2.trans ih.2⟩
+      exact ⟨(cleanup_step q₀ transition _ ih.1).1,
+        (cleanup_step q₀ transition _ ih.1).2.trans ih.2⟩
   exact (hinv i).2
 
 end

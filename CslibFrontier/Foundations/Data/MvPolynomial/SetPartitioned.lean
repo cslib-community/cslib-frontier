@@ -56,9 +56,9 @@ theorem exists_le_of_mem_support_shift [CommSemiring A] [Algebra R A] (a : σ �
   classical
   rw [f.as_sum, map_sum] at hm
   obtain ⟨m', hm', hmm'⟩ := Finset.mem_biUnion.1 (support_sum hm)
-  refine ⟨m', hm', fun j => ?_⟩
-  refine (monomial_le_degreeOf j hmm').trans ((degreeOf_shift_le a _ j).trans ?_)
-  exact degreeOf_le_iff.2 fun d hd => by rw [Finset.mem_singleton.1 (support_monomial_subset hd)]
+  exact ⟨m', hm', fun j => (monomial_le_degreeOf j hmm').trans
+    ((degreeOf_shift_le a _ j).trans (degreeOf_le_iff.2 fun d hd => by
+      rw [Finset.mem_singleton.1 (support_monomial_subset hd)]))⟩
 
 /-- Every monomial of `f` has at most one variable of each block of `blk`, to the first
 power. -/
@@ -71,19 +71,17 @@ theorem IsSetMultilinear.isSetPartitioned {d : ℕ} {blk : σ → Fin d} {S : Fi
   classical
   intro m hm
   obtain ⟨x, rfl⟩ := hf m hm
-  have h1 (v : σ) : blockMonomial blk S x v ≠ 0 →
-      ∃ h : blk v ∈ S, (x ⟨blk v, h⟩ : σ) = v := fun hv => by
+  have h1 (v : σ) (hv : blockMonomial blk S x v ≠ 0) : ∃ h : blk v ∈ S, (x ⟨blk v, h⟩ : σ) = v := by
     rw [blockMonomial_apply] at hv
-    by_contra hcon
-    push Not at hcon
+    by_contra! hcon
     split_ifs at hv with h hx
     exacts [hcon h hx, hv rfl, hv rfl]
   refine ⟨fun v => ?_, fun u hu v hv huv => ?_⟩
   · rw [blockMonomial_apply]
     split_ifs <;> simp
-  · obtain ⟨hu', hxu⟩ := h1 u (Finsupp.mem_support_iff.1 hu)
-    obtain ⟨hv', hxv⟩ := h1 v (Finsupp.mem_support_iff.1 hv)
-    exact hxu.symm.trans ((congrArg (fun i : S => (x i : σ)) (Subtype.ext huv)).trans hxv)
+  obtain ⟨_, hxu⟩ := h1 u (Finsupp.mem_support_iff.1 hu)
+  obtain ⟨_, hxv⟩ := h1 v (Finsupp.mem_support_iff.1 hv)
+  exact hxu.symm.trans ((congrArg (fun i : S => (x i : σ)) (Subtype.ext huv)).trans hxv)
 
 namespace IsSetPartitioned
 

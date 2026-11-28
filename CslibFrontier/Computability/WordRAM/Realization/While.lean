@@ -129,9 +129,7 @@ theorem whileSafe_of_measure
         (boundedWhile guard body d n) s).mp hv
       rw [clientResult_width w, clientState_width w] at ht
       obtain ⟨hsafe, hi', hr'⟩ := hstep a s hi hg hb
-      change if guard d a then _ else True
-      rw [ite_eq_left hg]
-      exact ⟨hsafe, ih hi' (by omega) ht⟩
+      simpa only [whileSafe, hg, ↓reduceIte] using ⟨hsafe, ih hi' (by omega) ht⟩
     · simp [whileSafe, hg]
 
 /-- The reached-state domain guarantees a false guard at the actual returned source value,
@@ -147,8 +145,7 @@ theorem boundedWhile_stops
       StateTransitionSpec.runClient_pure'] using hs
   | succ n ih =>
     by_cases hg : guard d a
-    · simp only [whileSafe, hg, ↓reduceIte] at hs
-      simp only [boundedWhile, hg, ↓reduceIte] at hv
+    · simp only [whileSafe, boundedWhile, hg, ↓reduceIte] at hs hv
       have ht := ((validHistory_bind w (body (d, a)) (boundedWhile guard body d n) s).mp hv).2
       rw [clientResult_width w, clientState_width w] at ht
       simpa only [boundedWhile, hg, ↓reduceIte, StateTransitionSpec.clientResult,
@@ -180,17 +177,16 @@ theorem while_charge_le_potential
       StateTransitionSpec.clientState]
   | succ n ih =>
     by_cases hg : guard d a
-    · have hv' := hv
-      simp only [boundedWhile, hg, ↓reduceIte] at hv'
+    · simp only [boundedWhile, hg, ↓reduceIte] at hv
       obtain ⟨hb, ht⟩ := (validHistory_bind w (body (d, a))
-        (boundedWhile guard body d n) s).mp hv'
+        (boundedWhile guard body d n) s).mp hv
       rw [clientResult_width w, clientState_width w] at ht
       obtain ⟨hi', hp⟩ := hstep a s hi hg hb
       have hrest := ih hi' ht
       rw [while_charge_succ guard body work d n a s hg]
       simp only [boundedWhile, hg, ↓reduceIte, StateTransitionSpec.clientResult,
         StateTransitionSpec.clientState, ← PFunctor.FreeM.bind_eq_bind,
-        StateTransitionSpec.runClient_bind] at *
+        StateTransitionSpec.runClient_bind] at hp hrest ⊢
       omega
     · rw [boundedWhile_of_not guard body d (n + 1) a hg]
       simp [whileWork, hg, StateTransitionSpec.clientResult, StateTransitionSpec.clientState]
@@ -295,12 +291,9 @@ private theorem whileInv_step (input : δ ↪ (Fin k → ℕ)) (output : σ ↪ 
   refine ⟨hz, ?_, fun i => ?_, fun i => ?_, fun i hif htmp => ?_⟩
   · exact (Memory.State.ext hzm (hzf frontier fun _ => hf _) :
       memoryState frontier z = memoryState frontier u).trans hum
-  · rw [hzf _ (fun _ => (hd _ _).symm), huf _ (hs _) (fun _ => (hd _ _).symm)]
-    exact hye i
-  · rw [hzs, huo]
-    rfl
-  · rw [hzf _ (fun _ => htmp _), huf _ hif (fun _ => htmp _)]
-    exact hyframe i hif htmp
+  · simpa only [hzf _ fun _ => (hd _ _).symm, huf _ (hs _) fun _ => (hd _ _).symm] using hye i
+  · rw [hzs, huo]; rfl
+  · simpa only [hzf _ fun _ => htmp _, huf _ hif fun _ => htmp _] using hyframe i hif htmp
 
 private theorem regs_frontier_le {α : Type} {frontier : Fin r} {y z : Data r} {s : Memory.State}
     {p : Memory.Prog α} (hy : memoryState frontier y = s)
@@ -375,9 +368,7 @@ theorem With.whileBounded {B : Basis}
     obtain ⟨u, hu, hum, huo, huf⟩ := hrun w (d, q.1) y hI.bounded
       (regs_comp_append_eq_appendWords input output hI.env hI.state)
       (hI.memory ▸ hdom) (hI.memory ▸ hvalid)
-    rw [hI.memory] at hu hum huo
-    rw [clientState_width] at hum
-    simp only [clientResult_width] at huo
+    simp only [hI.memory, clientState_width w, clientResult_width w] at hu hum huo
     obtain ⟨z, hz, hzm, hzs, hzf⟩ := hcopy frontier
       (fun i : Fin l => bt (Fin.castAdd (n + 1) i)) st idle hst houtdis (fun _ => hf _) w u
     have hstep_exec := hseq (hzf frontier fun _ => hf _).symm.le hu hz
@@ -396,15 +387,13 @@ theorem With.whileBounded {B : Basis}
     | zero =>
       intro q y hI hdom _
       refine ⟨y, hmono ?_ (hloop_exit ((hcond q y hI).not.mpr hdom)), ?_⟩
-      · change 2 ≤ (C + l + 3) * (0 + 0 + 1)
-        omega
+      · simp only [boundedWhile, memoryCost_pure, whileWork]; omega
       · simpa only [boundedWhile, StateTransitionSpec.clientResult,
           StateTransitionSpec.clientState, StateTransitionSpec.runClient_pure'] using hI
     | succ fuel ih =>
       intro q y hI hdom hvalid
       by_cases hg : guard d q.1
-      · simp only [whileSafe, hg, ↓reduceIte] at hdom
-        simp only [boundedWhile, hg, ↓reduceIte] at hvalid
+      · simp only [whileSafe, boundedWhile, hg, ↓reduceIte] at hdom hvalid
         obtain ⟨hb, ht⟩ := (validHistory_bind w (body (d, q.1))
           (boundedWhile guard body d fuel) q.2).mp hvalid
         rw [clientResult_width w, clientState_width w] at ht
@@ -430,11 +419,10 @@ theorem With.whileBounded {B : Basis}
     whileInv_entry input output hd hf hin (hbounded ha hx) ham has haf
   obtain ⟨y, hy, _, hym, _, hys, hyf⟩ := aux (cutoff (d, a₀)) (a₀, memoryState frontier x) a
     hIa hsafe hv
-  refine ⟨y, hmono (by nlinarith) (hseq (regs_frontier_le hIa.memory hym) ha hy), ?_, ?_, hyf⟩
-  · rwa [clientState_width w]
-  · intro i
-    rw [clientResult_width w]
-    exact hys i
+  refine ⟨y, hmono (by nlinarith) (hseq (regs_frontier_le hIa.memory hym) ha hy),
+    by rwa [clientState_width w], fun i => ?_, hyf⟩
+  rw [clientResult_width w]
+  exact hys i
 
 /-- One native while emitter genuinely exits on the existing encoded condition. The pure source
 cutoff depends only on explicit initial input and is not computed or stored by this emitter.

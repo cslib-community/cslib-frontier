@@ -96,17 +96,15 @@ theorem image_validCertificates (n s : ℕ) :
     certificateFunction n s '' (validCertificates n s : Set (BitString (certLength n s))) =
       (computableFunctions n s : Set (BooleanFunction n)) := by
   ext f
-  constructor
+  refine ⟨?_, fun hf => ?_⟩
   · rintro ⟨w, hw, rfl⟩
     exact certificateFunction_mem_computableFunctions hw
-  · intro hf
-    obtain ⟨C, hC, hsize⟩ := Boolean.mem_computableFunctions.mp hf
+  · obtain ⟨C, hC, hsize⟩ := Boolean.mem_computableFunctions.mp hf
     obtain ⟨w, hlen, hvalid, heval⟩ := exists_validCertificate_of_circuit C hsize
-    refine ⟨BitString.ofList (certLength n s) w, ?_, ?_⟩
-    · exact mem_validCertificates.mpr (by rwa [BitString.ofFn_ofList hlen])
-    · funext x
-      rw [certificateFunction, BitString.ofFn_ofList hlen, heval x]
-      exact Circuit.computes_single_iff.mp hC x
+    refine ⟨BitString.ofList (certLength n s) w,
+      mem_validCertificates.mpr (by rwa [BitString.ofFn_ofList hlen]), funext fun x => ?_⟩
+    simpa only [certificateFunction, BitString.ofFn_ofList hlen, heval x] using
+      Circuit.computes_single_iff.mp hC x
 
 /-- Descriptions consistent with the labeled sample set are exactly the fixed-length witnesses
 accepted by `checkCertificateOn`. Labels are supplied as sample data; the verifier's acceptance
@@ -156,8 +154,7 @@ theorem exists_card_filter_validCertificates_le {n s m : ℕ}
     (validCertificates n s) (certificate_strictMajority_ne hf) k
   refine ⟨S, hS, ?_⟩
   convert hcount using 3
-  ext w
-  simp only [Finset.mem_filter]
+  exact ext fun _ => by simp only [Finset.mem_filter]
 
 /-- Small anti-checkers against all size-`s` circuits, with a bound in the fixed description
 length. This does not give an efficient algorithm for finding the anti-checker. -/
@@ -173,7 +170,6 @@ theorem exists_isAntiChecker_le_certLength {n s m : ℕ}
   obtain ⟨S, hS, hanti⟩ := exists_isAntiChecker_image (certificateFunction n s) hm
     (by rw [BitString.card]; exact Nat.pow_le_pow_right two_pos hnm)
     (validCertificates n s) (certificate_strictMajority_ne hf) hb
-  rw [image_validCertificates] at hanti
-  exact ⟨S, hS, hanti⟩
+  exact ⟨S, hS, image_validCertificates n s ▸ hanti⟩
 
 end Cslib.MCSP

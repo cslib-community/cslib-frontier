@@ -112,8 +112,7 @@ of its marginals. -/
 theorem mutualInfo_eq_zero_iff [Finite α] [Finite β] (joint : PMF (α × β)) :
     mutualInfo joint = 0 ↔
       joint = (joint.map Prod.fst).bind fun a => (joint.map Prod.snd).map (a, ·) := by
-  rw [← entropy_eq_entropy_map_fst_add_entropy_map_snd_iff, mutualInfo]
-  constructor <;> intro h <;> linarith
+  rw [← entropy_eq_entropy_map_fst_add_entropy_map_snd_iff, mutualInfo, sub_eq_zero, eq_comm]
 
 /-- Entropy does not see an injective re-encoding `G = e ∘ F` that holds on the support. -/
 theorem entropy_map_eq_of_comp [Finite α] [Finite β] (ν : PMF Ω) {F : Ω → α} {G : Ω → β}
@@ -203,23 +202,17 @@ theorem condMutualInfo_eq_zero_of_apply_eq_mul [Finite γ] [Finite α] [Finite �
   let := Fintype.ofFinite α
   let := Fintype.ofFinite β
   have hCA (c : γ) (a : α) :
-      joint.map (Prod.map id Prod.fst) (c, a) = f c a * ∑' b, g c b := by
-    have : joint.map (Prod.map id Prod.fst) =
-        (joint.map (Equiv.prodAssoc γ α β).symm).map Prod.fst := by rw [PMF.map_comp]; rfl
-    rw [this, map_fst_apply, ← ENNReal.tsum_mul_left]
-    exact tsum_congr fun b => by rw [map_equiv_apply]; simp [h]
+      joint.map (Prod.map id Prod.fst) (c, a) = f c a * ∑ b, g c b := by
+    simp only [Prod.map_apply, id_eq, PMF.map_apply, tsum_fintype, Fintype.sum_prod_type,
+      Prod.mk.injEq, ite_and, Finset.sum_ite_irrel, Finset.sum_const_zero, Finset.sum_ite_eq,
+      Finset.mem_univ, ↓reduceIte, Finset.mul_sum, h]
   have hCB (c : γ) (b : β) :
-      joint.map (Prod.map id Prod.snd) (c, b) = (∑' a, f c a) * g c b := by
-    let e : γ × α × β ≃ (γ × β) × α :=
-      ((Equiv.refl γ).prodCongr (Equiv.prodComm α β)).trans (Equiv.prodAssoc γ β α).symm
-    have : joint.map (Prod.map id Prod.snd) = (joint.map e).map Prod.fst := by
-      rw [PMF.map_comp]; rfl
-    rw [this, map_fst_apply, ← ENNReal.tsum_mul_right]
-    exact tsum_congr fun a => by rw [map_equiv_apply]; simp [e, h]
-  have hC (c : γ) : joint.map Prod.fst c = (∑' a, f c a) * ∑' b, g c b := by
-    rw [map_fst_apply, tsum_fintype, Fintype.sum_prod_type, tsum_fintype, tsum_fintype,
-      Finset.sum_mul_sum]
-    simp [h]
+      joint.map (Prod.map id Prod.snd) (c, b) = (∑ a, f c a) * g c b := by
+    simp only [Prod.map_apply, id_eq, PMF.map_apply, tsum_fintype, Fintype.sum_prod_type,
+      Prod.mk.injEq, ite_and, Finset.sum_ite_irrel, Finset.sum_const_zero, Finset.sum_ite_eq,
+      Finset.mem_univ, ↓reduceIte, Finset.sum_mul, h]
+  have hC (c : γ) : joint.map Prod.fst c = (∑ a, f c a) * ∑ b, g c b := by
+    simp only [map_fst_apply, tsum_fintype, Fintype.sum_prod_type, Finset.sum_mul_sum, h]
   have hid (c : γ) (a : α) (b : β) :
       (joint (c, a, b)).toReal * (joint.map Prod.fst c).toReal =
         (joint.map (Prod.map id Prod.fst) (c, a)).toReal *
@@ -230,18 +223,15 @@ theorem condMutualInfo_eq_zero_of_apply_eq_mul [Finite γ] [Finite α] [Finite �
   rw [condMutualInfo, entropy_map_eq_sum, entropy_map_eq_sum, entropy_eq_sum_surprisal,
     entropy_map_eq_sum, ← Finset.sum_add_distrib, ← Finset.sum_sub_distrib,
     ← Finset.sum_sub_distrib]
-  refine Finset.sum_eq_zero fun t _ => ?_
-  obtain ⟨c, a, b⟩ := t
+  refine Finset.sum_eq_zero fun ⟨c, a, b⟩ _ => ?_
   by_cases hm : joint (c, a, b) = 0
   · simp [hm]
-  have hm' : (joint (c, a, b)).toReal ≠ 0 :=
-    ENNReal.toReal_ne_zero.mpr ⟨hm, PMF.apply_ne_top _ _⟩
   have h1 := toReal_map_apply_ne_zero joint (Prod.map id Prod.fst) hm
   have h2 := toReal_map_apply_ne_zero joint (Prod.map id Prod.snd) hm
-  have h3 := toReal_map_apply_ne_zero joint Prod.fst hm
-  simp only [Prod.map_apply, id] at h1 h2 h3 ⊢
+  simp only [Prod.map_apply, id] at h1 h2 ⊢
   have hlog := congrArg (Real.logb 2) (hid c a b)
-  rw [Real.logb_mul hm' h3, Real.logb_mul h1 h2] at hlog
+  rw [Real.logb_mul (ENNReal.toReal_ne_zero.mpr ⟨hm, PMF.apply_ne_top _ _⟩)
+    (toReal_map_apply_ne_zero joint Prod.fst hm), Real.logb_mul h1 h2] at hlog
   simp only [surprisal]
   linear_combination (joint (c, a, b)).toReal * hlog
 
@@ -315,36 +305,6 @@ theorem condMutualInfo_map_le_mutualInfo [Finite γ] [Finite α] [Finite β] (ν
   rw [mutualInfo_map_prodMk_eq_add]
   linarith [mutualInfo_nonneg (ν.map fun ω => (C ω, B ω))]
 
-/-- **Chain rule** through an observation `B = k ∘ T`:
-`I(A; T | C) = I(A; B | C) + E_b I(A; T | C, B = b)`. -/
-theorem condMutualInfo_map_eq_add_sum [Fintype δ] [Finite γ] [Finite α] [Finite τ]
-    (ν : PMF Ω) (C : Ω → γ) (A : Ω → α) (T : Ω → τ) (B : Ω → δ) (k : τ → δ)
-    (hB : ∀ ω, B ω = k (T ω)) :
-    condMutualInfo (ν.map fun ω => (C ω, A ω, T ω)) =
-      condMutualInfo (ν.map fun ω => (C ω, A ω, B ω)) +
-        ∑ b, ((ν.map B) b).toReal *
-          condMutualInfo ((conditionalSnd (ν.map fun ω => (B ω, ω)) b).map
-            fun ω => (C ω, A ω, T ω)) := by
-  simp only [condMutualInfo_map, mul_add, mul_sub, Finset.sum_add_distrib,
-    Finset.sum_sub_distrib]
-  have m1 := entropy_map_prodMk_eq_add_sum ν B (fun ω => (C ω, A ω))
-  have m2 := entropy_map_prodMk_eq_add_sum ν B (fun ω => (C ω, T ω))
-  have m3 := entropy_map_prodMk_eq_add_sum ν B (fun ω => (C ω, A ω, T ω))
-  have m4 := entropy_map_prodMk_eq_add_sum ν B C
-  have r1 := entropy_map_eq_of_comp ν (F := fun ω => (C ω, A ω, B ω))
-    (G := fun ω => (B ω, C ω, A ω)) (e := fun t => (t.2.2, t.1, t.2.1))
-    (fun ⟨_, _, _⟩ ⟨_, _, _⟩ hst => by simp only [Prod.mk.injEq] at hst; simp [hst])
-    (fun _ _ => rfl)
-  have r2 := entropy_map_eq_of_comp ν (F := fun ω => (C ω, T ω))
-    (G := fun ω => (B ω, C ω, T ω)) (e := fun t => (k t.2, t))
-    (fun _ _ hst => congrArg Prod.snd hst) (fun ω _ => by rw [hB])
-  have r3 := entropy_map_eq_of_comp ν (F := fun ω => (C ω, A ω, T ω))
-    (G := fun ω => (B ω, C ω, A ω, T ω)) (e := fun t => (k t.2.2, t))
-    (fun _ _ hst => congrArg Prod.snd hst) (fun ω _ => by rw [hB])
-  have r4 := entropy_map_eq_of_comp ν (F := fun ω => (C ω, B ω))
-    (G := fun ω => (B ω, C ω)) (e := Prod.swap) Prod.swap_injective (fun _ _ => rfl)
-  linarith
-
 /-- **Chain rule** for `I(A; T)` through an observation `B = k ∘ T`:
 `I(A; T) = I(A; B) + E_b I(A; T | B = b)`. -/
 theorem mutualInfo_map_eq_add_sum [Fintype δ] [Finite α] [Finite τ]
@@ -369,6 +329,22 @@ theorem mutualInfo_map_eq_add_sum [Fintype δ] [Finite α] [Finite τ]
     (G := fun ω => (B ω, A ω)) (e := Prod.swap) Prod.swap_injective (fun _ _ => rfl)
   linarith
 
+/-- **Chain rule** through an observation `B = k ∘ T`:
+`I(A; T | C) = I(A; B | C) + E_b I(A; T | C, B = b)`. -/
+theorem condMutualInfo_map_eq_add_sum [Fintype δ] [Finite γ] [Finite α] [Finite τ]
+    (ν : PMF Ω) (C : Ω → γ) (A : Ω → α) (T : Ω → τ) (B : Ω → δ) (k : τ → δ)
+    (hB : ∀ ω, B ω = k (T ω)) :
+    condMutualInfo (ν.map fun ω => (C ω, A ω, T ω)) =
+      condMutualInfo (ν.map fun ω => (C ω, A ω, B ω)) +
+        ∑ b, ((ν.map B) b).toReal *
+          condMutualInfo ((conditionalSnd (ν.map fun ω => (B ω, ω)) b).map
+            fun ω => (C ω, A ω, T ω)) := by
+  -- Subtract the information about `C` from that about the pair `(C, A)`.
+  have hCA := mutualInfo_map_eq_add_sum ν (fun ω => (C ω, A ω)) T B k hB
+  have hC := mutualInfo_map_eq_add_sum ν C T B k hB
+  simp only [mutualInfo_map_prodMk_eq_add, mul_add, Finset.sum_add_distrib] at hCA
+  linarith
+
 /-- Independent components carry no mutual information. -/
 theorem mutualInfo_bind_map_prodMk [Finite α] [Finite β] (p : PMF α) (q : PMF β) :
     mutualInfo (p.bind fun a => q.map (a, ·)) = 0 := by
@@ -391,7 +367,7 @@ theorem eq_of_mem_support_conditionalSnd_map (ν : PMF Ω) (f : Ω → β) {c : 
     (hω : ω ∈ (conditionalSnd (ν.map fun ω => (f ω, ω)) c).support) : f ω = c := by
   have hc' : c ∈ ((ν.map fun ω => (f ω, ω)).map Prod.fst).support := by rwa [map_fst_map_prodMk]
   rw [mem_support_conditionalSnd_iff _ _ hc', PMF.mem_support_map_iff] at hω
-  obtain ⟨ω', -, h⟩ := hω
+  obtain ⟨_, -, h⟩ := hω
   exact (Prod.mk.inj h).2 ▸ (Prod.mk.inj h).1
 
 /-- Conditioning on `f = c` restricts to `f ω = c` and renormalizes. -/
@@ -402,10 +378,7 @@ theorem conditionalSnd_map_prodMk_apply [DecidableEq β] (ν : PMF Ω) (f : Ω �
   have hc' : c ∈ ((ν.map fun ω => (f ω, ω)).map Prod.fst).support := by rwa [map_fst_map_prodMk]
   rw [conditionalSnd_apply _ _ hc', map_fst_map_prodMk, PMF.map_apply]
   congr 1
-  rw [tsum_eq_single ω fun ω' hω' => ?_]
-  · by_cases h : f ω = c
-    · simp [h]
-    · simp [h, Ne.symm h]
-  · simp [Ne.symm hω']
+  rw [tsum_eq_single ω fun ω' hω' => by simp [Ne.symm hω']]
+  simp only [Prod.mk.injEq, eq_self, and_true, eq_comm (a := c) (b := f ω)]
 
 end Cslib.Probability.PMF

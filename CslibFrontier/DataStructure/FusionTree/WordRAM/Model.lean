@@ -207,10 +207,8 @@ def memory (p : Parameters) (t : Tree) (base : ℕ) : ℕ → ℕ :=
 
 /-- The explicit list encoding has an actual RAM realization. -/
 theorem rep_memory (p : Parameters) (t : Tree) (base : ℕ) :
-    Rep p t base (memory p t base) := by
-  intro i
-  change memory p t base (base + i.val) = (encode p base t)[i.val]
-  simp [memory]
+    Rep p t base (memory p t base) := fun i => by
+  simp [Block.read, memory]
 
 /-- A represented internal node exposes its header, minima, pointers and child-record interval. -/
 private theorem Rep.node_parts {p : Parameters} {m base : ℕ} {cs : List Tree} {mem : ℕ → ℕ}
@@ -232,8 +230,8 @@ theorem Rep.node_header {p : Parameters} {m base : ℕ} {cs : List Tree} {mem : 
   have hh0 := hh.1.get
   refine ⟨by simpa using hh0 0 (by simp), by simpa using hh0 1 (by simp),
     by simpa using hh0 2 (by simp), fun j => ?_⟩
-  have hj := hh.2.get j (by simp only [List.length_ofFn]; exact j.isLt)
-  simpa only [List.length_cons, List.length_nil, List.getElem_ofFn] using hj
+  simpa only [List.length_cons, List.length_nil, List.getElem_ofFn] using
+    hh.2.get j (j.isLt.trans_eq List.length_ofFn.symm)
 
 /-- The three leaf words decode as tag, presence and key. -/
 theorem Rep.leaf_fields {p : Parameters} {base : ℕ} {xs : List ℕ} {mem : ℕ → ℕ}
@@ -307,9 +305,8 @@ private theorem node_access_owned (base m : ℕ) (cs : List Tree) (a : ℕ)
 
 /-- Each of the eighteen header loads lies inside the record, including for empty leaves. -/
 theorem header_access_owned (base : ℕ) (t : Tree) (j : Fin 18) :
-    (Block.mk base (span t)).Owns (base + j) := by
-  apply access_owned
-  cases t <;> simp only [span, headerWords] <;> omega
+    (Block.mk base (span t)).Owns (base + j) :=
+  access_owned base t j (by cases t <;> simp only [span, headerWords] <;> omega)
 
 /-- Both stride-two table loads are inside the parent's allocation. -/
 theorem child_entry_access_owned (base m : ℕ) (cs : List Tree) (i : Fin cs.length) :
@@ -338,10 +335,8 @@ private theorem span_le_slots (t : Tree) : span t ≤ 9 * t.slots := by
 /-- Uniform linear allocated RAM words, with constants independent of branching capacity
 and word width. This counts the actual serialized words, including all preprocessing headers. -/
 theorem span_build_le {B : ℕ} (hB : 2 ≤ B) (xs : List ℕ) :
-    span (Tree.build B xs) ≤ 126 * xs.length + 18 := by
-  have hh := span_le_slots (Tree.build B xs)
-  have hs := Tree.slots_build_le hB xs
-  omega
+    span (Tree.build B xs) ≤ 126 * xs.length + 18 :=
+  (span_le_slots (Tree.build B xs)).trans (by have := Tree.slots_build_le hB xs; omega)
 
 /-- A single absolute constant works for both terms in the usual `C * n + C` bound. -/
 theorem span_build_le_uniform {B : ℕ} (hB : 2 ≤ B) (xs : List ℕ) :
@@ -370,25 +365,20 @@ theorem decode_rep {B fuel base : ℕ} {p : Parameters} {t : Tree} {mem : ℕ �
   | succ fuel ih =>
     cases t with
     | leaf xs =>
-      have hh := hr.leaf_fields
-      simp only [decode, hh.1, ↓reduceIte, hh.2.1, hh.2.2]
-      have hl : xs.length ≤ 1 := by simpa only [Tree.Valid] using ht
-      rcases xs with _ | ⟨x, _ | ⟨y, ys⟩⟩ <;> simp_all
+      obtain ⟨h0, h1, h2⟩ := hr.leaf_fields
+      simp only [decode, h0, ↓reduceIte, h1, h2]
+      rcases xs with _ | ⟨x, _ | ⟨y, ys⟩⟩ <;> simp_all [Tree.Valid]
     | node m cs =>
       simp only [Tree.Valid] at ht
       have hh := hr.node_header
       simp only [decode, hh.1, Nat.one_ne_zero, ↓reduceIte, hh.2.1, hh.2.2.1]
-      congr 1
       conv_rhs => rw [← List.ofFn_getElem (xs := cs)]
-      apply congrArg List.ofFn
-      funext i
+      refine congrArg (Tree.node m) (congrArg List.ofFn (funext fun i => ?_))
       have hc := hr.child i
-      simp only [Fin.val_cast]
-      rw [hc.2.1]
-      apply ih (ht.2.2.2 cs[i] (List.getElem_mem i.isLt)).1 hc.2.2
-      have hh' := Tree.height_lt_node_of_mem (m := m) (List.getElem_mem i.isLt)
-      simp only [Fin.getElem_fin]
-      omega
+      simp only [Fin.val_cast, hc.2.1]
+      exact ih (ht.2.2.2 cs[i] (List.getElem_mem i.isLt)).1 hc.2.2
+        ((Tree.height_lt_node_of_mem (m := m) (List.getElem_mem i.isLt)).trans_le
+          (Nat.le_of_lt_succ hf))
 
 /-- The explicit serializer and total RAM realization round-trip through the load-based decoder. -/
 theorem decode_encode {B fuel : ℕ} {t : Tree} (ht : Tree.Valid B t)
@@ -424,21 +414,15 @@ def ContentFits (w : ℕ) (p : Parameters) : Tree → Prop
 /-- Cached child minima fit whenever all explicit tree contents fit. -/
 theorem ContentFits.minimum {w : ℕ} {p : Parameters} {t : Tree} (ht : ContentFits w p t) :
     Fits w t.minimum := by
-  cases t with
-  | leaf xs =>
-    cases xs with
-    | nil => exact fits_zero w
-    | cons x xs =>
-      simp only [ContentFits] at ht
-      exact ht x (by simp)
-  | node m cs =>
-    simp only [ContentFits] at ht
-    exact ht.1
+  rcases t with (_ | ⟨x, xs⟩) | ⟨m, cs⟩ <;> simp only [ContentFits] at ht
+  · exact fits_zero w
+  · exact ht x List.mem_cons_self
+  · exact ht.1
 
 /-- The fit assumption for the arena bounds every owned access address. -/
 theorem ArenaFits.address {w base a : ℕ} {t : Tree} (ha : ArenaFits w base t)
     (ho : (Block.mk base (span t)).Owns a) : Fits w a :=
-  ha.of_le (by exact Nat.le_of_lt ho.2)
+  ha.of_le ho.2.le
 
 /-- The child's whole allocation also fits; in particular following its pointer cannot wrap. -/
 theorem ArenaFits.child {w base m : ℕ} {cs : List Tree}
@@ -460,7 +444,7 @@ private theorem encode_fits {w : ℕ} {p : Parameters} (t : Tree) :
       List.mem_replicate] at hv
     rcases hv with (rfl | rfl | rfl) | ⟨_, rfl⟩
     · exact fits_zero w
-    · split <;> first | exact fits_zero w | exact h1
+    · cases xs.isEmpty <;> simp [fits_zero, h1]
     · exact ht.minimum
     · exact fits_zero w
   | node m cs ih =>
@@ -479,11 +463,8 @@ private theorem encode_fits {w : ℕ} {p : Parameters} (t : Tree) :
       split
       · exact (ht.2.2 _ (List.getElem_mem (by omega))).minimum
       · exact (ha.child ⟨j.val / 2, by omega⟩).of_le (Nat.le_add_right _ _)
-    · apply ih _ _ ht.2.2 v hv
-      simpa only [ArenaFits, Nat.add_assoc, span] using ha
-  | nil =>
-    rename_i base ha ht v hv
-    simp [encodeForest] at hv
+    · exact ih _ (by simpa only [ArenaFits, Nat.add_assoc, span] using ha) ht.2.2 v hv
+  | nil => simp_all [encodeForest]
   | cons t ts iht ihs =>
     rename_i base ha ht v hv
     have hbound : Fits w (base + span t + (ts.map span).sum) := by
@@ -509,9 +490,9 @@ theorem encoding_exists {B w base : ℕ} (hB : 2 ≤ B) (xs : List ℕ) (p : Par
     (ha : ArenaFits w base (Tree.build B xs)) (ht : ContentFits w p (Tree.build B xs)) :
     ∃ mem : ℕ → ℕ, Rep p (Tree.build B xs) base mem ∧ (∀ a, Fits w (mem a)) ∧
       decode ((Tree.build B xs).height + 1) mem base = Tree.build B xs ∧
-      (encode p base (Tree.build B xs)).length ≤ 126 * xs.length + 18 := by
-  refine ⟨memory p (Tree.build B xs) base, rep_memory _ _ _, memory_fits ha ht, ?_, ?_⟩
-  · exact decode_encode (Tree.valid_build hB xs) (by omega) p base
-  · simpa only [encode_length] using span_build_le hB xs
+      (encode p base (Tree.build B xs)).length ≤ 126 * xs.length + 18 :=
+  ⟨memory p (Tree.build B xs) base, rep_memory _ _ _, memory_fits ha ht,
+    decode_encode (Tree.valid_build hB xs) (Nat.lt_succ_self _) p base,
+    (encode_length p base _).trans_le (span_build_le hB xs)⟩
 
 end Cslib.DataStructure.FusionTree.WordRAM

@@ -75,17 +75,15 @@ lemma ballot_ceiling_inv {b : Ballot Proposer}
           ⟨a, b', v, hact, _, rfl⟩
       · exact ih.1 m hold
       · exact hno_higher n q r' hact
-      · rw [hact] at hen; exact ih.1 (.phase1a b') hen.2
-      · rw [hact] at hen; exact hb_eq ▸ ih.1 (.phase1b a b' mv) hen.2
-      · rw [hact] at hen; exact ih.1 (.phase2a b' v) hen.2
+      · exact ih.1 (.phase1a b') (hact ▸ hen).2
+      · exact hb_eq ▸ ih.1 (.phase1b a b' mv) (hact ▸ hen).2
+      · exact ih.1 (.phase2a b' v) (hact ▸ hen).2
     · rcases acceptors_synodStep_cases qs (ss n) (xs n) a with heq |
           ⟨b', hact, _, heq, _⟩ | ⟨b', v, hact, _, heq⟩ | ⟨_, heq⟩
-      · rw [heq] at hmb; exact ih.2 a mb hmb
-      · rw [heq] at hmb; injection hmb with h_eq
-        rw [hact] at hen; exact h_eq ▸ ih.1 (.phase1a b') hen.2
-      · rw [heq] at hmb; injection hmb with h_eq
-        rw [hact] at hen; exact h_eq ▸ ih.1 (.phase2a b' v) hen.2
-      · rw [heq] at hmb; exact ih.2 a mb hmb
+      · exact ih.2 a mb (heq ▸ hmb)
+      · exact Option.some.inj (heq ▸ hmb) ▸ ih.1 (.phase1a b') (hact ▸ hen).2
+      · exact Option.some.inj (heq ▸ hmb) ▸ ih.1 (.phase2a b' v) (hact ▸ hen).2
+      · exact ih.2 a mb (by simpa [heq] using hmb)
 
 /-- Once proposer `p` prepares round `r` cleanly with no higher ballot prepared, its round stays
 `some r`. -/
@@ -97,33 +95,28 @@ lemma sole_leader_round_inv {p : Proposer} {r : ℕ}
     (hno_higher : ∀ j q r', xs j = .prepare q r' → ⟨r', q⟩ ≤ (⟨r, p⟩ : Ballot Proposer)) :
     ∀ n, 1 ≤ n → ((ss n).proposers p).round = some r ∧
       ∀ r', xs n ≠ .prepare p r' := by
-  have hnot_prep : ∀ n, ((ss n).proposers p).round = some r → ∀ r', xs n ≠ .prepare p r' := by
-    intro n hround r' hact
-    obtain ⟨hen, _⟩ := hexec n
-    rw [hact] at hen
-    dsimp only [synodEnabled] at hen
-    rw [hround] at hen
+  have hnot_prep (n : ℕ) (hround : ((ss n).proposers p).round = some r) (r' : ℕ)
+      (hact : xs n = .prepare p r') : False := by
+    have hen := hact ▸ (hexec n).1
+    simp only [synodEnabled, hround] at hen
     have hle := (Ballot.le_iff _ _).mp (hno_higher n p r' hact)
     dsimp only at hle
     rcases hle with hlt | ⟨heq, _⟩ <;> omega
-  have hround_all : ∀ k, ((ss (1 + k)).proposers p).round = some r := by
-    intro k
+  have hround_all (k : ℕ) : ((ss (1 + k)).proposers p).round = some r := by
     induction k with
     | zero =>
       rw [(hexec 0).2, hprep₀]
-      dsimp only [synodStep, synodStepCore]
-      simp only [↓reduceIte]
+      simp [synodStep, synodStepCore]
     | succ k ih =>
-      have hidx : 1 + k + 1 = 1 + (k + 1) := by omega
-      rw [← hidx, (hexec (1 + k)).2]
+      rw [← Nat.add_assoc, (hexec (1 + k)).2]
       rcases proposers_synodStep_cases qs (ss (1 + k)) (xs (1 + k)) p with heq |
           ⟨r', hact, _⟩ | ⟨_, _, _, _, _, _, _, _, _, _, heq, _⟩ |
           ⟨_, _, _, _, _, _, _, _, _, heq⟩ | ⟨_, heq⟩
-      · rw [heq]; exact ih
-      · exact absurd hact (hnot_prep (1 + k) ih r')
-      · rw [heq]; exact ih
-      · rw [heq]; exact ih
-      · rw [heq]; exact ih
+      · rwa [heq]
+      · exact (hnot_prep (1 + k) ih r' hact).elim
+      · rwa [heq]
+      · rwa [heq]
+      · rwa [heq]
   intro n hn
   obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hn
   exact ⟨hround_all k, hnot_prep (1 + k) (hround_all k)⟩
@@ -143,13 +136,13 @@ lemma promised_mono {p : Proposer} {r : ℕ}
   | zero => exact Finset.Subset.rfl
   | succ d ih =>
     have hsub := ih (Nat.le_add_right n₁ d)
-    have hno_prep := (sole_leader_round_inv qs hexec hprep₀ hno_higher (n₁ + d) (by omega)).2
     rw [← Nat.add_assoc, (hexec (n₁ + d)).2]
     rcases proposers_synodStep_cases qs (ss (n₁ + d)) (xs (n₁ + d)) p with heq |
         ⟨r', hact, _⟩ | ⟨a, _, _, _, _, _, _, _, _, _, heq, _⟩ |
         ⟨a, _, _, _, _, _, _, _, _, heq⟩ | ⟨_, heq⟩
     · rwa [heq]
-    · exact absurd hact (hno_prep r')
+    · exact absurd hact
+        ((sole_leader_round_inv qs hexec hprep₀ hno_higher (n₁ + d) (by omega)).2 r')
     · rw [heq]; exact hsub.trans (Finset.subset_insert a _)
     · rw [heq]; exact hsub.trans (Finset.subset_insert a _)
     · rwa [heq]

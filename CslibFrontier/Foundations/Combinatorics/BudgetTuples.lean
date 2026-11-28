@@ -120,16 +120,15 @@ theorem mem_budgetTuples {ws : List ℕ} (hw : ∀ w ∈ ws, 0 < w) {p : ℕ} {�
     simp only [budgetTuples_nil, weight_nil, List.length_nil, List.length_eq_zero_iff]
     split_ifs with hp <;> simp [hp]
   | cons w ws ih =>
-    have hw0 : 0 < w := hw w List.mem_cons_self
     have ih' := @ih (fun w' hw' => hw w' (List.mem_cons_of_mem _ hw'))
     rw [budgetTuples_cons]
-    simp only [List.mem_flatMap, List.mem_range, lt_ceilDiv_iff hw0, List.mem_map]
-    constructor
+    simp only [List.mem_flatMap, List.mem_range, lt_ceilDiv_iff (hw w List.mem_cons_self),
+      List.mem_map]
+    refine ⟨?_, ?_⟩
     · rintro ⟨b, hb, γ, hγ, rfl⟩
       rw [ih'] at hγ
-      simp only [List.length_cons, weight_cons_cons, hγ.1, true_and]
-      omega
-    · intro ⟨hlen, hwt⟩
+      simp only [List.length_cons, weight_cons_cons, hγ.1, true_and]; omega
+    · rintro ⟨hlen, hwt⟩
       rcases β with _ | ⟨b, γ⟩
       · simp at hlen
       · simp only [List.length_cons, Nat.add_right_cancel_iff, weight_cons_cons] at hlen hwt
@@ -145,30 +144,24 @@ theorem le_weight_of_mem : ∀ {ws β : List ℕ}, (∀ w ∈ ws, 0 < w) → β.
     rw [weight_cons_cons]
     rcases List.mem_cons.mp hb with rfl | hb
     · exact (Nat.le_mul_of_pos_left b (hw w List.mem_cons_self)).trans (Nat.le_add_right _ _)
-    · have := le_weight_of_mem (fun w' hw' => hw w' (List.mem_cons_of_mem _ hw'))
-        (by simpa using hl) b hb
-      omega
+    · exact (le_weight_of_mem (fun w' hw' => hw w' (List.mem_cons_of_mem _ hw'))
+        (by simpa using hl) b hb).trans (Nat.le_add_left _ _)
 
 /-- **Every entry of a tuple of weight below `p` is below `p`**, for positive weights. -/
 theorem lt_of_mem_budgetTuples {ws : List ℕ} (hw : ∀ w ∈ ws, 0 < w) {p : ℕ} {β : List ℕ}
-    (hβ : β ∈ budgetTuples ws p) {b : ℕ} (hb : b ∈ β) : b < p := by
-  obtain ⟨hl, hwt⟩ := (mem_budgetTuples hw).mp hβ
-  exact (le_weight_of_mem hw hl b hb).trans_lt hwt
+    (hβ : β ∈ budgetTuples ws p) {b : ℕ} (hb : b ∈ β) : b < p :=
+  let ⟨hl, hwt⟩ := (mem_budgetTuples hw).mp hβ
+  (le_weight_of_mem hw hl b hb).trans_lt hwt
 
 /-- **Each tuple appears once.** -/
 theorem nodup_budgetTuples (ws : List ℕ) (p : ℕ) : (budgetTuples ws p).Nodup := by
   induction ws generalizing p with
-  | nil =>
-    simp only [budgetTuples_nil]
-    split_ifs <;> simp
+  | nil => by_cases hp : 0 < p <;> simp [hp]
   | cons w ws ih =>
     rw [budgetTuples_cons, List.nodup_flatMap]
-    refine ⟨fun b _ => (ih _).map (List.cons_injective), ?_⟩
-    refine (List.nodup_range).imp fun {b b'} hbb' => ?_
-    intro x hx hy
-    simp only [List.mem_map] at hx hy
-    obtain ⟨γ, -, rfl⟩ := hx
-    obtain ⟨γ', -, h⟩ := hy
+    refine ⟨fun _ _ => (ih _).map List.cons_injective, List.nodup_range.imp fun hbb' x hx hy => ?_⟩
+    obtain ⟨_, -, rfl⟩ := List.mem_map.mp hx
+    obtain ⟨_, -, h⟩ := List.mem_map.mp hy
     exact hbb' (List.cons.inj h).1.symm
 
 /-! ### The successor walks the list -/
@@ -179,59 +172,49 @@ theorem head?_budgetTuples {ws : List ℕ} (hw : ∀ w ∈ ws, 0 < w) {p : ℕ} 
   induction ws generalizing p with
   | nil => simp [hp]
   | cons w ws ih =>
-    have hw0 : 0 < w := hw w List.mem_cons_self
-    have ih' := @ih (fun w' hw' => hw w' (List.mem_cons_of_mem _ hw'))
-    obtain ⟨k, hk⟩ : ∃ k, p ⌈/⌉ w = k + 1 :=
-      Nat.exists_eq_succ_of_ne_zero (Nat.pos_iff_ne_zero.mp ((lt_ceilDiv_iff hw0).mpr
-        (by simpa using hp)))
+    obtain ⟨k, hk⟩ := Nat.exists_eq_succ_of_ne_zero (Nat.pos_iff_ne_zero.mp
+      ((lt_ceilDiv_iff (hw w List.mem_cons_self)).mpr (by simpa using hp)))
     rw [budgetTuples_cons, hk, List.range_succ_eq_map, List.flatMap_cons, List.head?_append,
-      List.head?_map, Nat.mul_zero, Nat.sub_zero, ih' hp]
+      List.head?_map, Nat.mul_zero, Nat.sub_zero,
+      ih (fun w' hw' => hw w' (List.mem_cons_of_mem _ hw')) hp]
     rfl
 
 /-- **The last tuple has no successor.** -/
 theorem budgetNext_getLast? {ws : List ℕ} (hw : ∀ w ∈ ws, 0 < w) {p : ℕ} :
     ∀ x ∈ (budgetTuples ws p).getLast?, budgetNext ws p x = none := by
   induction ws generalizing p with
-  | nil => intro x _; rfl
+  | nil => exact fun _ _ => rfl
   | cons w ws ih =>
     have hw0 : 0 < w := hw w List.mem_cons_self
-    have ih' := @ih (fun w' hw' => hw w' (List.mem_cons_of_mem _ hw'))
+    have hws : ∀ w' ∈ ws, 0 < w' := fun w' hw' => hw w' (List.mem_cons_of_mem _ hw')
     intro x hx
     rw [budgetTuples_cons] at hx
     rcases hn : p ⌈/⌉ w with _ | k
-    · rw [hn] at hx; simp at hx
+    · simp [hn] at hx
     · have hk : w * k < p := (lt_ceilDiv_iff hw0).mp (by omega)
       have hne : (budgetTuples ws (p - w * k)).map (k :: ·) ≠ [] := by
-        rw [Ne, List.map_eq_nil_iff, ← List.head?_eq_none_iff,
-          head?_budgetTuples (fun w' hw' => hw w' (List.mem_cons_of_mem _ hw')) (by omega)]
-        simp
+        simp [← List.head?_eq_none_iff, head?_budgetTuples hws (p := p - w * k) (by omega)]
       rw [hn, List.getLast?_flatMap_range k.succ_pos hne, Nat.succ_sub_one, List.getLast?_map] at hx
       obtain ⟨x', hx', rfl⟩ := Option.map_eq_some_iff.mp hx
-      have hnot : ¬ w * (k + 1) < p := fun h => by
-        have := (lt_ceilDiv_iff hw0).mpr h; omega
-      simp only [budgetNext, ih' x' hx', hnot, ↓reduceIte]
+      have hnot : ¬ w * (k + 1) < p := fun h => by have := (lt_ceilDiv_iff hw0).mpr h; omega
+      simp only [budgetNext, ih hws x' hx', hnot, ↓reduceIte]
 
 /-- **Each tuple is followed by its successor.** -/
 theorem isChain_budgetTuples {ws : List ℕ} (hw : ∀ w ∈ ws, 0 < w) (p : ℕ) :
     List.IsChain (fun x y => budgetNext ws p x = some y) (budgetTuples ws p) := by
   induction ws generalizing p with
-  | nil =>
-    simp only [budgetTuples_nil]
-    split_ifs <;> simp
+  | nil => by_cases hp : 0 < p <;> simp [hp]
   | cons w ws ih =>
     have hw0 : 0 < w := hw w List.mem_cons_self
     have hws : ∀ w' ∈ ws, 0 < w' := fun w' hw' => hw w' (List.mem_cons_of_mem _ hw')
     rw [budgetTuples_cons]
     refine List.isChain_flatMap_range (fun b hb => ?_) (fun b _ => ?_) (fun b hb x hx y hy => ?_)
     · have hb' := (lt_ceilDiv_iff hw0).mp hb
-      rw [Ne, List.map_eq_nil_iff, ← List.head?_eq_none_iff, head?_budgetTuples hws (by omega)]
-      simp
+      simp [← List.head?_eq_none_iff, head?_budgetTuples hws (p := p - w * b) (by omega)]
     · rw [List.isChain_map]
-      refine (ih hws (p - w * b)).imp fun x y hxy => ?_
-      simp only [budgetNext, hxy]
+      exact (ih hws (p - w * b)).imp fun _ _ hxy => by simp only [budgetNext, hxy]
     · have hb1 := (lt_ceilDiv_iff hw0).mp hb
-      rw [List.getLast?_map] at hx
-      obtain ⟨x', hx', rfl⟩ := Option.map_eq_some_iff.mp hx
+      obtain ⟨x', hx', rfl⟩ := Option.map_eq_some_iff.mp (by rwa [List.getLast?_map] at hx)
       rw [List.head?_map, head?_budgetTuples hws (by omega)] at hy
       simp only [Option.map_some, Option.mem_def, Option.some.injEq] at hy
       subst hy
@@ -279,28 +262,22 @@ theorem sum_filter_weight_lt_eq [Fintype M] (hms : ms.Nodup) (hcover : ∀ Z, Z 
     ∑ β ∈ ({β ∈ Fintype.piFinset fun _ => Finset.range p | ∑ Z, w Z * β Z < p} :
         Finset (M → ℕ)), f β =
       ((budgetTuples (ms.map w) p).map fun l => f (ofList ms l)).sum := by
-  have hws : ∀ x ∈ ms.map w, 0 < x := by
-    intro x hx
-    obtain ⟨Z, -, rfl⟩ := List.mem_map.mp hx
-    exact hw Z
-  have hsum (g : M → ℕ) : ∑ Z, g Z = (ms.map g).sum := by
-    rw [← List.sum_toFinset g hms]
-    congr 1
-    ext Z
-    simp [hcover Z]
+  have hws : ∀ x ∈ ms.map w, 0 < x := by simp [hw]
+  have hsum (g : M → ℕ) : ∑ Z, g Z = (ms.map g).sum :=
+    congrArg (·.sum g) (Finset.ext fun Z => by simp [hcover Z]) |>.trans (List.sum_toFinset g hms)
   set L := budgetTuples (ms.map w) p
   have hlen : ∀ l ∈ L, l.length = ms.length := fun l hl => by
     simpa using ((mem_budgetTuples hws).mp hl).1
-  have hnodup : (L.map (ofList ms)).Nodup := by
-    refine (nodup_budgetTuples _ _).map_on fun l hl l' hl' h => ?_
-    rw [← map_ofList hms (hlen l hl), ← map_ofList hms (hlen l' hl'), h]
+  have hnodup : (L.map (ofList ms)).Nodup :=
+    (nodup_budgetTuples _ _).map_on fun l hl l' hl' h => by
+      rw [← map_ofList hms (hlen l hl), ← map_ofList hms (hlen l' hl'), h]
   have hset : (L.map (ofList ms)).toFinset =
       ({β ∈ Fintype.piFinset fun _ => Finset.range p | ∑ Z, w Z * β Z < p} :
         Finset (M → ℕ)) := by
     ext β
     simp only [List.mem_toFinset, List.mem_map, Finset.mem_filter, Fintype.mem_piFinset,
       Finset.mem_range]
-    constructor
+    refine ⟨?_, ?_⟩
     · rintro ⟨l, hl, rfl⟩
       have hwt := ((mem_budgetTuples hws).mp hl).2
       rw [← map_ofList hms (hlen l hl), weight_map, ← hsum] at hwt
@@ -311,8 +288,8 @@ theorem sum_filter_weight_lt_eq [Fintype M] (hms : ms.Nodup) (hcover : ∀ Z, Z 
             (Finset.mem_univ Z)
         _ < p := hwt
     · rintro ⟨-, hβ⟩
-      refine ⟨ms.map β, (mem_budgetTuples hws).mpr ⟨by simp, ?_⟩, ofList_map hcover β⟩
-      rwa [weight_map, ← hsum]
+      exact ⟨ms.map β, (mem_budgetTuples hws).mpr ⟨by simp, by rwa [weight_map, ← hsum]⟩,
+        ofList_map hcover β⟩
   rw [← hset, List.sum_toFinset _ hnodup, List.map_map]
   rfl
 
@@ -344,17 +321,9 @@ private theorem foldl_scanStep (ws β : List ℕ) (r : ℕ) (pre : List ℕ) (be
   | cons w ws ih =>
     rcases β with _ | ⟨b, β⟩
     · rfl
-    · rw [List.zip_cons_cons, List.foldl_cons]
-      have hstep : scanStep (r, (w :: ws).length, pre, best) (w, b) =
-          (r - w * b, ws.length, pre ++ [b],
-            if w * (b + 1) < r then some (pre ++ (b + 1) :: List.replicate ws.length 0)
-            else best) := by
-        simp [scanStep]
-      rw [hstep, ih]
-      simp only [budgetNext]
-      cases budgetNext ws (r - w * b) β with
-      | some t => simp
-      | none => split_ifs <;> rfl
+    · simp only [List.zip_cons_cons, List.foldl_cons, scanStep, List.length_cons,
+        Nat.add_sub_cancel, ih, budgetNext]
+      cases budgetNext ws (r - w * b) β <;> split_ifs <;> simp
 
 /-- The left scan computes the successor. -/
 theorem budgetNextScan_eq (ws : List ℕ) (p : ℕ) (β : List ℕ) :

@@ -77,37 +77,30 @@ exponent. -/
 theorem unitExponent_le_of_two (π : A → I) (p q : I) (h : ∀ a, π a = p ∨ π a = q) :
     F.unitExponent π ≤ F.wireExponent p q := by
   by_cases hp : ∀ a, π a = p
-  · rw [show π = fun _ => p from funext hp, unitExponent_const]
-    exact F.wireExponent_nonneg p q
+  · simpa only [funext hp, unitExponent_const] using F.wireExponent_nonneg p q
   by_cases hq : ∀ a, π a = q
-  · rw [show π = fun _ => q from funext hq, unitExponent_const]
-    exact F.wireExponent_nonneg p q
-  push Not at hp hq
-  obtain ⟨a, ha⟩ := hp
-  obtain ⟨b, hb⟩ := hq
+  · simpa only [funext hq, unitExponent_const] using F.wireExponent_nonneg p q
+  obtain ⟨a, ha⟩ := not_forall.1 hp
+  obtain ⟨b, hb⟩ := not_forall.1 hq
   refine (F.unitExponent_congr_range π ![p, q] ?_).le
   ext x
   simp only [Set.mem_range, Matrix.range_cons, Matrix.range_empty, Set.union_empty,
     Set.mem_union, Set.mem_singleton_iff]
-  constructor
-  · rintro ⟨c, rfl⟩
-    exact h c
-  · rintro (rfl | rfl)
-    exacts [⟨b, (h b).resolve_right hb⟩, ⟨a, (h a).resolve_left ha⟩]
+  exact ⟨fun ⟨c, hc⟩ => hc ▸ h c, fun hx =>
+    hx.elim (fun hx => ⟨b, hx ▸ (h b).resolve_right hb⟩)
+      fun hx => ⟨a, hx ▸ (h a).resolve_left ha⟩⟩
 
 /-- Moving the leg `a` from `π' a` to `π a` raises the unit exponent at most by the sum of the
 wire exponents along the moves. -/
 theorem unitExponent_le_move [Nonempty I] (π π' : A → I) :
     F.unitExponent π ≤ F.unitExponent π' + ∑ a, F.wireExponent (π a) (π' a) := by
   have h := F.apply_push_le π π' (unit K A 2)
-  have h1 (a : A) : (Fintype.card ((unit K A 2).Index a) : ℝ) = 2 := by
-    change (Fintype.card (Fin 2) : ℝ) = 2
-    simp
+  have h1 (a : A) : (Fintype.card ((unit K A 2).Index a) : ℝ) = 2 :=
+    show (Fintype.card (Fin 2) : ℝ) = 2 by simp
   simp only [h1] at h
   rw [apply_push_unit_two, apply_push_unit_two, ← Real.rpow_sum_of_pos (by norm_num),
     ← Real.rpow_add (by norm_num)] at h
-  have h2 := (Real.rpow_le_rpow_left_iff (by norm_num)).1 h
-  linarith
+  linarith [(Real.rpow_le_rpow_left_iff (by norm_num)).1 h]
 
 end Field
 

@@ -119,12 +119,10 @@ theorem simonSolve_eq {zs : Fin m × Fin n → Bool} {s : Fin n → Bool}
     have he : simonSolutions zs = ∅ := filter_eq_empty_iff.mpr fun w _ hw =>
       hw.1 ((or_self _).mp ((h w).mp hw.2))
     simp [simonSolve, he]
-  · have he : simonSolutions zs = {s} := by
-      ext w
+  · have he : simonSolutions zs = {s} := ext fun w => by
       simp only [simonSolutions, mem_filter, mem_univ, true_and, mem_singleton]
-      refine ⟨fun hw => ((h w).mp hw.2).resolve_left hw.1, ?_⟩
-      rintro rfl
-      exact ⟨hs, (h w).mpr (Or.inr rfl)⟩
+      exact ⟨fun hw => ((h w).mp hw.2).resolve_left hw.1,
+        fun hws => hws ▸ ⟨hs, (h s).mpr (Or.inr rfl)⟩⟩
     simp [simonSolve, he]
 
 /-- The outcomes of Simon's algorithm on which the post-processing outputs `s`. -/
@@ -159,19 +157,16 @@ theorem card_simonG_fiber_le {E : Fin N ≃ (Fin n → Bool) × Fin n} {X : Fin 
   have hinj : Set.InjOn (fun a (r : Fin m) => decide (Function.curry a r = Function.curry a₀ r))
       (univ.filter fun a => simonG (m := m) E X a = ys : Finset _) := by
     intro a ha b hb hab
-    have ha' := mem_coe.mp ha
-    have hb' := mem_coe.mp hb
     funext k
-    have hk := congrFun hab k.1
-    simp only [decide_eq_decide] at hk
+    have hk := decide_eq_decide.mp (congrFun hab k.1)
     have hcur : Function.curry a k.1 = Function.curry b k.1 := by
       by_cases h : Function.curry a k.1 = Function.curry a₀ k.1
       · exact h.trans (hk.mp h).symm
-      · have hb0 : Function.curry b k.1 ≠ Function.curry a₀ k.1 := fun h' => h (hk.mpr h')
-        exact ((hrow a ha' k.1).resolve_left h).trans ((hrow b hb' k.1).resolve_left hb0).symm
+      · exact ((hrow a (mem_coe.mp ha) k.1).resolve_left h).trans
+          ((hrow b (mem_coe.mp hb) k.1).resolve_left fun h' => h (hk.mpr h')).symm
     exact congrFun hcur k.2
-  have h := card_le_card_of_injOn _ (fun _ _ => mem_univ _) hinj
-  simpa [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] using h
+  simpa [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] using
+    card_le_card_of_injOn _ (fun _ _ => mem_univ _) hinj
 
 /-- **The rows rarely fail to determine a nonzero hidden string**: for `s ≠ 0` they fail with
 probability at most `(2^n - 1) / 2^m`. -/
@@ -184,9 +179,8 @@ theorem measureProb_not_simonDetermines_le (E : Fin N ≃ (Fin n → Bool) × Fi
   set Z : Finset (Fin m × Fin n → Bool) := univ.filter fun zs => ¬SimonDetermines zs s with hZ
   have hfilt : (univ.filter fun (_, _, w) => ¬SimonDetermines w.xs s :
         Finset (Fin N × Bool × SimonWork m n)) =
-      univ.filter fun (_, _, w) => w.xs ∈ Z := by
-    ext ⟨i, b, w⟩
-    simp [hZ]
+      univ.filter fun (_, _, w) => w.xs ∈ Z :=
+    filter_congr fun _ _ => by simp [hZ]
   -- the row matrices orthogonal to `s` and to some `w ∉ {0, s}`, which contain those orthogonal
   -- to `s` that do not determine `s`
   let K (w : Fin n → Bool) : Finset (Fin m × Fin n → Bool) := univ.filter fun zs =>
@@ -196,20 +190,14 @@ theorem measureProb_not_simonDetermines_le (E : Fin N ≃ (Fin n → Bool) × Fi
   have hsub : (Z.filter fun zs => ∀ r, Function.curry zs r ⬝ᵥ s = false) ⊆ T := by
     intro zs hzs
     obtain ⟨hzZ, hzs⟩ := mem_filter.mp hzs
-    have hnd : ¬SimonDetermines zs s := (mem_filter.mp hzZ).2
-    simp only [SimonDetermines, not_forall] at hnd
-    obtain ⟨w, hw⟩ := hnd
-    have hw0 : w ≠ 0 := by
-      rintro rfl
-      exact hw ⟨fun _ => Or.inl rfl, fun _ r => by simp [Bool.zero_eq_false]⟩
-    have hws : w ≠ s := by
-      rintro rfl
-      exact hw ⟨fun _ => Or.inr rfl, fun _ => hzs⟩
-    have hwo : ∀ r, Function.curry zs r ⬝ᵥ w = false := by
-      by_contra hc
-      exact hw ⟨fun h => absurd h hc, fun h => h.elim (fun h0 => absurd h0 hw0)
-        (fun h1 => absurd h1 hws)⟩
-    exact mem_biUnion.mpr ⟨w, mem_erase.mpr ⟨hws, mem_erase.mpr ⟨hw0, mem_univ _⟩⟩,
+    obtain ⟨w, hw⟩ := not_forall.mp (mem_filter.mp hzZ).2
+    have hback : w = 0 ∨ w = s → ∀ r, Function.curry zs r ⬝ᵥ w = false := by
+      rintro (rfl | rfl) <;> simp only [dotProduct_zero, Bool.zero_eq_false, hzs, implies_true]
+    have hnQ : ¬(w = 0 ∨ w = s) := fun hQ => hw ⟨fun _ => hQ, hback⟩
+    have hwo : ∀ r, Function.curry zs r ⬝ᵥ w = false :=
+      by_contra fun hP => hw (iff_of_false hP hnQ)
+    exact mem_biUnion.mpr ⟨w, mem_erase.mpr ⟨(not_or.mp hnQ).2,
+      mem_erase.mpr ⟨(not_or.mp hnQ).1, mem_univ _⟩⟩,
       mem_filter.mpr ⟨mem_univ _, fun r => ⟨hzs r, hwo r⟩⟩⟩
   have hpair : ∀ w ∈ W, #(K w) * 4 ^ m = 2 ^ (m * n) := by
     intro w hw
@@ -229,21 +217,18 @@ theorem measureProb_not_simonDetermines_le (E : Fin N ≃ (Fin n → Bool) × Fi
       _ = (2 ^ n - 1) * 2 ^ (m * n) := by
           rw [sum_const, card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fun,
             Fintype.card_bool, Fintype.card_fin, smul_eq_mul]
-  have hreal : (#T : ℝ) * (2 ^ m * 2 ^ m) ≤ (2 ^ n - 1) * 2 ^ (m * n) := by
-    have h1 : ((2 ^ n - 1 : ℕ) : ℝ) = 2 ^ n - 1 := by
-      rw [Nat.cast_sub Nat.one_le_two_pow]
-      push_cast
-      ring
-    rw [← mul_pow, ← h1]
-    exact_mod_cast hcard
+  have hZle : #(Z.filter fun zs => ∀ r, Function.curry zs r ⬝ᵥ s = false) * 4 ^ m ≤
+      (2 ^ n - 1) * 2 ^ (m * n) :=
+    (Nat.mul_le_mul_right _ (card_le_card hsub)).trans hcard
+  have hreal : (#(Z.filter fun zs => ∀ r, Function.curry zs r ⬝ᵥ s = false) : ℝ) *
+      (2 ^ m * 2 ^ m) ≤ (2 ^ n - 1) * 2 ^ (m * n) := by
+    norm_num [← mul_pow]
+    simpa [Nat.cast_sub Nat.one_le_two_pow] using (Nat.cast_le (α := ℝ)).mpr hZle
   rw [hfilt]
   refine (measureProb_simonAlg_le E i₀ hX (card_simonG_fiber_le hX) Z).trans ?_
-  have hT' : (#(Z.filter fun zs => ∀ r, Function.curry zs r ⬝ᵥ s = false) : ℝ) ≤ #T := by
-    exact_mod_cast card_le_card hsub
   push_cast
   rw [div_le_div_iff₀ (by positivity) (by positivity)]
-  have hpos : (0 : ℝ) ≤ 2 ^ m := by positivity
-  nlinarith [mul_le_mul_of_nonneg_left hT' hpos]
+  linarith
 
 /-- **Simon's algorithm finds the hidden string**: on every promise input, including `s = 0`, the
 post-processing of the measured rows outputs `s` with probability at least `1 - (2^n - 1) / 2^m`.
@@ -286,9 +271,7 @@ theorem simonAlg_search_spec (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ : F
         3 / 4 < measureProb (run (simonAlg (n + 2) E i₀) (simonInit i₀) X ((n + 2) * n))
           (simonFound (n + 2) s) := by
   refine ⟨norm_simonInit _, fun X s hX => lt_of_lt_of_le ?_ (le_measureProb_simonFound E i₀ hX)⟩
-  have h : ((2 : ℝ) ^ n - 1) / 2 ^ (n + 2) < 1 / 4 := by
-    rw [div_lt_iff₀ (by positivity), pow_add]
-    linarith
+  rw [lt_sub_comm, div_lt_iff₀ (pow_pos (zero_lt_two' ℝ) _), pow_add]
   linarith
 
 /-- **The exponential quantum–classical separation for the search version of Simon's problem**

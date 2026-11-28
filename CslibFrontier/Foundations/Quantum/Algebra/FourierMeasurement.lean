@@ -98,8 +98,7 @@ theorem walshSum_mul_walshSum (f g : (ι → Bool) → R) (u : ι → Bool) :
   refine sum_congr rfl fun x _ => ?_
   rw [← Equiv.sum_comp (Equiv.addLeft x)]
   refine sum_congr rfl fun z _ => ?_
-  rw [Equiv.coe_addLeft, dotProduct_add,
-    show (u ⬝ᵥ x + u ⬝ᵥ z) = (u ⬝ᵥ x ^^ u ⬝ᵥ z) from rfl, signVal_xor]
+  rw [Equiv.coe_addLeft, dotProduct_add, Bool.add_eq_xor, signVal_xor]
   have h : ((signVal (u ⬝ᵥ x) : ℝ) : ℂ) * (signVal (u ⬝ᵥ x) : ℝ) = 1 := by
     rw [← Complex.ofReal_mul, signVal_mul_self, Complex.ofReal_one]
   congr 1
@@ -115,13 +114,10 @@ theorem sum_fourierCoeff_mul_self_eq (A : (ι → Bool) → R) :
     ∑ u, fourierCoeff A u * fourierCoeff A u =
       (((2 : ℝ) ^ Fintype.card ι)⁻¹ : ℝ) • ∑ a, A a * A a := by
   simp only [fourierCoeff, smul_mul_smul_comm, ← smul_sum, sum_walshSum_mul_walshSum]
-  rw [← Complex.coe_smul, smul_smul]
-  have hscale : (((((2 : ℝ) ^ Fintype.card ι)⁻¹) *
-      ((2 : ℝ) ^ Fintype.card ι)⁻¹ : ℝ) : ℂ) * (2 : ℂ) ^ Fintype.card ι =
-      (((2 : ℝ) ^ Fintype.card ι)⁻¹ : ℝ) := by
-    push_cast
-    field_simp
-  rw [hscale, Complex.coe_smul]
+  rw [← Complex.coe_smul, smul_smul, ← Complex.coe_smul]
+  congr 1
+  push_cast
+  field_simp
 
 /-- **Parseval**: the squares of the Fourier coefficients of `±1` observables sum to `1`. -/
 theorem sum_fourierCoeff_mul_self {A : (ι → Bool) → R} (hA2 : ∀ a, A a * A a = 1) :
@@ -129,7 +125,7 @@ theorem sum_fourierCoeff_mul_self {A : (ι → Bool) → R} (hA2 : ∀ a, A a * 
   rw [sum_fourierCoeff_mul_self_eq]
   simp only [hA2, sum_const, card_univ, ← Nat.cast_smul_eq_nsmul ℝ, smul_smul,
     Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat,
-    inv_mul_cancel₀ (by positivity : (2 : ℝ) ^ Fintype.card ι ≠ 0), one_smul]
+    inv_mul_cancel₀ (pow_ne_zero _ (two_ne_zero (α := ℝ))), one_smul]
 
 /-- `∑_u Â(u)³ = E_{a,b} A(a) A(b) A(a + b)`. -/
 theorem sum_fourierCoeff_cube (A : (ι → Bool) → R) :
@@ -141,40 +137,30 @@ theorem sum_fourierCoeff_cube (A : (ι → Bool) → R) :
   congr 1
   · push_cast
     field_simp
-  · refine sum_congr rfl fun a _ => sum_congr rfl fun b _ => ?_
-    rw [add_comm b a]
+  · exact sum_congr rfl fun a _ => sum_congr rfl fun b _ => by rw [add_comm b a]
 
 /-- `E_a A(a) (∑_u (-1)^{a·u} D(u)) = ∑_u Â(u) D(u)`. -/
 theorem smul_sum_mul_walshSum (A D : (ι → Bool) → R) :
     (((2 : ℝ) ^ Fintype.card ι)⁻¹ : ℝ) • ∑ a, A a * walshSum D a = ∑ u, fourierCoeff A u * D u := by
   simp only [fourierCoeff, walshSum, mul_sum, sum_mul, mul_smul_comm, smul_mul_assoc, smul_sum]
-  rw [sum_comm]
-  refine sum_congr rfl fun u _ => sum_congr rfl fun a _ => ?_
-  rw [dotProduct_comm]
+  exact sum_comm.trans (sum_congr rfl fun u _ => sum_congr rfl fun a _ => by rw [dotProduct_comm])
 
 /-- `E_a (∑_u (-1)^{a·u} D(u)) A(a) = ∑_u D(u) Â(u)`. -/
 theorem smul_sum_walshSum_mul (A D : (ι → Bool) → R) :
     (((2 : ℝ) ^ Fintype.card ι)⁻¹ : ℝ) • ∑ a, walshSum D a * A a = ∑ u, D u * fourierCoeff A u := by
   simp only [fourierCoeff, walshSum, mul_sum, sum_mul, mul_smul_comm, smul_mul_assoc, smul_sum]
-  rw [sum_comm]
-  refine sum_congr rfl fun u _ => sum_congr rfl fun a _ => ?_
-  rw [dotProduct_comm]
+  exact sum_comm.trans (sum_congr rfl fun u _ => sum_congr rfl fun a _ => by rw [dotProduct_comm])
 
 /-- A Fourier coefficient of an exactly linear family is a right eigenspace
 operator, with the eigenvalue given by its character. -/
 theorem fourierCoeff_mul_of_linear (A : (ι → Bool) → R)
     (hlin : ∀ a b, A a * A b = A (a + b)) (u a : ι → Bool) :
     fourierCoeff A u * A a = (signVal (u ⬝ᵥ a) : ℂ) • fourierCoeff A u := by
-  let f (b : ι → Bool) := (signVal (u ⬝ᵥ b) : ℂ) • A (b + a)
-  have hsum : (∑ b, f b) = ∑ b, f (b + a) := (Equiv.sum_comp (Equiv.addRight a) f).symm
   simp only [fourierCoeff, walshSum, smul_mul_assoc, sum_mul, hlin]
-  change _ • (∑ b, f b) = _
-  rw [hsum]
-  simp only [f, BitString.add_cancel_right, dotProduct_add, Bool.add_eq_xor,
+  rw [← Equiv.sum_comp (Equiv.addRight a)]
+  simp only [Equiv.coe_addRight, BitString.add_cancel_right, dotProduct_add, Bool.add_eq_xor,
     signVal_xor, Complex.ofReal_mul, ← smul_smul]
-  have hf (x : ι → Bool) : (signVal (u ⬝ᵥ x) : ℂ) • (signVal (u ⬝ᵥ a) : ℂ) • A x =
-      (signVal (u ⬝ᵥ a) : ℂ) • (signVal (u ⬝ᵥ x) : ℂ) • A x := by rw [smul_comm]
-  simp only [hf, ← smul_sum]
+  simp_rw [smul_comm _ ((signVal (u ⬝ᵥ a) : ℂ)), ← smul_sum]
   exact smul_comm _ _ _
 
 /-- The Fourier coefficient at an exact character is idempotent. -/
@@ -236,9 +222,8 @@ observable of an exactly linear family. -/
 theorem walshSum_fourierMeasurement_of_linear (hlin : ∀ a b, A a * A b = A (a + b))
     (a : ι → Bool) : walshSum (fourierMeasurement A hA hA2).effect a = A a := by
   have hsum := (fourierMeasurement A hA hA2).sum_effect
-  simp only [fourierMeasurement_effect, fourierCoeff_mul_self_of_linear A hlin] at hsum
   rw [walshSum]
-  simp only [fourierMeasurement_effect, fourierCoeff_mul_self_of_linear A hlin]
+  simp only [fourierMeasurement_effect, fourierCoeff_mul_self_of_linear A hlin] at hsum ⊢
   simp_rw [dotProduct_comm a, ← fourierCoeff_mul_of_linear A hlin]
   rw [← sum_mul, hsum, one_mul]
 
@@ -339,9 +324,8 @@ theorem expect_norm_sub_walshSum_sq_le_of_contractions [SelfAdjointDecompose R]
   set χ := walshSum B
   have hBsa : ∀ u, IsSelfAdjoint (B u) := fun u => (fourierCoeff_mul_self_nonneg hA u).isSelfAdjoint
   have hχ : ∀ a, IsSelfAdjoint (χ a) := isSelfAdjoint_walshSum hBsa
-  have hN : ∀ a, φ.norm (A a - χ a) ^ 2 =
+  have hN (a : ι → Bool) : φ.norm (A a - χ a) ^ 2 =
       (φ (A a * A a)).re - (φ (A a * χ a)).re - (φ (χ a * A a)).re + φ.norm (χ a) ^ 2 := by
-    intro a
     rw [φ.norm_sq, φ.norm_sq, star_sub, (hA a).star_eq, (hχ a).star_eq,
       sub_mul, mul_sub, mul_sub, map_sub, map_sub, map_sub, Complex.sub_re,
       Complex.sub_re, Complex.sub_re]
@@ -350,9 +334,8 @@ theorem expect_norm_sub_walshSum_sq_le_of_contractions [SelfAdjointDecompose R]
       (𝔼 a, (φ (f a)).re) = (φ ((((2 : ℝ) ^ Fintype.card ι)⁻¹ : ℝ) • ∑ a, f a)).re := by
     rw [re_apply_real_smul, map_sum, Complex.re_sum, Fintype.expect_eq_sum_div_card,
       Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat, div_eq_inv_mul]
-  have hAavg : (𝔼 a, (φ (A a * A a)).re) ≤ 1 := by
-    rw [hexpect, ← sum_fourierCoeff_mul_self_eq]
-    exact φ.re_apply_le_one hTotal
+  have hAavg : (𝔼 a, (φ (A a * A a)).re) ≤ 1 :=
+    hexpect _ ▸ sum_fourierCoeff_mul_self_eq A ▸ φ.re_apply_le_one hTotal
   have hT₁ : (𝔼 a, (φ (A a * χ a)).re) = 𝔼 a, 𝔼 b, (φ (A a * A b * A (a + b))).re := by
     rw [hexpect, smul_sum_mul_walshSum, re_apply_sum_fourierCoeff_cube]
   have hT₂ : (𝔼 a, (φ (χ a * A a)).re) = 𝔼 a, 𝔼 b, (φ (A a * A b * A (a + b))).re := by
@@ -362,9 +345,9 @@ theorem expect_norm_sub_walshSum_sq_le_of_contractions [SelfAdjointDecompose R]
     rw [expect_norm_walshSum_sq]
     calc ∑ u, φ.norm (B u) ^ 2 ≤ ∑ u, (φ (B u)).re := sum_le_sum fun u _ => by
           rw [φ.norm_sq, (hBsa u).star_eq]
-          have hu : B u ≤ 1 := (single_le_sum
-            (fun v _ => fourierCoeff_mul_self_nonneg hA v) (mem_univ u)).trans hTotal
-          exact φ.re_apply_mono (fourierCoeff_sq_mul_self_le hA u hu)
+          exact φ.re_apply_mono (fourierCoeff_sq_mul_self_le hA u
+            ((single_le_sum (fun v _ => fourierCoeff_mul_self_nonneg hA v)
+              (mem_univ u)).trans hTotal))
       _ ≤ 1 := by
         rw [← Complex.re_sum, ← map_sum]
         exact φ.re_apply_le_one hTotal

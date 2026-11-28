@@ -165,14 +165,9 @@ private theorem longTimeBudget_le (n s m L : ℕ) :
       200000 * (n + 1) * powerBudget n s (2 ^ n) L + 80 * m * (n + 1) := by
   set B := powerBudget n s (2 ^ n) L
   have hb : (n + 1) ^ 3 ≤ B := cube_le_powerBudget n s (2 ^ n) L
-  have hfour : (n + 4) ^ 2 ≤ 16 * (n + 1) ^ 2 := by
-    have := Nat.pow_le_pow_left (show n + 4 ≤ 4 * (n + 1) by omega) 2
-    nlinarith
+  have hfour := Nat.pow_le_pow_left (show n + 4 ≤ 4 * (n + 1) by omega) 2
   have hpoly : 2 + 50 * (n + 4) ^ 2 + 16 * (n + 3) + 1 + 2 + (n + 3) * (4 * n) ≤ 1000 * B := by
     nlinarith [Nat.zero_le (n ^ 3)]
-  have htime : m * (22 * (n + 3) + 3) + 5 * m ≤ 80 * m * (n + 1) := by nlinarith
-  have hcost : 60000 * B + (n + 3) * (40000 * B) + 1000 * B ≤ 200000 * (n + 1) * B := by
-    nlinarith
   unfold longTimeBudget
   nlinarith
 
@@ -188,15 +183,12 @@ theorem variable_time_additive (c : Circuit signature n n) (m L : ℕ) (hL : 0 <
   · obtain ⟨out, ho, hs⟩ := long_time_circuit c m L hnm hL hLN
     exact ⟨out, ho, hs.trans (longTimeBudget_le n c.size m L)⟩
   · obtain ⟨out, ho, hs⟩ := variable_time c m L hL hLN
-    refine ⟨out, ho, hs.trans ?_⟩
     set B := powerBudget n c.size (2 ^ n) L
     have hb : (n + 1) ^ 3 ≤ B := cube_le_powerBudget n c.size (2 ^ n) L
     have hm : m ≤ n := by omega
-    have h1 := Nat.mul_le_mul_right (40000 * B) hm
-    have h2 : m * (4 * n) ≤ B := by
-      have := Nat.mul_le_mul_right (4 * n) hm
-      nlinarith
-    nlinarith
+    exact ⟨out, ho, hs.trans (by
+      nlinarith [Nat.mul_le_mul_right (40000 * B) hm, Nat.mul_le_mul_right (4 * n) hm,
+        Nat.zero_le (n ^ 3)])⟩
 
 /-- **Square-root long input times.** Some circuit of size at most
 `400000 * (n + 1) * optimizedBudget n c.size (2 ^ n) + 80 * m * (n + 1)` iterates `c` for a

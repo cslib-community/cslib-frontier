@@ -160,13 +160,11 @@ theorem modelCount_toPlanarThreeSATThree (φ : CNF ℕ)
 /-- The total planar compiler preserves syntax-guarded counts, including rejected inputs. -/
 theorem sharpThreeSATThree_toPlanarThreeSATThree (φ : CNF ℕ) :
     SharpThreeSATThree (toPlanarThreeSATThree φ) = SharpThreeSATThree φ := by
-  have hout := (ThreeSATThree.syntaxCheck_iff (toPlanarThreeSATThree φ)).2
-    ⟨width_toPlanarThreeSATThree φ, count_vars_toPlanarThreeSATThree φ⟩
-  simp only [SharpThreeSATThree, SharpSAT, hout, ↓reduceIte]
+  simp only [SharpThreeSATThree, SharpSAT, (ThreeSATThree.syntaxCheck_iff _).2
+    ⟨width_toPlanarThreeSATThree φ, count_vars_toPlanarThreeSATThree φ⟩, ↓reduceIte]
   by_cases hg : ThreeSATThree.syntaxCheck φ = true
   · have hs := (ThreeSATThree.syntaxCheck_iff φ).1 hg
-    rw [modelCount_toPlanarThreeSATThree φ hs.1 hs.2]
-    simp only [hg, ↓reduceIte]
+    simp only [modelCount_toPlanarThreeSATThree φ hs.1 hs.2, hg, ↓reduceIte]
   · simp only [toPlanarThreeSATThree, toDrawnPlanarThreeSATThree, hg,
       Bool.false_eq_true, ite_false]
     decide
@@ -176,14 +174,10 @@ theorem satisfiable_toPlanarThreeSATThree_iff (φ : CNF ℕ) :
     (toPlanarThreeSATThree φ).Satisfiable ↔ φ ∈ ThreeSATThree := by
   by_cases hg : ThreeSATThree.syntaxCheck φ = true
   · have hs := (ThreeSATThree.syntaxCheck_iff φ).1 hg
-    have he : (toPlanarThreeSATThree φ).Satisfiable ↔ φ.Satisfiable := by
-      simpa only [toPlanarThreeSATThree, toDrawnPlanarThreeSATThree, hg, ↓reduceIte] using
-        SAT.ParsimoniousPlanar.satisfiable_formula_iff φ hs.1 hs.2
-    exact he.trans ⟨fun h => ⟨hs.1, hs.2, h⟩, fun h => h.2.2⟩
-  · have hn : φ ∉ ThreeSATThree := by
-      intro h
-      have ht := (ThreeSATThree.syntaxCheck_iff φ).2 ⟨h.1, h.2.1⟩
-      exact hg ht
+    simpa only [toPlanarThreeSATThree, toDrawnPlanarThreeSATThree, hg, ↓reduceIte,
+      SAT.ParsimoniousPlanar.satisfiable_formula_iff φ hs.1 hs.2] using
+      ⟨fun h => ⟨hs.1, hs.2, h⟩, fun h => h.2.2⟩
+  · have hn : φ ∉ ThreeSATThree := fun h => hg ((ThreeSATThree.syntaxCheck_iff φ).2 ⟨h.1, h.2.1⟩)
     simp [toPlanarThreeSATThree, toDrawnPlanarThreeSATThree, hg, CNF.Satisfiable, hn]
 
 /-- Every total output, including the rejection branch, has the claimed actual drawing. -/
@@ -199,25 +193,19 @@ theorem isPlanarOrthogonalDrawing_toDrawnPlanarThreeSATThree (φ : CNF ℕ) :
 
 /-- Correctness for the supplied-drawing target, on every source formula. -/
 theorem mem_DrawnPlanarThreeSATThree_toDrawnPlanarThreeSATThree_iff (φ : CNF ℕ) :
-    toDrawnPlanarThreeSATThree φ ∈ DrawnPlanarThreeSATThree ↔ φ ∈ ThreeSATThree := by
-  constructor
-  · intro h
-    exact (satisfiable_toPlanarThreeSATThree_iff φ).1 h.1.2.2
-  · intro h
-    exact ⟨⟨width_toPlanarThreeSATThree φ, count_vars_toPlanarThreeSATThree φ,
+    toDrawnPlanarThreeSATThree φ ∈ DrawnPlanarThreeSATThree ↔ φ ∈ ThreeSATThree :=
+  ⟨fun h => (satisfiable_toPlanarThreeSATThree_iff φ).1 h.1.2.2,
+    fun h => ⟨⟨width_toPlanarThreeSATThree φ, count_vars_toPlanarThreeSATThree φ,
       (satisfiable_toPlanarThreeSATThree_iff φ).2 h⟩,
-        isPlanarOrthogonalDrawing_toDrawnPlanarThreeSATThree φ⟩
+        isPlanarOrthogonalDrawing_toDrawnPlanarThreeSATThree φ⟩⟩
 
 /-- Correctness when the target problem requires the drawing's existence. -/
 theorem mem_PlanarThreeSATThree_toPlanarThreeSATThree_iff (φ : CNF ℕ) :
-    toPlanarThreeSATThree φ ∈ PlanarThreeSATThree ↔ φ ∈ ThreeSATThree := by
-  constructor
-  · intro h
-    exact (satisfiable_toPlanarThreeSATThree_iff φ).1 h.1.2.2
-  · intro h
-    exact ⟨⟨width_toPlanarThreeSATThree φ, count_vars_toPlanarThreeSATThree φ,
-      (satisfiable_toPlanarThreeSATThree_iff φ).2 h⟩, (toDrawnPlanarThreeSATThree φ).drawing,
-        isPlanarOrthogonalDrawing_toDrawnPlanarThreeSATThree φ⟩
+    toPlanarThreeSATThree φ ∈ PlanarThreeSATThree ↔ φ ∈ ThreeSATThree :=
+  ⟨fun h => (satisfiable_toPlanarThreeSATThree_iff φ).1 h.1.2.2,
+    fun h => ⟨⟨width_toPlanarThreeSATThree φ, count_vars_toPlanarThreeSATThree φ,
+      (satisfiable_toPlanarThreeSATThree_iff φ).2 h⟩, _,
+        isPlanarOrthogonalDrawing_toDrawnPlanarThreeSATThree φ⟩⟩
 
 /-- Native polynomial-time reduction to a formula with its actual orthogonal drawing. -/
 theorem polyTimeReducible_ThreeSATThree_DrawnPlanarThreeSATThree :
@@ -251,8 +239,8 @@ theorem toDrawnPlanarThreeSATThree_fits (φ : CNF ℕ) :
   · simpa only [toDrawnPlanarThreeSATThree, hg, ↓reduceIte] using
       Graph.drawingFits_mono (SAT.ParsimoniousPlanar.drawing_fits φ)
         (SAT.ParsimoniousPlanar.gridWidth_le φ) (SAT.ParsimoniousPlanar.gridHeight_le φ)
-  · have hn : (0 : ℤ) ≤ φ.numVars + φ.length + φ.vars.length + 1 := by positivity
-    simpa [toDrawnPlanarThreeSATThree, hg, Graph.drawingFits] using hn
+  · simpa [toDrawnPlanarThreeSATThree, hg, Graph.drawingFits] using
+      (by positivity : (0 : ℤ) ≤ φ.numVars + φ.length + φ.vars.length + 1)
 
 /-- Explicit quadratic formula, incidence-route, segment and Manhattan wire bounds. -/
 theorem toDrawnPlanarThreeSATThree_costs (φ : CNF ℕ) :
@@ -269,10 +257,10 @@ theorem toDrawnPlanarThreeSATThree_costs (φ : CNF ℕ) :
       SAT.ParsimoniousPlanar.length_vars_formula_le φ,
       SAT.ParsimoniousPlanar.routes_length_le φ, SAT.ParsimoniousPlanar.drawingSegmentCount_le φ,
       SAT.ParsimoniousPlanar.drawingWireLength_le φ⟩
-  · have hsize : 1 ≤ φ.numVars + φ.length + φ.vars.length + 1 := by omega
-    have hvars : CNF.vars ([[]] : CNF ℕ) = [] := rfl
+  · have : 1 ≤ φ.numVars + φ.length + φ.vars.length + 1 := by omega
     simp only [toDrawnPlanarThreeSATThree, hg]
-    norm_num [hvars, Graph.drawingSegmentCount, Graph.drawingWireLength]
+    norm_num [show CNF.vars ([[]] : CNF ℕ) = [] from rfl, Graph.drawingSegmentCount,
+      Graph.drawingWireLength]
     nlinarith
 
 /-- The original 3SAT input first passes through the linear occurrence splitter. -/

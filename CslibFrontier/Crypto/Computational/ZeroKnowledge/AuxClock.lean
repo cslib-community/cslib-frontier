@@ -277,40 +277,32 @@ theorem AuxiliaryInputZeroKnowledge.unboundedAuxiliaryInputZeroKnowledge
     have hpair (n : ℕ) :
         (encPair encUnary enc (n, a n)).length = 2 * n + 1 + (enc (a n)).length := by
       simp
-    have hz_V_bound : PolynomiallyBounded
-        (fun n => c * ((2 * n + 1 + (enc (a n)).length) + 1) ^ d) := by
+    let L_in (n : ℕ) : ℕ := 2 * n + 1 + (enc (a n)).length
+    have hL_in : PolynomiallyBounded L_in := by
+      dsimp only [L_in]
       fun_prop
-    have hz_V : PolynomiallyBounded (fun n => (z_V n).length) := hz_V_bound.mono_of_le fun n => by
-      simpa only [z_V, T_V, hpair] using List.length_take_le (T_V n (a n)) (z n)
-    have hz_A_bound : PolynomiallyBounded
-        (fun n =>
-          c_A * ((2 * (2 * n + 1 + (enc (a n)).length) + 1 +
-            (c_R * ((2 * n + 1 + (enc (a n)).length) + 1) ^ d_R +
-             c_S * ((2 * n + 1 + (enc (a n)).length) + 1) ^ d_S)) + 1) ^ d_A) := by
-      fun_prop
-    have hz_A : PolynomiallyBounded (fun n => (z_A n).length) := hz_A_bound.mono_of_le fun n => by
-      simpa only [z_A, T_A, L_view, hpair] using List.length_take_le (T_A n (a n)) (z n)
-    have hprep : ComputableInPolyTime
-        (fun p : (ℕ × α × List Bool) × List Bool => (((p.1.1, p.1.2.1), p.2), p.1.2.2))
-        (encPair (encPair encUnary (encPair enc encBits)) encBits)
-        (encPair (encPair (encPair encUnary enc) encBits) encBits) := by fun_prop
+    have hz_V : PolynomiallyBounded (fun n => (z_V n).length) := by
+      refine PolynomiallyBounded.mono_of_le (g := fun n => c * (L_in n + 1) ^ d)
+        (by fun_prop) fun n => ?_
+      simpa only [z_V, T_V, hpair, L_in] using List.length_take_le (T_V n (a n)) (z n)
+    have hz_A : PolynomiallyBounded (fun n => (z_A n).length) := by
+      refine PolynomiallyBounded.mono_of_le
+        (g := fun n => c_A * ((2 * L_in n + 1 +
+          (c_R * (L_in n + 1) ^ d_R + c_S * (L_in n + 1) ^ d_S)) + 1) ^ d_A)
+        (by fun_prop) fun n => ?_
+      simpa only [z_A, T_A, L_view, hpair, L_in] using List.length_take_le (T_A n (a n)) (z n)
     have hadv_on : IsPPTOn (encPair (encPair encUnary (encPair enc encBits)) encBits) encBool
         (fun ⟨⟨n, x, z'⟩, view⟩ => adversary n x z' view) :=
-      hadversary.isPPTOn.preprocess hprep
+      hadversary.isPPTOn.preprocess
+        (prepare := fun p : (ℕ × α × List Bool) × List Bool => (((p.1.1, p.1.2.1), p.2), p.1.2.2))
+        (by fun_prop)
     have hneg := hS₀_zk a w z_V z_A ha hw hz_V hz_A hw_sat adversary hadv_on
     have hm (n : ℕ) (v : List Bool) (hv : v.length ≤ L_view n (a n)) :
         c_A * ((encPair (encPair encUnary enc) encBits ((n, a n), v)).length + 1) ^ d_A ≤
           T_A n (a n) := by
-      have := hpair n
-      have hlen_pair :
-          (encPair (encPair encUnary enc) encBits ((n, a n), v)).length =
-            2 * (2 * n + 1 + (enc (a n)).length) + 1 + v.length := by
-        simp
-      have hle_base :
-          (encPair (encPair encUnary enc) encBits ((n, a n), v)).length + 1 ≤
-            (2 * (encPair encUnary enc (n, a n)).length + 1 + L_view n (a n)) + 1 := by
-        omega
-      exact Nat.mul_le_mul_left c_A (Nat.pow_le_pow_left hle_base d_A)
+      refine Nat.mul_le_mul_left c_A (Nat.pow_le_pow_left ?_ d_A)
+      simp only [encPair_apply, encBits_apply, List.length_append, length_frame]
+      omega
     have hgame_real (n : ℕ) :
         distinguishingGame (zkRealView (prover n (a n) (w n)) (Vstar n (a n) (z_V n)))
           (adversary n (a n) (z_A n)) =
@@ -449,22 +441,19 @@ theorem UnboundedAuxiliaryInputZeroKnowledge.instanceAuxiliaryInputZeroKnowledge
     let a (n : ℕ) : α := if hbad : Bad n then hbad.choose.1 else x₀
     let w (n : ℕ) : List Bool := if hbad : Bad n then hbad.choose.2.1 else w₀
     let z (n : ℕ) : List Bool := if hbad : Bad n then hbad.choose.2.2 else []
-    have ha_bound : PolynomiallyBounded (fun n => n + (enc x₀).length) := by fun_prop
     have ha : PolynomiallyBounded (fun n => (enc (a n)).length) := by
-      refine ha_bound.mono_of_le fun n => ?_
-      dsimp only [a]
-      split_ifs with hbad
-      · have hx := hbad.choose_spec.1
-        omega
-      · omega
-    have hw_bound : PolynomiallyBounded (fun n => c_w * (n + 1) ^ d_w + w₀.length) := by fun_prop
+      refine PolynomiallyBounded.mono_of_le (g := fun n => n + (enc x₀).length)
+        (by fun_prop) fun n => ?_
+      by_cases hbad : Bad n
+      · simp only [a, dite_eq_left hbad, hbad.choose_spec.1]; omega
+      · simp only [a, dite_eq_right hbad]; omega
     have hw : PolynomiallyBounded (fun n => (w n).length) := by
-      refine hw_bound.mono_of_le fun n => ?_
-      dsimp only [w]
-      split_ifs with hbad
+      refine PolynomiallyBounded.mono_of_le (g := fun n => c_w * (n + 1) ^ d_w + w₀.length)
+        (by fun_prop) fun n => ?_
+      by_cases hbad : Bad n
       · have hlen := hbad.choose_spec.2.2.1
-        omega
-      · omega
+        simp only [w, dite_eq_left hbad]; omega
+      · simp only [w, dite_eq_right hbad]; omega
     have hw_sat (n : ℕ) : isWitness (a n) (w n) = true := by
       dsimp only [a, w]
       split_ifs with hbad
@@ -479,17 +468,9 @@ theorem UnboundedAuxiliaryInputZeroKnowledge.instanceAuxiliaryInputZeroKnowledge
     have hev := hneg.eventually_le_inv_polynomial
       (p := fun n => (n + 1) ^ k) (by fun_prop) (fun n => by positivity)
     refine hfreq (hev.mono fun n hn hbad => ?_)
-    have hspec := hbad.choose_spec
-    have ha_eq : a n = hbad.choose.1 := by simp [a, hbad]
-    have hw_eq : w n = hbad.choose.2.1 := by simp [w, hbad]
-    have hz_eq : z n = hbad.choose.2.2 := by simp [z, hbad]
-    have hlen_n : (enc (a n)).length = n := by rw [ha_eq, hspec.1]
-    have hnot_le := hspec.2.2.2
-    rw [← ha_eq, ← hw_eq, ← hz_eq] at hnot_le
-    dsimp only [S] at hnot_le
-    rw [hlen_n] at hnot_le
-    apply hnot_le
-    simpa only [Nat.cast_pow, Nat.cast_add, Nat.cast_one] using hn
+    obtain ⟨hx_n, _, _, hnot_le⟩ := hbad.choose_spec
+    simp only [a, w, z, S, dite_eq_left hbad, hx_n] at hn hnot_le
+    exact hnot_le (by simpa only [Nat.cast_pow, Nat.cast_add, Nat.cast_one] using hn)
 
 /-- Clock and indexing bridge to Goldreich-style `x`-indexed auxiliary-input zero knowledge.
 Every system satisfying `AuxiliaryInputZeroKnowledge` satisfies

@@ -116,13 +116,7 @@ theorem fixedPrime_timeBound_le {n p : ℕ} {κ : ℝ} (hf : 0 < blocks n) (hκ 
   have hprep := mul_le_mul_of_nonneg_left (preparation_le hn) (by norm_num : (0 : ℝ) ≤ 690)
   have hseven := mul_le_mul_of_nonneg_left (one_le_scale hn) (by norm_num : (0 : ℝ) ≤ 7)
   dsimp only at h
-  change (_ : ℝ) ≤ 690 * (n : ℝ) ^ 2 * window n * groups n +
-    125829120 * ((21 * level n + 1 : ℕ) : ℝ) ^ 2 * ((level n + 1 : ℕ) : ℝ) *
-      (window n : ℝ) ^ (-(8 / 125 : ℝ)) * (n : ℝ) ^ 3 * groups n +
-    (4 * (n : ℝ) * groups n) *
-      ((5 * Nat.sqrt (window n) + 8 * queryCap n (window n) + 61 : ℕ) : ℝ) +
-    (((42 * pieceSize (window n) (groups n) + 28) *
-      (falsePositiveCount _ _ _ p + 1) + 7 : ℕ) : ℝ) at h
+  rw [show D (level n) = window n from rfl] at h
   have hproduct := product_le hn
   push_cast at h hs hc hproduct ⊢
   linarith only [h, hs, hc, hprep, hseven, hproduct]
@@ -180,10 +174,8 @@ theorem selection_timeBound_le {n : ℕ} (hn : 0 < n) :
   have h := PrimeSelection.timeBound_le_subcubic n (window n)
   have hk := mul_le_mul_of_nonneg_left (selector_kernel_le hn) (by norm_num : (0 : ℝ) ≤ 3704)
   have hd : (window n : ℝ) ≤ (n : ℝ) ^ 3 / groups n :=
-    (show (window n : ℝ) ≤ (n : ℝ) * groups n from by
-      have hn' : (window n : ℝ) ≤ n := by exact_mod_cast window_le hn
-      exact hn'.trans (le_mul_of_one_le_right (Nat.cast_nonneg n)
-        (by exact_mod_cast one_le_groups n))).trans (group_work_le hn)
+    ((Nat.cast_le.mpr (window_le hn)).trans (le_mul_of_one_le_right (Nat.cast_nonneg n)
+      (Nat.one_le_cast.mpr (one_le_groups n)))).trans (group_work_le hn)
   have hunit := one_le_scale hn
   linarith only [h, hk, hd, hunit]
 

@@ -57,11 +57,10 @@ lemma meanRowTail_le (t : Fin J) (Lt : ℕ) (D : ZMod P) (suffix : List (ZMod P)
   let b := kthLargest 1 S (fun y => |B x y|)
   have hb : 0 ≤ b := kthLargest_nonneg
   have hy (y : ZMod P) (hy : y ∈ S) : B x y ≤ b := by
-    by_cases hzero : B x y = 0
-    · simpa only [hzero] using hb
-    · have hp : 0 < B x y := lt_of_le_of_ne (hB x y) (Ne.symm hzero)
-      apply (le_kthLargest_iff (by norm_num : 0 < 1) hp).mpr
-      exact card_pos.mpr ⟨y, mem_filter.mpr ⟨hy, by rw [abs_of_nonneg (hB x y)]⟩⟩
+    rcases (hB x y).eq_or_lt with hzero | hp
+    · exact hzero ▸ hb
+    · exact (le_kthLargest_iff zero_lt_one hp).mpr
+        (card_pos.mpr ⟨y, mem_filter.mpr ⟨hy, by rw [abs_of_nonneg hp.le]⟩⟩)
   have ht := mean_tail_growth hb m j hj
     (fun i => kthLargest 1 S (fun y => |μ i x y|)) (fun i _ hi =>
       kthLargest_le (mul_nonneg hb (by positivity)) (fun y hy' =>
@@ -128,18 +127,10 @@ theorem integrated_mean_tail_capacity
         q * #{σ : Environment P J | X σ x ∧ Yt σ y} := by
       have hc := actual_rarity_card s t hst Ls Lt D hD sourceSuffix suffix H hk hLt G hG hmass
         (dyadicFloor_pos hη m j) (lt_of_lt_of_le (by positivity) (hn j hj)) x y
-      have hsub : ({σ : Environment P J | X σ x ∧ Yt σ y ∧
-          meanFirstEvent t D suffix k m j η G n K Δ raw σ x} : Finset _) ⊆
-          ({σ : Environment P J | X σ x ∧ Yt σ y ∧ heavyCountEvent (retainedMask t (side P k) D
-            suffix) univ (fun y => G x y / rate k) (dyadicFloor η m j) (n j) σ} : Finset _) := by
-        intro σ hσ
-        have hh := (mem_filter.mp hσ).2
-        exact mem_filter.mpr ⟨mem_univ _, hh.1, hh.2.1, hh.2.2.2⟩
-      apply (Nat.cast_le.mpr (card_le_card hsub)).trans
-      rw [show retainedMask t (side P k) D suffix =
-        (fun (τ : Environment P J) w => frameRetains P 4 (side P k) (τ t)
-          (CopyPadding.identifier D suffix w)) from rfl]
-      simpa only [X, Yt, retainedMask, retainedMask, q] using hc
+      simp only [X, Yt, retainedMask, q]
+      refine (Nat.cast_le.mpr (card_le_card fun σ hσ => ?_)).trans hc
+      obtain ⟨hX, hY, _, hheavy⟩ := (mem_filter.mp hσ).2
+      exact mem_filter.mpr ⟨mem_univ _, hX, hY, hheavy⟩
     let g := fun σ x => if meanFirstEvent t D suffix k m j η G n K Δ raw σ x then
       kthLargest 1 {y | Yt σ y} (fun y => |B x y|) else 0
     have ha := vertexNormPow_kthLargest_event_le (by norm_num : 4 ≠ 0) hNu hr B

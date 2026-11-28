@@ -98,56 +98,22 @@ private theorem computableInPolyTime_rangeCode {α : Type} {enc : α ↪ List Bo
       (encPair (encPair (encPair encUnary encUnary) (encPair encUnary encCode)) encCode)
       (encPair encUnary encCode) := by
   let stepEnc := encPair (encPair (encPair encUnary encUnary) (encPair encUnary encCode)) encCode
-  have hn : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) => p.1.1.1)
-      stepEnc encUnary := by fun_prop
-  have hstate : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) => p.1.2.2)
-      stepEnc encCode := by fun_prop
-  have hcode : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) => p.2)
-      stepEnc encCode := by fun_prop
-  have hk1 : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) => p.1.2.1 + 1)
-      stepEnc encUnary := by fun_prop
-  have hprefixInputs : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) => p.1.2.1 * p.1.1.1)
-      stepEnc encUnary := by fun_prop
-  have hblockInputs : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
-        p.1.2.1 * p.1.1.1 + p.1.1.1) stepEnc encUnary := by fun_prop
-  have hinputCount : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
-        (p.1.2.1 + 1) * p.1.1.1) stepEnc encUnary := by fun_prop
-  have houtputCount : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
-        (p.1.2.1 + 1) * p.1.1.2) stepEnc encUnary := by fun_prop
-  have hprefixRange := computableInPolyTime_rangeCode hprefixInputs
-  have hinputRange := computableInPolyTime_rangeCode hinputCount
-  have houtputRange := computableInPolyTime_rangeCode houtputCount
-  have hshiftedRange : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
-        ([], (List.range p.1.1.1).map (p.1.2.1 * p.1.1.1 + ·))) stepEnc encCode := by
-    have hwire : ComputableInPolyTime
-        (fun q : ((((ℕ × ℕ) × (ℕ × Code)) × Code) × ℕ) =>
-          q.1.1.2.1 * q.1.1.1.1 + q.2) (encPair stepEnc encUnary) encNat :=
-      unary_to_binary.comp (by fun_prop)
-    exact (const (encOut := encList encGate) []).prod
-      (mapWithInput (range.comp hn) hwire)
-  have hleft := computableInPolyTime_compCode (unary_to_binary.comp hblockInputs)
-    hstate hprefixRange
-  have hright := computableInPolyTime_compCode (unary_to_binary.comp hblockInputs)
-    hcode hshiftedRange
-  have hcombined := computableInPolyTime_appendCode (unary_to_binary.comp hblockInputs)
-    hleft hright
-  have hinner := computableInPolyTime_compCode (unary_to_binary.comp hinputCount)
-    hcombined hinputRange
-  have hfinal := computableInPolyTime_compCode (unary_to_binary.comp hinputCount)
-    houtputRange hinner
-  change ComputableInPolyTime
-    (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
-      parallelFamilyCodeStep p.1.1 p.1.2 p.2) stepEnc (encPair encUnary encCode)
-  exact hk1.prod hfinal
+  have hblock : ComputableInPolyTime (fun p : ((ℕ × ℕ) × (ℕ × Code)) × Code =>
+      p.1.2.1 * p.1.1.1 + p.1.1.1) stepEnc encNat := unary_to_binary.comp (by fun_prop)
+  have hin : ComputableInPolyTime (fun p : ((ℕ × ℕ) × (ℕ × Code)) × Code =>
+      (p.1.2.1 + 1) * p.1.1.1) stepEnc encUnary := by fun_prop
+  dsimp only [parallelFamilyCodeStep]
+  refine ComputableInPolyTime.prod (by fun_prop)
+    (computableInPolyTime_compCode (unary_to_binary.comp hin)
+      (computableInPolyTime_rangeCode (by fun_prop))
+      (computableInPolyTime_compCode (unary_to_binary.comp hin) ?_
+        (computableInPolyTime_rangeCode hin)))
+  refine computableInPolyTime_appendCode hblock
+    (computableInPolyTime_compCode hblock (by fun_prop)
+      (computableInPolyTime_rangeCode (by fun_prop)))
+    (computableInPolyTime_compCode hblock (by fun_prop) ?_)
+  exact (const (encOut := encList encGate) []).prod
+    (mapWithInput (range.comp (by fun_prop)) (unary_to_binary.comp (by fun_prop)))
 
 /-- Run a list of raw `n`-input, `m`-output circuit codes on consecutive disjoint input blocks,
 preserving the list order in the output blocks. -/

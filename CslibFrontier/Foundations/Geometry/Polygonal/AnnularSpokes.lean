@@ -98,15 +98,12 @@ theorem exists_annular_spokes (n : ℕ) (z : ℂ) {r R : ℝ} (hr : 0 < r) (hrR 
       (h : ‖lineMap z (p i) t - z‖ = r) : t = 1 :=
     lineMap_sphere_parameter hcenter (hport i) ht
       (by simpa only [Metric.mem_sphere, dist_eq_norm] using h)
-  have hTend (i : Fin (n + 1)) : (T i).finish = q i := by
-    change (Route.prepend z (P i)).endpoint true = _
-    simp only [Route.endpoint_prepend, ↓reduceIte, hPfinish]
+  have hTend (i : Fin (n + 1)) : (T i).finish = q i :=
+    (Route.endpoint_prepend z (P i) true).trans (hPfinish i)
   have hsimple (i : Fin (n + 1)) : (T i).IsSimple := by
     apply ((P i).isSimple_of_outward z (hchord i)).prepend
     · intro heq
-      have h := hp i
-      rw [← hPstart i, ← heq, sub_self, norm_zero] at h
-      exact hr.ne h
+      simpa [← hPstart i, ← heq, hr.ne] using hp i
     · intro k s t hs ht heq
       rw [hPstart i] at heq
       have hend := hnear i k ht (heq ▸ hray i hs)
@@ -141,12 +138,9 @@ theorem exists_annular_spokes (n : ℕ) (z : ℂ) {r R : ℝ} (hr : 0 < r) (hrR 
     have ht1 := hray_end j ht (by rw [heq, hx', hp])
     rw [ht1, lineMap_apply_one] at heq
     exact hij (hpinj (hx'.symm.trans heq.symm))
-  refine ⟨T, ?_, ?_⟩
-  · intro i
-    refine ⟨rfl, hTend i, ?_, hsimple i, hboundary i⟩
-    simp only [T, Route.germ_prepend, Bool.false_eq_true, ↓reduceIte, hPstart]
-  · intro i j hij
-    apply Set.eq_singleton_iff_unique_mem.mpr
+  refine ⟨T, fun i => ⟨rfl, hTend i, ?_, hsimple i, hboundary i⟩, fun i j hij => ?_⟩
+  · simp only [T, Route.germ_prepend, Bool.false_eq_true, ↓reduceIte, hPstart]
+  · apply Set.eq_singleton_iff_unique_mem.mpr
     have hmem (k : Fin (n + 1)) : z ∈ (T k).support :=
       ((T k).mem_support_iff z).mpr ⟨0, 0, ⟨le_rfl, zero_le_one⟩, by
         simp only [T, Route.eval_prepend_zero, lineMap_apply_zero]⟩

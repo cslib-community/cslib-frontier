@@ -186,10 +186,8 @@ private theorem small_cycle (g : ℕ → ℕ → Index) (level : ℕ) (hlevel : 
     CycleOn (iterateRefine (level + 2) g)
       (2 ^ (level - 1)) (3 * 2 ^ (level - 1))
       (2 ^ (level - 1)) (3 * 2 ^ (level - 1)) := by
-  have c := (root_cycle (iterateRefine 1 g)).iterateRefine (level - 1)
-  rw [iterateRefine_add, iterateRefine_add] at c
-  simpa only [show level - 1 + 2 + 1 = level + 2 by omega, Nat.mul_one, Nat.one_mul,
-    Nat.mul_comm] using c
+  simpa only [iterateRefine_add, show level - 1 + 2 + 1 = level + 2 by omega, Nat.mul_one,
+    Nat.one_mul, Nat.mul_comm] using (root_cycle (iterateRefine 1 g)).iterateRefine (level - 1)
 
 private theorem has_light_cycle (g : ℕ → ℕ → Index)
     {s : ℕ → ℕ → ShadeState} (level : ℕ) (hlevel : 1 ≤ level)
@@ -283,9 +281,8 @@ private theorem cell_half {scale block cell : ℕ}
     (lower : 2 * scale * block ≤ cell) (upper : cell < 2 * scale * (block + 1)) :
     ∃ corner : Fin 2, scale * (2 * block + corner.val) ≤ cell ∧
       cell < scale * (2 * block + corner.val + 1) := by
-  by_cases h : cell < scale * (2 * block + 1)
-  · refine ⟨0, ?_, ?_⟩ <;> dsimp <;> nlinarith
-  · refine ⟨1, ?_, ?_⟩ <;> dsimp <;> nlinarith
+  refine ⟨if cell < scale * (2 * block + 1) then 0 else 1, ?_, ?_⟩ <;>
+    split_ifs <;> dsimp <;> nlinarith
 
 /-- Each binary refinement step changes the shade between a board and each of its four
 corner descendants. Iterating gives the shade of every finest cell cycle. -/
@@ -389,8 +386,6 @@ private theorem coordinate_bounds {phaseScale depth index : ℕ} (hs : 0 < phase
     2 * (phaseScale * 4 ^ depth) + 1 < coordinate phaseScale depth index ∧
       coordinate phaseScale depth index < 6 * (phaseScale * 4 ^ depth) := by
   obtain ⟨hpos, hbound⟩ := offset_bounds depth index hi
-  have hlo := Nat.mul_pos hs hpos
-  have hhi := Nat.mul_lt_mul_of_pos_left hbound hs
   dsimp only [coordinate]
   constructor <;> nlinarith
 
@@ -405,18 +400,14 @@ private theorem offset_children (depth index : ℕ) :
       if index = 0 then 4 * offset depth 0
       else if index = 1 then 4 * offset depth 0 + 1
       else 4 * offset depth (index - 1) + 3 := by
-  by_cases hz : index = 0
-  · simp [offset, hz, pow_succ]; omega
-  · by_cases ho : index = 1
-    · simp [offset, ho, pow_succ]; omega
-    · have hpow : 4 ^ (index - 1) = 4 ^ (index - 1 - 1) * 4 := by
-        simpa only [Nat.sub_add_cancel (show 1 ≤ index - 1 by omega)] using
-          pow_succ 4 (index - 1 - 1)
-      have hp : 0 < 4 ^ depth := pow_pos (by decide) _
-      have hq : 0 < 4 ^ (index - 1 - 1) := pow_pos (by decide) _
-      simp only [offset, ite_eq_right hz, ite_eq_right ho, ↓reduceIte,
-        ite_eq_right (show index - 1 ≠ 0 by omega), pow_succ, hpow]
-      omega
+  rcases index with _ | _ | index
+  · simp [offset, pow_succ]; omega
+  · simp [offset, pow_succ]; omega
+  · have hp : 0 < 4 ^ depth := pow_pos (by decide) _
+    have hq : 0 < 4 ^ index := pow_pos (by decide) _
+    simp only [offset, Nat.add_eq_zero_iff, one_ne_zero, and_false, ↓reduceIte,
+      Nat.reduceEqDiff, Nat.add_sub_cancel, pow_succ]
+    omega
 
 /-- The geometric axis of a free-line scan. -/
 private inductive LineAxis where
@@ -506,22 +497,20 @@ private theorem evenRules (node : Node) : EvenRules node := by
       rw [h]
     exacts [even_checked0, even_checked1, even_checked2, even_checked3]
   have hcore : EvenRulesCore ⟨⟨k, hk⟩⟩ := by
-    have hm := (List.all_eq_true.mp hchunk) (k % 78)
-      (List.mem_range.mpr (Nat.mod_lt _ (by decide)))
-    have heq : (78 * (k / 78) + k % 78) % 312 = k := by omega
-    simpa only [heq, decide_eq_true_eq] using hm
+    simpa only [show (78 * (k / 78) + k % 78) % 312 = k by omega, decide_eq_true_eq] using
+      (List.all_eq_true.mp hchunk) (k % 78) (List.mem_range.mpr (Nat.mod_lt _ (by decide)))
   intro axis
   obtain ⟨h0, h1, htail, h10⟩ := hcore axis
   refine ⟨fun hc a => ?_, fun hc a => ?_, htail, h10⟩
   · by_cases ha : a.val < 2
     · exact h0 hc ⟨a.val, ha⟩
-    · have ht := htail ⟨a.val - 2, by omega⟩ ⟨0, by decide⟩
-      simpa only [show a.val - 2 + 2 = a.val by omega] using ht
+    · simpa only [show a.val - 2 + 2 = a.val by omega] using
+        htail ⟨a.val - 2, by omega⟩ ⟨0, by decide⟩
   · by_cases ha : a.val < 2
     · exact h1 hc ⟨a.val, ha⟩
-    · have ht1 := htail ⟨a.val - 2, by omega⟩ ⟨1, by decide⟩
-      have ht2 := htail ⟨a.val - 2, by omega⟩ ⟨2, by decide⟩
-      simpa only [show a.val - 2 + 2 = a.val by omega] using And.intro ht1 ht2
+    · let idx : Fin 6 := ⟨a.val - 2, by omega⟩
+      simpa only [idx, show a.val - 2 + 2 = a.val by omega] using
+        And.intro (htail idx ⟨1, by decide⟩) (htail idx ⟨2, by decide⟩)
 
 private def rowEven : List ℕ :=
   [260, 253, 252, 222, 262, 177, 176, 79, 174, 77, 156, 186, 158, 184, 11, 250, 73, 224]
@@ -612,8 +601,7 @@ private theorem odd_transitions : ∀ axis : LineAxis, ∀ which : StripStep, �
         (classChild axis node ⟨along.val + 1, by omega⟩ step.fixed).code.val ∈
         interiorClass axis step.new) := by
   intro axis which ⟨⟨k, hk⟩⟩
-  have hmem : which ∈ [StripStep.evenToEven, .evenToOdd, .oddToOdd] := by cases which <;> decide
-  have h := odd_transitions_mem axis which hmem
+  have h := odd_transitions_mem axis which (by cases which <;> decide)
   exact ⟨fun hi => h.1 k hi hk, fun hb => h.2 k hb hk⟩
 
 private theorem odd_base (axis : LineAxis) :
@@ -715,8 +703,6 @@ private theorem even_refine {axis : LineAxis} {root : Node} {depth old child fix
   intro along lower upper
   have hlocal : along % 8 < 8 := Nat.mod_lt _ (by decide)
   simp only [Nat.one_mul, pow_succ] at lower upper
-  have hlo : 4 ^ depth ≤ along / 8 := by omega
-  have hhi : along / 8 < 3 * 4 ^ depth := by omega
   rw [show along = 8 * (along / 8) + along % 8 by omega, hchild]
   apply (clearAt_succ_block axis true (depth + 1) root _ _ _ _ hlocal (by omega)).2
   by_cases hb : along / 8 = 4 ^ depth
@@ -765,14 +751,11 @@ private theorem offset_parent {depth index : ℕ} (hi : index ≤ depth + 1) :
          offset (depth + 1) index = 4 * offset depth previous + 1)) ∨
       (offset depth previous % 2 = 1 ∧
         offset (depth + 1) index = 4 * offset depth previous + 3)) := by
-  by_cases hz : index = 0
-  · exact ⟨0, Nat.zero_le _, Or.inl ⟨by simp [offset_parity],
-      Or.inl (by simp [offset_children, hz])⟩⟩
-  · by_cases ho : index = 1
-    · exact ⟨0, Nat.zero_le _, Or.inl ⟨by simp [offset_parity],
-        Or.inr (by simp [offset_children, ho])⟩⟩
-    · exact ⟨index - 1, by omega, Or.inr ⟨by simp [offset_parity, show index - 1 ≠ 0 by omega],
-        by simp [offset_children, hz, ho]⟩⟩
+  rcases index with _ | _ | index
+  · exact ⟨0, Nat.zero_le _, by simp [offset_parity, offset_children]⟩
+  · exact ⟨0, Nat.zero_le _, by simp [offset_parity, offset_children]⟩
+  · refine ⟨index + 1, by omega, ?_⟩
+    simp [offset_parity, offset_children]
 
 private theorem even_free (axis : LineAxis) (root : Node) (depth index : ℕ)
     (hi : index ≤ depth) : LineFree axis 1 depth true root (coordinate 1 depth index) := by
@@ -845,15 +828,10 @@ private theorem odd_classified (axis : LineAxis) (depth index : ℕ) (hi : index
           (hoff : offset (depth + 1) index =
             4 * offset depth prev + (transition which).fixed.val) :=
         hnew ▸ strip_step (which := which) (hodd ▸ ih prev hp) hoff
-      by_cases hz : index = 0
-      · subst index
-        exact go .evenToEven 0 (by omega) rfl rfl (by simp [offset_children, transition])
-      · by_cases ho : index = 1
-        · subst index
-          exact go .evenToOdd 0 (by omega) rfl rfl (by simp [offset_children, transition])
-        · exact go .oddToOdd (index - 1) (by omega)
-            (by simp [transition, show index - 1 ≠ 0 by omega]) (by simp [transition, hz])
-            (by simp [offset_children, transition, hz, ho])
+      rcases index with _ | _ | index
+      · exact go .evenToEven 0 (Nat.zero_le _) rfl rfl (by simp [offset_children, transition])
+      · exact go .evenToOdd 0 (Nat.zero_le _) rfl rfl (by simp [offset_children, transition])
+      · exact go .oddToOdd (index + 1) (by omega) rfl rfl (by simp [offset_children, transition])
 
 private theorem odd_free (axis : LineAxis) (depth index : ℕ) (hi : index ≤ depth) :
     LineFree axis 2 depth false seedNode (coordinate 2 depth index) := by
@@ -882,8 +860,6 @@ private theorem state_eq_of_present_eq {grid other : ℕ → ℕ → Index}
         cases side <;> simp only [portPresent] <;> rw [geometry]
       have ha := value_isSome_eq_portPresent valid ⟨x, y, side⟩
       have hc := value_isSome_eq_portPresent_of_allowed ⟨x, y, side⟩ allowed
-      have hf := Bool.eq_false_of_not_eq_true hp
-      rw [hf] at ha; rw [hg, hf] at hc
       cases hactual : value actual ⟨x, y, side⟩ <;>
         cases hcanonical : value canonical ⟨x, y, side⟩ <;> simp_all
   have hw := values .west; have he := values .east
@@ -894,9 +870,8 @@ private theorem state_eq_of_present_eq {grid other : ℕ → ℕ → Index}
 private theorem sparse_block {bx by₀ : ℕ} {p : Port} (hx : p.x < 2) (hy : p.y < 2) :
     sparsePort (translatePort p (2 * bx) (2 * by₀)) =
       translatePort (sparsePort p) (8 * bx) (8 * by₀) := by
-  rcases p with ⟨x, y, side⟩
-  simp only [sparsePort, sparseCoordinate, translatePort, Port.mk.injEq]
-  exact ⟨by omega, by omega, trivial⟩
+  cases p
+  simp [sparsePort, sparseCoordinate, translatePort]; omega
 
 /-- Data for the two-level shade comparison in the even and odd canonical phases. -/
 private structure RefinementComparison where
@@ -942,23 +917,20 @@ private theorem RefinementComparison.agreement_sparse (C : RefinementComparison)
       value (C.localStates d bx by₀) (sparsePort old) := by
   let oldGlobal := translatePort old (2 * bx) (2 * by₀)
   have oldGlobalPresent : portPresent (C.grid d) oldGlobal = true := by
-    have heq := portPresent_local (C.grid d) oldGlobal
-    simp only [oldGlobal, translatePort,
-      show (2 * bx + old.x) / 2 = bx by omega, show (2 * by₀ + old.y) / 2 = by₀ by omega,
-      show (2 * bx + old.x) % 2 = old.x by omega,
-      show (2 * by₀ + old.y) % 2 = old.y by omega] at heq
-    exact heq.symm.trans oldPresent
+    rw [← portPresent_local]
+    simpa only [oldGlobal, translatePort, Nat.mul_add_div Nat.two_pos, Nat.mul_add_mod,
+      Nat.div_eq_of_lt oldBounds.1, Nat.div_eq_of_lt oldBounds.2, Nat.mod_eq_of_lt oldBounds.1,
+      Nat.mod_eq_of_lt oldBounds.2, Nat.add_zero] using oldPresent
   have previous := ih oldGlobal
     (by dsimp only [oldGlobal, translatePort]; omega)
     (by dsimp only [oldGlobal, translatePort]; omega)
     (by dsimp only [oldGlobal, translatePort]; omega)
     (by dsimp only [oldGlobal, translatePort]; omega) oldGlobalPresent
-  have pathEq := (livePortPath (C.grid d) oldGlobal oldGlobalPresent).sound validFine
   have sparseActual : value actual (sparsePort oldGlobal) = value (C.states d) oldGlobal :=
-    Eq.trans pathEq ((value_coarsen actual oldGlobal).symm.trans previous)
-  have sourceGlobalEq := sparse_block (bx := bx) (by₀ := by₀) oldBounds.1 oldBounds.2
+    Eq.trans ((livePortPath (C.grid d) oldGlobal oldGlobalPresent).sound validFine)
+      ((value_coarsen actual oldGlobal).symm.trans previous)
   have blockValue := C.block d bx by₀ (sparsePort old) sourceBounds.1 sourceBounds.2
-  rw [← sourceGlobalEq] at blockValue ⊢
+  rw [← sparse_block (bx := bx) (by₀ := by₀) oldBounds.1 oldBounds.2] at blockValue ⊢
   exact sparseActual.trans ((C.sparse d oldGlobal).symm.trans blockValue)
 
 private theorem RefinementComparison.agreement (C : RefinementComparison) :
@@ -979,9 +951,8 @@ private theorem RefinementComparison.agreement (C : RefinementComparison) :
       have hx : localPort.x < 8 := Nat.mod_lt _ (by decide)
       have hy : localPort.y < 8 := Nat.mod_lt _ (by decide)
       have hlocation : translatePort localPort (8 * bx) (8 * by₀) = p := by
-        rcases p with ⟨x, y, side⟩
-        simp only [localPort, bx, by₀, translatePort, Port.mk.injEq]
-        exact ⟨by omega, by omega, trivial⟩
+        cases p
+        simp [localPort, bx, by₀, translatePort]; omega
       have localPresent : portPresent (fineGrid (C.grid d bx by₀)) localPort = true := by
         rwa [portPresent_two_block (C.grid d) bx by₀ localPort hx hy, C.grid_succ, hlocation]
       obtain ⟨source, hsource, parity, path⟩ :=
@@ -991,20 +962,17 @@ private theorem RefinementComparison.agreement (C : RefinementComparison) :
       have ⟨hbx, hbX, hby, hbY⟩ :
           C.scale d ≤ bx ∧ bx < 3 * C.scale d ∧ C.scale d ≤ by₀ ∧ by₀ < 3 * C.scale d := by
         rw [C.scale_succ] at hpx hpX hpy hpY; dsimp only [bx, by₀]; omega
-      have canonicalRelation := C.local_sound d bx by₀ hbx hbX hby hbY path
-      have targetEq := C.block d bx by₀ localPort hx hy
-      rw [hlocation] at targetEq
       have finish (h : value actual (translatePort source (8 * bx) (8 * by₀)) =
           value (C.localStates d bx by₀) source) :
           value actual p = value (C.states (d + 1)) p := by
-        have relation := actualPath.sound valid
-        rw [h] at relation; rw [← targetEq] at canonicalRelation
-        exact Related.right_unique relation canonicalRelation
-      rcases source_cases hsource with heq | ⟨old, _, oldPresent, heq⟩
-      · subst source
-        exact finish (C.new_source d actual bx by₀ valid shaded hbx hbX hby hbY)
-      · subst source
-        have coarseShaded : CycleShade (coarsen actual) (C.scale d) (3 * C.scale d)
+        have rel1 := actualPath.sound valid
+        have rel2 := C.local_sound d bx by₀ hbx hbX hby hbY path
+        rw [h] at rel1
+        rw [← C.block d bx by₀ localPort hx hy, hlocation] at rel2
+        exact Related.right_unique rel1 rel2
+      rcases source_cases hsource with rfl | ⟨old, _, oldPresent, rfl⟩
+      · exact finish (C.new_source d actual bx by₀ valid shaded hbx hbX hby hbY)
+      · have coarseShaded : CycleShade (coarsen actual) (C.scale d) (3 * C.scale d)
             (C.scale d) (3 * C.scale d) .light :=
           CycleShade.coarsen validFine (C.cycle d)
             (by convert shaded using 1 <;> rw [C.scale_succ] <;> omega)
@@ -1128,16 +1096,11 @@ private theorem phase_source (flipped : Bool) (depth : ℕ) (coarse : ℕ → �
     · exact (show 2 * (depth + 1) + 1 + 2 + 1 = 2 * (depth + 1 + 2) by omega) ▸ valid
     · exact (show 2 * (depth + 1) + 2 = 2 * (depth + 1 + 1) by omega) ▸ valid
   have scaleEq : 2 ^ k = phaseScale flipped (depth + 1) := by
-    cases flipped <;> simp [k, phaseScale, pow_add, pow_mul]
-    ring
+    cases flipped <;> simp [k, phaseScale, pow_succ', pow_mul]
   have h := root_descendant_source k g' valid' (by simpa only [scaleEq] using shaded) bx by₀
     (by rw [scaleEq, phaseScale_succ]; omega) (by rw [scaleEq, phaseScale_succ]; omega)
-  have invol : Function.Involutive Shade.opposite := Shade.opposite_opposite
-  cases flipped
-  · simp only [k, Bool.false_eq_true, ↓reduceIte] at h
-    rw [invol.iterate_two_mul_add_one] at h; exact h
-  · simp only [k, ↓reduceIte] at h
-    rw [invol.iterate_two_mul] at h; exact h
+  cases flipped <;>
+    simpa [k, Shade.opposite, Function.Involutive.iterate_two_mul Shade.opposite_opposite] using h
 
 private def phaseComparison (flipped : Bool) (coarse : ℕ → ℕ → Index)
     (rootEq : coarse 0 0 = 0) : RefinementComparison where
@@ -1257,16 +1220,13 @@ private theorem marker_ray (coarse : ℕ → ℕ → Index) (base depth : ℕ)
   induction depth with
   | zero => simpa only [Nat.mul_zero, Nat.zero_add, pow_zero, Nat.mul_one] using start
   | succ depth ih =>
-    rw [show 2 * (depth + 1) + 4 = 2 + (2 * depth + 4) by omega, ← iterateRefine_add,
-      show base * 4 ^ (depth + 1) = 2 * (2 * (base * 4 ^ depth)) by rw [pow_succ]; ring]
-    let prev := iterateRefine (2 * depth + 4) coarse
-    let coord := base * 4 ^ depth
-    change refineIndexGrid (refineIndexGrid prev) (2 * (2 * coord)) (2 * (2 * coord)) = 0
-    have first := refineIndexGrid_child (refineIndexGrid prev) (2 * coord) (2 * coord) 0 0
-    have second := refineIndexGrid_child prev coord coord 0 0
-    simp only [Fin.val_zero, Nat.add_zero] at first second
-    rw [first, second, show prev coord coord = 0 from ih]
-    exact marker_checks.2.2
+    have hlev : 2 * (depth + 1) + 4 = 2 + (2 * depth + 4) := by omega
+    have hpow : base * 4 ^ (depth + 1) = 2 * (2 * (base * 4 ^ depth)) := by rw [pow_succ]; ring
+    have hc (g : ℕ → ℕ → Index) (x : ℕ) : refineIndexGrid g (2 * x) (2 * x) =
+        childBlock (g x x) 0 0 := by simpa using refineIndexGrid_child g x x 0 0
+    rw [hlev, ← iterateRefine_add, hpow]
+    change refineIndexGrid (refineIndexGrid (iterateRefine (2 * depth + 4) coarse)) _ _ = 0
+    simpa only [hc, ih] using marker_checks.2.2
 
 private theorem phase_marker (flipped : Bool) (depth : ℕ)
     (positive : flipped = true → 0 < depth)
@@ -1365,12 +1325,11 @@ theorem exists_markedFreeGrid {P : Cslib.WangTile.Plane scaffold.tiles}
       coarse rootEq states (gridEq.symm ▸ valid) shaded⟩
   rcases has_light_cycle coarse (2 * n + 2) (by omega)
       (s := states) (by simpa only [Nat.add_assoc] using valid) with large | small
-  · have power : 2 ^ (2 * n + 2) = 4 ^ (n + 1) := by
-      rw [show 2 * n + 2 = 2 * (n + 1) by omega, pow_mul]; norm_num
+  · have power : 2 ^ (2 * n + 2) = 4 ^ (n + 1) := by rw [pow_add, pow_mul, pow_succ 4]; norm_num
     exact ⟨a, b, finish true (n + 1) (by omega) (fun _ => Nat.succ_pos n) rfl
       (by simpa only [phaseScale, ↓reduceIte, Nat.one_mul, power] using large)⟩
   · have power : 2 ^ (2 * n + 2 - 1) = 2 * 4 ^ n := by
-      rw [show 2 * n + 2 - 1 = 1 + 2 * n by omega, pow_add, pow_mul]; norm_num
+      rw [Nat.add_sub_cancel (2 * n + 1) 1, pow_add, pow_mul, mul_comm]; norm_num
     exact ⟨a, b, finish false n le_rfl (by simp) rfl
       (by simpa only [phaseScale, Bool.false_eq_true, ↓reduceIte, power] using small)⟩
 

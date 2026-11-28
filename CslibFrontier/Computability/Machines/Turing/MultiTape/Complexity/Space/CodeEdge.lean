@@ -43,19 +43,15 @@ variable {k : ℕ} {State : Type} [Finite State] (ntm : MultiTapeNTM k Bool Stat
 /-- A comparison against a linearly long computed view costs quadratic time. -/
 private theorem quad_bound {N a b s c : ℕ} (ha : a ≤ N) (hb : b ≤ N) (hs : s ≤ c * (a + 1)) :
     N + (N + (a + 1) ^ 2) + (b + 1) * (b + s + 1) ≤ (c + 4) * ((N + 1) ^ 2 + 1) := by
-  have hsN : b + s + 1 ≤ (c + 1) * (N + 1) := by nlinarith
-  have hmul : (b + 1) * (b + s + 1) ≤ (N + 1) * ((c + 1) * (N + 1)) :=
-    Nat.mul_le_mul (by omega) hsN
-  have hsq : (a + 1) ^ 2 ≤ (N + 1) ^ 2 := Nat.pow_le_pow_left (by omega) 2
-  nlinarith
+  nlinarith [Nat.mul_le_mul (show b + 1 ≤ N + 1 by omega)
+    (show b + s + 1 ≤ (c + 1) * (N + 1) by nlinarith),
+    Nat.pow_le_pow_left (show a + 1 ≤ N + 1 by omega) 2]
 
 /-- A comparison against a linearly long computed view costs quadratic space. -/
 private theorem lin_bound {N a b s c e : ℕ} (ha : a ≤ N) (hb : b ≤ N) (hs : s ≤ c * (a + 1))
     (he : e = 2 * b + 1 + s) :
     N + (N + a) + e ≤ (c + 4) * ((N + 1) ^ 2 + 1) := by
-  have h₁ : c * (a + 1) ≤ c * ((N + 1) ^ 2 + 1) := Nat.mul_le_mul_left c (by nlinarith)
-  have hN : N ≤ (N + 1) ^ 2 := by nlinarith
-  nlinarith
+  nlinarith [Nat.mul_le_mul_left c (show a + 1 ≤ (N + 1) ^ 2 + 1 by nlinarith)]
 
 /-- **The step test of views is quadratic** in time and charged space, in the encoded pair of
 views. -/
@@ -87,36 +83,25 @@ theorem computableInO_viewStepB :
       (encPair (encFinite _) (encPair (encFinEnum _) (encFinEnum _)))
       (fun p => ((encPair encFiniteCfg encFiniteCfg p).length + 1) ^ 2)
       (fun p => ((encPair encFiniteCfg encFiniteCfg p).length + 1) ^ 2) := by
-    refine (ComputableInO.finiteCfg_key.comp hfst).mono 2 (fun p => ?_) fun p => ?_ <;>
-    · have := h₁ p
-      nlinarith
+    exact (ComputableInO.finiteCfg_key.comp hfst).mono 2 (fun p => by nlinarith [h₁ p])
+      fun p => by nlinarith [h₁ p]
   have hbranch (tag : Option State × Option Bool × (Fin k → Option Bool)) :
       ComputableInO (branch tag) (encPair encFiniteCfg encFiniteCfg) encBool
         (fun p => ((encPair encFiniteCfg encFiniteCfg p).length + 1) ^ 2)
         (fun p => ((encPair encFiniteCfg encFiniteCfg p).length + 1) ^ 2) := by
     rcases tag with ⟨_ | state, symbol, work⟩
-    · refine (ComputableInO.eq' hsnd hfst).mono 4 (fun p => ?_) fun p => ?_
-      · have := h₁ p
-        have := h₂ p
-        nlinarith
-      · have := h₁ p
-        have := h₂ p
-        simp only [length_encPair]
-        nlinarith
+    · refine (ComputableInO.eq' hsnd hfst).mono 4 (fun p => by nlinarith [h₁ p, h₂ p]) fun p => ?_
+      simp only [length_encPair]; nlinarith [h₁ p, h₂ p]
     · -- a fixed finite list of actions, each compared by its own certificate
       dsimp only [branch]
       refine (ComputableInO.list_any _ (T := fun p =>
           ((encPair encFiniteCfg encFiniteCfg p).length + 1) ^ 2)
-        (S := fun p => ((encPair encFiniteCfg encFiniteCfg p).length + 1) ^ 2)
-        fun action _ => ?_).mono 2 (fun p => ?_) fun p => ?_
-      rotate_left
-      · nlinarith
-      · nlinarith
+        (S := fun p => ((encPair encFiniteCfg encFiniteCfg p).length + 1) ^ 2) fun action _ => ?_)
+        |>.mono 2 (fun _ => by nlinarith) fun _ => by nlinarith
       obtain ⟨c, hc⟩ := ComputableInO.length_encFiniteCfg_step_summarizeOutput_le action
-      refine (ComputableInO.eq' hsnd ((ComputableInO.finiteCfg_step_summarizeOutput
-        action).comp hfst)).mono (c + 4) (fun p => ?_) fun p => ?_
-      · exact quad_bound (h₁ p) (h₂ p) (hc p.1)
-      · exact lin_bound (h₁ p) (h₂ p) (hc p.1) (length_encPair _)
+      exact (ComputableInO.eq' hsnd ((ComputableInO.finiteCfg_step_summarizeOutput
+        action).comp hfst)).mono (c + 4) (fun p => quad_bound (h₁ p) (h₂ p) (hc p.1))
+        fun p => lin_bound (h₁ p) (h₂ p) (hc p.1) (length_encPair _)
   rw [heq]
   exact (ComputableInO.finite_cases hkey hbranch).mono 2 (fun p => by nlinarith)
     fun p => by nlinarith
@@ -150,25 +135,20 @@ private theorem elim_decodeView {γ : Type} {encC : γ ↪ List Bool} {code : γ
     hg).comp hpre).mono ((c + 2) ^ 2 + c + 5) (fun x => ?_) fun x => ?_ <;>
   · have hL := hlen x
     have hcx := hc (code x)
-    have hsq : ((code x).length + 1) ^ 2 ≤ ((encC x).length + 1) ^ 2 :=
-      Nat.pow_le_pow_left (by omega) 2
-    have hP : (encC x).length + 1 ≤ ((encC x).length + 1) ^ 2 + 1 := by nlinarith
-    have hcx' : c * ((code x).length + 1) ≤ c * ((encC x).length + 1) :=
-      Nat.mul_le_mul_left c (by omega)
+    have hsq := Nat.pow_le_pow_left (show (code x).length + 1 ≤ (encC x).length + 1 by omega) 2
+    have hcx' := Nat.mul_le_mul_left c (show (code x).length + 1 ≤ (encC x).length + 1 by omega)
     simp only [Function.comp_apply, length_encPair]
     cases hv : decodeView (k := k) (State := State) (code x) with
     | none =>
       simp only [Option.elim_none, encOption_none, List.length_nil]
-      refine le_trans (b := 6 * (((encC x).length + 1) ^ 2 + 1)) (by nlinarith)
+      exact (by nlinarith : _ ≤ 6 * (((encC x).length + 1) ^ 2 + 1)).trans
         (Nat.mul_le_mul_right _ (by nlinarith))
     | some a =>
       rw [hv] at hcx
       simp only [Option.elim_some, encOption_some, List.length_cons] at hcx ⊢
       have hX : 2 * (encC x).length + 1 + (encFiniteCfg a).length + 1 ≤
           (c + 2) * ((encC x).length + 1) := by nlinarith
-      have hX2 := sq_le hX
-      have hX1 := lin_le hX
-      nlinarith
+      nlinarith [sq_le hX, lin_le hX]
 
 /-- **The edge test of codes is quadratic** in time and charged space, in the encoded pair of
 codes. -/
@@ -198,29 +178,16 @@ theorem computableInO_codeEdge :
       (ComputableInO.snd _ _))).mono 3 (fun r => ?_) fun r => ?_ <;>
     · have h := length_le_encPair_right (encPair encBits encBits)
         (encFiniteCfg (k := k) (State := State)) r.1
-      have hle : (encPair encFiniteCfg encFiniteCfg (r.1.2, r.2)).length ≤
-          (encPair (encPair (encPair encBits encBits) encFiniteCfg) encFiniteCfg r).length := by
+      have hle : (encPair encFiniteCfg encFiniteCfg (r.1.2, r.2)).length + 1 ≤
+          (encPair (encPair (encPair encBits encBits) encFiniteCfg) encFiniteCfg r).length + 1 := by
         simp only [length_encPair (p := (r.1.2, r.2)), length_encPair (p := r)]
         omega
-      have hsq := Nat.pow_le_pow_left (Nat.add_le_add_right hle 1) 2
-      nlinarith
+      nlinarith [Nat.pow_le_pow_left hle 2]
   have hstep := elim_decodeView
     (code := fun q : (List Bool × List Bool) × FiniteCfg k Bool State => q.1.2)
     (g := fun r => ntm.viewStepB (r.1.2, r.2)) hq12
     (fun q => (length_le_encPair_right encBits encBits q.1).trans
       (length_le_encPair_left _ _ q)) hv
-  have hout (q : (List Bool × List Bool) × FiniteCfg k Bool State) :
-      (encBits q.2.output).length ≤
-        (encPair (encPair encBits encBits) encFiniteCfg q).length := by
-    simp only [length_encPair, encFiniteCfg_apply]
-    omega
-  have hpair (q : (List Bool × List Bool) × FiniteCfg k Bool State) :
-      (encPair encBits encBits (q.2.output, [true])).length ≤
-        2 * (encPair (encPair encBits encBits) encFiniteCfg q).length + 2 := by
-    have := hout q
-    rw [length_encPair]
-    simp only [encBits_apply, List.length_cons, List.length_nil] at this ⊢
-    omega
   have htrue : (encBits [true]).length = 1 := rfl
   have hg : ComputableInO (fun q : (List Bool × List Bool) × FiniteCfg k Bool State =>
         if q.1.2.headD false then decide (q.2.state = none) && decide (q.2.output = [true])
@@ -229,13 +196,12 @@ theorem computableInO_codeEdge :
       (fun q => ((encPair (encPair encBits encBits) encFiniteCfg q).length + 1) ^ 2)
       (fun q => ((encPair (encPair encBits encBits) encFiniteCfg q).length + 1) ^ 2) := by
     refine (ComputableInO.ite hhead hacc hstep).mono 6 (fun q => ?_) fun q => ?_ <;>
-    · have ho := hout q
-      have hp := hpair q
-      have hm : ((encBits q.2.output).length + 1) * ((encBits q.2.output).length + 1 + 1) ≤
-          ((encPair (encPair encBits encBits) encFiniteCfg q).length + 1) *
-            ((encPair (encPair encBits encBits) encFiniteCfg q).length + 1 + 1) :=
-        Nat.mul_le_mul (by omega) (by omega)
-      simp only [Function.comp_apply, htrue]
+    · have ho : (encBits q.2.output).length ≤
+          (encPair (encPair encBits encBits) encFiniteCfg q).length := by
+        simp only [length_encPair, encFiniteCfg_apply]
+        omega
+      have hm := Nat.mul_le_mul (Nat.add_le_add_right ho 1) (Nat.add_le_add_right ho 2)
+      simp only [Function.comp_apply, length_encPair (p := (q.2.output, [true])), htrue]
       split_ifs <;> nlinarith
   have hall := elim_decodeView (encC := encPair encBits encBits) (code := Prod.fst)
     (ComputableInO.fst encBits encBits) (fun p => length_le_encPair_left encBits encBits p) hg
@@ -243,8 +209,6 @@ theorem computableInO_codeEdge :
   · unfold codeEdge
     option_match_to_elim
     rfl
-  all_goals
-    have := Nat.le_self_pow two_ne_zero (encPair encBits encBits p).length
-    nlinarith
+  all_goals nlinarith [Nat.le_self_pow two_ne_zero (encPair encBits encBits p).length]
 
 end Turing.MultiTapeNTM

@@ -46,36 +46,23 @@ variable {V : Type*} [DecidableEq V]
 /-- A tautological clause evaluates to `true` under every assignment. -/
 theorem eval_eq_true_of_isTautClause {c : Clause V} (ht : isTautClause c = true) (σ : V → Bool) :
     c.eval σ = true := by
-  simp only [isTautClause, List.any_eq_true, decide_eq_true_eq] at ht
-  obtain ⟨l, hl, hneg⟩ := ht
+  obtain ⟨⟨v, b⟩, hl, hneg⟩ := by
+    simpa only [isTautClause, List.any_eq_true, decide_eq_true_eq] using ht
   rw [Clause.eval_eq_true_iff]
-  by_cases h : σ l.1 = l.2
-  · exact ⟨l, hl, h⟩
-  · refine ⟨Std.Sat.Literal.negate l, hneg, ?_⟩
-    obtain ⟨v, b⟩ := l
-    cases b <;> cases hσ : σ v <;> simp_all [Std.Sat.Literal.negate]
+  by_cases h : σ v = b
+  · exact ⟨(v, b), hl, h⟩
+  · exact ⟨Std.Sat.Literal.negate (v, b), hneg, by
+      cases b <;> cases hσ : σ v <;> simp_all [Std.Sat.Literal.negate]⟩
 
 /-- Deduplicating a non-tautological clause produces distinct variables. -/
 theorem nodup_map_fst_dedup_of_not_isTautClause {c : Clause V} (ht : isTautClause c = false) :
     (c.dedup.map Prod.fst).Nodup := by
-  have hnt : ∀ l ∈ c, Std.Sat.Literal.negate l ∉ c := by
-    intro l hl hneg
-    have : isTautClause c = true := by
-      simp only [isTautClause, List.any_eq_true, decide_eq_true_eq]
-      exact ⟨l, hl, hneg⟩
-    rw [ht] at this
-    exact Bool.noConfusion this
-  have hinj : Set.InjOn (Prod.fst : Literal V → V) {l | l ∈ c.dedup} := by
-    rintro ⟨v₁, b₁⟩ h₁ ⟨v₂, b₂⟩ h₂ hv
-    dsimp only at hv
-    subst hv
-    rw [Set.mem_ofPred_eq, List.mem_dedup] at h₁ h₂
-    cases b₁ <;> cases b₂
-    · rfl
-    · exact absurd h₂ (hnt (v₁, false) h₁)
-    · exact absurd h₂ (hnt (v₁, true) h₁)
-    · rfl
-  exact c.nodup_dedup.map_on hinj
+  have hnt (l) (hl : l ∈ c) (hneg : Std.Sat.Literal.negate l ∈ c) : False :=
+    Bool.false_ne_true (ht.symm.trans (List.any_eq_true.2 ⟨l, hl, decide_eq_true hneg⟩))
+  refine c.nodup_dedup.map_on ?_
+  rintro ⟨v₁, b₁⟩ h₁ ⟨v₂, b₂⟩ h₂ (rfl : v₁ = v₂)
+  rw [List.mem_dedup] at h₁ h₂
+  cases b₁ <;> cases b₂ <;> first | rfl | exact (hnt _ h₁ h₂).elim
 
 /-- Deduplicating a clause preserves its evaluation under every assignment. -/
 theorem eval_dedup_clause (c : Clause V) (σ : V → Bool) :

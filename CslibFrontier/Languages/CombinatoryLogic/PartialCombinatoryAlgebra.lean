@@ -89,8 +89,7 @@ theorem ap_some_some (app : A → A → Part A) (a b : A) :
 /-- Applying the value of a defined partial value `x` is applying `x`. -/
 theorem app_get_eq_ap (app : A → A → Part A) {x : Part A} (h : x.Dom) (b : A) :
     app (x.get h) b = ap app x (Part.some b) := by
-  obtain ⟨a, rfl⟩ : ∃ a, x = Part.some a := ⟨_, (Part.some_get h).symm⟩
-  simp
+  conv_rhs => rw [← Part.some_get h, ap_some_some]
 
 end PartialCombinatoryAlgebra
 
@@ -165,10 +164,9 @@ private theorem eval_abs {n : ℕ} (t : Term A (n + 1)) (ρ : Fin n → A) :
     induction j using Fin.lastCases with
     | last => exact ⟨P.i, by simp [abs, eval]⟩
     | cast j =>
-      refine ⟨(P.app P.k (ρ j)).get (P.dom_app_k _), ?_, fun a => ?_⟩
-      · simp [abs, eval]
-      · rw [app_get_eq_ap P.app, P.ap_ap_k]
-        simp [eval]
+      refine ⟨(P.app P.k (ρ j)).get (P.dom_app_k _), by simp [abs, eval], fun a => ?_⟩
+      rw [app_get_eq_ap P.app, P.ap_ap_k]
+      simp [eval]
   | const c =>
     refine ⟨(P.app P.k c).get (P.dom_app_k _), by simp [abs, eval], fun a => ?_⟩
     rw [app_get_eq_ap P.app, P.ap_ap_k]
@@ -176,23 +174,23 @@ private theorem eval_abs {n : ℕ} (t : Term A (n + 1)) (ρ : Fin n → A) :
   | app t u iht ihu =>
     obtain ⟨f, hf, hfa⟩ := iht
     obtain ⟨g, hg, hga⟩ := ihu
-    refine ⟨(ap P.app (P.app P.s f) (Part.some g)).get (P.dom_ap_s f g), ?_, fun a => ?_⟩
-    · simp [abs, eval, hf, hg]
-    · rw [app_get_eq_ap P.app, P.ap_ap_ap_s, hfa, hga]
-      rfl
+    refine ⟨(ap P.app (P.app P.s f) (Part.some g)).get (P.dom_ap_s f g),
+      by simp [abs, eval, hf, hg], fun a => ?_⟩
+    rw [app_get_eq_ap P.app, P.ap_ap_ap_s, hfa, hga]
+    rfl
 
 /-- **Combinatory completeness**, definedness: the bracket abstraction of a term always has a
 value ([vanOosten2008], §1.1). -/
 theorem dom_eval_abs {n : ℕ} (t : Term A (n + 1)) (ρ : Fin n → A) :
     (P.eval (P.abs t) ρ).Dom := by
-  obtain ⟨f, hf, -⟩ := P.eval_abs t ρ
+  obtain ⟨_, hf, _⟩ := P.eval_abs t ρ
   simp [hf]
 
 /-- **Combinatory completeness**: applying the bracket abstraction `⟨xₙ⟩t` of a term to `a` is
 Kleene equal to evaluating `t` with `a` for its last variable ([vanOosten2008], §1.1). -/
 theorem ap_eval_abs {n : ℕ} (t : Term A (n + 1)) (ρ : Fin n → A) (a : A) :
     ap P.app (P.eval (P.abs t) ρ) (Part.some a) = P.eval t (Fin.snoc ρ a) := by
-  obtain ⟨f, hf, hfa⟩ := P.eval_abs t ρ
+  obtain ⟨_, hf, hfa⟩ := P.eval_abs t ρ
   rw [hf, ap_some_some, hfa]
 
 

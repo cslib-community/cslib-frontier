@@ -275,13 +275,11 @@ private theorem signFunctional_eq_zero (hG : (Multigraph.toSimpleGraph ends).Con
   by_cases hex : ∃ m₀ ∈ q.support, (cutSign ends χ (m₀.oddSupport ∆ T) : K) ≠ 0
   · obtain ⟨m₀, hm₀, hne⟩ := hex
     obtain ⟨U₀, hU₀⟩ := exists_of_cutSign_ne_zero hne
-    have key : ∀ m ∈ q.support, (cutSign ends χ (m.oddSupport ∆ T) : K) =
+    have key (m : E →₀ ℕ) (hm : m ∈ q.support) : (cutSign ends χ (m.oddSupport ∆ T) : K) =
         cutSign ends χ (m.oddSupport ∆ m₀.oddSupport) * cutSign ends χ (m₀.oddSupport ∆ T) := by
-      intro m hm
-      have h₁ := card_symmDiff_le m.oddSupport m₀.oddSupport
-      have h₂ := card_symmDiff_le m.oddSupport T
-      have hm' := hq m hm
-      have hm₀' := hq m₀ hm₀
+      have h₁ := (card_symmDiff_le m.oddSupport m₀.oddSupport).trans
+        (add_le_add (hq m hm) (hq m₀ hm₀))
+      have h₂ := (card_symmDiff_le m.oddSupport T).trans (add_le_add (hq m hm) hT)
       have hsplit : m.oddSupport ∆ T = m.oddSupport ∆ m₀.oddSupport ∆ (m₀.oddSupport ∆ T) := by
         rw [symmDiff_assoc, symmDiff_symmDiff_cancel_left]
       rw [hsplit]
@@ -345,54 +343,38 @@ private theorem signFunctional_toSign_exclude (h2 : (2 : K) ≠ 0)
   rw [hpoly, ← smul_eq_C_mul, map_smul, map_sum, sum_congr rfl fun t _ => hterm t, smul_eq_mul]
   refine mul_eq_zero_of_right _ ?_
   -- the vertex `v` has a small cut
-  have he : 0 < Multigraph.minBalancedCut ends := by omega
-  have hn : 2 ≤ Fintype.card V := by
-    by_contra hn
-    have : Subsingleton V := Fintype.card_le_one_iff_subsingleton.1 (by omega)
-    simp [Multigraph.minBalancedCut_eq_zero_of_subsingleton] at he
+  have hn : 2 ≤ Fintype.card V := by_contra fun hn => by
+    have := Fintype.card_le_one_iff_subsingleton.1 (by omega : Fintype.card V ≤ 1)
+    simp [Multigraph.minBalancedCut_eq_zero_of_subsingleton] at hd
   have hcutv : Multigraph.edgeCut ends {v} = B := by rw [Multigraph.edgeCut_singleton, hBv]
   have hv : IsSmallCut ends B {v} := ⟨Multigraph.three_mul_card_lt_of_card_edgeCut_lt
     (ends := ends) (by rw [hcutv]; omega) (by rw [card_singleton]; omega), hcutv⟩
   -- pairing `t` with `B \ t` flips the sign of the term
-  have hflip : ∀ t ∈ B.powerset,
+  have hflip (t : Finset E) (ht : t ∈ B.powerset) :
       (∏ i ∈ B \ t, (boolSign (y i) : K)) * cutSign ends χ ((B \ t) ∆ T) =
         -((∏ i ∈ t, (boolSign (y i) : K)) * cutSign ends χ (t ∆ T)) := by
-    intro t ht
     rw [mem_powerset] at ht
     have hprod : ∏ i ∈ B \ t, (boolSign (y i) : K) =
         (∏ i ∈ B, (boolSign (y i) : K)) * ∏ i ∈ t, (boolSign (y i) : K) := by
-      have h := prod_sdiff (f := fun i => (boolSign (y i) : K)) ht
-      have ht2 : (∏ i ∈ t, (boolSign (y i) : K)) * ∏ i ∈ t, (boolSign (y i) : K) = 1 := by
-        rw [prod_boolSign]
-        exact boolSign_mul_self _
-      linear_combination (∏ i ∈ t, (boolSign (y i) : K)) * h -
-        (∏ i ∈ B \ t, (boolSign (y i) : K)) * ht2
+      rw [← prod_sdiff ht, mul_assoc, prod_boolSign, prod_boolSign, boolSign_mul_self, mul_one]
     have hcut : (B \ t) ∆ T = (t ∆ T) ∆ B := by
       rw [← symmDiff_of_le ht, symmDiff_right_comm]
-    have h₁ := card_symmDiff_le t T
-    have h₂ := card_symmDiff_le (B \ t) T
-    have h₃ : #(B \ t) ≤ #B := card_le_card Finset.sdiff_subset
-    have h₄ : #t ≤ #B := card_le_card ht
+    have h₁ := (card_symmDiff_le t T).trans (add_le_add (card_le_card ht) hT)
+    have h₂ := (card_symmDiff_le (B \ t) T).trans (add_le_add (card_le_card sdiff_subset) hT)
     have hsign : (cutSign ends χ ((B \ t) ∆ T) : K) =
         cutSign ends χ (t ∆ T) * boolSign (χ v) := by
       rw [hcut, cutSign_symmDiff hG hv (by omega) (by rw [← hcut]; omega),
         cutSign_of_isSmallCut hG hv, parityOn_singleton]
     have hpar : (∏ i ∈ B, (boolSign (y i) : K)) * boolSign (χ v) = -1 := by
-      rw [prod_boolSign, ← boolSign_xor]
-      revert hy
-      cases parityOn B y <;> cases χ v <;> simp [boolSign]
+      rw [prod_boolSign, ← boolSign_xor, Bool.xor_iff_ne.2 hy]; rfl
     rw [hprod, hsign]
     linear_combination (∏ i ∈ t, (boolSign (y i) : K)) * cutSign ends χ (t ∆ T) * hpar
-  set S := ∑ t ∈ B.powerset, (∏ i ∈ t, (boolSign (y i) : K)) * cutSign ends χ (t ∆ T) with hSdef
-  have hS : S = -S := by
-    rw [hSdef, ← sum_neg_distrib]
-    refine sum_nbij' (B \ ·) (B \ ·) (fun t _ => mem_powerset.2 Finset.sdiff_subset)
-      (fun t _ => mem_powerset.2 Finset.sdiff_subset)
-      (fun t ht => Finset.sdiff_sdiff_eq_self (mem_powerset.1 ht))
-      (fun t ht => Finset.sdiff_sdiff_eq_self (mem_powerset.1 ht))
-      fun t ht => by rw [hflip t ht, neg_neg]
-  have h2S : (2 : K) * S = 0 := by linear_combination hS
-  exact (mul_eq_zero.1 h2S).resolve_left h2
+  refine sum_involution (fun t _ => B \ t) (fun t ht => by rw [hflip t ht, add_neg_cancel]) ?_
+    (fun _ _ => mem_powerset.2 Finset.sdiff_subset)
+    (fun t ht => Finset.sdiff_sdiff_eq_self (mem_powerset.1 ht))
+  intro t ht hn he
+  have hzero := eq_neg_iff_add_eq_zero.1 (he ▸ hflip t ht)
+  exact hn ((mul_eq_zero.1 ((two_mul _).trans hzero)).resolve_left h2)
 
 /-- The polynomials on which, after the change of variables, the sign functionals at all sets of at
 most `d` edges vanish. -/
@@ -432,9 +414,8 @@ theorem minBalancedCut_le_two_mul_of_pc_refutableInDegree (h2 : (2 : K) ≠ 0)
     · obtain ⟨c, hc, rfl⟩ := List.mem_map.1 hf
       obtain ⟨v, hv⟩ := CNF.mem_tseitinFormula.1 hc
       obtain ⟨A, hA, rfl⟩ := List.mem_map.1 hv
-      rw [mem_toList, mem_filter] at hA
       rw [Clause.totalDegree_toBoolPoly_exclude] at hfd
-      exact signFunctional_toSign_exclude h2 hG hd rfl hA.2 hfd hT
+      exact signFunctional_toSign_exclude h2 hG hd rfl (mem_filter.1 (mem_toList.1 hA)).2 hfd hT
     · obtain ⟨e, rfl⟩ := mem_boolAxioms.1 hf
       exact signFunctional_toSign_boolAxiom h2 T e
   have hX : ∀ e, ∀ p ∈ invariant K ends χ d, (X e * p).totalDegree ≤ d →
@@ -442,10 +423,9 @@ theorem minBalancedCut_le_two_mul_of_pc_refutableInDegree (h2 : (2 : K) ≠ 0)
     intro e p hp hpd T hT
     by_cases hp0 : p = 0
     · rw [hp0, mul_zero, map_zero, map_zero]
-    have hdeg' : p.totalDegree + 1 ≤ d := by
-      rwa [totalDegree_mul_of_isDomain (X_ne_zero e) hp0, totalDegree_X, add_comm] at hpd
+    rw [totalDegree_mul_of_isDomain (X_ne_zero e) hp0, totalDegree_X, add_comm] at hpd
     have hzero (A : Finset E) (hA : #A ≤ d + 1) : signFunctional ends χ A (toSign p) = 0 :=
-      signFunctional_eq_zero hG hd hdeg'
+      signFunctional_eq_zero hG hd hpd
         (fun m hm => ((m.card_oddSupport_le_degree).trans (le_totalDegree hm)).trans
           (totalDegree_toSign_le p)) hp hA
     rw [signFunctional_toSign_X_mul, hzero T (by omega),

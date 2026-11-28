@@ -24,11 +24,20 @@ noncomputable section
 namespace Matrix.HierarchyParams.HierarchyTask
 attribute [local instance] Classical.propDecidable
 
+private lemma add_fourth_le {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) :
+    (a + b) ^ 4 ≤ 8 * (a ^ 4 + b ^ 4) :=
+  (add_pow_le ha hb 4).trans_eq (by norm_num)
+
+private lemma mul_div_one_add_le {x b : ℝ} (hx : 0 ≤ x) (hb : 0 ≤ b) :
+    x * (b / (1 + x)) ≤ b := by
+  rw [← mul_div_assoc, div_le_iff₀ (by positivity)]
+  nlinarith
+
 private lemma sum_fourth_le {I : Type*} (S : Finset I) (f : I → ℝ)
     (hf : ∀ i ∈ S, 0 ≤ f i) {B : ℝ} (hb : ∀ i ∈ S, f i ^ 4 ≤ B) :
     (∑ i ∈ S, f i) ^ 4 ≤ (#S : ℝ) ^ 4 * B := by
   have h := Real.rpow_sum_le_const_mul_sum_rpow_of_nonneg S (f := f) (p := 4) (by norm_num) hf
-  norm_num only [show (4 : ℝ) - 1 = 3 by norm_num, Real.rpow_natCast, Real.rpow_ofNat] at h
+  norm_num only [Real.rpow_natCast, Real.rpow_ofNat] at h
   apply h.trans
   calc
     (#S : ℝ) ^ 3 * ∑ i ∈ S, f i ^ 4 ≤ (#S : ℝ) ^ 3 * ∑ _i ∈ S, B :=
@@ -67,40 +76,24 @@ theorem positiveChildError_fourth_le (l bin : ℕ) (t : RawTask k)
   let f := fun z => CA * |estimated R.right z y - canonical R.right z y| +
     |estimated R.left x z - canonical R.left x z| * CB
   have hf : ∀ z ∈ S, 0 ≤ f z := by intros; dsimp only [f]; positivity
-  have hp : ∀ z ∈ S, f z ^ 4 ≤ 8 * (CA ^ 4 * ER + CB ^ 4 * EL) := by
-    intro z hz
-    have hr := hR z (mem_filter.mp hz).2
-    have hl := hL z
-    have ha := add_pow_le
-      (mul_nonneg hCA (abs_nonneg (estimated R.right z y - canonical R.right z y)))
-      (mul_nonneg (abs_nonneg (estimated R.left x z - canonical R.left x z)) hCB) 4
-    norm_num only [Nat.reduceSub, Nat.reducePow] at ha
-    apply ha.trans
+  have hp : ∀ z ∈ S, f z ^ 4 ≤ 8 * (CA ^ 4 * ER + CB ^ 4 * EL) := fun z hz => by
+    refine (add_fourth_le (by positivity) (by positivity)).trans ?_
     simp only [mul_pow]
-    apply mul_le_mul_of_nonneg_left _ (by norm_num)
-    exact add_le_add (mul_le_mul_of_nonneg_left hr (by positivity))
-      (by simpa only [mul_comm] using mul_le_mul_of_nonneg_left hl (pow_nonneg hCB 4))
-  have hs := sum_fourth_le S f hf hp
-  have hB : 0 ≤ 8 * (CA ^ 4 * ER + CB ^ 4 * EL) := by positivity
+    refine mul_le_mul_of_nonneg_left (add_le_add
+      (mul_le_mul_of_nonneg_left (hR z (mem_filter.mp hz).2) (by positivity))
+      (by simpa only [mul_comm] using mul_le_mul_of_nonneg_left (hL z) (pow_nonneg hCB 4)))
+      (by norm_num)
   have hcard : (#S : ℝ) ≤ Fintype.card V := by exact_mod_cast card_le_card (filter_subset _ _)
-  have hs' := hs.trans (mul_le_mul_of_nonneg_right
-    (pow_le_pow_left₀ (by positivity) hcard 4) hB)
+  have hs' := (sum_fourth_le S f hf hp).trans (mul_le_mul_of_nonneg_right
+    (pow_le_pow_left₀ (by positivity) hcard 4) (by positivity))
   dsimp only [positiveChildError]
   change (_ + _ * ∑ z ∈ S, f z) ^ 4 ≤ _
-  have ha := add_pow_le
-    (a := |b * usageRatio channels endpoint R.direct y| *
-      |estimated R.direct x y - canonical R.direct x y|)
-    (b := |b * usageRatio channels endpoint R.right y *
-      (midpoint.rate / (dens {σ | midpoint.retains channels σ y} : ℝ))| * ∑ z ∈ S, f z)
-    (by positivity) (by positivity) 4
-  norm_num only [Nat.reduceSub, Nat.reducePow] at ha
-  apply ha.trans
+  refine (add_fourth_le (by positivity) (by positivity)).trans ?_
   simp only [mul_pow]
-  apply mul_le_mul_of_nonneg_left _ (by norm_num)
-  exact add_le_add (mul_le_mul_of_nonneg_left hD (by positivity))
-    (by nlinarith only [mul_le_mul_of_nonneg_left hs' (show 0 ≤
-      |b * usageRatio channels endpoint R.right y *
-        (midpoint.rate / (dens {σ | midpoint.retains channels σ y} : ℝ))| ^ 4 by positivity)])
+  refine mul_le_mul_of_nonneg_left
+    (add_le_add (mul_le_mul_of_nonneg_left hD (by positivity))
+      ((mul_le_mul_of_nonneg_left hs' (by positivity)).trans_eq (mul_assoc _ _ _).symm))
+    (by norm_num)
 
 end Matrix.HierarchyParams.HierarchyTask
 
@@ -185,100 +178,69 @@ private theorem residualChildCost_fourth_le
     8 * (Fintype.card V : ℝ) ^ 4 * (CA ^ 4 + CB ^ 4) *
       ∑ y : V, |b i * usageRatio channels terminal (r i).right y *
         (midpoint.rate / (dens {σ | midpoint.retains channels σ y} : ℝ))| ^ 4)
-  let cost := fun σ x y => (∑ i ∈ bins, positiveChildError channels l i .residual
-    source midpoint terminal (b i) CA CB (estimated i σ) (canonical i σ) x y) +
-    negativeChildError channels l 0 .residual source midpoint terminal (b 0)
-      (estimated 0 σ) (canonical 0 σ) x y
   have hcall (i : ℕ) (hi : i ∈ bins) (a : Request k Role Symbol)
       (ha : a ∈ [(r i).direct, (r i).left, (r i).right]) :
       (i, a) ∈ residualErrorCalls (k := k) bins l source midpoint terminal b := by
     simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
-    simp only [residualErrorCalls, mem_union, mem_biUnion]
-    refine Or.inl ⟨i, hi, ?_⟩
-    rcases ha with rfl | rfl | rfl <;> simp only [r, mem_insert, mem_singleton, true_or, or_true]
-  have hn : (0, neg) ∈ residualErrorCalls (k := k) bins l source midpoint terminal b := by
-    simp only [residualErrorCalls, mem_union, mem_singleton]
-    exact Or.inr rfl
+    rcases ha with rfl | rfl | rfl <;>
+      exact mem_union_left _ (mem_biUnion.mpr ⟨i, hi, by simp [r]⟩)
+  have hn : (0, neg) ∈ residualErrorCalls (k := k) bins l source midpoint terminal b :=
+    mem_union_right _ (mem_singleton_self _)
+  have hle (g : V → ℝ) (y : V) : |g y| ^ 4 ≤ ∑ w : V, |g w| ^ 4 :=
+    single_le_sum (f := fun w => |g w| ^ 4) (fun _ _ => by positivity) (mem_univ y)
   have hpos (σ : Ω) (x y : V) (hx : source.retains channels σ x) (i : ℕ) (hi : i ∈ bins) :
       positiveChildError channels l i .residual source midpoint terminal (b i) CA CB
         (estimated i σ) (canonical i σ) x y ^ 4 ≤ coeff i * (q σ) := by
     have hqσ := hq σ
-    have hd := hcall i hi (r i).direct (by simp)
     have hl := hcall i hi (r i).left (by simp)
-    have hr := hcall i hi (r i).right (by simp)
     have hleft (z : V) : |estimated i σ (r i).left x z - canonical i σ (r i).left x z| ^ 4 ≤
         q σ := by
       by_cases hz : midpoint.retains channels σ z
       · exact herror i _ hl σ x z hx
-      · have h := hoff i _ hl σ x z hz
-        simp only [h.1, h.2, sub_self, abs_zero, zero_pow (by decide : 4 ≠ 0)]
-        exact (hq σ)
+      · simpa [(hoff i _ hl σ x z hz).1, (hoff i _ hl σ x z hz).2] using hqσ
     have hright (z : V) (hz : estimated i σ (r i).left x z ≠ 0 ∨
         canonical i σ (r i).left x z ≠ 0) :
         |estimated i σ (r i).right z y - canonical i σ (r i).right z y| ^ 4 ≤ (q σ) := by
       have hm : midpoint.retains channels σ z := by_contra fun hm =>
         hz.elim (· (hoff i _ hl σ x z hm).1) (· (hoff i _ hl σ x z hm).2)
-      exact herror i _ hr σ z y hm
+      exact herror i _ (hcall i hi (r i).right (by simp)) σ z y hm
     have hp := positiveChildError_fourth_le channels l i .residual source midpoint terminal
-      (b i) CA CB (estimated i σ) (canonical i σ) x y hCA hCB (hq σ) (hq σ)
-      (herror i _ hd σ x y hx) hleft hright
+      (b i) CA CB (estimated i σ) (canonical i σ) x y hCA hCB hqσ hqσ
+      (herror i _ (hcall i hi (r i).direct (by simp)) σ x y hx) hleft hright
     dsimp only at hp
-    have hdc : |b i * usageRatio channels terminal (r i).direct y| ^ 4 ≤
-        ∑ w : V, |b i * usageRatio channels terminal (r i).direct w| ^ 4 :=
-      single_le_sum (f := fun w : V => |b i * usageRatio channels terminal (r i).direct w| ^ 4)
-        (fun _ _ => by positivity) (mem_univ y)
-    have hpc : |b i * usageRatio channels terminal (r i).right y *
-        (midpoint.rate / (dens {σ | midpoint.retains channels σ y} : ℝ))| ^ 4 ≤
-        ∑ w : V, |b i * usageRatio channels terminal (r i).right w *
-          (midpoint.rate / (dens {σ | midpoint.retains channels σ w} : ℝ))| ^ 4 :=
-      single_le_sum (f := fun w : V => |b i * usageRatio channels terminal (r i).right w *
-          (midpoint.rate / (dens {σ | midpoint.retains channels σ w} : ℝ))| ^ 4)
-        (fun _ _ => by positivity) (mem_univ y)
+    have hdc := hle (fun w => b i * usageRatio channels terminal (r i).direct w) y
+    have hpc := hle (fun w => b i * usageRatio channels terminal (r i).right w *
+      (midpoint.rate / (dens {σ | midpoint.retains channels σ w} : ℝ))) y
     apply hp.trans
     dsimp only [coeff]
-    nlinarith only [mul_le_mul_of_nonneg_right hdc (hq σ),
-      mul_le_mul_of_nonneg_right hpc
-        (show 0 ≤ (Fintype.card V : ℝ) ^ 4 * (8 * (CA ^ 4 * (q σ) + CB ^ 4 * (q σ))) by positivity)]
-  have hpoint (σ : Ω) (x y : V) (hx : source.retains channels σ x) :
-      |cost σ x y| ^ 4 ≤
-        residualCostCoefficient (k := k) channels bins l source midpoint terminal b CA CB *
-          q σ := by
-    have hqσ := hq σ
-    have hc : ∀ i ∈ bins, 0 ≤ positiveChildError channels l i .residual
-        source midpoint terminal (b i) CA CB (estimated i σ) (canonical i σ) x y := by
-      intros
-      unfold positiveChildError
-      positivity
-    have hcoeff : ∀ i ∈ bins, coeff i ≤ ∑ j ∈ bins, coeff j :=
-      fun i hi => single_le_sum (fun j _ => by dsimp only [coeff]; positivity) hi
-    have hs := sum_fourth_le bins (fun i => positiveChildError channels l i .residual
-      source midpoint terminal (b i) CA CB (estimated i σ) (canonical i σ) x y) hc
-      (fun i hi => (hpos σ x y hx i hi).trans (mul_le_mul_of_nonneg_right (hcoeff i hi) (hq σ)))
-    have he := herror 0 neg hn σ x y hx
-    have hnc : |midpoint.rate * usageRatio channels terminal neg y| ^ 4 ≤
-        ∑ w : V, |midpoint.rate * usageRatio channels terminal neg w| ^ 4 :=
-      single_le_sum (f := fun w : V => |midpoint.rate * usageRatio channels terminal neg w| ^ 4)
-        (fun _ _ => by positivity) (mem_univ y)
-    have hn0 : 0 ≤ negativeChildError channels l 0 .residual source midpoint terminal (b 0)
-        (estimated 0 σ) (canonical 0 σ) x y := by
-      simp only [negativeChildError, rawRequests]
-      positivity
-    have hn4 : negativeChildError channels l 0 .residual source midpoint terminal (b 0)
-        (estimated 0 σ) (canonical 0 σ) x y ^ 4 ≤
-        (∑ w : V, |midpoint.rate * usageRatio channels terminal neg w| ^ 4) * (q σ) := by
-      change (|midpoint.rate * usageRatio channels terminal neg y| *
-        |estimated 0 σ neg x y - canonical 0 σ neg x y|) ^ 4 ≤ _
-      rw [mul_pow]
-      exact mul_le_mul hnc he (by positivity) (by positivity)
-    have ha := add_pow_le (sum_nonneg hc) hn0 4
-    norm_num only [Nat.reduceSub, Nat.reducePow] at ha
-    dsimp only [cost]
-    rw [abs_of_nonneg (add_nonneg (sum_nonneg hc) hn0)]
-    apply ha.trans
-    dsimp only [residualCostCoefficient]
-    change _ ≤ 8 * ((#bins : ℝ) ^ 4 * ∑ i ∈ bins, coeff i + _) * (q σ)
-    nlinarith only [hs, hn4]
-  exact hpoint
+    have hnn : 0 ≤ (Fintype.card V : ℝ) ^ 4 * (8 * (CA ^ 4 * q σ + CB ^ 4 * q σ)) := by positivity
+    nlinarith only [mul_le_mul_of_nonneg_right hdc hqσ, mul_le_mul_of_nonneg_right hpc hnn]
+  intro σ x y hx
+  have hc : ∀ i ∈ bins, 0 ≤ positiveChildError channels l i .residual
+      source midpoint terminal (b i) CA CB (estimated i σ) (canonical i σ) x y := fun _ _ => by
+    unfold positiveChildError
+    positivity
+  have hcoeff : ∀ i ∈ bins, coeff i ≤ ∑ j ∈ bins, coeff j :=
+    fun i hi => single_le_sum (fun j _ => by dsimp only [coeff]; positivity) hi
+  have hs := sum_fourth_le bins (fun i => positiveChildError channels l i .residual
+    source midpoint terminal (b i) CA CB (estimated i σ) (canonical i σ) x y) hc
+    (fun i hi => (hpos σ x y hx i hi).trans (mul_le_mul_of_nonneg_right (hcoeff i hi) (hq σ)))
+  have hnc := hle (fun w => midpoint.rate * usageRatio channels terminal neg w) y
+  have hn0 : 0 ≤ negativeChildError channels l 0 .residual source midpoint terminal (b 0)
+      (estimated 0 σ) (canonical 0 σ) x y := by
+    simp only [negativeChildError, rawRequests]; positivity
+  have hn4 : negativeChildError channels l 0 .residual source midpoint terminal (b 0)
+      (estimated 0 σ) (canonical 0 σ) x y ^ 4 ≤
+      (∑ w : V, |midpoint.rate * usageRatio channels terminal neg w| ^ 4) * q σ := by
+    change (|midpoint.rate * usageRatio channels terminal neg y| *
+      |estimated 0 σ neg x y - canonical 0 σ neg x y|) ^ 4 ≤ _
+    rw [mul_pow]
+    exact mul_le_mul hnc (herror 0 neg hn σ x y hx) (by positivity) (by positivity)
+  rw [abs_of_nonneg (add_nonneg (sum_nonneg hc) hn0)]
+  refine (add_fourth_le (sum_nonneg hc) hn0).trans ?_
+  dsimp only [residualCostCoefficient]
+  change _ ≤ 8 * ((#bins : ℝ) ^ 4 * ∑ i ∈ bins, coeff i + _) * q σ
+  nlinarith only [hs, hn4]
 
 end Matrix.HierarchyParams.HierarchyTask
 
@@ -343,21 +305,11 @@ theorem conditionalChildCost_le_of_root_budgets
     by_cases hy : r.usage.retains channels σ y
     · have hy' : y ∈ ({y | r.usage.retains channels σ y} : Finset V) := by simpa using hy
       have hx' : x ∈ ({x | r.source.retains channels σ x} : Finset V) := by simpa using hx
-      have hrow : |estimated i σ r x y - canonical i σ r x y| ^ 4 ≤
-          ∑ w ∈ ({w | r.usage.retains channels σ w} : Finset V),
-            |estimated i σ r x w - canonical i σ r x w| ^ 4 :=
-        single_le_sum (f := fun w => |estimated i σ r x w - canonical i σ r x w| ^ 4)
-          (fun _ _ => by positivity) hy'
-      have htable : (∑ w ∈ ({w | r.usage.retains channels σ w} : Finset V),
-          |estimated i σ r x w - canonical i σ r x w| ^ 4) ≤ entry (i, r) σ :=
-        single_le_sum (f := fun v =>
-          ∑ w ∈ ({w | r.usage.retains channels σ w} : Finset V),
-            |estimated i σ r v w - canonical i σ r v w| ^ 4)
-          (fun _ _ => sum_nonneg fun _ _ => by positivity) hx'
-      exact hrow.trans (htable.trans (single_le_sum (fun a _ => he0 a σ) hr))
-    · rw [(hoff i r hr σ x y hy).1, (hoff i r hr σ x y hy).2, sub_self, abs_zero,
-        zero_pow (by decide : 4 ≠ 0)]
-      exact hq σ
+      refine le_trans ?_ (single_le_sum (fun a _ => he0 a σ) hr)
+      refine le_trans ?_ (single_le_sum (fun _ _ => sum_nonneg fun _ _ => by positivity) hx')
+      exact single_le_sum (fun w _ =>
+        pow_nonneg (abs_nonneg (estimated i σ r x w - canonical i σ r x w)) 4) hy'
+    · simpa [(hoff i r hr σ x y hy).1, (hoff i r hr σ x y hy).2] using hq σ
   have hmoment (a : ℕ × Request k Role Symbol) (ha : a ∈ calls) :
       (𝔼 σ, entry a σ) ≤ budget / (1 + #calls) := by
     have hNu := mul_pos hN (hsource a.1 a.2 ha)
@@ -368,7 +320,7 @@ theorem conditionalChildCost_le_of_root_budgets
       (by decide) hNu.le
       (fun σ x y _ _ => (hrange a.1 a.2 ha σ x y).1)
       (fun σ x y _ _ => (hrange a.1 a.2 ha σ x y).2)
-    norm_num only [Nat.cast_ofNat, show ((4 : ℝ) - 1) / 4 = 3 / 4 by norm_num] at hconv
+    norm_num only [Nat.cast_ofNat] at hconv
     have heq : (𝔼 σ, entry a σ) = (N * a.2.source.rate) *
         rowNormPow 4 N a.2.source.rate
           (fun σ x => a.2.source.retains channels σ x)
@@ -381,32 +333,20 @@ theorem conditionalChildCost_le_of_root_budgets
     apply (mul_le_mul_of_nonneg_left (hroot a.1 a.2 ha) (mul_nonneg hNu.le hc)).trans
     change (N * a.2.source.rate) * c *
       (budget / (1 + c * (N * a.2.source.rate)) / (1 + #calls)) ≤ _
-    have hd : 0 < 1 + c * (N * a.2.source.rate) := by positivity
-    have hd' : (N * a.2.source.rate) * c *
-        (budget / (1 + c * (N * a.2.source.rate))) ≤ budget := by
-      rw [← mul_div_assoc]
-      apply (div_le_iff₀ hd).mpr
-      nlinarith
-    simpa only [mul_div_assoc] using
-      div_le_div_of_nonneg_right hd' (show (0 : ℝ) ≤ 1 + #calls by positivity)
+    simpa only [mul_div_assoc, mul_comm (N * a.2.source.rate) c] using
+      div_le_div_of_nonneg_right (mul_div_one_add_le (mul_nonneg hc hNu.le) hb) (by positivity)
   have hmean : (𝔼 σ, q σ) ≤ budget := by
     calc
-      _ = ∑ a ∈ calls, 𝔼 σ, entry a σ := by
-        dsimp only [q]
-        rw [expect_sum_comm]
+      _ = ∑ a ∈ calls, 𝔼 σ, entry a σ := expect_sum_comm _ _ _
       _ ≤ ∑ _a ∈ calls, budget / (1 + #calls) := sum_le_sum hmoment
       _ ≤ budget := by
         simp only [sum_const, nsmul_eq_mul]
-        rw [← mul_div_assoc]
-        apply (div_le_iff₀ (by positivity)).mpr
-        nlinarith
+        exact mul_div_one_add_le (Nat.cast_nonneg _) hb
   let cost := fun σ x y =>
     (∑ i ∈ bins, positiveChildError channels l i .residual source midpoint terminal
       (b i) CA CB (estimated i σ) (canonical i σ) x y) +
     negativeChildError channels l 0 .residual source midpoint terminal (b 0)
       (estimated 0 σ) (canonical 0 σ) x y
-  have hpoint := residualChildCost_fourth_le channels bins l source midpoint terminal b q
-    hCA hCB hq estimated canonical hoff hentry
   have hcoef : 0 ≤ residualCostCoefficient (k := k) channels bins l source midpoint terminal b
       CA CB := by unfold residualCostCoefficient; positivity
   apply (rowNormPow_sliceMean_fourth_le (mul_pos hN hu).le
@@ -416,13 +356,10 @@ theorem conditionalChildCost_le_of_root_budgets
     (fun σ x => source.retains channels σ x) (fun σ y => terminal.retains channels σ y)
     cost (fun σ => residualCostCoefficient (k := k) channels bins l source midpoint terminal b
       CA CB * q σ) (fun σ => mul_nonneg hcoef (hq σ))
-    (fun σ x y hx _ => hpoint σ x y hx)).trans
+    (fun σ x y hx _ => residualChildCost_fourth_le channels bins l source midpoint terminal b q
+      hCA hCB hq estimated canonical hoff hentry σ x y hx)).trans
   rw [← mul_expect, ← mul_assoc]
   change scale * (𝔼 σ, q σ) ≤ δ
-  apply (mul_le_mul_of_nonneg_left hmean hs).trans
-  dsimp only [budget]
-  rw [← mul_div_assoc]
-  apply (div_le_iff₀ (by positivity)).mpr
-  nlinarith
+  exact (mul_le_mul_of_nonneg_left hmean hs).trans (mul_div_one_add_le hs hδ)
 
 end Matrix.HierarchyParams.HierarchyTask

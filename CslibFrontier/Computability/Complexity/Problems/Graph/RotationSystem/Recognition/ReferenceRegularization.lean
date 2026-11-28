@@ -48,10 +48,7 @@ open Polygonal
 private theorem frozen_parameter_open {α β t : ℝ}
     (hα : 0 ≤ α) (hαβ : α < β) (hβ : β ≤ 1) (ht : t ∈ Set.Ioo 0 1) :
     α + (β - α) * t ∈ Set.Ioo 0 1 := by
-  have hl := (left_lt_lineMap_iff_lt ht.1).mpr hαβ
-  have hu := (lineMap_lt_right_iff_lt ht.2).mpr hαβ
-  rw [AffineMap.lineMap_apply_ring'] at hl hu
-  exact ⟨by linarith, by linarith⟩
+  constructor <;> nlinarith [ht.1, ht.2]
 
 -- Read the *actual vectors*, not slopes, from an all-real local/global evaluation
 -- equation. The affine-map linear-part API supplies the difference calculation.
@@ -64,10 +61,10 @@ private theorem vector_of_reparameterization (p q : Route)
     simpa only [mul_zero, add_zero, Route.eval, AffineMap.lineMap_apply_zero] using heval 0
   have hone : AffineMap.lineMap (q.point j.castSucc) (q.point j.succ) β = p.point i.succ := by
     simpa only [mul_one, add_sub_cancel, Route.eval, AffineMap.lineMap_apply_one] using heval 1
-  have hlinear := (AffineMap.lineMap (q.point j.castSucc) (q.point j.succ) :
-    ℝ →ᵃ[ℝ] ℂ).linear_apply_vsub β α
   simpa only [AffineMap.lineMap_linear, LinearMap.smulRight_apply, LinearMap.id_apply,
-    vsub_eq_sub, hone, hzero] using hlinear.symm
+    vsub_eq_sub, hone, hzero] using
+    ((AffineMap.lineMap (q.point j.castSucc) (q.point j.succ) : ℝ →ᵃ[ℝ] ℂ).linear_apply_vsub
+      β α).symm
 
 -- Transversality is transported using the actual local/global vector factors.
 -- This retains the factor 2 of the protected one-segment local member.
@@ -77,9 +74,7 @@ private theorem transverse_of_vector_factors
     (hab : a.re * b.im - a.im * b.re ≠ 0) :
     A.re * B.im - A.im * B.re ≠ 0 := by
   have hdet : a.re * b.im - a.im * b.re = (c * d) * (A.re * B.im - A.im * B.re) := by
-    rw [ha, hb]
-    simp only [Complex.smul_re, Complex.smul_im, smul_eq_mul]
-    ring
+    simp only [ha, hb, Complex.smul_re, Complex.smul_im, smul_eq_mul]; ring
   exact (mul_ne_zero_iff.mp (hdet ▸ hab)).2
 
 -- An actual local transverse pair together with its two affine segment embeddings
@@ -120,10 +115,9 @@ private theorem actual_patch_segment_embedding {I : FixedRotationInput}
         (A.drawing.route e.val).eval i (α + (β - α) * t) = (A.patch z e).eval j t := by
   classical
   let c : ReferencePatchAssembly.EdgeCenter I e.val := ⟨z.val, z.property, e.property⟩
-  obtain ⟨q, hq⟩ := List.mem_iff_get.mp (A.centers_complete e.val c)
-  have hembed := A.patch_embedding e.val q
-  rw [show (A.centers e.val)[q] = c from by
-    simpa only [List.get_eq_getElem, Fin.getElem_fin] using hq] at hembed
+  obtain ⟨q, hq_lt, hq⟩ := List.getElem_of_mem (A.centers_complete e.val c)
+  have hembed := A.patch_embedding e.val ⟨q, hq_lt⟩
+  rw [Fin.getElem_fin, hq] at hembed
   cases hf : ((subdivide I)[e.val.val]'(by
       simpa only [subdivisionGraph, List.length_map] using e.val.isLt)).frozen with
   | false =>
@@ -159,12 +153,11 @@ private theorem local_contact_global {I : FixedRotationInput}
     transport_local_transverse (A.patch z e) (A.patch z f)
       (A.drawing.route e.val) (A.drawing.route f.val) i j i' j'
       hα hαβ hβ hγ hγδ hδ hu hv heu hfv hi hj hdet
-  refine ⟨heu' ▸ (A.drawing.route e.val).at_mem_support i' ⟨hu'.1.le, hu'.2.le⟩,
+  exact ⟨heu' ▸ (A.drawing.route e.val).at_mem_support i' ⟨hu'.1.le, hu'.2.le⟩,
     hfv' ▸ (A.drawing.route f.val).at_mem_support j' ⟨hv'.1.le, hv'.2.le⟩,
-    fun v hv heq => ?_, i', j', u', v', hu', hv', heu', hfv', hdet'⟩
-  have hw := A.patch_support z e he
-  rw [heq, A.vertex_eq] at hw
-  exact A.avoids_vertices z.val z.property v hv (Metric.ball_subset_closedBall hw)
+    fun v hv heq => A.avoids_vertices z.val z.property v hv (Metric.ball_subset_closedBall
+      (by simpa only [heq, A.vertex_eq] using A.patch_support z e he)),
+    i', j', u', v', hu', hv', heu', hfv', hdet'⟩
 
 -- A closed gap in the COMPLETE sorted cut list misses the open interior of EVERY
 -- selected cut, including nonadjacent cuts. End cuts use source endpoints 0 and 1;
@@ -178,20 +171,19 @@ private theorem ordered_gap_avoids_all_cuts {ι : Type*}
     (hupper : ∀ hk : k.val < L.length, t ≤ α (L[k.val]'hk)) :
     ∀ q : Fin L.length, t ∉ Set.Ioo (α L[q]) (β L[q]) := by
   intro q ht
+  rw [Fin.getElem_fin] at ht
   by_cases hqk : q.val < k.val
   · have hk : 0 < k.val := Nat.zero_lt_of_lt hqk
-    have hprev : k.val - 1 < L.length := by omega
-    refine (not_lt_of_ge ?_) ht.2
-    by_cases heq : q.val = k.val - 1
-    · simpa only [Fin.getElem_fin, heq] using hlower hk
-    · have hpair := (List.pairwise_iff_getElem.mp hsorted) q.val (k.val - 1) q.isLt hprev (by omega)
-      exact hpair.le.trans ((hcut _ (List.getElem_mem hprev)).le.trans (hlower hk))
-  · have hk : k.val < L.length := lt_of_le_of_lt (Nat.le_of_not_gt hqk) q.isLt
-    refine (not_lt_of_ge ?_) ht.1
-    by_cases heq : k.val = q.val
-    · simpa only [Fin.getElem_fin, heq] using hupper hk
-    · have hpair := (List.pairwise_iff_getElem.mp hsorted) k.val q.val hk q.isLt (by omega)
-      exact (hupper hk).trans ((hcut _ (List.getElem_mem hk)).le.trans hpair.le)
+    rcases eq_or_lt_of_le (Nat.le_sub_one_of_lt hqk) with heq | hlt
+    · exact not_lt_of_ge (by simpa only [heq] using hlower hk) ht.2
+    · have hprev : k.val - 1 < L.length := by omega
+      have hpair := List.pairwise_iff_getElem.mp hsorted q.val (k.val - 1) q.isLt hprev hlt
+      linarith [ht.2, hcut _ (List.getElem_mem hprev), hlower hk]
+  · rcases eq_or_lt_of_le (Nat.le_of_not_gt hqk) with heq | hlt
+    · exact not_lt_of_ge (by simpa only [heq] using hupper (heq ▸ q.isLt)) ht.1
+    · have hk : k.val < L.length := hlt.trans q.isLt
+      have hpair := List.pairwise_iff_getElem.mp hsorted k.val q.val hk q.isLt hlt
+      linarith [ht.1, hcut _ (List.getElem_mem hk), hupper hk]
 
 -- The boundary case carries an ACTUAL consecutive center pair, not an arbitrary
 -- earlier/later pair. Tags are local proof bookkeeping and never change the word.
@@ -223,41 +215,33 @@ private theorem patch_word_pair_cases {ι : Type*} (L : List ι) (a b : ℂ)
         simpa only [emit, List.consecutivePairs_cons_cons, List.consecutivePairs_singleton,
           List.mem_cons, List.not_mem_nil, or_false, Prod.mk.injEq] using hp⟩
   · dsimp only [tags] at hp
-    cases hL : L with
+    cases L with
     | nil =>
-      rw [hL] at hp
-      have ht : tag = .inl false ∧ next = .inl true := by
+      obtain ⟨rfl, rfl⟩ : tag = .inl false ∧ next = .inl true := by
         simpa only [List.map_nil, List.cons_append, List.nil_append,
           List.consecutivePairs_cons_cons, List.consecutivePairs_singleton,
           List.mem_singleton, Prod.mk.injEq] using hp
-      rcases ht with ⟨rfl, rfl⟩
       exact Or.inr (Or.inl ⟨rfl, hx, hy⟩)
     | cons z zs =>
-      rw [hL] at hp
-      change (tag, next) ∈ List.consecutivePairs
-        ((Sum.inl false :: (z :: zs).map Sum.inr) ++ [Sum.inl true]) at hp
       rw [List.consecutivePairs_append (by simp) (by simp), List.mem_append] at hp
       rcases hp with hp | hp
       · rw [List.map_cons, List.consecutivePairs_cons_cons, List.mem_cons] at hp
         rcases hp with hp | hp
         · rcases Prod.mk.inj hp with ⟨rfl, rfl⟩
-          exact Or.inr (Or.inr (Or.inl ⟨by simp, hx, hy⟩))
-        · obtain ⟨k, hk, htag, hnext⟩ := List.mem_consecutivePairs_iff_exists_getElem.mp hp
-          have hk' : k + 1 < (z :: zs).length := by
-            simpa only [List.length_cons, List.length_map] using hk
-          rw [show tag = Sum.inr ((z :: zs)[k]) from by
-              simpa only [← List.map_cons, List.getElem_map] using htag.symm,
-            show next = Sum.inr ((z :: zs)[k + 1]) from by
-              simpa only [← List.map_cons, List.getElem_map] using hnext.symm] at hx hy
-          simp only [emit, List.getLast_cons_cons, List.getLast_singleton, List.head_cons] at hx hy
+          exact Or.inr (Or.inr (Or.inl ⟨List.cons_ne_nil _ _, hx, hy⟩))
+        · obtain ⟨k, hk, rfl, rfl⟩ :
+              ∃ k, ∃ hk : k + 1 < (z :: zs).length,
+                Sum.inr (z :: zs)[k] = tag ∧ Sum.inr (z :: zs)[k + 1] = next := by
+            simpa only [← List.map_cons, List.mem_consecutivePairs_iff_exists_getElem,
+              List.length_map, List.getElem_map] using hp
           exact Or.inr (Or.inr (Or.inr (Or.inr ⟨(z :: zs)[k], (z :: zs)[k + 1],
-            by simpa only [hL] using List.getElem_mem_consecutivePairs (z :: zs) k hk', hx, hy⟩)))
-      · have htail : ((z :: zs).map Sum.inr : List (Bool ⊕ ι)) ≠ [] := by simp
-        have ht : tag = Sum.inr ((z :: zs).getLast (by simp)) ∧ next = Sum.inl true := by
+            List.getElem_mem_consecutivePairs (z :: zs) k hk, hx, hy⟩)))
+      · have hne_map : (z :: zs).map (Sum.inr (α := Bool)) ≠ [] := by simp
+        obtain ⟨rfl, rfl⟩ :
+            tag = Sum.inr ((z :: zs).getLast (List.cons_ne_nil _ _)) ∧ next = Sum.inl true := by
           simpa only [List.consecutivePairs_singleton, List.mem_cons, List.not_mem_nil, or_false,
-            List.head_cons, List.getLast_cons htail, List.getLast_map, Prod.mk.injEq] using hp
-        rcases ht with ⟨rfl, rfl⟩
-        exact Or.inr (Or.inr (Or.inr (Or.inl ⟨by simp, hx, hy⟩)))
+            List.head_cons, List.getLast_cons hne_map, List.getLast_map, Prod.mk.injEq] using hp
+        exact Or.inr (Or.inr (Or.inr (Or.inl ⟨List.cons_ne_nil _ _, hx, hy⟩)))
 
 private theorem gap_interpolation_avoids_cuts {ι : Type*}
     (L : List ι) (α β : ι → ℝ) (a b : ℂ)
@@ -276,11 +260,9 @@ private theorem gap_interpolation_avoids_cuts {ι : Type*}
     simpa only [segment_eq_Icc huv] using lineMap_mem_segment ℝ u v ht
   refine ⟨s, ⟨hu.trans hs.1, hs.2.trans hv⟩,
     ((AffineMap.lineMap a b : ℝ →ᵃ[ℝ] ℂ).apply_lineMap u v t).symm, fun z hz => ?_⟩
-  obtain ⟨q, hq⟩ := List.mem_iff_get.mp hz
-  have hq' : L[q] = z := by simpa only [List.get_eq_getElem, Fin.getElem_fin] using hq
-  have hav := ordered_gap_avoids_all_cuts L α β hcut hsorted k
-    (fun hk => (hprev hk).symm ▸ hs.1) (fun hk => (hnext hk).symm ▸ hs.2) q
-  simpa only [hq'] using hav
+  obtain ⟨q, hq_lt, rfl⟩ := List.getElem_of_mem hz
+  exact ordered_gap_avoids_all_cuts L α β hcut hsorted k
+    (fun hk => (hprev hk).symm ▸ hs.1) (fun hk => (hnext hk).symm ▸ hs.2) ⟨q, hq_lt⟩
 
 -- A point on ANY emitted node pair is either on an actual local piece or on
 -- an original closed gap avoiding every open cut. Adjacent cuts alone bound gaps.
@@ -337,9 +319,7 @@ private theorem free_patch_piece_support {I : FixedRotationInput}
   dsimp only
   intro w hw
   have hp := A.patch_eq z e
-  dsimp only at hp
-  rw [hf] at hp
-  simp only [Bool.false_eq_true, ↓reduceIte] at hp
+  simp only [hf, Bool.false_eq_true, ↓reduceIte] at hp
   obtain ⟨hmid, hn⟩ : (A.patch z e).point (0 : Fin (A.patch z e).segments).succ =
       z.val + (⟨0, A.height z e⟩ : ℂ) ∧ (A.patch z e).bends = 1 := by
     rw [hp]; cases decide (((referenceDrawing I).route e.val).finish.re <
@@ -373,7 +353,8 @@ private theorem assembled_support_cases {I : FixedRotationInput}
   cases hf : ((subdivide I)[e.val]'(by
       simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen with
   | true =>
-    rw [show A.drawing.route e = D.route e from by simpa only [hf, ↓reduceIte] using hroute] at hw
+    have hroute' : A.drawing.route e = D.route e := by simpa only [hf, ↓reduceIte] using hroute
+    rw [hroute'] at hw
     obtain ⟨i, t, ht, heq⟩ := ((D.route e).mem_support_iff w).mp hw
     obtain rfl : i = 0 := Fin.ext (Nat.lt_one_iff.mp i.isLt)
     by_cases hpatch : ∃ z : Z, t ∈ Set.Ioo (α z) (β z)
@@ -393,12 +374,10 @@ private theorem assembled_support_cases {I : FixedRotationInput}
     obtain ⟨i, t, ht, heq⟩ := ((A.drawing.route e).mem_support_iff w).mp hw
     have hnodes : ∃ x y : ℂ, (x, y) ∈ List.consecutivePairs word ∧
         (A.drawing.route e).eval i t = AffineMap.lineMap x y t := by
-      have hr := hroute
-      simp only [hf, Bool.false_eq_true, ↓reduceIte] at hr
-      suffices h : ∀ j : Fin (A.drawing.route e).segments,
-          ∃ x y : ℂ, (x, y) ∈ List.consecutivePairs word ∧
-            (A.drawing.route e).eval j t = AffineMap.lineMap x y t from h i
-      rw [hr]
+      simp only [hf, Bool.false_eq_true, ↓reduceIte] at hroute
+      clear heq
+      revert i
+      rw [hroute]
       cases hL : A.centers e with
       | nil =>
         exact fun j => ⟨(D.route e).start, (D.route e).finish,
@@ -417,8 +396,7 @@ private theorem assembled_support_cases {I : FixedRotationInput}
           have h := j.isLt
           simp only [Route.segments_foldl_append] at h
           change j.val < 1 + nodes.length at h
-          rw [hword, List.length_cons, List.length_cons]
-          omega
+          rw [hword, List.length_cons, List.length_cons]; omega
         refine ⟨word[j.val], word[j.val + 1], List.getElem_mem_consecutivePairs word j.val hj, ?_⟩
         simpa only [hword] using Route.eval_foldl_append_line (D.route e).start
           (AffineMap.lineMap (D.route e).start (D.route e).finish (α z)) nodes j t
@@ -516,10 +494,9 @@ private theorem reference_open_of_support {I : FixedRotationInput} (hI : Valid I
     (hvertex : ∀ v ∈ (subdivisionGraph I).vertices, w ≠ (referenceDrawing I).vertex v) :
     w ∈ openSegment ℝ ((referenceDrawing I).route e).start
       ((referenceDrawing I).route e).finish := by
-  have hend (tag : Bool) : w ≠ ((referenceDrawing I).route e).endpoint tag := by
-    rw [(referenceDrawing I).endpoint_eq]
-    exact hvertex _ (((referenceOrder_enumerates hI).2 _).mp
-      ((subdivision_endpoint_spec hI e).1 tag))
+  have hend (tag : Bool) : w ≠ ((referenceDrawing I).route e).endpoint tag :=
+    (referenceDrawing I).endpoint_eq e tag ▸
+      hvertex _ (((referenceOrder_enumerates hI).2 _).mp ((subdivision_endpoint_spec hI e).1 tag))
   exact mem_openSegment_of_ne_left_right (hend false).symm (hend true).symm
     (Route.support_line _ _ ▸ hw)
 
@@ -556,24 +533,19 @@ private theorem old_gap_outside_slab {I : FixedRotationInput} (hI : Valid I)
     (ht : t ∉ Set.Ioo (A.startParam z e) (A.finishParam z e)) :
     (((referenceDrawing I).route e.val).eval 0 t).re ≤ z.val.re - A.extent z ∨
       z.val.re + A.extent z ≤ (((referenceDrawing I).route e.val).eval 0 t).re := by
-  let a := ((referenceDrawing I).route e.val).start.re
-  let b := ((referenceDrawing I).route e.val).finish.re
+  have hends := patch_real_ends A z e
+  set a := ((referenceDrawing I).route e.val).start.re
+  set b := ((referenceDrawing I).route e.val).finish.re
   have hne : a ≠ b := fun heq =>
     (Route.isSimple_line_iff _ _).mp (referenceDrawing_simple hI e.val) (congrArg parabolaPoint heq)
   have hproj (u : ℝ) : (AffineMap.lineMap ((referenceDrawing I).route e.val).start
       ((referenceDrawing I).route e.val).finish u).re = AffineMap.lineMap a b u :=
     Complex.reCLM.toLinearMap.toAffineMap.apply_lineMap _ _ u
-  have hends := patch_real_ends A z e
-  change (_ = z.val.re + (if b < a then _ else _)) ∧
-    (_ = z.val.re + (if b < a then _ else _)) at hends
   rw [A.patch_start, A.patch_finish, hproj, hproj] at hends
   have hside : t ≤ A.startParam z e ∨ A.finishParam z e ≤ t :=
     (not_and_or.mp ht).imp le_of_not_gt le_of_not_gt
-  change (AffineMap.lineMap ((referenceDrawing I).route e.val).start
-    ((referenceDrawing I).route e.val).finish t).re ≤ _ ∨ _ ≤
-    (AffineMap.lineMap ((referenceDrawing I).route e.val).start
-      ((referenceDrawing I).route e.val).finish t).re
-  rw [hproj]
+  have hev : (((referenceDrawing I).route e.val).eval 0 t).re = AffineMap.lineMap a b t := hproj t
+  rw [hev]
   rcases lt_or_gt_of_ne hne with hab | hba
   · simp only [not_lt.mpr hab.le, ↓reduceIte] at hends
     rcases hside with ht | ht
@@ -603,12 +575,8 @@ private theorem incident_gap_excludes_other_patch {I : FixedRotationInput} (hI :
       (hwe : w = AffineMap.lineMap ((referenceDrawing I).route e.val).start
         ((referenceDrawing I).route e.val).finish p)
       (habs : (A.patch z e).start.re = w.re ∨ (A.patch z e).finish.re = w.re) : False := by
-    have he : w ∈ ((referenceDrawing I).route e.val).support := by
-      rw [hwe]
-      change _ ∈ (Route.line ((referenceDrawing I).route e.val).start
-        ((referenceDrawing I).route e.val).finish).support
-      rw [Route.support_line]
-      exact lineMap_mem_segment ℝ _ _ hp
+    have he : w ∈ ((referenceDrawing I).route e.val).support :=
+      hwe ▸ Route.support_line _ _ ▸ lineMap_mem_segment ℝ _ _ hp
     have hwz := old_support_pair_eq_center hI z e f hef he hf hwv
     have hends := patch_real_ends A z e
     rcases habs with h | h <;> [have := hends.1; have := hends.2] <;>
@@ -664,9 +632,8 @@ private theorem global_contact_same_patch {I : FixedRotationInput} (hI : Valid I
       reference_open_of_support hI e heold hvertex',
       reference_open_of_support hI f (hue ▸ ((referenceDrawing I).route f).at_mem_support 0 hu)
         hvertex'⟩
-    have hout := old_gap_outside_slab hI A z ⟨e, heold⟩ (htg ⟨w, z.property, heold⟩)
-    rw [hte] at hout
-    rcases hout with hout | hout <;> linarith [A.extent_pos z]
+    rcases hte ▸ old_gap_outside_slab hI A z ⟨e, heold⟩ (htg ⟨w, z.property, heold⟩) with h | h <;>
+      linarith [A.extent_pos z]
 
 /-- Construct an actual global reference crossing regularization from valid input alone.
 The output assembly retains its literal route construction and all named preservation
@@ -703,11 +670,8 @@ theorem exists_reference_crossing_regularization {I : FixedRotationInput} (hI : 
         w ∈ (A.drawing.route e).support → w ∈ (A.drawing.route f).support →
         w ∉ (A.drawing.route g).support) := by
   classical
+  intro E old
   obtain ⟨A⟩ := exists_reference_patch_assembly hI
-  let E := Fin (subdivisionGraph I).edges.length
-  let old : E → E → Set ℂ := fun e f =>
-    openSegment ℝ ((referenceDrawing I).route e).start ((referenceDrawing I).route e).finish ∩
-    openSegment ℝ ((referenceDrawing I).route f).start ((referenceDrawing I).route f).finish
   have hsupport (e f : E) (z : ℂ) (hz : z ∈ old e f) :
       z ∈ ((referenceDrawing I).route e).support ∧ z ∈ ((referenceDrawing I).route f).support :=
     ⟨Route.support_line _ _ ▸ openSegment_subset_segment ℝ _ _ hz.1,
@@ -726,41 +690,37 @@ theorem exists_reference_crossing_regularization {I : FixedRotationInput} (hI : 
         κ e f z ∈ (A.patch ⟨z, hzC⟩ ⟨f, hfz⟩).support := by
     refine ⟨⟨e, f, hef, hz.1, hz.2⟩, (hsupport e f z hz).1, (hsupport e f z hz).2, ?_⟩
     dsimp only [κ]; rw [dite_eq_left ⟨hef, hz⟩]
-    exact (Classical.choose_spec (A.patch_pair_unique _ _ _
-      (fun heq => hef (congrArg Subtype.val heq)))).1
+    exact (Classical.choose_spec (A.patch_pair_unique _ _ _ (ne_of_apply_ne Subtype.val hef))).1
   let target : E → E → Set ℂ := fun e f => {w |
     w ∈ (A.drawing.route e).support ∧ w ∈ (A.drawing.route f).support ∧
     ∀ v ∈ (subdivisionGraph I).vertices, w ≠ A.drawing.vertex v}
   refine ⟨A, κ, fun e f hef => ?_, fun e f g hef heg hfg w hvertex he hf hg => ?_⟩
   · have hmaps : Set.MapsTo (κ e f) (old e f) (target e f) := fun z hz => by
       obtain ⟨hzC, hez, hfz, he, hf⟩ := hκ e f hef z hz
-      obtain ⟨hE, hF, hV, _⟩ := local_contact_global A ⟨z, hzC⟩
-        ⟨e, hez⟩ ⟨f, hfz⟩ (fun heq => hef (congrArg Subtype.val heq)) he hf
+      obtain ⟨hE, hF, hV, _⟩ := local_contact_global A ⟨z, hzC⟩ ⟨e, hez⟩ ⟨f, hfz⟩
+        (ne_of_apply_ne Subtype.val hef) he hf
       exact ⟨hE, hF, hV⟩
     have hinj : Set.InjOn (κ e f) (old e f) := fun _ hx _ hy _ =>
       referenceDrawing_open_inter_subsingleton hI e f hef hx hy
     have hsurj : Set.SurjOn (κ e f) (old e f) (target e f) := fun w hw => by
       obtain ⟨z, hez, hfz, he, hf⟩ := global_contact_same_patch hI A e f hef hw.1 hw.2.1 hw.2.2
-      have hzv : ∀ v ∈ (subdivisionGraph I).vertices, z.val ≠ (referenceDrawing I).vertex v :=
-        fun _ hv => referenceDrawing_crossing_ne_vertex hI z.property hv
+      have hzv (v) := referenceDrawing_crossing_ne_vertex (v := v) hI z.property
       have hz : z.val ∈ old e f :=
         ⟨reference_open_of_support hI e hez hzv, reference_open_of_support hI f hfz hzv⟩
       obtain ⟨_, _, _, hκe, hκf⟩ := hκ e f hef z.val hz
-      obtain ⟨_, _, huniq⟩ := A.patch_pair_unique z ⟨e, hez⟩ ⟨f, hfz⟩
-        (fun heq => hef (congrArg Subtype.val heq))
+      obtain ⟨_, _, huniq⟩ :=
+        A.patch_pair_unique z ⟨e, hez⟩ ⟨f, hfz⟩ (ne_of_apply_ne Subtype.val hef)
       exact ⟨z.val, hz, (huniq _ ⟨hκe, hκf⟩).trans (huniq _ ⟨he, hf⟩).symm⟩
     refine ⟨⟨hmaps, hinj, hsurj⟩, hκ e f hef, fun w hw => ?_⟩
     obtain ⟨z, hez, hfz, he, hf⟩ := global_contact_same_patch hI A e f hef hw.1 hw.2.1 hw.2.2
-    exact (local_contact_global A z ⟨e, hez⟩ ⟨f, hfz⟩
-      (fun heq => hef (congrArg Subtype.val heq)) he hf).2.2.2
+    exact (local_contact_global A z ⟨e, hez⟩ ⟨f, hfz⟩ (ne_of_apply_ne Subtype.val hef) he hf).2.2.2
   · obtain ⟨z, hez, hfz, hpe, hpf⟩ := global_contact_same_patch hI A e f hef he hf hvertex
     obtain ⟨q, heq, hgq, hqe, hqg⟩ := global_contact_same_patch hI A e g heg he hg hvertex
     obtain rfl : z = q := Subtype.ext <| Classical.byContradiction fun hne =>
       Set.disjoint_left.mp (A.balls_disjoint z.property q.property hne)
         (Metric.ball_subset_closedBall (A.patch_support z ⟨e, hez⟩ hpe))
         (Metric.ball_subset_closedBall (A.patch_support q ⟨e, heq⟩ hqe))
-    exact A.patch_no_triple z ⟨e, hez⟩ ⟨f, hfz⟩ ⟨g, hgq⟩
-      (fun h => hef (congrArg Subtype.val h)) (fun h => heg (congrArg Subtype.val h))
-      (fun h => hfg (congrArg Subtype.val h)) w hpe hpf hqg
+    exact A.patch_no_triple z ⟨e, hez⟩ ⟨f, hfz⟩ ⟨g, hgq⟩ (ne_of_apply_ne Subtype.val hef)
+      (ne_of_apply_ne Subtype.val heg) (ne_of_apply_ne Subtype.val hfg) w hpe hpf hqg
 
 end Cslib.Complexity.Graph.RotationRecognition

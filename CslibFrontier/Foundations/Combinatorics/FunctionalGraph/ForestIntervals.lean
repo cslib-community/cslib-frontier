@@ -134,14 +134,9 @@ theorem forestPath_iterate_prefix (x : α) {t : ℕ} (ht : t ≤ transientDepth 
 /-- Prefixes of root paths are exactly the ancestors before cycle entry. -/
 theorem forestPath_prefix (x y : α) :
     forestPath f y <+: forestPath f x ↔
-      ∃ t ≤ transientDepth f x, f^[t] x = y := by
-  constructor
-  · rintro ⟨tail, he⟩
-    apply (mem_forestPath f x y).mp
-    rw [← he]
-    exact List.mem_append_left _ (self_mem_forestPath f y)
-  · rintro ⟨t, ht, rfl⟩
-    exact forestPath_iterate_prefix f x ht
+      ∃ t ≤ transientDepth f x, f^[t] x = y :=
+  ⟨fun ⟨_, he⟩ => (mem_forestPath f x y).mp (he ▸ List.mem_append_left _ (self_mem_forestPath f y)),
+    fun ⟨_, ht, h⟩ => h ▸ forestPath_iterate_prefix f x ht⟩
 
 end
 
@@ -210,8 +205,7 @@ theorem exists_forest_intervals [Finite α] : ∃ low high : α → Fin (Nat.car
   let := Fintype.ofFinite α
   let : LinearOrder α := LinearOrder.lift' (Fintype.equivFin α) (Fintype.equivFin α).injective
   have he : Fintype.card α = Nat.card α := Nat.card_eq_fintype_card.symm
-  refine ⟨fun x => Fin.cast he (forestRank f x), fun x => Fin.cast he (forestUpper f x), ?_⟩
-  intro x y
-  exact forest_interval_spec f x y
+  exact ⟨fun x => Fin.cast he (forestRank f x), fun x => Fin.cast he (forestUpper f x),
+    forest_interval_spec f⟩
 
 end Cslib.FunctionalGraph

@@ -85,13 +85,14 @@ private theorem positive_budget_of_pow {n k p w s q : ℕ} (hq : 1 < q)
     (hwk : w + 1 ≤ k) (hn : q * k ≤ n)
     (hcore : sunflowerBound p w ^ 2 * s ≤ q ^ w) :
     Positive.errorCap n k p w * s < n.choose k := by
-  have hkn : k ≤ n := (Nat.le_mul_of_pos_left k (by omega : 0 < q)).trans hn
+  have hq0 : 0 < q := by omega
+  have hkn : k ≤ n := (Nat.le_mul_of_pos_left k hq0).trans hn
   have hremaining : 0 < (n - (w + 1)).choose (k - (w + 1)) :=
     Nat.choose_pos (Nat.sub_le_sub_right hkn _)
   have hstrict : sunflowerBound p w ^ 2 * s < q ^ (w + 1) := by
     refine hcore.trans_lt ?_
     rw [pow_succ]
-    simpa using Nat.mul_lt_mul_of_pos_left hq (pow_pos (by omega : 0 < q) w)
+    simpa using Nat.mul_lt_mul_of_pos_left hq (pow_pos hq0 w)
   calc Positive.errorCap n k p w * s =
       (sunflowerBound p w ^ 2 * s) * (n - (w + 1)).choose (k - (w + 1)) := by
         rw [Positive.errorCap]; ring
@@ -105,7 +106,7 @@ private theorem negative_budget_of_pow {n k p w s : ℕ} (hw : 0 < w)
     2 * negativeGateCap n (k - 1) p w * s < (k - 1) ^ n := by
   let B := sunflowerBound p w
   have hB : 2 * (2 * B + B ^ 2) ≤ 6 * B ^ 2 := by
-    have := Nat.le_self_pow (by norm_num : 2 ≠ 0) B
+    have := Nat.le_self_pow two_ne_zero B
     omega
   have hkpos : 0 < k - 1 := by
     have := pow_pos hw 2
@@ -126,10 +127,8 @@ private theorem negative_core_of_dyadic {t w s a : ℕ} (htw : w = 2 ^ t)
     (hw : 3 ≤ w) (ha : 0 < a) (hbase : 2 * a ≤ w ^ 8)
     (hB : sunflowerBound (4 * w * t) w ^ 2 * s ≤ a ^ w) :
     6 * sunflowerBound (4 * w * t) w ^ 2 * s < 4 ^ (4 * w * t) := by
-  have h6 : 6 < 2 ^ w := by
-    have := Nat.pow_le_pow_right (by norm_num : 0 < 2) hw
-    norm_num at this
-    omega
+  have h6 : 6 < 2 ^ w := (by norm_num : 6 < 2 ^ 3).trans_le (Nat.pow_le_pow_right two_pos hw)
+  have h4 : (4 : ℕ) = 2 ^ 2 := by norm_num
   calc 6 * sunflowerBound (4 * w * t) w ^ 2 * s
       = 6 * (sunflowerBound (4 * w * t) w ^ 2 * s) := by ring
     _ ≤ 6 * a ^ w := Nat.mul_le_mul_left 6 hB
@@ -137,7 +136,7 @@ private theorem negative_core_of_dyadic {t w s a : ℕ} (htw : w = 2 ^ t)
     _ = (2 * a) ^ w := (mul_pow _ _ _).symm
     _ ≤ (w ^ 8) ^ w := Nat.pow_le_pow_left hbase _
     _ = 4 ^ (4 * w * t) := by
-      rw [htw, ← pow_mul, ← pow_mul, show (4 : ℕ) = 2 ^ 2 by norm_num, ← pow_mul]
+      rw [htw, ← pow_mul, ← pow_mul, h4, ← pow_mul]
       congr 1
       ring
 
@@ -151,9 +150,7 @@ theorem two_pow_mul_two_pow_lt_size_of_computes_clique {n k t : ℕ} (ht : 3 ≤
     2 ^ (t * 2 ^ t) < C.size := by
   let w := 2 ^ t
   change 4 * w ^ 2 ≤ k - 1 at hk
-  have hw : 8 ≤ w := by
-    change (2 : ℕ) ^ 3 ≤ 2 ^ t
-    exact Nat.pow_le_pow_right (by norm_num) ht
+  have hw : 8 ≤ w := Nat.pow_le_pow_right two_pos ht
   have htsq : t ^ 2 ≤ 2 * w := sq_le_two_mul_two_pow ht
   have htw : t ≤ w := Nat.lt_two_pow_self.le
   have hww : w ≤ w ^ 2 := Nat.le_self_pow (by norm_num) w
@@ -196,18 +193,15 @@ theorem sixtyFour_pow_two_pow_lt_size_of_computes_clique {n k t : ℕ} (ht : 4 �
   let q := 1024 * t ^ 2 * w ^ 4
   change 4 * w ^ 2 ≤ k - 1 at hk
   change q * k ≤ n at hn
-  have hw : 16 ≤ w := by
-    change (2 : ℕ) ^ 4 ≤ 2 ^ t
-    exact Nat.pow_le_pow_right (by norm_num) ht
+  have hw : 16 ≤ w := Nat.pow_le_pow_right two_pos ht
   have htsq : t ^ 2 ≤ 2 * w := sq_le_two_mul_two_pow (by omega)
   have htw : t ≤ w := Nat.lt_two_pow_self.le
   have hww : w ≤ w ^ 2 := Nat.le_self_pow (by norm_num) w
+  have hwpos : 1 ≤ w ^ 4 := one_le_pow₀ (by omega)
   have hq : 1 < q := by
-    have htpos : 1 ≤ t ^ 2 := one_le_pow₀ (by omega : 1 ≤ t)
-    have hwpos : 1 ≤ w ^ 4 := one_le_pow₀ (by omega : 1 ≤ w)
     dsimp only [q]
     nlinarith
-  have hkn : k ≤ n := (Nat.le_mul_of_pos_left k (by omega : 0 < q)).trans hn
+  have hkn : k ≤ n := (Nat.le_mul_of_pos_left k (Nat.zero_lt_of_lt hq)).trans hn
   have hp : 4 * w * t ≤ n :=
     (Nat.mul_le_mul_left _ htw).trans (by rw [mul_assoc, ← sq]; omega)
   have hB : sunflowerBound (4 * w * t) w ^ 2 * 64 ^ w ≤ q ^ w := by

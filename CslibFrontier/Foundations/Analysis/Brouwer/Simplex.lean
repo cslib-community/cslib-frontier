@@ -33,8 +33,12 @@ Mathlib's `Convexity.StdSimplex`, so that they can be fed to continuous maps on 
   for a finite type `κ`.
 * `Cslib.Brouwer.exists_isFixedPt_pi_simplex`: **Brouwer's fixed-point theorem** for a finite
   product of standard simplices.
+* `Cslib.Brouwer.exists_isFixedPt_simplex`: **Brouwer's fixed-point theorem** for a single
+  standard simplex.
 
-Arbitrary compact convex sets are not treated here.
+Arbitrary compact convex subsets of finite-dimensional real normed spaces are treated in
+`CslibFrontier.Foundations.Analysis.Kakutani`
+(`Cslib.Brouwer.exists_isFixedPt_of_isCompact_convex`).
 -/
 
 public section
@@ -54,10 +58,7 @@ theorem exists_isFixedPt_of_leftInvOn {X Y : Type*} [TopologicalSpace X] [Topolo
     (hfc : ContinuousOn f B) : ∃ y ∈ B, IsFixedPt f y := by
   obtain ⟨x, hx, hfix⟩ := hA (ψ ∘ f ∘ φ) (hψ.comp (hf.comp hφ))
     (hψc.comp (hfc.comp hφc hφ) (hf.comp hφ))
-  refine ⟨φ x, hφ hx, ?_⟩
-  have h : φ (ψ (f (φ x))) = φ x := congrArg φ hfix
-  rw [hinv (hf (hφ hx))] at h
-  exact h
+  exact ⟨φ x, hφ hx, (hinv (hf (hφ hx))).symm.trans (congrArg φ hfix)⟩
 
 /-- **Brouwer's fixed-point theorem** for the cube `[0, 1] ^ κ` over a finite type `κ`. -/
 theorem exists_isFixedPt_cube_of_finite {κ : Type*} [Finite κ] {f : (κ → ℝ) → κ → ℝ}
@@ -65,16 +66,14 @@ theorem exists_isFixedPt_cube_of_finite {κ : Type*} [Finite κ] {f : (κ → �
     ∃ x ∈ Icc (0 : κ → ℝ) 1, IsFixedPt f x := by
   have := Fintype.ofFinite κ
   let e := Fintype.equivFin κ
-  refine exists_isFixedPt_of_leftInvOn (A := Icc (0 : Fin (Fintype.card κ) → ℝ) 1)
-    (B := Icc (0 : κ → ℝ) 1) (fun g hg hgc => exists_isFixedPt_cube hg hgc)
-    (φ := fun x k => x (e k)) (ψ := fun y j => y (e.symm j)) ?_ ?_
+  exact exists_isFixedPt_of_leftInvOn (A := Icc (0 : Fin (Fintype.card κ) → ℝ) 1)
+    (B := Icc (0 : κ → ℝ) 1) (fun _ => exists_isFixedPt_cube)
+    (φ := fun x k => x (e k)) (ψ := fun y j => y (e.symm j))
+    (fun _ hx => ⟨fun k => hx.1 (e k), fun k => hx.2 (e k)⟩)
+    (fun _ hy => ⟨fun j => hy.1 (e.symm j), fun j => hy.2 (e.symm j)⟩)
     (continuous_pi fun k => continuous_apply (e k)).continuousOn
-    (continuous_pi fun j => continuous_apply (e.symm j)).continuousOn ?_ hf hc
-  · exact fun x hx => ⟨fun k => hx.1 (e k), fun k => hx.2 (e k)⟩
-  · exact fun y hy => ⟨fun j => hy.1 (e.symm j), fun j => hy.2 (e.symm j)⟩
-  · intro y _
-    funext k
-    simp only [Equiv.symm_apply_apply]
+    (continuous_pi fun j => continuous_apply (e.symm j)).continuousOn
+    (fun y _ => funext fun k => congrArg y (e.symm_apply_apply k)) hf hc
 
 /-- The total positive mass `∑ k, max (x k) 0` of a vector. -/
 private noncomputable def posMass {κ : Type*} [Fintype κ] (x : κ → ℝ) : ℝ :=
@@ -114,13 +113,9 @@ private theorem sum_simplexRetraction {κ : Type*} [Fintype κ] [Nonempty κ] (x
 
 private theorem simplexRetraction_eq {κ : Type*} [Fintype κ] {x : κ → ℝ}
     (hx₀ : ∀ k, 0 ≤ x k) (hx₁ : ∑ k, x k = 1) : simplexRetraction x = x := by
-  have hm : posMass x = 1 := by
-    unfold posMass
-    rw [← hx₁]
-    exact sum_congr rfl fun k _ => max_eq_left (hx₀ k)
+  have hm : posMass x = 1 := (sum_congr rfl fun k _ => max_eq_left (hx₀ k)).trans hx₁
   funext k
-  unfold simplexRetraction
-  rw [hm, max_self, min_self, sub_self, zero_div, add_zero, div_one, max_eq_left (hx₀ k)]
+  simp [simplexRetraction, hm, max_eq_left (hx₀ k)]
 
 /-- **Brouwer's fixed-point theorem** for a finite product of standard simplices: a continuous map
 of the set of families `p i`, each with nonnegative entries summing to `1`, into itself has a
@@ -146,9 +141,21 @@ theorem exists_isFixedPt_pi_simplex {ι : Type*} [Finite ι] {S : ι → Type*}
     exact (continuous_simplexRetraction a).comp (f := fun z : (Σ i, S i) → ℝ => fun b => z ⟨i, b⟩)
       (continuous_pi fun b => continuous_apply _)
   · exact (continuous_pi fun z => (continuous_apply z.2).comp (continuous_apply z.1)).continuousOn
-  · intro p hp
-    rw [mem_ofPred_eq] at hp
-    funext i
-    exact simplexRetraction_eq (hp i).1 (hp i).2
+  · exact fun p hp => funext fun i => simplexRetraction_eq (hp i).1 (hp i).2
+
+/-- **Brouwer's fixed-point theorem** for the standard simplex
+`{p : S → ℝ | (∀ a, 0 ≤ p a) ∧ ∑ a, p a = 1}` over a finite nonempty type `S`. -/
+theorem exists_isFixedPt_simplex {S : Type*} [Fintype S] [Nonempty S] {f : (S → ℝ) → S → ℝ}
+    (hf : MapsTo f {p | (∀ a, 0 ≤ p a) ∧ ∑ a, p a = 1} {p | (∀ a, 0 ≤ p a) ∧ ∑ a, p a = 1})
+    (hc : ContinuousOn f {p | (∀ a, 0 ≤ p a) ∧ ∑ a, p a = 1}) :
+    ∃ p : S → ℝ, ((∀ a, 0 ≤ p a) ∧ ∑ a, p a = 1) ∧ IsFixedPt f p := by
+  let Δ : Set (S → ℝ) := {p | (∀ a, 0 ≤ p a) ∧ ∑ a, p a = 1}
+  let PiΔ : Set (Unit → S → ℝ) := {q | ∀ i : Unit, (∀ a, 0 ≤ q i a) ∧ ∑ a, q i a = 1}
+  let g : (Unit → S → ℝ) → Unit → S → ℝ := fun q _ => f (q ())
+  have hg : MapsTo g PiΔ PiΔ := fun q hq _ => hf (hq ())
+  have hgc : ContinuousOn g PiΔ := continuousOn_pi.2 fun _ =>
+    hc.comp ((continuous_apply ()).continuousOn) fun _ hq => hq ()
+  obtain ⟨q, hq, hfix⟩ := exists_isFixedPt_pi_simplex hg hgc
+  exact ⟨q (), hq (), congrFun hfix ()⟩
 
 end Cslib.Brouwer

@@ -37,17 +37,11 @@ theorem even_ncard_symmDiff_singleton_iff {s : Set α} (hs : s.Finite) (a : α) 
   by_cases ha : a ∈ s
   · have h : symmDiff s {a} = s \ {a} := by
       ext x
-      by_cases hx : x = a
-      · subst hx
-        simp [mem_symmDiff, ha]
-      · simp [mem_symmDiff, hx]
+      by_cases hx : x = a <;> simp [mem_symmDiff, hx, ha]
     rw [h, ← ncard_sdiff_singleton_add_one ha hs, Nat.even_add_one, not_not]
   · have h : symmDiff s {a} = insert a s := by
       ext x
-      by_cases hx : x = a
-      · subst hx
-        simp [mem_symmDiff, ha]
-      · simp [mem_symmDiff, hx]
+      by_cases hx : x = a <;> simp [mem_symmDiff, hx, ha]
     rw [h, ncard_insert_of_notMem ha hs, Nat.even_add_one]
 
 end Set

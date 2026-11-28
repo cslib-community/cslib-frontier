@@ -69,12 +69,10 @@ theorem isChain_colorPairs_flatMap {α : Type*} (outer : List α) (blocks : α �
   | nil => simpa only [map_nil, flatMap_nil] using houter
   | cons s outer ih =>
     simp only [map_cons, cons_append, isChain_cons_cons] at houter
-    have hrest : IsChain (fun p q : β × β => p.2 = q.1)
-        ((exit s, exit s) :: outer.map (fun s => (entry s, exit s)) ++ [(b, b)]) := by
-      simpa only [cons_append, isChain_cons] using houter.2
-    have htail := ih hrest (fun s hs => hblocks s (mem_cons_of_mem _ hs))
-    have h := isChain_colorPairs_append (hblocks s (mem_cons_self)) htail
-    simpa only [flatMap_cons, houter.1] using h
+    have htail := ih (by simpa only [cons_append, isChain_cons] using houter.2)
+      fun s hs => hblocks s (mem_cons_of_mem _ hs)
+    simpa only [flatMap_cons, houter.1] using
+      isChain_colorPairs_append (hblocks s mem_cons_self) htail
 
 /-- Differences along matching entry/exit pairs telescope to the endpoint difference,
 including a path with no interior pairs. -/
@@ -82,16 +80,10 @@ theorem sum_sub_eq_of_isChain_colorPairs [AddCommGroup β] {word : List (β × �
     (h : IsChain (fun p q : β × β => p.2 = q.1) ((a, a) :: word ++ [(b, b)])) :
     (word.map fun p => p.2 - p.1).sum = b - a := by
   induction word generalizing a with
-  | nil =>
-    have he : a = b := by
-      simpa only [cons_append, nil_append, isChain_pair] using h
-    simp [he]
+  | nil => simp [show a = b by simpa only [cons_append, nil_append, isChain_pair] using h]
   | cons p word ih =>
     simp only [cons_append, isChain_cons_cons] at h
-    have ht : IsChain (fun p q : β × β => p.2 = q.1)
-        ((p.2, p.2) :: word ++ [(b, b)]) := by
-      simpa only [cons_append, isChain_cons] using h.2
-    rw [map_cons, sum_cons, ih ht, h.1]
+    rw [map_cons, sum_cons, ih (by simpa only [cons_append, isChain_cons] using h.2), h.1]
     exact sub_add_sub_cancel' _ _ _
 
 end List

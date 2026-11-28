@@ -182,17 +182,11 @@ theorem exec {w : ℕ} (rs : List (ℕ × ℕ)) (x : Data 48)
     · ram_keep hcounts using hf
     · rw [hsuc]
       by_cases htake : k = true
-      · rw [ite_eq_left htake]
-        have hm : z.mem = Function.update y.mem (x.regs dst + (selected (y.regs idx)).length)
-            (Math.value (x.regs mode) rs[y.regs idx].1) := by
-          simpa only [htake, ↓reduceIte, hyd, hout] using hzm
-        rw [hm]
+      · simp only [htake, ↓reduceIte, hyd, hout] at hzm ⊢
+        rw [hzm]
         exact hacc.append_one _
-      · have hfalse : k = false := Bool.eq_false_iff.mpr htake
-        rw [ite_eq_right htake, List.append_nil]
-        have hm : z.mem = y.mem := by simpa only [hfalse, Bool.false_eq_true, ↓reduceIte]
-          using hzm
-        simpa only [hm] using hacc
+      · simp only [htake, Bool.false_eq_true, ↓reduceIte, List.append_nil] at hzm ⊢
+        rwa [hzm]
     · intro a hnot
       have hne : a ≠ x.regs dst + y.regs out := by
         intro ha

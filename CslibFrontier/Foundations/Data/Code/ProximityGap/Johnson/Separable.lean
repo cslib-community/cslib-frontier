@@ -74,8 +74,7 @@ theorem exists_separable_contraction_and_bezout {d D B_Z : ℕ}
   have hExpE : ExpChar E q := expChar_of_injective_ringHom hF_to_E q
   obtain ⟨S_E, hS_E_sep, e_sep, hS_E_exp⟩ := hR_E_irred.hasSeparableContraction q
   set μ := q ^ e_sep
-  have hμ_pos : 1 ≤ μ := Nat.one_le_pow e_sep q (by
-    cases hExpF with | zero => omega | prime hp => exact hp.pos)
+  have hμ_pos : 1 ≤ μ := Nat.one_le_pow e_sep q (expChar_pos F q)
   have hμ_ne : μ ≠ 0 := by omega
   have hμ_char : μ = 1 ∨ ∃ (p e : ℕ), CharP F p ∧ p.Prime ∧ μ = p ^ e := by
     cases hExpF with
@@ -87,9 +86,8 @@ theorem exists_separable_contraction_and_bezout {d D B_Z : ℕ}
     rw [Polynomial.coeff_expand hμ_pos]
     split_ifs with hdiv
     · rw [Polynomial.coeff_contract hμ_ne, Nat.div_mul_cancel hdiv]
-    · exact (hι_E_inj (by
-        rw [map_zero, ← coeff_map, ← hS_E_exp, coeff_expand_eq_zero_of_not_dvd hμ_pos S_E hdiv])
-        ).symm
+    · exact hι_E_inj <| by
+        rw [← coeff_map, ← hS_E_exp, coeff_expand_eq_zero_of_not_dvd hμ_pos S_E hdiv, map_zero]
   have hS_map : S.map ι_E = S_E := by
     ext b
     rw [coeff_map, Polynomial.coeff_contract hμ_ne, ← coeff_map, ← hS_E_exp,
@@ -100,14 +98,12 @@ theorem exists_separable_contraction_and_bezout {d D B_Z : ℕ}
     rw [h0, mul_zero] at hdeg_mul; omega
   have hS_wd : ∀ a b, ((S.coeff b).coeff a) ≠ 0 → a + (μ * d) * b ≤ D := fun a b hab => by
     rw [Polynomial.coeff_contract hμ_ne] at hab
-    have hle := (le_weightedDegree (d := d) hab).trans hR_wd
-    linarith [show a + d * (b * μ) = a + (μ * d) * b by ring]
+    rw [show (μ * d) * b = d * (b * μ) by ring]
+    exact (le_weightedDegree (d := d) hab).trans hR_wd
   have hμd_le : μ * d ≤ D := by
-    have hlc : S.coeff S.natDegree ≠ 0 := leadingCoeff_ne_zero.2 fun h => by simp [h] at hS_deg
-    obtain ⟨a, ha⟩ : ∃ a, (S.coeff S.natDegree).coeff a ≠ 0 := by
-      by_contra hall; push Not at hall; exact hlc (by ext a : 2; simpa using hall a)
-    have h1 := hS_wd a S.natDegree ha
-    have h2 : μ * d * 1 ≤ μ * d * S.natDegree := Nat.mul_le_mul_left _ hS_deg
+    have hlc : S.leadingCoeff ≠ 0 := leadingCoeff_ne_zero.2 fun h => by simp [h] at hS_deg
+    have h1 := hS_wd _ _ (leadingCoeff_ne_zero.2 hlc)
+    have h2 := Nat.le_mul_of_pos_right (μ * d) hS_deg
     omega
   have hS_degZ : degZ S ≤ B_Z := degZ_le_iff.2 fun a b => by
     rw [Polynomial.coeff_contract hμ_ne]; exact degZ_le_iff.1 hR_degZ a (b * μ)

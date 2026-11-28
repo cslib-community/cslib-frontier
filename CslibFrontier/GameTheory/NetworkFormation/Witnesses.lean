@@ -217,9 +217,9 @@ variable {k : ℕ} {trunkCost : ℝ} {directCost : Fin k → ℝ}
 theorem broadcastDirectPath_ne_sharedPath (i : Fin k) :
     broadcastDirectPath trunkCost directCost i ≠ broadcastSharedPath trunkCost directCost i := by
   intro h
-  have hlen := congrArg (fun p : (generalBroadcastNetwork k trunkCost directCost).Path i =>
+  have := congrArg (fun p : (generalBroadcastNetwork k trunkCost directCost).Path i =>
     p.arcs.length) h
-  norm_num [FairConnectionGame.Path.arcs, broadcastDirectPath, broadcastSharedPath] at hlen
+  norm_num [FairConnectionGame.Path.arcs, broadcastDirectPath, broadcastSharedPath] at this
 
 private theorem no_arc_from_sink {e : BroadcastArc k} : BroadcastArc.src e ≠ .sink := by
   cases e <;> simp [BroadcastArc.src]
@@ -233,27 +233,25 @@ theorem generalBroadcastNetwork_path_eq_or {i : Fin k}
   obtain ⟨q, hchain, _, hhd, hnil, hlast⟩ := p
   rcases q with _ | ⟨e₁, qs⟩
   · exact absurd (hnil rfl) (by rintro ⟨⟩)
-  · have hsrc₁ : BroadcastArc.src e₁ = .source i := hhd e₁ rfl
-    cases e₁ with
-    | trunk => exact absurd hsrc₁ (by rintro ⟨⟩)
-    | direct j =>
-      cases hsrc₁
-      rcases qs with _ | ⟨_, _⟩
-      · exact Or.inl rfl
-      · exact absurd (List.isChain_cons_cons.mp hchain).1.symm no_arc_from_sink
-    | toHub j =>
-      cases hsrc₁
-      rcases qs with _ | ⟨e₂, rest⟩
-      · exact absurd (hlast (.toHub i) rfl) (by rintro ⟨⟩)
-      · have hsrc₂ : BroadcastArc.src e₂ = .hub := (List.isChain_cons_cons.mp hchain).1.symm
-        cases e₂ with
-        | toHub _ => exact absurd hsrc₂ (by rintro ⟨⟩)
-        | direct _ => exact absurd hsrc₂ (by rintro ⟨⟩)
-        | trunk =>
-          rcases rest with _ | ⟨_, _⟩
-          · exact Or.inr rfl
-          · have hchain' := (List.isChain_cons_cons.mp hchain).2
-            exact absurd (List.isChain_cons_cons.mp hchain').1.symm no_arc_from_sink
+  cases e₁ with
+  | trunk => exact absurd (hhd .trunk rfl) (by rintro ⟨⟩)
+  | direct j =>
+    cases hhd (.direct j) rfl
+    rcases qs with _ | ⟨_, _⟩
+    · exact Or.inl rfl
+    · exact absurd (List.isChain_cons_cons.mp hchain).1.symm no_arc_from_sink
+  | toHub j =>
+    cases hhd (.toHub j) rfl
+    rcases qs with _ | ⟨e₂, rest⟩
+    · exact absurd (hlast (.toHub i) rfl) (by rintro ⟨⟩)
+    cases e₂ with
+    | toHub _ | direct _ =>
+      exact absurd (List.isChain_cons_cons.mp hchain).1.symm (by rintro ⟨⟩)
+    | trunk =>
+      rcases rest with _ | ⟨_, _⟩
+      · exact Or.inr rfl
+      · exact absurd (List.isChain_cons_cons.mp (List.isChain_cons_cons.mp hchain).2).1.symm
+          no_arc_from_sink
 
 /-- Boolean indicator of whether `p` is the private bypass path `broadcastDirectPath`. -/
 @[expose] def broadcastIsDirect {i : Fin k}
@@ -307,29 +305,21 @@ theorem generalBroadcastNetwork_cost
   rcases generalBroadcastNetwork_path_eq_or (s i) with hi | hi
   · rw [hi, broadcastIsDirect_direct]
     simp only [↓reduceIte]
-    have hedges : (generalBroadcastNetwork k trunkCost directCost).pathEdges
-        (broadcastDirectPath trunkCost directCost i) = {.direct i} := rfl
-    have hload : (generalBroadcastNetwork k trunkCost directCost).edgeLoad s (.direct i) = 1 := by
-      rw [FairConnectionGame.edgeLoad, Finset.card_eq_one]
-      refine ⟨i, Finset.ext fun j => ?_⟩
-      rw [Finset.mem_filter, Finset.mem_singleton, mem_pathEdges_direct_iff]
-      by_cases hji : j = i
-      · subst hji
-        simp [hi]
-      · simp [hji]
-    rw [hedges, Finset.sum_singleton, hload, Nat.cast_one, div_one]
+    have hload : (generalBroadcastNetwork k trunkCost directCost).edgeLoad s (.direct i) = 1 :=
+      Finset.card_eq_one.mpr ⟨i, Finset.ext fun j => by
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton,
+          mem_pathEdges_direct_iff]
+        exact ⟨fun h => h.1, fun h => ⟨h, by rw [h, hi, broadcastIsDirect_direct]⟩⟩⟩
+    change ∑ e ∈ ({BroadcastArc.direct i} : Finset (BroadcastArc k)), _ = _
+    rw [Finset.sum_singleton, hload, Nat.cast_one, div_one]
     rfl
   · rw [hi, broadcastIsDirect_shared]
     simp only [Bool.false_eq_true, ↓reduceIte]
-    have hedges : (generalBroadcastNetwork k trunkCost directCost).pathEdges
-        (broadcastSharedPath trunkCost directCost i) = {.toHub i, .trunk} := rfl
-    have hne : (BroadcastArc.toHub i : BroadcastArc k) ≠ .trunk := by rintro ⟨⟩
     have hload : (generalBroadcastNetwork k trunkCost directCost).edgeLoad s .trunk =
-        (Finset.univ.filter fun j => broadcastIsDirect (s j) = false).card := by
-      rw [FairConnectionGame.edgeLoad]
-      congr 1
-      exact Finset.filter_congr fun j _ => mem_pathEdges_trunk_iff (s j)
-    rw [hedges, Finset.sum_pair hne, hload]
+        (Finset.univ.filter fun j => broadcastIsDirect (s j) = false).card :=
+      congrArg Finset.card (Finset.filter_congr fun j _ => mem_pathEdges_trunk_iff (s j))
+    change ∑ e ∈ ({BroadcastArc.toHub i, .trunk} : Finset (BroadcastArc k)), _ = _
+    rw [Finset.sum_pair (by rintro ⟨⟩), hload]
     change 0 / _ + trunkCost / _ = _
     rw [zero_div, zero_add]
 
@@ -381,19 +371,15 @@ theorem broadcastNetwork_socialCost_eq_optOut {k : ℕ} {ε : ℝ}
 
 theorem socialCost_broadcastDirectProfile (k : ℕ) (ε : ℝ) :
     (broadcastNetwork k ε).toCostGame.socialCost (broadcastDirectProfile k ε) = harmonic k := by
-  rw [broadcastNetwork_socialCost_eq_optOut]
-  have htrue :
-      (fun j : Fin k => broadcastIsDirect (broadcastDirectProfile k ε j)) = fun _ => true :=
-    funext fun j => broadcastIsDirect_direct j
-  rw [htrue, CongestionGame.socialCost_optOut_true]
+  have htrue : (fun j => broadcastIsDirect (broadcastDirectProfile k ε j)) = fun _ => true :=
+    funext broadcastIsDirect_direct
+  rw [broadcastNetwork_socialCost_eq_optOut, htrue, CongestionGame.socialCost_optOut_true]
 
 theorem socialCost_broadcastSharedProfile {k : ℕ} (hk : k ≠ 0) (ε : ℝ) :
     (broadcastNetwork k ε).toCostGame.socialCost (broadcastSharedProfile k ε) = 1 + ε := by
-  rw [broadcastNetwork_socialCost_eq_optOut]
-  have hfalse :
-      (fun j : Fin k => broadcastIsDirect (broadcastSharedProfile k ε j)) = fun _ => false :=
-    funext fun j => broadcastIsDirect_shared j
-  rw [hfalse, CongestionGame.socialCost_optOut_false hk]
+  have hfalse : (fun j => broadcastIsDirect (broadcastSharedProfile k ε j)) = fun _ => false :=
+    funext broadcastIsDirect_shared
+  rw [broadcastNetwork_socialCost_eq_optOut, hfalse, CongestionGame.socialCost_optOut_false hk]
 
 private theorem broadcastIsDirect_update {k : ℕ} {ε : ℝ}
     (s : ∀ i, (broadcastNetwork k ε).Path i) (i : Fin k) (b : Bool) :
@@ -410,18 +396,12 @@ theorem isPureNash_broadcastNetwork_iff_optOut {k : ℕ} {ε : ℝ}
     (s : ∀ i, (broadcastNetwork k ε).Path i) :
     (broadcastNetwork k ε).toCostGame.IsPureNash s ↔
       (CongestionGame.optOut k ε).toCostGame.IsPureNash (fun j => broadcastIsDirect (s j)) := by
-  constructor
-  · intro hs i b
-    have h := hs i (if b then broadcastDirectProfile k ε i else broadcastSharedProfile k ε i)
-    rwa [broadcastNetwork_cost_eq_optOut, broadcastNetwork_cost_eq_optOut,
-      broadcastIsDirect_update] at h
-  · intro hs i a
-    have h := hs i (broadcastIsDirect a)
-    rw [← broadcastNetwork_cost_eq_optOut, ← broadcastIsDirect_update,
-      ← broadcastNetwork_cost_eq_optOut] at h
-    have ha : (if broadcastIsDirect a then broadcastDirectProfile k ε i
-        else broadcastSharedProfile k ε i) = a := (broadcastPath_eq_ite a).symm
-    rwa [ha] at h
+  refine ⟨fun hs i b => ?_, fun hs i a => ?_⟩
+  · simpa only [broadcastNetwork_cost_eq_optOut, broadcastIsDirect_update] using
+      hs i (if b then broadcastDirectProfile k ε i else broadcastSharedProfile k ε i)
+  · have h := hs i (broadcastIsDirect a)
+    rwa [← broadcastNetwork_cost_eq_optOut, ← broadcastIsDirect_update,
+      ← broadcastNetwork_cost_eq_optOut, ← broadcastPath_eq_ite a] at h
 
 /-- **For `ε > 0`, the unique pure Nash equilibrium of `broadcastNetwork k ε` is the all-direct
 profile** ([RoughgardenTardos2007], Example 17.3; [TardosWexler2007], Section 19.3.1). -/
@@ -429,16 +409,11 @@ theorem isPureNash_broadcastNetwork_iff {k : ℕ} {ε : ℝ} (hε : 0 < ε)
     (s : ∀ i, (broadcastNetwork k ε).Path i) :
     (broadcastNetwork k ε).toCostGame.IsPureNash s ↔ s = broadcastDirectProfile k ε := by
   rw [isPureNash_broadcastNetwork_iff_optOut, CongestionGame.isPureNash_optOut_iff hε]
-  constructor
-  · intro h
-    funext i
-    have hi : broadcastIsDirect (s i) = true := congrFun h i
-    have hp := broadcastPath_eq_ite (s i)
-    rw [hi] at hp
-    simpa [broadcastDirectProfile] using hp
+  refine ⟨fun h => funext fun i => ?_, ?_⟩
+  · have hp := broadcastPath_eq_ite (s i)
+    simpa [congrFun h i, broadcastDirectProfile] using hp
   · rintro rfl
-    funext i
-    exact broadcastIsDirect_direct i
+    exact funext broadcastIsDirect_direct
 
 /-- **Tightness of Anshelevich et al.'s `H_k` price-of-stability bound on single-sink directed
 networks** ([AnshelevichDKTWR2008]; [TardosWexler2007], Section 19.3.1): for `k ≥ 1` players and
@@ -463,23 +438,15 @@ theorem exists_forall_isPureNash_broadcastNetwork_mul_lt {k : ℕ} (hk : k ≠ 0
 `broadcastNetwork k 0`. -/
 theorem isPureNash_broadcastDirect_zero (k : ℕ) :
     (broadcastNetwork k 0).toCostGame.IsPureNash (broadcastDirectProfile k 0) := by
-  rw [isPureNash_broadcastNetwork_iff_optOut]
-  have htrue :
-      (fun j : Fin k => broadcastIsDirect (broadcastDirectProfile k 0 j)) = fun _ => true :=
-    funext fun j => broadcastIsDirect_direct j
-  rw [htrue]
+  have htrue : (fun j => broadcastIsDirect (broadcastDirectProfile k 0 j)) = fun _ => true :=
+    funext broadcastIsDirect_direct
+  rw [isPureNash_broadcastNetwork_iff_optOut, htrue]
   intro i b
   cases b
-  · rw [CongestionGame.optOut_cost, CongestionGame.optOut_cost, Function.update_self]
-    simp only [Bool.false_eq_true, ↓reduceIte]
-    have hcard : (Finset.univ.filter fun j =>
-        Function.update (fun _ : Fin k => true) i false j = false).card = 1 := by
-      rw [Finset.card_eq_one]
-      refine ⟨i, Finset.ext fun j => ?_⟩
-      by_cases hji : j = i
-      · subst hji; simp
-      · simp [hji]
-    rw [hcard, Nat.cast_one, add_zero, div_one]
+  · simp only [CongestionGame.optOut_cost, Function.update_self, Bool.false_eq_true, ↓reduceIte]
+    rw [Finset.card_eq_one.mpr ⟨i, Finset.ext fun j => by
+      by_cases h : j = i <;> simp [h]⟩]
+    simp only [Nat.cast_one, add_zero, div_one]
     exact div_le_self zero_le_one (by norm_cast; omega)
   · rw [Function.update_eq_self]
 
@@ -487,20 +454,15 @@ theorem isPureNash_broadcastDirect_zero (k : ℕ) :
 pure Nash equilibrium of `broadcastNetwork k 0`: each player pays `1 / k ≤ 1 / (i + 1)`. -/
 theorem isPureNash_broadcastShared_zero (k : ℕ) :
     (broadcastNetwork k 0).toCostGame.IsPureNash (broadcastSharedProfile k 0) := by
-  rw [isPureNash_broadcastNetwork_iff_optOut]
-  have hfalse :
-      (fun j : Fin k => broadcastIsDirect (broadcastSharedProfile k 0 j)) = fun _ => false :=
-    funext fun j => broadcastIsDirect_shared j
-  rw [hfalse]
+  have hfalse : (fun j => broadcastIsDirect (broadcastSharedProfile k 0 j)) = fun _ => false :=
+    funext broadcastIsDirect_shared
+  rw [isPureNash_broadcastNetwork_iff_optOut, hfalse]
   intro i b
   cases b
   · rw [Function.update_eq_self]
-  · rw [CongestionGame.optOut_cost, CongestionGame.optOut_cost, Function.update_self]
-    have hcard :
-        (Finset.univ.filter fun j : Fin k => (fun _ : Fin k => false) j = false).card = k := by
-      simp
-    rw [hcard]
-    simp only [Bool.false_eq_true, ↓reduceIte, add_zero]
+  · rw [CongestionGame.optOut_cost, CongestionGame.optOut_cost, Function.update_self,
+      Finset.filter_true_of_mem fun _ _ => rfl]
+    simp only [Finset.card_univ, Fintype.card_fin, Bool.false_eq_true, ↓reduceIte, add_zero]
     exact one_div_le_one_div_of_le (by positivity) (by exact_mod_cast Nat.succ_le_of_lt i.isLt)
 
 /-! ### 2. Undirected single-sink counterpart (`PoS = 1`) -/
@@ -586,58 +548,34 @@ theorem cost_undirectedViaLastProfile {k : ℕ} (hk : 0 < k) (ε : ℝ) (i : Fin
     (undirectedBroadcastNetwork k ε).toCostGame.cost i (undirectedViaLastProfile hk ε) =
       (1 / (k : ℝ)) / k := by
   have hlast_val : (((broadcastLast hk : Fin k) : ℕ) : ℝ) + 1 = k := by
-    have : ((broadcastLast hk : Fin k) : ℕ) + 1 = k := Nat.sub_add_cancel hk
-    exact_mod_cast this
+    exact_mod_cast Nat.sub_add_cancel hk
   have hload : (undirectedBroadcastNetwork k ε).edgeLoad (undirectedViaLastProfile hk ε)
       s(.source (broadcastLast hk), .sink) = k := by
     rw [UndirectedFairConnectionGame.edgeLoad, Finset.filter_true_of_mem fun j _ =>
       last_edge_mem_undirectedViaLastProfile hk ε j, Finset.card_univ, Fintype.card_fin]
-  rw [UndirectedFairConnectionGame.toCostGame_cost]
-  have hpath : undirectedViaLastProfile hk ε i =
-      if hi : i = broadcastLast hk then
-        SimpleGraph.Path.singleton (undirectedAdj_source_sink i)
-      else
-        ⟨SimpleGraph.Walk.cons (undirectedAdj_source_hub i)
-            (SimpleGraph.Walk.cons (undirectedAdj_source_hub (broadcastLast hk)).symm
-              (SimpleGraph.Walk.cons (undirectedAdj_source_sink (broadcastLast hk))
-                SimpleGraph.Walk.nil)),
-          (SimpleGraph.Walk.isPath_def _).mpr (by simp [hi])⟩ := rfl
-  rw [hpath]
-  split_ifs with hi
-  · rw [hi]
-    have hedges : (undirectedBroadcastNetwork k ε).pathEdges
-        (SimpleGraph.Path.singleton (undirectedAdj_source_sink (broadcastLast hk))) =
-          {s(.source (broadcastLast hk), .sink)} := by
-      ext e
-      simp [UndirectedFairConnectionGame.pathEdges, SimpleGraph.Path.singleton]
-    rw [hedges, Finset.sum_singleton, hload]
-    change (1 / ((((broadcastLast hk : Fin k) : ℕ) : ℝ) + 1)) / k = _
-    rw [hlast_val]
-  · let p : (undirectedBroadcastNetwork k ε).Path i :=
-      ⟨SimpleGraph.Walk.cons (undirectedAdj_source_hub i)
-          (SimpleGraph.Walk.cons (undirectedAdj_source_hub (broadcastLast hk)).symm
-            (SimpleGraph.Walk.cons (undirectedAdj_source_sink (broadcastLast hk))
-              SimpleGraph.Walk.nil)),
-        (SimpleGraph.Walk.isPath_def _).mpr (by simp [hi])⟩
-    have hzero : ∀ e ∈ (undirectedBroadcastNetwork k ε).pathEdges p,
-        e ≠ s(.source (broadcastLast hk), .sink) →
-        (undirectedBroadcastNetwork k ε).edgeCost e /
-          (undirectedBroadcastNetwork k ε).edgeLoad (undirectedViaLastProfile hk ε) e = 0 := by
-      intro e he hne
-      simp only [UndirectedFairConnectionGame.pathEdges, List.mem_toFinset, p,
+  have hzero (e) (he : e ∈ (undirectedBroadcastNetwork k ε).pathEdges
+      (undirectedViaLastProfile hk ε i))
+      (hne : e ≠ s(.source (broadcastLast hk), .sink)) :
+      (undirectedBroadcastNetwork k ε).edgeCost e /
+        (undirectedBroadcastNetwork k ε).edgeLoad (undirectedViaLastProfile hk ε) e = 0 := by
+    unfold undirectedViaLastProfile at he
+    split_ifs at he with hi
+    · rw [hi] at he
+      simp only [UndirectedFairConnectionGame.pathEdges, SimpleGraph.Path.singleton,
+        SimpleGraph.Walk.edges_cons, SimpleGraph.Walk.edges_nil, List.mem_toFinset,
+        List.mem_singleton] at he
+      exact absurd he hne
+    · simp only [UndirectedFairConnectionGame.pathEdges, List.mem_toFinset,
         SimpleGraph.Walk.edges_cons, SimpleGraph.Walk.edges_nil, List.mem_cons,
         List.not_mem_nil, or_false] at he
       rcases he with rfl | rfl | rfl
       · simp [undirectedBroadcastEdgeCost, broadcastPairCost]
       · simp [undirectedBroadcastEdgeCost, broadcastPairCost]
       · exact absurd rfl hne
-    have hmem : s(.source (broadcastLast hk), .sink) ∈
-        (undirectedBroadcastNetwork k ε).pathEdges p := by
-      simp [UndirectedFairConnectionGame.pathEdges, p]
-    change ∑ e ∈ (undirectedBroadcastNetwork k ε).pathEdges p, _ = _
-    rw [Finset.sum_eq_single_of_mem s(.source (broadcastLast hk), .sink) hmem hzero, hload]
-    change (1 / ((((broadcastLast hk : Fin k) : ℕ) : ℝ) + 1)) / k = _
-    rw [hlast_val]
+  rw [UndirectedFairConnectionGame.toCostGame_cost,
+    Finset.sum_eq_single_of_mem _ (last_edge_mem_undirectedViaLastProfile hk ε i) hzero, hload]
+  change (1 / ((((broadcastLast hk : Fin k) : ℕ) : ℝ) + 1)) / k = _
+  rw [hlast_val]
 
 theorem socialCost_undirectedViaLastProfile {k : ℕ} (hk : 0 < k) (ε : ℝ) :
     (undirectedBroadcastNetwork k ε).toCostGame.socialCost (undirectedViaLastProfile hk ε) =
@@ -756,62 +694,53 @@ theorem parallelNetwork_edgeCost_nonneg {k : ℕ} {ε : ℝ} (hε : 0 ≤ ε) :
   | true => by change 0 ≤ 1 + ε; linarith
   | false => Nat.cast_nonneg k
 
+private theorem formedEdges_parallel_singleton {k : ℕ} (hk : k ≠ 0) {ε : ℝ} {b : Bool}
+    {s : ∀ i, (parallelNetwork k ε).Path i} (hs : ∀ i, (s i).arcs = [b]) :
+    (parallelNetwork k ε).formedEdges s = {b} := by
+  ext e
+  simp only [FairConnectionGame.formedEdges, Finset.mem_biUnion, Finset.mem_univ, true_and,
+    FairConnectionGame.pathEdges, hs, List.toFinset_cons, List.toFinset_nil, insert_empty_eq,
+    Finset.mem_singleton]
+  exact ⟨fun ⟨_, he⟩ => he, fun he => ⟨⟨0, Nat.pos_of_ne_zero hk⟩, he⟩⟩
+
 theorem socialCost_parallelCheapProfile {k : ℕ} (hk : k ≠ 0) (ε : ℝ) :
     (parallelNetwork k ε).toCostGame.socialCost (parallelCheapProfile k ε) = 1 + ε := by
-  rw [FairConnectionGame.socialCost_eq_sum_formedEdges]
-  have hformed : (parallelNetwork k ε).formedEdges (parallelCheapProfile k ε) = {true} := by
-    ext b
-    simp only [FairConnectionGame.formedEdges, Finset.mem_biUnion, Finset.mem_univ, true_and,
-      FairConnectionGame.pathEdges, FairConnectionGame.Path.arcs, parallelCheapProfile,
-      parallelCheapPath, List.toFinset_cons, List.toFinset_nil, insert_empty_eq,
-      Finset.mem_singleton]
-    exact ⟨fun ⟨_, hb⟩ => hb, fun hb => ⟨⟨0, Nat.pos_of_ne_zero hk⟩, hb⟩⟩
-  rw [hformed, Finset.sum_singleton]
+  rw [FairConnectionGame.socialCost_eq_sum_formedEdges,
+    formedEdges_parallel_singleton hk fun _ => rfl, Finset.sum_singleton]
   rfl
 
 theorem socialCost_parallelExpensiveProfile {k : ℕ} (hk : k ≠ 0) (ε : ℝ) :
     (parallelNetwork k ε).toCostGame.socialCost (parallelExpensiveProfile k ε) = k := by
-  rw [FairConnectionGame.socialCost_eq_sum_formedEdges]
-  have hformed : (parallelNetwork k ε).formedEdges (parallelExpensiveProfile k ε) = {false} := by
-    ext b
-    simp only [FairConnectionGame.formedEdges, Finset.mem_biUnion, Finset.mem_univ, true_and,
-      FairConnectionGame.pathEdges, FairConnectionGame.Path.arcs, parallelExpensiveProfile,
-      parallelExpensivePath, List.toFinset_cons, List.toFinset_nil, insert_empty_eq,
-      Finset.mem_singleton]
-    exact ⟨fun ⟨_, hb⟩ => hb, fun hb => ⟨⟨0, Nat.pos_of_ne_zero hk⟩, hb⟩⟩
-  rw [hformed, Finset.sum_singleton]
+  rw [FairConnectionGame.socialCost_eq_sum_formedEdges,
+    formedEdges_parallel_singleton hk fun _ => rfl, Finset.sum_singleton]
   rfl
 
 /-- At `parallelExpensiveProfile k ε`, each player pays `1` (`= k / k`). -/
 theorem cost_parallelExpensiveProfile {k : ℕ} (hk : k ≠ 0) (ε : ℝ) (i : Fin k) :
     (parallelNetwork k ε).toCostGame.cost i (parallelExpensiveProfile k ε) = 1 := by
   rw [FairConnectionGame.toCostGame_cost]
-  have hedges : (parallelNetwork k ε).pathEdges (parallelExpensiveProfile k ε i) = {false} := rfl
   have hload : (parallelNetwork k ε).edgeLoad (parallelExpensiveProfile k ε) false = k := by
     rw [FairConnectionGame.edgeLoad,
       Finset.filter_true_of_mem fun _ _ => by
         simp [FairConnectionGame.pathEdges, FairConnectionGame.Path.arcs, parallelExpensiveProfile,
           parallelExpensivePath],
       Finset.card_univ, Fintype.card_fin]
-  have hkR : (k : ℝ) ≠ 0 := by exact_mod_cast hk
-  rw [hedges, Finset.sum_singleton, hload]
-  exact div_self hkR
+  change ∑ b ∈ ({false} : Finset Bool), _ = 1
+  rw [Finset.sum_singleton, hload]
+  exact div_self (Nat.cast_ne_zero.mpr hk)
 
 private theorem cost_update_parallelExpensive_cheap {k : ℕ} (ε : ℝ) (i : Fin k) :
     (parallelNetwork k ε).toCostGame.cost i
       (Function.update (parallelExpensiveProfile k ε) i (parallelCheapPath k ε i)) = 1 + ε := by
   rw [FairConnectionGame.toCostGame_cost, Function.update_self]
-  have hedges : (parallelNetwork k ε).pathEdges (parallelCheapPath k ε i) = {true} := rfl
   have hload : (parallelNetwork k ε).edgeLoad
-      (Function.update (parallelExpensiveProfile k ε) i (parallelCheapPath k ε i)) true = 1 := by
-    rw [FairConnectionGame.edgeLoad, Finset.card_eq_one]
-    refine ⟨i, Finset.ext fun j => ?_⟩
-    by_cases hji : j = i
-    · subst hji
-      simp [FairConnectionGame.pathEdges, FairConnectionGame.Path.arcs, parallelCheapPath]
-    · simp [hji, FairConnectionGame.pathEdges, FairConnectionGame.Path.arcs,
-        parallelExpensiveProfile, parallelExpensivePath]
-  rw [hedges, Finset.sum_singleton, hload, Nat.cast_one, div_one]
+      (Function.update (parallelExpensiveProfile k ε) i (parallelCheapPath k ε i)) true = 1 :=
+    Finset.card_eq_one.mpr ⟨i, Finset.ext fun j => by
+      by_cases hji : j = i <;>
+        simp [hji, FairConnectionGame.pathEdges, FairConnectionGame.Path.arcs, parallelCheapPath,
+          parallelExpensiveProfile, parallelExpensivePath]⟩
+  change ∑ b ∈ ({true} : Finset Bool), _ = 1 + ε
+  rw [Finset.sum_singleton, hload, Nat.cast_one, div_one]
   rfl
 
 /-- **All players sharing the cost-`k` arc is a pure Nash equilibrium** for `k ≥ 1` and `ε ≥ 0`:
@@ -949,44 +878,40 @@ theorem potentialGapNetwork_best_nash_not_min_potential :
     rw [hsum]
     simp only [zero_mul, Finset.sum_const_zero, zero_add]
     have htrunk : potentialGapNetwork.edgeLoad s .trunk =
-        (Finset.univ.filter fun j : Fin 3 => broadcastIsDirect (s j) = false).card := by
-      rw [FairConnectionGame.edgeLoad]
-      congr 1
-      exact Finset.filter_congr fun j _ => mem_pathEdges_trunk_iff (s j)
-    have hdir : ∀ i : Fin 3, (harmonic (potentialGapNetwork.edgeLoad s (.direct i)) : ℝ) =
-        if broadcastIsDirect (s i) = true then 1 else 0 := fun i => by
+        (Finset.univ.filter fun j : Fin 3 => broadcastIsDirect (s j) = false).card :=
+      congrArg Finset.card (Finset.filter_congr fun j _ => mem_pathEdges_trunk_iff (s j))
+    have hdir (i : Fin 3) : (harmonic (potentialGapNetwork.edgeLoad s (.direct i)) : ℝ) =
+        if broadcastIsDirect (s i) = true then 1 else 0 := by
       by_cases hi : broadcastIsDirect (s i) = true
-      · have hl : potentialGapNetwork.edgeLoad s (.direct i) = 1 := by
-          rw [FairConnectionGame.edgeLoad, Finset.card_eq_one]
-          refine ⟨i, Finset.ext fun j => ?_⟩
-          rw [Finset.mem_filter, Finset.mem_singleton, mem_pathEdges_direct_iff]
-          by_cases hji : j = i
-          · subst hji; simp [hi]
-          · simp [hji]
+      · have hl : potentialGapNetwork.edgeLoad s (.direct i) = 1 :=
+          Finset.card_eq_one.mpr ⟨i, Finset.ext fun j => by
+            simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton,
+              mem_pathEdges_direct_iff]
+            exact ⟨fun h => h.1, fun h => ⟨h, h ▸ hi⟩⟩⟩
         rw [hl, harmonic_succ, harmonic_zero]
         simp [hi]
-      · have hl : potentialGapNetwork.edgeLoad s (.direct i) = 0 := by
-          rw [FairConnectionGame.edgeLoad, Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-          intro j _ hmem
-          obtain ⟨rfl, hd⟩ := (mem_pathEdges_direct_iff (s j)).1 hmem
-          exact hi hd
-        rw [hl, harmonic_zero, Rat.cast_zero]
-        simp [hi]
+      · have hl : potentialGapNetwork.edgeLoad s (.direct i) = 0 :=
+          Finset.card_eq_zero.mpr <| Finset.filter_eq_empty_iff.mpr fun j _ hmem =>
+            let ⟨hji, hd⟩ := (mem_pathEdges_direct_iff (s j)).1 hmem
+            hi (hji ▸ hd)
+        simp [hl, hi, harmonic_zero]
     rw [htrunk, Finset.sum_congr rfl fun i _ => by rw [hdir i], ← Finset.mul_sum]
     simp only [Finset.card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
   have hpot_direct : potentialGapNetwork.potential potentialGapDirect = 18 / 5 := by
-    rw [hpot_formula]
-    simp [potentialGapDirect]
+    rw [hpot_formula,
+      Finset.filter_true_of_mem fun j _ => broadcastIsDirect_direct (trunkCost := 2)
+        (directCost := fun _ => 6 / 5) j]
+    simp only [potentialGapDirect, broadcastIsDirect_direct, Bool.true_eq_false,
+      Finset.filter_false, Finset.card_empty, harmonic_zero, Rat.cast_zero, mul_zero, zero_add,
+      Finset.card_univ, Fintype.card_fin]
     norm_num
   have hpot_shared : potentialGapNetwork.potential potentialGapShared = 11 / 3 := by
-    rw [hpot_formula]
-    have hc1 : (Finset.univ.filter fun j : Fin 3 =>
-        broadcastIsDirect (potentialGapShared j) = false).card = 3 := by
-      simp [potentialGapShared]
-    have hc2 : (Finset.univ.filter fun j : Fin 3 =>
-        broadcastIsDirect (potentialGapShared j) = true).card = 0 := by
-      simp [potentialGapShared]
-    rw [hc1, hc2, harmonic_succ, harmonic_succ, harmonic_succ, harmonic_zero]
+    rw [hpot_formula,
+      Finset.filter_true_of_mem fun j _ => broadcastIsDirect_shared (trunkCost := 2)
+        (directCost := fun _ => 6 / 5) j]
+    simp only [potentialGapShared, broadcastIsDirect_shared, Finset.card_univ, Fintype.card_fin,
+      Bool.false_eq_true, Finset.filter_false, Finset.card_empty, Nat.cast_zero, mul_zero,
+      add_zero, harmonic_succ, harmonic_zero]
     norm_num
   refine ⟨?_, ?_, ?_, ?_, by linarith, by linarith⟩
   · intro i a
@@ -994,49 +919,33 @@ theorem potentialGapNetwork_best_nash_not_min_potential :
     rcases generalBroadcastNetwork_path_eq_or a with rfl | rfl
     · rw [Function.update_self, broadcastIsDirect_direct]
       norm_num
-    · have hsame : Function.update potentialGapShared i (broadcastSharedPath 2 (fun _ => 6 / 5) i) =
-          potentialGapShared := Function.update_eq_self i _
-      rw [hsame]
+    · rw [Function.update_eq_self i potentialGapShared]
       simp [potentialGapShared]
   · intro s
     rw [hsc_shared]
     by_cases hall : ∀ j : Fin 3, broadcastIsDirect (s j) = true
     · have hs_eq : s = potentialGapDirect := funext fun j => by
-        have hp := broadcastPath_eq_ite (s j)
-        rw [hall j] at hp
-        exact hp
+        simpa [hall j] using broadcastPath_eq_ite (s j)
       rw [hs_eq, hsc_direct]
       norm_num
     · push Not at hall
       obtain ⟨j, hj⟩ := hall
-      have hjf : broadcastIsDirect (s j) = false := Bool.eq_false_iff.2 hj
       rw [FairConnectionGame.socialCost_eq_sum_formedEdges]
-      have hmem : BroadcastArc.trunk ∈ potentialGapNetwork.formedEdges s := by
-        rw [FairConnectionGame.formedEdges, Finset.mem_biUnion]
-        exact ⟨j, Finset.mem_univ j, (mem_pathEdges_trunk_iff (s j)).2 hjf⟩
-      have hnonneg : ∀ e ∈ potentialGapNetwork.formedEdges s,
-          0 ≤ potentialGapNetwork.edgeCost e := fun e _ => by
-        cases e <;> norm_num [potentialGapNetwork, generalBroadcastNetwork, generalBroadcastArcCost]
+      have hmem : BroadcastArc.trunk ∈ potentialGapNetwork.formedEdges s :=
+        Finset.mem_biUnion.2 ⟨j, Finset.mem_univ j,
+          (mem_pathEdges_trunk_iff (s j)).2 (Bool.eq_false_iff.2 hj)⟩
       exact (show (2 : ℝ) = potentialGapNetwork.edgeCost .trunk from rfl).trans_le
-        (Finset.single_le_sum hnonneg hmem)
+        (Finset.single_le_sum (fun e _ => by
+          cases e <;> norm_num [potentialGapNetwork, generalBroadcastNetwork,
+            generalBroadcastArcCost]) hmem)
   · intro i a
     rw [hcost_direct i, generalBroadcastNetwork_cost]
     rcases generalBroadcastNetwork_path_eq_or a with rfl | rfl
-    · have hsame : Function.update potentialGapDirect i (broadcastDirectPath 2 (fun _ => 6 / 5) i) =
-          potentialGapDirect := Function.update_eq_self i _
-      rw [hsame]
+    · rw [Function.update_eq_self i potentialGapDirect]
       simp [potentialGapDirect]
-    · rw [Function.update_self, broadcastIsDirect_shared]
-      simp only [Bool.false_eq_true, ↓reduceIte]
-      have hcard : (Finset.univ.filter fun j : Fin 3 =>
-          broadcastIsDirect (Function.update potentialGapDirect i
-            (broadcastSharedPath 2 (fun _ => 6 / 5) i) j) = false).card = 1 := by
-        rw [Finset.card_eq_one]
-        refine ⟨i, Finset.ext fun j => ?_⟩
-        by_cases hji : j = i
-        · subst hji; simp
-        · simp [hji, potentialGapDirect]
-      rw [hcard]
+    · rw [Function.update_self, broadcastIsDirect_shared,
+        Finset.card_eq_one.mpr ⟨i, Finset.ext fun j => by
+          by_cases h : j = i <;> simp [h, potentialGapDirect]⟩]
       norm_num
   · intro s
     rw [hpot_direct, hpot_formula]

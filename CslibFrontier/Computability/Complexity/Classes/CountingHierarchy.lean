@@ -64,43 +64,29 @@ variable {α β γ : Type} {input : α ↪ List Bool} {middle : β ↪ List Bool
 @[simp] theorem CountingLevel_zero : CountingLevel 0 input = P input := rfl
 
 /-- The first decision level is ordinary PP: a polynomial-time oracle can be eliminated. -/
-@[simp] theorem CountingLevel_one : CountingLevel 1 input = PP input := by
-  apply Set.Subset.antisymm
-  · rintro L ⟨A, hA, hL⟩
-    exact PPWithOracle_eq_PP hA input ▸ hL
-  · intro L hL
-    exact ⟨∅, empty_mem_P, PP_subset_PPWithOracle ∅ input hL⟩
+@[simp] theorem CountingLevel_one : CountingLevel 1 input = PP input :=
+  Set.Subset.antisymm (fun _ ⟨_, hA, hL⟩ => PPWithOracle_eq_PP hA input ▸ hL)
+    fun _ hL => ⟨∅, empty_mem_P, PP_subset_PPWithOracle ∅ input hL⟩
 
 /-- The zeroth function level is ordinary polynomial-time computation. -/
 @[simp] theorem mem_CountingFunction_zero {f : α → β} :
-    f ∈ CountingFunction 0 input middle ↔ ComputableInPolyTime f input middle := by
-  constructor
-  · rintro ⟨A, hA, hf⟩
-    exact hf.computableInPolyTime hA
-  · intro hf
-    exact ⟨∅, empty_mem_P, hf.computableInPolyTimeWithOracle ∅⟩
+    f ∈ CountingFunction 0 input middle ↔ ComputableInPolyTime f input middle :=
+  ⟨fun ⟨_, hA, hf⟩ => hf.computableInPolyTime hA,
+    fun hf => ⟨∅, empty_mem_P, hf.computableInPolyTimeWithOracle ∅⟩⟩
 
 /-- Every decision level contains P. -/
 theorem P_subset_CountingLevel (a : ℕ) : P input ⊆ CountingLevel a input := by
-  cases a with
-  | zero => exact Set.Subset.refl _
-  | succ a =>
-    intro L hL
-    have hempty : (∅ : Set (List Bool)) ∈ CountingLevel a encBits := by
-      induction a with
-      | zero => exact empty_mem_P
-      | succ a ih => exact ⟨∅, ih, PP_subset_PPWithOracle ∅ encBits
-          (P_subset_PP empty_mem_P)⟩
-    exact ⟨∅, hempty, PP_subset_PPWithOracle ∅ input (P_subset_PP hL)⟩
+  induction a generalizing α with
+  | zero => exact Set.Subset.rfl
+  | succ _ ih =>
+    exact fun _ hL => ⟨∅, ih empty_mem_P, PP_subset_PPWithOracle ∅ input (P_subset_PP hL)⟩
 
 /-- The decision levels are increasing. -/
 theorem CountingLevel_subset_succ (a : ℕ) :
     CountingLevel a input ⊆ CountingLevel (a + 1) input := by
   induction a generalizing α with
   | zero => exact P_subset_CountingLevel 1
-  | succ a ih =>
-    rintro L ⟨A, hA, hL⟩
-    exact ⟨A, ih hA, hL⟩
+  | succ _ ih => exact fun _ ⟨A, hA, hL⟩ => ⟨A, ih hA, hL⟩
 
 /-- Monotonicity in the level index. -/
 theorem CountingLevel_mono (hab : a ≤ b) : CountingLevel a input ⊆ CountingLevel b input := by
@@ -114,7 +100,7 @@ theorem PolyTimeReducible.mem_CountingLevel {L : Set α} {M : Set β}
     L ∈ CountingLevel a input := by
   cases a with
   | zero => exact h.mem_P hM
-  | succ a =>
+  | succ _ =>
     obtain ⟨A, hA, hM⟩ := hM
     exact ⟨A, hA, h.mem_PPWithOracle hM⟩
 
@@ -137,16 +123,17 @@ theorem taggedUnion_mem_CountingLevel {A B : Set (List Bool)}
   | zero =>
     obtain ⟨f, hf, hA⟩ := hA
     obtain ⟨g, hg, hB⟩ := hB
-    have hc : ComputableInPolyTime (fun w : List Bool => w.headD false) encBits encBool :=
-      by fun_prop
     refine ⟨fun w => if w.headD false then g w.tail else f w.tail,
-      ComputableInPolyTime.ite' hc (hg.comp (by fun_prop)) (hf.comp (by fun_prop)), fun w => ?_⟩
+      ComputableInPolyTime.ite'
+        (by fun_prop : ComputableInPolyTime (fun w : List Bool => w.headD false) encBits encBool)
+        (hg.comp (by fun_prop)) (hf.comp (by fun_prop)),
+      fun w => ?_⟩
     change (if w.headD false then w.tail ∈ B else w.tail ∈ A) ↔
       (if w.headD false then g w.tail else f w.tail) = true
-    by_cases ht : w.headD false = true
-    · simpa only [ht, ↓reduceIte] using hB w.tail
+    cases ht : w.headD false
     · simpa only [ht, Bool.false_eq_true, ↓reduceIte] using hA w.tail
-  | succ a ih =>
+    · simpa only [ht, ↓reduceIte] using hB w.tail
+  | succ _ ih =>
     obtain ⟨O₀, hO₀, hA⟩ := hA
     obtain ⟨O₁, hO₁, hB⟩ := hB
     exact ⟨taggedUnion O₀ O₁, ih hO₀ hO₁,
@@ -190,14 +177,10 @@ theorem exists_common_oracle {ι : Type} [Finite ι] {f : ι → α → β}
   classical
   let := Fintype.ofFinite ι
   choose oracle hlevel hcert using hf
-  let languages := Finset.univ.toList.map oracle
-  have hmem (i : ι) : oracle i ∈ languages :=
-    List.mem_map.mpr ⟨i, by simp, rfl⟩
-  refine ⟨taggedUnions languages, taggedUnions_mem_CountingLevel ?_, fun i =>
-    (hcert i).of_polyTimeReducible (reduces_taggedUnions (hmem i))⟩
-  intro L hL
-  obtain ⟨i, _, rfl⟩ := List.mem_map.mp hL
-  exact hlevel i
+  refine ⟨taggedUnions (Finset.univ.toList.map oracle),
+    taggedUnions_mem_CountingLevel (List.forall_mem_map.2 fun i _ => hlevel i),
+    fun i => (hcert i).of_polyTimeReducible
+      (reduces_taggedUnions (List.mem_map.mpr ⟨i, by simp, rfl⟩))⟩
 
 /-- Ordinary polynomial-time functions belong to every function level. -/
 theorem of_polyTime {f : α → β} (hf : ComputableInPolyTime f input middle) :
@@ -255,14 +238,10 @@ theorem ite {c : α → Bool} {f g : α → β}
     (hc : c ∈ CountingFunction a input encBool)
     (hf : f ∈ CountingFunction a input middle) (hg : g ∈ CountingFunction a input middle) :
     (fun x => if c x then f x else g x) ∈ CountingFunction a input middle := by
-  have hselect : ComputableInPolyTime
-      (fun pair : Bool × (β × β) => if pair.1 then pair.2.1 else pair.2.2)
-      (encPair encBool (encPair middle middle)) middle :=
-    ComputableInPolyTime.ite' (ComputableInPolyTime.fst _ _)
-      ((ComputableInPolyTime.fst middle middle).comp (ComputableInPolyTime.snd _ _))
-      ((ComputableInPolyTime.snd middle middle).comp (ComputableInPolyTime.snd _ _))
   obtain ⟨A, hA, hpair⟩ := prod hc (prod hf hg)
-  exact ⟨A, hA, hpair.map hselect⟩
+  exact ⟨A, hA, hpair.map <| ComputableInPolyTime.ite' (.fst _ _)
+    ((ComputableInPolyTime.fst middle middle).comp (.snd _ _))
+    ((ComputableInPolyTime.snd middle middle).comp (.snd _ _))⟩
 
 /-- Polynomial-time postprocessing preserves the function level. -/
 theorem map {f : α → β} {g : β → γ}

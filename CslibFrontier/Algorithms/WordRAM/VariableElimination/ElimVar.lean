@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.BuildEntries
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.OutScope
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.Partition
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Tactic.Realize
 import Mathlib.Tactic.Ring
 
@@ -219,7 +220,7 @@ theorem elimVarProg_spec {w : ℕ} {args : ElimVarArgs} {es : ElimState ℕ ℕ}
       change ElimStepStats.bucketFactors (if bucket.isEmpty then _ else _) = 0
       rw [ite_eq_left hbk0]
     have hpres_all : PreservesBelow s.frontier s s₂ :=
-      hfn_pres.trans (hpl_pres.mono_bound hfn_pres.2.1)
+      hfn_pres.trans_frontier hpl_pres
     rw [ite_eq_left hp_bLen0, StateTransitionSpec.clientResult_pure,
       StateTransitionSpec.clientState_pure, memoryCost_pure, hes'_eq, hbk_eq]
     exact ⟨⟨hms_val, hfn_val, hpl_val, validHistory_pure w s₂ _⟩, hpres_all,
@@ -323,7 +324,7 @@ theorem elimVarProg_spec {w : ℕ} {args : ElimVarArgs} {es : ElimState ℕ ℕ}
       exact hbos_pres.2.2 a (by omega)⟩
   have hpres_15 := hpl_pres.trans hpres_25
   have hpres_all : PreservesBelow s.frontier s s₅ :=
-    hfn_pres.trans (hpres_15.mono_bound hfn_pres.2.1)
+    hfn_pres.trans_frontier hpres_15
   have hnew_f : HoldsFactor part.newLiveBuf newTab s₅ := by
     unfold HoldsFactor
     rw [hm0, hm1, hm2, hm3]
@@ -436,15 +437,9 @@ theorem elimVarProg_realizes :
       _ = max 1 d.dom * stateCap es := by unfold stateCap; ring
   · exact h1
   · rw [memScan_state]
-    have hK_le : (bucket.flatMap FactorTable.scope).length ≤ M * SW := by
-      have hfl : (bucket.flatMap FactorTable.scope).length ≤ bucket.length * SW := by
-        rw [List.length_flatMap]
-        have hsum := List.sum_le_length_nsmul (bucket.map fun a => a.scope.length) SW
-          fun _ hn => by
-            rcases List.mem_map.mp hn with ⟨f, hf, rfl⟩
-            exact hb_SW f hf
-        simpa [smul_eq_mul] using hsum
-      exact hfl.trans (Nat.mul_le_mul_right SW ((List.length_filter_le _ _).trans hM))
+    have hK_le : (bucket.flatMap FactorTable.scope).length ≤ M * SW :=
+      (List.length_flatMap_le hb_SW).trans
+        (Nat.mul_le_mul_right SW ((List.length_filter_le _ _).trans hM))
     refine ⟨bucket, hpl_bLen.symm, hpl_bH, hfit_fr.of_le ?_⟩
     rw [hpl_fr, hfn_fr]
     dsimp only [stepMemDelta]

@@ -12,10 +12,12 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 public import Mathlib.Data.Nat.Prime.Defs
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Search
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import Mathlib.NumberTheory.Bertrand
 
 /-!
-# Primality of unary naturals by trial division
+# Primality and prime selection on unary naturals
 
 A natural `p` is prime exactly when `2 ≤ p` and no `m` with `2 ≤ m < p` divides it
 (`Turing.MultiTapeTM.ComputableInPolyTime.decide_prime_eq`). Testing every candidate below
@@ -26,9 +28,25 @@ A natural `p` is prime exactly when `2 ≤ p` and no `m` with `2 ≤ m < p` divi
 
 * `Turing.MultiTapeTM.ComputableInPolyTime.decide_prime_eq`: primality by trial division.
 * `Turing.MultiTapeTM.ComputableInPolyTime.unary_decide_prime`: in polynomial time.
+* `Cslib.bertrandPrime_spec`, `Turing.MultiTapeTM.ComputableInPolyTime.unary_bertrandPrime`:
+  selecting a prime between a positive unary bound and twice that bound.
 -/
 
 public section
+
+namespace Cslib
+
+/-- The greatest prime at most `2 * B`, or zero for `B = 0`. -/
+@[expose] def bertrandPrime (B : ℕ) : ℕ := Nat.findGreatest Nat.Prime (2 * B)
+
+/-- For a positive lower bound, the prime selected by bounded search belongs to `(B, 2 * B]`. -/
+theorem bertrandPrime_spec {B : ℕ} (hB : B ≠ 0) :
+    (bertrandPrime B).Prime ∧ B < bertrandPrime B ∧ bertrandPrime B ≤ 2 * B := by
+  obtain ⟨q, hq, hlt, hle⟩ := Nat.exists_prime_lt_and_le_two_mul B hB
+  exact ⟨Nat.findGreatest_spec hle hq, hlt.trans_le (Nat.le_findGreatest hle hq),
+    Nat.findGreatest_le _⟩
+
+end Cslib
 
 namespace Turing.MultiTapeTM.ComputableInPolyTime
 
@@ -50,5 +68,12 @@ theorem unary_decide_prime :
     ComputableInPolyTime (fun p : ℕ => decide p.Prime) encUnary encBool := by
   simp_rw [decide_prime_eq]
   fun_prop
+
+/-- The selected prime can be computed in polynomial time when the bound is given in unary. -/
+@[fun_prop]
+theorem unary_bertrandPrime {α : Type} {enc : α ↪ List Bool} {B : α → ℕ}
+    (hB : ComputableInPolyTime B enc encUnary) :
+    ComputableInPolyTime (fun x => Cslib.bertrandPrime (B x)) enc encUnary :=
+  findGreatest (by fun_prop) (unary_decide_prime.comp (.snd _ _))
 
 end Turing.MultiTapeTM.ComputableInPolyTime

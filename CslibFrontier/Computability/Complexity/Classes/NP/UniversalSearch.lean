@@ -121,19 +121,8 @@ private theorem levinTry_eq_some_iff {enc : α ↪ List Bool} {V : α × List Bo
     levinTry enc V a i t = some w ↔
       runWord (decodeDesc (unframe (Ladner.word i))) (enc a) t = some w ∧ V (a, w) = true := by
   unfold levinTry
-  cases h : runWord (decodeDesc (unframe (Ladner.word i))) (enc a) t with
-  | none => simp
-  | some u =>
-    simp only [Option.elim_some]
-    cases hv : V (a, u) with
-    | false =>
-      simp only [Bool.false_eq_true, ↓reduceIte, reduceCtorEq, Option.some.injEq, false_iff,
-        not_and]
-      rintro rfl
-      simp [hv]
-    | true =>
-      simp only [↓reduceIte, Option.some.injEq]
-      exact ⟨fun h => ⟨h, h ▸ hv⟩, And.left⟩
+  cases runWord (decodeDesc (unframe (Ladner.word i))) (enc a) t <;> simp
+  grind
 
 /-- **Stage `K` of Levin's universal search** for a verifier `V` on instances encoded by `enc`:
 checks the machines with indices `i < K` (in the enumeration `Cslib.Complexity.Ladner.word`),
@@ -164,9 +153,7 @@ private theorem levinTry_of_levinStage_eq_some {enc : α ↪ List Bool}
   rw [levinStage_eq_find] at h
   cases hf : (List.range K).find? (fun i => (levinTry enc V a i K).isSome) with
   | none => simp [hf] at h
-  | some i =>
-    simp only [hf, Option.elim_some] at h
-    exact ⟨i, h⟩
+  | some i => exact ⟨i, by simpa only [hf, Option.elim_some] using h⟩
 
 /-- **Soundness of `levinStage`:** every certificate returned by stage `K` is accepted by `V`. -/
 theorem verifier_of_levinStage_eq_some {enc : α ↪ List Bool} {V : α × List Bool → Bool}
@@ -196,15 +183,13 @@ theorem isSome_levinStage_iff {enc : α ↪ List Bool} {V : α × List Bool → 
     simp only [Option.elim_none, Option.isSome_none, Bool.false_eq_true, false_iff, not_exists,
       not_and]
     intro i hi w hrun hv
-    have hnone := List.find?_eq_none.mp hf i (List.mem_range.mpr hi)
-    have hsome : levinTry enc V a i K = some w := levinTry_eq_some_iff.mpr ⟨hrun, hv⟩
-    simp [hsome] at hnone
+    simpa [levinTry_eq_some_iff.mpr ⟨hrun, hv⟩] using
+      List.find?_eq_none.mp hf i (List.mem_range.mpr hi)
   | some i =>
     have hspec := List.find?_some hf
-    have hmem := List.mem_range.mp (List.mem_of_find?_eq_some hf)
     simp only [Option.elim_some, hspec, true_iff]
     obtain ⟨w, hw⟩ := Option.isSome_iff_exists.mp hspec
-    exact ⟨i, hmem, w, levinTry_eq_some_iff.mp hw⟩
+    exact ⟨i, List.mem_range.mp (List.mem_of_find?_eq_some hf), w, levinTry_eq_some_iff.mp hw⟩
 
 /-- Monotonicity of `levinStage` in the stage index: once some stage succeeds, every later stage
 also succeeds. -/
@@ -230,14 +215,10 @@ theorem exists_index_le_two_pow_levinStage_isSome {enc : α ↪ List Bool}
   let d : Desc := desc eS eBit M
   let i₀ : ℕ := Ladner.index (frame (eDesc d))
   refine ⟨i₀, ?_, fun a T K hhalt hv hK => ?_⟩
-  · have hbound := Ladner.index_add_two_le (frame (eDesc d))
-    simpa only [i₀, length_frame] using hbound
-  · refine isSome_levinStage_iff.mpr
-      ⟨i₀, by omega, (M.runFrom (M.initCfg (enc a)) T).output, ?_, hv⟩
-    have hdec : decodeDesc (unframe (Ladner.word i₀)) = d := by
-      simp only [i₀, Ladner.word_index, unframe_frame, decodeDesc_eDesc]
-    rw [hdec]
-    exact runWord_desc_of_halted eS M hhalt (by omega)
+  · simpa only [i₀, length_frame] using Ladner.index_add_two_le (frame (eDesc d))
+  · refine isSome_levinStage_iff.mpr ⟨i₀, by omega, _, ?_, hv⟩
+    simpa only [i₀, Ladner.word_index, unframe_frame, decodeDesc_eDesc] using
+      runWord_desc_of_halted eS M hhalt (by omega)
 
 /-- **Stage optimality against every finite-state machine.** For every finite-state binary
 `MultiTapeTM` `M`, there is a fixed description index `i₀` (depending only on `M`) such that
@@ -251,27 +232,20 @@ theorem exists_index_levinStage_isSome {enc : α ↪ List Bool} {V : α × List 
       max (i₀ + 1) T ≤ K →
       (levinStage enc V a K).isSome = true := by
   have := Fintype.ofFinite State
-  let eS : State ↪ ℕ := (Fintype.equivFin State).toEmbedding.trans Fin.valEmbedding
-  obtain ⟨i₀, -, hi₀⟩ := exists_index_le_two_pow_levinStage_isSome (enc := enc) (V := V) eS M
-  exact ⟨i₀, hi₀⟩
+  exact (exists_index_le_two_pow_levinStage_isSome (enc := enc) (V := V)
+    ((Fintype.equivFin State).toEmbedding.trans Fin.valEmbedding) M).imp fun _ => And.right
 
 /-- **Soundness and completeness of `levinStage`:** some stage returns a certificate on `a` if and
 only if `a` has a `V`-accepted witness. -/
 theorem exists_levinStage_eq_some_iff {enc : α ↪ List Bool} {V : α × List Bool → Bool} {a : α} :
     (∃ K w, levinStage enc V a K = some w) ↔ ∃ w, V (a, w) = true := by
-  constructor
-  · rintro ⟨K, w, hw⟩
-    exact ⟨w, verifier_of_levinStage_eq_some hw⟩
-  · rintro ⟨w, hw⟩
-    obtain ⟨t, s, -, -, k, State, hfin, tm, htm⟩ :=
-      ComputableInPolyTime.const (encIn := enc) (encOut := encBits) w
-    obtain ⟨i₀, hi₀⟩ := exists_index_levinStage_isSome (enc := enc) (V := V) tm
-    have hrun := (htm a).runFrom_of_le le_rfl
-    let K := max (i₀ + 1) (t (enc a).length)
-    have hsome : (levinStage enc V a K).isSome = true :=
-      hi₀ a (t (enc a).length) K hrun.1 (by rw [hrun.2]; exact hw) le_rfl
-    obtain ⟨w', hw'⟩ := Option.isSome_iff_exists.mp hsome
-    exact ⟨K, w', hw'⟩
+  refine ⟨fun ⟨K, w, hw⟩ => ⟨w, verifier_of_levinStage_eq_some hw⟩, fun ⟨w, hw⟩ => ?_⟩
+  obtain ⟨t, s, -, -, k, State, hfin, tm, htm⟩ :=
+    ComputableInPolyTime.const (encIn := enc) (encOut := encBits) w
+  obtain ⟨i₀, hi₀⟩ := exists_index_levinStage_isSome (enc := enc) (V := V) tm
+  have hrun := (htm a).runFrom_of_le le_rfl
+  exact ⟨_, Option.isSome_iff_exists.mp
+    (hi₀ a _ (max (i₀ + 1) (t (enc a).length)) hrun.1 (hrun.2.symm ▸ hw) le_rfl)⟩
 
 /-- **Stage `K` of Levin's universal search is polynomial-time** with `K` written in unary. -/
 @[fun_prop]
@@ -280,49 +254,22 @@ theorem computableInPolyTime_levinStage {enc : α ↪ List Bool} {V : α × List
     ComputableInPolyTime (fun p : α × ℕ => levinStage enc V p.1 p.2)
       (encPair enc encUnary) (encOption encBits) := by
   have htry : ComputableInPolyTime
-      (fun (p : (α × ℕ) × ℕ) => levinTry enc V (Prod.fst p.1) p.2 (Prod.snd p.1))
+      (fun (p : (α × ℕ) × ℕ) => levinTry enc V p.1.1 p.2 p.1.2)
       (encPair (encPair enc encUnary) encUnary) (encOption encBits) := by
-    have hdesc : ComputableInPolyTime
-        (fun p : (α × ℕ) × ℕ => decodeDesc (unframe (Ladner.word p.2)))
-        (encPair (encPair enc encUnary) encUnary) eDesc := by
-      fun_prop
-    have ha : ComputableInPolyTime (fun p : (α × ℕ) × ℕ => (Prod.fst p.1))
-        (encPair (encPair enc encUnary) encUnary) enc :=
-      (fst enc encUnary).comp (fst (encPair enc encUnary) encUnary)
-    have hin : ComputableInPolyTime
-        (fun p : (α × ℕ) × ℕ => enc (Prod.fst p.1))
-        (encPair (encPair enc encUnary) encUnary) encBits :=
-      encoding_comp ha
-    have ht : ComputableInPolyTime
-        (fun p : (α × ℕ) × ℕ => Prod.snd p.1)
-        (encPair (encPair enc encUnary) encUnary) encUnary :=
-      (snd enc encUnary).comp (fst (encPair enc encUnary) encUnary)
     have hrun : ComputableInPolyTime
         (fun p : (α × ℕ) × ℕ =>
-          runWord (decodeDesc (unframe (Ladner.word p.2))) (enc (Prod.fst p.1)) (Prod.snd p.1))
+          runWord (decodeDesc (unframe (Ladner.word p.2))) (enc p.1.1) p.1.2)
         (encPair (encPair enc encUnary) encUnary) (encOption encBits) :=
-      computableInPolyTime_runWord hdesc hin ht
-    have hbody : ComputableInPolyTime
-        (fun q : ((α × ℕ) × ℕ) × List Bool =>
-          let ((a, _), _) := q.1
-          if V (a, q.2) then some q.2 else none)
-        (encPair (encPair (encPair enc encUnary) encUnary) encBits) (encOption encBits) := by
-      have hq1 : ComputableInPolyTime
-          (fun q : ((α × ℕ) × ℕ) × List Bool => let ((a, _), _) := q.1; a)
-          (encPair (encPair (encPair enc encUnary) encUnary) encBits) enc :=
-        (fst enc encUnary).comp
-          ((fst (encPair enc encUnary) encUnary).comp
-            (fst (encPair (encPair enc encUnary) encUnary) encBits))
-      have hq2 : ComputableInPolyTime (fun q : ((α × ℕ) × ℕ) × List Bool => q.2)
-          (encPair (encPair (encPair enc encUnary) encUnary) encBits) encBits :=
-        snd (encPair (encPair enc encUnary) encUnary) encBits
-      exact ite' (hV.comp (hq1.prod hq2)) ((optionSome encBits).comp hq2) (const none)
-    exact hrun.optionElimWithInput (const none) hbody
-  have hfind : ComputableInPolyTime
-      (fun p : α × ℕ => (List.range p.2).find? fun i => (levinTry enc V p.1 i p.2).isSome)
-      (encPair enc encUnary) (encOption encUnary) :=
-    findWithInput (range.comp (snd enc encUnary)) (optionIsSome htry)
-  exact hfind.optionElimWithInput (const none) htry
+      computableInPolyTime_runWord (by fun_prop)
+        (encoding_comp ((fst enc encUnary).comp (fst _ _)))
+        ((snd enc encUnary).comp (fst _ _))
+    refine hrun.optionElimWithInput (const none) ?_
+    have hq1 :=
+      (fst enc encUnary).comp ((fst (encPair enc encUnary) encUnary).comp (fst _ encBits))
+    have hq2 := snd (encPair (encPair enc encUnary) encUnary) encBits
+    exact ite' (hV.comp (hq1.prod hq2)) ((optionSome encBits).comp hq2) (const none)
+  exact (findWithInput (range.comp (snd enc encUnary)) (optionIsSome htry)).optionElimWithInput
+    (const none) htry
 
 /-! ### Native dovetailed universal search machine -/
 
@@ -357,48 +304,26 @@ private theorem searchStep_iterate_of_none {enc : α ↪ List Bool} {V : α × L
     simp [searchStep, h n (Nat.lt_succ_self n)]
 
 private theorem computableInPolyTime_searchInit (enc : α ↪ List Bool) :
-    ComputableInPolyTime (searchInit (α := α)) enc (encSearchState enc) := by
-  unfold searchInit
-  exact (optionSome _).comp ((sumInl _ _).comp (id'.prod (const 0)))
+    ComputableInPolyTime (searchInit (α := α)) enc (encSearchState enc) :=
+  (optionSome _).comp ((sumInl _ _).comp (id'.prod (const 0)))
 
 private theorem computableInPolyTime_searchStep {enc : α ↪ List Bool}
     {V : α × List Bool → Bool}
     (hV : ComputableInPolyTime V (encPair enc encBits) encBool) :
     ComputableInPolyTime (searchStep enc V) (encSearchState enc) (encSearchState enc) := by
-  have hstage := computableInPolyTime_levinStage hV
   have hleft : ComputableInPolyTime
       (fun p : α × ℕ => (levinStage enc V p.1 p.2).elim
         (some (.inl (p.1, p.2 + 1))) (fun w => some (.inr w)))
-      (encPair enc encUnary) (encSearchState enc) := by
-    have hnext : ComputableInPolyTime
-        (fun p : α × ℕ => (some (.inl (p.1, p.2 + 1)) : SearchState α))
-        (encPair enc encUnary) (encSearchState enc) :=
-      (optionSome _).comp ((sumInl _ _).comp
-        ((fst enc encUnary).prod (by fun_prop)))
-    have hfound : ComputableInPolyTime
-        (fun q : (α × ℕ) × List Bool => (some (.inr q.2) : SearchState α))
-        (encPair (encPair enc encUnary) encBits) (encSearchState enc) :=
-      (optionSome _).comp ((sumInr _ _).comp (snd (encPair enc encUnary) encBits))
-    exact hstage.optionElimWithInput hnext hfound
-  have hinner : ComputableInPolyTime
-      (fun q : SearchState α × ((α × ℕ) ⊕ List Bool) =>
-        Sum.elim
-          (fun p => (levinStage enc V p.1 p.2).elim
-            (some (.inl (p.1, p.2 + 1))) (fun w => some (.inr w)))
-          (fun _ => (none : SearchState α)) q.2)
-      (encPair (encSearchState enc) (encSum (encPair enc encUnary) encBits))
-      (encSearchState enc) :=
-    (sumElim hleft (const none)).comp (snd (encSearchState enc) _)
-  exact id'.optionElimWithInput (const none) hinner
+      (encPair enc encUnary) (encSearchState enc) :=
+    (computableInPolyTime_levinStage hV).optionElimWithInput
+      ((optionSome _).comp ((sumInl _ _).comp ((fst enc encUnary).prod (by fun_prop))))
+      ((optionSome _).comp ((sumInr _ _).comp (snd (encPair enc encUnary) encBits)))
+  exact id'.optionElimWithInput (const none)
+    ((sumElim hleft (const none)).comp (snd (encSearchState enc) _))
 
 private theorem computableInPolyTime_searchFin (enc : α ↪ List Bool) :
-    ComputableInPolyTime (searchFin (α := α)) (encSearchState enc) encBits := by
-  have hinner : ComputableInPolyTime
-      (fun q : SearchState α × ((α × ℕ) ⊕ List Bool) =>
-        Sum.elim (fun _ : α × ℕ => ([] : List Bool)) id q.2)
-      (encPair (encSearchState enc) (encSum (encPair enc encUnary) encBits)) encBits :=
-    (sumElim (const []) id').comp (snd (encSearchState enc) _)
-  exact id'.optionElimWithInput (const []) hinner
+    ComputableInPolyTime (searchFin (α := α)) (encSearchState enc) encBits :=
+  id'.optionElimWithInput (const []) ((sumElim (const []) id').comp (snd (encSearchState enc) _))
 
 /-- **Native universal search machine for any polynomial-time verifier** (after
 [Levin][Levin1973] and [Goldreich, Theorem 2.33][Goldreich2008]; primary PDF locators not
@@ -449,8 +374,7 @@ theorem exists_native_levinSearch {enc : α ↪ List Bool} {V : α × List Bool 
     have hex : ∃ m, (levinStage enc V a m).isSome := ⟨K, hK⟩
     let K₀ := Nat.find hex
     have hK₀_le : K₀ ≤ K := Nat.find_min' hex hK
-    have hK₀_some : (levinStage enc V a K₀).isSome := Nat.find_spec hex
-    obtain ⟨w₀, hw₀⟩ := Option.isSome_iff_exists.mp hK₀_some
+    obtain ⟨w₀, hw₀⟩ := Option.isSome_iff_exists.mp (Nat.find_spec hex)
     have hnone : ∀ m < K₀, levinStage enc V a m = none := fun m hm =>
       Option.not_isSome_iff_eq_none.mp (Nat.find_min hex hm)
     have hstate_le : ∀ n ≤ K₀,
@@ -458,10 +382,9 @@ theorem exists_native_levinSearch {enc : α ↪ List Bool} {V : α × List Bool 
       fun n hn => searchStep_iterate_of_none n fun m hm => hnone m (lt_of_lt_of_le hm hn)
     have hstate_found : (searchStep enc V)^[K₀ + 1] (searchInit a) = some (.inr w₀) := by
       rw [Function.iterate_succ_apply', hstate_le K₀ le_rfl]
-      simp [searchStep, hw₀]
-    have hstate_stop : (searchStep enc V)^[K₀ + 1 + 1] (searchInit a) = none := by
-      rw [Function.iterate_succ_apply', hstate_found]
-      rfl
+      simp [searchStep, K₀, hw₀]
+    have hstate_stop : (searchStep enc V)^[K₀ + 1 + 1] (searchInit a) = none :=
+      (Function.iterate_succ_apply' _ (K₀ + 1) _).trans (congrArg _ hstate_found)
     have hlen_w₀ : w₀.length ≤ K₀ := length_le_of_levinStage_eq_some hw₀
     let l := 2 * (enc a).length + K₀ + 3
     have hrun := hterm a (K₀ + 1) l
@@ -476,17 +399,12 @@ theorem exists_native_levinSearch {enc : α ↪ List Bool} {V : α × List Bool 
           omega)
       (fun n hn => by
         rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp hn) with hlt | rfl
-        · rw [hstate_le (n + 1) hlt]
-          simp [encSearchState]
-        · rw [hstate_found]
-          simp [encSearchState])
+        · simp [hstate_le (n + 1) hlt, encSearchState]
+        · simp [hstate_found, encSearchState])
       (by rw [hstate_stop]; rfl)
     rw [hstate_found] at hrun
-    have hfin_eq : searchFin (some (.inr w₀) : SearchState α) = w₀ := rfl
-    rw [hfin_eq] at hrun
-    have hbase : l + (enc a).length + 1 ≤ 4 * (K + (enc a).length + 1) := by
-      dsimp only [l]
-      omega
+    dsimp only [searchFin, Option.elim_some, Sum.elim_inr, id_eq] at hrun
+    have hbase : l + (enc a).length + 1 ≤ 4 * (K + (enc a).length + 1) := by dsimp only [l]; omega
     have hpow : (l + (enc a).length + 1) ^ d ≤ 4 ^ d * (K + (enc a).length + 1) ^ d :=
       (Nat.pow_le_pow_left hbase d).trans_eq (Nat.mul_pow _ _ _)
     have hr : K₀ + 1 + 1 ≤ 2 * (K + (enc a).length + 1) := by omega
@@ -498,15 +416,11 @@ theorem exists_native_levinSearch {enc : α ↪ List Bool} {V : α × List Bool 
     · calc _ ≤ (2 * (K + (enc a).length + 1)) * (c * (4 ^ d * (K + (enc a).length + 1) ^ d)) :=
             (Nat.mul_le_mul_left c hpow).trans (Nat.le_mul_of_pos_left _ (by omega))
         _ = C * (K + (enc a).length + 1) ^ D := by dsimp only [C, D]; ring
-  have hno : ∀ a, (¬∃ w, V (a, w) = true) → ¬tm.Halts (enc a) := by
-    intro a hna
-    have hnone : ∀ m, levinStage enc V a m = none := fun m => by
-      cases hm : levinStage enc V a m with
-      | none => rfl
-      | some w => exact (hna ⟨w, verifier_of_levinStage_eq_some hm⟩).elim
-    refine hdiv a fun n => ?_
-    rw [searchStep_iterate_of_none (n + 1) fun m _ => hnone m]
-    simp [encSearchState]
+  have hno (a : α) (hna : ¬∃ w, V (a, w) = true) : ¬tm.Halts (enc a) := by
+    have hnone (m : ℕ) : levinStage enc V a m = none :=
+      Option.eq_none_iff_forall_not_mem.mpr fun w hw => hna ⟨w, verifier_of_levinStage_eq_some hw⟩
+    exact hdiv a fun n => by
+      simp [searchStep_iterate_of_none (n + 1) fun m _ => hnone m, encSearchState]
   have hhalts : ∀ a, tm.Halts (enc a) ↔ ∃ w, V (a, w) = true := fun a =>
     ⟨fun hh => Classical.byContradiction fun hna => hno a hna hh, fun hex => by
       obtain ⟨K, w, hK⟩ := exists_levinStage_eq_some_iff.mpr hex
@@ -558,24 +472,18 @@ theorem exists_native_levinSearch {α : Type} {enc : α ↪ List Bool} (R : NPRe
     decide (p.2.length = R.certLength.eval (enc p.1).length) && R.verifier p
   have hV_iff (a : α) (w : List Bool) : V (a, w) = true ↔ R.IsWitness a w := by
     simp [V, NPRelation.isWitness_iff]
-  have hV_poly : ComputableInPolyTime V (encPair enc encBits) encBool := by
-    have hlen : ComputableInPolyTime (fun p : α × List Bool => p.2.length)
-        (encPair enc encBits) encUnary :=
-      length_bits.comp (snd enc encBits)
-    have hcert : ComputableInPolyTime (fun p : α × List Bool => R.certLength.eval (enc p.1).length)
-        (encPair enc encBits) encUnary :=
-      (unary_eval R.certLength).comp ((encoding_length enc).comp (fst enc encBits))
-    exact bool_and' (decide_eq' hlen hcert) R.computableInPolyTime_verifier
+  have hV_poly : ComputableInPolyTime V (encPair enc encBits) encBool :=
+    bool_and'
+      (decide_eq' (length_bits.comp (snd enc encBits))
+        ((unary_eval R.certLength).comp ((encoding_length enc).comp (fst enc encBits))))
+      R.computableInPolyTime_verifier
   obtain ⟨k, State, hfin, tm, _, D, hsound, hhalts, _, hopt⟩ :=
     Complexity.exists_native_levinSearch hV_poly
-  refine ⟨k, State, hfin, tm, D,
+  exact ⟨k, State, hfin, tm, D,
     fun a w hw => (hV_iff a w).mp (hsound a w hw),
     fun a => (hhalts a).trans (exists_congr fun w => hV_iff a w),
-    fun {k' State'} _ M => ?_⟩
-  obtain ⟨C_M, hM⟩ := hopt M
-  refine ⟨C_M, fun a T hhalt hW => ?_⟩
-  obtain ⟨w, hv, hrun⟩ := hM a T hhalt ((hV_iff a _).mpr hW)
-  exact ⟨w, (hV_iff a w).mp hv, hrun⟩
+    fun {k' State'} _ M => (hopt M).imp fun C_M hM a T hhalt hW =>
+      (hM a T hhalt ((hV_iff a _).mpr hW)).imp fun w ⟨hv, hrun⟩ => ⟨(hV_iff a w).mp hv, hrun⟩⟩
 
 end NPRelation
 
@@ -610,12 +518,10 @@ theorem exists_poly_levinStage_iff :
   constructor
   · rintro ⟨p, hp⟩
     refine mem_P.mpr ⟨fun φ => (levinStage φ (p.eval (encCNF φ).length)).isSome, ?_, fun φ => ?_⟩
-    · have hpair : ComputableInPolyTime (fun φ : CNF ℕ => (φ, p.eval (encCNF φ).length))
-          encCNF (encPair encCNF encUnary) :=
-        (ComputableInPolyTime.id' (encIn := encCNF)).prod
-          ((unary_eval p).comp (encoding_length encCNF))
-      exact optionIsSome (by simpa only [Function.comp_def] using
-        (Complexity.computableInPolyTime_levinStage computableInPolyTime_verifier).comp hpair)
+    · exact optionIsSome <| by
+        simpa only [Function.comp_def] using
+          (Complexity.computableInPolyTime_levinStage computableInPolyTime_verifier).comp
+            (id'.prod ((unary_eval p).comp (encoding_length encCNF)))
     · refine ⟨hp φ, fun hs => ?_⟩
       obtain ⟨w, hw⟩ := Option.isSome_iff_exists.mp hs
       exact ⟨assignment φ w, verifier_of_levinStage_eq_some hw⟩
@@ -625,18 +531,11 @@ theorem exists_poly_levinStage_iff :
     obtain ⟨i₀, hi₀⟩ := exists_index_levinStage_isSome (enc := encCNF) (V := verifier) tm
     refine ⟨Polynomial.C (i₀ + 1) + Polynomial.C c * (Polynomial.X + 1) ^ e, fun φ hφ => ?_⟩
     have hrun := (htm φ).runFrom_of_le le_rfl
-    have hv : verifier (φ, (tm.runFrom (tm.initCfg (encCNF φ)) (t (encCNF φ).length)).output) =
-        true := by
-      rw [hrun.2]
-      exact (hg φ).mpr hφ
-    have hbound : max (i₀ + 1) (t (encCNF φ).length) ≤
-        (Polynomial.C (i₀ + 1) + Polynomial.C c * (Polynomial.X + 1) ^ e).eval
-          (encCNF φ).length := by
-      simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_pow, Polynomial.eval_C,
-        Polynomial.eval_X, Polynomial.eval_one]
-      have ht' := hle (encCNF φ).length
-      omega
-    exact hi₀ φ (t (encCNF φ).length) _ hrun.1 hv hbound
+    refine hi₀ φ (t (encCNF φ).length) _ hrun.1 (hrun.2.symm ▸ (hg φ).mpr hφ) ?_
+    simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_pow, Polynomial.eval_C,
+      Polynomial.eval_X, Polynomial.eval_one]
+    have ht' := hle (encCNF φ).length
+    omega
 
 /-- **Native universal search machine for `SAT`** (after [Levin][Levin1973] and
 [Goldreich, Theorem 2.33][Goldreich2008]; primary PDF locators not verified; polynomial
@@ -681,35 +580,24 @@ theorem exists_native_levinSearch :
     let d_tm : Desc := desc eS eBit tm
     let p : Polynomial ℕ := Polynomial.C c * (Polynomial.X + 1) ^ e
     let dec : CNF ℕ → Bool := fun φ => (runWord d_tm (encCNF φ) (p.eval (encCNF φ).length)).isSome
-    have hdec_poly : ComputableInPolyTime dec encCNF encBool := by
-      have hp_poly : ComputableInPolyTime (fun φ : CNF ℕ => p.eval (encCNF φ).length)
-          encCNF encUnary :=
-        (unary_eval p).comp (encoding_length encCNF)
-      exact optionIsSome (computableInPolyTime_runWord (const d_tm) (encoding_comp id') hp_poly)
-    refine mem_P.mpr ⟨dec, hdec_poly, fun φ => ?_⟩
+    refine mem_P.mpr ⟨dec, optionIsSome (computableInPolyTime_runWord (const d_tm)
+      (encoding_comp id') ((unary_eval p).comp (encoding_length encCNF))), fun φ => ?_⟩
     have hp_ge : t (encCNF φ).length ≤ p.eval (encCNF φ).length := by
       simpa [p] using hle (encCNF φ).length
     constructor
     · intro hφ
-      have hrun := runWord_desc_of_halted eS tm (hbound φ hφ) hp_ge
-      simp [dec, d_tm, hrun]
+      simp [dec, d_tm, runWord_desc_of_halted eS tm (hbound φ hφ) hp_ge]
     · intro htrue
       obtain ⟨w, hw⟩ := Option.isSome_iff_exists.mp htrue
-      rw [show d_tm = desc eS eBit tm from rfl, runWord_desc] at hw
-      by_cases hh : (tm.runFrom (tm.initCfg (encCNF φ)) (p.eval (encCNF φ).length)).Halted
-      · exact (hhalts_sat φ).mp ⟨p.eval (encCNF φ).length, hh⟩
-      · rw [ite_eq_right hh] at hw
-        cases hw
+      rw [runWord_desc] at hw
+      split_ifs at hw with hh
+      exact (hhalts_sat φ).mp ⟨_, hh⟩
   · intro hSAT
     obtain ⟨g, ⟨t, s, ht, -, k', State', hfin', M, hM⟩, hg⟩ := exists_search hSAT
     obtain ⟨C_M, hoptM⟩ := hopt M
     refine ⟨fun n => C_M * (t n + n + 1) ^ D, by fun_prop, fun φ hφ => ?_⟩
     have hrunM := (hM φ).runFrom_of_le le_rfl
-    have hvM : verifier (φ, (M.runFrom (M.initCfg (encCNF φ)) (t (encCNF φ).length)).output) =
-        true := by
-      rw [hrunM.2]
-      exact (hg φ).mpr hφ
-    obtain ⟨w, -, hrun⟩ := hoptM φ (t (encCNF φ).length) hrunM.1 hvM
+    obtain ⟨w, -, hrun⟩ := hoptM φ (t (encCNF φ).length) hrunM.1 (hrunM.2.symm ▸ (hg φ).mpr hφ)
     exact (hrun.runFrom_of_le le_rfl).1
 
 end SAT
