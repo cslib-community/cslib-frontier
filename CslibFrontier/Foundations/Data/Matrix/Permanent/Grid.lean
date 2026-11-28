@@ -103,17 +103,9 @@ open scoped Classical in
 private theorem sum_perm_eq [DecidableEq γ] (w : γ → γ → R) :
     ∑ σ : Equiv.Perm γ, ∏ i, w i (σ i) =
       ∑ f : γ → γ, if Function.Bijective f then ∏ i, w i (f i) else 0 := by
-  rw [← Finset.sum_filter]
-  symm
-  refine Finset.sum_bij' (i := fun f hf => Equiv.ofBijective f (Finset.mem_filter.1 hf).2)
-    (j := fun σ _ => (σ : γ → γ)) ?_ ?_ ?_ ?_ ?_
-  · simp
-  · intro σ _
-    simp only [mem_filter, mem_univ, true_and]
-    exact σ.bijective
-  · intros; rfl
-  · intros; ext; rfl
-  · intros; rfl
+  rw [← Finset.sum_filter, Finset.sum_subtype (p := Function.Bijective) _
+    (fun _ => by simp only [mem_filter, mem_univ, true_and]) (fun f : γ → γ => ∏ i, w i (f i))]
+  exact Fintype.sum_equiv (Equiv.bijectiveEquiv (α := γ) (β := γ)).symm _ _ (fun _ => rfl)
 
 /-- The permanent is a coefficient. -/
 private theorem permanent_eq_coeff [DecidableEq γ] (M : Matrix γ γ R) :

@@ -63,12 +63,11 @@ theorem sum_eval_eq_zero_of_natDegree_lt {g : K[X]} (hg : g.natDegree < q - 1) :
 /-- A polynomial of degree less than `q - 1` sums over the units to minus its value at `0`. -/
 theorem sum_units_eval [DecidableEq K] {g : K[X]} (hg : g.natDegree < q - 1) :
     ∑ u : Kˣ, g.eval (u : K) = -g.eval 0 := by
-  have hunits : ∑ u : Kˣ, g.eval (u : K) = ∑ x ∈ univ \ {0}, g.eval x :=
-    Finset.sum_nbij (fun u => (u : K)) (fun _ _ => by simp) (fun _ _ _ _ h => Units.ext h)
-      (fun x hx => ⟨Units.mk0 x (by simpa using hx), mem_univ _, rfl⟩) fun _ _ => rfl
   have h := sum_eval_eq_zero_of_natDegree_lt hg
-  rw [← sum_sdiff ({0} : Finset K).subset_univ, sum_singleton] at h
-  exact hunits.trans (eq_neg_of_add_eq_zero_left h)
+  rw [← sum_sdiff ({0} : Finset K).subset_univ, sum_singleton,
+    sum_subtype (p := fun x => x ≠ 0) _ (fun x => by simp) g.eval] at h
+  exact (Equiv.sum_comp unitsEquivNeZero (fun x : {x : K // x ≠ 0} => g.eval (x : K))).trans
+    (eq_neg_of_add_eq_zero_left h)
 
 omit [Fintype K] in
 /-- Restricting a multivariate polynomial to the line `t ↦ t • τ + x` gives a univariate
