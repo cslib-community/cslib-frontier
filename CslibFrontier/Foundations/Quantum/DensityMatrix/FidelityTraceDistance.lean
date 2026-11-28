@@ -118,42 +118,35 @@ theorem traceDistance_le_sqrt_one_sub_rootFidelity_sq {ρ σ : Matrix ι ι ℂ}
   obtain ⟨U, hU, hF, _⟩ := traceNorm_eq_max_re_trace (P * Q)
   change (Uᴴ * (P * Q)).trace.re = rootFidelity ρ σ at hF
   let A := P * U
-  let B := Q
   have hA : A * Aᴴ = ρ := by
     have hUU : U * Uᴴ = 1 := (mem_unitaryGroup_iff).mp hU
     dsimp only [A]
     rw [conjTranspose_mul, hP, ← Matrix.mul_assoc, Matrix.mul_assoc P, hUU, Matrix.mul_one]
     exact CFC.sqrt_mul_sqrt_self _ hρ.posSemidef.nonneg
-  have hB : B * Bᴴ = σ := by
-    change Q * Qᴴ = σ
+  have hB : Q * Qᴴ = σ := by
     rw [hQ]
     exact CFC.sqrt_mul_sqrt_self _ hσ.posSemidef.nonneg
-  have hf : (B * Aᴴ).trace.re = rootFidelity ρ σ := by
+  have hf : (Q * Aᴴ).trace.re = rootFidelity ρ σ := by
     rw [trace_mul_comm]
-    simpa only [A, B, conjTranspose_mul, hP, Matrix.mul_assoc] using hF
-  have h'f : (A * Bᴴ).trace.re = rootFidelity ρ σ := by
-    rw [← conjTranspose_conjTranspose (A * Bᴴ), trace_conjTranspose,
+    simpa only [A, conjTranspose_mul, hP, Matrix.mul_assoc] using hF
+  have h'f : (A * Qᴴ).trace.re = rootFidelity ρ σ := by
+    rw [← conjTranspose_conjTranspose (A * Qᴴ), trace_conjTranspose,
       Complex.star_def, Complex.conj_re, conjTranspose_mul, conjTranspose_conjTranspose, hf]
-  have hsub : ((A - B) * (A - B)ᴴ).trace.re = 2 - 2 * rootFidelity ρ σ := by
-    rw [conjTranspose_sub, sub_mul, mul_sub, mul_sub, trace_sub, trace_sub, trace_sub,
-      Complex.sub_re, Complex.sub_re, Complex.sub_re, hA, hB, hf, h'f,
-      hρ.trace_eq_one, hσ.trace_eq_one, Complex.one_re]
+  have hsub : ((A - Q) * (A - Q)ᴴ).trace.re = 2 - 2 * rootFidelity ρ σ := by
+    simp only [conjTranspose_sub, sub_mul, mul_sub, trace_sub, Complex.sub_re,
+      hA, hB, hf, h'f, hρ.trace_eq_one, hσ.trace_eq_one, Complex.one_re]
     ring
-  have hadd : ((A + B) * (A + B)ᴴ).trace.re = 2 + 2 * rootFidelity ρ σ := by
-    rw [conjTranspose_add, add_mul, mul_add, mul_add, trace_add, trace_add, trace_add,
-      Complex.add_re, Complex.add_re, Complex.add_re, hA, hB, hf, h'f,
-      hρ.trace_eq_one, hσ.trace_eq_one, Complex.one_re]
+  have hadd : ((A + Q) * (A + Q)ᴴ).trace.re = 2 + 2 * rootFidelity ρ σ := by
+    simp only [conjTranspose_add, add_mul, mul_add, trace_add, Complex.add_re,
+      hA, hB, hf, h'f, hρ.trace_eq_one, hσ.trace_eq_one, Complex.one_re]
     ring
   have hnonneg : 0 ≤ 2 - 2 * rootFidelity ρ σ :=
-    hsub ▸ (Complex.nonneg_iff.mp (posSemidef_self_mul_conjTranspose (A - B)).trace_nonneg).1
-  have h := traceNorm_gram_sub_le A B
-  rw [hA, hB, hsub, hadd, ← Real.sqrt_mul hnonneg] at h
-  have hs :
-      (2 - 2 * rootFidelity ρ σ) * (2 + 2 * rootFidelity ρ σ) =
-        4 * (1 - rootFidelity ρ σ ^ 2) := by ring
-  have hsqrt : Real.sqrt 4 = 2 := by
-    rw [show (4 : ℝ) = 2 ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]
-  rw [hs, Real.sqrt_mul (by norm_num : (0 : ℝ) ≤ 4), hsqrt] at h
+    hsub ▸ (Complex.nonneg_iff.mp (posSemidef_self_mul_conjTranspose (A - Q)).trace_nonneg).1
+  have h := traceNorm_gram_sub_le A Q
+  rw [hA, hB, hsub, hadd, ← Real.sqrt_mul hnonneg,
+    show (2 - 2 * rootFidelity ρ σ) * (2 + 2 * rootFidelity ρ σ) =
+      2 ^ 2 * (1 - rootFidelity ρ σ ^ 2) by ring,
+    Real.sqrt_mul (by norm_num), Real.sqrt_sq (by norm_num)] at h
   unfold traceDistance
   linarith
 

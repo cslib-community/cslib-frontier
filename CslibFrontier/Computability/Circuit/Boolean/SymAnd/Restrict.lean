@@ -67,16 +67,11 @@ theorem eval_restrict (C : SymAnd T) (ρ : T → Option ι) (x : ι → Bool) :
     rw [hi]
     exact hx i (mem_biUnion.2 ⟨t, ht, by simp [hi]⟩)
   · intro h
-    have hsome : ∀ t ∈ S, (ρ t).isSome := fun t ht => by
-      have := h t ht
-      cases hρ : ρ t with
-      | none => rw [hρ] at this; cases this
-      | some i => rfl
-    refine ⟨fun i hi => ?_, hsome⟩
-    obtain ⟨t, ht, hit⟩ := mem_biUnion.1 hi
-    have := h t ht
-    rw [Option.mem_toFinset, Option.mem_def] at hit
-    rwa [hit] at this
+    refine ⟨fun i hi => ?_, fun t ht => ?_⟩
+    · obtain ⟨t, ht, hit⟩ := mem_biUnion.1 hi
+      simpa [Option.mem_def.1 (Option.mem_toFinset.1 hit)] using h t ht
+    · have := h t ht
+      cases hρ : ρ t <;> simp_all
 
 /-- Restriction does not increase the number of AND gates. -/
 theorem size_restrict_le (C : SymAnd T) (ρ : T → Option ι) : (C.restrict ρ).size ≤ C.size := by
@@ -86,12 +81,10 @@ theorem size_restrict_le (C : SymAnd T) (ρ : T → Option ι) : (C.restrict ρ)
 /-- Restriction does not increase the fan-in. -/
 theorem fanIn_restrict_le (C : SymAnd T) (ρ : T → Option ι) : (C.restrict ρ).fanIn ≤ C.fanIn := by
   refine fanIn_le_iff.2 fun S' hS' => ?_
-  simp only [restrict, Multiset.mem_map, Multiset.mem_filter] at hS'
-  obtain ⟨S, ⟨hS, -⟩, rfl⟩ := hS'
+  obtain ⟨S, ⟨hS, -⟩, rfl⟩ := by
+    simpa only [restrict, Multiset.mem_map, Multiset.mem_filter] using hS'
   calc #(S.biUnion fun t => (ρ t).toFinset) ≤ #S * 1 :=
-        card_biUnion_le_card_mul _ _ _ fun t _ => by
-          rw [Option.card_toFinset]
-          cases ρ t <;> simp
+        card_biUnion_le_card_mul _ _ _ fun t _ => by cases ρ t <;> simp
     _ = #S := mul_one _
     _ ≤ C.fanIn := card_le_fanIn hS
 

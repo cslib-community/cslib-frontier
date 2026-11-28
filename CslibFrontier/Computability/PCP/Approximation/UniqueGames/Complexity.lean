@@ -25,6 +25,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Words
 import CslibFrontier.Computability.PCP.Encoded.Size
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
+import CslibFrontier.Tactic.OptionMatch
 
 /-!
 # Polynomial-time membership for satisfiable unique games
@@ -189,12 +191,13 @@ private theorem poly_slots (L : ℕ) :
     (encL := encList (encUGEdge L)) g.edges e he
   have hle : (encList (encUGEdge L) g.edges).length ≤ (encUGGraph L g).length := by
     change _ ≤ (encPair encUnary (encList (encUGEdge L)) (g.vertices, g.edges)).length
-    rw [length_encPair]; dsimp only; omega
-  have hlen' : (encUGEdge L e).length =
-      (encPair encUnary (encPair encUnary (encUGFn L)) (e.src, e.dst, e.constraint)).length :=
-    rfl
+    rw [length_encPair]
+    dsimp only
+    omega
   have hend : e.src + 1 ≤ (encUGEdge L e).length ∧ e.dst + 1 ≤ (encUGEdge L e).length := by
-    rw [hlen', length_encPair, length_encPair]
+    rw [show (encUGEdge L e).length =
+        (encPair encUnary (encPair encUnary (encUGFn L)) (e.src, e.dst, e.constraint)).length
+      from rfl, length_encPair, length_encPair]
     dsimp only
     simp only [encUnary_apply, List.length_replicate]
     omega
@@ -233,21 +236,6 @@ private theorem poly_get {L : ℕ} {γ : Type} {encIn : γ ↪ List Bool}
   exact (listGetD (encA := encOption (encUGFn L)) (encL := encUGTable L) none).comp
     ((poly_state_table hs).prod hv)
 
-private theorem extend_eq_elim (L : ℕ) (S : State (Fin L)) (e : Edge (Fin L → Fin L)) :
-    extend (List.finRange L) S e =
-      (S.get e.src).elim
-        ((S.get e.dst).elim S fun h => push S e.src (preimage (List.finRange L) e.constraint ∘ h))
-        (fun f => (S.get e.dst).elim (push S e.dst (e.constraint ∘ f)) fun _ => S) := by
-  unfold extend; cases S.get e.src <;> cases S.get e.dst <;> rfl
-
-private theorem prune_eq_elim (L : ℕ) (S : State (Fin L)) (e : Edge (Fin L → Fin L)) :
-    prune S e =
-      (S.get e.src).elim S fun f =>
-        (S.get e.dst).elim S fun h =>
-          State.mk S.table (fun a => S.cand a && decide (e.constraint (f a) = h a))
-            S.stack S.comp := by
-  unfold prune; cases S.get e.src <;> cases S.get e.dst <;> rfl
-
 private theorem scan_eq_elim {α : Type} [DecidableEq α] (labels : List α)
     (g : Graph (α → α)) (S : State α) :
     scan labels g S =
@@ -256,20 +244,13 @@ private theorem scan_eq_elim {α : Type} [DecidableEq α] (labels : List α)
           (State.mk S.table S.cand (S.stack.drop 1) (u :: S.comp)) := by
   unfold scan; cases S.stack <;> rfl
 
-private theorem step_eq_elim {α : Type} [DecidableEq α] [Inhabited α] (labels : List α)
-    (g : Graph (α → α)) (S : State α) (e : Edge (α → α)) :
-    step labels g S e =
-      (S.get e.src).elim
-        (settle labels ((scan labels g)^[slots g] (start S e.src)))
-        (fun _ => S) := by
-  unfold step; cases S.get e.src <;> rfl
-
 @[local fun_prop]
 private theorem poly_extend (L : ℕ) :
     ComputableInPolyTime
       (fun p : State (Fin L) × Edge (Fin L → Fin L) => extend (List.finRange L) p.1 p.2)
       (encPair (encUGState L) (encUGEdge L)) (encUGState L) := by
-  simp_rw [extend_eq_elim]
+  unfold extend
+  option_match_to_elim
   have hpre : ComputableInPolyTime
       (fun r : (Fin L → Fin L) × (Fin L → Fin L) => preimage (List.finRange L) r.1 ∘ r.2)
       (encPair (encUGFn L) (encUGFn L)) (encUGFn L) := of_finite _
@@ -290,7 +271,8 @@ private theorem poly_prune (L : ℕ) :
     ComputableInPolyTime
       (fun p : State (Fin L) × Edge (Fin L → Fin L) => prune p.1 p.2)
       (encPair (encUGState L) (encUGEdge L)) (encUGState L) := by
-  simp_rw [prune_eq_elim]
+  unfold prune
+  option_match_to_elim
   have hcandFin : ComputableInPolyTime
       (fun r : ((Fin L → Bool) × (Fin L → Fin L)) × ((Fin L → Fin L) × (Fin L → Fin L)) =>
         fun a => r.1.1 a && decide (r.2.1 (r.1.2 a) = r.2.2 a))
@@ -444,15 +426,7 @@ private lemma length_encUGState_scan_le (L : ℕ) (labels : List (Fin L))
     let S₀ : State (Fin L) :=
       { table := S.table, cand := S.cand, stack := rest, comp := u :: S.comp }
     have hS₀ : (encUGState L S₀).length ≤ (encUGState L S).length := by
-      have hst : (encUGVerts (u :: rest)).length =
-          (frame (encUnary u)).length + (encUGVerts rest).length := by
-        simp [encUGVerts, encList_cons]
-      have hco : (encUGVerts (u :: S.comp)).length =
-          (frame (encUnary u)).length + (encUGVerts S.comp).length := by
-        simp [encUGVerts, encList_cons]
-      rw [length_encUGState_eq, length_encUGState_eq]
-      dsimp only [S₀]
-      rw [hs, hst, hco]
+      simp only [S₀, length_encUGState_eq, hs, encUGVerts, encList_cons, List.length_append]
       omega
     have hfold : ∀ (l : List (Edge (Fin L → Fin L))) (acc : State (Fin L)),
         (∀ e ∈ l, e ∈ g.edges) →
@@ -466,15 +440,10 @@ private lemma length_encUGState_scan_le (L : ℕ) (labels : List (Fin L))
         have hv := length_encUGState_visit_le L labels acc e (slots g)
           (src_lt_slots he) (dst_lt_slots he)
         have hih := ih (visit labels acc e) fun e' he' => hl e' (List.mem_cons_of_mem _ he')
-        simp only [List.foldl_cons, List.length_cons] at hih hv ⊢
-        rw [Nat.succ_mul]
+        simp only [List.foldl_cons, List.length_cons, Nat.succ_mul] at hih hv ⊢
         omega
-    have hadj := hfold (adj g u) S₀ fun e he => (List.mem_filter.mp he).1
-    have hlen : (adj g u).length ≤ g.edges.length := List.length_filter_le _ _
-    have hmul : (adj g u).length * visitGrowth L (slots g) ≤
-        g.edges.length * visitGrowth L (slots g) :=
-      Nat.mul_le_mul_right (visitGrowth L (slots g)) hlen
-    exact hadj.trans (Nat.add_le_add hS₀ hmul)
+    exact (hfold (adj g u) S₀ fun e he => (List.mem_filter.mp he).1).trans
+      (Nat.add_le_add hS₀ (Nat.mul_le_mul_right _ (List.length_filter_le _ _)))
 
 private lemma length_encUGState_iterate_scan_le (L : ℕ) (labels : List (Fin L))
     (g : Graph (Fin L → Fin L)) (S : State (Fin L)) (k : ℕ) :
@@ -498,9 +467,7 @@ private lemma length_encUGState_settle_le (L : ℕ) [NeZero L] (labels : List (F
   have hcand := candBound_spec L (settle labels S).cand
   have hcomp : (settle labels S).comp = [] := rfl
   have hstack : (settle labels S).stack = S.stack := rfl
-  rw [length_encUGState_eq]
-  rw [hstack, hcomp]
-  simp only [encUGVerts, encList_nil, List.length_nil]
+  simp only [length_encUGState_eq, hstack, hcomp, encUGVerts, encList_nil, List.length_nil]
   omega
 
 private theorem poly_step (L : ℕ) [NeZero L] :
@@ -508,7 +475,8 @@ private theorem poly_step (L : ℕ) [NeZero L] :
       (fun p : (Graph (Fin L → Fin L) × State (Fin L)) × Edge (Fin L → Fin L) =>
         step (List.finRange L) p.1.1 p.1.2 p.2)
       (encPair (encPair (encUGGraph L) (encUGState L)) (encUGEdge L)) (encUGState L) := by
-  simp_rw [step_eq_elim]
+  unfold step
+  option_match_to_elim
   have hiter : ComputableInPolyTime
       (fun p : (Graph (Fin L → Fin L) × State (Fin L)) × Edge (Fin L → Fin L) =>
         (scan (List.finRange L) p.1.1)^[slots p.1.1] (start p.1.2 p.2.src))
@@ -570,17 +538,9 @@ private lemma length_encUGState_step_le (L : ℕ) [NeZero L]
 private theorem poly_run (L : ℕ) [NeZero L] :
     ComputableInPolyTime (run (List.finRange L)) (encUGGraph L) (encUGState L) := by
   unfold run
-  have hsl := (poly_slots L).polyBounded
-  have hvg := (poly_visitGrowth_comp L (poly_slots L)).polyBounded
-  have hpre : PolyBounded (fun g => (encUGGraph L g).length)
-      (fun g => 4 * (slots g * (2 * (L * (2 * L + 1) + 1) + 1)) + 2 * (3 * L)) :=
-    ((PolyBounded.const 4).mul (hsl.mul (.const _))).add (.const _)
   have hboundPoly : PolyBounded (fun g => (encUGGraph L g).length) (runBound L) := by
-    unfold runBound
-    exact hpre.add (((PolyBounded.const 2).mul ((((hpre.add ((PolyBounded.const 2).mul
-      (((PolyBounded.const 2).mul hsl).add (.const 1)))).add (.const 4)).add
-      (hsl.mul (((length_list (encUGEdge L)).comp
-        (Graph.isPolyTime_edges .id')).polyBounded.mul hvg))))).add (.const 4))
+    growth_poly [poly_slots L, poly_visitGrowth_comp L (poly_slots L),
+      Graph.isPolyTime_edges (enc := encUGFn L) .id']
   refine foldlWith
     (encP := encUGGraph L) (encB := encUGState L) (encA := encUGEdge L)
     (par := id) (list := fun g => g.edges) (init := init) (step := step (List.finRange L))
@@ -738,13 +698,12 @@ theorem satisfiable_uniqueGame_mem_P (L : ℕ) :
     {g : Graph (Fin L → Fin L) | IsUniqueGame g ∧ (g.toGraph permutationEval).Satisfiable} ∈
       P (Graph.encoding (encPi (encFinEnum (Fin L)))) := by
   rcases Nat.eq_zero_or_pos L with rfl | hL
-  · have heq :
-        {g : Graph (Fin 0 → Fin 0) | IsUniqueGame g ∧ (g.toGraph permutationEval).Satisfiable} =
-          ∅ := by
-      ext g
-      simp [not_satisfiable_fin_zero g]
-    rw [heq]
-    exact empty_mem_P
+  · suffices {g : Graph (Fin 0 → Fin 0) | IsUniqueGame g ∧ (g.toGraph permutationEval).Satisfiable}
+        = ∅ by
+      rw [this]
+      exact empty_mem_P
+    ext g
+    simp [not_satisfiable_fin_zero g]
   · have : NeZero L := ⟨hL.ne'⟩
     refine ⟨fun g => isUniqueGameBool L g && (solve (List.finRange L) g).isSome, ?_, fun g => ?_⟩
     · exact ComputableInPolyTime.bool_and.comp

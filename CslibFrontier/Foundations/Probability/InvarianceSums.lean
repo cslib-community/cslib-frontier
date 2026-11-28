@@ -133,11 +133,8 @@ theorem abs_integral_comp_sum_sub_le (hμ : ∀ i, MemLp id 3 (μ i)) (hν : ∀
   simp only [hsum, Real.norm_eq_abs]
   refine (abs_integral_sub_integral_le_of_moments (n := 2) (by exact_mod_cast hν t)
     (by exact_mod_cast hμ t) (fun j hj => ?_) hψ hC _ 1).trans_eq ?_
-  · interval_cases j
-    · simp
-    · simpa using (h₁ t).symm
-    · exact (h₂ t).symm
-  · have h6 : ((2 + 1).factorial : ℝ) = 6 := by norm_num [Nat.factorial]
+  · interval_cases j <;> simp [(h₁ t).symm, (h₂ t).symm]
+  · have h6 : (Nat.factorial (2 + 1) : ℝ) = 6 := by norm_num [Nat.factorial]
     rw [h6, abs_one, one_pow, mul_one, add_comm (∫ s, |s| ^ (2 + 1) ∂ν t)]
 
 /-- The Invariance Principle for sums in the form used by the smoothing arguments: every `C³`
@@ -148,8 +145,7 @@ private theorem abs_integral_comp_sum_sub_le_mul_div_six (hμ : ∀ i, MemLp id 
     (hφ : ContDiff ℝ (3 : ℕ) φ) (hC : ∀ y, |iteratedDeriv 3 φ y| ≤ C) :
     |∫ z, φ (∑ i, z i) ∂Measure.pi μ - ∫ z, φ (∑ i, z i) ∂Measure.pi ν| ≤
       C * ((∑ i, (∫ s, |s| ^ 3 ∂μ i + ∫ s, |s| ^ 3 ∂ν i)) / 6) :=
-  (abs_integral_comp_sum_sub_le μ ν hμ hν h₁ h₂ hφ hC).trans_eq
-    ((div_mul_eq_mul_div _ _ _).trans (mul_div_assoc _ _ _))
+  (abs_integral_comp_sum_sub_le μ ν hμ hν h₁ h₂ hφ hC).trans_eq (by ring)
 
 /-! ### Lipschitz tests: Corollary 11.59 -/
 
@@ -170,13 +166,11 @@ theorem abs_integral_comp_sum_sub_le_of_lipschitzWith (hμ : ∀ i, MemLp id 3 (
   refine (abs_integral_comp_sub_le_of_lipschitzWith (X := fun z : ι → ℝ => ∑ i, z i)
     (Y := fun z : ι → ℝ => ∑ i, z i) (m := 3) three_ne_zero (τ := 3 / 5 * γ ^ (1 / 3 : ℝ))
     (by positivity) (fun φ C hφ hC => ⟨integrable_comp_of_memLp (n := 2) hφ hC (h3 μ hμ),
-      integrable_comp_of_memLp (n := 2) hφ hC (h3 ν hν), ?_⟩) hψ).trans_eq (by norm_num; ring)
-  refine (abs_integral_comp_sum_sub_le μ ν hμ hν h₁ h₂ hφ hC).trans ?_
-  have hC0 : 0 ≤ C := (abs_nonneg _).trans (hC 0)
+      integrable_comp_of_memLp (n := 2) hφ hC (h3 ν hν),
+      (abs_integral_comp_sum_sub_le μ ν hμ hν h₁ h₂ hφ hC).trans ?_⟩) hψ).trans_eq (by ring)
   have he : (γ ^ (1 / 3 : ℝ)) ^ 3 = γ := by
     simpa using Real.rpow_inv_natCast_pow hγ (n := 3) (by norm_num)
-  rw [mul_pow, he]
-  nlinarith [mul_nonneg hC0 hγ]
+  rw [mul_pow, he]; nlinarith [mul_nonneg ((abs_nonneg _).trans (hC 0)) hγ]
 
 /-! ### The Lévy distance: Corollary 11.61 -/
 
@@ -187,20 +181,16 @@ theorem measureReal_sum_le_le_add_div_pow (hμ : ∀ i, MemLp id 3 (μ i))
     (hν : ∀ i, MemLp id 3 (ν i)) (h₁ : ∀ i, ∫ s, s ∂μ i = ∫ s, s ∂ν i)
     (h₂ : ∀ i, ∫ s, s ^ 2 ∂μ i = ∫ s, s ^ 2 ∂ν i) (u : ℝ) {η : ℝ} (hη : 0 < η) :
     (Measure.pi μ).real {z | ∑ i, z i ≤ u} ≤ (Measure.pi ν).real {z | ∑ i, z i ≤ u + η} +
-      128 / 3 * (∑ i, (∫ s, |s| ^ 3 ∂μ i + ∫ s, |s| ^ 3 ∂ν i)) / η ^ 3 := by
-  refine (measureReal_le_le_add_div_pow_of_forall_contDiff (by fun_prop) (by fun_prop)
-    (abs_integral_comp_sum_sub_le_mul_div_six μ ν hμ hν h₁ h₂) u hη).trans_eq ?_
-  norm_num
-  ring
+      128 / 3 * (∑ i, (∫ s, |s| ^ 3 ∂μ i + ∫ s, |s| ^ 3 ∂ν i)) / η ^ 3 :=
+  (measureReal_le_le_add_div_pow_of_forall_contDiff (by fun_prop) (by fun_prop)
+    (abs_integral_comp_sum_sub_le_mul_div_six μ ν hμ hν h₁ h₂) u hη).trans_eq (by ring)
 
 /-- The arithmetic of Corollary 11.61: `2² · 4³ · γ / 6 ≤ (3 γ^(1/4))⁴` for `γ ≥ 0`. -/
 private theorem pow_mul_div_six_le {γ : ℝ} (hγ : 0 ≤ γ) :
     2 ^ (3 - 1) * ((3 : ℕ) + 1 : ℝ) ^ 3 * (γ / 6) ≤ (3 * γ ^ (1 / 4 : ℝ)) ^ (3 + 1) := by
-  have he : (γ ^ (1 / 4 : ℝ)) ^ 4 = γ := by
+  have he : (γ ^ (1 / 4 : ℝ)) ^ (3 + 1) = γ := by
     simpa using Real.rpow_inv_natCast_pow hγ (n := 4) (by norm_num)
-  rw [mul_pow, he]
-  norm_num
-  linarith
+  rw [mul_pow, he]; linarith
 
 /-- **Corollary 11.61**, upper bound [O'Donnell, Corollary 11.61][ODonnell2014]: in the setting of
 the Invariance Principle for sums, `Pr[∑ Xᵢ ≤ u] ≤ Pr[∑ Yᵢ ≤ u + ε] + ε` for every `u`, with
@@ -256,17 +246,14 @@ theorem abs_measureReal_sum_le_sub_cdf_le_of_hasLaw (hμ : ∀ i, MemLp id 3 (μ
     exact (gaussianReal_real_Iic_add_le 0 v one_ne_zero hε).trans
       (add_le_add le_rfl (div_le_div_of_nonneg_left hε two_pos h2))
   set ε := 3 * (∑ i, (∫ s, |s| ^ 3 ∂μ i + ∫ s, |s| ^ 3 ∂ν i)) ^ (1 / 4 : ℝ) with hε
-  have hε0 : 0 ≤ ε := by
-    have := sum_integral_abs_pow_three_nonneg μ ν
-    positivity
+  have hε0 : 0 ≤ ε :=
+    mul_nonneg (by norm_num) (Real.rpow_nonneg (sum_integral_abs_pow_three_nonneg μ ν) _)
   have hup := measureReal_sum_le_le_add μ ν hμ hν h₁ h₂ u
   have hlo := measureReal_sum_le_sub_le μ ν hμ hν h₁ h₂ u
   rw [← hε, hΦ] at hup hlo
-  have ha := hanti u hε0
-  have hb := hanti (u - ε) hε0
-  rw [sub_add_cancel] at hb
+  have hb := sub_add_cancel u ε ▸ hanti (u - ε) hε0
   rw [abs_sub_le_iff]
-  constructor <;> linarith
+  constructor <;> linarith [hanti u hε0]
 
 /-! ### The Gaussian comparison family -/
 
@@ -289,24 +276,20 @@ private theorem hasLaw_sum_pi_map_gaussianReal {σ : ι → ℝ} (hσ : ∑ i, �
   refine ⟨by fun_prop, ?_⟩
   rw [← Measure.pi_map_pi fun i => (measurable_const_mul (σ i)).aemeasurable,
     Measure.map_map (by fun_prop) (by fun_prop)]
-  have he : ((fun z : ι → ℝ => ∑ i, z i) ∘ fun z i => σ i * z i) = (σ ⬝ᵥ ·) := by
-    funext z
-    simp [dotProduct]
+  have he : ((fun z : ι → ℝ => ∑ i, z i) ∘ fun z i => σ i * z i) = (σ ⬝ᵥ ·) :=
+    funext fun _ => by simp [dotProduct]
   have hσσ : σ ⬝ᵥ σ = 1 := by simpa [dotProduct, sq] using hσ
-  rw [he, pi_gaussianReal_map_dotProduct_eq_map_const_mul, hσσ, Real.sqrt_one]
-  simp only [one_mul]
-  exact Measure.map_id
+  simp [he, pi_gaussianReal_map_dotProduct_eq_map_const_mul, hσσ]
 
 /-- `9/2 · a^(1/4) ≤ 6 γ^(1/4)` when `0 ≤ a ≤ 3 γ`, as `3^(1/4) ≤ 4/3`. -/
 private theorem nine_div_two_mul_rpow_le {a γ : ℝ} (ha : 0 ≤ a) (h : a ≤ 3 * γ) :
     9 / 2 * a ^ (1 / 4 : ℝ) ≤ 6 * γ ^ (1 / 4 : ℝ) := by
   have hγ : 0 ≤ γ := by linarith
-  have h3 : (3 : ℝ) ^ (1 / 4 : ℝ) ≤ 4 / 3 := by
-    rw [show (1 / 4 : ℝ) = ((4 : ℕ) : ℝ)⁻¹ by norm_num]
-    refine (Real.rpow_le_rpow (by norm_num) (show (3 : ℝ) ≤ (4 / 3) ^ 4 by norm_num)
-      (by norm_num)).trans_eq ?_
-    exact Real.pow_rpow_inv_natCast (by norm_num) (by norm_num)
-  have hr : 0 ≤ γ ^ (1 / 4 : ℝ) := by positivity
+  have h4 : (1 / 4 : ℝ) = ((4 : ℕ) : ℝ)⁻¹ := by norm_num
+  have h3 : (3 : ℝ) ^ (1 / 4 : ℝ) ≤ 4 / 3 :=
+    h4.symm ▸ (Real.rpow_le_rpow zero_le_three (by norm_num : (3 : ℝ) ≤ (4 / 3) ^ 4)
+      (inv_nonneg.2 (Nat.cast_nonneg 4))).trans_eq
+      (Real.pow_rpow_inv_natCast (by positivity) (Nat.succ_ne_zero 3))
   calc 9 / 2 * a ^ (1 / 4 : ℝ) ≤ 9 / 2 * (3 * γ) ^ (1 / 4 : ℝ) :=
         mul_le_mul_of_nonneg_left (Real.rpow_le_rpow ha h (by norm_num)) (by norm_num)
     _ = 9 / 2 * 3 ^ (1 / 4 : ℝ) * γ ^ (1 / 4 : ℝ) := by
@@ -335,12 +318,11 @@ theorem abs_measureReal_sum_le_sub_cdf_le (hμ : ∀ i, MemLp id 3 (μ i))
       integral_id_gaussianReal, mul_zero]
   have hY2 (i : ι) : ∫ s, s ^ 2 ∂(gaussianReal 0 1).map (σ i * ·) = ∫ s, s ^ 2 ∂μ i := by
     rw [integral_map_gaussianReal_const_mul (g := fun s => s ^ 2) _ (continuous_pow 2)]
-    simp only [mul_pow]
-    rw [integral_const_mul, integral_sq_gaussianReal, mul_one, hσ2]
+    simp only [mul_pow, integral_const_mul, integral_sq_gaussianReal, mul_one, hσ2]
   have hY3 (i : ι) : ∫ s, |s| ^ 3 ∂(gaussianReal 0 1).map (σ i * ·) ≤ 2 * ∫ s, |s| ^ 3 ∂μ i := by
     rw [integral_map_gaussianReal_const_mul (g := fun s => |s| ^ 3) _ (continuous_abs.pow 3)]
-    simp only [abs_mul, mul_pow]
-    rw [integral_const_mul, abs_of_nonneg (Real.sqrt_nonneg _), mul_comm]
+    simp only [abs_mul, mul_pow, integral_const_mul]
+    rw [abs_of_nonneg (Real.sqrt_nonneg _), mul_comm]
     exact mul_le_mul integral_abs_pow_three_gaussianReal_le
       (sqrt_integral_sq_pow_three_le (hμ i)) (by positivity) (by norm_num)
   refine (abs_measureReal_sum_le_sub_cdf_le_of_hasLaw μ _ hμ

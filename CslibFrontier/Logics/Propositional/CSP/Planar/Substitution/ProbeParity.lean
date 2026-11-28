@@ -53,11 +53,8 @@ theorem sum_freeBoundaryBlock_copiedEdgeLabels
       fun j => (List.ofFn (copiedEdgeLabels gadgets B F i x)).getD j false).sum =
         copiedFreeLabels gadgets witnesses B F i x a := by
   unfold copiedFreeLabels
-  congr 1
-  apply List.map_congr_left
-  intro j hj
-  obtain ⟨p, hp, _⟩ := (mem_freeBoundaryBlock_iff _ _ a j).mp hj
-  rw [← hp]
+  refine congrArg List.sum (List.map_congr_left fun j hj => ?_)
+  obtain ⟨p, rfl, _⟩ := (mem_freeBoundaryBlock_iff _ _ a j).mp hj
   exact List.getD_ofFn (copiedEdgeLabels gadgets B F i x) (incidenceDart p false).1 false
 
 /-- The extended labels at an actual marker are its internally computed free-block bit. -/
@@ -99,8 +96,7 @@ theorem vertexParity_copiedProbeLabels_marker_variable
     (witnesses F[i.val].rel)]
   have he := getD_freeBoundaryBlocks (gadgets F[i.val].rel) (witnesses F[i.val].rel) a
   unfold gadgetProbeOccurrence at he
-  rw [← he]
-  rw [sum_freeBoundaryBlock_copiedEdgeLabels]
+  rw [← he, sum_freeBoundaryBlock_copiedEdgeLabels]
   simpa only [Bool.zero_eq_false] using BooleanRing.add_self
     (copiedFreeLabels gadgets witnesses B F i x a)
 
@@ -117,13 +113,11 @@ theorem vertexParity_copiedProbeLabels_marker_constraint
       (copiedProbeLabels gadgets witnesses B F i x)
       (incidenceDart (gadgetProbeOccurrence (gadgets F[i.val].rel) a) true).vertex = false := by
   unfold copiedProbeLabels gadgetProbeOccurrence
-  rw [vertexParity_probeEdgeLabels_probe_constraint]
-  apply Eq.trans ?_ (sum_copiedFreeLabels_eq_false gadgets witnesses B hB F i x hx)
-  apply congrArg List.sum
-  have hlen : (List.ofFn (Sum.inl : Fin (srcArity F[i.val].rel) →
-      Fin (srcArity F[i.val].rel) ⊕ Fin (gadgets F[i.val].rel).numAux)).length =
-      srcArity F[i.val].rel := List.length_ofFn
-  rw [List.ofFn_congr hlen]
+  rw [vertexParity_probeEdgeLabels_probe_constraint,
+    ← sum_copiedFreeLabels_eq_false gadgets witnesses B hB F i x hx]
+  refine congrArg List.sum ?_
+  rw [List.ofFn_congr (List.length_ofFn (f := (Sum.inl : Fin (srcArity F[i.val].rel) →
+    Fin (srcArity F[i.val].rel) ⊕ Fin (gadgets F[i.val].rel).numAux)))]
   congr 1
 
 /-- Every target vertex-even labeling internally extends to a vertex-even labeling on each
@@ -148,36 +142,29 @@ theorem vertexEven_copiedProbeLabels
   rw [Graph.vertexEven_iff_dart]
   intro d
   obtain ⟨p, hp⟩ := exists_incidenceDart d
-  have h (side : Bool) :
-      (incidenceGraph (probeBody g.body ports)).vertexParity
-        (copiedProbeLabels gadgets witnesses B F i x)
-        (incidenceDart p side).vertex = false := by
-    rcases exists_bodyOccurrence_or_probeOccurrence g.body ports p with ⟨o, rfl⟩ | ⟨j, rfl⟩
-    · cases side
-      · cases ho : o.var with
-        | inl a =>
-          have hv : (incidenceDart (bodyOccurrence g.body ports o) false).vertex =
-              (incidenceDart (gadgetProbeOccurrence g a) false).vertex :=
-            (vertex_incidenceDart_eq_iff _ _ false false).mpr
-              ⟨rfl, (var_bodyOccurrence g.body ports o).trans
-                (ho.trans (var_gadgetProbeOccurrence g a).symm)⟩
-          rw [hv]
-          exact vertexParity_copiedProbeLabels_marker_variable gadgets witnesses B F i x a
-        | inr a =>
-          rw [hlabels, vertexParity_probeEdgeLabels_variable_of_not_mem g.body ports t _ o
-            (by simp [ports, ho])]
-          exact vertexParity_copiedEdgeLabels_auxiliary gadgets witnesses B hB F i a x hx o ho
-      · rw [hlabels, vertexParity_probeEdgeLabels_body_constraint]
-        exact vertexParity_copiedEdgeLabels_constraint gadgets B F i x hx o
-    · let a : Fin (srcArity F[i.val].rel) := ⟨j.val, by
-        simpa only [ports, List.length_ofFn] using j.isLt⟩
-      have he : probeOccurrence g.body ports j = gadgetProbeOccurrence g a := by
-        unfold gadgetProbeOccurrence
-        congr 1
-      rw [he]
-      cases side
-      · exact vertexParity_copiedProbeLabels_marker_variable gadgets witnesses B F i x a
-      · exact vertexParity_copiedProbeLabels_marker_constraint gadgets witnesses B hB F i x hx a
-  simpa only [hp] using h d.2
+  rw [← hp]
+  rcases exists_bodyOccurrence_or_probeOccurrence g.body ports p with ⟨o, rfl⟩ | ⟨j, rfl⟩
+  · cases d.2
+    · cases ho : o.var with
+      | inl a =>
+        rw [(vertex_incidenceDart_eq_iff _ _ false false).mpr ⟨rfl,
+          (var_bodyOccurrence g.body ports o).trans
+            (ho.trans (var_gadgetProbeOccurrence g a).symm)⟩]
+        exact vertexParity_copiedProbeLabels_marker_variable gadgets witnesses B F i x a
+      | inr a =>
+        rw [hlabels, vertexParity_probeEdgeLabels_variable_of_not_mem g.body ports t _ o
+          (by simp [ports, ho])]
+        exact vertexParity_copiedEdgeLabels_auxiliary gadgets witnesses B hB F i a x hx o ho
+    · rw [hlabels, vertexParity_probeEdgeLabels_body_constraint]
+      exact vertexParity_copiedEdgeLabels_constraint gadgets B F i x hx o
+  · let a : Fin (srcArity F[i.val].rel) :=
+      ⟨j.val, by simpa only [ports, List.length_ofFn] using j.isLt⟩
+    have he : probeOccurrence g.body ports j = gadgetProbeOccurrence g a := by
+      unfold gadgetProbeOccurrence
+      congr 1
+    rw [he]
+    cases d.2
+    · exact vertexParity_copiedProbeLabels_marker_variable gadgets witnesses B F i x a
+    · exact vertexParity_copiedProbeLabels_marker_constraint gadgets witnesses B hB F i x hx a
 
 end Cslib.Complexity.CSP.GadgetRotation

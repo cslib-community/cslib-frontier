@@ -58,9 +58,8 @@ private theorem toOuterMeasure_uniformOfFintype_cube (Q : Finset ι) (c : ι →
     ((PMF.uniformOfFintype (ι → Bool)).toOuterMeasure {z | ∀ i ∈ Q, z i = c i}).toReal =
       ((2 : ℝ) ^ #Q)⁻¹ := by
   have hset : {z : ι → Bool | ∀ i ∈ Q, z i = c i} =
-      Q.restrict ⁻¹' ({Q.restrict c} : Set (Q → Bool)) := by
-    ext z
-    simp [funext_iff, Finset.restrict]
+      Q.restrict ⁻¹' ({Q.restrict c} : Set (Q → Bool)) :=
+    Set.ext fun z => by simp [funext_iff, Finset.restrict]
   rw [hset, ← PMF.toOuterMeasure_map_apply, Probability.PMF.uniformOfFintype_pi_map_restrict,
     PMF.toOuterMeasure_apply_singleton, PMF.uniformOfFintype_apply]
   simp
@@ -112,9 +111,8 @@ private def pointerTest {D : Type*} [DecidableEq D]
 private theorem eval_pointerTest {D : Type*} [DecidableEq D] (key : (Fin m → Bool) → D)
     (target : (Fin m → Bool) → Bool) (z : Fin m ⊕ D → Bool) :
     (pointerTest key target).eval z = decide (z (point key z) = target (address z)) := by
-  rw [pointerTest, eval_graft, eval_checkBit]
-  simp only [point, address, Function.comp_def, List.mem_map, List.mem_finRange, true_and,
-    exists_eq, reduceIte, Sum.inl.injEq]
+  simp only [pointerTest, eval_graft, eval_checkBit, point, address, Function.comp_def,
+    List.mem_map, List.mem_finRange, true_and, exists_eq, reduceIte, Sum.inl.injEq]
   exact Bool.decide_congr Iff.rfl
 
 private theorem depth_pointerTest {D : Type*} [DecidableEq D] (key : (Fin m → Bool) → D)
@@ -144,19 +142,12 @@ private theorem map_eval_forceBit {J : Type*} [Fintype J] [DecidableEq J]
     ((PMF.uniformOfFintype (J → Bool)).map
       (fun z => Function.update z (p z) (b z))).map T.eval = PMF.pure true ∧
       (PMF.uniformOfFintype (J → Bool)).map T.eval = PMF.uniformOfFintype Bool := by
-  constructor
-  · rw [PMF.map_comp]
-    have h : T.eval ∘ (fun z => Function.update z (p z) (b z)) =
-        Function.const _ true := by
-      funext z
-      simp [heval, hp, hb]
-    rw [h]
-    simp
-  · let g := fun z : J → Bool => PMF.pure (T.eval z)
-    have h := Probability.PMF.uniformOfFintype_bind_bind_adaptiveUpdate p hp g
-    simp only [g, heval, hp, hb, Function.update_self, bind_checkBit_uniform, PMF.bind_const] at h
-    rw [funext heval, ← PMF.bind_pure_comp]
-    exact h.symm
+  refine ⟨by simp [PMF.map, Function.comp_def, heval, hp, hb], ?_⟩
+  rw [funext heval, ← PMF.bind_pure_comp]
+  simpa only [heval, hp, hb, Function.update_self, bind_checkBit_uniform, PMF.bind_const,
+    Function.comp_def] using
+    (Probability.PMF.uniformOfFintype_bind_bind_adaptiveUpdate p hp
+      (fun z => PMF.pure (T.eval z))).symm
 
 private def forcePointer {D : Type*} [DecidableEq D] (key : (Fin m → Bool) → D)
     (target : (Fin m → Bool) → Bool) (z : Fin m ⊕ D → Bool) : Fin m ⊕ D → Bool :=
@@ -209,23 +200,16 @@ private theorem dist_map_restrict_pointerLaw_le {D : Type*} [Fintype D] [Decidab
   have hA : #A ≤ #S := Finset.card_le_card_of_injOn charge
     (fun a ha => (mem_filter.mp ha).2) hcharge.injOn
   have hsub : {z | (S.restrict ∘ forcePointer key target) z ≠ (S.restrict ∘ compare) z} ⊆
-      ⋃ a ∈ A, B a := by
-    intro z hz
+      ⋃ a ∈ A, B a := fun z hz => by
     obtain ⟨hmem, hne⟩ := hbad z hz
-    simp only [Set.mem_iUnion]
-    refine ⟨address z, mem_filter.mpr ⟨mem_univ _, hmem⟩, rfl, ?_⟩
-    change z (point key z) = !target (address z)
-    cases hv : z (point key z) <;> cases ht : target (address z) <;> simp_all
+    refine Set.mem_iUnion₂.mpr ⟨address z, mem_filter.mpr ⟨mem_univ _, hmem⟩, rfl, ?_⟩
+    cases hv : z (point key z) <;> cases ht : target (address z) <;> simp_all [point]
   have hB (a : Fin m → Bool) : (U.toOuterMeasure (B a)).toReal = ((2 : ℝ) ^ (m + 1))⁻¹ := by
-    let Q : Finset (Fin m ⊕ D) :=
-      insert (.inr (key a)) (univ.map ⟨Sum.inl, Sum.inl_injective⟩)
-    let c : Fin m ⊕ D → Bool := Sum.elim a fun _ => !target a
-    have hQ : #Q = m + 1 := by
-      rw [card_insert_of_notMem (by simp), card_map, card_univ, Fintype.card_fin]
-    have hBQ : B a = {z | ∀ i ∈ Q, z i = c i} := by
-      ext z
-      simp [B, Q, c, address, funext_iff, and_comm]
-    rw [hBQ, toOuterMeasure_uniformOfFintype_cube, hQ]
+    let Q : Finset (Fin m ⊕ D) := insert (.inr (key a)) (univ.map ⟨Sum.inl, Sum.inl_injective⟩)
+    have hBQ : B a = {z | ∀ i ∈ Q, z i = Sum.elim a (fun _ => !target a) i} :=
+      Set.ext fun z => by simp [B, Q, address, funext_iff, and_comm]
+    rw [hBQ, toOuterMeasure_uniformOfFintype_cube, card_insert_of_notMem (by simp), card_map,
+      card_univ, Fintype.card_fin]
   calc (U.toOuterMeasure
         {z | (S.restrict ∘ forcePointer key target) z ≠ (S.restrict ∘ compare) z}).toReal
       ≤ (U.toOuterMeasure (⋃ a ∈ A, B a)).toReal :=
@@ -243,10 +227,9 @@ private theorem forcePointer_eq_on {D : Type*} [DecidableEq D]
     (h : point key z ∈ S → z (point key z) = target (address z)) :
     S.restrict (forcePointer key target z) = S.restrict z := by
   ext i
-  by_cases hi : (i : Fin m ⊕ D) = point key z
-  · have hz := h (hi ▸ i.property)
-    simp [Finset.restrict, forcePointer, hi, hz]
-  · simp [Finset.restrict, forcePointer, Function.update_of_ne hi]
+  simp only [Finset.restrict, forcePointer, Function.update_apply, ite_eq_right_iff]
+  intro hi
+  rw [hi, h (hi ▸ i.property)]
 
 /-- A matching of address-cube edges with one edge in each coordinate direction. -/
 private structure PointerMatching (m : ℕ) where
@@ -301,13 +284,11 @@ private noncomputable def key (M : PointerMatching m) (a : Fin m → Bool) : M.K
 
 private theorem key_of_mem (M : PointerMatching m) {a : Fin m → Bool} (ha : a ∈ M.Keys) :
     M.key a = ⟨a, ha⟩ := by
-  rw [key, M.charge_of_mem ha]
-  rfl
+  simp [key, M.charge_of_mem ha]
 
 private theorem key_upper (M : PointerMatching m) (i : Fin m) :
     M.key (M.upper i) = M.lowerKey i := by
-  rw [key, M.charge_upper]
-  rfl
+  simp [key, M.charge_upper]
 
 private theorem key_lower (M : PointerMatching m) (i : Fin m) :
     M.key (M.lower i) = M.lowerKey i :=
@@ -326,19 +307,13 @@ private theorem key_endpoint (M : PointerMatching m) (i : Fin m) (side : Bool) :
 
 private theorem target_endpoint (M : PointerMatching m) (i : Fin m) (side : Bool) :
     M.target (M.endpoint i side) = side := by
-  cases side
-  · change (M.charge (M.lower i)).isLeft = false
-    rw [M.charge_of_mem (a := M.lower i) (M.lowerKey i).property]
-    rfl
-  · change (M.charge (M.upper i)).isLeft = true
-    rw [M.charge_upper]
-    rfl
+  cases side <;>
+    simp [endpoint, target, M.charge_of_mem (a := M.lower i) (M.lowerKey i).property,
+      M.charge_upper]
 
 private theorem endpoint_bit (M : PointerMatching m) (i : Fin m) (side : Bool) :
     M.endpoint i side i = side := by
-  cases side
-  · exact M.lower_bit i
-  · simp [endpoint, M.upper_eq]
+  cases side <;> simp [endpoint, M.lower_bit, M.upper_eq]
 
 private theorem endpoint_other (M : PointerMatching m) (i : Fin m) (s t : Bool)
     {j : Fin m} (hj : j ≠ i) : M.endpoint i s j = M.endpoint i t j := by
@@ -364,46 +339,29 @@ private theorem address_swapWord (M : PointerMatching m) (i : Fin m)
 private theorem swapWord_swapWord (M : PointerMatching m) (i : Fin m) (s : Bool)
     (z : Fin m ⊕ M.Keys → Bool) (hz : address z = M.endpoint i s) :
     M.swapWord i (M.swapWord i z) = z := by
-  have hs : address z i = s := by rw [hz, M.endpoint_bit]
+  have hs : z (.inl i) = s := by simpa [address, M.endpoint_bit] using congrFun hz i
   funext j
-  cases j with
-  | inl j =>
-    change M.endpoint i (Function.update (z ∘ Sum.inr) (M.lowerKey i) (address z i)
-      (M.lowerKey i)) j = address z j
-    simp only [Function.update_self, hs, hz]
-  | inr j =>
-    change Function.update (Function.update (z ∘ Sum.inr) (M.lowerKey i) (address z i))
-      (M.lowerKey i) (address (M.swapWord i z) i) j = (z ∘ Sum.inr) j
-    rw [M.address_swapWord, M.endpoint_bit, Function.update_idem]
-    exact congrFun (Function.update_eq_self _ _) j
+  rcases j with j | j
+  · simpa only [swapWord, address, Function.comp_apply, Sum.elim_inl, Sum.elim_inr,
+      Function.update_self, hs] using (congrFun hz j).symm
+  · rw [swapWord, Sum.elim_inr, M.address_swapWord, M.endpoint_bit]
+    simpa only [swapWord, Function.comp_apply, Sum.elim_comp_inr, Function.update_idem] using
+      congrFun (Function.update_eq_self _ (z ∘ Sum.inr)) j
 
 private theorem restrict_force_eq_swapWord (M : PointerMatching m) (S : Finset (Fin m ⊕ M.Keys))
     (i : Fin m) (s : Bool) (z : Fin m ⊕ M.Keys → Bool) (hz : address z = M.endpoint i s)
     (hi : Sum.inl i ∉ S) :
     S.restrict (forcePointer M.key M.target z) = S.restrict (M.swapWord i z) := by
   have hs : address z i = s := by rw [hz, M.endpoint_bit]
-  have hpoint : point M.key z = .inr (M.lowerKey i) := by
-    unfold point
-    rw [hz, M.key_endpoint]
+  have hpoint : point M.key z = .inr (M.lowerKey i) := by rw [point, hz, M.key_endpoint]
   have htarget : M.target (address z) = s := by rw [hz, M.target_endpoint]
-  funext j
-  rcases j with ⟨j, hj⟩
-  cases j with
-  | inl j =>
-    have hne : j ≠ i := fun h => hi (h ▸ hj)
-    change Function.update z (point M.key z) (M.target (address z)) (.inl j) =
-      M.endpoint i (z (.inr (M.lowerKey i))) j
-    rw [hpoint, Function.update_of_ne (by simp)]
-    change address z j = _
-    rw [hz]
-    exact M.endpoint_other i _ _ hne
-  | inr j =>
-    change Function.update z (point M.key z) (M.target (address z)) (.inr j) =
-      Function.update (z ∘ Sum.inr) (M.lowerKey i) (address z i) j
-    rw [hpoint, htarget, hs]
-    by_cases h : j = M.lowerKey i
-    · simp [h]
-    · simp [Function.update_of_ne h, Function.update_of_ne (Sum.inr_injective.ne h)]
+  funext ⟨j, hj⟩
+  rcases j with j | j
+  · simp only [Finset.restrict, forcePointer, swapWord, Sum.elim_inl, hpoint,
+      Function.update_of_ne Sum.inl_ne_inr]
+    exact (congrFun hz j).trans (M.endpoint_other i _ _ fun h => hi (h ▸ hj))
+  · by_cases h : j = M.lowerKey i <;>
+      simp [Finset.restrict, forcePointer, swapWord, hpoint, htarget, hs, h]
 
 /-- Perform the exchange precisely on edges whose direction is hidden by the projection. -/
 private noncomputable def compareWord (M : PointerMatching m) (S : Finset (Fin m ⊕ M.Keys))
@@ -430,8 +388,7 @@ private theorem compareWord_involutive (M : PointerMatching m) (S : Finset (Fin 
   · obtain ⟨i, s, hz, hi⟩ := h
     rw [M.compareWord_of_hidden hz hi,
       M.compareWord_of_hidden (M.address_swapWord i z) hi, M.swapWord_swapWord i s z hz]
-  · have hfix : M.compareWord S z = z := by rw [compareWord, dite_eq_right h]
-    rw [hfix, hfix]
+  · simp only [compareWord, dite_eq_right h]
 
 private theorem dist_map_restrict_le (M : PointerMatching m) (S : Finset (Fin m ⊕ M.Keys)) :
     dist ((pointerLaw M.key M.target).map S.restrict) (PMF.uniformOfFintype (S → Bool)) ≤
@@ -440,24 +397,17 @@ private theorem dist_map_restrict_le (M : PointerMatching m) (S : Finset (Fin m 
   refine dist_map_restrict_pointerLaw_le _ _ S (M.compareWord_involutive S).toPerm M.charge
     M.charge.injective fun z hz => ?_
   change S.restrict (forcePointer M.key M.target z) ≠ S.restrict (M.compareWord S z) at hz
-  have hhidden : ¬ ∃ i, ∃ s, address z = M.endpoint i s ∧ Sum.inl i ∉ S := by
-    rintro ⟨i, s, ha, hi⟩
-    apply hz
-    rw [M.compareWord_of_hidden ha hi]
-    exact M.restrict_force_eq_swapWord S i s z ha hi
-  have hfix : M.compareWord S z = z := by rw [compareWord, dite_eq_right hhidden]
-  rw [hfix] at hz
-  have hne : point M.key z ∈ S ∧ z (point M.key z) ≠ M.target (address z) :=
+  have hhidden : ¬ ∃ i, ∃ s, address z = M.endpoint i s ∧ Sum.inl i ∉ S := fun ⟨i, s, ha, hi⟩ =>
+    hz (M.compareWord_of_hidden ha hi ▸ M.restrict_force_eq_swapWord S i s z ha hi)
+  rw [compareWord, dite_eq_right hhidden] at hz
+  obtain ⟨hmem, hne⟩ : point M.key z ∈ S ∧ z (point M.key z) ≠ M.target (address z) :=
     not_imp.mp fun h => hz (forcePointer_eq_on M.key M.target S z h)
-  refine ⟨?_, hne.2⟩
+  refine ⟨?_, hne⟩
   by_cases h : ∃ i, address z = M.upper i
   · obtain ⟨i, hi⟩ := h
-    rw [hi, M.charge_upper]
-    by_contra hmem
-    exact hhidden ⟨i, true, hi, hmem⟩
+    exact hi ▸ (M.charge_upper i).symm ▸ by_contra fun hm => hhidden ⟨i, true, hi, hm⟩
   · have ha : address z ∈ M.Keys := (M.mem_keys _).2 fun i hi => h ⟨i, hi⟩
-    rw [M.charge_of_mem ha, ← M.key_of_mem ha]
-    exact hne.1
+    rwa [M.charge_of_mem ha, ← M.key_of_mem ha]
 
 private def empty : PointerMatching 0 where
   lower := ⟨Fin.elim0, fun i => i.elim0⟩
@@ -552,31 +502,23 @@ private theorem HasSeparation.relabel {κ : Type*} [Fintype κ] [DecidableEq κ]
     (h : HasSeparation ι t) (e : ι ≃ κ) : HasSeparation κ t := by
   obtain ⟨X, hX, T, hT, hp, hu⟩ := h
   let P := e.arrowCongr (Equiv.refl Bool)
-  have he : (T.mapQueries e).eval ∘ P = T.eval := by
-    funext z
+  have he : (T.mapQueries e).eval ∘ P = T.eval := funext fun z => by
     rw [Function.comp_apply, eval_mapQueries]
-    congr
-    funext i
-    exact congrArg z (e.symm_apply_apply i)
-  refine ⟨X.map P, ?_, T.mapQueries e, by simpa, ?_, ?_⟩
-  · intro S hS
-    let R := S.map e.symm.toEmbedding
-    let Q := (S.equivMap e.symm.toEmbedding).symm.arrowCongr (Equiv.refl Bool)
-    have hcomp : S.restrict ∘ P = Q ∘ R.restrict := by
-      funext z i
-      rfl
-    rw [PMF.map_comp, hcomp, ← PMF.map_comp, ← Probability.PMF.uniformOfFintype_map_equiv Q]
-    exact (Probability.PMF.dist_map_le _ _ _).trans (hX R (by simpa [R] using hS))
-  · rw [PMF.map_comp, he, hp]
-  · rw [← Probability.PMF.uniformOfFintype_map_equiv P, PMF.map_comp, he, hu]
+    exact congrArg T.eval (funext fun i => congrArg z (e.symm_apply_apply i))
+  refine ⟨X.map P, fun S hS => ?_, T.mapQueries e, by simpa,
+    by rw [PMF.map_comp, he, hp],
+    by rw [← Probability.PMF.uniformOfFintype_map_equiv P, PMF.map_comp, he, hu]⟩
+  let R := S.map e.symm.toEmbedding
+  let Q := (S.equivMap e.symm.toEmbedding).symm.arrowCongr (Equiv.refl Bool)
+  rw [PMF.map_comp, show S.restrict ∘ P = Q ∘ R.restrict from rfl, ← PMF.map_comp,
+    ← Probability.PMF.uniformOfFintype_map_equiv Q]
+  exact (Probability.PMF.dist_map_le _ _ _).trans (hX R (by simpa [R] using hS))
 
 private theorem PointerMatching.hasSeparation (M : PointerMatching m) :
     HasSeparation (Fin (2 ^ m)) (m + 1) := by
-  have h : HasSeparation (Fin m ⊕ M.Keys) (m + 1) := by
-    refine ⟨pointerLaw M.key M.target, ?_, pointerTest M.key M.target, depth_pointerTest _ _,
-      map_eval_pointerTest _ _⟩
-    intro S hS
-    simpa only [hS] using M.dist_map_restrict_le S
+  have h : HasSeparation (Fin m ⊕ M.Keys) (m + 1) :=
+    ⟨pointerLaw M.key M.target, fun S hS => by simpa only [hS] using M.dist_map_restrict_le S,
+      pointerTest M.key M.target, depth_pointerTest _ _, map_eval_pointerTest _ _⟩
   exact h.relabel (Fintype.equivOfCardEq (by rw [M.card_positions, Fintype.card_fin]))
 
 /-- The three-query case uses one selector and checks that bit 1 equals the selected bit. -/
@@ -597,9 +539,7 @@ private theorem eval_fourTest (z : Fin 4 → Bool) :
 
 private theorem fourTarget_update (z : Fin 4 → Bool) (v : Bool) :
     fourTarget (Function.update z 1 v) = fourTarget z := by
-  unfold fourTarget
-  rw [Function.update_of_ne (by decide), Function.update_of_ne (by decide),
-    Function.update_of_ne (by decide)]
+  simp [fourTarget]
 
 private theorem map_eval_fourTest :
     ((PMF.uniformOfFintype (Fin 4 → Bool)).map fourForce).map fourTest.eval = PMF.pure true ∧
@@ -628,31 +568,22 @@ private theorem fourMismatch_card : ∀ i : Fin 4,
 
 private theorem four_hasSeparation : HasSeparation (Fin 4) 3 := by
   let U := PMF.uniformOfFintype (Fin 4 → Bool)
-  refine ⟨U.map fourForce, ?_, fourTest, by decide, map_eval_fourTest⟩
-  intro S hS
-  have hcard : #S < #(univ : Finset (Fin 4)) := by simp [hS]
-  obtain ⟨i, _, hi⟩ := exists_mem_notMem_of_card_lt_card hcard
+  refine ⟨U.map fourForce, fun S hS => ?_, fourTest, by decide, map_eval_fourTest⟩
+  obtain ⟨i, _, hi⟩ := exists_mem_notMem_of_card_lt_card
+    (show #S < #(univ : Finset (Fin 4)) by simp [hS])
   let e := (fourCompare_involutive i).toPerm
-  refine (dist_restrict_map_uniform_le S fourForce e).trans ?_
-  let E : Set (Fin 4 → Bool) :=
-    {z | ∃ j : Fin 4, j ≠ i ∧ fourForce z j ≠ fourCompare i z j}
-  have hsub : {z | (S.restrict ∘ fourForce) z ≠ (S.restrict ∘ e) z} ⊆ E := by
-    intro z hz
-    change ∃ j : Fin 4, j ≠ i ∧ fourForce z j ≠ fourCompare i z j
+  let E : Set (Fin 4 → Bool) := {z | ∃ j : Fin 4, j ≠ i ∧ fourForce z j ≠ fourCompare i z j}
+  have hsub : {z | (S.restrict ∘ fourForce) z ≠ (S.restrict ∘ e) z} ⊆ E := fun z hz => by
     by_contra h
-    apply hz
-    funext j
-    change fourForce z j = fourCompare i z j
-    by_contra hne
-    exact h ⟨j, fun hji => hi (hji ▸ j.property), hne⟩
-  refine (ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top U E)
-    (U.toOuterMeasure.mono hsub)).trans ?_
+    exact hz (funext fun j => by_contra fun hne => h ⟨j, fun hji => hi (hji ▸ j.property), hne⟩)
+  refine (dist_restrict_map_uniform_le S fourForce e).trans
+    ((ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top U E)
+      (U.toOuterMeasure.mono hsub)).trans ?_)
   rw [Probability.PMF.toOuterMeasure_uniformOfFintype_toReal]
-  have hE := fourMismatch_card i
-  have hcount : (#(univ.filter (· ∈ E)) : ℝ) ≤ 4 := by exact_mod_cast hE
-  have hsize : Fintype.card (Fin 4 → Bool) = 16 := by simp
-  rw [hsize]
-  exact (div_le_div_of_nonneg_right hcount (by norm_num : (0 : ℝ) ≤ 16)).trans (by norm_num)
+  have hcard : (#{z | z ∈ E} : ℝ) ≤ 4 := by exact_mod_cast fourMismatch_card i
+  simp only [Fintype.card_fun, Fintype.card_fin, Fintype.card_bool]
+  norm_num
+  linarith
 
 /-- **Goldreich's separation at the printed length.**
 [Goldreich, Exercise 8.32(1)][Goldreich2007DraftR4] (March 2007, printed pp. 377–378).
@@ -671,14 +602,11 @@ theorem exists_dist_map_restrict_le_and_map_eval_eq_printed_length (t : ℕ) (ht
       ∃ T : DecisionTree (Fin (2 ^ (t - 1))) Bool, T.depth ≤ t ∧
         X.map T.eval = PMF.pure true ∧
         (PMF.uniformOfFintype _).map T.eval = PMF.uniformOfFintype Bool := by
-  obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le' ht
-  rw [Nat.add_sub_cancel_right]
-  change HasSeparation (Fin (2 ^ m)) (m + 1)
-  match m with
-  | 0 => exact PointerMatching.empty.hasSeparation
-  | 1 => exact PointerMatching.one.hasSeparation
-  | 2 => exact four_hasSeparation
-  | k + 3 => exact (PointerMatching.cyclic k).hasSeparation
+  match t, ht with
+  | 1, _ => exact PointerMatching.empty.hasSeparation
+  | 2, _ => exact PointerMatching.one.hasSeparation
+  | 3, _ => exact four_hasSeparation
+  | k + 4, _ => exact (PointerMatching.cyclic k).hasSeparation
 
 end Pointer
 

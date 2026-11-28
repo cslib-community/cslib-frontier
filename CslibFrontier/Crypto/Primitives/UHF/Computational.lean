@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Crypto.Game.Experiment
 public import CslibFrontier.Crypto.Primitives.UHF.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Lists
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Probability.PMF.SupportTsum
@@ -24,7 +26,8 @@ messages. The message encoding is shared across setup descriptions.
 
 The computational security implication follows by running the certified collision-pair sampler
 on the multi-query adversary's list. The list length bound follows from the strict PPT
-certificates for the setup and adversary. The sampler uses only that list and its own coins.
+certificates for the setup and adversary. The converse submits a pair as a two-message batch
+and preserves the success probability.
 
 ## Main definitions
 
@@ -32,6 +35,7 @@ certificates for the setup and adversary. The sampler uses only that list and it
   public setup and private keys.
 * `Cslib.Crypto.UHF.IsComputationalUHF` and `Cslib.Crypto.UHF.IsMultiQueryUHF`: negligible
   success in the respective games against every uniform strict PPT adversary.
+* `Cslib.Crypto.UHF.collisionPairToBatch`: present a single guess as a two-message batch.
 
 ## Main results
 
@@ -39,6 +43,7 @@ certificates for the setup and adversary. The sampler uses only that list and it
   `Q ^ 2 / 2` bound for the certified sampler, averaged over setup.
 * `Cslib.Crypto.UHF.IsComputationalUHF.isMultiQueryUHF`: the asymptotic implication for a
   strict PPT setup.
+* `Cslib.Crypto.UHF.IsMultiQueryUHF.isComputationalUHF`: the converse via a two-message batch.
 
 ## References
 
@@ -64,6 +69,28 @@ private theorem valid_collision_iff_hashOn_eq {T : Type} (valid : M → Bool) (f
     m ≠ m' ∧ valid m = true ∧ valid m' = true ∧ f m = f m' ↔
       m ≠ m' ∧ hashOn valid f m = hashOn valid f m' := by
   cases hm : valid m <;> cases hm' : valid m' <;> simp [hashOn, hm, hm']
+
+/-- Run a collision guesser and submit its two messages in order, including repeated guesses. -/
+def collisionPairToBatch (guess : ProbComp (CollisionGuess M)) : ProbComp (List M) :=
+  (fun pair => [pair.first, pair.second]) <$> guess
+
+/-- Every supported output of the wrapper contains exactly two messages. -/
+theorem length_of_mem_support_collisionPairToBatch {guess : ProbComp (CollisionGuess M)}
+    {batch : List M} (hbatch : batch ∈ (ProbComp.eval (collisionPairToBatch guess)).support) :
+    batch.length = 2 := by
+  rw [collisionPairToBatch, ProbComp.eval_map, PMF.mem_support_map_iff] at hbatch
+  obtain ⟨_, _, rfl⟩ := hbatch
+  rfl
+
+/-- The batch wrapper adds only the cost of writing a two-element framed list. -/
+theorem isPPTOn_collisionPairToBatch {I : Type} {encI : I ↪ List Bool} {encM : M ↪ List Bool}
+    {A : I → ProbComp (CollisionGuess M)} (hA : IsPPTOn encI (encCollisionGuess encM) A) :
+    IsPPTOn encI (encList encM) (fun i => collisionPairToBatch (A i)) := by
+  have hId : ComputableInPolyTime id (encCollisionGuess encM) (encCollisionGuess encM) := .id'
+  exact hA.map ((ComputableInPolyTime.cons encM).comp
+    ((encCollisionGuess_first_polyTime encM hId).prod
+      ((ComputableInPolyTime.cons encM).comp
+        ((encCollisionGuess_second_polyTime encM hId).prod (.const [])))))
 
 variable [∀ d, Fintype (K d)] [∀ d, Nonempty (K d)] [DecidableEq M] [∀ d, DecidableEq (Y d)]
 
@@ -110,6 +137,41 @@ arbitrary runtime. `IsComputationalUHF.isMultiQueryUHF` requires strict PPT setu
   Game.Indistinguishable (multiQueryGame setup valid H) (fun _ _ => PMF.pure false)
     (IsPPTOn (encPair encUnary encD) (encList encM))
 
+/-- The two-message batch and the original pair win on exactly the same guesses and keys. -/
+theorem multiQueryGame_collisionPairToBatch (setup : ℕ → ProbComp D)
+    (valid : ℕ → D → M → Bool) (H : ℕ → (d : D) → K d → M → Y d)
+    (A : ℕ × D → ProbComp (CollisionGuess M)) (n : ℕ) :
+    multiQueryGame setup valid H (fun p => collisionPairToBatch (A p)) n =
+      collisionGame setup valid H A n := by
+  simp only [multiQueryGame, collisionGame, Game.withSetup, collisionPairToBatch,
+    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.bind_map, Function.comp_def]
+  congr 1
+  funext d
+  congr 1
+  funext pair
+  congr 1
+  funext k
+  refine congrArg PMF.pure (decide_eq_decide.mpr ?_)
+  simp only [List.mem_cons, List.not_mem_nil, or_false]
+  refine ⟨?_, fun ⟨hne, hv, hv', hc⟩ =>
+    ⟨pair.first, .inl rfl, pair.second, .inr rfl, hne, hv, hv', hc⟩⟩
+  rintro ⟨m, rfl | rfl, m', rfl | rfl, hne, hv, hv', hc⟩
+  · exact (hne rfl).elim
+  · exact ⟨hne, hv, hv', hc⟩
+  · exact ⟨hne.symm, hv', hv, hc.symm⟩
+  · exact (hne rfl).elim
+
+/-- Multi-query UHF security implies single-pair UHF security by submitting both messages in
+one batch. The wrapper leaves the public setup program unchanged. -/
+theorem IsMultiQueryUHF.isComputationalUHF {encD : D ↪ List Bool} {encM : M ↪ List Bool}
+    {setup : ℕ → ProbComp D} {valid : ℕ → D → M → Bool} {H : ℕ → (d : D) → K d → M → Y d}
+    (hH : IsMultiQueryUHF encD encM setup valid H) :
+    IsComputationalUHF encD encM setup valid H := by
+  apply Game.Indistinguishable.of_negligible_succProbability
+  intro A hA
+  simpa only [multiQueryGame_collisionPairToBatch] using
+    hH.negligible_succProbability _ (isPPTOn_collisionPairToBatch hA)
+
 /-- With at most `Q` messages at each supported setup, the multi-query success probability is
 at most `Q ^ 2 / 2` times the success probability of the collision-pair sampler. -/
 theorem succProbability_multiQueryGame_le_collisionPairReduction
@@ -141,34 +203,24 @@ theorem IsComputationalUHF.isMultiQueryUHF {encD : D ↪ List Bool} {encM : M �
     {setup : ℕ → ProbComp D} {valid : ℕ → D → M → Bool} {H : ℕ → (d : D) → K d → M → Y d}
     (hH : IsComputationalUHF encD encM setup valid H) (hsetup : IsPPTOn encUnary encD setup) :
     IsMultiQueryUHF encD encM setup valid H := by
-  apply Game.Indistinguishable.of_negligible_succProbability
-  intro A hA
+  refine Game.Indistinguishable.of_negligible_succProbability fun A hA => ?_
   rcases isEmpty_or_nonempty M with hM | ⟨⟨fallback⟩⟩
-  · have hnil (ms : List M) : ms = [] := by
-      cases ms with
-      | nil => rfl
-      | cons m _ => exact (hM.false m).elim
-    have hlose (n : ℕ) : multiQueryGame setup valid H A n = PMF.pure false := by
-      simp only [multiQueryGame, Game.withSetup, ProbComp.eval_bind, hnil, List.not_mem_nil,
-        false_and, exists_false, decide_false, ProbComp.eval_pure, PMF.bind_const]
-    simp [hlose, Game.succProbability]
+  · have hnil (ms : List M) : ms = [] := ms.eq_nil_iff_forall_not_mem.mpr fun m _ => hM.false m
+    simp [multiQueryGame, Game.withSetup, hnil, Game.succProbability]
   obtain ⟨cs, ds, hs⟩ := hsetup.length_le
   obtain ⟨ca, da, ha⟩ := hA.length_le
   let Q (n : ℕ) := ca * (2 * n + 2 + cs * (n + 1) ^ ds) ^ da
-  have hinput : PolynomiallyBounded (fun n => 2 * n + 2 + cs * (n + 1) ^ ds) := by
-    fun_prop
   have hQ : PolynomiallyBounded (fun n => Q n ^ 2) := by
-    exact ((PolynomiallyBounded.const ca).mul (hinput.pow da)).pow 2
-  have hB := hH.negligible_succProbability _ (isPPTOn_collisionPairReduction hA fallback)
-  apply negligible_of_le (hB.polynomiallyBounded_mul hQ)
-  intro n
+    dsimp only [Q]; fun_prop
+  refine negligible_of_le ((hH.negligible_succProbability _
+    (isPPTOn_collisionPairReduction hA fallback)).polynomiallyBounded_mul hQ) fun n => ?_
   have hlen (d : D) (hd : d ∈ (ProbComp.eval (setup n)).support)
       (ms : List M) (hms : ms ∈ (ProbComp.eval (A (n, d))).support) : ms.length ≤ Q n := by
     have hsetupLen := hs n d hd
     have houtputLen := ha (n, d) ms hms
     simp only [length_encPair, encUnary_apply, List.length_replicate] at hsetupLen houtputLen
-    apply (length_le_length_encList _ _).trans (houtputLen.trans ?_)
-    exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) _)
+    exact (length_le_length_encList _ _).trans (houtputLen.trans
+      (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) _)))
   refine (succProbability_multiQueryGame_le_collisionPairReduction setup valid H
     fallback A n hlen).trans (mul_le_mul_left ?_ _)
   rw [Nat.cast_pow]

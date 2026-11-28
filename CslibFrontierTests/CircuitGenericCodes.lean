@@ -12,6 +12,7 @@ import CslibFrontier.Computability.Circuit.Boolean.Comparison.PolyTime
 import CslibFrontier.Computability.Circuit.Boolean.Modular.InnerProduct.PolyTime
 import CslibFrontier.Computability.Circuit.Boolean.Modular.Subtract.PolyTime
 import CslibFrontier.Computability.Circuit.Encoding.Combinators
+import CslibFrontier.Computability.Circuit.Encoding.Simulation
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -35,6 +36,25 @@ namespace CslibFrontierTests.CircuitGenericCodes
 
 open Cslib Cslib.Circuits Cslib.Circuits.Boolean
 open Turing.MultiTapeTM ComputableInPolyTime
+
+/-! ### Gate replacement with an unused zero-gate implementation -/
+
+private abbrev unarySignature : Signature where
+  Op := Bool
+  Arity _ := 1
+
+private def unaryGate : Circuit unarySignature 1 1 := Circuit.oneGate true id
+
+private def replaceUnary : Bool → Circuit unarySignature 1 1
+  | true => unaryGate.comp unaryGate
+  | false => Circuit.wiring unarySignature id
+
+-- Two source gates expand to four. The second block starts by reading the first block's output.
+example : ((unaryGate.comp unaryGate).simulate replaceUnary).code =
+    ([(true, [0]), (true, [1]), (true, [2]), (true, [3])], [4]) := by
+  rw [Circuit.code_simulate_uniform (unaryGate.comp unaryGate) (τ := unarySignature)
+    replaceUnary (B := 2) (by decide) (by decide)]
+  decide
 
 /-! ### 1. Arithmetic circuits over `ZMod 5`: `code`, `ofCode`, `compCode`, `evalOutputs` -/
 

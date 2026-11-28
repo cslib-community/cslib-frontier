@@ -68,39 +68,12 @@ theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
   induction table generalizing found with
   | nil => cases found <;> rfl
   | cons entry table ih =>
-      by_cases hfound : found = true
-      · subst found
-        have hemit : firstMatchEmit ((query, true), entry) = none := by
-          simp [firstMatchEmit]
-        have hnext : firstMatchNext ((query, true), entry) = (query, true) := by
-          simp [firstMatchNext]
-        simp only [ite_true]
-        rw [streamEmit, hemit, encOption_none, List.nil_append, hnext]
-        simpa using ih true
+      cases found
       · by_cases heq : entry.1 = query
-        · have hfalse := Bool.of_not_eq_true hfound
-          subst found
-          have hemit : firstMatchEmit ((query, false), entry) = some entry.2 := by
-            simp [firstMatchEmit, heq]
-          have hnext : firstMatchNext ((query, false), entry) = (query, true) := by
-            simp [firstMatchNext, heq]
-          have hfirst : firstMatch (entry :: table, query) = some entry.2 := by
-            simp [firstMatch, heq]
-          rw [streamEmit, hemit, hnext, hfirst]
-          have htail := ih true
-          simp only [ite_true] at htail
-          rw [htail, List.append_nil]
-          rw [ite_eq_right hfound]
-        · have hfalse := Bool.of_not_eq_true hfound
-          subst found
-          have hemit : firstMatchEmit ((query, false), entry) = none := by
-            simp [firstMatchEmit, heq]
-          have hnext : firstMatchNext ((query, false), entry) = (query, false) := by
-            simp [firstMatchNext, heq]
-          have hfirst : firstMatch (entry :: table, query) = firstMatch (table, query) := by
-            simp [firstMatch, heq]
-          rw [streamEmit, hemit, encOption_none, List.nil_append, hnext, hfirst]
-          simpa using ih false
+        · simpa [streamEmit, firstMatchEmit, firstMatchNext, firstMatch, heq] using
+            congrArg (List.append (encOption encValue (some entry.2))) (ih true)
+        · simpa [streamEmit, firstMatchEmit, firstMatchNext, firstMatch, heq] using ih false
+      · simpa [streamEmit, firstMatchEmit, firstMatchNext] using ih true
 
 /-- Retained next-state callback for first-match scanning. -/
 @[expose] def firstMatchNextCompiler (encKey : Key ↪ List Bool)
@@ -196,48 +169,12 @@ theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
     rw [streamEmit_firstMatch encValue query found table]
     cases found <;> simp
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range input.2.length)
-      (f := fun j => if hj : j < input.2.length then
-        let pair := (streamState input.1 firstMatchNext input.2 j, input.2[j])
-        inputFromWordWorkspace
-            (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-            emitCompiler pair +
-          onWordsWorkspace
-            (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
-            (streamFramedNext nextCompiler) pair
-        else 0)
-      (Finset.mem_range.mpr hj)
-    simpa only [firstMatchSMax, nextCompiler, emitCompiler, finishCompiler, hj, dite_true]
-      using hsup
+    exact Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp only [hj, dite_true]; rfl)
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range (input.2.length + 1))
-      (f := fun j => if hj : j ≤ input.2.length then
-        ((encPair encKey encBool) (streamState input.1 firstMatchNext input.2 j)).length
-        else 0)
-      (Finset.mem_range.mpr (by omega : j < input.2.length + 1))
-    have hbound :
-        ((encPair encKey encBool) (streamState input.1 firstMatchNext input.2 j)).length ≤
-          (Finset.range (input.2.length + 1)).sup fun j =>
-            if hj : j ≤ input.2.length then
-              ((encPair encKey encBool)
-                (streamState input.1 firstMatchNext input.2 j)).length else 0 := by
-      simpa only [hj, dite_true] using hsup
-    exact hbound.trans (Nat.le_max_left _ _)
+    exact le_max_of_le_left <|
+      Finset.le_sup_of_le (Finset.mem_range.mpr (Nat.lt_succ_of_le hj)) (by simp [hj])
   · intro input j hj
-    have hsup := Finset.le_sup
-      (s := Finset.range input.2.length)
-      (f := fun j => if hj : j < input.2.length then
-        ((encPair encKey encValue) input.2[j]).length else 0)
-      (Finset.mem_range.mpr hj)
-    have hbound :
-        ((encPair encKey encValue) input.2[j]).length ≤
-          (Finset.range input.2.length).sup fun j =>
-            if hj : j < input.2.length then
-              ((encPair encKey encValue) input.2[j]).length else 0 := by
-      simpa only [hj, dite_true] using hsup
-    exact hbound.trans (Nat.le_max_right _ _)
+    exact le_max_of_le_right (Finset.le_sup_of_le (Finset.mem_range.mpr hj) (by simp [hj]))
 
 /-- Retained marshalling from `(table, key)` to the stream's `((key, false), table)` layout. -/
 @[expose] def firstMatchMarshalCompiler (encKey : Key ↪ List Bool)

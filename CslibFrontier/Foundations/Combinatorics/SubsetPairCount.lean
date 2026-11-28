@@ -95,12 +95,11 @@ theorem sum_powerset_filter_card_le_two_pow {ι : Type*} [Fintype ι] (q : ℕ) 
   refine sum_congr rfl fun s hs => ?_
   have hsq : s ≤ q := (Nat.le_of_lt_succ (mem_range.mp hs)).trans (min_le_left q _)
   have hfiber : S.filter (fun E => #E = s) = (univ : Finset ι).powersetCard s := by
-    ext E; simp only [S, mem_filter, mem_powerset, subset_univ, true_and, mem_powersetCard]
+    ext E
+    simp only [S, mem_filter, mem_powerset, subset_univ, true_and, mem_powersetCard]
     exact ⟨fun h => h.2, fun h => ⟨h ▸ hsq, h⟩⟩
-  have hcongr : ∑ E ∈ S.filter (fun E => #E = s), 2 ^ #E =
-      ∑ _E ∈ S.filter (fun E => #E = s), 2 ^ s :=
-    sum_congr rfl fun E hE => by rw [(mem_filter.mp hE).2]
-  rw [hcongr, hfiber, sum_const, card_powersetCard, card_univ, nsmul_eq_mul, Nat.cast_id, mul_comm]
+  rw [hfiber, sum_congr rfl fun _ hE => congrArg (2 ^ ·) (mem_powersetCard.mp hE).2, sum_const,
+    card_powersetCard, card_univ, nsmul_eq_mul, Nat.cast_id, mul_comm]
 
 /-- `subsetPairCount n q` equals `∑_{E ⊆ Fin n, #E ≤ q} 2 ^ #E`. -/
 theorem subsetPairCount_eq_sum_powerset_fin (n q : ℕ) :
@@ -111,17 +110,13 @@ theorem subsetPairCount_eq_sum_powerset_fin (n q : ℕ) :
 ([OpenAI2026ETH], eq. (3.14), p. 25). -/
 theorem card_subsetPairs_eq_subsetPairCount {ι : Type*} [Fintype ι] [DecidableEq ι] (q : ℕ) :
     #{p : Finset ι × Finset ι | #p.1 ≤ q ∧ p.2 ⊆ p.1} = subsetPairCount (Fintype.card ι) q := by
-  set base := (univ : Finset ι).powerset.filter (fun E => #E ≤ q)
-  have hbij : #{p : Finset ι × Finset ι | #p.1 ≤ q ∧ p.2 ⊆ p.1} =
-      #(base.sigma fun E => E.powerset) := by
-    refine (Finset.card_nbij (fun x : Σ _ : Finset ι, Finset ι => (x.1, x.2)) ?_ ?_ ?_).symm
-    · rintro ⟨E, U⟩ hx; rw [mem_coe, mem_sigma] at hx
-      exact mem_coe.mpr (mem_filter.mpr ⟨mem_univ _, (mem_filter.mp hx.1).2, mem_powerset.mp hx.2⟩)
-    · rintro ⟨_, _⟩ _ ⟨_, _⟩ _ h; obtain ⟨rfl, rfl⟩ := Prod.mk.inj h; rfl
-    · rintro ⟨E, U⟩ hp; rw [mem_coe, mem_filter] at hp
-      exact ⟨⟨E, U⟩, mem_coe.mpr (mem_sigma.mpr
-        ⟨mem_filter.mpr ⟨mem_powerset.mpr (subset_univ E), hp.2.1⟩, mem_powerset.mpr hp.2.2⟩), rfl⟩
-  rw [hbij, card_sigma]; simp only [card_powerset]; exact sum_powerset_filter_card_le_two_pow q
+  have hmap : ({p : Finset ι × Finset ι | #p.1 ≤ q ∧ p.2 ⊆ p.1} : Finset _) =
+      (((univ : Finset ι).powerset.filter (fun E => #E ≤ q)).sigma
+        fun E => E.powerset).map (Equiv.sigmaEquivProd _ _).toEmbedding := by
+    ext ⟨E, U⟩
+    simp [Equiv.sigmaEquivProd]
+  rw [hmap, card_map, card_sigma]
+  simpa only [card_powerset] using sum_powerset_filter_card_le_two_pow q
 
 /-- Specialization of `card_subsetPairs_eq_subsetPairCount` when `Fintype.card ι = n`. -/
 theorem card_subsetPairs_eq_subsetPairCount_of_card {ι : Type*} [Fintype ι] [DecidableEq ι]

@@ -123,10 +123,8 @@ theorem acceptWeight_bounds {D : ℤ} {p : σ → ℤ} (step : σ → Bool → �
 
 private theorem abs_sub_indicator_le {v E : ℤ} (hv : 0 ≤ v ∧ v ≤ E) (b : Bool) :
     |v - E * (if b then 1 else 0)| ≤ E := by
-  cases b
-  · simpa only [Bool.false_eq_true, ite_false, mul_zero, sub_zero, abs_of_nonneg hv.1] using hv.2
-  · simp only [ite_true, mul_one, abs_of_nonpos (sub_nonpos.mpr hv.2)]
-    omega
+  cases b <;>
+    simp only [ite_true, Bool.false_eq_true, ite_false, mul_one, mul_zero, abs_le] <;> omega
 
 private theorem error_step {D E M wg wo vg vo n : ℤ} (c : Bool)
     (hD : 0 ≤ D) (hE : 0 ≤ E) (hM : 0 ≤ M) (hn : 0 ≤ n)
@@ -168,22 +166,17 @@ theorem acceptWeight_error {D M : ℤ} {p : σ → ℤ} (step : σ → Bool → 
   induction n generalizing s with
   | zero => cases hs : accept s <;> simp [acceptWeight, hs]
   | succ n ih =>
+    obtain ⟨hp₀, hp₁⟩ := hp s
     have h := ih (step s (answer s))
     have he := herr s
-    have hb₀ := acceptWeight_bounds step accept hp n (step s false)
-    have hb₁ := acceptWeight_bounds step accept hp n (step s true)
-    obtain ⟨hp₀, hp₁⟩ := hp s
     rw [acceptWeight, pow_succ, mul_comm (D ^ n) D, Function.iterate_succ_apply]
-    cases ha : answer s
-    · simp only [ha, Bool.not_false, branchWeight, ite_true] at he h ⊢
-      simpa only [Nat.cast_add, Nat.cast_one] using error_step
-        (accept ((fun s => step s (answer s))^[n] (step s false))) hD (pow_nonneg hD n) hM
-        (Nat.cast_nonneg n) (sub_nonneg.mpr hp₁) hp₀ (by ring) he hb₁ h
-    · simp only [ha, Bool.not_true, branchWeight, Bool.false_eq_true, ite_false] at he h ⊢
-      have he' := error_step
-        (accept ((fun s => step s (answer s))^[n] (step s true))) hD (pow_nonneg hD n) hM
-        (Nat.cast_nonneg n) hp₀ (sub_nonneg.mpr hp₁) (by ring) he hb₀ h
-      simpa only [Nat.cast_add, Nat.cast_one, add_comm] using he'
+    cases ha : answer s <;>
+      simp only [ha, Bool.not_false, Bool.not_true, branchWeight, Bool.false_eq_true,
+        ite_true, ite_false] at he h ⊢
+    · simpa [Nat.cast_add] using error_step _ hD (pow_nonneg hD n) hM (Nat.cast_nonneg n)
+        (sub_nonneg.mpr hp₁) hp₀ (by ring) he (acceptWeight_bounds step accept hp n _) h
+    · simpa [Nat.cast_add, add_comm] using error_step _ hD (pow_nonneg hD n) hM (Nat.cast_nonneg n)
+        hp₀ (sub_nonneg.mpr hp₁) (by ring) he (acceptWeight_bounds step accept hp n _) h
 
 /-- Summing over `m` witness bits preserves a one-sixteenth total error when each of `n` steps
 has error at most `2 ^ -(m + n + 4)`. All quantities are unnormalized integers. -/

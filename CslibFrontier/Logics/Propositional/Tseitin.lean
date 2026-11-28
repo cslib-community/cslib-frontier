@@ -100,31 +100,22 @@ theorem exists_forall_parityOn_incidence_eq_xor [Finite V]
   let R : Finset V :=
     {w | ∃ τ : E → Bool, ∀ v,
       parityOn (Multigraph.incidence ends v) τ = (decide (v = u) ^^ decide (v = w))}
-  suffices hR : R = univ by
-    have hw : w ∈ R := by rw [hR]; exact mem_univ w
-    simpa [R] using hw
+  suffices hR : R = univ by simpa [R] using (hR ▸ mem_univ w : w ∈ R)
   by_contra hR
   have hu : u ∈ R := by
     simp only [R, mem_filter, mem_univ, true_and, Bool.xor_self]
-    exact ⟨fun _ => false, fun v => by simp [parityOn]⟩
+    exact ⟨fun _ => false, fun _ => by simp [parityOn]⟩
   obtain ⟨e, he⟩ := ((Multigraph.connected_toSimpleGraph_iff ends).1 hG).2 R ⟨u, hu⟩ hR
   obtain ⟨a, ha, b, hb, hab⟩ := Multigraph.mem_edgeCut.1 he
   obtain ⟨τ, hτ⟩ := by simpa [R] using ha
   have hne : a ≠ b := fun h => mem_compl.1 hb (h ▸ ha)
   -- flipping `e` moves the parity `1` from `a` to `b`
-  have hb' : b ∈ R := by
-    simp only [R, mem_filter, mem_univ, true_and]
-    refine ⟨update τ e !τ e, fun v => ?_⟩
-    rw [parityOn_incidence_update_not, hτ]
-    simp only [Multigraph.mem_incidence_of_ends_eq hab]
-    by_cases hva : v = a
-    · subst hva
-      simp [hne]
-    · by_cases hvb : v = b
-      · subst hvb
-        simp [hva, hne]
-      · simp [hva, hvb]
-  exact mem_compl.1 hb hb'
+  refine mem_compl.1 hb ?_
+  simp only [R, mem_filter, mem_univ, true_and]
+  refine ⟨update τ e !τ e, fun v => ?_⟩
+  rw [parityOn_incidence_update_not, hτ]
+  simp only [Multigraph.mem_incidence_of_ends_eq hab]
+  rcases eq_or_ne v a with rfl | hva <;> rcases eq_or_ne v b with rfl | hvb <;> simp [*]
 
 variable [Fintype V]
 
@@ -166,7 +157,7 @@ theorem exists_forall_parityOn_incidence_eq (hG : (Multigraph.toSimpleGraph ends
     rw [apply_ite (parityOnAddMonoidHom _), map_zero, parityOnAddMonoidHom_apply, hτ, hite]
     rfl
   have hv : ∑ w, χ w * decide (v = w) = χ v := by
-    rw [sum_eq_single v (fun w _ hw => by rw [decide_eq_false (Ne.symm hw)]; exact mul_zero _)
+    rw [sum_eq_single v (fun _ _ hw => mul_eq_zero_of_right _ (decide_eq_false hw.symm))
       (by simp), decide_eq_true rfl]
     exact mul_one _
   rw [key, parityOn_eq_sum]
@@ -178,12 +169,10 @@ set other than the set of all vertices are satisfiable, whatever the charges. -/
 theorem exists_forall_mem_parityOn_incidence_eq (hG : (Multigraph.toSimpleGraph ends).Connected)
     (χ : V → Bool) {S : Finset V} (hS : S ≠ univ) :
     ∃ σ : E → Bool, ∀ v ∈ S, parityOn (Multigraph.incidence ends v) σ = χ v := by
-  obtain ⟨u, hu⟩ : ∃ u, u ∉ S := by
-    by_contra! h'
-    exact hS (eq_univ_of_forall h')
+  obtain ⟨u, hu⟩ := Classical.not_forall.1 fun h => hS (eq_univ_of_forall h)
   obtain ⟨σ, hσ⟩ := exists_forall_parityOn_incidence_eq hG χ u
-  refine ⟨σ, fun v hv => ?_⟩
-  rw [hσ, decide_eq_false (ne_of_mem_of_not_mem hv hu), Bool.and_false, Bool.false_xor]
+  exact ⟨σ, fun v hv => by
+    rw [hσ, decide_eq_false (ne_of_mem_of_not_mem hv hu), Bool.and_false, Bool.false_xor]⟩
 
 end Parity
 
@@ -237,20 +226,12 @@ theorem satisfiable_tseitinFormula_iff (hG : (Multigraph.toSimpleGraph ends).Con
   exact ⟨σ, (eval_tseitinFormula_eq_true_iff σ).2 fun v => by
     rw [hσ, h, Bool.false_and, Bool.false_xor]⟩
 
-/-- A clause of a Tseitin formula has as many literals as some vertex has edges other than
-self-loops. -/
-private theorem exists_length_eq_of_mem_tseitinFormula {c : Clause E}
-    (hc : c ∈ tseitinFormula ends χ) :
-    ∃ v, c.length = #(Multigraph.incidence ends v) := by
-  obtain ⟨v, hv⟩ := mem_tseitinFormula.1 hc
-  exact ⟨v, length_of_mem_parityOnEq hv⟩
-
 /-- If every vertex has at most `k` edges other than self-loops, the clauses of the Tseitin
 formula have at most `k` literals. -/
 theorem length_le_of_mem_tseitinFormula {k : ℕ} (hk : ∀ v, #(Multigraph.incidence ends v) ≤ k)
     {c : Clause E} (hc : c ∈ tseitinFormula ends χ) : c.length ≤ k := by
-  obtain ⟨v, hv⟩ := exists_length_eq_of_mem_tseitinFormula hc
-  exact hv ▸ hk v
+  obtain ⟨v, hv⟩ := mem_tseitinFormula.1 hc
+  exact (length_of_mem_parityOnEq hv).trans_le (hk v)
 
 /-- If every vertex has at most `k` edges other than self-loops, the Tseitin formula has at most
 `|V| 2 ^ k` clauses. -/

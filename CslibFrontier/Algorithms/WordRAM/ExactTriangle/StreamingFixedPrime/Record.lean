@@ -112,43 +112,19 @@ theorem exec_record {w m n g p A : ℕ} (values : List ℤ)
   have hn : 0 < n := lt_of_lt_of_le (by omega) hDn
   have hp0 := (Nat.mem_sqrtPrimeWindow_iff_sq.mp hp).1.ne_zero
   let z := x.comap recordBank
-  let heap := x.regs (producerBank Instances.heap)
   have hq := RecordProduct.query_end_le_output V hp0 (by omega) hDn idx hidx
-  dsimp only at hq
   dsimp only [V] at hq
   rw [← hout.2.2.2.1] at hq
   have hinputEnd : 5 + 3 * (n * n) ≤ a.regs Instances.output := by
-    rw [hout.2.2.2.1]
-    omega
-  obtain ⟨_, _, _, hfirst, _, hcoords, hprefix⟩ :=
+    rw [hout.2.2.2.1]; omega
+  obtain ⟨_, _, _, hfirst, _, (hcoords : ∀ j < _, a.mem _ < n ∧ a.mem _ < n), hprefix⟩ :=
     RecordWitness.record_view V _ a hout hD hDn hg hp0 idx hidx
   have mem_eq (u : ℕ) (hu : u < a.regs Instances.output) : z.mem u = a.mem u := hmem hu
   have header (u : ℕ) (hu : u < 5 + 3 * (n * n)) : z.mem u =
       (Data.init (PreparationInput.input n (D m) g p values) : Data 64).mem u :=
     (mem_eq u (lt_of_lt_of_le hu hinputEnd)).trans (hprefix u hu)
-  have original (q : ℕ) (hq : q < 3 * (n * n)) : z.mem (5 + q) = Signed.encode (V q) :=
-    (header (5 + q) (by omega)).trans (PreparationInput.input_word n (D m) g p values q)
-  have hmatrix : ∀ u < n, ∀ v < n,
-      z.mem (5 + (u * n + v)) = Signed.encode (AB u v) ∧
-      z.mem (5 + n * n + (u * n + v)) = Signed.encode (BC u v) ∧
-      z.mem (5 + n * n + n * n + (u * n + v)) = Signed.encode (AC u v) := by
-    intro u hu v hv'
-    have hrow := Nat.mul_le_mul_right n (Nat.succ_le_of_lt hu)
-    rw [Nat.succ_mul] at hrow
-    refine ⟨original _ (by omega), ?_, ?_⟩
-    · simpa only [Nat.add_assoc] using original (n * n + (u * n + v)) (by omega)
-    · have he : 5 + n * n + n * n + (u * n + v) =
-          5 + (2 * (n * n) + (u * n + v)) := by omega
-      rw [he]
-      exact original _ (by omega)
-  have hmag : ∀ u < n, ∀ v < n,
-      (AB u v).natAbs ≤ A ∧ (BC u v).natAbs ≤ A ∧ (AC u v).natAbs ≤ A := by
-    intro u hu v hv'
-    have hrow := Nat.mul_le_mul_right n (Nat.succ_le_of_lt hu)
-    rw [Nat.succ_mul] at hrow
-    exact ⟨RecordWitness.original_magnitude values hlen hv (by omega),
-      RecordWitness.original_magnitude values hlen hv (by omega),
-      RecordWitness.original_magnitude values hlen hv (by omega)⟩
+  have hmatrix := RecordWitness.original_matrices values header
+  have hmag := RecordWitness.original_magnitudes values hlen hv
   let q := RecordProduct.recordQueries n (D m) p idx
   let Q := RecordProduct.recordQueryCount n (D m) p V idx
   let qs := RecordProduct.decodedQueries hn a.mem q Q
@@ -157,37 +133,27 @@ theorem exec_record {w m n g p A : ℕ} (values : List ℤ)
   have hqs : RecordProduct.decodedQueries hn z.mem q Q = qs :=
     FixedPrime.decodedQueries_eq_of_eqOn hn z.mem a.mem hmem hq
   have hq' : q + 2 * Q ≤ a.regs Instances.output := hq
-  change ∀ j < Q, a.mem (q + 2 * j) < n ∧ a.mem (q + 2 * j + 1) < n at hcoords
   have zheap : z.regs (RecordWitness.productBank 42) =
       x.regs (producerBank Instances.heap) := rfl
   have zout : z.regs (RecordWitness.productBank 39) = a.regs Instances.output := houtput
   have admitted := FixedPrime.record_admitted hW
   obtain ⟨r, S, he, rs, rf, hS, riff, answers, rwit, rframe, rregs⟩ :=
     BoxRecordWitness.exec_at_record (g := g) (p := p) (U := A) V AB BC AC z hD hN
-      ((header 1 (by omega)).trans rfl) ((header 2 (by omega)).trans rfl)
-      ((header 3 (by omega)).trans rfl) idx hi
+      (header 1 (by omega)) (header 2 (by omega)) (header 3 (by omega)) idx hi
       (by
         simp only [Nat.zero_mul, Nat.add_zero]
         rw [show z.regs (RecordWitness.productBank
           (RecordProduct.producerBank Instances.output)) = a.regs Instances.output from houtput]
-        refine ⟨hinputEnd.trans (by rw [zheap, hslotHeap]; omega), ?_, hq.trans ?_,
-          hfirst, (by
-            simpa only [Block.Realizes, Block.read, z, Data.comap_mem, V] using hslot.1), ?_⟩
-        · change a.regs Instances.output + 6 ≤ x.regs (producerBank Instances.heap)
-          rw [hslotHeap]; omega
-        · change a.regs Instances.output ≤ x.regs (producerBank Instances.heap)
-          rw [hslotHeap]; omega
-        · intro j hj
-          exact ⟨(mem_eq _ (by have := hq'; omega)).trans_lt (hcoords j hj).1,
-            (mem_eq _ (by have := hq'; omega)).trans_lt (hcoords j hj).2⟩)
-      (by simp only [Nat.zero_mul, Nat.add_zero]; rw [zout, zheap, hslotHeap]; omega)
-      (by dsimp only
-          rw [zout]
-          simpa only [Nat.zero_mul, Nat.add_zero, z, Data.comap_mem, V,
+        exact ⟨hinputEnd.trans (by rw [zheap, hslotHeap]; omega),
+          by rw [zheap, hslotHeap]; omega,
+          hq.trans (by rw [zheap, hslotHeap]; omega),
+          hfirst, by simpa only [Block.Realizes, Block.read, z, Data.comap_mem, V] using hslot.1,
+          fun j hj => ⟨(mem_eq _ (by omega)).trans_lt (hcoords j hj).1,
+            (mem_eq _ (by omega)).trans_lt (hcoords j hj).2⟩⟩)
+      (by simp only [Nat.zero_mul, Nat.add_zero, zout, zheap, hslotHeap]; omega)
+      (by simpa only [Nat.zero_mul, Nat.add_zero, zout, z, Data.comap_mem, V,
             Block.Realizes, Block.read] using hslot.2.1)
-      (by dsimp only
-          rw [zout]
-          simpa only [Nat.zero_mul, Nat.add_zero, z, Data.comap_mem, V,
+      (by simpa only [Nat.zero_mul, Nat.add_zero, zout, z, Data.comap_mem, V,
             Block.Realizes, Block.read] using hslot.2.2)
       hmatrix hmag (RecordWitness.signed_fits admitted)
       (BoxRecordWitness.physical_fits (hslotLe.trans hheap) hQ hN admitted)
@@ -199,61 +165,50 @@ theorem exec_record {w m n g p A : ℕ} (values : List ℤ)
     have hj : i.val < Q := by simpa only [hlenQ] using i.isLt
     have hv := RecordProduct.decodedQueries_get_val hn a.mem q Q i
       (hcoords i.val hj).1 (hcoords i.val hj).2
-    exact ⟨(mem_eq _ (by have := hq'; omega)).trans hv.1.symm,
-      (mem_eq _ (by have := hq'; omega)).trans hv.2.symm⟩
+    exact ⟨(mem_eq _ (by omega)).trans hv.1.symm, (mem_eq _ (by omega)).trans hv.2.symm⟩
   have hfail := RecordWitness.native_failed_count_le V AB BC AC wAB wBC wAC hD hg
-    (by intro u v; rfl) (by intro u v; rfl) (by intro u v; rfl) idx qs
+    (fun _ _ => rfl) (fun _ _ => rfl) (fun _ _ => rfl) idx qs
     (⟨0, hn⟩, ⟨0, hn⟩) (fun j => z.mem (q + 2 * j))
     (fun j => z.mem (q + 2 * j + 1)) hcoordinate r.mem
     (r.regs (RecordWitness.productBank RecordProduct.Reg.result)) answers
-  rw [hlenQ] at hfail
   have hsuccess := RecordWitness.actual_success_iff V AB BC AC wAB wBC wAC hD hg hp
-    (by intro u v; rfl) (by intro u v; rfl) (by intro u v; rfl)
-    (by intro v c; rfl) (by intro u c; rfl) idx qs
+    (fun _ _ => rfl) (fun _ _ => rfl) (fun _ _ => rfl)
+    (fun _ _ => rfl) (fun _ _ => rfl) idx qs
     (FixedPrime.actual_queries_chunk hn V hout hD hDn hp0 idx hidx).2
     (fun j => z.mem (q + 2 * j)) (fun j => z.mem (q + 2 * j + 1))
     hcoordinate r.mem (r.regs (RecordWitness.productBank RecordProduct.Reg.result)) answers
-  rw [hlenQ] at hsuccess
+  rw [hlenQ] at hfail hsuccess
   let y := r.extend recordBank x
-  have yr (j : Fin 400) : y.regs (recordBank j) = r.regs j :=
-    (Fin.castLE_injective (by decide : 400 ≤ 416)).extend_apply _ _ j
+  have hrecInj := Fin.castLE_injective (by decide : 400 ≤ 416)
+  have yr (j : Fin 400) : y.regs (recordBank j) = r.regs j := hrecInj.extend_apply _ _ j
   have hex : ExecWithin (w + 2) FixedPrime.record x y
       (RecordBoxProduct.timeBound (m := m) qs + 5 * Nat.sqrt (D m) + 8 * Q +
         (42 * pieceSize (D m) g + 28) * S + 52) := by
-    apply (he.rename (Fin.castLE_injective (by decide : 400 ≤ 416))).mono
-    have ht := Nat.mul_le_mul_right S (show
+    refine (he.rename hrecInj).mono ?_
+    have := Nat.mul_le_mul_right S (show
       42 * min (pieceSize (D m) g) (n - idx.piece * pieceSize (D m) g) + 28 ≤
         42 * pieceSize (D m) g + 28 by omega)
     omega
-  refine ⟨y, S, hex, (yr _).trans rs, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simpa only [yr] using rf
-  · have hh := hS.trans (Nat.add_le_add_right hfail _)
-    simpa only [FixedPrime.recordFailures, qs, q, Q, RecordProduct.decodedQueries_length,
-      yr, V, wAB, wBC, wAC] using hh
-  · have hc : Nat.count (fun j =>
-        r.mem (r.regs (RecordWitness.productBank RecordProduct.Reg.result) + j) ≠ 0 ∧
-        ∀ c : Fin (min (pieceSize (D m) g) (n - idx.piece * pieceSize (D m) g)),
-          AB (z.mem (q + 2 * j)) (z.mem (q + 2 * j + 1)) +
-            BC (z.mem (q + 2 * j + 1)) (idx.piece * pieceSize (D m) g + c.val) +
-            AC (z.mem (q + 2 * j)) (idx.piece * pieceSize (D m) g + c.val) ≠ 0) Q ≤ Q :=
-      Nat.count_le _
-    have hflag : r.regs RecordWitness.Reg.found ≤ 1 := by rcases rf with h | h <;> omega
-    have hQ' := FixedPrime.recordQueryCount_le n (D m) p V idx
-    have hcS : S ≤ Q + r.regs RecordWitness.Reg.found :=
-      hS.trans (Nat.add_le_add_right hc _)
+  refine ⟨y, S, hex, (yr _).trans rs, by simpa only [yr] using rf,
+    by simpa only [FixedPrime.recordFailures, qs, q, Q, RecordProduct.decodedQueries_length,
+         yr, V, wAB, wBC, wAC] using hS.trans (Nat.add_le_add_right hfail _),
+    ?_, by simpa only [yr, wAB, wBC, wAC, weightSum] using riff.trans hsuccess,
+    ?_, rframe, fun j => (yr _).trans (rregs _ (by change j.val < 65; omega)),
+    fun j hj => Data.extend_castLE_regs_of_le r x j hj⟩
+  · have hc := Nat.count_le (n := Q) (p := fun j =>
+      r.mem (r.regs (RecordWitness.productBank RecordProduct.Reg.result) + j) ≠ 0 ∧
+      ∀ c : Fin (min (pieceSize (D m) g) (n - idx.piece * pieceSize (D m) g)),
+        AB (z.mem (q + 2 * j)) (z.mem (q + 2 * j + 1)) +
+          BC (z.mem (q + 2 * j + 1)) (idx.piece * pieceSize (D m) g + c.val) +
+          AC (z.mem (q + 2 * j)) (idx.piece * pieceSize (D m) g + c.val) ≠ 0)
+    have : r.regs RecordWitness.Reg.found ≤ 1 := by rcases rf with h | h <;> omega
+    have := FixedPrime.recordQueryCount_le n (D m) p V idx
+    have := hS.trans (Nat.add_le_add_right hc _)
     omega
-  · simpa only [yr, wAB, wBC, wAC, weightSum] using riff.trans hsuccess
   · intro hf
-    obtain ⟨ha, hb, hlo, hhi, hz, -⟩ := rwit ((yr _).symm.trans hf)
-    have hlen := min_le_right (pieceSize (D m) g) (n - idx.piece * pieceSize (D m) g)
+    obtain ⟨ha, hb, _, hhi, hz, -⟩ := rwit ((yr _).symm.trans hf)
+    have := min_le_right (pieceSize (D m) g) (n - idx.piece * pieceSize (D m) g)
     exact ⟨by simpa only [yr] using ha, by simpa only [yr] using hb,
       by simp only [yr]; omega, by simpa only [yr] using hz⟩
-  · intro u hu
-    exact rframe u (by exact hu)
-  · intro j
-    exact (yr _).trans (rregs _ (by change j.val < 65; omega))
-  · intro j hj
-    exact hex.regs_eq (BoxRecordWitness.program.preserves_rename_of_offset
-      (offset := 0) recordBank (fun j => (Nat.zero_add j.val).symm) j (Or.inr hj))
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime

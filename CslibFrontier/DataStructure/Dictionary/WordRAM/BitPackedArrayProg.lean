@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.Witness
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArray
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.Computability.WordRAM.Width
+import CslibFrontier.Tactic.ValidProg
 
 /-!
 # `Memory.Prog` Bit-Packed Array Primitives and Uniform `Realizes` Certificates
@@ -120,15 +121,20 @@ theorem memoryCost_writePackedProg (base offset k w idx val : ℕ) (s : Memory.S
     memoryCost (writePackedProg base offset k w idx val) s = 4 :=
   rfl
 
+private theorem xor_masked_lt {a b m : ℕ} :
+    ((a &&& (2 ^ m - 1)) ^^^ (b &&& (2 ^ m - 1))) < 2 ^ m := by
+  refine Nat.xor_lt_two_pow ?_ ?_ <;>
+    (rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _))
+
 theorem validHistory_readPackedProg {w base offset N k idx : ℕ} {s : Memory.State}
     (hw : 0 < w) (hidx : idx < N)
     (ha : base + offset + packedWords N k w ≤ s.frontier) :
     (Memory.spec w).ValidHistory s
       ((Memory.spec w).clientHistory s (readPackedProg base offset k w idx)) := by
   have hlt := wordOffset_add_one_lt_packedWords (k := k) hw hidx
-  change base + offset + wordOffset k w idx < s.frontier ∧
-    base + offset + wordOffset k w idx + 1 < s.frontier ∧ True
-  exact ⟨by omega, by omega, trivial⟩
+  unfold readPackedProg
+  valid_prog
+  all_goals omega
 
 theorem validHistory_writePackedProg {w base offset N k idx val : ℕ} {s : Memory.State}
     (hw : 0 < w) (hkw : k ≤ w) (hidx : idx < N)
@@ -137,50 +143,13 @@ theorem validHistory_writePackedProg {w base offset N k idx val : ℕ} {s : Memo
     (Memory.spec w).ValidHistory s
       ((Memory.spec w).clientHistory s (writePackedProg base offset k w idx val)) := by
   have hlt := wordOffset_add_one_lt_packedWords (k := k) hw hidx
-  set wOff := wordOffset k w idx
-  set bOff := bitOffset k w idx
-  set k₀ := lowWidth k w idx
-  set k₁ := highWidth k w idx
-  set old₀ := (s.mem (base + offset + wOff) >>> bOff) &&& (2 ^ k₀ - 1)
-  set val₀ := val &&& (2 ^ k₀ - 1)
-  have hδ0_lt : old₀ ^^^ val₀ < 2 ^ k₀ := by
-    refine Nat.xor_lt_two_pow ?_ ?_ <;>
-    · dsimp only [old₀, val₀]
-      rw [Nat.and_two_pow_sub_one_eq_mod]
-      exact Nat.mod_lt _ (by positivity)
-  have hsh0_lt : (old₀ ^^^ val₀) <<< bOff < 2 ^ w := by
-    refine shiftLeft_lt_two_pow_of_lt hδ0_lt ?_
-    have := bitOffset_add_lowWidth_le (k := k) (idx := idx) hw
-    omega
-  have hw0 : Fits w (s.mem (base + offset + wOff) ^^^ ((old₀ ^^^ val₀) <<< bOff)) :=
-    Nat.xor_lt_two_pow (hwf.2 _) hsh0_lt
-  let mem₁ := Function.update s.mem (base + offset + wOff)
-    (s.mem (base + offset + wOff) ^^^ ((old₀ ^^^ val₀) <<< bOff))
-  have hm1 : Fits w (mem₁ (base + offset + wOff + 1)) := by
-    dsimp only [mem₁]
-    rw [Function.update_of_ne (by omega)]
-    exact hwf.2 _
-  set old₁ := (mem₁ (base + offset + wOff + 1) >>> 0) &&& (2 ^ k₁ - 1)
-  set val₁ := (val >>> k₀) &&& (2 ^ k₁ - 1)
-  have hk1_le_w : k₁ ≤ w := by
-    have := lowWidth_add_highWidth k w idx
-    omega
-  have hδ1_lt : old₁ ^^^ val₁ < 2 ^ k₁ := by
-    refine Nat.xor_lt_two_pow ?_ ?_ <;>
-    · dsimp only [old₁, val₁]
-      rw [Nat.and_two_pow_sub_one_eq_mod]
-      exact Nat.mod_lt _ (by positivity)
-  have hsh1_lt : (old₁ ^^^ val₁) <<< 0 < 2 ^ w :=
-    hδ1_lt.trans_le (Nat.pow_le_pow_right (by decide) hk1_le_w)
-  have hw1 : Fits w (mem₁ (base + offset + wOff + 1) ^^^ ((old₁ ^^^ val₁) <<< 0)) :=
-    Nat.xor_lt_two_pow hm1 hsh1_lt
-  change base + offset + wOff < s.frontier ∧
-    ((base + offset + wOff < s.frontier ∧
-      Fits w (s.mem (base + offset + wOff) ^^^ ((old₀ ^^^ val₀) <<< bOff))) ∧
-    base + offset + wOff + 1 < s.frontier ∧
-    (base + offset + wOff + 1 < s.frontier ∧
-      Fits w (mem₁ (base + offset + wOff + 1) ^^^ ((old₁ ^^^ val₁) <<< 0))) ∧ True)
-  exact ⟨by omega, ⟨by omega, hw0⟩, by omega, ⟨by omega, hw1⟩, trivial⟩
+  have hbo := bitOffset_add_lowWidth_le (k := k) (idx := idx) hw
+  have hk1 : highWidth k w idx ≤ w := by have := lowWidth_add_highWidth k w idx; omega
+  unfold writePackedProg
+  valid_prog
+  all_goals first
+    | ((try dsimp only); omega)
+    | exact Nat.xor_lt_two_pow (hwf.2 _) (shiftLeft_lt_two_pow_of_lt xor_masked_lt (by omega))
 
 /-- `writePackedProg` preserves `Memory.WellFormed w` at every interpreter width `w'` whenever
 `0 < w` and `k ≤ w`. -/
@@ -253,22 +222,17 @@ theorem realizes_readPackedGen :
       · change 34 + 1 + 1 + 1 + 1 ≤ 38 * (2 + 0 + 1); omega
       · apply Memory.State.ext
         · change y_core.mem = x.mem
-          rw [hymem, hx₄]
-          rfl
+          rw [hymem, hx₄]; rfl
         · change Function.extend (tmp ∘ perm) y_core.regs x₄.regs frontier = x.regs frontier
           rw [Function.extend_apply' (f := tmp ∘ perm) _ _ _ fun ⟨j, hj⟩ => hf (perm j) hj, hx₄]
           wram_simp
       · intro i
-        have hi0 : i = 0 := Fin.eq_zero i
-        subst hi0
+        obtain rfl : i = 0 := Fin.eq_zero i
         rw [clientResult_width]
-        change (y_core.extend (tmp ∘ perm) x₄).regs (tmp 0) =
+        change (y_core.extend (tmp ∘ perm) x₄).regs ((tmp ∘ perm) 2) =
           readPacked (base + offset) k w' x.mem idx
-        have hp2 : tmp 0 = (tmp ∘ perm) 2 := by congr 1
-        rw [hp2]
         change ((y_core.extend (tmp ∘ perm) x₄).comap (tmp ∘ perm)).regs 2 = _
-        rw [Data.comap_extend hperm_inj, hy2, ← heq, hx₄]
-        rfl
+        rw [Data.comap_extend hperm_inj, hy2, ← heq, hx₄]; rfl
       · intro i _ htmp
         change Function.extend (tmp ∘ perm) y_core.regs x₄.regs i = x.regs i
         rw [Function.extend_apply' (f := tmp ∘ perm) _ _ _ fun ⟨j, hj⟩ => htmp (perm j) hj, hx₄]
@@ -312,15 +276,12 @@ theorem realizes_writePackedGen :
       refine WP.of_execWithin (hex_core.rename hi) ⟨?_, ?_, ?_, ?_⟩
       · change 45 + 1 + 1 + 1 + 1 + 1 ≤ 50 * (4 + 0 + 1); omega
       · apply Memory.State.ext
-        · change y_core.mem =
-            writePacked (base + offset) k w' x.mem idx val
-          rw [hymem, ← heq, hx₅]
-          rfl
+        · change y_core.mem = writePacked (base + offset) k w' x.mem idx val
+          rw [hymem, ← heq, hx₅]; rfl
         · change Function.extend tmp y_core.regs x₅.regs frontier = x.regs frontier
           rw [Function.extend_apply' (f := tmp) _ _ _ fun ⟨j, hj⟩ => hf j hj, hx₅]
           wram_simp
-      · intro i
-        exact Fin.elim0 i
+      · exact fun i => i.elim0
       · intro i _ htmp
         change Function.extend tmp y_core.regs x₅.regs i = x.regs i
         rw [Function.extend_apply' (f := tmp) _ _ _ fun ⟨j, hj⟩ => htmp j hj, hx₅]

@@ -49,15 +49,13 @@ theorem subdivide_getElem? (I : FixedRotationInput)
       ((I.graph.vertices.length + 2 * j, I.graph.vertices.length + 2 * j + 1), false),
       ((I.graph.vertices.length + 2 * j + 1, v), (I.orders.getD v none).isSome)]
   have hi : i.val < entries.length := by simp [entries]
-  have hsplit : entries = entries.take i.val ++ entries[i.val] :: entries.drop (i.val + 1) := by
-    rw [List.getElem_cons_drop, List.take_append_drop]
   have hprefix : ((entries.take i.val).flatMap emit).length = 3 * i.val := by
     simp [emit, List.length_flatMap, Nat.min_eq_left hi.le, Nat.mul_comm]
   change (entries.flatMap emit)[3 * i.val + k.val]? = _
-  rw [hsplit, List.flatMap_append, List.flatMap_cons,
-    List.getElem?_append_right (by omega), hprefix]
-  have hsub : 3 * i.val + k.val - 3 * i.val = k.val := by omega
-  rw [hsub, List.getElem?_append_left (by simp [emit])]
+  have hentries : entries = entries.take i.val ++ entries[i.val] :: entries.drop (i.val + 1) := by
+    rw [List.getElem_cons_drop, List.take_append_drop]
+  rw [hentries, List.flatMap_append, List.flatMap_cons, List.getElem?_append_right (by omega),
+    hprefix, Nat.add_sub_cancel_left, List.getElem?_append_left (by simp [emit])]
   simp [emit, entries, List.getElem_zipIdx]
 
 /-- The original occurrence and the position of a stored subdivision edge within it. -/
@@ -125,13 +123,10 @@ theorem subdivision_edge_endpoints (I : FixedRotationInput)
   obtain ⟨i, k⟩ := d
   have hlookup := subdivide_getElem? I i k
   change e.val = 3 * i.val + k.val at he
-  rw [← he] at hlookup
-  have hget :=
-    Option.some.inj ((List.getElem?_eq_getElem (subdivision_edge_lt I e)).symm.trans hlookup)
+  rw [← he, List.getElem?_eq_getElem (subdivision_edge_lt I e)] at hlookup
   change ((subdivide I).map Segment.endpoints)[e.val] = _
-  rw [List.getElem_map, hget]
-  generalize k = k'
-  fin_cases k' <;> rfl
+  rw [List.getElem_map, Option.some.inj hlookup]
+  fin_cases k <;> rfl
 
 /-- Retain the original occurrence and end tag while selecting its incident first or last
 subdivision segment. In particular, the two original loop ends select different segments. -/
@@ -147,11 +142,9 @@ theorem subdivisionEdgeIndex_subdivisionDart (I : FixedRotationInput) (d : Dart 
     subdivisionEdgeIndex I (subdivisionDart I d).1 =
       ⟨d.1, if d.2 then 2 else 0⟩ := by
   rcases d with ⟨i, b⟩
-  let a : SubdivisionEdgeIndex I := ⟨i, if b then 2 else 0⟩
-  have he : a.edge = (subdivisionDart I (i, b)).1 := by
-    apply Fin.ext
-    cases b <;> rfl
-  simpa only [he] using subdivisionEdgeIndex_edge a
+  simpa only [show (SubdivisionEdgeIndex.mk i (if b then 2 else 0)).edge =
+    (subdivisionDart I (i, b)).1 from Fin.ext (by cases b <;> rfl)] using
+    subdivisionEdgeIndex_edge ⟨i, if b then 2 else 0⟩
 
 /-- The selected outgoing end has its original center and its own fresh occurrence leaf. -/
 theorem subdivisionDart_endpoints (I : FixedRotationInput) (d : Dart I.graph) :
@@ -164,15 +157,14 @@ theorem subdivisionDart_endpoints (I : FixedRotationInput) (d : Dart I.graph) :
   change (Dart.vertex (e, false), Dart.vertex (e, true)) =
     (subdivisionEdgeIndex I (subdivisionDart I (i, b)).1).endpoints at h
   rw [subdivisionEdgeIndex_subdivisionDart] at h
-  have hleft := congrArg Prod.fst h
-  have hright := congrArg Prod.snd h
   have holdLeft := congrArg Prod.fst (Dart.edge_eq_vertices i)
   have holdRight := congrArg Prod.snd (Dart.edge_eq_vertices i)
   cases b
-  · exact ⟨hleft.trans holdLeft, hright⟩
-  · refine ⟨hright.trans holdRight, ?_⟩
+  · exact ⟨(congrArg Prod.fst h).trans holdLeft, congrArg Prod.snd h⟩
+  · refine ⟨(congrArg Prod.snd h).trans holdRight, ?_⟩
+    have hleft : Dart.vertex (e, false) = I.graph.vertices.length + 2 * i.val + 1 :=
+      congrArg Prod.fst h
     change Dart.vertex (e, false) = I.graph.vertices.length + (2 * i.val + 1)
-    change Dart.vertex (e, false) = I.graph.vertices.length + 2 * i.val + 1 at hleft
     simpa only [Nat.add_assoc] using hleft
 
 private theorem subdivisionDart_of_original_vertex (I : FixedRotationInput)
@@ -187,25 +179,12 @@ private theorem subdivisionDart_of_original_vertex (I : FixedRotationInput)
   rw [Dart.edge_eq_vertices e] at hends
   have hleft := congrArg Prod.fst hends
   have hright := congrArg Prod.snd hends
-  apply Prod.ext
-  · apply Fin.ext
-    change 3 * i.val + (if b then 2 else 0) = e.val
-    fin_cases k <;> cases b
-    · exact he.symm
-    · change Dart.vertex (e, true) = I.graph.vertices.length + 2 * i.val at hright
-      change Dart.vertex (e, true) < I.graph.vertices.length at hd
-      omega
-    · change Dart.vertex (e, false) = I.graph.vertices.length + 2 * i.val at hleft
-      change Dart.vertex (e, false) < I.graph.vertices.length at hd
-      omega
-    · change Dart.vertex (e, true) = I.graph.vertices.length + 2 * i.val + 1 at hright
-      change Dart.vertex (e, true) < I.graph.vertices.length at hd
-      omega
-    · change Dart.vertex (e, false) = I.graph.vertices.length + 2 * i.val + 1 at hleft
-      change Dart.vertex (e, false) < I.graph.vertices.length at hd
-      omega
-    · exact he.symm
-  · rfl
+  refine Prod.ext (Fin.ext ?_) rfl
+  change 3 * i.val + (if b then 2 else 0) = e.val
+  fin_cases k <;> cases b <;>
+    simp only [SubdivisionEdgeIndex.endpoints, Fin.getElem_fin, List.getElem_cons_zero,
+      List.getElem_cons_succ, Bool.false_eq_true, ↓reduceIte] at he hleft hright ⊢ <;>
+    omega
 
 /-- At an original vertex, the subdivision darts are exactly the original incident darts,
 with their distinct occurrence indices and end tags retained. -/
@@ -249,22 +228,17 @@ theorem subdivisionGraph_edge_injective {I : FixedRotationInput} (hI : Valid I) 
     Function.Injective (fun e : Fin (subdivisionGraph I).edges.length =>
       (s(((subdivisionGraph I).edges[e]).1, ((subdivisionGraph I).edges[e]).2) : Sym2 ℕ)) := by
   intro e f h
-  generalize hIe : subdivisionEdgeIndex I e = de
-  generalize hIf : subdivisionEdgeIndex I f = df
-  obtain ⟨i, k⟩ := de
-  obtain ⟨j, l⟩ := df
-  have he : e.val = 3 * i.val + k.val := by
-    simpa only [hIe] using subdivisionEdgeIndex_val I e
-  have hf : f.val = 3 * j.val + l.val := by
-    simpa only [hIf] using subdivisionEdgeIndex_val I f
-  have hep := subdivision_edge_endpoints I e
-  have hfp := subdivision_edge_endpoints I f
-  rw [hIe] at hep
-  rw [hIf] at hfp
+  have he := subdivisionEdgeIndex_val I e
+  have hf := subdivisionEdgeIndex_val I f
+  have hp := Sym2.eq_iff.mp h
+  rw [subdivision_edge_endpoints I e, subdivision_edge_endpoints I f] at hp
+  rcases hIe : subdivisionEdgeIndex I e with ⟨i, k⟩
+  rcases hIf : subdivisionEdgeIndex I f with ⟨j, l⟩
+  rw [hIe] at he hp
+  rw [hIf] at hf hp
+  dsimp only at he hf
   have hi := hI.edge_endpoints_lt (List.getElem_mem i.isLt)
   have hj := hI.edge_endpoints_lt (List.getElem_mem j.isLt)
-  have hp := Sym2.eq_iff.mp h
-  rw [hep, hfp] at hp
   fin_cases k <;> fin_cases l <;>
     simp only [SubdivisionEdgeIndex.endpoints, Fin.getElem_fin, List.getElem_cons_zero,
       List.getElem_cons_succ] at hp

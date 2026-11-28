@@ -82,59 +82,44 @@ theorem phase_add_canonicalTime_modEq (x : α) :
     _ = (cycleLength f x - canonicalTime f x % cycleLength f x +
         canonicalTime f x % cycleLength f x) % cycleLength f x := by
       simp only [Nat.add_mod, Nat.mod_mod]
-    _ = _ := by rw [Nat.sub_add_cancel (Nat.mod_lt _ (cycleLength_pos f x)).le]; simp
+    _ = _ := by
+      rw [Nat.sub_add_cancel (Nat.mod_lt _ (cycleLength_pos f x)).le, Nat.mod_self, Nat.zero_mod]
 
 /-- Past the transient, the state is the representative advanced by the phase plus the time. -/
 theorem iterate_eq_iterate_phase (x : α) {t : ℕ} (ht : transientDepth f x ≤ t) :
     f^[t] x = f^[(phase f x + t) % cycleLength f x] (canonicalCycle f x) := by
   rw [← canonicalTime_spec f x, ← iterate_add_apply]
-  apply (iterate_eq_iterate_iff_modEq f x ht
-    ((transientDepth_le_canonicalTime f x).trans (Nat.le_add_left _ _))).mpr
-  have hm : (phase f x + t) % cycleLength f x ≡ phase f x + t [MOD cycleLength f x] :=
-    Nat.mod_modEq _ _
-  have hc : (phase f x + t) + canonicalTime f x ≡ t [MOD cycleLength f x] := by
-    have := (phase_add_canonicalTime_modEq f x).add_right t
-    rwa [Nat.zero_add, Nat.add_right_comm] at this
-  exact ((hm.add_right _).trans hc).symm
+  refine (iterate_eq_iterate_iff_modEq f x ht
+    ((transientDepth_le_canonicalTime f x).trans (Nat.le_add_left _ _))).mpr ?_
+  have hc := (phase_add_canonicalTime_modEq f x).add_right t
+  rw [Nat.zero_add, Nat.add_right_comm] at hc
+  exact (((Nat.mod_modEq _ _).add_right _).trans hc).symm
 
 /-- Any visit to the representative determines the phase. -/
 theorem phase_eq_of_iterate_eq_canonicalCycle (x : α) {t : ℕ}
     (ht : f^[t] x = canonicalCycle f x) :
     phase f x = (cycleLength f x - t % cycleLength f x) % cycleLength f x := by
-  have hd : transientDepth f x ≤ t := by
-    rw [← iterate_mem_periodicPts_iff, ht]
-    exact canonicalCycle_periodic f x
-  have hm := (iterate_eq_iterate_iff_modEq f x hd (transientDepth_le_canonicalTime f x)).mp
-    (ht.trans (canonicalTime_spec f x).symm)
   unfold phase
-  rw [hm]
+  rw [(iterate_eq_iterate_iff_modEq f x
+    ((iterate_mem_periodicPts_iff f x t).mp (ht.symm ▸ canonicalCycle_periodic f x))
+    (transientDepth_le_canonicalTime f x)).mp (ht.trans (canonicalTime_spec f x).symm)]
 
 /-- Iterating shifts the phase by the number of steps. -/
 @[simp] theorem phase_iterate (x : α) (t : ℕ) :
     phase f (f^[t] x) = (phase f x + t) % cycleLength f x := by
-  set y := f^[t] x
-  set b := canonicalTime f y
-  set ell := cycleLength f x
+  set b := canonicalTime f (f^[t] x)
   have hb : f^[b + t] x = canonicalCycle f x := by
     rw [iterate_add_apply, canonicalTime_spec, canonicalCycle_iterate]
-  have hd : transientDepth f x ≤ b + t := by
-    rw [← iterate_mem_periodicPts_iff, hb]
-    exact canonicalCycle_periodic f x
-  have hm : b + t ≡ canonicalTime f x [MOD ell] :=
-    (iterate_eq_iterate_iff_modEq f x hd (transientDepth_le_canonicalTime f x)).mp
-      (hb.trans (canonicalTime_spec f x).symm)
-  have hx := phase_add_canonicalTime_modEq f x
-  have hy := phase_add_canonicalTime_modEq f y
-  rw [cycleLength_iterate] at hy
-  have hboth : phase f y + (b + t) ≡ (phase f x + t) + (b + t) [MOD ell] := by
-    have hxt : phase f x + (b + t) ≡ 0 [MOD ell] := (hm.add_left (phase f x)).trans hx
-    have hc : (phase f x + t) + b ≡ 0 [MOD ell] := by
-      convert hxt using 1
-      ac_rfl
-    convert (hy.trans hc.symm).add_right t using 1 <;> ac_rfl
-  have he := Nat.ModEq.add_right_cancel' (b + t) hboth
-  have hlt : phase f y < ell := by simpa only [y, ell, cycleLength_iterate] using phase_lt f y
-  simpa only [Nat.ModEq, Nat.mod_eq_of_lt hlt] using he
+  have hm := (iterate_eq_iterate_iff_modEq f x
+    ((iterate_mem_periodicPts_iff f x _).mp (hb.symm ▸ canonicalCycle_periodic f x))
+    (transientDepth_le_canonicalTime f x)).mp (hb.trans (canonicalTime_spec f x).symm)
+  have hy := cycleLength_iterate f x t ▸ phase_add_canonicalTime_modEq f (f^[t] x)
+  have hx : (phase f x + t) + b ≡ 0 [MOD cycleLength f x] := by
+    rw [Nat.add_right_comm, Nat.add_assoc]
+    exact (hm.add_left _).trans (phase_add_canonicalTime_modEq f x)
+  have he := Nat.ModEq.add_right_cancel' b (hy.trans hx.symm)
+  simpa only [Nat.ModEq,
+    Nat.mod_eq_of_lt (cycleLength_iterate f x t ▸ phase_lt f (f^[t] x))] using he
 
 /-- The number of steps after the transient of `x` to a target on the same cycle: the phase
 difference modulo the cycle length. -/
@@ -150,42 +135,33 @@ theorem cyclic_first_hit (x y : α) (hy : y ∈ periodicPts f)
     f^[transientDepth f x + cyclicDistance f x y] x = y ∧
       ∀ j < transientDepth f x + cyclicDistance f x y, f^[j] x ≠ y := by
   obtain ⟨a, ha⟩ := (exists_iterate_eq_iff_canonicalCycle_eq f x y hy).mpr hc
-  have hel : cycleLength f y = cycleLength f x := by rw [← ha, cycleLength_iterate]
+  have hel : cycleLength f y = cycleLength f x := ha ▸ cycleLength_iterate f x a
   set ell := cycleLength f x
-  set z := (phase f x + transientDepth f x) % ell
-  set d := cyclicDistance f x y
-  have hell : 0 < ell := cycleLength_pos f x
-  have hz : z < ell := Nat.mod_lt _ hell
-  have hphase : phase f y < ell := by simpa only [hel] using phase_lt f y
-  have hd : d < ell := Nat.mod_lt _ hell
-  have hsum : z + d ≡ phase f y [MOD ell] := by
-    change (z + (phase f y + ell - z) % ell) % ell = phase f y % ell
-    rw [Nat.add_mod_mod, Nat.add_sub_of_le (show z ≤ phase f y + ell by omega),
-      Nat.add_mod_right]
-  have hend : phase f x + (transientDepth f x + d) ≡ phase f y [MOD ell] := by
-    rw [← Nat.add_assoc]
-    exact ((Nat.mod_modEq _ _).symm.add_right d).trans hsum
+  have hphase : phase f y < ell := hel ▸ phase_lt f y
+  have hd : cyclicDistance f x y < ell := Nat.mod_lt _ (cycleLength_pos f x)
+  have hend : phase f x + (transientDepth f x + cyclicDistance f x y) ≡ phase f y [MOD ell] := by
+    rw [← Nat.add_assoc, cyclicDistance]
+    refine ((Nat.mod_modEq _ _).symm.add_right _).trans ?_
+    change ((phase f x + transientDepth f x) % ell +
+      (phase f y + ell - (phase f x + transientDepth f x) % ell) % ell) % ell = phase f y % ell
+    rw [Nat.add_mod_mod, Nat.add_sub_of_le
+      ((Nat.mod_lt _ (cycleLength_pos f x)).le.trans (Nat.le_add_left _ _)), Nat.add_mod_right]
   have hyrepr : y = f^[phase f y] (canonicalCycle f x) := by
-    have h := iterate_eq_iterate_phase f y (t := 0)
-      (by rw [transientDepth_eq_zero_of_mem_periodicPts f hy])
-    simpa only [Nat.add_zero, Nat.mod_eq_of_lt (phase_lt f y), iterate_zero_apply, ← hc] using h
-  constructor
-  · rw [iterate_eq_iterate_phase f x (by omega), hend, Nat.mod_eq_of_lt hphase, ← hyrepr]
-  · intro j hj he
-    have hjμ : transientDepth f x ≤ j := by
-      rw [← iterate_mem_periodicPts_iff, he]
-      exact hy
-    have hjmod : phase f x + j ≡ phase f y [MOD ell] := by
-      rw [← he, phase_iterate]
-      exact Nat.mod_modEq _ _ |>.symm
-    have hc1 := Nat.ModEq.add_left_cancel' (phase f x) (hend.trans hjmod.symm)
-    have hc2 : d ≡ j - transientDepth f x [MOD ell] := by
-      apply Nat.ModEq.add_left_cancel' (transientDepth f x)
-      rwa [Nat.add_sub_of_le hjμ]
-    have hdle : d ≤ j - transientDepth f x := by
-      change d % ell = (j - transientDepth f x) % ell at hc2
-      rw [Nat.mod_eq_of_lt hd] at hc2
-      exact hc2 ▸ Nat.mod_le _ _
+    simpa only [Nat.add_zero, Nat.mod_eq_of_lt (phase_lt f y), iterate_zero_apply, ← hc] using
+      iterate_eq_iterate_phase f y (t := 0) (transientDepth_eq_zero_of_mem_periodicPts f hy).le
+  refine ⟨?_, fun j hj he => ?_⟩
+  · rw [iterate_eq_iterate_phase f x (Nat.le_add_right _ _), hend,
+      Nat.mod_eq_of_lt hphase, ← hyrepr]
+  · have hjμ : transientDepth f x ≤ j := (iterate_mem_periodicPts_iff f x j).mp (he.symm ▸ hy)
+    have hjmod : phase f x + j ≡ phase f y [MOD ell] :=
+      he ▸ phase_iterate f x j ▸ (Nat.mod_modEq _ _).symm
+    have hc2 : cyclicDistance f x y ≡ j - transientDepth f x [MOD ell] :=
+      Nat.ModEq.add_left_cancel' (transientDepth f x) <| by
+        rw [Nat.add_sub_of_le hjμ]
+        exact Nat.ModEq.add_left_cancel' (phase f x) (hend.trans hjmod.symm)
+    have hc3 : cyclicDistance f x y = (j - transientDepth f x) % ell := by
+      simpa only [Nat.ModEq, Nat.mod_eq_of_lt hd] using hc2
+    have := hc3 ▸ Nat.mod_le (j - transientDepth f x) ell
     omega
 
 /-- Whether the orbit of `x` reaches `y`: for a periodic target, whether both have the same
@@ -206,12 +182,11 @@ noncomputable def hittingTime (x y : α) : ℕ :=
 theorem reaches_iff (x y : α) : reaches f x y = true ↔ ∃ t, f^[t] x = y := by
   unfold reaches
   split_ifs with hy
-  · rw [decide_eq_true_eq]
-    exact (exists_iterate_eq_iff_canonicalCycle_eq f x y
+  · simpa only [decide_eq_true_eq] using (exists_iterate_eq_iff_canonicalCycle_eq f x y
       ((transientDepth_eq_zero_iff f y).mp hy)).symm
-  · rw [Bool.and_eq_true, decide_eq_true_eq, decide_eq_true_eq]
-    exact (exists_iterate_eq_iff_of_not_mem_periodicPts f x y
-      fun h => hy ((transientDepth_eq_zero_iff f y).mpr h)).symm
+  · simpa only [Bool.and_eq_true, decide_eq_true_eq] using
+      (exists_iterate_eq_iff_of_not_mem_periodicPts f x y
+        (mt (transientDepth_eq_zero_iff f y).mpr hy)).symm
 
 /-- **First hitting times.** If `y` is reachable from `x`, then `hittingTime f x y` is the first
 time the orbit of `x` visits `y`, and it is below the number of states. Nothing is claimed about
@@ -226,18 +201,14 @@ theorem hittingTime_spec [Fintype α] (x y : α) (h : reaches f x y = true) :
     · have hp := (transientDepth_eq_zero_iff f y).mp hy
       exact cyclic_first_hit f x y hp ((exists_iterate_eq_iff_canonicalCycle_eq f x y hp).mp hr)
     · obtain ⟨-, he⟩ := (exists_iterate_eq_iff_of_not_mem_periodicPts f x y
-        fun hp => hy ((transientDepth_eq_zero_iff f y).mpr hp)).mp hr
+        (mt (transientDepth_eq_zero_iff f y).mpr hy)).mp hr
       refine ⟨he, fun j hj hjy => ?_⟩
-      have hd := transientDepth_iterate f x j
-      rw [hjy] at hd
+      have := transientDepth_iterate f x j
+      rw [hjy] at this
       omega
   obtain ⟨t, ht, hty, hmin⟩ := exists_first_visit f (fun z => z = y) x hr
-  have he : t = hittingTime f x y := by
-    apply Nat.le_antisymm
-    · by_contra hle
-      exact hmin _ (by omega) hfirst.1
-    · by_contra hle
-      exact hfirst.2 _ (by omega) hty
+  have he : t = hittingTime f x y := Nat.le_antisymm
+    (not_lt.mp fun hlt => hmin _ hlt hfirst.1) (not_lt.mp fun hlt => hfirst.2 _ hlt hty)
   exact ⟨hfirst.1, hfirst.2, he ▸ ht⟩
 
 /-! ### Complete visit schedules and bounded visit counts -/
@@ -249,29 +220,25 @@ the same formula. -/
 theorem visit_schedule_of_first (x y : α) (d : ℕ)
     (hd : f^[d] x = y) (hfirst : ∀ j < d, f^[j] x ≠ y) (t : ℕ) :
     f^[t] x = y ↔ ∃ k, t = d + k * Function.minimalPeriod f y := by
-  constructor
-  · intro ht
-    have hle : d ≤ t := by by_contra h; exact hfirst t (by lia) ht
+  refine ⟨fun ht => ?_, fun ⟨k, hk⟩ => ?_⟩
+  · have hle : d ≤ t := not_lt.mp fun h => hfirst t h ht
     have hp : Function.IsPeriodicPt f (t - d) y := by
       change f^[t - d] y = y
-      rw [← hd, ← Function.iterate_add_apply, Nat.sub_add_cancel hle]
-      exact ht.trans hd.symm
+      rw [← hd, ← Function.iterate_add_apply, Nat.sub_add_cancel hle, ht, hd]
     obtain ⟨k, hk⟩ := Function.isPeriodicPt_iff_minimalPeriod_dvd.mp hp
-    exact ⟨k, by rw [Nat.mul_comm] at hk; lia⟩
-  · rintro ⟨k, rfl⟩
-    rw [Nat.add_comm, Function.iterate_add_apply, hd]
+    exact ⟨k, by lia⟩
+  · rw [hk, Nat.add_comm, Function.iterate_add_apply, hd]
     exact (Function.isPeriodicPt_minimalPeriod f y).const_mul k
 
 omit [Finite α] [LinearOrder α] in
 /-- When `d` is the first visit time to `y`, a visit occurs on or before `T` iff `d ≤ T`. -/
 theorem visit_before_deadline_of_first (x y : α) (d : ℕ)
     (hd : f^[d] x = y) (hfirst : ∀ j < d, f^[j] x ≠ y) (T : ℕ) :
-    (∃ t ≤ T, f^[t] x = y) ↔ d ≤ T := by
-  constructor
-  · rintro ⟨t, ht, hy⟩
+    (∃ t ≤ T, f^[t] x = y) ↔ d ≤ T :=
+  ⟨fun ⟨t, ht, hy⟩ => by
     obtain ⟨k, rfl⟩ := (visit_schedule_of_first f x y d hd hfirst t).mp hy
-    lia
-  · exact fun h => ⟨d, h, hd⟩
+    lia,
+   fun h => ⟨d, h, hd⟩⟩
 
 /-- Complete visit schedule from `x` to `y` in terms of `reaches`, `hittingTime`, and
 `Function.minimalPeriod`. -/
@@ -279,13 +246,11 @@ theorem visit_schedule (x y : α) (t : ℕ) :
     f^[t] x = y ↔ reaches f x y = true ∧
       ∃ k, t = hittingTime f x y + k * Function.minimalPeriod f y := by
   let _ := Fintype.ofFinite α
-  constructor
-  · intro ht
-    have hr := (reaches_iff f x y).mpr ⟨t, ht⟩
+  refine ⟨fun ht => ?_, fun ⟨hr, ht⟩ => ?_⟩
+  · have hr := (reaches_iff f x y).mpr ⟨t, ht⟩
     have hd := hittingTime_spec f x y hr
     exact ⟨hr, (visit_schedule_of_first f x y _ hd.1 hd.2.1 t).mp ht⟩
-  · rintro ⟨hr, ht⟩
-    have hd := hittingTime_spec f x y hr
+  · have hd := hittingTime_spec f x y hr
     exact (visit_schedule_of_first f x y _ hd.1 hd.2.1 t).mpr ht
 
 omit [Finite α] [LinearOrder α] in
@@ -295,10 +260,8 @@ theorem visit_count_of_first (x y : α) (d : ℕ)
     Set.ncard {t : ℕ | t ≤ T ∧ f^[t] x = y} =
       arithmeticProgressionCount d (Function.minimalPeriod f y) T := by
   classical
-  have he : {t : ℕ | t ≤ T ∧ f^[t] x = y} =
-      {t : ℕ | t ≤ T ∧ ∃ k, t = d + k * Function.minimalPeriod f y} := by
-    ext t
-    simp only [Set.mem_ofPred_eq, visit_schedule_of_first f x y d hd hfirst t]
-  rw [he, arithmeticProgressionCount_spec]
+  rw [← arithmeticProgressionCount_spec]
+  exact congrArg Set.ncard (Set.ext fun t =>
+    and_congr_right fun _ => visit_schedule_of_first f x y d hd hfirst t)
 
 end Cslib.FunctionalGraph

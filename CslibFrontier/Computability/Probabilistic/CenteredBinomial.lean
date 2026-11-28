@@ -46,10 +46,8 @@ theorem isPPTOn_sampleCenteredBinomial :
     IsPPTOn encUnary encIntBin sampleCenteredBinomial :=
   let e1 := encPair encUnary encUnary
   let hcount := (isPPTOn_uniform_bool encUnary).countTrue .id'
-  let hcast := ComputableInPolyTime.unary_to_binary.trans .intBin_natCast
-  let hsub := ((((ComputableInPolyTime.fst e1 encUnary).trans
-    (.snd encUnary encUnary)).trans hcast).prod
-    ((ComputableInPolyTime.snd e1 encUnary).trans hcast)).trans .intBin_sub
+  let hsub : ComputableInPolyTime (fun p : (ℕ × ℕ) × ℕ => (p.1.2 : ℤ) - p.2)
+      (encPair e1 encUnary) encIntBin := by fun_prop
   hcount.bind_with ((hcount.preprocess (.fst encUnary encUnary)).bind_with hsub.isPPTOn)
 
 end Cslib.Probability

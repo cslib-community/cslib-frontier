@@ -64,22 +64,16 @@ theorem exists_orderedCrossGadget (h : ¬HasSchaeferPolymorphism ar s)
     (hbad : ¬IsEvenDeltaMatroid (cyclicDifferenceRelation (booleanRelation ar s r))) :
     ∃ g : PPGadget ar s cross, Nonempty (GadgetWitness g) := by
   classical
-  have hself : IsSelfComplementary (booleanRelation ar s r) := by
-    intro x
-    constructor
-    · intro hx
-      exact hnot r (fun _ => x) (fun _ => hx)
-    · intro hx
-      simpa only [Bool.not_not] using hnot r (fun _ i => !(x i)) (fun _ => hx)
+  have hself : IsSelfComplementary (booleanRelation ar s r) := fun x =>
+    ⟨fun hx => hnot r (fun _ => x) (fun _ => hx),
+      fun hx => by simpa only [Bool.not_not] using hnot r (fun _ i => !(x i)) (fun _ => hx)⟩
   obtain ⟨d, ⟨wd⟩⟩ := exists_disequality_of_common_not hnot (fun hf => h (.inl hf))
   obtain ⟨_, ⟨c⟩⟩ := Normalization.exists_construction (booleanRelation ar s r) hne hself hbad
   let gs := normalizationReplacements r d
   let ws := normalizationReplacementWitnesses r d wd
-  have hb : ∀ t, (gs t).numAux ≤ d.numAux := by
-    intro t
+  have hb (t) : (gs t).numAux ≤ d.numAux := by
     cases t <;> simp [gs, normalizationReplacements, PPGadget.retarget, PPGadget.atom]
-  let g := c.gadget.expand gs
-  let w : GadgetWitness g := c.orderedWitness.expand gs ws d.numAux hb
-  exact exists_orderedCross_of_standardized c.standardized g d w wd
+  exact exists_orderedCross_of_standardized c.standardized (c.gadget.expand gs) d
+    (c.orderedWitness.expand gs ws d.numAux hb) wd
 
 end Cslib.Logic.PL.CSP.Crossover

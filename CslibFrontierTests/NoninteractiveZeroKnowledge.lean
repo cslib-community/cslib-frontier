@@ -36,7 +36,8 @@ example (a : Bool) {t : CRSTranscript} (h : t ∈ (echoProtocol.transcript a).su
 
 example : {b : Bool | b = true} ∈ NISZK encBool := by
   apply NIPZK_subset_NISZK encBool
-  apply P_subset_NIPZK encBool
+  apply BPP_subset_NIPZK encBool
+  apply P_subset_BPP
   exact mem_P.mpr ⟨id, ComputableInPolyTime.id', fun _ => Iff.rfl⟩
 
 end CslibFrontierTests.NoninteractiveZeroKnowledge

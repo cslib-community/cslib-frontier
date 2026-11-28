@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+import CslibFrontier.Foundations.Combinatorics.Sunflower.Closure
 import CslibFrontier.Logics.Propositional.Resolution.CliqueColoring
 
 /-!
@@ -43,6 +44,23 @@ example : ¬IsImplicationMinimal 2 ({{0}, {1}} : Finset (Finset (Fin 2))) := by
 example {F : Finset (Finset (Fin 5))} (hF : IsImplicationMinimal 2 F) : F.card ≤ 1 := by
   simpa using card_le_pow_of_isImplicationMinimal le_rfl (k := 5) (fun W _ => W.card_le_univ.trans
     (by simp)) hF
+
+/-- For `r ≤ 1`, implication reduces to upward closure and the empty family implies nothing. -/
+example :
+    ¬ImpliedBy 1 ({{1, 2}} : Finset (Finset ℕ)) ∅ ∧
+    ¬ImpliedBy 0 (∅ : Finset (Finset ℕ)) ∅ ∧
+    IsImplicationMinimal 1 ({{1}} : Finset (Finset ℕ)) ∧
+    ImplicationClosure.IsClosed 0 ({{0}} : Finset (Finset ℕ)) ∅ := by
+  refine ⟨?_, not_impliedBy_empty, ?_, ImplicationClosure.isClosed_empty⟩
+  · rw [impliedBy_iff_of_le_one le_rfl]
+    decide
+  · intro W hW U hUW hU
+    rw [Finset.mem_singleton] at hW
+    subst hW
+    obtain ⟨V, hV, hVU⟩ := (impliedBy_iff_of_le_one le_rfl).1 hU
+    rw [Finset.mem_singleton] at hV
+    subst hV
+    exact hUW.not_superset hVU
 
 /-- `n = 2 ^ 21` is below `513 ^ 4`, the vertex count the Razborov bound needs. -/
 example : 2 ^ 21 < 513 ^ 4 := by norm_num

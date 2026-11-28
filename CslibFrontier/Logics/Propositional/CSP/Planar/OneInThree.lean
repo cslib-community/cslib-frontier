@@ -89,8 +89,7 @@ theorem triangleSem_relation (R : Set (Fin 3 → Bool)) [DecidablePred (· ∈ R
 /-- The triangle's binary symbol has exactly NAND semantics at its canonical ordered tuple. -/
 theorem triangleSem_nand (R : Set (Fin 3 → Bool)) [DecidablePred (· ∈ R)]
     (x : Fin 2 → Bool) : triangleSem R .nand (List.ofFn x) = true ↔ x ∈ nand := by
-  cases h₀ : x 0 <;> cases h₁ : x 1 <;>
-    simp [triangleSem, List.ofFn_succ, nand, h₀, h₁]
+  grind [triangleSem, List.ofFn_succ, nand]
 
 /-- NAND on all three adjacent pairs leaves precisely the three units or zero. -/
 theorem triangleBody_eval_iff (R : Set (Fin 3 → Bool)) [DecidablePred (· ∈ R)]
@@ -144,13 +143,10 @@ theorem witnesses {Rel : Type} {arity : Rel → ℕ} {sem : Rel → List Bool �
   classical
   obtain ⟨⟨d⟩, pins⟩ := constants_of_not_hasSchaeferPolymorphism h hn
   let p (b : Bool) := Classical.choice (pins b)
-  have hparity : ¬HasPolymorphism arity sem (Cslib.parity 3) :=
-    fun hp => h (.inr (.inr (.inr (.inr (.inr hp)))))
-  have hmajority : ¬HasPolymorphism arity sem (Cslib.majority 3) :=
-    fun hm => h (.inr (.inr (.inr (.inr (.inl hm)))))
-  simp only [HasPolymorphism, not_forall] at hparity hmajority
-  obtain ⟨r, hr⟩ := hparity
-  obtain ⟨s, hs⟩ := hmajority
+  obtain ⟨r, hr⟩ := not_forall.1 (show ¬HasPolymorphism arity sem (Cslib.parity 3) from
+    fun hp => h (.inr (.inr (.inr (.inr (.inr hp))))))
+  obtain ⟨s, hs⟩ := not_forall.1 (show ¬HasPolymorphism arity sem (Cslib.majority 3) from
+    fun hm => h (.inr (.inr (.inr (.inr (.inl hm))))))
   obtain ⟨t⟩ := exists_nand_trace hr
   obtain ⟨R, ⟨u⟩, hz, hu⟩ := exists_majority_minor hs
   exact ⟨⟨d⟩, pins, ⟨t.construction (.atom r) d p⟩,

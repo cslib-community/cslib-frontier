@@ -58,20 +58,10 @@ theorem card_extPerms_ofFn_eq {k : ℕ} (xs : Fin k → α) (e e' : Fin k ↪ α
     (Equiv.ofInjective e e.injective).symm.trans (Equiv.ofInjective e' e'.injective)
   let σ : Equiv.Perm α := E.extendSubtype
   have hσ (i : Fin k) : σ (e i) = e' i := by
-    dsimp [σ]
-    rw [Equiv.extendSubtype_apply_of_mem E (e i) ⟨i, rfl⟩]
-    have hi : (Equiv.ofInjective e e.injective).symm ⟨e i, ⟨i, rfl⟩⟩ = i :=
-      e.injective (Equiv.apply_ofInjective_symm e.injective ⟨e i, ⟨i, rfl⟩⟩)
-    simp only [E, Equiv.trans_apply, hi, Equiv.ofInjective_apply]
-  refine Finset.card_bij (fun π _ => σ * π) ?_ ?_ ?_
-  · intro π hπ
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hπ ⊢
-    intro i; simp [hπ i, hσ]
-  · intro π _ ρ _ h; simpa using h
-  · intro ρ hρ
-    refine ⟨σ⁻¹ * ρ, ?_, by simp⟩
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hρ ⊢
-    intro i; rw [Equiv.Perm.mul_apply, hρ i, Equiv.Perm.inv_eq_iff_eq, hσ]
+    simp [σ, E, Equiv.extendSubtype_apply_of_mem E (e i) ⟨i, rfl⟩,
+      e.injective (Equiv.apply_ofInjective_symm e.injective ⟨e i, ⟨i, rfl⟩⟩)]
+  refine Finset.card_equiv (Equiv.mulLeft σ) fun π => ?_
+  simp [← hσ]
 
 /-- Summing the extension counts over all injective target tuples `e : Fin k ↪ α` counts every
 permutation of `α` exactly once. -/
@@ -116,11 +106,9 @@ theorem card_extPerms_ofFn_mul_descFactorial_le {k : ℕ} (xs : Fin k ↪ α) (y
 theorem card_filter_apply_eq_mul_card_le (x a : α) :
     (Finset.univ.filter fun π : Equiv.Perm α => π x = a).card * Fintype.card α ≤
       (Fintype.card α).factorial := by
-  let xs : Fin 1 ↪ α := ⟨![x], fun i j _ => Subsingleton.elim i j⟩
+  let xs : Fin 1 ↪ α := ⟨![x], Function.injective_of_subsingleton _⟩
   have h := card_extPerms_ofFn_mul_descFactorial_le xs ![a]
-  have he : extPerms (List.ofFn fun i : Fin 1 => (xs i, ![a] i)) =
-      Finset.univ.filter fun π : Equiv.Perm α => π x = a := by
-    rw [extPerms_ofFn_eq]; ext π; simp [xs]; rfl
-  rwa [he, Nat.descFactorial_one] at h
+  rw [extPerms_ofFn_eq] at h
+  simpa [xs] using h
 
 end Cslib.RandomPermutation

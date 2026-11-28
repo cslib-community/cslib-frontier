@@ -6,6 +6,7 @@ Authors: Erik Demaine, OpenAI
 
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Forward
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Star
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Rotation
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
 
 /-!
@@ -27,10 +28,13 @@ example (n : ℕ) : ∃ D : PolygonalDrawing (starGraph n),
   (starRotation n).exists_polygonalDrawing (starGraph_endpoints_declared n)
     (numericalGenusZero_starRotation n)
 
-example : ∃ D : PolygonalDrawing (starGraph 13),
-    D.IsEmbedding ∧ D.Realizes (starRotation 13) :=
-  (starRotation 13).exists_polygonalDrawing (starGraph_endpoints_declared 13)
-    (numericalGenusZero_starRotation 13)
+example : ∃ D : PolygonalDrawing (starGraph 13), ∃ hD : D.IsEmbedding,
+    ∀ d, (D.rotationOfDirections hD.directions_injective).rotate d =
+      (starRotation 13).rotate d := by
+  obtain ⟨D, hD, hr⟩ := (starRotation 13).exists_polygonalDrawing
+    (starGraph_endpoints_declared 13) (numericalGenusZero_starRotation 13)
+  exact ⟨D, hD,
+    (D.realizes_rotationOfDirections hD.germ_ne_zero hD.directions_injective).rotate_eq hr⟩
 
 private theorem checkedGenus {G : Graph} (r : RotationSystem G)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.1)

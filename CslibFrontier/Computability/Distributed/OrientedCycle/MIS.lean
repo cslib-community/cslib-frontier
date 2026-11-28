@@ -109,20 +109,12 @@ theorem isMIS_iff_maximal {n : ℕ} (hn : n ≠ 1) {s : ZMod n → Bool} :
     by_contra hw
     simp only [not_or, Bool.not_eq_true] at hw
     obtain ⟨hw0, hwm, hwp⟩ := hw
-    have hind : (graph n).IsIndepSet (insert w {v | s v = true}) := by
-      refine Set.pairwise_insert.2 ⟨hmax.1, fun b hb _ => ⟨fun hwb => ?_, fun hbw => ?_⟩⟩
-      · rcases (graph_adj.1 hwb).2 with h | h
-        · rw [h, add_sub_cancel_right] at hwm
-          simp_all
-        · rw [h] at hb
-          simp_all
-      · rcases (graph_adj.1 hbw).2 with h | h
-        · rw [h] at hb
-          simp_all
-        · rw [h, add_sub_cancel_right] at hwm
-          simp_all
-    have := hmax.2 hind (Set.subset_insert _ _) (Set.mem_insert w _)
-    simp_all
+    have hind : (graph n).IsIndepSet (insert w {v | s v = true}) :=
+      Set.pairwise_insert.2 ⟨hmax.1, fun b hb _ =>
+        have hnot (hab : (graph n).Adj w b) : False := by
+          rcases (graph_adj.1 hab).2 with rfl | rfl <;> simp_all [add_sub_cancel_right]
+        ⟨hnot, fun hbw => hnot hbw.symm⟩⟩
+    exact Bool.noConfusion (hw0.symm.trans (hmax.2 hind (Set.subset_insert _ _) (.inl rfl)))
 
 /-- After `t` rounds, `A` marks a maximal independent set of every oriented `n`-cycle whose nodes
 carry distinct identifiers from `{0, …, n - 1}`. Like `Algorithm.ColorsCycle`, this is vacuous for
@@ -166,17 +158,11 @@ theorem invariant {x : ZMod n → ℕ} (hx : IsProperColoring x) (r : ℕ) :
   induction r with
   | zero =>
     have hJ : ∀ v, (misOfColoring.state x 0 v).2 = decide (x v = 0) := fun v => rfl
-    refine ⟨fun v hv => ?_, fun v hv => ?_, fun v hv => ?_⟩
-    · rw [hJ] at hv
-      simp_all
-    · left
-      rw [hJ]
-      simp_all
-    · rw [hJ] at hv ⊢
-      have := hx v
-      simp only [decide_eq_true_eq] at hv
-      simp only [decide_eq_false_iff_not]
-      omega
+    refine ⟨fun v hv => ?_, fun v hv => ?_, fun v hv => ?_⟩ <;>
+      simp only [hJ, decide_eq_true_eq, decide_eq_false_iff_not] at hv ⊢
+    · omega
+    · omega
+    · have := hx v; omega
   | succ r ih =>
     obtain ⟨ha, hb, hc⟩ := ih
     refine ⟨fun v hv => ?_, fun v hv => ?_, fun v hv => ?_⟩
@@ -188,17 +174,10 @@ theorem invariant {x : ZMod n → ℕ} (hx : IsProperColoring x) (r : ℕ) :
     · simp only [state_snd_succ, Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq,
         Bool.not_eq_true']
       rcases Nat.lt_or_ge (x v) (r + 1) with hlt | hge
-      · rcases hb v (by omega) with h | h | h
-        · exact Or.inl (Or.inl h)
-        · exact Or.inr (Or.inl (Or.inl h))
-        · exact Or.inr (Or.inr (Or.inl h))
+      · rcases hb v (by omega) with h | h | h <;> simp only [h, true_or, or_true]
       · have hxv : x v = r + 1 := le_antisymm hv hge
-        by_cases h1 : (misOfColoring.state x r (v - 1)).2 = true
-        · exact Or.inr (Or.inl (Or.inl h1))
-        by_cases h2 : (misOfColoring.state x r (v + 1)).2 = true
-        · exact Or.inr (Or.inr (Or.inl h2))
-        simp only [Bool.not_eq_true] at h1 h2
-        exact Or.inl (Or.inr ⟨⟨hxv, h1⟩, h2⟩)
+        cases (misOfColoring.state x r (v - 1)).2 <;>
+          cases (misOfColoring.state x r (v + 1)).2 <;> simp [hxv]
     · rw [state_snd_succ] at hv ⊢
       have hxv : x v = r + 1 → x (v + 1) ≠ r + 1 := fun h h' => hx v (h.trans h'.symm)
       have hc' := hc v
@@ -233,13 +212,12 @@ theorem misAlgorithm_run {n N s : ℕ} {x : ZMod n → ℕ} (hx : IsProperColori
     (hN : ∀ v, x v < N) (hs : Nat.logStar N ≤ 2 * s) {r : ℕ} (hr : s + 5 ≤ r) :
     IsMIS ((misAlgorithm s).run x r) := by
   obtain ⟨j, rfl⟩ := Nat.exists_eq_add_of_le hr
-  have hrun : (misAlgorithm s).run x (s + 5 + j) =
-      misOfColoring.run ((fastThreeColoring s).run x (s + 3)) (2 + j) := by
-    funext v
-    rw [show s + 5 + j = s + 3 + (2 + j) by omega, misAlgorithm, Algorithm.seq_run]
   obtain ⟨h1, h2⟩ := fastThreeColoring_run hx hN hs le_rfl
-  rw [hrun]
-  exact misOfColoring_run h1 h2 (by omega)
+  have hrun : (misAlgorithm s).run x (s + 5 + j) =
+      misOfColoring.run ((fastThreeColoring s).run x (s + 3)) (2 + j) :=
+    funext fun _ => by
+      rw [show s + 5 + j = s + 3 + (2 + j) by omega, misAlgorithm, Algorithm.seq_run]
+  exact hrun ▸ misOfColoring_run h1 h2 (by omega)
 
 /-- **MIS upper bound.** On oriented `n`-cycles, `n ≠ 1`, with identifiers `{0, …, n - 1}`,
 `misAlgorithm s` finds an MIS within `s + 5` rounds when `log* n ≤ 2s`, for instance for
@@ -286,13 +264,10 @@ rounds, so the 3-colouring lower bound `Algorithm.ColorsCycle.logStar_le_of_thre
 [Linial][Linial1992] gives `log* n ≤ 2t + 4`. -/
 theorem Algorithm.FindsMIS.logStar_le {S : Type*} {A : Algorithm ℕ S Bool} {n t : ℕ}
     (hA : A.FindsMIS n t) : Nat.logStar n ≤ 2 * t + 4 := by
-  have hC : (A.seq t colorOfMIS.toAlgorithm).ColorsCycle n (t + 1) 3 := by
-    intro x hx hxn
-    have hrun : (A.seq t colorOfMIS.toAlgorithm).run x (t + 1) = colorOfMIS.apply (A.run x t) := by
-      funext v
-      rw [Algorithm.seq_run, LocalRule.toAlgorithm_run]
-    rw [hrun]
-    exact ⟨(hA x hx hxn).colorOfMIS, colorOfMIS_apply_lt _⟩
+  have hC : (A.seq t colorOfMIS.toAlgorithm).ColorsCycle n (t + 1) 3 := fun x hx hxn => by
+    have hrun : (A.seq t colorOfMIS.toAlgorithm).run x (t + 1) = colorOfMIS.apply (A.run x t) :=
+      funext fun _ => by rw [Algorithm.seq_run, LocalRule.toAlgorithm_run]
+    exact hrun ▸ ⟨(hA x hx hxn).colorOfMIS, colorOfMIS_apply_lt _⟩
   have := hC.logStar_le_of_three
   omega
 

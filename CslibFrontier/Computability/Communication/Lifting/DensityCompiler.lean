@@ -106,87 +106,43 @@ theorem exists_density_decisionTree {O : Type*} (g : Fin m → Fin m → Bool) (
       omega
     have hq := hbound q hqn ((trace.query_bound hm hτ).trans
       (pow_le_pow_right₀ (by norm_num : (1 : ℝ) ≤ 8) (by simpa using hbudget)))
-    refine ⟨.leaf o, by simpa using hq, ?_⟩
-    intro z hz
-    have hr : ∃ x ∈ X, ∃ y ∈ Y, ∀ i ∈ F, g (x i) (y i) = z i := by
+    refine ⟨.leaf o, by simpa using hq, fun z hz => ?_⟩
+    obtain ⟨x, hx, y, hy, he⟩ : ∃ x ∈ X, ∃ y ∈ Y, ∀ i ∈ F, g (x i) (y i) = z i := by
       cases turn
-      · obtain ⟨x, hx, y, hy, he⟩ := ob.full F Y X hY hX hd.2 hd.1 z
-        exact ⟨y, hy, x, hx, he⟩
+      · obtain ⟨y, hy, x, hx, he⟩ := ob.full F Y X hY hX hd.2 hd.1 z
+        exact ⟨x, hx, y, hy, he⟩
       · exact oa.full F X Y hX hY hd.1 hd.2 z
-    obtain ⟨x, hx, y, hy, he⟩ := hr
-    have heq : (fun i => g (x i) (y i)) = z := by
-      funext i
-      by_cases hi : i ∈ F
-      · exact he i hi
-      · exact (hf x hx y hy i hi).trans (hz i hi).symm
+    have heq : (fun i => g (x i) (y i)) = z := funext fun i =>
+      if hi : i ∈ F then he i hi else (hf x hx y hy i hi).trans (hz i hi).symm
     simpa [heq] using hp x hx y hy
   | alice send p₀ p₁ ih₀ ih₁ =>
-    obtain ⟨hturn, halt₀, halt₁⟩ := halt
-    subst turn
+    obtain ⟨rfl, halt₀, halt₁⟩ := halt
     obtain ⟨st, hv⟩ := oa.step F X Y hX hY hd.1 hd.2 send
-    have hc (a : Fin n → Bool) : ∃ t : DecisionTree (Fin n) O,
-        t.depth + (q + #st.queried) ≤ Q ∧
-        ∀ z, (∀ i ∉ F \ st.queried, z i = st.queried.piecewise a ρ i) →
-          R z (t.eval z) := by
-      have trace' := trace.append (DensityTrace.alice st send a hv
-        (DensityTrace.stop (F \ st.queried) st.speaker (st.listener a)))
-      have hf' := hv.outputFixed hf a
-      have hd' : TurnDense τ σ false (F \ st.queried) st.speaker (st.listener a) :=
-        ⟨hv.speaker_dense, hv.listener_dense a⟩
-      have hp' : ∀ x ∈ st.speaker, ∀ y ∈ st.listener a,
-          R (fun i => g (x i) (y i)) ((cond st.message p₁ p₀).run x y) := by
-        intro x hx y hy
-        have hh := hp x (hv.speaker_subset hx) y (hv.listener_subset a hy)
-        simp only [Protocol.run_alice, hv.message_eq x hx] at hh
-        cases hm : st.message <;> simpa [hm] using hh
-      cases hm : st.message
-      · simp only [hm, Bool.cond_false] at hp'
-        exact ih₀ false halt₀ (F \ st.queried) st.speaker (st.listener a)
-          (st.queried.piecewise a ρ) (c + 1) (q + #st.queried)
-          (by simpa using trace') (by simp only [Protocol.depth] at hbudget; omega)
-          hv.speaker_nonempty (hv.listener_nonempty a) hd' hf' hp'
-      · simp only [hm, Bool.cond_true] at hp'
-        exact ih₁ false halt₁ (F \ st.queried) st.speaker (st.listener a)
-          (st.queried.piecewise a ρ) (c + 1) (q + #st.queried)
-          (by simpa using trace') (by simp only [Protocol.depth] at hbudget; omega)
-          hv.speaker_nonempty (hv.listener_nonempty a) hd' hf' hp'
-    exact exists_graft_density R F st.queried ρ q Q hc
+    refine exists_graft_density R F st.queried ρ q Q fun a => ?_
+    have trace' := trace.append (DensityTrace.alice st send a hv
+      (DensityTrace.stop (F \ st.queried) st.speaker (st.listener a)))
+    simp only [Protocol.depth] at hbudget
+    -- Continue in the branch selected by the fixed message.
+    cases hm : st.message <;> [have ih := ih₀ false halt₀; have ih := ih₁ false halt₁] <;>
+    exact ih _ _ _ _ (c + 1) _ (by simpa using trace') (by omega) hv.speaker_nonempty
+      (hv.listener_nonempty a) ⟨hv.speaker_dense, hv.listener_dense a⟩ (hv.outputFixed hf a)
+      fun x hx y hy => by
+        simpa [hv.message_eq x hx, hm] using
+          hp x (hv.speaker_subset hx) y (hv.listener_subset a hy)
   | bob send p₀ p₁ ih₀ ih₁ =>
-    obtain ⟨hturn, halt₀, halt₁⟩ := halt
-    subst turn
+    obtain ⟨rfl, halt₀, halt₁⟩ := halt
     obtain ⟨st, hv⟩ := ob.step F Y X hY hX hd.2 hd.1 send
-    have hc (a : Fin n → Bool) : ∃ t : DecisionTree (Fin n) O,
-        t.depth + (q + #st.queried) ≤ Q ∧
-        ∀ z, (∀ i ∉ F \ st.queried, z i = st.queried.piecewise a ρ i) →
-          R z (t.eval z) := by
-      have trace' := trace.append (DensityTrace.bob st send a hv
-        (DensityTrace.stop (F \ st.queried) (st.listener a) st.speaker))
-      have hfSwap : OutputFixed (fun y x => g x y) F Y X ρ :=
-        fun y hy x hx i hi => hf x hx y hy i hi
-      have hf' : OutputFixed g (F \ st.queried) (st.listener a) st.speaker
-          (st.queried.piecewise a ρ) := by
-        intro x hx y hy i hi
-        exact hv.outputFixed hfSwap a y hy x hx i hi
-      have hd' : TurnDense τ σ true (F \ st.queried) (st.listener a) st.speaker :=
-        ⟨hv.listener_dense a, hv.speaker_dense⟩
-      have hp' : ∀ x ∈ st.listener a, ∀ y ∈ st.speaker,
-          R (fun i => g (x i) (y i)) ((cond st.message p₁ p₀).run x y) := by
-        intro x hx y hy
-        have hh := hp x (hv.listener_subset a hx) y (hv.speaker_subset hy)
-        simp only [Protocol.run_bob, hv.message_eq y hy] at hh
-        cases hm : st.message <;> simpa [hm] using hh
-      cases hm : st.message
-      · simp only [hm, Bool.cond_false] at hp'
-        exact ih₀ true halt₀ (F \ st.queried) (st.listener a) st.speaker
-          (st.queried.piecewise a ρ) (c + 1) (q + #st.queried)
-          (by simpa using trace') (by simp only [Protocol.depth] at hbudget; omega)
-          (hv.listener_nonempty a) hv.speaker_nonempty hd' hf' hp'
-      · simp only [hm, Bool.cond_true] at hp'
-        exact ih₁ true halt₁ (F \ st.queried) (st.listener a) st.speaker
-          (st.queried.piecewise a ρ) (c + 1) (q + #st.queried)
-          (by simpa using trace') (by simp only [Protocol.depth] at hbudget; omega)
-          (hv.listener_nonempty a) hv.speaker_nonempty hd' hf' hp'
-    exact exists_graft_density R F st.queried ρ q Q hc
+    refine exists_graft_density R F st.queried ρ q Q fun a => ?_
+    have trace' := trace.append (DensityTrace.bob st send a hv
+      (DensityTrace.stop (F \ st.queried) (st.listener a) st.speaker))
+    have hf' := hv.outputFixed (fun y hy x hx i hi => hf x hx y hy i hi) a
+    simp only [Protocol.depth] at hbudget
+    cases hm : st.message <;> [have ih := ih₀ true halt₀; have ih := ih₁ true halt₁] <;>
+    exact ih _ _ _ _ (c + 1) _ (by simpa using trace') (by omega) (hv.listener_nonempty a)
+      hv.speaker_nonempty ⟨hv.listener_dense a, hv.speaker_dense⟩
+      (fun x hx y hy i hi => hf' y hy x hx i hi) fun x hx y hy => by
+        simpa [hv.message_eq y hy, hm] using
+          hp x (hv.listener_subset a hx) y (hv.speaker_subset hy)
 
 /-- Every protocol admits a correct decision-tree simulation whose query cost satisfies the
 volume bound. The protocol is first made alternating, accounting for the factor two in its

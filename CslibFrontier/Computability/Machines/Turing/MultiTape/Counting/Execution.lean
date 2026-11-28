@@ -117,13 +117,11 @@ theorem HaltsWithin.halted_of_mem_runList {machine : MultiTapeCTM k Symbol State
     (hfinal : final ∈ machine.runList fuel cfg) : final.Halted := by
   induction h with
   | @halt fuel cfg hh =>
-    have hsame : final = cfg := by simpa [machine.runList_halted hh] using hfinal
-    simpa only [hsame] using hh
+    simpa [List.mem_singleton.mp (machine.runList_halted hh fuel ▸ hfinal)] using hh
   | @step fuel cfg hnonempty hnext ih =>
     cases hs : cfg.state with
     | none =>
-      have hsame : final = cfg := by simpa [machine.runList_halted hs] using hfinal
-      simpa only [hsame] using hs
+      simpa [List.mem_singleton.mp (machine.runList_halted hs (fuel + 1) ▸ hfinal)] using hs
     | some state =>
       rw [machine.runList_succ cfg fuel state hs] at hfinal
       obtain ⟨action, haction, hfinal⟩ := List.mem_flatMap.mp hfinal
@@ -144,11 +142,7 @@ theorem haltsWithin_of_halted (machine : MultiTapeCTM k Symbol State)
     cases hs : cfg.state with
     | none => exact .halt hs
     | some state =>
-      apply HaltsWithin.step (hnonempty cfg (by simp [hs]))
-      intro index
-      apply ih
-      intro final hfinal
-      apply h final
+      refine .step (hnonempty cfg (by simp [hs])) fun index => ih _ fun final hfinal => h final ?_
       rw [machine.runList_succ cfg fuel state hs]
       exact List.mem_flatMap.mpr ⟨_, List.getElem_mem index.isLt, hfinal⟩
 
@@ -158,20 +152,17 @@ theorem length_output_of_mem_runList (machine : MultiTapeCTM k Symbol State) (fu
     final.output.length ≤ cfg.output.length + fuel := by
   induction fuel generalizing cfg with
   | zero =>
-    have hsame : final = cfg := by simpa using hfinal
-    simp [hsame]
+    simp [List.mem_singleton.mp (machine.runList_zero cfg ▸ hfinal)]
   | succ fuel ih =>
     cases hs : cfg.state with
     | none =>
-      have hsame : final = cfg := by simpa [machine.runList_halted hs] using hfinal
-      simp [hsame]
+      simp [List.mem_singleton.mp (machine.runList_halted hs (fuel + 1) ▸ hfinal)]
     | some state =>
       rw [machine.runList_succ cfg fuel state hs] at hfinal
       obtain ⟨action, _, hfinal⟩ := List.mem_flatMap.mp hfinal
       have hrest := ih (action.apply cfg) hfinal
-      have hstep : (action.apply cfg).output.length ≤ cfg.output.length + 1 := by
-        simp only [Action.apply_output, List.length_append]
-        exact Nat.add_le_add_left action.output.length_toList_le _
+      have hstep := Nat.add_le_add_left action.output.length_toList_le cfg.output.length
+      simp only [Action.apply_output, List.length_append] at hrest
       lia
 
 /-- Terminal counts sum over positions in the transition list, even when actions coincide. -/

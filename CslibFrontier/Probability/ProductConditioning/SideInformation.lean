@@ -77,16 +77,11 @@ theorem sum_mul_log_div_le_log_of_le {p q : PMF α} {c : ℝ} (hc : 0 < c)
         refine sum_le_sum fun a _ => ?_
         have hp := ENNReal.toReal_nonneg (a := p a)
         rcases hp.eq_or_lt with hp0 | hp0
-        · rw [← hp0]
-          simp
-        have hq : 0 < (q a).toReal := by
-          have := h a
-          rw [le_div_iff₀ hc] at this
-          nlinarith
+        · simp [← hp0]
+        have ha := (le_div_iff₀ hc).1 (h a)
+        have hq : 0 < (q a).toReal := by nlinarith
         refine mul_le_mul_of_nonneg_left (Real.log_le_log (div_pos hp0 hq) ?_) hp
         rw [div_le_div_iff₀ hq hc, one_mul]
-        have := h a
-        rw [le_div_iff₀ hc] at this
         linarith
     _ = Real.log (1 / c) := by rw [← sum_mul, sum_toReal, one_mul]
 
@@ -108,8 +103,7 @@ theorem sum_sq_dist_map_filter_le (p : ∀ i, PMF (β i)) (J : PMF ((∀ i, β i
   have hw : 0 < w := (toOuterMeasure_toReal_pos_iff J W).mpr hW
   set Q := (J.filter W hW).map Prod.fst
   have hmap : ∀ j, (J.filter W hW).map (fun x => x.1 j) = Q.map fun u => u j := fun j => by
-    rw [PMF.map_comp]
-    rfl
+    rw [PMF.map_comp]; rfl
   -- The conditioned marginal is dominated by `pi p / Pr[W]`.
   have hdom : ∀ u, (Q u).toReal ≤ ((pi p) u).toReal / w := by
     intro u
@@ -117,14 +111,9 @@ theorem sum_sq_dist_map_filter_le (p : ∀ i, PMF (β i)) (J : PMF ((∀ i, β i
     refine sum_le_sum fun x _ => ?_
     rw [filter_apply_toReal]
     split_ifs <;> first | exact le_rfl | exact div_nonneg ENNReal.toReal_nonneg hw.le | simp
-  have hQ : Q.support ⊆ (pi p).support := by
-    intro u hu
-    have hpos : 0 < (Q u).toReal := ENNReal.toReal_pos ((PMF.mem_support_iff _ _).mp hu)
-      (PMF.apply_ne_top _ _)
-    have := hdom u
-    have hpu : 0 < ((pi p) u).toReal := by
-      have := (lt_of_lt_of_le hpos this)
-      exact (div_pos_iff_of_pos_right hw).mp this
+  have hQ : Q.support ⊆ (pi p).support := fun u hu => by
+    have hpu := (div_pos_iff_of_pos_right hw).mp ((ENNReal.toReal_pos
+      ((PMF.mem_support_iff _ _).mp hu) (PMF.apply_ne_top _ _)).trans_le (hdom u))
     exact (PMF.mem_support_iff _ _).mpr fun h => by simp [h] at hpu
   have hpinsker := sum_sq_dist_map_le Q p hQ
   have hkl := sum_mul_log_div_le_log_of_le hw hdom
@@ -143,13 +132,8 @@ theorem dist_map_pair_bind_eq (Q : PMF (S × X)) (f : X → Y) (K : S → PMF Y)
     dist (Q.map fun z => (z.1, f z.2)) ((Q.map Prod.fst).bind fun s => (K s).map (s, ·)) =
       ∑ s, ((Q.map Prod.fst) s).toReal * dist ((conditionalSnd Q s).map f) (K s) := by
   nth_rewrite 1 [← bind_conditionalSnd Q]
-  rw [PMF.map_bind]
-  have : ∀ s, ((conditionalSnd Q s).map (s, ·)).map (fun z => (z.1, f z.2)) =
-      ((conditionalSnd Q s).map f).map (s, ·) := fun s => by
-    rw [PMF.map_comp, PMF.map_comp]
-    rfl
-  simp only [this]
-  exact dist_bind_pair (Q.map Prod.fst) (fun s => (conditionalSnd Q s).map f) K
+  simpa only [PMF.map_bind, PMF.map_comp, Function.comp_def] using
+    dist_bind_pair (Q.map Prod.fst) (fun s => (conditionalSnd Q s).map f) K
 
 end Decomposition
 
@@ -170,10 +154,8 @@ theorem sideJoint_apply (μ : PMF T) (J : T → PMF ((∀ i, β i) × V)) (t : T
   rw [sideJoint, PMF.bind_apply, tsum_eq_single t]
   · rw [PMF.map_apply, tsum_eq_single (u, v)]
     · simp
-    · intro x hx
-      rw [ite_eq_right]
-      intro h
-      exact hx (Prod.ext (congrArg Prod.snd h).symm (congrArg (·.2) (congrArg Prod.fst h)).symm)
+    · exact fun x hx => ite_eq_right fun h =>
+        hx (Prod.ext (congrArg Prod.snd h).symm (congrArg (·.2) (congrArg Prod.fst h)).symm)
   · intro t' ht'
     rw [PMF.map_apply]
     refine mul_eq_zero_of_right _ (tsum_eq_zero_iff.mpr fun x => ite_eq_right fun h => ?_)
@@ -192,11 +174,8 @@ theorem toOuterMeasure_sliceEvent_toReal [Finite V] (J : T → PMF ((∀ i, β i
   have := Fintype.ofFinite V
   rw [toOuterMeasure_apply_toReal, Fintype.sum_prod_type]
   refine Finset.sum_congr rfl fun u _ => ?_
-  rw [Finset.sum_eq_single v]
-  · by_cases h : ((t, v), u) ∈ W <;> simp [sliceEvent, h]
-  · intro v' _ hv'
-    simp [sliceEvent, hv']
-  · simp
+  rw [Finset.sum_eq_single v (fun v' _ hv' => by simp [sliceEvent, hv']) (by simp)]
+  by_cases h : ((t, v), u) ∈ W <;> simp [sliceEvent, h]
 
 omit [Fintype ι] [∀ i, Fintype (β i)] [Fintype T] [Fintype V] in
 open Classical in
@@ -217,8 +196,7 @@ theorem map_fst_filter_sideJoint_toReal [Finite ι] [∀ i, Finite (β i)] [Fini
   · refine Finset.sum_congr rfl fun u _ => ?_
     rw [ite_eq_left rfl, filter_apply_toReal, sideJoint_apply, ENNReal.toReal_mul]
     split_ifs <;> ring
-  · intro s _ hs
-    exact Finset.sum_eq_zero fun u _ => ite_eq_right fun h => absurd h.symm hs
+  · exact fun s _ hs => Finset.sum_eq_zero fun u _ => ite_eq_right fun h => absurd h.symm hs
   · simp
 
 omit [Fintype ι] [∀ i, Fintype (β i)] [Fintype T] [Fintype V] in
@@ -232,44 +210,29 @@ theorem conditionalSnd_filter_sideJoint [Finite ι] [∀ i, Finite (β i)] [Fini
     (hWs : ∃ x ∈ sliceEvent W t v, x ∈ (J t).support) :
     conditionalSnd ((sideJoint μ J).filter W hW) (t, v) =
       ((J t).filter (sliceEvent W t v) hWs).map Prod.fst := by
-  have := Fintype.ofFinite ι
-  have := fun i => Fintype.ofFinite (β i)
-  have := Fintype.ofFinite T
-  have := Fintype.ofFinite V
   set Pw := ((sideJoint μ J).toOuterMeasure W).toReal
   set c := ((J t).toOuterMeasure (sliceEvent W t v)).toReal
   have hPw : 0 < Pw := (toOuterMeasure_toReal_pos_iff _ W).mpr hW
   have hc : 0 < c := (toOuterMeasure_toReal_pos_iff _ _).mpr hWs
   have hw := map_fst_filter_sideJoint_toReal μ J W hW t v
-  have hwpos : 0 < ((((sideJoint μ J).filter W hW).map Prod.fst) (t, v)).toReal :=
-    ENNReal.toReal_pos ((PMF.mem_support_iff _ _).mp hs) (PMF.apply_ne_top _ _)
-  have hμ : 0 < (μ t).toReal := by
-    rw [hw] at hwpos
-    have := ENNReal.toReal_nonneg (a := μ t)
-    rcases this.eq_or_lt with h | h
-    · rw [← h] at hwpos
-      simp at hwpos
-    · exact h
+  have hμ : 0 < (μ t).toReal := pos_of_mul_pos_left ((div_pos_iff_of_pos_right hPw).mp
+    (hw ▸ ENNReal.toReal_pos ((PMF.mem_support_iff _ _).mp hs) (PMF.apply_ne_top _ _))) hc.le
   ext u
-  rw [← ENNReal.toReal_eq_toReal_iff' (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _),
+  have hpoint :
+      (((J t).filter (sliceEvent W t v) hWs).map Prod.fst) u =
+        ((J t).filter (sliceEvent W t v) hWs) (u, v) := by
+    rw [map_fst_apply, tsum_eq_single v]
+    exact fun v' hv' => PMF.filter_apply_eq_zero_of_notMem hWs fun hm => hv' hm.1
+  rw [hpoint, ← ENNReal.toReal_eq_toReal_iff' (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _),
     conditionalSnd_apply _ _ hs u, ENNReal.toReal_div, hw, filter_apply_toReal, sideJoint_apply,
-    ENNReal.toReal_mul, map_apply_toReal, Fintype.sum_prod_type, Finset.sum_eq_single u]
-  · rw [Finset.sum_eq_single v]
-    · rw [ite_eq_left rfl, filter_apply_toReal]
-      by_cases h : ((t, v), u) ∈ W
-      · rw [ite_eq_left h, ite_eq_left (show (u, v) ∈ sliceEvent W t v from ⟨rfl, h⟩)]
-        field_simp
-        rw [div_eq_div_iff (mul_pos hPw hc).ne' hc.ne']
-        ring
-      · rw [ite_eq_right h, ite_eq_right (show (u, v) ∉ sliceEvent W t v from fun h' => h h'.2)]
-        simp
-    · intro v' _ hv'
-      rw [ite_eq_left rfl, filter_apply_toReal,
-        ite_eq_right (show (u, v') ∉ sliceEvent W t v from fun h' => hv' h'.1)]
-    · simp
-  · intro u' _ hu'
-    exact Finset.sum_eq_zero fun v' _ => ite_eq_right fun h => hu' h.symm
-  · simp
+    ENNReal.toReal_mul, filter_apply_toReal]
+  by_cases h : ((t, v), u) ∈ W
+  · rw [ite_eq_left h, ite_eq_left (show (u, v) ∈ sliceEvent W t v from ⟨rfl, h⟩)]
+    field_simp
+    rw [div_eq_div_iff (mul_pos hPw hc).ne' hc.ne']
+    ring
+  · rw [ite_eq_right h, ite_eq_right (show (u, v) ∉ sliceEvent W t v from fun h' => h h'.2)]
+    simp
 
 /-- **Holenstein's Corollary 4.3** [Holenstein, Corollary 4.3][Holenstein2009], with the alphabet of
 `V` in place of its support under `W` and the divergence in nats. Draw `t` from `μ`, then the
@@ -315,8 +278,7 @@ theorem sum_dist_filter_sideJoint_le (μ : PMF T) (K : ∀ i, T → PMF (β i))
     have hside := sum_sq_dist_map_filter_le (fun i => K i s.1) (J s.1) (hJ s.1) _ hWs
     have hmap : ∀ j, (conditionalSnd Q s).map (fun u => u j) =
         ((J s.1).filter (sliceEvent W s.1 s.2) hWs).map fun x => x.1 j := fun j => by
-      rw [hcond, PMF.map_comp]
-      rfl
+      rw [hcond, PMF.map_comp]; rfl
     simpa only [d, hmap] using hside
   have hsq : ∀ j, D j ^ 2 ≤ ∑ s, w s * d s j ^ 2 := by
     intro j
@@ -325,9 +287,7 @@ theorem sum_dist_filter_sideJoint_le (μ : PMF T) (K : ∀ i, T → PMF (β i))
     simpa only [PMF.map_bind, PMF.map_comp, Function.comp_def] using
       dist_bind_pair_sq_le (Q.map Prod.fst)
         (fun s => (conditionalSnd Q s).map fun u => u j) (fun s => K j s.1)
-  have hV : 0 < (Fintype.card V : ℝ) := by
-    have : Nonempty V := ⟨hW.choose.1.2⟩
-    positivity
+  have hV : 0 < (Fintype.card V : ℝ) := Nat.cast_pos.2 (Fintype.card_pos_iff.2 ⟨hW.choose.1.2⟩)
   -- The logarithm's tangent bound lets us average over all slices, including zero weights.
   have hlog : ∑ s, w s * Real.log (1 / c s) ≤ Real.log (Fintype.card V / Pw) := by
     calc
@@ -360,12 +320,9 @@ theorem sum_dist_filter_sideJoint_le (μ : PMF T) (K : ∀ i, T → PMF (β i))
       _ ≤ ∑ s, w s * (Real.log (1 / c s) / 2) := sum_le_sum fun s _ => hpoint s
       _ = (∑ s, w s * Real.log (1 / c s)) / 2 := by simp only [sum_div, mul_div_assoc]
       _ ≤ _ := div_le_div_of_nonneg_right hlog (by norm_num)
-  refine Real.le_sqrt_of_sq_le ?_
-  have hcs := sq_sum_le_card_mul_sum_sq (s := univ) (f := D)
-  rw [card_univ] at hcs
-  calc _ ≤ _ := hcs
-    _ ≤ Fintype.card ι * (Real.log (Fintype.card V / Pw) / 2) := by gcongr
-    _ = _ := by ring
+  refine Real.le_sqrt_of_sq_le ((sq_sum_le_card_mul_sum_sq (s := univ) (f := D)).trans ?_)
+  rw [card_univ, mul_div_assoc]
+  gcongr
 
 end Corollary
 

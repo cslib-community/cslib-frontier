@@ -53,48 +53,32 @@ theorem identificationDartEquiv_vertex_eq_iff (F : CSP Rel V) (f : V → W) (x y
   obtain ⟨p, hp⟩ := exists_incidenceDart b
   have hm (q : F.Occurrence) : q.var ∈ F.distinctVars := CSP.mem_distinctVars.mpr q.var_mem
   have hmt (q : F.Occurrence) : f q.var ∈ (F.relabel f).distinctVars := by
-    apply CSP.mem_distinctVars.mpr
-    rw [CSP.vars_relabel]
+    rw [CSP.mem_distinctVars, CSP.vars_relabel]
     exact List.mem_map_of_mem q.var_mem
-  have hxlt : F.distinctVars.idxOf x < F.numVars := by
-    rw [← CSP.length_distinctVars]
-    exact List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr hx)
-  have hylt : F.distinctVars.idxOf y < F.numVars := by
-    rw [← CSP.length_distinctVars]
-    exact List.idxOf_lt_length_of_mem (CSP.mem_distinctVars.mpr hy)
-  have hvt (q : F.Occurrence) : (F.relabel f).distinctVars.idxOf (f q.var) <
-      (F.relabel f).numVars := by
-    rw [← CSP.length_distinctVars]
-    exact List.idxOf_lt_length_of_mem (hmt q)
+  have hidx_lt {W' : Type} [DecidableEq W'] (G : CSP Rel W') {v : W'} (hv : v ∈ G.distinctVars) :
+      G.distinctVars.idxOf v < G.numVars :=
+    CSP.length_distinctVars (F := G) ▸ List.idxOf_lt_length_of_mem hv
+  have hxlt := hidx_lt F (CSP.mem_distinctVars.mpr hx)
+  have hylt := hidx_lt F (CSP.mem_distinctVars.mpr hy)
   have himage (q : F.Occurrence) : Function.update id (F.distinctVars.idxOf y)
       (F.distinctVars.idxOf x) (F.distinctVars.idxOf q.var) < F.numVars := by
     by_cases he : F.distinctVars.idxOf q.var = F.distinctVars.idxOf y
-    · rw [he, Function.update_self]
-      exact hxlt
-    · rw [Function.update_of_ne he]
-      change F.distinctVars.idxOf q.var < F.numVars
-      rw [← CSP.length_distinctVars]
-      exact List.idxOf_lt_length_of_mem (hm q)
+    · simpa [he] using hxlt
+    · simpa [Function.update_of_ne he] using hidx_lt F (hm q)
   have hc (i : ℕ) : Function.update id (F.distinctVars.idxOf y)
       (F.distinctVars.idxOf x) (F.numVars + i) = F.numVars + i :=
-    Function.update_of_ne (by omega) (F.distinctVars.idxOf x) id
-  have hto := hvt o
-  have htp := hvt p
+    Function.update_of_ne (by omega) _ id
+  have hto := hidx_lt _ (hmt o)
+  have htp := hidx_lt _ (hmt p)
   have hio := himage o
   have hip := himage p
   rw [← ho, ← hp, vertex_relabelDartEquiv, vertex_relabelDartEquiv,
     vertex_mergeDartEquiv, vertex_mergeDartEquiv, hh, hk,
     vertex_incidenceDart, vertex_incidenceDart]
-  cases a.2 <;> cases b.2
-  · simp only [Bool.false_eq_true, ite_false]
-    rw [List.idxOf_inj (hmt o), hkernel _ o.var_mem _ p.var_mem,
+  cases a.2 <;> cases b.2 <;> simp only [Bool.false_eq_true, ite_false, ite_true, hc]
+  · rw [List.idxOf_inj (hmt o), hkernel _ o.var_mem _ p.var_mem,
       List.idxOf_update_id_eq_iff _ _ _ _ _ (hm o) (hm p)]
-  · simp only [Bool.false_eq_true, ite_false, ite_true, hc]
-    omega
-  · simp only [Bool.false_eq_true, ite_false, ite_true, hc]
-    omega
-  · simp only [ite_true, hc]
-    omega
+  all_goals omega
 
 /-- The coordinate transport retains the literal binary dart index. -/
 theorem index_identificationDartEquiv (F : CSP Rel V) (f : V → W)
@@ -174,37 +158,27 @@ theorem respectsArgumentOrder_identifyVariablesRotation (F : CSP Rel V) (f : V �
     RespectsArgumentOrder (identifyVariablesRotation F f x y hx hy hxy h k hh hk hkernel rho) := by
   let tau := identifyVariablesRotation F f x y hx hy hxy h k hh hk hkernel rho
   have hc : verifyArgumentOrder F (RotationCertificate.ofRotation rho) = true := by
-    apply (verifyArgumentOrder_eq_true_iff
-      (RotationCertificate.verifyRotation_ofRotation rho (incidenceVertices_declared F))).mpr
-    rw [RotationCertificate.decode_ofRotation rho (incidenceVertices_declared F)]
-    exact ho
+    refine (verifyArgumentOrder_eq_true_iff
+      (RotationCertificate.verifyRotation_ofRotation rho (incidenceVertices_declared F))).mpr ?_
+    rwa [RotationCertificate.decode_ofRotation rho (incidenceVertices_declared F)]
   have he : verifyArgumentOrder (F.relabel f) (RotationCertificate.ofRotation tau) = true := by
-    rw [verifyArgumentOrder_relabel]
-    rw [verifyArgumentOrder_congr F (RotationCertificate.ofRotation tau)
-      (RotationCertificate.ofRotation rho) ?_, hc]
+    rw [verifyArgumentOrder_relabel, verifyArgumentOrder_congr F
+      (RotationCertificate.ofRotation tau) (RotationCertificate.ofRotation rho) ?_, hc]
     intro i hi
-    let d : Dart (incidenceGraph F) := (⟨i, by
-      simpa only [incidenceGraph_edges, List.length_map] using hi⟩, true)
-    have hd : d ≠ h := by
-      intro he
-      have := congrArg Prod.snd he
-      simp only [d, hs, Bool.true_eq_false] at this
-    have kd : d ≠ k := by
-      intro he
-      have := congrArg Prod.snd he
-      simp only [d, ks, Bool.true_eq_false] at this
+    let d : Dart (incidenceGraph F) :=
+      (⟨i, by simpa only [incidenceGraph_edges, List.length_map] using hi⟩, true)
+    have hd : d ≠ h := fun he => by simpa [d, hs] using congrArg Prod.snd he
+    have kd : d ≠ k := fun he => by simpa [d, ks] using congrArg Prod.snd he
     change (RotationCertificate.ofRotation tau).successor.getD d.index 0 =
       (RotationCertificate.ofRotation rho).successor.getD d.index 0
-    rw [← index_relabelDartEquiv F f d, RotationCertificate.getD_ofRotation]
-    rw [show tau.rotate (relabelDartEquiv F f d) =
-      relabelDartEquiv F f (rho.rotate d) by
-        rw [rotate_identifyVariablesRotation, Equiv.swap_apply_of_ne_of_ne hd kd]]
-    rw [index_relabelDartEquiv, index_relabelDartEquiv, RotationCertificate.getD_ofRotation]
-  have ht := (verifyArgumentOrder_eq_true_iff
-    (RotationCertificate.verifyRotation_ofRotation tau
+    dsimp only [tau]
+    rw [← index_relabelDartEquiv F f d, RotationCertificate.getD_ofRotation,
+      rotate_identifyVariablesRotation, Equiv.swap_apply_of_ne_of_ne hd kd,
+      index_relabelDartEquiv, index_relabelDartEquiv, RotationCertificate.getD_ofRotation]
+  simpa only [RotationCertificate.decode_ofRotation tau
+    (incidenceVertices_declared (F.relabel f))] using
+    (verifyArgumentOrder_eq_true_iff (RotationCertificate.verifyRotation_ofRotation tau
       (incidenceVertices_declared (F.relabel f)))).mp he
-  rw [RotationCertificate.decode_ofRotation tau (incidenceVertices_declared (F.relabel f))] at ht
-  exact ht
 
 /-- Complete generated-table identity for actual incidence identification: dense-name
 transport retains positions, so only the two selected outgoing entries are exchanged. -/

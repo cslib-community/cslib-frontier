@@ -33,27 +33,19 @@ namespace ClosedPassages
 /-- One passage using the two actual ends of a single listed loop. -/
 @[expose] def loop {G : Graph} (e : Fin G.2.length)
     (he : (Dart.vertex (G := G) (e, false)) = Dart.vertex (e, true)) :
-    ClosedPassages G (fun i => decide (i = e)) where
-  count := 1
-  ports :=
-    { toFun := fun p => ⟨(e, p.2), by simp⟩
-      invFun := fun d => (0, d.val.2)
-      left_inv := by
-        rintro ⟨i, b⟩
-        have hi : i = 0 := Subsingleton.elim _ _
-        subst i
-        rfl
-      right_inv := by
-        rintro ⟨⟨i, b⟩, hi⟩
-        have hei : i = e := of_decide_eq_true hi
-        subst i
-        rfl }
-  vertex_eq := fun _ => he
+    ClosedPassages G (fun i => decide (i = e)) :=
+  let edges : Fin 1 ≃ {i : Fin G.edges.length // (decide (i = e)) = true} :=
+    { toFun := fun _ => ⟨e, by simp⟩
+      invFun := fun _ => 0
+      left_inv := fun _ => Subsingleton.elim _ _
+      right_inv := fun i => Subtype.ext (of_decide_eq_true i.property).symm }
+  ofCyclicEdges edges (fun _ => false) (fun _ => he.symm)
 
 /-- The single-loop passage keeps the original edge occurrence and both endpoint tags. -/
 @[simp] theorem dart_loop {G : Graph} (e : Fin G.2.length)
     (he : (Dart.vertex (G := G) (e, false)) = Dart.vertex (e, true))
-    (i : Fin (loop e he).count) (b : Bool) : (loop e he).dart i b = (e, b) := rfl
+    (i : Fin (loop e he).count) (b : Bool) : (loop e he).dart i b = (e, b) := by
+  cases b <;> rfl
 
 end ClosedPassages
 

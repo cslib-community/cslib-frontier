@@ -106,16 +106,12 @@ theorem measureCollisionProb_triangle (seed : Measure ι) [IsProbabilityMeasure 
     1 - measureCollisionProb seed hash x z ≤
       (1 - measureCollisionProb seed hash x y) + (1 - measureCollisionProb seed hash y z) := by
   have hcompl (a b : X) (hab : MeasurableSet {i | hash i a = hash i b}) :
-      1 - measureCollisionProb seed hash a b = seed.real {i | hash i a ≠ hash i b} := by
-    rw [measureCollisionProb, ← probReal_compl_eq_one_sub hab]
-    rfl
+      1 - measureCollisionProb seed hash a b = seed.real {i | hash i a ≠ hash i b} :=
+    (probReal_compl_eq_one_sub hab).symm
   rw [hcompl x z hxz, hcompl x y hxy, hcompl y z hyz]
   have hsub : {i | hash i x ≠ hash i z} ⊆
-      {i | hash i x ≠ hash i y} ∪ {i | hash i y ≠ hash i z} := by
-    intro i hi
-    by_contra hno
-    simp only [Set.mem_union, Set.mem_ofPred_eq, not_or, not_not] at hi hno
-    exact hi (hno.1.trans hno.2)
+      {i | hash i x ≠ hash i y} ∪ {i | hash i y ≠ hash i z} :=
+    fun i (hi : hash i x ≠ hash i z) => (by grind : hash i x ≠ hash i y ∨ hash i y ≠ hash i z)
   exact (measureReal_mono hsub).trans (measureReal_union_le _ _)
 
 /-! ### AND and OR amplification under `Measure.pi` -/

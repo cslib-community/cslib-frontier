@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.FirstOrder.QuantifierFree
 import CslibFrontier.Tactic.FirstOrder.Simp
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # First-order projection formulas
@@ -142,15 +143,11 @@ theorem realize_toFormula (l : InputLiteral L α) (x : α → M) :
 /-- Every input literal is quantifier-free. -/
 @[aesop safe apply (rule_sets := [FirstOrder])]
 theorem isQF_toFormula (l : InputLiteral L α) : l.toFormula.IsQF := by
-  cases l with
-  | const b =>
-    cases b with
-    | false => exact BoundedFormula.isQF_bot
-    | true => exact BoundedFormula.IsQF.top
-  | rel R args neg =>
-    cases neg
-    · exact (BoundedFormula.IsAtomic.rel _ _).isQF
-    · exact (BoundedFormula.IsAtomic.rel _ _).isQF.not
+  rcases l with (_ | _) | ⟨R, args, _ | _⟩
+  · exact BoundedFormula.isQF_bot
+  · exact BoundedFormula.IsQF.top
+  · exact (BoundedFormula.IsAtomic.rel _ _).isQF
+  · exact (BoundedFormula.IsAtomic.rel _ _).isQF.not
 
 end InputLiteral
 
@@ -189,7 +186,7 @@ theorem realize_toFormula [N.Structure M] [L.Structure M] (p : ProjectionFormula
   | leaf l => simp [toFormula, select]
   | branch guard yes no ihy ihn =>
     fo_simp [toFormula, ihy, ihn, select]
-    split_ifs <;> tauto
+    split_ifs <;> lrat_tauto
 
 /-- A leaf is realized as its literal. -/
 @[fo_realize]
@@ -383,16 +380,14 @@ theorem existsUnique_case [N.Structure M] (p : ProjectionFormula N L α) (x : α
     by_cases h : guard.Realize x
     · obtain ⟨c, hc, unique⟩ := ihy
       refine ⟨Sum.inl c, by simpa [caseGuard, h] using hc, ?_⟩
-      intro d hd
-      cases d with
-      | inl d => exact congrArg Sum.inl (unique d (by simpa [caseGuard, h] using hd))
-      | inr d => simp [caseGuard, h] at hd
+      rintro (d | d) hd
+      · exact congrArg Sum.inl (unique d (by simpa [caseGuard, h] using hd))
+      · simp [caseGuard, h] at hd
     · obtain ⟨c, hc, unique⟩ := ihn
       refine ⟨Sum.inr c, by simpa [caseGuard, h] using hc, ?_⟩
-      intro d hd
-      cases d with
-      | inl d => simp [caseGuard, h] at hd
-      | inr d => exact congrArg Sum.inr (unique d (by simpa [caseGuard, h] using hd))
+      rintro (d | d) hd
+      · simp [caseGuard, h] at hd
+      · exact congrArg Sum.inr (unique d (by simpa [caseGuard, h] using hd))
 
 /-- A projection is the disjunction of its mutually exclusive numeric cases, each conjoined
 with one constant or signed input literal. -/

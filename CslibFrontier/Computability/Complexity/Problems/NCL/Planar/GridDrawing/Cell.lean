@@ -51,24 +51,17 @@ theorem hasPort_iff {as bs : List Color} (v : Vertex (Fin as.length ⊕ Fin bs.l
   change (∃ w, ⟨⟨e, d⟩, w⟩ ∈ (v.map embed).ports) ↔ _
   simp only [Vertex.map, List.mem_map]
   constructor
-  · rintro ⟨w, ⟨⟨q, w'⟩, hq, he⟩⟩
-    have hq' := hp.mem_iff.1 hq
-    simp only [genVertex, List.mem_append, List.mem_map, List.mem_finRange, true_and] at hq'
-    rcases hq' with ⟨i, hi⟩ | ⟨j, hi⟩
-    all_goals obtain ⟨rfl, rfl⟩ := WeightedPort.mk.inj hi
-    all_goals
-      simp only [WeightedPort.map, WeightedPort.mk.injEq, Port.map, embed,
-        Function.comp_def, Port.mk.injEq] at he
-      obtain ⟨⟨rfl, rfl⟩, rfl⟩ := he
-      rfl
-  · rcases e with i | ((i | j) | j)
+  · rintro ⟨_, ⟨⟨⟨i | j, _⟩, _⟩, hq, he⟩⟩ <;>
+      { simp only [WeightedPort.map, WeightedPort.mk.injEq, Port.map, embed,
+          Function.comp_def, Port.mk.injEq] at he
+        rcases he with ⟨⟨rfl, rfl⟩, rfl⟩
+        exact ((by simpa [genVertex] using hp.mem_iff.1 hq : _ ∧ _)).1 }
+  · rcases e with _ | ((i | j) | _)
     · exact False.elim
-    · intro hd
-      subst d
+    · rintro rfl
       exact ⟨(as.get i).weight, ⟨⟨⟨.inl i, true⟩, (as.get i).weight⟩,
         hp.mem_iff.2 (by simp [genVertex]), rfl⟩⟩
-    · intro hd
-      subst d
+    · rintro rfl
       exact ⟨(bs.get j).weight, ⟨⟨⟨.inr j, false⟩, (bs.get j).weight⟩,
         hp.mem_iff.2 (by simp [genVertex]), rfl⟩⟩
     · exact False.elim

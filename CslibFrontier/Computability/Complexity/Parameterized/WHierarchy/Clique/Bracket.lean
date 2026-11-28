@@ -87,25 +87,21 @@ theorem know_sound {kk : ℕ} {u : ℕ → ℕ} (hu : StrictMonoOn u (Set.Iio kk
   unfold know at h
   split_ifs at h with h₁ h₂ h₃ h₄ h₅ <;> cases h
   · obtain ⟨p, hp, hps⟩ := List.any_eq_true.1 h₁
-    have hps' : p.2 = s := by simpa using hps
-    exact (decide_eq_true ⟨p.1, (hP p hp).1, (hP p hp).2 ▸ hps'⟩).symm
+    exact (decide_eq_true ⟨p.1, (hP p hp).1, (hP p hp).2 ▸ beq_iff_eq.1 hps⟩).symm
   · simp [h₂]
   · obtain ⟨p, hp, hps⟩ := List.any_eq_true.1 h₃
     simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hps
     refine (decide_eq_false ?_).symm
     rintro ⟨i, hi, rfl⟩
     obtain ⟨hp1, hp2⟩ := hP p hp
-    have h0 : 0 < kk := by omega
-    rw [hp2, hps.1] at hps
-    have := (hlt hi h0).1 hps.2
+    have := (hlt hi (by omega)).1 ((hps.1 ▸ hp2) ▸ hps.2)
     omega
   · obtain ⟨p, hp, hps⟩ := List.any_eq_true.1 h₄
     simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hps
     refine (decide_eq_false ?_).symm
     rintro ⟨i, hi, rfl⟩
     obtain ⟨hp1, hp2⟩ := hP p hp
-    rw [hp2] at hps
-    have := (hlt hp1 hi).1 hps.2
+    have := (hlt hp1 hi).1 (hp2 ▸ hps.2)
     omega
   · obtain ⟨p, hp, hpq'⟩ := List.any_eq_true.1 h₅
     obtain ⟨q, hq, hpq⟩ := List.any_eq_true.1 hpq'
@@ -114,9 +110,8 @@ theorem know_sound {kk : ℕ} {u : ℕ → ℕ} (hu : StrictMonoOn u (Set.Iio kk
     rintro ⟨i, hi, rfl⟩
     obtain ⟨hp1, hp2⟩ := hP p hp
     obtain ⟨hq1, hq2⟩ := hP q hq
-    rw [hp2, hq2] at hpq
-    have a := (hlt hp1 hi).1 hpq.1.2
-    have b := (hlt hi hq1).1 hpq.2
+    have a := (hlt hp1 hi).1 (hp2 ▸ hpq.1.2)
+    have b := (hlt hi hq1).1 (hq2 ▸ hpq.2)
     omega
 
 /-- **Two indices suffice for one position.** For every position `s` there are at most two
@@ -124,66 +119,53 @@ indices whose correct pairs make `know kk P s` defined. -/
 theorem exists_pair_know {kk : ℕ} {u : ℕ → ℕ} (hu : StrictMonoOn u (Set.Iio kk)) (s : ℕ) :
     ∃ J : Finset ℕ, J.card ≤ 2 ∧ (∀ j ∈ J, j < kk) ∧
       ∀ P : List (ℕ × ℕ), (∀ j ∈ J, (j, u j) ∈ P) → know kk P s ≠ none := by
-  have hlt : ∀ {i j}, i < kk → j < kk → (u i < u j ↔ i < j) := fun hi hj =>
-    hu.lt_iff_lt (Set.mem_Iio.2 hi) (Set.mem_Iio.2 hj)
   by_cases hhit : ∃ i < kk, u i = s
   · obtain ⟨i, hi, rfl⟩ := hhit
     refine ⟨{i}, by simp, by simpa using hi, fun P hP => ?_⟩
-    have hmem := hP i (Finset.mem_singleton_self i)
-    have : P.any (fun p => p.2 == u i) = true := List.any_eq_true.2 ⟨_, hmem, by simp⟩
+    have : P.any (fun p => p.2 == u i) = true :=
+      List.any_eq_true.2 ⟨_, hP i (Finset.mem_singleton_self i), beq_self_eq_true _⟩
     simp [know, this]
-  rcases Nat.eq_zero_or_pos kk with hk | hk
+  rcases Nat.eq_zero_or_pos kk with rfl | hk
   · refine ⟨∅, by simp, by simp, fun P _ => ?_⟩
-    unfold know
-    split_ifs <;> simp_all
+    simp only [know, ↓reduceIte]; split_ifs <;> simp
   have hne : ∀ i < kk, u i ≠ s := fun i hi h => hhit ⟨i, hi, h⟩
   by_cases hlow : s < u 0
   · refine ⟨{0}, by simp, by simpa using hk, fun P hP => ?_⟩
-    have hmem := hP 0 (Finset.mem_singleton_self 0)
-    have : P.any (fun p => p.1 == 0 && decide (s < p.2)) = true :=
-      List.any_eq_true.2 ⟨_, hmem, by simp [hlow]⟩
-    unfold know
-    split_ifs <;> simp_all
+    have h : P.any (fun p => p.1 == 0 && decide (s < p.2)) = true :=
+      List.any_eq_true.2 ⟨_, hP 0 (Finset.mem_singleton_self 0), by simp [hlow]⟩
+    simp only [know, h, ↓reduceIte]; split_ifs <;> simp
   by_cases hhigh : u (kk - 1) < s
   · refine ⟨{kk - 1}, by simp, by simp; omega, fun P hP => ?_⟩
-    have hmem := hP (kk - 1) (Finset.mem_singleton_self _)
-    have : P.any (fun p => p.1 + 1 == kk && decide (p.2 < s)) = true :=
-      List.any_eq_true.2 ⟨_, hmem, by simp [hhigh]; omega⟩
-    unfold know
-    split_ifs <;> simp_all
+    have h : P.any (fun p => p.1 + 1 == kk && decide (p.2 < s)) = true :=
+      List.any_eq_true.2 ⟨_, hP (kk - 1) (Finset.mem_singleton_self _), by simp [hhigh]; omega⟩
+    simp only [know, h, ↓reduceIte]; split_ifs <;> simp
   -- `s` lies strictly between two consecutive selected positions.
   rw [not_lt] at hlow hhigh
-  have hk2 : 2 ≤ kk := by grind
+  have hk2 : 2 ≤ kk := by
+    by_contra h
+    have h0 : kk - 1 = 0 := by omega
+    rw [h0] at hhigh
+    exact hne 0 hk (le_antisymm hlow hhigh)
   have hex : ∃ j, j + 1 < kk ∧ s < u (j + 1) := by
     refine ⟨kk - 2, by omega, ?_⟩
-    have : kk - 2 + 1 = kk - 1 := by omega
-    rw [this]
-    exact lt_of_le_of_ne hhigh (fun h => hne (kk - 1) (by omega) h.symm)
+    rw [show kk - 2 + 1 = kk - 1 by omega]
+    exact lt_of_le_of_ne hhigh fun h => hne (kk - 1) (by omega) h.symm
   classical
   let j₁ := Nat.find hex
   have hj₁ : j₁ + 1 < kk ∧ s < u (j₁ + 1) := Nat.find_spec hex
   have hj₀ : u j₁ < s := by
     rcases Nat.eq_zero_or_pos j₁ with h0 | h0
-    · rw [h0]
-      exact lt_of_le_of_ne hlow (hne 0 hk)
-    · have hmin := Nat.find_min hex (show j₁ - 1 < j₁ by omega)
-      rw [not_and_or] at hmin
-      rcases hmin with hmin | hmin
-      · omega
-      · have : j₁ - 1 + 1 = j₁ := by omega
-        rw [this, not_lt] at hmin
-        exact lt_of_le_of_ne hmin (hne j₁ (by omega))
-  refine ⟨{j₁, j₁ + 1}, Finset.card_le_two, ?_, fun P hP => ?_⟩
-  · intro j hj
-    simp only [Finset.mem_insert, Finset.mem_singleton] at hj
-    omega
-  have hm₀ := hP j₁ (by simp)
-  have hm₁ := hP (j₁ + 1) (by simp)
-  have : P.any (fun p => P.any fun q =>
+    · rw [h0]; exact lt_of_le_of_ne hlow (hne 0 hk)
+    · have hmin := not_and_or.1 (Nat.find_min hex (show j₁ - 1 < j₁ by omega))
+      have hle : u j₁ ≤ s := not_lt.1 (Nat.sub_add_cancel h0 ▸ hmin.resolve_left (by omega))
+      exact lt_of_le_of_ne hle (hne j₁ (by omega))
+  refine ⟨{j₁, j₁ + 1}, Finset.card_le_two, fun j hj => by
+    simp only [Finset.mem_insert, Finset.mem_singleton] at hj; omega, fun P hP => ?_⟩
+  have h : P.any (fun p => P.any fun q =>
       q.1 == p.1 + 1 && decide (p.2 < s) && decide (s < q.2)) = true :=
-    List.any_eq_true.2 ⟨_, hm₀, List.any_eq_true.2 ⟨_, hm₁, by simp [hj₀, hj₁.2]⟩⟩
-  unfold know
-  split_ifs <;> simp_all
+    List.any_eq_true.2 ⟨_, hP j₁ (by simp),
+      List.any_eq_true.2 ⟨_, hP (j₁ + 1) (by simp), by simp [hj₀, hj₁.2]⟩⟩
+  simp only [know, h, ↓reduceIte]; split_ifs <;> simp
 
 /-- **Covering a set of positions.** For every set `S` of positions there is a set of at most
 `2 * S.card` indices whose correct pairs make `know kk P s` defined for every `s ∈ S`. -/
@@ -192,15 +174,12 @@ theorem exists_cover {kk : ℕ} {u : ℕ → ℕ} (hu : StrictMonoOn u (Set.Iio 
       ∀ P : List (ℕ × ℕ), (∀ j ∈ J, (j, u j) ∈ P) → ∀ s ∈ S, know kk P s ≠ none := by
   classical
   choose J hJcard hJlt hJknow using fun s => exists_pair_know hu s
-  refine ⟨S.biUnion J, ?_, ?_, ?_⟩
-  · calc (S.biUnion J).card ≤ ∑ s ∈ S, (J s).card := Finset.card_biUnion_le
-      _ ≤ ∑ _s ∈ S, 2 := Finset.sum_le_sum fun s _ => hJcard s
-      _ = 2 * S.card := by rw [Finset.sum_const, smul_eq_mul, mul_comm]
-  · intro j hj
-    obtain ⟨s, -, hs⟩ := Finset.mem_biUnion.1 hj
-    exact hJlt s j hs
-  · intro P hP s hs
-    exact hJknow s P fun j hj => hP j (Finset.mem_biUnion.2 ⟨s, hs, hj⟩)
+  refine ⟨S.biUnion J, ?_,
+    fun j hj => (Finset.mem_biUnion.1 hj).elim fun s hs => hJlt s j hs.2,
+    fun P hP s hs => hJknow s P fun j hj => hP j (Finset.mem_biUnion.2 ⟨s, hs, hj⟩)⟩
+  calc (S.biUnion J).card ≤ ∑ s ∈ S, (J s).card := Finset.card_biUnion_le
+    _ ≤ ∑ _s ∈ S, 2 := Finset.sum_le_sum fun s _ => hJcard s
+    _ = 2 * S.card := by rw [Finset.sum_const, smul_eq_mul, mul_comm]
 
 /-! ### Consistency -/
 
@@ -211,9 +190,9 @@ def pairOk (p q : ℕ × ℕ) : Bool :=
 
 theorem pairOk_iff (p q : ℕ × ℕ) :
     pairOk p q = true ↔ (p.1 = q.1 ↔ p.2 = q.2) ∧ (p.1 < q.1 ↔ p.2 < q.2) := by
-  unfold pairOk
-  by_cases h₁ : p.1 = q.1 <;> by_cases h₂ : p.2 = q.2 <;> by_cases h₃ : p.1 < q.1 <;>
-    by_cases h₄ : p.2 < q.2 <;> simp [h₁, h₂, h₃, h₄]
+  simp only [pairOk, Bool.and_eq_true, beq_iff_eq]
+  rw [Bool.eq_iff_iff, Bool.eq_iff_iff]
+  simp
 
 /-- Two brackets are consistent when all their pairs are compatible. -/
 def consistent (P Q : List (ℕ × ℕ)) : Bool :=
@@ -243,18 +222,14 @@ private theorem know_eq (kk : ℕ) (P : List (ℕ × ℕ)) (s : ℕ) : know kk P
     then some false else none := by
   unfold know
   by_cases h₁ : P.any (fun p => p.2 == s) = true
-  · simp only [h₁, ↓reduceIte]
+  · simp [h₁]
   · simp only [h₁, Bool.false_eq_true, ↓reduceIte]
     by_cases h₂ : kk = 0
     · simp [h₂]
-    · have h₂' : (kk == 0) = false := by simpa using h₂
-      simp only [h₂, ↓reduceIte, h₂', Bool.false_or]
-      by_cases h₃ : P.any (fun p => p.1 == 0 && decide (s < p.2)) = true
-      · simp only [h₃, ↓reduceIte, Bool.true_or]
-      · simp only [h₃, Bool.false_eq_true, ↓reduceIte, Bool.false_or]
-        by_cases h₄ : P.any (fun p => p.1 + 1 == kk && decide (p.2 < s)) = true
-        · simp only [h₄, ↓reduceIte, Bool.true_or]
-        · simp only [h₄, Bool.false_eq_true, ↓reduceIte, Bool.false_or]
+    · simp only [h₂, ↓reduceIte, beq_false_of_ne h₂, Bool.false_or]
+      cases P.any (fun p => p.1 == 0 && decide (s < p.2)) <;>
+        cases P.any (fun p => p.1 + 1 == kk && decide (p.2 < s)) <;>
+        simp only [Bool.false_eq_true, ↓reduceIte, Bool.true_or, Bool.false_or]
 
 variable {γ : Type} {encIn : γ ↪ List Bool}
 

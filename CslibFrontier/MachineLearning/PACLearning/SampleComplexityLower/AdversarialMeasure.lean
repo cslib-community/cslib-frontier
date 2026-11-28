@@ -69,10 +69,8 @@ theorem adversarialMeasure_isProbabilityMeasure
     Set.indicator_univ, Pi.one_apply, mul_one,
     sum_apply, Finset.sum_const, nsmul_eq_mul]
   have hd_pos : (0 : ℝ) < d := Nat.cast_pos.mpr (by omega)
-  rw [← ENNReal.ofReal_natCast (n := d)]
-  rw [← ENNReal.ofReal_mul (by exact_mod_cast hd_pos.le)]
-  rw [mul_div_cancel₀ _ (ne_of_gt hd_pos)]
-  rw [← ENNReal.ofReal_add (by linarith) (by linarith)]
+  rw [← ENNReal.ofReal_natCast (n := d), ← ENNReal.ofReal_mul (by exact_mod_cast hd_pos.le),
+    mul_div_cancel₀ _ (ne_of_gt hd_pos), ← ENNReal.ofReal_add (by linarith) (by linarith)]
   simp [sub_add_cancel]
 
 open Classical in
@@ -86,8 +84,7 @@ theorem adversarialMeasure_singleton [MeasurableSingletonClass α]
     sum_apply, Measure.dirac_apply, Set.indicator_apply, Set.mem_singleton_iff]
   -- vendored: `if_neg`/`if_pos` are deprecated in the pinned core; `ite_eq_right`/`ite_eq_left`.
   rw [ite_eq_right hw_ne, mul_zero, zero_add]
-  simp_rw [Pi.one_apply]
-  simp_rw [mul_ite, mul_one, mul_zero]
+  simp_rw [Pi.one_apply, mul_ite, mul_one, mul_zero]
   rw [Finset.sum_ite_eq' _ _ _, ite_eq_left hw]
 
 open Classical in
@@ -101,9 +98,7 @@ theorem adversarialMeasure_support [MeasurableSingletonClass α]
   simp only [adversarialMeasure, FunLike.coe_add, Pi.add_apply, smul_apply,
     smul_eq_mul, sum_apply, Measure.dirac_apply]
   rw [indicator_of_notMem hw₀_not_compl, mul_zero, zero_add]
-  apply Finset.sum_eq_zero
-  intro w hw
-  rw [indicator_of_notMem (hw_not_compl w hw), mul_zero]
+  exact Finset.sum_eq_zero fun w hw => by rw [indicator_of_notMem (hw_not_compl w hw), mul_zero]
 
 end AdversarialMeasure
 
