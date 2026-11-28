@@ -319,6 +319,14 @@ machine and substituted into a reduction. A `PMF`-valued algorithm can do none o
 needs a separate hypothesis that some program realizes it. Exact theorems stay exact, as
 statements about `evalWith`; see `CslibFrontier/Languages/Probabilistic/Semantics.lean`.
 
+Programs over the memory oracle (`Memory.Prog`) state a specification as the realization safety
+predicate together with a `Memory.FramedTriple`: an admissible run, a cost bound, a modifies-set and
+a postcondition. They prove it with the loop, call and bridge rules and the `framed_triple` driver
+of `CslibFrontier/Computability/WordRAM/Realization/FramedLoop.lean`, whose module docstring works
+an example. Older files state the same facts as separate conjuncts and prove loop bodies by
+rewriting `ValidHistory`, `clientState` and `memoryCost` through each bind; new code should not
+copy that pattern.
+
 ### Public surface under the module system
 
 Under an ordinary `import`, importers rebuild only when a module's exported `.olean` changes. That
