@@ -47,6 +47,22 @@ open Finset
 
 variable {V W R : Type*} [DecidableEq V] [Fintype W] [CommSemiring R]
 
+private theorem gadget_sdiff_ports {I : Type*} [Fintype I] (g : W ↪ V) (emb : I ↪ W)
+    (U' : Finset V) (hU'G : U' ⊆ univ.map g) (hmem : ∀ a, (∀ p, a ≠ emb p) → g a ∈ U') :
+    univ.map g \ ((univ.filter fun p => g (emb p) ∉ U').map emb).map g = U' := by
+  ext u
+  simp only [mem_sdiff, mem_map, mem_filter, mem_univ, true_and]
+  constructor
+  · rintro ⟨⟨a, rfl⟩, h⟩
+    by_cases hex : ∃ p, a = emb p
+    · obtain ⟨p, rfl⟩ := hex
+      by_contra h'
+      exact h ⟨emb p, ⟨p, h', rfl⟩, rfl⟩
+    · exact hmem a fun p hp => hex ⟨p, hp⟩
+  · intro hu
+    obtain ⟨a, -, rfl⟩ := mem_map.1 (hU'G hu)
+    exact ⟨⟨a, rfl⟩, fun ⟨_, ⟨p, hp, rfl⟩, hb⟩ => hp (g.injective hb ▸ hu)⟩
+
 /-- **Elimination of a placed gadget.** Let `A` be supported on the block of the gadget vertices
 `g a`, and let `D` vanish in the gadget rows other than the exits and in the gadget columns other
 than the entries. If the row and column sets contain the gadget, then the permanent sum of `A + D`
@@ -115,22 +131,7 @@ theorem permOn_add_of_gadget {P Q : Type*} [Fintype V] [Fintype P] [Fintype Q] (
     refine hnot (mem_image.2 ⟨(univ.filter fun q => g (exit q) ∉ S',
       univ.filter fun p => g (entry p) ∉ T'), mem_univ _, ?_⟩)
     simp only [φ, Prod.mk.injEq]
-    have hpart {I : Type*} [Fintype I] (emb : I ↪ W) (U' : Finset V) (hU'G : U' ⊆ G)
-        (hmem : ∀ a, (∀ p, a ≠ emb p) → g a ∈ U') :
-        G \ ((univ.filter fun p => g (emb p) ∉ U').map emb).map g = U' := by
-      ext u
-      simp only [mem_sdiff, mem_map, mem_filter, mem_univ, true_and, hG]
-      constructor
-      · rintro ⟨⟨a, rfl⟩, h⟩
-        by_cases hex : ∃ p, a = emb p
-        · obtain ⟨p, rfl⟩ := hex
-          by_contra h'
-          exact h ⟨emb p, ⟨p, h', rfl⟩, rfl⟩
-        · exact hmem a fun p hp => hex ⟨p, hp⟩
-      · intro hu
-        obtain ⟨a, -, rfl⟩ := mem_map.1 (hU'G hu)
-        exact ⟨⟨a, rfl⟩, fun ⟨_, ⟨p, hp, rfl⟩, hb⟩ => hp (g.injective hb ▸ hu)⟩
-    exact ⟨hpart exit S' hS'G hrow, hpart entry T' hT'G hcol⟩
+    exact ⟨gadget_sdiff_ports g exit S' hS'G hrow, gadget_sdiff_ports g entry T' hT'G hcol⟩
   have hφ : Set.InjOn φ ↑(univ ×ˢ univ : Finset (Finset Q × Finset P)) := by
     rintro ⟨O₁, I₁⟩ - ⟨O₂, I₂⟩ - h
     simp only [φ, Prod.mk.injEq] at h
