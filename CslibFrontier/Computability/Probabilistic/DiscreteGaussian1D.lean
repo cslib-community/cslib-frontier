@@ -125,7 +125,7 @@ private theorem sampleZRadius_ge_two (inp : SampleZInput) : 2 ≤ sampleZRadius 
   unfold sampleZRadius; omega
 
 section SampleZRadiusPolyTime
-attribute [local irreducible] ComputableInPolyTime SampleZInput.enc encRat encIntBin encNat encUnary
+attribute [local irreducible] SampleZInput.enc encRat encIntBin encNat encUnary
 
 private theorem computableInPolyTime_sampleZRadius :
     ComputableInPolyTime sampleZRadius SampleZInput.enc encNat := by
@@ -235,13 +235,12 @@ private theorem computableInPolyTime_sampleZShift :
     (unary_to_binary.comp (unary_add' (snd encUnary encUnary) (const 16)))
   exact unary_add' (unary_add' (unary_mul' (const 3) hT) hP) (const 12)
 
-
 /-- Squared normalized rational distance `(x - c)² / s²`. -/
 private def sampleZRatArg (inp : SampleZInput) (x : ℤ) : ℚ :=
   ((x : ℚ) - inp.center) ^ 2 / inp.sSq
 
 section SampleZWeightPolyTime
-attribute [local irreducible] ComputableInPolyTime SampleZInput.enc encRat encIntBin encNat encUnary
+attribute [local irreducible] SampleZInput.enc encRat encIntBin encNat encUnary
 
 @[local fun_prop]
 private theorem computableInPolyTime_sampleZRatArg :
@@ -481,7 +480,6 @@ private theorem abs_sampleZWeightNum_div_sub_gaussianWeight_le
   exact (abs_sub_le _ ((raw : ℝ) / (2 : ℝ) ^ qBits) _).trans
     ((add_le_add hshift_scaled hraw_err).trans_eq (by ring))
 
-
 /-- Non-dependent single-block rejection specification for `sampleZ` outputting `Option ℤ`. -/
 private def sampleZIntSpec (inp : SampleZInput) : BlockRejectionSpec ℤ where
   width := Nat.clog 2 (2 * sampleZRadius inp + 1) + inp.prec
@@ -505,7 +503,7 @@ noncomputable def sampleZ (inp : SampleZInput) : ProbComp ℤ :=
   sampleBlockCapped (sampleZIntSpec inp) (inp.center.floor) inp.maxTrials
 
 section SampleZAttemptPolyTime
-attribute [local irreducible] ComputableInPolyTime SampleZInput.enc encRat encIntBin encNat encUnary
+attribute [local irreducible] SampleZInput.enc encRat encIntBin encNat encUnary
 
 @[local fun_prop]
 private theorem computableInPolyTime_sampleZBitWidth :
@@ -539,7 +537,6 @@ theorem isPPTOn_sampleZ : IsPPTOn SampleZInput.enc encIntBin sampleZ :=
 
 end SampleZAttemptPolyTime
 
-
 /-! ### 2. Distribution analysis of `sampleZ` via `CloseTo` -/
 
 private def sampleZFinSpec (inp : SampleZInput) :
@@ -554,7 +551,6 @@ private def sampleZFinSpec (inp : SampleZInput) :
       let i : Fin (2 * R + 1) := ⟨idx, h⟩
       if coin < sampleZWeightNum inp (finToInt (inp.center.floor) R i) then some i else none
     else none
-
 
 private theorem eval_sampleZ_eq_map_runCapped (inp : SampleZInput) :
     ProbComp.eval (sampleZ inp) =

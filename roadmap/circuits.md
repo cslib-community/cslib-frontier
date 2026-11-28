@@ -7,7 +7,6 @@ Part of the [roadmap](../ROADMAP.md), which explains what an entry is and when o
 - **Circuit lower bounds from refuting ETH** ([#1539](https://github.com/cslib-community/cslib-frontier/issues/1539)): `E^NP ⊄ SIZE(O(n))`, and a language in `E^NP` whose fan-in-two circuits need more than `c n √log n` gates infinitely often, by Williams's witness-circuit argument with #CircuitSAT counters.
   It requires connecting the exponential nondeterministic time hierarchy to framed witness preparation and building the linear-size decoder and checker uniformly.
 - **Circuit classes, bridges and barriers**: uniform NC, AC and TC, circuit-to-machine bridges, algorithm-to-lower-bound arguments, and the algebrization barrier.
-  NC simulation of unrestricted `TCⁱ` needs Muroga's threshold weight-bounding theorem.
 - **Formula and monotone depth lower bounds**: formula lower bounds beyond Andreev's, following Jukna, and Raz–Wigderson's monotone depth bound for matching on general graphs.
 - **Monotone circuits versus P**: a monotone language in P whose monotone circuit complexity is exponential, the gap of É. Tardos (1988).
 - **Explicit affine dispersers for logarithmic dimension** ([#4323](https://github.com/cslib-community/cslib-frontier/issues/4323)): an explicit polynomial-time affine disperser for dimension `O(log n)` (Li 2023), strengthening the unconditional `4 N - o(N)` Boolean circuit lower bounds in `P` (`O(N / log N)` and `O(N ^ (4 / 5))` thresholds) to `4 N - O(log N)`.

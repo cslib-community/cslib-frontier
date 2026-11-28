@@ -13,6 +13,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Bool
 
 /-!
 # Streaming first-match search on Boolean words
@@ -153,10 +154,6 @@ theorem run_ne_none_iff (test : C × List Bool → Bool) (p : C × ℕ) :
 
 variable {encC : C ↪ List Bool}
 
-private theorem length_enc_words (word : List Bool) :
-    (encList encBool word).length = 3 * word.length := by
-  simp [length_encList, Nat.mul_comm]
-
 /-- A prefix stores at most one width-sized result, including the option tag and list framing. -/
 theorem length_prefix_result_le (test : C × List Bool → Bool) (p : C × ℕ) (j : ℕ) :
     (encResult (runPrefix test p j).2.2.2).length ≤ 3 * p.2 + 1 := by
@@ -164,7 +161,7 @@ theorem length_prefix_result_le (test : C × List Bool → Bool) (p : C × ℕ) 
   | none => simp
   | some word =>
     have hw := (prefix_some test p j h).1
-    simp only [encOption_some, List.length_cons, length_enc_words, hw]
+    simp only [encOption_some, List.length_cons, length_encList_encBool, hw]
     omega
 
 /-- The complete captured accumulator has polynomial size at every prefix, independently of
@@ -454,7 +451,7 @@ theorem exists_computableInO {test : C × List Bool → Bool}
   let B := fun p : C × ℕ => 2 * (encC p.1).length + 3 * p.2 + 1
   have hlen (p : C × ℕ) (w : List Bool) (hw : w.length = p.2) :
       (encTestInput encC (p.1, w)).length ≤ B p := by
-    enc_len [length_enc_words, hw, B]
+    enc_len [length_encList_encBool, hw, B]
   obtain ⟨a, b, ht⟩ := hct.1.exists_le
   obtain ⟨c, d, hs⟩ := hct.2.exists_le
   obtain ⟨overhead, ho, h⟩ := exists_computableInO_of_bounds ct

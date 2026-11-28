@@ -141,7 +141,6 @@ theorem kilianTablePassesFrac_eq_true_iff (V : PCPVerifier α) (num den : ℕ)
     rfl
   simp only [kilianTablePassesFrac, BitString.length_enumList, hcount, decide_eq_true_eq]
 
-attribute [local irreducible] ComputableInPolyTime in
 /-- `kilianTablePassesFrac` is computable in polynomial time under `V.PolyTime enc` and
 logarithmic randomness. -/
 @[program_certificate]

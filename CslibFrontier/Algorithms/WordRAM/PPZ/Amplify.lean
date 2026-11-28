@@ -604,8 +604,7 @@ theorem fillLoop_spec {w B e : ℕ} (hfit : Fits w (B + e)) :
   | d + 1, x, hb, he, hz, ho, hd => by
     set i := x.regs iReg with hi
     refine WP.exists_execWithin (WP.loop_iter (by simp [Cond.holds_lt, he, ← hi]; omega) ?_)
-    unfold fillBody
-    wram_exec [hb, hz, ho, ← hi]
+    wram_exec [fillBody, hb, hz, ho, ← hi]
     wram_call (fillLoop_spec hfit d _ (by wram_simp [hb]) (by wram_simp [he]) (by wram_simp [hz])
       (by wram_simp [ho]) (by wram_simp; omega))
       with z hzm

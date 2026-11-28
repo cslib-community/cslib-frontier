@@ -62,8 +62,7 @@ theorem exec_patchInput {W b m I : ℕ} (x : Data 320)
       y.regs Reg.base = b ∧
       ∀ j : Fin 320, j.val < 65 → y.regs j = x.regs j := by
   refine WP.exists_execWithin_preserves (fun j hj => patchInput_preserves j hj) ?_
-  unfold patchInput
-  wram_exec [hb, hm, hlen, show I - 1 + 1 = I by omega, show b ≠ b + 1 by omega]
+  wram_exec [patchInput, hb, hm, hlen, show I - 1 + 1 = I by omega, show b ≠ b + 1 by omega]
   refine fun hpres => ⟨?_, by wram_simp [hb], hpres⟩
   change Function.update (Function.update (Function.update x.mem (b + 1) (m * 21))
     b I) (b + I) (m / 9) = _

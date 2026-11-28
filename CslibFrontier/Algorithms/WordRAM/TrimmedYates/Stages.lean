@@ -174,8 +174,7 @@ private theorem exec_passCode {w d domPtr free curRoot fbRoot cutoff signMode B 
     have hand_eq : setMask X &&& (1 <<< coord.val) =
         (if coord ∈ X then 2 ^ coord.val else 0) := by
       by_cases hcX : coord ∈ X <;> simp [Nat.shiftLeft_eq, Nat.and_two_pow, testBit_setMask, hcX]
-    unfold passCellBody
-    wram_exec [hscr, hsck]
+    wram_exec [passCellBody, hscr, hsck]
     wram_call (exec_trieGet (bound := free) (fn := curFn) _ (by wram_simp [hsz])
       (by wram_simp [hso]) (by wram_simp [hsd]) (by wram_simp) (by wram_simp) ht_cur_s
       hfit_bound hfit_d (hfit_mask.of_le (setMask_lt X).le)) with u₁ ⟨hu₁_val, hu₁_mem, hu₁_regs⟩

@@ -32,18 +32,13 @@ import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.PolyTime
 
 /-!
-# Clause-Grouping Reduction from 3-SAT to Clique and ETH Lower Bounds
+# Clause-Grouping Reduction from 3-SAT to Parameterized Clique
 
 This file formalizes the clause-grouping reduction from `ThreeSAT` to `Clique` of Cygan et al.,
 *Parameterized Algorithms* (2016-05-30 companion PDF,
 https://parameterized-algorithms.mimuw.edu.pl/parameterized-algorithms.pdf).
-The nice-tree definitions and Lemma 7.4 are at printed p.161; Theorem 14.21
-and its proof are at pp.485–487.
-The source proof of Theorem 14.21 groups 3-Coloring vertices and computes a group count from a
-computable `f` to obtain one `2^o(n)` algorithm. This formalization adapts the argument to group
-3-CNF clauses and chooses a fixed `r` separately for each target rate, accommodating arbitrary
-real `f` and the library's `∀ rate ∃ machine` convention for subexponential bounding.
-The generic CSP-counting DP extension is also an adaptation/original implementation.
+The proof of Theorem 14.21 (printed pp. 485–487) groups 3-Coloring vertices. Here the reduction
+groups 3-CNF clauses.
 Given a grouping parameter `r ≥ 1` and a 3-CNF formula `φ` with `m = φ.length` clauses,
 partitioning `φ` into `r` blocks of at most
 `⌈m / r⌉ = (m + r - 1) / r` clauses yields a graph `G` with at most `r * 2 ^ (3 * ⌈m / r⌉)`
@@ -52,9 +47,12 @@ assignments in distinct blocks) such that `⟨G, r⟩ ∈ Clique ↔ φ ∈ Thre
 
 Uniformity of the padded polynomial-time reduction over `(r, φ)` gives an
 `O(2 ^ (O(m / r)) * poly)` construction whose polynomial exponent `D` is independent of `r`.
-Choosing `r` sufficiently large transfers any `f(k) * |V| ^ o(k) * poly(|enc|)` or
-`f(k) * |enc| ^ o(k)` algorithm for `Clique` to a subexponential-time algorithm for `ThreeSAT`
-parameterized by `φ.length`, contradicting `ETH` (and in particular showing `Clique ∉ FPT`).
+The source chooses `r` large to turn an `f(k) * n ^ o(k)` algorithm for `Clique` into a
+subexponential-time algorithm for 3-SAT, and so rules out such algorithms under the exponential
+time hypothesis. That hypothesis is refuted (`CountingNativeEndpoint.not_ETH`), and `ThreeSAT` is
+already decidable in subexponential time in `φ.length`
+(`ETH_iff_not_decidableInSubexpTime_length`), so this module states no such transfer. A transfer
+to a quantitative rate below the known one is tracked in #5342.
 Under `SH`, an input-dependent block count rules out a fixed power saving in the target exponent
 when the prefactor is exponential in a fixed power of the target clique size.
 
@@ -70,13 +68,6 @@ when the prefactor is exponential in a fixed power of the target clique size.
   `|V(G)| ≤ r * 2 ^ (3 * ((φ.length + r - 1) / r))`.
 * `Cslib.Complexity.SAT.exists_computableInO_groupClique`: uniform runtime/size bound in
   `(r, φ)` via `ComputableInPolyTime.exists_computableInO_pad`.
-* `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_clique_subexpVertex`,
-  `Cslib.Complexity.DecidableInSubexpTime.threeSAT_of_clique_subexpEnc`: unconditional transfers to
-  subexponential `ThreeSAT` algorithms.
-* `Cslib.Complexity.ETH.not_clique_subexpVertex`,
-  `Cslib.Complexity.ETH.not_clique_subexpEnc`, `Cslib.Complexity.ETH.clique_not_mem_FPT`:
-  `ETH`-conditional lower bounds ruling out `f(k) * n ^ o(k) * poly` and `FPT` algorithms for
-  `Clique`.
 
 * `Cslib.Complexity.SH.not_clique_powerEnc`, `Cslib.Complexity.SH.not_clique_powerVertex`:
   fixed-power lower bounds under SH in the encoded-length and vertex-count formulations.
@@ -561,215 +552,11 @@ theorem exists_computableInO_groupClique :
         (ComputableInPolyTime.fst encUnary encCNF))
   exact ComputableInPolyTime.exists_computableInO_pad computableInPolyTime_graphOfBound hν
 
-/-! ### ETH transfers and Clique lower bounds -/
-
 private lemma blockSize_real_le {m r : ℕ} (hr : 1 ≤ r) :
     (((m + r - 1) / r : ℕ) : ℝ) ≤ (m : ℝ) / (r : ℝ) + 1 := by
   have hr0 : (0 : ℝ) < r := by exact_mod_cast hr
   rw [div_add_one hr0.ne', le_div_iff₀ hr0]
   exact_mod_cast (Nat.div_mul_le_self (m + r - 1) r).trans (by omega)
-
-private lemma two_pow_blockSize_real_le {r D : ℕ} (hr : 1 ≤ r) (φ : CNF ℕ) :
-    ((2 ^ (D * (3 * GroupClique.blockSize φ r)) : ℕ) : ℝ) ≤
-      (2 : ℝ) ^ (3 * D) * (2 : ℝ) ^ ((3 * (D : ℝ) / (r : ℝ)) * (φ.length : ℝ)) := by
-  have hbs := blockSize_real_le (m := φ.length) hr
-  rw [Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast, mul_comm ((2 : ℝ) ^ (3 * D)),
-    ← Real.rpow_natCast 2 (3 * D), ← Real.rpow_add (by norm_num)]
-  refine Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_
-  push_cast
-  calc (D : ℝ) * (3 * GroupClique.blockSize φ r)
-      ≤ D * (3 * (φ.length / r + 1)) := by gcongr; exact hbs
-    _ = (3 * (D : ℝ) / r) * φ.length + 3 * D := by ring
-
-private lemma encPair_unary_cnf_length_pow_le (r : ℕ) (φ : CNF ℕ) {D E : ℕ} (hDE : D ≤ E) :
-    (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D ≤
-      (((frame (encUnary r)).length + 1 : ℕ) : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ E := by
-  have hp : ((encPair encUnary encCNF (r, φ)).length + 1 : ℝ) ≤
-      ((frame (encUnary r)).length + 1 : ℕ) * (((encCNF φ).length : ℝ) + 1) := by
-    have hlen : (encPair encUnary encCNF (r, φ)).length =
-        (frame (encUnary r)).length + (encCNF φ).length := by simp [encPair]
-    rw [hlen]
-    push_cast
-    nlinarith
-  calc (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D
-      ≤ (((frame (encUnary r)).length + 1 : ℕ) * (((encCNF φ).length : ℝ) + 1)) ^ D := by gcongr
-    _ = (((frame (encUnary r)).length + 1 : ℕ) : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ D :=
-        mul_pow _ _ _
-    _ ≤ (((frame (encUnary r)).length + 1 : ℕ) : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ E := by
-        gcongr
-        linarith [Nat.cast_nonneg (α := ℝ) (encCNF φ).length]
-
-private lemma decidableInExpTime_threeSAT_of_groupClique_bound
-    {dec : CliqueInstance → Bool} {t₂ : CliqueInstance → ℕ} {c₂ : ℕ}
-    (hdec : ComputableInO dec encCliqueInstance encBool t₂ t₂)
-    (hmem : ∀ x, x ∈ Clique ↔ dec x = true)
-    (C₀ D r : ℕ) (hr : 1 ≤ r)
-    (hred : ComputableInO (fun p : ℕ × CNF ℕ => groupClique p.1 p.2)
-      (encPair encUnary encCNF) encCliqueInstance
-      (fun p => C₀ * 2 ^ (D * (3 * GroupClique.blockSize p.2 p.1)) *
-        ((encPair encUnary encCNF p).length + 1) ^ D)
-      (fun p => C₀ * 2 ^ (D * (3 * GroupClique.blockSize p.2 p.1)) *
-        ((encPair encUnary encCNF p).length + 1) ^ D))
-    {δ : ℝ} (hδ : 0 ≤ δ) (hDr : (3 * (D : ℝ)) / (r : ℝ) ≤ δ)
-    {A B : ℝ} {d : ℕ} (hA : 0 ≤ A) (hBδ : B ≤ δ)
-    (ht₂ : ∀ φ : CNF ℕ,
-      (t₂ (groupClique r φ) : ℝ) ≤
-        A * (2 : ℝ) ^ (B * (φ.length : ℝ)) * (((encCNF φ).length : ℝ) + 1) ^ d + c₂) :
-    DecidableInExpTime ThreeSAT encCNF List.length δ := by
-  have hprep_poly : ComputableInPolyTime (fun φ : CNF ℕ => (r, φ)) encCNF
-      (encPair encUnary encCNF) := by polytime
-  rcases hprep_poly.exists_computableInO with ⟨T₀, S₀, hT₀, -, hprepO⟩
-  rcases hT₀.exists_le with ⟨C₀', d₀, hT₀_le⟩
-  have hcomp₂ := hdec.comp (hred.comp hprepO)
-  let tTot : CNF ℕ → ℕ := fun φ =>
-    (T₀ φ +
-      C₀ * 2 ^ (D * (3 * GroupClique.blockSize φ r)) *
-        ((encPair encUnary encCNF (r, φ)).length + 1) ^ D) +
-    t₂ (groupClique r φ)
-  have heqv : ∀ φ : CNF ℕ, φ ∈ ThreeSAT ↔ dec (groupClique r φ) = true := fun φ => by
-    rw [← hmem, groupClique_mem_Clique_iff hr]
-  let Lr : ℕ := (frame (encUnary r)).length + 1
-  let E : ℕ := max d₀ (max D d)
-  refine ⟨E, ?_⟩
-  have hstep1 : ∀ φ : CNF ℕ,
-      (T₀ φ : ℝ) ≤
-        (C₀' : ℝ) * ((2 : ℝ) ^ (δ * φ.length) * (((encCNF φ).length : ℝ) + 1) ^ E) := fun φ =>
-    (by exact_mod_cast hT₀_le φ : (T₀ φ : ℝ) ≤ _).trans
-      (mul_le_mul_of_nonneg_left
-        (pow_le_two_rpow_mul_pow (mul_nonneg hδ (Nat.cast_nonneg _)) (le_max_left _ _))
-        (Nat.cast_nonneg _))
-  have hstep2 : ∀ φ : CNF ℕ,
-      ((C₀ * 2 ^ (D * (3 * GroupClique.blockSize φ r)) *
-          ((encPair encUnary encCNF (r, φ)).length + 1) ^ D : ℕ) : ℝ) ≤
-        ((C₀ : ℝ) * 2 ^ (3 * D) * (Lr : ℝ) ^ D) *
-          ((2 : ℝ) ^ (δ * φ.length) * (((encCNF φ).length : ℝ) + 1) ^ E) := by
-    intro φ
-    have hpow2 : ((2 ^ (D * (3 * GroupClique.blockSize φ r)) : ℕ) : ℝ) ≤
-        (2 : ℝ) ^ (3 * D) * 2 ^ (δ * φ.length) :=
-      (two_pow_blockSize_real_le hr φ).trans (mul_le_mul_of_nonneg_left
-        (Real.rpow_le_rpow_of_exponent_le (by norm_num)
-          (mul_le_mul_of_nonneg_right hDr (by positivity))) (by positivity))
-    have hpoly := encPair_unary_cnf_length_pow_le r φ
-      ((le_max_left D d).trans (le_max_right d₀ (max D d)))
-    push_cast
-    calc (C₀ : ℝ) * ((2 : ℝ) ^ (D * (3 * GroupClique.blockSize φ r))) *
-          (((encPair encUnary encCNF (r, φ)).length : ℝ) + 1) ^ D
-        ≤ C₀ * ((2 : ℝ) ^ (3 * D) * 2 ^ (δ * φ.length)) *
-            ((Lr : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ E) := by
-          gcongr
-          exact_mod_cast hpow2
-      _ = ((C₀ : ℝ) * 2 ^ (3 * D) * (Lr : ℝ) ^ D) *
-            ((2 : ℝ) ^ (δ * φ.length) * (((encCNF φ).length : ℝ) + 1) ^ E) := by ring
-  have hstep3 : ∀ φ : CNF ℕ,
-      (t₂ (groupClique r φ) : ℝ) ≤
-        A * ((2 : ℝ) ^ (δ * φ.length) * (((encCNF φ).length : ℝ) + 1) ^ E) + c₂ := fun φ =>
-    (ht₂ φ).trans (by
-      rw [mul_assoc]
-      exact add_le_add_left (mul_le_mul_of_nonneg_left
-        (two_rpow_mul_pow_le_two_rpow_mul_pow
-          (mul_le_mul_of_nonneg_right hBδ (Nat.cast_nonneg _))
-          ((le_max_right D d).trans (le_max_right d₀ (max D d)))) hA) _)
-  let K : ℕ :=
-    Nat.ceil ((C₀' : ℝ) + (C₀ : ℝ) * 2 ^ (3 * D) * (Lr : ℝ) ^ D + A) + c₂
-  have hK : ∀ φ : CNF ℕ,
-      (tTot φ : ℝ) ≤
-        (K : ℝ) * ((2 : ℝ) ^ (δ * φ.length) * (((encCNF φ).length : ℝ) + 1) ^ E) + K := by
-    intro φ
-    have hceil : (C₀' : ℝ) + (C₀ : ℝ) * 2 ^ (3 * D) * (Lr : ℝ) ^ D + A ≤ K :=
-      (Nat.le_ceil _).trans (Nat.cast_le.mpr (Nat.le_add_right _ c₂))
-    have hc₂ : (c₂ : ℝ) ≤ K := Nat.cast_le.mpr (Nat.le_add_left c₂ _)
-    have hbase0 : (0 : ℝ) ≤ (2 : ℝ) ^ (δ * φ.length) * (((encCNF φ).length : ℝ) + 1) ^ E :=
-      zero_le_one.trans (one_le_two_rpow_mul_pow (mul_nonneg hδ (Nat.cast_nonneg _)))
-    have hsum : (tTot φ : ℝ) ≤
-        ((C₀' : ℝ) + (C₀ : ℝ) * 2 ^ (3 * D) * (Lr : ℝ) ^ D + A) *
-          ((2 : ℝ) ^ (δ * φ.length) * (((encCNF φ).length : ℝ) + 1) ^ E) + c₂ := by
-      simp only [tTot, Nat.cast_add]
-      linarith [hstep1 φ, hstep2 φ, hstep3 φ]
-    exact hsum.trans (by gcongr)
-  exact (DecidableInTimeO.of_computableInO hcomp₂ heqv (fun _ => le_rfl)).mono
-    K hK (fun _ => by positivity)
-
-/-- The encoded size of `SAT.groupClique r φ` is at most `K * 2 ^ (3 D / r * |φ|) * poly`, for a
-constant `K ≥ 0` depending on `r`. -/
-private lemma exists_enc_groupClique_length_le {C₀ D : ℕ} {r : ℕ} (hr : 1 ≤ r)
-    (hred : ComputableInO (fun p : ℕ × CNF ℕ => groupClique p.1 p.2)
-      (encPair encUnary encCNF) encCliqueInstance
-      (fun p => C₀ * 2 ^ (D * (3 * GroupClique.blockSize p.2 p.1)) *
-        ((encPair encUnary encCNF p).length + 1) ^ D)
-      (fun p => C₀ * 2 ^ (D * (3 * GroupClique.blockSize p.2 p.1)) *
-        ((encPair encUnary encCNF p).length + 1) ^ D)) :
-    ∃ K : ℝ, 0 ≤ K ∧ ∀ φ : CNF ℕ,
-      ((encCliqueInstance (groupClique r φ)).length : ℝ) + 1 ≤
-        K * (2 : ℝ) ^ ((3 * (D : ℝ) / (r : ℝ)) * (φ.length : ℝ)) *
-          (((encCNF φ).length : ℝ) + 1) ^ D := by
-  obtain ⟨c_len, -, hlen_red⟩ := hred
-  let Lr := (frame (encUnary r)).length + 1
-  refine ⟨(c_len : ℝ) * C₀ * 2 ^ (3 * D) * (Lr : ℝ) ^ D + c_len + 1, by positivity, fun φ => ?_⟩
-  have hl : ((encCliqueInstance (groupClique r φ)).length : ℝ) + 1 ≤
-      (c_len : ℝ) * (C₀ * ((2 ^ (D * (3 * GroupClique.blockSize φ r)) : ℕ) : ℝ) *
-        (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D) + (c_len + 1) := by
-    have h := Nat.add_le_add_right (hlen_red (r, φ)) 1
-    exact_mod_cast h.trans (by ring_nf; omega)
-  have hpow2 := two_pow_blockSize_real_le (D := D) hr φ
-  have hpoly := encPair_unary_cnf_length_pow_le r φ (le_refl D)
-  have hbase : (1 : ℝ) ≤
-      (2 : ℝ) ^ ((3 * (D : ℝ) / r) * φ.length) * (((encCNF φ).length : ℝ) + 1) ^ D :=
-    one_le_two_rpow_mul_pow (by positivity)
-  calc ((encCliqueInstance (groupClique r φ)).length : ℝ) + 1
-      ≤ (c_len : ℝ) * (C₀ * ((2 ^ (D * (3 * GroupClique.blockSize φ r)) : ℕ) : ℝ) *
-          (((encPair encUnary encCNF (r, φ)).length + 1 : ℝ)) ^ D) + (c_len + 1) * 1 := by
-        linarith
-    _ ≤ (c_len : ℝ) * (C₀ * ((2 : ℝ) ^ (3 * D) * 2 ^ ((3 * (D : ℝ) / r) * φ.length)) *
-          ((Lr : ℝ) ^ D * (((encCNF φ).length : ℝ) + 1) ^ D)) +
-        (c_len + 1) * ((2 : ℝ) ^ ((3 * (D : ℝ) / r) * φ.length) *
-          (((encCNF φ).length : ℝ) + 1) ^ D) := by gcongr
-    _ = _ := by ring
-
-/-- A block count `r ≥ 1` past the growth threshold for which both the `3 D / r` factor and its
-product with `max (g r) 0` are at most `δ`. -/
-private lemma exists_blockCount {g : ℕ → ℝ} (hg : ∀ ε : ℝ, 0 < ε → ∃ k₀, ∀ k ≥ k₀, g k ≤ ε * k)
-    (D : ℕ) {δ : ℝ} (hδ : 0 < δ) :
-    ∃ r : ℕ, 1 ≤ r ∧ 3 * (D : ℝ) / r ≤ δ ∧ 3 * (D : ℝ) / r * max (g r) 0 ≤ δ := by
-  set c : ℝ := 3 * ((D : ℝ) + 1)
-  have hc : 0 < c := by positivity
-  obtain ⟨k₀, hk₀⟩ := hg (δ / c) (by positivity)
-  set r : ℕ := max 1 (max k₀ ⌈c / δ⌉₊)
-  have hr : 1 ≤ r := le_max_left _ _
-  have hr_pos : (0 : ℝ) < r := by exact_mod_cast hr
-  have hcr : c ≤ δ * r := by
-    have h := (Nat.le_ceil (c / δ)).trans
-      (Nat.cast_le.mpr ((le_max_right _ _).trans (le_max_right _ _)) : (⌈c / δ⌉₊ : ℝ) ≤ r)
-    rw [div_le_iff₀ hδ] at h
-    linarith
-  have hD : 3 * (D : ℝ) ≤ c := by linarith
-  have hDr : 3 * (D : ℝ) / r ≤ δ := by
-    rw [div_le_iff₀ hr_pos]
-    linarith
-  refine ⟨r, hr, hDr, ?_⟩
-  have hgr : max (g r) 0 ≤ δ / c * r :=
-    max_le (hk₀ r ((le_max_left _ _).trans (le_max_right _ _))) (by positivity)
-  calc
-    3 * (D : ℝ) / r * max (g r) 0 ≤ c / r * (δ / c * r) := by gcongr
-    _ = δ := by field_simp
-
-/-- Raising a bound `1 ≤ x ≤ K * 2 ^ a * p ^ D` to a real power `y`, with the exponent clamped at
-zero and rounded up on the polynomial factor. -/
-private lemma rpow_le_of_le_mul_two_rpow {x K a p y : ℝ} {D : ℕ} (hx : 1 ≤ x) (hK : 0 ≤ K)
-    (hp : 1 ≤ p) (hxle : x ≤ K * (2 : ℝ) ^ a * p ^ D) :
-    x ^ y ≤ K ^ max y 0 * (2 : ℝ) ^ (a * max y 0) * p ^ (D * ⌈max y 0⌉₊) := by
-  have hy : 0 ≤ max y 0 := le_max_right _ _
-  have hpD : 1 ≤ p ^ D := one_le_pow₀ hp
-  calc
-    x ^ y ≤ x ^ max y 0 := Real.rpow_le_rpow_of_exponent_le hx (le_max_left _ _)
-    _ ≤ (K * (2 : ℝ) ^ a * p ^ D) ^ max y 0 := Real.rpow_le_rpow (by linarith) hxle hy
-    _ = K ^ max y 0 * (2 : ℝ) ^ (a * max y 0) * (p ^ D) ^ max y 0 := by
-      rw [Real.mul_rpow (by positivity) (by positivity), Real.mul_rpow hK (by positivity),
-        ← Real.rpow_mul (by norm_num)]
-    _ ≤ K ^ max y 0 * (2 : ℝ) ^ (a * max y 0) * (p ^ D) ^ (⌈max y 0⌉₊ : ℝ) := by
-      gcongr
-      exact Nat.le_ceil _
-    _ = K ^ max y 0 * (2 : ℝ) ^ (a * max y 0) * p ^ (D * ⌈max y 0⌉₊) := by
-      rw [Real.rpow_natCast, ← pow_mul]
 
 end SAT
 
@@ -779,119 +566,6 @@ private lemma length_vertices_le_encCliqueInstance (x : CliqueInstance) :
   have h := length_le_encPair_left encGraph encNat (x.graph, x.m)
   rw [encCliqueInstance_apply]
   exact x.graph.length_vertices_le_encGraph.trans h
-
-/-- An `f(k) * |enc| ^ o(k)` algorithm for `Clique` places `ThreeSAT` in subexponential time
-parameterized by clause count `List.length`. -/
-theorem DecidableInSubexpTime.threeSAT_of_clique_subexpEnc
-    (f g : ℕ → ℝ)
-    (hg : ∀ ε : ℝ, 0 < ε → ∃ k₀, ∀ k ≥ k₀, g k ≤ ε * k)
-    (hClique : DecidableInTimeO Clique encCliqueInstance
-      (fun x => f x.m * (((encCliqueInstance x).length : ℝ) + 1) ^ g x.m)) :
-    DecidableInSubexpTime ThreeSAT encCNF List.length := by
-  intro δ hδ
-  obtain ⟨dec, t₂, c₂, hdec, hmem, ht₂⟩ := DecidableInTimeO.exists_computableInO hClique
-  obtain ⟨C₀, D, hred⟩ := SAT.exists_computableInO_groupClique
-  obtain ⟨r, hr, hDr, hB⟩ := SAT.exists_blockCount hg D hδ
-  obtain ⟨K, hK, henc⟩ := SAT.exists_enc_groupClique_length_le hr hred
-  refine SAT.decidableInExpTime_threeSAT_of_groupClique_bound hdec hmem C₀ D r hr hred hδ.le hDr
-    (A := c₂ * |f r| * K ^ max (g r) 0) (d := D * ⌈max (g r) 0⌉₊) (c₂ := c₂) (by positivity)
-    hB (fun φ => ?_)
-  have h1 := ht₂ (SAT.groupClique r φ)
-  rw [SAT.groupClique_snd hr] at h1
-  have hone : ∀ n : ℕ, (1 : ℝ) ≤ n + 1 := fun _ =>
-    (le_add_iff_nonneg_left 1).mpr (Nat.cast_nonneg _)
-  have hpow :=
-    SAT.rpow_le_of_le_mul_two_rpow (y := g r) (hone _) hK (hone _) (henc φ)
-  calc
-    (t₂ (SAT.groupClique r φ) : ℝ)
-        ≤ c₂ * (f r * (((encCliqueInstance (SAT.groupClique r φ)).length : ℝ) + 1) ^ g r) + c₂ :=
-      h1
-    _ ≤ c₂ * (|f r| * (K ^ max (g r) 0 *
-          (2 : ℝ) ^ (3 * (D : ℝ) / r * (φ.length : ℝ) * max (g r) 0) *
-          (((encCNF φ).length : ℝ) + 1) ^ (D * ⌈max (g r) 0⌉₊))) + c₂ := by
-      gcongr
-      exact le_abs_self _
-    _ = c₂ * |f r| * K ^ max (g r) 0 *
-          (2 : ℝ) ^ (3 * (D : ℝ) / r * max (g r) 0 * (φ.length : ℝ)) *
-          (((encCNF φ).length : ℝ) + 1) ^ (D * ⌈max (g r) 0⌉₊) + c₂ := by
-      rw [mul_right_comm (3 * (D : ℝ) / r) (φ.length : ℝ)]
-      ring
-
-/-- An `f(k) * |V| ^ o(k) * poly(|enc|)` algorithm for `Clique` places `ThreeSAT` in
-subexponential time parameterized by clause count `List.length`: since `|V| ≤ |enc|`, it is an
-`|f(k)| * |enc| ^ (max (g k) 0 + e)` algorithm, and `max g 0 + e` is still `o(k)`. -/
-theorem DecidableInSubexpTime.threeSAT_of_clique_subexpVertex
-    (f g : ℕ → ℝ) (e : ℕ)
-    (hg : ∀ ε : ℝ, 0 < ε → ∃ k₀, ∀ k ≥ k₀, g k ≤ ε * k)
-    (hClique : DecidableInTimeO Clique encCliqueInstance
-      (fun x =>
-        let graph := x.graph
-        let verts := graph.vertices
-        f x.m * ((verts.length : ℝ) + 1) ^ g x.m *
-          (((encCliqueInstance x).length : ℝ) + 1) ^ e)) :
-    DecidableInSubexpTime ThreeSAT encCNF List.length := by
-  refine threeSAT_of_clique_subexpEnc (fun k => |f k|) (fun k => max (g k) 0 + e)
-    (fun ε hε => ?_) (hClique.mono 1 (fun x => ?_) (fun x => by positivity))
-  · obtain ⟨k₀, hk₀⟩ := hg (ε / 2) (by positivity)
-    refine ⟨max k₀ ⌈2 * e / ε⌉₊, fun k hk => ?_⟩
-    have hk' : (⌈2 * e / ε⌉₊ : ℝ) ≤ k := Nat.cast_le.mpr ((le_max_right _ _).trans hk)
-    have he : (e : ℝ) ≤ ε / 2 * k := by
-      have := (Nat.le_ceil _).trans hk'
-      rw [div_le_iff₀ hε] at this
-      linarith
-    have hgk : max (g k) 0 ≤ ε / 2 * k :=
-      max_le (hk₀ k ((le_max_left _ _).trans hk)) (by positivity)
-    linarith
-  · dsimp only
-    have hL : (1 : ℝ) ≤ ((encCliqueInstance x).length : ℝ) + 1 :=
-      (le_add_iff_nonneg_left 1).mpr (Nat.cast_nonneg _)
-    have hV : ((x.graph.vertices.length : ℝ) + 1) ^ g x.m ≤
-        (((encCliqueInstance x).length : ℝ) + 1) ^ max (g x.m) 0 :=
-      (Real.rpow_le_rpow_of_exponent_le
-        ((le_add_iff_nonneg_left 1).mpr (Nat.cast_nonneg _)) (le_max_left _ _)).trans
-        (Real.rpow_le_rpow (by positivity)
-          (by exact_mod_cast Nat.add_le_add_right (length_vertices_le_encCliqueInstance x) 1)
-          (le_max_right _ _))
-    rw [Nat.cast_one, one_mul, Real.rpow_add (by linarith), Real.rpow_natCast]
-    calc
-      f x.m * ((x.graph.vertices.length : ℝ) + 1) ^ g x.m *
-          (((encCliqueInstance x).length : ℝ) + 1) ^ e
-          ≤ |f x.m| * ((((encCliqueInstance x).length : ℝ) + 1) ^ max (g x.m) 0 *
-            (((encCliqueInstance x).length : ℝ) + 1) ^ e) := by
-        rw [← mul_assoc]
-        gcongr
-        exact le_abs_self _
-      _ ≤ _ := le_add_of_nonneg_right zero_le_one
-
-/-- Under `ETH`, `Clique` cannot be decided in `f(k) * |V| ^ o(k) * poly(|enc|)` time. -/
-theorem ETH.not_clique_subexpVertex (hETH : ETH)
-    (f g : ℕ → ℝ) (e : ℕ)
-    (hg : ∀ ε : ℝ, 0 < ε → ∃ k₀, ∀ k ≥ k₀, g k ≤ ε * k) :
-    ¬DecidableInTimeO Clique encCliqueInstance
-      (fun x =>
-        let graph := x.graph
-        let verts := graph.vertices
-        f x.m * ((verts.length : ℝ) + 1) ^ g x.m *
-          (((encCliqueInstance x).length : ℝ) + 1) ^ e) :=
-  fun hClique => (ETH_iff_not_decidableInSubexpTime_length.mp hETH)
-    (DecidableInSubexpTime.threeSAT_of_clique_subexpVertex f g e hg hClique)
-
-/-- Under `ETH`, `Clique` cannot be decided in `f(k) * |enc| ^ o(k)` time. -/
-theorem ETH.not_clique_subexpEnc (hETH : ETH)
-    (f g : ℕ → ℝ)
-    (hg : ∀ ε : ℝ, 0 < ε → ∃ k₀, ∀ k ≥ k₀, g k ≤ ε * k) :
-    ¬DecidableInTimeO Clique encCliqueInstance
-      (fun x => f x.m * (((encCliqueInstance x).length : ℝ) + 1) ^ g x.m) :=
-  fun hClique => (ETH_iff_not_decidableInSubexpTime_length.mp hETH)
-    (DecidableInSubexpTime.threeSAT_of_clique_subexpEnc f g hg hClique)
-
-/-- Under `ETH`, parameterized `Clique` is not fixed-parameter tractable (`Clique ∉ FPT`). -/
-theorem ETH.clique_not_mem_FPT (hETH : ETH) :
-    Clique ∉ FPT encCliqueInstance CliqueInstance.m := by
-  rw [mem_FPT]
-  rintro ⟨f, c, hFPT⟩
-  exact hETH.not_clique_subexpVertex (fun k => (f k : ℝ)) (fun _ => 0) c
-    (fun _ _ => ⟨0, fun _ _ => by positivity⟩) (by simpa using hFPT)
 
 /-! ### Fixed-power bounds for parameterized Clique under SH -/
 

@@ -687,8 +687,7 @@ private theorem setupCode_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBou
   have hm0 := G.init_len (r := 21 + 9)
   have hm1 := G.init_n (r := 21 + 9)
   have hm2 := G.init_source (r := 21 + 9)
-  unfold setupCode
-  wram_exec [Data.init_regs, hm0, hm1, hm2, h1, h2, h3, hf_out, hf_db, hf_eb1, hf_eb2]
+  wram_exec [setupCode, Data.init_regs, hm0, hm1, hm2, h1, h2, h3, hf_out, hf_db, hf_eb1, hf_eb2]
   refine ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
     ?_, ?_, ?_, fun _ _ => rfl⟩
   · wram_simp
@@ -708,8 +707,7 @@ private theorem initCode_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBoun
     have hf_addr : Fits w (G.distAddrBase + y.regs u) :=
       G.fits_of_linear hfit (by unfold Instance.distAddrBase; omega)
     have hf_inc : Fits w (y.regs u + 1) := G.fits_of_linear hfit (by omega)
-    unfold initBody
-    wram_exec [hyc.hdbase, hyc.cone, hf_addr, hf_inc]
+    wram_exec [initBody, hyc.hdbase, hyc.cone, hf_addr, hf_inc]
     refine ⟨⟨((hyc.set (by decide)).write_ge
         (by unfold Instance.outAddrBase Instance.distAddrBase; omega)).set (by decide), ?_⟩,
       by wram_simp⟩
@@ -792,8 +790,8 @@ private theorem testImproveCode_spec (G : Instance) {w B : ℕ} (hfit : Fits w G
   | top =>
     have hlt_false : decide ((⊤ : WithTop ℤ) + c₀ < d v₀) = false :=
       decide_eq_false (by rw [WithTop.top_add]; exact not_top_lt)
-    unfold testImproveCode
-    wram_exec [hx.hdbase, hu, hdu_mem, hdu, encodeDist_top, hx.ctwo, hj, hx.hebase, hx.cone,
+    wram_exec [testImproveCode,
+      hx.hdbase, hu, hdu_mem, hdu, encodeDist_top, hx.ctwo, hj, hx.hebase, hx.cone,
       hx.czero, htarget_mem, hweight_mem, hf_du, hf_2j, hf_et, hf_ew]
     rw [hlt_false]
     exact ⟨((((((((hx.set (by decide)).set (by decide)).set (by decide)).set (by decide)).set
@@ -813,8 +811,8 @@ private theorem testImproveCode_spec (G : Instance) {w B : ℕ} (hfit : Fits w G
         _ ≤ (G.n * G.m + 1) * G.maxAbsWeight := Nat.mul_le_mul_right _ (by omega)
     have ha_sfit : GenericRAM.Signed.Fits (w - 2) a := hSfit.of_natAbs_le ha_abs
     have hc_sfit : GenericRAM.Signed.Fits (w - 2) c₀ := hSfit.of_natAbs_le hc_abs
-    unfold testImproveCode
-    wram_exec [hx.hdbase, hu, hdu_mem, hdu, encodeDist_coe, hx.ctwo, hj, hx.hebase, hx.cone,
+    wram_exec [testImproveCode,
+      hx.hdbase, hu, hdu_mem, hdu, encodeDist_coe, hx.ctwo, hj, hx.hebase, hx.cone,
       htarget_mem, hweight_mem, hf_du, hf_2j, hf_et, hf_ew, hne1]
     refine WP.name fun x₁ hx₁ => ?_
     have hx₁_l : x₁.regs Signed.left = Signed.encode a := by
@@ -1005,8 +1003,7 @@ private theorem scanVertexPrep_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wo
   have hoff1 : s.mem (3 + u₀.val + 1) = G.offset u₀ + (G.adj u₀).length := by
     rw [show 3 + u₀.val + 1 = 3 + (u₀.val + 1) by omega,
       hs.offset_eq (Nat.succ_le_of_lt hk_lt), G.offset_succ hk_lt]
-  unfold scanVertexPrep
-  wram_exec [hs.cthree, hu_eq, hs.cone, hoff0, hoff1, hf_3k, hf_3k1]
+  wram_exec [scanVertexPrep, hs.cthree, hu_eq, hs.cone, hoff0, hoff1, hf_3k, hf_3k1]
   exact ⟨(((hs.set (by decide)).set (by decide)).set (by decide)).set (by decide),
     rfl, by wram_simp [hu_eq], by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
 
@@ -1339,8 +1336,7 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
       y₅.regs outBase = G.outAddrBase ∧ outputList y₅.mem G.outAddrBase = answerWords G := by
     cases hchk : check G.adj (List.finRange G.n) dStar
     · have hok0 : y₄.regs ok = 0 := by simp [hy₄_ok, hchk]
-      unfold finishCode
-      wram_exec [hok0, hy₄_ctx.cone, hy₄_ctx.houtBase, hy₄_ctx.czero]
+      wram_exec [finishCode, hok0, hy₄_ctx.cone, hy₄_ctx.houtBase, hy₄_ctx.czero]
       refine ⟨by wram_simp [hy₄_ctx.houtBase], ?_⟩
       rw [outputList_eq_iff]
       refine ⟨?_, ?_⟩
@@ -1348,8 +1344,7 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
         simp [answerWords, bellmanFord, dStar, hchk]
       · simpa [answerWords, bellmanFord, dStar, hchk] using Block.holdsList_nil _ _
     · have hok1 : y₄.regs ok = 1 := by simp [hy₄_ok, hchk]
-      unfold finishCode
-      wram_exec [hok1, hy₄_ctx.cone, hy₄_ctx.houtBase, hy₄_ctx.hnv]
+      wram_exec [finishCode, hok1, hy₄_ctx.cone, hy₄_ctx.houtBase, hy₄_ctx.hnv]
       refine ⟨by wram_simp [hy₄_ctx.houtBase], ?_⟩
       rw [outputList_eq_iff]
       have hans : answerWords G = (List.finRange G.n).map fun v => encodeDist (dStar v) := by

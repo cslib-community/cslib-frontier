@@ -257,8 +257,7 @@ private theorem setupCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound)
       s.regs compB = kCompAddr 3 G.n G.m := by
   have hm1 : (Data.init G.encodeCSR : Data 28).mem 1 = G.n := rfl
   have hm2 : (Data.init G.encodeCSR : Data 28).mem 2 = G.m := rfl
-  unfold setupCode
-  wram_exec [Data.init_regs, hm1, hm2]
+  wram_exec [setupCode, Data.init_regs, hm1, hm2]
   · refine ⟨rfl, by wram_simp [Data.init_regs], ?_,
       ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, ?_⟩ <;> wram_simp <;>
       dsimp only [kOffAddr, kEdgeAddr, kRevOffAddr, kRevEdgeAddr, kCurAddr, kVisAddr,
@@ -294,8 +293,7 @@ private theorem revCopyLoop_spec {N w : ℕ} (O P : ℕ) (hOP : O + N ≤ P)
           (∀ a, a ≤ P → x₁.mem a = x.mem a) ∧
           x₁.regs iReg = k + 1 ∧
           (∀ r : Fin 28, r.val < 18 → x₁.regs r = x.regs r) := by
-      unfold revCopyBody
-      wram_exec [hc1, hNv, hO, hP, hi, hm]
+      wram_exec [revCopyBody, hc1, hNv, hO, hP, hi, hm]
       refine ⟨fun q hq => ?_, fun q hq => ?_, fun a ha => ?_, by wram_simp, fun r hr => ?_⟩
       · simp (disch := omega) only [Data.set_mem, Data.write_mem, Function.update_of_ne, hord q hq]
       · mem_upd

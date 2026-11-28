@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Karn Seth
 -/
 
+import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Crypto.Protocols.UC.WordInterface
 
 /-!
@@ -25,6 +26,13 @@ Non-degenerate witnesses for `CslibFrontier.Crypto.Protocols.UC.WordInterface`:
    stay distinct under `WordPort.party`, round-trip cleanly, `WordInterface.exec` routes
    `execSpec 2 Bool Bool (Bool ⊕ Unit) (Bool ⊕ Bool)`, and
    `WordInterface.isOraclePPTOn_lowerWith_query` certifies a non-constant party query map.
+4. Canonical-request normalizer (`WordInterface.normalizeRequests`): on a two-query word program
+   issuing an off-image party request followed by a state-observing net request,
+   `toOracleCodec.wordOracle` without normalization skips the first call (leaving state `0` for the
+   net call) and ends in `([], [false])` at state `10`, whereas `encodeOracle` and
+   `toOracleCodec.wordOracle` composed with `normalizeRequests` agree on `([true, false], [true])`
+   and final state `11`; normalized programs issue only canonical requests, preserve query budgets,
+   fix lowered programs, and preserve strict `IsOraclePPTOn` on a concrete off-image word adversary.
 -/
 
 namespace CslibFrontierTests.Crypto.UCWordInterface
@@ -289,5 +297,148 @@ theorem runWith_lowerWith_execProgram :
       WordPort.sum, boolPort, unitBoolPort]
 
 end PartyAndExecWitness
+
+section NormalizeRequestsWitness
+
+private def offImageProg :
+    WordOracleComp protoInterface.Channel (List Bool × List Bool) := do
+  let r₁ ← ProbOracleComp.query
+    (spec := fun _ : protoInterface.Channel × List Bool => List Bool) (Sum.inl (), [])
+  let r₂ ← ProbOracleComp.query
+    (spec := fun _ : protoInterface.Channel × List Bool => List Bool) (Sum.inr (), [])
+  return (r₁, r₂)
+
+private theorem protoInterface_net_wordOracle_eq_encode (k : ℕ) :
+    protoInterface.toOracleCodec.wordOracle counterOracle (Sum.inr (), []) k =
+      protoInterface.encodeOracle counterOracle (Sum.inr (), []) k :=
+  congrFun (protoInterface.encodeOracle_eq_wordOracle counterOracle (Sum.inr ())).symm k
+
+/-- Without normalization, the strict `toOracleCodec.wordOracle` ignores the off-image party
+request `(Sum.inl (), [])` without mutating state, so the subsequent net call sees `k = 0` and
+returns `[false]` with final state `10`. -/
+theorem protoInterface_wordOracle_offImageProg_eval :
+    ProbOracleComp.runWith (protoInterface.toOracleCodec.wordOracle counterOracle)
+        offImageProg 0 =
+      PMF.pure (([], [false]), 10) := by
+  have hdec : protoInterface.toOracleCodec.decodeQuery (Sum.inl (), []) = none := by decide
+  have hword₁ :
+      protoInterface.toOracleCodec.wordOracle counterOracle (Sum.inl (), []) 0 =
+        PMF.pure ([], 0) := by
+    rw [OracleCodec.wordOracle_of_decodeQuery_eq_none (c := protoInterface.toOracleCodec)
+      counterOracle hdec]
+    rfl
+  have hword₂ :
+      protoInterface.toOracleCodec.wordOracle counterOracle (Sum.inr (), []) 0 =
+        PMF.pure ([false], 10) := by
+    rw [protoInterface_net_wordOracle_eq_encode,
+      protoInterface.encodeOracle_apply counterOracle (Sum.inr ()) [] 0]
+    have hdecq : protoInterface.decodeQuery (Sum.inr ()) [] = Sum.inr () := rfl
+    rw [hdecq]
+    simp [counterOracle, OracleComp.sumHandler, counterNetOracle, protoInterface,
+      WordInterface.sum, WordInterface.net, unitBoolPort]
+  rw [offImageProg, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, hword₁,
+    PMF.pure_bind, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, hword₂,
+    PMF.pure_bind, ProbOracleComp.runWith_pure]
+
+/-- Against `encodeOracle`, the off-image party request `(Sum.inl (), [])` is normalized to
+`(0, false)`, returning `[true, false]` and incrementing the counter to `1`, so the net call
+observes `0 < 1` and returns `[true]` with final state `11`. -/
+theorem protoInterface_encodeOracle_offImageProg_eval :
+    ProbOracleComp.runWith (protoInterface.encodeOracle counterOracle) offImageProg 0 =
+      PMF.pure (([true, false], [true]), 11) := by
+  have henc₁ :
+      protoInterface.encodeOracle counterOracle (Sum.inl (), []) 0 =
+        PMF.pure ([true, false], 1) := by
+    rw [protoInterface.encodeOracle_apply counterOracle (Sum.inl ()) [] 0]
+    have hdecq : protoInterface.decodeQuery (Sum.inl ()) [] = Sum.inl ((0 : Fin 2), false) := rfl
+    rw [hdecq]
+    simp [counterOracle, OracleComp.sumHandler, counterPartyOracle, protoInterface,
+      WordInterface.sum, WordInterface.net, WordPort.party, boolPort]
+  have henc₂ :
+      protoInterface.encodeOracle counterOracle (Sum.inr (), []) 1 =
+        PMF.pure ([true], 11) := by
+    rw [protoInterface.encodeOracle_apply counterOracle (Sum.inr ()) [] 1]
+    have hdecq : protoInterface.decodeQuery (Sum.inr ()) [] = Sum.inr () := rfl
+    rw [hdecq]
+    simp [counterOracle, OracleComp.sumHandler, counterNetOracle, protoInterface,
+      WordInterface.sum, WordInterface.net, unitBoolPort]
+  rw [offImageProg, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, henc₁,
+    PMF.pure_bind, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, henc₂,
+    PMF.pure_bind, ProbOracleComp.runWith_pure]
+
+/-- Composing `offImageProg` with `WordInterface.normalizeRequests` makes
+`toOracleCodec.wordOracle` (which leaves oracle state unchanged on off-image requests) reproduce
+the exact joint output and state `(([true, false], [true]), 11)` of `encodeOracle`. -/
+theorem protoInterface_wordOracle_normalizeRequests_offImageProg_eval :
+    ProbOracleComp.runWith (protoInterface.toOracleCodec.wordOracle counterOracle)
+        (protoInterface.normalizeRequests offImageProg) 0 =
+      PMF.pure (([true, false], [true]), 11) := by
+  rw [← protoInterface.runWith_encodeOracle_eq_wordOracle_normalizeRequests counterOracle
+    offImageProg 0]
+  exact protoInterface_encodeOracle_offImageProg_eval
+
+theorem protoInterface_normalizeRequests_offImageProg_queriesSatisfy :
+    (protoInterface.normalizeRequests offImageProg).QueriesSatisfy
+      (fun cw => ∃ q, cw = (protoInterface.channel q, protoInterface.request q)) :=
+  protoInterface.queriesSatisfy_normalizeRequests offImageProg
+
+theorem protoInterface_normalizeRequests_offImageProg_idempotent :
+    protoInterface.normalizeRequests (protoInterface.normalizeRequests offImageProg) =
+      protoInterface.normalizeRequests offImageProg := by
+  simp
+
+theorem protoInterface_normalizeRequests_offImageProg_isQueryBounded :
+    (protoInterface.normalizeRequests offImageProg).IsQueryBounded 2 := by
+  refine protoInterface.isQueryBounded_normalizeRequests ?_
+  have h1 : (ProbOracleComp.query (spec := fun _ : protoInterface.Channel × List Bool => List Bool)
+      (Sum.inl (), [])).IsQueryBounded 1 :=
+    ProbOracleComp.IsQueryBounded.query _
+  have h2 : ∀ r₁ : List Bool,
+      (do
+        let r₂ ← ProbOracleComp.query
+          (spec := fun _ : protoInterface.Channel × List Bool => List Bool) (Sum.inr (), [])
+        return (r₁, r₂)).IsQueryBounded 1 := fun r₁ =>
+    (ProbOracleComp.IsQueryBounded.query _).bind fun r₂ =>
+      OracleComp.IsCostBounded.pure (r₁, r₂) 0
+  simpa only [offImageProg] using h1.bind h2
+
+theorem protoInterface_normalizeRequests_lowerWith_protoProgram :
+    protoInterface.normalizeRequests (protoProgram.lowerWith protoInterface 2) =
+      protoProgram.lowerWith protoInterface 2 := by
+  simp
+
+/-- `WordInterface.isOraclePPTOn_normalizeRequests` preserves strict uniform oracle PPT on a
+concrete adversary issuing off-image party queries (`[]` and `[true]`) without needing an external
+reply-length hypothesis. -/
+theorem protoInterface_isOraclePPTOn_normalizeRequests_offImage :
+    IsOraclePPTOn encBool encBits
+      (fun b : Bool =>
+        protoInterface.normalizeRequests
+          (List.take 2 <$>
+            ProbOracleComp.query (spec := fun _ : protoInterface.Channel × List Bool => List Bool)
+              (Sum.inl (), if b then [] else [true]))) := by
+  refine protoInterface.isOraclePPTOn_normalizeRequests ?_
+  exact IsOraclePPTOn.query_take (op := (Sum.inl () : protoInterface.Channel))
+    (ComputableInPolyTime.of_finite _) (ComputableInPolyTime.const 2)
+
+/-- Bare `simp` exercises all five structural `@[simp]` rules (`normalizeRequests_bind`,
+`normalizeRequests_sample`, `normalizeRequests_map`, `normalizeRequests_query`, and
+`normalizeRequests_pure`) symbolically over an arbitrary `WordInterface`. -/
+example {ι : Type} {E : ι → Type} (I : WordInterface E) (c : I.Channel) (w : List Bool) :
+    I.normalizeRequests
+        (do
+          let b ← ProbOracleComp.sample (ProbComp.uniform Bool)
+          let r ← List.length <$>
+            ProbOracleComp.query (spec := fun _ : I.Channel × List Bool => List Bool) (c, b :: w)
+          pure r) =
+      (do
+        let b ← ProbOracleComp.sample (ProbComp.uniform Bool)
+        let r ← List.length <$>
+          ProbOracleComp.query (spec := fun _ : I.Channel × List Bool => List Bool)
+            (c, I.requestNormalize c (b :: w))
+        pure r) := by
+  simp
+
+end NormalizeRequestsWitness
 
 end CslibFrontierTests.Crypto.UCWordInterface

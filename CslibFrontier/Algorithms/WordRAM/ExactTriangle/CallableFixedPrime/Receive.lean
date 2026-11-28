@@ -33,8 +33,7 @@ theorem exec_receive {W : ℕ} (x : Data 640) :
       y.regs Reg.witnessB = x.regs (sourceReg (FixedPrime.recordBank RecordWitness.Reg.witnessB)) ∧
       y.regs Reg.witnessC = x.regs (sourceReg (FixedPrime.recordBank RecordWitness.Reg.witnessC)) ∧
       y.regs Reg.scans = x.regs (sourceReg FixedPrime.Reg.scans) := by
-  unfold receive
-  wram_exec
+  wram_exec [receive]
   exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime

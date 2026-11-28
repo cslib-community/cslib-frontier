@@ -110,8 +110,7 @@ theorem exec_input {κ w : ℕ} (input : List ℤ) (hw : width κ input.length �
         (b.comap radixRegisters).regs RadixSort.dst = n + 1 ∧
         (b.comap radixRegisters).regs RadixSort.bits = l.digits ∧
         (∀ i, b.regs (parameterRegisters i) = a.regs (parameterRegisters i)) := by
-    unfold radixSetup
-    wram_exec [han, haB]
+    wram_exec [radixSetup, han, haB]
     refine ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp, fun i => ?_⟩
     have hne (j : Fin 16) : parameterRegisters i ≠ radixRegisters j := by
       intro he; have := congrArg Fin.val he; dsimp only [parameterRegisters, radixRegisters] at this

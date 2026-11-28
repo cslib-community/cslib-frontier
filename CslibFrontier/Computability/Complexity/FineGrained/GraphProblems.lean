@@ -7,7 +7,6 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.FineGrained.Reduction
 public import CslibFrontier.Computability.Complexity.FineGrained.SatisfiabilityHypothesis
 public import CslibFrontier.Computability.Complexity.Problems.Clique
 public import CslibFrontier.Computability.Complexity.Problems.Coloring
@@ -18,14 +17,11 @@ public import CslibFrontier.Computability.Complexity.Problems.VertexCover
 /-!
 # Fine-grained lower bounds for graph problems
 
-Under the exponential time hypothesis, 3-coloring, independent set, vertex cover and Hamiltonian
-paths and cycles, directed or undirected, are not decidable in time `2 ^ o(|V| + |E|)`, and
-independent set and clique are not decidable in time `2 ^ o(|V|)` [ImpagliazzoPaturiZane2001]
-[CyganEtAl2015, Chapter 14]
-[LokshtanovMarxSaurabh2011]. Each follows from a polynomial-time reduction from 3SAT whose graph
-has `O(m)` vertices and edges on formulas with `m` clauses
-(`Cslib.Complexity.ETH.not_decidableInSubexpTime_of_reduction`), together with the sparsification
-lemma, which rules out subexponential time in `m` under the exponential time hypothesis:
+Under the Satisfiability Hypothesis (`Cslib.Complexity.SH`), the linear-size reductions
+from 3SAT rule out running time `2 ^ (C * (μ + 1) ^ p)` times a polynomial in the encoded
+input length, for every fixed `0 < p < 1` and constant `C`. The parameter `μ` counts the
+declared vertices plus edges or arcs. For 3-coloring, independent set and clique there are
+also bounds in the number of declared vertices. The reductions used are
 
 * for 3-coloring, the gadget reduction `Cslib.Complexity.SAT.toThreeColoring`, whose graph has at
   most `(24 k + 12) m + 9` vertices and edges on clauses of at most `k` literals
@@ -47,37 +43,10 @@ lemma, which rules out subexponential time in `m` under the exponential time hyp
   Sipser's construction `Cslib.Complexity.SAT.toDirHamPath` gives every row a pair of nodes for
   each clause, so it has up to `Θ(m ^ 2)` vertices and arcs.
 
-A graph (`Cslib.Complexity.Graph`) is a list of declared vertices and a list of edges, and the
-measures `|V|` and `|E|` are the lengths of these lists. They are at least the numbers of distinct
-vertices and edges, so the lower bounds for them imply the lower bounds for the distinct counts
-(`Cslib.Complexity.DecidableInSubexpTime.mono_measure`). As for `ETH` itself, time is measured up
-to a polynomial in the length of the encoded instance, and a lower bound says: for some `δ > 0`, no
-decider runs within time `2 ^ (δ * μ)` times a polynomial.
-
-**The hypothesis is refuted.** `Cslib.Complexity.CountingNativeEndpoint.not_ETH` proves that `ETH`
-is false, so the `ETH`-conditional lower bounds below hold vacuously. They are kept as conditional
-statements; the reductions and size bounds behind them are unconditional.
-
-## Main results
-
-* The `SH.not_decidableInPowerExpTime_*` theorems rule out a fixed power saving in the
-  exponent for 3-coloring, Independent Set, Vertex Cover, Clique, and directed and undirected
-  Hamiltonian Path and Cycle. The parameter counts declared vertices plus edges or arcs, with
-  vertex-only bounds for 3-coloring, Independent Set and Clique.
-
-* `Cslib.Complexity.ETH.not_decidableInSubexpTime_ThreeColoring`: no `2 ^ o(|V| + |E|)` algorithm
-  for 3-coloring.
-* `Cslib.Complexity.ETH.not_decidableInSubexpTime_IndependentSet`,
-  `Cslib.Complexity.ETH.not_decidableInSubexpTime_IndependentSet_vertices`: no `2 ^ o(|V| + |E|)`
-  and no `2 ^ o(|V|)` algorithm for independent set.
-* `Cslib.Complexity.ETH.not_decidableInSubexpTime_VertexCover`: no `2 ^ o(|V| + |E|)` algorithm
-  for vertex cover.
-* `Cslib.Complexity.ETH.not_decidableInSubexpTime_Clique`: no `2 ^ o(|V|)` algorithm for clique.
-* `Cslib.Complexity.ETH.not_decidableInSubexpTime_HamCycle`,
-  `Cslib.Complexity.ETH.not_decidableInSubexpTime_HamPath`,
-  `Cslib.Complexity.ETH.not_decidableInSubexpTime_DirHamCycle`,
-  `Cslib.Complexity.ETH.not_decidableInSubexpTime_DirHamPath`: no `2 ^ o(|V| + |E|)` algorithm
-  for Hamiltonian cycles and paths, undirected or directed.
+The graph measures are the lengths of the vertex and edge lists. The transfer uses
+`Cslib.Complexity.SH.not_decidableInPowerExpTime_of_linear_reduction`.
+The ETH-based analyses of these reductions are described in [CyganEtAl2015, Chapter 14]
+and [LokshtanovMarxSaurabh2011].
 
 ## References
 
@@ -95,125 +64,6 @@ public section
 namespace Cslib.Complexity
 
 open Cslib.Logic.PL Turing.MultiTapeTM
-
-/-! ### Lower bounds -/
-
-/-- **No `2 ^ o(|V| + |E|)` algorithm for 3-coloring under ETH** [CyganEtAl2015, Chapter 14]:
-for some `δ > 0`, `ThreeColoring` is not decidable within time `2 ^ (δ (|V| + |E|))` times any
-polynomial in the length of the encoded graph, for graphs with `|V|` declared vertices and `|E|`
-edges. -/
-theorem ETH.not_decidableInSubexpTime_ThreeColoring (h : ETH) :
-    ¬DecidableInSubexpTime ThreeColoring encGraph fun G => G.vertices.length + G.edges.length :=
-  h.not_decidableInSubexpTime_of_reduction SAT.computableInPolyTime_toThreeColoring
-    -- `(24 * 3 + 12) m + 9 ≤ 93 m + 93`
-    (fun φ _ => SAT.toThreeColoring_mem_iff φ) (k := 93) fun φ hφ => by
-      have := SAT.length_toThreeColoring_le hφ
-      nlinarith
-
-/-- **No `2 ^ o(|V| + |E|)` algorithm for independent set under ETH** [CyganEtAl2015, Chapter 14]:
-for some `δ > 0`, `IndependentSet` is not decidable within time `2 ^ (δ (|V| + |E|))` times any
-polynomial in the length of the encoded instance, for graphs with `|V|` declared vertices and `|E|`
-edges. -/
-theorem ETH.not_decidableInSubexpTime_IndependentSet (h : ETH) :
-    ¬DecidableInSubexpTime IndependentSet encIndependentSetInstance
-      fun x => x.graph.vertices.length + x.graph.edges.length :=
-  h.not_decidableInSubexpTime_of_reduction SAT.computableInPolyTime_toSparseIndependentSet
-    (fun φ _ => SAT.toSparseIndependentSet_mem_iff φ) (k := 24) fun φ hφ => by
-      have := SAT.length_toSparseIndependentSet_le hφ
-      omega
-
-/-- **No `2 ^ o(|V|)` algorithm for independent set under ETH** [CyganEtAl2015, Chapter 14]: for
-some `δ > 0`, `IndependentSet` is not decidable within time `2 ^ (δ |V|)` times any polynomial in
-the length of the encoded instance, for graphs with `|V|` declared vertices. -/
-theorem ETH.not_decidableInSubexpTime_IndependentSet_vertices (h : ETH) :
-    ¬DecidableInSubexpTime IndependentSet encIndependentSetInstance
-      fun x => x.graph.vertices.length :=
-  h.not_decidableInSubexpTime_of_reduction SAT.computableInPolyTime_toSparseIndependentSet
-    (fun φ _ => SAT.toSparseIndependentSet_mem_iff φ) (k := 24) fun φ hφ => by
-      have := SAT.length_toSparseIndependentSet_le hφ
-      omega
-
-/-- **No `2 ^ o(|V| + |E|)` algorithm for vertex cover under ETH** [CyganEtAl2015, Chapter 14]:
-for some `δ > 0`, `VertexCover` is not decidable within time `2 ^ (δ (|V| + |E|))` times any
-polynomial in the length of the encoded instance, for graphs with `|V|` declared vertices and `|E|`
-edges. -/
-theorem ETH.not_decidableInSubexpTime_VertexCover (h : ETH) :
-    ¬DecidableInSubexpTime VertexCover encVertexCoverInstance
-      fun x => x.graph.vertices.length + x.graph.edges.length :=
-  h.not_decidableInSubexpTime_of_reduction
-    (IndependentSet.computableInPolyTime_toVertexCover.comp
-      SAT.computableInPolyTime_toSparseIndependentSet)
-    (fun φ _ => (IndependentSet.toVertexCover_mem_iff _).trans
-      (SAT.toSparseIndependentSet_mem_iff φ)) (k := 24) fun φ hφ => by
-      have := SAT.length_toSparseIndependentSet_le hφ
-      simp only [Function.comp_apply, IndependentSet.toVertexCover] at this ⊢
-      omega
-
-/-- **No `2 ^ o(|V|)` algorithm for clique under ETH** [CyganEtAl2015, Chapter 14]: for some
-`δ > 0`, `Clique` is not decidable within time `2 ^ (δ |V|)` times any polynomial in the length of
-the encoded instance, for graphs with `|V|` declared vertices. -/
-theorem ETH.not_decidableInSubexpTime_Clique (h : ETH) :
-    ¬DecidableInSubexpTime Clique encCliqueInstance fun x => x.graph.vertices.length :=
-  h.not_decidableInSubexpTime_of_reduction
-    (computableInPolyTime_independentSetToClique.comp
-      SAT.computableInPolyTime_toSparseIndependentSet)
-    (fun φ _ => (independentSetToClique_mem_iff _).trans (SAT.toSparseIndependentSet_mem_iff φ))
-    (k := 24) fun φ hφ => by
-      have := SAT.length_toSparseIndependentSet_le hφ
-      simp only [Function.comp_apply, independentSetToClique, Graph.compl] at this ⊢
-      omega
-
-/-- **No `2 ^ o(|V| + |E|)` algorithm for Hamiltonian cycles under ETH** [CyganEtAl2015,
-Chapter 14]: for some `δ > 0`, `HamCycle` is not decidable within time `2 ^ (δ (|V| + |E|))` times
-any polynomial in the length of the encoded graph, for graphs with `|V|` declared vertices and
-`|E|` edges. -/
-theorem ETH.not_decidableInSubexpTime_HamCycle (h : ETH) :
-    ¬DecidableInSubexpTime HamCycle encGraph fun G => G.vertices.length + G.edges.length :=
-  h.not_decidableInSubexpTime_of_reduction SAT.computableInPolyTime_toSparseHamCycle
-    (fun φ _ => SAT.toSparseHamCycle_mem_iff φ) (k := 350) fun φ hφ => by
-      have := SAT.length_toSparseHamCycle_le hφ
-      omega
-
-/-- **No `2 ^ o(|V| + |E|)` algorithm for directed Hamiltonian cycles under ETH**
-[CyganEtAl2015, Chapter 14]: for some `δ > 0`, `DirHamCycle` is not decidable within time
-`2 ^ (δ (|V| + |E|))` times any polynomial in the length of the encoded graph, for graphs with
-`|V|` declared vertices and `|E|` arcs. -/
-theorem ETH.not_decidableInSubexpTime_DirHamCycle (h : ETH) :
-    ¬DecidableInSubexpTime DirHamCycle encGraph fun G => G.vertices.length + G.edges.length :=
-  h.not_decidableInSubexpTime_of_reduction SAT.computableInPolyTime_toSparseDirHamCycle
-    (fun φ _ => SAT.toSparseDirHamCycle_mem_iff φ) (k := 70) fun φ hφ => by
-      have := SAT.length_toSparseDirHamCycle_le hφ
-      omega
-
-/-- **No `2 ^ o(|V| + |E|)` algorithm for directed Hamiltonian paths under ETH**
-[CyganEtAl2015, Chapter 14]: for some `δ > 0`, `DirHamPath` is not decidable within time
-`2 ^ (δ (|V| + |E|))` times any polynomial in the length of the encoded instance, for graphs with
-`|V|` declared vertices and `|E|` arcs. -/
-theorem ETH.not_decidableInSubexpTime_DirHamPath (h : ETH) :
-    ¬DecidableInSubexpTime DirHamPath encPathInstance
-      fun x => x.graph.vertices.length + x.graph.edges.length :=
-  h.not_decidableInSubexpTime_of_reduction SAT.computableInPolyTime_toSparseDirHamPath
-    (fun φ _ => SAT.toSparseDirHamPath_mem_iff φ) (k := 70) fun φ hφ => by
-      have := SAT.length_sparseDiamondGraph_le hφ
-      simp only [SAT.toSparseDirHamPath]
-      omega
-
-/-- **No `2 ^ o(|V| + |E|)` algorithm for Hamiltonian paths under ETH** [CyganEtAl2015,
-Chapter 14]: for some `δ > 0`, `HamPath` is not decidable within time `2 ^ (δ (|V| + |E|))` times
-any polynomial in the length of the encoded instance, for graphs with `|V|` declared vertices and
-`|E|` edges. -/
-theorem ETH.not_decidableInSubexpTime_HamPath (h : ETH) :
-    ¬DecidableInSubexpTime HamPath encPathInstance
-      fun x => x.graph.vertices.length + x.graph.edges.length :=
-  h.not_decidableInSubexpTime_of_reduction
-    (DirHamPath.computableInPolyTime_toHamPath.comp
-      SAT.computableInPolyTime_toSparseDirHamPath)
-    (fun φ _ => (DirHamPath.toHamPath_mem_iff _).trans (SAT.toSparseDirHamPath_mem_iff φ))
-    (k := 350) fun φ hφ => by
-      have := SAT.length_sparseDiamondGraph_le hφ
-      simp only [Function.comp_apply, DirHamPath.toHamPath, SAT.toSparseDirHamPath,
-        Graph.length_split_fst, Graph.length_split_snd]
-      omega
 
 /-! ### Satisfiability Hypothesis lower bounds -/
 

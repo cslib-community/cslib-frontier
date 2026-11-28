@@ -17,9 +17,6 @@ namespace CslibFrontierTests.PolyTimeContracts
 
 open Turing.MultiTapeTM
 
--- Direct FunProp checks use the certificate API without expanding machine witnesses.
-attribute [local irreducible] ComputableInPolyTime
-
 -- The size adapter has exactly the original pointwise polynomial contract.
 example {α : Type*} (size cost : α → ℕ) :
     PolyBounded size cost ↔ ∃ c d, ∀ a, cost a ≤ c * (size a + 1) ^ d :=

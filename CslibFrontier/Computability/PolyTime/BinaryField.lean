@@ -37,8 +37,6 @@ namespace Cslib.BinaryField
 
 open Turing.MultiTapeTM ComputableInPolyTime
 
-attribute [local irreducible] ComputableInPolyTime
-
 /-! ### Binary polynomials -/
 
 /-- Multiplication by `X` modulo a binary polynomial, on coefficient lists. -/

@@ -474,7 +474,7 @@ private theorem cpt_kilianStage2_n {enc : α ↪ List Bool} :
     ((ComputableInPolyTime.fst (encKilianStage0 enc) encBits).comp
       (ComputableInPolyTime.fst (encKilianStage1 enc) encUnary))
 
-attribute [local irreducible] ComputableInPolyTime IsPPTOn in
+attribute [local irreducible] IsPPTOn in
 private theorem isPPTOn_kilianPlantedRun {V : PCPVerifier α} {enc : α ↪ List Bool} {c : ℕ}
     {P : KilianProver α}
     (hV : V.PolyTime enc)
@@ -514,7 +514,7 @@ private theorem isPPTOn_kilianPlantedRun {V : PCPVerifier α} {enc : α ↪ List
     encKilianResponse
   exact encKilianChallengeRun_mk_polyTime (hset.comp hq1) hq2
 
-attribute [local irreducible] ComputableInPolyTime IsPPTOn in
+attribute [local irreducible] IsPPTOn in
 private theorem isPPTOn_kilianCollectRuns {V : PCPVerifier α} {enc : α ↪ List Bool} {c : ℕ}
     {P : KilianProver α} {T : ℕ → ℕ}
     (hV : V.PolyTime enc)

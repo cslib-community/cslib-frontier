@@ -332,8 +332,7 @@ private theorem exec_calculate {w n U : ℕ} (x : Data 24)
   have hml : m ≤ Math.budget n U := Math.mPar_le_budget n U
   have hu := Math.eight_U_le_budget n U
   have hn := Math.four_n_le_budget n U
-  unfold calculate
-  wram_exec [h4, hU, h1]
+  wram_exec [calculate, h4, hU, h1]
   wram_call (NatLog.exec _ (by fits)
     (by wram_simp [NatLog.arg, logRegisters]; fits)
     (by wram_simp [NatLog.arg, logRegisters]; fits)) canonical
@@ -378,8 +377,7 @@ theorem exec {w : ℕ} (κ : ℕ) (x : Data 24)
   let U := (n + 2) ^ κ
   change Fits w (Math.budget n U) at hfit
   have hlin := Math.linear_le_budget n U
-  unfold program setup
-  wram_exec
+  wram_exec [program, setup]
   refine WP.of_execWithin
     (exec_power κ _ (by wram_simp) (by wram_simp; change Fits w U; fits)) ?_
   wram_call (exec_calculate _

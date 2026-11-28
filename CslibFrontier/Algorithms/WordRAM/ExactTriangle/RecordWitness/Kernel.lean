@@ -87,8 +87,7 @@ theorem exec_deliverPair {W n first length out queries count i scans a b : ℕ} 
   have hreadA : x.mem (i + i + queries) = a := by simpa only [two_mul, Nat.add_comm] using ha
   have hreadB : x.mem (i + i + queries + 1) = b := by
     simpa only [two_mul, Nat.add_comm] using hb
-  unfold deliverPair
-  wram_exec [hi, hs, hx.queries, hx.one, hreadA, hreadB]
+  wram_exec [deliverPair, hi, hs, hx.queries, hx.one, hreadA, hreadB]
   exact ⟨by regs_frame, rfl, by wram_simp, by wram_simp, by wram_simp,
     by regs_frame, by regs_frame, fun j hj => by
       dsimp only [Reg.one, Reg.zero] at hj

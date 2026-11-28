@@ -100,8 +100,7 @@ theorem exec_scan {w N capacity : ℕ} (child : Bool) (x : Data registers) (inpu
     · exact fun i hi => (hrf i (fun h => hi (Or.inl h))).trans (hfrozen i hi)
   refine WP.exists_execWithin ?_
   dsimp only [E] at hE
-  unfold scan scanSetup
-  wram_exec [h1, hE]
+  wram_exec [scan, scanSetup, h1, hE]
   wram_call (ExecWithin.loop_count P (fun _ hy => (hy.2.2.2.2.2 count (by decide)).trans hN)
     hstep (by wram_simp; exact Nat.zero_le _)
     ⟨by wram_simp; rfl, by wram_simp; simp [scanSet_zero],

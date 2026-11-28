@@ -14,6 +14,7 @@ public import Mathlib.Basic.Real.Basic
 public import Mathlib.Data.Fintype.Pi
 public import Mathlib.Order.UpperLower.Basic
 public import Mathlib.Algebra.Order.Group.Indicator
+import CslibFrontier.Foundations.Data.BitString.Flip
 import CslibFrontier.Foundations.Data.Finset.Expect
 import CslibFrontier.Foundations.Order.UpperLower
 import Mathlib.Data.Bool.Basic
@@ -49,6 +50,12 @@ power `h` (`bernoulliAverage_lowerSet_pow_le`). This transference principle appe
 ## Main results
 
 * `Cslib.BitString.bernoulliAverage_prod`: the coordinates of a random mask are independent.
+* `Cslib.BitString.bernoulliAverage_eq_bernoulliAverage_update`: conditioning on one coordinate,
+  an instance of `Cslib.BitString.sum_prod_erase_mul_ite_mul_eq_bernoulliAverage`, which reweights
+  one coordinate.
+* `Cslib.BitString.bernoulliAverage_sub_bernoulliAverage_mul_sub_bernoulliAverage`,
+  `Cslib.BitString.bernoulliAverage_sub_bernoulliAverage_sq`: covariance and variance as
+  `𝔼[f g] - 𝔼[f] 𝔼[g]` and `𝔼[f²] - 𝔼[f]²`.
 * `Cslib.BitString.bernoulliAverage_reindex`, `Cslib.BitString.bernoulliAverage_sumElim`,
   `Cslib.BitString.bernoulliAverage_restrict`: reindexing, splitting over a disjoint union, and
   restricting the coordinates of a random mask.
@@ -226,6 +233,25 @@ theorem bernoulliAverage_sum {α : Type*} (s : Finset α) (p : ℝ) (f : α → 
   simp only [bernoulliAverage, mul_sum]
   exact sum_comm
 
+/-- The covariance under Bernoulli expectation is the mean of the product minus the product of
+the means, for every `p`, since the weights sum to one. -/
+theorem bernoulliAverage_sub_bernoulliAverage_mul_sub_bernoulliAverage (p : ℝ)
+    (f g : (ι → Bool) → ℝ) :
+    bernoulliAverage p (fun x => (f x - bernoulliAverage p f) * (g x - bernoulliAverage p g)) =
+      bernoulliAverage p (fun x => f x * g x) - bernoulliAverage p f * bernoulliAverage p g := by
+  have h (x : ι → Bool) : (f x - bernoulliAverage p f) * (g x - bernoulliAverage p g) =
+      f x * g x + (-bernoulliAverage p g * f x +
+        (-bernoulliAverage p f * g x + bernoulliAverage p f * bernoulliAverage p g)) := by ring
+  simp only [h, bernoulliAverage_add, bernoulliAverage_const_mul, bernoulliAverage_const]
+  ring
+
+/-- The variance under Bernoulli expectation is the second moment minus the squared mean, for
+every `p`, since the weights sum to one. -/
+theorem bernoulliAverage_sub_bernoulliAverage_sq (p : ℝ) (f : (ι → Bool) → ℝ) :
+    bernoulliAverage p (fun x => (f x - bernoulliAverage p f) ^ 2) =
+      bernoulliAverage p (fun x => f x ^ 2) - bernoulliAverage p f ^ 2 := by
+  simpa only [sq] using bernoulliAverage_sub_bernoulliAverage_mul_sub_bernoulliAverage p f f
+
 /-- Bernoulli expectation commutes with finite averages. -/
 theorem bernoulliAverage_expect_comm {α : Type*} (A : Finset α) (p : ℝ)
     (f : (ι → Bool) → α → ℝ) :
@@ -349,29 +375,46 @@ theorem bernoulliAverage_one_sub (p : ℝ) (f : (ι → Bool) → ℝ) :
   change (if s i then p else 1 - p) = if !s i then 1 - p else 1 - (1 - p)
   cases s i <;> simp
 
+/-- **Reweighting one coordinate**: weighting `g` by the mass `∏_{j ≠ i} π_q(x j)` of the
+coordinates other than `i`, and by `a` or `b` according as bit `i` is `false` or `true`, gives the
+`q`-biased expectation of `a g(x^{i ↦ false}) + b g(x^{i ↦ true})`, for every `q`, `a` and `b`.
+With `a = 1 - q` and `b = q` the left side is the expectation of `g`
+(`bernoulliAverage_eq_bernoulliAverage_update`); with `a = -1` and `b = 1` it is the term of bit `i`
+in the derivative in `q` of that expectation (`hasDerivAt_bernoulliAverage` of
+`CslibFrontier.Foundations.BooleanAnalysis.MargulisRusso`). -/
+theorem sum_prod_erase_mul_ite_mul_eq_bernoulliAverage (q a b : ℝ) (i : ι)
+    (g : (ι → Bool) → ℝ) :
+    ∑ x, (∏ j ∈ univ.erase i, if x j then q else 1 - q) * (if x i then b else a) * g x =
+      bernoulliAverage q fun x =>
+        a * g (Function.update x i false) + b * g (Function.update x i true) := by
+  have hR (x : ι → Bool) (β : Bool) :
+      ∏ j ∈ univ.erase i, (if Function.update x i β j then q else 1 - q) =
+        ∏ j ∈ univ.erase i, if x j then q else 1 - q :=
+    prod_congr rfl fun j hj => by rw [Function.update_of_ne (ne_of_mem_erase hj)]
+  have hW (x : ι → Bool) : bernoulliWeight q x =
+      (if x i then q else 1 - q) * ∏ j ∈ univ.erase i, if x j then q else 1 - q :=
+    (mul_prod_erase univ _ (mem_univ i)).symm
+  refine mul_left_cancel₀ (two_ne_zero (α := ℝ)) ?_
+  rw [two_mul, two_mul, bernoulliAverage, ← sum_update_false_add_update_true i,
+    ← sum_update_false_add_update_true i]
+  refine sum_congr rfl fun x _ => ?_
+  simp only [hW, hR, Function.update_self, Function.update_idem, Bool.false_eq_true, ite_false,
+    ite_true]
+  ring
+
+/-- **Conditioning on one coordinate**: the expectation of `g` is the expectation of its average
+over bit `i`, which is `false` with probability `1 - p` and `true` with probability `p`. -/
+theorem bernoulliAverage_eq_bernoulliAverage_update (p : ℝ) (i : ι) (g : (ι → Bool) → ℝ) :
+    bernoulliAverage p g = bernoulliAverage p fun x =>
+      (1 - p) * g (Function.update x i false) + p * g (Function.update x i true) := by
+  rw [← sum_prod_erase_mul_ite_mul_eq_bernoulliAverage p (1 - p) p i g, bernoulliAverage]
+  exact sum_congr rfl fun x _ => by rw [bernoulliWeight, ← prod_erase_mul univ _ (mem_univ i)]
+
 /-- A coordinate is selected with probability `p`. -/
 theorem bernoulliAverage_coordinate (p : ℝ) (i : ι) :
     bernoulliAverage p (fun s : ι → Bool => if s i then (1 : ℝ) else 0) = p := by
-  let e := Equiv.piSplitAt i (fun _ : ι => Bool)
-  have hw (s : ι → Bool) : bernoulliWeight p s =
-      (if s i then p else 1 - p) * bernoulliWeight p (fun j : {j // j ≠ i} => s j) := by
-    exact Fintype.prod_eq_mul_prod_subtype_ne (fun j => if s j then p else 1 - p) i
-  unfold bernoulliAverage
-  rw [← e.symm.sum_comp (fun s => bernoulliWeight p s * (if s i then (1 : ℝ) else 0))]
-  simp_rw [hw]
-  have hleft (z : Bool × ({j // j ≠ i} → Bool)) : e.symm z i = z.1 := by
-    simp [e, Equiv.piSplitAt]
-  have hright (z : Bool × ({j // j ≠ i} → Bool)) :
-      (fun j : {j // j ≠ i} => e.symm z j) = z.2 := by
-    funext j
-    simp [e, Equiv.piSplitAt, j.property]
-  simp_rw [hleft, hright]
-  rw [Fintype.sum_prod_type, Fintype.sum_bool]
-  simp only [Bool.false_eq_true, ite_true, ite_false, mul_one, mul_zero,
-    sum_const_zero, add_zero, ← mul_sum]
-  have hs : (∑ s : {j // j ≠ i} → Bool, bernoulliWeight p s) = 1 := by
-    simpa [bernoulliAverage] using bernoulliAverage_const (ι := {j // j ≠ i}) p 1
-  rw [hs, mul_one]
+  rw [bernoulliAverage_eq_bernoulliAverage_update p i]
+  simp [bernoulliAverage_const]
 
 /-- A mask is nonempty with probability `1 - (1 - p) ^ |ι|`. -/
 theorem bernoulliAverage_nonempty (p : ℝ) :

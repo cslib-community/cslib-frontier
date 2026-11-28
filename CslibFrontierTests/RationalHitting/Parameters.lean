@@ -18,9 +18,6 @@ certificates from unary `(n, s)`, and their use by `fun_prop` on shifted inputs.
 
 namespace CslibFrontierTests.RationalHitting.Parameters
 
--- Compare plain program certificates without expanding their existential machine witnesses.
-attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
-
 open Turing MultiTapeTM
 open Cslib.Circuits.Rational Cslib.Circuits.Rational
 

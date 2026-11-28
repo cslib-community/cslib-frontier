@@ -14,13 +14,15 @@ import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 Regressions for `wram_exec` and `wram_simp`: a concrete program runs to its exact result and
 instruction count; registers and memory hold symbolic values, reads after writes to other addresses
 reduce, and a conditional the facts do not decide splits; instructions `Op.alu` of other bases, such
-as `Basis.additive`, run too; execution stops at a subprogram, continues from its specification and
-resumes; a loop proved by induction takes one iteration at a time with `WP.loop_iter` and
-`WP.Exact.loop_iter`; and goals of the wrong form, or programs with nothing to execute, fail with an
-explanation. The simplification procedures `Data.reduceRegs` and `Data.reduceMem` read through
-writes on their own, also with register names that have free variables and banks separated by
-quantified hypotheses, `Data.reduceWriteMem` unfolds memory that is not read at an address, and
-`wram_bounded` proves the fitting conditions it can.
+as `Basis.additive`, run too, and an instruction given by a definition is unfolded to the
+instruction it is defined through; a program named
+among the hints is opened and its callees are not; execution stops at a subprogram, continues from
+its specification and resumes; a loop proved by induction takes one iteration at a time with
+`WP.loop_iter` and `WP.Exact.loop_iter`; and goals of the wrong form, or programs with nothing to
+execute, fail with an explanation. The simplification procedures `Data.reduceRegs` and
+`Data.reduceMem` read through writes on their own, also with register names that have free
+variables and banks separated by quantified hypotheses, `Data.reduceWriteMem` unfolds memory that
+is not read at an address, and `wram_bounded` proves the fitting conditions it can.
 -/
 
 namespace CslibFrontierTests.WordRAMSymbolicExec
@@ -48,15 +50,13 @@ def straight : Code .standard 4 := ram[
 
 /-- The conditional is decided, and the bound of six instructions is exact. -/
 example (x : Data 4) : ∃ y, ExecWithin 8 straight x y 6 ∧ y.mem 5 = 7 ∧ y.regs c = 7 := by
-  unfold straight
-  wram_exec
+  wram_exec [straight]
   wram_simp
 
 /-- The data reached, stated in closed form. -/
 example (x : Data 4) :
     ExecWithin 8 straight x (((((x.set b 5).set c 7).set c 12).set c 7).write 5 7) 6 := by
-  unfold straight
-  wram_exec
+  wram_exec [straight]
 
 /-- A fitting condition that neither `simp` nor the discharger proves remains as a goal, tagged
 `hfit`, after the main goal. -/
@@ -90,8 +90,7 @@ example (w p : ℕ) (x : Data 4) (ha : x.regs a = p) (hb : x.regs b = 1) (hfit :
     (hv : Fits w (x.mem p)) :
     ∃ y, ExecWithin w shiftDecrement x y 9 ∧ y.mem (p + 1) = x.mem p ∧
       y.regs d = x.mem p - 1 := by
-  unfold shiftDecrement
-  wram_exec [ha, hb, hfit]
+  wram_exec [shiftDecrement, ha, hb, hfit]
   case pos => wram_simp; omega
   case neg => wram_simp
 
@@ -99,8 +98,7 @@ example (w p : ℕ) (x : Data 4) (ha : x.regs a = p) (hb : x.regs b = 1) (hfit :
 example (w p : ℕ) (x : Data 4) (ha : x.regs a = p) (hb : x.regs b = 1) (hfit : Fits w (p + 1))
     (hv : Fits w (x.mem p)) (hpos : 0 < x.mem p) :
     ∃ y, ExecWithin w shiftDecrement x y 10 ∧ y.regs d + 1 = x.mem p := by
-  unfold shiftDecrement
-  wram_exec [ha, hb, hfit]
+  wram_exec [shiftDecrement, ha, hb, hfit]
   wram_simp
   omega
 
@@ -113,8 +111,7 @@ def maxThenStore : Code .exact 4 := ram_exact[
 and execution resumes once from there. -/
 example (w u v q : ℕ) (x : Data 4) (ha : x.regs a = u) (hb : x.regs b = v) (hd : x.regs d = q) :
     ∃ y, ExecWithin w maxThenStore x y 4 ∧ y.mem q = max u v := by
-  unfold maxThenStore
-  wram_exec -split [ha, hb, hd]
+  wram_exec -split [maxThenStore, ha, hb, hd]
   refine WP.cut (fun y t => t ≤ 3 ∧ y.regs c = max u v ∧ y.regs d = q) ?_
     fun y t ⟨ht, hc, hd'⟩ => ?_
   · wram_exec [ha, hb, hd]
@@ -136,8 +133,7 @@ conditions are hypotheses. -/
 example (w u v : ℕ) (x : Data 4) (ha : x.regs a = u) (hb : x.regs b = v) (huv : Fits w (u + v))
     (hu : Fits w u) :
     ∃ y, ExecWithin w addSub x y 2 ∧ y.regs a = u ∧ y.regs c = u + v := by
-  unfold addSub
-  wram_exec [ha, hb]
+  wram_exec [addSub, ha, hb]
   wram_simp
 
 /-- An instruction `Op.alu` of the standard basis, written with the constructor. -/
@@ -146,6 +142,50 @@ example (w u v : ℕ) (x : Data 4) (ha : x.regs a = u) (hb : x.regs b = v) (h : 
       y.regs c = u * v := by
   wram_exec [ha, hb]
   wram_simp
+
+/-- An instruction given by a definition is unfolded to the instruction it is defined through, and
+no further: these run by the rules of `Op.exactBin`, not by `WP.alu`. -/
+private def customBin (o : BinOp) (dst i j : Fin 4) : Op .exact 4 := .exactBin o dst i j
+
+/-- An instruction two definitions away from `Op.exactBin`. -/
+private def customSub (dst i j : Fin 4) : Op .exact 4 := customBin .sub dst i j
+
+example (w : ℕ) (x : Data 4) (h : Fits w (x.regs a + x.regs b)) :
+    ∃ y, Exec w (.op (customBin .add c a b)) x y 1 ∧ y.regs c = x.regs a + x.regs b := by
+  wram_exec
+  wram_simp
+
+example (w u v : ℕ) (x : Data 4) (ha : x.regs a = u) (hb : x.regs b = v) (hle : v ≤ u)
+    (hf : Fits w (u - v)) :
+    ∃ y, Exec w (.op (customSub c a b)) x y 1 ∧ y.regs c = u - v := by
+  wram_exec [ha, hb]
+  wram_simp
+
+example (w u v : ℕ) (x : Data 4) (ha : x.regs a = u) (hb : x.regs b = v) (hv : v ≠ 0)
+    (hf : Fits w (u / v)) :
+    ∃ y, Exec w (.op (customBin .div c a b)) x y 1 ∧ y.regs c = u / v := by
+  wram_exec [ha, hb]
+  wram_simp
+
+example (w u v : ℕ) (x : Data 4) (ha : x.regs a = u) (hb : x.regs b = v) (hv : v ≠ 0)
+    (hf : Fits w (u % v)) :
+    ∃ y, Exec w (.op (customBin .mod c a b)) x y 1 ∧ y.regs c = u % v := by
+  wram_exec [ha, hb]
+  wram_simp
+
+/-- An instruction whose definition does not unfold has no rule. -/
+@[irreducible] private def sealedAdd (dst i j : Fin 4) : Op .exact 4 := .exactBin .add dst i j
+
+/-- error: wram_exec: nothing to execute in
+  WP.Exact w (Code.op (sealedAdd c a b)) x fun y t => t = 1 ∧ y.regs c = x.regs a + x.regs b
+The program starts with a loop, a random sample, an instruction without a rule or a program given by
+name. Apply its specification with `WP.of_execWithin`, or name the program among the hints. A
+program already named there has a definition that does not unfold, or starts with one of these
+itself. -/
+#guard_msgs (whitespace := lax) in
+example (w : ℕ) (x : Data 4) (h : Fits w (x.regs a + x.regs b)) :
+    ∃ y, Exec w (.op (sealedAdd c a b)) x y 1 ∧ y.regs c = x.regs a + x.regs b := by
+  wram_exec
 
 -- Exact subtraction written as `Op.alu`: its value depends on comparing the operands, so it does
 -- not unfold to `some v`; `Op.exactBin` instructions have their own rules.
@@ -172,12 +212,17 @@ theorem double_spec {w : ℕ} {x : Data 4} (h : Fits w (x.regs a + x.regs a)) :
 /-- A program calling the subprogram. -/
 def callDouble : Code .standard 4 := ram[ a ← #3; ⟪double⟫; c ← b ]
 
-/-- Execution stops at the subprogram, continues from its specification, and resumes. -/
+/-- Naming `callDouble` opens it and not its callee: execution stops at the subprogram, continues
+from its specification, and resumes. -/
 example (x : Data 4) : ∃ y, ExecWithin 8 callDouble x y 3 ∧ y.regs c = 6 := by
-  unfold callDouble
-  wram_exec
+  wram_exec [callDouble]
   refine WP.of_execWithin (double_spec (by wram_simp; decide)) ?_
   wram_exec
+  wram_simp
+
+/-- Naming the subprogram too executes it in place. -/
+example (x : Data 4) : ∃ y, ExecWithin 8 callDouble x y 3 ∧ y.regs c = 6 := by
+  wram_exec [callDouble, double]
   wram_simp
 
 /-- At a stop, `WP.name` names the data reached for the hypotheses of a specification;
@@ -185,8 +230,7 @@ example (x : Data 4) : ∃ y, ExecWithin 8 callDouble x y 3 ∧ y.regs c = 6 := 
 data is. -/
 example (x : Data 4) (hx : x.Bounded 8) :
     ∃ y, ExecWithin 8 callDouble x y 3 ∧ (y.Bounded 8 → y.regs c = 6) := by
-  unfold callDouble
-  wram_exec
+  wram_exec [callDouble]
   refine WP.name fun y hy => ?_
   have hyb : y.Bounded 8 := by rw [hy]; wram_bounded; decide
   refine WP.of_execWithin (double_spec (by rw [hy]; wram_simp; decide)) (WP.bounded ?_ ?_)
@@ -300,19 +344,16 @@ example (w p : ℕ) (x : Data 4) (hx : x.Bounded w) (hp : Fits w p) :
 /-- The exact count of six instructions, and the data reached, from `Exec`. -/
 example (x : Data 4) :
     Exec 8 straight x (((((x.set b 5).set c 7).set c 12).set c 7).write 5 7) 6 := by
-  unfold straight
-  wram_exec
+  wram_exec [straight]
 
 /-- The exact count with a property of the data reached. -/
 example (x : Data 4) : ∃ y, Exec 8 straight x y 6 ∧ y.mem 5 = 7 ∧ y.regs c = 7 := by
-  unfold straight
-  wram_exec
+  wram_exec [straight]
   wram_simp
 
 /-- A wrong exact count remains as a goal: the program takes six instructions, not seven. -/
 example (x : Data 4) (h : (6 : ℕ) = 7) : ∃ y, Exec 8 straight x y 7 ∧ y.mem 5 = 7 := by
-  unfold straight
-  wram_exec
+  wram_exec [straight]
   exact ⟨h, by wram_simp⟩
 
 /-- Both alternatives of a conditional, with their own exact counts; side conditions with free
@@ -321,8 +362,7 @@ example (w p : ℕ) (x : Data 4) (ha : x.regs a = p) (hb : x.regs b = 1) (hfit :
     (hv : Fits w (x.mem p)) :
     ∃ y, Exec w shiftDecrement x y (if x.mem p < 1 then 6 else 7) ∧
       y.mem (p + 1) = x.mem p := by
-  unfold shiftDecrement
-  wram_exec [ha, hb, hfit]
+  wram_exec [shiftDecrement, ha, hb, hfit]
   case pos => exact ⟨by simp [hc], by wram_simp⟩
   case neg => exact ⟨by simp [hc], by wram_simp⟩
 
@@ -333,8 +373,7 @@ theorem double_exec {w : ℕ} {x : Data 4} (h : Fits w (x.regs a + x.regs a)) :
 
 /-- Execution stops at the subprogram, continues from its exact specification, and resumes. -/
 example (x : Data 4) : ∃ y, Exec 8 callDouble x y 3 ∧ y.regs c = 6 := by
-  unfold callDouble
-  wram_exec
+  wram_exec [callDouble]
   refine WP.Exact.of_exec (double_exec (by wram_simp; decide)) ?_
   wram_exec
   wram_simp
@@ -344,8 +383,7 @@ operation is evaluated by `Basis.reduceInterp`, and over the standard basis. -/
 example (w u v : ℕ) (x : Data 4) (ha : x.regs a = u) (hb : x.regs b = v) (huv : Fits w (u + v))
     (hu : Fits w u) :
     ∃ y, Exec w addSub x y 2 ∧ y.regs a = u ∧ y.regs c = u + v := by
-  unfold addSub
-  wram_exec [ha, hb]
+  wram_exec [addSub, ha, hb]
   wram_simp
 
 example (w u v : ℕ) (x : Data 4) (ha : x.regs a = u) (hb : x.regs b = v) (h : Fits w (u * v)) :
@@ -356,8 +394,7 @@ example (w u v : ℕ) (x : Data 4) (ha : x.regs a = u) (hb : x.regs b = v) (h : 
 /-- An exact count is a bound: `WP.Exact.toWP` turns an exact goal into a bounded one. -/
 example (x : Data 4) : ∃ y, ExecWithin 8 straight x y 6 ∧ y.mem 5 = 7 :=
   WP.exists_execWithin <| WP.Exact.toWP <| by
-    unfold straight
-    wram_exec
+    wram_exec [straight]
     wram_simp
 
 /-! ## Loops -/
@@ -411,8 +448,10 @@ example (x : Data 4) (ha : x.regs a = 0) (hd : x.regs d = 0) :
 
 /-- error: wram_exec: nothing to execute in
   WP 8 callDouble x fun y t => t ≤ 3 ∧ y.regs c = 6
-The program starts with a loop, a random sample or a program given by name. Apply its
-specification with `WP.of_execWithin`, or unfold it. -/
+The program starts with a loop, a random sample, an instruction without a rule or a program given by
+name. Apply its specification with `WP.of_execWithin`, or name the program among the hints. A
+program already named there has a definition that does not unfold, or starts with one of these
+itself. -/
 #guard_msgs (whitespace := lax) in
 example (x : Data 4) : ∃ y, ExecWithin 8 callDouble x y 3 ∧ y.regs c = 6 := by
   wram_exec

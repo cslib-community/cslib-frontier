@@ -505,7 +505,8 @@ private theorem comparisonRequest_polyTime :
   have hcompare : ComputableInPolyTime readComparison comparisonTail
       (encOption encFormulaComparisonRequest) :=
     (ComputableInO.getLeft?_deg encBits strictTail).computableInPolyTime
-      |>.optionElimWithInput (body := fun _ term => some ⟨term, false⟩) hright
+      |>.optionElimWithInput
+        (body := fun _ term => some (FormulaComparisonRequest.mk term false)) hright
         ((optionSome encFormulaComparisonRequest).comp (heq.comp (snd comparisonTail encBits)))
   have h := (ComputableInO.getRight?_deg encUnit comparisonTail).computableInPolyTime
     |>.optionElimWithInput (body := fun _ payload => readComparison payload) (const none)

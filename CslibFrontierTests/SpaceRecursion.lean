@@ -4,13 +4,21 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Computability.Complexity.Classes.Space.Quantitative
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NestedLoop
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Context
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.InputBit
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NestedLoop
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Recursion
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.BitsGetElem
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Sum
+import CslibFrontier.Foundations.Data.Nat.BinarySize
+import CslibFrontier.Tactic.Space
 
 /-!
 # A recursion that reads its input, within the space of one chain of frames
@@ -23,6 +31,9 @@ a leaf. `Turing.MultiTapeTM.ComputableInSpace.recWith` runs it: the caller state
 returns, a rank and the potential `(height + 1) * F` for frames of `F` bits. No stack, machine or
 run is declared, and the space is `O(log² n)` for depth and frames of `O(log n)`.
 -/
+
+-- This module contains only checked clients.
+set_option linter.privateModule false
 
 open Turing Turing.MultiTapeTM
 
@@ -47,7 +58,7 @@ structure Frame where
   /-- Whether the second subtree is being evaluated. -/
   second : Bool
 
-enc_structure encFrame : Frame where height : encNat, index : encNat, second : encBool
+private enc_structure encFrame : Frame where height : encNat, index : encNat, second : encBool
 
 /-- A frame with the value just returned to it, if any. -/
 abbrev encConfig : Frame × Option Bool ↪ List Bool := encPair encFrame (encOption encBool)
@@ -77,49 +88,13 @@ abbrev budget (p : (Frame × Option Bool) × List Bool) : ℕ :=
 
 theorem body_inSpace : ComputableInSpace body (encPair encConfig encBits)
     (encSum (encPair encFrame encFrame) encBool) budget := by
-  have hc : ComputableInSpace (fun p : (Frame × Option Bool) × List Bool => p.1)
-      (encPair encConfig encBits) encConfig budget :=
-    (ComputableInLogSpace.fst encConfig encBits).inSpace_context
-      (.of_le fun _ => Nat.le_add_right _ _)
-  have hconst {β : Type} (encB : β ↪ List Bool) (b : β) :
-      ComputableInSpace (fun _ : (Frame × Option Bool) × List Bool => b)
-        (encPair encConfig encBits) encB budget :=
-    ComputableInSpace.budget_const b
-  have hh := encFrame_height_budget hc.fst'
-  have hi := encFrame_index_budget hc.fst'
-  have ho := hc.snd'
+  have hreg := ComputableInSpace.budget_registers (encR := encConfig) (encA := encBits)
+    (Bs := budget) (.refl _)
   -- the bit of the word at the index of the frame
-  have hfields : ComputableInLogSpace (fun f : Frame => (f.height, f.index, f.second)) encFrame
-      encFrameFields := .of_eq fun f => (encFrame_apply f).symm
   have hbit : ComputableInSpace (fun p : (Frame × Option Bool) × List Bool => p.2[p.1.1.index]?)
       (encPair encConfig encBits) (encOption encBool) budget :=
-    (ComputableInSpace.inputBit encBits).comp_logSpace_context
-      (f := fun p : (Frame × Option Bool) × List Bool => (p.1.1.index, p.2))
-      (ComputableInLogSpace.pair
-        ((hfields.snd'.fst'.comp' (ComputableInLogSpace.fst encFrame (encOption encBool))).comp'
-          (ComputableInLogSpace.fst encConfig encBits))
-        (ComputableInLogSpace.snd encConfig encBits))
-      (.of_le fun p => by
-        have := encFrame_index_length_le p.1.1
-        simp only [length_encPair]
-        omega) fun _ => le_rfl
-  have hpred := ComputableInSpace.budget_natPred hh
-  have hleft := ComputableInSpace.budget_natMul (hconst encNat 2) hi
-  have hright := ComputableInSpace.budget_natAdd hleft (hconst encNat 1)
-  have hval := ComputableInSpace.budget_optionGetD false ho
-  exact ComputableInSpace.budget_ite (ComputableInSpace.budget_optionIsSome ho)
-    (ComputableInSpace.budget_ite (encFrame_second_budget hc.fst')
-      (ComputableInSpace.budget_sumInr (ComputableInSpace.budget_boolNot hval))
-      (ComputableInSpace.budget_ite hval
-        (ComputableInSpace.budget_sumInl (ComputableInSpace.budget_prod
-          (encFrame_mk_budget hh hi (hconst encBool true))
-          (encFrame_mk_budget hpred hright (hconst encBool false))))
-        (ComputableInSpace.budget_sumInr (hconst encBool true))))
-    (ComputableInSpace.budget_ite (ComputableInSpace.budget_natIsZero hh)
-      (ComputableInSpace.budget_sumInr (ComputableInSpace.budget_optionGetD false hbit))
-      (ComputableInSpace.budget_sumInl (ComputableInSpace.budget_prod
-        (encFrame_mk_budget hh hi (hconst encBool false))
-        (encFrame_mk_budget hpred hleft (hconst encBool false)))))
+    ComputableInSpace.budget_inputBit (encFrame_index_budget hreg.fst') (.refl _)
+  space [body]
 
 /-- What a frame returns: a fresh frame the value of its node, and a frame that has received the
 value `b` of a subtree the NAND of `b` and what is left to evaluate. -/

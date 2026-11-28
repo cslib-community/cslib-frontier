@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.DecisionTree.Leaves
+public import CslibFrontier.MachineLearning.UniformLearning.DecisionTreeClass
 public import CslibFrontier.MachineLearning.UniformLearning.LowDegree
 public import CslibFrontier.MachineLearning.UniformLearning.MembershipQuery
 public import CslibFrontier.Foundations.BooleanAnalysis.BucketWeight
@@ -159,9 +159,8 @@ the spectral-norm and decision-tree steps are checked in
 
 ## Main definitions
 
-* `Cslib.MachineLearning.UniformLearning.spectralNormClass`,
-  `Cslib.MachineLearning.UniformLearning.decisionTreeClass`: the functions of bounded spectral
-  norm, and those computed by decision trees with few leaves.
+* `Cslib.MachineLearning.UniformLearning.spectralNormClass`: the functions of bounded spectral
+  norm.
 * `Cslib.MachineLearning.UniformLearning.bucketSearch`: the bucket search of Goldreich–Levin and
   Kushilevitz–Mansour.
 * `Cslib.MachineLearning.UniformLearning.bucketEstimate`,
@@ -352,11 +351,6 @@ variable (ι) in
 /-- The Boolean functions whose spectral norm `∑_S |f̂(S)|`, read as signs, is at most `L`. -/
 def spectralNormClass (L : ℝ) : ConceptClass (ι → Bool) Bool :=
   {f | ∑ S, |fourierCoeff (fun x => signVal (f x)) S| ≤ L}
-
-variable (ι) in
-/-- The functions computed by decision trees with at most `L` leaves. -/
-def decisionTreeClass (L : ℕ) : ConceptClass (ι → Bool) Bool :=
-  {f | ∃ t : DecisionTree ι Bool, t.Computes f ∧ t.leafCount ≤ L}
 
 /-- The empirical estimate of the bucket weight `W^{S | J̄}` of `g`, read as signs, from the
 samples `ω j = (x, y, z)`: the average of `g (x, z) χ_S(x) g (y, z) χ_S(y)`, where `(x, z)` takes

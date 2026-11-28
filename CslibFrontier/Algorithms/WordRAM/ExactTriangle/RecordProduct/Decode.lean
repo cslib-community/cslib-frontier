@@ -80,8 +80,7 @@ theorem exec_readRecord {W n D i out b : ℕ} (x : Data 320) (v : Fin 6 → ℕ)
   have hv5 : x.mem (r + 1 + 1 + 1 + 1 + 1) = v 5 := hv' 5
   dsimp only [r] at hrec' hv0 hv1 hv2 hv3 hv4 hv5
   refine WP.exists_execWithin ?_
-  unfold readRecord
-  wram_exec [hi, hout, hb, hD, hn, hv0, hv1, hv2, hv3, hv4, hv5]
+  wram_exec [readRecord, hi, hout, hb, hD, hn, hv0, hv1, hv2, hv3, hv4, hv5]
   wram_simp [hmul]
   omega
 
