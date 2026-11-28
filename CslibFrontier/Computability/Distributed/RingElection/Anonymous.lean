@@ -134,12 +134,6 @@ configuration `fun _ => P.init`. -/
 @[simp] theorem stateFrom_zero {n : ℕ} [NeZero n] (s₀ : Fin n → S) (i : Fin n) :
     P.stateFrom s₀ 0 i = s₀ i := rfl
 
-private theorem stateFrom_succ {n : ℕ} [NeZero n] (s₀ : Fin n → S) (r : ℕ) (i : Fin n) :
-    P.stateFrom s₀ (r + 1) i =
-      P.recv r (P.stateFrom s₀ r i)
-        (P.toSucc r (P.stateFrom s₀ r (i - 1)))
-        (P.toPred r (P.stateFrom s₀ r (i + 1))) := rfl
-
 @[simp] theorem run_zero (n : ℕ) [NeZero n] (i : Fin n) : P.run n 0 i = P.init := rfl
 
 /-- Shifting node indices by `+ k` mod `n` commutes with every synchronous round on `Fin n`. -/
@@ -147,7 +141,8 @@ theorem stateFrom_shift_eq {n : ℕ} [NeZero n] (s₀ : Fin n → S) (k : Fin n)
     P.stateFrom s₀ r (i + k) = P.stateFrom (fun j => s₀ (j + k)) r i := by
   induction r generalizing i with
   | zero => rfl
-  | succ r ih => rw [stateFrom_succ, stateFrom_succ, add_sub_right_comm, add_right_comm, ih, ih, ih]
+  | succ r ih =>
+    rw [stateFrom, stateFrom, add_sub_right_comm, add_right_comm, ih, ih, ih]
 
 /-- From a uniform initial state on `Fin n`, shifting any node index by `+ k` mod `n` leaves its
 state unchanged after every synchronous round `r`. -/

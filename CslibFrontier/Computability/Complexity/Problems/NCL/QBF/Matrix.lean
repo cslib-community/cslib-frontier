@@ -179,9 +179,6 @@ private theorem shared_top (qs : List Quantifier) (ms : List (List Bool))
     (terminal 0 qs ms).topList (t ∘ (terminalOcc qs ms).emb) =
       (Chain.diagram [] qs).botList (t ∘ (chainOcc qs ms).emb) := topList_compRight _ _ t
 
-private theorem chain_input (qs : List Quantifier) (ms : List (List Bool)) (j : Fin 2) :
-    (chainOcc qs ms).emb (Chain.input [] qs j) = (.inl j : (body qs ms).Edge) := rfl
-
 /-- **The terminal matrix contract is derived from the actual graph**, rather than assumed:
 an active final satisfied wire needs trying and a CNF true under the current latch values. -/
 theorem terminal_spec (qs : List Quantifier) (ms : List (List Bool))
@@ -218,8 +215,9 @@ theorem truth_of_reachable (qs : List Quantifier) (ms : List (List Bool))
     {s t : D.Edge → Bool} (hs : (D.graph Gate.interp).Legal s)
     (hstart : s (o.emb (.inl 1)) = false) (h : (D.graph Gate.interp).Reachable s t)
     (hsat : t (o.emb (.inl 0)) = false) : Chain.Truth (Satisfies ms) qs [] := by
-  have hinput (j : Fin 2) := (congrFun (o.emb_trans (chainOcc qs ms)) (Chain.input [] qs j)).trans
-    (congrArg o.emb (chain_input qs ms j))
+  have hinput (j : Fin 2) :
+      (o.trans (chainOcc qs ms)).emb (Chain.input [] qs j) = o.emb (.inl j) :=
+    congrFun (o.emb_trans (chainOcc qs ms)) (Chain.input [] qs j)
   exact Chain.truth_of_reachable qs [] (o.trans (chainOcc qs ms)) (fun _ => []) (Satisfies ms)
     hs ((congrArg s (hinput 1)).trans hstart)
     (fun u hu hsat => (terminal_spec_occ qs ms o (hu.legal hs) hsat).1)

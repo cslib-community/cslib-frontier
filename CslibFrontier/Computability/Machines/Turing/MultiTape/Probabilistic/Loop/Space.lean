@@ -76,13 +76,6 @@ private theorem natAbs_workTapePos_replay_le (M : MultiTapePTM k Bool State)
     have h2 := ih ((M.withCoin bit).step cfg)
     simp only [runClosedConfigFromCoins, List.foldl_cons, List.length_cons] at h2 ⊢; omega
 
-private theorem replay_cons (M : MultiTapePTM k Bool State) (bit : Bool) (rest : List Bool)
-    (c : Config k Bool State Empty x) :
-    M.runClosedConfigFromCoins (bit :: rest) c =
-      M.runClosedConfigFromCoins rest ((M.withCoin bit).step c) :=
-  rfl
-
-
 private noncomputable def emptyOracle : Empty × List Bool → StateT Unit PMF (List Bool) :=
   fun q => q.1.elim
 
@@ -258,7 +251,7 @@ private theorem repeatUntilBlank_round_mem_window (i : Fin k) {body : MultiTapeP
   · obtain ⟨s', hs', htapes'⟩ := runsWords_closed_completed body hbody cfg hcfg before
       (hpost.resolve_left (List.cons_ne_nil bit rest))
     rw [List.append_nil] at htapes'
-    rw [replay_cons]
+    rw [runClosedConfigFromCoins, List.foldl_cons]
     refine hnext s' bit rest _ hs' ?_
     simp only [RepeatUntilBlank.runConfig, htapes', mapState_wordsCfg, handOver_none]
 

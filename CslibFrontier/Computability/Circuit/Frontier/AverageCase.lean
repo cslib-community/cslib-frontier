@@ -231,11 +231,6 @@ theorem le_pow_half_of_logb {q K n : ℕ} (hq : 1 < q) (hK : 0 < K)
   have hpow := (Real.logb_le_iff_le_rpow (by exact_mod_cast hq) (by exact_mod_cast hK)).mp hlogb
   rwa [Real.rpow_natCast, ← Nat.cast_pow, Nat.cast_le] at hpow
 
-/-- There are `|U| ^ n` inputs. -/
-private theorem card_input_eq {U : Type*} (n : ℕ) :
-    (Nat.card (Fin n → U) : ℝ) = (Nat.card U : ℝ) ^ n := by
-  simp [Nat.card_fun]
-
 section Circuit
 
 variable {U : Type u} {σ : Signature.{v}} {n : ℕ} (I : Interpretation σ U) (Acc : Set U)
@@ -264,7 +259,7 @@ theorem agreement_le_of_unread {S : Set (Fin n → U)} {K : ℕ} {b : ℝ}
       (Compiler.network c I fun _ => A).dependsOn_read hK hu
   have hN : (0 : ℝ) < (Nat.card U : ℝ) ^ n := pow_pos (Nat.cast_pos.mpr Nat.card_pos) n
   refine (agreement_le (bound Acc) (bound Accᶜ)).trans_eq ?_
-  rw [card_input_eq]
+  rw [Nat.card_fun, Nat.card_fin, Nat.cast_pow]
   field_simp
   ring
 
@@ -306,7 +301,7 @@ theorem agreement_le_of_layout {S : Set (Fin n → U)} {K : ℕ} {b : ℝ}
   have hq : 0 < q := Nat.card_pos
   have hN : (0 : ℝ) < (q : ℝ) ^ n := by positivity
   have hhalf (R : ℝ) : (R + R) / (2 * (q : ℝ) ^ n) = R / (q : ℝ) ^ n := by field_simp; ring
-  rw [card_input_eq, hhalf] at h
+  rw [Nat.card_fun, Nat.card_fin, Nat.cast_pow, hhalf] at h
   linarith [div_le_div_of_nonneg_right hresR hN.le]
 
 /-- **A narrow layout of a circuit, charging only multiary gates.** Suppose that connected,

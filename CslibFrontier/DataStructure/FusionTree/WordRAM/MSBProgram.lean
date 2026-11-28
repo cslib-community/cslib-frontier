@@ -111,9 +111,6 @@ def ops (s : ℕ) : Fin 44 → Operation 44 :=
     .binary .shiftRight 39 25, .binary .and 40 27, .binary .sub 41 29,
     .binary .add 31 42]
 
-/-- Slot zero is the supplied input. -/
-private theorem values_input (s x : ℕ) : values s x 0 = x := rfl
-
 /-- Every executed source node agrees with its pure arithmetic expression. -/
 theorem eval_ops (s x : ℕ) (i : Fin 44) (hi : i ≠ 0) :
     (ops s i).eval (values s x) = values s x i := by
@@ -329,7 +326,7 @@ private theorem exec_finishCode {w z : ℕ} (hw : 3 ≤ w) (hz : z < 2 ^ w)
       have hpj : Function.update (fun _ => 0) (0 : Fin 44) z j =
           Circuit.prefix (values (clusterSize w) z) 1 j := by
         rcases eq_or_ne j 0 with rfl | hj
-        · simp [Circuit.prefix, values_input]
+        · rfl
         · have hj1 : ¬j.val < 1 := by have := Fin.val_ne_of_ne hj; omega
           simp [Function.update_of_ne hj, Circuit.prefix, hj1]
       exact ⟨fun i hi => he i hi ▸ (hx j).1 i hi,

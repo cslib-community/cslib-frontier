@@ -257,10 +257,6 @@ private theorem length_filter_range_getD {α : Type*} (l : List α) (d : α) (p 
       List.countP_cons, ← ih]
     by_cases hp : p a <;> simp [hp, Function.comp_def]
 
-private theorem vars_cons (c : Clause ℕ) (φ : CNF ℕ) :
-    CNF.vars (c :: φ) = c.map Prod.fst ++ φ.vars := by
-  simp [CNF.vars]
-
 private theorem mem_vars {φ : CNF ℕ} {v : ℕ} : v ∈ φ.vars ↔ ∃ c ∈ φ, v ∈ c.map Prod.fst := by
   simp [CNF.mem_vars]
 
@@ -270,7 +266,8 @@ private theorem length_occ_le_count (φ : CNF ℕ) (v : ℕ) : (occ φ v).length
   induction φ with
   | nil => simp
   | cons c φ ih =>
-    rw [List.countP_cons, vars_cons, List.count_append]
+    simp only [List.countP_cons, CNF.vars, List.flatten_cons, List.map_append,
+      List.count_append] at ih ⊢
     split_ifs with h
     · have := List.count_pos_iff.mpr (of_decide_eq_true h)
       omega

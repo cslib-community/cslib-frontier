@@ -101,10 +101,6 @@ leave room for both the input position's residue and the chosen shift's residue.
 def spreadShift (w M b i m : ℕ) : ℕ :=
   m + ((w - b) / M + 2 * i + 1) * M
 
-/-- Adding a multiple of the collision modulus preserves a chosen shift's residue. -/
-private theorem spreadShift_mod (w M b i m : ℕ) : spreadShift w M b i m % M = m % M := by
-  simp [spreadShift]
-
 /-- The `i`th diagonal term lies strictly between the endpoints of its two-slot interval. -/
 private theorem spreadShift_bounds {w M b i m : ℕ} (hM : 0 < M) (hb : b ≤ w) (hm : m < M) :
     w + 2 * i * M < b + spreadShift w M b i m ∧
@@ -135,7 +131,8 @@ theorem exists_spread_shifts {r w : ℕ} (hr : 0 < r) (b : Fin r → ℕ)
     change b p.1 + m p.2 = b q.1 + m q.2 at hpq
     have hj : p.2 = q.2 := by_contra fun hne => hsep p.2 q.2 hne p.1 q.1 <| by
       have he := congrArg (· % r ^ 3) hpq
-      simpa only [m, Nat.add_mod _ (spreadShift ..), spreadShift_mod, ← Nat.add_mod] using he
+      rw [Nat.add_mod _ (m p.2), Nat.add_mod _ (m q.2)] at he
+      simpa only [m, spreadShift, Nat.add_mul_mod_self_right, ← Nat.add_mod] using he
     rw [hj] at hpq
     exact Prod.ext (hb (Nat.add_right_cancel hpq)) hj
   · intro i j hij

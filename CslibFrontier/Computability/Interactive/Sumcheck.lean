@@ -177,12 +177,6 @@ theorem natDegree_roundPoly_le (hP : ∀ j, P.degreeOf j ≤ d) {i : ℕ} (hi : 
         split_ifs <;> exact Polynomial.natDegree_C _)
       (by simp)).trans (hP _)
 
-omit [Field F] [Fintype F] [DecidableEq F] in
-/-- The coordinate `j < i + 1` of `Fin.snoc r z`. -/
-private theorem snoc_mk {i : ℕ} (r : Fin i → F) (z : F) {j : ℕ} (hj : j < i + 1) :
-    (Fin.snoc r z : Fin (i + 1) → F) ⟨j, hj⟩ = if h : j < i then r ⟨j, h⟩ else z :=
-  rfl
-
 omit [Fintype F] [DecidableEq F] in
 /-- The round polynomial at `z` is the partial sum of the next round at the point extended
 by `z`. -/
@@ -193,7 +187,7 @@ theorem eval_roundPoly_eq {i : ℕ} (r : Fin i → F) (z : F) :
   rw [← Polynomial.coe_aeval_eq_eval, MvPolynomial.comp_aeval_apply,
     MvPolynomial.aeval_eq_eval]
   congr 2 with j : 1
-  simp only [point, snoc_mk]
+  simp only [point, Fin.snoc, cast_eq]
   split_ifs <;> first | omega | simp
 
 omit [Fintype F] [DecidableEq F] in
@@ -214,7 +208,7 @@ private theorem point_snoc {i : ℕ} (r : Fin i → F) (c : Bool) (b : Fin (n - 
     point (Fin.snoc r (if c then (1 : F) else 0)) b =
       point r (fun j => if h0 : j.val = 0 then c else b ⟨j.val - 1, by omega⟩) := by
   funext j
-  simp only [point, snoc_mk]
+  simp only [point, Fin.snoc, cast_eq]
   split_ifs <;> first | omega | simp_all [Nat.sub_sub]
 
 omit [Fintype F] [DecidableEq F] in

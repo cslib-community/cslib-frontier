@@ -82,9 +82,6 @@ theorem tokens_conj (l : List (QBF ℕ)) :
   | nil => rfl
   | cons φ l ih => simpa [conj, tokens] using ih
 
-private theorem tokens_imp (φ ψ : QBF ℕ) :
-    (imp φ ψ).tokens = (Kind.or, 0) :: (Kind.not, 0) :: (φ.tokens ++ ψ.tokens) := rfl
-
 theorem tokens_iff (φ ψ : QBF ℕ) : (iff φ ψ).tokens =
     (Kind.or, 0) :: (Kind.and, 0) :: (φ.tokens ++ ψ.tokens ++
       ((Kind.and, 0) :: (Kind.not, 0) :: (φ.tokens ++ (Kind.not, 0) :: ψ.tokens))) := by
@@ -368,7 +365,7 @@ def levelTokens (w i : ℕ) : List (QBF.Kind × ℕ) :=
 
 private theorem tokens_midpoint_succ (w : ℕ) (base : QBF ℕ) (i : ℕ) :
     (midpoint w base (i + 1)).tokens = levelTokens w i ++ (midpoint w base i).tokens := by
-  simp only [midpoint, QBF.tokens_exs, QBF.tokens_alls, QBF.tokens_imp, levelTokens,
+  simp only [midpoint, QBF.tokens_exs, QBF.tokens_alls, QBF.imp, levelTokens,
     List.append_assoc, List.cons_append, QBF.tokens]
 
 /-- The tokens of the midpoint formula of level `d`: the levels from `d` down to `1`, then the

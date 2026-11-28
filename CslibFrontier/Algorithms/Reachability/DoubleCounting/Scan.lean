@@ -151,9 +151,6 @@ private def Result.ofWalk (budget remaining : ℕ) (hit : Bool) : Result :=
 @[expose] def Result.recordWalk (acc : Result) (budget remaining : ℕ) (hit : Bool) : Result :=
   ⟨⟨acc.tally.count + 1, acc.tally.lengthSum + (budget - remaining)⟩, acc.hit || hit⟩
 
-private theorem add_ofWalk (acc : Result) (budget remaining : ℕ) (hit : Bool) :
-    add acc (Result.ofWalk budget remaining hit) = acc.recordWalk budget remaining hit := rfl
-
 private def candidateM [Monad m] (select : Fin N → m Bool) (next : m (Option (Fin N)))
     (edge : Fin N → Fin N → m Bool) (source target : Fin N) (k : ℕ) (v : Fin N) :
     m (Option Result) := do
@@ -230,7 +227,8 @@ theorem tallyPrefix_succ (edge : Fin N → Fin N → Bool) (source target : Fin 
   cases branch (⟨n, hn⟩ : Fin N)
   · rcases acc with ⟨⟨_, _⟩, _⟩
     simp [add, Result.zero]
-  · simp only [Option.map_map, Function.comp_def, add_ofWalk, walk]
+  · simp only [Option.map_map, Function.comp_def, walk]
+    rfl
 
 /-- A partial tally depends only on selections below its cursor. -/
 theorem tallyPrefix_congr (edge : Fin N → Fin N → Bool) (source target : Fin N)
