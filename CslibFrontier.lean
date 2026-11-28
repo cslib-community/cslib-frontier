@@ -4655,6 +4655,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Compiler.GateSweep.Qu
 public import CslibFrontier.Algorithms.MatrixMultiplication.Schonhage.BoxPartition
 public import CslibFrontier.Logics.Propositional.Algebraic.SumOfSquares.TseitinExpander
 public import CslibFrontier.Probability.PMF.PolynomialAgreement
+public import CslibFrontier.GameTheory.Graphical.MarkovNetwork
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Decision.Cost
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CertificateTransport
 public import CslibFrontier.Computability.Circuit.Frontier.TensorRank.ThreeWayCut

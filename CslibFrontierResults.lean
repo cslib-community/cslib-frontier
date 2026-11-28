@@ -7,6 +7,7 @@ import CslibFrontierResults.Entries.MinimumSpanningTree
 import CslibFrontierResults.Entries.SergeevORComplement
 import CslibFrontierResults.Entries.LocallyDecodable
 import CslibFrontierResults.Entries.CombinatorialAuction
+import CslibFrontierResults.Entries.GraphicalMarkovCE
 import CslibFrontierResults.Entries.KellyMechanism
 import CslibFrontierResults.Entries.DictionaryLowerBound
 import CslibFrontierResults.Entries.VeriPBSubgraphIso
