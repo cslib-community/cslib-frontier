@@ -288,28 +288,19 @@ private theorem fiberBitSum_eq_of_not_isUndetermined (Z : PMF (ι → Bool)) (Q 
     rw [ite_eq_left hx, ite_eq_left hx.symm, hfx]
   · rw [ite_eq_right hx, ite_eq_right (Ne.symm hx), mul_zero, zero_mul]
 
-omit [Fintype ι] [DecidableEq ι] in
-private theorem dist_eq_sum_max_zero_sub {α : Type*} [Fintype α] (p q : PMF α) :
-    dist p q = ∑ a, max 0 ((p a).toReal - (q a).toReal) := by
-  rw [dist_eq_sum_filter_lt, sum_filter]
-  refine sum_congr rfl fun a _ => ?_
-  by_cases h : (q a).toReal < (p a).toReal
-  · rw [ite_eq_left h, max_eq_right (sub_nonneg.mpr h.le)]
-  · rw [ite_eq_right h, max_eq_left (sub_nonpos.mpr (not_lt.mp h))]
-
 private theorem sum_bitVal_sub_le_coalitionInfluence_add_dist (Z D : PMF (ι → Bool))
     (Q : Finset ι) (f : (ι → Bool) → Bool) :
     (∑ x, (Z x).toReal * bitVal ℝ (f x)) - ∑ x, (D x).toReal * bitVal ℝ (f x) ≤
       coalitionInfluence D Q f + dist (Z.map Qᶜ.restrict) (D.map Qᶜ.restrict) := by
   rw [← sum_fiberBitSum Z Q f, ← sum_fiberBitSum D Q f, ← sum_sub_distrib,
-    coalitionInfluence_eq_sum_map_restrict D Q f, dist_eq_sum_max_zero_sub, ← sum_add_distrib]
+    coalitionInfluence_eq_sum_map_restrict D Q f, dist_eq_sum_max_sub_zero, ← sum_add_distrib]
   refine sum_le_sum fun u _ => ?_
   by_cases hu : IsUndetermined Q f (defaultExtend Q u)
   · rw [ite_eq_left hu, mul_one]
     have hZ := fiberBitSum_le_map_restrict Z Q f u
     have hD := fiberBitSum_nonneg D Q f u
-    linarith [le_max_left (0 : ℝ) ((Z.map Qᶜ.restrict u).toReal - (D.map Qᶜ.restrict u).toReal),
-      le_max_right (0 : ℝ) ((Z.map Qᶜ.restrict u).toReal - (D.map Qᶜ.restrict u).toReal)]
+    linarith [le_max_left ((Z.map Qᶜ.restrict u).toReal - (D.map Qᶜ.restrict u).toReal) 0,
+      le_max_right ((Z.map Qᶜ.restrict u).toReal - (D.map Qᶜ.restrict u).toReal) 0]
   · rw [ite_eq_right hu, mul_zero, zero_add,
       fiberBitSum_eq_of_not_isUndetermined Z Q f hu,
       fiberBitSum_eq_of_not_isUndetermined D Q f hu, ← sub_mul]

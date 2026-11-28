@@ -33,6 +33,7 @@ These statements reuse the upstream finite-PMF metric and its enumeration instan
   mixture.
 * `Cslib.Probability.PMF.dist_uniformOfFintype_bool`: statistical distance from uniform on `Bool`.
 * `Cslib.Probability.PMF.dist_eq_sum_filter_lt`: statistical distance as the excess on `{p > q}`.
+* `Cslib.Probability.PMF.dist_eq_sum_max_sub_zero`: the same excess as a sum of positive parts.
 * `Cslib.Probability.PMF.sum_min_toReal`, `Cslib.Probability.PMF.sum_max_toReal`: the overlap
   `∑ min (p a) (q a)` is `1 - δ` and `∑ max (p a) (q a)` is `1 + δ`.
 
@@ -202,5 +203,15 @@ theorem sum_min_toReal [Fintype α] (p q : PMF α) :
 theorem sum_max_toReal [Fintype α] (p q : PMF α) :
     ∑ a, max (p a).toReal (q a).toReal = 1 + dist p q := by
   linarith [sum_min_add_sum_max p q, sum_min_toReal p q]
+
+/-- The positive part of the pointwise mass difference sums to the statistical distance. -/
+theorem dist_eq_sum_max_sub_zero [Fintype α] (p q : PMF α) :
+    dist p q = ∑ a, max ((p a).toReal - (q a).toReal) 0 := by
+  calc
+    dist p q = (∑ a, max (p a).toReal (q a).toReal) - 1 := by
+      rw [sum_max_toReal, add_sub_cancel_left]
+    _ = _ := by
+      rw [← sum_toReal q, ← Finset.sum_sub_distrib]
+      exact Finset.sum_congr rfl fun _ _ => by rw [← max_sub_sub_right, sub_self]
 
 end Cslib.Probability.PMF

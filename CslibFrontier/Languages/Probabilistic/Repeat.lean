@@ -14,6 +14,7 @@ public import CslibFrontier.Probability.BitString.List
 public import CslibFrontier.Probability.Product
 public import CslibFrontier.Probability.IID
 import CslibFrontier.Foundations.Data.BitString.Weight
+import CslibFrontier.Probability.IID.Event
 import Mathlib.Algebra.BigOperators.Fin
 
 /-!
@@ -286,23 +287,11 @@ theorem toOuterMeasure_replicate_forall {β : Type} (program : ProbComp β)
     (f : β → Bool) (n : ℕ) :
     (eval (OracleComp.replicate n program)).toOuterMeasure {l | ∀ b ∈ l, f b = true} =
       (eval program).toOuterMeasure {b | f b = true} ^ n := by
-  induction n with
-  | zero => simp [PMF.toOuterMeasure_pure_apply]
-  | succ n ih =>
-    rw [OracleComp.replicate_succ, eval_bind, PMF.toOuterMeasure_bind_apply, pow_succ',
-      PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_right]
-    refine tsum_congr fun b => ?_
-    rw [eval_map, PMF.toOuterMeasure_map_apply]
-    by_cases hb : f b = true
-    · have hpre : List.cons b ⁻¹' {l | ∀ c ∈ l, f c = true} = {l | ∀ c ∈ l, f c = true} := by
-        ext l
-        simp [hb]
-      rw [hpre, ih, Set.indicator_of_mem (by exact hb), PMF.toOuterMeasure_apply]
-    · have hpre : List.cons b ⁻¹' {l | ∀ c ∈ l, f c = true} = ∅ := by
-        ext l
-        simp [hb]
-      rw [hpre, Set.indicator_of_notMem (by exact hb)]
-      simp
+  rw [eval_replicate_iid, PMF.toOuterMeasure_map_apply]
+  rw [show List.ofFn ⁻¹' {l : List β | ∀ b ∈ l, f b = true} =
+      {v : Fin n → β | ∀ i, f (v i) = true} from
+    Set.ext fun _ => List.forall_mem_ofFn_iff]
+  exact Probability.PMF.toOuterMeasure_iid_forall (eval program) {b | f b = true} n
 
 /-- The probability that `count` independent sequential runs of a closed probabilistic program
 all accept is the `count`-th power of the single-run acceptance probability. -/

@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
 public import CslibFrontier.Crypto.Computational.PseudorandomGenerator
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
 import CslibFrontier.Languages.Probabilistic.BitString
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Tactic.PPT
 
 /-!
@@ -185,23 +186,16 @@ theorem closeTo_generatorEnsemble_hardCoreIdeal_iff {f : List Bool → List Bool
     exact ⟨seed, BitString.length_of_mem_support_uniformList hseed, rfl⟩
   have hideal : (hardCoreIdeal f n).toOuterMeasure event ≤ 2⁻¹ := by
     rw [hardCoreIdeal_eq_bind, PMF.toOuterMeasure_bind_apply]
-    calc ∑' seed, BitString.uniformList n seed *
-          ((PMF.uniformOfFintype Bool).map (fun bit => f seed ++ [bit])).toOuterMeasure event
-        ≤ ∑' seed, BitString.uniformList n seed * 2⁻¹ := by
-          refine tsum_le_tsum fun seed => ?_
-          by_cases hseed : seed ∈ (BitString.uniformList n).support
-          · gcongr
-            rw [PMF.toOuterMeasure_map_apply]
-            calc (PMF.uniformOfFintype Bool).toOuterMeasure ((fun bit => f seed ++ [bit]) ⁻¹' event)
-                ≤ (PMF.uniformOfFintype Bool).toOuterMeasure {predicate seed} := by
-                  refine (PMF.uniformOfFintype Bool).toOuterMeasure.mono
-                    fun bit ⟨other, hother, heq⟩ => ?_
-                  obtain ⟨himage, hbit⟩ := List.append_inj' heq rfl
-                  cases hf (BitString.length_of_mem_support_uniformList hseed) hother himage
-                  simpa using hbit
-              _ = 2⁻¹ := by simp
-          · simp [(PMF.apply_eq_zero_iff _ _).2 hseed]
-      _ = 2⁻¹ := by rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+    refine Probability.PMF.tsum_mul_le_of_support _ fun seed hseed => ?_
+    rw [PMF.toOuterMeasure_map_apply]
+    calc (PMF.uniformOfFintype Bool).toOuterMeasure ((fun bit => f seed ++ [bit]) ⁻¹' event)
+        ≤ (PMF.uniformOfFintype Bool).toOuterMeasure {predicate seed} := by
+          refine (PMF.uniformOfFintype Bool).toOuterMeasure.mono
+            fun bit ⟨other, hother, heq⟩ => ?_
+          obtain ⟨himage, hbit⟩ := List.append_inj' heq rfl
+          cases hf (BitString.length_of_mem_support_uniformList hseed) hother himage
+          simpa using hbit
+      _ = 2⁻¹ := by simp
   calc (1 : ℝ≥0∞) / 2 = 1 - 2⁻¹ := by rw [one_div, ENNReal.one_sub_inv_two]
     _ ≤ ε := tsub_le_iff_left.2 ((hreal ▸ h event).trans (add_le_add_left hideal ε))
 

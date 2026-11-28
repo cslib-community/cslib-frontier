@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Bridging Boolean game advantage and all-events statistical closeness
@@ -218,14 +219,7 @@ theorem CloseTo.bind_right_tsum {α β : Type} (μ : PMF α) {f g : α → PMF �
     (h : ∀ a ∈ μ.support, CloseTo (f a) (g a) (err a)) :
     CloseTo (μ.bind f) (μ.bind g) (∑' a, μ a * err a) := fun event => by
   rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
-  calc
-    ∑' a, μ a * (f a).toOuterMeasure event
-      ≤ ∑' a, μ a * ((g a).toOuterMeasure event + err a) := by
-        refine tsum_le_tsum fun a => ?_
-        by_cases ha : a ∈ μ.support
-        · exact mul_le_mul_of_nonneg_left (h a ha event) zero_le
-        · simp [(PMF.apply_eq_zero_iff μ a).mpr ha]
-    _ = ∑' a, μ a * (g a).toOuterMeasure event + ∑' a, μ a * err a := by
-        simp only [mul_add, tsum_add]
+  exact (PMF.tsum_mul_mono_support μ fun a ha => h a ha event).trans_eq
+    (by simp only [mul_add, tsum_add])
 
 end Cslib.Probability
