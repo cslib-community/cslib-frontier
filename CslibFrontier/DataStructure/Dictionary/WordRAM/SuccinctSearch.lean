@@ -157,8 +157,7 @@ theorem clientState_resolveOvfStepProg (U V w n_max h_space : ℕ)
     (d : (ℕ × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
     (Memory.spec 0).clientState s (resolveOvfStepProg U V w n_max h_space d) = s := by
   simp only [resolveOvfStepProg, resolveOvfStepGenProg, ovfGenParams, ovfGenBase, ovfGenBucket,
-    ovfResolveIdx, ovfResolveSlabPtr, p_slabSize_mk, p_slabSizeSubOne_mk, p_gmSlabMetaBase_mk,
-    p_gmTailPtrBase_mk, p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk, pure_bind]
+    ovfResolveIdx, ovfResolveSlabPtr, succinct_param_simps, readGMGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientState_bind, clientState_readGMProg]
   split_ifs <;> first
     | (rw [StateTransitionSpec.clientState_bind, clientState_readGMProg]; rfl)
@@ -168,9 +167,8 @@ theorem memoryCost_resolveOvfStepProg_le (U V w n_max h_space : ℕ)
     (d : (ℕ × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
     memoryCost (resolveOvfStepProg U V w n_max h_space d) s ≤ 4 := by
   simp only [resolveOvfStepProg, resolveOvfStepGenProg, ovfGenParams, ovfGenBase, ovfGenBucket,
-    ovfResolveIdx, ovfResolveSlabPtr, p_slabSize_mk, p_slabSizeSubOne_mk, p_gmSlabMetaBase_mk,
-    p_gmTailPtrBase_mk, p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk, pure_bind,
-    ← PFunctor.FreeM.bind_eq_bind]
+    ovfResolveIdx, ovfResolveSlabPtr, succinct_param_simps, readGMGenProg_mk, pure_bind, ←
+    PFunctor.FreeM.bind_eq_bind]
   rw [memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg]
   split_ifs <;>
     simp only [memoryCost_bind, memoryCost_readGMProg, memoryCost_pure] <;>
@@ -244,8 +242,7 @@ theorem clientResult_resolveOvfStepProg {U V w n_max h_space : ℕ}
         slotOf n_max (gmAt d.1.1 U V w n_max h_space s.mem) d.1.2 d.2.1 := fun hj => by
     unfold slotOf; rw [ite_eq_right hb0, ite_eq_left hj, hp hj]
   simp only [resolveOvfStepProg, resolveOvfStepGenProg, ovfGenParams, ovfGenBase, ovfGenBucket,
-    ovfResolveIdx, ovfResolveSlabPtr, p_slabSize_mk, p_slabSizeSubOne_mk, p_gmSlabMetaBase_mk,
-    p_gmTailPtrBase_mk, p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk, pure_bind]
+    ovfResolveIdx, ovfResolveSlabPtr, succinct_param_simps, readGMGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
     clientResult_readGMProg s hq_lt, show 4 + 3 * d.1.2 = gmQIdx d.1.2 from rfl]
   split_ifs with hj_slab hoff hj1_slab
@@ -751,8 +748,7 @@ theorem clientState_initOvfSearchProg (U V w n_max h_space : ℕ)
     (d : ℕ × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (initOvfSearchProg U V w n_max h_space d) = s := by
   simp only [initOvfSearchProg, initOvfSearchGenProg, ovfInitBase, ovfInitBucket,
-    p_slabSize_mk, p_minCap_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_dirSlabsSubOne_mk,
-    p_gmSlabMetaBase_mk, readGMGenProg_mk, pure_bind]
+    succinct_param_simps, readGMGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientState_bind, clientState_readGMProg,
     StateTransitionSpec.clientState_bind, clientState_readGMProg]
   split_ifs <;> first
@@ -764,8 +760,7 @@ theorem memoryCost_initOvfSearchProg_le (U V w n_max h_space : ℕ)
     (d : ℕ × ℕ) (s : Memory.State) :
     memoryCost (initOvfSearchProg U V w n_max h_space d) s ≤ 8 := by
   simp only [initOvfSearchProg, initOvfSearchGenProg, ovfInitBase, ovfInitBucket,
-    p_slabSize_mk, p_minCap_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_dirSlabsSubOne_mk,
-    p_gmSlabMetaBase_mk, readGMGenProg_mk, pure_bind, ← PFunctor.FreeM.bind_eq_bind]
+    succinct_param_simps, readGMGenProg_mk, pure_bind, ← PFunctor.FreeM.bind_eq_bind]
   rw [memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg,
     memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg]
   split_ifs <;>
@@ -824,8 +819,7 @@ theorem clientResult_initOvfSearchProg {U V w n_max h_space : ℕ}
     unfold bCount gmQIdx gmRIdx; simp only [hb0, ↓reduceIte, hb]
   have hbc_le := bCount_le_n_max hinv d.2
   simp only [initOvfSearchProg, initOvfSearchGenProg, ovfInitBase, ovfInitBucket,
-    p_slabSize_mk, p_minCap_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_dirSlabsSubOne_mk,
-    p_gmSlabMetaBase_mk, readGMGenProg_mk, pure_bind]
+    succinct_param_simps, readGMGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
     clientResult_readGMProg s hq_lt, StateTransitionSpec.clientResult_bind,
     clientState_readGMProg, clientResult_readGMProg s hr_lt, hbc_eq]

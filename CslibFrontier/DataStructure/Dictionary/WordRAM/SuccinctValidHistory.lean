@@ -242,8 +242,8 @@ theorem validProg_readBucketCount {U V w n_max h_space : ℕ} {d : ℕ × ℕ} {
     (hw : 0 < w) (hb : d.2 < numBuckets n_max) :
     ValidProg w (dictFrontier U V w n_max h_space d.1) s
       (readBucketCountProg U V w n_max h_space d) := by
-  dsimp +instances only [readBucketCountProg, readBucketCountGenProg, p_bucketBits_mk,
-    p_slabSize_mk, readGMGenProg_mk]
+  dsimp +instances only [readBucketCountProg, readBucketCountGenProg, succinct_param_simps,
+    readGMGenProg_mk]
   split_ifs with hb0
   · exact validProg_readGM hw (by wram_omega)
   · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0
@@ -272,9 +272,8 @@ theorem validProg_resolveIndexedSlot {U V w n_max h_space : ℕ} {d : (ℕ × �
     (hj_cap : d.2 < effBucketCap n_max) :
     ValidProg w (dictFrontier U V w n_max h_space (dictArgBase d)) s
       (resolveIndexedSlotProg U V w n_max h_space d) := by
-  dsimp +instances only [resolveIndexedSlotProg, resolveIndexedSlotGenProg, p_bucketBits_mk,
-    p_slabSize_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_slabSizeSubOne_mk, p_gmTailPtrBase_mk,
-    p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk]
+  dsimp +instances only [resolveIndexedSlotProg, resolveIndexedSlotGenProg, succinct_param_simps,
+    readGMGenProg_mk]
   split_ifs with hb0
   · exact validProg_pure _
   · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0
@@ -297,7 +296,7 @@ theorem validProg_appendTailItem {U V w n_max h_space : ℕ} {d : ℕ × ℕ} {s
   obtain ⟨hr_idx, h1_idx, hptr_lt, hown_lt, -, -⟩ :=
     appendTailItem_bounds (V := V) (h_space := h_space) ⟨htail, hb, hr_lt, hb_pos⟩
   simp only [appendTailItemProg, appendTailItemGenProg, readGMGenProg_mk, writeGMGenProg_mk,
-    p_tailCap_mk, p_gmTailPtrBase_mk, p_gmTailOwnerBase_mk]
+    succinct_param_simps]
   valid_prog
 
 theorem validProg_removeLastTailItem {U V w n_max h_space : ℕ} {d : ℕ × ℕ} {s : Memory.State}
@@ -315,7 +314,7 @@ theorem validProg_removeLastTailItem {U V w n_max h_space : ℕ} {d : ℕ × ℕ
     removeLastTailItem_bounds (V := V) (h_space := h_space) ⟨htail, hb, hr_pos, hb_pos⟩
   simp only [removeLastTailItemProg, removeLastTailItemGenProg, readGMGenProg_mk,
     readQuotGenProg_mk, writeQuotGenProg_mk, readValGenProg_mk, writeValGenProg_mk,
-    writeGMGenProg_mk, p_gmTailPtrBase_mk, p_tailCap_mk, p_gmTailOwnerBase_mk, p_nMaxSubOne_mk]
+    writeGMGenProg_mk, succinct_param_simps]
   valid_prog
 
 theorem validProg_gmPushSlab {U V w n_max h_space : ℕ} {d : ℕ × ℕ} {s : Memory.State}
@@ -330,7 +329,7 @@ theorem validProg_gmPushSlab {U V w n_max h_space : ℕ} {d : ℕ × ℕ} {s : M
   obtain ⟨hq_idx_lt, h0_lt, htop_idx_lt, hownB_lt, hownS_lt, hbel_lt, habv_lt, hdir_lt, -, -⟩ :=
     gmPushSlab_bounds (V := V) (h_space := h_space) ⟨hslab, hb, hp_lt, hb_pos⟩
   simp only [gmPushSlabProg, gmPushSlabGenProg, readGMGenProg_mk, writeGMGenProg_mk,
-    p_gmSlabMetaBase_mk, p_dirSlabs_mk, p_gmSlabDirBase_mk]
+    succinct_param_simps]
   valid_prog
 
 theorem validProg_gmUnlinkTopSlab {U V w n_max h_space : ℕ} {d : ℕ × ℕ} {s : Memory.State}
@@ -355,8 +354,8 @@ theorem validProg_gmRelinkMovedSlab {U V w n_max h_space : ℕ} {d : (ℕ × ℕ
       (gmRelinkMovedSlabProg U V w n_max h_space d) := by
   obtain ⟨hownB_last_lt, hownS_last_lt, hq_last_lt, hdir_lt, -, htop_lt⟩ :=
     gmRelinkMovedSlab_bounds hb_pos hpre
-  simp only [gmRelinkMovedSlabProg, gmRelinkMovedSlabGenProg, readGMGenProg_mk,
-    writeGMGenProg_mk, p_gmSlabMetaBase_mk, p_dirSlabs_mk, p_gmSlabDirBase_mk]
+  simp only [gmRelinkMovedSlabProg, gmRelinkMovedSlabGenProg, readGMGenProg_mk, writeGMGenProg_mk,
+    succinct_param_simps]
   valid_prog
 
 theorem validProg_gmLinkMovedNeighbors {U V w n_max h_space : ℕ} {d : (ℕ × ℕ) × ℕ}
@@ -412,9 +411,9 @@ theorem validProg_promoteStep {U V w n_max h_space : ℕ} {x : (ℕ × ℕ) × �
   obtain ⟨-, -, hptr_u_lt, hptr_top_lt, h0_lt, -, -, hgu_lt, hgtop_lt, hgslab_lt, htail2,
       hr2_pos, -⟩ := promoteStep_bounds hw ⟨hpre, hb_pos⟩
   have hhb := hpre.1
-  simp only [promoteStepProg, promoteStepGenProg, p_slabSizeSubOne_mk, p_slabSize_mk,
-    p_gmTailPtrBase_mk, p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk, readQuotGenProg_mk,
-    readValGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk, removeLastTailItemGenProg_mk]
+  simp only [promoteStepProg, promoteStepGenProg, succinct_param_simps, readGMGenProg_mk,
+    readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk,
+    removeLastTailItemGenProg_mk]
   valid_prog [validProg_removeLastTailItem]
   · exact htail2
   · exact hr2_pos
@@ -476,9 +475,9 @@ theorem validProg_demoteStep {U V w n_max h_space : ℕ} {x : (ℕ × ℕ) × �
       (demoteStepProg U V w n_max h_space x) := by
   obtain ⟨-, htop_idx_lt, h0_idx_lt, -, hg_del_lt, hg_last_lt, ⟨htail, hb, hr_cap, -⟩, -,
       hg_tail_lt, -⟩ := demoteStep_bounds hw ⟨hpre, hb_pos⟩
-  simp only [demoteStepProg, demoteStepGenProg, p_slabSizeSubOne_mk, p_slabSize_mk,
-    p_nMaxSubOne_mk, readGMGenProg_mk, readQuotGenProg_mk, readValGenProg_mk,
-    writeQuotGenProg_mk, writeValGenProg_mk, appendTailItemGenProg_mk]
+  simp only [demoteStepProg, demoteStepGenProg, succinct_param_simps, readGMGenProg_mk,
+    readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk,
+    appendTailItemGenProg_mk]
   valid_prog [validProg_appendTailItem]
 
 theorem validProg_demoteLoop {U V w n_max h_space : ℕ} {d : ((ℕ × ℕ) × ℕ) × ℕ} {s : Memory.State}
@@ -776,8 +775,7 @@ theorem validProg_resolveOvfStep {U V w n_max h_space : ℕ}
   have hw := (dictEnvGen_mk_bounds henv).1
   have hq_lt : 4 + 3 * d.1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos hb
   simp only [resolveOvfStepProg, resolveOvfStepGenProg, ovfGenParams, ovfGenBase, ovfGenBucket,
-    ovfResolveIdx, ovfResolveSlabPtr, p_slabSize_mk, p_slabSizeSubOne_mk, p_gmSlabMetaBase_mk,
-    p_gmTailPtrBase_mk, p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk, pure_bind]
+    ovfResolveIdx, ovfResolveSlabPtr, succinct_param_simps, readGMGenProg_mk, pure_bind]
   valid_prog with [clientState_readGMProg, clientResult_readGMProg]
   · have hs_lt : d.2.1 / slabSize n_max <
         gmAt d.1.1 U V w n_max h_space s.mem (gmQIdx d.1.2) :=
@@ -829,8 +827,7 @@ theorem validProg_initOvfSearch {U V w n_max h_space : ℕ}
     unfold bCount gmQIdx gmRIdx; simp [Nat.ne_of_gt hb_pos, hb]
   have hbc_le := bCount_le_n_max hinv d.2
   simp only [initOvfSearchProg, initOvfSearchGenProg, ovfInitBase, ovfInitBucket,
-    p_slabSize_mk, p_minCap_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_dirSlabsSubOne_mk,
-    p_gmSlabMetaBase_mk, readGMGenProg_mk, pure_bind]
+    succinct_param_simps, readGMGenProg_mk, pure_bind]
   valid_prog with [clientState_readGMProg, clientResult_readGMProg, hbc_eq]
   · have : min n_max (effBucketCap n_max) = effBucketCap n_max := by omega
     exact (hinv.lastDirSlab_ptr hb_pos hb (by unfold gmQIdx; omega)).1
@@ -847,8 +844,8 @@ theorem validProg_searchOverflow {U V w n_max h_space : ℕ}
       (searchOverflowProg U V w n_max h_space d) := by
   rcases hpre with ⟨henv, hb, hinv⟩
   by_cases hb0 : bucketBits n_max = 0 <;>
-    simp only [searchOverflowProg, searchOverflowGenProg, p_bucketBits_mk, hb0, ↓reduceIte,
-      ovfSearchBucketLoc, p_minCap_mk, initOvfSearchGenProg_mk, ovfLoopGenProg_mk, pure_bind]
+    simp only [searchOverflowProg, searchOverflowGenProg, succinct_param_simps, hb0, ↓reduceIte,
+      ovfSearchBucketLoc, initOvfSearchGenProg_mk, ovfLoopGenProg_mk, pure_bind]
   · exact validProg_pure _
   · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0
     refine validProg_bind (validProg_initOvfSearch (d := d.1) hw hb_pos hb hinv) ?_

@@ -16,6 +16,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.While
 public import CslibFrontier.Computability.WordRAM.Realization.Witness
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArrayProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlotInv
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctParamSimps
 import CslibFrontier.Computability.WordRAM.Width
 import CslibFrontier.DataStructure.Dictionary.WordRAM.PackedSlice
 import CslibFrontier.Tactic.Realize
@@ -269,6 +270,13 @@ instance : WordEncoding DictParams := ⟨36, Function.Embedding.refl (Fin 36 →
   rcases c with ⟨_ | _ | _ | _ | _ | _ | _ | _ | _ | c, hc⟩ <;> try rfl
   omega
 
+attribute [succinct_param_simps]
+  p_w_mk p_nMax_mk p_nMaxSubOne_mk p_offQuot_mk p_quotBits_mk p_offVal_mk p_valBits_mk p_lmBits_mk
+  p_offGM_mk p_gmBits_mk p_bucketBits_mk p_bucketMask_mk p_slabSize_mk p_slabSizeSubOne_mk
+  p_twoSlabSize_mk p_dirSlabs_mk p_dirSlabsSubOne_mk p_tailCap_mk p_gmSlabDirBase_mk
+  p_gmTailPtrBase_mk p_gmTailOwnerBase_mk p_gmSlabMetaBase_mk p_numMicro_mk p_minCap_mk p_U_mk
+  p_V_mk p_hSpace_mk p_offLMSub_mk
+
 /-- Common entry envelope for dictionary `Memory.Prog` operations at `base`. -/
 @[expose] def DictEnv (U V w n_max h_space : ℕ) (w' base : ℕ) : Prop :=
   w' = w ∧ Fits w (base + totalSpace U V w n_max h_space)
@@ -432,12 +440,7 @@ scoped macro "simpDictParamsWith" "[" extra:Lean.Parser.Tactic.simpLemma,* "]" :
   `(tactic|
     try simp only [
       $extra,*,
-      p_w_mk, p_nMax_mk, p_nMaxSubOne_mk, p_offQuot_mk, p_quotBits_mk, p_offVal_mk,
-      p_valBits_mk, p_lmBits_mk, p_offGM_mk, p_gmBits_mk, p_bucketBits_mk,
-      p_bucketMask_mk, p_slabSize_mk, p_slabSizeSubOne_mk, p_twoSlabSize_mk,
-      p_dirSlabs_mk, p_dirSlabsSubOne_mk, p_tailCap_mk, p_gmSlabDirBase_mk,
-      p_gmTailPtrBase_mk, p_gmTailOwnerBase_mk, p_gmSlabMetaBase_mk, p_numMicro_mk,
-      p_minCap_mk, p_U_mk, p_V_mk, p_hSpace_mk, p_offLMSub_mk,
+      succinct_param_simps,
       readQuotGenProg_mk, writeQuotGenProg_mk, readValGenProg_mk, writeValGenProg_mk,
       readLMGenProg_mk, writeLMGenProg_mk, readGMGenProg_mk, writeGMGenProg_mk,
       readBucketCountGenProg_mk, resolveIndexedSlotGenProg_mk] at *)
@@ -577,7 +580,7 @@ theorem fits_const_of_dictEnv {U V w₀ n_max h_space w base c : ℕ}
     (h : DictEnvGen w (mkDictParams U V w₀ n_max h_space) base) (hc : c ≤ 24) :
     Fits w c := by
   rcases h.env with ⟨rfl, hspace⟩
-  dsimp only [p_U_mk, p_V_mk, p_w_mk, p_nMax_mk, p_hSpace_mk] at hspace
+  dsimp only [succinct_param_simps] at hspace
   have hl : 2 ≤ lmSubWords n_max w := Nat.le_add_left 2 _
   have hg : 2 ≤ packedWords (globalMetaLen n_max) (globalPtrBits n_max) w := Nat.le_add_left 2 _
   have hv : 2 ≤ packedWords n_max (valBits V) w := Nat.le_add_left 2 _
@@ -647,8 +650,8 @@ theorem clientResult_readBucketCountProg {U V w n_max h_space : ℕ}
     (d : ℕ × ℕ) (s : Memory.State) (hb : d.2 < numBuckets n_max) :
     (Memory.spec 0).clientResult s (readBucketCountProg U V w n_max h_space d) =
       bCount n_max (gmAt d.1 U V w n_max h_space s.mem) d.2 := by
-  dsimp +instances only [readBucketCountProg, readBucketCountGenProg, p_bucketBits_mk,
-    p_slabSize_mk, readGMGenProg_mk, bCount]
+  dsimp +instances only [readBucketCountProg, readBucketCountGenProg, succinct_param_simps,
+    readGMGenProg_mk, bCount]
   by_cases hb0 : bucketBits n_max = 0
   · have hd2 : d.2 = 0 := by simp [numBuckets, hb0] at hb; omega
     simp only [hb0, ↓reduceIte, hd2]
@@ -664,15 +667,15 @@ theorem clientResult_readBucketCountProg {U V w n_max h_space : ℕ}
 theorem clientState_readBucketCountProg {U V w n_max h_space : ℕ}
     (d : ℕ × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (readBucketCountProg U V w n_max h_space d) = s := by
-  dsimp +instances only [readBucketCountProg, readBucketCountGenProg, p_bucketBits_mk,
-    p_slabSize_mk, readGMGenProg_mk]
+  dsimp +instances only [readBucketCountProg, readBucketCountGenProg, succinct_param_simps,
+    readGMGenProg_mk]
   split_ifs <;> rfl
 
 theorem memoryCost_readBucketCountProg_le {U V w n_max h_space : ℕ}
     (d : ℕ × ℕ) (s : Memory.State) :
     memoryCost (readBucketCountProg U V w n_max h_space d) s ≤ 4 := by
-  dsimp +instances only [readBucketCountProg, readBucketCountGenProg, p_bucketBits_mk,
-    p_slabSize_mk, readGMGenProg_mk, readGMProg]
+  dsimp +instances only [readBucketCountProg, readBucketCountGenProg, succinct_param_simps,
+    readGMGenProg_mk, readGMProg]
   prog_cost [memoryCost_readPackedProg]
 
 theorem realizes_readBucketCountGen :
@@ -700,9 +703,8 @@ theorem realizes_readBucketCountGen :
 theorem clientState_resolveIndexedSlotProg {U V w n_max h_space : ℕ}
     (d : (ℕ × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (resolveIndexedSlotProg U V w n_max h_space d) = s := by
-  dsimp +instances only [resolveIndexedSlotProg, resolveIndexedSlotGenProg, p_bucketBits_mk,
-    p_slabSize_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_slabSizeSubOne_mk, p_gmTailPtrBase_mk,
-    p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk]
+  dsimp +instances only [resolveIndexedSlotProg, resolveIndexedSlotGenProg, succinct_param_simps,
+    readGMGenProg_mk]
   split_ifs with hb0
   · rfl
   · rw [StateTransitionSpec.clientState_bind, clientState_readGMProg]
@@ -711,9 +713,8 @@ theorem clientState_resolveIndexedSlotProg {U V w n_max h_space : ℕ}
 theorem memoryCost_resolveIndexedSlotProg_le {U V w n_max h_space : ℕ}
     (d : (ℕ × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (resolveIndexedSlotProg U V w n_max h_space d) s ≤ 4 := by
-  dsimp +instances only [resolveIndexedSlotProg, resolveIndexedSlotGenProg, p_bucketBits_mk,
-    p_slabSize_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_slabSizeSubOne_mk, p_gmTailPtrBase_mk,
-    p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk, readGMProg]
+  dsimp +instances only [resolveIndexedSlotProg, resolveIndexedSlotGenProg, succinct_param_simps,
+    readGMGenProg_mk, readGMProg]
   prog_cost [memoryCost_readPackedProg]
 
 private theorem div_slabSize_lt_dirSlabs {n_max j : ℕ} (hb_pos : 0 < bucketBits n_max)
@@ -734,9 +735,8 @@ theorem clientResult_resolveIndexedSlotProg {U V w n_max h_space : ℕ}
     (hj_cap : d.2 < effBucketCap n_max) :
     (Memory.spec 0).clientResult s (resolveIndexedSlotProg U V w n_max h_space d) =
       slotOf n_max (gmAt d.1.1 U V w n_max h_space s.mem) d.1.2 d.2 := by
-  dsimp +instances only [resolveIndexedSlotProg, resolveIndexedSlotGenProg, p_bucketBits_mk,
-    p_slabSize_mk, p_gmSlabDirBase_mk, p_dirSlabs_mk, p_slabSizeSubOne_mk, p_gmTailPtrBase_mk,
-    p_tailCap_mk, p_nMaxSubOne_mk, readGMGenProg_mk, slotOf]
+  dsimp +instances only [resolveIndexedSlotProg, resolveIndexedSlotGenProg, succinct_param_simps,
+    readGMGenProg_mk, slotOf]
   by_cases hb0 : bucketBits n_max = 0
   · simp only [hb0, ↓reduceIte]; rfl
   · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.Dictionary.Dynamic.Spec
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArray
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlotInv
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctParamSimps
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.RuntimeReducedKWise
 import Mathlib.Tactic.Ring
 public import CslibFrontier.Tactic.WramOmega.Init
@@ -669,6 +670,13 @@ abbrev cpHashSpace (cp : CompParams) : ℕ := cp ⟨35, by decide⟩
     cpOffItems (mkCompParams U V w N) = offCompItems U w N := rfl
 @[simp] theorem cpHashSpace_mk (U V w N : ℕ) :
     cpHashSpace (mkCompParams U V w N) = epochHashSpace U w N := rfl
+
+attribute [succinct_param_simps]
+  cpOffLMSub_mk cpW_mk cpN_mk cpNSubOne_mk cpQuotBits_mk cpValBits_mk cpLmBits_mk cpOffGM_mk
+  cpGmBits_mk cpOffTD_mk cpOffDT_mk cpMaxTail_mk cpBucketBits_mk cpBucketMask_mk cpSlabSize_mk
+  cpSlabSizeSubOne_mk cpTwoSlabSize_mk cpDirSlabs_mk cpDirSlabsSubOne_mk cpTailCap_mk
+  cpGmSlabDirBase_mk cpGmTailPtrBase_mk cpGmTailOwnerBase_mk cpGmSlabMetaBase_mk cpNumMicro_mk
+  cpMinCap_mk cpOffItems_mk cpHashSpace_mk
 
 /-- Stored runtime parameter blocks in `[metaBase + 8, metaBase + 63)` for active epoch `N`. -/
 structure EpochParamsStored (U V w N metaBase : ℕ) (mem : ℕ → ℕ) : Prop where
