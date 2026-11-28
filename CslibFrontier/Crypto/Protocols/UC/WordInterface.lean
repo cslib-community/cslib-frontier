@@ -19,6 +19,8 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Finite
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.QueryBounds
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
@@ -50,7 +52,8 @@ oracle, canonical-request normalizer, and strict oracle PPT preservation certifi
   (`WordInterface.encodeOracle_eq_wordOracle`). Conversely, `WordInterface.normalizeRequests`
   rewrites every query `(c, w)` of an arbitrary word program to `(c, I.requestNormalize c w)`, so
   interacting with `I.encodeOracle oracle` has the exact same joint output and oracle-state law as
-  running the canonicalized program against the strict non-mutating `I.toOracleCodec.wordOracle`
+  running the canonicalized program against `I.toOracleCodec.wordOracle` (which leaves oracle state
+  unchanged on off-image requests)
   (`WordInterface.runWith_encodeOracle_eq_wordOracle_normalizeRequests`), while preserving strict
   oracle PPT (`WordInterface.isOraclePPTOn_normalizeRequests`) without extra reply-length bounds.
   Total request/reply decoders and the finite `Channel` normalization certificates
@@ -101,8 +104,8 @@ oracle, canonical-request normalizer, and strict oracle PPT preservation certifi
   request/word, and reply bound are polynomial time.
 * `Cslib.Crypto.Protocols.UC.WordInterface.runWith_encodeOracle_eq_wordOracle_normalizeRequests`:
   running any word program against `I.encodeOracle oracle` has the same joint output and state law
-  as running `I.normalizeRequests program` against the strict non-mutating
-  `I.toOracleCodec.wordOracle oracle`.
+  as running `I.normalizeRequests program` against `I.toOracleCodec.wordOracle oracle` (which leaves
+  oracle state unchanged on off-image requests).
 * `Cslib.Crypto.Protocols.UC.WordInterface.queriesSatisfy_normalizeRequests`,
   `Cslib.Crypto.Protocols.UC.WordInterface.normalizeRequests_idempotent`, and
   `Cslib.Crypto.Protocols.UC.WordInterface.normalizeRequests_lowerWith`: normalized programs issue
@@ -564,8 +567,9 @@ def normalizeRequests {ι α : Type} {E : ι → Type} (I : WordInterface E)
 
 /-- Library infrastructure (no cited result): interacting with the total normalized oracle
 `I.encodeOracle oracle` produces the exact same joint output and oracle-state distribution as
-running `I.normalizeRequests program` against the strict non-mutating
-`I.toOracleCodec.wordOracle oracle`, for every word program (including off-image queries). -/
+running `I.normalizeRequests program` against `I.toOracleCodec.wordOracle oracle` (which leaves
+oracle state unchanged on off-image requests), for every word program (including off-image
+queries). -/
 theorem runWith_encodeOracle_eq_wordOracle_normalizeRequests {ι α σ : Type} {E : ι → Type}
     (I : WordInterface E) (oracle : (q : ι) → StateT σ PMF (E q))
     (program : WordOracleComp I.Channel α) (s : σ) :
@@ -607,10 +611,8 @@ theorem normalizeRequests_eq_self {ι α : Type} {E : ι → Type}
     (h : program.QueriesSatisfy (fun cw => ∃ q : ι, cw = (I.channel q, I.request q))) :
     I.normalizeRequests program = program := by
   rw [normalizeRequests, ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
-  have hid : OracleComp.interpret OracleComp.query program = program := by
-    rw [← OracleComp.substitute_eq_interpret]
-    exact OracleComp.substitute_query_eq_self program
-  refine (OracleComp.QueriesSatisfy.interpret_congr h fun q hq => ?_).trans hid
+  refine (OracleComp.QueriesSatisfy.interpret_congr h fun q hq => ?_).trans
+    (OracleComp.interpret_query_eq_self program)
   cases q with
   | inl n => exact ProbOracleComp.sample_unifFin n
   | inr cw =>
@@ -661,98 +663,6 @@ theorem isQueryBounded_normalizeRequests {ι α : Type} {E : ι → Type}
     (I.normalizeRequests program).IsQueryBounded n :=
   h.simulate fun cw => ProbOracleComp.IsQueryBounded.query (cw.1, I.requestNormalize cw.1 cw.2)
 
-/-- Two machine configurations agree within `fuel` steps of their current answer heads. -/
-private def AnswerAgree {k : ℕ} {Symbol State Oracle : Type} {input : List Symbol}
-    (fuel : ℕ) (cfg₁ cfg₂ : Turing.MultiTapeMachine.Config k Symbol State Oracle input) : Prop :=
-  cfg₁.tapes = cfg₂.tapes ∧
-    ∀ o, (cfg₁.channels o).queryBuffer = (cfg₂.channels o).queryBuffer ∧
-      (cfg₁.channels o).answerPos = (cfg₂.channels o).answerPos ∧
-      ∀ i : ℕ, (i : ℤ) < (cfg₁.channels o).answerPos + fuel →
-        (cfg₁.channels o).answer[i]? = (cfg₂.channels o).answer[i]?
-
-private theorem answerAgree_refl {k : ℕ} {Symbol State Oracle : Type} {input : List Symbol}
-    (fuel : ℕ) (cfg : Turing.MultiTapeMachine.Config k Symbol State Oracle input) :
-    AnswerAgree fuel cfg cfg :=
-  ⟨rfl, fun _ => ⟨rfl, rfl, fun _ _ => rfl⟩⟩
-
-private theorem answerAgree_answerSymbols {k : ℕ} {Symbol State Oracle : Type} {input : List Symbol}
-    {fuel : ℕ} {cfg₁ cfg₂ : Turing.MultiTapeMachine.Config k Symbol State Oracle input}
-    (h : AnswerAgree (fuel + 1) cfg₁ cfg₂) :
-    cfg₁.answerSymbols = cfg₂.answerSymbols := by
-  funext o
-  obtain ⟨_, hpos, hans⟩ := h.2 o
-  dsimp only [Turing.MultiTapeMachine.Config.answerSymbols,
-    Turing.MultiTapeMachine.Channel.answerSymbol]
-  rw [← hpos]
-  split_ifs with hnn
-  · exact hans (cfg₁.channels o).answerPos.toNat (by omega)
-  · rfl
-
-private theorem answerAgree_step {k : ℕ} {Symbol State Oracle : Type} {input : List Symbol}
-    {fuel : ℕ} {cfg₁ cfg₂ : Turing.MultiTapeMachine.Config k Symbol State Oracle input}
-    (h : AnswerAgree (fuel + 1) cfg₁ cfg₂)
-    (action : Turing.Action k Symbol State) (symbol : Oracle → Option Symbol)
-    (move : Oracle → SignType) :
-    AnswerAgree fuel (cfg₁.step action symbol move) (cfg₂.step action symbol move) := by
-  refine ⟨congrArg action.apply h.1, fun o => ?_⟩
-  obtain ⟨hq, hpos, hans⟩ := h.2 o
-  refine ⟨congrArg (· ++ (symbol o).toList) hq, congrArg (· + (move o : ℤ)) hpos, fun i hi => ?_⟩
-  have hmove : (move o : ℤ) ≤ 1 := by cases move o <;> decide
-  exact hans i (by dsimp only [Turing.MultiTapeMachine.Config.step] at hi; omega)
-
-private theorem answerAgree_receive {k : ℕ} {Symbol State Oracle : Type} {input : List Symbol}
-    [DecidableEq Oracle] {fuel limit : ℕ} (hfl : fuel ≤ limit)
-    {cfg₁ cfg₂ : Turing.MultiTapeMachine.Config k Symbol State Oracle input}
-    (h : AnswerAgree (fuel + 1) cfg₁ cfg₂) (op : Oracle) (next : State) (answer : List Symbol) :
-    AnswerAgree fuel (cfg₁.receive op next answer)
-      (cfg₂.receive op next (List.take limit answer)) := by
-  refine ⟨by simp only [Turing.MultiTapeMachine.Config.receive, h.1], fun o => ?_⟩
-  by_cases ho : o = op
-  · subst ho
-    refine ⟨by simp only [Turing.MultiTapeMachine.Config.receive, Function.update_self],
-      by simp only [Turing.MultiTapeMachine.Config.receive, Function.update_self], fun i hi => ?_⟩
-    simp only [Turing.MultiTapeMachine.Config.receive, Function.update_self] at hi ⊢
-    exact (List.getElem?_take_of_lt (by omega)).symm
-  · obtain ⟨hq, hpos, hans⟩ := h.2 o
-    simp only [Turing.MultiTapeMachine.Config.receive, Function.update_of_ne ho]
-    exact ⟨hq, hpos, fun i hi => hans i (by omega)⟩
-
-/-- A clocked `MultiTapeMachine` with `fuel ≤ limit` steps can read at most indices `< fuel` of any
-oracle reply, so truncating every reply to `limit` symbols leaves its output program unchanged. -/
-private theorem runFrom_eq_take_answers
-    {k : ℕ} {Symbol State Oracle Query : Type}
-    {Choose : Type → Type} {spec : OracleSpec.{0, 0} Query}
-    {input : List Symbol} [DecidableEq Oracle]
-    (machine : Turing.MultiTapeMachine k Symbol State Oracle Choose)
-    (choose : Choose (Turing.MultiTapeMachine.Action k Symbol State Oracle) →
-      OracleComp spec (Turing.MultiTapeMachine.Action k Symbol State Oracle))
-    (query : Oracle → List Symbol → OracleComp spec (List Symbol)) {limit : ℕ} :
-    ∀ (fuel : ℕ), fuel ≤ limit →
-    ∀ (cfg₁ cfg₂ : Turing.MultiTapeMachine.Config k Symbol State Oracle input),
-      AnswerAgree fuel cfg₁ cfg₂ →
-      machine.runFrom choose query fuel cfg₁ =
-        machine.runFrom choose (fun op w => List.take limit <$> query op w) fuel cfg₂
-  | 0, _, cfg₁, cfg₂, h => by
-    simp only [Turing.MultiTapeMachine.runFrom_zero, h.1]
-  | fuel + 1, hfl, cfg₁, cfg₂, h => by
-    unfold Turing.MultiTapeMachine.runFrom Turing.MultiTapeMachine.runConfigFrom
-    cases hs : cfg₁.tapes.state with
-    | none =>
-      have hs₂ : cfg₂.tapes.state = none := by rw [← h.1, hs]
-      simp only [hs₂, map_pure, h.1]
-    | some state =>
-      simp only [← h.1, hs, map_bind, answerAgree_answerSymbols h]
-      congr 1 with act : 1
-      cases act with
-      | step action symbol move =>
-        exact runFrom_eq_take_answers machine choose query fuel (Nat.le_of_succ_le hfl)
-          _ _ (answerAgree_step h action symbol move)
-      | query op next =>
-        simp only [map_bind, bind_map_left, (h.2 op).1]
-        congr 1 with answer : 1
-        exact runFrom_eq_take_answers machine choose query fuel (Nat.le_of_succ_le hfl)
-          _ _ (answerAgree_receive (Nat.le_of_succ_le hfl) h op next answer)
-
 /-- Truncating every oracle reply to `fuel` bits leaves `machine.runOracle fuel input` unchanged.
 -/
 private theorem runOracle_eq_simulate_take
@@ -762,9 +672,18 @@ private theorem runOracle_eq_simulate_take
     machine.runOracle fuel input =
       ProbOracleComp.simulate (fun cw => List.take fuel <$> ProbOracleComp.query cw)
         (machine.runOracle fuel input) := by
-  simp only [Turing.MultiTapePTM.runOracle, Turing.MultiTapePTM.run, Turing.MultiTapePTM.runFrom,
-    Turing.MultiTapePTM.runConfigFrom, ProbOracleComp.simulate, OracleComp.substitute_eq_interpret,
-    OracleComp.interpret_map, Turing.MultiTapeMachine.interpret_runConfigFrom]
+  have htake :
+      machine.runOracle fuel input =
+        Turing.MultiTapeMachine.run machine
+          (fun choices => choices <$> ProbOracleComp.sample (ProbComp.uniform Bool))
+          (fun op word => List.take fuel <$> ProbOracleComp.query (op, word)) fuel input :=
+    (Turing.MultiTapePTM.finiteRunFrom_take_runOracle machine fuel input).symm.trans
+      (Turing.MultiTapeMachine.finiteRunFrom_init machine _ _ fuel input)
+  conv_rhs =>
+    simp only [Turing.MultiTapePTM.runOracle, Turing.MultiTapePTM.run, Turing.MultiTapePTM.runFrom,
+      Turing.MultiTapePTM.runConfigFrom, ProbOracleComp.simulate,
+      OracleComp.substitute_eq_interpret, OracleComp.interpret_map,
+      Turing.MultiTapeMachine.interpret_runConfigFrom]
   have hsample :
       OracleComp.interpret
         (OracleComp.sumHandler
@@ -797,7 +716,7 @@ private theorem runOracle_eq_simulate_take
       rw [← OracleComp.substitute_eq_interpret]
       exact ProbOracleComp.simulate_query _ (oracle, word)
   simp only [hsample, hquery]
-  exact runFrom_eq_take_answers machine _ _ fuel le_rfl _ _ (answerAgree_refl _ _)
+  exact htake
 
 /-- Library infrastructure (no cited result): canonical-request normalization preserves uniform
 strict oracle PPT for arbitrary word adversaries, with no extra reply-length assumption: a

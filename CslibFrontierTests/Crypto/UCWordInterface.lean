@@ -366,9 +366,9 @@ theorem protoInterface_encodeOracle_offImageProg_eval :
     PMF.pure_bind, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, henc₂,
     PMF.pure_bind, ProbOracleComp.runWith_pure]
 
-/-- Composing `offImageProg` with `WordInterface.normalizeRequests` makes the strict non-mutating
-`toOracleCodec.wordOracle` reproduce the exact joint output and state
-`(([true, false], [true]), 11)` of `encodeOracle`. -/
+/-- Composing `offImageProg` with `WordInterface.normalizeRequests` makes
+`toOracleCodec.wordOracle` (which leaves oracle state unchanged on off-image requests) reproduce
+the exact joint output and state `(([true, false], [true]), 11)` of `encodeOracle`. -/
 theorem protoInterface_wordOracle_normalizeRequests_offImageProg_eval :
     ProbOracleComp.runWith (protoInterface.toOracleCodec.wordOracle counterOracle)
         (protoInterface.normalizeRequests offImageProg) 0 =
@@ -420,6 +420,24 @@ theorem protoInterface_isOraclePPTOn_normalizeRequests_offImage :
   refine protoInterface.isOraclePPTOn_normalizeRequests ?_
   exact IsOraclePPTOn.query_take (op := (Sum.inl () : protoInterface.Channel))
     (ComputableInPolyTime.of_finite _) (ComputableInPolyTime.const 2)
+
+/-- Bare `simp` exercises all five structural `@[simp]` rules (`normalizeRequests_bind`,
+`normalizeRequests_sample`, `normalizeRequests_map`, `normalizeRequests_query`, and
+`normalizeRequests_pure`) symbolically over an arbitrary `WordInterface`. -/
+example {ι : Type} {E : ι → Type} (I : WordInterface E) (c : I.Channel) (w : List Bool) :
+    I.normalizeRequests
+        (do
+          let b ← ProbOracleComp.sample (ProbComp.uniform Bool)
+          let r ← List.length <$>
+            ProbOracleComp.query (spec := fun _ : I.Channel × List Bool => List Bool) (c, b :: w)
+          pure r) =
+      (do
+        let b ← ProbOracleComp.sample (ProbComp.uniform Bool)
+        let r ← List.length <$>
+          ProbOracleComp.query (spec := fun _ : I.Channel × List Bool => List Bool)
+            (c, I.requestNormalize c (b :: w))
+        pure r) := by
+  simp
 
 end NormalizeRequestsWitness
 
