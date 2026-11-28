@@ -11,6 +11,7 @@ import CslibFrontier.Computability.WordRAM.MemoryView
 
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.PPSZ.Clauses
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Computability.WordRAM.SymbolicExec.ListLoop
 import CslibFrontier.Computability.WordRAM.SymbolicExec.StructFrame
 import Mathlib.Data.Nat.Bitwise
@@ -767,8 +768,8 @@ theorem length_sections_le {α : Type*} {m : ℕ} : ∀ {L : List (List α)},
   | [], _ => by simp
   | l :: L, h => by
     have ih := length_sections_le (L := L) fun l' hl' => h l' (by simp [hl'])
-    simp only [List.sections, List.length_flatMap, List.length_map, List.length_cons, pow_succ]
-    rw [List.map_const', List.sum_replicate, smul_eq_mul]
+    simp only [List.sections, List.length_cons, pow_succ]
+    rw [List.length_flatMap_of_forall_length_eq (fun _ _ => List.length_map _)]
     have := h l (by simp)
     calc L.sections.length * l.length ≤ m ^ L.length * m := Nat.mul_le_mul ih this
 

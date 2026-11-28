@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.MCSP.Multi
 public import CslibFrontier.Computability.Circuit.Boolean.Encoding.Certificate
 public import CslibFrontier.Computability.Complexity.Classes.NP
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Computability.MCSP.NP
 import CslibFrontier.Computability.Circuit.Encoding.Layer
 import CslibFrontier.Computability.Circuit.Encoding.MapOp
@@ -193,9 +194,9 @@ private theorem length_certificate_code_fst {n m s : ℕ} (c : Circuit signature
 /-- The certificate of a circuit with at most `s` gates has length `certLength n s + m (n + s)`. -/
 theorem length_multiCertificate {n m s : ℕ} (c : Circuit signature n m) (hs : c.size ≤ s) :
     (multiCertificate s c).length = certLength n s + m * (n + s) := by
-  rw [multiCertificate, List.length_append, length_certificate_code_fst c hs, List.length_flatMap,
-    List.map_congr_left fun o ho => length_unaryField _ _ (le_of_mem_code_snd hs ho).2,
-    List.map_const', List.sum_replicate, smul_eq_mul]
+  rw [multiCertificate, List.length_append, length_certificate_code_fst c hs,
+    List.length_flatMap_of_forall_length_eq (fun o ho =>
+      length_unaryField _ _ (le_of_mem_code_snd hs ho).2)]
   simp [Circuit.code]
 
 private theorem readCertificate_multiCertificate_append {n m s : ℕ} (c : Circuit signature n m)

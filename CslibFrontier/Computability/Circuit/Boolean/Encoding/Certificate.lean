@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.EvaluationTime
 public import CslibFrontier.Computability.Circuit.Encoding.Check
 public import CslibFrontier.Foundations.Data.BitString.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Computability.Circuit.Encoding.Layer
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Finite
@@ -208,9 +209,9 @@ theorem length_certificate {n s : ℕ} {gates : List (Op × List ℕ)} {output :
     (hs : gates.length ≤ s) (houtput : output ≤ n + s)
     (hgates : ∀ g ∈ gates, ∀ i ∈ g.2, i ≤ n + s) :
     (certificate n s gates output).length = certLength n s := by
-  rw [certificate, List.length_append, List.length_append, List.length_append, List.length_flatMap,
-    List.map_congr_left fun g hg => length_gateRow (hgates g hg), List.map_const',
-    List.sum_replicate, smul_eq_mul, length_unaryField _ _ hs, length_unaryField _ _ houtput,
+  rw [certificate, List.length_append, List.length_append, List.length_append,
+    List.length_flatMap_of_forall_length_eq (fun g hg => length_gateRow (hgates g hg)),
+    length_unaryField _ _ hs, length_unaryField _ _ houtput,
     List.length_replicate, certLength, Nat.add_assoc _ (gates.length * _), ← Nat.add_mul,
     Nat.add_sub_cancel' hs]
 

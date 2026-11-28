@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.EvaluationTime
 public import CslibFrontier.Computability.Circuit.Boolean.OpValue
 public import CslibFrontier.Logics.Propositional.CNF
+import CslibFrontier.Foundations.Data.List.Counting
 import Mathlib.Data.List.GetD
 
 /-!
@@ -297,9 +298,11 @@ theorem length_of_mem_tseitinSatCNF {x : List Bool} {n : ℕ} {gates : List (Op 
 gate. -/
 theorem length_tseitinSatCNF (x : List Bool) (n : ℕ) (gates : List (Op × List ℕ)) (o : ℕ) :
     (tseitinSatCNF x n gates o).length = 1 + x.length + 3 * gates.length := by
-  simp only [tseitinSatCNF, tseitinCNF, gateClauses, List.cons_append, List.length_cons,
-    List.length_append, List.length_mapIdx, List.length_flatMap, List.length_ofFn,
-    List.map_const', List.sum_replicate, List.length_finRange, smul_eq_mul]
+  simp only [tseitinSatCNF, tseitinCNF, List.cons_append, List.length_cons,
+    List.length_append, List.length_mapIdx]
+  rw [List.length_flatMap_of_forall_length_eq (k := 3)
+    (f := fun g : Fin gates.length => gateClauses (n + g.val) gates[g])
+    (fun _ _ => List.length_ofFn), List.length_finRange]
   omega
 
 end Cslib.Circuits.Boolean

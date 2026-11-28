@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Foundations.Combinatorics.Expander.TannerCode
 public import CslibFrontier.Foundations.Data.BitString.ParityTestBounds
 public import CslibFrontier.Foundations.Data.BitString.List.Dot
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Computability.GenericRAM.Native.BooleanFold
 import CslibFrontier.Foundations.Data.BitString.Binary
 import CslibFrontier.Foundations.Data.BitString.InitialTests
@@ -776,9 +777,11 @@ def buildShortenedTannerRows (m ell d c : ℕ) (shifts H0 : List (List Bool)) : 
 
 @[simp] theorem length_buildShortenedTannerRows (m ell d c : ℕ) (shifts H0 : List (List Bool)) :
     (buildShortenedTannerRows m ell d c shifts H0).length = 2 * 2 ^ ell * c := by
-  simp only [buildShortenedTannerRows, List.flatMap_cons, List.flatMap_nil, List.length_append,
-    List.length_nil, List.length_flatMap, List.length_map, List.length_range, List.map_const',
-    List.sum_replicate, smul_eq_mul]; ring
+  rw [buildShortenedTannerRows, List.length_flatMap_of_forall_length_eq
+    (k := 2 ^ ell * c) (fun _ _ => by
+      rw [List.length_flatMap_of_forall_length_eq (k := c)
+        (fun _ _ => by simp only [List.length_map, List.length_range]), List.length_range])]
+  simp [Nat.mul_assoc]
 theorem length_mem_buildShortenedTannerRows {m ell d c : ℕ} {shifts H0 : List (List Bool)}
     {row : List Bool} (hrow : row ∈ buildShortenedTannerRows m ell d c shifts H0) :
     row.length = m := by

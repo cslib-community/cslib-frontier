@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.EvaluationTime
 public import CslibFrontier.Computability.Complexity.Reduction
 public import CslibFrontier.Computability.Complexity.Problems.SAT
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Computability.Complexity.CookLevin.Completeness
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
@@ -163,9 +164,9 @@ private theorem length_circuitBlock (p i : ℕ) (b e : Bool) : (circuitBlock p i
 /-- The circuit of a formula has three gates for each instruction, and three more. -/
 private theorem length_circuitGates (φ : CNF ℕ) :
     (circuitGates φ).length = 3 * (circuitSteps φ).length + 3 := by
-  rw [circuitGates, List.length_append, List.length_flatMap]
-  simp only [length_circuitBlock, List.map_const', List.sum_replicate, List.length_zipIdx,
-    smul_eq_mul, List.length_cons, List.length_nil]
+  rw [circuitGates, List.length_append, List.length_flatMap_of_forall_length_eq
+    (fun _ _ => length_circuitBlock ..), List.length_zipIdx]
+  simp only [List.length_cons, List.length_nil]
   omega
 
 private theorem isCodeFrom_circuitBlock {n k i : ℕ} (b e : Bool) (hi : e = false → i < n) :

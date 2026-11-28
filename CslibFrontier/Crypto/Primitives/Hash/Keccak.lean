@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Primitives.ByteString
 public import CslibFrontier.Crypto.Primitives.Hash.Sponge
 public import CslibFrontier.Foundations.Data.BitString.Binary
 public import Mathlib.Algebra.Order.Floor.Div
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Foundations.Data.BitString.List
 import all Batteries.Data.List.Basic
 
@@ -446,9 +447,8 @@ theorem bytesToBitsLE_take (xs : List (Fin 256)) (n : ℕ) :
 @[simp] theorem length_squeezeBytesFor (layout : SpongeLayout)
     (blocks : List (BitString (64 * layout.rateLanes))) (count : ℕ) :
     (squeezeBytesFor layout blocks count).length = (8 * layout.rateLanes) * count := by
-  simp only [squeezeBytesFor, List.length_flatMap, length_rateBytesFor, List.map_const',
-    List.sum_replicate, smul_eq_mul]
-  rw [Sponge.hashBlocks, Sponge.length_squeeze, Nat.mul_comm]
+  rw [squeezeBytesFor, List.length_flatMap_of_forall_length_eq (fun b _ =>
+    length_rateBytesFor layout b), Sponge.hashBlocks, Sponge.length_squeeze, Nat.mul_comm]
 
 private theorem take_flatMap_rateBytesFor (layout : SpongeLayout)
     (states : List (BitString (64 * layout.rateLanes))) (count : ℕ) :

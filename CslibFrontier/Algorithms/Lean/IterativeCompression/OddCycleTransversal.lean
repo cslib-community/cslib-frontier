@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.MaxFlow.VertexSeparator
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.OddCycleTransversal
+import CslibFrontier.Foundations.Data.List.Counting
 
 /-!
 # Odd cycle transversal by iterative compression
@@ -123,9 +124,8 @@ theorem length_guesses (ws : List (Fin n)) : (guesses ws).length = 3 ^ ws.length
   induction ws with
   | nil => rfl
   | cons w ws ih =>
-    rw [guesses, List.length_flatMap]
-    simp only [List.length_cons, List.length_nil, List.map_const', List.sum_replicate, ih,
-      smul_eq_mul, pow_succ]
+    rw [guesses, List.length_flatMap_of_forall_length_eq (k := 3) (fun _ _ => rfl), ih,
+      List.length_cons, pow_succ]
 
 theorem mem_guesses {ws : List (Fin n)} {g : Vector (Option Bool) n}
     (hg : ∀ v, v ∉ ws → vget g v = none) : g ∈ guesses ws := by
