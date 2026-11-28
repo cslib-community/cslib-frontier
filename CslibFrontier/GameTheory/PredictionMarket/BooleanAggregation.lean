@@ -1046,12 +1046,7 @@ private theorem sum_fin_two_mul_succ {m : ℕ} (g : Fin (2 * (m + 1)) → ℝ) :
   let e : Fin (2 * (m + 1)) ≃ Fin ((2 * m + 1) + 1) := finCongr (by omega)
   rw [Fintype.sum_equiv e g (fun i => g ⟨i.1, by omega⟩) (fun _ => rfl),
     Fin.sum_univ_succ, Fin.sum_univ_succ]
-  have h0 : g ⟨(0 : Fin ((2 * m + 1) + 1)).1, by omega⟩ = g ⟨0, by omega⟩ := rfl
-  have h1 : g ⟨((0 : Fin (2 * m + 1)).succ).1, by omega⟩ = g ⟨1, by omega⟩ := rfl
-  have htail : ∑ j : Fin (2 * m), g ⟨((j.succ).succ).1, by omega⟩ =
-      ∑ j : Fin (2 * m), g ⟨j.1 + 2, by omega⟩ :=
-    sum_congr rfl fun j _ => congrArg g (Fin.ext (by simp [Fin.val_succ, add_assoc]))
-  rw [h0, h1, htail, add_assoc]
+  simp [Fin.val_succ, add_assoc]
 
 /-- Canonical empty `2 * 0`-bit state. -/
 private def emptyState : Fin (2 * 0) → Bool := fun i => i.elim0
@@ -1149,14 +1144,8 @@ private theorem sum_fin_two_bool (g : (Fin (2 * 1) → Bool) → ℝ) :
       g (consPair false true emptyState) +
       g (consPair true false emptyState) +
       g (consPair true true emptyState) := by
-  rw [sum_splitPair]
-  have h1 (a b : Bool) : ∑ y : Fin (2 * 0) → Bool, g (consPair a b y) =
-      g (consPair a b emptyState) := by
-    have huniv : (Finset.univ : Finset (Fin (2 * 0) → Bool)) = {emptyState} := by
-      ext y
-      exact ⟨fun _ => mem_singleton.mpr (eq_emptyState y), fun _ => mem_univ y⟩
-    rw [huniv, sum_singleton]
-  rw [h1, h1, h1, h1]
+  let _ : Unique (Fin (2 * 0) → Bool) := ⟨⟨emptyState⟩, eq_emptyState⟩
+  simp only [sum_splitPair, Fintype.sum_unique, eq_emptyState]
 
 /-- The nested carry-chain Boolean function `Cₙ : (Fin (2 * n) → Bool) → Bool`
 [PennockSami2007, Theorem 26.15, p. 669]:
@@ -1708,12 +1697,8 @@ private theorem sum_priorSupport_carryWeight_filter_f {n : ℕ}
         if carryChain n z then carryWeight n z else 0) =
       ∑ z : Fin (2 * n) → Bool,
         if p z ∧ carryChain n z = true then carryWeight n z else 0 := by
-  rw [sum_filter]
-  refine (sum_subset (subset_univ _) fun z _ hz => ?_).trans
-    (sum_congr rfl fun z _ => by cases carryChain n z <;> split_ifs <;> simp_all)
-  have h0 : carryWeight n z = 0 :=
-    le_antisymm (le_of_not_gt (mt mem_priorSupport.mpr hz)) (carryWeight_nonneg n z)
-  simp [h0]
+  rw [← sum_filter, filter_filter]
+  exact sum_priorSupport_carryWeight_filter _
 
 private theorem sum_carryWeight_coord_split {m : ℕ} (i : Fin (2 * (m + 2))) (b : Bool) :
     (∑ z : Fin (2 * (m + 2)) → Bool, if z i = b then carryWeight (m + 2) z else 0) =

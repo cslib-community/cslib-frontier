@@ -251,7 +251,9 @@ section ConvexCE
 
 variable (G)
 
-private theorem sum_convexCombPair_weights {X : Type*} {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b)
+/-- Linearity of expectation against a binary convex combination of standard-simplex
+distributions. -/
+theorem sum_convexCombPair_weights {X : Type*} {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b)
     (hab : a + b = 1) (σ₁ σ₂ : Convexity.StdSimplex ℝ X) (f : X → ℝ) :
     (Convexity.convexCombPair a b ha hb hab σ₁ σ₂).weights.sum (fun s w => w * f s) =
       a * σ₁.weights.sum (fun s w => w * f s) + b * σ₂.weights.sum (fun s w => w * f s) := by

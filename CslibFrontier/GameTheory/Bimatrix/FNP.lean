@@ -50,6 +50,8 @@ signed binary integer arithmetic.
   rational payoff matrices and their binary encoding.
 * `Cslib.GameTheory.BimatrixCode.WellFormed`, `Cslib.GameTheory.BimatrixCode.toGame`:
   nonempty rectangularity predicate and induced `BimatrixGame`.
+* `Cslib.GameTheory.BimatrixCode.IsSymmetric`, `Cslib.GameTheory.BimatrixCode.toSymGame`:
+  symmetric rational bimatrix codes (`B = Aᵀ`) and their induced symmetric games.
 * `Cslib.GameTheory.BimatrixCode.IsRationalNash`, `Cslib.GameTheory.BimatrixCode.BimatrixNash`:
   exact rational Nash predicate and polynomially bounded total search relation.
 
@@ -144,6 +146,22 @@ theorem wellFormed_iff_wellFormedB (c : BimatrixCode) : c.WellFormed ↔ c.wellF
 /-- The `BimatrixGame` induced by a `BimatrixCode`. -/
 @[expose] noncomputable def toGame (c : BimatrixCode) : BimatrixGame (Fin c.rows) (Fin c.cols) :=
   BimatrixGame.mk ((toMatA c).map Rat.cast) ((toMatB c).map Rat.cast)
+
+/-- Predicate asserting that `c : BimatrixCode` encodes a finite symmetric two-player game:
+nonempty, square (`rows = cols`), and with player 2's payoff matrix equal to the transpose of
+player 1's (`B = Aᵀ`). -/
+@[expose] def IsSymmetric (c : BimatrixCode) : Prop :=
+  c.WellFormed ∧ c.rows = c.cols ∧
+    ∀ i j : Fin c.rows, (c.matB.getD i.1 []).getD j.1 0 = (c.matA.getD j.1 []).getD i.1 0
+
+/-- The symmetric two-player game `⟨A, Aᵀ⟩` on `Fin c.rows` extracted from player 1's payoff
+matrix `c.matA`. When `c.IsSymmetric`, this coincides with `c.toGame` up to casting
+`Fin c.rows` to `Fin c.cols`. -/
+@[expose] noncomputable def toSymGame (c : BimatrixCode) :
+    BimatrixGame (Fin c.rows) (Fin c.rows) :=
+  let A : Matrix (Fin c.rows) (Fin c.rows) ℝ :=
+    fun i j => ((c.matA.getD i.1 []).getD j.1 0 : ℝ)
+  ⟨A, Aᵀ⟩
 
 /-- The real strategy vector `Fin n → ℝ` of a rational strategy list, padded with zeros. -/
 @[expose] def strategyVec {n : ℕ} (x : List ℚ) : Fin n → ℝ := fun i => (x.getD i.1 0 : ℝ)

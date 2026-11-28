@@ -115,12 +115,14 @@ private theorem exists_dotProduct_pair {n : ℕ} {u v : BitString n}
   have hau : a ⬝ᵥ u = d₂ := by
     dsimp only [a]
     rw [add_dotProduct, single_dotProduct, single_dotProduct, hj₁]
-    cases c <;> cases u j₂ <;> cases d₂ <;> rfl
+    change c * u j₂ + (d₂ + c * u j₂) * 1 = d₂
+    rw [mul_one, add_left_comm, BooleanRing.add_self, add_zero]
   refine ⟨a, hau, ?_⟩
   have hav' : a ⬝ᵥ v' = c := by
     dsimp only [a]
     rw [add_dotProduct, single_dotProduct, single_dotProduct, hj₂, hv'₁]
-    cases c <;> cases u j₂ <;> cases d₂ <;> rfl
+    change c * 1 + (d₂ + c * u j₂) * 0 = c
+    simp
   dsimp only [v', c] at hav'
   split_ifs at hav'
   · rw [dotProduct_add, hau] at hav'
@@ -148,8 +150,8 @@ theorem isThreeWiseIndependentHash_affineHash (k n : ℕ) :
     have hi := h i
     rw [dotProduct_add] at hi
     change rows i ⬝ᵥ y + (rows i ⬝ᵥ x₁ + c₁ i) = cy i
-    revert hi
-    cases rows i ⬝ᵥ x₁ <;> cases rows i ⬝ᵥ y <;> cases c₁ i <;> cases cy i <;> decide
+    rw [add_comm (rows i ⬝ᵥ y), add_right_comm, hi, add_right_comm,
+      BooleanRing.add_self, zero_add]
   have hself (rows : Fin k → BitString n) (x₁ : BitString n) (c₁ : BitString k) :
       g (rows, fun i => rows i ⬝ᵥ x₁ + c₁ i) x₁ = c₁ :=
     happly fun i => by simp [BooleanRing.add_self]
@@ -324,8 +326,8 @@ when `δ ≠ 0`. -/
     change (r₁ j + r₂ j) + (if (r₁ ⬝ᵥ δ) + (r₂ ⬝ᵥ δ) then pivotMask δ j else false) =
       (r₁ j + if r₁ ⬝ᵥ δ then pivotMask δ j else false) +
         (r₂ j + if r₂ ⬝ᵥ δ then pivotMask δ j else false)
-    cases r₁ j <;> cases r₂ j <;> cases r₁ ⬝ᵥ δ <;> cases r₂ ⬝ᵥ δ <;>
-      cases pivotMask δ j <;> rfl
+    simp only [Bool.ite_false_right, Bool.decide_coe, ← Bool.mul_eq_and, add_mul]
+    abel
 
 private theorem adjustRow_dotProduct_eq_false {n : ℕ} {δ : BitString n} (hδ : δ ≠ 0)
     (row : BitString n) : adjustRow δ row ⬝ᵥ δ = false := by
@@ -352,17 +354,12 @@ private theorem card_ker_adjustRow {n : ℕ} {δ : BitString n} (hδ : δ ≠ 0)
         simpa [hd] using h
       · right
         simp only [hd, ↓reduceIte] at h
-        funext j
-        have hj := congrFun h j
-        change row j + pivotMask δ j = false at hj
-        cases hr : row j <;> cases hm : pivotMask δ j <;> simp_all [Bool.add_eq_xor]
+        exact funext fun j => (BooleanRing.add_eq_zero' _ _).1 (congrFun h j)
     · rintro (rfl | rfl)
       · exact (adjustRow δ).map_zero
       · simp only [adjustRow, AddMonoidHom.coe_mk, ZeroHom.coe_mk,
           pivotMask_dotProduct_of_ne_zero hδ, ↓reduceIte]
-        funext j
-        change pivotMask δ j + pivotMask δ j = false
-        cases pivotMask δ j <;> rfl
+        exact funext fun j => BooleanRing.add_self (pivotMask δ j)
   rw [hset, card_pair (pivotMask_ne_zero hδ).symm]
 
 /-- Additive homomorphism projecting an affine hash seed `(A, b)` onto the subgroup of seeds whose

@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Asymptoti
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.SubmatrixRobust
+import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.PairBound
 import CslibFrontier.Tactic.FinIndex
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -22,9 +23,10 @@ import Mathlib.Tactic.Positivity
 Circuits of fan-in at most two over any basis on `Bool`, with at most `c n` multiary gates
 (`arity = 2`; constant and unary gates are free), have correlation `2^{-Ω(n)}` with a
 nonconstructively chosen family of bilinear forms `xᵀ R y` over `𝔽₂`, for every
-`c < c₃* = 1 + π / (3 arccos (5 / 6)) ≈ 2.787986` (`layoutBound_switched`), improving on the
-median edge-score threshold `c* = 1 + 1/(2A) ≈ 2.78125` (`layoutBound_gaussian`). Correlation is
-measured in the terms of the average-case frontier lower bound:
+`c < 777773 / 277773 ≈ 2.800031` (`layoutBound_pairBound`), improving on the median-switched
+threshold `c₃* = 1 + π / (3 arccos (5 / 6)) ≈ 2.787986` (`layoutBound_switched`) and the median
+edge-score threshold `c* = 1 + 1/(2A) ≈ 2.78125` (`layoutBound_gaussian`). Correlation is measured
+in the terms of the average-case frontier lower bound:
 `correlation S T = 2 · agreement S T - 1`
 (`Cslib.Circuits.Frontier.correlation_eq_two_mul_agreement_sub_one`), so a correlation of absolute
 value at most `ε` is an agreement of at most `1/2 + ε/2`. Both the multiary gate count
@@ -108,6 +110,10 @@ uniformity.
   : the improved median-switched Gaussian correlation threshold
   `c₃* = 1 + π / (3 arccos (5 / 6)) ≈ 2.787986` (`≥ 278798 / 100000`), original to this library
   (via `layoutBound_switched`).
+* `Cslib.Circuits.Frontier.eventually_abs_correlation_quadForm_le_pairBound_multiarySize`,
+  `exists_eventually_abs_correlation_hardForm_le_of_lt_pairBound_multiarySize`: the matched-pair
+  correlation threshold `777773 / 277773 ≈ 2.800031`, original to this library (via
+  `layoutBound_pairBound`).
 
 ## References
 
@@ -445,5 +451,38 @@ theorem exists_eventually_abs_correlation_hardForm_le_2787 :
           |correlation {x | hardForm n x} {x | C.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) :=
   exists_eventually_abs_correlation_hardForm_le_of_lt_switched
     (by linarith [Switched.correlationThreshold_ge])
+
+/-- **Exponentially small correlation below `(777773 / 277773) n ≈ 2.800031 n` multiary gates.**
+Using the matched-pair Gaussian layout bound `layoutBound_pairBound`, under the same cut-rank
+hypothesis on `Q_n + Q_nᵀ`, for every `c ≥ 1/2` and every
+`γ < (777773 / 277773 - c) / (2 · 1277773 / 277773)`, every circuit of fan-in at most two with at
+most `c n` multiary gates (`arity = 2`; constant and unary gates are free) has correlation at most
+`2^{-γ n}` with the quadratic form of `Q_n`. Original to this library. -/
+theorem eventually_abs_correlation_quadForm_le_pairBound_multiarySize {c γ : ℝ} (hc : 1 / 2 ≤ c)
+    (hγ : γ < (777773 / 277773 - c) / (2 * (1277773 / 277773)))
+    (Q : ∀ n, Matrix (Fin n) (Fin n) (ZMod 2)) (e : ℕ → ℝ)
+    (he : e =o[atTop] fun n => (n : ℝ))
+    (hQ : ∀ᶠ n in atTop, ∀ U : Set (Fin n), U.ncard = n / 2 →
+      ((n / 2 : ℕ) : ℝ) ≤ (Q n + (Q n)ᵀ).cutRank U + e n) :
+    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool) (Acc : Set Bool)
+      (C : Circuit σ n 1), C.FanInAtMost 2 → (C.multiarySize : ℝ) ≤ c * n →
+        |correlation {x | BitString.quadForm (Q n) x} {x | C.eval I x 0 ∈ Acc}| ≤
+          (2 : ℝ) ^ (-γ * n) :=
+  eventually_abs_correlation_quadForm_le_of_isLittleO_multiarySize
+    (mul_pos two_pos Gaussian.PairBound.pairBoundCoefficient_pos) layoutBound_pairBound hc
+    (by convert hγ using 1; norm_num [Gaussian.PairBound.pairBoundCoefficient]) Q e he hQ
+
+/-- **Every multiary gate coefficient below `777773 / 277773 ≈ 2.800031`**: for each such `c`, a
+fixed rate `γ > 0` bounds the correlation of `hardForm n` with every circuit of fan-in two and at
+most `c n` multiary gates by `2^{-γ n}`. Original to this library. -/
+theorem exists_eventually_abs_correlation_hardForm_le_of_lt_pairBound_multiarySize {c : ℝ}
+    (hc : c < 777773 / 277773) :
+    ∃ γ : ℝ, 0 < γ ∧ ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool)
+      (Acc : Set Bool) (C : Circuit σ n 1), C.FanInAtMost 2 → (C.multiarySize : ℝ) ≤ c * n →
+        |correlation {x | hardForm n x} {x | C.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) :=
+  exists_eventually_of_lt_threshold hc (by norm_num) (L := 1277773 / 277773) (by norm_num)
+    Circuit.multiarySize fun hc' hγ =>
+      eventually_abs_correlation_quadForm_le_pairBound_multiarySize.{v} hc' hγ hardMatrix _
+        isLittleO_hardDeficiency (Eventually.of_forall half_le_cutRank_hardMatrix_add)
 
 end Cslib.Circuits.Frontier

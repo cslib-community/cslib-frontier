@@ -21,6 +21,7 @@ import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
 import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.DataStructure.Memory.Frame
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Foundations.Data.List.Counting
 import Mathlib.Data.List.GetD
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -147,12 +148,8 @@ arrays (`w = O(log maxWord + log (r + 1) + log (ops.length + 1))`). -/
 
 private theorem flatMap_encode_length (ops : List SHOp) :
     (ops.flatMap SHOp.encode).length = 3 * ops.length := by
-  induction ops with
-  | nil => rfl
-  | cons op rest ih =>
-    have hlen : op.encode.length = 3 := by cases op <;> rfl
-    simp only [List.flatMap_cons, List.length_append, List.length_cons, hlen, ih]
-    omega
+  rw [Nat.mul_comm]
+  exact List.length_flatMap_of_forall_length_eq fun op _ => by cases op <;> rfl
 
 /-- Length of `I.encode` (`2 + 3 * I.ops.length`). -/
 theorem encode_length (I : SHBatchInput) : I.encode.length = 2 + 3 * I.ops.length := by
