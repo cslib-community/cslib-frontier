@@ -831,14 +831,15 @@ private theorem computableInPolyTime_streamSlotInOfOuter :
     ComputableInPolyTime streamSlotInOfOuter encOuterSlot encStreamSlotIn := by
   have hq1 := ComputableInPolyTime.fst encOuterSt (encPair encBool encUnary)
   have hq2 := ComputableInPolyTime.snd encOuterSt (encPair encBool encUnary)
-  have hacc := (ComputableInPolyTime.snd encNat encOuterAcc).comp' hq1; have hp := hacc.fst'
+  have hacc := hq1.snd'
+  have hp := hacc.fst'
   exact ((hp.fst'.fst'.prod hp.fst'.snd'.snd').prod hp.snd').prod (hq2.prod hacc.snd')
 
 private theorem computableInPolyTime_finishGreedySlotStep :
     ComputableInPolyTime finishGreedySlotStep encFinIn encOuterAcc := by
   have hq1 := ComputableInPolyTime.fst encOuterSlot (encList encNat)
   have hq2 := ComputableInPolyTime.snd encOuterSlot (encList encNat)
-  have hacc := (ComputableInPolyTime.snd encNat encOuterAcc).comp' hq1.fst'
+  have hacc := hq1.fst'.snd'
   have hupd := computableInPolyTime_updateSlotSchedules.comp'
     ((hq1.snd'.prod ((ComputableInPolyTime.optionSome (encList encNat)).comp' hq2)).prod hacc.snd')
   exact hacc.fst'.prod hupd

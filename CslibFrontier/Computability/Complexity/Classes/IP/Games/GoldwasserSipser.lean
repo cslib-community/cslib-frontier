@@ -302,13 +302,10 @@ theorem computableInPolyTime_amVerifier {enc : α ↪ List Bool} (G : List (IPMo
       fun x => ?_
     simp only [Function.comp_apply, ← AMGame.transcriptLength_evalShape, ← toAM_evalShape,
       transcriptLength_toAM]
-  have hmsg' : ComputableInPolyTime (fun y : (α × List Bool) × List Bool × ℕ × List Bool =>
-      msg (y.1.1, y.2)) (encPair (encPair enc encBits) (encPair encBits (encPair encUnary encBits)))
-      encBits :=
-    hmsg.comp (((ComputableInPolyTime.fst _ _).comp (.fst _ _)).prod (.snd _ _))
-  have hdec' : ComputableInPolyTime (fun y : (α × List Bool) × List Bool × List Bool =>
-      dec (y.1.1, y.2)) (encPair (encPair enc encBits) (encPair encBits encBits)) encBool :=
-    hdec.comp (((ComputableInPolyTime.fst _ _).comp (.fst _ _)).prod (.snd _ _))
+  have hignore {δ ε : Type} {e : δ ↪ List Bool} {out : ε ↪ List Bool}
+      {f : α × δ → ε} (hf : ComputableInPolyTime f (encPair enc e) out) :
+      ComputableInPolyTime (fun q : (α × List Bool) × δ => f (q.1.1, q.2))
+        (encPair (encPair enc encBits) e) out := hf.comp (by fun_prop)
   exact computableInPolyTime_check (G ++ [(.verifier, ρ)]) (B := fun x => B.eval (enc x.1).length)
     (Z := fun x => Z.eval (enc x.1).length)
     (K := fun x => threshold ((G.map Prod.fst).count .verifier + 1) (B.eval (enc x.1).length))
@@ -316,7 +313,7 @@ theorem computableInPolyTime_amVerifier {enc : α ↪ List Bool} (G : List (IPMo
     (V := fun x => revealPayoff (fun c j p => msg (x.1, c, j, p)) (fun c t => dec (x.1, c, t))
       (evalShape G (enc x.1).length) (transcriptLength (evalShape G (enc x.1).length)))
     hB ((ComputableInPolyTime.unary_eval Z).comp hn) (computableInPolyTime_threshold _ hB) hn
-    (fun hq => computableInPolyTime_revealPayoff G hn hL hmsg' hdec' hq)
+    (fun hq => computableInPolyTime_revealPayoff G hn hL (hignore hmsg) (hignore hdec) hq)
     (ComputableInPolyTime.unary_sub' ((ComputableInPolyTime.unary_eval ρ).comp hn)
       ((ComputableInPolyTime.unary_eval T).comp hn)) (ComputableInPolyTime.const [])
     (ComputableInPolyTime.snd _ _)

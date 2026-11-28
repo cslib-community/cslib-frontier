@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Truncated
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.DescribedContraction
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.EntryContraction
 public import CslibFrontier.Computability.GenericRAM.Native.IndexFold
 import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContractionPolyTime
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContractionSchedule
@@ -307,11 +308,9 @@ theorem coreInput_polyTime :
     (cc : NativeCertificate core (encCore encT) (encList encNat)) :
     NativeCertificate (engineStep core) (encEngineState encT)
       (encPair (encEngine encT) (encList (encList encNat))) :=
-  (NativeCertificate.ofPolyTime
-      ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _))).prod
+  (NativeCertificate.ofPolyTime (ComputableInPolyTime.snd _ _).fst').prod
     ((NativeCertificate.ofPolyTime (ComputableInPolyTime.snoc (encList encNat))).comp
-      ((NativeCertificate.ofPolyTime
-          ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _))).prod
+      ((NativeCertificate.ofPolyTime (ComputableInPolyTime.snd _ _).snd').prod
         (cc.comp (NativeCertificate.ofPolyTime coreInput_polyTime))))
 
 /-- Recovery from the final state of the loop is polynomial-time. -/
@@ -320,10 +319,9 @@ theorem engineRecover_polyTime :
       (encEngineState encT) (encList encNat) := by
   let S := ℕ × ((List ℕ × ℕ × ℕ × ℕ × DescribedNetwork T) × List (List ℕ))
   let encS := encEngineState encT
-  have hy : ComputableInPolyTime (fun p : S => p.2.1) encS (encEngine encT) :=
-    (ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _)
-  have hys : ComputableInPolyTime (fun p : S => p.2.2) encS encElems :=
-    (ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _)
+  have hdata := ComputableInPolyTime.snd encNat (encPair (encEngine encT) encElems)
+  have hy := hdata.fst'
+  have hys := hdata.snd'
   have hfl : ComputableInPolyTime (fun p : S => p.2.1.1) encS (encList encNat) := hy.fst'
   have hP : ComputableInPolyTime (fun p : S => p.2.1.2.1) encS encUnary := hy.snd'.fst'
   have hℓ : ComputableInPolyTime (fun p : S => p.2.1.2.2.1) encS encUnary := hy.snd'.snd'.fst'
@@ -364,18 +362,7 @@ index, the input and the values so far, then recovery. On input `(fl, (P, ℓ, r
       (fun ((P, fl, _, G') : ℕ × List ℕ × ℕ × DescribedNetwork (SpecDesc T)) =>
         DescribedNetwork.sumValue SumOps.galois (specEntry entry) (P, fl) G')
       (encCore encT) (encList encNat) :=
-  ((DescribedNetwork.contractionCertificate (specEntry entry) SumOps.galois_polyTime
-      (specEntryCertificate entry ce)).comp
-    (NativeCertificate.ofPolyTime
-      ((((ComputableInPolyTime.fst _ _).prod
-        ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _))).prod
-        ((ComputableInPolyTime.snd _ _).comp ((ComputableInPolyTime.snd _ _).comp
-          (ComputableInPolyTime.snd _ _)))) :
-        ComputableInPolyTime
-          (fun ((P, fl, _, G') : ℕ × List ℕ × ℕ × DescribedNetwork (SpecDesc T)) => ((P, fl), G'))
-          (encCore encT)
-          (DescribedNetwork.encInput (encPair encUnary (encList encNat))
-            (encSpecDesc encT))))).congr fun _ => rfl
+  EntryContraction.directCore (specEntry entry) (specEntryCertificate entry ce)
 
 /-- `n ≤ 2 ^ deg f` for the modulus `FastContraction.modulus n`: it has enough residues for `n`
 points. -/

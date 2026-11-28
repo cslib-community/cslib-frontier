@@ -108,8 +108,7 @@ theorem isPolyTime_answers (hV : V.PolyTime enc)
     ComputableInPolyTime.mapToBitsWithInput (f := fun p q => p.2.getD q false)
       ((isPolyTime_queryTable hV hcoins).comp (ComputableInPolyTime.fst enc encBits))
       (ComputableInPolyTime.listGetD_binary (encA := encBool) (encL := encBits) false
-        ((ComputableInPolyTime.snd enc encBits).comp
-          (ComputableInPolyTime.fst (encPair enc encBits) encNat))
+        (ComputableInPolyTime.fst (encPair enc encBits) encNat).snd'
         (ComputableInPolyTime.snd (encPair enc encBits) encNat))
 
 /-- Evaluating `V.verdict` on a candidate table `(a, table)` and a random word `word` using

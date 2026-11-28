@@ -116,8 +116,8 @@ private theorem polyTime_verifier {r k : α → ℕ} {V W : α × List Bool → 
       intro x s row _
       simp [encS, encBool_apply])
   cases b
-  · exact (ComputableInPolyTime.fst encBool encBool).comp hfold
-  · exact (ComputableInPolyTime.snd encBool encBool).comp hfold
+  · exact hfold.fst'
+  · exact hfold.snd'
 
 /-- The difference of the row-product counts is the power of the original difference. -/
 theorem count_sub (r k : α → ℕ) (V W : α × List Bool → Bool) (a : α) :

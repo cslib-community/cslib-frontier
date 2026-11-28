@@ -223,8 +223,7 @@ theorem computableInPolyTime_groupsOf {r i k : δ → ℕ}
   let e := encPair encIn encUnary
   have hx : ComputableInPolyTime (fun p : δ × ℕ => p.1) e encIn := ComputableInPolyTime.fst _ _
   have hv : ComputableInPolyTime (fun p : δ × ℕ => p.2) e encNat := by fun_prop
-  have hw₁ := (ComputableInPolyTime.fst _ _).comp (hwords.comp hx)
-  have hw₂ := (ComputableInPolyTime.snd _ _).comp (hwords.comp hx)
+  have hw₂ := (hwords.comp hx).snd'
   have hrow : ComputableInPolyTime (fun p : δ × ℕ =>
       (((words p.1).1.getD p.2 []).getD (i p.1) 0)) e encNat := by fun_prop
   have hcol : ComputableInPolyTime (fun p : δ × ℕ =>
@@ -312,8 +311,8 @@ private theorem packetCtx_polyTime (hfl : ComputableInPolyTime fl encIn (encList
       PacketPacking.packetSymbols (a p.1) 64 p.2 (i p.1)) e₁ (encPair encNat encNat) :=
     PacketPacking.computableInPolyTime_packetSymbols (ha.comp hx) (ComputableInPolyTime.const 64)
       (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd _ _)) (hi.comp hx)
-  have hs₁ := (ComputableInPolyTime.fst _ _).comp hsym
-  have hs₂ := (ComputableInPolyTime.snd _ _).comp hsym
+  have hs₁ := hsym.fst'
+  have hs₂ := hsym.snd'
   exact PacketCtx.mk_polyTime (hpt.comp hx) (hfl.comp hx) (ha.comp hx) (hL.comp hx)
     (hi.comp hx) (hT.comp hx) (ht.comp hx) (hpt.comp hx)
     (ComputableInPolyTime.decide_eq' hs₁ (hg.comp hx))
@@ -401,8 +400,7 @@ private theorem packing_parts (hpk : ComputableInPolyTime pk encIn PacketPacking
   have hpk' : ComputableInPolyTime pk encIn
       (encPair (encPair (encList (encList encNat)) (encList (encList encNat)))
         (encPair encNat (encList (encPair encNat encNat)))) := hpk
-  exact ⟨(ComputableInPolyTime.fst _ _).comp hpk',
-    (ComputableInPolyTime.snd _ _).comp ((ComputableInPolyTime.snd _ _).comp hpk')⟩
+  exact ⟨hpk'.fst', hpk'.snd'.snd'⟩
 
 /-- **The number of rows of the native child is polynomial-time.** -/
 theorem computableInPolyTime_childRows (hr : ComputableInPolyTime r encIn encNat)
@@ -544,8 +542,7 @@ theorem computableInPolyTime_numPackets_nativeParentPacking
       (encPair (encPair (encList (encList encNat)) (encList (encList encNat)))
         (encPair encNat (encList (encPair encNat encNat)))) :=
     computableInPolyTime_nativeParentPacking hr ha hD
-  exact ComputableInPolyTime.binary_to_unary_bounded
-    ((ComputableInPolyTime.fst _ _).comp ((ComputableInPolyTime.snd _ _).comp hpk))
+  exact ComputableInPolyTime.binary_to_unary_bounded hpk.snd'.fst'
     (ComputableInPolyTime.unary_mul' (DescribedNetwork.numEdges_polyTime.comp hD)
       ((ComputableInPolyTime.unary_pow 12).comp hL))
     fun x => numPackets_nativeParentPacking_le (r x) (a x) (D x)

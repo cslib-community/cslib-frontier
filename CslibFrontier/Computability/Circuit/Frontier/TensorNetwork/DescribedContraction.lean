@@ -982,13 +982,9 @@ theorem _root_.Cslib.Circuits.Frontier.SumOps.mod_polyTime :
   one := GaloisRingArith.computableInPolyTime_mod_two_pow (ComputableInPolyTime.const 1)
     ComputableInPolyTime.id'
   add := GaloisRingArith.computableInPolyTime_mod_two_pow
-    (ComputableInPolyTime.binary_add.comp ((ComputableInPolyTime.fst encNat encNat).comp
-      (ComputableInPolyTime.snd _ _) |>.prod ((ComputableInPolyTime.snd encNat encNat).comp
-        (ComputableInPolyTime.snd _ _)))) (ComputableInPolyTime.fst _ _)
+    (ComputableInPolyTime.binary_add.comp (by fun_prop)) (by fun_prop)
   mul := GaloisRingArith.computableInPolyTime_mod_two_pow
-    (ComputableInPolyTime.binary_mul' ((ComputableInPolyTime.fst encNat encNat).comp
-      (ComputableInPolyTime.snd _ _)) ((ComputableInPolyTime.snd encNat encNat).comp
-        (ComputableInPolyTime.snd _ _))) (ComputableInPolyTime.fst _ _)
+    (ComputableInPolyTime.binary_mul' (by fun_prop) (by fun_prop)) (by fun_prop)
 
 /-- Coefficient lists are polynomial-time, with `p` in unary and the coefficients of `f` in
 binary. -/
@@ -998,22 +994,10 @@ theorem _root_.Cslib.Circuits.Frontier.SumOps.galois_polyTime :
     ((ComputableInPolyTime.length_list encNat).comp (ComputableInPolyTime.snd _ _))
     (ComputableInPolyTime.const 0)
   one := GaloisRingArith.computableInPolyTime_one (ComputableInPolyTime.snd _ _)
-  add := by
-    have hq := ComputableInPolyTime.fst (encPair encUnary (encList encNat))
-      (encPair (encList encNat) (encList encNat))
-    have hcd := ComputableInPolyTime.snd (encPair encUnary (encList encNat))
-      (encPair (encList encNat) (encList encNat))
-    exact GaloisRingArith.computableInPolyTime_add ((ComputableInPolyTime.fst _ _).comp hq)
-      ((ComputableInPolyTime.snd _ _).comp hq) ((ComputableInPolyTime.fst _ _).comp hcd)
-      ((ComputableInPolyTime.snd _ _).comp hcd)
-  mul := by
-    have hq := ComputableInPolyTime.fst (encPair encUnary (encList encNat))
-      (encPair (encList encNat) (encList encNat))
-    have hcd := ComputableInPolyTime.snd (encPair encUnary (encList encNat))
-      (encPair (encList encNat) (encList encNat))
-    exact GaloisRingArith.computableInPolyTime_mul ((ComputableInPolyTime.fst _ _).comp hq)
-      ((ComputableInPolyTime.snd _ _).comp hq) ((ComputableInPolyTime.fst _ _).comp hcd)
-      ((ComputableInPolyTime.snd _ _).comp hcd)
+  add := GaloisRingArith.computableInPolyTime_add (by fun_prop) (by fun_prop) (by fun_prop)
+    (by fun_prop)
+  mul := GaloisRingArith.computableInPolyTime_mul (by fun_prop) (by fun_prop) (by fun_prop)
+    (by fun_prop)
 
 /-- **Direct summation modulo `2 ^ P`**: one native machine for `d.contraction eval % 2 ^ P` on
 every input `(P, d)`, with `P` in unary, from a native certificate of a natural-number

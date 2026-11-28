@@ -105,9 +105,7 @@ theorem prod {f : α → β} {g : α → γ}
     let b ← first a
     (fun c => (b, c)) <$> second a, ?_, fun a => ?_⟩
   · simp only [OracleComp.interpret_bind, OracleComp.interpret_map]
-    exact hfirst.bind_with ((hsecond.preprocess
-      (ComputableInPolyTime.fst input middle)).map_with
-      (((ComputableInPolyTime.snd input middle).comp (.fst _ _)).prod (.snd _ _)))
+    exact hfirst.bind_with ((hsecond.preprocess (.fst input middle)).pair' (.snd input middle))
   · simp only [OracleComp.interpret_bind, OracleComp.interpret_map, hfirst_eq, hsecond_eq]
     rfl
 

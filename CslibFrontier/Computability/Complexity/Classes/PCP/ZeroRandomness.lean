@@ -91,8 +91,7 @@ theorem PCP_zero_zero : PCP (fun _ => 0) (fun _ => 0) enc = P enc := by
     exact ⟨⟨fun _ => 0, fun _ => [], fun x => f x.1.1⟩, 0, 0,
       { coins := .const _
         queries := .const _
-        verdict := hf.comp ((ComputableInPolyTime.fst enc encBits).comp
-          (ComputableInPolyTime.fst (encPair enc encBits) encBits)) },
+        verdict := hf.comp (by fun_prop) },
       { coins_le _ := by simp
         length_queries_le _ _ _ := by simp
         complete a ha := ⟨[], fun _ _ => by simpa [PCPVerifier.accepts] using (hA a).mp ha⟩
@@ -175,9 +174,7 @@ theorem exists_mem_PCP_zero_of_mem_NP {A : Set α} (hA : A ∈ NP enc) :
     fun y => V (y.1.1, y.2)⟩, 0, c,
     { coins := .const _
       queries := ?queries
-      verdict := hV.comp (((ComputableInPolyTime.fst enc encBits).comp
-        (ComputableInPolyTime.fst (encPair enc encBits) encBits)).pair
-        (ComputableInPolyTime.snd (encPair enc encBits) encBits)) },
+      verdict := hV.comp (by fun_prop) },
     { coins_le _ := by simp
       length_queries_le a _ _ := by simpa using hle (enc a).length
       complete := ?complete

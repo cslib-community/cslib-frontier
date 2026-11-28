@@ -112,7 +112,7 @@ theorem formulaWordGateCoefficientResidue_mem {α : Type} {enc : α ↪ List Boo
       (i w) (j w) (fun z => point (w, z))) ∈ CountingFunction (a + 1) enc encNat := by
   let query := encPair enc encNat
   let coords := encList encNat
-  have hw := (ComputableInPolyTime.fst enc encNat).comp (ComputableInPolyTime.fst query coords)
+  have hw := (ComputableInPolyTime.fst query coords).fst'
   have hgateValue := formulaWordGateResidue_polyTime (hword.comp hw) (hgate.comp hw) (hp.comp hw)
     (fun ((w, _), _) => hpos w) (ComputableInPolyTime.snd query coords)
   have hv := CountingFunction.comp_with (CountingFunction.of_polyTime hgateValue) hpoint

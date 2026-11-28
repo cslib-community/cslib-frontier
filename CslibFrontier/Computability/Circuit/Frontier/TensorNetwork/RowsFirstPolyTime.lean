@@ -83,11 +83,9 @@ theorem rowsFirst_polyTime :
       G.2.vertices.all (fun v => v.1.all fun i => decide (i < G.2.numEdges)))
       (encPair encNat (encDescribed encT)) encBool := by
     refine ComputableInPolyTime.allWithInput hvs ?_
-    refine ComputableInPolyTime.allWithInput
-      ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _)) ?_
-    exact ComputableInPolyTime.binary_lt.comp ((ComputableInPolyTime.snd _ _).prod
-      (ComputableInPolyTime.unary_to_binary.comp (hm.comp ((ComputableInPolyTime.fst _ _).comp
-        (ComputableInPolyTime.fst _ _)))))
+    refine ComputableInPolyTime.allWithInput (ComputableInPolyTime.snd _ _).fst' ?_
+    exact ComputableInPolyTime.binary_lt' (ComputableInPolyTime.snd _ _)
+      (ComputableInPolyTime.unary_to_binary.comp (hm.comp (ComputableInPolyTime.fst _ _).fst'))
   -- Each edge has one row port and one column port.
   have hlen := (ComputableInPolyTime.length_list _).comp hvs
   have hcap := ComputableInPolyTime.binary_min_unary' hlen hr
@@ -98,8 +96,7 @@ theorem rowsFirst_polyTime :
         (encList (encPair (encList encNat) encT))) :
       ComputableInPolyTime (fun G => (l G).flatMap Prod.fst) (encPair encNat (encDescribed encT))
         (encList encNat) :=
-    ComputableInPolyTime.flatMapWithInput (f := fun _ v => v.1) hl
-      ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.snd _ _))
+    ComputableInPolyTime.flatMapWithInput (f := fun _ v => v.1) hl (by fun_prop)
   have hcount {l : ℕ × DescribedNetwork T → List ℕ}
       (hl : ComputableInPolyTime l (encPair encNat (encDescribed encT)) (encList encNat)) :
       ComputableInPolyTime (fun p : (ℕ × DescribedNetwork T) × ℕ =>
@@ -108,8 +105,7 @@ theorem rowsFirst_polyTime :
     have hc := ComputableInPolyTime.countPWithInput (test := fun p a => decide (a = p.2))
       (hl.comp (ComputableInPolyTime.fst (encPair encNat (encDescribed encT)) encUnary))
       (ComputableInPolyTime.decide_eq' (ComputableInPolyTime.snd _ _)
-        (ComputableInPolyTime.unary_to_binary.comp ((ComputableInPolyTime.snd _ _).comp
-          (ComputableInPolyTime.fst _ _))))
+        (ComputableInPolyTime.unary_to_binary.comp (by fun_prop)))
     refine (ComputableInPolyTime.decide_eq' hc (ComputableInPolyTime.const 1)).of_enc_eq
       fun p => ?_
     simp only [Function.comp_apply, List.count_eq_countP]

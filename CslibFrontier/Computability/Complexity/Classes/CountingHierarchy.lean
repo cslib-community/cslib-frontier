@@ -239,9 +239,8 @@ theorem ite {c : α → Bool} {f g : α → β}
     (hf : f ∈ CountingFunction a input middle) (hg : g ∈ CountingFunction a input middle) :
     (fun x => if c x then f x else g x) ∈ CountingFunction a input middle := by
   obtain ⟨A, hA, hpair⟩ := prod hc (prod hf hg)
-  exact ⟨A, hA, hpair.map <| ComputableInPolyTime.ite' (.fst _ _)
-    ((ComputableInPolyTime.fst middle middle).comp (.snd _ _))
-    ((ComputableInPolyTime.snd middle middle).comp (.snd _ _))⟩
+  have hbranches := ComputableInPolyTime.snd encBool (encPair middle middle)
+  exact ⟨A, hA, hpair.map <| ComputableInPolyTime.ite' (.fst _ _) hbranches.fst' hbranches.snd'⟩
 
 /-- Polynomial-time postprocessing preserves the function level. -/
 theorem map {f : α → β} {g : β → γ}

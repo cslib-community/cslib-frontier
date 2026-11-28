@@ -108,7 +108,7 @@ theorem computableInPolyTime_orderedCertificate :
       2 * (incidenceGraph p.1).edges.length) encOrderInput encUnary := by fun_prop
   have hr : ComputableInPolyTime (fun p : (CSP Unit ℕ × RotationCertificate) × ℕ =>
       dartReindex p.1.2 p.2) (encPair encOrderInput encNat) encNat :=
-    dartReindex_polyTime.comp (((ComputableInPolyTime.snd _ _).comp (.fst _ _)).prod (.snd _ _))
+    dartReindex_polyTime.comp ((ComputableInPolyTime.fst _ _).snd'.prod (.snd _ _))
   exact RotationCertificate.computableInPolyTime_reindex (.snd _ _) hn hr hr
 
 end Cslib.Complexity.CSP.OneHot3

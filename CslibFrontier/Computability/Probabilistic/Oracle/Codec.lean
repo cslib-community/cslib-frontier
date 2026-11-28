@@ -254,11 +254,7 @@ theorem IsOraclePPTOn.queryWord {Op Q R α : Type} [DecidableEq Op] [Finite Op]
       (encPair input encBits) replyEncoding) :
     IsOraclePPTOn input replyEncoding
       (fun a => c.queryWord (replyCap a) decodeReply (q a)) := by
-  have hop : ComputableInPolyTime (fun a => (c.encodeQuery (q a)).1) input opEncoding :=
-    (ComputableInPolyTime.fst opEncoding encBits).comp henc
-  have hword : ComputableInPolyTime (fun a => (c.encodeQuery (q a)).2) input encBits :=
-    (ComputableInPolyTime.snd opEncoding encBits).comp henc
-  exact (IsOraclePPTOn.query_take_with hop hword hcap).map_with
+  exact (IsOraclePPTOn.query_take_with henc.fst' henc.snd' hcap).map_with
     (f := fun a w => decodeReply (q a) w) hdec
 
 /-- Lifting a strict oracle-PPT typed stateful handler `typed : Caller → Q → StateT State

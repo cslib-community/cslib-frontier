@@ -263,15 +263,9 @@ theorem IsPPTOn.exists_multiTapePTM_iterateWith_binary {initial : α → σ} {co
       (ComputableInPolyTime.fst encNat packedEnc) (.const 0))
     · exact IsTidyOraclePPTOn.of_computableInPolyTime (.const [])
     · apply (hostep.preprocess (ComputableInPolyTime.snd encNat packedEnc)).map_with
-      exact (ComputableInPolyTime.of_eq (encIn := encode) (encOut := encBits) (f := encode)
-        fun _ => rfl).comp
-        ((ComputableInPolyTime.binary_sub'
-          ((ComputableInPolyTime.fst encNat packedEnc).comp
-            (ComputableInPolyTime.fst encode stateEncoding)) (.const 1)).prod
-          (((ComputableInPolyTime.fst input stateEncoding).comp
-            ((ComputableInPolyTime.snd encNat packedEnc).comp
-              (ComputableInPolyTime.fst encode stateEncoding))).prod
-            (ComputableInPolyTime.snd encode stateEncoding)))
+      have hpair := ComputableInPolyTime.fst encode stateEncoding
+      exact ((ComputableInPolyTime.binary_sub' hpair.fst' (.const 1)).prod
+        (hpair.snd'.fst'.prod (ComputableInPolyTime.snd encode stateEncoding))).encoding_comp
   obtain ⟨_, kB, Body, hfiniteB, bodyM, cB, dB, hbodyM⟩ := hbody
   let wordStep : List Bool → WordOracleComp Empty (List Bool) :=
     Function.extend encode body (fun _ => pure [])
@@ -296,10 +290,7 @@ theorem IsPPTOn.exists_multiTapePTM_iterateWith_binary {initial : α → σ} {co
         fun _ => rfl).comp (hcount.prod (ComputableInPolyTime.id'.prod hinitial)))
   obtain ⟨_, ke, Extract, hfiniteE, extM, ce, de, hextM⟩ :=
     IsTidyOraclePPTOn.of_computableInPolyTime (Operation := Empty)
-      ((ComputableInPolyTime.of_eq (encIn := stateEncoding) (encOut := encBits)
-        (f := stateEncoding) fun _ => rfl).comp
-        ((ComputableInPolyTime.snd input stateEncoding).comp
-          (ComputableInPolyTime.snd encNat packedEnc)))
+      (ComputableInPolyTime.snd encNat packedEnc).snd'.encoding_comp
   let tp (a : α) : ℕ := cp * ((input a).length + 1) ^ dp
   let bound (a : α) : ℕ :=
     2 * (encNat (count a)).length + 1 + (2 * (input a).length + 1 + size a)
