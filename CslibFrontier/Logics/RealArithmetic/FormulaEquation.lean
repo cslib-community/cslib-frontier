@@ -8,6 +8,10 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Logics.RealArithmetic.FormulaWordValidation
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryOrder
 import CslibFrontier.Logics.RealArithmetic.FormulaBooleanEvaluation
 import Mathlib.Analysis.Real.Sqrt
 import Mathlib.Data.List.GetD
@@ -27,11 +31,14 @@ The construction adapts lean-canny's tree-to-equations reduction at
 
 * `formulaWordEquation_eval_zero_iff` characterizes the projection of the equation's real zeros
   onto the original coordinates, on every word including malformed input.
+* `formulaWordEquation_polyTime` certifies polynomial-time construction of the encoded equation.
 -/
 
 public section
 
 namespace Cslib.Logic.RealArithmetic
+
+open Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInPolyTime
 
 private abbrev gateCount (word : List Bool) : ℕ := (formulaWordTokens word).length
 
@@ -421,5 +428,256 @@ theorem formulaWordEquation_eval_zero_iff (word : List Bool) (x : Fin word.lengt
         cases bits i <;> simp [bitValue]
       · rw [hinput, hfirst, hsecond]
         exact hw i
+
+private def addTag : List Bool := frame (encTermToken (.inr (.inr (.inl ()))))
+
+private def mulTag : List Bool := frame (encTermToken (.inr (.inr (.inr ()))))
+
+private theorem encTerm_add {n : ℕ} (a b : Term n) :
+    encTerm n (.add a b) = addTag ++ (encTerm n a ++ encTerm n b) := by
+  simp [addTag, encTerm_apply, encTerm_tokens, encList_append, encList_cons]
+
+private theorem encTerm_mul {n : ℕ} (a b : Term n) :
+    encTerm n (.mul a b) = mulTag ++ (encTerm n a ++ encTerm n b) := by
+  simp [mulTag, encTerm_apply, encTerm_tokens, encList_append, encList_cons]
+
+private theorem encTerm_const {n : ℕ} (z : ℤ) :
+    encTerm n (.const z) = encTerm 0 (.const z) :=
+  encTerm_rename (Fin.elim0 : Fin 0 → Fin n) (fun i => i.elim0) (.const z)
+
+private def varWord (i : ℕ) : List Bool :=
+  frame (true :: false :: encUnary i)
+
+private theorem encTerm_var_word {n : ℕ} (i : Fin n) :
+    encTerm n (.var i) = varWord i.val := by
+  simp [varWord]
+
+private theorem varWord_polyTime : ComputableInPolyTime varWord encUnary encBits := by
+  have hunary : ComputableInPolyTime (fun i : ℕ => encUnary i) encUnary encBits :=
+    of_eq fun _ => rfl
+  have hbits := bitsCons (.const true) (bitsCons (.const false) hunary)
+  exact (ComputableInDegree.of_frame (encIn := encBits) (encMid := encBits)
+    (f := frame) (fun _ => rfl)).computableInPolyTime.comp hbits
+
+private abbrev EncodedTermPolyTime {α : Type} (input : α ↪ List Bool) {n : α → ℕ}
+    (term : (a : α) → Term (n a)) : Prop :=
+  ComputableInPolyTime (fun a => encTerm (n a) (term a)) input encBits
+
+namespace EncodedTermPolyTime
+
+variable {α : Type} {input : α ↪ List Bool} {n : α → ℕ}
+
+private theorem const (z : ℤ) : EncodedTermPolyTime input (fun a => (.const z : Term (n a))) := by
+  have h : ComputableInPolyTime (fun _ : α => encTerm 0 (.const z)) input encBits := .const _
+  exact h.of_enc_eq fun _ => congrArg encBits (encTerm_const z)
+
+private theorem var {i : (a : α) → Fin (n a)}
+    (h : ComputableInPolyTime (fun a => (i a).val) input encUnary) :
+    EncodedTermPolyTime input (fun a => .var (i a)) :=
+  (varWord_polyTime.comp h).of_enc_eq fun a => congrArg encBits (encTerm_var_word (i a))
+
+private theorem add {l r : (a : α) → Term (n a)}
+    (hl : EncodedTermPolyTime input l) (hr : EncodedTermPolyTime input r) :
+    EncodedTermPolyTime input (fun a => .add (l a) (r a)) :=
+  (bitsAppend (.const addTag) (bitsAppend hl hr)).of_enc_eq fun a =>
+    congrArg encBits (encTerm_add (l a) (r a))
+
+private theorem mul {l r : (a : α) → Term (n a)}
+    (hl : EncodedTermPolyTime input l) (hr : EncodedTermPolyTime input r) :
+    EncodedTermPolyTime input (fun a => .mul (l a) (r a)) :=
+  (bitsAppend (.const mulTag) (bitsAppend hl hr)).of_enc_eq fun a =>
+    congrArg encBits (encTerm_mul (l a) (r a))
+
+private theorem sub {l r : (a : α) → Term (n a)}
+    (hl : EncodedTermPolyTime input l) (hr : EncodedTermPolyTime input r) :
+    EncodedTermPolyTime input (fun a => termSub (l a) (r a)) :=
+  add hl (mul (const (-1)) hr)
+
+private theorem select {bit yes no : (a : α) → Term (n a)}
+    (hb : EncodedTermPolyTime input bit) (hy : EncodedTermPolyTime input yes)
+    (hn : EncodedTermPolyTime input no) :
+    EncodedTermPolyTime input (fun a => selectTerm (bit a) (yes a) (no a)) :=
+  add (mul hb hy) (mul (sub (const 1) hb) hn)
+
+private theorem bit {b : α → Bool} (hb : ComputableInPolyTime b input encBool) :
+    EncodedTermPolyTime input (fun a => (bitTerm (b a) : Term (n a))) := by
+  refine (hb.ite' (const (n := n) 1) (const (n := n) 0)).of_enc_eq ?_
+  intro a
+  change encTerm _ (bitTerm (b a)) = if b a then encTerm _ (.const 1) else encTerm _ (.const 0)
+  cases b a <;> rfl
+
+end EncodedTermPolyTime
+
+private theorem gateCount_polyTime {α : Type} {input : α ↪ List Bool} {word : α → List Bool}
+    (hw : ComputableInPolyTime word input encBits) :
+    ComputableInPolyTime (fun a => gateCount (word a)) input encUnary :=
+  (length_list encFormulaToken).comp (formulaWordTokens_polyTime.comp hw)
+
+private theorem childTerm_polyTime {α : Type} {input : α ↪ List Bool}
+    {word : α → List Bool} {index child : α → ℕ}
+    (hw : ComputableInPolyTime word input encBits) (hi : ComputableInPolyTime index input encNat)
+    (hc : ComputableInPolyTime child input encNat) :
+    EncodedTermPolyTime input (fun a => childTerm (word a) (index a) (child a)) := by
+  have hcount := gateCount_polyTime hw
+  have hrank := unary_add' (length_bits_comp hw) (binary_min_unary' hcount hc)
+  have hguard := decide_and (binary_lt' hi hc) (binary_lt' hc (unary_to_binary.comp hcount))
+  refine (ite_decide hguard (varWord_polyTime.comp hrank)
+    (.const (encTerm 0 (.const 0)))).of_enc_eq ?_
+  intro a
+  change encTerm _ (childTerm (word a) (index a) (child a)) =
+    if index a < child a ∧ child a < gateCount (word a) then
+      varWord ((word a).length + min (gateCount (word a)) (child a))
+    else encTerm 0 (.const 0)
+  unfold childTerm
+  by_cases h : index a < child a ∧ child a < gateCount (word a)
+  · rw [ite_eq_left h, dite_eq_left h, encTerm_var_word, min_eq_right h.2.le]
+    rfl
+  · rw [ite_eq_right h, dite_eq_right h, encTerm_const]
+
+private theorem booleanTerm_polyTime {α : Type} {input : α ↪ List Bool}
+    {word : α → List Bool} {index : α → ℕ}
+    (hw : ComputableInPolyTime word input encBits) (hi : ComputableInPolyTime index input encNat) :
+    EncodedTermPolyTime input (fun a => booleanTerm (word a) (index a)) := by
+  let left (a : α) := (formulaWordChildIndices (word a) (index a)).getD 0 0
+  let right (a : α) := (formulaWordChildIndices (word a) (index a)).getD 1 0
+  have hchildren := formulaWordChildIndices_polyTime.comp (hw.prod hi)
+  have hl : ComputableInPolyTime left input encNat := listGetD_binary 0 hchildren (.const 0)
+  have hr : ComputableInPolyTime right input encNat := listGetD_binary 0 hchildren (.const 1)
+  have hentry (l r : Bool) : EncodedTermPolyTime input (fun a =>
+      (bitTerm (formulaWordGateValueWithAnswer (word a) (index a) false
+        (fun j => if j = left a then l else r)) : Term (formulaEquationArity (word a)))) := by
+    have hread : ComputableInPolyTime (fun p : α × ℕ => if p.2 = left p.1 then l else r)
+        (encPair input encNat) encBool :=
+      ite_decide (decide_eq' (snd input encNat) (hl.comp (fst input encNat))) (.const l) (.const r)
+    exact EncodedTermPolyTime.bit (formulaWordGateValueWithAnswer_polyTime hw hi (.const false) hread)
+  exact EncodedTermPolyTime.select (childTerm_polyTime hw hi hl)
+    (EncodedTermPolyTime.select (childTerm_polyTime hw hi hr) (hentry true true) (hentry true false))
+    (EncodedTermPolyTime.select (childTerm_polyTime hw hi hr) (hentry false true) (hentry false false))
+
+private def squareWords {n : ℕ} (terms : List (Term n)) : List Bool :=
+  terms.flatMap fun term => addTag ++ (mulTag ++ (encTerm n term ++ encTerm n term))
+
+private theorem encTerm_sumSquares {n : ℕ} (terms : List (Term n)) :
+    encTerm n (sumSquares terms) = squareWords terms ++ encTerm 0 (.const 0) := by
+  induction terms with
+  | nil => simp [sumSquares, squareWords]
+  | cons term tail ih =>
+    change encTerm n (.add (.mul term term) (sumSquares tail)) = _
+    simp only [squareWords, List.flatMap_cons, encTerm_add, encTerm_mul, ih, List.append_assoc]
+
+private theorem squareWords_append {n : ℕ} (terms terms' : List (Term n)) :
+    squareWords (terms ++ terms') = squareWords terms ++ squareWords terms' :=
+  List.flatMap_append
+
+private theorem squareWords_cons_polyTime {α : Type} {input : α ↪ List Bool} {n : α → ℕ}
+    {term : (a : α) → Term (n a)} {terms : (a : α) → List (Term (n a))}
+    (ht : EncodedTermPolyTime input term)
+    (hs : ComputableInPolyTime (fun a => squareWords (terms a)) input encBits) :
+    ComputableInPolyTime (fun a => squareWords (term a :: terms a)) input encBits :=
+  bitsAppend (bitsAppend (.const addTag) (bitsAppend (.const mulTag) (bitsAppend ht ht))) hs
+
+private def boundedGate (word : List Bool) (index : ℕ) : Fin (gateCount word) :=
+  if h : index < gateCount word then ⟨index, h⟩ else root word
+
+private noncomputable def gateSquareWords (word : List Bool) (index : ℕ) : List Bool :=
+  let i := boundedGate word index
+  squareWords (bitConstraint word i :: gateEquations word i)
+
+private abbrev encGate := encPair encBits encUnary
+
+private theorem boundedGate_polyTime :
+    ComputableInPolyTime (fun p : List Bool × ℕ => (boundedGate p.1 p.2).val) encGate encUnary := by
+  have hi := snd encBits encUnary
+  have hcount := gateCount_polyTime (fst encBits encUnary)
+  refine (ite_decide (unary_lt' hi hcount) hi (.const 0)).of_enc_eq ?_
+  intro p
+  apply congrArg encUnary
+  unfold boundedGate
+  split <;> simp_all [root]
+
+private theorem gateSquareWords_polyTime :
+    ComputableInPolyTime (fun p : List Bool × ℕ => gateSquareWords p.1 p.2) encGate encBits := by
+  let n (p : List Bool × ℕ) := formulaEquationArity p.1
+  let i (p : List Bool × ℕ) := boundedGate p.1 p.2
+  let bit (p : List Bool × ℕ) : Term (n p) := .var (truthCoord p.1 (i p))
+  let first (p : List Bool × ℕ) : Term (n p) := .var (firstCoord p.1 (i p))
+  let second (p : List Bool × ℕ) : Term (n p) := .var (secondCoord p.1 (i p))
+  let atom (p : List Bool × ℕ) : Term (n p) :=
+    (formulaWordGateTerm p.1 (i p)).rename (inputCoord p.1)
+  have hw := fst encBits encUnary
+  have hi := unary_to_binary.comp boundedGate_polyTime
+  have hsource := hw.prod hi
+  have hlength := length_bits_comp hw
+  have hcount := gateCount_polyTime hw
+  have hbit : EncodedTermPolyTime encGate bit :=
+    EncodedTermPolyTime.var (unary_add' hlength boundedGate_polyTime)
+  have hfirst : EncodedTermPolyTime encGate first :=
+    EncodedTermPolyTime.var (unary_add' hlength (unary_add' hcount boundedGate_polyTime))
+  have hsecond : EncodedTermPolyTime encGate second := EncodedTermPolyTime.var
+    (unary_add' hlength (unary_add' hcount (unary_add' hcount boundedGate_polyTime)))
+  have hatom : EncodedTermPolyTime encGate atom :=
+    (encTerm_formulaWordGateTerm_polyTime.comp hsource).of_enc_eq fun p =>
+      congrArg encBits (encTerm_rename (inputCoord p.1) (fun _ => rfl) _)
+  have hone := EncodedTermPolyTime.const (input := encGate) (n := n) 1
+  have hoff := hone.sub hbit
+  have hconstraint := hbit.mul (hbit.sub hone)
+  have hempty : ComputableInPolyTime (fun p : List Bool × ℕ =>
+      squareWords ([] : List (Term (n p)))) encGate encBits := .const []
+  have hnone := squareWords_cons_polyTime (hbit.sub (booleanTerm_polyTime hw hi)) hempty
+  have heq := squareWords_cons_polyTime (hbit.mul hatom)
+    (squareWords_cons_polyTime (hoff.mul ((hatom.mul hfirst).sub hone)) hempty)
+  have hlt := squareWords_cons_polyTime (hbit.mul ((hatom.mul (hfirst.mul hfirst)).add hone))
+    (squareWords_cons_polyTime (hoff.mul (hatom.sub (hsecond.mul hsecond))) hempty)
+  have hrequest := formulaWordComparisonRequest_polyTime.comp hsource
+  have hfield : ComputableInPolyTime FormulaComparisonRequest.isStrict
+      encFormulaComparisonRequest encBool := by fun_prop
+  have hstrict := hrequest.optionElimWithInput (body := fun _ request => request.isStrict)
+    (.const false)
+    (hfield.comp (snd encGate encFormulaComparisonRequest))
+  refine squareWords_cons_polyTime hconstraint
+    (((optionIsSome hrequest).ite' (hstrict.ite' hlt heq) hnone).of_enc_eq ?_)
+  intro p
+  change squareWords (gateEquations p.1 (i p)) = _
+  cases h : formulaWordComparisonRequest p.1 (boundedGate p.1 p.2) with
+  | none => simp [gateEquations, i, h, bit]
+  | some request =>
+    cases hs : request.isStrict with
+    | false => simp [gateEquations, i, h, hs, bit, first, atom]
+    | true => simp [gateEquations, i, h, hs, bit, first, second, atom]
+
+/-- Construct the canonical term word for the formula equation in polynomial time. Each gate
+contributes the framed words of its local equations twice, with fixed arithmetic tags. The
+compiler copies the original comparison term words and forms new unary coordinates from the
+number of decoded gates. -/
+theorem formulaWordEquation_polyTime :
+    ComputableInPolyTime (fun word => encTerm (formulaEquationArity word) (formulaWordEquation word))
+      encBits encBits := by
+  have hrange := unary_range' (gateCount_polyTime (input := encBits) id')
+  have hblocks := flatMapToBitsWithInput hrange gateSquareWords_polyTime
+  have hrootVar : EncodedTermPolyTime encBits (fun word => .var (truthCoord word (root word))) :=
+    EncodedTermPolyTime.var length_bits
+  have hempty : ComputableInPolyTime (fun word : List Bool =>
+      squareWords ([] : List (Term (formulaEquationArity word)))) encBits encBits := .const []
+  have hroot := squareWords_cons_polyTime
+    (hrootVar.sub (EncodedTermPolyTime.const 1)) hempty
+  refine (bitsAppend hroot (bitsAppend hblocks (.const (encTerm 0 (.const 0))))).of_enc_eq ?_
+  intro word
+  change encTerm _ (formulaWordEquation word) =
+    squareWords [termSub (.var (truthCoord word (root word))) (.const 1)] ++
+      ((List.range (gateCount word)).flatMap (gateSquareWords word) ++ encTerm 0 (.const 0))
+  rw [formulaWordEquation, encTerm_sumSquares, ← List.singleton_append,
+    squareWords_append, List.append_assoc]
+  congr 2
+  have hindices : (List.finRange (gateCount word)).map Fin.val = List.range (gateCount word) := by
+    apply List.ext_getElem
+    · simp
+    · intro i hi hi'
+      simp
+  rw [squareWords, List.flatMap_assoc, ← hindices, List.flatMap_map]
+  apply List.flatMap_congr
+  intro i _
+  unfold gateSquareWords boundedGate
+  rw [dite_eq_left i.isLt]
+  rfl
 
 end Cslib.Logic.RealArithmetic
