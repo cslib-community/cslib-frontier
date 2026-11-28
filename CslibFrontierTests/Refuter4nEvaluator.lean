@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Ryan Anderson. All rights reserved.
+Copyright (c) 2026 Christian Reitwiessner, Ryan Anderson. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Ryan Anderson
+Authors: Christian Reitwiessner, Ryan Anderson
 -/
 
 module
@@ -31,7 +31,7 @@ namespace CslibFrontierTests.Refuter4nEvaluator
 
 open Cslib Cslib.BitString Cslib.WordRAM Cslib.Algorithms.WordRAM.Refuter4n
 
-variable {n r : ℕ} {f : BitString n → Bool}
+variable {n r : ℕ} {f : BooleanFunction n}
 
 /-! ### A generic caller: evaluate `f` on `k` stored points -/
 
@@ -179,6 +179,16 @@ example (x : BitString 4) (s : Data 7) (hx : s.regs 0 = pointWord x) (hb : s.reg
   obtain ⟨t, ht, hout, -, -, hmem⟩ := (parityEvaluator 4).exec (w := 5) (b := 0) x s
     (show 4 + 1 ≤ 5 by decide) (by simp [parityEvaluator, Fits]) hx hb
   exact ⟨t, ht, hout, hmem 9 (by simp [parityEvaluator])⟩
+
+/-- `FramedEvaluator.exec_rename` for the parity evaluator in the bank of `evalMany`: the result
+lands in caller register `2`, and a caller register outside the bank is kept. -/
+example (x : BitString 3) (s : Data 13) (hx : s.regs 0 = pointWord x) (hb : s.regs 1 = 0) :
+    ∃ t, ExecWithin 4 ((parityEvaluator 3).code.rename (bank 7)) s t 24 ∧
+      t.regs 2 = (parity 3 x).toNat ∧ t.regs (cSrc 7) = s.regs (cSrc 7) := by
+  have hfit : Fits 4 (s.regs 1 + 0) := by rw [hb]; decide
+  obtain ⟨t, ht, hout, -, -, hregs, -⟩ := (parityEvaluator 3).exec_rename
+    (Fin.castAdd_injective 7 6) x s (show 3 + 1 ≤ 4 by decide) hfit hx
+  exact ⟨t, ht, hout, hregs _ fun j => bank_ne j 2⟩
 
 /-- `exec_evalMany` for the parity evaluator: `k` calls charged `k * (6 n + 13) + 4`. -/
 example {w b src dst : ℕ} (xs : List (BitString 3)) (s : Data 13) (hw : 4 ≤ w)

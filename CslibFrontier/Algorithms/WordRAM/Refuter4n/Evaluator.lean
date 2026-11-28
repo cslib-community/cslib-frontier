@@ -1,7 +1,7 @@
 /-
-Copyright (c) 2026 Ryan Anderson. All rights reserved.
+Copyright (c) 2026 Christian Reitwiessner, Ryan Anderson. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Ryan Anderson
+Authors: Christian Reitwiessner, Ryan Anderson
 -/
 
 module
@@ -9,9 +9,10 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Call
 public import CslibFrontier.Computability.WordRAM.CountingLoop
-public import CslibFrontier.Foundations.Data.BitString.Binary
+public import CslibFrontier.Foundations.Data.BitString.Basic
 public import CslibFrontier.Foundations.Data.BitString.Parity
 import CslibFrontier.Computability.WordRAM.Notation
+import CslibFrontier.Foundations.Data.BitString.Binary
 import CslibFrontier.Foundations.Data.BitString.ListParity
 import CslibFrontier.Foundations.Data.Nat.Bitwise.Projection
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
@@ -19,7 +20,7 @@ import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 /-!
 # Framed Word-RAM evaluators for the `4n - 9d` refuter
 
-The refuter of issue `#4322` (Milestone 4) evaluates the hard function `f : BitString n → Bool`
+The refuter of issue `#4322` (Milestone 4) evaluates the hard function `f : BooleanFunction n`
 on its candidate points. The Word-RAM has no oracle instruction, so `f` is given as code. This
 module states the contract such code must meet, in the library's Word-RAM cost model, and how a
 caller charges its calls. No running time is claimed for the refuter here, and no
@@ -44,7 +45,8 @@ outside the window unchanged. Window cells and the other registers are left unsp
 The admitted widths are fixed rather than chosen by the evaluator: every `w ≥ n + 1`, the
 widths at which the packed point fits and, even for `n = 0`, so does the constant `1`. A caller
 may run at any larger width its own addresses need. The workspace is at most the cost
-(`space_le_cost`), as a call of `cost` instructions touches at most `cost` cells. An evaluator
+(`space_le_cost`), the usual space-within-time bound (a call of `cost` instructions accesses at
+most `cost` cells, though not necessarily contiguous ones). An evaluator
 that could choose its widths could hide a `2 ^ n`-bit truth table of `f` in one constant and
 answer within a constant `cost`; with these two conditions it must either work at width `n + 1`
 or have a window that does not fit there, and then pay `cost ≥ space ≥ 2 ^ (n + 1)` per call.
@@ -59,15 +61,16 @@ is fixed, the result cannot depend on it; since it is preserved, so is any refut
 there. This is a stateless calling convention: unlike `SubroutineBase`, which carries a
 representation invariant and zero-fills its block before setup (`initClear`), an evaluator keeps
 no state between calls and starts from dirty memory without any reset pass. It also differs from
-`Program.ComputesInTime`, which certifies a flat program started from an input list at
-caller-chosen admitted widths: an evaluator is a structured `Code` run inside a caller's
+`Program.ComputesInTime`, which certifies a flat program started from an input list at the
+admitted widths its statement names: an evaluator is a structured `Code` run inside a caller's
 registers and memory, so its certificate carries a frame and starts from arbitrary data.
 
 **Calls.** A caller runs `code` in an injective register bank `g` of its own register file
 (`Code.rename`). `FramedEvaluator.exec_rename` gives the call postcondition `CallPost`: the
 result in `g out`, `g inp` and `g base` kept, every caller register outside the bank kept and
 memory outside the window kept, within `cost`. `FramedEvaluator.exec_loop` runs a counting loop
-whose body is a charged preparation, one call and a charged continuation: from index `i₀` up
+whose body is a charged preparation, one call and a charged continuation (`ExecWithin.call`):
+from index `i₀` up
 to the limit `N` it costs `(N - i₀) * (tPrep + cost + tCont + 2) + 2` instructions, overhead
 plus the number of calls times the cost of evaluation and setup.
 
@@ -114,13 +117,13 @@ theorem fits_pointWord {w : ℕ} (x : BitString n) (h : n ≤ w) : Fits w (point
 
 /-! ### The evaluator contract -/
 
-/-- A **framed Word-RAM evaluator** for `f : BitString n → Bool`: a fixed standard-basis program
+/-- A **framed Word-RAM evaluator** for `f : BooleanFunction n`: a fixed standard-basis program
 on `r` registers with its calling convention and per-call instruction bound. The certificate
 `exec` holds at every width `w ≥ n + 1`, from any data whose register `inp` holds the packed
 point and register `base` the workspace base `b`, with all other registers and all memory
 arbitrary (the window `[b, b + space)` included). It computes `(f x).toNat` into `out` within
 `cost` instructions, keeps `inp` and `base`, and keeps every memory cell outside the window. -/
-structure FramedEvaluator (n : ℕ) (f : BitString n → Bool) (r : ℕ) where
+structure FramedEvaluator (n : ℕ) (f : BooleanFunction n) (r : ℕ) where
   /-- The fixed program. -/
   code : Code .standard r
   /-- The register holding the packed point `pointWord x`. -/
@@ -147,7 +150,7 @@ structure FramedEvaluator (n : ℕ) (f : BitString n → Bool) (r : ℕ) where
 
 namespace FramedEvaluator
 
-variable {f : BitString n → Bool} {r r' : ℕ} (E : FramedEvaluator n f r)
+variable {f : BooleanFunction n} {r r' : ℕ} (E : FramedEvaluator n f r)
 
 /-- The postcondition of one call of `E` in the register bank `g` of a caller, from caller data
 `s` on the point `x` to caller data `t`: the result is in `g E.out`, the registers `g E.inp`
@@ -190,9 +193,8 @@ theorem exec_loop {g : Fin r → Fin r'} (hg : g.Injective) {w N tPrep tCont : �
       ((N - s.regs index) * (tPrep + E.cost + tCont + 2) + 2) ∧ P N y ∧ y.regs index = N :=
   ExecWithin.loop_count P hlimit (fun y hy hlt => by
     obtain ⟨a, x, hprep, hfit, hx, hcont⟩ := hstep y hy hlt
-    obtain ⟨t, ht, hpost⟩ := E.exec_rename hg x a hw hfit hx
-    obtain ⟨z, hz, hP⟩ := hcont t hpost
-    exact ⟨z, (hprep.seq (ht.seq hz)).mono (by omega), hP⟩) hle hs
+    exact ExecWithin.call hg hprep (E.exec x (a.comap g) hw hfit hx rfl)
+      fun t ⟨hout, hinp, hbase, hmem⟩ hframe => hcont t ⟨hout, hinp, hbase, hframe, hmem⟩) hle hs
 
 end FramedEvaluator
 
