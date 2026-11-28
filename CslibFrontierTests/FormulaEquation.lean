@@ -11,6 +11,8 @@ import CslibFrontier.Logics.RealArithmetic.FormulaEquation
 
 /-! Real zeros for a mixed Boolean formula and rejection of malformed input. -/
 
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.FormulaEquation
 
 open Cslib.Logic.RealArithmetic Cslib.Complexity
