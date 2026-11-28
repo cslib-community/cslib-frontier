@@ -319,8 +319,10 @@ remains.
 1. Claim the issue or create one with concrete scope and completion criteria, naming your agent
    or session and branch. A shared GitHub account does not identify the active agent.
 2. Update the task when scope changes, a blocker needs help, work is handed off, or you stop.
+   Before stopping with open PRs, keep the session on as a worker (preferred) or post
+   `RELEASED by=<id> reason=<text>` on each so coordinators finish them; never leave them silent.
 3. Before taking over work, inspect the issue, PR, recent commits and activity, and notify the
-   owner in the task record. Explicitly released work is available immediately; a claim with no
+   owner in the task record. Released work is available immediately; a claim with no
    open PR and no owner activity for 24 hours after that notice (6 hours for an agent session on
    your own account) is released (record the takeover). A coordinator may reassign a PR that
    needs author action (changes requested, a conflict or failing CI) after the same notice and

@@ -187,8 +187,8 @@ following [CONTRIBUTING.md](../CONTRIBUTING.md#ai-assistance-and-review).
 
 ### Verdicts, claims and holds
 
-Agents sharing one GitHub account cannot rely on GitHub's review states, so verdicts, review claims
-and holds are lines in a PR comment or review body that agents and tools can read. Each line stands
+Agents sharing one GitHub account cannot rely on GitHub's review states, so verdicts, review claims,
+holds and releases are lines in a PR comment or review body that agents and tools can read. Each line stands
 alone; matching is case-sensitive, and leading whitespace and a leading `**` are tolerated. Times
 are UTC, written `YYYY-MM-DDTHH:MMZ`.
 
@@ -213,6 +213,12 @@ are UTC, written `YYYY-MM-DDTHH:MMZ`.
   bind until a coordinator converts them. Expiry ends a hold, not the review it waits for: a review
   this policy requires, such as pending source or advisory-notice review, is still done and
   recorded before queueing.
+- **Release.** `RELEASED by=<id> reason=<text>`, posted by the PR's author, hands the PR to the
+  coordinators: the author will not push to it or answer review. Any coordinator may then fix,
+  restack, rescope, split, close or land it without asking the author, and records that it has
+  done so with `TAKEOVER by=<id>`. The author may return the same way while no one else has taken
+  it over. Review is unchanged: the releasing author cannot approve the PR, and whoever pushes
+  substantive changes needs a different reviewer for them.
 
 Do not queue a PR while a hold on it is in force or another reviewer's claim on its head is
 unexpired, or when a `**REQUEST_CHANGES**` at the approved head was posted after the approval and
@@ -226,6 +232,7 @@ Coordinators sweep these records as part of tending
 - an expired hold: post `HOLD-RELEASED by=<id> reason=expired` after checking that its condition
   no longer applies or notifying its owner;
 - an expired claim without a verdict: the head is free for another reviewer;
+- a released PR without a later `TAKEOVER`: take it over or arrange an owner;
 - a non-draft PR whose current head has gone 12 hours without a verdict: arrange a reviewer.
 
 ### Approve and queue

@@ -271,6 +271,8 @@ HOLD = re.compile(PREFIX + r"HOLD owner=(\S+) until=" + STAMP + r" reason=(.*)$"
 RELEASE = re.compile(PREFIX + r"HOLD-RELEASED by=(\S+) reason=(.*)$")
 CLAIM = re.compile(PREFIX + r"CLAIM review head=([0-9a-f]{40}) by=(\S+) until=" + STAMP
                    + r"(?:\*\*)?[ \t]*$")
+PR_RELEASE = re.compile(PREFIX + r"RELEASED by=(\S+) reason=(.*)$")
+TAKEOVER = re.compile(PREFIX + r"TAKEOVER by=(\S+?)(?:\*\*)?[ \t]*$")
 VERDICT = re.compile(r"[ \t]*\*\*(APPROVE|REQUEST_CHANGES)\*\* at `?([0-9a-f]{7,40})(?![0-9a-f])`?"
                      r"(?: by `?([^\s`]+)`?)?")
 CLAIM_LEASE = timedelta(minutes=45)
@@ -399,6 +401,25 @@ def _scan_holds(items: list[Post],
 def holds(items: list[Post], maintainer: str = MAINTAINER) -> list[Hold]:
     """Every formatted hold outside fenced code blocks, with the release line that released it."""
     return _scan_holds(items, maintainer)[0]
+
+
+@dataclass(frozen=True)
+class Release:
+    by: str
+    reason: str
+    post: Post
+
+
+def open_release(items: list[Post]) -> Release | None:
+    """The last `RELEASED` line handing the PR to coordinators, unless a `TAKEOVER` followed it."""
+    found = None
+    for post in items:
+        for _, line in post.unfenced_lines():
+            if match := PR_RELEASE.match(line):
+                found = Release(clean_id(match.group(1)), clean_reason(match.group(2)), post)
+            elif TAKEOVER.match(line):
+                found = None
+    return found
 
 
 @dataclass
