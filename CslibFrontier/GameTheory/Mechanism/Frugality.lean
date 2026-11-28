@@ -17,6 +17,7 @@ public import Mathlib.Combinatorics.Matroid.Basic
 public import Mathlib.Data.Finset.Lattice.Fold
 public import Mathlib.Order.Antichain
 import CslibFrontier.Foundations.Data.Finset.ApplyUpdate
+import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
 import Mathlib.Combinatorics.Hall.Basic
 import Mathlib.Combinatorics.Matroid.Circuit
 import Mathlib.Combinatorics.SimpleGraph.Connectivity.EdgeConnectivity
@@ -41,10 +42,11 @@ This module formalizes the competitive frugality framework and main bounds of
 [HartlineKarlin2007], §13.5 (pp. 350–354) and Exercise 13.12 (p. 361):
 
 * **Procurement mechanisms and VCG (§13.5, pp. 350–352):** `ProcurementMechanism E F`,
-  incentive predicates `IsDSIC`, `IsIR`, `LosersPaidZero`, critical threshold bid
-  `thresholdBid` / `thresholdMechanism`, and the Clarke-pivot VCG procurement mechanism
-  `vcgMechanism` (bridged to `Cslib.GameTheory.Mechanism.groves` on negative cost valuations with
-  the outside-option pivot `max_{T ∈ F, e ∉ T} (-c(T))`).
+  incentive predicates `IsDSIC`, `IsIR`, `LosersPaidZero`, antitonicity and winner-payment
+  bid-independence (`ProcurementMechanism.IsDSIC.antitone_alloc`, `pay_eq_of_mem_alloc`), and the
+  Clarke-pivot VCG procurement mechanism `vcgMechanism` (bridged to
+  `Cslib.GameTheory.Mechanism.groves` on negative cost valuations with the outside-option pivot
+  `max_{T ∈ F, e ∉ T} (-c(T))`).
 * **Pay-your-bid Nash benchmark `N(c)` and frugality ratio (§13.5.1, Definition 13.52 and
   Footnote 3, p. 352):** `IsPayYourBidNash` characterizes pure Nash equilibria of the pay-your-bid
   mechanism `N` in which non-winners bid truthfully and ties are broken in favor of efficiency
@@ -58,15 +60,14 @@ This module formalizes the competitive frugality framework and main bounds of
   bijection (via Hall's marriage theorem) to show that every restricted pay-your-bid Nash
   equilibrium pays exactly `(vcgMechanism F hF hmono).totalPay c`; the converse constructs explicit
   nonnegative cost profiles when equicardinality or basis exchange fails. Note that the antichain
-  assumption
-  (minimal feasible sets, as in the source literature) is necessary for the converse: adding a
-  strict superset `{0, 2}` to `{{0}, {1}}` leaves VCG at frugality ratio `1` on nonnegative costs
-  without being a matroid base family.
+  assumption (minimal feasible sets, as in the source literature) is necessary for the converse:
+  adding a strict superset `{0, 2}` to `{{0}, {1}}` leaves VCG at frugality ratio `1` on
+  nonnegative costs without being a matroid base family.
 * **Exercise 13.12 (p. 361; Example 13.51, p. 351):** for any finite connected bridgeless simple
   graph `G`, the spanning-tree family `spanningTreeFamily G` is a monopoly-free matroid base
   family, so VCG has frugality ratio `1` for spanning-tree auctions
   (`vcg_spanningTree_hasFrugalityRatioLe_one`).
-* **Theorem 13.54 and weighted path auction (§13.5.1.1, pp. 351, 353–354):** on two
+* **Theorem 13.54 and weighted path auction (§13.5, p. 351; §13.5.1.1, pp. 353–354):** on two
   vertex-disjoint paths `twoDisjointPaths n n'` of lengths `n, n' ≥ 1`, VCG pays `n * n'` on the
   `0`/`1` profile (`vcgTotalPay_twoDisjointPaths_zero_one`), every deterministic DSIC, IR,
   losers-paid-zero procurement mechanism has frugality ratio at least `(1 / 2) * √(n * n')`
@@ -82,8 +83,6 @@ No running-time claim is made in this module.
 * `IsMonopolyFree`: no agent belongs to every feasible set.
 * `ProcurementMechanism`: feasible-set allocation rule and payment rule for `(E, F)`.
 * `ProcurementMechanism.utility`, `totalPay`, `IsDSIC`, `IsIR`, `LosersPaidZero`.
-* `thresholdBid`, `thresholdMechanism`: critical-bid threshold characterization for monotone
-  (antitone-in-cost) `0`-`1` procurement rules.
 * `IsMinCostSet`, `vcgAlloc`, `vcgPayOfSet`, `vcgMechanism`: VCG procurement mechanism.
 * `IsPayYourBidNash`, `cheapestNash`, `HasFrugalityRatioLe`: pay-your-bid Nash benchmark `N(c)`
   and multiplicative frugality ratio ([HartlineKarlin2007], Definition 13.52, p. 352).
@@ -91,12 +90,14 @@ No running-time claim is made in this module.
 * `spanningTreeFamily`: edge-set family of spanning trees of a finite simple graph
   ([HartlineKarlin2007], Example 13.51, p. 351).
 * `twoDisjointPaths`, `sqrtWeightedPathMechanism`: two vertex-disjoint paths and the
-  `√|P| · c(P)` weighted procurement auction ([HartlineKarlin2007], pp. 351, 353–354).
+  `√|P| · c(P)` weighted procurement auction ([HartlineKarlin2007], §13.5, p. 351; §13.5.1.1,
+  pp. 353–354).
 
 ## Main results
 
-* `ProcurementMechanism.IsDSIC.antitone_alloc`, `ProcurementMechanism.IsDSIC.pay_eq_thresholdBid`,
-  `thresholdMechanism_isDSIC`: threshold characterization of DSIC procurement mechanisms.
+* `ProcurementMechanism.IsDSIC.antitone_alloc`, `ProcurementMechanism.IsDSIC.pay_eq_of_mem_alloc`,
+  `ProcurementMechanism.IsDSIC.le_pay_of_mem_alloc_update`: monotonicity and payment-threshold
+  properties of DSIC procurement mechanisms.
 * `vcgMechanism_isDSIC`, `vcgMechanism_isIR`, `vcgMechanism_losersPaidZero`: VCG properties and
   bridge to `Cslib.GameTheory.Mechanism.groves`.
 * `isPayYourBidNash_iff_pureNash`, `exists_isPayYourBidNash`, `cheapestNash_le_vcgTotalPay`:
@@ -129,15 +130,18 @@ public section
 
 namespace Cslib.GameTheory.Mechanism.Frugality
 
-private theorem sum_inter_add_sum_sdiff {α : Type*} [DecidableEq α] (S T : Finset α)
-    (f : α → ℝ) :
-    (∑ x ∈ S ∩ T, f x) + ∑ x ∈ S \ T, f x = ∑ x ∈ S, f x := by
-  rw [← Finset.sum_union (Finset.disjoint_left.2 fun _ h1 h2 =>
-    (Finset.mem_sdiff.1 h2).2 (Finset.mem_inter.1 h1).2)]
-  congr 1
-  ext x
-  simp only [Finset.mem_union, Finset.mem_inter, Finset.mem_sdiff]
-  tauto
+/-- Updating agent `e`'s bid from `b e` to `z` shifts the sum over `A` by `z - b e` when
+`e ∈ A` and leaves it unchanged otherwise. -/
+private theorem sum_update_eq_add_ite {E : Type*} [DecidableEq E] (A : Finset E) (b : E → ℝ)
+    (e : E) (z : ℝ) :
+    ∑ x ∈ A, Function.update b e z x = (∑ x ∈ A, b x) + if e ∈ A then z - b e else 0 := by
+  by_cases heA : e ∈ A
+  · simp only [heA, ↓reduceIte]
+    rw [Finset.sum_apply_update_of_mem heA (fun _ v => v) b z, Finset.sum_erase_eq_sub heA]
+    ring
+  · simp only [heA, ↓reduceIte, add_zero]
+    exact Finset.sum_congr rfl fun x hx =>
+      Function.update_of_ne (fun (h : x = e) => heA (h ▸ hx)) _ _
 
 /-! ### Set-system procurement environments and mechanisms -/
 
@@ -150,12 +154,6 @@ agent `e`, some feasible set avoids `e`. Without this condition, a monopoly agen
 arbitrarily large payments in VCG and no pure Nash equilibrium exists in pay-your-bid auctions. -/
 @[expose] def IsMonopolyFree (F : Finset (Finset E)) : Prop :=
   ∀ e : E, ∃ S ∈ F, e ∉ S
-
-/-- Replacing one entry of a nonnegative cost profile by a nonnegative value keeps it
-nonnegative. -/
-private theorem update_nonneg [DecidableEq E] {b : E → ℝ} (hb : 0 ≤ b) (e : E) {z : ℝ}
-    (hz : 0 ≤ z) : 0 ≤ Function.update b e z :=
-  le_update_iff.2 ⟨hz, fun j _ => hb j⟩
 
 /-- A deterministic sealed-bid *procurement mechanism* for the set system `(E, F)`
 ([HartlineKarlin2007], §13.5, p. 351): on a reported cost profile `b : E → ℝ`, it selects a
@@ -225,8 +223,10 @@ theorem IsDSIC.antitone_alloc [DecidableEq E] {M : ProcurementMechanism E F} (hM
     e ∈ M.alloc (Function.update b e x) := by
   rcases hxy.lt_or_eq with hlt | rfl
   · by_contra hx_lose
-    have h1 := hM e (Function.update b e y) x (update_nonneg hb e (hx.trans hlt.le)) hx
-    have h2 := hM e (Function.update b e x) y (update_nonneg hb e hx) (hx.trans hlt.le)
+    have h1 := hM e (Function.update b e y) x
+      (le_update_iff.2 ⟨hx.trans hlt.le, fun j _ => hb j⟩) hx
+    have h2 := hM e (Function.update b e x) y
+      (le_update_iff.2 ⟨hx, fun j _ => hb j⟩) (hx.trans hlt.le)
     simp only [utility, Function.update_idem, hy_win, hx_lose, ↓reduceIte] at h1 h2
     linarith
   · exact hy_win
@@ -238,8 +238,8 @@ theorem IsDSIC.pay_eq_of_mem_alloc [DecidableEq E] {M : ProcurementMechanism E F
     (hx_win : e ∈ M.alloc (Function.update b e x))
     (hy_win : e ∈ M.alloc (Function.update b e y)) :
     M.pay (Function.update b e x) e = M.pay (Function.update b e y) e := by
-  have h1 := hM e (Function.update b e y) x (update_nonneg hb e hy) hx
-  have h2 := hM e (Function.update b e x) y (update_nonneg hb e hx) hy
+  have h1 := hM e (Function.update b e y) x (le_update_iff.2 ⟨hy, fun j _ => hb j⟩) hx
+  have h2 := hM e (Function.update b e x) y (le_update_iff.2 ⟨hx, fun j _ => hb j⟩) hy
   simp only [utility, Function.update_idem, hx_win, hy_win, ↓reduceIte] at h1 h2
   linarith
 
@@ -251,115 +251,11 @@ theorem IsDSIC.le_pay_of_mem_alloc_update [DecidableEq E] {M : ProcurementMechan
     (hy_win : e ∈ M.alloc (Function.update b e y)) :
     y ≤ M.pay (Function.update b e x) e := by
   rw [hM.pay_eq_of_mem_alloc hb hx hy hx_win hy_win]
-  have h := hIR e (Function.update b e y) (update_nonneg hb e hy)
+  have h := hIR e (Function.update b e y) (le_update_iff.2 ⟨hy, fun j _ => hb j⟩)
   simp only [utility, Function.update_self, hy_win, ↓reduceIte] at h
   linarith
 
 end ProcurementMechanism
-
-/-! ### Critical threshold bids for procurement mechanisms -/
-
-/-- The *threshold bid* (critical payment) of agent `e` against the others' bids `b₋ₑ`: the
-supremum of nonnegative bids at which `e` is selected ([HartlineKarlin2007], §13.5.1.1,
-pp. 353–354). -/
-@[expose] noncomputable def thresholdBid [DecidableEq E] (alloc : (E → ℝ) → Finset E)
-    (b : E → ℝ) (e : E) : ℝ :=
-  sSup {z : ℝ | 0 ≤ z ∧ e ∈ alloc (Function.update b e z)}
-
-@[simp]
-theorem thresholdBid_update [DecidableEq E] (alloc : (E → ℝ) → Finset E) (b : E → ℝ) (e : E)
-    (z : ℝ) :
-    thresholdBid alloc (Function.update b e z) e = thresholdBid alloc b e := by
-  simp only [thresholdBid, Function.update_idem]
-
-/-- A procurement allocation rule is *antitone* if raising an agent's nonnegative bid never turns
-a loser into a winner. -/
-@[expose] def IsAntitoneAlloc [DecidableEq E] (alloc : (E → ℝ) → Finset E) : Prop :=
-  ∀ (e : E) (b : E → ℝ), 0 ≤ b → ∀ x y : ℝ, 0 ≤ x → x ≤ y →
-    e ∈ alloc (Function.update b e y) → e ∈ alloc (Function.update b e x)
-
-/-- The threshold procurement mechanism for an allocation rule `alloc`: winning agents are paid
-their threshold bid `thresholdBid alloc b e` and losers are paid `0`. -/
-@[expose] noncomputable def thresholdMechanism [DecidableEq E] (alloc : (E → ℝ) → Finset E)
-    (hmem : ∀ b, alloc b ∈ F) : ProcurementMechanism E F where
-  alloc := alloc
-  alloc_mem := hmem
-  pay b e := if e ∈ alloc b then thresholdBid alloc b e else 0
-
-/-- Under `IsDSIC`, `IsIR`, and `LosersPaidZero`, whenever agent `e` wins at `b ≥ 0` and its set
-of winning bids is bounded above, its payment equals its threshold bid. -/
-theorem ProcurementMechanism.IsDSIC.pay_eq_thresholdBid [DecidableEq E]
-    {M : ProcurementMechanism E F} (hM : M.IsDSIC) (hIR : M.IsIR) (hZ : M.LosersPaidZero)
-    {b : E → ℝ} (hb : 0 ≤ b) {e : E} (he : e ∈ M.alloc b)
-    (hbdd : BddAbove {z : ℝ | 0 ≤ z ∧ e ∈ M.alloc (Function.update b e z)}) :
-    M.pay b e = thresholdBid M.alloc b e := by
-  have he' : e ∈ M.alloc (Function.update b e (b e)) := by rwa [Function.update_eq_self]
-  have hne : {z : ℝ | 0 ≤ z ∧ e ∈ M.alloc (Function.update b e z)}.Nonempty := ⟨b e, hb e, he'⟩
-  have hle : thresholdBid M.alloc b e ≤ M.pay b e := by
-    refine csSup_le hne fun z ⟨hz, hz_win⟩ => ?_
-    simpa only [Function.update_eq_self] using
-      hM.le_pay_of_mem_alloc_update hIR hb (hb e) hz he' hz_win
-  refine le_antisymm ?_ hle
-  by_contra hlt
-  push Not at hlt
-  let z := (thresholdBid M.alloc b e + M.pay b e) / 2
-  have htz : thresholdBid M.alloc b e < z := by dsimp only [z]; linarith
-  have hzp : z < M.pay b e := by dsimp only [z]; linarith
-  have hz0 : 0 ≤ z := by
-    have hbe : b e ≤ thresholdBid M.alloc b e := le_csSup hbdd ⟨hb e, he'⟩
-    have hbe0 : 0 ≤ b e := hb e
-    dsimp only [z]; linarith
-  have hz_lose : e ∉ M.alloc (Function.update b e z) := fun hwin =>
-    not_le_of_gt htz (le_csSup hbdd ⟨hz0, hwin⟩)
-  have hdsic := hM e b z hb hz0
-  simp only [ProcurementMechanism.utility, he, hz_lose, ↓reduceIte,
-    hZ _ (update_nonneg hb e hz0) e hz_lose] at hdsic
-  linarith
-
-/-- The threshold mechanism of an antitone allocation rule with bounded winning bids is DSIC. -/
-theorem thresholdMechanism_isDSIC [DecidableEq E] {alloc : (E → ℝ) → Finset E}
-    (hmem : ∀ b, alloc b ∈ F) (hanti : IsAntitoneAlloc alloc)
-    (hbdd : ∀ b, 0 ≤ b → ∀ e ∈ alloc b,
-      BddAbove {z : ℝ | 0 ≤ z ∧ e ∈ alloc (Function.update b e z)}) :
-    (thresholdMechanism alloc hmem).IsDSIC := by
-  intro e b cₑ hb hc
-  simp only [ProcurementMechanism.utility, thresholdMechanism, thresholdBid_update]
-  by_cases h1 : e ∈ alloc b <;> by_cases h2 : e ∈ alloc (Function.update b e cₑ)
-  · simp only [h1, h2, ↓reduceIte, le_rfl]
-  · simp only [h1, h2, ↓reduceIte, sub_zero]
-    have hne : {z : ℝ | 0 ≤ z ∧ e ∈ alloc (Function.update b e z)}.Nonempty :=
-      ⟨b e, hb e, by rwa [Function.update_eq_self]⟩
-    have hle : thresholdBid alloc b e ≤ cₑ := by
-      refine csSup_le hne fun z ⟨hz, hz_win⟩ => ?_
-      by_contra hlt
-      exact h2 (hanti e b hb cₑ z hc (not_le.1 hlt).le hz_win)
-    linarith
-  · simp only [h1, h2, ↓reduceIte, sub_zero, sub_nonneg]
-    have hbdd' : BddAbove {z : ℝ | 0 ≤ z ∧ e ∈ alloc (Function.update b e z)} := by
-      simpa only [Function.update_idem] using hbdd _ (update_nonneg hb e hc) e h2
-    exact le_csSup hbdd' ⟨hc, h2⟩
-  · simp only [h1, h2, ↓reduceIte, sub_zero, le_rfl]
-
-/-- The threshold mechanism is individually rational whenever winning bid sets are bounded above. -/
-theorem thresholdMechanism_isIR [DecidableEq E] {alloc : (E → ℝ) → Finset E}
-    (hmem : ∀ b, alloc b ∈ F)
-    (hbdd : ∀ b, 0 ≤ b → ∀ e ∈ alloc b,
-      BddAbove {z : ℝ | 0 ≤ z ∧ e ∈ alloc (Function.update b e z)}) :
-    (thresholdMechanism alloc hmem).IsIR := by
-  intro e b hb
-  simp only [ProcurementMechanism.utility, thresholdMechanism]
-  by_cases he : e ∈ alloc b
-  · simp only [he, ↓reduceIte, sub_nonneg]
-    exact le_csSup (hbdd b hb e he) ⟨hb e, by rwa [Function.update_eq_self]⟩
-  · simp only [he, ↓reduceIte, sub_zero, le_rfl]
-
-/-- Losers are paid zero by `thresholdMechanism`. -/
-theorem thresholdMechanism_losersPaidZero [DecidableEq E] {alloc : (E → ℝ) → Finset E}
-    (hmem : ∀ b, alloc b ∈ F) :
-    (thresholdMechanism alloc hmem).LosersPaidZero := by
-  intro b _ e he
-  simp only [thresholdMechanism] at he ⊢
-  simp only [he, ↓reduceIte]
 
 end Procurement
 
@@ -486,8 +382,7 @@ which restricts the economy to feasible sets not requiring agent `e`. -/
 theorem vcgMechanism_pay_eq_neg_groves [Fintype E] [DecidableEq E] (F : Finset (Finset E))
     (hF : F.Nonempty) (hmono : IsMonopolyFree F)
     (f : (E → {S // S ∈ F} → ℝ) → {S // S ∈ F})
-    (hf : ∀ c : E → ℝ, (f (negCostValuation F c)).1 = vcgAlloc F hF c)
-    (c : E → ℝ) (e : E) :
+    (c : E → ℝ) (hf : (f (negCostValuation F c)).1 = vcgAlloc F hF c) (e : E) :
     (vcgMechanism F hF hmono).pay c e =
       -(Cslib.GameTheory.Mechanism.groves f (procurementGrovesPivot F hmono)).payment
         (negCostValuation F c) e := by
@@ -508,7 +403,7 @@ theorem vcgMechanism_pay_eq_neg_groves [Fintype E] [DecidableEq E] (F : Finset (
   have h1 : ∑ j ∈ Finset.univ.erase e, negCostValuation F c j (f (negCostValuation F c)) =
       -(∑ x ∈ (vcgAlloc F hF c).erase e, c x) := by
     have hf_eq : f (negCostValuation F c) =
-        ⟨vcgAlloc F hF c, (vcgAlloc_isMinCostSet F hF c).1⟩ := Subtype.ext (hf c)
+        ⟨vcgAlloc F hF c, (vcgAlloc_isMinCostSet F hF c).1⟩ := Subtype.ext hf
     rw [hf_eq]
     exact hsum (vcgAlloc F hF c) (vcgAlloc_isMinCostSet F hF c).1
   rw [h1]
@@ -549,26 +444,20 @@ theorem vcgMechanism_isDSIC [DecidableEq E] (F : Finset (Finset E)) (hF : F.None
       (F.filter fun T => e ∉ T).inf' (hmono.filter_notMem_nonempty e) (fun T => ∑ x ∈ T, b x) :=
     Finset.inf'_congr _ rfl fun T hT => Finset.sum_congr rfl fun x hx =>
       Function.update_of_ne (fun (hxe : x = e) => (Finset.mem_filter.1 hT).2 (hxe ▸ hx)) _ _
-  have hsum_upd : ∀ A : Finset E,
-      ∑ x ∈ A, Function.update b e cₑ x =
-        (∑ x ∈ A.erase e, b x) + if e ∈ A then cₑ else 0 := by
-    intro A
-    by_cases heA : e ∈ A
-    · simp only [heA, ↓reduceIte]
-      rw [Finset.sum_apply_update_of_mem heA (fun _ v => v) b cₑ, add_comm]
-    · simp only [heA, ↓reduceIte, add_zero, Finset.erase_eq_of_notMem heA]
-      exact Finset.sum_congr rfl fun x hx =>
-        Function.update_of_ne (fun (h : x = e) => heA (h ▸ hx)) _ _
   have hmin : ∑ x ∈ S', Function.update b e cₑ x ≤ ∑ x ∈ S, Function.update b e cₑ x :=
     hS'.2 S (vcgAlloc_isMinCostSet F hF b).1
   have hsumS' : ∑ x ∈ S'.erase e, Function.update b e cₑ x = ∑ x ∈ S'.erase e, b x :=
     Finset.sum_congr rfl fun x hx => Function.update_of_ne (Finset.ne_of_mem_erase hx) _ _
   rw [hpivot, hsumS']
-  rw [hsum_upd S', hsum_upd S] at hmin
+  rw [sum_update_eq_add_ite S' b e cₑ, sum_update_eq_add_ite S b e cₑ] at hmin
   dsimp only [S, S'] at hmin ⊢
   by_cases h1 : e ∈ vcgAlloc F hF (Function.update b e cₑ) <;>
     by_cases h2 : e ∈ vcgAlloc F hF b <;>
-    simp only [h1, h2, ↓reduceIte] at hmin ⊢ <;> linarith
+    simp only [h1, h2, ↓reduceIte] at hmin ⊢
+  · rw [Finset.sum_erase_eq_sub h1, Finset.sum_erase_eq_sub h2]; linarith
+  · rw [Finset.sum_erase_eq_sub h1, Finset.erase_eq_of_notMem h2]; linarith
+  · rw [Finset.erase_eq_of_notMem h1, Finset.sum_erase_eq_sub h2]; linarith
+  · rw [Finset.erase_eq_of_notMem h1, Finset.erase_eq_of_notMem h2]; linarith
 
 /-- The VCG procurement mechanism is individually rational. -/
 theorem vcgMechanism_isIR [DecidableEq E] (F : Finset (Finset E)) (hF : F.Nonempty)
@@ -684,17 +573,6 @@ theorem isPayYourBidNash_iff_pureNash [DecidableEq E] {F : Finset (Finset E)}
       ∀ (e : E) (z : ℝ),
         payYourBidUtility e (c e) (Function.update b e z) (alloc (Function.update b e z)) ≤
           payYourBidUtility e (c e) b S := by
-  have hsum_upd : ∀ (A : Finset E) (e : E) (z : ℝ),
-      ∑ x ∈ A, Function.update b e z x =
-        (∑ x ∈ A, b x) + if e ∈ A then z - b e else 0 := by
-    intro A e z
-    by_cases heA : e ∈ A
-    · simp only [heA, ↓reduceIte]
-      rw [Finset.sum_apply_update_of_mem heA (fun _ v => v) b z, Finset.sum_erase_eq_sub heA]
-      ring
-    · simp only [heA, ↓reduceIte, add_zero]
-      exact Finset.sum_congr rfl fun x hx =>
-        Function.update_of_ne (fun (h : x = e) => heA (h ▸ hx)) _ _
   constructor
   · intro h
     refine ⟨h.loser_truthful, fun e z => ?_⟩
@@ -711,7 +589,7 @@ theorem isPayYourBidNash_iff_pureNash [DecidableEq E] {F : Finset (Finset E)}
         · push Not at hzb
           obtain ⟨T, hTF, heT, hTeq⟩ := h.winner_tight e heS
           have hle := hS'.2 T hTF
-          rw [hsum_upd S' e z, hsum_upd T e z] at hle
+          rw [sum_update_eq_add_ite S' b e z, sum_update_eq_add_ite T b e z] at hle
           simp only [heS', heT, ↓reduceIte, add_zero] at hle
           linarith [h.min_bid S' hS'.1]
       · simp only [heS', ↓reduceIte]
@@ -720,7 +598,7 @@ theorem isPayYourBidNash_iff_pureNash [DecidableEq E] {F : Finset (Finset E)}
       by_cases heS' : e ∈ S'
       · simp only [heS', ↓reduceIte, b', Function.update_self]
         have hle := hS'.2 S h.mem
-        rw [hsum_upd S' e z, hsum_upd S e z] at hle
+        rw [sum_update_eq_add_ite S' b e z, sum_update_eq_add_ite S b e z] at hle
         simp only [heS', heS, ↓reduceIte, add_zero] at hle
         have hbc : b e = c e := h.loser_truthful e heS
         linarith [h.min_bid S' hS'.1]
@@ -737,7 +615,7 @@ theorem isPayYourBidNash_iff_pureNash [DecidableEq E] {F : Finset (Finset E)}
       have he_not : e ∉ alloc b' := by
         intro he'
         have hle := (halloc b').2 T hTF
-        rw [hsum_upd (alloc b') e z, hsum_upd T e z] at hle
+        rw [sum_update_eq_add_ite (alloc b') b e z, sum_update_eq_add_ite T b e z] at hle
         simp only [he', heT, ↓reduceIte, add_zero] at hle
         have hS_le := hSb.2 (alloc b') (halloc b').1
         dsimp only [z] at hle
@@ -762,7 +640,7 @@ theorem isPayYourBidNash_iff_pureNash [DecidableEq E] {F : Finset (Finset E)}
       have he_in : e ∈ alloc b' := by
         by_contra he_not
         have hle := (halloc b').2 S hSb.1
-        rw [hsum_upd (alloc b') e z, hsum_upd S e z] at hle
+        rw [sum_update_eq_add_ite (alloc b') b e z, sum_update_eq_add_ite S b e z] at hle
         simp only [he_not, heS, ↓reduceIte, add_zero] at hle
         have hδle : δ ≤ (∑ x ∈ alloc b', b x) - ∑ x ∈ S, b x :=
           Finset.inf'_le (fun T => (∑ x ∈ T, b x) - ∑ x ∈ S, b x)
@@ -808,16 +686,9 @@ theorem exists_isPayYourBidNash_of_isMinCostSet {F : Finset (Finset E)}
     have hδ0 : 0 ≤ δ := sub_nonneg.2 (hmin Tstar (Finset.mem_filter.1 hTstar_mem).1)
     set b' := Function.update b e (b e + δ)
     have hsum_b' : ∀ A : Finset E,
-        ∑ x ∈ A, b' x = (∑ x ∈ A, b x) + if e ∈ A then δ else 0 := by
-      intro A
-      by_cases heA : e ∈ A
-      · simp only [heA, ↓reduceIte]
-        rw [Finset.sum_apply_update_of_mem heA (fun _ v => v) b (b e + δ),
-          Finset.sum_erase_eq_sub heA]
-        ring
-      · simp only [heA, ↓reduceIte, add_zero]
-        exact Finset.sum_congr rfl fun x hx =>
-          Function.update_of_ne (fun (h : x = e) => heA (h ▸ hx)) _ _
+        ∑ x ∈ A, b' x = (∑ x ∈ A, b x) + if e ∈ A then δ else 0 := fun A => by
+      rw [sum_update_eq_add_ite A b e (b e + δ)]
+      simp only [add_sub_cancel_left]
     refine ⟨b', ?_, ?_, ?_, ?_⟩
     · intro T hTF
       rw [hsum_b' S, hsum_b' T]
@@ -2007,15 +1878,6 @@ theorem vcgTotalPay_twoDisjointPaths_zero_one {n n' : ℕ} (hn : 0 < n) (hn' : 0
       Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one]
     exact max_eq_right (Nat.cast_nonneg n')
 
-private theorem exists_fin_ge_of_sum_ge {m : ℕ} (hm : 0 < m) {f : Fin m → ℝ} {t : ℝ}
-    (hsum : (m : ℝ) * t ≤ ∑ i : Fin m, f i) : ∃ i : Fin m, t ≤ f i := by
-  by_contra hall
-  push Not at hall
-  have hlt : ∑ i : Fin m, f i < ∑ _i : Fin m, t :=
-    Finset.sum_lt_sum_of_nonempty ⟨⟨0, hm⟩, Finset.mem_univ _⟩ fun i _ => hall i
-  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul] at hlt
-  linarith
-
 /-- **Theorem 13.54 ([HartlineKarlin2007], §13.5.1.1, p. 353):**
 for two vertex-disjoint paths of lengths `n ≥ 1` and `n' ≥ 1`, every deterministic DSIC,
 individually rational, losers-paid-zero procurement mechanism `M` admits a nonnegative cost profile
@@ -2070,8 +1932,9 @@ theorem twoDisjointPaths_frugality_lower_bound {n n' : ℕ} (hn : 0 < n) (hn' : 
     push Not at h
     linarith
   rcases hsplit with hLcase | hRcase
-  · obtain ⟨i, hi_deg⟩ := exists_fin_ge_of_sum_ge hn (f := fun i => ((outL i).card : ℝ))
-      (t := (n' : ℝ) / 2) (by linarith)
+  · obtain ⟨i, _, hi_deg⟩ := Finset.exists_le_of_sum_le (s := (Finset.univ : Finset (Fin n)))
+      ⟨⟨0, hn⟩, Finset.mem_univ _⟩ (f := fun _ => (n' : ℝ) / 2)
+      (g := fun i => ((outL i).card : ℝ)) (by simp; linarith)
     let c : Fin n ⊕ Fin n' → ℝ :=
       Sum.elim (fun i' => if i' = i then 1 / Real.sqrt (n : ℝ) else 0) (fun _ => 0)
     have hc0 : 0 ≤ c := fun x => by
@@ -2123,8 +1986,9 @@ theorem twoDisjointPaths_frugality_lower_bound {n n' : ℕ} (hn : 0 < n) (hn' : 
       linarith
     rw [hcn, hmul]
     exact (mul_le_mul_of_nonneg_right hi_deg (by positivity)).trans htot_ge
-  · obtain ⟨j, hj_deg⟩ := exists_fin_ge_of_sum_ge hn' (f := fun j => ((outR j).card : ℝ))
-      (t := (n : ℝ) / 2) (by linarith)
+  · obtain ⟨j, _, hj_deg⟩ := Finset.exists_le_of_sum_le (s := (Finset.univ : Finset (Fin n')))
+      ⟨⟨0, hn'⟩, Finset.mem_univ _⟩ (f := fun _ => (n : ℝ) / 2)
+      (g := fun j => ((outR j).card : ℝ)) (by simp; linarith)
     let c : Fin n ⊕ Fin n' → ℝ :=
       Sum.elim (fun _ => 0) (fun j' => if j' = j then 1 / Real.sqrt (n' : ℝ) else 0)
     have hc0 : 0 ≤ c := fun x => by

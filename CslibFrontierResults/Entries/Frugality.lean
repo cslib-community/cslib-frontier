@@ -46,7 +46,7 @@ register_result "hartline-karlin-2007-two-paths-frugality" where
   sources := [
     { paper := HartlineKarlin2007,
       theorem := "Theorem 13.54 and weighted path auction",
-      locator := "§13.5.1.1, pp. 351, 353–354" }
+      locator := "§13.5, p. 351; §13.5.1.1, pp. 353–354" }
   ]
   theorems := [
     Cslib.GameTheory.Mechanism.Frugality.vcgTotalPay_twoDisjointPaths_zero_one,
