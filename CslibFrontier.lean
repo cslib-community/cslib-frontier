@@ -846,6 +846,7 @@ public import CslibFrontier.Computability.Complexity.Reduction.LocalSelfReducibi
 public import CslibFrontier.Computability.Automata.MPDA.EmptinessSound
 public import CslibFrontier.Computability.WangTile.Robinson.RedPaths.Basic
 public import CslibFrontier.Algorithms.Lean.BurrowsWheeler.Basic
+public import CslibFrontier.GameTheory.Mechanism.CombinatorialAuction.QueryComplexity
 public import CslibFrontier.Computability.Interactive.Bundle
 public import CslibFrontier.Foundations.Data.MvPolynomial.SliceMatrix
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Syntax
@@ -1610,6 +1611,7 @@ public import CslibFrontier.Foundations.Combinatorics.SetFamily.PairwiseIntersec
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Prime
 public import CslibFrontier.Foundations.Data.MvPolynomial.HessianRank
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.SumDomain
+public import CslibFrontier.GameTheory.RationalCrypto.NonCooperativeComputation
 public import CslibFrontier.Probability.IID.FirstSome
 public import CslibFrontier.Computability.PolyTime.BooleanAnalysis.IncidenceBranching
 public import CslibFrontier.Algorithms.Lean.GomoryHu.Gusfield
@@ -3452,6 +3454,7 @@ public import CslibFrontier.Probability.KWiseIndependent.TugOfWar
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.Embedding.OfFinite
 public import CslibFrontier.Computability.WordRAM.Realization.RandomLoop
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.Encoding.NativeDecode
+public import CslibFrontier.GameTheory.PredictionMarket.BooleanAggregation
 public import CslibFrontier.Algorithms.Lean.Query.MinimumSpanningForest.DecisionTree
 public import CslibFrontier.Crypto.Computational.ChaumPedersenProtocol.Verifier
 public import CslibFrontier.DataStructure.Queue.WordRAM.RegisterMethods
@@ -4581,6 +4584,7 @@ public import CslibFrontier.Languages.Probabilistic.QueryCount.Demand
 public import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Diamond.Defs
 public import CslibFrontier.DataStructure.BallsToSlots.Spec
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Restoration
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledTwoBlockDecision
 public import CslibFrontier.Computability.Complexity.Fagin.Ordered.Problems
 public import CslibFrontier.Logics.Propositional.CSP.CNFTemplate
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.FibonacciHeap.MinPQ
@@ -6517,6 +6521,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.HittingSet.ColorPar
 public import CslibFrontier.Computability.Complexity.FineGrained.PPSZ.Basic
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBTreeProg.EnsureRoot
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalTensor
+public import CslibFrontier.GameTheory.Mechanism.CombinatorialAuction.Communication
 public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Context
 public import CslibFrontier.Crypto.Primitives.Garbling.Rerandomizable
 public import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal.NetworkProg
@@ -7910,6 +7915,7 @@ public import CslibFrontier.Probability.BitString.SubsetSum.Matrix
 public import CslibFrontier.GameTheory.Extensive.Basic
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting.Scan.Binary
 public import CslibFrontier.Probability.PairwiseIndependentHash.Affine
+public import CslibFrontier.GameTheory.Evolutionary.RoutingDynamics
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Network
 public import CslibFrontier.Computability.Complexity.Classes.BooleanHierarchy.Kadin
 public import CslibFrontier.Computability.LogSpaceDerandomization.HierarchySampling
@@ -9970,6 +9976,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.IKNP
 public import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMask
 public import CslibFrontier.Probability.PMF.Finiteness
 public import CslibFrontier.Computability.Circuit.Basic
+public import CslibFrontier.GameTheory.Mechanism.Frugality
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.FirstMoment
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.BeckFiala
 public import CslibFrontier.MachineLearning.PACLearning.AgnosticFiniteClass

@@ -12,6 +12,7 @@ public import CslibFrontier.Logics.Propositional.DNF.Encoding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
+import CslibFrontier.Foundations.Data.List.Counting
 
 /-!
 # Universal DNF certificates for relation programs
@@ -160,15 +161,8 @@ private theorem violations_term_length (P : Program r H) (f : Fact r H) :
 /-- The universal DNF has at most two violation terms per fact plus the query. -/
 theorem matrix_terms (P : Program r H) (target : Fact r H) :
     (certificateMatrix P target).length ≤ 2 * (r * 2 ^ H) + 1 := by
-  have count (fs : List (Fact r H)) :
-      (fs.flatMap (violations P)).length ≤ 2 * fs.length := by
-    induction fs with
-    | nil => simp
-    | cons f fs ih =>
-      have bound := violations_length P f
-      simp only [List.flatMap_cons, List.length_append, List.length_cons]
-      omega
-  have h := count (facts r H)
+  have h := List.length_flatMap_le (l := facts r H) (f := violations P)
+    fun f _ => violations_length P f
   rw [facts_length] at h
   simp only [certificateMatrix, List.length_cons]
   omega

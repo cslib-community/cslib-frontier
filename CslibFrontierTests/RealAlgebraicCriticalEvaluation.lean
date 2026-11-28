@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPowerSection
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledRelativeCoefficient
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledRelativeValue
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledTwoBlockDecision
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateSelection
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCandidates
@@ -977,5 +978,19 @@ example :
     N E.coeffNorm1.size le_rfl (Nat.lt_size_self _).le).mp
       ⟨Fin.elim0, fun _ => by simp [P]⟩
   exact ⟨word, by simpa only [Nat.zero_add, pow_one] using hlength⟩
+
+-- A negative constant is accepted with both blocks empty.
+example : (Set.univ : Set ℕ) ∈ CountingLevel 60 encNat := by
+  let family : Controlled (fun _ : ℕ => (C (-1) : MvPolynomial (Fin 0) ℤ)) encNat 0 :=
+    Controlled.constant (.const 0) (fun _ => -1) (.const (-1))
+  have h := family.twoBlock_mem (n := fun _ => 0) (m := fun _ => 0) Decoder.nat
+    (.const 0) (.const 0)
+  have hset : {w : ℕ | ∃ x : Fin 0 → ℝ, ∀ z : Fin 0 → ℝ,
+      eval₂ (Int.castRingHom ℝ) (Fin.addCases z x) (C (-1)) ≠ 0} = Set.univ := by
+    apply Set.eq_univ_of_forall
+    intro w
+    exact ⟨Fin.elim0, fun z => by norm_num [eval₂_C]⟩
+  rw [← hset]
+  exact h
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

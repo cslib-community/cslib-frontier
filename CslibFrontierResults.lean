@@ -11,6 +11,7 @@ import CslibFrontierResults.Entries.KellyMechanism
 import CslibFrontierResults.Entries.DictionaryLowerBound
 import CslibFrontierResults.Entries.VeriPBSubgraphIso
 import CslibFrontierResults.Entries.SergeevAdditiveMultiplicative
+import CslibFrontierResults.Entries.Frugality
 import CslibFrontierResults.Entries.HadamardRigidity
 import CslibFrontierResults.Entries.ODonnellLargeCoefficient
 import CslibFrontierResults.Entries.ODonnellBribery
@@ -37,6 +38,7 @@ import CslibFrontierResults.Entries.HastadInapproximability
 import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.BoostingMargin
 import CslibFrontierResults.Entries.ODonnellTribes
+import CslibFrontierResults.Entries.NonCooperativeComputation
 import CslibFrontierResults.Entries.CountingContainments
 import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Registry
@@ -63,6 +65,7 @@ import CslibFrontierResults.Entries.SturmReduced
 import CslibFrontierResults.Entries.DominanceSymmetric
 import CslibFrontierResults.Entries.SergeevMonotoneShift
 import CslibFrontierResults.Entries.ODonnellStabilityDerivative
+import CslibFrontierResults.Entries.CombinatorialAuctionQueryComm
 import CslibFrontierResults.Entries.TwoSATWordRAM
 import CslibFrontierResults.Entries.SergeevBkSequence
 import CslibFrontierResults.Entries.PredictionMarket
@@ -78,11 +81,13 @@ import CslibFrontierResults.Entries.SamplableNotComputable
 import CslibFrontierResults.Entries.DHKEM
 import CslibFrontierResults.Entries.KellyMarketClearing
 import CslibFrontierResults.Entries.SelfClosingDoor
+import CslibFrontierResults.Entries.EvolutionaryRoutingDynamics
 import CslibFrontierResults.Entries.AlternatingTimeSpace
 import CslibFrontierResults.Entries.IndirectRevelation
 import CslibFrontierResults.Entries.PotentialPolymatrix
 import CslibFrontierResults.Entries.EvolutionaryStability
 import CslibFrontierResults.Entries.ODonnellFriedgutConcentration
+import CslibFrontierResults.Entries.BooleanAggregation
 import CslibFrontierResults.Entries.LupanovRectifier
 import CslibFrontierResults.Entries.CBCMAC
 import CslibFrontierResults.Entries.BiddingLanguage
