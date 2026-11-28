@@ -22,9 +22,9 @@ vanish at a point of the explicit set `colorHittingSet F c w D δ`, for every `D
 (`exists_mem_colorHittingSet_eval_ne_zero`).
 
 When `ε i ≤ 1` for every `i` the polynomial lies in a derivative-closed space of dimension
-at most `2 ^ r * w` [Shpilka2026, Lemma 3.3], so the logarithmic curve hits it. With degree two in some
-colour this fails: a product over the colours of sums of squares of the variables has split rank
-one and a space of partial derivatives of exponential dimension. The remedy is a recursion on
+at most `2 ^ r * w` [Shpilka2026, Lemma 3.3], so the logarithmic curve hits it. With degree two in
+some colour this fails: a product of sums of squares, one sum per colour, has split rank one
+and a space of partial derivatives of exponential dimension. The remedy is a recursion on
 `δ` that lowers every positive entry of `ε` by one. Let `κ` be the indicator of the colours `i`
 with `ε i ≥ 1`. Choosing one variable of each such colour from a monomial of `g`, the iterated
 derivative `q` of `g` along these variables is not zero, has colour degree `ε - κ` with entries

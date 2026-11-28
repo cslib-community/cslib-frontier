@@ -2696,8 +2696,7 @@ register_result "hitting-set-multilinear-any-order-roabp" where
   theorems := [
     Cslib.Circuits.Arithmetic.isHittingSet_anyOrderHittingSet_roabp,
     Cslib.Circuits.Arithmetic.isHittingSet_anyOrderHittingSet,
-    Cslib.Circuits.Arithmetic.card_anyOrderHittingSet_le,
-    Cslib.Circuits.Arithmetic.IsAnyOrderROABP.splitRankLE
+    Cslib.Circuits.Arithmetic.card_anyOrderHittingSet_le
   ]
   scope := "Over a field of characteristic zero, an explicit set of points in Fⁿ, of size \
     bounded by an explicit polynomial in n and w, that contains a non-root of every nonzero \
@@ -2707,8 +2706,8 @@ register_result "hitting-set-multilinear-any-order-roabp" where
     source's positive-characteristic case rests on an unpublished hitting set. The perfect \
     hash family and the shifts are the library's own constructions, so the size bound \
     differs from the source's. Existence and size of an explicit set only: no bit \
-    complexity and no black-box algorithm model. The converse of Nisan's characterisation \
-    is not proved."
+    complexity and no black-box algorithm model. IsAnyOrderROABP.splitRankLE supplies the \
+    forward direction of Nisan's characterisation; the converse is not proved."
 
 register_result "hitting-set-set-multilinear-depth-three" where
   title := "Hitting sets for set-multilinear depth-3 circuits with small variable sets"
