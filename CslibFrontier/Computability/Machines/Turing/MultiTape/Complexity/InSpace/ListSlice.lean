@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunProp
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatPow
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NatSize
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
@@ -31,6 +32,8 @@ large binary counts never cause a list of that length to be allocated.
 * `Turing.MultiTapeTM.ComputableInSpace.bitsDrop`, `.bitsGetD`, `.bitsReverse`: the same for a
   plain bit word, and reading one of its bits.
 * `Turing.MultiTapeTM.ComputableInSpace.natShiftRight`: right shift by a binary offset.
+* `Turing.MultiTapeTM.ComputableInSpace.budget_natModTwoPow`: keep a binary-counted number
+  of low bits.
 -/
 
 public section
@@ -123,6 +126,22 @@ theorem natShiftRight : ComputableInSpace (fun p : ℕ × ℕ => p.1 >>> p.2)
   change (p.1 >>> p.2).bits = p.1.bits.drop (min p.2 p.1.size)
   rw [Nat.bits_shiftRight, ← Nat.size_eq_bits_len]
   exact List.drop_eq_drop_min
+
+/-- Keep the low `d` bits of a binary natural within the budget of the two arguments.
+Capping `d` at the actual binary length of the value bounds the temporary modulus. -/
+theorem budget_natModTwoPow {α : Type} {encIn : α ↪ List Bool} {B : α → ℕ}
+    {z d : α → ℕ} (hz : ComputableInSpace z encIn encNat B)
+    (hd : ComputableInSpace d encIn encNat B) :
+    ComputableInSpace (fun x => z x % 2 ^ d x) encIn encNat B := by
+  have hc := budget_natMin hd (budget_comp_linear natSize hz)
+  have hb : (fun x => min (d x) (z x).size) ≼ fun x => (encNat (z x)).length :=
+    .of_le fun x => (min_le_right ..).trans_eq (length_encNat_eq_size _).symm
+  have hp := budget_twoPow hc (hb.trans hz.length_le)
+  refine (budget_natMod hz hp).of_enc_eq fun x => ?_
+  rcases le_total (d x) (z x).size with h | h
+  · rw [min_eq_left h]
+  · rw [min_eq_right h, Nat.mod_eq_of_lt (Nat.lt_size_self _),
+      Nat.mod_eq_of_lt ((Nat.lt_size_self _).trans_le (Nat.pow_le_pow_right two_pos h))]
 
 /-- Read the bit of a bit word at a binary index, or `fallback` beyond its end, in space linear in
 the word and index. -/

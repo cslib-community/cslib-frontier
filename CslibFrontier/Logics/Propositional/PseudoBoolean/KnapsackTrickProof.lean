@@ -113,7 +113,7 @@ namespace Cslib.Logic.PL.VeriPB.Knapsack.Trick
 open PBConstr
 open Knapsack.Inst (part part_succ part_add_part part_const lhs_sumTerms vars_sumTerms
   nodup_sumTerms holds_dimC holds_clause holds_negate_clause consistent_append lhs_map_negate
-  nodup_impl_single slack_fwd slack_bwd runTop_append push_steps mem_of_lookup sub_cons vars_impl
+  nodup_impl_single slack_fwd slack_bwd push_steps mem_of_lookup sub_cons vars_impl
   push_push rup_clause lit_of vars_add polEval_add vars_clause bit Sub Sub.refl Sub.trans)
 
 /-! ### Sums over lists of positions -/

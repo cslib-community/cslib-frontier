@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Protocols.FRI.Soundness
 public import CslibFrontier.Foundations.Data.Code.ProximityGap.Johnson
+import CslibFrontier.Foundations.Analysis.ENNRealNatDiv
 import CslibFrontier.Foundations.Data.Code.ProximityGap.Unique
 import CslibFrontier.Foundations.Data.Nat.BigOperators
 import Mathlib.Tactic.FieldSimp
@@ -143,11 +144,6 @@ private theorem sum_natCast_div_ennreal {ι : Type*} (s : Finset ι) (x : ι →
       ((∑ i ∈ s, x i : ℕ) : ℝ≥0∞) / (D : ℝ≥0∞) := by
   simp only [div_eq_mul_inv, ← Finset.sum_mul, Nat.cast_sum]
 
-omit [Field F] in
-private theorem natCast_div_eq_ofReal {N D : ℕ} (hD : 0 < D) :
-    ((N : ℝ≥0∞) / (D : ℝ≥0∞)) = ENNReal.ofReal ((N : ℝ) / (D : ℝ)) := by
-  simp only [ENNReal.ofReal_div_of_pos (Nat.cast_pos.mpr hD), ENNReal.ofReal_natCast]
-
 private theorem cast_two_pow_sub_eq_smooth (params : FRISmoothParams F) :
     (((2 ^ params.d - 2 ^ (params.d - params.totalLog) : ℕ) : ℝ)) =
       (1 - (1 : ℝ) / (2 : ℝ) ^ params.totalLog) * ((2 : ℝ) ^ params.d) := by
@@ -237,7 +233,7 @@ theorem sum_friSmoothUniqueRoundEscape_eq [Fintype F] (params : FRISmoothParams 
         (Fintype.card F : ℝ≥0∞)) =
     ENNReal.ofReal (friSmoothUniqueCommitError params) := by
   rw [sum_natCast_div_ennreal, params.sum_arity_sub_one_mul_domainSize,
-    natCast_div_eq_ofReal Fintype.card_pos, cast_two_pow_sub_eq_smooth, mul_div_assoc,
+    ← ENNReal.ofReal_div_natCast _ _ Fintype.card_pos, cast_two_pow_sub_eq_smooth, mul_div_assoc,
     friSmoothUniqueCommitError]
 
 /-- **Unconditional summed commit-phase soundness of single-word `friSmoothIOP` in the
@@ -408,7 +404,7 @@ theorem sum_friSmoothJohnsonRoundEscape_le [Fintype F] (params : FRISmoothParams
   rw [sum_natCast_div_ennreal]
   refine (ENNReal.div_le_div_right
     (Nat.cast_le.mpr (sum_friSmoothJohnsonRoundBound_le params mJ)) _).trans ?_
-  rw [natCast_div_eq_ofReal Fintype.card_pos]
+  rw [← ENNReal.ofReal_div_natCast _ _ Fintype.card_pos]
   refine ENNReal.ofReal_le_ofReal <|
     (div_le_div_of_nonneg_right Nat.cast_div_le (Nat.cast_nonneg _)).trans_eq ?_
   simp only [Nat.cast_mul, Nat.cast_pow, Nat.cast_add, Nat.cast_one, Nat.cast_ofNat,

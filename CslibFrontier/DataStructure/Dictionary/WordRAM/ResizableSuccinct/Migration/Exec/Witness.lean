@@ -496,9 +496,6 @@ theorem tmpReadOldKV_out_0 :
   (wStreamAll.code_spec mFr srcStreamAll tmpStreamAll
     tmpStreamAll_inj srcStreamAll_ne_tmp tmpStreamAll_ne_mFr srcStreamAll_ne_mFr).1
 
-theorem le_offCompItems_225 (U w N : ℕ) : 225 ≤ offCompItems U w N := by
-  unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega
-
 theorem growZeroPost_regs_of_not_mem {s : RData rResize} {reg : Fin rResize}
     (hreg : reg ∉ ([mRes, mCur, mIdx, mZero, mOne] : List (Fin rResize))) :
     (growZeroPost mK mRes mCur mIdx mZero mOne s).regs reg = s.regs reg := by
@@ -506,13 +503,6 @@ theorem growZeroPost_regs_of_not_mem {s : RData rResize} {reg : Fin rResize}
   simp only [growZeroPost, Function.update_of_ne hreg.2.1, Function.update_of_ne hreg.2.2.1,
     Function.update_of_ne hreg.1, Function.update_of_ne hreg.2.2.2.2,
     Function.update_of_ne hreg.2.2.2.1]
-
-theorem targetCap_bounds_of_pos {U n : ℕ} (hn : 1 ≤ n) (hnU : n ≤ U) :
-    1 ≤ targetCap U n ∧ n ≤ targetCap U n ∧ targetCap U n ≤ 2 * n ∧ targetCap U n ≤ U := by
-  unfold targetCap
-  rw [ite_eq_right (by omega)]
-  exact ⟨le_min (by omega) (hn.trans hnU), le_min (by omega) hnU,
-    min_le_left _ _, min_le_right _ _⟩
 
 theorem fixedCoupled_of_shift {metaBase srcItemBase dstItemBase U V w N n : ℕ}
     {s_fix s₀ s₁ : Memory.State} (hw : 0 < w)

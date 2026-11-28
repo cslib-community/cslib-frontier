@@ -571,11 +571,10 @@ private theorem realizes_checkCoordInLiveGen :
     obtain ⟨c, U, V, w₀, n_max, fs, henv, rfl, hrep, hce_or, hb, hloc⟩ := h
     obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hw2 : 2 ≤ w := by linarith [le_bMinWhp c, bMinWhp_le_log hth, henv.log_lt_w]
-    obtain ⟨hst_st, _, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage) (s := s)
-      (by dsimp only [hdrRebStage]; omega)
+    obtain ⟨hst_st, _, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrRebStage) (s := s) (by decide)
     obtain ⟨hro_st, hro_res, _, _⟩ := readOldEpProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max)
       (by dsimp [hdrCurEp]; omega) hce_or hrep.2.2.2.1 (s := s)
@@ -609,14 +608,15 @@ private theorem checkCoordInLiveGenProg_spec {c U V w n_max base b loc : ℕ}
       (if inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc) then 1 else 0) ∧
     memoryCost prog s = 6 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  have hst := readHdrProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max) (base := base)
-    (hdrOff := hdrRebStage) (s := s) (by dsimp only [largeSpaceWhp, hdrRebStage]; omega)
+  have hst := readHdrProg_large_spec c U V w n_max
+    (base := base) (hdrOff := hdrRebStage) (s := s) (by decide)
   rw [hrep.2.2.2.2.2.1] at hst
   dsimp only
   unfold checkCoordInLiveGenProg
   exact ReadSpec.toAnd ((ReadSpec.of hst).bind <|
-    .bind (.of (readOldEpProg_spec (by dsimp only [largeSpaceWhp, hdrCurEp]; omega) hce_or
-      hrep.2.2.2.1)) <|
+    .bind (.of (readOldEpProg_spec (Nat.add_lt_add_left
+      ((by decide : hdrCurEp < 32).trans_le (headerWords_le_largeSpaceWhp c U V w n_max)) base)
+      hce_or hrep.2.2.2.1)) <|
     .bind (.of (readBktFieldGenProg_spec henv hb (by decide : 8 < 10) hrep)) <|
     .bind (.of (readFastLocGenProg_spec henv hb hloc hrep)) <| .of inLiveTreeProg_spec) rfl rfl
 

@@ -267,175 +267,87 @@ private theorem extractPopItem_spec {rt w itemBase nodeBase id r ck : ℕ}
   dsimp only [SHTree.rootId] at hhead hrest_il
   let nxt := s.mem (itemBase + 3 * it₀.id + 2)
   have hnxt_fit : Fits w nxt := hwf.mem_fits _
-  have hdisj_nil : ∀ it ∈ rest, ∀ j < 12, ∀ k < 3,
-      nodeBase + 12 * id + j ≠ itemBase + 3 * it.id + k :=
-    fun it hit => hdisj it (List.mem_cons_of_mem _ hit)
-  by_cases hnxt : nxt = 0
-  · obtain ⟨s', hs'_eq⟩ : ∃ s', s' = (Memory.spec 0).clientState s
-        (extractPopItem ![itemBase, nodeBase, id]) := ⟨_, rfl⟩
-    have hs'_form : s' = ⟨Function.update (Function.update (Function.update s.mem
-        (nodeBase + 12 * id + 4) nxt) (nodeBase + 12 * id + 5) 0)
-        (nodeBase + 12 * id + 3) rest.length, s.frontier⟩ := by
-      rw [hs'_eq]; dsimp only [extractPopItem]
-      simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
-      repeat rw [clientState_bind_read]
-      rw [hck, hhead, hsz, hit0]
-      rw [clientState_bind_write]
-      simp only [show s.mem (itemBase + 3 * it₀.id + 2) = 0 from hnxt, ↓reduceIte]
-      rw [clientState_bind_write, clientState_bind_write]
-      simp only [show rest.length + 1 - 1 = rest.length by omega]
-      rw [hnxt]
+  let base := nodeBase + 12 * id
+  let headMem := Function.update s.mem (base + 4) nxt
+  let tailMem := if nxt = 0 then Function.update headMem (base + 5) 0 else headMem
+  let s' := (Memory.spec 0).clientState s (extractPopItem ![itemBase, nodeBase, id])
+  have hnxt_eq : s.mem (itemBase + 3 * it₀.id + 2) = nxt := rfl
+  have hsize : rest.length + 1 - 1 = rest.length := Nat.add_sub_cancel _ _
+  have hs' : s' = ⟨Function.update tailMem (base + 3) rest.length, s.frontier⟩ := by
+    dsimp only [s', extractPopItem]
+    simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
+    repeat rw [clientState_bind_read]
+    rw [hck, hhead, hsz, hit0, hnxt_eq, clientState_bind_write, hsize]
+    by_cases hnxt : nxt = 0 <;> simp only [tailMem, hnxt, ↓reduceIte, base, headMem]
+    all_goals
+      repeat rw [clientState_bind_write]
       rfl
-    have hv : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (extractPopItem ![itemBase, nodeBase, id])) := by
-      dsimp only [extractPopItem]; simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one,
-                                     Matrix.cons_val]
-      refine validHistory_read_bind (by omega) (validHistory_read_bind (by omega) ?_)
-      rw [hhead]
-      refine validHistory_read_bind (by omega) (validHistory_read_bind (by omega) ?_)
-      refine validHistory_read_bind (by omega) ?_
-      refine validHistory_write_bind (by omega) hnxt_fit ?_
-      simp only [show s.mem (itemBase + 3 * it₀.id + 2) = 0 from hnxt, ↓reduceIte]
-      refine validHistory_write_bind (by dsimp; omega) h0_fit ?_
-      rw [hsz]; simp only [show rest.length + 1 - 1 = rest.length by omega]
-      refine validHistory_write_bind (by dsimp; omega) hsz_fit ?_
-      exact validHistory_pure w _ _
-    have hm : memoryCost (extractPopItem ![itemBase, nodeBase, id]) s ≤ 8 := by
-      dsimp only [extractPopItem]; simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one,
-                                     Matrix.cons_val]
-      repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
-      rw [hhead, hsz, hit0, memoryCost_bind', memoryCost_write, clientState_write]
-      simp only [show s.mem (itemBase + 3 * it₀.id + 2) = 0 from hnxt, ↓reduceIte,
-        memoryCost_bind', memoryCost_write, memoryCost_pure, add_zero]
-      decide
-    have hres : (Memory.spec 0).clientResult s
-        (extractPopItem ![itemBase, nodeBase, id]) = (it₀.val, ck) := by
-      dsimp only [extractPopItem]; simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one,
-                                     Matrix.cons_val]
-      repeat rw [clientResult_bind_read]
-      rw [hck, hhead, hsz, hit0, clientResult_bind_write]
-      simp only [show s.mem (itemBase + 3 * it₀.id + 2) = 0 from hnxt, ↓reduceIte,
-        clientResult_bind_write]
-      rfl
-    have hs'_mem_4 : s'.mem (nodeBase + 12 * id + 4) = 0 := by
-      rw [hs'_form]; dsimp only
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-        Function.update_self, hnxt]
-    have hs'_mem_5 : s'.mem (nodeBase + 12 * id + 5) = 0 := by
-      rw [hs'_form]; dsimp only
-      rw [Function.update_of_ne (by omega), Function.update_self]
-    have hs'_il : ItemListRep itemBase s'.mem (s'.mem (nodeBase + 12 * id + 4))
-        (s'.mem (nodeBase + 12 * id + 5)) rest := by
-      rw [hs'_mem_4, hs'_mem_5]
-      have hrest0 : ItemListRep itemBase s.mem 0 0 rest := by
-        simpa [nxt, hnxt] using hrest_il
-      refine ItemListRep.congr (fun it hit k hk => ?_) hrest0
-      rw [hs'_form]; dsimp only
-      rw [Function.update_of_ne (hdisj_nil it hit 3 (by decide) k hk).symm,
-        Function.update_of_ne (hdisj_nil it hit 5 (by decide) k hk).symm,
-        Function.update_of_ne (hdisj_nil it hit 4 (by decide) k hk).symm]
-    refine ⟨hv, hm, hres, ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun _ => hs'_eq ▸ hs'_mem_4⟩
-    · rw [← hs'_eq, hs'_form]
-    · intro a ha
-      rw [← hs'_eq, hs'_form] at ha; dsimp only at ha
-      by_cases h3 : a = nodeBase + 12 * id + 3
-      · exact Or.inl h3
-      · by_cases h5 : a = nodeBase + 12 * id + 5
-        · exact Or.inr (Or.inr h5)
-        · by_cases h4 : a = nodeBase + 12 * id + 4
-          · exact Or.inr (Or.inl h4)
-          · simp only [Function.update_of_ne h3, Function.update_of_ne h5,
-              Function.update_of_ne h4] at ha
-            exact absurd rfl ha
-    · rw [← hs'_eq, hs'_form]; dsimp only
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-        Function.update_of_ne (by omega), hck]
-    · rw [← hs'_eq, hs'_form]; dsimp only
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-        Function.update_of_ne (by omega), hrk]
-    · rw [← hs'_eq, hs'_form]; dsimp only
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-        Function.update_of_ne (by omega), htgt]
-    · rw [← hs'_eq, hs'_form]; dsimp only; exact Function.update_self _ _ _
-    · rw [← hs'_eq]; exact hs'_il
-  · obtain ⟨s', hs'_eq⟩ : ∃ s', s' = (Memory.spec 0).clientState s
-        (extractPopItem ![itemBase, nodeBase, id]) := ⟨_, rfl⟩
-    have hs'_form : s' = ⟨Function.update (Function.update s.mem
-        (nodeBase + 12 * id + 4) nxt) (nodeBase + 12 * id + 3) rest.length, s.frontier⟩ := by
-      rw [hs'_eq]; dsimp only [extractPopItem]
-      simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
-      repeat rw [clientState_bind_read]
-      rw [hck, hhead, hsz, hit0, clientState_bind_write]
-      simp only [show ¬ (s.mem (itemBase + 3 * it₀.id + 2) = 0) from hnxt, ↓reduceIte]
-      rw [clientState_bind_write]
-      simp only [show rest.length + 1 - 1 = rest.length by omega]
-      rfl
-    have hv : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (extractPopItem ![itemBase, nodeBase, id])) := by
-      dsimp only [extractPopItem]; simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one,
-                                     Matrix.cons_val]
-      refine validHistory_read_bind (by omega) (validHistory_read_bind (by omega) ?_)
-      rw [hhead]
-      refine validHistory_read_bind (by omega) (validHistory_read_bind (by omega) ?_)
-      refine validHistory_read_bind (by omega) ?_
-      refine validHistory_write_bind (by omega) hnxt_fit ?_
-      simp only [show ¬ (s.mem (itemBase + 3 * it₀.id + 2) = 0) from hnxt, ↓reduceIte]
-      rw [hsz]; simp only [show rest.length + 1 - 1 = rest.length by omega]
-      refine validHistory_write_bind (by dsimp; omega) hsz_fit ?_
-      exact validHistory_pure w _ _
-    have hm : memoryCost (extractPopItem ![itemBase, nodeBase, id]) s ≤ 8 := by
-      dsimp only [extractPopItem]; simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one,
-                                     Matrix.cons_val]
-      repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
-      rw [hhead, hsz, hit0, memoryCost_bind', memoryCost_write, clientState_write]
-      simp only [show ¬ (s.mem (itemBase + 3 * it₀.id + 2) = 0) from hnxt, ↓reduceIte]
-      rw [memoryCost_bind', memoryCost_write, memoryCost_pure]
-      decide
-    have hres : (Memory.spec 0).clientResult s
-        (extractPopItem ![itemBase, nodeBase, id]) = (it₀.val, ck) := by
-      dsimp only [extractPopItem]; simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one,
-                                     Matrix.cons_val]
-      repeat rw [clientResult_bind_read]
-      rw [hck, hhead, hsz, hit0, clientResult_bind_write]
-      simp only [show ¬ (s.mem (itemBase + 3 * it₀.id + 2) = 0) from hnxt, ↓reduceIte]
-      rw [clientResult_bind_write]
-      rfl
-    have hs'_mem_4 : s'.mem (nodeBase + 12 * id + 4) = nxt := by
-      rw [hs'_form]; dsimp only
-      rw [Function.update_of_ne (by omega), Function.update_self]
-    have hs'_mem_5 : s'.mem (nodeBase + 12 * id + 5) = s.mem (nodeBase + 12 * id + 5) := by
-      rw [hs'_form]; dsimp only
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-    have hs'_il : ItemListRep itemBase s'.mem (s'.mem (nodeBase + 12 * id + 4))
-        (s'.mem (nodeBase + 12 * id + 5)) rest := by
-      rw [hs'_mem_4, hs'_mem_5]
-      have hrest1 : ItemListRep itemBase s.mem nxt (s.mem (nodeBase + 12 * id + 5)) rest := by
-        simpa [nxt, hnxt] using hrest_il
-      refine ItemListRep.congr (fun it hit k hk => ?_) hrest1
-      rw [hs'_form]; dsimp only
-      rw [Function.update_of_ne (hdisj_nil it hit 3 (by decide) k hk).symm,
-        Function.update_of_ne (hdisj_nil it hit 4 (by decide) k hk).symm]
-    refine ⟨hv, hm, hres, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · rw [← hs'_eq, hs'_form]
-    · intro a ha
-      rw [← hs'_eq, hs'_form] at ha; dsimp only at ha
-      by_cases h3 : a = nodeBase + 12 * id + 3
-      · exact Or.inl h3
-      · by_cases h4 : a = nodeBase + 12 * id + 4
-        · exact Or.inr (Or.inl h4)
-        · simp only [Function.update_of_ne h3, Function.update_of_ne h4] at ha
-          exact absurd rfl ha
-    · rw [← hs'_eq, hs'_form]; dsimp only
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega), hck]
-    · rw [← hs'_eq, hs'_form]; dsimp only
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega), hrk]
-    · rw [← hs'_eq, hs'_form]; dsimp only
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega), htgt]
-    · rw [← hs'_eq, hs'_form]; dsimp only; exact Function.update_self _ _ _
-    · rw [← hs'_eq]; exact hs'_il
-    · intro hnil
-      rw [hnil] at hrest_il
-      exact absurd hrest_il.1 hnxt
+  have hv : (Memory.spec w).ValidHistory s
+      ((Memory.spec w).clientHistory s (extractPopItem ![itemBase, nodeBase, id])) := by
+    dsimp only [extractPopItem]
+    simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
+    refine validHistory_read_bind (by lia) (validHistory_read_bind (by lia) ?_)
+    rw [hhead]
+    refine validHistory_read_bind (by lia) (validHistory_read_bind (by lia) ?_)
+    refine validHistory_read_bind (by lia) ?_
+    refine validHistory_write_bind (by lia) hnxt_fit ?_
+    rw [hsz, hsize, hnxt_eq]
+    by_cases hnxt : nxt = 0
+    · simp only [hnxt, ↓reduceIte]
+      refine validHistory_write_bind (by dsimp; lia) h0_fit ?_
+      exact validHistory_write_bind (by dsimp; lia) hsz_fit (validHistory_pure w _ _)
+    · simp only [hnxt, ↓reduceIte]
+      exact validHistory_write_bind (by dsimp; lia) hsz_fit (validHistory_pure w _ _)
+  have hm : memoryCost (extractPopItem ![itemBase, nodeBase, id]) s ≤ 8 := by
+    dsimp only [extractPopItem]
+    simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
+    repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
+    rw [hhead, hsz, hit0, hnxt_eq, memoryCost_bind', memoryCost_write, clientState_write]
+    by_cases hnxt : nxt = 0 <;>
+      simp only [hnxt, ↓reduceIte, memoryCost_bind', memoryCost_write, memoryCost_pure,
+        add_zero] <;> decide
+  have hres : (Memory.spec 0).clientResult s
+      (extractPopItem ![itemBase, nodeBase, id]) = (it₀.val, ck) := by
+    dsimp only [extractPopItem]
+    simp +decide only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val]
+    repeat rw [clientResult_bind_read]
+    rw [hck, hhead, hsz, hit0, hnxt_eq, clientResult_bind_write]
+    by_cases hnxt : nxt = 0 <;> simp only [hnxt, ↓reduceIte, clientResult_bind_write] <;> rfl
+  have hagree (a : ℕ) (h3 : a ≠ base + 3) (h4 : a ≠ base + 4) (h5 : a ≠ base + 5) :
+      s'.mem a = s.mem a := by
+    by_cases hnxt : nxt = 0 <;>
+      simp only [hs', tailMem, headMem, hnxt, ↓reduceIte,
+        Function.update_of_ne h3, Function.update_of_ne h4, Function.update_of_ne h5]
+  have hm4 : s'.mem (base + 4) = nxt := by
+    by_cases hnxt : nxt = 0 <;>
+      simp only [hs', tailMem, headMem, hnxt, ↓reduceIte, Function.update_self,
+        Function.update_of_ne (by lia : base + 4 ≠ base + 3),
+        Function.update_of_ne (by lia : base + 4 ≠ base + 5)]
+  have hm5 : s'.mem (base + 5) = if nxt = 0 then 0 else s.mem (base + 5) := by
+    by_cases hnxt : nxt = 0 <;>
+      simp only [hs', tailMem, headMem, hnxt, ↓reduceIte, Function.update_self,
+        Function.update_of_ne (by lia : base + 5 ≠ base + 3),
+        Function.update_of_ne (by lia : base + 5 ≠ base + 4)]
+  have hframe (a : ℕ) (ha : s'.mem a ≠ s.mem a) :
+      a = base + 3 ∨ a = base + 4 ∨ a = base + 5 := by
+    by_contra h
+    obtain ⟨h3, h45⟩ := not_or.mp h
+    exact ha (hagree a h3 (not_or.mp h45).1 (not_or.mp h45).2)
+  have hitems : ItemListRep itemBase s'.mem (s'.mem (base + 4)) (s'.mem (base + 5)) rest := by
+    rw [hm4, hm5]
+    refine ItemListRep.congr (fun it hit k hk => ?_) hrest_il
+    refine (hagree _ ?_ ?_ ?_).symm
+    all_goals
+      exact (hdisj it (List.mem_cons_of_mem _ hit) _ (by decide) k hk).symm
+  have hm3 : s'.mem (base + 3) = rest.length := by rw [hs']; exact Function.update_self _ _ _
+  have hnil (hr : rest = []) : s'.mem (base + 4) = 0 := by
+    rw [hm4]
+    exact (hr ▸ hrest_il).1
+  have hfr : s'.frontier = s.frontier := by rw [hs']
+  exact ⟨hv, hm, hres, hfr, hframe,
+    (hagree base (by lia) (by lia) (by lia)).trans hck,
+    (hagree (base + 1) (by lia) (by lia) (by lia)).trans hrk,
+    (hagree (base + 2) (by lia) (by lia) (by lia)).trans htgt, hm3, hitems, hnil⟩
 
 private theorem unlinkLinks_spec {w nodeBase : ℕ} {s : Memory.State}
     {pre suf : List SHTree} {x : SHTree}

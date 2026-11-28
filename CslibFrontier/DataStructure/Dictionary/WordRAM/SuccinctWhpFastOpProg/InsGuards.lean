@@ -112,13 +112,12 @@ theorem insCheckCapPoolGenProg_spec {c U V w n_max base b : ℕ}
     memoryCost prog s ≤ 3 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
   have hth := henv.2.2.2.1
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   obtain ⟨hc0_st, hc0_res, hc0_mc, hc0_vp⟩ :=
     readBktFieldGenProg_spec henv hb (by decide : 0 < 10) hrep (s := s)
   simp only [getBktField] at hc0_res
-  obtain ⟨ht_st, ht_res, ht_mc, ht_vp⟩ := readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrPoolFreeTop)
-    (by dsimp [hdrPoolFreeTop]; omega) (s := s)
+  obtain ⟨ht_st, ht_res, ht_mc, ht_vp⟩ := readHdrProg_large_spec c U V w n_max
+    (base := base) (hdrOff := hdrPoolFreeTop) (s := s) (by decide)
   rw [hrep.2.2.1] at ht_res
   dsimp only
   unfold insCheckCapPoolGenProg; dsimp only
@@ -198,12 +197,11 @@ private theorem realizes_insOldBufSomeGen :
     obtain ⟨c, U, V, w₀, n_max, fs, henv, rfl, hrep, hce, hbo_fn⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
     have h2w := henv.two_le_w
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
     have hold_or : fs.oldEp = 0 ∨ fs.oldEp = 1 := by
       rcases hce with hc | hc <;> simp [FastState.oldEp, hc]
-    obtain ⟨hst_st, hst_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage)
-      (by dsimp [hdrRebStage]; omega) (s := s)
+    obtain ⟨hst_st, hst_res, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrRebStage) (s := s) (by decide)
     rw [hrep.2.2.2.2.2.1] at hst_res
     obtain ⟨hro_st, hro_res, _, _⟩ := readOldEpProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (by dsimp [hdrCurEp]; omega) hce
@@ -233,12 +231,11 @@ private theorem insOldBufSomeGenProg_spec {c U V w n_max base rKey : ℕ}
        then 1 else 0) ∧
     memoryCost prog s ≤ 2 * cTabWhp c + 10 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   have hold_or : fs.oldEp = 0 ∨ fs.oldEp = 1 := by
     rcases hce with hc | hc <;> simp [FastState.oldEp, hc]
-  obtain ⟨hst_st, hst_res, hst_mc, hst_vp⟩ := readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage)
-    (by dsimp [hdrRebStage]; omega) (s := s)
+  obtain ⟨hst_st, hst_res, hst_mc, hst_vp⟩ := readHdrProg_large_spec c U V w n_max
+    (base := base) (hdrOff := hdrRebStage) (s := s) (by decide)
   rw [hrep.2.2.2.2.2.1] at hst_res
   obtain ⟨hro_st, hro_res, hro_mc, hro_vp⟩ := readOldEpProg_spec (w := w)
     (F := base + largeSpaceWhp c U V w n_max) (by dsimp [hdrCurEp]; omega) hce
@@ -292,10 +289,9 @@ theorem realizes_insCheckRKeyGuardsGen :
     dsimp only at *
     obtain ⟨c, U, V, w₀, n_max, fs, curMap, henv, rfl, hrep, hce, hv_cur, hbo_fn⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
-    obtain ⟨hce_st, hce_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrCurEp)
-      (by dsimp [hdrCurEp]; omega) (s := s)
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
+    obtain ⟨hce_st, hce_res, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrCurEp) (s := s) (by decide)
     rw [hrep.2.2.2.1] at hce_res
     obtain ⟨hc_st, _, _, _⟩ :=
       insBufIsSomeGenProg_spec henv hce hrep hv_cur (rKey := rKey) (s := s)
@@ -326,10 +322,9 @@ theorem insCheckRKeyGuardsGenProg_spec {c U V w n_max base rKey : ℕ}
     (Memory.spec 0).clientResult s prog = (if bad then 0 else 1) ∧
     memoryCost prog s ≤ 4 * cTabWhp c + 19 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
-  obtain ⟨hce_st, hce_res, hce_mc, hce_vp⟩ := readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrCurEp)
-    (by dsimp [hdrCurEp]; omega) (s := s)
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
+  obtain ⟨hce_st, hce_res, hce_mc, hce_vp⟩ := readHdrProg_large_spec c U V w n_max
+    (base := base) (hdrOff := hdrCurEp) (s := s) (by decide)
   rw [hrep.2.2.2.1] at hce_res
   obtain ⟨hc_st, hc_res, hc_mc, hc_vp⟩ :=
     insBufIsSomeGenProg_spec henv hce hrep hv_cur (rKey := rKey) (s := s)
@@ -532,10 +527,9 @@ private theorem insReadCurBufItemAllocProg_spec {c U V w n_max base : ℕ}
     (Memory.spec 0).clientResult s prog = (fs.buf fs.curEp).itemAlloc ∧
     memoryCost prog s ≤ 2 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
-  obtain ⟨hce_st, hce_res, hce_mc, hce_vp⟩ := readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrCurEp)
-    (by dsimp [hdrCurEp]; omega) (s := s)
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
+  obtain ⟨hce_st, hce_res, hce_mc, hce_vp⟩ := readHdrProg_large_spec c U V w n_max
+    (base := base) (hdrOff := hdrCurEp) (s := s) (by decide)
   rw [hrep.2.2.2.1] at hce_res
   obtain ⟨_, _hv, _hna, hmIa, _⟩ := hrep.buf_rep hce
   obtain ⟨hi_st, hi_res, hi_mc, hi_vp⟩ := readHdrProg_spec (w := w)
@@ -587,10 +581,9 @@ private theorem realizes_insCheckFpCapActiveGen :
     obtain ⟨c, U, V, w₀, n_max, fs, curMap, henv, rfl, hrep, hce, hv_cur⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
     have h2w := henv.two_le_w
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
-    obtain ⟨hce_st, hce_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrCurEp)
-      (by dsimp [hdrCurEp]; omega) (s := s)
+    have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
+    obtain ⟨hce_st, hce_res, _, _⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrCurEp) (s := s) (by decide)
     rw [hrep.2.2.2.1] at hce_res
     obtain ⟨hev_st, _, _, _⟩ :=
       bufEverPresentGenProg_spec henv hce (hrep.buf_rep hce) hv_cur (rKey := rKey) (s := s)
@@ -655,7 +648,7 @@ theorem insCheckFpCapOptGenProg_spec {c U V w n_max base rKey : ℕ}
     memoryCost prog s ≤ 2 * cTabWhp c + 5 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
   have hth := henv.2.2.2.1
-  have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
+  have h32_sp := headerWords_le_largeSpaceWhp c U V w n_max
   dsimp only
   unfold insCheckFpCapOptGenProg; dsimp only; simp only [pure_bind]
   cases hasFpCollision with
@@ -664,9 +657,8 @@ theorem insCheckFpCapOptGenProg_spec {c U V w n_max base rKey : ℕ}
     exact ⟨rfl, rfl, Nat.zero_le _, validProg_pure _⟩
   | true =>
     simp only [↓reduceIte, true_and]
-    obtain ⟨hce_st, hce_res, hce_mc, hce_vp⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrCurEp)
-      (by dsimp [hdrCurEp]; omega) (s := s)
+    obtain ⟨hce_st, hce_res, hce_mc, hce_vp⟩ := readHdrProg_large_spec c U V w n_max
+      (base := base) (hdrOff := hdrCurEp) (s := s) (by decide)
     rw [hrep.2.2.2.1] at hce_res
     obtain ⟨hev_st, hev_res, hev_mc, hev_vp⟩ :=
       bufEverPresentGenProg_spec henv hce (hrep.buf_rep hce) hv_cur (rKey := rKey) (s := s)

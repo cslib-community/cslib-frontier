@@ -10,8 +10,13 @@ module
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBoundedSum
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledDegreePiece
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFirstCoefficient
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledIndexedFeasibility
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPositivity
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledPowerSection
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledRelativeCoefficient
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledRelativeValue
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateFingerprintWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoordinateSelection
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCandidates
@@ -19,12 +24,20 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCo
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficientSign
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalPolynomialEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.RelativeWordCriterion
 import CslibFrontier.Computability.Complexity.RealAlgebraic.WordCoordinateFingerprintLabels
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchGrowth
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.DegreePieceSeparation
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
+import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
+import CslibFrontier.Foundations.Analysis.MvPolynomial.RelativeCandidateCoverage
+import CslibFrontier.Foundations.Analysis.MvPolynomial.RelativeFiberSeparation
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
+import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.RelativeValueSection
 import Mathlib.LinearAlgebra.Matrix.Charpoly.Coeff
+import Mathlib.Order.Filter.AtTopBot.Ring
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
 
@@ -269,6 +282,51 @@ example : criticalCoordinateCoefficientValue 11 1 1 1 0 2 (fun z => z[0]?.getD 0
       _ = 1 := by
         rw [Polynomial.coeff_natDegree, (Matrix.charpoly_monic A).leadingCoeff, ZMod.val_one]
   exact hleading _
+
+example : (fun q : ℕ × ℕ => zeroObjectiveCoefficientValue 19 1 1 q.1 q.2 (fun _ => 0)) ∈
+    CountingFunction 9 (encPair encNat encNat) encNat := by
+  exact zeroObjectiveCoefficientValue_mem (a := 0) (Decoder.pair Decoder.nat Decoder.nat)
+    (.const 19) (.const 1) (.const 1) (by fun_prop) (by fun_prop)
+    (CountingFunction.of_polyTime (.const 0))
+
+-- With no variables and zero input, the quotient has rank one and the multiplier is zero.
+example : zeroObjectiveCoefficientValue 11 0 1 0 0 (fun _ => 0) = 0 := by
+  let : Fact (Nat.Prime 11) := ⟨by decide⟩
+  rw [zeroObjectiveCoefficientValue_eq 1 (by decide) 0 0 (0 : MvPolynomial (Fin 0) (ZMod 11))
+    (by simp) (by decide) (by decide) (fun _ => 0) (by simp)]
+  simp [deformedPolynomial, potentialPolynomial, Matrix.charpoly_zero]
+
+-- The retained coordinate of a two-variable source is fixed while the coefficient address varies.
+example :
+    let C : Controlled (fun _ : ℕ => (X 1 : MvPolynomial (Fin (1 + 1)) ℤ)) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 1) (.const 1)
+    C.relativeCoefficientValue (n := fun _ => 1) (m := fun _ => 1) (fun _ => 19)
+      (fun _ => 1) (fun _ => 1) id (fun _ => [2]) ∈ CountingFunction 9 encNat encNat := by
+  intro C
+  exact C.relativeCoefficientValue_mem Decoder.nat (.const 1) (.const 19) (.const 1)
+    (.const 1) ComputableInPolyTime.id' (.const [2])
+
+-- The relative polynomial of the empty zero source is the critical-value variable itself.
+example :
+    let C : Controlled (fun _ : ℕ => (MvPolynomial.C 0 : MvPolynomial (Fin (0 + 0)) ℤ))
+        encNat 0 := Controlled.constant (.const 0) (fun _ => 0) (.const 0)
+    C.relativeValue (n := fun _ => 0) (m := fun _ => 0) (fun _ => 1) (0, 11, [3]) = 3 := by
+  intro C
+  rw [C.relativeValue_eq (fun _ => 1) 0 11 [3] (by decide)
+    (by change 0 < 11; decide) (by decide) (by simp) (by decide) (by decide)]
+  have hresidue : (3 : ZMod 11).val = 3 := by decide
+  simp [flattenedRelativeValuePolynomial, relativeValuePolynomial, relativeSource, valuePolynomial,
+    deformedPolynomial, potentialPolynomial, Matrix.charpoly_zero, NormalIndex, hresidue]
+
+-- The packaged evaluator has one retained coordinate and the two distinguished slots.
+example :
+    let C : Controlled (fun _ : ℕ => (X 1 : MvPolynomial (Fin (1 + 1)) ℤ)) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 1) (.const 1)
+    let Q : Controlled (n := fun _ => 3) _ encNat 10 :=
+      C.relativeValueFamily (n := fun _ => 1) (m := fun _ => 1) Decoder.nat (.const 1) (.const 1)
+    Q.evaluate ∈ CountingFunction 10 (encEvaluation encNat) encNat := by
+  intro C Q
+  exact Q.evaluate_mem
 
 -- At u = 1, the equation for F = X is X² + 1 = 0. The value t = 5 is a root mod 13.
 example : (criticalCoordinatePolynomialValue 13 1 1 1 0 5 (fun z => z[0]?.getD 0) :
@@ -682,5 +740,242 @@ example (P : MvPolynomial (Fin (2 + 1)) ℤ) (a : ℕ)
     (C.counterexampleOrder (n := fun _ => 2) (m := fun _ => 1) (.const 2) (.const 1)).evaluate ∈
       CountingFunction a (encEvaluation encBits) encNat :=
   (C.counterexampleOrder (n := fun _ => 2) (m := fun _ => 1) (.const 2) (.const 1)).evaluate_mem
+
+-- The penalty becomes a power of the value, and the parameter retains its own coordinate.
+example :
+    let P : MvPolynomial (Fin (1 + 2)) ℤ := X (Fin.succ 0) + X (Fin.succ (Fin.succ 0))
+    eval₂ (RingHom.id ℤ) (Fin.cons 2 (fun _ => 5)) (MvPolynomial.powerSection 3 P) = 13 := by
+  intro P
+  rw [eval₂_powerSection]
+  simp only [P, eval₂_add, eval₂_X, Fin.cons_succ, Fin.cons_zero]
+  norm_num
+
+-- Taking the fixed-power section of a relative family drops an arity slot at the same level.
+example (P : MvPolynomial (Fin (1 + 1)) ℤ)
+    (C : Controlled (fun _ : ℕ => P) encNat 0) :
+    let Q : Controlled (n := fun _ => 2) _ encNat 10 :=
+      C.relativeValueSection (n := fun _ => 1) (m := fun _ => 1) Decoder.nat (.const 1) (.const 1)
+    Q.evaluate ∈ CountingFunction 10 (encEvaluation encNat) encNat := by
+  intro Q
+  exact Q.evaluate_mem
+
+-- The degree-two coefficient survives specialization to a finite field, including at zero.
+example (x : ZMod 7) :
+    let F : MvPolynomial (Fin (1 + 1)) ℤ := X 1 ^ 2
+    let hF : F.totalDegree ≤ 2 := (totalDegree_pow _ _).trans (by simp)
+    let Q := specializedRelativeValueSection (ell := 2) (n := 1) (m := 1) (by decide)
+      F hF (fun _ => x)
+    Q.coeff 2 = 1 ∧ Q ≠ 0 := by
+  intro F hF Q
+  exact ⟨coeff_specializedRelativeValueSection _ F hF _, specializedRelativeValueSection_ne_zero
+    _ F hF _⟩
+
+-- The test x * v vanishes only at v = 0 and has both eventual signs as x varies.
+example : IsClopen {x : {x : ℝ // x ≠ 0} | 0 < x.val} := by
+  let P : {x : ℝ // x ≠ 0} → Polynomial ℝ := fun _ => Polynomial.X
+  refine Polynomial.eventualSign_isClopen_of_fixed_degree P 1
+    (fun _ => continuous_const) (fun _ => by simp [P]) (fun _ => by simp [P])
+    (fun x v => x.val * v) ((continuous_subtype_val.comp continuous_fst).mul continuous_snd)
+    (fun x => 0 < x.val) ?_ ?_ ?_
+  · intro x v hz
+    have hv : v = 0 := (mul_eq_zero.mp hz).resolve_left x.property
+    simp [P, hv]
+  · intro x hx
+    filter_upwards [Filter.eventually_gt_atTop (0 : ℝ)] with v hv
+    exact mul_pos hx hv
+  · intro x hx
+    filter_upwards [Filter.eventually_gt_atTop (0 : ℝ)] with v hv
+    exact mul_neg_of_neg_of_pos (lt_of_le_of_ne (le_of_not_gt hx) x.property) hv
+
+-- The root branch of the relation u - t = 0 is t = v² at parameter u = v².
+example : ∀ᶠ v : ℝ in Filter.atTop, v < v ^ 2 := by
+  let P : Polynomial (Polynomial ℝ) := Polynomial.X - Polynomial.C Polynomial.X
+  have hP : P ≠ 0 := by
+    intro hz
+    simpa [P] using congrArg (fun Q : Polynomial (Polynomial ℝ) => Q.coeff 1) hz
+  have hdegree (j : ℕ) : (P.coeff j).natDegree ≤ 1 := by
+    by_cases h0 : j = 0
+    · subst j
+      simp [P]
+    by_cases h1 : j = 1
+    · subst j
+      simp [P]
+    · simp [P, Polynomial.coeff_X, Polynomial.coeff_C, h0, Ne.symm h1]
+  refine Polynomial.eventually_lt_of_eval₂_pow_eq_zero P hP hdegree Filter.tendsto_id
+    (Filter.tendsto_pow_atTop (by decide : (2 : ℕ) ≠ 0)) ?_
+  exact Filter.Eventually.of_forall fun v => by simp [P]
+
+-- For the constant input r², the minimum varies jointly and diverges exactly when r is nonzero.
+example :
+    let F (r : ℝ) : MvPolynomial (Fin 1) ℝ := C (r ^ 2)
+    let a : Fin 1 → ℝ := fun _ => 0
+    Continuous (fun q : ℝ × Set.Ici (0 : ℝ) => criticalMinimumValue 1 a (F q.1) q.2.val) ∧
+      ∀ r, r ≠ 0 ↔ Filter.Tendsto (criticalMinimumValue 1 a (F r)) Filter.atTop Filter.atTop := by
+  intro F a
+  have hFn (r : ℝ) (z : Fin 1 → ℝ) : 0 ≤ eval z (F r) := by simp [F, sq_nonneg]
+  refine ⟨continuous_criticalMinimumValue (by decide) (by decide) a (fun _ => le_rfl)
+    F ?_ hFn, ?_⟩
+  · simp only [F, eval_C]
+    fun_prop
+  · intro r
+    simpa [F] using (not_exists_zero_iff_tendsto_criticalMinimumValue
+      (by decide : 1 ≤ 1) (by decide) a (fun _ => le_rfl) (F r) (hFn r))
+
+-- For the input r², the degree pieces containing 0 and 1 realize opposite fiber cases.
+example :
+    let P : MvPolynomial (Fin (1 + 1)) ℤ := X (Fin.natAdd 1 0) ^ 2
+    let hP : P.totalDegree ≤ 3 := (totalDegree_pow _ _).trans (by simp)
+    let Q (r : ℝ) := specializedRelativeValueSection (n := 1) (m := 1) (ell := 3) (by decide)
+      P hP (fun _ => r)
+    let Piece (k : ℕ) := {r : ℝ // (Q r).natDegree ≤ k ∧ (Q r).coeff k ≠ 0}
+    let emptyFibers (k : ℕ) : Set (Piece k) := {r | ¬∃ z : Fin 1 → ℝ,
+      eval₂ (Int.castRingHom ℝ) (Fin.addCases z (fun _ : Fin 1 => r.val)) P = 0}
+    (∀ k, IsClopen (emptyFibers k)) ∧
+      (∃ r : Piece (Q 0).natDegree, r.val = 0 ∧ r ∉ emptyFibers _) ∧
+      (∃ r : Piece (Q 1).natDegree, r.val = 1 ∧ r ∈ emptyFibers _) := by
+  intro P hP Q Piece emptyFibers
+  have heval (r : ℝ) (z : Fin 1 → ℝ) :
+      eval₂ (Int.castRingHom ℝ) (Fin.addCases z (fun _ : Fin 1 => r)) P = r ^ 2 := by
+    simp only [P, eval₂_pow, eval₂_X, Fin.addCases_right]
+  let atDegree (r : ℝ) : Piece (Q r).natDegree :=
+    ⟨r, le_rfl, by
+      change (Q r).leadingCoeff ≠ 0
+      exact Polynomial.leadingCoeff_ne_zero.mpr
+        (specializedRelativeValueSection_ne_zero (n := 1) (m := 1) (by decide) P hP (fun _ => r))⟩
+  refine ⟨fun k => ?_, ⟨atDegree 0, rfl, ?_⟩, ⟨atDegree 1, rfl, ?_⟩⟩
+  · exact isClopen_relative_emptyFibers_of_fixed_degree (by decide) (by decide) P hP
+      (fun (r : Piece k) (_ : Fin 1) => r.val) (continuous_pi fun _ => continuous_subtype_val)
+      (fun r z => by rw [heval]; exact sq_nonneg _) k
+      (fun r => r.property.1) (fun r => r.property.2)
+  · intro h
+    exact h ⟨0, by rw [heval]; norm_num [atDegree]⟩
+  · rintro ⟨z, hz⟩
+    rw [heval] at hz
+    norm_num [atDegree] at hz
+
+-- The constant input 1 has an empty fiber. The theorem supplies a zero of its degree lift
+-- that belongs to the actual coordinate root grid.
+example :
+    let P : MvPolynomial (Fin (1 + 1)) ℤ := 1
+    let hP : P.totalDegree ≤ 1 := by simp [P]
+    let E := finiteRelativeValueSection (n := 1) (m := 1) (ell := 1) (by decide) P hP
+    let N := E.totalDegree
+    let D := 2 * (N + 1)
+    ∃ k ≤ N,
+      let W := degreePiecePolynomial E N k
+      ∃ y : Fin 2 → ℝ, eval y (W.map (Int.castRingHom ℝ)) = 0 ∧
+        y ∈ coordinateRootGrid (ell := 2 * (D + 1) + 1) (by omega) (W ^ 2)
+          ((totalDegree_pow W 2).trans (by
+            have h : W.totalDegree ≤ D := totalDegree_degreePiecePolynomial_le E N k
+            omega)) := by
+  intro P hP E N D
+  have hD (k : ℕ) : (degreePiecePolynomial E N k).totalDegree ≤ D :=
+    totalDegree_degreePiecePolynomial_le E N k
+  obtain ⟨k, hk, y, hy, _, hgrid⟩ := exists_degreePiece_coordinateRootGrid_of_emptyFiber
+    (n := 1) (m := 1) (by decide) (by decide) P hP (fun _ _ => by simp [P])
+    N le_rfl D hD ⟨0, by simp [P]⟩
+  exact ⟨k, hk, y, hy, hgrid⟩
+
+-- The coefficient at address 1 retains the trailing coordinate. Address 2 returns zero.
+example :
+    let C₀ : Controlled (fun _ : ℕ => X (0 : Fin 2)) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 0) (.const 0)
+    let C₁ : Controlled (fun _ : ℕ => X (1 : Fin 2)) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 1) (.const 1)
+    let Q := (C₀.mul C₁).firstVariableCoefficient (n := fun _ => 1) Decoder.nat (.const 1)
+      id ComputableInPolyTime.id'
+    Q.evaluate (1, 7, [3]) = 3 ∧ Q.evaluate (2, 7, [3]) = 0 := by
+  intro C₀ C₁ Q
+  have hcut (w : ℕ) (hw : w ≤ 2) : Q.cutoff w < 7 := by
+    simp only [Q, Controlled.cutoff_firstVariableCoefficient, C₀, C₁, Controlled.mul,
+      Controlled.coordinate, id_eq]
+    omega
+  have hX : finSuccEquiv ℤ 1 (X (1 : Fin 2)) = Polynomial.C (X (0 : Fin 1)) :=
+    finSuccEquiv_X_succ (j := (0 : Fin 1))
+  constructor
+  · rw [Q.evaluate_eq _ _ _ (by decide) (hcut _ (by decide))]
+    norm_num [evaluation, finSuccEquiv_X_zero, hX, Polynomial.coeff_X_mul, ZMod.val_natCast]
+    decide
+  · rw [Q.evaluate_eq _ _ _ (by decide) (hcut _ (by decide))]
+    norm_num [evaluation, finSuccEquiv_X_zero, hX, Polynomial.coeff_X_mul]
+
+-- For P = X₀, the k = 0 lift contributes one from the inverse equation and
+-- one from the coefficient of degree 1.
+example :
+    let C : Controlled (fun _ : ℕ => X (0 : Fin 2)) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 0) (.const 0)
+    let W := C.degreePiece (n := fun _ => 1) Decoder.nat (.const 1)
+      (fun _ => 1) (fun _ => 0) (.const 1) (.const 0)
+    ∃ p, p.Prime ∧ W.cutoff 0 < p ∧ W.evaluate (0, p, [1, 3]) = (2 : ZMod p).val := by
+  intro C W
+  obtain ⟨p, hbound, hp⟩ := Nat.exists_infinite_primes (W.cutoff 0 + 1)
+  have hcut : W.cutoff 0 < p := hbound
+  refine ⟨p, hp, hcut, ?_⟩
+  rw [W.evaluate_eq _ p _ hp hcut, evaluation]
+  have hpoint : (fun i : Fin 2 => (([1, 3][i.val]?.getD 0 : ℕ) : ZMod p)) =
+      Fin.cons (1 : ZMod p) (fun _ : Fin 1 => 3) := by
+    funext i
+    refine Fin.cases ?_ (fun j => ?_) i
+    · simp
+    · have hj : j = 0 := Subsingleton.elim _ _
+      subst j
+      simp
+  have hI : Finset.Ioc (0 : ℕ) 1 = {1} := by decide
+  rw [hpoint, eval₂_degreePiecePolynomial]
+  norm_num [hI, finSuccEquiv_X_zero]
+
+-- Choosing degree 0 or 1 for X₀ gives the same degree, coefficient norm and prime budgets.
+example :
+    let C : Controlled (fun _ : ℕ => X (0 : Fin 2)) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 0) (.const 0)
+    let L := C.boundedDegreePiece (n := fun _ => 1) Decoder.nat (.const 1)
+      (fun _ => 0) (.const 0) (fun _ => Nat.zero_le _)
+    let R := C.boundedDegreePiece (n := fun _ => 1) Decoder.nat (.const 1)
+      (fun _ => 1) (.const 1) (fun _ => le_rfl)
+    (L.degreeBound 0 = 4 ∧ L.massExponent 0 = degreePieceMassExponent 1 0 ∧ L.cutoff 0 = 2) ∧
+      R.degreeBound 0 = L.degreeBound 0 ∧ R.massExponent 0 = L.massExponent 0 ∧
+        R.cutoff 0 = L.cutoff 0 := by
+  intro C L R
+  simp only [L, R, Controlled.degreeBound_boundedDegreePiece,
+    Controlled.massExponent_boundedDegreePiece, Controlled.cutoff_boundedDegreePiece]
+  simp [C, Controlled.coordinate]
+
+-- At bound 2, the two-bit prefix 10 selects degree 2 and 11 wraps to 0.
+example (suffix : List Bool) :
+    (Controlled.decodeDegreeChoice 2 ([true, false] ++ suffix)).val = 2 ∧
+      (Controlled.decodeDegreeChoice 2 ([true, true] ++ suffix)).val = 0 ∧
+        ([true, false] ++ suffix).drop 2 = suffix := by
+  simp only [Controlled.decodeDegreeChoice, show (2 : ℕ).size = 2 by decide,
+    List.take_left' (by decide : [true, false].length = 2),
+    List.take_left' (by decide : [true, true].length = 2),
+    List.drop_left' (by decide : [true, false].length = 2)]
+  decide
+
+-- The controlled lift uses the source budgets for both empty and nonempty words.
+example :
+    let C : Controlled (fun _ : ℕ => X (0 : Fin 2)) encNat 0 :=
+      Controlled.coordinate (.const 2) (fun _ => 0) (.const 0)
+    let W := C.wordDegreePiece (n := fun _ => 1) Decoder.nat (.const 1)
+    W.cutoff (0, [true, false]) = 2 ∧ W.degreeBound (0, []) = 4 := by
+  intro C W
+  simp only [W, Controlled.wordDegreePiece, Controlled.cutoff_boundedDegreePiece,
+    Controlled.degreeBound_boundedDegreePiece]
+  exact ⟨rfl, rfl⟩
+
+-- The constant polynomial 1 has an empty zero fiber even when both blocks have arity zero.
+example :
+    let P : MvPolynomial (Fin (0 + 0)) ℤ := 1
+    let E := finiteRelativeValueSection (n := 0) (m := 0) (ell := 1) (by decide) P (by simp [P])
+    let N := E.totalDegree
+    ∃ word : List Bool, word.length = N.size +
+      coordinateFingerprintWitnessWidth (2 * (2 * (N + 1) + 1) + 1) 1 := by
+  intro P E N
+  have hpos (x z : Fin 0 → ℝ) : 0 ≤ eval₂ (Int.castRingHom ℝ) (Fin.addCases z x) P := by
+    simp [P]
+  obtain ⟨word, hlength, _⟩ := (exists_emptyFiber_iff_selectionWord
+    (n := 0) (m := 0) (ell := 1) (by decide) (by decide) P (by simp [P]) hpos
+    N E.coeffNorm1.size le_rfl (Nat.lt_size_self _).le).mp
+      ⟨Fin.elim0, fun _ => by simp [P]⟩
+  exact ⟨word, by simpa only [Nat.zero_add, pow_one] using hlength⟩
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

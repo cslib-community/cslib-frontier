@@ -71,6 +71,8 @@ the number of oracle queries of any party, or about machines given by an encodin
 * `Cslib.Interactive.Debate.run`: the protocol.
 * `Cslib.Interactive.Debate.honestProposer`, `Cslib.Interactive.Debate.honestChallenger`: the
   prescribed strategies.
+* `Cslib.Interactive.Debate.Params.figure1`: the constants printed in
+  [BrownCohenIrvingPiliouras2024, Figure 1] and the proof of Theorem 6.2.
 
 ## Main results
 
@@ -116,7 +118,7 @@ written before it. -/
   (fun bits => bits.headD false) <$> transcript n
 
 /-- The number of `true` replies among `n` independent samples of the step after `bits`. -/
-private def countTrue (bits : List Bool) : (n : ℕ) → ProbOracleComp StepSpec (Fin (n + 1))
+def countTrue (bits : List Bool) : (n : ℕ) → ProbOracleComp StepSpec (Fin (n + 1))
   | 0 => pure 0
   | n + 1 => do
     let count ← countTrue bits n
@@ -141,14 +143,14 @@ structure Round (N : ℕ) where
   coinB : ZMod N
 
 /-- The bit written in a round. -/
-def Round.bit {N : ℕ} (round : Round N) : Bool :=
+@[expose] def Round.bit {N : ℕ} (round : Round N) : Bool :=
   coinBit round.claim round.coinA round.coinB
 
 /-- The public history of a debate: its completed rounds, most recent first. -/
 abbrev History (N : ℕ) := List (Round N)
 
 /-- The bits written so far, most recent first. -/
-def History.bits {N : ℕ} (history : History N) : List Bool :=
+@[expose] def History.bits {N : ℕ} (history : History N) : List Bool :=
   history.map Round.bit
 
 /-- A proposer on the grid `N`: the player claiming that the output is `true`. It keeps a
@@ -201,14 +203,14 @@ structure Params where
 /-- The verifier's decision after an abort in the round after `bits` with claim `claim`: draw
 `P.verifierSamples` samples of the disputed step and accept exactly when the claim is within
 `P.verifierTolerance` of their mean. -/
-private noncomputable def verdict (P : Params) (bits : List Bool) (claim : Fin (P.grid + 1)) :
+noncomputable def verdict (P : Params) (bits : List Bool) (claim : Fin (P.grid + 1)) :
     ProbOracleComp StepSpec Bool := do
   let count ← countTrue bits P.verifierSamples
   pure (decide (|(claim : ℝ) / P.grid - (count : ℝ) / P.verifierSamples| < P.verifierTolerance))
 
 /-- The remaining `rounds` rounds of a debate from the public history `history` and the two
 private states. -/
-private noncomputable def runFrom (P : Params) (A : Proposer P.grid) (B : Challenger P.grid) :
+@[expose] noncomputable def runFrom (P : Params) (A : Proposer P.grid) (B : Challenger P.grid) :
     ℕ → History P.grid → A.State → B.State → ProbOracleComp StepSpec Bool
   | 0, history, _, _ => pure (history.bits.headD false)
   | rounds + 1, history, stateA, stateB => do
@@ -229,14 +231,14 @@ may abort. After an abort the verifier draws `P.verifierSamples` samples of the 
 and accepts exactly when the claim is within `P.verifierTolerance` of their mean; after
 `P.rounds` rounds without an abort it outputs the last bit. Every private sample of either
 player, of either copy and of the verifier is a fresh draw. -/
-noncomputable def run (P : Params) (A : Proposer P.grid) (B : Challenger P.grid) :
+@[expose] noncomputable def run (P : Params) (A : Proposer P.grid) (B : Challenger P.grid) :
     ProbOracleComp StepSpec Bool :=
   runFrom P A B P.rounds [] A.init B.init
 
 /-! ### The prescribed strategies -/
 
 /-- A uniform coin on `ZMod N` (the coin `0` in the degenerate case `N = 0`). -/
-private noncomputable def uniformCoin (N : ℕ) : ProbOracleComp StepSpec (ZMod N) :=
+noncomputable def uniformCoin (N : ℕ) : ProbOracleComp StepSpec (ZMod N) :=
   if h : N = 0 then pure 0
   else
     haveI : NeZero N := ⟨h⟩
@@ -244,7 +246,7 @@ private noncomputable def uniformCoin (N : ℕ) : ProbOracleComp StepSpec (ZMod 
 
 /-- The honest proposer: in each round it draws `P.grid` fresh samples of the next step and
 claims the fraction that are `true`; its copy returns a uniform coin. -/
-noncomputable def honestProposer (P : Params) : Proposer P.grid where
+@[expose] noncomputable def honestProposer (P : Params) : Proposer P.grid where
   State := Unit
   init := ()
   claim history := StateT.lift (countTrue history.bits P.grid)
@@ -264,7 +266,7 @@ noncomputable def honestChallenger (P : Params) : Challenger P.grid where
 
 /-- The number of samples after which a sample mean of a `Bool`-valued step is within `error` of
 its probability except with probability at most `failure` (Hoeffding's inequality). -/
-private noncomputable def sampleCount (error failure : ℝ) : ℕ :=
+@[expose] noncomputable def sampleCount (error failure : ℝ) : ℕ :=
   ⌈-Real.log (failure / 2) / (2 * error ^ 2)⌉₊
 
 /-- The parameters for a `(T + 1)`-step computation with Lipschitz constant `K`, following
@@ -275,13 +277,36 @@ except with probability `1 / (100 (T + 1))`; the honest challenger, with the sam
 probability, does not abort a claim within `s` and aborts a claim off by `b`; the verifier
 accepts a claim within `c` and rejects a claim off by `s`, each except with probability
 `1 / 100`. -/
-noncomputable def Params.default (K : ℝ≥0) (T : ℕ) : Params where
+@[expose] noncomputable def Params.default (K : ℝ≥0) (T : ℕ) : Params where
   rounds := T + 1
   grid := sampleCount (1 / (100 * K)) (1 / (100 * (T + 1)))
   challengerSamples := sampleCount (3 / (200 * K)) (1 / (100 * (T + 1)))
   challengerTolerance := 7 / (200 * K)
   verifierSamples := sampleCount (1 / (200 * K)) (1 / 100)
   verifierTolerance := 3 / (200 * K)
+
+/-- The parameters of [BrownCohenIrvingPiliouras2024, Figure 1] and of the proof of Theorem 6.2
+for a `T`-step computation with Lipschitz constant `K`, with `d = ⌈150 K⌉` (`dedebate.tex`,
+line 252):
+
+* `T` rounds (line 253);
+* the verifier draws `r = ⌈192 d ^ 2 log 100⌉` samples (line 263) and accepts when the claim is
+  within `1 / (4 d)` of their mean (line 264);
+* the honest provers draw `R = ⌈192 d ^ 2 log (100 T)⌉` samples (lines 461 and 546), which is
+  also the grid, so that the honest proposer's sample mean is a grid point;
+* the honest challenger aborts unless the claim is within `1 / (2 d)` of its sample mean
+  (line 546).
+
+The source writes `log` without a base and does not round the sample counts. The logarithm is
+natural here: the proof equates `2 exp (-R / (192 d ^ 2))` with `1 / (50 T)` (line 487), which
+holds for the natural logarithm only. The counts are rounded up. -/
+@[expose] noncomputable def Params.figure1 (K : ℝ≥0) (T : ℕ) : Params where
+  rounds := T
+  grid := ⌈192 * (⌈150 * (K : ℝ)⌉₊ : ℝ) ^ 2 * Real.log (100 * T)⌉₊
+  challengerSamples := ⌈192 * (⌈150 * (K : ℝ)⌉₊ : ℝ) ^ 2 * Real.log (100 * T)⌉₊
+  challengerTolerance := 1 / (2 * (⌈150 * (K : ℝ)⌉₊ : ℝ))
+  verifierSamples := ⌈192 * (⌈150 * (K : ℝ)⌉₊ : ℝ) ^ 2 * Real.log 100⌉₊
+  verifierTolerance := 1 / (4 * (⌈150 * (K : ℝ)⌉₊ : ℝ))
 
 /-! ### Evaluation against a step law -/
 
@@ -311,11 +336,16 @@ private theorem ev_query (law : List Bool → PMF Bool) (bits : List Bool) :
   OracleComp.evalWith_query _ _
 
 /-- The law of the honest coin on a nonzero grid is uniform. -/
-private theorem ev_uniformCoin {N : ℕ} [NeZero N] (law : List Bool → PMF Bool) :
-    ev law (uniformCoin N) = PMF.uniformOfFintype (ZMod N) := by
-  rw [ev, uniformCoin, dite_eq_right (NeZero.ne N), OracleComp.evalWith_eq_interpret,
+theorem evalWith_uniformCoin {N : ℕ} [NeZero N] (law : List Bool → PMF Bool) :
+    OracleComp.evalWith (sumHandler ProbComp.unifOracle law) (uniformCoin N) =
+      PMF.uniformOfFintype (ZMod N) := by
+  rw [uniformCoin, dite_eq_right (NeZero.ne N), OracleComp.evalWith_eq_interpret,
     ProbOracleComp.interpret_sample, ← OracleComp.evalWith_eq_interpret]
   exact ProbComp.eval_uniform (ZMod N)
+
+private theorem ev_uniformCoin {N : ℕ} [NeZero N] (law : List Bool → PMF Bool) :
+    ev law (uniformCoin N) = PMF.uniformOfFintype (ZMod N) :=
+  evalWith_uniformCoin law
 
 /-! ### Sample counts -/
 
@@ -491,6 +521,17 @@ private theorem apply_false_of_apply_true {N : ℕ} [NeZero N] (k : Fin (N + 1))
       ENNReal.div_self hN (ENNReal.natCast_ne_top N)]
   rw [h, ← hone] at hsum
   exact (ENNReal.add_right_inj (ENNReal.div_ne_top (ENNReal.natCast_ne_top _) hN)).1 hsum
+
+/-- A uniform coin from the proposer's copy makes the bit of a round `false` with probability
+`1 - k / N`, whatever the coin from the challenger's copy. -/
+theorem map_coinBit_uniformOfFintype_right_false {N : ℕ} [NeZero N] (k : Fin (N + 1))
+    (z : ZMod N) :
+    (PMF.uniformOfFintype (ZMod N)).map (fun w => coinBit k z w) false =
+      1 - (k.val : ℝ≥0∞) / N := by
+  rw [← PMF.apply_true_add_apply_false ((PMF.uniformOfFintype (ZMod N)).map fun w =>
+    coinBit k z w), map_coinBit_uniformOfFintype_right]
+  exact (ENNReal.add_sub_cancel_left (ENNReal.div_ne_top (ENNReal.natCast_ne_top _)
+    (Nat.cast_ne_zero.2 (NeZero.ne N)))).symm
 
 /-- The expectation of a function of a `Bool`-valued statistic, through the law of the
 statistic. -/
@@ -959,6 +1000,56 @@ private theorem le_abs_sub_of_le_of_le {a p x d t e : ℝ} (h1 : |a - p| ≤ d) 
 private theorem le_abs_sub_of_le_of_lt {a p x d t e : ℝ} (h1 : d ≤ |a - p|) (h2 : |a - x| < t)
     (hte : e + t ≤ d) : e ≤ |x - p| := by
   linarith [abs_sub_le a x p]
+
+/-- **The verifier's check after an abort.** If the claim is closer to the true probability of
+the step than the verifier's tolerance, by a margin `e`, then the verifier rejects it only when
+its sample mean is off by `e`, which by Hoeffding's inequality has probability at most
+`2 exp (-2 r e ^ 2)` for `r` samples. -/
+theorem evalWith_verdict_false_le (law : List Bool → PMF Bool) (P : Params)
+    (hsamples : 0 < P.verifierSamples) (bits : List Bool) (claim : Fin (P.grid + 1)) {e : ℝ}
+    (he : 0 ≤ e)
+    (h : |(claim.val : ℝ) / P.grid - (law bits true).toReal| + e ≤ P.verifierTolerance) :
+    OracleComp.evalWith (sumHandler ProbComp.unifOracle law) (verdict P bits claim) false ≤
+      ENNReal.ofReal (2 * Real.exp (-2 * P.verifierSamples * e ^ 2)) := by
+  change ev law (verdict P bits claim) false ≤ _
+  rw [ev_verdict, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
+  refine ((countLaw (law bits) _).toOuterMeasure_mono fun count hc => ?_).trans
+    ((ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _) (by positivity)).2
+      (countLaw_tail (law bits) hsamples he))
+  exact le_abs_sub_of_le_of_le le_rfl (not_lt.1 (of_decide_eq_false hc.1)) (by linarith)
+
+/-- At a deterministic step every sample is the bit prescribed by the step law, so the count is
+all or nothing. -/
+private theorem evalWith_countTrue_of_pure {law : List Bool → PMF Bool} {bits : List Bool}
+    {bit : Bool} (hlaw : law bits = PMF.pure bit) :
+    ∀ n, OracleComp.evalWith (sumHandler ProbComp.unifOracle law) (countTrue bits n) =
+      PMF.pure (if bit then Fin.last n else 0)
+  | 0 => by
+    rw [countTrue, OracleComp.evalWith_pure]
+    cases bit <;> rfl
+  | n + 1 => by
+    have hquery : OracleComp.evalWith (sumHandler ProbComp.unifOracle law)
+        (ProbOracleComp.query (spec := StepSpec) bits) = law bits :=
+      OracleComp.evalWith_query _ _
+    simp only [countTrue, OracleComp.evalWith_bind, OracleComp.evalWith_pure, hquery, hlaw,
+      evalWith_countTrue_of_pure hlaw n, PMF.pure_bind]
+    cases bit <;> simp
+
+/-- At a deterministic step the verifier accepts every claim within its tolerance of the bit
+prescribed by the step law. -/
+theorem evalWith_verdict_of_pure {law : List Bool → PMF Bool} (P : Params)
+    (hsamples : 0 < P.verifierSamples) {bits : List Bool} {bit : Bool}
+    (hlaw : law bits = PMF.pure bit) (claim : Fin (P.grid + 1))
+    (h : |(claim.val : ℝ) / P.grid - (if bit then 1 else 0)| < P.verifierTolerance) :
+    OracleComp.evalWith (sumHandler ProbComp.unifOracle law) (verdict P bits claim) =
+      PMF.pure true := by
+  have hr : (P.verifierSamples : ℝ) ≠ 0 := Nat.cast_ne_zero.2 hsamples.ne'
+  simp only [verdict, OracleComp.evalWith_bind, OracleComp.evalWith_pure,
+    evalWith_countTrue_of_pure hlaw, PMF.pure_bind]
+  congr 1
+  rw [decide_eq_true_iff]
+  revert h
+  cases bit <;> intro h <;> simpa [hr] using h
 
 variable {K : ℝ≥0}
 

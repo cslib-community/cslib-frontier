@@ -118,9 +118,7 @@ theorem computableInPolyTime_tableValidPositions :
 theorem computableInPolyTime_tableOutsidePositions :
     ComputableInPolyTime (fun p : ℕ × List ℕ => outsidePositions p.1 p.2)
       (encPair encUnary (encList encNat)) (encList encNat) := by
-  have hrange : ComputableInPolyTime List.range encUnary (encList encNat) := by
-    have h := ComputableInPolyTime.map ComputableInPolyTime.unary_to_binary
-    simpa only [Function.comp_def, List.map_id'] using h.comp ComputableInPolyTime.range
+  have hrange := ComputableInPolyTime.range.reencodeList ComputableInPolyTime.unary_to_binary
   unfold outsidePositions
   simp only [List.contains_eq_mem]
   apply ComputableInPolyTime.filterWithInput (hrange.comp (by fun_prop))

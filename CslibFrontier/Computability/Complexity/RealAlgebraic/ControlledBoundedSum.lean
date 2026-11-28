@@ -100,4 +100,16 @@ noncomputable def sumSquares
     rw [pow_mul]
     exact (MvPolynomial.coeffNorm1_pow_le _ _).trans (Nat.pow_le_pow_left (hmass w i hi) 2)
 
+/-- Squaring the summands uses the supplied prime cutoff. -/
+@[simp] theorem cutoff_sumSquares
+    (C : Controlled (fun q : α × ℕ => P q.1 q.2) (encPair enc encNat) a) (E : Decoder enc)
+    (hn : ComputableInPolyTime n enc encUnary) (N D b cutoff : α → ℕ)
+    (hN : ComputableInPolyTime N enc encNat) (hD : ComputableInPolyTime D enc encNat)
+    (hb : ComputableInPolyTime b enc encNat) (hcut : ComputableInPolyTime cutoff enc encNat)
+    (hdeg : ∀ w i, i < N w → (P w i).totalDegree ≤ D w)
+    (hmass : ∀ w i, i < N w → (P w i).coeffNorm1 ≤ 2 ^ b w)
+    (hcutoff : ∀ w i, i < N w → C.cutoff (w, i) ≤ cutoff w) :
+    (C.sumSquares E hn N D b cutoff hN hD hb hcut hdeg hmass hcutoff).cutoff = cutoff := by
+  simp only [sumSquares, boundedSum]
+
 end Cslib.Complexity.RealAlgebraic.Controlled

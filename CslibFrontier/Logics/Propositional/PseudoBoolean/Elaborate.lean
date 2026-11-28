@@ -33,7 +33,10 @@ other conclusions follow from the kernel checker's theorems
 `Cslib.Logic.PL.VeriPB.Text.checkOPB`.
 
 **Completeness** is not proved: the elaborator may fail on a valid proof (its limitations are
-listed in `Cslib.Logic.PL.VeriPB.Elab`), and then the checker rejects. Output sections are
+listed in `Cslib.Logic.PL.VeriPB.Elab`), and then the checker rejects. For the clausal and `pol`
+fragment that CaDiCaL writes, validity has a declarative definition,
+`Cslib.Logic.PL.VeriPB.Elab.AugValid`, sound by the kernel's soundness; that the elaborator accepts
+exactly the valid proofs of the fragment is not proved yet (#8782). Output sections are
 accepted with `NONE` and `IMPLICIT`, as for `Cslib.Logic.PL.VeriPB.Text.checkOPB`.
 
 ## Main definitions

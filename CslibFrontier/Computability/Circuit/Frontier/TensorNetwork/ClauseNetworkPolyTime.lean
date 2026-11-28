@@ -54,7 +54,7 @@ namespace Cslib.Circuits.Frontier.ClauseNetwork
 
 open Turing.MultiTapeTM ComputableInPolyTime Cslib.Logic.PL
 open Cslib.Complexity (encCNF)
-open ExplicitTensorNetwork (computableInPolyTime_boundedTable encVertex ports_unary_to_binary)
+open ExplicitTensorNetwork (computableInPolyTime_boundedTable encVertex)
 
 variable {α : Type} {inp : α ↪ List Bool}
 
@@ -137,7 +137,7 @@ theorem computableInPolyTime_rowVertex (B : ℕ) {os : α → List (Occurrence �
     ComputableInPolyTime (fun a => rowVertex (os a) B (row a) (i a)) inp encVertex := by
   have hps := computableInPolyTime_clausePorts hos hi
   unfold rowVertex
-  exact (ports_unary_to_binary hps).prod
+  exact (hps.reencodeList unary_to_binary).prod
     (computableInPolyTime_boundedTable B ((length_list _).comp hps)
       fun idx => (hrow idx).comp (id'.prod hi))
 
@@ -159,7 +159,8 @@ theorem computableInPolyTime_qVertex (B : ℕ) {os : α → List (Occurrence ℕ
   have hps := computableInPolyTime_qPorts hos hw
   have hlen := (length_list _).comp hps
   unfold qVertex
-  refine (ports_unary_to_binary hps).prod (computableInPolyTime_boundedTable B hlen fun idx => ?_)
+  refine (hps.reencodeList unary_to_binary).prod
+    (computableInPolyTime_boundedTable B hlen fun idx => ?_)
   unfold eqEntry
   exact ite_decide (decide_or (decide_eq' (const (encOut := encNat) idx) (const 0))
     (decide_eq' (const (idx + 1)) (binary_pow' (const 2) hlen))) (const 1) (const 0)
@@ -168,8 +169,9 @@ theorem computableInPolyTime_qVertex (B : ℕ) {os : α → List (Occurrence ℕ
 theorem computableInPolyTime_linkVertex {u : α → ℕ} (hu : ComputableInPolyTime u inp encUnary) :
     ComputableInPolyTime (fun a => linkVertex (u a)) inp encVertex := by
   unfold linkVertex
-  refine (ports_unary_to_binary (cons' (unary_add' (unary_mul' (const 3) hu) (const 1))
-    (cons' (unary_add' (unary_mul' (const 3) hu) (const 2)) (const [])))).prod (const _)
+  have ports := cons' (unary_add' (unary_mul' (const 3) hu) (const 1))
+    (cons' (unary_add' (unary_mul' (const 3) hu) (const 2)) (const []))
+  exact (ports.reencodeList unary_to_binary).prod (const _)
 
 /-- **The network of an occurrence list is polynomial-time**, with its number of rows in binary,
 when the entries of its row tables are. -/

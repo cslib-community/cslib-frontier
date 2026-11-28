@@ -585,4 +585,30 @@ example :
   exact ⟨hkD, by rw [hkD]; decide, hk0, hk7,
     msfEdges_isSpanningForest diamondEs (edgeWeight diamondEs) (edgeWeight_injective diamondEs)⟩
 
+-- Step acyclicity, vertex-subset length bound, and injective contraction preservation.
+example : IsAcyclic ([(⟨0, 1, 3⟩ : WeightedEdge 3 ℕ), ⟨1, 2, 5⟩]) ∧
+    ¬ IsAcyclic ([(⟨0, 2, 7⟩ : WeightedEdge 3 ℕ), ⟨0, 1, 3⟩, ⟨1, 2, 5⟩]) ∧
+    [(⟨0, 1, 3⟩ : WeightedEdge 3 ℕ), ⟨1, 2, 5⟩].length ≤
+      ({0, 1, 2} : Finset (Fin 3)).card - 1 := by
+  have h2 : IsAcyclic ([(⟨0, 1, 3⟩ : WeightedEdge 3 ℕ), ⟨1, 2, 5⟩]) := by decide
+  have hnot : ¬ IsAcyclic ([(⟨0, 2, 7⟩ : WeightedEdge 3 ℕ), ⟨0, 1, 3⟩, ⟨1, 2, 5⟩]) := by
+    rw [isAcyclic_cons_iff]
+    rintro ⟨hrel, _⟩
+    have htrue : (edgePartition ([(⟨0, 1, 3⟩ : WeightedEdge 3 ℕ), ⟨1, 2, 5⟩])).rel 0 2 = true := by
+      decide
+    simp [htrue] at hrel
+  have hlen := isAcyclic_length_le_finset_sub_one ({0, 1, 2} : Finset (Fin 3))
+    [⟨0, 1, 3⟩, ⟨1, 2, 5⟩] h2 fun e he => by
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at he
+      rcases he with rfl | rfl <;> decide
+  exact ⟨h2, hnot, hlen⟩
+
+example : IsAcyclic ([(⟨0, 1, 4⟩ : WeightedEdge 3 ℕ), ⟨1, 2, 9⟩]) := by
+  let lift : Fin 3 → Fin 5 := fun k => match k with | 0 => 1 | 1 => 3 | 2 => 4
+  have hlift : Function.Injective lift := by
+    intro a b hab
+    fin_cases a <;> fin_cases b <;> simp_all [lift]
+  have hlifted : IsAcyclic (contractEdgeList lift [⟨0, 1, 4⟩, ⟨1, 2, 9⟩]) := by decide
+  exact (isAcyclic_contractEdgeList_iff_of_injective hlift _).mp hlifted
+
 end CslibFrontierTests.Algorithms.Lean.Query.MinimumSpanningForest.Contraction

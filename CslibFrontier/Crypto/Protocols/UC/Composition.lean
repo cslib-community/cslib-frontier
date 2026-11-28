@@ -97,6 +97,8 @@ operation that replaces many sessions in one step.
   statistical, call-bounded single-subroutine static-corruption composition (#6043).
 * `Cslib.Crypto.Protocols.UC.Realizes.compose`, `Cslib.Crypto.Protocols.UC.Realizes.compose_trans`:
   statistical, call-bounded single-subroutine ideal-functionality replacement (#6043).
+* `Cslib.Crypto.Protocols.UC.RealizesWithin.compose_trans`: concrete single-subroutine
+  modular ideal-functionality composition (#6043).
 
 ## References
 
@@ -260,7 +262,7 @@ Replies of the subroutine part do not occur where it is used. -/
 
 /-- A program calling the subroutine's routed network port, as a program calling the composed
 network port: the call `q` becomes `.inr (.inr q)`. -/
-private def liftSubNet
+@[expose] def liftSubNet
     (program : ProbOracleComp (netSpec (RoutedNetQ n SubIn NQ) (RoutedNetR SubOut NR)) α) :
     ProbOracleComp (netSpec (RoutedNetQ n In (NetQ ⊕ RoutedNetQ n SubIn NQ))
       (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR))) α :=
@@ -276,7 +278,7 @@ private def liftSubNet
 
 /-- The composed simulator's machine: queries for `ρ` are forwarded, and queries for the
 subroutine are answered by the subroutine simulator `S`. -/
-def hybridSimMachine
+@[expose] def hybridSimMachine
     (S : Machine (netSpec (RoutedNetQ n SubIn NQ₂) (RoutedNetR SubOut NR₂))
       (netSpec (RoutedNetQ n SubIn NQ₁) (RoutedNetR SubOut NR₁))) :
     Machine (netSpec (RoutedNetQ n In (NetQ ⊕ RoutedNetQ n SubIn NQ₂))
@@ -713,7 +715,7 @@ theorem EmulatesWithin.compose {pρ g : Polynomial ℕ}
     {ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0} (hρ : ρ.PolyBounded pρ)
     (h : EmulatesWithin π φ g ε) :
     EmulatesWithin (compose ρ π) (compose ρ φ)
-      (Polynomial.X * (g.comp (Polynomial.X + 1) + 1 + 1) + (g.comp (Polynomial.X + 1) + 1))
+      (compSimPoly (g.comp (Polynomial.X + 1) + 1))
       (fun pA pZ => ε 1 (absorbPoly (absorbPoly pZ pA) pρ)) := by
   obtain ⟨pD, hg, hD⟩ := h.emulatesDummyWithin
   intro AdvQ AdvR A pA hA
@@ -721,9 +723,9 @@ theorem EmulatesWithin.compose {pρ g : Polynomial ℕ}
   refine ⟨S, pS, hS, fun κ => (hSg κ).trans ?_, hadv⟩
   have hD' : pD.eval (κ + pA.eval κ) ≤ g.eval (κ + pA.eval κ + 1) := by
     simpa only [Polynomial.eval_one] using hg (κ + pA.eval κ)
-  simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_X, Polynomial.eval_one,
-    Polynomial.eval_comp]
-  gcongr
+  exact eval_compSimPoly_mono (by
+    simpa only [Polynomial.eval_add, Polynomial.eval_comp, Polynomial.eval_X,
+      Polynomial.eval_one] using Nat.add_le_add_right hD' 1)
 
 /-- Composition for `Emulates`, this library's novel call-bounded, fixed-`n`-party, port-model
 emulation notion, which is related to but is not UC emulation (Definition 9 of [Canetti2020]): a
@@ -758,5 +760,23 @@ theorem Realizes.compose_trans {BackQ BackR GQ GR : Type} {π : Protocol n SubIn
     {pρ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ) (hπ : Realizes π F)
     (hρG : Realizes (UC.compose ρ F.toProtocol) G) : Realizes (UC.compose ρ π) G :=
   (hπ.compose hρ).trans hρG
+
+/-- Concrete modular protocol design for `RealizesWithin`, this library's novel call-bounded,
+fixed-`n`-party, port-model notion: a step after corollary (b) of Theorem 3 of Section 2.3 of
+[Canetti2020], not that corollary (#6043). If `ρ^F` realizes `G` with overhead `g'` and error `ε'`
+(monotone in the adversary's budget), and `π` realizes `F` with overhead `g` and error `ε`, then
+`ρ^π` realizes `G`. -/
+theorem RealizesWithin.compose_trans {BackQ BackR GQ GR : Type}
+    {π : Protocol n SubIn SubOut NQ NR}
+    {F : IdealFunctionality n SubIn SubOut BackQ BackR} {G : IdealFunctionality n In Out GQ GR}
+    {pρ g g' : Polynomial ℕ} {ε ε' : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0}
+    (hρ : ρ.PolyBounded pρ) (hπ : RealizesWithin π F g ε)
+    (hρG : RealizesWithin (UC.compose ρ F.toProtocol) G g' ε')
+    (hmono : ∀ p p' pZ κ, (∀ κ', p.eval κ' ≤ p'.eval κ') → ε' p pZ κ ≤ ε' p' pZ κ) :
+    RealizesWithin (UC.compose ρ π) G
+      (g'.comp (Polynomial.X + compSimPoly (g.comp (Polynomial.X + 1) + 1)))
+      (fun pA pZ κ => ε 1 (absorbPoly (absorbPoly pZ pA) pρ) κ +
+        ε' ((compSimPoly (g.comp (Polynomial.X + 1) + 1)).comp (Polynomial.X + pA)) pZ κ) :=
+  (EmulatesWithin.compose hρ hπ).trans hρG hmono
 
 end Cslib.Crypto.Protocols.UC
