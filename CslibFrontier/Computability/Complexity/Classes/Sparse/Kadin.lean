@@ -451,7 +451,9 @@ theorem SigmaP_two_subset_PNPLog_of_sparse (hsparse : S ∈ SPARSE encBits) (hS 
   obtain ⟨red, hred, hDred⟩ := CookLevin.SAT_npHard _ _ hD
   have hreqb (b : Bool) : ComputableInPolyTime (fun x : α × ℕ => encCNF (red (x.1, x.2, b)))
       (encPair enc encUnary) encBits :=
-    (ComputableInPolyTime.of_eq fun _ => rfl).comp (hred.comp (by fun_prop))
+    (hred.comp ((ComputableInPolyTime.fst enc encUnary).prod
+      ((ComputableInPolyTime.snd enc encUnary).prod (ComputableInPolyTime.const b)))).of_enc_eq
+      fun _ => rfl
   have hmemA (x : α × ℕ × Bool) :
       encCNF (red x) ∈ encCNF '' SAT ↔ x ∈ KadinCensus.language S enc m p G := by
     rw [hDred x]
