@@ -80,8 +80,13 @@ cost, and leaves the postcondition of the step.
 
 * `Cslib.DataStructure.Memory.FramedTriple.iterate`: bounded iteration with the loop's safety
   predicate.
+* `Cslib.DataStructure.Memory.FramedTriple.iterate_sum`: bounded iteration whose step `k` costs
+  `cost k`, for a total of `∑ k ∈ Finset.range n, cost k`.
+* `Cslib.DataStructure.Memory.FramedTriple.iterate_potential`: amortized bounded iteration, each
+  step paying its cost and the change of a potential out of a fixed budget.
 * `Cslib.DataStructure.Memory.FramedTriple.call`, `Cslib.DataStructure.Memory.FramedTriple.call_eq`,
-  `Cslib.DataStructure.Memory.FramedTriple.seq`: calling a sub-program through its triple.
+  `Cslib.DataStructure.Memory.FramedTriple.seq`,
+  `Cslib.DataStructure.Memory.FramedTriple.call_eq_tail`: calling a sub-program through its triple.
 * `Cslib.DataStructure.Memory.FramedTriple.ite_max`,
   `Cslib.DataStructure.Memory.FramedTriple.dite_max`: conditionals with branch costs combined by
   `max`.
@@ -119,6 +124,14 @@ theorem call_eq {p : Prog β} {k : β → Prog α} {r : β} {t : State}
     (hp : FramedTriple w s p c₁ S₁ fun r' t' => r' = r ∧ t' = t) (hS : S₁ ⊆ S)
     (hk : FramedTriple w t (k r) c₂ S Q) : FramedTriple w s (p >>= k) (c₁ + c₂) S Q :=
   call hp hS fun _ _ h _ => h.1 ▸ h.2 ▸ hk
+
+/-- Call a sub-program in tail position through its own framed triple, which fixes its result `r`
+and final state `t`; the postcondition is checked there. `framed_triple` applies this rule with a
+triple from the local context. -/
+theorem call_eq_tail {p : Prog α} {r : α} {t : State}
+    (hp : FramedTriple w s p c S₁ fun r' t' => r' = r ∧ t' = t) (hS : S₁ ⊆ S) (hQ : Q r t) :
+    FramedTriple w s p c S Q :=
+  (hp.frame_mono hS).mono le_rfl fun _ _ h => h.1 ▸ h.2 ▸ hQ
 
 /-- Call a sub-program through its own framed triple and continue at the concrete result and
 state that the realization interpreter assigns it, as a realization safety predicate that names
@@ -164,6 +177,53 @@ theorem iterate {δ σ : Type} {body : δ × σ → Prog σ} {safe : ℕ → δ 
       exact ⟨fun _ => hs, Triple.mono hft le_rfl fun _ _ ⟨hm', hi'⟩ => ⟨hm', hi', hm.trans hm'⟩⟩)
     a₀ s ⟨h₀, Modifies.refl S s⟩
   exact ⟨hsafe, h.mono le_rfl fun a t ⟨hi, hm⟩ => hpost a t hi hm⟩
+
+/-- **Bounded iteration with varying step costs.** As `FramedTriple.iterate`, but step `k` meets a
+framed triple of cost `cost k`, and the loop costs `∑ k ∈ Finset.range n, cost k`. -/
+theorem iterate_sum {δ σ : Type} {body : δ × σ → Prog σ} {safe : ℕ → δ × σ → State → Prop}
+    {d : δ} {n : ℕ} {a₀ : σ} {Q : σ → State → Prop} (cost : ℕ → ℕ)
+    (inv : ℕ → σ → State → Prop) (h₀ : inv 0 a₀ s)
+    (hstep : ∀ k < n, ∀ a t, inv k a t → Memory.Modifies S s t →
+      safe w (d, a) t ∧ FramedTriple w t (body (d, a)) (cost k) S (inv (k + 1)))
+    (hpost : ∀ a t, inv n a t → Memory.Modifies S s t → Q a t) :
+    iterationSafe body safe w d n a₀ s ∧
+      FramedTriple w s (Realization.iterate body d n a₀) (∑ k ∈ Finset.range n, cost k) S Q := by
+  obtain ⟨hsafe, hv, hc, hm, hi, hm'⟩ := iterate_potential_spec body safe w d 0 n
+    (fun k a t => inv k a t ∧ Memory.Modifies S s t) (fun k _ _ => ∑ j ∈ Finset.Ico k n, cost j) S
+    (fun k hk a t ⟨hi, hm⟩ => by
+      obtain ⟨hs, hft⟩ := hstep k hk a t hi hm
+      obtain ⟨hv, hc, hm', hi'⟩ := framedTriple_iff_realization.mp hft
+      refine ⟨hs, hv, ?_, hm', hi', hm.trans hm'⟩
+      rw [Finset.sum_eq_sum_Ico_succ_bot hk]; omega)
+    a₀ s ⟨h₀, Modifies.refl S s⟩
+  exact ⟨hsafe, framedTriple_iff_realization.mpr
+    ⟨hv, by simpa using hc, hm, hpost _ _ hi hm'⟩⟩
+
+/-- **Amortized bounded iteration.** Step `k`, run from `(a, t)`, meets a framed triple of cost
+`cost k a t` that re-establishes the invariant and pays `cost k a t` plus the new potential out of
+the old potential and the budget `B`. The loop then meets its safety predicate, a framed triple of
+cost `Φ 0 a₀ s + B * n`, and the amortized bound with the final potential. -/
+theorem iterate_potential {δ σ : Type} {body : δ × σ → Prog σ}
+    {safe : ℕ → δ × σ → State → Prop} {d : δ} {n B : ℕ} {a₀ : σ} {Q : σ → State → Prop}
+    (Φ cost : ℕ → σ → State → ℕ) (inv : ℕ → σ → State → Prop) (h₀ : inv 0 a₀ s)
+    (hstep : ∀ k < n, ∀ a t, inv k a t → Memory.Modifies S s t →
+      safe w (d, a) t ∧ FramedTriple w t (body (d, a)) (cost k a t) S
+        fun a' t' => inv (k + 1) a' t' ∧ cost k a t + Φ (k + 1) a' t' ≤ Φ k a t + B)
+    (hpost : ∀ a t, inv n a t → Memory.Modifies S s t → Q a t) :
+    iterationSafe body safe w d n a₀ s ∧
+      FramedTriple w s (Realization.iterate body d n a₀) (Φ 0 a₀ s + B * n) S Q ∧
+      memoryCost (Realization.iterate body d n a₀) s +
+          Φ n ((spec 0).clientResult s (Realization.iterate body d n a₀))
+            ((spec 0).clientState s (Realization.iterate body d n a₀)) ≤
+        Φ 0 a₀ s + B * n := by
+  obtain ⟨hsafe, hv, hc, hm, hi, hm'⟩ := iterate_potential_spec body safe w d B n
+    (fun k a t => inv k a t ∧ Memory.Modifies S s t) Φ S
+    (fun k hk a t ⟨hi, hm⟩ => by
+      obtain ⟨hs, hft⟩ := hstep k hk a t hi hm
+      obtain ⟨hv, hc, hm', hi', hle⟩ := framedTriple_iff_realization.mp hft
+      exact ⟨hs, hv, by omega, hm', hi', hm.trans hm'⟩)
+    a₀ s ⟨h₀, Modifies.refl S s⟩
+  exact ⟨hsafe, framedTriple_iff_realization.mpr ⟨hv, by omega, hm, hpost _ _ hi hm'⟩, hc⟩
 
 /-- Allocate a dirty block of `k` cells at a frontier `fr` known by an equation, then continue
 from the enlarged state with the block `⟨fr, k⟩`. Stating the frontier as `fr` avoids rewriting a
@@ -253,22 +313,25 @@ namespace Cslib.WordRAM.Realization.FramedLoop
 /-- Close an address, region or word-size side condition: `a < s.frontier`, `a ∈ S`, `a ∉ S`,
 `S ⊆ T` for regions built from `Set.Ico`, `∪`, `insert`, singletons and set-builder intervals, or
 `Fits w v`. It keeps only the plain arithmetic hypotheses (`region_prune`), unfolds interval
-membership and structure projections, and closes the goal by `omega`, by `fits`, or by
+membership, structure projections and local `let` definitions (so a region may be named by a
+`let`), and closes the goal by `omega`, by `fits`, or by
 `wram_omega` over the `@[wram_arith]` layout definitions and the local definitions in context. -/
 macro (name := regionOmega) "region_omega" : tactic => `(tactic|
   first
   | assumption
   | (region_prune
-     (try simp only [Set.mem_Ico, Set.mem_Iio, Set.mem_Ici, Set.mem_union, Set.mem_insert_iff,
-       Set.mem_singleton_iff, Set.mem_ofPred_eq, Set.mem_univ, Set.mem_empty_iff_false] at *) <;>
+     (try simp +zetaDelta only [Set.mem_Ico, Set.mem_Iio, Set.mem_Ici, Set.mem_union,
+       Set.mem_insert_iff, Set.mem_singleton_iff, Set.mem_ofPred_eq, Set.mem_univ,
+       Set.mem_empty_iff_false, or_true, true_or] at *) <;>
      first
      | omega
      | fits
      | wram_omega_silent)
   | (intro _ _
      region_prune
-     (try simp only [Set.mem_Ico, Set.mem_Iio, Set.mem_Ici, Set.mem_union, Set.mem_insert_iff,
-       Set.mem_singleton_iff, Set.mem_ofPred_eq, Set.mem_univ, Set.mem_empty_iff_false] at *) <;>
+     (try simp +zetaDelta only [Set.mem_Ico, Set.mem_Iio, Set.mem_Ici, Set.mem_union,
+       Set.mem_insert_iff, Set.mem_singleton_iff, Set.mem_ofPred_eq, Set.mem_univ,
+       Set.mem_empty_iff_false, or_true, true_or] at *) <;>
      first
      | omega
      | wram_omega_silent))
@@ -297,7 +360,8 @@ macro (name := framedTriplePrim) "framed_triple_prim" : tactic => `(tactic|
 /-- One structural step of `framed_triple` on the main goal. A read, write, allocation or return
 that appears literally is taken by its primitive rule; a call of a sub-program goes through a
 framed triple for it in the local context (`FramedTriple.call_eq` when the triple fixes the
-result and final state, `FramedTriple.seq` otherwise); then conditionals; and only then a
+result and final state, `FramedTriple.seq` otherwise, and `FramedTriple.call_eq_tail` for a call
+in tail position); then conditionals; and only then a
 primitive rule up to unfolding of definitions, which enters a sub-program that has no triple in
 context. Side conditions are tried with `region_omega` and left open otherwise. -/
 macro (name := framedTripleStep) "framed_triple_step" : tactic => `(tactic|
@@ -307,6 +371,9 @@ macro (name := framedTripleStep) "framed_triple_step" : tactic => `(tactic|
      on_goal 1 => assumption
      on_goal 1 => first | exact subset_rfl | exact Set.empty_subset _ | try region_omega)
   | (eapply Cslib.DataStructure.Memory.FramedTriple.seq
+     on_goal 1 => assumption
+     on_goal 1 => first | exact subset_rfl | exact Set.empty_subset _ | try region_omega)
+  | (eapply Cslib.DataStructure.Memory.FramedTriple.call_eq_tail
      on_goal 1 => assumption
      on_goal 1 => first | exact subset_rfl | exact Set.empty_subset _ | try region_omega)
   | (eapply Cslib.DataStructure.Memory.FramedTriple.ite_max <;> intro)
