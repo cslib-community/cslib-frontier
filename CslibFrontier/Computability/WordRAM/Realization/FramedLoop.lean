@@ -354,14 +354,20 @@ macro (name := framedTripleStep) "framed_triple_step" : tactic => `(tactic|
 
 /-- Walk the `do` block of a `Memory.FramedTriple` goal with `framed_triple_step`. The cost is
 synthesized and compared with the stated bound at the end by `omega`; side conditions are tried
-with `region_omega`, trivial postconditions are closed, and the remaining goals are left to the
-author in the order of the program. A sub-program call is taken through a triple for it in the
-local context; a call whose continuation needs the sub-program's postcondition at an arbitrary
-result is composed with `FramedTriple.call` by hand. -/
+with `region_omega`; postconditions that hold by reducible `rfl` (including a pair of them, as in
+the result-and-state postconditions that `FramedTriple.call_eq` consumes) are closed before the
+slower `trivial`, and the remaining goals are left to the author in the order of the program. A
+sub-program call is taken through a triple for it in the local context; a call whose continuation
+needs the sub-program's postcondition at an arbitrary result is composed with
+`FramedTriple.call` by hand. -/
 macro (name := framedTriple) "framed_triple" : tactic => `(tactic|
   focus
     eapply Cslib.DataStructure.Memory.FramedTriple.mono (hQ := fun _ _ => id)
     on_goal 1 => (try dsimp only); repeat' framed_triple_step
-    all_goals try first | omega | trivial)
+    all_goals try first
+      | with_reducible rfl
+      | (refine ⟨?_, ?_⟩ <;> with_reducible rfl)
+      | omega
+      | trivial)
 
 end Cslib.WordRAM.Realization.FramedLoop
