@@ -2132,6 +2132,7 @@ public import CslibFrontier.Probability.PairwiseIndependentHash.RetentionChannel
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.BoxRecordWitness.Record
 public import CslibFrontier.Foundations.Analysis.Convex.FirstOrder
 public import CslibFrontier.Init
+public import CslibFrontier.Algorithms.Lean.Query.Bounds.DistinctInputs
 public import CslibFrontier.Computability.PCP.TwoProverGame.EntangledRepetition
 public import CslibFrontier.Algorithms.WordRAM.DFS
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Nondeterministic
@@ -4571,7 +4572,6 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.SoftHeap.Collect
 public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Allocation
 public import CslibFrontier.Probability.UniformNat
-public import CslibFrontier.Algorithms.Lean.Query.Bounds
 public import CslibFrontier.Algorithms.Matching.MVV
 public import CslibFrontier.Computability.BlumComplexity.Fuel
 public import CslibFrontier.DataStructure.BTree.MinMax

@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.Query.Select.SecondMin.Tournament
-import CslibFrontier.Algorithms.Lean.Query.Bounds
+import CslibFrontier.Algorithms.Lean.Query.Bounds.DistinctInputs
 import CslibFrontier.Algorithms.Lean.Query.Select.SecondMin.Certificate
 import CslibFrontier.Algorithms.Lean.Query.Select.SecondMin.Trace
 import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.Adversary

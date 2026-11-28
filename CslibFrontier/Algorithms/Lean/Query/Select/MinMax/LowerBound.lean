@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Algorithms.Lean.Query.Select.MinMax.Basic
 public import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.Fooling
 public import Mathlib.Data.Finset.Card
-import CslibFrontier.Algorithms.Lean.Query.Bounds
+import CslibFrontier.Algorithms.Lean.Query.Bounds.DistinctInputs
 import CslibFrontier.Algorithms.Lean.Query.Sort.LEQuery.Adversary
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
