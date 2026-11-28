@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Init
+import CslibFrontier.Foundations.Data.Array.CommonPrefix
 import CslibFrontier.Algorithms.Lean.KMP.Search
 import CslibFrontier.Algorithms.Lean.ZFunction.Basic
 import CslibFrontier.Algorithms.Lean.ZFunction.Search
@@ -38,6 +39,14 @@ open Cslib.Algorithms.WordRAM.ZFunction
 
 private def aabxaab : List Char := "aabxaab".toList
 private def gusfield : List Char := "aabcaabxaaz".toList
+
+/-! ## Resuming a common-prefix scan -/
+
+-- The last two entries match the first two, and the right suffix ends.
+#guard #[1, 2, 1, 2].extendLcp 0 2 1 = 2
+-- A supplied offset skips the first pair even when its entries differ.
+#guard #[0, 5, 7, 1, 5, 8].extendLcp 0 3 1 = 2
+#guard (#[] : Array Nat).extendLcp 0 0 3 = 3
 
 /-! ## Pure Z-function and Z-algorithm checks -/
 
