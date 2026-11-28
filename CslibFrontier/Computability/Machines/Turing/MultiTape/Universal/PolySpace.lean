@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.BitString.ShortWords
 import Mathlib.Data.List.GetD
+import CslibFrontier.Foundations.Data.List.Blocks
 
 /-!
 # Polynomial-space simulation and configuration-count clocks
@@ -334,11 +335,8 @@ theorem boundsSpace_eq_sum_map (bounds : List (ℕ × ℕ)) :
 
 private lemma sum_map_eq_sum_range {α : Type} (defVal : α) (l : List α) (f : α → ℕ) :
     (l.map f).sum = ∑ i ∈ Finset.range l.length, f (l.getD i defVal) := by
-  induction l with
-  | nil => simp
-  | cons a l ih =>
-    rw [List.map_cons, List.sum_cons, ih, List.length_cons, Finset.sum_range_succ']
-    simp [Nat.add_comm]
+  have h := congrArg (fun xs => (xs.map f).sum) (List.map_getD_range l defVal)
+  simpa only [List.map_map, Function.comp_def, List.sum_map_range_eq_sum_range] using h.symm
 
 theorem length_boundsAt (j : ℕ) : (boundsAt d x j).length = d.tapes := by
   induction j with

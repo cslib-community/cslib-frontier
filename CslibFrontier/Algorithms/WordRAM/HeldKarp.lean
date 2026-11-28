@@ -14,6 +14,7 @@ import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Computability.WordRAM.Notation
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.StructFrame
+import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Foundations.Data.List.RowMajor
 import CslibFrontier.Foundations.Data.Nat.Bitwise.Carry
 import Mathlib.Data.Fintype.Prod
@@ -105,16 +106,11 @@ theorem dist_le_maxEntry (I : Instance) (i j : Fin (I.n + 1)) :
   Finset.le_sup (f := fun p : Fin (I.n + 1) × Fin (I.n + 1) => I.dist p.1 p.2)
     (Finset.mem_univ (i, j))
 
-private theorem length_flatMap_dist (I : Instance) :
-    ((List.finRange (I.n + 1)).flatMap fun i =>
-      (List.finRange (I.n + 1)).map fun j => I.dist i j).length = (I.n + 1) * (I.n + 1) := by
-  rw [List.length_flatMap]
-  simp [List.map_const', List.sum_replicate]
-
 theorem encode_length (I : Instance) :
     I.encode.length = 1 + (I.n + 1) * (I.n + 1) := by
-  rw [encode, List.length_cons, length_flatMap_dist]
-  omega
+  rw [encode, List.length_cons,
+    List.length_flatMap_of_forall_length_eq (k := I.n + 1) (fun _ _ => by simp),
+    List.length_finRange, Nat.add_comm]
 
 private theorem init_mem_dist {r : ℕ} (I : Instance) (i j : Fin (I.n + 1)) :
     (Data.init I.encode : Data r).mem (2 + i.val * (I.n + 1) + j.val) = I.dist i j := by

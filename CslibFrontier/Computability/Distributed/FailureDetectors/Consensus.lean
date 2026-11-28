@@ -588,13 +588,6 @@ private theorem ctSt_proposal_inv :
       exact ⟨hp_eq, by omega, hprop⟩
     · exact ⟨rfl, by omega, by rwa [show 4 * (k / 4) + 1 = k + 1 by omega]⟩
 
-private theorem length_filterMap_eq_length_filter {α β : Type*} (f : α → Option β) :
-    ∀ l : List α, (l.filterMap f).length = (l.filter fun a => (f a).isSome).length
-  | [] => rfl
-  | a :: rest => by
-    cases hf : f a <;>
-      simp [List.filterMap, List.filter, hf, length_filterMap_eq_length_filter f rest]
-
 /-- Unpacks the Phase-2 maximum-timestamp selection witnessing
 `(state (4 * r + 1) (coordinator r)).proposal = some (r, v)`. -/
 private theorem ctSt_roundProposal_quorum {r : ℕ} {v : V}
@@ -637,7 +630,7 @@ private theorem ctSt_roundProposal_quorum {r : ℕ} {v : V}
   obtain ⟨hj₀_est, hj₀_ts⟩ := hextract j₀ v ts_max hj₀_ex
   refine ⟨Q_est, ts_max, j₀, ?_, ?_, hj₀_est, hj₀_ts, fun j hj => ?_⟩
   · rwa [List.toFinset_card_of_nodup (procs.nodup_dedup.filter _),
-      ← length_filterMap_eq_length_filter]
+      ← List.countP_eq_length_filter, ← List.length_filterMap_eq_countP]
   · exact List.mem_toFinset.mpr (List.mem_filter.mpr ⟨hj₀_dedup, by simp [hj₀_ex]⟩)
   · obtain ⟨hj_dedup, ⟨w, ts'⟩, hw⟩ := by
       simpa only [Q_est, List.mem_toFinset, List.mem_filter, Option.isSome_iff_exists] using hj
@@ -810,12 +803,9 @@ private theorem length_filter_ge_card {α : Type*} {l : List α} {p : α → Boo
     {S : Finset α} (hl : ∀ x ∈ S, x ∈ l ∧ p x = true) :
     S.card ≤ (l.filter p).length := by
   classical
-  have hsub : S ⊆ (l.dedup.filter p).toFinset := fun x hx =>
-    List.mem_toFinset.mpr (List.mem_filter.mpr ⟨List.mem_dedup.mpr (hl x hx).1, (hl x hx).2⟩)
-  calc S.card
-      ≤ (l.dedup.filter p).toFinset.card := card_le_card hsub
-    _ = (l.dedup.filter p).length := List.toFinset_card_of_nodup (l.nodup_dedup.filter p)
-    _ ≤ (l.filter p).length := (l.dedup_sublist.filter p).length_le
+  have hsub : S ⊆ (l.filter p).toFinset := fun x hx =>
+    List.mem_toFinset.mpr (List.mem_filter.mpr (hl x hx))
+  exact (card_le_card hsub).trans (List.toFinset_card_le _)
 
 /-- Asynchronous-round step for #7503 (after
 [Chandra and Toueg, Lemma 6.2.2, pp. 245–246][ChandraToueg1996]): under `2 * t < Fintype.card P`, if
@@ -850,7 +840,7 @@ theorem ctRoundProtocol_decides_in_good_round
     let m₀ := π.incoming F tick deliver (st (4 * rStar)) (4 * rStar) qStar
     let pairs := procs.dedup.filterMap fun j => extractPhase1 (m₀ j)
     have hpairs_len : Fintype.card P / 2 + 1 ≤ pairs.length := by
-      rw [length_filterMap_eq_length_filter]
+      rw [List.length_filterMap_eq_countP, List.countP_eq_length_filter]
       refine (show Fintype.card P / 2 + 1 ≤ Fintype.card P - t by omega).trans
         ((hadm.quorum_delivery (4 * rStar) qStar hqStar).trans
           (length_filter_ge_card fun j hj => ?_))

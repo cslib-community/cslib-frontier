@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.OneInThreeSAT.Reduction
 public import CslibFrontier.Computability.Complexity.Classes.NP.Witness
 public import CslibFrontier.Computability.Complexity.Problems.SetCover
+import CslibFrontier.Foundations.Data.List.Blocks
 import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
@@ -250,12 +251,9 @@ private theorem append_range_mem_gadget {m off : ℕ} {O : List ℕ} (h₁ : 1 �
 
 private theorem length_filter_range_getD {α : Type*} (l : List α) (d : α) (p : α → Bool) :
     ((List.range l.length).filter fun j => p (l.getD j d)).length = l.countP p := by
-  induction l with
-  | nil => simp
-  | cons a l ih =>
-    rw [List.length_cons, List.range_succ_eq_map, List.filter_cons, List.filter_map,
-      List.countP_cons, ← ih]
-    by_cases hp : p a <;> simp [hp, Function.comp_def]
+  have h := congrArg (List.countP p) (List.map_getD_range l d)
+  rw [List.countP_map, Function.comp_def, List.countP_eq_length_filter] at h
+  exact h
 
 private theorem vars_cons (c : Clause ℕ) (φ : CNF ℕ) :
     CNF.vars (c :: φ) = c.map Prod.fst ++ φ.vars := by

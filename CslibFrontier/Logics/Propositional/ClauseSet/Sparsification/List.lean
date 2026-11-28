@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.Tree
 import CslibFrontier.Foundations.Data.List.Filter
+import Mathlib.Data.List.Sigma
 import Mathlib.Data.List.Sublists
 import Mathlib.Tactic.Ring
 
@@ -534,13 +535,7 @@ theorem mem_dedup {C : Clause V} {l : Literal V} : l ∈ dedup C ↔ l ∈ C := 
 
 /-- Literal deduplication yields a duplicate-free clause. -/
 theorem nodup_dedup (C : Clause V) : (dedup C).Nodup := by
-  have hzip : C.zipIdx.Nodup := by
-    rw [List.Nodup, List.pairwise_iff_getElem]
-    intro i j hi hj hij heq
-    have := congrArg Prod.snd heq
-    simp only [List.getElem_zipIdx, Nat.zero_add] at this
-    omega
-  refine (hzip.filter _).map_on ?_
+  refine ((List.nodup_zipIdx_map_snd C).of_map.filter _).map_on ?_
   rintro ⟨u, i⟩ hu ⟨v, j⟩ hv (rfl : u = v)
   simp only [List.mem_filter, beq_iff_eq] at hu hv
   rw [← hu.2, ← hv.2]

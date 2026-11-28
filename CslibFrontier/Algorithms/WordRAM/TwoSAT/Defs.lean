@@ -51,19 +51,12 @@ namespace Instance
 @[expose] def wordBound (G : Instance) : ℕ :=
   32 * (G.n + G.φ.length + G.totalLits + 1)
 
-private theorem length_flatMap_encodeClauseBy {n : ℕ} :
-    ∀ cs : CNF (Fin n),
-      (cs.flatMap (encodeClauseBy Fin.val)).length = cs.length + (cs.map List.length).sum
-  | [] => rfl
-  | c :: cs => by
-    simp only [List.flatMap_cons, List.length_append, length_encodeClauseBy, List.length_cons,
-      List.map_cons, List.sum_cons, length_flatMap_encodeClauseBy cs]
-    omega
-
 /-- Length of `G.encode` in words. -/
 theorem encode_length (G : Instance) :
     G.encode.length = 2 + G.φ.length + G.totalLits := by
-  simp only [encode, totalLits, List.length_cons, length_flatMap_encodeClauseBy]
+  simp only [encode, totalLits, List.length_cons, List.length_flatMap,
+    length_encodeClauseBy, List.sum_map_add, List.map_const',
+    List.sum_replicate, smul_eq_mul, Nat.mul_one]
   omega
 
 end Instance

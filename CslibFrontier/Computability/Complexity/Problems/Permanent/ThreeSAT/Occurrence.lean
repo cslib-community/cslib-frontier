@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT.Construction
 public import Mathlib.Data.List.GetD
+import CslibFrontier.Foundations.Data.List.Lookup
 
 /-!
 # Occurrences and tracks of the 3CNF matrix
@@ -67,8 +68,8 @@ theorem varList_nodup (φ : CNF ℕ) : (varList φ).Nodup := CNF.nodup_distinctV
 
 /-- The listed variable at its index. -/
 theorem getD_varList_idxOf {x : ℕ} (hx : x ∈ varList φ) :
-    (varList φ).getD ((varList φ).idxOf x) 0 = x := by
-  rw [List.getD_eq_getElem _ _ (List.idxOf_lt_length_iff.2 hx), List.getElem_idxOf]
+    (varList φ).getD ((varList φ).idxOf x) 0 = x :=
+  List.getD_idxOf hx 0
 
 /-- The index of the listed variable at an index. -/
 theorem idxOf_getD_varList {i : ℕ} (hi : i < numAux φ) :

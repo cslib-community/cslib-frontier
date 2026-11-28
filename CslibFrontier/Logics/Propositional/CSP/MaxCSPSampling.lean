@@ -14,6 +14,7 @@ public import CslibFrontier.Probability.PMF.Union
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Foundations.Data.List.Blocks
 
 /-!
 # Uniform constraint subsampling and the `2 δ m` optimality loss for `Max-CSP`
@@ -410,11 +411,8 @@ theorem workSize_sample_le_of_width {k : ℕ} {F : MaxCSPInstance Rel V}
 
 private theorem countP_eq_sum_map_boole {α : Type*} (l : List α) (p : α → Bool) :
     (l.countP p : ℝ) = (l.map fun a => if p a then (1 : ℝ) else 0).sum := by
-  induction l with
-  | nil => simp
-  | cons a as ih =>
-    rw [List.countP_cons, List.map_cons, List.sum_cons, Nat.cast_add, ih]
-    cases p a <;> simp only [Bool.false_eq_true, ↓reduceIte, Nat.cast_one, Nat.cast_zero] <;> ring
+  simp only [List.countP_eq_length_filter, List.length_filter_eq_sum, Nat.cast_list_sum,
+    List.map_map, Function.comp_def, apply_ite, Nat.cast_one, Nat.cast_zero]
 
 theorem score_sample_eq_sum_boole [Inhabited D] (sem : Rel → List D → Bool)
     (F : MaxCSPInstance Rel ℕ) {s : ℕ} (ω : Fin s → Fin F.constraints.length)

@@ -100,7 +100,7 @@ theorem lift_entering_augmentation (hF : EdgeInstance F) {f : OccurrenceLabeling
     have haa := himage ▸ (mem_restoreWalk_edges hF f vs fallback q hno o hout).mp hm
     have hn := (hp.1.1.1.take (k + 1)).2
     rw [Walk.edges, Walk.take, List.take_succ_eq_append_getElem hk, Walk.edgesOf_append] at hn
-    exact (List.nodup_append.mp hn).2.2 _ haa _ List.mem_cons_self rfl
+    exact List.disjoint_left.mp hn.disjoint haa List.mem_cons_self
   have hend : r.steps = [] ∨ r.start ≠ r.finish := by
     by_cases hk0 : k = 0
     · exact Or.inl (by simp [r, q, hk0, restoreWalk, Walk.mapPorts, Walk.take])

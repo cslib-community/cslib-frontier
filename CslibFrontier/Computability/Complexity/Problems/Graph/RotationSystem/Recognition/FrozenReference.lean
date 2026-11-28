@@ -74,8 +74,7 @@ private theorem centerBlocks_pairwise {I : FixedRotationInput} (hI : Valid I) :
   have hn := (referenceOrder_enumerates hI).1
   have ho : (referenceOrder I).Pairwise
       (fun x y => (referenceOrder I).idxOf x < (referenceOrder I).idxOf y) := by
-    apply List.pairwise_iff_getElem.mpr
-    intro i j hi hj hij
+    refine List.pairwise_iff_getElem.mpr fun i j hi hj hij => ?_
     simpa only [hn.idxOf_getElem i hi, hn.idxOf_getElem j hj] using hij
   exact (List.pairwise_append.mp ho).1
 
@@ -94,8 +93,7 @@ private theorem centerBlocks_separated {I : FixedRotationInput} (hI : Valid I) {
     (hx : x ∈ centerBlock I u) (hy : y ∈ centerBlock I v) :
     (referenceOrder I).idxOf x < (referenceOrder I).idxOf y := by
   have hp := (List.pairwise_flatMap.mp (centerBlocks_pairwise hI)).2
-  have h := List.pairwise_iff_getElem.mp hp u v (by simpa using hu)
-    (by simpa using hv) huv
+  have h := hp.rel_getElem_of_lt (by simpa using hu) (by simpa using hv) huv
   simp only [List.getElem_range] at h
   exact h x hx y hy
 

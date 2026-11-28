@@ -17,6 +17,7 @@ import all CslibFrontier.Algorithms.WordRAM.DFS.ForwardDFS
 import all CslibFrontier.Algorithms.WordRAM.DFS.Transpose
 import all CslibFrontier.Algorithms.WordRAM.DFS.Kosaraju
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Foundations.Data.List.RowMajor
 import Mathlib.Data.List.GetD
 import Mathlib.Tactic.Ring
 
@@ -183,9 +184,8 @@ private theorem getElem?_arcs {N : ℕ} (adj : Fin N → List (Fin N)) (u : Fin 
       some ((adj u)[k]).val := by
   have hsplit : List.finRange N =
       (List.finRange N).take u.val ++ u :: (List.finRange N).drop (u.val + 1) := by
-    conv_lhs => rw [← List.take_append_drop u.val (List.finRange N)]
-    rw [List.drop_eq_getElem_cons (by simp)]
-    simp
+    rw [← List.singleton_append, ← List.append_assoc, ← List.take_succ_finRange u.isLt,
+      List.take_append_drop]
   rw [hsplit, List.flatMap_append, List.flatMap_cons,
     List.getElem?_append_right (by rw [length_flatMap_take]; omega), length_flatMap_take,
     Nat.add_sub_cancel_left, List.getElem?_append_left (by simpa using hk)]

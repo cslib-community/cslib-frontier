@@ -175,16 +175,8 @@ omit [DecidableEq V] in
 
 private theorem length_filter_ne_add_one {c : Clause V} (hc : c.Nodup) {a : Literal V}
     (ha : a ∈ c) : (c.filter (· ≠ a)).length + 1 = c.length := by
-  induction c with
-  | nil => simp at ha
-  | cons x xs ih =>
-    obtain ⟨hx, hxs⟩ := List.nodup_cons.1 hc
-    by_cases hxa : x = a
-    · subst hxa
-      rw [List.filter_cons_of_neg (by simp), List.filter_eq_self.2 fun l hl => by
-        simpa using fun h : l = x => hx (h ▸ hl), List.length_cons]
-    · rw [List.filter_cons_of_pos (by simpa using hxa), List.length_cons, List.length_cons,
-        ih hxs ((List.mem_cons.1 ha).resolve_left (Ne.symm hxa))]
+  simpa only [hc.erase_eq_filter, bne, Bool.beq_eq_decide_eq, ← decide_not] using
+    List.length_erase_add_one ha
 
 private theorem filter_ne_eq_self {c : Clause V} {a : Literal V} (ha : a ∉ c) :
     c.filter (· ≠ a) = c :=

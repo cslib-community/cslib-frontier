@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ExplicitBlockNetwork.Graph
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalCount
 import CslibFrontier.Foundations.Data.Fin.Prod
+import CslibFrontier.Foundations.Data.List.IdxOf
 
 /-!
 # The tables of an explicit block-counting network, on numbers
@@ -516,13 +517,6 @@ number. -/
   (List.range (q * (3 * k + 2) + q * (3 * k + 1) * letterBits k s b)).map fun v =>
     (explicitPortsNum k q (letterBits k s b) σ v, explicitTableNum e b machine input q σ v)
 
-private theorem idxOf_map_val {n : ℕ} (l : List (Fin n)) (a : Fin n) :
-    (l.map Fin.val).idxOf a.val = l.idxOf a := by
-  induction l with
-  | nil => rfl
-  | cons x l ih =>
-    simp only [List.map_cons, List.idxOf_cons, ih, beq_iff_eq, Fin.val_inj]
-
 private theorem ofFn_eq_map_range {m : ℕ} (f : ℕ → Bool) :
     List.ofFn (fun r : Fin m => f r) = (List.range m).map f := by
   rw [List.ofFn_eq_map, ← List.map_coe_finRange_eq_range, List.map_map]
@@ -545,7 +539,8 @@ theorem explicitTable_eq_explicitTableNum (σ : ℕ)
   have hP : ((BN.binarize (letterCode e)).subdivide.explicitPorts ee w).map Fin.val = P :=
     map_val_explicitPorts machine input b (letterCode e) σ w
   have hidx : ∀ p, ((BN.binarize (letterCode e)).subdivide.explicitPorts ee w).idxOf (ee p) =
-      P.idxOf (ee p : ℕ) := fun p => by rw [← hP, idxOf_map_val]
+      P.idxOf (ee p : ℕ) := fun p => by
+    rw [← hP, List.idxOf_map_of_injective Fin.val_injective]
   unfold TensorNetwork.explicitTable explicitTableNum
   rw [← List.length_map (f := Fin.val), hP]
   refine List.map_congr_left fun j _ => ?_

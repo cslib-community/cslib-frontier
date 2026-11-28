@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.FanInTwo
 import Mathlib.Algebra.BigOperators.Fin
+import CslibFrontier.Foundations.Data.List.Blocks
 
 /-!
 # Symmetric gates reading their wires with multiplicities
@@ -116,9 +117,8 @@ private theorem sum_map_filter_eq {α : Type*} (p : α → Bool) (f : α → ℕ
 
 private theorem countP_eq_sum {α : Type*} (p : α → Bool) (l : List α) :
     l.countP p = (l.map fun a => (p a).toNat).sum := by
-  induction l with
-  | nil => rfl
-  | cons a l ih => cases h : p a <;> simp [h, ih, add_comm]
+  simpa only [Bool.toNat, Bool.cond_eq_ite, List.countP_eq_length_filter] using
+    List.length_filter_eq_sum l p
 
 /-- Reading the distinct wires with their multiplicities counts the true arguments. -/
 private theorem multWeight_count_dedup {k : ℕ} (w : Fin k → Wire n g) (v : Wire n g → Bool) :

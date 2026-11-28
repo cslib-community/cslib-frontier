@@ -17,6 +17,7 @@ import CslibFrontier.Foundations.Data.List.RowMajor
 import Mathlib.Data.List.MinMax
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import Mathlib.Algebra.Order.BigOperators.Group.List
 
 /-!
 # Word-RAM edit distance and longest common subsequence
@@ -1043,11 +1044,6 @@ theorem inputAdmissible : InputAdmissible (fun _ => encode) FitsWidth := by
 
 end WeightedInstance
 
-private theorem sum_map_drop_le {α : Type*} (f : α → ℕ) (l : List α) (k : ℕ) :
-    ((l.drop k).map f).sum ≤ (l.map f).sum := by
-  conv_rhs => rw [← List.take_append_drop k l, List.map_append, List.sum_append]
-  omega
-
 private theorem subTable_getElem (I : WeightedInstance) (a b : Fin I.sigma) :
     I.subTable[a.val * I.sigma + b.val]'(by
       rw [WeightedInstance.length_subTable]
@@ -1185,8 +1181,8 @@ private theorem weighted_entry_le (I : WeightedInstance) (k₁ k₂ : ℕ) :
     (wagnerFischer I.costs).value (I.src.drop k₁) (I.tgt.drop k₂) ≤
       (I.src.map I.costs.del).sum + (I.tgt.map I.costs.ins).sum := by
   have h := editDist_le_sum_del_ins I.costs (I.src.drop k₁) (I.tgt.drop k₂)
-  have h1 := sum_map_drop_le I.costs.del I.src k₁
-  have h2 := sum_map_drop_le I.costs.ins I.tgt k₂
+  have h1 := ((List.drop_sublist k₁ I.src).map I.costs.del).sum_le_sum (fun _ _ => Nat.zero_le _)
+  have h2 := ((List.drop_sublist k₂ I.tgt).map I.costs.ins).sum_le_sum (fun _ _ => Nat.zero_le _)
   dsimp only [editDist] at h
   omega
 

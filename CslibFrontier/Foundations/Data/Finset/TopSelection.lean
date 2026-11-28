@@ -65,9 +65,7 @@ theorem weight_le_of_notMem_selectLargest (weight : α → β) (k : ℕ) (xs : L
   have hidrop : i ∈ ys.drop k := by
     have hi' : i ∈ ys.take k ++ ys.drop k := by simpa only [List.take_append_drop] using hiys
     exact (List.mem_append.mp hi').resolve_left hinot'
-  have hsplit : (ys.take k ++ ys.drop k).Pairwise (fun a b => weight b ≤ weight a) := by
-    simpa only [List.take_append_drop] using hsorted
-  exact (List.pairwise_append.mp hsplit).2.2 j hj' i hidrop
+  exact hsorted.rel_of_mem_take_of_mem_drop hj' hidrop
 
 end List
 

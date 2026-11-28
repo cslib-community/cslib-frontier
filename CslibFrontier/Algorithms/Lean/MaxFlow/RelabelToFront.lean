@@ -759,9 +759,9 @@ private theorem before_append_cons {α : Type*} {u v : α} :
 private theorem not_before_of_nodup_append {α : Type*} {u v : α} {done rest : List α}
     (hnd : (done ++ u :: rest).Nodup) (hv : v ∈ done) : ¬ Before u v (done ++ u :: rest) := by
   intro hb
-  have hdisj := (List.nodup_append.mp hnd).2.2
-  have hv_rest := before_append_cons (fun h => hdisj u h u List.mem_cons_self rfl) hb
-  exact hdisj v hv v (List.mem_cons_of_mem _ hv_rest) rfl
+  have hdisj := List.disjoint_left.mp hnd.disjoint
+  have hv_rest := before_append_cons (fun h => hdisj h List.mem_cons_self) hb
+  exact hdisj hv (List.mem_cons_of_mem _ hv_rest)
 
 private theorem before_erase_cons {α : Type*} {x y u : α} (hx : x ≠ u) (hy : y ≠ u) :
     ∀ {done rest : List α}, Before x y (done ++ u :: rest) → Before x y (done ++ rest)
@@ -972,7 +972,7 @@ private theorem rtfInv_noRelabel {adj : V → List V} {st : RTFState N} (hinv : 
     exact hassoc ▸ hinv.topo x (hassoc ▸ hx) y (hassoc ▸ hy) hpos0 heq0
   rcases List.mem_append.mp hw with hw' | hw'
   · have hnodup0 : (st.done ++ u :: rest).Nodup := htodo ▸ hinv.nodup
-    have hwu : w ≠ u := fun h => (List.nodup_append.mp hnodup0).2.2 w hw' u List.mem_cons_self h
+    have hwu : w ≠ u := List.disjoint_iff_ne.mp hnodup0.disjoint _ hw' _ List.mem_cons_self
     have hnon : ¬ (0 < st.ca.pr.flow.resCap u w ∧
         st.ca.pr.height u = st.ca.pr.height w + 1) := by
       rintro ⟨hpos, heq⟩

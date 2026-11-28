@@ -13,6 +13,7 @@ public import CslibFrontier.Logics.Propositional.CSP.Edge.Walk.Subpath
 public import CslibFrontier.Logics.Propositional.CSP.Edge.Walk.Visits
 public import CslibFrontier.Logics.Propositional.CSP.Edge.DAGPaths.Preparation
 public import CslibFrontier.Logics.Propositional.CSP.Edge.DAGPaths.Blossom
+import CslibFrontier.Foundations.Data.List.Counting
 
 /-!
 # Correctness of chronological forest events
@@ -279,14 +280,9 @@ omit [DecidableEq V] in
 /-- A correctly stamped ancestry has one variable node and two nodes per step. -/
 theorem nodes_length (p : Ancestry F) (hl : p.times.length = p.walk.steps.length) :
     p.nodes.length = 2 * p.walk.steps.length + 1 := by
-  have hflat (ss : List ((Occurrence F × Occurrence F) × ℕ)) :
-      (ss.flatMap fun ((a, b), t) => ([.inr (a.1, t), .inl b.var] : List (Node F))).length =
-        2 * ss.length := by
-    induction ss with
-    | nil => rfl
-    | cons _ _ ih =>
-      simp only [List.flatMap_cons, List.cons_append, List.nil_append, List.length_cons, ih]; omega
-  simp only [nodes, List.length_cons, hflat, List.length_zip, hl, Nat.min_self]
+  rw [nodes, List.length_cons,
+    List.length_flatMap_of_forall_length_eq (k := 2) (fun ⟨⟨_, _⟩, _⟩ _ => rfl),
+    List.length_zip, hl, Nat.min_self, Nat.mul_comm]
 
 omit [DecidableEq V] in
 /-- Even node indices are exactly the endpoints of the corresponding walk prefixes. -/

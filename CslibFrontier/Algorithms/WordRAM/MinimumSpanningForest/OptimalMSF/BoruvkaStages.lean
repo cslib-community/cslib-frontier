@@ -154,11 +154,9 @@ theorem MSFLiftInv.sum_le {n nCur : ℕ} {es : List (WeightedEdge n ℕ)}
 private theorem nodup_map_id_of_nodup {n : ℕ} {es : List (IndexedEdge n)}
     (hnd : (es.map IndexedEdge.id).Nodup) {idxs : List (Fin es.length)} (hidxs : idxs.Nodup) :
     (idxs.map fun i => (es[i.val]).id).Nodup := by
-  refine List.Nodup.map_on (fun x _ y _ heq => ?_) hidxs
-  have hget : (es.map IndexedEdge.id)[x.val]'(by simp [x.isLt]) =
-      (es.map IndexedEdge.id)[y.val]'(by simp [y.isLt]) := by
-    simp [heq]
-  exact Fin.ext (hnd.getElem_inj_iff.mp hget)
+  refine hidxs.map fun x y heq => Fin.ext (hnd.eq_of_getElem_eq
+    (by simp [x.isLt]) (by simp [y.isLt]) ?_)
+  simpa only [List.getElem_map] using heq
 
 /-! ## Section 2: Initial Indexing, Deduplication, and Compaction (`initPreprocessProg`) -/
 

@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.List.CommonPrefix
 public import Mathlib.Data.List.Lex
 import Mathlib.Data.List.Nodup
+import Mathlib.Order.Fin.Basic
 
 /-!
 # Suffix arrays and LCP arrays
@@ -106,15 +107,14 @@ theorem getElem_eq_getElem_iff (h : IsSuffixArray w sa) {r r' : ℕ} (hr : r < s
 /-- Ranks order the suffixes strictly. -/
 theorem drop_lt_drop (h : IsSuffixArray w sa) {r r' : ℕ} (hr : r < r') (hr' : r' < sa.length) :
     w.drop sa[r] < w.drop sa[r'] :=
-  List.pairwise_iff_getElem.mp h.sorted r r' (by omega) hr' hr
+  h.sorted.rel_getElem_of_lt (hr.trans hr') hr' hr
 
 /-- Rank order is suffix order. -/
 theorem lt_iff_drop_lt (h : IsSuffixArray w sa) {r r' : ℕ} (hr : r < sa.length)
     (hr' : r' < sa.length) : r < r' ↔ w.drop sa[r] < w.drop sa[r'] := by
-  refine ⟨fun hlt => h.drop_lt_drop hlt hr', fun hlt => not_le.mp fun hge => ?_⟩
-  rcases hge.eq_or_lt with rfl | hgt
-  · exact lt_irrefl _ hlt
-  · exact lt_asymm hlt (h.drop_lt_drop hgt hr)
+  have hs : StrictMono (fun i : Fin sa.length => w.drop (sa.get i)) := fun i j hij =>
+    h.sorted.rel_getElem_of_lt i.isLt j.isLt hij
+  exact (hs.lt_iff_lt (a := ⟨r, hr⟩) (b := ⟨r', hr'⟩)).symm
 
 /-- Suffix arrays are unique. -/
 theorem unique {sa' : List ℕ} (h : IsSuffixArray w sa) (h' : IsSuffixArray w sa') : sa = sa' :=

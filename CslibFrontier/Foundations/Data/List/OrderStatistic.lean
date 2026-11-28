@@ -77,25 +77,23 @@ theorem Pairwise.length_sub_le_countP [IsTrans α r] {s : List α} (hs : s.Pairw
   · rw [drop_eq_getElem_cons hi, mem_cons] at hx
     rcases hx with rfl | hx
     · simpa using hp
-    · have hpair := drop_eq_getElem_cons hi ▸ hs.sublist (drop_sublist i s)
-      simpa using _root_.trans hp ((pairwise_cons.mp hpair).1 x hx)
+    · simpa only [decide_eq_true_eq] using
+        _root_.trans hp (rel_of_pairwise_cons (drop_eq_getElem_cons hi ▸ hs.drop) hx)
 
 /-- In a list sorted by a transitive relation, an element `p` above the `i`-th entry is above
 all of the first `i + 1` entries. -/
 theorem Pairwise.add_one_le_countP [IsTrans α r] {s : List α} (hs : s.Pairwise r) {i : ℕ}
     (hi : i < s.length) {p : α} (hp : r s[i] p) :
     i + 1 ≤ s.countP (fun x => r x p) := by
-  have htake : (s.take (i + 1)).countP (fun x => r x p) = i + 1 := by
-    rw [countP_eq_length.mpr fun x hx => ?_, length_take]
-    · omega
-    · obtain ⟨j, hj, rfl⟩ := mem_iff_getElem.mp hx
-      rw [length_take] at hj
-      rw [getElem_take]
-      rcases Nat.lt_or_ge j i with hji | hji
-      · simpa using _root_.trans (pairwise_iff_getElem.mp hs j i (by omega) hi hji) hp
-      · obtain rfl : j = i := by omega
-        simpa using hp
-  exact htake ▸ (take_sublist _ _).countP_le
+  have hi' : s[i] ∈ s.drop i := drop_eq_getElem_cons hi ▸ mem_cons_self
+  have htake (x) (hx : x ∈ s.take (i + 1)) : r x p := by
+    rw [take_succ_eq_append_getElem hi, mem_append, mem_singleton] at hx
+    rcases hx with hx | rfl
+    · exact _root_.trans (hs.rel_of_mem_take_of_mem_drop hx hi') hp
+    · exact hp
+  have hlen : (s.take (i + 1)).length = i + 1 := length_take_of_le (Nat.succ_le_of_lt hi)
+  rw [← hlen, ← countP_eq_length.mpr (fun x hx => decide_eq_true (htake x hx))]
+  exact (take_sublist _ _).countP_le
 
 /-- The `k`-th entry of a sorted permutation of `xs` is an order statistic of rank `k`. -/
 theorem isOrderStatistic_getElem_of_perm [Std.Total r] [IsTrans α r] {xs s : List α}
