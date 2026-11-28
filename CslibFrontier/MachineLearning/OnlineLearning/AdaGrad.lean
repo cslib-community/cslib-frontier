@@ -15,6 +15,7 @@ import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+import Mathlib.Algebra.BigOperators.Intervals
 
 /-!
 # Adaptive online gradient descent (AdaGrad)
@@ -87,23 +88,20 @@ Works even at `ε = 0` when an initial prefix of `a` vanishes (using `0 / 0 = 0`
 theorem sum_div_sqrt_cumsum_le {a : ℕ → ℝ} (ha : ∀ t, 0 ≤ a t) {ε : ℝ} (hε : 0 ≤ ε) (T : ℕ) :
     ∑ t ∈ range T, a t / √(ε + ∑ s ∈ range (t + 1), a s) ≤
       2 * (√(ε + ∑ t ∈ range T, a t) - √ε) := by
-  induction T with
-  | zero => simp
-  | succ T ih =>
-    rw [sum_range_succ, sum_range_succ a T]
-    set S₀ := ε + ∑ s ∈ range T, a s
-    set S₁ := ε + (∑ s ∈ range T, a s + a T)
-    have hS₀ : 0 ≤ S₀ := add_nonneg hε (sum_nonneg fun s _ => ha s)
-    have haT : 0 ≤ a T := ha T
-    have hS₁ : S₁ = S₀ + a T := by ring
-    have hstep : a T / √S₁ ≤ 2 * (√S₁ - √S₀) := by
-      rcases (by linarith : 0 ≤ S₁).eq_or_lt with h0 | hpos
-      · obtain ⟨ha0, hS0⟩ : a T = 0 ∧ S₀ = 0 := ⟨by linarith, by linarith⟩
+  let S (t : ℕ) := ε + ∑ s ∈ range t, a s
+  calc
+    _ ≤ ∑ t ∈ range T, 2 * (√(S (t + 1)) - √(S t)) := by
+      refine sum_le_sum fun t _ => ?_
+      have hS₀ : 0 ≤ S t := add_nonneg hε (sum_nonneg fun s _ => ha s)
+      have hS₁ : S (t + 1) = S t + a t := by simp only [S, sum_range_succ, add_assoc]
+      have hSn : 0 ≤ S (t + 1) := hS₁.symm ▸ add_nonneg hS₀ (ha t)
+      change a t / √(S (t + 1)) ≤ _
+      rcases hSn.eq_or_lt with h0 | hpos
+      · obtain ⟨ha0, hS0⟩ : a t = 0 ∧ S t = 0 := ⟨by linarith [ha t], by linarith [ha t]⟩
         simp [ha0, hS0, ← h0]
       · rw [div_le_iff₀ (sqrt_pos.mpr hpos)]
-        nlinarith [sq_sqrt (by linarith : 0 ≤ S₁), sq_sqrt hS₀, sq_nonneg (√S₁ - √S₀),
-          sqrt_nonneg S₀, sqrt_nonneg S₁]
-    linarith
+        nlinarith [sq_sqrt hpos.le, sq_sqrt hS₀, sq_nonneg (√(S (t + 1)) - √(S t))]
+    _ = _ := by rw [← mul_sum, sum_range_sub (fun t => √(S t)) T]; simp [S]
 
 section AdaGradNorm
 

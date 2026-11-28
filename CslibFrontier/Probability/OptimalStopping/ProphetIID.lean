@@ -13,6 +13,7 @@ import CslibFrontier.Probability.PMF.TailQuantile
 import CslibFrontier.Probability.PMF.Bind
 import Mathlib.Probability.ProbabilityMassFunction.Constructions
 import CslibFrontier.Probability.PMF.Bool
+import Mathlib.Algebra.Ring.GeomSum
 
 /-!
 # The i.i.d. prophet inequality with one randomized threshold
@@ -177,10 +178,7 @@ private theorem accept_value_eq (τ : ℝ≥0) (o : ℝ≥0 × Bool) :
 
 private theorem geom_step (A R : ℝ≥0∞) (n : ℕ) :
     A + R * (A * ∑ i ∈ Finset.range n, R ^ i) = A * ∑ i ∈ Finset.range (n + 1), R ^ i := by
-  rw [Finset.sum_range_succ', mul_add, pow_zero, mul_one, Finset.mul_sum, Finset.mul_sum,
-    Finset.mul_sum, add_comm A]
-  congr 1
-  exact Finset.sum_congr rfl fun i _ => by ring
+  rw [geom_sum_succ]; ring
 
 private theorem tsum_tiePayoff_replicate (τ : ℝ≥0) (ν : PMF (ℝ≥0 × Bool)) : ∀ n : ℕ,
     ∑' os, jointLaw (List.replicate n ν) os * tiePayoff τ os =
@@ -196,14 +194,12 @@ private theorem tsum_tiePayoff_replicate (τ : ℝ≥0) (ν : PMF (ℝ≥0 × Bo
       · have h' : tieAccept τ o = false := by simpa using h
         simp only [tiePayoff, h', Bool.false_eq_true, ↓reduceIte, mul_one, zero_add, mul_zero]
 
-private theorem geom_identity {p r : ℝ≥0∞} (h : p + r = 1) : ∀ n : ℕ,
-    p * ∑ i ∈ Finset.range n, r ^ i + r ^ n = 1
-  | 0 => by simp
-  | n + 1 => by
-      calc p * ∑ i ∈ Finset.range (n + 1), r ^ i + r ^ (n + 1)
-          = p * ∑ i ∈ Finset.range n, r ^ i + r ^ n * (p + r) := by
-            rw [Finset.sum_range_succ, pow_succ]; ring
-        _ = 1 := by rw [h, mul_one, geom_identity h n]
+private theorem geom_identity {p r : ℝ≥0∞} (h : p + r = 1) (n : ℕ) :
+    p * ∑ i ∈ Finset.range n, r ^ i + r ^ n = 1 := by
+  have hgeom := (Commute.all p r).geom_sum₂_mul_add n
+  simp only [h, one_pow, one_mul] at hgeom
+  rw [mul_comm p, ← Finset.sum_range_reflect]
+  exact hgeom
 
 /-- **The i.i.d. prophet inequality with one randomized threshold.** If `tieRule τ`, with a
 tie-breaking coin, accepts each of `n` i.i.d. values with probability `1/n`, it collects at

@@ -108,16 +108,16 @@ theorem levelWeight_update (level : ℕ) (word seed : Fin ℓ → Bool) (j : Fin
 
 private theorem two_mul_sum_six_pow_le (m : ℕ) :
     2 * (∑ k ∈ range m, (2 : ℕ) ^ (m - k) * 6 ^ k) ≤ 6 ^ m := by
-  induction m with
-  | zero => simp
-  | succ m ih =>
-    have hsum : (∑ k ∈ range m, (2 : ℕ) ^ (m + 1 - k) * 6 ^ k) =
-        2 * ∑ k ∈ range m, (2 : ℕ) ^ (m - k) * 6 ^ k := by
-      rw [mul_sum]
-      exact sum_congr rfl fun k hk => by
-        rw [Nat.succ_sub (Nat.le_of_lt (mem_range.mp hk)), pow_succ']; ring
-    rw [sum_range_succ, hsum, Nat.add_sub_cancel_left, pow_one, pow_succ 6]
-    omega
+  calc
+    _ = (∑ k ∈ range m, 6 ^ k * 2 ^ (m - 1 - k)) * (6 - 2) := by
+      rw [mul_sum, sum_mul]
+      apply sum_congr rfl
+      intro k hk
+      rw [show m - k = (m - 1 - k) + 1 by have := mem_range.mp hk; omega, pow_succ,
+        show (6 : ℕ) - 2 = 2 * 2 by decide]
+      ac_rfl
+    _ = 6 ^ m - 2 ^ m := geom_sum₂_mul_of_ge (show (2 : ℕ) ≤ 6 by decide) m
+    _ ≤ 6 ^ m := Nat.sub_le ..
 
 private theorem sum_six_pow_multiset_eq_sum_range (s : Multiset α) (level : α → ℕ) {m : ℕ}
     (hlt : ∀ x ∈ s, level x < m) :

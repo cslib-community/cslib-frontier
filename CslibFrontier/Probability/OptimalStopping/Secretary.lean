@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Probability.OptimalStopping.Basic
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import Mathlib.Analysis.SpecificLimits.Basic
+import Mathlib.Algebra.BigOperators.Intervals
 
 /-!
 # The secretary problem
@@ -589,33 +590,24 @@ theorem successProb_le_successProb_optimalCutoff (rule : Rule) (n : ℕ) :
 
 private theorem sum_Ico_one_div_le_log {a b : ℕ} (ha : 0 < a) (hab : a ≤ b) :
     ∑ i ∈ Finset.Ico (a + 1) (b + 1), (1 : ℝ) / i ≤ Real.log b - Real.log a := by
-  induction b, hab using Nat.le_induction with
-  | base => simp
-  | succ b hab ih =>
-    rw [Finset.sum_Ico_succ_top (by omega)]
-    have hb : (0 : ℝ) < b := by exact_mod_cast (show 0 < b by omega)
-    have hstep : (1 : ℝ) / ((b + 1 : ℕ) : ℝ) ≤ Real.log ((b + 1 : ℕ) : ℝ) - Real.log b := by
-      rw [← Real.log_div (by positivity) hb.ne']
-      have := Real.one_sub_inv_le_log_of_pos
-        (show (0 : ℝ) < ((b + 1 : ℕ) : ℝ) / b by positivity)
-      calc (1 : ℝ) / ((b + 1 : ℕ) : ℝ) = 1 - (((b + 1 : ℕ) : ℝ) / b)⁻¹ := by
-            push_cast; field_simp; ring
-        _ ≤ _ := this
-    linarith
+  rw [← Finset.sum_Ico_add' (fun i : ℕ => (1 : ℝ) / i),
+    ← Finset.sum_Ico_sub (fun i : ℕ => Real.log i) hab]
+  refine Finset.sum_le_sum fun i hi => ?_
+  have hp : (0 : ℝ) < i := by exact_mod_cast ha.trans_le (Finset.mem_Ico.mp hi).1
+  rw [← Real.log_div (by positivity) hp.ne']
+  calc
+    _ = 1 - (((i + 1 : ℕ) : ℝ) / i)⁻¹ := by push_cast; field_simp; ring
+    _ ≤ _ := Real.one_sub_inv_le_log_of_pos (by positivity)
 
 private theorem log_sub_log_le_sum_Ico_one_div {a b : ℕ} (ha : 0 < a) (hab : a ≤ b) :
     Real.log b - Real.log a ≤ ∑ i ∈ Finset.Ico a b, (1 : ℝ) / i := by
-  induction b, hab using Nat.le_induction with
-  | base => simp
-  | succ b hab ih =>
-    rw [Finset.sum_Ico_succ_top hab]
-    have hb : (0 : ℝ) < b := by exact_mod_cast (show 0 < b by omega)
-    have hstep : Real.log ((b + 1 : ℕ) : ℝ) - Real.log b ≤ (1 : ℝ) / b := by
-      rw [← Real.log_div (by positivity) hb.ne']
-      have := Real.log_le_sub_one_of_pos (show (0 : ℝ) < ((b + 1 : ℕ) : ℝ) / b by positivity)
-      calc _ ≤ ((b + 1 : ℕ) : ℝ) / b - 1 := this
-        _ = 1 / b := by push_cast; field_simp; ring
-    linarith
+  rw [← Finset.sum_Ico_sub (fun i : ℕ => Real.log i) hab]
+  refine Finset.sum_le_sum fun i hi => ?_
+  have hp : (0 : ℝ) < i := by exact_mod_cast ha.trans_le (Finset.mem_Ico.mp hi).1
+  rw [← Real.log_div (by positivity) hp.ne']
+  calc
+    _ ≤ ((i + 1 : ℕ) : ℝ) / i - 1 := Real.log_le_sub_one_of_pos (by positivity)
+    _ = _ := by push_cast; field_simp; ring
 
 /-- `u log (1/u) ≤ 1/e` for `u = x / y`. -/
 private theorem mul_log_div_le_exp_neg_one {x y : ℝ} (hx : 0 < x) (hy : 0 < y) :

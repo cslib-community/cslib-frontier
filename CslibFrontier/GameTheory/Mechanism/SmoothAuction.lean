@@ -21,6 +21,7 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+import Mathlib.Algebra.BigOperators.Intervals
 
 /-!
 # Smooth mechanisms and the price of anarchy of first- and second-price auctions
@@ -705,12 +706,8 @@ theorem isSmoothMechanism_grid {K : ℕ} (hK : 1 ≤ K) :
           mem_filter.2 ⟨Finset.mem_univ _, (mem_Ico.1 hm).1⟩, rfl⟩)
         fun _ _ => rfl
     have hsum_sub : ∑ m ∈ Ico k₀.val K, (q ^ m - q ^ (m + 1)) = q ^ k₀.val - q ^ K := by
-      suffices ∀ n, k₀.val ≤ n → ∑ m ∈ Ico k₀.val n, (q ^ m - q ^ (m + 1)) = q ^ k₀.val - q ^ n from
-        this K k₀.isLt.le
-      intro n hn
-      induction hn with
-      | refl => simp
-      | @step m hkm ih => rw [Finset.sum_Ico_succ_top hkm, ih, pow_succ]; ring
+      simpa only [neg_sub_neg] using
+        (Finset.sum_Ico_sub (fun m => -(q ^ m)) k₀.isLt.le)
     have htele : q * v i₀ * (q ^ k₀.val - q ^ K) ≤
         ∑ m ∈ Ico k₀.val K, 1 / (K : ℝ) * (v i₀ * q ^ (m + 1)) :=
       calc q * v i₀ * (q ^ k₀.val - q ^ K)

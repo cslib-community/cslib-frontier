@@ -17,6 +17,7 @@ import Mathlib.Data.Nat.Bitwise
 import Mathlib.Data.Nat.Choose.Basic
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import Mathlib.Algebra.Ring.GeomSum
 
 /-!
 # Skeleton Evaluation and Table-Entry Writers for DT Precomputation
@@ -248,14 +249,8 @@ instance : WordEncoding DTSkelEnv := ⟨28, dtSkelEnvWords⟩
 
 private theorem geom_sum_pred_lt (B N : ℕ) (hB : 1 ≤ B) :
     ∑ k ∈ Finset.range N, (B - 1) * B ^ k < B ^ N := by
-  induction N with
-  | zero => simp
-  | succ N ih =>
-    rw [Finset.sum_range_succ, pow_succ]
-    calc ∑ k ∈ Finset.range N, (B - 1) * B ^ k + (B - 1) * B ^ N
-        < B ^ N + (B - 1) * B ^ N := Nat.add_lt_add_right ih _
-      _ = (1 + (B - 1)) * B ^ N := by ring
-      _ = B ^ N * B := by rw [Nat.add_sub_cancel' hB, mul_comm]
+  rw [← Finset.mul_sum, mul_comm, geom_sum_mul_of_one_le hB]
+  exact Nat.sub_lt (pow_pos (by omega) _) Nat.zero_lt_one
 
 private def permCode {e : ℕ} (p : Equiv.Perm (Fin e)) : ℕ :=
   ∑ i ∈ Finset.range e, (if h : i < e then (p ⟨i, h⟩).val else 0) * e ^ i
