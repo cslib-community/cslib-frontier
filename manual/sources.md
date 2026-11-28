@@ -3291,7 +3291,8 @@ Jon Kleinberg and Éva Tardos.
 Addison-Wesley, 2006.
 Section 6.6, pp. 280–283, defines alignment with a fixed gap penalty and pair costs and proves the dynamic program and shortest-path interpretation in (6.16)–(6.17).
 Section 6.7, pp. 285–290, gives the forward and reverse score rows, the optimal crossing in (6.19)–(6.20), and the reconstruction and work analysis in (6.21).
-The Lean reconstruction also allows the insertion and deletion costs to depend on the letter. [Printed edition, §§6.6–6.7](https://theswissbay.ch/pdf/Gentoomen%20Library/Algorithms/Algorithm%20Design%20-%20John%20Kleinberg%20-%20%C3%89va%20Tardos.pdf#page=153)
+The Lean reconstruction also allows the insertion and deletion costs to depend on the letter.
+[Printed edition, §§6.6–6.7](https://theswissbay.ch/pdf/Gentoomen%20Library/Algorithms/Algorithm%20Design%20-%20John%20Kleinberg%20-%20%C3%89va%20Tardos.pdf#page=153)
 
 <a id="kmb81"></a>
 ## kmb81
