@@ -8555,6 +8555,7 @@ public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination.CopyFilter
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Dealing.Tables
 public import CslibFrontier.Computability.Complexity.Problems.Graph.Matching.Algorithm
+public import CslibFrontier.Foundations.Probability.Combinatorics.BinomialRandomGraph.EdgeConcentration
 public import CslibFrontier.Algorithms.Lean.Simplex.Dantzig
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Dealing.Theorem
 public import CslibFrontier.Probability.MarkovChain.Mixing
@@ -10842,6 +10843,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.CHSHRigidity
 public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Source
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SliceRestriction
 public import CslibFrontier.MachineLearning.PACLearning.OneInclusionGraph
+public import CslibFrontier.GameTheory.Evolutionary.GraphESS
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime.TimeBound
 public import CslibFrontier.Foundations.LinearAlgebra.Interpolation
 public import CslibFrontier.Foundations.Data.ZMod.SquareModulus
