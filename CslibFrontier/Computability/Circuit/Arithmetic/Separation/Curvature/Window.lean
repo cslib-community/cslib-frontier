@@ -28,6 +28,7 @@ here is about prices.
 
 ## Main results
 
+* `Separation.windowPlace_natCast`: the relative place at `i ∈ [0, n²]` is `i / n²`.
 * `Separation.mean_windowPlace`: the relative place has mean `1/2`.
 * `Separation.le_of_second_diff_le`: a sequence with second differences at most `2ω` grows at
   most quadratically.
@@ -109,7 +110,15 @@ theorem eventually_large {T : ℕ} (hT : 2 ≤ T) (R : ℕ) :
 /-! ### The relative place in a window -/
 
 /-- The relative place `i / n²` of a point in the `n`-th window, clamped to `[0, 1]`. -/
-noncomputable def windowPlace : WindowFn := fun n _ i _ => (clamp (n ^ 2) i : ℕ) / (n : ℝ) ^ 2
+noncomputable def windowPlace : WindowFn :=
+  fun n _ i _ => (clamp (n ^ 2) i : ℕ) / (n : ℝ) ^ 2
+
+/-- At a point `i ∈ [0, n²]` of the window, the relative place is `i / n²`. -/
+theorem windowPlace_natCast {n i : ℕ} (hi : i ≤ n ^ 2) (b : Bool) (k : ℤ) :
+    windowPlace n b i k = (i : ℝ) / n ^ 2 := by
+  rw [windowPlace, clamp_cast (Int.natCast_nonneg i) (by exact_mod_cast hi)]
+  push_cast
+  rfl
 
 theorem windowPlace_nonneg (n : ℕ) (b : Bool) (i k : ℤ) : 0 ≤ windowPlace n b i k := by
   unfold windowPlace
@@ -133,24 +142,17 @@ theorem mean_windowPlace : windowPlace.mean = 1 / 2 := by
   refine h1.congr' ?_
   filter_upwards [eventually_ne_atTop 0] with n hn
   have hn' : (n : ℝ) ≠ 0 := by exact_mod_cast hn
-  have h2 : ∀ b : Bool, ∑ i ∈ range (n ^ 2), ∑ k ∈ range n, windowPlace n b (i : ℕ) (k : ℕ) =
+  have h2 (b : Bool) : ∑ i ∈ range (n ^ 2), ∑ k ∈ range n, windowPlace n b (i : ℕ) (k : ℕ) =
       n * (((n ^ 2 : ℕ) : ℝ) * ((n ^ 2 : ℕ) - 1) / 2 / n ^ 2) := by
-    intro b
     have hsum : ∑ i ∈ range (n ^ 2), (i : ℝ) = ((n ^ 2 : ℕ) : ℝ) * ((n ^ 2 : ℕ) - 1) / 2 := by
       rw [← Nat.cast_sum, Finset.sum_range_id, ← Nat.choose_two_right, Nat.cast_choose_two]
     rw [← hsum, Finset.sum_div, Finset.mul_sum]
     refine Finset.sum_congr rfl fun i hi => ?_
-    have hp : ∀ k ∈ range n, windowPlace n b (i : ℕ) (k : ℕ) = (i : ℝ) / n ^ 2 := by
-      intro k _
-      rw [windowPlace, clamp_cast (Int.natCast_nonneg i)
-        (by exact_mod_cast (Finset.mem_range.1 hi).le)]
-      push_cast
-      rfl
-    rw [Finset.sum_congr rfl hp, Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+    rw [Finset.sum_congr rfl fun k _ => windowPlace_natCast (Finset.mem_range.1 hi).le b (k : ℕ),
+      Finset.sum_const, Finset.card_range, nsmul_eq_mul]
   rw [windowAvg_eq_sum, Finset.sum_congr rfl fun b _ => h2 b, Finset.sum_const, Finset.card_univ,
     Fintype.card_bool, nsmul_eq_mul]
-  push_cast
-  field_simp
+  push_cast; field_simp
 
 /-! ### Two elementary inequalities -/
 
@@ -160,14 +162,17 @@ satisfies `f(A) ≤ f(0) + A(f(0) − φ + ω) + A²ω`. For `ψ(l) = f(l) − l
 theorem le_of_second_diff_le {f : ℕ → ℝ} {φ ω : ℝ} (h0 : f 1 + φ ≤ 2 * f 0 + 2 * ω)
     (h : ∀ j, f (j + 2) + f j ≤ 2 * f (j + 1) + 2 * ω) (A : ℕ) :
     f A ≤ f 0 + A * (f 0 - φ + ω) + A ^ 2 * ω := by
-  have key : ∀ j : ℕ, f (j + 1) - f j ≤ (f 0 - φ + ω) + (2 * j + 1) * ω := by
-    intro j
+  have key (j : ℕ) : f (j + 1) - f j ≤ (f 0 - φ + ω) + (2 * j + 1) * ω := by
     induction j with
     | zero => norm_num; linarith
-    | succ j ih => have := h j; push_cast; linarith
+    | succ j ih =>
+      have := h j
+      push_cast; linarith
   induction A with
   | zero => simp
-  | succ A ih => have := key A; push_cast; linarith
+  | succ A ih =>
+    have := key A
+    push_cast; linarith
 
 /-- Squaring `|r n²(L' − L) + aL'| ≤ W`, with `1 − r ≤ 2θ` and `n²(L'² − L²) ≤ K`:
 `W² ≥ a²L'² + a n²(L'² − L²) − 2aθK`. -/
@@ -176,10 +181,9 @@ theorem sq_le_of_abs_le {n L' L0 r a θ K W : ℝ} (hr0 : 0 ≤ r) (hr2 : 0 ≤ 
     (h1 : r * (n ^ 2 * (L' - L0)) + a * L' ≤ W) (h2 : -(r * (n ^ 2 * (L' - L0)) + a * L') ≤ W) :
     a ^ 2 * (L' * L') + a * (n ^ 2 * (L' ^ 2 - L0 ^ 2)) - a * (2 * θ * K) ≤ W * W := by
   have E3 : (r * (n ^ 2 * (L' - L0)) + a * L') ^ 2 ≤ W ^ 2 := sq_le_sq' (by linarith) h1
-  have Z2 : (1 - r) * (n ^ 2 * (L' ^ 2 - L0 ^ 2)) ≤ 2 * θ * K :=
-    (mul_le_mul_of_nonneg_left hZ hr2).trans (mul_le_mul_of_nonneg_right hr1 hK)
+  have Z5 := mul_le_mul_of_nonneg_left
+    ((mul_le_mul_of_nonneg_left hZ hr2).trans (mul_le_mul_of_nonneg_right hr1 hK)) ha
   have Z4 : 0 ≤ a * r * (n ^ 2 * (L' - L0) ^ 2) := by positivity
-  have Z5 := mul_le_mul_of_nonneg_left Z2 ha
   linarith [sq_nonneg (r * (n ^ 2 * (L' - L0)))]
 
 end Cslib.Circuits.Arithmetic.Separation

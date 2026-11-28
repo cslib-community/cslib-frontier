@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.PublicKeyHash
 public import CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -49,7 +48,10 @@ theorem matchingRepresentativeInput_of_overlap (H : Xofs) (s : Level) (pk : List
   let tr := H.h256.readBytes pk 64
   have ht : (Keccak.bytesToBitsLE tr).length = 512 := by
     rw [Keccak.length_bytesToBitsLE, show tr.length = 64 from H.h256.length_read ..]
-  have same := (List.append_inj overlap (ht.trans (length_messageRepresentative ..).symm)).1
+  have same : Keccak.bytesToBitsLE tr = H.messageRepresentative pk (formattedMessage g) := by
+    have h := congrArg (List.take 512) overlap
+    rwa [representativeInput, ← ht, List.take_left, ht,
+      ← length_messageRepresentative H pk (formattedMessage g), take_commitmentInput] at h
   have hash : H.h256.read (representativeInput tr (formattedMessage g)) 64 = tr :=
     (Keccak.bytesToBitsLE_injective same).symm
   simp only [Xofs.matchingRepresentativeInput, Option.isSome_map, List.isSome_find?]
@@ -64,17 +66,15 @@ private theorem match_valid {H : Xofs} {pk : List Byte} {log : List Forgery} {y 
   let sameHash (g : Forgery) := H.h256.read (addr g) 64 == tr
   change (log.find? sameHash).map addr = some y at hit
   obtain ⟨g, found, rfl⟩ := Option.map_eq_some_iff.mp hit
-  refine ⟨beq_iff_eq.mp (List.find?_some (p := sameHash) found), ?_⟩
-  by_cases eq : Keccak.bytesToBitsLE pk = addr g
-  · right
-    have ht : (Keccak.bytesToBitsLE tr).length = 512 := by
-      rw [Keccak.length_bytesToBitsLE, show tr.length = 64 from H.h256.length_read ..]
-    have head := congrArg (List.take 512) eq
-    change _ = (Keccak.bytesToBitsLE tr ++ formattedMessage g).take 512 at head
-    rw [← ht, List.take_left, ht, show (512 : ℕ) = 8 * 64 by decide,
-      ← Keccak.bytesToBitsLE_take] at head
-    exact (Keccak.bytesToBitsLE_injective head).symm
-  · exact Or.inl eq
+  refine ⟨beq_iff_eq.mp (List.find?_some (p := sameHash) found),
+    or_iff_not_imp_left.mpr fun h => ?_⟩
+  have ht : (Keccak.bytesToBitsLE tr).length = 512 := by
+    rw [Keccak.length_bytesToBitsLE, show tr.length = 64 from H.h256.length_read ..]
+  have head := congrArg (List.take 512) (not_ne_iff.mp h)
+  change _ = (Keccak.bytesToBitsLE tr ++ formattedMessage g).take 512 at head
+  rw [← ht, List.take_left, ht, show (512 : ℕ) = 8 * 64 by decide,
+    ← Keccak.bytesToBitsLE_take] at head
+  exact (Keccak.bytesToBitsLE_injective head).symm
 
 /-- In the actual retained-controller experiment, a match in any successful signing reply
 costs at most the probability of the computed SHAKE256 collision plus `2⁻⁵¹²` for the entire
@@ -108,10 +108,7 @@ theorem QuantumSigningForger.matchingRepresentative_le (C : QuantumSigningForger
     · simp only [eq, decide_true, PMF.pure_apply_self]
       exact (PMF.coe_le_one _ _).trans (le_add_self)
     · simp only [eq, decide_false, PMF.pure_apply_of_ne false true (by decide), add_zero]
-      apply le_of_eq
-      apply congrArg (fun game : Game => game true)
-      congr 1
-      funext z
+      refine le_of_eq (congrArg (fun f => (C.transcript H s keys).map f true) (funext fun z => ?_))
       cases h : H.matchingRepresentativeInput keys.publicKey z.2 with
       | none => rfl
       | some y =>

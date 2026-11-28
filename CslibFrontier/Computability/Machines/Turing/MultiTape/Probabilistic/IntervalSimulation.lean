@@ -252,16 +252,12 @@ theorem windowCell_eq (J : Option (Fin k) → ℤ) (w : Fin k → Fin 3 → ZMod
     have hcd : c / b = (d : ℤ) := by
       rw [hd, Int.natCast_div, hcn]
     by_cases hlt : c.toNat < 3 * b
-    · have hcb : d < 3 := by
-        rw [hd, Nat.div_lt_iff_lt_mul (Nat.pos_of_neZero b)]
-        linarith
+    · have hcb : d < 3 := hd.symm ▸ (Nat.div_lt_iff_lt_mul (Nat.pos_of_neZero b)).mpr hlt
       have hcond : 0 ≤ (b * (J (some h) - 1) + c) / b - J (some h) + 1 ∧
           (b * (J (some h) - 1) + c) / b - J (some h) + 1 < 3 := by
-        rw [hdiv, hcd]
-        omega
+        rw [hdiv, hcd]; omega
       have hidx : ((b * (J (some h) - 1) + c) / b - J (some h) + 1).toNat = d := by
-        rw [hdiv, hcd]
-        omega
+        rw [hdiv, hcd]; omega
       have hcast : (((b * (J (some h) - 1) + c : ℤ)) : ZMod b) = ((c.toNat : ℕ) : ZMod b) := by
         rw [Int.cast_add, Int.cast_mul, Int.cast_natCast, ZMod.natCast_self, zero_mul, zero_add,
           ← Int.cast_natCast, hcn]
@@ -273,12 +269,8 @@ theorem windowCell_eq (J : Option (Fin k) → ℤ) (w : Fin k → Fin 3 → ZMod
         simp only [windowCells, List.length_map, List.length_range]
         omega
       rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none hlen]
-      have : 3 ≤ c / b := by
-        rw [hcd]
-        have : 3 ≤ d := hd ▸ (Nat.le_div_iff_mul_le (Nat.pos_of_neZero b)).mpr (by omega)
-        omega
-      rw [dite_eq_right (by rw [hdiv]; omega)]
-      rfl
+      have : 3 ≤ d := hd ▸ (Nat.le_div_iff_mul_le (Nat.pos_of_neZero b)).mpr (by omega)
+      exact dite_eq_right (by rw [hdiv, hcd]; omega)
   · rw [ite_eq_right hc]
     have : c / b < 0 := Int.ediv_neg_of_neg_of_pos (by omega) hb
     exact dite_eq_right (by rw [hdiv]; omega)

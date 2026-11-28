@@ -120,7 +120,7 @@ private theorem transport_leg {G : Graph} {D : PolygonalDrawing G} (hD : D.IsEmb
   let F := (chart u D).plateauShear ((chart u D).vertex v).im r 1
   obtain ⟨hF, hpoints, hgerms, _, hcount, _⟩ := hall 1
   let E := chart u⁻¹ F
-  refine ⟨E, chart_embedding hF (inv_ne_zero hu), ?_, ?_, ?_⟩
+  refine ⟨E, chart_embedding hF (inv_ne_zero hu), ?_, ?_, hcount⟩
   · intro w hw
     change u⁻¹ * F.vertex w = _
     rw [hpoints w hw]
@@ -143,8 +143,6 @@ private theorem transport_leg {G : Graph} {D : PolygonalDrawing G} (hD : D.IsEmb
     calc
       u⁻¹ * ((c : ℂ) * (u * D.germ a)) = (c : ℂ) * ((u⁻¹ * u) * D.germ a) := by ring
       _ = (c : ℂ) * D.germ a := by rw [inv_mul_cancel₀ hu, one_mul]
-  · intro e
-    exact hcount e
 
 /-- Move one declared vertex to any target unoccupied by OTHER declared vertices. Two
 internally chosen conjugated plateau shears preserve the actual embedding and ORIGINAL germ
@@ -165,24 +163,17 @@ theorem IsEmbedding.exists_single_vertex_transport {G : Graph} {D : PolygonalDra
       (q = D.vertex v → D' = D) := by
   classical
   by_cases hsame : q = D.vertex v
-  · refine ⟨D, hD, ?_, ?_, ?_, ?_, fun _ => rfl⟩
-    · intro w _
-      split_ifs with he
-      · exact (congrArg D.vertex he).trans hsame.symm
-      · rfl
-    · intro a
-      exact ⟨1, zero_lt_one, (one_smul ℝ _).symm⟩
-    · intro x y z _ _ _ _ _
-      rfl
-    · intro e
-      omega
+  · refine ⟨D, hD, fun w _ => ?_, fun a => ⟨1, zero_lt_one, (one_smul ℝ _).symm⟩,
+      fun _ _ _ _ _ _ _ _ => Iff.rfl, fun e => by omega, fun _ => rfl⟩
+    split_ifs with he
+    · exact (congrArg D.vertex he).trans hsame.symm
+    · rfl
   let P := G.vertices.toFinset.erase v
   let J := ({w : ℕ // w ∈ P} × Bool) ⊕ Unit
   let a : J → ℂ := Sum.elim (fun wb => if wb.2 then q else D.vertex v) (fun _ => D.vertex v)
   let b : J → ℂ := Sum.elim (fun wb => D.vertex wb.1.val) (fun _ => q)
   have hab : ∀ i : J, a i ≠ b i := by
-    intro i
-    rcases i with ⟨w, tag⟩ | _
+    rintro (⟨w, tag⟩ | _)
     · have hw := Finset.mem_erase.mp w.property
       have hwdecl := List.mem_toFinset.mp hw.2
       cases tag
@@ -224,15 +215,11 @@ theorem IsEmbedding.exists_single_vertex_transport {G : Graph} {D : PolygonalDra
   have hdir (x : Dart G) : D₂.direction x = D.direction x := by
     obtain ⟨c, hc, he⟩ := hg x
     simp only [direction, he, Complex.real_smul, Complex.arg_real_mul _ hc]
-  refine ⟨D₂, hD₂, ?_, hg, ?_, ?_, fun h => (hsame h).elim⟩
-  · intro w hw
-    rw [hpoint₂ w hw]
-    split_ifs with he
-    · rfl
-    · exact hother w hw he
-  · intro x y z _ _ _ _ _
-    rw [hdir x, hdir y, hdir z]
-  · intro e
-    exact (hcount₂ e).trans (by nlinarith [hcount₁ e])
+  refine ⟨D₂, hD₂, fun w hw => ?_, hg, fun x y z _ _ _ _ _ => by rw [hdir x, hdir y, hdir z],
+    fun e => (hcount₂ e).trans (by nlinarith [hcount₁ e]), fun h => (hsame h).elim⟩
+  rw [hpoint₂ w hw]
+  split_ifs with he
+  · rfl
+  · exact hother w hw he
 
 end Cslib.Complexity.Graph.PolygonalDrawing

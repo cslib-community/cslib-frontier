@@ -35,6 +35,8 @@ on `{i}` is the average of its derivative in `i`
 * `Cslib.BitString.expect_update_false_add_update_true`: averaging over one bit.
 * `Cslib.BitString.fourierCoeff_singleton_eq_expect_derivative`: the coefficient on `{i}` is the
   average derivative in `i`.
+* `Cslib.BitString.expect_update_false`: fixing bit `i` to `false` moves the mean by the
+  coefficient on `{i}`.
 
 ## References
 
@@ -105,6 +107,15 @@ theorem expect_update_false_add_update_true (φ : (ι → Bool) → ℝ) (i : ι
 theorem fourierCoeff_singleton_eq_expect_derivative (i : ι) (f : (ι → Bool) → ℝ) :
     fourierCoeff f {i} = 𝔼 x, derivative i f x := by
   rw [← fourierCoeff_empty, fourierCoeff_derivative, ite_eq_right (notMem_empty i), insert_empty]
+
+/-- Fixing bit `i` to `false` moves the mean of `F` by its coefficient on `{i}`:
+`𝔼 F(x^{i ↦ false}) = 𝔼 F + F̂({i})`. -/
+theorem expect_update_false (F : (ι → Bool) → ℝ) (i : ι) :
+    𝔼 x, F (Function.update x i false) = 𝔼 x, F x + fourierCoeff F {i} := by
+  have h := expect_update_false_add_update_true F i
+  rw [fourierCoeff_singleton_eq_expect_derivative]
+  simp only [derivative, ← expect_div, expect_sub_distrib, expect_add_distrib] at h ⊢
+  linarith
 
 end DecidableEq
 

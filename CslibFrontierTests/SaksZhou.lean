@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+import CslibFrontier.Foundations.Data.Nat.WeightedIndex
+import CslibFrontier.Probability.SaksZhou.Sweep
 import CslibFrontier.Probability.SaksZhou
 
 /-! The Saks–Zhou rounding and iteration: concrete values, Lemma A.3, the `pow` hypothesis holding
@@ -37,6 +39,11 @@ example : snap 1 (3 / 4) 1 = 1 / 2 := by
 example : (({y : Fin (2 ^ 1) | snap 1 (1 / 2) y ≠ snap 1 (3 / 4) y} : Finset _).dens : ℝ) ≤
     2 ^ 1 * (1 / 4) + (2 ^ 1)⁻¹ :=
   dens_snap_ne_le 1 (by rw [abs_le]; constructor <;> norm_num)
+
+-- A unit shift at scale four crosses the boundary for 4/16. The next numerator, 5/16,
+-- reaches that same boundary after the shift. The clipped zero entry stays zero.
+example : (snapCount 4 4 16 1, snapCount 4 5 16 1, snapCount 4 0 16 3) = (0, 1, 0) := by
+  decide
 
 /-! ### Dyadic substochastic matrices -/
 
@@ -140,5 +147,17 @@ example : (1 : ℝ) ^ 3 * (Fintype.card (Fin 1) * (2 / 2 ^ 2)) <
     ∑ j, |snapIter 2 (· ^ 1) (1 : Matrix (Fin 1) (Fin 1) ℝ) 3 (fun _ => 3) 0 j -
       ((1 : Matrix (Fin 1) (Fin 1) ℝ) ^ 1 ^ 3) 0 j| := by
   norm_num [snapIter_succ, snapMatrix_apply, snap_def, Fin.init, abs_of_nonneg]
+
+-- Empty intervals at columns zero and two are skipped. Labels exactly at a boundary advance
+-- to the next nonempty interval, and a label at the total mass falls through to the sink.
+example : [0, 2, 3, 4, 5].map (Cslib.scanWeightedRow 4 (fun i => [0, 3, 0, 2][i]?.getD 0)) =
+    [1, 1, 3, 3, 4] := by decide
+
+-- Of two seeds, one stays in column 0 at both steps while the other enters the sink.
+example :
+    let next := fun q : SweepState =>
+      sweepUpdate 1 2 1 0 0 (fun x _ => x) q (if q.current = 0 ∧ q.j = 0 then 1 else 0)
+    (next^[2 * ((1 + 2) * 2 + 1)] (sweepStart 1 0)).hits = 1 := by
+  decide
 
 end CslibFrontierTests.SaksZhou

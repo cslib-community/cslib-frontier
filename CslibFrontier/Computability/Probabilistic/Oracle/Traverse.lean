@@ -49,9 +49,9 @@ private theorem iterate_mapMStep (fallback : Item)
   induction xs generalizing acc with
   | nil => simp
   | cons x xs ih =>
-    simp only [List.length_cons, OracleComp.iterate_succ_bind, mapMStep,
-      List.headD_cons, List.tail_cons, List.mapM_cons, map_bind, bind_map_left, ih,
-      List.append_assoc, List.singleton_append]
+    simp only [List.length_cons, OracleComp.iterate_succ_bind, mapMStep, List.headD_cons,
+      List.tail_cons, List.mapM_cons, map_bind, bind_map_left, ih, List.append_assoc,
+      List.singleton_append]
     simp only [map_pure, bind_pure_comp]
 
 /-- Traverse an efficiently computed list with a strict oracle PPT program that can read the
@@ -66,21 +66,12 @@ theorem IsOraclePPTOn.mapM_with_of_bounded_output {item : Item ↪ List Bool}
     (houtput : ∀ a x r, r ∈ OracleComp.support (program a x) → (output r).length ≤ bound a) :
     IsOraclePPTOn input (encList output) (fun a => (list a).mapM (program a)) := by
   let stateEncoding := encPair (encList item) (encList output)
-  have hcount : ComputableInPolyTime (fun a => (list a).length) input encUnary :=
-    (ComputableInPolyTime.length_list item).comp hlist
-  have hinitial : ComputableInPolyTime (fun a => (list a, ([] : List Result)))
-      input stateEncoding :=
-    hlist.prod (ComputableInPolyTime.const [])
   have hstep : IsOraclePPTOn (encPair input stateEncoding) stateEncoding
-      (fun p : α × List Item × List Result => mapMStep fallback (program p.1) p.2) := by
-    unfold mapMStep
-    have hprepare : ComputableInPolyTime
-        (fun p : α × List Item × List Result => (p.1, p.2.1.headD fallback))
-        (encPair input stateEncoding) (encPair input item) :=
-      (ComputableInPolyTime.fst _ _).prod ((ComputableInPolyTime.headD fallback).comp
-        ((ComputableInPolyTime.fst (encList item) (encList output)).comp
-          (ComputableInPolyTime.snd input stateEncoding)))
-    exact (hprogram.preprocess hprepare).map_with
+      (fun p : α × List Item × List Result => mapMStep fallback (program p.1) p.2) :=
+    (hprogram.preprocess <| (ComputableInPolyTime.fst _ _).prod <|
+      (ComputableInPolyTime.headD fallback).comp <|
+        (ComputableInPolyTime.fst (encList item) (encList output)).comp
+          (ComputableInPolyTime.snd input stateEncoding)).map_with
       (f := fun (p : α × List Item × List Result) result => (p.2.1.tail, p.2.2 ++ [result]))
       (by fun_prop)
   have hpoly : PolyBounded (fun a => (input a).length) (fun a => 2 * bound a + 2) := by
@@ -89,9 +80,9 @@ theorem IsOraclePPTOn.mapM_with_of_bounded_output {item : Item ↪ List Bool}
   have hloop : IsOraclePPTOn input stateEncoding
       (fun a => OracleComp.iterate (list a).length (mapMStep fallback (program a))
         (list a, [])) := by
-    refine IsOraclePPTOn.iterateWith_of_bounded_growth hcount hinitial hstep hpoly ?_
-    intro a state next hnext
-    unfold mapMStep at hnext
+    refine IsOraclePPTOn.iterateWith_of_bounded_growth
+      ((ComputableInPolyTime.length_list item).comp hlist) (hlist.prod (.const []))
+      hstep hpoly fun a state next hnext => ?_
     obtain ⟨result, hresult, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
     have htailLen : (encList item state.1.tail).length ≤ (encList item state.1).length :=
       ((List.tail_sublist state.1).flatMap (frame ∘ item)).length_le
@@ -100,7 +91,7 @@ theorem IsOraclePPTOn.mapM_with_of_bounded_output {item : Item ↪ List Bool}
       List.append_nil, List.length_append, length_frame]
     omega
   simpa only [iterate_mapMStep, List.nil_append, id_map'] using
-    hloop.map (ComputableInPolyTime.snd (encList item) (encList output))
+    hloop.map (.snd (encList item) (encList output))
 
 /-- Querying channel `op` on each word of an efficiently computed list, in order, and keeping the
 first `limit a` bits of each reply is strict oracle PPT. -/
@@ -112,10 +103,9 @@ theorem IsOraclePPTOn.mapM_query_take [Finite Operation] (op : Operation)
       (list a).mapM fun x => List.take (limit a) <$>
         ProbOracleComp.query (spec := fun _ : Operation × List Bool => List Bool) (op, x)) := by
   refine IsOraclePPTOn.mapM_with_of_bounded_output [] hlist
-    (IsOraclePPTOn.query_take op (ComputableInPolyTime.snd input encBits)
-      (hlimit.comp (ComputableInPolyTime.fst input encBits))) hlimit ?_
-  intro a x result hresult
-  obtain ⟨reply, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
+    (IsOraclePPTOn.query_take op (.snd input encBits) (hlimit.comp (.fst input encBits))) hlimit
+    fun _ _ _ hresult => ?_
+  obtain ⟨_, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
   exact List.length_take_le _ _
 
 end Cslib.Probability

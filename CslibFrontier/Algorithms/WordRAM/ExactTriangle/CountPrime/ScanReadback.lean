@@ -55,9 +55,7 @@ theorem exec_count_coefficients {w n p k : ℕ} (x : Data 128)
   have residue (i : ℕ) (hi : i < n * n) :
       x.mem (x.regs Reg.residueAB + i) = keys i := by
     let q := finProdFinEquiv.symm (⟨i, hi⟩ : Fin (n * n))
-    have index : q.1.val * n + q.2.val = i := by
-      change i / n * n + i % n = i
-      simpa only [Nat.mul_comm] using Nat.div_add_mod i n
+    have index : q.1.val * n + q.2.val = i := Nat.div_add_mod' i n
     rw [keys_at i hi]
     change x.mem (x.regs Reg.residueAB + i) = (wAB q.1 q.2 % (p : ℤ)).toNat
     simpa only [Nat.add_assoc, index] using hresidue q.1 q.2
@@ -75,10 +73,9 @@ theorem exec_count_coefficients {w n p k : ℕ} (x : Data 128)
       rfl
     have hidx := Nat.Morton.index_lt (q.1.isLt.trans_le hpadding) (q.2.isLt.trans_le hpadding)
     have hr : ((-wAB q.1 q.2) % (p : ℤ)).toNat < p := Int.natMod_lt hpositive.ne'
-    have hb := Nat.mul_le_mul_right p (Nat.succ_le_of_lt hidx)
-    rw [Nat.succ_mul] at hb
     have entry := hproduct (Nat.Morton.index q.1 q.2 * p +
-      ((-wAB q.1 q.2) % (p : ℤ)).toNat) ((Nat.add_lt_add_left hr _).trans_le hb)
+      ((-wAB q.1 q.2) % (p : ℤ)).toNat) (by
+        simpa only [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt hidx hr)
     rw [← Cslib.Algorithms.ExactTriangle.CountPrime.pairCoefficient_cast
       hpositive.ne' hpadding wAB wBC wAC q.1 q.2] at entry
     simpa only [Nat.add_assoc, qr, qc, val, key, Int.toNat_neg_emod hpositive] using entry
@@ -87,9 +84,8 @@ theorem exec_count_coefficients {w n p k : ℕ} (x : Data 128)
     (fun _ _ => Cslib.Algorithms.ExactTriangle.CountPrime.rowMajorCoefficient_le
       hpositive.ne' hpadding wAB wBC wAC)
     residue product h0 h1 h2 htable hw
-  refine ⟨y, he, memory, ?_, regs⟩
-  rw [result]
-  exact Cslib.Algorithms.ExactTriangle.CountPrime.sum_rowMajorCoefficient
-    hpositive.ne' hpadding wAB wBC wAC
+  exact ⟨y, he, memory,
+    result.trans (Cslib.Algorithms.ExactTriangle.CountPrime.sum_rowMajorCoefficient
+      hpositive.ne' hpadding wAB wBC wAC), regs⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

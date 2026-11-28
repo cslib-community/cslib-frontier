@@ -69,18 +69,14 @@ theorem two_branch_hit_prob_ge {α β γ : Type*} (m₁ : PMF α) (m₂ : α →
     rw [sq]
     refine toOuterMeasure_bind_le_mul_ennreal m₁ (fun a => (m₂ a).map (f a))
       hit₁ᶜ hitᶜ (toOuterMeasure_compl_le_one_sub m₁ hit₁ hb₁) ?_ ?_
-    · intro a ha ha_miss
-      exact toOuterMeasure_compl_le_one_sub _ hit (hb₂ a ha ha_miss)
+    · exact fun a ha ha_miss => toOuterMeasure_compl_le_one_sub _ hit (hb₂ a ha ha_miss)
     · intro a ha ha_not_miss
-      have ha_hit : a ∈ hit₁ := not_not.mp ha_not_miss
       rw [PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_apply]
       refine tsum_eq_zero_iff.mpr fun b => ?_
-      by_cases hb : b ∈ (m₂ a).support
-      · have hmem : f a b ∈ hit := hprop₁ a ha ha_hit b hb
-        have hnot : b ∉ f a ⁻¹' hitᶜ := fun hc => hc hmem
-        exact Set.indicator_of_notMem hnot _
-      · have hp0 : m₂ a b = 0 := by simpa only [PMF.mem_support_iff, not_not] using hb
-        simp [hp0]
+      by_cases hb : m₂ a b = 0
+      · simp [hb]
+      · exact Set.indicator_of_notMem (fun hc : b ∈ f a ⁻¹' hitᶜ =>
+          hc (hprop₁ a ha (not_not.mp ha_not_miss) b (((m₂ a).mem_support_iff b).mpr hb))) _
   have hsum := toOuterMeasure_add_compl_ennreal p hit
   have hhit_ge : 1 - (1 - (1 : ℝ≥0∞) / (s : ℝ≥0∞)) ^ 2 ≤ p.toOuterMeasure hit := by
     refine tsub_le_iff_right.mpr ?_

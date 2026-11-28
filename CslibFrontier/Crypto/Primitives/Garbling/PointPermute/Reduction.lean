@@ -12,6 +12,7 @@ public import CslibFrontier.Languages.Probabilistic.UniformNat
 import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Tactic.UniformRelabel
 import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
@@ -113,9 +114,7 @@ private theorem uniformList_map_keyFn_permFn (k n s : ℕ) :
     rw [mul_one] at h
     have hcomp : perms = ((Equiv.arrowCongr (Equiv.refl (Wire n s))
         (Equiv.funUnique (Fin 1) Bool)) : _ → _) ∘
-          fun word i => BitString.ofList 1 (BitString.listRow 1 (Wire.equivFin n s i) word) := by
-      funext front w
-      rfl
+          fun word i => BitString.ofList 1 (BitString.listRow 1 (Wire.equivFin n s i) word) := rfl
     rw [hcomp, ← PMF.map_comp, h, PMF.uniformOfFintype_map_equiv]
   have hsplit : ∀ front, front.length = n + s → ∀ back : List Bool,
       ((keyFn k (front ++ back) : Wire n s × Bool → BitString (k + 1)),
@@ -146,10 +145,8 @@ private theorem uniformList_map_keyFn_permFn (k n s : ℕ) :
         rw [← hperms, ← hkeys, PMF.bind_map]
         simp only [PMF.map_comp, Function.comp_def]
     _ = _ := by
-        rw [← PMF.uniformOfFintype_map_equiv (Equiv.prodComm (Wire n s → Bool)
-          (Wire n s × Bool → BitString (k + 1))), ← Cslib.Probability.PMF.uniformOfFintype_prod,
-          PMF.map_bind]
-        simp only [PMF.map_comp, Function.comp_def, Equiv.prodComm_apply, Prod.swap_prod_mk]
+        relabel_uniform (Equiv.prodComm (Wire n s → Bool)
+          (Wire n s × Bool → BitString (k + 1)))
 
 variable (family : List Bool → List Bool → List Bool)
 
@@ -323,16 +320,16 @@ private theorem labelBits_hybridView (k : ℕ) (f : ValidCircuit) {x : List Bool
     · rw [apply_ite labelBits]
       refine ite_congr (propext ?_) (fun _ => ?_) (fun _ => ?_)
       · simp only [IsTarget, htb₀, activeColour, trace_wires f hx, permFn, hw₀, Bool.add_eq_xor]
-      · simp only [replyOracle, rowIndex_testBit_of_eq_two harity hi, add_zero]
-        exact hreply 0 (by omega)
+      · simpa only [replyOracle, rowIndex_testBit_of_eq_two harity hi, Fin.val_cast, add_zero] using
+          hreply 0 (by omega)
       · rw [← labelWord_ofFn, ofFn_keyFn, hw₀]
         simp only [slotTweak, ofFn_ofList_tweak, rowIndex_testBit_of_eq_two harity hi, htb₀, hq,
           Fin.val_cast]
     · rw [apply_ite labelBits]
       refine ite_congr (propext ?_) (fun _ => ?_) (fun _ => ?_)
       · simp only [IsTarget, htb₁, activeColour, trace_wires f hx, permFn, hw₁, Bool.add_eq_xor]
-      · simp only [replyOracle, rowIndex_testBit_of_eq_two harity hi]
-        exact hreply 1 (by omega)
+      · simpa only [replyOracle, rowIndex_testBit_of_eq_two harity hi, Fin.val_cast] using
+          hreply 1 (by omega)
       · rw [← labelWord_ofFn, ofFn_keyFn, hw₁]
         simp only [slotTweak, ofFn_ofList_tweak, rowIndex_testBit_of_eq_two harity hi, htb₁, hq,
           Fin.val_cast]
@@ -532,9 +529,8 @@ private theorem eval_prvSimExperiment_true {σ : Type} (B : ℕ → PrvSimAdvers
   dsimp only
   rw [hin]
   split_ifs with hx
-  · rw [hybridGame_zero]
-    simp only [ProbComp.eval_bind, realGame]
-    rw [eval_prvView family k query.fn hx, PMF.bind_map]
+  · simp only [hybridGame_zero, ProbComp.eval_bind, realGame, eval_prvView family k query.fn hx,
+      PMF.bind_map]
     rfl
   · rfl
 
@@ -550,18 +546,15 @@ private theorem eval_prvSimExperiment_false {σ : Type} (B : ℕ → PrvSimAdver
   refine Probability.PMF.bind_congr_on_support _ _ _ fun ⟨query, state⟩ hmem => ?_
   have hin : (scheme family).inLen query.fn = query.fn.1.n := rfl
   have hev : (scheme family).ev query.fn query.input = query.fn.1.evalCirc query.input := rfl
-  dsimp only
   simp only [hin, hev, Bool.false_eq_true, ↓reduceIte]
   split_ifs with hx
   · rw [hybridGame_of_le _ _ _ _ _ _ (by rw [size_toCircuit]; exact hc query state hmem hx)]
-    simp only [ProbComp.eval_bind, simGame]
     have hy : BitString.ofList query.fn.1.m (query.fn.1.evalCirc query.input) =
         (toCircuit query.fn).eval fullInterpretation
           (BitString.ofList query.fn.1.n query.input) := by
-      have h := eval_toCircuit query.fn (BitString.ofList query.fn.1.n query.input)
-      rw [BitString.ofFn_ofList hx] at h
-      rw [← h, BitString.ofList_ofFn]
-    rw [eval_simWord, hy, PMF.bind_map]
+      rw [← BitString.ofList_ofFn (bits := (toCircuit query.fn).eval _ _), eval_toCircuit,
+        BitString.ofFn_ofList hx]
+    simp only [ProbComp.eval_bind, simGame, eval_simWord, hy, PMF.bind_map]
     rfl
   · rfl
 
@@ -580,9 +573,7 @@ private theorem eval_realExperiment_prvSimReduction {σ : Type}
   dsimp only
   split_ifs with hx
   · rw [PMF.bind_comm]
-    refine congrArg _ (funext fun j => ?_)
-    rw [← eval_realExperiment_reduction]
-    simp only [PRF.realExperiment, ProbComp.eval_bind, ProbComp.eval_uniform]
+    exact congrArg _ (funext fun j => by simp [← eval_realExperiment_reduction, PRF.realExperiment])
   · rw [PMF.bind_const, PMF.bind_const]
 
 /-- Against a uniform random function, the reduction plays the next global hybrid, when every
@@ -605,9 +596,8 @@ private theorem eval_idealExperiment_prvSimReduction {σ : Type}
       have := hP query state hmem hx
       omega)
     rw [PMF.bind_comm]
-    refine congrArg _ (funext fun j => ?_)
-    rw [← eval_idealExperiment_reduction _ _ _ _ htw]
-    simp only [PRF.idealExperiment, ProbComp.eval_bind, ProbComp.eval_uniform]
+    exact congrArg _ (funext fun j => by
+      simp [← eval_idealExperiment_reduction _ _ _ _ htw, PRF.idealExperiment])
   · rw [PMF.bind_const, PMF.bind_const]
 
 /-- **The `prv.sim` advantage against the simulator is the reduction's label advantage, times the

@@ -54,21 +54,11 @@ is `O(D * f n + log n)`. -/
 theorem eventually_cfgSpaceBound_le {f G : ℕ → ℕ} (hlog : ∀ n, 4 * Nat.log2 n ≤ G n)
     (hfG : ∀ c, ∀ᶠ n in atTop, c * f n + c ≤ G n) (D c₁ c₂ : ℕ) :
     ∀ᶠ n in atTop, ∀ k ≤ D, cfgSpaceBound D n k (c₁ * f n + c₂) ≤ G n := by
-  set P := 6 * (2 * D + 5) * (c₁ + c₂) + 3 * D + 8 with hP
+  let P := 6 * (2 * D + 5) * (c₁ + c₂) + 3 * D + 8
   filter_upwards [hfG (2 * P)] with n h₁ k hk
-  have hl := hlog n
-  have hn : (encNat (n + 1)).length ≤ Nat.log2 n + 2 := length_encNat_le_log2_add_two le_rfl
-  set s := c₁ * f n + c₂ with hs
-  have hsf : s ≤ (c₁ + c₂) * (f n + 1) := by rw [hs]; nlinarith
-  have hP' : 6 * (2 * D + 5) * s + 3 * D + 8 ≤ P * (f n + 1) := by
-    have := Nat.mul_le_mul_left (6 * (2 * D + 5)) hsf
-    have e₁ : P * (f n + 1) = 6 * (2 * D + 5) * ((c₁ + c₂) * (f n + 1)) +
-        (3 * D + 8) * (f n + 1) := by rw [hP]; ring
-    have : 3 * D + 8 ≤ (3 * D + 8) * (f n + 1) := Nat.le_mul_of_pos_right _ (by omega)
-    omega
-  have e₂ : 2 * P * f n + 2 * P = 2 * (P * (f n + 1)) := by ring
-  have e₃ : 3 * (2 * D + 5) * 2 * s = 6 * (2 * D + 5) * s := by ring
-  simp only [cfgSpaceBound]
-  omega
+  have hmul := Nat.mul_le_mul_left (6 * (2 * D + 5))
+    (by nlinarith : c₁ * f n + c₂ ≤ (c₁ + c₂) * (f n + 1))
+  simp only [cfgSpaceBound, P] at h₁ ⊢
+  nlinarith [hlog n, length_encNat_le_log2_add_two (j := n + 1) le_rfl]
 
 end Cslib.Complexity.Diagonal

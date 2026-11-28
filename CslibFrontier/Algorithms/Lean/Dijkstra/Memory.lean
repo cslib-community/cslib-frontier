@@ -163,30 +163,23 @@ theorem frontier_init (G : ListInstance) :
 
 /-- In the encoded graph input, cell `G.n + 3` holds the edge count `G.m`. -/
 theorem init_mem_edgeCount (G : ListInstance) :
-    (Memory.State.init G.encode).mem (G.n + 3) = G.m := by
-  rw [← G.offset_n]
-  exact G.init_offset (r := 0) le_rfl
+    (Memory.State.init G.encode).mem (G.n + 3) = G.m :=
+  (G.init_offset (r := 0) le_rfl).trans G.offset_n
 
 /-- The input convention holds the graph in the adjacency arrays `inputGraph`. -/
 theorem holds_inputGraph (G : ListInstance) :
     AdjacencyList.Memory.Holds (inputGraph G.n G.m) G.adj (Memory.State.init G.encode).mem := by
-  set m := (Memory.State.init G.encode).mem with hm
-  have hoff : ∀ j ≤ G.n, m (3 + j) = G.offset j := fun j hj => by
-    rw [Nat.add_comm]
-    exact G.init_offset (r := 0) hj
-  refine ⟨fun u => ?_, fun u => ?_, fun u i hi => ?_, fun u i hi => ?_⟩
-  · change m (3 + (u + 1)) = m (3 + u) + _
-    rw [hoff _ u.isLt, hoff _ u.isLt.le, G.offset_succ u.isLt]
-  · change 2 * m (3 + (u + 1)) ≤ 2 * G.m
-    rw [hoff _ u.isLt, ← G.offset_n]
+  have hoff : ∀ j ≤ G.n, (Memory.State.init G.encode).mem (3 + j) = G.offset j := fun j hj =>
+    Nat.add_comm 3 j ▸ G.init_offset (r := 0) hj
+  refine ⟨fun u => ?_, fun u => ?_, fun u i hi => ?_, fun u i hi => ?_⟩ <;> dsimp only [inputGraph]
+  · rw [hoff _ u.isLt, hoff _ u.isLt.le, G.offset_succ u.isLt]
+  · rw [hoff _ u.isLt, ← G.offset_n]
     exact Nat.mul_le_mul_left 2 (G.offset_mono u.isLt)
-  · change m (G.n + 4 + 2 * (m (3 + u) + i)) = _
-    rw [hoff _ u.isLt.le, show G.n + 4 + 2 * (G.offset u + i) = 2 * (G.offset u + i) + G.n + 4 by
-      omega]
+  · rw [hoff _ u.isLt.le, Nat.add_comm (G.n + 4), ← Nat.add_assoc]
     exact G.init_target (r := 0) u hi
-  · change m (G.n + 4 + (2 * (m (3 + u) + i) + 1)) = _
-    rw [hoff _ u.isLt.le, show G.n + 4 + (2 * (G.offset u + i) + 1) =
-      2 * (G.offset u + i) + G.n + 5 by omega]
+  · have haddr : G.n + 4 + (2 * (G.offset u + i) + 1) = 2 * (G.offset u + i) + G.n + 5 := by
+      omega
+    rw [hoff _ u.isLt.le, haddr]
     exact G.init_weight (r := 0) u hi
 
 /-- What a degree query reads from the input adjacency arrays: the offsets of `u` and `u + 1` lie
@@ -227,15 +220,12 @@ theorem inv_tableGraph (G : ListInstance) {w V F : ℕ}
           a < (Memory.State.init G.encode).frontier + G.n := by
   have hf := frontier_init G
   obtain ⟨hTinv, hTabs⟩ := Dictionary.Memory.inv_alloc (U := G.n) (zeroAbove_init G.encode)
-  refine ⟨⟨Block.Allocated.mono hTinv hF,
-      ⟨by simp only [inputGraph, Block.Allocated]; omega,
-        by simp only [inputGraph, Block.Allocated]; omega, holds_inputGraph G⟩, ?_, hfit⟩,
-    Prod.ext hTabs rfl, fun s a ha => ?_⟩
-  · simp only [Dictionary.Memory.framed_footprint, AdjacencyList.Memory.framed_footprint]
-    rw [Finset.disjoint_left]
-    intro a ha hb
-    simp only [Block.mem_footprint, Block.Owns, AdjacencyList.Memory.Layout.footprint,
-      inputGraph, Finset.mem_union] at ha hb
+  refine ⟨⟨hTinv.mono hF, ⟨by simp [inputGraph, Block.Allocated]; omega,
+      by simp [inputGraph, Block.Allocated]; omega, holds_inputGraph G⟩,
+      Finset.disjoint_left.mpr fun a ha hb => ?_, hfit⟩, Prod.ext hTabs rfl, fun s a ha => ?_⟩
+  · simp only [Dictionary.Memory.framed_footprint, AdjacencyList.Memory.framed_footprint,
+      Block.mem_footprint, Block.Owns, AdjacencyList.Memory.Layout.footprint, inputGraph,
+      Finset.mem_union] at ha hb
     omega
   · simp only [Memory.Framed.prod_footprint, Dictionary.Memory.framed_footprint,
       AdjacencyList.Memory.framed_footprint, Block.mem_footprint, Block.Owns,
@@ -263,10 +253,8 @@ theorem inv_input (G : ListInstance) {w K V : ℕ}
     (s := ⟨(Memory.State.init G.encode).mem, (Memory.State.init G.encode).frontier + G.n⟩)
     ((zeroAbove_init G.encode).allocDirty G.n)
   obtain ⟨hTAinv, hTAabs, hTAlt⟩ := inv_tableGraph G hT hA (by omega) hfit
-  refine ⟨⟨hHinv, hTAinv, ?_, hfit⟩, Prod.ext hHabs hTAabs⟩
+  refine ⟨⟨hHinv, hTAinv, Finset.disjoint_left.mpr fun a ha hb => ?_, hfit⟩, Prod.ext hHabs hTAabs⟩
   -- The heap lies past the table and the graph.
-  rw [Finset.disjoint_left]
-  intro a ha hb
   simp only [BinaryHeap.Memory.framed_footprint] at ha
   have := BinaryHeap.Memory.le_of_mem_footprint_allocated ha
   have := hTAlt _ a hb
@@ -278,14 +266,11 @@ theorem eq_encodeDist {x : ℕ} {D : ℕ∞}
     (h : ∀ d : ℕ, Dictionary.Memory.decode x = some d ↔ D = d) : x = encodeDist D := by
   cases x with
   | zero =>
-    have hD : D = ⊤ := by
-      by_contra hD
-      obtain ⟨d, rfl⟩ := ENat.ne_top_iff_exists.mp hD
-      simpa using (h d).mpr rfl
-    simp [hD, encodeDist]
-  | succ x =>
-    have hD := (h x).mp rfl
-    simp [hD, encodeDist]
+    by_contra h0
+    obtain ⟨d, rfl⟩ := ENat.ne_top_iff_exists (n := D) |>.mp fun hD =>
+      h0 (by simp [hD, encodeDist])
+    simpa using (h d).mpr rfl
+  | succ x => simp [(h x).mp rfl, encodeDist]
 
 
 /-! ## Correctness and cost -/
@@ -310,24 +295,14 @@ theorem run_triple (G : ListInstance) {w : ℕ}
     (hfit : Fits w (8 * (G.n + G.m + 2) * (G.maxWeight + 2))) :
     Triple w (Memory.State.init G.encode) run (memCost G.n G.m)
       fun _ s' => ∀ v : Fin G.n, s'.mem (G.outAddr v) = encodeDist (G.dist G.source v) := by
-  set s₀ := Memory.State.init G.encode with hs₀
+  set s₀ := Memory.State.init G.encode
   have hf₀ : s₀.frontier = G.n + 2 * G.m + 4 := frontier_init G
-  have hz : ZeroAbove s₀ := zeroAbove_init _
-  have hn1 : s₀.mem 1 = G.n := rfl
-  have hsrc : s₀.mem 2 = G.source := rfl
-  have hm : s₀.mem (G.n + 3) = G.m := init_mem_edgeCount G
   -- The bounds of the interfaces and the facts that fit a word.
   set K := G.n * G.maxWeight with hK
-  have hW : 2 ≤ G.maxWeight + 2 := by omega
   have hbig : 2 * (G.n + G.m + 2) ≤ 8 * (G.n + G.m + 2) * (G.maxWeight + 2) := by nlinarith
-  have hn : Fits w G.n := hfit.of_le (by nlinarith)
-  have hKf : Fits w K := hfit.of_le (by nlinarith)
-  have hVf : Fits w (K + 1) := hfit.of_le (by nlinarith)
   -- The rate of each kind of operation.
   let rate : OpKind → ℕ
-    | .insert => BinaryHeap.Memory.opCost G.n
-    | .extractMin => BinaryHeap.Memory.opCost G.n
-    | .decreaseKey => BinaryHeap.Memory.opCost G.n
+    | .insert | .extractMin | .decreaseKey => BinaryHeap.Memory.opCost G.n
     | .inspect => 0
     | .distance => 1
     | .graph => 3
@@ -337,21 +312,21 @@ theorem run_triple (G : ListInstance) {w : ℕ}
   refine Triple.mono (c := rateBound rate G.n G.m + 6) ?_
     (by have := budget_le G.n G.m; omega) fun _ _ h => h
   refine Triple.read_bind (by omega) <| Triple.read_bind (by omega) ?_
-  rw [hn1, hsrc]
+  rw [show s₀.mem 1 = G.n from rfl, show s₀.mem 2 = G.source from rfl]
   refine Triple.read_bind (by omega) ?_
-  rw [hm]
-  refine Triple.allocBlockDirty_bind (hfit.of_le (by nlinarith)) ?_
-  refine BinaryHeap.Memory.allocLayout_bind
-    (hfit.of_le (by simp only [PriorityQueue.BinaryHeap.space]; nlinarith)) ?_
+  rw [show s₀.mem (G.n + 3) = G.m from init_mem_edgeCount G]
+  refine Triple.allocBlockDirty_bind (hfit.of_le (by nlinarith)) <|
+    BinaryHeap.Memory.allocLayout_bind
+      (hfit.of_le (by simp only [PriorityQueue.BinaryHeap.space]; nlinarith)) ?_
   rw [dite_eq_left G.source.isLt]
   dsimp only
   -- The three structures, at the bounds `K` and `K + 1`, on the memory after allocation.
-  set f := s₀.frontier with hf
+  set f := s₀.frontier
   have hH : (BinaryHeap.Memory.allocated G.n (f + G.n)).Valid w K :=
-    BinaryHeap.Memory.valid_allocated hn hKf
-  have hT : Dictionary.Memory.Valid ⟨f, G.n⟩ w G.n (K + 1) := ⟨rfl, hVf⟩
+    BinaryHeap.Memory.valid_allocated (hfit.of_le (by nlinarith)) (hfit.of_le (by nlinarith))
+  have hT : Dictionary.Memory.Valid ⟨f, G.n⟩ w G.n (K + 1) := ⟨rfl, hfit.of_le (by nlinarith)⟩
   have hA : (inputGraph G.n G.m).Valid G.n := ⟨rfl⟩
-  set M := framed hH hT hA G.adj with hM
+  set M := framed hH hT hA G.adj
   obtain ⟨hinv, habs⟩ := inv_input G hH hT hA
     (hfit.of_le (by simp only [PriorityQueue.BinaryHeap.space]; nlinarith))
   obtain ⟨hvalid, hdist⟩ := dijkstra_correct (K := K) (V := K + 1) G le_rfl (by omega)
@@ -363,17 +338,12 @@ theorem run_triple (G : ListInstance) {w : ℕ}
       rcases o with (_ | _ | _ | _ | _) | (_ | _) | (_ | _) <;>
         first | exact absurd rfl ho | simp [rate, kind, opCharge, productCharge]
   rw [← habs] at hcost'
-  have hprog : link (memMethods G.n 0 0 0 (BinaryHeap.Memory.allocated G.n (f + G.n)) ⟨f, G.n⟩
-      (inputGraph G.n G.m)) (dijkstra (K := 0) (V := 0) ⟨G.source, G.source.isLt⟩) =
-      link M.methods (dijkstra (K := K) (V := K + 1) G.source) := by
-    rw [hM, framed_methods, dijkstra_eq K (K + 1) 0 0, memMethods_eq G.n K (K + 1) w 0 0 0]
-    rfl
-  rw [hprog]
-  refine triple_iff.mpr ⟨hvE, ?_, fun v => ?_⟩
-  · exact (Nat.le_add_right _ _).trans (hcost.trans (Nat.add_le_add_right hcost' 0))
+  rw [dijkstra_eq 0 0 K (K + 1), memMethods_eq G.n 0 0 0 K (K + 1) w,
+    ← framed_methods hH hT hA G.adj]
+  refine triple_iff.mpr ⟨hvE,
+    (Nat.le_add_right _ _).trans (hcost.trans (Nat.add_le_add_right hcost' 0)), fun v => ?_⟩
   obtain ⟨dist, hds, hdv⟩ := hdist
-  rw [← hstate] at hds
-  have hcell := congrArg (fun x => x.2.1 v) hds
+  have hcell := congrArg (fun x => x.2.1 v) (hstate.trans hds)
   simp only [M, framed, Memory.Framed.prod_abs] at hcell
   refine eq_encodeDist fun d => ?_
   rw [show G.outAddr v = f + v by simp only [ListInstance.outAddr]; omega, ← hdv v d, ← hcell]
@@ -415,20 +385,13 @@ theorem exists_run_logLinear :
             (G.outAddr v) = encodeDist (G.dist G.source v)) ∧
           (Memory.spec w).totalCost Memory.charge (Memory.State.init G.encode)
             ((Memory.spec w).clientHistory (Memory.State.init G.encode) run) ≤ f (G.n, G.m) := by
-  refine ⟨fun (n, m) => memCost n m, fun ⟨_, _⟩ ⟨_, _⟩ ⟨hn, hm⟩ => memCost_mono hn hm, ?_,
-    fun G _ hfit => run_spec G hfit⟩
-  refine Asymptotics.IsBigO.of_bound 104 ?_
+  refine ⟨fun (n, m) => memCost n m, fun ⟨_, _⟩ ⟨_, _⟩ ⟨hn, hm⟩ => memCost_mono hn hm,
+    Asymptotics.IsBigO.of_bound 104 ?_, fun G _ => run_spec G⟩
   rw [Filter.eventually_comap]
-  filter_upwards [Filter.eventually_ge_atTop 2] with b hb p hp
-  obtain ⟨n, m⟩ := p
-  simp only at hp
-  subst hp
+  filter_upwards [Filter.eventually_ge_atTop 2] with b hb ⟨n, m⟩ rfl
   have hL : 1 ≤ Nat.log 2 n := Nat.le_log_of_pow_le (by norm_num) (by simpa using hb)
-  have h : memCost n m ≤ 104 * ((m + 1) * Nat.log 2 n) := by
-    unfold memCost
-    nlinarith
   simp only [Real.norm_natCast, norm_mul]
-  rw [Real.norm_of_nonneg (by positivity)]
-  exact_mod_cast h
+  rw [Real.norm_of_nonneg (by positivity), memCost]
+  norm_cast; nlinarith
 
 end Cslib.Algorithms.Lean.Dijkstra.Memory

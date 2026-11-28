@@ -42,12 +42,9 @@ theorem derivative_hermite_succ (n : ℕ) :
   induction n with
   | zero => simp [hermite_zero]
   | succ n ih =>
-    have h2 : derivative (derivative (hermite (n + 1))) =
-        (n + 1 : ℤ[X]) * derivative (hermite n) := by
-      rw [ih, derivative_mul]
-      simp
-    rw [hermite_succ (n + 1), derivative_sub, derivative_mul, derivative_X, h2, ih,
+    rw [hermite_succ (n + 1), derivative_sub, derivative_mul, derivative_X, ih, derivative_mul,
       hermite_succ n]
+    simp only [derivative_add, derivative_natCast, derivative_one, add_zero, zero_mul, zero_add]
     push_cast
     ring
 
@@ -62,13 +59,9 @@ of `p ↦ X p' - p''`, the one-dimensional Ornstein–Uhlenbeck operator of
 [O'Donnell, Proposition 11.26][ODonnell2014]. -/
 theorem X_mul_derivative_hermite_sub (n : ℕ) :
     X * derivative (hermite n) - derivative (derivative (hermite n)) = (n : ℤ[X]) * hermite n := by
-  cases n with
-  | zero => simp [hermite_zero]
-  | succ n =>
-    rw [derivative_hermite_succ, hermite_succ n]
-    simp only [derivative_mul, derivative_add, derivative_natCast, derivative_one, zero_mul,
-      zero_add, add_zero]
-    push_cast
-    ring
+  have h := congrArg derivative (hermite_succ n)
+  rw [derivative_hermite_succ, add_comm (n : ℤ[X]) 1, add_mul, derivative_sub, derivative_mul,
+    derivative_X, one_mul, add_sub_assoc] at h
+  exact add_left_cancel h.symm
 
 end Polynomial

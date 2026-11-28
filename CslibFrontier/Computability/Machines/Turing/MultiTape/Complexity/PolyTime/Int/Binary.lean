@@ -201,12 +201,9 @@ theorem intBin_mul : ComputableInPolyTime (fun p : ℤ × ℤ => p.1 * p.2)
   by_cases ha : a < 0 <;> by_cases hb : b < 0 <;>
     simp only [ha, hb, decide_true, decide_false, Bool.xor_true, Bool.xor_false, Bool.not_true,
       Bool.not_false, Bool.false_eq_true, ↓reduceIte]
-  · rw [abs_of_neg ha, abs_of_neg hb]
-    ring
-  · rw [abs_of_neg ha, abs_of_nonneg (not_lt.1 hb)]
-    ring
-  · rw [abs_of_nonneg (not_lt.1 ha), abs_of_neg hb]
-    ring
+  · rw [abs_of_neg ha, abs_of_neg hb]; ring
+  · rw [abs_of_neg ha, abs_of_nonneg (not_lt.1 hb)]; ring
+  · rw [abs_of_nonneg (not_lt.1 ha), abs_of_neg hb]; ring
   · rw [abs_of_nonneg (not_lt.1 ha), abs_of_nonneg (not_lt.1 hb)]
 
 /-- Subtraction of binary integers, as addition of the negation. -/
@@ -230,15 +227,10 @@ theorem intBin_isPos :
     ComputableInPolyTime (fun z : ℤ => decide (0 < z)) encIntBin encBool := by
   refine (bool_and.comp ((bool_not.comp intBin_isNeg).prod (bool_not.comp intBin_isZero)))
     |>.of_enc_eq fun z => congrArg encBool ?_
-  by_cases hz : 0 < z
-  · simp only [Function.comp_apply, hz, decide_true]
-    rw [decide_eq_false (by lia), decide_eq_false (by lia)]
-    rfl
-  · rw [decide_eq_false hz]
-    by_cases hz' : z = 0
-    · simp [hz']
-    · simp only [Function.comp_apply, decide_eq_true (show z < 0 by lia), Bool.not_true,
-        Bool.false_and]
+  rcases lt_trichotomy z 0 with hz | rfl | hz
+  · simp [hz, not_lt.2 hz.le]
+  · simp
+  · simp [hz, hz.ne', not_lt.2 hz.le]
 
 /-- The sign of a binary integer, as a binary integer. -/
 @[fun_prop]
@@ -254,11 +246,8 @@ theorem intBin_sign : ComputableInPolyTime Int.sign encIntBin encIntBin := by
 @[fun_prop]
 theorem intBin_toNat : ComputableInPolyTime Int.toNat encIntBin encNat := by
   refine (intBin_isNeg.ite' (const 0) intBin_natAbs).of_enc_eq fun z => congrArg encNat ?_
-  by_cases hz : z < 0
-  · simp only [hz, decide_true, ↓reduceIte]
-    lia
-  · simp only [hz, decide_false, Bool.false_eq_true, ↓reduceIte]
-    lia
+  by_cases hz : z < 0 <;>
+    simp only [hz, decide_true, decide_false, Bool.false_eq_true, ↓reduceIte] <;> lia
 
 /-- Strict comparison of binary integers, through the sign of their difference. -/
 @[fun_prop]
@@ -398,10 +387,7 @@ theorem intBin_prod_range {α : Type} {enc : α ↪ List Bool}
     (hf : ComputableInPolyTime f (encPair enc encUnary) encIntBin)
     (hr : ComputableInPolyTime r enc encUnary) :
     ComputableInPolyTime (fun a => ∏ i ∈ Finset.range (r a), f (a, i)) enc encIntBin := by
-  have hl : ComputableInPolyTime
-      (fun a => (List.range (r a)).map fun i => f (a, i)) enc (encList encIntBin) :=
-    mapWithInput (range.comp hr) hf
-  convert intBin_prod.comp hl using 1
+  convert intBin_prod.comp (mapWithInput (f := fun a i => f (a, i)) (range.comp hr) hf) using 1
   funext a
   have he : (List.range (r a)).toFinset = Finset.range (r a) := by ext; simp
   simpa only [he, Function.comp_apply] using

@@ -66,11 +66,8 @@ theorem encryptedWires_evaluateLayers (hE : E.Correct)
       (Layered.eval bits layers) outputs := by
   have hkey (i : ℕ) (hi : i ≤ layers.length) :
       keys.getD i ([], []) ∈ (ProbComp.eval (E.keyGen n)).support := by
-    have hi' : i < keys.length := by omega
-    exact hkeys _ (by rw [List.getD_eq_getElem _ _ hi']; exact List.getElem_mem _)
-  have hlinkCount : layers.length ≤ links.length := by
-    have := hlinks.length_eq
-    omega
+    rw [List.getD_eq_getElem _ _ (by omega)]
+    exact hkeys _ (List.getElem_mem _)
   have hpk (i : ℕ) :
       (keys.tail.map Prod.fst).getD i [] = (keys.getD (i + 1) ([], [])).1 := by
     change (keys.tail.map Prod.fst).getD i (Prod.fst (([], []) : List Bool × List Bool)) = _
@@ -78,14 +75,13 @@ theorem encryptedWires_evaluateLayers (hE : E.Correct)
     cases keys <;> rfl
   rw [evaluateLayers, ProbComp.eval_map, PMF.mem_support_map_iff] at houtputs
   obtain ⟨state, hstate, rfl⟩ := houtputs
-  have hrun := ProbComp.iterate_invariant layers.length
+  simpa only [List.take_length] using (ProbComp.iterate_invariant layers.length
     (evaluateLayerStep D n (keys.tail.map Prod.fst) links layers) (0, inputs)
     (fun i state => state.1 = i ∧
       E.EncryptedWires ciphertextWidth n (keys.getD i ([], [])).2
         (Layered.eval bits (layers.take i)) state.2)
     ⟨rfl, hinputs⟩
-    (by
-      intro i hi state hinvariant next hnext
+    (fun i hi state hinvariant next hnext => by
       rw [evaluateLayerStep, ProbComp.eval_map, PMF.mem_support_map_iff] at hnext
       obtain ⟨newWires, hnewWires, rfl⟩ := hnext
       rw [hinvariant.1, hpk] at hnewWires
@@ -94,10 +90,10 @@ theorem encryptedWires_evaluateLayers (hE : E.Correct)
       exact encryptedWires_evaluateLayer D hE hwidth hD n (keys.getD (i + 1) ([], []))
         (hkey _ (by omega)) (keys.getD i ([], [])).2
         (hwidth.secret_length n _ (hkey i hi.le)) (links.getD i [])
-        (hlinks.getD (by omega)) (Layered.eval bits (layers.take i)) state.2 hinvariant.2
+        (hlinks.getD (by have := hlinks.length_eq; omega))
+        (Layered.eval bits (layers.take i)) state.2 hinvariant.2
         (layers.getD i []) (hvalid.valid_getD hi) newWires hnewWires)
-    state hstate
-  simpa only [List.take_length] using hrun.2
+    state hstate).2
 
 /-- The actual sampler supplies all key and link premises. Each fresh input is under the
 initial key, and each final output decrypts under the key after the last scheduled layer. -/
@@ -115,9 +111,9 @@ theorem encryptedWires_evaluateLayers_of_generatedChain (hE : E.Correct)
       (Layered.eval bits layers) outputs := by
   obtain ⟨hcount, hkeys, hlinks⟩ :=
     (E.mem_support_generateKeyChain_iff n layers.length keys links).1 hchain
-  have hzero : 0 < keys.length := by omega
-  have hfirst := hkeys (keys.getD 0 ([], []))
-    (by rw [List.getD_eq_getElem _ _ hzero]; exact List.getElem_mem _)
+  have hfirst : keys.getD 0 ([], []) ∈ (ProbComp.eval (E.keyGen n)).support := by
+    rw [List.getD_eq_getElem _ _ (by omega)]
+    exact hkeys _ (List.getElem_mem _)
   exact encryptedWires_evaluateLayers D hE hwidth hD n keys links layers hcount.ge hkeys hlinks
     bits inputs (hinputs.encryptedWires hE hwidth hfirst) hvalid outputs houtputs
 
@@ -142,17 +138,15 @@ theorem encryptedWires_evaluateLayers_drop (hE : E.Correct)
   have hpk :
       (keys.map Prod.fst).tail.drop start = (keys.drop start).tail.map Prod.fst := by
     cases keys <;> simp [List.map_drop]
-  have hget0 : (keys.drop start).getD 0 ([], []) = keys.getD start ([], []) := by
-    simp [List.getD_eq_getElem?_getD, List.getElem?_drop]
-  have hgetEnd :
-      (keys.drop start).getD layers.length ([], []) =
-        keys.getD (start + layers.length) ([], []) := by
+  have hgetEnd : (keys.drop start).getD layers.length ([], []) =
+      keys.getD (start + layers.length) ([], []) := by
     simp [List.getD_eq_getElem?_getD, List.getElem?_drop]
   rw [hpk] at houtputs
   rw [← hgetEnd]
   exact encryptedWires_evaluateLayers D hE hwidth hD n (keys.drop start)
     (links.drop start) layers (by rw [List.length_drop]; omega)
     (fun k hk => hkeys k (List.mem_of_mem_drop hk)) (hlinks.drop start) bits inputs
-    (by rw [hget0]; exact hinputs) hvalid outputs houtputs
+    (by simpa [List.getD_eq_getElem?_getD, List.getElem?_drop] using hinputs)
+    hvalid outputs houtputs
 
 end Cslib.Crypto.Homomorphic.Scheme

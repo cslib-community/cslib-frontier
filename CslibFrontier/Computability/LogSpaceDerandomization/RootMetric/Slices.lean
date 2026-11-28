@@ -51,13 +51,8 @@ theorem vertexNormPow_one_eq_sum_dens :
     vertexNormPow p N u X (fun _ _ => 1) =
       (N * u)⁻¹ * ∑ x, (({σ | X σ x} : Finset Ω).dens : ℝ) := by
   classical
-  unfold vertexNormPow
-  simp only [abs_one, one_pow, sum_filter]
-  rw [expect_sum_comm]
-  congr 1
-  apply sum_congr rfl
-  intro x _
-  exact Fintype.expect_boole (fun σ => X σ x)
+  simp only [vertexNormPow, abs_one, one_pow, sum_filter, expect_sum_comm]
+  exact congrArg _ (sum_congr rfl fun x _ => Fintype.expect_boole fun σ => X σ x)
 
 /-- Restricting the retained terminal set cannot increase an integrated row moment.
 This lets a child's bound on its own endpoint domain pay for a parent's narrower usage domain. -/
@@ -65,29 +60,24 @@ theorem rowNormPow_mono_terminal (hNu : 0 ≤ N * u) {Y' : Ω → V → Prop}
     [∀ σ y, Decidable (Y' σ y)] (hsub : ∀ σ y, Y σ y → Y' σ y)
     (H : Ω → V → V → ℝ) : rowNormPow p N u X Y H ≤ rowNormPow p N u X Y' H := by
   unfold rowNormPow
-  refine mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => ?_) (inv_nonneg.mpr hNu)
-  refine sum_le_sum fun x _ => sum_le_sum_of_subset_of_nonneg ?_ (fun y _ _ => ?_)
-  · intro y hy
-    exact mem_filter.mpr ⟨mem_univ _, hsub σ y (mem_filter.mp hy).2⟩
-  · exact pow_nonneg (abs_nonneg _) _
+  exact mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => sum_le_sum fun _ _ =>
+    sum_le_sum_of_subset_of_nonneg
+      (fun y hy => mem_filter.mpr ⟨mem_univ _, hsub σ y (mem_filter.mp hy).2⟩)
+      fun _ _ _ => pow_nonneg (abs_nonneg _) _) (inv_nonneg.mpr hNu)
 
 /-- Exchange the finite expectation with the source and endpoint sums, preserving their
 actual joint mask. The two masks and the table may depend on the same draw. -/
 theorem expect_filtered_sum_eq (H : Ω → V → V → ℝ) :
     (𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V), H σ x y) =
       ∑ x, ∑ y, 𝔼 σ, if X σ x ∧ Y σ y then H σ x y else 0 := by
-  have hpoint : ∀ σ,
+  have hpoint (σ : Ω) :
       (∑ x ∈ ({x | X σ x} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V), H σ x y) =
         ∑ x, ∑ y, if X σ x ∧ Y σ y then H σ x y else 0 := by
-    intro σ
     rw [sum_filter]
     refine sum_congr rfl fun x _ => ?_
-    by_cases hx : X σ x
-    · simp [hx, sum_filter]
-    · simp [hx]
-  simp_rw [hpoint]
-  rw [expect_sum_comm]
-  exact sum_congr rfl fun x _ => expect_sum_comm _ _ _
+    by_cases hx : X σ x <;>
+      simp only [hx, true_and, false_and, ↓reduceIte, sum_filter, sum_const_zero]
+  simp_rw [hpoint, expect_sum_comm]
 
 /-- Actual slice densities cancel the conditional averaging denominators, including empty
 slices. No independence or uniform retention probability is needed. -/
@@ -97,11 +87,9 @@ theorem rowNormPow_eq_sum_dens_mul_expect (F : Ω → V → V → ℝ) :
         𝔼 σ ∈ ({σ | X σ x ∧ Y σ y} : Finset Ω), |F σ x y| ^ p := by
   classical
   rw [rowNormPow, expect_filtered_sum_eq]
-  congr 1
-  refine sum_congr rfl fun x _ => sum_congr rfl fun y _ => ?_
-  simpa only [mem_filter, mem_univ, true_and, NNRat.smul_def] using
-    (Fintype.expect_ite_mem ({σ | X σ x ∧ Y σ y} : Finset Ω)
-      (fun σ => |F σ x y| ^ p))
+  exact congrArg _ <| sum_congr rfl fun x _ => sum_congr rfl fun y _ => by
+    simpa only [mem_filter, mem_univ, true_and, NNRat.smul_def] using
+      Fintype.expect_ite_mem ({σ | X σ x ∧ Y σ y} : Finset Ω) fun σ => |F σ x y| ^ p
 
 /-- Conditional estimates with the same factor on every retained pair give the same factor
 in the integrated row norm. The input slice moments may differ arbitrarily. -/
@@ -115,9 +103,8 @@ theorem rowNormPow_le_of_conditional_expect_le (hNu : 0 ≤ N * u)
     _ ≤ (N * u)⁻¹ * ∑ x, ∑ y,
         (({σ | X σ x ∧ Y σ y} : Finset Ω).dens : ℝ) *
           (c * 𝔼 σ ∈ ({σ | X σ x ∧ Y σ y} : Finset Ω), |F σ x y| ^ p) := by
-      refine mul_le_mul_of_nonneg_left (sum_le_sum fun x _ => sum_le_sum fun y _ => ?_)
-        (inv_nonneg.mpr hNu)
-      exact mul_le_mul_of_nonneg_left (h x y) (by positivity)
+      gcongr with x _ y _
+      exact h x y
     _ = _ := by simp only [mul_left_comm _ c, ← mul_sum]
 
 /-- Slice-specific budgets are integrated with their actual densities, rather than a maximum

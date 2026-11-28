@@ -81,30 +81,24 @@ private theorem natCast_mul_logb_nonneg (n : ℕ) : 0 ≤ (n : ℝ) * Real.logb 
 private theorem mul_logb_add_mul_logb_add_two_mul_min_le {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) :
     a * Real.logb 2 a + b * Real.logb 2 b + 2 * min a b ≤ (a + b) * Real.logb 2 (a + b) := by
   wlog hab : a ≤ b generalizing a b
-  · have := this hb ha (le_of_not_ge hab)
-    rwa [min_comm, add_comm b a, add_comm (b * _)] at this
+  · simpa only [min_comm, add_comm b a, add_comm (b * _)] using this hb ha (le_of_not_ge hab)
   rw [min_eq_left hab]
   rcases ha.eq_or_lt with rfl | ha
   · simp
   have hb' : 0 < b := ha.trans_le hab
-  have h₁ : 1 ≤ Real.logb 2 ((a + b) / a) :=
-    (Real.le_logb_iff_rpow_le one_lt_two (by positivity)).2 <| by
-      rw [Real.rpow_one, le_div_iff₀ ha]; linarith
-  have h₂ : a / b ≤ Real.logb 2 ((a + b) / b) :=
-    (Real.le_logb_iff_rpow_le one_lt_two (by positivity)).2 <| by
-      have := rpow_one_add_le_one_add_mul_self (s := 1) (by norm_num)
-        (div_nonneg ha.le hb'.le) ((div_le_one hb').2 hab)
-      rw [add_div, div_self hb'.ne']
-      norm_num at this ⊢
-      linarith
-  have hsplit (c : ℝ) (hc : 0 < c) :
-      Real.logb 2 (a + b) = Real.logb 2 c + Real.logb 2 ((a + b) / c) := by
-    rw [Real.logb_div (by positivity) hc.ne']
-    ring
-  have hA := hsplit a ha
-  have hB := hsplit b hb'
-  have : b * (a / b) = a := by field_simp
-  nlinarith [mul_le_mul_of_nonneg_left h₁ ha.le, mul_le_mul_of_nonneg_left h₂ hb'.le]
+  have h₁ : 1 ≤ Real.logb 2 (a + b) - Real.logb 2 a := by
+    rw [← Real.logb_div (by positivity) ha.ne',
+      Real.le_logb_iff_rpow_le one_lt_two (by positivity), Real.rpow_one, le_div_iff₀ ha]
+    linarith
+  have h₂ : a / b ≤ Real.logb 2 (a + b) - Real.logb 2 b := by
+    rw [← Real.logb_div (by positivity) hb'.ne',
+      Real.le_logb_iff_rpow_le one_lt_two (by positivity), add_div, div_self hb'.ne']
+    have := rpow_one_add_le_one_add_mul_self (s := 1) (by norm_num)
+      (div_nonneg ha.le hb'.le) ((div_le_one hb').2 hab)
+    norm_num at this ⊢
+    linarith
+  linarith [mul_le_mul_of_nonneg_left h₁ ha.le, mul_le_mul_of_nonneg_left h₂ hb'.le,
+    mul_div_cancel₀ a hb'.ne']
 
 /-! ### Edges spanned by a set of the cube -/
 
@@ -119,22 +113,13 @@ private noncomputable def size {ι : Type*} [Fintype ι] [DecidableEq ι]
     (g : (ι → Bool) → Bool) : ℝ :=
   ∑ x, if g x = true then 1 else 0
 
-private theorem size_eq_card {ι : Type*} [Fintype ι] [DecidableEq ι] (g : (ι → Bool) → Bool) :
-    size g = #{x | g x = true} := by
-  simp only [size, sum_boole]
-
 /-- The induction on the dimension, on `Fin n`. -/
 private theorem edges_le_fin : ∀ (n : ℕ) (g : (Fin n → Bool) → Bool),
     edges g ≤ size g * Real.logb 2 (size g)
-  | 0, g => by
-    rw [size_eq_card]
-    simpa [edges] using natCast_mul_logb_nonneg _
+  | 0, g => by simpa [edges, size, sum_boole] using natCast_mul_logb_nonneg _
   | n + 1, g => by
     set g₀ : (Fin n → Bool) → Bool := fun y => g (Fin.cons false y)
     set g₁ : (Fin n → Bool) → Bool := fun y => g (Fin.cons true y)
-    have hsize : size g = size g₀ + size g₁ := by
-      unfold size
-      exact Fin.sum_univ_cons_bool _
     have hedges : edges g = edges g₀ + edges g₁ +
         2 * ∑ y, if g₀ y = true ∧ g₁ y = true then (1 : ℝ) else 0 := by
       simp only [edges, Fin.sum_univ_cons_bool, Fin.sum_univ_succ, Fin.cons_zero,
@@ -143,20 +128,14 @@ private theorem edges_le_fin : ∀ (n : ℕ) (g : (Fin n → Bool) → Bool),
       rw [sum_congr rfl fun y _ => (if_congr and_comm rfl rfl :
         (if g (Fin.cons true y) = true ∧ g (Fin.cons false y) = true then (1 : ℝ) else 0) = _)]
       ring
-    have hc₀ : (∑ y, if g₀ y = true ∧ g₁ y = true then (1 : ℝ) else 0) ≤ size g₀ := by
-      unfold size
-      exact sum_le_sum fun y _ => by split_ifs <;> simp_all
-    have hc₁ : (∑ y, if g₀ y = true ∧ g₁ y = true then (1 : ℝ) else 0) ≤ size g₁ := by
-      unfold size
-      exact sum_le_sum fun y _ => by split_ifs <;> simp_all
-    have h₀ := edges_le_fin n g₀
-    have h₁ := edges_le_fin n g₁
-    have hs₀ : 0 ≤ size g₀ := by rw [size_eq_card]; positivity
-    have hs₁ : 0 ≤ size g₁ := by rw [size_eq_card]; positivity
-    have hsplit := mul_logb_add_mul_logb_add_two_mul_min_le hs₀ hs₁
-    rw [hedges, hsize]
-    have := le_min hc₀ hc₁
-    linarith
+    have hc : (∑ y, if g₀ y = true ∧ g₁ y = true then (1 : ℝ) else 0) ≤
+        min (size g₀) (size g₁) :=
+      le_min (sum_le_sum fun y _ => by split_ifs <;> simp_all)
+        (sum_le_sum fun y _ => by split_ifs <;> simp_all)
+    rw [hedges, show size g = size g₀ + size g₁ from Fin.sum_univ_cons_bool _]
+    linarith [edges_le_fin n g₀, edges_le_fin n g₁,
+      mul_logb_add_mul_logb_add_two_mul_min_le (a := size g₀) (b := size g₁)
+        (sum_nonneg fun _ _ => by positivity) (sum_nonneg fun _ _ => by positivity)]
 
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
@@ -176,10 +155,9 @@ private theorem edges_le (g : (ι → Bool) → Bool) : edges g ≤ size g * Rea
 cube the number of neighbours of `x` in `A` gives at most `|A| log₂ |A|`. -/
 theorem sum_card_filter_update_mem_le (A : Finset (ι → Bool)) :
     ∑ x ∈ A, (#{i | update x i (!x i) ∈ A} : ℝ) ≤ #A * Real.logb 2 #A := by
-  have h := edges_le (fun x => decide (x ∈ A))
-  simp only [edges, size_eq_card, decide_eq_true_eq, filter_mem_eq_inter, univ_inter, ite_and,
-    sum_ite_irrel, sum_const_zero, Fintype.sum_ite_mem, ← natCast_card_filter] at h
-  exact h
+  simpa only [edges, size, sum_boole, decide_eq_true_eq, filter_mem_eq_inter, univ_inter, ite_and,
+    sum_ite_irrel, sum_const_zero, Fintype.sum_ite_mem, ← natCast_card_filter] using
+    edges_le fun x => decide (x ∈ A)
 
 /-! ### The edge-isoperimetric inequality -/
 
@@ -192,10 +170,9 @@ theorem two_mul_hammingDist_div_mul_logb_inv_le_totalInfluence (f : (ι → Bool
       totalInfluence (fun x => signVal (f x)) := by
   set g : (ι → Bool) → Bool := fun x => decide (f x ≠ b)
   set n := Fintype.card ι
-  have hcard : (Fintype.card (ι → Bool) : ℝ) = 2 ^ n := by simp [n]
   have h2 : (0 : ℝ) < 2 ^ n := by positivity
   have hdist : (hammingDist f (fun _ => b) : ℝ) = size g := by
-    rw [size_eq_card]
+    simp only [size, sum_boole]
     simp [g, hammingDist]
   -- The total influence counts the edges leaving `{g = true}`, from both sides.
   have hflip (x : ι → Bool) (i : ι) : (if f (update x i !x i) = f x then (0 : ℝ) else 1) =
@@ -204,8 +181,8 @@ theorem two_mul_hammingDist_div_mul_logb_inv_le_totalInfluence (f : (ι → Bool
     simp only [g, decide_eq_true_eq]
     cases f x <;> cases f (update x i !x i) <;> cases b <;> norm_num
   have hI : totalInfluence (fun x => signVal (f x)) = 2 * (n * size g - edges g) / 2 ^ n := by
-    simp only [totalInfluence, influence_signVal, Fintype.expect_eq_sum_div_card, hcard,
-      ← sum_div]
+    simp only [totalInfluence, influence_signVal, Fintype.expect_eq_sum_div_card,
+      show (Fintype.card (ι → Bool) : ℝ) = 2 ^ n by simp [n], ← sum_div]
     congr 1
     rw [show edges g = ∑ i, ∑ x,
         (if g x = true ∧ g (update x i !x i) = true then (1 : ℝ) else 0) from sum_comm]
@@ -213,13 +190,12 @@ theorem two_mul_hammingDist_div_mul_logb_inv_le_totalInfluence (f : (ι → Bool
       sum_update_not (F := fun y => if g y = true then (1 : ℝ) else 0), sum_const, card_univ,
       nsmul_eq_mul, size]
     ring
-  rcases (show (0 : ℝ) ≤ size g by rw [size_eq_card]; positivity).eq_or_lt with hs | hs
+  rcases (show 0 ≤ size g from sum_nonneg fun _ _ => by positivity).eq_or_lt with hs | hs
   · rw [hdist, ← hs, zero_div, mul_zero, zero_mul]
     exact totalInfluence_nonneg _
   have hE := edges_le g
   rw [hI, hdist, inv_div, Real.logb_div h2.ne' hs.ne', Real.logb_pow,
-    Real.logb_self_eq_one one_lt_two]
-  rw [mul_one, mul_div_assoc', div_mul_eq_mul_div]
+    Real.logb_self_eq_one one_lt_two, mul_one, mul_div_assoc', div_mul_eq_mul_div]
   exact div_le_div_of_nonneg_right (by linarith) h2.le
 
 /-- **The edge-isoperimetric inequality**: a Boolean function read as signs with
@@ -235,8 +211,6 @@ theorem two_mul_min_mul_logb_inv_le_totalInfluence (f : (ι → Bool) → Bool) 
       totalInfluence (fun x => signVal (f x)) := by
   rcases min_choice ((hammingDist f (fun _ => false) : ℝ) / 2 ^ Fintype.card ι)
       (hammingDist f (fun _ => true) / 2 ^ Fintype.card ι) with h | h <;>
-    rw [h]
-  · exact two_mul_hammingDist_div_mul_logb_inv_le_totalInfluence f false
-  · exact two_mul_hammingDist_div_mul_logb_inv_le_totalInfluence f true
+    simpa only [h] using two_mul_hammingDist_div_mul_logb_inv_le_totalInfluence f _
 
 end Cslib.BitString

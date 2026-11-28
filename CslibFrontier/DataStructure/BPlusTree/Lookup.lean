@@ -39,6 +39,7 @@ introduces, so the children must not be empty. Occupancy at `2 ≤ t` provides t
 * `slotM`, `slot`: the within-node separator search.
 * `lookupM`, `containsM`: lookup and the membership test, polymorphic.
 * `lookup`, `contains`: the pure operations.
+* `SearchInvariant`: the premises shared by the ordered-list model proofs.
 
 ## Main results
 
@@ -237,41 +238,64 @@ theorem Separated.le_of_mem_tail {first c : BPlusTree α β} {s : α} {rest : Li
   · obtain ⟨p, hp⟩ := List.exists_mem_of_length_pos (l := c.toList) hc
     exact (h.le_of_mem (e := (s, c)) List.mem_cons_self hp).trans (hcs.2.2 p hp q hq).le
 
-/-- Lookup against the model, under what the search uses: the separator convention, sorted
-entries, and occupied children at `2 ≤ t`, which makes them non-empty. -/
-private theorem lookup_eq_of (ht : 2 ≤ t) (k : α) :
-    ∀ tr : BPlusTree α β, Separated tr → tr.toList.IsSortedAssoc →
-      (∀ c ∈ tr.children, Occupied t c) → lookup k tr = List.lookup k tr.toList
-  | .leaf entries, _, hs, _ => by
+/-- Conditions needed to route a search in a B+-tree against its ordered list of entries.
+They also hold for a suffix of an interior node, where the remaining root may have no separator. -/
+structure SearchInvariant (t : ℕ) (tr : BPlusTree α β) : Prop where
+  /-- The degree makes occupied children nonempty. -/
+  two_le : 2 ≤ t
+  /-- Separators divide the keys at each node. -/
+  separated : Separated tr
+  /-- The flattened entries are sorted by key. -/
+  sorted : tr.toList.IsSortedAssoc
+  /-- All immediate children are occupied. -/
+  occupied : ∀ c ∈ tr.children, Occupied t c
+
+/-- A well-formed tree satisfies the search invariant. -/
+theorem IsWF.searchInvariant (h : IsWF t tr) : SearchInvariant t tr :=
+  ⟨h.two_le, h.separated, h.sorted, h.occupied_of_mem_children⟩
+
+/-- The search invariant passes to any child. -/
+theorem SearchInvariant.child (h : SearchInvariant t tr) {c : BPlusTree α β}
+    (hc : c ∈ tr.children) : SearchInvariant t c :=
+  ⟨h.two_le, h.separated.of_mem_children hc, h.sorted.sublist (toList_sublist_of_mem_children hc),
+    fun _ hx => (h.occupied c hc).of_mem_children hx⟩
+
+/-- Passing the first separator preserves the search invariant on the remaining node. -/
+theorem SearchInvariant.tail {first c : BPlusTree α β} {s : α} {rest : List (Branch α β)}
+    (h : SearchInvariant t (.node first ((s, c) :: rest))) :
+    SearchInvariant t (.node c rest) := by
+  have hs := h.sorted
+  rw [toList_node_cons, List.isSortedAssoc_append_iff] at hs
+  refine ⟨h.two_le, h.separated.tail, hs.2.1, fun d hd => h.occupied d ?_⟩
+  simp only [children_node, List.map_cons, List.mem_cons] at hd ⊢
+  exact Or.inr hd
+
+/-- Lookup against the model under the search invariant. -/
+private theorem lookup_eq_of (k : α) :
+    ∀ tr : BPlusTree α β, SearchInvariant t tr → lookup k tr = List.lookup k tr.toList
+  | .leaf entries, h => by
     rw [lookup_leaf, toList_leaf]
-    exact SortedAssoc.idRun_lookupM (by simpa using hs) k
-  | .node first [], hp, hs, ho => by
-    have hf : Occupied t first := ho first (by simp)
-    rw [lookup_node_nil,
-      lookup_eq_of ht k first hp.first (by simpa using hs) fun c hc => hf.of_mem_children hc]
+    exact SortedAssoc.idRun_lookupM (by simpa using h.sorted) k
+  | .node first [], h => by
+    rw [lookup_node_nil, lookup_eq_of k first (h.child List.mem_cons_self)]
     simp
-  | .node first ((s, c) :: rest), hp, hs, ho => by
-    have hf : Occupied t first := ho first (by simp)
-    have hc : Occupied t c := ho c (by simp)
-    have hs' := hs
-    rw [toList_node_cons, List.isSortedAssoc_append_iff] at hs'
+  | .node first ((s, c) :: rest), h => by
     rw [lookup_node_cons, toList_node_cons]
     by_cases hk : s ≤ k
     · simp only [hk, ↓reduceIte]
-      rw [List.lookup_append_of_forall_lt fun p hp' =>
-        lt_of_lt_of_le (hp.lt_of_mem_first (e := (s, c)) List.mem_cons_self hp') hk]
-      exact lookup_eq_of ht k (.node c rest) hp.tail hs'.2.1 fun d hd => ho d (by
-        simp only [children_node, List.map_cons, List.mem_cons] at hd ⊢
-        exact Or.inr hd)
+      rw [List.lookup_append_of_forall_lt fun p hp =>
+        (h.separated.lt_of_mem_first (e := (s, c)) List.mem_cons_self hp).trans_le hk]
+      exact lookup_eq_of k (.node c rest) h.tail
     · simp only [hk, ↓reduceIte]
+      have hc := h.occupied c (by simp)
       rw [List.lookup_append_of_forall_gt fun q hq =>
-        lt_of_lt_of_le (lt_of_not_ge hk) (hp.le_of_mem_tail hs (hc.size_pos ht) hq)]
-      exact lookup_eq_of ht k first hp.first hs'.1 fun d hd => hf.of_mem_children hd
+        (lt_of_not_ge hk).trans_le (h.separated.le_of_mem_tail h.sorted (hc.size_pos h.two_le) hq)]
+      exact lookup_eq_of k first (h.child List.mem_cons_self)
 termination_by tr => sizeOf tr
 
 /-- Model equation of lookup on well-formed trees. -/
 theorem lookup_eq (h : IsWF t tr) (k : α) : lookup k tr = List.lookup k tr.toList :=
-  lookup_eq_of h.two_le k tr h.separated h.sorted h.occupied_of_mem_children
+  lookup_eq_of k tr h.searchInvariant
 
 /-- On a well-formed tree, lookup returns a value exactly when the entry belongs to the tree. -/
 theorem lookup_eq_some_iff (h : IsWF t tr) {v : β} : lookup k tr = some v ↔ (k, v) ∈ tr := by

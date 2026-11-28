@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.Data.Matrix.Permanent.Split
+public import CslibFrontier.Foundations.Data.Matrix.Permanent.Gadget
 
 /-!
 # Goldreich's clause gadget for the permanent
@@ -22,14 +22,15 @@ cycle covers of the gadget that leave it at the exits of `Out` and come back at 
 `In` weigh `12` in total if the same nonempty set of literal tracks passes through, and cancel
 otherwise.
 
-`permOn_gadget_add` turns this into an elimination rule for permanents: if a matrix is the
-gadget `A`, placed on eight vertices, plus a matrix `D` that meets the gadget only in exit rows
-and entry columns, then its permanent sum is `12` times the sum, over the nonempty sets `Q` of
-literals, of the permanent sum of `D` in which the gadget is replaced by the exits and entries
-of `Q`. This is the matrix form of Goldreich's three postulated gadget properties.
+`permOn_gadget_add` specializes the general elimination rule `Matrix.permOn_add_of_gadget` to
+these minors: if a matrix is the gadget `A`, placed on eight vertices, plus a matrix `D` that
+meets the gadget only in exit rows and entry columns, then its permanent sum is `12` times the
+sum, over the nonempty sets `Q` of literals, of the permanent sum of `D` in which the gadget is
+replaced by the exits and entries of `Q`. This is the matrix form of Goldreich's three postulated
+gadget properties.
 
-This is Goldreich's gadget with `c = 12`, not the XOR-gadget construction of the Arora–Barak
-draft [Arora and Barak, Theorem 9.8][AroraBarak07].
+This is Goldreich's gadget with `c = 12`, not the XOR gadget of the Arora–Barak draft
+[Arora and Barak, Theorem 9.8][AroraBarak07], which is `Cslib.Complexity.XorGadget.gadget`.
 
 ## Main definitions
 
@@ -178,59 +179,25 @@ theorem gadget_minor (Out In : Finset (Fin 3)) :
   have hOI : Out = In ↔ (decide (0 ∈ Out) = decide (0 ∈ In) ∧
       decide (1 ∈ Out) = decide (1 ∈ In) ∧ decide (2 ∈ Out) = decide (2 ∈ In)) := by
     simp only [decide_eq_decide]
-    constructor
-    · rintro rfl; exact ⟨Iff.rfl, Iff.rfl, Iff.rfl⟩
-    · rintro ⟨h0, h1, h2⟩
-      ext p
-      fin_cases p
-      exacts [h0, h1, h2]
+    refine ⟨fun h => h ▸ ⟨Iff.rfl, Iff.rfl, Iff.rfl⟩, fun ⟨h0, h1, h2⟩ => ?_⟩
+    ext p
+    fin_cases p <;> assumption
   have hne : Out.Nonempty ↔ (decide (0 ∈ Out) = true ∨ decide (1 ∈ Out) = true ∨
       decide (2 ∈ Out) = true) := by
     simp only [decide_eq_true_eq]
-    constructor
-    · rintro ⟨p, hp⟩
-      fin_cases p <;> simp_all
-    · rintro (h | h | h) <;> exact ⟨_, h⟩
+    refine ⟨fun ⟨p, hp⟩ => by fin_cases p <;> simp_all, ?_⟩
+    rintro (h | h | h) <;> exact ⟨_, h⟩
   simp only [hOI, hne]
 
-variable {V : Type*} [DecidableEq V]
-
-/-- Laplace expansion along mapped lists reads the matrix through the map. -/
-theorem permOnList_map {W : Type*} [DecidableEq W] (M : V → V → ℤ) (g : W ↪ V)
-    (l c : List W) :
-    permOnList M (l.map g) (c.map g) = permOnList (fun a b => M (g a) (g b)) l c := by
-  induction l generalizing c with
-  | nil => cases c <;> rfl
-  | cons i is ih =>
-    simp only [List.map_cons, permOnList, List.map_map]
-    congr 1
-    refine List.map_congr_left fun j _ => ?_
-    simp only [Function.comp_apply, ← ih, List.map_erase g.injective]
-
-/-- The gadget vertices other than a set of mapped vertices, as a list. -/
-private theorem sdiff_map_eq_toFinset (g : Fin 8 ↪ V) (X : Finset (Fin 8)) (l : List (Fin 8))
-    (hl : ∀ a, a ∈ l ↔ a ∉ X) : univ.map g \ X.map g = (l.map g).toFinset := by
-  ext u
-  simp only [mem_sdiff, mem_map, mem_univ, true_and, List.mem_toFinset, List.mem_map, hl]
-  constructor
-  · rintro ⟨⟨a, rfl⟩, h⟩
-    exact ⟨a, fun ha => h ⟨a, ha, rfl⟩, rfl⟩
-  · rintro ⟨a, ha, rfl⟩
-    exact ⟨⟨a, rfl⟩, fun ⟨b, hb, hba⟩ => ha (g.injective hba ▸ hb)⟩
-
-variable [Fintype V]
+variable {V : Type*} [DecidableEq V] [Fintype V]
 
 /-- The minors of a placed gadget. -/
 private theorem permOn_placed_gadget (g : Fin 8 ↪ V) (A : Matrix V V ℤ)
     (hA : ∀ a b, A (g a) (g b) = gadget a b) (Out In : Finset (Fin 3)) :
     permOn A (univ.map g \ (Out.map exitE).map g) (univ.map g \ (In.map entryE).map g) =
       if Out = In ∧ Out.Nonempty then 12 else 0 := by
-  rw [sdiff_map_eq_toFinset g _ _ (mem_keptRows Out),
-    sdiff_map_eq_toFinset g _ _ (mem_keptCols In),
-    permOn_eq_permOnList _ _ _ ((keptRows_nodup Out).map g.injective)
-      ((keptCols_nodup In).map g.injective)]
-  change permOnList (fun u v => A u v) _ _ = _
-  rw [permOnList_map]
+  rw [permOn_map_sdiff_eq_permOnList g A (keptRows_nodup Out) (keptCols_nodup In)
+    (mem_keptRows Out) (mem_keptCols In)]
   simp only [hA]
   exact gadget_minor Out In
 
@@ -238,7 +205,8 @@ private theorem permOn_placed_gadget (g : Fin 8 ↪ V) (A : Matrix V V ℤ)
 `g`, and `D` a matrix whose rows at non-exit gadget vertices and columns at non-entry gadget
 vertices vanish. If the row and column sets contain the gadget, the permanent sum of `A + D` is
 `12` times the sum over nonempty literal sets `Q` of the permanent sum of `D` in which the gadget
-is replaced by the exits of `Q` (rows) and the entries of `Q` (columns). -/
+is replaced by the exits of `Q` (rows) and the entries of `Q` (columns). This is
+`Matrix.permOn_add_of_gadget` with the minors of `gadget_minor`. -/
 theorem permOn_gadget_add (g : Fin 8 ↪ V) (A D : Matrix V V ℤ)
     (hA : ∀ a b, A (g a) (g b) = gadget a b)
     (hArow : ∀ u, (∀ a, u ≠ g a) → ∀ v, A u v = 0)
@@ -249,104 +217,10 @@ theorem permOn_gadget_add (g : Fin 8 ↪ V) (A D : Matrix V V ℤ)
     permOn (A + D) S T = 12 * ∑ Q ∈ univ.filter fun Q : Finset (Fin 3) => Q.Nonempty,
       permOn D (S \ univ.map g ∪ (Q.map exitE).map g)
         (T \ univ.map g ∪ (Q.map entryE).map g) := by
-  set G := univ.map g with hG
-  let φ : Finset (Fin 3) × Finset (Fin 3) → Finset V × Finset V :=
-    fun p => (G \ (p.1.map exitE).map g, G \ (p.2.map entryE).map g)
-  have hXG : ∀ (X : Finset (Fin 8)), X.map g ⊆ G := fun X u hu => by
-    obtain ⟨a, -, rfl⟩ := mem_map.1 hu
-    exact mem_map_of_mem g (mem_univ a)
-  have hsd : ∀ (U : Finset V) (X : Finset (Fin 8)), G ⊆ U →
-      U \ (G \ X.map g) = U \ G ∪ X.map g := fun U X hU => by
-    ext u
-    have := @hXG X u
-    simp only [mem_sdiff, mem_union]
-    constructor
-    · rintro ⟨hu, h⟩
-      by_cases huG : u ∈ G
-      · exact Or.inr (by by_contra h'; exact h ⟨huG, h'⟩)
-      · exact Or.inl ⟨hu, huG⟩
-    · rintro (⟨hu, huG⟩ | hu)
-      · exact ⟨hu, fun h => huG h.1⟩
-      · exact ⟨hU (this hu), fun h => h.2 hu⟩
-  rw [permOn_add, ← sum_product']
-  have hsub : (univ ×ˢ univ).image φ ⊆ S.powerset ×ˢ T.powerset := by
-    intro x hx
-    obtain ⟨p, -, rfl⟩ := mem_image.1 hx
-    simp only [φ, mem_product, mem_powerset]
-    exact ⟨sdiff_subset.trans hS, sdiff_subset.trans hT⟩
-  rw [← sum_subset hsub ?zero]
-  case zero =>
-    rintro ⟨S', T'⟩ hx hnot
-    simp only [mem_product, mem_powerset] at hx
-    by_contra hne
-    have hA0 : permOn A S' T' ≠ 0 := left_ne_zero_of_mul hne
-    have hD0 : permOn D (S \ S') (T \ T') ≠ 0 := right_ne_zero_of_mul hne
-    have hS'G : S' ⊆ G := fun u hu => by
-      by_contra huG
-      refine hA0 (permOn_eq_zero_of_row hu fun v _ => hArow u (fun a ha => huG ?_) v)
-      exact ha ▸ mem_map_of_mem g (mem_univ a)
-    have hT'G : T' ⊆ G := fun v hv => by
-      by_contra hvG
-      refine hA0 (permOn_eq_zero_of_col hv fun u _ => hAcol v (fun b hb => hvG ?_) u)
-      exact hb ▸ mem_map_of_mem g (mem_univ b)
-    have hrow : ∀ a, (∀ p, a ≠ exitE p) → g a ∈ S' := fun a ha => by
-      by_contra h
-      exact hD0 (permOn_eq_zero_of_row (mem_sdiff.2 ⟨hS (mem_map_of_mem g (mem_univ a)), h⟩)
-        fun v _ => hDrow a ha v)
-    have hcol : ∀ b, (∀ p, b ≠ entryE p) → g b ∈ T' := fun b hb => by
-      by_contra h
-      exact hD0 (permOn_eq_zero_of_col (mem_sdiff.2 ⟨hT (mem_map_of_mem g (mem_univ b)), h⟩)
-        fun u _ => hDcol b hb u)
-    refine hnot (mem_image.2 ⟨(univ.filter fun p => g (exitE p) ∉ S',
-      univ.filter fun p => g (entryE p) ∉ T'), mem_univ _, ?_⟩)
-    simp only [φ, Prod.mk.injEq]
-    constructor
-    · ext u
-      simp only [mem_sdiff, mem_map, mem_filter, mem_univ, true_and, hG]
-      constructor
-      · rintro ⟨⟨a, rfl⟩, h⟩
-        by_cases hex : ∃ p, a = exitE p
-        · obtain ⟨p, rfl⟩ := hex
-          by_contra h'
-          exact h ⟨exitE p, ⟨p, h', rfl⟩, rfl⟩
-        · exact hrow a fun p hp => hex ⟨p, hp⟩
-      · intro hu
-        obtain ⟨a, -, rfl⟩ := mem_map.1 (hS'G hu)
-        refine ⟨⟨a, rfl⟩, ?_⟩
-        rintro ⟨b, ⟨p, hp, rfl⟩, hb⟩
-        exact hp (g.injective hb ▸ hu)
-    · ext u
-      simp only [mem_sdiff, mem_map, mem_filter, mem_univ, true_and, hG]
-      constructor
-      · rintro ⟨⟨a, rfl⟩, h⟩
-        by_cases hen : ∃ p, a = entryE p
-        · obtain ⟨p, rfl⟩ := hen
-          by_contra h'
-          exact h ⟨entryE p, ⟨p, h', rfl⟩, rfl⟩
-        · exact hcol a fun p hp => hen ⟨p, hp⟩
-      · intro hu
-        obtain ⟨a, -, rfl⟩ := mem_map.1 (hT'G hu)
-        refine ⟨⟨a, rfl⟩, ?_⟩
-        rintro ⟨b, ⟨p, hp, rfl⟩, hb⟩
-        exact hp (g.injective hb ▸ hu)
-  have hφ : Set.InjOn φ ↑(univ ×ˢ univ : Finset (Finset (Fin 3) × Finset (Fin 3))) := by
-    rintro ⟨O₁, I₁⟩ - ⟨O₂, I₂⟩ - h
-    simp only [φ, Prod.mk.injEq] at h
-    have key : ∀ (X Y : Finset (Fin 8)), G \ X.map g = G \ Y.map g → X = Y := fun X Y h => by
-      have hX := Finset.sdiff_sdiff_eq_self (hXG X)
-      have hY := Finset.sdiff_sdiff_eq_self (hXG Y)
-      rw [← map_inj (f := g), ← hX, ← hY, h]
-    have h1 := key _ _ h.1
-    have h2 := key _ _ h.2
-    rw [map_inj] at h1 h2
-    exact Prod.ext h1 h2
-  rw [sum_image hφ, sum_product]
-  simp only [φ]
-  rw [mul_sum, sum_filter]
-  have hpg := permOn_placed_gadget g A hA
-  rw [← hG] at hpg
+  rw [permOn_add_of_gadget g entryE exitE A D hArow hAcol hDrow hDcol hS hT, mul_sum,
+    sum_filter]
   refine sum_congr rfl fun Out _ => ?_
-  simp only [hpg, hsd S _ hS, hsd T _ hT, ite_mul, zero_mul]
+  simp only [permOn_placed_gadget g A hA, ite_mul, zero_mul]
   by_cases hO : Out.Nonempty
   · simp only [hO, and_true]
     rw [sum_ite_eq univ Out]

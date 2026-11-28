@@ -60,28 +60,22 @@ theorem bind_le_card_mul_of_fiber_subsingleton {X Y Z : Type*} [Finite X] [Finty
           _ = ∑ x ∈ Finset.univ.filter (fun x => leak x = y ∧ event x z), kernel y z := by
             simp only [Finset.sum_filter]
           _ ≤ 1 * kernel y z := by
-            rw [Finset.sum_const]
-            simp only [nsmul_eq_mul]
+            rw [Finset.sum_const, nsmul_eq_mul]
             gcongr
-            exact_mod_cast Finset.card_le_one.mpr (fun a ha b hb =>
-              hunique y z (by simpa using ha) (by simpa using hb))
+            exact_mod_cast Finset.card_le_one.mpr fun a ha b hb =>
+              hunique y z (Finset.mem_filter.mp ha).2 (Finset.mem_filter.mp hb).2
           _ = kernel y z := one_mul _
       _ = 1 := (kernel y).tsum_coe
   rw [PMF.bind_apply, tsum_fintype]
   calc
-    _ ≤ ∑ x : X, mass * ((kernel (leak x)).map fun z => decide (event x z)) true := by
-      gcongr with x
-      exact hmass x
+    _ ≤ ∑ x : X, mass * ((kernel (leak x)).map fun z => decide (event x z)) true :=
+      Finset.sum_le_sum fun x _ => mul_le_mul_of_nonneg_right (hmass x) zero_le
     _ = mass * ∑ y : Y, ∑ x : X, if leak x = y then
         ((kernel y).map fun z => decide (event x z)) true else 0 := by
       rw [← Finset.mul_sum, Finset.sum_comm]
-      congr 1
-      apply Finset.sum_congr rfl
-      intro x _
-      simp
-    _ ≤ mass * ∑ _y : Y, (1 : ℝ≥0∞) := by
-      gcongr with y
-      exact hrow y
+      exact congrArg _ (Finset.sum_congr rfl fun x _ => by simp)
+    _ ≤ mass * ∑ _y : Y, (1 : ℝ≥0∞) :=
+      mul_le_mul_of_nonneg_left (Finset.sum_le_sum fun y _ => hrow y) zero_le
     _ = Fintype.card Y * mass := by simp [mul_comm]
 
 /-- A guess that depends on a sample only through a hint taking values in a finite set `T` equals
@@ -119,11 +113,9 @@ theorem uniform_bind_le_div_of_coordinate_subsingleton
   apply bind_apply_le_on_support
   intro values _
   have hobs (x : X) : observe ∘ Function.update values j x =
-      Function.update (observe ∘ values) j (observe x) := by
-    funext i
-    by_cases hi : i = j <;> simp [hi, Function.comp_def]
-  dsimp only [Function.comp_apply]
-  simp only [hobs]
+      Function.update (observe ∘ values) j (observe x) :=
+    funext (Function.apply_update (fun _ => observe) values j x)
+  simp only [Function.comp_apply, hobs]
   exact (bind_le_card_mul_of_fiber_subsingleton (uniformOfFintype X) observe
     (fun y => kernel (Function.update (observe ∘ values) j y))
     (fun x z => event (Function.update values j x) z)

@@ -126,9 +126,8 @@ theorem bias_map {α : Type*} [Fintype α] (X : PMF α) (g : α → ι → Bool)
 /-- The bias of a sample space `g`, with a uniformly random seed, is the average of the character
 over the seeds. -/
 theorem bias_uniformOfFintype_map {σ : Type*} [Fintype σ] [Nonempty σ] (g : σ → ι → Bool)
-    (S : Finset ι) : bias ((PMF.uniformOfFintype σ).map g) S = 𝔼 s, chi ℝ S (g s) := by
-  rw [bias_map, Fintype.expect_eq_sum_div_card, sum_div]
-  simp [div_eq_inv_mul]
+    (S : Finset ι) : bias ((PMF.uniformOfFintype σ).map g) S = 𝔼 s, chi ℝ S (g s) :=
+  Probability.PMF.sum_uniformOfFintype_map_mul g (chi ℝ S)
 
 /-- The uniform distribution has bias zero at every nonempty set. -/
 theorem bias_uniformOfFintype (S : Finset ι) :

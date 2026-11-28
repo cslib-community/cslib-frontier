@@ -16,8 +16,9 @@ public meta import CslibFrontierTests.Logics.Propositional.CNF.LRAT
 
 The compiled checker accepts CaDiCaL's certificate for the pigeonhole formula PHP(5, 4) from the
 tests of `CNF.checkLRAT`, and rejects each failing certificate of those tests: hints that do not
-propagate to a conflict, a certificate without an empty-clause step, a RAT step, a hint naming a
-deleted clause or no clause, and a RUP step whose hint leaves two literals open.
+propagate to a conflict, a certificate without an empty-clause step, a RAT step without the hints
+its candidates need, a hint naming a deleted clause or no clause, and a RUP step whose hint leaves
+two literals open.
 
 The checker reuses one assignment for all steps, so a step must not see the literals assigned by
 an earlier one. Two satisfiable formulas have certificates that an implementation which did not
@@ -67,7 +68,7 @@ private abbrev cert : Array LRAT.IntAction :=
 -- A certificate that does not reach an empty-clause step.
 #guard !φ.checkLRATFast #[.addRup 5 #[1] #[1, 2]]
 
--- A RAT step.
+-- A RAT step on `a` whose candidates `¬a ∨ b` and `¬a ∨ ¬b` have no RAT hints.
 #guard !φ.checkLRATFast #[.addRat 5 #[1] (0, true) #[] #[], .addEmpty 6 #[5, 3, 4]]
 
 -- A hint naming a deleted clause.

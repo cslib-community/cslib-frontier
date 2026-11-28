@@ -92,22 +92,19 @@ theorem edgeExpansion_mul_card_div_three_add_three_le_of_refutableInSpace
     (hG : 0 < G.edgeExpansion) {χ : V → Bool} {s : ℕ}
     (h : (CNF.tseitinFormula G.edgeEnds χ).RefutableInSpace s) :
     G.edgeExpansion * Fintype.card V / 3 + 3 ≤ s + Fintype.card D := by
-  have hc := G.connected_toSimpleGraph_of_edgeExpansion_pos hG
-  rw [← G.toSimpleGraph_edgeEnds] at hc
+  have hc : (Multigraph.toSimpleGraph G.edgeEnds).Connected :=
+    G.toSimpleGraph_edgeEnds ▸ G.connected_toSimpleGraph_of_edgeExpansion_pos hG
   have he := G.edgeExpansion_mul_card_div_three_le_minBalancedCut
   have hle := minBalancedCut_le_of_refutableInSpace hc G.card_incidence_edgeEnds_le h
   -- the expansion is positive, so the truncated subtraction is exact
-  have hV : Nontrivial V := by
-    by_contra hV
-    rw [not_nontrivial_iff_subsingleton] at hV
+  have hV : Nontrivial V := by_contra fun hV => by
+    have := not_nontrivial_iff_subsingleton.mp hV
     exact hG.ne' G.edgeExpansion_eq_zero_of_subsingleton
   have hpos : (0 : ℝ) < Multigraph.minBalancedCut G.edgeEnds :=
     lt_of_lt_of_le (by have := Fintype.one_lt_card (α := V); positivity) he
-  have hle' : Multigraph.minBalancedCut G.edgeEnds + 3 ≤ s + Fintype.card D := by
-    have : 0 < Multigraph.minBalancedCut G.edgeEnds := by exact_mod_cast hpos
-    omega
+  have hpos' : 0 < Multigraph.minBalancedCut G.edgeEnds := by exact_mod_cast hpos
   have : (Multigraph.minBalancedCut G.edgeEnds : ℝ) + 3 ≤ s + Fintype.card D := by
-    exact_mod_cast hle'
+    exact_mod_cast (show Multigraph.minBalancedCut G.edgeEnds + 3 ≤ s + Fintype.card D by omega)
   linarith
 
 end Tseitin
@@ -134,9 +131,8 @@ theorem exists_forall_refutableInSpace_le :
     Tseitin.exists_expander_tseitinFormula n (by omega)
   refine ⟨m, hm, tseitinFormula ends χ, hlen, hw, hunsat, fun s hs => ?_⟩
   have he' : n ≤ 18000 * Multigraph.minBalancedCut ends := by
-    have : (n : ℝ) ≤ 18000 * Multigraph.minBalancedCut ends := by linarith
-    exact_mod_cast this
-  have hspace := Tseitin.minBalancedCut_le_of_refutableInSpace hG hdeg hs
+    exact_mod_cast (show (n : ℝ) ≤ 18000 * Multigraph.minBalancedCut ends by linarith)
+  have := Tseitin.minBalancedCut_le_of_refutableInSpace hG hdeg hs
   omega
 
 end CNF

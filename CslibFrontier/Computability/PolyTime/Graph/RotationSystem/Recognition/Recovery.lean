@@ -19,6 +19,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 
 /-!
@@ -180,20 +181,10 @@ theorem completeVertex_polyTime : ComputableInPolyTime
 the actual implementation, with no resource-provider premise. -/
 theorem recoverOrders_polyTime : ComputableInPolyTime recoverOrders
     encFixedRotationInput (encOption encFixedRotationInput) := by
-  have hn : ComputableInPolyTime (fun I : FixedRotationInput => I.graph.vertices.length)
-      encFixedRotationInput encUnary := by fun_prop
-  have hm : ComputableInPolyTime (fun I : FixedRotationInput => I.graph.edges.length)
-      encFixedRotationInput encUnary := by fun_prop
-  have hw : ComputableInPolyTime (fun I : FixedRotationInput => I.orders.length)
-      encFixedRotationInput encUnary := by fun_prop
   have hb : PolyBounded (fun I => (encFixedRotationInput I).length)
       (fun I => (encFixedRotationInput I).length + 1 +
         I.graph.vertices.length * outerGrowth I) := by
-    unfold outerGrowth
-    exact (PolyBounded.self.add (.const 1)).add
-      (hn.polyBounded.mul (hw.polyBounded.mul ((PolyBounded.const 2).mul
-        ((((PolyBounded.const 2).mul hm.polyBounded).mul
-          (((PolyBounded.const 4).mul hm.polyBounded).add (.const 1))).add (.const 1)))))
+    growth_poly
   unfold recoverOrders
   apply ComputableInPolyTime.foldl' (by fun_prop)
     (ComputableInPolyTime.optionSome encFixedRotationInput) completeVertex_polyTime hb

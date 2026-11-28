@@ -61,30 +61,18 @@ private theorem sampled_perfect_iff (S : CommutingStrategy X X A A B) :
     G.commutingWinProb S = 1 ↔
       ∀ x y, (x, y) ∈ G.questions.support →
         ∀ a b, ¬ G.accepts x y a b → S.prob x y a b = 0 := by
-  let answers (q : X × X) := (S.answers q.1 q.2).map fun ab => (q, ab)
-  let law := G.questions.bind answers
-  let accept := {z | G.AcceptsRound z}
-  change (law.toOuterMeasure accept).toReal = 1 ↔ _
-  have hfinite := Cslib.Probability.PMF.toOuterMeasure_ne_top law accept
-  rw [← ENNReal.toReal_one, ENNReal.toReal_eq_toReal_iff' hfinite ENNReal.one_ne_top,
-    PMF.toOuterMeasure_apply_eq_one_iff]
-  constructor
-  · intro h x y hxy a b hr
-    by_contra hz
-    have hab : (a, b) ∈ (S.answers x y).support := by
-      rw [PMF.mem_support_iff, S.answers_apply, Ne, ENNReal.ofReal_eq_zero]
-      exact fun hp => hz (le_antisymm hp (S.prob_nonneg x y a b))
-    have hm : ((x, y), (a, b)) ∈ law.support :=
-      (PMF.mem_support_bind_iff _ _ _).mpr
-        ⟨(x, y), hxy, (PMF.mem_support_map_iff _ _ _).mpr ⟨(a, b), hab, rfl⟩⟩
-    exact hr (h hm)
-  · intro h z hz
-    obtain ⟨⟨x, y⟩, hxy, hm⟩ := (PMF.mem_support_bind_iff _ _ _).mp hz
-    obtain ⟨⟨a, b⟩, hab, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hm
-    change G.accepts x y a b
-    by_contra hr
-    exact (PMF.mem_support_iff _ _).mp hab (by rw [S.answers_apply, h x y hxy a b hr,
-      ENNReal.ofReal_zero])
+  change ((G.questions.bind fun q => (S.answers q.1 q.2).map fun ab => (q, ab)).toOuterMeasure
+    {z | G.AcceptsRound z}).toReal = 1 ↔ _
+  rw [← ENNReal.toReal_one, ENNReal.toReal_eq_toReal_iff'
+    (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _) ENNReal.one_ne_top,
+    PMF.toOuterMeasure_apply_eq_one_iff, Set.subset_def]
+  simp only [PMF.mem_support_bind_iff, PMF.mem_support_map_iff, Prod.exists]
+  simp only [PMF.mem_support_iff, S.answers_apply, ne_eq, ENNReal.ofReal_eq_zero,
+    Set.mem_ofPred_eq]
+  refine ⟨fun h x y hxy a b hr => le_antisymm
+      (by_contra fun hp => hr (h _ ⟨x, y, hxy, a, b, hp, rfl⟩)) (S.prob_nonneg x y a b), ?_⟩
+  rintro h _ ⟨x, y, hxy, a, b, hab, rfl⟩
+  exact by_contra fun hr => hab (h x y hxy a b hr).le
 
 /-- Pointwise perfection implies winning with probability one for any question distribution. -/
 theorem IsPerfectCommuting.commutingWinProb_eq_one {S : CommutingStrategy X X A A B}
@@ -157,46 +145,36 @@ private theorem gns_faithful (τ : AlgState B) (hτ : τ.IsTracial) (P : X → M
   have hcomm (a : B) : Commute T (τ.gnsRight hτ (op a)) := by
     let R := τ.gnsRight hτ (op a)
     have hc : S.aliceAlgebra ≤ StarSubalgebra.centralizer ℂ {R} := by
-      apply S.aliceAlgebra_le
-      · rw [StarSubalgebra.coe_centralizer]
-        exact Set.isClosed_centralizer _
-      · intro x b
-        rw [StarSubalgebra.mem_centralizer_iff]
-        intro W hw
-        obtain rfl := Set.mem_singleton_iff.mp hw
-        have he : star R = τ.gnsRight hτ (op (star a)) := by
-          simp [R, ← map_star]
-        dsimp only [S]
-        rw [CommutingStrategy.ofTracial_alice_effect, he]
-        exact ⟨(τ.commute_gnsLeft_gnsRight hτ ((P x).effect b) a).symm.eq,
-          (τ.commute_gnsLeft_gnsRight hτ ((P x).effect b) (star a)).symm.eq⟩
-    have ht : T ∈ StarSubalgebra.centralizer ℂ {R} := hc z.property
-    exact ((StarSubalgebra.mem_centralizer_iff ℂ).mp ht R (by simp)).1.symm
+      refine S.aliceAlgebra_le
+        (by
+          rw [StarSubalgebra.coe_centralizer]
+          exact Set.isClosed_centralizer _) fun x b => ?_
+      refine (StarSubalgebra.mem_centralizer_iff ℂ).mpr ?_
+      rintro _ rfl
+      dsimp only [S]
+      rw [CommutingStrategy.ofTracial_alice_effect,
+        show star R = τ.gnsRight hτ (op (star a)) by simp [R, ← map_star]]
+      exact ⟨(τ.commute_gnsLeft_gnsRight hτ ((P x).effect b) a).symm.eq,
+        (τ.commute_gnsLeft_gnsRight hτ ((P x).effect b) (star a)).symm.eq⟩
+    exact ((StarSubalgebra.mem_centralizer_iff ℂ).mp (hc z.property) R rfl).1.symm
   suffices hT : T = 0 from Subtype.ext hT
-  apply τ.gns_ext
-  intro a
-  have hv : τ.gnsRight hτ (op a) ξ = (τ.toPreGNS a : τ.toPositiveLinearMap.GNS) := by
-    rw [show ξ = (τ.toPreGNS 1 : τ.toPositiveLinearMap.GNS) from rfl, τ.gnsRight_toPreGNS,
-      one_mul]
-  rw [← hv, ← mul_apply_eq_comp, (hcomm a).eq,
-    mul_apply_eq_comp, hξ, map_zero, zero_apply]
+  refine τ.gns_ext fun a => ?_
+  have hpre : (τ.toPreGNS a : τ.toPositiveLinearMap.GNS) = τ.gnsRight hτ (op a) ξ := by
+    rw [show ξ = τ.toPreGNS 1 from rfl, τ.gnsRight_toPreGNS, one_mul]
+  rw [hpre, ← mul_apply_eq_comp, (hcomm a).eq, mul_apply_eq_comp, hξ, map_zero, zero_apply]
 
 private theorem projective_of_synchronous_of_faithful
     (S : CommutingStrategy X X A A B) (hS : S.IsSynchronous) (hfaith : S.aliceState.IsFaithful)
     (x : X) : (S.aliceMeasurements x).IsProjective := by
   intro a
   let E := (S.aliceMeasurements x).effect a
-  let τ := S.aliceState
-  have hs : τ (E * E) = (S.prob x x a a : ℂ) :=
-    (hS.ofReal_prob_eq_aliceState x x a a).symm
-  have hm : τ E = (S.prob x x a a : ℂ) := by
-    rw [CommutingStrategy.aliceState_apply, show (E : B) = (S.alice x).effect a from
-      S.aliceMeasurements_effect x a, ← S.state.ofReal_re_apply ((S.alice x).nonneg a),
-      ← S.sum_prob_bob x x a]
-    rw [hS.sum_prob_eq_diag]
   let d := E - E * E
   have hd : 0 ≤ d := sub_nonneg.mpr ((S.aliceMeasurements x).effect_mul_self_le a)
-  have hzero : τ d = 0 := by rw [show d = E - E * E from rfl, map_sub, hs, hm, sub_self]
+  have hzero : S.aliceState d = 0 := by
+    have hE : (E : B) = (S.alice x).effect a := S.aliceMeasurements_effect x a
+    rw [show d = E - E * E from rfl, map_sub, ← hS.ofReal_prob_eq_aliceState,
+      CommutingStrategy.aliceState_apply, hE, ← S.state.ofReal_re_apply ((S.alice x).nonneg a),
+      ← S.sum_prob_bob x x a, hS.sum_prob_eq_diag, sub_self]
   have hy : CFC.sqrt d = 0 := hfaith (CFC.sqrt d) (by
     rw [(CFC.sqrt_nonneg d).isSelfAdjoint.star_eq, CFC.sqrt_mul_sqrt_self d hd, hzero])
   have hdz : d = 0 := by rw [← CFC.sqrt_mul_sqrt_self d hd, hy, zero_mul]
@@ -252,14 +230,11 @@ theorem exists_isPerfectCommuting_iff (hG : G.IsSynchronous) :
     (∃ (C : Type u) (_ : CStarAlgebra C) (_ : PartialOrder C) (_ : StarOrderedRing C),
       ∃ S : CommutingStrategy X X A A C, G.IsPerfectCommuting S) ↔
     (∃ (C : Type u) (_ : CStarAlgebra C) (_ : PartialOrder C) (_ : StarOrderedRing C),
-      ∃ τ : AlgState C, τ.IsTracial ∧ τ.IsFaithful ∧ Nonempty (G.GameAlgebra →⋆ₐ[ℂ] C)) := by
-  constructor
-  · rintro ⟨C, _, _, _, S, hS⟩
-    exact G.exists_faithful_tracial_representation hG S hS
-  · rintro ⟨C, _, _, _, τ, hτ, _, ⟨π⟩⟩
-    exact ⟨_, inferInstance, inferInstance, inferInstance,
+      ∃ τ : AlgState C, τ.IsTracial ∧ τ.IsFaithful ∧ Nonempty (G.GameAlgebra →⋆ₐ[ℂ] C)) :=
+  ⟨fun ⟨_, _, _, _, S, hS⟩ => G.exists_faithful_tracial_representation hG S hS,
+    fun ⟨_, _, _, _, τ, hτ, _, ⟨π⟩⟩ => ⟨_, inferInstance, inferInstance, inferInstance,
       CommutingStrategy.ofTracial τ hτ (GameAlgebra.measurement G π),
-      GameAlgebra.isPerfectCommuting_ofTracial G π τ hτ⟩
+      GameAlgebra.isPerfectCommuting_ofTracial G π τ hτ⟩⟩
 
 end ToRepresentation
 

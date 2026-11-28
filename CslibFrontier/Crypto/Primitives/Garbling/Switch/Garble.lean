@@ -241,16 +241,12 @@ theorem allConsistent_garbleGates (H : L → ℕ → L) (col : L →+ ZMod 2) (�
       (garbleGate H col Δ i K g).1
     cases g with
     | affine terms b y =>
-      have hy := heq (.inr y) (Set.mem_insert _ _)
       refine ⟨rfl, ?_⟩
-      rw [hy, termSum_congr terms fun p hp => hfin p.1 (hg.1 p hp)]
+      rw [heq (.inr y) (Set.mem_insert _ _), termSum_congr terms fun p hp => hfin p.1 (hg.1 p hp)]
       exact Function.update_self _ _ _
     | switch x y c =>
-      have hy := heq (.inr y) (Set.mem_insert _ _)
-      have hx := hfin x hg.1
-      have hc := hfin c hg.2.1
-      refine ⟨by rw [hc]; rfl, ?_⟩
-      rw [hy, hx, hc]
+      refine ⟨by rw [hfin c hg.2.1]; rfl, ?_⟩
+      rw [heq (.inr y) (Set.mem_insert _ _), hfin x hg.1, hfin c hg.2.1]
       exact Function.update_self _ _ _
     | join x y =>
       change Material.shift (K y - K x) = Material.shift (_ - _)
@@ -282,8 +278,7 @@ private theorem knownSum_map (Δ : L) (K : Fin n ⊕ Fin N → L)
 private theorem one_ne_zero_of_col {col : L →+ ZMod 2} {Δ : L} (hΔ : col Δ = 1) :
     (1 : R) ≠ 0 := by
   intro h
-  have h0 : Δ = 0 := by rw [← one_smul R Δ, h, zero_smul]
-  rw [h0, map_zero] at hΔ
+  rw [← one_smul R Δ, h, zero_smul, map_zero] at hΔ
   exact absurd hΔ (by decide)
 
 /-- The colour of a label shifted by `v • Δ`, for a bit `v` and an offset of colour `1`. -/
@@ -307,11 +302,24 @@ private theorem lockstep_update {Δ : L} {K : Fin n ⊕ Fin N → L}
     (ha : a = wireLabel Δ (K w) v) (u : Fin n ⊕ Fin N) :
     Function.update gst w (some a) u = (Function.update pst w (some v) u).map
       (wireLabel Δ (K u)) := by
-  by_cases hu : u = w
-  · subst hu
-    simp [ha]
-  · simp only [Function.update_of_ne hu]
-    exact h u
+  by_cases hu : u = w <;> simp [hu, ha, h]
+
+private theorem lockstep_pair {Δ : L} {K : Fin n ⊕ Fin N → L}
+    {pst : Fin n ⊕ Fin N → Option R} {gst : Fin n ⊕ Fin N → Option L}
+    (hmap : ∀ w, gst w = (pst w).map (wireLabel Δ (K w)))
+    (u v : Fin n ⊕ Fin N) (d : L) (hd : K v = K u + d) (w : Fin n ⊕ Fin N) :
+    (match gst u, gst v with
+      | some a, none => Function.update gst v (some (a + d))
+      | none, some a => Function.update gst u (some (a - d))
+      | _, _ => gst) w =
+    ((match pst u, pst v with
+      | some a, none => Function.update pst v (some a)
+      | none, some a => Function.update pst u (some a)
+      | _, _ => pst) w).map (wireLabel Δ (K w)) := by
+  rw [hmap u, hmap v]
+  cases pst u <;> cases pst v <;> try exact hmap w
+  · exact lockstep_update hmap u _ _ (by simp only [wireLabel, hd]; abel) w
+  · exact lockstep_update hmap v _ _ (by simp only [wireLabel, hd]; abel) w
 
 private theorem lockstep_evalGate [DecidableEq R] {H : L → ℕ → L} {col : L →+ ZMod 2}
     {Δ : L} (hΔ : col Δ = 1) {K : Fin n ⊕ Fin N → L} {σ : Fin n ⊕ Fin N → R} {i : ℕ}
@@ -324,70 +332,29 @@ private theorem lockstep_evalGate [DecidableEq R] {H : L → ℕ → L} {col : L
   cases g with
   | affine terms b y =>
     obtain ⟨rfl, hy⟩ := hcons
-    have hsum := knownSum_map Δ K pst terms
     have hgs :
         knownSum gst terms = (knownSum pst terms).map fun s => termSum K terms + s • Δ := by
-      rw [← hsum]
+      rw [← knownSum_map Δ K pst terms]
       exact congrArg (knownSum · terms) (funext hmap)
     simp only [propagate, evalGate, hmap (.inr y), hgs]
-    cases pst (.inr y) with
-    | some v => cases knownSum pst terms <;> exact hmap
-    | none =>
-      cases knownSum pst terms with
-      | none => exact hmap
-      | some s =>
-        refine lockstep_update hmap _ _ _ ?_
-        simp only [wireLabel, hy, add_smul]
-        abel
+    cases pst (.inr y) <;> cases knownSum pst terms <;> try exact hmap
+    exact lockstep_update hmap _ _ _ (by simp only [wireLabel, hy, add_smul]; abel)
   | switch x y c =>
     obtain ⟨rfl, hy⟩ := hcons
     simp only [propagate, evalGate, hmap c]
     cases hpc : pst c with
     | none => simp only [Option.map_none, reduceCtorEq, ite_false]; exact hmap
     | some v =>
-      have hv : v = σ c := hsound c v hpc
-      have hbit : v = 0 ∨ v = 1 := hv ▸ hg.1
+      have hbit : v = 0 ∨ v = 1 := hsound c v hpc ▸ hg.1
       simp only [Option.map_some, col_wireLabel_add hΔ (K c) hbit, Option.some.injEq]
       by_cases hv0 : v = 0
       · subst hv0
-        have hk : wireLabel Δ (K c) (0 : R) = K c := by simp [wireLabel]
-        simp only [ite_true, hk, hmap x, hmap (.inr y)]
-        cases pst x with
-        | none =>
-          cases pst (.inr y) with
-          | none => exact hmap
-          | some a =>
-            refine lockstep_update hmap _ _ _ ?_
-            simp only [wireLabel, hy]
-            abel
-        | some a =>
-          cases pst (.inr y) with
-          | none =>
-            refine lockstep_update hmap _ _ _ ?_
-            simp only [wireLabel, hy]
-            abel
-          | some _ => exact hmap
-      · simp only [hv0, ite_false]
-        exact hmap
+        simp only [ite_true, wireLabel, zero_smul, add_zero]
+        exact lockstep_pair hmap x (.inr y) (H (K c) i) hy
+      · simpa only [hv0, ite_false, one_ne_zero] using hmap
   | join x y =>
-    change μ = _ at hcons
-    subst hcons
-    simp only [propagate, evalGate, hmap x, hmap y]
-    cases pst x with
-    | none =>
-      cases pst y with
-      | none => exact hmap
-      | some a =>
-        refine lockstep_update hmap _ _ _ ?_
-        simp only [wireLabel]
-        abel
-    | some a =>
-      cases pst y with
-      | none =>
-        refine lockstep_update hmap _ _ _ ?_
-        simp only [wireLabel]
-        abel
-      | some _ => exact hmap
+    obtain rfl : μ = Material.shift (K y - K x) := hcons
+    exact lockstep_pair hmap x y (K y - K x) (by abel)
 
 private theorem lockstep_evalGates [DecidableEq R] {H : L → ℕ → L} {col : L →+ ZMod 2}
     {Δ : L} (hΔ : col Δ = 1) {K : Fin n ⊕ Fin N → L} {σ : Fin n ⊕ Fin N → R} :
@@ -415,22 +382,17 @@ theorem evaluate_garbleWith [DecidableEq R] {S : SwitchSystem n m N R} (hS : S.W
     allConsistent_garbleGates H col Δ S.gates _ 0 (Sum.elim K 0) hS
   have hinit : Lockstep Δ (zeroLabels S H col Δ K) σ (SwitchSystem.initState x)
       (Sum.elim (fun i => some ((garbleWith S H col Δ K).encode x i)) fun _ => none) := by
-    refine ⟨?_, ?_⟩
-    · rintro (i | j)
-      · simp only [Sum.elim_inl, SwitchSystem.initState, Option.map_some, Garbled.encode,
-          garbleWith, zeroLabels]
-        rw [hinp (.inl i) ⟨i, rfl⟩]
-        rfl
-      · rfl
-    · rintro (i | j) a ha
+    refine ⟨fun | .inl i => ?_ | .inr _ => rfl, ?_⟩
+    · simp only [Sum.elim_inl, SwitchSystem.initState, Option.map_some, Garbled.encode,
+        garbleWith, zeroLabels, hinp (.inl i) ⟨i, rfl⟩]
+    · rintro (i | _) _ ha
       · simp only [SwitchSystem.initState, Sum.elim_inl, Option.some.injEq] at ha
         rw [← ha, hσ.1 i]
       · simp [SwitchSystem.initState] at ha
-  have key : ∀ t, Lockstep Δ (zeroLabels S H col Δ K) σ
+  have key (t : ℕ) : Lockstep Δ (zeroLabels S H col Δ K) σ
       (S.sweep^[t] (SwitchSystem.initState x))
       ((evalGates H col 0 S.gates (garbleWith S H col Δ K).material)^[t]
         (Sum.elim (fun i => some ((garbleWith S H col Δ K).encode x i)) fun _ => none)) := by
-    intro t
     induction t with
     | zero => exact hinit
     | succ t ih =>

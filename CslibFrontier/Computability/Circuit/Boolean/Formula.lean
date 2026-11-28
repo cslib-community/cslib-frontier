@@ -31,6 +31,7 @@ formulas are at least as strong as for formulas whose negations sit at the leave
 * `Cslib.Circuits.Formula.orList`, `Cslib.Circuits.Formula.andList`: the disjunction and the
   conjunction of a list of formulas as balanced trees of binary gates (`Formula.balanced`).
 * `Cslib.Circuits.Formula.literal`: the literal of bit `i` that is true at `z`.
+* `Cslib.Circuits.Formula.minterm`: the balanced conjunction of one matching literal per input.
 * `Cslib.Circuits.Boolean.formulaDepth`: the least depth of a De Morgan formula for a function,
   with negations and constants free.
 
@@ -39,6 +40,8 @@ formulas are at least as strong as for formulas whose negations sit at the leave
 * `Cslib.Circuits.Formula.size_orList_add_one`, `Cslib.Circuits.Formula.depthWith_orList_le`,
   `Cslib.Circuits.Formula.size_andList_add_one`, `Cslib.Circuits.Formula.depthWith_andList_le`: a
   balanced tree of `k ≥ 1` formulas adds `k - 1` nodes and `⌈log₂ k⌉` levels.
+* `Cslib.Circuits.Formula.eval_minterm`, `Cslib.Circuits.Formula.depth_minterm_le`: the minterm
+  of `z` is true exactly at `z` and has depth at most `1 + ⌈log₂ n⌉`.
 * `Cslib.Circuits.Formula.exists_computes`: every Boolean function has a De Morgan formula.
 * `Cslib.Circuits.Boolean.exists_computes_depthWith_eq_formulaDepth`: some formula attains the
   formula depth.
@@ -257,6 +260,22 @@ def andList (l : List (Formula signature n)) : Formula signature n :=
 @[simp] theorem andList_singleton : andList [F] = F :=
   balanced_singleton _ F
 
+/-- Disjunction adds the leaf sizes of its arguments, including the empty list. -/
+@[simp] theorem leafSize_orList (l : List (Formula signature n)) :
+    (orList l).leafSize = (l.map leafSize).sum := by
+  by_cases h : l = []
+  · subst l
+    simp
+  · exact leafSize_balanced _ h
+
+/-- Conjunction adds the leaf sizes of its arguments, including the empty list. -/
+@[simp] theorem leafSize_andList (l : List (Formula signature n)) :
+    (andList l).leafSize = (l.map leafSize).sum := by
+  by_cases h : l = []
+  · subst l
+    simp
+  · exact leafSize_balanced _ h
+
 /-- A balanced disjunction of `k ≥ 1` formulas has `k - 1` operation nodes besides theirs. -/
 theorem size_orList_add_one {l : List (Formula signature n)} (hl : l ≠ []) :
     (orList l).size + 1 = (l.map size).sum + l.length :=
@@ -311,20 +330,47 @@ def literal (z : BitString n) (i : Fin n) : Formula signature n :=
   unfold literal
   split <;> simp
 
-/-- Every Boolean function has a De Morgan formula: its disjunctive normal form. -/
+/-- A literal contains one input leaf, irrespective of its sign. -/
+@[simp] theorem leafSize_literal (z : BitString n) (i : Fin n) :
+    (literal z i).leafSize = 1 := by
+  unfold literal
+  split <;> simp
+
+/-- The conjunction testing an entire assignment. For zero inputs it is constant true. -/
+def minterm (z : BitString n) : Formula signature n :=
+  andList ((List.finRange n).map (literal z))
+
+/-- A minterm evaluates to true exactly on its assignment. -/
+@[simp] theorem eval_minterm (z x : BitString n) :
+    (minterm z).eval interpretation x = decide (x = z) := by
+  apply Bool.eq_iff_iff.mpr
+  simp [minterm, List.all_eq_true, funext_iff]
+
+/-- A minterm has exactly one literal occurrence per input. -/
+@[simp] theorem leafSize_minterm (z : BitString n) : (minterm z).leafSize = n := by
+  simp [minterm, List.map_map, Function.comp_def]
+
+/-- The minterm of a string of `n` bits has depth at most `1 + ⌈log₂ n⌉`: a negation under a
+balanced conjunction of `n` literals. -/
+theorem depth_minterm_le (z : BitString n) : (minterm z).depth ≤ 1 + Nat.clog 2 n := by
+  have h := depthWith_andList_le (cost := 1) (l := (List.finRange n).map (literal z)) (d := 1)
+    (by
+      simp only [List.mem_map, List.mem_finRange, true_and, forall_exists_index,
+        forall_apply_eq_imp_iff, depthWith_one]
+      intro i
+      unfold literal
+      split <;> simp)
+    (fun _ => le_rfl)
+  simpa [minterm] using h
+
+/-- Every Boolean function has a De Morgan formula: its disjunctive normal form, the balanced
+disjunction of the minterms of the strings where it is true. -/
 theorem exists_computes (f : BooleanFunction n) :
     ∃ F : Formula signature n, F.Computes interpretation f := by
   classical
-  refine ⟨orList ((Finset.univ.filter fun z => f z = true).toList.map fun z =>
-    andList ((List.finRange n).map (literal z))), fun x => ?_⟩
+  refine ⟨orList ((Finset.univ.filter fun z => f z = true).toList.map minterm), fun x => ?_⟩
   rw [eval_orList, Bool.eq_iff_iff, List.any_eq_true]
-  simp only [List.mem_map, Finset.mem_toList, Finset.mem_filter, Finset.mem_univ, true_and]
-  constructor
-  · rintro ⟨_, ⟨z, hz, rfl⟩, h⟩
-    have : x = z := funext (by simpa [List.all_eq_true] using h)
-    rwa [this]
-  · intro hx
-    exact ⟨_, ⟨x, hx, rfl⟩, by simp [List.all_eq_true]⟩
+  simp
 
 end Formula
 

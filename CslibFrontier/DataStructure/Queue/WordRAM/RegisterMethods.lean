@@ -40,9 +40,9 @@ open Cslib.WordRAM Cslib.WordRAM.Realization
 
 /-- Write the rear's next physical cell and return the two new count words. There is no echo
 of the delivered payload in the result. -/
-def enqueue (d : Input) : Memory.Prog (ℕ × ℕ) := do
+def enqueue (d : Input) : Memory.Prog Counts := do
   Memory.write (d 2 + d 3 + d 1) (d 4)
-  pure (d 0, d 1 + 1)
+  pure ⟨d 0, d 1 + 1⟩
 
 /-- The original queue enqueue domain, with the physical room unchanged. -/
 def enqueueDomain (w : ℕ) (d : Input) (s : Memory.State) : Prop :=
@@ -50,16 +50,16 @@ def enqueueDomain (w : ℕ) (d : Input) (s : Memory.State) : Prop :=
 
 /-- An empty front returns none without a memory query. A nonempty front reads its top and
 returns a decremented count; the unused physical cell is retained. -/
-def popFront (d : Input) : Memory.Prog ((ℕ × ℕ) × Option ℕ) :=
-  if d 0 = 0 then pure ((d 0, d 1), none) else do
+def popFront (d : Input) : Memory.Prog (Counts × Option ℕ) :=
+  if d 0 = 0 then pure (⟨d 0, d 1⟩, none) else do
     let v ← Memory.read (d 2 + (d 0 - 1))
-    pure ((d 0 - 1, d 1), some v)
+    pure (⟨d 0 - 1, d 1⟩, some v)
 
 /-- The front-empty path transfers the rear before performing the original front pop. -/
-def dequeue (d : Input) : Memory.Prog ((ℕ × ℕ) × Option ℕ) :=
+def dequeue (d : Input) : Memory.Prog (Counts × Option ℕ) :=
   if d 0 = 0 then do
     let m ← transfer d
-    popFront ![m.1, m.2, d 2, d 3, d 4]
+    popFront ![m.front, m.rear, d 2, d 3, d 4]
   else popFront d
 
 /-- One uniform enqueue body, with all address arithmetic, result copies and control charged. -/
@@ -111,7 +111,7 @@ theorem realizes_dequeue_standard : Realizes .standard dequeue (.refl Input)
 /-- Enqueue issues exactly the physical rear write, retaining the frontier. -/
 theorem runClient_enqueue (w : ℕ) (d : Input) (s : Memory.State) :
     (Memory.spec w).runClient s (enqueue d) =
-      ((d 0, d 1 + 1), ⟨Function.update s.mem (d 2 + d 3 + d 1) (d 4), s.frontier⟩,
+      (⟨d 0, d 1 + 1⟩, ⟨Function.update s.mem (d 2 + d 3 + d 1) (d 4), s.frontier⟩,
         [.write (d 2 + d 3 + d 1) (d 4)]) := rfl
 
 /-- The spare-capacity domain admits the one physical write, including the delivered value. -/
@@ -135,45 +135,28 @@ theorem enqueue_modifies {w : ℕ} {d : Input} {s : Memory.State}
 /-- Pop never changes any memory cell or the frontier, including its empty path. -/
 theorem clientState_popFront (w : ℕ) (d : Input) (s : Memory.State) :
     (Memory.spec w).clientState s (popFront d) = s := by
-  by_cases hz : d 0 = 0
-  · rw [popFront, ite_eq_left hz]
-    rfl
-  · rw [popFront, ite_eq_right hz]
-    rfl
+  unfold popFront; split_ifs <;> rfl
 
 /-- Both returned counts are exact even when the unused physical top cell remains dirty. -/
 theorem clientResult_popFront (w : ℕ) (d : Input) (s : Memory.State) :
     (Memory.spec w).clientResult s (popFront d) =
-      if d 0 = 0 then ((d 0, d 1), none)
-      else ((d 0 - 1, d 1), some (s.mem (d 2 + (d 0 - 1)))) := by
-  by_cases hz : d 0 = 0
-  · rw [popFront, ite_eq_left hz, ite_eq_left hz]
-    rfl
-  · rw [popFront, ite_eq_right hz, ite_eq_right hz]
-    rfl
+      if d 0 = 0 then (⟨d 0, d 1⟩, none)
+      else (⟨d 0 - 1, d 1⟩, some (s.mem (d 2 + (d 0 - 1)))) := by
+  unfold popFront; split_ifs <;> rfl
 
 /-- A nonempty front performs one read; an empty front performs no memory operation. -/
 theorem memoryCost_popFront (d : Input) (s : Memory.State) :
     memoryCost (popFront d) s = if d 0 = 0 then 0 else 1 := by
-  by_cases hz : d 0 = 0
-  · rw [popFront, ite_eq_left hz, ite_eq_left hz]
-    rfl
-  · rw [popFront, ite_eq_right hz, ite_eq_right hz]
-    rfl
+  unfold popFront; split_ifs <;> rfl
 
 /-- Every nonempty front read lies in the old physical region. -/
 theorem valid_popFront {w : ℕ} {d : Input} {s : Memory.State}
     (h : transferDomain w d s) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (popFront d)) := by
-  by_cases hz : d 0 = 0
-  · rw [popFront, ite_eq_left hz]
-    trivial
-  · rw [popFront, ite_eq_right hz]
-    change (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (do
-        let v ← Memory.read (d 2 + (d 0 - 1))
-        pure ((d 0 - 1, d 1), some v)))
-    change (d 2 + (d 0 - 1) < s.frontier) ∧ True
+  unfold popFront
+  split_ifs
+  · trivial
+  · change (d 2 + (d 0 - 1) < s.frontier) ∧ True
     exact ⟨by have := h.1; have := h.2; omega, trivial⟩
 
 /-- Dequeue's source summary retains the actual final counts, valid physical history and
@@ -185,68 +168,48 @@ theorem dequeue_invariant {w : ℕ} {d : Input} {s : Memory.State}
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (dequeue d)) ∧
       Memory.WellFormed w t ∧
       ((Memory.spec 0).clientResult s (dequeue d)).1 =
-        (if d 0 = 0 then (d 1 - 1, 0) else (d 0 - 1, d 1)) ∧
+        (if d 0 = 0 then ⟨d 1 - 1, 0⟩ else ⟨d 0 - 1, d 1⟩) ∧
       t.frontier = s.frontier ∧
       memoryCost (dequeue d) s =
         (if d 0 = 0 then 2 * d 1 + (if d 1 = 0 then 0 else 1) else 1) ∧
       Modifies (Block.mk (d 2) (2 * d 3)).footprint s.mem t.mem := by
   by_cases hz : d 0 = 0
   · obtain ⟨hv, hwt, hr, hf, hc, hm⟩ := transfer_invariant hw h
-    have hr' : (Memory.spec 0).clientResult s (transfer d) = (d 1, 0) := by
+    have hr' : (Memory.spec 0).clientResult s (transfer d) = ⟨d 1, 0⟩ := by
       simpa only [hz, Nat.zero_add] using hr
     let t := (Memory.spec 0).clientState s (transfer d)
     let e : Input := ![d 1, 0, d 2, d 3, d 4]
-    have he : transferDomain w e t := by
-      refine ⟨?_, ?_⟩
-      · change d 1 + 0 ≤ d 3
-        have := h.1
-        omega
-      · change d 2 + 2 * d 3 ≤ t.frontier
-        rw [hf]
-        exact h.2
+    have he : transferDomain w e t :=
+      ⟨by change d 1 + 0 ≤ d 3; have := h.1; omega, by rw [hf]; exact h.2⟩
     have hs : (Memory.spec 0).clientState s (dequeue d) = t := by
       rw [dequeue, ite_eq_left hz, StateTransitionSpec.clientState_bind, hr']
       exact clientState_popFront 0 e t
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨?_, hs ▸ hwt, ?_, hs ▸ hf, ?_, hs ▸ hm⟩
     · rw [dequeue, ite_eq_left hz]
       change (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
-        ((transfer d).bind (fun m => popFront ![m.1, m.2, d 2, d 3, d 4])))
-      rw [validHistory_bind]
-      refine ⟨hv, ?_⟩
-      rw [clientState_width w, clientResult_width w, hr']
-      exact valid_popFront he
-    · rw [hs]
-      exact hwt
+        ((transfer d).bind (fun m => popFront ![m.front, m.rear, d 2, d 3, d 4])))
+      rw [validHistory_bind, clientState_width w, clientResult_width w, hr']
+      exact ⟨hv, valid_popFront he⟩
     · rw [dequeue, ite_eq_left hz, StateTransitionSpec.clientResult_bind, hr',
         clientResult_popFront, ite_eq_left hz]
-      change (if d 1 = 0 then ((d 1, 0), none)
-        else ((d 1 - 1, 0), some (t.mem (d 2 + (d 1 - 1))))).1 = (d 1 - 1, 0)
+      change (if d 1 = 0 then (Counts.mk (d 1) 0, none)
+        else (Counts.mk (d 1 - 1) 0, some (t.mem (d 2 + (d 1 - 1))))).1 = Counts.mk (d 1 - 1) 0
       split <;> simp_all
-    · rw [hs]
-      exact hf
     · rw [dequeue, ite_eq_left hz]
-      change memoryCost ((transfer d).bind (fun m => popFront ![m.1, m.2, d 2, d 3, d 4])) s = _
+      change memoryCost ((transfer d).bind (fun m => popFront ![m.front, m.rear, d 2, d 3, d 4]))
+        s = _
       rw [memoryCost_bind, hr', hc, memoryCost_popFront, ite_eq_left hz]
       rfl
-    · rw [hs]
-      exact hm
   · have hs : (Memory.spec 0).clientState s (dequeue d) = s := by
       rw [dequeue, ite_eq_right hz, clientState_popFront]
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-    · rw [dequeue, ite_eq_right hz]
-      exact valid_popFront h
-    · rw [hs]
-      exact hw
-    · rw [dequeue, ite_eq_right hz, clientResult_popFront, ite_eq_right hz, ite_eq_right hz]
-    · rw [hs]
-    · rw [dequeue, ite_eq_right hz, memoryCost_popFront, ite_eq_right hz, ite_eq_right hz]
-    · rw [hs]
-      exact fun _ _ => rfl
+    rw [hs]
+    simp only [dequeue, ite_eq_right hz, clientResult_popFront, memoryCost_popFront]
+    exact ⟨valid_popFront h, hw, trivial, trivial, trivial, fun _ _ => rfl⟩
 
 /-- At the source-memory boundary, one enqueue pays for its write and the added rear credit.
 Native glue and the final halt are accounted for separately by the realized dispatcher. -/
 theorem enqueue_memory_amortized (d : Input) (s : Memory.State) :
-    memoryCost (enqueue d) s + 2 * ((Memory.spec 0).clientResult s (enqueue d)).2 =
+    memoryCost (enqueue d) s + 2 * ((Memory.spec 0).clientResult s (enqueue d)).rear =
       3 + 2 * d 1 := by
   change 1 + 2 * (d 1 + 1) = _
   omega
@@ -255,7 +218,7 @@ theorem enqueue_memory_amortized (d : Input) (s : Memory.State) :
 nonempty pop. This is a source-memory bound, not a claim that native glue is free. -/
 theorem dequeue_memory_amortized {w : ℕ} {d : Input} {s : Memory.State}
     (hw : Memory.WellFormed w s) (h : transferDomain w d s) :
-    memoryCost (dequeue d) s + 2 * ((Memory.spec 0).clientResult s (dequeue d)).1.2 ≤
+    memoryCost (dequeue d) s + 2 * ((Memory.spec 0).clientResult s (dequeue d)).1.rear ≤
       3 + 2 * d 1 := by
   have hi := dequeue_invariant hw h
   rw [hi.2.2.1, hi.2.2.2.2.1]

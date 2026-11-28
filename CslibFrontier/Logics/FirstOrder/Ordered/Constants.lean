@@ -54,15 +54,11 @@ variable {L : Language} [L.IsRelational] {n : ℕ} [Fact (2 ≤ n)] [L.Structure
 /-- Every canonical constant defines exactly one tuple in the forgetting interpretation. -/
 theorem constants_valid : (constants L).Valid (Fin n) := by
   intro c
-  let x : Fin n := (numericStructure (n := n) Fact.out).funMap c Fin.elim0
-  refine ⟨forgetEquiv.symm x, ?_, ?_⟩
+  refine ⟨forgetEquiv.symm ((numericStructure (n := n) Fact.out).funMap c Fin.elim0), ?_,
+    fun _ hy => Interpretation.Model.ext (funext fun () => ?_)⟩
   · fo_simp [constants, Term.realize_func]
     cases c <;> rfl
-  · intro y hy
-    fo_simp [constants, Term.realize_func] at hy
-    apply Interpretation.Model.ext
-    funext i
-    cases i
+  · fo_simp [constants, Term.realize_func] at hy
     cases c <;> exact hy
 
 /-- The selected target constants have indices zero, one and `n - 1`, respectively. -/

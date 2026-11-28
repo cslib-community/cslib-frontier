@@ -64,20 +64,19 @@ theorem navigation_circuit (c : Circuit signature n n) (L : ℕ)
       out.Computes interpretation (fun z =>
         navigationBits (c.eval interpretation) (inputLeft z) (inputRight z)) ∧
       out.size ≤ navigationBudget n c.size L := by
-  let f := c.eval interpretation
   obtain ⟨depth, hd, hds⟩ := checkpoint_depth_circuit c L hL hLN
   obtain ⟨label, hl, hls⟩ := cycle_label_circuit c L hL hLN
   obtain ⟨transient, htr, htrs⟩ := forest_transient_circuit c L hL hLN
-  have hnav := synthesis_navigation_given_flag f depth hd label hl transient htr
-  obtain ⟨out, hout, hsize⟩ := hnav.exists_circuit_outputs
-  refine ⟨out, hout, hsize.trans ?_⟩
+  obtain ⟨out, hout, hsize⟩ :=
+    (synthesis_navigation_given_flag _ depth hd label hl transient htr).exists_circuit_outputs
+  refine ⟨out, hout, ?_⟩
   unfold navigationBudget
   omega
 
 /-- Every component of `navigationBudget` fits within `4500000 * powerBudget`. -/
 theorem navigationBudget_le (n s L : ℕ) :
     navigationBudget n s L ≤ 4500000 * powerBudget n s (2 ^ n) L := by
-  have h := navigationOverhead_le n s (2 ^ n) L
+  have := navigationOverhead_le n s (2 ^ n) L
   unfold navigationBudget
   omega
 

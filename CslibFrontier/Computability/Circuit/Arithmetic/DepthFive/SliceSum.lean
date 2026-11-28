@@ -92,15 +92,11 @@ theorem sum_slice_mul {R : Type*} [CommSemiring R] (a b : ℕ)
   have hx := (Finset.mem_finsuppAntidiag.1 x.2).2
   have hy := (Finset.mem_finsuppAntidiag.1 y.2).2
   have hV' : FV (x.1 + y.1) = FV x.1 := hV _ _ fun c hc => by
-    have : y.1 c = 0 := by
-      by_contra h
-      exact (Finset.mem_filter.1 (hy (Finsupp.mem_support_iff.2 h))).2 hc
-    rw [Finsupp.add_apply, this, add_zero]
+    rw [Finsupp.add_apply, Classical.byContradiction fun h =>
+      (Finset.mem_filter.1 (hy (Finsupp.mem_support_iff.2 h))).2 hc, add_zero]
   have hU' : FU (x.1 + y.1) = FU y.1 := hU _ _ fun c hc => by
-    have : x.1 c = 0 := by
-      by_contra h
-      exact hc (Finset.mem_filter.1 (hx (Finsupp.mem_support_iff.2 h))).2
-    rw [Finsupp.add_apply, this, zero_add]
+    rw [Finsupp.add_apply, Classical.byContradiction fun h =>
+      hc (Finset.mem_filter.1 (hx (Finsupp.mem_support_iff.2 h))).2, zero_add]
   exact congrArg₂ (· * ·) hV' hU'
 
 /-- A product over the layers `t` in a set of a function of a variable `c t` of layer `t` is a

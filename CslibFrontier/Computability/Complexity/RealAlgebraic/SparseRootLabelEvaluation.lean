@@ -9,6 +9,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.SignLabelEvaluation
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseIntegerRootLabel
+import CslibFrontier.Computability.Complexity.RealAlgebraic.RootLabelPrecision
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseDerivativeTestEvaluation
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryOrder
 
@@ -29,36 +30,12 @@ namespace Cslib.Complexity.RealAlgebraic
 
 open Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInPolyTime
 
-/-- The uniform derivative norm allowance is computable from binary bounds. -/
-theorem iterateDerivativeNormExponent_polyTime {α : Type} {enc : α ↪ List Bool}
-    {D b : α → ℕ} (hD : ComputableInPolyTime D enc encNat)
-    (hb : ComputableInPolyTime b enc encNat) :
-    ComputableInPolyTime (fun w => Polynomial.iterateDerivativeNormExponent (D w) (b w))
-      enc encNat :=
-  binary_add' hb (binary_mul' (unary_to_binary.comp (binary_size.comp hD)) hD)
-
-/-- The shared sparse-label precision is computable in polynomial time from binary bounds. -/
-@[fun_prop] theorem sparseRootLabelPrecision_polyTime {α : Type} {enc : α ↪ List Bool}
-    {D b : α → ℕ} (hD : ComputableInPolyTime D enc encNat)
-    (hb : ComputableInPolyTime b enc encNat) :
-    ComputableInPolyTime (fun w => Polynomial.sparseRootLabelPrecision (D w) (b w))
-      enc encNat := by
-  have hdegree := binary_add' hD hD
-  have hdegreeSize := unary_to_binary.comp (binary_size.comp hdegree)
-  have hnorm := iterateDerivativeNormExponent_polyTime hD hb
-  have hlower := binary_add'
-    (binary_mul' (binary_add' hdegreeSize (binary_max' hb (binary_add' hnorm (.const 1))))
-      hdegree) (.const 1)
-  have hupper := binary_add' hnorm (binary_mul' hD (binary_add' hb (.const 1)))
-  simpa only [Polynomial.sparseRootLabelPrecision, Polynomial.algebraicValuePrecision,
-    Function.comp_apply] using binary_max' hlower hupper
-
 /-- Evaluate the sparse root label from the qualifying residue, addressed source coefficients,
 binary derivative orders and addressed target residues. The qualifying test is included in
 addition to the `N` derivative slots. -/
 noncomputable def sparseRootLabelResidue (p D N b z base : ℕ)
     (c : ℕ → ℕ) (orders : List ℕ) (target : ℕ → ℕ) : ℕ :=
-  signLabelResidue p (Polynomial.sparseRootLabelPrecision D b) (N + 1)
+  signLabelResidue p (Polynomial.derivativeRootLabelPrecision D b) (N + 1)
     (sparseDerivativeTestResidue p D z base c orders) target
 
 /-- The uniform sparse evaluator has level `F_(max a 3 + 4)` for coefficient access at
@@ -82,7 +59,7 @@ theorem sparseRootLabelResidue_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ
   have ht' : target ∈ CountingFunction (max a 3 + 1 + 3) (encPair enc encNat) encNat := by
     simpa only [Nat.add_assoc] using ht
   simpa only [sparseRootLabelResidue, Nat.add_assoc] using
-    signLabelResidue_mem E hp (sparseRootLabelPrecision_polyTime hD hb) hwidth hvalue ht'
+    signLabelResidue_mem E hp (derivativeRootLabelPrecision_polyTime hD hb) hwidth hvalue ht'
 
 /-- The native evaluator agrees with the sparse integer label in the determinant criterion
 when the inputs supply the addressed coefficients and signs modulo a prime greater than the

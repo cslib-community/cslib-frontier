@@ -133,8 +133,8 @@ private theorem countQueries_popMinM (tr : BTree α β) :
   match tr with
   | .leaf => simp
   | .node first rest =>
-    have ih := countQueries_popMinM first
-    simp only [popMinM_node, FreeM.countQueries_bind, FreeM.countQueries_pure, ih, zero_add]
+    simp only [popMinM_node, FreeM.countQueries_bind, FreeM.countQueries_pure,
+      countQueries_popMinM first, zero_add]
     split <;> simp [countQueries_rebalanceRightM]
 termination_by sizeOf tr
 
@@ -142,16 +142,15 @@ termination_by sizeOf tr
 stops, and erases from at most one child: at most `rest.length + 1` comparisons beyond a bound
 `B` on the erasure from each child. -/
 private theorem countQueries_eraseRestM_le (k : α) (B : ℕ) (rest : List (Triple α β))
-    (prev : BTree α β) (prevErased : FreeM (LEQuery α) (BTree α β))
-    (hpe : prevErased.countQueries oracle ≤ B)
+    (prev : BTree α β) (prevErased : Unit → FreeM (LEQuery α) (BTree α β))
+    (hpe : (prevErased ()).countQueries oracle ≤ B)
     (hc : ∀ e ∈ rest,
       (eraseSubtreeM t LEQuery.ask (pure ()) k e.child).countQueries oracle ≤ B) :
     (eraseRestM t LEQuery.ask (pure ()) k prev prevErased rest).countQueries oracle
       ≤ rest.length + 1 + B := by
   induction rest generalizing prev prevErased with
   | nil =>
-    simp only [eraseRestM_nil, bind_pure_comp, FreeM.countQueries_map, List.length_nil]
-    omega
+    simp only [eraseRestM_nil, bind_pure_comp, FreeM.countQueries_map, List.length_nil]; omega
   | cons head tail ih =>
     obtain ⟨k', v', c⟩ := head
     have hcc : (eraseSubtreeM t LEQuery.ask (pure ()) k c).countQueries oracle ≤ B :=
@@ -162,22 +161,17 @@ private theorem countQueries_eraseRestM_le (k : α) (B : ℕ) (rest : List (Trip
       · simp only [LEQuery.ask, FreeM.countQueries_bind, FreeM.countQueries_lift,
           FreeM.eval_lift, hk, hk', ↓reduceIte, countQueries_popMinM, List.length_cons]
         split
-        · simp
-          omega
+        · simp; omega
         · split <;> simp [countQueries_rebalanceLastM, countQueries_rebalanceRightM]
           omega
-      · simp [LEQuery.ask, hk, hk', countQueries_rebalanceRightM]
-        omega
+      · simp [LEQuery.ask, hk, hk', countQueries_rebalanceRightM]; omega
     · cases tail with
-      | nil =>
-        simp [LEQuery.ask, hk, countQueries_rebalanceLastM]
-        omega
+      | nil => simp [LEQuery.ask, hk, countQueries_rebalanceLastM]; omega
       | cons e tail' =>
-        have := ih c (eraseSubtreeM t LEQuery.ask (pure ()) k c) hcc
+        have := ih c (fun _ => eraseSubtreeM t LEQuery.ask (pure ()) k c) hcc
           fun e he => hc e (List.mem_cons_of_mem _ he)
         simp only [List.length_cons] at this
-        simp [LEQuery.ask, hk]
-        omega
+        simp [LEQuery.ask, hk]; omega
 
 /-- Erasure from the empty tree makes no comparisons. -/
 @[simp] theorem countQueries_eraseQ_leaf :
@@ -204,7 +198,7 @@ private theorem countQueries_eraseSubtreeM_le (h : IsWF t tr) :
     (by have := h.two_le; omega) (by simp)
     (fun first rest B hB => by
       have := countQueries_eraseRestM_le oracle k B rest first
-        (eraseSubtreeM t LEQuery.ask (pure ()) k first) (hB first (by simp [children]))
+        (fun _ => eraseSubtreeM t LEQuery.ask (pure ()) k first) (hB first (by simp [children]))
         fun e he => hB e.child (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
       simp only [eraseSubtreeM_node, FreeM.countQueries_bind, FreeM.countQueries_pure]
       omega)

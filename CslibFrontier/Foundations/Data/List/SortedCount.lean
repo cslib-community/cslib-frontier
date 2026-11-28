@@ -37,13 +37,10 @@ namespace List
 theorem getElem?_filter_countP_take {α : Type*} (p : α → Bool) {l : List α} {r : ℕ}
     (hr : r < l.length) (hp : p l[r]) :
     (l.filter p)[(l.take r).countP p]? = some l[r] := by
-  have hl : l = l.take r ++ l[r] :: l.drop (r + 1) := by
-    rw [← drop_eq_getElem_cons hr, take_append_drop]
-  have : l.filter p = (l.take r).filter p ++ l[r] :: (l.drop (r + 1)).filter p := by
-    conv_lhs => rw [hl]
+  have hl : l.filter p = (l.take r).filter p ++ l[r] :: (l.drop (r + 1)).filter p := by
+    conv_lhs => rw [← take_append_drop r l, drop_eq_getElem_cons hr]
     rw [filter_append, filter_cons_of_pos hp]
-  rw [this, countP_eq_length_filter, getElem?_append_right (Nat.le_refl _), Nat.sub_self]
-  rfl
+  rw [hl, countP_eq_length_filter, getElem?_append_right (Nat.le_refl _), Nat.sub_self]; rfl
 
 /-- In a list sorted by a key `f`, the entries with key `g` form one block, which starts after
 the entries with smaller key. -/
@@ -56,28 +53,21 @@ theorem Pairwise.filter_key_eq {α β : Type*} [LinearOrder β] (f : α → β) 
     rw [pairwise_cons] at h
     have ih := Pairwise.filter_key_eq f g h.2
     rcases lt_trichotomy (f x) g with hx | hx | hx
-    · have e1 : (x :: l).countP (fun x => f x < g) = l.countP (fun x => f x < g) + 1 :=
-        countP_cons_of_pos (by simpa using hx)
-      have e2 : (x :: l).countP (fun x => f x = g) = l.countP (fun x => f x = g) :=
-        countP_cons_of_neg (by simpa using hx.ne)
-      rw [filter_cons_of_neg (by simpa using hx.ne), e1, e2, drop_succ_cons]
+    · rw [filter_cons_of_neg (by simpa using hx.ne), countP_cons_of_neg (by simpa using hx.ne),
+        countP_cons_of_pos (by simpa using hx), drop_succ_cons]
       exact ih
     · have hlt : l.countP (fun x => f x < g) = 0 :=
         countP_eq_zero.mpr fun y hy => by simpa [← hx] using h.1 y hy
-      have e1 : (x :: l).countP (fun x => f x < g) = 0 := by
-        rw [countP_cons_of_neg (by simp [hx]), hlt]
-      have e2 : (x :: l).countP (fun x => f x = g) = l.countP (fun x => f x = g) + 1 :=
-        countP_cons_of_pos (by simpa using hx)
       rw [hlt, drop_zero] at ih
-      rw [filter_cons_of_pos (by simpa using hx), e1, e2, drop_zero, ih, take_succ_cons]
-    · have hne : ∀ y ∈ l, ¬ f y = g ∧ ¬ f y < g := fun y hy =>
-        ⟨(lt_of_lt_of_le hx (h.1 y hy)).ne', not_lt.mpr (hx.le.trans (h.1 y hy))⟩
+      rw [filter_cons_of_pos (by simpa using hx), countP_cons_of_pos (by simpa using hx),
+        countP_cons_of_neg (by simp [hx]), hlt, drop_zero, ih, take_succ_cons]
+    · have hgt : ∀ y ∈ l, g < f y := fun y hy => lt_of_lt_of_le hx (h.1 y hy)
       have h1 : l.countP (fun x => f x < g) = 0 :=
-        countP_eq_zero.mpr fun y hy => by simpa using (hne y hy).2
+        countP_eq_zero.mpr fun y hy => by simpa using not_lt.mpr (hgt y hy).le
       have h2 : l.countP (fun x => f x = g) = 0 :=
-        countP_eq_zero.mpr fun y hy => by simpa using (hne y hy).1
+        countP_eq_zero.mpr fun y hy => by simpa using (hgt y hy).ne'
       have h3 : l.filter (fun x => f x = g) = [] :=
-        filter_eq_nil_iff.mpr fun y hy => by simpa using (hne y hy).1
+        filter_eq_nil_iff.mpr fun y hy => by simpa using (hgt y hy).ne'
       simp [hx.ne', not_lt.mpr hx.le, h1, h2, h3]
 
 /-- In a sorted list, the prefix that ends `k` places into the block of `c` contains
@@ -98,23 +88,14 @@ theorem Pairwise.count_take_countP_lt_add {α : Type*} [LinearOrder α] (c : α)
       cases k with
       | zero => simp
       | succ k =>
-        rw [take_succ_cons, count_cons_self]
         have := Pairwise.count_take_countP_lt_add x k h.2
         rw [hlt, Nat.zero_add] at this
-        rw [this, Nat.succ_min_succ]
-    · have hne : ∀ y ∈ l, ¬ y < c ∧ y ≠ c := fun y hy =>
-        ⟨not_lt.mpr (hx.le.trans (h.1 y hy)), (lt_of_lt_of_le hx (h.1 y hy)).ne'⟩
+        rw [take_succ_cons, count_cons_self, this, Nat.succ_min_succ]
+    · have hgt : ∀ y ∈ x :: l, c < y :=
+        forall_mem_cons.mpr ⟨hx, fun y hy => lt_of_lt_of_le hx (h.1 y hy)⟩
       have h1 : (x :: l).countP (· < c) = 0 :=
-        countP_eq_zero.mpr fun y hy => by
-          rcases mem_cons.mp hy with rfl | hy
-          · simpa using not_lt.mpr hx.le
-          · simpa using (hne y hy).1
-      have h2 : (x :: l).count c = 0 :=
-        count_eq_zero.mpr fun hy => by
-          rcases mem_cons.mp hy with h' | hy
-          · exact hx.ne' h'.symm
-          · exact (hne c hy).2 rfl
-      rw [h1, h2, Nat.zero_add, Nat.min_zero, count_eq_zero]
-      exact fun hc => count_eq_zero.mp h2 (take_subset _ _ hc)
+        countP_eq_zero.mpr fun y hy => by simpa using not_lt.mpr (hgt y hy).le
+      rw [h1, Nat.zero_add, count_eq_zero.mpr fun hy => (hgt c hy).ne' rfl, Nat.min_zero]
+      exact count_eq_zero.mpr fun hy => (hgt c (take_subset _ _ hy)).ne' rfl
 
 end List

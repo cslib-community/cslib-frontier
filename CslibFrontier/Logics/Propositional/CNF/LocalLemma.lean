@@ -64,9 +64,7 @@ theorem Clause.toOuterMeasure_pi_setOf_eval_eq_false {V : Type*} [Fintype V] {c 
     have hset : {σ : V → Bool | Clause.eval σ (l :: c) = false} =
         {σ | σ l.1 = !l.2} ∩ {σ | Clause.eval σ c = false} := by
       ext σ
-      simp only [Set.mem_ofPred_eq, Set.mem_inter_iff, Clause.eval_cons, Bool.or_eq_false_iff,
-        Literal.eval, beq_eq_false_iff_ne]
-      cases σ l.1 <;> cases l.2 <;> simp
+      rcases l with ⟨v, _ | _⟩ <;> simp [Clause.eval_cons, Literal.eval]
     rw [hset, PMF.toOuterMeasure_pi_eq_inter (fun _ : V => PMF.uniformOfFintype Bool)
       (S := {v | v ∈ c.map Prod.fst}) hc.1
       (E := {σ | Clause.eval σ c = false}) (fun σ τ h => by
@@ -100,13 +98,10 @@ theorem CNF.IsExactDistinct.satisfiable_of_exp_mul_le {n k d : ℕ} {φ : CNF (F
     (by
       rw [inv_pow, mul_comm (Real.exp 1), mul_assoc, inv_mul_le_iff₀ (by positivity), mul_one]
       exact hlll)
-  obtain ⟨σ, hσ⟩ : (⋂ i, (A i)ᶜ).Nonempty := by
-    by_contra h
-    rw [Set.not_nonempty_iff_eq_empty] at h
-    simp [h] at hpos
+  obtain ⟨σ, hσ⟩ : (⋂ i, (A i)ᶜ).Nonempty :=
+    Set.nonempty_iff_ne_empty.2 fun h => by simp [h] at hpos
   refine ⟨σ, (CNF.eval_eq_true_iff σ φ).2 fun c hc => ?_⟩
   obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hc
-  have h := Set.mem_iInter.1 hσ ⟨i, hi⟩
-  simpa [A] using h
+  simpa [A] using Set.mem_iInter.1 hσ ⟨i, hi⟩
 
 end Cslib.Logic.PL

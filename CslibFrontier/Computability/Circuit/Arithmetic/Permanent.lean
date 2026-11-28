@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Arithmetic.Determinant
 public import CslibFrontier.Computability.Circuit.Arithmetic.VNP
 import CslibFrontier.Foundations.Data.Matrix.Ryser
+import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 
 /-!
@@ -70,10 +71,6 @@ noncomputable def ryserPoly (R : Type u) [CommRing R] (n : ℕ) :
     ∏ i : Fin n, ∑ j : Fin n,
       X (Fin.natAdd (n * n) j) * X (Fin.castAdd n (finProdFinEquiv (i, j)))
 
-private theorem totalDegree_X_le' {σ : Type*} (i : σ) :
-    (X i : MvPolynomial σ R).totalDegree ≤ 1 :=
-  (totalDegree_monomial_le _ _).trans (by simp)
-
 /-- The Ryser inner polynomial has total degree at most `3 * n`. -/
 theorem totalDegree_ryserPoly_le (n : ℕ) : (ryserPoly R n).totalDegree ≤ 3 * n := by
   rw [ryserPoly]
@@ -85,7 +82,7 @@ theorem totalDegree_ryserPoly_le (n : ℕ) : (ryserPoly R n).totalDegree ≤ 3 *
       _ = n := by simp
     rw [sub_eq_add_neg, show (2 : MvPolynomial (Fin (n * n + n)) R) = C 2 from (map_ofNat C 2).symm]
     refine (totalDegree_add _ _).trans (max_le ?_ ?_)
-    · exact (totalDegree_mul _ _).trans (by simpa using totalDegree_X_le' _)
+    · exact (totalDegree_mul _ _).trans (by simpa using totalDegree_X_le _)
     · rw [← map_one C, ← map_neg C, totalDegree_C]
       omega
   have h2 : (∏ i : Fin n, ∑ j : Fin n,
@@ -96,7 +93,7 @@ theorem totalDegree_ryserPoly_le (n : ℕ) : (ryserPoly R n).totalDegree ≤ 3 *
       _ = 2 * n := by simp [mul_comm]
     refine totalDegree_finsetSum_le fun j _ => ?_
     refine (totalDegree_mul _ _).trans ?_
-    exact Nat.add_le_add (totalDegree_X_le' _) (totalDegree_X_le' _)
+    exact Nat.add_le_add (totalDegree_X_le _) (totalDegree_X_le _)
   omega
 
 /-- The polynomial family of Ryser inner polynomials over `R`. -/
@@ -142,40 +139,28 @@ private theorem synthesis_ryserPoly (n : ℕ) :
       MvPolynomial (Fin (n * n + n)) R) :=
     (({fun _ => 0} ∪ {fun _ => 1}) ∪ {fun _ => C 2}) ∪ {fun _ => C (-1)}
   let s := inputs (n * n + n) ∪ constants
-  have h0 : (fun _ => 0) ∈ s := by simp [s, constants]
   have h1 : (fun _ => 1) ∈ s := by simp [s, constants]
-  have h2 : (fun _ => C (2 : R)) ∈ s := by simp [s, constants]
-  have hn : (fun _ => C (-1 : R)) ∈ s := by simp [s, constants]
   have hx (i : Fin (n * n + n)) : (fun x => x i) ∈ s := Or.inl ⟨i, rfl⟩
-  have hsign (j : Fin n) : Synthesis (interp (R := R) (n * n + n)) s
-      {fun x => C 2 * x (Fin.natAdd (n * n) j) + C (-1)} 2 := by
-    have hmul := Synthesis.arith_mul (constant := C) h2 (hx (Fin.natAdd (n * n) j))
-    exact hmul.trans (Synthesis.arith_add (Set.mem_union_right _ rfl)
-      (Set.mem_union_left _ hn))
-  have hsigns := synthesis_prod univ _ (fun _ : Fin n => 2) h1 (fun j _ => hsign j)
-  have hrow (i : Fin n) : Synthesis (interp (R := R) (n * n + n)) s
-      {fun x => ∑ j : Fin n,
-        x (Fin.natAdd (n * n) j) * x (Fin.castAdd n (finProdFinEquiv (i, j)))} (2 * n) := by
-    have := Synthesis.arith_sum (constant := C) univ
-      (fun j x => x (Fin.natAdd (n * n) j) * x (Fin.castAdd n (finProdFinEquiv (i, j))))
-      (fun _ : Fin n => 1) h0
-      (fun j _ => Synthesis.arith_mul (hx (Fin.natAdd (n * n) j))
-        (hx (Fin.castAdd n (finProdFinEquiv (i, j)))))
-    simpa only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul,
-      mul_comm] using this
-  have hrows := synthesis_prod univ _ (fun _ : Fin n => 2 * n) h1 (fun i _ => hrow i)
+  have hsigns := synthesis_prod univ _ (fun _ : Fin n => 2) h1 fun j _ =>
+    (Synthesis.arith_mul (constant := C) (by simp [s, constants] : (fun _ => C (2 : R)) ∈ s)
+      (hx (Fin.natAdd (n * n) j))).trans
+      (Synthesis.arith_add (Set.mem_union_right _ rfl)
+        (Set.mem_union_left _ (by simp [s, constants] : (fun _ => C (-1 : R)) ∈ s)))
+  have hrows := synthesis_prod univ _ (fun _ : Fin n => 2 * n) h1 fun i _ => by
+    simpa only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_comm] using
+      Synthesis.arith_sum (constant := C) univ
+        (fun j x => x (Fin.natAdd (n * n) j) * x (Fin.castAdd n (finProdFinEquiv (i, j))))
+        (fun _ : Fin n => 1) (by simp [s, constants]) fun j _ =>
+          Synthesis.arith_mul (hx (Fin.natAdd (n * n) j))
+            (hx (Fin.castAdd n (finProdFinEquiv (i, j))))
   have hbody := hsigns.combine hrows
     (Synthesis.arith_mul (Set.mem_insert _ _) (Set.mem_insert_of_mem _ rfl))
   have hc0 : Synthesis (interp (R := R) (n * n + n)) (inputs (n * n + n)) {fun _ => 0} 1 := by
     simpa only [map_zero] using Synthesis.arith_const (constant := C) (0 : R)
   have hc1 : Synthesis (interp (R := R) (n * n + n)) (inputs (n * n + n)) {fun _ => 1} 1 := by
     simpa only [map_one] using Synthesis.arith_const (constant := C) (1 : R)
-  have hc2 : Synthesis (interp (R := R) (n * n + n)) (inputs (n * n + n))
-      {fun _ => C (2 : R)} 1 := Synthesis.arith_const 2
-  have hcn : Synthesis (interp (R := R) (n * n + n)) (inputs (n * n + n))
-      {fun _ => C (-1 : R)} 1 := Synthesis.arith_const (-1)
   have hc : Synthesis (interp (R := R) (n * n + n)) (inputs (n * n + n)) constants 4 :=
-    ((hc0.union hc1).union hc2).union hcn
+    ((hc0.union hc1).union (Synthesis.arith_const 2)).union (Synthesis.arith_const (-1))
   refine (hc.trans hbody).mono Set.Subset.rfl Set.Subset.rfl ?_
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
   nlinarith

@@ -176,8 +176,7 @@ theorem size_toPlanarPositiveOneInExactThreeSATThree (φ : CNF ℕ) :
   have hs := (toDrawnPlanarThreeSAT_costs φ).1
   have hc := CNF.PositiveExactOneCompile.length_formula_le (toPlanarThreeSAT φ)
   have hl := CNF.PositiveExactOneCompile.length_vars_formula_le (toPlanarThreeSAT φ)
-  dsimp only [toPlanarThreeSAT] at hc hl
-  dsimp only [toPlanarPositiveOneInExactThreeSATThree, toPlanarThreeSAT]
+  dsimp only [toPlanarPositiveOneInExactThreeSATThree, toPlanarThreeSAT] at hc hl ⊢
   constructor <;> nlinarith
 
 /-- Every total output has its actual positive exact-one incidence drawing. -/
@@ -202,29 +201,18 @@ theorem mem_PositiveOneInExactThreeSATThree_toPlanarPositiveOneInExactThreeSATTh
 /-- Correctness for the target with its actual drawing supplied. -/
 theorem mem_DrawnPlanarPositiveOneInExactThreeSATThree_toDrawn_iff (φ : CNF ℕ) :
     toDrawnPlanarPositiveOneInExactThreeSATThree φ ∈ DrawnPlanarPositiveOneInExactThreeSATThree ↔
-      φ ∈ ThreeSAT := by
-  change toPlanarPositiveOneInExactThreeSATThree φ ∈ PositiveOneInExactThreeSATThree ∧
-    Graph.IsPlanarOrthogonalDrawing
-      (SAT.incidenceGraph (toPlanarPositiveOneInExactThreeSATThree φ))
-      (toDrawnPlanarPositiveOneInExactThreeSATThree φ).drawing ↔ _
-  rw [and_iff_left
-    (isPlanarOrthogonalDrawing_toDrawnPlanarPositiveOneInExactThreeSATThree φ)]
-  exact mem_PositiveOneInExactThreeSATThree_toPlanarPositiveOneInExactThreeSATThree_iff φ
+      φ ∈ ThreeSAT :=
+  (and_iff_left (isPlanarOrthogonalDrawing_toDrawnPlanarPositiveOneInExactThreeSATThree φ)).trans
+    (mem_PositiveOneInExactThreeSATThree_toPlanarPositiveOneInExactThreeSATThree_iff φ)
 
 /-- Correctness when the positive target requires the drawing's existence. -/
 theorem mem_PlanarPositiveOneInExactThreeSATThree_toPlanar_iff (φ : CNF ℕ) :
     toPlanarPositiveOneInExactThreeSATThree φ ∈ PlanarPositiveOneInExactThreeSATThree ↔
-      φ ∈ ThreeSAT := by
-  constructor
-  · intro h
-    exact
-      (mem_PositiveOneInExactThreeSATThree_toPlanarPositiveOneInExactThreeSATThree_iff φ).mp h.1
-  · intro h
-    refine ⟨?_,
-      (toDrawnPlanarPositiveOneInExactThreeSATThree φ).drawing,
-      isPlanarOrthogonalDrawing_toDrawnPlanarPositiveOneInExactThreeSATThree φ⟩
-    exact
-      (mem_PositiveOneInExactThreeSATThree_toPlanarPositiveOneInExactThreeSATThree_iff φ).mpr h
+      φ ∈ ThreeSAT :=
+  ⟨fun h => (mem_PositiveOneInExactThreeSATThree_toPlanarPositiveOneInExactThreeSATThree_iff φ).mp
+    h.1, fun h =>
+    ⟨(mem_PositiveOneInExactThreeSATThree_toPlanarPositiveOneInExactThreeSATThree_iff φ).mpr h,
+      _, isPlanarOrthogonalDrawing_toDrawnPlanarPositiveOneInExactThreeSATThree φ⟩⟩
 
 /-- Positive exact-three, occurrence-three planar exact-one SAT is NP-hard. -/
 theorem PlanarPositiveOneInExactThreeSATThree_npHard :
@@ -236,17 +224,13 @@ theorem PlanarPositiveOneInExactThreeSATThree_npHard :
 /-- Correctness of the same compiler for the positive width-three planar variant. -/
 theorem mem_PlanarPositiveOneInThreeSATThree_toPlanar_iff (φ : CNF ℕ) :
     toPlanarPositiveOneInExactThreeSATThree φ ∈ PlanarPositiveOneInThreeSATThree ↔
-      φ ∈ ThreeSAT := by
-  constructor
-  · intro h
-    exact (oneSatisfiable_toPlanarPositiveOneInExactThreeSATThree_iff φ).mp h.1.1.2.2
-  · intro h
-    refine ⟨⟨⟨?_, positive_toPlanarPositiveOneInExactThreeSATThree φ,
+      φ ∈ ThreeSAT :=
+  ⟨fun h => (oneSatisfiable_toPlanarPositiveOneInExactThreeSATThree_iff φ).mp h.1.1.2.2,
+    fun h => ⟨⟨⟨fun c hc => (exactClauses_toPlanarPositiveOneInExactThreeSATThree φ c hc).1.le,
+      positive_toPlanarPositiveOneInExactThreeSATThree φ,
       (oneSatisfiable_toPlanarPositiveOneInExactThreeSATThree_iff φ).mpr h⟩,
       count_vars_toPlanarPositiveOneInExactThreeSATThree_le φ⟩,
-      (toDrawnPlanarPositiveOneInExactThreeSATThree φ).drawing,
-      isPlanarOrthogonalDrawing_toDrawnPlanarPositiveOneInExactThreeSATThree φ⟩
-    exact fun c hc => (exactClauses_toPlanarPositiveOneInExactThreeSATThree φ c hc).1.le
+      _, isPlanarOrthogonalDrawing_toDrawnPlanarPositiveOneInExactThreeSATThree φ⟩⟩
 
 /-- Positive width-three, occurrence-three planar exact-one SAT is NP-hard. -/
 theorem PlanarPositiveOneInThreeSATThree_npHard :
@@ -264,21 +248,15 @@ theorem sharpPositiveOneInExactThreeSATThree_toPlanarPositiveOneInExactThreeSATT
     ⟨exactClauses_toPlanarPositiveOneInExactThreeSATThree φ,
       positive_toPlanarPositiveOneInExactThreeSATThree φ,
       count_vars_toPlanarPositiveOneInExactThreeSATThree_le φ⟩
-  have hplan := sharpThreeSATThree_toPlanarThreeSATThree (toThreeSATThree φ)
   have hout := (ThreeSATThree.syntaxCheck_iff _).mpr
     ⟨width_toPlanarThreeSATThree (toThreeSATThree φ),
       count_vars_toPlanarThreeSATThree (toThreeSATThree φ)⟩
-  have hsource := (ThreeSATThree.syntaxCheck_iff _).mpr
-    ⟨width_toThreeSATThree φ, count_vars_toThreeSATThree_le φ⟩
-  simp only [SharpThreeSATThree, hout, hsource, ↓reduceIte, SharpSAT] at hplan
-  simp only [SharpPositiveOneInExactThreeSATThree, hg, ↓reduceIte]
-  change (CNF.PositiveExactOneCompile.formula
-    (toPlanarThreeSATThree (toThreeSATThree φ))).oneModelCount = _
-  rw [CNF.PositiveExactOneCompile.oneModelCount_formula _
-      (width_toPlanarThreeSATThree (toThreeSATThree φ))]
-  exact hplan.trans (by
-    simpa only [SharpThreeSATThree, hsource, ↓reduceIte, SharpSAT] using
-      sharpThreeSATThree_toThreeSATThree φ)
+  have hplan := (sharpThreeSATThree_toPlanarThreeSATThree (toThreeSATThree φ)).trans
+    (sharpThreeSATThree_toThreeSATThree φ)
+  simp only [SharpThreeSATThree, hout, ↓reduceIte, SharpSAT] at hplan
+  rw [SharpPositiveOneInExactThreeSATThree, ite_eq_left hg]
+  exact (CNF.PositiveExactOneCompile.oneModelCount_formula _
+    (width_toPlanarThreeSATThree (toThreeSATThree φ))).trans hplan
 
 /-- The planar formula compiler is a native parsimonious reduction to the planarity-guarded count:
 every output has a planar orthogonal incidence drawing, so the guard never discards a model. -/
@@ -287,12 +265,9 @@ theorem parsimoniousReducible_SharpThreeSAT_SharpPlanarPositiveOneInExactThreeSA
       SharpPlanarPositiveOneInExactThreeSATThree :=
   ⟨toPlanarPositiveOneInExactThreeSATThree,
     computableInPolyTime_toPlanarPositiveOneInExactThreeSATThree, fun φ => by
-      rw [SharpPlanarPositiveOneInExactThreeSATThree]
-      split
-      · exact (sharpPositiveOneInExactThreeSATThree_toPlanarPositiveOneInExactThreeSATThree φ).symm
-      · rename_i h
-        exact
-          (h ⟨_, isPlanarOrthogonalDrawing_toDrawnPlanarPositiveOneInExactThreeSATThree φ⟩).elim⟩
+      rw [SharpPlanarPositiveOneInExactThreeSATThree,
+        ite_eq_left ⟨_, isPlanarOrthogonalDrawing_toDrawnPlanarPositiveOneInExactThreeSATThree φ⟩,
+        sharpPositiveOneInExactThreeSATThree_toPlanarPositiveOneInExactThreeSATThree]⟩
 
 /-- The full compiler retains linear grid sides relative to the original ordinary 3SAT input. -/
 theorem toDrawnPlanarPositiveOneInExactThreeSATThree_fits (φ : CNF ℕ) :
@@ -317,8 +292,7 @@ theorem toDrawnPlanarPositiveOneInExactThreeSATThree_costs (φ : CNF ℕ) :
   have hc := SAT.ExactOne.positiveDrawing_costs
     (isPlanarOrthogonalDrawing_toDrawnPlanarThreeSAT φ)
     (width_toPlanarThreeSATThree (toThreeSATThree φ))
-  dsimp only [toDrawnPlanarPositiveOneInExactThreeSATThree, toPlanarThreeSAT]
-  dsimp only [toPlanarThreeSAT] at hc
+  dsimp only [toDrawnPlanarPositiveOneInExactThreeSATThree, toPlanarThreeSAT] at hc ⊢
   exact ⟨hs.1, hs.2, by nlinarith [hc.1, hp.1], by nlinarith [hc.2.1, hp.1],
     by nlinarith [hc.2.2.1, hp.1, hp.2.2.2.1],
     by nlinarith [hc.2.2.2, hp.1, hp.2.2.2.2]⟩
@@ -356,7 +330,6 @@ theorem parsimoniousReducible_SharpThreeSAT_SharpDrawnPlanarPositiveOneInExactTh
       rw [SharpDrawnPlanarPositiveOneInExactThreeSATThree]
       split
       · exact (sharpPositiveOneInExactThreeSATThree_toPlanarPositiveOneInExactThreeSATThree φ).symm
-      · rename_i h
-        exact (h (isPlanarOrthogonalDrawing_toDrawnPlanarPositiveOneInExactThreeSATThree φ)).elim⟩
+      · exact absurd (isPlanarOrthogonalDrawing_toDrawnPlanarPositiveOneInExactThreeSATThree φ) ‹_›⟩
 
 end Cslib.Complexity

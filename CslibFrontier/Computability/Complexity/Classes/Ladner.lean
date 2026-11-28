@@ -107,15 +107,13 @@ theorem SAT_notMem_P {α : Type} {enc : α ↪ List Bool} (h : P enc ≠ NP enc)
 `n` is at most `n`. -/
 private theorem eventually_clock_le (i : ℕ) :
     ∀ᶠ n in Filter.atTop, ∀ j < n, clock i (word j).length ≤ n := by
-  have hpoly : PolynomiallyBounded fun l => (2 * l + 2) ^ i := by fun_prop
-  obtain ⟨L, hL⟩ := Filter.eventually_atTop.mp (PolynomiallyBounded.eventually_lt_two_pow hpoly)
+  obtain ⟨L, hL⟩ := Filter.eventually_atTop.mp
+    (PolynomiallyBounded.eventually_lt_two_pow (f := fun l => (2 * l + 2) ^ i) (by fun_prop))
   filter_upwards [Filter.eventually_ge_atTop (2 ^ L)] with n hn j hj
   have hlog : (word j).length ≤ Nat.log 2 n :=
     Nat.le_log_of_pow_le one_lt_two ((two_pow_length_word_le j).trans hj)
-  have hL' : L ≤ Nat.log 2 n := Nat.le_log_of_pow_le one_lt_two hn
-  calc clock i (word j).length ≤ (2 * Nat.log 2 n + 2) ^ i :=
-        Nat.pow_le_pow_left (by omega) i
-    _ ≤ 2 ^ Nat.log 2 n := (hL _ hL').le
+  calc clock i (word j).length ≤ (2 * Nat.log 2 n + 2) ^ i := Nat.pow_le_pow_left (by omega) i
+    _ ≤ 2 ^ Nat.log 2 n := (hL _ (Nat.le_log_of_pow_le one_lt_two hn)).le
     _ ≤ n := Nat.pow_log_le_self 2 (by have := Nat.one_le_two_pow (n := L); omega)
 
 /-- **If `SATH` is in `P`, then `H` is bounded**: some index of a machine deciding `SATH` has a
@@ -126,10 +124,9 @@ theorem exists_H_le_of_mem_P (h : SATH ∈ P encBits) : ∃ C, ∀ n, H n ≤ C 
   refine ⟨max i N, fun n => ?_⟩
   rcases lt_or_ge n N with hn | hn
   · exact (H_le_self n).trans (by omega)
-  · refine (H_le_of_agrees fun j hj => ⟨f (word j), ?_, hf (word j) |>.symm⟩).trans
-      (le_max_left _ _)
-    rw [min_eq_left (hN n hn j hj)]
-    exact hrun _
+  · exact (H_le_of_agrees fun j hj =>
+      ⟨f (word j), by simpa only [min_eq_left (hN n hn j hj)] using hrun (word j),
+        (hf (word j)).symm⟩).trans (le_max_left _ _)
 
 /-! ### The first hole: padding along a bounded exponent -/
 
@@ -146,11 +143,8 @@ private theorem computableInPolyTime_padBounded (C : ℕ) :
 theorem reducible_of_H_le {C : ℕ} (hC : ∀ n, H n ≤ C) :
     PolyTimeReducible encCNF encBits SAT SATH := by
   refine ⟨padBounded C, computableInPolyTime_padBounded C, fun φ => ?_⟩
-  have hpow : (encCNF φ).length ^ H (encCNF φ).length ≤ ((encCNF φ).length + 1) ^ C :=
-    (Nat.pow_le_pow_left (Nat.le_succ _) _).trans
-      (Nat.pow_le_pow_right (Nat.succ_pos _) (hC _))
-  rw [padBounded, capPow, min_eq_left hpow, SATH, pad_mem_padSAT_iff]
-  simp
+  simp [padBounded, capPow, min_eq_left ((Nat.pow_le_pow_left (Nat.le_succ _) _).trans
+    (Nat.pow_le_pow_right (Nat.succ_pos _) (hC _))), SATH, pad_mem_padSAT_iff]
 
 /-- **If `SATH` is in `P`, so is `SAT`.** -/
 theorem SAT_mem_P_of_SATH_mem_P (h : SATH ∈ P encBits) : SAT ∈ P encCNF :=
@@ -166,36 +160,29 @@ theorem agrees_of_frequently_H_eq {i : ℕ} (h : ∃ᶠ n in Filter.atTop, H n =
       (b = true ↔ w ∈ SATH) := by
   obtain ⟨n, hn, hHn⟩ := (Filter.frequently_atTop.mp h)
     (max (index w + 1) (max (2 ^ 2 ^ (i + 1)) (clock i w.length)))
-  have h₁ : 2 ^ 2 ^ (i + 1) ≤ n := by omega
   have hlog : i < Nat.log 2 (Nat.log 2 n) :=
-    Nat.le_log_of_pow_le one_lt_two (Nat.le_log_of_pow_le one_lt_two h₁)
+    Nat.le_log_of_pow_le one_lt_two (Nat.le_log_of_pow_le one_lt_two
+      ((le_max_left _ _).trans ((le_max_right _ _).trans hn)))
   obtain ⟨b, hb, hiff⟩ := agrees_H (hHn ▸ hlog) (index w) (by omega)
   rw [hHn, word_index, min_eq_left (by omega)] at hb
-  rw [word_index] at hiff
-  exact ⟨b, hb, hiff⟩
+  exact ⟨b, hb, by rwa [word_index] at hiff⟩
 
 /-- **If `H` takes a value infinitely often, `SATH` is in `P`**, decided by running the machine
 with that index within its polynomial clock. -/
 theorem SATH_mem_P_of_frequently_H_eq {i : ℕ} (h : ∃ᶠ n in Filter.atTop, H n = i) :
     SATH ∈ P encBits := by
-  refine ⟨fun w => decide (runIndexed i w (clock i w.length) = ([eBit true], true)), ?_,
-    fun w => ?_⟩
-  · unfold clock
-    fun_prop
-  · obtain ⟨b, hb, hiff⟩ := agrees_of_frequently_H_eq h w
-    simp only [hb, ← hiff]
-    cases b <;> decide
+  refine ⟨fun w => decide (runIndexed i w (clock i w.length) = ([eBit true], true)),
+    by fun_prop [clock], fun w => ?_⟩
+  obtain ⟨b, hb, hiff⟩ := agrees_of_frequently_H_eq h w
+  cases b <;> simp [hb, ← hiff]
 
 /-- **If `SATH` is not in `P`, then `H` tends to infinity.** -/
 theorem tendsto_H_of_notMem_P (h : SATH ∉ P encBits) :
     Filter.Tendsto H Filter.atTop Filter.atTop := by
   refine Filter.tendsto_atTop.mpr fun C => ?_
-  have hne (i : ℕ) : ∀ᶠ n in Filter.atTop, H n ≠ i :=
-    Filter.not_frequently.mp fun hi => h (SATH_mem_P_of_frequently_H_eq hi)
-  filter_upwards [(Filter.eventually_all_finset (Finset.range C)).mpr fun i _ => hne i]
-    with n hn
-  by_contra hlt
-  exact hn (H n) (Finset.mem_range.mpr (by omega)) rfl
+  filter_upwards [(Filter.eventually_all_finset (p := fun i n => H n ≠ i) (Finset.range C)).mpr
+    fun i _ => Filter.not_frequently.mp fun hi => h (SATH_mem_P_of_frequently_H_eq hi)] with n hn
+  exact not_lt.mp fun hlt => hn (H n) (Finset.mem_range.mpr hlt) rfl
 
 /-! ### The second hole: an unbounded exponent -/
 
@@ -219,10 +206,7 @@ theorem shrink_mem_SAT_iff {R : CNF ℕ → List Bool} (hR : ∀ φ, φ ∈ SAT 
   rw [shrink]
   split_ifs
   · rfl
-  · rw [hR φ, SATH, mem_padSAT_iff]
-    cases padCheck H (R φ) with
-    | none => simp [falseCNF_notMem_SAT]
-    | some ψ => simp
+  · cases h : padCheck H (R φ) <;> simp [hR φ, SATH, mem_padSAT_iff, h, falseCNF_notMem_SAT]
 
 /-- **A round of the self-reduction shortens long formulas.** Let `R` have output length at most
 `c * (n + 1) ^ d` on formulas of length `n`, and let `H` exceed `d` from `M` on. If `R φ` padded a
@@ -237,18 +221,16 @@ private theorem length_shrink_lt {R : CNF ℕ → List Bool} {c d M N : ℕ}
   | none => exact hN₁.trans_le hφ
   | some ψ =>
     rw [Option.getD_some]
-    have hlen := congrArg List.length (padCheck_eq_some_iff.mp hc)
-    rw [length_pad] at hlen
+    have hlen := (congrArg List.length (padCheck_eq_some_iff.mp hc)).trans (length_pad _ _)
     have hRφ := hRlen φ
     generalize (encCNF φ).length = n at *
     generalize (encCNF ψ).length = m at *
     by_contra hge
-    replace hge := not_lt.mp hge
     have hn : 1 ≤ n := by omega
-    have hHm := hM m (by omega)
     -- the padding is at least `n ^ (d + 1)`
     have hpad : n ^ (d + 1) ≤ m ^ H m :=
-      (Nat.pow_le_pow_left hge _).trans (Nat.pow_le_pow_right (by omega) hHm)
+      (Nat.pow_le_pow_left (not_lt.mp hge) _).trans
+        (Nat.pow_le_pow_right (by omega) (hM m (by omega)))
     -- the output bound is less than `n ^ (d + 1)`
     have hbound : c * (n + 1) ^ d < n ^ (d + 1) :=
       calc c * (n + 1) ^ d ≤ c * (2 ^ d * n ^ d) := by
@@ -273,11 +255,7 @@ noncomputable def smallSAT (N : ℕ) : List (List Bool) :=
 theorem mem_smallSAT {N : ℕ} {φ : CNF ℕ} (h : (encCNF φ).length < N) :
     encCNF φ ∈ smallSAT N ↔ φ ∈ SAT := by
   simp only [smallSAT, Finset.mem_toList, Set.Finite.mem_toFinset, Set.mem_ofPred_eq]
-  constructor
-  · rintro ⟨-, ψ, hψ, he⟩
-    rwa [← encCNF.injective he]
-  · intro hφ
-    exact ⟨h, φ, hφ, rfl⟩
+  exact ⟨fun ⟨_, _, hψ, he⟩ => encCNF.injective he ▸ hψ, fun hφ => ⟨h, φ, hφ, rfl⟩⟩
 
 /-- **The second hole.** If `SAT` reduces to `SATH` in polynomial time and `H` tends to infinity,
 then `SAT` is in `P`: the self-reduction leaves a formula of bounded length, decided by a finite
@@ -295,46 +273,32 @@ theorem SAT_mem_P_of_reducible_of_tendsto (hR : PolyTimeReducible encCNF encBits
   have hshrink : ComputableInPolyTime (shrink R N) encCNF encCNF := by
     have hH' : ComputableInPolyTime (fun p : CNF ℕ × ℕ => H p.2) (encPair encCNF encUnary)
         encUnary := by fun_prop
-    have helse : ComputableInPolyTime (fun φ => (padCheck H (R φ)).getD falseCNF)
-        encCNF encCNF := by
-      fun_prop
-    unfold shrink
-    fun_prop
+    fun_prop [shrink]
   -- the rounds preserve satisfiability and shorten the formula to below `N`
   obtain ⟨hreduce, hinv⟩ := ComputableInPolyTime.iterate_spec
     (count := fun φ => (encCNF φ).length) (init := fun φ => φ) (step := shrink R N)
     (by fun_prop) ComputableInPolyTime.id' hshrink
     (fun φ k ψ => (ψ ∈ SAT ↔ φ ∈ SAT) ∧ (encCNF ψ).length ≤ max ((encCNF φ).length - k) (N - 1))
     (fun φ => ⟨Iff.rfl, by omega⟩)
-    (fun φ k ψ _ ⟨hsat, hlen⟩ => by
-      refine ⟨(shrink_mem_SAT_iff hR N ψ).trans hsat, ?_⟩
+    (fun φ k ψ _ ⟨hsat, hlen⟩ => ⟨(shrink_mem_SAT_iff hR N ψ).trans hsat, by
       by_cases hψ : (encCNF ψ).length < N
-      · rw [shrink, ite_eq_left hψ]
-        omega
+      · rw [shrink, ite_eq_left hψ]; omega
       · have := hlt ψ (not_lt.mp hψ)
-        omega)
+        omega⟩)
     (size := fun φ => (encCNF φ).length + N) (.add .self (.const N))
     (fun φ k ψ _ ⟨_, hlen⟩ => by omega)
   refine ⟨fun φ => (smallSAT N).any fun w => decide (encCNF (selfReduce R N φ) = w), ?_,
     fun φ => ?_⟩
-  · have hdec : ComputableInPolyTime
-        (fun φ => (smallSAT N).any fun w => decide (encCNF φ = w)) encCNF encBool := by
+  · refine (show ComputableInPolyTime (fun φ => (smallSAT N).any fun w => decide (encCNF φ = w))
+        encCNF encBool by
       simpa only [Function.comp_def, List.any_eq_not_all_not] using
         ComputableInPolyTime.bool_not.comp (ComputableInPolyTime.allConst (smallSAT N) fun w _ =>
           ComputableInPolyTime.bool_not.comp (ComputableInPolyTime.decide_eq'
             (ComputableInPolyTime.of_eq (f := fun φ : CNF ℕ => encCNF φ) (encOut := encBits)
-              fun _ => rfl) (.const w)))
-    exact hdec.comp hreduce
+              fun _ => rfl) (.const w)))).comp hreduce
   · obtain ⟨hsat, hlen⟩ := hinv φ
-    have hmem := mem_smallSAT (N := N) (φ := selfReduce R N φ) (by rw [selfReduce]; omega)
-    rw [selfReduce] at hmem
-    simp only [List.any_eq_true, selfReduce]
-    constructor
-    · intro hφ
-      exact ⟨_, hmem.mpr (hsat.mpr hφ), decide_eq_true rfl⟩
-    · rintro ⟨w, hw, he⟩
-      rw [← of_decide_eq_true he] at hw
-      exact hsat.mp (hmem.mp hw)
+    simpa using ((mem_smallSAT (N := N) (φ := selfReduce R N φ)
+      (by rw [selfReduce]; omega)).trans hsat).symm
 
 /-- **If `SATH` is `NP`-hard, then `SAT` is in `P`**: either `SATH` is in `P`, and the first hole
 applies, or `H` tends to infinity, and the second hole applies to the reduction of `SAT`. -/

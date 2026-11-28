@@ -163,19 +163,12 @@ theorem PiP_two_subset_SigmaP_two_of_SAT (hSAT : SAT ∈ PPolyOn encCNF)
   rw [hA']
   simp only [List.map_cons, List.map_nil, alternation_true_cons, alternation_false_cons,
     alternation_nil, List.append_nil]
-  constructor
-  · intro h
-    refine ⟨α_adv n, hlen_α n, fun u hu => ?_⟩
-    rw [KarpLipton.verifier_append a (hlen_α n)]
-    refine SAT.verifier_search (fun ψ hψ => ?_) (h u hu)
-    have hlen : (encCNF ψ).length ≤ N.eval n := by
-      rw [hN]
-      exact hψ.trans (SAT.queryBound_mono (hF a u hu))
-    exact (h_eval n (encCNF ψ) hlen).trans (hSAT ψ).symm
-  · rintro ⟨w₁, hw₁, h⟩ u hu
-    have := h u hu
-    rw [KarpLipton.verifier_append a hw₁] at this
-    exact ⟨_, this⟩
+  refine ⟨fun h => ⟨α_adv n, hlen_α n, fun u hu => ?_⟩,
+    fun ⟨w₁, hw₁, h⟩ u hu => ⟨_, KarpLipton.verifier_append a hw₁ u ▸ h u hu⟩⟩
+  rw [KarpLipton.verifier_append a (hlen_α n)]
+  refine SAT.verifier_search (fun ψ hψ => ?_) (h u hu)
+  exact (h_eval n (encCNF ψ) ((hN n).symm ▸ hψ.trans (SAT.queryBound_mono (hF a u hu)))).trans
+    (hSAT ψ).symm
 
 /-- **Karp–Lipton, `Π₂ = Σ₂`.** If some language in `P/poly` contains exactly the encodings of the
 satisfiable formulas, then `Π₂ = Σ₂`, for every encoding of instances. -/
@@ -209,17 +202,12 @@ level `Σₖ` of the polynomial hierarchy, with any encoding of its instances, i
 theorem SigmaP_subset_PPolyOn_of_NP_subset_PPoly
     (hNP : NP encBits ⊆ PPolyOn encBits) (k : ℕ) : SigmaP k enc ⊆ PPolyOn enc := by
   induction k generalizing α with
-  | zero =>
-    intro A hA
-    rw [SigmaP_zero] at hA
-    exact P_subset_PPolyOn hA
+  | zero => exact fun _ hA => P_subset_PPolyOn (SigmaP_zero ▸ hA)
   | succ k ih =>
     intro A hA
     obtain ⟨p, B, hB, rfl⟩ := mem_SigmaP_succ_iff.mp hA
-    have hB_PPoly : B ∈ PPolyOn (encPair enc encBits) := by
-      simpa using PPolyOn.compl (ih (compl_mem_SigmaP_of_mem_PiP hB))
-    have hN : ComputableInPolyTime (fun a : α => p.eval (enc a).length) enc encUnary := by fun_prop
-    exact PPolyOn.exists_of_computableInPolyTime_length hNP hN hB_PPoly
+    exact PPolyOn.exists_of_computableInPolyTime_length hNP (by fun_prop)
+      (by simpa using PPolyOn.compl (ih (compl_mem_SigmaP_of_mem_PiP hB)))
 
 /-- **Karp–Lipton, `NP ⊆ P/poly ⇒ Πₖ ⊆ P/poly`.** If `NP ⊆ P/poly` over bitstrings, then every
 level `Πₖ` of the polynomial hierarchy, with any encoding of its instances, is in `P/poly`. -/

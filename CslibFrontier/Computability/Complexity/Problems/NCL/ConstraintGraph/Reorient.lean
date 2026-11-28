@@ -46,11 +46,8 @@ def Port.reorient (mask : E → Bool) (p : Port E) : Port E := ⟨p.edge, mask p
 /-- A port reads the configuration with the same reference directions. -/
 theorem Port.in_reorient (mask : E → Bool) (p : Port E) (s : E → Bool) :
     (p.reorient mask).In s ↔ p.In (mask + s) := by
-  change s p.edge = (mask p.edge ^^ p.dir) ↔ (mask p.edge ^^ s p.edge) = p.dir
-  have h : s p.edge = (mask p.edge ^^ p.dir) ↔
-      (mask p.edge ^^ s p.edge) = (mask p.edge ^^ (mask p.edge ^^ p.dir)) :=
-    Bool.xor_right_inj.symm
-  simpa only [← Bool.xor_assoc, Bool.xor_self, Bool.false_xor] using h
+  simp only [Port.In, Port.reorient, Pi.add_apply, Bool.add_eq_xor]
+  cases mask p.edge <;> cases s p.edge <;> cases p.dir <;> decide
 
 /-- Change a weighted port's reference direction, retaining its edge and weight. -/
 @[expose] def WeightedPort.reorient (mask : E → Bool) (p : WeightedPort E) : WeightedPort E :=
@@ -80,22 +77,16 @@ theorem ConstraintGraph.legal_reorient (G : ConstraintGraph V E) (mask s : E →
 theorem reverse_add_left [DecidableEq E] (mask s : E → Bool) (e : E) :
     reverse (mask + s) e = mask + reverse s e := by
   funext f
-  by_cases h : f = e
-  · subst f
-    simp only [reverse_self, Pi.add_apply, Bool.add_eq_xor, Bool.xor_not]
+  rcases Decidable.eq_or_ne f e with rfl | h
+  · simp only [reverse_self, Pi.add_apply, Bool.add_eq_xor, Bool.xor_not]
   · simp only [reverse_of_ne _ h, Pi.add_apply]
 
 /-- Translating by the mask preserves and reflects single-edge moves. -/
 theorem ConstraintGraph.step_reorient [DecidableEq E]
     (G : ConstraintGraph V E) (mask s t : E → Bool) :
     (G.reorient mask).Step (mask + s) (mask + t) ↔ G.Step s t := by
-  simp only [ConstraintGraph.Step, ConstraintGraph.legal_reorient, Cslib.BitString.add_cancel_left]
-  constructor
-  · rintro ⟨hs, ht, e, he⟩
-    rw [reverse_add_left] at he
-    exact ⟨hs, ht, e, add_left_cancel he⟩
-  · rintro ⟨hs, ht, e, rfl⟩
-    exact ⟨hs, ht, e, (reverse_add_left mask s e).symm⟩
+  simp only [ConstraintGraph.Step, ConstraintGraph.legal_reorient, Cslib.BitString.add_cancel_left,
+    reverse_add_left, add_right_inj]
 
 /-- Translating configurations by the mask gives an exact simulation. -/
 @[expose] def ConstraintGraph.reorientSimulation [DecidableEq E]
@@ -127,17 +118,16 @@ theorem Vertex.checkLoopFree_reorient [DecidableEq E] (mask : E → Bool) (v : V
 theorem ConstraintGraph.IsAndOr.reorient (G : ConstraintGraph V E) (mask : E → Bool)
     (hG : G.IsAndOr) : (G.reorient mask).IsAndOr := by
   intro v
-  exact (Vertex.checkAndOr_eq_true_iff _).1
-    ((Vertex.checkAndOr_reorient mask (G v)).trans ((Vertex.checkAndOr_eq_true_iff _).2 (hG v)))
+  simpa only [← Vertex.checkAndOr_eq_true_iff, ConstraintGraph.reorient,
+    Vertex.checkAndOr_reorient] using hG v
 
 /-- Changing reference directions preserves absence of self-loops. -/
 theorem ConstraintGraph.LoopFree.reorient (G : ConstraintGraph V E)
     (mask : E → Bool) (hG : G.LoopFree) : (G.reorient mask).LoopFree := by
   classical
   intro v
-  exact (Vertex.checkLoopFree_eq_true_iff _).1
-    ((Vertex.checkLoopFree_reorient mask (G v)).trans
-      ((Vertex.checkLoopFree_eq_true_iff _).2 (hG v)))
+  simpa only [← Vertex.checkLoopFree_eq_true_iff, ConstraintGraph.reorient,
+    Vertex.checkLoopFree_reorient] using hG v
 
 /-- Collecting all weighted ports commutes with a change of reference directions. -/
 theorem ConstraintGraph.portMultiset_reorient [Fintype V]

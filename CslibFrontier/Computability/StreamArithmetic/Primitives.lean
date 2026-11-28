@@ -115,8 +115,7 @@ section BasicPrimitives
 
 /-- Exact negation of a signed-digit stream negates its real value. -/
 theorem streamVal_neg_eq (x : ℕ → ℤ) : streamVal (fun j => -x j) = -streamVal x := by
-  simp only [streamVal, Int.cast_neg, neg_div]
-  exact tsum_neg
+  simpa only [streamVal, Int.cast_neg, neg_div] using tsum_neg
 
 /-- Identity `UniformStreamRecipe` reading operand `op` directly. -/
 @[expose] noncomputable def varRecipe {Op : Type u} {Struct : Type v}
@@ -270,13 +269,9 @@ theorem eval_pairAvgResProg {Struct : Type v} (s : ℕ)
     (env : Fin 2 → ℕ → ℤ) (sEnv : Struct → Bool) :
     (pairAvgResProg s).eval env sEnv = pairAvgApprox (env 0) (env 1) s % 16 := by
   simp only [pairAvgResProg, QueryProg.eval_bindOverhead, QueryProg.eval,
-    eval_windowPrefixModProg]
-  unfold pairAvgApprox
-  have h9 : (2 : ℤ) ^ (9 : ℕ) = 512 := by decide
-  rw [h9, ← Int.add_emod]
-  simpa only [show (16 : ℤ) = (2 : ℤ) ^ (4 : ℕ) by decide,
-    show (32 : ℤ) = (2 : ℤ) ^ (5 : ℕ) by decide,
-    show (2 : ℤ) ^ (4 + 5 : ℕ) = (512 : ℤ) by decide] using
+    eval_windowPrefixModProg, pairAvgApprox, Int.reducePow]
+  rw [← Int.add_emod]
+  simpa only [Nat.reduceAdd, Int.reducePow] using
     (ediv_two_pow_emod_eq (intPrefix (env 0) (s + 4) + intPrefix (env 1) (s + 4)) 4 5).symm
 
 theorem mem_activeQueries_pairAvgResProg {Struct : Type v} (s : ℕ)
@@ -330,8 +325,7 @@ the floor quotient by `16`; every `windowPrefixModProg _ 8 _` residue program re
 way. -/
 private theorem emod_two_pow_eight_div_sixteen (a : ℤ) :
     a % (2 : ℤ) ^ (8 : ℕ) / 16 = a / 16 % 16 := by
-  have h16 : (16 : ℤ) = (2 : ℤ) ^ (4 : ℕ) := by decide
-  rw [h16, ediv_two_pow_emod_eq]
+  simpa only [Nat.reduceAdd, Int.reducePow] using (ediv_two_pow_emod_eq a 4 4).symm
 
 private theorem allowanceBound_digit_slope6 {Op : Type u} {Struct : Type v}
     {d a c s K B j L : ℕ} (L₀ : ℕ) (op : Op)
@@ -525,8 +519,7 @@ theorem clipBoundStream_isSignedStream (m K : ℕ) : IsSignedStream (clipBoundSt
 
 theorem intPrefix_neg_eq (x : ℕ → ℤ) (K : ℕ) :
     intPrefix (fun j => -x j) K = -intPrefix x K := by
-  unfold intPrefix
-  simp only [neg_mul, sum_neg_distrib]
+  simp only [intPrefix, neg_mul, sum_neg_distrib]
 
 theorem intPrefix_clipBoundStream_eq {m K : ℕ} (hm4 : 4 ≤ m) (hmK : m ≤ K + 3) :
     intPrefix (clipBoundStream m K) K = (2 : ℤ) ^ m := by
@@ -555,20 +548,17 @@ theorem intPrefix_clipBoundStream_eq {m K : ℕ} (hm4 : 4 ≤ m) (hmK : m ≤ K 
 
 theorem posClipRes_eq (s : ℕ) :
     posClipRes s = ((2 : ℤ) ^ (s + 4) / 16) % 16 := by
-  unfold posClipRes
-  rcases s with _ | _ | _ | _ | s <;> first | decide |
-    (simp only [show ¬ s + 4 < 4 by omega, ↓reduceIte];
-     rw [show (2 : ℤ) ^ (s + 4 + 4) = 16 * (16 * (2 : ℤ) ^ s) by ring,
-       Int.mul_ediv_cancel_left _ (by decide), Int.mul_emod_right])
+  rcases s with _ | _ | _ | _ | s <;> simp only [posClipRes]
+  any_goals decide
+  simp only [show s + 1 + 1 + 1 + 1 + 4 = s + 8 by omega, pow_add, Int.reducePow]
+  omega
 
 theorem negClipRes_eq (s : ℕ) :
     negClipRes s = ((-((2 : ℤ) ^ (s + 4))) / 16) % 16 := by
-  unfold negClipRes
-  rcases s with _ | _ | _ | _ | s <;> first | decide |
-    (simp only [show ¬ s + 4 < 4 by omega, ↓reduceIte];
-     rw [show -((2 : ℤ) ^ (s + 4 + 4)) = 16 * (-(16 * (2 : ℤ) ^ s)) by ring,
-       Int.mul_ediv_cancel_left _ (by decide),
-       show -(16 * (2 : ℤ) ^ s) = 16 * (-(2 : ℤ) ^ s) by ring, Int.mul_emod_right])
+  rcases s with _ | _ | _ | _ | s <;> simp only [negClipRes]
+  any_goals decide
+  simp only [show s + 1 + 1 + 1 + 1 + 4 = s + 8 by omega, pow_add, Int.reducePow]
+  omega
 
 /-- Mod-16 residue program for `shiftClipApprox v (env ()) s` using at most two 27-state
 constant-bound prefix comparisons and an 8-bit low-residue window [OpenAI2026LogSpace, Lemma 10.7].
@@ -609,19 +599,13 @@ theorem eval_shiftClipResProg {Struct : Type v} (v : ℤ) (s : ℕ)
   have hb_sign := clipBoundStream_isSignedStream (s + 4) K
   have hb_pref : intPrefix (clipBoundStream (s + 4) K) K = B :=
     intPrefix_clipBoundStream_eq (by omega) (by omega)
-  have hB0 : 0 ≤ B := by positivity
-  have hhi_iff :
-      0 ≤ cmpPrefix (env ()) (clipBoundStream (s + 4) K) K ↔ B ≤ intPrefix (env ()) K := by
-    rw [cmpPrefix_nonneg_iff hx hb_sign K, hb_pref]
-  have hlo_iff :
-      cmpPrefix (env ()) (fun j => -clipBoundStream (s + 4) K j) K ≤ 0 ↔
-        intPrefix (env ()) K ≤ -B := by
-    rw [cmpPrefix_nonpos_iff hx hb_sign.neg K, intPrefix_neg_eq, hb_pref]
-  simp only [hsmall, ↓reduceIte, QueryProg.eval_bindOverhead, eval_cmpWithConstProg, hhi_iff]
+  simp only [hsmall, ↓reduceIte, QueryProg.eval_bindOverhead, eval_cmpWithConstProg,
+    cmpPrefix_nonneg_iff hx hb_sign K, hb_pref]
   by_cases hcHi : B ≤ intPrefix (env ()) K
   · simp only [hcHi, ↓reduceIte, QueryProg.eval, posClipRes_eq, min_eq_left hcHi,
-      max_eq_right (by omega : -B ≤ B), B]
-  simp only [hcHi, ↓reduceIte, QueryProg.eval_bindOverhead, eval_cmpWithConstProg, hlo_iff]
+      max_eq_right (neg_le_self (by positivity : 0 ≤ B)), B]
+  simp only [hcHi, ↓reduceIte, QueryProg.eval_bindOverhead, eval_cmpWithConstProg,
+    cmpPrefix_nonpos_iff hx hb_sign.neg K, intPrefix_neg_eq, hb_pref]
   have hle : intPrefix (env ()) K ≤ B := by omega
   by_cases hcLo : intPrefix (env ()) K ≤ -B
   · simp only [hcLo, ↓reduceIte, QueryProg.eval, negClipRes_eq, min_eq_right hle,
@@ -647,10 +631,7 @@ private theorem allowance_shiftClipResProg {Struct : Type v} {d : ℕ} (hd : 1 �
   simp only [hneg, ↓reduceIte] at hev
   set K := ((s : ℤ) + v + 4).toNat
   have hK_le : K ≤ s + (κ + 4) * d := shiftClipCutoff_le hd hv hneg
-  have hA_le : 16 + 6 * ((κ + 4) * d) ≤ (6 * κ + 44) * d := by
-    have h20 := Nat.le_mul_of_pos_right 20 hd
-    have hmul : (6 * κ + 44) * d = 6 * ((κ + 4) * d) + 20 * d := by ring
-    omega
+  have hA_le : 16 + 6 * ((κ + 4) * d) ≤ (6 * κ + 44) * d := by nlinarith
   have hWin : ∀ {ev₀}, ev₀ ∈ ((windowPrefixModProg () 8 K).map (· / 16)).activeQueries env sEnv →
       AllowanceBound d (6 * κ + 44) 6 (κ + 4) s ev₀ := fun {ev₀} h => by
     obtain ⟨j, hj, rfl⟩ := mem_activeQueries_windowPrefixModProg () 8 K env sEnv
@@ -680,12 +661,7 @@ private theorem maxIntrinsicBits_shiftClipResProg_le {Struct : Type v} {d : ℕ}
     exact (by omega : 8 ≤ 6 * κ + 44).trans (Nat.le_mul_of_pos_right _ (by omega))
   set K := ((s : ℤ) + v + 4).toNat
   have hK_le : K ≤ s + (κ + 4) * d := shiftClipCutoff_le hd hv hneg
-  have h44 := Nat.le_mul_of_pos_right 44 hd
-  have hsplit : (6 * κ + 44) * (d + s) = 6 * ((κ + 4) * d) + 20 * d + (6 * κ + 44) * s := by ring
-  have hK_int : 6 * K + 20 ≤ (6 * κ + 44) * (d + s) := by
-    have hs := Nat.le_mul_of_pos_left s (show 0 < 6 * κ + 44 by omega)
-    have h6s : 6 * s ≤ (6 * κ + 44) * s := Nat.mul_le_mul_right s (by omega)
-    omega
+  have hK_int : 6 * K + 20 ≤ (6 * κ + 44) * (d + s) := by nlinarith
   have hWin :
       ((windowPrefixModProg () 8 K).map (· / 16)).maxIntrinsicBits env sEnv ≤ 6 * K + 20 := by
     rw [QueryProg.maxIntrinsicBits_map]
@@ -746,8 +722,7 @@ private theorem sum_fin_two_pow_succ {r : ℕ} (g : Fin (2 ^ (r + 1)) → ℝ) :
     ∑ i : Fin (2 ^ (r + 1)), g i =
       (∑ idx : Fin (2 ^ r), g (splitFinPow 0 idx)) +
         (∑ idx : Fin (2 ^ r), g (splitFinPow 1 idx)) := by
-  have hp : 2 ^ r + 2 ^ r = 2 ^ (r + 1) := by ring
-  rw [← Fin.sum_congr' g hp, Fin.sum_univ_add]
+  rw [← Fin.sum_congr' g (by ring : 2 ^ r + 2 ^ r = 2 ^ (r + 1)), Fin.sum_univ_add]
   congr 1 <;> exact Finset.sum_congr rfl fun idx _ =>
     congrArg g (Fin.ext (by simp [splitFinPow, Nat.add_comm]))
 
@@ -783,8 +758,7 @@ theorem balancedAvgDigitProg_emits {Struct : Type v} (r : ℕ)
       linarith [abs_add_le (streamVal (cEnv 0)) (streamVal (cEnv 1)), hval0 ▸ hbnd0, hval1 ▸ hbnd1]
     have happrox := pairAvgApprox_isScaledApprox hs0 hs1
     have heval : (fun t => (balancedAvgDigitProg (r + 1) t).eval env sEnv) =
-        diffDigit (pairAvgApprox (cEnv 0) (cEnv 1)) := by
-      ext t
+        diffDigit (pairAvgApprox (cEnv 0) (cEnv 1)) := funext fun t => by
       simp only [balancedAvgDigitProg, QueryProg.eval_substDigits, QueryProg.eval_reindexOp]
       exact eval_diffDigitProg pairAvgResProg _ hbound happrox
         (fun s => eval_pairAvgResProg s cEnv sEnv) t
@@ -934,9 +908,7 @@ private theorem bandStart_le_of_lt_maxBand {s k : ℕ} (hk : k < maxBand s) :
   | zero => simp
   | succ m =>
     unfold maxBand at hk
-    have hm : m ≤ Nat.log 2 (s + mulBaseMargin) := by omega
-    unfold bandStart
-    exact (Nat.pow_le_pow_right (by decide) hm).trans
+    exact (Nat.pow_le_pow_right (by decide) (by omega)).trans
       (Nat.pow_log_le_self 2 (by unfold mulBaseMargin; omega))
 
 private theorem bandWindowSum_eq_double_sum (x y : ℕ → ℤ) (s k : ℕ) :
@@ -1037,17 +1009,15 @@ theorem eval_mulResProg {Struct : Type v} (s : ℕ)
   | succ rem ih =>
     intro hsum
     simp only [bandOuterAux, QueryProg.eval_bindOverhead, eval_bandScanI, Nat.zero_add,
-      ← Finset.range_eq_Ico]
+      ← Finset.range_eq_Ico, rowSumTerm, ← bandWindowSum_eq_double_sum]
     set k := maxBand s - (step + 1)
-    rw [show ∑ i ∈ range (s + bandMargin k + 1), ∑ j ∈ range (s + bandMargin k + 1),
-        rowSumTerm (env 0) (env 1) s k i j = bandWindowSum (env 0) (env 1) s 4 k from
-      (bandWindowSum_eq_double_sum (env 0) (env 1) s k).symm,
-      show ((bandFoldMod (env 0) (env 1) s 4 step /
-            (2 : ℤ) ^ (bandMargin (k + 1) - bandMargin k)) % (2 : ℤ) ^ (4 + bandMargin k) +
-          bandWindowSum (env 0) (env 1) s 4 k) % (2 : ℤ) ^ (4 + bandMargin k) =
-          bandFoldMod (env 0) (env 1) s 4 (step + 1) by
-        simp only [bandFoldMod]
-        rw [add_comm, Int.add_emod (bandWindowSum _ _ _ _ _), Int.emod_emod, ← Int.add_emod]]
+    have hfold : ((bandFoldMod (env 0) (env 1) s 4 step /
+          (2 : ℤ) ^ (bandMargin (k + 1) - bandMargin k)) % (2 : ℤ) ^ (4 + bandMargin k) +
+        bandWindowSum (env 0) (env 1) s 4 k) % (2 : ℤ) ^ (4 + bandMargin k) =
+        bandFoldMod (env 0) (env 1) s 4 (step + 1) := by
+      simp only [bandFoldMod]
+      rw [add_comm, Int.add_emod (bandWindowSum _ _ _ _ _), Int.emod_emod, ← Int.add_emod]
+    rw [hfold]
     exact ih (step + 1) (by omega)
 
 /-! ### Active queries, allowance, and intrinsic bit bounds -/
@@ -1061,14 +1031,12 @@ private theorem mem_activeQueries_bandScanJ {Struct : Type v} (s k i idxJ remJ :
   | zero => nomatch hev
   | succ remJ ih =>
     unfold bandScanJ at hev
-    by_cases hwin : inBandWindow s k i idxJ
-    · simp only [hwin, ↓reduceIte, QueryProg.activeQueries, List.mem_cons] at hev
+    split_ifs at hev with hwin
+    · simp only [QueryProg.activeQueries, List.mem_cons] at hev
       rcases hev with rfl | rfl | hev
-      · exact ⟨0, i, _, ⟨idxJ, hwin, Or.inl rfl⟩, by omega, rfl⟩
-      · exact ⟨1, idxJ, _, ⟨idxJ, hwin, Or.inr rfl⟩, le_rfl, rfl⟩
-      · exact ih (idxJ + 1) _ hev
-    · simp only [hwin, ↓reduceIte] at hev
-      exact ih (idxJ + 1) _ hev
+      exacts [⟨0, i, _, ⟨idxJ, hwin, Or.inl rfl⟩, by omega, rfl⟩,
+        ⟨1, idxJ, _, ⟨idxJ, hwin, Or.inr rfl⟩, le_rfl, rfl⟩, ih (idxJ + 1) _ hev]
+    · exact ih (idxJ + 1) _ hev
 
 private theorem mem_activeQueries_bandScanI {Struct : Type v} (s k idxI remI : ℕ) (acc : ℤ)
     (env : Fin 2 → ℕ → ℤ) (sEnv : Struct → Bool) {ev : QueryEvent (Fin 2) Struct}
@@ -1222,20 +1190,16 @@ growing prefix accumulator). -/
 theorem eval_intPrefixProg {Op : Type u} {Struct : Type v} (op : Op) (K : ℕ)
     (env : Op → ℕ → ℤ) (sEnv : Struct → Bool) :
     (intPrefixProg op K).eval env sEnv = intPrefix (env op) K := by
-  have hsnoc : ∀ idx rem acc,
-      (intPrefixAux op K idx (rem + 1) acc).eval env sEnv =
-        2 * (intPrefixAux op K idx rem acc).eval env sEnv + env op (idx + rem) := by
-    intro idx rem acc
-    induction rem generalizing idx acc with
-    | zero => simp [intPrefixAux, QueryProg.eval]
+  have haux (rem n : ℕ) :
+      (intPrefixAux op K (n + 1) rem (intPrefix (env op) n)).eval env sEnv =
+        intPrefix (env op) (n + rem) := by
+    induction rem generalizing n with
+    | zero => rfl
     | succ rem ih =>
-      simpa only [intPrefixAux, QueryProg.eval, Nat.add_right_comm, Nat.add_assoc] using
-        ih (idx + 1) _
-  suffices ∀ n, (intPrefixAux op K 0 (n + 1) 0).eval env sEnv = intPrefix (env op) n from this K
-  intro n
-  induction n with
-  | zero => simp [intPrefixAux, QueryProg.eval, intPrefix_zero]
-  | succ n ih => rw [hsnoc, Nat.zero_add, ih, intPrefix_succ]
+      rw [intPrefixAux, QueryProg.eval, ← intPrefix_succ, ih (n + 1), Nat.add_right_comm,
+        Nat.add_assoc]
+  rw [intPrefixProg, intPrefixAux, QueryProg.eval, mul_zero, Int.zero_add,
+    ← intPrefix_zero (env op), haux K 0, Nat.zero_add]
 
 theorem mem_activeQueries_intPrefixProg {Op : Type u} {Struct : Type v} (op : Op) (K : ℕ)
     (env : Op → ℕ → ℤ) (sEnv : Struct → Bool) {ev : QueryEvent Op Struct}
@@ -1286,30 +1250,19 @@ theorem clipUnitPrefix_le_two_pow (K : ℕ) (P : ℤ) : clipUnitPrefix K P ≤ 2
 theorem abs_clipUnitPrefix_div_sub_streamVal_le {x : ℕ → ℤ} (hx : IsSignedStream x)
     (hx_mem : streamVal x ∈ Set.Icc (0 : ℝ) 1) (K : ℕ) :
     |(clipUnitPrefix K (intPrefix x K) : ℝ) / (2 : ℝ) ^ K - streamVal x| ≤ 6 / (2 : ℝ) ^ K := by
-  set P := intPrefix x K
-  set M : ℤ := min ((2 : ℤ) ^ K) (max 0 P)
-  have hcast : ((clipUnitPrefix K P : ℕ) : ℝ) = (M : ℝ) := by
-    exact_mod_cast Int.toNat_of_nonneg (le_min (by positivity) (le_max_left 0 P))
   have h2K : (0 : ℝ) < (2 : ℝ) ^ K := by positivity
-  set V : ℝ := streamVal x * (2 : ℝ) ^ K
-  have hdiff : |(M : ℝ) - V| ≤ |(P : ℝ) - V| := by
-    have hV0 : 0 ≤ V := mul_nonneg hx_mem.1 h2K.le
-    have hVK : V ≤ (2 : ℝ) ^ K := mul_le_of_le_one_left h2K.le hx_mem.2
-    have hMR : (M : ℝ) = min ((2 : ℝ) ^ K) (max (P : ℝ) 0) := by
-      dsimp only [M]; push_cast; rw [max_comm]
-    refine (show |min ((2 : ℝ) ^ K) (max (P : ℝ) 0) - min ((2 : ℝ) ^ K) (max V 0)| ≤
-        |(P : ℝ) - V| from (abs_min_sub_min_le_max _ _ _ _).trans ?_).trans_eq' ?_
-    · rw [sub_self, abs_zero, max_eq_right (abs_nonneg _)]
-      exact abs_max_sub_max_le_abs _ _ _
-    · rw [hMR, max_eq_left hV0, min_eq_right hVK]
-  refine le_trans ?_ (by simpa only [abs_sub_comm] using abs_streamVal_sub_streamPrefix_le hx K)
-  rw [hcast, streamPrefix_eq_intPrefix_div,
-    show (M : ℝ) / (2 : ℝ) ^ K - streamVal x = ((M : ℝ) - V) / (2 : ℝ) ^ K by
-      rw [sub_div, mul_div_cancel_right₀ _ h2K.ne'],
-    show (P : ℝ) / (2 : ℝ) ^ K - streamVal x = ((P : ℝ) - V) / (2 : ℝ) ^ K by
-      rw [sub_div, mul_div_cancel_right₀ _ h2K.ne'],
-    abs_div, abs_div, abs_of_pos h2K]
-  exact div_le_div_of_nonneg_right hdiff h2K.le
+  have hcast : ((clipUnitPrefix K (intPrefix x K) : ℕ) : ℝ) =
+      min ((2 : ℝ) ^ K) (max 0 (intPrefix x K)) := by
+    exact_mod_cast Int.toNat_of_nonneg (le_min (by positivity) (le_max_left _ _))
+  rw [hcast, ← min_div_div_right h2K.le, ← max_div_div_right h2K.le, div_self h2K.ne', zero_div,
+    ← streamPrefix_eq_intPrefix_div, max_comm 0]
+  have hv : streamVal x = min 1 (max (streamVal x) 0) := by
+    rw [max_eq_left hx_mem.1, min_eq_right hx_mem.2]
+  conv_lhs => rw [hv]
+  refine (abs_min_sub_min_le_max _ _ _ _).trans ?_
+  rw [sub_self, abs_zero, max_eq_right (abs_nonneg _)]
+  exact (abs_max_sub_max_le_abs _ _ _).trans
+    (abs_sub_comm (streamVal x) _ ▸ abs_streamVal_sub_streamPrefix_le hx K)
 
 /-! ### Virtual reciprocal composition and evaluation -/
 
@@ -1458,16 +1411,10 @@ private theorem eval_recipChild_eq {Struct : Type v} (s : ℕ)
     (env : Unit → ℕ → ℤ) (sEnv : Struct → Bool) :
     (fun op r => (recipChild s op r).eval env sEnv) = recipVirtualEnv (env ()) s := by
   ext op r
-  unfold recipChild recipVirtualEnv
-  by_cases h0 : op = 0
-  · simp [h0, QueryProg.eval_bindOverhead, QueryProg.eval, eval_intPrefixProg,
-      recipAlpha, recipPrefixRat]
-  · simp only [h0, ↓reduceIte]
-    by_cases h1 : op = 1
-    · simp [h1, QueryProg.eval_bindOverhead, QueryProg.eval, eval_intPrefixProg,
-        recipBeta, recipPrefixRat]
-    · simp only [h1, ↓reduceIte, suffixStream]
-      split_ifs <;> rfl
+  fin_cases op <;>
+    simp [recipChild, recipVirtualEnv, QueryProg.eval_bindOverhead, QueryProg.eval,
+      eval_intPrefixProg, recipAlpha, recipBeta, recipPrefixRat, suffixStream,
+      apply_ite (QueryProg.eval · env sEnv)]
 
 theorem eval_recip64ResProg {Struct : Type v} (s : ℕ)
     {env : Unit → ℕ → ℤ} (hx : IsSignedStream (env ()))
@@ -1475,13 +1422,9 @@ theorem eval_recip64ResProg {Struct : Type v} (s : ℕ)
     (recip64ResProg s).eval env sEnv = recip64Approx (env ()) s % 16 := by
   unfold recip64ResProg recipOuterProg
   rw [QueryProg.eval_substDigits, eval_recipChild_eq, QueryProg.eval_substDigits,
-    QueryProg.eval_map, eval_windowPrefixModProg]
-  have hfun : (fun u =>
-      (recipHalfVirtualRecipe.digitProg u).eval (recipVirtualEnv (env ()) s) sEnv) =
-      recipHalfStream (env ()) s := by
-    ext u
-    exact eval_recipHalfVirtualRecipe hx hx_mem s sEnv u
-  rw [hfun, recip64Approx_emod_sixteen hx hx_mem s]
+    QueryProg.eval_map, eval_windowPrefixModProg,
+    funext fun u => eval_recipHalfVirtualRecipe hx hx_mem s sEnv u,
+    recip64Approx_emod_sixteen hx hx_mem s]
 
 /-! ### Active queries, allowance, and intrinsic bit bounds -/
 
@@ -1540,9 +1483,8 @@ private theorem mem_activeQueries_recipOuterProg_digit {Struct : Type v} (s : �
       (w : ℤ) ≤ ((26 + H.coeffA + 8 * H.coeffB : ℕ) : ℤ) +
         (H.coeffB : ℤ) * ((s : ℤ) - (r : ℤ)) := by
   rcases mem_activeQueries_recipOuterProg s vEnv sEnv h with
-    ⟨_, _, _, hEq⟩ | ⟨_, _, _, hr, hw, hEq⟩
-  · nomatch hEq
-  · cases hEq; exact ⟨hr, hw⟩
+    ⟨_, _, _, ⟨⟩⟩ | ⟨_, _, _, hr, hw, ⟨⟩⟩
+  exact ⟨hr, hw⟩
 
 private theorem allowance_recipEarly {Struct : Type v} {d s wOut : ℕ} (hd : 1 ≤ d)
     (env : Unit → ℕ → ℤ) (sEnv : Struct → Bool)
@@ -1570,12 +1512,10 @@ private theorem allowance_recipEarly {Struct : Type v} {d s wOut : ℕ} (hd : 1 
     (le_max_left _ _).trans (Nat.le_mul_of_pos_right _ hd)
   have hrc : recipCutoff s = s / 2 + 7 := rfl
   refine ⟨by rw [hrc] at hj; omega, ?_⟩
-  have hjZ : ((recipCutoff s + j + 8 : ℕ) : ℤ) ≤ (s : ℤ) + 22 := by
-    rw [hrc]; exact_mod_cast (show s / 2 + 7 + j + 8 ≤ s + 22 by rw [hrc] at hj; omega)
+  have hjZ : ((recipCutoff s + j + 8 : ℕ) : ℤ) ≤ ((s + 22 : ℕ) : ℤ) :=
+    Int.ofNat_le.mpr (by rw [hrc] at hj ⊢; omega)
   have hwZ : (wOut : ℤ) ≤ (A₀ : ℤ) + (B₀ : ℤ) * (s : ℤ) := by exact_mod_cast hwOut
-  have haZ : ((A₀ + 26 + 15 * (B₀ + 1) : ℕ) : ℤ) ≤
-      ((max (A₀ + 26 + 15 * (B₀ + 1)) ((A₀ + 4) + (B₀ + 2) * C₀) * d : ℕ) : ℤ) := by
-    exact_mod_cast ha_le
+  have haZ := Int.ofNat_le.mpr ha_le
   push_cast at hmul_pay haZ hjZ ⊢
   linarith
 
@@ -1604,8 +1544,7 @@ private theorem allowance_recip64ResProg {Struct : Type v} {d : ℕ} (hd : 1 ≤
   · obtain ⟨hr, hwOut⟩ := mem_activeQueries_recipOuterProg_digit s _ sEnv hdOut
     unfold recipChild at hevC
     split_ifs at hevC
-    · exact allowance_recipEarly hd env sEnv (fun _ => rfl) hevC (recipOuter_w_le hwOut)
-    · exact allowance_recipEarly hd env sEnv (fun _ => rfl) hevC (recipOuter_w_le hwOut)
+    any_goals exact allowance_recipEarly hd env sEnv (fun _ => rfl) hevC (recipOuter_w_le hwOut)
     · nomatch hevC
     · rcases List.mem_cons.mp hevC with rfl | hevC
       · have hBase : AllowanceBound (Struct := Struct) d (A₀ + 4) B₀ C₀ s
@@ -1624,27 +1563,17 @@ private theorem maxIntrinsicBits_recipOuterProg_le {Struct : Type v} {d : ℕ} (
     (recipOuterProg s).maxIntrinsicBits vEnv sEnv ≤
       (34 + 9 * (recipHalfVirtualRecipe (Struct := Struct)).intrinsicCoeff) * (d + s) := by
   set H := recipHalfVirtualRecipe (Struct := Struct)
-  have h34 := Nat.le_mul_of_pos_right 34 hd
   apply QueryProg.maxIntrinsicBits_substDigits_le 4 _ _ vEnv sEnv
   · rw [QueryProg.maxIntrinsicBits_map]
     have hwin := maxIntrinsicBits_windowPrefixModProg_le () 11 (s + 8)
       (fun _ u => (recipHalfVirtualRecipe.digitProg u).eval vEnv sEnv) sEnv
-    have hexp : (34 + 9 * H.intrinsicCoeff) * (d + s) =
-        34 * d + 34 * s + 9 * H.intrinsicCoeff * (d + s) := by ring
-    omega
+    nlinarith
   · intro _ u _ hdOut
     obtain ⟨_, hu, ⟨⟩⟩ := mem_activeQueries_windowPrefixModProg () 11 (s + 8) _ sEnv
       (QueryProg.activeQueries_map _ _ _ _ ▸ hdOut)
-    have hIntH := H.intrinsic_bound u vEnv sEnv
-    have hslack : H.slack = 1 := rfl
-    rw [hslack] at hIntH
-    dsimp only [H] at hIntH ⊢
-    have hu9 := Nat.mul_le_mul_left (recipHalfVirtualRecipe (Struct := Struct)).intrinsicCoeff
-      (show 1 + u ≤ 9 * (d + s) by omega)
-    have hexp : (34 + 9 * (recipHalfVirtualRecipe (Struct := Struct)).intrinsicCoeff) * (d + s) =
-        34 * d + 34 * s +
-          (recipHalfVirtualRecipe (Struct := Struct)).intrinsicCoeff * (9 * (d + s)) := by ring
-    omega
+    have hIntH : (H.digitProg u).maxIntrinsicBits vEnv sEnv ≤ H.intrinsicCoeff * (1 + u) :=
+      H.intrinsic_bound u vEnv sEnv
+    nlinarith
 
 private theorem maxIntrinsicBits_recip64ResProg_le {Struct : Type v} {d : ℕ} (hd : 1 ≤ d)
     (s : ℕ) (env : Unit → ℕ → ℤ) (sEnv : Struct → Bool) :
@@ -1790,10 +1719,8 @@ private theorem eval_countAtLeastProg {Op : Type u} {Struct : Type v}
     simp only [countAtLeastProg, QueryProg.eval_bindOverhead, eval_cmpPrefixProg,
       ih _ fun w' hm => hws w' (List.mem_cons_of_mem w hm), List.filter_cons]
     by_cases hle : intPrefix (env i) K ≤ intPrefix (env w) K
-    · simp only [(cmpPrefix_nonneg_iff hw hi K).mpr hle, ↓reduceIte, decide_eq_true hle,
-        List.length_cons]; omega
-    · simp only [(cmpPrefix_nonneg_iff hw hi K).not.mpr hle, ↓reduceIte, decide_eq_false hle,
-        Bool.false_eq_true]
+    · simp [(cmpPrefix_nonneg_iff hw hi K).mpr hle, hle]; omega
+    · simp [(cmpPrefix_nonneg_iff hw hi K).not.mpr hle, hle]
 
 private def optIntPrefix {Op : Type u} (env : Op → ℕ → ℤ) (K : ℕ) : Option Op → ℤ
   | none => 0
@@ -1834,8 +1761,7 @@ private theorem foldQualMax_le {Op : Type u} (P : Op → Prop) [DecidablePred P]
     simp only [foldQualMax]
     refine ih _ ?_ fun x hx => hrem x (List.mem_cons_of_mem i hx)
     split_ifs with hPi
-    · exact max_le hacc (hrem i List.mem_cons_self hPi)
-    · exact hacc
+    exacts [max_le hacc (hrem i List.mem_cons_self hPi), hacc]
 
 private theorem eval_zeroPaddedRankFoldProg_optIntPrefix {Op : Type u} [DecidableEq Op]
     {Struct : Type v}
@@ -1868,12 +1794,11 @@ private theorem eval_zeroPaddedRankFoldProg_optIntPrefix {Op : Type u} [Decidabl
     let step (next : Option Op) (hmem : ∀ b, next = some b → b ∈ items)
         (hval : optIntPrefix env K next = max (optIntPrefix env K best) (h i)) :=
       hval ▸ ih (hSub := hrest_sub) next hmem (hval ▸ hBestNonneg.trans (le_max_left _ _))
-    simp only [zeroPaddedRankFoldProg, QueryProg.eval_bindOverhead, hcnt, foldQualMax]
-    by_cases hPi : P i
+    simp only [zeroPaddedRankFoldProg, QueryProg.eval_bindOverhead, hcnt, foldQualMax, P]
+    split_ifs with hPi
     · have h0 : intPrefix (fun _ => 0) K = 0 := sum_eq_zero fun _ _ => zero_mul _
       have hiMem : ∀ b, some i = some b → b ∈ items := fun _ hb => Option.some.inj hb ▸ hi_mem
-      simp only [show k ≤ #{w ∈ items.toFinset | h i ≤ h w} from hPi, hPi, ↓reduceIte,
-        QueryProg.eval_bindOverhead, eval_cmpWithConstProg,
+      simp only [QueryProg.eval_bindOverhead, eval_cmpWithConstProg,
         cmpPos (hEnv i hi_mem) isSignedStream_zero, h0]
       split_ifs with hpos
       · cases best with
@@ -1885,8 +1810,7 @@ private theorem eval_zeroPaddedRankFoldProg_optIntPrefix {Op : Type u} [Decidabl
           exacts [step (some i) hiMem (max_eq_right hlt.le).symm,
             step (some b) hBestMem (max_eq_left (not_lt.mp hlt)).symm]
       · exact step best hBestMem (max_eq_left ((not_lt.mp hpos).trans hBestNonneg)).symm
-    · simp only [show ¬ k ≤ #{w ∈ items.toFinset | h i ≤ h w} from hPi, hPi, ↓reduceIte]
-      exact ih (hSub := hrest_sub) best hBestMem hBestNonneg
+    · exact ih (hSub := hrest_sub) best hBestMem hBestNonneg
 
 theorem eval_zeroPaddedRankListResProg {Op : Type u} [DecidableEq Op] {Struct : Type v}
     (k : ℕ) (items : List Op) (hNodup : items.Nodup) (s : ℕ)
@@ -1908,16 +1832,13 @@ theorem eval_zeroPaddedRankListResProg {Op : Type u} [DecidableEq Op] {Struct : 
       · obtain ⟨x, hx, rfl⟩ := mem_image.mp hr
         exact mem_le_foldQualMax P h items 0 (List.mem_toFinset.mp (mem_filter.mp hx).1)
           (mem_filter.mp hx).2)
-  rw [zeroPaddedRankListResProg, QueryProg.eval_bindOverhead, zeroPaddedRankApprox]
-  cases hbest : (zeroPaddedRankFoldProg k items (s + 4) _ items none).eval env sEnv with
-  | none =>
-    have h0 : kthLargest k items.toFinset h = 0 := by
-      simpa only [← hkth, hbest, optIntPrefix] using hFoldVal.symm
-    change 0 = kthLargest k items.toFinset h / 16 % 16; rw [h0]; decide
+  dsimp only [optIntPrefix] at hFoldVal
+  rw [zeroPaddedRankListResProg, QueryProg.eval_bindOverhead, zeroPaddedRankApprox, ← hkth,
+    ← hFoldVal]
+  cases (zeroPaddedRankFoldProg k items (s + 4) _ items none).eval env sEnv with
+  | none => rfl
   | some b =>
-    have hb : kthLargest k items.toFinset h = h b := by
-      simpa only [← hkth, hbest, optIntPrefix] using hFoldVal.symm
-    simp only [QueryProg.eval_map, eval_windowPrefixModProg, hb, h, emod_two_pow_eight_div_sixteen]
+    simp only [QueryProg.eval_map, eval_windowPrefixModProg, emod_two_pow_eight_div_sixteen]
 
 /-! ### Active queries, allowance, and intrinsic bit bounds -/
 

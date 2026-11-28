@@ -80,18 +80,13 @@ theorem scanMin_spec (values : Fin R → α) (fallback : α) (t : ℕ) :
     refine ⟨?_, (min_le_right _ _).trans ih.2.1, fun j hj => ?_⟩
     · rcases min_cases (values ⟨t, ht⟩) (scanMin values fallback t) with h | h
       · exact Or.inr ⟨⟨t, ht⟩, by simp, h.1⟩
-      · rcases ih.1 with hh | ⟨j, hj, he⟩
-        · exact Or.inl (h.1.trans hh)
-        · exact Or.inr ⟨j, by omega, h.1.trans he⟩
-    · by_cases he : j.val = t
-      · rw [show j = ⟨t, ht⟩ from Fin.ext he]
-        exact min_le_left _ _
+      · exact ih.1.imp (h.1.trans ·) fun ⟨j, hj, he⟩ => ⟨j, by omega, h.1.trans he⟩
+    · rcases eq_or_ne j.val t with he | he
+      · exact (Fin.ext he : j = ⟨t, ht⟩) ▸ min_le_left _ _
       · exact (min_le_right _ _).trans (ih.2.2 j (by omega))
   | case3 t ht ih => -- t ≥ R: skip
-    refine ⟨?_, ih.2.1, fun j _ => ih.2.2 j (by have := j.isLt; omega)⟩
-    rcases ih.1 with h | ⟨j, hj, he⟩
-    · exact Or.inl h
-    · exact Or.inr ⟨j, by omega, he⟩
+    exact ⟨ih.1.imp id fun ⟨j, hj, he⟩ => ⟨j, by omega, he⟩, ih.2.1,
+      fun j _ => ih.2.2 j (by have := j.isLt; omega)⟩
 
 end MinScan
 
@@ -102,20 +97,20 @@ open Classical in
 private theorem synthesis_lexLt (s : Set (BooleanFunction a)) (x y : BitString a → BitString n)
     (hx : wires x ⊆ s) (hy : wires y ⊆ s) :
     Synthesis interpretation s {fun z => decide (toLex (x z) < toLex (y z))} (6 * n + 1) := by
-  have h := Synthesis.circuit (I := interpretation) (s := s)
+  refine (Synthesis.circuit (I := interpretation) (s := s)
     (Formula.lexLt (Fin.castAdd n) (Fin.natAdd n)).toCircuit
-    (Fin.append (fun i z => x z i) fun i z => y z i) fun i => by
-      induction i using Fin.addCases with
-      | left i => simpa only [Fin.append_left] using hx ⟨i, rfl⟩
-      | right i => simpa only [Fin.append_right] using hy ⟨i, rfl⟩
-  refine h.mono Set.Subset.rfl ?_ (by simp)
-  rintro _ rfl
-  refine ⟨0, funext fun z => Bool.eq_iff_iff.mpr ?_⟩
-  have hl : (fun i => Fin.append (fun i z => x z i) (fun i z => y z i) i z) ∘ Fin.castAdd n =
-      x z := funext fun i => by simp only [Function.comp_apply, Fin.append_left]
-  have hr : (fun i => Fin.append (fun i z => x z i) (fun i z => y z i) i z) ∘ Fin.natAdd n =
-      y z := funext fun i => by simp only [Function.comp_apply, Fin.append_right]
-  simp only [Formula.eval_toCircuit, Formula.eval_lexLt_iff, decide_eq_true_eq, hl, hr]
+    (Fin.append (fun i z => x z i) fun i z => y z i) fun i => ?_).mono
+      Set.Subset.rfl ?_ (by simp)
+  · induction i using Fin.addCases with
+    | left i => simpa only [Fin.append_left] using hx ⟨i, rfl⟩
+    | right i => simpa only [Fin.append_right] using hy ⟨i, rfl⟩
+  · rintro _ rfl
+    refine ⟨0, funext fun z => Bool.eq_iff_iff.mpr ?_⟩
+    simp only [Formula.eval_toCircuit, Formula.eval_lexLt_iff, decide_eq_true_eq,
+      show (fun i => Fin.append (fun i z => x z i) (fun i z => y z i) i z) ∘ Fin.castAdd n =
+        x z from funext fun _ => by simp only [Function.comp_apply, Fin.append_left],
+      show (fun i => Fin.append (fun i z => x z i) (fun i z => y z i) i z) ∘ Fin.natAdd n =
+        y z from funext fun _ => by simp only [Function.comp_apply, Fin.append_right]]
 
 /-- **Minimum scan.** The lexicographically least of `R` available states and a fallback costs
 one comparison and one selection per state. -/
@@ -133,9 +128,8 @@ theorem synthesis_scanMin (s : Set (BooleanFunction a)) (values : BitString a �
   · exact hs.mono Set.Subset.rfl (Synthesis.subset_stages q le_rfl) le_rfl
   · let src := s ∪ Synthesis.stages q t
     have hcur : wires (current t) ⊆ src := fun _ h => Or.inr (Synthesis.subset_stages q le_rfl h)
-    have hval : wires (fun x => values x ⟨t, ht⟩) ⊆ src := by
-      rintro _ ⟨bit, rfl⟩
-      exact Or.inl (hv _ bit)
+    have hval : wires (fun x => values x ⟨t, ht⟩) ⊆ src :=
+      fun _ ⟨bit, h⟩ => h ▸ Or.inl (hv _ bit)
     let less := fun x => decide (toLex (values x ⟨t, ht⟩) < toLex (current t x))
     have hl := synthesis_lexLt src (fun x => values x ⟨t, ht⟩) (current t) hval hcur
     have hm := synthesis_bits_mux (src ∪ {less}) (fun x => values x ⟨t, ht⟩) (current t) less
@@ -166,7 +160,8 @@ private theorem chooseRecord_eq_of_last {α : Type*} (flags : Fin R → Bool) (r
     · rw [chooseRecord, dite_eq_left ht]
       by_cases he : j.val = t
       · rw [show (⟨t, ht⟩ : Fin R) = j from Fin.ext he.symm, hj, ite_eq_left rfl]
-      · rw [hlast ⟨t, ht⟩ (by simp only; omega) (by simp only; omega),
+      · rw [hlast ⟨t, ht⟩ (by simp only; omega)
+            (by simp only; omega),
           ite_eq_right Bool.false_ne_true]
         exact ih (by omega) fun i hi hit => hlast i hi (by omega)
     · rw [chooseRecord, dite_eq_right ht]
@@ -182,12 +177,9 @@ theorem chooseFirst_spec {α : Type*} (flags : Fin R → Bool) (records : Fin R 
     (fallback : α) (j : Fin R) (hj : flags j = true)
     (hfirst : ∀ i : Fin R, i.val < j.val → flags i = false) :
     chooseFirst flags records fallback = records j := by
-  have h := chooseRecord_eq_of_last (fun i => flags i.rev) (fun i => records i.rev)
-    fallback j.rev (by simpa using hj) R j.rev.isLt fun i hi _ => by
-      apply hfirst
-      simp only [Fin.val_rev] at hi ⊢
-      omega
-  simpa only [chooseFirst, Fin.rev_rev] using h
+  simpa only [chooseFirst, Fin.rev_rev] using chooseRecord_eq_of_last (fun i => flags i.rev)
+    (fun i => records i.rev) fallback j.rev (by simpa using hj) R j.rev.isLt fun i hi _ =>
+      hfirst i.rev (by simp only [Fin.val_rev] at hi ⊢; omega)
 
 /-- The first flagged position in `w` bits, or zero if none is flagged. -/
 def firstIndex (flags : Fin R → Bool) : BitVec w :=
