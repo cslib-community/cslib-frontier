@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.RainbowTable
+import CslibFrontier.Foundations.Data.List.Blocks
 import CslibFrontier.Languages.Probabilistic.QueriesWith.Cost
 import CslibFrontier.Languages.Probabilistic.QueryCount.Sum
 import CslibFrontier.Languages.Probabilistic.Traverse.FindM
@@ -133,8 +134,7 @@ private theorem sum_map_queriesWith_liftRight_query_bind {β : Type} (cost : P �
     OracleComp.sumPure_inr]
 
 private theorem sum_range_eq (τ : ℕ) : (List.range τ).sum = τ * (τ - 1) / 2 := by
-  simpa [List.toFinset_range, Finset.sum_range_id] using
-    (List.sum_toFinset id (List.nodup_range (n := τ))).symm
+  simp [List.range_eq_range']
 
 private theorem range_sum_add_self (τ : ℕ) :
     τ * (τ - 1) / 2 + τ = τ * (τ + 1) / 2 := by
@@ -201,8 +201,8 @@ theorem sum_map_lookupCost_queriesWith_rainbowAttack_of_evalPure_eq_none {h : P 
       (rainbowAttack g τ y)).map TableAttackSpec.lookupCost).sum = τ := by
   rw [rainbowAttack, OracleComp.evalPure_findSomeM?, List.findSome?_eq_none_iff] at heval
   rw [rainbowAttack, OracleComp.queriesWith_findSomeM?_of_forall_eq_none _ _ heval,
-    List.map_flatMap, List.flatMap_def, List.sum_flatten, List.map_map]
-  simp only [Function.comp_def, sum_map_lookupCost_queriesWith_rainbowAttackStep, List.map_const',
+    List.sum_map_flatMap]
+  simp only [sum_map_lookupCost_queriesWith_rainbowAttackStep, List.map_const',
     List.length_range, List.sum_replicate, smul_eq_mul, Nat.mul_one]
 
 /-- **Exact miss-run hash count of `rainbowAttack`** ([BonehShoup2023], Section 18.7, line 2 of
@@ -218,9 +218,9 @@ theorem sum_map_hashCost_queriesWith_rainbowAttack_of_forall_lookup_eq_none {h :
       (rainbowAttackStep g τ y k).evalPure (OracleComp.sumPure h lookup) = none := fun k hk => by
     rw [evalPure_rainbowAttackStep, hmiss k (List.mem_range.mp hk)]
   rw [rainbowAttack, OracleComp.queriesWith_findSomeM?_of_forall_eq_none _ _ hsteps,
-    List.map_flatMap, List.flatMap_def, List.sum_flatten, List.map_map]
+    List.sum_map_flatMap]
   rw [List.map_congr_left (g := id) fun k hk => ?_, List.map_id, sum_range_eq]
-  simp only [Function.comp_apply, id_eq,
+  simp only [id_eq,
     sum_map_hashCost_queriesWith_rainbowAttackStep h lookup g y (List.mem_range.mp hk),
     hmiss k (List.mem_range.mp hk), Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
 
