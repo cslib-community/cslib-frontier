@@ -37,25 +37,29 @@ polynomial in the encoded instance length
 
 ## Source-to-Lean mapping
 
-* **Simulation direction:** [KrajicekPudlak1989, §0, p. 1063] writes `P ≤ Q` to mean that `P`
-  simulates `Q`, so an optimal system is a least element of `≤` and two systems always have a
-  common lower bound. In `CslibFrontier.Computability.Complexity.ProofSystem`, `P.Simulates Q` and
-  `P.PSimulates Q` place the simulating system on the left (`P.Simulates Q` corresponds to
-  `P ≤ Q`), so `P.join Q` is an upper bound in `Simulates` / `PSimulates` and an optimal system is
-  a greatest element.
-* **`UNSAT` vs. `TAUT`:** [KrajicekPudlak1989] states propositional proof systems for `TAUT`; this
-  module follows `CslibFrontier.Computability.Complexity.ProofSystem` in using refutation systems
-  for `UNSAT` (`encCNF`), matching
-  `Cslib.Complexity.ProofSystem.NP_eq_coNP_iff_exists_polynomiallyBounded`.
-* **Scope of Theorem 2.1(i):** `Cslib.Complexity.ProofSystem.IsOptimal.polyBounded_on_NP_subset`
-  formalizes the forward direction `(2) → (3)` of [KrajicekPudlak1989, Theorem 2.1(i), §2,
-  pp. 1066–1067] for arbitrary sets with a decodable encoding; the converse `(3) → (2)` via padding
-  is not formalized here.
+* **Simulation direction and the order behind `join`:** In [KrajicekPudlak1989, §0, p. 1063],
+  `P ≤ Q` means "`P` simulates `Q`", so a common simulator is a common lower bound and an optimal
+  system is a least element. In `CslibFrontier.Computability.Complexity.ProofSystem`,
+  `P.Simulates Q` and `P.PSimulates Q` likewise place the simulating system on the left. To view
+  `P.join Q` as a binary join (least upper bound) and optimal systems as greatest elements, define
+  the reversed order `P ≤ Q` by `Q.Simulates P` (respectively `Q.PSimulates P`), which reverses the
+  source's ordering `≤`.
+* **`UNSAT` vs. `TAUT`:** [KrajicekPudlak1989] states propositional proof systems for `TAUT`.
+  `Cslib.Complexity.ProofSystem.IsOptimal.polynomiallyBounded_UNSAT_iff_NP_eq_coNP` and
+  `Cslib.Complexity.ProofSystem.exists_isOptimal_UNSAT_of_NP_eq_coNP` state the `UNSAT` (`encCNF`)
+  refutation analogue via the library's existing polynomial-bound equivalence
+  `Cslib.Complexity.ProofSystem.NP_eq_coNP_iff_exists_polynomiallyBounded`, without transporting a
+  proof system between `TAUT` and `UNSAT`.
+* **Direct source content vs. derived library facts:** Common-bound existence (`join` with
+  `join_simulates_left`, `join_simulates_right`), the forward direction `(2) → (3)` of Theorem
+  2.1(i) (`IsOptimal.polyBounded_on_NP_subset`, §2, pp. 1066–1067), and the `UNSAT` analogue of
+  §0's `NP = coNP` observation reflect statements in [KrajicekPudlak1989]; the converse `(3) → (2)`
+  via CNF padding is not formalized here. Universal join properties (`pSimulates_join_iff`,
+  `simulates_join_iff`), fixed-system consequences (`IsPOptimal.isOptimal`,
+  `PolynomiallyBounded.isOptimal`, closure under simulation), and the `NP` / `P` existence facts
+  (`exists_isPOptimal_of_mem_P`, etc.) are derived library facts built on the existing API.
 * **Existence boundary:** Unconditional existence of an optimal or p-optimal proof system for
-  `UNSAT` is an open problem ([KrajicekPudlak1989, §0, p. 1063]) and is not claimed. Conditional
-  existence is proved for nonempty decodable `NP` sets (hence for `UNSAT` assuming `NP = coNP`),
-  and existence of a p-optimal system is proved for nonempty decodable sets in `P`
-  (`Cslib.Complexity.ProofSystem.exists_isPOptimal_of_mem_P`).
+  `UNSAT` is an open problem ([KrajicekPudlak1989, §0, p. 1063]) and is not claimed.
 
 ## Main definitions
 
@@ -116,7 +120,9 @@ it p-simulates every proof system for `L`. -/
 def IsPOptimal (P : ProofSystem enc L) : Prop :=
   ∀ Q : ProofSystem enc L, P.PSimulates Q
 
-/-- Every p-optimal proof system is optimal [KrajicekPudlak1989, Theorem 2.1(ii)]. -/
+/-- Every p-optimal proof system is optimal. This is a derived fixed-system consequence of the
+definitions and `PSimulates.simulates` (underlying the existential `(7) → (2)` implication in
+[KrajicekPudlak1989, Theorem 2.1(i)]; Theorem 2.1(ii) treats equivalences among `(6)–(9)`). -/
 theorem IsPOptimal.isOptimal {P : ProofSystem enc L} (hP : P.IsPOptimal) : P.IsOptimal :=
   fun Q => (hP Q).simulates
 
@@ -172,9 +178,10 @@ private def joinSubset (P : ProofSystem enc L) {X : Set α} (hXL : X ⊆ L)
       exact ⟨false :: π, rfl⟩
 
 /-- The **tagged join** of two proof systems `P` and `Q` for `L`: a proof `false :: π` is evaluated
-by `P`, a proof `true :: π` is evaluated by `Q`, and the empty word defaults to `P []`. This
-witnesses that any two proof systems for `L` have a common upper bound in `PSimulates` and
-`Simulates` (a common lower bound in the quasiorder `≤` of [KrajicekPudlak1989, §0, p. 1063]). -/
+by `P`, a proof `true :: π` is evaluated by `Q`, and the empty word defaults to `P []`. Defining the
+order `A ≤ B` by `B.PSimulates A` (or `B.Simulates A`), which reverses the ordering of
+[KrajicekPudlak1989, §0, p. 1063], `P.join Q` is a least upper bound (join) of `P` and `Q`,
+corresponding to the source's common lower bound. -/
 def join (P Q : ProofSystem enc L) : ProofSystem enc L where
   toFun π := if π.headD false then Q (π.drop 1) else P (π.drop 1)
   computable :=
@@ -221,7 +228,8 @@ theorem join_simulates_left (P Q : ProofSystem enc L) : (P.join Q).Simulates P :
 theorem join_simulates_right (P Q : ProofSystem enc L) : (P.join Q).Simulates Q :=
   (join_pSimulates_right P Q).simulates
 
-/-- `P.join Q` is a binary join (least upper bound) in the `PSimulates` preorder. -/
+/-- `P.join Q` is a binary join (least upper bound) in the order `A ≤ B` given by
+`B.PSimulates A`. -/
 theorem pSimulates_join_iff {R P Q : ProofSystem enc L} :
     R.PSimulates (P.join Q) ↔ R.PSimulates P ∧ R.PSimulates Q := by
   refine ⟨fun h => ⟨h.trans (join_pSimulates_left P Q), h.trans (join_pSimulates_right P Q)⟩, ?_⟩
@@ -236,7 +244,8 @@ theorem pSimulates_join_iff {R P Q : ProofSystem enc L} :
     · exact hRQ _
     · exact hRP _
 
-/-- `P.join Q` is a binary join (least upper bound) in the `Simulates` preorder. -/
+/-- `P.join Q` is a binary join (least upper bound) in the order `A ≤ B` given by
+`B.Simulates A`. -/
 theorem simulates_join_iff {R P Q : ProofSystem enc L} :
     R.Simulates (P.join Q) ↔ R.Simulates P ∧ R.Simulates Q := by
   refine ⟨fun h => ⟨h.trans (join_simulates_left P Q), h.trans (join_simulates_right P Q)⟩, ?_⟩
@@ -284,8 +293,9 @@ theorem IsOptimal.polynomiallyBounded_iff_mem_NP {P : ProofSystem enc L} (hP : P
   rw [hP.polynomiallyBounded_iff_exists_polynomiallyBounded,
     exists_polynomiallyBounded_iff_mem_NP D P.nonempty]
 
-/-- An optimal refutation system for `UNSAT` is polynomially bounded iff `NP = coNP`
-[CookReckhow1979; KrajicekPudlak1989, §0, p. 1063]. -/
+/-- An optimal refutation system for `UNSAT` is polynomially bounded iff `NP = coNP`: the `UNSAT`
+analogue of [KrajicekPudlak1989, §0, p. 1063] (stated there for `TAUT`), obtained from
+`Cslib.Complexity.ProofSystem.NP_eq_coNP_iff_exists_polynomiallyBounded` [CookReckhow1979]. -/
 theorem IsOptimal.polynomiallyBounded_UNSAT_iff_NP_eq_coNP {P : ProofSystem encCNF UNSAT}
     (hP : P.IsOptimal) :
     P.PolynomiallyBounded ↔ ∀ {γ : Type} (encC : γ ↪ List Bool), NP encC = coNP encC := by
@@ -326,8 +336,8 @@ theorem exists_isOptimal_of_mem_NP (D : Decoder enc) (hL : L.Nonempty) (hNP : L 
   obtain ⟨P, hP⟩ := (exists_polynomiallyBounded_iff_mem_NP D hL).2 hNP
   exact ⟨P, hP.isOptimal⟩
 
-/-- If `NP = coNP`, then `UNSAT` has an optimal refutation system
-[KrajicekPudlak1989, §0, p. 1063]. -/
+/-- If `NP = coNP`, then `UNSAT` has an optimal refutation system: the `UNSAT` analogue of
+[KrajicekPudlak1989, §0, p. 1063], obtained via `NP_eq_coNP_iff_exists_polynomiallyBounded`. -/
 theorem exists_isOptimal_UNSAT_of_NP_eq_coNP
     (h : ∀ {γ : Type} (encC : γ ↪ List Bool), NP encC = coNP encC) :
     ∃ P : ProofSystem encCNF UNSAT, P.IsOptimal := by

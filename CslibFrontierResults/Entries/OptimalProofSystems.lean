@@ -20,10 +20,13 @@ register_result "krajicek-pudlak-optimal-proof-system-np-subsets" where
     { paper := KrajicekPudlak1989,
       theorem := "§0 (common lower bound, optimality, NP = coNP) and Theorem 2.1(i), (2) → (3)",
       locator := "Journal of Symbolic Logic 54(3), 1989, §0 printed p. 1063, §1 pp. 1065–1066, \
-        §2 Statements (2), (3), (7) and Theorem 2.1(i)–(ii) printed pp. 1066–1067 \
-        (author scan https://karlin.mff.cuni.cz/~krajicek/scan10.pdf, PDF pp. 1, 3–5)" }
+        §2 Statements (2), (3), (7) and Theorem 2.1(i) printed pp. 1066–1067, implication \
+        diagram p. 1070 (author scan https://karlin.mff.cuni.cz/~krajicek/scan10.pdf, PDF pp. 1, \
+        3–5, 8)" }
   ]
   theorems := [
+    Cslib.Complexity.ProofSystem.join_simulates_left,
+    Cslib.Complexity.ProofSystem.join_simulates_right,
     Cslib.Complexity.ProofSystem.pSimulates_join_iff,
     Cslib.Complexity.ProofSystem.simulates_join_iff,
     Cslib.Complexity.ProofSystem.IsPOptimal.isOptimal,
@@ -32,16 +35,23 @@ register_result "krajicek-pudlak-optimal-proof-system-np-subsets" where
     Cslib.Complexity.ProofSystem.IsOptimal.polyBounded_on_NP_subset,
     Cslib.Complexity.ProofSystem.exists_isOptimal_UNSAT_of_NP_eq_coNP
   ]
-  scope := "Formalizes optimal (IsOptimal) and p-optimal (IsPOptimal) Cook–Reckhow proof systems \
-    for arbitrary sets L with binary encoding enc : α ↪ List Bool, reusing \
-    Cslib.Complexity.ProofSystem.Simulates and PSimulates. Simulation direction: Krajíček–Pudlák \
-    write P ≤ Q for 'P simulates Q' (optimal = least element; common lower bound of two systems), \
-    whereas Simulates / PSimulates place the simulating system on the left, so join is a binary \
-    upper bound and optimal systems are greatest elements. Propositional statements use UNSAT \
-    refutations (encCNF) rather than TAUT, matching \
-    ProofSystem.NP_eq_coNP_iff_exists_polynomiallyBounded. polyBounded_on_NP_subset formalizes \
-    only the forward direction (2) → (3) of Theorem 2.1(i) (every NP subset X ⊆ L has \
-    polynomially bounded P-proofs, assuming a Decoder enc); the converse (3) → (2) via padding is \
-    not included. Unconditional existence of an optimal or p-optimal proof system for UNSAT is \
-    open and not claimed; conditional existence is proved for nonempty decodable NP sets (hence \
-    UNSAT under NP = coNP) and p-optimal existence for nonempty decodable sets in P."
+  scope := "Direct source correspondences and analogues vs. derived library facts for optimal \
+    (IsOptimal) and p-optimal (IsPOptimal) Cook–Reckhow proof systems over sets L with binary \
+    encoding enc : α ↪ List Bool. Direct source support: (1) join_simulates_left / \
+    join_simulates_right realize the §0 (p. 1063) common-bound observation: Krajíček–Pudlák write \
+    P ≤ Q for 'P simulates Q' (common lower bound, optimal = least element), and Lean likewise \
+    places the simulator on the left of Simulates / PSimulates; under the reversed order \
+    A ≤ B := B.Simulates A (or B.PSimulates A), P.join Q is a binary join and optimal systems \
+    are greatest elements; (2) IsOptimal.polyBounded_on_NP_subset formalizes only the forward \
+    direction (2) → (3) of Theorem 2.1(i) (every NP subset X ⊆ L has polynomially bounded \
+    P-proofs, assuming a Decoder enc), with the CNF-padding converse (3) → (2) left out of this \
+    entry; (3) IsOptimal.polynomiallyBounded_UNSAT_iff_NP_eq_coNP and \
+    exists_isOptimal_UNSAT_of_NP_eq_coNP state the UNSAT (encCNF) refutation analogue of the §0 \
+    TAUT / NP = coNP observation, proved via the existing library equivalence \
+    ProofSystem.NP_eq_coNP_iff_exists_polynomiallyBounded without transporting a specific proof \
+    system between TAUT and UNSAT. Derived library facts (not cited from the paper as theorems): \
+    pSimulates_join_iff, simulates_join_iff (binary-join universal properties), \
+    IsPOptimal.isOptimal (fixed-system consequence of definitions and PSimulates.simulates, \
+    underlying the existential (7) → (2) implication of Theorem 2.1(i); Theorem 2.1(ii) instead \
+    treats equivalences among (6)–(9)), PolynomiallyBounded.isOptimal, closure lemmas, and \
+    NP / P existence results. Unconditional existence for UNSAT is open and not claimed."
