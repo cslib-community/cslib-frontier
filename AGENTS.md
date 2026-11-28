@@ -294,8 +294,11 @@ Changing roles does not make an author eligible to approve their own changes. Gi
 agents distinct scope, branches and build outputs; the delegating agent brings their work to
 completion. When review or integration is the bottleneck, do requested fixes, reviews and landing
 before starting more PRs; a coordinator starts or commissions no new PR work while more than ten
-of its fleet's need its own action ([backpressure](policy/workflow.md#backpressure-and-tending)). Use issues for substantial tasks and search for existing ones first; do
-not open an issue or PR for each incidental cleanup.
+of its fleet's need its own action ([backpressure](policy/workflow.md#backpressure-and-tending)).
+At least one in five of a fleet's merged PRs each week must improve existing code: faster to
+check, simpler and clearer, ideally all three
+([improvement share](policy/workflow.md#improvement-share)). Use issues for substantial tasks
+and search for existing ones first; do not open an issue or PR for each incidental cleanup.
 
 ### Completion and scope
 
@@ -333,10 +336,8 @@ remains.
 
 ### Coordinators
 
-Reviewing submitted PRs is the highest priority. Give simplification and usability real priority
-alongside new mathematics: small lemmas for repeated proof plumbing, finished migrations with
-what they superseded removed, deleted scaffolding, and results that are easy to find, import and
-apply. Give a clear verdict and a useful next step; resolve ownership and dependency conflicts;
+Reviewing submitted PRs is the highest priority. Give a clear verdict and a useful next step;
+resolve ownership and dependency conflicts;
 help stale tasks reach a next step. Merge only with required validation and independent review
 of the current revision, through the queue. For your own implementation, follow the worker rules
 and obtain non-author review.

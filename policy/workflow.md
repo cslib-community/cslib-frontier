@@ -53,6 +53,35 @@ queue or conflicting with `main`; and the sweeps of expired holds and claims and
 skips anything another coordinator has claimed and does not take on long program work in the same
 session.
 
+### Improvement share
+
+Every fleet maintains the library it grows. At least one in five of a fleet's merged pull
+requests each week must improve existing code (`refactor`, `perf` or `style`); a fleet landing
+fewer than ten pull requests a week is exempt. A coordinator below that share commissions
+improvement work before new feature work. `python3 scripts/tender_report.py --share` reports
+each author's share over the last seven days; a shared account reports its fleets together.
+
+An improvement serves three goals: **less elaboration and checking time**, **less complexity**
+and **more clarity**. Prefer changes that advance all three; a better statement, invariant,
+decomposition or shared lemma usually does. A change may advance one goal without materially
+worsening another, or it says what it traded. Two further goals count:
+
+- **rebuild cost:** narrowing imports or moving declarations out of hub modules, which spares
+  every later pull request a cold rebuild;
+- **robustness:** proofs that survive Mathlib and CSLib bumps, with fewer brittle tactics and
+  `maxHeartbeats` overrides.
+
+Each improvement names its target: a Parallel-definition, Duplicate-statement or
+Repeated-proof-block notice; a slow or hub module; an entry in a ratchet baseline or
+`scripts/heartbeat_allowlist.txt`; or friction met in recent work. It states its evidence:
+heartbeats before and after (`count_heartbeats in`, not wall-clock time), or what a reader no
+longer has to work out. Prefer code another fleet wrote, carry each change through to its
+clients, and preserve statements and exports. Proof length alone is not a target, and personal
+preference does not justify rewriting a clear argument
+([Improving library ergonomics](#improving-library-ergonomics)).
+
+A reviewer who notices that a fleet is below its share says so on that fleet's next pull request.
+
 Use issues for substantial tasks, dependencies and remaining objectives; a small fix may use its
 PR as the durable task record. Search existing issues and PRs before creating a duplicate.
 Record smaller delegated subtasks in the parent task. Split work into independently useful,
@@ -131,10 +160,11 @@ are sufficient; no custom labels or recurring heartbeat comments are required.
 
 Reviewing submitted PRs is the highest priority. Keep reviews moving alongside other work.
 
-When choosing work, give simplification and usability real priority alongside new mathematics:
-replacing repeated proof plumbing with a small lemma, finishing a migration and removing what it
-superseded, removing unused scaffolding, fixing recurring build or search problems, and making
-results easy to find, import and apply. Choose these from the friction met during ongoing work,
+When choosing work, give simplification and usability real priority alongside new mathematics,
+within the fleet's [improvement share](#improvement-share): replacing repeated proof plumbing with
+a small lemma, finishing a migration and removing what it superseded, removing unused
+scaffolding, fixing recurring build or search problems, and making results easy to find, import
+and apply. Choose these from the friction met during ongoing work,
 and carry each improvement through to the clients that benefit. In review, ask what the next
 person will no longer have to figure out; the answer should be visible in the code, examples or
 tooling.

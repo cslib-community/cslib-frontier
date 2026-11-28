@@ -2,6 +2,14 @@
 """List open pull requests that are ready to move but not queued, for the tender.
 
 Usage: python3 scripts/tender_report.py [--pr N ...] [--json] [--jobs 4] [--repo OWNER/NAME]
+       python3 scripts/tender_report.py --share [--days 7] [--ref origin/main] [--json]
+
+`--share` instead reports each author's improvement share
+([policy/workflow.md](../policy/workflow.md#improvement-share)) from local Git history, without
+REST calls: of the commits on `--ref`'s first-parent history in the last `--days` days, how many
+have a `refactor`, `perf` or `style` title. Squash merges record the PR author, so a shared
+account reports its fleets together. Authors below one in five with at least ten merges are
+flagged. Fetch first; a stale `--ref` gives a stale count.
 
 Read-only: it never comments, queues, pushes or restacks. It reads each open non-draft PR's
 timeline (comments, submitted reviews, pushes, base changes and merge-queue events) through the
@@ -48,6 +56,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 import time
 from urllib.parse import quote
@@ -59,6 +68,37 @@ from queue_pr import REQUIRED_CHECKS  # noqa: E402
 APPROVED_WORD = re.compile(r"\bAPPROVED?\b")
 AUTHOR_ID = re.compile(r"^[ \t]*`([A-Za-z0-9][\w.\-/@]*)`")
 TRUSTED = "/path/to/trusted-main"
+# The improvement share of policy/workflow.md#improvement-share.
+IMPROVEMENT_TYPES = frozenset({"refactor", "perf", "style"})
+SHARE_FLOOR = 5  # at least one improvement in every SHARE_FLOOR merges
+SHARE_EXEMPT_BELOW = 10  # merges in the window
+TITLE_TYPE = re.compile(r"(\w+)(?:\([^)]*\))?!?:")
+
+
+def improvement_share(log: str) -> list[dict]:
+    """Tally `author<TAB>subject` lines into each author's merges and improvements."""
+    counts: dict[str, list[int]] = {}
+    for line in log.splitlines():
+        author, _, subject = line.partition("\t")
+        if not subject:
+            continue
+        kind = TITLE_TYPE.match(subject)
+        tally = counts.setdefault(author, [0, 0])
+        tally[0] += 1
+        tally[1] += bool(kind and kind.group(1) in IMPROVEMENT_TYPES)
+    return sorted(({"author": author, "merged": merged, "improvements": improved,
+                    "below": merged >= SHARE_EXEMPT_BELOW and SHARE_FLOOR * improved < merged}
+                   for author, (merged, improved) in counts.items()),
+                  key=lambda row: (-row["merged"], row["author"]))
+
+
+def render_share(rows: list[dict], ref: str, days: int) -> str:
+    out = [f"# Improvement share on `{ref}` over the last {days} days", "",
+           "| Author | Merged | Improvements | Share | |", "|---|---:|---:|---:|---|"]
+    out += [f"| {gr.markdown_cell(r['author'])} | {r['merged']} | {r['improvements']} | "
+            f"{100 * r['improvements'] // r['merged']}% | {'below one in five' if r['below'] else ''} |"
+            for r in rows]
+    return "\n".join(out)
 
 
 @dataclass
@@ -401,7 +441,24 @@ def main(argv: list[str] | None = None) -> int:
                         help="login that `maintainer` names in HOLD lines")
     parser.add_argument("--min-remaining", type=int, default=gr.MIN_REMAINING,
                         help="refuse to start below this many REST calls left")
+    parser.add_argument("--share", action="store_true",
+                        help="report each author's improvement share from local Git history")
+    parser.add_argument("--days", type=int, default=7, help="window for --share (default 7)")
+    parser.add_argument("--ref", default="origin/main", help="history for --share")
     args = parser.parse_args(argv)
+    if args.share:
+        try:
+            log = subprocess.run(
+                ["git", "log", args.ref, "--first-parent", f"--since={args.days} days ago",
+                 "--format=%an%x09%s"],
+                cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True,
+                check=True).stdout
+        except (OSError, subprocess.CalledProcessError) as error:
+            print(f"tender_report: cannot read `{args.ref}`: {error}", file=sys.stderr)
+            return 2
+        rows = improvement_share(log)
+        print(json.dumps(rows, indent=2) if args.json else render_share(rows, args.ref, args.days))
+        return 0
     gh = gr.GitHub(args.repo)
     try:
         gh.require_budget(args.min_remaining)

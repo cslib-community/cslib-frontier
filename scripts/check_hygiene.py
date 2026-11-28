@@ -44,11 +44,13 @@ Checks enforced by default (see AGENTS.md):
    link, including each `[#N]`, is written inline. Each top-level entry has no nested bullets
    and at most `ROADMAP_ENTRY_MAX` characters of Markdown (a link counts as its text), which
    keeps status and progress notes on issues, where the file says they belong.
+9. (Default selection or `--check-metadata`.) `AGENTS.md` is at most `AGENTS_MAX_BYTES` bytes,
+   since some agent clients load only that much of it.
 
 Opt-in heuristic checks:
-9. (`--check-simp`) Flag non-terminal bare `simp` tactics in `-- upstream: candidate` modules
+10. (`--check-simp`) Flag non-terminal bare `simp` tactics in `-- upstream: candidate` modules
    under CslibFrontier/.
-10. (`--max-lines N`) Flag Lean files exceeding N lines.
+11. (`--max-lines N`) Flag Lean files exceeding N lines.
 """
 
 from __future__ import annotations
@@ -91,6 +93,7 @@ SET_OPTION_RE = re.compile(r"\bset_option\s+(maxHeartbeats|maxRecDepth)\b(?:\s+\
 HEARTBEAT_VALUE_RE = re.compile(r"\bset_option\s+maxHeartbeats\b\s*([^\s;,)]+)?")
 DEFAULT_MAX_HEARTBEATS = 200000
 HEARTBEAT_ALLOWLIST = ROOT / "scripts" / "heartbeat_allowlist.txt"
+AGENTS_MAX_BYTES = 32 * 1024
 # cslib pads some keys with spaces.
 BIB_KEY_RE = re.compile(r"^@\w+\s*\{\s*([^,\s]+)\s*,", re.M)
 
@@ -687,6 +690,15 @@ def check_roadmap(text: str, rel: str = "ROADMAP.md") -> list[str]:
 _WORKER_STATE: dict[str, object] = {}
 
 
+def check_agents_size(path: pathlib.Path = ROOT / "AGENTS.md") -> list[str]:
+    """Check 9: `AGENTS.md` fits in what the most limited agent clients load."""
+    size = path.stat().st_size
+    if size <= AGENTS_MAX_BYTES:
+        return []
+    return [f"AGENTS.md: {size} bytes exceeds the {AGENTS_MAX_BYTES}-byte limit; shorten it "
+            "and move detail to `policy/`"]
+
+
 def _init_worker(
     root: pathlib.Path,
     check_simp: bool,
@@ -810,6 +822,7 @@ def main() -> int:
         errors += check_heartbeat_allowlist_stale(heartbeat_caps)
     if not args.paths or args.check_metadata:
         errors += check_bibliography(bibliography)
+        errors += check_agents_size()
         for roadmap in roadmap_files():
             errors += check_roadmap(roadmap.read_text(encoding="utf-8"),
                                     roadmap.relative_to(ROOT).as_posix())
