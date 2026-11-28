@@ -18,24 +18,30 @@ import Mathlib.Topology.Connected.Basic
 import Mathlib.Tactic.Linarith
 
 /-!
-# Schummer–Vohra cycle dictatorship on metric graphs
+# Shortest-cycle dictatorship step on metric graphs
 
-This module proves the shortest-cycle case of the cycle dictatorship theorem of
-[SchummerVohra2002] (Theorem 2, p. 21 of the January 2001 author preprint, which covers every
-cycle): any deterministic strategyproof and onto facility-location mechanism on a finite metric
-graph `MetricGraph W` acts as a dictatorship on the points of any shortest cycle `c` (without
-assuming the range stays in the cycle, and without assuming group strategyproofness). When
-`W.graph` is itself isomorphic to a cycle graph `cycleGraph (n + 3)`, every deterministic
-strategyproof onto mechanism is globally a dictatorship.
+Shortest-cycle and pure-cycle-graph step after [SchummerVohra2002], Theorem 2 (Section 4, p. 21
+of the January 2001 author preprint): this module does not prove Theorem 2 itself, which quantifies
+over every cycle `c.IsCycle` in a finite connected metric graph (and remains open under #4327).
+Instead, it proves that any deterministic strategyproof and onto facility-location mechanism on a
+finite metric graph `MetricGraph W` acts as a dictatorship on the points of any **shortest** cycle
+`c` (`IsShortestCycle W c`, without assuming the range stays in the cycle or assuming group
+strategyproofness). As corollaries, every finite non-acyclic metric graph has a shortest cycle on
+which every such mechanism is dictatorial, and when `W.graph` is isomorphic to a pure cycle graph
+`cycleGraph (n + 3)`, every deterministic strategyproof onto mechanism is globally a dictatorship.
 
 ## Main results
 
-* `Cslib.GameTheory.FacilityLocation.exists_cycleDictator_of_isShortestCycle`: cycle dictatorship
-  on an explicit shortest cycle `c` ([SchummerVohra2002]).
-* `Cslib.GameTheory.FacilityLocation.exists_cycleDictator_of_not_isAcyclic`: any finite cyclic
-  metric graph has a shortest cycle on which every strategyproof onto rule is dictatorial.
-* `Cslib.GameTheory.FacilityLocation.exists_dictatorship_of_cycleGraph`: on `cycleGraph (n + 3)`,
-  every deterministic strategyproof onto rule is a global dictatorship.
+* `Cslib.GameTheory.FacilityLocation.exists_cycleDictator_of_isShortestCycle`: intermediate
+  shortest-cycle step after [SchummerVohra2002], Theorem 2 (not Theorem 2 itself, which covers
+  arbitrary cycles and remains open under #4327): cycle dictatorship on an explicit shortest
+  cycle `c`.
+* `Cslib.GameTheory.FacilityLocation.exists_cycleDictator_of_not_isAcyclic`: corollary of the
+  shortest-cycle step: any finite non-acyclic metric graph has a shortest cycle on which every
+  deterministic strategyproof onto rule is dictatorial.
+* `Cslib.GameTheory.FacilityLocation.exists_dictatorship_of_cycleGraph`: pure-cycle-graph
+  corollary after [SchummerVohra2002], Theorem 2: on `cycleGraph (n + 3)`, every deterministic
+  strategyproof onto rule is a global dictatorship.
 
 ## References
 
@@ -1755,13 +1761,14 @@ private theorem cycleDictator_of_unanimous_aux {V : Type*} (W : WeightedGraph V)
         simp only [Finset.mem_singleton, Matrix.cons_val_zero, Matrix.cons_val_one] at hval
         exact hab (hval.symm.trans (by simpa only [↓reduceIte] using hag))
 
-/-! ### Main theorems -/
+/-! ### Shortest-cycle dictatorship theorems -/
 
-/-- **Schummer–Vohra cycle dictatorship** on shortest cycles ([SchummerVohra2002], Theorem 2,
-for shortest cycles): every deterministic strategyproof
-and onto facility-location mechanism on a finite metric graph `MetricGraph W` acts as a
-dictatorship on the points of any shortest cycle `c` (without assuming the image on `C^ι` lies in
-`C`, and without assuming group strategyproofness). -/
+/-- Intermediate shortest-cycle step after [SchummerVohra2002], Theorem 2 (Section 4, p. 21 of
+the January 2001 author preprint), not Theorem 2 itself (which quantifies over every cycle
+`c.IsCycle` and remains open under #4327): every deterministic strategyproof and onto
+facility-location mechanism on a finite metric graph `MetricGraph W` acts as a dictatorship on
+the points of any shortest cycle `c` (`IsShortestCycle W c`, without assuming the image on `C^ι`
+lies in `C`, and without assuming group strategyproofness). -/
 theorem exists_cycleDictator_of_isShortestCycle {V : Type*} (W : WeightedGraph V) [Finite V]
     [MeasurableSpace (MetricGraph W)] [OpensMeasurableSpace (MetricGraph W)]
     {v₀ : V} {c : W.graph.Walk v₀ v₀} (hs : IsShortestCycle W c)
@@ -1775,8 +1782,11 @@ theorem exists_cycleDictator_of_isShortestCycle {V : Type*} (W : WeightedGraph V
   cycleDictator_of_unanimous_aux W hs (Fintype.card ι) rfl hf_sp
     (fun p _ => unanimous_of_surjective_isStrategyProof hf_sp hf_onto p)
 
-/-- On any finite non-acyclic metric graph `MetricGraph W`, there exists a shortest cycle `c`
-on which every deterministic strategyproof onto mechanism acts as a dictatorship. -/
+/-- Corollary of the shortest-cycle step `exists_cycleDictator_of_isShortestCycle` (after
+[SchummerVohra2002], Theorem 2; not the arbitrary-cycle statement of Theorem 2, which remains
+open under #4327): on any finite non-acyclic metric graph `MetricGraph W`, there exists a
+shortest cycle `c` on which every deterministic strategyproof onto mechanism acts as a
+dictatorship. -/
 theorem exists_cycleDictator_of_not_isAcyclic {V : Type*} (W : WeightedGraph V) [Finite V]
     [MeasurableSpace (MetricGraph W)] [OpensMeasurableSpace (MetricGraph W)]
     (hc : ¬ W.graph.IsAcyclic)
@@ -1790,8 +1800,11 @@ theorem exists_cycleDictator_of_not_isAcyclic {V : Type*} (W : WeightedGraph V) 
   obtain ⟨i₀, hi₀⟩ := exists_cycleDictator_of_isShortestCycle W hs hf_sp hf_onto
   exact ⟨v₀, c, hs, i₀, hi₀⟩
 
-/-- Every deterministic strategyproof onto facility-location mechanism on a finite cycle graph
-`cycleGraph (n + 3)` is a global dictatorship. -/
+/-- Pure-cycle-graph corollary of the shortest-cycle step
+`exists_cycleDictator_of_isShortestCycle` (after [SchummerVohra2002], Theorem 2; not the general
+arbitrary-cycle statement of Theorem 2 on graphs with multiple cycles, which remains open under
+#4327): every deterministic strategyproof onto facility-location mechanism on a finite cycle
+graph `cycleGraph (n + 3)` is a global dictatorship. -/
 theorem exists_dictatorship_of_cycleGraph {V : Type*} (W : WeightedGraph V) [Finite V]
     [MeasurableSpace (MetricGraph W)] [OpensMeasurableSpace (MetricGraph W)]
     {n : ℕ} (e : W.graph ≃g SimpleGraph.cycleGraph (n + 3))
