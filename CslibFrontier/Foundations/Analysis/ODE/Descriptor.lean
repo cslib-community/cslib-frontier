@@ -83,8 +83,9 @@ every consistent initial state (`IndexOneDecoupling.exists_isSolutionOn_Ici_iff`
 * `DescriptorSystem.IndexOneDecoupling.isSolutionOn_iff_realization`: after the equilibrium
   shift, solutions of `S` are the solutions of the proper realization
   `ẋ = A x + B u`, `y = (H Q₁) x - (H Q₂ P₂ G) u` with output `H (z - z₀)`.
-* `DescriptorSystem.IndexOneDecoupling.isExponentiallyStableAt`: if `ẋ = A x` is exponentially
-  stable, so is every equilibrium of `S`.
+* `DescriptorSystem.IndexOneDecoupling.exists_norm_le_exp`,
+  `DescriptorSystem.IndexOneDecoupling.isExponentiallyStableAt`: if `ẋ = A x` decays at the rate
+  `α` (is exponentially stable), so does (is) every equilibrium of `S`.
 * `DescriptorSystem.IndexOneDecoupling.A_ofSchur`, `Q₁'_ofSchur`: the state matrix
   `E₁₁⁻¹ (F₁₁ - F₁₂ K)` and the differential coordinates of the Schur-form decoupling.
 * `DescriptorSystem.IndexOneDecoupling.P₁_ofSchur`, `P₂_ofSchur`, `Q₁_ofSchur`, `Q₂_ofSchur`: the
@@ -470,17 +471,19 @@ private theorem exists_norm_mulVec_le {α β : Type*} [Fintype α] [Fintype β] 
   exact ⟨‖LinearMap.toContinuousLinearMap f‖, fun v =>
     (LinearMap.toContinuousLinearMap f).le_opNorm (WithLp.toLp 2 v)⟩
 
-/-- **Stability of the descriptor system from the reduced ODE.** If `ẋ = A x` is exponentially
-stable in the Euclidean norm, then every equilibrium `z₀` of `S` is exponentially stable: all
-solutions with zero input converge to `z₀`, with constants from those of `A` and the norms of
-`Q₁` and `Q₁'`. Solutions exist through every consistent initial state
-(`exists_isSolutionOn_Ici_iff`), so this is not vacuous. -/
-theorem isExponentiallyStableAt {z₀ : ι → ℝ} (hz₀ : S.IsEquilibrium z₀)
-    (hA : (toEuclideanCLM (𝕜 := ℝ) D.A).IsExponentiallyStable) : S.IsExponentiallyStableAt z₀ := by
-  obtain ⟨M, α, hα, hM⟩ := hA
+/-- **Decay of the descriptor system at the rate of the reduced ODE.** If every trajectory of
+`ẋ = A x` satisfies `‖x t‖ ≤ M exp (-α t) ‖x 0‖` in the Euclidean norm, then for every
+equilibrium `z₀` of `S` there is a constant `M'` (from `M` and the norms of `Q₁` and `Q₁'`) such
+that every solution with zero input satisfies `‖z t - z₀‖ ≤ M' exp (-α t) ‖z 0 - z₀‖`, with the
+same rate `α`. -/
+theorem exists_norm_le_exp {z₀ : ι → ℝ} (hz₀ : S.IsEquilibrium z₀) {M α : ℝ}
+    (hM : ∀ x : ℝ → EuclideanSpace ℝ κ, (toEuclideanCLM (𝕜 := ℝ) D.A).IsTrajectoryOn x (Ici 0) →
+      ∀ t ≥ 0, ‖x t‖ ≤ M * Real.exp (-(α * t)) * ‖x 0‖) :
+    ∃ M' : ℝ, ∀ z : ℝ → ι → ℝ, S.IsSolutionOn 0 z (Ici 0) → ∀ t ≥ 0,
+      ‖WithLp.toLp 2 (z t - z₀)‖ ≤ M' * Real.exp (-(α * t)) * ‖WithLp.toLp 2 (z 0 - z₀)‖ := by
   obtain ⟨K₁, hK₁⟩ := exists_norm_mulVec_le D.Q₁
   obtain ⟨K₂, hK₂⟩ := exists_norm_mulVec_le D.Q₁'
-  refine ⟨|K₁| * |M| * |K₂|, α, hα, fun z hz t ht => ?_⟩
+  refine ⟨|K₁| * |M| * |K₂|, fun z hz t ht => ?_⟩
   obtain ⟨hrec, hx⟩ := (isSolutionOn_iff_realization (D := D) (0 : Matrix Unit ι ℝ) hz₀
     (uniqueDiffOn_Ici 0)).1 hz
   set x := fun t => D.Q₁' *ᵥ (z t - z₀)
@@ -505,6 +508,17 @@ theorem isExponentiallyStableAt {z₀ : ι → ℝ} (hz₀ : S.IsEquilibrium z�
         refine h3.trans (mul_le_mul_of_nonneg_left (h1.trans ?_) (abs_nonneg _))
         exact mul_le_mul_of_nonneg_left h2 (by positivity)
     _ = |K₁| * |M| * |K₂| * Real.exp (-(α * t)) * ‖WithLp.toLp 2 (z 0 - z₀)‖ := by ring
+
+/-- **Stability of the descriptor system from the reduced ODE.** If `ẋ = A x` is exponentially
+stable in the Euclidean norm, then every equilibrium `z₀` of `S` is exponentially stable: all
+solutions with zero input converge to `z₀`, with constants from those of `A` and the norms of
+`Q₁` and `Q₁'` (`exists_norm_le_exp`). Solutions exist through every consistent initial state
+(`exists_isSolutionOn_Ici_iff`), so this is not vacuous. -/
+theorem isExponentiallyStableAt {z₀ : ι → ℝ} (hz₀ : S.IsEquilibrium z₀)
+    (hA : (toEuclideanCLM (𝕜 := ℝ) D.A).IsExponentiallyStable) : S.IsExponentiallyStableAt z₀ := by
+  obtain ⟨M, α, hα, hM⟩ := hA
+  obtain ⟨M', hM'⟩ := exists_norm_le_exp hz₀ hM
+  exact ⟨M', α, hα, hM'⟩
 
 end IndexOneDecoupling
 
