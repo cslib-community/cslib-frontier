@@ -137,15 +137,6 @@ def cols (W : List ℕ) : ℕ → List ℕ
   | 0 => W
   | c + 1 => colStep c (cols W c)
 
-private theorem forall₂_map {α β γ δ : Type*} {R : α → β → Prop} {S : γ → δ → Prop}
-    {f : α → γ} {g : β → δ} :
-    ∀ {l₁ : List α} {l₂ : List β}, (∀ a ∈ l₁, ∀ b, R a b → S (f a) (g b)) →
-      List.Forall₂ R l₁ l₂ → List.Forall₂ S (l₁.map f) (l₂.map g)
-  | _, _, _, .nil => .nil
-  | _, _, H, .cons h t =>
-    .cons (H _ List.mem_cons_self _ h)
-      (forall₂_map (fun a ha => H a (List.mem_cons_of_mem _ ha)) t)
-
 private theorem all_eq_of_forall₂ {α β : Type*} {R : α → β → Prop} {p : α → Bool}
     {q : β → Bool} (hpq : ∀ a b, R a b → p a = q b) :
     ∀ {l₁ : List α} {l₂ : List β}, List.Forall₂ R l₁ l₂ → l₁.all p = l₂.all q
@@ -175,7 +166,7 @@ private theorem getD_zipWith_xor (a b : List Bool) (j : ℕ) (ha : j < a.length)
     List.getElem?_eq_getElem hb]
 
 private theorem getD_tail (l : List Bool) (j : ℕ) : l.tail.getD j false = l.getD (j + 1) false := by
-  cases l <;> simp
+  simp only [List.getD_eq_getElem?_getD, List.getElem?_tail]
 
 /-- A non-pivot row with bit `c` clear just drops coefficient `c`. -/
 private theorem rowRel_drop {n c x : ℕ} {e : Row} (h : RowRel n c x e) (hc : c < n) :
@@ -210,15 +201,16 @@ private theorem forall₂_colStep {n c : ℕ} (hc : c < n) {W : List ℕ} {F : S
     fun x e hxe => hxe.testBit_eq_headD hc
   unfold colStep pivotWord step
   rcases find?_rel hpq h with ⟨hW, hF⟩ | ⟨xp, ep, hW, hF, hp⟩
-  · rw [hW, hF]
-    refine forall₂_map (fun x hx e hxe => ?_) h
+  · rw [hW, hF, List.forall₂_map_left_iff, List.forall₂_map_right_iff]
+    have hmem := (List.forall₂_and_left (p := fun x => x ∈ W) W F).2 ⟨fun _ hx => hx, h⟩
+    refine hmem.imp fun x e ⟨hx, hxe⟩ => ?_
     have hxc : x.testBit c = false := by
       simpa using List.find?_eq_none.mp hW x hx
     have hec : e.coeffs.headD false = false := (hpq x e hxe) ▸ hxc
     simp only [elimWord, clear, hxc, hec, Bool.false_eq_true, ↓reduceIte]
     exact rowRel_drop hxe hc
-  · rw [hW, hF]
-    refine forall₂_map (fun x _ e hxe => ?_) h
+  · rw [hW, hF, List.forall₂_map_left_iff, List.forall₂_map_right_iff]
+    refine h.imp fun x e hxe => ?_
     have hxe' := hpq x e hxe
     by_cases hb : x.testBit c = true
     · have he : e.coeffs.headD false = true := hxe' ▸ hb
@@ -239,12 +231,9 @@ theorem forall₂_cols {n : ℕ} {W : List ℕ} {F : System}
     exact forall₂_colStep (by omega) (forall₂_cols h c (by omega))
 
 /-- Packing every row of a system of width `n` gives related words. -/
-private theorem forall₂_rowWord {n : ℕ} : ∀ {F : System}, Width n F →
-    List.Forall₂ (RowRel n 0) (F.map rowWord) F
-  | [], _ => .nil
-  | e :: _, h =>
-    .cons (rowRel_rowWord (h e List.mem_cons_self))
-      (forall₂_rowWord fun e' he' => h e' (List.mem_cons_of_mem _ he'))
+private theorem forall₂_rowWord {n : ℕ} {F : System} (h : Width n F) :
+    List.Forall₂ (RowRel n 0) (F.map rowWord) F :=
+  List.forall₂_map_left_iff.mpr (List.forall₂_same.mpr fun e he => rowRel_rowWord (h e he))
 
 /-- On a well-formed instance, the dense decider is the right-hand-side check on the packed rows
 after `width` packed columns. -/
@@ -327,7 +316,7 @@ private theorem exec_searchBody {w : ℕ} (y : Data 14) (v : ℕ)
 /-! ### Pure facts used by the loop invariants -/
 
 private theorem getD_mem {W : List ℕ} {j : ℕ} (hj : j < W.length) : W.getD j 0 ∈ W := by
-  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hj]
+  rw [List.getD_eq_getElem _ _ hj]
   exact List.getElem_mem hj
 
 private theorem take_succ_eq {W : List ℕ} {k : ℕ} (hk : k < W.length) :
