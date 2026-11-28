@@ -26,7 +26,7 @@ bit-per-word inputs) to this calling convention is separate work.
 **Packed input.** A point `x : BitString n` is passed as one word, `pointWord x`, its number in
 the existing `BitString.equivFin n` (an abbreviation naming the calling convention, so the
 `equivFin` lemmas such as `testBit_equivFin` apply to it directly). The word is below `2 ^ n`,
-so it fits at every width `w ≥ n` (`fits_pointWord`).
+so it fits at every width `w ≥ n` (`Fits.mono (equivFin n x).isLt`).
 
 **Contract.** A `FramedEvaluator n f r` is a fixed standard-basis program `code` on `r`
 registers, with an input register `inp`, a workspace base register `base`, a result register
@@ -103,10 +103,6 @@ variable {n : ℕ}
 /-- The packed word of a point: its number in `BitString.equivFin n`, with `x i` at bit `i`
 (`testBit_equivFin`). -/
 abbrev pointWord (x : BitString n) : ℕ := (equivFin n x : ℕ)
-
-/-- The packed word of a point fits at every width `w ≥ n`. -/
-theorem fits_pointWord {w : ℕ} (x : BitString n) (h : n ≤ w) : Fits w (pointWord x) :=
-  Fits.mono (equivFin n x).isLt h
 
 /-! ### The evaluator contract -/
 

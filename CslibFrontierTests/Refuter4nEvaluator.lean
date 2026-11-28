@@ -238,7 +238,7 @@ private theorem exec_parityCode {w : ℕ} (x : BitString n) (s : Data 7) (hw : n
       t.regs 0 = s.regs 0 ∧ t.regs 1 = s.regs 1 ∧ t.mem = s.mem := by
   have h1 : Fits w 1 := fits_one (by omega)
   have hn : Fits w n := (fits_self w).of_le (by omega)
-  have hinp : Fits w (s.regs pInp) := hx ▸ fits_pointWord x (by omega)
+  have hinp : Fits w (s.regs pInp) := hx ▸ Fits.mono (equivFin n x).isLt (by omega)
   let P (k : ℕ) (z : Data 7) : Prop :=
     z.regs pInp = s.regs pInp ∧ z.regs pBase = s.regs pBase ∧ z.regs pLim = n ∧
       z.regs pOne = 1 ∧ z.mem = s.mem ∧
@@ -268,7 +268,7 @@ private theorem exec_parityCode {w : ℕ} (x : BitString n) (s : Data 7) (hw : n
 /-- **The parity evaluator**: `parityCode n` as a framed evaluator for `Cslib.parity n`, with the
 point in register `0`, the (unused) base in register `1`, the result in register `2`, no
 workspace, at the widths `w ≥ n + 1`, within `6 n + 6` instructions per call. -/
-@[expose] def parityEvaluator (n : ℕ) : FramedEvaluator n (parity n) 7 where
+def parityEvaluator (n : ℕ) : FramedEvaluator n (parity n) 7 where
   code := parityCode n
   inp := 0
   base := 1
