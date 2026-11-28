@@ -47,9 +47,8 @@ private theorem eventually_mul_sqrt_le (T : ℕ) {δ : ℝ} (hδ : 0 < δ) :
   filter_upwards [eventually_ge_atTop ⌈2 * (T + 1 : ℝ) ^ 2 / δ ^ 2⌉₊] with n hn
   have hN : (0 : ℝ) ≤ n := Nat.cast_nonneg n
   have hbound : 2 * (T + 1 : ℝ) ^ 2 ≤ δ ^ 2 * n := by
-    have hceil := (Nat.le_ceil (2 * (T + 1 : ℝ) ^ 2 / δ ^ 2)).trans
-      (show (⌈2 * (T + 1 : ℝ) ^ 2 / δ ^ 2⌉₊ : ℝ) ≤ n by exact_mod_cast hn)
-    have h := (div_le_iff₀ (sq_pos_of_pos hδ)).mp hceil
+    have h := (div_le_iff₀ (sq_pos_of_pos hδ)).mp
+      ((Nat.le_ceil _).trans (Nat.cast_le.mpr hn))
     nlinarith
   apply (sq_le_sq₀ (by positivity : 0 ≤ (T + 1 : ℝ) * Real.sqrt (2 * n))
     (mul_nonneg hδ.le hN)).mp
@@ -68,10 +67,8 @@ private theorem eventually_lt_of_support_bounds {a : ℝ} (ha : 0 < a) (d : ℕ)
   have hTpos : (0 : ℝ) < T := lt_of_le_of_lt (by positivity) hT
   have hTnat : 0 < T := by exact_mod_cast hTpos
   have hcoeff : (d : ℝ) / T * (1 / a) ≤ δ := by
-    have h := (div_lt_iff₀ (mul_pos ha hδ)).mp hT
-    rw [show (d : ℝ) / T * (1 / a) = d / (T * a) by ring]
-    apply (div_le_iff₀ (mul_pos hTpos ha)).mpr
-    nlinarith
+    rw [show (d : ℝ) / T * (1 / a) = d / (T * a) by ring, div_le_iff₀ (mul_pos hTpos ha)]
+    nlinarith [(div_lt_iff₀ (mul_pos ha hδ)).mp hT]
   refine ⟨T, hTnat, ?_⟩
   filter_upwards [hk.bound (half_pos hδ), eventually_mul_sqrt_le T hδ,
     eventually_ge_atTop 1] with n hnK hnRoot hn1
@@ -88,14 +85,10 @@ private theorem eventually_lt_of_support_bounds {a : ℝ} (ha : 0 < a) (d : ℕ)
       _ = (d / T * (1 / a)) * n := by ring
       _ ≤ δ * n := mul_le_mul_of_nonneg_right hcoeff hN
   have hmain : a * q ≤ n - a * ε * n := by
-    have h := mul_le_mul_of_nonneg_left hsmall ha.le
-    have heq : a * ((1 / a - ε) * n) = n - a * ε * n := by
-      field_simp
-    rwa [heq] at h
-  have hδeq : 4 * δ = a * ε := by dsimp [δ]; ring
-  have hδn := congrArg (fun z : ℝ => z * n) hδeq
-  have hpos := mul_pos (mul_pos ha hε) hNpos
-  nlinarith
+    linarith [mul_le_mul_of_nonneg_left hsmall ha.le,
+      show a * ((1 / a - ε) * n) = n - a * ε * n by field_simp]
+  dsimp only [δ] at hnK hnRoot herror
+  nlinarith [mul_pos (mul_pos ha hε) hNpos]
 
 private theorem eventually_lt_of_three_support_bounds {k : ℕ → ℕ}
     (hk : (fun n => (k n : ℝ)) =o[atTop] fun n => (n : ℝ))
@@ -105,15 +98,11 @@ private theorem eventually_lt_of_three_support_bounds {k : ℕ → ℕ}
         (max 3 T : ℕ) * (Nat.log 2 (n + q) : ℝ) + 6 * k n + C →
       (2 / 3 - ε) * n < q := by
   obtain ⟨T, hT⟩ := exists_nat_gt ((6 : ℝ) / ε)
-  have hcoeff : (6 : ℝ) / (T + 1) ≤ ε := by
-    apply (div_le_iff₀ (by positivity : (0 : ℝ) < T + 1)).mpr
-    have h := (div_lt_iff₀ hε).mp hT
-    nlinarith
+  have hcoeff : (6 : ℝ) / (T + 1) ≤ ε :=
+    (div_le_iff₀ (Nat.cast_add_one_pos T)).mpr (by nlinarith [(div_lt_iff₀ hε).mp hT])
   let D : ℝ := (max 3 T : ℕ)
   obtain ⟨m, hm⟩ := exists_nat_gt (4 * D / ε)
-  have hDm : D ≤ (ε / 4) * m := by
-    have h := (div_lt_iff₀ hε).mp hm
-    linarith
+  have hDm : D ≤ (ε / 4) * m := by linarith [(div_lt_iff₀ hε).mp hm]
   let B : ℝ := (ε / 4) * (m * m : ℕ)
   refine ⟨T, ?_⟩
   filter_upwards [hk.bound (show 0 < ε / 6 by positivity),
@@ -129,21 +118,16 @@ private theorem eventually_lt_of_three_support_bounds {k : ℕ → ℕ}
       _ ≤ ((6 : ℝ) / (T + 1)) * n := mul_le_mul_of_nonneg_left hqn (by positivity)
       _ ≤ ε * n := mul_le_mul_of_nonneg_right hcoeff hN
   have hconstant : B + C ≤ ε / 2 * n := by
-    have hceil := (Nat.le_ceil (2 * (B + C) / ε)).trans
-      (show (⌈2 * (B + C) / ε⌉₊ : ℝ) ≤ n by exact_mod_cast hn)
-    have h := (div_le_iff₀ hε).mp hceil
-    linarith
+    linarith [(div_le_iff₀ hε).mp ((Nat.le_ceil _).trans (Nat.cast_le.mpr hn))]
   have hlog : D * (Nat.log 2 (n + q) : ℝ) + C ≤ ε * n := by
     have hmlog : (m : ℝ) * Nat.log 2 (n + q) ≤ (n : ℝ) + q + (m * m : ℕ) := by
       exact_mod_cast Nat.mul_log_le_add_sq Nat.one_lt_two m (n + q)
     have hDlog : D * (Nat.log 2 (n + q) : ℝ) ≤ (ε / 4) * (2 * (n : ℝ) + (m * m : ℕ)) :=
       calc D * (Nat.log 2 (n + q) : ℝ)
-          ≤ ((ε / 4) * m) * (Nat.log 2 (n + q) : ℝ) :=
-            mul_le_mul_of_nonneg_right hDm (Nat.cast_nonneg _)
+          ≤ ((ε / 4) * m) * (Nat.log 2 (n + q) : ℝ) := by gcongr
         _ = (ε / 4) * ((m : ℝ) * Nat.log 2 (n + q)) := mul_assoc _ _ _
         _ ≤ (ε / 4) * ((n : ℝ) + q + (m * m : ℕ)) := by gcongr
-        _ ≤ (ε / 4) * (2 * (n : ℝ) + (m * m : ℕ)) :=
-            mul_le_mul_of_nonneg_left (by linarith) (by positivity)
+        _ ≤ (ε / 4) * (2 * (n : ℝ) + (m * m : ℕ)) := by gcongr; linarith
     dsimp only [B] at hconstant
     linarith
   dsimp only [D] at hlog

@@ -60,11 +60,11 @@ example (x : Data 4) :
 
 /-- A fitting condition that neither `simp` nor the discharger proves remains as a goal, tagged
 `hfit`, after the main goal. -/
-example (w : ℕ) (x : Data 4) (h : x.regs a = 3) (h7 : 7 ≤ w) :
-    ∃ y, ExecWithin w ram[ b ← a + a ] x y 1 ∧ y.regs b = 6 := by
+example (w n : ℕ) (x : Data 4) (h : x.regs a = n) (hn : n < 4) (hw : 3 ≤ w) :
+    ∃ y, ExecWithin w ram[ b ← a + a ] x y 1 ∧ y.regs b = n + n := by
   wram_exec [h]
   · wram_simp
-  case hfit => exact (fits_self w).of_le (by omega)
+  case hfit => exact (Nat.add_lt_add hn hn).trans_le (Nat.pow_le_pow_right two_pos hw)
 
 /-- The default discharger proves a fitting condition from the word-size facts in context with
 `fits`. -/

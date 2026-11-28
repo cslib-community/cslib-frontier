@@ -30,6 +30,8 @@ and the choice strings accepted by a fair-coin machine (`Turing.MultiTapePTM.acc
 * `Cslib.Complexity.acceptCount_le_two_pow`, `Cslib.Complexity.acceptCount_pos_iff`,
   `Cslib.Complexity.acceptCount_eq_zero_iff`: the range and support of the count.
 * `Cslib.Complexity.acceptCount_add`: counting accepted strings by their prefixes.
+* `Cslib.Complexity.acceptCount_le_sum_of_take_cover`: union bound for events on prefixes
+  of a shared seed.
 * `Cslib.Complexity.acceptCount_zero`, `Cslib.Complexity.acceptCount_add_acceptCount_not`,
   `Cslib.Complexity.acceptCount_not`: counts of trivial and negated verifiers.
 -/
@@ -89,6 +91,30 @@ theorem acceptCount_add (V : α × List Bool → Bool) (a : α) (m n : ℕ) :
 theorem acceptCount_congr {W : α × List Bool → Bool} (h : ∀ w, V (a, w) = W (a, w)) (n : ℕ) :
     acceptCount V a n = acceptCount W a n := by
   simp only [acceptCount, h]
+
+/-- If every accepted seed has some prefix accepted by its corresponding event verifier, the
+number of accepted seeds is at most the sum of the event counts lifted to the full width.
+All verifiers may read prefixes of the same seed. -/
+theorem acceptCount_le_sum_of_take_cover {ι : Type*} (events : Finset ι)
+    (V : ι → α × List Bool → Bool) (width : ι → ℕ)
+    (W : α × List Bool → Bool) (a : α) (n : ℕ)
+    (hwidth : ∀ i ∈ events, width i ≤ n)
+    (hcover : ∀ w : List Bool, w.length = n → W (a, w) = true →
+      ∃ i ∈ events, V i (a, w.take (width i)) = true) :
+    acceptCount W a n ≤ ∑ i ∈ events, 2 ^ (n - width i) * acceptCount (V i) a (width i) := by
+  let bad (i : ι) := Finset.univ.filter fun w : Fin n → Bool =>
+    V i (a, (List.ofFn w).take (width i)) = true
+  have hsubset : (Finset.univ.filter fun w : Fin n → Bool => W (a, List.ofFn w) = true) ⊆
+      events.biUnion bad := by
+    intro w hw
+    obtain ⟨i, hi, hV⟩ := hcover (List.ofFn w) List.length_ofFn (Finset.mem_filter.mp hw).2
+    exact Finset.mem_biUnion.mpr ⟨i, hi, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hV⟩⟩
+  calc
+    acceptCount W a n ≤ ∑ i ∈ events, (bad i).card :=
+      (Finset.card_le_card hsubset).trans Finset.card_biUnion_le
+    _ = ∑ i ∈ events, 2 ^ (n - width i) * acceptCount (V i) a (width i) :=
+      Finset.sum_congr rfl fun i hi =>
+        BitString.card_filter_take (hwidth i hi) (fun u => V i (a, u) = true)
 
 /-- With no bits there is one string, the empty one. -/
 theorem acceptCount_zero (V : α × List Bool → Bool) (a : α) :

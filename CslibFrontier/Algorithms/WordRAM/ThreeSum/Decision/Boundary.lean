@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Decision.Registers
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Exact ordinary 3SUM boundary verdicts
@@ -33,13 +34,8 @@ open Cslib.WordRAM
 /-- Three distinct input positions require at least three entries. -/
 theorem not_hasSolution_of_length_lt_three {n : ℕ} (x : Fin n → ℤ) (hn : n < 3) :
     ¬Cslib.Algorithms.ThreeSum.HasSolution x := by
-  rintro ⟨i, j, k, hij, hjk, hik, _⟩
-  have hi := i.isLt
-  have hj := j.isLt
-  have hk := k.isLt
-  have hij' : i.val ≠ j.val := fun h => hij (Fin.ext h)
-  have hjk' : j.val ≠ k.val := fun h => hjk (Fin.ext h)
-  have hik' : i.val ≠ k.val := fun h => hik (Fin.ext h)
+  rintro ⟨⟨i, hi⟩, ⟨j, hj⟩, ⟨k, hk⟩, hij, hjk, hik, _⟩
+  simp only [ne_eq, Fin.mk.injEq] at hij hjk hik
   omega
 
 /-- The length header and constants are read by actual native instructions. -/
@@ -47,7 +43,8 @@ theorem exec_readLength {w : ℕ} (x : Data 16) (h3 : Fits w 3) :
     let y := x.set address 0 |>.set inputLength (x.mem 0) |>.set three 3 |>.set answer 0
     ExecWithin w readLength x y 4 := by
   dsimp only
-  ram_eval [readLength, address, inputLength, three, answer, h3, Fin.mk.injEq]
+  unfold readLength
+  wram_exec
 
 /-- Header initialization exposes its three controls and preserves the preprocessing input. -/
 theorem exec_readLength_init {w r : ℕ} (input : List ℤ) (h3 : Fits w 3) :
@@ -86,9 +83,7 @@ theorem exec_small {κ w r : ℕ} (input : List ℤ) (c : Host.Callee r)
     simpa only [hself] using (ExecWithin.copy (B := .standard) (w := w)
       (x := y) (d := controllerRegisters r answer) (s := controllerRegisters r answer))
   refine ⟨y, ?_, ha, not_hasSolution_of_length_lt_three _ hn⟩
-  have he := hr.seq (hcopy.branch_pos (neg := large κ c.code) (show
-      (Cond.lt (controllerRegisters r inputLength) (controllerRegisters r three)).Holds y by
-    simpa only [Cond.holds_lt, hlen, ht] using hn))
-  simpa only [program] using he
+  simpa only [program] using hr.seq (hcopy.branch_pos (neg := large κ c.code)
+    (by simpa only [Cond.holds_lt, hlen, ht] using hn))
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Decision

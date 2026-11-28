@@ -272,7 +272,6 @@ theorem extractSeeds_congr_of_footprint {base U M k : ℕ} {mem mem' : ℕ → �
 `≤ 2`. -/
 @[expose] def trinomialStepRem (B : ℕ) : ℕ :=
   if B ≤ 2 then B else trinomialStepRem ((B + 2) / 3)
-decreasing_by omega
 
 /-- `trinomialStepRem B` is always at most `2`. -/
 theorem trinomialStepRem_le_two (B : ℕ) : trinomialStepRem B ≤ 2 := by

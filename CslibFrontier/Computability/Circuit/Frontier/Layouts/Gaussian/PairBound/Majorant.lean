@@ -2586,16 +2586,10 @@ private theorem planarModelOut_sound {b : Cert.BoxI} {st : Cert.PlanarStep}
       injection hm2 with hm2_eq; subst hm2_eq
       rw [Bool.not_eq_true, ible_false_iff] at gdSq
       have hcoords := box_nonempty_coords hm
-      have ho1M_nn : 0 ≤ boxMid b.o10 b.o11 := by
-        unfold boxMid valI; push_cast
-        have : 0 ≤ b.o10 + b.o11 := by linarith [hv1.ho10, hcoords.2.2.2.1]
-        have hr : (0 : ℝ) ≤ (b.o10 : ℝ) + b.o11 := by exact_mod_cast this
-        linarith
-      have ho2M_nn : 0 ≤ boxMid b.o20 b.o21 := by
-        unfold boxMid valI; push_cast
-        have : 0 ≤ b.o20 + b.o21 := by linarith [hv1.ho20, hcoords.2.2.2.2.1]
-        have hr : (0 : ℝ) ≤ (b.o20 : ℝ) + b.o21 := by exact_mod_cast this
-        linarith
+      have mid_nonneg {lo hi : ℤ} (hlo : 0 ≤ lo) (h : lo ≤ hi) : 0 ≤ boxMid lo hi :=
+        div_nonneg (valI_nonneg (add_nonneg hlo (hlo.trans h))) zero_le_two
+      have ho1M_nn := mid_nonneg hv1.ho10 hcoords.2.2.2.1
+      have ho2M_nn := mid_nonneg hv1.ho20 hcoords.2.2.2.2.1
       set vx := (1 + pairSab u) / 2
       set vy := (1 + pairScd u) / 2
       set rb := pairRb u

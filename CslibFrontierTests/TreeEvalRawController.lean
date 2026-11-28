@@ -79,7 +79,7 @@ example : ComputableInSpace evaluator.next
     (fun q => (encPair (Query.encMachineState encUnit encReader) (encOption encBool) q).length) :=
   Query.machine_next_inSpace encUnit encReader template bitReader start answer
     (ComputableInSpace.of_finite _) (ComputableInSpace.of_finite _)
-    (ComputableInSpace.budget_const _ (.refl _)) (ComputableInSpace.of_finite _)
+    (ComputableInSpace.budget_const _) (ComputableInSpace.of_finite _)
 
 def tree (w : List Bool) : Ary.Tree 1 1 0 := .leaf (fun _ => w[0]?.getD false)
 def encodeBit (v : Fin 1 → Bool) : Fin 1 → ZMod 5 := fun _ => if v 0 then 1 else 0

@@ -51,19 +51,14 @@ theorem header_reindexLastScopeOccurrenceEquiv (F : CSP Rel V) (r : Rel) {n : �
         (reindexLastScopeOccurrenceEquiv F r scope q o).var) = (o.1.val, o.var) := by
   obtain ⟨o, rfl⟩ := (appendOfFnOccurrenceEquiv F r scope).surjective o
   rw [reindexLastScopeOccurrenceEquiv_apply]
+  change (fun (i, (_j, v)) => (i, v)) (appendOfFnOccurrenceEquiv F r (scope ∘ q) _).record =
+    (fun (i, (_j, v)) => (i, v)) (appendOfFnOccurrenceEquiv F r scope o).record
   cases o with
   | inl o =>
-    have ht := congrArg (fun (i, (_j, v)) => (i, v))
-      (record_appendOfFnOccurrenceEquiv_inl F r (scope ∘ q) o)
-    have hs := congrArg (fun (i, (_j, v)) => (i, v))
-      (record_appendOfFnOccurrenceEquiv_inl F r scope o)
-    exact ht.trans hs.symm
+    simp only [Equiv.sumCongr_apply, Sum.map_inl, Equiv.refl_apply,
+      record_appendOfFnOccurrenceEquiv_inl]
   | inr j =>
-    have ht := congrArg (fun (i, (_j, v)) => (i, v))
-      (record_appendOfFnOccurrenceEquiv_inr F r (scope ∘ q) (q.symm j))
-    have hs := congrArg (fun (i, (_j, v)) => (i, v))
-      (record_appendOfFnOccurrenceEquiv_inr F r scope j)
-    simp only [Function.comp_apply, Equiv.apply_symm_apply] at ht
-    exact ht.trans hs.symm
+    simp only [Equiv.sumCongr_apply, Sum.map_inr, record_appendOfFnOccurrenceEquiv_inr,
+      Function.comp_apply, Equiv.apply_symm_apply]
 
 end Cslib.Logic.PL.CSP

@@ -33,7 +33,6 @@ of native weighted-threshold circuits.
 * `Cslib.DecisionTree.leafCount`: the number of structural leaves.
 * `Cslib.DecisionTree.nodeCount`: the number of internal query nodes.
 * `Cslib.DecisionTree.allQueries`: the variables at the internal nodes.
-* `Cslib.DecisionTree.path`: the answers along the path taken by an input.
 * `Cslib.DecisionTree.rank`: the Ehrenfeucht–Haussler rank of a binary decision tree.
 * `Cslib.DecisionTree.IsDecisionList`: trees in which every internal node has a leaf child.
 * `Cslib.DecisionTree.energy`: the maximum number of `true` branches on a root-to-leaf path.
@@ -79,11 +78,6 @@ variable {ι β : Type*}
 def leafCount : DecisionTree ι β → ℕ
   | .leaf _ => 1
   | .node _ left right => left.leafCount + right.leafCount
-
-/-- The answers along the path to the reached leaf. -/
-def path : DecisionTree ι β → (ι → Bool) → List Bool
-  | .leaf _, _ => []
-  | .node i left right, x => x i :: cond (x i) (right.path x) (left.path x)
 
 /-- Every decision tree has at least one structural leaf. -/
 theorem leafCount_pos (t : DecisionTree ι β) : 0 < t.leafCount := by
@@ -441,10 +435,6 @@ def energy : DecisionTree ι β → ℕ
 theorem energy_leaf (b : β) : (leaf b : DecisionTree ι β).energy = 0 :=
   rfl
 
-private theorem energy_node (i : ι) (left right : DecisionTree ι β) :
-    (node i left right).energy = max left.energy (right.energy + 1) :=
-  rfl
-
 /-- Relabelling queries preserves the energy. -/
 @[simp]
 theorem energy_mapQueries {κ : Type*} (f : ι → κ) (t : DecisionTree ι β) :
@@ -467,7 +457,7 @@ theorem leafCount_le_sum_choose_of_energy_le (t : DecisionTree ι β) {e d : ℕ
     (he : t.energy ≤ e) (hd : t.depth ≤ d) :
     t.leafCount ≤ ∑ j ∈ Finset.range (e + 1), d.choose j := by
   refine leafCount_le_sum_choose_of_measure energy (fun i left right => ?_) t he hd
-  rw [energy_node]
+  rw [energy]
   omega
 
 /-- A decision tree of depth `d` and energy `e` has at most

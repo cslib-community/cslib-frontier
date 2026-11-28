@@ -146,21 +146,13 @@ theorem toTopSet_prefers_iff_of_mem {S : Set A} {x y : A} (hx : x ∈ S) (hy : y
 `y`. -/
 theorem toTopSet_prefers_of_mem {S : Set A} {x y : A} (hx : x ∈ S) :
     (r.toTopSet S).Prefers x y ↔ y ∉ S ∨ r.Prefers x y := by
-  by_cases hy : y ∈ S
-  · rw [r.toTopSet_prefers_iff_of_mem hx hy]
-    exact ⟨Or.inr, fun h => h.resolve_left (not_not.2 hy)⟩
-  · exact iff_of_true (r.toTopSet_prefers_of_mem_of_notMem hx hy) (Or.inl hy)
+  by_cases hy : y ∈ S <;> simp [toTopSet_prefers_iff, hx, hy]
 
 /-- If `x ∉ S`, `toTopSet S` ranks `x` above `y` exactly when `y ∉ S` and `r` ranks `x` above
 `y`. -/
 theorem toTopSet_prefers_of_notMem {S : Set A} {x y : A} (hx : x ∉ S) :
     (r.toTopSet S).Prefers x y ↔ y ∉ S ∧ r.Prefers x y := by
-  rw [toTopSet_prefers_iff]
-  constructor
-  · rintro (⟨hx', -⟩ | ⟨hxy, h⟩)
-    · exact absurd hx' hx
-    · exact ⟨fun hy => hx (hxy.2 hy), h⟩
-  · exact fun ⟨hy, h⟩ => Or.inr ⟨iff_of_false hx hy, h⟩
+  simp [toTopSet_prefers_iff, hx]
 
 /-- Move `b` to the top of `r`, keeping the order of the other alternatives: `toTopSet {b}`. -/
 def toTop (b : A) : Ranking A := r.toTopSet {b}
@@ -270,12 +262,7 @@ def extend {S : Set A} (s : Ranking S) : Ranking A where
 /-- On alternatives of `S`, the extension of `s` agrees with `s`. -/
 theorem extend_prefers_of_mem {S : Set A} (s : Ranking S) {x y : A} (hx : x ∈ S) (hy : y ∈ S) :
     (r.extend s).Prefers x y ↔ s.Prefers ⟨x, hx⟩ ⟨y, hy⟩ := by
-  constructor
-  · rintro (⟨hx₂, hy₂, h⟩ | ⟨-, hy'⟩ | ⟨hx', -⟩)
-    · exact h
-    · exact absurd hy hy'
-    · exact absurd hx hx'
-  · exact fun h => Or.inl ⟨hx, hy, h⟩
+  simp [extend, hx, hy]
 
 /-- The restriction of a ranking to the alternatives in `S`. -/
 def restrict (S : Set A) : Ranking S where
@@ -303,13 +290,7 @@ theorem extend_prefers_of_mem_of_notMem {S : Set A} (s : Ranking S) {x y : A} (h
 /-- Off `S`, the extension of a ranking of `S` agrees with `r`. -/
 theorem extend_prefers_of_notMem {S : Set A} (s : Ranking S) {x y : A} (hx : x ∉ S)
     (hy : y ∉ S) : (r.extend s).Prefers x y ↔ r.Prefers x y := by
-  rw [extend_prefers_iff]
-  constructor
-  · rintro (⟨hx', -, -⟩ | ⟨hx', -⟩ | ⟨-, -, h⟩)
-    · exact absurd hx' hx
-    · exact absurd hx' hx
-    · exact h
-  · exact fun h => Or.inr (Or.inr ⟨hx, hy, h⟩)
+  simp [extend_prefers_iff, hx, hy]
 
 /-- Two rankings that agree on whether `a` is above `b` also agree on whether `b` is above
 `a`. -/

@@ -73,9 +73,7 @@ theorem exists_stepCounter : Nonempty StepCounter := by
       (∀ t, (machine.runFrom (machine.initCfg (encNat n)) t).state = some signal ↔
         ∃ i < n, t = u + 2 * i + 1) ∧
       (machine.runFrom (machine.initCfg (encNat n)) (u + (2 * n + 1))).Halted := by
-    have hh : (prep.runFrom (prep.initCfg (encNat n)) (P n)).Halted := by
-      rw [hprep]
-      rfl
+    have hh : (prep.runFrom (prep.initCfg (encNat n)) (P n)).Halted := hprep n ▸ rfl
     obtain ⟨u, hu_le, hu⟩ := exists_haltsAt hh
     have hmid : prep.runFrom (prep.initCfg (encNat n)) u = mid n :=
       (hu.runFrom_eq hu_le).symm.trans (hprep n)
@@ -86,18 +84,11 @@ theorem exists_stepCounter : Nonempty StepCounter := by
       rcases Nat.lt_or_ge t u with ht | ht
       · rw [show machine = prep.seq tail from rfl,
           hu.runFrom_combine_left (handOver_some _) ht.le]
-        have hne := hu.not_halted ht
-        cases hq : (prep.runFrom (prep.initCfg (encNat n)) t).state with
-        | none => exact (hne hq).elim
-        | some q =>
-          change handOver tail.q₀ (prep.runFrom (prep.initCfg (encNat n)) t).state =
-            some (Sum.inr StepCounter.signalState) ↔ _
-          rw [hq, handOver_some]
-          constructor
-          · intro heq
-            cases heq
-          · rintro ⟨i, hi, heq⟩
-            omega
+        obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp (hu.not_halted ht)
+        change handOver tail.q₀ (prep.runFrom (prep.initCfg (encNat n)) t).state =
+          some (Sum.inr StepCounter.signalState) ↔ _
+        rw [hq, handOver_some]
+        exact ⟨nofun, fun ⟨i, hi, heq⟩ => by omega⟩
       · obtain ⟨r, rfl⟩ := Nat.exists_eq_add_of_le ht
         rw [show machine = prep.seq tail from rfl, hu.runFrom_seq, hmid]
         change Option.map Sum.inr _ = some (Sum.inr StepCounter.signalState) ↔ _
@@ -125,8 +116,7 @@ theorem exists_stepCounter : Nonempty StepCounter := by
     apply runsInTime_iff_halted.mpr
     rw [runFrom_eq_of_halt machine _ (by dsimp [P] at hu; nlinarith) hh]
     exact hh
-  · change Sum.inl prep.q₀ ≠ Sum.inr StepCounter.signalState
-    exact Sum.inl_ne_inr
+  · exact Sum.inl_ne_inr
   · intro n t ht ht'
     obtain ⟨u, _, hp, _⟩ := hprofile n
     obtain ⟨i, _, hi⟩ := (hp t).mp ht
@@ -138,11 +128,7 @@ theorem exists_stepCounter : Nonempty StepCounter := by
         Set.range (fun i : Fin n => u + 2 * i.val + 1) := by
       ext t
       rw [Set.mem_ofPred_eq, hp]
-      constructor
-      · rintro ⟨i, hi, rfl⟩
-        exact ⟨⟨i, hi⟩, rfl⟩
-      · rintro ⟨i, rfl⟩
-        exact ⟨i.val, i.isLt, rfl⟩
+      exact ⟨fun ⟨i, hi, h⟩ => ⟨⟨i, hi⟩, h.symm⟩, fun ⟨i, h⟩ => ⟨i, i.isLt, h.symm⟩⟩
     rw [hset, Set.ncard_range_of_injective]
     · simp
     · fin_index

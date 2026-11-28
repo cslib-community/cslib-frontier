@@ -174,38 +174,19 @@ private def mergeTripartitionEquiv {n : ℕ} {U : Type*} (p : Fin n → Fin 3) :
 private theorem ncard_parts_sum {n : ℕ} (p : Fin n → Fin 3) :
     {i : Fin n | p i = 0}.ncard + {i : Fin n | p i = 1}.ncard +
       {i : Fin n | p i = 2}.ncard = n := by
-  have hd01 : Disjoint {i : Fin n | p i = 0} {i : Fin n | p i = 1} :=
-    disjoint_left.mpr fun i h0 h1 => by
-      rw [mem_ofPred_eq] at h0 h1; rw [h0] at h1; revert h1; decide
-  have hd012 : Disjoint ({i : Fin n | p i = 0} ∪ {i : Fin n | p i = 1})
-      {i : Fin n | p i = 2} :=
-    disjoint_left.mpr fun i h01 h2 => by
-      rcases h01 with h0 | h1
-      · rw [mem_ofPred_eq] at h0 h2; rw [h0] at h2; revert h2; decide
-      · rw [mem_ofPred_eq] at h1 h2; rw [h1] at h2; revert h2; decide
-  have huniv : ({i : Fin n | p i = 0} ∪ {i : Fin n | p i = 1}) ∪
-      {i : Fin n | p i = 2} = univ := by
-    ext i
-    simp only [mem_union, mem_ofPred_eq, mem_univ, iff_true]
-    rcases hp : p i with ⟨_ | _ | _ | _, hlt⟩
-    · exact Or.inl (Or.inl rfl)
-    · exact Or.inl (Or.inr rfl)
-    · exact Or.inr rfl
-    · omega
-  rw [← ncard_union_eq hd01 (toFinite _) (toFinite _),
-    ← ncard_union_eq hd012 (toFinite _) (toFinite _), huniv, ncard_univ,
-    Nat.card_eq_fintype_card, Fintype.card_fin]
+  classical
+  have h := Finset.card_eq_sum_card_fiberwise (f := p) (s := Finset.univ) (t := Finset.univ)
+    fun _ _ => Finset.mem_univ _
+  simp only [Finset.card_univ, Fintype.card_fin, Fin.sum_univ_three] at h
+  simp only [Set.ncard_eq_toFinset_card', Set.toFinset_ofPred]
+  omega
 
 private theorem BalancedTripartition.ncard_le {n : ℕ} {p : Fin n → Fin 3}
     (hp : BalancedTripartition n p) (c : Fin 3) :
     {i : Fin n | p i = c}.ncard ≤ n / 3 + 2 := by
   have hsum := ncard_parts_sum p
   have h0 := hp 0; have h1 := hp 1; have h2 := hp 2
-  rcases c with ⟨_ | _ | _ | _, hlt⟩
-  · change {i : Fin n | p i = 0}.ncard ≤ n / 3 + 2; omega
-  · change {i : Fin n | p i = 1}.ncard ≤ n / 3 + 2; omega
-  · change {i : Fin n | p i = 2}.ncard ≤ n / 3 + 2; omega
-  · omega
+  fin_cases c <;> dsimp only [Fin.reduceFinMk] <;> omega
 
 /-! ### Non-vacuity: counting existence of `ThreeTensorHard` sets over arbitrary fields -/
 
@@ -224,11 +205,7 @@ theorem exists_threeTensorHard (K : Type*) [Field K] {n : ℕ} {U : Type*} [Fint
   let BadP (p : Fin n → Fin 3) : Finset (Finset (Fin n → U)) :=
     Finset.univ.filter fun S => Tensor.Rank r (partitionThreeTensor K p (S : Set (Fin n → U)))
   let BalFin : Finset (Fin n → Fin 3) := Finset.univ.filter (BalancedTripartition n)
-  have hBal_card : BalFin.card ≤ 3 ^ n := by
-    calc BalFin.card
-        ≤ (Finset.univ : Finset (Fin n → Fin 3)).card :=
-          Finset.card_le_card (Finset.filter_subset _ _)
-      _ = 3 ^ n := by simp
+  have hBal_card : BalFin.card ≤ 3 ^ n := (Finset.card_filter_le _ _).trans (by simp)
   have hBadP_le (p : Fin n → Fin 3) (hp : p ∈ BalFin) :
       (BadP p).card ≤ (3 * q ^ n + 1) ^ (3 * r * q ^ (n / 3 + 2)) := by
     have hbal : BalancedTripartition n p := (Finset.mem_filter.mp hp).2
@@ -244,52 +221,23 @@ theorem exists_threeTensorHard (K : Type*) [Field K] {n : ℕ} {U : Type*} [Fint
     have hbij : (BadP p).card =
         (Finset.univ.filter fun T : Finset (X₀ × X₁ × X₂) =>
           Tensor.Rank r (indicatorThreeTensor K (T : Set (X₀ × X₁ × X₂)))).card := by
-      refine Finset.card_bij (fun S _ => finEqv.symm S) ?_ ?_ ?_
-      · intro S hS
-        have hrk := (Finset.mem_filter.mp hS).2
-        refine Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩
-        have hten_eq :
-            indicatorThreeTensor K (X₀ := X₀) (X₁ := X₁) (X₂ := X₂) ↑(finEqv.symm S) =
-              partitionThreeTensor K (U := U) p ↑S := by
-          funext x₀ x₁ x₂
-          simp only [indicatorThreeTensor, partitionThreeTensor, finEqv, Equiv.coe_fn_symm_mk,
-            Finset.mem_coe, Finset.mem_map, Function.Embedding.coeFn_mk]
-          have hiff : (∃ a ∈ S, eqv.symm a = (x₀, x₁, x₂)) ↔ eqv (x₀, x₁, x₂) ∈ S :=
-            ⟨fun ⟨a, ha, he⟩ => by rw [← he, Equiv.apply_symm_apply]; exact ha,
-             fun hm => ⟨_, hm, Equiv.symm_apply_apply _ _⟩⟩
-          split_ifs with h1 h2 h2
-          · rfl
-          · exact absurd (hiff.mp h1) h2
-          · exact absurd (hiff.mpr h2) h1
-          · rfl
-        rwa [hten_eq]
-      · intro S₁ _ S₂ _ heq
-        exact finEqv.symm.injective heq
-      · intro T hT
-        refine ⟨finEqv T, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩,
-          finEqv.symm_apply_apply T⟩
-        have hrk := (Finset.mem_filter.mp hT).2
-        have hten_eq :
-            partitionThreeTensor K (U := U) p ↑(finEqv T) =
-              indicatorThreeTensor K (X₀ := X₀) (X₁ := X₁) (X₂ := X₂) ↑T := by
-          funext x₀ x₁ x₂
-          simp only [partitionThreeTensor, indicatorThreeTensor, finEqv, Equiv.coe_fn_mk,
-            Finset.mem_coe, Finset.mem_map, Equiv.toEmbedding_apply]
-          have hiff : (∃ a ∈ T, eqv a = eqv (x₀, x₁, x₂)) ↔ (x₀, x₁, x₂) ∈ T :=
-            ⟨fun ⟨a, ha, he⟩ => eqv.injective he ▸ ha, fun hm => ⟨_, hm, rfl⟩⟩
-          split_ifs with h1 h2 h2
-          · rfl
-          · exact absurd (hiff.mp h1) h2
-          · exact absurd (hiff.mpr h2) h1
-          · rfl
-        rwa [hten_eq]
+      refine Finset.card_equiv finEqv.symm fun S => ?_
+      have hten_eq :
+          indicatorThreeTensor K (X₀ := X₀) (X₁ := X₁) (X₂ := X₂) ↑(finEqv.symm S) =
+            partitionThreeTensor K (U := U) p ↑S := by
+        funext x₀ x₁ x₂
+        simp only [indicatorThreeTensor, partitionThreeTensor, finEqv, Equiv.coe_fn_symm_mk,
+          Finset.mem_coe, Finset.mem_map_equiv, Equiv.symm_symm]
+        split_ifs with h1 h2 h2
+        · rfl
+        · exact absurd h1 h2
+        · exact absurd h2 h1
+        · rfl
+      simp only [BadP, Finset.mem_filter, Finset.mem_univ, true_and, hten_eq]
     rw [hbij]
     have hcard_prod : Fintype.card X₀ * Fintype.card X₁ * Fintype.card X₂ = q ^ n := by
-      have hc := Fintype.card_congr eqv
-      simp only [Fintype.card_prod, Fintype.card_fun, Fintype.card_fin] at hc
-      dsimp only [X₀, X₁, X₂, q]
-      simp only [Fintype.card_fun]
-      rwa [← mul_assoc] at hc
+      simpa only [X₀, X₁, X₂, q, Fintype.card_prod, Fintype.card_fun, Fintype.card_fin,
+        mul_assoc] using Fintype.card_congr eqv
     have hcard_part (c : Fin 3) : Fintype.card ({i : Fin n // p i = c} → U) ≤ q ^ (n / 3 + 2) := by
       rw [Fintype.card_fun]
       have hsub_card : Fintype.card {i : Fin n // p i = c} = {i : Fin n | p i = c}.ncard := by
@@ -382,11 +330,7 @@ private theorem exists_threeTensorHard_eventually (K : Type*) [Field K] {U : Typ
   push_cast
   have hr_le : (r : ℝ) ≤ (q : ℝ) ^ ((2 / 3 - δ) * (n : ℝ)) :=
     Nat.floor_le (by positivity)
-  have hdiv3 : ((n / 3 : ℕ) : ℝ) ≤ (n : ℝ) / 3 := by
-    have hnat : 3 * (n / 3) ≤ n := Nat.mul_div_le n 3
-    have hcast : ((3 * (n / 3) : ℕ) : ℝ) ≤ (n : ℝ) := Nat.cast_le.mpr hnat
-    push_cast at hcast
-    linarith only [hcast]
+  have hdiv3 : ((n / 3 : ℕ) : ℝ) ≤ (n : ℝ) / 3 := by exact_mod_cast Nat.cast_div_le
   have hqn3 : (q : ℝ) ^ (n / 3 + 2 : ℕ) ≤ (q : ℝ) ^ 2 * (q : ℝ) ^ ((n : ℝ) / 3) := by
     rw [pow_add, mul_comm _ ((q : ℝ) ^ 2), ← Real.rpow_natCast (q : ℝ) (n / 3)]
     exact mul_le_mul_of_nonneg_left (Real.rpow_le_rpow_of_exponent_le hq_real_gt1.le hdiv3)
@@ -404,8 +348,7 @@ private theorem exists_threeTensorHard_eventually (K : Type*) [Field K] {U : Typ
     push_cast
     calc 3 * (r : ℝ) * (q : ℝ) ^ (n / 3 + 2 : ℕ)
         ≤ 3 * (q : ℝ) ^ ((2 / 3 - δ) * (n : ℝ)) * ((q : ℝ) ^ 2 * (q : ℝ) ^ ((n : ℝ) / 3)) := by
-          refine mul_le_mul (mul_le_mul_of_nonneg_left hr_le (by norm_num)) hqn3
-            (by positivity) (by positivity)
+          gcongr
       _ = 3 * (q : ℝ) ^ 2 * ((q : ℝ) ^ ((2 / 3 - δ) * (n : ℝ)) * (q : ℝ) ^ ((n : ℝ) / 3)) := by
           ring
       _ = 3 * (q : ℝ) ^ 2 * ((q : ℝ) ^ n / b ^ n) := by rw [hprod_rpow]
@@ -430,12 +373,9 @@ private theorem exists_threeTensorHard_eventually (K : Type*) [Field K] {U : Typ
       linarith only [hm1, show (q : ℝ) * (2 * (n : ℝ)) *
         (3 * (q : ℝ) ^ 2 * ((q : ℝ) ^ n / b ^ n)) =
         6 * (q : ℝ) ^ 3 * (n : ℝ) * ((q : ℝ) ^ n / b ^ n) by ring]
-    have hn_le_sq : (n : ℝ) ≤ (n : ℝ) ^ 2 := by
-      have hn_ge1 : (1 : ℝ) ≤ (n : ℝ) := by
-        have : (4 : ℝ) ≤ (n : ℝ) := Nat.cast_le.mpr hn4; linarith
-      nlinarith only [hn_ge1]
-    have hq3_le_q5 : (q : ℝ) ^ 3 ≤ (q : ℝ) ^ 5 := by
-      exact pow_le_pow_right₀ hq_real_gt1.le (by norm_num)
+    have hn_le_sq : (n : ℝ) ≤ (n : ℝ) ^ 2 :=
+      le_self_pow₀ (by exact_mod_cast (by omega : 1 ≤ n)) two_ne_zero
+    have hq3_le_q5 : (q : ℝ) ^ 3 ≤ (q : ℝ) ^ 5 := pow_le_pow_right₀ hq_real_gt1.le (by norm_num)
     have hfrac_lt : 6 * (q : ℝ) ^ 3 * (n : ℝ) / b ^ n < 1 / 2 := by
       rw [div_lt_iff₀ (pow_pos (by positivity : 0 < b) n)]
       have hle_n2 : 6 * (q : ℝ) ^ 3 * (n : ℝ) ≤ 6 * (q : ℝ) ^ 5 * (n : ℝ) ^ 2 := by
@@ -456,6 +396,9 @@ private theorem exists_threeTensorHard_eventually (K : Type*) [Field K] {U : Typ
   linarith only [hterm1, hterm2, hqn_pos]
 
 /-! ### `3`-way network splicing into `Tensor.mm D D D` -/
+
+private theorem finThreeCases (k : Fin 3) : k = 0 ∨ k = 1 ∨ k = 2 := by
+  fin_cases k <;> decide
 
 section Splicing
 
@@ -493,165 +436,48 @@ theorem isRestriction_partitionThreeTensor_mm (K : Type*) [CommSemiring K]
         ((col (G.src e) = a ∧ col (G.tgt e) = b) ∨
           (col (G.src e) = b ∧ col (G.tgt e) = a)) := by
     simp only [mem_inter_iff, Multigraph.mem_edgeCut, mem_ofPred_eq]
-    generalize col (G.src e) = x
-    generalize col (G.tgt e) = y
-    revert hab
-    fin_cases a <;> fin_cases b <;> fin_cases x <;> fin_cases y <;> decide
-  let glueEdges (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U)
-      (a₀ : (CutE 0 → U)) (a₁ : (CutE 1 → U)) (a₂ : (CutE 2 → U))
-      (e : Compiler.Edge c) : U :=
-    if h0 : col (G.src e) = 0 ∧ col (G.tgt e) = 0 then α₀ ⟨e, h0⟩
-    else if h1 : col (G.src e) = 1 ∧ col (G.tgt e) = 1 then α₁ ⟨e, h1⟩
-    else if h2 : col (G.src e) = 2 ∧ col (G.tgt e) = 2 then α₂ ⟨e, h2⟩
-    else if hc0 : e ∈ G.edgeCut {v | col v = 0} ∩ G.edgeCut {v | col v = 1} then a₀ ⟨e, hc0⟩
-    else if hc1 : e ∈ G.edgeCut {v | col v = 1} ∩ G.edgeCut {v | col v = 2} then a₁ ⟨e, hc1⟩
-    else if hc2 : e ∈ G.edgeCut {v | col v = 2} ∩ G.edgeCut {v | col v = 0} then a₂ ⟨e, hc2⟩
+    have hsrc : ¬(col (G.src e) = a ∧ col (G.src e) = b) :=
+      fun h => hab (h.1.symm.trans h.2)
+    have htgt : ¬(col (G.tgt e) = a ∧ col (G.tgt e) = b) :=
+      fun h => hab (h.1.symm.trans h.2)
+    tauto
+  have hcut01 := mem_inter_edgeCut_iff 0 1 (by decide)
+  have hcut12 := mem_inter_edgeCut_iff 1 2 (by decide)
+  have hcut20 := mem_inter_edgeCut_iff 2 0 (by decide)
+  let triple {A : Fin 3 → Type _} (x₀ : A 0) (x₁ : A 1) (x₂ : A 2) : ∀ k, A k :=
+    Fin.cons x₀ (Fin.cons x₁ (Fin.cons x₂ (fun i => i.elim0)))
+  let glueEdges (α : ∀ k, IntE k → U) (a : ∀ k, CutE k → U) (e : Compiler.Edge c) : U :=
+    if h0 : col (G.src e) = 0 ∧ col (G.tgt e) = 0 then α 0 ⟨e, h0⟩
+    else if h1 : col (G.src e) = 1 ∧ col (G.tgt e) = 1 then α 1 ⟨e, h1⟩
+    else if h2 : col (G.src e) = 2 ∧ col (G.tgt e) = 2 then α 2 ⟨e, h2⟩
+    else if hc0 : e ∈ G.edgeCut {v | col v = 0} ∩ G.edgeCut {v | col v = 1} then a 0 ⟨e, hc0⟩
+    else if hc1 : e ∈ G.edgeCut {v | col v = 1} ∩ G.edgeCut {v | col v = 2} then a 1 ⟨e, hc1⟩
+    else if hc2 : e ∈ G.edgeCut {v | col v = 2} ∩ G.edgeCut {v | col v = 0} then a 2 ⟨e, hc2⟩
     else u₀
-  -- Local edge-agreement lemma at each vertex color `0, 1, 2`.
-  have glue_eq_at_zero (α₀ : IntE 0 → U) (α₁ α₁' : IntE 1 → U) (α₂ α₂' : IntE 2 → U)
-      (a₀ : CutE 0 → U) (a₁ a₁' : CutE 1 → U) (a₂ : CutE 2 → U)
-      {v : Compiler.Vertex c} (hv : col v = 0) {e : Compiler.Edge c}
+  -- A vertex sees only its own internal edges and the cuts incident to its colour.
+  let localInternal (k : Fin 3) (α : ∀ j, IntE j → U) (j : Fin 3) (e : IntE j) :=
+    if j = k then α j e else u₀
+  let localCut (k : Fin 3) (a : ∀ j, CutE j → U) (j : Fin 3) (e : CutE j) :=
+    if j = k ∨ j + 1 = k then a j e else u₀
+  have glue_eq_at (α : ∀ k, IntE k → U) (a : ∀ k, CutE k → U) (k : Fin 3)
+      {v : Compiler.Vertex c} (hv : col v = k) {e : Compiler.Edge c}
       (he : G.src e = v ∨ G.tgt e = v) :
-      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e = glueEdges α₀ α₁' α₂' a₀ a₁' a₂ e := by
-    have h0_end : col (G.src e) = 0 ∨ col (G.tgt e) = 0 := by
-      rcases he with rfl | rfl <;> [exact Or.inl hv; exact Or.inr hv]
-    have hn1 : ¬(col (G.src e) = 1 ∧ col (G.tgt e) = 1) := by
-      rcases h0_end with hs | ht <;> intro h <;>
-        [exact absurd (hs.symm.trans h.1) (by decide);
-         exact absurd (ht.symm.trans h.2) (by decide)]
-    have hn2 : ¬(col (G.src e) = 2 ∧ col (G.tgt e) = 2) := by
-      rcases h0_end with hs | ht <;> intro h <;>
-        [exact absurd (hs.symm.trans h.1) (by decide);
-         exact absurd (ht.symm.trans h.2) (by decide)]
-    have hnc1 : e ∉ G.edgeCut {w | col w = 1} ∩ G.edgeCut {w | col w = 2} := by
-      rw [mem_inter_edgeCut_iff 1 2 (by decide)]
-      rcases h0_end with hs | ht
-      · rintro (⟨h1, -⟩ | ⟨h1, -⟩) <;> exact absurd (hs.symm.trans h1) (by decide)
-      · rintro (⟨-, h2⟩ | ⟨-, h2⟩) <;> exact absurd (ht.symm.trans h2) (by decide)
-    dsimp [glueEdges]
-    simp only [hn1, hn2, hnc1, ↓reduceDIte]
-  have glue_eq_at_one (α₀ α₀' : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ α₂' : IntE 2 → U)
-      (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ a₂' : CutE 2 → U)
-      {v : Compiler.Vertex c} (hv : col v = 1) {e : Compiler.Edge c}
-      (he : G.src e = v ∨ G.tgt e = v) :
-      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e = glueEdges α₀' α₁ α₂' a₀ a₁ a₂' e := by
-    have h1_end : col (G.src e) = 1 ∨ col (G.tgt e) = 1 := by
-      rcases he with rfl | rfl <;> [exact Or.inl hv; exact Or.inr hv]
-    have hn0 : ¬(col (G.src e) = 0 ∧ col (G.tgt e) = 0) := by
-      rcases h1_end with hs | ht <;> intro h <;>
-        [exact absurd (hs.symm.trans h.1) (by decide);
-         exact absurd (ht.symm.trans h.2) (by decide)]
-    have hn2 : ¬(col (G.src e) = 2 ∧ col (G.tgt e) = 2) := by
-      rcases h1_end with hs | ht <;> intro h <;>
-        [exact absurd (hs.symm.trans h.1) (by decide);
-         exact absurd (ht.symm.trans h.2) (by decide)]
-    have hnc2 : e ∉ G.edgeCut {w | col w = 2} ∩ G.edgeCut {w | col w = 0} := by
-      rw [mem_inter_edgeCut_iff 2 0 (by decide)]
-      rcases h1_end with hs | ht
-      · rintro (⟨h1, -⟩ | ⟨h1, -⟩) <;> exact absurd (hs.symm.trans h1) (by decide)
-      · rintro (⟨-, h2⟩ | ⟨-, h2⟩) <;> exact absurd (ht.symm.trans h2) (by decide)
-    dsimp [glueEdges]
-    simp only [hn0, hn2, hnc2, ↓reduceDIte]
-  have glue_eq_at_two (α₀ α₀' : IntE 0 → U) (α₁ α₁' : IntE 1 → U) (α₂ : IntE 2 → U)
-      (a₀ a₀' : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ : CutE 2 → U)
-      {v : Compiler.Vertex c} (hv : col v = 2) {e : Compiler.Edge c}
-      (he : G.src e = v ∨ G.tgt e = v) :
-      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e = glueEdges α₀' α₁' α₂ a₀' a₁ a₂ e := by
-    have h2_end : col (G.src e) = 2 ∨ col (G.tgt e) = 2 := by
-      rcases he with rfl | rfl <;> [exact Or.inl hv; exact Or.inr hv]
-    have hn0 : ¬(col (G.src e) = 0 ∧ col (G.tgt e) = 0) := by
-      rcases h2_end with hs | ht <;> intro h <;>
-        [exact absurd (hs.symm.trans h.1) (by decide);
-         exact absurd (ht.symm.trans h.2) (by decide)]
-    have hn1 : ¬(col (G.src e) = 1 ∧ col (G.tgt e) = 1) := by
-      rcases h2_end with hs | ht <;> intro h <;>
-        [exact absurd (hs.symm.trans h.1) (by decide);
-         exact absurd (ht.symm.trans h.2) (by decide)]
-    have hnc0 : e ∉ G.edgeCut {w | col w = 0} ∩ G.edgeCut {w | col w = 1} := by
-      rw [mem_inter_edgeCut_iff 0 1 (by decide)]
-      rcases h2_end with hs | ht
-      · rintro (⟨h1, -⟩ | ⟨h1, -⟩) <;> exact absurd (hs.symm.trans h1) (by decide)
-      · rintro (⟨-, h2⟩ | ⟨-, h2⟩) <;> exact absurd (ht.symm.trans h2) (by decide)
-    dsimp [glueEdges]
-    simp only [hn0, hn1, hnc0, ↓reduceDIte]
-  -- Reconstruct any global assignment `β : Edge c → U` from its `6` restrictions.
+      glueEdges α a e = glueEdges (localInternal k α) (localCut k a) e := by
+    rcases finThreeCases k with rfl | rfl | rfl <;> rcases he with rfl | rfl <;>
+      simp only [glueEdges, hcut01, hcut12, hcut20, hv, Fin.reduceEq,
+        true_and, false_and, and_true, and_false, false_or, or_false, ↓reduceDIte] <;> rfl
   have glue_restrict (β : Compiler.Edge c → U) :
-      glueEdges (fun e => β e.1) (fun e => β e.1) (fun e => β e.1)
-        (fun e => β e.1) (fun e => β e.1) (fun e => β e.1) = β := by
+      glueEdges (fun _ e => β e.1) (fun _ e => β e.1) = β := by
     funext e
-    dsimp [glueEdges]
-    split_ifs with h0 h1 h2 hc0 hc1 hc2
-    · rfl
-    · rfl
-    · rfl
-    · rfl
-    · rfl
-    · rfl
-    · exfalso
-      rw [mem_inter_edgeCut_iff 0 1 (by decide)] at hc0
-      rw [mem_inter_edgeCut_iff 1 2 (by decide)] at hc1
-      rw [mem_inter_edgeCut_iff 2 0 (by decide)] at hc2
-      generalize col (G.src e) = a at h0 h1 h2 hc0 hc1 hc2
-      generalize col (G.tgt e) = b at h0 h1 h2 hc0 hc1 hc2
-      fin_cases a <;> fin_cases b <;> simp_all
-  -- Also extract `a₀, a₁, a₂` back from `glueEdges`.
-  have glue_on_cut0 (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U)
-      (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ : CutE 2 → U) (e : CutE 0) :
-      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.1 = a₀ e := by
-    have hc0 : e.1 ∈ G.edgeCut {v | col v = 0} ∩ G.edgeCut {v | col v = 1} := e.2
-    have hmem := (mem_inter_edgeCut_iff 0 1 (by decide) e.1).mp hc0
-    have hn0 : ¬(col (G.src e.1) = 0 ∧ col (G.tgt e.1) = 0) := by
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hn1 : ¬(col (G.src e.1) = 1 ∧ col (G.tgt e.1) = 1) := by
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hn2 : ¬(col (G.src e.1) = 2 ∧ col (G.tgt e.1) = 2) := by
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    dsimp [glueEdges]
-    simp only [hn0, hn1, hn2, ↓reduceDIte]
-    split_ifs with h
-    · exact congrArg a₀ (Subtype.ext rfl)
-    · exact absurd hc0 h
-  have glue_on_cut1 (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U)
-      (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ : CutE 2 → U) (e : CutE 1) :
-      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.1 = a₁ e := by
-    have hc1 : e.1 ∈ G.edgeCut {v | col v = 1} ∩ G.edgeCut {v | col v = 2} := e.2
-    have hmem := (mem_inter_edgeCut_iff 1 2 (by decide) e.1).mp hc1
-    have hn0 : ¬(col (G.src e.1) = 0 ∧ col (G.tgt e.1) = 0) := by
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hn1 : ¬(col (G.src e.1) = 1 ∧ col (G.tgt e.1) = 1) := by
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hn2 : ¬(col (G.src e.1) = 2 ∧ col (G.tgt e.1) = 2) := by
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hnc0 : e.1 ∉ G.edgeCut {w | col w = 0} ∩ G.edgeCut {w | col w = 1} := by
-      rw [mem_inter_edgeCut_iff 0 1 (by decide)]
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    dsimp [glueEdges]
-    simp only [hn0, hn1, hn2, hnc0, ↓reduceDIte]
-    split_ifs with h
-    · exact congrArg a₁ (Subtype.ext rfl)
-    · exact absurd hc1 h
-  have glue_on_cut2 (α₀ : IntE 0 → U) (α₁ : IntE 1 → U) (α₂ : IntE 2 → U)
-      (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) (a₂ : CutE 2 → U) (e : CutE 2) :
-      glueEdges α₀ α₁ α₂ a₀ a₁ a₂ e.1 = a₂ e := by
-    have hc2 : e.1 ∈ G.edgeCut {v | col v = 2} ∩ G.edgeCut {v | col v = 0} := e.2
-    have hmem := (mem_inter_edgeCut_iff 2 0 (by decide) e.1).mp hc2
-    have hn0 : ¬(col (G.src e.1) = 0 ∧ col (G.tgt e.1) = 0) := by
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hn1 : ¬(col (G.src e.1) = 1 ∧ col (G.tgt e.1) = 1) := by
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hn2 : ¬(col (G.src e.1) = 2 ∧ col (G.tgt e.1) = 2) := by
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hnc0 : e.1 ∉ G.edgeCut {w | col w = 0} ∩ G.edgeCut {w | col w = 1} := by
-      rw [mem_inter_edgeCut_iff 0 1 (by decide)]
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    have hnc1 : e.1 ∉ G.edgeCut {w | col w = 1} ∩ G.edgeCut {w | col w = 2} := by
-      rw [mem_inter_edgeCut_iff 1 2 (by decide)]
-      rcases hmem with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> (rw [h1, h2]; decide)
-    dsimp [glueEdges]
-    simp only [hn0, hn1, hn2, hnc0, hnc1, ↓reduceDIte]
-    split_ifs with h
-    · exact congrArg a₂ (Subtype.ext rfl)
-    · exact absurd hc2 h
+    simp only [glueEdges, hcut01, hcut12, hcut20]
+    split_ifs <;> first | rfl | omega
+  have glue_on_cut (α : ∀ k, IntE k → U) (a : ∀ k, CutE k → U)
+      (k : Fin 3) (e : CutE k) : glueEdges α a e.1 = a k e := by
+    have hk : k ≠ k + 1 := by fin_cases k <;> decide
+    obtain ⟨hi, hj⟩ | ⟨hi, hj⟩ := (mem_inter_edgeCut_iff k (k + 1) hk e.1).mp e.2 <;>
+      rcases finThreeCases k with rfl | rfl | rfl <;>
+      simp only [Fin.reduceAdd] at hi hj <;>
+      simp [glueEdges, hcut01, hcut12, hcut20, hi, hj]
   -- Local validity predicates for parts `0, 1, 2`.
   let d0 : {i : Fin n // p i = 0} → U := fun _ => u₀
   let d1 : {i : Fin n // p i = 1} → U := fun _ => u₀
@@ -659,15 +485,15 @@ theorem isRestriction_partitionThreeTensor_mm (K : Type*) [CommSemiring K]
   let Valid₀ (x₀ : {i : Fin n // p i = 0} → U) (a₂ : CutE 2 → U) (a₀ : CutE 0 → U) : Prop :=
     ∃ α₀ : IntE 0 → U, ∀ v : Compiler.Vertex c, col v = 0 →
       N_net.Constraint v (mergeTripartition p x₀ d1 d2)
-        (glueEdges α₀ (fun _ => u₀) (fun _ => u₀) a₀ (fun _ => u₀) a₂)
+        (glueEdges (triple α₀ (fun _ => u₀) (fun _ => u₀)) (triple a₀ (fun _ => u₀) a₂))
   let Valid₁ (x₁ : {i : Fin n // p i = 1} → U) (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) : Prop :=
     ∃ α₁ : IntE 1 → U, ∀ v : Compiler.Vertex c, col v = 1 →
       N_net.Constraint v (mergeTripartition p d0 x₁ d2)
-        (glueEdges (fun _ => u₀) α₁ (fun _ => u₀) a₀ a₁ (fun _ => u₀))
+        (glueEdges (triple (fun _ => u₀) α₁ (fun _ => u₀)) (triple a₀ a₁ (fun _ => u₀)))
   let Valid₂ (x₂ : {i : Fin n // p i = 2} → U) (a₂ : CutE 2 → U) (a₁ : CutE 1 → U) : Prop :=
     ∃ α₂ : IntE 2 → U, ∀ v : Compiler.Vertex c, col v = 2 →
       N_net.Constraint v (mergeTripartition p d0 d1 x₂)
-        (glueEdges (fun _ => u₀) (fun _ => u₀) α₂ (fun _ => u₀) a₁ a₂)
+        (glueEdges (triple (fun _ => u₀) (fun _ => u₀) α₂) (triple (fun _ => u₀) a₁ a₂))
   -- Exact equivalence: `(Valid₀ ∧ Valid₁ ∧ Valid₂)` iff `x ∈ S_acc` and `(a₂, a₀, a₁)` = trace.
   have valid_iff (x₀ : {i : Fin n // p i = 0} → U) (x₁ : {i : Fin n // p i = 1} → U)
       (x₂ : {i : Fin n // p i = 2} → U) (a₂ : CutE 2 → U) (a₀ : CutE 0 → U) (a₁ : CutE 1 → U) :
@@ -679,52 +505,25 @@ theorem isRestriction_partitionThreeTensor_mm (K : Type*) [CommSemiring K]
     set x := mergeTripartition p x₀ x₁ x₂
     constructor
     · rintro ⟨⟨α₀, h0⟩, ⟨α₁, h1⟩, ⟨α₂, h2⟩⟩
-      set α := glueEdges α₀ α₁ α₂ a₀ a₁ a₂
-      have hsat : N_net.Satisfies x α := by
+      let α := triple (A := fun k => IntE k → U) α₀ α₁ α₂
+      let a := triple (A := fun k => CutE k → U) a₀ a₁ a₂
+      have hsat : N_net.Satisfies x (glueEdges α a) := by
         intro v
-        rcases hv : col v with ⟨_ | _ | _ | _, hlt⟩
-        · have hv0 : col v = 0 := hv
-          refine N_net.constraint_congr v (mergeTripartition p x₀ d1 d2) x
-            (glueEdges α₀ (fun _ => u₀) (fun _ => u₀) a₀ (fun _ => u₀) a₂) α
-            (fun i hi => ?_)
-            (fun e he => (glue_eq_at_zero α₀ α₁ (fun _ => u₀) α₂ (fun _ => u₀)
-              a₀ a₁ (fun _ => u₀) a₂ hv0 he).symm)
-            (h0 v hv0)
-          have hp0 : p i = 0 := (hcompat i v hi).trans hv0
-          dsimp only [x]
-          rw [mergeTripartition_apply_zero p x₀ d1 d2 hp0,
-            mergeTripartition_apply_zero p x₀ x₁ x₂ hp0]
-        · have hv1 : col v = 1 := hv
-          refine N_net.constraint_congr v (mergeTripartition p d0 x₁ d2) x
-            (glueEdges (fun _ => u₀) α₁ (fun _ => u₀) a₀ a₁ (fun _ => u₀)) α
-            (fun i hi => ?_)
-            (fun e he => (glue_eq_at_one α₀ (fun _ => u₀) α₁ α₂ (fun _ => u₀)
-              a₀ a₁ a₂ (fun _ => u₀) hv1 he).symm)
-            (h1 v hv1)
-          have hp1 : p i = 1 := (hcompat i v hi).trans hv1
-          dsimp only [x]
-          rw [mergeTripartition_apply_one p d0 x₁ d2 hp1,
-            mergeTripartition_apply_one p x₀ x₁ x₂ hp1]
-        · have hv2 : col v = 2 := hv
-          refine N_net.constraint_congr v (mergeTripartition p d0 d1 x₂) x
-            (glueEdges (fun _ => u₀) (fun _ => u₀) α₂ (fun _ => u₀) a₁ a₂) α
-            (fun i hi => ?_)
-            (fun e he => (glue_eq_at_two α₀ (fun _ => u₀) α₁ (fun _ => u₀) α₂
-              a₀ (fun _ => u₀) a₁ a₂ hv2 he).symm)
-            (h2 v hv2)
-          have hp2 : p i = 2 := (hcompat i v hi).trans hv2
-          dsimp only [x]
-          rw [mergeTripartition_apply_two p d0 d1 x₂ hp2,
-            mergeTripartition_apply_two p x₀ x₁ x₂ hp2]
-        · omega
+        rcases finThreeCases (col v) with hv | hv | hv
+        · refine N_net.constraint_congr v _ x _ _ (fun i hi => ?_) (fun e he => ?_) (h0 v hv)
+          · simp only [x, mergeTripartition_apply_zero _ _ _ _ ((hcompat i v hi).trans hv)]
+          · exact (glue_eq_at α a 0 hv he).symm
+        · refine N_net.constraint_congr v _ x _ _ (fun i hi => ?_) (fun e he => ?_) (h1 v hv)
+          · simp only [x, mergeTripartition_apply_one _ _ _ _ ((hcompat i v hi).trans hv)]
+          · exact (glue_eq_at α a 1 hv he).symm
+        · refine N_net.constraint_congr v _ x _ _ (fun i hi => ?_) (fun e he => ?_) (h2 v hv)
+          · simp only [x, mergeTripartition_apply_two _ _ _ _ ((hcompat i v hi).trans hv)]
+          · exact (glue_eq_at α a 2 hv he).symm
       obtain ⟨hacc, htr⟩ := Compiler.satisfies_iff.mp hsat
-      refine ⟨hacc 0, ?_, ?_, ?_⟩
-      · funext e
-        rw [← glue_on_cut2 α₀ α₁ α₂ a₀ a₁ a₂ e, show glueEdges α₀ α₁ α₂ a₀ a₁ a₂ = α from rfl, htr]
-      · funext e
-        rw [← glue_on_cut0 α₀ α₁ α₂ a₀ a₁ a₂ e, show glueEdges α₀ α₁ α₂ a₀ a₁ a₂ = α from rfl, htr]
-      · funext e
-        rw [← glue_on_cut1 α₀ α₁ α₂ a₀ a₁ a₂ e, show glueEdges α₀ α₁ α₂ a₀ a₁ a₂ = α from rfl, htr]
+      refine ⟨hacc 0, ?_, ?_, ?_⟩ <;> funext e
+      · exact (glue_on_cut α a 2 e).symm.trans (congrFun htr e.1)
+      · exact (glue_on_cut α a 0 e).symm.trans (congrFun htr e.1)
+      · exact (glue_on_cut α a 1 e).symm.trans (congrFun htr e.1)
     · rintro ⟨hx, rfl, rfl, rfl⟩
       set β : Compiler.Edge c → U := fun e => c.program.trace I x e.signal.1
       have hsat : N_net.Satisfies x β :=
@@ -733,48 +532,15 @@ theorem isRestriction_partitionThreeTensor_mm (K : Type*) [CommSemiring K]
       refine ⟨⟨fun e => β e.1, fun v hv0 => ?_⟩,
               ⟨fun e => β e.1, fun v hv1 => ?_⟩,
               ⟨fun e => β e.1, fun v hv2 => ?_⟩⟩
-      · refine N_net.constraint_congr v x (mergeTripartition p x₀ d1 d2) β
-          (glueEdges (fun e => β e.1) (fun _ => u₀) (fun _ => u₀)
-            (fun e => β e.1) (fun _ => u₀) (fun e => β e.1))
-          (fun i hi => ?_)
-          (fun e he => by
-            conv_lhs => rw [hβ_eq]
-            exact glue_eq_at_zero (fun e => β e.1) (fun e => β e.1) (fun _ => u₀)
-              (fun e => β e.1) (fun _ => u₀) (fun e => β e.1)
-              (fun e => β e.1) (fun _ => u₀) (fun e => β e.1) hv0 he)
-          (hsat v)
-        have hp0 : p i = 0 := (hcompat i v hi).trans hv0
-        dsimp only [x]
-        rw [mergeTripartition_apply_zero p x₀ x₁ x₂ hp0,
-          mergeTripartition_apply_zero p x₀ d1 d2 hp0]
-      · refine N_net.constraint_congr v x (mergeTripartition p d0 x₁ d2) β
-          (glueEdges (fun _ => u₀) (fun e => β e.1) (fun _ => u₀)
-            (fun e => β e.1) (fun e => β e.1) (fun _ => u₀))
-          (fun i hi => ?_)
-          (fun e he => by
-            conv_lhs => rw [hβ_eq]
-            exact glue_eq_at_one (fun e => β e.1) (fun _ => u₀) (fun e => β e.1)
-              (fun e => β e.1) (fun _ => u₀) (fun e => β e.1)
-              (fun e => β e.1) (fun e => β e.1) (fun _ => u₀) hv1 he)
-          (hsat v)
-        have hp1 : p i = 1 := (hcompat i v hi).trans hv1
-        dsimp only [x]
-        rw [mergeTripartition_apply_one p x₀ x₁ x₂ hp1,
-          mergeTripartition_apply_one p d0 x₁ d2 hp1]
-      · refine N_net.constraint_congr v x (mergeTripartition p d0 d1 x₂) β
-          (glueEdges (fun _ => u₀) (fun _ => u₀) (fun e => β e.1)
-            (fun _ => u₀) (fun e => β e.1) (fun e => β e.1))
-          (fun i hi => ?_)
-          (fun e he => by
-            conv_lhs => rw [hβ_eq]
-            exact glue_eq_at_two (fun e => β e.1) (fun _ => u₀) (fun e => β e.1)
-              (fun _ => u₀) (fun e => β e.1) (fun e => β e.1)
-              (fun _ => u₀) (fun e => β e.1) (fun e => β e.1) hv2 he)
-          (hsat v)
-        have hp2 : p i = 2 := (hcompat i v hi).trans hv2
-        dsimp only [x]
-        rw [mergeTripartition_apply_two p x₀ x₁ x₂ hp2,
-          mergeTripartition_apply_two p d0 d1 x₂ hp2]
+      · refine N_net.constraint_congr v x _ β _ (fun i hi => ?_) (fun e he => ?_) (hsat v)
+        · simp only [x, mergeTripartition_apply_zero _ _ _ _ ((hcompat i v hi).trans hv0)]
+        · exact (congrFun hβ_eq e).trans (glue_eq_at (fun _ e => β e.1) (fun _ e => β e.1) 0 hv0 he)
+      · refine N_net.constraint_congr v x _ β _ (fun i hi => ?_) (fun e he => ?_) (hsat v)
+        · simp only [x, mergeTripartition_apply_one _ _ _ _ ((hcompat i v hi).trans hv1)]
+        · exact (congrFun hβ_eq e).trans (glue_eq_at (fun _ e => β e.1) (fun _ e => β e.1) 1 hv1 he)
+      · refine N_net.constraint_congr v x _ β _ (fun i hi => ?_) (fun e he => ?_) (hsat v)
+        · simp only [x, mergeTripartition_apply_two _ _ _ _ ((hcompat i v hi).trans hv2)]
+        · exact (congrFun hβ_eq e).trans (glue_eq_at (fun _ e => β e.1) (fun _ e => β e.1) 2 hv2 he)
   -- Embed each `CutE k → U` injectively into `Fin (Fintype.card U ^ B)`.
   set D := Fintype.card U ^ B
   have hcard_le (k : Fin 3) : Fintype.card (CutE k → U) ≤ Fintype.card (Fin D) := by
@@ -796,125 +562,53 @@ theorem isRestriction_partitionThreeTensor_mm (K : Type*) [CommSemiring K]
   let M₂ : Matrix ({i : Fin n // p i = 2} → U) (Fin D × Fin D) K :=
     Matrix.of fun x₂ ik =>
       if ∃ a₂ a₁, emb₂ a₂ = ik.1 ∧ emb₁ a₁ = ik.2 ∧ Valid₂ x₂ a₂ a₁ then 1 else 0
+  -- Collapse the triple sum over `(Fin D × Fin D)³` via the matrix-multiplication Kronecker delta.
+  have hcollapse (F G H : Fin D × Fin D → K) :
+      ∑ u, ∑ v, ∑ w, F u * G v * H w * (if u.1 = w.1 ∧ u.2 = v.1 ∧ v.2 = w.2 then 1 else 0) =
+        ∑ i₂, ∑ i₀, ∑ i₁, F (i₂, i₀) * G (i₀, i₁) * H (i₂, i₁) := by
+    simp only [Fintype.sum_prod_type, ite_and, mul_ite, mul_one, mul_zero, Finset.sum_ite_irrel,
+      Finset.sum_const_zero, Finset.sum_ite_eq, Finset.mem_univ, ite_true]
   refine ⟨M₀, M₁, M₂, ?_⟩
   funext x₀ x₁ x₂
-  simp only [Tensor.restrict, Tensor.mm_apply, M₀, M₁, M₂, Matrix.of_apply, partitionThreeTensor]
-  -- Collapse the triple sum over `(Fin D × Fin D)³` via the matrix-multiplication Kronecker delta.
-  have hcollapse :
-      (∑ u : Fin D × Fin D, ∑ v : Fin D × Fin D, ∑ w : Fin D × Fin D,
-        (if ∃ a₂ a₀, emb₂ a₂ = u.1 ∧ emb₀ a₀ = u.2 ∧ Valid₀ x₀ a₂ a₀ then (1 : K) else 0) *
-        (if ∃ a₀ a₁, emb₀ a₀ = v.1 ∧ emb₁ a₁ = v.2 ∧ Valid₁ x₁ a₀ a₁ then 1 else 0) *
-        (if ∃ a₂ a₁, emb₂ a₂ = w.1 ∧ emb₁ a₁ = w.2 ∧ Valid₂ x₂ a₂ a₁ then 1 else 0) *
-        (if u.1 = w.1 ∧ u.2 = v.1 ∧ v.2 = w.2 then 1 else 0)) =
-      ∑ i₂ : Fin D, ∑ i₀ : Fin D, ∑ i₁ : Fin D,
-        (if ∃ a₂ a₀, emb₂ a₂ = i₂ ∧ emb₀ a₀ = i₀ ∧ Valid₀ x₀ a₂ a₀ then (1 : K) else 0) *
-        (if ∃ a₀ a₁, emb₀ a₀ = i₀ ∧ emb₁ a₁ = i₁ ∧ Valid₁ x₁ a₀ a₁ then 1 else 0) *
-        (if ∃ a₂ a₁, emb₂ a₂ = i₂ ∧ emb₁ a₁ = i₁ ∧ Valid₂ x₂ a₂ a₁ then 1 else 0) := by
-    simp only [Fintype.sum_prod_type]
-    refine Finset.sum_congr rfl fun i₂ _ => Finset.sum_congr rfl fun i₀ _ => ?_
-    have h1 (v₁ : Fin D) (i₁ : Fin D) :
-        (∑ w₁ : Fin D, ∑ w₂ : Fin D,
-          (if ∃ a₂ a₀, emb₂ a₂ = i₂ ∧ emb₀ a₀ = i₀ ∧ Valid₀ x₀ a₂ a₀ then (1 : K) else 0) *
-          (if ∃ a₀ a₁, emb₀ a₀ = v₁ ∧ emb₁ a₁ = i₁ ∧ Valid₁ x₁ a₀ a₁ then 1 else 0) *
-          (if ∃ a₂ a₁, emb₂ a₂ = w₁ ∧ emb₁ a₁ = w₂ ∧ Valid₂ x₂ a₂ a₁ then 1 else 0) *
-          (if i₂ = w₁ ∧ i₀ = v₁ ∧ i₁ = w₂ then 1 else 0)) =
-        if i₀ = v₁ then
-          (if ∃ a₂ a₀, emb₂ a₂ = i₂ ∧ emb₀ a₀ = i₀ ∧ Valid₀ x₀ a₂ a₀ then (1 : K) else 0) *
-          (if ∃ a₀ a₁, emb₀ a₀ = v₁ ∧ emb₁ a₁ = i₁ ∧ Valid₁ x₁ a₀ a₁ then 1 else 0) *
-          (if ∃ a₂ a₁, emb₂ a₂ = i₂ ∧ emb₁ a₁ = i₁ ∧ Valid₂ x₂ a₂ a₁ then 1 else 0)
-        else 0 := by
-      rw [Fintype.sum_eq_single i₂ (fun w₁ hw₁ =>
-        Finset.sum_eq_zero fun w₂ _ => by simp [hw₁.symm])]
-      rw [Fintype.sum_eq_single i₁ (fun w₂ hw₂ => by simp [hw₂.symm])]
-      by_cases h0v : i₀ = v₁ <;> simp [h0v]
-    simp_rw [h1]
-    rw [Fintype.sum_eq_single i₀ (fun v₁ hv₁ => by
-      exact Finset.sum_eq_zero fun i₁ _ => by simp [hv₁.symm])]
-    simp
-  rw [hcollapse]
-  by_cases hx : mergeTripartition p x₀ x₁ x₂ ∈ S_acc
-  · simp only [hx, ↓reduceIte]
-    set x := mergeTripartition p x₀ x₁ x₂
-    let tr₂ : CutE 2 → U := fun e => c.program.trace I x e.1.signal.1
-    let tr₀ : CutE 0 → U := fun e => c.program.trace I x e.1.signal.1
-    let tr₁ : CutE 1 → U := fun e => c.program.trace I x e.1.signal.1
-    have hv_tr := (valid_iff x₀ x₁ x₂ tr₂ tr₀ tr₁).mpr ⟨hx, rfl, rfl, rfl⟩
-    -- Only `(emb₂ tr₂, emb₀ tr₀, emb₁ tr₁)` survives in the triple sum!
-    have hsingle_term (i₂ i₀ i₁ : Fin D) :
-        (if ∃ a₂ a₀, emb₂ a₂ = i₂ ∧ emb₀ a₀ = i₀ ∧ Valid₀ x₀ a₂ a₀ then (1 : K) else 0) *
-        (if ∃ a₀ a₁, emb₀ a₀ = i₀ ∧ emb₁ a₁ = i₁ ∧ Valid₁ x₁ a₀ a₁ then 1 else 0) *
-        (if ∃ a₂ a₁, emb₂ a₂ = i₂ ∧ emb₁ a₁ = i₁ ∧ Valid₂ x₂ a₂ a₁ then 1 else 0) =
-        if i₂ = emb₂ tr₂ ∧ i₀ = emb₀ tr₀ ∧ i₁ = emb₁ tr₁ then 1 else 0 := by
-      by_cases hall : (∃ a₂ a₀, emb₂ a₂ = i₂ ∧ emb₀ a₀ = i₀ ∧ Valid₀ x₀ a₂ a₀) ∧
-          (∃ a₀ a₁, emb₀ a₀ = i₀ ∧ emb₁ a₁ = i₁ ∧ Valid₁ x₁ a₀ a₁) ∧
-          (∃ a₂ a₁, emb₂ a₂ = i₂ ∧ emb₁ a₁ = i₁ ∧ Valid₂ x₂ a₂ a₁)
-      · have ⟨⟨a₂, a₀, he2, he0, hv0⟩, ⟨a₀', a₁, he0', he1, hv1⟩, ⟨a₂', a₁', he2', he1', hv2⟩⟩ :=
-          hall
-        have ha₀ : a₀' = a₀ := emb₀.injective (he0'.trans he0.symm); subst a₀'
-        have ha₂ : a₂' = a₂ := emb₂.injective (he2'.trans he2.symm); subst a₂'
-        have ha₁ : a₁' = a₁ := emb₁.injective (he1'.trans he1.symm); subst a₁'
-        obtain ⟨-, ha2_tr, ha0_tr, ha1_tr⟩ := (valid_iff x₀ x₁ x₂ a₂ a₀ a₁).mp ⟨hv0, hv1, hv2⟩
-        have hi2 : i₂ = emb₂ tr₂ := he2.symm.trans (congrArg emb₂ ha2_tr)
-        have hi0 : i₀ = emb₀ tr₀ := he0.symm.trans (congrArg emb₀ ha0_tr)
-        have hi1 : i₁ = emb₁ tr₁ := he1.symm.trans (congrArg emb₁ ha1_tr)
-        simp only [hall.1, hall.2.1, hall.2.2, ↓reduceIte, one_mul]
-        simp only [hi2, hi0, hi1, and_self, ↓reduceIte]
-      · have hnot_idx : ¬(i₂ = emb₂ tr₂ ∧ i₀ = emb₀ tr₀ ∧ i₁ = emb₁ tr₁) := by
-          rintro ⟨rfl, rfl, rfl⟩
-          exact hall ⟨⟨tr₂, tr₀, rfl, rfl, hv_tr.1⟩, ⟨tr₀, tr₁, rfl, rfl, hv_tr.2.1⟩,
-            ⟨tr₂, tr₁, rfl, rfl, hv_tr.2.2⟩⟩
-        simp only [hnot_idx, ↓reduceIte]
-        rcases not_and_or.mp hall with h1 | h23
-        · simp only [h1, ↓reduceIte, zero_mul]
-        · rcases not_and_or.mp h23 with h2 | h3
-          · simp only [h2, ↓reduceIte, mul_zero, zero_mul]
-          · simp only [h3, ↓reduceIte, mul_zero]
-    simp_rw [hsingle_term]
+  simp only [Tensor.restrict, Tensor.mm_apply, partitionThreeTensor]
+  refine (hcollapse _ _ _).trans ?_
+  simp only [M₀, M₁, M₂, Matrix.of_apply]
+  set x := mergeTripartition p x₀ x₁ x₂
+  let tr₂ : CutE 2 → U := fun e => c.program.trace I x e.1.signal.1
+  let tr₀ : CutE 0 → U := fun e => c.program.trace I x e.1.signal.1
+  let tr₁ : CutE 1 → U := fun e => c.program.trace I x e.1.signal.1
+  -- Only `(emb₂ tr₂, emb₀ tr₀, emb₁ tr₁)` can survive in the triple sum.
+  have hall_iff (i₂ i₀ i₁ : Fin D) :
+      ((∃ a₂ a₀, emb₂ a₂ = i₂ ∧ emb₀ a₀ = i₀ ∧ Valid₀ x₀ a₂ a₀) ∧
+        (∃ a₀ a₁, emb₀ a₀ = i₀ ∧ emb₁ a₁ = i₁ ∧ Valid₁ x₁ a₀ a₁) ∧
+        (∃ a₂ a₁, emb₂ a₂ = i₂ ∧ emb₁ a₁ = i₁ ∧ Valid₂ x₂ a₂ a₁)) ↔
+        x ∈ S_acc ∧ i₂ = emb₂ tr₂ ∧ i₀ = emb₀ tr₀ ∧ i₁ = emb₁ tr₁ := by
+    constructor
+    · rintro ⟨⟨a₂, a₀, rfl, rfl, hv0⟩, ⟨a₀', a₁, he0, rfl, hv1⟩, ⟨a₂', a₁', he2, he1, hv2⟩⟩
+      obtain rfl := emb₀.injective he0
+      obtain rfl := emb₂.injective he2
+      obtain rfl := emb₁.injective he1
+      obtain ⟨hx, rfl, rfl, rfl⟩ := (valid_iff x₀ x₁ x₂ _ _ _).mp ⟨hv0, hv1, hv2⟩
+      exact ⟨hx, rfl, rfl, rfl⟩
+    · rintro ⟨hx, rfl, rfl, rfl⟩
+      have hv := (valid_iff x₀ x₁ x₂ tr₂ tr₀ tr₁).mpr ⟨hx, rfl, rfl, rfl⟩
+      exact ⟨⟨_, _, rfl, rfl, hv.1⟩, ⟨_, _, rfl, rfl, hv.2.1⟩, ⟨_, _, rfl, rfl, hv.2.2⟩⟩
+  simp only [ite_zero_mul_ite_zero, mul_one, and_assoc, hall_iff]
+  by_cases hx : x ∈ S_acc
+  · simp only [hx, true_and, ↓reduceIte]
     rw [Fintype.sum_eq_single (emb₂ tr₂) (fun i₂ hi₂ =>
       Finset.sum_eq_zero fun _ _ => Finset.sum_eq_zero fun _ _ => by simp [hi₂])]
     rw [Fintype.sum_eq_single (emb₀ tr₀) (fun i₀ hi₀ =>
       Finset.sum_eq_zero fun _ _ => by simp [hi₀])]
     rw [Fintype.sum_eq_single (emb₁ tr₁) (fun i₁ hi₁ => by simp [hi₁])]
     simp
-  · simp only [hx, ↓reduceIte]
-    refine Finset.sum_eq_zero fun i₂ _ => Finset.sum_eq_zero fun i₀ _ =>
-      Finset.sum_eq_zero fun i₁ _ => ?_
-    by_cases hall : (∃ a₂ a₀, emb₂ a₂ = i₂ ∧ emb₀ a₀ = i₀ ∧ Valid₀ x₀ a₂ a₀) ∧
-        (∃ a₀ a₁, emb₀ a₀ = i₀ ∧ emb₁ a₁ = i₁ ∧ Valid₁ x₁ a₀ a₁) ∧
-        (∃ a₂ a₁, emb₂ a₂ = i₂ ∧ emb₁ a₁ = i₁ ∧ Valid₂ x₂ a₂ a₁)
-    · obtain ⟨⟨a₂, a₀, he2, he0, hv0⟩, ⟨a₀', a₁, he0', he1, hv1⟩, ⟨a₂', a₁', he2', he1', hv2⟩⟩ :=
-        hall
-      have ha₀ : a₀' = a₀ := emb₀.injective (he0'.trans he0.symm); subst a₀'
-      have ha₂ : a₂' = a₂ := emb₂.injective (he2'.trans he2.symm); subst a₂'
-      have ha₁ : a₁' = a₁ := emb₁.injective (he1'.trans he1.symm); subst a₁'
-      exact absurd ((valid_iff x₀ x₁ x₂ a₂ a₀ a₁).mp ⟨hv0, hv1, hv2⟩).1 hx
-    · rcases not_and_or.mp hall with h1 | h23
-      · simp only [h1, ↓reduceIte, zero_mul]
-      · rcases not_and_or.mp h23 with h2 | h3
-        · simp only [h2, ↓reduceIte, mul_zero, zero_mul]
-        · simp only [h3, ↓reduceIte, mul_zero]
+  · simp [hx]
 
 end Splicing
 
 /-! ### Degree-`≤ 1` input-vertex rebalancing and unread-input rank shortcut -/
 
 section Rebalancing
-
-/-- Every input-reading vertex `.signal ⟨.input i, hi⟩` in `Compiler.graph c` has at most `1`
-incident edge (`Compiler.head ⟨.input i, hi⟩`). -/
-private theorem ncard_incidenceSet_site_le_one {σ : Signature} {n m : ℕ} {c : Circuit σ n m}
-    {i : Fin n} {v : Compiler.Vertex c} (hsite : Compiler.site c i = some v) :
-    ((Compiler.graph c).incidenceSet v).ncard ≤ 1 := by
-  obtain ⟨hi, rfl⟩ := Compiler.site_eq_some hsite
-  have hsub : (Compiler.graph c).incidenceSet (.signal ⟨.input i, hi⟩) ⊆
-      {Compiler.head ⟨.input i, hi⟩} := by
-    intro e he
-    rw [mem_singleton_iff]
-    rcases he with hs | ht
-    · exact Compiler.eq_head_of_src_eq_signal hs
-    · obtain ⟨a, ha, -⟩ := Compiler.exists_slot_of_tgt_eq_signal ht
-      nomatch ha
-  exact (ncard_le_ncard hsub (toFinite _)).trans (by simp)
 
 /-- Recoloring a single vertex `v₀` of degree at most `1` increases any pairwise cut
 `G.edgeCut {v | col v = k} ∩ G.edgeCut {v | col v = k + 1}` by at most `1`. -/
@@ -960,11 +654,7 @@ private theorem exists_rebalanced_coloring {σ : Signature} {n : ℕ} (c : Circu
   | 0, p, col, hcompat, hfuel => by
       refine ⟨p, col, fun k => ?_, hcompat, fun k => by simp⟩
       rw [Fin.sum_univ_three] at hfuel
-      rcases k with ⟨_ | _ | _ | _, hlt⟩
-      · change n / 3 ≤ {i : Fin n | p i = 0}.ncard; omega
-      · change n / 3 ≤ {i : Fin n | p i = 1}.ncard; omega
-      · change n / 3 ≤ {i : Fin n | p i = 2}.ncard; omega
-      · omega
+      fin_cases k <;> dsimp only [Fin.reduceFinMk] <;> omega
   | fuel + 1, p, col, hcompat, hfuel => by
       classical
       by_cases hbal : BalancedTripartition n p
@@ -978,11 +668,7 @@ private theorem exists_rebalanced_coloring {σ : Signature} {n : ℕ} (c : Circu
           have hsum := ncard_parts_sum p
           have h0 := hall_le 0; have h1 := hall_le 1; have h2 := hall_le 2
           have hmul : 3 * (n / 3) ≤ n := Nat.mul_div_le n 3
-          rcases k_lo with ⟨_ | _ | _ | _, hlt⟩
-          · change {i : Fin n | p i = 0}.ncard < n / 3 at hk_lo; omega
-          · change {i : Fin n | p i = 1}.ncard < n / 3 at hk_lo; omega
-          · change {i : Fin n | p i = 2}.ncard < n / 3 at hk_lo; omega
-          · omega
+          fin_cases k_lo <;> dsimp only [Fin.reduceFinMk] at hk_lo <;> omega
         obtain ⟨k_hi, hk_hi⟩ := hex_hi
         have hlo_ne_hi : k_lo ≠ k_hi := fun h => by subst h; omega
         obtain ⟨i₀, hi₀⟩ :=
@@ -1039,20 +725,14 @@ private theorem exists_rebalanced_coloring {σ : Signature} {n : ℕ} (c : Circu
         have hdef_step :
             (∑ k : Fin 3, (n / 3 - {i : Fin n | p₁ i = k}.ncard)) + 1 =
               ∑ k : Fin 3, (n / 3 - {i : Fin n | p i = k}.ncard) := by
-          have hk_cases (x : Fin 3) : x = 0 ∨ x = 1 ∨ x = 2 := by
-            fin_cases x <;> simp
           rw [Fin.sum_univ_three, Fin.sum_univ_three]
-          rcases hk_cases k_lo with rfl | rfl | rfl <;>
-            rcases hk_cases k_hi with rfl | rfl | rfl
-          · exact absurd rfl hlo_ne_hi
-          · have h2 := hcard_other 2 (by decide) (by decide); omega
-          · have h1 := hcard_other 1 (by decide) (by decide); omega
-          · have h2 := hcard_other 2 (by decide) (by decide); omega
-          · exact absurd rfl hlo_ne_hi
-          · have h0 := hcard_other 0 (by decide) (by decide); omega
-          · have h1 := hcard_other 1 (by decide) (by decide); omega
-          · have h0 := hcard_other 0 (by decide) (by decide); omega
-          · exact absurd rfl hlo_ne_hi
+          rcases finThreeCases k_lo with rfl | rfl | rfl <;>
+            rcases finThreeCases k_hi with rfl | rfl | rfl <;>
+            first
+            | exact absurd rfl hlo_ne_hi
+            | have := hcard_other 0 (by decide) (by decide); omega
+            | have := hcard_other 1 (by decide) (by decide); omega
+            | have := hcard_other 2 (by decide) (by decide); omega
         have hcut_step (k : Fin 3) :
             ((Compiler.graph c).edgeCut {v | col₁ v = k} ∩
               (Compiler.graph c).edgeCut {v | col₁ v = k + 1}).ncard ≤
@@ -1062,7 +742,7 @@ private theorem exists_rebalanced_coloring {σ : Signature} {n : ℕ} (c : Circu
           rcases hs₀ : Compiler.site c i₀ with _ | v₀
           · exact Nat.le_add_right _ _
           · exact ncard_crossCut_update_le (Compiler.graph c) col
-              (ncard_incidenceSet_site_le_one hs₀) k_lo k
+              (Compiler.ncard_incidenceSet_site_le_one hs₀) k_lo k
         obtain ⟨p', col', hbal', hcompat', hcut'⟩ :=
           exists_rebalanced_coloring c fuel p₁ col₁ hcompat₁ (by omega)
         refine ⟨p', col', hbal', hcompat', fun k => ?_⟩
@@ -1081,51 +761,23 @@ private theorem exists_balanced_rank_of_read_ncard (K : Type*) [CommSemiring K]
   classical
   set R_set := (Compiler.network c I Acc).read
   set m := R_set.ncard
-  have hm_le_n : m ≤ n := by
-    have := ncard_le_card R_set
-    rwa [Nat.card_eq_fintype_card, Fintype.card_fin] at this
   -- Order `Fin n` with `R_set` in positions `0 .. m - 1` and `R_setᶜ` in positions `m .. n - 1`,
   -- then assign `idx i % 3`: each residue appears `≥ n / 3` times globally (`BalancedTripartition`)
   -- and `≤ m / 3 + 1` times on `R_set`.
   let R_fin := R_set.toFinset
-  let U_fin := (R_setᶜ).toFinset
   have hcard_R : R_fin.card = m := (Set.ncard_eq_toFinset_card' R_set).symm
-  have hcard_RU : R_fin.card + U_fin.card = n := by
-    have hd : Disjoint R_fin U_fin := by
-      refine Finset.disjoint_left.mpr fun i h1 h2 => ?_
-      rw [Set.mem_toFinset] at h1 h2; exact h2 h1
-    have hu : R_fin ∪ U_fin = Finset.univ := by
-      ext i; simp [R_fin, U_fin]
-    have hc := Finset.card_union_of_disjoint hd
-    rw [hu, Finset.card_univ, Fintype.card_fin] at hc
-    omega
-  let eR : R_fin ≃ Fin R_fin.card := R_fin.equivFin
-  let eU : U_fin ≃ Fin U_fin.card := U_fin.equivFin
-  have hmU {i : Fin n} (hi : i ∉ R_fin) : i ∈ U_fin := by
-    simp [U_fin]; simpa [R_fin] using hi
-  let idx (i : Fin n) : Fin n :=
-    if hi : i ∈ R_fin then ⟨(eR ⟨i, hi⟩).val, by omega⟩
-    else ⟨R_fin.card + (eU ⟨i, hmU hi⟩).val, by
-      have := (eU ⟨i, hmU hi⟩).isLt; omega⟩
-  have hidx_inj : Function.Injective idx := by
-    intro i₁ i₂ heq
-    dsimp [idx] at heq
-    split_ifs at heq with h1 h2 h2
-    · have hval : (eR ⟨i₁, h1⟩).val = (eR ⟨i₂, h2⟩).val := congrArg (@Fin.val n) heq
-      exact congrArg Subtype.val (eR.injective (Fin.ext hval))
-    · have hval : (eR ⟨i₁, h1⟩).val = R_fin.card + (eU ⟨i₂, hmU h2⟩).val :=
-        congrArg (@Fin.val n) heq
-      have hlt := (eR ⟨i₁, h1⟩).isLt
-      omega
-    · have hval : R_fin.card + (eU ⟨i₁, hmU h1⟩).val = (eR ⟨i₂, h2⟩).val :=
-        congrArg (@Fin.val n) heq
-      have hlt := (eR ⟨i₂, h2⟩).isLt
-      omega
-    · have hval : R_fin.card + (eU ⟨i₁, hmU h1⟩).val = R_fin.card + (eU ⟨i₂, hmU h2⟩).val :=
-        congrArg (@Fin.val n) heq
-      have hsub : (eU ⟨i₁, hmU h1⟩).val = (eU ⟨i₂, hmU h2⟩).val := by omega
-      exact congrArg Subtype.val (eU.injective (Fin.ext hsub))
-  let eqvIdx : Fin n ≃ Fin n := Equiv.ofBijective idx (Finite.injective_iff_bijective.mp hidx_inj)
+  -- `eqvIdx` lists `R_set` first, then its complement.
+  let eqvIdx : Fin n ≃ Fin n :=
+    ((Equiv.sumCompl (· ∈ R_fin)).symm.trans
+      ((R_fin.equivFin.sumCongr (Fintype.equivFin _)).trans finSumFinEquiv)).trans
+      (finCongr (by
+        rw [Fintype.card_subtype_compl, Fintype.card_coe, Fintype.card_fin]
+        have := R_fin.card_le_univ; simp only [Fintype.card_fin] at this; omega))
+  have hidx_lt {i : Fin n} (hi : i ∈ R_fin) : (eqvIdx i).val < m := by
+    simp only [eqvIdx, Equiv.trans_apply, Equiv.sumCompl_symm_apply_of_pos hi,
+      Equiv.sumCongr_apply, Sum.map_inl, finSumFinEquiv_apply_left, finCongr_apply,
+      Fin.val_cast, Fin.val_castAdd]
+    exact hcard_R ▸ Fin.isLt _
   let p (i : Fin n) : Fin 3 := ⟨(eqvIdx i).val % 3, Nat.mod_lt _ (by norm_num)⟩
   -- 1. `p` is a `BalancedTripartition`: each mod-`3` class in `Fin n` has size `≥ n / 3`.
   have hbal : BalancedTripartition n p := by
@@ -1163,11 +815,7 @@ private theorem exists_balanced_rank_of_read_ncard (K : Type*) [CommSemiring K]
       Fintype.card {i : Fin n // p i = c ∧ i ∈ R_set} ≤ m / 3 + 1 := by
     let toQuot (x : {i : Fin n // p i = c ∧ i ∈ R_set}) : Fin (m / 3 + 1) :=
       ⟨(eqvIdx x.1).val / 3, by
-        have hiR : x.1 ∈ R_fin := Set.mem_toFinset.mpr x.2.2
-        have hval : (eqvIdx x.1).val = (eR ⟨x.1, hiR⟩).val := by
-          change (idx x.1).val = _; simp [idx, hiR]
-        have hlt : (eR ⟨x.1, hiR⟩).val < m := by rw [← hcard_R]; exact (eR ⟨x.1, hiR⟩).isLt
-        omega⟩
+        have := hidx_lt (Set.mem_toFinset.mpr x.2.2); omega⟩
     have hinj_q : Function.Injective toQuot := by
       intro x₁ x₂ hq
       have hdiv : (eqvIdx x₁.1).val / 3 = (eqvIdx x₂.1).val / 3 := Fin.ext_iff.mp hq
@@ -1313,10 +961,7 @@ theorem innerSize_gt_of_threeTensorHard (K : Type*) [Field K] [CharZero K]
   · obtain ⟨p, hbal, hrk⟩ := exists_balanced_rank_of_read_ncard K c I Acc
     rw [hS_eq] at hrk
     have hexp_le : (2 * (m / 3 + 1) : ℕ) ≤ (2 / 3 - δ) * (n : ℝ) := by
-      have hdiv3 : ((m / 3 : ℕ) : ℝ) ≤ (m : ℝ) / 3 := by
-        have hnat : 3 * (m / 3) ≤ m := Nat.mul_div_le m 3
-        have hc : ((3 * (m / 3) : ℕ) : ℝ) ≤ (m : ℝ) := Nat.cast_le.mpr hnat
-        push_cast at hc; linarith only [hc]
+      have hdiv3 : ((m / 3 : ℕ) : ℝ) ≤ (m : ℝ) / 3 := by exact_mod_cast Nat.cast_div_le
       have hn_large : 2 ≤ δ * (n : ℝ) := (le_max_left 2 K_const).trans hn_K
       push_cast
       linarith only [hm_low, hdiv3, hn_large]
@@ -1386,10 +1031,7 @@ theorem innerSize_gt_of_threeTensorHard (K : Type*) [Field K] [CharZero K]
     set V_card : ℝ := (Nat.card (Compiler.Vertex c) : ℝ)
     have hV_nonneg : 0 ≤ V_card := Nat.cast_nonneg _
     set fuel : ℕ := ∑ k : Fin 3, (n / 3 - {i : Fin n | p₀ i = k}.ncard)
-    have hdiv3_n : ((n / 3 : ℕ) : ℝ) ≤ (n : ℝ) / 3 := by
-      have hnat : 3 * (n / 3) ≤ n := Nat.mul_div_le n 3
-      have hc : ((3 * (n / 3) : ℕ) : ℝ) ≤ (n : ℝ) := Nat.cast_le.mpr hnat
-      push_cast at hc; linarith only [hc]
+    have hdiv3_n : ((n / 3 : ℕ) : ℝ) ≤ (n : ℝ) / 3 := by exact_mod_cast Nat.cast_div_le
     have hdef_part (k : Fin 3) :
         ((n / 3 - {i : Fin n | p₀ i = k}.ncard : ℕ) : ℝ) ≤
           δ * (n : ℝ) + ξ * V_card + (C₀ : ℝ) := by
@@ -1402,15 +1044,8 @@ theorem innerSize_gt_of_threeTensorHard (K : Type*) [Field K] [CharZero K]
       · rw [Nat.sub_eq_zero_of_le (by omega), Nat.cast_zero]
         positivity
     have hfuel_le : (fuel : ℝ) ≤ 3 * δ * (n : ℝ) + 3 * ξ * V_card + 3 * (C₀ : ℝ) := by
-      have h0 := hdef_part 0; have h1 := hdef_part 1; have h2 := hdef_part 2
-      have hsum_eq : (fuel : ℝ) =
-          ((n / 3 - {i : Fin n | p₀ i = 0}.ncard : ℕ) : ℝ) +
-          ((n / 3 - {i : Fin n | p₀ i = 1}.ncard : ℕ) : ℝ) +
-          ((n / 3 - {i : Fin n | p₀ i = 2}.ncard : ℕ) : ℝ) := by
-        dsimp [fuel]
-        rw [Fin.sum_univ_three]
-        push_cast; ring
-      linarith only [hsum_eq, h0, h1, h2]
+      simp only [fuel, Fin.sum_univ_three, Nat.cast_add]
+      linarith only [hdef_part 0, hdef_part 1, hdef_part 2]
     -- Rebalance `p₀` to an exact `BalancedTripartition n p'` and splice into `Tensor.mm`.
     obtain ⟨p', col', hbal', hcompat', hcut'⟩ :=
       exists_rebalanced_coloring c fuel p₀ col₀ hcompat₀ le_rfl
@@ -1473,9 +1108,7 @@ theorem innerSize_gt_of_threeTensorHard (K : Type*) [Field K] [CharZero K]
           (α + 7 * δ) * (n : ℝ) := by ring
       linarith only [hstep, hc0, hfuel_le, hcap_cyc, h4ξV, hexp_n]
     have hB_real : (B : ℝ) ≤ (α + 7 * δ) * (n : ℝ) + (4 * (C₀ : ℝ) + 1) := by
-      have hb_eq : (B : ℝ) = max (c_sz 0 : ℝ) (max (c_sz 1 : ℝ) (c_sz 2 : ℝ)) := by
-        dsimp [B]; push_cast; rfl
-      rw [hb_eq]
+      simp only [B, Nat.cast_max]
       exact max_le (hc_sz_real 0) (max_le (hc_sz_real 1) (hc_sz_real 2))
     -- Multiply `(B : ℝ)` by `τ = omega K + δ` and compare against `(2 / 3 - δ) * n`.
     have hωα : omega K * α = 2 / 3 - gap := by

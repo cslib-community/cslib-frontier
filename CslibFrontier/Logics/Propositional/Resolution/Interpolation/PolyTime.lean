@@ -12,8 +12,6 @@ public import CslibFrontier.Logics.Propositional.Resolution.Interpolation.Extrac
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation.MonotoneExtraction
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Sum
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -81,34 +79,16 @@ variable {encY : Y ↪ List Bool} {encZ : Z ↪ List Bool}
 
 /-! ### Variables and step search -/
 
-/-- Embedding private variables into joint variables, by option elimination. -/
-private theorem sumMap_id_eq {α β : Type} (f : α → β) (v : ℕ ⊕ α) :
-    (Sum.map id f v : ℕ ⊕ β) =
-      v.getLeft?.elim (v.getRight?.elim (.inl 0) fun a => .inr (f a)) fun i => .inl i := by
-  rcases v with _ | _ <;> rfl
-
-private theorem getLeft? {α β : Type} (encA : α ↪ List Bool) (encB : β ↪ List Bool) :
-    ComputableInPolyTime (Sum.getLeft? (α := α) (β := β)) (encSum encA encB) (encOption encA) :=
-  (ComputableInO.getLeft?_deg encA encB).computableInPolyTime
-
-private theorem getRight? {α β : Type} (encA : α ↪ List Bool) (encB : β ↪ List Bool) :
-    ComputableInPolyTime (Sum.getRight? (α := α) (β := β)) (encSum encA encB) (encOption encB) :=
-  (ComputableInO.getRight?_deg encA encB).computableInPolyTime
-
-private theorem isLeft {α β : Type} (encA : α ↪ List Bool) (encB : β ↪ List Bool) :
-    ComputableInPolyTime (Sum.isLeft (α := α) (β := β)) (encSum encA encB) encBool :=
-  (ComputableInO.isLeft_deg encA encB).computableInPolyTime
-
 /-- Mapping the right summand while fixing `ℕ` on the left is polynomial-time. -/
 private theorem sumMap_id {α β : Type} {encA : α ↪ List Bool} {encB : β ↪ List Bool} {f : α → β}
     (hf : ComputableInPolyTime f encA encB) :
     ComputableInPolyTime (Sum.map id f : ℕ ⊕ α → ℕ ⊕ β) (encSum encNat encA)
       (encSum encNat encB) := by
-  simp only [funext (sumMap_id_eq f)]
-  exact optionElimWithInput (getLeft? _ _)
-    (optionElimWithInput (getRight? _ _) (const _)
-      ((sumInr _ _).comp (hf.comp (snd _ _))))
-    ((sumInl _ _).comp (snd _ _))
+  have heq : (Sum.map id f : ℕ ⊕ α → ℕ ⊕ β) = Sum.elim Sum.inl (fun a => Sum.inr (f a)) := by
+    funext x
+    cases x <;> rfl
+  rw [heq]
+  fun_prop
 
 /-- The embedding of the `A`-variables is polynomial-time. -/
 private theorem sumMap_inl :
@@ -121,16 +101,6 @@ private theorem sumMap_inr :
     ComputableInPolyTime (Sum.map id Sum.inr : ℕ ⊕ Z → ℕ ⊕ (Y ⊕ Z)) (encSum encNat encZ)
       (encSum encNat (encSum encY encZ)) :=
   sumMap_id (sumInr _ _)
-
-/-- `k` constant gates before a binary gate on computed wires. -/
-private theorem replicate_snoc_binary {Op γ : Type} {encOp : Op ↪ List Bool}
-    {encIn : γ ↪ List Bool} (k : ℕ) (c₀ op : Op) {w₁ w₂ : γ → ℕ}
-    (h₁ : ComputableInPolyTime w₁ encIn encNat) (h₂ : ComputableInPolyTime w₂ encIn encNat) :
-    ComputableInPolyTime (fun x => List.replicate k (c₀, []) ++ [(op, [w₁ x, w₂ x])]) encIn
-      (encList (Circuit.encGate encOp)) := by
-  induction k with
-  | zero => exact cons' ((const op).prod (cons' h₁ (cons' h₂ (const [])))) (const [])
-  | succ k ih => exact cons' (const (c₀, [])) ih
 
 /-- A candidate step is encoded as the tuple of its fields, with unary positions. -/
 private enc_structure encStep (V : Type) (encV : V ↪ List Bool) : Step V where
@@ -291,17 +261,6 @@ end PolymorphicPolyTime
 
 /-! ### De Morgan gates -/
 
-/-- The gates of a De Morgan resolution step, by option elimination on the variable. -/
-private theorem resolventGates_eq (base w₁ w₂ : ℕ) (v : ℕ ⊕ (Y ⊕ Z)) :
-    resolventGates base w₁ w₂ v =
-      v.getLeft?.elim
-        (if v.getRight?.elim false Sum.isLeft then
-          List.replicate 3 (Op.const false, []) ++ [(.or, [w₁, w₂])]
-        else List.replicate 3 (Op.const false, []) ++ [(.and, [w₁, w₂])])
-        fun i =>
-          [(.not, [i]), (.and, [base, w₁]), (.and, [i, w₂]), (.or, [base + 1, base + 2])] := by
-  rcases v with _ | _ | _ <;> rfl
-
 /-- The gates of a De Morgan resolution step are computed in polynomial time from the wires, in
 binary, and the variable. -/
 private theorem resolventGates_polyTime :
@@ -310,28 +269,18 @@ private theorem resolventGates_polyTime :
       (encPair (encPair (encCNFOver (encSum encNat encY))
         (encPair encNat (encPair encNat encNat))) (encSum encNat (encSum encY encZ)))
       (encList encGate) := by
-  simp only [resolventGates_eq]
-  have hr := id' (encIn := encPair (encPair (encCNFOver (encSum encNat encY))
-    (encPair encNat (encPair encNat encNat))) (encSum encNat (encSum encY encZ)))
-  have hv := hr.snd'
-  have hw₁ := hr.fst'.snd'.snd'.fst'
-  have hw₂ := hr.fst'.snd'.snd'.snd'
-  have hadd := (ComputableInPolyTime.binary_add)
-  refine optionElimWithInput ((getLeft? _ _).comp hv)
-    (ite (optionElimWithInput ((getRight? _ _).comp hv) (const false)
-      ((isLeft _ _).comp (snd _ _)))
-      (replicate_snoc_binary 3 (Op.const false) Op.or hw₁ hw₂)
-      (replicate_snoc_binary 3 (Op.const false) Op.and hw₁ hw₂)) ?_
-  have hq := fst (encPair (encPair (encCNFOver (encSum encNat encY))
-    (encPair encNat (encPair encNat encNat))) (encSum encNat (encSum encY encZ))) encNat
-  have hi := snd (encPair (encPair (encCNFOver (encSum encNat encY))
-    (encPair encNat (encPair encNat encNat))) (encSum encNat (encSum encY encZ))) encNat
-  have hb := hq.fst'.snd'.fst'
-  exact cons' ((const _).prod (cons' hi (const [])))
-    (cons' ((const _).prod (cons' hb (cons' hq.fst'.snd'.snd'.fst' (const []))))
-      (cons' ((const _).prod (cons' hi (cons' hq.fst'.snd'.snd'.snd' (const []))))
-        (cons' ((const _).prod (cons' (hadd.comp (hb.prod (const 1)))
-          (cons' (hadd.comp (hb.prod (const 2))) (const [])))) (const []))))
+  have heq : ∀ base w₁ w₂ (v : ℕ ⊕ (Y ⊕ Z)), resolventGates base w₁ w₂ v =
+      v.elim
+        (fun i =>
+          [(.not, [i]), (.and, [base, w₁]), (.and, [i, w₂]), (.or, [base + 1, base + 2])])
+        (fun yz => yz.elim
+          (fun _ =>
+            [(.const false, []), (.const false, []), (.const false, []), (.or, [w₁, w₂])])
+          (fun _ =>
+            [(.const false, []), (.const false, []), (.const false, []), (.and, [w₁, w₂])])) := by
+    rintro _ _ _ (_ | _ | _) <;> rfl
+  simp only [heq]
+  fun_prop
 
 end Interpolant
 
@@ -362,28 +311,6 @@ namespace MonotoneInterpolant
 variable {encY : Y ↪ List Bool} {encZ : Z ↪ List Bool}
 
 omit [DecidableEq Y] [DecidableEq Z] in
-/-- The gates of a monotone resolution step, by option elimination on the variable. -/
-private theorem resolventGates_eq (pos : Bool) (base w₁ w₂ : ℕ) (v : ℕ ⊕ (Y ⊕ Z)) :
-    resolventGates pos base w₁ w₂ v =
-      v.getLeft?.elim
-        (if v.getRight?.elim false Sum.isLeft then
-          List.replicate 1 (Monotone.Op.const false, []) ++ [(.or, [w₁, w₂])]
-        else List.replicate 1 (Monotone.Op.const false, []) ++ [(.and, [w₁, w₂])])
-        fun i => if pos then [(.or, [i, w₁]), (.and, [base, w₂])]
-          else [(.and, [i, w₂]), (.or, [base, w₁])] := by
-  rcases v with _ | _ | _ <;> rfl
-
-/-- Two binary monotone gates on computed wires. -/
-private theorem twoGates {γ : Type} {encIn : γ ↪ List Bool} (op₁ op₂ : Monotone.Op)
-    {u₁ u₂ v₁ v₂ : γ → ℕ} (hu₁ : ComputableInPolyTime u₁ encIn encNat)
-    (hu₂ : ComputableInPolyTime u₂ encIn encNat) (hv₁ : ComputableInPolyTime v₁ encIn encNat)
-    (hv₂ : ComputableInPolyTime v₂ encIn encNat) :
-    ComputableInPolyTime (fun x => [(op₁, [u₁ x, u₂ x]), (op₂, [v₁ x, v₂ x])]) encIn
-      (encList Monotone.encGate) :=
-  cons' ((const op₁).prod (cons' hu₁ (cons' hu₂ (const []))))
-    (cons' ((const op₂).prod (cons' hv₁ (cons' hv₂ (const [])))) (const []))
-
-omit [DecidableEq Y] [DecidableEq Z] in
 /-- The polarity test is polynomial-time. -/
 private theorem positive_polyTime :
     ComputableInPolyTime (positive (X := ℕ) (Y := Y))
@@ -392,10 +319,11 @@ private theorem positive_polyTime :
       (fun p : (CNF (ℕ ⊕ Y) × Clause (ℕ ⊕ Y)) × Literal (ℕ ⊕ Y) => p.2.1.isRight || p.2.2)
       (encPair (encPair (encCNFOver (encSum encNat encY))
         (encClause (encSum encNat encY))) (encPair (encSum encNat encY) encBool))
-      encBool :=
-    ComputableInPolyTime.bool_or.comp
-      (((ComputableInO.isRight_deg encNat encY).computableInPolyTime.comp (snd _ _).fst').prod
-        (snd _ _).snd')
+      encBool := by
+    have hr : ∀ v : ℕ ⊕ Y, v.isRight = v.elim (fun _ => false) (fun _ => true) := by
+      rintro (_ | _) <;> rfl
+    simp only [hr]
+    fun_prop
   exact allWithEncoding (test := fun p : CNF (ℕ ⊕ Y) × Clause (ℕ ⊕ Y) =>
     p.2.all fun l => l.1.isRight || l.2) (allWithEncoding hlit id' (snd _ _)) id' id'
 
@@ -408,25 +336,17 @@ private theorem resolventGates_polyTime :
       (encPair (encPair (encCNFOver (encSum encNat encY))
         (encPair encNat (encPair encNat encNat))) (encSum encNat (encSum encY encZ)))
       (encList Monotone.encGate) := by
-  simp only [resolventGates_eq]
-  have hr := id' (encIn := encPair (encPair (encCNFOver (encSum encNat encY))
-    (encPair encNat (encPair encNat encNat))) (encSum encNat (encSum encY encZ)))
-  have hv := hr.snd'
-  have hw₁ := hr.fst'.snd'.snd'.fst'
-  have hw₂ := hr.fst'.snd'.snd'.snd'
-  refine optionElimWithInput ((Interpolant.getLeft? _ _).comp hv)
-    (ite (optionElimWithInput ((Interpolant.getRight? _ _).comp hv) (const false)
-      ((Interpolant.isLeft _ _).comp (snd _ _)))
-      (Interpolant.replicate_snoc_binary 1 (Monotone.Op.const false) Monotone.Op.or hw₁ hw₂)
-      (Interpolant.replicate_snoc_binary 1 (Monotone.Op.const false) Monotone.Op.and hw₁ hw₂)) ?_
-  have hq := fst (encPair (encPair (encCNFOver (encSum encNat encY))
-    (encPair encNat (encPair encNat encNat))) (encSum encNat (encSum encY encZ))) encNat
-  have hi := snd (encPair (encPair (encCNFOver (encSum encNat encY))
-    (encPair encNat (encPair encNat encNat))) (encSum encNat (encSum encY encZ))) encNat
-  have hbase := hq.fst'.snd'.fst'
-  exact ite (positive_polyTime.comp hq.fst'.fst')
-    (twoGates _ _ hi hq.fst'.snd'.snd'.fst' hbase hq.fst'.snd'.snd'.snd')
-    (twoGates _ _ hi hq.fst'.snd'.snd'.snd' hbase hq.fst'.snd'.snd'.fst')
+  have heq : ∀ pos base w₁ w₂ (v : ℕ ⊕ (Y ⊕ Z)), resolventGates pos base w₁ w₂ v =
+      v.elim
+        (fun i => if pos then [(.or, [i, w₁]), (.and, [base, w₂])]
+          else [(.and, [i, w₂]), (.or, [base, w₁])])
+        (fun yz => yz.elim
+          (fun _ => [(.const false, []), (.or, [w₁, w₂])])
+          (fun _ => [(.const false, []), (.and, [w₁, w₂])])) := by
+    rintro _ _ _ _ (_ | _ | _) <;> rfl
+  have hpos := positive_polyTime (encY := encY)
+  simp only [heq]
+  fun_prop
 
 end MonotoneInterpolant
 

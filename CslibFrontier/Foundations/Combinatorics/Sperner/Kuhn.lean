@@ -106,23 +106,18 @@ theorem odd_card_doors_iff_surjective (f : α → β) (b₀ : β)
     have : ({k | ∀ b ≠ b₀, ∃ j ≠ k, f j = b} : Finset α) = {k₀} := by
       ext k
       simp only [mem_filter, mem_univ, true_and, mem_singleton]
-      constructor
-      · intro h
-        by_contra hk
-        obtain ⟨j, hjk, hj⟩ := h (f k) (fun h' => hk (hinj (h'.trans hk₀.symm)))
+      refine ⟨fun h => not_ne_iff.mp fun hk => ?_, ?_⟩
+      · obtain ⟨j, hjk, hj⟩ := h (f k) fun h' => hk (hinj (h'.trans hk₀.symm))
         exact hjk (hinj hj)
       · rintro rfl b hb
         obtain ⟨j, rfl⟩ := hf b
         exact ⟨j, fun h => hb (h ▸ hk₀), rfl⟩
-    rw [this, card_singleton]
-    exact odd_one
+    simp [this]
   · simp only [hf, iff_false, Nat.not_odd_iff_even]
     by_cases hD : ∃ k, ∀ b ≠ b₀, ∃ j ≠ k, f j = b
     · obtain ⟨k, hk⟩ := hD
-      have hninj : ¬Function.Injective f := fun hi =>
+      obtain ⟨j₁, j₂, h12, hne⟩ := Function.not_injective_iff.1 fun hi =>
         hf ((Fintype.bijective_iff_injective_and_card f).mpr ⟨hi, hcard⟩).2
-      simp only [Function.Injective, not_forall] at hninj
-      obtain ⟨j₁, j₂, h12, hne⟩ := hninj
       -- every door `l` makes `f` injective away from `l`
       have hdoor_inj : ∀ l, (∀ b ≠ b₀, ∃ j ≠ l, f j = b) →
           Set.InjOn f ((univ.erase l : Finset α) : Set α) := by
@@ -131,39 +126,25 @@ theorem odd_card_doors_iff_surjective (f : α → β) (b₀ : β)
           intro b hb
           obtain ⟨j, hj, rfl⟩ := hl b (ne_of_mem_erase hb)
           exact mem_image.mpr ⟨j, mem_erase.mpr ⟨hj, mem_univ _⟩, rfl⟩
-        apply card_image_iff.mp
-        apply le_antisymm card_image_le
-        calc #(univ.erase l) = #(univ.erase b₀) := by
-              rw [card_erase_of_mem (mem_univ _), card_erase_of_mem (mem_univ _), card_univ,
-                card_univ, hcard]
-          _ ≤ _ := card_le_card hsub
+        refine card_image_iff.mp (le_antisymm card_image_le ?_)
+        simpa [card_erase_of_mem, hcard] using card_le_card hsub
       have hD : ({k | ∀ b ≠ b₀, ∃ j ≠ k, f j = b} : Finset α) = {j₁, j₂} := by
         ext l
         simp only [mem_filter, mem_univ, true_and, mem_insert, mem_singleton]
-        constructor
-        · intro hl
-          by_contra h
-          simp only [not_or] at h
-          exact hne (hdoor_inj l hl (mem_coe.mpr (mem_erase.mpr ⟨Ne.symm h.1, mem_univ _⟩))
-            (mem_coe.mpr (mem_erase.mpr ⟨Ne.symm h.2, mem_univ _⟩)) h12)
-        · have key : ∀ i i', i ≠ i' → f i = f i' → ∀ b ≠ b₀, ∃ j ≠ i, f j = b := by
-            intro i i' hii' hfi b hb
+        refine ⟨fun hl => ?_, ?_⟩
+        · by_contra! h
+          exact hne (hdoor_inj l hl (mem_coe.mpr (mem_erase.mpr ⟨h.1.symm, mem_univ _⟩))
+            (mem_coe.mpr (mem_erase.mpr ⟨h.2.symm, mem_univ _⟩)) h12)
+        · have key {i i'} (hii' : i ≠ i') (hfi : f i = f i') (b) (hb : b ≠ b₀) :
+              ∃ j ≠ i, f j = b := by
             by_cases hbi : b = f i
-            · exact ⟨i', Ne.symm hii', hbi ▸ hfi.symm⟩
+            · exact ⟨i', hii'.symm, hbi ▸ hfi.symm⟩
             · obtain ⟨j, -, hj⟩ := hk b hb
               exact ⟨j, fun h => hbi (h ▸ hj.symm), hj⟩
           rintro (rfl | rfl)
-          · exact key _ _ hne h12
-          · exact key _ _ (Ne.symm hne) h12.symm
-      rw [hD, card_pair hne]
-      exact ⟨1, rfl⟩
-    · have : ({k | ∀ b ≠ b₀, ∃ j ≠ k, f j = b} : Finset α) = ∅ := by
-        ext k
-        simp only [mem_filter, mem_univ, true_and, Finset.notMem_empty, iff_false]
-        intro h
-        exact hD ⟨k, h⟩
-      rw [this, card_empty]
-      exact ⟨0, rfl⟩
+          exacts [key hne h12, key hne.symm h12.symm]
+      simp [hD, card_pair hne]
+    · simp [filter_false_of_mem fun k _ h => hD ⟨k, h⟩]
 
 end Parity
 
@@ -195,9 +176,8 @@ theorem base_le_vertex (s : KuhnSimplex n) (k : Fin (n + 1)) (i : Fin n) :
 
 /-- The vertices of a Kuhn simplex lie below its upper corner. -/
 theorem vertex_le_base_add_one (s : KuhnSimplex n) (k : Fin (n + 1)) (i : Fin n) :
-    s.vertex k i ≤ s.base i + 1 := by
-  unfold vertex
-  split_ifs <;> omega
+    s.vertex k i ≤ s.base i + 1 :=
+  Nat.add_le_add_left (by split_ifs <;> decide) _
 
 /-- Kuhn simplices are pairs of a lower corner and a permutation. -/
 def equivProd : KuhnSimplex n ≃ (Fin n → ℕ) × Equiv.Perm (Fin n) where
@@ -302,13 +282,8 @@ instance (N : Fin (n + 1) → ℕ) (s : KuhnSimplex (n + 1)) (k : Fin (n + 2)) :
 
 /-- `mate` is an involution. -/
 theorem mate_mate (k : Fin (n + 2)) : mate (mate k) = k := by
-  unfold mate
-  have h : (Fin.last (n + 1) : Fin (n + 2)) ≠ 0 := Fin.last_pos.ne'
-  by_cases hk0 : k = 0
-  · simp [hk0, h]
-  · by_cases hkl : k = Fin.last (n + 1)
-    · simp [hkl, h]
-    · simp [hk0, hkl]
+  by_cases hk0 : k = 0 <;> by_cases hkl : k = Fin.last (n + 1) <;>
+    simp [mate, hk0, hkl, Fin.last_pos.ne']
 
 private theorem finRotate_symm_zero : (finRotate (n + 1)).symm 0 = Fin.last n := by
   rw [Equiv.symm_apply_eq, finRotate_last]
@@ -380,8 +355,7 @@ theorem vertex_across_of_ne {s : KuhnSimplex (n + 1)} {k : Fin (n + 2)} (hk0 : k
     · rw [Equiv.swap_apply_of_ne_of_ne h h']
 
 /-- The facet opposite the upper corner is opposite the lower corner of the neighbour. -/
-theorem mate_zero : mate (0 : Fin (n + 2)) = Fin.last (n + 1) := by
-  simp [mate]
+theorem mate_zero : mate (0 : Fin (n + 2)) = Fin.last (n + 1) := rfl
 
 /-- The facet opposite the lower corner is opposite the upper corner of the neighbour. -/
 theorem mate_last : mate (Fin.last (n + 1)) = 0 := by
@@ -403,18 +377,16 @@ private theorem finRotate_eq_zero {a : Fin (n + 1)} :
 /-- Crossing an interior facet twice returns to the starting simplex. -/
 theorem across_across {N : Fin (n + 1) → ℕ} {s : KuhnSimplex (n + 1)} {k : Fin (n + 2)}
     (h : IsInteriorFacet N s k) : across (across s k) (mate k) = s := by
-  by_cases hk0 : k = 0
-  · subst hk0
-    rw [mate_zero]
+  rcases eq_or_ne k 0 with rfl | hk0
+  · rw [mate_zero]
     ext i
     · simp only [base_across_last, base_across_zero, rank_across_zero, Equiv.trans_apply,
         finRotate_symm_eq_last]
       have := h.1 rfl i
       split_ifs <;> omega
     · simp only [rank_across_last, rank_across_zero, Equiv.trans_apply, Equiv.apply_symm_apply]
-  · by_cases hkl : k = Fin.last (n + 1)
-    · subst hkl
-      rw [mate_last]
+  · rcases eq_or_ne k (Fin.last (n + 1)) with rfl | hkl
+    · rw [mate_last]
       ext i
       · simp only [base_across_zero, base_across_last, rank_across_last, Equiv.trans_apply,
           finRotate_eq_zero]
@@ -432,18 +404,14 @@ theorem across_mem {N : Fin (n + 1) → ℕ} {s : KuhnSimplex (n + 1)} {k : Fin 
   rw [mem_kuhnSimplices] at hs ⊢
   intro i
   have := hs i
-  by_cases hk0 : k = 0
-  · subst hk0
-    rw [base_across_zero]
+  rcases eq_or_ne k 0 with rfl | hk0
+  · rw [base_across_zero]
     split_ifs <;> omega
-  · by_cases hkl : k = Fin.last (n + 1)
-    · subst hkl
-      rw [base_across_last]
+  · rcases eq_or_ne k (Fin.last (n + 1)) with rfl | hkl
+    · rw [base_across_last]
       split_ifs with hr
-      · exact h.2 rfl i hr
-      · exact this
-    · rw [base_across_of_ne _ hk0 hkl]
-      exact this
+      exacts [h.2 rfl i hr, this]
+    · rwa [base_across_of_ne _ hk0 hkl]
 
 /-- The shared facet is interior from the other side as well. -/
 theorem isInteriorFacet_across {N : Fin (n + 1) → ℕ} {s : KuhnSimplex (n + 1)}
@@ -451,18 +419,16 @@ theorem isInteriorFacet_across {N : Fin (n + 1) → ℕ} {s : KuhnSimplex (n + 1
     (hs : s ∈ kuhnSimplices (n + 1) N) (h : IsInteriorFacet N s k) :
     IsInteriorFacet N (across s k) (mate k) := by
   have hl : (Fin.last (n + 1) : Fin (n + 2)) ≠ 0 := Fin.last_pos.ne'
-  by_cases hk0 : k = 0
-  · subst hk0
-    rw [mate_zero]
+  rcases eq_or_ne k 0 with rfl | hk0
+  · rw [mate_zero]
     refine ⟨fun h' => absurd h' hl, fun _ i hi => ?_⟩
     rw [rank_across_zero, Equiv.trans_apply, finRotate_symm_eq_last] at hi
     rw [base_across_zero, ite_eq_left hi]
     have := h.1 rfl i hi
     have := mem_kuhnSimplices.mp hs i
     omega
-  · by_cases hkl : k = Fin.last (n + 1)
-    · subst hkl
-      rw [mate_last]
+  · rcases eq_or_ne k (Fin.last (n + 1)) with rfl | hkl
+    · rw [mate_last]
       refine ⟨fun _ i hi => ?_, fun h' => absurd h'.symm hl⟩
       rw [rank_across_last, Equiv.trans_apply, finRotate_eq_zero] at hi
       rw [base_across_last, ite_eq_left hi]
@@ -474,17 +440,11 @@ theorem isInteriorFacet_across {N : Fin (n + 1) → ℕ} {s : KuhnSimplex (n + 1
 theorem across_ne (s : KuhnSimplex (n + 1)) (k : Fin (n + 2)) :
     (across s k, mate k) ≠ (s, k) := by
   intro h
-  have h1 := congrArg Prod.fst h
-  have h2 := congrArg Prod.snd h
-  simp only at h1 h2
-  by_cases hk0 : k = 0
-  · subst hk0
-    rw [mate_zero] at h2
-    exact Fin.last_pos.ne' h2
-  · by_cases hkl : k = Fin.last (n + 1)
-    · subst hkl
-      rw [mate_last] at h2
-      exact Fin.last_pos.ne h2
+  obtain ⟨h1, h2⟩ := Prod.mk.inj h
+  rcases eq_or_ne k 0 with rfl | hk0
+  · exact Fin.last_pos.ne' (mate_zero ▸ h2)
+  · rcases eq_or_ne k (Fin.last (n + 1)) with rfl | hkl
+    · exact Fin.last_pos.ne (mate_last ▸ h2)
     · have := congrArg (fun t => t.rank (s.rank.symm (k.pred hk0))) h1
       simp only [rank_across_of_ne _ hk0 hkl, Equiv.trans_apply, Equiv.apply_symm_apply,
         Equiv.swap_apply_left] at this
@@ -496,24 +456,16 @@ theorem isDoor_across {c : (Fin (n + 1) → ℕ) → Fin (n + 2)} {N : Fin (n + 
     IsDoor c (across s k) (mate k) := by
   intro a ha
   obtain ⟨j, hj, hja⟩ := hd a ha
-  by_cases hk0 : k = 0
-  · subst hk0
-    obtain ⟨j', rfl⟩ := Fin.exists_succ_eq.mpr hj
-    refine ⟨j'.castSucc, ?_, ?_⟩
-    · rw [mate_zero]
-      exact (Fin.castSucc_lt_last j').ne
-    · rw [vertex_across_zero (fun i hi => h.1 rfl i hi), hja]
-  · by_cases hkl : k = Fin.last (n + 1)
-    · subst hkl
-      obtain ⟨j', rfl⟩ := Fin.exists_castSucc_eq.mpr hj
-      refine ⟨j'.succ, ?_, ?_⟩
-      · rw [mate_last]
-        exact Fin.succ_ne_zero j'
-      · rw [vertex_across_last, hja]
-    · refine ⟨j, ?_, ?_⟩
-      · rw [mate_of_ne hk0 hkl]
-        exact hj
-      · rw [vertex_across_of_ne hk0 hkl hj, hja]
+  rcases eq_or_ne k 0 with rfl | hk0
+  · obtain ⟨j', rfl⟩ := Fin.exists_succ_eq.mpr hj
+    exact ⟨j'.castSucc, mate_zero.symm ▸ (Fin.castSucc_lt_last j').ne,
+      (congrArg c (vertex_across_zero (h.1 rfl) j')).trans hja⟩
+  · rcases eq_or_ne k (Fin.last (n + 1)) with rfl | hkl
+    · obtain ⟨j', rfl⟩ := Fin.exists_castSucc_eq.mpr hj
+      exact ⟨j'.succ, mate_last.symm ▸ Fin.succ_ne_zero j',
+        (congrArg c (vertex_across_last s j')).trans hja⟩
+    · exact ⟨j, (mate_of_ne hk0 hkl).symm ▸ hj,
+        (congrArg c (vertex_across_of_ne hk0 hkl hj)).trans hja⟩
 
 /-! ### Boundary doors -/
 
@@ -523,33 +475,26 @@ theorem eq_zero_of_isDoor_of_not_isInteriorFacet {N : Fin (n + 1) → ℕ}
     {c : (Fin (n + 1) → ℕ) → Fin (n + 2)} (hc : IsHypergridSperner N c) {s : KuhnSimplex (n + 1)}
     (hs : s ∈ kuhnSimplices (n + 1) N) {k : Fin (n + 2)} (hd : IsDoor c s k)
     (hi : ¬IsInteriorFacet N s k) : k = 0 ∧ s.rank 0 = 0 ∧ s.base 0 = 0 := by
-  rw [IsInteriorFacet, not_and_or] at hi
-  rcases hi with hi | hi
-  · simp only [not_imp, not_forall, not_lt, Nat.le_zero] at hi
-    obtain ⟨rfl, i, hri, hbi⟩ := hi
-    obtain ⟨j, hj, hj1⟩ := hd 1 one_ne_zero
+  simp only [IsInteriorFacet, not_and_or, not_imp, not_forall, not_lt, Nat.le_zero] at hi
+  rcases hi with ⟨rfl, i, hri, hbi⟩ | ⟨rfl, i, hri, hbi⟩
+  · obtain ⟨j, hj, hj1⟩ := hd 1 one_ne_zero
     have hv : s.vertex j i = 0 := by
       simp only [vertex, hbi, hri, Fin.castSucc_zero, Fin.le_zero_iff, hj, ite_false]
     have := (hc _ (vertex_le hs j) i).1 hv
-    have hi0 : i = 0 := by fin_index
-    subst hi0
+    obtain rfl : i = 0 := by fin_index
     exact ⟨rfl, hri, hbi⟩
-  · exfalso
-    simp only [not_imp, not_forall, not_lt] at hi
-    obtain ⟨rfl, i, hri, hbi⟩ := hi
-    have hbi' := mem_kuhnSimplices.mp hs i
+  · have hbi' := mem_kuhnSimplices.mp hs i
     obtain ⟨j, hj, hji⟩ := hd i.succ (Fin.succ_ne_zero i)
     have hv : s.vertex j i = N i := by
       rw [vertex, hri, ite_eq_left (Fin.le_castSucc_iff.mpr (Fin.lt_last_iff_ne_last.mpr hj))]
       omega
-    exact (hc _ (vertex_le hs j) i).2 hv hji
+    exact ((hc _ (vertex_le hs j) i).2 hv hji).elim
 
 /-- The facet opposite the upper corner of a simplex touching the face `x 0 = 0` along it is not
 interior. -/
 theorem not_isInteriorFacet_zero {N : Fin (n + 1) → ℕ} {s : KuhnSimplex (n + 1)}
-    (hr : s.rank 0 = 0) (hb : s.base 0 = 0) : ¬IsInteriorFacet N s 0 := fun h => by
-  have := h.1 rfl 0 hr
-  omega
+    (hr : s.rank 0 = 0) (hb : s.base 0 = 0) : ¬IsInteriorFacet N s 0 :=
+  fun h => (h.1 rfl 0 hr).ne' hb
 
 /-! ### The face `x 0 = 0` -/
 
@@ -565,8 +510,6 @@ private def ofFace (t : KuhnSimplex n) : KuhnSimplex (n + 1) :=
 
 private theorem rank_ofFace_zero (t : KuhnSimplex n) : (ofFace t).rank 0 = 0 :=
   Equiv.Perm.decomposeFin_symm_apply_zero _ _
-
-private theorem base_ofFace_zero (t : KuhnSimplex n) : (ofFace t).base 0 = 0 := rfl
 
 private theorem face_ofFace (t : KuhnSimplex n) : face (ofFace t) = t := by
   ext1
@@ -599,13 +542,7 @@ private theorem vertex_ofFace_succ (t : KuhnSimplex n) (k : Fin (n + 1)) :
 private theorem ofFace_mem {N : Fin (n + 1) → ℕ} (hN : 0 < N 0) {t : KuhnSimplex n} :
     ofFace t ∈ kuhnSimplices (n + 1) N ↔ t ∈ kuhnSimplices n (Fin.tail N) := by
   simp only [mem_kuhnSimplices, ofFace]
-  constructor
-  · intro h i
-    exact h i.succ
-  · intro h i
-    refine Fin.cases ?_ (fun i => ?_) i
-    · exact hN
-    · exact h i
+  exact ⟨fun h i => h i.succ, fun h => Fin.cases hN h⟩
 
 /-- The colouring induced on the face `x 0 = 0`, with colours lowered by one. -/
 private def faceColoring (c : (Fin (n + 1) → ℕ) → Fin (n + 2)) (q : Fin n → ℕ) :
@@ -632,16 +569,11 @@ private theorem isHypergridSperner_faceColoring {N : Fin (n + 1) → ℕ}
     {c : (Fin (n + 1) → ℕ) → Fin (n + 2)} (hc : IsHypergridSperner N c) :
     IsHypergridSperner (Fin.tail N) (faceColoring c) := by
   intro q hq i
-  have h0 := ne_zero_of_cons hc hq
-  have hs := faceColoring_succ h0
+  have hs := faceColoring_succ (ne_zero_of_cons hc hq)
   obtain ⟨h1, h2⟩ := hc _ (cons_le hq) i.succ
   rw [Fin.cons_succ] at h1 h2
-  refine ⟨fun hqi => ?_, fun hqi heq => ?_⟩
-  · have := h1 hqi
-    rw [← hs] at this
-    fin_index
-  · apply h2 hqi
-    rw [← hs, heq]
+  refine ⟨fun hqi => Fin.succ_lt_succ_iff.mp ((h1 hqi).trans_eq hs.symm),
+    fun hqi heq => h2 hqi (hs.symm.trans (congrArg Fin.succ heq))⟩
 
 private theorem isDoor_ofFace_iff {N : Fin (n + 1) → ℕ}
     {c : (Fin (n + 1) → ℕ) → Fin (n + 2)}
@@ -693,11 +625,8 @@ theorem IsHypergridSperner.odd_card_isPanchromatic {n : ℕ} {N : Fin n → ℕ}
     set D := (S ×ˢ (univ : Finset (Fin (n + 2)))).filter fun p => IsDoor c p.1 p.2
     -- the number of panchromatic simplices has the parity of the number of doors
     have hD : Odd #{s ∈ S | IsPanchromatic c s} ↔ Odd #D := by
-      have : #D = ∑ s ∈ S, #{k | IsDoor c s k} := by
-        rw [card_filter, sum_product]
-        simp only [card_filter]
-      rw [this, odd_sum_iff_odd_card_odd]
-      simp only [odd_card_isDoor_iff]
+      have : #D = ∑ s ∈ S, #{k | IsDoor c s k} := by simp only [D, card_filter, sum_product]
+      simp only [this, odd_sum_iff_odd_card_odd, odd_card_isDoor_iff]
     rw [hD, ← card_filter_add_card_filter_not fun p => IsInteriorFacet N p.1 p.2]
     refine Even.add_odd ?_ ?_
     · -- interior doors are matched by crossing
@@ -709,8 +638,7 @@ theorem IsHypergridSperner.odd_card_isPanchromatic {n : ℕ} {N : Fin n → ℕ}
       · rintro ⟨s, k⟩ hp
         simp only [D, mem_filter, mem_product, mem_univ, and_true] at hp
         simp only [across_across hp.2, mate_mate]
-      · rintro ⟨s, k⟩ -
-        exact across_ne s k
+      · exact fun p _ => across_ne p.1 p.2
     · -- boundary doors are the panchromatic simplices of the face `x 0 = 0`
       have hN := hc.pos 0
       have hface := isHypergridSperner_faceColoring hc
@@ -727,14 +655,13 @@ theorem IsHypergridSperner.odd_card_isPanchromatic {n : ℕ} {N : Fin n → ℕ}
         simp only [D, coe_filter, mem_filter, mem_product, mem_univ, and_true,
           Set.mem_ofPred_eq] at ht ⊢
         exact ⟨⟨(ofFace_mem hN).mpr ht.1, (isDoor_ofFace_iff hc ht.1).mpr ht.2⟩,
-          not_isInteriorFacet_zero (rank_ofFace_zero t) (base_ofFace_zero t)⟩
+          not_isInteriorFacet_zero (rank_ofFace_zero t) rfl⟩
       · rintro ⟨s, k⟩ hp
         simp only [D, coe_filter, mem_filter, mem_product, mem_univ, and_true,
           Set.mem_ofPred_eq] at hp
         obtain ⟨rfl, hr, hb⟩ := eq_zero_of_isDoor_of_not_isInteriorFacet hc hp.1.1 hp.1.2 hp.2
         simp only [ofFace_face hr hb]
-      · intro t _
-        exact face_ofFace t
+      · exact fun t _ => face_ofFace t
 
 /-- **Sperner's lemma on the Kuhn-triangulated hypergrid**: a colouring satisfying the Sperner
 boundary condition has a panchromatic Kuhn simplex. -/
@@ -775,16 +702,11 @@ theorem hypergridBoundaryColor_ne_succ {n : ℕ} {p : Fin n → ℕ} {i : Fin n}
   | succ n ih =>
     simp only [hypergridBoundaryColor]
     split_ifs with hl
-    · intro he
-      rw [← Fin.succ_last] at he
-      exact h (Fin.succ_injective _ he ▸ hl)
-    · by_cases hi : i = Fin.last n
-      · subst hi
-        rw [Fin.succ_last]
-        exact (Fin.castSucc_lt_last _).ne
+    · exact fun he => h (Fin.succ_injective _ (Fin.succ_last n ▸ he) ▸ hl)
+    · rcases eq_or_ne i (Fin.last n) with rfl | hi
+      · exact Fin.succ_last n ▸ (Fin.castSucc_lt_last _).ne
       · obtain ⟨j, rfl⟩ := Fin.exists_castSucc_eq.mpr hi
-        rw [Fin.succ_castSucc]
-        exact fun he => ih h (Fin.castSucc_injective _ he)
+        exact Fin.succ_castSucc j ▸ fun he => ih h (Fin.castSucc_injective _ he)
 
 /-- A *valid colouring* of the hypergrid `∏ i, [0, N i]` in the sense of Chen, Deng and Teng: it
 agrees with `hypergridBoundaryColor` at the boundary points, those with some `p i ∈ {0, N i}`. -/
@@ -795,13 +717,9 @@ def IsValidColoring {n : ℕ} (N : Fin n → ℕ) (c : (Fin n → ℕ) → Fin (
 condition. -/
 theorem IsValidColoring.isHypergridSperner {n : ℕ} {N : Fin n → ℕ}
     {c : (Fin n → ℕ) → Fin (n + 1)} (hc : IsValidColoring N c) (hN : ∀ i, 0 < N i) :
-    IsHypergridSperner N c := by
-  intro p hp i
-  refine ⟨fun h => ?_, fun h => ?_⟩
-  · rw [hc p hp ⟨i, .inl h⟩]
-    exact castSucc_lt_hypergridBoundaryColor h
-  · rw [hc p hp ⟨i, .inr h⟩]
-    exact hypergridBoundaryColor_ne_succ (by have := hN i; omega)
+    IsHypergridSperner N c := fun p hp i =>
+  ⟨fun h => hc p hp ⟨i, .inl h⟩ ▸ castSucc_lt_hypergridBoundaryColor h,
+    fun h => hc p hp ⟨i, .inr h⟩ ▸ hypergridBoundaryColor_ne_succ (h ▸ (hN i).ne')⟩
 
 /-- **Existence of a panchromatic simplex** (Chen, Deng and Teng, Corollary 4.3): a valid colouring
 of a hypergrid with positive side lengths has a panchromatic simplex, a set of `n + 1` points with
@@ -818,13 +736,10 @@ theorem IsValidColoring.exists_panchromatic {n : ℕ} {N : Fin n → ℕ}
   refine ⟨s.base, mem_kuhnSimplices.mp hs, univ.image s.vertex, ?_, ?_, ?_⟩
   · intro q hq i
     obtain ⟨k, -, rfl⟩ := mem_image.mp hq
-    unfold vertex
-    split_ifs
-    exacts [.inr rfl, .inl rfl]
+    by_cases hk : k ≤ (s.rank i).castSucc <;> simp [vertex, hk]
   · rw [card_image_of_injective _ hinj.of_comp, card_univ, Fintype.card_fin]
-  · rintro _ hx _ hy hxy
-    obtain ⟨k, -, rfl⟩ := mem_image.mp (mem_coe.mp hx)
-    obtain ⟨l, -, rfl⟩ := mem_image.mp (mem_coe.mp hy)
-    rw [hinj hxy]
+  · rw [coe_image, coe_univ, Set.image_univ]
+    rintro _ ⟨k, rfl⟩ _ ⟨l, rfl⟩ hxy
+    exact congrArg s.vertex (hinj hxy)
 
 end Cslib.Sperner

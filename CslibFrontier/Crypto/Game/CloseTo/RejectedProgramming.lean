@@ -46,8 +46,7 @@ private theorem runJoint_query (dist : (q : Q) → PMF (Coins q))
       (dist q).bind fun r => μ.bind fun x =>
         ((interpret (m := StateT S PMF) (fun q st => (dist q).map fun r => step q r st)
           (cont (step q r (init x)).1)).run (step q r (init x)).2).map (fun p => (x, p.1)) := by
-  unfold runJoint
-  simp only [interp_norm, PMF.monad_bind_eq_bind, PMF.map_bind]
+  simp only [runJoint, interp_norm, PMF.monad_bind_eq_bind, PMF.map_bind]
   simp only [StateT.run, PMF.bind_map, Function.comp_def]
   rw [PMF.bind_comm μ]
 
@@ -73,23 +72,19 @@ private theorem runJoint_perturb (dist : (q : Q) → PMF (Coins q))
     let bad : Set Ω := {x | readAt q = some (addr x)}
     let changeState := fun x => if x ∈ bad then (step q r base).2 else (step q r (alt x)).2
     have hrel' (x) : R (addr x) (changeState x) (step q r base).2 := by
-      by_cases hx : x ∈ bad
-      · simp only [changeState, hx, ↓reduceIte]
-        exact hrefl _ _
-      · simp only [changeState, hx, ↓reduceIte]
-        exact (hstep (addr x) q r _ _ hx (hrel x)).2
-    have hmid := ih (step q r base).1 changeState (step q r base).2 hrel'
-    refine (CloseTo.trans (ε := μ.toOuterMeasure bad) ?_ hmid).mono ?_
-    · unfold runJoint
-      apply Interactive.CloseTo.bind_of_eq_on μ _ _ bad
-      intro x _ hx
-      simp only [changeState, hx, ↓reduceIte, (hstep (addr x) q r _ _ hx (hrel x)).1]
+      by_cases hx : x ∈ bad <;> simp only [changeState, hx, ↓reduceIte]
+      · exact hrefl _ _
+      · exact (hstep (addr x) q r _ _ hx (hrel x)).2
+    refine (CloseTo.trans (ε := μ.toOuterMeasure bad) ?_
+      (ih (step q r base).1 changeState (step q r base).2 hrel')).mono ?_
+    · exact Interactive.CloseTo.bind_of_eq_on μ _ _ bad fun x _ hx => by
+        simp only [changeState, hx, ↓reduceIte, (hstep (addr x) q r _ _ hx (hrel x)).1]
     · have hbad : μ.toOuterMeasure bad ≤ ((readAt q).isSome.toNat : ℕ) * δ := by
         cases he : readAt q with
         | none =>
           simp [bad, he]
         | some k =>
-          have hb : bad = addr ⁻¹' {k} := by ext; simp [bad, he, eq_comm]
+          have hb : bad = addr ⁻¹' {k} := Set.ext fun _ => by simp [bad, he, eq_comm]
           rw [hb, ← PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_apply_singleton]
           simpa using hδ k
       simpa only [Nat.cast_add, add_mul, add_comm] using add_le_add_right hbad (n * δ)
@@ -123,8 +118,7 @@ private theorem output_query (μ : PMF Ω) (step : (q : Q) → Ω → S → spec
     (q : Q) (cont : spec q → OracleComp spec α) (s : S) :
     output μ step (query q >>= cont) s =
       μ.bind fun r => output μ step (cont (step q r s).1) (step q r s).2 := by
-  unfold output
-  simp only [interp_norm, PMF.monad_bind_eq_bind, PMF.map_bind]
+  simp only [output, interp_norm, PMF.monad_bind_eq_bind, PMF.map_bind]
   simp only [StateT.run, PMF.bind_map, Function.comp_def]
 
 private def off (k : Key) (s t : List (Key × Value)) : Prop :=
@@ -133,7 +127,7 @@ private def off (k : Key) (s t : List (Key × Value)) : Prop :=
 omit [LawfulBEq Key] in
 private theorem off_cons {k : Key} {s t : List (Key × Value)} (h : off k s t)
     (q : Key × Value) : off k (q :: s) (q :: t) := by
-  rcases q with ⟨i, v⟩
+  rcases q with ⟨_, _⟩
   intro j hj
   simp only [List.lookup_cons, h j hj]
 
@@ -153,20 +147,15 @@ private theorem erase_here (μ : PMF Ω) (point : Msg → Ω → Key) (digest : 
   have hs (k q r s t) (h : readAt q ≠ some k) (ha : off k s t) :
       (sim q r s).1 = (sim q r t).1 ∧ off k (sim q r s).2 (sim q r t).2 := by
     cases q with
-    | inl msg =>
+    | inl _ =>
       simp only [sim, programmedTrialStep, Bool.false_or, true_and]
       split <;> first | exact off_cons ha _ | exact ha
     | inr j =>
-      have hj : j ≠ k := fun hj => h (by rw [hj]; rfl)
-      simp only [sim, programmedTrialStep, ha j hj]
-      cases t.lookup j <;> simp only [true_and]
-      · exact off_cons ha _
-      · exact ha
-  have hb (x) : off (point m x) ((point m x, digest x) :: st) st := by
-    intro j h
-    simp only [List.lookup_cons, beq_eq_false_iff_ne.mpr h]
+      simp only [sim, programmedTrialStep, ha j fun hj => h (hj ▸ rfl)]
+      cases t.lookup j <;> simp only [true_and] <;> first | exact off_cons ha _ | exact ha
   have hd := runJoint_perturb (fun _ => μ) sim readAt off (fun _ _ _ _ => rfl) hs μ (point m)
-    hδ hc (fun x => (point m x, digest x) :: st) st hb
+    hδ hc (fun x => (point m x, digest x) :: st) st fun x j h => by
+      simp only [List.lookup_cons, beq_eq_false_iff_ne.mpr h]
   let after : Ω × α → PMF α := fun (x, a) => if (reply m x).isSome then
     output μ sim (cont (reply m x)) ((point m x, digest x) :: st) else PMF.pure a
   have hpost := hd.bind_left after

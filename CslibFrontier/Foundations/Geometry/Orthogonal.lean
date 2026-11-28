@@ -53,10 +53,8 @@ abbrev Route := List Point
 def realPoint (p : Point) : ℝ × ℝ := (p.1, p.2)
 
 /-- The geometric inclusion does not identify distinct grid points. -/
-theorem realPoint_injective : Function.Injective realPoint := by
-  rintro ⟨ax, ay⟩ ⟨bx, by'⟩ h
-  simp only [realPoint, Prod.mk.injEq, Int.cast_inj] at h
-  exact Prod.ext h.1 h.2
+theorem realPoint_injective : Function.Injective realPoint :=
+  fun ⟨_, _⟩ ⟨_, _⟩ h => by simpa [realPoint] using h
 
 /-- A closed real segment between two integer grid points. -/
 def segment (a b : Point) : Set (ℝ × ℝ) := _root_.segment ℝ (realPoint a) (realPoint b)
@@ -81,30 +79,25 @@ theorem mem_support_segment {r : Route} (hlen : 2 ≤ r.length) {p : ℝ × ℝ}
   induction r with
   | nil => simp at hlen
   | cons a r ih =>
-    cases r with
-    | nil => simp at hlen
-    | cons b r =>
-      rw [support_cons_cons] at hp
+    rcases r with _ | ⟨b, _ | ⟨c, r⟩⟩
+    · simp at hlen
+    · rw [support_cons_cons] at hp
+      refine ⟨(a, b), by simp [List.consecutivePairs], hp.elim id fun h => ?_⟩
+      have hp' : p = realPoint b := by simpa [support, List.consecutivePairs] using h
+      exact hp' ▸ right_mem_segment ℝ _ _
+    · rw [support_cons_cons] at hp
       rcases hp with hp | hp
       · exact ⟨(a, b), by simp [List.consecutivePairs], hp⟩
-      · cases r with
-        | nil =>
-          have hp' : p = realPoint b := by simpa [support, List.consecutivePairs] using hp
-          exact ⟨(a, b), by simp [List.consecutivePairs], hp' ▸ right_mem_segment ℝ _ _⟩
-        | cons c r =>
-          obtain ⟨e, he, hp⟩ := ih (by simp) hp
-          exact ⟨e, by simpa only [List.consecutivePairs, List.tail_cons, List.zip_cons_cons,
-            List.mem_cons] using Or.inr he, hp⟩
+      · obtain ⟨e, he, hp⟩ := ih (by simp) hp
+        exact ⟨e, List.mem_cons_of_mem (a, b) he, hp⟩
 
 /-- The continuous support of a two-point route `[a, b]` is the segment `segment a b`. -/
 theorem mem_support_pair {a b : Point} {p : ℝ × ℝ} :
     p ∈ support [a, b] ↔ p ∈ segment a b := by
   rw [support_cons_cons]
-  change (p ∈ segment a b ∨ p ∈ support [b]) ↔ _
-  have hright : realPoint b ∈ segment a b := _root_.right_mem_segment ℝ _ _
   have hs : p ∈ support [b] ↔ p = realPoint b := by simp [support, List.consecutivePairs]
-  rw [hs]
-  exact ⟨fun h => h.elim id (fun h => h ▸ hright), Or.inl⟩
+  exact (Set.mem_union _ _ _).trans ((or_congr_right hs).trans
+    ⟨fun h => h.elim id (· ▸ _root_.right_mem_segment ℝ _ _), Or.inl⟩)
 
 /-- The continuous support of a two-point route `[a, b]` equals `segment a b`. -/
 theorem support_pair (a b : Point) : support [a, b] = segment a b :=
@@ -137,10 +130,8 @@ def length (a b : Point) : ℕ := (b.1 - a.1).natAbs + (b.2 - a.2).natAbs
 
 /-- A pair of lattice points one Manhattan unit apart forms a proper axis-aligned segment. -/
 theorem axisAligned_of_length_eq_one {a b : Point} (h : length a b = 1) : AxisAligned a b := by
-  rcases a with ⟨ax, ay⟩
-  rcases b with ⟨bx, by'⟩
-  simp only [length] at h
-  simp only [AxisAligned, ne_eq, Prod.mk.injEq]
+  rcases a, b with ⟨⟨ax, ay⟩, ⟨bx, by'⟩⟩
+  simp only [length, AxisAligned, ne_eq, Prod.mk.injEq] at h ⊢
   omega
 
 /-- Total Manhattan length of the consecutive segments. -/
@@ -150,22 +141,17 @@ def wireLength (r : Route) : ℕ := (r.consecutivePairs.map fun e => length e.1 
 theorem length_le_box {a b : Point} {w h : ℕ}
     (ha : 0 ≤ a.1 ∧ a.1 ≤ w ∧ 0 ≤ a.2 ∧ a.2 ≤ h)
     (hb : 0 ≤ b.1 ∧ b.1 ≤ w ∧ 0 ≤ b.2 ∧ b.2 ≤ h) : length a b ≤ w + h := by
-  have hx : (b.1 - a.1).natAbs ≤ w := by omega
-  have hy : (b.2 - a.2).natAbs ≤ h := by omega
-  exact Nat.add_le_add hx hy
+  unfold length
+  omega
 
 /-- Bounding all listed points bounds the total wire length by the number of segments times
 the sum of the rectangle sides. -/
 theorem wireLength_le_box {r : Route} {w h : ℕ}
     (hr : ∀ p ∈ r, 0 ≤ p.1 ∧ p.1 ≤ w ∧ 0 ≤ p.2 ∧ p.2 ≤ h) :
     wireLength r ≤ r.consecutivePairs.length * (w + h) := by
-  unfold wireLength
-  calc
-    _ ≤ (r.consecutivePairs.map fun _ => w + h).sum := by
-      apply List.sum_le_sum
-      intro e he
-      have hmem := List.of_mem_zip he
-      exact length_le_box (hr e.1 hmem.1) (hr e.2 (List.mem_of_mem_tail hmem.2))
+  calc wireLength r ≤ (r.consecutivePairs.map fun _ => w + h).sum :=
+      List.sum_le_sum fun e he => length_le_box (hr e.1 (List.of_mem_zip he).1)
+        (hr e.2 (List.mem_of_mem_tail (List.of_mem_zip he).2))
     _ = _ := by simp
 
 /-- A strict transverse horizontal/vertical crossing at a real point. The strict inequalities
@@ -189,21 +175,19 @@ theorem support_bounds_of_points {r : Route} {x₀ x₁ y₀ y₁ : ℤ}
     (h : ∀ q ∈ r, x₀ ≤ q.1 ∧ q.1 ≤ x₁ ∧ y₀ ≤ q.2 ∧ q.2 ≤ y₁)
     {p : ℝ × ℝ} (hp : p ∈ support r) :
     (x₀ : ℝ) ≤ p.1 ∧ p.1 ≤ x₁ ∧ (y₀ : ℝ) ≤ p.2 ∧ p.2 ≤ y₁ := by
-  have cast_bounds (q : Point) (hq : q ∈ r) :
+  have cb (q : Point) (hq : q ∈ r) :
       (x₀ : ℝ) ≤ q.1 ∧ (q.1 : ℝ) ≤ x₁ ∧ (y₀ : ℝ) ≤ q.2 ∧ (q.2 : ℝ) ≤ y₁ := by
     exact_mod_cast h q hq
   rcases hp with ⟨q, hq, rfl⟩ | ⟨e, he, hp⟩
-  · exact cast_bounds q hq
-  · have he' := List.of_mem_zip he
-    have ha := cast_bounds e.1 he'.1
-    have hb := cast_bounds e.2 (List.mem_of_mem_tail he'.2)
+  · exact cb q hq
+  · have ha := cb e.1 (List.of_mem_zip he).1
+    have hb := cb e.2 (List.mem_of_mem_tail (List.of_mem_zip he).2)
     obtain ⟨hx, hy⟩ := mem_segment_bounds hp
     rw [Set.mem_uIcc] at hx hy
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · exact hx.elim (fun hx => ha.1.trans hx.1) (fun hx => hb.1.trans hx.1)
-    · exact hx.elim (fun hx => hx.2.trans hb.2.1) (fun hx => hx.2.trans ha.2.1)
-    · exact hy.elim (fun hy => ha.2.2.1.trans hy.1) (fun hy => hb.2.2.1.trans hy.1)
-    · exact hy.elim (fun hy => hy.2.trans hb.2.2.2) (fun hy => hy.2.trans ha.2.2.2)
+    exact ⟨hx.elim (ha.1.trans ·.1) (hb.1.trans ·.1),
+      hx.elim (·.2.trans hb.2.1) (·.2.trans ha.2.1),
+      hy.elim (ha.2.2.1.trans ·.1) (hb.2.2.1.trans ·.1),
+      hy.elim (·.2.trans hb.2.2.2) (·.2.trans ha.2.2.2)⟩
 
 /-- Horizontal real segment membership is a one-dimensional interval test. -/
 theorem mem_horizontal {a b y : ℝ} {p : ℝ × ℝ} :
@@ -230,20 +214,11 @@ theorem realPoint_mem_segment_iff {a b p : Point} (h : a.1 = b.1 ∨ a.2 = b.2) 
     realPoint p ∈ segment a b ↔
       min a.1 b.1 ≤ p.1 ∧ p.1 ≤ max a.1 b.1 ∧
       min a.2 b.2 ≤ p.2 ∧ p.2 ≤ max a.2 b.2 := by
-  rcases a with ⟨ax, ay⟩
-  rcases b with ⟨bx, by'⟩
-  rcases p with ⟨px, py⟩
-  rcases h with h | h
-  · change ax = bx at h
-    subst bx
-    simp only [segment, realPoint, mem_vertical, Set.mem_uIcc]
-    norm_cast
-    omega
-  · change ay = by' at h
-    subst by'
-    simp only [segment, realPoint, mem_horizontal, Set.mem_uIcc]
-    norm_cast
-    omega
+  rcases a, b, p with ⟨⟨ax, ay⟩, ⟨bx, by'⟩, ⟨px, py⟩⟩
+  dsimp only at h
+  rcases h with rfl | rfl <;>
+    simp only [segment, realPoint, mem_vertical, mem_horizontal, Set.mem_uIcc] <;>
+    norm_cast <;> omega
 
 /-- Integer-point membership in an orthogonal route is an entirely integer-arithmetic test,
 while its meaning remains membership in the continuous real support. -/

@@ -94,15 +94,8 @@ theorem exists_twoSided_rectangleFree (n : ℕ) :
     (b := 1 / 4) (by norm_num) (by push_cast; norm_num; ring_nf; rfl)
   refine ⟨fun x => decide (x ∈ S), fun a => ?_⟩
   cases a
-  · have hset : {x | decide (x ∈ S) = false} = Sᶜ := by
-      ext x
-      simp
-    rw [hset]
-    exact hS.rectangleFree_compl (by norm_num) (by omega)
-  · have hset : {x | decide (x ∈ S) = true} = S := by
-      ext x
-      simp
-    rw [hset]
-    exact hS.rectangleFree (by norm_num) (by omega)
+  · exact (Set.ext fun _ => by simp : {x | decide (x ∈ S) = false} = Sᶜ) ▸
+      hS.rectangleFree_compl (by norm_num) (by omega)
+  · simpa only [decide_eq_true_eq, ofPred_mem_eq] using hS.rectangleFree (by norm_num) (by omega)
 
 end Cslib.Circuits.Frontier

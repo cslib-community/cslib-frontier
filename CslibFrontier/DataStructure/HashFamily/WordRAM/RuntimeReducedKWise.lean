@@ -12,6 +12,7 @@ public import CslibFrontier.DataStructure.HashFamily.WordRAM.RuntimeReducedKWise
 public import CslibFrontier.Tactic.WramOmega.Init
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.ValidProg
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -162,10 +163,8 @@ private theorem packOutLoop_spec {w w₀ b b' k scratchBase evalVal : ℕ} {s₀
           (and_two_pow_sub_one_lt _ b').trans_le (Nat.pow_le_pow_right two_pos hb'_le)
         refine ⟨⟨w₀, b, b', k, hb'_le, hc_lt, rfl, hfr_s, hm, hout_lt, Nat.sub_le _ _, by omega⟩,
           ?_, ?_, ?_, fun _ _ => ?_, ?_, ?_⟩
-        · dsimp only [packOutStepGenProg, hp, hpC_mk, hpMaskC_mk]
-          have hlt_m : scratchBase + m < s₀.frontier := by omega
-          split_ifs <;> exact ⟨hlt_m, trivial⟩
-        · dsimp only [packOutStepGenProg, hp, hpC_mk, hpMaskC_mk]; split_ifs <;> exact le_rfl
+        · dsimp only [packOutStepGenProg, hp, hpC_mk, hpMaskC_mk]; valid_prog; omega
+        · dsimp only [packOutStepGenProg, hp, hpC_mk, hpMaskC_mk]; prog_cost
         · dsimp only [packOutStepGenProg, hp, hpC_mk, hpMaskC_mk]; split_ifs <;> rfl
         · dsimp only [packOutStepGenProg, hp, hpC_mk, hpMaskC_mk]; split_ifs <;> rfl
         · dsimp only [packOutStepGenProg, hp, hpC_mk, hpMaskC_mk]; split_ifs <;> rfl
@@ -333,29 +332,19 @@ private theorem evalHashGenProg_aux {w U w₀ b b' k hashBase scratchBase : ℕ}
       by unfold ReducedKWise.space ReducedKWise.seedWords at hfr_h; omega,
       hα_eq ▸ θ.1.isLt, hu_lt_w0⟩,
     hsafe_z, hsafe_h, hsafe_p, ?_, ?_, ?_, by rw [hs'_eq, hfr_h2, hfr_z], fun a ha => ?_⟩
-  · rw [hprog_eq, validHistory_bind', hr_eq, hrk_state, validHistory_bind',
-      validHistory_bind', validHistory_bind']
-    have hv_rk : (Memory.spec w).ValidHistory s₀
+  · have hv_rk : (Memory.spec w).ValidHistory s₀
         ((Memory.spec w).clientHistory s₀ (reduceKeyGenProg (hp, hashBase, u.val))) := by
       change hashBase < s₀.frontier ∧ True
       exact ⟨by unfold ReducedKWise.space ReducedKWise.seedWords at hfr_h; omega, trivial⟩
-    exact ⟨hv_rk, hv_z, hv_h, hv_p, trivial⟩
-  · rw [hprog_eq, memoryCost_bind', hr_eq, hrk_state, memoryCost_bind', memoryCost_bind',
-      memoryCost_bind']
-    have hstep_bound :
+    rw [hprog_eq]
+    valid_prog [hv_rk, hv_z, hv_h, hv_p] with [hr_eq, hrk_state, hs_p]
+  · have hstep_bound :
         1 + 2 * rLimbs w₀ b b' + (1 + 5 * rLimbs w₀ b b') * rLimbs w₀ b b' +
           5 * rLimbs w₀ b b' ≤ 15014 := by nlinarith
     have hmul_bound := Nat.mul_le_mul_right k hstep_bound
     have hrk_cost : memoryCost (reduceKeyGenProg (hp, hashBase, u.val)) s₀ = 1 := rfl
-    have htail_cost : memoryCost (match (Memory.spec 0).clientResult s₂
-        (iterate packOutStepGenProg (hp, scratchBase) (rLimbs w₀ b b') (0, 0, b', 0)) with
-        | (_, out, _, _) => (pure out : Memory.Prog ℕ)) s₂ = 0 := rfl
-    change memoryCost (reduceKeyGenProg (hp, hashBase, u.val)) s₀ +
-      (memoryCost (iterate zeroWordsStepProg scratchBase (rLimbs w₀ b b') 0) s₀ +
-        (memoryCost (iterate hornerStepGenProg (hp, hashBase, scratchBase, r.val) k 0) s₁ +
-          (memoryCost (iterate packOutStepGenProg (hp, scratchBase) (rLimbs w₀ b b')
-            (0, 0, b', 0)) s₂ + _))) ≤ _
-    rw [hrk_cost, hs_p, htail_cost]
+    rw [hprog_eq]
+    prog_cost [hr_eq, hrk_state, hrk_cost, hs_p]
     wram_omega [hcost_h, hcost_p]
   · rw [hprog_eq, StateTransitionSpec.clientResult_bind, hr_eq, hrk_state,
       StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
@@ -396,11 +385,8 @@ theorem realizesBounded_evalHashGen :
     RealizesBounded .exact evalHashGenProg
       (WordEncoding.encode (α := HashParams × ℕ × ℕ × ℕ)) (WordEncoding.encode (α := ℕ))
       EvalHashGenPre (fun _ _ => 0) := by
-  have hrk := realizesBounded_reduceKeyGen
-  have hz := realizesBounded_zeroWordsStep
-  have hh := realizesBounded_hornerStepGen
-  have hp_cert := realizesBounded_packOutStepGen
-  realize
+  realize [realizesBounded_reduceKeyGen, realizesBounded_zeroWordsStep,
+    realizesBounded_hornerStepGen, realizesBounded_packOutStepGen]
   all_goals (
     rcases d with ⟨hp, hashBase, scratchBase, uVal⟩
     obtain ⟨U, w₀, b, b', k, θ, u, hw₀_pos, hw₀, hU, hb', hk_pos, hc_lt, rfl, rfl,

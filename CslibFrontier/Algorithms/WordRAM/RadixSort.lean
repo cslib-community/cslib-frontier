@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.RadixSort.Deduplicate
 public import CslibFrontier.Computability.WordRAM.Time
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Fixed-code native sorting and multiplicity construction from machine input
@@ -53,18 +54,10 @@ def layoutWidth (n : ℕ) : ℕ := logWidth 3 (n + 1)
 /-- Four array blocks and both initialization constants fit at the layout-width threshold.
 This does not by itself bound input key magnitudes. -/
 theorem layout_fits (n : ℕ) : Fits (layoutWidth n) (1 + 4 * n) ∧ Fits (layoutWidth n) 2 := by
-  have hs : 4 ≤ (n + 2) ^ 2 := Nat.pow_le_pow_left (show 2 ≤ n + 2 by omega) 2
-  have hm := Nat.mul_le_mul_right (n + 2) hs
-  have hp : 4 * (n + 2) ≤ (n + 2) ^ 3 := by simpa only [Nat.pow_succ] using hm
-  constructor
-  · apply fits_of_lt_pow
-    have he : n + 1 + 1 = n + 2 := by omega
-    rw [he]
-    omega
-  · apply fits_of_lt_pow
-    have he : n + 1 + 1 = n + 2 := by omega
-    rw [he]
-    omega
+  have hp : 4 * (n + 2) ≤ (n + 1 + 1) ^ 3 := by
+    simpa only [Nat.pow_succ] using
+      Nat.mul_le_mul_right (n + 2) (Nat.pow_le_pow_left (Nat.le_add_left 2 n) 2)
+  exact ⟨fits_of_lt_pow (by omega), fits_of_lt_pow (by omega)⟩
 
 /-- Execute the complete finite native program on the standard input convention. The bound
 includes the final halt and every setup/address/control instruction. Input fit and the explicit
@@ -84,23 +77,18 @@ theorem input_exec {w : ℕ} (xs : List ℕ) (hinput : InputFits w xs)
       (∀ p ∈ rs, 0 < p.2 ∧ xs.count p.1 = p.2) ∧
       Modifies (Block.mk 1 (4 * xs.length)).footprint (Data.init xs : Data 16).mem y.mem := by
   let x := Data.init xs (r := 16)
-  have h1 := h2.of_le (show 1 ≤ 2 by omega)
-  have had : Fits w (1 + xs.length) := hfit.of_le (by omega)
   let u := ((((x.set addr 0).set len xs.length).set src 1).set dst (1 + xs.length)).set bits w
   have hi : ExecWithin w
       (ram[ addr ← #0; len ← *addr; src ← #1; dst ← src + len; bits ← width% ]) x u 5 := by
-    ram_eval [u, x, Data.init_mem_zero, h1, had]
-  have hn : u.regs len = xs.length := by simp +decide [u]
-  have hs : u.regs src = 1 := by simp +decide [u]
-  have hd : u.regs dst = 1 + xs.length := by simp +decide [u]
-  have hb : u.regs bits = w := by simp [u]
+    wram_exec [x, Data.init_mem_zero]
   have hm : Block.HoldsList 1 xs u.mem := by
     intro i
     change (Data.init xs : Data 16).mem (1 + i.val) = xs[i.val]
     rw [Nat.add_comm, Data.init_mem_succ]
     simp only [List.getD, List.getElem?_eq_getElem i.isLt, Option.getD_some]
   obtain ⟨y, rs, he, hyout, hyrk, hyrc, hnodup, hordered, hset, hcount, hframe⟩ :=
-    deduplicate_exec xs u hn hs hd hb hm hinput.2 hinput.2 hfit (fits_self w) h2
+    deduplicate_exec xs u (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+      hm hinput.2 hinput.2 hfit (fits_self w) h2
   obtain ⟨steps, hsteps, hexec⟩ := hi.seq he
   refine ⟨y, rs, steps, hexec, ?_, by omega, hyrk, hyrc, hnodup, hordered, hset, hcount, hframe⟩
   simpa only [program, inputCode, hyout, State.init, x] using hexec.executes Deduplicate.out

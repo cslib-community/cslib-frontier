@@ -63,23 +63,15 @@ public theorem exec_tileArguments {w L m N Q t a b : ℕ} (x : Data 160)
     dsimp only [C, B, H, BandPreparation.memoryEnd] at *
     omega
   have hcodes : codeBase L m N Q + Q ≤ memoryEnd L m N Q := by
-    have h10 := Nat.zero_le H
-    unfold memoryEnd stampBase scratchBase outputBase groupedBase originalBase
-    omega
+    unfold memoryEnd stampBase scratchBase outputBase groupedBase originalBase; omega
   have hgroups : groupedBase L m N Q + Q ≤ memoryEnd L m N Q := by
-    unfold memoryEnd stampBase scratchBase outputBase
-    have h10 := Nat.zero_le (10 ^ L)
-    omega
+    unfold memoryEnd stampBase scratchBase outputBase; omega
   have htiles : offsetBase L m N Q + B ^ 2 + 1 ≤ memoryEnd L m N Q := by
-    dsimp only [B]
-    unfold codeBase at hcodes
-    omega
-  have foffset : Fits w (offsetBase L m N Q + t) := allocated_fits hfit (by
-    dsimp only [B] at *
-    omega)
-  have fnext : Fits w (offsetBase L m N Q + t + 1) := allocated_fits hfit (by
-    dsimp only [B] at *
-    omega)
+    dsimp only [B]; unfold codeBase at hcodes; omega
+  have foffset : Fits w (offsetBase L m N Q + t) :=
+    allocated_fits hfit (by dsimp only [B] at *; omega)
+  have fnext : Fits w (offsetBase L m N Q + t + 1) :=
+    allocated_fits hfit (by dsimp only [B] at *; omega)
   have frow : Fits w (t / B) := allocated_fits hfit (by nlinarith only [hr, hH, horder])
   have fcol : Fits w (t % B) := allocated_fits hfit (by nlinarith only [hc, hH, horder])
   have frowH : Fits w (t / B * H) := allocated_fits hfit (by nlinarith only [hrH, horder])
@@ -91,32 +83,13 @@ public theorem exec_tileArguments {w L m N Q t a b : ℕ} (x : Data 160)
   have fq : Fits w (codeBase L m N Q + a) := allocated_fits hfit (by omega)
   have fo : Fits w (groupedBase L m N Q + a) := allocated_fits hfit (by omega)
   have fn : Fits w (b - a) := allocated_fits hfit (by omega)
-  let y := (((((((((((((((((((((x.set Reg.address (offsetBase L m N Q + t)).set Reg.first a).set
-    Reg.address (offsetBase L m N Q + t + 1)).set Reg.stop b).set Reg.rowBand (t / B)).set
-    Reg.colBand (t % B)).set Reg.leftPointer (t / B * H)).set Reg.leftPointer (t / B * H + C)).set
-    Reg.rightPointer (t % B + B)).set Reg.rightPointer ((t % B + B) * H)).set Reg.rightPointer
-    ((t % B + B) * H + C)).set Reg.queryPointer (codeBase L m N Q + a)).set Reg.answerPointer
-    (groupedBase L m N Q + a)).set (bank PrunedQuery.inputDepth) L).set
-    (bank PrunedQuery.arrayA) (t / B * H + C)).set (bank PrunedQuery.arrayB)
-    ((t % B + B) * H + C)).set (bank PrunedQuery.queries) (codeBase L m N Q + a)).set
-    (bank PrunedQuery.queryCount) (b - a)).set (bank PrunedQuery.output)
-    (groupedBase L m N Q + a)).set (bank PrunedQuery.scratch) (scratchBase L m N Q)).set
-    (bank PrunedQuery.epoch) (x.regs Reg.epoch))
-  have he : ExecWithin w tileArguments x y 21 := by
-    ram_eval [tileArguments, y, hp.offsets, hp.one, hp.bands, hp.leaves, hp.catalogue,
-      hp.codes, hp.grouped, hp.depth, hp.scratch, hx, ha, hb, foffset, fnext, frow, fcol,
-      frowH, fleft, fcb, fcbH, fright, fq, fo, fn, B, H, C, bank, Fin.val_ofNat,
-      PrunedQuery.inputDepth, PrunedQuery.arrayA, PrunedQuery.arrayB, PrunedQuery.queries,
-      PrunedQuery.queryCount, PrunedQuery.output, PrunedQuery.scratch, PrunedQuery.epoch,
-      Reg.address, Reg.offsets, Reg.index, Reg.first, Reg.stop, Reg.one, Reg.rowBand, Reg.colBand,
-      Reg.bands, Reg.leftPointer, Reg.rightPointer, Reg.leaves, Reg.catalogue, Reg.queryPointer,
-      Reg.answerPointer, Reg.codes, Reg.grouped, Reg.depth, Reg.scratch, Reg.epoch, Fin.mk.injEq]
-  have yp : Parameters L m N Q y := by regs_frame
-  refine ⟨y, he, yp, rfl, ?_⟩
-  simp +decide [y, Data.comap_regs, hx, B, H, C, bank,
-    PrunedQuery.inputDepth, PrunedQuery.arrayA, PrunedQuery.arrayB, PrunedQuery.queries,
-    PrunedQuery.queryCount, PrunedQuery.output, PrunedQuery.scratch, PrunedQuery.epoch,
-    Reg.address, Reg.first, Reg.stop, Reg.rowBand, Reg.colBand, Reg.leftPointer, Reg.rightPointer,
-    Reg.queryPointer, Reg.answerPointer, Reg.index, Reg.epoch, Nat.add_comm]
+  dsimp only [B, H, C] at frow fcol frowH fleft fcb fcbH fright
+  refine WP.exists_execWithin ?_
+  unfold tileArguments
+  wram_exec * [ha, hb, foffset, fnext, frow, fcol, frowH, fleft, fcb, fcbH, fright, fq, fo, fn]
+  refine ⟨by regs_frame, rfl, ?_⟩
+  simp only [Data.comap_regs]
+  wram_simp [hx]
+  exact ⟨by ring, by ring⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct

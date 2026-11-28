@@ -71,7 +71,11 @@ namespace Cslib.Circuits.Frontier.Gaussian.PairBound
 /-- Rational kernel decay ratio `7071 / 10000` (`≈ 1 / √2`, with `2 * rawRatio ^ 2 < 1`). -/
 @[expose] noncomputable def rawRatio : ℝ := 7071 / 10000
 
-theorem rawRatio_nonneg : 0 ≤ rawRatio := by norm_num [rawRatio]
+theorem rawRatio_pos : 0 < rawRatio := by norm_num [rawRatio]
+
+private theorem profileScale_pos (d : ℕ) :
+    0 < (7071 : ℝ) ^ 2 * (10000 : ℝ) ^ 2 / rawRatio ^ d :=
+  div_pos (by norm_num) (pow_pos rawRatio_pos _)
 
 /-- Unnormalized sum of the kernel rows of the two endpoints of `e` in `G.toSimpleGraph`. -/
 noncomputable def rawSum {V E : Type*} (G : Multigraph V E) (q : ℝ) (R : ℕ) (e : E) :
@@ -249,7 +253,7 @@ private def diffToFin3 (a b : ℕ) : Fin 3 :=
 private theorem pkInt_step {du dw : ℕ} (h : dw ≤ du + 1 ∧ du ≤ dw + 1) :
     (pkInt ⟨(diffToFin3 du dw : ℕ) + 1, by omega⟩ : ℝ) =
       (7071 : ℝ) ^ 2 * (10000 : ℝ) ^ 2 * rawRatio ^ dw / rawRatio ^ du := by
-  have hr : (0 : ℝ) < rawRatio := by norm_num [rawRatio]
+  have hr := rawRatio_pos
   unfold diffToFin3
   split_ifs with h1 h2
   · subst h1
@@ -270,7 +274,7 @@ private theorem pkInt_two_step {du dv dw : ℕ}
     (huv : dv ≤ du + 1 ∧ du ≤ dv + 1) (hvw : dw ≤ dv + 1 ∧ dv ≤ dw + 1) :
     (pkInt ⟨(diffToFin3 du dv : ℕ) + (diffToFin3 dv dw : ℕ), by omega⟩ : ℝ) =
       (7071 : ℝ) ^ 2 * (10000 : ℝ) ^ 2 * rawRatio ^ dw / rawRatio ^ du := by
-  have hr : (0 : ℝ) < rawRatio := by norm_num [rawRatio]
+  have hr := rawRatio_pos
   unfold diffToFin3
   split_ifs
   · have heq : du = dw + 2 := by omega
@@ -322,7 +326,7 @@ private theorem pkInt_two_step {du dv dw : ℕ}
 private theorem starEntry_eq {du dw : ℕ} (h : dw ≤ du + 1 ∧ du ≤ dw + 1) :
     (starEntry (diffToFin3 du dw) : ℝ) =
       ((7071 : ℝ) ^ 2 * (10000 : ℝ) ^ 2 / rawRatio ^ du) * (rawRatio ^ du + rawRatio ^ dw) := by
-  have hr : (0 : ℝ) < rawRatio := by norm_num [rawRatio]
+  have hr := rawRatio_pos
   rw [starEntry, Int.cast_add, pkInt_cast 2, show ((2 : Fin 5) : ℤ) - 2 = 0 by decide, zpow_zero,
     mul_one, pkInt_step h]
   field_simp
@@ -331,7 +335,7 @@ private theorem shiftEntry_eq {du dv dw : ℕ}
     (huv : dv ≤ du + 1 ∧ du ≤ dv + 1) (hvw : dw ≤ dv + 1 ∧ dv ≤ dw + 1) :
     (shiftEntry (diffToFin3 du dv) (diffToFin3 dv dw) : ℝ) =
       ((7071 : ℝ) ^ 2 * (10000 : ℝ) ^ 2 / rawRatio ^ du) * (rawRatio ^ dv + rawRatio ^ dw) := by
-  have hr : (0 : ℝ) < rawRatio := by norm_num [rawRatio]
+  have hr := rawRatio_pos
   rw [shiftEntry, Int.cast_add, pkInt_step huv, pkInt_two_step huv hvw]
   field_simp
 
@@ -545,7 +549,7 @@ private theorem sum_ext_rawSum_sq_le [Finite E] (hloop : G.Loopless) (hdeg : G.M
   have hpt (z : V) (hz : ¬H.edist u z ≤ ((R - 2 : ℕ) : ℕ∞)) :
       rawSum G rawRatio R e' z ^ 2 ≤
         (if z ∈ S4 then (1 : ℝ) else 0) * (4 * (rawRatio ^ 2) ^ (R - 3)) := by
-    have hq0 : 0 ≤ rawRatio := rawRatio_nonneg
+    have hq0 : 0 ≤ rawRatio := rawRatio_pos.le
     have hq1 : rawRatio ≤ 1 := by norm_num [rawRatio]
     by_cases hle : H.edist u z ≤ ((R + 2 : ℕ) : ℕ∞)
     · have hed : H.edist u z = H.dist u z :=
@@ -687,8 +691,8 @@ private theorem inner_rawEdgeVector_mul_norms (R : ℕ) (e1 e2 : E) :
     ⟪rawEdgeVector G rawRatio R e1, rawEdgeVector G rawRatio R e2⟫ *
         (‖rawSum G rawRatio R e1‖ * ‖rawSum G rawRatio R e2‖) =
       ∑ z : V, rawSum G rawRatio R e1 z * rawSum G rawRatio R e2 z := by
-  have h1 := one_le_norm_rawSum (G := G) rawRatio_nonneg R e1
-  have h2 := one_le_norm_rawSum (G := G) rawRatio_nonneg R e2
+  have h1 := one_le_norm_rawSum (G := G) rawRatio_pos.le R e1
+  have h2 := one_le_norm_rawSum (G := G) rawRatio_pos.le R e2
   have hlhs : ⟪rawEdgeVector G rawRatio R e1, rawEdgeVector G rawRatio R e2⟫ *
         (‖rawSum G rawRatio R e1‖ * ‖rawSum G rawRatio R e2‖) =
       ⟪rawSum G rawRatio R e1, rawSum G rawRatio R e2⟫ := by
@@ -699,7 +703,7 @@ private theorem inner_rawEdgeVector_mul_norms (R : ℕ) (e1 e2 : E) :
 
 private theorem inner_rawEdgeVector_le_one (R : ℕ) (e1 e2 : E) :
     ⟪rawEdgeVector G rawRatio R e1, rawEdgeVector G rawRatio R e2⟫ ≤ 1 := by
-  simpa [norm_rawEdgeVector rawRatio_nonneg R] using
+  simpa [norm_rawEdgeVector rawRatio_pos.le R] using
     real_inner_le_norm (rawEdgeVector G rawRatio R e1) (rawEdgeVector G rawRatio R e2)
 
 omit [Fintype V] in
@@ -727,10 +731,10 @@ private theorem le_inner_rawEdgeVector_of_intBall [Finite E] (hloop : G.Loopless
       ∑ z ∈ extBall G R w, rawSum G rawRatio R e z ^ 2 ≤ 36 / 10 ^ 8 := by
     classical exact (sum_ext_rawSum_sq_le hloop hdeg hR w hv he).trans herr
   have hext_nn : 0 ≤ ∑ z ∈ extBall G R w, rawSum G rawRatio R e1 z * rawSum G rawRatio R e2 z :=
-    sum_nonneg fun z _ => mul_nonneg (rawSum_nonneg rawRatio_nonneg R e1 z)
-      (rawSum_nonneg rawRatio_nonneg R e2 z)
-  have hn1 := one_le_norm_rawSum (G := G) rawRatio_nonneg R e1
-  have hn2 := one_le_norm_rawSum (G := G) rawRatio_nonneg R e2
+    sum_nonneg fun z _ => mul_nonneg (rawSum_nonneg rawRatio_pos.le R e1 z)
+      (rawSum_nonneg rawRatio_pos.le R e2 z)
+  have hn1 := one_le_norm_rawSum (G := G) rawRatio_pos.le R e1
+  have hn2 := one_le_norm_rawSum (G := G) rawRatio_pos.le R e2
   have hnorm (e : E) : ‖rawSum G rawRatio R e‖ ^ 2 =
       ∑ z ∈ intBall G R w, rawSum G rawRatio R e z ^ 2 +
         ∑ z ∈ extBall G R w, rawSum G rawRatio R e z ^ 2 := by
@@ -786,10 +790,7 @@ private theorem le_inner_rawEdgeVector_same [Finite E] (hloop : G.Loopless)
             (starEntry (diffToFin3 (G.toSimpleGraph.dist w z) (G.toSimpleGraph.dist w2 z)) : ℝ)) :=
       by exact_mod_cast samePair9_int _ _
     rw [starEntry_eq hs1, starEntry_eq hs2, ← hf1, ← hf2] at hi
-    have hsc : 0 < (7071 : ℝ) ^ 2 * (10000 : ℝ) ^ 2 / rawRatio ^ G.toSimpleGraph.dist w z := by
-      have : 0 < rawRatio := by norm_num [rawRatio]
-      positivity
-    exact pair_scale hsc hi
+    exact pair_scale (profileScale_pos (G.toSimpleGraph.dist w z)) hi
   exact le_trans (by norm_num) (le_inner_rawEdgeVector_of_intBall hloop hdeg hR hsmall
     hw_self he1 hw_self he2 (c := 942806 / 1000000) (by norm_num) (by norm_num) hint_z)
 
@@ -798,7 +799,7 @@ private theorem isAdmissibleStar_rawEdgeVector [Finite E] (hloop : G.Loopless)
     (hsmall : (2 * rawRatio ^ 2) ^ (R - 3) ≤ (1 : ℝ) / 10 ^ 9)
     (u : V) (f : Fin 3 → E) (hf : ∀ i, f i ∈ G.incidenceSet u) :
     IsAdmissibleStar (fun i => rawEdgeVector G rawRatio R (f i)) := by
-  have hq0 := rawRatio_nonneg
+  have hq0 := rawRatio_pos.le
   have hu_self : G.toSimpleGraph.edist u u ≤ 1 := by simp
   refine ⟨fun i => norm_rawEdgeVector hq0 R (f i),
     le_inner_rawEdgeVector_same hloop hdeg hR hsmall (hf 0) (hf 1),
@@ -847,9 +848,7 @@ private theorem isAdmissibleStar_rawEdgeVector [Finite E] (hloop : G.Loopless)
               (starEntry (diffToFin3 (G.toSimpleGraph.dist u z) (G.toSimpleGraph.dist w2 z)) :
                 ℝ)) := by exact_mod_cast star27_int _ _ _
     rw [starEntry_eq hs0, starEntry_eq hs1, starEntry_eq hs2, ← hf0, ← hf1, ← hf2] at hi
-    have hsc : 0 < (7071 : ℝ) ^ 2 * (10000 : ℝ) ^ 2 / rawRatio ^ G.toSimpleGraph.dist u z := by
-      have : 0 < rawRatio := by norm_num [rawRatio]
-      positivity
+    have hsc := profileScale_pos (G.toSimpleGraph.dist u z)
     set sc := (7071 : ℝ) ^ 2 * (10000 : ℝ) ^ 2 / rawRatio ^ G.toSimpleGraph.dist u z
     have hid : sc ^ 2 * ((957104 / 1000000 : ℝ) * (rawSum G rawRatio R (f 0) z ^ 2 +
           rawSum G rawRatio R (f 1) z ^ 2 + rawSum G rawRatio R (f 2) z ^ 2) -
@@ -971,10 +970,7 @@ private theorem le_inner_rawEdgeVector_adj [Finite E] (hloop : G.Loopless)
               (diffToFin3 (G.toSimpleGraph.dist v z) (G.toSimpleGraph.dist wv z)) : ℝ)) := by
       exact_mod_cast crossPair27_int _ _ _
     rw [starEntry_eq hsu, shiftEntry_eq hsv hsvw, ← hfu, ← hfv] at hi
-    have hsc : 0 < (7071 : ℝ) ^ 2 * (10000 : ℝ) ^ 2 / rawRatio ^ G.toSimpleGraph.dist u z := by
-      have : 0 < rawRatio := by norm_num [rawRatio]
-      positivity
-    exact pair_scale hsc hi
+    exact pair_scale (profileScale_pos (G.toSimpleGraph.dist u z)) hi
   exact le_trans (by norm_num) (le_inner_rawEdgeVector_of_intBall hloop hdeg hR hsmall
     hu_self heu huv_ed hev (c := 799990 / 1000000) (by norm_num) (by norm_num) hint_z)
 
@@ -1012,7 +1008,7 @@ private theorem isAdmissiblePair_rawEdgeVector [Finite E] (hloop : G.Loopless)
     (h0 : f 0 ∈ G.incidenceSet (G.src e)) (h1 : f 1 ∈ G.incidenceSet (G.src e))
     (h2 : f 2 ∈ G.incidenceSet (G.tgt e)) (h3 : f 3 ∈ G.incidenceSet (G.tgt e)) :
     IsAdmissiblePair (fun i => rawEdgeVector G rawRatio R (f i)) := by
-  have hq0 := rawRatio_nonneg
+  have hq0 := rawRatio_pos.le
   have huv : G.toSimpleGraph.Adj (G.src e) (G.tgt e) :=
     Multigraph.toSimpleGraph_adj.mpr ⟨hloop e, e, rfl⟩
   have hu_self : G.toSimpleGraph.edist (G.src e) (G.src e) ≤ 1 := by simp
@@ -1124,11 +1120,7 @@ private theorem isAdmissiblePair_rawEdgeVector [Finite E] (hloop : G.Loopless)
         linarith
       rw [starEntry_eq hsa, starEntry_eq hsb, shiftEntry_eq hsv hsc, shiftEntry_eq hsv hsd,
         ← hfa, ← hfb, ← hfc, ← hfd] at hreal
-      have hsc_pos : 0 < (7071 : ℝ) ^ 2 * (10000 : ℝ) ^ 2 /
-          rawRatio ^ G.toSimpleGraph.dist (G.src e) z := by
-        have : 0 < rawRatio := by norm_num [rawRatio]
-        positivity
-      exact h243_scale hsc_pos hσ hreal
+      exact h243_scale (profileScale_pos (G.toSimpleGraph.dist (G.src e) z)) hσ hreal
     have hsum_int := sum_le_sum hint_z
     have hext_pt : ∀ z ∈ extBall G R (G.src e),
         -((rawSum G rawRatio R (f 0) z * rawSum G rawRatio R (f 1) z +

@@ -55,8 +55,7 @@ theorem NodeWrites.child_subset {p k a b out scratch frames frame d : ℕ}
     (h : NodeWrites p k (scratch + 2 * (4 ^ k * p)) (scratch + 3 * (4 ^ k * p))
       frames (frame + 7) d) : NodeWrites p (k + 1) out scratch frames frame d := by
   have hs := hl.scratch_before
-  have hsize : 4 ^ (k + 1) * p = 4 * (4 ^ k * p) := by rw [pow_succ]; ring
-  rw [hsize] at hs
+  rw [show 4 ^ (k + 1) * p = 4 * (4 ^ k * p) by rw [pow_succ]; ring] at hs
   unfold NodeWrites at h ⊢
   omega
 
@@ -68,8 +67,7 @@ theorem NodeLayout.outside_stage {p k a b out scratch frames frame d : ℕ}
       (d < scratch ∨ scratch + 2 * (4 ^ k * p) ≤ d) ∧
       (d < frame + 6 ∨ frame + 14 ≤ d) := by
   have hs := hl.scratch_before
-  have hsize : 4 ^ (k + 1) * p = 4 * (4 ^ k * p) := by rw [pow_succ]; ring
-  rw [hsize] at hs
+  rw [show 4 ^ (k + 1) * p = 4 * (4 ^ k * p) by rw [pow_succ]; ring] at hs
   unfold NodeWrites at h
   omega
 
@@ -99,19 +97,11 @@ theorem PendingChild.after_result {p k a b out scratch frames frame : ℕ}
     apply hr.outside
     unfold NodeWrites
     omega
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · intro j hj
-    rw [hbelow _ (by omega)]
-    exact h.original_left j hj
-  · intro j hj
-    rw [hbelow _ (by omega)]
-    exact h.original_right j hj
-  · intro t j hj
-    have ht := Nat.mul_le_mul_right (4 ^ k * p) (Nat.succ_le_of_lt t.isLt)
-    rw [Nat.succ_mul, ← hsize] at ht
-    rw [hbelow _ (by omega)]
-    exact h.partial_words t j hj
-  · exact hr.values
+  refine ⟨fun j hj => (hbelow _ (by omega)).trans (h.original_left j hj),
+    fun j hj => (hbelow _ (by omega)).trans (h.original_right j hj), fun t j hj => ?_, hr.values⟩
+  have ht := Nat.mul_le_mul_right (4 ^ k * p) (Nat.succ_le_of_lt t.isLt)
+  rw [Nat.succ_mul, ← hsize] at ht
+  exact (hbelow _ (by omega)).trans (h.partial_words t j hj)
 
 /-- The actual first controller iteration establishes the first pending child from original
 parent coefficient arrays and its actual freshly written frame, even with dirty output. -/
@@ -137,7 +127,7 @@ theorem exec_first_pending {w p k A B a b out scratch frames frame : ℕ}
   obtain ⟨hleft', hright'⟩ := hl.inputs_of_stage memory
   refine ⟨y, he, ⟨ready, leftValues, rightValues,
     fun j hj => (hleft' j hj).trans (hleft j hj),
-    fun j hj => (hright' j hj).trans (hright j hj), ?_, ?_⟩, ?_⟩
+    fun j hj => (hright' j hj).trans (hright j hj), ?_, ?_⟩, fun d hd => ?_⟩
   · intro t j hj
     have ht := Nat.mul_le_mul_right (4 ^ k * p) (Nat.succ_le_of_lt t.isLt)
     rw [Nat.succ_mul] at ht
@@ -147,14 +137,12 @@ theorem exec_first_pending {w p k A B a b out scratch frames frame : ℕ}
     rfl
   · intro j
     by_cases heq : j.val = 6
-    · have hj : j = 6 := Fin.ext heq
-      subst j
+    · obtain rfl : j = 6 := Fin.ext heq
       simpa using parentPhase
     · rw [ite_eq_right heq, memory _ (Or.inr (by omega)) (Or.inr (by rw [hsize] at hs; omega))
         (Or.inl (by omega))]
       exact hx.frame_words j
-  · intro d hd
-    obtain ⟨ho', hs', hf'⟩ := hl.outside_stage hd
+  · obtain ⟨ho', hs', hf'⟩ := hl.outside_stage hd
     exact memory d ho' hs' hf'
 
 end Cslib.Algorithms.WordRAM.Strassen

@@ -9,9 +9,12 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.WindowOps
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctHash
+-- Unfolds unexposed `Memory.Prog` bodies in `WindowOps` (`winGrowRightGenProg`..).
+import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.WindowOps
 import CslibFrontier.DataStructure.Dictionary.WordRAM.PackedSlice
 import CslibFrontier.Tactic.StrideOmega
 import CslibFrontier.Tactic.WramOmega
+import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # Metadata Frame Laws, Circular-Window Effects, and Compacted Slot Resolution
@@ -22,9 +25,10 @@ metadata and circular-window invariants in `Compaction.lean` and `SuccinctHash.l
   `compDTAt`, `compQuotAt`, and `compValAt`;
 * state-transition specifications for `winGrowRightGenProg`, `winGrowLeftGenProg`,
   `winShrinkRightGenProg`, and `winShrinkLeftGenProg`;
-* register-width bounds `fits_mkCompParams` and `fits_const_of_compMetaEnv`;
+* register-width bounds `fits_mkCompParams` and `fits_const_of_offCompItems`;
 * compacted slot-resolution and owner-bucket recovery operations (`readCompBucketCountGenProg`,
-  `recoverOwnerBucketGenProg`) and bijection `reconstructKeyAt_spec`.
+  `recoverOwnerBucketGenProg`) and mathematical key reconstruction `reconstructKeyAt` (whose
+  bijection `reconstructKeyAt_spec` is proved in `InEpoch.lean`).
 
 ## Main definitions
 
@@ -38,7 +42,6 @@ metadata and circular-window invariants in `Compaction.lean` and `SuccinctHash.l
 * `winGrowRightGenProg_effect`, `winGrowLeftGenProg_effect`, `winShrinkRightGenProg_effect`,
   `winShrinkLeftGenProg_effect`: circular-window effect laws on `Memory.State`.
 * `fits_mkCompParams`: all 36 words of `mkCompParams U V w N` fit in `w` bits.
-* `reconstructKeyAt_spec`: dense slots `[0, n)` reconstruct `s_abs` bijectively.
 
 ## References
 
@@ -61,8 +64,9 @@ open Cslib.DataStructure.HashFamily.WordRAM
 
 attribute [local simp] Realization.memoryCost_bind'
 attribute [local simp] prog_clientResult_bind prog_runClient_state_bind prog_clientResult_pure
-attribute [local simp] prog_runClient_state_pure prog_clientResult_map prog_runClient_state_map
-attribute [local simp] prog_memoryCost_map prog_clientResult_read prog_runClient_state_read
+attribute [local simp] prog_runClient_state_pure StateTransitionSpec.clientResult_map
+  StateTransitionSpec.fst_snd_runClient_map
+attribute [local simp] Realization.memoryCost_map prog_clientResult_read prog_runClient_state_read
 attribute [local simp] prog_memoryCost_read prog_clientResult_write prog_runClient_state_write
 attribute [local simp] prog_memoryCost_write
 
@@ -780,5 +784,269 @@ theorem realizesBounded_recoverOwnerBucketGen :
   let b := ownerBucketOfDense N (compGmAt metaBase U w N mem) (compDTAt metaBase U w N mem) d
   let q := compQuotAt itemBase U V w N n mem d
   feistelReconstruct (bucketBits N) (hValOfSeed U N θ) b q
+
+/-! ## Section 5: `ValidProg w 0` Admissibility for Metadata and Window Primitives -/
+
+theorem validProg_readCompQuotGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {s : Memory.State}
+    (h : ReadCompQuotPre w d s) : ValidProg w 0 s (readCompQuotGenProg d) :=
+  fun _ => validHistory_readCompQuotGen h
+
+theorem validProg_writeCompQuotGen {w : ℕ} {d : ((CompParams × ℕ) × ℕ) × ℕ} {s : Memory.State}
+    (h : WriteCompQuotPre w d s) : ValidProg w 0 s (writeCompQuotGenProg d) :=
+  fun hm => validHistory_writeCompQuotGen hm.1 h
+
+theorem validProg_readCompValGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {s : Memory.State}
+    (h : ReadCompValPre w d s) : ValidProg w 0 s (readCompValGenProg d) :=
+  fun _ => validHistory_readCompValGen h
+
+theorem validProg_writeCompValGen {w : ℕ} {d : ((CompParams × ℕ) × ℕ) × ℕ} {s : Memory.State}
+    (h : WriteCompValPre w d s) : ValidProg w 0 s (writeCompValGenProg d) :=
+  fun hm => validHistory_writeCompValGen hm.1 h
+
+theorem validProg_copyCompItemGen {w : ℕ} {d : (CompParams × ℕ) × (ℕ × ℕ)} {s : Memory.State}
+    (h : CopyCompItemPre w d s) : ValidProg w 0 s (copyCompItemGenProg d) := by
+  rcases d with ⟨⟨cp, itemBase⟩, ⟨src, dst⟩⟩
+  obtain ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hsrc, hdst⟩ := h
+  have henv : ∀ s' : Memory.State, s'.frontier = s.frontier →
+      CompItemEnv w (mkCompParams U V w N) itemBase m_items s' :=
+    fun s' hs' => ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hs' ▸ hfr⟩
+  unfold copyCompItemGenProg
+  refine validProg_bind (validProg_readCompQuotGen ⟨m_items, henv s rfl, hsrc⟩) ?_
+  rw [clientState_readCompQuotGenProg]
+  refine validProg_bind (validProg_readCompValGen ⟨m_items, henv s rfl, hsrc⟩) ?_
+  rw [clientState_readCompValGenProg]
+  refine validProg_bind (validProg_writeCompQuotGen ⟨m_items, henv s rfl, hdst⟩) ?_
+  exact validProg_writeCompValGen ⟨m_items, henv _ (by rw [clientState_writeCompQuotGenProg]), hdst⟩
+
+theorem validProg_clearCompItemGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {s : Memory.State}
+    (h : ReadCompQuotPre w d s) : ValidProg w 0 s (clearCompItemGenProg d) := by
+  rcases d with ⟨⟨cp, itemBase⟩, idx⟩
+  obtain ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
+  unfold clearCompItemGenProg; simp only [pure_bind]
+  refine validProg_bind
+    (validProg_writeCompQuotGen ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩) ?_
+  exact validProg_writeCompValGen ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl,
+    by rw [clientState_writeCompQuotGenProg]; exact hfr⟩, hidx⟩
+
+theorem validProg_readCompLMGen (c : Fin 9) {w : ℕ} {d : (CompParams × ℕ) × ℕ} {s : Memory.State}
+    (h : CompLMPre w d s) : ValidProg w 0 s (readCompLMGenProg c d) := by
+  rcases d with ⟨⟨cp, metaBase⟩, idx⟩
+  obtain ⟨⟨U, V, N, hw, _hN, hnU, hU, _hV, rfl, hfr⟩, hidx⟩ := h
+  intro _
+  unfold readCompLMGenProg; simp only [pure_bind, cpOffLMSub_mk, cpLmBits_mk, cpW_mk]
+  have hmul : (c.val + 1) * lmSubWords N w ≤ 9 * lmSubWords N w :=
+    Nat.mul_le_mul_right _ c.isLt
+  rw [Nat.add_one_mul] at hmul
+  refine validHistory_readPackedCompGen ⟨totalMicroBuckets N, hw, rfl,
+    effBucketPosBits_le_of_lt_pow hnU hU, hidx, ?_⟩
+  unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLMSub offCompLM lmSubWords at *
+  omega
+
+theorem validProg_writeCompLMGen (c : Fin 9) {w : ℕ} {d : ((CompParams × ℕ) × ℕ) × ℕ}
+    {s : Memory.State} (h : WriteCompLMPre w d s) : ValidProg w 0 s (writeCompLMGenProg c d) := by
+  rcases d with ⟨⟨⟨cp, metaBase⟩, idx⟩, val⟩
+  obtain ⟨⟨U, V, N, hw, _hN, hnU, hU, _hV, rfl, hfr⟩, hidx⟩ := h
+  intro hm
+  unfold writeCompLMGenProg; simp only [pure_bind, cpOffLMSub_mk, cpLmBits_mk, cpW_mk]
+  have hmul : (c.val + 1) * lmSubWords N w ≤ 9 * lmSubWords N w :=
+    Nat.mul_le_mul_right _ c.isLt
+  rw [Nat.add_one_mul] at hmul
+  refine validHistory_writePackedCompGen hm.1 ⟨totalMicroBuckets N, hw, rfl,
+    effBucketPosBits_le_of_lt_pow hnU hU, hidx, ?_⟩
+  unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLMSub offCompLM lmSubWords at *
+  omega
+
+theorem validProg_readCompGMGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {s : Memory.State}
+    (h : CompGMPre w d s) : ValidProg w 0 s (readCompGMGenProg d) := by
+  rcases d with ⟨⟨cp, metaBase⟩, idx⟩
+  obtain ⟨⟨U, V, N, hw, _hN, hnU, hU, _hV, rfl, hfr⟩, hidx⟩ := h
+  intro _
+  unfold readCompGMGenProg; simp only [pure_bind, cpOffGM_mk, cpGmBits_mk, cpW_mk]
+  refine validHistory_readPackedCompGen ⟨globalMetaLen N, hw, rfl,
+    globalPtrBits_le_of_lt_pow hnU hU, hidx, ?_⟩
+  unfold offCompItems offDenseToTail offTailToDense at *; omega
+
+theorem validProg_writeCompGMGen {w : ℕ} {d : ((CompParams × ℕ) × ℕ) × ℕ} {s : Memory.State}
+    (h : WriteCompGMPre w d s) : ValidProg w 0 s (writeCompGMGenProg d) := by
+  rcases d with ⟨⟨⟨cp, metaBase⟩, idx⟩, val⟩
+  obtain ⟨⟨U, V, N, hw, _hN, hnU, hU, _hV, rfl, hfr⟩, hidx⟩ := h
+  intro hm
+  unfold writeCompGMGenProg; simp only [pure_bind, cpOffGM_mk, cpGmBits_mk, cpW_mk]
+  refine validHistory_writePackedCompGen hm.1 ⟨globalMetaLen N, hw, rfl,
+    globalPtrBits_le_of_lt_pow hnU hU, hidx, ?_⟩
+  unfold offCompItems offDenseToTail offTailToDense at *; omega
+
+theorem validProg_readCompTDGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {s : Memory.State}
+    (h : CompTailMapPre w d s) : ValidProg w 0 s (readCompTDGenProg d) := by
+  rcases d with ⟨⟨cp, metaBase⟩, t⟩
+  obtain ⟨⟨U, V, N, hw, _hN, hnU, hU, _hV, rfl, hfr⟩, ht⟩ := h
+  intro _
+  unfold readCompTDGenProg; simp only [pure_bind, cpOffTD_mk, cpGmBits_mk, cpW_mk]
+  refine validHistory_readPackedCompGen ⟨maxTailItems N, hw, rfl,
+    globalPtrBits_le_of_lt_pow hnU hU, ht, ?_⟩
+  unfold offCompItems offDenseToTail at *; omega
+
+theorem validProg_writeCompTDGen {w : ℕ} {d : ((CompParams × ℕ) × ℕ) × ℕ} {s : Memory.State}
+    (h : WriteCompTailMapPre w d s) : ValidProg w 0 s (writeCompTDGenProg d) := by
+  rcases d with ⟨⟨⟨cp, metaBase⟩, t⟩, val⟩
+  obtain ⟨⟨U, V, N, hw, _hN, hnU, hU, _hV, rfl, hfr⟩, ht⟩ := h
+  intro hm
+  unfold writeCompTDGenProg; simp only [pure_bind, cpOffTD_mk, cpGmBits_mk, cpW_mk]
+  refine validHistory_writePackedCompGen hm.1 ⟨maxTailItems N, hw, rfl,
+    globalPtrBits_le_of_lt_pow hnU hU, ht, ?_⟩
+  unfold offCompItems offDenseToTail at *; omega
+
+theorem validProg_readCompDTGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {s : Memory.State}
+    (h : CompTailMapPre w d s) : ValidProg w 0 s (readCompDTGenProg d) := by
+  rcases d with ⟨⟨cp, metaBase⟩, r⟩
+  obtain ⟨⟨U, V, N, hw, _hN, hnU, hU, _hV, rfl, hfr⟩, hr⟩ := h
+  intro _
+  unfold readCompDTGenProg; simp only [pure_bind, cpOffDT_mk, cpGmBits_mk, cpW_mk]
+  refine validHistory_readPackedCompGen ⟨maxTailItems N, hw, rfl,
+    globalPtrBits_le_of_lt_pow hnU hU, hr, ?_⟩
+  unfold offCompItems at *; omega
+
+theorem validProg_writeCompDTGen {w : ℕ} {d : ((CompParams × ℕ) × ℕ) × ℕ} {s : Memory.State}
+    (h : WriteCompTailMapPre w d s) : ValidProg w 0 s (writeCompDTGenProg d) := by
+  rcases d with ⟨⟨⟨cp, metaBase⟩, r⟩, val⟩
+  obtain ⟨⟨U, V, N, hw, _hN, hnU, hU, _hV, rfl, hfr⟩, hr⟩ := h
+  intro hm
+  unfold writeCompDTGenProg; simp only [pure_bind, cpOffDT_mk, cpGmBits_mk, cpW_mk]
+  refine validHistory_writePackedCompGen hm.1 ⟨maxTailItems N, hw, rfl,
+    globalPtrBits_le_of_lt_pow hnU hU, hr, ?_⟩
+  unfold offCompItems at *; omega
+
+theorem validProg_denseOfCircGen {w : ℕ} (d : CompParams × (ℕ × ℕ)) (s : Memory.State) :
+    ValidProg w 0 s (denseOfCircGenProg d) := by
+  rcases d with ⟨cp, ⟨b_win, c⟩⟩
+  intro _; dsimp only [denseOfCircGenProg]; simp only [pure_bind]; split_ifs <;> trivial
+
+theorem validProg_denseOfPhysGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {s : Memory.State}
+    (h : DenseOfPhysPre w d s) : ValidProg w 0 s (denseOfPhysGenProg d) := by
+  rcases d with ⟨⟨cp, metaBase⟩, g⟩
+  obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, _hg_lt, hb_cond⟩ := h
+  have henv : CompMetaEnv w (mkCompParams U V w N) metaBase s :=
+    ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩
+  unfold denseOfPhysGenProg; simp only [pure_bind, cpBucketBits_mk, cpSlabSize_mk, cpNSubOne_mk]
+  refine validProg_ite (fun _ => validProg_pure g) (fun hb0 => ?_)
+  have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
+  have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
+  refine validProg_bind (validProg_readCompGMGen ⟨henv, h0_lt⟩) ?_
+  rw [clientState_readCompGMGenProg, clientResult_readCompGMGenProg h0_lt]
+  refine validProg_ite (fun _ => validProg_pure g) (fun hg_ge => ?_)
+  obtain ⟨ht_lt, _⟩ := (hb_cond hb_pos).2 hg_ge
+  refine validProg_bind (validProg_readCompTDGen ⟨henv, ht_lt⟩) ?_
+  rw [clientState_readCompTDGenProg]
+  exact validProg_denseOfCircGen _ _
+
+theorem validProg_winGrowRightGen {w : ℕ} {d : (CompParams × ℕ) × (ℕ × ℕ)} {s : Memory.State}
+    (h : WinGrowRightPre w d s) : ValidProg w 0 s (winGrowRightGenProg d) := by
+  rcases d with ⟨⟨cp, metaBase⟩, ⟨b_win, n_win⟩⟩
+  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hn_lt, _⟩ := h
+  have hM_pos : 0 < maxTailItems N := by simp only [cpMaxTail_mk] at hn_lt; omega
+  unfold winGrowRightGenProg; simp only [pure_bind, cpMaxTail_mk]
+  refine validProg_bind
+    (validProg_writeCompTDGen ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hn_lt⟩) ?_
+  exact validProg_writeCompDTGen ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl,
+    by rw [clientState_writeCompTDGenProg]; exact hfr⟩, Nat.mod_lt _ hM_pos⟩
+
+theorem validProg_winGrowLeftGen {w : ℕ} {d : (CompParams × ℕ) × (ℕ × ℕ)} {s : Memory.State}
+    (h : WinGrowLeftPre w d s) : ValidProg w 0 s (winGrowLeftGenProg d) := by
+  rcases d with ⟨⟨cp, metaBase⟩, ⟨b_win, n_win⟩⟩
+  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hn_lt, _⟩ := h
+  have hM_pos : 0 < maxTailItems N := by simp only [cpMaxTail_mk] at hn_lt; omega
+  unfold winGrowLeftGenProg; simp only [pure_bind, cpMaxTail_mk]
+  refine validProg_bind
+    (validProg_writeCompTDGen ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hn_lt⟩) ?_
+  exact validProg_writeCompDTGen ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl,
+    by rw [clientState_writeCompTDGenProg]; exact hfr⟩, Nat.mod_lt _ hM_pos⟩
+
+theorem validProg_winShrinkRightGen {w : ℕ} {d : (CompParams × ℕ) × (ℕ × ℕ)} {s : Memory.State}
+    (h : WinShrinkRightPre w d s) : ValidProg w 0 s (winShrinkRightGenProg d) := by
+  rcases d with ⟨⟨cp, metaBase⟩, ⟨b_win, n_win⟩⟩
+  obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hn_lt, _, hdt_lt, htd_lt⟩ := h
+  have henv : CompMetaEnv w (mkCompParams U V w N) metaBase s :=
+    ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩
+  have hcrem_lt : (b_win + n_win) % maxTailItems N < maxTailItems N := Nat.mod_lt _ (by omega)
+  unfold winShrinkRightGenProg; simp only [pure_bind, cpMaxTail_mk]
+  refine validProg_bind (validProg_readCompDTGen ⟨henv, hcrem_lt⟩) ?_
+  rw [clientState_readCompDTGenProg, clientResult_readCompDTGenProg hcrem_lt]
+  refine validProg_bind (validProg_readCompTDGen ⟨henv, hn_lt⟩) ?_
+  rw [clientState_readCompTDGenProg, clientResult_readCompTDGenProg hn_lt]
+  refine validProg_bind (validProg_writeCompTDGen ⟨henv, hdt_lt⟩) ?_
+  exact validProg_writeCompDTGen ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl,
+    by rw [clientState_writeCompTDGenProg]; exact hfr⟩, htd_lt⟩
+
+theorem validProg_winShrinkLeftGen {w : ℕ} {d : (CompParams × ℕ) × (ℕ × ℕ)} {s : Memory.State}
+    (h : WinShrinkLeftPre w d s) : ValidProg w 0 s (winShrinkLeftGenProg d) := by
+  rcases d with ⟨⟨cp, metaBase⟩, ⟨b_win, n_win⟩⟩
+  obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hn_lt, _, hdt_lt, htd_lt⟩ := h
+  have henv : CompMetaEnv w (mkCompParams U V w N) metaBase s :=
+    ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩
+  have hcrem_lt : b_win % maxTailItems N < maxTailItems N := Nat.mod_lt _ (by omega)
+  unfold winShrinkLeftGenProg; simp only [pure_bind, cpMaxTail_mk]
+  refine validProg_bind (validProg_readCompDTGen ⟨henv, hcrem_lt⟩) ?_
+  rw [clientState_readCompDTGenProg, clientResult_readCompDTGenProg hcrem_lt]
+  refine validProg_bind (validProg_readCompTDGen ⟨henv, hn_lt⟩) ?_
+  rw [clientState_readCompTDGenProg, clientResult_readCompTDGenProg hn_lt]
+  refine validProg_bind (validProg_writeCompTDGen ⟨henv, hdt_lt⟩) ?_
+  exact validProg_writeCompDTGen ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl,
+    by rw [clientState_writeCompTDGenProg]; exact hfr⟩, htd_lt⟩
+
+theorem validProg_readCompBucketCountGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {s : Memory.State}
+    (h : ReadCompBucketCountPre w d s) : ValidProg w 0 s (readCompBucketCountGenProg d) := by
+  rcases d with ⟨⟨cp, metaBase⟩, b⟩
+  obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, _hslot, hb⟩ := h
+  have henv : CompMetaEnv w (mkCompParams U V w N) metaBase s :=
+    ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩
+  have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
+  unfold readCompBucketCountGenProg; simp only [pure_bind, cpBucketBits_mk, cpSlabSize_mk]
+  refine validProg_ite (fun _ => validProg_readCompGMGen ⟨henv, h0_lt⟩) (fun hb0 => ?_)
+  have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
+  have hq_lt : gmQIdx b < globalMetaLen N := gmQIdx_lt hb_pos hb
+  have hr_lt : gmRIdx b < globalMetaLen N := gmRIdx_lt hb_pos hb
+  have hq_eq : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
+  rw [hq_eq]
+  refine validProg_bind (validProg_readCompGMGen ⟨henv, hq_lt⟩) ?_
+  rw [clientState_readCompGMGenProg]
+  refine validProg_bind (validProg_readCompGMGen ⟨henv, hr_lt⟩) ?_
+  exact validProg_pure _
+
+theorem validProg_recoverOwnerBucketGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {s : Memory.State}
+    (h : RecoverOwnerBucketPre w d s) : ValidProg w 0 s (recoverOwnerBucketGenProg d) := by
+  rcases d with ⟨⟨cp, metaBase⟩, idx_d⟩
+  obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hslot, htd, hd_lt⟩ := h
+  have henv : CompMetaEnv w (mkCompParams U V w N) metaBase s :=
+    ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩
+  have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
+  unfold recoverOwnerBucketGenProg
+  simp only [pure_bind, cpBucketBits_mk, cpSlabSize_mk, cpGmSlabMetaBase_mk]
+  refine validProg_ite (fun _ => validProg_pure 0) (fun hb0 => ?_)
+  have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
+  refine validProg_bind (validProg_readCompGMGen ⟨henv, h0_lt⟩) ?_
+  rw [clientState_readCompGMGenProg, clientResult_readCompGMGenProg h0_lt]
+  refine validProg_ite (fun hd_slab => ?_) (fun hd_ge => ?_)
+  · have hslab := hslot.multi_slab hb_pos
+    have hp_lt : idx_d / slabSize N < maxFullSlabs N := by
+      have h1 : idx_d / slabSize N < compGmAt metaBase U w N s.mem 0 :=
+        Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])
+      have := hslab.nslabs_eq.trans_le hslab.nslabs_le; omega
+    have hidx := gmSlabOwnerBIdx_lt hb_pos hp_lt
+    have heq : gmSlabMetaBase N + (idx_d / slabSize N + idx_d / slabSize N +
+        (idx_d / slabSize N + idx_d / slabSize N)) = gmSlabOwnerBIdx N (idx_d / slabSize N) := by
+      unfold gmSlabOwnerBIdx; omega
+    rw [heq]; exact validProg_readCompGMGen ⟨henv, hidx⟩
+  · unfold epochTotalSlots at hd_lt; rw [ite_eq_right hb0] at hd_lt
+    obtain ⟨ht_lt, _⟩ := (htd hb_pos).owner_valid idx_d (by omega) hd_lt
+    have hM_le : compGmAt metaBase U w N s.mem 1 ≤ maxTailItems N :=
+      (hslot.multi_tail hb_pos).ntails_eq.trans_le (hslot.multi_tail hb_pos).ntails_le
+    have hr_lt : idx_d % maxTailItems N < maxTailItems N := Nat.mod_lt _ (by omega)
+    have hown_lt := gmTailOwnerIdx_lt hb_pos (lt_of_lt_of_le ht_lt hM_le)
+    unfold recoverOwnerTailProg
+    simp only [pure_bind, cpMaxTail_mk, cpGmTailOwnerBase_mk, cpTailCap_mk]
+    refine validProg_bind (validProg_readCompDTGen ⟨henv, hr_lt⟩) ?_
+    rw [clientState_readCompDTGenProg, clientResult_readCompDTGenProg hr_lt]
+    refine validProg_bind (validProg_readCompGMGen ⟨henv, hown_lt⟩) ?_
+    exact validProg_pure _
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

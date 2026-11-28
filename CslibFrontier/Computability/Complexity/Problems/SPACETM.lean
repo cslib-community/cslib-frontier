@@ -148,11 +148,10 @@ namespace SPACETMInstance
 theorem cfgSpaceBound_le_cfgBudget (a : SPACETMInstance) :
     cfgSpaceBound (descLen a.machine) (a.input.map eBit).length a.machine.tapes a.space ≤
       a.cfgBudget := by
-  have htapes : a.machine.tapes ≤ descLen a.machine := tapes_le a.machine
-  have hlen : (encNat ((a.input.map eBit).length + 1)).length ≤ a.input.length + 1 := by
-    rw [List.length_map]
-    exact length_encNat_le_self (a.input.length + 1)
-  have hmul : 3 * (2 * descLen a.machine + 5) * 2 * a.space =
+  have := tapes_le a.machine
+  have : (encNat ((a.input.map eBit).length + 1)).length ≤ a.input.length + 1 := by
+    simpa only [List.length_map] using length_encNat_le_self (a.input.length + 1)
+  have : 3 * (2 * descLen a.machine + 5) * 2 * a.space =
       6 * (2 * descLen a.machine + 5) * a.space := by ring
   unfold cfgSpaceBound cfgBudget
   omega
@@ -162,43 +161,31 @@ theorem cfgSpaceBound_le_cfgBudget (a : SPACETMInstance) :
 theorem cfgSpace_le_cfgBudget (a : SPACETMInstance) {t : ℕ}
     (hsp : simSpace a.machine (a.input.map eBit) t ≤ a.space) :
     cfgSpace a.machine (a.input.map eBit) t ≤ a.cfgBudget := by
-  have hle : cfgSpace a.machine (a.input.map eBit) t ≤
-      cfgSpaceBound (descLen a.machine) (a.input.map eBit).length a.machine.tapes a.space := by
-    unfold cfgSpace cfgSpaceBound
-    gcongr
-  exact hle.trans a.cfgSpaceBound_le_cfgBudget
+  refine le_trans ?_ a.cfgSpaceBound_le_cfgBudget
+  unfold cfgSpace cfgSpaceBound
+  gcongr
 
 /-- `a.cfgBudget` is computable in polynomial time in unary from `encSPACETMInstance`. -/
 @[fun_prop]
 theorem computableInPolyTime_cfgBudget :
     ComputableInPolyTime cfgBudget encSPACETMInstance encUnary := by
-  have hdesc_id : ComputableInPolyTime (fun d : Desc => eDesc d) eDesc encBits :=
-    ComputableInPolyTime.of_eq (f := fun d : Desc => eDesc d)
-      (encIn := eDesc) (encOut := encBits) fun _ => rfl
   have hmlen : ComputableInPolyTime (fun a : SPACETMInstance => descLen a.machine)
       encSPACETMInstance encUnary :=
-    ComputableInPolyTime.length_bits.comp (hdesc_id.comp (encSPACETMInstance_machine_polyTime .id'))
-  have hilen : ComputableInPolyTime (fun a : SPACETMInstance => a.input.length)
-      encSPACETMInstance encUnary :=
-    ComputableInPolyTime.length_bits.comp (encSPACETMInstance_input_polyTime .id')
-  have hspace : ComputableInPolyTime (fun a : SPACETMInstance => a.space)
-      encSPACETMInstance encUnary :=
-    encSPACETMInstance_space_polyTime .id'
-  have h2m5 : ComputableInPolyTime (fun a : SPACETMInstance => 2 * descLen a.machine + 5)
-      encSPACETMInstance encUnary :=
-    ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_mul' (.const 2) hmlen) (.const 5)
-  have hterm1 : ComputableInPolyTime
-      (fun a : SPACETMInstance => 3 * descLen a.machine + 2 * a.input.length)
-      encSPACETMInstance encUnary :=
-    ComputableInPolyTime.unary_add'
-      (ComputableInPolyTime.unary_mul' (.const 3) hmlen)
-      (ComputableInPolyTime.unary_mul' (.const 2) hilen)
-  have hterm2 : ComputableInPolyTime
-      (fun a : SPACETMInstance => 6 * (2 * descLen a.machine + 5) * a.space)
-      encSPACETMInstance encUnary :=
-    ComputableInPolyTime.unary_mul'
-      (ComputableInPolyTime.unary_mul' (.const 6) h2m5) hspace
-  exact ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_add' hterm1 hterm2) (.const 6)
+    ComputableInPolyTime.length_bits.comp
+      ((ComputableInPolyTime.of_eq (encIn := eDesc) (encOut := encBits) fun _ => rfl).comp
+        (by fun_prop))
+  unfold cfgBudget
+  exact ComputableInPolyTime.unary_add'
+    (ComputableInPolyTime.unary_add'
+      (ComputableInPolyTime.unary_add'
+        (ComputableInPolyTime.unary_mul' (.const 3) hmlen)
+        (ComputableInPolyTime.unary_mul' (.const 2) (by fun_prop)))
+      (ComputableInPolyTime.unary_mul'
+        (ComputableInPolyTime.unary_mul' (.const 6)
+          (ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_mul' (.const 2) hmlen)
+            (.const 5)))
+        (by fun_prop)))
+    (.const 6)
 
 /-- Instance `a` accepts at step `t` when the simulation of `a.machine` on `a.input.map eBit` up
 to step `t` visits at most `a.space` work-tape cells (`simSpace ≤ a.space`) and has halted with
@@ -250,8 +237,7 @@ theorem accepts_desc_iff_of_simSpace_le {k : ℕ} {State : Type} [Fintype State]
       (tm.runFrom (tm.initCfg x) t).Halted ∧
         (tm.runFrom (tm.initCfg x) t).output = [true] := by
   rw [accepts_desc_iff]
-  rw [simSpace_desc] at hsp
-  exact and_iff_right hsp
+  exact and_iff_right (simSpace_desc eS eBit tm x t ▸ hsp)
 
 /-- Clocked Boolean decider for `SPACETM`: run `spaceBoundedUniversal` for `2 ^ (a.cfgBudget + 1)`
 steps within visited work-tape cell budget `a.space` and test whether the result is
@@ -263,23 +249,21 @@ steps within visited work-tape cell budget `a.space` and test whether the result
 /-- The clocked decider `SPACETMInstance.decider` is computable in polynomial space. -/
 theorem computableInPolySpace_decider :
     ComputableInPolySpace decider encSPACETMInstance encBool := by
-  have hinput : ComputableInPolyTime
-      (fun a : SPACETMInstance =>
-        (a.machine, a.input.map eBit, 2 ^ (a.cfgBudget + 1), a.space))
+  have hmap : ComputableInPolyTime (fun a : SPACETMInstance => a.input.map eBit)
+      encSPACETMInstance (encList encUnary) := computableInPolyTime_map_eBit.comp (by fun_prop)
+  have hclock : ComputableInPolyTime (fun a : SPACETMInstance => 2 ^ (a.cfgBudget + 1))
+      encSPACETMInstance encNat := ComputableInPolyTime.binary_two_pow.comp (by fun_prop)
+  have hout : ComputableInPolyTime
+      (fun r : List ℕ × Bool => decide (r = ([eBit true], true))) eOut encBool := by
+    unfold eOut
+    fun_prop
+  have hin : ComputableInPolyTime
+      (fun a : SPACETMInstance => (a.machine, a.input.map eBit, 2 ^ (a.cfgBudget + 1), a.space))
       encSPACETMInstance eInS := by
-    have hmap : ComputableInPolyTime (fun a : SPACETMInstance => a.input.map eBit)
-        encSPACETMInstance (encList encUnary) :=
-      computableInPolyTime_map_eBit.comp (encSPACETMInstance_input_polyTime .id')
-    have hclock : ComputableInPolyTime (fun a : SPACETMInstance => 2 ^ (a.cfgBudget + 1))
-        encSPACETMInstance encNat :=
-      ComputableInPolyTime.binary_two_pow.comp (by fun_prop)
-    exact (encSPACETMInstance_machine_polyTime .id').prod
-      (hmap.prod (hclock.prod (encSPACETMInstance_space_polyTime .id')))
-  have hverd : ComputableInPolyTime
-      (fun r : List ℕ × Bool => decide (r = ([eBit true], true))) eOut encBool :=
-    ComputableInPolyTime.decide_eq' .id' (.const _)
-  exact (ComputableInPolySpace.of_polyTime hverd).comp
-    (computableInPolySpace_spaceBoundedUniversal.comp (ComputableInPolySpace.of_polyTime hinput))
+    unfold eInS
+    fun_prop
+  exact (ComputableInPolySpace.of_polyTime hout).comp
+    (computableInPolySpace_spaceBoundedUniversal.comp (ComputableInPolySpace.of_polyTime hin))
 
 end SPACETMInstance
 
@@ -318,9 +302,8 @@ theorem desc_mem_iff {k : ℕ} {State : Type} [Fintype State] (eS : State ↪ �
     ⟨desc eS eBit tm, x, n⟩ ∈ SPACETM ↔
       ∃ t, (MultiTapeNTM.RunPath.ofDeterministic tm (tm.initCfg x) t).space ≤ n ∧
         (tm.runFrom (tm.initCfg x) t).Halted ∧
-        (tm.runFrom (tm.initCfg x) t).output = [true] := by
-  rw [mem_iff]
-  exact exists_congr fun t => SPACETMInstance.accepts_desc_iff eS tm x n t
+        (tm.runFrom (tm.initCfg x) t).output = [true] :=
+  exists_congr fun t => SPACETMInstance.accepts_desc_iff eS tm x n t
 
 /-- **On the description of a machine `tm` that visits at most `n` work-tape cells on `x`**
 (`tm.RunsInSpace x n`), `⟨desc eS eBit tm, x, n⟩ ∈ SPACETM` holds if and only if `tm` halts on `x`
@@ -329,9 +312,9 @@ theorem desc_mem_iff_of_runsInSpace {k : ℕ} {State : Type} [Fintype State] (eS
     (tm : MultiTapeTM k Bool State) (x : List Bool) (n : ℕ) (hsp : tm.RunsInSpace x n) :
     ⟨desc eS eBit tm, x, n⟩ ∈ SPACETM ↔
       ∃ t, (tm.runFrom (tm.initCfg x) t).Halted ∧
-        (tm.runFrom (tm.initCfg x) t).output = [true] := by
-  rw [desc_mem_iff]
-  exact exists_congr fun t => and_iff_right (space_le_of_runsInSpace hsp t)
+        (tm.runFrom (tm.initCfg x) t).output = [true] :=
+  (desc_mem_iff eS tm x n).trans
+    (exists_congr fun t => and_iff_right (space_le_of_runsInSpace hsp t))
 
 /-- **`SPACETM` is in `PSPACE`** in the native visited-space model (after Arora–Barak
 Exercise 4 §3, membership). -/
@@ -345,39 +328,31 @@ theorem polyTimeReducible {α : Type} {enc : α ↪ List Bool} {A : Set α} {p :
     (hp : ComputableInPolyTime p encUnary encUnary) {c₁ c₂ : ℕ} {t : α → ℕ}
     (hA : DecidableInTimeAndSpace A enc t (fun a => c₁ * p (enc a).length + c₂)) :
     PolyTimeReducible enc encSPACETMInstance A SPACETM := by
-  obtain ⟨g, ⟨k, State, hfin, tm, htm⟩, hg⟩ := decidableInTimeAndSpace_iff.mp hA
+  obtain ⟨g, ⟨k, State, _, tm, htm⟩, hg⟩ := decidableInTimeAndSpace_iff.mp hA
   have := Fintype.ofFinite State
   let eS : State ↪ ℕ := (Fintype.equivFin State).toEmbedding.trans Fin.valEmbedding
   refine ⟨fun a => ⟨desc eS eBit tm, enc a, c₁ * p (enc a).length + c₂⟩, ?_, fun a => ?_⟩
-  · have henc : ComputableInPolyTime (fun a => enc a) enc encBits := .of_eq fun _ => rfl
-    have hlen : ComputableInPolyTime (fun a => (enc a).length) enc encUnary :=
-      ComputableInPolyTime.length_bits.comp henc
-    have hp_a : ComputableInPolyTime (fun a => p (enc a).length) enc encUnary := hp.comp hlen
+  · have : ComputableInPolyTime (fun a => p (enc a).length) enc encUnary :=
+      hp.comp (ComputableInPolyTime.length_bits.comp (.of_eq fun _ => rfl))
     fun_prop
-  · rw [desc_mem_iff_of_runsInSpace eS tm (enc a) (c₁ * p (enc a).length + c₂) (htm a).2.2, hg]
-    obtain ⟨hhalt, hout⟩ := (htm a).runFrom_of_le le_rfl
-    change (tm.runFrom (tm.initCfg (enc a)) (t a)).output = [g a] at hout
-    refine ⟨fun h => ⟨t a, hhalt, by rw [hout, h]⟩, fun ⟨t', hhalt', hout'⟩ => ?_⟩
-    rcases le_total t' (t a) with hle | hle
-    · have heq : (tm.runFrom (tm.initCfg (enc a)) (t a)).output =
-          (tm.runFrom (tm.initCfg (enc a)) t').output :=
-        congrArg Cfg.output (MultiTapeTM.runFrom_eq_of_halt tm (tm.initCfg (enc a)) hle hhalt')
-      rw [hout, hout'] at heq
-      exact List.cons.inj heq |>.1
-    · have heq : (tm.runFrom (tm.initCfg (enc a)) t').output =
-          (tm.runFrom (tm.initCfg (enc a)) (t a)).output :=
-        congrArg Cfg.output (MultiTapeTM.runFrom_eq_of_halt tm (tm.initCfg (enc a)) hle hhalt)
-      rw [hout', hout] at heq
-      exact List.cons.inj heq |>.1.symm
+  · rw [desc_mem_iff_of_runsInSpace eS tm (enc a) _ (htm a).2.2, hg]
+    obtain ⟨hhalt, hout : (tm.runFrom (tm.initCfg (enc a)) (t a)).output = [g a]⟩ :=
+      (htm a).runFrom_of_le le_rfl
+    refine ⟨fun h => ⟨t a, hhalt, hout.trans (congrArg (· :: []) h)⟩,
+      fun ⟨t', hhalt', hout'⟩ => ?_⟩
+    have heq : (tm.runFrom (tm.initCfg (enc a)) (t a)).output =
+        (tm.runFrom (tm.initCfg (enc a)) t').output :=
+      (le_total t' (t a)).elim
+        (fun hle => congrArg Cfg.output (tm.runFrom_eq_of_halt _ hle hhalt'))
+        (fun hle => (congrArg Cfg.output (tm.runFrom_eq_of_halt _ hle hhalt)).symm)
+    exact List.cons.inj (hout.symm.trans (heq.trans hout')) |>.1
 
 /-- **`SPACETM` is `PSPACE`-hard** in the native visited-space model under polynomial-time many-one
 reductions, quantifying over every source type `α` and encoding `enc : α ↪ List Bool`
 (after Arora–Barak Exercise 4 §3, hardness). -/
-theorem pspaceHard : PSPACEHard encSPACETMInstance SPACETM := by
-  intro α enc A hA
-  obtain ⟨k, hk⟩ := mem_PSPACE_iff_exists_mem_DSPACE.mp hA
-  obtain ⟨c₁, c₂, t, hdec⟩ := hk
-  exact polyTimeReducible (p := fun n => n ^ k) (by fun_prop) hdec
+theorem pspaceHard : PSPACEHard encSPACETMInstance SPACETM := fun _ _ _ hA =>
+  let ⟨k, _, _, _, hdec⟩ := mem_PSPACE_iff_exists_mem_DSPACE.mp hA
+  polyTimeReducible (p := (· ^ k)) (by fun_prop) hdec
 
 /-- **`SPACETM` is `PSPACE`-complete** in the native visited-space model under polynomial-time
 many-one reductions (after Arora–Barak Chapter 4, display (2) and Exercise 4 §3). -/

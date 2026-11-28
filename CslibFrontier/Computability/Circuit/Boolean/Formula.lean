@@ -257,6 +257,22 @@ def andList (l : List (Formula signature n)) : Formula signature n :=
 @[simp] theorem andList_singleton : andList [F] = F :=
   balanced_singleton _ F
 
+/-- Disjunction adds the leaf sizes of its arguments, including the empty list. -/
+@[simp] theorem leafSize_orList (l : List (Formula signature n)) :
+    (orList l).leafSize = (l.map leafSize).sum := by
+  by_cases h : l = []
+  · subst l
+    simp
+  · exact leafSize_balanced _ h
+
+/-- Conjunction adds the leaf sizes of its arguments, including the empty list. -/
+@[simp] theorem leafSize_andList (l : List (Formula signature n)) :
+    (andList l).leafSize = (l.map leafSize).sum := by
+  by_cases h : l = []
+  · subst l
+    simp
+  · exact leafSize_balanced _ h
+
 /-- A balanced disjunction of `k ≥ 1` formulas has `k - 1` operation nodes besides theirs. -/
 theorem size_orList_add_one {l : List (Formula signature n)} (hl : l ≠ []) :
     (orList l).size + 1 = (l.map size).sum + l.length :=
@@ -308,6 +324,12 @@ def literal (z : BitString n) (i : Fin n) : Formula signature n :=
 /-- A literal has binary-gate depth zero. -/
 @[simp] theorem depthWith_literal (z : BitString n) (i : Fin n) :
     (literal z i).depthWith binaryCost = 0 := by
+  unfold literal
+  split <;> simp
+
+/-- A literal contains one input leaf, irrespective of its sign. -/
+@[simp] theorem leafSize_literal (z : BitString n) (i : Fin n) :
+    (literal z i).leafSize = 1 := by
   unfold literal
   split <;> simp
 

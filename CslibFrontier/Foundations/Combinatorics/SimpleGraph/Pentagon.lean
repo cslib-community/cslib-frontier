@@ -57,15 +57,14 @@ theorem five_le_indepNum_strongPow_two_cycleGraph_five :
   have hf : Function.Injective (fun i : Fin 5 => ![i, 2 * i]) := by decide
   have hind : ((cycleGraph 5).strongPow 2).IsIndepSet
       (Finset.univ.image fun i : Fin 5 => ![i, 2 * i] : Finset (Fin 2 → Fin 5)) := by
-    have : ∀ i j : Fin 5, i ≠ j → ¬((cycleGraph 5).strongPow 2).Adj ![i, 2 * i] ![j, 2 * j] := by
-      decide
+    have : ∀ i j : Fin 5, i ≠ j → ¬((cycleGraph 5).strongPow 2).Adj ![i, 2 * i] ![j, 2 * j] :=
+      by decide
     intro x hx y hy hxy
     simp only [Finset.coe_image, Finset.coe_univ, Set.image_univ, Set.mem_range] at hx hy
-    obtain ⟨i, rfl⟩ := hx
-    obtain ⟨j, rfl⟩ := hy
+    rcases hx, hy with ⟨⟨i, rfl⟩, ⟨j, rfl⟩⟩
     exact this i j fun h => hxy (h ▸ rfl)
-  have := hind.card_le_indepNum
-  rwa [Finset.card_image_of_injective _ hf, Finset.card_univ, Fintype.card_fin] at this
+  simpa only [Finset.card_image_of_injective _ hf, Finset.card_univ, Fintype.card_fin] using
+    hind.card_le_indepNum
 
 theorem sqrt_five_le_shannonCapacity_cycleGraph_five : √5 ≤ (cycleGraph 5).shannonCapacity := by
   refine le_trans ?_ (rpow_indepNum_strongPow_le_shannonCapacity (G := cycleGraph 5) 1)
@@ -120,10 +119,9 @@ theorem inner_pentagonUmbrella_eq_zero {i j : Fin 5} (hij : i ≠ j)
     · rw [show 2 * π * (i : ℕ) / 5 - 2 * π * ((i : ℕ) + 3 : ℝ) / 5 = -(6 * π / 5) by ring,
         cos_neg, cos_six_pi_div_five]
   rw [inner_pentagonUmbrella, hc, cos_pi_div_five]
-  have h5 : √5 ^ 2 = 5 := Real.sq_sqrt (by norm_num)
   have h5pos : 0 < √5 := by positivity
   field_simp
-  linear_combination -h5
+  linear_combination -(Real.sq_sqrt (by norm_num : (0 : ℝ) ≤ 5))
 
 theorem isOrthonormalRepresentation_pentagonUmbrella :
     (cycleGraph 5).IsOrthonormalRepresentation pentagonUmbrella :=
@@ -134,8 +132,7 @@ theorem lovaszTheta_cycleGraph_five_le : (cycleGraph 5).lovaszTheta ≤ √5 := 
   refine lovaszTheta_le_of_rep isOrthonormalRepresentation_pentagonUmbrella
     (c := EuclideanSpace.single 0 1) (by simp) (by positivity) fun i => ?_
   rw [EuclideanSpace.inner_single_left]
-  have h5pos : 0 < √5 := by positivity
-  simp [pentagonUmbrella, h5pos.ne']
+  simp [pentagonUmbrella, (by positivity : (0 : ℝ) < √5).ne']
 
 /-- **Lovász's theorem**: the Shannon capacity of the pentagon is `√5`. -/
 theorem shannonCapacity_cycleGraph_five : (cycleGraph 5).shannonCapacity = √5 :=
@@ -155,16 +152,13 @@ theorem lovaszTheta_cycleGraph_five : (cycleGraph 5).lovaszTheta = √5 :=
 /-- `α(C₅) = 2`: the upper bound follows from `α(C₅) ≤ ϑ(C₅) = √5 < 3`. -/
 theorem indepNum_cycleGraph_five : (cycleGraph 5).indepNum = 2 := by
   refine le_antisymm ?_ ?_
-  · have h := indepNum_le_lovaszTheta.trans lovaszTheta_cycleGraph_five_le
-    have h3 : √5 < 3 := by
-      rw [Real.sqrt_lt' (by norm_num)]
-      norm_num
-    have : (cycleGraph 5).indepNum < 3 := by exact_mod_cast h.trans_lt h3
+  · have h3 : √5 < 3 := (Real.sqrt_lt' (by norm_num)).mpr (by norm_num)
+    have : (cycleGraph 5).indepNum < 3 := by
+      exact_mod_cast (indepNum_le_lovaszTheta.trans lovaszTheta_cycleGraph_five_le).trans_lt h3
     omega
-  · have hind : (cycleGraph 5).IsIndepSet ({0, 2} : Finset (Fin 5)) := by
-      have : ∀ x ∈ ({0, 2} : Finset (Fin 5)), ∀ y ∈ ({0, 2} : Finset (Fin 5)), x ≠ y →
-          ¬(cycleGraph 5).Adj x y := by decide
-      exact fun x hx y hy => this x hx y hy
+  · have hind : (cycleGraph 5).IsIndepSet ({0, 2} : Finset (Fin 5)) :=
+      show ∀ x ∈ ({0, 2} : Finset (Fin 5)), ∀ y ∈ ({0, 2} : Finset (Fin 5)), x ≠ y →
+        ¬(cycleGraph 5).Adj x y by decide
     simpa using hind.card_le_indepNum
 
 end SimpleGraph

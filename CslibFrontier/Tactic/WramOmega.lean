@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Tactic.WramOmega.Init
+public meta import CslibFrontier.Tactic.WramOmega.Prove
 public meta import Lean.Elab.Tactic.Omega
 
 /-!
@@ -30,11 +31,13 @@ definitions (`set S := n + 1`), and reads the arithmetic hypotheses unfolded in 
 changed.
 
 A tagged definition that returns a proposition, such as the word-size bound
-`Cslib.WordRAM.Fits w v`, is unfolded in the same way, and each power of two `2 ^ e` the tactic
-meets is known to be positive, which `omega` does not see by itself. So a word-size bound on an
-address follows from the bound on the end of the layout. The tactic `fits` of
-`CslibFrontier.Tactic.Fits` proves a word-size bound that needs no tagged definition unfolded;
-`wram_omega` is for the other goals, a word-size bound through tagged definitions among them.
+`Cslib.WordRAM.Fits w v`, is unfolded in the same way, each power of two `2 ^ e` the tactic
+meets is known to be positive, and when two powers `2 ^ e₁` and `2 ^ e₂` occur with `e₁ ≤ e₂` or
+`e₁ < e₂` provable by `omega`, `2 ^ e₁ ≤ 2 ^ e₂` (respectively `2 * 2 ^ e₁ ≤ 2 ^ e₂`) is added as
+well. So a word-size bound on an address follows from the bound on the end of the layout, also at a
+wider word size. The tactic `fits` of `CslibFrontier.Tactic.Fits` proves a word-size bound that
+needs no tagged definition unfolded; `wram_omega` is for the other goals, a word-size bound through
+tagged definitions among them.
 
 Every tagged definition met is unfolded, and a call cannot keep one folded: where a bound holds
 only with a definition folded, the proof stays `unfold a b; omega`.
@@ -104,8 +107,10 @@ private structure State where
   /-- Whether a local definition was unfolded, a field of a constructor was read or a `let` was
   reduced: `omega` alone does none of these inside a term. -/
   reduced : Bool := false
-  /-- The powers of two met. -/
-  powers : Std.HashSet Expr := {}
+  /-- The powers of two met, deduplicated by hash for `0 < 2 ^ k` positivity facts. -/
+  powers : ExprSet := {}
+  /-- Up to `maxPowerExps` distinct powers of two, in the order met, for pairwise monotonicity. -/
+  monoPowers : Array Expr := #[]
 
 /-- Unfolds terms, with the active `@[wram_arith]` definitions. -/
 private abbrev UnfoldM := ReaderT Context <| StateRefT State MetaM
@@ -183,10 +188,73 @@ private def unfoldTagged (e : Expr) : UnfoldM Expr := do
   modify fun s => { s with reduced := true }
   zetaReduce e (zetaDelta := false)
 
+/-- The most distinct powers of two compared pairwise for monotonicity. -/
+private def maxPowerExps : ℕ := 8
+
+/-- The `maxHeartbeats` budget for one exponent comparison `e₁ ≤ e₂`, in thousands. -/
+private def maxMonoHeartbeats : ℕ := 20000
+
+/-- A proof of `lhs ≤ rhs` by `omega` from `hyps`, or `none`. -/
+private def proveLe? (hyps : List Expr) (lhs rhs : Expr) : MetaM (Option Expr) := do
+  proveOmega? maxMonoHeartbeats hyps (← mkAppM ``LE.le #[lhs, rhs])
+
+/-- Proofs of monotonicity between distinct powers of two `(2 ^ e₁, 2 ^ e₂)` in `powers` when
+`omega` proves `e₁ < e₂` (`2 * 2 ^ e₁ ≤ 2 ^ e₂`) or `e₁ ≤ e₂` (`2 ^ e₁ ≤ 2 ^ e₂`) from `hyps`.
+When more than four powers occur and `initCount > 0` come from the goal or explicit arguments, only
+pairs touching one of those `initCount` powers are tested. -/
+private def powerMonoFacts (powers : Array Expr) (initCount : ℕ) (hyps : List Expr) :
+    MetaM (Array Expr) := do
+  let ps := powers.extract 0 maxPowerExps
+  if ps.size < 2 then return #[]
+  let iBound := if ps.size > 4 && initCount > 0 then min initCount ps.size else ps.size
+  let two := mkNatLit 2
+  let twoPos := mkApp (mkConst ``Nat.zero_lt_succ) (mkNatLit 1)
+  let mkWeak (t₁ e₁ t₂ e₂ hLe : Expr) : MetaM (Option Expr) := do
+    let type ← mkAppM ``LE.le #[t₁, t₂]
+    let value := mkAppN (mkConst ``Nat.pow_le_pow_right) #[two, twoPos, e₁, e₂, hLe]
+    unless ← isDefEq type (← inferType value) do return none
+    some <$> mkExpectedTypeHint value type
+  let mkStrict (t₁ e₁ t₂ e₂ hLt : Expr) : MetaM (Option Expr) := do
+    let succE₁ := mkApp (mkConst ``Nat.succ) e₁
+    let hpow := mkAppN (mkConst ``Nat.pow_le_pow_right) #[two, twoPos, succE₁, e₂, hLt]
+    let heq := mkApp2 (mkConst ``Nat.pow_succ') two e₁
+    let twoMulT₁ ← mkAppM ``HMul.hMul #[two, t₁]
+    let type ← mkAppM ``LE.le #[twoMulT₁, t₂]
+    let hLeEq ← mkAppM ``Nat.le_of_eq #[← mkEqSymm heq]
+    let value ← mkAppM ``Nat.le_trans #[hLeEq, hpow]
+    unless ← isDefEq type (← inferType value) do return none
+    some <$> mkExpectedTypeHint value type
+  let mut out : Array Expr := #[]
+  for i in [:iBound] do
+    let t₁ := ps[i]!
+    let e₁ := t₁.appArg!
+    for j in [i + 1:ps.size] do
+      let t₂ := ps[j]!
+      let e₂ := t₂.appArg!
+      if e₁.nat?.isSome && e₂.nat?.isSome then continue
+      if let some h₁₂ ← proveLe? hyps e₁ e₂ then
+        if let some hLt ← proveLe? hyps (mkApp (mkConst ``Nat.succ) e₁) e₂ then
+          if let some fact ← mkStrict t₁ e₁ t₂ e₂ hLt then out := out.push fact
+        else
+          if let some fact ← mkWeak t₁ e₁ t₂ e₂ h₁₂ then out := out.push fact
+          if let some h₂₁ ← proveLe? hyps e₂ e₁ then
+            if let some fact ← mkWeak t₂ e₂ t₁ e₁ h₂₁ then out := out.push fact
+      else if let some h₂₁ ← proveLe? hyps e₂ e₁ then
+        if let some hLt ← proveLe? hyps (mkApp (mkConst ``Nat.succ) e₂) e₁ then
+          if let some fact ← mkStrict t₂ e₂ t₁ e₁ hLt then out := out.push fact
+        else
+          if let some fact ← mkWeak t₂ e₂ t₁ e₁ h₂₁ then out := out.push fact
+  return out
+
 /-- Record the powers of two in `e`. -/
 private def recordPowers (e : Expr) : UnfoldM Unit :=
   e.forEachWhere isPowerOfTwo fun t => do
-    unless t.hasLooseBVars do modify fun s => { s with powers := s.powers.insert t }
+    unless t.hasLooseBVars || (← get).powers.contains t do
+      modify fun s =>
+        { s with
+          powers := s.powers.insert t
+          monoPowers :=
+            if s.monoPowers.size < maxPowerExps then s.monoPowers.push t else s.monoPowers }
 
 /-- The facts `0 < 2 ^ k` for the powers of two met so far. -/
 private def powerFacts : UnfoldM (Array Expr) :=
@@ -223,8 +291,9 @@ private def omegaWith (g : MVarId) (replaced : FVarIdSet) (facts : Array Expr) :
 development: it unfolds the definitions tagged `@[wram_arith]` (addresses, sizes, cost bounds and
 numeric parameters), also those in the bodies of tagged definitions, and runs `omega`. Tagged
 predicates, such as the word-size bound `Cslib.WordRAM.Fits`, are unfolded in the same way, a field
-read from a structure given by its constructor is replaced by its value, and every power of two
-`2 ^ e` met is known to be positive.
+read from a structure given by its constructor is replaced by its value, every power of two
+`2 ^ e` met is known to be positive, and when `omega` proves `e₁ ≤ e₂` or `e₁ < e₂` between two
+powers met, `2 ^ e₁ ≤ 2 ^ e₂` (respectively `2 * 2 ^ e₁ ≤ 2 ^ e₂`) is supplied as well.
 
 The tactic first unfolds the goal only, as `unfold a b; omega` does. When `omega` then fails, it
 also unfolds the local definitions (`set S := n + 1`) and reads unfolded the arithmetic hypotheses
@@ -275,18 +344,31 @@ elab_rules : tactic
       let prove : UnfoldM Unit := do
         -- First the goal only, with the hypotheses as they are.
         let (g, facts) ← unfoldGoal g
-        if (← omegaWith g {} (facts ++ (← powerFacts))).isNone then
+        let pos₁ ← powerFacts
+        if (← omegaWith g {} (facts ++ pos₁)).isNone then
           let state ← get
           if state.unfolded.isEmpty && !state.reduced && state.powers.isEmpty && terms.isEmpty then
             Linter.logLintIf linter.unnecessaryWramOmega tk m!"`wram_omega` unfolded no \
               `@[wram_arith]` definition here: `omega` proves this goal."
           return
+        let mono₁Candidates := (← get).monoPowers
+        if mono₁Candidates.size ≥ 2 then
+          let savedMono₁ ← Meta.saveState
+          let hyps₁ ← (← getLocalHyps).filterM fun h => do readByOmega (← inferType h)
+          let mono₁ ← powerMonoFacts mono₁Candidates mono₁Candidates.size
+            (hyps₁ ++ facts ++ pos₁).toList
+          if !mono₁.isEmpty then
+            if (← omegaWith g {} (facts ++ pos₁ ++ mono₁)).isNone then
+              return
+          savedMono₁.restore
         -- Then with the local definitions unfolded too, and the arithmetic hypotheses
         -- that mention a tagged definition or a local one restated.
         withReader ({ · with locals := allLocals }) do
           let ctx ← read
           let (g, facts) ← unfoldGoal g
+          let initPowers := (← get).monoPowers.size
           let mut facts := facts
+          let mut plainArith : Array Expr := #[]
           let mut replaced : FVarIdSet := {}
           for d in ← getLCtx do
             if d.isImplementationDetail then continue
@@ -299,7 +381,19 @@ elab_rules : tactic
               replaced := replaced.insert d.fvarId
             else
               recordPowers type
-          let some ex ← omegaWith g replaced (facts ++ (← powerFacts)) | return
+              plainArith := plainArith.push d.toExpr
+          let posFacts ← powerFacts
+          let mut err? ← omegaWith g replaced (facts ++ posFacts)
+          let monoCandidates := (← get).monoPowers
+          if err?.isSome && monoCandidates.size ≥ 2 then
+            let savedMono ← Meta.saveState
+            let monoFacts ← powerMonoFacts monoCandidates initPowers
+              (plainArith ++ facts ++ posFacts).toList
+            unless monoFacts.isEmpty do
+              err? ← omegaWith g replaced (facts ++ posFacts ++ monoFacts)
+            if err?.isSome then
+              savedMono.restore
+          let some ex := err? | return
           let state ← get
           let names (ns : Array Name) :=
             MessageData.joinSep (ns.map (m!"`{.ofConstName ·}`")).toList ", "

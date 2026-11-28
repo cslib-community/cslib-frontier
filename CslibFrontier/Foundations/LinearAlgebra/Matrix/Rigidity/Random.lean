@@ -131,44 +131,22 @@ private theorem pow_mul_le_four_mul_prod_sub {q : ℕ} (hq : 2 ≤ q) (r : ℕ) 
     (q ^ r) ^ r ≤ 4 * ∏ i : Fin r, (q ^ r - q ^ i.val) := by
   rcases Nat.eq_zero_or_pos r with rfl | hr
   · simp
-  have hbase : (∏ k ∈ range r, q ^ (k + 1)) ≤ 4 * ∏ k ∈ range r, (q ^ (k + 1) - 1) := by
-    have h := add_one_mul_prod_pow_le hq hr
-    have hpos : 0 < q ^ (r - 1) := Nat.pow_pos (by omega)
-    refine Nat.le_of_mul_le_mul_left ?_ hpos
-    calc q ^ (r - 1) * ∏ k ∈ range r, q ^ (k + 1)
-        ≤ (q ^ (r - 1) + 1) * ∏ k ∈ range r, q ^ (k + 1) :=
-          Nat.mul_le_mul_right _ (Nat.le_succ _)
-      _ ≤ 4 * q ^ (r - 1) * ∏ k ∈ range r, (q ^ (k + 1) - 1) := h
-      _ = q ^ (r - 1) * (4 * ∏ k ∈ range r, (q ^ (k + 1) - 1)) := by ring
-  have hrev1 : (∏ i : Fin r, (q ^ (r - i.val) - 1)) = ∏ k ∈ range r, (q ^ (k + 1) - 1) := by
-    rw [← Equiv.prod_comp Fin.revPerm (fun i : Fin r => q ^ (r - i.val) - 1),
+  have hbase : (∏ k ∈ range r, q ^ (k + 1)) ≤ 4 * ∏ k ∈ range r, (q ^ (k + 1) - 1) :=
+    Nat.le_of_mul_le_mul_left (((Nat.mul_le_mul_right _ (Nat.le_succ _)).trans
+      (add_one_mul_prod_pow_le hq hr)).trans_eq (by ring)) (Nat.pow_pos (by omega : 0 < q))
+  have hrev (f : ℕ → ℕ) : (∏ i : Fin r, f (r - i.val)) = ∏ k ∈ range r, f (k + 1) := by
+    rw [← Equiv.prod_comp Fin.revPerm (fun i : Fin r => f (r - i.val)),
       ← Fin.prod_univ_eq_prod_range]
-    refine prod_congr rfl fun i _ => ?_
-    simp only [Fin.revPerm_apply, Fin.val_rev]
-    congr 2
-    omega
-  have hrev2 : (∏ i : Fin r, q ^ (r - i.val)) = ∏ k ∈ range r, q ^ (k + 1) := by
-    rw [← Equiv.prod_comp Fin.revPerm (fun i : Fin r => q ^ (r - i.val)),
-      ← Fin.prod_univ_eq_prod_range]
-    refine prod_congr rfl fun i _ => ?_
-    simp only [Fin.revPerm_apply, Fin.val_rev]
-    congr 1
-    omega
-  have hrhs : (∏ i : Fin r, (q ^ r - q ^ i.val)) =
-      (∏ i : Fin r, q ^ i.val) * ∏ k ∈ range r, (q ^ (k + 1) - 1) := by
-    rw [← hrev1, ← prod_mul_distrib]
-    refine prod_congr rfl fun i _ => ?_
-    rw [Nat.mul_sub_one, ← pow_add, Nat.add_sub_of_le i.isLt.le]
-  have hlhs : (q ^ r) ^ r = (∏ i : Fin r, q ^ i.val) * ∏ k ∈ range r, q ^ (k + 1) := by
-    rw [← hrev2, ← prod_mul_distrib]
-    have hcongr : (∏ i : Fin r, q ^ i.val * q ^ (r - i.val)) = ∏ _i : Fin r, q ^ r :=
-      prod_congr rfl fun i _ => by rw [← pow_add, Nat.add_sub_of_le i.isLt.le]
-    rw [hcongr, prod_const, card_univ, Fintype.card_fin]
-  rw [hlhs, hrhs]
-  calc (∏ i : Fin r, q ^ i.val) * ∏ k ∈ range r, q ^ (k + 1)
-      ≤ (∏ i : Fin r, q ^ i.val) * (4 * ∏ k ∈ range r, (q ^ (k + 1) - 1)) :=
-        Nat.mul_le_mul_left _ hbase
-    _ = 4 * ((∏ i : Fin r, q ^ i.val) * ∏ k ∈ range r, (q ^ (k + 1) - 1)) := by ring
+    exact prod_congr rfl fun i _ => by simp only [Fin.revPerm_apply, Fin.val_rev]; congr 1; omega
+  have hsplit (i : Fin r) : q ^ r = q ^ i.val * q ^ (r - i.val) := by
+    rw [← pow_add, Nat.add_sub_of_le i.isLt.le]
+  calc (q ^ r) ^ r = (∏ i : Fin r, q ^ i.val) * ∏ i : Fin r, q ^ (r - i.val) := by
+        rw [← prod_mul_distrib, ← Fin.prod_const]; exact prod_congr rfl fun i _ => hsplit i
+    _ ≤ (∏ i : Fin r, q ^ i.val) * (4 * ∏ i : Fin r, (q ^ (r - i.val) - 1)) := by
+        rw [hrev (q ^ ·), hrev (q ^ · - 1)]; exact Nat.mul_le_mul_left _ hbase
+    _ = 4 * ∏ i : Fin r, (q ^ r - q ^ i.val) := by
+        rw [mul_left_comm, ← prod_mul_distrib]
+        exact congrArg (4 * ·) (prod_congr rfl fun i _ => by rw [Nat.mul_sub_one, ← hsplit])
 
 /-- Every subspace of dimension at most `r ≤ finrank K V` is contained in an `r`-dimensional
 subspace. -/
@@ -190,6 +168,14 @@ private theorem exists_submodule_le_finrank_eq {K V : Type*} [Field K] [AddCommG
   rw [hdisj.eq_bot, finrank_bot, add_zero, hW'] at hsup
   omega
 
+/-- If `a + b = n` and `b k < x n` with `0 < k`, then `1 - x / k < a / n`. -/
+private theorem one_sub_div_lt_div_of_add_eq {a b n k : ℕ} {x : ℝ} (hn : 0 < n) (hk : 0 < k)
+    (hab : a + b = n) (hb : (b : ℝ) * k < x * n) : 1 - x / k < (a : ℝ) / n := by
+  subst hab
+  rw [lt_div_iff₀ (by exact_mod_cast hn), sub_mul, one_mul, sub_lt_comm, div_mul_eq_mul_div,
+    lt_div_iff₀ (by exact_mod_cast hk)]
+  simpa only [Nat.cast_add, add_sub_cancel_left] using hb
+
 end Helpers
 
 variable {m n K : Type*} [Fintype m] [Fintype n] [Field K] [Fintype K]
@@ -204,19 +190,12 @@ private theorem card_submodule_finrank_eq_lt {r : ℕ} (hr : r ≤ Fintype.card 
   set q := Fintype.card K
   set N := Fintype.card n
   have hq : 2 ≤ q := Fintype.one_lt_card
+  rw [Nat.card_eq_fintype_card, Fintype.card_subtype]
   set S : Finset (Submodule K (n → K)) := {W | finrank K W = r}
-  have hScard : Nat.card {W : Submodule K (n → K) // finrank K W = r} = #S := by
-    rw [Nat.card_eq_fintype_card, ← Fintype.card_coe]
-    exact Fintype.card_congr (Equiv.subtypeEquivRight fun W => by simp [S])
-  rw [hScard]
   rcases Nat.eq_zero_or_pos r with rfl | hr0
-  · have hsub : S ⊆ {⊥} := by
-      intro W hW
-      simp only [S, mem_filter, mem_univ, true_and, Submodule.finrank_eq_zero] at hW
-      exact mem_singleton.mpr hW
-    calc #S ≤ #({⊥} : Finset (Submodule K (n → K))) := card_le_card hsub
-      _ = 1 := card_singleton _
-      _ < 4 * q ^ (0 * (N - 0)) := by simp
+  · refine (card_le_one.mpr fun a ha b hb => ?_).trans_lt (by simp)
+    simp only [S, mem_filter, mem_univ, true_and, Submodule.finrank_eq_zero] at ha hb
+    rw [ha, hb]
   let LI := {s : Fin r → n → K // LinearIndependent K s}
   have hLI_card : Fintype.card LI = ∏ i : Fin r, (q ^ N - q ^ i.val) := by
     rw [← Nat.card_eq_fintype_card, card_linearIndependent (K := K) (V := n → K)
@@ -242,44 +221,25 @@ private theorem card_submodule_finrank_eq_lt {r : ℕ} (hr : r ≤ Fintype.card 
             LinearIndependent.of_comp W.subtype s.1.2⟩
         left_inv := fun s' => Subtype.ext (funext fun _ => Subtype.ext rfl)
         right_inv := fun s => Subtype.ext (Subtype.ext (funext fun _ => rfl)) }
-    have hc : #{s : LI | spanOf s = W} = Fintype.card {s : LI // spanOf s = W} := by
-      rw [← Fintype.card_coe]
-      exact Fintype.card_congr (Equiv.subtypeEquivRight fun s => by simp)
-    rw [hc, ← Fintype.card_congr e, ← Nat.card_eq_fintype_card,
+    rw [← Fintype.card_subtype, ← Fintype.card_congr e, ← Nat.card_eq_fintype_card,
       card_linearIndependent (K := K) (V := W) (by omega), hWr]
   have hprod_eq : #S * ∏ i : Fin r, (q ^ r - q ^ i.val) = ∏ i : Fin r, (q ^ N - q ^ i.val) := by
     have hsum := card_eq_sum_card_fiberwise hmaps
     simp only [card_univ, hLI_card] at hsum
     rw [hsum, sum_congr rfl hfiber, sum_const, smul_eq_mul]
-  have hden_pos : 0 < ∏ i : Fin r, (q ^ r - q ^ i.val) :=
-    prod_pos fun i _ => Nat.sub_pos_of_lt (Nat.pow_lt_pow_right (by omega) i.isLt)
-  have hnum_lt : (∏ i : Fin r, (q ^ N - q ^ i.val)) < (q ^ N) ^ r := by
-    obtain ⟨r', rfl⟩ := Nat.exists_eq_succ_of_ne_zero hr0.ne'
-    rw [Fin.prod_univ_succ, Fin.val_zero, pow_zero, pow_succ']
-    have hle : (∏ i : Fin r', (q ^ N - q ^ (Fin.succ i).val)) ≤ (q ^ N) ^ r' := by
-      calc (∏ i : Fin r', (q ^ N - q ^ (Fin.succ i).val))
-          ≤ ∏ _i : Fin r', q ^ N := by
-            gcongr with i
-            exact Nat.sub_le _ _
-        _ = (q ^ N) ^ r' := by rw [prod_const, card_univ, Fintype.card_fin]
-    have hqN : 0 < q ^ N := Nat.pow_pos (by omega)
-    have hqNr : 0 < (q ^ N) ^ r' := Nat.pow_pos hqN
-    calc (q ^ N - 1) * ∏ i : Fin r', (q ^ N - q ^ (Fin.succ i).val)
-        ≤ (q ^ N - 1) * (q ^ N) ^ r' := Nat.mul_le_mul_left _ hle
-      _ < q ^ N * (q ^ N) ^ r' :=
-          Nat.mul_lt_mul_of_pos_right (Nat.sub_lt hqN zero_lt_one) hqNr
+  have hnum_lt : (∏ i : Fin r, (q ^ N - q ^ i.val)) < (q ^ N) ^ r :=
+    (prod_lt_prod_of_nonempty₀ (fun i _ => Nat.sub_pos_of_lt (Nat.pow_lt_pow_right (by omega)
+      (i.isLt.trans_le hr)))
+      (fun i _ => Nat.sub_lt (Nat.pow_pos (by omega)) (Nat.pow_pos (by omega)))
+      ⟨⟨0, hr0⟩, mem_univ _⟩).trans_eq (Fin.prod_const r _)
   refine Nat.lt_of_mul_lt_mul_right ?_ (a := ∏ i : Fin r, (q ^ r - q ^ i.val))
   rw [hprod_eq]
   calc (∏ i : Fin r, (q ^ N - q ^ i.val))
       < (q ^ N) ^ r := hnum_lt
     _ = q ^ (r * (N - r)) * (q ^ r) ^ r := by
-        rw [← pow_mul, ← pow_mul, ← pow_add]
-        congr 1
-        have : N - r + r = N := Nat.sub_add_cancel hr
-        nlinarith
-    _ ≤ q ^ (r * (N - r)) * (4 * ∏ i : Fin r, (q ^ r - q ^ i.val)) :=
-        Nat.mul_le_mul_left _ (pow_mul_le_four_mul_prod_sub hq r)
-    _ = 4 * q ^ (r * (N - r)) * ∏ i : Fin r, (q ^ r - q ^ i.val) := by ring
+        rw [← pow_mul, ← pow_mul, ← pow_add, ← mul_add, Nat.sub_add_cancel hr, mul_comm]
+    _ ≤ 4 * q ^ (r * (N - r)) * ∏ i : Fin r, (q ^ r - q ^ i.val) :=
+        (Nat.mul_le_mul_left _ (pow_mul_le_four_mul_prod_sub hq r)).trans_eq (by ring)
 
 section DecidableIndex
 
@@ -310,54 +270,37 @@ theorem card_rank_le_mul_lt (r : ℕ) :
     have hcov : ({B : Matrix m n K | B.rank ≤ r} : Finset _) ⊆
         S.biUnion fun W => {B : Matrix m n K | ∀ i, B.row i ∈ W} := by
       intro B hB
-      have hBr : B.rank ≤ r := (mem_filter.mp hB).2
-      rw [B.rank_eq_finrank_span_row] at hBr
+      rw [mem_filter, B.rank_eq_finrank_span_row] at hB
       obtain ⟨W, hUW, hW⟩ := exists_submodule_le_finrank_eq
-        (Submodule.span K (Set.range B.row)) hBr (by rwa [Module.finrank_fintype_fun_eq_card])
-      refine mem_biUnion.mpr ⟨W, mem_filter.mpr ⟨mem_univ _, hW⟩, mem_filter.mpr ⟨mem_univ _, ?_⟩⟩
-      intro i
-      exact hUW (Submodule.subset_span ⟨i, rfl⟩)
+        (Submodule.span K (Set.range B.row)) hB.2 (by rwa [Module.finrank_fintype_fun_eq_card])
+      exact mem_biUnion.mpr ⟨W, mem_filter.mpr ⟨mem_univ _, hW⟩,
+        mem_filter.mpr ⟨mem_univ _, fun i => hUW (Submodule.subset_span ⟨i, rfl⟩)⟩⟩
     have hWcard : ∀ W ∈ S, #{B : Matrix m n K | ∀ i, B.row i ∈ W} = q ^ (r * M) := by
       intro W hW
-      have hWr : finrank K W = r := (mem_filter.mp hW).2
       let e : (m → W) ≃ {B : Matrix m n K // ∀ i, B.row i ∈ W} :=
         { toFun := fun f => ⟨of fun i j => (f i).1 j, fun i => (f i).2⟩
           invFun := fun B => fun i => ⟨B.1.row i, B.2 i⟩
           left_inv := fun _ => rfl
           right_inv := fun _ => Subtype.ext rfl }
-      have hc : #{B : Matrix m n K | ∀ i, B.row i ∈ W} =
-          Fintype.card {B : Matrix m n K // ∀ i, B.row i ∈ W} := by
-        rw [← Fintype.card_coe]
-        exact Fintype.card_congr (Equiv.subtypeEquivRight fun B => by simp)
-      rw [hc, ← Fintype.card_congr e, Fintype.card_fun,
-        Module.card_eq_pow_finrank (K := K) (V := W), hWr, ← pow_mul]
+      rw [← Fintype.card_subtype, ← Fintype.card_congr e, Fintype.card_fun,
+        Module.card_eq_pow_finrank (K := K) (V := W), (mem_filter.mp hW).2, ← pow_mul]
     have hSlt : #S < 4 * q ^ (r * (N - r)) := by
-      have hScard : #S = Nat.card {W : Submodule K (n → K) // finrank K W = r} := by
-        rw [Nat.card_eq_fintype_card, ← Fintype.card_coe]
-        exact Fintype.card_congr (Equiv.subtypeEquivRight fun W => by simp [S])
-      rw [hScard]
-      exact card_submodule_finrank_eq_lt hrN
-    have hBcard : #{B : Matrix m n K | B.rank ≤ r} < 4 * q ^ (r * (N - r) + r * M) := by
-      calc #{B : Matrix m n K | B.rank ≤ r}
-          ≤ #(S.biUnion fun W => {B : Matrix m n K | ∀ i, B.row i ∈ W}) := card_le_card hcov
-        _ ≤ ∑ W ∈ S, #{B : Matrix m n K | ∀ i, B.row i ∈ W} := card_biUnion_le
-        _ = #S * q ^ (r * M) := by rw [sum_congr rfl hWcard, sum_const, smul_eq_mul]
-        _ < 4 * q ^ (r * (N - r)) * q ^ (r * M) :=
-            Nat.mul_lt_mul_of_pos_right hSlt (Nat.pow_pos (by omega))
-        _ = 4 * q ^ (r * (N - r) + r * M) := by rw [mul_assoc, ← pow_add]
+      have h := card_submodule_finrank_eq_lt (K := K) hrN
+      rwa [Nat.card_eq_fintype_card, Fintype.card_subtype] at h
     calc #{B : Matrix m n K | B.rank ≤ r} * q ^ ((M - r) * (N - r))
-        < 4 * q ^ (r * (N - r) + r * M) * q ^ ((M - r) * (N - r)) :=
-          Nat.mul_lt_mul_of_pos_right hBcard (Nat.pow_pos (by omega))
+        ≤ #S * q ^ (r * M) * q ^ ((M - r) * (N - r)) := by
+          refine Nat.mul_le_mul_right _ ((card_le_card hcov).trans (card_biUnion_le.trans_eq ?_))
+          rw [sum_congr rfl hWcard, sum_const, smul_eq_mul]
+      _ < 4 * q ^ (r * (N - r)) * q ^ (r * M) * q ^ ((M - r) * (N - r)) :=
+          Nat.mul_lt_mul_of_pos_right (Nat.mul_lt_mul_of_pos_right hSlt (Nat.pow_pos (by omega)))
+            (Nat.pow_pos (by omega))
       _ = 4 * q ^ (M * N) := by
-          rw [mul_assoc, ← pow_add]
+          rw [mul_assoc, mul_assoc, ← pow_add, ← pow_add]
           congr 2
           have h1 : M - r + r = M := Nat.sub_add_cancel hrM
           have h2 : N - r + r = N := Nat.sub_add_cancel hrN
           nlinarith
-  · have hzero : (M - r) * (N - r) = 0 := by
-      rcases not_and_or.mp hMN with hMr | hNr
-      · rw [Nat.sub_eq_zero_of_le (not_le.mp hMr).le, zero_mul]
-      · rw [Nat.sub_eq_zero_of_le (not_le.mp hNr).le, mul_zero]
+  · have hzero : (M - r) * (N - r) = 0 := Nat.mul_eq_zero.mpr (by omega)
     rw [hzero, pow_zero, mul_one]
     calc #{B : Matrix m n K | B.rank ≤ r}
         ≤ Fintype.card (Matrix m n K) := card_le_univ _
@@ -401,12 +344,7 @@ private theorem card_rigidity_lt_mul_lt_of_pos {r s : ℕ} (hs : 1 ≤ s) :
   classical
   set V := ∑ j ∈ range s,
     (Fintype.card m * Fintype.card n).choose j * (Fintype.card K - 1) ^ j
-  have hVpos : 0 < V := by
-    have h0 : 0 ∈ range s := mem_range.mpr hs
-    have hle := single_le_sum (fun j _ => Nat.zero_le
-      ((Fintype.card m * Fintype.card n).choose j * (Fintype.card K - 1) ^ j)) h0
-    simp only [Nat.choose_zero_right, pow_zero, mul_one] at hle
-    omega
+  have hVpos : 0 < V := sum_pos' (fun _ _ => Nat.zero_le _) ⟨0, mem_range.mpr hs, by simp⟩
   have hcov : ({A : Matrix m n K | A.rigidity r < s} : Finset _) ⊆
       ({B : Matrix m n K | B.rank ≤ r} : Finset _).biUnion
         fun B => {A : Matrix m n K | diffCount B A < s} := by
@@ -423,11 +361,8 @@ private theorem card_rigidity_lt_mul_lt_of_pos {r s : ℕ} (hs : 1 ≤ s) :
           (card_le_card hcov).trans card_biUnion_le
       _ = #{B : Matrix m n K | B.rank ≤ r} * V := by
           rw [sum_congr rfl fun B _ => card_diffCount_lt_eq_sum B s, sum_const, smul_eq_mul]
-  calc #{A : Matrix m n K | A.rigidity r < s} *
-        Fintype.card K ^ ((Fintype.card m - r) * (Fintype.card n - r))
-      ≤ #{B : Matrix m n K | B.rank ≤ r} * V *
-          Fintype.card K ^ ((Fintype.card m - r) * (Fintype.card n - r)) :=
-        Nat.mul_le_mul_right _ hcard
+  calc _ ≤ #{B : Matrix m n K | B.rank ≤ r} * V *
+          Fintype.card K ^ ((Fintype.card m - r) * (Fintype.card n - r)) := by gcongr
     _ = V * (#{B : Matrix m n K | B.rank ≤ r} *
           Fintype.card K ^ ((Fintype.card m - r) * (Fintype.card n - r))) := by ring
     _ < V * (4 * Fintype.card K ^ (Fintype.card m * Fintype.card n)) :=
@@ -463,17 +398,12 @@ private theorem card_rigidity_lt_mul_pow_lt {r s t : ℕ}
   have hq : 2 ≤ q := Fintype.one_lt_card
   rw [card_matrix_eq_pow]
   rcases Nat.eq_zero_or_pos s with rfl | hs
-  · have hempty : ({A : Matrix m n K | A.rigidity r < 0} : Finset _) = ∅ := by
-      rw [filter_eq_empty_iff]
-      intro A _ hlt
-      exact absurd hlt (Nat.not_lt_zero _)
-    rw [hempty, card_empty, zero_mul]
+  · rw [filter_false_of_mem fun A _ => Nat.not_lt_zero (A.rigidity r), card_empty, zero_mul]
     exact Nat.pow_pos (by omega)
   -- Bound the Hamming ball of radius `s - 1` by `(M N (q - 1) + 1) ^ (s - 1) ≤ q ^ (L (s - 1))`.
   have hbase : M * N * (q - 1) + 1 ≤ q ^ L := by
-    have hlt : M * N < q ^ (Nat.log q (M * N) + 1) :=
-      Nat.lt_pow_succ_log_self (by omega) (M * N)
-    have hle : M * N ≤ q ^ (Nat.log q (M * N) + 1) - 1 := Nat.le_sub_one_of_lt hlt
+    have hle : M * N ≤ q ^ (Nat.log q (M * N) + 1) - 1 :=
+      Nat.le_sub_one_of_lt (Nat.lt_pow_succ_log_self (by omega) (M * N))
     have hpos : 1 ≤ q ^ (Nat.log q (M * N) + 1) := Nat.one_le_pow _ _ (by omega)
     calc M * N * (q - 1) + 1
         ≤ (q ^ (Nat.log q (M * N) + 1) - 1) * (q - 1) + 1 := by gcongr
@@ -495,9 +425,7 @@ private theorem card_rigidity_lt_mul_pow_lt {r s t : ℕ}
   have hexp : 2 + L * (s - 1) + t ≤ (M - r) * (N - r) := by
     have hL : 2 ≤ L := by omega
     have hLs : L * (s - 1) + L = L * s := by
-      obtain ⟨s', rfl⟩ := Nat.exists_eq_succ_of_ne_zero hs.ne'
-      change L * s' + L = L * (s' + 1)
-      ring
+      rw [← mul_add_one, Nat.sub_add_cancel (by omega : 1 ≤ s)]
     omega
   obtain ⟨d, hd⟩ := Nat.exists_eq_add_of_le hexp
   have hmain := card_rigidity_lt_mul_lt_of_pos (m := m) (n := n) (K := K) (r := r) hs
@@ -527,26 +455,13 @@ theorem one_sub_inv_pow_lt_card_le_rigidity_div {r s t : ℕ}
       (Fintype.card m - r) * (Fintype.card n - r)) :
     1 - ((Fintype.card K : ℝ)⁻¹) ^ t <
       (#{A : Matrix m n K | s ≤ A.rigidity r} : ℝ) / Fintype.card (Matrix m n K) := by
-  have hbad := card_rigidity_lt_mul_pow_lt (m := m) (n := n) (K := K) h
-  have hpart : #{A : Matrix m n K | s ≤ A.rigidity r} + #{A : Matrix m n K | A.rigidity r < s} =
-      Fintype.card (Matrix m n K) := by
-    have hc := card_filter_add_card_filter_not (s := (univ : Finset (Matrix m n K)))
-      fun A => s ≤ A.rigidity r
-    simpa only [not_le, card_univ] using hc
-  have hMpos : (0 : ℝ) < Fintype.card (Matrix m n K) := by exact_mod_cast Fintype.card_pos
-  have hqpos : (0 : ℝ) < Fintype.card K := by exact_mod_cast Fintype.card_pos
-  have hqtpos : (0 : ℝ) < (Fintype.card K : ℝ) ^ t := pow_pos hqpos t
-  have hbadR : (#{A : Matrix m n K | A.rigidity r < s} : ℝ) * (Fintype.card K : ℝ) ^ t <
-      Fintype.card (Matrix m n K) := by exact_mod_cast hbad
-  have hpartR : (#{A : Matrix m n K | s ≤ A.rigidity r} : ℝ) +
-      #{A : Matrix m n K | A.rigidity r < s} = Fintype.card (Matrix m n K) := by
-    exact_mod_cast hpart
-  rw [inv_pow, lt_div_iff₀ hMpos, sub_mul, one_mul]
-  have hlt : (#{A : Matrix m n K | A.rigidity r < s} : ℝ) <
-      ((Fintype.card K : ℝ) ^ t)⁻¹ * Fintype.card (Matrix m n K) := by
-    rw [inv_mul_eq_div, lt_div_iff₀ hqtpos]
-    exact hbadR
-  linarith
+  rw [inv_pow, ← one_div, ← Nat.cast_pow]
+  refine one_sub_div_lt_div_of_add_eq (b := #{A : Matrix m n K | A.rigidity r < s})
+    Fintype.card_pos (Nat.pow_pos Fintype.card_pos) ?_ ?_
+  · simpa only [not_le, card_univ] using card_filter_add_card_filter_not
+      (s := (univ : Finset (Matrix m n K))) fun A => s ≤ A.rigidity r
+  · rw [one_mul]
+    exact_mod_cast card_rigidity_lt_mul_pow_lt h
 
 /-- Over a large finite field `K` (original to this library), strictly more than a
 `1 - 4 · 2 ^ (|m| |n|) / |K|` fraction of all `m × n` matrices attain the maximum possible
@@ -565,30 +480,25 @@ theorem one_sub_lt_card_rigidity_eq_mul_sub_div (r : ℕ) :
   have hbad : #{A : Matrix m n K | A.rigidity r ≠ s} * q <
       4 * 2 ^ (M * N) * Fintype.card (Matrix m n K) := by
     rcases Nat.eq_zero_or_pos s with hs0 | hs
-    · have hempty : ({A : Matrix m n K | A.rigidity r ≠ s} : Finset _) = ∅ := by
-        rw [filter_eq_empty_iff]
-        intro A _ hne
-        exact hne ((Nat.eq_zero_of_le_zero ((A.rigidity_le_mul_sub r).trans_eq hs0)).trans hs0.symm)
-      rw [hempty, card_empty, zero_mul]
+    · rw [filter_false_of_mem (p := fun A : Matrix m n K => A.rigidity r ≠ s) fun A _ hne =>
+        hne ((Nat.eq_zero_of_le_zero ((A.rigidity_le_mul_sub r).trans_eq hs0)).trans hs0.symm),
+        card_empty, zero_mul]
       exact Nat.mul_pos (by positivity) Fintype.card_pos
     have heq_set : #{A : Matrix m n K | A.rigidity r ≠ s} =
         #{A : Matrix m n K | A.rigidity r < s} := by
       congr 1
-      refine filter_congr fun A _ => ?_
-      have hle : A.rigidity r ≤ s := A.rigidity_le_mul_sub r
-      omega
+      exact filter_congr fun A _ => by have : A.rigidity r ≤ s := A.rigidity_le_mul_sub r; omega
     rw [heq_set, card_matrix_eq_pow]
     have hsMN : s ≤ M * N := Nat.mul_le_mul (Nat.sub_le M r) (Nat.sub_le N r)
     have hV : (∑ j ∈ range s, (M * N).choose j * (q - 1) ^ j) ≤
         2 ^ (M * N) * q ^ (s - 1) := by
       calc (∑ j ∈ range s, (M * N).choose j * (q - 1) ^ j)
-          ≤ ∑ j ∈ range s, (M * N).choose j * q ^ (s - 1) := by
-            refine sum_le_sum fun j hj => Nat.mul_le_mul_left _ ?_
-            calc (q - 1) ^ j ≤ q ^ j := Nat.pow_le_pow_left (Nat.sub_le q 1) j
-              _ ≤ q ^ (s - 1) := Nat.pow_le_pow_right (by omega)
-                  (Nat.le_sub_one_of_lt (mem_range.mp hj))
-        _ = (∑ j ∈ range s, (M * N).choose j) * q ^ (s - 1) := (sum_mul ..).symm
+          ≤ ∑ j ∈ range s, (M * N).choose j * q ^ (s - 1) :=
+            sum_le_sum fun j hj => Nat.mul_le_mul_left _
+              ((Nat.pow_le_pow_left (Nat.sub_le q 1) j).trans
+                (Nat.pow_le_pow_right (by omega) (Nat.le_sub_one_of_lt (mem_range.mp hj))))
         _ ≤ (∑ j ∈ range (M * N + 1), (M * N).choose j) * q ^ (s - 1) := by
+            rw [← sum_mul]
             gcongr
             omega
         _ = 2 ^ (M * N) * q ^ (s - 1) := by rw [Nat.sum_range_choose]
@@ -604,24 +514,10 @@ theorem one_sub_lt_card_rigidity_eq_mul_sub_div (r : ℕ) :
             Nat.mul_le_mul_right _ (Nat.mul_le_mul_left 4 hV)
         _ = 4 * 2 ^ (M * N) * q ^ (M * N) * q ^ (s - 1) := by ring
     exact Nat.lt_of_mul_lt_mul_right hscale
-  have hpart : #{A : Matrix m n K | A.rigidity r = s} + #{A : Matrix m n K | A.rigidity r ≠ s} =
-      Fintype.card (Matrix m n K) := by
-    have hc := card_filter_add_card_filter_not (s := (univ : Finset (Matrix m n K)))
-      fun A => A.rigidity r = s
-    simpa only [card_univ] using hc
-  have hMpos : (0 : ℝ) < Fintype.card (Matrix m n K) := by exact_mod_cast Fintype.card_pos
-  have hqpos : (0 : ℝ) < q := by exact_mod_cast (by omega : 0 < q)
-  have hbadR : (#{A : Matrix m n K | A.rigidity r ≠ s} : ℝ) * q <
-      4 * (2 : ℝ) ^ (M * N) * Fintype.card (Matrix m n K) := by exact_mod_cast hbad
-  have hpartR : (#{A : Matrix m n K | A.rigidity r = s} : ℝ) +
-      #{A : Matrix m n K | A.rigidity r ≠ s} = Fintype.card (Matrix m n K) := by
-    exact_mod_cast hpart
-  rw [lt_div_iff₀ hMpos, sub_mul, one_mul]
-  have hlt : (#{A : Matrix m n K | A.rigidity r ≠ s} : ℝ) <
-      4 * (2 : ℝ) ^ (M * N) / q * Fintype.card (Matrix m n K) := by
-    rw [div_mul_eq_mul_div, lt_div_iff₀ hqpos]
-    exact hbadR
-  linarith
+  refine one_sub_div_lt_div_of_add_eq (b := #{A : Matrix m n K | A.rigidity r ≠ s})
+    Fintype.card_pos (by omega) ?_ (by exact_mod_cast hbad)
+  simpa only [card_univ] using card_filter_add_card_filter_not
+    (s := (univ : Finset (Matrix m n K))) fun A => A.rigidity r = s
 
 end DecidableIndex
 
@@ -644,13 +540,7 @@ theorem one_sub_inv_pow_lt_card_sq_div_log_le_rigidity [DecidableEq n] (r : ℕ)
     rcases Nat.eq_zero_or_pos N with hN0 | hNpos
     · simp [hN0]
     have hlt : N < q ^ (Nat.log q N + 1) := Nat.lt_pow_succ_log_self hq N
-    have hsq : N * N < q ^ (2 * Nat.log q N + 2) := by
-      calc N * N < q ^ (Nat.log q N + 1) * q ^ (Nat.log q N + 1) :=
-            Nat.mul_lt_mul'' hlt hlt
-        _ = q ^ (2 * Nat.log q N + 2) := by
-            rw [← pow_add]
-            congr 1
-            omega
+    have hsq : N * N < q ^ (2 * Nat.log q N + 2) := (Nat.mul_lt_mul'' hlt hlt).trans_eq (by ring)
     have hle : Nat.log q (N * N) < 2 * Nat.log q N + 2 :=
       (Nat.log_lt_iff_lt_pow hq (Nat.mul_pos hNpos hNpos).ne').2 hsq
     omega

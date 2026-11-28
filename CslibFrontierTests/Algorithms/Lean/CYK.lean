@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 public import CslibFrontier.Algorithms.Lean.CYK.Basic
+public import CslibFrontier.Algorithms.WordRAM.CYK
 
 /-!
 # The Cocke–Younger–Kasami algorithm: worked examples
@@ -15,15 +16,17 @@ public import CslibFrontier.Algorithms.Lean.CYK.Basic
 Kernel-checked examples (no `native_decide`) for two grammars in Chomsky normal form: `{aⁿbⁿ}`
 without `ε`, whose start symbol occurs on a right-hand side, and the balanced-parenthesis
 language with the rule `S → ε`. Each grammar gets accepted and rejected words, including the
-empty word, through `cyk` and through the `Decidable` instance on language membership. The file
-also checks exact tick counts, and that the bundled invariant is not vacuous.
+empty word, through `cyk`, through the `Decidable` instance on language membership, and through
+the Word-RAM program `cykProgram` and its running-time certificates. The file also checks that the
+bundled `nilRule` invariant is not vacuous.
 -/
 
 public section
 
 namespace CslibFrontierTests.CYK
 
-open Cslib Cslib.Algorithms.Lean.CYK ChomskyNormalFormRule
+open Cslib Cslib.Algorithms.Lean.CYK Cslib.Algorithms.WordRAM.CYK Cslib.WordRAM
+open ChomskyNormalFormRule
 
 /-! ### `{aⁿbⁿ | n ≥ 1}` -/
 
@@ -68,15 +71,6 @@ example : ¬ anbn.toCFG.Derives [.nonterminal anbn.initial]
   fun h => absurd ((mem_table_iff (G := anbn) (w := ['a', 'b', 'a', 'b']) (L := 4) (i := 0)
     (l := 4) (by decide) (by decide) (by decide) anbn.initial).mpr h) (by decide)
 
-/-- Exact tick count on `aabb`: `(5 + 1) (4 + C(5, 3)) = 84`, from `time_cykM` and by evaluation. -/
-example : (cykM anbn ['a', 'a', 'b', 'b']).time = 84 := by
-  rw [time_cykM]
-  rfl
-
-example : (cykM anbn ['a', 'a', 'b', 'b']).time = 84 := by decide
-
-example : (cykM anbn ['a', 'a', 'b', 'b']).ret = true := by decide
-
 /-! ### Balanced parentheses, with `ε` -/
 
 /-- Nonterminals for the balanced-parenthesis language. -/
@@ -111,11 +105,129 @@ found at two split points. (`S` is given type `dyck.NT` so that `decide` finds t
 example : table dyck ['(', ')', '(', ')'] 4 0 4 = [show dyck.NT from D.S, dyck.initial] := by
   decide
 
-/-- The empty word is free; on `()()` the cost is `(9 + 1) (4 + C(5, 3)) = 140`. -/
-example : (cykM dyck []).time = 0 := rfl
-example : (cykM dyck ['(', ')', '(', ')']).time = 140 := by
-  rw [time_cykM]
-  rfl
+/-! ### Word-RAM execution and running-time certificates -/
+
+/-- Encoded `{aⁿbⁿ | n ≥ 1}` instance on word `w` (`0 = 'a'`, `1 = 'b'`). -/
+@[expose] def anbnInst (w : List ℕ) : CYKInstance where
+  numNTs := 4
+  initial := 0
+  rules := [node 0 2 3, node 0 2 1, node 1 0 3, leaf 2 0, leaf 3 1]
+  nilRule := false
+  initial_notMem_output := by simp
+  word := w
+
+/-- Encoded balanced-parenthesis instance with `Z → ε` (`0 = '('`, `1 = ')'`). -/
+@[expose] def dyckInst (w : List ℕ) : CYKInstance where
+  numNTs := 5
+  initial := 0
+  rules := [node 0 3 4, node 0 3 2, node 0 1 1,
+    node 1 3 4, node 1 3 2, node 1 1 1, node 2 1 4, leaf 3 0, leaf 4 1]
+  nilRule := true
+  initial_notMem_output := by simp [ChomskyNormalFormRule.output]
+  word := w
+
+-- Accepted `aabb` (`[0, 0, 1, 1]`) on `{aⁿbⁿ}`: `timeBound = 42 * 6 * 64 = 16128`
+example : ∃ n ≤ 42 * 6 * 64,
+    Executes 8 cykProgram (.init (anbnInst [0, 0, 1, 1]).encode) 1 n ∧
+      Cslib.WordRAM.run 8 cykProgram (42 * 6 * 64) (.init (anbnInst [0, 0, 1, 1]).encode) =
+        some (1, n) := by
+  obtain ⟨n, hexec, hle⟩ :=
+    computesInTime_cyk (anbnInst [0, 0, 1, 1]) 8 (by decide) (by decide)
+  dsimp only at hexec hle
+  have hval : (cyk (anbnInst [0, 0, 1, 1]).grammar (anbnInst [0, 0, 1, 1]).word).toNat = 1 := by
+    decide
+  rw [hval] at hexec
+  exact ⟨n, hle, hexec, run_mono hexec.run_eq hle⟩
+
+-- Rejected `abab` (`[0, 1, 0, 1]`) on `{aⁿbⁿ}`
+example : ∃ n ≤ 42 * 6 * 64,
+    Executes 8 cykProgram (.init (anbnInst [0, 1, 0, 1]).encode) 0 n ∧
+      Cslib.WordRAM.run 8 cykProgram (42 * 6 * 64) (.init (anbnInst [0, 1, 0, 1]).encode) =
+        some (0, n) := by
+  obtain ⟨n, hexec, hle⟩ :=
+    computesInTime_cyk (anbnInst [0, 1, 0, 1]) 8 (by decide) (by decide)
+  dsimp only at hexec hle
+  have hval : (cyk (anbnInst [0, 1, 0, 1]).grammar (anbnInst [0, 1, 0, 1]).word).toNat = 0 := by
+    decide
+  rw [hval] at hexec
+  exact ⟨n, hle, hexec, run_mono hexec.run_eq hle⟩
+
+-- Asymmetric left/right rejection `bbaa` (`[1, 1, 0, 0]`) on `{aⁿbⁿ}` (`B`/`C` order witness)
+example : ∃ n ≤ 42 * 6 * 64,
+    Executes 8 cykProgram (.init (anbnInst [1, 1, 0, 0]).encode) 0 n ∧
+      Cslib.WordRAM.run 8 cykProgram (42 * 6 * 64) (.init (anbnInst [1, 1, 0, 0]).encode) =
+        some (0, n) := by
+  obtain ⟨n, hexec, hle⟩ :=
+    computesInTime_cyk (anbnInst [1, 1, 0, 0]) 8 (by decide) (by decide)
+  dsimp only at hexec hle
+  have hval : (cyk (anbnInst [1, 1, 0, 0]).grammar (anbnInst [1, 1, 0, 0]).word).toNat = 0 := by
+    decide
+  rw [hval] at hexec
+  exact ⟨n, hle, hexec, run_mono hexec.run_eq hle⟩
+
+-- Single-letter `[0]` (`|w| = 1`, leaf level with zero node-level iterations)
+example : ∃ n ≤ 42 * 6 * 1,
+    Executes 6 cykProgram (.init (anbnInst [0]).encode) 0 n ∧
+      Cslib.WordRAM.run 6 cykProgram (42 * 6 * 1) (.init (anbnInst [0]).encode) = some (0, n) := by
+  obtain ⟨n, hexec, hle⟩ := computesInTime_cyk (anbnInst [0]) 6 (by decide) (by decide)
+  dsimp only at hexec hle
+  have hval : (cyk (anbnInst [0]).grammar (anbnInst [0]).word).toNat = 0 := by decide
+  rw [hval] at hexec
+  exact ⟨n, hle, hexec, run_mono hexec.run_eq hle⟩
+
+-- Empty-word rejection on `{aⁿbⁿ}` (`nilRule = false`) in `≤ 21` instructions
+example : ∃ n ≤ 21,
+    Executes 6 cykProgram (.init (anbnInst []).encode) 0 n ∧
+      Cslib.WordRAM.run 6 cykProgram 21 (.init (anbnInst []).encode) = some (0, n) := by
+  obtain ⟨n, hexec, hle⟩ := computesInTime_cyk (anbnInst []) 6 (by decide) (by decide)
+  dsimp only at hexec hle
+  exact ⟨n, hle, hexec, run_mono hexec.run_eq hle⟩
+
+-- Empty-word and nonempty `dyck` (`nilRule = true`) through `DecidesInTime` and `ComputesInTime`
+example : cykProgram.Answers 6 (dyckInst []).encode
+    ([] ∈ (dyckInst []).grammar.toCFG.language) 21 :=
+  decidesInTime_cyk (dyckInst []) 6 (by decide) (by decide)
+
+example : ∃ n ≤ 42 * 10 * 64,
+    Executes 8 cykProgram (.init (dyckInst [0, 1, 0, 1]).encode) 1 n ∧
+      Cslib.WordRAM.run 8 cykProgram (42 * 10 * 64) (.init (dyckInst [0, 1, 0, 1]).encode) =
+        some (1, n) := by
+  obtain ⟨n, hexec, hle⟩ :=
+    computesInTime_cyk (dyckInst [0, 1, 0, 1]) 8 (by decide) (by decide)
+  dsimp only at hexec hle
+  have hval : (cyk (dyckInst [0, 1, 0, 1]).grammar (dyckInst [0, 1, 0, 1]).word).toNat = 1 := by
+    decide
+  rw [hval] at hexec
+  exact ⟨n, hle, hexec, run_mono hexec.run_eq hle⟩
+
+example : ∃ n ≤ 42 * 10 * 8,
+    Executes 7 cykProgram (.init (dyckInst [1, 0]).encode) 0 n ∧
+      Cslib.WordRAM.run 7 cykProgram (42 * 10 * 8) (.init (dyckInst [1, 0]).encode) =
+        some (0, n) := by
+  obtain ⟨n, hexec, hle⟩ := computesInTime_cyk (dyckInst [1, 0]) 7 (by decide) (by decide)
+  dsimp only at hexec hle
+  have hval : (cyk (dyckInst [1, 0]).grammar (dyckInst [1, 0]).word).toNat = 0 := by decide
+  rw [hval] at hexec
+  exact ⟨n, hle, hexec, run_mono hexec.run_eq hle⟩
+
+-- Single-letter accepted witness (`S → 0` on `[0]`, exercising `|w| = 1` with `cykFinalRead = 1`)
+def singleLetterInst : CYKInstance where
+  numNTs := 1
+  initial := 0
+  rules := [leaf 0 0]
+  nilRule := false
+  initial_notMem_output := by intro h; cases h
+  word := [0]
+
+example : ∃ n ≤ 42 * 2 * 1,
+    Executes 5 cykProgram (.init singleLetterInst.encode) 1 n ∧
+      Cslib.WordRAM.run 5 cykProgram (42 * 2 * 1) (.init singleLetterInst.encode) =
+        some (1, n) := by
+  obtain ⟨n, hexec, hle⟩ := computesInTime_cyk singleLetterInst 5 (by decide) (by decide)
+  dsimp only at hexec hle
+  have hval : (cyk singleLetterInst.grammar singleLetterInst.word).toNat = 1 := by decide
+  rw [hval] at hexec
+  exact ⟨n, hle, hexec, run_mono hexec.run_eq hle⟩
 
 /-! ### The invariant is not vacuous -/
 

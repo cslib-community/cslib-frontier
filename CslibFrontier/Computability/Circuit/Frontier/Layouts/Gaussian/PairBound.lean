@@ -329,7 +329,7 @@ theorem cubicLayoutBound_pairBound :
   intro V E _ _ G hloop hinj h3
   obtain ⟨M, hM, hm⟩ := hR V E G hloop hinj h3
   refine ⟨M, Gaussian.PairBound.rawEdgeVector G Gaussian.PairBound.rawRatio R, hM,
-    Gaussian.PairBound.norm_rawEdgeVector Gaussian.PairBound.rawRatio_nonneg R,
+    Gaussian.PairBound.norm_rawEdgeVector Gaussian.PairBound.rawRatio_pos.le R,
     fun {_ _} he {_} hz => Gaussian.PairBound.rawEdgeVector_apply_eq_zero he hz,
     fun t => (hm t).trans ?_⟩
   exact mul_le_mul_of_nonneg_left (by linarith) (Nat.cast_nonneg _)

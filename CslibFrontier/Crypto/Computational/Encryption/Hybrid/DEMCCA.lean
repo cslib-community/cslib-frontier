@@ -170,21 +170,16 @@ theorem run_hybridDEMHandler_after (E : SymmetricCipher)
       have hc' : encPair encBits encBits (ctK, dropFrame request.2) = request.2 := by
         simpa only [hk] using hc
       simp only [hybridDEMHandler, hybridDecrypt, beq_iff_eq, hk, hc', ↓reduceIte,
-        OracleComp.interpret_map, ProbOracleComp.interpret_query, heq]
-      simp only [StateT.run_map]
+        OracleComp.interpret_map, ProbOracleComp.interpret_query, heq, StateT.run_map]
       dsimp only [StateT.run, SymmetricCipher.oneTimeCCAOracle]
       by_cases hd : dropFrame request.2 = ctD
       · simp [hd]
       · simp [hd, List.take_of_length_le (hbound _)]
-    · have hne : request.2 ≠ encPair encBits encBits (ctK, ctD) := by
-        intro h
-        exact hk ((congrArg unframe h).trans (unframe_encPair_encBits _ _ _))
+    · have hne : request.2 ≠ encPair encBits encBits (ctK, ctD) :=
+        fun h => hk ((congrArg unframe h).trans (unframe_encPair_encBits _ _ _))
       simp only [hybridDEMHandler, hybridDecrypt, beq_iff_eq, hc, hk, hne, ↓reduceIte,
         OracleComp.interpret_pure, StateT.run_pure]
-  · have hne : request.2 ≠ encPair encBits encBits (ctK, ctD) := by
-      intro h
-      apply hc
-      simp [h]
+  · have hne : request.2 ≠ encPair encBits encBits (ctK, ctD) := fun h => hc (by simp [h])
     simp only [hybridDEMHandler, hybridDecrypt, beq_iff_eq, hc, hne, ↓reduceIte,
       OracleComp.interpret_pure, StateT.run_pure, encOption_none]
 
@@ -260,9 +255,8 @@ private theorem eval_run_hybridDEMContinuation (E : SymmetricCipher)
     apply PMF.bind_congr_on_support
     intro ct hmem
     have hlen : (if bit then ChoiceOut.msg₁ choice.1 else ChoiceOut.msg₀ choice.1).length = n := by
-      have h := hvalid
-      simp only [Bool.and_eq_true, beq_iff_eq] at h
-      split_ifs <;> first | exact h.1 | exact h.2
+      simp only [Bool.and_eq_true, beq_iff_eq] at hvalid
+      cases bit <;> simp [hvalid]
     rw [List.take_of_length_le (hct _ hlen ct hmem)]
     have hguess := eval_run_substituted_phase (E.oneTimeCCAOracle n k bit)
       (hybridDEMHandler E decaps decBound n sk ctK)
@@ -272,14 +266,10 @@ private theorem eval_run_hybridDEMContinuation (E : SymmetricCipher)
       (adversary.guess n (ChoiceOut.state choice.1) (encPair encBits encBits (ctK, ct)))
     rw [hguess]
     simp only [PMF.bind_map, Function.comp_def]
-    have hp : (fun request (s : Unit) =>
-        (pure (if request.2 == encPair encBits encBits (ctK, ct) then [] else
-          encOption encBits (decrypt n sk request.2), s) : ProbComp (List Bool × Unit))) =
-        cca2Phase2Oracle encBits decrypt n sk (encPair encBits encBits (ctK, ct)) := by
-      funext request s
-      unfold cca2Phase2Oracle
-      split_ifs <;> rfl
-    rw [hp]
+    congr 5
+    funext request s
+    unfold cca2Phase2Oracle
+    split_ifs <;> rfl
   · simp only [hvalid]
     change (PMF.pure (false, ([] : List (List Bool)))).bind (fun a => PMF.pure a.1) = _
     exact PMF.pure_bind _ _
@@ -315,6 +305,23 @@ theorem eval_hybridDEMGame (E : SymmetricCipher)
     eval_run_hybridDEMContinuation E decaps ctBound decBound adversary bit n keys.1 keys.2
       encapsulated.2 k (hct k hk) (hdec k hk)
 
+@[local fun_prop]
+private theorem computableInPolyTime_hybridDecrypt_comp {Msg α : Type}
+    {encMsg : Msg ↪ List Bool} {input : α ↪ List Bool}
+    {decaps : ℕ → List Bool → List Bool → Option (List Bool)}
+    {decryptSym : ℕ → List Bool → List Bool → Option Msg}
+    (hdecaps : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool =>
+      decaps p.1 p.2.1 p.2.2) (encKeyedInput encBits) (encOption encBits))
+    (hdecryptSym : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool =>
+      decryptSym p.1 p.2.1 p.2.2) (encKeyedInput encBits) (encOption encMsg))
+    {n : α → ℕ} {sk ct : α → List Bool}
+    (hn : ComputableInPolyTime n input encUnary)
+    (hsk : ComputableInPolyTime sk input encBits)
+    (hct : ComputableInPolyTime ct input encBits) :
+    ComputableInPolyTime (fun a => hybridDecrypt decaps decryptSym (n a) (sk a) (ct a))
+      input (encOption encMsg) :=
+  (computableInPolyTime_hybridDecrypt hdecaps hdecryptSym).comp (hn.prod (hsk.prod hct))
+
 /-- Native bounded-read implementation of the canonical forwarding handler. -/
 @[fun_prop]
 theorem isOraclePPTOn_hybridDEMHandler (E : SymmetricCipher)
@@ -331,20 +338,10 @@ theorem isOraclePPTOn_hybridDEMHandler (E : SymmetricCipher)
     (hrequest : ComputableInPolyTime request input encBits) :
     IsOraclePPTOn input encBits (fun a =>
       hybridDEMHandler E decaps decBound (n a) (sk a) (ctK a) ((), request a)) := by
-  have hkem := ComputableInPolyTime.unframe.comp hrequest
-  have hdem := ComputableInPolyTime.dropFrame.comp hrequest
-  have hcanonical := ComputableInPolyTime.beq (encB := encBits)
-    (hkem.prod hdem).encoding_comp hrequest
-  have hkey := ComputableInPolyTime.beq (encB := encBits) hkem hctK
-  have hlocal := (computableInPolyTime_hybridDecrypt hdecaps E.decrypt_polyTime).comp
-    (hn.prod (hsk.prod hrequest))
-  unfold hybridDEMHandler
-  exact IsOraclePPTOn.cond hcanonical
-    (IsOraclePPTOn.cond hkey
-      (IsOraclePPTOn.query_take true hdem (hdecBound.comp (hn.prod hdem)))
-      hlocal.encoding_comp.isOraclePPTOn)
-    (ComputableInPolyTime.const []).isOraclePPTOn
+  have := E.decrypt_polyTime
+  ppt [hybridDEMHandler]
 
+@[local fun_prop]
 private theorem isOraclePPTOn_hybridDEMInterpret (E : SymmetricCipher)
     {decaps : ℕ → List Bool → List Bool → Option (List Bool)}
     (hdecaps : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool =>
@@ -360,22 +357,17 @@ private theorem isOraclePPTOn_hybridDEMInterpret (E : SymmetricCipher)
     (hprogram : IsOraclePPTOn input output program) :
     IsOraclePPTOn input output (fun a => ProbOracleComp.simulate
       (hybridDEMHandler E decaps decBound (n a) (sk a) (ctK a)) (program a)) := by
+  have := E.decrypt_polyTime
   have hhandler : IsOraclePPTOn (encPair input (encPair (encFinEnum Unit) encBits)) encBits
       (fun p : α × (Unit × List Bool) =>
         hybridDEMHandler E decaps decBound (n p.1) (sk p.1) (ctK p.1) p.2) :=
     isOraclePPTOn_hybridDEMHandler E hdecaps hdecBound
-      (hn.comp (by fun_prop)) (hsk.comp (by fun_prop)) (hctK.comp (by fun_prop)) (by fun_prop)
+      (by polytime) (by polytime) (by polytime) (by polytime)
   let resources := fun (a : α) (ct : List Bool) => decBound (n a) (dropFrame ct) +
     (encOption encBits (hybridDecrypt decaps E.decrypt (n a) (sk a) ct)).length
   have hres : ComputableInPolyTime (fun p : α × List Bool => resources p.1 p.2)
       (encPair input encBits) encUnary := by
-    have hp := ComputableInPolyTime.fst input encBits
-    have hq := ComputableInPolyTime.snd input encBits
-    have hlocal := (computableInPolyTime_hybridDecrypt hdecaps E.decrypt_polyTime).comp
-      ((hn.comp hp).prod ((hsk.comp hp).prod hq))
-    exact ComputableInPolyTime.unary_add'
-      (hdecBound.comp ((hn.comp hp).prod (ComputableInPolyTime.dropFrame.comp hq)))
-      (ComputableInPolyTime.length_bits.comp hlocal.encoding_comp)
+    polytime [resources]
   simp only [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
   apply hprogram.interpret_preprocess_open' ComputableInPolyTime.id' hhandler hres
   intro a request reply hreply
@@ -406,33 +398,11 @@ theorem isOraclePPTOn_hybridDEMContinuation (E : SymmetricCipher)
     (hctK : ComputableInPolyTime ctK input encBits) :
     IsOraclePPTOn input encBool (fun a =>
       hybridDEMContinuation E decaps ctBound decBound adversary (n a) (pk a) (sk a) (ctK a)) := by
-  let C := encPair (encPair encBits encBits) encBits
-  have hchoose := isOraclePPTOn_hybridDEMInterpret E hdecaps hdecBound hn hsk hctK
-    (hA.choose.on.preprocess (hn.prod hpk))
-  have hp := ComputableInPolyTime.fst input C
-  have hc := ComputableInPolyTime.snd input C
-  have hn1 := hn.comp hp
-  have hsk1 := hsk.comp hp
-  have hk1 := hctK.comp hp
-  have hm0 := hc.fst'.fst'
-  have hm1 := hc.fst'.snd'
-  have hquery := IsOraclePPTOn.query_take false (hm0.prod hm1).encoding_comp
-    (hctBound.comp hn1)
-  have hbase := ComputableInPolyTime.fst (encPair input C) encBits
-  have hct := ComputableInPolyTime.snd (encPair input C) encBits
-  have hn2 := hn1.comp hbase
-  have hsk2 := hsk1.comp hbase
-  have hk2 := hk1.comp hbase
-  have hguess := isOraclePPTOn_hybridDEMInterpret E hdecaps hdecBound hn2 hsk2 hk2
-    (hA.guess.preprocess (hn2.prod
-      ((hc.snd'.comp hbase).prod (hk2.prod hct).encoding_comp)))
-  have hvalid : ComputableInPolyTime
-      (fun p : ℕ × List Bool × List Bool => (p.2.1.length == p.1) && (p.2.2.length == p.1))
-      (encPair encUnary (encPair encBits encBits)) encBool := by fun_prop
-  have hcondition := hvalid.comp (hn1.prod (hm0.prod hm1))
-  unfold hybridDEMContinuation
-  exact hchoose.bind_with (IsOraclePPTOn.cond hcondition (hquery.bind_with hguess)
-    (ComputableInPolyTime.const false).isOraclePPTOn)
+  have ⟨hchoose, hguess⟩ := hA
+  have hchooseOn := hchoose.on
+  ppt [hybridDEMContinuation]
+
+attribute [local fun_prop] isOraclePPTOn_hybridDEMContinuation
 
 /-- The complete reduction is uniform strict oracle PPT. Key generation, encapsulation,
 local decapsulation/decryption, both adaptive phases, and bounded external reads are charged. -/
@@ -452,21 +422,7 @@ theorem isOraclePPT_hybridToOneTimeCCAAdversary (E : SymmetricCipher)
     {adversary : WordCCA2Adversary} (hA : adversary.IsPPT) :
     IsOraclePPT encBool
       (hybridToOneTimeCCAAdversary E keyGen encaps decaps ctBound decBound adversary) := by
-  let I := encPair encUnary encBits
-  let K := encPair encBits encBits
-  have hn := ComputableInPolyTime.fst encUnary encBits
-  have hp := ComputableInPolyTime.fst I K
-  have hk := ComputableInPolyTime.snd I K
-  have hq := ComputableInPolyTime.fst (encPair I K) K
-  have he := ComputableInPolyTime.snd (encPair I K) K
-  have hfirst := (hkeyGen.isOraclePPTOn (Operation := Bool)).preprocess hn
-  have hsecond := (hencaps.isOraclePPTOn (Operation := Bool)).preprocess
-    ((hn.comp hp).prod hk.fst')
-  have hlast := isOraclePPTOn_hybridDEMContinuation E hdecaps hctBound hdecBound hA
-    (hn.comp (hp.comp hq)) (hk.fst'.comp hq) (hk.snd'.comp hq) he.snd'
-  apply IsOraclePPTOn.isOraclePPT
-  unfold hybridToOneTimeCCAAdversary
-  exact hfirst.bind_with (hsecond.bind_with hlast)
+  ppt [hybridToOneTimeCCAAdversary]
 
 /-- The intermediate game itself has a uniform strict-PPT realization, including the hidden
 symmetric key sampler and every adaptive decryption reply. -/

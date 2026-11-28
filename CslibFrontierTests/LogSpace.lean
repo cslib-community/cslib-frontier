@@ -4,7 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.Complexity.Classes.LogSpace
+import CslibFrontier.Computability.Complexity.Classes.LogSpace.Circuit
+import CslibFrontier.Computability.Complexity.Problems.STCON.Completeness
+import CslibFrontier.Computability.Circuit.Boolean.UniformFanIn
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.PolyTime
 import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic.DeterministicTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Streaming
@@ -57,6 +59,17 @@ example :
     OddOnes ∈ PSPACE encBits :=
   let hL : OddOnes ∈ L encBits := ⟨oddOnes, computableInLogSpace_oddOnes, fun _ => Iff.rfl⟩
   ⟨hL, compl_mem_L hL, L_subset_NL hL, NL_subset_P (L_subset_NL hL), L_subset_PSPACE hL⟩
+
+/-- The native parity machine gives a logspace-uniform fan-in-two family of depth `O(log² n)`. -/
+example : OddOnes ∈ Circuits.Boolean.LogspaceUniformNC 2 :=
+  NL_subset_logspaceUniformNC_two (L_subset_NL
+    (show OddOnes ∈ L encBits from ⟨oddOnes, computableInLogSpace_oddOnes, fun _ => Iff.rfl⟩))
+
+/-- The same generator theorem applies to the native encoding of directed reachability. -/
+example : ∃ K ∈ Circuits.Boolean.LogspaceUniformNC 2,
+    ∀ I, I ∈ STCON ↔ encSTCON I ∈ K := by
+  obtain ⟨K, hK, h⟩ := exists_mem_logspaceUniformAC_one_of_mem_NL STCON.mem_NL
+  exact ⟨K, Circuits.Boolean.logspaceUniformAC_subset_NC_succ 1 hK, h⟩
 
 /-- The `DSPACE(log₂)` shape of cslib pull request #767. -/
 example : ∃ c₁ c₂ t, DecidableInTimeAndSpace OddOnes encBits t

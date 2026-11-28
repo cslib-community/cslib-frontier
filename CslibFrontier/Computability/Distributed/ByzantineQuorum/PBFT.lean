@@ -571,19 +571,221 @@ private lemma filter_accepted_eq_empty_iff {acc : Finset (SlotEntry V)} {v s : �
   rw [Finset.filter_eq_empty_iff]
   exact ⟨fun h e he hv hs => h he ⟨hv, hs⟩, fun h _ he ⟨hv, hs⟩ => h _ he hv hs⟩
 
-private lemma PBFTInvariant.committed_witness_of_unchanged {st : PBFTState P V}
-    (inv : PBFTInvariant primary f F st) {net' : Finset (PBFTMsg P V)}
-    (hnet : st.network ⊆ net') {reps' : P → ReplicaState P V}
-    (hcom : ∀ i, (reps' i).committed = (st.replicas i).committed) :
-    ∀ i, i ∉ F → ∀ e ∈ (reps' i).committed,
+omit [Fintype P] [DecidableEq V] in
+/-- An entry of replica `j` after replica `i` moves to `r'` was there before, or `j = i` and the
+entry is new in `r'`. -/
+private lemma mem_update_replica {α : Type*} (sel : ReplicaState P V → Finset α)
+    {reps : P → ReplicaState P V} {i j : P} {r' : ReplicaState P V} {x : α}
+    (h : x ∈ sel (Function.update reps i r' j)) :
+    x ∈ sel (reps j) ∨ j = i ∧ x ∈ sel r' ∧ x ∉ sel (reps i) := by
+  rcases eq_or_ne j i with rfl | hj
+  · rw [Function.update_self] at h
+    by_cases hx : x ∈ sel (reps j)
+    exacts [Or.inl hx, Or.inr ⟨rfl, h, hx⟩]
+  · rw [Function.update_of_ne hj] at h
+    exact Or.inl h
+
+omit [Fintype P] [DecidableEq V] in
+/-- A quantity of replica `j` that does not decrease when replica `i` moves to `r'`. -/
+private lemma le_update_replica {β : Type*} [Preorder β] (sel : ReplicaState P V → β)
+    {reps : P → ReplicaState P V} {i : P} {r' : ReplicaState P V} (h : sel (reps i) ≤ sel r')
+    (j : P) : sel (reps j) ≤ sel (Function.update reps i r' j) := by
+  rcases eq_or_ne j i with rfl | hj
+  · rwa [Function.update_self]
+  · rw [Function.update_of_ne hj]
+
+omit [Fintype P] [DecidableEq P] [DecidableEq V] in
+/-- What honest replica `i`, moving from local state `r` to `r'` in a step that leaves the network
+`net'`, guarantees about a message it sends in that step. -/
+private def FreshMsgOK (r r' : ReplicaState P V) (i : P) (net' : Finset (PBFTMsg P V)) :
+    PBFTMsg P V → Prop
+  | .prePrepare v s val | .prepare v s val _ => ⟨v, s, val⟩ ∈ r'.accepted
+  | .commit v s val _ => r.effectiveView ≤ v ∧ v ≤ r'.effectiveView ∧
+      ∃ c ∈ r'.preparedCerts, c.view = v ∧ c.slot = s ∧ c.val = val
+  | .viewChange vc => vc.view ≤ r'.effectiveView ∧
+      ∀ v s val, PBFTMsg.commit v s val i ∈ net' → v < vc.view →
+        ∃ c ∈ vc.pset, c.view = v ∧ c.slot = s ∧ c.val = val
+  | .newView _ _ _ => True
+
+/-- The invariant survives a step in which honest replica `i` moves to the local state `r'`, the
+other replicas stay put and the network grows to `net'`. The step may only raise the views of `i`
+and add to what it has accepted, prepared and committed; the hypotheses `h_…` are the clauses of
+the invariant about what is new: the entries and certificates of `r'` that `i` did not have, the
+view it enters, and the messages it sends. -/
+private lemma PBFTInvariant.of_replica_update {st : PBFTState P V}
+    (inv : PBFTInvariant primary f F st) {i : P} (hiF : i ∉ F) {r' : ReplicaState P V}
+    {net' : Finset (PBFTMsg P V)} (hsub : st.network ⊆ net')
+    (hview : (st.replicas i).view ≤ r'.view)
+    (heff : (st.replicas i).effectiveView ≤ r'.effectiveView)
+    (hacc : (st.replicas i).accepted ⊆ r'.accepted)
+    (hcerts : (st.replicas i).preparedCerts ⊆ r'.preparedCerts)
+    (h_view_le : r'.view ≤ r'.effectiveView)
+    (h_active : r'.view ≠ (st.replicas i).view →
+      ∃ vset oset, NewViewValidIn primary f net' r'.view vset oset ∧
+        ∀ prop ∈ oset, ⟨r'.view, prop.slot, prop.val⟩ ∈ r'.accepted)
+    (h_acc_view : ∀ e ∈ r'.accepted, e ∉ (st.replicas i).accepted → e.view ≤ r'.view)
+    (h_acc_unique : ∀ e₁ ∈ r'.accepted, e₁ ∉ (st.replicas i).accepted → ∀ e₂ ∈ r'.accepted,
+      e₁.view = e₂.view → e₁.slot = e₂.slot → e₁.val = e₂.val)
+    (h_acc_pos : ∀ e ∈ r'.accepted, e ∉ (st.replicas i).accepted → 0 < e.view →
+      ∃ vset oset, NewViewValidIn primary f net' e.view vset oset ∧
+        ∀ prop ∈ oset, prop.slot = e.slot → e.val = prop.val)
+    (h_cert : ∀ c ∈ r'.preparedCerts, c ∉ (st.replicas i).preparedCerts →
+      c.ValidIn primary f net' ∧ c.view ≤ r'.effectiveView)
+    (h_committed : ∀ e ∈ r'.committed, e ∉ (st.replicas i).committed →
       ∃ (c : PreparedCert P V) (committers : Finset P),
         c.view = e.view ∧ c.slot = e.slot ∧ c.val = e.val ∧
         c.ValidIn primary f net' ∧ pbftQuorumSize P f ≤ committers.card ∧
-        ∀ q ∈ committers, PBFTMsg.commit e.view e.slot e.val q ∈ net' := by
-  intro i hiF e he
-  rw [hcom i] at he
-  obtain ⟨c, comms, hv₀, hs₀, hval₀, hcval, hcard, hcm⟩ := inv.committed_witness i hiF e he
-  exact ⟨c, comms, hv₀, hs₀, hval₀, hcval.mono hnet, hcard, fun q hq => hnet (hcm q hq)⟩
+        ∀ q ∈ committers, PBFTMsg.commit e.view e.slot e.val q ∈ net')
+    (h_msg : ∀ m ∈ net', m ∉ st.network →
+      m.signer primary = i ∧ FreshMsgOK (st.replicas i) r' i net' m) :
+    PBFTInvariant primary f F ⟨net', Function.update st.replicas i r'⟩ where
+  view_le_effective j hjF := by
+    rcases eq_or_ne j i with rfl | hj
+    · simpa only [Function.update_self] using h_view_le
+    · simpa only [Function.update_of_ne hj] using inv.view_le_effective j hjF
+  accepted_view_le j hjF e he := by
+    rcases mem_update_replica ReplicaState.accepted he with he | ⟨rfl, he, hnew⟩
+    · exact (inv.accepted_view_le j hjF e he).trans (le_update_replica ReplicaState.view hview j)
+    · simpa only [Function.update_self] using h_acc_view e he hnew
+  accepted_unique j hjF e₁ he₁ e₂ he₂ hv hs := by
+    rcases mem_update_replica ReplicaState.accepted he₁ with ho₁ | ⟨rfl, hn₁, hnew₁⟩
+    · rcases mem_update_replica ReplicaState.accepted he₂ with ho₂ | ⟨rfl, hn₂, hnew₂⟩
+      · exact inv.accepted_unique j hjF e₁ ho₁ e₂ ho₂ hv hs
+      · exact (h_acc_unique e₂ hn₂ hnew₂ e₁ (hacc ho₁) hv.symm hs.symm).symm
+    · simp only [Function.update_self] at he₂
+      exact h_acc_unique e₁ hn₁ hnew₁ e₂ he₂ hv hs
+  voted_imp_accepted j hjF v s val hv := by
+    have hvote : HonestVoted primary st j v s val ∨ j = i ∧ ⟨v, s, val⟩ ∈ r'.accepted := by
+      rcases hv with ⟨hj, hm⟩ | ⟨hj, hm⟩
+      · by_cases hold : PBFTMsg.prePrepare v s val ∈ st.network
+        · exact Or.inl (Or.inl ⟨hj, hold⟩)
+        · exact Or.inr ⟨hj.trans (h_msg _ hm hold).1, (h_msg _ hm hold).2⟩
+      · by_cases hold : PBFTMsg.prepare v s val j ∈ st.network
+        · exact Or.inl (Or.inr ⟨hj, hold⟩)
+        · exact Or.inr (h_msg _ hm hold)
+    rcases hvote with hvote | ⟨rfl, hnew⟩
+    · exact le_update_replica ReplicaState.accepted hacc j
+        (inv.voted_imp_accepted j hjF v s val hvote)
+    · simpa only [Function.update_self] using hnew
+  active_pos_newView j hjF hpos := by
+    rcases eq_or_ne j i with rfl | hj
+    · simp only [Function.update_self] at hpos ⊢
+      by_cases hv : r'.view = (st.replicas j).view
+      · rw [hv] at hpos ⊢
+        obtain ⟨vset, oset, hnv, hprop⟩ := inv.active_pos_newView j hjF hpos
+        exact ⟨vset, oset, hnv.mono hsub, fun prop hp => hacc (hprop prop hp)⟩
+      · exact h_active hv
+    · simp only [Function.update_of_ne hj] at hpos ⊢
+      obtain ⟨vset, oset, hnv, hprop⟩ := inv.active_pos_newView j hjF hpos
+      exact ⟨vset, oset, hnv.mono hsub, hprop⟩
+  accepted_pos_newView j hjF e he hpos := by
+    rcases mem_update_replica ReplicaState.accepted he with he | ⟨rfl, he, hnew⟩
+    · obtain ⟨vset, oset, hnv, hprop⟩ := inv.accepted_pos_newView j hjF e he hpos
+      exact ⟨vset, oset, hnv.mono hsub, hprop⟩
+    · exact h_acc_pos e he hnew hpos
+  prepared_valid j hjF c hc := by
+    rcases mem_update_replica ReplicaState.preparedCerts hc with hc | ⟨rfl, hc, hnew⟩
+    · obtain ⟨hval, hle⟩ := inv.prepared_valid j hjF c hc
+      exact ⟨hval.mono hsub, hle.trans (le_update_replica ReplicaState.effectiveView heff j)⟩
+    · simpa only [Function.update_self] using h_cert c hc hnew
+  commit_has_cert k hkF v s val hm := by
+    by_cases hold : PBFTMsg.commit v s val k ∈ st.network
+    · obtain ⟨hle, c, hc, hcv⟩ := inv.commit_has_cert k hkF v s val hold
+      exact ⟨hle.trans (le_update_replica ReplicaState.effectiveView heff k),
+        c, le_update_replica ReplicaState.preparedCerts hcerts k hc, hcv⟩
+    · obtain ⟨hsig, -, hok⟩ := h_msg _ hm hold
+      simp only [PBFTMsg.signer] at hsig
+      subst hsig
+      simpa only [Function.update_self] using hok
+  viewChange_le_effective vc hvcF hm := by
+    by_cases hold : PBFTMsg.viewChange vc ∈ st.network
+    · exact (inv.viewChange_le_effective vc hvcF hold).trans
+        (le_update_replica ReplicaState.effectiveView heff vc.sender)
+    · obtain ⟨hsig, hok, -⟩ := h_msg _ hm hold
+      simp only [PBFTMsg.signer] at hsig
+      simpa only [hsig, Function.update_self] using hok
+  viewChange_contains_commit vc hvcF hm v s val hcm hlt := by
+    by_cases hold : PBFTMsg.viewChange vc ∈ st.network
+    · by_cases hcold : PBFTMsg.commit v s val vc.sender ∈ st.network
+      · exact inv.viewChange_contains_commit vc hvcF hold v s val hcold hlt
+      · obtain ⟨hsig, hle, -⟩ := h_msg _ hcm hcold
+        simp only [PBFTMsg.signer] at hsig
+        have := inv.viewChange_le_effective vc hvcF hold
+        rw [hsig] at this
+        omega
+    · obtain ⟨hsig, -, hok⟩ := h_msg _ hm hold
+      simp only [PBFTMsg.signer] at hsig
+      exact hok v s val (hsig ▸ hcm) hlt
+  committed_witness j hjF e he := by
+    rcases mem_update_replica ReplicaState.committed he with he | ⟨rfl, he, hnew⟩
+    · obtain ⟨c, comms, hv, hs, hval, hc, hcard, hcm⟩ := inv.committed_witness j hjF e he
+      exact ⟨c, comms, hv, hs, hval, hc.mono hsub, hcard, fun q hq => hsub (hcm q hq)⟩
+    · exact h_committed e he hnew
+
+/-- Replica `i` accepts the entry `⟨v, s, val⟩` at a slot still free in its current view `v` and
+sends the message `m`, a vote for it (`propose`, `acceptPrePrepare`). -/
+private lemma PBFTInvariant.of_accept {st : PBFTState P V} (inv : PBFTInvariant primary f F st)
+    {i : P} (hiF : i ∉ F) {v s : ℕ} {val : Option V} (hv : (st.replicas i).view = v)
+    (hfresh : ∀ e ∈ (st.replicas i).accepted, e.view = v → e.slot = s → False)
+    {m : PBFTMsg P V} (hm : m.signer primary = i)
+    (hmok : FreshMsgOK (st.replicas i)
+      { st.replicas i with accepted := insert ⟨v, s, val⟩ (st.replicas i).accepted } i
+      (insert m st.network) m) :
+    PBFTInvariant primary f F ⟨insert m st.network, Function.update st.replicas i
+      { st.replicas i with accepted := insert ⟨v, s, val⟩ (st.replicas i).accepted }⟩ := by
+  refine inv.of_replica_update hiF (Finset.subset_insert _ _) le_rfl le_rfl
+    (Finset.subset_insert _ _) subset_rfl (inv.view_le_effective _ hiF)
+    (absurd rfl) (fun e he hn => ?_) (fun e₁ he₁ hn e₂ he₂ hv hs => ?_)
+    (fun e he hn hpos => ?_) (fun _ => absurd) (fun _ => absurd)
+    (fun m' hm' hn => ?_)
+  · rw [Finset.eq_of_mem_insert_of_notMem he hn]; exact hv.ge
+  · obtain rfl := Finset.eq_of_mem_insert_of_notMem he₁ hn
+    rcases Finset.mem_insert.mp he₂ with rfl | he₂
+    · rfl
+    · exact (hfresh e₂ he₂ hv.symm hs.symm).elim
+  · obtain rfl := Finset.eq_of_mem_insert_of_notMem he hn
+    obtain ⟨vset, oset, hnv, hacc⟩ := inv.active_pos_newView _ hiF (by rw [hv]; exact hpos)
+    rw [hv] at hnv hacc
+    exact ⟨vset, oset, hnv.mono (Finset.subset_insert _ _),
+      fun prop hp hs => (hfresh _ (hacc prop hp) rfl hs).elim⟩
+  · obtain rfl := Finset.eq_of_mem_insert_of_notMem hm' hn
+    exact ⟨hm, hmok⟩
+
+/-- Replica `i` enters view `v'` on the valid `NEW-VIEW(v', vset, oset)` and accepts the proposals
+`oset` (`formNewView`, `enterNewView`). -/
+private lemma PBFTInvariant.of_enter_view {st : PBFTState P V}
+    (inv : PBFTInvariant primary f F st) {i : P} (hiF : i ∉ F) {v' : ℕ}
+    {vset : Finset (ViewChangeMsg P V)} {oset : Finset (SlotProposal V)}
+    {net' : Finset (PBFTMsg P V)} (hsub : st.network ⊆ net') (hview : (st.replicas i).view < v')
+    (heff : (st.replicas i).effectiveView ≤ v') (hnv : NewViewValidIn primary f net' v' vset oset)
+    (h_msg : ∀ m ∈ net', m ∉ st.network → m.signer primary = i ∧
+      FreshMsgOK (st.replicas i)
+        { st.replicas i with
+          view := v', inViewChange := false, targetView := v'
+          accepted := (st.replicas i).accepted ∪ oset.image fun prop => ⟨v', prop.slot, prop.val⟩ }
+        i net' m) :
+    PBFTInvariant primary f F ⟨net', Function.update st.replicas i
+      { st.replicas i with
+        view := v', inViewChange := false, targetView := v'
+        accepted := (st.replicas i).accepted ∪
+          oset.image fun prop => ⟨v', prop.slot, prop.val⟩ }⟩ := by
+  have hoset := hnv.2.2.2.2.2
+  refine inv.of_replica_update hiF hsub hview.le heff Finset.subset_union_left subset_rfl le_rfl
+    (fun _ => ⟨vset, oset, hnv, fun _ hp => ?_⟩) (fun e he hn => ?_)
+    (fun e₁ he₁ hn e₂ he₂ hv hs => ?_) (fun e he hn _ => ?_) (fun _ => absurd) (fun _ => absurd)
+    h_msg
+  · exact Finset.mem_union_right _ (Finset.mem_image_of_mem _ hp)
+  · obtain ⟨prop, _, rfl⟩ := Finset.mem_image.mp ((Finset.mem_union.mp he).resolve_left hn)
+    exact le_rfl
+  · obtain ⟨p₁, hp₁, rfl⟩ := Finset.mem_image.mp ((Finset.mem_union.mp he₁).resolve_left hn)
+    rcases Finset.mem_union.mp he₂ with he₂ | he₂
+    · have := inv.accepted_view_le _ hiF e₂ he₂
+      dsimp only at hv
+      omega
+    · obtain ⟨p₂, hp₂, rfl⟩ := Finset.mem_image.mp he₂
+      exact computeOset_slot_unique hoset hp₁ hp₂ hs
+  · obtain ⟨prop₀, hp₀, rfl⟩ := Finset.mem_image.mp ((Finset.mem_union.mp he).resolve_left hn)
+    exact ⟨vset, oset, hnv, fun prop hp hs => computeOset_slot_unique hoset hp₀ hp hs.symm⟩
 
 private lemma pbftInvariant_init : PBFTInvariant primary f F (initPBFTState P V) where
   view_le_effective _ _ := le_rfl
@@ -606,499 +808,56 @@ private lemma pbftInvariant_step {st : PBFTState P V}
   | propose v s val =>
     unfold pbftStep; dsimp only
     split_ifs with hg
-    · obtain ⟨hpF, hpv, hpin, hfresh⟩ := hg
+    · obtain ⟨hpF, hpv, -, hfresh⟩ := hg
       rw [filter_accepted_eq_empty_iff] at hfresh
-      have hnet_sub : st.network ⊆ insert (PBFTMsg.prePrepare v s val) st.network :=
-        Finset.subset_insert _ _
-      refine
-        { view_le_effective := fun i hiF => by
-            by_cases hip : i = primary v
-            · subst hip; simp only [Function.update_self]; exact inv.view_le_effective _ hpF
-            · simp only [Function.update_of_ne hip]; exact inv.view_le_effective i hiF
-          accepted_view_le := fun i hiF e he => by
-            by_cases hip : i = primary v
-            · subst hip; simp only [Function.update_self, Finset.mem_insert] at he ⊢
-              rcases he with rfl | he'
-              · exact le_of_eq hpv.symm
-              · exact inv.accepted_view_le _ hpF e he'
-            · simp only [Function.update_of_ne hip] at he ⊢
-              exact inv.accepted_view_le i hiF e he
-          accepted_unique := fun i hiF e₁ he₁ e₂ he₂ hv hs => by
-            by_cases hip : i = primary v
-            · subst hip; simp only [Function.update_self, Finset.mem_insert] at he₁ he₂
-              rcases he₁ with rfl | he₁' <;> rcases he₂ with rfl | he₂'
-              · rfl
-              · exact False.elim (hfresh e₂ he₂' hv.symm hs.symm)
-              · exact False.elim (hfresh e₁ he₁' hv hs)
-              · exact inv.accepted_unique _ hpF e₁ he₁' e₂ he₂' hv hs
-            · simp only [Function.update_of_ne hip] at he₁ he₂
-              exact inv.accepted_unique i hiF e₁ he₁ e₂ he₂ hv hs
-          voted_imp_accepted := fun i hiF v₀ s₀ val₀ hv => by
-            rcases hv with ⟨hi_eq, hm⟩ | ⟨hi_ne, hm⟩
-            · rw [Finset.mem_insert] at hm
-              rcases hm with hm_eq | hm_old
-              · injection hm_eq with hv_eq hs_eq hval_eq
-                subst hv_eq hs_eq hval_eq hi_eq
-                simp only [Function.update_self, Finset.mem_insert, true_or]
-              · have hacc := inv.voted_imp_accepted i hiF v₀ s₀ val₀ (Or.inl ⟨hi_eq, hm_old⟩)
-                by_cases hip : i = primary v
-                · subst hip; simp only [Function.update_self, Finset.mem_insert]; exact Or.inr hacc
-                · simp only [Function.update_of_ne hip]; exact hacc
-            · rw [Finset.mem_insert] at hm
-              rcases hm with hm_eq | hm_old
-              · exact nomatch hm_eq
-              · have hacc := inv.voted_imp_accepted i hiF v₀ s₀ val₀ (Or.inr ⟨hi_ne, hm_old⟩)
-                by_cases hip : i = primary v
-                · subst hip; simp only [Function.update_self, Finset.mem_insert]; exact Or.inr hacc
-                · simp only [Function.update_of_ne hip]; exact hacc
-          active_pos_newView := fun i hiF hpos => by
-            by_cases hip : i = primary v
-            · subst hip; simp only [Function.update_self] at hpos ⊢
-              obtain ⟨vset, oset, hnv, hacc⟩ := inv.active_pos_newView _ hpF hpos
-              exact ⟨vset, oset, hnv.mono hnet_sub,
-                fun prop hp => Finset.mem_insert_of_mem (hacc prop hp)⟩
-            · simp only [Function.update_of_ne hip] at hpos ⊢
-              obtain ⟨vset, oset, hnv, hacc⟩ := inv.active_pos_newView i hiF hpos
-              exact ⟨vset, oset, hnv.mono hnet_sub, hacc⟩
-          accepted_pos_newView := fun i hiF e he hpos => by
-            by_cases hip : i = primary v
-            · subst hip; simp only [Function.update_self, Finset.mem_insert] at he
-              rcases he with rfl | he_old
-              · dsimp only at hpos ⊢
-                rw [← hpv] at hpos
-                obtain ⟨vset, oset, hnv, hacc⟩ := inv.active_pos_newView _ hpF hpos
-                rw [hpv] at hnv hacc
-                refine ⟨vset, oset, hnv.mono hnet_sub, fun prop hp hs => ?_⟩
-                exact False.elim (hfresh _ (hacc prop hp) rfl hs)
-              · obtain ⟨vset, oset, hnv, hprop⟩ := inv.accepted_pos_newView _ hpF e he_old hpos
-                exact ⟨vset, oset, hnv.mono hnet_sub, hprop⟩
-            · simp only [Function.update_of_ne hip] at he
-              obtain ⟨vset, oset, hnv, hprop⟩ := inv.accepted_pos_newView i hiF e he hpos
-              exact ⟨vset, oset, hnv.mono hnet_sub, hprop⟩
-          prepared_valid := fun i hiF c hc => by
-            by_cases hip : i = primary v
-            · subst hip; simp only [Function.update_self] at hc ⊢
-              obtain ⟨hval, hle⟩ := inv.prepared_valid _ hpF c hc
-              exact ⟨hval.mono hnet_sub, hle⟩
-            · simp only [Function.update_of_ne hip] at hc ⊢
-              obtain ⟨hval, hle⟩ := inv.prepared_valid i hiF c hc
-              exact ⟨hval.mono hnet_sub, hle⟩
-          commit_has_cert := fun k hkF v₀ s₀ val₀ hm => by
-            rw [Finset.mem_insert] at hm
-            rcases hm with hm_eq | hm_old
-            · exact nomatch hm_eq
-            · by_cases hkp : k = primary v
-              · subst hkp; simp only [Function.update_self]
-                exact inv.commit_has_cert _ hkF v₀ s₀ val₀ hm_old
-              · simp only [Function.update_of_ne hkp]
-                exact inv.commit_has_cert k hkF v₀ s₀ val₀ hm_old
-          viewChange_le_effective := fun vc hvcF hm => by
-            rw [Finset.mem_insert] at hm
-            rcases hm with hm_eq | hm_old
-            · exact nomatch hm_eq
-            · by_cases hvp : vc.sender = primary v
-              · rw [hvp]; simp only [Function.update_self]
-                exact hvp ▸ inv.viewChange_le_effective vc hvcF hm_old
-              · simp only [Function.update_of_ne hvp]
-                exact inv.viewChange_le_effective vc hvcF hm_old
-          viewChange_contains_commit := fun vc hvcF hm v₀ s₀ val₀ hcm hlt => by
-            rw [Finset.mem_insert] at hm hcm
-            rcases hm with hm_eq | hm_old
-            · exact nomatch hm_eq
-            · rcases hcm with hcm_eq | hcm_old
-              · exact nomatch hcm_eq
-              · exact inv.viewChange_contains_commit vc hvcF hm_old v₀ s₀ val₀ hcm_old hlt
-          committed_witness := inv.committed_witness_of_unchanged hnet_sub fun i => by
-            by_cases hip : i = primary v
-            · subst hip; simp only [Function.update_self]
-            · simp only [Function.update_of_ne hip] }
+      exact inv.of_accept hpF hpv hfresh rfl (Finset.mem_insert_self _ _)
     · exact inv
   | acceptPrePrepare i₀ v s val =>
     unfold pbftStep; dsimp only
     split_ifs with hg
-    · obtain ⟨hi₀F, hi₀ne, hi₀v, hi₀in, _, hfresh⟩ := hg
+    · obtain ⟨hi₀F, -, hi₀v, -, -, hfresh⟩ := hg
       rw [filter_accepted_eq_empty_iff] at hfresh
-      have hnet_sub : st.network ⊆ insert (PBFTMsg.prepare v s val i₀) st.network :=
-        Finset.subset_insert _ _
-      refine
-        { view_le_effective := fun i hiF => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self]; exact inv.view_le_effective _ hi₀F
-            · simp only [Function.update_of_ne hii]; exact inv.view_le_effective i hiF
-          accepted_view_le := fun i hiF e he => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self, Finset.mem_insert] at he ⊢
-              rcases he with rfl | he'
-              · exact le_of_eq hi₀v.symm
-              · exact inv.accepted_view_le _ hi₀F e he'
-            · simp only [Function.update_of_ne hii] at he ⊢
-              exact inv.accepted_view_le i hiF e he
-          accepted_unique := fun i hiF e₁ he₁ e₂ he₂ hv hs => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self, Finset.mem_insert] at he₁ he₂
-              rcases he₁ with rfl | he₁' <;> rcases he₂ with rfl | he₂'
-              · rfl
-              · exact False.elim (hfresh e₂ he₂' hv.symm hs.symm)
-              · exact False.elim (hfresh e₁ he₁' hv hs)
-              · exact inv.accepted_unique _ hi₀F e₁ he₁' e₂ he₂' hv hs
-            · simp only [Function.update_of_ne hii] at he₁ he₂
-              exact inv.accepted_unique i hiF e₁ he₁ e₂ he₂ hv hs
-          voted_imp_accepted := fun i hiF v₀ s₀ val₀ hv => by
-            rcases hv with ⟨hi_eq, hm⟩ | ⟨hi_ne, hm⟩
-            · rw [Finset.mem_insert] at hm
-              rcases hm with hm_eq | hm_old
-              · exact nomatch hm_eq
-              · have hacc := inv.voted_imp_accepted i hiF v₀ s₀ val₀ (Or.inl ⟨hi_eq, hm_old⟩)
-                by_cases hii : i = i₀
-                · subst hii; simp only [Function.update_self, Finset.mem_insert]; exact Or.inr hacc
-                · simp only [Function.update_of_ne hii]; exact hacc
-            · rw [Finset.mem_insert] at hm
-              rcases hm with hm_eq | hm_old
-              · injection hm_eq with hv_eq hs_eq hval_eq hi_eq
-                subst hv_eq hs_eq hval_eq hi_eq
-                simp only [Function.update_self, Finset.mem_insert, true_or]
-              · have hacc := inv.voted_imp_accepted i hiF v₀ s₀ val₀ (Or.inr ⟨hi_ne, hm_old⟩)
-                by_cases hii : i = i₀
-                · subst hii; simp only [Function.update_self, Finset.mem_insert]; exact Or.inr hacc
-                · simp only [Function.update_of_ne hii]; exact hacc
-          active_pos_newView := fun i hiF hpos => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self] at hpos ⊢
-              obtain ⟨vset, oset, hnv, hacc⟩ := inv.active_pos_newView _ hi₀F hpos
-              exact ⟨vset, oset, hnv.mono hnet_sub,
-                fun prop hp => Finset.mem_insert_of_mem (hacc prop hp)⟩
-            · simp only [Function.update_of_ne hii] at hpos ⊢
-              obtain ⟨vset, oset, hnv, hacc⟩ := inv.active_pos_newView i hiF hpos
-              exact ⟨vset, oset, hnv.mono hnet_sub, hacc⟩
-          accepted_pos_newView := fun i hiF e he hpos => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self, Finset.mem_insert] at he
-              rcases he with rfl | he_old
-              · dsimp only at hpos ⊢
-                rw [← hi₀v] at hpos
-                obtain ⟨vset, oset, hnv, hacc⟩ := inv.active_pos_newView _ hi₀F hpos
-                rw [hi₀v] at hnv hacc
-                refine ⟨vset, oset, hnv.mono hnet_sub, fun prop hp hs => ?_⟩
-                exact False.elim (hfresh _ (hacc prop hp) rfl hs)
-              · obtain ⟨vset, oset, hnv, hprop⟩ := inv.accepted_pos_newView _ hi₀F e he_old hpos
-                exact ⟨vset, oset, hnv.mono hnet_sub, hprop⟩
-            · simp only [Function.update_of_ne hii] at he
-              obtain ⟨vset, oset, hnv, hprop⟩ := inv.accepted_pos_newView i hiF e he hpos
-              exact ⟨vset, oset, hnv.mono hnet_sub, hprop⟩
-          prepared_valid := fun i hiF c hc => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self] at hc ⊢
-              obtain ⟨hval, hle⟩ := inv.prepared_valid _ hi₀F c hc
-              exact ⟨hval.mono hnet_sub, hle⟩
-            · simp only [Function.update_of_ne hii] at hc ⊢
-              obtain ⟨hval, hle⟩ := inv.prepared_valid i hiF c hc
-              exact ⟨hval.mono hnet_sub, hle⟩
-          commit_has_cert := fun k hkF v₀ s₀ val₀ hm => by
-            rw [Finset.mem_insert] at hm
-            rcases hm with hm_eq | hm_old
-            · exact nomatch hm_eq
-            · by_cases hki : k = i₀
-              · subst hki; simp only [Function.update_self]
-                exact inv.commit_has_cert _ hkF v₀ s₀ val₀ hm_old
-              · simp only [Function.update_of_ne hki]
-                exact inv.commit_has_cert k hkF v₀ s₀ val₀ hm_old
-          viewChange_le_effective := fun vc hvcF hm => by
-            rw [Finset.mem_insert] at hm
-            rcases hm with hm_eq | hm_old
-            · exact nomatch hm_eq
-            · by_cases hvi : vc.sender = i₀
-              · rw [hvi]; simp only [Function.update_self]
-                exact hvi ▸ inv.viewChange_le_effective vc hvcF hm_old
-              · simp only [Function.update_of_ne hvi]
-                exact inv.viewChange_le_effective vc hvcF hm_old
-          viewChange_contains_commit := fun vc hvcF hm v₀ s₀ val₀ hcm hlt => by
-            rw [Finset.mem_insert] at hm hcm
-            rcases hm with hm_eq | hm_old
-            · exact nomatch hm_eq
-            · rcases hcm with hcm_eq | hcm_old
-              · exact nomatch hcm_eq
-              · exact inv.viewChange_contains_commit vc hvcF hm_old v₀ s₀ val₀ hcm_old hlt
-          committed_witness := inv.committed_witness_of_unchanged hnet_sub fun i => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self]
-            · simp only [Function.update_of_ne hii] }
+      exact inv.of_accept hi₀F hi₀v hfresh rfl (Finset.mem_insert_self _ _)
     · exact inv
   | completePrepare i₀ c₀ =>
     unfold pbftStep; dsimp only
     split_ifs with hg
-    · obtain ⟨hi₀F, hi₀v, hi₀in, _, hc₀val⟩ := hg
-      have hnet_sub : st.network ⊆ insert (PBFTMsg.commit c₀.view c₀.slot c₀.val i₀) st.network :=
-        Finset.subset_insert _ _
+    · obtain ⟨hi₀F, hi₀v, hi₀in, -, hc₀val⟩ := hg
       have heff_eq : (st.replicas i₀).effectiveView = c₀.view := by
         simp only [ReplicaState.effectiveView, hi₀in, Bool.false_eq_true, ↓reduceIte, hi₀v]
-      refine
-        { view_le_effective := fun i hiF => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self]; exact inv.view_le_effective _ hi₀F
-            · simp only [Function.update_of_ne hii]; exact inv.view_le_effective i hiF
-          accepted_view_le := fun i hiF e he => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self] at he ⊢
-              exact inv.accepted_view_le _ hi₀F e he
-            · simp only [Function.update_of_ne hii] at he ⊢
-              exact inv.accepted_view_le i hiF e he
-          accepted_unique := fun i hiF e₁ he₁ e₂ he₂ hv hs => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self] at he₁ he₂
-              exact inv.accepted_unique _ hi₀F e₁ he₁ e₂ he₂ hv hs
-            · simp only [Function.update_of_ne hii] at he₁ he₂
-              exact inv.accepted_unique i hiF e₁ he₁ e₂ he₂ hv hs
-          voted_imp_accepted := fun i hiF v₀ s₀ val₀ hv => by
-            have hv_old : HonestVoted primary st i v₀ s₀ val₀ := by
-              rcases hv with ⟨hi_eq, hm⟩ | ⟨hi_ne, hm⟩
-              · rw [Finset.mem_insert] at hm
-                rcases hm with hm_eq | hm_old
-                · exact nomatch hm_eq
-                · exact Or.inl ⟨hi_eq, hm_old⟩
-              · rw [Finset.mem_insert] at hm
-                rcases hm with hm_eq | hm_old
-                · exact nomatch hm_eq
-                · exact Or.inr ⟨hi_ne, hm_old⟩
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self]
-              exact inv.voted_imp_accepted _ hi₀F v₀ s₀ val₀ hv_old
-            · simp only [Function.update_of_ne hii]
-              exact inv.voted_imp_accepted i hiF v₀ s₀ val₀ hv_old
-          active_pos_newView := fun i hiF hpos => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self] at hpos ⊢
-              obtain ⟨vset, oset, hnv, hacc⟩ := inv.active_pos_newView _ hi₀F hpos
-              exact ⟨vset, oset, hnv.mono hnet_sub, hacc⟩
-            · simp only [Function.update_of_ne hii] at hpos ⊢
-              obtain ⟨vset, oset, hnv, hacc⟩ := inv.active_pos_newView i hiF hpos
-              exact ⟨vset, oset, hnv.mono hnet_sub, hacc⟩
-          accepted_pos_newView := fun i hiF e he hpos => by
-            have he' : e ∈ (st.replicas i).accepted := by
-              by_cases hii : i = i₀
-              · subst hii; simpa only [Function.update_self] using he
-              · simpa only [Function.update_of_ne hii] using he
-            obtain ⟨vset, oset, hnv, hprop⟩ := inv.accepted_pos_newView i hiF e he' hpos
-            exact ⟨vset, oset, hnv.mono hnet_sub, hprop⟩
-          prepared_valid := fun i hiF c hc => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self, Finset.mem_insert] at hc ⊢
-              rcases hc with rfl | hc_old
-              · exact ⟨hc₀val.mono hnet_sub, le_of_eq heff_eq.symm⟩
-              · obtain ⟨hval, hle⟩ := inv.prepared_valid _ hi₀F c hc_old
-                exact ⟨hval.mono hnet_sub, hle⟩
-            · simp only [Function.update_of_ne hii] at hc ⊢
-              obtain ⟨hval, hle⟩ := inv.prepared_valid i hiF c hc
-              exact ⟨hval.mono hnet_sub, hle⟩
-          commit_has_cert := fun k hkF v₀ s₀ val₀ hm => by
-            rw [Finset.mem_insert] at hm
-            rcases hm with hm_eq | hm_old
-            · injection hm_eq with hv_eq hs_eq hval_eq hk_eq
-              subst hv_eq hs_eq hval_eq hk_eq
-              simp only [Function.update_self, Finset.mem_insert]
-              exact ⟨le_of_eq heff_eq.symm, c₀, Or.inl rfl, rfl, rfl, rfl⟩
-            · by_cases hki : k = i₀
-              · subst hki; simp only [Function.update_self, Finset.mem_insert]
-                obtain ⟨hle, c, hc, hv₀, hs₀, hval₀⟩ := inv.commit_has_cert _ hkF v₀ s₀ val₀ hm_old
-                exact ⟨hle, c, Or.inr hc, hv₀, hs₀, hval₀⟩
-              · simp only [Function.update_of_ne hki]
-                exact inv.commit_has_cert k hkF v₀ s₀ val₀ hm_old
-          viewChange_le_effective := fun vc hvcF hm => by
-            rw [Finset.mem_insert] at hm
-            rcases hm with hm_eq | hm_old
-            · exact nomatch hm_eq
-            · by_cases hvi : vc.sender = i₀
-              · rw [hvi]; simp only [Function.update_self]
-                exact hvi ▸ inv.viewChange_le_effective vc hvcF hm_old
-              · simp only [Function.update_of_ne hvi]
-                exact inv.viewChange_le_effective vc hvcF hm_old
-          viewChange_contains_commit := fun vc hvcF hm v₀ s₀ val₀ hcm hlt => by
-            rw [Finset.mem_insert] at hm hcm
-            rcases hm with hm_eq | hm_old
-            · exact nomatch hm_eq
-            · rcases hcm with hcm_eq | hcm_old
-              · injection hcm_eq with hv_eq hs_eq hval_eq hk_eq
-                subst hv_eq hs_eq hval_eq
-                have hle := inv.viewChange_le_effective vc hvcF hm_old
-                rw [hk_eq, heff_eq] at hle
-                omega
-              · exact inv.viewChange_contains_commit vc hvcF hm_old v₀ s₀ val₀ hcm_old hlt
-          committed_witness := inv.committed_witness_of_unchanged hnet_sub fun i => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self]
-            · simp only [Function.update_of_ne hii] }
+      refine inv.of_replica_update hi₀F (Finset.subset_insert _ _) le_rfl le_rfl subset_rfl
+        (Finset.subset_insert _ _) (inv.view_le_effective _ hi₀F) (absurd rfl)
+        (fun _ => absurd) (fun _ => absurd) (fun _ => absurd) (fun _ => absurd)
+        (h_cert := fun c hc hn => ?_) (h_msg := fun m hm hn => ?_)
+      · obtain rfl := Finset.eq_of_mem_insert_of_notMem hc hn
+        exact ⟨hc₀val.mono (Finset.subset_insert _ _), heff_eq.ge⟩
+      · obtain rfl := Finset.eq_of_mem_insert_of_notMem hm hn
+        exact ⟨rfl, heff_eq.le, heff_eq.ge, c₀, Finset.mem_insert_self _ _, rfl, rfl, rfl⟩
     · exact inv
   | completeCommit i₀ c₀ committers =>
     unfold pbftStep; dsimp only
     split_ifs with hg
-    · obtain ⟨hi₀F, _, _, hc₀mem, hcard, hcm_all⟩ := hg
-      have hc₀val := (inv.prepared_valid i₀ hi₀F c₀ hc₀mem).1
-      refine
-        { view_le_effective := fun i hiF => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self]; exact inv.view_le_effective _ hi₀F
-            · simp only [Function.update_of_ne hii]; exact inv.view_le_effective i hiF
-          accepted_view_le := fun i hiF e he => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self] at he ⊢
-              exact inv.accepted_view_le _ hi₀F e he
-            · simp only [Function.update_of_ne hii] at he ⊢
-              exact inv.accepted_view_le i hiF e he
-          accepted_unique := fun i hiF e₁ he₁ e₂ he₂ hv hs => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self] at he₁ he₂
-              exact inv.accepted_unique _ hi₀F e₁ he₁ e₂ he₂ hv hs
-            · simp only [Function.update_of_ne hii] at he₁ he₂
-              exact inv.accepted_unique i hiF e₁ he₁ e₂ he₂ hv hs
-          voted_imp_accepted := fun i hiF v₀ s₀ val₀ hv => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self]
-              exact inv.voted_imp_accepted _ hi₀F v₀ s₀ val₀ hv
-            · simp only [Function.update_of_ne hii]
-              exact inv.voted_imp_accepted i hiF v₀ s₀ val₀ hv
-          active_pos_newView := fun i hiF hpos => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self] at hpos ⊢
-              exact inv.active_pos_newView _ hi₀F hpos
-            · simp only [Function.update_of_ne hii] at hpos ⊢
-              exact inv.active_pos_newView i hiF hpos
-          accepted_pos_newView := fun i hiF e he hpos => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self] at he
-              exact inv.accepted_pos_newView _ hi₀F e he hpos
-            · simp only [Function.update_of_ne hii] at he
-              exact inv.accepted_pos_newView i hiF e he hpos
-          prepared_valid := fun i hiF c hc => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self] at hc ⊢
-              exact inv.prepared_valid _ hi₀F c hc
-            · simp only [Function.update_of_ne hii] at hc ⊢
-              exact inv.prepared_valid i hiF c hc
-          commit_has_cert := fun k hkF v₀ s₀ val₀ hm => by
-            by_cases hki : k = i₀
-            · subst hki; simp only [Function.update_self]
-              exact inv.commit_has_cert _ hkF v₀ s₀ val₀ hm
-            · simp only [Function.update_of_ne hki]
-              exact inv.commit_has_cert k hkF v₀ s₀ val₀ hm
-          viewChange_le_effective := fun vc hvcF hm => by
-            by_cases hvi : vc.sender = i₀
-            · rw [hvi]; simp only [Function.update_self]
-              exact hvi ▸ inv.viewChange_le_effective vc hvcF hm
-            · simp only [Function.update_of_ne hvi]
-              exact inv.viewChange_le_effective vc hvcF hm
-          viewChange_contains_commit := inv.viewChange_contains_commit
-          committed_witness := fun i hiF e he => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self, Finset.mem_insert] at he
-              rcases he with rfl | he_old
-              · exact ⟨c₀, committers, rfl, rfl, rfl, hc₀val, hcard, hcm_all⟩
-              · exact inv.committed_witness _ hi₀F e he_old
-            · simp only [Function.update_of_ne hii] at he
-              exact inv.committed_witness i hiF e he }
+    · obtain ⟨hi₀F, -, -, hc₀mem, hcard, hcm_all⟩ := hg
+      refine inv.of_replica_update hi₀F subset_rfl le_rfl le_rfl subset_rfl subset_rfl
+        (inv.view_le_effective _ hi₀F) (absurd rfl) (fun _ => absurd) (fun _ => absurd)
+        (fun _ => absurd) (fun _ => absurd) (fun _ => absurd) (h_committed := fun e he hn => ?_)
+      obtain rfl := Finset.eq_of_mem_insert_of_notMem he hn
+      exact ⟨c₀, committers, rfl, rfl, rfl, (inv.prepared_valid i₀ hi₀F c₀ hc₀mem).1, hcard,
+        hcm_all⟩
     · exact inv
   | startViewChange i₀ v' =>
     unfold pbftStep; dsimp only
     split_ifs with hg
     · obtain ⟨hi₀F, heff_lt⟩ := hg
-      have hview_le_old := inv.view_le_effective i₀ hi₀F
-      have hnet_sub :
-          st.network ⊆ insert (PBFTMsg.viewChange ⟨v', i₀, (st.replicas i₀).preparedCerts⟩)
-            st.network := Finset.subset_insert _ _
-      refine
-        { view_le_effective := fun i hiF => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self, ReplicaState.effectiveView, ↓reduceIte]
-              omega
-            · simp only [Function.update_of_ne hii]; exact inv.view_le_effective i hiF
-          accepted_view_le := fun i hiF e he => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self] at he ⊢
-              exact inv.accepted_view_le _ hi₀F e he
-            · simp only [Function.update_of_ne hii] at he ⊢
-              exact inv.accepted_view_le i hiF e he
-          accepted_unique := fun i hiF e₁ he₁ e₂ he₂ hv hs => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self] at he₁ he₂
-              exact inv.accepted_unique _ hi₀F e₁ he₁ e₂ he₂ hv hs
-            · simp only [Function.update_of_ne hii] at he₁ he₂
-              exact inv.accepted_unique i hiF e₁ he₁ e₂ he₂ hv hs
-          voted_imp_accepted := fun i hiF v₀ s₀ val₀ hv => by
-            have hv_old : HonestVoted primary st i v₀ s₀ val₀ := by
-              rcases hv with ⟨hi_eq, hm⟩ | ⟨hi_ne, hm⟩
-              · rw [Finset.mem_insert] at hm
-                rcases hm with hm_eq | hm_old
-                · exact nomatch hm_eq
-                · exact Or.inl ⟨hi_eq, hm_old⟩
-              · rw [Finset.mem_insert] at hm
-                rcases hm with hm_eq | hm_old
-                · exact nomatch hm_eq
-                · exact Or.inr ⟨hi_ne, hm_old⟩
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self]
-              exact inv.voted_imp_accepted _ hi₀F v₀ s₀ val₀ hv_old
-            · simp only [Function.update_of_ne hii]
-              exact inv.voted_imp_accepted i hiF v₀ s₀ val₀ hv_old
-          active_pos_newView := fun i hiF hpos => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self] at hpos ⊢
-              obtain ⟨vset, oset, hnv, hacc⟩ := inv.active_pos_newView _ hi₀F hpos
-              exact ⟨vset, oset, hnv.mono hnet_sub, hacc⟩
-            · simp only [Function.update_of_ne hii] at hpos ⊢
-              obtain ⟨vset, oset, hnv, hacc⟩ := inv.active_pos_newView i hiF hpos
-              exact ⟨vset, oset, hnv.mono hnet_sub, hacc⟩
-          accepted_pos_newView := fun i hiF e he hpos => by
-            have he' : e ∈ (st.replicas i).accepted := by
-              by_cases hii : i = i₀
-              · subst hii; simpa only [Function.update_self] using he
-              · simpa only [Function.update_of_ne hii] using he
-            obtain ⟨vset, oset, hnv, hprop⟩ := inv.accepted_pos_newView i hiF e he' hpos
-            exact ⟨vset, oset, hnv.mono hnet_sub, hprop⟩
-          prepared_valid := fun i hiF c hc => by
-            by_cases hii : i = i₀
-            · subst hii
-              simp only [Function.update_self, ReplicaState.effectiveView, ↓reduceIte] at hc ⊢
-              obtain ⟨hval, hle⟩ := inv.prepared_valid _ hi₀F c hc
-              exact ⟨hval.mono hnet_sub, le_of_lt (lt_of_le_of_lt hle heff_lt)⟩
-            · simp only [Function.update_of_ne hii] at hc ⊢
-              obtain ⟨hval, hle⟩ := inv.prepared_valid i hiF c hc
-              exact ⟨hval.mono hnet_sub, hle⟩
-          commit_has_cert := fun k hkF v₀ s₀ val₀ hm => by
-            rw [Finset.mem_insert] at hm
-            rcases hm with hm_eq | hm_old
-            · exact nomatch hm_eq
-            · by_cases hki : k = i₀
-              · subst hki; simp only [Function.update_self, ReplicaState.effectiveView, ↓reduceIte]
-                obtain ⟨hle, c, hc⟩ := inv.commit_has_cert _ hkF v₀ s₀ val₀ hm_old
-                exact ⟨le_of_lt (lt_of_le_of_lt hle heff_lt), c, hc⟩
-              · simp only [Function.update_of_ne hki]
-                exact inv.commit_has_cert k hkF v₀ s₀ val₀ hm_old
-          viewChange_le_effective := fun vc hvcF hm => by
-            rw [Finset.mem_insert] at hm
-            rcases hm with hm_eq | hm_old
-            · injection hm_eq with hvc_eq
-              subst hvc_eq
-              simp only [Function.update_self, ReplicaState.effectiveView, ↓reduceIte, le_rfl]
-            · by_cases hvi : vc.sender = i₀
-              · rw [hvi]; simp only [Function.update_self, ReplicaState.effectiveView, ↓reduceIte]
-                have hle := inv.viewChange_le_effective vc hvcF hm_old
-                rw [hvi] at hle
-                omega
-              · simp only [Function.update_of_ne hvi]
-                exact inv.viewChange_le_effective vc hvcF hm_old
-          viewChange_contains_commit := fun vc hvcF hm v₀ s₀ val₀ hcm hlt => by
-            rw [Finset.mem_insert] at hm hcm
-            rcases hcm with hcm_eq | hcm_old
-            · exact nomatch hcm_eq
-            · rcases hm with hm_eq | hm_old
-              · injection hm_eq with hvc_eq
-                subst hvc_eq
-                obtain ⟨_, c, hc, hv₀, hs₀, hval₀⟩ :=
-                  inv.commit_has_cert i₀ hi₀F v₀ s₀ val₀ hcm_old
-                exact ⟨c, hc, hv₀, hs₀, hval₀⟩
-              · exact inv.viewChange_contains_commit vc hvcF hm_old v₀ s₀ val₀ hcm_old hlt
-          committed_witness := inv.committed_witness_of_unchanged hnet_sub fun i => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self]
-            · simp only [Function.update_of_ne hii] }
+      refine inv.of_replica_update hi₀F (Finset.subset_insert _ _) le_rfl heff_lt.le subset_rfl
+        subset_rfl ((inv.view_le_effective _ hi₀F).trans heff_lt.le)
+        (absurd rfl) (fun _ => absurd) (fun _ => absurd) (fun _ => absurd) (fun _ => absurd)
+        (fun _ => absurd) (h_msg := fun m hm hn => ?_)
+      obtain rfl := Finset.eq_of_mem_insert_of_notMem hm hn
+      refine ⟨rfl, le_rfl, fun v s val hcm _ => ?_⟩
+      obtain ⟨-, c, hc, hcv⟩ :=
+        inv.commit_has_cert i₀ hi₀F v s val (Finset.mem_of_mem_insert_of_ne hcm nofun)
+      exact ⟨c, hc, hcv⟩
     · exact inv
   | formNewView v' vset =>
     unfold pbftStep; dsimp only
@@ -1108,358 +867,58 @@ private lemma pbftInvariant_step {st : PBFTState P V}
       dsimp only
       split_ifs with hg
       · obtain ⟨hpF, hv'pos, hview_lt, heff_le, hvc_all, hvc_card⟩ := hg
-        let preMsgs : Finset (PBFTMsg P V) :=
-          oset.image fun prop => PBFTMsg.prePrepare v' prop.slot prop.val
-        let net' := insert (PBFTMsg.newView v' vset oset) (st.network ∪ preMsgs)
-        let newEntries := oset.image fun prop => (⟨v', prop.slot, prop.val⟩ : SlotEntry V)
-        have hnet_sub : st.network ⊆ net' :=
-          Finset.subset_union_left.trans (Finset.subset_insert _ _)
-        have hnv_new : NewViewValidIn primary f net' v' vset oset := by
-          refine ⟨hv'pos, Finset.mem_insert_self _ _, fun prop hp => ?_,
-            fun vc hvc => ⟨(hvc_all vc hvc).1, (hvc_all vc hvc).2.mono hnet_sub⟩,
-            hvc_card, hoset⟩
-          exact Finset.mem_insert_of_mem (Finset.mem_union_right _
-            (Finset.mem_image.mpr ⟨prop, hp, rfl⟩))
-        refine
-          { view_le_effective := fun i hiF => by
-              by_cases hip : i = primary v'
-              · subst hip
-                simp only [Function.update_self, ReplicaState.effectiveView, Bool.false_eq_true,
-                  ↓reduceIte, le_rfl]
-              · simp only [Function.update_of_ne hip]; exact inv.view_le_effective i hiF
-            accepted_view_le := fun i hiF e he => by
-              by_cases hip : i = primary v'
-              · subst hip; simp only [Function.update_self, Finset.mem_union] at he ⊢
-                rcases he with he_old | he_new
-                · exact le_trans (inv.accepted_view_le _ hpF e he_old) (le_of_lt hview_lt)
-                · rw [Finset.mem_image] at he_new
-                  obtain ⟨prop, _, rfl⟩ := he_new
-                  exact le_rfl
-              · simp only [Function.update_of_ne hip] at he ⊢
-                exact inv.accepted_view_le i hiF e he
-            accepted_unique := fun i hiF e₁ he₁ e₂ he₂ hv hs => by
-              by_cases hip : i = primary v'
-              · subst hip; simp only [Function.update_self, Finset.mem_union] at he₁ he₂
-                rcases he₁ with he₁_old | he₁_new <;> rcases he₂ with he₂_old | he₂_new
-                · exact inv.accepted_unique _ hpF e₁ he₁_old e₂ he₂_old hv hs
-                · rw [Finset.mem_image] at he₂_new
-                  obtain ⟨p₂, _, rfl⟩ := he₂_new
-                  have hle := inv.accepted_view_le _ hpF e₁ he₁_old
-                  dsimp only at hv
-                  omega
-                · rw [Finset.mem_image] at he₁_new
-                  obtain ⟨p₁, _, rfl⟩ := he₁_new
-                  have hle := inv.accepted_view_le _ hpF e₂ he₂_old
-                  dsimp only at hv
-                  omega
-                · rw [Finset.mem_image] at he₁_new he₂_new
-                  obtain ⟨p₁, hp₁, rfl⟩ := he₁_new
-                  obtain ⟨p₂, hp₂, rfl⟩ := he₂_new
-                  exact computeOset_slot_unique hoset hp₁ hp₂ hs
-              · simp only [Function.update_of_ne hip] at he₁ he₂
-                exact inv.accepted_unique i hiF e₁ he₁ e₂ he₂ hv hs
-            voted_imp_accepted := fun i hiF v₀ s₀ val₀ hv => by
-              rcases hv with ⟨hi_eq, hm⟩ | ⟨hi_ne, hm⟩
-              · rw [Finset.mem_insert, Finset.mem_union] at hm
-                rcases hm with hm_eq | hm_old | hm_pre
-                · exact nomatch hm_eq
-                · have hacc := inv.voted_imp_accepted i hiF v₀ s₀ val₀ (Or.inl ⟨hi_eq, hm_old⟩)
-                  by_cases hip : i = primary v'
-                  · subst hip; simp only [Function.update_self, Finset.mem_union]; exact Or.inl hacc
-                  · simp only [Function.update_of_ne hip]; exact hacc
-                · rw [Finset.mem_image] at hm_pre
-                  obtain ⟨prop, hp, hpeq⟩ := hm_pre
-                  injection hpeq with hv_eq hs_eq hval_eq
-                  subst hv_eq hs_eq hval_eq hi_eq
-                  simp only [Function.update_self, Finset.mem_union]
-                  exact Or.inr (Finset.mem_image.mpr ⟨prop, hp, rfl⟩)
-              · rw [Finset.mem_insert, Finset.mem_union] at hm
-                rcases hm with hm_eq | hm_old | hm_pre
-                · exact nomatch hm_eq
-                · have hacc := inv.voted_imp_accepted i hiF v₀ s₀ val₀ (Or.inr ⟨hi_ne, hm_old⟩)
-                  by_cases hip : i = primary v'
-                  · subst hip; simp only [Function.update_self, Finset.mem_union]; exact Or.inl hacc
-                  · simp only [Function.update_of_ne hip]; exact hacc
-                · rw [Finset.mem_image] at hm_pre
-                  obtain ⟨prop, _, hpeq⟩ := hm_pre
-                  exact nomatch hpeq
-            active_pos_newView := fun i hiF hpos => by
-              by_cases hip : i = primary v'
-              · subst hip; simp only [Function.update_self]
-                refine ⟨vset, oset, hnv_new, fun prop hp => ?_⟩
-                exact Finset.mem_union_right _ (Finset.mem_image.mpr ⟨prop, hp, rfl⟩)
-              · simp only [Function.update_of_ne hip] at hpos ⊢
-                obtain ⟨vs, os, hnv, hacc⟩ := inv.active_pos_newView i hiF hpos
-                exact ⟨vs, os, hnv.mono hnet_sub, hacc⟩
-            accepted_pos_newView := fun i hiF e he hpos => by
-              by_cases hip : i = primary v'
-              · subst hip; simp only [Function.update_self, Finset.mem_union] at he
-                rcases he with he_old | he_new
-                · obtain ⟨vs, os, hnv, hprop⟩ := inv.accepted_pos_newView _ hpF e he_old hpos
-                  exact ⟨vs, os, hnv.mono hnet_sub, hprop⟩
-                · rw [Finset.mem_image] at he_new
-                  obtain ⟨prop₀, hp₀, rfl⟩ := he_new
-                  refine ⟨vset, oset, hnv_new, fun prop hp hs => ?_⟩
-                  exact computeOset_slot_unique hoset hp₀ hp hs.symm
-              · simp only [Function.update_of_ne hip] at he
-                obtain ⟨vs, os, hnv, hprop⟩ := inv.accepted_pos_newView i hiF e he hpos
-                exact ⟨vs, os, hnv.mono hnet_sub, hprop⟩
-            prepared_valid := fun i hiF c hc => by
-              by_cases hip : i = primary v'
-              · subst hip
-                simp only [Function.update_self, ReplicaState.effectiveView, Bool.false_eq_true,
-                  ↓reduceIte] at hc ⊢
-                obtain ⟨hval, hle⟩ := inv.prepared_valid _ hpF c hc
-                exact ⟨hval.mono hnet_sub, le_trans hle heff_le⟩
-              · simp only [Function.update_of_ne hip] at hc ⊢
-                obtain ⟨hval, hle⟩ := inv.prepared_valid i hiF c hc
-                exact ⟨hval.mono hnet_sub, hle⟩
-            commit_has_cert := fun k hkF v₀ s₀ val₀ hm => by
-              rw [Finset.mem_insert, Finset.mem_union] at hm
-              rcases hm with hm_eq | hm_old | hm_pre
-              · exact nomatch hm_eq
-              · by_cases hkp : k = primary v'
-                · subst hkp
-                  simp only [Function.update_self, ReplicaState.effectiveView, Bool.false_eq_true,
-                    ↓reduceIte]
-                  obtain ⟨hle, c, hc⟩ := inv.commit_has_cert _ hkF v₀ s₀ val₀ hm_old
-                  exact ⟨le_trans hle heff_le, c, hc⟩
-                · simp only [Function.update_of_ne hkp]
-                  exact inv.commit_has_cert k hkF v₀ s₀ val₀ hm_old
-              · rw [Finset.mem_image] at hm_pre
-                obtain ⟨_, _, hpeq⟩ := hm_pre
-                exact nomatch hpeq
-            viewChange_le_effective := fun vc hvcF hm => by
-              rw [Finset.mem_insert, Finset.mem_union] at hm
-              rcases hm with hm_eq | hm_old | hm_pre
-              · exact nomatch hm_eq
-              · by_cases hvp : vc.sender = primary v'
-                · rw [hvp]
-                  simp only [Function.update_self, ReplicaState.effectiveView, Bool.false_eq_true,
-                    ↓reduceIte]
-                  have hle := inv.viewChange_le_effective vc hvcF hm_old
-                  rw [hvp] at hle
-                  exact le_trans hle heff_le
-                · simp only [Function.update_of_ne hvp]
-                  exact inv.viewChange_le_effective vc hvcF hm_old
-              · rw [Finset.mem_image] at hm_pre
-                obtain ⟨_, _, hpeq⟩ := hm_pre
-                exact nomatch hpeq
-            viewChange_contains_commit := fun vc hvcF hm v₀ s₀ val₀ hcm hlt => by
-              rw [Finset.mem_insert, Finset.mem_union] at hm hcm
-              rcases hm with hm_eq | hm_old | hm_pre
-              · exact nomatch hm_eq
-              · rcases hcm with hcm_eq | hcm_old | hcm_pre
-                · exact nomatch hcm_eq
-                · exact inv.viewChange_contains_commit vc hvcF hm_old v₀ s₀ val₀ hcm_old hlt
-                · rw [Finset.mem_image] at hcm_pre
-                  obtain ⟨_, _, hpeq⟩ := hcm_pre
-                  exact nomatch hpeq
-              · rw [Finset.mem_image] at hm_pre
-                obtain ⟨_, _, hpeq⟩ := hm_pre
-                exact nomatch hpeq
-            committed_witness := inv.committed_witness_of_unchanged hnet_sub fun i => by
-              by_cases hip : i = primary v'
-              · subst hip; simp only [Function.update_self]
-              · simp only [Function.update_of_ne hip] }
+        let net' := insert (PBFTMsg.newView v' vset oset)
+          (st.network ∪ oset.image fun prop => PBFTMsg.prePrepare v' prop.slot prop.val)
+        have hsub : st.network ⊆ net' := Finset.subset_union_left.trans (Finset.subset_insert _ _)
+        refine inv.of_enter_view hpF hsub hview_lt heff_le
+          ⟨hv'pos, Finset.mem_insert_self _ _, fun prop hp => ?_,
+            fun vc hvc => ⟨(hvc_all vc hvc).1, (hvc_all vc hvc).2.mono hsub⟩, hvc_card, hoset⟩
+          fun m hm hn => ?_
+        · exact Finset.mem_insert_of_mem (Finset.mem_union_right _ (Finset.mem_image_of_mem _ hp))
+        · rcases Finset.mem_insert.mp hm with rfl | hm
+          · exact ⟨rfl, trivial⟩
+          obtain ⟨prop, hp, rfl⟩ := Finset.mem_image.mp ((Finset.mem_union.mp hm).resolve_left hn)
+          exact ⟨rfl, Finset.mem_union_right _ (Finset.mem_image_of_mem _ hp)⟩
       · exact inv
   | enterNewView i₀ v' vset oset =>
     unfold pbftStep; dsimp only
     split_ifs with hg
-    · obtain ⟨hi₀F, hi₀ne, hview_lt, heff_le, hnv⟩ := hg
-      have hoset := hnv.2.2.2.2.2
-      have hnet_sub :
-          st.network ⊆
-            st.network ∪ oset.image fun prop => PBFTMsg.prepare v' prop.slot prop.val i₀ :=
-        Finset.subset_union_left
-      refine
-        { view_le_effective := fun i hiF => by
-            by_cases hii : i = i₀
-            · subst hii
-              simp only [Function.update_self, ReplicaState.effectiveView, Bool.false_eq_true,
-                ↓reduceIte, le_rfl]
-            · simp only [Function.update_of_ne hii]; exact inv.view_le_effective i hiF
-          accepted_view_le := fun i hiF e he => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self, Finset.mem_union] at he ⊢
-              rcases he with he_old | he_new
-              · exact le_trans (inv.accepted_view_le _ hi₀F e he_old) (le_of_lt hview_lt)
-              · rw [Finset.mem_image] at he_new
-                obtain ⟨prop, _, rfl⟩ := he_new
-                exact le_rfl
-            · simp only [Function.update_of_ne hii] at he ⊢
-              exact inv.accepted_view_le i hiF e he
-          accepted_unique := fun i hiF e₁ he₁ e₂ he₂ hv hs => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self, Finset.mem_union] at he₁ he₂
-              rcases he₁ with he₁_old | he₁_new <;> rcases he₂ with he₂_old | he₂_new
-              · exact inv.accepted_unique _ hi₀F e₁ he₁_old e₂ he₂_old hv hs
-              · rw [Finset.mem_image] at he₂_new
-                obtain ⟨p₂, _, rfl⟩ := he₂_new
-                dsimp only at hv
-                have hle := inv.accepted_view_le _ hi₀F e₁ he₁_old
-                omega
-              · rw [Finset.mem_image] at he₁_new
-                obtain ⟨p₁, _, rfl⟩ := he₁_new
-                dsimp only at hv
-                have hle := inv.accepted_view_le _ hi₀F e₂ he₂_old
-                omega
-              · rw [Finset.mem_image] at he₁_new he₂_new
-                obtain ⟨p₁, hp₁, rfl⟩ := he₁_new
-                obtain ⟨p₂, hp₂, rfl⟩ := he₂_new
-                exact computeOset_slot_unique hoset hp₁ hp₂ hs
-            · simp only [Function.update_of_ne hii] at he₁ he₂
-              exact inv.accepted_unique i hiF e₁ he₁ e₂ he₂ hv hs
-          voted_imp_accepted := fun i hiF v₀ s₀ val₀ hv => by
-            rcases hv with ⟨hi_eq, hm⟩ | ⟨hi_ne, hm⟩
-            · rw [Finset.mem_union] at hm
-              rcases hm with hm_old | hm_prep
-              · have hacc := inv.voted_imp_accepted i hiF v₀ s₀ val₀ (Or.inl ⟨hi_eq, hm_old⟩)
-                by_cases hii : i = i₀
-                · subst hii; simp only [Function.update_self, Finset.mem_union]; exact Or.inl hacc
-                · simp only [Function.update_of_ne hii]; exact hacc
-              · rw [Finset.mem_image] at hm_prep
-                obtain ⟨_, _, hpeq⟩ := hm_prep
-                exact nomatch hpeq
-            · rw [Finset.mem_union] at hm
-              rcases hm with hm_old | hm_prep
-              · have hacc := inv.voted_imp_accepted i hiF v₀ s₀ val₀ (Or.inr ⟨hi_ne, hm_old⟩)
-                by_cases hii : i = i₀
-                · subst hii; simp only [Function.update_self, Finset.mem_union]; exact Or.inl hacc
-                · simp only [Function.update_of_ne hii]; exact hacc
-              · rw [Finset.mem_image] at hm_prep
-                obtain ⟨prop, hp, hpeq⟩ := hm_prep
-                injection hpeq with hv_eq hs_eq hval_eq hi_eq
-                subst hv_eq hs_eq hval_eq hi_eq
-                simp only [Function.update_self, Finset.mem_union]
-                exact Or.inr (Finset.mem_image.mpr ⟨prop, hp, rfl⟩)
-          active_pos_newView := fun i hiF hpos => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self]
-              refine ⟨vset, oset, hnv.mono hnet_sub, fun prop hp => ?_⟩
-              exact Finset.mem_union_right _ (Finset.mem_image.mpr ⟨prop, hp, rfl⟩)
-            · simp only [Function.update_of_ne hii] at hpos ⊢
-              obtain ⟨vs, os, hnv₀, hacc⟩ := inv.active_pos_newView i hiF hpos
-              exact ⟨vs, os, hnv₀.mono hnet_sub, hacc⟩
-          accepted_pos_newView := fun i hiF e he hpos => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self, Finset.mem_union] at he
-              rcases he with he_old | he_new
-              · obtain ⟨vs, os, hnv₀, hprop⟩ := inv.accepted_pos_newView _ hi₀F e he_old hpos
-                exact ⟨vs, os, hnv₀.mono hnet_sub, hprop⟩
-              · rw [Finset.mem_image] at he_new
-                obtain ⟨prop₀, hp₀, rfl⟩ := he_new
-                refine ⟨vset, oset, hnv.mono hnet_sub, fun prop hp hs => ?_⟩
-                exact computeOset_slot_unique hoset hp₀ hp hs.symm
-            · simp only [Function.update_of_ne hii] at he
-              obtain ⟨vs, os, hnv₀, hprop⟩ := inv.accepted_pos_newView i hiF e he hpos
-              exact ⟨vs, os, hnv₀.mono hnet_sub, hprop⟩
-          prepared_valid := fun i hiF c hc => by
-            by_cases hii : i = i₀
-            · subst hii
-              simp only [Function.update_self, ReplicaState.effectiveView, Bool.false_eq_true,
-                ↓reduceIte] at hc ⊢
-              obtain ⟨hval, hle⟩ := inv.prepared_valid _ hi₀F c hc
-              exact ⟨hval.mono hnet_sub, le_trans hle heff_le⟩
-            · simp only [Function.update_of_ne hii] at hc ⊢
-              obtain ⟨hval, hle⟩ := inv.prepared_valid i hiF c hc
-              exact ⟨hval.mono hnet_sub, hle⟩
-          commit_has_cert := fun k hkF v₀ s₀ val₀ hm => by
-            rw [Finset.mem_union] at hm
-            rcases hm with hm_old | hm_prep
-            · by_cases hki : k = i₀
-              · subst hki
-                simp only [Function.update_self, ReplicaState.effectiveView, Bool.false_eq_true,
-                  ↓reduceIte]
-                obtain ⟨hle, c, hc⟩ := inv.commit_has_cert _ hkF v₀ s₀ val₀ hm_old
-                exact ⟨le_trans hle heff_le, c, hc⟩
-              · simp only [Function.update_of_ne hki]
-                exact inv.commit_has_cert k hkF v₀ s₀ val₀ hm_old
-            · rw [Finset.mem_image] at hm_prep
-              obtain ⟨_, _, hpeq⟩ := hm_prep
-              exact nomatch hpeq
-          viewChange_le_effective := fun vc hvcF hm => by
-            rw [Finset.mem_union] at hm
-            rcases hm with hm_old | hm_prep
-            · by_cases hvi : vc.sender = i₀
-              · rw [hvi]
-                simp only [Function.update_self, ReplicaState.effectiveView, Bool.false_eq_true,
-                  ↓reduceIte]
-                have hle := inv.viewChange_le_effective vc hvcF hm_old
-                rw [hvi] at hle
-                exact le_trans hle heff_le
-              · simp only [Function.update_of_ne hvi]
-                exact inv.viewChange_le_effective vc hvcF hm_old
-            · rw [Finset.mem_image] at hm_prep
-              obtain ⟨_, _, hpeq⟩ := hm_prep
-              exact nomatch hpeq
-          viewChange_contains_commit := fun vc hvcF hm v₀ s₀ val₀ hcm hlt => by
-            rw [Finset.mem_union] at hm hcm
-            rcases hm with hm_old | hm_prep
-            · rcases hcm with hcm_old | hcm_prep
-              · exact inv.viewChange_contains_commit vc hvcF hm_old v₀ s₀ val₀ hcm_old hlt
-              · rw [Finset.mem_image] at hcm_prep
-                obtain ⟨_, _, hpeq⟩ := hcm_prep
-                exact nomatch hpeq
-            · rw [Finset.mem_image] at hm_prep
-              obtain ⟨_, _, hpeq⟩ := hm_prep
-              exact nomatch hpeq
-          committed_witness := inv.committed_witness_of_unchanged hnet_sub fun i => by
-            by_cases hii : i = i₀
-            · subst hii; simp only [Function.update_self]
-            · simp only [Function.update_of_ne hii] }
+    · obtain ⟨hi₀F, -, hview_lt, heff_le, hnv⟩ := hg
+      refine inv.of_enter_view hi₀F Finset.subset_union_left hview_lt heff_le
+        (hnv.mono Finset.subset_union_left) fun m hm hn => ?_
+      obtain ⟨prop, hp, rfl⟩ := Finset.mem_image.mp ((Finset.mem_union.mp hm).resolve_left hn)
+      exact ⟨rfl, Finset.mem_union_right _ (Finset.mem_image_of_mem _ hp)⟩
     · exact inv
   | byzSend m =>
     unfold pbftStep; dsimp only
     split_ifs with hmF
-    · have hnet_sub : st.network ⊆ insert m st.network := Finset.subset_insert _ _
+    · have hsub : st.network ⊆ insert m st.network := Finset.subset_insert _ _
+      have hold : ∀ m' ∈ insert m st.network, m'.signer primary ∉ F → m' ∈ st.network :=
+        fun m' h hs => (Finset.mem_insert.1 h).resolve_left (by rintro rfl; exact hs hmF)
       refine
-        { view_le_effective := inv.view_le_effective
-          accepted_view_le := inv.accepted_view_le
-          accepted_unique := inv.accepted_unique
-          voted_imp_accepted := fun i hiF v₀ s₀ val₀ hv => by
-            rcases hv with ⟨hi_eq, hm_mem⟩ | ⟨hi_ne, hm_mem⟩
-            · rw [Finset.mem_insert] at hm_mem
-              rcases hm_mem with rfl | hm_old
-              · simp only [PBFTMsg.signer] at hmF
-                exact absurd (hi_eq ▸ hmF) hiF
-              · exact inv.voted_imp_accepted i hiF v₀ s₀ val₀ (Or.inl ⟨hi_eq, hm_old⟩)
-            · rw [Finset.mem_insert] at hm_mem
-              rcases hm_mem with rfl | hm_old
-              · simp only [PBFTMsg.signer] at hmF
-                exact absurd hmF hiF
-              · exact inv.voted_imp_accepted i hiF v₀ s₀ val₀ (Or.inr ⟨hi_ne, hm_old⟩)
-          active_pos_newView := fun i hiF hpos => by
-            obtain ⟨vs, os, hnv, hacc⟩ := inv.active_pos_newView i hiF hpos
-            exact ⟨vs, os, hnv.mono hnet_sub, hacc⟩
-          accepted_pos_newView := fun i hiF e he hpos => by
-            obtain ⟨vs, os, hnv, hprop⟩ := inv.accepted_pos_newView i hiF e he hpos
-            exact ⟨vs, os, hnv.mono hnet_sub, hprop⟩
-          prepared_valid := fun i hiF c hc => by
-            obtain ⟨hval, hle⟩ := inv.prepared_valid i hiF c hc
-            exact ⟨hval.mono hnet_sub, hle⟩
-          commit_has_cert := fun k hkF v₀ s₀ val₀ hm_mem => by
-            rw [Finset.mem_insert] at hm_mem
-            rcases hm_mem with rfl | hm_old
-            · simp only [PBFTMsg.signer] at hmF
-              exact absurd hmF hkF
-            · exact inv.commit_has_cert k hkF v₀ s₀ val₀ hm_old
-          viewChange_le_effective := fun vc hvcF hm_mem => by
-            rw [Finset.mem_insert] at hm_mem
-            rcases hm_mem with rfl | hm_old
-            · simp only [PBFTMsg.signer] at hmF
-              exact absurd hmF hvcF
-            · exact inv.viewChange_le_effective vc hvcF hm_old
-          viewChange_contains_commit := fun vc hvcF hm_mem v₀ s₀ val₀ hcm_mem hlt => by
-            rw [Finset.mem_insert] at hm_mem hcm_mem
-            rcases hm_mem with rfl | hm_old
-            · simp only [PBFTMsg.signer] at hmF
-              exact absurd hmF hvcF
-            · rcases hcm_mem with rfl | hcm_old
-              · simp only [PBFTMsg.signer] at hmF
-                exact absurd hmF hvcF
-              · exact inv.viewChange_contains_commit vc hvcF hm_old v₀ s₀ val₀ hcm_old hlt
-          committed_witness := inv.committed_witness_of_unchanged hnet_sub fun _ => rfl }
+        { inv with
+          voted_imp_accepted := fun i hiF v₀ s₀ val₀ hv =>
+            inv.voted_imp_accepted i hiF v₀ s₀ val₀ <|
+              hv.imp (fun ⟨hi, hm'⟩ => ⟨hi, hold _ hm' (show primary v₀ ∉ F from hi ▸ hiF)⟩)
+                fun ⟨hi, hm'⟩ => ⟨hi, hold _ hm' hiF⟩
+          active_pos_newView := fun i hiF hpos =>
+            let ⟨vs, os, hnv, hacc⟩ := inv.active_pos_newView i hiF hpos
+            ⟨vs, os, hnv.mono hsub, hacc⟩
+          accepted_pos_newView := fun i hiF e he hpos =>
+            let ⟨vs, os, hnv, hprop⟩ := inv.accepted_pos_newView i hiF e he hpos
+            ⟨vs, os, hnv.mono hsub, hprop⟩
+          prepared_valid := fun i hiF c hc =>
+            (inv.prepared_valid i hiF c hc).imp_left (·.mono hsub)
+          commit_has_cert := fun k hkF v₀ s₀ val₀ hm' =>
+            inv.commit_has_cert k hkF v₀ s₀ val₀ (hold _ hm' hkF)
+          viewChange_le_effective := fun vc hvcF hm' =>
+            inv.viewChange_le_effective vc hvcF (hold _ hm' hvcF)
+          viewChange_contains_commit := fun vc hvcF hm' v₀ s₀ val₀ hcm hlt =>
+            inv.viewChange_contains_commit vc hvcF (hold _ hm' hvcF) v₀ s₀ val₀ (hold _ hcm hvcF)
+              hlt
+          committed_witness := fun i hiF e he =>
+            let ⟨c, comms, hv, hs, hval, hc, hcard, hcm⟩ := inv.committed_witness i hiF e he
+            ⟨c, comms, hv, hs, hval, hc.mono hsub, hcard, fun q hq => hsub (hcm q hq)⟩ }
     · exact inv
 
 private lemma PBFTReachable.invariant {st : PBFTState P V}
@@ -1531,84 +990,62 @@ theorem committedLocal_preserves_higher_prepared_idealAuth {P V : Type*} [Fintyp
     · rw [← hc₀val]
       exact preparedCert_unique_idealAuth hn hF hst hc'valid hc₀valid
         (hc'v.trans hc₀v.symm) (hc's.trans hc₀s.symm)
-    · have hv'pos : 0 < v' := lt_of_le_of_lt (Nat.zero_le v) hvlt
-      -- Honest voter `m ∉ F` in `c'.voters` accepted `(v', s, c'.val)` via a valid `NewView`.
-      have hmem_c' : c'.voters primary ∈ (thresholdQuorums P (pbftQuorumSize P f)).quorums :=
-        mem_thresholdQuorums_iff.mpr hc'valid.2.2.2
-      obtain ⟨m, hm⟩ := hdissem.2 _ hmem_c' _ hmem_c' F hF
-      rw [Finset.mem_sdiff, Finset.mem_inter] at hm
-      have hm_acc := inv.voted_imp_accepted m hm.2 c'.view c'.slot c'.val
-        (hc'valid.voter_honestVoted hm.1.1)
-      rw [hc'v, hc's] at hm_acc
-      obtain ⟨vset, oset, hnv, hoset_match⟩ := inv.accepted_pos_newView m hm.2 _ hm_acc hv'pos
-      dsimp only at hnv hoset_match
-      -- Quorum intersection between `committers` and `vset` senders yields an honest `k ∉ F`.
-      have hmem_comm : committers ∈ (thresholdQuorums P (pbftQuorumSize P f)).quorums :=
-        mem_thresholdQuorums_iff.mpr hcomm_card
-      have hmem_vc :
-          vset.image ViewChangeMsg.sender ∈ (thresholdQuorums P (pbftQuorumSize P f)).quorums :=
-        mem_thresholdQuorums_iff.mpr hnv.2.2.2.2.1
-      obtain ⟨k, hk⟩ := hdissem.2 _ hmem_comm _ hmem_vc F hF
-      rw [Finset.mem_sdiff, Finset.mem_inter] at hk
-      obtain ⟨⟨hk_comm, hk_img⟩, hkF⟩ := hk
-      rw [Finset.mem_image] at hk_img
-      obtain ⟨vc_k, hvc_k_mem, hvc_k_sender⟩ := hk_img
-      obtain ⟨hvc_k_view, hvc_k_val⟩ := hnv.2.2.2.1 vc_k hvc_k_mem
-      have hcm_k : PBFTMsg.commit v s val vc_k.sender ∈ st.network := by
-        rw [hvc_k_sender]; exact hcomm_msgs k hk_comm
-      obtain ⟨c_k, hc_k_pset, hc_k_v, hc_k_s, hc_k_val⟩ :=
-        inv.viewChange_contains_commit vc_k (hvc_k_sender ▸ hkF) hvc_k_val.2.1
-          v s val hcm_k (hvc_k_view ▸ hvlt)
-      -- Inspect `computeOset vset = some oset` at slot `s`: `c_k` witnesses `s ≤ maxS` and
-      -- non-empty `sc`.
-      let certs := vset.biUnion ViewChangeMsg.pset
-      have hc_k_certs : c_k ∈ certs := Finset.mem_biUnion.mpr ⟨vc_k, hvc_k_mem, hc_k_pset⟩
-      have hcerts_ne : certs.Nonempty := ⟨c_k, hc_k_certs⟩
-      have hoset_eq := hnv.2.2.2.2.2
-      unfold computeOset at hoset_eq
-      dsimp only at hoset_eq
-      split_ifs at hoset_eq with hne_certs hall
-      · injection hoset_eq with hoset_def
-        have hs_le_max : s ≤ (certs.image PreparedCert.slot).max' (hne_certs.image _) := by
-          rw [← hc_k_s]
-          exact Finset.le_max' _ _ (Finset.mem_image_of_mem _ hc_k_certs)
-        have hs_in_slots :
-            s ∈ Finset.range ((certs.image PreparedCert.slot).max' (hne_certs.image _) + 1) :=
-          Finset.mem_range.mpr (Nat.lt_succ_of_le hs_le_max)
-        obtain ⟨o_s, ho_s⟩ := Option.isSome_iff_exists.mp (hall s hs_in_slots)
-        have hprop_mem : (⟨s, o_s⟩ : SlotProposal V) ∈ oset := by
-          rw [← hoset_def, Finset.mem_biUnion]
-          refine ⟨s, hs_in_slots, ?_⟩
-          rw [ho_s]
-          exact Finset.mem_singleton_self _
-        have hc'val_eq : c'.val = o_s := hoset_match ⟨s, o_s⟩ hprop_mem rfl
-        -- Unpack `computeSlotVal certs s = some o_s` to find a max-view certificate `c_max`.
-        let sc := certs.filter fun c => c.slot = s
-        have hc_k_sc : c_k ∈ sc := Finset.mem_filter.mpr ⟨hc_k_certs, hc_k_s⟩
-        have hsc_ne_empty : sc ≠ ∅ := Finset.nonempty_iff_ne_empty.mp ⟨c_k, hc_k_sc⟩
-        unfold computeSlotVal at ho_s
-        dsimp only at ho_s
-        split_ifs at ho_s with hsc_eq hcard1
-        · exact absurd hsc_eq hsc_ne_empty
-        · injection ho_s with ho_s_eq
-          generalize_proofs hp at ho_s_eq
-          have hspec := (Finset.choose_spec (fun _ => True) _ hp).1
-          rw [ho_s_eq, Finset.mem_image] at hspec
-          obtain ⟨c_max, hc_max_top, hc_max_val⟩ := hspec
-          rw [Finset.mem_filter] at hc_max_top
-          obtain ⟨hc_max_sc, hc_max_ge⟩ := hc_max_top
-          rw [Finset.mem_filter] at hc_max_sc
-          obtain ⟨hc_max_certs, hc_max_s⟩ := hc_max_sc
-          have hv_le_cmax : v ≤ c_max.view := hc_k_v ▸ hc_max_ge c_k hc_k_sc
-          rw [Finset.mem_biUnion] at hc_max_certs
-          obtain ⟨vc_m, hvc_m_mem, hc_max_pset⟩ := hc_max_certs
-          obtain ⟨hvc_m_view, hvc_m_val⟩ := hnv.2.2.2.1 vc_m hvc_m_mem
-          obtain ⟨hc_max_lt, hc_max_valid⟩ := hvc_m_val.2.2 c_max hc_max_pset
-          have hc_max_lt_v' : c_max.view < v' := hvc_m_view ▸ hc_max_lt
-          have hc_max_eq_val : c_max.val = val :=
-            ih c_max.view hc_max_lt_v' hv_le_cmax hc_max_valid rfl hc_max_s
-          exact hc'val_eq.trans (hc_max_val.symm.trans hc_max_eq_val)
-      · exact absurd hcerts_ne hne_certs
+    -- Honest voter `m ∉ F` in `c'.voters` accepted `(v', s, c'.val)` via a valid `NewView`.
+    have hmem_c' := mem_thresholdQuorums_iff.mpr hc'valid.2.2.2
+    obtain ⟨m, hm⟩ := hdissem.2 _ hmem_c' _ hmem_c' F hF
+    rw [Finset.mem_sdiff, Finset.mem_inter] at hm
+    have hm_acc := inv.voted_imp_accepted m hm.2 c'.view c'.slot c'.val
+      (hc'valid.voter_honestVoted hm.1.1)
+    rw [hc'v, hc's] at hm_acc
+    obtain ⟨vset, oset, hnv, hoset_match⟩ :=
+      inv.accepted_pos_newView m hm.2 _ hm_acc ((Nat.zero_le v).trans_lt hvlt)
+    dsimp only at hnv hoset_match
+    -- Quorum intersection between `committers` and `vset` senders yields an honest `k ∉ F`.
+    obtain ⟨k, hk⟩ := hdissem.2 _ (mem_thresholdQuorums_iff.mpr hcomm_card) _
+      (mem_thresholdQuorums_iff.mpr hnv.2.2.2.2.1) F hF
+    rw [Finset.mem_sdiff, Finset.mem_inter, Finset.mem_image] at hk
+    obtain ⟨⟨hk_comm, vc_k, hvc_k_mem, rfl⟩, hkF⟩ := hk
+    obtain ⟨hvc_k_view, hvc_k_val⟩ := hnv.2.2.2.1 vc_k hvc_k_mem
+    obtain ⟨c_k, hc_k_pset, hc_k_v, hc_k_s, -⟩ := inv.viewChange_contains_commit vc_k hkF
+      hvc_k_val.2.1 v s val (hcomm_msgs _ hk_comm) (hvc_k_view ▸ hvlt)
+    -- Inspect `computeOset vset = some oset` at slot `s`: `c_k` witnesses `s ≤ maxS` and
+    -- non-empty `sc`.
+    let certs := vset.biUnion ViewChangeMsg.pset
+    have hc_k_certs : c_k ∈ certs := Finset.mem_biUnion.mpr ⟨vc_k, hvc_k_mem, hc_k_pset⟩
+    have hoset_eq := hnv.2.2.2.2.2
+    unfold computeOset at hoset_eq
+    dsimp only at hoset_eq
+    split_ifs at hoset_eq with hne_certs hall
+    swap
+    · exact absurd ⟨c_k, hc_k_certs⟩ hne_certs
+    injection hoset_eq with hoset_def
+    have hs_in_slots :
+        s ∈ Finset.range ((certs.image PreparedCert.slot).max' (hne_certs.image _) + 1) :=
+      Finset.mem_range.mpr <| Nat.lt_succ_of_le <|
+        hc_k_s ▸ Finset.le_max' _ _ (Finset.mem_image_of_mem _ hc_k_certs)
+    obtain ⟨o_s, ho_s⟩ := Option.isSome_iff_exists.mp (hall s hs_in_slots)
+    have hc'val_eq : c'.val = o_s := hoset_match ⟨s, o_s⟩ (by
+      rw [← hoset_def, Finset.mem_biUnion]
+      exact ⟨s, hs_in_slots, by rw [ho_s]; exact Finset.mem_singleton_self _⟩) rfl
+    -- Unpack `computeSlotVal certs s = some o_s` to find a max-view certificate `c_max`.
+    have hc_k_sc : c_k ∈ certs.filter fun c => c.slot = s :=
+      Finset.mem_filter.mpr ⟨hc_k_certs, hc_k_s⟩
+    unfold computeSlotVal at ho_s
+    dsimp only at ho_s
+    split_ifs at ho_s with hsc_eq hcard1
+    · exact absurd hsc_eq (Finset.nonempty_iff_ne_empty.mp ⟨c_k, hc_k_sc⟩)
+    injection ho_s with ho_s_eq
+    generalize_proofs hp at ho_s_eq
+    have hspec := (Finset.choose_spec (fun _ => True) _ hp).1
+    rw [ho_s_eq, Finset.mem_image] at hspec
+    obtain ⟨c_max, hc_max_top, hc_max_val⟩ := hspec
+    obtain ⟨hc_max_sc, hc_max_ge⟩ := Finset.mem_filter.mp hc_max_top
+    obtain ⟨hc_max_certs, hc_max_s⟩ := Finset.mem_filter.mp hc_max_sc
+    obtain ⟨vc_m, hvc_m_mem, hc_max_pset⟩ := Finset.mem_biUnion.mp hc_max_certs
+    obtain ⟨hvc_m_view, hvc_m_val⟩ := hnv.2.2.2.1 vc_m hvc_m_mem
+    obtain ⟨hc_max_lt, hc_max_valid⟩ := hvc_m_val.2.2 c_max hc_max_pset
+    exact hc'val_eq.trans <| hc_max_val.symm.trans <| ih c_max.view (hvc_m_view ▸ hc_max_lt)
+      (hc_k_v ▸ hc_max_ge c_k hc_k_sc) hc_max_valid rfl hc_max_s
 
 /-- Multi-slot total-order SMR commit safety step toward `#7506` (after [Castro and Liskov, §4.5.1,
 pp. 6–7][CastroLiskov1999]; ideal-authentication checkpoint-free model): under `3 * f <
@@ -1694,175 +1131,37 @@ private def honestPrimaryThreePhaseActions {P V : Type*} [Fintype P] [DecidableE
     honestList.map (fun i => PBFTAction.completePrepare i cert) ++
     honestList.map (fun i => PBFTAction.completeCommit i cert honest)
 
-private lemma foldl_acceptPrePrepare {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
-    {primary : ℕ → P} {f : ℕ} {F : Finset P} {v s : ℕ} {val : Option V}
-    (bs : List P) (hnodup : bs.Nodup)
-    (hbs : ∀ j ∈ bs, j ∉ F ∧ j ≠ primary v)
-    (st : PBFTState P V)
-    (hpre : PBFTMsg.prePrepare v s val ∈ st.network)
-    (hactive : ∀ j ∈ bs, (st.replicas j).view = v ∧ (st.replicas j).inViewChange = false ∧
-      ∀ e ∈ (st.replicas j).accepted, e.view = v → e.slot = s → False) :
-    let st' := (bs.map fun j => PBFTAction.acceptPrePrepare j v s val).foldl
-      (pbftStep primary f F) st
-    st.network ⊆ st'.network ∧
-      (∀ j ∈ bs, PBFTMsg.prepare v s val j ∈ st'.network ∧
-        ⟨v, s, val⟩ ∈ (st'.replicas j).accepted ∧
-        (st'.replicas j).view = v ∧ (st'.replicas j).inViewChange = false) ∧
-      (∀ k, k ∉ bs → st'.replicas k = st.replicas k) := by
-  induction bs generalizing st with
-  | nil =>
-    exact ⟨Subset.rfl, fun _ h => absurd h List.not_mem_nil, fun _ _ => rfl⟩
-  | cons b bs ih =>
+/-- Running the steps `act j` of the replicas `j` of a duplicate-free list `l` in order: if the
+step of a ready replica `j` (`R`) grows the network, changes only replica `j` and leaves it done
+(`Q`), and readiness and being done survive the network growing, then afterwards every `j ∈ l` is
+done and every other replica is unchanged. -/
+private lemma foldl_perReplica {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
+    {primary : ℕ → P} {f : ℕ} {F : Finset P} (act : P → PBFTAction P V)
+    (R Q : P → Finset (PBFTMsg P V) → ReplicaState P V → Prop)
+    (hmono : ∀ j net net' r, net ⊆ net' → (R j net r → R j net' r) ∧ (Q j net r → Q j net' r))
+    {l : List P} (hl : l.Nodup)
+    (hstep : ∀ j ∈ l, ∀ st : PBFTState P V, R j st.network (st.replicas j) →
+      let st' := pbftStep primary f F st (act j)
+      st.network ⊆ st'.network ∧ (∀ k ≠ j, st'.replicas k = st.replicas k) ∧
+        Q j st'.network (st'.replicas j))
+    (st : PBFTState P V) (hR : ∀ j ∈ l, R j st.network (st.replicas j)) :
+    let st' := (l.map act).foldl (pbftStep primary f F) st
+    st.network ⊆ st'.network ∧ (∀ j ∈ l, Q j st'.network (st'.replicas j)) ∧
+      ∀ k ∉ l, st'.replicas k = st.replicas k := by
+  induction l generalizing st with
+  | nil => exact ⟨Subset.rfl, fun _ h => absurd h List.not_mem_nil, fun _ _ => rfl⟩
+  | cons b l ih =>
     simp only [List.map_cons, List.foldl_cons]
-    rw [List.nodup_cons] at hnodup
-    obtain ⟨hb_not_mem, hnodup_bs⟩ := hnodup
-    obtain ⟨hbF, hb_ne⟩ := hbs b List.mem_cons_self
-    obtain ⟨hb_v, hb_in, hb_fresh⟩ := hactive b List.mem_cons_self
-    have hempty : ((st.replicas b).accepted.filter fun e => e.view = v ∧ e.slot = s) = ∅ :=
-      filter_accepted_eq_empty_iff.mpr hb_fresh
-    let st₁ := pbftStep primary f F st (PBFTAction.acceptPrePrepare b v s val)
-    have hst₁_eq : st₁ =
-        { network := insert (PBFTMsg.prepare v s val b) st.network
-          replicas := Function.update st.replicas b
-            { st.replicas b with accepted := insert ⟨v, s, val⟩ (st.replicas b).accepted } } := by
-      unfold st₁ pbftStep; dsimp only
-      split_ifs with hg
-      · rfl
-      · exact absurd ⟨hbF, hb_ne, hb_v, hb_in, hpre, hempty⟩ hg
-    have hpre₁ : PBFTMsg.prePrepare v s val ∈ st₁.network := by
-      rw [hst₁_eq]; exact Finset.mem_insert_of_mem hpre
-    have hactive₁ : ∀ j ∈ bs, (st₁.replicas j).view = v ∧ (st₁.replicas j).inViewChange = false ∧
-        ∀ e ∈ (st₁.replicas j).accepted, e.view = v → e.slot = s → False := by
-      intro j hj
-      have hjne : j ≠ b := fun heq => hb_not_mem (heq ▸ hj)
-      rw [hst₁_eq]; simp only [Function.update_of_ne hjne]
-      exact hactive j (List.mem_cons_of_mem b hj)
-    have hsub₁ : st.network ⊆ st₁.network := by rw [hst₁_eq]; exact Finset.subset_insert _ _
-    obtain ⟨hnet_sub, hbs_post, hother⟩ :=
-      ih hnodup_bs (fun j hj => hbs j (List.mem_cons_of_mem b hj)) st₁ hpre₁ hactive₁
-    refine ⟨hsub₁.trans hnet_sub, fun j hj => ?_, fun k hk => ?_⟩
-    · rcases List.mem_cons.mp hj with rfl | hj_bs
-      · have hrep_eq : (List.foldl (pbftStep primary f F) st₁
-            (List.map (fun j => PBFTAction.acceptPrePrepare j v s val) bs)).replicas j =
-            st₁.replicas j := hother j hb_not_mem
-        rw [hrep_eq, hst₁_eq]
-        simp only [Function.update_self, Finset.mem_insert, true_or]
-        exact ⟨hnet_sub (by rw [hst₁_eq]; exact Finset.mem_insert_self _ _), trivial, hb_v, hb_in⟩
-      · exact hbs_post j hj_bs
-    · have hkb : k ≠ b := fun heq => hk (heq ▸ List.mem_cons_self)
-      have hkbs : k ∉ bs := fun hm => hk (List.mem_cons_of_mem b hm)
-      have hrep_eq := hother k hkbs
-      rw [hrep_eq, hst₁_eq]
-      exact Function.update_of_ne hkb _ _
-
-private lemma foldl_completePrepare {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
-    {primary : ℕ → P} {f : ℕ} {F : Finset P} {c : PreparedCert P V}
-    (hs : List P) (hnodup : hs.Nodup)
-    (hhs : ∀ i ∈ hs, i ∉ F)
-    (st : PBFTState P V)
-    (hc_valid : c.ValidIn primary f st.network)
-    (hready : ∀ i ∈ hs, (st.replicas i).view = c.view ∧ (st.replicas i).inViewChange = false ∧
-      ⟨c.view, c.slot, c.val⟩ ∈ (st.replicas i).accepted) :
-    let st' := (hs.map fun i => PBFTAction.completePrepare i c).foldl (pbftStep primary f F) st
-    st.network ⊆ st'.network ∧
-      (∀ i ∈ hs, PBFTMsg.commit c.view c.slot c.val i ∈ st'.network ∧
-        c ∈ (st'.replicas i).preparedCerts ∧
-        (st'.replicas i).view = c.view ∧ (st'.replicas i).inViewChange = false) ∧
-      (∀ k, k ∉ hs → st'.replicas k = st.replicas k) := by
-  induction hs generalizing st with
-  | nil =>
-    exact ⟨Subset.rfl, fun _ h => absurd h List.not_mem_nil, fun _ _ => rfl⟩
-  | cons i hs ih =>
-    simp only [List.map_cons, List.foldl_cons]
-    rw [List.nodup_cons] at hnodup
-    obtain ⟨hi_not_mem, hnodup_hs⟩ := hnodup
-    have hiF := hhs i List.mem_cons_self
-    obtain ⟨hi_v, hi_in, hi_acc⟩ := hready i List.mem_cons_self
-    let st₁ := pbftStep primary f F st (PBFTAction.completePrepare i c)
-    have hst₁_eq : st₁ =
-        { network := insert (PBFTMsg.commit c.view c.slot c.val i) st.network
-          replicas := Function.update st.replicas i
-            { st.replicas i with preparedCerts := insert c (st.replicas i).preparedCerts } } := by
-      unfold st₁ pbftStep; dsimp only
-      simp only [hiF, not_false_eq_true, hi_v, hi_in, hi_acc, hc_valid, and_self, ↓reduceIte]
-    have hsub₁ : st.network ⊆ st₁.network := by rw [hst₁_eq]; exact Finset.subset_insert _ _
-    have hready₁ : ∀ j ∈ hs, (st₁.replicas j).view = c.view ∧
-        (st₁.replicas j).inViewChange = false ∧
-        ⟨c.view, c.slot, c.val⟩ ∈ (st₁.replicas j).accepted := by
-      intro j hj
-      have hjne : j ≠ i := fun heq => hi_not_mem (heq ▸ hj)
-      rw [hst₁_eq]; simp only [Function.update_of_ne hjne]
-      exact hready j (List.mem_cons_of_mem i hj)
-    obtain ⟨hnet_sub, hhs_post, hother⟩ :=
-      ih hnodup_hs (fun j hj => hhs j (List.mem_cons_of_mem i hj)) st₁ (hc_valid.mono hsub₁) hready₁
-    refine ⟨hsub₁.trans hnet_sub, fun j hj => ?_, fun k hk => ?_⟩
-    · rcases List.mem_cons.mp hj with rfl | hj_hs
-      · have hrep_eq := hother j hi_not_mem
-        rw [hrep_eq, hst₁_eq]
-        simp only [Function.update_self, Finset.mem_insert, true_or]
-        exact ⟨hnet_sub (by rw [hst₁_eq]; exact Finset.mem_insert_self _ _), trivial, hi_v, hi_in⟩
-      · exact hhs_post j hj_hs
-    · have hki : k ≠ i := fun heq => hk (heq ▸ List.mem_cons_self)
-      have hkhs : k ∉ hs := fun hm => hk (List.mem_cons_of_mem i hm)
-      have hrep_eq := hother k hkhs
-      rw [hrep_eq, hst₁_eq]
-      exact Function.update_of_ne hki _ _
-
-private lemma foldl_completeCommit {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
-    {primary : ℕ → P} {f : ℕ} {F : Finset P} {c : PreparedCert P V} {committers : Finset P}
-    (hs : List P) (hnodup : hs.Nodup)
-    (hhs : ∀ i ∈ hs, i ∉ F)
-    (st : PBFTState P V)
-    (hcard : pbftQuorumSize P f ≤ committers.card)
-    (hcm : ∀ q ∈ committers, PBFTMsg.commit c.view c.slot c.val q ∈ st.network)
-    (hready : ∀ i ∈ hs, (st.replicas i).view = c.view ∧ (st.replicas i).inViewChange = false ∧
-      c ∈ (st.replicas i).preparedCerts) :
-    let st' := (hs.map fun i => PBFTAction.completeCommit i c committers).foldl
-      (pbftStep primary f F) st
-    (∀ i ∈ hs, CommittedLocal st' i c.view c.slot c.val) ∧
-      (∀ k, k ∉ hs → st'.replicas k = st.replicas k) := by
-  induction hs generalizing st with
-  | nil =>
-    exact ⟨fun _ h => absurd h List.not_mem_nil, fun _ _ => rfl⟩
-  | cons i hs ih =>
-    simp only [List.map_cons, List.foldl_cons]
-    rw [List.nodup_cons] at hnodup
-    obtain ⟨hi_not_mem, hnodup_hs⟩ := hnodup
-    have hiF := hhs i List.mem_cons_self
-    obtain ⟨hi_v, hi_in, hi_prep⟩ := hready i List.mem_cons_self
-    let st₁ := pbftStep primary f F st (PBFTAction.completeCommit i c committers)
-    have hst₁_eq : st₁ =
-        { st with
-          replicas := Function.update st.replicas i
-            { st.replicas i with
-              committed := insert ⟨c.view, c.slot, c.val⟩ (st.replicas i).committed } } := by
-      unfold st₁ pbftStep; dsimp only
-      have hall : ∀ q ∈ committers, PBFTMsg.commit c.view c.slot c.val q ∈ st.network := hcm
-      split_ifs with hg
-      · rfl
-      · exact absurd ⟨hiF, hi_v, hi_in, hi_prep, hcard, hall⟩ hg
-    have hcm₁ : ∀ q ∈ committers, PBFTMsg.commit c.view c.slot c.val q ∈ st₁.network := by
-      rw [hst₁_eq]; exact hcm
-    have hready₁ : ∀ j ∈ hs, (st₁.replicas j).view = c.view ∧
-        (st₁.replicas j).inViewChange = false ∧ c ∈ (st₁.replicas j).preparedCerts := by
-      intro j hj
-      have hjne : j ≠ i := fun heq => hi_not_mem (heq ▸ hj)
-      rw [hst₁_eq]; simp only [Function.update_of_ne hjne]
-      exact hready j (List.mem_cons_of_mem i hj)
-    obtain ⟨hhs_post, hother⟩ :=
-      ih hnodup_hs (fun j hj => hhs j (List.mem_cons_of_mem i hj)) st₁ hcm₁ hready₁
-    refine ⟨fun j hj => ?_, fun k hk => ?_⟩
-    · rcases List.mem_cons.mp hj with rfl | hj_hs
-      · unfold CommittedLocal
-        have hrep_eq := hother j hi_not_mem
-        rw [hrep_eq, hst₁_eq]
-        simp only [Function.update_self, Finset.mem_insert, true_or]
-      · exact hhs_post j hj_hs
-    · have hki : k ≠ i := fun heq => hk (heq ▸ List.mem_cons_self)
-      have hkhs : k ∉ hs := fun hm => hk (List.mem_cons_of_mem i hm)
-      have hrep_eq := hother k hkhs
-      rw [hrep_eq, hst₁_eq]
-      exact Function.update_of_ne hki _ _
+    obtain ⟨hb, hl⟩ := List.nodup_cons.1 hl
+    obtain ⟨hsub, hrep, hQ⟩ := hstep b List.mem_cons_self st (hR b List.mem_cons_self)
+    obtain ⟨hsub', hQ', hrep'⟩ := ih hl (fun j hj => hstep j (.tail _ hj)) _ fun j hj => by
+      rw [hrep j fun h => hb (h ▸ hj)]
+      exact (hmono j _ _ _ hsub).1 (hR j (.tail _ hj))
+    refine ⟨hsub.trans hsub', fun j hj => ?_, fun k hk => ?_⟩
+    · rcases List.mem_cons.1 hj with rfl | hj
+      · rw [hrep' j hb]; exact (hmono j _ _ _ hsub').2 hQ
+      · exact hQ' j hj
+    · rw [hrep' k (List.not_mem_of_not_mem_cons hk), hrep k (List.ne_of_not_mem_cons hk)]
 
 /-- Computable 3-phase liveness along `honestPrimaryThreePhaseActions` for any duplicate-free full
 enumeration `enumP` of `P`. -/
@@ -1889,33 +1188,41 @@ private lemma pbft_honestPrimaryThreePhaseActions_commits {P V : Type*} [Fintype
   -- Phase 1a: honest primary proposes `(v, s, val)`.
   let st₁ := pbftStep primary f F st (PBFTAction.propose v s val)
   obtain ⟨hp_v, hp_in⟩ := hactive (primary v) hp_honest
-  have hp_empty : (((st.replicas (primary v)).accepted).filter fun e => e.view = v ∧ e.slot = s) =
-      ∅ := filter_accepted_eq_empty_iff.mpr (hfresh (primary v) hp_honest)
   have hst₁_eq : st₁ =
       { network := insert (PBFTMsg.prePrepare v s val) st.network
         replicas := Function.update st.replicas (primary v)
           { st.replicas (primary v) with
             accepted := insert ⟨v, s, val⟩ (st.replicas (primary v)).accepted } } := by
     unfold st₁ pbftStep; dsimp only
-    simp only [hp_honest, not_false_eq_true, hp_v, hp_in, hp_empty, and_self, ↓reduceIte]
+    simp only [hp_honest, not_false_eq_true, hp_v, hp_in,
+      filter_accepted_eq_empty_iff.mpr (hfresh (primary v) hp_honest), and_self, ↓reduceIte]
   -- Phase 1b: all honest backups accept `PrePrepare` and emit `Prepare`.
-  have hbs_mem : ∀ j ∈ backupList, j ∉ F ∧ j ≠ primary v := by
-    intro j hj
-    have hdec := (List.mem_filter.mp hj).2
-    exact of_decide_eq_true hdec
-  have hbs_active : ∀ j ∈ backupList, (st₁.replicas j).view = v ∧
-      (st₁.replicas j).inViewChange = false ∧
-      ∀ e ∈ (st₁.replicas j).accepted, e.view = v → e.slot = s → False := by
-    intro j hj
-    obtain ⟨hjF, hjne⟩ := hbs_mem j hj
-    have hrep : st₁.replicas j = st.replicas j := by
-      rw [hst₁_eq]; exact Function.update_of_ne hjne _ _
-    rw [hrep]
-    exact ⟨(hactive j hjF).1, (hactive j hjF).2, hfresh j hjF⟩
+  have hbs_mem : ∀ j ∈ backupList, j ∉ F ∧ j ≠ primary v := fun j hj =>
+    of_decide_eq_true (List.mem_filter.mp hj).2
+  have hpre₁ : PBFTMsg.prePrepare v s val ∈ st₁.network := by
+    rw [hst₁_eq]; exact Finset.mem_insert_self _ _
   obtain ⟨hnet₁₂, hbs_post, hp_unchanged⟩ :=
-    foldl_acceptPrePrepare (primary := primary) (f := f) (F := F)
-      (v := v) (s := s) (val := val) backupList (hnodup.filter _) hbs_mem st₁
-      (by rw [hst₁_eq]; exact Finset.mem_insert_self _ _) hbs_active
+    foldl_perReplica (primary := primary) (f := f) (F := F)
+      (fun j => PBFTAction.acceptPrePrepare j v s val)
+      (fun _ net r => PBFTMsg.prePrepare v s val ∈ net ∧ r.view = v ∧ r.inViewChange = false ∧
+        ∀ e ∈ r.accepted, e.view = v → e.slot = s → False)
+      (fun j net r => PBFTMsg.prepare v s val j ∈ net ∧ ⟨v, s, val⟩ ∈ r.accepted ∧ r.view = v ∧
+        r.inViewChange = false)
+      (fun _ _ _ _ hsub => ⟨fun h => ⟨hsub h.1, h.2⟩, fun h => ⟨hsub h.1, h.2⟩⟩) (hnodup.filter _)
+      (fun j hj st ⟨hpre, hv, hin, hfresh⟩ => by
+        unfold pbftStep; dsimp only
+        split_ifs with hg
+        · simp only [Function.update_self]
+          exact ⟨Finset.subset_insert _ _, fun k hk => Function.update_of_ne hk _ _,
+            Finset.mem_insert_self _ _, Finset.mem_insert_self _ _, hv, hin⟩
+        · exact absurd ⟨(hbs_mem j hj).1, (hbs_mem j hj).2, hv, hin, hpre,
+            filter_accepted_eq_empty_iff.mpr hfresh⟩ hg)
+      st₁ fun j hj => by
+        obtain ⟨hjF, hjne⟩ := hbs_mem j hj
+        have hrep : st₁.replicas j = st.replicas j := by
+          rw [hst₁_eq]; exact Function.update_of_ne hjne _ _
+        rw [hrep]
+        exact ⟨hpre₁, (hactive j hjF).1, (hactive j hjF).2, hfresh j hjF⟩
   let st₂ := (backupList.map fun j => PBFTAction.acceptPrePrepare j v s val).foldl
     (pbftStep primary f F) st₁
   -- Phase 2: `cert` is valid on `st₂.network`; all honest replicas assemble `cert` and emit
@@ -1927,49 +1234,63 @@ private lemma pbft_honestPrimaryThreePhaseActions_commits {P V : Type*} [Fintype
     simp only [PreparedCert.voters, cert, backups]
     exact Finset.insert_erase (Finset.mem_sdiff.mpr ⟨Finset.mem_univ _, hp_honest⟩)
   have hcert_valid : cert.ValidIn primary f st₂.network := by
-    refine ⟨hnet₁₂ (by rw [hst₁_eq]; exact Finset.mem_insert_self _ _),
-      Finset.notMem_erase _ _, fun q hq => ?_, by rw [hvoters_eq]; exact hhonest_card⟩
+    refine ⟨hnet₁₂ hpre₁, Finset.notMem_erase _ _, fun q hq => ?_, hvoters_eq ▸ hhonest_card⟩
     rw [Finset.mem_erase, Finset.mem_sdiff] at hq
-    have hq_bl : q ∈ backupList :=
-      List.mem_filter.mpr ⟨hfull q, decide_eq_true ⟨hq.2.2, hq.1⟩⟩
-    exact (hbs_post q hq_bl).1
-  have hhonest_mem : ∀ i ∈ honestList, i ∉ F := by
-    intro i hi
-    exact of_decide_eq_true (List.mem_filter.mp hi).2
+    exact (hbs_post q (List.mem_filter.mpr ⟨hfull q, decide_eq_true ⟨hq.2.2, hq.1⟩⟩)).1
+  have hhonest_mem : ∀ i ∈ honestList, i ∉ F := fun i hi =>
+    of_decide_eq_true (List.mem_filter.mp hi).2
   have hprep_ready : ∀ i ∈ honestList, (st₂.replicas i).view = cert.view ∧
       (st₂.replicas i).inViewChange = false ∧
       ⟨cert.view, cert.slot, cert.val⟩ ∈ (st₂.replicas i).accepted := by
     intro i hi
-    have hiF := hhonest_mem i hi
     by_cases hip : i = primary v
     · subst hip
-      have hnot_bs : primary v ∉ backupList := fun hm => (hbs_mem _ hm).2 rfl
-      rw [hp_unchanged (primary v) hnot_bs, hst₁_eq]
+      rw [hp_unchanged _ fun hm => (hbs_mem _ hm).2 rfl, hst₁_eq]
       simp only [Function.update_self, Finset.mem_insert, true_or, cert]
       exact ⟨hp_v, hp_in, trivial⟩
-    · have hib : i ∈ backupList :=
-        List.mem_filter.mpr ⟨hfull i, decide_eq_true ⟨hiF, hip⟩⟩
-      obtain ⟨_, hacc, hv_i, hin_i⟩ := hbs_post i hib
+    · obtain ⟨_, hacc, hv_i, hin_i⟩ :=
+        hbs_post i (List.mem_filter.mpr ⟨hfull i, decide_eq_true ⟨hhonest_mem i hi, hip⟩⟩)
       exact ⟨hv_i, hin_i, hacc⟩
-  obtain ⟨_, hprep_post, _⟩ :=
-    foldl_completePrepare (primary := primary) (f := f) (F := F) (c := cert)
-      honestList (hnodup.filter _) hhonest_mem st₂ hcert_valid hprep_ready
+  obtain ⟨-, hprep_post, -⟩ :=
+    foldl_perReplica (primary := primary) (f := f) (F := F)
+      (fun i => PBFTAction.completePrepare i cert)
+      (fun _ net r => cert.ValidIn primary f net ∧ r.view = cert.view ∧ r.inViewChange = false ∧
+        ⟨cert.view, cert.slot, cert.val⟩ ∈ r.accepted)
+      (fun i net r => PBFTMsg.commit cert.view cert.slot cert.val i ∈ net ∧
+        cert ∈ r.preparedCerts ∧ r.view = cert.view ∧ r.inViewChange = false)
+      (fun _ _ _ _ hsub => ⟨fun h => ⟨h.1.mono hsub, h.2⟩, fun h => ⟨hsub h.1, h.2⟩⟩)
+      (hnodup.filter _)
+      (fun i hi st ⟨hc, hv, hin, hacc⟩ => by
+        unfold pbftStep; dsimp only
+        split_ifs with hg
+        · simp only [Function.update_self]
+          exact ⟨Finset.subset_insert _ _, fun k hk => Function.update_of_ne hk _ _,
+            Finset.mem_insert_self _ _, Finset.mem_insert_self _ _, hv, hin⟩
+        · exact absurd ⟨hhonest_mem i hi, hv, hin, hacc, hc⟩ hg)
+      st₂ fun i hi => ⟨hcert_valid, hprep_ready i hi⟩
   let st₃ := (honestList.map fun i => PBFTAction.completePrepare i cert).foldl
     (pbftStep primary f F) st₂
   -- Phase 3: all honest replicas observe `honest` commits (`≥ pbftQuorumSize P f`) and commit
   -- locally.
-  have hcm_all : ∀ q ∈ honest, PBFTMsg.commit cert.view cert.slot cert.val q ∈ st₃.network := by
-    intro q hq
-    have hqF := (Finset.mem_sdiff.mp hq).2
-    exact (hprep_post q (List.mem_filter.mpr ⟨hfull q, decide_eq_true hqF⟩)).1
-  have hcom_ready : ∀ i ∈ honestList, (st₃.replicas i).view = cert.view ∧
-      (st₃.replicas i).inViewChange = false ∧ cert ∈ (st₃.replicas i).preparedCerts := by
-    intro i hi
-    obtain ⟨_, hc_in, hv_i, hin_i⟩ := hprep_post i hi
-    exact ⟨hv_i, hin_i, hc_in⟩
-  obtain ⟨hcom_post, _⟩ :=
-    foldl_completeCommit (primary := primary) (f := f) (F := F) (c := cert) (committers := honest)
-      honestList (hnodup.filter _) hhonest_mem st₃ hhonest_card hcm_all hcom_ready
+  have hcm_all : ∀ q ∈ honest, PBFTMsg.commit cert.view cert.slot cert.val q ∈ st₃.network :=
+    fun q hq => (hprep_post q (List.mem_filter.mpr
+      ⟨hfull q, decide_eq_true (Finset.mem_sdiff.mp hq).2⟩)).1
+  obtain ⟨-, hcom_post, -⟩ :=
+    foldl_perReplica (primary := primary) (f := f) (F := F)
+      (fun i => PBFTAction.completeCommit i cert honest)
+      (fun _ net r => (∀ q ∈ honest, PBFTMsg.commit cert.view cert.slot cert.val q ∈ net) ∧
+        r.view = cert.view ∧ r.inViewChange = false ∧ cert ∈ r.preparedCerts)
+      (fun _ _ r => ⟨cert.view, cert.slot, cert.val⟩ ∈ r.committed)
+      (fun _ _ _ _ hsub => ⟨fun h => ⟨fun q hq => hsub (h.1 q hq), h.2⟩, id⟩) (hnodup.filter _)
+      (fun i hi st ⟨hcm, hv, hin, hc⟩ => by
+        unfold pbftStep; dsimp only
+        split_ifs with hg
+        · simp only [Function.update_self]
+          exact ⟨subset_rfl, fun k hk => Function.update_of_ne hk _ _, Finset.mem_insert_self _ _⟩
+        · exact absurd ⟨hhonest_mem i hi, hv, hin, hc, hhonest_card, hcm⟩ hg)
+      st₃ fun i hi =>
+        have ⟨_, hc, hv, hin⟩ := hprep_post i hi
+        ⟨hcm_all, hv, hin, hc⟩
   intro i hiF
   exact hcom_post i (List.mem_filter.mpr ⟨hfull i, decide_eq_true hiF⟩)
 

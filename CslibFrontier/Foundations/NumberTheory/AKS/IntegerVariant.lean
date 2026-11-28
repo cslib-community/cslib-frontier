@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.NumberTheory.AKS.Correctness
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Data.Nat.Log
 
 /-!
@@ -56,8 +57,7 @@ def numTestsNat (n r : ℕ) : ℕ := Nat.sqrt (Nat.totient r * Nat.clog 2 n ^ 2)
 theorem logb_le_clog (n : ℕ) : Real.logb 2 n ≤ Nat.clog 2 n := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simp
-  have hn0 : (0 : ℝ) < n := by exact_mod_cast hn
-  rw [Real.logb_le_iff_le_rpow one_lt_two hn0, Real.rpow_natCast]
+  rw [Real.logb_le_iff_le_rpow one_lt_two (Nat.cast_pos.mpr hn), Real.rpow_natCast]
   exact_mod_cast Nat.le_pow_clog one_lt_two n
 
 /-- The integer bound tests at least the paper's values: `⌊√φ(r) log₂ n⌋ ≤ ⌊√(φ(r) c²)⌋`. -/
@@ -66,10 +66,6 @@ theorem numTests_le_numTestsNat (n r : ℕ) : numTests n r ≤ numTestsNat n r :
   refine Nat.floor_le_floor ?_
   rw [Nat.cast_mul, Nat.cast_pow, Real.sqrt_mul (Nat.cast_nonneg _),
     Real.sqrt_sq (Nat.cast_nonneg _)]
-  rcases Nat.eq_zero_or_pos n with rfl | hn
-  · simp
-  have hlog : 0 ≤ Real.logb 2 n :=
-    Real.logb_nonneg one_lt_two (by exact_mod_cast hn)
   exact mul_le_mul_of_nonneg_left (logb_le_clog n) (Real.sqrt_nonneg _)
 
 /-- **The order condition by small powers**: for `r ≥ 2`, the multiplicative order of `n` modulo
@@ -107,12 +103,8 @@ theorem prime_iff_passesUpTo {n r A : ℕ} (hn : 2 ≤ n)
     have h1 : Real.logb 2 n ^ 2 ≤ (Nat.clog 2 n : ℝ) ^ 2 :=
       pow_le_pow_left₀ h0 (logb_le_clog n) 2
     have h2 : ((Nat.clog 2 n ^ 2 : ℕ) : ℝ) < orderOf (n : ZMod r) := by exact_mod_cast hr
-    push_cast at h2
-    linarith
-  refine prime_of_passes hn hlog ⟨h1, h3, ?_⟩
-  rcases h5 with h | h
-  · exact Or.inl h
-  · exact Or.inr fun a ha1 ha => h a ha1 (ha.trans hA)
+    cast_linarith
+  exact prime_of_passes hn hlog ⟨h1, h3, h5.imp_right fun h a ha1 ha => h a ha1 (ha.trans hA)⟩
 
 /-- The tests with the integer bound `⌊√(φ(r) ⌈log₂ n⌉²)⌋` characterize the primes. -/
 theorem prime_iff_passesUpTo_numTestsNat {n r : ℕ} (hn : 2 ≤ n)

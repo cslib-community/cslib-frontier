@@ -317,23 +317,18 @@ private theorem kadinStrongSoundD₁ {r d : ℕ} {U D D₁ : Set (α × List Boo
     (hzE : (a, z) ∈ allWordsIn enc m E d) (hmem : (a, s ++ (y ++ z)) ∈ D₁) :
     (a, y) ∈ E ∧ (a, s) ∉ kadinChain enc m E r := by
   -- Strong soundness of `D₁`: `(a, s ++ y ++ z) ∈ D₁` implies `(a, y) ∈ E ∧ (a, s) ∉ L r`
-  have hsy_len : (s ++ y).length = ((r + 1) • m).eval (enc a).length := by
-    simp [hs, hy, add_smul, one_smul]
-  have hmem' : (a, (s ++ y) ++ z) ∈ U \ D := by
-    rw [List.append_assoc]
-    exact hD₁UD hmem
-  have hL : (a, s ++ y) ∈ kadinChain enc m E (r + 1) :=
-    hSoundDiff a (s ++ y) z hsy_len hz hzE hmem'
-  exact (mem_kadinChain_succ_append hs).1 hL
+  refine (mem_kadinChain_succ_append hs).1
+    (hSoundDiff a (s ++ y) z (by simp [hs, hy, add_smul, one_smul]) hz hzE ?_)
+  rw [List.append_assoc]
+  exact hD₁UD hmem
 
 /-- `kadinSoundD` steps down from `(r + 1, d, U \ D)` to `(r, d + 1, D₁)`. -/
 private theorem kadinSoundD_succ {r d : ℕ} {U D D₁ : Set (α × List Bool)}
     (hD₁UD : D₁ ⊆ U \ D) (hSoundDiff : kadinSoundDiff enc m E (r + 1) d U D) :
     kadinSoundD enc m E r (d + 1) D₁ := by
   intro a s w hs hw hwE hmem
-  have hw' : w.length = m.eval (enc a).length + (d • m).eval (enc a).length := by
-    simpa [add_smul, one_smul, Nat.add_comm] using hw
-  obtain ⟨y, z, hy, hz, rfl⟩ := exists_append_of_length_eq_add hw'
+  obtain ⟨y, z, hy, hz, rfl⟩ := exists_append_of_length_eq_add
+    (by simpa only [add_smul, one_smul, Polynomial.eval_add, Nat.add_comm] using hw)
   obtain ⟨_, hzE⟩ := (mem_allWordsIn_succ_append hy).1 hwE
   exact (kadinStrongSoundD₁ enc m E hD₁UD hSoundDiff a s y z hs hy hz hzE hmem).2
 
@@ -342,19 +337,12 @@ private theorem kadinSoundDiff_succ {r d : ℕ} {D B D₁ : Set (α × List Bool
     (hDB : D = B \ D₁) (hSoundD : kadinSoundD enc m E (r + 1) d D) :
     kadinSoundDiff enc m E r (d + 1) B D₁ := by
   intro a s w hs hw hwE hmem
-  have hw' : w.length = m.eval (enc a).length + (d • m).eval (enc a).length := by
-    simpa [add_smul, one_smul, Nat.add_comm] using hw
-  obtain ⟨y, z, hy, hz, rfl⟩ := exists_append_of_length_eq_add hw'
+  obtain ⟨y, z, hy, hz, rfl⟩ := exists_append_of_length_eq_add
+    (by simpa only [add_smul, one_smul, Polynomial.eval_add, Nat.add_comm] using hw)
   obtain ⟨hyE, hzE⟩ := (mem_allWordsIn_succ_append hy).1 hwE
-  have hsy_len : (s ++ y).length = ((r + 1) • m).eval (enc a).length := by
-    simp [hs, hy, add_smul, one_smul]
-  have hmemD : (a, (s ++ y) ++ z) ∈ D := by
-    rw [List.append_assoc, hDB]
-    exact hmem
-  have hnotL : (a, s ++ y) ∉ kadinChain enc m E (r + 1) :=
-    hSoundD a (s ++ y) z hsy_len hz hzE hmemD
-  rw [mem_kadinChain_succ_append hs, not_and, not_not] at hnotL
-  exact hnotL hyE
+  have hnotL := hSoundD a (s ++ y) z (by simp [hs, hy, add_smul, one_smul]) hz hzE
+    (by rwa [List.append_assoc, hDB])
+  simpa [mem_kadinChain_succ_append hs, hyE] using hnotL
 
 /-- Soundness of the hard-prefix branch: every instance in `kadinHardBranch` is in
 `kadinTarget`. -/
@@ -526,30 +514,27 @@ theorem PiP_three_subset_SigmaP_three_of_coBH_subset_BH {k : ℕ}
   have hU : (Set.univ : Set (α × List Bool)) ∈ NP (encPair enc encBits) :=
     ⟨0, fun _ => true, .const _, by simp [IsVerifier]⟩
   have hSoundD : kadinSoundD enc m E k 0 (kadinChain enc m E k)ᶜ := by
-    intro a s z hs hz _ hmem
-    have hz0 : z = [] := List.length_eq_zero_iff.1 (by simpa using hz)
-    subst hz0
+    rintro a s z _ hz _ hmem
+    obtain rfl := List.length_eq_zero_iff.1 (by simpa using hz)
     simpa using hmem
   have hSoundDiff : kadinSoundDiff enc m E k 0 Set.univ (kadinChain enc m E k)ᶜ := by
-    intro a s z hs hz _ hmem
-    have hz0 : z = [] := List.length_eq_zero_iff.1 (by simpa using hz)
-    subst hz0
+    rintro a s z _ hz _ hmem
+    obtain rfl := List.length_eq_zero_iff.1 (by simpa using hz)
     simpa using hmem
   obtain ⟨H, hH_mem, hH_sub, hH_comp⟩ :=
     exists_kadin_sigmaP_three enc p₁ p₂ m E rfl hE k 0 hU hLk_compl (Set.subset_univ _)
       hSoundD hSoundDiff
   have hA_eq : A = kadinTarget enc p₁ p₂ E := by
     ext a
-    rw [hAV a]
-    simp only [kadinTarget, Set.mem_ofPred_eq, List.map_cons, List.map_nil,
+    simp only [hAV a, kadinTarget, Set.mem_ofPred_eq, List.map_cons, List.map_nil,
       alternation_false_cons, alternation_true_cons, alternation_nil]
-    refine forall_congr' fun u₁ => imp_congr_right fun _ => ?_
-    refine exists_congr fun u₂ => and_congr_right fun _ => ?_
+    refine forall_congr' fun u₁ => imp_congr_right fun _ =>
+      exists_congr fun u₂ => and_congr_right fun _ => ?_
     simp [E, List.append_assoc]
   have hH_eq : A = H := by
     rw [hA_eq]
-    refine Set.Subset.antisymm (fun a ha => hH_comp a ha fun s _ hs => ?_) hH_sub
-    exact ⟨[], by simp, trivial, by simpa using hs⟩
+    exact Set.Subset.antisymm
+      (fun a ha => hH_comp a ha fun s _ hs => ⟨[], by simp, trivial, by simpa using hs⟩) hH_sub
   rwa [hH_eq]
 
 /-- **Kadin's theorem at level `3`** [Kadin][Kadin1988]: if `coBH k ⊆ BH k` holds for the pair

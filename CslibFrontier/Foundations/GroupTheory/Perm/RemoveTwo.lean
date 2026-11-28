@@ -36,55 +36,21 @@ theorem removeNone_removeNone_paths {α : Type*} (f : Perm (Option (Option α)))
         f (some none) = some (some b)) ∨
       (f (some (some a)) = some none ∧ f (some none) = none ∧
         f none = some (some b)) := by
-  cases ha : f (some (some a)) with
-  | none =>
-    cases hb : f none with
-    | none => cases f.injective (ha.trans hb.symm)
-    | some t =>
-      cases t with
-      | some b =>
-        have he : Equiv.removeNone (Equiv.removeNone f) a = b := by
-          simp [Equiv.removeNone, Equiv.removeNoneAux, ha, hb]
-        rw [he]
-        exact Or.inr (Or.inl ⟨rfl, rfl⟩)
-      | none =>
-        cases hc : f (some none) with
-        | none => cases f.injective (ha.trans hc.symm)
-        | some s =>
-          cases s with
-          | none => cases f.injective (hb.trans hc.symm)
-          | some b =>
-            have he : Equiv.removeNone (Equiv.removeNone f) a = b := by
-              simp [Equiv.removeNone, Equiv.removeNoneAux, ha, hb, hc]
-            rw [he]
-            exact Or.inr (Or.inr (Or.inr (Or.inl ⟨rfl, rfl, rfl⟩)))
-  | some t =>
-    cases t with
-    | some b =>
-      have he : Equiv.removeNone (Equiv.removeNone f) a = b := by
-        simp [Equiv.removeNone, Equiv.removeNoneAux, ha]
-      rw [he]
-      exact Or.inl rfl
-    | none =>
-      cases hb : f (some none) with
-      | none =>
-        cases hc : f none with
-        | none => cases f.injective (hb.trans hc.symm)
-        | some s =>
-          cases s with
-          | none => cases f.injective (ha.trans hc.symm)
-          | some b =>
-            have he : Equiv.removeNone (Equiv.removeNone f) a = b := by
-              simp [Equiv.removeNone, Equiv.removeNoneAux, ha, hb, hc]
-            rw [he]
-            exact Or.inr (Or.inr (Or.inr (Or.inr ⟨rfl, rfl, rfl⟩)))
-      | some s =>
-        cases s with
-        | none => cases f.injective (ha.trans hb.symm)
-        | some b =>
-          have he : Equiv.removeNone (Equiv.removeNone f) a = b := by
-            simp [Equiv.removeNone, Equiv.removeNoneAux, ha, hb]
-          rw [he]
-          exact Or.inr (Or.inr (Or.inl ⟨rfl, rfl⟩))
+  rcases ha : f (some (some a)) with _ | (_ | c)
+  · rcases hb : f none with _ | (_ | c)
+    · cases f.injective (ha.trans hb.symm)
+    · rcases hc : f (some none) with _ | (_ | c)
+      · cases f.injective (ha.trans hc.symm)
+      · cases f.injective (hb.trans hc.symm)
+      · simp [Equiv.removeNone, Equiv.removeNoneAux, ha, hb, hc]
+    · simp [Equiv.removeNone, Equiv.removeNoneAux, ha, hb]
+  · rcases hb : f (some none) with _ | (_ | c)
+    · rcases hc : f none with _ | (_ | c)
+      · cases f.injective (hb.trans hc.symm)
+      · cases f.injective (ha.trans hc.symm)
+      · simp [Equiv.removeNone, Equiv.removeNoneAux, ha, hb, hc]
+    · cases f.injective (ha.trans hb.symm)
+    · simp [Equiv.removeNone, Equiv.removeNoneAux, ha, hb]
+  · simp [Equiv.removeNone, Equiv.removeNoneAux, ha]
 
 end Equiv.Perm

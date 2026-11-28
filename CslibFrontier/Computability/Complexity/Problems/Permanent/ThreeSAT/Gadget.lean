@@ -178,19 +178,14 @@ theorem gadget_minor (Out In : Finset (Fin 3)) :
   have hOI : Out = In ↔ (decide (0 ∈ Out) = decide (0 ∈ In) ∧
       decide (1 ∈ Out) = decide (1 ∈ In) ∧ decide (2 ∈ Out) = decide (2 ∈ In)) := by
     simp only [decide_eq_decide]
-    constructor
-    · rintro rfl; exact ⟨Iff.rfl, Iff.rfl, Iff.rfl⟩
-    · rintro ⟨h0, h1, h2⟩
-      ext p
-      fin_cases p
-      exacts [h0, h1, h2]
+    refine ⟨fun h => h ▸ ⟨Iff.rfl, Iff.rfl, Iff.rfl⟩, fun ⟨h0, h1, h2⟩ => ?_⟩
+    ext p
+    fin_cases p <;> assumption
   have hne : Out.Nonempty ↔ (decide (0 ∈ Out) = true ∨ decide (1 ∈ Out) = true ∨
       decide (2 ∈ Out) = true) := by
     simp only [decide_eq_true_eq]
-    constructor
-    · rintro ⟨p, hp⟩
-      fin_cases p <;> simp_all
-    · rintro (h | h | h) <;> exact ⟨_, h⟩
+    refine ⟨fun ⟨p, hp⟩ => by fin_cases p <;> simp_all, ?_⟩
+    rintro (h | h | h) <;> exact ⟨_, h⟩
   simp only [hOI, hne]
 
 variable {V : Type*} [DecidableEq V]
@@ -300,35 +295,22 @@ theorem permOn_gadget_add (g : Fin 8 ↪ V) (A D : Matrix V V ℤ)
     refine hnot (mem_image.2 ⟨(univ.filter fun p => g (exitE p) ∉ S',
       univ.filter fun p => g (entryE p) ∉ T'), mem_univ _, ?_⟩)
     simp only [φ, Prod.mk.injEq]
-    constructor
-    · ext u
+    have hpart (emb : Fin 3 ↪ Fin 8) (U' : Finset V) (hU'G : U' ⊆ G)
+        (hmem : ∀ a, (∀ p, a ≠ emb p) → g a ∈ U') :
+        G \ ((univ.filter fun p => g (emb p) ∉ U').map emb).map g = U' := by
+      ext u
       simp only [mem_sdiff, mem_map, mem_filter, mem_univ, true_and, hG]
       constructor
       · rintro ⟨⟨a, rfl⟩, h⟩
-        by_cases hex : ∃ p, a = exitE p
+        by_cases hex : ∃ p, a = emb p
         · obtain ⟨p, rfl⟩ := hex
           by_contra h'
-          exact h ⟨exitE p, ⟨p, h', rfl⟩, rfl⟩
-        · exact hrow a fun p hp => hex ⟨p, hp⟩
+          exact h ⟨emb p, ⟨p, h', rfl⟩, rfl⟩
+        · exact hmem a fun p hp => hex ⟨p, hp⟩
       · intro hu
-        obtain ⟨a, -, rfl⟩ := mem_map.1 (hS'G hu)
-        refine ⟨⟨a, rfl⟩, ?_⟩
-        rintro ⟨b, ⟨p, hp, rfl⟩, hb⟩
-        exact hp (g.injective hb ▸ hu)
-    · ext u
-      simp only [mem_sdiff, mem_map, mem_filter, mem_univ, true_and, hG]
-      constructor
-      · rintro ⟨⟨a, rfl⟩, h⟩
-        by_cases hen : ∃ p, a = entryE p
-        · obtain ⟨p, rfl⟩ := hen
-          by_contra h'
-          exact h ⟨entryE p, ⟨p, h', rfl⟩, rfl⟩
-        · exact hcol a fun p hp => hen ⟨p, hp⟩
-      · intro hu
-        obtain ⟨a, -, rfl⟩ := mem_map.1 (hT'G hu)
-        refine ⟨⟨a, rfl⟩, ?_⟩
-        rintro ⟨b, ⟨p, hp, rfl⟩, hb⟩
-        exact hp (g.injective hb ▸ hu)
+        obtain ⟨a, -, rfl⟩ := mem_map.1 (hU'G hu)
+        exact ⟨⟨a, rfl⟩, fun ⟨_, ⟨p, hp, rfl⟩, hb⟩ => hp (g.injective hb ▸ hu)⟩
+    exact ⟨hpart exitE S' hS'G hrow, hpart entryE T' hT'G hcol⟩
   have hφ : Set.InjOn φ ↑(univ ×ˢ univ : Finset (Finset (Fin 3) × Finset (Fin 3))) := by
     rintro ⟨O₁, I₁⟩ - ⟨O₂, I₂⟩ - h
     simp only [φ, Prod.mk.injEq] at h

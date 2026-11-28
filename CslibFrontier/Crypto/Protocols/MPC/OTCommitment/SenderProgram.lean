@@ -207,17 +207,14 @@ theorem senderClosedProgram_eq
   simp only [StateT.lift, StateT.run, Phased.handler, OracleComp.sumHandler,
     Phased.advance, Phased.observe, bind_assoc, pure_bind, map_bind, map_pure]
   apply congrArg (Bind.bind (senderViewProgram choose receive k st))
-  apply funext
-  rintro ⟨tables, final⟩
+  funext ⟨tables, final⟩
   apply congrArg (Bind.bind (BitString.sampleList k))
   funext choices
   apply congrArg (Bind.bind (finish k final))
-  apply funext
-  rintro ⟨submission, out⟩
+  funext ⟨submission, out⟩
   by_cases h : openPairs choices (selectedBits tables choices) submission =
       some (extractPairs (tables.map fun t =>
-        (t (boolPairToFin4 (false, false)), t (boolPairToFin4 (false, true)))))
-  all_goals simp [h]
+        (t (boolPairToFin4 (false, false)), t (boolPairToFin4 (false, true))))) <;> simp [h]
 
 /-- Exact evaluation in the existing semantic phased-world experiment. Malformed list openings
 become rejection before any finite opening is used; the final world store alone is hidden. -/
@@ -233,18 +230,15 @@ theorem eval_senderClosedProgram
   simp only [pmf_norm, eval_senderViewProgram, BitString.eval_sampleList, BitString.uniformList,
     simulatedOpening]
   apply congrArg ((senderTables (senderOfPrograms choose receive) k st).bind)
-  apply funext
-  rintro ⟨ts, final⟩
+  funext ⟨ts, final⟩
   apply congrArg ((PMF.uniformOfFintype (Fin k → Bool)).bind)
   funext choices
   apply congrArg ((ProbComp.eval (finish k final)).bind)
-  apply funext
-  rintro ⟨submission, out⟩
+  funext ⟨submission, out⟩
   simp only [List.map_ofFn, Function.comp_def, extractPairs_ofFn, selectedBits_ofFn,
     openPairs_decodeOpening]
   by_cases h : openResult choices (fun i => ts i (boolPairToFin4 (false, choices i)))
-      (decodeOpening k submission) = some (extract ts)
-  all_goals simp [h]
+      (decodeOpening k submission) = some (extract ts) <;> simp [h]
 
 /-- The actual closed simulator inherits the majority-extraction coupling, retaining public
 observations, commit-final state and arbitrary auxiliary output jointly. -/
@@ -323,20 +317,12 @@ theorem senderIdealProgram_queryBound
     (finish : ℕ → State → ProbComp (Option (Bool × List (Bool × Bool)) × Output)) :
     ProbOracleComp.IsQueryBounded (senderIdealProgram choose receive k st finish) 4 := by
   unfold senderIdealProgram
-  apply (ProbOracleComp.IsQueryBounded.sample _).bind (m := 4)
-  rintro ⟨tables, final⟩
-  apply (ProbOracleComp.IsQueryBounded.query _).bind (m := 3)
-  intro _
-  apply (ProbOracleComp.IsQueryBounded.query _).bind (m := 2)
-  intro _
-  apply (ProbOracleComp.IsQueryBounded.sample _).bind (m := 2)
-  intro choices
-  apply (ProbOracleComp.IsQueryBounded.sample _).bind (m := 2)
-  rintro ⟨submission, out⟩
-  apply (ProbOracleComp.IsQueryBounded.query _).bind (m := 1)
-  intro _
-  apply (ProbOracleComp.IsQueryBounded.query _).bind (m := 0)
-  intro _
-  exact .pure _ 0
+  exact (ProbOracleComp.IsQueryBounded.sample _).bind (m := 4) fun ⟨_, _⟩ =>
+    (ProbOracleComp.IsQueryBounded.query _).bind (m := 3) fun _ =>
+    (ProbOracleComp.IsQueryBounded.query _).bind (m := 2) fun _ =>
+    (ProbOracleComp.IsQueryBounded.sample _).bind (m := 2) fun _ =>
+    (ProbOracleComp.IsQueryBounded.sample _).bind (m := 2) fun ⟨_, _⟩ =>
+    (ProbOracleComp.IsQueryBounded.query _).bind (m := 1) fun _ =>
+    (ProbOracleComp.IsQueryBounded.query _).bind (m := 0) fun _ => .pure _ 0
 
 end Cslib.Crypto.Protocols.MPC.OTCommitment

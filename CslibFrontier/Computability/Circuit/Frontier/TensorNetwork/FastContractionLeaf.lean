@@ -680,8 +680,7 @@ theorem leafCertificate_tableEntry_le_of_packetShape : ∃ K : ℕ,
           Nat.mul_le_mul (Nat.mul_le_mul_right _ hWK) hXE
       _ = K * c₁ ^ K * c₂ * B ^ ((ds + 1) * K + dt) * 2 ^ x.edges * X := by rw [pow_add]; ring
       _ ≤ K' * B ^ K' * 2 ^ x.edges * X :=
-          Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _
-            (Nat.mul_le_mul (by omega) (Nat.pow_le_pow_right hB1 (by omega))))
+          by gcongr <;> omega
   · calc _ ≤ K * c₁ ^ K * B ^ ((ds + 1) * K) := hWK
       _ ≤ K' * B ^ K' := Nat.mul_le_mul
           ((Nat.le_mul_of_pos_right _ hc₂1).trans (by omega))
@@ -796,8 +795,7 @@ theorem exists_leafFactor_le (C c s₀ : ℕ) : ∃ K : ℕ, ∀ s m M p n : ℕ
             Nat.pow_le_pow_right (Nat.one_le_iff_ne_zero.mpr (by positivity)) (hAm.trans hmC')
         _ = (C * s₀ + 2) ^ (C * s₀) * (n + 1) ^ (C * s₀) := mul_pow _ _ _
     calc 2 ^ M * (A * p + 2) ^ A
-        ≤ 2 ^ (2 * (C * s₀)) * ((C * s₀ + 2) ^ (C * s₀) * (n + 1) ^ (C * s₀)) :=
-          Nat.mul_le_mul h2M hfac
+        ≤ 2 ^ (2 * (C * s₀)) * ((C * s₀ + 2) ^ (C * s₀) * (n + 1) ^ (C * s₀)) := by gcongr
       _ = Ks * (n + 1) ^ (C * s₀) := by rw [hKs]; ring
       _ ≤ K * (n + 1) ^ K := Nat.mul_le_mul (by omega) (Nat.pow_le_pow_right hB1 (by omega))
       _ ≤ K * (n + 1) ^ K * 2 ^ (K * s / S) := Nat.le_mul_of_pos_right _ hX1

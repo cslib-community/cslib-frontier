@@ -77,30 +77,15 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
   let V := valueBase L m t N qs.length
   let K := (boxes L m t).card
   let O := resultBase L m t N qs.length
-  have habQ := hg.span_bounds (Wanted.tileKey L m N ∘ Wanted.inputPairs qs) hoffsets hj
-  have hB : 0 < B := by dsimp only [B] at *; nlinarith only [hj, Nat.zero_le j]
-  have hβ : β < B := (Nat.div_lt_iff_lt_mul hB).mpr (by simpa [B, pow_two] using hj)
-  have hγ : γ < B := Nat.mod_lt j hB
-  have hT : (β, γ) ∈ tiles L m N :=
-    Finset.mem_product.mpr ⟨Finset.mem_range.mpr hβ, Finset.mem_range.mpr hγ⟩
-  have hnum : β * numBands L m N + γ = j := by
-    simpa only [β, γ, B, Nat.mul_comm] using Nat.div_add_mod j B
-  have hcode (k : ℕ) (hk : k < qs.length) :
-      x.mem (QueriedProduct.codeBase L m N qs.length + k) < 10 ^ L := by
-    rw [hg.codes k hk]
-    exact QueriedProduct.router_code_lt hm qs old hvalues k hk
-  let queries : Fin (b - a) → OutStr L := fun i => PrunedQuery.queryAt
-    ⟨x.mem (QueriedProduct.codeBase L m N qs.length + (a + i.val)),
-      hcode _ (by have := i.isLt; omega)⟩
+  obtain ⟨hT, hnum, habQ, queries, hinput, hset⟩ := hg.decode_span hm qs hvalues hoffsets hj
+  change β * numBands L m N + γ = j at hnum
+  change (Fin (b - a) → OutStr L) at queries
+  change (∀ i, x.mem (QueriedProduct.codeBase L m N qs.length + (a + i.val)) =
+    (PrunedQuery.queryIndex (queries i)).val) at hinput
+  change Finset.univ.image queries = wantedStrings (MaskTable.layout hm) qs.toFinset β γ at hset
+  have ⟨hβ, hγ⟩ : β < B ∧ γ < B := by
+    simpa only [tiles, Finset.mem_product, Finset.mem_range] using hT
   let wanted := List.ofFn queries
-  have hinput (i : Fin (b - a)) :
-      x.mem (QueriedProduct.codeBase L m N qs.length + (a + i.val)) =
-        (PrunedQuery.queryIndex (queries i)).val := by
-    simp only [queries, PrunedQuery.queryIndex_queryAt]
-  have hset : Finset.univ.image queries =
-      wantedStrings (MaskTable.layout hm) qs.toFinset β γ :=
-    hg.span_queries hm qs hvalues hoffsets (β, γ) hT a b (by rw [hnum])
-      (by rw [hnum]; rfl) queries hinput
   have hinner : ∀ η ∈ wanted, (innerSetO η).card = m := by
     intro η hη
     obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hη
@@ -127,12 +112,9 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
   have hVorder : D0 ≤ R0 ∧ R0 ≤ V ∧ V + K ≤ O := horder.2.2.2
   have hpaD : pa ≤ D0 := (Nat.le_add_right pa (10 ^ L)).trans (hpab.1.trans hbefore)
   have hpbD : pb ≤ D0 := (Nat.le_add_right pb (10 ^ L)).trans (hpab.2.trans hbefore)
-  have hpaV : pa + 10 ^ L ≤ V :=
-    hpab.1.trans (hbefore.trans (hVorder.1.trans hVorder.2.1))
-  have hpbV : pb + 10 ^ L ≤ V :=
-    hpab.2.trans (hbefore.trans (hVorder.1.trans hVorder.2.1))
-  have hqD : QueriedProduct.codeBase L m N qs.length + a ≤ D0 :=
-    (Nat.add_le_add_left (habQ.1.trans habQ.2) _).trans hqueries
+  have hpaV : pa + 10 ^ L ≤ V := by omega
+  have hpbV : pb + 10 ^ L ≤ V := by omega
+  have hqD : QueriedProduct.codeBase L m N qs.length + a ≤ D0 := by omega
   have hleft (c : Fin (10 ^ L)) :
       arg.mem (pa + c.val) = Signed.encode (encA (BoxTable.leafAt c)) := by
     rw [arm]
@@ -145,19 +127,16 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
     simpa only [pb, encB, B, BandPreparation.catalogueAddress, ↓reduceIte,
       Nat.add_assoc, BoxTable.leafIndex_leafAt] using he.right γ hγ (BoxTable.leafAt c)
   have haB (τ : Leaf L) : (encA τ).natAbs ≤ encodedBound L A := by
-    have h := abs_encodingL_le (abs_bandArrayL_le (MaskTable.layout hm) (by positivity) hX β) τ
-    rw [← Int.natCast_natAbs] at h
-    exact_mod_cast h
+    exact_mod_cast (Int.natCast_natAbs _).trans_le
+      (abs_encodingL_le (abs_bandArrayL_le (MaskTable.layout hm) (by positivity) hX β) τ)
   have hbB (τ : Leaf L) : (encB τ).natAbs ≤ encodedBound L A := by
-    have h := abs_encodingR_le (abs_bandArrayR_le (MaskTable.layout hm) (by positivity) hY γ) τ
-    rw [← Int.natCast_natAbs] at h
-    exact_mod_cast h
+    exact_mod_cast (Int.natCast_natAbs _).trans_le
+      (abs_encodingR_le (abs_bandArrayR_le (MaskTable.layout hm) (by positivity) hY γ) τ)
   have htablemag : GenericRAM.Signed.Fits w
       (encodedBound L A + encodedBound L A + 10 ^ L * (encodedBound L A * encodedBound L A) : ℕ) :=
     (box_magnitude hw hmag).of_natAbs_le (by
       simpa only [Int.natAbs_natCast] using BoxQuery.table_magnitudeBound_le L
         (encodedBound L A) (encodedBound L A))
-  have hspan : 10 ^ L ≤ (L + 1) * 10 ^ L := Nat.le_mul_of_pos_left _ (by omega)
   obtain ⟨z, hz, zv, zf, zregs⟩ := BoxTable.exec_tile (arg.comap boxBank) encA encB haB hbB arc
     arV arA arB (by rw [arK, BoxTable.count_eligible_eq_card_boxes])
     (by simpa only [Data.comap_mem, arm] using hgeom.catalogue)
@@ -171,17 +150,10 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
   have ub : Parameters L m t N qs.length u := by regs_frame
   have uread : BoxQuery.Readback m t D0 V pa pb encA encB u.mem := by
     change BoxQuery.Readback m t D0 V pa pb encA encB z.mem
-    constructor
-    · intro c
-      rw [zf _ (by have := c.isLt; omega)]
-      exact hleft c
-    · intro c
-      rw [zf _ (by have := c.isLt; omega)]
-      exact hright c
-    · intro s hs
-      rw [zf _ (by dsimp only [D0, V]; unfold valueBase recordBase; omega), Data.comap_mem, arm]
-      exact hgeom.directory s hs
-    · exact zv
+    refine ⟨fun c => (zf _ (by have := c.isLt; omega)).trans (hleft c),
+      fun c => (zf _ (by have := c.isLt; omega)).trans (hright c), fun s hs => ?_, zv⟩
+    rw [zf _ (by dsimp only [D0, V]; unfold valueBase recordBase; omega), Data.comap_mem, arm]
+    exact hgeom.directory s hs
   have ux : BoxBatch.Arguments L t pa pb D0 V K (u.comap boxBank) := by regs_frame
   have uwanted (i : Fin wanted.length) : u.mem
       (QueriedProduct.codeBase L m N qs.length + a + i.val) =
@@ -248,18 +220,16 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
     omega
   have vframe (p : ℕ) (hf : ¬(V ≤ p ∧ p < memoryEnd L m t N qs.length)) :
       v.mem p = x.mem p := by
-    change q.mem p = x.mem p
     have hO : V + K + 5 * BoxQuery.stackCapacity L = O := rfl
-    have hEnd : memoryEnd L m t N qs.length = O + qs.length := rfl
+    change ¬(V ≤ p ∧ p < O + qs.length) at hf
+    change q.mem p = x.mem p
     rw [qf p (by
       simp only [wanted, List.length_ofFn]
       change ¬((V + K ≤ p ∧ p < V + K + 5 * BoxQuery.stackCapacity L) ∨
         (O ≤ p ∧ p < O + (b - a)))
-      rw [hO]
-      rw [hEnd] at hf
       omega)]
     change z.mem p = x.mem p
-    rw [zf p (by rw [hEnd] at hf; omega), Data.comap_mem, arm]
+    rw [zf p (by omega), Data.comap_mem, arm]
   have ym : y.mem = ArrayCopy.copyPrefix v.mem O
       (QueriedProduct.groupedBase L m N qs.length + a) (b - a) := by
     simpa only [y, Data.set_mem, cs, cd, cl, c] using dm
@@ -268,15 +238,11 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
         p < QueriedProduct.groupedBase L m N qs.length + b))
       (hf : ¬(V ≤ p ∧ p < memoryEnd L m t N qs.length)) : y.mem p = x.mem p := by
     rw [ym, ArrayCopy.copyPrefix_outside (by omega), vframe p hf]
-  have frame (p : ℕ)
-      (ho : ¬(QueriedProduct.groupedBase L m N qs.length + a ≤ p ∧
-        p < QueriedProduct.groupedBase L m N qs.length + b))
-      (hf : ¬(D0 ≤ p ∧ p < memoryEnd L m t N qs.length)) : y.mem p = x.mem p :=
-    strongframe p ho (by omega)
-  refine ⟨y, native, yp, ?_, by simp [y], ?_, ?_, ?_, ?_, frame⟩
+  refine ⟨y, native, yp, ?_, by simp [y], ?_, ?_, ?_, ?_,
+    fun p ho hf => strongframe p ho (by omega)⟩
   · regs_frame
-  · exact hg.reframe (fun p hp hbefore => frame p (by omega) (by omega))
-  · exact he.reframe (fun p hp => frame p
+  · exact hg.reframe (fun p hp hbefore => strongframe p (by omega) (by omega))
+  · exact he.reframe (fun p hp => strongframe p
       (by have h := band_before_grouped L m N qs.length; omega) (by omega))
   · exact hgeom.reframe (fun p hD hV => strongframe p (by omega) (by omega))
   · intro i hkey
@@ -307,16 +273,10 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
     rw [hquery, BoxQuery.queryValue_encoding ht _
       (card_innerSetO_of_mem_wantedStrings (MaskTable.layout hm) qs.toFinset β γ _ (by
         rw [← hset]; exact Finset.mem_image.mpr ⟨k, Finset.mem_univ _, hquery⟩))] at hr
-    change q.mem (O + k.val) = _ at hr
-    rw [ym]
-    have hcopy := ArrayCopy.copyPrefix_read (mem := v.mem) (src := O)
-      (dst := QueriedProduct.groupedBase L m N qs.length + a) (k := b - a) k.isLt
-    have haddr : QueriedProduct.groupedBase L m N qs.length + a + k.val =
-        QueriedProduct.groupedBase L m N qs.length + p := by omega
-    rw [haddr] at hcopy
-    rw [hcopy]
+    have haddr : QueriedProduct.groupedBase L m N qs.length + p =
+        QueriedProduct.groupedBase L m N qs.length + a + k.val := by omega
     change v.mem (O + k.val) = _ at hr
-    rw [hr]
+    rw [ym, haddr, ArrayCopy.copyPrefix_read k.isLt, hr]
     congr 1
     rw [← hbands.1, ← hbands.2]
     exact bilinearProduct_bandArray_eq_mul (MaskTable.layout hm) X Y _ _

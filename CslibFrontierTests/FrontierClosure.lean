@@ -18,6 +18,10 @@ namespace CslibFrontierTests.FrontierClosure
 example : (SimpleGraph.pathGraph 0).indepSetCount = 1 :=
   SimpleGraph.indepSetCount_pathGraph 0
 
+/-- Every finite graph has at least one independent set (`∅`), even when complete. -/
+example (n : ℕ) : 1 ≤ (⊤ : SimpleGraph (Fin n)).indepSetCount :=
+  (⊤ : SimpleGraph (Fin n)).indepSetCount_pos
+
 example : (SimpleGraph.pathGraph 4).indepSetCount = 8 :=
   SimpleGraph.indepSetCount_pathGraph 4
 

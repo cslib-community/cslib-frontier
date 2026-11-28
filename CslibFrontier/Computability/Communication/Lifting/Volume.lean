@@ -55,11 +55,10 @@ theorem volume_le_pow_mul_of_steps {a r : ℝ} (ha : 0 ≤ a) (hr : 0 ≤ r)
   induction c with
   | zero => simp
   | succ c ih =>
-    have hprev := ih (fun i hi => hstep i (Nat.lt_succ_of_lt hi))
     calc
-      _ ≤ a ^ c * r ^ (∑ i ∈ range c, cost i) * volume c := hprev
-      _ ≤ a ^ c * r ^ (∑ i ∈ range c, cost i) *
-          (a * r ^ cost c * volume (c + 1)) :=
+      _ ≤ a ^ c * r ^ (∑ i ∈ range c, cost i) * volume c :=
+        ih fun i hi => hstep i (Nat.lt_succ_of_lt hi)
+      _ ≤ a ^ c * r ^ (∑ i ∈ range c, cost i) * (a * r ^ cost c * volume (c + 1)) :=
         mul_le_mul_of_nonneg_left (hstep c (Nat.lt_succ_self c))
           (mul_nonneg (pow_nonneg ha c) (pow_nonneg hr _))
       _ = _ := by simp only [sum_range_succ, pow_succ, pow_add]; ring
@@ -68,9 +67,7 @@ theorem volume_le_pow_mul_of_steps {a r : ℝ} (ha : 0 ≤ a) (hr : 0 ≤ r)
 theorem card_le_pow_of_fixed {J : Finset (Fin n)} {X : Finset (Fin n → Fin m)}
     (hX : ∀ x ∈ X, ∀ x' ∈ X, ∀ i ∈ J, x i = x' i) : #X ≤ m ^ #Jᶜ := by
   have hinj : Set.InjOn (fun x : Fin n → Fin m => fun i : (Jᶜ : Finset (Fin n)) => x i)
-      (X : Set (Fin n → Fin m)) := by
-    intro x hx x' hx' h
-    funext i
+      (X : Set (Fin n → Fin m)) := fun x hx x' hx' h => funext fun i => by
     by_cases hi : i ∈ J
     · exact hX x hx x' hx' i hi
     · exact congrFun h ⟨i, mem_compl.mpr hi⟩
@@ -90,10 +87,9 @@ theorem pow_div_le_of_volume_budget {AX AY : Finset (Fin n)}
     (hbudget : (m : ℝ) ^ (2 * n) ≤ K * (2 * τ) ^ (#AX + #AY) * #X * #Y) :
     ((m : ℝ) / (2 * τ)) ^ (#AX + #AY) ≤ K := by
   have hm' : (0 : ℝ) < m := by exact_mod_cast hm
-  have hx : (#X : ℝ) ≤ (m : ℝ) ^ #AXᶜ := by exact_mod_cast card_le_pow_of_fixed hX
-  have hy : (#Y : ℝ) ≤ (m : ℝ) ^ #AYᶜ := by exact_mod_cast card_le_pow_of_fixed hY
   have hxy : (#X : ℝ) * #Y ≤ (m : ℝ) ^ #AXᶜ * (m : ℝ) ^ #AYᶜ :=
-    mul_le_mul hx hy (Nat.cast_nonneg _) (pow_nonneg hm'.le _)
+    mul_le_mul (by exact_mod_cast card_le_pow_of_fixed hX)
+      (by exact_mod_cast card_le_pow_of_fixed hY) (Nat.cast_nonneg _) (pow_nonneg hm'.le _)
   have hexp : (#AX + #AY) + (#AXᶜ + #AYᶜ) = 2 * n := by
     have hAX := card_add_card_compl AX
     have hAY := card_add_card_compl AY
@@ -109,8 +105,7 @@ theorem pow_div_le_of_volume_budget {AX AY : Finset (Fin n)}
         mul_le_mul_of_nonneg_left hxy (mul_nonneg hK (by positivity))
       _ = _ := by simp only [pow_add]
   rw [← hexp, pow_add] at hvol
-  have hquery := (mul_le_mul_iff_left₀ (pow_pos hm' (#AXᶜ + #AYᶜ))).mp hvol
   rw [div_pow, div_le_iff₀ (by positivity)]
-  exact hquery
+  exact (mul_le_mul_iff_left₀ (pow_pos hm' (#AXᶜ + #AYᶜ))).mp hvol
 
 end Cslib.Communication.Lifting

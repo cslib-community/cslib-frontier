@@ -52,9 +52,8 @@ theorem expect_walk_sq_le_dens_add_spectralExpansion_sq {B : Finset V}
   simp only [pow_one, Nat.mul_one] at h
   have hw := G.expect_walk f
   rw [← hw, Fintype.expect_sub_expect_sq, hw, Fintype.expect_sub_expect_sq] at h
-  have hs := Fintype.sq_expect_le_dens_mul_expect_sq_of_eq_zero hf
-  have hn := mul_nonneg (sq_nonneg G.spectralExpansion) (sq_nonneg (𝔼 v, f v))
-  nlinarith
+  nlinarith [Fintype.sq_expect_le_dens_mul_expect_sq_of_eq_zero hf,
+    mul_nonneg (sq_nonneg G.spectralExpansion) (sq_nonneg (𝔼 v, f v))]
 
 omit [Nonempty V] in
 /-- Restricting the output of a walk to a set of density `ρ` has squared norm at
@@ -117,20 +116,16 @@ private theorem expect_mul_walk_weightedWalk (t : ℕ) (B : ℕ → Finset V) (f
   induction t generalizing B f with
   | zero =>
     rw [G.expect_mul_walk_comm]
-    apply expect_congr rfl
-    intro v _
+    refine expect_congr rfl fun v _ => ?_
     simp only [weightedWalk_zero, maskedSteps]
     split_ifs <;> simp
   | succ t ih =>
-    rw [G.expect_mul_walk_comm]
-    have heq (v : V) : G.walk f v * G.weightedWalk (t + 1)
-        (fun i v => if v ∈ B i then (1 : ℝ) else 0) v =
-        (if v ∈ B 0 then G.walk f v else 0) *
-          G.walk (G.weightedWalk t (fun i v => if v ∈ B (i + 1) then (1 : ℝ) else 0)) v := by
-      simp only [weightedWalk_succ, Pi.mul_apply]
-      split_ifs <;> simp
-    simp only [heq]
-    exact ih _ _
+    change _ = 𝔼 v, G.maskedSteps (t + 1) (fun i => B (i + 1))
+      (fun v => if v ∈ B 0 then G.walk f v else 0) v
+    rw [G.expect_mul_walk_comm, ← ih]
+    refine expect_congr rfl fun v _ => ?_
+    simp only [weightedWalk_succ, Pi.mul_apply]
+    split_ifs <;> simp
 
 omit [Nonempty D] in
 /-- Squared hitting bound from bounds for the individual masked walk steps. -/
@@ -173,8 +168,8 @@ theorem sq_dens_filter_forall_walkAt_mem_le_of_step_bounds (B : ℕ → Finset V
 theorem sq_dens_filter_forall_walkAt_mem_le_product (B : ℕ → Finset V) (t : ℕ) :
     (dens {p : V × (Fin t → D) | ∀ i ≤ t, G.walkAt p i ∈ B i} : ℝ) ^ 2 ≤
       (dens (B 0) : ℝ) *
-        ∏ i ∈ range t, ((dens (B (i + 1)) : ℝ) + G.spectralExpansion ^ 2) := by
-  exact G.sq_dens_filter_forall_walkAt_mem_le_of_step_bounds B t _
+        ∏ i ∈ range t, ((dens (B (i + 1)) : ℝ) + G.spectralExpansion ^ 2) :=
+  G.sq_dens_filter_forall_walkAt_mem_le_of_step_bounds B t _
     (fun _ => by positivity) (fun _ => G.expect_mask_walk_sq_le _)
 
 /-- Goldreich Exercise 8.43, equation (8.24), for `t + 1` vertices. -/
@@ -204,11 +199,9 @@ theorem dens_filter_forall_walkAt_mem_le_sqrt_pow (B : Finset V) (t : ℕ)
     {η : ℝ} (hη : G.spectralExpansion ≤ η) :
     (dens {p : V × (Fin t → D) | ∀ i ≤ t, G.walkAt p i ∈ B} : ℝ) ≤
       Real.sqrt ((dens B : ℝ) + η ^ 2) ^ (t + 1) := by
-  have h := G.dens_filter_forall_walkAt_mem_le_product_of_spectralExpansion_le
-    (fun _ => B) t hη
-  simp only [prod_const, card_range] at h
-  refine h.trans ?_
-  rw [pow_succ' (Real.sqrt ((dens B : ℝ) + η ^ 2)) t]
+  refine (G.dens_filter_forall_walkAt_mem_le_product_of_spectralExpansion_le
+    (fun _ => B) t hη).trans ?_
+  rw [prod_const, card_range, pow_succ' (Real.sqrt ((dens B : ℝ) + η ^ 2)) t]
   gcongr
   exact le_add_of_nonneg_right (sq_nonneg η)
 

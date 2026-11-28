@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Complexity.Classes.BooleanHierarchy
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.QueryBit
 public import CslibFrontier.Computability.Complexity.Problems.SAT
 public import CslibFrontier.Languages.Probabilistic.Iteration
@@ -31,7 +32,11 @@ with at most `c log₂ n + c` requests to some oracle language in `NP`, for a co
 [Hemaspaandra and Ogihara, p. 1][HemaspaandraOgihara2002] [Kadin][Kadin1989]. It contains
 `NP` and `coNP` with one request to the encodings of the satisfiable formulas
 (`Cslib.Complexity.NP_subset_PWithOracleQueries_image_SAT`), through the Cook–Levin reduction, and
-is closed under complement.
+is closed under complement. Running two deciders in sequence adds their requests
+(`Cslib.Complexity.inter_mem_PWithOracleQueries`), so the `n`th level of the Boolean hierarchy is
+decided with `n` requests to `SAT` and the whole Boolean hierarchy lies in `P^{NP[O(log n)]}`
+[Köbler, Schöning and Wagner][KoeblerSchoeningWagner1987]; in particular `DP` and `coDP`
+(`Cslib.Complexity.BH_two`, `Cslib.Complexity.coBH_two`) are decided with two requests.
 
 ## Main definitions
 
@@ -45,22 +50,29 @@ is closed under complement.
 * `Cslib.OracleComp.length_queriesWith_iterate_le`: a bounded loop of rounds with boundedly many
   requests makes boundedly many requests.
 * `Cslib.Complexity.ComputableInPolyTimeWithOracleQueries.computableInPolyTimeWithOracle`,
-  `.mono`, `.map`: forgetting and weakening the bound, and postprocessing.
+  `.mono`, `.map`, `.prod`: forgetting and weakening the bound, postprocessing, and sequential
+  composition.
 * `Turing.MultiTapeTM.ComputableInPolyTime.computableInPolyTimeWithOracleQueries`: polynomial time
   makes no request.
 * `Cslib.Complexity.computableInPolyTimeWithOracleQueries_query`: one request
   (`Cslib.Complexity.queryBit`) decides membership of a polynomial-time request word.
 * `Cslib.Complexity.compl_mem_PWithOracleQueries`, `Cslib.Complexity.compl_mem_PNPLog`: closure
   under complement.
+* `Cslib.Complexity.inter_mem_PWithOracleQueries`: closure under intersection, adding the bounds.
 * `Cslib.Complexity.NP_subset_PWithOracleQueries_image_SAT`: one request to `SAT` decides a
   problem in `NP`.
+* `Cslib.Complexity.BH_subset_PWithOracleQueries_image_SAT`: `n` requests to `SAT` decide a
+  problem in the `n`th level of the Boolean hierarchy.
 * `Cslib.Complexity.P_subset_PNPLog`, `Cslib.Complexity.NP_subset_PNPLog`,
-  `Cslib.Complexity.coNP_subset_PNPLog`, `Cslib.Complexity.PNPLog_subset_PWithOracle`.
+  `Cslib.Complexity.coNP_subset_PNPLog`, `Cslib.Complexity.BooleanHierarchy_subset_PNPLog`,
+  `Cslib.Complexity.PNPLog_subset_PWithOracle`.
 
 ## References
 
 * [L. A. Hemaspaandra, M. Ogihara, *The Complexity Theory Companion*][HemaspaandraOgihara2002]
 * [J. Kadin, *P^{NP[O(log n)]} and sparse Turing-complete sets for NP*][Kadin1989]
+* [J. Köbler, U. Schöning, K. W. Wagner, *The difference and truth-table hierarchies for
+  NP*][KoeblerSchoeningWagner1987]
 -/
 
 @[expose] public section
@@ -125,6 +137,27 @@ theorem map {f : α → β} {g : β → γ} (h : ComputableInPolyTimeWithOracleQ
     rfl
   · rw [OracleComp.queriesWith_map]
     exact (heq a).2
+
+/-- **Sequential composition**: running two programs against the same oracle one after the other,
+retaining both results, makes the requests of both. -/
+theorem prod {f : α → β} {g : α → γ} (hf : ComputableInPolyTimeWithOracleQueries A r f input middle)
+    (hg : ComputableInPolyTimeWithOracleQueries A r' g input output) :
+    ComputableInPolyTimeWithOracleQueries A (fun n => r n + r' n) (fun a => (f a, g a)) input
+      (encPair middle output) := by
+  obtain ⟨first, hfirst, hfirst_eq⟩ := hf
+  obtain ⟨second, hsecond, hsecond_eq⟩ := hg
+  refine ⟨fun a => do
+    let b ← first a
+    (fun c => (b, c)) <$> second a, ?_, fun a => ⟨?_, ?_⟩⟩
+  · simp only [OracleComp.interpret_bind, OracleComp.interpret_map]
+    exact hfirst.bind_with ((hsecond.preprocess
+      (ComputableInPolyTime.fst input middle)).map_with
+      (((ComputableInPolyTime.snd input middle).comp (.fst _ _)).prod (.snd _ _)))
+  · simp only [OracleComp.interpret_bind, OracleComp.interpret_map, (hfirst_eq a).1,
+      (hsecond_eq a).1]
+    rfl
+  · rw [OracleComp.queriesWith_bind, List.length_append, OracleComp.queriesWith_map]
+    exact Nat.add_le_add (hfirst_eq a).2 (hsecond_eq a).2
 
 end ComputableInPolyTimeWithOracleQueries
 
@@ -193,6 +226,15 @@ theorem compl_mem_PWithOracleQueries (hL : L ∈ PWithOracleQueries A r enc) :
   rw [Set.mem_compl_iff, hL a]
   simp
 
+/-- **Closure under intersection**: run both deciders, adding their requests. -/
+theorem inter_mem_PWithOracleQueries {L' : Set α} (hL : L ∈ PWithOracleQueries A r enc)
+    (hL' : L' ∈ PWithOracleQueries A r' enc) :
+    L ∩ L' ∈ PWithOracleQueries A (fun n => r n + r' n) enc := by
+  obtain ⟨f, hf, hL⟩ := hL
+  obtain ⟨g, hg, hL'⟩ := hL'
+  exact ⟨fun a => f a && g a, (hf.prod hg).map (g := fun p => p.1 && p.2) (by fun_prop),
+    fun a => by simp [hL a, hL' a]⟩
+
 open Classical in
 /-- A problem that reduces in polynomial time to the oracle language is decided with one
 request. -/
@@ -239,6 +281,32 @@ theorem NP_subset_PNPLog (enc : α ↪ List Bool) : NP enc ⊆ PNPLog enc := fun
 /-- **`coNP ⊆ P^{NP[O(log n)]}`**. -/
 theorem coNP_subset_PNPLog (enc : α ↪ List Bool) : coNP enc ⊆ PNPLog enc := fun _ hL => by
   simpa only [compl_compl] using compl_mem_PNPLog (NP_subset_PNPLog enc hL)
+
+/-- **A level of the Boolean hierarchy needs a constant number of requests**: a problem in
+`BH enc n` is decided with `n` requests to `SAT`, one for each `NP` language of its nested
+difference; by `compl_mem_PWithOracleQueries`, so is a problem in `coBH enc n`.
+[Köbler, Schöning and Wagner, Corollary 4.6 (i)][KoeblerSchoeningWagner1987] prove the stronger
+nonadaptive form: the `n`th level (their `DIFF_n`) and its complements are `n`-truth-table
+reducible to `NP`. `PWithOracleQueries` counts requests that may depend on earlier answers. -/
+theorem BH_subset_PWithOracleQueries_image_SAT (enc : α ↪ List Bool) (n : ℕ) :
+    BH enc n ⊆ PWithOracleQueries (encCNF '' SAT) (fun _ => n) enc := by
+  induction n with
+  | zero =>
+    rintro L rfl
+    exact P_subset_PWithOracleQueries _ _ enc empty_mem_P
+  | succ n ih =>
+    rintro _ ⟨B, hB, D, hD, rfl⟩
+    exact PWithOracleQueries_mono (fun _ => by omega) (inter_mem_PWithOracleQueries
+      (NP_subset_PWithOracleQueries_image_SAT enc hB) (compl_mem_PWithOracleQueries (ih hD)))
+
+/-- **`BooleanHierarchy ⊆ P^{NP[O(log n)]}`**: a problem in the `n`th level is decided with `n`
+requests to `SAT`, a constant number. The Boolean hierarchy is in fact the class of problems
+bounded-truth-table reducible to `NP` [Köbler, Schöning and Wagner, Corollaries 3.9 (iii) and
+4.6 (ii)][KoeblerSchoeningWagner1987]. -/
+theorem BooleanHierarchy_subset_PNPLog (enc : α ↪ List Bool) :
+    BooleanHierarchy enc ⊆ PNPLog enc :=
+  Set.iUnion_subset fun n _ hL => mem_PNPLog_of_mem_PWithOracleQueries (c := n) image_SAT_mem_NP
+    (PWithOracleQueries_mono (fun _ => by omega) (BH_subset_PWithOracleQueries_image_SAT enc n hL))
 
 /-- `P^{NP[O(log n)]} ⊆ P^{NP}`. -/
 theorem PNPLog_subset_PWithOracle (enc : α ↪ List Bool) :

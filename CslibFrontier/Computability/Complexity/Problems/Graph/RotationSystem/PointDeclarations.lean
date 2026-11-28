@@ -34,18 +34,12 @@ private theorem verifyGenusZero_redeclare_of_true (vertices newVertices : List �
     verifyGenusZero ⟨newVertices, edges⟩ c = true := by
   obtain ⟨hrot, hgenus⟩ := (verifyGenusZero_eq_true_iff _ _).mp hc
   let r := decode ⟨vertices, edges⟩ c hrot
-  have hg : (r.redeclare newVertices).NumericalGenusZero := by
-    exact r.numericalGenusZero_transport (H := ⟨newVertices, edges⟩)
-      (Equiv.refl _) (by intro a b; rfl)
-      (by intro a; rfl) hG hH hgenus
-  have he : ofRotation (r.redeclare newVertices) = c := by
-    change ofRotation r = c
-    exact ofRotation_decode hrot
+  have he : ofRotation (r.redeclare newVertices) = c := ofRotation_decode hrot
   rw [← he]
-  apply (verifyGenusZero_eq_true_iff _ _).mpr
-  refine ⟨verifyRotation_ofRotation _ hH, ?_⟩
+  refine (verifyGenusZero_eq_true_iff _ _).mpr ⟨verifyRotation_ofRotation _ hH, ?_⟩
   rw [decode_ofRotation _ hH]
-  exact hg
+  exact r.numericalGenusZero_transport (H := ⟨newVertices, edges⟩)
+    (Equiv.refl _) (fun _ _ => .rfl) (fun _ => rfl) hG hH hgenus
 
 /-- Declaring different isolated points, or repeating declarations, retains the exact raw
 numerical-checker result when all actual edge endpoints are declared on both sides. -/

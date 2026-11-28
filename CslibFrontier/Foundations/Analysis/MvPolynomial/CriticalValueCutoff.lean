@@ -31,19 +31,6 @@ namespace MvPolynomial.CriticalSystem
 
 open Polynomial
 
-private theorem eval₂_swap (P : Polynomial (Polynomial ℤ)) (x y : ℝ) :
-    (Bivariate.swap P).eval₂ (eval₂RingHom (Int.castRingHom ℝ) x) y =
-      P.eval₂ (eval₂RingHom (Int.castRingHom ℝ) y) x := by
-  have heval (a b : ℝ) :
-      (aevalAeval (R := ℤ) a b).toRingHom =
-        eval₂RingHom (eval₂RingHom (Int.castRingHom ℝ) a) b := by
-    ext <;> simp [Polynomial.aeval_def, algebraMap_int_eq]
-  have happ (a b : ℝ) (Q : Polynomial (Polynomial ℤ)) :
-      Q.eval₂ (eval₂RingHom (Int.castRingHom ℝ) a) b = aevalAeval a b Q := by
-    rw [← coe_eval₂RingHom, ← heval]
-    rfl
-  rw [happ, happ, Bivariate.aevalAeval_swap]
-
 /-- A nonnegative integer input has a real zero exactly when the actual critical minimum
 is below the value cutoff at the chosen deformation parameter. -/
 theorem exists_zero_iff_criticalMinimumValue_lt_at_parameterExclusion {n ell H : ℕ}
@@ -82,7 +69,8 @@ theorem exists_zero_iff_criticalMinimumValue_lt_at_parameterExclusion {n ell H :
     exact_mod_cast coeffNorm1_eval_C_add_one_le_parameterExclusion hD hH
   have hroot (u : ℝ) (hu : 0 < u) :
       P.eval₂ (eval₂RingHom (Int.castRingHom ℝ) (criticalMinimumValue ell a G u)) u = 0 := by
-    rw [show P = Bivariate.swap q from rfl, eval₂_swap, ← Polynomial.eval_map,
+    rw [show P = Bivariate.swap q from rfl, Bivariate.eval₂_eval₂RingHom_swap,
+      ← Polynomial.eval_map,
       show q = parametricValuePolynomial hell F hF from rfl, parametricValuePolynomial_map_eval₂]
     exact isRoot_valuePolynomial_criticalMinimumValue hell he a ha G
       ((totalDegree_map_le (Int.castRingHom ℝ) F).trans hF) hFn u hu.le

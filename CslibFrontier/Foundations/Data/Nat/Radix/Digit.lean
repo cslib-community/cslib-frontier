@@ -22,6 +22,7 @@ digits recover `x` modulo `B ^ k`, and the base-`2` digits are the bits of `Nat.
 * `Cslib.Radix.digit_lt`: a digit is below a positive radix.
 * `Cslib.Radix.sum_digit_mul_pow`: `∑ i < k, B ^ i * digit B x i = x % B ^ k`.
 * `Cslib.Radix.toNat_testBit_eq_digit`: bit `j` of `x` is its base-`2` digit `j`.
+* `Nat.sum_two_pow_mul_testBit`: summing the binary place values recovers a bounded natural.
 -/
 
 public section
@@ -43,5 +44,12 @@ theorem sum_digit_mul_pow (B x k : ℕ) :
 /-- The bit `j` of `x` is its base-`2` digit `j`. -/
 theorem toNat_testBit_eq_digit (x j : ℕ) : (x.testBit j).toNat = digit 2 x j := by
   rw [digit_eq_div_pow_mod, Nat.toNat_testBit]
+
+/-- A natural below `2 ^ w` is the sum of the place values of its first `w` binary digits. -/
+theorem _root_.Nat.sum_two_pow_mul_testBit {n w : ℕ} (hn : n < 2 ^ w) :
+    (∑ i : Fin w, 2 ^ i.val * (n.testBit i.val).toNat) = n := by
+  rw [Fin.sum_univ_eq_sum_range (fun i => 2 ^ i * (n.testBit i).toNat)]
+  simp only [toNat_testBit_eq_digit]
+  rw [sum_digit_mul_pow, Nat.mod_eq_of_lt hn]
 
 end Cslib.Radix

@@ -50,12 +50,9 @@ theorem exists_SBP_gap_pow_polyTime (hA : A ∈ SBP enc) {r : α → ℕ}
         (a ∉ A → 2 ^ r a * f a < k a) := by
   obtain ⟨f, hf, k, hk, hkpos, h⟩ := mem_SBP_iff_exists_pos_threshold.mp hA
   refine ⟨_, SharpP.pow_mem_polyTime hf hr, fun a => k a ^ r a,
-    hk.binary_pow' hr, fun a => pow_pos (hkpos a) _, fun a => ⟨?_, ?_⟩⟩
-  · intro ha
-    exact Nat.pow_le_pow_left ((h a).1 ha) (r a)
-  · intro ha
-    simpa only [mul_pow] using
-      Nat.pow_lt_pow_left ((h a).2 ha) (Nat.ne_of_gt (hpos a))
+    hk.binary_pow' hr, fun a => pow_pos (hkpos a) _, fun a =>
+      ⟨fun ha => Nat.pow_le_pow_left ((h a).1 ha) (r a), fun ha => ?_⟩⟩
+  simpa only [mul_pow] using Nat.pow_lt_pow_left ((h a).2 ha) (hpos a).ne'
 
 /-- **Uniform SBP amplification.** One #P witness and one positive polynomial-time binary
 threshold achieve gap `2 ^ r(a)` for every polynomially bounded requested exponent. The request
@@ -68,15 +65,11 @@ theorem exists_SBP_gap_pow_polyBounded (hA : A ∈ SBP enc) (r : α → ℕ)
         (a ∉ A → 2 ^ r a * f a < k a) := by
   obtain ⟨c, d, hb⟩ := hr.exists_le
   let q : Polynomial ℕ := Polynomial.C c * (Polynomial.X + 1) ^ d + 1
-  have hq : ComputableInPolyTime (fun a => q.eval (enc a).length) enc encUnary := by
-    fun_prop
-  have hpos (a : α) : 0 < q.eval (enc a).length := by simp [q]
-  obtain ⟨f, hf, k, hk, hkpos, h⟩ := exists_SBP_gap_pow_polyTime hA hq hpos
+  obtain ⟨f, hf, k, hk, hkpos, h⟩ := exists_SBP_gap_pow_polyTime hA
+    (r := fun a => q.eval (enc a).length) (by fun_prop)
+    fun a => by simp [q]
   refine ⟨f, hf, k, hk, hkpos, fun a => ⟨(h a).1, fun ha => ?_⟩⟩
-  have hle : r a ≤ q.eval (enc a).length := by
-    simp only [q, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_C,
-      Polynomial.eval_pow, Polynomial.eval_X, Polynomial.eval_one]
-    exact (hb a).trans (Nat.le_succ _)
+  have hle : r a ≤ q.eval (enc a).length := by simpa [q] using (hb a).trans (Nat.le_succ _)
   exact (Nat.mul_le_mul_right (f a) (Nat.pow_le_pow_right (by decide) hle)).trans_lt ((h a).2 ha)
 
 end Cslib.Complexity

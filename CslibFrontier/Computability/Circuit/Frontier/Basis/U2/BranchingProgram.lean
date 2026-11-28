@@ -19,6 +19,7 @@ import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # `3`-state pair-compressed branching programs for `U₂` circuits
@@ -458,6 +459,38 @@ private theorem pastVerts_of_card_le {t : ℕ} (ht : Nat.card D.StepNode ≤ t) 
 private theorem pastVerts_mono : Monotone D.pastVerts :=
   fun _ _ hst => biUnion_mono (fun _ hx => lt_of_lt_of_le hx hst) fun _ _ => subset_rfl
 
+/-- An edge with an endpoint in `P` that touches `Pᶜ` crosses `P`. -/
+private theorem mem_edgeCut_of_touching {P : Set (Vertex c)} {g : Edge c}
+    (hend : src g ∈ P ∨ tgt g ∈ P) (htc : g ∈ (graph c).touching Pᶜ) :
+    g ∈ (graph c).edgeCut P := by
+  rcases hend with hs | ht <;> rcases htc with hc | hc
+  · exact (hc hs).elim
+  · exact fun hiff => hc (hiff.mp hs)
+  · exact fun hiff => hc (hiff.mpr ht)
+  · exact (hc ht).elim
+
+/-- An edge crossing `P` touches `Qᶜ` for every `Q ⊆ P`. -/
+private theorem mem_touching_compl_of_mem_edgeCut {P Q : Set (Vertex c)} (hQP : Q ⊆ P)
+    {g : Edge c} (hg : g ∈ (graph c).edgeCut P) : g ∈ (graph c).touching Qᶜ := by
+  by_contra hnt
+  rw [Multigraph.mem_touching, mem_compl_iff, mem_compl_iff, not_or, not_not, not_not] at hnt
+  exact hg (iff_of_true (hQP hnt.1) (hQP hnt.2))
+
+/-- An edge crossing `P` has an endpoint in `P`. -/
+private theorem end_mem_of_mem_edgeCut {P : Set (Vertex c)} {g : Edge c}
+    (hg : g ∈ (graph c).edgeCut P) : src g ∈ P ∨ tgt g ∈ P :=
+  by_contra fun h => hg (iff_of_false (fun hs => h (.inl hs)) fun ht => h (.inr ht))
+
+/-- An edge crossing `P` with an endpoint in `Q ⊆ P` crosses `Q`. -/
+private theorem mem_edgeCut_of_subset {P Q : Set (Vertex c)} (hQP : Q ⊆ P) {g : Edge c}
+    (hend : src g ∈ Q ∨ tgt g ∈ Q) (hg : g ∈ (graph c).edgeCut P) : g ∈ (graph c).edgeCut Q :=
+  mem_edgeCut_of_touching hend (mem_touching_compl_of_mem_edgeCut hQP hg)
+
+private theorem disjoint_nodeVerts_pastVerts {x : D.StepNode} {t : ℕ}
+    (hx : x ∉ D.stepLayout.initial t) : Disjoint (D.nodeVerts x) (D.pastVerts t) :=
+  disjoint_iUnion₂_right.mpr fun _ _ =>
+    D.pairwiseDisjoint_nodeVerts trivial trivial fun heq => hx (by rwa [heq])
+
 private theorem pastVerts_succ_sdiff {t : ℕ} (ht : t < Nat.card D.StepNode) :
     D.pastVerts (t + 1) \ D.pastVerts t = D.nodeVerts (D.stepLayout.symm ⟨t, ht⟩) ∧
       D.pastVerts (t + 1) = D.nodeVerts (D.stepLayout.symm ⟨t, ht⟩) ∪ D.pastVerts t ∧
@@ -467,9 +500,7 @@ private theorem pastVerts_succ_sdiff {t : ℕ} (ht : t < Nat.card D.StepNode) :
   have hun : D.pastVerts (t + 1) = D.nodeVerts x ∪ D.pastVerts t := by
     simp only [pastVerts, D.stepLayout.initial_succ ht, biUnion_insert]
     rfl
-  have hdisj : Disjoint (D.nodeVerts x) (D.pastVerts t) := by
-    refine disjoint_iUnion₂_right.mpr fun y hy => ?_
-    exact D.pairwiseDisjoint_nodeVerts trivial trivial fun (heq : x = y) => hx_not (by rwa [heq])
+  have hdisj := D.disjoint_nodeVerts_pastVerts hx_not
   refine ⟨?_, hun, hdisj⟩
   rw [hun]
   ext v
@@ -488,6 +519,11 @@ private theorem pairVerts_subset_pastVerts_iff (e : D.eqPairs) (t : ℕ) :
     exact disjoint_left.mp (D.pairwiseDisjoint_nodeVerts trivial trivial hne) hvy hv_pair
   rwa [← hy_eq]
 
+private theorem end_mem_pastVerts {e : D.eqPairs} {t : ℕ} (he : .inr e ∈ D.stepLayout.initial t)
+    {g : Edge c} (hend : src g ∈ D.pairVerts e ∨ tgt g ∈ D.pairVerts e) :
+    src g ∈ D.pastVerts t ∨ tgt g ∈ D.pastVerts t :=
+  hend.imp (fun h => mem_biUnion he h) fun h => mem_biUnion he h
+
 private noncomputable def actPairs (t : ℕ) : Set D.eqPairs :=
   {e | .inr e ∈ D.stepLayout.initial t ∧
     (D.pinB e).1 ∈ (graph c).edgeCut (D.pastVerts t) ∧
@@ -504,11 +540,8 @@ private theorem pinB_ne_pinD (e : D.eqPairs) : (D.pinB e).1 ≠ (D.pinD e).1 := 
 
 private theorem pin_end_in_pairVerts (e : D.eqPairs) (g : Edge c)
     (hg : g ∈ ({(D.pinA e).1, (D.pinB e).1, (D.pinC e).1, (D.pinD e).1} : Set (Edge c))) :
-    src g ∈ D.pairVerts e ∨ tgt g ∈ D.pairVerts e := by
-  have hcut : g ∈ (graph c).edgeCut (D.pairVerts e) := D.edgeCut_pairVerts e ▸ hg
-  by_contra hnone
-  rw [not_or] at hnone
-  exact hcut (iff_of_false hnone.1 hnone.2)
+    src g ∈ D.pairVerts e ∨ tgt g ∈ D.pairVerts e :=
+  end_mem_of_mem_edgeCut (D.edgeCut_pairVerts e ▸ hg)
 
 private theorem pinA_end (e : D.eqPairs) :
     src (D.pinA e).1 ∈ D.pairVerts e ∨ tgt (D.pinA e).1 ∈ D.pairVerts e :=
@@ -533,25 +566,37 @@ private theorem pinBD_end (e : D.eqPairs) {g : Edge c}
   · exact D.pinB_end e
   · exact D.pinD_end e
 
+private theorem mem_edgeCut_of_mem_pinBD {t : ℕ} {e : D.eqPairs} (he : e ∈ D.actPairs t)
+    {g : Edge c} (hg : g ∈ ({(D.pinB e).1, (D.pinD e).1} : Set (Edge c))) :
+    g ∈ (graph c).edgeCut (D.pastVerts t) := by
+  rcases hg with rfl | rfl
+  exacts [he.2.1, he.2.2]
+
+/-- An edge with endpoints in two distinct pairs inside `D.pastVerts t` does not cross it. -/
+private theorem notMem_edgeCut_of_ends {e₁ e₂ : D.eqPairs} (hne : e₁ ≠ e₂) {t : ℕ}
+    (h₁ : .inr e₁ ∈ D.stepLayout.initial t) (h₂ : .inr e₂ ∈ D.stepLayout.initial t) {g : Edge c}
+    (hend₁ : src g ∈ D.pairVerts e₁ ∨ tgt g ∈ D.pairVerts e₁)
+    (hend₂ : src g ∈ D.pairVerts e₂ ∨ tgt g ∈ D.pairVerts e₂) :
+    g ∉ (graph c).edgeCut (D.pastVerts t) := by
+  have hsub₁ := (D.pairVerts_subset_pastVerts_iff e₁ t).mpr h₁
+  have hsub₂ := (D.pairVerts_subset_pastVerts_iff e₂ t).mpr h₂
+  rcases hend₁ with hs₁ | ht₁ <;> rcases hend₂ with hs₂ | ht₂
+  · exact (disjoint_left.mp (D.disjoint_pairVerts hne) hs₁ hs₂).elim
+  · exact fun h => h (iff_of_true (hsub₁ hs₁) (hsub₂ ht₂))
+  · exact fun h => h (iff_of_true (hsub₂ hs₂) (hsub₁ ht₁))
+  · exact (disjoint_left.mp (D.disjoint_pairVerts hne) ht₁ ht₂).elim
+
+/-- A pair active at `t` whose vertices lie in `D.pastVerts s` for some `s ≤ t` is active at `s`. -/
+private theorem mem_actPairs_of_le {s t : ℕ} (hst : s ≤ t) {e : D.eqPairs}
+    (he : e ∈ D.actPairs t) (hs : .inr e ∈ D.stepLayout.initial s) : e ∈ D.actPairs s :=
+  ⟨hs, mem_edgeCut_of_subset (D.pastVerts_mono hst) (D.end_mem_pastVerts hs (D.pinB_end e)) he.2.1,
+    mem_edgeCut_of_subset (D.pastVerts_mono hst) (D.end_mem_pastVerts hs (D.pinD_end e)) he.2.2⟩
+
 private theorem pairwiseDisjoint_actPairs (t : ℕ) :
     (D.actPairs t).PairwiseDisjoint fun e => ({(D.pinB e).1, (D.pinD e).1} : Set (Edge c)) := by
   intro e₁ he₁ e₂ he₂ hne
-  refine disjoint_left.mpr fun g hg₁ hg₂ => ?_
-  have hg_cut : g ∈ (graph c).edgeCut (D.pastVerts t) := by
-    rcases hg₁ with rfl | rfl
-    · exact he₁.2.1
-    · exact he₁.2.2
-  have hsub₁ := (D.pairVerts_subset_pastVerts_iff e₁ t).mpr he₁.1
-  have hsub₂ := (D.pairVerts_subset_pastVerts_iff e₂ t).mpr he₂.1
-  have hend₁ := D.pinBD_end e₁ hg₁
-  have hend₂ := D.pinBD_end e₂ hg₂
-  have hboth : src g ∈ D.pastVerts t ∧ tgt g ∈ D.pastVerts t := by
-    rcases hend₁ with hs₁ | ht₁ <;> rcases hend₂ with hs₂ | ht₂
-    · exact (disjoint_left.mp (D.disjoint_pairVerts hne) hs₁ hs₂).elim
-    · exact ⟨hsub₁ hs₁, hsub₂ ht₂⟩
-    · exact ⟨hsub₂ hs₂, hsub₁ ht₁⟩
-    · exact (disjoint_left.mp (D.disjoint_pairVerts hne) ht₁ ht₂).elim
-  exact hg_cut (iff_of_true hboth.1 hboth.2)
+  exact disjoint_left.mpr fun g hg₁ hg₂ => D.notMem_edgeCut_of_ends hne he₁.1 he₂.1
+    (D.pinBD_end e₁ hg₁) (D.pinBD_end e₂ hg₂) (D.mem_edgeCut_of_mem_pinBD he₁ hg₁)
 
 private theorem ncard_singleCut_add_actPairs (t : ℕ) :
     (D.singleCut t).ncard + 2 * (D.actPairs t).ncard =
@@ -560,9 +605,8 @@ private theorem ncard_singleCut_add_actPairs (t : ℕ) :
   have := Fintype.ofFinite (Edge c)
   set U := ⋃ e ∈ D.actPairs t, ({(D.pinB e).1, (D.pinD e).1} : Set (Edge c))
   have hU_sub : U ⊆ (graph c).edgeCut (D.pastVerts t) := by
-    rintro g ⟨_, ⟨e, rfl⟩, _, ⟨he, rfl⟩, rfl | rfl⟩
-    · exact he.2.1
-    · exact he.2.2
+    rintro g ⟨_, ⟨e, rfl⟩, _, ⟨he, rfl⟩, hg⟩
+    exact D.mem_edgeCut_of_mem_pinBD he hg
   have hU_card : U.ncard = 2 * (D.actPairs t).ncard := by
     have := Fintype.ofFinite D.eqPairs
     let Afin : Finset D.eqPairs := (D.actPairs t).toFinset
@@ -597,13 +641,7 @@ private theorem pinAC_notMem_masked (t : ℕ) {e : D.eqPairs} (he : e ∈ D.actP
       rcases hmem with h | h
       · exact hg_ne_B h
       · exact hg_ne_D h
-    · have hg_cut : g.1 ∈ (graph c).edgeCut (D.pastVerts t) := by
-        rcases hmem with h | h <;> rw [h]
-        · exact he'.2.1
-        · exact he'.2.2
-      have hsub₁ := (D.pairVerts_subset_pastVerts_iff e t).mpr he.1
-      have hsub₂ := (D.pairVerts_subset_pastVerts_iff e' t).mpr he'.1
-      have hend₁ : src g.1 ∈ D.pairVerts e ∨ tgt g.1 ∈ D.pairVerts e := by
+    · have hend₁ : src g.1 ∈ D.pairVerts e ∨ tgt g.1 ∈ D.pairVerts e := by
         rcases hg_end with hg₁ | hg₂
         · have hs₁ :=
             (D.block_edgeCut_sdiff ⟨e.1, e.2.1⟩ (D.Q.quotient.src e.1) e.1 (Or.inl rfl)).2
@@ -631,14 +669,8 @@ private theorem pinAC_notMem_masked (t : ℕ) {e : D.eqPairs} (he : e ∈ D.actP
           rcases hm with h | h <;> rw [h]
           · exact D.pinC_end e
           · exact D.pinD_end e
-      have hend₂ := D.pinBD_end e' hmem
-      have hboth : src g.1 ∈ D.pastVerts t ∧ tgt g.1 ∈ D.pastVerts t := by
-        rcases hend₁ with hs₁ | ht₁ <;> rcases hend₂ with hs₂ | ht₂
-        · exact (disjoint_left.mp (D.disjoint_pairVerts hee') hs₁ hs₂).elim
-        · exact ⟨hsub₁ hs₁, hsub₂ ht₂⟩
-        · exact ⟨hsub₂ hs₂, hsub₁ ht₁⟩
-        · exact (disjoint_left.mp (D.disjoint_pairVerts hee') ht₁ ht₂).elim
-      exact hg_cut (iff_of_true hboth.1 hboth.2)
+      exact D.notMem_edgeCut_of_ends hee' he.1 he'.1 hend₁ (D.pinBD_end e' hmem)
+        (D.mem_edgeCut_of_mem_pinBD he' hmem)
   have := Fintype.ofFinite (Edge c)
   have hinj := D.hsat.injective_ends_quotient
   have hbs := Multigraph.outerLow_outerHigh_spec (D.h3 ⟨e.1, e.2.1⟩) D.score
@@ -894,11 +926,8 @@ private theorem effective_cut_le {lam B_sup : ℝ} (hlam0 : 0 ≤ lam) (hlam1 : 
             (hg₂ : g ∉ (graph c).edgeCut (D.pastVerts t)) : g ∈ (graph c).edgeCut T_part := by
           rw [hpast_eq] at hg₂
           simp only [Multigraph.mem_edgeCut, mem_union, not_not] at hg₁ hg₂ ⊢
-          have hd_s : (graph c).src g ∈ D.Q.blockOf ⁻¹' P_s → (graph c).src g ∉ T_part :=
-            fun h => disjoint_left.mp hT_disj h
-          have hd_t : (graph c).tgt g ∈ D.Q.blockOf ⁻¹' P_s → (graph c).tgt g ∉ T_part :=
-            fun h => disjoint_left.mp hT_disj h
-          tauto
+          lrat_tauto [(disjoint_left.mp hT_disj) (a := (graph c).src g),
+            (disjoint_left.mp hT_disj) (a := (graph c).tgt g)]
         by_cases hB_t : (D.pinB e).1 ∈ (graph c).edgeCut (D.pastVerts t)
         · have hD_not : (D.pinD e).1 ∉ (graph c).edgeCut (D.pastVerts t) :=
             fun hD_t => hnot ⟨hinr_t, hB_t, hD_t⟩
@@ -917,15 +946,12 @@ private theorem effective_cut_le {lam B_sup : ℝ} (hlam0 : 0 ≤ lam) (hlam1 : 
           rcases hg_pair x₁ with h | h <;> rw [h] <;> exact Subtype.prop _
         let gx : D.Q.external := ⟨g_of x₁, hg_ext⟩
         have hm₁ : gx ∈ ({D.Q.quotient.outerHigh D.score (D.Q.quotient.src x₁.1) x₁.1,
-            D.Q.quotient.outerHigh D.score (D.Q.quotient.tgt x₁.1) x₁.1} : Set D.Q.external) := by
-          rcases hg_pair x₁ with h | h
-          · exact Or.inl (Subtype.ext h)
-          · exact Or.inr (Subtype.ext h)
+            D.Q.quotient.outerHigh D.score (D.Q.quotient.tgt x₁.1) x₁.1} : Set D.Q.external) :=
+          Or.imp Subtype.ext Subtype.ext (hg_pair x₁)
         have hm₂ : gx ∈ ({D.Q.quotient.outerHigh D.score (D.Q.quotient.src x₂.1) x₂.1,
-            D.Q.quotient.outerHigh D.score (D.Q.quotient.tgt x₂.1) x₂.1} : Set D.Q.external) := by
-          rcases hg_pair x₂ with h | h
-          · exact Or.inl (Subtype.ext (hg_eq.trans h))
-          · exact Or.inr (Subtype.ext (hg_eq.trans h))
+            D.Q.quotient.outerHigh D.score (D.Q.quotient.tgt x₂.1) x₂.1} : Set D.Q.external) :=
+          Or.imp (fun h => Subtype.ext (hg_eq.trans h)) (fun h => Subtype.ext (hg_eq.trans h))
+            (hg_pair x₂)
         exact disjoint_left.mp hdisj hm₁ hm₂
       have h1 := Nat.card_le_card_of_injective _ hinj_g
       rwa [Nat.card_coe_set_eq, Nat.card_coe_set_eq] at h1
@@ -1077,6 +1103,8 @@ private theorem exists_satisfies_of_isAcceptingPath {x : ι → Bool}
       · dsimp only [x']; rw [ite_eq_left hit]; exact hx_t hit
       · dsimp only [x']; rw [ite_eq_right hit]
         exact congrFun hdom ⟨i, hi, hit⟩
+    have hrev (ht : t ≤ Nat.card D.StepNode) :
+        (D.branchingProgram N).revealed t = N.readIn (D.pastVerts t) := ite_eq_left ht
     -- At `t = Nat.card D.StepNode`, `pastVerts t = univ` and only unread inputs are updated.
     rcases eq_or_lt_of_le (Nat.lt_succ_iff.mp ht_all) with rfl | ht_lt
     · refine ⟨α_t, x', hx'_eq, ?_, fun s hs => ?_⟩
@@ -1084,11 +1112,8 @@ private theorem exists_satisfies_of_isAcceptingPath {x : ι → Bool}
         refine N.constraint_congr v x_t x' α_t α_t (fun i hsite => ?_) (fun _ _ => rfl)
           (hsat_t v (by rw [D.pastVerts_of_card_le le_rfl]; trivial))
         have hirev : i ∈ (D.branchingProgram N).revealed (Nat.card D.StepNode) := by
-          change i ∈ if Nat.card D.StepNode ≤ Nat.card D.StepNode then _ else _
-          rw [ite_eq_left le_rfl]
-          exact ⟨v, by rw [D.pastVerts_of_card_le le_rfl]; trivial, hsite⟩
-        dsimp only [x']
-        exact (ite_eq_left hirev).symm
+          rw [hrev le_rfl, D.pastVerts_of_card_le le_rfl]; exact ⟨v, trivial, hsite⟩
+        dsimp only [x']; exact (ite_eq_left hirev).symm
       · rcases Nat.of_le_succ hs with hs' | rfl
         · exact hγ_t s hs'
         · exact hγ.accept.trans (D.stateAt_of_card_le (Nat.le_succ _) α_t).symm
@@ -1096,47 +1121,35 @@ private theorem exists_satisfies_of_isAcceptingPath {x : ι → Bool}
     -- Baseline assignment `γ₀`: `β` on `(graph c).touching (D.pastVerts t)ᶜ`, `α_t` elsewhere.
     let γ₀ : Edge c → Bool := fun g =>
       if g ∈ (graph c).touching (D.pastVerts t)ᶜ then β g else α_t g
+    -- `γ₀ = α_t` on edges with an endpoint in `D.pastVerts t` that, if they cross it, are not
+    -- masked pins of an active pair.
+    have hγ₀_eq {g : Edge c} (hend : src g ∈ D.pastVerts t ∨ tgt g ∈ D.pastVerts t)
+        (hnotM : g ∈ (graph c).edgeCut (D.pastVerts t) →
+          g ∉ ⋃ e' ∈ D.actPairs t, ({(D.pinB e').1, (D.pinD e').1} : Set (Edge c))) :
+        γ₀ g = α_t g := by
+      dsimp only [γ₀]
+      split_ifs with htc
+      · have hg_cut := mem_edgeCut_of_touching hend htc
+        exact (heq_single ⟨hg_cut, hnotM hg_cut⟩).symm
+      · rfl
     -- On every `e ∈ D.actPairs t`, check `(γ₀ pinB, γ₀ pinD) = (β pinB, β pinD)` and
     -- `(γ₀ pinA, γ₀ pinC) = (α_t pinA, α_t pinC)`, giving internal witness `β_e`.
-    have hpin_γ₀ (e : D.eqPairs) (he : e ∈ D.actPairs t) :
-        γ₀ (D.pinB e).1 = β (D.pinB e).1 ∧ γ₀ (D.pinD e).1 = β (D.pinD e).1 ∧
-          γ₀ (D.pinA e).1 = α_t (D.pinA e).1 ∧ γ₀ (D.pinC e).1 = α_t (D.pinC e).1 := by
-      have cut_touch {g : Edge c} (hg : g ∈ (graph c).edgeCut (D.pastVerts t)) :
-          g ∈ (graph c).touching (D.pastVerts t)ᶜ := by
-        by_contra hnt
-        rw [Multigraph.mem_touching, mem_compl_iff, mem_compl_iff, not_or, not_not, not_not] at hnt
-        exact hg (iff_of_true hnt.1 hnt.2)
-      have hB : γ₀ (D.pinB e).1 = β (D.pinB e).1 := ite_eq_left (cut_touch he.2.1)
-      have hD : γ₀ (D.pinD e).1 = β (D.pinD e).1 := ite_eq_left (cut_touch he.2.2)
-      have hsub_e := (D.pairVerts_subset_pastVerts_iff e t).mpr he.1
-      obtain ⟨hA_notM, hC_notM⟩ := D.pinAC_notMem_masked t he
-      have checkAC (g : Edge c)
-          (hend : src g ∈ D.pairVerts e ∨ tgt g ∈ D.pairVerts e)
-          (hnotM : g ∉ ⋃ e' ∈ D.actPairs t, ({(D.pinB e').1, (D.pinD e').1} : Set (Edge c))) :
-          γ₀ g = α_t g := by
-        dsimp only [γ₀]
-        split_ifs with htc
-        · have hg_cut : g ∈ (graph c).edgeCut (D.pastVerts t) := by
-            rcases hend with hs | ht <;> rcases htc with hcs | hct
-            · exact (hcs (hsub_e hs)).elim
-            · exact fun hiff => hct (hiff.mp (hsub_e hs))
-            · exact fun hiff => hcs (hiff.mpr (hsub_e ht))
-            · exact (hct (hsub_e ht)).elim
-          exact (heq_single ⟨hg_cut, hnotM⟩).symm
-        · rfl
-      exact ⟨hB, hD, checkAC _ (D.pinA_end e) hA_notM, checkAC _ (D.pinC_end e) hC_notM⟩
     have hex_patch : ∀ e : D.actPairs t,
         D.rectIdx e.1 γ₀ = D.rectIdx e.1 α_t ∧
         ∃ β_e : Edge c → Bool,
           EqOn β_e γ₀ (internalEdges c (D.pairVerts e.1))ᶜ ∧
           GateSatisfies I (D.pairVerts e.1) β_e := by
       rintro ⟨e, he⟩
-      obtain ⟨hB, hD, hA, hC⟩ := hpin_γ₀ e he
-      have hsat_α : GateSatisfies I (D.pairVerts e) α_t := by
-        have hsub_e := (D.pairVerts_subset_pastVerts_iff e t).mpr he.1
-        intro v hv
-        exact (hclean_N v (D.isCleanVertex_of_mem_pairVerts e hv)).1 x_t α_t |>.mp
-          (hsat_t v (hsub_e hv))
+      obtain ⟨hA_notM, hC_notM⟩ := D.pinAC_notMem_masked t he
+      have hB : γ₀ (D.pinB e).1 = β (D.pinB e).1 :=
+        ite_eq_left (mem_touching_compl_of_mem_edgeCut subset_rfl he.2.1)
+      have hD : γ₀ (D.pinD e).1 = β (D.pinD e).1 :=
+        ite_eq_left (mem_touching_compl_of_mem_edgeCut subset_rfl he.2.2)
+      have hA := hγ₀_eq (D.end_mem_pastVerts he.1 (D.pinA_end e)) fun _ => hA_notM
+      have hC := hγ₀_eq (D.end_mem_pastVerts he.1 (D.pinC_end e)) fun _ => hC_notM
+      have hsat_α : GateSatisfies I (D.pairVerts e) α_t := fun v hv =>
+        (hclean_N v (D.isCleanVertex_of_mem_pairVerts e hv)).1 x_t α_t |>.mp
+          (hsat_t v (mem_biUnion he.1 hv))
       have hrc_α := D.rectIdx_spec_of_sat e hsat_α
       have hrc_β := D.rectIdx_spec_of_sat e (hgate_β e he)
       rw [← heq_rect e he] at hrc_β
@@ -1148,12 +1161,6 @@ private theorem exists_satisfies_of_isAcceptingPath {x : ι → Bool}
       if h : ∃ e : D.actPairs t, g ∈ internalEdges c (D.pairVerts e.1) then
         β_patch h.choose g
       else γ₀ g
-    have hint_unique {e₁ e₂ : D.actPairs t} {g : Edge c}
-        (h₁ : g ∈ internalEdges c (D.pairVerts e₁.1))
-        (h₂ : g ∈ internalEdges c (D.pairVerts e₂.1)) : e₁ = e₂ := by
-      by_contra hne
-      have hne_val : e₁.1 ≠ e₂.1 := fun h => hne (Subtype.ext h)
-      exact disjoint_left.mp (D.disjoint_pairVerts hne_val) h₁.1 h₂.1
     have hα'_not_int {g : Edge c}
         (hn : ¬∃ e : D.actPairs t, g ∈ internalEdges c (D.pairVerts e.1)) : α' g = γ₀ g := by
       dsimp only [α']; exact dite_eq_right hn
@@ -1181,25 +1188,27 @@ private theorem exists_satisfies_of_isAcceptingPath {x : ι → Bool}
         rcases hg with hs | ht
         · exact hs (hsub_e hin.1)
         · exact ht (hsub_e hin.2)
+    -- Pins are never internal to a pair, so `α'` and `γ₀` have the same rectangle indices.
+    have hrect_α' (e : D.eqPairs) : D.rectIdx e α' = D.rectIdx e γ₀ := by
+      have hpin (p : D.Q.external) (hp : p ∉ D.eqPairs) : α' p.1 = γ₀ p.1 :=
+        hα'_not_int fun ⟨_, hin⟩ => D.notMem_internalEdges_pairVerts hp hin
+      exact D.rectIdx_congr e (hpin _ (D.pinA_notMem_eqPairs e)) (hpin _ (D.pinB_notMem_eqPairs e))
+        (hpin _ (D.pinC_notMem_eqPairs e)) (hpin _ (D.pinD_notMem_eqPairs e))
     refine ⟨α', x', hx'_eq, ?_, ?_⟩
     · -- Satisfaction on `D.pastVerts (t + 1)`.
       obtain ⟨hsdiff, hun, _⟩ := D.pastVerts_succ_sdiff ht_lt
       rw [hun]
       rintro v (hv_new | hv_old)
       · -- Vertex in `D.nodeVerts x = pastVerts (t + 1) \ pastVerts t ⊆ (pastVerts t)ᶜ`.
-        have hv_compl : v ∈ (D.pastVerts t)ᶜ := by
-          have hd := (D.pastVerts_succ_sdiff ht_lt).2.2
-          exact disjoint_left.mp hd hv_new
+        have hv_compl : v ∈ (D.pastVerts t)ᶜ :=
+          disjoint_left.mp (D.pastVerts_succ_sdiff ht_lt).2.2 hv_new
         refine N.constraint_congr v y x' β α' (fun i hsite => ?_) (fun g hg => ?_)
           (hcon_step v (hsdiff ▸ hv_new))
         · have hnot_rev : i ∉ (D.branchingProgram N).revealed t := by
-            change i ∉ if t ≤ Nat.card D.StepNode then N.readIn (D.pastVerts t) else univ
-            rw [ite_eq_left ht_lt.le]
+            rw [hrev ht_lt.le]
             rintro ⟨u, hu, husite⟩
-            have huv : u = v := Option.some.inj (husite.symm.trans hsite)
-            exact hv_compl (huv ▸ hu)
-          dsimp only [x']
-          exact (ite_eq_right hnot_rev).symm
+            exact hv_compl (Option.some.inj (husite.symm.trans hsite) ▸ hu)
+          dsimp only [x']; exact (ite_eq_right hnot_rev).symm
         · symm
           apply hα'_touch_compl
           rw [hG] at hg
@@ -1215,38 +1224,23 @@ private theorem exists_satisfies_of_isAcceptingPath {x : ι → Bool}
         · refine N.constraint_congr v x_t x' α_t α' (fun i hsite => ?_) (fun g hg => ?_)
             (hsat_t v hv_old)
           · have hirev : i ∈ (D.branchingProgram N).revealed t := by
-              change i ∈ if t ≤ Nat.card D.StepNode then N.readIn (D.pastVerts t) else univ
-              rw [ite_eq_left ht_lt.le]
-              exact ⟨v, hv_old, hsite⟩
-            dsimp only [x']
-            exact (ite_eq_left hirev).symm
+              rw [hrev ht_lt.le]; exact ⟨v, hv_old, hsite⟩
+            dsimp only [x']; exact (ite_eq_left hirev).symm
           · rw [hG] at hg
             symm
             rw [hα'_not_int]
-            · dsimp only [γ₀]
-              split_ifs with htc
-              · have hg_cut : g ∈ (graph c).edgeCut (D.pastVerts t) := by
-                  rcases hg with hs | ht <;> rcases htc with hcs | hct
-                  · exact (hcs (hs.symm ▸ hv_old)).elim
-                  · exact fun hiff => hct (hiff.mp (hs.symm ▸ hv_old))
-                  · exact fun hiff => hcs (hiff.mpr (ht.symm ▸ hv_old))
-                  · exact (hct (ht.symm ▸ hv_old)).elim
-                have hnotM : g ∉ ⋃ e' ∈ D.actPairs t,
-                    ({(D.pinB e').1, (D.pinD e').1} : Set (Edge c)) := by
-                  rintro ⟨_, ⟨e', rfl⟩, _, ⟨he', rfl⟩, hmem⟩
-                  have hend_e' := D.pinBD_end e' hmem
-                  have hv_in_e' : v ∈ D.pairVerts e' := by
-                    rcases hg with hs | ht <;> rcases hend_e' with hs' | ht'
-                    · exact hs ▸ hs'
-                    · -- Then `src g = v ∈ pastVerts t` and `tgt g ∈ pairVerts e' ⊆ pastVerts t`!
-                      have hsub := (D.pairVerts_subset_pastVerts_iff e' t).mpr he'.1
-                      exact (hg_cut (iff_of_true (hs.symm ▸ hv_old) (hsub ht'))).elim
-                    · have hsub := (D.pairVerts_subset_pastVerts_iff e' t).mpr he'.1
-                      exact (hg_cut (iff_of_true (hsub hs') (ht.symm ▸ hv_old))).elim
-                    · exact ht ▸ ht'
-                  exact hv_act ⟨⟨e', he'⟩, hv_in_e'⟩
-                exact (heq_single ⟨hg_cut, hnotM⟩).symm
-              · rfl
+            · refine hγ₀_eq ?_ fun hg_cut => ?_
+              · rcases hg with hs | ht
+                · exact .inl (show (graph c).src g ∈ _ from hs ▸ hv_old)
+                · exact .inr (show (graph c).tgt g ∈ _ from ht ▸ hv_old)
+              rintro ⟨_, ⟨e', rfl⟩, _, ⟨he', rfl⟩, hmem⟩
+              have hsub := (D.pairVerts_subset_pastVerts_iff e' t).mpr he'.1
+              refine hv_act ⟨⟨e', he'⟩, ?_⟩
+              rcases hg with hs | ht <;> rcases D.pinBD_end e' hmem with hs' | ht'
+              · exact hs ▸ hs'
+              · exact (hg_cut (iff_of_true (hs.symm ▸ hv_old) (hsub ht'))).elim
+              · exact (hg_cut (iff_of_true (hsub hs') (ht.symm ▸ hv_old))).elim
+              · exact ht ▸ ht'
             · rintro ⟨e', hin⟩
               rcases hg with hs | ht
               · exact hv_act ⟨e', hs ▸ hin.1⟩
@@ -1260,160 +1254,57 @@ private theorem exists_satisfies_of_isAcceptingPath {x : ι → Bool}
         refine ⟨fun g hg => ?_, fun e he_s => ?_⟩
         · -- `g ∈ D.singleCut s`: cannot be internal to any `pairVerts e'`.
           rw [hα'_not_int]
-          · dsimp only [γ₀]
-            split_ifs with htc
-            · -- `g ∈ edgeCut (pastVerts s)` and touches `(pastVerts t)ᶜ`, so one endpoint is in
-              -- `pastVerts s ⊆ pastVerts t` and the other is in `(pastVerts t)ᶜ`, giving
-              -- `g ∈ edgeCut (pastVerts t)`!
-              have hg_cut_s : g ∈ (graph c).edgeCut (D.pastVerts s) := hg.1
-              have hg_cut_t : g ∈ (graph c).edgeCut (D.pastVerts t) := by
-                rcases htc with hcs | hct
-                · have ht_in_s : (graph c).tgt g ∈ D.pastVerts s :=
-                    by_contra fun hn => hg_cut_s (iff_of_false (fun hs => hcs (hpast_sub hs)) hn)
-                  exact fun hiff => hcs (hiff.mpr (hpast_sub ht_in_s))
-                · have hs_in_s : (graph c).src g ∈ D.pastVerts s :=
-                    by_contra fun hn => hg_cut_s (iff_of_false hn (fun ht => hct (hpast_sub ht)))
-                  exact fun hiff => hct (hiff.mp (hpast_sub hs_in_s))
-              -- Could `g ∈ {pinB e', pinD e'}` for `e' ∈ actPairs t`? If so, `e' ∈ actPairs s`,
-              -- contradicting `g ∈ singleCut s`!
-              have hnotM_t : g ∉ ⋃ e' ∈ D.actPairs t,
-                  ({(D.pinB e').1, (D.pinD e').1} : Set (Edge c)) := by
-                rintro ⟨_, ⟨e', rfl⟩, _, ⟨he'_t, rfl⟩, hmem⟩
-                have hinr_s : .inr e' ∈ D.stepLayout.initial s := by
-                  by_contra hnot_s
-                  have hdisj_s : Disjoint (D.pairVerts e') (D.pastVerts s) := by
-                    refine disjoint_iUnion₂_right.mpr fun y hy => ?_
-                    exact D.pairwiseDisjoint_nodeVerts trivial trivial fun (heq : .inr e' = y) =>
-                      hnot_s (by rwa [heq])
-                  have hend_e' := D.pinBD_end e' hmem
-                  -- One endpoint of `g` is in `pairVerts e'` (`∉ pastVerts s`) and the other is in
-                  -- `(pastVerts t)ᶜ ⊆ (pastVerts s)ᶜ` (`∉ pastVerts s`), contradicting `hg_cut_s`!
-                  have hsub_t := (D.pairVerts_subset_pastVerts_iff e' t).mpr he'_t.1
-                  rcases hend_e' with hs_p | ht_p
-                  · have ht_out_t : (graph c).tgt g ∉ D.pastVerts t :=
-                      fun ht_in => hg_cut_t (iff_of_true (hsub_t hs_p) ht_in)
-                    exact hg_cut_s (iff_of_false (disjoint_left.mp hdisj_s hs_p)
-                      (fun ht_in => ht_out_t (hpast_sub ht_in)))
-                  · have hs_out_t : (graph c).src g ∉ D.pastVerts t :=
-                      fun hs_in => hg_cut_t (iff_of_true hs_in (hsub_t ht_p))
-                    exact hg_cut_s (iff_of_false (fun hs_in => hs_out_t (hpast_sub hs_in))
-                      (disjoint_left.mp hdisj_s ht_p))
-                have hsub_s := (D.pairVerts_subset_pastVerts_iff e' s).mpr hinr_s
-                have cut_s_of_t {f : Edge c}
-                    (hf_end : src f ∈ D.pairVerts e' ∨ tgt f ∈ D.pairVerts e')
-                    (hf_t : f ∈ (graph c).edgeCut (D.pastVerts t)) :
-                    f ∈ (graph c).edgeCut (D.pastVerts s) := by
-                  have hsub_t := (D.pairVerts_subset_pastVerts_iff e' t).mpr he'_t.1
-                  rcases hf_end with hs_p | ht_p
-                  · have ht_out : tgt f ∉ D.pastVerts t :=
-                      fun ht_in => hf_t (iff_of_true (hsub_t hs_p) ht_in)
-                    exact fun hiff => ht_out (hpast_sub (hiff.mp (hsub_s hs_p)))
-                  · have hs_out : src f ∉ D.pastVerts t :=
-                      fun hs_in => hf_t (iff_of_true hs_in (hsub_t ht_p))
-                    exact fun hiff => hs_out (hpast_sub (hiff.mpr (hsub_s ht_p)))
-                have he'_s : e' ∈ D.actPairs s :=
-                  ⟨hinr_s, cut_s_of_t (D.pinB_end e') he'_t.2.1,
-                    cut_s_of_t (D.pinD_end e') he'_t.2.2⟩
-                exact hg.2 (mem_biUnion he'_s hmem)
-              exact (heq_single ⟨hg_cut_t, hnotM_t⟩).symm
-            · rfl
+          · refine hγ₀_eq ((end_mem_of_mem_edgeCut hg.1).imp (fun h => hpast_sub h)
+              fun h => hpast_sub h) fun hg_cut_t => ?_
+            -- If `g ∈ {pinB e', pinD e'}` for `e' ∈ actPairs t`, then `e' ∈ actPairs s`,
+            -- contradicting `g ∈ singleCut s`!
+            rintro ⟨_, ⟨e', rfl⟩, _, ⟨he'_t, rfl⟩, hmem⟩
+            have hinr_s : .inr e' ∈ D.stepLayout.initial s := by
+              by_contra hnot_s
+              -- One endpoint of `g` is in `pairVerts e'` (`∉ pastVerts s`) and the other is in
+              -- `(pastVerts t)ᶜ ⊆ (pastVerts s)ᶜ`, contradicting `g ∈ edgeCut (pastVerts s)`!
+              have hdisj_s := D.disjoint_nodeVerts_pastVerts hnot_s
+              have hsub_t := (D.pairVerts_subset_pastVerts_iff e' t).mpr he'_t.1
+              rcases D.pinBD_end e' hmem with hs_p | ht_p
+              · exact hg.1 (iff_of_false (disjoint_left.mp hdisj_s hs_p)
+                  fun ht_in => hg_cut_t (iff_of_true (hsub_t hs_p) (hpast_sub ht_in)))
+              · exact hg.1 (iff_of_false
+                  (fun hs_in => hg_cut_t (iff_of_true (hpast_sub hs_in) (hsub_t ht_p)))
+                  (disjoint_left.mp hdisj_s ht_p))
+            exact hg.2 (mem_biUnion (D.mem_actPairs_of_le hs_lt he'_t hinr_s) hmem)
           · rintro ⟨⟨e', he'⟩, hin⟩
             by_cases hinr_s : .inr e' ∈ D.stepLayout.initial s
             · have hsub_s := (D.pairVerts_subset_pastVerts_iff e' s).mpr hinr_s
               exact hg.1 (iff_of_true (hsub_s hin.1) (hsub_s hin.2))
-            · have hdisj_s : Disjoint (D.pairVerts e') (D.pastVerts s) := by
-                refine disjoint_iUnion₂_right.mpr fun y hy => ?_
-                exact D.pairwiseDisjoint_nodeVerts trivial trivial fun (heq : .inr e' = y) =>
-                  hinr_s (by rwa [heq])
+            · have hdisj_s := D.disjoint_nodeVerts_pastVerts hinr_s
               exact hg.1 (iff_of_false (disjoint_left.mp hdisj_s hin.1)
                 (disjoint_left.mp hdisj_s hin.2))
         · -- `e ∈ D.actPairs s`: check `D.rectIdx e α' = D.rectIdx e α_t`.
           have hinr_t : .inr e ∈ D.stepLayout.initial t := lt_of_lt_of_le he_s.1 hs_lt
-          have hsub_t := (D.pairVerts_subset_pastVerts_iff e t).mpr hinr_t
-          have hni_pin (p : D.Q.external) (hp : p ∉ D.eqPairs) :
-              ¬∃ e' : D.actPairs t, p.1 ∈ internalEdges c (D.pairVerts e'.1) :=
-            fun ⟨e', hin⟩ => D.notMem_internalEdges_pairVerts hp hin
-          have hEq_γ₀ : D.rectIdx e α' = D.rectIdx e γ₀ :=
-            D.rectIdx_congr e (hα'_not_int (hni_pin _ (D.pinA_notMem_eqPairs e)))
-              (hα'_not_int (hni_pin _ (D.pinB_notMem_eqPairs e)))
-              (hα'_not_int (hni_pin _ (D.pinC_notMem_eqPairs e)))
-              (hα'_not_int (hni_pin _ (D.pinD_notMem_eqPairs e)))
-          rw [hEq_γ₀]
+          rw [hrect_α']
           by_cases he_t : e ∈ D.actPairs t
           · exact hrect_γ₀ ⟨e, he_t⟩
-          · -- When `e ∉ actPairs t`, any pin of `e` touching `(pastVerts t)ᶜ` lies in
-            -- `edgeCut (pastVerts t)` and is outside `{pinB e', pinD e'}` for `e' ∈ actPairs t`,
+          · -- When `e ∉ actPairs t`, no pin of `e` is a masked pin of some `e' ∈ actPairs t`,
             -- so `γ₀` agrees with `α_t` on all 4 pins of `e`!
             have pin_eq (g : Edge c) (hend : src g ∈ D.pairVerts e ∨ tgt g ∈ D.pairVerts e) :
                 γ₀ g = α_t g := by
-              dsimp only [γ₀]
-              split_ifs with htc
-              · have hg_cut_t : g ∈ (graph c).edgeCut (D.pastVerts t) := by
-                  rcases hend with hs_p | ht_p <;> rcases htc with hcs | hct
-                  · exact (hcs (hsub_t hs_p)).elim
-                  · exact fun hiff => hct (hiff.mp (hsub_t hs_p))
-                  · exact fun hiff => hcs (hiff.mpr (hsub_t ht_p))
-                  · exact (hct (hsub_t ht_p)).elim
-                have hnotM : g ∉ ⋃ e' ∈ D.actPairs t,
-                    ({(D.pinB e').1, (D.pinD e').1} : Set (Edge c)) := by
-                  rintro ⟨_, ⟨e', rfl⟩, _, ⟨he'_t, rfl⟩, hmem⟩
-                  by_cases hee' : e = e'
-                  · exact he_t (hee' ▸ he'_t)
-                  · have hsub_e' := (D.pairVerts_subset_pastVerts_iff e' t).mpr he'_t.1
-                    have hend' := D.pinBD_end e' hmem
-                    rcases hend with hs₁ | ht₁ <;> rcases hend' with hs₂ | ht₂
-                    · exact disjoint_left.mp (D.disjoint_pairVerts hee') hs₁ hs₂
-                    · exact hg_cut_t (iff_of_true (hsub_t hs₁) (hsub_e' ht₂))
-                    · exact hg_cut_t (iff_of_true (hsub_e' hs₂) (hsub_t ht₁))
-                    · exact disjoint_left.mp (D.disjoint_pairVerts hee') ht₁ ht₂
-                exact (heq_single ⟨hg_cut_t, hnotM⟩).symm
-              · rfl
+              refine hγ₀_eq (D.end_mem_pastVerts hinr_t hend) fun hg_cut_t => ?_
+              rintro ⟨_, ⟨e', rfl⟩, _, ⟨he'_t, rfl⟩, hmem⟩
+              exact D.notMem_edgeCut_of_ends (fun (hee' : e = e') => he_t (hee' ▸ he'_t)) hinr_t
+                he'_t.1 hend (D.pinBD_end e' hmem) hg_cut_t
             exact D.rectIdx_congr e (pin_eq _ (D.pinA_end e)) (pin_eq _ (D.pinB_end e))
               (pin_eq _ (D.pinC_end e)) (pin_eq _ (D.pinD_end e))
       · -- Layer `t + 1`: show `γ (t + 1) = D.stateAt (t + 1) α'`.
         rw [hm', eq_comm, D.stateAt_eq_iff]
-        have hpast_sub : D.pastVerts t ⊆ D.pastVerts (t + 1) :=
-          D.pastVerts_mono (Nat.le_succ t)
-        have touch_of_cut {g : Edge c} (hg : g ∈ (graph c).edgeCut (D.pastVerts (t + 1))) :
-            g ∈ (graph c).touching (D.pastVerts t)ᶜ := by
-          by_contra hnt
-          rw [Multigraph.mem_touching, mem_compl_iff, mem_compl_iff, not_or, not_not,
-            not_not] at hnt
-          exact hg (iff_of_true (hpast_sub hnt.1) (hpast_sub hnt.2))
-        refine ⟨fun g hg => hα'_touch_compl (touch_of_cut hg.1), fun e he_t1 => ?_⟩
-        -- Either `e` was processed at step `t` (`pairVerts e ⊆ (pastVerts t)ᶜ`, all 4 pins touch
-        -- `(pastVerts t)ᶜ`) or `e ∈ actPairs t`!
+        refine ⟨fun g hg => hα'_touch_compl
+          (mem_touching_compl_of_mem_edgeCut (D.pastVerts_mono (Nat.le_succ t)) hg.1),
+          fun e he_t1 => ?_⟩
+        -- Either `e ∈ actPairs t`, or `e` was processed at step `t` (`pairVerts e ⊆
+        -- (pastVerts t)ᶜ`, so all 4 pins touch `(pastVerts t)ᶜ`)!
         by_cases hinr_t : .inr e ∈ D.stepLayout.initial t
-        · have hsub_t := (D.pairVerts_subset_pastVerts_iff e t).mpr hinr_t
-          have cut_t_of_t1 {g : Edge c}
-              (hend : src g ∈ D.pairVerts e ∨ tgt g ∈ D.pairVerts e)
-              (hg1 : g ∈ (graph c).edgeCut (D.pastVerts (t + 1))) :
-              g ∈ (graph c).edgeCut (D.pastVerts t) := by
-            rcases hend with hs_p | ht_p
-            · have ht_out : tgt g ∉ D.pastVerts (t + 1) :=
-                fun ht_in => hg1 (iff_of_true (hpast_sub (hsub_t hs_p)) ht_in)
-              exact fun hiff => ht_out (hpast_sub (hiff.mp (hsub_t hs_p)))
-            · have hs_out : src g ∉ D.pastVerts (t + 1) :=
-                fun hs_in => hg1 (iff_of_true hs_in (hpast_sub (hsub_t ht_p)))
-              exact fun hiff => hs_out (hpast_sub (hiff.mpr (hsub_t ht_p)))
-          have he_t : e ∈ D.actPairs t :=
-            ⟨hinr_t, cut_t_of_t1 (D.pinB_end e) he_t1.2.1,
-              cut_t_of_t1 (D.pinD_end e) he_t1.2.2⟩
-          have hni_pin (p : D.Q.external) (hp : p ∉ D.eqPairs) :
-              ¬∃ e' : D.actPairs t, p.1 ∈ internalEdges c (D.pairVerts e'.1) :=
-            fun ⟨e', hin⟩ => D.notMem_internalEdges_pairVerts hp hin
-          have hEq_γ₀ : D.rectIdx e α' = D.rectIdx e γ₀ :=
-            D.rectIdx_congr e (hα'_not_int (hni_pin _ (D.pinA_notMem_eqPairs e)))
-              (hα'_not_int (hni_pin _ (D.pinB_notMem_eqPairs e)))
-              (hα'_not_int (hni_pin _ (D.pinC_notMem_eqPairs e)))
-              (hα'_not_int (hni_pin _ (D.pinD_notMem_eqPairs e)))
-          rw [hEq_γ₀, hrect_γ₀ ⟨e, he_t⟩, heq_rect e he_t]
-        · -- `e` entered at step `t`, so `pairVerts e ⊆ (pastVerts t)ᶜ` and all 4 pins touch
-          -- `(pastVerts t)ᶜ`.
-          have hdisj_e : Disjoint (D.pairVerts e) (D.pastVerts t) := by
-            refine disjoint_iUnion₂_right.mpr fun y hy => ?_
-            exact D.pairwiseDisjoint_nodeVerts trivial trivial fun (heq : .inr e = y) =>
-              hinr_t (by rwa [heq])
+        · have he_t := D.mem_actPairs_of_le (Nat.le_succ t) he_t1 hinr_t
+          rw [hrect_α', hrect_γ₀ ⟨e, he_t⟩, heq_rect e he_t]
+        · have hdisj_e := D.disjoint_nodeVerts_pastVerts hinr_t
           have touch_pin {g : Edge c} (hend : src g ∈ D.pairVerts e ∨ tgt g ∈ D.pairVerts e) :
               g ∈ (graph c).touching (D.pastVerts t)ᶜ :=
             hend.imp (fun hs => disjoint_left.mp hdisj_e hs) (fun ht => disjoint_left.mp hdisj_e ht)
@@ -1579,11 +1470,8 @@ private theorem ncard_edges_step_le [Finite ι] (hdeg : (graph c).MaxDegreeLE 3)
       rw [hun] at hg₁
       simp only [Multigraph.mem_edgeCut, mem_union, not_not] at hg₀ hg₁
       simp only [E_touch, Multigraph.mem_edgeCut]
-      have hd_s : (graph c).src g ∈ D.nodeVerts x → (graph c).src g ∉ D.pastVerts t :=
-        fun h => disjoint_left.mp hdisj h
-      have hd_t : (graph c).tgt g ∈ D.nodeVerts x → (graph c).tgt g ∉ D.pastVerts t :=
-        fun h => disjoint_left.mp hdisj h
-      tauto
+      lrat_tauto [(disjoint_left.mp hdisj) (a := (graph c).src g),
+        (disjoint_left.mp hdisj) (a := (graph c).tgt g)]
     have hwit : ∀ e ∈ A_lost, ∃ g ∈ E_touch, g ∈ ({(D.pinB e).1, (D.pinD e).1} : Set (Edge c)) := by
       rintro e ⟨he_t, he_not⟩
       have hinr_1 : .inr e ∈ D.stepLayout.initial (t + 1) :=
@@ -1626,26 +1514,10 @@ private theorem ncard_edges_step_le [Finite ι] (hdeg : (graph c).MaxDegreeLE 3)
       rintro e ⟨he_1, he_not⟩
       have hinr := he_1.1
       rw [D.stepLayout.initial_succ ht, mem_insert_iff] at hinr
-      refine hinr.resolve_right fun hinr_t => he_not ?_
-      have hsub_t := (D.pairVerts_subset_pastVerts_iff e t).mpr hinr_t
-      have hpast_sub := D.pastVerts_mono (Nat.le_succ t)
-      have cut_t {g : Edge c} (hend : src g ∈ D.pairVerts e ∨ tgt g ∈ D.pairVerts e)
-          (hg1 : g ∈ (graph c).edgeCut (D.pastVerts (t + 1))) :
-          g ∈ (graph c).edgeCut (D.pastVerts t) := by
-        rcases hend with hs_p | ht_p
-        · have ht_out : tgt g ∉ D.pastVerts (t + 1) :=
-            fun ht_in => hg1 (iff_of_true (hpast_sub (hsub_t hs_p)) ht_in)
-          exact fun hiff => ht_out (hpast_sub (hiff.mp (hsub_t hs_p)))
-        · have hs_out : src g ∉ D.pastVerts (t + 1) :=
-            fun hs_in => hg1 (iff_of_true hs_in (hpast_sub (hsub_t ht_p)))
-          exact fun hiff => hs_out (hpast_sub (hiff.mpr (hsub_t ht_p)))
-      exact ⟨hinr_t, cut_t (D.pinB_end e) he_1.2.1, cut_t (D.pinD_end e) he_1.2.2⟩
-    refine (ncard_le_ncard hsub_x).trans ?_
-    rcases x with u | e₀
-    · have hem : {e : D.eqPairs | (.inr e : D.StepNode) = .inl u} = ∅ := by ext e; simp
-      rw [hem, ncard_empty]; exact Nat.zero_le 1
-    · have hsg : {e : D.eqPairs | (.inr e : D.StepNode) = .inr e₀} = {e₀} := by ext e; simp
-      rw [hsg, ncard_singleton]
+      exact hinr.resolve_right fun hinr_t =>
+        he_not (D.mem_actPairs_of_le (Nat.le_succ t) he_1 hinr_t)
+    exact (ncard_le_ncard hsub_x).trans (ncard_le_one_iff_subsingleton.mpr
+      fun _ ha _ hb => Sum.inr_injective (Eq.trans ha (Eq.symm hb)))
   -- Every `f ∈ singleCut (t + 1) \ E_extra` lies in `singleCut t`.
   have hpersist_single {f : Edge c} (hf₁ : f ∈ D.singleCut (t + 1)) (hnot_ex : f ∉ E_extra) :
       f ∈ D.singleCut t := by
@@ -1689,13 +1561,8 @@ private theorem ncard_edges_step_le [Finite ι] (hdeg : (graph c).MaxDegreeLE 3)
       E_extra.domRestrict β, a, A_gain.domRestrict (D.rectIdx · β)), ?_⟩
     subst ha
     dsimp only [ψ]
-    refine Prod.ext ?_ (Prod.ext rfl ?_)
-    · ext f <;> simp only [stateAt, domRestrict_apply] <;> split_ifs <;> rfl
-    · ext f
-      · simp only [stateAt, domRestrict_apply]
-        split_ifs <;> rfl
-      · simp only [stateAt, domRestrict_apply]
-        split_ifs <;> rfl
+    refine Prod.ext ?_ (Prod.ext rfl ?_) <;>
+      ext f <;> simp only [stateAt, domRestrict_apply] <;> split_ifs <;> rfl
   have hNw_le : Nw.ncard ≤ 1 := D.ncard_newly_le N hclean_N hm ht
   calc ((D.branchingProgram N).edges t).ncard
       ≤ (range ψ).ncard := ncard_le_ncard hsub (toFinite _)
@@ -1708,9 +1575,7 @@ private theorem ncard_edges_step_le [Finite ι] (hdeg : (graph c).MaxDegreeLE 3)
           Nat.card_eq_fintype_card (α := Bool), Fintype.card_bool,
           Nat.card_eq_fintype_card (α := Fin 3), Fintype.card_fin]
     _ ≤ (2 ^ F.ncard * 3 ^ A.ncard) * (2 ^ 12 * (2 ^ 1 * 3 ^ 1)) := by
-        refine Nat.mul_le_mul_left _ (Nat.mul_le_mul (Nat.pow_le_pow_right (by decide) hEextra_le)
-          (Nat.mul_le_mul (Nat.pow_le_pow_right (by decide) hNw_le)
-            (Nat.pow_le_pow_right (by decide) hAgain_le)))
+        gcongr
     _ = 24576 * (2 ^ F.ncard * 3 ^ A.ncard) := by ring
 
 omit hG in
@@ -1818,8 +1683,7 @@ theorem mul_size_branchingProgram_le_rpow [Finite ι]
       24577 * (K : ℝ) ^ 3 * V * (2 : ℝ) ^ (B' + 6 * Nat.log 2 V) := by
     rw [Nat.cast_mul]
     calc (((K - 1 : ℕ) ^ 2 : ℕ) : ℝ) * ((D.branchingProgram N).size : ℝ)
-        ≤ (K : ℝ) ^ 2 * (24577 * K * V * (2 : ℝ) ^ (B' + 6 * Nat.log 2 V)) :=
-          mul_le_mul hKsq hsize' (Nat.cast_nonneg _) (by positivity)
+        ≤ (K : ℝ) ^ 2 * (24577 * K * V * (2 : ℝ) ^ (B' + 6 * Nat.log 2 V)) := by gcongr
       _ = 24577 * (K : ℝ) ^ 3 * V * (2 : ℝ) ^ (B' + 6 * Nat.log 2 V) := by ring
   have h15 : (24577 : ℝ) ≤ (2 : ℝ) ^ (15 : ℝ) := by norm_num
   have hK_rpow : (K : ℝ) ^ 3 = (2 : ℝ) ^ (3 * Real.logb 2 K) := by
@@ -1950,8 +1814,7 @@ theorem sq_correlation_quadForm_le {n : ℕ} {c : Circuit σ n 1}
           ≤ ((range msg).ncard : ℝ) := H
         _ ≤ 2 * ((2 ^ (D.singleCut t).ncard * 3 ^ (D.actPairs t).ncard : ℕ) : ℝ) := by
             exact_mod_cast hcount
-        _ ≤ 2 * (2 : ℝ) ^ (B_sup + 6 * Nat.log 2 (Nat.card (Vertex c))) :=
-            mul_le_mul_of_nonneg_left hstate_rpow (by norm_num)
+        _ ≤ 2 * (2 : ℝ) ^ (B_sup + 6 * Nat.log 2 (Nat.card (Vertex c))) := by gcongr
         _ = (2 : ℝ) ^ (1 + B_sup + 6 * Nat.log 2 (Nat.card (Vertex c))) := by
             symm
             rw [add_assoc 1 B_sup _, Real.rpow_add (by norm_num), Real.rpow_one]

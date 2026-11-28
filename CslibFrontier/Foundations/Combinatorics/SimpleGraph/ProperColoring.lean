@@ -168,29 +168,18 @@ theorem frozenColorings_erase (U : Finset V) (b : V → Fin q) (v : V) :
   ext x
   simp only [Finset.mem_filter, mem_frozenColorings, Finset.mem_erase, not_and_or, not_not,
     ne_eq]
-  constructor
-  · rintro ⟨hx, hb⟩
-    exact ⟨⟨hx, fun u hu => hb u (Or.inr hu)⟩, hb v (Or.inl rfl)⟩
-  · rintro ⟨⟨hx, hb⟩, hv⟩
-    refine ⟨hx, fun u hu => ?_⟩
-    rcases hu with rfl | hu
-    · exact hv
-    · exact hb u hu
+  exact ⟨fun ⟨hx, hb⟩ => ⟨⟨hx, fun u hu => hb u (.inr hu)⟩, hb v (.inl rfl)⟩,
+    fun ⟨⟨hx, hb⟩, hv⟩ => ⟨hx, fun u hu => hu.elim (· ▸ hv) (hb u)⟩⟩
 
 /-- Recoloring a vertex of a proper coloring with an allowed color gives a proper coloring. -/
 theorem IsProperColoring.update_of_mem {x : V → Fin q} (hx : G.IsProperColoring x) {w : V}
     {c : Fin q} (hc : c ∈ G.allowedColors x w) : G.IsProperColoring (Function.update x w c) := by
   rw [SimpleGraph.mem_allowedColors] at hc
   intro u v huv
-  by_cases hu : u = w
-  · subst hu
-    rw [Function.update_self, Function.update_of_ne (G.ne_of_adj huv).symm]
-    exact (hc v huv).symm
-  · by_cases hv : v = w
-    · subst hv
-      rw [Function.update_self, Function.update_of_ne hu]
-      exact hc u huv.symm
-    · rw [Function.update_of_ne hu, Function.update_of_ne hv]
-      exact hx u v huv
+  rcases eq_or_ne u w with rfl | hu
+  · simpa [Function.update_of_ne (G.ne_of_adj huv).symm] using (hc v huv).symm
+  · rcases eq_or_ne v w with rfl | hv
+    · simpa [Function.update_of_ne hu] using hc u huv.symm
+    · simpa [Function.update_of_ne hu, Function.update_of_ne hv] using hx u v huv
 
 end SimpleGraph

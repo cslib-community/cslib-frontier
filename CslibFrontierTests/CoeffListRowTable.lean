@@ -16,9 +16,8 @@ public meta import CslibFrontier.Foundations.Data.Polynomial.CoeffList.Arith
 public meta import CslibFrontier.Foundations.Data.Polynomial.CoeffList.DivMod
 public meta import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.RatPoly
 public meta import CslibFrontier.Foundations.Data.Matrix.RowTable
-public meta import Mathlib.Data.ZMod.Basic
-import Mathlib.Data.ZMod.Basic
-import Mathlib.Tactic
+public meta import Mathlib.Algebra.Field.ZMod
+import Mathlib.Algebra.Field.ZMod
 
 /-!
 # Tests for `Polynomial.CoeffList.{Arith,DivMod}` and `Cslib.RowTable`

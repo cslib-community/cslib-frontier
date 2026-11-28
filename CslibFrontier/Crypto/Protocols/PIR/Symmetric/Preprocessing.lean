@@ -281,15 +281,10 @@ is identical. -/
 theorem isCorrect_iff_isCorrectWith_one : P.IsCorrect ↔ P.IsCorrectWith 1 := by
   refine forall_congr' fun D => forall_congr' fun Q => ⟨fun h => ?_, fun h => ?_⟩
   · rw [h, PMF.pure_apply_self, ENNReal.toReal_one]
-  · have hle1 : ProbComp.eval (P.run D Q) (D ∘ Q) ≤ 1 := PMF.coe_le_one _ _
-    have hge1 : (1 : ℝ≥0∞) ≤ ProbComp.eval (P.run D Q) (D ∘ Q) := by
-      rw [← ENNReal.ofReal_one]
-      exact ENNReal.ofReal_le_of_le_toReal h
-    have hsupp : (ProbComp.eval (P.run D Q)).support = {D ∘ Q} :=
-      (PMF.apply_eq_one_iff _ _).mp (le_antisymm hle1 hge1)
-    rw [← PMF.map_id (ProbComp.eval (P.run D Q)), Cslib.Probability.PMF.map_eq_pure_iff]
+  · rw [← PMF.map_id (ProbComp.eval (P.run D Q)), Cslib.Probability.PMF.map_eq_pure_iff]
     intro y hy
-    rwa [hsupp, Set.mem_singleton_iff] at hy
+    rwa [(PMF.apply_eq_one_iff _ _).mp (le_antisymm (PMF.coe_le_one _ _)
+      (ENNReal.ofReal_one ▸ ENNReal.ofReal_le_of_le_toReal h)), Set.mem_singleton_iff] at hy
 
 theorem IsCorrect.isCorrectWith_one {P : Scheme n k R St Toff Tu Td} (h : P.IsCorrect) :
     P.IsCorrectWith 1 :=
@@ -480,20 +475,14 @@ private theorem eval_onlineTranscript_eq_of_marginal {P : Scheme n k R St Toff T
     ProbComp.eval (P.onlineTranscript D₀ Q₀) = ProbComp.eval (P.onlineTranscript D₁ Q₁) := by
   have := Fin.nontrivial_iff_two_le.mpr hn
   obtain ⟨j₀, j₁, hj⟩ := exists_pair_ne (Fin n)
-  have h₀ : D₀ ∘ (fun _ : Fin k => j₀) = Function.update D₁ j₀ (D₀ j₀) ∘ (fun _ => j₀) := by
-    funext _
-    simp
-  have h₁ : Function.update D₁ j₀ (D₀ j₀) ∘ (fun _ : Fin k => j₁) = D₁ ∘ (fun _ => j₁) := by
-    funext _
-    simp [hj.symm]
-  calc
-    ProbComp.eval (P.onlineTranscript D₀ Q₀)
-        = ProbComp.eval (P.onlineTranscript D₀ fun _ => j₀) := hpriv_on _ _ _
+  calc ProbComp.eval (P.onlineTranscript D₀ Q₀)
+      = ProbComp.eval (P.onlineTranscript D₀ fun _ => j₀) := hpriv_on _ _ _
     _ = ProbComp.eval (P.onlineTranscript (Function.update D₁ j₀ (D₀ j₀)) fun _ => j₀) :=
-          hdpriv_on h₀
+        hdpriv_on (funext fun _ => by simp)
     _ = ProbComp.eval (P.onlineTranscript (Function.update D₁ j₀ (D₀ j₀)) fun _ => j₁) :=
-          hpriv_on _ _ _
-    _ = ProbComp.eval (P.onlineTranscript D₁ fun _ => j₁) := hdpriv_on h₁
+        hpriv_on _ _ _
+    _ = ProbComp.eval (P.onlineTranscript D₁ fun _ => j₁) :=
+        hdpriv_on (funext fun _ => by simp [hj.symm])
     _ = ProbComp.eval (P.onlineTranscript D₁ Q₁) := hpriv_on _ _ _
 
 /-- **Online transcript independence** (the first step of the proof of
@@ -563,9 +552,7 @@ private def candidateOutputs [Fintype St] (Q : Fin k → Fin n) (τd : Td) :
 
 private theorem card_candidateOutputs_le [Fintype St] (Q : Fin k → Fin n) (τd : Td) :
     (P.candidateOutputs Q τd).card ≤ Fintype.card St := by
-  simpa only [candidateOutputs, Finset.card_univ] using
-    Finset.card_image_le (s := (Finset.univ : Finset St))
-      (f := fun st : St => P.reconstruct st Q τd)
+  simpa only [candidateOutputs, Finset.card_univ] using Finset.card_image_le (s := Finset.univ)
 
 private theorem eval_run_le_onlineDownload_candidateOutputs [Fintype St]
     (D : Fin n → Bool) (Q : Fin k → Fin n) (y : Fin k → Bool) :
@@ -575,16 +562,8 @@ private theorem eval_run_le_onlineDownload_candidateOutputs [Fintype St]
   rw [P.eval_run_eq_map_stateAndDownload D Q,
     P.eval_onlineDownload_eq_map_stateAndDownload D Q, PMF.map_comp,
     PMF.map_apply, PMF.map_apply]
-  refine Summable.tsum_le_tsum (fun ⟨st, τd⟩ => ?_) CompleteLattice.summable
-    CompleteLattice.summable
-  split_ifs with hy hmem
-  · exact le_rfl
-  · exfalso
-    refine hmem ?_
-    simp only [Function.comp_apply, true_eq_decide_iff, candidateOutputs, hy]
-    exact Finset.mem_image_of_mem _ (Finset.mem_univ st)
-  · exact zero_le
-  · exact zero_le
+  refine tsum_le_tsum fun ⟨st, τd⟩ => ?_
+  by_cases hy : y = P.reconstruct st Q τd <;> simp [hy, candidateOutputs]
 
 /-- Extend a `k`-bit string `y : Fin k → Bool` to an `n`-bit database, padding coordinates
 `i ≥ k` with `false`. -/
@@ -609,51 +588,34 @@ private theorem correct_le_card_div_two_pow_of_onlineDownload_eq [Fintype St] {�
   let D₀ : Fin n → Bool := fun _ => false
   let τLaw : PMF Td := ProbComp.eval (P.onlineDownload D₀ Q)
   have hsum_ennreal :
-      (∑ y : Fin k → Bool, ProbComp.eval (P.run (padDB y) Q) y) ≤
-        (Fintype.card St : ℝ≥0∞) := by
-    calc
-      (∑ y : Fin k → Bool, ProbComp.eval (P.run (padDB y) Q) y)
-          ≤ ∑ y : Fin k → Bool,
-              τLaw.map (fun τd => decide (y ∈ P.candidateOutputs Q τd)) true := by
-            refine Finset.sum_le_sum fun y _ => ?_
-            have h := P.eval_run_le_onlineDownload_candidateOutputs (padDB y) Q y
-            rwa [hdl (padDB y) D₀] at h
+      (∑ y : Fin k → Bool, ProbComp.eval (P.run (padDB y) Q) y) ≤ (Fintype.card St : ℝ≥0∞) := by
+    calc (∑ y : Fin k → Bool, ProbComp.eval (P.run (padDB y) Q) y)
+        ≤ ∑ y : Fin k → Bool, τLaw.map (fun τd => decide (y ∈ P.candidateOutputs Q τd)) true :=
+          Finset.sum_le_sum fun y _ => by
+            simpa only [τLaw, Q, hdl (padDB y) D₀] using
+              P.eval_run_le_onlineDownload_candidateOutputs (padDB y) Q y
       _ = ∑' τd : Td, ∑ y : Fin k → Bool,
-            (if true = decide (y ∈ P.candidateOutputs Q τd) then τLaw τd else 0) := by
-            simp only [PMF.map_apply]
-            rw [← Summable.tsum_finsetSum (fun _ _ => CompleteLattice.summable)]
-            exact tsum_congr fun _ => Finset.sum_congr rfl fun _ _ => by congr
-      _ ≤ ∑' τd : Td, (Fintype.card St : ℝ≥0∞) * τLaw τd := by
-            refine Summable.tsum_le_tsum (fun τd => ?_) CompleteLattice.summable
-              CompleteLattice.summable
-            have hinner :
-                (∑ y : Fin k → Bool,
-                  if true = decide (y ∈ P.candidateOutputs Q τd) then τLaw τd else 0) =
-                  ((P.candidateOutputs Q τd).card : ℝ≥0∞) * τLaw τd := by
-              simp only [true_eq_decide_iff, ← Finset.sum_filter, Finset.filter_univ_mem,
-                Finset.sum_const, nsmul_eq_mul]
-            rw [hinner]
-            gcongr
-            exact Nat.cast_le.mpr (P.card_candidateOutputs_le Q τd)
-      _ = (Fintype.card St : ℝ≥0∞) := by
-            rw [ENNReal.tsum_mul_left, τLaw.tsum_coe, mul_one]
+            if true = decide (y ∈ P.candidateOutputs Q τd) then τLaw τd else 0 := by
+          simp only [PMF.map_apply]
+          rw [← Summable.tsum_finsetSum (fun _ _ => CompleteLattice.summable)]
+          exact tsum_congr fun _ => Finset.sum_congr rfl fun _ _ => by congr
+      _ ≤ ∑' τd : Td, (Fintype.card St : ℝ≥0∞) * τLaw τd :=
+          tsum_le_tsum fun τd => by
+            simp only [true_eq_decide_iff, ← Finset.sum_filter, Finset.filter_univ_mem,
+              Finset.sum_const, nsmul_eq_mul]
+            exact mul_le_mul_of_nonneg_right
+              (Nat.cast_le.mpr (P.card_candidateOutputs_le Q τd)) zero_le
+      _ = (Fintype.card St : ℝ≥0∞) := by rw [ENNReal.tsum_mul_left, τLaw.tsum_coe, mul_one]
   have hsum_real :
       (∑ y : Fin k → Bool, (ProbComp.eval (P.run (padDB y) Q) y).toReal) ≤
-        (Fintype.card St : ℝ) := by
-    ennreal_to_real using hsum_ennreal
-  have h2k_mul : (2 : ℝ) ^ k * ε ≤ (Fintype.card St : ℝ) := by
-    calc
-      (2 : ℝ) ^ k * ε
-          = ∑ _y : Fin k → Bool, ε := by
-            simp [Finset.sum_const, Fintype.card_bool]
-      _ ≤ ∑ y : Fin k → Bool, (ProbComp.eval (P.run (padDB y) Q) y).toReal := by
-            refine Finset.sum_le_sum fun y _ => ?_
-            have h := hcorr (padDB y) Q
-            rwa [padDB_comp_castLE hkn y] at h
-      _ ≤ (Fintype.card St : ℝ) := hsum_real
-  have h2k_pos : (0 : ℝ) < (2 : ℝ) ^ k := by positivity
-  rw [le_div_iff₀ h2k_pos, mul_comm]
-  exact h2k_mul
+        (Fintype.card St : ℝ) := by ennreal_to_real using hsum_ennreal
+  have hpos : (0 : ℝ) < 2 ^ k := by positivity
+  rw [le_div_iff₀ hpos, mul_comm]
+  calc (2 : ℝ) ^ k * ε = ∑ _y : Fin k → Bool, ε := by simp [Finset.sum_const, Fintype.card_bool]
+    _ ≤ ∑ y : Fin k → Bool, (ProbComp.eval (P.run (padDB y) Q) y).toReal :=
+        Finset.sum_le_sum fun y _ => by
+          simpa only [Q, padDB_comp_castLE hkn y] using hcorr (padDB y) Q
+    _ ≤ (Fintype.card St : ℝ) := hsum_real
 
 /-- **Restricted-model batch storage bound.** This is not Theorem 6.2 of
 [Hoover, Persiano and Yeo][HooverPersianoYeo2026], which is stated in the random oracle model and
@@ -679,9 +641,8 @@ theorem correct_le_two_pow_sub [Fintype St] {s : ℕ} {ε : ℝ} (hn : 2 ≤ n) 
     ε ≤ (2 : ℝ) ^ ((s : ℤ) - (k : ℤ)) := by
   have hcore := P.correct_le_card_div_two_pow hn hkn hpriv hdpriv hcorr
   have hcard : (Fintype.card St : ℝ) ≤ (2 : ℝ) ^ s := by exact_mod_cast hst
-  have hpow : (2 : ℝ) ^ s / (2 : ℝ) ^ k = (2 : ℝ) ^ ((s : ℤ) - (k : ℤ)) := by
-    rw [zpow_sub₀ (by norm_num), zpow_natCast, zpow_natCast]
-  linarith [div_le_div_of_nonneg_right hcard (by positivity : (0 : ℝ) ≤ (2 : ℝ) ^ k)]
+  rw [zpow_sub₀ two_ne_zero, zpow_natCast, zpow_natCast]
+  exact hcore.trans (div_le_div_of_nonneg_right hcard (by positivity))
 
 /-- In the restricted model of `correct_le_card_div_two_pow` (not Theorem 6.2), a perfectly
 correct, perfectly private, and perfectly data-private `k`-batch SPIR scheme with `2 ≤ n` and
@@ -689,11 +650,9 @@ correct, perfectly private, and perfectly data-private `k`-batch SPIR scheme wit
 theorem two_pow_le_card_state [Fintype St] (hn : 2 ≤ n) (hkn : k ≤ n)
     (hpriv : P.IsPerfectlyPrivate) (hdpriv : P.IsPerfectlyDataPrivate) (hcorr : P.IsCorrect) :
     2 ^ k ≤ Fintype.card St := by
+  have hpos : (0 : ℝ) < 2 ^ k := by positivity
   have hle := P.correct_le_card_div_two_pow hn hkn hpriv hdpriv hcorr.isCorrectWith_one
-  have h2k_pos : (0 : ℝ) < (2 : ℝ) ^ k := by positivity
-  have hmul : (2 : ℝ) ^ k ≤ (Fintype.card St : ℝ) := by
-    rwa [le_div_iff₀ h2k_pos, one_mul] at hle
-  exact_mod_cast hmul
+  rwa [le_div_iff₀ hpos, one_mul, ← Nat.cast_ofNat, ← Nat.cast_pow, Nat.cast_le] at hle
 
 /-- **Restricted-model batch limitation.** This is not Theorem 6.2 of
 [Hoover, Persiano and Yeo][HooverPersianoYeo2026], which is stated in the random oracle model and
@@ -710,11 +669,10 @@ theorem batchSPIR_limitation [Fintype St] {s : ℕ} {ε : ℝ} (hn : 2 ≤ n) (h
     (hdpriv : P.IsPerfectlyDataPrivate) : ¬ P.IsCorrectWith ε := by
   intro hcorr
   have hle := P.correct_le_two_pow_sub hn hkn hst hpriv hdpriv hcorr
-  have hexp_le : (s : ℤ) - (k : ℤ) ≤ -1 := by omega
-  have hpow_le_half : (2 : ℝ) ^ ((s : ℤ) - (k : ℤ)) ≤ 1 / 2 := by
-    calc
-      (2 : ℝ) ^ ((s : ℤ) - (k : ℤ)) ≤ (2 : ℝ) ^ (-1 : ℤ) :=
-        zpow_le_zpow_right₀ (by norm_num) hexp_le
+  have hexp_le : (s : ℤ) - k ≤ -1 := by omega
+  have hpow : (2 : ℝ) ^ ((s : ℤ) - (k : ℤ)) ≤ 1 / 2 :=
+    calc (2 : ℝ) ^ ((s : ℤ) - (k : ℤ)) ≤ (2 : ℝ) ^ (-1 : ℤ) :=
+          zpow_le_zpow_right₀ (by norm_num) hexp_le
       _ = 1 / 2 := by norm_num
   linarith
 
@@ -855,24 +813,14 @@ theorem correct_le_card_mul_card_div_two_pow [Fintype St] [Fintype Ω] {ε : ℝ
     (hdpriv : P.IsPerfectlyDataPrivate) (hcorr : P.IsCorrectWith ε) :
     ε ≤ (Fintype.card St * Fintype.card Ω : ℝ) / 2 ^ k := by
   have hpriv_prod : P.toProductScheme.IsPerfectlyPrivate := fun D Q₀ Q₁ => by
-    rw [P.serverView_toProductScheme, P.serverView_toProductScheme, hpriv D Q₀ Q₁]
-  have hdpriv_on : ∀ {D₀ D₁ : Fin n → Bool} {Q : Fin k → Fin n}, D₀ ∘ Q = D₁ ∘ Q →
-      ProbComp.eval (P.toProductScheme.onlineTranscript D₀ Q) =
-        ProbComp.eval (P.toProductScheme.onlineTranscript D₁ Q) := fun hD => by
-    rw [P.onlineTranscript_toProductScheme, P.onlineTranscript_toProductScheme,
-      ProbComp.eval_map, ProbComp.eval_map, hdpriv _ _ _ hD]
-  have hdl : ∀ D₁ D₂ : Fin n → Bool,
-      ProbComp.eval (P.toProductScheme.onlineDownload D₁ (Fin.castLE hkn)) =
-        ProbComp.eval (P.toProductScheme.onlineDownload D₂ (Fin.castLE hkn)) := by
-    intro D₁ D₂
-    simp only [Scheme.onlineDownload, ProbComp.eval_map,
-      Scheme.eval_onlineTranscript_eq_of_marginal hn hpriv_prod.eval_onlineTranscript_eq
-        hdpriv_on D₁ D₂ (Fin.castLE hkn) (Fin.castLE hkn)]
-  have hcorr_prod : P.toProductScheme.IsCorrectWith ε := fun D Q => by
-    rw [P.run_toProductScheme]
-    exact hcorr D Q
-  have hle := P.toProductScheme.correct_le_card_div_two_pow_of_onlineDownload_eq hkn hdl hcorr_prod
-  rwa [Fintype.card_prod, Nat.cast_mul] at hle
+    simp only [serverView_toProductScheme, hpriv D Q₀ Q₁]
+  simpa only [Fintype.card_prod, Nat.cast_mul] using
+    P.toProductScheme.correct_le_card_div_two_pow_of_onlineDownload_eq hkn
+      (fun D₁ D₂ => by simp only [Scheme.onlineDownload, ProbComp.eval_map,
+        Scheme.eval_onlineTranscript_eq_of_marginal hn hpriv_prod.eval_onlineTranscript_eq
+          (fun hD => by simp only [onlineTranscript_toProductScheme, ProbComp.eval_map,
+            hdpriv _ _ _ hD]) D₁ D₂ (Fin.castLE hkn) (Fin.castLE hkn)])
+      fun D Q => P.run_toProductScheme D Q ▸ hcorr D Q
 
 end RandomizedScheme
 

@@ -108,31 +108,25 @@ theorem List.sum_map_drop_range_fin {M : Type*} [AddCommMonoid M] {n : ℕ} (i :
 theorem List.Perm.card_filter_ofFn_eq {α : Type*} {n : ℕ} {f g : Fin n → α}
     (perm : (List.ofFn f).Perm (List.ofFn g)) (p : α → Prop) [DecidablePred p] :
     #{i | p (f i)} = #{i | p (g i)} := by
-  have h := perm.countP_eq (fun x => decide (p x))
-  simpa only [List.countP_ofFn, decide_eq_true_eq] using h
+  simpa only [List.countP_ofFn, decide_eq_true_eq] using perm.countP_eq (decide <| p ·)
 
 /-- Permuting a finite array preserves unique occurrence of a predicate. -/
 theorem List.Perm.existsUnique_ofFn_iff {α : Type*} {n : ℕ} {f g : Fin n → α}
     (perm : (List.ofFn f).Perm (List.ofFn g)) (p : α → Prop) :
     (∃! i, p (f i)) ↔ ∃! i, p (g i) := by
   classical
-  have h := List.Perm.card_filter_ofFn_eq perm p
-  simpa only [Finset.card_eq_one_iff_existsUnique, Finset.mem_filter,
-    Finset.mem_univ, true_and] using (congrArg (fun size => size = 1) h).to_iff
+  simpa only [Finset.card_eq_one_iff_existsUnique, Finset.mem_filter, Finset.mem_univ, true_and]
+    using (congrArg (· = 1) (perm.card_filter_ofFn_eq p)).to_iff
 
 /-- A unique value in a monotone finite array has exactly its index many smaller entries. -/
 theorem Fin.card_lt_of_monotone_of_unique {α : Type*} [PartialOrder α] [DecidableLT α] {n : ℕ}
     {f : Fin n → α} (sorted : Monotone f) (j : Fin n)
     (unique : ∀ i, f i = f j → i = j) : #{i | f i < f j} = j.val := by
-  have lt_iff (i : Fin n) : f i < f j ↔ i < j := by
-    constructor
-    · intro h
-      by_contra hn
-      exact (not_lt_of_ge (sorted (le_of_not_gt hn))) h
-    · intro h
-      exact lt_of_le_of_ne (sorted h.le) (fun he => h.ne (unique i he))
-  calc
-    #{i | f i < f j} = #(Finset.Iio j) := congrArg Finset.card (by ext i; simp [lt_iff])
+  have lt_iff (i : Fin n) : f i < f j ↔ i < j :=
+    ⟨fun h => lt_of_not_ge fun hn => (sorted hn).not_gt h,
+      fun h => (sorted h.le).lt_of_ne fun he => h.ne (unique i he)⟩
+  calc #{i | f i < f j}
+      = #(Finset.Iio j) := congrArg Finset.card (Finset.ext fun i => by simp [lt_iff])
     _ = j.val := Fin.card_Iio j
 
 /-- A unique key occurs at its rank after a finite array is sorted by that key. -/
@@ -141,13 +135,11 @@ theorem List.Perm.key_ofFn_eq_of_rank {α β : Type*} [PartialOrder β] [Decidab
     (key : α → β) (sorted : Monotone (key ∘ g)) (target : β)
     (unique : ∃! i, key (f i) = target) (j : Fin n)
     (rank : #{i | key (f i) < target} = j.val) : key (g j) = target := by
-  obtain ⟨i, hi, hu⟩ :=
-    (List.Perm.existsUnique_ofFn_iff perm (fun row => key row = target)).mp unique
-  have ri := Fin.card_lt_of_monotone_of_unique sorted i (fun k hk => hu k (hk.trans hi))
-  have preserve := List.Perm.card_filter_ofFn_eq perm (fun row => key row < target)
+  obtain ⟨i, hi, hu⟩ := (perm.existsUnique_ofFn_iff (key · = target)).mp unique
+  have ri := Fin.card_lt_of_monotone_of_unique sorted i fun k hk => hu k (hk.trans hi)
+  have preserve := perm.card_filter_ofFn_eq (key · < target)
   simp only [Function.comp_apply, hi] at ri
-  have same : i = j := Fin.ext (by lia)
-  simpa only [same] using hi
+  exact Fin.ext (by lia : i.val = j.val) ▸ hi
 
 /-- Sorting places an entry with a unique key at the number of strictly smaller keys. -/
 theorem List.Perm.apply_ofFn_eq_of_rank {α β : Type*} [PartialOrder β] [DecidableLT β] {n : ℕ}
@@ -155,10 +147,7 @@ theorem List.Perm.apply_ofFn_eq_of_rank {α β : Type*} [PartialOrder β] [Decid
     (key : α → β) (sorted : Monotone (key ∘ g)) (source j : Fin n)
     (unique : ∀ i, key (f i) = key (f source) → i = source)
     (rank : #{i | key (f i) < key (f source)} = j.val) : g j = f source := by
-  have hj := List.Perm.key_ofFn_eq_of_rank perm key sorted (key (f source))
-    ⟨source, rfl, unique⟩ j rank
-  have mem : g j ∈ List.ofFn f := perm.mem_iff.mpr (by simp)
-  obtain ⟨i, hi⟩ := List.mem_ofFn.mp mem
-  have same := unique i (by simpa only [hi] using hj)
-  simpa only [same] using hi.symm
+  have hj := perm.key_ofFn_eq_of_rank key sorted (key (f source)) ⟨source, rfl, unique⟩ j rank
+  obtain ⟨i, hi⟩ := List.mem_ofFn.mp ((perm.mem_iff (a := g j)).mpr (by simp))
+  exact unique i ((congrArg key hi).trans hj) ▸ hi.symm
 

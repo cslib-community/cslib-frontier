@@ -209,8 +209,7 @@ theorem exists_three_pow_mul_le_two_pow_div_sqrt_log_two (K c d e : ℕ) : ∃ C
   have hq : t ⌈/⌉ clog 2 (t + 2) ≤ (2 * c + 1) * S := by
     have := ceilDiv_clog_two_le t; rw [add_mul, one_mul]; omega
   have h3 : 3 ^ (K * (t ⌈/⌉ clog 2 (t + 2))) ≤ 2 ^ (2 * K * ((2 * c + 1) * S)) := by
-    calc 3 ^ (K * (t ⌈/⌉ clog 2 (t + 2))) ≤ 4 ^ (K * (t ⌈/⌉ clog 2 (t + 2))) :=
-          Nat.pow_le_pow_left (by norm_num) _
+    calc 3 ^ (K * (t ⌈/⌉ clog 2 (t + 2))) ≤ 4 ^ (K * (t ⌈/⌉ clog 2 (t + 2))) := by gcongr; norm_num
       _ = 2 ^ (2 * (K * (t ⌈/⌉ clog 2 (t + 2)))) := by
           rw [show (4 : ℕ) = 2 ^ 2 by norm_num, ← pow_mul]
       _ ≤ 2 ^ (2 * K * ((2 * c + 1) * S)) := Nat.pow_le_pow_right (by norm_num) (by

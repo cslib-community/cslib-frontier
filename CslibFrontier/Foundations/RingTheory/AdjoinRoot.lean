@@ -65,21 +65,16 @@ theorem map_eq_zero_iff [Nontrivial S] (hg : g.Monic) {q : S[X]} (h : q ∣ g.ma
   obtain ⟨Q, rfl⟩ := mk_surjective x
   rw [modByMonicHom_mk]
   set P := Q %ₘ g
-  have hx : mk g P = mk g Q := by
-    have := mk_leftInverse hg (mk g Q)
-    rwa [modByMonicHom_mk] at this
+  have hx : mk g P = mk g Q := by simpa [modByMonicHom_mk] using mk_leftInverse hg (mk g Q)
   have hdeg : (P.map φ).degree < (g.map φ).degree := by
     rw [hg.degree_map]
     exact degree_map_le.trans_lt (degree_modByMonic_lt _ hg)
   rw [← hx, map_mk, mk_eq_zero]
-  constructor
-  · intro hdvd i
-    by_contra hne
-    have h0 : P.map φ ≠ 0 := fun h0 => hne (by rw [← coeff_map, h0, coeff_zero])
-    exact (hg.map φ).not_dvd_of_degree_lt h0 hdeg hdvd
-  · intro h
-    have : P.map φ = 0 := by ext i; rw [coeff_map, h, coeff_zero]
-    rw [this]
-    exact dvd_zero _
+  refine Iff.trans ⟨fun hdvd => by_contra fun h0 =>
+    (hg.map φ).not_dvd_of_degree_lt h0 hdeg hdvd, fun h0 => h0 ▸ dvd_zero _⟩
+    ⟨fun h0 i => by rw [← coeff_map, h0, coeff_zero],
+      fun h => by
+        ext i
+        rw [coeff_map, h, coeff_zero]⟩
 
 end AdjoinRoot

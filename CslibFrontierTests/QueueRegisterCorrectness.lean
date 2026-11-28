@@ -29,7 +29,7 @@ theorem rear_bounded : Memory.WellFormed 3 rear := by
 
 -- Existing pairStep, not a separate FIFO specification, supplies the actual dequeue result.
 example :
-    (Memory.spec 0).clientResult rear (dequeue ![0, 2, 1, 2, 0]) = ((1, 0), some 0) ∧
+    (Memory.spec 0).clientResult rear (dequeue ![0, 2, 1, 2, 0]) = (⟨1, 0⟩, some 0) ∧
       Block.HoldsList 1 [7] ((Memory.spec 0).clientState rear
         (dequeue ![0, 2, 1, 2, 0])).mem := by
   have h := dequeue_contents (d := ![0, 2, 1, 2, 0]) [] [7, 0] rear
@@ -39,7 +39,7 @@ example :
 
 -- A nonempty front and a live rear are both retained correctly after the front pop.
 example :
-    (Memory.spec 0).clientResult rear (dequeue ![1, 1, 1, 2, 0]) = ((0, 1), some 5) ∧
+    (Memory.spec 0).clientResult rear (dequeue ![1, 1, 1, 2, 0]) = (⟨0, 1⟩, some 5) ∧
       Block.HoldsList 3 [0] ((Memory.spec 0).clientState rear
         (dequeue ![1, 1, 1, 2, 0])).mem := by
   have h := dequeue_contents (d := ![1, 1, 1, 2, 0]) [5] [0] rear
@@ -57,7 +57,7 @@ example : Block.HoldsList 3 [0, 7]
 /-- A source client threads the returned count values, with no hidden memory count cells. -/
 def cycle (v : ℕ) : Memory.Prog (Option ℕ) := do
   let m ← enqueue ![0, 0, 1, 1, v]
-  let r ← dequeue ![m.1, m.2, 1, 1, v]
+  let r ← dequeue ![m.front, m.rear, 1, 1, v]
   pure r.2
 
 example : (Memory.spec 2).clientResult ⟨fun _ => 1, 3⟩ (cycle 3) = some 3 := rfl

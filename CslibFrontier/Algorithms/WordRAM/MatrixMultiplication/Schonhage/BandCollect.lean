@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandCopy
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandParameters
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Charged copies into the shared band catalogue
@@ -53,57 +53,33 @@ theorem exec_collectBand {w L m N : ℕ} (side : Bool) (β : ℕ) (x : Data 96)
       BandParameters L m N y ∧ y.regs band = β := by
   let b := (if side then numBands L m N else 0) + β
   let dest := catalogueAddress L m N side β 0
-  have hdest : Fits w (dest + 10 ^ L) := (memory_fits hfit).of_le
-    (catalogue_block_le side hβ)
-  have hd0 : Fits w dest := hdest.of_le (Nat.le_add_right _ _)
-  have hp : Fits w (b * 10 ^ L) := hd0.of_le (by
-    dsimp only [dest, catalogueAddress, b]
-    omega)
-  have hbfit : Fits w b := hp.of_le (Nat.le_mul_of_pos_right _
-    (Nat.pow_pos (by decide)))
+  have hdest : Fits w (dest + 10 ^ L) := (memory_fits hfit).of_le (catalogue_block_le side hβ)
+  have h10pos : 0 < 10 ^ L := Nat.pow_pos (by decide)
+  have hbmul : b ≤ b * 10 ^ L := Nat.le_mul_of_pos_right _ h10pos
   have hs : Fits w (7 ^ L + 2) := (encoder_fits hfit).of_le (by
     have h7 := Nat.pow_le_pow_left (by decide : 7 ≤ 10) L
     unfold Encoding.addressBound
     nlinarith only [h7, Nat.zero_le L, Nat.zero_le (10 ^ L)])
-  have hsrc : Fits w (Encoding.outputBase L + 10 ^ L) :=
-    ((memory_fits hfit).of_le (snapshot_le_memoryEnd L m N)).of_le (by
-      have h := workspace_le_snapshot L m N
-      unfold Encoding.scratchBase at h
-      have := Nat.zero_le (10 ^ L)
-      omega)
-  let start := ((((((x.set copySrc (7 ^ L + 2)).set temporary b).set temporary
-    (b * 10 ^ L)).set temporary dest).set copyDst dest).set copyLen (10 ^ L))
-  dsimp only [dest, catalogueAddress] at hd0
-  have hhead : ExecWithin w (collectHead side) x start 6 := by
-    cases side <;>
-      simp only [b, Bool.false_eq_true, ↓reduceIte, Nat.zero_add, Nat.add_zero] at hbfit hp hd0 <;>
-      ram_eval [collectHead, start, dest, b, catalogueAddress, hx.cells, hx.leaves,
-        hx.catalogue, hx.bands, hx.fixed.two, hb, hs, hd0, hp, hbfit,
-        copySrc, copyDst, copyLen, temporary, cells, two, leaves, catalogue, bands,
-        band, Fin.mk.injEq, Nat.zero_add, Nat.add_zero]
-  obtain ⟨y, he, hmem, _⟩ := exec_copyKernel start (small_fits hfit (by decide))
-    (by simpa [start, copySrc, copyLen, temporary, Encoding.outputBase, Nat.add_comm] using hsrc)
-    (by simpa [start, copyDst, copyLen, temporary] using hdest)
-    (Or.inl (by
-      have hlow := workspace_le_snapshot L m N
-      have hcat : snapshotBase L m N ≤ catalogueBase L m N := by
-        unfold catalogueBase tableBase inverseBase
-        have := Nat.zero_le (2 ^ L)
-        omega
-      have hsep : Encoding.outputBase L + 10 ^ L ≤ dest := by
-        have hn := Nat.zero_le (10 ^ L)
-        unfold Encoding.scratchBase at hlow
-        exact (by omega : Encoding.outputBase L + 10 ^ L ≤ snapshotBase L m N).trans
-          (hcat.trans (catalogue_le_address L m N β side))
-      simpa [start, copySrc, copyDst, copyLen, temporary, Encoding.outputBase, Nat.add_comm]
-        using hsep))
-  have hwhole : ExecWithin w (collectBand side) x y (7 * 10 ^ L + 10) := by
-    apply (hhead.seq he).mono
-    have hn : start.regs copyLen = 10 ^ L := by simp [start]
-    rw [hn]
+  have hws : 7 ^ L + 2 + 10 ^ L ≤ snapshotBase L m N := by
+    have h := workspace_le_snapshot L m N
+    unfold Encoding.scratchBase Encoding.outputBase at h
     omega
-  refine ⟨y, hwhole, ?_, by cases side <;> regs_frame, by cases side <;> regs_frame⟩
-  simpa [start, copySrc, copyDst, copyLen, temporary, Encoding.outputBase, Nat.add_comm]
-    using hmem
+  have hsrc : Fits w (7 ^ L + 2 + 10 ^ L) :=
+    ((memory_fits hfit).of_le (snapshot_le_memoryEnd L m N)).of_le hws
+  have hsep : 7 ^ L + 2 + 10 ^ L ≤ dest := by
+    have hcat := catalogue_le_address L m N β side
+    have : 0 ≤ 2 ^ L := Nat.zero_le _
+    unfold catalogueBase tableBase inverseBase at hcat
+    omega
+  dsimp only [dest, catalogueAddress, b] at hdest hbmul hsep ⊢
+  unfold collectBand collectHead
+  cases side <;> (
+    simp only [Bool.false_eq_true, ↓reduceIte, Nat.zero_add, Nat.add_zero] at hdest hbmul hsep ⊢
+    wram_exec *
+    wram_call (exec_copyKernel _ (small_fits hfit (by decide)) (by wram_simp; exact hsrc)
+      (by wram_simp; exact hdest) (Or.inl (by wram_simp; exact hsep))) with y ⟨hm, hf⟩
+    refine ⟨by wram_simp; omega, ?_, by regs_frame, by regs_frame⟩
+    wram_simp at hm
+    simpa only [Encoding.outputBase, Nat.add_comm 2 (7 ^ L)] using hm)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation

@@ -172,8 +172,6 @@ section Combinators
 
 variable {ε : Type} {k : ℕ} (env : ε ↪ (Fin k → ℕ))
 
-private abbrev unitWords : Unit ↪ (Fin 0 → ℕ) := WordEncoding.encode (α := Unit)
-
 private theorem liftRight {α β : Type} {m l : ℕ}
     {p : α → Memory.Prog β} {input : α ↪ (Fin m → ℕ)} {output : β ↪ (Fin l → ℕ)}
     {safe : ℕ → α → Memory.State → Prop}
@@ -208,11 +206,9 @@ private theorem assocIx_spec {α β : Type} {m l : ℕ}
     (x : (ε × α) × β) (idx : Fin (k + (m + l))) :
     appendWords env (appendWords input answer) (x.1.1, (x.1.2, x.2)) idx =
       appendWords (appendWords env input) answer x (assocIx k m l idx) := by
-  refine Fin.addCases (fun i => ?_) (Fin.addCases (fun j => ?_) (fun r => ?_)) idx
-  · simp only [assocIx, Fin.addCases_left, appendWords_castAdd]
-  · simp only [assocIx, Fin.addCases_right, Fin.addCases_left, appendWords_natAdd,
+  refine Fin.addCases (fun i => ?_) (Fin.addCases (fun j => ?_) (fun r => ?_)) idx <;>
+    simp only [assocIx, Fin.addCases_right, Fin.addCases_left, appendWords_natAdd,
       appendWords_castAdd]
-  · simp only [assocIx, Fin.addCases_right, appendWords_natAdd]
 
 private theorem bindRight {α β γ : Type} {m l n : ℕ}
     {p : ε × α → Memory.Prog β} {q : ε × (α × β) → Memory.Prog γ}
@@ -246,12 +242,8 @@ private theorem branchRight {α β : Type} {m l : ℕ}
       (fun w d s => if P d.2 then safePos w d s else safeNeg w d s)
       (fun _ _ => 0) := by
   refine ((Realizes.branch₀ cond hp hn).congr
-    fun d => if_ctx_congr (hc d) (fun _ => rfl) (fun _ => rfl)).consequence ?_
-    (fun _ _ => le_rfl)
-  intro w d s _ _ h
-  by_cases hcond : P d.2
-  · rw [ite_eq_left ((hc d).mpr hcond)]; simpa only [ite_eq_left hcond] using h
-  · rw [ite_eq_right (mt (hc d).mp hcond)]; simpa only [ite_eq_right hcond] using h
+    fun d => if_ctx_congr (hc d) (fun _ => rfl) (fun _ => rfl)).consequence
+    (fun _ d _ _ _ h => by simpa only [hc d] using h) (fun _ _ => le_rfl)
 
 private theorem branchRightEq {α β : Type} {m l : ℕ}
     {input : α ↪ (Fin m → ℕ)} {output : β ↪ (Fin l → ℕ)} (i j : Fin m)
@@ -306,15 +298,14 @@ private theorem whileRightLt {α : Type} {m : ℕ}
           w (d.1, d.2.1) (cutoff d.2) d.2.2 s)
       (fun _ _ => 0) := by
   let body' : (ε × α) × ℕ → Memory.Prog ℕ := fun x => body (x.1.1, (x.1.2, x.2))
-  let mapIdx (u : Fin (m + 1)) : Fin ((k + m) + 1) :=
-    Fin.addCases (fun r : Fin m => Fin.castAdd 1 (Fin.natAdd k r))
-      (fun r : Fin 1 => Fin.natAdd (k + m) r) u
-  have hmap (p : ε × α) (a : ℕ) (u : Fin (m + 1)) :
+  let mapIdx : Fin (m + 1) → Fin ((k + m) + 1) :=
+    Fin.addCases (fun r => Fin.castAdd 1 (Fin.natAdd k r)) (Fin.natAdd (k + m))
+  have hmap (p : ε × α) (a : ℕ) : ∀ u,
       appendWords (appendWords env input) wordWords (p, a) (mapIdx u) =
-        appendWords input wordWords (p.2, a) u := by
-    refine Fin.addCases (fun r => ?_) (fun r => ?_) u
-    · simp only [mapIdx, Fin.addCases_left, appendWords_castAdd, appendWords_natAdd]
-    · simp only [mapIdx, Fin.addCases_right, appendWords_natAdd]
+        appendWords input wordWords (p.2, a) u :=
+    Fin.addCases
+      (fun _ => by simp only [mapIdx, Fin.addCases_left, appendWords_castAdd, appendWords_natAdd])
+      (fun _ => by simp only [mapIdx, Fin.addCases_right, appendWords_natAdd])
   let cond : Cond ((k + m) + 1) := Cond.lt (mapIdx i) (mapIdx j)
   have hcond (p : ε × α) (a : ℕ) :
       test cond (appendWords (appendWords env input) wordWords (p, a)) ↔
@@ -332,17 +323,13 @@ private theorem whileRightLt {α : Type} {m : ℕ}
     (Fin.addCases (Fin.addCases (Fin.castAdd (m + 1))
       (fun r : Fin m => Fin.natAdd k (Fin.castAdd 1 r)))
       (fun r : Fin 1 => Fin.natAdd k (Fin.natAdd m r)))
-    (fun d => Fin.addCases
-      (Fin.addCases
-        (fun r => by simp only [Fin.addCases_left, appendWords_castAdd])
-        (fun r => by simp only [Fin.addCases_right, Fin.addCases_left,
-          appendWords_castAdd, appendWords_natAdd]))
-      (fun r => by simp only [Fin.addCases_right, appendWords_natAdd]))
-  refine (hL'.congr fun d => boundedWhile_congr _ _ (hcond (d.1, d.2.1))
-    (fun _ => rfl) (cutoff d.2) d.2.2).consequence ?_ (fun _ _ => le_rfl)
-  intro w d s _ _ h
-  exact whileSafe_imp _ _ (fun a => (hcond (d.1, d.2.1) a).symm) (fun _ => rfl)
-    (fun _ _ _ hs => hs) h
+    (fun d i => by
+      refine Fin.addCases (Fin.addCases (fun r => ?_) (fun r => ?_)) (fun r => ?_) i <;>
+        simp only [Fin.addCases_right, Fin.addCases_left, appendWords_castAdd, appendWords_natAdd])
+  exact (hL'.congr fun d => boundedWhile_congr _ _ (hcond (d.1, d.2.1))
+    (fun _ => rfl) (cutoff d.2) d.2.2).consequence
+    (fun _ d _ _ _ h => whileSafe_imp _ _ (fun a => (hcond (d.1, d.2.1) a).symm)
+      (fun _ => rfl) (fun _ _ _ hs => hs) h) (fun _ _ => le_rfl)
 
 end Combinators
 
@@ -441,14 +428,10 @@ private theorem table_write_framed {w n K v z : ℕ} {e : M.Handle} (hV : M.Vali
         (M.framed hV).abs s := by
   have ha : T.base + v ∈ T.footprint := Block.mem_footprint.mpr (Block.owns_add hv)
   have he : ∀ a ∈ (M.framed hV).footprint s,
-      Function.update s.mem (T.base + v) z a = s.mem a := by
-    intro a h
-    apply Function.update_of_ne
-    intro hEq
-    exact (Finset.disjoint_left.mp hd) (hEq ▸ h) ha
-  obtain ⟨hinv', habs', -⟩ := (M.framed hV).congr
-    (s' := ⟨Function.update s.mem (T.base + v) z, s.frontier⟩) hi he le_rfl hroom
-  exact ⟨hinv', habs'⟩
+      Function.update s.mem (T.base + v) z a = s.mem a := fun a h =>
+    Function.update_of_ne (fun hEq => Finset.disjoint_left.mp hd (hEq ▸ h) ha) _ _
+  exact ((M.framed hV).congr (s' := ⟨Function.update s.mem (T.base + v) z, s.frontier⟩) hi he
+    le_rfl hroom).imp_right And.left
 
 private theorem table_write_op {w n K v z : ℕ} {e : M.Handle} (hV : M.Valid w n K e)
     {T : Block} {s : Memory.State} (hi : (M.framed hV).inv s)
@@ -525,13 +508,8 @@ theorem target_realizes : Realizes .exact
     (reindexRight M.handleWords enc8u M.realizes_insert
       (fun q : (TargetData × ((ℕ × ℕ) × ℕ)) × Unit => ⟨q.1.1.vertex, Prod.snd q.1.2⟩)
       ![2, 7] (by intro q i; fin_cases i <;> rfl))
-  have hDecWrite : Realizes .exact
-      (fun p : (TargetData × ((ℕ × ℕ) × ℕ)) × ℕ => targetWrite p.1)
-      enc9 (WordEncoding.encode (α := Unit))
-      (fun w p _ => Fits w (p.1.1.table.base + p.1.1.vertex) ∧ Fits w (Prod.snd p.1.2 + 1))
-      (fun _ _ => 0) :=
-    targetWrite_realizes.reindex Prod.fst enc9 (Fin.castAdd 1)
-      (fun p i => (appendWords_castAdd enc8 wordWords p i).symm)
+  have hDecWrite := targetWrite_realizes.reindex Prod.fst enc9 (Fin.castAdd 1)
+    (fun p i => (appendWords_castAdd enc8 wordWords p i).symm)
   have hDecBranch := bindRight M.handleWords
     (liftRight M.handleWords hDecWrite)
     (reindexRight M.handleWords enc9u M.realizes_decreaseKey
@@ -551,48 +529,18 @@ theorem target_realizes : Realizes .exact
     simp only [PFunctor.FreeM.bind_eq_bind, bind_assoc, pure_bind]
     congr 1 with x : 1
   · intro w d s _ hmem ⟨n, hv, K, hV, hi, hroom, hT, hlen, hd, hsum, hop⟩
-    have hvT : d.2.vertex < d.2.table.length := hlen ▸ hv
     have hAddrFit : Fits w (d.2.table.base + d.2.vertex) :=
-      hmem.fits_of_lt_frontier (hT.lt_frontier hvT)
-    have hSumFit : Fits w (d.2.dist + d.2.weight) := hsum.of_le (by omega)
-    refine ⟨⟨hAddrFit, hSumFit⟩, ?_⟩
-    have hRes : (Memory.spec 0).clientResult s (targetReadSum d.2) =
-        ((s.mem (d.2.table.base + d.2.vertex), 0), d.2.dist + d.2.weight) := rfl
-    have hSt : (Memory.spec 0).clientState s (targetReadSum d.2) = s := rfl
-    rw [hRes, hSt]
-    have hx5 : enc8 (d.2, ((s.mem (d.2.table.base + d.2.vertex), 0),
-        d.2.dist + d.2.weight)) 5 = s.mem (d.2.table.base + d.2.vertex) := rfl
-    have hx6 : enc8 (d.2, ((s.mem (d.2.table.base + d.2.vertex), 0),
-        d.2.dist + d.2.weight)) 6 = 0 := rfl
-    rw [hx5, hx6]
-    by_cases hx0 : s.mem (d.2.table.base + d.2.vertex) = 0
-    · rw [ite_eq_left hx0]
-      refine ⟨⟨hAddrFit, hsum⟩, M.table_write_op hV hi hroom hv hlen hd
+      hmem.fits_of_lt_frontier (hT.lt_frontier (hlen ▸ hv))
+    refine ⟨⟨hAddrFit, hsum.of_le (by omega)⟩, ?_⟩
+    change if s.mem (d.2.table.base + d.2.vertex) = 0 then _ else _
+    split_ifs with hx0 hlt
+    · refine ⟨⟨hAddrFit, hsum⟩, M.table_write_op hV hi hroom hv hlen hd
         (fun u => .insert u (d.2.dist + d.2.weight)) ?_⟩
       simpa only [hx0, Dictionary.Memory.decode_zero] using hop
-    · rw [ite_eq_right hx0]
-      refine ⟨Nat.one_le_iff_ne_zero.mpr hx0, ?_⟩
-      have hSubRes : (Memory.spec 0).clientResult s
-          (targetSubOne (d.2, ((s.mem (d.2.table.base + d.2.vertex), 0),
-            d.2.dist + d.2.weight))) = s.mem (d.2.table.base + d.2.vertex) - 1 := rfl
-      have hSubSt : (Memory.spec 0).clientState s
-          (targetSubOne (d.2, ((s.mem (d.2.table.base + d.2.vertex), 0),
-            d.2.dist + d.2.weight))) = s := rfl
-      rw [hSubRes, hSubSt]
-      have hd7 : enc9 ((d.2, ((s.mem (d.2.table.base + d.2.vertex), 0),
-          d.2.dist + d.2.weight)), s.mem (d.2.table.base + d.2.vertex) - 1) 7 =
-          d.2.dist + d.2.weight := rfl
-      have hd8 : enc9 ((d.2, ((s.mem (d.2.table.base + d.2.vertex), 0),
-          d.2.dist + d.2.weight)), s.mem (d.2.table.base + d.2.vertex) - 1) 8 =
-          s.mem (d.2.table.base + d.2.vertex) - 1 := rfl
-      rw [hd7, hd8]
-      by_cases hlt : d.2.dist + d.2.weight < s.mem (d.2.table.base + d.2.vertex) - 1
-      · rw [ite_eq_left hlt]
-        rw [Dictionary.Memory.decode_of_ne_zero hx0] at hop
-        exact ⟨⟨hAddrFit, hsum⟩, M.table_write_op hV hi hroom hv hlen hd
-          (fun u => .decreaseKey u (d.2.dist + d.2.weight)) (hop hlt)⟩
-      · rw [ite_eq_right hlt]
-        trivial
+    · rw [Dictionary.Memory.decode_of_ne_zero hx0] at hop
+      exact ⟨Nat.one_le_iff_ne_zero.mpr hx0, ⟨hAddrFit, hsum⟩, M.table_write_op hV hi hroom hv
+        hlen hd (fun u => .decreaseKey u (d.2.dist + d.2.weight)) (hop hlt)⟩
+    · exact ⟨Nat.one_le_iff_ne_zero.mpr hx0, trivial⟩
 
 /-- Entry domain for `relaxWord` over `M`. -/
 @[expose] def relaxSafe (w : ℕ) (d : M.Handle × RelaxData) (s : Memory.State) : Prop :=
@@ -655,30 +603,24 @@ theorem relax_realizes : Realizes .exact
   · intro w d s _ hmem ⟨G, hV, hT, u, hn, hm, hu, hf, hdu, hfit, hv⟩
     rcases d with ⟨e, ⟨T, n, m, vcur, du, idx⟩⟩
     dsimp only at hV hT hn hm hu hf hdu hv ⊢
-    subst hn; subst hm; subst hu
-    have hA : AdjacencyList.Memory.Inv (Memory.inputGraph G.n G.m) G.adj s := hf.2.1.2.1
+    subst hn hm hu
     have hi : idx < (G.adj u).length := hv.1
-    obtain ⟨hoff, hlast, htgt, hwt⟩ := Memory.inputGraph_edge hA u hi
+    obtain ⟨hoff, hlast, htgt, hwt⟩ := Memory.inputGraph_edge hf.2.1.2.1 u hi
     refine ⟨⟨hmem.fits_of_lt_frontier hoff, hmem.fits_of_lt_frontier hlast⟩, ?_⟩
     have hRes : (Memory.spec 0).clientResult s (relaxReadEdge ⟨T, G.n, G.m, u.val, du, idx⟩) =
-        ((s.mem (G.n + 4 + 2 * (s.mem (3 + u.val) + idx)),
-          s.mem (G.n + 4 + (2 * (s.mem (3 + u.val) + idx) + 1))), 0) := rfl
-    have hSt : (Memory.spec 0).clientState s (relaxReadEdge ⟨T, G.n, G.m, u.val, du, idx⟩) =
-        s := rfl
-    rw [hRes, hSt, htgt, hwt]
-    have ht7 : enc10 (⟨T, G.n, G.m, u.val, du, idx⟩,
-        ((((G.adj u)[idx]).1.val, ((G.adj u)[idx]).2), 0)) 7 = ((G.adj u)[idx]).1.val := rfl
-    have hn2 : enc10 (⟨T, G.n, G.m, u.val, du, idx⟩,
-        ((((G.adj u)[idx]).1.val, ((G.adj u)[idx]).2), 0)) 2 = G.n := rfl
-    rw [ht7, hn2, ite_eq_left ((G.adj u)[idx]).1.isLt]
-    have hdApart : Disjoint ((M.framed hV).footprint s)
-        (T.footprint ∪ (Memory.inputGraph G.n G.m).footprint) := hf.2.2.1
+        ((((G.adj u)[idx]).1.val, ((G.adj u)[idx]).2), 0) := Prod.ext (Prod.ext htgt hwt) rfl
+    rw [hRes]
+    change if ((G.adj u)[idx]).1.val < G.n then _ else _
+    rw [ite_eq_left ((G.adj u)[idx]).1.isLt]
     have hroomApart : Fits w (s.frontier + (M.framed hV).room s) :=
       hf.2.2.2.of_le (by omega)
     have hcBound : ((G.adj u)[idx]).2 ≤ G.maxWeight := G.le_maxWeight (List.getElem_mem hi)
     refine ⟨G.n, ((G.adj u)[idx]).1.isLt, G.n * G.maxWeight, hV, hf.1, hroomApart,
-      hf.2.1.1, hT.length_eq, hdApart.mono_right Finset.subset_union_left,
-      hfit.of_le (by nlinarith), ?_⟩
+      hf.2.1.1, hT.length_eq, hf.2.2.1.mono_right Finset.subset_union_left,
+      hfit.of_le (by
+        dsimp only
+        have := Nat.mul_le_mul_right (G.maxWeight + 2) (by omega : G.n + 1 ≤ 8 * (G.n + G.m + 2))
+        rw [Nat.add_mul, Nat.one_mul, Nat.mul_add] at this; omega), ?_⟩
     exact relax_valid_queue u ((G.adj u)[idx]).1 du idx ((G.adj u)[idx]).2
       (AdjacencyList.step_edge G.adj u hi) hv
 
@@ -734,56 +676,22 @@ theorem scan_realizes : Realizes .exact
   let enc7 := appendWords scanDataWords wordWords
   let enc8 := appendWords enc7 wordWords
   let enc8u := appendWords enc8 (WordEncoding.encode (α := Unit))
-  have hInc : Realizes .exact (fun y : ((ScanData × ℕ) × ℕ) × Unit => pure (y.1.2 + 1))
-      enc8u wordWords (fun w y _ => Fits w (y.1.2 + 1)) (fun _ _ => 0) :=
-    scanInc_realizes.reindex Prod.fst enc8u (Fin.castAdd 0)
-      (fun y i => (appendWords_castAdd enc8 (WordEncoding.encode (α := Unit)) y i).symm)
+  have hInc := scanInc_realizes.reindex
+    (fun y : ((ScanData × ℕ) × ℕ) × Unit => y.1) enc8u (Fin.castAdd 0)
+    (fun y i => (appendWords_castAdd enc8 (WordEncoding.encode (α := Unit)) y i).symm)
   have hStep := bindRight M.handleWords
     (reindexRight M.handleWords enc8 M.relax_realizes
       (fun x : (ScanData × ℕ) × ℕ =>
         ⟨x.1.1.table, x.1.1.n, x.1.1.m, x.1.1.vertex, x.1.1.dist, x.2⟩)
       ![0, 1, 2, 3, 4, 5, 7] (by intro x i; fin_cases i <;> rfl))
     (liftRight M.handleWords hInc)
-  have hStepQuery : ∀ (x : M.Handle × ((ScanData × ℕ) × ℕ)) (s : Memory.State),
-      1 ≤ memoryCost
-        ((relaxWord (M.insert x.1) (M.decreaseKey x.1) x.2.1.1.table
-            (Memory.inputGraph x.2.1.1.n x.2.1.1.m) x.2.1.1.n x.2.1.1.vertex
-            x.2.1.1.dist x.2.2).bind fun _ => pure (x.2.2 + 1)) s := by
-    intro x s
-    exact one_le_memoryCost_liftBind (.read (3 + x.2.1.1.vertex)) _ s
   have hWhile := whileRightLt M.handleWords (input := enc7) (7 : Fin 8) (6 : Fin 8)
-    (fun q : (ScanData × ℕ) × ℕ => q.1.2) hStep hStepQuery
-  have hWhileReindexed : Realizes .exact
-      (fun d : M.Handle × (ScanData × (ℕ × ℕ)) =>
-        boundedWhile
-          (fun (p : M.Handle × (ScanData × ℕ)) (a : ℕ) =>
-            enc8 (p.2, a) 7 < enc8 (p.2, a) 6)
-          (fun x : (M.Handle × (ScanData × ℕ)) × ℕ => do
-            relaxWord (M.insert x.1.1) (M.decreaseKey x.1.1) x.1.2.1.table
-              (Memory.inputGraph x.1.2.1.n x.1.2.1.m) x.1.2.1.n x.1.2.1.vertex
-              x.1.2.1.dist x.2
-            pure (x.2 + 1))
-          (d.1, (d.2.1, d.2.2.1)) d.2.2.1 d.2.2.2)
-      (appendWords M.handleWords (appendWords scanDataWords (WordEncoding.encode (α := ℕ × ℕ))))
-      wordWords
-      (fun w d s =>
-        whileSafe
-          (fun (p : M.Handle × (ScanData × ℕ)) (a : ℕ) =>
-            enc8 (p.2, a) 7 < enc8 (p.2, a) 6)
-          (fun x : (M.Handle × (ScanData × ℕ)) × ℕ => do
-            relaxWord (M.insert x.1.1) (M.decreaseKey x.1.1) x.1.2.1.table
-              (Memory.inputGraph x.1.2.1.n x.1.2.1.m) x.1.2.1.n x.1.2.1.vertex
-              x.1.2.1.dist x.2
-            pure (x.2 + 1))
-          (fun w x s =>
-            M.relaxSafe w (x.1.1, ⟨x.1.2.1.table, x.1.2.1.n, x.1.2.1.m, x.1.2.1.vertex,
-              x.1.2.1.dist, x.2⟩) s ∧ Fits w (x.2 + 1))
-          w (d.1, (d.2.1, d.2.2.1)) d.2.2.1 d.2.2.2 s)
-      (fun _ _ => 0) :=
-    reindexRight M.handleWords
-      (appendWords scanDataWords (WordEncoding.encode (α := ℕ × ℕ)))
-      hWhile (fun q => ((q.1, q.2.1), q.2.2))
-      ![0, 1, 2, 3, 4, 5, 6, 7] (by intro q i; fin_cases i <;> rfl)
+    (fun q : (ScanData × ℕ) × ℕ => q.1.2) hStep
+    (fun x s => one_le_memoryCost_liftBind (.read (3 + x.2.1.1.vertex)) _ s)
+  have hWhileReindexed := reindexRight M.handleWords
+    (appendWords scanDataWords (WordEncoding.encode (α := ℕ × ℕ)))
+    hWhile (fun q : ScanData × (ℕ × ℕ) => ((q.1, q.2.1), q.2.2))
+    ![0, 1, 2, 3, 4, 5, 6, 7] (by intro q i; fin_cases i <;> rfl)
   have hAfterWhile := bindRight M.handleWords hWhileReindexed
     (liftRight M.handleWords (noop_realizes
       (appendWords (appendWords scanDataWords (WordEncoding.encode (α := ℕ × ℕ))) wordWords)))
@@ -803,35 +711,17 @@ theorem scan_realizes : Realizes .exact
   · intro w d s _ hmem hvHist ⟨G, hV, hT, u, hn, hm, hu, hf, hdu, hfit, hv⟩
     rcases d with ⟨e, ⟨T, n, m, vcur, du⟩⟩
     dsimp only at hV hT hn hm hu hf hdu hv hvHist ⊢
-    subst hn; subst hm; subst hu
-    have hA : AdjacencyList.Memory.Inv (Memory.inputGraph G.n G.m) G.adj s := hf.2.1.2.1
-    obtain ⟨hoff, hnext, hsucc⟩ := Memory.inputGraph_degree hA u
-    refine ⟨⟨hmem.fits_of_lt_frontier hoff, hmem.fits_of_lt_frontier hnext, by omega⟩, ?_⟩
+    subst hn hm hu
+    obtain ⟨hoff, hnext, hsucc⟩ := Memory.inputGraph_degree hf.2.1.2.1 u
+    have hdegEq : s.mem (3 + (u.val + 1)) - s.mem (3 + u.val) = (G.adj u).length := by omega
+    refine ⟨⟨hmem.fits_of_lt_frontier hoff, hmem.fits_of_lt_frontier hnext, by omega⟩, ?_,
+      trivial⟩
     have hDegRes : (Memory.spec 0).clientResult s (scanReadDegree ⟨T, G.n, G.m, u.val, du⟩) =
-        (s.mem (3 + (u.val + 1)) - s.mem (3 + u.val), 0) := rfl
-    have hDegSt : (Memory.spec 0).clientState s (scanReadDegree ⟨T, G.n, G.m, u.val, du⟩) =
-        s := rfl
-    rw [hDegRes, hDegSt]
-    refine ⟨?_, trivial⟩
-    have hdegEq : s.mem (3 + (u.val + 1)) - s.mem (3 + u.val) = (G.adj u).length := by
-      omega
-    rw [hdegEq]
+        ((G.adj u).length, 0) := Prod.ext hdegEq rfl
+    rw [hDegRes]
     have hbfit : Fits w (G.adj u).length :=
       (hmem.mem_fits (3 + (u.val + 1))).of_le (by omega)
     let D := M.dijkstraFramed hV hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj
-    have hWhileHist : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
-        (boundedWhile (fun b i : ℕ => i < b) (fun x => do
-          relaxWord (M.insert e) (M.decreaseKey e) T (Memory.inputGraph G.n G.m)
-            G.n u.val du x.2
-          pure (x.2 + 1)) (G.adj u).length (G.adj u).length 0)) := by
-      let deg0 := s.mem (3 + (u.val + 1)) - s.mem (3 + u.val)
-      have hv2 : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
-          (boundedWhile (fun b i : ℕ => i < b) (fun x => do
-            relaxWord (M.insert e) (M.decreaseKey e) T (Memory.inputGraph G.n G.m)
-              G.n u.val du x.2
-            pure (x.2 + 1)) deg0 deg0 0 >>= fun _ => pure ())) := hvHist.2.2
-      rw [show deg0 = (G.adj u).length from hdegEq] at hv2
-      exact ((validHistory_bind' ..).mp hv2).1
     have hws := Native.scan_while_safe D.toRefinement u du (G.adj u).length
       (fun idx => relaxWord (M.insert e) (M.decreaseKey e) T (Memory.inputGraph G.n G.m)
         G.n u.val du idx)
@@ -839,7 +729,13 @@ theorem scan_realizes : Realizes .exact
       (fun idx => relaxWord_eq (M.framed hV).methods (M.insert e) (M.decreaseKey e)
         (M.insert_eq hV) (M.decreaseKey_eq hV) T (Memory.inputGraph G.n G.m) u du idx)
       (fun idx s _ hinv hvalid => ⟨G, hV, hT, u, rfl, rfl, rfl, hinv, hdu, hfit, hvalid⟩)
-      s hf hbfit (scan_valid_remainingEdges u du hv) hWhileHist
+      s hf hbfit (scan_valid_remainingEdges u du hv) (by
+        have hv2 := hvHist.2.2
+        change (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
+          (boundedWhile _ _ (s.mem (3 + (u.val + 1)) - s.mem (3 + u.val))
+            (s.mem (3 + (u.val + 1)) - s.mem (3 + u.val)) 0 >>= _)) at hv2
+        rw [hdegEq] at hv2
+        exact ((validHistory_bind' ..).mp hv2).1)
     exact whileSafe_imp
       (fun (b : ℕ) (i : ℕ) => i < b)
       (fun (p : M.Handle × (ScanData × ℕ)) (a : ℕ) => enc8 (p.2, a) 7 < enc8 (p.2, a) 6)
@@ -900,13 +796,9 @@ theorem loop_realizes : Realizes .exact
   let enc6 := appendWords stepDataWords wordWords
   let enc7 := appendWords enc6 wordWords
   let enc10 := appendWords enc7 (WordEncoding.encode (α := Option (ℕ × ℕ)))
-  have hExtract : Realizes .exact
-      (fun x : M.Handle × ((StepData × ℕ) × ℕ) => M.extractMin x.1)
-      (appendWords M.handleWords enc7) (WordEncoding.encode (α := Option (ℕ × ℕ)))
-      (fun w x s => ∃ (n K : ℕ) (hV : M.Valid w n K x.1), (M.framed hV).inv s)
-      (fun _ _ => 0) :=
-    M.realizes_extractMin.reindex Prod.fst (appendWords M.handleWords enc7)
-      (Fin.castAdd 7) (fun x i => (appendWords_castAdd M.handleWords enc7 x i).symm)
+  have hExtract := M.realizes_extractMin.reindex
+    (fun x : M.Handle × ((StepData × ℕ) × ℕ) => x.1) (appendWords M.handleWords enc7)
+    (Fin.castAdd 7) (fun x i => (appendWords_castAdd M.handleWords enc7 x i).symm)
   have hScanDec := bindRight M.handleWords
     (reindexRight M.handleWords enc10 M.scan_realizes
       (fun y : ((StepData × ℕ) × ℕ) × Option (ℕ × ℕ) =>
@@ -931,33 +823,13 @@ theorem loop_realizes : Realizes .exact
     unfold loopStepWord
     simp only [PFunctor.FreeM.bind_eq_bind]
     congr 1 with opt : 1
-    have h5 : enc10 (x.2, opt) 5 = x.2.1.2 := rfl
-    have h2 : enc10 (x.2, opt) 2 = x.2.1.1.n := rfl
-    rw [h5, hzero, h2]
-    cases opt with
-    | none =>
-      have h7 : enc10 (x.2, none) 7 = 0 := rfl
-      simp only [h7, ↓reduceIte]
-    | some uk =>
-      rcases uk with ⟨u, du⟩
-      have h7 : enc10 (x.2, some (u, du)) 7 = 1 := rfl
-      have h8 : enc10 (x.2, some (u, du)) 8 = u := rfl
-      have h9 : enc10 (x.2, some (u, du)) 9 = du := rfl
-      rw [h7, ite_eq_right (by decide), h8, h9]
-  have hBodyQuery : ∀ (x : M.Handle × ((StepData × ℕ) × ℕ)) (s : Memory.State),
-      1 ≤ memoryCost ((M.extractMin x.1).bind fun opt =>
-        if enc10 (x.2, opt) 7 = enc10 (x.2, opt) 5 then pure 0
-        else if enc10 (x.2, opt) 8 < enc10 (x.2, opt) 2 then
-          (scanWord (M.insert x.1) (M.decreaseKey x.1) x.2.1.1.table
-            (Memory.inputGraph x.2.1.1.n x.2.1.1.m) x.2.1.1.n
-            (enc10 (x.2, opt) 8) (enc10 (x.2, opt) 9)).bind fun _ => pure (x.2.2 - 1)
-        else pure 0) s := by
-    intro x s
-    rw [memoryCost_bind]
-    have hq := M.extractMin_query x.1 s
-    omega
+    rcases opt with _ | ⟨u, du⟩
+    · exact ite_eq_left hzero.symm
+    · change (if 1 = x.2.1.2 then _ else _) = _
+      rw [hzero, ite_eq_right (by decide)]; rfl
   have hWhile := whileRightLt M.handleWords (input := enc6) (5 : Fin 7) (6 : Fin 7)
-    (fun q : (StepData × ℕ) × ℕ => q.1.1.rounds) hBodyRaw hBodyQuery
+    (fun q : (StepData × ℕ) × ℕ => q.1.1.rounds) hBodyRaw
+    (fun x s => by rw [memoryCost_bind]; have := M.extractMin_query x.1 s; omega)
   have hWhileReindexed := reindexRight M.handleWords
     (appendWords stepDataWords (WordEncoding.encode (α := ℕ × ℕ))) hWhile
     (fun q : StepData × (ℕ × ℕ) => ((q.1, q.2.1), q.2.2))
@@ -980,23 +852,16 @@ theorem loop_realizes : Realizes .exact
   · intro w d s _ _ hvHist ⟨G, hV, hT, hn, hm, hf, hb, hfit, hv⟩
     rcases d with ⟨e, ⟨T, n, m, a0⟩⟩
     dsimp only at hV hT hn hm hf hb hv hvHist ⊢
-    subst hn; subst hm
+    subst hn hm
     refine ⟨trivial, ?_, trivial⟩
     let D := M.dijkstraFramed hV hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj
     have heqStep (a : ℕ) : loopStepWord (M.extractMin e) (M.insert e) (M.decreaseKey e) T
-        (Memory.inputGraph G.n G.m) G.n ((), a) = link D.methods (abstractLoopStep a) := by
-      have h1 := loopStepWord_eq_of_erasure (K := G.n * G.maxWeight) (V := G.n * G.maxWeight + 1)
+        (Memory.inputGraph G.n G.m) G.n ((), a) = link D.methods (abstractLoopStep a) :=
+      (loopStepWord_eq_of_erasure (K := G.n * G.maxWeight) (V := G.n * G.maxWeight + 1)
         (M.framed hV).methods (M.extractMin e) (M.insert e) (M.decreaseKey e)
         (M.insert_eq hV) (M.decreaseKey_eq hV) (M.extractMin_eq hV)
-        T (Memory.inputGraph G.n G.m) ((), a)
-      exact h1.trans (loopStep_eq_link D.methods a)
-    have hWhileHist : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s
-          (boundedWhile (fun _ a => a ≠ 0)
-            (loopStepWord (M.extractMin e) (M.insert e) (M.decreaseKey e)
-              T (Memory.inputGraph G.n G.m) G.n) () a0 a0)) := by
-      unfold loopWord at hvHist
-      exact ((validHistory_bind' ..).mp hvHist).1
+        T (Memory.inputGraph G.n G.m) ((), a)).trans (loopStep_eq_link D.methods a)
+    unfold loopWord at hvHist
     have hws := loop_while_safe D.toRefinement () (fun _ a => a ≠ 0)
       (loopStepWord (M.extractMin e) (M.insert e) (M.decreaseKey e)
         T (Memory.inputGraph G.n G.m) G.n)
@@ -1004,11 +869,10 @@ theorem loop_realizes : Realizes .exact
         (∃ (n' K : ℕ) (hV' : M.Valid w n' K e), (M.framed hV').inv s) ∧
         let opt := (Memory.spec 0).clientResult s (M.extractMin e)
         let s' := (Memory.spec 0).clientState s (M.extractMin e)
-        if enc10 (((⟨T, G.n, G.m, a0⟩, 0), x.2), opt) 7 = 0 then True
-        else if enc10 (((⟨T, G.n, G.m, a0⟩, 0), x.2), opt) 8 < G.n then
-          M.scanSafe w (e, ⟨T, G.n, G.m,
-            enc10 (((⟨T, G.n, G.m, a0⟩, 0), x.2), opt) 8,
-            enc10 (((⟨T, G.n, G.m, a0⟩, 0), x.2), opt) 9⟩) s' ∧ 1 ≤ x.2
+        let w10 := enc10 (((⟨T, G.n, G.m, a0⟩, 0), x.2), opt)
+        if w10 7 = 0 then True
+        else if w10 8 < G.n then
+          M.scanSafe w (e, ⟨T, G.n, G.m, w10 8, w10 9⟩) s' ∧ 1 ≤ x.2
         else True)
       (fun _ => Nat.pos_iff_ne_zero.symm) heqStep
       (fun a s => loopStepWord_result_le _ _ _ T (Memory.inputGraph G.n G.m) G.n ((), a) s)
@@ -1018,17 +882,12 @@ theorem loop_realizes : Realizes .exact
           s hinv hkeys hvalid with hnone | ⟨u, du, hsome, hdu, hinv', hscan⟩
         · dsimp only
           rw [hnone]
-          have h7 : enc10 (((⟨T, G.n, G.m, a0⟩, 0), a), none) 7 = 0 := rfl
-          rw [h7, ite_eq_left rfl]
-          trivial
+          exact ite_eq_left rfl ▸ trivial
         · dsimp only
           rw [hsome]
-          have h7 : enc10 (((⟨T, G.n, G.m, a0⟩, 0), a), some (u.val, du)) 7 = 1 := rfl
-          have h8 : enc10 (((⟨T, G.n, G.m, a0⟩, 0), a), some (u.val, du)) 8 = u.val := rfl
-          have h9 : enc10 (((⟨T, G.n, G.m, a0⟩, 0), a), some (u.val, du)) 9 = du := rfl
-          rw [h7, ite_eq_right (by decide), h8, h9, ite_eq_left u.isLt]
-          exact ⟨⟨G, hV, hT, u, rfl, rfl, rfl, hinv', hdu, hfit, hscan⟩, ha⟩)
-      a0 s hf hb hv hWhileHist
+          exact (ite_eq_left u.isLt).symm ▸
+            ⟨⟨G, hV, hT, u, rfl, rfl, rfl, hinv', hdu, hfit, hscan⟩, ha⟩)
+      a0 s hf hb hv (((validHistory_bind' ..).mp hvHist).1)
     exact whileSafe_imp
       (fun (_ : Unit) (a : ℕ) => a ≠ 0)
       (fun (p : M.Handle × (StepData × ℕ)) (a : ℕ) => enc7 (p.2, a) 5 < enc7 (p.2, a) 6)
@@ -1117,13 +976,8 @@ theorem realizes_runWord : Realizes .exact
   let enc05 := appendWords (WordEncoding.encode (α := Unit)) headerDataWords
   let hdrWithZero := appendWords headerDataWords wordWords
   let hdrWithZeroUnit := appendWords hdrWithZero (WordEncoding.encode (α := Unit))
-  have hAllocCall : Realizes .exact
-      (fun u : Unit × HeaderData => A.alloc u.2.n)
-      enc05 M.handleWords
-      (fun w u s => Fits w (s.frontier + A.span u.2.n))
-      (fun _ _ => 0) :=
-    A.realizes_alloc.reindex (fun u => u.2.n) enc05 ![0]
-      (by intro u i; fin_cases i; rfl)
+  have hAllocCall := A.realizes_alloc.reindex
+    (fun u : Unit × HeaderData => u.2.n) enc05 ![0] (by intro u i; fin_cases i; rfl)
   have hClientCont := bindRight M.handleWords
     (reindexRight M.handleWords hdrWithZero M.realizes_insert
       (fun p : HeaderData × ℕ => ⟨p.1.src, p.2⟩) ![1, 5]
@@ -1146,95 +1000,62 @@ theorem realizes_runWord : Realizes .exact
       (fun j => by
         rw [Fin.addCases_right, appendWords_natAdd, appendWords_castAdd enc05 M.handleWords x j]
         fin_cases j <;> rfl))
-  have hAfterHdr := hAllocCall.bind₀ hIfSrcReindexed
-  have hFull := readGraphHeader_realizes.bind₀ hAfterHdr
+  have hFull := readGraphHeader_realizes.bind₀ (hAllocCall.bind₀ hIfSrcReindexed)
   refine (hFull.congr fun _ => ?_).consequence ?_ (fun _ _ => le_rfl)
   · dsimp only [readGraphHeader, initSourceDist]
     unfold runWord clientWord Memory.allocBlockDirty
     simp only [PFunctor.FreeM.bind_eq_bind, bind_assoc, pure_bind]
     congr 1 with n : 1
-  · rintro w _ _ _ _ ⟨G, rfl, hfit⟩
-    have hn1 : (Memory.State.init G.encode).mem 1 = G.n := rfl
-    have hsrc2 : (Memory.State.init G.encode).mem 2 = G.source.val := rfl
-    have hm3 : (Memory.State.init G.encode).mem (G.n + 3) = G.m := Memory.init_mem_edgeCount G
-    refine ⟨⟨hfit.of_le (by nlinarith), hfit.of_le (by nlinarith),
-      by rw [hn1]; exact hfit.of_le (by nlinarith)⟩, ?_⟩
-    have hHdrRes : (Memory.spec 0).clientResult (Memory.State.init G.encode)
-        (readGraphHeader ()) =
-        ⟨G.n, G.source.val, G.m, ⟨(Memory.State.init G.encode).frontier, G.n⟩⟩ := by
-      rw [← hm3]; rfl
-    have hHdrSt : (Memory.spec 0).clientState (Memory.State.init G.encode)
-        (readGraphHeader ()) =
-        ⟨(Memory.State.init G.encode).mem, (Memory.State.init G.encode).frontier + G.n⟩ := rfl
+  · rintro w ⟨⟩ _ _ _ ⟨G, rfl, hfit⟩
+    let s₀ := Memory.State.init G.encode
+    let f := s₀.frontier
+    have hbase : 8 * (G.n + G.m + 2) ≤ 8 * (G.n + G.m + 2) * (G.maxWeight + 2) :=
+      Nat.le_mul_of_pos_right _ (by omega)
+    refine ⟨⟨hfit.of_le (by omega), hfit.of_le (by omega),
+      hfit.of_le (show G.n + 3 ≤ _ by omega)⟩, ?_⟩
+    have hHdrRes : (Memory.spec 0).clientResult s₀ (readGraphHeader ()) =
+        ⟨G.n, G.source.val, G.m, ⟨f, G.n⟩⟩ := by
+      rw [← Memory.init_mem_edgeCount G]
+      rfl
+    have hHdrSt : (Memory.spec 0).clientState s₀ (readGraphHeader ()) = ⟨s₀.mem, f + G.n⟩ := rfl
     rw [hHdrRes, hHdrSt]
     refine ⟨A.fits_alloc G hfit, ?_⟩
-    obtain ⟨hAllocRes, hAllocSt⟩ := A.run_alloc G.n
-      ⟨(Memory.State.init G.encode).mem, (Memory.State.init G.encode).frontier + G.n⟩
+    obtain ⟨hAllocRes, hAllocSt⟩ := A.run_alloc G.n ⟨s₀.mem, f + G.n⟩
     rw [hAllocRes, hAllocSt]
     dsimp only
-    have h1 : headerDataWords ⟨G.n, G.source.val, G.m,
-        ⟨(Memory.State.init G.encode).frontier, G.n⟩⟩ 1 = G.source.val := rfl
-    have h0 : headerDataWords ⟨G.n, G.source.val, G.m,
-        ⟨(Memory.State.init G.encode).frontier, G.n⟩⟩ 0 = G.n := rfl
-    rw [h1, h0, ite_eq_left G.source.isLt]
-    refine ⟨⟨by
-        rw [Memory.frontier_init G]
-        exact hfit.of_le (by have := G.source.isLt; nlinarith),
-      hfit.of_le (by nlinarith)⟩, ?_⟩
+    change if G.source.val < G.n then _ else _
+    rw [ite_eq_left G.source.isLt]
+    refine ⟨⟨show Fits w ((Memory.State.init G.encode).frontier + G.source.val) from
+      Memory.frontier_init G ▸ hfit.of_le (by have := G.source.isLt; omega),
+      hfit.of_le (by omega)⟩, ?_⟩
     obtain ⟨hV, hInvEmpty, hAbsEmpty, hRoomZero, hFpAbove⟩ := A.init_empty G hfit
-    let f := (Memory.State.init G.encode).frontier
-    let e0 := A.allocated G.n (f + G.n)
-    let sAlloc : Memory.State := ⟨(Memory.State.init G.encode).mem, f + G.n + A.span G.n⟩
-    let sWrite : Memory.State :=
-      ⟨Function.update (Memory.State.init G.encode).mem (f + G.source.val) 1,
-        f + G.n + A.span G.n⟩
-    have hInitRes : (Memory.spec 0).clientResult sAlloc
-        (initSourceDist ⟨G.n, G.source.val, G.m, ⟨f, G.n⟩⟩) = 0 := rfl
-    have hInitSt : (Memory.spec 0).clientState sAlloc
-        (initSourceDist ⟨G.n, G.source.val, G.m, ⟨f, G.n⟩⟩) = sWrite := rfl
-    rw [hInitRes, hInitSt]
-    have hFrameWrite : ∀ a ∈ (M.framed hV).footprint sAlloc, sWrite.mem a = sAlloc.mem a := by
-      intro a ha
-      apply Function.update_of_ne
-      have hlo : f + G.n ≤ a := hFpAbove a ha
-      have hlt := G.source.isLt
-      omega
-    have hRoomFit : Fits w (sWrite.frontier + (M.framed hV).room sAlloc) := by
-      dsimp only [sWrite, f]
-      rw [hRoomZero, Nat.add_zero]
-      exact A.fits_alloc G hfit
+    let sAlloc : Memory.State := ⟨s₀.mem, f + G.n + A.span G.n⟩
+    let sWrite : Memory.State := ⟨Function.update s₀.mem (f + G.source.val) 1, f + G.n + A.span G.n⟩
+    have hFrameWrite : ∀ a ∈ (M.framed hV).footprint sAlloc, sWrite.mem a = sAlloc.mem a :=
+      fun a ha => Function.update_of_ne
+        (by have hlo : f + G.n ≤ a := hFpAbove a ha; have := G.source.isLt; omega) _ _
     obtain ⟨hInvWrite, hAbsWrite, -⟩ := (M.framed hV).congr (s' := sWrite) hInvEmpty
-      hFrameWrite le_rfl hRoomFit
-    refine ⟨⟨G.n, G.source.isLt, G.n * G.maxWeight, hV, hInvWrite, ?_⟩, ?_⟩
-    · change (M.framed hV).abs sWrite G.source = none ∧ 0 ≤ G.n * G.maxWeight
-      rw [hAbsWrite]
-      exact ⟨hAbsEmpty _, Nat.zero_le _⟩
-    · have hT : Dictionary.Memory.Valid ⟨f, G.n⟩ w G.n (G.n * G.maxWeight + 1) :=
-        ⟨rfl, hfit.of_le (by nlinarith)⟩
-      let D := M.dijkstraFramed hV hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj
-      have hCompInit : D.inv sAlloc ∧ D.abs sAlloc = init G := by
-        obtain ⟨hTAinv, hTAabs, hTAlt⟩ := Memory.inv_tableGraph G hT ⟨rfl⟩ (by omega)
-          (A.fits_alloc G hfit)
-        have hDisj : Disjoint ((M.framed hV).footprint sAlloc)
-            (((Dictionary.Memory.framed (n_max := G.n) hT).prod
-              (AdjacencyList.Memory.framed (L := Memory.inputGraph G.n G.m)
-                G.adj ⟨rfl⟩)).footprint sAlloc) := by
-          rw [Finset.disjoint_left]
-          intro a ha hb
-          have h1 : f + G.n ≤ a := hFpAbove a ha
-          have h2 : a < f + G.n := hTAlt _ a hb
-          omega
-        have hApartFit : Fits w (sAlloc.frontier + ((M.framed hV).room sAlloc + (0 + 0))) := by
-          dsimp only [sAlloc, f]
-          rw [hRoomZero]
-          simpa using A.fits_alloc G hfit
-        have hEmptyEq : (M.framed hV).abs sAlloc = IndexedMinPQ.empty G.n :=
-          funext hAbsEmpty
-        exact ⟨⟨hInvEmpty, hTAinv, hDisj, hApartFit⟩, Prod.ext hEmptyEq hTAabs⟩
-      have hLoopSafe := initial_loop_safe_insert G le_rfl (by omega) D.toRefinement
-        (M.insert e0 G.source.val 0) rfl (M.insert_eq hV G.source 0).symm
-        sAlloc hCompInit.1 hCompInit.2
-      exact ⟨G, hV, hT, rfl, rfl, hLoopSafe.1, hLoopSafe.2.1, hfit, hLoopSafe.2.2⟩
+      hFrameWrite le_rfl (hRoomZero ▸ A.fits_alloc G hfit)
+    refine ⟨⟨G.n, G.source.isLt, G.n * G.maxWeight, hV, hInvWrite,
+      hAbsWrite ▸ hAbsEmpty _, Nat.zero_le _⟩, ?_⟩
+    have hT : Dictionary.Memory.Valid ⟨f, G.n⟩ w G.n (G.n * G.maxWeight + 1) :=
+      ⟨rfl, hfit.of_le (by
+        have := Nat.mul_le_mul_right (G.maxWeight + 2) (by omega : G.n + 1 ≤ 8 * (G.n + G.m + 2))
+        rw [Nat.add_mul, Nat.one_mul, Nat.mul_add] at this; omega)⟩
+    let D := M.dijkstraFramed hV hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj
+    obtain ⟨hTAinv, hTAabs, hTAlt⟩ := Memory.inv_tableGraph G hT ⟨rfl⟩ (by omega)
+      (A.fits_alloc G hfit)
+    have hDisj : Disjoint ((M.framed hV).footprint sAlloc)
+        (((Dictionary.Memory.framed (n_max := G.n) hT).prod
+          (AdjacencyList.Memory.framed (L := Memory.inputGraph G.n G.m)
+            G.adj ⟨rfl⟩)).footprint sAlloc) :=
+      Finset.disjoint_left.mpr fun a ha hb =>
+        by have := hFpAbove a ha; have := hTAlt _ a hb; omega
+    have hLoopSafe := initial_loop_safe_insert G le_rfl (by omega) D.toRefinement
+      (M.insert (A.allocated G.n (f + G.n)) G.source.val 0) rfl (M.insert_eq hV G.source 0).symm
+      sAlloc ⟨hInvEmpty, hTAinv, hDisj, hRoomZero ▸ A.fits_alloc G hfit⟩
+      (Prod.ext (funext hAbsEmpty) hTAabs)
+    exact ⟨G, hV, hT, rfl, rfl, hLoopSafe.1, hLoopSafe.2.1, hfit, hLoopSafe.2.2⟩
 
 end NativeAllocator
 

@@ -184,59 +184,33 @@ private theorem dicut_lower_first {θ : ℝ} (h0 : 0 ≤ θ) (hθ : θ ≤ π / 
   obtain ⟨_, hs2⟩ := sin_dicutD0_bounds
   obtain ⟨hc1, hc2⟩ := cos_dicutD0_bounds
   set c₀ : ℝ := 79607001 / 100000000
-  have hlin : (c₀ * π / 2) * (1 + 3 * cos θ) ≤
-      (c₀ * π / 2) * (1 + 3 * (sin dicutD0 - cos dicutD0 * (θ - θ₀))) :=
-    mul_le_mul_of_nonneg_left (by linarith only [htan]) (by positivity)
-  have hA : (58 / 100000000 : ℝ) ≤
-      2 * π - 3 * θ₀ - (c₀ * π / 2) * (1 + 3 * sin dicutD0) := by
-    dsimp only [c₀, θ₀, dicutD0] at hs2 ⊢
+  -- The tangent-line bound is the affine function `A + B * (θ - θ₀)`, nonnegative at both ends.
+  set A := 2 * π - 3 * θ₀ - (c₀ * π / 2) * (1 + 3 * sin dicutD0) with hA_def
+  set B := -3 + 3 * (c₀ * π / 2) * cos dicutD0 with hB_def
+  have hA : (58 / 100000000 : ℝ) ≤ A := by
+    dsimp only [A, c₀, θ₀, dicutD0] at hs2 ⊢
     nlinarith only [hs2, hplo, hphi, hpi]
-  have hB1 : (-16 / 100000000 : ℝ) ≤ -3 + 3 * (c₀ * π / 2) * cos dicutD0 := by
-    dsimp only [c₀, dicutD0] at hc1 ⊢
+  have hB1 : (-16 / 100000000 : ℝ) ≤ B := by
+    dsimp only [B, c₀, dicutD0] at hc1 ⊢
     nlinarith only [hc1, hplo, hpi]
-  have hB2 : -3 + 3 * (c₀ * π / 2) * cos dicutD0 ≤ 0 := by
-    dsimp only [c₀, dicutD0] at hc2 ⊢
+  have hB2 : B ≤ 0 := by
+    dsimp only [B, c₀, dicutD0] at hc2 ⊢
     nlinarith only [hc2, hphi, hpi]
-  have hzero : 0 ≤ (2 * π - 3 * θ₀ - (c₀ * π / 2) * (1 + 3 * sin dicutD0)) -
-      (-3 + 3 * (c₀ * π / 2) * cos dicutD0) * θ₀ := by
+  have hzero : 0 ≤ A - B * θ₀ := by
     dsimp only [θ₀, dicutD0] at hA hB2 ⊢
     nlinarith only [hA, hB2, hplo]
-  have hhalf : 0 ≤ (2 * π - 3 * θ₀ - (c₀ * π / 2) * (1 + 3 * sin dicutD0)) +
-      (-3 + 3 * (c₀ * π / 2) * cos dicutD0) * dicutD0 := by
+  have hhalf : 0 ≤ A + B * dicutD0 := by
     dsimp only [dicutD0] at hA hB1 ⊢
     linarith only [hA, hB1]
-  have hconvex : 0 ≤ (π / 2) * ((2 * π - 3 * θ₀ - (c₀ * π / 2) * (1 + 3 * sin dicutD0)) +
-      (-3 + 3 * (c₀ * π / 2) * cos dicutD0) * (θ - θ₀)) := by
-    have h1 : 0 ≤ (π / 2 - θ) *
-        ((2 * π - 3 * θ₀ - (c₀ * π / 2) * (1 + 3 * sin dicutD0)) -
-          (-3 + 3 * (c₀ * π / 2) * cos dicutD0) * θ₀) :=
-      mul_nonneg (sub_nonneg.2 hθ) hzero
-    have h2 : 0 ≤ θ *
-        ((2 * π - 3 * θ₀ - (c₀ * π / 2) * (1 + 3 * sin dicutD0)) +
-          (-3 + 3 * (c₀ * π / 2) * cos dicutD0) * dicutD0) :=
-      mul_nonneg h0 hhalf
-    have hid : (π / 2) * ((2 * π - 3 * θ₀ - (c₀ * π / 2) * (1 + 3 * sin dicutD0)) +
-        (-3 + 3 * (c₀ * π / 2) * cos dicutD0) * (θ - θ₀)) =
-        (π / 2 - θ) * ((2 * π - 3 * θ₀ - (c₀ * π / 2) * (1 + 3 * sin dicutD0)) -
-          (-3 + 3 * (c₀ * π / 2) * cos dicutD0) * θ₀) +
-        θ * ((2 * π - 3 * θ₀ - (c₀ * π / 2) * (1 + 3 * sin dicutD0)) +
-          (-3 + 3 * (c₀ * π / 2) * cos dicutD0) * dicutD0) := by
-      dsimp only [θ₀]
-      ring
-    linarith only [h1, h2, hid]
-  have hcomb : (c₀ * π / 2) * (1 + 3 * (sin dicutD0 - cos dicutD0 * (θ - θ₀))) ≤ 2 * π - 3 * θ := by
-    have hdiff : (2 * π - 3 * θ) -
-        (c₀ * π / 2) * (1 + 3 * (sin dicutD0 - cos dicutD0 * (θ - θ₀))) =
-        (2 * π - 3 * θ₀ - (c₀ * π / 2) * (1 + 3 * sin dicutD0)) +
-        (-3 + 3 * (c₀ * π / 2) * cos dicutD0) * (θ - θ₀) := by ring
-    have hnn : 0 ≤ (2 * π - 3 * θ) -
-        (c₀ * π / 2) * (1 + 3 * (sin dicutD0 - cos dicutD0 * (θ - θ₀))) := by
-      rw [hdiff]
-      exact nonneg_of_mul_nonneg_right hconvex (by positivity)
-    linarith only [hnn]
-  have hrew : c₀ * (1 + 3 * cos θ) * π = 2 * (c₀ * π / 2 * (1 + 3 * cos θ)) := by ring
-  rw [show (2 / π * (2 * π - 3 * θ) : ℝ) = 2 * (2 * π - 3 * θ) / π by ring, le_div_iff₀ hpi, hrew]
-  linarith only [hlin, hcomb]
+  have hconvex : 0 ≤ (π / 2) * (A + B * (θ - θ₀)) := by
+    convert add_nonneg (mul_nonneg (sub_nonneg.2 hθ) hzero) (mul_nonneg h0 hhalf) using 1
+    dsimp only [θ₀]
+    ring
+  have hg := nonneg_of_mul_nonneg_right hconvex (by positivity)
+  have hlin := mul_le_mul_of_nonneg_left htan (by positivity : 0 ≤ 3 * (c₀ * π / 2))
+  rw [hA_def, hB_def] at hg
+  rw [show (2 / π * (2 * π - 3 * θ) : ℝ) = 2 * (2 * π - 3 * θ) / π by ring, le_div_iff₀ hpi]
+  linear_combination 2 * hlin + 2 * hg
 
 /-- Lower bound for `c₀ = 0.79607001` against the defining expression on `[π / 2, 2π / 3)`. -/
 private theorem dicut_lower_second {θ : ℝ} (hθ : π / 2 ≤ θ) (hθ2 : θ < 2 * π / 3) :
@@ -261,8 +235,7 @@ private theorem dicut_lower_second {θ : ℝ} (hθ : π / 2 ≤ θ) (hθ2 : θ <
       dsimp only [c₀]
       nlinarith only [hplo, hphi]
     have h1 : 3 * u ≤ 3 * (c₀ * π / 2) * sin u := by
-      calc 3 * u ≤ (3 * (c₀ * π / 2) * (1 - (π / 6) ^ 2 / 6)) * u :=
-            mul_le_mul_of_nonneg_right hcoeff hu0
+      calc 3 * u ≤ (3 * (c₀ * π / 2) * (1 - (π / 6) ^ 2 / 6)) * u := by gcongr
         _ = 3 * (c₀ * π / 2) * (u * (1 - (π / 6) ^ 2 / 6)) := by ring
         _ ≤ 3 * (c₀ * π / 2) * sin u := mul_le_mul_of_nonneg_left hsin_lin (by positivity)
     have hbase : c₀ * π / 2 ≤ π / 2 := by
@@ -521,8 +494,7 @@ private theorem dicutObj_nonneg_of_add_eq {a b c : ℝ} (hmem : (a, b, c) ∈ Di
   have hlin2 : goemansWilliamsonDicutConstant / 4 * (1 + cos a + cos b + cos c) ≤
       (0.39804 : ℝ) * cos x * (1 + cos x) := by
     calc goemansWilliamsonDicutConstant / 4 * (1 + cos a + cos b + cos c)
-        ≤ goemansWilliamsonDicutConstant / 4 * (2 * cos x * (1 + cos x)) :=
-          mul_le_mul_of_nonneg_left hcos_ub (by positivity)
+        ≤ goemansWilliamsonDicutConstant / 4 * (2 * cos x * (1 + cos x)) := by gcongr
       _ = (goemansWilliamsonDicutConstant / 2) * (cos x * (1 + cos x)) := by ring
       _ ≤ 0.39804 * (cos x * (1 + cos x)) :=
           mul_le_mul_of_nonneg_right (by linarith only [hβ_lt]) hprod0
@@ -540,23 +512,11 @@ private theorem exists_shift_mem_dicutAngleSet {a b c : ℝ} (ha0 : 0 < a) (haπ
     simp only [lt_min_iff]
     refine ⟨⟨⟨ha0, by linarith⟩, ⟨by linarith, by linarith⟩⟩,
       ⟨by linarith, ⟨by linarith, by linarith [pi_pos]⟩⟩⟩
-  have hδπ : δ < π := by
-    have : δ ≤ π / 2 := by
-      dsimp only [δ]; exact min_le_of_right_le (min_le_of_right_le (min_le_right _ _))
-    linarith [pi_pos]
-  have hδ1 : δ ≤ a := by
-    dsimp only [δ]; exact min_le_of_left_le (min_le_of_left_le (min_le_left _ _))
-  have hδ2 : δ ≤ π - a := by
-    dsimp only [δ]; exact min_le_of_left_le (min_le_of_left_le (min_le_right _ _))
-  have hδ3 : δ ≤ b + c - a := by
-    dsimp only [δ]; exact min_le_of_left_le (min_le_of_right_le (min_le_left _ _))
-  have hδ4 : δ ≤ a + c - b := by
-    dsimp only [δ]; exact min_le_of_left_le (min_le_of_right_le (min_le_right _ _))
-  have hδ5 : δ ≤ a + b - c := by
-    dsimp only [δ]; exact min_le_of_right_le (min_le_left _ _)
-  have hδ6 : δ ≤ 2 * π - (a + b + c) := by
-    dsimp only [δ]; exact min_le_of_right_le (min_le_of_right_le (min_le_left _ _))
-  refine ⟨δ, hδ0, hδπ, ?_, ?_⟩ <;> rw [mem_dicutAngleSet_iff]
+  have hδ : δ ≤ a ∧ δ ≤ π - a ∧ δ ≤ b + c - a ∧ δ ≤ a + c - b ∧ δ ≤ a + b - c ∧
+      δ ≤ 2 * π - (a + b + c) ∧ δ ≤ π / 2 := by
+    simp only [δ, min_le_iff, le_refl, or_true, true_or, and_self]
+  obtain ⟨hδ1, hδ2, hδ3, hδ4, hδ5, hδ6, hδ7⟩ := hδ
+  refine ⟨δ, hδ0, by linarith [pi_pos], ?_, ?_⟩ <;> rw [mem_dicutAngleSet_iff]
   · refine ⟨by linarith, by linarith, hb0, hbπ, hc0, hcπ, ?_, ?_, ?_, ?_⟩ <;> linarith
   · refine ⟨by linarith, by linarith, hb0, hbπ, hc0, hcπ, ?_, ?_, ?_, ?_⟩ <;> linarith
 
@@ -676,13 +636,8 @@ theorem goemansWilliamsonDicutConstant_mul_add_cos_le {a b c : ℝ}
   obtain ⟨hcc, hsc⟩ := cos_nonneg_and_sin_eq_of_isMinOn hm_min13 h5s h6s h3 h4 h1 h2
     (by linarith only [h9s]) (by linarith only [h8s]) (by linarith only [h7s])
     (by linarith only [h10s])
-  have le_pi2 : ∀ {t : ℝ}, 0 ≤ t → t ≤ π → 0 ≤ cos t → t ≤ π / 2 := by
-    intro t ht0 htπ hct
-    by_contra hlt
-    push Not at hlt
-    have := cos_lt_cos_of_nonneg_of_le_pi (by positivity) htπ hlt
-    rw [cos_pi_div_two] at this
-    linarith only [this, hct]
+  have le_pi2 : ∀ {t : ℝ}, 0 ≤ t → t ≤ π → 0 ≤ cos t → t ≤ π / 2 := fun _ htπ hct ↦
+    not_lt.mp fun hlt ↦ (cos_neg_of_pi_div_two_lt_of_lt hlt (by linarith [pi_pos])).not_ge hct
   have ha_le : m1 ≤ π / 2 := le_pi2 h1 h2 hca
   have hb_le : m2 ≤ π / 2 := le_pi2 h3 h4 hcb
   have hc_le : m3 ≤ π / 2 := le_pi2 h5 h6 hcc

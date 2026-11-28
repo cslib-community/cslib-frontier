@@ -112,14 +112,8 @@ private theorem card_pi_update_eq {U : Type*} [Fintype U] [DecidableEq U]
   let φ : {f : ∀ u, T u // f u₀ = y₀} × T u₀ ≃ ∀ u, T u :=
     { toFun := fun p => Function.update p.1.1 u₀ p.2
       invFun := fun g => (⟨Function.update g u₀ y₀, Function.update_self ..⟩, g u₀)
-      left_inv := fun ⟨⟨f, hf⟩, _⟩ => Prod.ext (Subtype.ext (funext fun u => by
-        by_cases hu : u = u₀
-        · subst hu; simp [hf]
-        · simp [hu])) (by simp)
-      right_inv := fun g => funext fun u => by
-        by_cases hu : u = u₀
-        · subst hu; simp
-        · simp [hu] }
+      left_inv := fun ⟨⟨f, hf⟩, _⟩ => by simp [Function.update_idem, ← hf]
+      right_inv := fun g => by simp [Function.update_idem] }
   rw [← Fintype.card_prod, Fintype.card_congr φ]
 
 /-- **Core Lund–Yannakakis label-extraction lemma**: given candidate label sets `L u : Finset β`
@@ -200,12 +194,8 @@ theorem exists_labelling_of_list_sets {β γ : Type} [DecidableEq γ] [Nonempty 
       have hL := card_pi_update_eq (T := fun u : VL => L' u.1) u₀ yL₀
       have hR := card_pi_update_eq (T := fun v : VR => R' v.1) v₀ yR₀
       simp only [hitPair, Choice, Fintype.card_prod]
-      calc (Fintype.card {fL : ∀ u : VL, L' u.1 // fL u₀ = yL₀} *
-              Fintype.card {fR : ∀ v : VR, R' v.1 // fR v₀ = yR₀}) *
-            ((L' u₀.1).card * (R' v₀.1).card)
-          = (Fintype.card {fL : ∀ u : VL, L' u.1 // fL u₀ = yL₀} * (L' u₀.1).card) *
-              (Fintype.card {fR : ∀ v : VR, R' v.1 // fR v₀ = yR₀} * (R' v₀.1).card) := by ring
-        _ = _ := by rw [← Fintype.card_coe (L' u₀.1), ← Fintype.card_coe (R' v₀.1), hL, hR]
+      rw [← hL, ← hR, Fintype.card_coe, Fintype.card_coe]
+      ring
     have hsub_hit : Fintype.card hitPair ≤ (hitSet i).card := by
       rw [← Fintype.card_coe (hitSet i)]
       refine Fintype.card_le_of_injective (fun p : hitPair => (⟨(p.1.1, p.2.1), ?_⟩ : hitSet i))
@@ -224,10 +214,8 @@ theorem exists_labelling_of_list_sets {β γ : Type} [DecidableEq γ] [Nonempty 
       rw [hLeq, hReq, ← mul_assoc]
       exact (_root_.four_mul_le_sq_add _ _).trans (Nat.pow_le_pow_left hle 2)
     have hnat : 4 * Fintype.card Choice ≤ (hitSet i).card * t ^ 2 := by
-      rw [← hcard_mul, mul_comm _ (t ^ 2), show 4 * (Fintype.card hitPair *
-        ((L' u₀.1).card * (R' v₀.1).card)) =
-        4 * ((L' u₀.1).card * (R' v₀.1).card) * Fintype.card hitPair by ring]
-      exact Nat.mul_le_mul hprod_le hsub_hit
+      rw [← hcard_mul, mul_left_comm]
+      exact Nat.mul_le_mul hsub_hit hprod_le
     rw [div_mul_eq_mul_div, div_le_iff₀ (sq_pos_of_pos ht0)]
     exact_mod_cast hnat
   -- Double counting and averaging yield a concrete assignment `c_star`.
@@ -247,12 +235,8 @@ theorem exists_labelling_of_list_sets {β γ : Type} [DecidableEq γ] [Nonempty 
   obtain ⟨c_star, -, hc_star⟩ := Finset.exists_le_of_sum_le Finset.univ_nonempty hsum_sat
   have hcompl_nat : ((g.toGraph projectionEval).unsatEdges (σ_of c_star)).card +
       (Finset.univ.filter fun i : Fin m => sat c_star i).card = m := by
-    have := Finset.sum_filter_add_sum_filter_not (Finset.univ : Finset (Fin m))
-      (fun i : Fin m => sat c_star i) (fun _ => 1)
-    simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_one] at this
-    change (Finset.univ.filter fun i : Fin m => ¬sat c_star i).card +
-      (Finset.univ.filter fun i : Fin m => sat c_star i).card = m
-    omega
+    rw [add_comm]
+    exact (Finset.card_filter_add_card_filter_not _).trans (by simp)
   have hcompl : (((g.toGraph projectionEval).unsatEdges (σ_of c_star)).card : ℝ) +
       ((Finset.univ.filter fun i : Fin m => sat c_star i).card : ℝ) = m := by
     exact_mod_cast hcompl_nat
@@ -265,14 +249,11 @@ theorem exists_labelling_of_list_sets {β γ : Type} [DecidableEq γ] [Nonempty 
       change (1 - _ / (m : ℝ)) * m = _
       field_simp [hm0.ne']; linarith
     exact hc_star.trans (h2 ▸ mul_le_mul_of_nonneg_right (by linarith) hm0.le)
-  have hmain : (1 - 2 * ρ / t) * (4 / (t : ℝ) ^ 2) * m ≤
-      (1 - (g.toGraph projectionEval).unsatVal) * m := by
-    calc (1 - 2 * ρ / t) * (4 / (t : ℝ) ^ 2) * m
-        = (1 - 2 * ρ / t) * m * (4 / (t : ℝ) ^ 2) := by ring
-      _ ≤ (goodEdges.card : ℝ) * (4 / (t : ℝ) ^ 2) :=
-          mul_le_mul_of_nonneg_right hgood_card (by positivity)
-      _ ≤ _ := hfrac
-  exact le_of_mul_le_mul_right hmain hm0
+  refine le_of_mul_le_mul_right ?_ hm0
+  calc (1 - 2 * ρ / t) * (4 / (t : ℝ) ^ 2) * m
+      = (1 - 2 * ρ / t) * m * (4 / (t : ℝ) ^ 2) := by ring
+    _ ≤ (goodEdges.card : ℝ) * (4 / (t : ℝ) ^ 2) := by gcongr
+    _ ≤ _ := hfrac
 
 end LabelExtraction
 

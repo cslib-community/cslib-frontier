@@ -8,11 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordWitness.Spec
-import CslibFrontier.Computability.WordRAM.PreservesMask
 import CslibFrontier.Computability.WordRAM.RegisterFrame
 
 import CslibFrontier.Computability.WordRAM.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Tactic.UpdateSimp
 
 /-!
 # Real coordinate delivery, verifier calls and witness returns
@@ -29,21 +29,8 @@ namespace Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness
 
 open Cslib.WordRAM
 
-private abbrev Stable (i : Fin 400) : Prop :=
-  i.val < 326 ∨ i = Reg.one ∨ i = Reg.zero ∨
-    (345 ≤ i.val ∧ i.val ≤ 348) ∨ (351 ≤ i.val ∧ i.val ≤ 352)
-
-private theorem deliverPair_preserves : ∀ i : Fin 400, Stable i → deliverPair.Preserves i :=
-  Code.preserves_of_preservesAllPred rfl
-
-private theorem receiveWitness_preserves : ∀ i : Fin 400, Stable i →
-    receiveWitness.Preserves i :=
-  Code.preserves_of_preservesAllPred rfl
-
-private theorem scanBank_injective : Function.Injective scanBank := by
-  intro i j h
-  apply Fin.ext
-  simpa only [scanBank, Nat.add_left_cancel_iff] using congrArg Fin.val h
+private theorem scanBank_injective : Function.Injective scanBank := fun _ _ h =>
+  Fin.ext (by simpa only [scanBank, Nat.add_left_cancel_iff] using congrArg Fin.val h)
 
 /-- Execute the real original-weight verifier on the disjoint bank. Every scanned weight
 comes from the original arrays; a nonzero product answer supplies no original-weight witness. -/
@@ -76,20 +63,12 @@ theorem exec_scan {w U n first length out queries count a b : ℕ}
           AC a (y.regs (scanBank WitnessScan.Reg.witness)) = 0) ∧
       ∀ i : Fin 400, i.val < 336 ∨ 368 ≤ i.val → y.regs i = x.regs i := by
   let A : WitnessScan.Args := ⟨5, 5 + n * n, 5 + n * n + n * n, n, a, b, first, length⟩
-  have hargs : A.InRegisters (x.comap scanBank) :=
-    ⟨hx.ab, hx.bc, hx.ac, hx.scanSize, hargA, hargB, hx.scanFirst, hx.scanLength⟩
-  obtain ⟨y, he, ⟨sa, sm, sf, si, sw⟩, _⟩ :=
+  obtain ⟨y, he, ⟨⟨sab, sbc, sac, sn, sa', sb', sfirst, slength⟩, sm, sf, si, sw⟩, _⟩ :=
     ExecWithin.rename_post scanBank_injective (WitnessScan.exec A AB BC AC (x.comap scanBank)
-      hargs ha hb hc hmem hmag hU (hfit.of_le (by
-        dsimp only [A, WitnessScan.Args.addressBound]; omega)))
-  have frame (i : Fin 400) (hi : i.val < 336 ∨ 368 ≤ i.val) : y.regs i = x.regs i := by
-    exact he.regs_eq (Code.preserves_rename_of_offset _ _ (fun _ => rfl) i hi)
-  obtain ⟨sab, sbc, sac, sn, sa', sb', sfirst, slength⟩ := sa
-  refine ⟨y, he, ?_, sm, sa', sb', ?_, ?_, ?_, frame⟩
-  · regs_frame
-  · exact sf
-  · exact si
-  · exact sw
+      ⟨hx.ab, hx.bc, hx.ac, hx.scanSize, hargA, hargB, hx.scanFirst, hx.scanLength⟩ ha hb hc
+      hmem hmag hU (hfit.of_le (by dsimp only [A, WitnessScan.Args.addressBound]; omega)))
+  exact ⟨y, he, by regs_frame, sm, sa', sb', sf, si, sw,
+    fun i hi => he.regs_eq (Code.preserves_rename_of_offset _ _ (fun _ => rfl) i hi)⟩
 
 /-- Load the actual query occurrence into the verifier arguments and increment the native
 scan count. No query enumeration or pair supplied as an algorithm argument replaces the loads. -/
@@ -105,26 +84,17 @@ theorem exec_deliverPair {W n first length out queries count i scans a b : ℕ} 
       ∀ j : Fin 400, j.val < 326 ∨ j = Reg.one ∨ j = Reg.zero ∨
         (345 ≤ j.val ∧ j.val ≤ 348) ∨ (351 ≤ j.val ∧ j.val ≤ 352) →
         y.regs j = x.regs j := by
-  have hp1 : Fits W (i + i + queries + 1) := hfit.of_le (by omega)
-  have hs1 : Fits W (scans + 1) := hfit.of_le (by omega)
   have hreadA : x.mem (i + i + queries) = a := by simpa only [two_mul, Nat.add_comm] using ha
   have hreadB : x.mem (i + i + queries + 1) = b := by
     simpa only [two_mul, Nat.add_comm] using hb
-  let y := x.set Reg.address (i + i) |>.set Reg.address (i + i + queries)
-    |>.set (scanBank WitnessScan.Reg.a) a |>.set Reg.address (i + i + queries + 1)
-    |>.set (scanBank WitnessScan.Reg.b) b |>.set Reg.scans (scans + 1)
-  have he : ExecWithin W deliverPair x y 6 := by
-    ram_eval [deliverPair, y, hi, hs, hx.queries, hx.one, hreadA, hreadB,
-      hp1, hs1, Reg.address, Reg.index, Reg.queries, Reg.one, Reg.scans,
-      scanBank, WitnessScan.Reg.a, WitnessScan.Reg.b]
-  have frame (j : Fin 400) (hj : Stable j) : y.regs j = x.regs j :=
-    he.regs_eq (deliverPair_preserves j hj)
-  refine ⟨y, he, hx.of_frame frame, rfl, ?_, ?_, ?_, ?_, ?_, frame⟩
-  · rfl
-  · rfl
-  · rfl
-  · regs_frame
-  · exact he.regs_eq (by decide)
+  unfold deliverPair
+  wram_exec [hi, hs, hx.queries, hx.one, hreadA, hreadB]
+  exact ⟨by regs_frame, rfl, by wram_simp, by wram_simp, by wram_simp,
+    by regs_frame, by regs_frame, fun j hj => by
+      dsimp only [Reg.one, Reg.zero] at hj
+      rw [show scanBank WitnessScan.Reg.a = 349 from rfl,
+        show scanBank WitnessScan.Reg.b = 350 from rfl]
+      update_simp [Reg.address, Reg.scans]⟩
 
 /-- Copy back only a genuinely reported verifier success and its actual original coordinates.
 This is a charged native branch, preserving all fixed arguments, memory and the scan count. -/
@@ -143,22 +113,12 @@ theorem exec_receiveWitness {W n first length out queries count flag a b c : ℕ
       ∀ j : Fin 400, j.val < 326 ∨ j = Reg.one ∨ j = Reg.zero ∨
         (345 ≤ j.val ∧ j.val ≤ 348) ∨ (351 ≤ j.val ∧ j.val ≤ 352) →
         y.regs j = x.regs j := by
-  let y := if flag = 1 then x.set Reg.found 1 |>.set Reg.witnessA a
-      |>.set Reg.witnessB b |>.set Reg.witnessC c
-    else x.set Reg.found (x.regs Reg.found)
-  dsimp only [scanBank, WitnessScan.Reg.found, WitnessScan.Reg.a,
-    WitnessScan.Reg.b, WitnessScan.Reg.witness] at hf ha hb hc
-  have he : ExecWithin W receiveWitness x y 5 := by
-    by_cases h : flag = 1 <;>
-      ram_eval [receiveWitness, y, h, hf, ha, hb, hc, hx.one, Reg.one, Reg.found,
-        Reg.witnessA, Reg.witnessB, Reg.witnessC, scanBank, WitnessScan.Reg.found,
-        WitnessScan.Reg.a, WitnessScan.Reg.b, WitnessScan.Reg.witness]
-  have frame (j : Fin 400) (hj : Stable j) : y.regs j = x.regs j :=
-    he.regs_eq (receiveWitness_preserves j hj)
-  refine ⟨y, he, hx.of_frame frame, ?_, ?_, ?_, ?_, ?_,
-    he.regs_eq (by decide), he.regs_eq (by decide), frame⟩
-  all_goals
-    dsimp only [y]
-    split_ifs <;> rfl
+  unfold receiveWitness
+  by_cases h : flag = 1 <;>
+    wram_exec [h, hf, ha, hb, hc, hx.one] <;>
+    exact ⟨by regs_frame, rfl, by wram_simp [h], by wram_simp [h], by wram_simp [h],
+      by wram_simp [h], by regs_frame, by regs_frame, fun j hj => by
+        dsimp only [Reg.one, Reg.zero] at hj
+        update_simp [Reg.found, Reg.witnessA, Reg.witnessB, Reg.witnessC]⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness

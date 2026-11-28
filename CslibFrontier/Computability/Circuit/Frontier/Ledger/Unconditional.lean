@@ -128,12 +128,10 @@ theorem eventually_gaussian_sub_mul_lt_card_of_ledger
         Ledger special c.program I M → Real.log (Nat.card M) ≤ β n → c.Decides I Acc (S n) →
           (1 + Real.pi / (3 * Real.arccos ((1 + 2 * Real.sqrt 2) / 4)) - ε) * n <
             (c.program.innerGates.filter fun g => ¬special g).card := by
-  have h := eventually_lt_mul_card_of_ledger.{u, v, w} (r := 2) le_rfl
-    (mul_pos two_pos Gaussian.gaussianCoefficient_pos) layoutBound_gaussian hSK hβ hε
-  rw [Gaussian.one_add_inv_two_mul_gaussianCoefficient] at h
-  filter_upwards [h] with n hn σ I Acc c special _ M _ _ hfan hled hM hdec
-  simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
-    hn σ I Acc c special M hfan hled hM hdec
+  simpa only [Gaussian.one_add_inv_two_mul_gaussianCoefficient, Nat.cast_ofNat,
+    show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
+    eventually_lt_mul_card_of_ledger.{u, v, w} (r := 2) le_rfl
+      (mul_pos two_pos Gaussian.gaussianCoefficient_pos) layoutBound_gaussian hSK hβ hε
 
 /-- **The Gaussian frontier lower bound with aggregate gates, at ordinary fan-in two.** Under the
 hypotheses of `eventually_gaussian_sub_mul_lt_card_of_ledger`, for every `ε > 0` and all large `n`,
@@ -152,12 +150,10 @@ theorem eventually_gaussian_sub_mul_lt_card_of_aggregates
         c.Decides I Acc (S n) →
           (1 + Real.pi / (3 * Real.arccos ((1 + 2 * Real.sqrt 2) / 4)) - ε) * n <
             (c.program.innerGates.filter fun g => ¬special g).card := by
-  have h := eventually_lt_mul_card_of_aggregates.{u, v, w} (r := 2) le_rfl
-    (mul_pos two_pos Gaussian.gaussianCoefficient_pos) layoutBound_gaussian hSK hβ hε
-  rw [Gaussian.one_add_inv_two_mul_gaussianCoefficient] at h
-  filter_upwards [h] with n hn σ I Acc c special _ T _ _ hfan hagg hT hdec
-  simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
-    hn σ I Acc c special T hfan hagg hT hdec
+  simpa only [Gaussian.one_add_inv_two_mul_gaussianCoefficient, Nat.cast_ofNat,
+    show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
+    eventually_lt_mul_card_of_aggregates.{u, v, w} (r := 2) le_rfl
+      (mul_pos two_pos Gaussian.gaussianCoefficient_pos) layoutBound_gaussian hSK hβ hε
 
 /-- **The median-switched Gaussian frontier lower bound with a ledger, at ordinary fan-in two.**
 Under the hypotheses of `eventually_two_sub_mul_lt_mul_card_of_ledger`, every circuit deciding
@@ -174,12 +170,10 @@ theorem eventually_switched_sub_mul_lt_card_of_ledger
         Ledger special c.program I M → Real.log (Nat.card M) ≤ β n → c.Decides I Acc (S n) →
           (1 + 2 * Real.pi / (3 * Real.arccos (5 / 6)) - ε) * n <
             (c.program.innerGates.filter fun g => ¬special g).card := by
-  have h := eventually_lt_mul_card_of_ledger.{u, v, w} (r := 2) le_rfl
-    (mul_pos two_pos Switched.switchedCoefficient_pos) layoutBound_switched hSK hβ hε
-  rw [Switched.one_add_inv_two_mul_switchedCoefficient] at h
-  filter_upwards [h] with n hn σ I Acc c special _ M _ _ hfan hled hM hdec
-  simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
-    hn σ I Acc c special M hfan hled hM hdec
+  simpa only [Switched.one_add_inv_two_mul_switchedCoefficient, Nat.cast_ofNat,
+    show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
+    eventually_lt_mul_card_of_ledger.{u, v, w} (r := 2) le_rfl
+      (mul_pos two_pos Switched.switchedCoefficient_pos) layoutBound_switched hSK hβ hε
 
 /-- **The median-switched Gaussian frontier lower bound with aggregate gates, at ordinary fan-in
 two.** Under the hypotheses of `eventually_switched_sub_mul_lt_card_of_ledger`, every circuit
@@ -198,12 +192,10 @@ theorem eventually_switched_sub_mul_lt_card_of_aggregates
         c.Decides I Acc (S n) →
           (1 + 2 * Real.pi / (3 * Real.arccos (5 / 6)) - ε) * n <
             (c.program.innerGates.filter fun g => ¬special g).card := by
-  have h := eventually_lt_mul_card_of_aggregates.{u, v, w} (r := 2) le_rfl
-    (mul_pos two_pos Switched.switchedCoefficient_pos) layoutBound_switched hSK hβ hε
-  rw [Switched.one_add_inv_two_mul_switchedCoefficient] at h
-  filter_upwards [h] with n hn σ I Acc c special _ T _ _ hfan hagg hT hdec
-  simpa only [Nat.cast_ofNat, show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
-    hn σ I Acc c special T hfan hagg hT hdec
+  simpa only [Switched.one_add_inv_two_mul_switchedCoefficient, Nat.cast_ofNat,
+    show (2 : ℝ) - 1 = 1 by norm_num, one_mul] using
+    eventually_lt_mul_card_of_aggregates.{u, v, w} (r := 2) le_rfl
+      (mul_pos two_pos Switched.switchedCoefficient_pos) layoutBound_switched hSK hβ hε
 
 /-- **Matched-pair Gaussian frontier lower bound with a ledger**: at ordinary fan-in two, a
 circuit deciding a dense rectangle-free family has more than `(1277773 / 277773 - ε) n` ordinary

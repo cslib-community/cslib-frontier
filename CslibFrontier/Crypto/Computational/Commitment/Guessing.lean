@@ -75,11 +75,9 @@ theorem PseudorandomGenerator.naorCommit_guessing_and_binding {generator : List 
     let worlds b := commitmentHidingGame (naorCommit generator) R [] b n
     change _ ≤ Experiment.advantage (worlds false) (worlds true)
     rw [Experiment.advantage_eq_two_mul_guessingAdvantage_guessBit, two_mul]
-    apply le_trans _ le_add_self
-    apply le_of_eq
+    refine le_trans (le_of_eq ?_) le_add_self
     congr 3
-    funext b
-    cases b <;> simp [worlds, commitmentHidingGame, R]
+    exact funext fun b => by cases b <;> simp [worlds, commitmentHidingGame, R]
   · intro n hn
     simpa only [naorBindingProb, max_eq_right (by lia : 1 ≤ 3 * n)] using
       naorBindingProb_lt_of_three_mul (length := fun k => max 1 (3 * k)) hG.length_eq hn
@@ -117,21 +115,18 @@ theorem StatefulHiding.exists_priorPredictor
   let gap n aux := Game.advantage (game n aux false) (game n aux true)
   classical
   -- Hiding permits noncomputable advice, so select the worst bounded word at each parameter.
-  have hmax (n : ℕ) := Finset.exists_max_image (BitString.shortWords (bound n))
-    (gap n) ⟨[], BitString.nil_mem_shortWords _⟩
-  choose worst hworst hle using hmax
+  choose worst hworst hle using fun n => Finset.exists_max_image
+    (BitString.shortWords (bound n)) (gap n) ⟨[], BitString.nil_mem_shortWords _⟩
   have hlen : PolynomiallyBounded (fun n => (worst n).length) :=
     hbound.mono_of_le fun n => BitString.mem_shortWords.mp (hworst n)
-  apply negligible_of_le (hhide worst hlen receiver hR)
-  intro n
-  apply Game.advantage_bind_le_of_support (prior n)
-  rintro ⟨bit, aux⟩ hx
+  refine negligible_of_le (hhide worst hlen receiver hR) fun n =>
+    Game.advantage_bind_le_of_support (prior n) _ _ fun ⟨bit, aux⟩ hx => ?_
   cases bit with
   | false => exact (Game.advantage_self _).trans_le zero_le
   | true =>
-    have hId : (fun guess : Bool => guess == true) = id := by funext b; cases b <;> rfl
+    have hId : (fun guess : Bool => guess == true) = id := funext fun | false => rfl | true => rfl
     change Game.advantage ((game n aux true).map _) ((game n aux false).map _) ≤ gap n (worst n)
-    rw [hId, PMF.map_id, PMF.map_id, Game.advantage_comm]
-    exact hle n aux (BitString.mem_shortWords.mpr (hsupport n (true, aux) hx))
+    simpa only [hId, PMF.map_id, Game.advantage_comm] using
+      hle n aux (BitString.mem_shortWords.mpr (hsupport n (true, aux) hx))
 
 end Cslib.Crypto
