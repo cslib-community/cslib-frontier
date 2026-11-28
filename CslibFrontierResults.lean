@@ -70,6 +70,7 @@ import CslibFrontierResults.Entries.LocalConnection
 import CslibFrontierResults.Entries.SpreadFamilies
 import CslibFrontierResults.Entries.SturmReduced
 import CslibFrontierResults.Entries.DominanceSymmetric
+import CslibFrontierResults.Entries.MedianFive
 import CslibFrontierResults.Entries.PredictionMarketNoTradeMatching
 import CslibFrontierResults.Entries.SergeevMonotoneShift
 import CslibFrontierResults.Entries.ODonnellStabilityDerivative

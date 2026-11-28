@@ -36,8 +36,10 @@ of at most 64 comparisons. The refined `PICK` algorithm uses at most `5.4305n` c
 ## Main results
 
 * `Cslib.Query.partition3_countQueries_le`: the partition makes at most `2n` comparisons.
-* `Cslib.Query.groupMedian_countQueries_le`, `Cslib.Query.medians_countQueries_le`: the group
-  medians cost at most `(6n + 1)/5` comparisons.
+* `Cslib.Query.groupMedian_countQueries_le`: the sorting-based group helper costs at most
+  `mergeSortCountBound` of its input length.
+* `Cslib.Query.medians_countQueries_le`: computing the medians of all blocks costs at most
+  `(6n + 1)/5` comparisons.
 * `Cslib.Query.select_countQueries_le`, `Cslib.Query.select_upperBound`: selection makes at most
   `32n` comparisons.
 
