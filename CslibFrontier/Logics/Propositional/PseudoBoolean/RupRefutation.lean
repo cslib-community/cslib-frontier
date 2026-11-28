@@ -168,32 +168,24 @@ private theorem exists_eq_rup_of_mem_treeSteps (db : List (ℕ × PBConstr)) :
     rw [hsz]
     simp only [treeSteps, List.mem_append, List.mem_singleton] at hst
     rcases hst with (hst | hst) | hst
-    · obtain ⟨K', hs, h, hK, hh, hl, hj⟩ := exists_eq_rup_of_mem_treeSteps db _ _ xs st hst
-      refine ⟨K', hs, h, by simp at hK ⊢; omega, hh, fun l hl' => ?_, fun j hj' => ?_⟩
-      · rcases hl l hl' with h | h
-        · simp only [List.mem_cons] at h ⊢
-          rcases h with rfl | h
-          · exact .inr (.inl rfl)
-          · exact .inl h
-        · exact .inr (List.mem_cons_of_mem _ h)
-      · rcases hj j hj' with h | h
-        · exact .inl (by omega)
-        · exact .inr h
-    · obtain ⟨K', hs, h, hK, hh, hl, hj⟩ := exists_eq_rup_of_mem_treeSteps db _ _ xs st hst
-      refine ⟨K', hs, h, by simp at hK ⊢; omega, hh, fun l hl' => ?_, fun j hj' => ?_⟩
-      · rcases hl l hl' with h | h
-        · simp only [List.mem_cons] at h ⊢
-          rcases h with rfl | h
-          · exact .inr (.inl rfl)
-          · exact .inl h
-        · exact .inr (List.mem_cons_of_mem _ h)
-      · rcases hj j hj' with h | h
-        · exact .inl (by omega)
-        · exact .inr h
+    -- The root step first, then the two subtrees by the same argument.
+    rotate_right
     · refine ⟨K, _, hst, by simp, by simp, fun l hl => .inl hl, fun j hj => .inl ?_⟩
       simp only [List.mem_cons, reduceCtorEq, Hint.id.injEq, List.not_mem_nil, or_false,
         false_or] at hj
       omega
+    all_goals
+      obtain ⟨K', hs, h, hK, hh, hl, hj⟩ := exists_eq_rup_of_mem_treeSteps db _ _ xs st hst
+      refine ⟨K', hs, h, by simp at hK ⊢; omega, hh, fun l hl' => ?_, fun j hj' => ?_⟩
+      · rcases hl l hl' with h | h
+        · simp only [List.mem_cons] at h ⊢
+          rcases h with rfl | h
+          · exact .inr (.inl rfl)
+          · exact .inl h
+        · exact .inr (List.mem_cons_of_mem _ h)
+      · rcases hj j hj' with h | h
+        · exact .inl (by omega)
+        · exact .inr h
 
 /-- **Each step of the refutation is a `rup` step** of a blocking clause of at most `|vs|`
 literals, each of a variable of `vs`, with at most three hints, each the number of a constraint
