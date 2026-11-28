@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Karn Seth
 -/
 
-import CslibFrontier.Crypto.Protocols.UC.Commitment
+import CslibFrontier.Crypto.Protocols.UC.Impossibility.Commitment
 
 /-!
 # Tests for ideal UC bit commitment and the Canetti–Fischlin impossibility theorem

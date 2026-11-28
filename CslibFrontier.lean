@@ -2818,7 +2818,6 @@ public import CslibFrontier.Crypto.Computational.GoldwasserMicali
 public import CslibFrontier.Computability.Distributed.CausalBroadcast.Causal
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.StartLoads
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.NodeRound
-public import CslibFrontier.Crypto.Protocols.UC.Commitment
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Pentagon
 public import CslibFrontier.DataStructure.StateTransition.ExpectedAmortized
 public import CslibFrontier.Privacy.DifferentialPrivacy.Reconstruction
@@ -3889,6 +3888,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Sparse
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Reachability
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.PairBound.ZeroThreshold
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.CommonPrefix
+public import CslibFrontier.Crypto.Protocols.UC.Functionality.Commitment
 public import CslibFrontier.Computability.PCP.Approximation.AssignmentGraph
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.Place
 public import CslibFrontier.Logics.FirstOrder.Ordered.Projection
@@ -9709,6 +9709,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Prices.C
 public import CslibFrontier.Foundations.Data.List.OfFnGetD
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Equality
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.AgreementLimit
+public import CslibFrontier.Crypto.Protocols.UC.Impossibility.Commitment
 public import CslibFrontier.Probability.LocalitySensitiveHash
 public import CslibFrontier.Computability.Kolmogorov.TimeBounded.PolyTime
 public import CslibFrontier.Algorithms.LinearAlgebra.LDLCertificate
@@ -10851,6 +10852,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Open
 public import CslibFrontier.Computability.TreeEval.Ary.Packed.Interpolation
 public import CslibFrontier.Foundations.Data.Int.LogBounds
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Poincare.Poincare
+public import CslibFrontier.Foundations.BooleanAnalysis.ParityPTF
 public import CslibFrontier.Foundations.Combinatorics.Multigraph
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.PairBound.Profiles
 public import CslibFrontier.Crypto.Computational.Lattice.GIVP

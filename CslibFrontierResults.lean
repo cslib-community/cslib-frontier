@@ -45,6 +45,7 @@ import CslibFrontierResults.Entries.BoostingMargin
 import CslibFrontierResults.Entries.ODonnellTribes
 import CslibFrontierResults.Entries.NonCooperativeComputation
 import CslibFrontierResults.Entries.DigitalGoodsBoundsCEPE
+import CslibFrontierResults.Entries.ParityPTF
 import CslibFrontierResults.Entries.CountingContainments
 import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Registry
