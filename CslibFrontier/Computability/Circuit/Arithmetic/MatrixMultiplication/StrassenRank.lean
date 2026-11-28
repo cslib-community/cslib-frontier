@@ -388,7 +388,7 @@ theorem rank_mm_two_mul_mulCost {K : Type*} [CommRing K] [IsDomain K] [Infinite 
   set val : K := ∑ j, A (c.1, j) * B (j, c.2)
   have heval (s₀ t₀ : K) : evalBiv s₀ t₀ P = s₀ * (t₀ * val) := by
     dsimp only [P]
-    rw [evalBiv_circuit_eval, evalBiv_bivMatInputs, hC]
+    rw [evalBiv_circuit_eval, evalBiv_bivMatInputs, hC.eval]
     simp only [entry, Equiv.symm_apply_apply, Matrix.mul_apply, Matrix.of_apply]
     dsimp only [val]
     rw [Finset.mul_sum, Finset.mul_sum]
