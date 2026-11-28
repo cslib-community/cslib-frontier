@@ -462,21 +462,12 @@ private theorem forgetful_daviesMeyer_collision_le {Key Block : Type}
   rw [h_len0, mul_zero, zero_add] at hbad
   set p := (interpret forgetfulAnswer (daviesMeyerCollisionProgram A)).run (fun _ => [])
   have h_apply : (p.map Prod.fst) true ≤ p.toOuterMeasure {x | HasDMCollision x.2} := by
-    have h_map : (p.map Prod.fst) true = p.toOuterMeasure {x | x.1 = true} := by
-      rw [PMF.map_apply, PMF.toOuterMeasure_apply]
-      refine tsum_congr fun ⟨b, st⟩ => ?_
-      by_cases hb : b = true <;> simp [hb]
-    rw [h_map, PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply]
-    refine tsum_le_tsum fun ⟨b, st⟩ => ?_
-    by_cases hmem : (b, st) ∈ p.support
-    · by_cases hb : b = true
-      · subst hb
-        have hcol : HasDMCollision st :=
-          hasDMCollision_of_mem_support_daviesMeyerCollisionProgram hmem
-        simp [hcol]
-      · simp [hb]
-    · have hz : p (b, st) = 0 := (PMF.apply_eq_zero_iff _ _).mpr hmem
-      simp [Set.indicator_apply, hz]
+    rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
+    refine p.toOuterMeasure_mono ?_
+    rintro ⟨b, st⟩ ⟨hb, hmem⟩
+    change b = true at hb
+    subst b
+    exact hasDMCollision_of_mem_support_daviesMeyerCollisionProgram hmem
   have h_enn : (p.map Prod.fst) true ≤
       ((Q + 2).choose 2 : ℕ) * (Fintype.card Block : ℝ≥0∞)⁻¹ :=
     h_apply.trans hbad

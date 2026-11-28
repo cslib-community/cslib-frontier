@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
@@ -47,17 +48,15 @@ theorem toOuterMeasure_bind_le_mul_add_mul (p : PMF α) (kernel : α → PMF β)
     (p.bind kernel).toOuterMeasure event ≤
       p.toOuterMeasure pre * a₁ + p.toOuterMeasure preᶜ * a₂ := by
   classical
-  rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply p pre, ← ENNReal.tsum_mul_right,
-    PMF.toOuterMeasure_apply p preᶜ, ← ENNReal.tsum_mul_right, ← tsum_add]
-  refine tsum_le_tsum fun a => ?_
-  by_cases hs : a ∈ p.support
-  · by_cases ha : a ∈ pre
-    · simpa only [Set.indicator_of_mem ha, Set.indicator_of_notMem (Set.notMem_compl_iff.mpr ha),
-        zero_mul, add_zero] using mul_le_mul_of_nonneg_left (hpre a hs ha) zero_le
-    · simpa only [Set.indicator_of_notMem ha, Set.indicator_of_mem (Set.mem_compl ha), zero_mul,
-        zero_add] using mul_le_mul_of_nonneg_left (hnot a hs ha) zero_le
-  · rw [_root_.PMF.mem_support_iff, not_not] at hs
-    simp only [Set.indicator_apply, hs, ite_self, zero_mul, add_zero, le_rfl]
+  rw [PMF.toOuterMeasure_bind_apply, toOuterMeasure_eq_tsum_mul_indicator p pre,
+    toOuterMeasure_eq_tsum_mul_indicator p preᶜ, ← ENNReal.tsum_mul_right,
+    ← ENNReal.tsum_mul_right, ← tsum_add]
+  simp only [mul_assoc, ← mul_add]
+  refine tsum_mul_mono_support p fun a hs => ?_
+  by_cases ha : a ∈ pre
+  · simpa [Set.indicator_of_mem ha, Set.indicator_of_notMem (Set.notMem_compl_iff.mpr ha)] using
+      hpre a hs ha
+  · simpa [Set.indicator_of_notMem ha, Set.indicator_of_mem (Set.mem_compl ha)] using hnot a hs ha
 
 /-- **Total probability with two cases**, in `ℝ`: if the continuation reaches `event` with
 probability at most `a₁ ≥ 0` after a supported outcome in `pre` and at most `a₂ ≥ 0` after any

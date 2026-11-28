@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Probability.MinEntropy
 public import CslibFrontier.Foundations.Data.BitString.Basic
+import CslibFrontier.Probability.PMF.Support
 import CslibFrontier.Probability.Product
 import CslibFrontier.Probability.StatisticalDistance
 
@@ -170,17 +171,8 @@ theorem exists_minEntropy_map_eq_pure_bool [Nonempty Input] (f : Input → Bool)
     rw [Real.logb_mul (by norm_num) hTpos.ne', Real.logb_self_eq_one (by norm_num)] at hlog
     linarith
   refine ⟨uniformOfFinset T hT, b, hentropy, ?_⟩
-  rw [PMF.map]
-  ext b'
-  rw [PMF.bind_apply]
-  calc
-    ∑' x, (uniformOfFinset T hT) x * PMF.pure (f x) b' =
-        ∑' x, (uniformOfFinset T hT) x * PMF.pure b b' := tsum_congr fun x => by
-      by_cases hx : x ∈ T
-      · rw [(Finset.mem_filter.mp hx).2]
-      · rw [(PMF.apply_eq_zero_iff _ x).mpr (by rwa [mem_support_uniformOfFinset_iff]),
-          zero_mul, zero_mul]
-    _ = PMF.pure b b' := by rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+  exact PMF.map_eq_pure_iff.mpr fun x hx =>
+    (Finset.mem_filter.mp ((mem_support_uniformOfFinset_iff hT x).mp hx)).2
 
 /-- **Seedless extraction fails.** With a seed carrying no randomness, no function to `Bool` is a
 `(log₂ |Input| - 1, ε)`-extractor for `ε < 1 / 2`: some output value `b` has at least half of the

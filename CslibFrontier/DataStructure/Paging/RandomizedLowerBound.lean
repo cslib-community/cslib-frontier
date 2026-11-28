@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.Online.Randomized
 public import CslibFrontier.DataStructure.Paging.Marking
 import CslibFrontier.Foundations.NumberTheory.Harmonic
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.List.FinRange
@@ -506,9 +507,7 @@ private theorem one_le_sum_toReal_tsum {β : Type*} (π : PMF β) (S : Finset α
     (hsum : ∀ b ∈ π.support, (1 : ℝ≥0∞) ≤ ∑ x ∈ S, step b x) :
     (1 : ℝ) ≤ ∑ x ∈ S, ((cost_next x).toReal - cost₀.toReal) := by
   have hterm_le_one : ∀ x, (∑' b, π b * step b x) ≤ 1 := fun x =>
-    calc ∑' b, π b * step b x
-        ≤ ∑' b, π b * 1 := tsum_le_tsum fun b => by gcongr; exact hle b x
-      _ = 1 := by simp only [mul_one, π.tsum_coe]
+    Cslib.Probability.PMF.tsum_mul_le_of_support π fun b _ => hle b x
   have hterm_ne_top : ∀ x, (∑' b, π b * step b x) ≠ ⊤ :=
     fun x => ne_top_of_le_ne_top ENNReal.one_ne_top (hterm_le_one x)
   have htoReal_inc : ∀ x, (cost_next x).toReal - cost₀.toReal = (∑' b, π b * step b x).toReal := by
@@ -518,13 +517,9 @@ private theorem one_le_sum_toReal_tsum {β : Type*} (π : PMF β) (S : Finset α
   have hsum_enn : (1 : ℝ≥0∞) ≤ ∑ x ∈ S, ∑' b, π b * step b x := by
     rw [sum_tsum_ennreal]
     calc (1 : ℝ≥0∞) = ∑' b, π b * 1 := by simp only [mul_one, π.tsum_coe]
-      _ ≤ ∑' b, ∑ x ∈ S, π b * step b x := by
-          refine tsum_le_tsum fun b => ?_
-          by_cases hb : b ∈ π.support
-          · rw [← Finset.mul_sum]
-            gcongr
-            exact hsum b hb
-          · simp only [(PMF.apply_eq_zero_iff π b).mpr hb, zero_mul, Finset.sum_const_zero, le_rfl]
+      _ ≤ ∑' b, π b * ∑ x ∈ S, step b x :=
+        Cslib.Probability.PMF.tsum_mul_mono_support π hsum
+      _ = _ := by simp only [Finset.mul_sum]
   have hsum_ne_top : (∑ x ∈ S, ∑' b, π b * step b x) ≠ ⊤ :=
     ENNReal.sum_ne_top.mpr fun x _ => hterm_ne_top x
   have hreal := ENNReal.toReal_mono hsum_ne_top hsum_enn

@@ -619,9 +619,10 @@ theorem eval_vqForgeExperiment_le_mul_add_of_index {PK SK M Sig : Type} [Inhabit
         (ProbOracleComp.runWith
           (fun q st => ProbComp.eval (vqOracle signer verify pk sk q st))
           (A pk) ⟨[], false⟩).toOuterMeasure {x | x.2.won = true} := by
-    rw [ProbOracleComp.eval_runState, PMF.bind_apply, PMF.toOuterMeasure_eq_tsum_mul_indicator]
-    refine tsum_congr fun x => ?_
-    cases hwon : x.2.won <;> simp [hwon]
+    rw [ProbOracleComp.eval_runState]
+    change (PMF.map (fun x : Unit × VqOracleState M Sig => x.2.won) _) true = _
+    rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
+    rfl
   have hunion :=
     ProbOracleComp.toOuterMeasure_bad_le_sum_planted_candidate_of_cost
       (badHandler := fun q st => ProbComp.eval (vqOracle signer verify pk sk q st))

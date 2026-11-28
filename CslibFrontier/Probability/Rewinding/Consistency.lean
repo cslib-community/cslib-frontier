@@ -95,11 +95,10 @@ private theorem toOuterMeasure_accept_le (μ : PMF R) (acc : R → Bool)
     μ.toOuterMeasure {r | acc r = true} ≤
       μ.toOuterMeasure {r | acc r = true ∧ ∀ j b, opens r j b = true → b = π j} +
         ∑ j ∈ Finset.range M, μ.toOuterMeasure {r | acc r = true ∧ opens r j (!π j) = true} := by
-  rw [← PMF.toOuterMeasure_apply_inter_support]
-  calc μ.toOuterMeasure ({r | acc r = true} ∩ μ.support)
+  calc μ.toOuterMeasure {r | acc r = true}
       ≤ μ.toOuterMeasure ({r | acc r = true ∧ ∀ j b, opens r j b = true → b = π j} ∪
           ⋃ j ∈ Finset.range M, {r | acc r = true ∧ opens r j (!π j) = true}) := by
-        refine MeasureTheory.measure_mono fun r ⟨hacc, hr⟩ => ?_
+        refine μ.toOuterMeasure_mono fun r ⟨hacc, hr⟩ => ?_
         by_cases hc : ∀ j b, opens r j b = true → b = π j
         · exact Or.inl ⟨hacc, hc⟩
         · simp only [not_forall, exists_prop] at hc

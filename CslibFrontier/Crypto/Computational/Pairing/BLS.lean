@@ -1338,13 +1338,10 @@ theorem succProbability_eufCmaGame_blsTypedROMScheme_le_of_banked
               true =
             (PMF.iid coin K).toOuterMeasure
               {cs | cs (idxFn α s hs) = true ∧ ∀ i ∈ RFn α s hs, cs i = false} := by
-        rw [PMF.map_apply, PMF.toOuterMeasure_apply]
-        refine tsum_congr fun cs => ?_
-        by_cases hcs : cs (idxFn α s hs) = true ∧ ∀ i ∈ RFn α s hs, cs i = false
-        · rw [Set.indicator_of_mem hcs]
-          simp only [hwon, Bool.true_and, decide_eq_true hcs, ↓reduceIte]
-        · rw [Set.indicator_of_notMem hcs]
-          simp only [hwon, Bool.true_and, decide_eq_false hcs, Bool.true_eq_false, ↓reduceIte]
+        rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
+        congr 1
+        ext cs
+        simp [hwon]
       calc
         ENNReal.ofReal (1 / (2.72 * a)) * (if wonFn α s hs = true then 1 else 0) =
             ENNReal.ofReal (1 / (2.72 * a)) := by

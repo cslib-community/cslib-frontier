@@ -718,12 +718,8 @@ theorem succeedProb_le_schoeningTrialProg {k : ℕ} (hk : 3 ≤ k) {φ : CNF ℕ
       succeedProb ψFin (fairTrial (2 * φ.numVars + k + 3) ψFin) := by
     rw [schoeningTrialProg, ite_eq_left hg,
       eval_schoeningBodyProg_eq_map_fairTrial k φ (ne_nil_of_sat φ.denseRelabel hsat_dense),
-      succeedProb, PMF.map_apply, PMF.toOuterMeasure_apply]
-    congr 2 with σ
-    by_cases hσ : CNF.eval σ ψFin = true
-    · simp [hσ, ψFin]
-    · have hσf : CNF.eval σ ψFin = false := Bool.eq_false_iff.mpr hσ
-      simp [hσf, ψFin]
+      succeedProb, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
+    rfl
   rw [htrue_eq]
   have h1 := trial_success_of_length_le hk hsat_fin hlen_fin
   have h2 := half_mul_succeedProb_trial_le_fairTrial hlen_fin

@@ -678,11 +678,8 @@ private lemma game2_bad_eq_failureProb (f : U → V)
           {x | FlagBad x.2} =
         (runWith (withBadFlag (game2Step f)) A (fun _ => [], false)).toOuterMeasure
           {x | DomainOverlap f (fun μ => cacheDomains (x.2.1 μ))} := by
-    rw [← PMF.toOuterMeasure_apply_inter_support
-        (s := {x : α × ((U → Cache X) × Bool) | FlagBad x.2}),
-      ← PMF.toOuterMeasure_apply_inter_support (s := {x : α × ((U → Cache X) × Bool) |
-        DomainOverlap f (fun μ => cacheDomains (x.2.1 μ))})]
-    exact congrArg _ (Set.ext fun x => and_congr_left fun hmem => (hinv x hmem).2)
+    exact PMF.toOuterMeasure_apply_eq_of_inter_support_eq _
+      (Set.ext fun x => and_congr_left fun hmem => (hinv x hmem).2)
   rw [hcongr, ← splitExperiment_eq_answer A, PMF.toOuterMeasure_map_apply,
     ← game2_map_fst f A, PMF.toOuterMeasure_map_apply]
   rfl

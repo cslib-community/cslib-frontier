@@ -13,6 +13,7 @@ public import CslibFrontier.Languages.Probabilistic.UntilBad
 import CslibFrontier.Languages.Probabilistic.Simulation
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Distributional refinements of randomized specifications
@@ -638,11 +639,9 @@ theorem ExpectedAmortized.client (A : M.ExpectedAmortized lower upper potential)
     simp only [← mul_add]
     calc _ ≤ F.expectedCost lower (M.methods o) e + ∑' x, F.run (M.methods o) e x *
           (D.expectedCost upper (k x.1) (M.abs x.2) + potential x.2) :=
-          add_le_add le_rfl <| tsum_le_tsum fun x => by
-            by_cases hx : x ∈ (F.run (M.methods o) e).support
-            · exact mul_le_mul_of_nonneg_left (ih x.1 (M.inv_of_mem_support o he hv_o hx)
-                (hv_k _ _ (M.step_of_mem_support o he hv_o hx))) zero_le
-            · rw [(PMF.apply_eq_zero_iff _ _).mpr hx, zero_mul, zero_mul]
+          add_le_add le_rfl <| Probability.PMF.tsum_mul_mono_support _ fun x hx =>
+            ih x.1 (M.inv_of_mem_support o he hv_o hx)
+              (hv_k _ _ (M.step_of_mem_support o he hv_o hx))
       _ = (F.expectedCost lower (M.methods o) e +
             ∑' x, F.run (M.methods o) e x * potential x.2) +
           ∑' x, D.law o (M.abs e) x * D.expectedCost upper (k x.1) x.2 := by

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.IP
 public import CslibFrontier.Computability.Probabilistic.PPT
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Sampling
 
@@ -153,11 +154,11 @@ theorem acceptProb_guessingProver {message : Bool → ProbComp (List Bool)}
       ∑' m, ProbComp.eval (message b) m *
         (guessingProver message).guessProb (guessingProver message).init m b = 1 := by
     rw [← (ProbComp.eval (message b)).tsum_coe]
-    refine tsum_congr fun m => ?_
-    by_cases hm : m ∈ (ProbComp.eval (message b)).support
+    refine (Cslib.Probability.PMF.tsum_mul_congr_support _ (g := fun _ => 1)
+      fun m hm => ?_).trans ?_
     · simp only [Prover.guessProb, guessingProver, StateT.run, hsupp m hm]
       simp
-    · simp [(PMF.apply_eq_zero_iff _ _).2 hm]
+    · simp only [mul_one]
   rw [acceptProb_guessingRound,
     hsum false fun m hm => decide_eq_false (hdisjoint m hm),
     hsum true fun _ hm => decide_eq_true hm,

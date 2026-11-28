@@ -17,6 +17,7 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.RandomPermutation
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.SupportTsum
 import CslibFrontier.Probability.PMF.Uniform
 
 /-!
@@ -554,10 +555,7 @@ private theorem toOuterMeasure_bind_le_bind_apply {α β γ : Type*} (p : PMF α
     (h : ∀ a ∈ p.support, (f a).toOuterMeasure s ≤ g a b) :
     (p.bind f).toOuterMeasure s ≤ (p.bind g) b := by
   rw [PMF.toOuterMeasure_bind_apply, PMF.bind_apply]
-  refine tsum_le_tsum fun a => ?_
-  by_cases ha : a ∈ p.support
-  · exact mul_le_mul_right (h a ha) _
-  · simp [(PMF.apply_eq_zero_iff p a).2 ha]
+  exact Cslib.Probability.PMF.tsum_mul_mono_support p h
 
 private theorem bind_apply_eq_zero_of_mem_support {α β : Type*} {p : PMF α} {f : α → PMF β} {b : β}
     (h : p.bind f b = 0) {a : α} (ha : a ∈ p.support) : f a b = 0 := by

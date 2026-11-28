@@ -391,27 +391,14 @@ private theorem map_true_le_bind_add {α β : Type} (run : PMF α) (u : PMF β)
     (himp : ∀ r, ∀ a ∈ run.support, W a = true → B r a = true ∨ Bad r a = true)
     (hbad : ∀ a ∈ run.support, (u.map fun r => Bad r a) true ≤ ε) :
     (run.map W) true ≤ (u.bind fun r => run.map (B r)) true + ε := by
-  have hswap : ∑' r, u r * (run.map (Bad r)) true =
-      (run.bind fun a => u.map fun r => Bad r a) true := by
-    rw [← PMF.bind_apply]
-    congr 1
-    simp only [PMF.map]
-    exact PMF.bind_comm _ _ _
-  have hbadSum : ∑' r, u r * (run.map (Bad r)) true ≤ ε := by
-    rw [hswap, PMF.bind_apply, ← (by rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul] :
-      ∑' a, run a * ε = ε)]
-    exact tsum_le_tsum fun a => by
-      by_cases ha : a ∈ run.support
-      · exact mul_le_mul_of_nonneg_left (hbad a ha) zero_le
-      · simp [not_not.mp ((PMF.mem_support_iff _ _).not.mp ha)]
-  rw [← PMF.bind_const u (run.map W), PMF.bind_apply, PMF.bind_apply]
-  calc ∑' r, u r * (run.map W) true
-      ≤ ∑' r, u r * ((run.map (B r)) true + (run.map (Bad r)) true) :=
-        tsum_le_tsum fun r => mul_le_mul_of_nonneg_left
-          (Cslib.Probability.PMF.map_true_le_add run (himp r)) zero_le
-    _ = ∑' r, u r * (run.map (B r)) true + ∑' r, u r * (run.map (Bad r)) true := by
-        simp_rw [mul_add]; exact tsum_add
-    _ ≤ ∑' r, u r * (run.map (B r)) true + ε := add_le_add le_rfl hbadSum
+  have hbadBind : (u.bind fun r => run.map (Bad r)) true ≤ ε := by
+    change (u.bind fun r => run.bind fun a => PMF.pure (Bad r a)) true ≤ ε
+    rw [PMF.bind_comm]
+    exact Cslib.Probability.PMF.bind_apply_le_on_support run hbad
+  rw [← PMF.bind_const u (run.map W)]
+  exact (Cslib.Probability.PMF.bind_apply_le_add_on_support u true
+    fun r _ => Cslib.Probability.PMF.map_true_le_add run (himp r)).trans
+      (add_le_add le_rfl hbadBind)
 
 private theorem eval_runWith_ccaFalse_ciToCCAAdversary (E : SymmetricCipher)
     (ctBound Q : ℕ → ℕ) (adversary : CIAdversary) (n : ℕ) (k : List Bool)

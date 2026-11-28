@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Probability.PoissonBinomial
 public import CslibFrontier.Probability.StochasticDomination.Basic
+import CslibFrontier.Probability.PMF.EventBind
 import CslibFrontier.Probability.PMF.ToReal
 
 /-!
@@ -99,13 +100,12 @@ theorem replicate_stochasticallyDominates_poissonBinomial {ps : List I} {p : I}
 theorem bind_add_stochasticallyDominates_left (p q : PMF ℕ) :
     StochasticallyDominates (p.bind fun a => q.map fun b => a + b) p := by
   intro U hU
-  rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply]
-  refine tsum_le_tsum fun a => ?_
-  by_cases ha : a ∈ U
-  · rw [Set.indicator_of_mem ha, PMF.toOuterMeasure_map_apply,
-      (PMF.toOuterMeasure_apply_eq_one_iff q ((fun b => a + b) ⁻¹' U)).2 fun b _ =>
-        hU (Nat.le_add_right a b) ha, mul_one]
-  · simp [ha]
+  simpa only [mul_one] using
+    toOuterMeasure_bind_ge_mul_ennreal p (fun a => q.map fun b => a + b) U U (s₂ := 1) le_rfl
+      fun a _ ha => by
+        rw [PMF.toOuterMeasure_map_apply,
+          (PMF.toOuterMeasure_apply_eq_one_iff q ((fun b => a + b) ⁻¹' U)).2
+            fun b _ => hU (Nat.le_add_right a b) ha]
 
 /-- Adding more trials increases `poissonBinomial` in stochastic order. -/
 theorem poissonBinomial_append_stochasticallyDominates_left (ps qs : List I) :

@@ -138,9 +138,8 @@ theorem toOuterMeasure_plurality_replicate_ne_toReal_le {α : Type} [DecidableEq
   refine le_trans ?_ hcount
   simp only [OracleComp.countTrue, OracleComp.replicate_map, Functor.map_map, ProbComp.eval_map,
     PMF.toOuterMeasure_map_apply]
-  rw [← PMF.toOuterMeasure_apply_inter_support]
-  refine ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _)
-    ((ProbComp.eval (OracleComp.replicate k program)).toOuterMeasure.mono fun xs ⟨hxs, hsupp⟩ => ?_)
+  refine ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _) <|
+    PMF.toOuterMeasure_mono _ fun xs ⟨hxs, hsupp⟩ => ?_
   have hlen : xs.length = k := ((ProbComp.mem_support_replicate_iff k program xs).mp hsupp).1
   simp only [Set.mem_preimage, Set.mem_ofPred_eq, count_true_map_beq] at hxs ⊢
   have hle_len : 2 * xs.count a ≤ k := by

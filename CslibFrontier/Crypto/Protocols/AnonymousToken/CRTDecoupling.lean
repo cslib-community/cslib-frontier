@@ -625,9 +625,8 @@ theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
             (ProbOracleComp.runWith (g85Handler setup ck iv d r h5)
               (setup.adv ck tok) false).toOuterMeasure {x | x.2 = true} =
               (secondRun.map Prod.snd) true := by
-          rw [PMF.toOuterMeasure_apply, PMF.map_apply]
-          refine tsum_congr fun x => ?_
-          cases hx : x.2 <;> simp [hx, secondRun]
+          rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
+          rfl
         rw [hbadSet] at h1 h2
         exact ⟨by simpa [firstRun, secondRun, PMF.map, Function.comp_def] using h1,
           by simpa [firstRun, secondRun, PMF.map, Function.comp_def] using h2⟩

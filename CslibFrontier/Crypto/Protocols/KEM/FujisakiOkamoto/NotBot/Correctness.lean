@@ -15,6 +15,7 @@ import CslibFrontier.Crypto.Game.UntilBad
 import CslibFrontier.Languages.Probabilistic.Simulation
 import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
 import CslibFrontier.Probability.PMF.BindFailure
+import CslibFrontier.Probability.PMF.SupportTsum
 
 /-!
 # Correctness hop of the FO IND-CCA proofs
@@ -174,16 +175,14 @@ private theorem eval_testHashH_apply_congr (S : Scheme PK SK M R CT K) (pk : PK)
     (st : SimState M R CT K) (y : K × SimState M R CT K) (hy : GoodCache S.pke pk sk y.2) :
     ProbComp.eval (S.testHashH m c t₁ st) y = ProbComp.eval (S.testHashH m c t₂ st) y := by
   rw [eval_testHashH, eval_testHashH, PMF.bind_apply, PMF.bind_apply]
-  refine tsum_congr fun z => ?_
-  by_cases hz : z ∈ (ProbComp.eval (simHashG S.pke.sampleCoins m st)).support
-  · by_cases hgz : GoodCache S.pke pk sk z.2
-    · simp only [ht z.1 (hgz _ (simHashG_mem_gCache hz))]
-    · have h0 (p : Prop) [Decidable p] : ProbComp.eval ((if p then simHashHq S.sampleKey c
-          else simHashHRaw S.sampleKey (false, m, c)) z.2) y = 0 :=
-        (PMF.apply_eq_zero_iff _ _).mpr fun hmem =>
-          hgz (hy.of_subset fun e he => testCont_gCache_eq S m c p z.2 y hmem ▸ he)
-      rw [h0, h0]
-  · rw [(PMF.apply_eq_zero_iff _ _).mpr hz, zero_mul, zero_mul]
+  refine Cslib.Probability.PMF.tsum_mul_congr_support _ fun z hz => ?_
+  by_cases hgz : GoodCache S.pke pk sk z.2
+  · simp only [ht z.1 (hgz _ (simHashG_mem_gCache hz))]
+  · have h0 (p : Prop) [Decidable p] : ProbComp.eval ((if p then simHashHq S.sampleKey c
+        else simHashHRaw S.sampleKey (false, m, c)) z.2) y = 0 :=
+      (PMF.apply_eq_zero_iff _ _).mpr fun hmem =>
+        hgz (hy.of_subset fun e he => testCont_gCache_eq S m c p z.2 y hmem ▸ he)
+    rw [h0, h0]
 
 omit [DecidableEq M] [DecidableEq CT] in
 private theorem toOuterMeasure_notGood_eq_zero {P : ExplicitCoinPKE PK SK M R CT} {pk : PK}

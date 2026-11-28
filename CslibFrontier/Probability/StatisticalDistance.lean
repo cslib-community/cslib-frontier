@@ -34,6 +34,8 @@ These statements reuse the upstream finite-PMF metric and its enumeration instan
   mixture.
 * `Cslib.Probability.PMF.dist_uniformOfFintype_bool`: statistical distance from uniform on `Bool`.
 * `Cslib.Probability.PMF.dist_eq_sum_filter_lt`: statistical distance as the excess on `{p > q}`.
+* `Cslib.Probability.PMF.dist_eq_toOuterMeasure_toReal_sub`: the probability gap on that event.
+* `Cslib.Probability.PMF.dist_eq_sum_max_sub_zero`: the same excess as a sum of positive parts.
 * `Cslib.Probability.PMF.sum_min_toReal`, `Cslib.Probability.PMF.sum_max_toReal`: the overlap
   `∑ min (p a) (q a)` is `1 - δ` and `∑ max (p a) (q a)` is `1 + δ`.
 
@@ -163,27 +165,10 @@ theorem dist_uniformOfFintype_bool (p : PMF Bool) :
     rw [show (p false).toReal - 2⁻¹ = -((p true).toReal - 2⁻¹) by linarith, abs_neg]
   linarith
 
-/-- Statistical distance is the probability gap on the event where `p` exceeds `q`. -/
-theorem dist_eq_sum_filter_lt [Fintype α] (p q : PMF α) :
-    dist p q = ∑ a ∈ Finset.univ.filter (fun a => (q a).toReal < (p a).toReal),
-      ((p a).toReal - (q a).toReal) := by
-  rw [dist_eq, Finset.sum_filter]
-  have hsum : ∑ a, ((p a).toReal - (q a).toReal) = 0 := by
-    rw [Finset.sum_sub_distrib, sum_toReal, sum_toReal, sub_self]
-  have habs (a : α) : |(p a).toReal - (q a).toReal| =
-      2 * (if (q a).toReal < (p a).toReal then (p a).toReal - (q a).toReal else 0) -
-        ((p a).toReal - (q a).toReal) := by
-    split_ifs with h
-    · rw [abs_of_pos (sub_pos.mpr h)]; ring
-    · rw [abs_of_nonpos (sub_nonpos.mpr (not_lt.mp h))]; ring
-  simp only [habs, Finset.sum_sub_distrib, hsum, ← Finset.mul_sum]
-  ring
-
 private theorem sum_min_add_sum_max [Fintype α] (p q : PMF α) :
     ∑ a, min (p a).toReal (q a).toReal + ∑ a, max (p a).toReal (q a).toReal = 2 := by
   rw [← Finset.sum_add_distrib]
-  simp only [min_add_max, Finset.sum_add_distrib, sum_toReal]
-  norm_num
+  simp only [min_add_max, Finset.sum_add_distrib, sum_toReal, one_add_one_eq_two]
 
 /-- The overlap `∑ a, min (p a) (q a)` of two distributions is `1 - dist p q`. -/
 theorem sum_min_toReal [Fintype α] (p q : PMF α) :
@@ -199,5 +184,29 @@ theorem sum_min_toReal [Fintype α] (p q : PMF α) :
 theorem sum_max_toReal [Fintype α] (p q : PMF α) :
     ∑ a, max (p a).toReal (q a).toReal = 1 + dist p q := by
   linarith [sum_min_add_sum_max p q, sum_min_toReal p q]
+
+/-- The positive part of the pointwise mass difference sums to the statistical distance. -/
+theorem dist_eq_sum_max_sub_zero [Fintype α] (p q : PMF α) :
+    dist p q = ∑ a, max ((p a).toReal - (q a).toReal) 0 := by
+  calc
+    dist p q = (∑ a, max (p a).toReal (q a).toReal) - 1 := by
+      rw [sum_max_toReal, add_sub_cancel_left]
+    _ = _ := by
+      rw [← sum_toReal q, ← Finset.sum_sub_distrib]
+      simp only [← max_sub_sub_right, sub_self]
+
+/-- Statistical distance is the probability gap on the event where `p` exceeds `q`. -/
+theorem dist_eq_sum_filter_lt [Fintype α] (p q : PMF α) :
+    dist p q = ∑ a ∈ Finset.univ.filter (fun a => (q a).toReal < (p a).toReal),
+      ((p a).toReal - (q a).toReal) := by
+  simp only [dist_eq_sum_max_sub_zero, Finset.sum_filter, max_comm _ (0 : ℝ), max_def_lt, sub_pos]
+
+/-- The event where `p` assigns more mass than `q` attains the statistical distance. -/
+theorem dist_eq_toOuterMeasure_toReal_sub [Fintype α] (p q : PMF α) :
+    dist p q =
+      (p.toOuterMeasure {a | (q a).toReal < (p a).toReal}).toReal -
+        (q.toOuterMeasure {a | (q a).toReal < (p a).toReal}).toReal := by
+  simp only [toOuterMeasure_apply_toReal, Set.mem_ofPred_eq, ← Finset.sum_filter,
+    ← Finset.sum_sub_distrib, ← dist_eq_sum_filter_lt]
 
 end Cslib.Probability.PMF

@@ -763,10 +763,9 @@ theorem micaliSoundness_bound [DecidableEq α] (V : PCPVerifier α) (L : Set α)
   rw [micaliSoundnessGame_eq_run_micaliMemoize, ← PMF.toOuterMeasure_apply_singleton,
     PMF.toOuterMeasure_map_apply]
   set run := (OracleComp.interpret (micaliMemoize V σ m) (micaliSoundnessProg V L P)).run ([], [])
-  rw [← PMF.toOuterMeasure_apply_inter_support]
-  calc run.toOuterMeasure ((Prod.fst ⁻¹' {true}) ∩ run.support)
+  calc run.toOuterMeasure (Prod.fst ⁻¹' {true})
       ≤ run.toOuterMeasure {out | ¬ MicaliGoodState V L out.2} :=
-        run.toOuterMeasure.mono fun ⟨_, _⟩ ⟨hres, hmem⟩ =>
+        run.toOuterMeasure_mono fun ⟨_, _⟩ ⟨hres, hmem⟩ =>
           not_micaliGoodState_of_mem_support_micaliSoundnessProg V L σ m P (hres ▸ hmem)
     _ ≤ ((t_FS + 1 : ℕ) : ℝ≥0∞) * (1 / 2) ^ m +
           (Q_MT : ℝ≥0∞) * (((3 * Q_MT + (t_FS + 1) : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)) :=

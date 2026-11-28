@@ -208,13 +208,7 @@ private noncomputable def excess [Fintype Ω] (p q : PMF Ω) (h : 0 < dist p q) 
   PMF.ofFintype (fun a => ENNReal.ofReal (max ((p a).toReal - (q a).toReal) 0 / dist p q)) (by
     rw [← ENNReal.ofReal_sum_of_nonneg fun a _ => div_nonneg (le_max_right _ _) dist_nonneg,
       ← Finset.sum_div]
-    have hsum : ∑ a, max ((p a).toReal - (q a).toReal) 0 = dist p q := by
-      rw [dist_eq_sum_filter_lt, Finset.sum_filter]
-      refine Finset.sum_congr rfl fun a _ => ?_
-      split_ifs with hlt
-      · exact max_eq_left (sub_pos.mpr hlt).le
-      · exact max_eq_right (sub_nonpos.mpr (not_lt.mp hlt))
-    rw [hsum, div_self h.ne', ENNReal.ofReal_one])
+    rw [← dist_eq_sum_max_sub_zero, div_self h.ne', ENNReal.ofReal_one])
 
 private theorem excess_toReal [Fintype Ω] (p q : PMF Ω) (h : 0 < dist p q) (a : Ω) :
     (excess p q h a).toReal = max ((p a).toReal - (q a).toReal) 0 / dist p q := by
