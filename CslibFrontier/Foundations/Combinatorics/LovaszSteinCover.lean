@@ -57,7 +57,7 @@ open Finset
 private theorem sum_card_filter_hit_comm {S β : Type*} [Fintype S] (U : Finset β)
     (hit : S → β → Prop) [DecidableRel hit] :
     ∑ w ∈ U, ((univ.filter (hit · w)).card : ℝ) = ∑ s : S, ((U.filter (hit s ·)).card : ℝ) := by
-  simp only [card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
+  simp only [← sum_boole]
   exact sum_comm
 
 /-- **Greedy covering from fractional density**: if every `w ∈ W` (`W` nonempty) is hit by at least

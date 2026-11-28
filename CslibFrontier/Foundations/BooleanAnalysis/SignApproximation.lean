@@ -86,11 +86,11 @@ variable [Fintype ι] [DecidableEq ι]
 `∑_x (f x - g x)²` points, reading `f` as signs. -/
 theorem hammingDist_signRound_le_sum_sq_sub (f : (ι → Bool) → Bool) (g : (ι → Bool) → ℝ) :
     (hammingDist (signRound g) f : ℝ) ≤ ∑ x, (signVal (f x) - g x) ^ 2 := by
-  rw [hammingDist, card_filter, Nat.cast_sum]
+  rw [hammingDist, ← sum_boole]
   refine sum_le_sum fun x _ => ?_
   split_ifs with h
-  · exact_mod_cast one_le_sq_signVal_sub_of_decide_ne h
-  · simpa using sq_nonneg (signVal (f x) - g x)
+  · exact one_le_sq_signVal_sub_of_decide_ne h
+  · exact sq_nonneg (signVal (f x) - g x)
 
 /-- **Rounding to the sign** [O'Donnell, Section 3.4][ODonnell2014]: the rounding of `g` differs
 from `f` on at most a fraction `𝔼_x (f x - g x)²` of the points, reading `f` as signs. -/

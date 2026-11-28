@@ -152,7 +152,7 @@ theorem commonNeighborCount_ne_zero_iff (a b : Fin n) :
 theorem matX_mul_matY_apply (a b : Fin n) :
     (I.matX e * I.matY e) a b = (I.commonNeighborCount a b : ℤ) := by
   classical
-  rw [Matrix.mul_apply, commonNeighborCount, Finset.card_filter, Nat.cast_sum]
+  rw [Matrix.mul_apply, commonNeighborCount, ← Finset.sum_boole]
   -- Only the columns of the middle vertices matter.
   rw [← Finset.sum_subset (Finset.subset_univ (Finset.univ.map e)) fun j _ hj => by
     rw [I.matX_apply_of_notMem_range e a (by simpa using hj), zero_mul], Finset.sum_map]
@@ -188,7 +188,7 @@ theorem mul_apply_eq_commonNeighborCount_ofMatrices {n D : ℕ}
     (hY : ∀ j b, Y j b = 0 ∨ Y j b = 1) (a b : Fin n) :
     (X * Y) a b = ((ofMatrices X Y W).commonNeighborCount a b : ℤ) := by
   classical
-  rw [Matrix.mul_apply, commonNeighborCount, Finset.card_filter, Nat.cast_sum]
+  rw [Matrix.mul_apply, commonNeighborCount, ← Finset.sum_boole]
   refine Finset.sum_congr rfl fun j _ => ?_
   rcases hX a j with hx | hx <;> rcases hY j b with hy | hy <;>
     simp [ofMatrices, hx, hy]

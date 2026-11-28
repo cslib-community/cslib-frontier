@@ -105,7 +105,7 @@ theorem rosenthalPotential_def [Fintype E] (s : ∀ i, S i) :
 counts each resource `e` with multiplicity `load s e`. -/
 theorem sum_sum_resources_eq_sum_load_mul [Fintype E] (s : ∀ i, S i) (f : E → ℝ) :
     ∑ i, ∑ e ∈ C.resources i (s i), f e = ∑ e, (C.load s e : ℝ) * f e := by
-  simp only [load, Finset.card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero,
+  simp only [load, ← Finset.sum_boole,
     Finset.sum_mul, ite_mul, one_mul, zero_mul]
   rw [Finset.sum_comm]
   exact Finset.sum_congr rfl fun i _ => by rw [Finset.sum_ite_mem, Finset.univ_inter]

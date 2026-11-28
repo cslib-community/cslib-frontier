@@ -184,7 +184,7 @@ private def signedIndicator (R : Finset ι) (c : Bool) (i : ι) : ℝ :=
 private theorem card_filter_sub_half_eq_sum (R : Finset ι) (c : Bool) (x : ι → Bool) :
     (#{i ∈ R | x i = c} : ℝ) - #R / 2 =
       ∑ i, signedIndicator R c i * (((x i).toNat : ℝ) - 1 / 2) := by
-  simp only [signedIndicator, ite_mul, zero_mul, sum_ite_mem, univ_inter, card_filter, Nat.cast_sum]
+  simp only [signedIndicator, ite_mul, zero_mul, sum_ite_mem, univ_inter, ← sum_boole]
   rw [div_eq_mul_inv, ← nsmul_eq_mul, ← sum_const, ← sum_sub_distrib]
   refine sum_congr rfl fun i _ => ?_
   cases c <;> cases x i <;> norm_num

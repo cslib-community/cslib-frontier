@@ -70,8 +70,8 @@ variable [Fintype α]
 in the two samples. -/
 theorem crossCollisionCount_eq_sum {k l : ℕ} (x : Fin k → α) (y : Fin l → α) :
     (crossCollisionCount x y : ℝ) = ∑ a, (occurrenceCount x a : ℝ) * occurrenceCount y a := by
-  simp only [crossCollisionCount, Finset.card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one,
-    Nat.cast_zero, Fintype.sum_prod_type, occurrenceCount_eq_sum, sum_mul_sum]
+  simp only [crossCollisionCount, ← Finset.sum_boole, Fintype.sum_prod_type,
+    occurrenceCount_eq_sum, sum_mul_sum]
   have h (i : Fin k) (j : Fin l) :
       ∑ a : α, (if x i = a then (1 : ℝ) else 0) * (if y j = a then 1 else 0) =
         if x i = y j then 1 else 0 := by
