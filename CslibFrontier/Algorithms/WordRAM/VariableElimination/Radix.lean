@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.WordRAM.ListArray
 public import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 public import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
 public import CslibFrontier.Computability.WordRAM.Realization.WordEncoding.Equiv
+import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -210,24 +211,15 @@ theorem lookupAssign_cost (args : LookupArgs) (s : Memory.State) :
 theorem lookupAssign_valid {w : ℕ} (args : LookupArgs) {s : Memory.State}
     (hb : args.outPtr + args.outLen ≤ s.frontier) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (lookupAssign args)) := by
+  obtain ⟨-, h⟩ := Memory.FramedTriple.iterate (w := w) (s := s) (body := lookupStep)
+    (safe := fun _ _ _ => True) (d := ⟨args.dom, args.target⟩) (n := args.outLen)
+    (a₀ := ⟨args.outPtr, args.idx, 0, 0⟩) (c := 1) (S := ∅) (Q := fun _ _ => True)
+    (fun k st _ => st.cur = args.outPtr + k) rfl (fun k hk st t hst hm => ⟨trivial, by
+      have := hm.1; unfold lookupStep; framed_triple⟩)
+    fun _ _ _ _ => trivial
   unfold lookupAssign
-  refine validHistory_bind_step ?_ (validHistory_pure w _ _)
-  suffices ∀ len cur, cur + len ≤ s.frontier → ∀ remIdx found ans,
-      (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s
-          (iterate lookupStep ⟨args.dom, args.target⟩ len ⟨cur, remIdx, found, ans⟩)) from
-    this args.outLen args.outPtr hb args.idx 0 0
-  intro len
-  induction len with
-  | zero => intro _ _ _ _ _; exact validHistory_pure w s _
-  | succ len ih =>
-    intro cur hcur remIdx found ans
-    obtain ⟨hst, hres⟩ := lookupStep_eval ⟨args.dom, args.target⟩ ⟨cur, remIdx, found, ans⟩ s
-    rw [iterate, validHistory_bind', hst, hres]
-    refine ⟨validHistory_read_bind (show cur < s.frontier by omega) ?_, ?_⟩ <;> split_ifs
-    all_goals first
-      | exact validHistory_pure w s _
-      | exact ih (cur + 1) (by omega) _ _ _
+  exact (Memory.FramedTriple.call (c₂ := 0) h subset_rfl fun _ _ _ _ =>
+    Memory.FramedTriple.pure (Q := fun _ _ => True) trivial).validHistory
 
 theorem lookupAssign_result {args : LookupArgs} {us : List ℕ} {s : Memory.State}
     (hus : Block.HoldsList args.outPtr us s.mem) (hlen : us.length = args.outLen) :

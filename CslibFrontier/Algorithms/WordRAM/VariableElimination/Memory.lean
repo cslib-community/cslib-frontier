@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 public import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
 public import CslibFrontier.Computability.WordRAM.Realization.WordEncoding.Equiv
 public import CslibFrontier.Computability.WordRAM.Realization.PrefixFrame
+public import CslibFrontier.Computability.WordRAM.Realization.FramedLoop
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -27,6 +28,14 @@ membership scanner `memScan` and 4-word descriptor writer `writeDesc`.
   append-only memory layout predicates for factor descriptors.
 * `Cslib.Algorithms.WordRAM.VariableElimination.memScan`: linear array membership scan.
 * `Cslib.Algorithms.WordRAM.VariableElimination.writeDesc`: 4-word factor descriptor writer.
+
+## Main results
+
+* `Cslib.Algorithms.WordRAM.VariableElimination.preservesBelow_of_modifies`: a frame
+  `Memory.Modifies (Set.Ici F)` extends a prefix frame below `F`.
+* `Cslib.Algorithms.WordRAM.VariableElimination.memScan_framed`,
+  `Cslib.Algorithms.WordRAM.VariableElimination.writeDesc_framed`: framed triples fixing the result
+  and final state of `memScan` and `writeDesc`, for `Memory.FramedTriple.call_eq`.
 -/
 
 public section
@@ -38,6 +47,12 @@ open Cslib.Algorithms.Lean.CSP
 open Cslib.DataStructure
 open Cslib.WordRAM
 open Cslib.WordRAM.Realization
+
+/-- A step that changes only cells at or above `F` extends a prefix frame below `F`. -/
+theorem preservesBelow_of_modifies {F : ℕ} {s s₁ t : Memory.State}
+    (h : Memory.Modifies (Set.Ici F) s₁ t) (h₁ : PreservesBelow F s s₁) : PreservesBelow F s t :=
+  ⟨h₁.1, h₁.2.1.trans h.1, fun a ha =>
+    (h.2 a (by have := h₁.1; have := h₁.2.1; omega) (by simpa using ha)).trans (h₁.2.2 a ha)⟩
 
 /-! ### Factor descriptors -/
 
@@ -210,6 +225,18 @@ theorem memScan_realizes :
   · change (st.cur + 1) + j = d.base + d.len
     omega
 
+/-- `memScan` reading a list `xs` below the frontier meets a framed triple that modifies nothing
+and fixes its result, `1` exactly when the key occurs in `xs`, and its final state. -/
+theorem memScan_framed {w : ℕ} (args : MemScanArgs) {xs : List ℕ} {s : Memory.State}
+    (hxs : Block.HoldsList args.base xs s.mem) (hlen : xs.length = args.len)
+    (hb : args.base + args.len ≤ s.frontier) :
+    Memory.FramedTriple w s (memScan args) args.len ∅ fun r t =>
+      r = (if args.target ∈ xs then 1 else 0) ∧ t = s := by
+  have h := Memory.FramedTriple.of_realization (S := ∅) (memScan_valid (w := w) args hb)
+    (by rw [memScan_state]) fun _ h => (h (by rw [memScan_state])).elim
+  rw [memScan_state, memScan_result hxs hlen] at h
+  exact h.mono (memScan_cost args s) fun _ _ => id
+
 /-! ### Descriptor writer (`writeDesc`), live partitioning (`partitionLive`), and `buildOutScope` -/
 
 theorem HoldsFactor.frame_outside {descAddr : ℕ} {f : FactorTable ℕ ℕ} {F : ℕ}
@@ -354,6 +381,18 @@ theorem writeDesc_frame (args : WriteDescArgs) (t : Memory.State) :
     (args.dst + 3) args.enLen a = t.mem a
   rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
     Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+
+/-- An admissible `writeDesc` meets a framed triple of cost `4` that changes only cells at or
+above any `F ≤ args.dst` and fixes its result and final state. -/
+theorem writeDesc_framed {w : ℕ} (args : WriteDescArgs) {F : ℕ} {s : Memory.State}
+    (hv : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (writeDesc args)))
+    (hFdst : F ≤ args.dst) :
+    Memory.FramedTriple w s (writeDesc args) 4 (Set.Ici F) fun r t =>
+      r = (Memory.spec 0).clientResult s (writeDesc args) ∧
+        t = (Memory.spec 0).clientState s (writeDesc args) :=
+  (Memory.FramedTriple.of_realization hv (writeDesc_frame args s).1 fun a ha => by_contra fun h =>
+    ha ((writeDesc_frame args s).2 a (Or.inl (by simp at h; omega)))).mono
+    (writeDesc_cost args s).le fun _ _ => id
 
 theorem writeDesc_spec {w : ℕ} (args : WriteDescArgs) {f : FactorTable ℕ ℕ} {F : ℕ}
     {s : Memory.State} (hwf : Memory.WellFormed w s)
