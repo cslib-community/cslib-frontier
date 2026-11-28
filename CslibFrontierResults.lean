@@ -56,6 +56,7 @@ import CslibFrontierResults.Entries.Cooperative
 import CslibFrontierResults.Entries.InternalRegret
 import CslibFrontierResults.Entries.NCLBandwidth
 import CslibFrontierResults.Entries.LocalConnection
+import CslibFrontierResults.Entries.SpreadFamilies
 import CslibFrontierResults.Entries.SturmReduced
 import CslibFrontierResults.Entries.DominanceSymmetric
 import CslibFrontierResults.Entries.SergeevMonotoneShift

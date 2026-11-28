@@ -5263,6 +5263,14 @@ Lars-Gunnar Svensson.
 Social Choice and Welfare 16(4), 557–567, 1999. https://doi.org/10.1007/s003550050160 . Bibliographic metadata checked via search records on 2026-11-24 UTC; the publisher's text is paywalled and was not inspected, so no internal theorem or page locator is claimed.
 Cited alongside [ma94](#ma94) and [papai00](#papai00) (`Svensson1999`) for non-bossiness, group strategy-proofness, and the axiomatic characterization of top trading cycles.
 
+<a id="talagrand2010small"></a>
+## talagrand2010small
+
+Michel Talagrand, “Are Many Small Sets Explicitly Small?”, STOC 2010.
+Proposition 6.2 on p. 6 converts a small cover into a witness for weak smallness.
+In the [author manuscript](https://michel.talagrand.net/preprints/small.pdf), Proposition 6.7 on p. 7 relates weak smallness to the existence of a spread probability measure supported on the family.
+The proofs on pp. 10–11 give the equivalence of Conjectures 7.8 and 7.11 and derive Conjecture 7.3 with half the constant from Conjecture 7.8.
+
 <a id="tardosvazirani07"></a>
 ## tardosvazirani07
 

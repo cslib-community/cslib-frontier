@@ -4,11 +4,16 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
+module
+
 import CslibFrontier.Probability.Spread.Exceptional
 import CslibFrontier.Probability.Spread.Selector
 
 /-! Concrete integral/fractional covers, spread-law obstructions, selector values and the
 finite minimax majorant. The conjectures themselves are not assumed or asserted here. -/
+
+-- The witnesses are used only inside this ordinary-import regression module.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.SpreadFamilies
 open Finset Cslib.Probability.Spread
