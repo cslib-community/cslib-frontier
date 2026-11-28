@@ -122,16 +122,13 @@ party. -/
 example (b : Bool) (C : Finset (Fin 1)) (s : Unit) :
     ((corruptRouter C ((bitFunc b).toProtocol 0 C)).handle (.inr (.inl (0, ())))).run s =
       if (0 : Fin 1) ∈ C then pure (.inl (some b), s) else pure (.inl none, s) := by
-  let s' : (corruptRouter C ((bitFunc b).toProtocol 0 C)).State := s
-  change ((corruptRouter C ((bitFunc b).toProtocol 0 C)).handle (.inr (.inl (0, ())))).run s' = _
   by_cases h : (0 : Fin 1) ∈ C
-  · simp only [h, ↓reduceIte]
-    rw [corruptRouter_handle_inr_inl_of_mem C _ h]
-    simp only [s', IdealFunctionality.toProtocol, bitFunc, StateT.run, StateT.run_pure,
-      ProbOracleComp.sample_pure, map_pure]
+  · simp only [h, ↓reduceIte, corruptRouter_handle_inr_inl_of_mem C _ h]
+    dsimp only [IdealFunctionality.toProtocol, bitFunc, StateT.run, Functor.map, StateT.map]
+    simp only [bind_pure_comp]
     rfl
-  · simp only [h, ↓reduceIte]
-    exact corruptRouter_handle_inr_inl_of_notMem C _ h () s'
+  · simp only [h, ↓reduceIte, corruptRouter_handle_inr_inl_of_notMem C _ h]
+    rfl
 
 /-- Stateless adversary that forwards one backdoor query to the protocol's network port via
 `queryNet` and returns whether it received a network reply. -/
@@ -165,9 +162,13 @@ theorem eval_exec_askAdv_pingNet (b : Bool) (C : Finset (Fin 1)) (κ : ℕ) (z :
   rw [hnet]
   simp only [liftNet, Machine.liftRightProgram, OracleComp.interpret_bind,
     OracleComp.interpret_pure, ProbOracleComp.interpret_query,
-    Machine.runFrom_bind, Machine.runFrom_query, Machine.runFrom_pure]
-  erw [corruptRouter_handle_inr_inr]
-  simp [IdealFunctionality.toProtocol, bitFunc, StateT.run]
+    Machine.runFrom_bind, Machine.runFrom_query, Machine.runFrom_pure,
+    corruptRouter_handle_inr_inr]
+  dsimp only [IdealFunctionality.toProtocol, bitFunc, StateT.run, Functor.map, StateT.map,
+    Pure.pure, StateT.pure]
+  erw [ProbOracleComp.sample_pure, pure_bind]
+  dsimp only [PFunctor.FreeM.map]
+  erw [Machine.closeProgram_pure, ProbComp.eval_pure]
 
 /-- `execMachine_handle_inl_of_notMem` and `execMachine_handle_inl_of_mem` step `queryParty` on an
 honest vs corrupted party directly. -/
@@ -181,11 +182,11 @@ example (b : Bool) (S : ExecAdversary 1 Unit Bool Unit Unit Unit Unit) (κ : ℕ
   simp [IdealFunctionality.toProtocol, bitFunc, StateT.run]
 
 example (b : Bool) (S : ExecAdversary 1 Unit Bool Unit Unit Unit Unit) (κ : ℕ)
-    (s : (execMachine (bitFunc b).toProtocol S κ {0}).State) :
-    ((execMachine (bitFunc b).toProtocol S κ {0}).handle (.inl (0, ()))).run s =
+    (C : Finset (Fin 1)) (h0 : (0 : Fin 1) ∈ C)
+    (s : (execMachine (bitFunc b).toProtocol S κ C).State) :
+    ((execMachine (bitFunc b).toProtocol S κ C).handle (.inl (0, ()))).run s =
       pure (none, s) := by
-  have h0 : (0 : Fin 1) ∈ ({0} : Finset (Fin 1)) := by decide
-  exact execMachine_handle_inl_of_mem _ _ _ _ h0 () s
+  simp [h0]
 
 /-- Asymptotic emulation also fails for distinguishable functionalities. -/
 theorem not_emulates_bitFunc : ¬ Emulates (bitFunc true).toProtocol (bitFunc false).toProtocol := by

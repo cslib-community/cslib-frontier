@@ -286,16 +286,18 @@ theorem corruptRouter_fcom_isBounded (κ : ℕ) (C : Finset (Fin 2)) :
   refine ⟨OracleComp.IsCostBounded.pure _ 0, fun q s => ?_⟩
   rcases q with ⟨i, x⟩ | ⟨⟨i, x⟩ | q⟩
   · by_cases hi : i ∈ C
-    · simp only [corruptRouter_handle_inl_of_mem C _ hi]
+    · simp only [corruptRouter_handle_inl_of_mem C _ hi, StateT.run_pure]
       exact OracleComp.IsCostBounded.pure _ 0
     · simp only [corruptRouter_handle_inl_of_notMem C _ hi]
       exact (fcom_isBounded κ C).2 (.inl (i, x)) s
   · by_cases hi : i ∈ C
     · simp only [corruptRouter_handle_inr_inl_of_mem C _ hi]
+      erw [StateT.run_map]
       exact (OracleComp.isCostBounded_map_iff _ _ _).mpr ((fcom_isBounded κ C).2 (.inl (i, x)) s)
-    · simp only [corruptRouter_handle_inr_inl_of_notMem C _ hi]
+    · simp only [corruptRouter_handle_inr_inl_of_notMem C _ hi, StateT.run_pure]
       exact OracleComp.IsCostBounded.pure _ 0
-  · rw [corruptRouter_handle_inr_inr]
+  · simp only [corruptRouter_handle_inr_inr]
+    erw [StateT.run_map]
     exact (OracleComp.isCostBounded_map_iff _ _ _).mpr ((fcom_isBounded κ C).2 (.inr q) s)
 
 /-- Adversaries (and simulators) facing `fcom`: environment queries `AdvQ` with replies `AdvR`,
@@ -733,8 +735,10 @@ private theorem handle_plainRouter_deliverCommit_empty [DecidableEq CommitMsg] [
       (plainRouterState scheme κ ∅ (.committed c o) .waiting) =
       pure (.inr .ack, plainRouterState scheme κ ∅ (.committed c o) (.committed c)) := by
   rw [corruptRouter_handle_inr_inr]
-  simp only [PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run, Finset.notMem_empty,
-    ↓reduceIte, map_pure]
+  dsimp only [PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run, Functor.map,
+    StateT.map]
+  simp only [Finset.notMem_empty, ↓reduceIte, bind_pure_comp, map_pure]
+  rfl
 
 private theorem handle_plainRouter_deliverOpen_empty [DecidableEq CommitMsg] [DecidableEq OpenMsg]
     (scheme : PlainCommitmentScheme CommitMsg OpenMsg) (κ : ℕ) (c : CommitMsg) (o : OpenMsg) :
@@ -743,8 +747,10 @@ private theorem handle_plainRouter_deliverOpen_empty [DecidableEq CommitMsg] [De
       (fun res => (.inr .ack, plainRouterState scheme κ ∅ (.opened c o) (.finished res))) <$>
         ProbOracleComp.sample (scheme.verify κ c o) := by
   rw [corruptRouter_handle_inr_inr]
-  simp only [PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run, Finset.notMem_empty,
-    ↓reduceIte, bind_pure_comp, Functor.map_map]
+  dsimp only [PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run, Functor.map,
+    StateT.map]
+  simp only [Finset.notMem_empty, ↓reduceIte, bind_pure_comp, Functor.map_map]
+  rfl
 
 private theorem handle_plainRouter_query_finished
     [DecidableEq CommitMsg] [DecidableEq OpenMsg]
@@ -781,8 +787,10 @@ private theorem handle_plainRouter_deliverOpen_zero [DecidableEq CommitMsg] [Dec
       (fun res => (.inr .ack, plainRouterState scheme κ {0} s₁ (.finished res))) <$>
         ProbOracleComp.sample (scheme.verify κ c o) := by
   rw [corruptRouter_handle_inr_inr]
-  simp only [PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run, Finset.mem_singleton,
-    ↓reduceIte, bind_pure_comp, Functor.map_map]
+  dsimp only [PlainCommitmentScheme.toProtocol, plainRouterState, StateT.run, Functor.map,
+    StateT.map]
+  simp only [Finset.mem_singleton, ↓reduceIte, bind_pure_comp, Functor.map_map]
+  rfl
 
 /-- With no corruptions (`C = ∅`) and `dummyAdversary`, running `honestCommitEnv b` on
 `scheme.toProtocol` has the exact distribution `scheme.acceptGame κ b`. -/
