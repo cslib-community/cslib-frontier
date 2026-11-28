@@ -200,7 +200,9 @@ def notice_text(entry: dict, converted: bool = False) -> str:
         return (f"This draft has had no author activity since {entry['activity']} "
                 f"({entry['idle']}): no push and no comment from its author. If it is still in "
                 "progress, a push or a one-line status comment is enough. If it is superseded, "
-                "please say so and link the successor. Nothing is closed automatically.")
+                "please say so and link the successor. If you have stopped work on it, post "
+                "`RELEASED by=<id> reason=<text>` so that a coordinator can finish it. Nothing is "
+                "closed automatically.")
     if entry["kind"] == "claims":
         return (f"The claim on this issue ({entry['detail']}) has had no visible activity since "
                 f"{entry['activity']} ({entry['idle']}), and no open PR references the issue. A "
@@ -209,7 +211,9 @@ def notice_text(entry: dict, converted: bool = False) -> str:
                 "automatically.")
     text = (f"Changes were requested at `{gr.short(entry['sha'])}` ({entry['request_url']}) on "
             f"{entry['activity']}, and there has been no push or author response for "
-            f"{entry['idle']}. Please push a fix or reply. Under AGENTS.md (Workers, item 3) a "
+            f"{entry['idle']}. Please push a fix or reply, or, if you have stopped, post "
+            "`RELEASED by=<id> reason=<text>` so that a coordinator can finish it. Under "
+            "AGENTS.md (Workers, item 3) a "
             "coordinator may reassign this PR 24 hours after this notice. Nothing is closed "
             "automatically.")
     if converted:

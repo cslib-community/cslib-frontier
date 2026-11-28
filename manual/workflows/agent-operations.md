@@ -169,7 +169,8 @@ review claim still in its lease, an unanswered `REQUEST_CHANGES` at the head fro
 or an approval not written as a verdict line naming a non-author reviewer. It also lists approved
 PRs blocked by checks, conflicts or holds; stacked PRs whose lower PR has landed, and approved PRs
 whose head moved after the approval, which need a restack or `scripts/check_restack.py` first;
-expired `HOLD` lines; and review claims that expired without a verdict. The report never queues.
+expired `HOLD` lines; review claims that expired without a verdict; and PRs released to
+coordinators (`RELEASED`) that no one has taken over (`TAKEOVER`). The report never queues.
 The non-author who queues still reads the PR and runs `queue_pr.py` as above.
 
 ```bash

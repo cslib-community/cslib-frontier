@@ -29,6 +29,8 @@ REST API and reports:
 * **Expired HOLD lines** that no release line answered, for a coordinator to sweep after
   checking that the condition no longer applies or that the owner was notified.
 * **Expired review CLAIMs with no verdict** after them.
+* **Released to coordinators**: PRs whose author posted `RELEASED by=<id> reason=<text>` with no
+  later `TAKEOVER by=<id>`, for a coordinator to take over (policy/review.md, Release).
 
 The approval, holds and claims are read from PR bodies, comments and review bodies, not inline
 review comments or linked issues. "Approved" means agent or human review recorded in the PR; the
@@ -219,7 +221,7 @@ def build_report(gh: gr.GitHub, now: datetime, numbers: list[int] | None = None,
     report = {"repo": gh.repo, "generated_at": gr.fmt_time(now), "scanned": len(scan),
               "drafts_skipped": 0 if numbers else len(pulls) - len(scan),
               "ready": [], "needs_check": [], "blocked": [], "restack": [],
-              "expired_holds": [], "stale_claims": []}
+              "expired_holds": [], "stale_claims": [], "released": []}
 
     def row(a: Analysis, **extra) -> dict:
         approval = (a.other_approval if a.other_approval and not a.at_head
@@ -245,6 +247,10 @@ def build_report(gh: gr.GitHub, now: datetime, numbers: list[int] | None = None,
 
     candidates = []
     for a in analyses:
+        if release := gr.open_release(a.posts):
+            report["released"].append(row(a, by=release.by, reason=release.reason,
+                                          release_url=release.post.url,
+                                          since=gr.fmt_age(now, release.post.when)))
         for hold in a.holds:
             if hold.state(now) == "expired":
                 report["expired_holds"].append({
@@ -353,6 +359,13 @@ def render(report: dict) -> str:
         out += ["", "Queue commands, for a non-author, from a trusted checkout of current `main`:",
                 "", "```bash"] + [e["command"] for e in report["ready"]] + ["```"]
     out.append("")
+
+    out += [f"## Released to coordinators ({len(report['released'])})", ""]
+    if report["released"]:
+        out += ["| PR | Released by | Since | Reason |", "|---|---|---|---|"]
+        out += [f"| {pr_cell(e)} | `{e['by']}` | [{e['since']} ago]({e['release_url']}) | "
+                f"{gr.markdown_cell(gr.excerpt(e['reason'], 100))} |" for e in report["released"]]
+        out.append("")
 
     sections = [("needs_check", "Needs a human-readable check", "reasons"),
                 ("blocked", "Approved at the head, not ready", "reasons")]

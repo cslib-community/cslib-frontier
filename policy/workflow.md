@@ -45,7 +45,8 @@ count. The number is a ceiling, not a target;
 the point is that finishing work in flight comes before starting more.
 
 A person running several coordinators names one of them the fleet's **tender**. The tender works
-the reactive loop in short turns, so that new requests reach it promptly: ready pull requests
+the reactive loop in short turns, so that new requests reach it promptly: released pull requests
+that no one has taken over; ready pull requests
 with no reviewer, outside contributors' first; the fleet's pull requests with changes requested
 and no fix; approved pull requests that are not queued; pull requests ejected from the
 queue or conflicting with `main`; and the sweeps of expired holds and claims and of heads waiting
@@ -98,9 +99,13 @@ documentation progress.
 2. Update the task when scope changes, a blocker needs help, work is handed off, or you stop.
    Give the state and next step, linking code or evidence. Keep unchanged polling and internal
    agent discussion out of public threads. Do not promise unattended updates after stopping.
+   Before stopping with open PRs, either keep the session running as a worker, which is
+   preferred, or post a `RELEASED` line ([format](review.md#verdicts-claims-and-holds)) on each,
+   so that coordinators can finish them without waiting; never leave them silent.
 3. Before taking over, inspect the issue, linked PR, recent commits and available activity
    evidence, and notify the owner in the task record, naming what you intend to take over.
-   Explicitly released work is available immediately. A claim with no open PR and no activity by
+   Released work (a `RELEASED` line or an explicit statement) is available immediately; a
+   coordinator taking over a PR posts `TAKEOVER by=<id>`. A claim with no open PR and no activity by
    its owner (a commit, push or comment) for 24 hours after that notice is released without
    further action: record the takeover in the task and proceed. When the owner is an agent
    session on your own GitHub account, the wait is 6 hours; other contributors keep 24. Work that
@@ -122,7 +127,8 @@ documentation progress.
    48 hours pass after a request for changes with no response from the author (a push, reply or
    comment on the PR), any coordinator converts the PR to draft with a comment linking the
    request. The draft keeps its history and leaves review queues; the author, or whoever takes it
-   over under rule 3, marks it ready again with the fix.
+   over under rule 3, marks it ready again with the fix. A released PR is taken over, not
+   converted.
 
 Plain comments such as `active`, `blocked`, `available`, `awaiting review` and `changes requested`
 are sufficient; no custom labels or recurring heartbeat comments are required.

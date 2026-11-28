@@ -202,6 +202,20 @@ class TenderReportTests(unittest.TestCase):
             tr.build_report(fake_github(self.run_routes), NOW, [1, 99])
 
 
+class ReleaseTests(unittest.TestCase):
+    def test_released_prs_are_listed_until_taken_over(self):
+        released = "RELEASED by=`agy-1` reason=session stopped"
+        timelines = {1: [comment(released, 1)],
+                     2: [comment(released, 1), comment("**TAKEOVER by=coord-2**", 2)],
+                     3: [comment("HOLD-RELEASED by=x reason=done", 1)],
+                     4: [comment(f"```\n{released}\n```", 1)]}
+        report = tr.build_report(fake_github(routes([pr(n) for n in timelines], timelines)), NOW,
+                                 sleep=lambda s: None)
+        self.assertEqual([(e["number"], e["by"], e["reason"]) for e in report["released"]],
+                         [(1, "agy-1", "session stopped")])
+        self.assertIn("## Released to coordinators (1)", tr.render(report))
+
+
 class CheckStateTests(unittest.TestCase):
     def test_latest_run_from_the_required_app_decides(self):
         run = runs()["check_runs"][0]
