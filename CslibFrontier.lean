@@ -4750,6 +4750,7 @@ public import CslibFrontier.Algorithms.WordRAM.Schoening.Counter
 public import CslibFrontier.Computability.Complexity.Classes.AWPP
 public import CslibFrontier.Crypto.Computational.RainbowTable.RunCost
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PointerInput.Program
+public import CslibFrontier.Computability.Circuit.Boolean.ACC0.EvalTable
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CallableFixedPrime.Adapt
 public import CslibFrontier.Computability.Distributed.OrientedCycle.LCL.Linear
 public import CslibFrontier.Computability.Complexity.Fagin.Layout
@@ -7265,6 +7266,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Zhegalkin.AdditiveBoun
 public import CslibFrontier.Computability.Circuit.Boolean.MassProduction.Basic
 public import CslibFrontier.Crypto.Computational.CramerShoup.Interleaved
 public import CslibFrontier.Foundations.Analysis.InnerProductSpace.GramSchmidtOrtho
+public import CslibFrontier.Computability.Circuit.Boolean.ACC0.CNFCheck
 public import CslibFrontier.MachineLearning.StatisticalQuery.Parity
 public import CslibFrontier.Computability.Automata.MPDA.Emptiness
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Node
