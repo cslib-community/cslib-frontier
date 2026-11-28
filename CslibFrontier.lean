@@ -7391,6 +7391,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.CheckedAnswerRegiste
 public import CslibFrontier.Languages.Probabilistic.BoundedUniform
 public import CslibFrontier.Crypto.Protocols.MPC.BatchOT
 public import CslibFrontier.Computability.Circuit.DagProtocol
+public import CslibFrontier.Crypto.Protocols.UC.DynamicMultiSession
 public import CslibFrontier.Foundations.BooleanAnalysis.MultilinearExtension
 public import CslibFrontier.Computability.PolyTime.CNF.SparsePolyCompile
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandCost
