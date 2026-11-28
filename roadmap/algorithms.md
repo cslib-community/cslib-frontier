@@ -109,7 +109,6 @@ The directions below extend the single-parameter, Groves/VCG, optimal-auction an
 Social welfare and social choice functions on strict rankings, from Arrow's impossibility theorem (Geanakoplos's pivotal-voter proof) onward.
 
 - **Strategy-proofness beyond the full domain:** the Gibbard–Satterthwaite theorem allowing individual indifference, and Gibbard's 1977 theorem that strategy-proof random social choice functions are mixtures of unilateral and duple rules.
-- **Quantitative Arrow** ([#2131](https://github.com/cslib-community/cslib-frontier/issues/2131)): Kalai's Fourier-analytic bound on the probability of a Condorcet paradox and its robust version via FKN.
 - **Computational social choice:** polynomial-time manipulation of greedy-manipulable rules, NP-hardness of manipulating second-order Copeland (Bartholdi–Tovey–Trick 1989), and the complexity of winner determination for Dodgson and Kemeny rules, with explicit profile encodings and charged running time.
 
 ### Structural graph algorithms

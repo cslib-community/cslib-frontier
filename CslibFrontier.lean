@@ -2048,6 +2048,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.OracleFormula
 public import CslibFrontier.DataStructure.Rope.Balance
 public import CslibFrontier.DataStructure.SearchTree.PointerMachine.Rotation
 public import CslibFrontier.GameTheory.Strategic.Symmetric
+public import CslibFrontier.Foundations.BooleanAnalysis.CondorcetElection
 public import CslibFrontier.Algorithms.WordRAM.Hungarian.Argmin
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Oracle
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.GridDrawing.Composition
