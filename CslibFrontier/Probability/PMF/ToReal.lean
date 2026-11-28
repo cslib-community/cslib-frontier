@@ -29,6 +29,8 @@ through `ENNReal.toReal` by hand.
   `toReal_toOuterMeasure_le_one`.
 * `Cslib.Probability.PMF.toOuterMeasure_toReal_mono`: a larger event has larger real-valued
   probability.
+* `Cslib.Probability.PMF.sum_toReal_mul_mono_support`: a pointwise bound on the support
+  bounds the corresponding finite real expectations.
 -/
 
 public section
@@ -53,5 +55,14 @@ theorem toOuterMeasure_toReal_mono {α : Type*} (μ : _root_.PMF α) {s t : Set 
   refine ENNReal.toReal_mono (ne_top_of_le_ne_top ENNReal.one_ne_top ?_) (μ.toOuterMeasure.mono h)
   rw [← (μ.toOuterMeasure_apply_eq_one_iff Set.univ).2 (Set.subset_univ _)]
   exact μ.toOuterMeasure.mono (Set.subset_univ t)
+
+/-- Finite real expectations are monotone under pointwise inequalities on the support. -/
+theorem sum_toReal_mul_mono_support {α : Type*} [Fintype α] (p : _root_.PMF α) {f g : α → ℝ}
+    (h : ∀ a ∈ p.support, f a ≤ g a) :
+    ∑ a, (p a).toReal * f a ≤ ∑ a, (p a).toReal * g a := by
+  refine Finset.sum_le_sum fun a _ => ?_
+  by_cases ha : a ∈ p.support
+  · exact mul_le_mul_of_nonneg_left (h a ha) ENNReal.toReal_nonneg
+  · rw [(p.apply_eq_zero_iff a).mpr ha, ENNReal.toReal_zero, zero_mul, zero_mul]
 
 end Cslib.Probability.PMF
