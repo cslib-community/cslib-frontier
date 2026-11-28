@@ -4469,7 +4469,7 @@ The network reduction applies to a joint realization of any finite number of lis
 A circuit for `m > 2` records of width `2 ⌈log₂ m⌉` yields a routing verifier at width `⌈log₂ m⌉ - 2`.
 [Pinned construction](https://github.com/openai/math/blob/3344da59991ed94f9ba711217b29c1d760badfa6/preprints/The-matrix-multiplication-exponent-is-nine-fourths-November-24-2026/build/list.tex#L11-L43).
 
-The [derivation](../notes/element-distinctness-routing.tex) uses the [graph amplification](#openai-metric-ports26) on a rectangle of routed bits.
+The routing argument uses the [graph amplification](#openai-metric-ports26) on a rectangle of routed bits.
 The [no-ports branch](../CslibFrontier/Computability/Circuit/Boolean/ElementDistinctness/NoPortsVolume.lean) proves the batch volume and circuit bounds for every exponent below one half, conditional on a field without ports.
 The local ports test covers all multiplicative upper functionals.
 Each additive spectral point used in the paper satisfies the local covering inequality, so a field passing the local ports test satisfies the paper's test.
