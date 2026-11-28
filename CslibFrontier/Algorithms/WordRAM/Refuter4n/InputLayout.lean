@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.Refuter4n.PackedState
 import all CslibFrontier.Computability.Circuit.Boolean.SemiCircuit.OfCircuit
+import Mathlib.Data.List.GetD
 
 /-!
 # Word layout of the input circuit of the `4n - 9d` refuter
@@ -149,5 +150,43 @@ private theorem lineOut_lineTriple {g : ℕ} (wLit : Wire n g → Lit) (L : List
       cases b₀₀ <;> cases b₀₁ <;> cases b₁₀ <;> cases b₁₁ <;>
       simp [swapLo, swapHi, Lit.node] <;> omega
   · cases c <;> simp [lineTriple, lineOut, lineBinaryLit, binaryB2Cost, litCode, Lit.const, argCode]
+
+/-- **Program.** Decoding the line triples of a program gives, line by line, the folded literal
+code of `programGateLitVector` and the gate row of the binary gate `n + j`, if any. -/
+private theorem decodeLines_progTriples : ∀ {g : ℕ} (p : Program (fullSignature 2 Bool) n g),
+    decodeLines n (progTriples p) = List.ofFn fun j : Fin g =>
+      (litCode (programGateLit p j),
+        if n + (j : ℕ) ∈ programBinaryGates p then some (rowOf (programBinaryGate p (n + j)))
+        else none)
+  | _, .empty => rfl
+  | _, @Program.gate _ _ g p line => by
+    have ih := decodeLines_progTriples p
+    have hlen : (decodeLines n (progTriples p)).length = g := by rw [ih, List.length_ofFn]
+    rw [progTriples, decodeLines_append_singleton, hlen, List.ofFn_succ_last, ih]
+    have hne : ∀ j : Fin g, n + (j : ℕ) ≠ n + g := fun j => by have := j.isLt; omega
+    have hmem : ∀ j : Fin g, n + (j : ℕ) ∈ programBinaryGates (p.gate line) ↔
+        n + (j : ℕ) ∈ programBinaryGates p := fun j => by
+      simp only [programBinaryGates]
+      have : (j : ℕ) ≠ g := by have := j.isLt; omega
+      split_ifs <;> simp [this]
+    have hlast : n + g ∈ programBinaryGates (p.gate line) ↔ binaryB2Cost line.op = 1 := by
+      simp only [programBinaryGates]
+      split_ifs with h
+      · simp [h]
+      · exact ⟨fun h' => absurd (mem_programBinaryGates_bounds h').2 (by omega),
+          fun h' => absurd h' h⟩
+    congr 1
+    · refine List.ofFn_inj.2 (funext fun j => ?_)
+      rw [Fin.val_castSucc]
+      have hgl : programGateLit (p.gate line) j.castSucc = programGateLit p j :=
+        Vector.getElem_push_lt j.isLt
+      simp only [hgl, hmem j, programBinaryGate, hne j, ↓reduceIte]
+    · rw [lineOut_lineTriple (programWireLit p) _ (fun _ => rfl) (fun k => by
+          rw [List.getD_eq_getElem _ _ (by simp)]
+          simp [programWireLit])]
+      have hgl : programGateLit (p.gate line) (Fin.last g) =
+          lineBinaryLit (programWireLit p) line :=
+        programWireLit_gate_last p line
+      simp only [Fin.val_last, hgl, hlast, programBinaryGate, ↓reduceIte]
 
 end Cslib.Algorithms.WordRAM.Refuter4n
