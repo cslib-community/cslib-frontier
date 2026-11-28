@@ -70,14 +70,14 @@ namespace IsPacking
 
 variable {C : ℕ} {l : List ℕ} {bins : List (List ℕ)}
 
-/-- The items' total size is the sum of the bins' loads. -/
-theorem sum_eq (h : IsPacking C l bins) : l.sum = (bins.map List.sum).sum := by
-  rw [← h.perm.sum_eq, List.sum_flatten]
-
 /-- The total weight of the items is the sum of the weights of the bins. -/
 theorem sum_map_eq {M : Type*} [AddCommMonoid M] (h : IsPacking C l bins) (f : ℕ → M) :
     (l.map f).sum = (bins.map fun b => (b.map f).sum).sum := by
   rw [← (h.perm.map f).sum_eq, ← List.flatMap_id', List.sum_map_flatMap]
+
+/-- The items' total size is the sum of the bins' loads. -/
+theorem sum_eq (h : IsPacking C l bins) : l.sum = (bins.map List.sum).sum := by
+  simpa only [List.map_id] using h.sum_map_eq id
 
 /-- **Volume bound**: the items' total size is at most `C` times the number of bins. -/
 theorem sum_le_mul_length (h : IsPacking C l bins) : l.sum ≤ C * bins.length := by
